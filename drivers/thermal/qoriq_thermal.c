@@ -94,9 +94,6 @@ struct qoriq_tmu_data {
 	struct qoriq_tmu_regs __iomem *regs;
 	int sensor_id;
 	bool little_endian;
-	int *trip_temp;
-	int ntrip_temp;
-	int temp_delta;
 	struct tmu_throttle_params throt_cfgs[THROTTLE_NUM];
 };
 
@@ -212,15 +209,21 @@ static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 static int tmu_get_trend(void *p,
 	int trip, enum thermal_trend *trend)
 {
-	int trip_temp;
+	int trip_temp, trip_hyst;
 	struct qoriq_tmu_data *data = p;
 
 	if (!data->tz)
 		return 0;
 
-	trip_temp = trip < data->ntrip_temp ? data->trip_temp[trip] : data->trip_temp[0];
+	if (!data->tz->ops->get_trip_temp ||
+		!data->tz->ops->get_trip_hyst ||
+		data->tz->ops->get_trip_temp(data->tz, trip, &trip_temp) ||
+		data->tz->ops->get_trip_hyst(data->tz, trip, &trip_hyst)) {
+		*trend = THERMAL_TREND_RAISE_FULL;
+		return 0;
+	}
 
-	if (data->tz->temperature >= (trip_temp - data->temp_delta))
+	if (data->tz->temperature >= (trip_temp - trip_hyst))
 		*trend = THERMAL_TREND_RAISE_FULL;
 	else
 		*trend = THERMAL_TREND_DROP_FULL;
@@ -228,21 +231,9 @@ static int tmu_get_trend(void *p,
 	return 0;
 }
 
-static int tmu_set_trip_temp(void *p, int trip,
-			     int temp)
-{
-	struct qoriq_tmu_data *data = p;
-
-	if (trip < data->ntrip_temp)
-		data->trip_temp[trip] = temp;
-
-	return 0;
-}
-
 static const struct thermal_zone_of_device_ops tmu_tz_ops = {
 	.get_temp = tmu_get_temp,
 	.get_trend = tmu_get_trend,
-	.set_trip_temp = tmu_set_trip_temp,
 };
 
 static struct tmu_throttle_params *
@@ -294,16 +285,6 @@ static int tmu_init_throttle_cdev(struct platform_device *pdev)
 		return 0;
 	}
 
-	ret = of_property_read_u32(np_tc, "throttle,temp_delta", &val);
-	if (ret) {
-		dev_info(dev,
-			 "throttle-cfg: missing temp_delta parameter,"
-			 "use default 3000 (3C)\n");
-		qt->temp_delta = 3000;
-	} else {
-		qt->temp_delta = val;
-	}
-
 	for_each_child_of_node(np_tc, np_tcc) {
 		struct tmu_throttle_params *ttp;
 		name = np_tcc->name;
@@ -342,11 +323,9 @@ static int tmu_init_throttle_cdev(struct platform_device *pdev)
 static int qoriq_tmu_probe(struct platform_device *pdev)
 {
 	int ret;
-	const struct thermal_trip *trip;
 	struct qoriq_tmu_data *data;
 	struct device_node *np = pdev->dev.of_node;
 	u32 site = 0;
-	int i, ntrips;
 
 	if (!np) {
 		dev_err(&pdev->dev, "Device OF-Node is NULL");
@@ -391,30 +370,15 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 		goto err_tmu;
 	}
 
-	trip = of_thermal_get_trip_points(data->tz);
-	ntrips = of_thermal_get_ntrips(data->tz);
-	data->trip_temp = kzalloc(ntrips * sizeof(*data->trip_temp), GFP_KERNEL);
-	if (!data->trip_temp) {
-		ret = -ENOMEM;
-		goto err_tmu;
-	}
-	for (i=0; i<ntrips; i++) {
-		data->trip_temp[i] = trip[i].temperature;
-	}
-	data->ntrip_temp = ntrips;
-
 	ret = tmu_init_throttle_cdev(pdev);
 	if (ret)
-		goto err_cdev;
+		goto err_tmu;
 
 	/* Enable monitoring */
 	site |= 0x1 << (15 - data->sensor_id);
 	tmu_write(data, site | TMR_ME | TMR_ALPF, &data->regs->tmr);
 
 	return 0;
-
-err_cdev:
-	kfree(data->trip_temp);
 
 err_tmu:
 	iounmap(data->regs);
@@ -434,7 +398,6 @@ static int qoriq_tmu_remove(struct platform_device *pdev)
 		if (data->throt_cfgs[i].inited)
 			devfreq_cooling_unregister(data->throt_cfgs[i].cdev);
 
-	kfree(data->trip_temp);
 	thermal_zone_of_sensor_unregister(&pdev->dev, data->tz);
 
 	/* Disable monitoring */
