@@ -407,7 +407,6 @@
 		#thermal-sensor-cells =  <0>;
 
 		throttle-cfgs {
-			throttle,temp_delta = <3000>;
 			throttle_devfreq: devfreq {
 				throttle,max_state = <2>;
 				#cooling-cells = <2>;
