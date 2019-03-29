@@ -686,6 +686,10 @@
 		reg = <0x3d>;
 		adi,addr-cec = <0x3b>;
 		adi,dsi-lanes = <4>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c2_synaptics_dsx_io>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
 		status = "okay";
 
 		port {
