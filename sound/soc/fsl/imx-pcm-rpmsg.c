@@ -577,7 +577,6 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 	struct fsl_rpmsg_i2s       *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
 	struct i2s_info            *i2s_info =  &rpmsg_i2s->i2s_info;
 	struct i2s_rpmsg           *rpmsg;
-	int index = i2s_info->work_write_index;
 	int buffer_tail = 0;
 
 	if (!rpmsg_i2s->force_lpa)
@@ -601,15 +600,9 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 
 	if (buffer_tail != rpmsg->send_msg.param.buffer_tail) {
 		rpmsg->send_msg.param.buffer_tail = buffer_tail;
-		if (i2s_info->work_write_index != i2s_info->work_read_index) {
-			memcpy(&i2s_info->work_list[index].msg, rpmsg,
-					sizeof(struct i2s_rpmsg_s));
-			queue_work(i2s_info->rpmsg_wq,
-					&i2s_info->work_list[index].work);
-			i2s_info->work_write_index++;
-			i2s_info->work_write_index %= WORK_MAX_NUM;
-		} else
-			i2s_info->msg_drop_count[substream->stream]++;
+		memcpy(&i2s_info->period_done_msg[substream->stream], rpmsg,
+				sizeof(struct i2s_rpmsg_s));
+		i2s_info->period_done_msg_enabled[substream->stream] = true;
 	}
 
 	return 0;

@@ -148,6 +148,16 @@ static void rpmsg_i2s_work(struct work_struct *work)
 	work_of_rpmsg = container_of(work, struct work_of_rpmsg, work);
 	i2s_info = work_of_rpmsg->i2s_info;
 
+	if (i2s_info->period_done_msg_enabled[0]) {
+		i2s_send_message(&i2s_info->period_done_msg[0], i2s_info);
+		i2s_info->period_done_msg_enabled[0] = false;
+	}
+
+	if (i2s_info->period_done_msg_enabled[1]) {
+		i2s_send_message(&i2s_info->period_done_msg[1], i2s_info);
+		i2s_info->period_done_msg_enabled[1] = false;
+	}
+
 	i2s_send_message(&work_of_rpmsg->msg, i2s_info);
 
 	i2s_info->work_read_index++;
