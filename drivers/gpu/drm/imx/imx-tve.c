@@ -293,6 +293,11 @@ static void imx_tve_encoder_mode_set(struct drm_encoder *encoder,
 	rounded_rate = clk_get_rate(tve->clk);
 	if (rounded_rate >= rate)
 		div = 2;
+	if (rounded_rate > 0)
+		clk_set_rate(tve->di_clk, rounded_rate / div);
+	else
+		dev_err(tve->dev,
+			"clk_get_rate(tve->clk) returned 0 for rate\n");
 	clk_set_rate(tve->di_clk, rounded_rate / div);
 
 	ret = clk_set_parent(tve->di_sel_clk, tve->di_clk);

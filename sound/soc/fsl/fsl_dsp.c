@@ -431,8 +431,12 @@ int fsl_dsp_close_func(struct xf_client *client)
 	/* If device is free, reinitialize the resource of
 	 * dsp driver and framework
 	 */
-	if (atomic_long_read(&dsp_priv->refcnt) <= 0)
+	if (atomic_long_read(&dsp_priv->refcnt) <= 0) {
+		/* we are closing up, wait for proxy processing
+		 * function to finish */
+		cancel_work_sync(&dsp_priv->proxy.work);
 		resource_release(dsp_priv);
+	}
 
 	mutex_unlock(&dsp_priv->dsp_mutex);
 

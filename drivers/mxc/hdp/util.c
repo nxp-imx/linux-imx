@@ -226,7 +226,7 @@ void internal_vreadmsg(state_struct *state, int valNo, va_list vl)
 
 INTERNAL_MBOX_STATUS mailbox_write(state_struct *state, u8 val)
 {
-	INTERNAL_MBOX_STATUS ret;
+	INTERNAL_MBOX_STATUS ret = { 0, 0, 0, 0 };
 	u32 full;
 	if (cdn_bus_read(state, MAILBOX_FULL_ADDR << 2, &full)) {
 		ret.tx_status = CDN_TX_APB_ERROR;
@@ -246,7 +246,7 @@ INTERNAL_MBOX_STATUS mailbox_write(state_struct *state, u8 val)
 
 INTERNAL_MBOX_STATUS mailbox_read(state_struct *state, volatile u8 *val)
 {
-	INTERNAL_MBOX_STATUS ret;
+	INTERNAL_MBOX_STATUS ret = { 0, 0, 0, 0 };
 	u32 empty;
 	u32 rd;
 	if (cdn_bus_read(state, MAILBOX_EMPTY_ADDR << 2, &empty)) {

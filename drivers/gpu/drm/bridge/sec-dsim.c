@@ -1186,10 +1186,10 @@ struct dsim_pll_pms *sec_mipi_dsim_calc_pmsk(struct sec_mipi_dsim *dsim)
 	 * Fvco: [1050MHz ~ 2100MHz] (Fvco = ((m + k / 65536) * Fin) / p)
 	 * So, m = Fvco * p / Fin and Fvco > Fin;
 	 */
-	pfvco = fvco_range->min * prange->min;
+	pfvco = (uint64_t)fvco_range->min * prange->min;
 	mrange->min = max_t(uint32_t, mrange->min,
 			    DIV_ROUND_UP_ULL(pfvco, fin));
-	pfvco = fvco_range->max * prange->max;
+	pfvco = (uint64_t)fvco_range->max * prange->max;
 	mrange->max = min_t(uint32_t, mrange->max,
 			    DIV_ROUND_UP_ULL(pfvco, fin));
 
@@ -1202,7 +1202,7 @@ struct dsim_pll_pms *sec_mipi_dsim_calc_pmsk(struct sec_mipi_dsim *dsim)
 	/* first determine 'm', then can determine 'p', last determine 's' */
 	for (m = mrange->min; m <= mrange->max; m++) {
 		/* p = m * Fin / Fvco */
-		mfin = m * fin;
+		mfin = (uint64_t)m * fin;
 		pr_new.min = max_t(uint32_t, prange->min,
 				   DIV_ROUND_UP_ULL(mfin, fvco_range->max));
 		pr_new.max = min_t(uint32_t, prange->max,
@@ -1213,7 +1213,7 @@ struct dsim_pll_pms *sec_mipi_dsim_calc_pmsk(struct sec_mipi_dsim *dsim)
 
 		for (p = pr_new.min; p <= pr_new.max; p++) {
 			/* s = order_pow_of_two((m * Fin) / (p * Fout)) */
-			pfout = p * fout;
+			pfout = (uint64_t)p * fout;
 			raw_s = DIV_ROUND_CLOSEST_ULL(mfin, pfout);
 
 			s_pow_2 = rounddown_pow_of_two(raw_s);

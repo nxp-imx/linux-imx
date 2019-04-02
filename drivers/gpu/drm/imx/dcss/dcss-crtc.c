@@ -44,7 +44,8 @@ struct dcss_crtc {
 	struct drm_property *use_global;
 	struct drm_property *dtrc_table_ofs;
 
-	struct completion en_dis_completion;
+	struct completion en_completion;
+	struct completion dis_completion;
 
 	enum dcss_hdr10_nonlinearity opipe_nl;
 	enum dcss_hdr10_gamut opipe_g;
@@ -270,8 +271,8 @@ static void dcss_crtc_atomic_enable(struct drm_crtc *crtc,
 	dcss_dtg_enable(dcss, true, NULL);
 	dcss_ctxld_enable(dcss);
 
-	reinit_completion(&dcss_crtc->en_dis_completion);
-	wait_for_completion_timeout(&dcss_crtc->en_dis_completion,
+	reinit_completion(&dcss_crtc->en_completion);
+	wait_for_completion_timeout(&dcss_crtc->en_completion,
 				    msecs_to_jiffies(500));
 
 	crtc->enabled = true;
@@ -296,13 +297,13 @@ static void dcss_crtc_atomic_disable(struct drm_crtc *crtc,
 	dcss_dtg_ctxld_kick_irq_enable(dcss, true);
 
 	dcss_ss_enable(dcss, false);
-	dcss_dtg_enable(dcss, false, &dcss_crtc->en_dis_completion);
+	dcss_dtg_enable(dcss, false, &dcss_crtc->dis_completion);
 	dcss_ctxld_enable(dcss);
 
 	crtc->enabled = false;
 
-	reinit_completion(&dcss_crtc->en_dis_completion);
-	wait_for_completion_timeout(&dcss_crtc->en_dis_completion,
+	reinit_completion(&dcss_crtc->dis_completion);
+	wait_for_completion_timeout(&dcss_crtc->dis_completion,
 				    msecs_to_jiffies(100));
 
 	drm_crtc_vblank_off(crtc);
@@ -362,7 +363,10 @@ static irqreturn_t dcss_crtc_irq_handler(int irq, void *dev_id)
 
 	dcss_trace_module(TRACE_DRM_CRTC, TRACE_VBLANK);
 
-	complete(&dcss_crtc->en_dis_completion);
+	if (!dcss_dtg_vblank_irq_valid(dcss))
+		return IRQ_HANDLED;
+
+	complete(&dcss_crtc->en_completion);
 
 	if (dcss_ctxld_is_flushed(dcss)) {
 		drm_crtc_handle_vblank(&dcss_crtc->base);
@@ -450,7 +454,8 @@ static int dcss_crtc_init(struct dcss_crtc *crtc,
 		return crtc->irq;
 	}
 
-	init_completion(&crtc->en_dis_completion);
+	init_completion(&crtc->en_completion);
+	init_completion(&crtc->dis_completion);
 
 	ret = devm_request_irq(crtc->dev, crtc->irq, dcss_crtc_irq_handler,
 			       IRQF_TRIGGER_RISING, "dcss_drm", crtc);

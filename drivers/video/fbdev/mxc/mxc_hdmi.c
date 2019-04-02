@@ -1052,12 +1052,6 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			HDMI_PHY_I2CM_SLAVE_ADDR);
 	hdmi_phy_test_clear(hdmi, 0);
 
-	if (hdmi->hdmi_data.video_mode.mPixelClock < 0) {
-		dev_dbg(&hdmi->pdev->dev, "Pixel clock (%d) must be positive\n",
-			hdmi->hdmi_data.video_mode.mPixelClock);
-		return false;
-	}
-
 	if (hdmi->hdmi_data.video_mode.mPixelClock <= 45250000) {
 		switch (cRes) {
 		case 8:

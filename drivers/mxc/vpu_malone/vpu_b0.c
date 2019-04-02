@@ -454,7 +454,7 @@ static int v4l2_ioctl_querycap(struct file *file,
 		)
 {
 	vpu_dbg(LVL_INFO, "%s()\n", __func__);
-	strncpy(cap->driver, "vpu B0", sizeof(cap->driver) - 1);
+	strlcpy(cap->driver, "vpu B0", sizeof(cap->driver));
 	strlcpy(cap->card, "vpu B0", sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform:", sizeof(cap->bus_info));
 	cap->version = KERNEL_VERSION(0, 0, 1);
@@ -1035,7 +1035,7 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 
 	ret = vpu_dec_queue_reqbufs(q_data, reqbuf);
 	if (ret) {
-		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer : %d\n",
+		vpu_dbg(LVL_WARN, "warning: %s() can't request (%d) buffer : %d\n",
 				__func__, reqbuf->count, ret);
 		return ret;
 	}
@@ -2633,6 +2633,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		reinit_completion(&ctx->alloc_cmp);
 		while (1) {
 			if (!wait_for_completion_timeout(&ctx->alloc_cmp, msecs_to_jiffies(1000))) {
+				if (ctx->ctx_released == true)
+					break;
 				vpu_dbg(LVL_WARN, "ctx[%d] warning: wait application alloc frame timeout\n",
 						ctx->str_index);
 			} else {
@@ -3936,7 +3938,9 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 		vpu_dbg(LVL_ERR, "video device alloc for decoder fail\n");
 		return -ENOMEM;
 	}
-	strncpy(dev->pvpu_decoder_dev->name, v4l2_videodevice_decoder.name, sizeof(v4l2_videodevice_decoder.name));
+	strlcpy(dev->pvpu_decoder_dev->name,
+			v4l2_videodevice_decoder.name,
+			sizeof(dev->pvpu_decoder_dev->name));
 	dev->pvpu_decoder_dev->fops = v4l2_videodevice_decoder.fops;
 	dev->pvpu_decoder_dev->ioctl_ops = v4l2_videodevice_decoder.ioctl_ops;
 	dev->pvpu_decoder_dev->release = video_device_release;

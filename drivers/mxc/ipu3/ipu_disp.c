@@ -1159,6 +1159,10 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 		}
 	}
 	rounded_pixel_clk = clk_round_rate(ipu->pixel_clk[disp], pixel_clk);
+	if (rounded_pixel_clk == 0) {
+		dev_err(ipu->dev, "rounded pixel clock should not be zero\n");
+		return -EINVAL;
+	}
 	dev_dbg(ipu->dev, "round pixel clk:%d\n", rounded_pixel_clk);
 	ret = clk_set_rate(ipu->pixel_clk[disp], rounded_pixel_clk);
 	if (ret) {
@@ -1610,6 +1614,11 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 	u32 ser_conf = 0;
 	u32 div;
 	u32 di_clk = clk_get_rate(ipu->ipu_clk);
+
+	if (di_clk == 0) {
+		dev_err(ipu->dev, "di clock rate should not be zero\n");
+		return -EINVAL;
+	}
 
 	/* round up cycle_time, then calcalate the divider using scaled math */
 	cycle_time += (1000000000UL / di_clk) - 1;

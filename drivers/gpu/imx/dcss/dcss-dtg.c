@@ -197,6 +197,9 @@ static irqreturn_t dcss_dtg_irq_handler(int irq, void *data)
 
 	status = dcss_readl(dtg->base_reg + DCSS_DTG_INT_STATUS);
 
+	if (!(status & LINE0_IRQ))
+		return IRQ_HANDLED;
+
 	dcss_ctxld_kick(dtg->dcss);
 
 	dcss_writel(status & LINE0_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
@@ -757,3 +760,12 @@ void dcss_dtg_vblank_irq_clear(struct dcss_soc *dcss)
 
 	dcss_update(LINE1_IRQ, LINE1_IRQ, reg);
 }
+
+bool dcss_dtg_vblank_irq_valid(struct dcss_soc *dcss)
+{
+	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
+
+	return !!(dcss_readl(dtg->base_reg + DCSS_DTG_INT_STATUS) & LINE1_IRQ);
+}
+EXPORT_SYMBOL(dcss_dtg_vblank_irq_valid);
+

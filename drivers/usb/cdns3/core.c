@@ -704,10 +704,18 @@ static void cdns3_enter_suspend(struct cdns3 *cdns, bool suspend, bool wakeup)
 	u32 value;
 	int timeout_us = 100000;
 
-	if (cdns->role != CDNS3_ROLE_HOST)
+	if (cdns->role == CDNS3_ROLE_GADGET) {
+		if (suspend) {
+			/* When at device mode, set controller at reset mode */
+			value = readl(cdns->none_core_regs + USB3_CORE_CTRL1);
+			value |= ALL_SW_RESET;
+			writel(value, cdns->none_core_regs + USB3_CORE_CTRL1);
+		}
 		return;
+	} else if (cdns->role == CDNS3_ROLE_END) {
+		return;
+	}
 
-	disable_irq(cdns->irq);
 	if (suspend) {
 		if (cdns3_role(cdns)->suspend)
 			cdns3_role(cdns)->suspend(cdns, wakeup);
@@ -823,6 +831,14 @@ static void cdns3_enter_suspend(struct cdns3 *cdns, bool suspend, bool wakeup)
 		if (timeout_us <= 0)
 			dev_err(cdns->dev, "wait xhci_power_on_ready timeout\n");
 	}
+}
+
+static void cdns3_controller_suspend(struct cdns3 *cdns, bool wakeup)
+{
+	disable_irq(cdns->irq);
+	cdns3_enter_suspend(cdns, true, wakeup);
+	usb_phy_set_suspend(cdns->usbphy, 1);
+	cdns->in_lpm = true;
 	enable_irq(cdns->irq);
 }
 
@@ -831,28 +847,16 @@ static int cdns3_suspend(struct device *dev)
 {
 	struct cdns3 *cdns = dev_get_drvdata(dev);
 	bool wakeup = device_may_wakeup(dev);
-	u32 value;
 
 	dev_dbg(dev, "at %s\n", __func__);
 
 	if (pm_runtime_status_suspended(dev))
 		pm_runtime_resume(dev);
 
-	if (cdns->role == CDNS3_ROLE_HOST)
-		cdns3_enter_suspend(cdns, true, wakeup);
-	else if (cdns->role == CDNS3_ROLE_GADGET) {
-		/* When at device mode, always set controller at reset mode */
-		value = readl(cdns->none_core_regs + USB3_CORE_CTRL1);
-		value |= ALL_SW_RESET;
-		writel(value, cdns->none_core_regs + USB3_CORE_CTRL1);
-	}
-
+	cdns3_controller_suspend(cdns, wakeup);
+	cdns3_disable_unprepare_clks(dev);
 	if (wakeup)
 		enable_irq_wake(cdns->irq);
-
-	usb_phy_set_suspend(cdns->usbphy, 1);
-	cdns3_disable_unprepare_clks(dev);
-	cdns->in_lpm = true;
 
 	return 0;
 }
@@ -929,10 +933,8 @@ static int cdns3_runtime_suspend(struct device *dev)
 		return 0;
 	}
 
-	cdns3_enter_suspend(cdns, true, true);
-	usb_phy_set_suspend(cdns->usbphy, 1);
+	cdns3_controller_suspend(cdns, true);
 	cdns3_disable_unprepare_clks(dev);
-	cdns->in_lpm = true;
 
 	dev_dbg(dev, "at the end of %s\n", __func__);
 

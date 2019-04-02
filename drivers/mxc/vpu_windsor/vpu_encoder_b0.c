@@ -332,7 +332,7 @@ static int vpu_enc_v4l2_ioctl_querycap(struct file *file,
 		struct v4l2_capability *cap)
 {
 	vpu_log_func();
-	strncpy(cap->driver, "vpu encoder", sizeof(cap->driver) - 1);
+	strlcpy(cap->driver, "vpu encoder", sizeof(cap->driver));
 	strlcpy(cap->card, "vpu encoder", sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform:", sizeof(cap->bus_info));
 	cap->version = KERNEL_VERSION(0, 0, 1);
@@ -3382,12 +3382,18 @@ static int set_vpu_fw_addr(struct vpu_dev *dev, struct core_device *core_dev)
 	return 0;
 }
 
+static void cleanup_firmware_memory(struct core_device *core_dev)
+{
+	memset_io(core_dev->m0_p_fw_space_vir, 0, core_dev->fw_buf_size);
+}
+
 static int vpu_firmware_download(struct vpu_dev *This, u_int32 core_id)
 {
 	const struct firmware *m0_pfw = NULL;
 	const u8 *image;
 	unsigned int FW_Size = 0;
 	int ret = 0;
+	struct core_device *core_dev = &This->core_dev[core_id];
 	char *p = This->core_dev[core_id].m0_p_fw_space_vir;
 
 	vpu_log_func();
@@ -3406,7 +3412,8 @@ static int vpu_firmware_download(struct vpu_dev *This, u_int32 core_id)
 	FW_Size = min_t(u32, m0_pfw->size, This->core_dev[core_id].fw_buf_size);
 	This->core_dev[core_id].fw_actual_size = FW_Size;
 
-	memcpy(This->core_dev[core_id].m0_p_fw_space_vir, image, FW_Size);
+	cleanup_firmware_memory(core_dev);
+	memcpy(core_dev->m0_p_fw_space_vir, image, FW_Size);
 	p[16] = This->plat_type;
 	p[17] = core_id + 1;
 	p[18] = 1;
@@ -4919,9 +4926,9 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 		return -ENOMEM;
 	}
 
-	strncpy(dev->pvpu_encoder_dev->name,
+	strlcpy(dev->pvpu_encoder_dev->name,
 		vpu_enc_v4l2_videodevice.name,
-		sizeof(vpu_enc_v4l2_videodevice.name));
+		sizeof(dev->pvpu_encoder_dev->name));
 	dev->pvpu_encoder_dev->fops = vpu_enc_v4l2_videodevice.fops;
 	dev->pvpu_encoder_dev->ioctl_ops = vpu_enc_v4l2_videodevice.ioctl_ops;
 	dev->pvpu_encoder_dev->release = video_device_release;
@@ -5235,7 +5242,7 @@ static int init_vpu_core_dev(struct core_device *core_dev)
 	if (!core_dev->m0_p_fw_space_vir)
 		vpu_err("failed to remap space for M0 firmware\n");
 
-	memset_io(core_dev->m0_p_fw_space_vir, 0, core_dev->fw_buf_size);
+	cleanup_firmware_memory(core_dev);
 
 	core_dev->m0_rpc_virt =
 		ioremap_wc(core_dev->m0_rpc_phy,

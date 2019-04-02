@@ -581,8 +581,8 @@ static int it6263_get_modes(struct drm_connector *connector)
 	return num;
 }
 
-enum drm_mode_status it6263_mode_valid(struct drm_connector *connector,
-					struct drm_display_mode *mode)
+static enum drm_mode_status it6263_mode_valid(struct drm_connector *connector,
+					      struct drm_display_mode *mode)
 {
 	const struct it6263_minimode *m;
 	int i, vrefresh = drm_mode_vrefresh(mode);
