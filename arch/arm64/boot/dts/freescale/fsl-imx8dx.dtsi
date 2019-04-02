@@ -128,7 +128,7 @@
 		rpmsg_dma_reserved:rpmsg_dma@0x90400000 {
 			compatible = "shared-dma-pool";
 			no-map;
-			reg = <0 0x90400000 0 0x1C00000>;
+			reg = <0 0x90400000 0 0x800000>;
 		};
 		decoder_rpc: decoder_rpc@0x92000000 {
 			no-map;
