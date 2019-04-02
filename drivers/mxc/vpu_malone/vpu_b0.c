@@ -165,6 +165,7 @@ static char *bufstat[] = {
 };
 
 static int alloc_vpu_buffer(struct vpu_ctx *ctx);
+static bool vpu_dec_is_active(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -1299,10 +1300,7 @@ static int v4l2_ioctl_streamoff(struct file *file,
 		return -EINVAL;
 
 	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		if (ctx->firmware_stopped) {
-			vpu_dbg(LVL_ERR, "%s() - IGNORE - stopped(%d), finished(%d), eos_added(%d)\n",
-					__func__, ctx->firmware_stopped, ctx->firmware_finished, ctx->eos_stop_added);
-		} else {
+		if (vpu_dec_is_active(ctx)) {
 			int size;
 			ctx->wait_rst_done = true;
 			vpu_dbg(LVL_INFO, "%s(): send VID_API_CMD_ABORT\n", __func__);
@@ -1321,6 +1319,13 @@ static int v4l2_ioctl_streamoff(struct file *file,
 						ctx->firmware_finished, ctx->eos_stop_added);
 			}
 			vpu_dbg(LVL_INFO, "receive abort done\n");
+		} else {
+			vpu_dbg(LVL_ERR,
+				"%s() - IGNORE - stopped(%d), finished(%d), eos_added(%d)\n",
+				__func__,
+				ctx->firmware_stopped,
+				ctx->firmware_finished,
+				ctx->eos_stop_added);
 		}
 	}
 
@@ -2118,7 +2123,7 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 					VB2_BUF_STATE_DONE);
 	}
 	if (list_empty(&This->drv_q) && ctx->eos_stop_received) {
-		if (!ctx->firmware_stopped)	{
+		if (vpu_dec_is_active(ctx)) {
 			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
 			if (add_scode(ctx, 0, EOS_PADDING_TYPE, true) >= 0) {
 				record_log_info(ctx, LOG_EOS, 0, 0);
@@ -2793,6 +2798,14 @@ static int vpu_mu_init(struct vpu_dev *dev)
 	return ret;
 }
 
+static void release_vpu_ctx(struct vpu_ctx *ctx)
+{
+	if (!ctx)
+		return;
+	pm_runtime_put_sync(ctx->dev->generic_dev);
+	kfree(ctx);
+}
+
 static int release_hang_instance(struct vpu_dev *dev)
 {
 	u_int32 i;
@@ -2806,7 +2819,7 @@ static int release_hang_instance(struct vpu_dev *dev)
 			destroy_log_info_queue(dev->ctx[i]);
 			if (atomic64_read(&dev->ctx[i]->statistic.total_alloc_size) != 0)
 				vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
-			kfree(dev->ctx[i]);
+			release_vpu_ctx(dev->ctx[i]);
 			dev->ctx[i] = NULL;
 		}
 
@@ -2850,8 +2863,7 @@ static int vpu_next_free_instance(struct vpu_dev *dev)
 	if (idx < 0 || idx >= VPU_MAX_NUM_STREAMS)
 		return -EBUSY;
 
-	kfree(dev->ctx[idx]);
-	dev->ctx[idx] = NULL;
+	release_vpu_ctx(dev->ctx[idx]);
 
 	return idx;
 }
@@ -3272,8 +3284,11 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 		p_data_req = &This->vb2_reqs[i];
 		if (p_data_req->vb2_buf != NULL) {
 			size = scnprintf(buf + num, PAGE_SIZE - num,
-					"\t%40s(%2d):%16s\n",
-					"buffer", i, bufstat[p_data_req->status]);
+					"\t%40s(%2d):%16s:%d\n",
+					"buffer",
+					i,
+					bufstat[p_data_req->status],
+					p_data_req->vb2_buf->state);
 			num += size;
 		}
 	}
@@ -3535,6 +3550,18 @@ static int close_crc_file(struct vpu_ctx *ctx)
 	return ret;
 }
 
+static bool vpu_dec_is_active(struct vpu_ctx *ctx)
+{
+	if (!ctx)
+		return false;
+	if (ctx->firmware_stopped)
+		return false;
+	if (ctx->start_flag)
+		return false;
+
+	return true;
+}
+
 static int v4l2_open(struct file *filp)
 {
 	struct video_device *vdev = video_devdata(filp);
@@ -3545,8 +3572,10 @@ static int v4l2_open(struct file *filp)
 
 	pm_runtime_get_sync(dev->generic_dev);
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
-	if (!ctx)
+	if (!ctx) {
+		pm_runtime_put_sync(dev->generic_dev);
 		return -ENOMEM;
+	}
 	mutex_lock(&dev->dev_mutex);
 	idx = vpu_next_free_instance(dev);
 	if (idx < 0) {
@@ -3678,7 +3707,7 @@ static int v4l2_release(struct file *filp)
 	vpu_dbg(LVL_EVENT, "ctx[%d]: v4l2_release() - stopped(%d), finished(%d), eos_added(%d), total frame: %d\n",
 		ctx->str_index, ctx->firmware_stopped, ctx->firmware_finished, ctx->eos_stop_added, ctx->frm_total_num);
 
-	if (!ctx->firmware_stopped && ctx->start_flag == false) {
+	if (vpu_dec_is_active(ctx)) {
 		ctx->wait_rst_done = true;
 		wake_up_interruptible(&ctx->buffer_wq);  //workaround: to wakeup event handler who still may receive request frame after reset done
 		vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
@@ -3693,7 +3722,9 @@ static int v4l2_release(struct file *filp)
 	mutex_lock(&ctx->instance_mutex);
 	ctx->ctx_released = true;
 	kfifo_free(&ctx->msg_fifo);
-	destroy_workqueue(ctx->instance_wq);
+	cancel_work_sync(&ctx->instance_work);
+	if (ctx->instance_wq)
+		destroy_workqueue(ctx->instance_wq);
 	mutex_unlock(&ctx->instance_mutex);
 
 	if (vpu_frmcrcdump_ena)
@@ -3711,8 +3742,6 @@ static int v4l2_release(struct file *filp)
 		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
 	}
 
-	pm_runtime_put_sync(ctx->dev->generic_dev);
-
 	if (!ctx->hang_status) { // judge the path is hang or not, if hang, don't clear
 		remove_instance_file(ctx);
 		destroy_log_info_queue(ctx);
@@ -3720,10 +3749,8 @@ static int v4l2_release(struct file *filp)
 			vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
 		mutex_lock(&dev->dev_mutex);
 		clear_bit(ctx->str_index, &dev->instance_mask);
-		if (ctx->firmware_finished) {
-			dev->ctx[ctx->str_index] = NULL;
-			kfree(ctx);
-		}
+		dev->ctx[ctx->str_index] = NULL;
+		release_vpu_ctx(ctx);
 
 		mutex_unlock(&dev->dev_mutex);
 	} else {
@@ -3731,6 +3758,7 @@ static int v4l2_release(struct file *filp)
 		set_bit(ctx->str_index, &dev->hang_mask);
 		mutex_unlock(&dev->dev_mutex);
 	}
+
 	return 0;
 }
 
