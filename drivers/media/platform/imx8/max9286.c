@@ -28,6 +28,8 @@
 #define MAX9271_MAX_SENSOR_NUM	4
 #define CAMERA_USES_15HZ
 
+#define I2C_BUS_READ_WRITE_COUNT_MAX 20
+
 #define ADDR_MAX9286		0x6A
 #define ADDR_MAX9271		0x40
 #define ADDR_MAX9271_ALL	(ADDR_MAX9271 + 5)  /* Broadcast address */
@@ -2221,7 +2223,7 @@ static inline int ov10635_read_reg(struct sensor_data *max9286_data, int index,
 {
 	unsigned char u8_buf[2] = { 0 };
 	unsigned int buf_len = 2;
-	int retry, timeout = 10;
+	int retry;
 	unsigned char u8_val = 0;
 
 	u8_buf[0] = (reg >> 8) & 0xFF;
@@ -2229,7 +2231,7 @@ static inline int ov10635_read_reg(struct sensor_data *max9286_data, int index,
 
 	max9286_data->i2c_client->addr = ADDR_OV_SENSOR + index;
 
-	for (retry = 0; retry < timeout; retry++) {
+	for (retry = 0; retry < I2C_BUS_READ_WRITE_COUNT_MAX; retry++) {
 		if (i2c_master_send(max9286_data->i2c_client, u8_buf, buf_len) < 0) {
 			dev_dbg(&max9286_data->i2c_client->dev,
 				"%s:read reg error on send: reg=0x%x, retry = %d.\n", __func__, reg, retry);
@@ -2245,7 +2247,7 @@ static inline int ov10635_read_reg(struct sensor_data *max9286_data, int index,
 		break;
 	}
 
-	if (retry >= timeout) {
+	if (retry >= I2C_BUS_READ_WRITE_COUNT_MAX) {
 		dev_info(&max9286_data->i2c_client->dev,
 			"%s:read reg error: reg=0x%x.\n", __func__, reg);
 		return -1;
@@ -2261,14 +2263,14 @@ static inline int ov10635_write_reg(struct sensor_data *max9286_data, int index,
 {
 	unsigned char u8_buf[3] = { 0 };
 	unsigned int buf_len = 3;
-	int retry, timeout = 10;
+	int retry;
 
 	u8_buf[0] = (reg >> 8) & 0xFF;
 	u8_buf[1] = reg & 0xFF;
 	u8_buf[2] = val;
 
 	max9286_data->i2c_client->addr = ADDR_OV_SENSOR + index;
-	for (retry = 0; retry < timeout; retry++) {
+	for (retry = 0; retry < I2C_BUS_READ_WRITE_COUNT_MAX; retry++) {
 		if (i2c_master_send(max9286_data->i2c_client, u8_buf, buf_len) < 0) {
 			dev_dbg(&max9286_data->i2c_client->dev,
 				"%s:write reg error: reg=0x%x, val=0x%x, retry = %d.\n", __func__, reg, val, retry);
@@ -2278,7 +2280,7 @@ static inline int ov10635_write_reg(struct sensor_data *max9286_data, int index,
 		break;
 	}
 
-	if (retry >= timeout) {
+	if (retry >= I2C_BUS_READ_WRITE_COUNT_MAX) {
 		dev_info(&max9286_data->i2c_client->dev,
 			"%s:write reg error: reg=0x%x, val=0x%x.\n", __func__, reg, val);
 		return -1;
@@ -2355,10 +2357,10 @@ static int ov10635_initialize(struct sensor_data *max9286_data, int index)
 static inline int max9271_read_reg(struct sensor_data *max9286_data, int index, u8 reg)
 {
 	int val;
-	int retry, timeout = 10;
+	int retry;
 
 	max9286_data->i2c_client->addr = ADDR_MAX9271 + index;
-	for (retry = 0; retry < timeout; retry++) {
+	for (retry = 0; retry < I2C_BUS_READ_WRITE_COUNT_MAX; retry++) {
 		val = i2c_smbus_read_byte_data(max9286_data->i2c_client, reg);
 		if (val < 0)
 			msleep(5);
@@ -2366,7 +2368,7 @@ static inline int max9271_read_reg(struct sensor_data *max9286_data, int index, 
 			break;
 	}
 
-	if (retry >= timeout) {
+	if (retry >= I2C_BUS_READ_WRITE_COUNT_MAX) {
 		dev_info(&max9286_data->i2c_client->dev,
 			"%s:read reg error: reg=%2x\n", __func__, reg);
 		return -1;
@@ -2378,10 +2380,10 @@ static inline int max9271_read_reg(struct sensor_data *max9286_data, int index, 
 static int max9271_write_reg(struct sensor_data *max9286_data, int index, u8 reg, u8 val)
 {
 	s32 ret;
-	int retry, timeout = 10;
+	int retry;
 
 	max9286_data->i2c_client->addr = ADDR_MAX9271 + index;
-	for (retry = 0; retry < timeout; retry++) {
+	for (retry = 0; retry < I2C_BUS_READ_WRITE_COUNT_MAX; retry++) {
 		ret = i2c_smbus_write_byte_data(max9286_data->i2c_client, reg, val);
 		if (val < 0)
 			msleep(5);
@@ -2392,7 +2394,7 @@ static int max9271_write_reg(struct sensor_data *max9286_data, int index, u8 reg
 		"%s: addr %02x reg %02x val %02x\n",
 		__func__, max9286_data->i2c_client->addr, reg, val);
 
-	if (retry >= timeout) {
+	if (retry >= I2C_BUS_READ_WRITE_COUNT_MAX) {
 		dev_info(&max9286_data->i2c_client->dev,
 			"%s:write reg error:reg=%2x,val=%2x\n", __func__,
 			reg, val);
