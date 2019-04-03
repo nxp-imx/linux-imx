@@ -3733,7 +3733,7 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	mutex_init(&port->lock);
 	mutex_init(&port->swap_lock);
 
-	port->wq = create_singlethread_workqueue(dev_name(dev));
+	port->wq = create_freezable_workqueue(dev_name(dev));
 	if (!port->wq)
 		return ERR_PTR(-ENOMEM);
 	INIT_DELAYED_WORK(&port->state_machine, tcpm_state_machine_work);
