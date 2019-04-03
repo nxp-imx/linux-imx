@@ -1408,6 +1408,7 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 	if (!fmt) {
 		mf->code	= ov5640_colour_fmts[0].code;
 		mf->colorspace	= ov5640_colour_fmts[0].colorspace;
+		fmt		= &ov5640_colour_fmts[0];
 	}
 
 	mf->field	= V4L2_FIELD_NONE;

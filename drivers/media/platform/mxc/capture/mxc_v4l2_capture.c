@@ -579,7 +579,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		}
 	} while (++i < FB_MAX);
 
-	if (foregound_fb) {
+	if (foregound_fb && bg_fbi) {
 		width_bound = bg_fbi->var.xres;
 		height_bound = bg_fbi->var.yres;
 
