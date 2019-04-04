@@ -405,39 +405,22 @@
 				       0x00030006 0x0000005f
 				       0x00030007 0x00000071>;
 		#thermal-sensor-cells =  <0>;
-
-		throttle-cfgs {
-			throttle_devfreq: devfreq {
-				throttle,max_state = <2>;
-				#cooling-cells = <2>;
-			};
-		};
 	};
 
-	thermal-zones {
+	thermal_zones: thermal-zones {
 		/* cpu thermal */
-		cpu_thermal: cpu-thermal {
+		cpu-thermal {
 			polling-delay-passive = <250>;
 			polling-delay = <2000>;
 			thermal-sensors = <&tmu>;
 			trips {
 				cpu_alert0: trip0 {
-					temperature = <75000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_alert1: trip1 {
-					temperature = <80000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_alert2: trip2 {
 					temperature = <85000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
-				cpu_crit0: trip3 {
-					temperature = <90000>;
+				cpu_crit0: trip1 {
+					temperature = <95000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
@@ -447,18 +430,7 @@
 				map0 {
 					trip = <&cpu_alert0>;
 					cooling-device =
-					<&throttle_devfreq 0 1>, /* 1/2 GPU Clock */
-					<&A53_0 0 1>; /* Exclude highest OPP */
-				};
-				map1 {
-					trip = <&cpu_alert1>;
-					cooling-device =
-					<&A53_0 0 2>; /* Exclude two highest OPPs */
-				};
-				map2 {
-					trip = <&cpu_alert2>;
-					cooling-device =
-					<&throttle_devfreq 0 2>; /* Min GPU Clock, disable CPU2/3 */
+					<&A53_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
