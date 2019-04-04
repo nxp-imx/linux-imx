@@ -1142,7 +1142,7 @@ static void sec_mipi_dsim_set_standby(struct sec_mipi_dsim *dsim,
 struct dsim_pll_pms *sec_mipi_dsim_calc_pmsk(struct sec_mipi_dsim *dsim)
 {
 	uint32_t p, m, s;
-	uint32_t best_p, best_m, best_s;
+	uint32_t best_p = 0, best_m = 0, best_s = 0;
 	uint32_t fin, fout;
 	uint32_t s_pow_2, raw_s;
 	uint64_t mfin, pfvco, pfout, psfout;
