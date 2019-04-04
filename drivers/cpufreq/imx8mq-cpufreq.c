@@ -20,7 +20,7 @@
 #include <linux/suspend.h>
 #include <linux/device_cooling.h>
 
-#define DC_VOLTAGE_MIN		850000
+#define DC_VOLTAGE_MIN		900000
 #define DC_VOLTAGE_MAX		1000000
 
 static struct device *cpu_dev;

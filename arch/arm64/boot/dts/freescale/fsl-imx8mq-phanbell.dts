@@ -473,7 +473,7 @@
 			buck2_reg: regulator@1 {
 				reg = <1>;
 				regulator-compatible = "buck2";
-				regulator-min-microvolt = <850000>;
+				regulator-min-microvolt = <900000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-boot-on;
 				regulator-always-on;
@@ -804,7 +804,6 @@
 		1300000 1000000
 		1000000 900000
 		800000  900000
-		500000  850000
 	>;
 	dc-supply = <&buck2_reg>;
 };
