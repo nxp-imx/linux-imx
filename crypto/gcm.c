@@ -16,7 +16,6 @@
 #include <crypto/scatterwalk.h>
 #include <crypto/hash.h>
 #include "internal.h"
-#include <linux/completion.h>
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -89,11 +88,6 @@ struct crypto_gcm_req_priv_ctx {
 	} u;
 };
 
-struct crypto_gcm_setkey_result {
-	int err;
-	struct completion completion;
-};
-
 static struct {
 	u8 buf[16];
 	struct scatterlist sg;
@@ -109,17 +103,6 @@ static inline struct crypto_gcm_req_priv_ctx *crypto_gcm_reqctx(
 	return (void *)PTR_ALIGN((u8 *)aead_request_ctx(req), align + 1);
 }
 
-static void crypto_gcm_setkey_done(struct crypto_async_request *req, int err)
-{
-	struct crypto_gcm_setkey_result *result = req->data;
-
-	if (err == -EINPROGRESS)
-		return;
-
-	result->err = err;
-	complete(&result->completion);
-}
-
 static int crypto_gcm_setkey(struct crypto_aead *aead, const u8 *key,
 			     unsigned int keylen)
 {
@@ -130,7 +113,7 @@ static int crypto_gcm_setkey(struct crypto_aead *aead, const u8 *key,
 		be128 hash;
 		u8 iv[16];
 
-		struct crypto_gcm_setkey_result result ____cacheline_aligned;
+		struct crypto_wait wait ____cacheline_aligned;
 
 		struct scatterlist sg[1];
 		struct skcipher_request req;
@@ -151,22 +134,18 @@ static int crypto_gcm_setkey(struct crypto_aead *aead, const u8 *key,
 	if (!data)
 		return -ENOMEM;
 
-	init_completion(&data->result.completion);
+	crypto_init_wait(&data->wait);
 	sg_init_one(data->sg, &data->hash, sizeof(data->hash));
 	skcipher_request_set_tfm(&data->req, ctr);
 	skcipher_request_set_callback(&data->req, CRYPTO_TFM_REQ_MAY_SLEEP |
 						  CRYPTO_TFM_REQ_MAY_BACKLOG,
-				      crypto_gcm_setkey_done,
-				      &data->result);
+						  crypto_req_done,
+						  &data->wait);
 	skcipher_request_set_crypt(&data->req, data->sg, data->sg,
 				   sizeof(data->hash), data->iv);
 
-	err = crypto_skcipher_encrypt(&data->req);
-	if (err == -EINPROGRESS || err == -EBUSY) {
-		wait_for_completion(&data->result.completion);
-		err = data->result.err;
-	}
-
+	err = crypto_wait_req(crypto_skcipher_encrypt(&data->req),
+						&data->wait);
 	if (err)
 		goto out;
 
