@@ -509,6 +509,21 @@ void sc_misc_get_boot_dev(sc_ipc_t ipc, sc_rsrc_t *dev);
 sc_err_t sc_misc_get_boot_type(sc_ipc_t ipc, sc_misc_bt_t *type);
 
 /*!
+ * This function returns the boot container index.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    idx         pointer to return index
+ *
+ * Return \a idx = 1 for first container, 2 for second.
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors code:
+ * - SC_ERR_UNAVAILABLE if index not passed by ROM
+ */
+sc_err_t sc_misc_get_boot_container(sc_ipc_t ipc, uint8_t *idx);
+
+/*!
  * This function returns the current status of the ON/OFF button.
  *
  * @param[in]     ipc         IPC handle

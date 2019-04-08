@@ -37,7 +37,7 @@
 #define SC_R_DC_0_BLIT2                 21
 #define SC_R_DC_0_BLIT_OUT              22
 #define SC_R_PERF                       23
-#define SC_R_UNUSED5                    24
+#define SC_R_USB_1_PHY                  24
 #define SC_R_DC_0_WARP                  25
 #define SC_R_UNUSED7                    26
 #define SC_R_UNUSED8                    27
