@@ -201,6 +201,10 @@ static const unsigned long lb_pec_ofss_v1[] = {0xd00, 0xd20, 0xd40, 0xd60,
 					       0xd80, 0xda0, 0xdc0};
 static const unsigned long lb_pec_ofss_v2[] = {0xba0, 0xbc0, 0xbe0, 0xc00};
 
+/* Signature Unit */
+static const unsigned long sig_ofss_v1[] = {0x12400, 0x14000};
+static const unsigned long sig_ofss_v2[] = {0xd000, 0xec00};
+
 /* Store Unit */
 static const unsigned long st_ofss_v1[] = {0x4000};
 static const unsigned long st_ofss_v2[] = {0x4000};
@@ -380,6 +384,22 @@ static const struct dpu_unit lbs_v2 = {
 	.ofss = lb_ofss_v2,
 };
 
+static const struct dpu_unit sigs_v1 = {
+	.name = "Signature",
+	.num = ARRAY_SIZE(sig_ids),
+	.ids = sig_ids,
+	.pec_ofss = NULL,
+	.ofss = sig_ofss_v1,
+};
+
+static const struct dpu_unit sigs_v2 = {
+	.name = "Signature",
+	.num = ARRAY_SIZE(sig_ids),
+	.ids = sig_ids,
+	.pec_ofss = NULL,
+	.ofss = sig_ofss_v2,
+};
+
 static const struct dpu_unit sts_v1 = {
 	.name = "Store",
 	.num = ARRAY_SIZE(st_ids),
@@ -556,6 +576,7 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.fws = &fws_v1,
 	.hss = &hss_v1,
 	.lbs = &lbs_v1,
+	.sigs = &sigs_v1,
 	.sts = &sts_v1,
 	.tcons = &tcons_v1,
 	.vss = &vss_v1,
@@ -587,6 +608,7 @@ static const struct dpu_devtype dpu_type_v2_qm = {
 	.fws = &fws_v2,
 	.hss = &hss_v2,
 	.lbs = &lbs_v2,
+	.sigs = &sigs_v2,
 	.sts = &sts_v2,
 	.tcons = &tcons_v2,
 	.vss = &vss_v2,
@@ -623,6 +645,7 @@ static const struct dpu_devtype dpu_type_v2_qxp = {
 	.fws = &fws_v2,
 	.hss = &hss_v2,
 	.lbs = &lbs_v2,
+	.sigs = &sigs_v2,
 	.sts = &sts_v2,
 	.tcons = &tcons_v2,
 	.vss = &vss_v2,
@@ -819,6 +842,7 @@ _dpu_submodules_init(struct dpu_soc *dpu, struct platform_device *pdev)
 	_DPU_UNITS_INIT(fw);
 	_DPU_UNITS_INIT(hs);
 	_DPU_UNITS_INIT(lb);
+	_DPU_UNITS_INIT(sig);
 	_DPU_UNITS_INIT(tcon);
 	_DPU_UNITS_INIT(vs);
 
@@ -873,6 +897,7 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 	DPU_UNITS_INIT(fw);
 	DPU_UNITS_INIT(hs);
 	DPU_UNITS_INIT(lb);
+	DPU_UNITS_INIT(sig);
 	DPU_UNITS_INIT(st);
 	DPU_UNITS_INIT(tcon);
 	DPU_UNITS_INIT(vs);
@@ -1818,6 +1843,7 @@ static int dpu_probe(struct platform_device *pdev)
 	DPU_UNITS_ADDR_DBG(fw);
 	DPU_UNITS_ADDR_DBG(hs);
 	DPU_UNITS_ADDR_DBG(lb);
+	DPU_UNITS_ADDR_DBG(sig);
 	DPU_UNITS_ADDR_DBG(st);
 	DPU_UNITS_ADDR_DBG(tcon);
 	DPU_UNITS_ADDR_DBG(vs);
