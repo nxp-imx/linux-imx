@@ -308,6 +308,17 @@ struct vpu_ctx {
 	int frm_dis_delay;
 	int frm_dec_delay;
 	int frm_total_num;
+
+	void *tsm;
+	bool tsm_sync_flag;
+	u32 pre_pic_end_addr;
+	long total_qbuf_bytes;
+	long total_write_bytes;
+	long total_consumed_bytes;
+	long total_ts_bytes;
+
+	struct v4l2_fract fixed_frame_interval;
+	struct v4l2_fract frame_interval;
 };
 
 #define LVL_INFO 3
