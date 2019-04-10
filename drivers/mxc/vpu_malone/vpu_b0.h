@@ -321,15 +321,28 @@ struct vpu_ctx {
 	struct v4l2_fract frame_interval;
 };
 
-#define LVL_INFO 3
-#define LVL_EVENT  2
-#define LVL_WARN  1
-#define LVL_ERR  0
+#define LVL_INFO		3
+#define LVL_EVENT		2
+#define LVL_WARN		1
+#define LVL_ERR			0
+#define LVL_MASK		0xf
+
+#define LVL_BIT_CMD		(1 << 4)
+#define LVL_BIT_EVT		(1 << 5)
+#define LVL_BIT_TS		(1 << 6)
+#define LVL_BIT_FRAME_BYTES	(1 << 7)
+#define LVL_BIT_WPTR		(1 << 8)
+#define LVL_BIT_PIC_ADDR	(1 << 9)
+#define LVL_BIT_BUFFER_STAT	(1 << 10)
+#define LVL_BIT_BUFFER_DESC	(1 << 11)
+#define LVL_BIT_FUNC		(1 << 12)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
-		if (vpu_dbg_level_decoder >= (level)) \
-			printk("[VPU Decoder]\t " fmt, ## arg); \
+		if ((vpu_dbg_level_decoder & LVL_MASK) >= (level)) \
+			pr_info("[VPU Decoder]\t " fmt, ## arg); \
+		else if ((vpu_dbg_level_decoder & (~LVL_MASK)) & level) \
+			pr_info("[VPU Decoder]\t " fmt, ## arg); \
 	} while (0)
 
 #endif
