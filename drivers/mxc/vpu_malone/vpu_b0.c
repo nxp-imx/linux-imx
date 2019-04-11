@@ -1199,6 +1199,16 @@ static int v4l2_ioctl_qbuf(struct file *file,
 	return ret;
 }
 
+static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
+{
+	TSM_TIMESTAMP ts = TSManagerSend2(ctx->tsm, NULL);
+
+	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%32lld (%lld)\n",
+			ts, getTSManagerFrameInterval(ctx->tsm));
+	buf->timestamp = ns_to_timeval(ts);
+	buf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
+}
+
 static int v4l2_ioctl_dqbuf(struct file *file,
 		void *fh,
 		struct v4l2_buffer *buf
@@ -1231,6 +1241,9 @@ static int v4l2_ioctl_dqbuf(struct file *file,
 	v4l2_update_stream_addr(ctx, 0);
 	if (!V4L2_TYPE_IS_OUTPUT(buf->type) && is_10bit_format(ctx))
 		buf->reserved = 1;
+
+	if (!V4L2_TYPE_IS_OUTPUT(buf->type))
+		vpu_dec_send_ts(ctx, buf);
 
 	return ret;
 }
@@ -2033,15 +2046,11 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 				struct vb2_buffer *vb,
 				int size)
 {
-	TSM_TIMESTAMP input_ts;
+	TSM_TIMESTAMP input_ts = -1;
 
-	if (vb->timestamp >= 0) {
-		vpu_dbg(LVL_BIT_TS, "[INPUT TS]%lld\n", vb->timestamp);
+	if (vb->timestamp >= 0)
 		input_ts = vb->timestamp;
-	} else {
-		vpu_dbg(LVL_BIT_TS, "[INPUT TS] -1\n");
-		input_ts = -1;
-	}
+	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
 
 	if (ctx->tsm_sync_flag) {
 		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
@@ -2329,16 +2338,6 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	up(&This->drv_q_lock);
 }
 
-static void fill_vb_timestamp(struct vpu_ctx *ctx, struct vb2_buffer *vb)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-
-	vbuf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
-	vb->timestamp = TSManagerSend2(ctx->tsm, vb);
-	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%lld (%lld)\n",
-			vb->timestamp, getTSManagerFrameInterval(ctx->tsm));
-}
-
 static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 {
 	struct vb2_data_req *p_data_req;
@@ -2384,11 +2383,10 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	if (p_data_req->vb2_buf) {
 		p_data_req->vb2_buf->planes[0].bytesused = This->sizeimage[0];
 		p_data_req->vb2_buf->planes[1].bytesused = This->sizeimage[1];
-		if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE) {
-			fill_vb_timestamp(ctx, p_data_req->vb2_buf);
+		if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE)
 			vb2_buffer_done(p_data_req->vb2_buf,
 					VB2_BUF_STATE_DONE);
-		} else
+		else
 			vpu_dbg(LVL_ERR, "warning: wait_rst_done(%d) check buffer(%d) state(%d)\n",
 					ctx->wait_rst_done, buffer_id, p_data_req->vb2_buf->state);
 	}
@@ -2623,7 +2621,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
 							uPicStartAddr,
 							uPicEndAddr);
-		vpu_dbg(LVL_BIT_TS, "TSManagerValid2 : %d\n",
+		vpu_dbg(LVL_BIT_FRAME_BYTES, "Valid bytes : %d\n",
 				consumed_pic_bytesused);
 		TSManagerValid2(ctx->tsm,
 				consumed_pic_bytesused,
