@@ -69,7 +69,6 @@ static int tsm_use_consumed_length;
 #define EOS_GENERIC_HEVC 0x7c010000
 #define EOS_GENERIC_JPEG 0xefff0000
 #define EOS_GENERIC_MPEG 0xCC010000
-#define V4L2_CID_USER_RAW_BASE          (V4L2_CID_USER_BASE + 0x1100)
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data);
 static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx, uint32_t idx, uint32_t cmdid, uint32_t cmdnum, uint32_t *local_cmddata);
 static int add_scode(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SCODE_TYPE eScodeType, bool bUpdateWr);
@@ -1547,6 +1546,9 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_RAW_BASE:
 		ctx->start_code_bypass = ctrl->val;
 		break;
+	case V4L2_CID_USER_FRAME_DEPTH:
+		vpu_frm_depth = ctrl->val;
+		break;
 	default:
 		vpu_dbg(LVL_ERR, "%s() Invalid costomer control(%d)\n",
 				__func__, ctrl->id);
@@ -1621,6 +1623,23 @@ static int add_custom_ctrl(struct vpu_ctx *This)
 	cfg.max = 1;
 	cfg.step = 1;
 	cfg.def = 0;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+
+	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
+			&cfg, NULL);
+	if (!ctrl) {
+		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
+		return -EINVAL;
+	}
+
+	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
+	cfg.ops = &vpu_custom_ctrl_ops;
+	cfg.id = V4L2_CID_USER_FRAME_DEPTH;
+	cfg.name = "frame depth ctrl";
+	cfg.min = -1;
+	cfg.max = 999;
+	cfg.step = 1;
+	cfg.def = -1;
 	cfg.type = V4L2_CTRL_TYPE_INTEGER;
 
 	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,

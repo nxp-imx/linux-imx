@@ -130,6 +130,7 @@ typedef enum{
 #define VPU_PIX_FMT_TILED_10    v4l2_fourcc('Z', 'T', '1', '0')
 
 #define V4L2_CID_USER_RAW_BASE  (V4L2_CID_USER_BASE + 0x1100)
+#define V4L2_CID_USER_FRAME_DEPTH (V4L2_CID_USER_BASE + 0x1200)
 
 enum vpu_pixel_format {
 	VPU_HAS_COLOCATED = 0x00000001,
