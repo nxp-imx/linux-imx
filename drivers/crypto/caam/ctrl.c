@@ -571,17 +571,6 @@ static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 	struct device_node *nprop, *np;
 	struct device *dev = ctrlpriv->dev;
 
-#ifdef CONFIG_DEBUG_FS
-	/*
-	 * FIXME: needs better naming distinction, as some amalgamation of
-	 * "caam" and nprop->full_name. The OF name isn't distinctive,
-	 * but does separate instances
-	 */
-
-	ctrlpriv->dfs_root = debugfs_create_dir(dev_name(dev), NULL);
-	ctrlpriv->ctl = debugfs_create_dir("ctl", ctrlpriv->dfs_root);
-#endif
-
 	nprop = ctrlpriv->pdev->dev.of_node;
 	ret = of_platform_populate(nprop, NULL, NULL, dev);
 	if (ret) {
