@@ -200,6 +200,8 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 
 	mutex_init(&i2s_info->tx_lock);
 	mutex_init(&i2s_info->i2c_lock);
+	spin_lock_init(&i2s_info->lock[0]);
+	spin_lock_init(&i2s_info->lock[1]);
 
 	if (of_device_is_compatible(pdev->dev.of_node,
 				    "fsl,imx7ulp-rpmsg-i2s")) {
