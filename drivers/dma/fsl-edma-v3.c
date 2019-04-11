@@ -165,7 +165,8 @@ struct fsl_edma3_chan {
 	int				is_dfifo;
 	struct dma_pool			*tcd_pool;
 	u32				chn_real_count;
-	char				txirq_name[32];
+	char                            txirq_name[32];
+	struct platform_device		*pdev;
 };
 
 struct fsl_edma3_desc {
@@ -183,6 +184,7 @@ struct fsl_edma3_reg_save {
 
 struct fsl_edma3_engine {
 	struct dma_device	dma_dev;
+	unsigned long		irqflag;
 	struct mutex		fsl_edma3_mutex;
 	u32			n_chans;
 	int			errirq;
@@ -791,10 +793,23 @@ static struct dma_chan *fsl_edma3_xlate(struct of_phandle_args *dma_spec,
 static int fsl_edma3_alloc_chan_resources(struct dma_chan *chan)
 {
 	struct fsl_edma3_chan *fsl_chan = to_fsl_edma3_chan(chan);
+	struct platform_device *pdev = fsl_chan->pdev;
+	int ret;
 
 	fsl_chan->tcd_pool = dma_pool_create("tcd_pool", chan->device->dev,
 				sizeof(struct fsl_edma3_hw_tcd),
 				32, 0);
+	/* clear meaningless pending irq anyway */
+	writel(1, fsl_chan->membase + EDMA_CH_INT);
+	ret = devm_request_irq(&pdev->dev, fsl_chan->txirq,
+			fsl_edma3_tx_handler, fsl_chan->edma3->irqflag,
+			fsl_chan->txirq_name, fsl_chan);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't register %s IRQ.\n",
+			fsl_chan->txirq_name);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -803,6 +818,8 @@ static void fsl_edma3_free_chan_resources(struct dma_chan *chan)
 	struct fsl_edma3_chan *fsl_chan = to_fsl_edma3_chan(chan);
 	unsigned long flags;
 	LIST_HEAD(head);
+
+	devm_free_irq(&fsl_chan->pdev->dev, fsl_chan->txirq, fsl_chan);
 
 	spin_lock_irqsave(&fsl_chan->vchan.lock, flags);
 	fsl_edma3_disable_request(fsl_chan);
@@ -831,7 +848,6 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	struct resource *res;
 	int len, chans;
 	int ret, i;
-	unsigned long irqflag = 0;
 
 	ret = of_property_read_u32(np, "dma-channels", &chans);
 	if (ret) {
@@ -846,7 +862,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 
 	/* Audio edma rx/tx channel shared interrupt */
 	if (of_property_read_bool(np, "shared-interrupt"))
-		irqflag = IRQF_SHARED;
+		fsl_edma3->irqflag = IRQF_SHARED;
 
 	fsl_edma3->swap = false;
 	fsl_edma3->n_chans = chans;
@@ -866,12 +882,13 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&fsl_edma3->dma_dev.channels);
 	for (i = 0; i < fsl_edma3->n_chans; i++) {
 		struct fsl_edma3_chan *fsl_chan = &fsl_edma3->chans[i];
-		const char *txirq_name = fsl_chan->txirq_name;
+		const char *txirq_name;
 		char chanid[3], id_len = 0;
 		char *p = chanid;
 		unsigned long val;
 
 		fsl_chan->edma3 = fsl_edma3;
+		fsl_chan->pdev = pdev;
 		fsl_chan->pm_state = RUNNING;
 		fsl_chan->idle = true;
 		/* Get per channel membase */
@@ -917,14 +934,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 			return fsl_chan->txirq;
 		}
 
-		ret = devm_request_irq(&pdev->dev, fsl_chan->txirq,
-				fsl_edma3_tx_handler, irqflag, txirq_name,
-				fsl_chan);
-		if (ret) {
-			dev_err(&pdev->dev, "Can't register %s IRQ.\n",
-				txirq_name);
-			return ret;
-		}
+		memcpy(fsl_chan->txirq_name, txirq_name, strlen(txirq_name));
 
 		fsl_chan->vchan.desc_free = fsl_edma3_free_desc;
 		vchan_init(&fsl_chan->vchan, &fsl_edma3->dma_dev);
