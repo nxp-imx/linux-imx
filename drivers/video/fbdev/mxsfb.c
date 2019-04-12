@@ -4,7 +4,7 @@
  * This code is based on:
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2017 NXP
+ * Copyright 2017-2019 NXP
  * Copyright 2008-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
@@ -2149,6 +2149,9 @@ static void mxsfb_overlay_resume(struct mxsfb_info *fbi)
 		clk_enable_disp_axi(fbi);
 	}
 
+	/* Pull LCDIF out of reset */
+	writel(0xc0000000, fbi->base + LCDC_CTRL + REG_CLR);
+
 	writel(saved_as_ctrl, fbi->base + LCDC_AS_CTRL);
 	writel(saved_as_next_buf, fbi->base + LCDC_AS_NEXT_BUF);
 
@@ -2462,9 +2465,9 @@ static int mxsfb_resume(struct device *pdev)
 	pinctrl_pm_select_default_state(pdev);
 
 	console_lock();
+	mxsfb_overlay_resume(host);
 	mxsfb_blank(host->restore_blank, fb_info);
 	fb_set_suspend(fb_info, 0);
-	mxsfb_overlay_resume(host);
 	console_unlock();
 
 	return 0;
