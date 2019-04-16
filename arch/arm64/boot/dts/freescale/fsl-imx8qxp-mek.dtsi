@@ -640,7 +640,7 @@
 
 		pinctrl_wifi_init: wifi_initgrp{
 			fsl,pins = <
-				SC_P_SCU_BOOT_MODE3_SCU_DSC_BOOT_MODE3		0x20
+				/* reserve pin init/idle_state to support multiple wlan cards */
 			>;
 		};
 

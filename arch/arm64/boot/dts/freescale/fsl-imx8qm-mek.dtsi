@@ -654,7 +654,7 @@
 
 		pinctrl_wifi_init: wifi_initgrp{
 			fsl,pins = <
-				SC_P_SCU_GPIO0_07_LSIO_GPIO1_IO03		0x20
+				/* reserve pin init/idle_state to support multiple wlan cards */
 			>;
 		};
 
