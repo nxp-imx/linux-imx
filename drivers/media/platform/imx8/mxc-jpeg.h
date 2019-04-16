@@ -91,10 +91,11 @@ struct mxc_jpeg_ctx {
 	unsigned int			enc_state;
 	unsigned int			aborting;
 	unsigned int			stopping;
+	unsigned int			slot;
 };
 
 struct mxc_jpeg_slot_data {
-	int used;
+	bool used;
 	struct mxc_jpeg_desc *desc; // enc/dec descriptor
 	struct mxc_jpeg_desc *cfg_desc; // configuration descriptor
 	void *cfg_stream_vaddr; // configuration bitstream virtual address
