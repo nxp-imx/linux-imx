@@ -70,6 +70,25 @@ static int i2s_send_message(struct i2s_rpmsg *msg,
 					sizeof(struct i2s_rpmsg_r));
 		memcpy(&info->rpmsg[msg->recv_msg.header.cmd].recv_msg,
 			&msg->recv_msg, sizeof(struct i2s_rpmsg_r));
+
+		/*
+		 * Reset the buffer pointer to be zero, actully we have
+		 * set the buffer pointer to be zero in imx_rpmsg_terminate_all
+		 * But if there is timer task queued in queue, after it is
+		 * executed the buffer pointer will be changed, so need to
+		 * reset it again with TERMINATE command.
+		 */
+
+		switch (msg->send_msg.header.cmd) {
+		case I2S_TX_TERMINATE:
+			info->rpmsg[I2S_TX_POINTER].recv_msg.param.buffer_offset = 0;
+			break;
+		case I2S_RX_TERMINATE:
+			info->rpmsg[I2S_RX_POINTER].recv_msg.param.buffer_offset = 0;
+			break;
+		default:
+			break;
+		}
 	}
 
 	dev_dbg(&info->rpdev->dev, "cmd:%d, resp %d\n",
