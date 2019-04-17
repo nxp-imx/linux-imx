@@ -30,6 +30,7 @@ Required properties:
 		0: not dual fifo case, 1: dualfifo case.
 	See the SoC's reference manual for all the supported request sources.
 - dma-channels : Number of channels supported by the controller
+- pdomains: Power domains for edma channel used.
 
 Examples:
 edma0: dma-controller@40018000 {
@@ -46,6 +47,8 @@ edma0: dma-controller@40018000 {
 		     <GIC_SPI 437 IRQ_TYPE_LEVEL_HIGH>;
 	interrupt-names = "edma0-chan12-rx", "edma0-chan13-tx",
 			  "edma0-chan14-rx", "edma0-chan15-tx";
+	pdomains =  <&pd_dma0_chan12>, <&pd_dma0_chan13>,
+		    <&pd_dma0_chan14>, <&pd_dma0_chan15>,
 	status = "okay";
 };
 

@@ -27,6 +27,8 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_dma.h>
+#include <linux/pm_runtime.h>
+#include <linux/pm_domain.h>
 
 #include <soc/imx/revision.h>
 #include <soc/imx8/soc.h>
@@ -799,8 +801,10 @@ static int fsl_edma3_alloc_chan_resources(struct dma_chan *chan)
 	fsl_chan->tcd_pool = dma_pool_create("tcd_pool", chan->device->dev,
 				sizeof(struct fsl_edma3_hw_tcd),
 				32, 0);
+	pm_runtime_get_sync(&fsl_chan->vchan.chan.dev->device);
 	/* clear meaningless pending irq anyway */
 	writel(1, fsl_chan->membase + EDMA_CH_INT);
+
 	ret = devm_request_irq(&pdev->dev, fsl_chan->txirq,
 			fsl_edma3_tx_handler, fsl_chan->edma3->irqflag,
 			fsl_chan->txirq_name, fsl_chan);
@@ -831,6 +835,7 @@ static void fsl_edma3_free_chan_resources(struct dma_chan *chan)
 	dma_pool_destroy(fsl_chan->tcd_pool);
 	fsl_chan->tcd_pool = NULL;
 	fsl_chan->used = false;
+	pm_runtime_put_sync(&fsl_chan->vchan.chan.dev->device);
 }
 
 static void fsl_edma3_synchronize(struct dma_chan *chan)
@@ -974,6 +979,28 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "Can't register Freescale eDMA engine.\n");
 		return ret;
+	}
+	/* Attach power domains from dts for each dma chanel device */
+	for (i = 0; i < fsl_edma3->n_chans; i++) {
+		struct fsl_edma3_chan *fsl_chan = &fsl_edma3->chans[i];
+		struct device *dev = &fsl_chan->vchan.chan.dev->device;
+		struct of_phandle_args args;
+
+		ret = of_parse_phandle_with_args(np, "pdomains", NULL, i,
+						&args);
+		if (ret < 0) {
+			dev_err(dev, "parse phandle failed(%d)\n", ret);
+			return ret;
+		}
+
+		of_genpd_add_device(&args, dev);
+		pm_runtime_dont_use_autosuspend(dev);
+		pm_runtime_enable(dev);
+
+		pm_runtime_get_sync(dev);
+		/* clear meaningless pending irq anyway */
+		writel(1, fsl_chan->membase + EDMA_CH_INT);
+		pm_runtime_put_sync(dev);
 	}
 
 	ret = of_dma_controller_register(np, fsl_edma3_xlate, fsl_edma3);
