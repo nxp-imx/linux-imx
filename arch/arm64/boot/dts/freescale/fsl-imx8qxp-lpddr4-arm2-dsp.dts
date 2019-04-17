@@ -12,24 +12,6 @@
 		compatible = "fsl,dsp-audio";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_esai0>;
-		clocks = <&clk IMX8QXP_AUD_ESAI_0_IPG>,
-			<&clk IMX8QXP_AUD_ESAI_0_EXTAL_IPG>,
-			<&clk IMX8QXP_AUD_ASRC_0_IPG>,
-			<&clk IMX8QXP_CLK_DUMMY>,
-			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
-			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
-			<&clk IMX8QXP_ACM_AUD_CLK0_SEL>,
-			<&clk IMX8QXP_ACM_AUD_CLK1_SEL>;
-		clock-names = "bus", "mclk", "ipg", "mem",
-				"asrck_0", "asrck_1", "asrck_2", "asrck_3";
-		assigned-clocks = <&clk IMX8QXP_ACM_ESAI0_MCLK_SEL>,
-			<&clk IMX8QXP_AUD_PLL0_DIV>,
-			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
-			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
-			<&clk IMX8QXP_AUD_ESAI_0_EXTAL_IPG>;
-		assigned-clock-parents = <&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>;
-		assigned-clock-rates = <0>, <786432000>, <49152000>, <24576000>, <49152000>;
-		power-domains = <&pd_esai0>;
 		status = "okay";
 	};
 
@@ -42,6 +24,31 @@
 	};
 };
 
+&dsp {
+	compatible = "fsl,imx8qxp-dsp";
+	reserved-region = <&dsp_reserved>;
+	reg = <0x0 0x596e8000 0x0 0x88000>;
+	clocks = <&clk IMX8QXP_AUD_ESAI_0_IPG>,
+		<&clk IMX8QXP_AUD_ESAI_0_EXTAL_IPG>,
+		<&clk IMX8QXP_AUD_ASRC_0_IPG>,
+		<&clk IMX8QXP_CLK_DUMMY>,
+		<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
+		<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
+		<&clk IMX8QXP_ACM_AUD_CLK0_SEL>,
+		<&clk IMX8QXP_ACM_AUD_CLK1_SEL>;
+	clock-names = "esai_ipg", "esai_mclk", "asrc_ipg", "asrc_mem",
+			"asrck_0", "asrck_1", "asrck_2", "asrck_3";
+	assigned-clocks = <&clk IMX8QXP_ACM_ESAI0_MCLK_SEL>,
+		<&clk IMX8QXP_AUD_PLL0_DIV>,
+		<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+		<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
+		<&clk IMX8QXP_AUD_ESAI_0_EXTAL_IPG>;
+	assigned-clock-parents = <&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <24576000>, <49152000>;
+	fsl,dsp-firmware = "imx/dsp/hifi4.bin";
+	power-domains = <&pd_dsp>;
+};
+
 &edma0 {
 	compatible = "fsl,imx8qm-edma";
 	reg = <0x0 0x59280000 0x0 0x10000>, /* spdif0 rx */
@@ -50,8 +57,8 @@
 		<0x0 0x592d0000 0x0 0x10000>, /* sai0 tx */
 		<0x0 0x592e0000 0x0 0x10000>, /* sai1 rx */
 		<0x0 0x592f0000 0x0 0x10000>, /* sai1 tx */
-		<0x0 0x59350000 0x0 0x10000>,
-		<0x0 0x59370000 0x0 0x10000>;
+		<0x0 0x59300000 0x0 0x10000>, /* sai2 rx */
+		<0x0 0x59310000 0x0 0x10000>;
 	#dma-cells = <3>;
 	shared-interrupt;
 	dma-channels = <8>;
@@ -61,28 +68,85 @@
 			<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
 			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>;
+			<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>;
 	interrupt-names = "edma0-chan8-rx", "edma0-chan9-tx", /* spdif0 */
 			"edma0-chan12-rx", "edma0-chan13-tx", /* sai0 */
 			"edma0-chan14-rx", "edma0-chan15-tx", /* sai1 */
-			"edma0-chan21-tx",		/* gpt5 */
-			"edma0-chan23-rx";		/* gpt7 */
+			"edma0-chan16-rx",		/* sai2 */
+			"edma0-chan17-rx";		/* sai3 */
+	pdomains =  <&pd_dma0_chan8>, <&pd_dma0_chan9>, /* spdif0 */
+		    <&pd_dma0_chan12>, <&pd_dma0_chan13>, /* sai0 */
+		    <&pd_dma0_chan14>, <&pd_dma0_chan15>, /* sai1 */
+		    <&pd_dma0_chan16>, /* sai2 rx */
+		    <&pd_dma0_chan17>; /* sai3 rx */
 	status = "okay";
 };
 
+/delete-node/ &pd_dma0_chan0;
+/delete-node/ &pd_dma0_chan1;
+/delete-node/ &pd_dma0_chan2;
+/delete-node/ &pd_dma0_chan3;
+/delete-node/ &pd_dma0_chan4;
+/delete-node/ &pd_dma0_chan5;
 /delete-node/ &pd_dma0_chan6;
+/delete-node/ &pd_dma0_chan7;
+/delete-node/ &pd_dsp_mu_A;
+/delete-node/ &pd_esai0;
+
 
 &pd_asrc0 {
 	reg = <SC_R_ASRC_0>;
-	power-domains =<&pd_dma0_chan5>;
+	power-domains =<&pd_audio_clk1>;
 	#power-domain-cells = <0>;
 	#address-cells = <1>;
 	#size-cells = <0>;
 
+	pd_dma0_chan0: PD_ASRC_0_RXA {
+		reg = <SC_R_DMA_0_CH0>;
+		power-domains =<&pd_asrc0>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan1: PD_ASRC_0_RXB {
+		reg = <SC_R_DMA_0_CH1>;
+		power-domains =<&pd_dma0_chan0>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan2: PD_ASRC_0_RXC {
+		reg = <SC_R_DMA_0_CH2>;
+		power-domains =<&pd_dma0_chan1>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan3: PD_ASRC_0_TXA {
+		reg = <SC_R_DMA_0_CH3>;
+		power-domains =<&pd_dma0_chan2>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan4: PD_ASRC_0_TXB {
+		reg = <SC_R_DMA_0_CH4>;
+		power-domains =<&pd_dma0_chan3>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan5: PD_ASRC_0_TXC {
+		reg = <SC_R_DMA_0_CH5>;
+		power-domains =<&pd_dma0_chan4>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 	pd_dma0_chan6: PD_ESAI_0_RX {
 		reg = <SC_R_DMA_0_CH6>;
-		power-domains =<&pd_asrc0>;
+		power-domains =<&pd_dma0_chan5>;
 		#power-domain-cells = <0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -98,8 +162,45 @@
 				reg = <SC_R_ESAI_0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_dma0_chan7>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pd_dsp_mu_A: PD_DSP_MU_A {
+					reg = <SC_R_MU_13A>;
+					#power-domain-cells = <0>;
+					power-domains =<&pd_esai0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_dsp_mu_B: PD_DSP_MU_B {
+						reg = <SC_R_MU_13B>;
+						#power-domain-cells = <0>;
+						power-domains =<&pd_dsp_mu_A>;
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						pd_dsp_ram: PD_AUD_OCRAM {
+							reg = <SC_R_DSP_RAM>;
+							#power-domain-cells = <0>;
+							power-domains =<&pd_dsp_mu_B>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+							pd_dsp: PD_AUD_DSP {
+								reg = <SC_R_DSP>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_dsp_ram>;
+							};
+						};
+					};
+				};
 			};
 		};
+	};
+	};
+	};
+	};
+	};
+	};
 	};
 };
 

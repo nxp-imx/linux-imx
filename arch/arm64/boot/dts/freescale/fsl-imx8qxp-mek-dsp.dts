@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 // Copyright NXP 2018
 
-#include "fsl-imx8qxp-mek.dts"
+#include "fsl-imx8qxp-mek-rpmsg.dts"
 
 / {
 	sound-cs42888 {
@@ -36,8 +36,8 @@
 		<0x0 0x592d0000 0x0 0x10000>, /* sai0 tx */
 		<0x0 0x592e0000 0x0 0x10000>, /* sai1 rx */
 		<0x0 0x592f0000 0x0 0x10000>, /* sai1 tx */
-		<0x0 0x59350000 0x0 0x10000>,
-		<0x0 0x59370000 0x0 0x10000>;
+		<0x0 0x59300000 0x0 0x10000>, /* sai2 rx */
+		<0x0 0x59310000 0x0 0x10000>;
 	#dma-cells = <3>;
 	shared-interrupt;
 	dma-channels = <8>;
@@ -47,13 +47,18 @@
 			<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
 			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>;
+			<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>;
 	interrupt-names = "edma0-chan8-rx", "edma0-chan9-tx", /* spdif0 */
 			"edma0-chan12-rx", "edma0-chan13-tx", /* sai0 */
 			"edma0-chan14-rx", "edma0-chan15-tx", /* sai1 */
-			"edma0-chan21-tx",		/* gpt5 */
-			"edma0-chan23-rx";		/* gpt7 */
+			"edma0-chan16-rx",		/* sai2 */
+			"edma0-chan17-rx";		/* sai3 */
+	pdomains =  <&pd_dma0_chan8>, <&pd_dma0_chan9>, /* spdif0 */
+		    <&pd_dma0_chan12>, <&pd_dma0_chan13>, /* sai0 */
+		    <&pd_dma0_chan14>, <&pd_dma0_chan15>, /* sai1 */
+		    <&pd_dma0_chan16>, /* sai2 rx */
+		    <&pd_dma0_chan17>; /* sai3 rx */
 	status = "okay";
 };
 
@@ -82,19 +87,69 @@
 	power-domains = <&pd_dsp>;
 };
 
+/delete-node/ &pd_dma0_chan0;
+/delete-node/ &pd_dma0_chan1;
+/delete-node/ &pd_dma0_chan2;
+/delete-node/ &pd_dma0_chan3;
+/delete-node/ &pd_dma0_chan4;
+/delete-node/ &pd_dma0_chan5;
 /delete-node/ &pd_dma0_chan6;
+/delete-node/ &pd_dma0_chan7;
 /delete-node/ &pd_dsp_mu_A;
+/delete-node/ &pd_esai0;
 
 &pd_asrc0 {
 	reg = <SC_R_ASRC_0>;
-	power-domains =<&pd_dma0_chan5>;
+	power-domains =<&pd_audio_clk1>;
 	#power-domain-cells = <0>;
 	#address-cells = <1>;
 	#size-cells = <0>;
 
+	pd_dma0_chan0: PD_ASRC_0_RXA {
+		reg = <SC_R_DMA_0_CH0>;
+		power-domains =<&pd_asrc0>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan1: PD_ASRC_0_RXB {
+		reg = <SC_R_DMA_0_CH1>;
+		power-domains =<&pd_dma0_chan0>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan2: PD_ASRC_0_RXC {
+		reg = <SC_R_DMA_0_CH2>;
+		power-domains =<&pd_dma0_chan1>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan3: PD_ASRC_0_TXA {
+		reg = <SC_R_DMA_0_CH3>;
+		power-domains =<&pd_dma0_chan2>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan4: PD_ASRC_0_TXB {
+		reg = <SC_R_DMA_0_CH4>;
+		power-domains =<&pd_dma0_chan3>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	pd_dma0_chan5: PD_ASRC_0_TXC {
+		reg = <SC_R_DMA_0_CH5>;
+		power-domains =<&pd_dma0_chan4>;
+		#power-domain-cells = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 	pd_dma0_chan6: PD_ESAI_0_RX {
 		reg = <SC_R_DMA_0_CH6>;
-		power-domains =<&pd_asrc0>;
+		power-domains =<&pd_dma0_chan5>;
 		#power-domain-cells = <0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -143,6 +198,12 @@
 				};
 			};
 		};
+	};
+	};
+	};
+	};
+	};
+	};
 	};
 };
 

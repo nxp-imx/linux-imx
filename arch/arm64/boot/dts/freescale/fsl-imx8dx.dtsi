@@ -483,6 +483,143 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+			/* asrc0 */
+			pd_dma0_chan0: PD_ASRC_0_RXA {
+				reg = <SC_R_DMA_0_CH0>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan1: PD_ASRC_0_RXB {
+				reg = <SC_R_DMA_0_CH1>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan2: PD_ASRC_0_RXC {
+				reg = <SC_R_DMA_0_CH2>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan3: PD_ASRC_0_TXA {
+				reg = <SC_R_DMA_0_CH3>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan4: PD_ASRC_0_TXB {
+				reg = <SC_R_DMA_0_CH4>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan5: PD_ASRC_0_TXC {
+				reg = <SC_R_DMA_0_CH5>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* asrc1 */
+			pd_dma1_chan0: PD_ASRC_1_RXA {
+				reg = <SC_R_DMA_1_CH0>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan1: PD_ASRC_1_RXB {
+				reg = <SC_R_DMA_1_CH1>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan2: PD_ASRC_1_RXC {
+				reg = <SC_R_DMA_1_CH2>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan3: PD_ASRC_1_TXA {
+				reg = <SC_R_DMA_1_CH3>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan4: PD_ASRC_1_TXB {
+				reg = <SC_R_DMA_1_CH4>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan5: PD_ASRC_1_TXC {
+				reg = <SC_R_DMA_1_CH5>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* esai0 */
+			pd_dma0_chan6: PD_ESAI_0_RX {
+				reg = <SC_R_DMA_0_CH6>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan7: PD_ESAI_0_TX {
+				reg = <SC_R_DMA_0_CH7>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* spdif0 */
+			pd_dma0_chan8: PD_SPDIF_0_RX {
+				reg = <SC_R_DMA_0_CH8>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan9: PD_SPDIF_0_TX {
+				reg = <SC_R_DMA_0_CH9>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai0 */
+			pd_dma0_chan12: PD_SAI_0_RX {
+				reg = <SC_R_DMA_0_CH12>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan13: PD_SAI_0_TX {
+				reg = <SC_R_DMA_0_CH13>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai1 */
+			pd_dma0_chan14: PD_SAI_1_RX {
+				reg = <SC_R_DMA_0_CH14>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma0_chan15: PD_SAI_1_TX {
+				reg = <SC_R_DMA_0_CH15>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai2 rx*/
+			pd_dma0_chan16: PD_SAI_2_RX {
+				reg = <SC_R_DMA_0_CH16>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai3 rx */
+			pd_dma0_chan17: PD_SAI_3_RX {
+				reg = <SC_R_DMA_0_CH17>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai4 */
+			pd_dma1_chan8: PD_SAI_4_RX {
+				reg = <SC_R_DMA_1_CH8>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma1_chan9: PD_SAI_4_TX {
+				reg = <SC_R_DMA_1_CH9>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+			/* sai5 tx */
+			pd_dma1_chan10: PD_SAI_5_TX {
+				reg = <SC_R_DMA_1_CH10>;
+				power-domains =<&pd_audio>;
+				#power-domain-cells = <0>;
+			};
+
+
 			pd_audio_pll0: PD_AUD_AUDIO_PLL_0 {
 				reg = <SC_R_AUDIO_PLL_0>;
 				power-domains =<&pd_audio>;
@@ -511,258 +648,55 @@
 							#address-cells = <1>;
 							#size-cells = <0>;
 
-							pd_dma0_chan0: PD_ASRC_0_RXA {
-								reg = <SC_R_DMA_0_CH0>;
+							pd_asrc0:PD_AUD_ASRC_0 {
+								reg = <SC_R_ASRC_0>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan1: PD_ASRC_0_RXB {
-								reg = <SC_R_DMA_0_CH1>;
-								power-domains =<&pd_dma0_chan0>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan2: PD_ASRC_0_RXC {
-								reg = <SC_R_DMA_0_CH2>;
-								power-domains =<&pd_dma0_chan1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan3: PD_ASRC_0_TXA {
-								reg = <SC_R_DMA_0_CH3>;
-								power-domains =<&pd_dma0_chan2>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan4: PD_ASRC_0_TXB {
-								reg = <SC_R_DMA_0_CH4>;
-								power-domains =<&pd_dma0_chan3>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan5: PD_ASRC_0_TXC {
-								reg = <SC_R_DMA_0_CH5>;
-								power-domains =<&pd_dma0_chan4>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_asrc0:PD_AUD_ASRC_0 {
-									reg = <SC_R_ASRC_0>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan5>;
-								};
 							};
-							};
-							};
-							};
-							};
-							};
-
-							pd_dma1_chan0: PD_ASRC_1_RXA {
-								reg = <SC_R_DMA_1_CH0>;
+							pd_asrc1: PD_AUD_ASRC_1 {
+								reg = <SC_R_ASRC_1>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan1: PD_ASRC_1_RXB {
-								reg = <SC_R_DMA_1_CH1>;
-								power-domains =<&pd_dma1_chan0>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan2: PD_ASRC_1_RXC {
-								reg = <SC_R_DMA_1_CH2>;
-								power-domains =<&pd_dma1_chan1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan3: PD_ASRC_1_TXA {
-								reg = <SC_R_DMA_1_CH3>;
-								power-domains =<&pd_dma1_chan2>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan4: PD_ASRC_1_TXB {
-								reg = <SC_R_DMA_1_CH4>;
-								power-domains =<&pd_dma1_chan3>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan5: PD_ASRC_1_TXC {
-								reg = <SC_R_DMA_1_CH5>;
-								power-domains =<&pd_dma1_chan4>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_asrc1: PD_AUD_ASRC_1 {
-									reg = <SC_R_ASRC_1>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma1_chan5>;
-
-								};
 							};
-							};
-							};
-							};
-							};
-							};
-							pd_dma0_chan6: PD_ESAI_0_RX {
-								reg = <SC_R_DMA_0_CH6>;
+							pd_esai0: PD_AUD_ESAI_0 {
+								reg = <SC_R_ESAI_0>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan7: PD_ESAI_0_TX {
-								reg = <SC_R_DMA_0_CH7>;
-								power-domains =<&pd_dma0_chan6>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_esai0: PD_AUD_ESAI_0 {
-									reg = <SC_R_ESAI_0>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan7>;
-								};
 							};
-							};
-							pd_dma0_chan8: PD_SPDIF_0_RX {
-								reg = <SC_R_DMA_0_CH8>;
+							pd_spdif0: PD_AUD_SPDIF_0 {
+								reg = <SC_R_SPDIF_0>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan9: PD_SPDIF_0_TX {
-								reg = <SC_R_DMA_0_CH9>;
-								power-domains =<&pd_dma0_chan8>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_spdif0: PD_AUD_SPDIF_0 {
-									reg = <SC_R_SPDIF_0>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan9>;
-
-								};
 							};
-							};
-							pd_dma0_chan12: PD_SAI_0_RX {
-								reg = <SC_R_DMA_0_CH12>;
+							pd_sai0:PD_AUD_SAI_0 {
+								reg = <SC_R_SAI_0>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan13: PD_SAI_0_TX {
-								reg = <SC_R_DMA_0_CH13>;
-								power-domains =<&pd_dma0_chan12>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_sai0:PD_AUD_SAI_0 {
-									reg = <SC_R_SAI_0>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan13>;
-								};
 							};
-
-							};
-							pd_dma0_chan14: PD_SAI_1_RX {
-								reg = <SC_R_DMA_0_CH14>;
+							pd_sai1: PD_AUD_SAI_1 {
+								reg = <SC_R_SAI_1>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma0_chan15: PD_SAI_1_TX {
-								reg = <SC_R_DMA_0_CH15>;
-								power-domains =<&pd_dma0_chan14>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_sai1: PD_AUD_SAI_1 {
-									reg = <SC_R_SAI_1>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan15>;
-								};
 							};
-							};
-							pd_dma0_chan16: PD_SAI_2_RX {
-								reg = <SC_R_DMA_0_CH16>;
+							pd_sai2: PD_AUD_SAI_2 {
+								reg = <SC_R_SAI_2>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-								pd_sai2: PD_AUD_SAI_2 {
-									reg = <SC_R_SAI_2>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan16>;
-								};
 							};
-							pd_dma0_chan17: PD_SAI_3_RX {
-								reg = <SC_R_DMA_0_CH17>;
+							pd_sai3: PD_AUD_SAI_3 {
+								reg = <SC_R_SAI_3>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_sai3: PD_AUD_SAI_3 {
-									reg = <SC_R_SAI_3>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma0_chan17>;
-								};
 							};
-							pd_dma1_chan8: PD_SAI_4_RX {
-								reg = <SC_R_DMA_1_CH8>;
+							pd_sai4: PD_AUD_SAI_4 {
+								reg = <SC_R_SAI_4>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-							pd_dma1_chan9: PD_SAI_4_TX {
-								reg = <SC_R_DMA_1_CH9>;
-								power-domains =<&pd_dma1_chan8>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-
-								pd_sai4: PD_AUD_SAI_4 {
-									reg = <SC_R_SAI_4>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma1_chan9>;
-
-								};
 							};
-							};
-							pd_dma1_chan10: PD_SAI_5_TX {
-								reg = <SC_R_DMA_1_CH10>;
+							pd_sai5: PD_AUD_SAI_5 {
+								reg = <SC_R_SAI_5>;
+								#power-domain-cells = <0>;
 								power-domains =<&pd_audio_clk1>;
-								#power-domain-cells = <0>;
-								#address-cells = <1>;
-								#size-cells = <0>;
-								pd_sai5: PD_AUD_SAI_5 {
-									reg = <SC_R_SAI_5>;
-									#power-domain-cells = <0>;
-									power-domains =<&pd_dma1_chan10>;
-								};
 							};
 							pd_gpt5: PD_AUD_GPT_5 {
 								reg = <SC_R_GPT_5>;
@@ -933,135 +867,125 @@
 				power-domains = <&pd_dma>;
 				wakeup-irq = <345>;
 			};
+			pd_dma2_chan8: PD_UART0_RX {
+				reg = <SC_R_DMA_2_CH8>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan9: PD_UART0_TX {
+				reg = <SC_R_DMA_2_CH9>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
 			pd_dma_lpuart1: PD_DMA_UART1 {
 				reg = <SC_R_UART_1>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				wakeup-irq = <346>;
-
-				pd_dma2_chan10: PD_UART1_RX {
-					reg = <SC_R_DMA_2_CH10>;
-					power-domains =<&pd_dma_lpuart1>;
-					#power-domain-cells = <0>;
-					#address-cells = <1>;
-					#size-cells = <0>;
-
-					pd_dma2_chan11: PD_UART1_TX {
-						reg = <SC_R_DMA_2_CH11>;
-						power-domains =<&pd_dma2_chan10>;
-						#power-domain-cells = <0>;
-						#address-cells = <1>;
-						#size-cells = <0>;
-					};
-				};
+			};
+			pd_dma2_chan10: PD_UART1_RX {
+				reg = <SC_R_DMA_2_CH10>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan11: PD_UART1_TX {
+				reg = <SC_R_DMA_2_CH11>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_lpuart2: PD_DMA_UART2 {
 				reg = <SC_R_UART_2>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				wakeup-irq = <347>;
-
-				pd_dma2_chan12: PD_UART2_RX {
-					reg = <SC_R_DMA_2_CH12>;
-					power-domains =<&pd_dma_lpuart2>;
-					#power-domain-cells = <0>;
-					#address-cells = <1>;
-					#size-cells = <0>;
-
-					pd_dma2_chan13: PD_UART2_TX {
-						reg = <SC_R_DMA_2_CH13>;
-						power-domains =<&pd_dma2_chan12>;
-						#power-domain-cells = <0>;
-						#address-cells = <1>;
-						#size-cells = <0>;
-					};
-				};
+			};
+			pd_dma2_chan12: PD_UART2_RX {
+				reg = <SC_R_DMA_2_CH12>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan13: PD_UART2_TX {
+				reg = <SC_R_DMA_2_CH13>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_lpuart3: PD_DMA_UART3 {
 				reg = <SC_R_UART_3>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				wakeup-irq = <348>;
-
-				pd_dma3_chan14: PD_UART3_RX {
-					reg = <SC_R_DMA_2_CH14>;
-					power-domains =<&pd_dma_lpuart3>;
-					#power-domain-cells = <0>;
-					#address-cells = <1>;
-					#size-cells = <0>;
-
-					pd_dma3_chan15: PD_UART3_TX {
-						reg = <SC_R_DMA_2_CH15>;
-						power-domains =<&pd_dma3_chan14>;
-						#power-domain-cells = <0>;
-						#address-cells = <1>;
-						#size-cells = <0>;
-					};
-				};
+			};
+			pd_dma2_chan14: PD_UART3_RX {
+				reg = <SC_R_DMA_2_CH14>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan15: PD_UART3_TX {
+				reg = <SC_R_DMA_2_CH15>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_lpspi0: PD_DMA_SPI_0 {
 				reg = <SC_R_SPI_0>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				wakeup-irq = <336>;
-
-				pd_dma2_chan0: PD_LPSPI0_RX {
-					reg = <SC_R_DMA_2_CH0>;
-					power-domains =<&pd_dma_lpspi0>;
-					#power-domain-cells = <0>;
-					#address-cells = <1>;
-					#size-cells = <0>;
-
-					pd_dma2_chan1: PD_LPSPI0_TX {
-						reg = <SC_R_DMA_2_CH1>;
-						power-domains =<&pd_dma2_chan0>;
-						#power-domain-cells = <0>;
-						#address-cells = <1>;
-						#size-cells = <0>;
-					};
-				};
+			};
+			pd_dma2_chan0: PD_LPSPI0_RX {
+				reg = <SC_R_DMA_2_CH0>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan1: PD_LPSPI0_TX {
+				reg = <SC_R_DMA_2_CH1>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_lpspi1: PD_DMA_SPI_1 {
 				reg = <SC_R_SPI_1>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
 			};
+			pd_dma2_chan2: PD_LPSPI1_RX {
+				reg = <SC_R_DMA_2_CH2>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan3: PD_LPSPI1_TX {
+				reg = <SC_R_DMA_2_CH3>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
 			pd_dma_lpspi2: PD_DMA_SPI_2 {
 				reg = <SC_R_SPI_2>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				wakeup-irq = <338>;
-
-				pd_dma2_chan4: PD_LPSPI2_RX {
-					reg = <SC_R_DMA_2_CH4>;
-					power-domains =<&pd_dma_lpspi2>;
-					#power-domain-cells = <0>;
-					#address-cells = <1>;
-					#size-cells = <0>;
-
-					pd_dma2_chan5: PD_LPSPI2_TX {
-						reg = <SC_R_DMA_2_CH5>;
-						power-domains =<&pd_dma2_chan4>;
-						#power-domain-cells = <0>;
-						#address-cells = <1>;
-						#size-cells = <0>;
-					};
-				};
+			};
+			pd_dma2_chan4: PD_LPSPI2_RX {
+				reg = <SC_R_DMA_2_CH4>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan5: PD_LPSPI2_TX {
+				reg = <SC_R_DMA_2_CH5>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_lpspi3: PD_DMA_SPI_3 {
 				reg = <SC_R_SPI_3>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
+			};
+			pd_dma2_chan6: PD_LPSPI3_RX {
+				reg = <SC_R_DMA_2_CH6>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
+			};
+			pd_dma2_chan7: PD_LPSPI3_TX {
+				reg = <SC_R_DMA_2_CH7>;
+				power-domains =<&pd_dma>;
+				#power-domain-cells = <0>;
 			};
 			pd_dma_pwm0: PD_DMA_PWM_0 {
 				reg = <SC_R_LCD_0_PWM_0>;
@@ -2757,7 +2681,7 @@
 		clock-names = "per", "ipg";
 		assigned-clocks = <&clk IMX8QXP_SPI0_CLK>;
 		assigned-clock-rates = <20000000>;
-		power-domains = <&pd_dma2_chan1>;
+		power-domains = <&pd_dma_lpspi0>;
 		dma-names = "tx","rx";
 		dmas = <&edma2 1 0 0>, <&edma2 0 0 1>;
 		status = "disabled";
@@ -2773,7 +2697,7 @@
 		clock-names = "per", "ipg";
 		assigned-clocks = <&clk IMX8QXP_SPI2_CLK>;
 		assigned-clock-rates = <20000000>;
-		power-domains = <&pd_dma2_chan5>;
+		power-domains = <&pd_dma_lpspi2>;
 		dma-names = "tx","rx";
 		dmas = <&edma2 5 0 0>, <&edma2 4 0 1>;
 		status = "disabled";
@@ -2803,7 +2727,7 @@
 		clock-names = "per", "ipg";
 		assigned-clocks = <&clk IMX8QXP_UART1_CLK>;
 		assigned-clock-rates = <80000000>;
-		power-domains = <&pd_dma2_chan11>;
+		power-domains = <&pd_dma_lpuart1>;
 		dma-names = "tx","rx";
 		dmas = <&edma2 11 0 0>,
 			<&edma2 10 0 1>;
@@ -2820,7 +2744,7 @@
 		clock-names = "per", "ipg";
 		assigned-clocks = <&clk IMX8QXP_UART2_CLK>;
 		assigned-clock-rates = <80000000>;
-		power-domains = <&pd_dma2_chan13>;
+		power-domains = <&pd_dma_lpuart2>;
 		dma-names = "tx","rx";
 		dmas = <&edma2 13 0 0>,
 			<&edma2 12 0 1>;
@@ -2837,7 +2761,7 @@
 		clock-names = "per", "ipg";
 		assigned-clocks = <&clk IMX8QXP_UART3_CLK>;
 		assigned-clock-rates = <80000000>;
-		power-domains = <&pd_dma3_chan15>;
+		power-domains = <&pd_dma_lpuart3>;
 		dma-names = "tx","rx";
 		dmas = <&edma2 15 0 0>,
 			<&edma2 14 0 1>;
@@ -2888,6 +2812,14 @@
 				  "edma2-chan10-rx", "edma2-chan11-tx",
 				  "edma2-chan12-rx", "edma2-chan13-tx",
 				  "edma2-chan14-rx", "edma2-chan15-tx";
+		pdomains = <&pd_dma2_chan0>, <&pd_dma2_chan1>,/* lpspi0 */
+			   <&pd_dma2_chan2>, <&pd_dma2_chan3>,/* lpspi1 */
+			   <&pd_dma2_chan4>, <&pd_dma2_chan5>,/* lpspi2 */
+			   <&pd_dma2_chan6>, <&pd_dma2_chan7>,/* lpspi3 */
+			   <&pd_dma2_chan8>, <&pd_dma2_chan9>,/* UART0 */
+			   <&pd_dma2_chan10>, <&pd_dma2_chan11>,/* UART1 */
+			   <&pd_dma2_chan12>, <&pd_dma2_chan13>,/* UART2 */
+			   <&pd_dma2_chan14>, <&pd_dma2_chan15>;/* UART3 */
 		status = "okay";
 	};
 
@@ -2907,8 +2839,8 @@
 			<0x0 0x592d0000 0x0 0x10000>, /* sai0 tx */
 			<0x0 0x592e0000 0x0 0x10000>, /* sai1 rx */
 			<0x0 0x592f0000 0x0 0x10000>, /* sai1 tx */
-			<0x0 0x59350000 0x0 0x10000>,
-			<0x0 0x59370000 0x0 0x10000>;
+			<0x0 0x59300000 0x0 0x10000>, /* sai2 rx */
+			<0x0 0x59310000 0x0 0x10000>;
 		#dma-cells = <3>;
 		shared-interrupt;
 		dma-channels = <16>;
@@ -2926,8 +2858,8 @@
 				<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
 				<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>;
+				<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "edma0-chan0-rx", "edma0-chan1-rx", /* asrc0 */
 				"edma0-chan2-rx", "edma0-chan3-tx",
 				"edma0-chan4-tx", "edma0-chan5-tx",
@@ -2935,8 +2867,23 @@
 				"edma0-chan8-rx", "edma0-chan9-tx", /* spdif0 */
 				"edma0-chan12-rx", "edma0-chan13-tx", /* sai0 */
 				"edma0-chan14-rx", "edma0-chan15-tx", /* sai1 */
-				"edma0-chan21-tx",		/* gpt5 */
-				"edma0-chan23-rx";		/* gpt7 */
+				"edma0-chan16-rx",		/* sai2 */
+				"edma0-chan17-rx";		/* sai3 */
+		pdomains = <&pd_dma0_chan0>, <&pd_dma0_chan1>, <&pd_dma0_chan2>,
+			   <&pd_dma0_chan3>, <&pd_dma0_chan4>, <&pd_dma0_chan5>,
+			   /* asrc0 */
+			   <&pd_dma0_chan6>, <&pd_dma0_chan7>,
+			   /* esai0 */
+			   <&pd_dma0_chan8>, <&pd_dma0_chan9>,
+			   /* spdif0 */
+			   <&pd_dma0_chan12>, <&pd_dma0_chan13>,
+			   /* sai0 */
+			   <&pd_dma0_chan14>, <&pd_dma0_chan15>,
+			   /* sai1 */
+			   <&pd_dma0_chan16>,
+			   /* sai2 rx */
+			   <&pd_dma0_chan17>;
+			   /* sai3 rx */
 		status = "okay";
 	};
 
@@ -2968,6 +2915,14 @@
 				"edma1-chan4-tx", "edma1-chan5-tx",
 				"edma1-chan8-rx", "edma1-chan9-tx", /* sai4 */
 				"edma1-chan10-tx";                 /* sai5 */
+		pdomains = <&pd_dma1_chan0>, <&pd_dma1_chan1>, <&pd_dma1_chan2>,
+			   <&pd_dma1_chan3>, <&pd_dma1_chan4>, <&pd_dma1_chan5>,
+			   /* asrc1 */
+			   <&pd_dma1_chan8>, <&pd_dma1_chan9>,
+			   /* sai4 */
+			   <&pd_dma1_chan10>;
+			   /* sai5 tx */
+
 		status = "okay";
 	};
 
