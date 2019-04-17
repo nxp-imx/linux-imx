@@ -140,12 +140,21 @@ typedef uint8_t sc_rm_perm_t;
  * - SC_ERR_UNAVAILABLE if partition table is full (no more allocation space)
  *
  * Marking as non-secure prevents subsequent functions from configuring masters in this
- * partition to assert the secure signal. If restricted then the new partition is limited
- * in what functions it can call, especially those associated with managing partitions.
+ * partition to assert the secure signal. Basically, if TrustZone SW is used, the Cortex-A
+ * cores and peripherals the TZ SW will use should be in a secure partition. Almost all
+ * other partitions (for a non-secure OS or M4 cores) should be in non-secure partitions.
+ *
+ * Isolated should be true for almost all partitions. The exception is the non-secure
+ * partition for a Cortex-A core used to run a non-secure OS. This isn't isolated by
+ * domain but is instead isolated by the TZ security hardware.
+ *
+ * If restricted then the new partition is limited in what functions it can call,
+ * especially those associated with managing partitions.
  *
  * The grant option is usually used to isolate a bus master's traffic to specific
  * memory without isolating the peripheral interface of the master or the API
- * controls of that master.
+ * controls of that master. This is only used when creating a sub-partition with
+ * no CPU. It's useful to separate out a master and the memory it uses.
  */
 sc_err_t sc_rm_partition_alloc(sc_ipc_t ipc, sc_rm_pt_t *pt, sc_bool_t secure,
 	sc_bool_t isolated, sc_bool_t restricted, sc_bool_t grant, sc_bool_t coherent);
@@ -317,6 +326,12 @@ sc_err_t sc_rm_move_all(sc_ipc_t ipc, sc_rm_pt_t pt_src, sc_rm_pt_t pt_dst,
  *                            assigned
  * @param[in]     resource    resource to assign
  *
+ * This function assigned a resource to a partition. This partition is then
+ * the owner. All resources always have an owner (one owner). The owner
+ * has various rights to make API calls affecting the resource. Ownership
+ * does not imply access to the peripheral itself (that is based on access
+ * rights).
+ *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * This action resets the resource's master and peripheral attributes.
@@ -367,6 +382,12 @@ sc_err_t sc_rm_set_resource_movable(sc_ipc_t ipc, sc_rsrc_t resource_fst,
  * @param[in]     resource    resource to use to identify subsystem
  * @param[in]     movable     movable flag (SC_TRUE is movable)
  *
+ * A subsystem is a physical grouping within the chip of related resources;
+ * this is SoC specific. This function is used to optimize moving resource
+ * for these groupings, for instance, an M4 core and its associated resources.
+ * The list of subsystems and associated resources can be found in the
+ * SoC-specific API document [Resources](@ref RESOURCES) chapter.
+ *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
@@ -396,9 +417,13 @@ sc_err_t sc_rm_set_subsys_rsrc_movable(sc_ipc_t ipc, sc_rsrc_t resource,
  * - SC_ERR_NOACCESS if caller's partition is not a parent of the resource owner,
  * - SC_ERR_LOCKED if the owning partition is locked
  *
- * This function configures how the HW isolation will see bus transactions
- * from the specified master. Note the security attribute will only be
- * changed if the caller's partition is secure.
+ * Masters are IP blocks that generate bus transactions. This function configures
+ * how the isolation HW will define these bus transactions from the specified master.
+ * Note the security attribute will only be changed if the caller's partition is
+ * secure.
+ *
+ * Note an IP block can be both a master and peripheral (have both a programming model
+ * and generate bus transactions).
  */
 sc_err_t sc_rm_set_master_attributes(sc_ipc_t ipc, sc_rsrc_t resource,
 	sc_rm_spa_t sa, sc_rm_spa_t pa, sc_bool_t smmu_bypass);
@@ -444,9 +469,15 @@ sc_err_t sc_rm_set_master_sid(sc_ipc_t ipc, sc_rsrc_t resource,
  * - SC_ERR_LOCKED if the owning partition is locked
  * - SC_ERR_LOCKED if the \a pt is confidential and the caller isn't \a pt
  *
- * This function configures how the HW isolation will restrict access to a
+ * Peripherals are IP blocks that have a programming model that can be
+ * accessed.
+ *
+ * This function configures how the isolation HW will restrict access to a
  * peripheral based on the attributes of a transaction from bus master. It
  * also allows the access permissions of SC_R_SYSTEM to be set.
+ *
+ * Note an IP block can be both a master and peripheral (have both a programming
+ * model and generate bus transactions).
  */
 sc_err_t sc_rm_set_peripheral_permissions(sc_ipc_t ipc, sc_rsrc_t resource,
 	sc_rm_pt_t pt, sc_rm_perm_t perm);
@@ -486,6 +517,10 @@ sc_err_t sc_rm_get_resource_owner(sc_ipc_t ipc, sc_rsrc_t resource,
  * @param[in]     ipc         IPC handle
  * @param[in]     resource    resource to check
  *
+ * Masters are IP blocks that generate bus transactions. Note an IP block
+ * can be both a master and peripheral (have both a programming model
+ * and generate bus transactions).
+ *
  * @return Returns a boolean (SC_TRUE if the resource is a bus master).
  *
  * If \a resource is out of range then SC_FALSE is returned.
@@ -497,6 +532,10 @@ sc_bool_t sc_rm_is_resource_master(sc_ipc_t ipc, sc_rsrc_t resource);
  *
  * @param[in]     ipc         IPC handle
  * @param[in]     resource    resource to check
+ *
+ * Peripherals are IP blocks that have a programming model that can be
+ * accessed. Note an IP block can be both a master and peripheral (have
+ * both a programming model and generate bus transactions)
  *
  * @return Returns a boolean (SC_TRUE if the resource is a peripheral).
  *
@@ -676,6 +715,12 @@ sc_err_t sc_rm_assign_memreg(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_mr_t mr);
  *                            applied for
  * @param[in]     perm        permissions to apply to \a mr for \a pt
  *
+ * This function assigned a memory region to a partition. This partition is then
+ * the owner. All regions always have an owner (one owner). The owner
+ * has various rights to make API calls affecting the region. Ownership
+ * does not imply access to the memory itself (that is based on access
+ * rights).
+ *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
@@ -753,6 +798,10 @@ sc_err_t sc_rm_assign_pad(sc_ipc_t ipc, sc_rm_pt_t pt, sc_pad_t pad);
  * @param[in]     pad_fst     first pad for which flag should be set
  * @param[in]     pad_lst     last pad for which flag should be set
  * @param[in]     movable     movable flag (SC_TRUE is movable)
+ *
+ * This function assigned a pad to a partition. This partition is then
+ * the owner. All pads always have an owner (one owner). The owner
+ * has various rights to make API calls affecting the pad.
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *

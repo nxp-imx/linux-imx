@@ -324,6 +324,7 @@ int dpu_tcon_init(struct dpu_soc *dpu, unsigned int id,
 		return -ENOMEM;
 
 	tcon->dpu = dpu;
+	tcon->id = id;
 	mutex_init(&tcon->mutex);
 
 	return 0;

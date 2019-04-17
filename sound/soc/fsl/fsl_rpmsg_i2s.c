@@ -73,6 +73,25 @@ static int i2s_send_message(struct i2s_rpmsg *msg,
 					sizeof(struct i2s_rpmsg_r));
 		memcpy(&info->rpmsg[msg->recv_msg.header.cmd].recv_msg,
 			&msg->recv_msg, sizeof(struct i2s_rpmsg_r));
+
+		/*
+		 * Reset the buffer pointer to be zero, actully we have
+		 * set the buffer pointer to be zero in imx_rpmsg_terminate_all
+		 * But if there is timer task queued in queue, after it is
+		 * executed the buffer pointer will be changed, so need to
+		 * reset it again with TERMINATE command.
+		 */
+
+		switch (msg->send_msg.header.cmd) {
+		case I2S_TX_TERMINATE:
+			info->rpmsg[I2S_TX_POINTER].recv_msg.param.buffer_offset = 0;
+			break;
+		case I2S_RX_TERMINATE:
+			info->rpmsg[I2S_RX_POINTER].recv_msg.param.buffer_offset = 0;
+			break;
+		default:
+			break;
+		}
 	}
 
 	dev_dbg(&info->rpdev->dev, "cmd:%d, resp %d\n",
@@ -147,11 +166,28 @@ static void rpmsg_i2s_work(struct work_struct *work)
 {
 	struct work_of_rpmsg *work_of_rpmsg;
 	struct i2s_info *i2s_info;
+	bool is_period_done = false;
 
 	work_of_rpmsg = container_of(work, struct work_of_rpmsg, work);
 	i2s_info = work_of_rpmsg->i2s_info;
 
-	i2s_send_message(&work_of_rpmsg->msg, i2s_info);
+	if (i2s_info->period_done_msg_enabled[0]) {
+		i2s_send_message(&i2s_info->period_done_msg[0], i2s_info);
+		i2s_info->period_done_msg_enabled[0] = false;
+	}
+
+	if (i2s_info->period_done_msg_enabled[1]) {
+		i2s_send_message(&i2s_info->period_done_msg[1], i2s_info);
+		i2s_info->period_done_msg_enabled[1] = false;
+	}
+
+	if (work_of_rpmsg->msg.send_msg.header.type == I2S_TYPE_C &&
+	       (work_of_rpmsg->msg.send_msg.header.cmd == I2S_TX_PERIOD_DONE ||
+		work_of_rpmsg->msg.send_msg.header.cmd == I2S_RX_PERIOD_DONE))
+		is_period_done = true;
+
+	if (!is_period_done)
+		i2s_send_message(&work_of_rpmsg->msg, i2s_info);
 
 	i2s_info->work_read_index++;
 	i2s_info->work_read_index %= WORK_MAX_NUM;
@@ -203,6 +239,8 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 
 	mutex_init(&i2s_info->tx_lock);
 	mutex_init(&i2s_info->i2c_lock);
+	spin_lock_init(&i2s_info->lock[0]);
+	spin_lock_init(&i2s_info->lock[1]);
 
 	if (of_device_is_compatible(pdev->dev.of_node,
 				    "fsl,imx7ulp-rpmsg-i2s")) {

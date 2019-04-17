@@ -646,6 +646,25 @@ sc_err_t sc_misc_get_boot_type(sc_ipc_t ipc, sc_misc_bt_t *type)
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_misc_get_boot_container(sc_ipc_t ipc, uint8_t *idx)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = U8(SC_RPC_SVC_MISC);
+	RPC_FUNC(&msg) = U8(MISC_FUNC_GET_BOOT_CONTAINER);
+	RPC_SIZE(&msg) = 1U;
+
+	sc_call_rpc(ipc, &msg, SC_FALSE);
+
+	result = RPC_R8(&msg);
+	if (idx != NULL)
+		*idx = RPC_U8(&msg, 0U);
+
+	return (sc_err_t)result;
+}
+
 void sc_misc_get_button_status(sc_ipc_t ipc, sc_bool_t *status)
 {
 	sc_rpc_msg_t msg;

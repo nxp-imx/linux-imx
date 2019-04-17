@@ -130,6 +130,7 @@ typedef enum{
 #define VPU_PIX_FMT_TILED_10    v4l2_fourcc('Z', 'T', '1', '0')
 
 #define V4L2_CID_USER_RAW_BASE  (V4L2_CID_USER_BASE + 0x1100)
+#define V4L2_CID_USER_FRAME_DEPTH (V4L2_CID_USER_BASE + 0x1200)
 
 enum vpu_pixel_format {
 	VPU_HAS_COLOCATED = 0x00000001,
@@ -276,7 +277,7 @@ struct vpu_ctx {
 	struct completion completion;
 	struct completion stop_cmp;
 	struct completion eos_cmp;
-	struct completion alloc_cmp;
+	struct completion cap_streamon_cmp;
 	MediaIPFW_Video_SeqInfo *pSeqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
@@ -308,17 +309,41 @@ struct vpu_ctx {
 	int frm_dis_delay;
 	int frm_dec_delay;
 	int frm_total_num;
+
+	void *tsm;
+	bool tsm_sync_flag;
+	u32 pre_pic_end_addr;
+	long total_qbuf_bytes;
+	long total_write_bytes;
+	long total_consumed_bytes;
+	long total_ts_bytes;
+
+	struct v4l2_fract fixed_frame_interval;
+	struct v4l2_fract frame_interval;
 };
 
-#define LVL_INFO 3
-#define LVL_EVENT  2
-#define LVL_WARN  1
-#define LVL_ERR  0
+#define LVL_INFO		3
+#define LVL_EVENT		2
+#define LVL_WARN		1
+#define LVL_ERR			0
+#define LVL_MASK		0xf
+
+#define LVL_BIT_CMD		(1 << 4)
+#define LVL_BIT_EVT		(1 << 5)
+#define LVL_BIT_TS		(1 << 6)
+#define LVL_BIT_FRAME_BYTES	(1 << 7)
+#define LVL_BIT_WPTR		(1 << 8)
+#define LVL_BIT_PIC_ADDR	(1 << 9)
+#define LVL_BIT_BUFFER_STAT	(1 << 10)
+#define LVL_BIT_BUFFER_DESC	(1 << 11)
+#define LVL_BIT_FUNC		(1 << 12)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
-		if (vpu_dbg_level_decoder >= (level)) \
-			printk("[VPU Decoder]\t " fmt, ## arg); \
+		if ((vpu_dbg_level_decoder & LVL_MASK) >= (level)) \
+			pr_info("[VPU Decoder]\t " fmt, ## arg); \
+		else if ((vpu_dbg_level_decoder & (~LVL_MASK)) & level) \
+			pr_info("[VPU Decoder]\t " fmt, ## arg); \
 	} while (0)
 
 #endif

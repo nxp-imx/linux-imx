@@ -38,12 +38,26 @@
 #define SC_SECO_AUTH_HDMI_RX_FW         5U   /* HDMI RX Firmware */
 /*@}*/
 
+/*!
+ * @name Defines for seco_rng_stat_t
+ */
+/*@{*/
+#define SC_SECO_RNG_STAT_UNAVAILABLE    0U  /* Unable to initialize the RNG */
+#define SC_SECO_RNG_STAT_INPROGRESS     1U  /* Initialization is on-going */
+#define SC_SECO_RNG_STAT_READY          2U  /* Initialized */
+/*@}*/
+
 /* Types */
 
 /*!
  * This type is used to issue SECO authenticate commands.
  */
 typedef uint8_t sc_seco_auth_cmd_t;
+
+/*!
+ * This type is used to return the RNG initialization status.
+ */
+typedef uint32_t sc_seco_rng_stat_t;
 
 /* Functions */
 
@@ -503,6 +517,42 @@ sc_err_t sc_seco_get_event(sc_ipc_t ipc, uint8_t idx,
  * See the Security Reference Manual (SRM) for more info.
  */
 sc_err_t sc_seco_fuse_write(sc_ipc_t ipc, sc_faddr_t addr);
+
+
+/*!
+ * This function applies a patch.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     addr        address of message block
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_UNAVAILABLE if SECO not available
+ *
+ * Note \a addr must be a pointer to a signed message block.
+ *
+ * See the Security Reference Manual (SRM) for more info.
+ */
+sc_err_t sc_seco_patch(sc_ipc_t ipc, sc_faddr_t addr);
+
+/*!
+ * This function starts the random number generator.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    status      pointer to return state of RNG
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_UNAVAILABLE if SECO not available
+ *
+ * The RNG is started automatically after all CPUs are booted. This
+ * function can be used to start earlier and to check the status.
+ *
+ * See the Security Reference Manual (SRM) for more info.
+ */
+sc_err_t sc_seco_start_rng(sc_ipc_t ipc, sc_seco_rng_stat_t *status);
 
 /* @} */
 

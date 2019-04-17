@@ -426,5 +426,41 @@ sc_err_t sc_seco_fuse_write(sc_ipc_t ipc, sc_faddr_t addr)
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_seco_patch(sc_ipc_t ipc, sc_faddr_t addr)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = U8(SC_RPC_SVC_SECO);
+	RPC_FUNC(&msg) = U8(SECO_FUNC_PATCH);
+	RPC_U32(&msg, 0U) = U32(addr >> 32ULL);
+	RPC_U32(&msg, 4U) = U32(addr);
+	RPC_SIZE(&msg) = 3U;
+
+	sc_call_rpc(ipc, &msg, SC_FALSE);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_seco_start_rng(sc_ipc_t ipc, sc_seco_rng_stat_t *status)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = U8(SC_RPC_SVC_SECO);
+	RPC_FUNC(&msg) = U8(SECO_FUNC_START_RNG);
+	RPC_SIZE(&msg) = 1U;
+
+	sc_call_rpc(ipc, &msg, SC_FALSE);
+
+	if (status != NULL)
+		*status = RPC_U32(&msg, 0U);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
 /**@}*/
 

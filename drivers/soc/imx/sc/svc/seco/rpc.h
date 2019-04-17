@@ -44,6 +44,8 @@
 #define SECO_FUNC_ENABLE_DEBUG 18U /* Index for seco_enable_debug() RPC call */
 #define SECO_FUNC_GET_EVENT 19U /* Index for seco_get_event() RPC call */
 #define SECO_FUNC_FUSE_WRITE 20U /* Index for seco_fuse_write() RPC call */
+#define SECO_FUNC_PATCH 21U /* Index for seco_patch() RPC call */
+#define SECO_FUNC_START_RNG 22U /* Index for seco_start_rng() RPC call */
 /*@}*/
 
 /* Types */
