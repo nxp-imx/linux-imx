@@ -394,6 +394,8 @@ struct i2s_info {
 	struct i2s_rpmsg_r       recv_msg;
 
 	struct i2s_rpmsg         rpmsg[I2S_CMD_MAX_NUM];
+	struct i2s_rpmsg         period_done_msg[2];
+	bool                     period_done_msg_enabled[2];
 
 	struct workqueue_struct  *rpmsg_wq;
 	struct work_of_rpmsg	 work_list[WORK_MAX_NUM];

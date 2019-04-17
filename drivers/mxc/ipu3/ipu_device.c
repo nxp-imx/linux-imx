@@ -1,5 +1,6 @@
 /*
  * Copyright 2005-2016 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2019 NXP
  */
 
 /*
@@ -1394,6 +1395,13 @@ static void put_vdoa_ipu_res(struct ipu_task_entry *tsk, int vdoa_only)
 			if (vdoa_only || (tsk->set.task & VDOA_ONLY))
 				goto out;
 		}
+	}
+
+	if (tsk->ipu_id != 0 && tsk->ipu_id != 1) {
+		dev_err(tsk->dev,
+			"%s:invalid ipu id, no:0x%x, rel_vdoa:%d, rel_ipu:%d\n",
+			 __func__, tsk->task_no, rel_vdoa, rel_ipu);
+		goto out;
 	}
 
 	tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
@@ -3309,10 +3317,6 @@ static int ipu_task_thread(void *argv)
 				/* let the parent thread do the first sp_task */
 				/* FIXME: ensure the correct sequence for split
 					4size: 5/6->9/a*/
-				if (!sp_tsk0)
-					dev_err(tsk->dev,
-					"ERR: no-0x%x,can not get split_tsk0\n",
-					tsk->task_no);
 				wake_up_interruptible(&thread_waitq);
 				get_res_do_task(sp_tsk0);
 				dev_dbg(sp_tsk0->dev,

@@ -100,6 +100,7 @@ bool dcss_dtg_global_alpha_changed(struct dcss_soc *dcss, int ch_num,
 				   int use_global_alpha);
 void dcss_dtg_css_set(struct dcss_soc *dcss, u32 pix_format);
 void dcss_dtg_ctxld_kick_irq_enable(struct dcss_soc *dcss, bool en);
+bool dcss_dtg_vblank_irq_valid(struct dcss_soc *dcss);
 
 /* SUBSAM */
 void dcss_ss_sync_set(struct dcss_soc *dcss, struct videomode *vm,

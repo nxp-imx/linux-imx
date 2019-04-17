@@ -131,6 +131,11 @@
 #define UARTFIFO		0x18
 #define UARTWATER		0x1c
 
+/* 32-bit global registers only for i.MX7ulp/MX8x
+ * The driver only use the reset feature to reset HW.
+ */
+#define UART_GLOBAL		0x8
+
 #define UARTBAUD_MAEN1		0x80000000
 #define UARTBAUD_MAEN2		0x40000000
 #define UARTBAUD_M10		0x20000000
@@ -236,6 +241,10 @@
 #define UARTWATER_TXWATER_OFF	0
 #define UARTWATER_RXWATER_OFF	16
 
+#define UART_GLOBAL_RST		0x2
+#define RST_HW_MIN_US		20
+#define RST_HW_MAX_US		40
+
 #define UARTFIFO_RXIDEN_RDRF	0x3
 #define UARTCTRL_IDLECFG	0x7
 #define FSL_UART_RX_DMA_BUFFER_SIZE	128
@@ -250,6 +259,8 @@
 
 struct lpuart_port {
 	struct uart_port	port;
+	void __iomem		*regbase;
+
 	struct clk		*ipg_clk;
 	struct clk		*per_clk;
 	unsigned int		txfifo_size;
@@ -344,6 +355,33 @@ static inline void lpuart32_write(struct uart_port *port, u32 val,
 		iowrite32be(val, port->membase + off);
 		break;
 	}
+}
+
+static int lpuart_hw_reset(struct lpuart_port *sport)
+{
+	struct uart_port *port = &sport->port;
+	struct device_node *np = sport->port.dev->of_node;
+	int ret;
+
+	if (uart_console(port))
+		return 0;
+
+	ret = clk_prepare_enable(sport->ipg_clk);
+	if (ret) {
+		dev_err(sport->port.dev, "failed to enable uart ipg clk: %d\n", ret);
+		return ret;
+	}
+
+	if (np && (of_device_is_compatible(np, "fsl,imx7ulp-lpuart") ||
+	    of_device_is_compatible(np, "fsl,imx8qm-lpuart"))) {
+		writel(UART_GLOBAL_RST, sport->regbase + UART_GLOBAL);
+		usleep_range(RST_HW_MIN_US, RST_HW_MAX_US);
+		writel(0, sport->regbase + UART_GLOBAL);
+		usleep_range(RST_HW_MIN_US, RST_HW_MAX_US);
+	}
+
+	clk_disable_unprepare(sport->ipg_clk);
+	return 0;
 }
 
 static void lpuart_stop_tx(struct uart_port *port)
@@ -2420,6 +2458,7 @@ static int lpuart_probe(struct platform_device *pdev)
 	if (IS_ERR(sport->port.membase))
 		return PTR_ERR(sport->port.membase);
 
+	sport->regbase = sport->port.membase;
 	sport->port.membase += sdata->reg_off;
 	sport->port.mapbase = res->start + sdata->reg_off;
 	sport->port.dev = &pdev->dev;
@@ -2500,6 +2539,10 @@ static int lpuart_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 
 	ret = uart_add_one_port(&lpuart_reg, &sport->port);
+	if (ret)
+		goto failed_attach_port;
+
+	ret = lpuart_hw_reset(sport);
 	if (ret)
 		goto failed_attach_port;
 

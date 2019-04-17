@@ -318,8 +318,6 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	struct platform_device *esai_pdev;
 	struct platform_device *asrc_pdev = NULL;
 	struct imx_priv *priv = &card_priv;
-	struct snd_soc_dai_link_component dlc = { 0 };
-	struct snd_soc_dai *codec_dai;
 	int ret;
 	u32 width;
 
@@ -388,12 +386,6 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	if (priv->is_codec_rpmsg) {
 		imx_cs42888_dai[0].codec_name     = "rpmsg-audio-codec-cs42888";
 		imx_cs42888_dai[0].codec_dai_name = "cs42888";
-
-		dlc.name = "rpmsg-audio-codec-cs42888";
-		dlc.dai_name = "cs42888";
-		codec_dai = snd_soc_find_dai(&dlc);
-		if (!codec_dai)
-			return -ENODEV;
 	} else {
 		imx_cs42888_dai[0].codec_of_node   = codec_np;
 	}

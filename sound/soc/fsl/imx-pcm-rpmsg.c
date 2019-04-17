@@ -579,6 +579,8 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 	struct i2s_rpmsg           *rpmsg;
 	int index = i2s_info->work_write_index;
 	int buffer_tail = 0;
+	int writen_num = 0;
+	snd_pcm_sframes_t avail;
 
 	if (!rpmsg_i2s->force_lpa)
 		return 0;
@@ -600,16 +602,32 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 	buffer_tail = buffer_tail /  snd_pcm_lib_period_bytes(substream);
 
 	if (buffer_tail != rpmsg->send_msg.param.buffer_tail) {
+		writen_num = buffer_tail - rpmsg->send_msg.param.buffer_tail;
+		if (writen_num < 0)
+			writen_num += runtime->periods;
+
 		rpmsg->send_msg.param.buffer_tail = buffer_tail;
-		if (i2s_info->work_write_index != i2s_info->work_read_index) {
-			memcpy(&i2s_info->work_list[index].msg, rpmsg,
+		memcpy(&i2s_info->period_done_msg[substream->stream], rpmsg,
+				sizeof(struct i2s_rpmsg_s));
+		i2s_info->period_done_msg_enabled[substream->stream] = true;
+
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			avail = snd_pcm_playback_hw_avail(runtime);
+		else
+			avail = snd_pcm_capture_hw_avail(runtime);
+
+		if ((avail - writen_num * runtime->period_size)
+					<= runtime->period_size) {
+			if (i2s_info->work_write_index != i2s_info->work_read_index) {
+				memcpy(&i2s_info->work_list[index].msg, rpmsg,
 					sizeof(struct i2s_rpmsg_s));
-			queue_work(i2s_info->rpmsg_wq,
+				queue_work(i2s_info->rpmsg_wq,
 					&i2s_info->work_list[index].work);
-			i2s_info->work_write_index++;
-			i2s_info->work_write_index %= WORK_MAX_NUM;
-		} else
-			i2s_info->msg_drop_count[substream->stream]++;
+				i2s_info->work_write_index++;
+				i2s_info->work_write_index %= WORK_MAX_NUM;
+			} else
+				i2s_info->msg_drop_count[substream->stream]++;
+		}
 	}
 
 	return 0;

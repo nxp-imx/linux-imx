@@ -635,6 +635,7 @@ static int rad_panel_probe(struct mipi_dsi_device *dsi)
 	drm_panel_init(&panel->base);
 	panel->base.funcs = &rad_panel_funcs;
 	panel->base.dev = dev;
+	dev_set_drvdata(dev, panel);
 
 	ret = drm_panel_add(&panel->base);
 
@@ -672,6 +673,41 @@ static void rad_panel_shutdown(struct mipi_dsi_device *dsi)
 	rad_panel_unprepare(&rad->base);
 }
 
+#ifdef CONFIG_PM
+static int rad_panel_suspend(struct device *dev)
+{
+	struct rad_panel *rad = dev_get_drvdata(dev);
+
+	if (!rad->reset)
+		return 0;
+
+	devm_gpiod_put(dev, rad->reset);
+	rad->reset = NULL;
+
+	return 0;
+}
+
+static int rad_panel_resume(struct device *dev)
+{
+	struct rad_panel *rad = dev_get_drvdata(dev);
+
+	if (rad->reset)
+		return 0;
+
+	rad->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(rad->reset))
+		rad->reset = NULL;
+
+	return PTR_ERR_OR_ZERO(rad->reset);
+}
+
+#endif
+
+static const struct dev_pm_ops rad_pm_ops = {
+	SET_RUNTIME_PM_OPS(rad_panel_suspend, rad_panel_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(rad_panel_suspend, rad_panel_resume)
+};
+
 static const struct of_device_id rad_of_match[] = {
 	{ .compatible = "raydium,rm67191", },
 	{ }
@@ -682,6 +718,7 @@ static struct mipi_dsi_driver rad_panel_driver = {
 	.driver = {
 		.name = "panel-raydium-rm67191",
 		.of_match_table = rad_of_match,
+		.pm	= &rad_pm_ops,
 	},
 	.probe = rad_panel_probe,
 	.remove = rad_panel_remove,

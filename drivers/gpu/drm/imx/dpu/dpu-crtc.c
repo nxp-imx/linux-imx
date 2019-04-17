@@ -53,7 +53,7 @@ crtc_state_get_dpu_plane_states(struct drm_crtc_state *state)
 	return dcstate->dpu_plane_states;
 }
 
-struct dpu_crtc *dpu_crtc_get_aux_dpu_crtc(struct dpu_crtc *dpu_crtc)
+static struct dpu_crtc *dpu_crtc_get_aux_dpu_crtc(struct dpu_crtc *dpu_crtc)
 {
 	struct drm_crtc *crtc = &dpu_crtc->base, *tmp_crtc;
 	struct drm_device *dev = crtc->dev;

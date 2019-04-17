@@ -1326,6 +1326,8 @@ static int flexcan_chip_start(struct net_device *dev)
 		priv->mb_size = FLEXCAN_MB_FD_SIZE;
 		priv->mb_num = FLEXCAN_MB_FD_NUM;
 	} else {
+		priv->offload.is_canfd = false;
+
 		priv->mb_size = FLEXCAN_MB_SIZE;
 		priv->mb_num = FLEXCAN_MB_NUM;
 	}

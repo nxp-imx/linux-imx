@@ -510,9 +510,14 @@ gc_version_show(struct seq_file *m, void *data)
 {
     gcsINFO_NODE *node = m->private;
     gckGALDEVICE device = node->device;
-    gcsPLATFORM * platform = device->platform;
+    gcsPLATFORM * platform = gcvNULL;
 
     if (!device)
+        return -ENXIO;
+
+    platform = device->platform;
+
+    if (!platform)
         return -ENXIO;
 
     seq_printf(m, "%s built at %s\n",  gcvVERSION_STRING, HOST);
