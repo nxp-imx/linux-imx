@@ -764,9 +764,6 @@ static int imx_pcie_deassert_core_reset(struct imx_pcie *imx_pcie)
 		}
 	}
 
-	if (gpio_is_valid(imx_pcie->power_on_gpio))
-		gpio_set_value_cansleep(imx_pcie->power_on_gpio, 1);
-
 	ret = clk_prepare_enable(imx_pcie->pcie);
 	if (ret) {
 		dev_err(dev, "unable to enable pcie clock\n");
@@ -1639,6 +1636,9 @@ static int imx_pcie_host_init(struct pcie_port *pp)
 
 	/* enable disp_mix power domain */
 	pm_runtime_get_sync(pci->dev);
+
+	if (gpio_is_valid(imx_pcie->power_on_gpio))
+		gpio_set_value_cansleep(imx_pcie->power_on_gpio, 1);
 
 	imx_pcie_assert_core_reset(imx_pcie);
 	imx_pcie_init_phy(imx_pcie);
