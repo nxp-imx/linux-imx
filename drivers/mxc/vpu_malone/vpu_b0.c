@@ -1669,7 +1669,7 @@ static int add_custom_ctrl(struct vpu_ctx *This)
 	cfg.min = -1;
 	cfg.max = 999;
 	cfg.step = 1;
-	cfg.def = -1;
+	cfg.def = vpu_frm_depth;
 	cfg.type = V4L2_CTRL_TYPE_INTEGER;
 
 	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
