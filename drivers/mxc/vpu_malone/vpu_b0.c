@@ -63,7 +63,7 @@ static int vpu_frmcrcdump_ena;
 static int stream_buffer_threshold;
 static int tsm_mode = MODE_AI;
 static int tsm_buffer_size = 1024;
-static int tsm_use_consumed_length;
+static int tsm_use_consumed_length = 1;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
