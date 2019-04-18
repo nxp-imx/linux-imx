@@ -2519,7 +2519,7 @@ static int parse_frame_interval_from_seqinfo(struct vpu_ctx *ctx,
 	ctx->frame_interval.numerator = 1000;
 	ctx->frame_interval.denominator = seq_info->FrameRate;
 	if (!seq_info->FrameRate) {
-		vpu_dbg(LVL_WARN, "unknown FrameRate(%d)\n",
+		vpu_dbg(LVL_INFO, "unknown FrameRate(%d)\n",
 				seq_info->FrameRate);
 		return -EINVAL;
 	}
