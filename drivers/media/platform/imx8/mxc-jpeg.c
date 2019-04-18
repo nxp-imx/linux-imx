@@ -661,13 +661,16 @@ end:
 }
 
 static int mxc_jpeg_decoder_cmd(struct file *file, void *priv,
-			      struct v4l2_decoder_cmd *cmd)
+				struct v4l2_decoder_cmd *cmd)
 {
 	struct v4l2_fh *fh = file->private_data;
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(fh);
 	struct device *dev = ctx->mxc_jpeg->dev;
 
 	switch (cmd->cmd) {
+	case V4L2_DEC_CMD_START:
+		dev_dbg(dev, "V4L2_DEC_CMD_START not implemented");
+		break;
 	case V4L2_DEC_CMD_STOP:
 		dev_dbg(dev, "Received V4L2_DEC_CMD_STOP");
 		if (v4l2_m2m_num_src_bufs_ready(fh->m2m_ctx) == 0) {
@@ -678,6 +681,45 @@ static int mxc_jpeg_decoder_cmd(struct file *file, void *priv,
 			ctx->stopping = 1;
 		}
 		return 0;
+	case V4L2_DEC_CMD_PAUSE:
+		dev_dbg(dev, "V4L2_DEC_CMD_PAUSE not implemented");
+		break;
+	case V4L2_DEC_CMD_RESUME:
+		dev_dbg(dev, "V4L2_DEC_CMD_RESUME not implemented");
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int mxc_jpeg_encoder_cmd(struct file *file, void *priv,
+				struct v4l2_encoder_cmd *cmd)
+{
+	struct v4l2_fh *fh = file->private_data;
+	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(fh);
+	struct device *dev = ctx->mxc_jpeg->dev;
+
+	switch (cmd->cmd) {
+	case V4L2_ENC_CMD_START:
+		dev_dbg(dev, "V4L2_ENC_CMD_START not implemented");
+		break;
+	case V4L2_ENC_CMD_STOP:
+		dev_dbg(dev, "Received V4L2_ENC_CMD_STOP");
+		if (v4l2_m2m_num_src_bufs_ready(fh->m2m_ctx) == 0) {
+			/* No more src bufs, notify app EOS */
+			notify_eos(ctx);
+		} else {
+			/* will send EOS later*/
+			ctx->stopping = 1;
+		}
+		return 0;
+	case V4L2_ENC_CMD_PAUSE:
+		dev_dbg(dev, "V4L2_ENC_CMD_PAUSE not implemented");
+		break;
+	case V4L2_ENC_CMD_RESUME:
+		dev_dbg(dev, "V4L2_ENC_CMD_RESUME not implemented");
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1583,6 +1625,7 @@ static const struct v4l2_ioctl_ops mxc_jpeg_ioctl_ops = {
 
 	.vidioc_subscribe_event		= mxc_jpeg_subscribe_event,
 	.vidioc_decoder_cmd		= mxc_jpeg_decoder_cmd,
+	.vidioc_encoder_cmd		= mxc_jpeg_encoder_cmd,
 
 	.vidioc_qbuf			= mxc_jpeg_qbuf,
 	.vidioc_dqbuf                   = mxc_jpeg_dqbuf,
