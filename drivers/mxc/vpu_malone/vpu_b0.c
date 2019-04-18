@@ -1154,6 +1154,32 @@ static int v4l2_ioctl_querybuf(struct file *file,
 	return ret;
 }
 
+static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
+				struct v4l2_buffer *buf,
+				int size)
+{
+	TSM_TIMESTAMP input_ts;
+
+	if (buf->flags & V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID) {
+		vpu_dbg(LVL_BIT_TS, "[INPUT  TS]Invalid timestamp, drop it\n");
+		return;
+	}
+
+	input_ts = timeval_to_ns(&buf->timestamp);
+	if (input_ts < 0)
+		input_ts = TSM_TIMESTAMP_NONE;
+	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
+
+	if (ctx->tsm_sync_flag) {
+		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
+		ctx->tsm_sync_flag = false;
+	}
+	TSManagerReceive2(ctx->tsm, input_ts, size);
+	ctx->total_ts_bytes += size;
+	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]receive bytes : %8d / %16ld\n",
+			ctx->str_index, size, ctx->total_ts_bytes);
+}
+
 static int v4l2_ioctl_qbuf(struct file *file,
 		void *fh,
 		struct v4l2_buffer *buf
@@ -1174,6 +1200,7 @@ static int v4l2_ioctl_qbuf(struct file *file,
 				ctx->total_qbuf_bytes);
 		q_data = &ctx->q_data[V4L2_SRC];
 
+		vpu_dec_receive_ts(ctx, buf, buf->m.planes[0].bytesused);
 		v4l2_update_stream_addr(ctx, 0);
 	} else if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
@@ -1243,6 +1270,8 @@ static int v4l2_ioctl_dqbuf(struct file *file,
 
 	if (!V4L2_TYPE_IS_OUTPUT(buf->type))
 		vpu_dec_send_ts(ctx, buf);
+	if (V4L2_TYPE_IS_OUTPUT(buf->type))
+		buf->flags &= ~V4L2_NXP_BUF_MASK_FLAGS;
 
 	return ret;
 }
@@ -2061,24 +2090,6 @@ static void transfer_buffer_to_firmware(struct vpu_ctx *ctx, void *input_buffer,
 	fill_stream_buffer_info(ctx);
 }
 
-static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
-				struct vb2_buffer *vb,
-				int size)
-{
-	TSM_TIMESTAMP input_ts = -1;
-
-	if (vb->timestamp >= 0)
-		input_ts = vb->timestamp;
-	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
-
-	if (ctx->tsm_sync_flag) {
-		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
-		ctx->tsm_sync_flag = false;
-	}
-	TSManagerReceive2(ctx->tsm, input_ts, size);
-	ctx->total_ts_bytes += size;
-}
-
 static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2_buffer *vb)
 {
 	struct vpu_ctx *ctx = container_of(This, struct vpu_ctx, q_data[V4L2_SRC]);
@@ -2096,7 +2107,6 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 			return;
 		}
 		transfer_buffer_to_firmware(ctx, data_mapped, buffer_size, This->vdec_std);
-		vpu_dec_receive_ts(ctx, vb, vb2_get_plane_payload(vb, 0));
 #ifdef HANDLE_EOS
 		if (vb->planes[0].bytesused < vb->planes[0].length)
 			vpu_dbg(LVL_INFO, "v4l2_transfer_buffer_to_firmware - set stream_feed_complete - DEBUG 1\n");
@@ -2314,7 +2324,6 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 
 		buffer_size = p_data_req->vb2_buf->planes[0].bytesused;
 		input_buffer = (void *)vb2_plane_vaddr(p_data_req->vb2_buf, 0);
-		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, buffer_size);
 		if (!update_stream_addr_vpu(ctx, input_buffer, buffer_size, uStrBufIdx)) {
 			up(&This->drv_q_lock);
 			vpu_dbg(LVL_INFO, " %s no space to write\n", __func__);
@@ -2640,8 +2649,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
 							uPicStartAddr,
 							uPicEndAddr);
-		vpu_dbg(LVL_BIT_FRAME_BYTES, "Valid bytes : %d\n",
-				consumed_pic_bytesused);
+		vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]Valid bytes : %8d / %16ld\n",
+				ctx->str_index, consumed_pic_bytesused,
+				ctx->total_consumed_bytes);
 		TSManagerValid2(ctx->tsm,
 				consumed_pic_bytesused,
 				p_data_req->vb2_buf);
