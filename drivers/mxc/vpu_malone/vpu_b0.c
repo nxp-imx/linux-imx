@@ -37,6 +37,7 @@
 #include <linux/mx8_mu.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
+#include <linux/version.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>

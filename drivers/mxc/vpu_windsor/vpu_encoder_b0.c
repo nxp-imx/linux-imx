@@ -37,6 +37,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/mx8_mu.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -3797,7 +3798,7 @@ static int show_cmd_event_infos(struct vpu_statistic *statistic,
 
 	num += scnprintf(buf + num, size - num, "command/event:\n");
 
-	count = max(GTB_ENC_CMD_RESERVED, VID_API_ENC_EVENT_RESERVED);
+	count = max_t(int, GTB_ENC_CMD_RESERVED, VID_API_ENC_EVENT_RESERVED);
 	for (i = 0; i <= count; i++)
 		num += show_cmd_event(statistic, i, buf + num, size - num);
 
@@ -4582,7 +4583,7 @@ static unsigned int vpu_enc_v4l2_poll(struct file *filp, poll_table *wait)
 	unsigned int rc = 0;
 
 	vpu_dbg(LVL_FUNC, "%s(), event: 0x%lx\n", __func__,
-			poll_requested_events(wait));
+			(unsigned long)poll_requested_events(wait));
 
 	poll_wait(filp, &ctx->fh.wait, wait);
 
