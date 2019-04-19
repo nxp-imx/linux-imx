@@ -570,6 +570,7 @@ _CMAFSLAlloctorInit(
 
     allocator->capability = gcvALLOC_FLAG_CONTIGUOUS
                           | gcvALLOC_FLAG_DMABUF_EXPORTABLE
+                          | gcvALLOC_FLAG_CACHEABLE
 #if defined(CONFIG_ZONE_DMA32) && LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
                           | gcvALLOC_FLAG_4GB_ADDR
 #endif
