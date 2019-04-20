@@ -84,6 +84,8 @@ static void send_skip_event(struct vpu_ctx* ctx);
 static void reset_mbi_dcp_count(struct vpu_ctx *ctx);
 static bool verify_frame_buffer_size(struct queue_data *q_data,
 							struct vb2_data_req *p_data_req);
+static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *data_req);
+
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
 static char *cmd2str[] = {
@@ -2460,22 +2462,21 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 static bool wait_right_buffer(struct queue_data *This)
 {
 	struct vb2_data_req *p_data_req, *p_temp;
+	bool ret = false;
 
 	down(&This->drv_q_lock);
-	if (!list_empty(&This->drv_q)) {
-		list_for_each_entry_safe(p_data_req, p_temp, &This->drv_q, list)
-			if (p_data_req->status == FRAME_ALLOC
-					|| p_data_req->status == FRAME_RELEASE) {
-				up(&This->drv_q_lock);
-				if (verify_frame_buffer_size(This, p_data_req))
-					return true;
-				else
-					return false;
-			}
+
+	list_for_each_entry_safe(p_data_req, p_temp, &This->drv_q, list) {
+		if (p_data_req->status == FRAME_ALLOC
+				|| p_data_req->status == FRAME_RELEASE) {
+			if (verify_frame_buffer_size(This, p_data_req))
+				ret = true;
+			break;
+		}
 	}
 	up(&This->drv_q_lock);
 
-	return false;
+	return ret;
 }
 
 static void send_skip_event(struct vpu_ctx* ctx)
@@ -2516,6 +2517,16 @@ static bool verify_frame_buffer_size(struct queue_data *q_data,
 	vpu_dbg(LVL_WARN, "warning: %s() ctx[%d] frame buffer size is smaller than need\n",
 			__func__, ctx->str_index);
 	return false;
+}
+
+static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *data_req)
+{
+	if (!q_data || !data_req)
+		return;
+	if (data_req->queued == true)
+		return;
+	list_add_tail(&data_req->list, &q_data->drv_q);
+	data_req->queued = true;
 }
 
 static u32 get_consumed_pic_bytesused(struct vpu_ctx *ctx,
@@ -2926,11 +2937,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_WARN, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
 						bufstat[p_data_req->status]);
 
-				if ((p_data_req->status == FRAME_DECODED || p_data_req->status == FRAME_FREE)
-						&& p_data_req->queued == false) {
+				if ((p_data_req->status == FRAME_DECODED || p_data_req->status == FRAME_FREE)) {
 					v4l2_event_queue_fh(&ctx->fh, &ev);
-					list_add_tail(&p_data_req->list, &This->drv_q);
-					p_data_req->queued = true;
+					add_buffer_to_queue(This, p_data_req);
 				}
 			}
 			set_data_req_status(p_data_req, FRAME_RELEASE);
@@ -3437,8 +3446,7 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		data_req->phy_addr[1] = *pphy_address_1;
 	}
 	if (data_req->status != FRAME_FREE && data_req->status != FRAME_DECODED) {
-		list_add_tail(&data_req->list, &This->drv_q);
-		data_req->queued = true;
+		add_buffer_to_queue(This, data_req);
 	} else {
 	}
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
