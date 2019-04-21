@@ -1156,6 +1156,14 @@ static void flexcan_set_bittiming(struct net_device *dev)
 	flexcan_write(reg, &regs->ctrl);
 
 	if (priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) {
+		reg = flexcan_read(&regs->cbt);
+		reg &= ~(FLEXCAN_CBT_EPRESDIV(0x3ff) |
+			 FLEXCAN_CBT_EPSEG1(0x1f) |
+			 FLEXCAN_CBT_EPSEG2(0x1f) |
+			 FLEXCAN_CBT_ERJW(0x1f) |
+			 FLEXCAN_CBT_EPROPSEG(0x3f) |
+			 FLEXCAN_CBT_BTF);
+
 		reg = FLEXCAN_CBT_EPRESDIV(bt->brp - 1) |
 			FLEXCAN_CBT_EPSEG1(bt->phase_seg1 - 1) |
 			FLEXCAN_CBT_EPSEG2(bt->phase_seg2 - 1) |
@@ -1168,7 +1176,16 @@ static void flexcan_set_bittiming(struct net_device *dev)
 				bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
 				bt->sjw - 1, bt->prop_seg - 1);
 
+		/* clear fdcbt regs */
+		flexcan_write(0, &regs->fdcbt);
 		if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+			reg = flexcan_read(&regs->fdcbt);
+			reg &= ~(FLEXCAN_FDCBT_FPRESDIV(0x3ff) |
+				 FLEXCAN_FDCBT_FPSEG1(0x07) |
+				 FLEXCAN_FDCBT_FPSEG2(0x07) |
+				 FLEXCAN_FDCBT_FRJW(0x07) |
+				 FLEXCAN_FDCBT_FPROPSEG(0x1f));
+
 			reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
 				FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1 - 1) |
 				FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2 - 1) |
@@ -1309,28 +1326,34 @@ static int flexcan_chip_start(struct net_device *dev)
 		flexcan_write(reg_ctrl2, &regs->ctrl2);
 	}
 
-	/* CAN FD initialization
-	 *
-	 * disable BRS by default
-	 * Message Buffer Data Size 64 bytes per MB
-	 * disable Transceiver Delay Compensation
-	 * Configure Message Buffer according to CAN FD mode enabled or not
-	 */
-	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
-		reg_fdctrl = flexcan_read(&regs->fdctrl) &
-			     ~FLEXCAN_CANFD_MBDSR_MASK;
-		reg_fdctrl |= FLEXCAN_CANFD_MBDSR_DEFAULT <<
-			      FLEXCAN_CANFD_MBDSR_SHIFT;
+	if (priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) {
+		reg_fdctrl = flexcan_read(&regs->fdctrl) & ~FLEXCAN_FDCTRL_FDRATE;
+		reg_fdctrl &= ~FLEXCAN_CANFD_MBDSR_MASK;
+		reg_mcr = flexcan_read(&regs->mcr) & ~FLEXCAN_MCR_FDEN;
+		reg_ctrl2 = flexcan_read(&regs->ctrl2) & ~FLEXCAN_CTRL2_ISOCANFDEN;
+
+		if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+			/* CAN FD initialization
+			 *
+			 * disable BRS by default
+			 * Message Buffer Data Size 64 bytes per MB
+			 * disable Transceiver Delay Compensation
+			 * Configure Message Buffer when CAN FD mode is on
+			 */
+			reg_fdctrl |= FLEXCAN_CANFD_MBDSR_DEFAULT <<
+				      FLEXCAN_CANFD_MBDSR_SHIFT;
+			reg_mcr |= FLEXCAN_MCR_FDEN;
+
+			if (!(priv->can.ctrlmode & CAN_CTRLMODE_FD_NON_ISO))
+				reg_ctrl2 |= FLEXCAN_CTRL2_ISOCANFDEN;
+		}
+
 		flexcan_write(reg_fdctrl, &regs->fdctrl);
-		reg_mcr = flexcan_read(&regs->mcr);
-		flexcan_write(reg_mcr | FLEXCAN_MCR_FDEN, &regs->mcr);
+		flexcan_write(reg_mcr, &regs->mcr);
+		flexcan_write(reg_ctrl2, &regs->ctrl2);
+	}
 
-		reg_ctrl2 = flexcan_read(&regs->ctrl2);
-		if (!(priv->can.ctrlmode & CAN_CTRLMODE_FD_NON_ISO))
-			flexcan_write(reg_ctrl2 | FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
-		else
-			flexcan_write(reg_ctrl2 & ~FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
-
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
 		priv->mb_size = FLEXCAN_MB_FD_SIZE;
 		priv->mb_num = FLEXCAN_MB_FD_NUM;
 	} else {
