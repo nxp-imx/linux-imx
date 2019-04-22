@@ -1243,6 +1243,16 @@ static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
 	buf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
 }
 
+static void vpu_dec_skip_ts(struct vpu_ctx *ctx)
+{
+	TSM_TIMESTAMP ts;
+
+	WARN_ON(!ctx || !ctx->tsm);
+
+	ts = TSManagerSend2(ctx->tsm, NULL);
+	vpu_dbg(LVL_BIT_TS, "[SKIP   TS]%32lld\n", ts);
+}
+
 static int v4l2_ioctl_dqbuf(struct file *file,
 		void *fh,
 		struct v4l2_buffer *buf
@@ -2487,6 +2497,7 @@ static void send_skip_event(struct vpu_ctx* ctx)
 
 	if (!ctx)
 		return;
+
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -2931,14 +2942,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			p_data_req = &This->vb2_reqs[fsrel->uFSIdx];
 
 			if (ctx->wait_rst_done != true && p_data_req->status != FRAME_READY) {
-				const struct v4l2_event ev = {
-					.type = V4L2_EVENT_SKIP
-				};
 				vpu_dbg(LVL_WARN, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
 						bufstat[p_data_req->status]);
 
 				if ((p_data_req->status == FRAME_DECODED || p_data_req->status == FRAME_FREE)) {
-					v4l2_event_queue_fh(&ctx->fh, &ev);
+					vpu_dec_skip_ts(ctx);
+					send_skip_event(ctx);
 					add_buffer_to_queue(This, p_data_req);
 				}
 			}
