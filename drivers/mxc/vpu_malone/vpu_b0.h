@@ -346,4 +346,11 @@ struct vpu_ctx {
 			pr_info("[VPU Decoder]\t " fmt, ## arg); \
 	} while (0)
 
+#define V4L2_NXP_BUF_FLAG_CODECCONFIG		0x00200000
+#define V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID	0x00400000
+
+#define V4L2_NXP_BUF_MASK_FLAGS		(V4L2_NXP_BUF_FLAG_CODECCONFIG | \
+					 V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID)
+
+
 #endif

@@ -1001,6 +1001,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		kfree(user_format_name);
 		img_fmt = mxc_jpeg_fourcc_to_imgfmt(q_data_cap->fmt->fourcc);
 	}
+	desc->stm_ctrl &= ~STM_CTRL_IMAGE_FORMAT(0xF); /* clear image format */
 	desc->stm_ctrl |= STM_CTRL_IMAGE_FORMAT(img_fmt);
 	desc->line_pitch = mxc_jpeg_get_line_pitch(dev, &sof, img_fmt);
 	q_data_cap->stride = desc->line_pitch;
@@ -1127,81 +1128,82 @@ static int mxc_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 	return ret;
 }
 
-static int mxc_jpeg_alloc_slot_data(struct mxc_jpeg_dev *jpeg)
+static int mxc_get_free_slot(struct mxc_jpeg_slot_data slot_data[], int n)
 {
-	int slot;
+	int free_slot = 0;
 
-	for (slot = 0; slot < MXC_MAX_SLOTS; slot++) {
-		/* allocate descriptor for decoding/encoding phase */
-		jpeg->slot_data[slot].desc = dma_zalloc_coherent(jpeg->dev,
-			sizeof(struct mxc_jpeg_desc),
-			&(jpeg->slot_data[slot].desc_handle), 0);
-		if (!jpeg->slot_data[slot].desc)
-			goto err;
-		dev_dbg(jpeg->dev, "Descriptor for dec/enc: %p 0x%llx\n",
-			jpeg->slot_data[slot].desc,
-			jpeg->slot_data[slot].desc_handle);
+	while (slot_data[free_slot].used && free_slot < n)
+		free_slot++;
 
-		/* allocate descriptor for configuration phase (encoder only) */
-		jpeg->slot_data[slot].cfg_desc = dma_zalloc_coherent(jpeg->dev,
-			sizeof(struct mxc_jpeg_desc),
-			&jpeg->slot_data[slot].cfg_desc_handle, 0);
-		if (!jpeg->slot_data[slot].cfg_desc)
-			goto err;
-		dev_dbg(jpeg->dev, "Descriptor for config phase: %p 0x%llx\n",
-			jpeg->slot_data[slot].cfg_desc,
-			jpeg->slot_data[slot].cfg_desc_handle);
-
-		/* allocate configuration stream */
-		jpeg->slot_data[slot].cfg_stream_vaddr = dma_zalloc_coherent(
-			jpeg->dev,
-			sizeof(hactbl),
-			&jpeg->slot_data[slot].cfg_stream_handle, 0);
-		if (!jpeg->slot_data[slot].cfg_stream_vaddr)
-			goto err;
-		dev_dbg(jpeg->dev, "Configuration stream: %p 0x%llx\n",
-			jpeg->slot_data[slot].cfg_stream_vaddr,
-			jpeg->slot_data[slot].cfg_stream_handle);
-
-		/* initial set-up for configuration stream
-		 * TODO: fixup the sizes, currently harcoded to 64x64)
-		 */
-		memcpy(jpeg->slot_data[slot].cfg_stream_vaddr,
-		       &hactbl, sizeof(hactbl));
-	}
-	return 0;
-err:
-	dev_err(jpeg->dev, "Could not allocate descriptors\n");
-	return 1;
+	return free_slot; /* >=n when there are no more free slots */
 }
 
-static int mxc_jpeg_free_slot_data(struct mxc_jpeg_dev *jpeg)
+static bool mxc_jpeg_alloc_slot_data(struct mxc_jpeg_dev *jpeg, int slot)
 {
-	int slot;
+	/* allocate descriptor for decoding/encoding phase */
+	jpeg->slot_data[slot].desc = dma_zalloc_coherent(jpeg->dev,
+		sizeof(struct mxc_jpeg_desc),
+		&jpeg->slot_data[slot].desc_handle, GFP_ATOMIC);
+	if (!jpeg->slot_data[slot].desc)
+		goto err;
 
-	for (slot = 0; slot < MXC_MAX_SLOTS; slot++) {
-		/* free descriptor for decoding/encoding phase */
-		dma_free_coherent(jpeg->dev, sizeof(struct mxc_jpeg_desc),
-			jpeg->slot_data[slot].desc,
-			jpeg->slot_data[slot].desc_handle);
+	/* allocate descriptor for configuration phase (encoder only) */
+	jpeg->slot_data[slot].cfg_desc = dma_zalloc_coherent(jpeg->dev,
+		sizeof(struct mxc_jpeg_desc),
+		&jpeg->slot_data[slot].cfg_desc_handle, GFP_ATOMIC);
+	if (!jpeg->slot_data[slot].cfg_desc)
+		goto err;
 
-		/* free descriptor for configuration phase (encoder only) */
-		dma_free_coherent(jpeg->dev, sizeof(struct mxc_jpeg_desc),
-			jpeg->slot_data[slot].cfg_desc,
-			jpeg->slot_data[slot].cfg_desc_handle);
+	/* allocate configuration stream */
+	jpeg->slot_data[slot].cfg_stream_vaddr = dma_zalloc_coherent(
+		jpeg->dev,
+		sizeof(hactbl),
+		&jpeg->slot_data[slot].cfg_stream_handle, GFP_ATOMIC);
+	if (!jpeg->slot_data[slot].cfg_stream_vaddr)
+		goto err;
 
-		/* free configuration stream */
-		dma_free_coherent(jpeg->dev, sizeof(hactbl),
-			jpeg->slot_data[slot].cfg_stream_vaddr,
-			jpeg->slot_data[slot].cfg_stream_handle);
+	/* initial set-up for configuration stream */
+	memcpy(jpeg->slot_data[slot].cfg_stream_vaddr,
+	       &hactbl, sizeof(hactbl));
+
+	jpeg->slot_data[slot].used = true;
+
+	return true;
+err:
+	dev_err(jpeg->dev, "Could not allocate descriptors for slot %d", slot);
+	return false;
+}
+
+static void mxc_jpeg_free_slot_data(struct mxc_jpeg_dev *jpeg, int slot)
+{
+	if (slot >= MXC_MAX_SLOTS) {
+		dev_err(jpeg->dev, "Invalid slot %d, nothing to free.", slot);
+		return;
 	}
-	return 0;
+
+	/* free descriptor for decoding/encoding phase */
+	dma_free_coherent(jpeg->dev, sizeof(struct mxc_jpeg_desc),
+			  jpeg->slot_data[slot].desc,
+			  jpeg->slot_data[slot].desc_handle);
+
+	/* free descriptor for configuration phase (encoder only) */
+	dma_free_coherent(jpeg->dev, sizeof(struct mxc_jpeg_desc),
+			  jpeg->slot_data[slot].cfg_desc,
+			  jpeg->slot_data[slot].cfg_desc_handle);
+
+	/* free configuration stream */
+	dma_free_coherent(jpeg->dev, sizeof(hactbl),
+		jpeg->slot_data[slot].cfg_stream_vaddr,
+		jpeg->slot_data[slot].cfg_stream_handle);
+
+	jpeg->slot_data[slot].used = false;
 }
 
 static int mxc_jpeg_open(struct file *file)
 {
 	struct mxc_jpeg_dev *mxc_jpeg = video_drvdata(file);
 	struct video_device *mxc_vfd = video_devdata(file);
+	struct device *dev = mxc_jpeg->dev;
 	struct mxc_jpeg_ctx *ctx;
 	struct mxc_jpeg_fmt *out_fmt, *cap_fmt;
 	int ret = 0;
@@ -1240,9 +1242,23 @@ static int mxc_jpeg_open(struct file *file)
 		goto error;
 	}
 
-	if (mxc_jpeg_alloc_slot_data(mxc_jpeg))
+	ctx->slot = mxc_get_free_slot(mxc_jpeg->slot_data, MXC_MAX_SLOTS);
+	if (ctx->slot >= MXC_MAX_SLOTS) {
+		dev_err(dev, "No more free slots\n");
+		ret = -EBUSY;
 		goto error;
+	}
+	if (!mxc_jpeg_alloc_slot_data(mxc_jpeg, ctx->slot)) {
+		ret = -ENOMEM;
+		goto error;
+	}
 
+	if (mxc_jpeg->mode == MXC_JPEG_DECODE)
+		dev_dbg(dev, "Opened JPEG decoder instance on slot %d.",
+			ctx->slot);
+	else
+		dev_dbg(dev, "Opened JPEG encoder instance on slot %d.",
+			ctx->slot);
 	mutex_unlock(&mxc_jpeg->lock);
 	return 0;
 
@@ -1584,9 +1600,16 @@ static int mxc_jpeg_release(struct file *file)
 {
 	struct mxc_jpeg_dev *mxc_jpeg = video_drvdata(file);
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(file->private_data);
+	struct device *dev = mxc_jpeg->dev;
 
 	mutex_lock(&mxc_jpeg->lock);
-	mxc_jpeg_free_slot_data(mxc_jpeg);
+	if (mxc_jpeg->mode == MXC_JPEG_DECODE)
+		dev_dbg(dev, "Release JPEG decoder instance on slot %d.",
+			ctx->slot);
+	else
+		dev_dbg(dev, "Release JPEG encoder instance on slot %d.",
+			ctx->slot);
+	mxc_jpeg_free_slot_data(mxc_jpeg, ctx->slot);
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
