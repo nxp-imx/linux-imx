@@ -318,6 +318,7 @@ struct vpu_ctx {
 	long total_write_bytes;
 	long total_consumed_bytes;
 	long total_ts_bytes;
+	struct semaphore tsm_lock;
 
 	struct v4l2_fract fixed_frame_interval;
 	struct v4l2_fract frame_interval;
