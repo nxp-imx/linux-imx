@@ -46,6 +46,9 @@
 /*
  * Ioctl definitions
  */
+struct mirror_regs {
+	unsigned int regs[512]; /* pointer to user registers */
+};
 
 /* Use 'k' as magic number */
 #define HX280ENC_IOC_MAGIC  'k'
