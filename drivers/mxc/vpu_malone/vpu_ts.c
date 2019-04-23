@@ -109,7 +109,8 @@ static TSM_TIMESTAMP TSManagerGetLastTimeStamp(TSMRecivedCtl *rctl,
 	TSMReceivedEntry *e;
 
 	while ((size > 0) && (e = rctl->head)) {
-		ts = ((e->used) ? (TSM_TIMESTAMP_NONE) : (e->ts));
+		if (TSM_TS_IS_VALID(e->ts))
+			ts = ((e->used) ? (TSM_TIMESTAMP_NONE) : (e->ts));
 
 		TSM_VERBOSE("ts get: %u:%02u:%02u.%09u\n",
 				TSM_TIME_H(ts),
