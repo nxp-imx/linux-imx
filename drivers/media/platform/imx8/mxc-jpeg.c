@@ -469,6 +469,7 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 	    && ctx->enc_state == MXC_JPEG_ENC_CONF) {
 		ctx->enc_state = MXC_JPEG_ENC_DONE;
 		dev_dbg(dev, "Encoder config finished. Start encoding...\n");
+		mxc_jpeg_enc_mode_go(dev, reg);
 		goto job_unlock;
 	}
 	if (ctx->mode == MXC_JPEG_ENCODE) {
@@ -649,12 +650,12 @@ static void mxc_jpeg_device_run(void *priv)
 		dev_dbg(dev, "Encoding on slot %d\n", slot);
 		ctx->enc_state = MXC_JPEG_ENC_CONF;
 		mxc_jpeg_config_enc_desc(dst_buf, slot, ctx, src_buf, dst_buf);
-		mxc_jpeg_go_enc(dev, reg);
+		mxc_jpeg_enc_mode_conf(dev, reg);
 	} else {
 		dev_dbg(dev, "Decoding on slot %d\n", slot);
 		print_nbuf_to_eoi(dev, src_buf, 0);
 		mxc_jpeg_config_dec_desc(dst_buf, slot, jpeg, src_buf, dst_buf);
-		mxc_jpeg_go_dec(dev, reg);
+		mxc_jpeg_dec_mode_go(dev, reg);
 	}
 end:
 	spin_unlock_irqrestore(&ctx->mxc_jpeg->hw_lock, flags);
