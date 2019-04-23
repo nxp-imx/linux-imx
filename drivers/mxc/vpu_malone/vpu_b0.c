@@ -1177,6 +1177,10 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	if (input_ts < 0)
 		input_ts = TSM_TIMESTAMP_NONE;
 
+	if (down_interruptible(&ctx->tsm_lock)) {
+		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
+		return;
+	}
 	if (ctx->tsm_sync_flag) {
 		vpu_dbg(LVL_BIT_TS, "resyncTSManager\n");
 		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
@@ -1187,6 +1191,7 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	ctx->total_ts_bytes += size;
 	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]receive bytes : %8d / %16ld\n",
 			ctx->str_index, size, ctx->total_ts_bytes);
+	up(&ctx->tsm_lock);
 }
 
 static int v4l2_ioctl_qbuf(struct file *file,
@@ -1235,12 +1240,41 @@ static int v4l2_ioctl_qbuf(struct file *file,
 
 static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
 {
-	TSM_TIMESTAMP ts = TSManagerSend2(ctx->tsm, NULL);
+	TSM_TIMESTAMP ts;
 
+	if (down_interruptible(&ctx->tsm_lock)) {
+		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
+		return;
+	}
+
+	ts = TSManagerSend2(ctx->tsm, NULL);
 	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%32lld (%lld)\n",
 			ts, getTSManagerFrameInterval(ctx->tsm));
 	buf->timestamp = ns_to_timeval(ts);
 	buf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
+
+	up(&ctx->tsm_lock);
+}
+
+static void vpu_dec_valid_ts(struct vpu_ctx *ctx,
+				u32 consumed_pic_bytesused,
+				struct vb2_data_req *p_data_req)
+{
+	WARN_ON(!ctx || !ctx->tsm);
+
+	if (down_interruptible(&ctx->tsm_lock)) {
+		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
+		return;
+	}
+
+	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]Valid bytes : %8d / %16ld\n",
+				ctx->str_index, consumed_pic_bytesused,
+				ctx->total_consumed_bytes);
+	TSManagerValid2(ctx->tsm,
+			consumed_pic_bytesused,
+			p_data_req ? p_data_req->vb2_buf : NULL);
+
+	up(&ctx->tsm_lock);
 }
 
 static void vpu_dec_skip_ts(struct vpu_ctx *ctx)
@@ -1249,7 +1283,15 @@ static void vpu_dec_skip_ts(struct vpu_ctx *ctx)
 
 	WARN_ON(!ctx || !ctx->tsm);
 
+	if (down_interruptible(&ctx->tsm_lock)) {
+		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
+		return;
+	}
+
 	ts = TSManagerSend2(ctx->tsm, NULL);
+
+	up(&ctx->tsm_lock);
+
 	vpu_dbg(LVL_BIT_TS, "[SKIP   TS]%32lld\n", ts);
 }
 
@@ -1502,19 +1544,25 @@ static void vpu_dec_set_tsm_frame_rate(struct vpu_ctx *ctx)
 	u32 numerator;
 	u32 denominator;
 
-	WARN_ON(!ctx);
+	WARN_ON(!ctx || !ctx->tsm);
 
+	if (down_interruptible(&ctx->tsm_lock)) {
+		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
+		return;
+	}
 	numerator = ctx->fixed_frame_interval.numerator;
 	denominator = ctx->fixed_frame_interval.denominator;
 	if (numerator && denominator) {
 		setTSManagerFrameRate(ctx->tsm, denominator, numerator);
-		return;
+		goto exit;
 	}
 
 	numerator = ctx->frame_interval.numerator;
 	denominator = ctx->frame_interval.denominator;
 	if (numerator && denominator)
 		setTSManagerFrameRate(ctx->tsm, denominator, numerator);
+exit:
+	up(&ctx->tsm_lock);
 }
 
 static int vpu_dec_v4l2_ioctl_s_parm(struct file *file, void *fh,
@@ -2722,12 +2770,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
 							uPicStartAddr,
 							uPicEndAddr);
-		vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]Valid bytes : %8d / %16ld\n",
-				ctx->str_index, consumed_pic_bytesused,
-				ctx->total_consumed_bytes);
-		TSManagerValid2(ctx->tsm,
-				consumed_pic_bytesused,
-				p_data_req->vb2_buf);
+		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
 		}
 
 		ctx->frm_dec_delay--;
@@ -4080,6 +4123,7 @@ static int v4l2_open(struct file *filp)
 	ctx->tsm = createTSManager(tsm_buffer_size);
 	if (!ctx->tsm)
 		goto err_create_tsm;
+	sema_init(&ctx->tsm_lock, 1);
 	resyncTSManager(ctx->tsm, 0, tsm_mode);
 	ctx->tsm_sync_flag = false;
 	create_instance_file(ctx);
