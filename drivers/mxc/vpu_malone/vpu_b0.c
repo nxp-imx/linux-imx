@@ -1596,6 +1596,9 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_FRAME_DEPTH:
 		vpu_frm_depth = ctrl->val;
 		break;
+	case V4L2_CID_USER_FRAME_DIS_REORDER:
+		ctx->b_dis_reorder = ctrl->val;
+		break;
 	default:
 		vpu_dbg(LVL_ERR, "%s() Invalid costomer control(%d)\n",
 				__func__, ctrl->id);
@@ -1696,6 +1699,23 @@ static int add_custom_ctrl(struct vpu_ctx *This)
 		return -EINVAL;
 	}
 
+	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
+	cfg.ops = &vpu_custom_ctrl_ops;
+	cfg.id = V4L2_CID_USER_FRAME_DIS_REORDER;
+	cfg.name = "frame disable reoder ctrl";
+	cfg.min = 0;
+	cfg.max = 1;
+	cfg.step = 1;
+	cfg.def = 0;
+	cfg.type = V4L2_CTRL_TYPE_BOOLEAN;
+
+	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
+			&cfg, NULL);
+	if (!ctrl) {
+		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -1705,7 +1725,7 @@ static int ctrls_setup_decoder(struct vpu_ctx *This)
 		return -EINVAL;
 
 	v4l2_ctrl_handler_init(&This->ctrl_handler,
-			NUM_CTRLS_DEC + 1
+			NUM_CTRLS_DEC + 3
 			);
 	if (This->ctrl_handler.error) {
 		vpu_dbg(LVL_ERR, "%s() v4l2_ctrl_handler_init failed(%d)\n",
