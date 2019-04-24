@@ -1999,19 +1999,17 @@ static long mxc_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP) {
-			memset(buf, 0, sizeof(*buf));
-			buf->index = index;
-		}
-
 		down(&cam->param_lock);
 		if (buf->memory & V4L2_MEMORY_USERPTR) {
 			mxc_v4l2_release_bufs(cam);
 			retval = mxc_v4l2_prepare_bufs(cam, buf);
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP)
+		if (buf->memory & V4L2_MEMORY_MMAP) {
+			memset(buf, 0, sizeof(*buf));
+			buf->index = index;
 			retval = mxc_v4l2_buffer_status(cam, buf);
+		}
 		up(&cam->param_lock);
 		break;
 	}
