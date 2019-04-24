@@ -1177,6 +1177,9 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	if (input_ts < 0)
 		input_ts = TSM_TIMESTAMP_NONE;
 
+	if (input_ts != TSM_TIMESTAMP_NONE)
+		ctx->output_ts = input_ts;
+
 	if (down_interruptible(&ctx->tsm_lock)) {
 		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
 		return;
@@ -1254,6 +1257,9 @@ static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
 	buf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
 
 	up(&ctx->tsm_lock);
+
+	if (ts != TSM_TIMESTAMP_NONE)
+		ctx->capture_ts = ts;
 }
 
 static void vpu_dec_valid_ts(struct vpu_ctx *ctx,
@@ -1502,6 +1508,10 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	}
 
 	ctx->tsm_sync_flag = true;
+	if (V4L2_TYPE_IS_OUTPUT(i))
+		ctx->output_ts = TSM_TIMESTAMP_NONE;
+	else
+		ctx->capture_ts = TSM_TIMESTAMP_NONE;
 
 	ret = vpu_dec_queue_disable(q_data, i);
 
@@ -1647,6 +1657,15 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_FRAME_DIS_REORDER:
 		ctx->b_dis_reorder = ctrl->val;
 		break;
+	case V4L2_CID_USER_TS_THRESHOLD:
+		ctx->ts_threshold = ctrl->val;
+		break;
+	case V4L2_CID_USER_BS_L_THRESHOLD:
+		ctx->bs_l_threshold = ctrl->val;
+		break;
+	case V4L2_CID_USER_BS_H_THRESHOLD:
+		ctx->bs_h_threshold = ctrl->val;
+		break;
 	default:
 		vpu_dbg(LVL_ERR, "%s() Invalid costomer control(%d)\n",
 				__func__, ctrl->id);
@@ -1756,11 +1775,57 @@ static int add_custom_ctrl(struct vpu_ctx *This)
 	cfg.step = 1;
 	cfg.def = 0;
 	cfg.type = V4L2_CTRL_TYPE_BOOLEAN;
-
 	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
 			&cfg, NULL);
 	if (!ctrl) {
 		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
+		return -EINVAL;
+	}
+
+	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
+	cfg.ops = &vpu_custom_ctrl_ops;
+	cfg.id = V4L2_CID_USER_TS_THRESHOLD;
+	cfg.name = "frame timestamp threshold";
+	cfg.min = 0;
+	cfg.max = INT_MAX;
+	cfg.step = 1;
+	cfg.def = 0;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
+	if (!ctrl) {
+		vpu_dbg(LVL_ERR, "Add frame ts threshold ctrl fail\n");
+		return -EINVAL;
+	}
+
+	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
+	cfg.ops = &vpu_custom_ctrl_ops;
+	cfg.id = V4L2_CID_USER_BS_L_THRESHOLD;
+	cfg.name = "frame bitstream low threshold";
+	cfg.min = 0;
+	cfg.max = vpu_max_bufsize;
+	cfg.step = 1;
+	cfg.def = 0;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
+	if (!ctrl) {
+		vpu_dbg(LVL_ERR,
+			"Add frame bitstream low threshold ctrl fail\n");
+		return -EINVAL;
+	}
+
+	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
+	cfg.ops = &vpu_custom_ctrl_ops;
+	cfg.id = V4L2_CID_USER_BS_H_THRESHOLD;
+	cfg.name = "frame bitstream high threshold";
+	cfg.min = 0;
+	cfg.max = vpu_max_bufsize;
+	cfg.step = 1;
+	cfg.def = 0;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
+	if (!ctrl) {
+		vpu_dbg(LVL_ERR,
+			"Add frame bitstream high threshold ctrl fail\n");
 		return -EINVAL;
 	}
 
@@ -2238,6 +2303,20 @@ static u_int32 got_free_space(u_int32 wptr, u_int32 rptr, u_int32 start, u_int32
 	return freespace;
 }
 
+static u32 got_used_space(u32 wptr, u32 rptr, u32 start, u32 end)
+{
+	u32 stream_size = 0;
+
+	if (wptr == rptr)
+		stream_size = 0;
+	else if (rptr < wptr)
+		stream_size = wptr - rptr;
+	else
+		stream_size = (end - rptr) + (wptr - start);
+
+	return stream_size;
+}
+
 static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t buffer_size, uint32_t uStrBufIdx)
 {
 	struct vpu_dev *dev = ctx->dev;
@@ -2405,6 +2484,51 @@ static void clear_pic_end_flag(struct vpu_ctx *ctx)
 		buffer_info->stream_pic_end_flag = 0x0;
 }
 
+static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
+{
+	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
+	u32 stream_size = 0;
+
+	WARN_ON(!ctx);
+
+	if (ctx->fifo_low)
+		return true;
+
+	pStrBufDesc = get_str_buffer_desc(ctx);
+	stream_size = got_used_space(pStrBufDesc->wptr,
+					pStrBufDesc->rptr,
+					pStrBufDesc->start,
+					pStrBufDesc->end);
+	if (ctx->bs_l_threshold > 0) {
+		if (stream_size < ctx->bs_l_threshold)
+			return true;
+	}
+
+	/*
+	 *frame depth need to be set by user and then the condition works
+	 */
+	if (vpu_frm_depth != INVALID_FRAME_DEPTH) {
+		if (ctx->frm_dec_delay >= vpu_frm_depth)
+			return false;
+	}
+
+	if (ctx->ts_threshold > 0 &&
+		ctx->output_ts != TSM_TIMESTAMP_NONE &&
+		ctx->capture_ts != TSM_TIMESTAMP_NONE) {
+		s64 threshold = ctx->ts_threshold * NSEC_PER_MSEC;
+
+		if (ctx->output_ts > ctx->capture_ts + threshold)
+			return false;
+	}
+
+	if (ctx->bs_h_threshold > 0) {
+		if (stream_size > ctx->bs_h_threshold)
+			return false;
+	}
+
+	return true;
+}
+
 //warn uStrIdx need to refine how to handle it
 static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 {
@@ -2416,9 +2540,11 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 
 	down(&This->drv_q_lock);
 	while (!list_empty(&This->drv_q)) {
-		if (vpu_frm_depth != INVALID_FRAME_DEPTH) //frame depth need to be set by user and then the condition works
-			if (ctx->frm_dec_delay >= vpu_frm_depth)
-				break;
+		if (!vpu_dec_stream_is_ready(ctx)) {
+			vpu_dbg(LVL_INFO,
+				"[%d] stream is not ready\n", ctx->str_index);
+			break;
+		}
 		p_data_req = list_first_entry(&This->drv_q,
 				typeof(*p_data_req), list);
 
@@ -2774,6 +2900,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		}
 
 		ctx->frm_dec_delay--;
+		ctx->fifo_low = false;
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
@@ -3046,6 +3173,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_dbg(LVL_INFO, "frame already released !!!!!!!!!!!!!!!!!\n");
 			break;
 		}
+		ctx->fifo_low = true;
 		v4l2_update_stream_addr(ctx, uStrBufIdx);
 	} break;
 	case VID_API_EVENT_FIFO_HIGH:
@@ -3769,10 +3897,26 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	ctx = container_of(attr, struct vpu_ctx, dev_attr_instance_buffer);
 	statistic = &ctx->statistic;
 
-	num += scnprintf(buf + num, PAGE_SIZE - num, "frame buffer status:\n");
+	This = &ctx->q_data[V4L2_SRC];
+	down(&This->drv_q_lock);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"output buffer status(%d):\n", This->vb2_q.num_buffers);
+	for (i = 0; i < This->vb2_q.num_buffers; i++) {
+		p_data_req = &This->vb2_reqs[i];
+		if (!p_data_req->vb2_buf)
+			continue;
+		if (!p_data_req->queued)
+			continue;
+		num += scnprintf(buf + num, PAGE_SIZE - num,
+					"\t%40s(%2d):queued\n",
+					"buffer", i);
+	}
+	up(&This->drv_q_lock);
 
 	This = &ctx->q_data[V4L2_DST];
 	down(&This->drv_q_lock);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"frame buffer status(%d):\n", This->vb2_q.num_buffers);
 	for (i = 0; i < VPU_MAX_BUFFER; i++) {
 		p_data_req = &This->vb2_reqs[i];
 		if (p_data_req->vb2_buf != NULL) {
@@ -3803,11 +3947,33 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 		got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr, pStrBufDesc->start, pStrBufDesc->end);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16x\n", "stream length", stream_length);
+			"\t%40s:%16d\n", "stream length", stream_length);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16x\n", "decode dealy frame", ctx->frm_dec_delay);
+			"\t%40s:%16d\n", "decode dealy frame",
+			ctx->frm_dec_delay);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16x\n", "display delay frame", ctx->frm_dis_delay);
+			"\t%40s:%16d\n", "display delay frame",
+			ctx->frm_dis_delay);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "total frame number",
+			ctx->frm_total_num);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16lld\n", "timestamp threshold(ms)",
+			ctx->ts_threshold);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%6lld,%09lld\n", "output timestamp(ns)",
+			ctx->output_ts / NSEC_PER_SEC,
+			ctx->output_ts % NSEC_PER_SEC);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%6lld,%09lld\n", "capture timestamp(ns)",
+			ctx->capture_ts / NSEC_PER_SEC,
+			ctx->capture_ts % NSEC_PER_SEC);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "bitstream low threshold",
+			ctx->bs_l_threshold);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "bitstream high threshold",
+			ctx->bs_h_threshold);
 
 	return num;
 }
@@ -4126,6 +4292,8 @@ static int v4l2_open(struct file *filp)
 	sema_init(&ctx->tsm_lock, 1);
 	resyncTSManager(ctx->tsm, 0, tsm_mode);
 	ctx->tsm_sync_flag = false;
+	ctx->output_ts = TSM_TIMESTAMP_NONE;
+	ctx->capture_ts = TSM_TIMESTAMP_NONE;
 	create_instance_file(ctx);
 	if (vpu_frmcrcdump_ena) {
 		ret = open_crc_file(ctx);
