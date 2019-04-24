@@ -1554,6 +1554,10 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		return ret;
 	}
 
+	/* Set default video mode */
+	memcpy(&hdp->video.cur_mode, &edid_cea_modes[g_default_mode],
+			sizeof(hdp->video.cur_mode));
+
 	imx_hdp_call(hdp, pixel_clock_set_rate, &hdp->clks);
 
 	imx_hdp_call(hdp, pixel_clock_enable, &hdp->clks);
@@ -1572,7 +1576,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	/* bpp (bits per subpixel) - 8 24bpp, 10 30bpp, 12 36bpp, 16 48bpp */
 	/* default set hdmi to 1080p60 mode */
 	ret = imx_hdp_call(hdp, phy_init, &hdp->state,
-			   &edid_cea_modes[g_default_mode],
+			   &hdp->video.cur_mode,
 			   hdp->format, hdp->bpc);
 	if (ret < 0) {
 		DRM_ERROR("Failed to initialise HDP PHY\n");
