@@ -1169,8 +1169,8 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 
 	vbuf = to_vb2_v4l2_buffer(vb);
 	if (vbuf->flags & V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID) {
-		vpu_dbg(LVL_BIT_TS, "[INPUT  TS]Invalid timestamp, drop it\n");
-		return;
+		vpu_dbg(LVL_BIT_TS, "[INPUT  TS]Invalid timestamp\n");
+		vb->timestamp = TSM_TIMESTAMP_NONE;
 	}
 
 	input_ts = vb->timestamp;
