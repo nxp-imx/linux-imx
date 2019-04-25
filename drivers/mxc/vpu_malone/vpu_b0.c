@@ -1507,7 +1507,6 @@ static int v4l2_ioctl_streamoff(struct file *file,
 		}
 	}
 
-	ctx->tsm_sync_flag = true;
 	if (V4L2_TYPE_IS_OUTPUT(i))
 		ctx->output_ts = TSM_TIMESTAMP_NONE;
 	else
@@ -3196,6 +3195,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_ABORT_DONE: {
 		pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
+		struct queue_data *queue = &ctx->q_data[V4L2_SRC];
 
 		pStrBufDesc = get_str_buffer_desc(ctx);
 		vpu_dbg(LVL_INFO, "%s AbrtDone StrBuf Curr, wptr(%x) rptr(%x) start(%x) end(%x)\n",
@@ -3206,7 +3206,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pStrBufDesc->end
 				);
 
+		down(&queue->drv_q_lock);
 		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
+		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
 		vpu_dbg(LVL_BIT_FRAME_BYTES,
 				"[%d]total bytes: %ld, %ld, %ld, %ld\n",
 				ctx->str_index,
@@ -3214,15 +3216,17 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->total_ts_bytes,
 				ctx->total_write_bytes,
 				ctx->total_consumed_bytes);
-		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
-		clear_pic_end_flag(ctx);
-		ctx->frm_dis_delay = 0;
-		ctx->frm_dec_delay = 0;
-		ctx->frm_total_num = 0;
 		ctx->total_qbuf_bytes = 0;
 		ctx->total_write_bytes = 0;
 		ctx->total_consumed_bytes = 0;
 		ctx->total_ts_bytes = 0;
+		ctx->tsm_sync_flag = true;
+		up(&queue->drv_q_lock);
+
+		clear_pic_end_flag(ctx);
+		ctx->frm_dis_delay = 0;
+		ctx->frm_dec_delay = 0;
+		ctx->frm_total_num = 0;
 		v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_RST_BUF, 0, NULL);
 		}
 		break;
