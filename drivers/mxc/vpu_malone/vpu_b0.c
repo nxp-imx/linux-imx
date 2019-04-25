@@ -2279,6 +2279,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_START, 0, NULL);
 		p_data_req = list_first_entry(&This->drv_q,
 				typeof(*p_data_req), list);
+		ctx->tsm_sync_flag = true;
 		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
 		list_del(&p_data_req->list);
 		p_data_req->queued = false;
