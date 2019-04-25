@@ -1177,7 +1177,7 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	if (input_ts < 0)
 		input_ts = TSM_TIMESTAMP_NONE;
 
-	if (input_ts != TSM_TIMESTAMP_NONE)
+	if (input_ts != TSM_TIMESTAMP_NONE && input_ts > ctx->output_ts)
 		ctx->output_ts = input_ts;
 
 	if (down_interruptible(&ctx->tsm_lock)) {
