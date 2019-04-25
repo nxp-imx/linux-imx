@@ -279,8 +279,12 @@ unsigned int WaitEncReady(hx280enc_t *dev)
 
 	PDEBUG("%s\n", __func__);
 	ret = wait_event_timeout(enc_wait_queue, CheckEncIrq(dev), msecs_to_jiffies(200));
-	if (ret == 0)
-		pr_err("ENC wait_event_timeout() timeout !\n");
+	if (ret == 0) {
+		u32 reg14 = readl(dev->hwregs + 14*4);
+
+		pr_err("%s: wait_event_timeout() timeout !\n", __func__);
+		writel(reg14 & (~1), dev->hwregs + 14*4);
+	}
 
 	/* read register to mirror */
 	for (i = 0; i < dev->iosize; i += 4)
@@ -415,9 +419,15 @@ static long hx280enc_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 		break;
 	case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
 		unsigned int *regs = (unsigned int *)arg;
+		unsigned int ret1, ret2;
 
-		WaitEncReady(&hx280enc_data);
-		return EncRefreshRegs(&hx280enc_data, regs);
+		ret1 = WaitEncReady(&hx280enc_data);
+		ret2 = EncRefreshRegs(&hx280enc_data, regs);
+		if (ret2)
+			return ret2;
+		if (ret1)
+			return ret1;
+		break;
 	}
 	}
 	return 0;
@@ -511,10 +521,13 @@ union {
 	    ReleaseEncoder(&hx280enc_data);
 	    break;
 	}
-    case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
-	    int ret;
-	    ret = WaitEncReady(&hx280enc_data);
-	    return ret;
+	case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
+		err = get_user(karg.kui, (s32 __user *)up);
+		if (err)
+			return err;
+		HX280ENC_IOCTL32(err, filp, cmd, (unsigned long)&karg);
+		err = put_user(((s32)karg.kui), (s32 __user *)up);
+		break;
 	}
 	}
     return 0;
