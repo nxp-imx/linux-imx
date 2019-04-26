@@ -1380,20 +1380,44 @@ static int v4l2_ioctl_try_fmt(struct file *file,
 	return 0;
 }
 
+static int vpu_dec_v4l2_ioctl_g_selection(struct file *file, void *fh,
+					struct v4l2_selection *s)
+{
+	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
+
+	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
+
+	if (s->target != V4L2_SEL_TGT_CROP && s->target != V4L2_SEL_TGT_COMPOSE)
+		return -EINVAL;
+
+	s->r.left = ctx->pSeqinfo->uFrameCropLeftOffset;
+	s->r.top = ctx->pSeqinfo->uFrameCropTopOffset;
+	s->r.width = ctx->pSeqinfo->uHorRes;
+	s->r.height = ctx->pSeqinfo->uVerRes;
+
+	return 0;
+}
+
 static int v4l2_ioctl_g_crop(struct file *file,
 		void *fh,
 		struct v4l2_crop *cr
 		)
 {
-	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
+	struct v4l2_selection s;
+	int ret;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
-	cr->c.left = ctx->pSeqinfo->uFrameCropLeftOffset;
-	cr->c.top = ctx->pSeqinfo->uFrameCropTopOffset;
-	cr->c.width = ctx->pSeqinfo->uHorRes;
-	cr->c.height = ctx->pSeqinfo->uVerRes;
 
-	return 0;
+	if (!cr)
+		return -EINVAL;
+
+	s.type = cr->type;
+	s.target = V4L2_SEL_TGT_CROP;
+	ret = vpu_dec_v4l2_ioctl_g_selection(file, fh, &s);
+	if (!ret)
+		cr->c = s.r;
+
+	return ret;
 }
 
 static int v4l2_ioctl_decoder_cmd(struct file *file,
@@ -1594,6 +1618,7 @@ static const struct v4l2_ioctl_ops v4l2_decoder_ioctl_ops = {
 	.vidioc_s_parm			= vpu_dec_v4l2_ioctl_s_parm,
 	.vidioc_expbuf                  = v4l2_ioctl_expbuf,
 	.vidioc_g_crop                  = v4l2_ioctl_g_crop,
+	.vidioc_g_selection		= vpu_dec_v4l2_ioctl_g_selection,
 	.vidioc_decoder_cmd             = v4l2_ioctl_decoder_cmd,
 	.vidioc_subscribe_event         = v4l2_ioctl_subscribe_event,
 	.vidioc_unsubscribe_event       = v4l2_event_unsubscribe,
