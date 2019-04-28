@@ -4424,7 +4424,7 @@ static int mxc_epdc_fb_init_hw(struct fb_info *info)
 	 * Format is "imx/epdc_[panel string].fw"
 	 */
 	if (fb_data->cur_mode) {
-		strcat(fb_data->fw_str, "imx/epdc/epdc_");
+		strcpy(fb_data->fw_str, "imx/epdc/epdc_");
 		strcat(fb_data->fw_str, fb_data->cur_mode->vmode->name);
 		strcat(fb_data->fw_str, ".fw");
 	}
