@@ -20,10 +20,9 @@
 
 #include "vpu_b0.h"
 #include "mediasys_types.h"
-// Startcode insertion types for VC1
-#define VC1_SCODE_NEW_SEQUENCE 0x31
-#define VC1_SCODE_NEW_PICTURE 0x32
-#define VC1_SCODE_NEW_SLICE 0x33
+#define SCODE_NEW_SEQUENCE 0x31
+#define SCODE_NEW_PICTURE 0x32
+#define SCODE_NEW_SLICE 0x33
 #define RCV_V2_FRAMESIZE_FLAGS (0xFF000000)
 #define RCV_HEADER_LEN          24
 #define RCV_CODEC_VERSION       (0x5 << 24) //FOURCC_WMV3_WMV
@@ -35,5 +34,8 @@
 
 u_int32 insert_scode_4_pic(struct vpu_ctx *ctx, u_int8 *dst, u_int8 *src, u_int32 vdec_std, u_int32 uPayloadSize);
 u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int32 vdec_std, u_int32 uPayloadSize);
+u_int32 insert_scode_4_arv_slice(struct vpu_ctx *ctx, u_int8 *dst, struct VPU_FMT_INFO_ARV *arv_frame, u_int32 uPayloadSize);
+struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src);
+void put_arv_info(struct VPU_FMT_INFO_ARV *arv_frame);
 
 #endif

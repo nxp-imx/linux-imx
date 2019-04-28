@@ -157,6 +157,20 @@ enum vpu_pixel_format {
 	VPU_PF_TILED_10BPP = 0x00100000 | VPU_IS_TILED | VPU_IS_SEMIPLANAR | VPU_HAS_10BPP,
 };
 
+enum ARV_FRAME_TYPE {
+	ARV_8 = 0,
+	ARV_9,
+	ARV_10,
+};
+
+struct VPU_FMT_INFO_ARV {
+	u_int32				data_len;
+	u_int32				slice_num;
+	u_int32				*slice_offset;
+	u_int32				packlen;
+	enum ARV_FRAME_TYPE	type;
+};
+
 struct vpu_v4l2_fmt {
 	char *name;
 	unsigned int fourcc;
@@ -307,6 +321,7 @@ struct vpu_ctx {
 	struct dma_buffer mbi_buffer[MAX_MBI_NUM];
 	struct dma_buffer stream_buffer;
 	struct dma_buffer udata_buffer;
+	enum ARV_FRAME_TYPE arv_type;
 
 	struct file *crc_fp;
 	loff_t pos;
