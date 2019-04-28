@@ -404,6 +404,39 @@ static void insert_frame_header_spk(u_int8 *dst, u_int32 uPayloadSize, u_int32 u
 	dst[15] = 0x50;
 }
 
+static void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
+		enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight)
+{
+	// Startcode
+	dst[0] = 0x00;
+	dst[1] = 0x00;
+	dst[2] = 0x01;
+	dst[3] = uScodeType;
+
+	// Length
+	dst[4] = ((uPayloadSize>>16)&0xff);
+	dst[5] = ((uPayloadSize>>8)&0xff);
+	dst[6] = 0x4e;
+	dst[7] = ((uPayloadSize>>0)&0xff);
+
+	// Codec ID and Version
+	if (type == ARV_8)
+		dst[8] = 0x28;
+	else
+		dst[8] = 0x29;
+	dst[9] = 0x01;
+
+	// Width
+	dst[10] = ((uWidth>>8)&0xff);
+	dst[11] = ((uWidth>>0)&0xff);
+	dst[12] = 0x58;
+
+	// Height
+	dst[13] = ((uHeight>>8)&0xff);
+	dst[14] = ((uHeight>>0)&0xff);
+	dst[15] = 0x50;
+}
+
 u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int32 vdec_std, u_int32 uPayloadSize)
 {
 	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
@@ -418,7 +451,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 			u_int32 FrameSize = 0x60;
 			u_int32 HeaderLen, NoError = 1;
 			//insert startcode for vc1
-			insert_payload_header_vc1(dst, VC1_SCODE_NEW_SEQUENCE, 20, uWidth, uHeight);
+			insert_payload_header_vc1(dst, SCODE_NEW_SEQUENCE, 20, uWidth, uHeight);
 			length = 16;
 			//insert RCV sequence header for vc1 v1, length=20
 			insert_RCV_seqhdr(Header, &HeaderLen, src, FrameSize, uWidth, uHeight, &NoError);
@@ -476,6 +509,18 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 		length = 16;
 	}
 	break;
+	case VPU_VIDEO_RV: {
+		if (strncmp((const char *)(src+8), "RV30", 4) == 0)
+			ctx->arv_type = ARV_8;
+		else
+			ctx->arv_type = ARV_9;
+
+		insert_payload_header_arv(dst, SCODE_NEW_SEQUENCE, ctx->arv_type, uPayloadSize + 12, q_data->width, q_data->height);
+		length = 16;
+		memcpy(dst+length, src, uPayloadSize);
+		length += uPayloadSize;
+	}
+	break;
 	default:
 	break;
 	}
@@ -495,7 +540,7 @@ u_int32 insert_scode_4_pic(struct vpu_ctx *ctx, u_int8 *dst, u_int8 *src, u_int3
 			u_int32 uWidth = q_data->width;
 			u_int32 uHeight = q_data->height; //Width & Height in the generic payload header are ignored
 
-			insert_payload_header_vc1(dst, VC1_SCODE_NEW_PICTURE, uPayloadSize + 4, uWidth, uHeight);
+			insert_payload_header_vc1(dst, SCODE_NEW_PICTURE, uPayloadSize + 4, uWidth, uHeight);
 			insert_RCV_pichdr(Header, &HeaderLen, uPayloadSize);
 			memcpy(dst+16, Header, 4);
 			length = 16 + 4;
@@ -536,11 +581,75 @@ u_int32 insert_scode_4_pic(struct vpu_ctx *ctx, u_int8 *dst, u_int8 *src, u_int3
 		length = 16;
 	}
 	break;
+	case VPU_VIDEO_RV: {
+		u_int32 slice_num;
+		u_int32 packlen;
+
+		slice_num = ((src[16] << 24) | (src[17] << 16) | (src[18] << 8) | (src[19]));
+		packlen = 20 + 8 * slice_num;
+		insert_payload_header_arv(dst, SCODE_NEW_PICTURE, ctx->arv_type, packlen + 12, q_data->width, q_data->height);
+		length = 16;
+	}
+	break;
 	default:
 	break;
 	}
 	return length;
 }
 
+u_int32 insert_scode_4_arv_slice(struct vpu_ctx *ctx, u_int8 *dst, struct VPU_FMT_INFO_ARV *arv_frame, u_int32 uPayloadSize)
+{
+	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
+	u_int32 length = 0;
 
+	insert_payload_header_arv(dst, SCODE_NEW_SLICE, arv_frame->type, uPayloadSize, q_data->width, q_data->height);
+	length = 16;
+
+	return length;
+}
+
+struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src)
+{
+	u_int32 i;
+	struct VPU_FMT_INFO_ARV *arv_frame;
+
+	if (!ctx || !src)
+		return NULL;
+
+	arv_frame = kzalloc(sizeof(struct VPU_FMT_INFO_ARV), GFP_KERNEL);
+	if (IS_ERR_OR_NULL(arv_frame)) {
+		vpu_dbg(LVL_ERR, "%s() error: arv_frame alloc failed\n",
+				__func__);
+		goto err;
+	}
+
+	arv_frame->type = ctx->arv_type;
+
+	arv_frame->data_len = ((src[0] << 24) | (src[1] << 16) | (src[2] << 8) | (src[3]));
+	arv_frame->slice_num = ((src[16] << 24) | (src[17] << 16) | (src[18] << 8) | (src[19]));
+
+
+	arv_frame->slice_offset = kcalloc(arv_frame->slice_num, sizeof(u_int32), GFP_KERNEL);
+	if (IS_ERR_OR_NULL(arv_frame->slice_offset)) {
+		vpu_dbg(LVL_ERR, "%s() error: slice_offset alloc failed\n",
+				__func__);
+		goto err;
+	}
+
+	for (i = 0; i < arv_frame->slice_num; i++)
+		arv_frame->slice_offset[i] = ((src[20+8*i+4] << 24) | (src[20+8*i+5] << 16) | (src[20+8*i+6] << 8) | (src[20+8*i+7]));
+
+	return arv_frame;
+
+err:
+	kfree(arv_frame->slice_offset);
+	kfree(arv_frame);
+	return NULL;
+}
+
+void put_arv_info(struct VPU_FMT_INFO_ARV *arv_frame)
+{
+	kfree(arv_frame->slice_offset);
+	kfree(arv_frame);
+}
 
