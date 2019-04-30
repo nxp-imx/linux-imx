@@ -20,4 +20,10 @@ config HBMC_AM654
 	 This is the driver for HyperBus controller on TI's AM65x and
 	 other SoCs
 
+config IMX_HYPERBUS
+	bool "NXP HYPERBUS DRIVER"
+	depends on ARCH_MXC || ARM|| ARM64
+	help
+	Driver for i.MX HyperBus(flexspi) controller.
+
 endif # MTD_HYPERBUS
