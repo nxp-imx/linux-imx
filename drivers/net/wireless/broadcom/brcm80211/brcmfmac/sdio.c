@@ -2572,7 +2572,7 @@ brcmf_sdio_ulp_preinit(struct device *dev)
 	err = brcmf_fil_iovar_data_get(ifp, "ulp_sdioctrl", &sdiodev->shm_ulp,
 				       sizeof(sdiodev->shm_ulp));
 	if (err)
-		brcmf_err("ulp_sdioctrl iovar returned err = %d\n", err);
+		brcmf_dbg(TRACE, "ulp_sdioctrl iovar returned err = %d\n", err);
 
 	sdiodev->ulp = false;
 
