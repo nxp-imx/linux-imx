@@ -39,6 +39,8 @@ struct hyperbus_device {
  * @copy_from: copy data from flash memory
  * @copy_to: copy data to flash memory
  * @calibrate: calibrate HyperBus controller
+ * @prepare: preparation for ops
+ * @unprepare: post work after ops
  */
 
 struct hyperbus_ops {
@@ -50,6 +52,8 @@ struct hyperbus_ops {
 	void (*copy_to)(struct hyperbus_device *dev, unsigned long to,
 			const void *from, ssize_t len);
 	int (*calibrate)(struct hyperbus_device *dev);
+	int (*prepare)(struct hyperbus_device *dev);
+	void (*unprepare)(struct hyperbus_device *dev);
 };
 
 /**

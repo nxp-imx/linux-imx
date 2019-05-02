@@ -27,7 +27,9 @@ static map_word hyperbus_read16(struct map_info *map, unsigned long addr)
 	struct hyperbus_ctlr *ctlr = hbdev->ctlr;
 	map_word read_data;
 
+	ctlr->ops->prepare(hbdev);
 	read_data.x[0] = ctlr->ops->read16(hbdev, addr);
+	ctlr->ops->unprepare(hbdev);
 
 	return read_data;
 }
@@ -38,7 +40,9 @@ static void hyperbus_write16(struct map_info *map, map_word d,
 	struct hyperbus_device *hbdev = map_to_hbdev(map);
 	struct hyperbus_ctlr *ctlr = hbdev->ctlr;
 
+	ctlr->ops->prepare(hbdev);
 	ctlr->ops->write16(hbdev, addr, d.x[0]);
+	ctlr->ops->unprepare(hbdev);
 }
 
 static void hyperbus_copy_from(struct map_info *map, void *to,
@@ -47,7 +51,9 @@ static void hyperbus_copy_from(struct map_info *map, void *to,
 	struct hyperbus_device *hbdev = map_to_hbdev(map);
 	struct hyperbus_ctlr *ctlr = hbdev->ctlr;
 
+	ctlr->ops->prepare(hbdev);
 	ctlr->ops->copy_from(hbdev, to, from, len);
+	ctlr->ops->unprepare(hbdev);
 }
 
 static void hyperbus_copy_to(struct map_info *map, unsigned long to,
@@ -56,7 +62,9 @@ static void hyperbus_copy_to(struct map_info *map, unsigned long to,
 	struct hyperbus_device *hbdev = map_to_hbdev(map);
 	struct hyperbus_ctlr *ctlr = hbdev->ctlr;
 
+	ctlr->ops->prepare(hbdev);
 	ctlr->ops->copy_to(hbdev, to, from, len);
+	ctlr->ops->unprepare(hbdev);
 }
 
 /* Default calibration routine for use by HyperBus controller.
@@ -72,6 +80,8 @@ int hyperbus_calibrate(struct hyperbus_device *hbdev)
 	int count = HYPERBUS_CALIB_COUNT;
 	int pass_count = 0;
 	int ret;
+
+	hbdev->ctlr->ops->prepare(hbdev);
 
 	cfi.interleave = 1;
 	cfi.device_type = CFI_DEVICETYPE_X16;
@@ -90,6 +100,7 @@ int hyperbus_calibrate(struct hyperbus_device *hbdev)
 
 	cfi_qry_mode_off(0, map, &cfi);
 
+	hbdev->ctlr->ops->unprepare(hbdev);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(hyperbus_calibrate);
