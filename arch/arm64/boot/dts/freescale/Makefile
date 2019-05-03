@@ -87,6 +87,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-dsp.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-dsi-rm67191.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-a0.dtb \
+				  fsl-imx8qxp-lpddr4-arm2-hyperbus.dtb \
 				  fsl-imx8qxp-17x17-val.dtb \
 				  fsl-imx8qxp-ddr3l-val.dtb \
 				  fsl-imx8dx-17x17-val.dtb \

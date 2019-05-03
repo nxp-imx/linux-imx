@@ -3360,6 +3360,21 @@
 		status = "disabled";
 	};
 
+	hyperbus: hyperbus@05d120000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "fsl,imx8qxp-hyperbus";
+		reg = <0x0 0x5d120000 0x0 0x10000>, <0x0 0x8000000 0x0 0x4000000>;
+		ranges = <0 0 0x08000000 0x04000000>;
+		reg-names = "HyperBus", "HyperBus-memory";
+		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8QXP_LSIO_FSPI0_CLK>;
+		assigned-clock-rates = <29000000>;
+		clock-names = "hyperbus";
+		power-domains = <&pd_lsio_flexspi0>;
+		status = "disabled";
+	};
+
 	display-subsystem {
 		compatible = "fsl,imx-display-subsystem";
 		ports = <&dpu_disp0>, <&dpu_disp1>;
