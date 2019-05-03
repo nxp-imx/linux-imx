@@ -380,6 +380,9 @@ static const char *imx8mm_vpu_h1_sels[] = {"osc_24m", "vpu_pll_out", "sys_pll1_8
 
 static const char *imx8mm_dram_core_sels[] = {"dram_pll_out", "dram_alt_root", };
 
+static const char *imx8mm_clko1_sels[] = {"osc_24m", "sys_pll1_800m", "osc_27m", "sys_pll1_200m", "audio_pll2_clk",
+					 "vpu_pll", "sys_pll1_80m", };
+
 static struct clk *clks[IMX8MM_CLK_END];
 static struct clk_onecell_data clk_data;
 
@@ -400,9 +403,6 @@ static struct clk ** const uart_clks[] __initconst = {
 	&clks[IMX8MM_CLK_UART4_ROOT],
 	NULL
 };
-
-static const char *imx8mm_clko1_sels[] = {"osc_24m", "sys_pll1_800m", "osc_27m", "sys_pll1_200m", "audio_pll2_clk",
-					 "vpu_pll", "sys_pll1_80m", };
 
 static int __init imx_clk_init_on(struct device_node *np,
 				  struct clk * const clks[])
