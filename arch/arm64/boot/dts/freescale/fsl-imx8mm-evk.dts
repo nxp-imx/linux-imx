@@ -807,10 +807,10 @@
 		status = "okay";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_csi_pwn>, <&pinctrl_csi_rst>;
-		clocks = <&clk IMX8MM_CLK_CLKO1_DIV>;
+		clocks = <&clk IMX8MM_CLK_CLKO1>;
 		clock-names = "csi_mclk";
-		assigned-clocks = <&clk IMX8MM_CLK_CLKO1_SRC>,
-				  <&clk IMX8MM_CLK_CLKO1_DIV>;
+		assigned-clocks = <&clk IMX8MM_CLK_CLKO1>,
+				  <&clk IMX8MM_CLK_CLKO1>;
 		assigned-clock-parents = <&clk IMX8MM_CLK_24M>;
 		assigned-clock-rates = <0>, <24000000>;
 		csi_id = <0>;
@@ -847,8 +847,8 @@
 	pinctrl-names = "default", "dsd";
 	pinctrl-0 = <&pinctrl_sai1>;
 	pinctrl-1 = <&pinctrl_sai1_dsd>;
-	assigned-clocks = <&clk IMX8MM_CLK_SAI1_SRC>,
-			<&clk IMX8MM_CLK_SAI1_DIV>;
+	assigned-clocks = <&clk IMX8MM_CLK_SAI1>,
+			<&clk IMX8MM_CLK_SAI1>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <0>, <49152000>;
 	clocks = <&clk IMX8MM_CLK_SAI1_IPG>, <&clk IMX8MM_CLK_DUMMY>,
@@ -865,8 +865,8 @@
 &sai3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_sai3>;
-	assigned-clocks = <&clk IMX8MM_CLK_SAI3_SRC>,
-			<&clk IMX8MM_CLK_SAI3_DIV>;
+	assigned-clocks = <&clk IMX8MM_CLK_SAI3>,
+			<&clk IMX8MM_CLK_SAI3>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <0>, <24576000>;
 	status = "okay";
@@ -875,8 +875,8 @@
 &sai5 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_sai5>;
-	assigned-clocks = <&clk IMX8MM_CLK_SAI5_SRC>,
-			<&clk IMX8MM_CLK_SAI5_DIV>;
+	assigned-clocks = <&clk IMX8MM_CLK_SAI5>,
+			<&clk IMX8MM_CLK_SAI5>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <0>, <49152000>;
 	clocks = <&clk IMX8MM_CLK_SAI5_IPG>, <&clk IMX8MM_CLK_DUMMY>,
@@ -891,14 +891,14 @@
 &spdif1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_spdif1>;
-	assigned-clocks = <&clk IMX8MM_CLK_SPDIF1_SRC>,
-			<&clk IMX8MM_CLK_SPDIF1_DIV>;
+	assigned-clocks = <&clk IMX8MM_CLK_SPDIF1>,
+			<&clk IMX8MM_CLK_SPDIF1>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <0>, <24576000>;
-	clocks = <&clk IMX8MM_CLK_AUDIO_AHB_DIV>, <&clk IMX8MM_CLK_24M>,
-		<&clk IMX8MM_CLK_SPDIF1_DIV>, <&clk IMX8MM_CLK_DUMMY>,
+	clocks = <&clk IMX8MM_CLK_AUDIO_AHB>, <&clk IMX8MM_CLK_24M>,
+		<&clk IMX8MM_CLK_SPDIF1>, <&clk IMX8MM_CLK_DUMMY>,
 		<&clk IMX8MM_CLK_DUMMY>, <&clk IMX8MM_CLK_DUMMY>,
-		<&clk IMX8MM_CLK_AUDIO_AHB_DIV>, <&clk IMX8MM_CLK_DUMMY>,
+		<&clk IMX8MM_CLK_AUDIO_AHB>, <&clk IMX8MM_CLK_DUMMY>,
 		<&clk IMX8MM_CLK_DUMMY>, <&clk IMX8MM_CLK_DUMMY>,
 		<&clk IMX8MM_AUDIO_PLL1_OUT>, <&clk IMX8MM_AUDIO_PLL2_OUT>;
 	clock-names = "core", "rxtx0", "rxtx1", "rxtx2", "rxtx3",
@@ -940,7 +940,7 @@
 &uart1 { /* BT */
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
-	assigned-clocks = <&clk IMX8MM_CLK_UART1_SRC>;
+	assigned-clocks = <&clk IMX8MM_CLK_UART1>;
 	assigned-clock-parents = <&clk IMX8MM_SYS_PLL1_80M>;
 	fsl,uart-has-rtscts;
 	resets = <&modem_reset>;
@@ -956,7 +956,7 @@
 &uart3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart3>;
-	assigned-clocks = <&clk IMX8MM_CLK_UART3_SRC>;
+	assigned-clocks = <&clk IMX8MM_CLK_UART3>;
 	assigned-clock-parents = <&clk IMX8MM_SYS_PLL1_80M>;
 	fsl,uart-has-rtscts;
 	status = "okay";
@@ -1042,7 +1042,7 @@
 &micfil {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pdm>;
-	assigned-clocks = <&clk IMX8MM_CLK_PDM_SRC>, <&clk IMX8MM_CLK_PDM_DIV>;
+	assigned-clocks = <&clk IMX8MM_CLK_PDM>, <&clk IMX8MM_CLK_PDM>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <0>, <196608000>;
 	status = "okay";
