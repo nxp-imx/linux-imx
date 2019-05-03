@@ -27,7 +27,7 @@ enum imx_pllv1_type {
 	IMX_PLLV1_IMX35,
 };
 
-enum imx_int_pll_type {
+enum imx_pll14xx_type {
 	PLL_1416X,
 	PLL_1443X,
 };
@@ -38,7 +38,7 @@ enum imx_sccg_pll_type {
 };
 
 /* NOTE: Rate table should be kept sorted in descending order. */
-struct imx_int_pll_rate_table {
+struct imx_pll14xx_rate_table {
 	unsigned int rate;
 	unsigned int pdiv;
 	unsigned int mdiv;
@@ -46,13 +46,14 @@ struct imx_int_pll_rate_table {
 	unsigned int kdiv;
 };
 
-struct imx_int_pll_clk {
-	enum imx_int_pll_type type;
-	const struct imx_int_pll_rate_table *rate_table;
+struct imx_pll14xx_clk {
+	enum imx_pll14xx_type type;
+	const struct imx_pll14xx_rate_table *rate_table;
 	int flags;
 };
 
-struct clk *imx_clk_int_pll(const char *name, const char *parent_name, void __iomem *base, const struct imx_int_pll_clk *pll_clk);
+struct clk *imx_clk_pll14xx(const char *name, const char *parent_name,
+		 void __iomem *base, const struct imx_pll14xx_clk *pll_clk);
 
 struct clk *imx_clk_pllv1(enum imx_pllv1_type type, const char *name,
 		const char *parent, void __iomem *base);
