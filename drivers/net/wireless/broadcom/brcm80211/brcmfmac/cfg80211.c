@@ -5070,7 +5070,7 @@ static int brcmf_cfg80211_get_channel(struct wiphy *wiphy,
 
 	err = brcmf_fil_iovar_int_get(ifp, "chanspec", &chanspec);
 	if (err) {
-		brcmf_err("chanspec failed (%d)\n", err);
+		brcmf_dbg(TRACE, "chanspec failed (%d)\n", err);
 		return err;
 	}
 

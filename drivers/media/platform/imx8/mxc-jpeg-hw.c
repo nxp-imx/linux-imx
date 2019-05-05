@@ -99,20 +99,28 @@ u32 mxc_jpeg_get_offset(void __iomem *reg, int slot)
 	return readl(reg + MXC_SLOT_OFFSET(slot, SLOT_BUF_PTR));
 }
 
-void mxc_jpeg_go_enc(struct device *dev, void __iomem *reg)
+void mxc_jpeg_enc_mode_conf(struct device *dev, void __iomem *reg)
 {
-	dev_dbg(dev, "CAST Encoder GO...\n");
+	dev_dbg(dev, "CAST Encoder CONFIG...\n");
 	/*
 	 * "Config_Mode" enabled, "Config_Mode auto clear enabled",
-	 * "GO" enabled, "GO bit auto clear" enabled
 	 */
-	writel(0x1e0, reg + CAST_MODE);
+	writel(0xa0, reg + CAST_MODE);
 
 	/* all markers and segments */
 	writel(0x3ff, reg + CAST_CFG_MODE);
 
 	/* quality factor */
 	writel(0x4b, reg + CAST_QUALITY);
+}
+
+void mxc_jpeg_enc_mode_go(struct device *dev, void __iomem *reg)
+{
+	dev_dbg(dev, "CAST Encoder GO...\n");
+	/*
+	 * "GO" enabled, "GO bit auto clear" enabled
+	 */
+	writel(0x140, reg + CAST_MODE);
 }
 
 void wait_frmdone(struct device *dev, void __iomem *reg)
@@ -139,7 +147,7 @@ int mxc_jpeg_enable(void __iomem *reg)
 	return regval;
 }
 
-void mxc_jpeg_go_dec(struct device *dev, void __iomem *reg)
+void mxc_jpeg_dec_mode_go(struct device *dev, void __iomem *reg)
 {
 	dev_dbg(dev, "CAST Decoder GO...\n");
 	writel(MXC_DEC_EXIT_IDLE_MODE, reg + CAST_CTRL);

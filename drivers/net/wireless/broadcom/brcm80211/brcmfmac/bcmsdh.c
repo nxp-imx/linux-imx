@@ -1243,6 +1243,14 @@ static void brcmf_ops_sdio_remove(struct sdio_func *func)
 	brcmf_dbg(SDIO, "Exit\n");
 }
 
+static void brcmf_ops_sdio_shutdown(struct device *dev)
+{
+	struct sdio_func *func = container_of(dev, struct sdio_func, dev);
+
+	brcmf_ops_sdio_remove(func);
+	return;
+}
+
 void brcmf_sdio_wowl_config(struct device *dev, bool enabled)
 {
 	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
@@ -1326,6 +1334,7 @@ static struct sdio_driver brcmf_sdmmc_driver = {
 #ifdef CONFIG_PM_SLEEP
 		.pm = &brcmf_sdio_pm_ops,
 #endif	/* CONFIG_PM_SLEEP */
+		.shutdown = brcmf_ops_sdio_shutdown,
 	},
 };
 

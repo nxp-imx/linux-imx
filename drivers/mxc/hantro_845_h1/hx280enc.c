@@ -141,6 +141,7 @@ typedef struct {
 
 	volatile u8 *hwregs;
 	struct fasync_struct *async_queue;
+	unsigned int mirror_regs[512];
 	struct device *dev;
 	struct mutex dev_mutex;
 } hx280enc_t;
@@ -272,12 +273,30 @@ static int CheckEncIrq(hx280enc_t *dev)
 
 unsigned int WaitEncReady(hx280enc_t *dev)
 {
-	PDEBUG("WaitEncReady\n");
+	u32 irq_status, is_write1_clr;
+	int i;
+	long ret;
 
-	if (wait_event_interruptible(enc_wait_queue, CheckEncIrq(dev))) {
-		PDEBUG("ENC wait_event_interruptible interrupted\n");
-		return -ERESTARTSYS;
+	PDEBUG("%s\n", __func__);
+	ret = wait_event_timeout(enc_wait_queue, CheckEncIrq(dev), msecs_to_jiffies(200));
+	if (ret == 0) {
+		u32 reg14 = readl(dev->hwregs + 14*4);
+
+		pr_err("%s: wait_event_timeout() timeout !\n", __func__);
+		writel(reg14 & (~1), dev->hwregs + 14*4);
 	}
+
+	/* read register to mirror */
+	for (i = 0; i < dev->iosize; i += 4)
+		dev->mirror_regs[i/4] = readl(dev->hwregs + i);
+
+	/* clear the status bits */
+	is_write1_clr = (dev->mirror_regs[0x4a0/4] & 0x00800000);
+	irq_status = dev->mirror_regs[1];
+	if (is_write1_clr)
+		writel(irq_status, dev->hwregs + 0x04);
+	else
+		writel(irq_status & (~0xf7d), dev->hwregs + 0x04);
 
 	return 0;
 }
@@ -338,7 +357,18 @@ void ReleaseEncoder(hx280enc_t *dev)
 	spin_unlock_irqrestore(&owner_lock, flags);
 
 	wake_up_interruptible_all(&enc_hw_queue);
+}
 
+static long EncRefreshRegs(hx280enc_t *dev, unsigned int *regs)
+{
+	long ret;
+
+	ret = copy_to_user(regs, dev->mirror_regs, dev->iosize);
+	if (ret) {
+		PDEBUG("%s: copy_to_user failed, returned %li\n", __func__, ret);
+		return -EFAULT;
+	}
+	return 0;
 }
 
 
@@ -388,10 +418,16 @@ static long hx280enc_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 		ReleaseEncoder(&hx280enc_data);
 		break;
 	case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
-		int ret;
+		unsigned int *regs = (unsigned int *)arg;
+		unsigned int ret1, ret2;
 
-		ret = WaitEncReady(&hx280enc_data);
-		return ret;
+		ret1 = WaitEncReady(&hx280enc_data);
+		ret2 = EncRefreshRegs(&hx280enc_data, regs);
+		if (ret2)
+			return ret2;
+		if (ret1)
+			return ret1;
+		break;
 	}
 	}
 	return 0;
@@ -485,10 +521,13 @@ union {
 	    ReleaseEncoder(&hx280enc_data);
 	    break;
 	}
-    case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
-	    int ret;
-	    ret = WaitEncReady(&hx280enc_data);
-	    return ret;
+	case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
+		err = get_user(karg.kui, (s32 __user *)up);
+		if (err)
+			return err;
+		HX280ENC_IOCTL32(err, filp, cmd, (unsigned long)&karg);
+		err = put_user(((s32)karg.kui), (s32 __user *)up);
+		break;
 	}
 	}
     return 0;
@@ -677,7 +716,7 @@ irqreturn_t hx280enc_isr(int irq, void *dev_id)
 		dev->irq_status = irq_status & (~0x01);
 		spin_unlock_irqrestore(&owner_lock, flags);
 
-		wake_up_interruptible_all(&enc_wait_queue);
+		wake_up_all(&enc_wait_queue);
 
 		PDEBUG("IRQ handled!\n");
 		return IRQ_HANDLED;
