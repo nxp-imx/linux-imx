@@ -2416,47 +2416,51 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 
 	nfreespace = got_free_space(wptr, rptr, start, end);
 
-	if (!ctx->start_code_bypass)
-		header_length = insert_scode_4_pic(ctx, payload_header, input_buffer, q_data->vdec_std, buffer_size);
-	else
-		header_length = 0;
-
-	if (q_data->vdec_std != VPU_VIDEO_RV) {
-		if (nfreespace < (buffer_size + header_length + MIN_SPACE)) {
+	if (ctx->start_code_bypass) {
+		if (nfreespace < (buffer_size + MIN_SPACE)) {
 			vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
 			return 0;
 		}
-
-		copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
 		copy_length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
 	} else {
-		arv_frame = get_arv_info(ctx, input_buffer);
-		if (!arv_frame) {
-			vpu_dbg(LVL_ERR, "error: %s() get arv frame info failed\n", __func__);
-			return 0;
-		}
-		if (nfreespace < (buffer_size + header_length + arv_frame->slice_num * 16 + MIN_SPACE)) {
-			vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
-			return 0;
-		}
+		header_length = insert_scode_4_pic(ctx, payload_header, input_buffer, q_data->vdec_std, buffer_size);
+		if (q_data->vdec_std != VPU_VIDEO_RV) {
+			if (nfreespace < (buffer_size + header_length + MIN_SPACE)) {
+				vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
+				return 0;
+			}
 
-		copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
-		arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
-		copy_length += copy_buffer_to_stream(ctx, input_buffer, arv_frame->packlen);
-		input_offset += arv_frame->packlen;
-		for (i = 0; i < arv_frame->slice_num; i++) {
-			if (i == arv_frame->slice_num - 1)
-				arv_frame->packlen = arv_frame->data_len - arv_frame->slice_offset[i];
-			else
-				arv_frame->packlen = arv_frame->slice_offset[i+1] - arv_frame->slice_offset[i];
-			header_length = insert_scode_4_arv_slice(ctx, payload_header, arv_frame, arv_frame->packlen + 12);
 			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
-			copy_length += copy_buffer_to_stream(ctx, input_buffer + input_offset, arv_frame->packlen);
-			input_offset += arv_frame->packlen;
-		}
+			copy_length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
+		} else {
+			arv_frame = get_arv_info(ctx, input_buffer);
+			if (!arv_frame) {
+				vpu_dbg(LVL_ERR, "error: %s() get arv frame info failed\n", __func__);
+				return 0;
+			}
+			if (nfreespace < (buffer_size + header_length + arv_frame->slice_num * 16 + MIN_SPACE)) {
+				vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
+				return 0;
+			}
 
-		put_arv_info(arv_frame);
-		arv_frame = NULL;
+			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
+			arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
+			copy_length += copy_buffer_to_stream(ctx, input_buffer, arv_frame->packlen);
+			input_offset += arv_frame->packlen;
+			for (i = 0; i < arv_frame->slice_num; i++) {
+				if (i == arv_frame->slice_num - 1)
+					arv_frame->packlen = arv_frame->data_len - arv_frame->slice_offset[i];
+				else
+					arv_frame->packlen = arv_frame->slice_offset[i+1] - arv_frame->slice_offset[i];
+				header_length = insert_scode_4_arv_slice(ctx, payload_header, arv_frame, arv_frame->packlen + 12);
+				copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
+				copy_length += copy_buffer_to_stream(ctx, input_buffer + input_offset, arv_frame->packlen);
+				input_offset += arv_frame->packlen;
+			}
+
+			put_arv_info(arv_frame);
+			arv_frame = NULL;
+		}
 	}
 
 	dev->shared_mem.pSharedInterface->pStreamBuffDesc[index][uStrBufIdx] =
