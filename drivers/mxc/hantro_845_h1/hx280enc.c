@@ -522,11 +522,7 @@ union {
 	    break;
 	}
 	case _IOC_NR(HX280ENC_IOCG_CORE_WAIT): {
-		err = get_user(karg.kui, (s32 __user *)up);
-		if (err)
-			return err;
-		HX280ENC_IOCTL32(err, filp, cmd, (unsigned long)&karg);
-		err = put_user(((s32)karg.kui), (s32 __user *)up);
+		HX280ENC_IOCTL32(err, filp, cmd, (unsigned long)up);
 		break;
 	}
 	}
