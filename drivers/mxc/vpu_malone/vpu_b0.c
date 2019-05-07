@@ -3586,6 +3586,7 @@ static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
 				vpu_dec_cpu_phy_to_mu(dev, dev->m0_rpc_phy),
 				dev->m0_rpc_virt,
 				dev->m0_rpc_size);
+		dev->print_buf = dev->m0_rpc_virt + M0_PRINT_OFFSET;
 		rpc_set_system_cfg_value(dev->shared_mem.pSharedInterface,
 					VPU_REG_BASE);
 
@@ -4271,6 +4272,48 @@ exit:
 	mutex_unlock(&ctx->instance_mutex);
 	return num;
 }
+
+static ssize_t show_fw_log(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct vpu_dev *vdev = dev_get_drvdata(dev);
+	int num = 0;
+	int length;
+	u32 rptr;
+	u32 wptr;
+
+	if (!vdev->print_buf)
+		return 0;
+
+	rptr = vdev->print_buf->read;
+	wptr = vdev->print_buf->write;
+
+	if (rptr == wptr)
+		return 0;
+	else if (rptr < wptr)
+		length = wptr - rptr;
+	else
+		length = vdev->print_buf->bytes + wptr - rptr;
+
+	if (length > PAGE_SIZE)
+		length = PAGE_SIZE;
+
+	if (length + rptr > vdev->print_buf->bytes) {
+		num = vdev->print_buf->bytes - rptr;
+		memcpy(buf, vdev->print_buf->buffer + rptr, num);
+		length -= num;
+		rptr = 0;
+	}
+	memcpy(buf + num, vdev->print_buf->buffer + rptr, length);
+	num += length;
+	rptr += length;
+	rptr %= vdev->print_buf->bytes;
+
+	vdev->print_buf->read = rptr;
+
+	return num;
+}
+DEVICE_ATTR(fwlog, 0644, show_fw_log, NULL);
 
 static int create_instance_command_file(struct vpu_ctx *ctx)
 {
@@ -5029,6 +5072,7 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
+	device_create_file(dev->generic_dev, &dev_attr_fwlog);
 
 	return 0;
 
@@ -5060,6 +5104,8 @@ static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
 
+
+	device_remove_file(dev->generic_dev, &dev_attr_fwlog);
 	destroy_workqueue(dev->workqueue);
 	if (dev->m0_p_fw_space_vir)
 		iounmap(dev->m0_p_fw_space_vir);
