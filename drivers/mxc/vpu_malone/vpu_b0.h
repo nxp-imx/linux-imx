@@ -224,6 +224,17 @@ struct queue_data {
 	unsigned long beginning;
 	bool enable;
 };
+
+struct print_buf_desc {
+	u32 start_h_phy;
+	u32 start_h_vir;
+	u32 start_m;
+	u32 bytes;
+	u32 read;
+	u32 write;
+	char buffer[0];
+};
+
 struct vpu_ctx;
 struct vpu_dev {
 	struct device *generic_dev;
@@ -263,6 +274,8 @@ struct vpu_dev {
 	struct shared_addr shared_mem;
 	struct vpu_ctx *ctx[VPU_MAX_NUM_STREAMS];
 	struct dentry *debugfs_root;
+
+	struct print_buf_desc *print_buf;
 };
 
 struct vpu_statistic {
