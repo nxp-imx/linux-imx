@@ -258,27 +258,35 @@ static void dpu_pixel_link_set_dc_sync_mode(int dpu_id, bool enable)
 
 void framegen_enable(struct dpu_framegen *fg)
 {
-	struct dpu_soc *dpu = fg->dpu;
-	const struct dpu_devtype *devtype = dpu->devtype;
-
 	dpu_fg_write(fg, FGEN, FGENABLE);
-
-	if (!(devtype->has_dual_ldb && fg->encoder_type_has_lvds))
-		dpu_pixel_link_enable(dpu->id, fg->id);
 }
 EXPORT_SYMBOL_GPL(framegen_enable);
 
 void framegen_disable(struct dpu_framegen *fg)
+{
+	dpu_fg_write(fg, 0, FGENABLE);
+}
+EXPORT_SYMBOL_GPL(framegen_disable);
+
+void framegen_enable_pixel_link(struct dpu_framegen *fg)
+{
+	struct dpu_soc *dpu = fg->dpu;
+	const struct dpu_devtype *devtype = dpu->devtype;
+
+	if (!(devtype->has_dual_ldb && fg->encoder_type_has_lvds))
+		dpu_pixel_link_enable(dpu->id, fg->id);
+}
+EXPORT_SYMBOL_GPL(framegen_enable_pixel_link);
+
+void framegen_disable_pixel_link(struct dpu_framegen *fg)
 {
 	struct dpu_soc *dpu = fg->dpu;
 	const struct dpu_devtype *devtype = dpu->devtype;
 
 	if (!(devtype->has_dual_ldb && fg->encoder_type_has_lvds))
 		dpu_pixel_link_disable(dpu->id, fg->id);
-
-	dpu_fg_write(fg, 0, FGENABLE);
 }
-EXPORT_SYMBOL_GPL(framegen_disable);
+EXPORT_SYMBOL_GPL(framegen_disable_pixel_link);
 
 void framegen_shdtokgen(struct dpu_framegen *fg)
 {
