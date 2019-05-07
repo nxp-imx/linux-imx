@@ -57,7 +57,6 @@ void disengcfg_polarity_ctrl(struct dpu_disengcfg *dec, unsigned int flags)
 	const struct dpu_devtype *devtype = dec->dpu->devtype;
 	u32 val;
 
-	mutex_lock(&dec->mutex);
 	val = dpu_dec_read(dec, POLARITYCTRL);
 	if (devtype->pixel_link_nhvsync) {
 		val &= ~POLHS_HIGH;
@@ -73,7 +72,6 @@ void disengcfg_polarity_ctrl(struct dpu_disengcfg *dec, unsigned int flags)
 			val &= ~POLVS_HIGH;
 	}
 	dpu_dec_write(dec, val, POLARITYCTRL);
-	mutex_unlock(&dec->mutex);
 }
 EXPORT_SYMBOL_GPL(disengcfg_polarity_ctrl);
 
@@ -81,12 +79,10 @@ void disengcfg_sig_select(struct dpu_disengcfg *dec, dec_sig_sel_t sig_sel)
 {
 	u32 val;
 
-	mutex_lock(&dec->mutex);
 	val = dpu_dec_read(dec, SRCSELECT);
 	val &= ~SIG_SELECT_MASK;
 	val |= sig_sel;
 	dpu_dec_write(dec, val, SRCSELECT);
-	mutex_unlock(&dec->mutex);
 }
 EXPORT_SYMBOL_GPL(disengcfg_sig_select);
 

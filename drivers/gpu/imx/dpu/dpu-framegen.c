@@ -261,9 +261,7 @@ void framegen_enable(struct dpu_framegen *fg)
 	struct dpu_soc *dpu = fg->dpu;
 	const struct dpu_devtype *devtype = dpu->devtype;
 
-	mutex_lock(&fg->mutex);
 	dpu_fg_write(fg, FGEN, FGENABLE);
-	mutex_unlock(&fg->mutex);
 
 	if (!(devtype->has_dual_ldb && fg->encoder_type_has_lvds))
 		dpu_pixel_link_enable(dpu->id, fg->id);
@@ -278,17 +276,13 @@ void framegen_disable(struct dpu_framegen *fg)
 	if (!(devtype->has_dual_ldb && fg->encoder_type_has_lvds))
 		dpu_pixel_link_disable(dpu->id, fg->id);
 
-	mutex_lock(&fg->mutex);
 	dpu_fg_write(fg, 0, FGENABLE);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_disable);
 
 void framegen_shdtokgen(struct dpu_framegen *fg)
 {
-	mutex_lock(&fg->mutex);
 	dpu_fg_write(fg, SHDTOKGEN, FGSLR);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_shdtokgen);
 
@@ -297,12 +291,10 @@ void framegen_syncmode(struct dpu_framegen *fg, fgsyncmode_t mode)
 	struct dpu_soc *dpu = fg->dpu;
 	u32 val;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, FGSTCTRL);
 	val &= ~FGSYNCMODE_MASK;
 	val |= mode;
 	dpu_fg_write(fg, val, FGSTCTRL);
-	mutex_unlock(&fg->mutex);
 
 	dpu_pixel_link_set_dc_sync_mode(dpu->id, mode != FGSYNCMODE__OFF);
 }
@@ -342,7 +334,6 @@ framegen_cfg_videomode(struct dpu_framegen *fg,
 	vsync = m->crtc_vsync_end - m->crtc_vsync_start;
 	vsbp = m->crtc_vtotal - m->crtc_vsync_start;
 
-	mutex_lock(&fg->mutex);
 	/* video mode */
 	dpu_fg_write(fg, HACT(hact) | HTOTAL(htotal), HTCFG1);
 	dpu_fg_write(fg, HSYNC(hsync) | HSBP(hsbp) | HSEN, HTCFG2);
@@ -379,7 +370,6 @@ framegen_cfg_videomode(struct dpu_framegen *fg,
 
 	/* constant color */
 	dpu_fg_write(fg, 0, FGCCR);
-	mutex_unlock(&fg->mutex);
 
 	disp_clock_rate = m->clock * 1000;
 
@@ -426,14 +416,12 @@ void framegen_pkickconfig(struct dpu_framegen *fg, bool enable)
 {
 	u32 val;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, PKICKCONFIG);
 	if (enable)
 		val |= EN;
 	else
 		val &= ~EN;
 	dpu_fg_write(fg, val, PKICKCONFIG);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_pkickconfig);
 
@@ -445,22 +433,18 @@ void framegen_syncmode_fixup(struct dpu_framegen *fg, bool enable)
 	if (!dpu->devtype->has_syncmode_fixup)
 		return;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, SECSTATCONFIG);
 	if (enable)
 		val |= BIT(7);
 	else
 		val &= ~BIT(7);
 	dpu_fg_write(fg, val, SECSTATCONFIG);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_syncmode_fixup);
 
 void framegen_sacfg(struct dpu_framegen *fg, unsigned int x, unsigned int y)
 {
-	mutex_lock(&fg->mutex);
 	dpu_fg_write(fg, STARTX(x) | STARTY(y), SACFG);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_sacfg);
 
@@ -468,12 +452,10 @@ void framegen_displaymode(struct dpu_framegen *fg, fgdm_t mode)
 {
 	u32 val;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, FGINCTRL);
 	val &= ~FGDM_MASK;
 	val |= mode;
 	dpu_fg_write(fg, val, FGINCTRL);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_displaymode);
 
@@ -481,12 +463,10 @@ void framegen_panic_displaymode(struct dpu_framegen *fg, fgdm_t mode)
 {
 	u32 val;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, FGINCTRLPANIC);
 	val &= ~FGDM_MASK;
 	val |= mode;
 	dpu_fg_write(fg, val, FGINCTRLPANIC);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_panic_displaymode);
 
@@ -523,11 +503,9 @@ void framegen_wait_done(struct dpu_framegen *fg, struct drm_display_mode *m)
 	}
 	timeout = jiffies + pending_framedur_jiffies;
 
-	mutex_lock(&fg->mutex);
 	do {
 		val = dpu_fg_read(fg, FGENSTS);
 	} while ((val & ENSTS) && time_before(jiffies, timeout));
-	mutex_unlock(&fg->mutex);
 
 	dev_dbg(fg->dpu->dev, "FrameGen%d pending frame duration is %ums\n",
 			 fg->id, jiffies_to_msecs(pending_framedur_jiffies));
@@ -553,11 +531,9 @@ void framegen_read_timestamp(struct dpu_framegen *fg,
 {
 	u32 stamp;
 
-	mutex_lock(&fg->mutex);
 	stamp = dpu_fg_read(fg, FGTIMESTAMP);
 	*frame_index = framegen_frame_index(stamp);
 	*line_index = framegen_line_index(stamp);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_read_timestamp);
 
@@ -589,9 +565,7 @@ bool framegen_secondary_requests_to_read_empty_fifo(struct dpu_framegen *fg)
 	u32 val;
 	bool empty;
 
-	mutex_lock(&fg->mutex);
 	val = dpu_fg_read(fg, FGCHSTAT);
-	mutex_unlock(&fg->mutex);
 
 	empty = !!(val & SFIFOEMPTY);
 
@@ -606,19 +580,13 @@ EXPORT_SYMBOL_GPL(framegen_secondary_requests_to_read_empty_fifo);
 
 void framegen_secondary_clear_channel_status(struct dpu_framegen *fg)
 {
-	mutex_lock(&fg->mutex);
 	dpu_fg_write(fg, CLRSECSTAT, FGCHSTATCLR);
-	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_secondary_clear_channel_status);
 
 bool framegen_secondary_is_syncup(struct dpu_framegen *fg)
 {
-	u32 val;
-
-	mutex_lock(&fg->mutex);
-	val = dpu_fg_read(fg, FGCHSTAT);
-	mutex_unlock(&fg->mutex);
+	u32 val = dpu_fg_read(fg, FGCHSTAT);
 
 	return val & SECSYNCSTAT;
 }
