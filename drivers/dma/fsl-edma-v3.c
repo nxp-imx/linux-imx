@@ -708,19 +708,19 @@ static irqreturn_t fsl_edma3_tx_handler(int irq, void *dev_id)
 	unsigned int intr;
 	void __iomem *base_addr;
 
-	base_addr = fsl_chan->membase;
-
-	intr = readl(base_addr + EDMA_CH_INT);
-	if (!intr)
-		return IRQ_NONE;
-
-	writel(1, base_addr + EDMA_CH_INT);
-
 	spin_lock(&fsl_chan->vchan.lock);
 
 	/* Ignore this interrupt since channel has been disabled already */
 	if (!fsl_chan->edesc)
 		goto irq_handled;
+
+	base_addr = fsl_chan->membase;
+
+	intr = readl(base_addr + EDMA_CH_INT);
+	if (!intr)
+		goto irq_handled;
+
+	writel(1, base_addr + EDMA_CH_INT);
 
 	if (!fsl_chan->edesc->iscyclic) {
 		fsl_edma3_get_realcnt(fsl_chan);
