@@ -3105,10 +3105,18 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pPicInfo[uStrIdx].uPercentInErr, pPerfInfo->uRbspBytesCount, event_data[0],
 				pQMeterInfo, pPicInfo, pDispInfo, pPerfInfo, pPerfDcpInfo, uPicStartAddr, uDpbmcCrc);
 
+		if (tsm_use_consumed_length)
+			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
+							uPicStartAddr,
+							uPicEndAddr);
+
 		buffer_id = find_buffer_id(ctx, event_data[0]);
 		if (buffer_id == -1) {
 			vpu_dbg(LVL_ERR, "error: %s() ctx[%d] not find buffer id: %d, addr: 0x%x\n",
 					__func__, ctx->str_index, uDecFrmId, event_data[0]);
+			vpu_dec_valid_ts(ctx,
+					consumed_pic_bytesused,
+					NULL);
 			break;
 		}
 
@@ -3116,6 +3124,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			if (uDecFrmId == MEDIA_PLAYER_SKIPPED_FRAME_ID) {
 				send_skip_event(ctx);
 				ctx->frm_dec_delay--;
+				vpu_dec_valid_ts(ctx,
+						consumed_pic_bytesused,
+						NULL);
 				break;
 			}
 			vpu_dbg(LVL_ERR, "error: VID_API_EVENT_PIC_DECODED address and id doesn't match\n");
@@ -3130,10 +3141,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		else
 			p_data_req->bfield = true;
 
-		if (tsm_use_consumed_length)
-			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
-							uPicStartAddr,
-							uPicEndAddr);
 		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
 		}
 
