@@ -2521,7 +2521,9 @@ static int wm8962_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_update_bits(codec, WM8962_PWR_MGMT_1,
 				    WM8962_VMID_SEL_MASK, 0x80);
 
-		wm8962_configure_bclk(codec);
+		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_STANDBY)
+			wm8962_configure_bclk(codec);
+
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
