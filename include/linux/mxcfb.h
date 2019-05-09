@@ -58,6 +58,7 @@ struct fb_fence_context
 	unsigned long fence_seqno;
 	char driver_name[32];
 	char timeline_name[32];
+	struct mutex mutex;
 
 	int (*update_screen)(int64_t dma_address,
 		struct fb_var_screeninfo *screeninfo,
