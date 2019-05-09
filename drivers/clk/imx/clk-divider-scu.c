@@ -27,6 +27,7 @@ struct clk_divider_scu {
 	struct clk_divider div;
 	sc_rsrc_t	rsrc_id;
 	sc_pm_clk_t	clk_type;
+	uint32_t rate;
 };
 
 struct clk_divider3_scu {
@@ -53,14 +54,21 @@ static unsigned long clk_divider_scu_recalc_rate(struct clk_hw *hw,
 						  unsigned long parent_rate)
 {
 	struct clk_divider_scu *clk = to_clk_divider_scu(hw);
-	sc_err_t sci_err;
+	sc_err_t sci_err = SC_ERR_NONE;
 	sc_pm_clock_rate_t rate = 0;
+	sc_pm_power_mode_t cur_mode;
 
 	if (!ccm_ipc_handle)
 		return 0;
 
-	sci_err = sc_pm_get_clock_rate(ccm_ipc_handle, clk->rsrc_id,
-		clk->clk_type, &rate);
+	sc_pm_get_resource_power_mode(ccm_ipc_handle, clk->rsrc_id, &cur_mode);
+
+	if (cur_mode == SC_PM_PW_MODE_ON) {
+		sci_err = sc_pm_get_clock_rate(ccm_ipc_handle, clk->rsrc_id,
+			clk->clk_type, &rate);
+		clk->rate = rate;
+	} else
+		rate = clk->rate;
 
 	return sci_err ? 0 : rate;
 }
@@ -78,7 +86,7 @@ static int clk_divider_scu_set_rate(struct clk_hw *hw, unsigned long rate,
 		unsigned long parent_rate)
 {
 	struct clk_divider_scu *clk = to_clk_divider_scu(hw);
-	sc_err_t sci_err;
+	sc_err_t sci_err = SC_ERR_NONE;
 
 	if (!ccm_ipc_handle) {
 		return -EAGAIN;
@@ -86,6 +94,9 @@ static int clk_divider_scu_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	sci_err = sc_pm_set_clock_rate(ccm_ipc_handle, clk->rsrc_id,
 		clk->clk_type, (sc_pm_clock_rate_t *)&rate);
+
+	if (sci_err == SC_ERR_NONE)
+		clk->rate = rate;
 
 	return sci_err ? -EINVAL : 0;
 }
