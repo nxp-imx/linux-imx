@@ -4320,7 +4320,7 @@ static ssize_t show_fw_log(struct device *dev,
 
 	return num;
 }
-DEVICE_ATTR(fwlog, 0644, show_fw_log, NULL);
+DEVICE_ATTR(fwlog, 0444, show_fw_log, NULL);
 
 static int create_instance_command_file(struct vpu_ctx *ctx)
 {
