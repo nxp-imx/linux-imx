@@ -82,6 +82,7 @@ int fb_init_fence_context(struct fb_fence_context *context, const char *driver, 
 	snprintf(context->driver_name, sizeof(context->driver_name),
 		"FB:%s", driver);
 	context->update_screen = init;
+	mutex_init(&context->mutex);
 
 	return 0;
 }
@@ -172,7 +173,9 @@ static void fb_commit_work(struct work_struct *work)
 	if (commit->release_fence != NULL)
 		fb_arm_release_fence(context, commit->release_fence);
 
+	mutex_lock(&context->mutex);
 	context->update_screen(commit->smem_start, &commit->screeninfo, fb_info);
+	mutex_unlock(&context->mutex);
 
 	kfree(commit);
 }
