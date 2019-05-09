@@ -1638,7 +1638,112 @@ static struct vpu_v4l2_control vpu_controls_dec[] = {
 	},
 };
 
-#define NUM_CTRLS_DEC   ARRAY_SIZE(vpu_controls_dec)
+static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
+	{
+		.id = V4L2_CID_USER_FRAME_COLORDESC,
+		.name = "color description",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 99,
+		.step = 1,
+		.def = 1,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_TRANSFERCHARS,
+		.name = "transfer characteristics",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 99,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_MATRIXCOEFFS,
+		.name = "matrix coefficients",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 99,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_FULLRANGE,
+		.name = "vido full range flg",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 99,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_VUIPRESENT,
+		.name = "VUI present",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 99,
+		.step = 1,
+		.def = 0,
+	}
+};
+
+static	struct v4l2_ctrl_config vpu_custom_s_cfg[] = {
+	{
+		.id = V4L2_CID_USER_RAW_BASE,
+		.name = "Raw Ctrl",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_DEPTH,
+		.name = "frame depth ctrl",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = -1,
+		.max = 999,
+		.step = 1,
+	},
+	{
+		.id = V4L2_CID_USER_FRAME_DIS_REORDER,
+		.name = "frame disable reoder ctrl",
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_TS_THRESHOLD,
+		.name = "frame timestamp threshold",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = INT_MAX,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_BS_L_THRESHOLD,
+		.name = "frame bitstream low threshold",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_BS_H_THRESHOLD,
+		.name = "frame bitstream high threshold",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.step = 1,
+		.def = 0,
+	}
+};
+
+#define CNT_STAND_G_CTRLS	ARRAY_SIZE(vpu_controls_dec)
+#define CNT_CUSTOM_G_CFG	ARRAY_SIZE(vpu_custom_g_cfg)
+#define CNT_CUSTOM_S_CFG	ARRAY_SIZE(vpu_custom_s_cfg)
+#define CNT_CTRLS_DEC		(CNT_STAND_G_CTRLS + CNT_CUSTOM_G_CFG + CNT_CUSTOM_S_CFG)
 
 static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -1674,6 +1779,38 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int v4l2_custom_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct vpu_ctx *ctx = v4l2_ctrl_to_ctx(ctrl);
+
+	vpu_dbg(LVL_BIT_FUNC, "%s() control(%d)\n",
+			__func__, ctrl->id);
+
+	switch (ctrl->id) {
+	case V4L2_CID_USER_FRAME_COLORDESC:
+		ctrl->val = ctx->pSeqinfo->uColorDesc;
+		break;
+	case V4L2_CID_USER_FRAME_TRANSFERCHARS:
+		ctrl->val = ctx->pSeqinfo->uTransferChars;
+		break;
+	case V4L2_CID_USER_FRAME_MATRIXCOEFFS:
+		ctrl->val = ctx->pSeqinfo->uMatrixCoeffs;
+		break;
+	case V4L2_CID_USER_FRAME_FULLRANGE:
+		ctrl->val = ctx->pSeqinfo->uVideoFullRangeFlag;
+		break;
+	case V4L2_CID_USER_FRAME_VUIPRESENT:
+		ctrl->val = ctx->pSeqinfo->uVUIPresent;
+		break;
+	default:
+		vpu_dbg(LVL_ERR, "%s() Invalid costomer control(%d)\n",
+				__func__, ctrl->id);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+
 static int v4l2_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct vpu_ctx *ctx = v4l2_ctrl_to_ctx(ctrl);
@@ -1693,15 +1830,18 @@ static int v4l2_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
-static int add_dec_ctrl(struct vpu_ctx *This)
+static int add_stand_g_ctrl(struct vpu_ctx *This, uint32_t start)
 {
 	static const struct v4l2_ctrl_ops vpu_dec_ctrl_ops = {
 		.g_volatile_ctrl  = v4l2_dec_g_v_ctrl,
 	};
 	u_int32 i;
 
-	for (i = 0; i < NUM_CTRLS_DEC; i++) {
-		This->ctrls[i] = v4l2_ctrl_new_std(&This->ctrl_handler,
+	if (!This)
+		return -EINVAL;
+
+	for (i = 0; i < CNT_STAND_G_CTRLS; i++) {
+		This->ctrls[i+start] = v4l2_ctrl_new_std(&This->ctrl_handler,
 				&vpu_dec_ctrl_ops,
 				vpu_controls_dec[i].id,
 				vpu_controls_dec[i].minimum,
@@ -1710,127 +1850,102 @@ static int add_dec_ctrl(struct vpu_ctx *This)
 				vpu_controls_dec[i].default_value
 				);
 		if (This->ctrl_handler.error ||
-				!This->ctrls[i]) {
+				!This->ctrls[i+start]) {
 			vpu_dbg(LVL_ERR, "%s() v4l2_ctrl_new_std failed(%d) This->ctrls[%d](%p)\n",
-					__func__, This->ctrl_handler.error, i, This->ctrls[i]);
+					__func__, This->ctrl_handler.error, i+start, This->ctrls[i+start]);
 			return This->ctrl_handler.error;
 		}
 
-		if (vpu_controls_dec[i].is_volatile &&
-				This->ctrls[i])
+		if (vpu_controls_dec[i].is_volatile)
 			This->ctrls[i]->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	}
 
 	return 0;
 }
 
-static int add_custom_ctrl(struct vpu_ctx *This)
+static int add_custom_s_ctrl(struct vpu_ctx *This, uint32_t start)
 {
 	static const struct v4l2_ctrl_ops vpu_custom_ctrl_ops = {
 		.s_ctrl = v4l2_custom_s_ctrl,
 	};
-	struct v4l2_ctrl_config cfg;
-	struct v4l2_ctrl *ctrl;
+	uint32_t i;
 
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_RAW_BASE;
-	cfg.name = "Raw Ctrl";
-	cfg.min = 0;
-	cfg.max = 1;
-	cfg.step = 1;
-	cfg.def = 0;
-	cfg.type = V4L2_CTRL_TYPE_INTEGER;
-
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
-			&cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
+	if (!This)
 		return -EINVAL;
-	}
 
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_FRAME_DEPTH;
-	cfg.name = "frame depth ctrl";
-	cfg.min = -1;
-	cfg.max = 999;
-	cfg.step = 1;
-	cfg.def = vpu_frm_depth;
-	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	for (i = 0; i < CNT_CUSTOM_S_CFG; i++) {
+		vpu_custom_s_cfg[i].ops = &vpu_custom_ctrl_ops;
 
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
-			&cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
-		return -EINVAL;
-	}
+		if (vpu_custom_s_cfg[i].id == V4L2_CID_USER_FRAME_DEPTH)
+			vpu_custom_s_cfg[i].def = vpu_frm_depth;
+		if (vpu_custom_s_cfg[i].id == V4L2_CID_USER_BS_L_THRESHOLD ||
+				vpu_custom_s_cfg[i].id == V4L2_CID_USER_BS_H_THRESHOLD)
+			vpu_custom_s_cfg[i].max = vpu_max_bufsize;
 
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_FRAME_DIS_REORDER;
-	cfg.name = "frame disable reoder ctrl";
-	cfg.min = 0;
-	cfg.max = 1;
-	cfg.step = 1;
-	cfg.def = 0;
-	cfg.type = V4L2_CTRL_TYPE_BOOLEAN;
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler,
-			&cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR, "Add custom ctrl fail\n");
-		return -EINVAL;
-	}
+		This->ctrls[i+start] = v4l2_ctrl_new_custom(&This->ctrl_handler,
+			&vpu_custom_s_cfg[i], NULL);
 
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_TS_THRESHOLD;
-	cfg.name = "frame timestamp threshold";
-	cfg.min = 0;
-	cfg.max = INT_MAX;
-	cfg.step = 1;
-	cfg.def = 0;
-	cfg.type = V4L2_CTRL_TYPE_INTEGER;
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR, "Add frame ts threshold ctrl fail\n");
-		return -EINVAL;
-	}
-
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_BS_L_THRESHOLD;
-	cfg.name = "frame bitstream low threshold";
-	cfg.min = 0;
-	cfg.max = vpu_max_bufsize;
-	cfg.step = 1;
-	cfg.def = 0;
-	cfg.type = V4L2_CTRL_TYPE_INTEGER;
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR,
-			"Add frame bitstream low threshold ctrl fail\n");
-		return -EINVAL;
-	}
-
-	memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
-	cfg.ops = &vpu_custom_ctrl_ops;
-	cfg.id = V4L2_CID_USER_BS_H_THRESHOLD;
-	cfg.name = "frame bitstream high threshold";
-	cfg.min = 0;
-	cfg.max = vpu_max_bufsize;
-	cfg.step = 1;
-	cfg.def = 0;
-	cfg.type = V4L2_CTRL_TYPE_INTEGER;
-	ctrl = v4l2_ctrl_new_custom(&This->ctrl_handler, &cfg, NULL);
-	if (!ctrl) {
-		vpu_dbg(LVL_ERR,
-			"Add frame bitstream high threshold ctrl fail\n");
-		return -EINVAL;
+		if (This->ctrl_handler.error ||
+				!This->ctrls[i+start]) {
+			vpu_dbg(LVL_ERR, "%s() failed(%d) This->ctrls[%d](%p)\n",
+					__func__, This->ctrl_handler.error, i+start, This->ctrls[i+start]);
+			return This->ctrl_handler.error;
+		}
 	}
 
 	return 0;
 }
+
+static int add_custom_g_ctrl(struct vpu_ctx *This, uint32_t start)
+{
+	static const struct v4l2_ctrl_ops vpu_custom_g_ctrl_ops = {
+		.g_volatile_ctrl = v4l2_custom_g_ctrl,
+	};
+
+	uint32_t i;
+
+	if (!This)
+		return -EINVAL;
+
+	for (i = 0; i < CNT_CUSTOM_G_CFG; i++) {
+		vpu_custom_g_cfg[i].ops = &vpu_custom_g_ctrl_ops;
+		This->ctrls[i+start] = v4l2_ctrl_new_custom(&This->ctrl_handler,
+			&vpu_custom_g_cfg[i], NULL);
+
+		if (This->ctrl_handler.error ||
+				!This->ctrls[i+start]) {
+			vpu_dbg(LVL_ERR, "%s() failed(%d) This->ctrls[%d](%p)\n",
+					__func__, This->ctrl_handler.error, i+start, This->ctrls[i+start]);
+			return This->ctrl_handler.error;
+		}
+
+		This->ctrls[i+start]->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	}
+
+	return 0;
+}
+
+static int add_dec_ctrl(struct vpu_ctx *This)
+{
+	uint32_t start = 0;
+
+	if (!This)
+		return -EINVAL;
+
+	if (CNT_CTRLS_DEC > V4L2_MAX_CTRLS) {
+		vpu_dbg(LVL_ERR, "error: v4l2 decode controls added count excedds the limit\n");
+		return -EINVAL;
+	}
+
+	add_stand_g_ctrl(This, start);
+	start += CNT_STAND_G_CTRLS;
+	add_custom_s_ctrl(This, start);
+	start += CNT_CUSTOM_S_CFG;
+	add_custom_g_ctrl(This, start);
+
+	return 0;
+}
+
 
 static int ctrls_setup_decoder(struct vpu_ctx *This)
 {
@@ -1838,8 +1953,7 @@ static int ctrls_setup_decoder(struct vpu_ctx *This)
 		return -EINVAL;
 
 	v4l2_ctrl_handler_init(&This->ctrl_handler,
-			NUM_CTRLS_DEC + 3
-			);
+			CNT_CTRLS_DEC);
 	if (This->ctrl_handler.error) {
 		vpu_dbg(LVL_ERR, "%s() v4l2_ctrl_handler_init failed(%d)\n",
 				__func__, This->ctrl_handler.error);
@@ -1847,12 +1961,11 @@ static int ctrls_setup_decoder(struct vpu_ctx *This)
 		return This->ctrl_handler.error;
 	} else {
 		vpu_dbg(LVL_INFO, "%s() v4l2_ctrl_handler_init ctrls(%ld)\n",
-				__func__, NUM_CTRLS_DEC);
+				__func__, CNT_CTRLS_DEC);
 		This->ctrl_inited = true;
 	}
 
 	add_dec_ctrl(This);
-	add_custom_ctrl(This);
 
 	v4l2_ctrl_handler_setup(&This->ctrl_handler);
 
@@ -1867,7 +1980,7 @@ static void ctrls_delete_decoder(struct vpu_ctx *This)
 		v4l2_ctrl_handler_free(&This->ctrl_handler);
 		This->ctrl_inited = false;
 	}
-	for (i = 0; i < NUM_CTRLS_DEC; i++)
+	for (i = 0; i < CNT_CTRLS_DEC; i++)
 		This->ctrls[i] = NULL;
 }
 
