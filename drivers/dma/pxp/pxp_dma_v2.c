@@ -881,6 +881,7 @@ static void pxp_set_csc(struct pxps *pxp)
 
 	bool input_is_YUV = is_yuv(s0_params->pixel_fmt);
 	bool output_is_YUV = is_yuv(out_params->pixel_fmt);
+	uint32_t val;
 
 	if (input_is_YUV && output_is_YUV) {
 		/*
@@ -911,6 +912,11 @@ static void pxp_set_csc(struct pxps *pxp)
 
 			/* CSC2 - Bypass */
 			__raw_writel(0x1, pxp->base + HW_PXP_CSC2_CTRL);
+
+			/* enable YCBCR_MODE and BYPASS bit of CSC1_COEF0 */
+			val = __raw_readl(pxp->base + HW_PXP_CSC1_COEF0);
+			val |= 0xC0000000;
+			__raw_writel(val, pxp->base + HW_PXP_CSC1_COEF0);
 		}
 	} else if (input_is_YUV && !output_is_YUV) {
 		/*
