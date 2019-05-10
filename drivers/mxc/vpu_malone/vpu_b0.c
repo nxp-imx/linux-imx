@@ -1181,7 +1181,9 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	if (input_ts < 0)
 		input_ts = TSM_TIMESTAMP_NONE;
 
-	if (input_ts != TSM_TIMESTAMP_NONE && input_ts > ctx->output_ts)
+	if (TSM_TS_IS_VALID(input_ts) && input_ts == ctx->output_ts)
+		vpu_dbg(LVL_BIT_TS, "repetitive timestamp\n");
+	if (TSM_TS_IS_VALID(input_ts) && input_ts > ctx->output_ts)
 		ctx->output_ts = input_ts;
 
 	if (down_interruptible(&ctx->tsm_lock)) {
@@ -1255,6 +1257,11 @@ static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
 	}
 
 	ts = TSManagerSend2(ctx->tsm, NULL);
+	if (TSM_TS_IS_VALID(ts) && ts < ctx->capture_ts) {
+		vpu_dbg(LVL_BIT_TS, "revise timestamp: %32lld -> %32lld\n",
+				ts, ctx->capture_ts);
+		ts = ctx->capture_ts;
+	}
 	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%32lld (%lld)\n",
 			ts, getTSManagerFrameInterval(ctx->tsm));
 	buf->timestamp = ns_to_timeval(ts);
@@ -1262,7 +1269,7 @@ static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
 
 	up(&ctx->tsm_lock);
 
-	if (ts != TSM_TIMESTAMP_NONE)
+	if (TSM_TS_IS_VALID(ts))
 		ctx->capture_ts = ts;
 }
 
@@ -2751,8 +2758,8 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	}
 
 	if (ctx->ts_threshold > 0 &&
-		ctx->output_ts != TSM_TIMESTAMP_NONE &&
-		ctx->capture_ts != TSM_TIMESTAMP_NONE) {
+		TSM_TS_IS_VALID(ctx->output_ts) &&
+		TSM_TS_IS_VALID(ctx->capture_ts)) {
 		s64 threshold = ctx->ts_threshold * NSEC_PER_MSEC;
 
 		if (ctx->output_ts > ctx->capture_ts + threshold)
