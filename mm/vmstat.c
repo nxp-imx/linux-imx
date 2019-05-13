@@ -1430,8 +1430,8 @@ static int pagetypeinfo_show(struct seq_file *m, void *arg)
 	if (!node_state(pgdat->node_id, N_MEMORY))
 		return 0;
 
-	seq_printf(m, "Page block order: %d\n", MAX_ORDER - 1);
-	seq_printf(m, "Pages per block:  %lu\n", MAX_ORDER_NR_PAGES);
+	seq_printf(m, "Page block order: %d\n", pageblock_order);
+	seq_printf(m, "Pages per block:  %lu\n", pageblock_nr_pages);
 	seq_putc(m, '\n');
 	pagetypeinfo_showfree(m, pgdat);
 	pagetypeinfo_showblockcount(m, pgdat);
