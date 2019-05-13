@@ -167,6 +167,13 @@ typedef enum {
 } dpu_block_id_t;
 
 typedef enum {
+	DEC_SIG_SEL_FRAMEGEN = 0,
+	DEC_SIG_SEL_GAMMACOR,
+	DEC_SIG_SEL_MATRIX,
+	DEC_SIG_SEL_DITHER,
+} dec_sig_sel_t;
+
+typedef enum {
 	ED_SRC_DISABLE		= ID_NONE,
 	ED_SRC_BLITBLEND9	= ID_BLITBLEND9,
 	ED_SRC_CONSTFRAME0	= ID_CONSTFRAME0,
@@ -439,6 +446,12 @@ enum {
 	FU_T_FW,
 };
 
+enum dpu_crc_source {
+	DPU_CRC_SRC_NONE,
+	DPU_CRC_SRC_FRAMEGEN,
+	DPU_CRC_SRC_FRAMEGEN_ROI,
+};
+
 struct dpu_fetchunit;
 
 struct dpu_fetchunit_ops {
@@ -518,6 +531,7 @@ struct dpu_constframe *dpu_aux_cf_peek(struct dpu_constframe *cf);
 /* Display Engine Configuration Unit */
 struct dpu_disengcfg;
 void disengcfg_polarity_ctrl(struct dpu_disengcfg *dec, unsigned int flags);
+void disengcfg_sig_select(struct dpu_disengcfg *dec, dec_sig_sel_t sig_sel);
 struct dpu_disengcfg *dpu_dec_get(struct dpu_soc *dpu, int id);
 void dpu_dec_put(struct dpu_disengcfg *dec);
 struct dpu_disengcfg *dpu_aux_dec_peek(struct dpu_disengcfg *dec);
@@ -607,6 +621,8 @@ void dpu_fw_put(struct dpu_fetchunit *fu);
 struct dpu_framegen;
 void framegen_enable(struct dpu_framegen *fg);
 void framegen_disable(struct dpu_framegen *fg);
+void framegen_enable_pixel_link(struct dpu_framegen *fg);
+void framegen_disable_pixel_link(struct dpu_framegen *fg);
 void framegen_shdtokgen(struct dpu_framegen *fg);
 void framegen_syncmode(struct dpu_framegen *fg, fgsyncmode_t mode);
 void
@@ -668,6 +684,36 @@ void layerblend_blendcontrol(struct dpu_layerblend *lb, bool sec_from_scaler);
 void layerblend_position(struct dpu_layerblend *lb, int x, int y);
 struct dpu_layerblend *dpu_lb_get(struct dpu_soc *dpu, int id);
 void dpu_lb_put(struct dpu_layerblend *lb);
+
+/* Signature Unit */
+#define MAX_DPU_SIGNATURE_WIN_NUM	8
+struct dpu_signature;
+void signature_shden(struct dpu_signature *sig, bool enable);
+void signature_shdldsel_local(struct dpu_signature *sig);
+void signature_shdldsel_global(struct dpu_signature *sig);
+void
+signature_global_panic(struct dpu_signature *sig, unsigned int win, bool enable);
+void
+signature_local_panic(struct dpu_signature *sig, unsigned int win, bool enable);
+void
+signature_alpha_mask(struct dpu_signature *sig, unsigned int win, bool enable);
+void signature_crc(struct dpu_signature *sig, unsigned int win, bool enable);
+void
+signature_eval_win(struct dpu_signature *sig, unsigned int win, bool enable);
+void signature_win(struct dpu_signature *sig, unsigned int win,
+		   int xul, int yul, int xlr, int ylr);
+void signature_crc_value(struct dpu_signature *sig, unsigned int win,
+			 u32 *red, u32 *green, u32 *blue);
+void signature_shdldreq(struct dpu_signature *sig, u8 win_mask);
+void signature_continuous_mode(struct dpu_signature *sig, bool enable);
+void signature_kick(struct dpu_signature *sig);
+bool signature_is_idle(struct dpu_signature *sig);
+void signature_wait_for_idle(struct dpu_signature *sig);
+bool signature_is_valid(struct dpu_signature *sig);
+bool signature_is_error(struct dpu_signature *sig, u8 *err_win_mask);
+struct dpu_signature *dpu_sig_get(struct dpu_soc *dpu, int id);
+void dpu_sig_put(struct dpu_signature *sig);
+struct dpu_signature *dpu_aux_sig_peek(struct dpu_signature *sig);
 
 /* Store Unit */
 struct dpu_store;

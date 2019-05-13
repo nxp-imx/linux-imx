@@ -328,7 +328,7 @@ static int mxc_v4l2_buffer_status(cam_data *cam, struct v4l2_buffer *buf)
 {
 	pr_debug("In MVC:mxc_v4l2_buffer_status\n");
 
-	if (buf->index < 0 || buf->index >= FRAME_NUM) {
+	if (buf->index >= FRAME_NUM) {
 		pr_err("ERROR: v4l2 capture: mxc_v4l2_buffer_status buffers "
 		       "not allocated\n");
 		return -EINVAL;
@@ -348,7 +348,7 @@ static int mxc_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 {
 	pr_debug("In MVC:mxc_v4l2_prepare_bufs\n");
 
-	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
+	if (buf->index >= FRAME_NUM || buf->length <
 			cam->v2f.fmt.pix.sizeimage) {
 		pr_err("ERROR: v4l2 capture: mxc_v4l2_prepare_bufs buffers "
 			"not allocated,index=%d, length=%d\n", buf->index,
@@ -579,7 +579,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		}
 	} while (++i < FB_MAX);
 
-	if (foregound_fb) {
+	if (foregound_fb && bg_fbi) {
 		width_bound = bg_fbi->var.xres;
 		height_bound = bg_fbi->var.yres;
 
@@ -1999,19 +1999,17 @@ static long mxc_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP) {
-			memset(buf, 0, sizeof(buf));
-			buf->index = index;
-		}
-
 		down(&cam->param_lock);
 		if (buf->memory & V4L2_MEMORY_USERPTR) {
 			mxc_v4l2_release_bufs(cam);
 			retval = mxc_v4l2_prepare_bufs(cam, buf);
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP)
+		if (buf->memory & V4L2_MEMORY_MMAP) {
+			memset(buf, 0, sizeof(*buf));
+			buf->index = index;
 			retval = mxc_v4l2_buffer_status(cam, buf);
+		}
 		up(&cam->param_lock);
 		break;
 	}

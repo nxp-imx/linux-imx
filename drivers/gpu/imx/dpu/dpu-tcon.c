@@ -80,7 +80,6 @@ static inline void dpu_tcon_write(struct dpu_tcon *tcon, u32 value,
 
 int tcon_set_fmt(struct dpu_tcon *tcon, u32 bus_format)
 {
-	mutex_lock(&tcon->mutex);
 	switch (bus_format) {
 	case MEDIA_BUS_FMT_RGB888_1X24:
 		dpu_tcon_write(tcon, 0x19181716, MAPBIT3_0);
@@ -103,10 +102,8 @@ int tcon_set_fmt(struct dpu_tcon *tcon, u32 bus_format)
 		dpu_tcon_write(tcon, 0x00000908, MAPBIT31_28);
 		break;
 	default:
-		mutex_unlock(&tcon->mutex);
 		return -EINVAL;
 	}
-	mutex_unlock(&tcon->mutex);
 
 	return 0;
 }
@@ -117,11 +114,9 @@ void tcon_set_operation_mode(struct dpu_tcon *tcon)
 {
 	u32 val;
 
-	mutex_lock(&tcon->mutex);
 	val = dpu_tcon_read(tcon, TCON_CTRL);
 	val &= ~BYPASS;
 	dpu_tcon_write(tcon, val, TCON_CTRL);
-	mutex_unlock(&tcon->mutex);
 }
 EXPORT_SYMBOL_GPL(tcon_set_operation_mode);
 
@@ -148,7 +143,6 @@ void tcon_cfg_videomode(struct dpu_tcon *tcon,
 		hsync_end /= 2;
 	}
 
-	mutex_lock(&tcon->mutex);
 	/*
 	 * TKT320590:
 	 * Turn TCON into operation mode later after the first dumb frame is
@@ -213,7 +207,6 @@ void tcon_cfg_videomode(struct dpu_tcon *tcon,
 
 	dpu_tcon_write(tcon, 0x6, SMXSIGS(3));
 	dpu_tcon_write(tcon, 0x2, SMXFCTTABLE(3));
-	mutex_unlock(&tcon->mutex);
 }
 EXPORT_SYMBOL_GPL(tcon_cfg_videomode);
 

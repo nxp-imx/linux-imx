@@ -457,24 +457,36 @@ static void it6263_hdmi_config(struct it6263 *it6263)
 						HDMI_COLOR_DEPTH_24);
 }
 
+static bool it6263_hpd_is_connected(struct it6263 *it6263)
+{
+	unsigned int status;
+
+	regmap_read(it6263->hdmi_regmap, HDMI_REG_SYS_STATUS, &status);
+
+	return !!(status & HPDETECT);
+}
+
 static enum drm_connector_status
 it6263_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct it6263 *it6263 = connector_to_it6263(connector);
-	unsigned int status;
 	int i;
 
-	/*
-	 * FIXME: We read status tens of times to workaround
-	 * cable detection failure issue at boot time on some
-	 * platforms.
-	 * Spin on this for up to one second.
-	 */
-	for (i = 0; i < 100; i++) {
-		regmap_read(it6263->hdmi_regmap, HDMI_REG_SYS_STATUS, &status);
-		if (status & HPDETECT)
+	if (force) {
+		/*
+		 * FIXME: We read status tens of times to workaround
+		 * cable detection failure issue at boot time on some
+		 * platforms.
+		 * Spin on this for up to one second.
+		 */
+		for (i = 0; i < 100; i++) {
+			if (it6263_hpd_is_connected(it6263))
+				return connector_status_connected;
+			usleep_range(5000, 10000);
+		}
+	} else {
+		if (it6263_hpd_is_connected(it6263))
 			return connector_status_connected;
-		usleep_range(5000, 10000);
 	}
 
 	return connector_status_disconnected;
