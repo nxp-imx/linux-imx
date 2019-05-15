@@ -2436,6 +2436,7 @@ static int pxp_ps_config(struct pxp_pixmap *input,
 
 	offset = input->crop.y * input->pitch +
 		 input->crop.x * (input->bpp >> 3);
+
 	pxp_writel(input->paddr + offset, HW_PXP_PS_BUF);
 
 	switch (is_yuv(input->format)) {
@@ -3726,6 +3727,7 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 	struct pxp_pixmap *input, *output;
 	int i = 0, ret;
 	bool combine_enable = false;
+	int delta_x, delta_y;
 
 	memset(&pxp->pxp_conf_state.s0_param, 0,  sizeof(struct pxp_layer_param));
 	memset(&pxp->pxp_conf_state.out_param, 0,  sizeof(struct pxp_layer_param));
@@ -3746,6 +3748,19 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 		alpha_blending_version = PXP_ALPHA_BLENDING_NONE;
 
 	pxp_legacy = (proc_data->pxp_legacy) ? true : false;
+
+	param = &pxp->pxp_conf_state.s0_param;
+	if (param->pixel_fmt == PXP_PIX_FMT_YUV420P ||
+	    param->pixel_fmt == PXP_PIX_FMT_YVU420P) {
+		delta_x = proc_data->srect.left - ALIGN_DOWN(proc_data->srect.left, 2);
+		delta_y = proc_data->srect.top - ALIGN_DOWN(proc_data->srect.top, 2);
+
+		proc_data->srect.left = ALIGN_DOWN(proc_data->srect.left, 2);
+		proc_data->srect.top  = ALIGN_DOWN(proc_data->srect.top, 2);
+
+		proc_data->srect.width  = proc_data->srect.width + delta_x;
+		proc_data->srect.height = proc_data->srect.height + delta_y;
+	}
 
 	/* Save PxP configuration */
 	list_for_each_entry(child, &desc->tx_list, list) {
