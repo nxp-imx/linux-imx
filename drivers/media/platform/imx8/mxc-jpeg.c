@@ -977,8 +977,9 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		if (byte == 0)
 			continue;
 		switch (byte) {
-		case SOF2:
-		case SOF0:
+		case SOF2: /* Progressive DCF frame definition */
+		case SOF1: /* Extended sequential DCF frame definition */
+		case SOF0: /* Baseline sequential DCF frame definition */
 			if (get_sof(dev, &stream, &sof) == -1)
 				break;
 			notfound = false;

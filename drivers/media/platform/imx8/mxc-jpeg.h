@@ -35,6 +35,7 @@
 #define MXC_JPEG_ENC_CONF		1
 #define MXC_JPEG_ENC_DONE		0
 #define SOF0				0xC0
+#define SOF1				0xC1
 #define SOF2				0xC2
 #define MXC_JPEG_ENC_CONF_DONE		1
 #define MXC_JPEG_MAX_PLANES		2
