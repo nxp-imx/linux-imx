@@ -86,6 +86,9 @@ static bool verify_frame_buffer_size(struct queue_data *q_data,
 							struct vb2_data_req *p_data_req);
 static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *data_req);
 static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length);
+static int send_abort_cmd(struct vpu_ctx *ctx);
+static int send_stop_cmd(struct vpu_ctx *ctx);
+static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -1398,6 +1401,7 @@ static int v4l2_ioctl_decoder_cmd(struct file *file,
 		struct v4l2_decoder_cmd *cmd
 		)
 {
+	int ret = 0;
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
@@ -1415,10 +1419,14 @@ static int v4l2_ioctl_decoder_cmd(struct file *file,
 		break;
 	case V4L2_DEC_CMD_RESUME:
 		break;
+	case IMX_V4L2_DEC_CMD_RESET:
+		v4l2_update_stream_addr(ctx, 0);
+		ret = vpu_dec_cmd_reset(ctx);
+		break;
 	default:
 		return -EINVAL;
 	}
-	return 0;
+	return ret;
 }
 
 static int v4l2_ioctl_streamon(struct file *file,
@@ -1478,35 +1486,8 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	else
 		return -EINVAL;
 
-	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		if (vpu_dec_is_active(ctx)) {
-			int size;
-			ctx->wait_rst_done = true;
-			vpu_dbg(LVL_INFO, "%s(): send VID_API_CMD_ABORT\n", __func__);
-
-			size = add_scode(ctx, 0, BUFABORT_PADDING_TYPE, false);
-			record_log_info(ctx, LOG_PADDING, 0, 0);
-			if (size < 0)
-				vpu_dbg(LVL_ERR, "%s(): failed to fill abort padding data\n", __func__);
-			v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
-
-			wake_up_interruptible(&ctx->buffer_wq);
-			if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
-				ctx->hang_status = true;
-				vpu_dbg(LVL_ERR, "the path id:%d firmware timeout after send VID_API_CMD_ABORT, stopped(%d), finished(%d), eos_added(%d)\n",
-						ctx->str_index, ctx->firmware_stopped,
-						ctx->firmware_finished, ctx->eos_stop_added);
-			}
-			vpu_dbg(LVL_INFO, "receive abort done\n");
-		} else {
-			vpu_dbg(LVL_ERR,
-				"%s() - IGNORE - stopped(%d), finished(%d), eos_added(%d)\n",
-				__func__,
-				ctx->firmware_stopped,
-				ctx->firmware_finished,
-				ctx->eos_stop_added);
-		}
-	}
+	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		send_abort_cmd(ctx);
 
 	if (V4L2_TYPE_IS_OUTPUT(i))
 		ctx->output_ts = TSM_TIMESTAMP_NONE;
@@ -1514,7 +1495,6 @@ static int v4l2_ioctl_streamoff(struct file *file,
 		ctx->capture_ts = TSM_TIMESTAMP_NONE;
 
 	ret = vpu_dec_queue_disable(q_data, i);
-
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
 		return -EINVAL;
@@ -2382,6 +2362,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 			vpu_dbg(LVL_ERR, "alloc vpu buffer fail\n");
 			return;
 		}
+
 		frame_bytes = transfer_buffer_to_firmware(ctx,
 							  data_mapped,
 							  buffer_size,
@@ -2489,6 +2470,81 @@ static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t len
 	return length;
 }
 
+static int send_abort_cmd(struct vpu_ctx *ctx)
+{
+	int size;
+
+	if (!ctx)
+		return -EINVAL;
+
+	if (vpu_dec_is_active(ctx)) {
+		ctx->wait_rst_done = true;
+		vpu_dbg(LVL_INFO, "%s(): send VID_API_CMD_ABORT\n", __func__);
+		size = add_scode(ctx, 0, BUFABORT_PADDING_TYPE, false);
+		record_log_info(ctx, LOG_PADDING, 0, 0);
+		if (size < 0)
+			vpu_dbg(LVL_ERR, "%s(): failed to fill abort padding data\n", __func__);
+		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
+		wake_up_interruptible(&ctx->buffer_wq);
+		if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
+			ctx->hang_status = true;
+			vpu_dbg(LVL_ERR, "the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
+					ctx->str_index);
+			return -EBUSY;
+		}
+	}
+
+	return 0;
+}
+
+static int send_stop_cmd(struct vpu_ctx *ctx)
+{
+	if (!ctx)
+		return -EINVAL;
+
+	ctx->wait_rst_done = true;
+	if (vpu_dec_is_active(ctx)) {
+		wake_up_interruptible(&ctx->buffer_wq);
+		vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
+		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
+		if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
+			ctx->hang_status = true;
+			vpu_dbg(LVL_ERR, "the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
+			return -EBUSY;
+		}
+	}
+
+	return 0;
+}
+
+static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
+{
+	struct queue_data *q_data;
+	int ret = 0;
+
+	if (!ctx)
+		return -EPERM;
+
+	q_data = &ctx->q_data[V4L2_SRC];
+
+	vpu_dbg(LVL_ERR, "%s()\n", __func__);
+
+	if (ctx->hang_status || q_data->vb2_q.streaming) {
+		vpu_dbg(LVL_ERR, "error: %s() failed. hang_status: %d;  vb2_q.streaming: %d\n",
+			__func__, ctx->hang_status, q_data->vb2_q.streaming);
+		return -EPERM;
+	}
+	ret = send_abort_cmd(ctx);
+	if (ret)
+		return ret;
+	ret |= send_stop_cmd(ctx);
+	if (ret)
+		return ret;
+
+	ctx->start_flag = true;
+	ctx->b_firstseq = true;
+	return 0;
+}
 
 static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t buffer_size, uint32_t uStrBufIdx)
 {
@@ -3065,7 +3121,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 //		MediaIPFW_Video_FrameBuffer *pStreamDCPBuffer = &pSharedInterface->StreamDCPBuffer[uStrIdx];
 		MediaIPFW_Video_PitchInfo   *pStreamPitchInfo = &pSharedInterface->StreamPitchInfo[uStrIdx];
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
-
 		if (ctx->pSeqinfo == NULL) {
 			ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
 			atomic64_add(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
@@ -4546,17 +4601,7 @@ static int v4l2_release(struct file *filp)
 		ctx->eos_stop_added ? "eos_added" : "not eos_added",
 		ctx->frm_total_num);
 
-	if (vpu_dec_is_active(ctx)) {
-		ctx->wait_rst_done = true;
-		wake_up_interruptible(&ctx->buffer_wq);  //workaround: to wakeup event handler who still may receive request frame after reset done
-		vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
-		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
-		if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
-			ctx->hang_status = true;
-			vpu_dbg(LVL_ERR, "the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
-		}
-	} else
-		vpu_dbg(LVL_INFO, "v4l2_release() - stopped(%d): skip VID_API_CMD_STOP\n", ctx->firmware_stopped);
+	send_stop_cmd(ctx);
 
 	mutex_lock(&ctx->instance_mutex);
 	ctx->ctx_released = true;
