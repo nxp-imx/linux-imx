@@ -75,7 +75,7 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 	},
 	{
 		.name		= "YUV444", /* YUVYUV */
-		.fourcc		= V4L2_PIX_FMT_YUV32,
+		.fourcc		= V4L2_PIX_FMT_YUV24,
 		.depth		= 24,
 		.colplanes	= 1,
 		.h_align	= 0,
@@ -340,7 +340,7 @@ static enum mxc_jpeg_image_format mxc_jpeg_fourcc_to_imgfmt(
 		return MXC_JPEG_YUV422;
 	case V4L2_PIX_FMT_NV12:
 		return MXC_JPEG_YUV420;
-	case V4L2_PIX_FMT_YUV32:
+	case V4L2_PIX_FMT_YUV24:
 		return MXC_JPEG_YUV444;
 	case V4L2_PIX_FMT_RGB24:
 		return MXC_JPEG_RGB;
@@ -365,7 +365,7 @@ static int mxc_jpeg_imgfmt_to_fourcc(enum mxc_jpeg_image_format imgfmt,
 		*fourcc =  V4L2_PIX_FMT_NV12;
 		return 0;
 	case MXC_JPEG_YUV444:
-		*fourcc =  V4L2_PIX_FMT_YUV32;
+		*fourcc =  V4L2_PIX_FMT_YUV24;
 		return 0;
 	case MXC_JPEG_RGB:
 		*fourcc =  V4L2_PIX_FMT_RGB24;
