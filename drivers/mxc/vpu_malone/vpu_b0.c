@@ -801,6 +801,8 @@ static int vpu_dec_queue_qbuf(struct queue_data *queue,
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
 		ret = vb2_qbuf(&queue->vb2_q, buf);
+	if (!ret)
+		queue->qbuf_count++;
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -814,6 +816,8 @@ static int vpu_dec_queue_dqbuf(struct queue_data *queue,
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
 		ret = vb2_dqbuf(&queue->vb2_q, buf, nonblocking);
+	if (!ret)
+		queue->dqbuf_count++;
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -830,6 +834,25 @@ static int vpu_dec_queue_enable(struct queue_data *queue,
 	up(&queue->drv_q_lock);
 
 	return ret;
+}
+
+static void check_queue_is_releasd(struct queue_data *queue, char *desc)
+{
+	struct vb2_data_req *p_data_req = NULL;
+	int i;
+
+	for (i = 0; i < queue->vb2_q.num_buffers; i++) {
+		p_data_req = &queue->vb2_reqs[i];
+		if (!p_data_req->vb2_buf)
+			continue;
+
+		if (p_data_req->status != FRAME_ALLOC)
+			vpu_dbg(LVL_WARN,
+				"%s:buffer(%d) status is %s when %s\n",
+				queue->type ? "CAPTURE" : "OUTPUT",
+				i, bufstat[p_data_req->status],
+				desc);
+	}
 }
 
 static void clear_queue(struct queue_data *queue)
@@ -849,6 +872,12 @@ static void clear_queue(struct queue_data *queue)
 			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 	}
 	INIT_LIST_HEAD(&queue->drv_q);
+	queue->qbuf_count = 0;
+	queue->dqbuf_count = 0;
+
+	/*
+	 *check_queue_is_releasd(queue, "clear queue");
+	 */
 }
 
 static int vpu_dec_queue_disable(struct queue_data *queue,
@@ -1098,6 +1127,12 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		q_data = &ctx->q_data[V4L2_DST];
 	else
 		return -EINVAL;
+
+	if (vb2_is_streaming(&q_data->vb2_q)) {
+		vpu_dbg(LVL_ERR, "%s reqbufs during streaming\n",
+			q_data->type ? "CAPTURE" : "OUTPUT");
+		return -EINVAL;
+	}
 
 	clear_vb2_buf(q_data);
 	if (reqbuf->count == 0)
@@ -2337,6 +2372,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	pStrBufDesc->end = ctx->stream_buffer.dma_phy + ctx->stream_buffer.dma_size;
 	pStrBufDesc->LWM = 0x01;
 	ctx->pre_pic_end_addr = pStrBufDesc->start;
+	ctx->beginning = pStrBufDesc->start;
 
 	update_wptr(ctx, pStrBufDesc, ctx->stream_buffer.dma_phy + length);
 	ctx->dev->shared_mem.pSharedInterface->pStreamBuffDesc[ctx->str_index][uStrBufIdx] =
@@ -3385,7 +3421,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			p_data_req = &This->vb2_reqs[fsrel->uFSIdx];
 
 			if (ctx->wait_rst_done != true && p_data_req->status != FRAME_READY) {
-				vpu_dbg(LVL_WARN, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
+				vpu_dbg(LVL_INFO, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
 						bufstat[p_data_req->status]);
 
 				if ((p_data_req->status == FRAME_DECODED || p_data_req->status == FRAME_FREE)) {
@@ -3464,6 +3500,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&queue->drv_q_lock);
 		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
 		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
+		ctx->beginning = pStrBufDesc->rptr;
 		vpu_dbg(LVL_BIT_FRAME_BYTES,
 				"[%d]total bytes: %ld, %ld, %ld, %ld\n",
 				ctx->str_index,
@@ -3495,8 +3532,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&This->drv_q_lock);
 		reset_mbi_dcp_count(ctx);
 		ctx->mbi_size = get_mbi_size(This);
+		check_queue_is_releasd(This, "EVENT_RES_CHANGE is received");
 		up(&This->drv_q_lock);
-		vpu_dbg(LVL_WARN, "warning: ctx[%d] VID_API_EVENT_RES_CHANGE, seq id: %d\n",
+		vpu_dbg(LVL_INFO, "warning: ctx[%d] VID_API_EVENT_RES_CHANGE, seq id: %d\n",
 				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
 		v4l2_event_queue_fh(&ctx->fh, &ev);
@@ -3509,7 +3547,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_WARN, "ctx[%d] warning: wait application capture port streamon timeout\n",
 						ctx->str_index);
 			} else {
-				vpu_dbg(LVL_WARN, "ctx[%d] application capture port streamon done\n",
+				vpu_dbg(LVL_INFO, "ctx[%d] application capture port streamon done\n",
 						ctx->str_index);
 				break;
 			}
@@ -3518,9 +3556,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_STR_BUF_RST: {
 		pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
-		struct vb2_data_req *p_data_req;
 		struct queue_data *This;
-		u_int32 i;
 
 		pStrBufDesc = get_str_buffer_desc(ctx);
 		vpu_dbg(LVL_INFO, "%s wptr(%x) rptr(%x) start(%x) end(%x)\n",
@@ -3530,17 +3566,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pStrBufDesc->start,
 				pStrBufDesc->end
 			  );
-		ctx->wait_rst_done = false;
 		This = &ctx->q_data[V4L2_DST];
 		down(&This->drv_q_lock);
-		for (i = 0; i < VPU_MAX_BUFFER; i++) {
-			p_data_req = &This->vb2_reqs[i];
-			if (p_data_req->vb2_buf != NULL)
-				if (p_data_req->status != FRAME_ALLOC)
-					vpu_dbg(LVL_WARN, "buffer(%d) status is %s when receive VID_API_EVENT_STR_BUF_RST\n",
-							i, bufstat[p_data_req->status]);
-		}
+		check_queue_is_releasd(This, "EVENT_STR_BUF_RST is received");
 		up(&This->drv_q_lock);
+		ctx->wait_rst_done = false;
 		if (ctx->b_firstseq)
 			v4l2_vpu_send_cmd(ctx, ctx->str_index,
 					VID_API_CMD_STOP, 0, NULL);
@@ -3852,6 +3882,22 @@ static int vpu_queue_setup(struct vb2_queue *vq,
 	return 0;
 }
 
+static int vpu_buf_init(struct vb2_buffer *vb)
+{
+	struct vb2_queue    *vq = vb->vb2_queue;
+	struct queue_data   *queue = (struct queue_data *)vq->drv_priv;
+	struct vb2_data_req *p_data_req;
+
+	p_data_req = &queue->vb2_reqs[vb->index];
+	set_data_req_status(p_data_req, FRAME_ALLOC);
+
+	return 0;
+}
+
+static void vpu_buf_cleanup(struct vb2_buffer *vb)
+{
+}
+
 static int vpu_buf_prepare(struct vb2_buffer *vb)
 {
 	vpu_dbg(LVL_BIT_FUNC, "%s() is called\n", __func__);
@@ -3927,6 +3973,8 @@ struct vb2_ops v4l2_qops = {
 	.queue_setup        = vpu_queue_setup,
 	.wait_prepare       = vpu_prepare,
 	.wait_finish        = vpu_finish,
+	.buf_init           = vpu_buf_init,
+	.buf_cleanup        = vpu_buf_cleanup,
 	.buf_prepare        = vpu_buf_prepare,
 	.start_streaming    = vpu_start_streaming,
 	.stop_streaming     = vpu_stop_streaming,
@@ -4234,6 +4282,28 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "bitstream high threshold",
 			ctx->bs_h_threshold);
+
+	This = &ctx->q_data[V4L2_SRC];
+	down(&This->drv_q_lock);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "output qbuf count",
+			This->qbuf_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "output dqbuf count",
+			This->dqbuf_count);
+	up(&This->drv_q_lock);
+
+	This = &ctx->q_data[V4L2_DST];
+	down(&This->drv_q_lock);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "capture qbuf count",
+			This->qbuf_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "capture dqbuf count",
+			This->dqbuf_count);
+	up(&This->drv_q_lock);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16x\n", "beginning", ctx->beginning);
 
 	return num;
 }

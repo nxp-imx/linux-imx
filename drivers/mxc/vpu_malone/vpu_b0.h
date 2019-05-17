@@ -215,6 +215,8 @@ struct queue_data {
 	struct semaphore drv_q_lock;
 	struct vb2_data_req vb2_reqs[VPU_MAX_BUFFER];
 	enum QUEUE_TYPE type;
+	unsigned long qbuf_count;
+	unsigned long dqbuf_count;
 };
 
 struct print_buf_desc {
@@ -343,6 +345,7 @@ struct vpu_ctx {
 	struct dma_buffer stream_buffer;
 	struct dma_buffer udata_buffer;
 	enum ARV_FRAME_TYPE arv_type;
+	u32 beginning;
 
 	struct file *crc_fp;
 	loff_t pos;
