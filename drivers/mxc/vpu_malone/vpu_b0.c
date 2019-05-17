@@ -1135,10 +1135,6 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 	}
 
 	clear_vb2_buf(q_data);
-	if (reqbuf->count == 0)
-		ctx->buffer_null = true;
-	else
-		ctx->buffer_null = false;
 
 	ret = vpu_dec_queue_reqbufs(q_data, reqbuf);
 	if (ret) {
@@ -1552,8 +1548,10 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	else
 		return -EINVAL;
 
-	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		send_abort_cmd(ctx);
+	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		if (!ctx->wait_res_change_done)
+			send_abort_cmd(ctx);
+	}
 
 	if (V4L2_TYPE_IS_OUTPUT(i))
 		ctx->output_ts = TSM_TIMESTAMP_NONE;
@@ -2587,19 +2585,16 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 
 static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 {
-	struct queue_data *q_data;
 	int ret = 0;
 
 	if (!ctx)
 		return -EPERM;
 
-	q_data = &ctx->q_data[V4L2_SRC];
+	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
-	vpu_dbg(LVL_ERR, "%s()\n", __func__);
-
-	if (ctx->hang_status || q_data->vb2_q.streaming) {
-		vpu_dbg(LVL_ERR, "error: %s() failed. hang_status: %d;  vb2_q.streaming: %d\n",
-			__func__, ctx->hang_status, q_data->vb2_q.streaming);
+	if (ctx->hang_status) {
+		vpu_dbg(LVL_WARN, "warning: %s() failed. hang_status: %d\n",
+			__func__, ctx->hang_status);
 		return -EPERM;
 	}
 	ret = send_abort_cmd(ctx);
@@ -2711,6 +2706,9 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 static int update_stream_addr_vpu(struct vpu_ctx *ctx, void *input_buffer, uint32_t buffer_size, uint32_t uStrBufIdx)
 {
 	int size = 0;
+
+	if (ctx->wait_rst_done == true)
+		return size;
 
 	mutex_lock(&ctx->instance_mutex);
 	size = update_stream_addr(ctx, input_buffer, buffer_size, uStrBufIdx);
@@ -3237,11 +3235,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		u32 consumed_pic_bytesused = 0;
 		struct vb2_data_req *p_data_req = NULL;
 
-		if (ctx->buffer_null == true) {
-			vpu_dbg(LVL_INFO, "frame already released\n");
-			break;
-		}
-
 		if (This->vdec_std == VPU_VIDEO_HEVC)
 			uDpbmcCrc = pPerfDcpInfo->uDBEDpbCRC[0];
 		else
@@ -3394,11 +3387,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			}
 #endif
 
-			if (ctx->buffer_null == true) {
-				vpu_dbg(LVL_INFO, "frame already released\n");
-				break;
-			}
-
 			if (ctx->wait_rst_done)
 				respond_req_frame_when_abort(ctx, uStrIdx);
 			else
@@ -3411,14 +3399,14 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		struct queue_data *This = &ctx->q_data[V4L2_DST];
 		struct vb2_data_req *p_data_req;
 
-		if (ctx->buffer_null == true) {
-			vpu_dbg(LVL_INFO, "frame already released !!!!!!!!!!!!!!!!!\n");
-			break;
-		}
-
 		down(&This->drv_q_lock);
 		if (fsrel->eType == MEDIAIP_FRAME_REQ) {
 			p_data_req = &This->vb2_reqs[fsrel->uFSIdx];
+			if (!p_data_req->vb2_buf) {
+				vpu_dbg(LVL_INFO, "frame already released !\n");
+				up(&This->drv_q_lock);
+				break;
+			}
 
 			if (ctx->wait_rst_done != true && p_data_req->status != FRAME_READY) {
 				vpu_dbg(LVL_INFO, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
@@ -3449,9 +3437,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_FRAME_BUFF_RDY: {
 		u_int32 *FrameInfo = (u_int32 *)event_data;
 
-		//when the buffer is not NULL, do report_buffer_done
-		if (ctx->buffer_null == false)
-			report_buffer_done(ctx, FrameInfo);
+		report_buffer_done(ctx, FrameInfo);
 	}
 		break;
 	case VID_API_EVENT_CHUNK_DECODED:
@@ -3459,10 +3445,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_FIFO_LOW: {
 		u_int32 uStrBufIdx = 0; //use buffer 0 for the stream
 
-		if (ctx->buffer_null == true) {
-			vpu_dbg(LVL_INFO, "frame already released !!!!!!!!!!!!!!!!!\n");
-			break;
-		}
 		ctx->fifo_low = true;
 		v4l2_update_stream_addr(ctx, uStrBufIdx);
 	} break;
@@ -3538,6 +3520,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
 		v4l2_event_queue_fh(&ctx->fh, &ev);
+		ctx->wait_res_change_done = true;
 		reinit_completion(&ctx->cap_streamon_cmp);
 		while (1) {
 			if (!wait_for_completion_timeout(&ctx->cap_streamon_cmp,
@@ -3547,6 +3530,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_WARN, "ctx[%d] warning: wait application capture port streamon timeout\n",
 						ctx->str_index);
 			} else {
+				ctx->wait_res_change_done = false;
 				vpu_dbg(LVL_INFO, "ctx[%d] application capture port streamon done\n",
 						ctx->str_index);
 				break;
@@ -3889,6 +3873,8 @@ static int vpu_buf_init(struct vb2_buffer *vb)
 	struct vb2_data_req *p_data_req;
 
 	p_data_req = &queue->vb2_reqs[vb->index];
+	p_data_req->vb2_buf = vb;
+	p_data_req->id = vb->index;
 	set_data_req_status(p_data_req, FRAME_ALLOC);
 
 	return 0;
@@ -3896,6 +3882,12 @@ static int vpu_buf_init(struct vb2_buffer *vb)
 
 static void vpu_buf_cleanup(struct vb2_buffer *vb)
 {
+	struct vb2_queue    *vq = vb->vb2_queue;
+	struct queue_data   *queue = (struct queue_data *)vq->drv_priv;
+	struct vb2_data_req *p_data_req;
+
+	p_data_req = &queue->vb2_reqs[vb->index];
+	p_data_req->vb2_buf = NULL;
 }
 
 static int vpu_buf_prepare(struct vb2_buffer *vb)
@@ -3938,8 +3930,6 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 			__func__, vq->type, vb->index);
 
 	data_req = &This->vb2_reqs[vb->index];
-	data_req->vb2_buf = vb;
-	data_req->id = vb->index;
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		pphy_address_0 = (u_int32 *)vb2_plane_cookie(vb, 0);
 		pphy_address_1 = (u_int32 *)vb2_plane_cookie(vb, 1);
@@ -4649,11 +4639,11 @@ static int v4l2_open(struct file *filp)
 	ctx->b_firstseq = true;
 	ctx->start_flag = true;
 	ctx->wait_rst_done = false;
+	ctx->wait_res_change_done = false;
 	ctx->firmware_stopped = false;
 	ctx->firmware_finished = false;
 	ctx->eos_stop_received = false;
 	ctx->eos_stop_added = false;
-	ctx->buffer_null = true; //this flag is to judge whether the buffer is null is not, it is used for the workaround that when send stop command still can receive buffer ready event, and true means buffer is null, false not
 	ctx->ctx_released = false;
 	ctx->b_dis_reorder = false;
 	ctx->start_code_bypass = false;

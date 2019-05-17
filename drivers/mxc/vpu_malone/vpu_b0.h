@@ -323,9 +323,8 @@ struct vpu_ctx {
 	bool b_dis_reorder;
 	bool b_firstseq;
 	bool start_flag;
-	bool wait_abort_done;
 	bool wait_rst_done;
-	bool buffer_null;
+	bool wait_res_change_done;
 	bool firmware_stopped;
 	bool firmware_finished;
 	bool eos_stop_received;
