@@ -36,6 +36,7 @@
 	pinctrl-3 = <&pinctrl_usdhc1 &pinctrl_usdhc1_rst>;
 	cd-gpios = <&gpio_pte 13 GPIO_ACTIVE_LOW>;
 	wp-gpios = <&gpio_pte 12 GPIO_ACTIVE_HIGH>;
+	fsl,delay-line = <15>;
 	vmmc-supply = <&reg_vsd_3v3b>;
 	/delete-property/non-removable;
 	/delete-property/cd-post;
