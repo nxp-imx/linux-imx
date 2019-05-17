@@ -33,6 +33,7 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/acpi.h>
+#include <linux/of.h>
 #include <net/cfg80211.h>
 
 #include <defs.h>
@@ -1143,6 +1144,7 @@ static int brcmf_ops_sdio_probe(struct sdio_func *func,
 	struct brcmf_sdio_dev *sdiodev;
 	struct brcmf_bus *bus_if;
 	struct device *dev;
+	struct device *func_dev;
 
 	brcmf_dbg(SDIO, "Enter\n");
 	brcmf_dbg(SDIO, "Class=%x\n", func->class);
@@ -1153,6 +1155,11 @@ static int brcmf_ops_sdio_probe(struct sdio_func *func,
 	dev = &func->dev;
 	/* prohibit ACPI power management for this device */
 	brcmf_sdiod_acpi_set_power_manageable(dev, 0);
+
+	func_dev = &func->card->sdio_func[0]->dev;
+	if (!func_dev->of_node ||
+	    !of_device_is_compatible(func_dev->of_node, "brcm,bcm4329-fmac"))
+		return -ENODEV;
 
 	/* Consume func num 1 but dont do anything with it. */
 	if (func->num == 1)
