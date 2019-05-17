@@ -3490,7 +3490,7 @@
 		power-domains = <&pd_vpu_enc>;
 		reg-rpc-system = <0x40000000>;
 
-		resolution-max = <1920 1080>;
+		resolution-max = <1920 1920>;
 		fps-max = <120>;
 		status = "disabled";
 
