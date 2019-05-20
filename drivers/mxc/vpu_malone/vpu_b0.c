@@ -875,9 +875,7 @@ static void clear_queue(struct queue_data *queue)
 	queue->qbuf_count = 0;
 	queue->dqbuf_count = 0;
 
-	/*
-	 *check_queue_is_releasd(queue, "clear queue");
-	 */
+	check_queue_is_releasd(queue, "clear queue");
 }
 
 static int vpu_dec_queue_disable(struct queue_data *queue,
@@ -1525,8 +1523,10 @@ static int v4l2_ioctl_streamon(struct file *file,
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
 		return -EINVAL;
-	} else
-		return ret;
+	}
+	if (!ret)
+		q_data->enable = true;
+	return ret;
 }
 
 static int v4l2_ioctl_streamoff(struct file *file,
@@ -1548,6 +1548,7 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	else
 		return -EINVAL;
 
+	q_data->enable = false;
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		if (!ctx->wait_res_change_done)
 			send_abort_cmd(ctx);
@@ -1562,8 +1563,9 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
 		return -EINVAL;
-	} else
-		return ret;
+	}
+
+	return ret;
 }
 
 static int vpu_dec_v4l2_ioctl_g_parm(struct file *file, void *fh,
@@ -2947,6 +2949,9 @@ static bool wait_right_buffer(struct queue_data *This)
 	struct vb2_data_req *p_data_req;
 	bool ret = false;
 
+	if (!This->enable)
+		return false;
+
 	down(&This->drv_q_lock);
 	list_for_each_entry(p_data_req, &This->drv_q, list) {
 		if (!p_data_req->vb2_buf)
@@ -3387,7 +3392,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			}
 #endif
 
-			if (ctx->wait_rst_done)
+			if (ctx->wait_rst_done || !This->enable)
 				respond_req_frame_when_abort(ctx, uStrIdx);
 			else
 				respond_req_frame_normal(ctx, This, uStrIdx);

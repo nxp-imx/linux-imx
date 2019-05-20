@@ -217,6 +217,7 @@ struct queue_data {
 	enum QUEUE_TYPE type;
 	unsigned long qbuf_count;
 	unsigned long dqbuf_count;
+	bool enable;
 };
 
 struct print_buf_desc {
