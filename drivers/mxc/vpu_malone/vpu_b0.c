@@ -284,12 +284,24 @@ static u32 get_greatest_common_divisor(u32 a, u32 b)
 	return a;
 }
 
+static bool check_vb_is_changed(struct vb2_data_req *p_data_req, u32 pattern)
+{
+	u32 luma_addr;
+	u32 *pphy_address;
+
+	pphy_address = vb2_plane_cookie(p_data_req->vb2_buf, 0);
+	luma_addr = *pphy_address + p_data_req->data_offset[0];
+	if (luma_addr != pattern)
+		return true;
+
+	return false;
+}
+
 static int find_buffer_id(struct vpu_ctx *ctx, u_int32 addr)
 {
 	struct queue_data *This;
 	struct vb2_data_req *p_data_req;
 	u_int32 LumaAddr;
-	u_int32 *pphy_address;
 	u_int32 i;
 
 	if (!ctx)
@@ -299,24 +311,27 @@ static int find_buffer_id(struct vpu_ctx *ctx, u_int32 addr)
 	down(&This->drv_q_lock);
 	for (i = 0; i < VPU_MAX_BUFFER; i++) {
 		p_data_req = &This->vb2_reqs[i];
-		if (p_data_req->vb2_buf != NULL) {
-			pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 0);
-			if (pphy_address != NULL) {
-				LumaAddr = *pphy_address + p_data_req->data_offset[0];
-				if (LumaAddr == addr) {
-					up(&This->drv_q_lock);
-					return i;
-				}
-			} else {
-				vpu_dbg(LVL_INFO, "error: %s() ctx[%d] buffer (%d) is NULL\n",
-						__func__, ctx->str_index, i);
-			}
+
+		if (!p_data_req->vb2_buf)
+			continue;
+
+		LumaAddr = p_data_req->phy_addr[0] + p_data_req->data_offset[0];
+		if (LumaAddr == addr) {
+			if (check_vb_is_changed(p_data_req, LumaAddr))
+				vpu_dbg(LVL_ERR,
+					"ctx[%d] frame buffer[%d] is changed\n",
+					ctx->str_index, i);
+			break;
 		}
 	}
 	up(&This->drv_q_lock);
-	vpu_dbg(LVL_ERR, "error: %s() ctx[%d] can't find suitable id based on address(0x%x)\n",
-			__func__, ctx->str_index, addr);
-	return -1;
+	if (i == VPU_MAX_BUFFER) {
+		vpu_dbg(LVL_ERR,
+			"error: ctx[%d] can't find id based on address(0x%x)\n",
+			ctx->str_index, addr);
+		return -1;
+	}
+	return i;
 }
 
 static void MU_sendMesgToFW(void __iomem *base, MSG_Type type, uint32_t value)
@@ -797,6 +812,19 @@ static int vpu_dec_queue_qbuf(struct queue_data *queue,
 				struct v4l2_buffer *buf)
 {
 	int ret = -EINVAL;
+	struct vb2_buffer *vb;
+
+	if (buf->index >= queue->vb2_q.num_buffers) {
+		vpu_dbg(LVL_ERR, "[%s] buffer index(%d) out of range\n",
+				queue->type ? "CAPTURE" : "OUTPUT", buf->index);
+		return -EINVAL;
+	}
+	vb = queue->vb2_q.bufs[buf->index];
+	if (vb->state != VB2_BUF_STATE_DEQUEUED) {
+		vpu_dbg(LVL_ERR, "[%s] buffer[%d] has been queued before\n",
+				queue->type ? "CAPTURE" : "OUTPUT", buf->index);
+		return -EINVAL;
+	}
 
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
@@ -862,6 +890,8 @@ static void clear_queue(struct queue_data *queue)
 	struct vb2_buffer *vb;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() is called\n", __func__);
+	check_queue_is_releasd(queue, "clear queue");
+
 	list_for_each_entry_safe(p_data_req, p_temp, &queue->drv_q, list) {
 		list_del(&p_data_req->list);
 		p_data_req->queued = false;
@@ -874,8 +904,8 @@ static void clear_queue(struct queue_data *queue)
 	INIT_LIST_HEAD(&queue->drv_q);
 	queue->qbuf_count = 0;
 	queue->dqbuf_count = 0;
-
-	check_queue_is_releasd(queue, "clear queue");
+	queue->process_count = 0;
+	queue->beginning = 0;
 }
 
 static int vpu_dec_queue_disable(struct queue_data *queue,
@@ -1507,6 +1537,9 @@ static int v4l2_ioctl_streamon(struct file *file,
 	else
 		return -EINVAL;
 
+	vpu_dbg(LVL_BIT_FLOW, "%s on\n",
+		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
+
 	ctx->firmware_finished = false;
 
 	ret = vpu_dec_queue_enable(q_data, i);
@@ -1547,6 +1580,9 @@ static int v4l2_ioctl_streamoff(struct file *file,
 		q_data = &ctx->q_data[V4L2_DST];
 	else
 		return -EINVAL;
+
+	vpu_dbg(LVL_BIT_FLOW, "%s off\n",
+		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
 	q_data->enable = false;
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
@@ -2242,6 +2278,9 @@ static int add_scode(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SCODE_
 	if (!ctx)
 		return 0;
 
+	if (eScodeType == EOS_PADDING_TYPE)
+		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] add eos\n", ctx->str_index);
+
 	mutex_lock(&ctx->instance_mutex);
 	size = add_scode_vpu(ctx, uStrBufIdx, eScodeType, bUpdateWr);
 	if (size > 0)
@@ -2445,6 +2484,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		ctx->tsm_sync_flag = true;
 		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
 		list_del(&p_data_req->list);
+		This->process_count++;
 		p_data_req->queued = false;
 		if (p_data_req->vb2_buf)
 			vb2_buffer_done(p_data_req->vb2_buf,
@@ -2545,21 +2585,24 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 	if (!ctx)
 		return -EINVAL;
 
-	if (vpu_dec_is_active(ctx)) {
-		ctx->wait_rst_done = true;
-		vpu_dbg(LVL_INFO, "%s(): send VID_API_CMD_ABORT\n", __func__);
-		size = add_scode(ctx, 0, BUFABORT_PADDING_TYPE, false);
-		record_log_info(ctx, LOG_PADDING, 0, 0);
-		if (size < 0)
-			vpu_dbg(LVL_ERR, "%s(): failed to fill abort padding data\n", __func__);
-		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
-		wake_up_interruptible(&ctx->buffer_wq);
-		if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
-			ctx->hang_status = true;
-			vpu_dbg(LVL_ERR, "the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
+
+	if (!vpu_dec_is_active(ctx))
+		return 0;
+
+	ctx->wait_rst_done = true;
+	vpu_dbg(LVL_INFO, "%s(): send VID_API_CMD_ABORT\n", __func__);
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send ABORT CMD\n", ctx->str_index);
+	size = add_scode(ctx, 0, BUFABORT_PADDING_TYPE, false);
+	record_log_info(ctx, LOG_PADDING, 0, 0);
+	if (size < 0)
+		vpu_dbg(LVL_ERR, "%s(): failed to fill abort padding data\n", __func__);
+	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
+	wake_up_interruptible(&ctx->buffer_wq);
+	if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
+		ctx->hang_status = true;
+		vpu_dbg(LVL_ERR, "the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
 					ctx->str_index);
-			return -EBUSY;
-		}
+		return -EBUSY;
 	}
 
 	return 0;
@@ -2571,15 +2614,17 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 		return -EINVAL;
 
 	ctx->wait_rst_done = true;
-	if (vpu_dec_is_active(ctx)) {
-		wake_up_interruptible(&ctx->buffer_wq);
-		vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
-		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
-		if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
-			ctx->hang_status = true;
-			vpu_dbg(LVL_ERR, "the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
-			return -EBUSY;
-		}
+	if (!vpu_dec_is_active(ctx))
+		return 0;
+
+	wake_up_interruptible(&ctx->buffer_wq);
+	vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send STOP CMD\n", ctx->str_index);
+	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
+	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
+		ctx->hang_status = true;
+		vpu_dbg(LVL_ERR, "the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
+		return -EBUSY;
 	}
 
 	return 0;
@@ -2593,6 +2638,7 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 		return -EPERM;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] reset decoder\n", ctx->str_index);
 
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_WARN, "warning: %s() failed. hang_status: %d\n",
@@ -2866,6 +2912,7 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 #endif
 		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
 		list_del(&p_data_req->list);
+		This->process_count++;
 		p_data_req->queued = false;
 		if (p_data_req->vb2_buf)
 			vb2_buffer_done(p_data_req->vb2_buf,
@@ -3124,7 +3171,6 @@ static void respond_req_frame_normal(struct vpu_ctx *ctx,
 {
 	struct vb2_data_req *p_data_req;
 	u32 local_cmddata[10];
-	dma_addr_t *pphy_address;
 	dma_addr_t LumaAddr = 0;
 	dma_addr_t ChromaAddr = 0;
 
@@ -3136,18 +3182,8 @@ static void respond_req_frame_normal(struct vpu_ctx *ctx,
 		return;
 	}
 
-	pphy_address = vb2_plane_cookie(p_data_req->vb2_buf, 0);
-	if (pphy_address)
-		LumaAddr = *pphy_address + p_data_req->data_offset[0];
-	pphy_address = vb2_plane_cookie(p_data_req->vb2_buf, 1);
-	if (pphy_address != NULL)
-		ChromaAddr = *pphy_address + p_data_req->data_offset[1];
-	if (!LumaAddr || !ChromaAddr) {
-		LumaAddr = p_data_req->phy_addr[0] +
-				p_data_req->data_offset[0];
-		ChromaAddr = p_data_req->phy_addr[1] +
-				p_data_req->data_offset[1];
-	}
+	LumaAddr = p_data_req->phy_addr[0] + p_data_req->data_offset[0];
+	ChromaAddr = p_data_req->phy_addr[1] + p_data_req->data_offset[1];
 	vpu_dbg(LVL_INFO, "%s() :LumaAddr(%llx) ChromaAddr(%llx) buf_id (%d)\n",
 			__func__, LumaAddr, ChromaAddr, p_data_req->id);
 
@@ -3218,6 +3254,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_STOPPED: {
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_STOPPED\n");
+		vpu_dbg(LVL_BIT_FLOW,
+			"ctx[%d] STOPPED, output qbuf(%ld), dqbuf(%ld)\n",
+			ctx->str_index,
+			ctx->q_data[V4L2_SRC].qbuf_count,
+			ctx->q_data[V4L2_SRC].dqbuf_count);
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
 		ctx->wait_rst_done = false;
@@ -3491,6 +3532,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
 		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
 		ctx->beginning = pStrBufDesc->rptr;
+		queue->beginning = queue->process_count;
+		vpu_dbg(LVL_BIT_FLOW,
+			"ctx[%d] ABORT DONE, output qbuf(%ld/%ld),dqbuf(%ld)\n",
+			ctx->str_index,
+			queue->process_count,
+			queue->qbuf_count,
+			queue->dqbuf_count);
 		vpu_dbg(LVL_BIT_FRAME_BYTES,
 				"[%d]total bytes: %ld, %ld, %ld, %ld\n",
 				ctx->str_index,
@@ -3568,6 +3616,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					VID_API_CMD_STOP, 0, NULL);
 		else
 			complete(&ctx->completion);
+		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] STR_BUF_RST\n", ctx->str_index);
 		}
 		break;
 	case VID_API_EVENT_RET_PING:
@@ -3913,6 +3962,7 @@ static int vpu_start_streaming(struct vb2_queue *q,
 	int ret = 0;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() is called\n", __func__);
+
 	return ret;
 }
 
@@ -4289,6 +4339,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16ld\n", "output dqbuf count",
 			This->dqbuf_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "output write count",
+			This->process_count);
 	up(&This->drv_q_lock);
 
 	This = &ctx->q_data[V4L2_DST];
@@ -4301,7 +4354,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			This->dqbuf_count);
 	up(&This->drv_q_lock);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16x\n", "beginning", ctx->beginning);
+			"\t%40s:%16x(%ld)\n", "beginning",
+			ctx->beginning,
+			ctx->q_data[V4L2_SRC].beginning);
 
 	return num;
 }

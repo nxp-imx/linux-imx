@@ -217,6 +217,8 @@ struct queue_data {
 	enum QUEUE_TYPE type;
 	unsigned long qbuf_count;
 	unsigned long dqbuf_count;
+	unsigned long process_count;
+	unsigned long beginning;
 	bool enable;
 };
 
@@ -387,6 +389,7 @@ struct vpu_ctx {
 #define LVL_BIT_BUFFER_STAT	(1 << 10)
 #define LVL_BIT_BUFFER_DESC	(1 << 11)
 #define LVL_BIT_FUNC		(1 << 12)
+#define LVL_BIT_FLOW		(1 << 13)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
