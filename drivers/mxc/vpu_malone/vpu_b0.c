@@ -2674,6 +2674,8 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 			}
 			if (nfreespace < (buffer_size + header_length + arv_frame->slice_num * 16 + MIN_SPACE)) {
 				vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
+				put_arv_info(arv_frame);
+				arv_frame = NULL;
 				return 0;
 			}
 
@@ -3218,6 +3220,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_STOPPED\n");
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
+		ctx->wait_rst_done = false;
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
