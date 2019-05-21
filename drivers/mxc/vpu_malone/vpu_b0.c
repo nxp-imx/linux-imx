@@ -4175,6 +4175,86 @@ static int create_instance_dbglog_file(struct vpu_ctx *ctx)
 	return 0;
 }
 
+static int fwlog_show(struct seq_file *s, void *data)
+{
+	struct vpu_dev *dev = s->private;
+	int length;
+	u32 rptr;
+	u32 wptr;
+	int ret = 0;
+
+	if (!dev->print_buf)
+		return 0;
+
+	rptr = dev->print_buf->read;
+	wptr = dev->print_buf->write;
+
+	if (rptr == wptr)
+		return 0;
+	else if (rptr < wptr)
+		length = wptr - rptr;
+	else
+		length = dev->print_buf->bytes + wptr - rptr;
+
+	if (s->count + length >= s->size) {
+		s->count = s->size;
+		return 0;
+	}
+
+	if (rptr + length > dev->print_buf->bytes) {
+		int num = dev->print_buf->bytes - rptr;
+
+		if (seq_write(s, dev->print_buf->buffer + rptr, num))
+			ret = -1;
+		length -= num;
+		rptr = 0;
+	}
+	if (seq_write(s, dev->print_buf->buffer + rptr, length))
+		ret = -1;
+	rptr += length;
+	rptr %= dev->print_buf->bytes;
+	if (!ret)
+		dev->print_buf->read = rptr;
+
+	return 0;
+}
+
+static int fwlog_open(struct inode *inode, struct file *filp)
+{
+	return single_open(filp, fwlog_show, inode->i_private);
+}
+
+static const struct file_operations fwlog_fops = {
+	.owner = THIS_MODULE,
+	.open = fwlog_open,
+	.read = seq_read,
+};
+
+static int create_fwlog_file(struct vpu_dev *dev)
+{
+	if (dev->debugfs_root == NULL) {
+		dev->debugfs_root = debugfs_create_dir("vpu", NULL);
+		if (!dev->debugfs_root) {
+			vpu_dbg(LVL_ERR, "error: create debugfs_root fail\n");
+			return -EINVAL;
+		}
+	}
+
+	if (dev->debugfs_fwlog)
+		return 0;
+	dev->debugfs_fwlog = debugfs_create_file("vpu_malone_log",
+						VERIFY_OCTAL_PERMISSIONS(0444),
+						dev->debugfs_root,
+						dev,
+						&fwlog_fops);
+	if (!dev->debugfs_fwlog) {
+		vpu_dbg(LVL_ERR, "error: create debugfs_fwlog fail\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 
 static ssize_t show_instance_command_info(struct device *dev,
 			struct device_attribute *attr, char *buf)
@@ -4412,48 +4492,6 @@ exit:
 	mutex_unlock(&ctx->instance_mutex);
 	return num;
 }
-
-static ssize_t show_fw_log(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	struct vpu_dev *vdev = dev_get_drvdata(dev);
-	int num = 0;
-	int length;
-	u32 rptr;
-	u32 wptr;
-
-	if (!vdev->print_buf)
-		return 0;
-
-	rptr = vdev->print_buf->read;
-	wptr = vdev->print_buf->write;
-
-	if (rptr == wptr)
-		return 0;
-	else if (rptr < wptr)
-		length = wptr - rptr;
-	else
-		length = vdev->print_buf->bytes + wptr - rptr;
-
-	if (length > PAGE_SIZE)
-		length = PAGE_SIZE;
-
-	if (length + rptr > vdev->print_buf->bytes) {
-		num = vdev->print_buf->bytes - rptr;
-		memcpy(buf, vdev->print_buf->buffer + rptr, num);
-		length -= num;
-		rptr = 0;
-	}
-	memcpy(buf + num, vdev->print_buf->buffer + rptr, length);
-	num += length;
-	rptr += length;
-	rptr %= vdev->print_buf->bytes;
-
-	vdev->print_buf->read = rptr;
-
-	return num;
-}
-DEVICE_ATTR(fwlog, 0444, show_fw_log, NULL);
 
 static int create_instance_command_file(struct vpu_ctx *ctx)
 {
@@ -4754,6 +4792,7 @@ static int v4l2_open(struct file *filp)
 				goto err_firmware_load;
 			}
 		dev->fw_is_ready = true;
+		create_fwlog_file(ctx->dev);
 	}
 	mutex_unlock(&dev->dev_mutex);
 	rpc_set_stream_cfg_value(dev->shared_mem.pSharedInterface, ctx->str_index, vpu_dbe_num);
@@ -5212,7 +5251,6 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
-	device_create_file(dev->generic_dev, &dev_attr_fwlog);
 
 	return 0;
 
@@ -5244,8 +5282,8 @@ static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
 
-
-	device_remove_file(dev->generic_dev, &dev_attr_fwlog);
+	debugfs_remove_recursive(dev->debugfs_root);
+	dev->debugfs_root = NULL;
 	destroy_workqueue(dev->workqueue);
 	if (dev->m0_p_fw_space_vir)
 		iounmap(dev->m0_p_fw_space_vir);

@@ -270,6 +270,7 @@ struct vpu_dev {
 	struct shared_addr shared_mem;
 	struct vpu_ctx *ctx[VPU_MAX_NUM_STREAMS];
 	struct dentry *debugfs_root;
+	struct dentry *debugfs_fwlog;
 
 	struct print_buf_desc *print_buf;
 };
