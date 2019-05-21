@@ -62,9 +62,11 @@ extern unsigned int vpu_dbg_level_decoder;
 #define INVALID_FRAME_DEPTH -1
 #define DECODER_NODE_NUMBER 12 // use /dev/video12 as vpu decoder
 #define DEFAULT_LOG_DEPTH 20
-#define V4L2_EVENT_SKIP 8
 #define DEFAULT_FRMDBG_ENABLE 0
 #define DEFAULT_FRMDBG_LEVEL 0
+
+#define V4L2_EVENT_DECODE_ERROR		(V4L2_EVENT_PRIVATE_START + 1)
+#define V4L2_EVENT_SKIP			(V4L2_EVENT_PRIVATE_START + 2)
 
 struct vpu_v4l2_control {
 	uint32_t id;
@@ -142,7 +144,8 @@ typedef enum{
 #define V4L2_CID_USER_FRAME_FULLRANGE		(V4L2_CID_USER_BASE + 0x1107)
 #define V4L2_CID_USER_FRAME_VUIPRESENT		(V4L2_CID_USER_BASE + 0x1108)
 
-#define IMX_V4L2_DEC_CMD_RESET		(5)
+#define IMX_V4L2_DEC_CMD_START		(0x09000000)
+#define IMX_V4L2_DEC_CMD_RESET		(IMX_V4L2_DEC_CMD_START + 1)
 
 enum vpu_pixel_format {
 	VPU_HAS_COLOCATED = 0x00000001,

@@ -89,6 +89,7 @@ static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t len
 static int send_abort_cmd(struct vpu_ctx *ctx);
 static int send_stop_cmd(struct vpu_ctx *ctx);
 static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
+static void vpu_dec_event_decode_error(struct vpu_ctx *ctx);
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -972,7 +973,7 @@ static int v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
 		const struct v4l2_event_subscription *sub
 		)
 {
-	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
+	vpu_dbg(LVL_BIT_FUNC, "%s(), type: 0x%x\n", __func__, sub->type);
 
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:
@@ -981,6 +982,8 @@ static int v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	case V4L2_EVENT_SOURCE_CHANGE:
 		return v4l2_src_change_event_subscribe(fh, sub);
+	case V4L2_EVENT_DECODE_ERROR:
+		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	default:
 		return -EINVAL;
 	}
@@ -2613,12 +2616,12 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 	if (!ctx)
 		return -EINVAL;
 
-	ctx->wait_rst_done = true;
+
 	if (!vpu_dec_is_active(ctx))
 		return 0;
 
+	ctx->wait_rst_done = true;
 	wake_up_interruptible(&ctx->buffer_wq);
-	vpu_dbg(LVL_INFO, "v4l2_release() - send VID_API_CMD_STOP\n");
 	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send STOP CMD\n", ctx->str_index);
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
 	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
@@ -2655,6 +2658,18 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 	ctx->start_flag = true;
 	ctx->b_firstseq = true;
 	return 0;
+}
+
+static void vpu_dec_event_decode_error(struct vpu_ctx *ctx)
+{
+	const struct v4l2_event ev = {
+		.type = V4L2_EVENT_DECODE_ERROR
+	};
+
+	if (!ctx)
+		return;
+
+	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
 static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t buffer_size, uint32_t uStrBufIdx)
@@ -3651,6 +3666,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		}
 		break;
 	case VID_API_EVENT_DEC_CFG_INFO:
+		break;
+	case MEDIA_DEC_API_EVENT_UNSUPPORTED_STREAM:
+		vpu_dbg(LVL_WARN, "warning: HW unsupprot the format or stream\n");
+		vpu_dec_event_decode_error(ctx);
 		break;
 	default:
 		vpu_dbg(LVL_ERR, "warning: uEvent %d is not handled\n", uEvent);
