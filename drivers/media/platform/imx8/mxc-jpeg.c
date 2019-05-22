@@ -993,7 +993,13 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	}
 	q_data_out = mxc_jpeg_get_q_data(ctx,
 					 V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
-	if (sof.width != q_data_out->w || sof.height != q_data_out->h) {
+	if (q_data_out->w == 0 && q_data_out->h == 0) {
+		dev_warn(dev, "Invalid user resolution 0x0");
+		dev_warn(dev, "Keeping resolution from JPEG: %dx%d",
+			 sof.width, sof.height);
+		 q_data_out->w = sof.width;
+		 q_data_out->h = sof.height;
+	} else if (sof.width != q_data_out->w || sof.height != q_data_out->h) {
 		dev_err(dev,
 			"Resolution mismatch: %dx%d (JPEG) versus %dx%d(user)",
 			sof.width, sof.height, q_data_out->w, q_data_out->h);
