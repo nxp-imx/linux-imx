@@ -978,6 +978,9 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 			continue;
 		switch (byte) {
 		case SOF2: /* Progressive DCF frame definition */
+			dev_err(dev,
+				"Progressive JPEG isn't supported by hardware");
+			return -EINVAL;
 		case SOF1: /* Extended sequential DCF frame definition */
 		case SOF0: /* Baseline sequential DCF frame definition */
 			if (get_sof(dev, &stream, &sof) == -1)
