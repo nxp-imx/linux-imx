@@ -1514,7 +1514,9 @@ static int v4l2_ioctl_decoder_cmd(struct file *file,
 		break;
 	case IMX_V4L2_DEC_CMD_RESET:
 		v4l2_update_stream_addr(ctx, 0);
+		mutex_lock(&ctx->dev->fw_flow_mutex);
 		ret = vpu_dec_cmd_reset(ctx);
+		mutex_unlock(&ctx->dev->fw_flow_mutex);
 		break;
 	default:
 		return -EINVAL;
@@ -1589,8 +1591,9 @@ static int v4l2_ioctl_streamoff(struct file *file,
 
 	q_data->enable = false;
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		if (!ctx->wait_res_change_done)
-			send_abort_cmd(ctx);
+		mutex_lock(&ctx->dev->fw_flow_mutex);
+		send_abort_cmd(ctx);
+		mutex_unlock(&ctx->dev->fw_flow_mutex);
 	}
 
 	if (V4L2_TYPE_IS_OUTPUT(i))
@@ -2588,8 +2591,9 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 	if (!ctx)
 		return -EINVAL;
 
-
 	if (!vpu_dec_is_active(ctx))
+		return 0;
+	if (ctx->wait_res_change_done)
 		return 0;
 
 	ctx->wait_rst_done = true;
@@ -2601,6 +2605,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 		vpu_dbg(LVL_ERR, "%s(): failed to fill abort padding data\n", __func__);
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
 	wake_up_interruptible(&ctx->buffer_wq);
+	reinit_completion(&ctx->completion);
 	if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
 		ctx->hang_status = true;
 		vpu_dbg(LVL_ERR, "the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
@@ -2616,7 +2621,6 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 	if (!ctx)
 		return -EINVAL;
 
-
 	if (!vpu_dec_is_active(ctx))
 		return 0;
 
@@ -2624,6 +2628,7 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 	wake_up_interruptible(&ctx->buffer_wq);
 	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send STOP CMD\n", ctx->str_index);
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
+	reinit_completion(&ctx->stop_cmp);
 	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
 		ctx->hang_status = true;
 		vpu_dbg(LVL_ERR, "the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
@@ -2648,15 +2653,14 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 			__func__, ctx->hang_status);
 		return -EPERM;
 	}
+
 	ret = send_abort_cmd(ctx);
 	if (ret)
 		return ret;
-	ret |= send_stop_cmd(ctx);
+	ret = send_stop_cmd(ctx);
 	if (ret)
 		return ret;
 
-	ctx->start_flag = true;
-	ctx->b_firstseq = true;
 	return 0;
 }
 
@@ -3276,6 +3280,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->q_data[V4L2_SRC].dqbuf_count);
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
+		ctx->b_firstseq = true;
 		ctx->wait_rst_done = false;
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
@@ -4805,6 +4810,7 @@ static int v4l2_open(struct file *filp)
 		}
 		vpu_dbg(LVL_INFO, "done: vpu_firmware_download\n");
 		if (!ctx->dev->firmware_started)
+			reinit_completion(&ctx->dev->start_cmp);
 			if (!wait_for_completion_timeout(&ctx->dev->start_cmp, msecs_to_jiffies(10000))) {
 				vpu_dbg(LVL_ERR, "error: don't get start interrupt\n");
 				ret = -1;
@@ -4867,7 +4873,9 @@ static int v4l2_release(struct file *filp)
 		ctx->eos_stop_added ? "eos_added" : "not eos_added",
 		ctx->frm_total_num);
 
+	mutex_lock(&ctx->dev->fw_flow_mutex);
 	send_stop_cmd(ctx);
+	mutex_unlock(&ctx->dev->fw_flow_mutex);
 
 	mutex_lock(&ctx->instance_mutex);
 	ctx->ctx_released = true;
@@ -5043,6 +5051,7 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 
 	v4l2_vpu_send_cmd(dev->ctx[idx], 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
+	reinit_completion(&dev->start_cmp);
 	if (!wait_for_completion_timeout(&dev->start_cmp, msecs_to_jiffies(10000))) {
 		vpu_dbg(LVL_ERR, "error: %s() fail\n", __func__);
 		return -1;
@@ -5154,6 +5163,7 @@ static int init_vpudev_parameters(struct vpu_dev *dev)
 
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->cmd_mutex);
+	mutex_init(&dev->fw_flow_mutex);
 	init_completion(&dev->start_cmp);
 	init_completion(&dev->snap_done_cmp);
 	dev->firmware_started = false;
@@ -5377,7 +5387,7 @@ static int vpu_suspend(struct device *dev)
 
 		/*if there is an available device, send snapshot command to firmware*/
 		v4l2_vpu_send_snapshot(vpudev);
-
+		reinit_completion(&vpudev->snap_done_cmp);
 		if (!wait_for_completion_timeout(&vpudev->snap_done_cmp, msecs_to_jiffies(1000))) {
 			vpu_dbg(LVL_ERR, "error: wait for vpu decoder snapdone event timeout!\n");
 			return -1;
@@ -5423,6 +5433,7 @@ static int resume_from_vpu_poweroff(struct vpu_dev *vpudev)
 
 	enable_csr_reg(vpudev);
 	/*wait for firmware resotre done*/
+	reinit_completion(&vpudev->start_cmp);
 	if (!wait_for_completion_timeout(&vpudev->start_cmp, msecs_to_jiffies(1000))) {
 		vpu_dbg(LVL_ERR, "error: wait for vpu decoder resume done timeout!\n");
 		ret = -1;
