@@ -183,6 +183,7 @@ static bool vpu_dec_is_active(struct vpu_ctx *ctx);
 static void respond_req_frame(struct vpu_ctx *ctx,
 				struct queue_data *queue,
 				bool abnormal);
+static void send_eos_event(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -2956,7 +2957,8 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 				ctx->eos_stop_added = true;
 			}
 		} else	{
-			vpu_dbg(LVL_ERR, "Firmware already stopped !\n");
+			ctx->eos_stop_received = false;
+			send_eos_event(ctx);
 		}
 	}
 	up(&This->drv_q_lock);
@@ -3018,10 +3020,35 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	vpu_dbg(LVL_INFO, "leave %s\n", __func__);
 }
 
-static void send_skip_event(struct vpu_ctx* ctx)
+static void send_skip_event(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
 		.type = V4L2_EVENT_SKIP
+	};
+
+	if (!ctx)
+		return;
+
+	v4l2_event_queue_fh(&ctx->fh, &ev);
+}
+
+static void send_eos_event(struct vpu_ctx *ctx)
+{
+	const struct v4l2_event ev = {
+		.type = V4L2_EVENT_EOS
+	};
+
+	if (!ctx)
+		return;
+
+	v4l2_event_queue_fh(&ctx->fh, &ev);
+}
+
+static void send_source_change_event(struct vpu_ctx *ctx)
+{
+	const struct v4l2_event ev = {
+		.type = V4L2_EVENT_SOURCE_CHANGE,
+		.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION
 	};
 
 	if (!ctx)
@@ -3381,12 +3408,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
-			const struct v4l2_event ev = {
-				.type = V4L2_EVENT_SOURCE_CHANGE,
-				.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION
-			};
-			v4l2_event_queue_fh(&ctx->fh, &ev);
-
+			send_source_change_event(ctx);
 			pStreamPitchInfo->uFramePitch = 0x4000;
 			ctx->b_firstseq = false;
 		}
@@ -3561,10 +3583,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_RES_CHANGE: {
 		struct queue_data *This;
-		const struct v4l2_event ev = {
-			.type = V4L2_EVENT_SOURCE_CHANGE,
-			.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION
-		};
+
 		This = &ctx->q_data[V4L2_DST];
 		down(&This->drv_q_lock);
 		reset_mbi_dcp_count(ctx);
@@ -3574,7 +3593,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dbg(LVL_INFO, "warning: ctx[%d] VID_API_EVENT_RES_CHANGE, seq id: %d\n",
 				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
-		v4l2_event_queue_fh(&ctx->fh, &ev);
+		send_source_change_event(ctx);
 		ctx->wait_res_change_done = true;
 		reinit_completion(&ctx->cap_streamon_cmp);
 		while (1) {
@@ -3623,10 +3642,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_STR_FMT_CHANGE:
 		break;
 	case VID_API_EVENT_FINISHED: {
-		const struct v4l2_event ev = {
-			.type = V4L2_EVENT_EOS
-		};
-
 		if (ctx->eos_stop_added == false)
 			vpu_dbg(LVL_ERR, "warning: receive VID_API_EVENT_FINISHED before eos_stop_added set\n");
 		ctx->eos_stop_added = false;
@@ -3637,17 +3652,15 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_FINISHED and notfiy app eos\n");
 		clear_pic_end_flag(ctx);
 		vpu_log_buffer_state(ctx);
-		v4l2_event_queue_fh(&ctx->fh, &ev); //notfiy app stream eos reached
+		send_eos_event(ctx); //notfiy app stream eos reached
 
 	}	break;
 	case VID_API_EVENT_FIRMWARE_XCPT: {
 		char *xcpt_info = (char*)event_data;
-		const struct v4l2_event ev = {
-			.type = V4L2_EVENT_EOS
-		};
+
 		vpu_dbg(LVL_ERR, "warning: VID_API_EVENT_FIRMWARE_XCPT,exception info: %s\n", xcpt_info);
 		ctx->hang_status = true;
-		v4l2_event_queue_fh(&ctx->fh, &ev);
+		send_eos_event(ctx);
 		}
 		break;
 	case VID_API_EVENT_DEC_CFG_INFO:
