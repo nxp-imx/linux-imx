@@ -540,7 +540,7 @@ u_int32 insert_scode_4_pic(struct vpu_ctx *ctx, u_int8 *dst, u_int8 *src, u_int3
 			u_int32 uWidth = q_data->width;
 			u_int32 uHeight = q_data->height; //Width & Height in the generic payload header are ignored
 
-			insert_payload_header_vc1(dst, SCODE_NEW_PICTURE, uPayloadSize + 4, uWidth, uHeight);
+			insert_payload_header_vc1(dst, SCODE_NEW_PICTURE, uPayloadSize + 16, uWidth, uHeight);
 			insert_RCV_pichdr(Header, &HeaderLen, uPayloadSize);
 			memcpy(dst+16, Header, 4);
 			length = 16 + 4;
