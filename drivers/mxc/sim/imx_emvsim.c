@@ -590,6 +590,8 @@ static irqreturn_t emvsim_irq_handler(int irq, void *dev_id)
 
 			emvsim_mask_timer0_int(emvsim);
 
+			emvsim_rcv_read_fifo(emvsim);
+
 			/* ATR each received byte will cost 12 ETU */
 			reg_data = ATR_MAX_DURATION - emvsim->rcv_count * 12;
 			__raw_writel(reg_data,  emvsim->ioaddr + EMV_SIM_GPCNT1_VAL);
@@ -597,7 +599,6 @@ static irqreturn_t emvsim_irq_handler(int irq, void *dev_id)
 			reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_INT_MASK);
 			reg_data &= ~(GPCNT1_IM | CWT_ERR_IM | RX_DATA_IM);
 			__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_INT_MASK);
-			emvsim_rcv_read_fifo(emvsim);
 
 			reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_TX_STATUS);
 			reg_data |= GPCNT1_TO;
