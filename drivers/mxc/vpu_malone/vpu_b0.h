@@ -341,9 +341,9 @@ struct vpu_ctx {
 	bool start_code_bypass;
 	bool hang_status;
 	bool fifo_low;
+	u32 req_frame_count;
 	wait_queue_head_t buffer_wq;
 	u_int32 mbi_count;
-	u_int32 mbi_num;
 	u_int32 mbi_size;
 	u_int32 dcp_count;
 	struct dma_buffer dpb_buffer;
