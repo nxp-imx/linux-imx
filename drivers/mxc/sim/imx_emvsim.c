@@ -402,6 +402,10 @@ static void emvsim_receive_atr_set(struct emvsim_t *emvsim)
 {
 	u32 reg_data;
 
+	/* GPCNT0 with Card clock is for ATR maximum delay
+	 * GPCNT1 with ETU clock is for ART maximum duration
+	 */
+	emvsim_mask_timer1_int(emvsim);
 	__raw_writel(0x0, emvsim->ioaddr + EMV_SIM_GPCNT1_VAL);
 	emvsim_set_gpctimer1_clk(emvsim, SIM_CNTL_GPCNT_ETU_CLK);
 	emvsim_set_rx(emvsim, 1);
@@ -599,10 +603,6 @@ static irqreturn_t emvsim_irq_handler(int irq, void *dev_id)
 			reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_INT_MASK);
 			reg_data &= ~(GPCNT1_IM | CWT_ERR_IM | RX_DATA_IM);
 			__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_INT_MASK);
-
-			reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_TX_STATUS);
-			reg_data |= GPCNT1_TO;
-			__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_TX_STATUS);
 
 			reg_data = SIM_RCV_THRESHOLD_RTH(0) | SIM_RCV_THRESHOLD_RDT(rdt);
 			__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_RX_THD);
@@ -1138,12 +1138,15 @@ static long emvsim_ioctl(struct file *file,
 		timeout = wait_for_completion_interruptible_timeout(
 				&emvsim->xfer_done, emvsim->timeout);
 
+		emvsim_set_rx(emvsim, 0);
+		emvsim_set_tx(emvsim, 0);
+
 		reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_CTRL);
 		reg_data &= ~CWT_EN;
 		__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_CTRL);
 
 		reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_INT_MASK);
-		reg_data |= (GPCNT0_IM | CWT_ERR_IM);
+		reg_data |= (GPCNT0_IM | GPCNT1_IM | CWT_ERR_IM | RX_DATA_IM);
 		__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_INT_MASK);
 
 		if (timeout == 0) {
