@@ -507,7 +507,7 @@ static void emvsim_tx_irq_enable(struct emvsim_t *emvsim)
 	__raw_writel(reg_val, emvsim->ioaddr + EMV_SIM_RX_STATUS);
 
 	reg_val = __raw_readl(emvsim->ioaddr + EMV_SIM_INT_MASK);
-	reg_val |= CWT_ERR_IM | BWT_ERR_IM | RX_DATA_IM | RX_DATA_IM;
+	reg_val |= CWT_ERR_IM | BWT_ERR_IM | RX_DATA_IM | RNACK_IM;
 
 	if (emvsim->xmt_remaining != 0) {
 		reg_val &= ~TDT_IM;
@@ -539,11 +539,14 @@ static void emvsim_rx_irq_enable(struct emvsim_t *emvsim)
 {
 	u32 reg_data;
 
-	 /* Ensure the CWT timer is enabled */
-	emvsim_set_cwt(emvsim, 1);
+	/*Clear the TX&RX status, W1C */
+	reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_TX_STATUS);
+	__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_TX_STATUS);
+	reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_RX_STATUS);
+	__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_RX_STATUS);
 
 	reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_INT_MASK);
-	reg_data |= (TC_IM | TDT_IM | TNACK_IM);
+	reg_data |= (TC_IM | TDT_IM | TNACK_IM | ETC_IM);
 	reg_data &= ~(RX_DATA_IM | CWT_ERR_IM | BWT_ERR_IM);
 
 	if (emvsim->protocol_type == SIM_PROTOCOL_T0 ||
@@ -1307,8 +1310,6 @@ static long emvsim_ioctl(struct file *file,
 		if (emvsim->state != SIM_STATE_RECEIVING)
 			emvsim_start_rcv(emvsim);
 
-		spin_lock_irqsave(&emvsim->lock, flags);
-		spin_unlock_irqrestore(&emvsim->lock, flags);
 		emvsim->timeout = RX_TIMEOUT * HZ;
 		timeout = wait_for_completion_interruptible_timeout(
 				&emvsim->xfer_done, emvsim->timeout);
