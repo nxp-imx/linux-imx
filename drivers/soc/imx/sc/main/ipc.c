@@ -310,6 +310,7 @@ static irqreturn_t imx8_scu_mu_isr(int irq, void *param)
 		writel_relaxed(irqs, mu_base_virtaddr + 0x20);
 		/* Setup a bottom-half to handle the irq work. */
 		schedule_delayed_work(&scu_mu_work, 0);
+		pm_system_wakeup();
 	}
 	return IRQ_HANDLED;
 }
