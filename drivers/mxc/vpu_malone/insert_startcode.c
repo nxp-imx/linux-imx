@@ -505,7 +505,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 	}
 	break;
 	case VPU_VIDEO_SPK: {
-		insert_seq_header_spk(dst, uPayloadSize, q_data->width, q_data->height);
+		insert_seq_header_spk(dst, 0, q_data->width, q_data->height);
 		length = 16;
 	}
 	break;
