@@ -790,11 +790,24 @@ static int vpu_dec_queue_expbuf(struct queue_data *queue,
 static int vpu_dec_queue_reqbufs(struct queue_data *queue,
 				struct v4l2_requestbuffers *reqbuf)
 {
+	struct vpu_ctx *ctx;
 	int ret = -EINVAL;
 
+	ctx = container_of(queue, struct vpu_ctx, q_data[queue->type]);
+
 	down(&queue->drv_q_lock);
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] %s %s buffers\n",
+			ctx->str_index,
+			queue->type ? "CAPTURE" : "OUTPUT",
+			reqbuf->count ? "request" : "free");
+
 	if (queue->vb2_q_inited)
 		ret = vb2_reqbufs(&queue->vb2_q, reqbuf);
+
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] %s %s buffers done\n",
+			ctx->str_index,
+			queue->type ? "CAPTURE" : "OUTPUT",
+			reqbuf->count ? "request" : "free");
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -3241,8 +3254,10 @@ static void respond_req_frame(struct vpu_ctx *ctx,
 				bool abnormal)
 {
 	while (ctx->req_frame_count > 0) {
-		if (abnormal)
+		if (abnormal) {
 			respond_req_frame_abnormal(ctx);
+			continue;
+		}
 		if (!queue->enable)
 			break;
 		if (!alloc_frame_buffer(ctx, queue))
@@ -3288,6 +3303,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 	switch (uEvent) {
 	case VID_API_EVENT_START_DONE:
+		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] START DONE\n", ctx->str_index);
 		ctx->firmware_stopped = false;
 		ctx->firmware_finished = false;
 		ctx->req_frame_count = 0;
@@ -3402,7 +3418,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		caculate_frame_size(ctx);
 		parse_frame_interval_from_seqinfo(ctx, ctx->pSeqinfo);
-		vpu_dbg(LVL_INFO, "SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
+		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
+				ctx->str_index,
 				ctx->pSeqinfo->uHorRes, ctx->pSeqinfo->uVerRes,
 				ctx->pSeqinfo->uHorDecodeRes, ctx->pSeqinfo->uVerDecodeRes,
 				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
@@ -3584,6 +3601,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_RES_CHANGE: {
 		struct queue_data *This;
 
+		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] RES CHANGE\n", ctx->str_index);
 		This = &ctx->q_data[V4L2_DST];
 		down(&This->drv_q_lock);
 		reset_mbi_dcp_count(ctx);
@@ -4895,7 +4913,6 @@ static int v4l2_release(struct file *filp)
 	}
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
-	reset_mbi_dcp_count(ctx);
 	release_queue_data(ctx);
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
