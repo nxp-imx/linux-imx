@@ -2867,7 +2867,7 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	 *frame depth need to be set by user and then the condition works
 	 */
 	if (vpu_frm_depth != INVALID_FRAME_DEPTH) {
-		if (ctx->frm_dec_delay >= vpu_frm_depth)
+		if ((getTSManagerPreBufferCnt(ctx->tsm)) >= vpu_frm_depth)
 			return false;
 	}
 
@@ -4415,6 +4415,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "total frame number",
 			ctx->frm_total_num);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "timestamp delay frame",
+			getTSManagerPreBufferCnt(ctx->tsm));
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16lld\n", "timestamp threshold(ms)",
 			ctx->ts_threshold);
