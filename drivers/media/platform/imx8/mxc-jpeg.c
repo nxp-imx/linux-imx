@@ -42,8 +42,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_RGB24,
 		.depth		= 24,
 		.colplanes	= 1,
-		.h_align	= 0,
-		.v_align	= 0,
+		.h_align	= 3,
+		.v_align	= 3,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 	{
@@ -51,8 +51,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_ARGB32,
 		.depth		= 32,
 		.colplanes	= 1,
-		.h_align	= 0,
-		.v_align	= 0,
+		.h_align	= 3,
+		.v_align	= 3,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 	{
@@ -60,8 +60,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_NV12,
 		.depth		= 12, /* 6 bytes (4Y + UV) for 4 pixels */
 		.colplanes	= 2, /* 1 plane Y, 1 plane UV interleaved */
-		.h_align	= 2,
-		.v_align	= 0,
+		.h_align	= 4,
+		.v_align	= 4,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 	{
@@ -69,8 +69,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_YUYV,
 		.depth		= 16,
 		.colplanes	= 1,
-		.h_align	= 2,
-		.v_align	= 0,
+		.h_align	= 4,
+		.v_align	= 3,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 	{
@@ -78,8 +78,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_YUV24,
 		.depth		= 24,
 		.colplanes	= 1,
-		.h_align	= 0,
-		.v_align	= 0,
+		.h_align	= 3,
+		.v_align	= 3,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 	{
@@ -87,8 +87,8 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 		.fourcc		= V4L2_PIX_FMT_GREY,
 		.depth		= 8,
 		.colplanes	= 1,
-		.h_align	= 0,
-		.v_align	= 0,
+		.h_align	= 3,
+		.v_align	= 3,
 		.flags		= MXC_JPEG_FMT_TYPE_RAW,
 	},
 };
@@ -583,6 +583,7 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	dma_addr_t cfg_desc_handle = jpeg->slot_data[slot].cfg_desc_handle;
 	struct mxc_jpeg_q_data *q_data;
 	enum mxc_jpeg_image_format img_fmt;
+	int w, h;
 
 	q_data = mxc_jpeg_get_q_data(ctx, src_buf->vb2_queue->type);
 
@@ -598,16 +599,31 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	cfg_desc->stm_ctrl = STM_CTRL_CONFIG_MOD(1);
 
 	desc->next_descpt_ptr = 0; /* end of chain */
-	mxc_jpeg_set_res(desc, q_data->w, q_data->h);
-	mxc_jpeg_set_line_pitch(desc, q_data->w * (q_data->fmt->depth / 8));
-	mxc_jpeg_set_bufsize(desc, desc->line_pitch * q_data->h);
+	/*
+	 * align down the resolution for CAST IP,
+	 * but leave the buffer resolution unchanged
+	 */
+	w = q_data->w;
+	h = q_data->h;
+	v4l_bound_align_image(&w,
+			      MXC_JPEG_MIN_WIDTH,
+			      w, /* adjust downwards*/
+			      q_data->fmt->h_align,
+			      &h,
+			      MXC_JPEG_MIN_HEIGHT,
+			      h, /* adjust downwards*/
+			      q_data->fmt->v_align,
+			      0);
+	mxc_jpeg_set_res(desc, w, h);
+	mxc_jpeg_set_line_pitch(desc, w * (q_data->fmt->depth / 8));
+	mxc_jpeg_set_bufsize(desc, desc->line_pitch * h);
 	img_fmt = mxc_jpeg_fourcc_to_imgfmt(q_data->fmt->fourcc);
 	if (img_fmt == MXC_JPEG_INVALID)
 		dev_err(jpeg->dev, "No valid image format detected\n");
 	desc->stm_ctrl = STM_CTRL_CONFIG_MOD(0) |
 			 STM_CTRL_IMAGE_FORMAT(img_fmt);
 	mxc_jpeg_fixup_cfg_stream(jpeg->slot_data[slot].cfg_stream_vaddr,
-			img_fmt, q_data->w, q_data->h);
+			img_fmt, w, h);
 	mxc_jpeg_addrs(desc, src_buf, dst_buf, 0);
 	dev_dbg(jpeg->dev, "cfg_desc - 0x%llx:\n", cfg_desc_handle);
 	print_descriptor_info(jpeg->dev, cfg_desc);
@@ -958,6 +974,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	int byte;
 	enum mxc_jpeg_image_format img_fmt;
 	u32 fourcc;
+	int w, h;
 
 	memset(&sof, 0, sizeof(struct mxc_jpeg_sof));
 	stream.addr = src_addr;
@@ -1024,9 +1041,6 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		dev_err(dev, "JPEG component identifiers should be 0-3 or 1-4");
 		return -EINVAL;
 	}
-	desc->imgsize = sof.width << 16 | sof.height;
-	dev_dbg(dev, "JPEG imgsize = 0x%x (%dx%d)\n", desc->imgsize,
-		sof.width, sof.height);
 	img_fmt = mxc_jpeg_get_image_format(dev, &sof);
 	if (img_fmt == MXC_JPEG_INVALID)
 		return -EINVAL;
@@ -1054,6 +1068,27 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		kfree(user_format_name);
 		img_fmt = mxc_jpeg_fourcc_to_imgfmt(q_data_cap->fmt->fourcc);
 	}
+	/*
+	 * align down the resolution for CAST IP,
+	 * but leave the buffer resolution unchanged
+	 * TODO check if CAST IP will write past the buffer
+	 */
+	w = sof.width;
+	h = sof.height;
+	v4l_bound_align_image(&w,
+			      w,  /* adjust upwards */
+			      MXC_JPEG_MAX_WIDTH,
+			      q_data_cap->fmt->h_align,
+			      &h,
+			      h, /* adjust upwards */
+			      MXC_JPEG_MAX_HEIGHT,
+			      q_data_cap->fmt->v_align,
+			      0);
+	sof.width = w;
+	sof.height = h;
+	desc->imgsize = sof.width << 16 | sof.height;
+	dev_dbg(dev, "JPEG imgsize = 0x%x (%dx%d)\n", desc->imgsize,
+		sof.width, sof.height);
 	desc->stm_ctrl &= ~STM_CTRL_IMAGE_FORMAT(0xF); /* clear image format */
 	desc->stm_ctrl |= STM_CTRL_IMAGE_FORMAT(img_fmt);
 	desc->line_pitch = mxc_jpeg_get_line_pitch(dev, &sof, img_fmt);
