@@ -70,6 +70,26 @@
 		reg = <0x0 0x40000000 0 0x80000000>;
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* global autoconfigured region for contiguous allocations */
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x28000000>;
+			alloc-ranges = <0 0x40000000 0 0x60000000>;
+			linux,cma-default;
+		};
+
+		rpmsg_reserved: rpmsg@0xb8000000 {
+			no-map;
+			reg = <0 0xb8000000 0 0x400000>;
+		};
+	};
+
 	gic: interrupt-controller@38800000 {
 		compatible = "arm,gic-v3";
 		reg = <0x0 0x38800000 0 0x10000>, /* GIC Dist */
@@ -701,7 +721,7 @@
 		};
 
 		rpmsg: rpmsg{
-			compatible = "fsl,imx8qm-rpmsg";
+			compatible = "fsl,imx8mq-rpmsg";
 			status = "disabled";
 		};
 	};
