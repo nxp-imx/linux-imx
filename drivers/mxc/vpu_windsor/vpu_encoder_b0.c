@@ -1303,50 +1303,75 @@ static int vpu_enc_v4l2_ioctl_try_fmt(struct file *file,
 	return 0;
 }
 
-static int vpu_enc_v4l2_ioctl_g_crop(struct file *file, void *fh,
-				struct v4l2_crop *cr)
+static int vpu_enc_v4l2_ioctl_g_selection(struct file *file, void *fh,
+					struct v4l2_selection *s)
 {
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 	struct queue_data *src = &ctx->q_data[V4L2_SRC];
 
-	if (!cr)
-		return -EINVAL;
-
-	if (get_queue_by_v4l2_type(ctx, cr->type) != src)
+	if (s->target != V4L2_SEL_TGT_CROP && s->target != V4L2_SEL_TGT_COMPOSE)
 		return -EINVAL;
 
 	vpu_log_func();
-	cr->c.left = src->rect.left;
-	cr->c.top = src->rect.top;
-	cr->c.width = src->rect.width;
-	cr->c.height = src->rect.height;
+	s->r = src->rect;
 
 	return 0;
 }
 
-static int vpu_enc_v4l2_ioctl_s_crop(struct file *file, void *fh,
-				const struct v4l2_crop *cr)
+static int vpu_enc_v4l2_ioctl_s_selection(struct file *file, void *fh,
+					struct v4l2_selection *s)
 {
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 	struct queue_data *src = &ctx->q_data[V4L2_SRC];
 	struct vpu_dev *dev = ctx->dev;
 
-	if (!cr)
-		return -EINVAL;
-	if (!dev)
-		return -EINVAL;
-
-	if (get_queue_by_v4l2_type(ctx, cr->type) != src)
+	if (s->target != V4L2_SEL_TGT_CROP && s->target != V4L2_SEL_TGT_COMPOSE)
 		return -EINVAL;
 
 	vpu_log_func();
-	src->rect.left = ALIGN(cr->c.left, dev->supported_size.step_width);
-	src->rect.top = ALIGN(cr->c.top, dev->supported_size.step_height);
-	src->rect.width = ALIGN(cr->c.width, dev->supported_size.step_width);
-	src->rect.height = ALIGN(cr->c.height, dev->supported_size.step_height);
+	src->rect.left = ALIGN(s->r.left, dev->supported_size.step_width);
+	src->rect.top = ALIGN(s->r.top, dev->supported_size.step_height);
+	src->rect.width = ALIGN(s->r.width, dev->supported_size.step_width);
+	src->rect.height = ALIGN(s->r.height, dev->supported_size.step_height);
 	valid_crop_info(src, &src->rect);
 
 	return 0;
+}
+
+static int vpu_enc_v4l2_ioctl_g_crop(struct file *file, void *fh,
+				struct v4l2_crop *cr)
+{
+	struct v4l2_selection s;
+	int ret;
+
+	if (!cr)
+		return -EINVAL;
+
+	s.type = cr->type;
+	s.target = V4L2_SEL_TGT_CROP;
+
+	vpu_log_func();
+	ret = vpu_enc_v4l2_ioctl_g_selection(file, fh, &s);
+	if (!ret)
+		cr->c = s.r;
+
+	return ret;
+}
+
+static int vpu_enc_v4l2_ioctl_s_crop(struct file *file, void *fh,
+				const struct v4l2_crop *cr)
+{
+	struct v4l2_selection s;
+
+	if (!cr)
+		return -EINVAL;
+
+	s.type = cr->type;
+	s.target = V4L2_SEL_TGT_CROP;
+	s.r = cr->c;
+
+	vpu_log_func();
+	return vpu_enc_v4l2_ioctl_s_selection(file, fh, &s);
 }
 
 static int response_stop_stream(struct vpu_ctx *ctx)
@@ -1570,6 +1595,8 @@ static const struct v4l2_ioctl_ops vpu_enc_v4l2_ioctl_ops = {
 	.vidioc_expbuf                  = vpu_enc_v4l2_ioctl_expbuf,
 	.vidioc_g_crop                  = vpu_enc_v4l2_ioctl_g_crop,
 	.vidioc_s_crop			= vpu_enc_v4l2_ioctl_s_crop,
+	.vidioc_g_selection		= vpu_enc_v4l2_ioctl_g_selection,
+	.vidioc_s_selection		= vpu_enc_v4l2_ioctl_s_selection,
 	.vidioc_encoder_cmd             = vpu_enc_v4l2_ioctl_encoder_cmd,
 	.vidioc_subscribe_event         = vpu_enc_v4l2_ioctl_subscribe_event,
 	.vidioc_unsubscribe_event       = v4l2_event_unsubscribe,

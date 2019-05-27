@@ -69,7 +69,13 @@ PMU_EVENT_ATTR_STRING(lp-req-nocredit, ddr_perf_lp_req_nocredit, "event=0x26");
 PMU_EVENT_ATTR_STRING(lp-xact-credit, ddr_perf_lp_xact_credit, "event=0x27");
 PMU_EVENT_ATTR_STRING(wr-xact-credit, ddr_perf_wr_xact_credit, "event=0x29");
 PMU_EVENT_ATTR_STRING(read-cycles, ddr_perf_read_cycles, "event=0x2a");
+PMU_EVENT_ATTR_STRING(read-bytes, ddr_perf_read_bytes, "event=0xf2a");
+PMU_EVENT_ATTR_STRING(read-bytes.unit, ddr_perf_read_bytes_unit, "MB");
+PMU_EVENT_ATTR_STRING(read-bytes.scale, ddr_perf_read_bytes_scale, "0.000016");
 PMU_EVENT_ATTR_STRING(write-cycles, ddr_perf_write_cycles, "event=0x2b");
+PMU_EVENT_ATTR_STRING(write-bytes, ddr_perf_write_bytes, "event=0xf2b");
+PMU_EVENT_ATTR_STRING(write-bytes.unit, ddr_perf_write_bytes_unit, "MB");
+PMU_EVENT_ATTR_STRING(write-bytes.scale, ddr_perf_write_bytes_scale, "0.000016");
 PMU_EVENT_ATTR_STRING(read-write-transition, ddr_perf_read_write_transition,
 		"event=0x30");
 PMU_EVENT_ATTR_STRING(precharge, ddr_perf_precharge, "event=0x31");
@@ -154,7 +160,13 @@ static struct attribute *ddr_perf_events_attrs[] = {
 	&ddr_perf_lp_xact_credit.attr.attr,
 	&ddr_perf_wr_xact_credit.attr.attr,
 	&ddr_perf_read_cycles.attr.attr,
+	&ddr_perf_read_bytes.attr.attr,
+	&ddr_perf_read_bytes_unit.attr.attr,
+	&ddr_perf_read_bytes_scale.attr.attr,
 	&ddr_perf_write_cycles.attr.attr,
+	&ddr_perf_write_bytes.attr.attr,
+	&ddr_perf_write_bytes_unit.attr.attr,
+	&ddr_perf_write_bytes_scale.attr.attr,
 	&ddr_perf_read_write_transition.attr.attr,
 	&ddr_perf_precharge.attr.attr,
 	&ddr_perf_activate.attr.attr,
@@ -412,7 +424,7 @@ static irqreturn_t ddr_perf_irq_handler(int irq, void *p)
 	 * values, then reset the cycles counter, so the others can continue
 	 * counting.
 	 */
-	for (i = 0; i <= pmu->total_events; i++) {
+	for (i = 0; i < pmu->total_events; i++) {
 		if (pmu->active_events[i] != NULL) {
 			event = pmu->active_events[i];
 			counter = event->hw.idx;

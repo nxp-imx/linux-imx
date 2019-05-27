@@ -213,7 +213,7 @@ dpu_atomic_assign_plane_source_per_crtc(struct drm_plane_state **states,
 	dpu_block_id_t blend;
 	unsigned int sid, src_sid;
 	unsigned int num_planes;
-	int i, j, k, l, m;
+	int i, j, k, l, m = -1;
 	int total_asrc_num;
 	int s0_layer_cnt = 0, s1_layer_cnt = 0;
 	int s0_n = 0, s1_n = 0;
@@ -364,7 +364,7 @@ next:
 		}
 		mutex_unlock(&grp->mutex);
 
-		if (k == total_asrc_num)
+		if (k == total_asrc_num || m < 0)
 			return -EINVAL;
 
 		if (alloc_aux_source)

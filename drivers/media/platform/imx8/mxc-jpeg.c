@@ -75,7 +75,7 @@ static struct mxc_jpeg_fmt mxc_formats[] = {
 	},
 	{
 		.name		= "YUV444", /* YUVYUV */
-		.fourcc		= V4L2_PIX_FMT_YUV32,
+		.fourcc		= V4L2_PIX_FMT_YUV24,
 		.depth		= 24,
 		.colplanes	= 1,
 		.h_align	= 0,
@@ -340,7 +340,7 @@ static enum mxc_jpeg_image_format mxc_jpeg_fourcc_to_imgfmt(
 		return MXC_JPEG_YUV422;
 	case V4L2_PIX_FMT_NV12:
 		return MXC_JPEG_YUV420;
-	case V4L2_PIX_FMT_YUV32:
+	case V4L2_PIX_FMT_YUV24:
 		return MXC_JPEG_YUV444;
 	case V4L2_PIX_FMT_RGB24:
 		return MXC_JPEG_RGB;
@@ -365,7 +365,7 @@ static int mxc_jpeg_imgfmt_to_fourcc(enum mxc_jpeg_image_format imgfmt,
 		*fourcc =  V4L2_PIX_FMT_NV12;
 		return 0;
 	case MXC_JPEG_YUV444:
-		*fourcc =  V4L2_PIX_FMT_YUV32;
+		*fourcc =  V4L2_PIX_FMT_YUV24;
 		return 0;
 	case MXC_JPEG_RGB:
 		*fourcc =  V4L2_PIX_FMT_RGB24;
@@ -977,8 +977,12 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		if (byte == 0)
 			continue;
 		switch (byte) {
-		case SOF2:
-		case SOF0:
+		case SOF2: /* Progressive DCF frame definition */
+			dev_err(dev,
+				"Progressive JPEG isn't supported by hardware");
+			return -EINVAL;
+		case SOF1: /* Extended sequential DCF frame definition */
+		case SOF0: /* Baseline sequential DCF frame definition */
 			if (get_sof(dev, &stream, &sof) == -1)
 				break;
 			notfound = false;
@@ -989,7 +993,13 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	}
 	q_data_out = mxc_jpeg_get_q_data(ctx,
 					 V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
-	if (sof.width != q_data_out->w || sof.height != q_data_out->h) {
+	if (q_data_out->w == 0 && q_data_out->h == 0) {
+		dev_warn(dev, "Invalid user resolution 0x0");
+		dev_warn(dev, "Keeping resolution from JPEG: %dx%d",
+			 sof.width, sof.height);
+		 q_data_out->w = sof.width;
+		 q_data_out->h = sof.height;
+	} else if (sof.width != q_data_out->w || sof.height != q_data_out->h) {
 		dev_err(dev,
 			"Resolution mismatch: %dx%d (JPEG) versus %dx%d(user)",
 			sof.width, sof.height, q_data_out->w, q_data_out->h);
