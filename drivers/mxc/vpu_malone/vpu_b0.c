@@ -1024,7 +1024,7 @@ static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 	buffer->dma_virt = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			buffer->dma_size,
 			(dma_addr_t *)&buffer->dma_phy,
-			GFP_KERNEL | GFP_DMA32);
+			GFP_KERNEL | GFP_DMA32 | __GFP_NOWARN);
 
 	if (!buffer->dma_virt) {
 		vpu_dbg(LVL_ERR, "error: %s() dma buffer alloc size(%x) fail!\n",
@@ -2685,6 +2685,8 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 	if (ret)
 		return ret;
 
+	memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
+
 	return 0;
 }
 
@@ -4084,7 +4086,7 @@ static void init_vb2_queue(struct queue_data *This, unsigned int type, struct vp
 	// initialize vb2 queue
 	vb2_q->type = type;
 	vb2_q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
-	vb2_q->gfp_flags = GFP_DMA32;
+	vb2_q->gfp_flags = GFP_KERNEL | GFP_DMA32 | __GFP_NOWARN;
 	vb2_q->ops = &v4l2_qops;
 	vb2_q->drv_priv = This;
 	vb2_q->mem_ops = (struct vb2_mem_ops *)&vb2_dma_contig_memops;
