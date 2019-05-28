@@ -205,6 +205,12 @@ static u32 imx8mm_soc_revision(void)
 	return imx_init_revision_from_atf();
 }
 
+static u32 imx8mn_soc_revision(void)
+{
+	imx8_soc_uid = imx8mq_soc_get_soc_uid();
+	return imx_init_revision_from_atf();
+}
+
 static struct imx8_soc_data imx8qm_soc_data = {
 	.name = "i.MX8QM",
 	.soc_revision = imx8qm_soc_revision,
@@ -225,11 +231,17 @@ static struct imx8_soc_data imx8mm_soc_data = {
 	.soc_revision = imx8mm_soc_revision,
 };
 
+static struct imx8_soc_data imx8mn_soc_data = {
+	.name = "i.MX8MN",
+	.soc_revision = imx8mn_soc_revision,
+};
+
 static const struct of_device_id imx8_soc_match[] = {
 	{ .compatible = "fsl,imx8qm", .data = &imx8qm_soc_data, },
 	{ .compatible = "fsl,imx8qxp", .data = &imx8qxp_soc_data, },
 	{ .compatible = "fsl,imx8mq", .data = &imx8mq_soc_data, },
 	{ .compatible = "fsl,imx8mm", .data = &imx8mm_soc_data, },
+	{ .compatible = "fsl,imx8mn", .data = &imx8mn_soc_data, },
 	{ }
 };
 
@@ -520,7 +532,8 @@ put_node:
 static int __init imx8_register_cpufreq(void)
 {
 	if (of_machine_is_compatible("fsl,imx8mq") ||
-		of_machine_is_compatible("fsl,imx8mm")) {
+		of_machine_is_compatible("fsl,imx8mm") ||
+		of_machine_is_compatible("fsl,imx8mn")) {
 		imx8mq_opp_init();
 		platform_device_register_simple("imx8mq-cpufreq", -1, NULL, 0);
 	} else {

@@ -22,6 +22,7 @@
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
+#include <linux/pm_runtime.h>
 #include <drm/bridge/sec_mipi_dsim.h>
 #include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
@@ -1840,10 +1841,12 @@ int sec_mipi_dsim_bind(struct device *dev, struct device *master, void *data,
 		return ret;
 	}
 
-	clk_prepare_enable(dsim->clk_cfg);
+	dev_set_drvdata(dev, dsim);
+
+	pm_runtime_get_sync(dev);
 	version = dsim_read(dsim, DSIM_VERSION);
 	WARN_ON(version != pdata->version);
-	clk_disable_unprepare(dsim->clk_cfg);
+	pm_runtime_put_sync(dev);
 
 	dev_info(dev, "version number is %#x\n", version);
 
@@ -1897,8 +1900,6 @@ int sec_mipi_dsim_bind(struct device *dev, struct device *master, void *data,
 	bridge->of_node = dev->of_node;
 	bridge->encoder = encoder;
 	encoder->bridge = bridge;
-
-	dev_set_drvdata(dev, dsim);
 
 	/* attach sec dsim bridge and its next bridge if exists */
 	ret = drm_bridge_attach(encoder, bridge, NULL);

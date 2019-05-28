@@ -210,6 +210,10 @@ static const struct of_device_id imx_sec_dsim_dt_ids[] = {
 		.compatible = "fsl,imx8mm-mipi-dsim",
 		.data = &imx8mm_mipi_dsim_plat_data,
 	},
+	{
+		.compatible = "fsl,imx8mn-mipi-dsim",
+		.data = &imx8mm_mipi_dsim_plat_data,
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_sec_dsim_dt_ids);
@@ -261,17 +265,18 @@ static int imx_sec_dsim_bind(struct device *dev, struct device *master,
 	if (ret)
 		return ret;
 
+	atomic_set(&dsim_dev->rpm_suspended, 0);
+	pm_runtime_enable(dev);
+	atomic_inc(&dsim_dev->rpm_suspended);
+
 	/* bind sec dsim bridge */
 	ret = sec_mipi_dsim_bind(dev, master, data, encoder, res, irq, pdata);
 	if (ret) {
 		dev_err(dev, "failed to bind sec dsim bridge: %d\n", ret);
+		pm_runtime_disable(dev);
 		drm_encoder_cleanup(encoder);
 		return ret;
 	}
-
-	atomic_set(&dsim_dev->rpm_suspended, 0);
-	pm_runtime_enable(dev);
-	atomic_inc(&dsim_dev->rpm_suspended);
 
 	dev_dbg(dev, "%s: dsim bind end\n", __func__);
 
@@ -343,6 +348,10 @@ static int imx_sec_dsim_runtime_suspend(struct device *dev)
 
 static int imx_sec_dsim_runtime_resume(struct device *dev)
 {
+	const struct of_device_id *of_id;
+	const char *compatible;
+	struct regmap *gpr = dsim_dev->gpr;
+
 	if (unlikely(!atomic_read(&dsim_dev->rpm_suspended))) {
 		dev_warn(dsim_dev->dev,
 			 "Unbalanced %s!\n", __func__);
@@ -355,8 +364,21 @@ static int imx_sec_dsim_runtime_resume(struct device *dev)
 	request_bus_freq(BUS_FREQ_HIGH);
 
 	/* Pull dsim out of reset */
-	disp_mix_dsim_soft_reset_release(dsim_dev->gpr, true);
-	disp_mix_dsim_clks_enable(dsim_dev->gpr, true);
+	of_id = of_match_device(imx_sec_dsim_dt_ids, dev);
+	compatible = of_id->compatible;
+
+	if (!strcmp(compatible, "fsl,imx8mn-mipi-dsim")) {
+		regmap_update_bits(gpr, DISPLAY_MIX_SFT_RSTN_CSR,
+				   BIT(1) | BIT(0),
+				   BIT(1) | BIT(0));
+		regmap_update_bits(gpr, DISPLAY_MIX_CLK_EN_CSR,
+				   BIT(1) | BIT(0),
+				   BIT(1) | BIT(0));
+	} else {
+		disp_mix_dsim_soft_reset_release(dsim_dev->gpr, true);
+		disp_mix_dsim_clks_enable(dsim_dev->gpr, true);
+	}
+
 	imx_sec_dsim_lanes_reset(dsim_dev->gpr, false);
 
 	sec_mipi_dsim_resume(dev);

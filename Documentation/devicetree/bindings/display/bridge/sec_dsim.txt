@@ -7,7 +7,7 @@ an encoder or bridge must be implemented to manage the platform
 specific initializations.
 
 Required properties:
-- compatible: 		"fsl,imx8mm-mipi-dsim"
+- compatible: 		"fsl,imx8mm-mipi-dsim" or "fsl,imx8mn-mipi-dsim"
 - reg: 			the register range of the MIPI DSIM controller
 - interrupts: 		the interrupt number for this module
 - clock, clock-names: 	phandles to the MIPI-DSI clocks described in
