@@ -43,3 +43,7 @@
 		status = "okay";
 	};
 };
+
+&gpu {
+	status = "okay";
+};
