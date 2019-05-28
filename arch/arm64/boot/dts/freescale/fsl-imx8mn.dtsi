@@ -830,7 +830,7 @@
 	lcdif: lcd-controller@32E00000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,imx8mm-lcdif";
+		compatible = "fsl,imx8mn-lcdif";
 		reg = <0x0 0x32e00000 0x0 0x10000>;
 		clocks = <&clk IMX8MN_CLK_DISP_PIXEL>,
 			 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
@@ -859,7 +859,7 @@
 	mipi_dsi: mipi_dsi@32E10000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,imx8mm-mipi-dsim";
+		compatible = "fsl,imx8mn-mipi-dsim";
 		reg = <0x0 0x32e10000 0x0 0x400>;
 		clocks = <&clk IMX8MN_CLK_DSI_CORE>,
 			 <&clk IMX8MN_CLK_DSI_PHY_REF>;
