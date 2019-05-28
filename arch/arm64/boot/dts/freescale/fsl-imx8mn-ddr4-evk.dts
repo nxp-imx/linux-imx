@@ -98,6 +98,14 @@
 		spdif-out;
 		spdif-in;
 	};
+
+	sound-ak5558 {
+		compatible = "fsl,imx-audio-ak5558";
+		model = "ak5558-audio";
+		audio-cpu = <&sai5>;
+		audio-codec = <&ak5558>;
+		status = "disabled";
+	};
 };
 
 &clk {
@@ -234,6 +242,18 @@
 				MX8MN_IOMUXC_SAI3_MCLK_SAI3_MCLK        0xd6
 				MX8MN_IOMUXC_SAI3_TXD_SAI3_TX_DATA0     0xd6
 				MX8MN_IOMUXC_I2C4_SDA_GPIO5_IO21        0xd6
+			>;
+		};
+
+		pinctrl_sai5: sai5grp {
+			fsl,pins = <
+				MX8MN_IOMUXC_SAI5_MCLK_SAI5_MCLK	0xd6
+				MX8MN_IOMUXC_SAI5_RXC_SAI5_RX_BCLK	0xd6
+				MX8MN_IOMUXC_SAI5_RXFS_SAI5_RX_SYNC	0xd6
+				MX8MN_IOMUXC_SAI5_RXD0_SAI5_RX_DATA0	0xd6
+				MX8MN_IOMUXC_SAI5_RXD1_SAI5_RX_DATA1    0xd6
+				MX8MN_IOMUXC_SAI5_RXD2_SAI5_RX_DATA2    0xd6
+				MX8MN_IOMUXC_SAI5_RXD3_SAI5_RX_DATA3    0xd6
 			>;
 		};
 
@@ -784,6 +804,21 @@
 	assigned-clock-parents = <&clk IMX8MN_AUDIO_PLL1_OUT>;
 	assigned-clock-rates = <24576000>;
 	status = "okay";
+};
+
+&sai5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai5>;
+	assigned-clocks = <&clk IMX8MN_CLK_SAI5>;
+	assigned-clock-parents = <&clk IMX8MN_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <49152000>;
+	clocks = <&clk IMX8MN_CLK_SAI5_IPG>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_SAI5_ROOT>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_DUMMY>, <&clk IMX8MN_AUDIO_PLL1_OUT>,
+		<&clk IMX8MN_AUDIO_PLL2_OUT>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+	fsl,sai-asynchronous;
+	status = "disabled";
 };
 
 &spdif1 {
