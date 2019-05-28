@@ -256,7 +256,7 @@ dcss_drm: dcss@0x32e00000 {
 NXP i.MX eLCDIF (Enhanced LCD Interface)
 ========================================
 Required properties:
-- compatible: should be "fsl,imx8mm-lcdif"
+- compatible: should be "fsl,imx8mm-lcdif" or "fsl,imx8mn-lcdif"
 - reg: should be register base and length as documented in the
   datasheet.
 - interrupts, interrupt-names: Should contain interrupts and names as
