@@ -24,6 +24,16 @@
 
 #define ISI_OF_NODE_NAME	"isi"
 
+/* display_mix_sft_rstn_csr */
+#define EN_BUS_BLK_CLK_RSTN	BIT(8)
+#define EN_ISI_APB_CLK_RSTN	BIT(7)
+#define EN_ISI_PROC_CLK_RSTN	BIT(6)
+
+/* display_mix_clk_en_csr */
+#define EN_BUS_BLK_CLK		BIT(8)
+#define EN_ISI_APB_CLK		BIT(7)
+#define EN_ISI_PROC_CLK		BIT(6)
+
 #define MXC_ISI_SD_PAD_SINK_MIPI0_VC0		0
 #define MXC_ISI_SD_PAD_SINK_MIPI0_VC1		1
 #define MXC_ISI_SD_PAD_SINK_MIPI0_VC2		2
@@ -269,26 +279,40 @@ struct mxc_isi_cap_dev {
 
 	struct mxc_isi_frame	src_f;
 	struct mxc_isi_frame	dst_f;
-	u32						frame_count;
+	u32			frame_count;
 
 	u32 buf_index;
 };
 
+struct mxc_isi_dev_ops {
+	int (*clk_get)(struct mxc_isi_dev *mxc_isi);
+	int (*clk_enable)(struct mxc_isi_dev *mxc_isi);
+	void (*clk_disable)(struct mxc_isi_dev *mxc_isi);
+};
+
 struct mxc_isi_dev {
-	spinlock_t				slock;
+	spinlock_t			slock;
 	struct mutex			lock;
 	struct mutex			m2m_lock;
 	wait_queue_head_t		irq_queue;
 
-	int						id;
+	int				id;
 	void __iomem			*regs;
 	unsigned long			state;
 
 	struct platform_device		*pdev;
-	struct v4l2_device			*v4l2_dev;
+	struct v4l2_device		*v4l2_dev;
 	struct mxc_isi_m2m_dev		m2m;
 	struct mxc_isi_cap_dev		isi_cap;
-	struct clk		*clk;
+
+	struct clk	*clk;
+	struct clk	*clk_disp_axi;
+	struct clk	*clk_disp_apb;
+	struct clk	*clk_root_disp_axi;
+	struct clk	*clk_root_disp_apb;
+
+	struct regmap *gpr;
+	const struct mxc_isi_dev_ops *ops;
 
 	u32 interface[MAX_PORTS];
 	u32 flags;

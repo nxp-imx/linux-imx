@@ -59,6 +59,8 @@ void dump_isi_regs(struct mxc_isi_dev *mxc_isi)
 	dev_dbg(dev, "CHNL_OUT_BUF2_ADDR_Y   0x8Ch = 0x%8x\n", readl(mxc_isi->regs + 0x8C));
 	dev_dbg(dev, "CHNL_OUT_BUF2_ADDR_U   0x90h = 0x%8x\n", readl(mxc_isi->regs + 0x90));
 	dev_dbg(dev, "CHNL_OUT_BUF2_ADDR_V   0x94h = 0x%8x\n", readl(mxc_isi->regs + 0x94));
+	dev_dbg(dev, "CHNL_SCL_IMG_CFG       0x98h = 0x%8x\n", readl(mxc_isi->regs + 0x98));
+	dev_dbg(dev, "CHNL_FLOW_CTRL         0x9Ch = 0x%8x\n", readl(mxc_isi->regs + 0x9C));
 }
 #else
 void dump_isi_regs(struct mxc_isi_dev *mxc_isi)
