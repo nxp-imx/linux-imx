@@ -832,7 +832,7 @@
 		#size-cells = <0>;
 		compatible = "fsl,imx8mn-lcdif";
 		reg = <0x0 0x32e00000 0x0 0x10000>;
-		clocks = <&clk IMX8MN_CLK_DISP_PIXEL>,
+		clocks = <&clk IMX8MN_CLK_DISP_PIXEL_ROOT>,
 			 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
 			 <&clk IMX8MN_CLK_DISP_APB_ROOT>;
 		clock-names = "pix", "disp-axi", "disp-apb";
