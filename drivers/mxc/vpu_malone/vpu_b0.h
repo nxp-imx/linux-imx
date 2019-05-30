@@ -199,6 +199,7 @@ struct vb2_data_req {
 	bool queued;
 	u_int32 phy_addr[2]; //0 for luma, 1 for chroma
 	u_int32 data_offset[2]; //0 for luma, 1 for chroma
+	u32 seq_tag;
 };
 
 struct queue_data {
@@ -221,7 +222,6 @@ struct queue_data {
 	unsigned long qbuf_count;
 	unsigned long dqbuf_count;
 	unsigned long process_count;
-	unsigned long beginning;
 	bool enable;
 };
 
@@ -326,7 +326,6 @@ struct vpu_ctx {
 	struct completion completion;
 	struct completion stop_cmp;
 	struct completion eos_cmp;
-	struct completion cap_streamon_cmp;
 	MediaIPFW_Video_SeqInfo *pSeqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
@@ -342,7 +341,6 @@ struct vpu_ctx {
 	bool hang_status;
 	bool fifo_low;
 	u32 req_frame_count;
-	wait_queue_head_t buffer_wq;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
 	u_int32 dcp_count;
