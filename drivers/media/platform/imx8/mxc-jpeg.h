@@ -29,6 +29,7 @@
 #define MXC_JPEG_MIN_WIDTH		0x8
 #define MXC_JPEG_MAX_HEIGHT		0x2000
 #define MXC_JPEG_MAX_WIDTH		0x2000
+#define MXC_JPEG_MAX_CFG_STREAM		0x1000
 #define MXC_JPEG_H_ALIGN		3
 #define MXC_JPEG_W_ALIGN		3
 #define MXC_JPEG_DEFAULT_SIZEIMAGE	10000
@@ -142,6 +143,18 @@ struct mxc_jpeg_sof {
 	u16 height, width;
 	u8 components_no;
 	struct mxc_jpeg_sof_comp comp[MXC_JPEG_MAX_COMPONENTS];
+} __packed;
+
+/* JPEG Start Of Scan marker fields*/
+struct mxc_jpeg_sos_comp {
+	u8 id; /*component id*/
+	u8 huffman_table_no;
+} __packed;
+struct mxc_jpeg_sos {
+	u16 length;
+	u8 components_no;
+	struct mxc_jpeg_sos_comp comp[MXC_JPEG_MAX_COMPONENTS];
+	u8 ignorable_bytes[3];
 } __packed;
 
 #endif
