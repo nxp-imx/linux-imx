@@ -2175,6 +2175,7 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			last = 0xb7010000;
 			break;
 		case VPU_VIDEO_ASP:
+		case VPU_VIDEO_AVS:
 			last = 0xb1010000;
 			break;
 		case VPU_VIDEO_SPK:
@@ -2204,6 +2205,7 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			last = EOS_GENERIC_MPEG;
 			break;
 		case VPU_VIDEO_ASP:
+		case VPU_VIDEO_AVS:
 			last = 0xb1010000;
 			break;
 		case VPU_VIDEO_SPK:
