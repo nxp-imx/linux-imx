@@ -79,7 +79,9 @@ struct mxc_jpeg_q_data {
 	u32			sizeimage[MXC_JPEG_MAX_PLANES];
 	u32			bytesperline[MXC_JPEG_MAX_PLANES];
 	int w;
+	int w_adjusted;
 	int h;
+	int h_adjusted;
 	u32			stride;
 };
 struct mxc_jpeg_ctx {

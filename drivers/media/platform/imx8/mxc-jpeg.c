@@ -678,21 +678,10 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	cfg_desc->stm_ctrl = STM_CTRL_CONFIG_MOD(1);
 
 	desc->next_descpt_ptr = 0; /* end of chain */
-	/*
-	 * align down the resolution for CAST IP,
-	 * but leave the buffer resolution unchanged
-	 */
-	w = q_data->w;
-	h = q_data->h;
-	v4l_bound_align_image(&w,
-			      MXC_JPEG_MIN_WIDTH,
-			      w, /* adjust downwards*/
-			      q_data->fmt->h_align,
-			      &h,
-			      MXC_JPEG_MIN_HEIGHT,
-			      h, /* adjust downwards*/
-			      q_data->fmt->v_align,
-			      0);
+
+	/* use adjusted resolution for CAST IP job */
+	w = q_data->w_adjusted;
+	h = q_data->h_adjusted;
 	mxc_jpeg_set_res(desc, w, h);
 	mxc_jpeg_set_line_pitch(desc, w * (q_data->fmt->depth / 8));
 	mxc_jpeg_set_bufsize(desc, desc->line_pitch * h);
@@ -1046,7 +1035,6 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	int byte;
 	enum mxc_jpeg_image_format img_fmt;
 	u32 fourcc;
-	int w, h;
 
 	memset(&sof, 0, sizeof(struct mxc_jpeg_sof));
 	stream.addr = src_addr;
@@ -1140,24 +1128,9 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		kfree(user_format_name);
 		img_fmt = mxc_jpeg_fourcc_to_imgfmt(q_data_cap->fmt->fourcc);
 	}
-	/*
-	 * align down the resolution for CAST IP,
-	 * but leave the buffer resolution unchanged
-	 * TODO check if CAST IP will write past the buffer
-	 */
-	w = sof.width;
-	h = sof.height;
-	v4l_bound_align_image(&w,
-			      w,  /* adjust upwards */
-			      MXC_JPEG_MAX_WIDTH,
-			      q_data_cap->fmt->h_align,
-			      &h,
-			      h, /* adjust upwards */
-			      MXC_JPEG_MAX_HEIGHT,
-			      q_data_cap->fmt->v_align,
-			      0);
-	sof.width = w;
-	sof.height = h;
+	/* use adjusted resolution for CAST IP job */
+	sof.width = q_data_cap->w_adjusted;
+	sof.height = q_data_cap->h_adjusted;
 	desc->imgsize = sof.width << 16 | sof.height;
 	dev_dbg(dev, "JPEG imgsize = 0x%x (%dx%d)\n", desc->imgsize,
 		sof.width, sof.height);
@@ -1618,15 +1591,50 @@ static int mxc_jpeg_s_fmt(struct mxc_jpeg_ctx *ctx,
 	q_data->fmt = mxc_jpeg_find_format(ctx, pix_mp->pixelformat);
 	q_data->w = pix_mp->width;
 	q_data->h = pix_mp->height;
+
+	q_data->w_adjusted = q_data->w;
+	q_data->h_adjusted = q_data->h;
+	if (ctx->mode == MXC_JPEG_DECODE) {
+		/*
+		 * align up the resolution for CAST IP,
+		 * but leave the buffer resolution unchanged
+		 * TODO check if CAST IP will write past the buffer
+		 */
+		v4l_bound_align_image(&q_data->w_adjusted,
+				      q_data->w_adjusted,  /* adjust upwards */
+				      MXC_JPEG_MAX_WIDTH,
+				      q_data->fmt->h_align,
+				      &q_data->h_adjusted,
+				      q_data->h_adjusted, /* adjust upwards */
+				      MXC_JPEG_MAX_HEIGHT,
+				      q_data->fmt->v_align,
+				      0);
+	} else {
+		/*
+		 * align down the resolution for CAST IP,
+		 * but leave the buffer resolution unchanged
+		 */
+		v4l_bound_align_image(&q_data->w_adjusted,
+				      MXC_JPEG_MIN_WIDTH,
+				      q_data->w_adjusted, /* adjust downwards*/
+				      q_data->fmt->h_align,
+				      &q_data->h_adjusted,
+				      MXC_JPEG_MIN_HEIGHT,
+				      q_data->h_adjusted, /* adjust downwards*/
+				      q_data->fmt->v_align,
+				      0);
+		if (q_data->fmt->flags == MXC_JPEG_FMT_TYPE_RAW)
+			mxc_jpeg_setup_cfg_stream(cfg_stream_vaddr,
+						  q_data->fmt->fourcc,
+						  q_data->w_adjusted,
+						  q_data->h_adjusted);
+	}
+
 	for (i = 0; i < pix_mp->num_planes; i++) {
 		q_data->bytesperline[i] = pix_mp->plane_fmt[i].bytesperline;
 		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
 	}
 
-	if (q_data->fmt->flags == MXC_JPEG_FMT_TYPE_RAW) {
-		mxc_jpeg_setup_cfg_stream(cfg_stream_vaddr, q_data->fmt->fourcc,
-					  q_data->w, q_data->h);
-	}
 	return 0;
 }
 static int mxc_jpeg_s_fmt_vid_cap(struct file *file, void *priv,
