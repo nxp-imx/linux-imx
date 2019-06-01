@@ -410,6 +410,7 @@ static void emvsim_receive_atr_set(struct emvsim_t *emvsim)
 	__raw_writel(ATR_MAX_CWT, emvsim->ioaddr + EMV_SIM_CWT_VAL);
 
 	reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_CTRL);
+	reg_data |= ICM;
 	reg_data |= CWT_EN;
 	__raw_writel(reg_data, emvsim->ioaddr + EMV_SIM_CTRL);
 
