@@ -91,6 +91,8 @@
 #define	EMV_RESET_LOW_CYCLES		40000
 #define	ATR_MAX_DELAY_CLK		46400
 #define	DIVISOR_VALUE			372
+#define	CWT_ADJUSTMENT			2
+#define	BGT_BWT_ADJUSTMENT		2
 
 #define	SIM_CNTL_GPCNT0_CLK_SEL_MASK	(3 << 10)
 #define	SIM_CNTL_GPCNT0_CLK_SEL(x)	((x & 3) << 10)
@@ -412,7 +414,7 @@ static void emvsim_receive_atr_set(struct emvsim_t *emvsim)
 	emvsim_set_rx(emvsim, 1);
 
 	/*Set the cwt timer.Refer the setting of ATR on EMV4.3 book*/
-	__raw_writel(ATR_MAX_CWT, emvsim->ioaddr + EMV_SIM_CWT_VAL);
+	__raw_writel(ATR_MAX_CWT + CWT_ADJUSTMENT, emvsim->ioaddr + EMV_SIM_CWT_VAL);
 
 	reg_data = __raw_readl(emvsim->ioaddr + EMV_SIM_CTRL);
 	reg_data |= ICM;
@@ -1002,15 +1004,15 @@ static void emvsim_set_timer_counter(struct emvsim_t *emvsim)
 	}
 
 	if (emvsim->timing_data.bgt != 0)
-		__raw_writel(emvsim->timing_data.bgt,
+		__raw_writel(emvsim->timing_data.bgt - BGT_BWT_ADJUSTMENT,
 			     emvsim->ioaddr + EMV_SIM_BGT_VAL);
 
 	if (emvsim->timing_data.cwt != 0)
-		__raw_writel(emvsim->timing_data.cwt,
+		__raw_writel(emvsim->timing_data.cwt + CWT_ADJUSTMENT,
 			     emvsim->ioaddr + EMV_SIM_CWT_VAL);
 
 	if (emvsim->timing_data.bwt != 0)
-		__raw_writel(emvsim->timing_data.bwt,
+		__raw_writel(emvsim->timing_data.bwt + BGT_BWT_ADJUSTMENT,
 			     emvsim->ioaddr + EMV_SIM_BWT_VAL);
 
 	/* receiver: 12 etu and 11 etu, T0: 12ETU; T1: 11ETU */
