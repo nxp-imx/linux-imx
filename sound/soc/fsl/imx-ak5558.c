@@ -31,6 +31,10 @@ struct imx_ak5558_data {
 	unsigned long slots;
 	unsigned long slot_width;
 	bool one2one_ratio;
+	struct platform_device *asrc_pdev;
+	struct snd_soc_dai_link dai[3];
+	u32 asrc_rate;
+	u32 asrc_format;
 };
 
 /*
@@ -267,20 +271,48 @@ static struct snd_soc_ops imx_aif_ops = {
 	.startup = imx_aif_startup,
 };
 
-static struct snd_soc_dai_link imx_ak5558_dai = {
-	.name = "ak5558",
-	.stream_name = "Audio",
-	.codec_dai_name = "ak5558-aif",
-	.ops = &imx_aif_ops,
-	.capture_only = 1,
+static const struct snd_soc_dapm_route audio_map[] = {
+	{"Playback",  NULL, "CPU-Playback"},
+	{"CPU-Capture",  NULL, "Capture"},
+	{"CPU-Playback",  NULL, "ASRC-Playback"},
+	{"ASRC-Capture",  NULL, "CPU-Capture"},
 };
+
+static struct snd_soc_ops imx_aif_ops_be = {
+	.hw_params = imx_aif_hw_params,
+};
+
+static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+			      struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_card *card = rtd->card;
+	struct imx_ak5558_data *priv = snd_soc_card_get_drvdata(card);
+	struct snd_interval *rate;
+	struct snd_mask *mask;
+
+	if (!priv->asrc_pdev)
+		return -EINVAL;
+
+	rate = hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
+	rate->max = priv->asrc_rate;
+	rate->min = priv->asrc_rate;
+
+	mask = hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT);
+	snd_mask_none(mask);
+	snd_mask_set(mask, priv->asrc_format);
+
+	return 0;
+}
 
 static int imx_ak5558_probe(struct platform_device *pdev)
 {
 	struct imx_ak5558_data *priv;
 	struct device_node *cpu_np, *codec_np = NULL;
 	struct platform_device *cpu_pdev;
+	struct device_node *asrc_np = NULL;
+	struct platform_device *asrc_pdev = NULL;
 	int ret;
+	u32 width;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -307,16 +339,76 @@ static int imx_ak5558_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	asrc_np = of_parse_phandle(pdev->dev.of_node, "asrc-controller", 0);
+	if (asrc_np) {
+		asrc_pdev = of_find_device_by_node(asrc_np);
+		priv->asrc_pdev = asrc_pdev;
+	}
+
 	if (of_find_property(pdev->dev.of_node, "fsl,tdm", NULL))
 		priv->tdm_mode = true;
 
-	imx_ak5558_dai.codec_of_node = codec_np;
-	imx_ak5558_dai.cpu_dai_name = dev_name(&cpu_pdev->dev);
-	imx_ak5558_dai.platform_of_node = cpu_np;
-	imx_ak5558_dai.capture_only = 1;
-
-	priv->card.dai_link = &imx_ak5558_dai;
+	priv->dai[0].name = "ak5558",
+	priv->dai[0].stream_name = "Audio",
+	priv->dai[0].codec_dai_name = "ak5558-aif",
+	priv->dai[0].ops = &imx_aif_ops,
+	priv->dai[0].codec_of_node = codec_np;
+	priv->dai[0].cpu_dai_name = dev_name(&cpu_pdev->dev);
+	priv->dai[0].platform_of_node = cpu_np;
+	priv->dai[0].capture_only = 1;
+	priv->card.dai_link = &priv->dai[0];
 	priv->card.num_links = 1;
+	priv->card.dapm_routes = audio_map;
+	priv->card.num_dapm_routes = 2;
+
+	/*if there is no asrc controller, we only enable one device*/
+	if (asrc_pdev) {
+		priv->dai[1].name = "HiFi-ASRC-FE";
+		priv->dai[1].stream_name = "HiFi-ASRC-FE";
+		priv->dai[1].codec_dai_name = "snd-soc-dummy-dai";
+		priv->dai[1].codec_name = "snd-soc-dummy";
+		priv->dai[1].cpu_of_node    = asrc_np;
+		priv->dai[1].platform_of_node   = asrc_np;
+		priv->dai[1].dynamic   = 1;
+		priv->dai[1].dpcm_playback  = 0;
+		priv->dai[1].dpcm_capture   = 1;
+
+		priv->dai[2].name = "HiFi-ASRC-BE";
+		priv->dai[2].stream_name = "HiFi-ASRC-BE";
+		priv->dai[2].codec_dai_name  = "ak5558-aif";
+		priv->dai[2].codec_of_node   = codec_np;
+		priv->dai[2].cpu_of_node     = cpu_np;
+		priv->dai[2].platform_name   = "snd-soc-dummy";
+		priv->dai[2].no_pcm          = 1;
+		priv->dai[2].dpcm_playback  = 0;
+		priv->dai[2].dpcm_capture   = 1;
+		priv->dai[2].ops = &imx_aif_ops_be,
+		priv->dai[2].be_hw_params_fixup = be_hw_params_fixup,
+		priv->card.num_links = 3;
+		priv->card.dai_link = &priv->dai[0];
+		priv->card.num_dapm_routes += 2;
+
+		ret = of_property_read_u32(asrc_np, "fsl,asrc-rate",
+					   &priv->asrc_rate);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to get output rate\n");
+			ret = -EINVAL;
+			goto fail;
+		}
+
+		ret = of_property_read_u32(asrc_np, "fsl,asrc-width", &width);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to get output rate\n");
+			ret = -EINVAL;
+			goto fail;
+		}
+
+		if (width == 24)
+			priv->asrc_format = SNDRV_PCM_FORMAT_S24_LE;
+		else
+			priv->asrc_format = SNDRV_PCM_FORMAT_S16_LE;
+	}
+
 	priv->card.dev = &pdev->dev;
 	priv->card.owner = THIS_MODULE;
 	priv->card.dapm_widgets = imx_ak5558_dapm_widgets;
