@@ -1293,9 +1293,10 @@ static int v4l2_ioctl_qbuf(struct file *file,
 		p_data_req->data_offset[0] = buf->m.planes[0].data_offset;
 		p_data_req->data_offset[1] = buf->m.planes[1].data_offset;
 		up(&q_data->drv_q_lock);
-	}
-	else
+	} else {
+		vpu_dbg(LVL_ERR, "qbuf invalid buf type : %d\n", buf->type);
 		return -EINVAL;
+	}
 
 	ret = vpu_dec_queue_qbuf(q_data, buf);
 	if (ret) {
@@ -1558,12 +1559,11 @@ static int v4l2_ioctl_streamon(struct file *file,
 	if (ret)
 		return ret;
 
+	down(&q_data->drv_q_lock);
 	q_data->enable = true;
-	if (!V4L2_TYPE_IS_OUTPUT(i)) {
-		down(&q_data->drv_q_lock);
+	if (!V4L2_TYPE_IS_OUTPUT(i))
 		respond_req_frame(ctx, q_data, false);
-		up(&q_data->drv_q_lock);
-	}
+	up(&q_data->drv_q_lock);
 
 	return ret;
 }
@@ -1590,7 +1590,9 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	vpu_dbg(LVL_BIT_FLOW, "%s off\n",
 		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
+	down(&q_data->drv_q_lock);
 	q_data->enable = false;
+	up(&q_data->drv_q_lock);
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		mutex_lock(&ctx->dev->fw_flow_mutex);
 		send_abort_cmd(ctx);
@@ -3230,7 +3232,7 @@ static bool alloc_frame_buffer(struct vpu_ctx *ctx,
 	dma_addr_t LumaAddr = 0;
 	dma_addr_t ChromaAddr = 0;
 
-	if (!ctx || !queue->enable)
+	if (!ctx || !queue->enable || ctx->b_firstseq)
 		return false;
 
 	p_data_req = get_frame_buffer(queue);
@@ -3447,6 +3449,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
+			down(&ctx->q_data[V4L2_DST].drv_q_lock);
+			ctx->q_data[V4L2_DST].enable = false;
+			up(&ctx->q_data[V4L2_DST].drv_q_lock);
+			ctx->wait_res_change_done = true;
 			send_source_change_event(ctx);
 			pStreamPitchInfo->uFramePitch = 0x4000;
 			ctx->b_firstseq = false;
