@@ -15,7 +15,11 @@
 #include "fsl-imx8mn-ddr4-evk.dts"
 
 / {
+	sound-wm8524 {
+		asrc-controller = <0>;
+	};
 	sound-ak5558 {
+		asrc-controller = <&easrc>;
 		status = "okay";
 	};
 	sound-micfil {
