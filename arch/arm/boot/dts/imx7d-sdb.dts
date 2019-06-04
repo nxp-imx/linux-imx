@@ -754,6 +754,7 @@
 	assigned-clocks = <&clks IMX7D_USDHC3_ROOT_CLK>;
 	assigned-clock-rates = <400000000>;
 	bus-width = <8>;
+	auto-cmd23-broken;
 	non-removable;
 	status = "okay";
 };

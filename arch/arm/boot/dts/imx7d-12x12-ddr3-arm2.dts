@@ -539,6 +539,7 @@
 	assigned-clocks = <&clks IMX7D_USDHC2_ROOT_CLK>;
 	assigned-clocks-rates = <400000000>;
 	bus-width = <8>;
+	auto-cmd23-broken;
 	tuning-step = <2>;
 	non-removable;
 	keep-power-in-suspend;
