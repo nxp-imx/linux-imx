@@ -43,6 +43,14 @@ Optional properties:
   Only eMMC HS400 mode need to take care of this property.
 - wifi-host : assigned as a wifi host.
   This is required for Broadcom BCM WiFi cards to do card detect
+- auto-cmd23-broken: disable the ACMD23 function of USDHC.
+  This is required for eMMC on imx6qpdl/imx6sx/imx7d when it use ADMA mode. Because
+  for these SoC, it do not support the ACMD23 completely, only take the 16 bit block
+  count from the 0x4 register (BLK_ATT) as argument for the ACMD23, the upper 16 bit
+  of the CMD23's argument is ignored. This will impact the reliable write operation 
+  and the RPMB block write operation, because these operations need to set the bit 31
+  of the CMD23's argument. SDMA mode will default disable the ACMD23 mode. SD card do
+  not has this limitation on these SoCs.
 
 Examples:
 
