@@ -430,9 +430,6 @@ static int32_t emvsim_check_rec_data(u32 *reg_data)
 {
 	s32 err = 0;
 
-	if (*reg_data & CWT_ERR)
-		err |= SIM_ERROR_CWT;
-
 	if (*reg_data & FEF)
 		err |= SIM_ERROR_FRAME;
 
@@ -570,7 +567,7 @@ static irqreturn_t emvsim_irq_handler(int irq, void *dev_id)
 
 	/* clear TX/RX interrupt status, W1C*/
 	tx_status  = __raw_readl(emvsim->ioaddr + EMV_SIM_TX_STATUS);
-	rx_status  = __raw_readl(emvsim->ioaddr + EMV_SIM_RX_STATUS);
+	rx_status  = __raw_readl(emvsim->ioaddr + EMV_SIM_RX_STATUS) & ~(PEF | FEF);
 	__raw_writel(tx_status, emvsim->ioaddr + EMV_SIM_TX_STATUS);
 	__raw_writel(rx_status, emvsim->ioaddr + EMV_SIM_RX_STATUS);
 
