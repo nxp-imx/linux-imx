@@ -236,7 +236,7 @@
 			dmas = <&sdma2 8 2 0>, <&sdma2 9 2 0>;
 			dma-names = "rx", "tx";
 			fsl,shared-interrupt;
-			fsl,dataline = <0xf 0xf>;
+			fsl,dataline = <0 0xf 0xf>;
 			status = "disabled";
 		};
 
