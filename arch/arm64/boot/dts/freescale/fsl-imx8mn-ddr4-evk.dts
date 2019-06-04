@@ -17,8 +17,8 @@
 #include "fsl-imx8mn.dtsi"
 
 / {
-	model = "NXP i.MX8MNano EVK board";
-	compatible = "fsl,imx8mn-evk", "fsl,imx8mn";
+	model = "NXP i.MX8MNano DDR4 EVK board";
+	compatible = "fsl,imx8mn-ddr4-evk", "fsl,imx8mn";
 
 	chosen {
 		bootargs = "console=ttymxc1,115200 earlycon=ec_imx6q,0x30890000,115200";
