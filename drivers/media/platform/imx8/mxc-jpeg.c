@@ -1518,6 +1518,7 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
 		}
 	}
+	pix_mp->colorspace = V4L2_COLORSPACE_REC709;
 
 	return 0;
 }
