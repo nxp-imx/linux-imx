@@ -2661,8 +2661,6 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 	if (ret)
 		return ret;
 
-	memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
-
 	return 0;
 }
 
@@ -3342,6 +3340,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
+		memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
@@ -4763,8 +4762,6 @@ static bool vpu_dec_is_active(struct vpu_ctx *ctx)
 {
 	if (!ctx)
 		return false;
-	if (ctx->firmware_stopped)
-		return false;
 	if (ctx->start_flag)
 		return false;
 
@@ -4829,7 +4826,7 @@ static int v4l2_open(struct file *filp)
 	ctx->start_flag = true;
 	ctx->wait_rst_done = false;
 	ctx->wait_res_change_done = false;
-	ctx->firmware_stopped = false;
+	ctx->firmware_stopped = true;
 	ctx->firmware_finished = false;
 	ctx->eos_stop_received = false;
 	ctx->eos_stop_added = false;
