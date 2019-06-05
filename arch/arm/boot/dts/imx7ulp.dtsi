@@ -24,6 +24,8 @@
 					compatible = "android,system";
 					/* sd card node which used if androidboot.storage_type=sd */
 					dev_sd = "/dev/block/platform/40000000.ahb-bridge0/40370000.usdhc/by-name/system";
+					/* default sd card node used for GSI */
+					dev = "/dev/block/platform/40000000.ahb-bridge0/40370000.usdhc/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,avb";
@@ -32,6 +34,8 @@
 					compatible = "android,vendor";
 					/* sd card node which used if androidboot.storage_type=sd */
 					dev_sd = "/dev/block/platform/40000000.ahb-bridge0/40370000.usdhc/by-name/vendor";
+					/* default sd card node used for GSI */
+					dev = "/dev/block/platform/40000000.ahb-bridge0/40370000.usdhc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,avb";

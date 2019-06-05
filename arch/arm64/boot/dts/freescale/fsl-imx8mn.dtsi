@@ -32,6 +32,8 @@
 					dev_sd = "/dev/block/platform/30b50000.mmc/by-name/vendor";
 					/* emmc node which used if androidboot.storage_type=emmc */
 					dev_emmc = "/dev/block/platform/30b60000.mmc/by-name/vendor";
+					/* default emmc node used for GSI */
+					dev = "/dev/block/platform/30b60000.mmc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb";
