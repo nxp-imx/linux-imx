@@ -587,6 +587,9 @@ static void __init imx8mn_clocks_init(struct device_node *ccm_node)
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
 
+	if(imx_src_is_m4_enabled())
+		clk_prepare_enable(clks[IMX8MN_CLK_QSPI_ROOT]);
+
 	clk_set_parent(clks[IMX8MN_CLK_AUDIO_AHB], clks[IMX8MN_SYS_PLL1_800M]);
 	clk_set_rate(clks[IMX8MN_CLK_AUDIO_AHB], 400000000);
 	clk_set_rate(clks[IMX8MN_CLK_IPG_AUDIO_ROOT], 400000000);
