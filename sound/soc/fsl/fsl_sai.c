@@ -1000,6 +1000,71 @@ static const struct snd_soc_dai_ops fsl_sai_pcm_dai_ops = {
 	.shutdown	= fsl_sai_shutdown,
 };
 
+static const char
+	*en_sl[] = { "Disabled", "Enabled", },
+	*inc_sl[] = { "On enabled and bitcount increment", "On enabled", };
+
+static const struct soc_enum tstmp_enum[] = {
+SOC_ENUM_SINGLE(FSL_SAI_TTCTL, 0, ARRAY_SIZE(en_sl), en_sl),
+SOC_ENUM_SINGLE(FSL_SAI_RTCTL, 0, ARRAY_SIZE(en_sl), en_sl),
+SOC_ENUM_SINGLE(FSL_SAI_TTCTL, 1, ARRAY_SIZE(inc_sl), inc_sl),
+SOC_ENUM_SINGLE(FSL_SAI_RTCTL, 1, ARRAY_SIZE(inc_sl), inc_sl),
+};
+
+int fsl_sai_get_reg(struct snd_kcontrol *kcontrol,
+		    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct soc_mreg_control *mc =
+		(struct soc_mreg_control *)kcontrol->private_value;
+	unsigned int regval;
+	int ret;
+
+	ret = snd_soc_component_read(component, mc->regbase, &regval);
+	if (ret < 0)
+		return ret;
+
+	ucontrol->value.integer.value[0] = regval;
+
+	return 0;
+}
+
+#define SOC_SINGLE_REG_RO(xname, xreg) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_PCM, .name = (xname), \
+	.access = SNDRV_CTL_ELEM_ACCESS_READ | \
+		  SNDRV_CTL_ELEM_ACCESS_VOLATILE, \
+	.info = snd_soc_info_xr_sx, .get = fsl_sai_get_reg, \
+	.private_value = (unsigned long)&(struct soc_mreg_control) \
+		{ .regbase = xreg, .regcount = 1, .nbits = 32, \
+		  .invert = 0, .min = 0, .max = 0xffffffff, } }
+
+static const struct snd_kcontrol_new fsl_sai_ctrls[] = {
+	SOC_ENUM("Playback Timestamp Control", tstmp_enum[0]),
+	SOC_ENUM("Capture Timestamp Control", tstmp_enum[1]),
+	SOC_ENUM("Playback Timestamp Increment", tstmp_enum[2]),
+	SOC_ENUM("Capture Timestamp Increment", tstmp_enum[3]),
+	SOC_SINGLE("Playback Timestamp Reset", FSL_SAI_TTCTL, 8, 1, 0),
+	SOC_SINGLE("Capture Timestamp Reset", FSL_SAI_RTCTL, 8, 1, 0),
+	SOC_SINGLE("Playback Bit Counter Reset", FSL_SAI_TTCTL, 9, 1, 0),
+	SOC_SINGLE("Capture Bit Counter Reset", FSL_SAI_RTCTL, 9, 1, 0),
+	SOC_SINGLE_REG_RO("Playback Timestamp Counter", FSL_SAI_TTCTN),
+	SOC_SINGLE_REG_RO("Capture Timestamp Counter", FSL_SAI_RTCTN),
+	SOC_SINGLE_REG_RO("Playback Bit Counter", FSL_SAI_TBCTN),
+	SOC_SINGLE_REG_RO("Capture Bit Counter", FSL_SAI_RBCTN),
+	SOC_SINGLE_REG_RO("Playback Latched Timestamp Counter", FSL_SAI_TTCAP),
+	SOC_SINGLE_REG_RO("Capture Latched Timestamp Counter", FSL_SAI_RTCAP),
+};
+
+static int fsl_sai_component_probe(struct snd_soc_component *comp)
+{
+	struct fsl_sai *sai = dev_get_drvdata(comp->dev);
+
+	if (sai->verid.timestamp_en)
+		snd_soc_add_component_controls(comp, fsl_sai_ctrls,
+					       ARRAY_SIZE(fsl_sai_ctrls));
+	return 0;
+}
+
 static int fsl_sai_dai_probe(struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_sai *sai = dev_get_drvdata(cpu_dai->dev);
@@ -1062,7 +1127,8 @@ static struct snd_soc_dai_driver fsl_sai_dai = {
 };
 
 static const struct snd_soc_component_driver fsl_component = {
-	.name           = "fsl-sai",
+	.name	= "fsl-sai",
+	.probe	= fsl_sai_component_probe,
 };
 
 static struct reg_default fsl_sai_v2_reg_defaults[] = {
@@ -1149,6 +1215,14 @@ static bool fsl_sai_readable_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_MDIV:
 	case FSL_SAI_VERID:
 	case FSL_SAI_PARAM:
+	case FSL_SAI_TTCTN:
+	case FSL_SAI_RTCTN:
+	case FSL_SAI_TTCTL:
+	case FSL_SAI_TBCTN:
+	case FSL_SAI_TTCAP:
+	case FSL_SAI_RTCTL:
+	case FSL_SAI_RBCTN:
+	case FSL_SAI_RTCAP:
 		return true;
 	default:
 		return false;
@@ -1192,6 +1266,14 @@ static bool fsl_sai_volatile_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_RDR5:
 	case FSL_SAI_RDR6:
 	case FSL_SAI_RDR7:
+	case FSL_SAI_TTCTL:
+	case FSL_SAI_RTCTL:
+	case FSL_SAI_TTCTN:
+	case FSL_SAI_RTCTN:
+	case FSL_SAI_TBCTN:
+	case FSL_SAI_RBCTN:
+	case FSL_SAI_TTCAP:
+	case FSL_SAI_RTCAP:
 		return true;
 	default:
 		return false;
@@ -1222,6 +1304,8 @@ static bool fsl_sai_writeable_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_RMR:
 	case FSL_SAI_MCTL:
 	case FSL_SAI_MDIV:
+	case FSL_SAI_TTCTL:
+	case FSL_SAI_RTCTL:
 		return true;
 	default:
 		return false;
