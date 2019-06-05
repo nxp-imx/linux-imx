@@ -9951,7 +9951,7 @@ gckHARDWARE_SetPowerState(
 
             if (status != gcvSTATUS_TIMEOUT)
             {
-                gcmkPRINT("%s: global state error", __FUNCTION__);
+                gcmkONERROR(status);
             }
 
             /* Switched to global ON, now release the global semaphore. */
