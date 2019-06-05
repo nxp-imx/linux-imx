@@ -1107,6 +1107,42 @@
 		reg = <0x0 0x32e28000 0x0 0x8000>;
 	};
 
+	dispmix-reset {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		dispmix_sft_rstn: dispmix-sft-rstn@32e28000 {
+			compatible = "fsl,imx8mn-dispmix-sft-rstn";
+			reg = <0x0 0x32e28000 0x0 0x4>;
+			clocks = <&clk IMX8MN_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			active_low;
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+
+		dispmix_clk_en: dispmix-clk-en@32e28004 {
+			compatible = "fsl,imx8mn-dispmix-clk-en";
+			reg = <0x0 0x32e28004 0x0 0x4>;
+			clocks = <&clk IMX8MN_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+
+		dispmix_mipi_rst: dispmix-mipi-rst@32e28008 {
+			compatible = "fsl,imx8mn-dispmix-mipi-rst";
+			reg = <0x0 0x32e28008 0x0 0x4>;
+			clocks = <&clk IMX8MN_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			active_low;
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+	};
+
 	usbotg1: usb@32e40000 {
 		compatible = "fsl,imx8mm-usb", "fsl,imx7d-usb", "fsl,imx27-usb";
 		reg = <0x0 0x32e40000 0x0 0x200>;
