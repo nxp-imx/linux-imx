@@ -168,6 +168,52 @@
 		};
 	};
 
+	power-domains {
+		compatible = "simple-bus";
+
+		/* HSIOMIX */
+		hsio_pd: power-domain@0 {
+			compatible = "fsl,imx8mn-pm-domain";
+			domain-id = <0>;
+			#power-domain-cells = <0>;
+			domain-name = "HSIO_PD";
+			clocks = <&clk IMX8MN_CLK_USB1_CTRL_ROOT>;
+
+			usb_otg1_pd: power-domain@2{
+				#power-domain-cells = <0>;
+				domain-id = <2>;
+				domain-name = "USB_OTG1_PD";
+			};
+		};
+
+		/* GPU2D&3D */
+		gpumix_pd: power-domain@4 {
+			compatible = "fsl,imx8mn-pm-domain";
+			domain-id = <4>;
+			#power-domain-cells = <0>;
+			domain-name = "GPUMIX_PD";
+			clocks = <&clk IMX8MN_CLK_GPU_CORE_ROOT>,
+				 <&clk IMX8MN_CLK_GPU_SHADER_DIV>,
+				 <&clk IMX8MN_CLK_GPU_BUS_ROOT>,
+				 <&clk IMX8MN_CLK_GPU_AHB>;
+		};
+
+		dispmix_pd: power-domain@9 {
+			compatible = "fsl,imx8mn-pm-domain";
+			domain-id = <9>;
+			#power-domain-cells = <0>;
+			domain-name = "DISPMIX_PD";
+			clocks = <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
+				 <&clk IMX8MN_CLK_DISP_APB_ROOT>;
+
+			mipi_pd: power-domain@10 {
+				domain-id = <10>;
+				#power-domain-cells = <0>;
+				domain-name = "MIPI_PD";
+			};
+		};
+	};
+
 	spba-bus@30000000 {
 		compatible = "fsl,spba-bus", "simple-bus";
 		#address-cells = <2>;
@@ -845,6 +891,7 @@
 		assigned-clock-rate = <594000000>, <500000000>, <200000000>;
 		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
 		lcdif-gpr = <&dispmix_gpr>;
+		power-domains = <&dispmix_pd>;
 		status = "disabled";
 
 		lcdif_disp0: port@0 {
@@ -871,6 +918,7 @@
 		assigned-clock-rates = <266000000>, <594000000>;
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		dsi-gpr = <&dispmix_gpr>;
+		power-domains = <&mipi_pd>;
 		status = "disabled";
 
 		port@0 {
@@ -895,21 +943,25 @@
 		isi_0: isi@0x32e20000 {
 			compatible = "fsl,imx8-isi";
 			reg = <0x0 0x32e20000 0x0 0x2000>;
+			power-domains = <&dispmix_pd>;
 		};
 
 		isi_1: isi@0x32e22000 {
 			compatible = "fsl,imx8-isi";
 			reg = <0x0 0x32e22000 0x0 0x2000>;
+			power-domains = <&dispmix_pd>;
 		};
 
 		isi_2: isi@0x32e24000 {
 			compatible = "fsl,imx8-isi";
 			reg = <0x0 0x32e24000 0x0 0x2000>;
+			power-domains = <&dispmix_pd>;
 		};
 
 		isi_3: isi@0x32e26000 {
 			compatible = "fsl,imx8-isi";
 			reg = <0x0 0x32e26000 0x0 0x2000>;
+			power-domains = <&dispmix_pd>;
 		};
 	};
 
@@ -930,6 +982,7 @@
 		clock-names = "mipi_clk", "phy_clk", "disp_axi", "disp_apb";
 		bus-width = <4>;
 		csi-gpr = <&dispmix_gpr>;
+		power-domains = <&mipi_pd>;
 		status = "disabled";
 	};
 
@@ -945,6 +998,7 @@
 					 <&clk IMX8MN_SYS_PLL1_100M>;
 		fsl,usbphy = <&usbphynop1>;
 		fsl,usbmisc = <&usbmisc1 0>;
+		power-domains = <&usb_otg1_pd>;
 		status = "disabled";
 	};
 
@@ -1016,6 +1070,7 @@
 		assigned-clock-rates = <0>, <0>, <800000000>, <400000000>, <1000000000>,
 					<500000000>, <500000000>;
 		depth-compression = <0>;
+		power-domains = <&gpumix_pd>;
 		status = "disabled";
 	};
 
