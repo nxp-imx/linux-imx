@@ -1115,6 +1115,22 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		q_data_cap->w = q_data_out->w;
 		q_data_cap->h = q_data_out->h;
 		q_data_cap->fmt = mxc_jpeg_find_format(ctx, fourcc);
+		q_data_cap->w_adjusted = q_data_cap->w;
+		q_data_cap->h_adjusted = q_data_cap->h;
+		/*
+		 * align up the resolution for CAST IP,
+		 * but leave the buffer resolution unchanged
+		 * TODO check if jpeg_parse may be called later
+		 */
+		v4l_bound_align_image(&q_data_cap->w_adjusted,
+				      q_data_cap->w_adjusted,  /* adjust up */
+				      MXC_JPEG_MAX_WIDTH,
+				      q_data_cap->fmt->h_align,
+				      &q_data_cap->h_adjusted,
+				      q_data_cap->h_adjusted, /* adjust up */
+				      MXC_JPEG_MAX_HEIGHT,
+				      q_data_cap->fmt->v_align,
+				      0);
 	}
 	if (fourcc != q_data_cap->fmt->fourcc) {
 		char *jpeg_format_name = fourcc_to_str(fourcc);
