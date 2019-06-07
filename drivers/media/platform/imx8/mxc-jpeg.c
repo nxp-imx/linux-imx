@@ -110,6 +110,9 @@ static const unsigned char jpeg_soi[] = {0xFF, 0xD8};
 static const unsigned char jpeg_app0[] = {0xFF, 0xE0, 0x00, 0x10, 0x4A,
 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
 0x00, 0x01, 0x00, 0x01, 0x00, 0x00};
+static const unsigned char jpeg_app14[] = {
+0xFF, 0xEE, 0x00, 0x0E, 0x41, 0x64, 0x6F, 0x62,
+0x65, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const unsigned char jpeg_dqt[] = {0xFF, 0xDB,
 0x00, 0x84, 0x00, 0x10, 0x0B, 0x0C,
 0x0E, 0x0C, 0x0A, 0x10, 0x0E, 0x0D, 0x0E,
@@ -623,8 +626,14 @@ static void mxc_jpeg_setup_cfg_stream(void *cfg_stream_vaddr,
 	memcpy(cfg + offset, jpeg_soi, ARRAY_SIZE(jpeg_soi));
 	offset += ARRAY_SIZE(jpeg_soi);
 
-	memcpy(cfg + offset, jpeg_app0, sizeof(jpeg_app0));
-	offset += sizeof(jpeg_app0);
+	if (fourcc == V4L2_PIX_FMT_RGB24 ||
+	    fourcc == V4L2_PIX_FMT_ARGB32) {
+		memcpy(cfg + offset, jpeg_app14, sizeof(jpeg_app14));
+		offset += sizeof(jpeg_app14);
+	} else {
+		memcpy(cfg + offset, jpeg_app0, sizeof(jpeg_app0));
+		offset += sizeof(jpeg_app0);
+	}
 
 	memcpy(cfg + offset, jpeg_dqt, sizeof(jpeg_dqt));
 	offset += sizeof(jpeg_dqt);
