@@ -13,8 +13,11 @@
 #ifndef _FSL_ASRC_H
 #define _FSL_ASRC_H
 
+#include <sound/asound.h>
 #include <uapi/linux/mxc_asrc.h>
 #include <linux/miscdevice.h>
+
+#define ASRC_PAIR_MAX_NUM	(ASRC_PAIR_C + 1)
 
 #define IN	0
 #define OUT	1
@@ -292,6 +295,11 @@
 
 #define ASRC_CLK_MAX_NUM	16
 
+enum asrc_word_width {
+	ASRC_WIDTH_24_BIT = 0,
+	ASRC_WIDTH_16_BIT = 1,
+	ASRC_WIDTH_8_BIT  = 2,
+};
 
 struct dma_block {
 	void *dma_vaddr;

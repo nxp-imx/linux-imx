@@ -34,9 +34,8 @@ enum asrc_pair_index {
 	ASRC_PAIR_A = 0,
 	ASRC_PAIR_B = 1,
 	ASRC_PAIR_C = 2,
+	ASRC_PAIR_D = 3,
 };
-
-#define ASRC_PAIR_MAX_NUM	(ASRC_PAIR_C + 1)
 
 enum asrc_inclk {
 	INCLK_NONE = 0x03,
@@ -117,21 +116,14 @@ enum asrc_outclk {
 	OUTCLK_HDMI_TX_SAI0_TX_BCLK     = 0x25,
 };
 
-enum asrc_word_width {
-	ASRC_WIDTH_24_BIT = 0,
-	ASRC_WIDTH_16_BIT = 1,
-	ASRC_WIDTH_8_BIT = 2,
-};
-
 struct asrc_config {
 	enum asrc_pair_index pair;
 	unsigned int channel_num;
-	unsigned int buffer_num;
 	unsigned int dma_buffer_size;
 	unsigned int input_sample_rate;
 	unsigned int output_sample_rate;
-	enum asrc_word_width input_word_width;
-	enum asrc_word_width output_word_width;
+	snd_pcm_format_t input_format;
+	snd_pcm_format_t output_format;
 	enum asrc_inclk inclk;
 	enum asrc_outclk outclk;
 };
@@ -139,6 +131,8 @@ struct asrc_config {
 struct asrc_req {
 	unsigned int chn_num;
 	enum asrc_pair_index index;
+	uint64_t supported_in_format;
+	uint64_t supported_out_format;
 };
 
 struct asrc_querybuf {

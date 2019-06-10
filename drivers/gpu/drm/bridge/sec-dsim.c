@@ -1242,8 +1242,10 @@ struct dsim_pll_pms *sec_mipi_dsim_calc_pmsk(struct sec_mipi_dsim *dsim)
 		}
 	}
 
-	if (best_delta == ~0U)
+	if (best_delta == ~0U) {
+		devm_kfree(dev, pll_pms);
 		return ERR_PTR(-EINVAL);
+	}
 
 	pll_pms->p = best_p;
 	pll_pms->m = best_m;
@@ -1294,6 +1296,11 @@ int sec_mipi_dsim_check_pll_out(void *driver_private,
 	dsim->pms = PLLCTRL_SET_P(pmsk->p) |
 		    PLLCTRL_SET_M(pmsk->m) |
 		    PLLCTRL_SET_S(pmsk->s);
+
+	/* free 'dsim_pll_pms' structure data which is
+	 * allocated in 'sec_mipi_dsim_calc_pmsk()'.
+	 */
+	devm_kfree(dsim->dev, (void *)pmsk);
 
 	if (dsim->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
 		hpar = sec_mipi_dsim_get_hblank_par(mode->name,

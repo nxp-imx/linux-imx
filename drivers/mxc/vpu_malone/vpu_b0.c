@@ -1293,9 +1293,10 @@ static int v4l2_ioctl_qbuf(struct file *file,
 		p_data_req->data_offset[0] = buf->m.planes[0].data_offset;
 		p_data_req->data_offset[1] = buf->m.planes[1].data_offset;
 		up(&q_data->drv_q_lock);
-	}
-	else
+	} else {
+		vpu_dbg(LVL_ERR, "qbuf invalid buf type : %d\n", buf->type);
 		return -EINVAL;
+	}
 
 	ret = vpu_dec_queue_qbuf(q_data, buf);
 	if (ret) {
@@ -1558,12 +1559,11 @@ static int v4l2_ioctl_streamon(struct file *file,
 	if (ret)
 		return ret;
 
+	down(&q_data->drv_q_lock);
 	q_data->enable = true;
-	if (!V4L2_TYPE_IS_OUTPUT(i)) {
-		down(&q_data->drv_q_lock);
+	if (!V4L2_TYPE_IS_OUTPUT(i))
 		respond_req_frame(ctx, q_data, false);
-		up(&q_data->drv_q_lock);
-	}
+	up(&q_data->drv_q_lock);
 
 	return ret;
 }
@@ -1590,7 +1590,9 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	vpu_dbg(LVL_BIT_FLOW, "%s off\n",
 		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
+	down(&q_data->drv_q_lock);
 	q_data->enable = false;
+	up(&q_data->drv_q_lock);
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		mutex_lock(&ctx->dev->fw_flow_mutex);
 		send_abort_cmd(ctx);
@@ -2082,10 +2084,7 @@ static void update_wptr(struct vpu_ctx *ctx,
 	u32 length;
 
 	size = pStrBufDesc->end - pStrBufDesc->start;
-	if (wptr == pStrBufDesc->wptr)
-		length = size;
-	else
-		length = (wptr + size - pStrBufDesc->wptr) % size;
+	length = (wptr + size - pStrBufDesc->wptr) % size;
 	ctx->total_write_bytes += length;
 
 	vpu_dbg(LVL_BIT_WPTR, "wptr : 0x%08x -> 0x%08x\n",
@@ -2175,6 +2174,7 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			last = 0xb7010000;
 			break;
 		case VPU_VIDEO_ASP:
+		case VPU_VIDEO_AVS:
 			last = 0xb1010000;
 			break;
 		case VPU_VIDEO_SPK:
@@ -2204,6 +2204,7 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			last = EOS_GENERIC_MPEG;
 			break;
 		case VPU_VIDEO_ASP:
+		case VPU_VIDEO_AVS:
 			last = 0xb1010000;
 			break;
 		case VPU_VIDEO_SPK:
@@ -2537,7 +2538,7 @@ static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t len
 	uint32_t start;
 	uint32_t end;
 
-	if (!ctx || !buffer)
+	if (!ctx || !buffer || !length)
 		return 0;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
@@ -2659,8 +2660,6 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 	ret = send_stop_cmd(ctx);
 	if (ret)
 		return ret;
-
-	memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
 
 	return 0;
 }
@@ -3106,6 +3105,27 @@ static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *
 	data_req->queued = true;
 }
 
+static u32 correct_consumed_length(struct vpu_ctx *ctx,
+				u32 consumed_pic_bytesused)
+{
+	long delta;
+	u32 circle_count;
+
+	delta = ctx->total_write_bytes - ctx->total_consumed_bytes;
+	if (delta < ctx->stream_buffer.dma_size)
+		return consumed_pic_bytesused;
+
+	circle_count = delta / ctx->stream_buffer.dma_size;
+	vpu_dbg(LVL_BIT_FRAME_BYTES,
+		"ctx[%d] cross over %d circles\n",
+		ctx->str_index, circle_count);
+
+	consumed_pic_bytesused += ctx->stream_buffer.dma_size * circle_count;
+	ctx->total_consumed_bytes += ctx->stream_buffer.dma_size * circle_count;
+
+	return consumed_pic_bytesused;
+}
+
 static u32 get_consumed_pic_bytesused(struct vpu_ctx *ctx,
 					u32 pic_start_addr,
 					u32 pic_end_addr)
@@ -3117,16 +3137,15 @@ static u32 get_consumed_pic_bytesused(struct vpu_ctx *ctx,
 				+ ctx->stream_buffer.dma_size
 				- ctx->pre_pic_end_addr;
 	consumed_pic_bytesused %= ctx->stream_buffer.dma_size;
-	pic_size = pic_end_addr
-		+ ctx->stream_buffer.dma_size
-		- pic_start_addr;
+	pic_size = pic_end_addr + ctx->stream_buffer.dma_size - pic_start_addr;
 	pic_size %= ctx->stream_buffer.dma_size;
+
+	ctx->total_consumed_bytes += consumed_pic_bytesused;
+	consumed_pic_bytesused = correct_consumed_length(ctx,
+							consumed_pic_bytesused);
 
 	vpu_dbg(LVL_BIT_PIC_ADDR, "<0x%08x 0x%08x>, %8d, %8d\n",
 		pic_start_addr, pic_end_addr, pic_size, consumed_pic_bytesused);
-	/*
-	 *WARN_ON(consumed_pic_bytesused < pic_size);
-	 */
 	if (consumed_pic_bytesused < pic_size)
 		vpu_dbg(LVL_ERR,
 			"ErrorAddr:[%d] Start(0x%x), End(0x%x), preEnd(0x%x)\n",
@@ -3135,7 +3154,6 @@ static u32 get_consumed_pic_bytesused(struct vpu_ctx *ctx,
 			pic_end_addr,
 			ctx->pre_pic_end_addr);
 
-	ctx->total_consumed_bytes += consumed_pic_bytesused;
 
 	ctx->pre_pic_end_addr = pic_end_addr;
 
@@ -3212,7 +3230,7 @@ static bool alloc_frame_buffer(struct vpu_ctx *ctx,
 	dma_addr_t LumaAddr = 0;
 	dma_addr_t ChromaAddr = 0;
 
-	if (!ctx || !queue->enable)
+	if (!ctx || !queue->enable || ctx->b_firstseq)
 		return false;
 
 	p_data_req = get_frame_buffer(queue);
@@ -3322,6 +3340,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
+		memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
@@ -3359,10 +3378,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pPicInfo[uStrIdx].uPercentInErr, pPerfInfo->uRbspBytesCount, event_data[0],
 				pQMeterInfo, pPicInfo, pDispInfo, pPerfInfo, pPerfDcpInfo, uPicStartAddr, uDpbmcCrc);
 
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
 		if (tsm_use_consumed_length)
 			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
 							uPicStartAddr,
 							uPicEndAddr);
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
 
 		buffer_id = find_buffer_id(ctx, event_data[0]);
 		if (buffer_id == -1) {
@@ -3413,6 +3434,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		}
 		else
 			vpu_dbg(LVL_INFO, "pSeqinfo is not NULL, need not to realloc\n");
+		down(&ctx->q_data[V4L2_DST].drv_q_lock);
+		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		memcpy(ctx->pSeqinfo, &pSeqInfo[ctx->str_index], sizeof(MediaIPFW_Video_SeqInfo));
 
 		caculate_frame_size(ctx);
@@ -3424,6 +3448,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
+			down(&ctx->q_data[V4L2_DST].drv_q_lock);
+			ctx->q_data[V4L2_DST].enable = false;
+			up(&ctx->q_data[V4L2_DST].drv_q_lock);
+			ctx->wait_res_change_done = true;
 			send_source_change_event(ctx);
 			pStreamPitchInfo->uFramePitch = 0x4000;
 			ctx->b_firstseq = false;
@@ -3575,7 +3603,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		down(&queue->drv_q_lock);
 		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
-		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
 		ctx->beginning = pStrBufDesc->rptr;
 		vpu_dbg(LVL_BIT_FLOW,
 			"ctx[%d] ABORT DONE, output qbuf(%ld/%ld),dqbuf(%ld)\n",
@@ -3590,6 +3617,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->total_ts_bytes,
 				ctx->total_write_bytes,
 				ctx->total_consumed_bytes);
+		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
 		ctx->total_qbuf_bytes = 0;
 		ctx->total_write_bytes = 0;
 		ctx->total_consumed_bytes = 0;
@@ -3610,6 +3638,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] RES CHANGE\n", ctx->str_index);
 		This = &ctx->q_data[V4L2_DST];
 		down(&This->drv_q_lock);
+		This->enable = false;
 		reset_mbi_dcp_count(ctx);
 		ctx->mbi_size = get_mbi_size(This);
 		reset_frame_buffer(ctx);
@@ -3618,7 +3647,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
 		ctx->wait_res_change_done = true;
-		ctx->q_data[V4L2_DST].enable = false;
 		send_source_change_event(ctx);
 		}
 		break;
@@ -4734,8 +4762,6 @@ static bool vpu_dec_is_active(struct vpu_ctx *ctx)
 {
 	if (!ctx)
 		return false;
-	if (ctx->firmware_stopped)
-		return false;
 	if (ctx->start_flag)
 		return false;
 
@@ -4800,7 +4826,7 @@ static int v4l2_open(struct file *filp)
 	ctx->start_flag = true;
 	ctx->wait_rst_done = false;
 	ctx->wait_res_change_done = false;
-	ctx->firmware_stopped = false;
+	ctx->firmware_stopped = true;
 	ctx->firmware_finished = false;
 	ctx->eos_stop_received = false;
 	ctx->eos_stop_added = false;
