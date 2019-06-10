@@ -61,7 +61,7 @@ static int vpu_frmdbg_ena = DEFAULT_FRMDBG_ENABLE;
 static int vpu_frmdbg_level = DEFAULT_FRMDBG_LEVEL;
 static int vpu_dbe_num = 1;
 static int vpu_frmcrcdump_ena;
-static int stream_buffer_threshold;
+static int stream_buffer_threshold = 0x10000;
 static int tsm_mode = MODE_AI;
 static int tsm_buffer_size = 1024;
 static int tsm_use_consumed_length = 1;
@@ -2816,10 +2816,12 @@ static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
-	if (ctx->start_code_bypass)
+	if (ctx->start_code_bypass) {
 		buffer_info->stream_input_mode = NON_FRAME_LVL;
-	else
+		buffer_info->stream_buffer_threshold = stream_buffer_threshold;
+	} else {
 		buffer_info->stream_input_mode = FRAME_LVL;
+	}
 
 	buffer_info->stream_pic_input_count = ctx->frm_total_num;
 }
@@ -2835,8 +2837,7 @@ static void set_pic_end_flag(struct vpu_ctx *ctx)
 	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
 	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
-	if (buffer_info->stream_input_mode == FRAME_LVL)
-		buffer_info->stream_pic_end_flag = 0x1;
+	buffer_info->stream_pic_end_flag = 0x1;
 }
 
 static void clear_pic_end_flag(struct vpu_ctx *ctx)
@@ -2850,8 +2851,7 @@ static void clear_pic_end_flag(struct vpu_ctx *ctx)
 	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
 	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
-	if (buffer_info->stream_input_mode == FRAME_LVL)
-		buffer_info->stream_pic_end_flag = 0x0;
+	buffer_info->stream_pic_end_flag = 0x0;
 }
 
 static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
