@@ -2756,8 +2756,8 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 		} else {
 			arv_frame = get_arv_info(ctx, input_buffer);
 			if (!arv_frame) {
-				vpu_dbg(LVL_ERR, "error: %s() get arv frame info failed\n", __func__);
-				return 0;
+				vpu_dbg(LVL_WARN, "warning: %s() get arv frame info failed\n", __func__);
+				return -1;
 			}
 			if (nfreespace < (buffer_size + header_length + arv_frame->slice_num * 16 + MIN_SPACE)) {
 				vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
@@ -2766,9 +2766,17 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 				return 0;
 			}
 
-			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
 			arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
-			copy_length += copy_buffer_to_stream(ctx, input_buffer, arv_frame->packlen);
+
+			if (arv_frame->packlen >  buffer_size - input_offset
+				|| arv_frame->data_len > buffer_size) {
+				put_arv_info(arv_frame);
+				arv_frame = NULL;
+				return -1;
+			}
+
+			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
+			copy_length += copy_buffer_to_stream(ctx, input_buffer + input_offset, arv_frame->packlen);
 			input_offset += arv_frame->packlen;
 			for (i = 0; i < arv_frame->slice_num; i++) {
 				if (i == arv_frame->slice_num - 1)
@@ -2927,10 +2935,12 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 						     input_buffer,
 						     buffer_size,
 						     uStrBufIdx);
-		if (!frame_bytes) {
+		if (frame_bytes == 0) {
 			up(&This->drv_q_lock);
 			vpu_dbg(LVL_INFO, " %s no space to write\n", __func__);
 			return;
+		} else if (frame_bytes < 0) {
+			vpu_dbg(LVL_WARN, "warning: incorrect input buffer data\n");
 		} else {
 			if (ctx->b_dis_reorder) {
 				/* frame successfully written into the stream buffer if in special low latency mode
@@ -2946,14 +2956,15 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 			ctx->frm_total_num++;
 			record_log_info(ctx, LOG_UPDATE_STREAM, 0, buffer_size);
 			fill_stream_buffer_info(ctx);
+			vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
+			This->process_count++;
 		}
 #ifdef HANDLE_EOS
 		if (buffer_size < p_data_req->vb2_buf->planes[0].length)
 			vpu_dbg(LVL_INFO, "v4l2_transfer_buffer_to_firmware - set stream_feed_complete - DEBUG 2\n");
 #endif
-		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
+
 		list_del(&p_data_req->list);
-		This->process_count++;
 		p_data_req->queued = false;
 		if (p_data_req->vb2_buf)
 			vb2_buffer_done(p_data_req->vb2_buf,
