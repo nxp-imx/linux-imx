@@ -187,6 +187,7 @@ static void release_frame_buffer(struct vpu_ctx *ctx,
 				u32 uStrIdx,
 				struct vb2_data_req *p_data_req);
 static void send_eos_event(struct vpu_ctx *ctx);
+static void release_queue_data(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -679,6 +680,14 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 		pix_mp->pixelformat = q_data->fourcc;
 	} else
 		return -EINVAL;
+	vpu_dbg(LVL_BIT_FLOW, "%s g_fmt : %c%c%c%c %d x %d\n",
+		V4L2_TYPE_IS_OUTPUT(f->type) ? "OUTPUT" : "CAPTURE",
+		pix_mp->pixelformat & 0xff,
+		(pix_mp->pixelformat >> 8) & 0xff,
+		(pix_mp->pixelformat >> 16) & 0xff,
+		(pix_mp->pixelformat >> 24) & 0xff,
+		pix_mp->width,
+		pix_mp->height);
 	return 0;
 }
 
@@ -742,6 +751,14 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
+	vpu_dbg(LVL_BIT_FLOW, "%s s_fmt : %c%c%c%c %d x %d\n",
+		V4L2_TYPE_IS_OUTPUT(f->type) ? "OUTPUT" : "CAPTURE",
+		pix_mp->pixelformat & 0xff,
+		(pix_mp->pixelformat >> 8) & 0xff,
+		(pix_mp->pixelformat >> 16) & 0xff,
+		(pix_mp->pixelformat >> 24) & 0xff,
+		pix_mp->width,
+		pix_mp->height);
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
 		if (!set_video_standard(q_data, f, formats_yuv_dec, ARRAY_SIZE(formats_yuv_dec)))
@@ -923,6 +940,11 @@ static void clear_queue(struct queue_data *queue)
 			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 	}
 	INIT_LIST_HEAD(&queue->drv_q);
+	vpu_dbg(LVL_BIT_FRAME_COUNT,
+		"%s qbuf_count : %ld, dqbuf_count : %ld\n",
+		queue->type == V4L2_DST ? "CAPTURE" : "OUTPUT",
+		queue->qbuf_count,
+		queue->dqbuf_count);
 	queue->qbuf_count = 0;
 	queue->dqbuf_count = 0;
 	queue->process_count = 0;
@@ -3804,6 +3826,25 @@ static void release_vpu_ctx(struct vpu_ctx *ctx)
 {
 	if (!ctx)
 		return;
+
+	remove_instance_file(ctx);
+	release_queue_data(ctx);
+	free_decoder_buffer(ctx);
+	destroy_log_info_queue(ctx);
+	if (ctx->pSeqinfo) {
+		kfree(ctx->pSeqinfo);
+		ctx->pSeqinfo = NULL;
+		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo),
+				&ctx->statistic.total_alloc_size);
+	}
+
+	if (atomic64_read(&ctx->statistic.total_alloc_size) != 0)
+		vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
+	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
+		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma buffer\n");
+
+	clear_bit(ctx->str_index, &ctx->dev->instance_mask);
+	ctx->dev->ctx[ctx->str_index] = NULL;
 	pm_runtime_put_sync(ctx->dev->generic_dev);
 	kfree(ctx);
 }
@@ -3817,10 +3858,6 @@ static int release_hang_instance(struct vpu_dev *dev)
 
 	for (i = 0; i < VPU_MAX_NUM_STREAMS; i++)
 		if (dev->ctx[i]) {
-			remove_instance_file(dev->ctx[i]);
-			destroy_log_info_queue(dev->ctx[i]);
-			if (atomic64_read(&dev->ctx[i]->statistic.total_alloc_size) != 0)
-				vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
 			release_vpu_ctx(dev->ctx[i]);
 			dev->ctx[i] = NULL;
 		}
@@ -4952,34 +4989,16 @@ static int v4l2_release(struct file *filp)
 	}
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
-	release_queue_data(ctx);
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
-	free_decoder_buffer(ctx);
-	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
-		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma alloc buffer\n");
-	if (ctx->pSeqinfo) {
-		kfree(ctx->pSeqinfo);
-		ctx->pSeqinfo = NULL;
-		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
-	}
-	if (!ctx->hang_status) { // judge the path is hang or not, if hang, don't clear
-		remove_instance_file(ctx);
-		destroy_log_info_queue(ctx);
-		if (atomic64_read(&ctx->statistic.total_alloc_size) != 0)
-			vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
-		mutex_lock(&dev->dev_mutex);
-		clear_bit(ctx->str_index, &dev->instance_mask);
-		dev->ctx[ctx->str_index] = NULL;
-		release_vpu_ctx(ctx);
 
-		mutex_unlock(&dev->dev_mutex);
-	} else {
-		mutex_lock(&dev->dev_mutex);
+	mutex_lock(&dev->dev_mutex);
+	if (!ctx->hang_status)
+		release_vpu_ctx(ctx);
+	else
 		set_bit(ctx->str_index, &dev->hang_mask);
-		mutex_unlock(&dev->dev_mutex);
-	}
+	mutex_unlock(&dev->dev_mutex);
 
 	return 0;
 }
