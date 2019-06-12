@@ -5025,11 +5025,6 @@ static unsigned int v4l2_poll(struct file *filp, poll_table *wait)
 		if (ctx->firmware_finished && !list_empty(&dst_q->done_list))
 			rc = 0;
 
-		if ((!src_q->streaming || list_empty(&src_q->queued_list))
-				&& (!dst_q->streaming || list_empty(&dst_q->queued_list))) {
-			return rc;
-		}
-
 		poll_wait(filp, &src_q->done_wq, wait);
 		if (!list_empty(&src_q->done_list))
 			rc |= POLLOUT | POLLWRNORM;
