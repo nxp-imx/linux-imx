@@ -65,6 +65,7 @@ static int stream_buffer_threshold = 0x10000;
 static int tsm_mode = MODE_AI;
 static int tsm_buffer_size = 1024;
 static int tsm_use_consumed_length = 1;
+static int precheck_show_bytes;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -291,6 +292,116 @@ static u32 get_greatest_common_divisor(u32 a, u32 b)
 	}
 
 	return a;
+}
+
+static void get_kmp_next(const u8 *p, int *next, int size)
+{
+	int k = -1;
+	int j = 0;
+
+	next[0] = -1;
+	while (j < size - 1) {
+		if (k == -1 || p[j] == p[k]) {
+			++k;
+			++j;
+			next[j] = k;
+		} else {
+			k = next[k];
+		}
+	}
+}
+
+static int kmp_search(u8 *s, int s_len, const u8 *p, int p_len, int *next)
+{
+	int i = 0;
+	int j = 0;
+
+	while (i < s_len && j < p_len) {
+		if (j == -1 || s[i] == p[j]) {
+			i++;
+			j++;
+		} else {
+			j = next[j];
+		}
+	}
+	if (j == p_len)
+		return i - j;
+	else
+		return -1;
+}
+
+static void find_pattern_from_vb(struct vpu_dev *dev, unsigned long index,
+				struct vb2_buffer *vb, unsigned int plane_no)
+{
+	u8 *ptr = NULL;
+	int ret;
+
+	if (!dev || !dev->precheck_num)
+		return;
+
+	if (!vb || plane_no >= vb->num_planes)
+		return;
+
+	ptr = vb2_plane_vaddr(vb, plane_no);
+	if (!ptr)
+		return;
+
+	ret = kmp_search(ptr,
+			vb->planes[plane_no].bytesused,
+			dev->precheck_pattern,
+			dev->precheck_num,
+			dev->precheck_next);
+	if (ret < 0)
+		return;
+	vpu_dbg(LVL_WARN, "[%12ld]pattern(%s) found : %d\n",
+			index,
+			dev->precheck_content,
+			ret);
+}
+
+static void show_beginning_of_data(unsigned long index,
+				struct vb2_buffer *vb, unsigned int plane_no)
+{
+	u8 *pdata;
+	u32 length;
+	u32 bytes = 0;
+	u32 show_count;
+	char temp[1028];
+	int i;
+
+	if (!precheck_show_bytes)
+		return;
+
+	if (!vb || plane_no >= vb->num_planes)
+		return;
+
+	pdata = vb2_plane_vaddr(vb, plane_no);
+	length = vb->planes[plane_no].bytesused;
+	if (!pdata || !length)
+		return;
+	show_count = min_t(u32, precheck_show_bytes, length);
+	for (i = 0; i < show_count; i++) {
+		bytes += scnprintf(temp + bytes,
+				sizeof(temp) - bytes,
+				"%s0x%02x",
+				i ? " " : "",
+				pdata[i]);
+		if (bytes >= sizeof(temp))
+			break;
+	}
+	vpu_dbg(LVL_WARN, "[%12ld]%s\n", index, temp);
+}
+
+static void precheck_vb_data(struct vpu_ctx *ctx, struct vb2_buffer *vb)
+{
+	unsigned long index;
+
+	if (!ctx || !vb)
+		return;
+
+	index = ctx->q_data[V4L2_SRC].qbuf_count;
+	show_beginning_of_data(index, vb, 0);
+	find_pattern_from_vb(ctx->dev, index, vb, 0);
 }
 
 static bool check_vb_is_changed(struct vb2_data_req *p_data_req, u32 pattern)
@@ -867,8 +978,6 @@ static int vpu_dec_queue_qbuf(struct queue_data *queue,
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
 		ret = vb2_qbuf(&queue->vb2_q, buf);
-	if (!ret)
-		queue->qbuf_count++;
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -4108,11 +4217,14 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		add_buffer_to_queue(This, data_req);
 	} else {
 	}
-	if (V4L2_TYPE_IS_OUTPUT(vq->type))
+	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+		precheck_vb_data(ctx, vb);
 		v4l2_transfer_buffer_to_firmware(This, vb);
+	}
 
 	if (!V4L2_TYPE_IS_OUTPUT(vq->type))
 		respond_req_frame(ctx, This, false);
+	This->qbuf_count++;
 }
 
 static void vpu_prepare(struct vb2_queue *q)
@@ -4483,8 +4595,11 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			"\t%40s:%16x\n", "start", pStrBufDesc->start);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16x\n", "end", pStrBufDesc->end);
-	stream_length = ctx->stream_buffer.dma_size -
-		got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr, pStrBufDesc->start, pStrBufDesc->end);
+	if (ctx->stream_buffer.dma_size)
+		stream_length = got_used_space(pStrBufDesc->wptr,
+						pStrBufDesc->rptr,
+						pStrBufDesc->start,
+						pStrBufDesc->end);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "stream length", stream_length);
@@ -4629,6 +4744,57 @@ exit:
 	mutex_unlock(&ctx->instance_mutex);
 	return num;
 }
+
+static ssize_t precheck_pattern_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct vpu_dev *vdev = dev_get_drvdata(dev);
+	int num = 0;
+
+	if (vdev->precheck_num)
+		num = scnprintf(buf, PAGE_SIZE, "%s\n", vdev->precheck_content);
+
+	return num;
+}
+
+static ssize_t precheck_pattern_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct vpu_dev *vdev = dev_get_drvdata(dev);
+	long val;
+	int num = 0;
+	int bytes = 0;
+	const char *delim = " ,;";
+	char strbuf[1024];
+	char *token;
+	char *cur;
+
+	strncpy(strbuf, buf, sizeof(strbuf));
+	cur = strbuf;
+	while ((token = strsep(&cur, delim))) {
+		if (!strlen(token))
+			continue;
+		if (kstrtol((const char *)token, 0, &val))
+			continue;
+		vdev->precheck_pattern[num] = val;
+		bytes += scnprintf(vdev->precheck_content + bytes,
+					sizeof(vdev->precheck_content) - bytes,
+					"%s0x%02x",
+					num ? " " : "",
+					vdev->precheck_pattern[num]);
+		num++;
+		if (num >= ARRAY_SIZE(vdev->precheck_pattern))
+			break;
+	}
+	get_kmp_next(vdev->precheck_pattern, vdev->precheck_next, num);
+	if (num >= 3)
+		vdev->precheck_num = num;
+	else
+		vdev->precheck_num = 0;
+
+	return count;
+}
+DEVICE_ATTR_RW(precheck_pattern);
 
 static int create_instance_command_file(struct vpu_ctx *ctx)
 {
@@ -5365,6 +5531,7 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
+	device_create_file(&pdev->dev, &dev_attr_precheck_pattern);
 
 	return 0;
 
@@ -5396,6 +5563,7 @@ static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_precheck_pattern);
 	debugfs_remove_recursive(dev->debugfs_root);
 	dev->debugfs_root = NULL;
 	destroy_workqueue(dev->workqueue);
@@ -5606,3 +5774,5 @@ module_param(tsm_buffer_size, int, 0644);
 MODULE_PARM_DESC(tsm_buffer_size, "timestamp manager buffer size");
 module_param(tsm_use_consumed_length, int, 0644);
 MODULE_PARM_DESC(tsm_use_consumed_length, "timestamp manager use consumed length");
+module_param(precheck_show_bytes, int, 0644);
+MODULE_PARM_DESC(precheck_show_bytes, "show the beginning of content");

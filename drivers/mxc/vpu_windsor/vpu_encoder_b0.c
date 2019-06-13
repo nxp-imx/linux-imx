@@ -2049,7 +2049,7 @@ static void get_kmp_next(const u8 *p, int *next, int size)
 	}
 }
 
-static int kmp_serach(u8 *s, int s_len, const u8 *p, int p_len, int *next)
+static int kmp_search(u8 *s, int s_len, const u8 *p, int p_len, int *next)
 {
 	int i = 0;
 	int j = 0;
@@ -2078,7 +2078,7 @@ static int get_stuff_data_size(u8 *data, int size)
 		return 0;
 
 	get_kmp_next(pattern, next, ARRAY_SIZE(pattern));
-	index =  kmp_serach(data, size, pattern, ARRAY_SIZE(pattern), next);
+	index =  kmp_search(data, size, pattern, ARRAY_SIZE(pattern), next);
 	if (index < 0)
 		return 0;
 	vpu_dbg(LVL_DEBUG, "find end_of_stream nal\n");
@@ -2263,7 +2263,7 @@ static int find_nal_begin(u8 *data, u32 size)
 
 	len = ARRAY_SIZE(pattern);
 	get_kmp_next(pattern, next, len);
-	index = kmp_serach(data, size, pattern, len, next);
+	index = kmp_search(data, size, pattern, len, next);
 	if (index > 0 && data[index - 1] == 0)
 		index--;
 

@@ -277,6 +277,10 @@ struct vpu_dev {
 	struct dentry *debugfs_fwlog;
 
 	struct print_buf_desc *print_buf;
+	u8 precheck_pattern[64];
+	int precheck_next[64];
+	int precheck_num;
+	char precheck_content[1024];
 };
 
 struct vpu_statistic {
