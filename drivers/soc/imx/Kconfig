@@ -53,6 +53,9 @@ config HAVE_IMX_RPMSG
 	select RPMSG
 	bool
 
+config HAVE_IMX8_SECO
+	bool
+
 config SECVIO_SC
 	bool "NXP SC secvio support"
 	depends on ARCH_FSL_IMX8QXP || ARCH_FSL_IMX8QM

@@ -271,6 +271,7 @@ config ARCH_FSL_IMX8QM
 	select PINCTRL
 	select PINCTRL_IMX
 	select PINCTRL_IMX8QM
+	select HAVE_IMX8_SECO
 	select PM
 	select SOC_BUS
 	select GPIO_MXC_PAD_WAKEUP
@@ -282,6 +283,7 @@ config ARCH_FSL_IMX8QP
 	select PINCTRL
 	select PINCTRL_IMX
 	select PINCTRL_IMX8QM
+	select HAVE_IMX8_SECO
 	select PM
 	select SOC_BUS
 	select GPIO_MXC_PAD_WAKEUP
@@ -294,6 +296,7 @@ config ARCH_FSL_IMX8QXP
 	select PINCTRL
 	select PINCTRL_IMX
 	select PINCTRL_IMX8QXP
+	select HAVE_IMX8_SECO
 	select PM
 	select SOC_BUS
 	select GPIO_MXC_PAD_WAKEUP
