@@ -40,6 +40,10 @@
 	pmu {
 		interrupt-affinity = <&A35_0>, <&A35_1>, <&A35_2>, <&A35_3>;
 	};
+
+	mu_seco2: mu@31560000 {
+		status = "okay";
+	};
 };
 
 &A35_2 {

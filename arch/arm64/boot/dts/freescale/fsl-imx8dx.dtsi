@@ -176,6 +176,31 @@
 		status = "okay";
 	};
 
+	mu_seco2: mu@31560000 {
+		compatible = "fsl,imx8-seco-mu";
+		reg = <0x0 0x31560000 0x0 0x10000>;
+		power-domains = <&pd_seco_mu_2>;
+		interrupts = <GIC_SPI 448 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+	};
+
+	mu_seco3: mu@31570000 {
+		compatible = "fsl,imx8-seco-mu";
+		reg = <0x0 0x31570000 0x0 0x10000>;
+		power-domains = <&pd_seco_mu_3>;
+		interrupts = <GIC_SPI 449 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+	};
+
+	mu_seco4: mu@31580000 {
+		compatible = "fsl,imx8-seco-mu";
+		reg = <0x0 0x31580000 0x0 0x10000>;
+		power-domains = <&pd_seco_mu_4>;
+		interrupts = <GIC_SPI 450 IRQ_TYPE_LEVEL_HIGH>;
+		status = "disabled";
+	};
+
+
 	mu13: mu13@5d280000 {
 		compatible = "fsl,imx8-mu-dsp";
 		reg = <0x0 0x5d280000 0x0 0x10000>;
@@ -369,6 +394,32 @@
 				reg = <SC_R_MU_5A>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_lsio>;
+			};
+		};
+
+		pd_seco_mu: PD_SECO_MU {
+			compatible = "nxp,imx8-pd";
+			reg = <SC_R_NONE>;
+			#power-domain-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pd_seco_mu_2: PD_SECO_MU_2 {
+				reg = <SC_R_SECO_MU_2>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
+			};
+
+			pd_seco_mu_3: PD_SECO_MU_3 {
+				reg = <SC_R_SECO_MU_3>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
+			};
+
+			pd_seco_mu_4: PD_SECO_MU_4 {
+				reg = <SC_R_SECO_MU_4>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
 			};
 		};
 
