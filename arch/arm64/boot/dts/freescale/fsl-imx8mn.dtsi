@@ -18,6 +18,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/pins-imx8mn.h>
+#include <dt-bindings/reset/imx8mn-dispmix.h>
 #include <dt-bindings/thermal/thermal.h>
 
 / {
@@ -960,6 +961,7 @@
 		assigned-clock-rate = <594000000>, <500000000>, <200000000>;
 		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
 		lcdif-gpr = <&dispmix_gpr>;
+		resets = <&lcdif_resets>;
 		power-domains = <&dispmix_pd>;
 		status = "disabled";
 
@@ -987,6 +989,7 @@
 		assigned-clock-rates = <266000000>, <594000000>;
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		dsi-gpr = <&dispmix_gpr>;
+		resets = <&mipi_dsi_resets>;
 		power-domains = <&mipi_pd>;
 		status = "disabled";
 
@@ -1140,6 +1143,47 @@
 			active_low;
 			power-domains = <&dispmix_pd>;
 			#reset-cells = <1>;
+		};
+	};
+
+	lcdif_resets: lcdif-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		lcdif-soft-resetn {
+			compatible = "lcdif,soft-resetn";
+			resets = <&dispmix_sft_rstn IMX8MN_LCDIF_APB_CLK_RESET>,
+				 <&dispmix_sft_rstn IMX8MN_LCDIF_PIXEL_CLK_RESET>;
+		};
+
+		lcdif-clk-enable {
+			compatible = "lcdif,clk-enable";
+			resets = <&dispmix_clk_en IMX8MN_LCDIF_APB_CLK_EN>,
+				 <&dispmix_clk_en IMX8MN_LCDIF_PIXEL_CLK_EN>;
+		};
+	};
+
+	mipi_dsi_resets: mipi-dsi-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		dsi-soft-resetn {
+			compatible = "dsi,soft-resetn";
+			resets = <&dispmix_sft_rstn IMX8MN_MIPI_DSI_CLKREF_RESET>,
+				 <&dispmix_sft_rstn IMX8MN_MIPI_DSI_PCLK_RESET>;
+		};
+
+		dsi-clk-enable {
+			compatible = "dsi,clk-enable";
+			resets = <&dispmix_clk_en IMX8MN_MIPI_DSI_CLKREF_EN>,
+				 <&dispmix_clk_en IMX8MN_MIPI_DSI_PCLK_EN>;
+		};
+
+		dsi-mipi-reset {
+			compatible = "dsi,mipi-reset";
+			resets = <&dispmix_mipi_rst IMX8MN_MIPI_M_RESET>;
 		};
 	};
 
