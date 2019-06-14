@@ -61,10 +61,11 @@ static int vpu_frmdbg_ena = DEFAULT_FRMDBG_ENABLE;
 static int vpu_frmdbg_level = DEFAULT_FRMDBG_LEVEL;
 static int vpu_dbe_num = 1;
 static int vpu_frmcrcdump_ena;
-static int stream_buffer_threshold;
+static int stream_buffer_threshold = 0x10000;
 static int tsm_mode = MODE_AI;
 static int tsm_buffer_size = 1024;
 static int tsm_use_consumed_length = 1;
+static int precheck_show_bytes;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -187,6 +188,7 @@ static void release_frame_buffer(struct vpu_ctx *ctx,
 				u32 uStrIdx,
 				struct vb2_data_req *p_data_req);
 static void send_eos_event(struct vpu_ctx *ctx);
+static void release_queue_data(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -290,6 +292,116 @@ static u32 get_greatest_common_divisor(u32 a, u32 b)
 	}
 
 	return a;
+}
+
+static void get_kmp_next(const u8 *p, int *next, int size)
+{
+	int k = -1;
+	int j = 0;
+
+	next[0] = -1;
+	while (j < size - 1) {
+		if (k == -1 || p[j] == p[k]) {
+			++k;
+			++j;
+			next[j] = k;
+		} else {
+			k = next[k];
+		}
+	}
+}
+
+static int kmp_search(u8 *s, int s_len, const u8 *p, int p_len, int *next)
+{
+	int i = 0;
+	int j = 0;
+
+	while (i < s_len && j < p_len) {
+		if (j == -1 || s[i] == p[j]) {
+			i++;
+			j++;
+		} else {
+			j = next[j];
+		}
+	}
+	if (j == p_len)
+		return i - j;
+	else
+		return -1;
+}
+
+static void find_pattern_from_vb(struct vpu_dev *dev, unsigned long index,
+				struct vb2_buffer *vb, unsigned int plane_no)
+{
+	u8 *ptr = NULL;
+	int ret;
+
+	if (!dev || !dev->precheck_num)
+		return;
+
+	if (!vb || plane_no >= vb->num_planes)
+		return;
+
+	ptr = vb2_plane_vaddr(vb, plane_no);
+	if (!ptr)
+		return;
+
+	ret = kmp_search(ptr,
+			vb->planes[plane_no].bytesused,
+			dev->precheck_pattern,
+			dev->precheck_num,
+			dev->precheck_next);
+	if (ret < 0)
+		return;
+	vpu_dbg(LVL_WARN, "[%12ld]pattern(%s) found : %d\n",
+			index,
+			dev->precheck_content,
+			ret);
+}
+
+static void show_beginning_of_data(unsigned long index,
+				struct vb2_buffer *vb, unsigned int plane_no)
+{
+	u8 *pdata;
+	u32 length;
+	u32 bytes = 0;
+	u32 show_count;
+	char temp[1028];
+	int i;
+
+	if (!precheck_show_bytes)
+		return;
+
+	if (!vb || plane_no >= vb->num_planes)
+		return;
+
+	pdata = vb2_plane_vaddr(vb, plane_no);
+	length = vb->planes[plane_no].bytesused;
+	if (!pdata || !length)
+		return;
+	show_count = min_t(u32, precheck_show_bytes, length);
+	for (i = 0; i < show_count; i++) {
+		bytes += scnprintf(temp + bytes,
+				sizeof(temp) - bytes,
+				"%s0x%02x",
+				i ? " " : "",
+				pdata[i]);
+		if (bytes >= sizeof(temp))
+			break;
+	}
+	vpu_dbg(LVL_WARN, "[%12ld]%s\n", index, temp);
+}
+
+static void precheck_vb_data(struct vpu_ctx *ctx, struct vb2_buffer *vb)
+{
+	unsigned long index;
+
+	if (!ctx || !vb)
+		return;
+
+	index = ctx->q_data[V4L2_SRC].qbuf_count;
+	show_beginning_of_data(index, vb, 0);
+	find_pattern_from_vb(ctx->dev, index, vb, 0);
 }
 
 static bool check_vb_is_changed(struct vb2_data_req *p_data_req, u32 pattern)
@@ -679,6 +791,14 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 		pix_mp->pixelformat = q_data->fourcc;
 	} else
 		return -EINVAL;
+	vpu_dbg(LVL_BIT_FLOW, "%s g_fmt : %c%c%c%c %d x %d\n",
+		V4L2_TYPE_IS_OUTPUT(f->type) ? "OUTPUT" : "CAPTURE",
+		pix_mp->pixelformat & 0xff,
+		(pix_mp->pixelformat >> 8) & 0xff,
+		(pix_mp->pixelformat >> 16) & 0xff,
+		(pix_mp->pixelformat >> 24) & 0xff,
+		pix_mp->width,
+		pix_mp->height);
 	return 0;
 }
 
@@ -742,6 +862,14 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
+	vpu_dbg(LVL_BIT_FLOW, "%s s_fmt : %c%c%c%c %d x %d\n",
+		V4L2_TYPE_IS_OUTPUT(f->type) ? "OUTPUT" : "CAPTURE",
+		pix_mp->pixelformat & 0xff,
+		(pix_mp->pixelformat >> 8) & 0xff,
+		(pix_mp->pixelformat >> 16) & 0xff,
+		(pix_mp->pixelformat >> 24) & 0xff,
+		pix_mp->width,
+		pix_mp->height);
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
 		if (!set_video_standard(q_data, f, formats_yuv_dec, ARRAY_SIZE(formats_yuv_dec)))
@@ -850,8 +978,6 @@ static int vpu_dec_queue_qbuf(struct queue_data *queue,
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
 		ret = vb2_qbuf(&queue->vb2_q, buf);
-	if (!ret)
-		queue->qbuf_count++;
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -923,6 +1049,11 @@ static void clear_queue(struct queue_data *queue)
 			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 	}
 	INIT_LIST_HEAD(&queue->drv_q);
+	vpu_dbg(LVL_BIT_FRAME_COUNT,
+		"%s qbuf_count : %ld, dqbuf_count : %ld\n",
+		queue->type == V4L2_DST ? "CAPTURE" : "OUTPUT",
+		queue->qbuf_count,
+		queue->dqbuf_count);
 	queue->qbuf_count = 0;
 	queue->dqbuf_count = 0;
 	queue->process_count = 0;
@@ -2734,8 +2865,8 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 		} else {
 			arv_frame = get_arv_info(ctx, input_buffer);
 			if (!arv_frame) {
-				vpu_dbg(LVL_ERR, "error: %s() get arv frame info failed\n", __func__);
-				return 0;
+				vpu_dbg(LVL_WARN, "warning: %s() get arv frame info failed\n", __func__);
+				return -1;
 			}
 			if (nfreespace < (buffer_size + header_length + arv_frame->slice_num * 16 + MIN_SPACE)) {
 				vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
@@ -2744,9 +2875,17 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 				return 0;
 			}
 
-			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
 			arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
-			copy_length += copy_buffer_to_stream(ctx, input_buffer, arv_frame->packlen);
+
+			if (arv_frame->packlen >  buffer_size - input_offset
+				|| arv_frame->data_len > buffer_size) {
+				put_arv_info(arv_frame);
+				arv_frame = NULL;
+				return -1;
+			}
+
+			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
+			copy_length += copy_buffer_to_stream(ctx, input_buffer + input_offset, arv_frame->packlen);
 			input_offset += arv_frame->packlen;
 			for (i = 0; i < arv_frame->slice_num; i++) {
 				if (i == arv_frame->slice_num - 1)
@@ -2794,10 +2933,12 @@ static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
-	if (ctx->start_code_bypass)
+	if (ctx->start_code_bypass) {
 		buffer_info->stream_input_mode = NON_FRAME_LVL;
-	else
+		buffer_info->stream_buffer_threshold = stream_buffer_threshold;
+	} else {
 		buffer_info->stream_input_mode = FRAME_LVL;
+	}
 
 	buffer_info->stream_pic_input_count = ctx->frm_total_num;
 }
@@ -2813,8 +2954,7 @@ static void set_pic_end_flag(struct vpu_ctx *ctx)
 	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
 	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
-	if (buffer_info->stream_input_mode == FRAME_LVL)
-		buffer_info->stream_pic_end_flag = 0x1;
+	buffer_info->stream_pic_end_flag = 0x1;
 }
 
 static void clear_pic_end_flag(struct vpu_ctx *ctx)
@@ -2828,8 +2968,7 @@ static void clear_pic_end_flag(struct vpu_ctx *ctx)
 	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
 	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
-	if (buffer_info->stream_input_mode == FRAME_LVL)
-		buffer_info->stream_pic_end_flag = 0x0;
+	buffer_info->stream_pic_end_flag = 0x0;
 }
 
 static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
@@ -2905,10 +3044,12 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 						     input_buffer,
 						     buffer_size,
 						     uStrBufIdx);
-		if (!frame_bytes) {
+		if (frame_bytes == 0) {
 			up(&This->drv_q_lock);
 			vpu_dbg(LVL_INFO, " %s no space to write\n", __func__);
 			return;
+		} else if (frame_bytes < 0) {
+			vpu_dbg(LVL_WARN, "warning: incorrect input buffer data\n");
 		} else {
 			if (ctx->b_dis_reorder) {
 				/* frame successfully written into the stream buffer if in special low latency mode
@@ -2924,14 +3065,15 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 			ctx->frm_total_num++;
 			record_log_info(ctx, LOG_UPDATE_STREAM, 0, buffer_size);
 			fill_stream_buffer_info(ctx);
+			vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
+			This->process_count++;
 		}
 #ifdef HANDLE_EOS
 		if (buffer_size < p_data_req->vb2_buf->planes[0].length)
 			vpu_dbg(LVL_INFO, "v4l2_transfer_buffer_to_firmware - set stream_feed_complete - DEBUG 2\n");
 #endif
-		vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
+
 		list_del(&p_data_req->list);
-		This->process_count++;
 		p_data_req->queued = false;
 		if (p_data_req->vb2_buf)
 			vb2_buffer_done(p_data_req->vb2_buf,
@@ -3804,6 +3946,25 @@ static void release_vpu_ctx(struct vpu_ctx *ctx)
 {
 	if (!ctx)
 		return;
+
+	remove_instance_file(ctx);
+	release_queue_data(ctx);
+	free_decoder_buffer(ctx);
+	destroy_log_info_queue(ctx);
+	if (ctx->pSeqinfo) {
+		kfree(ctx->pSeqinfo);
+		ctx->pSeqinfo = NULL;
+		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo),
+				&ctx->statistic.total_alloc_size);
+	}
+
+	if (atomic64_read(&ctx->statistic.total_alloc_size) != 0)
+		vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
+	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
+		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma buffer\n");
+
+	clear_bit(ctx->str_index, &ctx->dev->instance_mask);
+	ctx->dev->ctx[ctx->str_index] = NULL;
 	pm_runtime_put_sync(ctx->dev->generic_dev);
 	kfree(ctx);
 }
@@ -3817,10 +3978,6 @@ static int release_hang_instance(struct vpu_dev *dev)
 
 	for (i = 0; i < VPU_MAX_NUM_STREAMS; i++)
 		if (dev->ctx[i]) {
-			remove_instance_file(dev->ctx[i]);
-			destroy_log_info_queue(dev->ctx[i]);
-			if (atomic64_read(&dev->ctx[i]->statistic.total_alloc_size) != 0)
-				vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
 			release_vpu_ctx(dev->ctx[i]);
 			dev->ctx[i] = NULL;
 		}
@@ -4060,11 +4217,14 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		add_buffer_to_queue(This, data_req);
 	} else {
 	}
-	if (V4L2_TYPE_IS_OUTPUT(vq->type))
+	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+		precheck_vb_data(ctx, vb);
 		v4l2_transfer_buffer_to_firmware(This, vb);
+	}
 
 	if (!V4L2_TYPE_IS_OUTPUT(vq->type))
 		respond_req_frame(ctx, This, false);
+	This->qbuf_count++;
 }
 
 static void vpu_prepare(struct vb2_queue *q)
@@ -4435,8 +4595,11 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			"\t%40s:%16x\n", "start", pStrBufDesc->start);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16x\n", "end", pStrBufDesc->end);
-	stream_length = ctx->stream_buffer.dma_size -
-		got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr, pStrBufDesc->start, pStrBufDesc->end);
+	if (ctx->stream_buffer.dma_size)
+		stream_length = got_used_space(pStrBufDesc->wptr,
+						pStrBufDesc->rptr,
+						pStrBufDesc->start,
+						pStrBufDesc->end);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "stream length", stream_length);
@@ -4581,6 +4744,57 @@ exit:
 	mutex_unlock(&ctx->instance_mutex);
 	return num;
 }
+
+static ssize_t precheck_pattern_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct vpu_dev *vdev = dev_get_drvdata(dev);
+	int num = 0;
+
+	if (vdev->precheck_num)
+		num = scnprintf(buf, PAGE_SIZE, "%s\n", vdev->precheck_content);
+
+	return num;
+}
+
+static ssize_t precheck_pattern_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct vpu_dev *vdev = dev_get_drvdata(dev);
+	long val;
+	int num = 0;
+	int bytes = 0;
+	const char *delim = " ,;";
+	char strbuf[1024];
+	char *token;
+	char *cur;
+
+	strncpy(strbuf, buf, sizeof(strbuf));
+	cur = strbuf;
+	while ((token = strsep(&cur, delim))) {
+		if (!strlen(token))
+			continue;
+		if (kstrtol((const char *)token, 0, &val))
+			continue;
+		vdev->precheck_pattern[num] = val;
+		bytes += scnprintf(vdev->precheck_content + bytes,
+					sizeof(vdev->precheck_content) - bytes,
+					"%s0x%02x",
+					num ? " " : "",
+					vdev->precheck_pattern[num]);
+		num++;
+		if (num >= ARRAY_SIZE(vdev->precheck_pattern))
+			break;
+	}
+	get_kmp_next(vdev->precheck_pattern, vdev->precheck_next, num);
+	if (num >= 3)
+		vdev->precheck_num = num;
+	else
+		vdev->precheck_num = 0;
+
+	return count;
+}
+DEVICE_ATTR_RW(precheck_pattern);
 
 static int create_instance_command_file(struct vpu_ctx *ctx)
 {
@@ -4952,34 +5166,16 @@ static int v4l2_release(struct file *filp)
 	}
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
-	release_queue_data(ctx);
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
-	free_decoder_buffer(ctx);
-	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
-		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma alloc buffer\n");
-	if (ctx->pSeqinfo) {
-		kfree(ctx->pSeqinfo);
-		ctx->pSeqinfo = NULL;
-		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
-	}
-	if (!ctx->hang_status) { // judge the path is hang or not, if hang, don't clear
-		remove_instance_file(ctx);
-		destroy_log_info_queue(ctx);
-		if (atomic64_read(&ctx->statistic.total_alloc_size) != 0)
-			vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
-		mutex_lock(&dev->dev_mutex);
-		clear_bit(ctx->str_index, &dev->instance_mask);
-		dev->ctx[ctx->str_index] = NULL;
-		release_vpu_ctx(ctx);
 
-		mutex_unlock(&dev->dev_mutex);
-	} else {
-		mutex_lock(&dev->dev_mutex);
+	mutex_lock(&dev->dev_mutex);
+	if (!ctx->hang_status)
+		release_vpu_ctx(ctx);
+	else
 		set_bit(ctx->str_index, &dev->hang_mask);
-		mutex_unlock(&dev->dev_mutex);
-	}
+	mutex_unlock(&dev->dev_mutex);
 
 	return 0;
 }
@@ -5005,12 +5201,6 @@ static unsigned int v4l2_poll(struct file *filp, poll_table *wait)
 
 		if (ctx->firmware_finished && !list_empty(&dst_q->done_list))
 			rc = 0;
-
-		if ((!src_q->streaming || list_empty(&src_q->queued_list))
-				&& (!dst_q->streaming || list_empty(&dst_q->queued_list))) {
-			rc |= POLLERR;
-			return rc;
-		}
 
 		poll_wait(filp, &src_q->done_wq, wait);
 		if (!list_empty(&src_q->done_list))
@@ -5341,6 +5531,7 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
+	device_create_file(&pdev->dev, &dev_attr_precheck_pattern);
 
 	return 0;
 
@@ -5372,6 +5563,7 @@ static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
 
+	device_remove_file(&pdev->dev, &dev_attr_precheck_pattern);
 	debugfs_remove_recursive(dev->debugfs_root);
 	dev->debugfs_root = NULL;
 	destroy_workqueue(dev->workqueue);
@@ -5582,3 +5774,5 @@ module_param(tsm_buffer_size, int, 0644);
 MODULE_PARM_DESC(tsm_buffer_size, "timestamp manager buffer size");
 module_param(tsm_use_consumed_length, int, 0644);
 MODULE_PARM_DESC(tsm_use_consumed_length, "timestamp manager use consumed length");
+module_param(precheck_show_bytes, int, 0644);
+MODULE_PARM_DESC(precheck_show_bytes, "show the beginning of content");

@@ -277,6 +277,10 @@ struct vpu_dev {
 	struct dentry *debugfs_fwlog;
 
 	struct print_buf_desc *print_buf;
+	u8 precheck_pattern[64];
+	int precheck_next[64];
+	int precheck_num;
+	char precheck_content[1024];
 };
 
 struct vpu_statistic {
@@ -393,6 +397,7 @@ struct vpu_ctx {
 #define LVL_BIT_BUFFER_DESC	(1 << 11)
 #define LVL_BIT_FUNC		(1 << 12)
 #define LVL_BIT_FLOW		(1 << 13)
+#define LVL_BIT_FRAME_COUNT	(1 << 14)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \

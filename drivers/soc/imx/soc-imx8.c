@@ -372,6 +372,10 @@ device_initcall(imx8_soc_init);
 #define OCOTP_CFG3			0x440
 #define OCOTP_CFG3_SPEED_GRADING_SHIFT	8
 #define OCOTP_CFG3_SPEED_GRADING_MASK	(0x7 << 8)
+#define OCOTP_CFG3_SPEED_GRADING_IMX8MN_MASK	(0x3F << 8)
+#define OCOTP_CFG3_SPEED_IMX8MN_1P5GHZ	0x8
+#define OCOTP_CFG3_SPEED_IMX8MN_1P4GHZ	0x9
+#define OCOTP_CFG3_SPEED_IMX8MN_1P2GHZ	0xb
 #define OCOTP_CFG3_SPEED_2GHZ		4
 #define OCOTP_CFG3_SPEED_1P8GHZ		3
 #define OCOTP_CFG3_SPEED_1P6GHZ		2
@@ -500,6 +504,57 @@ put_node:
 	of_node_put(np);
 }
 
+static void __init imx8mn_opp_check_speed_grading(struct device *cpu_dev)
+{
+	struct device_node *np;
+	void __iomem *base;
+	u32 val, market;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-ocotp");
+	if (!np) {
+		pr_warn("failed to find ocotp node\n");
+		return;
+	}
+
+	base = of_iomap(np, 0);
+	if (!base) {
+		pr_warn("failed to map ocotp\n");
+		goto put_node;
+	}
+	val = readl_relaxed(base + OCOTP_CFG3);
+	/* market segment bit[7:6] */
+	market = (val & OCOTP_CFG3_MKT_SEGMENT_MASK)
+		>> OCOTP_CFG3_MKT_SEGMENT_SHIFT;
+	/* speed grading bit[13:8] */
+	val = (val & OCOTP_CFG3_SPEED_GRADING_IMX8MN_MASK)
+		>> OCOTP_CFG3_SPEED_GRADING_SHIFT;
+
+	switch (market) {
+	case OCOTP_CFG3_CONSUMER:
+		if (val > OCOTP_CFG3_SPEED_IMX8MN_1P5GHZ)
+			if (dev_pm_opp_disable(cpu_dev, 1500000000))
+				pr_warn("failed to disable 1.5GHz OPP!\n");
+		if (val > OCOTP_CFG3_SPEED_IMX8MN_1P4GHZ)
+			if (dev_pm_opp_disable(cpu_dev, 1400000000))
+				pr_warn("failed to disable 1.4GHz OPP!\n");
+		break;
+	case OCOTP_CFG3_INDUSTRIAL:
+		if (dev_pm_opp_disable(cpu_dev, 1500000000))
+			pr_warn("failed to disable 1.5GHz OPP!\n");
+		if (val > OCOTP_CFG3_SPEED_IMX8MN_1P4GHZ)
+			if (dev_pm_opp_disable(cpu_dev, 1400000000))
+				pr_warn("failed to disable 1.4GHz OPP!\n");
+		break;
+	default:
+		break;
+	}
+
+	iounmap(base);
+
+put_node:
+	of_node_put(np);
+}
+
 static void __init imx8mq_opp_init(void)
 {
 	struct device_node *np;
@@ -524,6 +579,8 @@ static void __init imx8mq_opp_init(void)
 		imx8mq_opp_check_speed_grading(cpu_dev);
 	else if (of_machine_is_compatible("fsl,imx8mm"))
 		imx8mm_opp_check_speed_grading(cpu_dev);
+	else if (of_machine_is_compatible("fsl,imx8mn"))
+		imx8mn_opp_check_speed_grading(cpu_dev);
 
 put_node:
 	of_node_put(np);

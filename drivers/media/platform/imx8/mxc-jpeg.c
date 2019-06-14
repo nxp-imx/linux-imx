@@ -110,6 +110,9 @@ static const unsigned char jpeg_soi[] = {0xFF, 0xD8};
 static const unsigned char jpeg_app0[] = {0xFF, 0xE0, 0x00, 0x10, 0x4A,
 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
 0x00, 0x01, 0x00, 0x01, 0x00, 0x00};
+static const unsigned char jpeg_app14[] = {
+0xFF, 0xEE, 0x00, 0x0E, 0x41, 0x64, 0x6F, 0x62,
+0x65, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const unsigned char jpeg_dqt[] = {0xFF, 0xDB,
 0x00, 0x84, 0x00, 0x10, 0x0B, 0x0C,
 0x0E, 0x0C, 0x0A, 0x10, 0x0E, 0x0D, 0x0E,
@@ -623,8 +626,14 @@ static void mxc_jpeg_setup_cfg_stream(void *cfg_stream_vaddr,
 	memcpy(cfg + offset, jpeg_soi, ARRAY_SIZE(jpeg_soi));
 	offset += ARRAY_SIZE(jpeg_soi);
 
-	memcpy(cfg + offset, jpeg_app0, sizeof(jpeg_app0));
-	offset += sizeof(jpeg_app0);
+	if (fourcc == V4L2_PIX_FMT_RGB24 ||
+	    fourcc == V4L2_PIX_FMT_ARGB32) {
+		memcpy(cfg + offset, jpeg_app14, sizeof(jpeg_app14));
+		offset += sizeof(jpeg_app14);
+	} else {
+		memcpy(cfg + offset, jpeg_app0, sizeof(jpeg_app0));
+		offset += sizeof(jpeg_app0);
+	}
 
 	memcpy(cfg + offset, jpeg_dqt, sizeof(jpeg_dqt));
 	offset += sizeof(jpeg_dqt);
@@ -932,7 +941,8 @@ static int get_sof(struct device *dev,
 
 static int mxc_jpeg_valid_comp_id(
 	struct device *dev,
-	const struct mxc_jpeg_sof *sof)
+	struct mxc_jpeg_sof *sof,
+	struct mxc_jpeg_sos *sos)
 {
 	int valid = 1;
 	int i;
@@ -942,6 +952,14 @@ static int mxc_jpeg_valid_comp_id(
 			valid = 0;
 			dev_err(dev, "Component %d has invalid ID: %d",
 				i, sof->comp[i].id);
+		}
+	if (!valid)
+		/* patch all comp IDs if at least one is invalid */
+		for (i = 0; i < sof->components_no; i++) {
+			dev_warn(dev, "Component %d ID patched to: %d",
+				 i, i + 1);
+			sof->comp[i].id = i + 1;
+			sos->comp[i].id = i + 1;
 		}
 
 	return valid;
@@ -1031,8 +1049,9 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	struct mxc_jpeg_stream stream;
 	bool notfound = true;
-	struct mxc_jpeg_sof sof;
-	int byte;
+	struct mxc_jpeg_sof sof, *psof = 0;
+	struct mxc_jpeg_sos *psos = 0;
+	u8 byte, *next = 0;
 	enum mxc_jpeg_image_format img_fmt;
 	u32 fourcc;
 
@@ -1062,6 +1081,12 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		case SOF0: /* Baseline sequential DCF frame definition */
 			if (get_sof(dev, &stream, &sof) == -1)
 				break;
+			next = stream.addr + stream.loc;
+			psof = (struct mxc_jpeg_sof *)next;
+			break;
+		case SOS:
+			next = stream.addr + stream.loc;
+			psos = (struct mxc_jpeg_sos *)next;
 			notfound = false;
 			break;
 		default:
@@ -1097,10 +1122,10 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 			MXC_JPEG_MAX_COMPONENTS);
 		return -EINVAL;
 	}
-	if (!mxc_jpeg_valid_comp_id(dev, &sof)) {
-		dev_err(dev, "JPEG component identifiers should be 0-3 or 1-4");
-		return -EINVAL;
-	}
+	/* check and, if necessary, patch component IDs*/
+	if (!mxc_jpeg_valid_comp_id(dev, psof, psos))
+		dev_warn(dev, "JPEG component identifiers should be 0-3 or 1-4");
+
 	img_fmt = mxc_jpeg_get_image_format(dev, &sof);
 	if (img_fmt == MXC_JPEG_INVALID)
 		return -EINVAL;
