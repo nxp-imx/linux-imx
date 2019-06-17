@@ -354,7 +354,6 @@ static struct reg_value ov5640_setting_30fps_1080P_1920_1080[] = {
 
 static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 	{0x3008, 0x42, 0, 0},
-	{0x4202, 0x0f, 0, 0},	/* stream off the sensor */
 	{0x3820, 0x40, 0, 0}, {0x3821, 0x06, 0, 0}, /*disable flip*/
 	{0x3035, 0x21, 0, 0}, {0x3036, 0x54, 0, 0}, {0x3c07, 0x08, 0, 0},
 	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
@@ -374,7 +373,6 @@ static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 	{0x4001, 0x02, 0, 0}, {0x4004, 0x06, 0, 0}, {0x4713, 0x03, 0, 0},
 	{0x4407, 0x04, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
 	{0x3824, 0x02, 0, 0}, {0x5001, 0x83, 0, 70}, {0x3008, 0x02, 0, 0},
-	{0x4202, 0x00, 0, 0},	/* stream on the sensor */
 };
 
 static struct ov5640_mode_info ov5640_mode_info_data[2][ov5640_mode_MAX + 1] = {
@@ -722,6 +720,7 @@ static void ov5640_start(struct ov5640 *sensor)
 {
 	ov5640_write_reg(sensor, 0x3008, 0x02);
 	ov5640_write_reg(sensor, 0x3008, 0x02);
+	ov5640_write_reg(sensor, 0x4202, 0x00);
 
 	/* Color bar control */
 	/*ov5640_write_reg(sensor, 0x503d, 0x80);*/
@@ -758,6 +757,13 @@ static int ov5640_change_mode(struct ov5640 *sensor)
 	return retval;
 }
 
+static void ov5640_stop(struct ov5640 *sensor)
+{
+	ov5640_write_reg(sensor, 0x4202, 0x0f);
+	ov5640_write_reg(sensor, 0x3008, 0x42);
+	udelay(1000);
+}
+
 static int init_device(struct ov5640 *sensor)
 {
 	int retval;
@@ -767,15 +773,9 @@ static int init_device(struct ov5640 *sensor)
 	if (retval < 0)
 		return retval;
 
-	ov5640_start(sensor);
+	ov5640_stop(sensor);
 
 	return 0;
-}
-
-static void ov5640_stop(struct ov5640 *sensor)
-{
-	ov5640_write_reg(sensor, 0x3008, 0x42);
-	udelay(1000);
 }
 
 /*!
