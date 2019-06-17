@@ -223,7 +223,8 @@ typedef enum {
 	VID_API_EVENT_DBG_FIFO_DUMP		= 0x23,
 	VID_API_EVENT_DEC_CHECK_RES		= 0x24,
 	VID_API_EVENT_DEC_CFG_INFO		= 0x25,
-	MEDIA_DEC_API_EVENT_UNSUPPORTED_STREAM	= 0x26,
+	VID_API_EVENT_UNSUPPORTED_STREAM	= 0x26,
+	VID_API_EVENT_STR_SUSPENDED		= 0x30,
 	VID_API_EVENT_SNAPSHOT_DONE		= 0x40,
 	VID_API_EVENT_INVALID			= 0xFF
 
@@ -383,13 +384,9 @@ typedef struct {
 	u_int32 bUserDataAvail;
 	u_int32 uPercentInErr;
 
-	u_int32 uBbdHorActive;
-	u_int32 uBbdVerActive;
-	u_int32 uBbdLogoActive;
-	u_int32 uBbdBotPrev;
-	u_int32 uBbdMinColPrj;
-	u_int32 uBbdMinRowPrj;
-	u_int32 uFSBaseAddr;
+	u_int32 uReservedBbd[3];
+	/* Luma top/bottom and Chroma top/bottom */
+	u_int32 uFSBaseAddr[4];
 
 	/* Only for RealVideo RPR */
 	u_int32 uRprPicWidth;
@@ -679,7 +676,7 @@ typedef struct {
 	MediaIPFW_Video_QMeterInfoTabDesc      QMeterInfoTabDesc;
 	u_int32                                StreamError[VID_API_NUM_STREAMS];
 	u_int32                                FWVersion;
-	u_int32                                uMVDMipsOffset;
+	u_int32                                uFWOffset;
 	u_int32                                uMaxDecoderStreams;
 	MediaIPFW_Video_DbgLogDesc             DbgLogDesc;
 	MediaIPFW_Video_FrameBuffer            StreamFrameBuffer[VID_API_NUM_STREAMS];

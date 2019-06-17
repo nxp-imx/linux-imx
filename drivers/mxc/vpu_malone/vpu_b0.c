@@ -4004,7 +4004,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_DEC_CFG_INFO:
 		break;
-	case MEDIA_DEC_API_EVENT_UNSUPPORTED_STREAM:
+	case VID_API_EVENT_UNSUPPORTED_STREAM:
 		vpu_dbg(LVL_WARN, "warning: HW unsupprot the format or stream\n");
 		vpu_dec_event_decode_error(ctx);
 		break;
