@@ -2493,7 +2493,9 @@ TB_API_DEC_FMT vpu_format_remap(uint32_t vdec_std)
 	return malone_format;
 }
 
-static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx, uint32_t idx, uint32_t cmdid, uint32_t cmdnum, uint32_t *local_cmddata)
+static void do_send_cmd_to_firmware(struct vpu_ctx *ctx,
+				uint32_t idx, uint32_t cmdid,
+				uint32_t cmdnum, uint32_t *local_cmddata)
 {
 	vpu_log_cmd(cmdid, idx);
 	count_cmd(&ctx->statistic, cmdid);
@@ -2503,6 +2505,159 @@ static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx, uint32_t idx, uint32_t cmdid,
 	mutex_unlock(&ctx->dev->cmd_mutex);
 	mb();
 	MU_SendMessage(ctx->dev->mu_base_virtaddr, 0, COMMAND);
+}
+
+static struct vpu_dec_cmd_request vpu_dec_cmds[] = {
+	{
+		.request = VID_API_CMD_START,
+		.response = VID_API_EVENT_START_DONE,
+		.block = true,
+	},
+	{
+		.request = VID_API_CMD_STOP,
+		.response = VID_API_EVENT_STOPPED,
+		.block = true,
+	},
+	{
+		.request = VID_API_CMD_ABORT,
+		.response = VID_API_EVENT_ABORT_DONE,
+		.block = true,
+	},
+	{
+		.request = VID_API_CMD_RST_BUF,
+		.response = VID_API_EVENT_STR_BUF_RST,
+		.block = true,
+	}
+};
+
+static struct vpu_dec_cmd_request *get_cmd_request(struct vpu_ctx *ctx,
+							u32 cmdid)
+{
+	struct vpu_dec_cmd_request *request;
+	int i;
+
+	request = vzalloc(sizeof(*request));
+	if (!request)
+		return NULL;
+
+	atomic64_add(sizeof(*request), &ctx->statistic.total_alloc_size);
+	request->request = cmdid;
+	request->response = VID_API_EVENT_INVALID;
+	request->block = false;
+	for (i = 0; i < ARRAY_SIZE(vpu_dec_cmds); i++) {
+		if (vpu_dec_cmds[i].request == cmdid) {
+			memcpy(request, &vpu_dec_cmds[i], sizeof(*request));
+			break;
+		}
+	}
+
+	return request;
+}
+
+static void put_cmd_request(struct vpu_ctx *ctx,
+				struct vpu_dec_cmd_request *request)
+{
+	if (!request)
+		return;
+
+	atomic64_sub(sizeof(*request), &ctx->statistic.total_alloc_size);
+	vfree(request);
+}
+
+static void vpu_dec_cleanup_cmd(struct vpu_ctx *ctx)
+{
+	struct vpu_dec_cmd_request *request;
+	struct vpu_dec_cmd_request *tmp;
+
+	mutex_lock(&ctx->cmd_lock);
+	if (ctx->pending) {
+		vpu_dbg(LVL_ERR,
+			"ctx[%d]'s cmd(%s) is not finished yet\n",
+			ctx->str_index, get_cmd_str(ctx->pending->request));
+		put_cmd_request(ctx, ctx->pending);
+		ctx->pending = NULL;
+	}
+	list_for_each_entry_safe(request, tmp, &ctx->cmd_q, list) {
+		list_del_init(&request->list);
+		vpu_dbg(LVL_ERR, "cmd(%s) of ctx[%d] is missed\n",
+				get_cmd_str(request->request), ctx->str_index);
+		put_cmd_request(ctx, request);
+	}
+	mutex_unlock(&ctx->cmd_lock);
+}
+
+static void process_cmd_request(struct vpu_ctx *ctx)
+{
+	struct vpu_dec_cmd_request *request;
+	struct vpu_dec_cmd_request *tmp;
+
+	if (ctx->pending)
+		return;
+
+	list_for_each_entry_safe(request, tmp, &ctx->cmd_q, list) {
+		list_del_init(&request->list);
+		do_send_cmd_to_firmware(ctx,
+					request->idx,
+					request->request,
+					request->num,
+					request->data);
+		if (request->block &&
+				request->response != VID_API_EVENT_INVALID) {
+			ctx->pending = request;
+			break;
+		}
+		put_cmd_request(ctx, request);
+	}
+}
+
+static void vpu_dec_request_cmd(struct vpu_ctx *ctx,
+				uint32_t idx, uint32_t cmdid,
+				uint32_t cmdnum, uint32_t *local_cmddata)
+{
+	struct vpu_dec_cmd_request *request;
+	u32 i;
+
+	if (cmdnum > VPU_DEC_CMD_DATA_MAX_NUM) {
+		vpu_dbg(LVL_ERR, "cmd(%s)'s data number(%d) > %d, drop it\n",
+			get_cmd_str(cmdid), cmdnum, VPU_DEC_CMD_DATA_MAX_NUM);
+		return;
+	}
+
+	request = get_cmd_request(ctx, cmdid);
+	if (!request) {
+		vpu_dbg(LVL_ERR, "cmd(%s) of ctx[%d] is missed\n",
+				get_cmd_str(cmdid), idx);
+		return;
+	}
+
+	request->idx = idx;
+	request->num = cmdnum;
+	for (i = 0; i < cmdnum && i < ARRAY_SIZE(request->data); i++)
+		request->data[i] = local_cmddata[i];
+
+	mutex_lock(&ctx->cmd_lock);
+	list_add_tail(&request->list, &ctx->cmd_q);
+	process_cmd_request(ctx);
+	mutex_unlock(&ctx->cmd_lock);
+}
+
+static void vpu_dec_response_cmd(struct vpu_ctx *ctx, u32 event)
+{
+	mutex_lock(&ctx->cmd_lock);
+	if (ctx->pending && event == ctx->pending->response) {
+		put_cmd_request(ctx, ctx->pending);
+		ctx->pending = NULL;
+	}
+
+	process_cmd_request(ctx);
+	mutex_unlock(&ctx->cmd_lock);
+}
+
+static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx,
+				uint32_t idx, uint32_t cmdid,
+				uint32_t cmdnum, uint32_t *local_cmddata)
+{
+	vpu_dec_request_cmd(ctx, idx, cmdid, cmdnum, local_cmddata);
 }
 
 static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
@@ -3356,10 +3511,13 @@ static void respond_req_frame_abnormal(struct vpu_ctx *ctx)
 {
 	u32 local_cmddata[10];
 
+	ctx->req_frame_count--;
+	if (ctx->firmware_stopped)
+		return;
+
 	memset(local_cmddata, 0, sizeof(local_cmddata));
 	local_cmddata[0] = (ctx->pSeqinfo->uActiveSeqTag + 0xf0)<<24;
 	local_cmddata[6] = MEDIAIP_FRAME_REQ;
-	ctx->req_frame_count--;
 	v4l2_vpu_send_cmd(ctx, ctx->str_index,
 			VID_API_CMD_FS_ALLOC, 7, local_cmddata);
 }
@@ -3372,7 +3530,7 @@ static bool alloc_frame_buffer(struct vpu_ctx *ctx,
 	dma_addr_t LumaAddr = 0;
 	dma_addr_t ChromaAddr = 0;
 
-	if (!ctx || !queue->enable || ctx->b_firstseq)
+	if (!ctx || !queue->enable || ctx->b_firstseq || ctx->firmware_stopped)
 		return false;
 
 	p_data_req = get_frame_buffer(queue);
@@ -3460,6 +3618,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	dev = ctx->dev;
 	pSharedInterface = (pDEC_RPC_HOST_IFACE)dev->shared_mem.shared_mem_vir;
 
+	vpu_dec_response_cmd(ctx, uEvent);
 	switch (uEvent) {
 	case VID_API_EVENT_START_DONE:
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] START DONE\n", ctx->str_index);
@@ -3948,6 +4107,7 @@ static void release_vpu_ctx(struct vpu_ctx *ctx)
 		return;
 
 	remove_instance_file(ctx);
+	vpu_dec_cleanup_cmd(ctx);
 	release_queue_data(ctx);
 	free_decoder_buffer(ctx);
 	destroy_log_info_queue(ctx);
@@ -3963,6 +4123,8 @@ static void release_vpu_ctx(struct vpu_ctx *ctx)
 	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
 		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma buffer\n");
 
+	mutex_destroy(&ctx->instance_mutex);
+	mutex_destroy(&ctx->cmd_lock);
 	clear_bit(ctx->str_index, &ctx->dev->instance_mask);
 	ctx->dev->ctx[ctx->str_index] = NULL;
 	pm_runtime_put_sync(ctx->dev->generic_dev);
@@ -4504,6 +4666,9 @@ static ssize_t show_instance_command_info(struct device *dev,
 			statistic->ts_cmd.tv_sec,
 			statistic->ts_cmd.tv_nsec / 1000);
 
+	if (ctx->pending)
+		num += scnprintf(buf + num, PAGE_SIZE - num, "pending\n");
+
 	return num;
 }
 
@@ -5026,6 +5191,7 @@ static int v4l2_open(struct file *filp)
 	INIT_WORK(&ctx->instance_work, vpu_msg_instance_work);
 
 	mutex_init(&ctx->instance_mutex);
+	mutex_init(&ctx->cmd_lock);
 	if (kfifo_alloc(&ctx->msg_fifo,
 				sizeof(struct event_msg) * VID_API_MESSAGE_LIMIT,
 				GFP_KERNEL)) {
@@ -5048,6 +5214,7 @@ static int v4l2_open(struct file *filp)
 	ctx->b_dis_reorder = false;
 	ctx->start_code_bypass = false;
 	ctx->hang_status = false;
+	INIT_LIST_HEAD(&ctx->cmd_q);
 	ctx->tsm = createTSManager(tsm_buffer_size);
 	if (!ctx->tsm)
 		goto err_create_tsm;
@@ -5296,11 +5463,27 @@ static void vpu_disable_hw(struct vpu_dev *This)
 static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 {
 	int ret = 0;
+	struct vpu_ctx *ctx;
 
+	if (!dev || !dev->ctx[idx])
+		return 0;
+
+	ctx = dev->ctx[idx];
 	vpu_dbg(LVL_WARN, "SWRESET: swreset_vpu_firmware\n");
 	dev->firmware_started = false;
 
-	v4l2_vpu_send_cmd(dev->ctx[idx], 0, VID_API_CMD_FIRM_RESET, 0, NULL);
+	ctx->firmware_stopped = true;
+	ctx->start_flag = true;
+	ctx->b_firstseq = true;
+	ctx->wait_rst_done = false;
+	down(&ctx->q_data[V4L2_DST].drv_q_lock);
+	respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
+	clear_queue(&ctx->q_data[V4L2_DST]);
+	reset_mbi_dcp_count(ctx);
+	up(&ctx->q_data[V4L2_DST].drv_q_lock);
+	memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
+	vpu_dec_cleanup_cmd(ctx);
+	v4l2_vpu_send_cmd(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
 	reinit_completion(&dev->start_cmp);
 	if (!wait_for_completion_timeout(&dev->start_cmp, msecs_to_jiffies(10000))) {
