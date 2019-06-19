@@ -717,7 +717,7 @@ static bool is_10bit_format(struct vpu_ctx *ctx)
 	return false;
 }
 
-static void caculate_frame_size(struct vpu_ctx *ctx)
+static void calculate_frame_size(struct vpu_ctx *ctx)
 {
 	u_int32 width = ctx->pSeqinfo->uHorDecodeRes;
 	u_int32 height = ctx->pSeqinfo->uVerDecodeRes;
@@ -759,17 +759,25 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		MediaIPFW_Video_SeqInfo *info = ctx->pSeqinfo;
+
 		q_data = &ctx->q_data[V4L2_DST];
 		if (is_10bit_format(ctx))
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12_10BIT;
 		else
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12;
-		pix_mp->width = ctx->pSeqinfo->uHorRes > 0?ctx->pSeqinfo->uHorRes:q_data->width;
-		pix_mp->height = ctx->pSeqinfo->uVerRes > 0?ctx->pSeqinfo->uVerRes:q_data->height;
-		if (ctx->pSeqinfo->uProgressive == 1)
+		pix_mp->width = q_data->width;
+		pix_mp->height = q_data->height;
+		down(&q_data->drv_q_lock);
+		if (!ctx->b_firstseq && info->uHorRes && info->uVerRes) {
+			pix_mp->width = ctx->pSeqinfo->uHorRes;
+			pix_mp->height = ctx->pSeqinfo->uVerRes;
+		}
+		if (info->uProgressive == 1)
 			pix_mp->field = V4L2_FIELD_NONE;
 		else
 			pix_mp->field = V4L2_FIELD_INTERLACED;
+		up(&q_data->drv_q_lock);
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
 
@@ -1206,6 +1214,10 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx, u32 index)
 		vpu_dbg(LVL_ERR, "request mbi buffer number out of range\n");
 		return -EINVAL;
 	}
+	if (!ctx->mbi_size) {
+		vpu_dbg(LVL_ERR, "mbi buffer size is not initialized\n");
+		return -EINVAL;
+	}
 
 	mbi_buffer = &ctx->mbi_buffer[index];
 	if (mbi_buffer->dma_virt && mbi_buffer->dma_size >= ctx->mbi_size)
@@ -1215,7 +1227,7 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx, u32 index)
 	mbi_buffer->dma_size = ctx->mbi_size;
 	ret = alloc_dma_buffer(ctx, mbi_buffer);
 	if (ret) {
-		vpu_dbg(LVL_ERR, "error: alloc dcp buffer[%d] fail\n", index);
+		vpu_dbg(LVL_ERR, "error: alloc mbi buffer[%d] fail\n", index);
 		return ret;
 	}
 
@@ -1305,6 +1317,11 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 	if (vb2_is_streaming(&q_data->vb2_q)) {
 		vpu_dbg(LVL_ERR, "%s reqbufs during streaming\n",
 			q_data->type ? "CAPTURE" : "OUTPUT");
+		return -EINVAL;
+	}
+
+	if (!q_data->sizeimage[0]) {
+		vpu_dbg(LVL_ERR, "sizeimage isn't initialized, reqbufs fail\n");
 		return -EINVAL;
 	}
 
@@ -3594,6 +3611,26 @@ static void release_frame_buffer(struct vpu_ctx *ctx,
 	set_data_req_status(p_data_req, FRAME_ALLOC);
 }
 
+static bool check_seq_info_is_valid(u32 ctx_id, MediaIPFW_Video_SeqInfo *info)
+{
+	if (!info)
+		return false;
+
+	if (!info->uHorRes || !info->uVerRes) {
+		vpu_dbg(LVL_ERR, "ctx[%d] invalid seq info : %d x %d\n",
+			ctx_id, info->uHorRes, info->uVerRes);
+		return false;
+	}
+	if (info->uHorRes > VPU_DEC_MAX_WIDTH ||
+			info->uVerRes > VPU_DEC_MAX_HEIGTH) {
+		vpu_dbg(LVL_ERR, "ctx[%d] invalid seq info : %d x %d\n",
+			ctx_id, info->uHorRes, info->uVerRes);
+		return false;
+	}
+
+	return true;
+}
+
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data)
 {
 	struct vpu_dev *dev;
@@ -3640,8 +3677,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
-		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
+		ctx->q_data[V4L2_DST].sizeimage[0] = 0;
+		ctx->q_data[V4L2_DST].sizeimage[1] = 0;
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
@@ -3729,6 +3768,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 //		MediaIPFW_Video_FrameBuffer *pStreamDCPBuffer = &pSharedInterface->StreamDCPBuffer[uStrIdx];
 		MediaIPFW_Video_PitchInfo   *pStreamPitchInfo = &pSharedInterface->StreamPitchInfo[uStrIdx];
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
+
+		if (!check_seq_info_is_valid(ctx->str_index, pSeqInfo))
+			break;
 		if (ctx->pSeqinfo == NULL) {
 			ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
 			atomic64_add(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
@@ -3737,10 +3779,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_dbg(LVL_INFO, "pSeqinfo is not NULL, need not to realloc\n");
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
-		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		memcpy(ctx->pSeqinfo, &pSeqInfo[ctx->str_index], sizeof(MediaIPFW_Video_SeqInfo));
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
-		caculate_frame_size(ctx);
+		calculate_frame_size(ctx);
 		parse_frame_interval_from_seqinfo(ctx, ctx->pSeqinfo);
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
 				ctx->str_index,
