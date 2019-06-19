@@ -3171,6 +3171,9 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 			return false;
 	}
 
+	if ((getTSManagerPreBufferCnt(ctx->tsm)) >= (tsm_buffer_size * 9 / 10))
+		return false;
+
 	if (ctx->ts_threshold > 0 &&
 		TSM_TS_IS_VALID(ctx->output_ts) &&
 		TSM_TS_IS_VALID(ctx->capture_ts)) {
