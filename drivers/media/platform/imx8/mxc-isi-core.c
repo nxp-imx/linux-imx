@@ -52,42 +52,28 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 	return IRQ_HANDLED;
 }
 
-static void disp_mix_sft_rstn(struct regmap *gpr, bool enable)
+static int disp_mix_sft_rstn(struct reset_control *reset, bool enable)
 {
-	if (!gpr)
-		return;
+	int ret;
 
-	if (!enable)
-		/* release isi soft reset */
-		regmap_update_bits(gpr,
-				DISP_MIX_SFT_RSTN_CSR,
-				EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN,
-				EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN);
-	else
-		regmap_update_bits(gpr,
-				DISP_MIX_SFT_RSTN_CSR,
-				EN_ISI_APB_CLK_RSTN | EN_ISI_APB_CLK_RSTN,
-				0x0);
+	if (!reset)
+		return 0;
 
+	ret = enable ? reset_control_assert(reset) :
+			 reset_control_deassert(reset);
+	return ret;
 }
 
-static void disp_mix_clks_enable(struct regmap *gpr, bool enable)
+static int disp_mix_clks_enable(struct reset_control *reset, bool enable)
 {
-	if (!gpr)
-		return;
+	int ret;
 
-	if (enable)
-		/* enable isi clks */
-		regmap_update_bits(gpr,
-				DISP_MIX_CLK_EN_CSR,
-				EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
-				EN_ISI_APB_CLK | EN_ISI_PROC_CLK);
-	else
-		/* disable isi clks */
-		regmap_update_bits(gpr,
-				DISP_MIX_CLK_EN_CSR,
-				EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
-				0x0);
+	if (!reset)
+		return 0;
+
+	ret = enable ? reset_control_assert(reset) :
+			 reset_control_deassert(reset);
+	return ret;
 }
 
 /**
@@ -296,6 +282,53 @@ static void mxc_isi_clk_disable(struct mxc_isi_dev *mxc_isi)
 	ops->clk_disable(mxc_isi);
 }
 
+static int mxc_isi_of_parse_resets(struct mxc_isi_dev *mxc_isi)
+{
+	int ret;
+	struct device *dev = &mxc_isi->pdev->dev;
+	struct device_node *np = dev->of_node;
+	struct device_node *parent, *child;
+	struct of_phandle_args args;
+	struct reset_control *rstc;
+	const char *compat;
+	uint32_t len, rstc_num = 0;
+
+	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
+					 0, &args);
+	if (ret)
+		return ret;
+
+	parent = args.np;
+	for_each_child_of_node(parent, child) {
+		compat = of_get_property(child, "compatible", NULL);
+		if (!compat)
+			continue;
+
+		rstc = of_reset_control_array_get(child, false, false);
+		if (IS_ERR(rstc))
+			continue;
+
+		len = strlen(compat);
+		if (!of_compat_cmp("isi,soft-resetn", compat, len)) {
+			mxc_isi->soft_resetn = rstc;
+			rstc_num++;
+		} else if (!of_compat_cmp("isi,clk-enable", compat, len)) {
+			mxc_isi->clk_enable = rstc;
+			rstc_num++;
+		} else {
+			dev_warn(dev, "invalid isi reset node: %s\n", compat);
+		}
+	}
+
+	if (!rstc_num) {
+		dev_err(dev, "no invalid reset control exists\n");
+		return -EINVAL;
+	}
+
+	of_node_put(parent);
+	return 0;
+}
+
 static int mxc_isi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -335,10 +368,12 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	mutex_init(&mxc_isi->m2m_lock);
 	atomic_set(&mxc_isi->open_count, 0);
 
-	mxc_isi->gpr = syscon_regmap_lookup_by_phandle(dev->of_node, "isi-gpr");
-	if (IS_ERR(mxc_isi->gpr)) {
-		mxc_isi->gpr = NULL;
-		dev_warn(dev, "can't find isi-gpr property\n");
+	if (of_device_is_compatible(dev->of_node, "fsl,imx8mn-isi")) {
+		ret = mxc_isi_of_parse_resets(mxc_isi);
+		if (ret) {
+			dev_warn(dev, "Can not parse reset control\n");
+			return ret;
+		}
 	}
 
 	ret = mxc_isi_clk_get(mxc_isi);
@@ -365,8 +400,8 @@ static int mxc_isi_probe(struct platform_device *pdev)
 		dev_err(dev, "ISI_%d enable clocks fail\n", mxc_isi->id);
 		return ret;
 	}
-	disp_mix_sft_rstn(mxc_isi->gpr, false);
-	disp_mix_clks_enable(mxc_isi->gpr, true);
+	disp_mix_sft_rstn(mxc_isi->soft_resetn, false);
+	disp_mix_clks_enable(mxc_isi->clk_enable, true);
 
 	mxc_isi_clean_registers(mxc_isi);
 
@@ -440,7 +475,7 @@ static int mxc_isi_runtime_suspend(struct device *dev)
 {
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 
-	disp_mix_clks_enable(mxc_isi->gpr, false);
+	disp_mix_clks_enable(mxc_isi->clk_enable, false);
 	mxc_isi_clk_disable(mxc_isi);
 
 	return 0;
@@ -456,8 +491,8 @@ static int mxc_isi_runtime_resume(struct device *dev)
 		dev_err(dev, "%s clk enable fail\n", __func__);
 		return ret;
 	}
-	disp_mix_sft_rstn(mxc_isi->gpr, false);
-	disp_mix_clks_enable(mxc_isi->gpr, true);
+	disp_mix_sft_rstn(mxc_isi->soft_resetn, false);
+	disp_mix_clks_enable(mxc_isi->clk_enable, true);
 
 	return 0;
 }
