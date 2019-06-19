@@ -186,20 +186,7 @@
 #define MIPI_CSIS_PKTDATA_EVEN		0x3000
 #define MIPI_CSIS_PKTDATA_SIZE		SZ_4K
 
-#define GPR_MIPI_RESET			0x08
-#define GPR_MIPI_S_RESETN		BIT(16)
-
 #define DEFAULT_SCLK_CSIS_FREQ		166000000UL
-
-/* display_mix_sft_rstn_csr */
-#define DISP_MIX_SFT_RSTN_CSR		0x00
-#define EN_CSI_ACLK_RSTN		BIT(3)
-#define EN_CSI_PCLK_RSTN		BIT(2)
-
-/* display_mix_clk_en_csr */
-#define DISP_MIX_CLK_EN_CSR		0x04
-#define EN_CSI_ACLK			BIT(3)
-#define EN_CSI_PCLK			BIT(2)
 
 /* display_mix_clk_en_csr */
 #define DISP_MIX_GASKET_0_CTRL			0x60
@@ -334,6 +321,9 @@ struct csi_state {
 	struct regulator     *mipi_phy_regulator;
 
 	struct regmap *gpr;
+	struct reset_control *soft_resetn;
+	struct reset_control *clk_enable;
+	struct reset_control *mipi_reset;
 };
 
 /**

@@ -18,21 +18,12 @@
 #include <media/v4l2-ctrls.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
+#include <linux/reset.h>
 
 #define MXC_ISI_DRIVER_NAME	"mxc-isi"
 #define MXC_ISI_MAX_DEVS	8
 
 #define ISI_OF_NODE_NAME	"isi"
-
-/* display_mix_sft_rstn_csr */
-#define EN_BUS_BLK_CLK_RSTN	BIT(8)
-#define EN_ISI_APB_CLK_RSTN	BIT(7)
-#define EN_ISI_PROC_CLK_RSTN	BIT(6)
-
-/* display_mix_clk_en_csr */
-#define EN_BUS_BLK_CLK		BIT(8)
-#define EN_ISI_APB_CLK		BIT(7)
-#define EN_ISI_PROC_CLK		BIT(6)
 
 #define MXC_ISI_SD_PAD_SINK_MIPI0_VC0		0
 #define MXC_ISI_SD_PAD_SINK_MIPI0_VC1		1
@@ -311,8 +302,10 @@ struct mxc_isi_dev {
 	struct clk	*clk_root_disp_axi;
 	struct clk	*clk_root_disp_apb;
 
-	struct regmap *gpr;
 	const struct mxc_isi_dev_ops *ops;
+
+	struct reset_control *soft_resetn;
+	struct reset_control *clk_enable;
 
 	u32 interface[MAX_PORTS];
 	u32 flags;

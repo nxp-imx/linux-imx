@@ -23,6 +23,7 @@
 #include <linux/videodev2.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-device.h>
+#include <linux/reset.h>
 
 #include "mxc-mipi-csi2-sam.h"
 
@@ -220,13 +221,12 @@ static int mipi_csis_phy_init(struct csi_state *state)
 
 static void mipi_csis_phy_reset_mx8mn(struct csi_state *state)
 {
-	struct regmap *gpr = state->gpr;
+	struct reset_control *reset = state->mipi_reset;
 
-	regmap_update_bits(gpr, GPR_MIPI_RESET, GPR_MIPI_S_RESETN, 0x0);
+	reset_control_assert(reset);
 	usleep_range(10, 20);
 
-	regmap_update_bits(gpr, GPR_MIPI_RESET, GPR_MIPI_S_RESETN,
-						GPR_MIPI_S_RESETN);
+	reset_control_deassert(reset);
 	usleep_range(10, 20);
 }
 
@@ -412,35 +412,22 @@ static int mipi_csis_clk_get(struct csi_state *state)
 	return 0;
 }
 
-static void disp_mix_sft_rstn(struct regmap *gpr, bool enable)
+static int disp_mix_sft_rstn(struct reset_control *reset, bool enable)
 {
-	if (!enable)
-		/* release isi soft reset */
-		regmap_update_bits(gpr,
-				DISP_MIX_SFT_RSTN_CSR,
-				EN_CSI_ACLK_RSTN | EN_CSI_PCLK_RSTN,
-				EN_CSI_ACLK_RSTN | EN_CSI_PCLK_RSTN);
-	else
-		regmap_update_bits(gpr,
-				DISP_MIX_SFT_RSTN_CSR,
-				EN_CSI_ACLK_RSTN | EN_CSI_PCLK_RSTN,
-				0x0);
-	usleep_range(20, 30);
+	int ret;
+
+	ret = enable ? reset_control_assert(reset) :
+			 reset_control_deassert(reset);
+	return ret;
 }
 
-static void disp_mix_clks_enable(struct regmap *gpr, bool enable)
+static int disp_mix_clks_enable(struct reset_control *reset, bool enable)
 {
-	if (enable)
-		regmap_update_bits(gpr,
-				DISP_MIX_CLK_EN_CSR,
-				EN_CSI_ACLK | EN_CSI_PCLK,
-				EN_CSI_ACLK | EN_CSI_PCLK);
-	else
-		regmap_update_bits(gpr,
-				DISP_MIX_CLK_EN_CSR,
-				EN_CSI_ACLK | EN_CSI_PCLK,
-				0x0);
-	usleep_range(20, 30);
+	int ret;
+
+	ret = enable ? reset_control_assert(reset) :
+			 reset_control_deassert(reset);
+	return ret;
 }
 
 static void disp_mix_gasket_config(struct csi_state *state)
@@ -934,6 +921,56 @@ static int mipi_csis_subdev_init(struct v4l2_subdev *mipi_sd,
 	return ret;
 }
 
+static int mipi_csis_of_parse_resets(struct csi_state *state)
+{
+	int ret;
+	struct device *dev = state->dev;
+	struct device_node *np = dev->of_node;
+	struct device_node *parent, *child;
+	struct of_phandle_args args;
+	struct reset_control *rstc;
+	const char *compat;
+	uint32_t len, rstc_num = 0;
+
+	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
+					 0, &args);
+	if (ret)
+		return ret;
+
+	parent = args.np;
+	for_each_child_of_node(parent, child) {
+		compat = of_get_property(child, "compatible", NULL);
+		if (!compat)
+			continue;
+
+		rstc = of_reset_control_array_get(child, false, false);
+		if (IS_ERR(rstc))
+			continue;
+
+		len = strlen(compat);
+		if (!of_compat_cmp("csi,soft-resetn", compat, len)) {
+			state->soft_resetn = rstc;
+			rstc_num++;
+		} else if (!of_compat_cmp("csi,clk-enable", compat, len)) {
+			state->clk_enable = rstc;
+			rstc_num++;
+		} else if (!of_compat_cmp("csi,mipi-reset", compat, len)) {
+			state->mipi_reset = rstc;
+			rstc_num++;
+		} else {
+			dev_warn(dev, "invalid csis reset node: %s\n", compat);
+		}
+	}
+
+	if (!rstc_num) {
+		dev_err(dev, "no invalid reset control exists\n");
+		return -EINVAL;
+	}
+	of_node_put(parent);
+
+	return 0;
+}
+
 static int mipi_csis_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -982,6 +1019,12 @@ static int mipi_csis_probe(struct platform_device *pdev)
 		return PTR_ERR(state->gpr);
 	}
 
+	ret = mipi_csis_of_parse_resets(state);
+	if (ret < 0) {
+		dev_err(dev, "Can not parse reset control\n");
+		return ret;
+	}
+
 	mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	state->regs = devm_ioremap_resource(dev, mem_res);
 	if (IS_ERR(state->regs))
@@ -1001,8 +1044,8 @@ static int mipi_csis_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	disp_mix_clks_enable(state->gpr, true);
-	disp_mix_sft_rstn(state->gpr, false);
+	disp_mix_clks_enable(state->clk_enable, true);
+	disp_mix_sft_rstn(state->soft_resetn, false);
 	phy_reset_fn(state);
 
 	mipi_csis_clk_disable(state);
@@ -1073,7 +1116,7 @@ static int mipi_csis_runtime_suspend(struct device *dev)
 	if (ret < 0)
 		return ret;
 
-	disp_mix_clks_enable(state->gpr, false);
+	disp_mix_clks_enable(state->clk_enable, false);
 	mipi_csis_clk_disable(state);
 	return 0;
 }
@@ -1091,8 +1134,8 @@ static int mipi_csis_runtime_resume(struct device *dev)
 	if (ret < 0)
 		return ret;
 
-	disp_mix_clks_enable(state->gpr, true);
-	disp_mix_sft_rstn(state->gpr, false);
+	disp_mix_clks_enable(state->clk_enable, true);
+	disp_mix_sft_rstn(state->soft_resetn, false);
 
 	return 0;
 }
