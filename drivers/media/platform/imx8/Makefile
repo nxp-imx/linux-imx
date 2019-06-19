@@ -4,6 +4,7 @@ obj-$(CONFIG_IMX8_CAPTURE_DRIVER) += mxc-capture.o
 obj-$(CONFIG_IMX8_MIPI_CSI2) += mxc-mipi-csi2.o
 obj-$(CONFIG_IMX8_PARALLEL_CSI) += mxc-parallel-csi.o
 obj-$(CONFIG_IMX8_MIPI_CSI2_YAV) += mxc-mipi-csi2_yav.o
+obj-$(CONFIG_IMX8_MIPI_CSI2_SAM) += mxc-mipi-csi2-sam.o
 ov5640_camera_v3-objs := ov5640_v3.o
 obj-$(CONFIG_MXC_CAMERA_OV5640_V3) += ov5640_camera_v3.o
 obj-$(CONFIG_MXC_CAMERA_OV5640_MIPI_V3) += ov5640_mipi_v3.o

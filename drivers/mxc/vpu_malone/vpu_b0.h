@@ -64,6 +64,7 @@ extern unsigned int vpu_dbg_level_decoder;
 #define DEFAULT_LOG_DEPTH 20
 #define DEFAULT_FRMDBG_ENABLE 0
 #define DEFAULT_FRMDBG_LEVEL 0
+#define VPU_DEC_CMD_DATA_MAX_NUM	16
 
 #define V4L2_EVENT_DECODE_ERROR		(V4L2_EVENT_PRIVATE_START + 1)
 #define V4L2_EVENT_SKIP			(V4L2_EVENT_PRIVATE_START + 2)
@@ -300,6 +301,16 @@ struct dma_buffer {
 	u_int32 dma_size;
 };
 
+struct vpu_dec_cmd_request {
+	struct list_head list;
+	u32 request;
+	u32 response;
+	bool block;
+	u32 idx;
+	u32 num;
+	u32 data[VPU_DEC_CMD_DATA_MAX_NUM];
+};
+
 struct vpu_ctx {
 	struct vpu_dev *dev;
 	struct v4l2_fh fh;
@@ -379,6 +390,10 @@ struct vpu_ctx {
 
 	struct v4l2_fract fixed_frame_interval;
 	struct v4l2_fract frame_interval;
+
+	struct list_head cmd_q;
+	struct vpu_dec_cmd_request *pending;
+	struct mutex cmd_lock;
 };
 
 #define LVL_INFO		3

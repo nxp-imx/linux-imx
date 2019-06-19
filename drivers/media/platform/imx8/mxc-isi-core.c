@@ -11,6 +11,8 @@
  */
 #include "mxc-media-dev.h"
 
+static const struct of_device_id mxc_isi_of_match[];
+
 static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 {
 	struct mxc_isi_dev *mxc_isi = priv;
@@ -48,6 +50,44 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 
 	spin_unlock(&mxc_isi->slock);
 	return IRQ_HANDLED;
+}
+
+static void disp_mix_sft_rstn(struct regmap *gpr, bool enable)
+{
+	if (!gpr)
+		return;
+
+	if (!enable)
+		/* release isi soft reset */
+		regmap_update_bits(gpr,
+				DISP_MIX_SFT_RSTN_CSR,
+				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN,
+				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN);
+	else
+		regmap_update_bits(gpr,
+				DISP_MIX_SFT_RSTN_CSR,
+				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_APB_CLK_RSTN,
+				0x0);
+
+}
+
+static void disp_mix_clks_enable(struct regmap *gpr, bool enable)
+{
+	if (!gpr)
+		return;
+
+	if (enable)
+		/* enable isi clks */
+		regmap_update_bits(gpr,
+				DISP_MIX_CLK_EN_CSR,
+				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
+				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK);
+	else
+		/* disable isi clks */
+		regmap_update_bits(gpr,
+				DISP_MIX_CLK_EN_CSR,
+				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
+				0x0);
 }
 
 /**
@@ -110,12 +150,158 @@ static int mxc_isi_parse_dt(struct mxc_isi_dev *mxc_isi)
 	return 0;
 }
 
+static int mxc_imx8_clk_get(struct mxc_isi_dev *mxc_isi)
+{
+	struct device *dev = &mxc_isi->pdev->dev;
+
+	mxc_isi->clk = devm_clk_get(dev, NULL);
+
+	if (IS_ERR(mxc_isi->clk)) {
+		dev_err(dev, "failed to get isi clk\n");
+		return PTR_ERR(mxc_isi->clk);
+	}
+
+	return 0;
+}
+
+static int mxc_imx8_clk_enable(struct mxc_isi_dev *mxc_isi)
+{
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	ret = clk_prepare_enable(mxc_isi->clk);
+	if (ret < 0) {
+		dev_err(dev, "%s, enable clk error\n", __func__);
+		return ret;
+	}
+
+	return 0;
+}
+
+static void mxc_imx8_clk_disable(struct mxc_isi_dev *mxc_isi)
+{
+	clk_disable_unprepare(mxc_isi->clk);
+}
+
+static struct mxc_isi_dev_ops mxc_imx8_data = {
+	.clk_get     = mxc_imx8_clk_get,
+	.clk_enable  = mxc_imx8_clk_enable,
+	.clk_disable = mxc_imx8_clk_disable,
+};
+
+static int mxc_imx8mn_clk_get(struct mxc_isi_dev *mxc_isi)
+{
+	struct device *dev = &mxc_isi->pdev->dev;
+
+	mxc_isi->clk_disp_axi = devm_clk_get(dev, "disp_axi");
+	if (IS_ERR(mxc_isi->clk_disp_axi)) {
+		dev_err(dev, "failed to get disp_axi clk\n");
+		return PTR_ERR(mxc_isi->clk_disp_axi);
+	}
+
+	mxc_isi->clk_disp_apb = devm_clk_get(dev, "disp_apb");
+	if (IS_ERR(mxc_isi->clk_disp_apb)) {
+		dev_err(dev, "failed to get disp_apb clk\n");
+		return PTR_ERR(mxc_isi->clk_disp_apb);
+	}
+
+	mxc_isi->clk_root_disp_axi = devm_clk_get(dev, "disp_axi_root");
+	if (IS_ERR(mxc_isi->clk_root_disp_axi)) {
+		dev_err(dev, "failed to get disp axi root clk\n");
+		return PTR_ERR(mxc_isi->clk_root_disp_axi);
+	}
+
+	mxc_isi->clk_root_disp_apb = devm_clk_get(dev, "disp_apb_root");
+	if (IS_ERR(mxc_isi->clk_root_disp_apb)) {
+		dev_err(dev, "failed to get disp apb root clk\n");
+		return PTR_ERR(mxc_isi->clk_root_disp_apb);
+	}
+
+	return 0;
+}
+
+static int mxc_imx8mn_clk_enable(struct mxc_isi_dev *mxc_isi)
+{
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	ret = clk_prepare_enable(mxc_isi->clk_disp_axi);
+	if (ret < 0) {
+		dev_err(dev, "prepare and enable axi clk error\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(mxc_isi->clk_disp_apb);
+	if (ret < 0) {
+		dev_err(dev, "prepare and enable abp clk error\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(mxc_isi->clk_root_disp_axi);
+	if (ret < 0) {
+		dev_err(dev, "prepare and enable axi root clk error\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(mxc_isi->clk_root_disp_apb);
+	if (ret < 0) {
+		dev_err(dev, "prepare and enable apb root clk error\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static void mxc_imx8mn_clk_disable(struct mxc_isi_dev *mxc_isi)
+{
+	clk_disable_unprepare(mxc_isi->clk_root_disp_axi);
+	clk_disable_unprepare(mxc_isi->clk_root_disp_apb);
+	clk_disable_unprepare(mxc_isi->clk_disp_axi);
+	clk_disable_unprepare(mxc_isi->clk_disp_apb);
+}
+
+static struct mxc_isi_dev_ops mxc_imx8mn_data = {
+	.clk_get     = mxc_imx8mn_clk_get,
+	.clk_enable  = mxc_imx8mn_clk_enable,
+	.clk_disable = mxc_imx8mn_clk_disable,
+};
+
+static int mxc_isi_clk_get(struct mxc_isi_dev *mxc_isi)
+{
+	const struct mxc_isi_dev_ops *ops = mxc_isi->ops;
+
+	if (!ops && !ops->clk_get)
+		return -EINVAL;
+
+	return ops->clk_get(mxc_isi);
+}
+
+static int mxc_isi_clk_enable(struct mxc_isi_dev *mxc_isi)
+{
+	const struct mxc_isi_dev_ops *ops = mxc_isi->ops;
+
+	if (!ops && !ops->clk_enable)
+		return -EINVAL;
+
+	return ops->clk_enable(mxc_isi);
+}
+
+static void mxc_isi_clk_disable(struct mxc_isi_dev *mxc_isi)
+{
+	const struct mxc_isi_dev_ops *ops = mxc_isi->ops;
+
+	if (!ops && !ops->clk_disable)
+		return;
+
+	ops->clk_disable(mxc_isi);
+}
 
 static int mxc_isi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mxc_isi_dev *mxc_isi;
 	struct resource *res;
+	const struct of_device_id *of_id;
 	int ret = 0;
 
 	mxc_isi = devm_kzalloc(dev, sizeof(*mxc_isi), GFP_KERNEL);
@@ -123,6 +309,15 @@ static int mxc_isi_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	mxc_isi->pdev = pdev;
+	of_id = of_match_node(mxc_isi_of_match, dev->of_node);
+	if (!of_id)
+		return -EINVAL;
+
+	mxc_isi->ops = of_id->data;
+	if (!mxc_isi->ops) {
+		dev_err(dev, "Can't get platform device data\n");
+		return -EINVAL;
+	}
 
 	ret = mxc_isi_parse_dt(mxc_isi);
 	if (ret < 0)
@@ -140,15 +335,16 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	mutex_init(&mxc_isi->m2m_lock);
 	atomic_set(&mxc_isi->open_count, 0);
 
-	mxc_isi->clk = devm_clk_get(dev, NULL);
-	if (IS_ERR(mxc_isi->clk)) {
-		dev_err(dev, "failed to get isi clk\n");
-		return PTR_ERR(mxc_isi->clk);
+	mxc_isi->gpr = syscon_regmap_lookup_by_phandle(dev->of_node, "isi-gpr");
+	if (IS_ERR(mxc_isi->gpr)) {
+		mxc_isi->gpr = NULL;
+		dev_warn(dev, "can't find isi-gpr property\n");
 	}
-	ret = clk_prepare(mxc_isi->clk);
+
+	ret = mxc_isi_clk_get(mxc_isi);
 	if (ret < 0) {
-		dev_err(dev, "%s, prepare clk error\n", __func__);
-		return -EINVAL;
+		dev_err(dev, "ISI_%d get clocks fail\n", mxc_isi->id);
+		return ret;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -164,31 +360,33 @@ static int mxc_isi_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	ret = mxc_isi_clk_enable(mxc_isi);
+	if (ret < 0) {
+		dev_err(dev, "ISI_%d enable clocks fail\n", mxc_isi->id);
+		return ret;
+	}
+	disp_mix_sft_rstn(mxc_isi->gpr, false);
+	disp_mix_clks_enable(mxc_isi->gpr, true);
+
 	mxc_isi_clean_registers(mxc_isi);
 
 	ret = devm_request_irq(dev, res->start, mxc_isi_irq_handler,
 			       0, dev_name(dev), mxc_isi);
 	if (ret < 0) {
 		dev_err(dev, "failed to install irq (%d)\n", ret);
-		return -EINVAL;
+		goto err_clk;
 	}
 
 	ret = mxc_isi_initialize_capture_subdev(mxc_isi);
 	if (ret < 0) {
 		dev_err(dev, "failed to init cap subdev (%d)\n", ret);
-		return -EINVAL;
+		goto err_clk;
 	}
 
 	platform_set_drvdata(pdev, mxc_isi);
 
-	ret = clk_enable(mxc_isi->clk);
-	if (ret < 0) {
-		dev_err(dev, "%s, enable clk error\n", __func__);
-		goto err_sclk;
-	}
-
 	mxc_isi_channel_set_chain_buf(mxc_isi);
-	clk_disable_unprepare(mxc_isi->clk);
+	mxc_isi_clk_disable(mxc_isi);
 
 	pm_runtime_enable(dev);
 
@@ -196,7 +394,8 @@ static int mxc_isi_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_sclk:
+err_clk:
+	mxc_isi_clk_disable(mxc_isi);
 	mxc_isi_unregister_capture_subdev(mxc_isi);
 	return ret;
 }
@@ -227,7 +426,17 @@ static int mxc_isi_pm_suspend(struct device *dev)
 
 static int mxc_isi_pm_resume(struct device *dev)
 {
-	return pm_runtime_force_resume(dev);
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret < 0)
+		return ret;
+
+	disp_mix_sft_rstn(mxc_isi->gpr, false);
+	disp_mix_clks_enable(mxc_isi->gpr, true);
+
+	return 0;
 }
 #endif
 
@@ -235,7 +444,8 @@ static int mxc_isi_runtime_suspend(struct device *dev)
 {
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 
-	clk_disable_unprepare(mxc_isi->clk);
+	mxc_isi_clk_disable(mxc_isi);
+
 	return 0;
 }
 
@@ -244,11 +454,13 @@ static int mxc_isi_runtime_resume(struct device *dev)
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 	int ret;
 
-	ret = clk_prepare_enable(mxc_isi->clk);
-	if (ret)
+	ret = mxc_isi_clk_enable(mxc_isi);
+	if (ret) {
 		dev_err(dev, "%s clk enable fail\n", __func__);
+		return ret;
+	}
 
-	return (ret) ? ret : 0;
+	return 0;
 }
 
 static const struct dev_pm_ops mxc_isi_pm_ops = {
@@ -257,7 +469,8 @@ static const struct dev_pm_ops mxc_isi_pm_ops = {
 };
 
 static const struct of_device_id mxc_isi_of_match[] = {
-	{.compatible = "fsl,imx8-isi",},
+	{.compatible = "fsl,imx8-isi", .data = &mxc_imx8_data },
+	{.compatible = "fsl,imx8mn-isi", .data = &mxc_imx8mn_data },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, mxc_isi_of_match);
