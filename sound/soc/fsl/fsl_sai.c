@@ -473,11 +473,12 @@ static int fsl_sai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	return ret;
 }
 
-static int fsl_sai_check_ver(struct snd_soc_dai *cpu_dai)
+static int fsl_sai_check_ver(struct device *dev)
 {
-	struct fsl_sai *sai = dev_get_drvdata(cpu_dai->dev);
+	struct fsl_sai *sai = dev_get_drvdata(dev);
 	unsigned char offset = sai->soc->reg_offset;
 	unsigned int val;
+	int ret;
 
 	if (FSL_SAI_TCSR(offset) == FSL_SAI_VERID)
 		return 0;
@@ -485,16 +486,21 @@ static int fsl_sai_check_ver(struct snd_soc_dai *cpu_dai)
 	if (sai->verid.loaded)
 		return 0;
 
-	sai->verid.loaded = true;
-	regmap_read(sai->regmap, FSL_SAI_VERID, &val);
-	dev_dbg(cpu_dai->dev, "VERID: 0x%016X\n", val);
+	ret = regmap_read(sai->regmap, FSL_SAI_VERID, &val);
+	if (ret < 0)
+		return ret;
+
+	dev_dbg(dev, "VERID: 0x%016X\n", val);
 
 	sai->verid.id = (val & FSL_SAI_VER_ID_MASK) >> FSL_SAI_VER_ID_SHIFT;
 	sai->verid.extfifo_en = (val & FSL_SAI_VER_EFIFO_EN);
 	sai->verid.timestamp_en = (val & FSL_SAI_VER_TSTMP_EN);
 
-	regmap_read(sai->regmap, FSL_SAI_PARAM, &val);
-	dev_dbg(cpu_dai->dev, "PARAM: 0x%016X\n", val);
+	ret = regmap_read(sai->regmap, FSL_SAI_PARAM, &val);
+	if (ret < 0)
+		return ret;
+
+	dev_dbg(dev, "PARAM: 0x%016X\n", val);
 
 	/* max slots per frame, power of 2 */
 	sai->param.spf = 1 <<
@@ -507,10 +513,12 @@ static int fsl_sai_check_ver(struct snd_soc_dai *cpu_dai)
 	/* number of datalines implemented */
 	sai->param.dln = val & FSL_SAI_PAR_DLN_MASK;
 
-	dev_dbg(cpu_dai->dev,
+	dev_dbg(dev,
 		"Version: 0x%08X, SPF: %u, WPF: %u, DLN: %u\n",
 		sai->verid.id, sai->param.spf, sai->param.wpf, sai->param.dln
 	);
+
+	sai->verid.loaded = true;
 
 	return 0;
 }
@@ -528,8 +536,6 @@ static int fsl_sai_set_bclk(struct snd_soc_dai *dai, bool tx, u32 freq)
 	/* Don't apply to slave mode */
 	if (sai->slave_mode[tx])
 		return 0;
-
-	fsl_sai_check_ver(dai);
 
 	for (id = 0; id < FSL_SAI_MCLK_MAX; id++) {
 		clk_rate = clk_get_rate(sai->mclk_clk[id]);
@@ -1508,6 +1514,10 @@ static int fsl_sai_probe(struct platform_device *pdev)
 	sai->pinctrl = devm_pinctrl_get(&pdev->dev);
 
 	platform_set_drvdata(pdev, sai);
+
+	ret = fsl_sai_check_ver(&pdev->dev);
+	if (ret < 0)
+		dev_warn(&pdev->dev, "Error reading SAI version: %d\n", ret);
 
 	pm_runtime_enable(&pdev->dev);
 
