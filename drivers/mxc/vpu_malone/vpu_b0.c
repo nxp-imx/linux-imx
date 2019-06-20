@@ -884,12 +884,6 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 			return -EINVAL;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
-		for (i = 0; i < pix_mp->num_planes; i++) {
-			if (ctx->q_data[V4L2_DST].stride > 0)
-				pix_mp->plane_fmt[i].bytesperline = ctx->q_data[V4L2_DST].stride;
-			if (ctx->q_data[V4L2_DST].sizeimage[i] > 0)
-				pix_mp->plane_fmt[i].sizeimage = ctx->q_data[V4L2_DST].sizeimage[i];
-		}
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
 		if (!set_video_standard(q_data, f, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec)))
@@ -899,6 +893,8 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 
 	q_data->num_planes = pix_mp->num_planes;
 	for (i = 0; i < q_data->num_planes; i++) {
+		if (!V4L2_TYPE_IS_OUTPUT(f->type) && !ctx->b_firstseq)
+			continue;
 		q_data->stride = pix_mp->plane_fmt[i].bytesperline;
 		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
 	}
@@ -1321,7 +1317,9 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 	}
 
 	if (!q_data->sizeimage[0]) {
-		vpu_dbg(LVL_ERR, "sizeimage isn't initialized, reqbufs fail\n");
+		vpu_dbg(LVL_ERR,
+			"sizeimage isn't initialized, %s reqbufs fail\n",
+			q_data->type ? "CAPTURE" : "OUTPUT");
 		return -EINVAL;
 	}
 
@@ -3760,6 +3758,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			p_data_req->bfield = true;
 
 		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
+		This->process_count++;
 		}
 
 		ctx->frm_dec_delay--;
@@ -3948,8 +3947,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				);
 
 		down(&queue->drv_q_lock);
-		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
-		ctx->beginning = pStrBufDesc->rptr;
 		vpu_dbg(LVL_BIT_FLOW,
 			"ctx[%d] ABORT DONE, output qbuf(%ld/%ld),dqbuf(%ld)\n",
 			ctx->str_index,
@@ -3964,6 +3961,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->total_write_bytes,
 				ctx->total_consumed_bytes);
 		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
+		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
+		ctx->beginning = pStrBufDesc->rptr;
 		ctx->total_qbuf_bytes = 0;
 		ctx->total_write_bytes = 0;
 		ctx->total_consumed_bytes = 0;
