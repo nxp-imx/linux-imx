@@ -1210,8 +1210,8 @@
 	operating-points = <
 		/* kHz    uV */
 		1500000 1000000
-		1400000 900000
-		1200000 800000
+		1400000 950000
+		1200000 850000
 	>;
 	clocks = <&clk IMX8MN_CLK_A53_DIV>, <&clk IMX8MN_CLK_A53_SRC>,
 		<&clk IMX8MN_ARM_PLL>, <&clk IMX8MN_ARM_PLL_OUT>,
