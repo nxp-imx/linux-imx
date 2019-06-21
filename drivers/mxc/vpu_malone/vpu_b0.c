@@ -884,6 +884,10 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 			return -EINVAL;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
+		for (i = 0; i < pix_mp->num_planes && !ctx->b_firstseq; i++) {
+			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
+			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
+		}
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
 		if (!set_video_standard(q_data, f, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec)))
@@ -1141,6 +1145,18 @@ static int v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
 	default:
 		return -EINVAL;
 	}
+}
+
+static void vpu_dec_cleanup_event(struct vpu_ctx *ctx)
+{
+	struct v4l2_event ev;
+	int ret;
+
+	while (v4l2_event_pending(&ctx->fh)) {
+		ret = v4l2_event_dequeue(&ctx->fh, &ev, 1);
+		if (ret)
+			break;
+	};
 }
 
 static void init_dma_buffer(struct dma_buffer *buffer)
@@ -3682,6 +3698,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->q_data[V4L2_DST].sizeimage[0] = 0;
 		ctx->q_data[V4L2_DST].sizeimage[1] = 0;
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
+		vpu_dec_cleanup_event(ctx);
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
