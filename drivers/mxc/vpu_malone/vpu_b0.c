@@ -2990,6 +2990,7 @@ static void vpu_dec_event_decode_error(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send decode error event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3349,6 +3350,7 @@ static void send_skip_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_INFO, "send skip event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3361,6 +3363,7 @@ static void send_eos_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send eos event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3374,6 +3377,7 @@ static void send_source_change_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send source change event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3648,6 +3652,18 @@ static bool check_seq_info_is_valid(u32 ctx_id, MediaIPFW_Video_SeqInfo *info)
 	return true;
 }
 
+static bool check_is_need_reset_after_abort(struct vpu_ctx *ctx)
+{
+	if (!ctx)
+		return false;
+	if (ctx->b_firstseq)
+		return true;
+	if (!ctx->frame_decoded)
+		return true;
+
+	return false;
+}
+
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data)
 {
 	struct vpu_dev *dev;
@@ -3690,6 +3706,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
 		ctx->b_firstseq = true;
+		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
@@ -3780,6 +3797,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		ctx->frm_dec_delay--;
 		ctx->fifo_low = false;
+		ctx->frame_decoded = true;
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
@@ -3789,6 +3807,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
 
 		if (!check_seq_info_is_valid(ctx->str_index, pSeqInfo))
+			break;
+		if (ctx->wait_rst_done)
 			break;
 		if (ctx->pSeqinfo == NULL) {
 			ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
@@ -4028,12 +4048,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&This->drv_q_lock);
 		check_queue_is_releasd(This, "EVENT_STR_BUF_RST is received");
 		up(&This->drv_q_lock);
-		ctx->wait_rst_done = false;
-		if (ctx->b_firstseq)
+		if (check_is_need_reset_after_abort(ctx)) {
 			v4l2_vpu_send_cmd(ctx, ctx->str_index,
 					VID_API_CMD_STOP, 0, NULL);
-		else
+		} else {
+			ctx->wait_rst_done = false;
 			complete(&ctx->completion);
+		}
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] STR_BUF_RST\n", ctx->str_index);
 		}
 		break;
@@ -5269,6 +5290,7 @@ static int v4l2_open(struct file *filp)
 	ctx->wait_res_change_done = false;
 	ctx->firmware_stopped = true;
 	ctx->firmware_finished = false;
+	ctx->frame_decoded = false;
 	ctx->eos_stop_received = false;
 	ctx->eos_stop_added = false;
 	ctx->ctx_released = false;

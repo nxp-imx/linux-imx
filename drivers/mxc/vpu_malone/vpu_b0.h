@@ -357,6 +357,7 @@ struct vpu_ctx {
 	bool start_code_bypass;
 	bool hang_status;
 	bool fifo_low;
+	bool frame_decoded;
 	u32 req_frame_count;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
