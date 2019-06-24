@@ -1,3 +1,6 @@
+# define_trace.h needs to know how to find our header
+CFLAGS_trace.o			:= -I$(src)
+
 obj-$(CONFIG_USB_CDNS3)		+= cdns3.o
 
 cdns3-y				:= core.o
