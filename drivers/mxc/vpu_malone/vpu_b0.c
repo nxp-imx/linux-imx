@@ -1171,8 +1171,10 @@ static void init_dma_buffer(struct dma_buffer *buffer)
 
 static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 {
-	if (!ctx || !ctx->dev || !buffer)
+	if (!ctx || !ctx->dev || !buffer) {
+		vpu_dec_event_decode_error(ctx);
 		return -EINVAL;
+	}
 
 	buffer->dma_virt = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			buffer->dma_size,
@@ -1182,6 +1184,7 @@ static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 	if (!buffer->dma_virt) {
 		vpu_dbg(LVL_ERR, "error: %s() dma buffer alloc size(%x) fail!\n",
 				__func__,  buffer->dma_size);
+		vpu_dec_event_decode_error(ctx);
 		return -ENOMEM;
 	}
 
