@@ -44,6 +44,14 @@
 	mu_seco2: mu@31560000 {
 		status = "okay";
 	};
+
+	mu_seco3: mu@31570000 {
+		status = "okay";
+	};
+
+	mu_seco4: mu@31580000 {
+		status = "okay";
+	};
 };
 
 &A35_2 {

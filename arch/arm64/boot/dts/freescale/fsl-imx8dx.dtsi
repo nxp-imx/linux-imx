@@ -181,6 +181,8 @@
 		reg = <0x0 0x31560000 0x0 0x10000>;
 		power-domains = <&pd_seco_mu_2>;
 		interrupts = <GIC_SPI 448 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,seco_mu_id = <1>;
+		fsl,seco_max_users = <4>;
 		status = "disabled";
 	};
 
@@ -189,6 +191,8 @@
 		reg = <0x0 0x31570000 0x0 0x10000>;
 		power-domains = <&pd_seco_mu_3>;
 		interrupts = <GIC_SPI 449 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,seco_mu_id = <2>;
+		fsl,seco_max_users = <2>;
 		status = "disabled";
 	};
 
@@ -197,6 +201,8 @@
 		reg = <0x0 0x31580000 0x0 0x10000>;
 		power-domains = <&pd_seco_mu_4>;
 		interrupts = <GIC_SPI 450 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,seco_mu_id = <3>;
+		fsl,seco_max_users = <2>;
 		status = "disabled";
 	};
 
