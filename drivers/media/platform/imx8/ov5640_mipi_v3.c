@@ -436,6 +436,7 @@ static int ov5640_remove(struct i2c_client *client);
 
 static s32 ov5640_read_reg(struct ov5640 *sensor, u16 reg, u8 *val);
 static s32 ov5640_write_reg(struct ov5640 *sensor, u16 reg, u8 val);
+static void ov5640_stop(struct ov5640 *sensor);
 
 static const struct i2c_device_id ov5640_id[] = {
 	{"ov5640_mipi_v3", 0},
@@ -688,18 +689,6 @@ err:
 	return retval;
 }
 
-static void ov5640_soft_reset(struct ov5640 *sensor)
-{
-	/* sysclk from pad */
-	ov5640_write_reg(sensor, 0x3103, 0x11);
-
-	/* software reset */
-	ov5640_write_reg(sensor, 0x3008, 0x82);
-
-	/* delay at least 5ms */
-	msleep(10);
-}
-
 static int ov5640_config_init(struct ov5640 *sensor)
 {
 	struct reg_value *pModeSetting = NULL;
@@ -718,13 +707,11 @@ static int ov5640_config_init(struct ov5640 *sensor)
 
 static void ov5640_start(struct ov5640 *sensor)
 {
-	ov5640_write_reg(sensor, 0x3008, 0x02);
-	ov5640_write_reg(sensor, 0x3008, 0x02);
+	ov5640_write_reg(sensor, 0x4800, 0x04);
 	ov5640_write_reg(sensor, 0x4202, 0x00);
 
 	/* Color bar control */
 	/*ov5640_write_reg(sensor, 0x503d, 0x80);*/
-	udelay(1000);
 }
 
 static int ov5640_change_mode(struct ov5640 *sensor)
@@ -754,21 +741,21 @@ static int ov5640_change_mode(struct ov5640 *sensor)
 	}
 
 	retval = ov5640_download_firmware(sensor, pModeSetting, ArySize);
+	ov5640_stop(sensor);
+
 	return retval;
 }
 
 static void ov5640_stop(struct ov5640 *sensor)
 {
 	ov5640_write_reg(sensor, 0x4202, 0x0f);
-	ov5640_write_reg(sensor, 0x3008, 0x42);
-	udelay(1000);
+	ov5640_write_reg(sensor, 0x4800, 0x24);
 }
 
 static int init_device(struct ov5640 *sensor)
 {
 	int retval;
 
-	ov5640_soft_reset(sensor);
 	retval = ov5640_config_init(sensor);
 	if (retval < 0)
 		return retval;
