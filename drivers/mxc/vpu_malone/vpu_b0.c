@@ -4544,6 +4544,14 @@ static void enable_csr_reg(struct vpu_dev *This)
 	writel(0x0, This->csr_base + 4);
 }
 
+static void cleanup_firmware_memory(struct vpu_dev *vpudev)
+{
+	if (!vpudev->need_cleanup_firmware)
+		return;
+	memset_io(vpudev->m0_p_fw_space_vir, 0, vpudev->m0_boot_size);
+	vpudev->need_cleanup_firmware = false;
+}
+
 static int vpu_firmware_download(struct vpu_dev *This)
 {
 	unsigned char *image;
@@ -4551,6 +4559,7 @@ static int vpu_firmware_download(struct vpu_dev *This)
 	int ret = 0;
 	char *p = This->m0_p_fw_space_vir;
 
+	This->firmware_started = false;
 	ret = request_firmware((const struct firmware **)&This->m0_pfw,
 			M0FW_FILENAME,
 			This->generic_dev
@@ -4571,14 +4580,19 @@ static int vpu_firmware_download(struct vpu_dev *This)
 		image = (uint8_t *)This->m0_pfw->data;
 		FW_Size = This->m0_pfw->size;
 	}
-	memcpy(This->m0_p_fw_space_vir,
-			image,
-			FW_Size
-			);
+
+	cleanup_firmware_memory(This);
+	memcpy(This->m0_p_fw_space_vir, image, FW_Size);
 
 	p[16] = This->plat_type;
 	p[18] = 1;
 	enable_csr_reg(This);
+	This->need_cleanup_firmware = true;
+
+	if (This->m0_pfw) {
+		release_firmware(This->m0_pfw);
+		This->m0_pfw = NULL;
+	}
 
 	return ret;
 }
@@ -5684,6 +5698,7 @@ static int init_vpudev_parameters(struct vpu_dev *dev)
 	init_completion(&dev->start_cmp);
 	init_completion(&dev->snap_done_cmp);
 	dev->firmware_started = false;
+	dev->need_cleanup_firmware = true;
 	dev->hang_mask = 0;
 	dev->instance_mask = 0;
 
@@ -5704,7 +5719,7 @@ static int init_vpudev_parameters(struct vpu_dev *dev)
 		return -ENOMEM;
 	}
 
-	memset_io(dev->m0_p_fw_space_vir, 0, dev->m0_boot_size);
+	cleanup_firmware_memory(dev);
 
 	dev->m0_rpc_virt = ioremap_wc(dev->m0_rpc_phy,
 			dev->m0_rpc_size
@@ -5946,7 +5961,7 @@ static int resume_vpu_register(struct vpu_dev *vpudev)
 	return 0;
 }
 
-static int resume_from_vpu_poweroff(struct vpu_dev *vpudev)
+static int resume_from_snapshot(struct vpu_dev *vpudev)
 {
 	int ret = 0;
 
@@ -5957,6 +5972,18 @@ static int resume_from_vpu_poweroff(struct vpu_dev *vpudev)
 		vpu_dbg(LVL_ERR, "error: wait for vpu decoder resume done timeout!\n");
 		ret = -1;
 	}
+
+	return ret;
+}
+
+static int resume_from_vpu_poweroff(struct vpu_dev *vpudev)
+{
+	int ret = 0;
+
+	if (vpudev->hang_mask != vpudev->instance_mask)
+		ret = resume_from_snapshot(vpudev);
+	else
+		vpudev->fw_is_ready = false;
 
 	return ret;
 }
