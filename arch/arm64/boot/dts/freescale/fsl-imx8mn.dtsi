@@ -1024,6 +1024,7 @@
 					  <&clk IMX8MN_CLK_DISP_APB_ROOT>;
 			assigned-clock-rates = <500000000>, <200000000>;
 			isi-gpr = <&dispmix_gpr>;
+			resets = <&isi_resets>;
 			status = "disabled";
 		};
 
@@ -1045,6 +1046,7 @@
 			bus-width = <4>;
 			csi-gpr = <&dispmix_gpr>;
 			power-domains = <&mipi_pd>;
+			resets = <&mipi_csi_resets>;
 			status = "disabled";
 		};
 	};
@@ -1128,6 +1130,47 @@
 		dsi-mipi-reset {
 			compatible = "dsi,mipi-reset";
 			resets = <&dispmix_mipi_rst IMX8MN_MIPI_M_RESET>;
+		};
+	};
+
+	isi_resets: isi-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		isi-soft-resetn {
+			compatible = "isi,soft-resetn";
+			resets = <&dispmix_sft_rstn IMX8MN_ISI_PROC_CLK_RESET>,
+				 <&dispmix_sft_rstn IMX8MN_ISI_APB_CLK_RESET>;
+		};
+
+		isi-clk-enable {
+			compatible = "isi,clk-enable";
+			resets = <&dispmix_clk_en IMX8MN_ISI_PROC_CLK_EN>,
+				 <&dispmix_clk_en IMX8MN_ISI_APB_CLK_EN>;
+		};
+	};
+
+	mipi_csi_resets: mipi-csi-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		csi-soft-resetn {
+			compatible = "csi,soft-resetn";
+			resets = <&dispmix_sft_rstn IMX8MN_MIPI_CSI_PCLK_RESET>,
+				 <&dispmix_sft_rstn IMX8MN_MIPI_CSI_ACLK_RESET>;
+		};
+
+		csi-clk-enable {
+			compatible = "csi,clk-enable";
+			resets = <&dispmix_clk_en IMX8MN_MIPI_CSI_PCLK_EN>,
+				 <&dispmix_clk_en IMX8MN_MIPI_CSI_ACLK_EN>;
+		};
+
+		csi-mipi-reset {
+			compatible = "csi,mipi-reset";
+			resets = <&dispmix_mipi_rst IMX8MN_MIPI_S_RESET>;
 		};
 	};
 
