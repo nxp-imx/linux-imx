@@ -3681,10 +3681,18 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		return;
 	}
 
-	if (ctx->firmware_stopped && uEvent != VID_API_EVENT_START_DONE) {
-		vpu_dbg(LVL_ERR, "receive event: 0x%X after stopped, ignore it\n", uEvent);
-		return;
+	if (ctx->firmware_stopped) {
+		switch (uEvent) {
+		case VID_API_EVENT_START_DONE:
+			break;
+		case VID_API_EVENT_FIFO_LOW:
+			return;
+		default:
+			vpu_dbg(LVL_ERR, "receive event: 0x%X after stopped, ignore it\n", uEvent);
+			return;
+		}
 	}
+
 	dev = ctx->dev;
 	pSharedInterface = (pDEC_RPC_HOST_IFACE)dev->shared_mem.shared_mem_vir;
 
