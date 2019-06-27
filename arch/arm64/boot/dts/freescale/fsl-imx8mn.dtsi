@@ -49,9 +49,6 @@
 		spi1 = &ecspi2;
 		spi2 = &ecspi3;
 		isi0 = &isi_0;
-		isi1 = &isi_1;
-		isi2 = &isi_2;
-		isi3 = &isi_3;
 		csi0 = &mipi_csi_1;
 	};
 
@@ -1018,60 +1015,6 @@
 			power-domains = <&dispmix_pd>;
 			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 			interface = <2 0 2>;
-			clocks = <&clk IMX8MN_CLK_DISP_AXI>,
-				 <&clk IMX8MN_CLK_DISP_APB>,
-				 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-				 <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			clock-names = "disp_axi", "disp_apb", "disp_axi_root", "disp_apb_root";
-			assigned-clocks = <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-					  <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			assigned-clock-rates = <500000000>, <200000000>;
-			isi-gpr = <&dispmix_gpr>;
-			status = "disabled";
-		};
-
-		isi_1: isi@0x32e22000 {
-			compatible = "fsl,imx8mn-isi";
-			reg = <0x0 0x32e22000 0x0 0x2000>;
-			power-domains = <&dispmix_pd>;
-			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
-			interface = <2 1 2>;
-			clocks = <&clk IMX8MN_CLK_DISP_AXI>,
-				 <&clk IMX8MN_CLK_DISP_APB>,
-				 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-				 <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			clock-names = "disp_axi", "disp_apb", "disp_axi_root", "disp_apb_root";
-			assigned-clocks = <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-					  <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			assigned-clock-rates = <500000000>, <200000000>;
-			isi-gpr = <&dispmix_gpr>;
-			status = "disabled";
-		};
-
-		isi_2: isi@0x32e24000 {
-			compatible = "fsl,imx8mn-isi";
-			reg = <0x0 0x32e24000 0x0 0x2000>;
-			power-domains = <&dispmix_pd>;
-			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
-			interface = <2 2 2>;
-			clocks = <&clk IMX8MN_CLK_DISP_AXI>,
-				 <&clk IMX8MN_CLK_DISP_APB>,
-				 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-				 <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			clock-names = "disp_axi", "disp_apb", "disp_axi_root", "disp_apb_root";
-			assigned-clocks = <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
-					  <&clk IMX8MN_CLK_DISP_APB_ROOT>;
-			assigned-clock-rates = <500000000>, <200000000>;
-			isi-gpr = <&dispmix_gpr>;
-			status = "disabled";
-		};
-
-		isi_3: isi@0x32e26000 {
-			compatible = "fsl,imx8mn-isi";
-			reg = <0x0 0x32e26000 0x0 0x2000>;
-			power-domains = <&dispmix_pd>;
-			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
-			interface = <2 3 2>;
 			clocks = <&clk IMX8MN_CLK_DISP_AXI>,
 				 <&clk IMX8MN_CLK_DISP_APB>,
 				 <&clk IMX8MN_CLK_DISP_AXI_ROOT>,
