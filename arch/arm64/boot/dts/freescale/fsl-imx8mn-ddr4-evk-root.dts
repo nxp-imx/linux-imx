@@ -1,0 +1,103 @@
+/*
+ * Copyright 2019 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "fsl-imx8mn-ddr4-evk.dts"
+
+&CPU_SLEEP {
+	/delete-property/ compatible;
+};
+
+&{/reserved-memory} {
+	linux,cma {
+		compatible = "shared-dma-pool";
+		reusable;
+		size = <0 0x28000000>;
+		alloc-ranges = <0 0x40000000 0 0x93c00000>;
+		linux,cma-default;
+	};
+
+	ivshmem_reserved: ivshmem@0xbbb00000 {
+		no-map;
+		reg = <0 0xbbb00000 0x0 0x00100000>;
+	};
+
+	ivshmem2_reserved: ivshmem2@0xbba00000 {
+		no-map;
+		reg = <0 0xbba00000 0x0 0x00100000>;
+	};
+
+	pci_reserved: pci@0xbb800000 {
+		no-map;
+		reg = <0 0xbb800000 0x0 0x00200000>;
+	};
+
+	loader_reserved: loader@0xbb700000 {
+		no-map;
+		reg = <0 0xbb700000 0x0 0x00100000>;
+	};
+
+	jh_reserved: jh@0xb7c00000 {
+		no-map;
+		reg = <0 0xb7c00000 0x0 0x00400000>;
+	};
+
+	/* 512MB */
+	inmate_reserved: inmate@0x93c00000 {
+		no-map;
+		reg = <0 0x93c00000 0x0 0x24000000>;
+	};
+};
+
+&iomuxc {
+	imx8mn-evk {
+		/*
+		 * Used for the 2nd Linux.
+		 * TODO: M4 may use these pins.
+		 */
+		pinctrl_uart4: uart4grp {
+			fsl,pins = <
+				MX8MN_IOMUXC_UART4_RXD_UART4_DCE_RX	0x140
+				MX8MN_IOMUXC_UART4_TXD_UART4_DCE_TX	0x140
+			>;
+		};
+
+	};
+};
+
+&clk {
+	init-on-array = <IMX8MN_CLK_ARM
+			 IMX8MN_CLK_DRAM_CORE
+			 IMX8MN_CLK_USB_BUS
+			 IMX8MN_CLK_DRAM_APB
+			 IMX8MN_CLK_UART1_ROOT
+			 IMX8MN_CLK_NAND_USDHC_BUS
+			 IMX8MN_CLK_USDHC3_ROOT
+			 IMX8MN_CLK_UART4_ROOT>;
+};
+
+&uart2 {
+	pinctrl-0 = <&pinctrl_uart2>, <&pinctrl_uart4>;
+	assigned-clocks = <&clk IMX8MN_CLK_UART4>;
+	assigned-clock-parents = <&clk IMX8MN_CLK_24M>;
+};
+
+&usdhc3 {
+	status = "disabled";
+};
+
+&usdhc2 {
+	pinctrl-0 = <&pinctrl_usdhc3>, <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-1 = <&pinctrl_usdhc3>, <&pinctrl_usdhc2_100mhz>, <&pinctrl_usdhc2_gpio>;
+	pinctrl-2 = <&pinctrl_usdhc3>, <&pinctrl_usdhc2_200mhz>, <&pinctrl_usdhc2_gpio>;
+};

@@ -717,7 +717,7 @@ static bool is_10bit_format(struct vpu_ctx *ctx)
 	return false;
 }
 
-static void caculate_frame_size(struct vpu_ctx *ctx)
+static void calculate_frame_size(struct vpu_ctx *ctx)
 {
 	u_int32 width = ctx->pSeqinfo->uHorDecodeRes;
 	u_int32 height = ctx->pSeqinfo->uVerDecodeRes;
@@ -759,17 +759,25 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		MediaIPFW_Video_SeqInfo *info = ctx->pSeqinfo;
+
 		q_data = &ctx->q_data[V4L2_DST];
 		if (is_10bit_format(ctx))
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12_10BIT;
 		else
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12;
-		pix_mp->width = ctx->pSeqinfo->uHorRes > 0?ctx->pSeqinfo->uHorRes:q_data->width;
-		pix_mp->height = ctx->pSeqinfo->uVerRes > 0?ctx->pSeqinfo->uVerRes:q_data->height;
-		if (ctx->pSeqinfo->uProgressive == 1)
+		pix_mp->width = q_data->width;
+		pix_mp->height = q_data->height;
+		down(&q_data->drv_q_lock);
+		if (!ctx->b_firstseq && info->uHorRes && info->uVerRes) {
+			pix_mp->width = ctx->pSeqinfo->uHorRes;
+			pix_mp->height = ctx->pSeqinfo->uVerRes;
+		}
+		if (info->uProgressive == 1)
 			pix_mp->field = V4L2_FIELD_NONE;
 		else
 			pix_mp->field = V4L2_FIELD_INTERLACED;
+		up(&q_data->drv_q_lock);
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
 
@@ -876,11 +884,9 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 			return -EINVAL;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
-		for (i = 0; i < pix_mp->num_planes; i++) {
-			if (ctx->q_data[V4L2_DST].stride > 0)
-				pix_mp->plane_fmt[i].bytesperline = ctx->q_data[V4L2_DST].stride;
-			if (ctx->q_data[V4L2_DST].sizeimage[i] > 0)
-				pix_mp->plane_fmt[i].sizeimage = ctx->q_data[V4L2_DST].sizeimage[i];
+		for (i = 0; i < pix_mp->num_planes && !ctx->b_firstseq; i++) {
+			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
+			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
 		}
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
@@ -891,6 +897,8 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 
 	q_data->num_planes = pix_mp->num_planes;
 	for (i = 0; i < q_data->num_planes; i++) {
+		if (!V4L2_TYPE_IS_OUTPUT(f->type) && !ctx->b_firstseq)
+			continue;
 		q_data->stride = pix_mp->plane_fmt[i].bytesperline;
 		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
 	}
@@ -1139,6 +1147,18 @@ static int v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
 	}
 }
 
+static void vpu_dec_cleanup_event(struct vpu_ctx *ctx)
+{
+	struct v4l2_event ev;
+	int ret;
+
+	while (v4l2_event_pending(&ctx->fh)) {
+		ret = v4l2_event_dequeue(&ctx->fh, &ev, 1);
+		if (ret)
+			break;
+	};
+}
+
 static void init_dma_buffer(struct dma_buffer *buffer)
 {
 	if (!buffer)
@@ -1206,6 +1226,10 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx, u32 index)
 		vpu_dbg(LVL_ERR, "request mbi buffer number out of range\n");
 		return -EINVAL;
 	}
+	if (!ctx->mbi_size) {
+		vpu_dbg(LVL_ERR, "mbi buffer size is not initialized\n");
+		return -EINVAL;
+	}
 
 	mbi_buffer = &ctx->mbi_buffer[index];
 	if (mbi_buffer->dma_virt && mbi_buffer->dma_size >= ctx->mbi_size)
@@ -1215,7 +1239,7 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx, u32 index)
 	mbi_buffer->dma_size = ctx->mbi_size;
 	ret = alloc_dma_buffer(ctx, mbi_buffer);
 	if (ret) {
-		vpu_dbg(LVL_ERR, "error: alloc dcp buffer[%d] fail\n", index);
+		vpu_dbg(LVL_ERR, "error: alloc mbi buffer[%d] fail\n", index);
 		return ret;
 	}
 
@@ -1304,6 +1328,13 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 
 	if (vb2_is_streaming(&q_data->vb2_q)) {
 		vpu_dbg(LVL_ERR, "%s reqbufs during streaming\n",
+			q_data->type ? "CAPTURE" : "OUTPUT");
+		return -EINVAL;
+	}
+
+	if (!q_data->sizeimage[0]) {
+		vpu_dbg(LVL_ERR,
+			"sizeimage isn't initialized, %s reqbufs fail\n",
 			q_data->type ? "CAPTURE" : "OUTPUT");
 		return -EINVAL;
 	}
@@ -2959,6 +2990,7 @@ static void vpu_dec_event_decode_error(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send decode error event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3154,6 +3186,9 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 			return false;
 	}
 
+	if ((getTSManagerPreBufferCnt(ctx->tsm)) >= (tsm_buffer_size * 9 / 10))
+		return false;
+
 	if (ctx->ts_threshold > 0 &&
 		TSM_TS_IS_VALID(ctx->output_ts) &&
 		TSM_TS_IS_VALID(ctx->capture_ts)) {
@@ -3315,6 +3350,7 @@ static void send_skip_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_INFO, "send skip event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3327,6 +3363,7 @@ static void send_eos_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send eos event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3340,6 +3377,7 @@ static void send_source_change_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	vpu_dbg(LVL_BIT_FLOW, "send source change event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3594,6 +3632,38 @@ static void release_frame_buffer(struct vpu_ctx *ctx,
 	set_data_req_status(p_data_req, FRAME_ALLOC);
 }
 
+static bool check_seq_info_is_valid(u32 ctx_id, MediaIPFW_Video_SeqInfo *info)
+{
+	if (!info)
+		return false;
+
+	if (!info->uHorRes || !info->uVerRes) {
+		vpu_dbg(LVL_ERR, "ctx[%d] invalid seq info : %d x %d\n",
+			ctx_id, info->uHorRes, info->uVerRes);
+		return false;
+	}
+	if (info->uHorRes > VPU_DEC_MAX_WIDTH ||
+			info->uVerRes > VPU_DEC_MAX_HEIGTH) {
+		vpu_dbg(LVL_ERR, "ctx[%d] invalid seq info : %d x %d\n",
+			ctx_id, info->uHorRes, info->uVerRes);
+		return false;
+	}
+
+	return true;
+}
+
+static bool check_is_need_reset_after_abort(struct vpu_ctx *ctx)
+{
+	if (!ctx)
+		return false;
+	if (ctx->b_firstseq)
+		return true;
+	if (!ctx->frame_decoded)
+		return true;
+
+	return false;
+}
+
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data)
 {
 	struct vpu_dev *dev;
@@ -3636,12 +3706,16 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
 		ctx->b_firstseq = true;
+		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
-		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
+		ctx->q_data[V4L2_DST].sizeimage[0] = 0;
+		ctx->q_data[V4L2_DST].sizeimage[1] = 0;
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
+		vpu_dec_cleanup_event(ctx);
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
@@ -3718,10 +3792,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			p_data_req->bfield = true;
 
 		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
+		This->process_count++;
 		}
 
 		ctx->frm_dec_delay--;
 		ctx->fifo_low = false;
+		ctx->frame_decoded = true;
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
@@ -3729,6 +3805,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 //		MediaIPFW_Video_FrameBuffer *pStreamDCPBuffer = &pSharedInterface->StreamDCPBuffer[uStrIdx];
 		MediaIPFW_Video_PitchInfo   *pStreamPitchInfo = &pSharedInterface->StreamPitchInfo[uStrIdx];
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
+
+		if (!check_seq_info_is_valid(ctx->str_index, pSeqInfo))
+			break;
+		if (ctx->wait_rst_done)
+			break;
 		if (ctx->pSeqinfo == NULL) {
 			ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
 			atomic64_add(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
@@ -3737,10 +3818,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_dbg(LVL_INFO, "pSeqinfo is not NULL, need not to realloc\n");
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
-		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		memcpy(ctx->pSeqinfo, &pSeqInfo[ctx->str_index], sizeof(MediaIPFW_Video_SeqInfo));
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
-		caculate_frame_size(ctx);
+		calculate_frame_size(ctx);
 		parse_frame_interval_from_seqinfo(ctx, ctx->pSeqinfo);
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
 				ctx->str_index,
@@ -3903,8 +3984,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				);
 
 		down(&queue->drv_q_lock);
-		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
-		ctx->beginning = pStrBufDesc->rptr;
 		vpu_dbg(LVL_BIT_FLOW,
 			"ctx[%d] ABORT DONE, output qbuf(%ld/%ld),dqbuf(%ld)\n",
 			ctx->str_index,
@@ -3919,6 +3998,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->total_write_bytes,
 				ctx->total_consumed_bytes);
 		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
+		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
+		ctx->beginning = pStrBufDesc->rptr;
 		ctx->total_qbuf_bytes = 0;
 		ctx->total_write_bytes = 0;
 		ctx->total_consumed_bytes = 0;
@@ -3967,12 +4048,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&This->drv_q_lock);
 		check_queue_is_releasd(This, "EVENT_STR_BUF_RST is received");
 		up(&This->drv_q_lock);
-		ctx->wait_rst_done = false;
-		if (ctx->b_firstseq)
+		if (check_is_need_reset_after_abort(ctx)) {
 			v4l2_vpu_send_cmd(ctx, ctx->str_index,
 					VID_API_CMD_STOP, 0, NULL);
-		else
+		} else {
+			ctx->wait_rst_done = false;
 			complete(&ctx->completion);
+		}
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] STR_BUF_RST\n", ctx->str_index);
 		}
 		break;
@@ -5208,6 +5290,7 @@ static int v4l2_open(struct file *filp)
 	ctx->wait_res_change_done = false;
 	ctx->firmware_stopped = true;
 	ctx->firmware_finished = false;
+	ctx->frame_decoded = false;
 	ctx->eos_stop_received = false;
 	ctx->eos_stop_added = false;
 	ctx->ctx_released = false;

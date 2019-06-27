@@ -18,6 +18,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/pins-imx8mm.h>
+#include <dt-bindings/reset/imx8mm-dispmix.h>
 #include <dt-bindings/thermal/thermal.h>
 
 / {
@@ -599,6 +600,76 @@
 		reg = <0x0 0x32e28000 0x0 0x100>;
 	};
 
+	dispmix-reset {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		dispmix_sft_rstn: dispmix-sft-rstn@32e28000 {
+			compatible = "fsl,imx8mm-dispmix-sft-rstn";
+			reg = <0x0 0x32e28000 0x0 0x4>;
+			clocks = <&clk IMX8MM_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			active_low;
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+
+		dispmix_clk_en: dispmix-clk-en@32e28004 {
+			compatible = "fsl,imx8mm-dispmix-clk-en";
+			reg = <0x0 0x32e28004 0x0 0x4>;
+			clocks = <&clk IMX8MM_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+
+		dispmix_mipi_rst: dispmix-mipi-rst@32e28008 {
+			compatible = "fsl,imx8mm-dispmix-mipi-rst";
+			reg = <0x0 0x32e28008 0x0 0x4>;
+			clocks = <&clk IMX8MM_CLK_DISP_APB_ROOT>;
+			clock-names = "disp-apb";
+			active_low;
+			power-domains = <&dispmix_pd>;
+			#reset-cells = <1>;
+		};
+	};
+
+	lcdif_resets: lcdif-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		lcdif-clk-enable {
+			compatible = "lcdif,clk-enable";
+			resets = <&dispmix_clk_en IMX8MM_LCDIF_APB_CLK_EN>,
+				 <&dispmix_clk_en IMX8MM_LCDIF_PIXEL_CLK_EN>;
+		};
+	};
+
+	mipi_dsi_resets: mipi-dsi-resets {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#reset-cells = <0>;
+
+		dsi-soft-resetn {
+			compatible = "dsi,soft-resetn";
+			resets = <&dispmix_sft_rstn IMX8MM_MIPI_DSI_I_PRESET>;
+		};
+
+		dsi-clk-enable {
+			compatible = "dsi,clk-enable";
+			resets = <&dispmix_clk_en IMX8MM_MIPI_DSI_CLKREF_EN>,
+				 <&dispmix_clk_en IMX8MM_MIPI_DSI_PCLK_EN>;
+		};
+
+		dsi-mipi-reset {
+			compatible = "dsi,mipi-reset";
+			resets = <&dispmix_mipi_rst IMX8MM_MIPI_M_RESET>;
+		};
+	};
+
 	usbotg1: usb@32e40000 {
 		compatible = "fsl,imx8mm-usb", "fsl,imx7d-usb", "fsl,imx27-usb";
 		reg = <0x0 0x32e40000 0x0 0x200>;
@@ -1000,6 +1071,7 @@
 		assigned-clock-rate = <594000000>, <500000000>, <200000000>;
 		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
 		lcdif-gpr = <&dispmix_gpr>;
+		resets = <&lcdif_resets>;
 		power-domains = <&dispmix_pd>;
 		status = "disabled";
 
@@ -1027,6 +1099,7 @@
 		assigned-clock-rates = <266000000>, <594000000>;
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		dsi-gpr = <&dispmix_gpr>;
+		resets = <&mipi_dsi_resets>;
 		power-domains = <&mipi_pd>;
 		status = "disabled";
 

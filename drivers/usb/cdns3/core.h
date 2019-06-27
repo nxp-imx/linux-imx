@@ -1,7 +1,7 @@
 /**
  * core.h - Cadence USB3 DRD Controller Core header file
  *
- * Copyright 2017 NXP
+ * Copyright 2017-2019 NXP
  *
  * Authors: Peter Chen <peter.chen@nxp.com>
  *
@@ -35,6 +35,7 @@ enum cdns3_roles {
  * @suspend: suspend callback for this role
  * @resume: resume callback for this role
  * @irq: irq handler for this role
+ * @thread_irq: thread irq handler for this role
  * @name: role name string (host/gadget)
  */
 struct cdns3_role_driver {
@@ -43,6 +44,7 @@ struct cdns3_role_driver {
 	int (*suspend)(struct cdns3 *, bool do_wakeup);
 	int (*resume)(struct cdns3 *, bool hibernated);
 	irqreturn_t (*irq)(struct cdns3 *);
+	irqreturn_t (*thread_irq)(struct cdns3 *);
 	const char *name;
 };
 
@@ -74,7 +76,7 @@ struct cdns3 {
 	struct device *dev;
 	void __iomem *xhci_regs;
 	struct resource *xhci_res;
-	struct usbss_dev_register_block_type __iomem *dev_regs;
+	struct cdns3_usb_regs __iomem *dev_regs;
 	void __iomem *none_core_regs;
 	void __iomem *phy_regs;
 	void __iomem *otg_regs;
@@ -82,7 +84,7 @@ struct cdns3 {
 	struct cdns3_role_driver *roles[CDNS3_ROLE_END];
 	enum cdns3_roles role;
 	struct device *host_dev;
-	struct device *gadget_dev;
+	struct cdns3_device *gadget_dev;
 	struct usb_phy *usbphy;
 	struct clk *cdns3_clks[CDNS3_NUM_OF_CLKS];
 	struct extcon_dev *extcon;
@@ -127,5 +129,6 @@ static inline void cdns3_role_stop(struct cdns3 *cdns)
 	cdns->role = CDNS3_ROLE_END;
 	mutex_unlock(&cdns->mutex);
 }
+int cdns3_handshake(void __iomem *ptr, u32 mask, u32 done, int usec);
 
 #endif /* __DRIVERS_USB_CDNS3_CORE_H */

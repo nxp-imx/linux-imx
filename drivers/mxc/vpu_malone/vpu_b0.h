@@ -65,6 +65,8 @@ extern unsigned int vpu_dbg_level_decoder;
 #define DEFAULT_FRMDBG_ENABLE 0
 #define DEFAULT_FRMDBG_LEVEL 0
 #define VPU_DEC_CMD_DATA_MAX_NUM	16
+#define VPU_DEC_MAX_WIDTH		4096
+#define VPU_DEC_MAX_HEIGTH		4096
 
 #define V4L2_EVENT_DECODE_ERROR		(V4L2_EVENT_PRIVATE_START + 1)
 #define V4L2_EVENT_SKIP			(V4L2_EVENT_PRIVATE_START + 2)
@@ -355,6 +357,7 @@ struct vpu_ctx {
 	bool start_code_bypass;
 	bool hang_status;
 	bool fifo_low;
+	bool frame_decoded;
 	u32 req_frame_count;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
