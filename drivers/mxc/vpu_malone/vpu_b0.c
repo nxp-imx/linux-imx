@@ -3053,7 +3053,7 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
 			copy_length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
 		} else {
-			arv_frame = get_arv_info(ctx, input_buffer);
+			arv_frame = get_arv_info(ctx, input_buffer, buffer_size);
 			if (!arv_frame) {
 				vpu_dbg(LVL_WARN, "warning: %s() get arv frame info failed\n", __func__);
 				return -1;
@@ -3067,8 +3067,7 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 
 			arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
 
-			if (arv_frame->packlen >  buffer_size - input_offset
-				|| arv_frame->data_len > buffer_size) {
+			if (arv_frame->packlen >  buffer_size - input_offset) {
 				put_arv_info(arv_frame);
 				arv_frame = NULL;
 				return -1;
