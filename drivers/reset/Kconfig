@@ -34,6 +34,15 @@ config RESET_BERLIN
 	help
 	  This enables the reset controller driver for Marvell Berlin SoCs.
 
+config RESET_DISPMIX
+	bool "IMX Display Mix reset support"
+	default y
+	select REGMAP_MMIO
+	depends on ARCH_FSL_IMX8MM || ARCH_FSL_IMX8MN
+	help
+	  This driver provides support for Display Mix reset that is controlled
+	  by dispmix GPR registers.
+
 config RESET_HSDK
 	bool "Synopsys HSDK Reset Driver"
 	depends on HAS_IOMEM

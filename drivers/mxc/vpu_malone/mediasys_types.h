@@ -567,7 +567,7 @@ typedef struct {
 	u_int32 uCodecVersion;
 	u_int32 uFrameRate;
 	u_int32 uEnableDbgLog;
-	u_int32 bbd_lum_thr;
+	u_int32 uBSDMALWM;
 	u_int32 bbd_coring;
 	u_int32 bbd_s_thr_row;
 	u_int32 bbd_p_thr_row;

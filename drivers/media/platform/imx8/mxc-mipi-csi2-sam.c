@@ -1053,7 +1053,6 @@ static int mipi_csis_system_suspend(struct device *dev)
 
 static int mipi_csis_system_resume(struct device *dev)
 {
-	struct csi_state *state = dev_get_drvdata(dev);
 	int ret;
 
 	ret = pm_runtime_force_resume(dev);
@@ -1061,8 +1060,6 @@ static int mipi_csis_system_resume(struct device *dev)
 		dev_err(dev, "force resume %s failed!\n", dev_name(dev));
 		return ret;
 	}
-	disp_mix_clks_enable(state->gpr, true);
-	disp_mix_sft_rstn(state->gpr, false);
 
 	return 0;
 }
@@ -1076,6 +1073,7 @@ static int mipi_csis_runtime_suspend(struct device *dev)
 	if (ret < 0)
 		return ret;
 
+	disp_mix_clks_enable(state->gpr, false);
 	mipi_csis_clk_disable(state);
 	return 0;
 }
@@ -1089,7 +1087,14 @@ static int mipi_csis_runtime_resume(struct device *dev)
 	if (ret < 0)
 		return ret;
 
-	return mipi_csis_clk_enable(state);
+	ret = mipi_csis_clk_enable(state);
+	if (ret < 0)
+		return ret;
+
+	disp_mix_clks_enable(state->gpr, true);
+	disp_mix_sft_rstn(state->gpr, false);
+
+	return 0;
 }
 
 static int mipi_csis_remove(struct platform_device *pdev)

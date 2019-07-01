@@ -31,6 +31,18 @@
 		status ="okay";
 	};
 
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_led>;
+
+		status {
+			label = "status";
+			gpios = <&gpio3 16 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+	};
+
 	usdhc1_pwrseq: usdhc1_pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
@@ -156,6 +168,12 @@
 				MX8MN_IOMUXC_NAND_DATA01_QSPI_A_DATA1 0x84
 				MX8MN_IOMUXC_NAND_DATA02_QSPI_A_DATA2 0x84
 				MX8MN_IOMUXC_NAND_DATA03_QSPI_A_DATA3 0x84
+			>;
+		};
+
+		pinctrl_gpio_led: gpioledgrp {
+			fsl,pins = <
+				MX8MN_IOMUXC_NAND_READY_B_GPIO3_IO16	0x19
 			>;
 		};
 
@@ -944,7 +962,9 @@
 &A53_0 {
 	operating-points = <
 		/* kHz    uV */
-		1200000 800000
+		1500000 1000000
+		1400000 950000
+		1200000 950000
 	>;
 	arm-supply = <&buck2_reg>;
 };
