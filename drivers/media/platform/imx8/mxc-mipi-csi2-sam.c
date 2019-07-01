@@ -101,15 +101,12 @@ static void dump_csis_regs(struct csi_state *state, const char *label)
 	}
 }
 
-static void dump_disp_mix_regs(struct csi_state *state, const char *label)
+static void dump_gasket_regs(struct csi_state *state, const char *label)
 {
 	struct {
 		u32 offset;
 		const char * const name;
 	} registers[] = {
-		{ 0x00, "DISP_SFT_RSTN_CSR" },
-		{ 0x04, "DISP_CLK_EN_CSR" },
-		{ 0x08, "GPR_MIPI_RESET_DIV" },
 		{ 0x60, "GPR_GASKET_0_CTRL" },
 		{ 0x64, "GPR_GASKET_0_HSIZE" },
 		{ 0x68, "GPR_GASKET_0_VSIZE" },
@@ -119,7 +116,7 @@ static void dump_disp_mix_regs(struct csi_state *state, const char *label)
 	v4l2_dbg(2, debug, &state->sd, "--- %s ---\n", label);
 
 	for (i = 0; i < ARRAY_SIZE(registers); i++) {
-		regmap_read(state->gpr, registers[i].offset, &cfg);
+		regmap_read(state->gasket, registers[i].offset, &cfg);
 		v4l2_dbg(2, debug, &state->sd, "%20s[%x]: 0x%.8x\n", registers[i].name, registers[i].offset, cfg);
 	}
 }
@@ -432,7 +429,7 @@ static int disp_mix_clks_enable(struct reset_control *reset, bool enable)
 
 static void disp_mix_gasket_config(struct csi_state *state)
 {
-	struct regmap *gpr = state->gpr;
+	struct regmap *gasket = state->gasket;
 	struct csis_pix_format const *fmt = state->csis_fmt;
 	struct v4l2_mbus_framefmt *mf = &state->format;
 	s32 fmt_val = -EINVAL;
@@ -456,29 +453,29 @@ static void disp_mix_gasket_config(struct csi_state *state)
 		return;
 	}
 
-	regmap_read(gpr, DISP_MIX_GASKET_0_CTRL, &val);
+	regmap_read(gasket, DISP_MIX_GASKET_0_CTRL, &val);
 	if (fmt_val == GASKET_0_CTRL_DATA_TYPE_YUV422_8)
 		val |= GASKET_0_CTRL_DUAL_COMP_ENABLE;
 	val |= GASKET_0_CTRL_DATA_TYPE(fmt_val);
-	regmap_write(gpr, DISP_MIX_GASKET_0_CTRL, val);
+	regmap_write(gasket, DISP_MIX_GASKET_0_CTRL, val);
 
 	if (WARN_ON(!mf->width || !mf->height))
 		return;
 
-	regmap_write(gpr, DISP_MIX_GASKET_0_HSIZE, mf->width);
-	regmap_write(gpr, DISP_MIX_GASKET_0_VSIZE, mf->height);
+	regmap_write(gasket, DISP_MIX_GASKET_0_HSIZE, mf->width);
+	regmap_write(gasket, DISP_MIX_GASKET_0_VSIZE, mf->height);
 }
 
 static void disp_mix_gasket_enable(struct csi_state *state, bool enable)
 {
-	struct regmap *gpr = state->gpr;
+	struct regmap *gasket = state->gasket;
 
 	if (enable)
-		regmap_update_bits(gpr, DISP_MIX_GASKET_0_CTRL,
+		regmap_update_bits(gasket, DISP_MIX_GASKET_0_CTRL,
 					GASKET_0_CTRL_ENABLE,
 					GASKET_0_CTRL_ENABLE);
 	else
-		regmap_update_bits(gpr, DISP_MIX_GASKET_0_CTRL,
+		regmap_update_bits(gasket, DISP_MIX_GASKET_0_CTRL,
 					GASKET_0_CTRL_ENABLE,
 					0);
 }
@@ -580,7 +577,7 @@ static int mipi_csis_s_stream(struct v4l2_subdev *mipi_sd, int enable)
 		mipi_csis_clear_counters(state);
 		mipi_csis_start_stream(state);
 		dump_csis_regs(state, __func__);
-		dump_disp_mix_regs(state, __func__);
+		dump_gasket_regs(state, __func__);
 	} else {
 		mipi_csis_stop_stream(state);
 		if (debug > 0)
@@ -788,7 +785,7 @@ static int mipi_csis_log_status(struct v4l2_subdev *mipi_sd)
 	mipi_csis_log_counters(state, true);
 	if (debug) {
 		dump_csis_regs(state, __func__);
-		dump_disp_mix_regs(state, __func__);
+		dump_gasket_regs(state, __func__);
 	}
 	mutex_unlock(&state->lock);
 	return 0;
@@ -1013,10 +1010,10 @@ static int mipi_csis_probe(struct platform_device *pdev)
 	}
 	phy_reset_fn = of_id->data;
 
-	state->gpr = syscon_regmap_lookup_by_phandle(dev->of_node, "csi-gpr");
-	if (IS_ERR(state->gpr)) {
-		dev_err(dev, "failed to get csi gpr\n");
-		return PTR_ERR(state->gpr);
+	state->gasket = syscon_regmap_lookup_by_phandle(dev->of_node, "csi-gpr");
+	if (IS_ERR(state->gasket)) {
+		dev_err(dev, "failed to get csi gasket\n");
+		return PTR_ERR(state->gasket);
 	}
 
 	ret = mipi_csis_of_parse_resets(state);

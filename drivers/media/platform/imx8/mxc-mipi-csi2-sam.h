@@ -189,7 +189,7 @@
 #define DEFAULT_SCLK_CSIS_FREQ		166000000UL
 
 /* display_mix_clk_en_csr */
-#define DISP_MIX_GASKET_0_CTRL			0x60
+#define DISP_MIX_GASKET_0_CTRL			0x00
 #define GASKET_0_CTRL_DATA_TYPE(x)		(((x) & (0x3F)) << 8)
 #define GASKET_0_CTRL_DATA_TYPE_MASK		((0x3FUL) << (8))
 
@@ -213,8 +213,8 @@
 #define GASKET_0_CTRL_DUAL_COMP_ENABLE		BIT(1)
 #define GASKET_0_CTRL_ENABLE			BIT(0)
 
-#define DISP_MIX_GASKET_0_HSIZE			0x64
-#define DISP_MIX_GASKET_0_VSIZE			0x68
+#define DISP_MIX_GASKET_0_HSIZE			0x04
+#define DISP_MIX_GASKET_0_VSIZE			0x08
 
 struct mipi_csis_event {
 	u32 mask;
@@ -320,7 +320,7 @@ struct csi_state {
 	struct csis_hw_reset1 hw_reset;
 	struct regulator     *mipi_phy_regulator;
 
-	struct regmap *gpr;
+	struct regmap *gasket;
 	struct reset_control *soft_resetn;
 	struct reset_control *clk_enable;
 	struct reset_control *mipi_reset;
