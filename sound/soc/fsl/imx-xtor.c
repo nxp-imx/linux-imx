@@ -50,6 +50,8 @@ struct imx_xtor_data {
 	struct platform_device *asrc_pdev;
 	u32 asrc_rate;
 	u32 asrc_format;
+	u32 tx_codec_slave;
+	u32 rx_codec_slave;
 };
 
 static int imx_xtor_startup(struct snd_pcm_substream *substream)
@@ -80,11 +82,23 @@ static int imx_xtor_hw_params(struct snd_pcm_substream *substream,
 	struct device *dev = rtd->card->dev;
 	u32 channels = params_channels(params);
 	unsigned int fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF;
+	unsigned int ms_fmt = 0;
 	int ret, dir;
 
-	/* For playback the XTOR is slave, and for record is master */
-	fmt |= tx ? SND_SOC_DAIFMT_CBS_CFS : SND_SOC_DAIFMT_CBM_CFM;
-	dir = tx ? SND_SOC_CLOCK_OUT : SND_SOC_CLOCK_IN;
+	if(tx) {
+		if(data->tx_codec_slave)
+			ms_fmt = SND_SOC_DAIFMT_CBS_CFS;
+		else
+			ms_fmt = SND_SOC_DAIFMT_CBM_CFM;
+	} else {
+		if(data->rx_codec_slave)
+			ms_fmt = SND_SOC_DAIFMT_CBS_CFS;
+		else
+			ms_fmt = SND_SOC_DAIFMT_CBM_CFM;
+	}
+
+	fmt |= ms_fmt;
+	dir = (ms_fmt == SND_SOC_DAIFMT_CBS_CFS) ? SND_SOC_CLOCK_OUT : SND_SOC_CLOCK_IN;
 
 	/* set cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai, fmt);
@@ -201,6 +215,14 @@ static int imx_xtor_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto fail;
 	}
+
+	ret = of_property_read_u32(pdev->dev.of_node, "tx-codec-slave", &data->tx_codec_slave);
+	if(ret) data->tx_codec_slave = true; // As default, cpu is master on tx.
+	dev_info(&pdev->dev, "tx codec slave %d\n", data->tx_codec_slave);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "rx-codec-slave", &data->rx_codec_slave);
+	if(ret) data->rx_codec_slave = false; // As default, cpu is slave on rx.
+	dev_info(&pdev->dev, "rx codec slave %d\n", data->rx_codec_slave);
 
 	if (strstr(cpu_np->name, "esai")) {
 		data->cpu_priv.sysclk_id[TX] = ESAI_HCKT_EXTAL;
