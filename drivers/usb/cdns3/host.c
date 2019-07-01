@@ -28,6 +28,8 @@
 #include "host-export.h"
 #include "cdns3-nxp-reg-def.h"
 
+#define XHCI_WAKEUP_STATUS     (PORT_RC | PORT_PLC)
+
 static struct hc_driver __read_mostly xhci_cdns3_hc_driver;
 
 static void xhci_cdns3_quirks(struct device *dev, struct xhci_hcd *xhci)
@@ -236,12 +238,28 @@ static int cdns3_host_suspend(struct cdns3 *cdns, bool do_wakeup)
 {
 	struct device *dev = cdns->host_dev;
 	struct xhci_hcd	*xhci;
+	void __iomem *xhci_regs = cdns->xhci_regs;
+	u32 portsc_usb2, portsc_usb3;
+	int ret;
 
 	if (!dev)
 		return 0;
 
 	xhci = hcd_to_xhci(dev_get_drvdata(dev));
-	return xhci_suspend(xhci, do_wakeup);
+	ret = xhci_suspend(xhci, do_wakeup);
+	if (ret)
+		return ret;
+
+	portsc_usb2 = readl(xhci_regs + 0x480);
+	portsc_usb3 = readl(xhci_regs + 0x490);
+	if ((portsc_usb2 & XHCI_WAKEUP_STATUS) ||
+		(portsc_usb3 & XHCI_WAKEUP_STATUS)) {
+		dev_dbg(cdns->dev, "wakeup occurs\n");
+		cdns3_role(cdns)->resume(cdns, false);
+		return -EBUSY;
+	}
+
+	return ret;
 }
 
 static int cdns3_host_resume(struct cdns3 *cdns, bool hibernated)
