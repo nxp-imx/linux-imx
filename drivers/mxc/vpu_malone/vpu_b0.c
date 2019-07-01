@@ -1733,6 +1733,22 @@ static int v4l2_ioctl_streamon(struct file *file,
 	return ret;
 }
 
+static bool is_need_abort(struct vpu_ctx *ctx, enum v4l2_buf_type type)
+{
+	bool src_status = vb2_is_streaming(&ctx->q_data[V4L2_SRC].vb2_q);
+
+	if (V4L2_TYPE_IS_OUTPUT(type))
+		return false;
+
+	if (ctx->wait_res_change_done) {
+		if (src_status)
+			return false;
+		vpu_dbg(LVL_WARN,
+			"ctx[%d] seek in res change\n", ctx->str_index);
+	}
+	return true;
+}
+
 static int v4l2_ioctl_streamoff(struct file *file,
 		void *fh,
 		enum v4l2_buf_type i
@@ -1758,7 +1774,8 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	down(&q_data->drv_q_lock);
 	q_data->enable = false;
 	up(&q_data->drv_q_lock);
-	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+
+	if (is_need_abort(ctx, i)) {
 		mutex_lock(&ctx->dev->fw_flow_mutex);
 		send_abort_cmd(ctx);
 		mutex_unlock(&ctx->dev->fw_flow_mutex);
@@ -1772,7 +1789,7 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	ret = vpu_dec_queue_disable(q_data, i);
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
-		return -EINVAL;
+		ret = -EINVAL;
 	}
 
 	return ret;
@@ -2914,8 +2931,6 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 		return -EINVAL;
 
 	if (!vpu_dec_is_active(ctx))
-		return 0;
-	if (ctx->wait_res_change_done)
 		return 0;
 
 	ctx->wait_rst_done = true;
@@ -4059,6 +4074,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		check_queue_is_releasd(This, "EVENT_STR_BUF_RST is received");
 		up(&This->drv_q_lock);
 		if (check_is_need_reset_after_abort(ctx)) {
+			vpu_dbg(LVL_BIT_FLOW,
+				"Force reset ctx[%d]\n", ctx->str_index);
 			v4l2_vpu_send_cmd(ctx, ctx->str_index,
 					VID_API_CMD_STOP, 0, NULL);
 		} else {
