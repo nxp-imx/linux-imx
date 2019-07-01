@@ -61,12 +61,12 @@ static void disp_mix_sft_rstn(struct regmap *gpr, bool enable)
 		/* release isi soft reset */
 		regmap_update_bits(gpr,
 				DISP_MIX_SFT_RSTN_CSR,
-				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN,
-				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN);
+				EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN,
+				EN_ISI_APB_CLK_RSTN | EN_ISI_PROC_CLK_RSTN);
 	else
 		regmap_update_bits(gpr,
 				DISP_MIX_SFT_RSTN_CSR,
-				EN_BUS_BLK_CLK_RSTN | EN_ISI_APB_CLK_RSTN | EN_ISI_APB_CLK_RSTN,
+				EN_ISI_APB_CLK_RSTN | EN_ISI_APB_CLK_RSTN,
 				0x0);
 
 }
@@ -80,13 +80,13 @@ static void disp_mix_clks_enable(struct regmap *gpr, bool enable)
 		/* enable isi clks */
 		regmap_update_bits(gpr,
 				DISP_MIX_CLK_EN_CSR,
-				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
-				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK);
+				EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
+				EN_ISI_APB_CLK | EN_ISI_PROC_CLK);
 	else
 		/* disable isi clks */
 		regmap_update_bits(gpr,
 				DISP_MIX_CLK_EN_CSR,
-				EN_BUS_BLK_CLK | EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
+				EN_ISI_APB_CLK | EN_ISI_PROC_CLK,
 				0x0);
 }
 
@@ -426,15 +426,11 @@ static int mxc_isi_pm_suspend(struct device *dev)
 
 static int mxc_isi_pm_resume(struct device *dev)
 {
-	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 	int ret;
 
 	ret = pm_runtime_force_resume(dev);
 	if (ret < 0)
 		return ret;
-
-	disp_mix_sft_rstn(mxc_isi->gpr, false);
-	disp_mix_clks_enable(mxc_isi->gpr, true);
 
 	return 0;
 }
@@ -444,6 +440,7 @@ static int mxc_isi_runtime_suspend(struct device *dev)
 {
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 
+	disp_mix_clks_enable(mxc_isi->gpr, false);
 	mxc_isi_clk_disable(mxc_isi);
 
 	return 0;
@@ -459,6 +456,8 @@ static int mxc_isi_runtime_resume(struct device *dev)
 		dev_err(dev, "%s clk enable fail\n", __func__);
 		return ret;
 	}
+	disp_mix_sft_rstn(mxc_isi->gpr, false);
+	disp_mix_clks_enable(mxc_isi->gpr, true);
 
 	return 0;
 }
