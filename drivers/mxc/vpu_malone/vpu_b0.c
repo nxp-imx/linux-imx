@@ -1918,7 +1918,7 @@ static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
 		.name = "color description",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 0,
-		.max = 99,
+		.max = 10,
 		.step = 1,
 		.def = 1,
 	},
@@ -1927,7 +1927,7 @@ static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
 		.name = "transfer characteristics",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 0,
-		.max = 99,
+		.max = 18,
 		.step = 1,
 		.def = 0,
 	},
@@ -1936,7 +1936,7 @@ static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
 		.name = "matrix coefficients",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 0,
-		.max = 99,
+		.max = 10,
 		.step = 1,
 		.def = 0,
 	},
@@ -1945,7 +1945,7 @@ static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
 		.name = "vido full range flg",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 0,
-		.max = 99,
+		.max = 1,
 		.step = 1,
 		.def = 0,
 	},
@@ -1954,7 +1954,7 @@ static	struct v4l2_ctrl_config vpu_custom_g_cfg[] = {
 		.name = "VUI present",
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 0,
-		.max = 99,
+		.max = 1,
 		.step = 1,
 		.def = 0,
 	}
@@ -2056,9 +2056,23 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 static int v4l2_custom_g_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct vpu_ctx *ctx = v4l2_ctrl_to_ctx(ctrl);
+	struct v4l2_ctrl_config *ctrl_cfg = NULL;
+	int i;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() control(%d)\n",
 			__func__, ctrl->id);
+
+	for (i = 0; i < CNT_CUSTOM_G_CFG; i++) {
+		if (vpu_custom_g_cfg[i].id == ctrl->id) {
+			ctrl_cfg = &vpu_custom_g_cfg[i];
+			break;
+		}
+	}
+	if (!ctrl_cfg) {
+		vpu_dbg(LVL_ERR, "%s() Invalid costomer control(%d)\n",
+				__func__, ctrl->id);
+		return -EINVAL;
+	}
 
 	switch (ctrl->id) {
 	case V4L2_CID_USER_FRAME_COLORDESC:
@@ -2081,9 +2095,11 @@ static int v4l2_custom_g_ctrl(struct v4l2_ctrl *ctrl)
 				__func__, ctrl->id);
 		return -EINVAL;
 	}
+	ctrl->val = max_t(s32, ctrl->val, ctrl_cfg->min);
+	ctrl->val = min_t(s32, ctrl->val, ctrl_cfg->max);
+	vpu_dbg(LVL_BIT_FLOW, "%s = %d\n", ctrl->name, ctrl->val);
 	return 0;
 }
-
 
 static int v4l2_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -3862,6 +3878,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->pSeqinfo->uHorRes, ctx->pSeqinfo->uVerRes,
 				ctx->pSeqinfo->uHorDecodeRes, ctx->pSeqinfo->uVerDecodeRes,
 				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
+		vpu_dbg(LVL_BIT_FLOW, "uColorDesc = %d, uTransferChars = %d, uMatrixCoeffs = %d, uVideoFullRangeFlag = %d, uVUIPresent = %d\n",
+				ctx->pSeqinfo->uColorDesc,
+				ctx->pSeqinfo->uTransferChars,
+				ctx->pSeqinfo->uMatrixCoeffs,
+				ctx->pSeqinfo->uVideoFullRangeFlag,
+				ctx->pSeqinfo->uVUIPresent);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
 			down(&ctx->q_data[V4L2_DST].drv_q_lock);
@@ -5398,6 +5420,9 @@ static int v4l2_open(struct file *filp)
 	rpc_set_stream_cfg_value(dev->shared_mem.pSharedInterface, ctx->str_index, vpu_dbe_num);
 	init_vpu_buffer(ctx);
 
+	vpu_dbg(LVL_BIT_FLOW, "<%d> ctx[%d] open\n",
+			current->pid, ctx->str_index);
+
 	return 0;
 
 err_firmware_load:
@@ -5439,6 +5464,8 @@ static int v4l2_release(struct file *filp)
 	struct vpu_dev *dev = video_get_drvdata(vdev);
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(filp->private_data);
 
+	vpu_dbg(LVL_BIT_FLOW, "<%d> ctx[%d] close\n",
+			current->pid, ctx->str_index);
 	vpu_dbg(LVL_BIT_FUNC,
 		"ctx[%d]: %s() - %s, %s, %s, total frame: %d\n",
 		ctx->str_index,
