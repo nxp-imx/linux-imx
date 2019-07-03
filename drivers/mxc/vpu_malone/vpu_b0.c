@@ -3460,10 +3460,19 @@ static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *
 static u32 correct_consumed_length(struct vpu_ctx *ctx,
 				u32 consumed_pic_bytesused)
 {
+	long total_read_bytes;
 	long delta;
 	u32 circle_count;
+	u32 stream_size;
+	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
 
-	delta = ctx->total_write_bytes - ctx->total_consumed_bytes;
+	pStrBufDesc = get_str_buffer_desc(ctx);
+	stream_size = got_used_space(pStrBufDesc->wptr,
+					pStrBufDesc->rptr,
+					pStrBufDesc->start,
+					pStrBufDesc->end);
+	total_read_bytes = ctx->total_write_bytes - stream_size;
+	delta = total_read_bytes - ctx->total_consumed_bytes;
 	if (delta < ctx->stream_buffer.dma_size)
 		return consumed_pic_bytesused;
 
