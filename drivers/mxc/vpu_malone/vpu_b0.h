@@ -385,6 +385,7 @@ struct vpu_ctx {
 	long total_write_bytes;
 	long total_consumed_bytes;
 	long total_ts_bytes;
+	u32 extra_size;
 	struct semaphore tsm_lock;
 	s64 output_ts;
 	s64 capture_ts;
