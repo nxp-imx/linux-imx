@@ -1417,11 +1417,22 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 		vpu_dbg(LVL_ERR, "%s() get tsm lock fail\n", __func__);
 		return;
 	}
+
+	if ((vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG) &&
+			!TSM_TS_IS_VALID(input_ts)) {
+		vpu_dbg(LVL_BIT_TS, "[INPUT  TS]codec data\n");
+		ctx->extra_size += size;
+		up(&ctx->tsm_lock);
+		return;
+	}
+
 	if (ctx->tsm_sync_flag) {
 		vpu_dbg(LVL_BIT_TS, "resyncTSManager\n");
 		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
 		ctx->tsm_sync_flag = false;
 	}
+	size += ctx->extra_size;
+	ctx->extra_size = 0;
 	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
 	TSManagerReceive2(ctx->tsm, input_ts, size);
 	ctx->total_ts_bytes += size;
