@@ -278,6 +278,16 @@
 #define MICFIL_HWVAD_HPF_102HZ		3
 #define MICFIL_HWVAD_FRAMET_DEFAULT	10
 
+/* MICFIL DC Remover Control Register -- REG_MICFIL_DC_CTRL */
+#define MICFIL_DC_CTRL_SHIFT		0
+#define MICFIL_DC_CTRL_MASK		0xFFFF
+#define MICFIL_DC_CTRL_WIDTH		2
+#define MICFIL_DC_CHX_SHIFT(v)		(2 * (v))
+#define MICFIL_DC_CHX_MASK(v)		((BIT(MICFIL_DC_CTRL_WIDTH) - 1) \
+					 << MICFIL_DC_CHX_SHIFT(v))
+#define MICFIL_DC_MODE(v1, v2)		(((v1) << MICFIL_DC_CHX_SHIFT(v2)) \
+					 & MICFIL_DC_CHX_MASK(v2))
+
 /* MICFIL Output Control Register */
 #define MICFIL_OUTGAIN_CHX_SHIFT(v)	(4 * (v))
 
