@@ -1335,7 +1335,7 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		return -EINVAL;
 	}
 
-	if (!q_data->sizeimage[0]) {
+	if (reqbuf->count > 0 && !q_data->sizeimage[0]) {
 		vpu_dbg(LVL_ERR,
 			"sizeimage isn't initialized, %s reqbufs fail\n",
 			q_data->type ? "CAPTURE" : "OUTPUT");
@@ -3211,6 +3211,8 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 
 	if (ctx->fifo_low)
 		return true;
+	if (ctx->tsm_sync_flag)
+		return true;
 
 	pStrBufDesc = get_str_buffer_desc(ctx);
 	stream_size = got_used_space(pStrBufDesc->wptr,
@@ -3250,8 +3252,7 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	return true;
 }
 
-//warn uStrIdx need to refine how to handle it
-static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
+static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 {
 	struct vb2_data_req *p_data_req;
 	struct queue_data *This = &ctx->q_data[V4L2_SRC];
@@ -3259,7 +3260,6 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	uint32_t buffer_size;
 	u32 frame_bytes;
 
-	down(&This->drv_q_lock);
 	while (!list_empty(&This->drv_q)) {
 		if (!vpu_dec_stream_is_ready(ctx)) {
 			vpu_dbg(LVL_INFO,
@@ -3279,7 +3279,6 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 						     buffer_size,
 						     uStrBufIdx);
 		if (frame_bytes == 0) {
-			up(&This->drv_q_lock);
 			vpu_dbg(LVL_INFO, " %s no space to write\n", __func__);
 			return;
 		} else if (frame_bytes < 0) {
@@ -3326,6 +3325,15 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 			send_eos_event(ctx);
 		}
 	}
+}
+
+//warn uStrIdx need to refine how to handle it
+static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
+{
+	struct queue_data *This = &ctx->q_data[V4L2_SRC];
+
+	down(&This->drv_q_lock);
+	enqueue_stream_data(ctx, uStrBufIdx);
 	up(&This->drv_q_lock);
 }
 
@@ -4533,10 +4541,11 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		precheck_vb_data(ctx, vb);
 		v4l2_transfer_buffer_to_firmware(This, vb);
+		enqueue_stream_data(ctx, 0);
+	} else {
+		respond_req_frame(ctx, This, false);
 	}
 
-	if (!V4L2_TYPE_IS_OUTPUT(vq->type))
-		respond_req_frame(ctx, This, false);
 	This->qbuf_count++;
 }
 
