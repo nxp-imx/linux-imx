@@ -135,7 +135,6 @@ struct ov5640 {
 };
 
 static struct reg_value ov5640_init_setting_30fps_VGA[] = {
-
 	{0x3103, 0x11, 0, 0}, {0x3008, 0x82, 0, 5}, {0x3008, 0x42, 0, 0},
 	{0x3103, 0x03, 0, 0}, {0x3017, 0x00, 0, 0}, {0x3018, 0x00, 0, 0},
 	{0x3034, 0x18, 0, 0}, {0x3035, 0x14, 0, 0}, {0x3036, 0x38, 0, 0},
@@ -170,7 +169,7 @@ static struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x300e, 0x45, 0, 0}, {0x302e, 0x08, 0, 0}, {0x4300, 0x3F, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x4713, 0x03, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
-	{0x4837, 0x0a, 0, 0}, {0x4800, 0x04, 0, 0}, {0x3824, 0x02, 0, 0},
+	{0x4837, 0x0a, 0, 0}, {0x4800, 0x24, 0, 0}, {0x3824, 0x02, 0, 0},
 	{0x5000, 0xa7, 0, 0}, {0x5001, 0xa3, 0, 0}, {0x5180, 0xff, 0, 0},
 	{0x5181, 0xf2, 0, 0}, {0x5182, 0x00, 0, 0}, {0x5183, 0x14, 0, 0},
 	{0x5184, 0x25, 0, 0}, {0x5185, 0x24, 0, 0}, {0x5186, 0x09, 0, 0},
@@ -710,7 +709,6 @@ static int ov5640_config_init(struct ov5640 *sensor)
 
 static void ov5640_start(struct ov5640 *sensor)
 {
-	ov5640_write_reg(sensor, 0x4800, 0x04);
 	ov5640_write_reg(sensor, 0x3008, 0x02);
 	ov5640_write_reg(sensor, 0x4202, 0x00);
 
@@ -745,7 +743,6 @@ static int ov5640_change_mode(struct ov5640 *sensor)
 	}
 
 	retval = ov5640_download_firmware(sensor, pModeSetting, ArySize);
-	ov5640_stop(sensor);
 
 	return retval;
 }
@@ -764,8 +761,6 @@ static int init_device(struct ov5640 *sensor)
 	retval = ov5640_config_init(sensor);
 	if (retval < 0)
 		return retval;
-
-	ov5640_stop(sensor);
 
 	return 0;
 }
