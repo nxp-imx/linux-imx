@@ -480,10 +480,19 @@ static long fsl_easrc_ioctl_config_context(struct fsl_easrc_m2m *m2m,
 		return ret;
 	}
 
-	fsl_easrc_process_format(easrc, &ctx->in_params.fmt,
+	ret = fsl_easrc_process_format(easrc, &ctx->in_params.fmt,
 				 config.input_format);
-	fsl_easrc_process_format(easrc, &ctx->out_params.fmt,
+	if (ret) {
+		dev_err(dev, "input format error %d\n", ret);
+		return ret;
+	}
+
+	ret = fsl_easrc_process_format(easrc, &ctx->out_params.fmt,
 				 config.output_format);
+	if (ret) {
+		dev_err(dev, "output format error %d\n", ret);
+		return ret;
+	}
 
 	/* FIXME - fix sample position?
 	 * if the input sample is 16-bits wide and left-justified on a
