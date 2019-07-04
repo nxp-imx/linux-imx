@@ -17,8 +17,6 @@
 
 #define pr_fmt(fmt)	"GICv3: " fmt
 
-#include <linux/arm-smccc.h>
-#include <soc/imx/fsl_sip.h>
 #include <linux/acpi.h>
 #include <linux/cpu.h>
 #include <linux/cpu_pm.h>
@@ -64,7 +62,7 @@ struct gic_chip_data {
 static struct gic_chip_data gic_data __read_mostly;
 static struct static_key supports_deactivate = STATIC_KEY_INIT_TRUE;
 
-static unsigned int err11171;
+static void __iomem *iomuxc_gpr_base;
 
 static struct gic_kvm_info gic_v3_kvm_info;
 
@@ -656,6 +654,7 @@ static void gic_send_sgi(u64 cluster_id, u16 tlist, unsigned int irq)
 static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
 	int cpu;
+	u32 val;
 
 	if (WARN_ON(irq >= 16))
 		return;
@@ -672,17 +671,20 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 
 		tlist = gic_compute_target_list(&cpu, mask, cluster_id);
 		gic_send_sgi(cluster_id, tlist, irq);
+
+		if (iomuxc_gpr_base) {
+			/* pending the IRQ32 to wakeup the core */
+			val = readl_relaxed(iomuxc_gpr_base + 0x4);
+			val |= (1 << 12);
+			writel_relaxed(val, iomuxc_gpr_base + 0x4);
+			/* delay for a while to make sure cores wakeup done */
+			udelay(50);
+			val &= ~(1 << 12);
+			writel_relaxed(val, iomuxc_gpr_base + 0x4);
+		}
 	}
 	/* Force the above writes to ICC_SGI1R_EL1 to be executed */
 	isb();
-
-	if (err11171) {
-		struct arm_smccc_res res;
-
-		arm_smccc_smc(FSL_SIP_GPC, FSL_SIP_CONFIG_GPC_CORE_WAKE,
-				*cpumask_bits(mask), 0, 0, 0, 0, 0, &res);
-	}
-
 }
 
 static void gic_smp_init(void)
@@ -1240,7 +1242,7 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 	if (of_machine_is_compatible("fsl,imx8mq")) {
 		/* sw workaround for IPI can't wakeup CORE
 		   ERRATA(ERR011171) on i.MX8MQ */
-		err11171 = true;
+		iomuxc_gpr_base = of_iomap(node, 2);
 	}
 
 	if (of_property_read_u64(node, "redistributor-stride", &redist_stride))
