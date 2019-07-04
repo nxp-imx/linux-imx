@@ -3695,16 +3695,35 @@ static bool alloc_frame_buffer(struct vpu_ctx *ctx,
 		"VID_API_CMD_FS_ALLOC, ctx[%d] vb2_buf=%p, id=%d\n",
 		ctx->str_index, p_data_req->vb2_buf, p_data_req->id);
 
-	if (ctx->wait_res_change_done)
-		ctx->wait_res_change_done = false;
-
 	return true;
+}
+
+static void check_wait_res_changed(struct vpu_ctx *ctx)
+{
+	struct queue_data *q_data = &ctx->q_data[V4L2_DST];
+	struct vb2_data_req *p_data_req;
+	struct vb2_data_req *p_temp;
+
+	if (!q_data->enable)
+		return;
+
+	list_for_each_entry_safe(p_data_req, p_temp, &q_data->drv_q, list) {
+		if (!p_data_req->vb2_buf)
+			continue;
+		if (verify_frame_buffer_size(q_data, p_data_req)) {
+			ctx->wait_res_change_done = false;
+			break;
+		}
+	}
 }
 
 static void respond_req_frame(struct vpu_ctx *ctx,
 				struct queue_data *queue,
 				bool abnormal)
 {
+	if (ctx->wait_res_change_done)
+		check_wait_res_changed(ctx);
+
 	while (ctx->req_frame_count > 0) {
 		if (abnormal) {
 			respond_req_frame_abnormal(ctx);
@@ -3910,6 +3929,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 //		MediaIPFW_Video_FrameBuffer *pStreamDCPBuffer = &pSharedInterface->StreamDCPBuffer[uStrIdx];
 		MediaIPFW_Video_PitchInfo   *pStreamPitchInfo = &pSharedInterface->StreamPitchInfo[uStrIdx];
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
+		int wait_times = 0;
 
 		if (!check_seq_info_is_valid(ctx->str_index, pSeqInfo))
 			break;
@@ -3921,6 +3941,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		}
 		else
 			vpu_dbg(LVL_INFO, "pSeqinfo is not NULL, need not to realloc\n");
+
+		while (ctx->wait_res_change_done && wait_times++ < 100)
+			mdelay(10);
+		if (ctx->wait_res_change_done)
+			vpu_dbg(LVL_WARN, "warning: ctx[%d] update seq info when waiting res change\n",
+				ctx->str_index);
+
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		memcpy(ctx->pSeqinfo, &pSeqInfo[ctx->str_index], sizeof(MediaIPFW_Video_SeqInfo));
