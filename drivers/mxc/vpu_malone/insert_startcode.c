@@ -404,8 +404,8 @@ static void insert_frame_header_spk(u_int8 *dst, u_int32 uPayloadSize, u_int32 u
 	dst[15] = 0x50;
 }
 
-static void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
-		enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight)
+void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
+	enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight)
 {
 	// Startcode
 	dst[0] = 0x00;
