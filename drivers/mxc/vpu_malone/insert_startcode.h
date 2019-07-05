@@ -37,5 +37,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 u_int32 insert_scode_4_arv_slice(struct vpu_ctx *ctx, u_int8 *dst, struct VPU_FMT_INFO_ARV *arv_frame, u_int32 uPayloadSize);
 struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src, u_int32 size);
 void put_arv_info(struct VPU_FMT_INFO_ARV *arv_frame);
+void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
+	enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight);
 
 #endif
