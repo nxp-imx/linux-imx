@@ -3252,6 +3252,37 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	return true;
 }
 
+static uint32_t insert_scode_4_seq_4_arv(struct vpu_ctx *ctx, u_int8 *input_buffer,
+	u_int32 buffer_size, uint32_t uStrBufIdx)
+{
+	struct vpu_dev *dev = ctx->dev;
+	uint32_t index = ctx->str_index;
+	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
+	uint32_t nfreespace = 0;
+	u_int8 seq_header[256] = {0};
+	uint32_t length = 0;
+	struct queue_data *This = &ctx->q_data[V4L2_SRC];
+
+	pStrBufDesc = get_str_buffer_desc(ctx);
+	nfreespace = got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr,
+		pStrBufDesc->start, pStrBufDesc->end);
+
+	if (nfreespace < (buffer_size + 16 + MIN_SPACE)) {
+		vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
+		return 0;
+	}
+
+	insert_payload_header_arv(seq_header, SCODE_NEW_SEQUENCE, ctx->arv_type,
+		buffer_size + 12, This->width, This->height);
+	length = copy_buffer_to_stream(ctx, seq_header, 16);
+	length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
+
+	dev->shared_mem.pSharedInterface->pStreamBuffDesc[index][uStrBufIdx] =
+		(VPU_REG_BASE + get_str_buffer_desc_offset(ctx));
+
+	return length;
+}
+
 static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 {
 	struct vb2_data_req *p_data_req;
@@ -3259,6 +3290,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	void *input_buffer;
 	uint32_t buffer_size;
 	u32 frame_bytes;
+	struct vb2_v4l2_buffer *vbuf;
 
 	while (!list_empty(&This->drv_q)) {
 		if (!vpu_dec_stream_is_ready(ctx)) {
@@ -3274,10 +3306,14 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 
 		buffer_size = p_data_req->vb2_buf->planes[0].bytesused;
 		input_buffer = (void *)vb2_plane_vaddr(p_data_req->vb2_buf, 0);
-		frame_bytes = update_stream_addr_vpu(ctx,
-						     input_buffer,
-						     buffer_size,
-						     uStrBufIdx);
+
+		vbuf = to_vb2_v4l2_buffer(p_data_req->vb2_buf);
+		if (vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG
+			&& This->vdec_std == VPU_VIDEO_RV)
+			frame_bytes = insert_scode_4_seq_4_arv(ctx, input_buffer, buffer_size, uStrBufIdx);
+		else
+			frame_bytes = update_stream_addr_vpu(ctx, input_buffer, buffer_size, uStrBufIdx);
+
 		if (frame_bytes == 0) {
 			vpu_dbg(LVL_INFO, " %s no space to write\n", __func__);
 			return;
