@@ -104,6 +104,7 @@ static bool is_yuv(u32 pix_fmt)
 {
 	if ((pix_fmt == V4L2_PIX_FMT_YUYV) ||
 		(pix_fmt == V4L2_PIX_FMT_YUV32) ||
+		(pix_fmt == V4L2_PIX_FMT_YUV24) ||
 		(pix_fmt == V4L2_PIX_FMT_YUV444M) ||
 		(pix_fmt == V4L2_PIX_FMT_NV12)) {
 		return true;
