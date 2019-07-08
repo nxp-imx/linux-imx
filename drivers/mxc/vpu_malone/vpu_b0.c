@@ -5708,17 +5708,6 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 	vpu_dbg(LVL_WARN, "SWRESET: swreset_vpu_firmware\n");
 	dev->firmware_started = false;
 
-	ctx->firmware_stopped = true;
-	ctx->start_flag = true;
-	ctx->b_firstseq = true;
-	ctx->wait_rst_done = false;
-	down(&ctx->q_data[V4L2_DST].drv_q_lock);
-	respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
-	clear_queue(&ctx->q_data[V4L2_DST]);
-	reset_mbi_dcp_count(ctx);
-	up(&ctx->q_data[V4L2_DST].drv_q_lock);
-	memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
-	vpu_dec_cleanup_cmd(ctx);
 	v4l2_vpu_send_cmd(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
 	reinit_completion(&dev->start_cmp);
