@@ -559,7 +559,8 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
         struct viv_gem_object *viv_ts_obj;
         gckKERNEL kernel = gal_dev->device->map[gal_dev->device->defaultHwType].kernels[0];
         gcsHAL_INTERFACE iface;
-        gctBOOL is2BitPerTile = gckHARDWARE_IsFeatureAvailable(kernel->hardware , gcvFEATURE_TILE_STATUS_2BITS);
+        gctBOOL is128BTILE = gckHARDWARE_IsFeatureAvailable(kernel->hardware , gcvFEATURE_128BTILE);
+        gctBOOL is2BitPerTile = is128BTILE ? gcvFALSE : gckHARDWARE_IsFeatureAvailable(kernel->hardware , gcvFEATURE_TILE_STATUS_2BITS);
         gctBOOL isCompressionDEC400 = gckHARDWARE_IsFeatureAvailable(kernel->hardware , gcvFEATURE_COMPRESSION_DEC400);
         gctPOINTER entry = gcvNULL;
         gctUINT32 tileStatusFiller = (isCompressionDEC400 || ((kernel->hardware->identity.chipModel == gcv500) && (kernel->hardware->identity.chipRevision > 2)))
