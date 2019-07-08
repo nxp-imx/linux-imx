@@ -1466,6 +1466,10 @@ _QueryFeatureDatabase(
         available = database->REG_TileStatus2Bits;
         break;
 
+    case gcvFEATURE_128BTILE:
+        available = database->CACHE128B256BPERLINE;
+        break;
+
     case gcvFEATURE_COMPRESSION_DEC400:
         available = database->DEC400;
         break;
