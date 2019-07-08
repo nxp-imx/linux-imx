@@ -385,6 +385,7 @@ struct vpu_ctx {
 	long total_write_bytes;
 	long total_consumed_bytes;
 	long total_ts_bytes;
+	u32 extra_size;
 	struct semaphore tsm_lock;
 	s64 output_ts;
 	s64 capture_ts;
@@ -400,12 +401,9 @@ struct vpu_ctx {
 	struct mutex cmd_lock;
 };
 
-#define LVL_INFO		3
-#define LVL_EVENT		2
-#define LVL_WARN		1
-#define LVL_ERR			0
-#define LVL_MASK		0xf
-
+#define LVL_WARN		(1 << 1)
+#define LVL_EVENT		(1 << 2)
+#define LVL_INFO		(1 << 3)
 #define LVL_BIT_CMD		(1 << 4)
 #define LVL_BIT_EVT		(1 << 5)
 #define LVL_BIT_TS		(1 << 6)
@@ -418,11 +416,11 @@ struct vpu_ctx {
 #define LVL_BIT_FLOW		(1 << 13)
 #define LVL_BIT_FRAME_COUNT	(1 << 14)
 
+#define vpu_err(fmt, arg...) pr_info("[VPU Decoder]\t " fmt, ## arg)
+
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
-		if ((vpu_dbg_level_decoder & LVL_MASK) >= (level)) \
-			pr_info("[VPU Decoder]\t " fmt, ## arg); \
-		else if ((vpu_dbg_level_decoder & (~LVL_MASK)) & level) \
+		if (vpu_dbg_level_decoder & level) \
 			pr_info("[VPU Decoder]\t " fmt, ## arg); \
 	} while (0)
 

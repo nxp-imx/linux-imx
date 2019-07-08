@@ -45,6 +45,7 @@ struct fsl_micfil {
 	bool slave_mode;
 	int channel_gain[8];
 	int clk_src_id;
+	int dc_remover;
 	int vad_sound_gain;
 	int vad_noise_gain;
 	int vad_input_gain;
@@ -140,6 +141,17 @@ static const char * const micfil_clk_src_texts[] = {
 	"Auto", "AudioPLL1", "AudioPLL2", "ExtClk3",
 };
 
+/* DC Remover Control
+ * Filter Bypassed	1 1
+ * Cut-off @21Hz	0 0
+ * Cut-off @83Hz	0 1
+ * Cut-off @152HZ	1 0
+ */
+static const char * const micfil_dc_remover_texts[] = {
+	"Cut-off @21Hz", "Cut-off @83Hz",
+	"Cut-off @152Hz", "Bypass",
+};
+
 static const struct soc_enum fsl_micfil_quality_enum =
 	SOC_ENUM_SINGLE(REG_MICFIL_CTRL2,
 			MICFIL_CTRL2_QSEL_SHIFT,
@@ -168,6 +180,9 @@ static const struct soc_enum fsl_micfil_hwvad_rate_enum =
 static const struct soc_enum fsl_micfil_clk_src_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(micfil_clk_src_texts),
 			    micfil_clk_src_texts);
+static const struct soc_enum fsl_micfil_dc_remover_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(micfil_dc_remover_texts),
+			    micfil_dc_remover_texts);
 
 static int micfil_put_clk_src(struct snd_kcontrol *kcontrol,
 			      struct snd_ctl_elem_value *ucontrol)
@@ -190,6 +205,46 @@ static int micfil_get_clk_src(struct snd_kcontrol *kcontrol,
 	struct fsl_micfil *micfil = snd_soc_component_get_drvdata(comp);
 
 	ucontrol->value.enumerated.item[0] = micfil->clk_src_id;
+
+	return 0;
+}
+
+static int micfil_put_dc_remover_state(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	struct fsl_micfil *micfil = snd_soc_component_get_drvdata(comp);
+	unsigned int *item = ucontrol->value.enumerated.item;
+	int val = snd_soc_enum_item_to_val(e, item[0]);
+	int i = 0, ret = 0;
+	u32 reg_val = 0;
+
+	if (val < 0 || val > 3)
+		return -EINVAL;
+
+	micfil->dc_remover = val;
+
+	/* Calculate total value for all channels */
+	for (i = 0; i < 8; i++)
+		reg_val |= MICFIL_DC_MODE(val, i);
+
+	/* Update DC Remover mode for all channels */
+	ret = snd_soc_component_update_bits(comp, REG_MICFIL_DC_CTRL,
+					    MICFIL_DC_CTRL_MASK, reg_val);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int micfil_get_dc_remover_state(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
+	struct fsl_micfil *micfil = snd_soc_component_get_drvdata(comp);
+
+	ucontrol->value.enumerated.item[0] = micfil->dc_remover;
 
 	return 0;
 }
@@ -676,6 +731,8 @@ static const struct snd_kcontrol_new fsl_micfil_snd_controls[] = {
 	SOC_ENUM_EXT("Clock Source",
 		     fsl_micfil_clk_src_enum,
 		     micfil_get_clk_src, micfil_put_clk_src),
+	SOC_ENUM_EXT("MICFIL DC Remover Control", fsl_micfil_dc_remover_enum,
+		     micfil_get_dc_remover_state, micfil_put_dc_remover_state),
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 		.name = "HWVAD Input Gain",

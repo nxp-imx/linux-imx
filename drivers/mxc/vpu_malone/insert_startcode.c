@@ -153,7 +153,7 @@ static int VC1CreateNALSeqHeader(unsigned char *pHeader, int *pHeaderLen,
 	nHeaderLen = nCodecSize - 1;
 	if ((4+nHeaderLen) > nMaxHeader) {
 		nHeaderLen = nMaxHeader - 4;
-		vpu_dbg(LVL_ERR, "error: header length %d overrun !!! \r\n", nCodecSize);
+		vpu_err("error: header length %d overrun !!! \r\n", nCodecSize);
 	}
 	memcpy(pHeader, pCodecPri+1, nHeaderLen);
 
@@ -404,8 +404,8 @@ static void insert_frame_header_spk(u_int8 *dst, u_int32 uPayloadSize, u_int32 u
 	dst[15] = 0x50;
 }
 
-static void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
-		enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight)
+void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
+	enum ARV_FRAME_TYPE type, u_int32 uPayloadSize, u_int32 uWidth, u_int32 uHeight)
 {
 	// Startcode
 	dst[0] = 0x00;
@@ -627,8 +627,7 @@ struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src, u_int32 
 
 	arv_frame = kzalloc(sizeof(struct VPU_FMT_INFO_ARV), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(arv_frame)) {
-		vpu_dbg(LVL_ERR, "%s() error: arv_frame alloc failed\n",
-				__func__);
+		vpu_err("%s() error: arv_frame alloc failed\n", __func__);
 		goto err;
 	}
 
@@ -641,8 +640,7 @@ struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src, u_int32 
 
 	arv_frame->slice_offset = kcalloc(arv_frame->slice_num, sizeof(u_int32), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(arv_frame->slice_offset)) {
-		vpu_dbg(LVL_ERR, "%s() error: slice_offset alloc failed\n",
-				__func__);
+		vpu_err("%s() error: slice_offset alloc failed\n", __func__);
 		goto err;
 	}
 
