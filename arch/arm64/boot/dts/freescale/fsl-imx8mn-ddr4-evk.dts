@@ -788,7 +788,6 @@
 		assigned-clock-rates = <24000000>;
 		csi_id = <0>;
 		pwn-gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
-		rst-gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
 		mclk = <24000000>;
 		mclk_source = <0>;
 		mipi_csi;
