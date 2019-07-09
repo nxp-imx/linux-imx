@@ -34,27 +34,16 @@
 extern struct snd_soc_platform_driver fsl_easrc_platform;
 
 #define FSL_EASRC_FORMATS       (SNDRV_PCM_FMTBIT_S16_LE | \
-				 SNDRV_PCM_FMTBIT_S16_BE | \
 				 SNDRV_PCM_FMTBIT_U16_LE | \
-				 SNDRV_PCM_FMTBIT_U16_BE | \
 				 SNDRV_PCM_FMTBIT_S24_LE | \
-				 SNDRV_PCM_FMTBIT_S24_BE | \
 				 SNDRV_PCM_FMTBIT_S24_3LE | \
-				 SNDRV_PCM_FMTBIT_S24_3BE | \
 				 SNDRV_PCM_FMTBIT_U24_LE | \
-				 SNDRV_PCM_FMTBIT_U24_BE | \
 				 SNDRV_PCM_FMTBIT_U24_3LE | \
-				 SNDRV_PCM_FMTBIT_U24_3BE | \
 				 SNDRV_PCM_FMTBIT_S32_LE | \
-				 SNDRV_PCM_FMTBIT_S32_BE | \
 				 SNDRV_PCM_FMTBIT_U32_LE | \
-				 SNDRV_PCM_FMTBIT_U32_BE | \
 				 SNDRV_PCM_FMTBIT_FLOAT_LE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_BE | \
 				 SNDRV_PCM_FMTBIT_S20_3LE | \
 				 SNDRV_PCM_FMTBIT_U20_3LE | \
-				 SNDRV_PCM_FMTBIT_S20_3BE | \
-				 SNDRV_PCM_FMTBIT_U20_3BE | \
 				 SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
 
 static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
