@@ -163,17 +163,18 @@ void mxc_isi_channel_set_outbuf(struct mxc_isi_dev *mxc_isi, struct mxc_isi_buff
 	}
 
 	val = readl(mxc_isi->regs + CHNL_OUT_BUF_CTRL);
-
-	if (framecount % 2 == 0) {
+	if (framecount == 0 || ((mxc_isi->status & 0x100) && (framecount != 1))) {
 		writel(paddr->y, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_Y);
 		writel(paddr->cb, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_U);
 		writel(paddr->cr, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_V);
 		val ^= CHNL_OUT_BUF_CTRL_LOAD_BUF1_ADDR_MASK;
-	} else if (framecount % 2 == 1) {
+		buf->id = MXC_ISI_BUF1;
+	} else if (framecount == 1 || mxc_isi->status & 0x200) {
 		writel(paddr->y, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_Y);
 		writel(paddr->cb, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_U);
 		writel(paddr->cr, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_V);
 		val ^= CHNL_OUT_BUF_CTRL_LOAD_BUF2_ADDR_MASK;
+		buf->id = MXC_ISI_BUF2;
 	}
 	writel(val, mxc_isi->regs + CHNL_OUT_BUF_CTRL);
 }

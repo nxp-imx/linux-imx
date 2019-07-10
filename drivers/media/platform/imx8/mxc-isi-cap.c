@@ -254,6 +254,7 @@ static int mxc_isi_update_buf_paddr(struct mxc_isi_buffer *buf, int memplanes)
 
 void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 {
+	struct device *dev = &mxc_isi->pdev->dev;
 	struct mxc_isi_buffer *buf;
 	struct vb2_buffer *vb2;
 
@@ -265,6 +266,16 @@ void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 
 	buf = list_first_entry(&mxc_isi->isi_cap.out_active,
 				struct mxc_isi_buffer, list);
+
+	/*
+	 * Skip frame when buffer number is not match ISI trigger
+	 * buffer
+	 */
+	if (((mxc_isi->status & 0x100) && (buf->id == MXC_ISI_BUF2)) ||
+	    ((mxc_isi->status & 0x200) && (buf->id == MXC_ISI_BUF1))) {
+		dev_dbg(dev, "status=0x%x id=%d\n", mxc_isi->status, buf->id);
+		return;
+	}
 
 	if (buf->discard) {
 		list_move_tail(mxc_isi->isi_cap.out_active.next,
@@ -280,8 +291,7 @@ void mxc_isi_cap_frame_write_done(struct mxc_isi_dev *mxc_isi)
 
 	if (list_empty(&mxc_isi->isi_cap.out_pending)) {
 		if (list_empty(&mxc_isi->isi_cap.out_discard)) {
-			dev_warn(&mxc_isi->pdev->dev,
-					"%s: trying to access empty discard list\n", __func__);
+			dev_warn(dev, "%s: trying to access empty discard list\n", __func__);
 			return;
 		}
 
