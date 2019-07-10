@@ -1065,6 +1065,7 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 {
 	struct fsl_easrc_context *ctx;
 	struct device *dev;
+	unsigned long lock_flags;
 	int ret;
 
 	/* to modify prefilter coeficients, the user must perform
@@ -1094,7 +1095,9 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 	if (ret)
 		return ret;
 
+	spin_lock_irqsave(&easrc->lock, lock_flags);
 	ret = fsl_easrc_config_slot(easrc, ctx->index);
+	spin_unlock_irqrestore(&easrc->lock, lock_flags);
 	if (ret)
 		return ret;
 
