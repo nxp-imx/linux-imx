@@ -34,27 +34,15 @@
 extern struct snd_soc_platform_driver fsl_easrc_platform;
 
 #define FSL_EASRC_FORMATS       (SNDRV_PCM_FMTBIT_S16_LE | \
-				 SNDRV_PCM_FMTBIT_S16_BE | \
 				 SNDRV_PCM_FMTBIT_U16_LE | \
-				 SNDRV_PCM_FMTBIT_U16_BE | \
 				 SNDRV_PCM_FMTBIT_S24_LE | \
-				 SNDRV_PCM_FMTBIT_S24_BE | \
 				 SNDRV_PCM_FMTBIT_S24_3LE | \
-				 SNDRV_PCM_FMTBIT_S24_3BE | \
 				 SNDRV_PCM_FMTBIT_U24_LE | \
-				 SNDRV_PCM_FMTBIT_U24_BE | \
 				 SNDRV_PCM_FMTBIT_U24_3LE | \
-				 SNDRV_PCM_FMTBIT_U24_3BE | \
 				 SNDRV_PCM_FMTBIT_S32_LE | \
-				 SNDRV_PCM_FMTBIT_S32_BE | \
 				 SNDRV_PCM_FMTBIT_U32_LE | \
-				 SNDRV_PCM_FMTBIT_U32_BE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_LE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_BE | \
 				 SNDRV_PCM_FMTBIT_S20_3LE | \
 				 SNDRV_PCM_FMTBIT_U20_3LE | \
-				 SNDRV_PCM_FMTBIT_S20_3BE | \
-				 SNDRV_PCM_FMTBIT_U20_3BE | \
 				 SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
 
 static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
@@ -1077,6 +1065,7 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 {
 	struct fsl_easrc_context *ctx;
 	struct device *dev;
+	unsigned long lock_flags;
 	int ret;
 
 	/* to modify prefilter coeficients, the user must perform
@@ -1106,7 +1095,9 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 	if (ret)
 		return ret;
 
+	spin_lock_irqsave(&easrc->lock, lock_flags);
 	ret = fsl_easrc_config_slot(easrc, ctx->index);
+	spin_unlock_irqrestore(&easrc->lock, lock_flags);
 	if (ret)
 		return ret;
 
@@ -1154,12 +1145,14 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 	return ret;
 }
 
-void fsl_easrc_process_format(struct fsl_easrc *easrc,
+static int fsl_easrc_process_format(struct fsl_easrc *easrc,
 			      struct fsl_easrc_data_fmt *fmt,
 			      snd_pcm_format_t raw_fmt)
 {
+	int ret;
+
 	if (!fmt)
-		return;
+		return -EINVAL;
 
 	/* Context Input Floating Point Format
 	 * 0 - Integer Format
@@ -1183,6 +1176,8 @@ void fsl_easrc_process_format(struct fsl_easrc *easrc,
 	case 32:
 		fmt->width = EASRC_WIDTH_32_BIT;
 		break;
+	default:
+		return -EINVAL;
 	}
 
 	switch (raw_fmt) {
@@ -1205,12 +1200,22 @@ void fsl_easrc_process_format(struct fsl_easrc *easrc,
 	 * 0 - Little-Endian
 	 * 1 - Big-Endian
 	 */
-	fmt->endianness = snd_pcm_format_big_endian(raw_fmt);
+	ret = snd_pcm_format_big_endian(raw_fmt);
+	if (ret < 0)
+		return ret;
+
+	fmt->endianness = ret;
 	/* Input Data sign
 	 * 0b - Signed Format
 	 * 1b - Unsigned Format
 	 */
-	fmt->unsign = snd_pcm_format_unsigned(raw_fmt) > 0 ? 1 : 0;
+	ret = snd_pcm_format_unsigned(raw_fmt) > 0 ? 1 : 0;
+	if (ret < 0)
+		return ret;
+
+	fmt->unsign = ret;
+
+	return 0;
 }
 
 int fsl_easrc_set_ctx_format(struct fsl_easrc_context *ctx,
@@ -1223,8 +1228,11 @@ int fsl_easrc_set_ctx_format(struct fsl_easrc_context *ctx,
 	int ret;
 
 	/* get the bitfield values for input data format */
-	if (in_raw_format && out_raw_format)
-		fsl_easrc_process_format(easrc, in_fmt, *in_raw_format);
+	if (in_raw_format && out_raw_format) {
+		ret = fsl_easrc_process_format(easrc, in_fmt, *in_raw_format);
+		if (ret)
+			return ret;
+	}
 
 	ret = regmap_update_bits(easrc->regmap,
 				 REG_EASRC_CC(ctx->index),
@@ -1261,8 +1269,11 @@ int fsl_easrc_set_ctx_format(struct fsl_easrc_context *ctx,
 		return ret;
 
 	/* get the bitfield values for input data format */
-	if (in_raw_format && out_raw_format)
-		fsl_easrc_process_format(easrc, out_fmt, *out_raw_format);
+	if (in_raw_format && out_raw_format) {
+		ret = fsl_easrc_process_format(easrc, out_fmt, *out_raw_format);
+		if (ret)
+			return ret;
+	}
 
 	ret = regmap_update_bits(easrc->regmap,
 				 REG_EASRC_COC(ctx->index),

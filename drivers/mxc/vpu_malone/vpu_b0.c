@@ -1171,8 +1171,10 @@ static void init_dma_buffer(struct dma_buffer *buffer)
 
 static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 {
-	if (!ctx || !ctx->dev || !buffer)
+	if (!ctx || !ctx->dev || !buffer) {
+		vpu_dec_event_decode_error(ctx);
 		return -EINVAL;
+	}
 
 	buffer->dma_virt = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			buffer->dma_size,
@@ -1182,6 +1184,7 @@ static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 	if (!buffer->dma_virt) {
 		vpu_dbg(LVL_ERR, "error: %s() dma buffer alloc size(%x) fail!\n",
 				__func__,  buffer->dma_size);
+		vpu_dec_event_decode_error(ctx);
 		return -ENOMEM;
 	}
 
@@ -3050,7 +3053,7 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 			copy_length += copy_buffer_to_stream(ctx, payload_header, header_length);
 			copy_length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
 		} else {
-			arv_frame = get_arv_info(ctx, input_buffer);
+			arv_frame = get_arv_info(ctx, input_buffer, buffer_size);
 			if (!arv_frame) {
 				vpu_dbg(LVL_WARN, "warning: %s() get arv frame info failed\n", __func__);
 				return -1;
@@ -3064,8 +3067,7 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 
 			arv_frame->packlen = 20 + 8 * arv_frame->slice_num;
 
-			if (arv_frame->packlen >  buffer_size - input_offset
-				|| arv_frame->data_len > buffer_size) {
+			if (arv_frame->packlen >  buffer_size - input_offset) {
 				put_arv_info(arv_frame);
 				arv_frame = NULL;
 				return -1;
@@ -3681,10 +3683,18 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		return;
 	}
 
-	if (ctx->firmware_stopped && uEvent != VID_API_EVENT_START_DONE) {
-		vpu_dbg(LVL_ERR, "receive event: 0x%X after stopped, ignore it\n", uEvent);
-		return;
+	if (ctx->firmware_stopped) {
+		switch (uEvent) {
+		case VID_API_EVENT_START_DONE:
+			break;
+		case VID_API_EVENT_FIFO_LOW:
+			return;
+		default:
+			vpu_dbg(LVL_ERR, "receive event: 0x%X after stopped, ignore it\n", uEvent);
+			return;
+		}
 	}
+
 	dev = ctx->dev;
 	pSharedInterface = (pDEC_RPC_HOST_IFACE)dev->shared_mem.shared_mem_vir;
 

@@ -1518,14 +1518,15 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 	struct mlb_ringbuf *rx_rbuf = &pdevinfo->rx_rbuf;
 	struct mlb_ringbuf *tx_rbuf = &pdevinfo->tx_rbuf;
 	s32 timeout = 1024;
+	unsigned long flags;
 
 	while (timeout--) {
-		read_lock(&tx_rbuf->rb_lock);
+		read_lock_irqsave(&tx_rbuf->rb_lock, flags);
 		if (!CIRC_CNT(tx_rbuf->head, tx_rbuf->tail, TRANS_RING_NODES)) {
-			read_unlock(&tx_rbuf->rb_lock);
+			read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 			break;
 		} else
-			read_unlock(&tx_rbuf->rb_lock);
+			read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 	}
 
 	if (timeout <= 0) {
@@ -1535,12 +1536,12 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 
 	timeout = 1024;
 	while (timeout--) {
-		read_lock(&rx_rbuf->rb_lock);
+		read_lock_irqsave(&rx_rbuf->rb_lock, flags);
 		if (!CIRC_CNT(rx_rbuf->head, rx_rbuf->tail, TRANS_RING_NODES)) {
-			read_unlock(&rx_rbuf->rb_lock);
+			read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 			break;
 		} else
-			read_unlock(&rx_rbuf->rb_lock);
+			read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 	}
 
 	if (timeout <= 0) {

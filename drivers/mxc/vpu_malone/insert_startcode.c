@@ -614,12 +614,15 @@ u_int32 insert_scode_4_arv_slice(struct vpu_ctx *ctx, u_int8 *dst, struct VPU_FM
 	return length;
 }
 
-struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src)
+struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src, u_int32 size)
 {
 	u_int32 i;
 	struct VPU_FMT_INFO_ARV *arv_frame;
 
 	if (!ctx || !src)
+		return NULL;
+
+	if (size < 28)
 		return NULL;
 
 	arv_frame = kzalloc(sizeof(struct VPU_FMT_INFO_ARV), GFP_KERNEL);
@@ -633,7 +636,8 @@ struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src)
 
 	arv_frame->data_len = ((src[0] << 24) | (src[1] << 16) | (src[2] << 8) | (src[3]));
 	arv_frame->slice_num = ((src[16] << 24) | (src[17] << 16) | (src[18] << 8) | (src[19]));
-
+	if (arv_frame->data_len > size || arv_frame->slice_num > size)
+		goto err;
 
 	arv_frame->slice_offset = kcalloc(arv_frame->slice_num, sizeof(u_int32), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(arv_frame->slice_offset)) {

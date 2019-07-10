@@ -275,6 +275,8 @@ again:
 		mutex_lock(&grp->mutex);
 		for (k = 0; k < total_asrc_num; k++) {
 			m = ffs(src_a_mask) - 1;
+			if (m < 0)
+				return -EINVAL;
 
 			fu = source_to_fu(&grp->res, sources[m]);
 			if (!fu)

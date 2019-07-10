@@ -1226,6 +1226,12 @@ _QueryFeatureDatabase(
 
     case gcvFEATURE_FENCE_64BIT:
         available = database->FENCE_64BIT;
+
+        if(_IsHardwareMatch(Hardware, gcv7000, 0x6203))
+        {
+            available = gcvFALSE;
+        }
+
         break;
 
     case gcvFEATURE_TEX_BASELOD:
@@ -1432,6 +1438,12 @@ _QueryFeatureDatabase(
 
     case gcvFEATURE_GPIPE_CLOCK_GATE_FIX:
         available = gcvTRUE;
+
+        if(_IsHardwareMatch(Hardware, gcv7000, 0x6203))
+        {
+            available = gcvFALSE;
+        }
+
         break;
 
     case gcvFEATURE_NEW_GPIPE:
@@ -1464,6 +1476,10 @@ _QueryFeatureDatabase(
 
     case gcvFEATURE_TILE_STATUS_2BITS:
         available = database->REG_TileStatus2Bits;
+        break;
+
+    case gcvFEATURE_128BTILE:
+        available = database->CACHE128B256BPERLINE;
         break;
 
     case gcvFEATURE_COMPRESSION_DEC400:
