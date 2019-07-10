@@ -616,7 +616,7 @@ void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi)
 	if ((dst_f->width > 1920) || (dst_f->height > 1080))
 		msleep(400);
 	else
-		msleep(250);
+		msleep(300);
 
 	dump_isi_regs(mxc_isi);
 }
