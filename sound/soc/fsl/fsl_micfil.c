@@ -1730,19 +1730,32 @@ static int fsl_micfil_dai_probe(struct snd_soc_dai *cpu_dai)
 	int ret;
 	int i;
 
-	/* set qsel to medium */
+	/* set qsel to very low quality 0 */
 	ret = regmap_update_bits(micfil->regmap, REG_MICFIL_CTRL2,
-				 MICFIL_CTRL2_QSEL_MASK, MICFIL_MEDIUM_QUALITY);
+				 MICFIL_CTRL2_QSEL_MASK, MICFIL_VLOW0_QUALITY);
 	if (ret) {
 		dev_err(dev, "failed to set quality mode bits, reg 0x%X\n",
 			REG_MICFIL_CTRL2);
 		return ret;
 	}
 
-	/* set default gain to max_gain */
-	regmap_write(micfil->regmap, REG_MICFIL_OUT_CTRL, 0x77777777);
-	for (i = 0; i < 8; i++)
-		micfil->channel_gain[i] = 0xF;
+	/* set default gain to 2 */
+	regmap_write(micfil->regmap, REG_MICFIL_OUT_CTRL, 0x22222222);
+	for (i = 0; i < MICFIL_OUTPUT_CHANNELS; i++)
+		micfil->channel_gain[i] = 0xA;
+
+	/* set DC Remover in bypass mode*/
+	val = 0;
+	for (i = 0; i < MICFIL_OUTPUT_CHANNELS; i++)
+		val |= MICFIL_DC_MODE(MICFIL_DC_BYPASS, i);
+	ret = regmap_update_bits(micfil->regmap, REG_MICFIL_DC_CTRL,
+				MICFIL_DC_CTRL_MASK, val);
+	if (ret) {
+		dev_err(dev, "failed to set DC Remover mode bits, reg 0x%X\n",
+			REG_MICFIL_DC_CTRL);
+		return ret;
+	}
+	micfil->dc_remover = MICFIL_DC_BYPASS;
 
 	snd_soc_dai_init_dma_data(cpu_dai, NULL,
 				  &micfil->dma_params_rx);
