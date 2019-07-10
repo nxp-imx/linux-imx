@@ -3925,7 +3925,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
 		int wait_times = 0;
 
-		if (!check_seq_info_is_valid(ctx->str_index, pSeqInfo))
+		if (!check_seq_info_is_valid(ctx->str_index, &pSeqInfo[ctx->str_index]))
 			break;
 		if (ctx->wait_rst_done)
 			break;
@@ -4459,12 +4459,10 @@ static void vpu_msg_run_work(struct work_struct *work)
 		mutex_lock(&dev->dev_mutex);
 		ctx = dev->ctx[msg.idx];
 		if (ctx != NULL) {
-			mutex_lock(&ctx->instance_mutex);
 			if (!ctx->ctx_released) {
 				send_msg_queue(ctx, &msg);
 				queue_work(ctx->instance_wq, &ctx->instance_work);
 			}
-			mutex_unlock(&ctx->instance_mutex);
 		}
 		mutex_unlock(&dev->dev_mutex);
 	}
@@ -5555,13 +5553,13 @@ static int v4l2_release(struct file *filp)
 	send_stop_cmd(ctx);
 	mutex_unlock(&ctx->dev->fw_flow_mutex);
 
-	mutex_lock(&ctx->instance_mutex);
+	mutex_lock(&ctx->dev->dev_mutex);
 	ctx->ctx_released = true;
-	kfifo_free(&ctx->msg_fifo);
 	cancel_work_sync(&ctx->instance_work);
+	kfifo_free(&ctx->msg_fifo);
 	if (ctx->instance_wq)
 		destroy_workqueue(ctx->instance_wq);
-	mutex_unlock(&ctx->instance_mutex);
+	mutex_unlock(&ctx->dev->dev_mutex);
 
 	if (ctx->tsm) {
 		destroyTSManager(ctx->tsm);
@@ -6041,6 +6039,40 @@ static void v4l2_vpu_send_snapshot(struct vpu_dev *dev)
 		vpu_dbg(LVL_WARN, "warning: all path hang, need to reset\n");
 }
 
+static void vpu_dec_cancel_work(struct vpu_dev *vpudev)
+{
+	int i;
+
+	mutex_lock(&vpudev->dev_mutex);
+	cancel_work_sync(&vpudev->msg_work);
+	for (i = 0; i < VPU_MAX_NUM_STREAMS; i++) {
+		struct vpu_ctx *ctx = vpudev->ctx[i];
+
+		if (!ctx)
+			continue;
+		cancel_work_sync(&vpudev->ctx[i]->instance_work);
+	}
+	mutex_unlock(&vpudev->dev_mutex);
+}
+
+
+static void vpu_dec_resume_work(struct vpu_dev *vpudev)
+{
+	int i;
+
+	mutex_lock(&vpudev->dev_mutex);
+	schedule_work(&vpudev->msg_work);
+	for (i = 0; i < VPU_MAX_NUM_STREAMS; i++) {
+		struct vpu_ctx *ctx = vpudev->ctx[i];
+
+		if (!ctx)
+			continue;
+		if (!ctx->ctx_released)
+			queue_work(ctx->instance_wq, &ctx->instance_work);
+	}
+	mutex_unlock(&vpudev->dev_mutex);
+}
+
 static int vpu_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
@@ -6055,6 +6087,8 @@ static int vpu_suspend(struct device *dev)
 			return -1;
 		}
 	}
+
+	vpu_dec_cancel_work(vpudev);
 
 	return 0;
 }
@@ -6127,7 +6161,7 @@ static int vpu_resume(struct device *dev)
 	resume_vpu_register(vpudev);
 
 	if (vpudev->fw_is_ready == false)
-		return 0;
+		goto exit;
 
 	if (is_vpu_poweroff(vpudev))
 		ret = resume_from_vpu_poweroff(vpudev);
@@ -6136,9 +6170,12 @@ static int vpu_resume(struct device *dev)
 		if (idx < VPU_MAX_NUM_STREAMS)
 			swreset_vpu_firmware(vpudev, idx);
 		else
-			return -EINVAL;
+			ret = -EINVAL;
 	}
 
+	vpu_dec_resume_work(vpudev);
+
+exit:
 	pm_runtime_put_sync(vpudev->generic_dev);
 
 	return ret;
