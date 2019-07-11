@@ -585,7 +585,10 @@ static long fsl_easrc_ioctl_release_context(struct fsl_easrc_m2m *m2m,
 		return -EINVAL;
 	}
 
-	m2m->easrc_active = 0;
+	if (m2m->easrc_active) {
+		m2m->easrc_active = 0;
+		fsl_easrc_stop_context(ctx);
+	}
 
 	spin_lock_irqsave(&m2m->lock, lock_flags);
 	m2m->ctx_hold = 0;

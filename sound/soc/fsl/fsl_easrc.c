@@ -34,27 +34,15 @@
 extern struct snd_soc_platform_driver fsl_easrc_platform;
 
 #define FSL_EASRC_FORMATS       (SNDRV_PCM_FMTBIT_S16_LE | \
-				 SNDRV_PCM_FMTBIT_S16_BE | \
 				 SNDRV_PCM_FMTBIT_U16_LE | \
-				 SNDRV_PCM_FMTBIT_U16_BE | \
 				 SNDRV_PCM_FMTBIT_S24_LE | \
-				 SNDRV_PCM_FMTBIT_S24_BE | \
 				 SNDRV_PCM_FMTBIT_S24_3LE | \
-				 SNDRV_PCM_FMTBIT_S24_3BE | \
 				 SNDRV_PCM_FMTBIT_U24_LE | \
-				 SNDRV_PCM_FMTBIT_U24_BE | \
 				 SNDRV_PCM_FMTBIT_U24_3LE | \
-				 SNDRV_PCM_FMTBIT_U24_3BE | \
 				 SNDRV_PCM_FMTBIT_S32_LE | \
-				 SNDRV_PCM_FMTBIT_S32_BE | \
 				 SNDRV_PCM_FMTBIT_U32_LE | \
-				 SNDRV_PCM_FMTBIT_U32_BE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_LE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_BE | \
 				 SNDRV_PCM_FMTBIT_S20_3LE | \
 				 SNDRV_PCM_FMTBIT_U20_3LE | \
-				 SNDRV_PCM_FMTBIT_S20_3BE | \
-				 SNDRV_PCM_FMTBIT_U20_3BE | \
 				 SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
 
 static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
@@ -1077,6 +1065,7 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 {
 	struct fsl_easrc_context *ctx;
 	struct device *dev;
+	unsigned long lock_flags;
 	int ret;
 
 	/* to modify prefilter coeficients, the user must perform
@@ -1106,7 +1095,9 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 	if (ret)
 		return ret;
 
+	spin_lock_irqsave(&easrc->lock, lock_flags);
 	ret = fsl_easrc_config_slot(easrc, ctx->index);
+	spin_unlock_irqrestore(&easrc->lock, lock_flags);
 	if (ret)
 		return ret;
 

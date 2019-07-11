@@ -5740,6 +5740,51 @@ static int resume_core(struct core_device *core)
 	return ret;
 }
 
+static void vpu_enc_cancel_work(struct vpu_dev *vpudev)
+{
+	int i;
+	int j;
+
+	for (i = 0; i < vpudev->core_num; i++) {
+		struct core_device *core = &vpudev->core_dev[i];
+
+		if (!core->fw_is_ready)
+			continue;
+		cancel_work_sync(&core->msg_work);
+		for (j = 0; j < core->supported_instance_count; j++) {
+			struct vpu_ctx *ctx = core->ctx[j];
+
+			if (!ctx)
+				continue;
+			cancel_work_sync(&ctx->instance_work);
+		}
+	}
+	cancel_delayed_work_sync(&vpudev->watchdog);
+}
+
+static void vpu_enc_resume_work(struct vpu_dev *vpudev)
+{
+	int i;
+	int j;
+
+	for (i = 0; i < vpudev->core_num; i++) {
+		struct core_device *core = &vpudev->core_dev[i];
+
+		if (!core->fw_is_ready)
+			continue;
+		queue_work(core->workqueue, &core->msg_work);
+		for (j = 0; j < core->supported_instance_count; j++) {
+			struct vpu_ctx *ctx = core->ctx[j];
+
+			if (!ctx)
+				continue;
+			queue_work(ctx->instance_wq, &ctx->instance_work);
+		}
+	}
+	schedule_delayed_work(&vpudev->watchdog,
+			msecs_to_jiffies(VPU_WATCHDOG_INTERVAL_MS));
+}
+
 static int vpu_enc_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
@@ -5755,6 +5800,7 @@ static int vpu_enc_suspend(struct device *dev)
 		if (ret)
 			break;
 	}
+	vpu_enc_cancel_work(vpudev);
 	pm_runtime_put_sync(dev);
 	mutex_unlock(&vpudev->dev_mutex);
 
@@ -5780,6 +5826,7 @@ static int vpu_enc_resume(struct device *dev)
 			break;
 	}
 	vpudev->hw_enable = true;
+	vpu_enc_resume_work(vpudev);
 	pm_runtime_put_sync(dev);
 	mutex_unlock(&vpudev->dev_mutex);
 

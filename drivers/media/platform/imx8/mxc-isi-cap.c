@@ -1222,6 +1222,7 @@ static int mxc_isi_cap_enum_framesizes(struct file *file, void *priv,
 					 struct v4l2_frmsizeenum *fsize)
 {
 	struct mxc_isi_dev *mxc_isi = video_drvdata(file);
+	struct device_node *node = mxc_isi->pdev->dev.of_node;
 	struct v4l2_subdev *sd;
 	struct mxc_isi_fmt *fmt;
 	struct media_pad *source_pad;
@@ -1258,6 +1259,11 @@ static int mxc_isi_cap_enum_framesizes(struct file *file, void *priv,
 	if (ret)
 		return ret;
 
+	if (of_device_is_compatible(node, "fsl,imx8mn-isi") &&
+	   (fse.max_width > 2048 || fse.min_width > 2048))
+		return -EINVAL;
+
+
 	if (fse.min_width == fse.max_width &&
 	    fse.min_height == fse.max_height) {
 		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
@@ -1281,6 +1287,7 @@ static int mxc_isi_cap_enum_frameintervals(struct file *file, void *fh,
 					  struct v4l2_frmivalenum *interval)
 {
 	struct mxc_isi_dev *mxc_isi = video_drvdata(file);
+	struct device_node *node = mxc_isi->pdev->dev.of_node;
 	struct v4l2_subdev *sd;
 	struct mxc_isi_fmt *fmt;
 	struct media_pad *source_pad;
@@ -1313,6 +1320,9 @@ static int mxc_isi_cap_enum_frameintervals(struct file *file, void *fh,
 	ret = v4l2_subdev_call(sd, pad, enum_frame_interval, NULL, &fie);
 	if (ret)
 		return ret;
+
+	if (of_device_is_compatible(node, "fsl,imx8mn-isi") && fie.width > 2048)
+		return -EINVAL;
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	interval->discrete = fie.interval;
@@ -1467,6 +1477,7 @@ static int mxc_isi_subdev_set_fmt(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_format *fmt)
 {
 	struct mxc_isi_dev *mxc_isi = v4l2_get_subdevdata(sd);
+	struct device_node *node = mxc_isi->pdev->dev.of_node;
 	struct v4l2_mbus_framefmt *mf = &fmt->format;
 	struct mxc_isi_frame *dst_f = &mxc_isi->isi_cap.dst_f;
 	struct mxc_isi_fmt *out_fmt;
@@ -1485,6 +1496,9 @@ static int mxc_isi_subdev_set_fmt(struct v4l2_subdev *sd,
 		v4l2_err(mxc_isi->v4l2_dev, "%s, format is not support!\n", __func__);
 		return -EINVAL;
 	}
+
+	if (of_device_is_compatible(node, "fsl,imx8mn-isi") && mf->width > 2048)
+		return -EINVAL;
 
 	mutex_lock(&mxc_isi->lock);
 	/* update out put frame size and formate */
