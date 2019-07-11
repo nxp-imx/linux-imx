@@ -232,6 +232,11 @@ static long fsl_easrc_prepare_io_buffer(struct fsl_easrc_m2m *m2m,
 			dev_err(dev, "failed to copy input buffer %d\n", ret);
 			return ret;
 		}
+
+		if (buf_len % (bits / 8)) {
+			dev_err(dev, "input buffer size error\n");
+			return -EINVAL;
+		}
 	}
 
 	*dma_len = buf_len;
@@ -309,13 +314,16 @@ static void fsl_easrc_read_last_FIFO(struct fsl_easrc_m2m *m2m)
 	u32 i, reg, size, t_size = 0, width;
 	u32 *reg32 = NULL;
 	u16 *reg16 = NULL;
+	u8  *reg24 = NULL;
 
 	width = snd_pcm_format_physical_width(ctx->out_params.sample_format);
 
 	if (width == 32)
 		reg32 = output->dma_vaddr + output->length;
-	else
+	else if (width == 16)
 		reg16 = output->dma_vaddr + output->length;
+	else
+		reg24 = output->dma_vaddr + output->length;
 retry:
 	size = fsl_easrc_get_output_FIFO_size(m2m);
 	for (i = 0; i < size * ctx->channels; i++) {
@@ -324,9 +332,13 @@ retry:
 		if (reg32) {
 			*(reg32) = reg;
 			reg32++;
-		} else {
+		} else if (reg16) {
 			*(reg16) = (u16)reg;
 			reg16++;
+		} else {
+			*reg24++ = (u8)reg;
+			*reg24++ = (u8)(reg >> 8);
+			*reg24++ = (u8)(reg >> 16);
 		}
 	}
 	t_size += size;
@@ -336,8 +348,10 @@ retry:
 
 	if (reg32)
 		output->length += t_size * ctx->channels * 4;
-	else
+	else if (reg16)
 		output->length += t_size * ctx->channels * 2;
+	else
+		output->length += t_size * ctx->channels * 3;
 }
 
 static long fsl_easrc_process_buffer(struct fsl_easrc_m2m *m2m,
