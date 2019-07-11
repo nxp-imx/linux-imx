@@ -5706,7 +5706,7 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 	vpu_dbg(LVL_WARN, "SWRESET: swreset_vpu_firmware\n");
 	dev->firmware_started = false;
 
-	v4l2_vpu_send_cmd(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
+	do_send_cmd_to_firmware(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
 	reinit_completion(&dev->start_cmp);
 	if (!wait_for_completion_timeout(&dev->start_cmp, msecs_to_jiffies(10000))) {
