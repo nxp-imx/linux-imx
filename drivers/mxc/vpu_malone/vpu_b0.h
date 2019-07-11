@@ -344,7 +344,7 @@ struct vpu_ctx {
 	struct completion completion;
 	struct completion stop_cmp;
 	struct completion eos_cmp;
-	MediaIPFW_Video_SeqInfo *pSeqinfo;
+	MediaIPFW_Video_SeqInfo seqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
 	bool start_flag;
