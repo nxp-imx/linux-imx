@@ -1566,6 +1566,9 @@ static int check_bd_buswidth(struct sdma_buffer_descriptor *bd,
 		if ((count | dma_dst | dma_src) & 3)
 			ret = -EINVAL;
 		break;
+	case DMA_SLAVE_BUSWIDTH_3_BYTES:
+		bd->mode.command = 3;
+		break;
 	case DMA_SLAVE_BUSWIDTH_2_BYTES:
 		bd->mode.command = 2;
 		if ((count | dma_dst | dma_src) & 1)
