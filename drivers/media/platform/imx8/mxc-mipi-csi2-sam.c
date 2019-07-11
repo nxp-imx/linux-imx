@@ -56,8 +56,6 @@ static const struct csis_pix_format mipi_csis_formats[] = {
 	}
 };
 
-typedef int (*mipi_csis_phy_reset_t)(struct csi_state *state);
-
 #define mipi_csis_write(__csis, __r, __v) writel(__v, __csis->regs + __r)
 #define mipi_csis_read(__csis, __r) readl(__csis->regs + __r)
 
@@ -1009,6 +1007,7 @@ static int mipi_csis_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	phy_reset_fn = of_id->data;
+	state->phy_reset_fn = phy_reset_fn;
 
 	state->gasket = syscon_regmap_lookup_by_phandle(dev->of_node, "csi-gpr");
 	if (IS_ERR(state->gasket)) {
@@ -1133,6 +1132,9 @@ static int mipi_csis_runtime_resume(struct device *dev)
 
 	disp_mix_clks_enable(state->clk_enable, true);
 	disp_mix_sft_rstn(state->soft_resetn, false);
+
+	if (state->phy_reset_fn)
+		state->phy_reset_fn(state);
 
 	return 0;
 }

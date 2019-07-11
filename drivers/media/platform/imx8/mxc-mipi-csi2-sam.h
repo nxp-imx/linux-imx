@@ -222,6 +222,9 @@ struct mipi_csis_event {
 	unsigned int counter;
 };
 
+struct csi_state;
+typedef int (*mipi_csis_phy_reset_t)(struct csi_state *state);
+
 static const struct mipi_csis_event mipi_csis_events[] = {
 	/* Errors */
 	{ MIPI_CSIS_INTSRC_ERR_SOT_HS,	"SOT Error" },
@@ -324,6 +327,8 @@ struct csi_state {
 	struct reset_control *soft_resetn;
 	struct reset_control *clk_enable;
 	struct reset_control *mipi_reset;
+
+	mipi_csis_phy_reset_t phy_reset_fn;
 };
 
 /**
