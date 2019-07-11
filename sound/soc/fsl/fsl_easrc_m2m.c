@@ -212,7 +212,6 @@ static long fsl_easrc_prepare_io_buffer(struct fsl_easrc_m2m *m2m,
 	unsigned int buf_len, bits;
 	u32 fifo_addr;
 	void __user *buf_vaddr;
-	int ret;
 
 	if (dir == IN) {
 		buf_vaddr = (void __user *)buf->input_buffer_vaddr;
@@ -226,18 +225,15 @@ static long fsl_easrc_prepare_io_buffer(struct fsl_easrc_m2m *m2m,
 		fifo_addr = easrc->paddr + REG_EASRC_RDFIFO(index);
 	}
 
-	if (dir == IN) {
-		ret = copy_from_user(dma_vaddr, buf_vaddr, buf_len);
-		if (ret) {
-			dev_err(dev, "failed to copy input buffer %d\n", ret);
-			return ret;
-		}
-
-		if (buf_len % (bits / 8)) {
-			dev_err(dev, "input buffer size error\n");
-			return -EINVAL;
-		}
+	if (buf_len > EASRC_DMA_BUFFER_SIZE ||
+	    (dir == IN && (buf_len % (bits / 8)))) {
+		dev_err(dev, "%sput buffer size is error: [%d]\n",
+			DIR_STR(dir), buf_len);
+		return -EINVAL;
 	}
+
+	if (dir == IN && copy_from_user(dma_vaddr, buf_vaddr, buf_len))
+		return -EFAULT;
 
 	*dma_len = buf_len;
 
@@ -810,9 +806,10 @@ static int fsl_easrc_open(struct inode *inode, struct file *file)
 
 	/* set the pointer to easrc private data */
 	m2m = kzalloc(sizeof(*m2m), GFP_KERNEL);
-	if (!m2m)
-		return -ENOMEM;
-
+	if (!m2m) {
+		ret = -ENOMEM;
+		goto out;
+	}
 	/* just save the pointer to easrc private data */
 	m2m->easrc = easrc;
 	m2m->ctx = ctx;
@@ -827,6 +824,9 @@ static int fsl_easrc_open(struct inode *inode, struct file *file)
 	pm_runtime_get_sync(dev);
 
 	return 0;
+out:
+	kfree(ctx);
+	return ret;
 }
 
 static int fsl_easrc_close(struct inode *inode, struct file *file)
