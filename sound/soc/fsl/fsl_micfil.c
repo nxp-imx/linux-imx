@@ -61,6 +61,8 @@ struct fsl_micfil {
 	int vad_rate_index;
 	atomic_t recording_state;
 	atomic_t hwvad_state;
+	/* spinlock to control HWVAD enable/disable */
+	spinlock_t hwvad_lock;
 };
 
 struct fsl_micfil_soc_data {
@@ -1926,7 +1928,10 @@ static irqreturn_t voice_detected_fn(int irq, void *devid)
 	int ret;
 
 	/* disable hwvad */
+	spin_lock(&micfil->hwvad_lock);
 	ret = disable_hwvad(dev, true);
+	spin_unlock(&micfil->hwvad_lock);
+
 	if (ret)
 		dev_err(dev, "Failed to disable HWVAD module: %d\n", ret);
 
@@ -2211,13 +2216,14 @@ static ssize_t micfil_hwvad_handler(struct kobject *kobj,
 	struct kobject *nand_kobj = kobj->parent;
 	struct device *dev = container_of(nand_kobj, struct device, kobj);
 	struct fsl_micfil *micfil = dev_get_drvdata(dev);
-	unsigned long vad_channel;
+	unsigned long vad_channel, flags;
 	int ret;
 
 	ret = kstrtoul(buf, 16, &vad_channel);
 	if (ret < 0)
 		return -EINVAL;
 
+	spin_lock_irqsave(&micfil->hwvad_lock, flags);
 	if (vad_channel <= 7) {
 		micfil->vad_channel = vad_channel;
 		ret = enable_hwvad(dev, true);
@@ -2225,6 +2231,7 @@ static ssize_t micfil_hwvad_handler(struct kobject *kobj,
 		micfil->vad_channel = -1;
 		ret = disable_hwvad(dev, true);
 	}
+	spin_unlock_irqrestore(&micfil->hwvad_lock, flags);
 
 	if (ret) {
 		dev_err(dev, "Failed to %s hwvad: %d\n",
@@ -2381,6 +2388,8 @@ static int fsl_micfil_probe(struct platform_device *pdev)
 
 	/* set default rate to first value in available vad rates */
 	micfil->vad_rate_index = 0;
+	/* init HWVAD enable/disable spinlock */
+	spin_lock_init(&micfil->hwvad_lock);
 
 	platform_set_drvdata(pdev, micfil);
 
