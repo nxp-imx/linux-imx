@@ -955,7 +955,7 @@ static int init_hwvad_internal_filters(struct device *dev)
 	/* sleep for 100ms - it should be enough for bit to stay
 	 * pulsed for more than 2 cycles
 	 */
-	usleep_range(MICFIL_SLEEP_MIN, MICFIL_SLEEP_MAX);
+	mdelay(MICFIL_SLEEP);
 
 	/* Voice Activity Detector Enabled */
 	ret = regmap_update_bits(micfil->regmap, REG_MICFIL_VAD0_CTRL1,
@@ -1070,7 +1070,7 @@ static int init_hwvad_energy_mode(struct device *dev)
 	/* it would be a good idea to wait some time before VADEN
 	 * is set
 	 */
-	usleep_range(5 * MICFIL_SLEEP_MIN, 5 * MICFIL_SLEEP_MAX);
+	mdelay(5 * MICFIL_SLEEP);
 
 	/* Enable Interrupts */
 	ret = configure_hwvad_interrupts(dev, 1);
@@ -1102,7 +1102,7 @@ static int init_hwvad_energy_mode(struct device *dev)
 		if (flag == 0)
 			break;
 
-		usleep_range(MICFIL_SLEEP_MIN, MICFIL_SLEEP_MAX);
+		mdelay(MICFIL_SLEEP);
 	}
 
 	if (i == MICFIL_MAX_RETRY) {
@@ -1236,7 +1236,7 @@ static int init_hwvad_envelope_mode(struct device *dev)
 	/* it would be a good idea to wait some time before VADEN
 	 * is set
 	 */
-	usleep_range(3 * MICFIL_SLEEP_MIN, 3 * MICFIL_SLEEP_MAX);
+	mdelay(3 * MICFIL_SLEEP);
 
 	/* Wait for INITF to be asserted */
 	for (i = 0; i < MICFIL_MAX_RETRY; i++) {
@@ -1251,7 +1251,7 @@ static int init_hwvad_envelope_mode(struct device *dev)
 		if (flag == 0)
 			break;
 
-		usleep_range(MICFIL_SLEEP_MIN, MICFIL_SLEEP_MAX);
+		mdelay(MICFIL_SLEEP);
 	}
 
 	if (i == MICFIL_MAX_RETRY) {
