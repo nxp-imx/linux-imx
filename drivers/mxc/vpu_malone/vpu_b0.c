@@ -2726,6 +2726,16 @@ static void vpu_dec_response_cmd(struct vpu_ctx *ctx, u32 event)
 	mutex_unlock(&ctx->cmd_lock);
 }
 
+static void vpu_dec_clear_pending_cmd(struct vpu_ctx *ctx)
+{
+	mutex_lock(&ctx->cmd_lock);
+	if (ctx->pending) {
+		put_cmd_request(ctx, ctx->pending);
+		ctx->pending = NULL;
+	}
+	mutex_unlock(&ctx->cmd_lock);
+}
+
 static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx,
 				uint32_t idx, uint32_t cmdid,
 				uint32_t cmdnum, uint32_t *local_cmddata)
@@ -2968,6 +2978,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 		ctx->hang_status = true;
 		vpu_err("the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
 					ctx->str_index);
+		vpu_dec_clear_pending_cmd(ctx);
 		return -EBUSY;
 	}
 
@@ -2987,6 +2998,7 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
 	reinit_completion(&ctx->stop_cmp);
 	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
+		vpu_dec_clear_pending_cmd(ctx);
 		ctx->hang_status = true;
 		vpu_err("the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
 		return -EBUSY;
@@ -3835,6 +3847,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	if (ctx->firmware_stopped) {
 		switch (uEvent) {
 		case VID_API_EVENT_START_DONE:
+		case VID_API_EVENT_FIRMWARE_XCPT:
 			break;
 		case VID_API_EVENT_FIFO_LOW:
 			return;
@@ -6101,7 +6114,9 @@ static void vpu_dec_resume_work(struct vpu_dev *vpudev)
 static int vpu_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+	int ret = 0;
 
+	vpu_dbg(LVL_INFO, "suspend\n");
 	if (vpudev->hang_mask != vpudev->instance_mask) {
 
 		/*if there is an available device, send snapshot command to firmware*/
@@ -6109,13 +6124,14 @@ static int vpu_suspend(struct device *dev)
 		reinit_completion(&vpudev->snap_done_cmp);
 		if (!wait_for_completion_timeout(&vpudev->snap_done_cmp, msecs_to_jiffies(1000))) {
 			vpu_err("error: wait for vpu decoder snapdone event timeout!\n");
-			return -1;
+			ret = -1;
 		}
 	}
 
 	vpu_dec_cancel_work(vpudev);
+	vpu_dbg(LVL_INFO, "suspend done\n");
 
-	return 0;
+	return ret;
 }
 
 static bool is_vpu_poweroff(struct vpu_dev *vpudev)
@@ -6181,6 +6197,7 @@ static int vpu_resume(struct device *dev)
 	int ret = 0;
 	u_int32 idx;
 
+	vpu_dbg(LVL_INFO, "resume\n");
 	pm_runtime_get_sync(vpudev->generic_dev);
 
 	resume_vpu_register(vpudev);
@@ -6202,6 +6219,7 @@ static int vpu_resume(struct device *dev)
 
 exit:
 	pm_runtime_put_sync(vpudev->generic_dev);
+	vpu_dbg(LVL_INFO, "resume done\n");
 
 	return ret;
 }
