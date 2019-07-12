@@ -75,9 +75,7 @@ static struct snd_soc_ops imx_hifi_ops = {
 
 static const struct snd_soc_dapm_route audio_map[] = {
 	{"Playback",  NULL, "CPU-Playback"},
-	{"CPU-Capture",  NULL, "Capture"},
 	{"CPU-Playback",  NULL, "ASRC-Playback"},
-	{"ASRC-Capture",  NULL, "CPU-Capture"},
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -193,7 +191,7 @@ static int imx_wm8524_probe(struct platform_device *pdev)
 	priv->card.num_dapm_widgets = ARRAY_SIZE(imx_wm8524_dapm_widgets);
 	priv->card.dai_link = priv->dai;
 	priv->card.dapm_routes = audio_map;
-	priv->card.num_dapm_routes = 2;
+	priv->card.num_dapm_routes = 1;
 
 	/*if there is no asrc controller, we only enable one device*/
 	if (asrc_pdev) {
@@ -220,7 +218,7 @@ static int imx_wm8524_probe(struct platform_device *pdev)
 		priv->dai[2].be_hw_params_fixup = be_hw_params_fixup,
 		priv->card.num_links = 3;
 		priv->card.dai_link = &priv->dai[0];
-		priv->card.num_dapm_routes += 2;
+		priv->card.num_dapm_routes += 1;
 
 		ret = of_property_read_u32(asrc_np, "fsl,asrc-rate",
 					   &priv->asrc_rate);
