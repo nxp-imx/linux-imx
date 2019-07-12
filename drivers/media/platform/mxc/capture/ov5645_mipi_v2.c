@@ -3413,7 +3413,7 @@ static void ov5645_adjust_setting_20mhz(void)
 			regsetting->u8Val = 0x17;
 }
 
-static int ov5645_set_regs(const char *buffer, struct kernel_param *kp)
+static int ov5645_set_regs(const char *buffer, const struct kernel_param *kp)
 {
 	// Use this sysfs node to set the ov5645 isp regs by sending it a
 	// comma separated list of register value pairs in hex
@@ -3449,7 +3449,7 @@ static int ov5645_set_regs(const char *buffer, struct kernel_param *kp)
 }
 
 static int reg_addr_to_read;
-static int ov5645_set_print_reg(const char *buffer, struct kernel_param *kp)
+static int ov5645_set_print_reg(const char *buffer, const struct kernel_param *kp)
 {
 	int cnt;
 	cnt = sscanf(buffer, "%x", &reg_addr_to_read);
@@ -3459,7 +3459,7 @@ static int ov5645_set_print_reg(const char *buffer, struct kernel_param *kp)
 	return 0;
 }
 
-static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
+static int ov5645_get_print_reg(char *buffer, const struct kernel_param *kp)
 {
 	int cnt, retval;
 	u8 val;
@@ -3473,7 +3473,7 @@ static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
 	return cnt;
 }
 
-static int ov5645_set_af_mode(const char *buffer, struct kernel_param *kp)
+static int ov5645_set_af_mode(const char *buffer, const struct kernel_param *kp)
 {
 	int cnt, val;
 	cnt = sscanf(buffer, "%d", &val);
@@ -3495,7 +3495,7 @@ static int ov5645_set_af_mode(const char *buffer, struct kernel_param *kp)
 	return 0;
 }
 
-static int ov5645_read_af(char *buffer, struct kernel_param *kp)
+static int ov5645_read_af(char *buffer, const struct kernel_param *kp)
 {
 	int cnt, retval;
 	u8 val;
