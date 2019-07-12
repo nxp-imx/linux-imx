@@ -1928,7 +1928,7 @@ static irqreturn_t voice_detected_fn(int irq, void *devid)
 	/* disable hwvad */
 	ret = disable_hwvad(dev, true);
 	if (ret)
-		dev_err(dev, "Failed to disable HWVAD module\n");
+		dev_err(dev, "Failed to disable HWVAD module: %d\n", ret);
 
 	/* notify userspace that voice was detected */
 	kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
@@ -2217,14 +2217,16 @@ static ssize_t micfil_hwvad_handler(struct kobject *kobj,
 	if (vad_channel <= 7) {
 		micfil->vad_channel = vad_channel;
 		ret = enable_hwvad(dev, true);
-		if (ret)
-			dev_err(dev, "Failed to enable hwvad");
 	} else {
 		micfil->vad_channel = -1;
 		ret = disable_hwvad(dev, true);
 	}
-	if (ret)
+
+	if (ret) {
+		dev_err(dev, "Failed to %s hwvad: %d\n",
+			vad_channel <= 7 ? "enable" : "disable", ret);
 		return ret;
+	}
 
 	return count;
 }
