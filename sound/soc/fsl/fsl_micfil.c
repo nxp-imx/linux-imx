@@ -2097,17 +2097,21 @@ static int enable_hwvad(struct device *dev, bool sync)
 
 	ret = fsl_set_clock_params(dev, rate);
 	if (ret)
-		return ret;
+		goto enable_error;
 
 	ret = fsl_micfil_reset(dev);
 	if (ret)
-		return ret;
+		goto enable_error;
 
 	/* Initialize Hardware Voice Activity */
 	ret = init_hwvad(dev);
+	if (ret == 0)
+		return 0;
 
-	return ret;
 enable_error:
+	if (state == MICFIL_HWVAD_OFF)
+		atomic_cmpxchg(&micfil->hwvad_state,
+			       MICFIL_HWVAD_ON, MICFIL_HWVAD_OFF);
 	if (sync)
 		pm_runtime_put_sync(dev);
 	return ret;
