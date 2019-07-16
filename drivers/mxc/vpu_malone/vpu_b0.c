@@ -4106,6 +4106,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					"frame[%d] already released\n",
 					p_data_req->id);
 			}
+			respond_req_frame(ctx, This, false);
 		} else if (fsrel->eType == MEDIAIP_MBI_REQ) {
 			vpu_dbg(LVL_INFO, "ctx[%d] relase MEDIAIP_MBI_REQ frame[%d]\n",
 					ctx->str_index, fsrel->uFSIdx);
@@ -4636,10 +4637,9 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		data_req->phy_addr[0] = *pphy_address_0;
 		data_req->phy_addr[1] = *pphy_address_1;
 	}
-	if (data_req->status != FRAME_FREE && data_req->status != FRAME_DECODED) {
-		add_buffer_to_queue(This, data_req);
-	} else {
-	}
+
+	add_buffer_to_queue(This, data_req);
+
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		precheck_vb_data(ctx, vb);
 		v4l2_transfer_buffer_to_firmware(This, vb);
