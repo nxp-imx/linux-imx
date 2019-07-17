@@ -186,7 +186,6 @@ struct imx_usbmisc {
 	void __iomem *base;
 	spinlock_t lock;
 	const struct usbmisc_ops *ops;
-	struct mutex mutex;
 };
 
 static struct regulator *vbus_wakeup_reg;
@@ -1093,7 +1092,6 @@ int imx_usbmisc_charger_detection(struct imx_usbmisc_data *data, bool connect)
 	if (!usbmisc->ops->charger_detection)
 		return -ENOTSUPP;
 
-	mutex_lock(&usbmisc->mutex);
 	if (connect) {
 		ret = usbmisc->ops->charger_detection(data);
 		if (ret) {
@@ -1108,7 +1106,6 @@ int imx_usbmisc_charger_detection(struct imx_usbmisc_data *data, bool connect)
 		usb_phy->chg_state = USB_CHARGER_ABSENT;
 		usb_phy->chg_type = UNKNOWN_TYPE;
 	}
-	mutex_unlock(&usbmisc->mutex);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_charger_detection);
@@ -1234,7 +1231,6 @@ static int usbmisc_imx_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	spin_lock_init(&data->lock);
-	mutex_init(&data->mutex);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	data->base = devm_ioremap_resource(&pdev->dev, res);
