@@ -2756,6 +2756,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	unsigned int *CurrStrfg = &pSharedInterface->StreamConfig[ctx->str_index];
 	u_int32 length;
 	MediaIPFW_Video_CodecParams *pCodecPara;
+	u_int32 sin_seq = 0;
 
 	vpu_dbg(LVL_BIT_FUNC, "enter %s, start_flag %d, index=%d, firmware_started=%d\n",
 			__func__, ctx->start_flag, ctx->str_index, ctx->dev->firmware_started);
@@ -2765,13 +2766,12 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 			(pSharedInterface->FWVersion & 0x0000ff00) >> 8,
 			pSharedInterface->FWVersion & 0x000000ff);
 
-
 	if (ctx->stream_buffer.dma_size < buffer_size + MIN_SPACE) {
 		vpu_err("circular buffer size is set too small\n");
 		return 0;
 	}
 	if (!ctx->start_code_bypass)
-		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size);
+		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size, &sin_seq);
 	else
 		length = 0;
 	if (length == 0) {
@@ -2821,9 +2821,15 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	ctx->dev->shared_mem.pSharedInterface->DbgLogDesc.uDecStatusLogLevel = vpu_frmdbg_level;
 
 	/*initialize frame count*/
-	ctx->frm_dis_delay = 1;
-	ctx->frm_dec_delay = 1;
-	ctx->frm_total_num = 1;
+	if (sin_seq == 1) {
+		ctx->frm_dis_delay = 0;
+		ctx->frm_dec_delay = 0;
+		ctx->frm_total_num = 0;
+	} else {
+		ctx->frm_dis_delay = 1;
+		ctx->frm_dec_delay = 1;
+		ctx->frm_total_num = 1;
+	}
 	fill_stream_buffer_info(ctx);
 
 	return length;
@@ -3290,6 +3296,35 @@ static uint32_t insert_scode_4_seq_4_arv(struct vpu_ctx *ctx, u_int8 *input_buff
 	return length;
 }
 
+static bool check_single_seq_info(struct vb2_v4l2_buffer *vbuf, unsigned int vdec_std)
+{
+	if (!(vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG))
+		return false;
+	if (vdec_std == VPU_VIDEO_VC1 || vdec_std == VPU_VIDEO_VP6 || VPU_VIDEO_RV)
+		return true;
+
+	return false;
+}
+
+static bool verify_decoded_frames(struct vpu_ctx *ctx)
+{
+	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+
+	if (ctx->start_code_bypass)
+		return true;
+
+	if (buffer_info->stream_pic_input_count != buffer_info->stream_pic_parsed_count) {
+		vpu_dbg(LVL_WARN,
+			"warning: ctx[%d] decoded frames not correct, input_count: %d, decoded count: %d\n",
+			ctx->str_index, buffer_info->stream_pic_input_count,
+			buffer_info->stream_pic_parsed_count);
+		return false;
+	}
+
+	return true;
+}
+
 static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 {
 	struct vb2_data_req *p_data_req;
@@ -3336,11 +3371,15 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 							 true);
 				record_log_info(ctx, LOG_PADDING, 0, 0);
 			}
-			ctx->frm_dec_delay++;
-			ctx->frm_dis_delay++;
-			ctx->frm_total_num++;
+
+			if (!check_single_seq_info(vbuf, This->vdec_std)) {
+				ctx->frm_dec_delay++;
+				ctx->frm_dis_delay++;
+				ctx->frm_total_num++;
+				fill_stream_buffer_info(ctx);
+			}
+
 			record_log_info(ctx, LOG_UPDATE_STREAM, 0, buffer_size);
-			fill_stream_buffer_info(ctx);
 			vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
 			This->process_count++;
 		}
@@ -4255,12 +4294,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (ctx->firmware_finished == true)
 			vpu_err("warning: receive VID_API_EVENT_FINISHED when firmware_finished == true\n");
 		ctx->firmware_finished = true;
+		verify_decoded_frames(ctx);
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] FINISHED\n", ctx->str_index);
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_FINISHED and notfiy app eos\n");
 		clear_pic_end_flag(ctx);
 		vpu_log_buffer_state(ctx);
 		send_eos_event(ctx); //notfiy app stream eos reached
-
 	}	break;
 	case VID_API_EVENT_FIRMWARE_XCPT: {
 		char *xcpt_info = (char*)event_data;
