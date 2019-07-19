@@ -707,18 +707,18 @@ static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 
 static bool is_10bit_format(struct vpu_ctx *ctx)
 {
-	WARN_ON(!ctx || !ctx->pSeqinfo);
-	if (ctx->pSeqinfo->uBitDepthLuma > 8)
+	WARN_ON(!ctx);
+	if (ctx->seqinfo.uBitDepthLuma > 8)
 		return true;
-	if (ctx->pSeqinfo->uBitDepthChroma > 8)
+	if (ctx->seqinfo.uBitDepthChroma > 8)
 		return true;
 	return false;
 }
 
 static void calculate_frame_size(struct vpu_ctx *ctx)
 {
-	u_int32 width = ctx->pSeqinfo->uHorDecodeRes;
-	u_int32 height = ctx->pSeqinfo->uVerDecodeRes;
+	u_int32 width = ctx->seqinfo.uHorDecodeRes;
+	u_int32 height = ctx->seqinfo.uVerDecodeRes;
 	u_int32 luma_size;
 	u_int32 chroma_size;
 	u_int32 chroma_height;
@@ -734,7 +734,7 @@ static void calculate_frame_size(struct vpu_ctx *ctx)
 	q_data->stride = width;
 
 	height = ((height + uVertAlign) & ~uVertAlign);
-	if (ctx->pSeqinfo->uProgressive)
+	if (ctx->seqinfo.uProgressive)
 		chroma_height = height >> 1;
 	else
 		chroma_height = height;
@@ -757,7 +757,7 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		MediaIPFW_Video_SeqInfo *info = ctx->pSeqinfo;
+		MediaIPFW_Video_SeqInfo *info = &ctx->seqinfo;
 
 		q_data = &ctx->q_data[V4L2_DST];
 		if (is_10bit_format(ctx))
@@ -768,8 +768,8 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 		pix_mp->height = q_data->height;
 		down(&q_data->drv_q_lock);
 		if (!ctx->b_firstseq && info->uHorRes && info->uVerRes) {
-			pix_mp->width = ctx->pSeqinfo->uHorRes;
-			pix_mp->height = ctx->pSeqinfo->uVerRes;
+			pix_mp->width = ctx->seqinfo.uHorRes;
+			pix_mp->height = ctx->seqinfo.uVerRes;
 		}
 		if (info->uProgressive == 1)
 			pix_mp->field = V4L2_FIELD_NONE;
@@ -1631,10 +1631,10 @@ static int vpu_dec_v4l2_ioctl_g_selection(struct file *file, void *fh,
 	if (s->target != V4L2_SEL_TGT_CROP && s->target != V4L2_SEL_TGT_COMPOSE)
 		return -EINVAL;
 
-	s->r.left = ctx->pSeqinfo->uFrameCropLeftOffset;
-	s->r.top = ctx->pSeqinfo->uFrameCropTopOffset;
-	s->r.width = ctx->pSeqinfo->uHorRes;
-	s->r.height = ctx->pSeqinfo->uVerRes;
+	s->r.left = ctx->seqinfo.uFrameCropLeftOffset;
+	s->r.top = ctx->seqinfo.uFrameCropTopOffset;
+	s->r.width = ctx->seqinfo.uHorRes;
+	s->r.height = ctx->seqinfo.uVerRes;
 
 	return 0;
 }
@@ -2084,19 +2084,19 @@ static int v4l2_custom_g_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_USER_FRAME_COLORDESC:
-		ctrl->val = ctx->pSeqinfo->uColorDesc;
+		ctrl->val = ctx->seqinfo.uColorDesc;
 		break;
 	case V4L2_CID_USER_FRAME_TRANSFERCHARS:
-		ctrl->val = ctx->pSeqinfo->uTransferChars;
+		ctrl->val = ctx->seqinfo.uTransferChars;
 		break;
 	case V4L2_CID_USER_FRAME_MATRIXCOEFFS:
-		ctrl->val = ctx->pSeqinfo->uMatrixCoeffs;
+		ctrl->val = ctx->seqinfo.uMatrixCoeffs;
 		break;
 	case V4L2_CID_USER_FRAME_FULLRANGE:
-		ctrl->val = ctx->pSeqinfo->uVideoFullRangeFlag;
+		ctrl->val = ctx->seqinfo.uVideoFullRangeFlag;
 		break;
 	case V4L2_CID_USER_FRAME_VUIPRESENT:
-		ctrl->val = ctx->pSeqinfo->uVUIPresent;
+		ctrl->val = ctx->seqinfo.uVUIPresent;
 		break;
 	default:
 		vpu_err("%s() Invalid costomer control(%d)\n",
@@ -2118,7 +2118,7 @@ static int v4l2_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_MIN_BUFFERS_FOR_CAPTURE:
-		ctrl->val = ctx->pSeqinfo->uNumDPBFrms + ctx->pSeqinfo->uNumRefFrms;
+		ctrl->val = ctx->seqinfo.uNumDPBFrms + ctx->seqinfo.uNumRefFrms;
 		break;
 	default:
 		vpu_err("%s() Invalid control(%d)\n",
@@ -2726,6 +2726,16 @@ static void vpu_dec_response_cmd(struct vpu_ctx *ctx, u32 event)
 	mutex_unlock(&ctx->cmd_lock);
 }
 
+static void vpu_dec_clear_pending_cmd(struct vpu_ctx *ctx)
+{
+	mutex_lock(&ctx->cmd_lock);
+	if (ctx->pending) {
+		put_cmd_request(ctx, ctx->pending);
+		ctx->pending = NULL;
+	}
+	mutex_unlock(&ctx->cmd_lock);
+}
+
 static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx,
 				uint32_t idx, uint32_t cmdid,
 				uint32_t cmdnum, uint32_t *local_cmddata)
@@ -2746,6 +2756,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	unsigned int *CurrStrfg = &pSharedInterface->StreamConfig[ctx->str_index];
 	u_int32 length;
 	MediaIPFW_Video_CodecParams *pCodecPara;
+	u_int32 sin_seq = 0;
 
 	vpu_dbg(LVL_BIT_FUNC, "enter %s, start_flag %d, index=%d, firmware_started=%d\n",
 			__func__, ctx->start_flag, ctx->str_index, ctx->dev->firmware_started);
@@ -2755,13 +2766,12 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 			(pSharedInterface->FWVersion & 0x0000ff00) >> 8,
 			pSharedInterface->FWVersion & 0x000000ff);
 
-
 	if (ctx->stream_buffer.dma_size < buffer_size + MIN_SPACE) {
 		vpu_err("circular buffer size is set too small\n");
 		return 0;
 	}
 	if (!ctx->start_code_bypass)
-		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size);
+		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size, &sin_seq);
 	else
 		length = 0;
 	if (length == 0) {
@@ -2811,9 +2821,15 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	ctx->dev->shared_mem.pSharedInterface->DbgLogDesc.uDecStatusLogLevel = vpu_frmdbg_level;
 
 	/*initialize frame count*/
-	ctx->frm_dis_delay = 1;
-	ctx->frm_dec_delay = 1;
-	ctx->frm_total_num = 1;
+	if (sin_seq == 1) {
+		ctx->frm_dis_delay = 0;
+		ctx->frm_dec_delay = 0;
+		ctx->frm_total_num = 0;
+	} else {
+		ctx->frm_dis_delay = 1;
+		ctx->frm_dec_delay = 1;
+		ctx->frm_total_num = 1;
+	}
 	fill_stream_buffer_info(ctx);
 
 	return length;
@@ -2968,6 +2984,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 		ctx->hang_status = true;
 		vpu_err("the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
 					ctx->str_index);
+		vpu_dec_clear_pending_cmd(ctx);
 		return -EBUSY;
 	}
 
@@ -2987,6 +3004,7 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
 	reinit_completion(&ctx->stop_cmp);
 	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
+		vpu_dec_clear_pending_cmd(ctx);
 		ctx->hang_status = true;
 		vpu_err("the path id:%d firmware hang after send VID_API_CMD_STOP\n", ctx->str_index);
 		return -EBUSY;
@@ -3278,6 +3296,35 @@ static uint32_t insert_scode_4_seq_4_arv(struct vpu_ctx *ctx, u_int8 *input_buff
 	return length;
 }
 
+static bool check_single_seq_info(struct vb2_v4l2_buffer *vbuf, unsigned int vdec_std)
+{
+	if (!(vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG))
+		return false;
+	if (vdec_std == VPU_VIDEO_VC1 || vdec_std == VPU_VIDEO_VP6 || VPU_VIDEO_RV)
+		return true;
+
+	return false;
+}
+
+static bool verify_decoded_frames(struct vpu_ctx *ctx)
+{
+	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+
+	if (ctx->start_code_bypass)
+		return true;
+
+	if (buffer_info->stream_pic_input_count != buffer_info->stream_pic_parsed_count) {
+		vpu_dbg(LVL_WARN,
+			"warning: ctx[%d] decoded frames not correct, input_count: %d, decoded count: %d\n",
+			ctx->str_index, buffer_info->stream_pic_input_count,
+			buffer_info->stream_pic_parsed_count);
+		return false;
+	}
+
+	return true;
+}
+
 static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 {
 	struct vb2_data_req *p_data_req;
@@ -3324,11 +3371,15 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 							 true);
 				record_log_info(ctx, LOG_PADDING, 0, 0);
 			}
-			ctx->frm_dec_delay++;
-			ctx->frm_dis_delay++;
-			ctx->frm_total_num++;
+
+			if (!check_single_seq_info(vbuf, This->vdec_std)) {
+				ctx->frm_dec_delay++;
+				ctx->frm_dis_delay++;
+				ctx->frm_total_num++;
+				fill_stream_buffer_info(ctx);
+			}
+
 			record_log_info(ctx, LOG_UPDATE_STREAM, 0, buffer_size);
-			fill_stream_buffer_info(ctx);
 			vpu_dec_receive_ts(ctx, p_data_req->vb2_buf, frame_bytes);
 			This->process_count++;
 		}
@@ -3378,8 +3429,8 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	bool b10BitFormat = is_10bit_format(ctx);
 	int buffer_id;
 
-	vpu_dbg(LVL_BIT_FUNC, "%s() fs_id=%d, ulFsLumaBase[0]=%x, stride=%d, b10BitFormat=%d, ctx->pSeqinfo->uBitDepthLuma=%d\n",
-			__func__, fs_id, FrameInfo[1], stride, b10BitFormat, ctx->pSeqinfo->uBitDepthLuma);
+	vpu_dbg(LVL_BIT_FUNC, "%s() fs_id=%d, ulFsLumaBase[0]=%x, stride=%d, b10BitFormat=%d, ctx->seqinfo.uBitDepthLuma=%d\n",
+			__func__, fs_id, FrameInfo[1], stride, b10BitFormat, ctx->seqinfo.uBitDepthLuma);
 	v4l2_update_stream_addr(ctx, 0);
 
 	buffer_id = find_buffer_id(ctx, FrameInfo[1]);
@@ -3645,7 +3696,7 @@ static void respond_req_frame_abnormal(struct vpu_ctx *ctx)
 		return;
 
 	memset(local_cmddata, 0, sizeof(local_cmddata));
-	local_cmddata[0] = (ctx->pSeqinfo->uActiveSeqTag + 0xf0)<<24;
+	local_cmddata[0] = (ctx->seqinfo.uActiveSeqTag + 0xf0)<<24;
 	local_cmddata[6] = MEDIAIP_FRAME_REQ;
 	v4l2_vpu_send_cmd(ctx, ctx->str_index,
 			VID_API_CMD_FS_ALLOC, 7, local_cmddata);
@@ -3671,7 +3722,7 @@ static bool alloc_frame_buffer(struct vpu_ctx *ctx,
 	vpu_dbg(LVL_INFO, "%s() :LumaAddr(%llx) ChromaAddr(%llx) buf_id (%d)\n",
 			__func__, LumaAddr, ChromaAddr, p_data_req->id);
 
-	p_data_req->seq_tag = ctx->pSeqinfo->uActiveSeqTag;
+	p_data_req->seq_tag = ctx->seqinfo.uActiveSeqTag;
 	memset(local_cmddata, 0, sizeof(local_cmddata));
 	local_cmddata[0] = p_data_req->id | (p_data_req->seq_tag << 24);
 	local_cmddata[1] = LumaAddr;
@@ -3742,6 +3793,47 @@ static void release_frame_buffer(struct vpu_ctx *ctx,
 	set_data_req_status(p_data_req, FRAME_ALLOC);
 }
 
+static void get_seq_info(MediaIPFW_Video_SeqInfo *pSeqInfo,
+			u32 *event_data,
+			MediaIPFW_Video_SeqInfo *pRpcSeqInfo)
+{
+	memset(pSeqInfo, 0, sizeof(*pSeqInfo));
+
+	if (event_data && event_data[0]) {
+		pSeqInfo->uNumRefFrms = event_data[0];
+		pSeqInfo->uNumDPBFrms = event_data[1];
+		pSeqInfo->uNumDFEAreas = event_data[2];
+		pSeqInfo->uProgressive = event_data[3];
+		pSeqInfo->uVerRes = event_data[4];
+		pSeqInfo->uHorRes = event_data[5];
+		pSeqInfo->uParWidth = event_data[6];
+		pSeqInfo->uParHeight = event_data[7];
+		pSeqInfo->FrameRate = event_data[8];
+		pSeqInfo->UDispAspRatio = event_data[9];
+		pSeqInfo->uLevelIDC = event_data[10];
+		pSeqInfo->uVerDecodeRes = event_data[11];
+		pSeqInfo->uHorDecodeRes = event_data[12];
+		pSeqInfo->uBitDepthLuma = event_data[13];
+		pSeqInfo->uBitDepthChroma = event_data[14];
+		pSeqInfo->uChromaFmt = event_data[15];
+		pSeqInfo->uColorDesc = event_data[16];
+		pSeqInfo->uTransferChars = event_data[17];
+		pSeqInfo->uMatrixCoeffs = event_data[18];
+		pSeqInfo->uVideoFullRangeFlag = event_data[19];
+		pSeqInfo->uVUIPresent = event_data[20];
+		pSeqInfo->uMVCNumViews = event_data[21];
+		pSeqInfo->uFrameCropValid = event_data[22];
+		pSeqInfo->uFrameCropLeftOffset = event_data[23];
+		pSeqInfo->uFrameCropRightOffset = event_data[24];
+		pSeqInfo->uFrameCropTopOffset = event_data[25];
+		pSeqInfo->uFrameCropBottomOffset = event_data[25];
+		pSeqInfo->uActiveSeqTag = event_data[27];
+		return;
+	}
+
+	memcpy(pSeqInfo, pRpcSeqInfo, sizeof(*pSeqInfo));
+}
+
 static bool check_seq_info_is_valid(u32 ctx_id, MediaIPFW_Video_SeqInfo *info)
 {
 	if (!info)
@@ -3794,6 +3886,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	if (ctx->firmware_stopped) {
 		switch (uEvent) {
 		case VID_API_EVENT_START_DONE:
+		case VID_API_EVENT_FIRMWARE_XCPT:
 			break;
 		case VID_API_EVENT_FIFO_LOW:
 			return;
@@ -3829,7 +3922,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
-		memset(ctx->pSeqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
+		memset(&ctx->seqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
 		ctx->q_data[V4L2_DST].sizeimage[0] = 0;
 		ctx->q_data[V4L2_DST].sizeimage[1] = 0;
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
@@ -3904,7 +3997,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_err("error: buffer(%d) need to set FRAME_DECODED, but previous state %s is not FRAME_FREE\n",
 					buffer_id, bufstat[ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status]);
 		set_data_req_status(p_data_req, FRAME_DECODED);
-		if (ctx->pSeqinfo->uProgressive == 1)
+		if (ctx->seqinfo.uProgressive == 1)
 			p_data_req->bfield = false;
 		else
 			p_data_req->bfield = true;
@@ -3919,22 +4012,18 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
+		MediaIPFW_Video_SeqInfo info;
 //		MediaIPFW_Video_FrameBuffer *pStreamFrameBuffer = &pSharedInterface->StreamFrameBuffer[uStrIdx];
 //		MediaIPFW_Video_FrameBuffer *pStreamDCPBuffer = &pSharedInterface->StreamDCPBuffer[uStrIdx];
 		MediaIPFW_Video_PitchInfo   *pStreamPitchInfo = &pSharedInterface->StreamPitchInfo[uStrIdx];
 		unsigned int num = pSharedInterface->SeqInfoTabDesc.uNumSizeDescriptors;
 		int wait_times = 0;
 
-		if (!check_seq_info_is_valid(ctx->str_index, &pSeqInfo[ctx->str_index]))
+		get_seq_info(&info, event_data, &pSeqInfo[ctx->str_index]);
+		if (!check_seq_info_is_valid(ctx->str_index, &info))
 			break;
 		if (ctx->wait_rst_done)
 			break;
-		if (ctx->pSeqinfo == NULL) {
-			ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
-			atomic64_add(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
-		}
-		else
-			vpu_dbg(LVL_INFO, "pSeqinfo is not NULL, need not to realloc\n");
 
 		while (ctx->wait_res_change_done && wait_times++ < 100)
 			mdelay(10);
@@ -3944,22 +4033,22 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
-		memcpy(ctx->pSeqinfo, &pSeqInfo[ctx->str_index], sizeof(MediaIPFW_Video_SeqInfo));
+		memcpy(&ctx->seqinfo, &info, sizeof(MediaIPFW_Video_SeqInfo));
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
 		calculate_frame_size(ctx);
-		parse_frame_interval_from_seqinfo(ctx, ctx->pSeqinfo);
+		parse_frame_interval_from_seqinfo(ctx, &ctx->seqinfo);
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
 				ctx->str_index,
-				ctx->pSeqinfo->uHorRes, ctx->pSeqinfo->uVerRes,
-				ctx->pSeqinfo->uHorDecodeRes, ctx->pSeqinfo->uVerDecodeRes,
-				ctx->pSeqinfo->uNumDPBFrms, num, ctx->pSeqinfo->uNumRefFrms, ctx->pSeqinfo->uNumDFEAreas);
+				ctx->seqinfo.uHorRes, ctx->seqinfo.uVerRes,
+				ctx->seqinfo.uHorDecodeRes, ctx->seqinfo.uVerDecodeRes,
+				ctx->seqinfo.uNumDPBFrms, num, ctx->seqinfo.uNumRefFrms, ctx->seqinfo.uNumDFEAreas);
 		vpu_dbg(LVL_BIT_FLOW, "uColorDesc = %d, uTransferChars = %d, uMatrixCoeffs = %d, uVideoFullRangeFlag = %d, uVUIPresent = %d\n",
-				ctx->pSeqinfo->uColorDesc,
-				ctx->pSeqinfo->uTransferChars,
-				ctx->pSeqinfo->uMatrixCoeffs,
-				ctx->pSeqinfo->uVideoFullRangeFlag,
-				ctx->pSeqinfo->uVUIPresent);
+				ctx->seqinfo.uColorDesc,
+				ctx->seqinfo.uTransferChars,
+				ctx->seqinfo.uMatrixCoeffs,
+				ctx->seqinfo.uVideoFullRangeFlag,
+				ctx->seqinfo.uVUIPresent);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
 			down(&ctx->q_data[V4L2_DST].drv_q_lock);
@@ -3988,7 +4077,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			if (alloc_dcp_buffer(ctx, ctx->dcp_count))
 				break;
 
-			local_cmddata[0] = ctx->dcp_count | (ctx->pSeqinfo->uActiveSeqTag<<24);
+			local_cmddata[0] = ctx->dcp_count | (ctx->seqinfo.uActiveSeqTag<<24);
 			local_cmddata[1] = ctx->dcp_buffer[ctx->dcp_count].dma_phy;
 			local_cmddata[2] = DCP_SIZE;
 			local_cmddata[3] = 0;
@@ -4003,7 +4092,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			if (alloc_mbi_buffer(ctx, ctx->mbi_count))
 				break;
 
-			local_cmddata[0] = ctx->mbi_count | (ctx->pSeqinfo->uActiveSeqTag<<24);
+			local_cmddata[0] = ctx->mbi_count | (ctx->seqinfo.uActiveSeqTag<<24);
 			local_cmddata[1] = ctx->mbi_buffer[ctx->mbi_count].dma_phy;
 			local_cmddata[2] = ctx->mbi_buffer[ctx->mbi_count].dma_size;
 			local_cmddata[3] = 0;
@@ -4056,6 +4145,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					"frame[%d] already released\n",
 					p_data_req->id);
 			}
+			respond_req_frame(ctx, This, false);
 		} else if (fsrel->eType == MEDIAIP_MBI_REQ) {
 			vpu_dbg(LVL_INFO, "ctx[%d] relase MEDIAIP_MBI_REQ frame[%d]\n",
 					ctx->str_index, fsrel->uFSIdx);
@@ -4157,8 +4247,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->mbi_size = get_mbi_size(This);
 		reset_frame_buffer(ctx);
 		up(&This->drv_q_lock);
-		vpu_dbg(LVL_INFO, "warning: ctx[%d] VID_API_EVENT_RES_CHANGE, seq id: %d\n",
-				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
+		vpu_dbg(LVL_INFO,
+			"warning: ctx[%d] RES_CHANGE event, seq id: %d\n",
+			ctx->str_index, ctx->seqinfo.uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
 		ctx->wait_res_change_done = true;
 		send_source_change_event(ctx);
@@ -4203,12 +4294,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (ctx->firmware_finished == true)
 			vpu_err("warning: receive VID_API_EVENT_FINISHED when firmware_finished == true\n");
 		ctx->firmware_finished = true;
+		verify_decoded_frames(ctx);
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] FINISHED\n", ctx->str_index);
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_FINISHED and notfiy app eos\n");
 		clear_pic_end_flag(ctx);
 		vpu_log_buffer_state(ctx);
 		send_eos_event(ctx); //notfiy app stream eos reached
-
 	}	break;
 	case VID_API_EVENT_FIRMWARE_XCPT: {
 		char *xcpt_info = (char*)event_data;
@@ -4327,12 +4418,6 @@ static void release_vpu_ctx(struct vpu_ctx *ctx)
 	release_queue_data(ctx);
 	free_decoder_buffer(ctx);
 	destroy_log_info_queue(ctx);
-	if (ctx->pSeqinfo) {
-		kfree(ctx->pSeqinfo);
-		ctx->pSeqinfo = NULL;
-		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo),
-				&ctx->statistic.total_alloc_size);
-	}
 
 	if (atomic64_read(&ctx->statistic.total_alloc_size) != 0)
 		vpu_err("error: memory leak for vpu kalloc buffer\n");
@@ -4479,8 +4564,10 @@ static void vpu_msg_instance_work(struct work_struct *work)
 
 	memset(&msg, 0, sizeof(struct event_msg));
 
-	while (receive_msg_queue(ctx, &msg))
+	while (receive_msg_queue(ctx, &msg)) {
 		vpu_api_event_handler(ctx, msg.idx, msg.msgid, msg.msgdata);
+		memset(&msg, 0, sizeof(struct event_msg));
+	}
 }
 
 static int vpu_queue_setup(struct vb2_queue *vq,
@@ -4589,10 +4676,9 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		data_req->phy_addr[0] = *pphy_address_0;
 		data_req->phy_addr[1] = *pphy_address_1;
 	}
-	if (data_req->status != FRAME_FREE && data_req->status != FRAME_DECODED) {
-		add_buffer_to_queue(This, data_req);
-	} else {
-	}
+
+	add_buffer_to_queue(This, data_req);
+
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		precheck_vb_data(ctx, vb);
 		v4l2_transfer_buffer_to_firmware(This, vb);
@@ -5076,13 +5162,13 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s: %dx%d(%dx%d), %d(DPB), %d(Ref), %d(DFE)\n",
 			"seqinfo",
-			ctx->pSeqinfo->uHorRes,
-			ctx->pSeqinfo->uVerRes,
-			ctx->pSeqinfo->uHorDecodeRes,
-			ctx->pSeqinfo->uVerDecodeRes,
-			ctx->pSeqinfo->uNumDPBFrms,
-			ctx->pSeqinfo->uNumRefFrms,
-			ctx->pSeqinfo->uNumDFEAreas);
+			ctx->seqinfo.uHorRes,
+			ctx->seqinfo.uVerRes,
+			ctx->seqinfo.uHorDecodeRes,
+			ctx->seqinfo.uVerDecodeRes,
+			ctx->seqinfo.uNumDPBFrms,
+			ctx->seqinfo.uNumRefFrms,
+			ctx->seqinfo.uNumDFEAreas);
 
 	return num;
 }
@@ -5459,13 +5545,7 @@ static int v4l2_open(struct file *filp)
 		if (ret)
 			goto err_open_crc;
 	}
-	ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
-	if (!ctx->pSeqinfo) {
-		ret = -ENOMEM;
-		goto err_alloc_seq;
-	}
-	atomic64_add(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
-	ctx->pSeqinfo->uProgressive = 1;
+	ctx->seqinfo.uProgressive = 1;
 
 	init_queue_data(ctx);
 	init_log_info_queue(ctx);
@@ -5502,10 +5582,7 @@ static int v4l2_open(struct file *filp)
 err_firmware_load:
 	destroy_log_info_queue(ctx);
 	release_queue_data(ctx);
-	kfree(ctx->pSeqinfo);
-	ctx->pSeqinfo = NULL;
-	atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
-err_alloc_seq:
+
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
 err_open_crc:
@@ -6076,7 +6153,9 @@ static void vpu_dec_resume_work(struct vpu_dev *vpudev)
 static int vpu_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+	int ret = 0;
 
+	vpu_dbg(LVL_INFO, "suspend\n");
 	if (vpudev->hang_mask != vpudev->instance_mask) {
 
 		/*if there is an available device, send snapshot command to firmware*/
@@ -6084,13 +6163,14 @@ static int vpu_suspend(struct device *dev)
 		reinit_completion(&vpudev->snap_done_cmp);
 		if (!wait_for_completion_timeout(&vpudev->snap_done_cmp, msecs_to_jiffies(1000))) {
 			vpu_err("error: wait for vpu decoder snapdone event timeout!\n");
-			return -1;
+			ret = -1;
 		}
 	}
 
 	vpu_dec_cancel_work(vpudev);
+	vpu_dbg(LVL_INFO, "suspend done\n");
 
-	return 0;
+	return ret;
 }
 
 static bool is_vpu_poweroff(struct vpu_dev *vpudev)
@@ -6156,6 +6236,7 @@ static int vpu_resume(struct device *dev)
 	int ret = 0;
 	u_int32 idx;
 
+	vpu_dbg(LVL_INFO, "resume\n");
 	pm_runtime_get_sync(vpudev->generic_dev);
 
 	resume_vpu_register(vpudev);
@@ -6177,6 +6258,7 @@ static int vpu_resume(struct device *dev)
 
 exit:
 	pm_runtime_put_sync(vpudev->generic_dev);
+	vpu_dbg(LVL_INFO, "resume done\n");
 
 	return ret;
 }

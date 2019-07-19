@@ -287,6 +287,10 @@
 					 << MICFIL_DC_CHX_SHIFT(v))
 #define MICFIL_DC_MODE(v1, v2)		(((v1) << MICFIL_DC_CHX_SHIFT(v2)) \
 					 & MICFIL_DC_CHX_MASK(v2))
+#define MICFIL_DC_CUTOFF_21HZ		0
+#define MICFIL_DC_CUTOFF_83HZ		1
+#define MICFIL_DC_CUTOFF_152Hz		2
+#define MICFIL_DC_BYPASS			3
 
 /* MICFIL Output Control Register */
 #define MICFIL_OUTGAIN_CHX_SHIFT(v)	(4 * (v))
@@ -305,8 +309,7 @@
 
 #define MICFIL_IRQ_LINES		4
 #define MICFIL_MAX_RETRY		25
-#define MICFIL_SLEEP_MIN		90000 /* in us */
-#define MICFIL_SLEEP_MAX		100000 /* in us */
+#define MICFIL_SLEEP			100 /* in ms */
 #define MICFIL_DMA_MAXBURST_RX		6
 #define MICFIL_CTRL2_OSR_DEFAULT	(0 << MICFIL_CTRL2_CICOSR_SHIFT)
 #define MICFIL_DEFAULT_RATE		48000

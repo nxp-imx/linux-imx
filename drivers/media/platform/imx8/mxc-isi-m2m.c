@@ -58,9 +58,9 @@ struct mxc_isi_fmt mxc_isi_input_formats[] = {
 		.memplanes	= 1,
 		.colplanes	= 1,
 	}, {
-		.name		= "YUV32 (X-Y-U-V)",
-		.fourcc		= V4L2_PIX_FMT_YUV32,
-		.depth		= { 32 },
+		.name		= "YUV24 (X-Y-U-V)",
+		.fourcc		= V4L2_PIX_FMT_YUV24,
+		.depth		= { 24 },
 		.color = MXC_ISI_M2M_IN_FMT_YUV444_1P8P,
 		.memplanes	= 1,
 		.colplanes	= 1,

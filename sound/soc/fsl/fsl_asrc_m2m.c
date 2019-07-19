@@ -80,26 +80,35 @@ static void fsl_asrc_read_last_FIFO(struct fsl_asrc_pair *pair)
 	struct fsl_asrc *asrc_priv = pair->asrc_priv;
 	enum asrc_pair_index index = pair->index;
 	struct dma_block *output = &m2m->dma_block[OUT];
-	u32 i, reg, size, t_size = 0;
-	u32 *reg24 = NULL;
+	u32 i, reg, size, t_size = 0, width;
+	u32 *reg32 = NULL;
 	u16 *reg16 = NULL;
+	u8  *reg24 = NULL;
 
-	if (m2m->word_format[OUT] == SNDRV_PCM_FORMAT_S24_LE)
-		reg24 = output->dma_vaddr + output->length;
-	else
+	width = snd_pcm_format_physical_width(m2m->word_format[OUT]);
+
+	if (width == 32)
+		reg32 = output->dma_vaddr + output->length;
+	else if (width == 16)
 		reg16 = output->dma_vaddr + output->length;
+	else
+		reg24 = output->dma_vaddr + output->length;
 
 retry:
 	size = fsl_asrc_get_output_FIFO_size(pair);
 
 	for (i = 0; i < size * pair->channels; i++) {
 		regmap_read(asrc_priv->regmap, REG_ASRDO(index), &reg);
-		if (reg24) {
-			*(reg24) = reg;
-			reg24++;
-		} else {
+		if (reg32) {
+			*(reg32) = reg;
+			reg32++;
+		} else if (reg16) {
 			*(reg16) = (u16)reg;
 			reg16++;
+		} else {
+			*reg24++ = (u8)reg;
+			*reg24++ = (u8)(reg >> 8);
+			*reg24++ = (u8)(reg >> 16);
 		}
 	}
 	t_size += size;
@@ -110,10 +119,12 @@ retry:
 	if (t_size > m2m->last_period_size)
 		t_size = m2m->last_period_size;
 
-	if (reg24)
+	if (reg32)
 		output->length += t_size * pair->channels * 4;
-	else
+	else if (reg16)
 		output->length += t_size * pair->channels * 2;
+	else
+		output->length += t_size * pair->channels * 3;
 }
 
 static int fsl_allocate_dma_buf(struct fsl_asrc_pair *pair)
@@ -164,6 +175,9 @@ static int fsl_asrc_dmaconfig(struct fsl_asrc_pair *pair, struct dma_chan *chan,
 		break;
 	case 16:
 		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		break;
+	case 24:
+		buswidth = DMA_SLAVE_BUSWIDTH_3_BYTES;
 		break;
 	case 32:
 		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -514,6 +528,12 @@ static long fsl_asrc_ioctl_req_pair(struct fsl_asrc_pair *pair,
 	pair->channels = req.chn_num;
 
 	req.index = pair->index;
+	req.supported_in_format = FSL_ASRC_FORMATS_TX;
+	req.supported_out_format = FSL_ASRC_FORMATS_RX;
+	if (asrc_priv->dma_type == DMA_EDMA) {
+		req.supported_in_format &= ~SNDRV_PCM_FMTBIT_S24_3LE;
+		req.supported_out_format &= ~SNDRV_PCM_FMTBIT_S24_3LE;
+	}
 
 	ret = copy_to_user(user, &req, sizeof(req));
 	if (ret) {

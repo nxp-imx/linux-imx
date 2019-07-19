@@ -283,7 +283,7 @@
 
 	csi1_bridge: csi1_bridge@32e20000 {
 		compatible = "fsl,imx8mm-csi", "fsl,imx8mq-csi", "fsl,imx6s-csi";
-		reg = <0x0 0x32e20000 0x0 0x10000>;
+		reg = <0x0 0x32e20000 0x0 0x1000>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk IMX8MM_CLK_DISP_AXI_ROOT>,
 			<&clk IMX8MM_CLK_CSI1_ROOT>,
@@ -304,7 +304,8 @@
 			<&clk IMX8MM_CLK_DISP_APB_ROOT>;
 		clock-names = "mipi_clk", "phy_clk", "disp_axi", "disp_apb";
 		bus-width = <4>;
-		csi-gpr = <&dispmix_gpr>;
+		resets = <&dispmix_mipi_rst IMX8MM_MIPI_S_RESET>;
+		reset-names = "csi,mipi_rst";
 		power-domains = <&mipi_pd>;
 		status = "disabled";
 	};

@@ -437,7 +437,7 @@ void insert_payload_header_arv(u_int8 *dst, u_int32 uScodeType,
 	dst[15] = 0x50;
 }
 
-u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int32 vdec_std, u_int32 uPayloadSize)
+u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int32 vdec_std, u_int32 uPayloadSize, u_int32 *sin_seq)
 {
 	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
 	u_int32 length = 0;
@@ -458,6 +458,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 			HeaderLen = RCV_HEADER_LEN - 4;
 			memcpy(dst + 16, Header, HeaderLen);
 			length += HeaderLen;
+			*sin_seq = 1;
 		} else {
 			u_int8 Header[VC1_MAX_SEQ_HEADER_SIZE];
 			u_int32 HeaderLen;
@@ -468,6 +469,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 				HeaderLen -= 4;
 			memcpy(dst, Header, HeaderLen);
 			length += HeaderLen;
+			*sin_seq = 1;
 		}
 	}
 
@@ -475,6 +477,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 	case VPU_VIDEO_VP6: {
 		vp6_scd_sequence_header(dst, q_data->width, q_data->height);
 		length = 16;
+		*sin_seq = 1;
 	}
 	break;
 	case VPU_VIDEO_VP8: {
@@ -493,6 +496,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 		length += 8;
 		memcpy(dst+length, src, uPayloadSize);
 		length += uPayloadSize;
+		*sin_seq = 0;
 	}
 	break;
 	case VPU_VIDEO_ASP: {
@@ -501,6 +505,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 			length = 16;
 			memcpy(dst+length, src, uPayloadSize);
 			length += uPayloadSize;
+			*sin_seq = 0;
 		}
 	}
 	break;
@@ -513,6 +518,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 		length += 16;
 		memcpy(dst+length, src, uPayloadSize);
 		length += uPayloadSize;
+		*sin_seq = 0;
 	}
 	break;
 	case VPU_VIDEO_RV: {
@@ -525,6 +531,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 		length = 16;
 		memcpy(dst+length, src, uPayloadSize);
 		length += uPayloadSize;
+		*sin_seq = 1;
 	}
 	break;
 	default:

@@ -215,6 +215,12 @@
 
 #define SAI_FLAG_PMQOS   BIT(0)
 
+/* SAI timestamp and bitcounter */
+#define FSL_SAI_xTCTL_TSEN BIT(0)
+#define FSL_SAI_xTCTL_TSINC BIT(1)
+#define FSL_SAI_xTCTL_RTSC BIT(8)
+#define FSL_SAI_xTCTL_RBC BIT(9)
+
 struct fsl_sai_soc_data {
 	unsigned int fifo_depth;
 	unsigned int fifos;
