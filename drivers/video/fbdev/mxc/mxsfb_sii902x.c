@@ -42,20 +42,11 @@
 #include <asm/mach-types.h>
 #include <video/mxc_edid.h>
 
-#define SII_EDID_LEN	512
+#include "mxsfb_sii902x.h"
+
 #define DRV_NAME "sii902x"
 
-struct sii902x_data {
-	struct i2c_client *client;
-	struct delayed_work det_work;
-	struct fb_info *fbi;
-	struct mxc_edid_cfg edid_cfg;
-	u8 cable_plugin;
-	u8 edid[SII_EDID_LEN];
-	bool dft_mode_set;
-	const char *mode_str;
-	int bits_per_pixel;
-} sii902x;
+struct sii902x_data sii902x;
 
 static void sii902x_poweron(void);
 static void sii902x_poweroff(void);
@@ -492,6 +483,10 @@ static int sii902x_probe(struct i2c_client *client,
 	}
 
 	sii902x_in_init_state = 0;
+
+	dev_set_drvdata(&sii902x.client->dev, &sii902x);
+
+	sii902x_register_audio_driver(&sii902x.client->dev);
 
 	return 0;
 }
