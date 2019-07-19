@@ -2810,7 +2810,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	unsigned int *CurrStrfg = &pSharedInterface->StreamConfig[ctx->str_index];
 	u_int32 length;
 	MediaIPFW_Video_CodecParams *pCodecPara;
-	u_int32 sin_seq = 0;
+	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
 
 	vpu_dbg(LVL_BIT_FUNC, "enter %s, start_flag %d, index=%d, firmware_started=%d\n",
 			__func__, ctx->start_flag, ctx->str_index, ctx->dev->firmware_started);
@@ -2825,7 +2825,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 		return 0;
 	}
 	if (!ctx->start_code_bypass)
-		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size, &sin_seq);
+		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size);
 	else
 		length = 0;
 	if (length == 0) {
@@ -2875,7 +2875,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	ctx->dev->shared_mem.pSharedInterface->DbgLogDesc.uDecStatusLogLevel = vpu_frmdbg_level;
 
 	/*initialize frame count*/
-	if (sin_seq == 1) {
+	if (single_seq_info_format(q_data)) {
 		ctx->frm_dis_delay = 0;
 		ctx->frm_dec_delay = 0;
 		ctx->frm_total_num = 0;
@@ -3350,14 +3350,11 @@ static uint32_t insert_scode_4_seq_4_arv(struct vpu_ctx *ctx, u_int8 *input_buff
 	return length;
 }
 
-static bool check_single_seq_info(struct vb2_v4l2_buffer *vbuf, unsigned int vdec_std)
+static u_int32 check_single_seq_info(struct vb2_v4l2_buffer *vbuf, struct queue_data *q_data)
 {
 	if (!(vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG))
-		return false;
-	if (vdec_std == VPU_VIDEO_VC1 || vdec_std == VPU_VIDEO_VP6 || VPU_VIDEO_RV)
-		return true;
-
-	return false;
+		return 0;
+	return single_seq_info_format(q_data);
 }
 
 static bool verify_decoded_frames(struct vpu_ctx *ctx)
@@ -3426,7 +3423,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 				record_log_info(ctx, LOG_PADDING, 0, 0);
 			}
 
-			if (!check_single_seq_info(vbuf, This->vdec_std)) {
+			if (!check_single_seq_info(vbuf, This)) {
 				ctx->frm_dec_delay++;
 				ctx->frm_dis_delay++;
 				ctx->frm_total_num++;
