@@ -5785,7 +5785,7 @@ static void vpu_enc_resume_work(struct vpu_dev *vpudev)
 			msecs_to_jiffies(VPU_WATCHDOG_INTERVAL_MS));
 }
 
-static int vpu_enc_suspend(struct device *dev)
+static int __maybe_unused vpu_enc_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
 	int i;
@@ -5809,7 +5809,7 @@ static int vpu_enc_suspend(struct device *dev)
 	return ret;
 }
 
-static int vpu_enc_resume(struct device *dev)
+static int __maybe_unused vpu_enc_resume(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
 	int i;

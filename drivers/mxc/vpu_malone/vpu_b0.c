@@ -6150,7 +6150,7 @@ static void vpu_dec_resume_work(struct vpu_dev *vpudev)
 	mutex_unlock(&vpudev->dev_mutex);
 }
 
-static int vpu_suspend(struct device *dev)
+static int __maybe_unused vpu_suspend(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
 	int ret = 0;
@@ -6230,7 +6230,7 @@ static int resume_from_vpu_poweroff(struct vpu_dev *vpudev)
 	return ret;
 }
 
-static int vpu_resume(struct device *dev)
+static int __maybe_unused vpu_resume(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
 	int ret = 0;
