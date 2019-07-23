@@ -943,6 +943,7 @@ static int fsl_easrc_m2m_init(struct fsl_easrc *easrc)
 	return ret;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static void fsl_easrc_m2m_suspend(struct fsl_easrc *easrc)
 {
 	struct fsl_easrc_context *ctx;
@@ -980,3 +981,4 @@ static void fsl_easrc_m2m_resume(struct fsl_easrc *easrc)
 {
 	/* null */
 }
+#endif
