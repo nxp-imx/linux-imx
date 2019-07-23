@@ -694,6 +694,7 @@ static int pfuze100_regulator_probe(struct i2c_client *client,
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int pfuze_reg_save_restore(struct pfuze_chip *pfuze_chip, int start,
 				  int end, int index, bool save)
 {
@@ -765,6 +766,7 @@ static int __maybe_unused pfuze_resume(struct device *dev)
 err_ret:
 	return index;
 }
+#endif
 
 static const struct dev_pm_ops pfuze_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(pfuze_suspend, pfuze_resume)
