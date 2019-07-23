@@ -396,6 +396,7 @@ static void lpi2c_imx_write_txfifo(struct lpi2c_imx_struct *lpi2c_imx)
 		complete(&lpi2c_imx->complete);
 }
 
+#ifdef CONFIG_PM_SLEEP
 static void lpi2c_imx_read_rxfifo(struct lpi2c_imx_struct *lpi2c_imx)
 {
 	unsigned int blocklen, remaining;
@@ -442,6 +443,7 @@ static void lpi2c_imx_read_rxfifo(struct lpi2c_imx_struct *lpi2c_imx)
 
 	lpi2c_imx_intctrl(lpi2c_imx, MIER_RDIE);
 }
+#endif
 
 static void lpi2c_imx_write(struct lpi2c_imx_struct *lpi2c_imx,
 			    struct i2c_msg *msgs)
@@ -524,6 +526,7 @@ disable:
 	return (result < 0) ? result : num;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static irqreturn_t lpi2c_imx_isr(int irq, void *dev_id)
 {
 	struct lpi2c_imx_struct *lpi2c_imx = dev_id;
@@ -545,6 +548,7 @@ static irqreturn_t lpi2c_imx_isr(int irq, void *dev_id)
 ret:
 	return IRQ_HANDLED;
 }
+#endif
 
 static u32 lpi2c_imx_func(struct i2c_adapter *adapter)
 {
