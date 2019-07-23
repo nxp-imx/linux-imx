@@ -1024,6 +1024,7 @@ static int fsl_edma3_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int fsl_edma3_suspend_late(struct device *dev)
 {
 	struct fsl_edma3_engine *fsl_edma = dev_get_drvdata(dev);
@@ -1081,10 +1082,11 @@ static int fsl_edma3_resume_early(struct device *dev)
 
 	return 0;
 }
+#endif
 
 static const struct dev_pm_ops fsl_edma3_pm_ops = {
-	.suspend_late   = fsl_edma3_suspend_late,
-	.resume_early   = fsl_edma3_resume_early,
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(fsl_edma3_suspend_late,
+				     fsl_edma3_resume_early)
 };
 
 static const struct of_device_id fsl_edma3_dt_ids[] = {
