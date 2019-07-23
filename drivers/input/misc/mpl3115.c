@@ -287,6 +287,8 @@ static int mpl3115_stop_chip(struct i2c_client *client)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
 static int mpl3115_start_chip(struct i2c_client *client)
 {
 	u8 val;
@@ -298,6 +300,8 @@ static int mpl3115_start_chip(struct i2c_client *client)
 
 	return 0;
 }
+#endif
+
 static int mpl3115_remove(struct i2c_client *client)
 {
 	struct mpl3115_data *pdata = i2c_get_clientdata(client);
