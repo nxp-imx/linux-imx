@@ -240,7 +240,10 @@ struct imx_thermal_data {
 
 static struct imx_thermal_data *imx_thermal_data;
 static int skip_finish_check;
+
+#ifdef CONFIG_PM_SLEEP
 static u32 imx7_lpsr_save[2];
+#endif
 
 static void imx_set_panic_temp(struct imx_thermal_data *data,
 			       int panic_temp)
