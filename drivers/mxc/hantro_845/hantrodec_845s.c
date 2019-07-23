@@ -1,7 +1,7 @@
 /*****************************************************************************
  *    The GPL License (GPL)
  *
- *    Copyright (c) 2015-2018, VeriSilicon Inc.
+ *    Copyright (c) 2015-2019, VeriSilicon Inc.
  *    Copyright (c) 2011-2014, Google Inc.
  *
  *    This program is free software; you can redistribute it and/or
@@ -1963,12 +1963,12 @@ static int hantro_dev_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static int hantro_suspend(struct device *dev)
+static int __maybe_unused hantro_suspend(struct device *dev)
 {
 	pm_runtime_put_sync_suspend(dev);   //power off
 	return 0;
 }
-static int hantro_resume(struct device *dev)
+static int __maybe_unused hantro_resume(struct device *dev)
 {
 	hantrodec_t *hantrodev = dev_get_drvdata(dev);
 
