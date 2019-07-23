@@ -352,12 +352,12 @@ static int imx8mn_pinctrl_probe(struct platform_device *pdev)
 	return imx_pinctrl_probe(pdev, pinctrl_info);
 }
 
-static int imx8mn_pinctrl_suspend(struct device *dev)
+static int __maybe_unused imx8mn_pinctrl_suspend(struct device *dev)
 {
 	return imx_pinctrl_suspend(dev);
 }
 
-static int imx8mn_pinctrl_resume(struct device *dev)
+static int __maybe_unused imx8mn_pinctrl_resume(struct device *dev)
 {
 	return imx_pinctrl_resume(dev);
 }
