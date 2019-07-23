@@ -1252,8 +1252,8 @@
 					<&clk IMX8MN_GPU_PLL_OUT>,
 					<&clk IMX8MN_SYS_PLL1_800M>,
 					<&clk IMX8MN_SYS_PLL1_800M>;
-		assigned-clock-rates = <0>, <0>, <800000000>, <400000000>, <1000000000>,
-					<500000000>, <500000000>;
+		assigned-clock-rates = <0>, <0>, <800000000>, <400000000>, <1200000000>,
+					<600000000>, <600000000>;
 		depth-compression = <0>;
 		power-domains = <&gpumix_pd>;
 		status = "disabled";
