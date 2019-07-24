@@ -4131,11 +4131,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_INFO, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
 						bufstat[p_data_req->status]);
 
-				if ((p_data_req->status == FRAME_DECODED || p_data_req->status == FRAME_FREE)) {
+				if (p_data_req->status == FRAME_DECODED) {
 					vpu_dec_skip_ts(ctx);
 					send_skip_event(ctx);
-					add_buffer_to_queue(This, p_data_req);
 				}
+				add_buffer_to_queue(This, p_data_req);
 			}
 			if (p_data_req->status != FRAME_ALLOC) {
 				set_data_req_status(p_data_req, FRAME_RELEASE);
