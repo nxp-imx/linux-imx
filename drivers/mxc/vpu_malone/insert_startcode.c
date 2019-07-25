@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  */
 
 /*
@@ -500,7 +500,7 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 	}
 	break;
 	case VPU_VIDEO_ASP: {
-		if (q_data->fourcc == VPU_PIX_FMT_DIVX) {
+		if (q_data->fourcc == VPU_PIX_FMT_DIV3) {
 			insert_payload_header_divx(dst, uPayloadSize, q_data->width, q_data->height);
 			length = 16;
 			memcpy(dst+length, src, uPayloadSize);
@@ -583,7 +583,7 @@ u_int32 insert_scode_4_pic(struct vpu_ctx *ctx, u_int8 *dst, u_int8 *src, u_int3
 	}
 	break;
 	case VPU_VIDEO_ASP: {
-		if (q_data->fourcc == VPU_PIX_FMT_DIVX) {
+		if (q_data->fourcc == VPU_PIX_FMT_DIV3) {
 			insert_payload_header_divx(dst, uPayloadSize, q_data->width, q_data->height);
 			length = 16;
 		}

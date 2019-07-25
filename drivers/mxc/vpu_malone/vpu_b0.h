@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  */
 
 /*
@@ -67,6 +67,8 @@ extern unsigned int vpu_dbg_level_decoder;
 #define VPU_DEC_CMD_DATA_MAX_NUM	16
 #define VPU_DEC_MAX_WIDTH		8188
 #define VPU_DEC_MAX_HEIGTH		8188
+#define VPU_DEC_FMT_DIVX_MASK		(1 << 20)
+#define VPU_DEC_FMT_RV_MASK		(1 << 21)
 
 #define V4L2_EVENT_DECODE_ERROR		(V4L2_EVENT_PRIVATE_START + 1)
 #define V4L2_EVENT_SKIP			(V4L2_EVENT_PRIVATE_START + 2)
@@ -127,6 +129,7 @@ typedef enum{
 #define VPU_PIX_FMT_RV          v4l2_fourcc('R', 'V', '0', '0')
 #define VPU_PIX_FMT_VP6         v4l2_fourcc('V', 'P', '6', '0')
 #define VPU_PIX_FMT_SPK         v4l2_fourcc('S', 'P', 'K', '0')
+#define VPU_PIX_FMT_DIV3        v4l2_fourcc('D', 'I', 'V', '3')
 #define VPU_PIX_FMT_DIVX        v4l2_fourcc('D', 'I', 'V', 'X')
 #define VPU_PIX_FMT_HEVC        v4l2_fourcc('H', 'E', 'V', 'C')
 #define VPU_PIX_FMT_LOGO        v4l2_fourcc('L', 'O', 'G', 'O')

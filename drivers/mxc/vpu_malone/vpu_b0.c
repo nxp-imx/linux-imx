@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  */
 
 /*
@@ -556,6 +556,13 @@ static struct vpu_v4l2_fmt  formats_compressed_dec[] = {
 	},
 	{
 		.name       = "DIVX Encoded Stream",
+		.fourcc     = VPU_PIX_FMT_DIV3,
+		.num_planes = 1,
+		.vdec_std   = VPU_VIDEO_ASP,
+		.disable    = 0,
+	},
+	{
+		.name       = "DIVX Encoded Stream",
 		.fourcc     = VPU_PIX_FMT_DIVX,
 		.num_planes = 1,
 		.vdec_std   = VPU_VIDEO_ASP,
@@ -672,13 +679,52 @@ static int v4l2_ioctl_enum_fmt_vid_cap_mplane(struct file *file,
 	fmt = &formats_yuv_dec[f->index];
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
+	vpu_dbg(LVL_BIT_FLOW, "CAPTURE fmt[%d] %c%c%c%c\n",
+			f->index,
+			f->pixelformat & 0xff,
+			(f->pixelformat >> 8) & 0xff,
+			(f->pixelformat >> 16) & 0xff,
+			(f->pixelformat >> 24) & 0xff);
 	return 0;
 }
+
+static bool check_fmt_is_support(struct vpu_ctx *ctx, struct vpu_v4l2_fmt *fmt)
+{
+	pDEC_RPC_HOST_IFACE pSharedInterface;
+	bool support;
+
+	if (!ctx || !ctx->dev || !fmt)
+		return false;
+
+	if (fmt->disable)
+		return false;
+
+	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	support = true;
+
+	switch (fmt->fourcc) {
+	case VPU_PIX_FMT_DIV3:
+	case VPU_PIX_FMT_DIVX:
+		if (!(pSharedInterface->FWVersion & VPU_DEC_FMT_DIVX_MASK))
+			support = false;
+		break;
+	case VPU_PIX_FMT_RV:
+		if (!(pSharedInterface->FWVersion & VPU_DEC_FMT_RV_MASK))
+			support = false;
+		break;
+	default:
+		break;
+	}
+
+	return support;
+}
+
 static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 		void *fh,
 		struct v4l2_fmtdesc *f
 		)
 {
+	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 	struct vpu_v4l2_fmt *fmt;
 	u_int32 index = 0, i;
 
@@ -689,7 +735,7 @@ static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 
 	for (i = 0; i < ARRAY_SIZE(formats_compressed_dec); i++) {
 		fmt = &formats_compressed_dec[i];
-		if (fmt->disable == 1)
+		if (!check_fmt_is_support(ctx, fmt))
 			continue;
 		if (f->index == index)
 			break;
@@ -702,6 +748,13 @@ static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	f->flags |= V4L2_FMT_FLAG_COMPRESSED;
+	vpu_dbg(LVL_BIT_FLOW, "OUTPUT fmt[%d] %c%c%c%c\n",
+			f->index,
+			f->pixelformat & 0xff,
+			(f->pixelformat >> 8) & 0xff,
+			(f->pixelformat >> 16) & 0xff,
+			(f->pixelformat >> 24) & 0xff);
+
 	return 0;
 }
 
@@ -808,7 +861,8 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	return 0;
 }
 
-static bool set_video_standard(struct queue_data *q_data,
+static bool set_video_standard(struct vpu_ctx *ctx,
+		struct queue_data *q_data,
 		struct v4l2_format *f,
 		struct vpu_v4l2_fmt *pformat_table,
 		uint32_t table_size)
@@ -817,7 +871,7 @@ static bool set_video_standard(struct queue_data *q_data,
 
 	for (i = 0; i < table_size; i++) {
 		if (pformat_table[i].fourcc == f->fmt.pix_mp.pixelformat) {
-			if (pformat_table[i].disable == 1)
+			if (!check_fmt_is_support(ctx, &pformat_table[i]))
 				return false;
 			q_data->vdec_std = pformat_table[i].vdec_std;
 		}
@@ -878,7 +932,7 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		pix_mp->height);
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
-		if (!set_video_standard(q_data, f, formats_yuv_dec, ARRAY_SIZE(formats_yuv_dec)))
+		if (!set_video_standard(ctx, q_data, f, formats_yuv_dec, ARRAY_SIZE(formats_yuv_dec)))
 			return -EINVAL;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
@@ -888,7 +942,7 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		}
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
-		if (!set_video_standard(q_data, f, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec)))
+		if (!set_video_standard(ctx, q_data, f, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec)))
 			return -EINVAL;
 	} else
 		return -EINVAL;
