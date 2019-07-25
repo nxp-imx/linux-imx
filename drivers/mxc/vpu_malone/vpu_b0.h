@@ -402,6 +402,10 @@ struct vpu_ctx {
 	struct list_head cmd_q;
 	struct vpu_dec_cmd_request *pending;
 	struct mutex cmd_lock;
+
+	u_int64 start_time;
+	u_int64 last_decoded_time;
+	u_int64 last_ready_time;
 };
 
 #define LVL_WARN		(1 << 1)
@@ -433,5 +437,7 @@ struct vpu_ctx {
 #define V4L2_NXP_BUF_MASK_FLAGS		(V4L2_NXP_BUF_FLAG_CODECCONFIG | \
 					 V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID)
 
+#define VPU_DECODED_EVENT_PERF_MASK		(1 << 0)
+#define VPU_READY_EVENT_PERF_MASK		(1 << 1)
 
 #endif

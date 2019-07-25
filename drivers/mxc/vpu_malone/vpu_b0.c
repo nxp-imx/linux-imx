@@ -66,6 +66,9 @@ static int tsm_mode = MODE_AI;
 static int tsm_buffer_size = 1024;
 static int tsm_use_consumed_length = 1;
 static int precheck_show_bytes;
+static int vpu_show_perf_ena;
+static int vpu_show_perf_idx = (1 << VPU_MAX_NUM_STREAMS) - 1;
+static int vpu_show_perf_ent = VPU_DECODED_EVENT_PERF_MASK;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -3917,6 +3920,63 @@ static bool check_is_need_reset_after_abort(struct vpu_ctx *ctx)
 	return false;
 }
 
+static void vpu_show_performance(struct vpu_ctx *ctx,  u_int32 uEvent)
+{
+	u_int64 Time;
+	u_int64 interv;
+	u_int64 total_Time;
+	u_int64 ave_fps;
+	struct timeval tv;
+
+	if (!vpu_show_perf_ena)
+		return;
+	if (!(vpu_show_perf_idx & (1<<ctx->str_index)))
+		return;
+
+	do_gettimeofday(&tv);
+	Time = ((tv.tv_sec * 1000000ULL) + tv.tv_usec) / 1000ULL;
+
+	if (!ctx->frame_decoded) {
+		ctx->start_time = Time;
+		ctx->last_decoded_time = Time;
+		ctx->last_ready_time = Time;
+	}
+
+	switch (uEvent) {
+	case VID_API_EVENT_STOPPED:
+		total_Time = Time - ctx->start_time;
+		ave_fps = ctx->statistic.event[VID_API_EVENT_PIC_DECODED] / (total_Time / 1000ULL);
+		vpu_dbg(LVL_WARN, "[%2d] frames: %8ld;  time: %8ld ms;  fps: %4ld\n",
+			ctx->str_index,
+			ctx->statistic.event[VID_API_EVENT_PIC_DECODED],
+			total_Time, ave_fps);
+		break;
+	case VID_API_EVENT_PIC_DECODED:
+		if (vpu_show_perf_ent & VPU_DECODED_EVENT_PERF_MASK) {
+			interv = Time - ctx->last_decoded_time;
+			vpu_dbg(LVL_WARN, "[%2d] dec[%8ld]  interv: %8ld ms\n",
+				ctx->str_index,
+				ctx->statistic.event[VID_API_EVENT_PIC_DECODED],
+				interv);
+			ctx->last_decoded_time = Time;
+		}
+		break;
+	case VID_API_EVENT_FRAME_BUFF_RDY:
+		if (vpu_show_perf_ent & VPU_READY_EVENT_PERF_MASK) {
+			interv = Time - ctx->last_ready_time;
+			vpu_dbg(LVL_WARN, "[%2d] rdy[%8ld]  interv: %8ld ms\n",
+				ctx->str_index,
+				ctx->statistic.event[VID_API_EVENT_FRAME_BUFF_RDY],
+				interv);
+			ctx->last_ready_time = Time;
+		}
+		break;
+	default:
+		break;
+	}
+
+}
+
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data)
 {
 	struct vpu_dev *dev;
@@ -3965,6 +4025,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->str_index,
 			ctx->q_data[V4L2_SRC].qbuf_count,
 			ctx->q_data[V4L2_SRC].dqbuf_count);
+		vpu_show_performance(ctx, uEvent);
 		ctx->firmware_stopped = true;
 		ctx->start_flag = true;
 		ctx->b_firstseq = true;
@@ -4056,6 +4117,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
 		This->process_count++;
 		}
+		vpu_show_performance(ctx, uEvent);
 
 		ctx->frm_dec_delay--;
 		ctx->fifo_low = false;
@@ -4215,6 +4277,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		u_int32 *FrameInfo = (u_int32 *)event_data;
 
 		report_buffer_done(ctx, FrameInfo);
+		vpu_show_performance(ctx, uEvent);
 	}
 		break;
 	case VID_API_EVENT_CHUNK_DECODED:
@@ -6367,3 +6430,9 @@ module_param(tsm_use_consumed_length, int, 0644);
 MODULE_PARM_DESC(tsm_use_consumed_length, "timestamp manager use consumed length");
 module_param(precheck_show_bytes, int, 0644);
 MODULE_PARM_DESC(precheck_show_bytes, "show the beginning of content");
+module_param(vpu_show_perf_ena, int, 0644);
+MODULE_PARM_DESC(vpu_show_perf_ena, "enable show vpu decode performance(0-1)");
+module_param(vpu_show_perf_idx, int, 0644);
+MODULE_PARM_DESC(vpu_show_perf_idx, "show performance of which instance(bit N to mask instance N)");
+module_param(vpu_show_perf_ent, int, 0644);
+MODULE_PARM_DESC(vpu_show_perf_ent, "show performance of which event(1: decoded, 2: ready)");
