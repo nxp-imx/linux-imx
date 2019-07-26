@@ -494,6 +494,10 @@ u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int3
 	case VPU_VIDEO_VP6: {
 		vp6_scd_sequence_header(dst, q_data->width, q_data->height);
 		length = 16;
+		vp6_scd_frame_header(dst + length, q_data->width, q_data->height, uPayloadSize);
+		length += 16;
+		memcpy(dst + length, src, uPayloadSize);
+		length += uPayloadSize;
 	}
 	break;
 	case VPU_VIDEO_VP8: {
