@@ -1507,8 +1507,6 @@ static int cdns3_gadget_ep_enable(struct usb_ep *ep,
 	cdns3_set_register_bit(&priv_dev->regs->ep_cfg, EP_CFG_ENABLE);
 
 	ep->desc = desc;
-	priv_ep->flags &= ~(EP_PENDING_REQUEST | EP_STALL |
-			    EP_QUIRK_EXTRA_BUF_EN);
 	priv_ep->flags |= EP_ENABLED | EP_UPDATE_EP_TRBADDR;
 	priv_ep->wa1_set = 0;
 	priv_ep->enqueue = 0;
@@ -1548,8 +1546,7 @@ static int cdns3_gadget_ep_disable(struct usb_ep *ep)
 	priv_ep = ep_to_cdns3_ep(ep);
 	priv_dev = priv_ep->cdns3_dev;
 
-	if (dev_WARN_ONCE(priv_dev->dev, !(priv_ep->flags & EP_ENABLED),
-			  "%s is already disabled\n", priv_ep->name))
+	if (!(priv_ep->flags & EP_ENABLED) || (priv_ep->endpoint.desc == NULL))
 		return 0;
 
 	pm_runtime_get_sync(priv_dev->dev);
@@ -1592,8 +1589,9 @@ static int cdns3_gadget_ep_disable(struct usb_ep *ep)
 
 	priv_ep->descmis_req = NULL;
 
-	ep->desc = NULL;
-	priv_ep->flags &= ~EP_ENABLED;
+	priv_ep->endpoint.desc = NULL;
+	priv_ep->flags = 0;
+	priv_ep->flags |= EP_CLAIMED;
 
 	spin_unlock_irqrestore(&priv_dev->lock, flags);
 	pm_runtime_put_sync(priv_dev->dev);
@@ -1981,23 +1979,28 @@ static int cdns3_gadget_udc_stop(struct usb_gadget *gadget)
 {
 	struct cdns3_device *priv_dev = gadget_to_cdns3_device(gadget);
 	struct cdns3_endpoint *priv_ep;
-	u32 bEndpointAddress;
 	struct usb_ep *ep;
+	unsigned long flags;
 	int ret = 0;
 
+	spin_lock_irqsave(&priv_dev->lock, flags);
 	priv_dev->gadget_driver = NULL;
 
 	priv_dev->onchip_mem_allocated_size = 0;
 	priv_dev->out_mem_is_allocated = 0;
 	priv_dev->gadget.speed = USB_SPEED_UNKNOWN;
+	list_for_each_entry(ep, &priv_dev->gadget.ep_list, ep_list) {
+		priv_ep = ep_to_cdns3_ep(ep);
+		priv_ep->flags &= ~EP_CLAIMED;
+	}
+
+	spin_unlock_irqrestore(&priv_dev->lock, flags);
+	if (!priv_dev->start_gadget)
+		return ret;
 
 	list_for_each_entry(ep, &priv_dev->gadget.ep_list, ep_list) {
 		priv_ep = ep_to_cdns3_ep(ep);
-		bEndpointAddress = priv_ep->num | priv_ep->dir;
-		cdns3_select_ep(priv_dev, bEndpointAddress);
-		writel(EP_CMD_EPRST, &priv_dev->regs->ep_cmd);
-		ret = cdns3_handshake(&priv_dev->regs->ep_cmd,
-				      EP_CMD_EPRST, 0, 100);
+		usb_ep_disable(ep);
 		cdns3_free_trb_pool(priv_ep);
 	}
 
