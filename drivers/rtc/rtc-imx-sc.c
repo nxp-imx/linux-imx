@@ -194,7 +194,7 @@ static const struct dev_pm_ops imx_sc_rtc_pm_ops = {
 
 #else
 
-#define IMX8_SC_RTC_PM_OPS	NULL
+#define IMX_SC_RTC_PM_OPS	NULL
 
 #endif
 

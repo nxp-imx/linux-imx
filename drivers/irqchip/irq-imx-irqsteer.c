@@ -101,6 +101,7 @@ static const struct irq_domain_ops imx_irqsteer_domain_ops = {
 	.xlate		= irq_domain_xlate_twocell,
 };
 
+#ifdef CONFIG_PM_SLEEP
 static void imx_irqsteer_init(struct irqsteer_irqchip_data *irqsteer_data)
 {
 	/* enable channel 1 in default */
@@ -111,6 +112,7 @@ static void imx_irqsteer_init(struct irqsteer_irqchip_data *irqsteer_data)
 	 */
 	irqsteer_data->inited = true;
 }
+#endif
 
 static void imx_irqsteer_update_irqstat(struct irqsteer_irqchip_data *irqsteer_data)
 {

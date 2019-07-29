@@ -341,16 +341,6 @@ static int imx_sec_dsim_resume(struct device *dev)
 {
 	return imx_sec_dsim_runtime_resume(dev);
 }
-#else
-static int imx_sec_dsim_suspend(struct device *dev)
-{
-	return 0;
-}
-
-static int imx_sec_dsim_resume(struct device *dev)
-{
-	return 0;
-}
 #endif
 
 #ifdef CONFIG_PM

@@ -45,6 +45,10 @@
 
 };
 
+&csi1_bridge {
+	status = "disabled";
+};
+
 /*
  * ATTENTION: M4 may use IPs like below
  * ECSPI0/ECSPI2, GPIO1/GPIO5, GPT1, I2C3, I2S3, WDOG1, UART4, PWM3, SDMA1

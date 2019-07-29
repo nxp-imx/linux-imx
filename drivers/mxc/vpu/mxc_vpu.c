@@ -1065,7 +1065,7 @@ static int vpu_dev_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-static int vpu_suspend(struct device *dev)
+static int __maybe_unused vpu_suspend(struct device *dev)
 #else
 static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 #endif
@@ -1141,7 +1141,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-static int vpu_resume(struct device *dev)
+static int __maybe_unused vpu_resume(struct device *dev)
 #else
 static int vpu_resume(struct platform_device *pdev)
 #endif

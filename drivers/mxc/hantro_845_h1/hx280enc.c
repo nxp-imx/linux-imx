@@ -1,7 +1,7 @@
 /*
  * Encoder device driver (kernel module)
  *
- * Copyright (c) 2013-2018, VeriSilicon Inc.
+ * Copyright (c) 2013-2019, VeriSilicon Inc.
  * Copyright (C) 2012 Google Finland Oy.
  *
  * This program is free software; you can redistribute it and/or
@@ -847,12 +847,12 @@ static int hantro_h1_dev_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static int hantro_h1_suspend(struct device *dev)
+static int __maybe_unused hantro_h1_suspend(struct device *dev)
 {
 	pm_runtime_put_sync_suspend(dev);   //power off
 	return 0;
 }
-static int hantro_h1_resume(struct device *dev)
+static int __maybe_unused hantro_h1_resume(struct device *dev)
 {
 	hx280enc_t *hx280enc = dev_get_drvdata(dev);
 

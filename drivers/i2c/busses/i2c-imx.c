@@ -1274,6 +1274,7 @@ static int i2c_imx_runtime_resume(struct device *dev)
 	return ret;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int i2c_imx_suspend(struct device *dev)
 {
 	pinctrl_pm_select_sleep_state(dev);
@@ -1285,6 +1286,7 @@ static int i2c_imx_resume(struct device *dev)
 	pinctrl_pm_select_default_state(dev);
 	return 0;
 }
+#endif
 
 static const struct dev_pm_ops i2c_imx_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(i2c_imx_suspend, i2c_imx_resume)

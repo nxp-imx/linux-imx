@@ -655,7 +655,7 @@ static int mipi_csi2_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int mipi_csi2_pm_runtime_resume(struct device *dev)
+static int __maybe_unused mipi_csi2_pm_runtime_resume(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
 	int ret;
@@ -669,7 +669,7 @@ static int mipi_csi2_pm_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int mipi_csi2_runtime_pm_suspend(struct device *dev)
+static int __maybe_unused mipi_csi2_runtime_pm_suspend(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
 
@@ -678,7 +678,7 @@ static int mipi_csi2_runtime_pm_suspend(struct device *dev)
 	return 0;
 }
 
-static int mipi_csi2_pm_suspend(struct device *dev)
+static int __maybe_unused mipi_csi2_pm_suspend(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
 
@@ -696,7 +696,7 @@ static int mipi_csi2_pm_suspend(struct device *dev)
 	return 0;
 }
 
-static int mipi_csi2_pm_resume(struct device *dev)
+static int __maybe_unused mipi_csi2_pm_resume(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
 	int ret;
