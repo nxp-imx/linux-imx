@@ -164,14 +164,21 @@ static void rpmsg_i2s_work(struct work_struct *work)
 	struct work_of_rpmsg *work_of_rpmsg;
 	struct i2s_info *i2s_info;
 	bool is_period_done = false;
+	unsigned long flags;
+	struct i2s_rpmsg msg;
 
 	work_of_rpmsg = container_of(work, struct work_of_rpmsg, work);
 	i2s_info = work_of_rpmsg->i2s_info;
 
+	spin_lock_irqsave(&i2s_info->lock[0], flags);
 	if (i2s_info->period_done_msg_enabled[0]) {
-		i2s_send_message(&i2s_info->period_done_msg[0], i2s_info);
+		memcpy(&msg, &i2s_info->period_done_msg[0], sizeof(struct i2s_rpmsg_s));
 		i2s_info->period_done_msg_enabled[0] = false;
-	}
+		spin_unlock_irqrestore(&i2s_info->lock[0], flags);
+
+		i2s_send_message(&msg, i2s_info);
+	} else
+		spin_unlock_irqrestore(&i2s_info->lock[0], flags);
 
 	if (i2s_info->period_done_msg_enabled[1]) {
 		i2s_send_message(&i2s_info->period_done_msg[1], i2s_info);
@@ -186,8 +193,10 @@ static void rpmsg_i2s_work(struct work_struct *work)
 	if (!is_period_done)
 		i2s_send_message(&work_of_rpmsg->msg, i2s_info);
 
+	spin_lock_irqsave(&i2s_info->wq_lock, flags);
 	i2s_info->work_read_index++;
 	i2s_info->work_read_index %= WORK_MAX_NUM;
+	spin_unlock_irqrestore(&i2s_info->wq_lock, flags);
 }
 
 static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
@@ -238,6 +247,7 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 	mutex_init(&i2s_info->i2c_lock);
 	spin_lock_init(&i2s_info->lock[0]);
 	spin_lock_init(&i2s_info->lock[1]);
+	spin_lock_init(&i2s_info->wq_lock);
 
 	if (of_device_is_compatible(pdev->dev.of_node,
 				    "fsl,imx7ulp-rpmsg-i2s")) {
