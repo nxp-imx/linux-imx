@@ -107,12 +107,11 @@ static snd_pcm_uframes_t imx_rpmsg_pcm_pointer(
 	int buffer_tail = 0;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		rpmsg = &i2s_info->rpmsg[I2S_TX_POINTER];
+		rpmsg = &i2s_info->rpmsg[I2S_TX_PERIOD_DONE + I2S_TYPE_A_NUM];
 	else
-		rpmsg = &i2s_info->rpmsg[I2S_RX_POINTER];
+		rpmsg = &i2s_info->rpmsg[I2S_RX_PERIOD_DONE + I2S_TYPE_A_NUM];
 
-	buffer_tail = rpmsg->recv_msg.param.buffer_offset /
-				snd_pcm_lib_period_bytes(substream);
+	buffer_tail = rpmsg->recv_msg.param.buffer_tail;
 	pos = buffer_tail * snd_pcm_lib_period_bytes(substream);
 
 	return bytes_to_frames(substream->runtime, pos);
@@ -131,14 +130,14 @@ static void imx_rpmsg_timer_callback(unsigned long data)
 	int time_msec;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		rpmsg = &i2s_info->rpmsg[I2S_TX_POINTER];
+		rpmsg = &i2s_info->rpmsg[I2S_TX_PERIOD_DONE + I2S_TYPE_A_NUM];
 	else
-		rpmsg = &i2s_info->rpmsg[I2S_RX_POINTER];
+		rpmsg = &i2s_info->rpmsg[I2S_RX_PERIOD_DONE + I2S_TYPE_A_NUM];
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		rpmsg->send_msg.header.cmd = I2S_TX_POINTER;
+		rpmsg->send_msg.header.cmd = I2S_TX_PERIOD_DONE;
 	else
-		rpmsg->send_msg.header.cmd = I2S_RX_POINTER;
+		rpmsg->send_msg.header.cmd = I2S_RX_PERIOD_DONE;
 
 	if (i2s_info->work_write_index != i2s_info->work_read_index) {
 		memcpy(&i2s_info->work_list[index].msg, rpmsg,
@@ -154,8 +153,6 @@ static void imx_rpmsg_timer_callback(unsigned long data)
 		mod_timer(&i2s_info->stream_timer[substream->stream],
 			     jiffies + msecs_to_jiffies(time_msec));
 	}
-
-	snd_pcm_period_elapsed(substream);
 }
 
 static int imx_rpmsg_pcm_open(struct snd_pcm_substream *substream)
@@ -294,19 +291,7 @@ static void imx_rpmsg_pcm_dma_complete(void *arg)
 	struct snd_soc_dai   *cpu_dai = rtd->cpu_dai;
 	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
 	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
-	struct i2s_rpmsg *rpmsg, *rpmsg2;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		rpmsg = &i2s_info->rpmsg[I2S_TX_POINTER];
-		rpmsg2 = &i2s_info->rpmsg[I2S_TX_PERIOD_DONE + I2S_TYPE_A_NUM];
-	} else {
-		rpmsg = &i2s_info->rpmsg[I2S_RX_POINTER];
-		rpmsg2 = &i2s_info->rpmsg[I2S_RX_PERIOD_DONE + I2S_TYPE_A_NUM];
-	}
-
-	rpmsg->recv_msg.param.buffer_offset =
-		rpmsg2->recv_msg.param.buffer_tail
-				* snd_pcm_lib_period_bytes(substream);
 	/*
 	 * With suspend state, which is not running state, M4 will trigger
 	 * system resume with PERIOD_DONE command, at this moment, the
