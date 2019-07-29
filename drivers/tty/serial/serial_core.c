@@ -2182,6 +2182,7 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 	struct device *tty_dev;
 	struct uart_match match = {uport, drv};
 	struct ktermios termios;
+	bool port_no_tty = false;
 
 	mutex_lock(&port->mutex);
 
@@ -2212,6 +2213,9 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 		if (port->tty && termios.c_cflag == 0)
 			termios = port->tty->termios;
 
+		if (!port->tty && termios.c_cflag == 0)
+			port_no_tty = true;
+
 		if (console_suspend_enabled)
 			uart_change_pm(state, UART_PM_STATE_ON);
 		uport->ops->set_termios(uport, &termios, NULL);
@@ -2230,7 +2234,8 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 		if (console_suspend_enabled || !uart_console(uport)) {
 			/* Protected by port mutex for now */
 			struct tty_struct *tty = port->tty;
-			ret = ops->startup(uport);
+			if (!port_no_tty)
+				ret = ops->startup(uport);
 			if (ret == 0) {
 				if (tty)
 					uart_change_speed(tty, state, NULL);
