@@ -69,6 +69,7 @@ static int precheck_show_bytes;
 static int vpu_show_perf_ena;
 static int vpu_show_perf_idx = (1 << VPU_MAX_NUM_STREAMS) - 1;
 static int vpu_show_perf_ent = VPU_DECODED_EVENT_PERF_MASK;
+static int vpu_datadump_ena;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -2800,6 +2801,36 @@ static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx,
 	vpu_dec_request_cmd(ctx, idx, cmdid, cmdnum, local_cmddata);
 }
 
+static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len, u_int32 first_flag)
+{
+	struct file *fp;
+	mm_segment_t fs;
+	loff_t pos;
+	char input_file[64];
+
+	if (!vpu_datadump_ena)
+		return;
+
+	scnprintf(input_file, sizeof(input_file) - 1,
+			"/tmp/vpu_input_data_%d.bin", ctx->str_index);
+
+	if (first_flag)
+		fp = filp_open(input_file, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	else
+		fp = filp_open(input_file, O_RDWR | O_APPEND | O_CREAT, 0644);
+	if (IS_ERR(fp)) {
+		vpu_dbg(LVL_WARN, "warning: open file(%s) fail\n", input_file);
+		return;
+	}
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+	pos = fp->f_pos;
+	vfs_write(fp, src, len, &pos);
+	fp->f_pos = pos;
+	set_fs(fs);
+	filp_close(fp, NULL);
+}
+
 static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 					void *input_buffer,
 					uint32_t buffer_size,
@@ -2837,6 +2868,7 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	}
 	vpu_dbg(LVL_INFO, "transfer data from virt 0x%p: size:%d\n",
 			ctx->stream_buffer.dma_virt, buffer_size);
+	dump_input_data_to_local(ctx, ctx->stream_buffer.dma_virt, length, 1);
 	mb();
 	pStrBufDesc = get_str_buffer_desc(ctx);
 	pStrBufDesc->wptr = ctx->stream_buffer.dma_phy;
@@ -3012,7 +3044,7 @@ static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t len
 		memcpy(wptr_virt, buffer, length);
 		wptr += length;
 	}
-
+	dump_input_data_to_local(ctx, buffer, length, 0);
 	mb();
 	update_wptr(ctx, pStrBufDesc, wptr);
 	return length;
@@ -6436,3 +6468,5 @@ module_param(vpu_show_perf_idx, int, 0644);
 MODULE_PARM_DESC(vpu_show_perf_idx, "show performance of which instance(bit N to mask instance N)");
 module_param(vpu_show_perf_ent, int, 0644);
 MODULE_PARM_DESC(vpu_show_perf_ent, "show performance of which event(1: decoded, 2: ready)");
+module_param(vpu_datadump_ena, int, 0644);
+MODULE_PARM_DESC(vpu_datadump_ena, "enable dump input frame data (0-1)");
