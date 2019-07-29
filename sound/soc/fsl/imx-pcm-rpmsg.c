@@ -239,6 +239,8 @@ static int imx_rpmsg_pcm_close(struct snd_pcm_substream *substream)
 
 	kfree(prtd);
 
+	rtd->dai_link->ignore_suspend = 0;
+
 	if (i2s_info->msg_drop_count[substream->stream])
 		dev_warn(rtd->dev, "Msg is dropped!, number is %d\n",
 			i2s_info->msg_drop_count[substream->stream]);
@@ -259,9 +261,10 @@ static int imx_rpmsg_pcm_prepare(struct snd_pcm_substream *substream)
 	if ((runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED ||
 		runtime->access == SNDRV_PCM_ACCESS_RW_NONINTERLEAVED) &&
 			rpmsg_i2s->version == 2 &&
-			rpmsg_i2s->enable_lpa)
+			rpmsg_i2s->enable_lpa) {
+		rtd->dai_link->ignore_suspend = 1;
 		rpmsg_i2s->force_lpa = 1;
-	else
+	} else
 		rpmsg_i2s->force_lpa = 0;
 
 	return 0;
