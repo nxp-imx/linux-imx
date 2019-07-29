@@ -120,14 +120,12 @@ static snd_pcm_uframes_t imx_rpmsg_pcm_pointer(
 static void imx_rpmsg_timer_callback(unsigned long data)
 {
 	struct snd_pcm_substream *substream = (struct snd_pcm_substream *)data;
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai   *cpu_dai = rtd->cpu_dai;
 	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
 	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
 	struct i2s_rpmsg     *rpmsg;
 	int index = i2s_info->work_write_index;
-	int time_msec;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		rpmsg = &i2s_info->rpmsg[I2S_TX_PERIOD_DONE + I2S_TYPE_A_NUM];
@@ -147,12 +145,6 @@ static void imx_rpmsg_timer_callback(unsigned long data)
 		i2s_info->work_write_index %= WORK_MAX_NUM;
 	} else
 		i2s_info->msg_drop_count[substream->stream]++;
-
-	if (rpmsg_i2s->force_lpa) {
-		time_msec = (int)(runtime->period_size*1000/runtime->rate);
-		mod_timer(&i2s_info->stream_timer[substream->stream],
-			     jiffies + msecs_to_jiffies(time_msec));
-	}
 }
 
 static int imx_rpmsg_pcm_open(struct snd_pcm_substream *substream)
@@ -286,27 +278,7 @@ static int imx_rpmsg_pcm_mmap(struct snd_pcm_substream *substream,
 static void imx_rpmsg_pcm_dma_complete(void *arg)
 {
 	struct snd_pcm_substream *substream = arg;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_dai   *cpu_dai = rtd->cpu_dai;
-	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
-	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
 
-	/*
-	 * With suspend state, which is not running state, M4 will trigger
-	 * system resume with PERIOD_DONE command, at this moment, the
-	 * snd_pcm_period_elapsed can't update the hw ptr. so change the
-	 * state to be running and update timer
-	 *
-	 */
-	if (!snd_pcm_running(substream) && rpmsg_i2s->force_lpa) {
-		int time_msec;
-
-		substream->runtime->status->state = SNDRV_PCM_STATE_RUNNING;
-		time_msec = (int)(runtime->period_size*1000/runtime->rate);
-		mod_timer(&i2s_info->stream_timer[substream->stream],
-		     jiffies + msecs_to_jiffies(time_msec));
-	}
 	snd_pcm_period_elapsed(substream);
 }
 
@@ -355,14 +327,12 @@ static int imx_rpmsg_pcm_prepare_and_submit(struct snd_pcm_substream *substream)
 
 static int imx_rpmsg_async_issue_pending(struct snd_pcm_substream *substream)
 {
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai   *cpu_dai = rtd->cpu_dai;
 	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
 	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
 	struct i2s_rpmsg     *rpmsg;
 	int index = i2s_info->work_write_index;
-	int time_msec;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		rpmsg = &i2s_info->rpmsg[I2S_TX_START];
@@ -382,12 +352,6 @@ static int imx_rpmsg_async_issue_pending(struct snd_pcm_substream *substream)
 		i2s_info->work_write_index %= WORK_MAX_NUM;
 	} else
 		return -EPIPE;
-
-	if (rpmsg_i2s->force_lpa) {
-		time_msec = (int)(runtime->period_size*1000/runtime->rate);
-		mod_timer(&i2s_info->stream_timer[substream->stream],
-			    jiffies + msecs_to_jiffies(time_msec));
-	}
 
 	return 0;
 }
@@ -506,7 +470,6 @@ int imx_rpmsg_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai     *cpu_dai = rtd->cpu_dai;
 	struct fsl_rpmsg_i2s   *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
-	struct i2s_info        *i2s_info =  &rpmsg_i2s->i2s_info;
 	int ret = 0;
 
 	switch (cmd) {
@@ -517,14 +480,8 @@ int imx_rpmsg_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		ret = imx_rpmsg_async_issue_pending(substream);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
-		if (rpmsg_i2s->force_lpa) {
-			int time_msec;
-
-			time_msec = (int)(runtime->period_size*1000/runtime->rate);
-			mod_timer(&i2s_info->stream_timer[substream->stream],
-			     jiffies + msecs_to_jiffies(time_msec));
+		if (rpmsg_i2s->force_lpa)
 			break;
-		}
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		ret = imx_rpmsg_restart(substream);
 		break;
@@ -534,8 +491,7 @@ int imx_rpmsg_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 				ret = imx_rpmsg_pause(substream);
 			else
 				ret = imx_rpmsg_terminate_all(substream);
-		} else
-			del_timer(&i2s_info->stream_timer[substream->stream]);
+		}
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		ret = imx_rpmsg_pause(substream);
@@ -601,8 +557,7 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 		else
 			avail = snd_pcm_capture_hw_avail(runtime);
 
-		if ((avail - writen_num * runtime->period_size)
-					<= runtime->period_size) {
+		if ((avail - writen_num * runtime->period_size) <= runtime->period_size) {
 			if (i2s_info->work_write_index != i2s_info->work_read_index) {
 				memcpy(&i2s_info->work_list[index].msg, rpmsg,
 					sizeof(struct i2s_rpmsg_s));
@@ -612,6 +567,13 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 				i2s_info->work_write_index %= WORK_MAX_NUM;
 			} else
 				i2s_info->msg_drop_count[substream->stream]++;
+		} else {
+			if (rpmsg_i2s->force_lpa && !timer_pending(&i2s_info->stream_timer[substream->stream])) {
+				int time_msec;
+				time_msec = (int)(runtime->period_size*1000/runtime->rate);
+				mod_timer(&i2s_info->stream_timer[substream->stream],
+					     jiffies + msecs_to_jiffies(time_msec));
+			}
 		}
 	}
 
