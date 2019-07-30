@@ -629,6 +629,13 @@ static struct vpu_v4l2_fmt  formats_compressed_dec[] = {
 		.disable    = 0,
 	},
 	{
+		.name       = "Xvid Encoded Stream",
+		.fourcc     = V4L2_PIX_FMT_XVID,
+		.num_planes = 1,
+		.vdec_std   = VPU_VIDEO_ASP,
+		.disable    = 0,
+	},
+	{
 		.name       = "Logo",
 		.fourcc     = VPU_PIX_FMT_LOGO,
 		.num_planes = 1,
