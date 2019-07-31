@@ -80,7 +80,8 @@ static const struct ci_hdrc_imx_platform_flag imx6ul_usb_data = {
 };
 
 static const struct ci_hdrc_imx_platform_flag imx7d_usb_data = {
-	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_HOST_SUSP_PHY_LPM,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx7ulp_usb_data = {
@@ -90,6 +91,10 @@ static const struct ci_hdrc_imx_platform_flag imx7ulp_usb_data = {
 };
 
 static const struct ci_hdrc_imx_platform_flag imx8qm_usb_data = {
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+};
+
+static const struct ci_hdrc_imx_platform_flag imx8mm_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
 };
 
@@ -104,6 +109,7 @@ static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-usb", .data = &imx7d_usb_data},
 	{ .compatible = "fsl,imx7ulp-usb", .data = &imx7ulp_usb_data},
 	{ .compatible = "fsl,imx8qm-usb", .data = &imx8qm_usb_data},
+	{ .compatible = "fsl,imx8mm-usb", .data = &imx8mm_usb_data},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, ci_hdrc_imx_dt_ids);
