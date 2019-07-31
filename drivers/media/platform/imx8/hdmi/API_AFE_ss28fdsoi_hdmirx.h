@@ -108,7 +108,10 @@
 #define RX_DIAG_SC2C_DELAY_ADDR                0x81E1
 #define RX_DIAG_SMPLR_OSR_ADDR                 0x81E2
 #define RX_CLK_SLICER_CAL_OVRD_ADDR            0x8621
+#define RX_CLK_SLICER_CAL_TUNE_ADDR            0x8623
 #define RX_CLK_SLICER_CAL_INIT_TMR_ADDR        0x8624
+#define RX_CLK_SLICER_CAL_ITER_TMR_ADDR        0x8625
+#define RX_CLK_TERM_CTRL_ADDR                  0x8660
 #define PHY_MODE_CTL_ADDR                      0xC008
 #define PHY_PMA_CMN_CTRL1_ADDR                 0xC800
 #define PHY_PMA_CMN_CTRL2_ADDR                 0xC801
@@ -133,6 +136,7 @@ void arc_config(state_struct *state);
 void pma_config(state_struct *state);
 int pma_cmn_ready(state_struct *state);
 int pma_rx_clk_signal_detect(state_struct *state);
+int gsc(state_struct *state);
 int pma_rx_clk_freq_detect(state_struct *state);
 void pre_data_rate_change(state_struct *state);
 int pma_pll_config(state_struct *state, u32, clk_ratio_t, tmds_bit_clock_ratio_t, unsigned char);
