@@ -201,7 +201,7 @@ static int ci_imx_ehci_hub_control(
 {
 	struct ehci_hcd	*ehci = hcd_to_ehci(hcd);
 	u32 __iomem	*status_reg;
-	u32		temp;
+	u32		temp, suspend_line_state;
 	unsigned long	flags;
 	int		retval = 0;
 	struct device *dev = hcd->self.controller;
@@ -229,6 +229,16 @@ static int ci_imx_ehci_hub_control(
 		if (ehci_handshake(ehci, status_reg, PORT_SUSPEND,
 						PORT_SUSPEND, 5000))
 			ehci_err(ehci, "timeout waiting for SUSPEND\n");
+
+		if (ci->platdata->flags & CI_HDRC_HOST_SUSP_PHY_LPM) {
+			if (PORT_SPEED_LOW(temp))
+				suspend_line_state = PORTSC_LS_K;
+			else
+				suspend_line_state = PORTSC_LS_J;
+			if (!ehci_handshake(ehci, status_reg, PORTSC_LS,
+					   suspend_line_state, 5000))
+				ci_hdrc_enter_lpm(ci, true);
+		}
 
 		if (ci->platdata->flags & CI_HDRC_IMX_IS_HSIC) {
 			if (ci->platdata->notify_event)

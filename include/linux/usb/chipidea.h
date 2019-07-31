@@ -66,6 +66,8 @@ struct ci_hdrc_platform_data {
 #define CI_HDRC_PMQOS			BIT(16)
 /* Using PHY's charger detection */
 #define CI_HDRC_PHY_CHARGER_DETECTION	BIT(17)
+/* PHY enter low power mode when bus suspend */
+#define CI_HDRC_HOST_SUSP_PHY_LPM	BIT(18)
 	enum usb_dr_mode	dr_mode;
 #define CI_HDRC_CONTROLLER_RESET_EVENT		0
 #define CI_HDRC_CONTROLLER_STOPPED_EVENT	1
