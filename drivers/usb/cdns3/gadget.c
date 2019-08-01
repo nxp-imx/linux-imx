@@ -1419,6 +1419,7 @@ void cdns3_gadget_ep_free_request(struct usb_ep *ep,
 		priv_req->aligned_buf->in_use = 0;
 
 	trace_cdns3_free_request(priv_req);
+	request = NULL;
 	kfree(priv_req);
 }
 
@@ -1573,11 +1574,10 @@ static int cdns3_gadget_ep_disable(struct usb_ep *ep)
 
 	while (!list_empty(&priv_ep->descmiss_req_list)) {
 		priv_req = cdns3_next_priv_request(&priv_ep->descmiss_req_list);
-
 		kfree(priv_req->request.buf);
+		list_del_init(&priv_req->list);
 		cdns3_gadget_ep_free_request(&priv_ep->endpoint,
 					     &priv_req->request);
-		list_del_init(&priv_req->list);
 	}
 
 	while (!list_empty(&priv_ep->deferred_req_list)) {
@@ -1802,6 +1802,9 @@ found:
 
 not_found:
 	spin_unlock_irqrestore(&priv_dev->lock, flags);
+	if (ep == priv_dev->gadget.ep0)
+		flush_work(&priv_dev->pending_status_wq);
+
 	return ret;
 }
 
@@ -1986,6 +1989,7 @@ static int cdns3_gadget_udc_stop(struct usb_gadget *gadget)
 	spin_lock_irqsave(&priv_dev->lock, flags);
 	priv_dev->gadget_driver = NULL;
 
+	priv_dev->status_completion_no_call = 0;
 	priv_dev->onchip_mem_allocated_size = 0;
 	priv_dev->out_mem_is_allocated = 0;
 	priv_dev->gadget.speed = USB_SPEED_UNKNOWN;
