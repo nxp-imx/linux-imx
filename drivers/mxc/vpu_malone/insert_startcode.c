@@ -456,102 +456,188 @@ u_int32 single_seq_info_format(struct queue_data *q_data)
 	return ret;
 }
 
-u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int8 *dst, u_int32 vdec_std, u_int32 uPayloadSize)
+bool check_free_size_4_seq(struct vpu_ctx *ctx, u_int32 uPayloadSize)
+{
+	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
+	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
+	u_int32 nfreespace = 0;
+	u_int32 length = 0;
+
+	switch (q_data->vdec_std) {
+	case VPU_VIDEO_VC1:
+		length = VC1_MAX_SEQ_HEADER_SIZE + 16;
+		break;
+	case  VPU_VIDEO_VP6:
+		length = uPayloadSize + 32;
+		break;
+	case VPU_VIDEO_VP8:
+		length = uPayloadSize + 72;
+		break;
+	case VPU_VIDEO_ASP:
+		length = uPayloadSize + 16;
+		break;
+	case VPU_VIDEO_SPK:
+		length = uPayloadSize + 32;
+		break;
+	case VPU_VIDEO_RV:
+		length = uPayloadSize + 16;
+		break;
+	case VPU_VIDEO_AVC:
+	case VPU_VIDEO_MPEG2:
+	case VPU_VIDEO_AVS:
+	case VPU_VIDEO_JPEG:
+	case VPU_VIDEO_AVC_MVC:
+	case VPU_VIDEO_HEVC:
+	case VPU_VIDEO_UNDEFINED:
+		length = uPayloadSize;
+		break;
+	default:
+		break;
+	}
+
+	pStrBufDesc = get_str_buffer_desc(ctx);
+	nfreespace = got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr,
+				    pStrBufDesc->start, pStrBufDesc->end);
+	if (nfreespace < (length + MIN_SPACE)) {
+		vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
+		return false;
+	}
+
+	return true;
+}
+
+u_int32 insert_scode_4_seq(struct vpu_ctx *ctx, u_int8 *src, u_int32 uPayloadSize)
 {
 	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
 	u_int32 length = 0;
 
-	switch (vdec_std) {
+	if (!check_free_size_4_seq(ctx, uPayloadSize))
+		return 0;
+
+	switch (q_data->vdec_std) {
 	case VPU_VIDEO_VC1: {
 		if (q_data->fourcc == V4L2_PIX_FMT_VC1_ANNEX_G) {
-			u_int8 Header[VC1_MAX_SEQ_HEADER_SIZE];
+			u_int8 payload_header[32] = {0};
+			u_int8 Header[VC1_MAX_SEQ_HEADER_SIZE] = {0};
 			u_int32 uWidth = q_data->width;
 			u_int32 uHeight = q_data->height; //Width & Height in the generic payload header are ignored
 			u_int32 FrameSize = 0x60;
 			u_int32 HeaderLen, NoError = 1;
+
 			//insert startcode for vc1
-			insert_payload_header_vc1(dst, SCODE_NEW_SEQUENCE, 20, uWidth, uHeight);
+			insert_payload_header_vc1(payload_header, SCODE_NEW_SEQUENCE, 20, uWidth, uHeight);
+			copy_buffer_to_stream(ctx, payload_header, 16);
 			length = 16;
 			//insert RCV sequence header for vc1 v1, length=20
 			insert_RCV_seqhdr(Header, &HeaderLen, src, FrameSize, uWidth, uHeight, &NoError);
 			HeaderLen = RCV_HEADER_LEN - 4;
-			memcpy(dst + 16, Header, HeaderLen);
+			copy_buffer_to_stream(ctx, Header, HeaderLen);
 			length += HeaderLen;
 		} else {
-			u_int8 Header[VC1_MAX_SEQ_HEADER_SIZE];
+			u_int8 Header[VC1_MAX_SEQ_HEADER_SIZE] = {0};
 			u_int32 HeaderLen;
-
 			VC1CreateNALSeqHeader(Header, &HeaderLen, src, uPayloadSize,
 					(unsigned int *)src, VC1_MAX_SEQ_HEADER_SIZE);
 			if (VC1_IS_NOT_NAL(((unsigned int *)src)[0]))
 				HeaderLen -= 4;
-			memcpy(dst, Header, HeaderLen);
+			copy_buffer_to_stream(ctx, Header, HeaderLen);
 			length += HeaderLen;
 		}
 	}
-
 	break;
 	case VPU_VIDEO_VP6: {
-		vp6_scd_sequence_header(dst, q_data->width, q_data->height);
+		u_int8 seq_header[16] = {0};
+		u_int8 frame_header[16] = {0};
+
+		vp6_scd_sequence_header(seq_header, q_data->width, q_data->height);
+		copy_buffer_to_stream(ctx, seq_header, 16);
 		length = 16;
-		vp6_scd_frame_header(dst + length, q_data->width, q_data->height, uPayloadSize);
+		vp6_scd_frame_header(frame_header, q_data->width, q_data->height, uPayloadSize);
+		copy_buffer_to_stream(ctx, frame_header, 16);
 		length += 16;
-		memcpy(dst + length, src, uPayloadSize);
+		copy_buffer_to_stream(ctx, src, uPayloadSize);
 		length += uPayloadSize;
 	}
 	break;
 	case VPU_VIDEO_VP8: {
-		u_int8 seq_header[32] = {0};
-		u_int8 frame_header[8] = {0};
+		u_int8 scd_seq_header[16] = {0};
+		u_int8 ivf_seq_header[32] = {0};
+		u_int8 scd_frame_header[16] = {0};
+		u_int8 ivf_frame_header[8] = {0};
 
-		vp8_scd_sequence_header(dst, q_data->width, q_data->height);
+		vp8_scd_sequence_header(scd_seq_header, q_data->width, q_data->height);
+		copy_buffer_to_stream(ctx, scd_seq_header, 16);
 		length = 16;
-		vp8_ivf_sequence_header(seq_header, q_data->width, q_data->height);
-		memcpy(dst+length, seq_header, 32);
+		vp8_ivf_sequence_header(ivf_seq_header, q_data->width, q_data->height);
+		copy_buffer_to_stream(ctx, ivf_seq_header, 32);
 		length += 32;
-		vp8_scd_frame_header(dst + length, q_data->width, q_data->height, uPayloadSize + 8);
+		vp8_scd_frame_header(scd_frame_header, q_data->width, q_data->height, uPayloadSize + 8);
+		copy_buffer_to_stream(ctx, scd_frame_header, 16);
 		length += 16;
-		vp8_ivf_frame_header(frame_header, uPayloadSize);
-		memcpy(dst+length, frame_header, 8);
+		vp8_ivf_frame_header(ivf_frame_header, uPayloadSize);
+		copy_buffer_to_stream(ctx, ivf_frame_header, 8);
 		length += 8;
-		memcpy(dst+length, src, uPayloadSize);
+		copy_buffer_to_stream(ctx, src, uPayloadSize);
 		length += uPayloadSize;
 	}
 	break;
 	case VPU_VIDEO_ASP: {
 		if (q_data->fourcc == VPU_PIX_FMT_DIV3) {
-			insert_payload_header_divx(dst, uPayloadSize, q_data->width, q_data->height);
+			u_int8 seq_header[16] = {0};
+
+			insert_payload_header_divx(seq_header, uPayloadSize, q_data->width, q_data->height);
+			copy_buffer_to_stream(ctx, seq_header, 16);
 			length = 16;
-			memcpy(dst+length, src, uPayloadSize);
+			copy_buffer_to_stream(ctx, src, uPayloadSize);
 			length += uPayloadSize;
+		} else {
+			copy_buffer_to_stream(ctx, src, uPayloadSize);
+			length = uPayloadSize;
 		}
 	}
 	break;
 	case VPU_VIDEO_SPK: {
+		u_int8 seq_header[16] = {0};
 		u_int8 frame_header[16] = {0};
-		insert_seq_header_spk(dst, 0, q_data->width, q_data->height);
+
+		insert_seq_header_spk(seq_header, 0, q_data->width, q_data->height);
+		copy_buffer_to_stream(ctx, seq_header, 16);
 		length = 16;
 		insert_frame_header_spk(frame_header, uPayloadSize, q_data->width, q_data->height);
-		memcpy(dst+length, frame_header, 16);
+		copy_buffer_to_stream(ctx, frame_header, 16);
 		length += 16;
-		memcpy(dst+length, src, uPayloadSize);
+		copy_buffer_to_stream(ctx, src, uPayloadSize);
 		length += uPayloadSize;
 	}
 	break;
 	case VPU_VIDEO_RV: {
+		u_int8 seq_header[16] = {0};
+
 		if (strncmp((const char *)(src+8), "RV30", 4) == 0)
 			ctx->arv_type = ARV_8;
 		else
 			ctx->arv_type = ARV_9;
 
-		insert_payload_header_arv(dst, SCODE_NEW_SEQUENCE, ctx->arv_type, uPayloadSize + 12, q_data->width, q_data->height);
+		insert_payload_header_arv(seq_header, SCODE_NEW_SEQUENCE, ctx->arv_type, uPayloadSize + 12, q_data->width, q_data->height);
+		copy_buffer_to_stream(ctx, seq_header, 16);
 		length = 16;
-		memcpy(dst+length, src, uPayloadSize);
+		copy_buffer_to_stream(ctx, src, uPayloadSize);
 		length += uPayloadSize;
 	}
 	break;
-	default:
+	case VPU_VIDEO_AVC:
+	case VPU_VIDEO_MPEG2:
+	case VPU_VIDEO_AVS:
+	case VPU_VIDEO_JPEG:
+	case VPU_VIDEO_AVC_MVC:
+	case VPU_VIDEO_HEVC:
+	case VPU_VIDEO_UNDEFINED: {
+		copy_buffer_to_stream(ctx, src, uPayloadSize);
+		length = uPayloadSize;
+	}
 	break;
+	default:
+		break;
 	}
 	return length;
 }
