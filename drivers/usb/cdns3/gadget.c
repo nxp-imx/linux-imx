@@ -1053,7 +1053,9 @@ static void cdns3_check_usb_interrupt_proceed(struct cdns3_device *priv_dev,
 	/* reset*/
 	if (usb_ists & (USB_ISTS_UWRESI | USB_ISTS_UHRESI | USB_ISTS_U2RESI)) {
 		if (priv_dev->gadget_driver &&
-		    priv_dev->gadget_driver->reset) {
+		    priv_dev->gadget_driver->reset &&
+			priv_dev->gadget.state ==
+				USB_STATE_CONFIGURED) {
 			spin_unlock(&priv_dev->lock);
 			priv_dev->gadget_driver->reset(&priv_dev->gadget);
 			spin_lock(&priv_dev->lock);
