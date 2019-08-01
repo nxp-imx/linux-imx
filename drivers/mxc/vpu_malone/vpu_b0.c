@@ -95,6 +95,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx);
 static int send_stop_cmd(struct vpu_ctx *ctx);
 static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
 static void vpu_dec_event_decode_error(struct vpu_ctx *ctx);
+static void vpu_show_performance(struct vpu_ctx *ctx, u_int32 uEvent);
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -2957,6 +2958,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		if (vb->planes[0].bytesused < vb->planes[0].length)
 			vpu_dbg(LVL_INFO, "v4l2_transfer_buffer_to_firmware - set stream_feed_complete - DEBUG 1\n");
 #endif
+		vpu_show_performance(ctx, 0xff);
 		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_START, 0, NULL);
 		p_data_req = list_first_entry(&This->drv_q,
 				typeof(*p_data_req), list);
@@ -3975,13 +3977,24 @@ static void vpu_show_performance(struct vpu_ctx *ctx,  u_int32 uEvent)
 	do_gettimeofday(&tv);
 	Time = ((tv.tv_sec * 1000000ULL) + tv.tv_usec) / 1000ULL;
 
-	if (!ctx->frame_decoded) {
+	if (ctx->start_flag) {
 		ctx->start_time = Time;
 		ctx->last_decoded_time = Time;
 		ctx->last_ready_time = Time;
+		return;
 	}
 
 	switch (uEvent) {
+	case VID_API_EVENT_START_DONE:
+		interv = Time - ctx->start_time;
+		vpu_dbg(LVL_WARN, "[%2d] start interv: %8ld ms\n",
+			ctx->str_index, interv);
+		break;
+	case VID_API_EVENT_SEQ_HDR_FOUND:
+		interv = Time - ctx->start_time;
+		vpu_dbg(LVL_WARN, "[%2d] seq interv:   %8ld ms\n",
+			ctx->str_index, interv);
+		break;
 	case VID_API_EVENT_STOPPED:
 		total_Time = Time - ctx->start_time;
 		ave_fps = ctx->statistic.event[VID_API_EVENT_PIC_DECODED] / (total_Time / 1000ULL);
@@ -4056,6 +4069,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_stopped = false;
 		ctx->firmware_finished = false;
 		ctx->req_frame_count = 0;
+		vpu_show_performance(ctx, uEvent);
 		break;
 	case VID_API_EVENT_STOPPED: {
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_STOPPED\n");
@@ -4182,6 +4196,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (ctx->wait_res_change_done)
 			vpu_dbg(LVL_WARN, "warning: ctx[%d] update seq info when waiting res change\n",
 				ctx->str_index);
+		vpu_show_performance(ctx, uEvent);
 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
