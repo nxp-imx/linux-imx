@@ -61,6 +61,7 @@
 #define PMC_VLLS		0x1c
 #define PMC_STATUS		0x20
 #define PMC_CTRL		0x24
+#define PMC0_CTRL		0x28
 #define PMC_SRAMCTRL_0		0x28
 #define PMC_SRAMCTRL_1		0x2c
 #define PMC_SRAMCTRL_2		0x30
@@ -406,7 +407,7 @@ int imx7ulp_set_lpm(enum imx7ulp_cpu_pwr_mode mode)
 {
 	u32 val1 = BM_PMPROT_AHSRUN | BM_PMPROT_AVLP | BM_PMPROT_AVLLS;
 	u32 val2 = readl_relaxed(smc1_base + PMCTRL);
-	u32 val3 = readl_relaxed(pmc0_base + PMC_CTRL);
+	u32 val3 = readl_relaxed(pmc0_base + PMC0_CTRL);
 
 	val2 &= ~(BM_PMCTRL_RUNM |
 		BM_PMCTRL_STOPM | BM_PMCTRL_PSTOPO);
@@ -437,7 +438,7 @@ int imx7ulp_set_lpm(enum imx7ulp_cpu_pwr_mode mode)
 
 	writel_relaxed(val1, smc1_base + PMPROT);
 	writel_relaxed(val2, smc1_base + PMCTRL);
-	writel_relaxed(val3, pmc0_base + PMC_CTRL);
+	writel_relaxed(val3, pmc0_base + PMC0_CTRL);
 
 	return 0;
 }
