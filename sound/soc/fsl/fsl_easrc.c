@@ -43,6 +43,7 @@ extern struct snd_soc_platform_driver fsl_easrc_platform;
 				 SNDRV_PCM_FMTBIT_U32_LE | \
 				 SNDRV_PCM_FMTBIT_S20_3LE | \
 				 SNDRV_PCM_FMTBIT_U20_3LE | \
+				 SNDRV_PCM_FMTBIT_FLOAT_LE | \
 				 SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
 
 static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
@@ -321,14 +322,62 @@ static int fsl_easrc_resampler_config(struct fsl_easrc *easrc)
 	return 0;
 }
 
+/*****************************************************************************
+ *  Scale filter coefficients (64 bits float)
+ *  For input float32 normalized range (1.0,-1.0) -> output int[16,24,32]:
+ *      scale it by multiplying filter coefficients by 2^31
+ *  For input int[16, 24, 32] -> output float32
+ *      scale it by multiplying filter coefficients by 2^-15, 2^-23, 2^-31
+ *  input:
+ *      easrc:  Structure pointer of fsl_easrc
+ *      filterIn : Pointer to non-scaled input filter
+ *      shift:  The multiply factor
+ *  output:
+ *      filterOut: scaled filter
+ *****************************************************************************/
+static int NormalizedFilterForFloat32InIntOut(struct fsl_easrc *easrc,
+					      uint64_t *filterIn,
+					      uint64_t *filterOut,
+					      int shift)
+{
+	struct device *dev = &easrc->pdev->dev;
+	uint64_t coef = *filterIn;
+	int64_t exp  = (coef & 0x7ff0000000000000ll) >> 52;
+	uint64_t coefOut;
+
+	/*
+	 * If exponent is zero (value == 0), or 7ff (value == NaNs)
+	 * dont touch the content
+	 */
+	if (((coef & 0x7ff0000000000000ll) == 0) ||
+	    ((coef & 0x7ff0000000000000ll) == ((uint64_t)0x7ff << 52))) {
+		*filterOut = coef;
+	} else {
+		if ((shift > 0 && (shift + exp) >= 2047) ||
+		    (shift < 0 && (exp + shift) <= 0)) {
+			dev_err(dev, "coef error\n");
+			return -EINVAL;
+		}
+
+		/* coefficient * 2^shift ==>  coefficient_exp + shift */
+		exp += shift;
+		coefOut = (uint64_t)(coef & 0x800FFFFFFFFFFFFFll) +
+					((uint64_t)exp << 52);
+		*filterOut = coefOut;
+	}
+
+	return 0;
+}
+
 static int write_pf_coeff_mem(struct fsl_easrc *easrc, int ctx_id,
-			      u64 *arr, int n_taps)
+			      u64 *arr, int n_taps, int shift)
 {
 	struct device *dev = &easrc->pdev->dev;
 	int ret = 0;
 	int i;
 	u32 *r;
 	u32 r0, r1;
+	u64 tmp;
 
 	/* If STx_NUM_TAPS is set to 0x0 then return */
 	if (!n_taps)
@@ -347,7 +396,15 @@ static int write_pf_coeff_mem(struct fsl_easrc *easrc, int ctx_id,
 		return ret;
 
 	for (i = 0; i < (n_taps + 1) / 2; i++) {
-		r = (uint32_t *)&arr[i];
+		ret = NormalizedFilterForFloat32InIntOut(easrc,
+						   &arr[i],
+						   &tmp,
+						   shift);
+		if (ret)
+			return ret;
+
+		r = (uint32_t *)&tmp;
+
 		r0 = r[0] & EASRC_32b_MASK;
 		r1 = r[1] & EASRC_32b_MASK;
 
@@ -375,6 +432,7 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 	struct device *dev;
 	u32 inrate, outrate, offset = 0;
 	int ret, i;
+	u64 coeff = 0x3FF0000000000000; /* Used by float->int */
 
 	/* to modify prefilter coeficients, the user must perform
 	 * a write in ASRC_PRE_COEFF_FIFO[COEFF_DATA] while the
@@ -412,24 +470,6 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 	 * When out_rate >= in_rate, pf will be in bypass mode
 	 */
 	if (ctx->out_params.sample_rate >= ctx->in_params.sample_rate) {
-		/* set pf in bypass mode */
-		ret = regmap_update_bits(easrc->regmap,
-					 REG_EASRC_CCE1(ctx_id),
-					 EASRC_CCE1_PF_BYPASS_MASK,
-					 EASRC_CCE1_PF_BYPASS);
-		if (ret)
-			return ret;
-
-		/* PF_EXPANSION_FACTOR must be set to 0x0 when
-		 * operating in bypass mode
-		 */
-		ret = regmap_update_bits(easrc->regmap,
-					 REG_EASRC_CCE1(ctx_id),
-					 EASRC_CCE1_PF_EXP_MASK,
-					 EASRC_CCE1_PF_EXP(0));
-		if (ret)
-			return ret;
-
 		if (ctx->out_params.sample_rate == ctx->in_params.sample_rate) {
 			ret = regmap_update_bits(easrc->regmap,
 						 REG_EASRC_CCE1(ctx_id),
@@ -439,48 +479,97 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 				return ret;
 		}
 
-		return 0;
-	}
+		if (ctx->in_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE &&
+		    ctx->out_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE) {
+			ctx->st1_num_taps = 1;
+			ctx->st1_coeff    = &coeff;
+			ctx->st1_num_exp  = 1;
+			ctx->st2_num_taps = 0;
+			ctx->st1_addexp = 31;
+		} else if (ctx->in_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE &&
+			   ctx->out_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE) {
+			ctx->st1_num_taps = 1;
+			ctx->st1_coeff    = &coeff;
+			ctx->st1_num_exp  = 1;
+			ctx->st2_num_taps = 0;
+			ctx->st1_addexp -= ctx->in_params.fmt.addexp;
+		} else {
+			/* set pf in bypass mode */
+			ret = regmap_update_bits(easrc->regmap,
+						 REG_EASRC_CCE1(ctx_id),
+						 EASRC_CCE1_PF_BYPASS_MASK,
+						 EASRC_CCE1_PF_BYPASS);
+			if (ret)
+				return ret;
 
-	inrate = ctx->in_params.norm_rate;
-	outrate = ctx->out_params.norm_rate;
+			/* PF_EXPANSION_FACTOR must be set to 0x0 when
+			 * operating in bypass mode
+			 */
+			ret = regmap_update_bits(easrc->regmap,
+						 REG_EASRC_CCE1(ctx_id),
+						 EASRC_CCE1_PF_EXP_MASK,
+						 EASRC_CCE1_PF_EXP(0));
+			if (ret)
+				return ret;
 
-	hdr = easrc->firmware_hdr;
-	prefil = easrc->prefil;
+			return 0;
+		}
 
-	for (i = 0; i < hdr->prefil_scen; i++) {
-		if (inrate == prefil[i].insr && outrate == prefil[i].outsr) {
-			selected_prefil = &prefil[i];
-			dev_dbg(dev, "Selected prefilter: %u insr, %u outsr, %u st1_taps, %u st2_taps\n",
-				selected_prefil->insr,
-				selected_prefil->outsr,
-				selected_prefil->st1_taps,
-				selected_prefil->st2_taps);
-			break;
+	} else {
+		inrate = ctx->in_params.norm_rate;
+		outrate = ctx->out_params.norm_rate;
+
+		hdr = easrc->firmware_hdr;
+		prefil = easrc->prefil;
+
+		for (i = 0; i < hdr->prefil_scen; i++) {
+			if (inrate == prefil[i].insr && outrate == prefil[i].outsr) {
+				selected_prefil = &prefil[i];
+				dev_dbg(dev, "Selected prefilter: %u insr, %u outsr, %u st1_taps, %u st2_taps\n",
+					selected_prefil->insr,
+					selected_prefil->outsr,
+					selected_prefil->st1_taps,
+					selected_prefil->st2_taps);
+				break;
+			}
+		}
+
+		if (!selected_prefil) {
+			dev_err(dev, "Conversion from in ratio %u(%u) to out ratio %u(%u) is not supported\n",
+				ctx->in_params.sample_rate,
+				inrate,
+				ctx->out_params.sample_rate, outrate);
+			return -EINVAL;
+		}
+
+		/* in prefilter coeff array, first st1_num_taps represent the
+		 * stage1 prefilter coefficients followed by next st2_num_taps
+		 * representing stage 2 coefficients
+		 */
+		ctx->st1_num_taps = selected_prefil->st1_taps;
+		ctx->st1_coeff    = selected_prefil->coeff;
+		ctx->st1_num_exp  = selected_prefil->st1_exp;
+
+		offset = ((selected_prefil->st1_taps + 1) / 2) *
+				sizeof(selected_prefil->coeff[0]);
+		ctx->st2_num_taps = selected_prefil->st2_taps;
+		ctx->st2_coeff    = (uint64_t *)((uint64_t)selected_prefil->coeff + offset);
+
+		if (ctx->in_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE &&
+		    ctx->out_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE) {
+			/* only change stage2 coefficient for 2 stage case */
+			if (ctx->st2_num_taps > 0)
+				ctx->st2_addexp = 31;
+			else
+				ctx->st1_addexp = 31;
+		} else if (ctx->in_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE &&
+			   ctx->out_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE) {
+			if (ctx->st2_num_taps > 0)
+				ctx->st2_addexp -= ctx->in_params.fmt.addexp;
+			else
+				ctx->st1_addexp -= ctx->in_params.fmt.addexp;
 		}
 	}
-
-	if (!selected_prefil) {
-		dev_err(dev, "Conversion from in ratio %u(%u) to out ratio %u(%u) is not supported\n",
-			ctx->in_params.sample_rate,
-			inrate,
-			ctx->out_params.sample_rate, outrate);
-		return -EINVAL;
-	}
-
-	/* in prefilter coeff array, first st1_num_taps represent the
-	 * stage1 prefilter coefficients followed by next st2_num_taps
-	 * representing stage 2 coefficients
-	 */
-	ctx->st1_num_taps = selected_prefil->st1_taps;
-	ctx->st1_coeff    = selected_prefil->coeff;
-	ctx->st1_num_exp  = selected_prefil->st1_exp;
-
-	offset = ((selected_prefil->st1_taps + 1) / 2) *
-			sizeof(selected_prefil->coeff[0]);
-	ctx->st2_num_taps = selected_prefil->st2_taps;
-	ctx->st2_coeff    = (uint64_t *)((uint64_t)selected_prefil->coeff +
-								offset);
 
 	ctx->in_filled_sample += (ctx->st1_num_taps / 2) * ctx->st1_num_exp +
 				  ctx->st2_num_taps / 2;
@@ -525,7 +614,9 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 		goto ctx_error;
 
 	ret = write_pf_coeff_mem(easrc, ctx_id,
-				 ctx->st1_coeff, ctx->st1_num_taps);
+				 ctx->st1_coeff,
+				 ctx->st1_num_taps,
+				 ctx->st1_addexp);
 	if (ret)
 		goto ctx_error;
 
@@ -541,6 +632,16 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 					 REG_EASRC_CCE1(ctx_id),
 					 EASRC_CCE1_PF_TSEN_MASK,
 					 EASRC_CCE1_PF_TSEN);
+		if (ret)
+			goto ctx_error;
+		/*
+		 * Enable prefilter stage1 writeback floating point
+		 * which is used for FLOAT_LE case
+		 */
+		ret = regmap_update_bits(easrc->regmap,
+					 REG_EASRC_CCE1(ctx_id),
+					 EASRC_CCE1_PF_ST1_WBFP_MASK,
+					 EASRC_CCE1_PF_ST1_WBFP);
 		if (ret)
 			goto ctx_error;
 
@@ -568,7 +669,9 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 			goto ctx_error;
 
 		ret = write_pf_coeff_mem(easrc, ctx_id,
-					 ctx->st2_coeff, ctx->st2_num_taps);
+					 ctx->st2_coeff,
+					 ctx->st2_num_taps,
+					 ctx->st2_addexp);
 		if (ret)
 			goto ctx_error;
 	}
@@ -1166,15 +1269,19 @@ static int fsl_easrc_process_format(struct fsl_easrc *easrc,
 	switch (snd_pcm_format_width(raw_fmt)) {
 	case 16:
 		fmt->width = EASRC_WIDTH_16_BIT;
+		fmt->addexp = 15;
 		break;
 	case 20:
 		fmt->width = EASRC_WIDTH_20_BIT;
+		fmt->addexp = 19;
 		break;
 	case 24:
 		fmt->width = EASRC_WIDTH_24_BIT;
+		fmt->addexp = 23;
 		break;
 	case 32:
 		fmt->width = EASRC_WIDTH_32_BIT;
+		fmt->addexp = 31;
 		break;
 	default:
 		return -EINVAL;
@@ -1185,12 +1292,16 @@ static int fsl_easrc_process_format(struct fsl_easrc *easrc,
 		fmt->width = easrc->bps_iec958;
 		fmt->iec958 = 1;
 		fmt->floating_point = 0;
-		if (fmt->width == EASRC_WIDTH_16_BIT)
+		if (fmt->width == EASRC_WIDTH_16_BIT) {
 			fmt->sample_pos = 12;
-		else if (fmt->width == EASRC_WIDTH_20_BIT)
+			fmt->addexp = 15;
+		} else if (fmt->width == EASRC_WIDTH_20_BIT) {
 			fmt->sample_pos = 8;
-		else if (fmt->width == EASRC_WIDTH_24_BIT)
+			fmt->addexp = 19;
+		} else if (fmt->width == EASRC_WIDTH_24_BIT) {
 			fmt->sample_pos = 4;
+			fmt->addexp = 23;
+		}
 		break;
 	default:
 		break;
@@ -1625,12 +1736,6 @@ static int fsl_easrc_hw_params(struct snd_pcm_substream *substream,
 	ctx->in_params.fifo_wtmk  = 0x20;
 	ctx->out_params.fifo_wtmk = 0x20;
 
-	ret = fsl_easrc_config_context(easrc, ctx->index);
-	if (ret) {
-		dev_err(dev, "failed to config context\n");
-		return ret;
-	}
-
 	/* do only rate conversion and keep the same format for input
 	 * and output data
 	 */
@@ -1639,6 +1744,12 @@ static int fsl_easrc_hw_params(struct snd_pcm_substream *substream,
 				       &ctx->out_params.sample_format);
 	if (ret) {
 		dev_err(dev, "failed to set format %d", ret);
+		return ret;
+	}
+
+	ret = fsl_easrc_config_context(easrc, ctx->index);
+	if (ret) {
+		dev_err(dev, "failed to config context\n");
 		return ret;
 	}
 
@@ -2313,15 +2424,17 @@ static int fsl_easrc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (width != 16 && width != 24) {
+	if (width != 16 && width != 24 && width != 32 && width != 20) {
 		dev_warn(&pdev->dev, "unsupported width, switching to 24bit\n");
 		width = 24;
 	}
 
 	if (width == 24)
 		easrc->easrc_format = SNDRV_PCM_FORMAT_S24_LE;
-	else
+	else if (width == 16)
 		easrc->easrc_format = SNDRV_PCM_FORMAT_S16_LE;
+	else
+		easrc->easrc_format = SNDRV_PCM_FORMAT_S32_LE;
 
 	platform_set_drvdata(pdev, easrc);
 	pm_runtime_enable(&pdev->dev);
@@ -2435,13 +2548,17 @@ static int fsl_easrc_runtime_resume(struct device *dev)
 					% ctx->in_params.sample_rate != 0)
 				ctx->out_missed_sample += 1;
 
-			ret = write_pf_coeff_mem(easrc, i, ctx->st1_coeff,
-						 ctx->st1_num_taps);
+			ret = write_pf_coeff_mem(easrc, i,
+						 ctx->st1_coeff,
+						 ctx->st1_num_taps,
+						 ctx->st1_addexp);
 			if (ret)
 				goto disable_mem_clk;
 
-			ret = write_pf_coeff_mem(easrc, i, ctx->st2_coeff,
-						 ctx->st2_num_taps);
+			ret = write_pf_coeff_mem(easrc, i,
+						 ctx->st2_coeff,
+						 ctx->st2_num_taps,
+						 ctx->st2_addexp);
 			if (ret)
 				goto disable_mem_clk;
 		}

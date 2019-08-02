@@ -827,7 +827,7 @@ int dpu_format_plane_height(int height, u32 format, int plane)
 		_dpu_##unit##_init(dpu, us->ids[i]);			\
 }
 
-static int
+static int __maybe_unused
 _dpu_submodules_init(struct dpu_soc *dpu, struct platform_device *pdev)
 {
 	const struct dpu_devtype *devtype = dpu->devtype;

@@ -587,6 +587,7 @@ struct fsl_easrc_data_fmt {
 	unsigned int floating_point : 1;
 	unsigned int iec958: 1;
 	unsigned int sample_pos: 5;
+	unsigned int addexp;
 };
 
 struct fsl_easrc_io_params {
@@ -629,6 +630,8 @@ struct fsl_easrc_context {
 	u64 *st2_coeff;
 	int in_filled_sample;
 	int out_missed_sample;
+	int st1_addexp;
+	int st2_addexp;
 	void *private_data;
 };
 

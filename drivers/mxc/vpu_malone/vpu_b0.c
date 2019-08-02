@@ -59,6 +59,7 @@ static int vpu_log_depth = DEFAULT_LOG_DEPTH;
 static int vpu_max_bufsize = MAX_BUFFER_SIZE;
 static int vpu_frmdbg_ena = DEFAULT_FRMDBG_ENABLE;
 static int vpu_frmdbg_level = DEFAULT_FRMDBG_LEVEL;
+static int vpu_frmdbg_raw = 1;
 static int vpu_dbe_num = 1;
 static int vpu_frmcrcdump_ena;
 static int stream_buffer_threshold = 0x10000;
@@ -95,6 +96,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx);
 static int send_stop_cmd(struct vpu_ctx *ctx);
 static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
 static void vpu_dec_event_decode_error(struct vpu_ctx *ctx);
+static void vpu_show_performance(struct vpu_ctx *ctx, u_int32 uEvent);
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -626,6 +628,13 @@ static struct vpu_v4l2_fmt  formats_compressed_dec[] = {
 		.fourcc     = VPU_PIX_FMT_HEVC,
 		.num_planes = 1,
 		.vdec_std   = VPU_VIDEO_HEVC,
+		.disable    = 0,
+	},
+	{
+		.name       = "Xvid Encoded Stream",
+		.fourcc     = V4L2_PIX_FMT_XVID,
+		.num_planes = 1,
+		.vdec_std   = VPU_VIDEO_ASP,
 		.disable    = 0,
 	},
 	{
@@ -2950,6 +2959,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		if (vb->planes[0].bytesused < vb->planes[0].length)
 			vpu_dbg(LVL_INFO, "v4l2_transfer_buffer_to_firmware - set stream_feed_complete - DEBUG 1\n");
 #endif
+		vpu_show_performance(ctx, 0xff);
 		v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_START, 0, NULL);
 		p_data_req = list_first_entry(&This->drv_q,
 				typeof(*p_data_req), list);
@@ -3968,13 +3978,24 @@ static void vpu_show_performance(struct vpu_ctx *ctx,  u_int32 uEvent)
 	do_gettimeofday(&tv);
 	Time = ((tv.tv_sec * 1000000ULL) + tv.tv_usec) / 1000ULL;
 
-	if (!ctx->frame_decoded) {
+	if (ctx->start_flag) {
 		ctx->start_time = Time;
 		ctx->last_decoded_time = Time;
 		ctx->last_ready_time = Time;
+		return;
 	}
 
 	switch (uEvent) {
+	case VID_API_EVENT_START_DONE:
+		interv = Time - ctx->start_time;
+		vpu_dbg(LVL_WARN, "[%2d] start interv: %8ld ms\n",
+			ctx->str_index, interv);
+		break;
+	case VID_API_EVENT_SEQ_HDR_FOUND:
+		interv = Time - ctx->start_time;
+		vpu_dbg(LVL_WARN, "[%2d] seq interv:   %8ld ms\n",
+			ctx->str_index, interv);
+		break;
 	case VID_API_EVENT_STOPPED:
 		total_Time = Time - ctx->start_time;
 		ave_fps = ctx->statistic.event[VID_API_EVENT_PIC_DECODED] / (total_Time / 1000ULL);
@@ -4049,6 +4070,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_stopped = false;
 		ctx->firmware_finished = false;
 		ctx->req_frame_count = 0;
+		vpu_show_performance(ctx, uEvent);
 		break;
 	case VID_API_EVENT_STOPPED: {
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_STOPPED\n");
@@ -4175,6 +4197,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (ctx->wait_res_change_done)
 			vpu_dbg(LVL_WARN, "warning: ctx[%d] update seq info when waiting res change\n",
 				ctx->str_index);
+		vpu_show_performance(ctx, uEvent);
 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
@@ -4964,27 +4987,42 @@ static int vpu_firmware_download(struct vpu_dev *This)
 
 static int dbglog_show(struct seq_file *s, void *data)
 {
-#define DBG_UNIT_SIZE (7)
-
-	struct vpu_ctx *ctx = (struct vpu_ctx *)s->private;
+#define DBG_UNIT_SIZE		(7)
+	struct vpu_dev *dev = s->private;
 	u_int32 *pbuf;
-	u_int32 i, line;
-#if 0
-	seq_printf(s, "dbg log buffer:\n");
-#endif
-	pbuf = (u_int32 *)ctx->dev->shared_mem.dbglog_mem_vir;
-	line = (DBGLOG_SIZE) / (DBG_UNIT_SIZE * 4);
-	for (i = 0; i < line; i++) {
-#if 0
-		seq_printf(s, "[%03d]:%08X %08X %08X %08X-%08X %08X %08X\n",
-			i, pbuf[0], pbuf[1], pbuf[2], pbuf[3], pbuf[4], pbuf[5], pbuf[6]);
-#else
-		seq_printf(s, "%08x %08x %08x %08x %08x %08x %08x\n",
-				pbuf[0], pbuf[1], pbuf[2], pbuf[3], pbuf[4], pbuf[5], pbuf[6]);
-#endif
-		pbuf += 7;
+	u_int32 line;
+	int length;
+
+	pbuf = (u_int32 *)dev->shared_mem.dbglog_mem_vir;
+	line = (DBGLOG_SIZE) / (DBG_UNIT_SIZE * sizeof(u_int32));
+	if (!line)
+		return 0;
+
+	if (!vpu_frmdbg_raw) {
+		u_int32 i;
+
+		length = 9 * DBG_UNIT_SIZE * line + 1;
+		if (s->count + length >= s->size) {
+			s->count = s->size;
+			return 0;
+		}
+		for (i = 0; i < line; i++) {
+			seq_printf(s, "%08x %08x %08x %08x %08x %08x %08x\n",
+				pbuf[0], pbuf[1], pbuf[2], pbuf[3],
+				pbuf[4], pbuf[5], pbuf[6]);
+			pbuf += DBG_UNIT_SIZE;
+		}
+
+		return 0;
 	}
-	return 0;
+
+	length = DBG_UNIT_SIZE * sizeof(u_int32) * line;
+	if (s->count + length >= s->size) {
+		s->count = s->size;
+		return 0;
+	}
+
+	return seq_write(s, (void *)pbuf, length);
 }
 
 static int dbglog_open(struct inode *inode, struct file *filp)
@@ -4998,22 +5036,28 @@ static struct file_operations dbglog_fops = {
 	.read = seq_read,
 };
 
-static int create_instance_dbglog_file(struct vpu_ctx *ctx)
+static int create_dbglog_file(struct vpu_dev *dev)
 {
-	if (ctx->dev->debugfs_root == NULL)
-		ctx->dev->debugfs_root = debugfs_create_dir("vpu", NULL);
+	if (dev->debugfs_root == NULL) {
+		dev->debugfs_root = debugfs_create_dir("vpu", NULL);
+		if (!dev->debugfs_root) {
+			vpu_err("error: create debugfs_root fail\n");
+			return -EINVAL;
+		}
+	}
 
-	scnprintf(ctx->dbglog_name, sizeof(ctx->dbglog_name) - 1,
-			"instance%d",
-			ctx->str_index);
+	if (dev->debugfs_dbglog)
+		return 0;
 
-	ctx->dbglog_dir = debugfs_create_dir(ctx->dbglog_name, ctx->dev->debugfs_root);
-	if (!ctx->dbglog_dir) {
-		vpu_err("error: %s() ctx->dbglog_dir == NULL\n", __func__);
+	dev->debugfs_dbglog = debugfs_create_file("dbglog",
+			VERIFY_OCTAL_PERMISSIONS(0444),
+			dev->debugfs_root,
+			dev,
+			&dbglog_fops);
+	if (!dev->debugfs_dbglog) {
+		vpu_err("error: create debugfs_dbglog fail\n");
 		return -EINVAL;
 	}
-	debugfs_create_file("dbglog", VERIFY_OCTAL_PERMISSIONS(0444),
-		ctx->dbglog_dir, ctx, &dbglog_fops);
 
 	return 0;
 }
@@ -5489,7 +5533,6 @@ static int create_instance_file(struct vpu_ctx *ctx)
 	create_instance_command_file(ctx);
 	create_instance_event_file(ctx);
 	create_instance_buffer_file(ctx);
-	create_instance_dbglog_file(ctx);
 	create_instance_flow_file(ctx);
 	atomic64_set(&ctx->statistic.total_dma_size, 0);
 	atomic64_set(&ctx->statistic.total_alloc_size, 0);
@@ -5505,10 +5548,6 @@ static int remove_instance_file(struct vpu_ctx *ctx)
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_command);
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_event);
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_buffer);
-	if (ctx->dbglog_dir != NULL) {
-		debugfs_remove_recursive(ctx->dbglog_dir);
-		ctx->dbglog_dir = NULL;
-	}
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_flow);
 
 	return 0;
@@ -5715,6 +5754,7 @@ static int v4l2_open(struct file *filp)
 		}
 		dev->fw_is_ready = true;
 		create_fwlog_file(ctx->dev);
+		create_dbglog_file(ctx->dev);
 	}
 	mutex_unlock(&dev->dev_mutex);
 	rpc_set_stream_cfg_value(dev->shared_mem.pSharedInterface, ctx->str_index, vpu_dbe_num);
@@ -6196,6 +6236,8 @@ static int vpu_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_precheck_pattern);
 	debugfs_remove_recursive(dev->debugfs_root);
 	dev->debugfs_root = NULL;
+	dev->debugfs_dbglog = NULL;
+	dev->debugfs_fwlog = NULL;
 	destroy_workqueue(dev->workqueue);
 	if (dev->m0_p_fw_space_vir)
 		iounmap(dev->m0_p_fw_space_vir);
@@ -6446,6 +6488,8 @@ module_param(vpu_frmdbg_ena, int, 0644);
 MODULE_PARM_DESC(vpu_frmdbg_ena, "enable firmware mask instance dbg log (bit N to mask instance N)");
 module_param(vpu_frmdbg_level, int, 0644);
 MODULE_PARM_DESC(vpu_frmdbg_level, "firmware debug level (0-2)");
+module_param(vpu_frmdbg_raw, int, 0644);
+MODULE_PARM_DESC(vpu_frmdbg_raw, "dump dbglog with raw data or not");
 module_param(vpu_max_bufsize, int, 0644);
 MODULE_PARM_DESC(vpu_max_bufsize, "maximun stream buffer size");
 module_param(vpu_dbe_num, int, 0644);

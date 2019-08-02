@@ -484,36 +484,17 @@ static long fsl_easrc_ioctl_config_context(struct fsl_easrc_m2m *m2m,
 	ctx->rs_init_mode = 0x2;
 	ctx->pf_init_mode = 0x2;
 
+	ret = fsl_easrc_set_ctx_format(ctx,
+				       &ctx->in_params.sample_format,
+				       &ctx->out_params.sample_format);
+	if (ret)
+		return ret;
+
 	ret = fsl_easrc_config_context(easrc, index);
 	if (ret) {
 		dev_err(dev, "failed to config context %d\n", ret);
 		return ret;
 	}
-
-	ret = fsl_easrc_process_format(easrc, &ctx->in_params.fmt,
-				 config.input_format);
-	if (ret) {
-		dev_err(dev, "input format error %d\n", ret);
-		return ret;
-	}
-
-	ret = fsl_easrc_process_format(easrc, &ctx->out_params.fmt,
-				 config.output_format);
-	if (ret) {
-		dev_err(dev, "output format error %d\n", ret);
-		return ret;
-	}
-
-	/* FIXME - fix sample position?
-	 * if the input sample is 16-bits wide and left-justified on a
-	 * 32-bit boundary, then this register should be set to 16. If
-	 * the input sample is 16-bits wide and right-
-	 * justified on a 32-bit boundary, then this register should be
-	 * set to 0
-	 */
-	ret = fsl_easrc_set_ctx_format(ctx, NULL, NULL);
-	if (ret)
-		return ret;
 
 	ctx->in_params.iterations = 1;
 	ctx->in_params.group_len = ctx->channels;

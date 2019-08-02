@@ -281,6 +281,7 @@ struct vpu_dev {
 	struct shared_addr shared_mem;
 	struct vpu_ctx *ctx[VPU_MAX_NUM_STREAMS];
 	struct dentry *debugfs_root;
+	struct dentry *debugfs_dbglog;
 	struct dentry *debugfs_fwlog;
 
 	struct print_buf_desc *print_buf;
@@ -331,8 +332,6 @@ struct vpu_ctx {
 	char buffer_name[64];
 	struct device_attribute dev_attr_instance_flow;
 	char flow_name[64];
-	struct dentry *dbglog_dir;
-	char dbglog_name[64];
 	struct v4l2_ctrl *ctrls[V4L2_MAX_CTRLS];
 	struct v4l2_ctrl_handler ctrl_handler;
 	bool ctrl_inited;
