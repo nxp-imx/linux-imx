@@ -2820,7 +2820,7 @@ static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len
 		return;
 
 	scnprintf(input_file, sizeof(input_file) - 1,
-			"/tmp/vpu_input_data_%d.bin", ctx->str_index);
+			"/data/vpu_input_data_%d.bin", ctx->str_index);
 
 	if (ctx->first_dump_data_flag) {
 		fp = filp_open(input_file, O_RDWR | O_TRUNC | O_CREAT, 0644);
@@ -5572,9 +5572,9 @@ static int open_crc_file(struct vpu_ctx *ctx)
 		return -EINVAL;
 
 	scnprintf(crc_file, sizeof(crc_file) - 1,
-			"/home/instance%d_crc.txt",
+			"/data/instance%d_crc.txt",
 			ctx->str_index);
-	ctx->crc_fp = filp_open(crc_file, O_RDWR | O_CREAT, 0664);
+	ctx->crc_fp = filp_open(crc_file, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(ctx->crc_fp)) {
 		vpu_err("error: open crc file fail\n");
 		ret = -1;
