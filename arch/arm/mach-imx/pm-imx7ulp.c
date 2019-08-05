@@ -52,19 +52,16 @@
 #define CSRE	0x34
 #define MR	0x40
 
-#define PMC_HSRUN		0x4
-#define PMC_RUN			0x8
-#define PMC_VLPR		0xc
-#define PMC_STOP		0x10
-#define PMC_VLPS		0x14
-#define PMC_LLS			0x18
-#define PMC_VLLS		0x1c
-#define PMC_STATUS		0x20
-#define PMC_CTRL		0x24
+#define PMC1_HSRUN		0x4
+#define PMC1_RUN		0x8
+#define PMC1_VLPR		0xc
+#define PMC1_STOP		0x10
+#define PMC1_VLPS		0x14
+#define PMC1_LLS		0x18
+#define PMC1_VLLS		0x1c
+#define PMC1_STATUS		0x20
+#define PMC1_CTRL		0x24
 #define PMC0_CTRL		0x28
-#define PMC_SRAMCTRL_0		0x28
-#define PMC_SRAMCTRL_1		0x2c
-#define PMC_SRAMCTRL_2		0x30
 
 #define BM_PMPROT_AHSRUN	(1 << 7)
 #define BM_PMPROT_AVLP		(1 << 5)
@@ -481,15 +478,15 @@ static int imx7ulp_pm_enter(suspend_state_t state)
 		} else {
 			imx7ulp_set_lpm(VLPS);
 			writel_relaxed(
-				readl_relaxed(pmc1_base + PMC_VLPS) | BM_VLPS_RBBEN,
-				pmc1_base + PMC_VLPS);
+				readl_relaxed(pmc1_base + PMC1_VLPS) | BM_VLPS_RBBEN,
+				pmc1_base + PMC1_VLPS);
 
 			/* Zzz ... */
 			cpu_suspend(0, imx7ulp_suspend_finish);
 
 			writel_relaxed(
-				readl_relaxed(pmc1_base + PMC_VLPS) & ~BM_VLPS_RBBEN,
-				pmc1_base + PMC_VLPS);
+				readl_relaxed(pmc1_base + PMC1_VLPS) & ~BM_VLPS_RBBEN,
+				pmc1_base + PMC1_VLPS);
 			imx7ulp_set_lpm(RUN);
 		}
 		break;
