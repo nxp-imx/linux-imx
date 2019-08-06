@@ -70,11 +70,14 @@ static void cdns3_ep0_run_transfer(struct cdns3_device *priv_dev,
 static int cdns3_ep0_delegate_req(struct cdns3_device *priv_dev,
 				  struct usb_ctrlrequest *ctrl_req)
 {
-	int ret;
+	int ret = 0;
 
 	spin_unlock(&priv_dev->lock);
 	priv_dev->setup_pending = 1;
-	ret = priv_dev->gadget_driver->setup(&priv_dev->gadget, ctrl_req);
+	if (priv_dev->gadget_driver && priv_dev->gadget_driver->setup
+			&& get_gadget_data(&priv_dev->gadget))
+		ret = priv_dev->gadget_driver->setup(&priv_dev->gadget,
+				ctrl_req);
 	priv_dev->setup_pending = 0;
 	spin_lock(&priv_dev->lock);
 	return ret;
