@@ -408,7 +408,7 @@ static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
 
-	if (ion_dma_buf_begin_cpu_access(dmabuf, DMA_NONE) != 0)
+	if (ion_dma_buf_begin_cpu_access(dmabuf, DMA_BIDIRECTIONAL) != 0)
 		return NULL;
 
 	return buffer->vaddr;
@@ -416,7 +416,7 @@ static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)
 
 static void ion_dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
 {
-	ion_dma_buf_end_cpu_access(dmabuf, DMA_NONE);
+	ion_dma_buf_end_cpu_access(dmabuf, DMA_BIDIRECTIONAL);
 }
 
 static const struct dma_buf_ops dma_buf_ops = {
