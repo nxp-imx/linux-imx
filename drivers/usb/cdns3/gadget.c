@@ -1039,7 +1039,9 @@ static void cdns3_check_usb_interrupt_proceed(struct cdns3_device *priv_dev,
 	/* Disconnection detected */
 	if (usb_ists & (USB_ISTS_DIS2I | USB_ISTS_DISI)) {
 		if (priv_dev->gadget_driver &&
-		    priv_dev->gadget_driver->disconnect) {
+		    priv_dev->gadget_driver->disconnect &&
+			priv_dev->gadget.state ==
+				USB_STATE_CONFIGURED) {
 			spin_unlock(&priv_dev->lock);
 			priv_dev->gadget_driver->disconnect(&priv_dev->gadget);
 			spin_lock(&priv_dev->lock);
