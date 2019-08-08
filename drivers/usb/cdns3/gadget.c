@@ -1715,6 +1715,9 @@ static int cdns3_gadget_ep_queue(struct usb_ep *ep, struct usb_request *request,
 	priv_ep = ep_to_cdns3_ep(ep);
 	priv_dev = priv_ep->cdns3_dev;
 
+	if (!priv_ep->endpoint.desc)
+		return -EINVAL;
+
 	spin_lock_irqsave(&priv_dev->lock, flags);
 
 	ret = __cdns3_gadget_ep_queue(ep, request, gfp_flags);
