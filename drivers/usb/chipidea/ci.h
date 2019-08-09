@@ -495,4 +495,6 @@ int hw_controller_reset(struct ci_hdrc *ci);
 int dbg_create_files(struct ci_hdrc *ci);
 
 void dbg_remove_files(struct ci_hdrc *ci);
+
+void ci_hdrc_enter_lpm(struct ci_hdrc *ci, bool enable);
 #endif	/* __DRIVERS_USB_CHIPIDEA_CI_H */

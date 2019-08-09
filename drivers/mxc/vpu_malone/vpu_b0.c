@@ -91,7 +91,6 @@ static void reset_mbi_dcp_count(struct vpu_ctx *ctx);
 static bool verify_frame_buffer_size(struct queue_data *q_data,
 							struct vb2_data_req *p_data_req);
 static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *data_req);
-static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length);
 static int send_abort_cmd(struct vpu_ctx *ctx);
 static int send_stop_cmd(struct vpu_ctx *ctx);
 static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
@@ -469,7 +468,7 @@ static u32 get_str_buffer_desc_offset(struct vpu_ctx *ctx)
 	return DEC_MFD_XREG_SLV_BASE + MFD_MCX + MFD_MCX_OFF * ctx->str_index;
 }
 
-static pSTREAM_BUFFER_DESCRIPTOR_TYPE get_str_buffer_desc(struct vpu_ctx *ctx)
+pSTREAM_BUFFER_DESCRIPTOR_TYPE get_str_buffer_desc(struct vpu_ctx *ctx)
 {
 	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
 
@@ -2810,7 +2809,7 @@ static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx,
 	vpu_dec_request_cmd(ctx, idx, cmdid, cmdnum, local_cmddata);
 }
 
-static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len, u_int32 first_flag)
+static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len)
 {
 	struct file *fp;
 	mm_segment_t fs;
@@ -2821,12 +2820,14 @@ static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len
 		return;
 
 	scnprintf(input_file, sizeof(input_file) - 1,
-			"/tmp/vpu_input_data_%d.bin", ctx->str_index);
+			"/data/vpu_input_data_%d.bin", ctx->str_index);
 
-	if (first_flag)
+	if (ctx->first_dump_data_flag) {
 		fp = filp_open(input_file, O_RDWR | O_TRUNC | O_CREAT, 0644);
-	else
+		ctx->first_dump_data_flag = false;
+	} else {
 		fp = filp_open(input_file, O_RDWR | O_APPEND | O_CREAT, 0644);
+	}
 	if (IS_ERR(fp)) {
 		vpu_dbg(LVL_WARN, "warning: open file(%s) fail\n", input_file);
 		return;
@@ -2841,8 +2842,7 @@ static void dump_input_data_to_local(struct vpu_ctx *ctx, void *src, u_int32 len
 }
 
 static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
-					void *input_buffer,
-					uint32_t buffer_size,
+					struct vb2_buffer *vb,
 					uint32_t vdec_std)
 {
 	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
@@ -2854,6 +2854,9 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	u_int32 length;
 	MediaIPFW_Video_CodecParams *pCodecPara;
 	struct queue_data *q_data = &ctx->q_data[V4L2_SRC];
+	void *input_buffer = (void *)vb2_plane_vaddr(vb, 0);
+	uint32_t buffer_size = vb->planes[0].bytesused;
+	struct vb2_v4l2_buffer *vbuf;
 
 	vpu_dbg(LVL_BIT_FUNC, "enter %s, start_flag %d, index=%d, firmware_started=%d\n",
 			__func__, ctx->start_flag, ctx->str_index, ctx->dev->firmware_started);
@@ -2863,22 +2866,6 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 			(pSharedInterface->FWVersion & 0x0000ff00) >> 8,
 			pSharedInterface->FWVersion & 0x000000ff);
 
-	if (ctx->stream_buffer.dma_size < buffer_size + MIN_SPACE) {
-		vpu_err("circular buffer size is set too small\n");
-		return 0;
-	}
-	if (!ctx->start_code_bypass)
-		length = insert_scode_4_seq(ctx, input_buffer, ctx->stream_buffer.dma_virt, vdec_std, buffer_size);
-	else
-		length = 0;
-	if (length == 0) {
-		memcpy(ctx->stream_buffer.dma_virt, input_buffer, buffer_size);
-		length = buffer_size;
-	}
-	vpu_dbg(LVL_INFO, "transfer data from virt 0x%p: size:%d\n",
-			ctx->stream_buffer.dma_virt, buffer_size);
-	dump_input_data_to_local(ctx, ctx->stream_buffer.dma_virt, length, 1);
-	mb();
 	pStrBufDesc = get_str_buffer_desc(ctx);
 	pStrBufDesc->wptr = ctx->stream_buffer.dma_phy;
 	pStrBufDesc->rptr = ctx->stream_buffer.dma_phy;
@@ -2888,7 +2875,23 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	ctx->pre_pic_end_addr = pStrBufDesc->start;
 	ctx->beginning = pStrBufDesc->start;
 
-	update_wptr(ctx, pStrBufDesc, ctx->stream_buffer.dma_phy + length);
+	if (!ctx->start_code_bypass) {
+		length = insert_scode_4_seq(ctx, input_buffer, buffer_size);
+		if (length == 0) {
+			vpu_err("circular buffer size is set too small\n");
+			return 0;
+		}
+	} else {
+		if (ctx->stream_buffer.dma_size < buffer_size + MIN_SPACE) {
+			vpu_err("circular buffer size is set too small\n");
+			return 0;
+		}
+		copy_buffer_to_stream(ctx, input_buffer, buffer_size);
+		length = buffer_size;
+	}
+	vpu_dbg(LVL_INFO, "transfer data from virt 0x%p: size:%d\n",
+			ctx->stream_buffer.dma_virt, buffer_size);
+
 	ctx->dev->shared_mem.pSharedInterface->pStreamBuffDesc[ctx->str_index][uStrBufIdx] =
 		(VPU_REG_BASE + get_str_buffer_desc_offset(ctx));
 
@@ -2919,7 +2922,9 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	ctx->dev->shared_mem.pSharedInterface->DbgLogDesc.uDecStatusLogLevel = vpu_frmdbg_level;
 
 	/*initialize frame count*/
-	if (single_seq_info_format(q_data)) {
+	vbuf = to_vb2_v4l2_buffer(vb);
+	if (single_seq_info_format(q_data)
+	    || vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG) {
 		ctx->frm_dis_delay = 0;
 		ctx->frm_dec_delay = 0;
 		ctx->frm_total_num = 0;
@@ -2937,12 +2942,8 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 {
 	struct vpu_ctx *ctx = container_of(This, struct vpu_ctx, q_data[V4L2_SRC]);
 	struct vb2_data_req *p_data_req;
-	void *data_mapped;
-	uint32_t buffer_size = vb->planes[0].bytesused;
 	u32 frame_bytes;
 	int ret;
-
-	data_mapped = (void *)vb2_plane_vaddr(vb, 0);
 
 	if (ctx->start_flag == true) {
 		ret = alloc_vpu_buffer(ctx);
@@ -2952,8 +2953,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		}
 
 		frame_bytes = transfer_buffer_to_firmware(ctx,
-							  data_mapped,
-							  buffer_size,
+							  vb,
 							  This->vdec_std);
 #ifdef HANDLE_EOS
 		if (vb->planes[0].bytesused < vb->planes[0].length)
@@ -2975,7 +2975,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 	}
 }
 
-static u_int32 got_free_space(u_int32 wptr, u_int32 rptr, u_int32 start, u_int32 end)
+u_int32 got_free_space(u_int32 wptr, u_int32 rptr, u_int32 start, u_int32 end)
 {
 	u_int32 freespace = 0;
 
@@ -3003,7 +3003,7 @@ static u32 got_used_space(u32 wptr, u32 rptr, u32 start, u32 end)
 }
 
 
-static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length)
+int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length)
 {
 	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
 	void *wptr_virt;
@@ -3054,7 +3054,7 @@ static int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t len
 		memcpy(wptr_virt, buffer, length);
 		wptr += length;
 	}
-	dump_input_data_to_local(ctx, buffer, length, 0);
+	dump_input_data_to_local(ctx, buffer, length);
 	mb();
 	update_wptr(ctx, pStrBufDesc, wptr);
 	return length;
@@ -3364,44 +3364,6 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	return true;
 }
 
-static uint32_t insert_scode_4_seq_4_arv(struct vpu_ctx *ctx, u_int8 *input_buffer,
-	u_int32 buffer_size, uint32_t uStrBufIdx)
-{
-	struct vpu_dev *dev = ctx->dev;
-	uint32_t index = ctx->str_index;
-	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
-	uint32_t nfreespace = 0;
-	u_int8 seq_header[256] = {0};
-	uint32_t length = 0;
-	struct queue_data *This = &ctx->q_data[V4L2_SRC];
-
-	pStrBufDesc = get_str_buffer_desc(ctx);
-	nfreespace = got_free_space(pStrBufDesc->wptr, pStrBufDesc->rptr,
-		pStrBufDesc->start, pStrBufDesc->end);
-
-	if (nfreespace < (buffer_size + 16 + MIN_SPACE)) {
-		vpu_dbg(LVL_INFO, "buffer_full: the circular buffer freespace < buffer_size\n");
-		return 0;
-	}
-
-	insert_payload_header_arv(seq_header, SCODE_NEW_SEQUENCE, ctx->arv_type,
-		buffer_size + 12, This->width, This->height);
-	length = copy_buffer_to_stream(ctx, seq_header, 16);
-	length += copy_buffer_to_stream(ctx, input_buffer, buffer_size);
-
-	dev->shared_mem.pSharedInterface->pStreamBuffDesc[index][uStrBufIdx] =
-		(VPU_REG_BASE + get_str_buffer_desc_offset(ctx));
-
-	return length;
-}
-
-static u_int32 check_single_seq_info(struct vb2_v4l2_buffer *vbuf, struct queue_data *q_data)
-{
-	if (!(vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG))
-		return 0;
-	return single_seq_info_format(q_data);
-}
-
 static bool verify_decoded_frames(struct vpu_ctx *ctx)
 {
 	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
@@ -3446,9 +3408,8 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 		input_buffer = (void *)vb2_plane_vaddr(p_data_req->vb2_buf, 0);
 
 		vbuf = to_vb2_v4l2_buffer(p_data_req->vb2_buf);
-		if (vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG
-			&& This->vdec_std == VPU_VIDEO_RV)
-			frame_bytes = insert_scode_4_seq_4_arv(ctx, input_buffer, buffer_size, uStrBufIdx);
+		if (vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG)
+			frame_bytes = insert_scode_4_seq(ctx, input_buffer, buffer_size);
 		else
 			frame_bytes = update_stream_addr_vpu(ctx, input_buffer, buffer_size, uStrBufIdx);
 
@@ -3468,7 +3429,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 				record_log_info(ctx, LOG_PADDING, 0, 0);
 			}
 
-			if (!check_single_seq_info(vbuf, This)) {
+			if (!(vbuf->flags & V4L2_NXP_BUF_FLAG_CODECCONFIG)) {
 				ctx->frm_dec_delay++;
 				ctx->frm_dis_delay++;
 				ctx->frm_total_num++;
@@ -5611,9 +5572,9 @@ static int open_crc_file(struct vpu_ctx *ctx)
 		return -EINVAL;
 
 	scnprintf(crc_file, sizeof(crc_file) - 1,
-			"/home/instance%d_crc.txt",
+			"/data/instance%d_crc.txt",
 			ctx->str_index);
-	ctx->crc_fp = filp_open(crc_file, O_RDWR | O_CREAT, 0664);
+	ctx->crc_fp = filp_open(crc_file, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(ctx->crc_fp)) {
 		vpu_err("error: open crc file fail\n");
 		ret = -1;
@@ -5715,6 +5676,7 @@ static int v4l2_open(struct file *filp)
 	ctx->b_dis_reorder = false;
 	ctx->start_code_bypass = false;
 	ctx->hang_status = false;
+	ctx->first_dump_data_flag = true;
 	INIT_LIST_HEAD(&ctx->cmd_q);
 	ctx->tsm = createTSManager(tsm_buffer_size);
 	if (!ctx->tsm)

@@ -246,12 +246,12 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_LVDS0_BYPASS_CLK] = imx_clk_divider_scu("lvds0_bypass_clk", SC_R_LVDS_0, SC_PM_CLK_BYPASS);
 	clks[IMX8QM_LVDS0_PIXEL_DIV] = imx_clk_divider_scu("lvds0_pixel_div", SC_R_LVDS_0, SC_PM_CLK_PER);
 	clks[IMX8QM_LVDS0_I2C0_DIV] = imx_clk_divider_scu("lvds0_i2c0_div", SC_R_LVDS_0_I2C_0, SC_PM_CLK_PER);
-	clks[IMX8QM_LVDS0_I2C1_DIV] = imx_clk_divider_scu("lvds0_i2c1_div", SC_R_LVDS_0_I2C_1, SC_PM_CLK_PER);
 	clks[IMX8QM_LVDS0_PWM0_DIV] = imx_clk_divider_scu("lvds0_pwm0_div", SC_R_LVDS_0_PWM_0, SC_PM_CLK_PER);
 	clks[IMX8QM_LVDS0_PHY_DIV] = imx_clk_divider_scu("lvds0_phy_div", SC_R_LVDS_0, SC_PM_CLK_PHY);
 #ifndef CONFIG_VEHICLE_CLK_POST_INIT
 	clks[IMX8QM_LVDS1_BYPASS_CLK] = imx_clk_divider_scu("lvds1_bypass_clk", SC_R_LVDS_1, SC_PM_CLK_BYPASS);
 	clks[IMX8QM_LVDS1_PIXEL_DIV] = imx_clk_divider_scu("lvds1_pixel_div", SC_R_LVDS_1, SC_PM_CLK_PER);
+	clks[IMX8QM_LVDS1_I2C0_DIV] = imx_clk_divider_scu("lvds1_i2c0_div", SC_R_LVDS_1_I2C_0, SC_PM_CLK_PER);
 	clks[IMX8QM_LVDS1_PWM0_DIV] = imx_clk_divider_scu("lvds1_pwm0_div", SC_R_LVDS_1_PWM_0, SC_PM_CLK_PER);
 	clks[IMX8QM_LVDS1_PHY_DIV] = imx_clk_divider_scu("lvds1_phy_div", SC_R_LVDS_1, SC_PM_CLK_PHY);
 #endif
@@ -845,7 +845,6 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	/* lvds subsystem */
 	clks[IMX8QM_LVDS0_PIXEL_CLK] = imx_clk_gate_scu("lvds0_pixel_clk", "lvds0_pixel_div", SC_R_LVDS_0, SC_PM_CLK_PER, NULL, 0, 0);
 	clks[IMX8QM_LVDS0_I2C0_CLK] = imx_clk_gate_scu("lvds0_i2c0_clk", "lvds0_i2c0_div", SC_R_LVDS_0_I2C_0, SC_PM_CLK_PER, LPCG_ADDR(DI_LVDS_0_LPCG + 0x10), 0, 0);
-	clks[IMX8QM_LVDS0_I2C1_CLK] = imx_clk_gate_scu("lvds0_i2c1_clk", "lvds0_i2c1_div", SC_R_LVDS_0_I2C_1, SC_PM_CLK_PER, LPCG_ADDR(DI_LVDS_0_LPCG + 0x14), 0, 0);
 	clks[IMX8QM_LVDS0_PWM0_CLK] = imx_clk_gate_scu("lvds0_pwm0_clk", "lvds0_pwm0_div", SC_R_LVDS_0_PWM_0, SC_PM_CLK_PER, LPCG_ADDR(DI_LVDS_0_LPCG + 0x0C), 0, 0);
 	clks[IMX8QM_LVDS0_PHY_CLK] = imx_clk_gate_scu("lvds0_phy_clk", "lvds0_phy_div", SC_R_LVDS_0, SC_PM_CLK_PHY, NULL, 0, 0);
 	clks[IMX8QM_LVDS0_I2C0_IPG_CLK] = imx_clk_gate2_scu("lvds0_i2c0_ipg_clk", "ipg_lvds_clk_root", LPCG_ADDR(DI_LVDS_0_LPCG + 0x10), 16, FUNCTION_NAME(PD_LVDS0_I2C0));
@@ -856,6 +855,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 
 #ifndef CONFIG_VEHICLE_CLK_POST_INIT
 	clks[IMX8QM_LVDS1_PIXEL_CLK] = imx_clk_gate_scu("lvds1_pixel_clk", "lvds1_pixel_div", SC_R_LVDS_1, SC_PM_CLK_PER, NULL, 0, 0);
+	clks[IMX8QM_LVDS1_I2C0_CLK] = imx_clk_gate_scu("lvds1_i2c0_clk", "lvds1_i2c0_div", SC_R_LVDS_1_I2C_0, SC_PM_CLK_PER, LPCG_ADDR(DI_LVDS_1_LPCG + 0x10), 0, 0);
 	clks[IMX8QM_LVDS1_PWM0_CLK] = imx_clk_gate_scu("lvds1_pwm0_clk", "lvds1_pwm0_div", SC_R_LVDS_1_PWM_0, SC_PM_CLK_PER, LPCG_ADDR(DI_LVDS_1_LPCG + 0x0C), 0, 0);
 	clks[IMX8QM_LVDS1_PHY_CLK] = imx_clk_gate_scu("lvds1_phy_clk", "lvds1_phy_div", SC_R_LVDS_1, SC_PM_CLK_PHY, NULL, 0, 0);
 	clks[IMX8QM_LVDS1_I2C0_IPG_CLK] = imx_clk_gate2_scu("lvds1_i2c0_ipg_clk", "ipg_lvds_clk_root", LPCG_ADDR(DI_LVDS_1_LPCG + 0x10), 16, FUNCTION_NAME(PD_LVDS1_I2C0));

@@ -361,6 +361,7 @@ struct vpu_ctx {
 	bool hang_status;
 	bool fifo_low;
 	bool frame_decoded;
+	bool first_dump_data_flag;
 	u32 req_frame_count;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
@@ -438,5 +439,9 @@ struct vpu_ctx {
 
 #define VPU_DECODED_EVENT_PERF_MASK		(1 << 0)
 #define VPU_READY_EVENT_PERF_MASK		(1 << 1)
+
+pSTREAM_BUFFER_DESCRIPTOR_TYPE get_str_buffer_desc(struct vpu_ctx *ctx);
+u_int32 got_free_space(u_int32 wptr, u_int32 rptr, u_int32 start, u_int32 end);
+int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length);
 
 #endif

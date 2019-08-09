@@ -52,18 +52,16 @@
 #define CSRE	0x34
 #define MR	0x40
 
-#define PMC_HSRUN		0x4
-#define PMC_RUN			0x8
-#define PMC_VLPR		0xc
-#define PMC_STOP		0x10
-#define PMC_VLPS		0x14
-#define PMC_LLS			0x18
-#define PMC_VLLS		0x1c
-#define PMC_STATUS		0x20
-#define PMC_CTRL		0x24
-#define PMC_SRAMCTRL_0		0x28
-#define PMC_SRAMCTRL_1		0x2c
-#define PMC_SRAMCTRL_2		0x30
+#define PMC1_HSRUN		0x4
+#define PMC1_RUN		0x8
+#define PMC1_VLPR		0xc
+#define PMC1_STOP		0x10
+#define PMC1_VLPS		0x14
+#define PMC1_LLS		0x18
+#define PMC1_VLLS		0x1c
+#define PMC1_STATUS		0x20
+#define PMC1_CTRL		0x24
+#define PMC0_CTRL		0x28
 
 #define BM_PMPROT_AHSRUN	(1 << 7)
 #define BM_PMPROT_AVLP		(1 << 5)
@@ -406,7 +404,7 @@ int imx7ulp_set_lpm(enum imx7ulp_cpu_pwr_mode mode)
 {
 	u32 val1 = BM_PMPROT_AHSRUN | BM_PMPROT_AVLP | BM_PMPROT_AVLLS;
 	u32 val2 = readl_relaxed(smc1_base + PMCTRL);
-	u32 val3 = readl_relaxed(pmc0_base + PMC_CTRL);
+	u32 val3 = readl_relaxed(pmc0_base + PMC0_CTRL);
 
 	val2 &= ~(BM_PMCTRL_RUNM |
 		BM_PMCTRL_STOPM | BM_PMCTRL_PSTOPO);
@@ -437,7 +435,7 @@ int imx7ulp_set_lpm(enum imx7ulp_cpu_pwr_mode mode)
 
 	writel_relaxed(val1, smc1_base + PMPROT);
 	writel_relaxed(val2, smc1_base + PMCTRL);
-	writel_relaxed(val3, pmc0_base + PMC_CTRL);
+	writel_relaxed(val3, pmc0_base + PMC0_CTRL);
 
 	return 0;
 }
@@ -480,15 +478,15 @@ static int imx7ulp_pm_enter(suspend_state_t state)
 		} else {
 			imx7ulp_set_lpm(VLPS);
 			writel_relaxed(
-				readl_relaxed(pmc1_base + PMC_VLPS) | BM_VLPS_RBBEN,
-				pmc1_base + PMC_VLPS);
+				readl_relaxed(pmc1_base + PMC1_VLPS) | BM_VLPS_RBBEN,
+				pmc1_base + PMC1_VLPS);
 
 			/* Zzz ... */
 			cpu_suspend(0, imx7ulp_suspend_finish);
 
 			writel_relaxed(
-				readl_relaxed(pmc1_base + PMC_VLPS) & ~BM_VLPS_RBBEN,
-				pmc1_base + PMC_VLPS);
+				readl_relaxed(pmc1_base + PMC1_VLPS) & ~BM_VLPS_RBBEN,
+				pmc1_base + PMC1_VLPS);
 			imx7ulp_set_lpm(RUN);
 		}
 		break;
