@@ -787,22 +787,18 @@ static void calculate_frame_size(struct vpu_ctx *ctx)
 	u_int32 luma_size;
 	u_int32 chroma_size;
 	u_int32 chroma_height;
-	u_int32 uVertAlign = 512-1;
 	bool b10BitFormat = is_10bit_format(ctx);
-
 	struct queue_data *q_data;
 
 	q_data = &ctx->q_data[V4L2_DST];
 
 	width = b10BitFormat?(width + ((width + 3) >> 2)):width;
-	width = ((width + uVertAlign) & ~uVertAlign);
+	width = ALIGN(width, V4L2_NXP_FRAME_HORIZONTAL_ALIGN);
 	q_data->stride = width;
 
-	height = ((height + uVertAlign) & ~uVertAlign);
-	if (ctx->seqinfo.uProgressive)
-		chroma_height = height >> 1;
-	else
-		chroma_height = height;
+	height = ALIGN(height, V4L2_NXP_FRAME_VERTICAL_ALIGN);
+	chroma_height = height >> 1;
+
 	luma_size = width * height;
 	chroma_size = width * chroma_height;
 	ctx->q_data[V4L2_DST].sizeimage[0] = luma_size;
@@ -2472,10 +2468,10 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			last = 0x0a010000;
 			break;
 		case VPU_VIDEO_MPEG2:
+		case VPU_VIDEO_AVS:
 			last = EOS_GENERIC_MPEG;
 			break;
 		case VPU_VIDEO_ASP:
-		case VPU_VIDEO_AVS:
 			last = 0xb1010000;
 			break;
 		case VPU_VIDEO_SPK:
