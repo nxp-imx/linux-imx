@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2019 NXP */
+#include <linux/fsl/enetc_mdio.h>
 #include <linux/of_mdio.h>
 #include "enetc_pf.h"
-#include "enetc_mdio.h"
 
 #define ENETC_MDIO_DEV_ID	0xee01
 #define ENETC_MDIO_DEV_NAME	"FSL PCIe IE Central MDIO"
@@ -14,17 +14,29 @@ static int enetc_pci_mdio_probe(struct pci_dev *pdev,
 {
 	struct enetc_mdio_priv *mdio_priv;
 	struct device *dev = &pdev->dev;
+	void __iomem *port_regs;
 	struct enetc_hw *hw;
 	struct mii_bus *bus;
 	int err;
 
-	hw = devm_kzalloc(dev, sizeof(*hw), GFP_KERNEL);
-	if (!hw)
-		return -ENOMEM;
+	port_regs = pci_iomap(pdev, 0, 0);
+	if (!port_regs) {
+		dev_err(dev, "iomap failed\n");
+		err = -ENXIO;
+		goto err_ioremap;
+	}
+
+	hw = enetc_hw_alloc(dev, port_regs);
+	if (IS_ERR(enetc_hw_alloc)) {
+		err = PTR_ERR(hw);
+		goto err_hw_alloc;
+	}
 
 	bus = devm_mdiobus_alloc_size(dev, sizeof(*mdio_priv));
-	if (!bus)
-		return -ENOMEM;
+	if (!bus) {
+		err = -ENOMEM;
+		goto err_mdiobus_alloc;
+	}
 
 	bus->name = ENETC_MDIO_BUS_NAME;
 	bus->read = enetc_mdio_read;
@@ -39,20 +51,13 @@ static int enetc_pci_mdio_probe(struct pci_dev *pdev,
 	err = pci_enable_device_mem(pdev);
 	if (err) {
 		dev_err(dev, "device enable failed\n");
-		return err;
+		goto err_pci_enable;
 	}
 
 	err = pci_request_region(pdev, 0, KBUILD_MODNAME);
 	if (err) {
 		dev_err(dev, "pci_request_region failed\n");
 		goto err_pci_mem_reg;
-	}
-
-	hw->port = pci_iomap(pdev, 0, 0);
-	if (!hw->port) {
-		err = -ENXIO;
-		dev_err(dev, "iomap failed\n");
-		goto err_ioremap;
 	}
 
 	err = of_mdiobus_register(bus, dev->of_node);
@@ -64,12 +69,14 @@ static int enetc_pci_mdio_probe(struct pci_dev *pdev,
 	return 0;
 
 err_mdiobus_reg:
-	iounmap(mdio_priv->hw->port);
-err_ioremap:
 	pci_release_mem_regions(pdev);
 err_pci_mem_reg:
 	pci_disable_device(pdev);
-
+err_pci_enable:
+err_mdiobus_alloc:
+	iounmap(port_regs);
+err_hw_alloc:
+err_ioremap:
 	return err;
 }
 

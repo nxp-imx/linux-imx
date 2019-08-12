@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2019 NXP */
 
+#include <linux/fsl/enetc_mdio.h>
 #include <linux/mdio.h>
 #include <linux/of_mdio.h>
 #include <linux/iopoll.h>
 #include <linux/of.h>
 
 #include "enetc_pf.h"
-#include "enetc_mdio.h"
 
 #define	ENETC_MDIO_CFG	0x0	/* MDIO configuration and status */
 #define	ENETC_MDIO_CTL	0x4	/* MDIO control */
@@ -99,6 +99,7 @@ int enetc_mdio_write(struct mii_bus *bus, int phy_id, int regnum, u16 value)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(enetc_mdio_write);
 
 int enetc_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 {
@@ -154,73 +155,18 @@ int enetc_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 
 	return value;
 }
+EXPORT_SYMBOL_GPL(enetc_mdio_read);
 
-int enetc_mdio_probe(struct enetc_pf *pf)
+struct enetc_hw *enetc_hw_alloc(struct device *dev, void __iomem *port_regs)
 {
-	struct device *dev = &pf->si->pdev->dev;
-	struct enetc_mdio_priv *mdio_priv;
-	struct device_node *np;
-	struct mii_bus *bus;
-	int err;
+	struct enetc_hw *hw;
 
-	bus = devm_mdiobus_alloc_size(dev, sizeof(*mdio_priv));
-	if (!bus)
-		return -ENOMEM;
+	hw = devm_kzalloc(dev, sizeof(*hw), GFP_KERNEL);
+	if (!hw)
+		return ERR_PTR(-ENOMEM);
 
-	bus->name = "Freescale ENETC MDIO Bus";
-	bus->read = enetc_mdio_read;
-	bus->write = enetc_mdio_write;
-	bus->parent = dev;
-	mdio_priv = bus->priv;
-	mdio_priv->hw = &pf->si->hw;
-	mdio_priv->mdio_base = ENETC_EMDIO_BASE;
-	snprintf(bus->id, MII_BUS_ID_SIZE, "%s", dev_name(dev));
+	hw->port = port_regs;
 
-	np = of_get_child_by_name(dev->of_node, "mdio");
-	if (!np) {
-		dev_err(dev, "MDIO node missing\n");
-		return -EINVAL;
-	}
-
-	err = of_mdiobus_register(bus, np);
-	if (err) {
-		of_node_put(np);
-		dev_err(dev, "cannot register MDIO bus\n");
-		return err;
-	}
-
-	of_node_put(np);
-	pf->mdio = bus;
-
-	return 0;
+	return hw;
 }
-
-void enetc_mdio_remove(struct enetc_pf *pf)
-{
-	if (pf->mdio)
-		mdiobus_unregister(pf->mdio);
-}
-
-int enetc_imdio_init(struct enetc_pf *pf)
-{
-	struct device *dev = &pf->si->pdev->dev;
-	struct enetc_mdio_priv *mdio_priv;
-	struct mii_bus *bus;
-
-	bus = devm_mdiobus_alloc_size(dev, sizeof(*mdio_priv));
-	if (!bus)
-		return -ENOMEM;
-
-	bus->name = "FSL ENETC internal MDIO Bus";
-	bus->read = enetc_mdio_read;
-	bus->write = enetc_mdio_write;
-	bus->parent = dev;
-	mdio_priv = bus->priv;
-	mdio_priv->hw = &pf->si->hw;
-	mdio_priv->mdio_base = ENETC_PM_IMDIO_BASE;
-	snprintf(bus->id, MII_BUS_ID_SIZE, "%s", dev_name(dev));
-
-	pf->imdio = bus;
-
-	return 0;
-}
+EXPORT_SYMBOL_GPL(enetc_hw_alloc);

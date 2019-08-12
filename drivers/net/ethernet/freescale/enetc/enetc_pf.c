@@ -2,6 +2,7 @@
 /* Copyright 2017-2019 NXP */
 
 #include <linux/module.h>
+#include <linux/fsl/enetc_mdio.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
 #include "enetc_pf.h"
@@ -760,6 +761,52 @@ static void enetc_pf_netdev_setup(struct enetc_si *si, struct net_device *ndev,
 	enetc_get_primary_mac_addr(&si->hw, ndev->dev_addr);
 }
 
+static int enetc_mdio_probe(struct enetc_pf *pf)
+{
+	struct device *dev = &pf->si->pdev->dev;
+	struct enetc_mdio_priv *mdio_priv;
+	struct device_node *np;
+	struct mii_bus *bus;
+	int err;
+
+	bus = devm_mdiobus_alloc_size(dev, sizeof(*mdio_priv));
+	if (!bus)
+		return -ENOMEM;
+
+	bus->name = "Freescale ENETC MDIO Bus";
+	bus->read = enetc_mdio_read;
+	bus->write = enetc_mdio_write;
+	bus->parent = dev;
+	mdio_priv = bus->priv;
+	mdio_priv->hw = &pf->si->hw;
+	mdio_priv->mdio_base = ENETC_EMDIO_BASE;
+	snprintf(bus->id, MII_BUS_ID_SIZE, "%s", dev_name(dev));
+
+	np = of_get_child_by_name(dev->of_node, "mdio");
+	if (!np) {
+		dev_err(dev, "MDIO node missing\n");
+		return -EINVAL;
+	}
+
+	err = of_mdiobus_register(bus, np);
+	if (err) {
+		of_node_put(np);
+		dev_err(dev, "cannot register MDIO bus\n");
+		return err;
+	}
+
+	of_node_put(np);
+	pf->mdio = bus;
+
+	return 0;
+}
+
+static void enetc_mdio_remove(struct enetc_pf *pf)
+{
+	if (pf->mdio)
+		mdiobus_unregister(pf->mdio);
+}
+
 static int enetc_of_get_phy(struct enetc_pf *pf)
 {
 	struct device *dev = &pf->si->pdev->dev;
@@ -844,6 +891,30 @@ static void enetc_configure_sxgmii(struct mii_bus *imdio)
 	imdio->write(imdio, 0, MII_ADDR_C45 | (MDIO_MMD_VEND2 << 16) |
 		     ENETC_PCS_CR,
 		     ENETC_PCS_CR_LANE_RESET | ENETC_PCS_CR_RESET_AN);
+}
+
+static int enetc_imdio_init(struct enetc_pf *pf)
+{
+	struct device *dev = &pf->si->pdev->dev;
+	struct enetc_mdio_priv *mdio_priv;
+	struct mii_bus *bus;
+
+	bus = devm_mdiobus_alloc_size(dev, sizeof(*mdio_priv));
+	if (!bus)
+		return -ENOMEM;
+
+	bus->name = "FSL ENETC internal MDIO Bus";
+	bus->read = enetc_mdio_read;
+	bus->write = enetc_mdio_write;
+	bus->parent = dev;
+	mdio_priv = bus->priv;
+	mdio_priv->hw = &pf->si->hw;
+	mdio_priv->mdio_base = ENETC_PM_IMDIO_BASE;
+	snprintf(bus->id, MII_BUS_ID_SIZE, "%s", dev_name(dev));
+
+	pf->imdio = bus;
+
+	return 0;
 }
 
 static int enetc_configure_serdes(struct enetc_ndev_priv *priv)
