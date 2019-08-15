@@ -118,7 +118,6 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 		}
 	} else {
 		struct generic_pm_domain *cur_domain = domain, *master = NULL;
-
 		/*
 		 * Set the state of a parent power domain that has no device
 		 * associated with it to be the same as the child.
@@ -145,9 +144,10 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 
 			cur_domain = master;
 		}
-		/* Fix the state for the top parent. */
+		/* Fix the state for the top parent or a node that has no slave domains */
 		pd = container_of(cur_domain, struct imx8_pm_domain, pd);
-		if (pd->rsrc_id != SC_R_NONE) {
+		if ((cur_domain == domain) ||
+			((pd->rsrc_id != SC_R_NONE) && (!cur_domain->device_count))) {
 			sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
 						pd->rsrc_id,
 						(pd_state) ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
@@ -157,8 +157,6 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 				return -EINVAL;
 			}
 		}
-
-
 	}
 	/* keep HDMI TX resource power on */
 	if (power_on && (pd->rsrc_id == SC_R_HDMI ||
