@@ -408,9 +408,9 @@ struct vpu_ctx {
 	u_int64 last_ready_time;
 };
 
-#define LVL_WARN		(1 << 1)
-#define LVL_EVENT		(1 << 2)
-#define LVL_INFO		(1 << 3)
+#define LVL_WARN		(1 << 0)
+#define LVL_EVENT		(1 << 1)
+#define LVL_INFO		(1 << 2)
 #define LVL_BIT_CMD		(1 << 4)
 #define LVL_BIT_EVT		(1 << 5)
 #define LVL_BIT_TS		(1 << 6)

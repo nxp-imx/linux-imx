@@ -4176,17 +4176,28 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		calculate_frame_size(ctx);
 		parse_frame_interval_from_seqinfo(ctx, &ctx->seqinfo);
-		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d\n",
-				ctx->str_index,
-				ctx->seqinfo.uHorRes, ctx->seqinfo.uVerRes,
-				ctx->seqinfo.uHorDecodeRes, ctx->seqinfo.uVerDecodeRes,
-				ctx->seqinfo.uNumDPBFrms, num, ctx->seqinfo.uNumRefFrms, ctx->seqinfo.uNumDFEAreas);
-		vpu_dbg(LVL_BIT_FLOW, "uColorDesc = %d, uTransferChars = %d, uMatrixCoeffs = %d, uVideoFullRangeFlag = %d, uVUIPresent = %d\n",
-				ctx->seqinfo.uColorDesc,
-				ctx->seqinfo.uTransferChars,
-				ctx->seqinfo.uMatrixCoeffs,
-				ctx->seqinfo.uVideoFullRangeFlag,
-				ctx->seqinfo.uVUIPresent);
+		vpu_dbg(LVL_BIT_FLOW,
+			"ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d\n",
+			ctx->str_index,
+			ctx->seqinfo.uHorRes,
+			ctx->seqinfo.uVerRes,
+			ctx->seqinfo.uHorDecodeRes,
+			ctx->seqinfo.uVerDecodeRes);
+		vpu_dbg(LVL_BIT_FLOW,
+			"ctx[%d] SEQINFO GET: uNumDPBFrms:%d, num:%d, uNumRefFrms:%d, uNumDFEAreas:%d, scan lines: %s\n",
+			ctx->str_index,
+			ctx->seqinfo.uNumDPBFrms,
+			num,
+			ctx->seqinfo.uNumRefFrms,
+			ctx->seqinfo.uNumDFEAreas,
+			ctx->seqinfo.uProgressive ? "progressive" : "interlaced");
+		vpu_dbg(LVL_BIT_FLOW,
+			"uColorDesc = %d, uTransferChars = %d, uMatrixCoeffs = %d, uVideoFullRangeFlag = %d, uVUIPresent = %d\n",
+			ctx->seqinfo.uColorDesc,
+			ctx->seqinfo.uTransferChars,
+			ctx->seqinfo.uMatrixCoeffs,
+			ctx->seqinfo.uVideoFullRangeFlag,
+			ctx->seqinfo.uVUIPresent);
 		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
 			down(&ctx->q_data[V4L2_DST].drv_q_lock);
