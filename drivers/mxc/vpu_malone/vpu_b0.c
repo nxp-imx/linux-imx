@@ -5200,9 +5200,13 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
 	u_int32 stream_length = 0;
 	int i, size, num = 0;
+	pDEC_RPC_HOST_IFACE pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info;
 
 	ctx = container_of(attr, struct vpu_ctx, dev_attr_instance_buffer);
 	statistic = &ctx->statistic;
+	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
 	This = &ctx->q_data[V4L2_SRC];
 	num += scnprintf(buf + num, PAGE_SIZE - num,
@@ -5253,7 +5257,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 						pStrBufDesc->end);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "stream length", stream_length);
+			"\t%40s:%16d / %16d\n", "stream length",
+			stream_length,
+			ctx->stream_buffer.dma_size);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "decode dealy frame",
 			ctx->frm_dec_delay);
@@ -5340,6 +5346,22 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			ctx->seqinfo.uNumDPBFrms,
 			ctx->seqinfo.uNumRefFrms,
 			ctx->seqinfo.uNumDFEAreas);
+
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "stream_pic_input_count",
+			buffer_info->stream_pic_input_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "stream_pic_parsed_count",
+			buffer_info->stream_pic_parsed_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "stream_pic_end_flag",
+			buffer_info->stream_pic_end_flag);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "stream_input_mode",
+			buffer_info->stream_input_mode);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "stream_buffer_threshold",
+			buffer_info->stream_buffer_threshold);
 
 	return num;
 }
