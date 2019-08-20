@@ -91,6 +91,8 @@ struct gadget_info {
 	struct work_struct work;
 	struct device *dev;
 #endif
+	spinlock_t spinlock;
+	bool unbind;
 };
 
 static inline struct gadget_info *to_gadget_info(struct config_item *item)
@@ -1274,6 +1276,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 	int				ret;
 
 	/* the gi->lock is hold by the caller */
+	gi->unbind = 0;
 	cdev->gadget = gadget;
 	set_gadget_data(gadget, cdev);
 	ret = composite_dev_prepare(composite, cdev);
@@ -1460,19 +1463,25 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev	*cdev;
 	struct gadget_info		*gi;
+	unsigned long flags;
 
 	/* the gi->lock is hold by the caller */
 
 	cdev = get_gadget_data(gadget);
 	gi = container_of(cdev, struct gadget_info, cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
+	gi->unbind = 1;
 
 	kfree(otg_desc[0]);
 	otg_desc[0] = NULL;
 	purge_configs_funcs(gi);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 	composite_dev_cleanup(cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
 	usb_ep_autoconfig_reset(cdev->gadget);
 	cdev->gadget = NULL;
 	set_gadget_data(gadget, NULL);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
@@ -1481,9 +1490,20 @@ static int android_setup(struct usb_gadget *gadget,
 {
 	struct usb_composite_dev *cdev = get_gadget_data(gadget);
 	unsigned long flags;
-	struct gadget_info *gi = container_of(cdev, struct gadget_info, cdev);
+	struct gadget_info *gi;
 	int value = -EOPNOTSUPP;
 	struct usb_function_instance *fi;
+
+	if (!cdev)
+		return 0;
+
+	gi = container_of(cdev, struct gadget_info, cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
+	if (gi->unbind) {
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+		return 0;
+	}
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!gi->connected) {
@@ -1499,6 +1519,12 @@ static int android_setup(struct usb_gadget *gadget,
 		}
 	}
 
+	spin_lock_irqsave(&gi->spinlock, flags);
+	cdev = get_gadget_data(gadget);
+	if (!cdev || gi->unbind) {
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+		return 0;
+	}
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)
 		value = acc_ctrlrequest(cdev, c);
@@ -1506,6 +1532,7 @@ static int android_setup(struct usb_gadget *gadget,
 
 	if (value < 0)
 		value = composite_setup(gadget, c);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
@@ -1520,19 +1547,14 @@ static int android_setup(struct usb_gadget *gadget,
 static void android_disconnect(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev        *cdev = get_gadget_data(gadget);
-	struct gadget_info *gi = container_of(cdev, struct gadget_info, cdev);
+	struct gadget_info *gi;
+	unsigned long flags;
 
-	/* FIXME: There's a race between usb_gadget_udc_stop() which is likely
-	 * to set the gadget driver to NULL in the udc driver and this drivers
-	 * gadget disconnect fn which likely checks for the gadget driver to
-	 * be a null ptr. It happens that unbind (doing set_gadget_data(NULL))
-	 * is called before the gadget driver is set to NULL and the udc driver
-	 * calls disconnect fn which results in cdev being a null ptr.
-	 */
-	if (cdev == NULL) {
-		WARN(1, "%s: gadget driver already disconnected\n", __func__);
+	if (!cdev)
 		return;
-	}
+
+	gi = container_of(cdev, struct gadget_info, cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
 
 	/* accessory HID support can be active while the
 		accessory function is not actually enabled,
@@ -1545,8 +1567,39 @@ static void android_disconnect(struct usb_gadget *gadget)
 	gi->connected = 0;
 	schedule_work(&gi->work);
 	composite_disconnect(gadget);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
 #endif
+
+static void configfs_composite_suspend(struct usb_gadget *gadget)
+{
+	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+	struct gadget_info *gi;
+	unsigned long flags;
+
+	if (!cdev)
+		return;
+
+	gi = container_of(cdev, struct gadget_info, cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
+	composite_suspend(gadget);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
+}
+
+static void configfs_composite_resume(struct usb_gadget *gadget)
+{
+	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+	struct gadget_info *gi;
+	unsigned long flags;
+
+	if (!cdev)
+		return;
+
+	gi = container_of(cdev, struct gadget_info, cdev);
+	spin_lock_irqsave(&gi->spinlock, flags);
+	composite_resume(gadget);
+	spin_unlock_irqrestore(&gi->spinlock, flags);
+}
 
 static const struct usb_gadget_driver configfs_driver_template = {
 	.bind           = configfs_composite_bind,
@@ -1560,8 +1613,8 @@ static const struct usb_gadget_driver configfs_driver_template = {
 	.reset          = composite_disconnect,
 	.disconnect     = composite_disconnect,
 #endif
-	.suspend	= composite_suspend,
-	.resume		= composite_resume,
+	.suspend	= configfs_composite_suspend,
+	.resume		= configfs_composite_resume,
 
 	.max_speed	= USB_SPEED_SUPER,
 	.driver = {
@@ -1689,6 +1742,7 @@ static struct config_group *gadgets_make(
 	gi->composite.max_speed = USB_SPEED_SUPER;
 
 	mutex_init(&gi->lock);
+	spin_lock_init(&gi->spinlock);
 	INIT_LIST_HEAD(&gi->string_list);
 	INIT_LIST_HEAD(&gi->available_func);
 
