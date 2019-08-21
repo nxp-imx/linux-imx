@@ -1512,7 +1512,8 @@ _AdjustParam(
 {
     patch_param(Platform->device, Args);
 
-    if (of_find_compatible_node(NULL, NULL, "fsl,imx8mq-gpu") &&
+    if ((of_find_compatible_node(NULL, NULL, "fsl,imx8mq-gpu") ||
+        of_find_compatible_node(NULL, NULL, "fsl,imx8mm-gpu")) &&
         ((Args->baseAddress + totalram_pages * PAGE_SIZE) > 0x100000000))
     {
         Platform->flagBits |= gcvPLATFORM_FLAG_LIMIT_4G_ADDRESS;
