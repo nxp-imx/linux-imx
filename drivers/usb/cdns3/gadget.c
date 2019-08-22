@@ -1992,6 +1992,7 @@ static int cdns3_gadget_udc_stop(struct usb_gadget *gadget)
 	struct usb_ep *ep;
 	unsigned long flags;
 	int ret = 0;
+	struct usb_request *request;
 
 	spin_lock_irqsave(&priv_dev->lock, flags);
 	priv_dev->gadget_driver = NULL;
@@ -2014,6 +2015,11 @@ static int cdns3_gadget_udc_stop(struct usb_gadget *gadget)
 		usb_ep_disable(ep);
 		cdns3_free_trb_pool(priv_ep);
 	}
+
+	priv_ep = priv_dev->eps[0];
+	request = cdns3_next_request(&priv_ep->pending_req_list);
+	if (request)
+		list_del_init(&request->list);
 
 	/* disable interrupt for device */
 	writel(0, &priv_dev->regs->usb_ien);
