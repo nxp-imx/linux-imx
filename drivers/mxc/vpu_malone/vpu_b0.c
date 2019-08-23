@@ -895,10 +895,18 @@ void check_fuse_value(struct vpu_dev *dev,
 	u_int32 fuse;
 	u_int32 val;
 	u_int32 i;
+	sc_err_t ret;
 
 	if (!dev)
 		return;
-	sc_misc_otp_fuse_read(dev->mu_ipcHandle, VPU_DISABLE_BITS, &fuse);
+
+	ret = sc_misc_otp_fuse_read(dev->mu_ipcHandle, VPU_DISABLE_BITS, &fuse);
+	if (ret) {
+		vpu_dbg(LVL_WARN, "warning: %s() read value fail: %d\n",
+			__func__, ret);
+		return;
+	}
+
 	val = (fuse >> 2) & 0x3UL;
 	if (val == 0x1UL) {
 		for (i = 0; i < table_size; i++)
@@ -4944,7 +4952,7 @@ static int vpu_firmware_download(struct vpu_dev *This)
 			This->generic_dev
 			);
 
-	if (ret) {
+	if (ret || !This->m0_pfw) {
 		vpu_err("error: %s() request fw %s failed(%d)\n",
 			__func__, M0FW_FILENAME, ret);
 
@@ -4952,13 +4960,14 @@ static int vpu_firmware_download(struct vpu_dev *This)
 			release_firmware(This->m0_pfw);
 			This->m0_pfw = NULL;
 		}
+
 		return ret;
-	} else {
-		vpu_dbg(LVL_INFO, "%s() request fw %s got size(%d)\n",
-			__func__, M0FW_FILENAME, (int)This->m0_pfw->size);
-		image = (uint8_t *)This->m0_pfw->data;
-		FW_Size = This->m0_pfw->size;
 	}
+
+	vpu_dbg(LVL_INFO, "%s() request fw %s got size(%d)\n",
+		__func__, M0FW_FILENAME, (int)This->m0_pfw->size);
+	image = (uint8_t *)This->m0_pfw->data;
+	FW_Size = This->m0_pfw->size;
 
 	cleanup_firmware_memory(This);
 	memcpy(This->m0_p_fw_space_vir, image, FW_Size);
@@ -4968,10 +4977,8 @@ static int vpu_firmware_download(struct vpu_dev *This)
 	enable_csr_reg(This);
 	This->need_cleanup_firmware = true;
 
-	if (This->m0_pfw) {
-		release_firmware(This->m0_pfw);
-		This->m0_pfw = NULL;
-	}
+	release_firmware(This->m0_pfw);
+	This->m0_pfw = NULL;
 
 	return ret;
 }
