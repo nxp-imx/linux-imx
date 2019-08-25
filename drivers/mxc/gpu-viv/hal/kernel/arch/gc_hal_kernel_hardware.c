@@ -11098,6 +11098,33 @@ gckHARDWARE_SetPowerManagementState(
  9:9) - (0 ?
  9:9) + 1) == 32) ?
  ~0U : (~(~0U << ((1 ? 9:9) - (0 ? 9:9) + 1))))))) << (0 ? 9:9)))));
+
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        if (State == gcvPOWER_ON)
+        {
+            gcmkVERIFY_OK(
+                gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     0x0010C,
+                                     &clock));
+
+            /* fscaleSh_clkSh = clkSh[7 :1 ];
+               fscaleShLoad_clkSh = clkSh [0 ];
+               enableAutoSh_clkSh = clkSh[16 ];
+               disableAuto_clkSh = clkSh[17 ];
+            */
+            gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                              Hardware->core,
+                                              0x0010C,
+                                              (clock & ~0xFE) | (Hardware->powerOnFscaleVal << 1) | 0x20001
+                                              ));
+
+            gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                              Hardware->core,
+                                              0x0010C,
+                                              clock));
+        }
+#endif
     }
 
     if (flag & gcvPOWER_FLAG_DELAY)
