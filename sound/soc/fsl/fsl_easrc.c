@@ -1320,11 +1320,7 @@ static int fsl_easrc_process_format(struct fsl_easrc *easrc,
 	 * 0b - Signed Format
 	 * 1b - Unsigned Format
 	 */
-	ret = snd_pcm_format_unsigned(raw_fmt) > 0 ? 1 : 0;
-	if (ret < 0)
-		return ret;
-
-	fmt->unsign = ret;
+	fmt->unsign = snd_pcm_format_unsigned(raw_fmt) > 0 ? 1 : 0;
 
 	return 0;
 }
