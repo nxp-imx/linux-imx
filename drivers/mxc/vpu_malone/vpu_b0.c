@@ -5837,6 +5837,7 @@ static int v4l2_open(struct file *filp)
 			if (!wait_for_completion_timeout(&ctx->dev->start_cmp, msecs_to_jiffies(10000))) {
 				vpu_err("error: don't get start interrupt\n");
 				ret = -1;
+				mutex_unlock(&dev->dev_mutex);
 				goto err_firmware_load;
 			}
 		}
