@@ -1876,6 +1876,7 @@ static const struct v4l2_ioctl_ops mxc_jpeg_ioctl_ops = {
 	.vidioc_g_fmt_vid_out_mplane		= mxc_jpeg_g_fmt_vid_out,
 
 	.vidioc_subscribe_event		= mxc_jpeg_subscribe_event,
+	.vidioc_unsubscribe_event	= v4l2_event_unsubscribe,
 	.vidioc_decoder_cmd		= mxc_jpeg_decoder_cmd,
 	.vidioc_encoder_cmd		= mxc_jpeg_encoder_cmd,
 
