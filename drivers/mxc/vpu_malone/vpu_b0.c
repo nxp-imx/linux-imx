@@ -2101,6 +2101,15 @@ static	struct v4l2_ctrl_config vpu_custom_s_cfg[] = {
 		.min = 0,
 		.step = 1,
 		.def = 0,
+	},
+	{
+		.id = V4L2_CID_USER_STREAM_INPUT_MODE,
+		.name = "stream input mode",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = NON_FRAME_LVL,
+		.step = 1,
+		.def = 1,
 	}
 };
 
@@ -2134,6 +2143,9 @@ static int v4l2_custom_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_USER_BS_H_THRESHOLD:
 		ctx->bs_h_threshold = ctrl->val;
+		break;
+	case V4L2_CID_USER_STREAM_INPUT_MODE:
+		ctx->stream_input_mode = ctrl->val;
 		break;
 	default:
 		vpu_err("%s() Invalid costomer control(%d)\n",
@@ -3289,18 +3301,18 @@ static int update_stream_addr_vpu(struct vpu_ctx *ctx, void *input_buffer, uint3
 
 static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 {
-	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
-	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+	pDEC_RPC_HOST_IFACE pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info;
 
 	if (!ctx)
 		return;
 
-	if (ctx->start_code_bypass) {
-		buffer_info->stream_input_mode = NON_FRAME_LVL;
+	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+
+	buffer_info->stream_input_mode = ctx->stream_input_mode;
+	if (ctx->stream_input_mode == NON_FRAME_LVL)
 		buffer_info->stream_buffer_threshold = stream_buffer_threshold;
-	} else {
-		buffer_info->stream_input_mode = FRAME_LVL;
-	}
 
 	buffer_info->stream_pic_input_count = ctx->frm_total_num;
 }
@@ -3358,7 +3370,8 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	/*
 	 *frame depth need to be set by user and then the condition works
 	 */
-	if (vpu_frm_depth != INVALID_FRAME_DEPTH) {
+	if (vpu_frm_depth != INVALID_FRAME_DEPTH &&
+	    ctx->stream_input_mode == FRAME_LVL) {
 		if ((getTSManagerPreBufferCnt(ctx->tsm)) >= vpu_frm_depth)
 			return false;
 	}
@@ -3388,7 +3401,7 @@ static bool verify_decoded_frames(struct vpu_ctx *ctx)
 	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
 	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
-	if (ctx->start_code_bypass)
+	if (ctx->stream_input_mode != FRAME_LVL)
 		return true;
 
 	if (buffer_info->stream_pic_input_count != buffer_info->stream_pic_parsed_count) {
@@ -5379,6 +5392,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "stream_buffer_threshold",
 			buffer_info->stream_buffer_threshold);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "start_code_bypass",
+			ctx->start_code_bypass);
 
 	return num;
 }
@@ -5801,6 +5817,7 @@ static int v4l2_open(struct file *filp)
 	ctx->ctx_released = false;
 	ctx->b_dis_reorder = false;
 	ctx->start_code_bypass = false;
+	ctx->stream_input_mode = FRAME_LVL;
 	ctx->hang_status = false;
 	ctx->first_dump_data_flag = true;
 	INIT_LIST_HEAD(&ctx->cmd_q);

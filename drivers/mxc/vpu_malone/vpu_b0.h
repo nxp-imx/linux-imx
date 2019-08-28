@@ -57,7 +57,7 @@ extern unsigned int vpu_dbg_level_decoder;
 #define MAX_TIMEOUT_COUNT 10
 #define VPU_REG_BASE 0x40000000
 
-#define V4L2_MAX_CTRLS 12
+#define V4L2_MAX_CTRLS 16
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
 #define INVALID_FRAME_DEPTH -1
 #define DECODER_NODE_NUMBER 12 // use /dev/video12 as vpu decoder
@@ -149,6 +149,8 @@ typedef enum{
 #define V4L2_CID_USER_FRAME_MATRIXCOEFFS	(V4L2_CID_USER_BASE + 0x1106)
 #define V4L2_CID_USER_FRAME_FULLRANGE		(V4L2_CID_USER_BASE + 0x1107)
 #define V4L2_CID_USER_FRAME_VUIPRESENT		(V4L2_CID_USER_BASE + 0x1108)
+
+#define V4L2_CID_USER_STREAM_INPUT_MODE		(V4L2_CID_USER_BASE + 0x1109)
 
 #define IMX_V4L2_DEC_CMD_START		(0x09000000)
 #define IMX_V4L2_DEC_CMD_RESET		(IMX_V4L2_DEC_CMD_START + 1)
@@ -381,6 +383,7 @@ struct vpu_ctx {
 	bool eos_stop_added;
 	bool ctx_released;
 	bool start_code_bypass;
+	STREAM_INPUT_MODE stream_input_mode;
 	bool hang_status;
 	bool fifo_low;
 	bool frame_decoded;
