@@ -57,7 +57,6 @@ extern unsigned int vpu_dbg_level_decoder;
 #define MAX_TIMEOUT_COUNT 10
 #define VPU_REG_BASE 0x40000000
 
-#define V4L2_MAX_CTRLS 16
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
 #define INVALID_FRAME_DEPTH -1
 #define DECODER_NODE_NUMBER 12 // use /dev/video12 as vpu decoder
@@ -357,7 +356,6 @@ struct vpu_ctx {
 	char flow_name[64];
 	struct device_attribute dev_attr_instance_perf;
 	char perf_name[64];
-	struct v4l2_ctrl *ctrls[V4L2_MAX_CTRLS];
 	struct v4l2_ctrl_handler ctrl_handler;
 	bool ctrl_inited;
 	struct list_head log_q;
