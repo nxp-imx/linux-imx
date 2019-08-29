@@ -78,6 +78,49 @@ static const struct soc_enum fsl_easrc_iec958_bits_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(fsl_easrc_iec958_bits),
 			    fsl_easrc_iec958_bits);
 
+int fsl_easrc_get_reg(struct snd_kcontrol *kcontrol,
+		    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct soc_mreg_control *mc =
+		(struct soc_mreg_control *)kcontrol->private_value;
+	unsigned int regval;
+	int ret;
+
+	ret = snd_soc_component_read(component, mc->regbase, &regval);
+	if (ret < 0)
+		return ret;
+
+	ucontrol->value.integer.value[0] = regval;
+
+	return 0;
+}
+
+int fsl_easrc_set_reg(struct snd_kcontrol *kcontrol,
+		    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct soc_mreg_control *mc =
+		(struct soc_mreg_control *)kcontrol->private_value;
+	unsigned int regval = ucontrol->value.integer.value[0];
+	int ret;
+
+	ret = snd_soc_component_write(component, mc->regbase, regval);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+#define SOC_SINGLE_REG_RW(xname, xreg) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_PCM, .name = (xname), \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
+	.info = snd_soc_info_xr_sx, .get = fsl_easrc_get_reg, \
+	.put = fsl_easrc_set_reg, \
+	.private_value = (unsigned long)&(struct soc_mreg_control) \
+		{ .regbase = xreg, .regcount = 1, .nbits = 32, \
+		  .invert = 0, .min = 0, .max = 0xffffffff, } }
+
 static const struct snd_kcontrol_new fsl_easrc_snd_controls[] = {
 	SOC_SINGLE("Context 0 Dither Switch", REG_EASRC_COC(0), 0, 1, 0),
 	SOC_SINGLE("Context 1 Dither Switch", REG_EASRC_COC(1), 0, 1, 0),
@@ -92,6 +135,31 @@ static const struct snd_kcontrol_new fsl_easrc_snd_controls[] = {
 		     fsl_easrc_iec958_bits_enum,
 		     fsl_easrc_iec958_get_bits,
 		     fsl_easrc_iec958_put_bits),
+
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS0", REG_EASRC_CS0(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS0", REG_EASRC_CS0(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS0", REG_EASRC_CS0(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS0", REG_EASRC_CS0(3)),
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS1", REG_EASRC_CS1(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS1", REG_EASRC_CS1(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS1", REG_EASRC_CS1(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS1", REG_EASRC_CS1(3)),
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS2", REG_EASRC_CS2(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS2", REG_EASRC_CS2(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS2", REG_EASRC_CS2(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS2", REG_EASRC_CS2(3)),
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS3", REG_EASRC_CS3(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS3", REG_EASRC_CS3(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS3", REG_EASRC_CS3(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS3", REG_EASRC_CS3(3)),
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS4", REG_EASRC_CS4(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS4", REG_EASRC_CS4(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS4", REG_EASRC_CS4(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS4", REG_EASRC_CS4(3)),
+	SOC_SINGLE_REG_RW("Context 0 IEC958 CS5", REG_EASRC_CS5(0)),
+	SOC_SINGLE_REG_RW("Context 1 IEC958 CS5", REG_EASRC_CS5(1)),
+	SOC_SINGLE_REG_RW("Context 2 IEC958 CS5", REG_EASRC_CS5(2)),
+	SOC_SINGLE_REG_RW("Context 3 IEC958 CS5", REG_EASRC_CS5(3)),
 };
 
 /* set_rs_ratio
@@ -2206,30 +2274,6 @@ static bool fsl_easrc_volatile_reg(struct device *dev, unsigned int reg)
 	case REG_EASRC_SFS(1):
 	case REG_EASRC_SFS(2):
 	case REG_EASRC_SFS(3):
-	case REG_EASRC_CS0(0):
-	case REG_EASRC_CS0(1):
-	case REG_EASRC_CS0(2):
-	case REG_EASRC_CS0(3):
-	case REG_EASRC_CS1(0):
-	case REG_EASRC_CS1(1):
-	case REG_EASRC_CS1(2):
-	case REG_EASRC_CS1(3):
-	case REG_EASRC_CS2(0):
-	case REG_EASRC_CS2(1):
-	case REG_EASRC_CS2(2):
-	case REG_EASRC_CS2(3):
-	case REG_EASRC_CS3(0):
-	case REG_EASRC_CS3(1):
-	case REG_EASRC_CS3(2):
-	case REG_EASRC_CS3(3):
-	case REG_EASRC_CS4(0):
-	case REG_EASRC_CS4(1):
-	case REG_EASRC_CS4(2):
-	case REG_EASRC_CS4(3):
-	case REG_EASRC_CS5(0):
-	case REG_EASRC_CS5(1):
-	case REG_EASRC_CS5(2):
-	case REG_EASRC_CS5(3): /* fallthrough */
 	case REG_EASRC_DBGS:
 		return true;
 	default:
