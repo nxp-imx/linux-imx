@@ -677,7 +677,7 @@ struct fsl_easrc {
 	const char *fw_name;
 	unsigned long paddr;
 	unsigned int rs_num_taps;
-	unsigned int bps_iec958;
+	unsigned int bps_iec958[EASRC_CTX_MAX_NUM];
 	unsigned int chn_avail;
 	u64 *rs_coeff;
 	int firmware_loaded;
