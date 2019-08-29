@@ -1226,12 +1226,6 @@ _QueryFeatureDatabase(
 
     case gcvFEATURE_FENCE_64BIT:
         available = database->FENCE_64BIT;
-
-        if(_IsHardwareMatch(Hardware, gcv7000, 0x6203))
-        {
-            available = gcvFALSE;
-        }
-
         break;
 
     case gcvFEATURE_TEX_BASELOD:
