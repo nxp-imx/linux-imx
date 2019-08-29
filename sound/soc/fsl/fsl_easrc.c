@@ -43,8 +43,7 @@ extern struct snd_soc_platform_driver fsl_easrc_platform;
 				 SNDRV_PCM_FMTBIT_U32_LE | \
 				 SNDRV_PCM_FMTBIT_S20_3LE | \
 				 SNDRV_PCM_FMTBIT_U20_3LE | \
-				 SNDRV_PCM_FMTBIT_FLOAT_LE | \
-				 SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
+				 SNDRV_PCM_FMTBIT_FLOAT_LE)
 
 static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
 				     struct snd_ctl_elem_value *ucontrol)
@@ -1817,7 +1816,8 @@ static struct snd_soc_dai_driver fsl_easrc_dai = {
 		.rate_min = 8000,
 		.rate_max = 768000,
 		.rates = SNDRV_PCM_RATE_KNOT,
-		.formats = FSL_EASRC_FORMATS,
+		.formats = FSL_EASRC_FORMATS |
+			   SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE,
 	},
 	.ops = &fsl_easrc_dai_ops,
 };

@@ -441,7 +441,8 @@ static long fsl_easrc_ioctl_req_context(struct fsl_easrc_m2m *m2m,
 	m2m->ctx_hold = 1;
 	req.index = m2m->ctx->index;
 	req.supported_in_format = FSL_EASRC_FORMATS;
-	req.supported_out_format = FSL_EASRC_FORMATS;
+	req.supported_out_format = FSL_EASRC_FORMATS |
+				   SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE;
 	spin_unlock_irqrestore(&m2m->lock, lock_flags);
 
 	ret = copy_to_user(user, &req, sizeof(req));
