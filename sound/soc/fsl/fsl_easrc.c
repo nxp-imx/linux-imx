@@ -49,12 +49,12 @@ static int fsl_easrc_iec958_put_bits(struct snd_kcontrol *kcontrol,
 				     struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
-	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
-	unsigned int *item = ucontrol->value.enumerated.item;
 	struct fsl_easrc *easrc = snd_soc_component_get_drvdata(comp);
-	int val = snd_soc_enum_item_to_val(e, item[0]);
+	struct soc_mreg_control *mc =
+		(struct soc_mreg_control *)kcontrol->private_value;
+	unsigned int regval = ucontrol->value.integer.value[0];
 
-	easrc->bps_iec958 = val;
+	easrc->bps_iec958[mc->regbase] = regval;
 
 	return 0;
 }
@@ -64,19 +64,13 @@ static int fsl_easrc_iec958_get_bits(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
 	struct fsl_easrc *easrc = snd_soc_component_get_drvdata(comp);
+	struct soc_mreg_control *mc =
+		(struct soc_mreg_control *)kcontrol->private_value;
 
-	ucontrol->value.enumerated.item[0] = easrc->bps_iec958;
+	ucontrol->value.enumerated.item[0] = easrc->bps_iec958[mc->regbase];
 
 	return 0;
 }
-
-static const char * const fsl_easrc_iec958_bits[] = {
-	"16bit", "20bit", "24bit"
-};
-
-static const struct soc_enum fsl_easrc_iec958_bits_enum =
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(fsl_easrc_iec958_bits),
-			    fsl_easrc_iec958_bits);
 
 int fsl_easrc_get_reg(struct snd_kcontrol *kcontrol,
 		    struct snd_ctl_elem_value *ucontrol)
@@ -121,6 +115,15 @@ int fsl_easrc_set_reg(struct snd_kcontrol *kcontrol,
 		{ .regbase = xreg, .regcount = 1, .nbits = 32, \
 		  .invert = 0, .min = 0, .max = 0xffffffff, } }
 
+#define SOC_SINGLE_VAL_RW(xname, xreg) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_PCM, .name = (xname), \
+	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE, \
+	.info = snd_soc_info_xr_sx, .get = fsl_easrc_iec958_get_bits, \
+	.put = fsl_easrc_iec958_put_bits, \
+	.private_value = (unsigned long)&(struct soc_mreg_control) \
+		{ .regbase = xreg, .regcount = 1, .nbits = 32, \
+		  .invert = 0, .min = 0, .max = 2, } }
+
 static const struct snd_kcontrol_new fsl_easrc_snd_controls[] = {
 	SOC_SINGLE("Context 0 Dither Switch", REG_EASRC_COC(0), 0, 1, 0),
 	SOC_SINGLE("Context 1 Dither Switch", REG_EASRC_COC(1), 0, 1, 0),
@@ -131,10 +134,11 @@ static const struct snd_kcontrol_new fsl_easrc_snd_controls[] = {
 	SOC_SINGLE("Context 1 IEC958 Validity", REG_EASRC_COC(1), 2, 1, 0),
 	SOC_SINGLE("Context 2 IEC958 Validity", REG_EASRC_COC(2), 2, 1, 0),
 	SOC_SINGLE("Context 3 IEC958 Validity", REG_EASRC_COC(3), 2, 1, 0),
-	SOC_ENUM_EXT("IEC958 Bits Per Sample",
-		     fsl_easrc_iec958_bits_enum,
-		     fsl_easrc_iec958_get_bits,
-		     fsl_easrc_iec958_put_bits),
+
+	SOC_SINGLE_VAL_RW("Context 0 IEC958 Bits Per Sample", 0),
+	SOC_SINGLE_VAL_RW("Context 1 IEC958 Bits Per Sample", 1),
+	SOC_SINGLE_VAL_RW("Context 2 IEC958 Bits Per Sample", 2),
+	SOC_SINGLE_VAL_RW("Context 3 IEC958 Bits Per Sample", 3),
 
 	SOC_SINGLE_REG_RW("Context 0 IEC958 CS0", REG_EASRC_CS0(0)),
 	SOC_SINGLE_REG_RW("Context 1 IEC958 CS0", REG_EASRC_CS0(1)),
@@ -1315,10 +1319,11 @@ int fsl_easrc_config_context(struct fsl_easrc *easrc, unsigned int ctx_id)
 	return ret;
 }
 
-static int fsl_easrc_process_format(struct fsl_easrc *easrc,
+static int fsl_easrc_process_format(struct fsl_easrc_context *ctx,
 			      struct fsl_easrc_data_fmt *fmt,
 			      snd_pcm_format_t raw_fmt)
 {
+	struct fsl_easrc *easrc = ctx->easrc;
 	int ret;
 
 	if (!fmt)
@@ -1356,7 +1361,7 @@ static int fsl_easrc_process_format(struct fsl_easrc *easrc,
 
 	switch (raw_fmt) {
 	case SNDRV_PCM_FORMAT_IEC958_SUBFRAME_LE:
-		fmt->width = easrc->bps_iec958;
+		fmt->width = easrc->bps_iec958[ctx->index];
 		fmt->iec958 = 1;
 		fmt->floating_point = 0;
 		if (fmt->width == EASRC_WIDTH_16_BIT) {
@@ -1403,7 +1408,7 @@ int fsl_easrc_set_ctx_format(struct fsl_easrc_context *ctx,
 
 	/* get the bitfield values for input data format */
 	if (in_raw_format && out_raw_format) {
-		ret = fsl_easrc_process_format(easrc, in_fmt, *in_raw_format);
+		ret = fsl_easrc_process_format(ctx, in_fmt, *in_raw_format);
 		if (ret)
 			return ret;
 	}
@@ -1444,7 +1449,7 @@ int fsl_easrc_set_ctx_format(struct fsl_easrc_context *ctx,
 
 	/* get the bitfield values for input data format */
 	if (in_raw_format && out_raw_format) {
-		ret = fsl_easrc_process_format(easrc, out_fmt, *out_raw_format);
+		ret = fsl_easrc_process_format(ctx, out_fmt, *out_raw_format);
 		if (ret)
 			return ret;
 	}
@@ -2448,7 +2453,6 @@ static int fsl_easrc_probe(struct platform_device *pdev)
 	/*Set default value*/
 	easrc->chn_avail = 32;
 	easrc->rs_num_taps = EASRC_RS_128_TAPS;
-	easrc->bps_iec958 = EASRC_WIDTH_16_BIT;
 
 	ret = of_property_read_u32(np, "fsl,asrc-rate",
 				   &easrc->easrc_rate);
