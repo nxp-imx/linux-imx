@@ -41,6 +41,7 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
+#include <linux/workqueue.h>
 
 #include <asm/irq.h>
 #include <linux/platform_data/dma-imx-sdma.h>
@@ -367,6 +368,7 @@ struct sdma_channel {
 	unsigned int			fifo_num;
 	bool				sw_done;
 	u32				sw_done_sel;
+	struct work_struct              terminate_worker;
 };
 
 #define IMX_DMA_SG_LOOP		BIT(0)
@@ -1361,9 +1363,10 @@ static int sdma_channel_resume(struct dma_chan *chan)
 	return 0;
 }
 
-static int sdma_terminate_all(struct dma_chan *chan)
+static void sdma_channel_terminate_work(struct work_struct *work)
 {
-	struct sdma_channel *sdmac = to_sdma_chan(chan);
+	struct sdma_channel *sdmac = container_of(work, struct sdma_channel,
+						  terminate_worker);
 	unsigned long flags;
 	LIST_HEAD(head);
 
@@ -1383,10 +1386,30 @@ static int sdma_terminate_all(struct dma_chan *chan)
 		sdmac->desc = NULL;
 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
 	vchan_dma_desc_free_list(&sdmac->vc, &head);
-	sdma_disable_channel(chan);
+
 	sdmac->context_loaded = false;
 
+}
+
+static int sdma_terminate_all(struct dma_chan *chan)
+{
+	struct sdma_channel *sdmac = to_sdma_chan(chan);
+
+	sdma_disable_channel(chan);
+
+	if (sdmac->desc)
+		schedule_work(&sdmac->terminate_worker);
+
 	return 0;
+}
+
+static void sdma_wait_tasklet(struct dma_chan *chan)
+{
+	struct sdma_channel *sdmac = to_sdma_chan(chan);
+
+	tasklet_kill(&sdmac->vc.task);
+
+	flush_work(&sdmac->terminate_worker);
 }
 
 static int sdma_alloc_chan_resources(struct dma_chan *chan)
@@ -1465,6 +1488,8 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 	struct sdma_engine *sdma = sdmac->sdma;
 
 	sdma_terminate_all(chan);
+
+	sdma_wait_tasklet(chan);
 
 	sdma_event_disable(sdmac, sdmac->event_id0);
 	if (sdmac->event_id1)
@@ -1823,13 +1848,6 @@ static int sdma_config(struct dma_chan *chan,
 	}
 	sdmac->direction = dmaengine_cfg->direction;
 	return sdma_config_channel(chan);
-}
-
-static void sdma_wait_tasklet(struct dma_chan *chan)
-{
-	struct sdma_channel *sdmac = to_sdma_chan(chan);
-
-	tasklet_kill(&sdmac->vc.task);
 }
 
 static enum dma_status sdma_tx_status(struct dma_chan *chan,
@@ -2296,6 +2314,8 @@ static int sdma_probe(struct platform_device *pdev)
 		sdmac->status = DMA_IN_PROGRESS;
 		sdmac->vc.desc_free = sdma_desc_free;
 		INIT_LIST_HEAD(&sdmac->pending);
+		INIT_WORK(&sdmac->terminate_worker,
+				sdma_channel_terminate_work);
 
 		/*
 		 * Add the channel to the DMAC list. Do not add channel 0 though
