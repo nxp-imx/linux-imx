@@ -2663,11 +2663,12 @@ static void do_send_cmd_to_firmware(struct vpu_ctx *ctx,
 	vpu_log_cmd(cmdid, idx);
 	count_cmd(&ctx->statistic, cmdid);
 	record_log_info(ctx, LOG_COMMAND, cmdid, 0);
-	mutex_lock(&ctx->dev->cmd_mutex);
+
+	spin_lock(&ctx->dev->cmd_spinlock);
 	rpc_send_cmd_buf(&ctx->dev->shared_mem, idx, cmdid, cmdnum, local_cmddata);
-	mutex_unlock(&ctx->dev->cmd_mutex);
 	mb();
 	MU_SendMessage(ctx->dev->mu_base_virtaddr, 0, COMMAND);
+	spin_unlock(&ctx->dev->cmd_spinlock);
 }
 
 static struct vpu_dec_cmd_request vpu_dec_cmds[] = {
@@ -4518,6 +4519,7 @@ static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
 					VPU_REG_BASE);
 
 		/*CM0 use relative address*/
+		spin_lock(&dev->cmd_spinlock);
 		MU_sendMesgToFW(dev->mu_base_virtaddr,
 				RPC_BUF_OFFSET,
 				vpu_dec_cpu_phy_to_mu(dev,  dev->m0_rpc_phy));
@@ -4525,6 +4527,7 @@ static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
 				BOOT_ADDRESS,
 				dev->m0_p_fw_space_phy);
 		MU_sendMesgToFW(dev->mu_base_virtaddr, INIT_DONE, 2);
+		spin_unlock(&dev->cmd_spinlock);
 
 	} else if (msg == 0x55) {
 		dev->firmware_started = true;
@@ -6184,7 +6187,7 @@ static int init_vpudev_parameters(struct vpu_dev *dev)
 		return -EINVAL;
 
 	mutex_init(&dev->dev_mutex);
-	mutex_init(&dev->cmd_mutex);
+	spin_lock_init(&dev->cmd_spinlock);
 	mutex_init(&dev->fw_flow_mutex);
 	init_completion(&dev->start_cmp);
 	init_completion(&dev->snap_done_cmp);

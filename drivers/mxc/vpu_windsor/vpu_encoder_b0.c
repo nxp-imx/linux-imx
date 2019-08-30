@@ -1616,12 +1616,12 @@ static void vpu_core_send_cmd(struct core_device *core, u32 idx,
 	vpu_log_cmd(cmdid, idx);
 	count_cmd(&core->attr[idx], cmdid);
 
-	mutex_lock(&core->cmd_mutex);
+	spin_lock(&core->cmd_spinlock);
 	rpc_send_cmd_buf_encoder(&core->shared_mem, idx,
 				cmdid, cmdnum, local_cmddata);
 	mb();
 	MU_SendMessage(core->mu_base_virtaddr, 0, COMMAND);
-	mutex_unlock(&core->cmd_mutex);
+	spin_unlock(&core->cmd_spinlock);
 }
 
 static void vpu_ctx_send_cmd(struct vpu_ctx *ctx, uint32_t cmdid,
@@ -2849,11 +2849,12 @@ static void enable_mu(struct core_device *dev)
 	dev->print_buf = dev->m0_rpc_virt + dev->rpc_buf_size;
 
 	mu_addr = cpu_phy_to_mu(dev, dev->m0_rpc_phy);
+	spin_lock(&dev->cmd_spinlock);
 	MU_sendMesgToFW(dev->mu_base_virtaddr, RPC_BUF_OFFSET, mu_addr);
-
 	MU_sendMesgToFW(dev->mu_base_virtaddr, BOOT_ADDRESS,
 			dev->m0_p_fw_space_phy);
 	MU_sendMesgToFW(dev->mu_base_virtaddr, INIT_DONE, 2);
+	spin_unlock(&dev->cmd_spinlock);
 }
 
 static void get_core_supported_instance_count(struct core_device *core)
@@ -5245,7 +5246,7 @@ static int init_vpu_core_dev(struct core_device *core_dev)
 	if (!core_dev)
 		return -EINVAL;
 
-	mutex_init(&core_dev->cmd_mutex);
+	spin_lock_init(&core_dev->cmd_spinlock);
 	init_completion(&core_dev->start_cmp);
 	init_completion(&core_dev->snap_done_cmp);
 

@@ -256,7 +256,7 @@ struct vpu_dev {
 	u_int32 m0_rpc_phy;
 	u_int32 m0_rpc_size;
 	struct mutex dev_mutex;
-	struct mutex cmd_mutex;
+	spinlock_t cmd_spinlock;
 	struct mutex fw_flow_mutex;
 	bool fw_is_ready;
 	bool firmware_started;

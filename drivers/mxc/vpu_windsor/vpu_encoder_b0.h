@@ -281,7 +281,7 @@ struct core_device {
 	u32 rpc_actual_size;
 	struct print_buf_desc *print_buf;
 
-	struct mutex cmd_mutex;
+	spinlock_t cmd_spinlock;
 	bool fw_is_ready;
 	bool firmware_started;
 	struct completion start_cmp;
