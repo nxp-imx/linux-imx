@@ -366,6 +366,55 @@ static DRIVER_ATTR_RW(gpu3DMinClock);
 #else
 static DRIVER_ATTR(gpu3DMinClock, S_IRUGO | S_IWUSR, gpu3DMinClock_show, gpu3DMinClock_store);
 #endif
+
+static ssize_t gpu3DClockScale_show(struct device_driver *dev, char *buf)
+{
+    gctUINT currentf = 0, minf = 0, maxf = 0;
+    gckGALDEVICE galDevice;
+
+    galDevice = platform_get_drvdata(pdevice);
+
+    if (galDevice->kernels[gcvCORE_MAJOR])
+    {
+         gckHARDWARE_GetFscaleValue(galDevice->kernels[gcvCORE_MAJOR]->hardware,
+            &currentf, &minf, &maxf);
+    }
+
+    snprintf(buf, PAGE_SIZE, "%d\n", currentf);
+    return strlen(buf);
+}
+
+static ssize_t gpu3DClockScale_store(struct device_driver *dev, const char *buf, size_t count)
+{
+
+    gctINT fields;
+    gctUINT FscaleValue;
+    gckGALDEVICE galDevice;
+    gctUINT core = gcvCORE_MAJOR;
+
+    galDevice = platform_get_drvdata(pdevice);
+    if (!galDevice)
+         return -EINVAL;
+
+    fields = sscanf(buf, "%d", &FscaleValue);
+
+    if (fields < 1)
+         return -EINVAL;
+
+    while (galDevice->kernels[core] && core <= gcvCORE_3D_MAX)
+    {
+         gckHARDWARE_SetFscaleValue(galDevice->kernels[core++]->hardware,FscaleValue);
+    }
+
+    return count;
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0)
+static DRIVER_ATTR_RW(gpu3DClockScale);
+#else
+static DRIVER_ATTR(gpu3DClockScale, S_IRUGO | S_IWUSR, gpu3DClockScale_show, gpu3DClockScale_store);
+#endif
+
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
@@ -1232,6 +1281,11 @@ static inline int get_power(struct device *pdev)
 
     if (ret)
         dev_err(pdev, "create gpu3DMinClock attr failed (%d)\n", ret);
+
+    ret = driver_create_file(pdev->driver, &driver_attr_gpu3DClockScale);
+
+    if (ret)
+        dev_err(pdev, "create gpu3DClockScale attr failed (%d)\n", ret);
 #endif
 
 #if defined(CONFIG_PM_OPP)
@@ -1298,6 +1352,8 @@ static inline void put_power(void)
     UNREG_THERMAL_NOTIFIER(&thermal_hot_pm_notifier);
 
     driver_remove_file(pdevice->dev.driver, &driver_attr_gpu3DMinClock);
+
+    driver_remove_file(pdevice->dev.driver, &driver_attr_gpu3DClockScale);
 #endif
 
 #if defined(CONFIG_PM_OPP)
