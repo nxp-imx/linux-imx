@@ -19,5 +19,6 @@ obj-y		+= Pcd/
 obj-y		+= SP/
 obj-y		+= Port/
 obj-y		+= HC/
-obj-y		+= Rtc/
 obj-y		+= MACSEC/
+
+obj-$(CONFIG_FSL_SDK_FMAN_RTC_API)	+= Rtc/

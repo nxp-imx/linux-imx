@@ -695,11 +695,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         }
     }
 
-/* DPAA PTP timer was managed by ptp_qoriq driver in drivers/ptp/.
- * We will no longer manage it in sdk_fman driver and use related
- * APIs.
- */
-#if 0
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     /* Get the RTC base address and size */
     memset(ids, 0, sizeof(ids));
     if (WARN_ON(strlen("ptp-timer") >= sizeof(ids[0].name)))
@@ -941,6 +937,7 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (SYS_RegisterIoMap((uint64_t)p_LnxWrpFmDev->fmMuramBaseAddr, (uint64_t)p_LnxWrpFmDev->fmMuramPhysBaseAddr, p_LnxWrpFmDev->fmMuramMemSize) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM MURAM memory map"));
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcPhysBaseAddr)
     {
         dev_res = __devm_request_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize, "fman-ptp-timer");
@@ -954,6 +951,7 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if (SYS_RegisterIoMap((uint64_t)p_LnxWrpFmDev->fmRtcBaseAddr, (uint64_t)p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize) != E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC memory map"));
     }
+#endif
 
 #if (DPAA_VERSION >= 11)
     if (p_LnxWrpFmDev->fmVspPhysBaseAddr) {
@@ -1187,6 +1185,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
          * FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_MURAM_ECC,FALSE);*/
     }
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcBaseAddr)
     {
         t_FmRtcParams   fmRtcParam;
@@ -1205,6 +1204,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if (FM_RTC_Init(p_LnxWrpFmDev->h_RtcDev) != E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC"));
     }
+#endif
 
     return E_OK;
 }
@@ -1219,8 +1219,10 @@ static void FreeFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 
     FreeFmPcdDev(p_LnxWrpFmDev);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->h_RtcDev)
 	FM_RTC_Free(p_LnxWrpFmDev->h_RtcDev);
+#endif
 
     if (p_LnxWrpFmDev->h_Dev)
         FM_Free(p_LnxWrpFmDev->h_Dev);
@@ -1228,12 +1230,14 @@ static void FreeFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (p_LnxWrpFmDev->h_MuramDev)
         FM_MURAM_Free(p_LnxWrpFmDev->h_MuramDev);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcBaseAddr)
     {
         SYS_UnregisterIoMap(p_LnxWrpFmDev->fmRtcBaseAddr);
         devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmRtcBaseAddr));
         __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize);
     }
+#endif
     SYS_UnregisterIoMap(p_LnxWrpFmDev->fmMuramBaseAddr);
     devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmMuramBaseAddr));
     __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmMuramPhysBaseAddr, p_LnxWrpFmDev->fmMuramMemSize);
@@ -1463,6 +1467,7 @@ void * fm_get_handle(struct fm *fm)
 }
 EXPORT_SYMBOL(fm_get_handle);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
 void * fm_get_rtc_handle(struct fm *fm)
 {
     t_LnxWrpFmDev       *p_LnxWrpFmDev = (t_LnxWrpFmDev*)fm;
@@ -1470,6 +1475,7 @@ void * fm_get_rtc_handle(struct fm *fm)
     return (void *)p_LnxWrpFmDev->h_RtcDev;
 }
 EXPORT_SYMBOL(fm_get_rtc_handle);
+#endif
 
 struct fm_port * fm_port_bind (struct device *fm_port_dev)
 {
@@ -2053,6 +2059,7 @@ int fm_mac_set_tx_pause_frames(struct fm_mac_dev *fm_mac_dev,
 #endif
 EXPORT_SYMBOL(fm_mac_set_tx_pause_frames);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
 int fm_rtc_enable(struct fm *fm_dev)
 {
 	int			 _errno;
@@ -2209,6 +2216,7 @@ int fm_rtc_disable_interrupt(struct fm *fm_dev, uint32_t events)
 }
 EXPORT_SYMBOL(fm_rtc_disable_interrupt);
 #endif
+#endif /* CONFIG_FSL_SDK_FMAN_RTC_API */
 
 int fm_mac_set_wol(struct fm_port *port, struct fm_mac_dev *fm_mac_dev, bool en)
 {

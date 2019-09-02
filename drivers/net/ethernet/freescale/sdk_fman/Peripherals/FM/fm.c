@@ -602,8 +602,10 @@ do {                                    \
         FM_G_CALL_10G_MAC_ISR(0);
     if (pending & INTR_EN_10G_MAC1)
         FM_G_CALL_10G_MAC_ISR(1);
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (pending & INTR_EN_TMR)
         p_Fm->intrMng[e_FM_EV_TMR].f_Isr(p_Fm->intrMng[e_FM_EV_TMR].h_SrcHandle);
+#endif
 }
 
 #if (DPAA_VERSION >= 11)
@@ -4318,8 +4320,10 @@ void FM_EventIsr(t_Handle h_Fm)
         p_Fm->intrMng[e_FM_EV_PRS].f_Isr(p_Fm->intrMng[e_FM_EV_PRS].h_SrcHandle);
     if (pending & INTR_EN_PLCR)
         p_Fm->intrMng[e_FM_EV_PLCR].f_Isr(p_Fm->intrMng[e_FM_EV_PLCR].h_SrcHandle);
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (pending & INTR_EN_TMR)
             p_Fm->intrMng[e_FM_EV_TMR].f_Isr(p_Fm->intrMng[e_FM_EV_TMR].h_SrcHandle);
+#endif
 
     /* MAC events may belong to different partitions */
     if (pending & INTR_EN_1G_MAC0)
