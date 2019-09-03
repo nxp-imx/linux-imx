@@ -74,97 +74,34 @@ static int dpu_atomic_sort_planes_per_crtc(struct drm_crtc_state *crtc_state,
 	return n;
 }
 
-static int
-dpu_atomic_compute_plane_base_per_crtc(struct drm_crtc_state *crtc_state,
-				       struct drm_plane_state **states, int n,
-				       bool use_pc)
+static void
+dpu_atomic_compute_plane_lrx_per_crtc(struct drm_crtc_state *crtc_state,
+				      struct drm_plane_state **states, int n)
 {
 	struct dpu_plane_state *dpstate;
-	int i, left, right, top, bottom, tmp;
-	int base_x, base_y, base_w, base_h;
+	struct drm_plane_state *plane_state;
+	int i;
 	int half_hdisplay = crtc_state->adjusted_mode.hdisplay >> 1;
 	bool lo, ro, bo;
 
-	/* compute the plane base */
-	left   = states[0]->crtc_x;
-	top    = states[0]->crtc_y;
-	right  = states[0]->crtc_x + states[0]->crtc_w;
-	bottom = states[0]->crtc_y + states[0]->crtc_h;
-
-	for (i = 1; i < n; i++) {
-		left = min(states[i]->crtc_x, left);
-		top =  min(states[i]->crtc_y, top);
-
-		tmp = states[i]->crtc_x + states[i]->crtc_w;
-		right = max(tmp, right);
-
-		tmp = states[i]->crtc_y + states[i]->crtc_h;
-		bottom = max(tmp, bottom);
-	}
-
-	/* BTW, be smart to compute the layer offset */
+	/* compute left/right_crtc_x if pixel combiner is needed */
 	for (i = 0; i < n; i++) {
-		dpstate = to_dpu_plane_state(states[i]);
-		dpstate->layer_x = states[i]->crtc_x - left;
-		dpstate->layer_y = states[i]->crtc_y - top;
-	}
-
-	/* store the base in plane state */
-	dpstate = to_dpu_plane_state(states[0]);
-	base_x = left;
-	base_y = top;
-	base_w = right - left;
-	base_h = bottom - top;
-	dpstate->base_x = base_x;
-	dpstate->base_y = base_y;
-	dpstate->base_w = base_w;
-	dpstate->base_h = base_h;
-
-	if (!use_pc)
-		return 0;
-
-	/* compute left/right_layer/base_x/w if pixel combiner is needed */
-	for (i = 0; i < n; i++) {
-		dpstate = to_dpu_plane_state(states[i]);
+		plane_state = states[i];
+		dpstate = to_dpu_plane_state(plane_state);
 
 		lo =  dpstate->left_src_w && !dpstate->right_src_w;
 		ro = !dpstate->left_src_w &&  dpstate->right_src_w;
 		bo =  dpstate->left_src_w &&  dpstate->right_src_w;
 
 		if (lo || bo) {
-			dpstate->left_layer_x = dpstate->layer_x;
-			dpstate->right_layer_x = 0;
+			dpstate->left_crtc_x = plane_state->crtc_x;
+			dpstate->right_crtc_x = 0;
 		} else if (ro) {
-			dpstate->left_layer_x = 0;
-			dpstate->right_layer_x =
-					states[i]->crtc_x - half_hdisplay;
-		}
-
-		if (i)
-			continue;
-
-		if (base_x < half_hdisplay) {
-			dpstate->left_base_x = base_x;
-			dpstate->right_base_x = 0;
-
-			if ((base_x + base_w) < half_hdisplay) {
-				dpstate->left_base_w = base_w;
-				dpstate->right_base_w = 0;
-			} else {
-				dpstate->left_base_w = half_hdisplay - base_x;
-				dpstate->right_base_w =
-						base_x + base_w - half_hdisplay;
-			}
-		} else {
-			dpstate->left_base_x = 0;
-			dpstate->right_base_x = base_x - half_hdisplay;
-
-			dpstate->left_base_w = 0;
-			dpstate->right_base_w = base_w;
+			dpstate->left_crtc_x = 0;
+			dpstate->right_crtc_x =
+					plane_state->crtc_x - half_hdisplay;
 		}
 	}
-
-	return 0;
 }
 
 static void
@@ -499,8 +436,7 @@ dpu_atomic_put_possible_states_per_crtc(struct drm_crtc_state *crtc_state)
 			/*
 			 * Should be enough to check the below real HW plane
 			 * resources only.
-			 * Vproc resources and things like layer_x/y should
-			 * be fine.
+			 * Things like vproc resources should be fine.
 			 */
 			if (old_dpstate->stage  != new_dpstate->stage ||
 			    old_dpstate->source != new_dpstate->source ||
@@ -747,12 +683,9 @@ static int dpu_drm_atomic_check(struct drm_device *dev,
 			return -EINVAL;
 		}
 
-		ret = dpu_atomic_compute_plane_base_per_crtc(crtc_state, states,
-					n, use_pc[dpu_crtc->crtc_grp_id]);
-		if (ret) {
-			kfree(states);
-			return ret;
-		}
+		if (use_pc[dpu_crtc->crtc_grp_id])
+			dpu_atomic_compute_plane_lrx_per_crtc(crtc_state,
+								states, n);
 
 		dpu_atomic_set_top_plane_per_crtc(states, n,
 					use_pc[dpu_crtc->crtc_grp_id]);

@@ -860,7 +860,7 @@ static void dpu_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	struct drm_encoder *encoder;
 	struct dpu_plane *dplane = to_dpu_plane(crtc->primary);
 	struct dpu_plane_res *res = &dplane->grp->res;
-	struct dpu_constframe *cf;
+	struct dpu_constframe *pa_cf, *sa_cf;
 	struct dpu_disengcfg *dec;
 	struct dpu_extdst *ed, *plane_ed;
 	struct dpu_framegen *fg;
@@ -908,7 +908,8 @@ static void dpu_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 again:
 	if (cfg_aux_pipe) {
-		cf = dpu_crtc->aux_cf;
+		pa_cf = dpu_crtc->aux_pa_cf;
+		sa_cf = dpu_crtc->aux_sa_cf;
 		dec = dpu_crtc->aux_dec;
 		ed = dpu_crtc->aux_ed;
 		fg = dpu_crtc->aux_fg;
@@ -916,7 +917,8 @@ again:
 		st = aux_dpu_crtc->st;
 		stream_id = dpu_crtc->stream_id ^ 1;
 	} else {
-		cf = dpu_crtc->cf;
+		pa_cf = dpu_crtc->pa_cf;
+		sa_cf = dpu_crtc->sa_cf;
 		dec = dpu_crtc->dec;
 		ed = dpu_crtc->ed;
 		fg = dpu_crtc->fg;
@@ -951,7 +953,9 @@ again:
 
 	disengcfg_polarity_ctrl(dec, mode->flags);
 
-	constframe_framedimensions(cf, crtc_hdisplay, mode->crtc_vdisplay);
+	constframe_framedimensions(pa_cf, crtc_hdisplay, mode->crtc_vdisplay);
+	constframe_framedimensions(sa_cf, crtc_hdisplay, mode->crtc_vdisplay);
+	constframe_constantcolor(sa_cf, 0, 0, 0, 0);
 
 	ed_src = stream_id ? ED_SRC_CONSTFRAME5 : ED_SRC_CONSTFRAME4;
 	extdst_pixengcfg_src_sel(ed, ed_src);
@@ -977,8 +981,10 @@ static const struct drm_crtc_helper_funcs dpu_helper_funcs = {
 
 static void dpu_crtc_put_resources(struct dpu_crtc *dpu_crtc)
 {
-	if (!IS_ERR_OR_NULL(dpu_crtc->cf))
-		dpu_cf_put(dpu_crtc->cf);
+	if (!IS_ERR_OR_NULL(dpu_crtc->pa_cf))
+		dpu_cf_put(dpu_crtc->pa_cf);
+	if (!IS_ERR_OR_NULL(dpu_crtc->sa_cf))
+		dpu_cf_put(dpu_crtc->sa_cf);
 	if (!IS_ERR_OR_NULL(dpu_crtc->dec))
 		dpu_dec_put(dpu_crtc->dec);
 	if (!IS_ERR_OR_NULL(dpu_crtc->ed))
@@ -997,12 +1003,19 @@ static int dpu_crtc_get_resources(struct dpu_crtc *dpu_crtc)
 	unsigned int stream_id = dpu_crtc->stream_id;
 	int ret;
 
-	dpu_crtc->cf = dpu_cf_get(dpu, stream_id + 4);
-	if (IS_ERR(dpu_crtc->cf)) {
-		ret = PTR_ERR(dpu_crtc->cf);
+	dpu_crtc->pa_cf = dpu_cf_get(dpu, stream_id + 4);
+	if (IS_ERR(dpu_crtc->pa_cf)) {
+		ret = PTR_ERR(dpu_crtc->pa_cf);
 		goto err_out;
 	}
-	dpu_crtc->aux_cf = dpu_aux_cf_peek(dpu_crtc->cf);
+	dpu_crtc->aux_pa_cf = dpu_aux_cf_peek(dpu_crtc->pa_cf);
+
+	dpu_crtc->sa_cf = dpu_cf_get(dpu, stream_id);
+	if (IS_ERR(dpu_crtc->sa_cf)) {
+		ret = PTR_ERR(dpu_crtc->sa_cf);
+		goto err_out;
+	}
+	dpu_crtc->aux_sa_cf = dpu_aux_cf_peek(dpu_crtc->sa_cf);
 
 	dpu_crtc->dec = dpu_dec_get(dpu, stream_id);
 	if (IS_ERR(dpu_crtc->dec)) {
@@ -1040,25 +1053,29 @@ static int dpu_crtc_get_resources(struct dpu_crtc *dpu_crtc)
 	dpu_crtc->aux_tcon = dpu_aux_tcon_peek(dpu_crtc->tcon);
 
 	if (dpu_crtc->aux_is_master) {
-		dpu_crtc->m_cf   = dpu_crtc->aux_cf;
+		dpu_crtc->m_pa_cf = dpu_crtc->aux_pa_cf;
+		dpu_crtc->m_sa_cf = dpu_crtc->aux_sa_cf;
 		dpu_crtc->m_dec  = dpu_crtc->aux_dec;
 		dpu_crtc->m_ed   = dpu_crtc->aux_ed;
 		dpu_crtc->m_fg   = dpu_crtc->aux_fg;
 		dpu_crtc->m_tcon = dpu_crtc->aux_tcon;
 
-		dpu_crtc->s_cf   = dpu_crtc->cf;
+		dpu_crtc->s_pa_cf = dpu_crtc->pa_cf;
+		dpu_crtc->s_sa_cf = dpu_crtc->sa_cf;
 		dpu_crtc->s_dec  = dpu_crtc->dec;
 		dpu_crtc->s_ed   = dpu_crtc->ed;
 		dpu_crtc->s_fg   = dpu_crtc->fg;
 		dpu_crtc->s_tcon = dpu_crtc->tcon;
 	} else {
-		dpu_crtc->m_cf   = dpu_crtc->cf;
+		dpu_crtc->m_pa_cf = dpu_crtc->pa_cf;
+		dpu_crtc->m_sa_cf = dpu_crtc->sa_cf;
 		dpu_crtc->m_dec  = dpu_crtc->dec;
 		dpu_crtc->m_ed   = dpu_crtc->ed;
 		dpu_crtc->m_fg   = dpu_crtc->fg;
 		dpu_crtc->m_tcon = dpu_crtc->tcon;
 
-		dpu_crtc->s_cf   = dpu_crtc->aux_cf;
+		dpu_crtc->s_pa_cf = dpu_crtc->aux_pa_cf;
+		dpu_crtc->s_sa_cf = dpu_crtc->aux_sa_cf;
 		dpu_crtc->s_dec  = dpu_crtc->aux_dec;
 		dpu_crtc->s_ed   = dpu_crtc->aux_ed;
 		dpu_crtc->s_fg   = dpu_crtc->aux_fg;
