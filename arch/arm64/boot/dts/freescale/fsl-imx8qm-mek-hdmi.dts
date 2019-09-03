@@ -86,3 +86,137 @@
 	assigned-clock-rates = <786432000>, <49152000>, <12288000>;
 	status = "okay";
 };
+
+&iomuxc {
+	imx8qm-mek {
+		pinctrl_mipi_csi0: mipicsi0grp{
+			fsl,pins = <
+				SC_P_MIPI_CSI0_MCLK_OUT_MIPI_CSI0_ACM_MCLK_OUT	0xC0000041
+				SC_P_MIPI_CSI0_GPIO0_00_LSIO_GPIO1_IO27			0x00000021
+				SC_P_MIPI_CSI0_GPIO0_01_LSIO_GPIO1_IO28			0x00000021
+			>;
+		};
+
+		pinctrl_mipi_csi1: mipicsi1grp{
+			fsl,pins = <
+				SC_P_MIPI_CSI1_MCLK_OUT_MIPI_CSI1_ACM_MCLK_OUT	0xC0000041
+				SC_P_MIPI_CSI1_GPIO0_00_LSIO_GPIO1_IO30		0x00000021
+				SC_P_MIPI_CSI1_GPIO0_01_LSIO_GPIO1_IO31		0x00000021
+			>;
+		};
+	};
+};
+
+&isi_0 {
+	status = "okay";
+};
+
+&isi_4 {
+	status = "okay";
+};
+
+&isi_1 {
+	status = "disabled";
+};
+
+&isi_2 {
+	status = "disabled";
+};
+
+&isi_3 {
+	status = "disabled";
+};
+
+&isi_5 {
+	status = "disabled";
+};
+
+&isi_6 {
+	status = "disabled";
+};
+
+&isi_7 {
+	status = "disabled";
+};
+
+&i2c0_mipi_csi0 {
+	clock-frequency = <100000>;
+	status = "okay";
+
+	ov5640_mipi: ov5640_mipi@3c {
+		compatible = "ovti,ov5640_mipi_v3";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_csi0>;
+		clocks = <&clk IMX8QM_24MHZ>;
+		clock-names = "csi_mclk";
+		csi_id = <0>;
+		pwn-gpios = <&gpio1 28 GPIO_ACTIVE_LOW>;
+		rst-gpios = <&gpio1 27 GPIO_ACTIVE_HIGH>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		mipi_csi;
+		status = "okay";
+		port {
+			ov5640_mipi_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+			};
+		};
+	};
+
+	/delete-node/max9286_mipi@6A;
+};
+
+&i2c0_mipi_csi1 {
+	clock-frequency = <100000>;
+	status = "okay";
+
+	ov5640_mipi@3c {
+		compatible = "ovti,ov5640_mipi_v3";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_csi1>;
+		clocks = <&clk IMX8QM_24MHZ>;
+		clock-names = "csi_mclk";
+		csi_id = <1>;
+		pwn-gpios = <&gpio1 31 GPIO_ACTIVE_LOW>;
+		rst-gpios = <&gpio1 30 GPIO_ACTIVE_HIGH>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		mipi_csi;
+		status = "okay";
+		port {
+			ov5640_mipi_ep_1: endpoint {
+				remote-endpoint = <&mipi_csi1_ep>;
+			};
+		};
+	};
+
+	/delete-node/max9286_mipi@6A;
+};
+
+&mipi_csi_0 {
+	/delete-property/virtual-channel;
+	status = "okay";
+
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&ov5640_mipi_ep>;
+			data-lanes = <1 2>;
+		};
+	};
+};
+
+&mipi_csi_1 {
+	/delete-property/virtual-channel;
+	status = "okay";
+
+	port@1 {
+		reg = <1>;
+		mipi_csi1_ep: endpoint {
+			remote-endpoint = <&ov5640_mipi_ep_1>;
+			data-lanes = <1 2>;
+		};
+	};
+};
