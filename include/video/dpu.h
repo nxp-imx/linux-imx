@@ -519,7 +519,6 @@ struct dpu_constframe;
 void constframe_shden(struct dpu_constframe *cf, bool enable);
 void constframe_framedimensions(struct dpu_constframe *cf, unsigned int w,
 				unsigned int h);
-void constframe_framedimensions_copy_prim(struct dpu_constframe *cf);
 void constframe_constantcolor(struct dpu_constframe *cf, unsigned int r,
 			      unsigned int g, unsigned int b, unsigned int a);
 void constframe_controltrigger(struct dpu_constframe *cf, bool trigger);
@@ -631,7 +630,6 @@ framegen_cfg_videomode(struct dpu_framegen *fg,
 		       bool encoder_type_has_tmds, bool encoder_type_has_lvds);
 void framegen_pkickconfig(struct dpu_framegen *fg, bool enable);
 void framegen_syncmode_fixup(struct dpu_framegen *fg, bool enable);
-void framegen_sacfg(struct dpu_framegen *fg, unsigned int x, unsigned int y);
 void framegen_displaymode(struct dpu_framegen *fg, fgdm_t mode);
 void framegen_panic_displaymode(struct dpu_framegen *fg, fgdm_t mode);
 void framegen_wait_done(struct dpu_framegen *fg, struct drm_display_mode *m);
@@ -840,7 +838,6 @@ void  dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 #define MAX_FW_NUM	1
 #define MAX_LB_NUM	7
 struct dpu_plane_res {
-	struct dpu_constframe	*cf[2];
 	struct dpu_extdst	*ed[2];
 	struct dpu_fetchunit	*fd[MAX_FD_NUM];
 	struct dpu_fetchunit	*fe[2];

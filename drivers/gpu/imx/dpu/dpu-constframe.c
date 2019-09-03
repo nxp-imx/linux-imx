@@ -89,38 +89,6 @@ void constframe_framedimensions(struct dpu_constframe *cf, unsigned int w,
 }
 EXPORT_SYMBOL_GPL(constframe_framedimensions);
 
-void constframe_framedimensions_copy_prim(struct dpu_constframe *cf)
-{
-	struct dpu_constframe *prim_cf = NULL;
-	unsigned int prim_id;
-	int i;
-	u32 val;
-
-	if (cf->id != 0 && cf->id != 1) {
-		dev_warn(cf->dpu->dev, "ConstFrame%d is not a secondary one\n",
-								cf->id);
-		return;
-	}
-
-	prim_id = cf->id + 4;
-
-	for (i = 0; i < ARRAY_SIZE(cf_ids); i++)
-		if (cf_ids[i] == prim_id)
-			prim_cf = cf->dpu->cf_priv[i];
-
-	if (!prim_cf) {
-		dev_warn(cf->dpu->dev, "cannot find ConstFrame%d's primary peer\n",
-								cf->id);
-		return;
-	}
-
-	mutex_lock(&cf->mutex);
-	val = dpu_cf_read(prim_cf, FRAMEDIMENSIONS);
-	dpu_cf_write(cf, val, FRAMEDIMENSIONS);
-	mutex_unlock(&cf->mutex);
-}
-EXPORT_SYMBOL_GPL(constframe_framedimensions_copy_prim);
-
 void constframe_constantcolor(struct dpu_constframe *cf, unsigned int r,
 			      unsigned int g, unsigned int b, unsigned int a)
 {
