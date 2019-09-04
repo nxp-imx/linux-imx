@@ -639,7 +639,10 @@ again:
 			hscaler_mode(hs, SCALER_NEUTRAL);
 			vscaler_mode(vs, SCALER_NEUTRAL);
 		}
-		if (old_dpstate->is_top) {
+		if ((!old_dcstate->use_pc && old_dpstate->is_top) ||
+		     (old_dcstate->use_pc &&
+		      ((!stream_id && old_dpstate->is_left_top) ||
+			(stream_id && old_dpstate->is_right_top)))) {
 			ed = res->ed[stream_id];
 			ed_src = stream_id ?
 				ED_SRC_CONSTFRAME1 : ED_SRC_CONSTFRAME0;
