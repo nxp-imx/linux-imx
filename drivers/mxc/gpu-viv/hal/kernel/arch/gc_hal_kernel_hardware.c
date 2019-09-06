@@ -1392,6 +1392,11 @@ _QueryFeatureDatabase(
 
     case gcvFEATURE_FE_NEED_DUMMYDRAW:
         available = database->FE_NEED_DUMMYDRAW;
+
+        if (_IsHardwareMatch(Hardware, gcv600, 0x4653))
+        {
+            available = gcvTRUE;
+        }
         break;
 
     case gcvFEATURE_DEC300_COMPRESSION:
