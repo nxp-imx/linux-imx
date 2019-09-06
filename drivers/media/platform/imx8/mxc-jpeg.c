@@ -910,18 +910,39 @@ end:
 	spin_unlock_irqrestore(&ctx->mxc_jpeg->hw_lock, flags);
 }
 
+static int mxc_jpeg_try_decoder_cmd(struct file *file, void *fh,
+				    struct v4l2_decoder_cmd *c)
+{
+	if (c->cmd != V4L2_DEC_CMD_STOP && c->cmd != V4L2_DEC_CMD_START)
+		return -EINVAL;
+
+	c->flags = 0;
+
+	if (c->cmd == V4L2_DEC_CMD_START) {
+		c->start.speed = 0;
+		c->start.format = 0;
+	}
+
+	return 0;
+}
+
 static int mxc_jpeg_decoder_cmd(struct file *file, void *priv,
 				struct v4l2_decoder_cmd *cmd)
 {
 	struct v4l2_fh *fh = file->private_data;
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(fh);
 	struct device *dev = ctx->mxc_jpeg->dev;
+	int ret;
 
-	switch (cmd->cmd) {
-	case V4L2_DEC_CMD_START:
-		dev_dbg(dev, "V4L2_DEC_CMD_START not implemented");
-		break;
-	case V4L2_DEC_CMD_STOP:
+	ret = mxc_jpeg_try_decoder_cmd(file, fh, cmd);
+	if (ret < 0)
+		return ret;
+
+	/* Ignore decoder command silently in encoder context */
+	if (ctx->mode != MXC_JPEG_DECODE)
+		return 0;
+
+	if (cmd->cmd == V4L2_DEC_CMD_STOP) {
 		dev_dbg(dev, "Received V4L2_DEC_CMD_STOP");
 		if (v4l2_m2m_num_src_bufs_ready(fh->m2m_ctx) == 0) {
 			/* No more src bufs, notify app EOS */
@@ -930,16 +951,19 @@ static int mxc_jpeg_decoder_cmd(struct file *file, void *priv,
 			/* will send EOS later*/
 			ctx->stopping = 1;
 		}
-		return 0;
-	case V4L2_DEC_CMD_PAUSE:
-		dev_dbg(dev, "V4L2_DEC_CMD_PAUSE not implemented");
-		break;
-	case V4L2_DEC_CMD_RESUME:
-		dev_dbg(dev, "V4L2_DEC_CMD_RESUME not implemented");
-		break;
-	default:
-		return -EINVAL;
 	}
+
+	return 0;
+}
+
+static int mxc_jpeg_try_encoder_cmd(struct file *file, void *fh,
+				    struct v4l2_encoder_cmd *c)
+{
+	if (c->cmd != V4L2_ENC_CMD_STOP && c->cmd != V4L2_ENC_CMD_START)
+		return -EINVAL;
+
+	c->flags = 0;
+
 	return 0;
 }
 
@@ -949,12 +973,17 @@ static int mxc_jpeg_encoder_cmd(struct file *file, void *priv,
 	struct v4l2_fh *fh = file->private_data;
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(fh);
 	struct device *dev = ctx->mxc_jpeg->dev;
+	int ret;
 
-	switch (cmd->cmd) {
-	case V4L2_ENC_CMD_START:
-		dev_dbg(dev, "V4L2_ENC_CMD_START not implemented");
-		break;
-	case V4L2_ENC_CMD_STOP:
+	ret = mxc_jpeg_try_encoder_cmd(file, fh, cmd);
+	if (ret < 0)
+		return ret;
+
+	/* Ignore encoder command silently in decoder context */
+	if (ctx->mode != MXC_JPEG_ENCODE)
+		return 0;
+
+	if (cmd->cmd == V4L2_ENC_CMD_STOP) {
 		dev_dbg(dev, "Received V4L2_ENC_CMD_STOP");
 		if (v4l2_m2m_num_src_bufs_ready(fh->m2m_ctx) == 0) {
 			/* No more src bufs, notify app EOS */
@@ -963,16 +992,8 @@ static int mxc_jpeg_encoder_cmd(struct file *file, void *priv,
 			/* will send EOS later*/
 			ctx->stopping = 1;
 		}
-		return 0;
-	case V4L2_ENC_CMD_PAUSE:
-		dev_dbg(dev, "V4L2_ENC_CMD_PAUSE not implemented");
-		break;
-	case V4L2_ENC_CMD_RESUME:
-		dev_dbg(dev, "V4L2_ENC_CMD_RESUME not implemented");
-		break;
-	default:
-		return -EINVAL;
 	}
+
 	return 0;
 }
 
@@ -1930,7 +1951,9 @@ static const struct v4l2_ioctl_ops mxc_jpeg_ioctl_ops = {
 
 	.vidioc_subscribe_event		= mxc_jpeg_subscribe_event,
 	.vidioc_unsubscribe_event	= v4l2_event_unsubscribe,
+	.vidioc_try_decoder_cmd		= mxc_jpeg_try_decoder_cmd,
 	.vidioc_decoder_cmd		= mxc_jpeg_decoder_cmd,
+	.vidioc_try_encoder_cmd		= mxc_jpeg_try_encoder_cmd,
 	.vidioc_encoder_cmd		= mxc_jpeg_encoder_cmd,
 
 	.vidioc_qbuf			= mxc_jpeg_qbuf,
