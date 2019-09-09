@@ -20,6 +20,8 @@
 #include "dpu-prv.h"
 
 #define PIXENGCFG_STATIC		0x8
+#define DIV(n)				(((n) & 0xFF) << 16)
+#define DIV_RESET			0x80
 
 struct dpu_store {
 	void __iomem *pec_base;
@@ -104,6 +106,23 @@ void dpu_st_put(struct dpu_store *st)
 }
 EXPORT_SYMBOL_GPL(dpu_st_put);
 
+void _dpu_st_init(struct dpu_soc *dpu, unsigned int id)
+{
+	struct dpu_store *st;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(st_ids); i++)
+		if (st_ids[i] == id)
+			break;
+
+	if (WARN_ON(i == ARRAY_SIZE(st_ids)))
+		return;
+
+	st = dpu->st_priv[i];
+
+	dpu_pec_st_write(st, SHDEN | DIV(DIV_RESET), PIXENGCFG_STATIC);
+}
+
 int dpu_st_init(struct dpu_soc *dpu, unsigned int id,
 		unsigned long pec_base, unsigned long base)
 {
@@ -135,6 +154,8 @@ int dpu_st_init(struct dpu_soc *dpu, unsigned int id,
 	st->id = id;
 
 	mutex_init(&st->mutex);
+
+	_dpu_st_init(dpu, id);
 
 	return 0;
 }
