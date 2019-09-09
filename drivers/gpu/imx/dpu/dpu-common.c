@@ -843,6 +843,7 @@ _dpu_submodules_init(struct dpu_soc *dpu, struct platform_device *pdev)
 	_DPU_UNITS_INIT(hs);
 	_DPU_UNITS_INIT(lb);
 	_DPU_UNITS_INIT(sig);
+	_DPU_UNITS_INIT(st);
 	_DPU_UNITS_INIT(tcon);
 	_DPU_UNITS_INIT(vs);
 
