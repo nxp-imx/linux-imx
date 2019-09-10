@@ -1024,8 +1024,8 @@ static void mxc_jpeg_job_abort(void *priv)
 }
 
 static int mxc_jpeg_queue_setup(struct vb2_queue *q,
-				unsigned int *num_buffers,
-				unsigned int *num_planes,
+				unsigned int *nbuffers,
+				unsigned int *nplanes,
 				unsigned int sizes[],
 				struct device *alloc_ctxs[])
 {
@@ -1037,15 +1037,19 @@ static int mxc_jpeg_queue_setup(struct vb2_queue *q,
 	if (!q_data)
 		return -EINVAL;
 
-	*num_planes = q_data->fmt->colplanes;
-
-	for (i = 0; i < *num_planes; i++) {
-		/* assuming worst case jpeg compression: 6 x raw file size */
-		sizes[i] = q_data->w * q_data->h * 6;
-
-		if (q_data->sizeimage[i] > 0)
-			sizes[i] = q_data->sizeimage[i];
+	/* Handle CREATE_BUFS situation - *nplanes != 0 */
+	if (*nplanes) {
+		for (i = 0; i < *nplanes; i++) {
+			if (sizes[i] < q_data->sizeimage[i])
+				return -EINVAL;
+		}
 	}
+
+	/* Handle REQBUFS situation */
+	*nplanes = q_data->fmt->colplanes;
+	for (i = 0; i < *nplanes; i++)
+		sizes[i] = q_data->sizeimage[i];
+
 	return 0;
 }
 static int mxc_jpeg_start_streaming(struct vb2_queue *q, unsigned int count)
