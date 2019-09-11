@@ -1401,7 +1401,7 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		vpu_err("%s reqbufs (%d) during streaming\n",
 			q_data->type ? "CAPTURE" : "OUTPUT",
 			reqbuf->count);
-		return -EINVAL;
+		return -EBUSY;
 	}
 
 	if (reqbuf->count > 0 && !q_data->sizeimage[0]) {
