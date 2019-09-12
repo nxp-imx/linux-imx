@@ -753,6 +753,38 @@ ctx_error:
 	return ret;
 }
 
+static int fsl_easrc_max_ch_for_slot(struct fsl_easrc_context *ctx,
+				     struct fsl_easrc_slot *slot)
+{
+	int st1_mem_alloc = 0, st2_mem_alloc = 0;
+	int pf_mem_alloc = 0;
+	int max_channels = 8 - slot->num_channel;
+	int channels = 0;
+
+	if (ctx->st1_num_taps > 0) {
+		if (ctx->st2_num_taps > 0)
+			st1_mem_alloc =
+				(ctx->st1_num_taps - 1) * ctx->st1_num_exp + 1;
+		else
+			st1_mem_alloc = ctx->st1_num_taps;
+	}
+
+	if (ctx->st2_num_taps > 0)
+		st2_mem_alloc = ctx->st2_num_taps;
+
+	pf_mem_alloc = st1_mem_alloc + st2_mem_alloc;
+
+	if (pf_mem_alloc != 0)
+		channels = (6144 - slot->pf_mem_used) / pf_mem_alloc;
+	else
+		channels = 8;
+
+	if (channels < max_channels)
+		max_channels = channels;
+
+	return max_channels;
+}
+
 /* fsl_easrc_config_slot
  *
  * A single context can be split amongst any of the 4 context processing pipes
@@ -784,7 +816,11 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 			continue;
 
 		if (!slot0->busy && !slot1->busy) {
-			if (req_channels <= 8) {
+			avail_channel = fsl_easrc_max_ch_for_slot(ctx, slot1);
+			if (avail_channel <= 0)
+				continue;
+
+			if (req_channels <= avail_channel) {
 				slot0->num_channel = req_channels;
 				slot0->min_channel = start_channel;
 				slot0->max_channel =
@@ -795,13 +831,14 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 				req_channels = 0;
 				continue_loop = false;
 			} else {
-				slot0->num_channel = 8;
+				slot0->num_channel = avail_channel;
 				slot0->min_channel = start_channel;
-				slot0->max_channel = start_channel + 7;
+				slot0->max_channel =
+					start_channel + avail_channel - 1;
 				slot0->ctx_index = ctx->index;
 				slot0->busy = true;
-				start_channel += 8;
-				req_channels -= 8;
+				start_channel += avail_channel;
+				req_channels -= avail_channel;
 				continue_loop = true;
 			}
 
@@ -844,6 +881,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 					st1_mem_alloc = ctx->st1_num_taps *
 						slot0->num_channel;
 
+				slot0->pf_mem_used = st1_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS0R2(i),
 							 EASRC_DPCS0R2_ST1_MA_MASK,
@@ -873,6 +911,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 				st2_mem_alloc = slot0->num_channel *
 							ctx->st2_num_taps;
 
+				slot0->pf_mem_used += st2_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS0R3(i),
 							 EASRC_DPCS0R3_ST2_MA_MASK,
@@ -905,8 +944,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 			if (slot0->ctx_index == ctx->index)
 				continue;
 
-			avail_channel = 8 - slot0->num_channel;
-
+			avail_channel = fsl_easrc_max_ch_for_slot(ctx, slot0);
 			if (avail_channel <= 0)
 				continue;
 
@@ -971,6 +1009,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 					st1_mem_alloc = ctx->st1_num_taps  *
 						slot1->num_channel;
 
+				slot1->pf_mem_used = st1_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS1R2(i),
 							 EASRC_DPCS0R2_ST1_MA_MASK,
@@ -1001,6 +1040,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 				st2_mem_alloc = slot1->num_channel *
 						ctx->st2_num_taps;
 
+				slot1->pf_mem_used += st2_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS1R3(i),
 							 EASRC_DPCS0R3_ST2_MA_MASK,
@@ -1035,7 +1075,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 			if (slot1->ctx_index == ctx->index)
 				continue;
 
-			avail_channel = 8 - slot1->num_channel;
+			avail_channel = fsl_easrc_max_ch_for_slot(ctx, slot1);
 
 			if (avail_channel <= 0)
 				continue;
@@ -1101,6 +1141,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 					st1_mem_alloc =  ctx->st1_num_taps *
 						slot0->num_channel;
 
+				slot0->pf_mem_used = st1_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS0R2(i),
 							 EASRC_DPCS0R2_ST1_MA_MASK,
@@ -1130,6 +1171,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 				st2_mem_alloc = slot0->num_channel *
 						ctx->st2_num_taps;
 
+				slot0->pf_mem_used += st2_mem_alloc;
 				ret = regmap_update_bits(easrc->regmap,
 							 REG_EASRC_DPCS0R3(i),
 							 EASRC_DPCS0R3_ST2_MA_MASK,
@@ -1160,7 +1202,7 @@ static int fsl_easrc_config_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 	}
 
 	if (req_channels > 0) {
-		dev_err(&easrc->pdev->dev, "no avail slot, should not happen\n");
+		dev_err(&easrc->pdev->dev, "no avail slot.\n");
 		return -EINVAL;
 	}
 
@@ -1180,6 +1222,8 @@ static int fsl_easrc_release_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 		if (easrc->slot[i][0].busy &&
 		    easrc->slot[i][0].ctx_index == ctx->index) {
 			easrc->slot[i][0].busy = false;
+			easrc->slot[i][0].num_channel = 0;
+			easrc->slot[i][0].pf_mem_used = 0;
 			/* set registers */
 			ret = regmap_write(easrc->regmap,
 					   REG_EASRC_DPCS0R0(i), 0);
@@ -1205,6 +1249,8 @@ static int fsl_easrc_release_slot(struct fsl_easrc *easrc, unsigned int ctx_id)
 		if (easrc->slot[i][1].busy &&
 		    easrc->slot[i][1].ctx_index == ctx->index) {
 			easrc->slot[i][1].busy = false;
+			easrc->slot[i][1].num_channel = 0;
+			easrc->slot[i][1].pf_mem_used = 0;
 			/* set registers */
 			ret = regmap_write(easrc->regmap,
 					   REG_EASRC_DPCS1R0(i), 0);
