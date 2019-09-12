@@ -565,27 +565,11 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 			ctx->st2_num_taps = 0;
 			ctx->st1_addexp -= ctx->in_params.fmt.addexp;
 		} else {
-			/* set pf in bypass mode */
-			ret = regmap_update_bits(easrc->regmap,
-						 REG_EASRC_CCE1(ctx_id),
-						 EASRC_CCE1_PF_BYPASS_MASK,
-						 EASRC_CCE1_PF_BYPASS);
-			if (ret)
-				return ret;
-
-			/* PF_EXPANSION_FACTOR must be set to 0x0 when
-			 * operating in bypass mode
-			 */
-			ret = regmap_update_bits(easrc->regmap,
-						 REG_EASRC_CCE1(ctx_id),
-						 EASRC_CCE1_PF_EXP_MASK,
-						 EASRC_CCE1_PF_EXP(0));
-			if (ret)
-				return ret;
-
-			return 0;
+			ctx->st1_num_taps = 1;
+			ctx->st1_coeff    = &coeff;
+			ctx->st1_num_exp  = 1;
+			ctx->st2_num_taps = 0;
 		}
-
 	} else {
 		inrate = ctx->in_params.norm_rate;
 		outrate = ctx->out_params.norm_rate;
