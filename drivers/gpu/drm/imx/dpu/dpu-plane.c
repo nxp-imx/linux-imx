@@ -880,10 +880,8 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 					       ARRAY_SIZE(dpu_overlay_formats),
 					       dpu_format_modifiers,
 					       type, NULL);
-	if (ret) {
-		kfree(dpu_plane);
-		return ERR_PTR(ret);
-	}
+	if (ret)
+		goto err;
 
 	drm_plane_helper_add(plane, &dpu_plane_helper_funcs);
 
@@ -901,10 +899,12 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 		ret = -EINVAL;
 	}
 
-	if (ret) {
-		kfree(dpu_plane);
-		return ERR_PTR(ret);
-	}
+	if (ret)
+		goto err;
 
 	return dpu_plane;
+
+err:
+	kfree(dpu_plane);
+	return ERR_PTR(ret);
 }
