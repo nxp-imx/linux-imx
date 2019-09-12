@@ -23,11 +23,7 @@
 #include "dpu-plane.h"
 #include "imx-drm.h"
 
-/*
- * RGB and packed/2planar YUV formats
- * are widely supported by many fetch units.
- */
-static const uint32_t dpu_primary_formats[] = {
+static const uint32_t dpu_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ABGR8888,
@@ -35,19 +31,6 @@ static const uint32_t dpu_primary_formats[] = {
 	DRM_FORMAT_RGBA8888,
 	DRM_FORMAT_RGBX8888,
 	DRM_FORMAT_BGRA8888,
-	DRM_FORMAT_BGRX8888,
-	DRM_FORMAT_RGB565,
-
-	DRM_FORMAT_YUYV,
-	DRM_FORMAT_UYVY,
-	DRM_FORMAT_NV12,
-	DRM_FORMAT_NV21,
-};
-
-static const uint32_t dpu_overlay_formats[] = {
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_XBGR8888,
-	DRM_FORMAT_RGBX8888,
 	DRM_FORMAT_BGRX8888,
 	DRM_FORMAT_RGB565,
 
@@ -874,20 +857,11 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 
 	plane = &dpu_plane->base;
 
-	if (type == DRM_PLANE_TYPE_PRIMARY)
-		ret = drm_universal_plane_init(drm, plane, possible_crtcs,
-					       &dpu_plane_funcs,
-					       dpu_primary_formats,
-					       ARRAY_SIZE(dpu_primary_formats),
-					       dpu_format_modifiers,
-					       type, NULL);
-	else
-		ret = drm_universal_plane_init(drm, plane, possible_crtcs,
-					       &dpu_plane_funcs,
-					       dpu_overlay_formats,
-					       ARRAY_SIZE(dpu_overlay_formats),
-					       dpu_format_modifiers,
-					       type, NULL);
+	ret = drm_universal_plane_init(drm, plane, possible_crtcs,
+				       &dpu_plane_funcs,
+				       dpu_formats, ARRAY_SIZE(dpu_formats),
+				       dpu_format_modifiers,
+				       type, NULL);
 	if (ret)
 		goto err;
 
