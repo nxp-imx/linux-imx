@@ -1689,14 +1689,20 @@ static int mxc_jpeg_try_fmt_vid_cap(struct file *file, void *priv,
 	int q_type = (ctx->mode == MXC_JPEG_DECODE) ?
 		     MXC_JPEG_FMT_TYPE_RAW : MXC_JPEG_FMT_TYPE_ENC;
 
+	if (!V4L2_TYPE_IS_MULTIPLANAR(f->type)) {
+		dev_err(dev, "TRY_FMT with Invalid type: %d\n", f->type);
+		return -EINVAL;
+	}
+
 	fmt = mxc_jpeg_find_format(ctx, f->fmt.pix_mp.pixelformat);
 	if (!fmt || (fmt->flags != q_type)) {
 		char *format_name = fourcc_to_str(fourcc);
-
-		dev_err(dev, "Format not supported: %s.\n",
-			format_name);
+		dev_warn(dev, "Format not supported: %s, use the default.\n",
+			 format_name);
 		kfree(format_name);
-		return -1;
+		f->fmt.pix_mp.pixelformat = (ctx->mode == MXC_JPEG_DECODE) ?
+				MXC_JPEG_DEFAULT_PIXFMT : V4L2_PIX_FMT_JPEG;
+		fmt = mxc_jpeg_find_format(ctx, f->fmt.pix_mp.pixelformat);
 	}
 	return mxc_jpeg_try_fmt(f, fmt, ctx, q_type);
 }
@@ -1712,14 +1718,21 @@ static int mxc_jpeg_try_fmt_vid_out(struct file *file, void *priv,
 	int q_type = (ctx->mode == MXC_JPEG_ENCODE) ?
 		     MXC_JPEG_FMT_TYPE_RAW : MXC_JPEG_FMT_TYPE_ENC;
 
+	if (!V4L2_TYPE_IS_MULTIPLANAR(f->type)) {
+		dev_err(dev, "TRY_FMT with Invalid type: %d\n", f->type);
+		return -EINVAL;
+	}
+
 	fmt = mxc_jpeg_find_format(ctx, fourcc);
 	if (!fmt || (fmt->flags != q_type)) {
 		char *format_name = fourcc_to_str(fourcc);
 
-		dev_err(dev, "Format not supported: %s.\n",
-			format_name);
+		dev_warn(dev, "Format not supported: %s, use the default.\n",
+			 format_name);
 		kfree(format_name);
-		return -1;
+		f->fmt.pix_mp.pixelformat = (ctx->mode == MXC_JPEG_ENCODE) ?
+				MXC_JPEG_DEFAULT_PIXFMT : V4L2_PIX_FMT_JPEG;
+		fmt = mxc_jpeg_find_format(ctx, f->fmt.pix_mp.pixelformat);
 	}
 	return mxc_jpeg_try_fmt(f, fmt, ctx, q_type);
 }
@@ -1814,9 +1827,16 @@ static int mxc_jpeg_g_fmt_vid(struct file *file, void *priv,
 			      struct v4l2_format *f)
 {
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(priv);
+	struct mxc_jpeg_dev *jpeg = ctx->mxc_jpeg;
+	struct device *dev = jpeg->dev;
 	struct v4l2_pix_format_mplane   *pix_mp = &f->fmt.pix_mp;
 	struct mxc_jpeg_q_data *q_data = mxc_jpeg_get_q_data(ctx, f->type);
 	int i;
+
+	if (!V4L2_TYPE_IS_MULTIPLANAR(f->type)) {
+		dev_err(dev, "G_FMT with Invalid type: %d\n", f->type);
+		return -EINVAL;
+	}
 
 	pix_mp->pixelformat = q_data->fmt->fourcc;
 	pix_mp->width = q_data->w;
