@@ -1490,6 +1490,11 @@ static void mxc_jpeg_set_default_params(struct mxc_jpeg_ctx *ctx)
 	struct mxc_jpeg_q_data *q[2] = {out_q, cap_q};
 	int i;
 
+	ctx->colorspace = V4L2_COLORSPACE_JPEG,
+	ctx->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+	ctx->quantization = V4L2_QUANTIZATION_DEFAULT;
+	ctx->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+
 	if (ctx->mode == MXC_JPEG_ENCODE) {
 		out_q->fmt = mxc_jpeg_find_format(ctx, MXC_JPEG_DEFAULT_PIXFMT);
 		cap_q->fmt = mxc_jpeg_find_format(ctx, V4L2_PIX_FMT_JPEG);
@@ -1672,7 +1677,6 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
 		}
 	}
-	pix_mp->colorspace = V4L2_COLORSPACE_REC709;
 
 	return 0;
 }
@@ -1792,6 +1796,11 @@ static int mxc_jpeg_s_fmt(struct mxc_jpeg_ctx *ctx,
 				      0);
 	}
 
+	ctx->colorspace = pix_mp->colorspace;
+	ctx->ycbcr_enc = pix_mp->ycbcr_enc;
+	ctx->xfer_func = pix_mp->xfer_func;
+	ctx->quantization = pix_mp->quantization;
+
 	for (i = 0; i < pix_mp->num_planes; i++) {
 		q_data->bytesperline[i] = pix_mp->plane_fmt[i].bytesperline;
 		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
@@ -1841,7 +1850,10 @@ static int mxc_jpeg_g_fmt_vid(struct file *file, void *priv,
 	pix_mp->width = q_data->w;
 	pix_mp->height = q_data->h;
 	pix_mp->field = V4L2_FIELD_NONE;
-	pix_mp->colorspace = V4L2_COLORSPACE_REC709;
+	pix_mp->colorspace = ctx->colorspace;
+	pix_mp->ycbcr_enc = ctx->ycbcr_enc;
+	pix_mp->xfer_func = ctx->xfer_func;
+	pix_mp->quantization = ctx->quantization;
 	pix_mp->num_planes = q_data->fmt->colplanes;
 	for (i = 0; i < pix_mp->num_planes; i++) {
 		pix_mp->plane_fmt[i].bytesperline = q_data->bytesperline[i];

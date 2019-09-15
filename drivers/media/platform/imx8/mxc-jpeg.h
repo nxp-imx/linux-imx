@@ -102,6 +102,10 @@ struct mxc_jpeg_ctx {
 	unsigned int			stopping;
 	unsigned int			dht_needed;
 	unsigned int			slot;
+	enum v4l2_colorspace colorspace;
+	enum v4l2_ycbcr_encoding ycbcr_enc;
+	enum v4l2_quantization quantization;
+	enum v4l2_xfer_func xfer_func;
 };
 
 struct mxc_jpeg_slot_data {
