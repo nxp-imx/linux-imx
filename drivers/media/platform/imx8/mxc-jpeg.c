@@ -288,11 +288,6 @@ static void print_nbuf_to_eoi(struct device *dev, struct vb2_buffer *buf, int n)
 	kfree(bufstr);
 }
 
-static inline u32 mxc_jpeg_align(u32 val, u32 align)
-{
-	return (val + align - 1) & ~(align - 1);
-}
-
 static inline struct mxc_jpeg_ctx *mxc_jpeg_fh_to_ctx(struct v4l2_fh *fh)
 {
 	return container_of(fh, struct mxc_jpeg_ctx, fh);
@@ -777,7 +772,7 @@ static void mxc_jpeg_config_dec_desc(struct vb2_buffer *out_buf,
 		cfg_desc->line_pitch = MXC_JPEG_MIN_WIDTH * 2;
 		cfg_desc->stm_ctrl = STM_CTRL_IMAGE_FORMAT(MXC_JPEG_YUV422);
 		cfg_desc->stm_bufbase = cfg_stream_handle;
-		cfg_desc->stm_bufsize = mxc_jpeg_align(*cfg_size, 1024);
+		cfg_desc->stm_bufsize = ALIGN(*cfg_size, 1024);
 		print_descriptor_info(jpeg->dev, cfg_desc);
 	}
 
@@ -791,8 +786,7 @@ static void mxc_jpeg_config_dec_desc(struct vb2_buffer *out_buf,
 	desc->line_pitch = q_data_cap->bytesperline[0];
 
 	mxc_jpeg_addrs(desc, dst_buf, src_buf, 0);
-	mxc_jpeg_set_bufsize(desc,
-			mxc_jpeg_align(vb2_plane_size(src_buf, 0), 1024));
+	mxc_jpeg_set_bufsize(desc, ALIGN(vb2_plane_size(src_buf, 0), 1024));
 	print_descriptor_info(jpeg->dev, desc);
 	if (ctx->dht_needed) {
 		/* validate the configuration descriptor */
@@ -1610,8 +1604,11 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 {
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	struct v4l2_plane_pix_format *pfmt;
-	u32 w = pix_mp->width;
-	u32 h = pix_mp->height;
+	u32 w = (pix_mp->width < MXC_JPEG_MAX_WIDTH) ?
+		 pix_mp->width : MXC_JPEG_MAX_WIDTH;
+	u32 h = (pix_mp->height < MXC_JPEG_MAX_HEIGHT) ?
+		 pix_mp->height : MXC_JPEG_MAX_HEIGHT;
+
 	unsigned int mode = ctx->mode;
 	int i;
 	bool is_nv12 = (fmt->fourcc == V4L2_PIX_FMT_NV12);
@@ -1647,10 +1644,12 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 		if (q_type == MXC_JPEG_FMT_TYPE_ENC &&
 		    mode == MXC_JPEG_DECODE) {
 			pfmt->bytesperline = 0;
-			/* Source size must be aligned to 128 */
-			pfmt->sizeimage = mxc_jpeg_align(pfmt->sizeimage, 128);
 			if (pfmt->sizeimage == 0)
 				pfmt->sizeimage = MXC_JPEG_DEFAULT_SIZEIMAGE;
+			if (pfmt->sizeimage > MXC_JPEG_MAX_SIZEIMAGE)
+				pfmt->sizeimage = MXC_JPEG_MAX_SIZEIMAGE;
+			/* input jpeg stream must be aligned to 1024 */
+			pfmt->sizeimage = ALIGN(pfmt->sizeimage, 1024);
 		} else if (q_type == MXC_JPEG_FMT_TYPE_RAW &&
 		    mode == MXC_JPEG_DECODE) {
 			pfmt->bytesperline = w * (fmt->depth / 8);
