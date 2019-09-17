@@ -691,7 +691,7 @@ static int v4l2_ioctl_enum_fmt_vid_cap_mplane(struct file *file,
 	fmt = &formats_yuv_dec[f->index];
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
-	vpu_dbg(LVL_BIT_FLOW, "CAPTURE fmt[%d] %c%c%c%c\n",
+	vpu_dbg(LVL_INFO, "CAPTURE fmt[%d] %c%c%c%c\n",
 			f->index,
 			f->pixelformat & 0xff,
 			(f->pixelformat >> 8) & 0xff,
@@ -760,7 +760,7 @@ static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	f->flags |= V4L2_FMT_FLAG_COMPRESSED;
-	vpu_dbg(LVL_BIT_FLOW, "OUTPUT fmt[%d] %c%c%c%c\n",
+	vpu_dbg(LVL_INFO, "OUTPUT fmt[%d] %c%c%c%c\n",
 			f->index,
 			f->pixelformat & 0xff,
 			(f->pixelformat >> 8) & 0xff,
@@ -1294,7 +1294,7 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx, u32 index)
 	u_int32 ret = 0;
 
 	if (index >= ARRAY_SIZE(ctx->mbi_buffer)) {
-		vpu_err("request mbi buffer number out of range\n");
+		vpu_err("request mbi buffer number(%d) out of range\n", index);
 		return -EINVAL;
 	}
 	if (!ctx->mbi_size) {
@@ -1398,9 +1398,10 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		return -EINVAL;
 
 	if (vb2_is_streaming(&q_data->vb2_q)) {
-		vpu_err("%s reqbufs during streaming\n",
-			q_data->type ? "CAPTURE" : "OUTPUT");
-		return -EINVAL;
+		vpu_err("%s reqbufs (%d) during streaming\n",
+			q_data->type ? "CAPTURE" : "OUTPUT",
+			reqbuf->count);
+		return -EBUSY;
 	}
 
 	if (reqbuf->count > 0 && !q_data->sizeimage[0]) {
@@ -1796,7 +1797,7 @@ static int v4l2_ioctl_streamon(struct file *file,
 	else
 		return -EINVAL;
 
-	vpu_dbg(LVL_BIT_FLOW, "%s on\n",
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] %s on\n", ctx->str_index,
 		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
 	ctx->firmware_finished = false;
@@ -1805,7 +1806,7 @@ static int v4l2_ioctl_streamon(struct file *file,
 	if (!ret)
 		v4l2_update_stream_addr(ctx, 0);
 	else
-		vpu_err("error: %s() return ret=%d\n", __func__, ret);
+		vpu_err("error: %s %s() return ret=%d\n", V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE", __func__, ret);
 
 	if (ctx->hang_status) {
 		vpu_err("%s(): not succeed and some instance are blocked\n", __func__);
@@ -1829,11 +1830,17 @@ static bool is_need_abort(struct vpu_ctx *ctx, enum v4l2_buf_type type)
 
 	if (V4L2_TYPE_IS_OUTPUT(type))
 		return false;
+	if (!vpu_dec_is_active(ctx))
+		return false;
 
+	if (src_status)
+		ctx->seek_flag = false;
+	else
+		ctx->seek_flag = true;
 	if (ctx->wait_res_change_done) {
 		if (src_status)
 			return false;
-		vpu_dbg(LVL_WARN,
+		vpu_dbg(LVL_INFO,
 			"ctx[%d] seek in res change\n", ctx->str_index);
 	}
 	return true;
@@ -1858,7 +1865,7 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	else
 		return -EINVAL;
 
-	vpu_dbg(LVL_BIT_FLOW, "%s off\n",
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] %s off\n", ctx->str_index,
 		V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
 	down(&q_data->drv_q_lock);
@@ -2340,8 +2347,7 @@ static int ctrls_setup_decoder(struct vpu_ctx *This)
 	if (!This)
 		return -EINVAL;
 
-	v4l2_ctrl_handler_init(&This->ctrl_handler,
-			CNT_CTRLS_DEC);
+	v4l2_ctrl_handler_init(&This->ctrl_handler, CNT_CTRLS_DEC);
 	if (This->ctrl_handler.error) {
 		vpu_err("%s() v4l2_ctrl_handler_init failed(%d)\n",
 				__func__, This->ctrl_handler.error);
@@ -3595,7 +3601,9 @@ static void send_source_change_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
-	vpu_dbg(LVL_BIT_FLOW, "send source change event\n");
+	ctx->res_change_send_count++;
+	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send source change event : %dx%d\n",
+		ctx->str_index, ctx->seqinfo.uHorRes, ctx->seqinfo.uVerRes);
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
@@ -3840,7 +3848,14 @@ static void check_wait_res_changed(struct vpu_ctx *ctx)
 		if (!p_data_req->vb2_buf)
 			continue;
 		if (verify_frame_buffer_size(q_data, p_data_req)) {
+			ctx->res_change_done_count++;
 			ctx->wait_res_change_done = false;
+			vpu_dbg(LVL_BIT_FLOW,
+				"ctx[%d] res change done, %d, %d, %d\n",
+				ctx->str_index,
+				ctx->res_change_occu_count,
+				ctx->res_change_send_count,
+				ctx->res_change_done_count);
 			break;
 		}
 	}
@@ -3850,8 +3865,14 @@ static void respond_req_frame(struct vpu_ctx *ctx,
 				struct queue_data *queue,
 				bool abnormal)
 {
-	if (ctx->wait_res_change_done)
+	if (ctx->wait_res_change_done) {
+		if (ctx->seek_flag)
+			return;
 		check_wait_res_changed(ctx);
+	}
+
+	if (ctx->wait_res_change_done)
+		return;
 
 	while (ctx->req_frame_count > 0) {
 		if (abnormal) {
@@ -3936,6 +3957,25 @@ static bool check_seq_info_is_valid(u32 ctx_id, MediaIPFW_Video_SeqInfo *info)
 	}
 
 	return true;
+}
+
+static bool check_res_is_changed(struct vpu_ctx *ctx,
+				MediaIPFW_Video_SeqInfo *pSeqInfo)
+{
+	if (ctx->seqinfo.uHorDecodeRes != pSeqInfo->uHorDecodeRes)
+		return true;
+	if (ctx->seqinfo.uVerDecodeRes != pSeqInfo->uVerDecodeRes)
+		return true;
+	if (ctx->seqinfo.uNumRefFrms != pSeqInfo->uNumRefFrms)
+		return true;
+	if (ctx->seqinfo.uNumDPBFrms != pSeqInfo->uNumDPBFrms)
+		return true;
+	if (ctx->seqinfo.uBitDepthLuma != pSeqInfo->uBitDepthLuma)
+		return true;
+	if (ctx->seqinfo.uBitDepthChroma != pSeqInfo->uBitDepthChroma)
+		return true;
+
+	return false;
 }
 
 static bool check_is_need_reset_after_abort(struct vpu_ctx *ctx)
@@ -4082,6 +4122,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->b_firstseq = true;
 		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
+		ctx->res_change_occu_count = 0;
+		ctx->res_change_send_count = 0;
+		ctx->res_change_done_count = 0;
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
@@ -4186,8 +4229,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		get_seq_info(&info, event_data, &pSeqInfo[ctx->str_index]);
 		if (!check_seq_info_is_valid(ctx->str_index, &info))
 			break;
-		if (ctx->wait_rst_done)
-			break;
 
 		while (ctx->wait_res_change_done && wait_times++ < 100)
 			mdelay(10);
@@ -4198,6 +4239,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
+		if (check_res_is_changed(ctx, &info))
+			ctx->res_change_occu_count++;
 		memcpy(&ctx->seqinfo, &info, sizeof(MediaIPFW_Video_SeqInfo));
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
@@ -4225,9 +4268,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->seqinfo.uMatrixCoeffs,
 			ctx->seqinfo.uVideoFullRangeFlag,
 			ctx->seqinfo.uVUIPresent);
-		ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 		if (ctx->b_firstseq) {
 			down(&ctx->q_data[V4L2_DST].drv_q_lock);
+			reset_mbi_dcp_count(ctx);
+			ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
+			reset_frame_buffer(ctx);
 			ctx->q_data[V4L2_DST].enable = false;
 			up(&ctx->q_data[V4L2_DST].drv_q_lock);
 			ctx->wait_res_change_done = true;
@@ -4379,8 +4424,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pStrBufDesc->wptr,
 				pStrBufDesc->rptr,
 				pStrBufDesc->start,
-				pStrBufDesc->end
-				);
+				pStrBufDesc->end);
 
 		down(&queue->drv_q_lock);
 		vpu_dbg(LVL_BIT_FLOW,
@@ -4419,15 +4463,17 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		vpu_dbg(LVL_BIT_FLOW, "ctx[%d] RES CHANGE\n", ctx->str_index);
 		This = &ctx->q_data[V4L2_DST];
 		down(&This->drv_q_lock);
-		This->enable = false;
 		reset_mbi_dcp_count(ctx);
 		ctx->mbi_size = get_mbi_size(This);
 		reset_frame_buffer(ctx);
 		up(&This->drv_q_lock);
-		vpu_dbg(LVL_INFO,
+		vpu_dbg(LVL_BIT_FLOW,
 			"warning: ctx[%d] RES_CHANGE event, seq id: %d\n",
 			ctx->str_index, ctx->seqinfo.uActiveSeqTag);
 		vpu_log_buffer_state(ctx);
+		down(&This->drv_q_lock);
+		This->enable = false;
+		up(&This->drv_q_lock);
 		ctx->wait_res_change_done = true;
 		send_source_change_event(ctx);
 		}
@@ -4756,9 +4802,11 @@ static int vpu_queue_setup(struct vb2_queue *vq,
 		struct device *allocators[])
 {
 	struct queue_data  *This = (struct queue_data *)vq->drv_priv;
+	struct vpu_ctx *ctx = NULL;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() is called\n", __func__);
 
+	ctx = container_of(This, struct vpu_ctx, q_data[This->type]);
 	if ((vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) ||
 		(vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		) {
@@ -4774,6 +4822,10 @@ static int vpu_queue_setup(struct vb2_queue *vq,
 		*plane_count = 1;
 		psize[0] = This->sizeimage[0];
 	}
+
+	if (!V4L2_TYPE_IS_OUTPUT(vq->type))
+		ctx->seek_flag = false;
+
 	return 0;
 }
 
@@ -5393,6 +5445,15 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "start_code_bypass",
 			ctx->start_code_bypass);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "res change occur",
+			ctx->res_change_occu_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "res change send",
+			ctx->res_change_send_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16d\n", "res change done",
+			ctx->res_change_done_count);
 
 	return num;
 }

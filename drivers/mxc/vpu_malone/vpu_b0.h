@@ -375,6 +375,7 @@ struct vpu_ctx {
 	bool start_flag;
 	bool wait_rst_done;
 	bool wait_res_change_done;
+	bool seek_flag;
 	bool firmware_stopped;
 	bool firmware_finished;
 	bool eos_stop_received;
@@ -428,6 +429,9 @@ struct vpu_ctx {
 	struct mutex cmd_lock;
 
 	struct vpu_dec_perf_time perf_time;
+	int res_change_occu_count;
+	int res_change_send_count;
+	int res_change_done_count;
 };
 
 #define LVL_WARN		(1 << 0)
@@ -449,7 +453,7 @@ struct vpu_ctx {
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
-		if (vpu_dbg_level_decoder & level) \
+		if (vpu_dbg_level_decoder & (level)) \
 			pr_info("[VPU Decoder]\t " fmt, ## arg); \
 	} while (0)
 
