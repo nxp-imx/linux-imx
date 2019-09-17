@@ -1505,11 +1505,47 @@ int fsl_easrc_start_context(struct fsl_easrc_context *ctx)
 int fsl_easrc_stop_context(struct fsl_easrc_context *ctx)
 {
 	struct fsl_easrc *easrc = ctx->easrc;
-	int ret;
+	int ret, val, i;
+	int size = 0;
+	int retry = 200;
+
+	regmap_read(easrc->regmap, REG_EASRC_CC(ctx->index), &val);
+
+	if (val & EASRC_CC_EN_MASK) {
+		ret = regmap_update_bits(easrc->regmap,
+					 REG_EASRC_CC(ctx->index),
+					 EASRC_CC_STOP_MASK, EASRC_CC_STOP);
+		if (ret)
+			return ret;
+
+		do {
+			regmap_read(easrc->regmap, REG_EASRC_SFS(ctx->index), &val);
+			val &= EASRC_SFS_NSGO_MASK;
+			size = val >> EASRC_SFS_NSGO_SHIFT;
+
+			/* Read FIFO, drop the data */
+			for (i = 0; i < size * ctx->channels; i++)
+				regmap_read(easrc->regmap, REG_EASRC_RDFIFO(ctx->index), &val);
+			/* Check RUN_STOP_DONE */
+			regmap_read(easrc->regmap, REG_EASRC_IRQF, &val);
+			if (val & EASRC_IRQF_RSD(1 << ctx->index)) {
+				/*Clear RUN_STOP_DONE*/
+				regmap_write_bits(easrc->regmap,
+						   REG_EASRC_IRQF,
+						   EASRC_IRQF_RSD(1 << ctx->index),
+						   EASRC_IRQF_RSD(1 << ctx->index));
+				break;
+			}
+			udelay(100);
+		} while (--retry);
+
+		if (retry == 0)
+			dev_err(&easrc->pdev->dev, "RUN STOP fail\n");
+	}
 
 	ret = regmap_update_bits(easrc->regmap,
 				 REG_EASRC_CC(ctx->index),
-				 EASRC_CC_EN_MASK, 0);
+				 EASRC_CC_EN_MASK | EASRC_CC_STOP_MASK, 0);
 	if (ret)
 		return ret;
 
@@ -2107,6 +2143,7 @@ static bool fsl_easrc_volatile_reg(struct device *dev, unsigned int reg)
 	case REG_EASRC_SFS(1):
 	case REG_EASRC_SFS(2):
 	case REG_EASRC_SFS(3):
+	case REG_EASRC_IRQF:
 	case REG_EASRC_DBGS:
 		return true;
 	default:
