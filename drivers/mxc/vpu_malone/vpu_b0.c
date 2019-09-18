@@ -2445,7 +2445,7 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 		return 0;
 	}
 
-	buffer = kzalloc(SCODE_SIZE, GFP_KERNEL); //for eos data
+	buffer = kzalloc(SCODE_SIZE, GFP_KERNEL);
 	if (!buffer)
 		return 0;
 
@@ -2458,7 +2458,6 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 		goto error;
 	}
 
-	// Word align
 	if (((u_int64)pbbuffer)%4 != 0) {
 		int i;
 		if (end%4 != 0) {
@@ -2557,23 +2556,26 @@ static int add_scode_vpu(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SC
 			wptr += SCODE_SIZE;
 			if (wptr == end)
 				wptr = start;
+			pad_bytes += SCODE_SIZE;
 		} else {
-			memcpy(pbbuffer, buffer, end-wptr);
-			memcpy(ctx->stream_buffer.dma_virt, buffer + (end - wptr), SCODE_SIZE - (end - wptr));
-			wptr = start + SCODE_SIZE - (end - wptr);
+			if (rptr - start > SCODE_SIZE - (end - wptr)) {
+				memcpy(pbbuffer, buffer, end - wptr);
+				memcpy(ctx->stream_buffer.dma_virt, buffer + (end - wptr), SCODE_SIZE - (end - wptr));
+				wptr = start + SCODE_SIZE - (end - wptr);
+				pad_bytes += SCODE_SIZE;
+			} else {
+				vpu_err("No enough space to insert padding data, size=%d, rptr(%x), wptr(%x)\n",
+					(end - wptr) + (rptr - start), rptr, wptr);
+			}
 		}
-		pad_bytes += SCODE_SIZE;
 	} else {
 		if (rptr - wptr >= SCODE_SIZE) {
 			memcpy(pbbuffer, buffer, SCODE_SIZE);
 			wptr += SCODE_SIZE;
 			pad_bytes += SCODE_SIZE;
 		} else	{
-			//shouldn't enter here: suppose space is enough since add_eos() only be called in FIFO LOW
-			vpu_err("No enough space to insert EOS, size=%d !\n", rptr - wptr);
-			memcpy(pbbuffer, buffer, rptr - wptr);
-			wptr += (rptr - wptr);
-			pad_bytes += (rptr - wptr);
+			vpu_err("No enough space to insert padding data, size=%d, rptr(%x), wptr(%x)\n",
+				rptr - wptr, rptr, wptr);
 		}
 	}
 	mb();
@@ -3123,7 +3125,7 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send ABORT CMD\n", ctx->str_index);
 	size = add_scode(ctx, 0, BUFABORT_PADDING_TYPE, false);
 	record_log_info(ctx, LOG_PADDING, 0, 0);
-	if (size < 0)
+	if (size <= 0)
 		vpu_err("%s(): failed to fill abort padding data\n", __func__);
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
 	reinit_completion(&ctx->completion);
@@ -3502,7 +3504,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	if (list_empty(&This->drv_q) && ctx->eos_stop_received) {
 		if (vpu_dec_is_active(ctx)) {
 			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
-			if (add_scode(ctx, 0, EOS_PADDING_TYPE, true) >= 0) {
+			if (add_scode(ctx, 0, EOS_PADDING_TYPE, true) > 0) {
 				record_log_info(ctx, LOG_EOS, 0, 0);
 				ctx->eos_stop_received = false;
 				ctx->eos_stop_added = true;
