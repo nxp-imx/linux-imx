@@ -4273,9 +4273,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (check_res_is_changed(ctx, &info))
 			ctx->res_change_occu_count++;
 		memcpy(&ctx->seqinfo, &info, sizeof(MediaIPFW_Video_SeqInfo));
+		calculate_frame_size(ctx);
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
-		calculate_frame_size(ctx);
 		parse_frame_interval_from_seqinfo(ctx, &ctx->seqinfo);
 		vpu_dbg(LVL_BIT_FLOW,
 			"ctx[%d] SEQINFO GET: uHorRes:%d uVerRes:%d uHorDecodeRes:%d uVerDecodeRes:%d\n",
@@ -4301,6 +4301,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->seqinfo.uVUIPresent);
 		if (ctx->b_firstseq) {
 			down(&ctx->q_data[V4L2_DST].drv_q_lock);
+			ctx->b_firstseq = false;
 			reset_mbi_dcp_count(ctx);
 			ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 			reset_frame_buffer(ctx);
@@ -4309,7 +4310,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->wait_res_change_done = true;
 			send_source_change_event(ctx);
 			pStreamPitchInfo->uFramePitch = 0x4000;
-			ctx->b_firstseq = false;
 			vpu_calculate_performance(ctx, uEvent, "seq_hdr_found");
 		}
 		}
@@ -5379,7 +5379,7 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			stream_length,
 			ctx->stream_buffer.dma_size);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "decode dealy frame",
+			"\t%40s:%16d\n", "decode delay frame",
 			ctx->frm_dec_delay);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "display delay frame",
