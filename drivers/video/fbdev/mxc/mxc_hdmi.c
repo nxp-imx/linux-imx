@@ -2265,10 +2265,11 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 	hdmi_video_csc(hdmi);
 	hdmi_video_sample(hdmi);
 
+	/* delay 20ms before tmds start work */
+	msleep(20);
 	mxc_hdmi_clear_overflow(hdmi);
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n\n", __func__);
-
 }
 
 /* Wait until we are registered to enable interrupts */
