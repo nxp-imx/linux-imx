@@ -1193,45 +1193,45 @@ static enum mxc_jpeg_image_format mxc_jpeg_get_image_format(
 static void mxc_jpeg_bytesperline(struct mxc_jpeg_q_data *q,
 				  u32 precision)
 {
-	q->bytesperline[1] = 0;
-	switch (q->fmt->fourcc) {
-	case  V4L2_PIX_FMT_NV12:
-		q->bytesperline[0] = q->w * (precision / 8);
-		q->bytesperline[1] = q->w * (precision / 8) / 2;
-		break;
-	case  V4L2_PIX_FMT_YUYV:
-		q->bytesperline[0] = q->w * (precision / 8) * 2;
-		break;
-	case  V4L2_PIX_FMT_RGB24:
-		q->bytesperline[0] = q->w * (precision / 8) * 3;
-		break;
-	case  V4L2_PIX_FMT_ARGB32:
-		q->bytesperline[0] = q->w * (precision / 8) * 4;
-		break;
-	case  V4L2_PIX_FMT_YUV24:
-		q->bytesperline[0] = q->w * (precision / 8) * 3;
-		break;
-	case  V4L2_PIX_FMT_GREY:
-		q->bytesperline[0] = q->w * (precision / 8) * 1;
-		break;
-	case V4L2_PIX_FMT_JPEG:
+	/* Bytes distance between the leftmost pixels in two adjacent lines */
+	if (q->fmt->fourcc == V4L2_PIX_FMT_JPEG) {
+		/* bytesperline unused for compressed formats */
 		q->bytesperline[0] = 0;
-		break;
-	default:
-		q->bytesperline[0] = q->w * (precision / 8) * 3;
-		break;
+		q->bytesperline[1] = 0;
+	} else if (q->fmt->fourcc == V4L2_PIX_FMT_NV12) {
+		/* When the image format is planar the bytesperline value
+		 * applies to the first plane and is divided by the same factor
+		 * as the width field for the other planes
+		 */
+		q->bytesperline[0] = q->w * (precision / 8) *
+				     (q->fmt->depth / 8);
+		q->bytesperline[1] = q->bytesperline[0];
+	} else {
+		/* single plane formats */
+		q->bytesperline[0] = q->w * (precision / 8) *
+				     (q->fmt->depth / 8);
+		q->bytesperline[1] = 0;
 	}
 }
 
 static void mxc_jpeg_sizeimage(struct mxc_jpeg_q_data *q)
 {
 	if (q->fmt->fourcc == V4L2_PIX_FMT_JPEG) {
-		/* assuming worst jpeg compression */
-		q->sizeimage[0] = 6 * q->w * q->h;
+		/* if no sizeimage from user, assume worst jpeg compression */
+		if (!q->sizeimage[0])
+			q->sizeimage[0] = 6 * q->w * q->h;
 		q->sizeimage[1] = 0;
+
+		if (q->sizeimage[0] > MXC_JPEG_MAX_SIZEIMAGE)
+			q->sizeimage[0] = MXC_JPEG_MAX_SIZEIMAGE;
+
+		/* jpeg stream size must be multiple of 1K */
+		q->sizeimage[0] = ALIGN(q->sizeimage[0], 1024);
 	} else {
 		q->sizeimage[0] = q->bytesperline[0] * q->h;
-		q->sizeimage[1] = q->bytesperline[1] * q->h;
+		q->sizeimage[1] = 0;
+		if (q->fmt->fourcc == V4L2_PIX_FMT_NV12)
+			q->sizeimage[1] = q->sizeimage[0] / 2;
 	}
 }
 
@@ -1638,10 +1638,8 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 		 pix_mp->width : MXC_JPEG_MAX_WIDTH;
 	u32 h = (pix_mp->height < MXC_JPEG_MAX_HEIGHT) ?
 		 pix_mp->height : MXC_JPEG_MAX_HEIGHT;
-
-	unsigned int mode = ctx->mode;
 	int i;
-	bool is_nv12 = (fmt->fourcc == V4L2_PIX_FMT_NV12);
+	struct mxc_jpeg_q_data tmp_q;
 
 	memset(pix_mp->reserved, 0, sizeof(pix_mp->reserved));
 	pix_mp->field = V4L2_FIELD_NONE;
@@ -1665,42 +1663,26 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 	pix_mp->width = w; /* negotiate the width */
 	pix_mp->height = h; /* negotiate the height */
 
+	/* get user input into the tmp_q */
+	tmp_q.w = w;
+	tmp_q.h = h;
+	tmp_q.fmt = fmt;
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		pfmt = &pix_mp->plane_fmt[i];
+		tmp_q.bytesperline[i] = pfmt->bytesperline;
+		tmp_q.sizeimage[i] = pfmt->sizeimage;
+	}
 
+	/* calculate bytesperline & sizeimage into the tmp_q */
+	mxc_jpeg_bytesperline(&tmp_q, 8);
+	mxc_jpeg_sizeimage(&tmp_q);
+
+	/* adjust user format according to our calculations */
 	for (i = 0; i < pix_mp->num_planes; i++) {
 		pfmt = &pix_mp->plane_fmt[i];
 		memset(pfmt->reserved, 0, sizeof(pfmt->reserved));
-
-		/* TODO try_fmt should not modify the state, move to s_fmt */
-		if (q_type == MXC_JPEG_FMT_TYPE_ENC &&
-		    mode == MXC_JPEG_DECODE) {
-			pfmt->bytesperline = 0;
-			if (pfmt->sizeimage == 0)
-				pfmt->sizeimage = MXC_JPEG_DEFAULT_SIZEIMAGE;
-			if (pfmt->sizeimage > MXC_JPEG_MAX_SIZEIMAGE)
-				pfmt->sizeimage = MXC_JPEG_MAX_SIZEIMAGE;
-			/* input jpeg stream must be aligned to 1024 */
-			pfmt->sizeimage = ALIGN(pfmt->sizeimage, 1024);
-		} else if (q_type == MXC_JPEG_FMT_TYPE_RAW &&
-		    mode == MXC_JPEG_DECODE) {
-			pfmt->bytesperline = w * (fmt->depth / 8);
-			pfmt->sizeimage = w * h * fmt->depth / 8;
-			if (is_nv12 && i == 0) /* luma plane */
-				pfmt->sizeimage = pfmt->sizeimage * 2 / 3;
-			else if (is_nv12 && i == 1) /* chroma plane */
-				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
-		} else if (q_type == MXC_JPEG_FMT_TYPE_ENC &&
-		    mode == MXC_JPEG_ENCODE) {
-			pfmt->bytesperline = 0;
-			/* assuming worst jpeg compression */
-			pfmt->sizeimage = w * h * 6;
-		} else { /* MXC_JPEG_FMT_TYPE_RAW && MXC_JPEG_ENCODE */
-			pfmt->bytesperline = w * (fmt->depth / 8);
-			pfmt->sizeimage = w * h * fmt->depth / 8;
-			if (is_nv12 && i == 0) /* luma plane */
-				pfmt->sizeimage = pfmt->sizeimage * 2 / 3;
-			else if (is_nv12 && i == 1) /* chroma plane */
-				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
-		}
+		pfmt->bytesperline = tmp_q.bytesperline[i];
+		pfmt->sizeimage = tmp_q.sizeimage[i];
 	}
 
 	return 0;
