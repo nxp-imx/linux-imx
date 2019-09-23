@@ -313,8 +313,6 @@ static void dpu_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	drm_crtc_vblank_off(crtc);
 
-	WARN_ON(!crtc->state->event);
-
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
 		drm_crtc_send_vblank_event(crtc, crtc->state->event);
@@ -773,8 +771,6 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 					 "flush - FrameGen requests to read empty FIFO\n");
 			}
 		}
-
-		WARN_ON(!crtc->state->event);
 
 		if (crtc->state->event) {
 			spin_lock_irq(&crtc->dev->event_lock);
