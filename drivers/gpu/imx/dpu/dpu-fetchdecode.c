@@ -13,6 +13,7 @@
  * for more details.
  */
 
+#include <drm/drm_blend.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -255,8 +256,11 @@ fetchdecode_set_src_buf_dimensions(struct dpu_fetchunit *fu,
 	mutex_unlock(&fu->mutex);
 }
 
-static void
-fetchdecode_set_fmt(struct dpu_fetchunit *fu, u32 fmt, bool deinterlace)
+static void fetchdecode_set_fmt(struct dpu_fetchunit *fu,
+				u32 fmt,
+				enum drm_color_encoding color_encoding,
+				enum drm_color_range color_range,
+				bool deinterlace)
 {
 	u32 val, bits, shift;
 	bool is_planar_yuv = false, is_rastermode_yuv422 = false;
@@ -317,17 +321,18 @@ fetchdecode_set_fmt(struct dpu_fetchunit *fu, u32 fmt, bool deinterlace)
 
 	val = dpu_fu_read(fu, LAYERPROPERTY0);
 	val &= ~YUVCONVERSIONMODE_MASK;
-	if (need_csc)
-		/*
-		 * assuming fetchdecode always ouputs RGB pixel formats
-		 *
-		 * FIXME:
-		 * determine correct standard here - ITU601 or ITU601_FR
-		 * or ITU709
-		 */
-		val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__ITU601_FR);
-	else
+	if (need_csc) {
+		/* assuming fetchdecode always ouputs RGB pixel formats */
+		if (color_encoding == DRM_COLOR_YCBCR_BT709)
+			val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__ITU709);
+		else if (color_encoding == DRM_COLOR_YCBCR_BT601 &&
+			 color_range == DRM_COLOR_YCBCR_FULL_RANGE)
+			val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__ITU601_FR);
+		else
+			val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__ITU601);
+	} else {
 		val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__OFF);
+	}
 	dpu_fu_write(fu, val, LAYERPROPERTY0);
 	mutex_unlock(&fu->mutex);
 
@@ -377,6 +382,40 @@ void fetchdecode_clipoffset(struct dpu_fetchunit *fu, unsigned int x,
 	mutex_unlock(&fu->mutex);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_clipoffset);
+
+static void
+fetchdecode_set_pixel_blend_mode(struct dpu_fetchunit *fu,
+				 unsigned int pixel_blend_mode, u16 alpha,
+				 u32 fb_format)
+{
+	u32 mode = 0, val;
+
+	if (pixel_blend_mode == DRM_MODE_BLEND_PREMULTI ||
+	    pixel_blend_mode == DRM_MODE_BLEND_COVERAGE) {
+		mode = ALPHACONSTENABLE;
+
+		switch (fb_format) {
+		case DRM_FORMAT_ARGB8888:
+		case DRM_FORMAT_ABGR8888:
+		case DRM_FORMAT_RGBA8888:
+		case DRM_FORMAT_BGRA8888:
+			mode |= ALPHASRCENABLE;
+			break;
+		}
+	}
+
+	mutex_lock(&fu->mutex);
+	val = dpu_fu_read(fu, LAYERPROPERTY0);
+	val &= ~(PREMULCONSTRGB | ALPHA_ENABLE_MASK | RGB_ENABLE_MASK);
+	val |= mode;
+	dpu_fu_write(fu, val, LAYERPROPERTY0);
+
+	val = dpu_fu_read(fu, CONSTANTCOLOR0);
+	val &= ~CONSTANTALPHA_MASK;
+	val |= CONSTANTALPHA(alpha >> 8);
+	dpu_fu_write(fu, val, CONSTANTCOLOR0);
+	mutex_unlock(&fu->mutex);
+}
 
 static void fetchdecode_enable_src_buf(struct dpu_fetchunit *fu)
 {
@@ -693,6 +732,7 @@ static const struct dpu_fetchunit_ops fd_ops = {
 	.set_src_stride		= fetchdecode_set_src_stride,
 	.set_src_buf_dimensions	= fetchdecode_set_src_buf_dimensions,
 	.set_fmt		= fetchdecode_set_fmt,
+	.set_pixel_blend_mode	= fetchdecode_set_pixel_blend_mode,
 	.enable_src_buf		= fetchdecode_enable_src_buf,
 	.disable_src_buf	= fetchdecode_disable_src_buf,
 	.is_enabled		= fetchdecode_is_enabled,

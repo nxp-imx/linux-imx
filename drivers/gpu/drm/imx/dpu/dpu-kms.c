@@ -677,12 +677,6 @@ static int dpu_drm_atomic_check(struct drm_device *dev,
 			continue;
 		}
 
-		/* 'zpos = 0' means primary plane */
-		if (states[0]->plane->type != DRM_PLANE_TYPE_PRIMARY) {
-			kfree(states);
-			return -EINVAL;
-		}
-
 		if (use_pc[dpu_crtc->crtc_grp_id])
 			dpu_atomic_compute_plane_lrx_per_crtc(crtc_state,
 								states, n);

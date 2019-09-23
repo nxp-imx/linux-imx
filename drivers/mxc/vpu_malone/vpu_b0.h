@@ -56,6 +56,7 @@ extern unsigned int vpu_dbg_level_decoder;
 #define MAX_MBI_NUM 18 // same with MEDIA_PLAYER_MAX_MBI_UNIT defined in firmware
 #define MAX_TIMEOUT_COUNT 10
 #define VPU_REG_BASE 0x40000000
+#define VPU_MAX_STEP_STRING_LENGTH 40
 
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
 #define INVALID_FRAME_DEPTH -1
@@ -321,13 +322,6 @@ struct vpu_dec_cmd_request {
 
 struct vpu_dec_perf_time {
 	u_int64 open_time;
-	u_int64 last_time;
-	u_int64 first_feed_interv;
-	u_int64 start_cmd_interv;
-	u_int64 start_done_interv;
-	u_int64 seq_hdr_found_interv;
-	u_int64 first_decoded_interv;
-	u_int64 first_ready_interv;
 
 	u_int64 first_decoded_time;
 	u_int64 last_decoded_time;
@@ -338,6 +332,12 @@ struct vpu_dec_perf_time {
 	u_int64 last_ready_time;
 	u_int64 cur_ready_interv;
 	u_int64 ready_fps;
+};
+
+struct vpu_dec_perf_queue {
+	struct list_head list;
+	char str[VPU_MAX_STEP_STRING_LENGTH];
+	u_int64 time;
 };
 
 struct vpu_ctx {
@@ -432,6 +432,9 @@ struct vpu_ctx {
 	int res_change_occu_count;
 	int res_change_send_count;
 	int res_change_done_count;
+
+	struct list_head perf_q;
+	struct mutex perf_lock;
 };
 
 #define LVL_WARN		(1 << 0)

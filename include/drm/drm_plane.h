@@ -26,6 +26,7 @@
 #include <linux/list.h>
 #include <linux/ctype.h>
 #include <drm/drm_mode_object.h>
+#include <drm/drm_color_mgmt.h>
 
 struct drm_crtc;
 struct drm_printer;
@@ -42,6 +43,7 @@ struct drm_modeset_acquire_ctx;
  *	plane (in 16.16)
  * @src_w: width of visible portion of plane (in 16.16)
  * @src_h: height of visible portion of plane (in 16.16)
+ * @alpha: opacity of the plane
  * @rotation: rotation of the plane
  * @zpos: priority of the given plane on crtc (optional)
  *	Note that multiple active planes on the same crtc can have an identical
@@ -105,12 +107,30 @@ struct drm_plane_state {
 	uint32_t src_x, src_y;
 	uint32_t src_h, src_w;
 
+	/* Plane opacity */
+	u16 alpha;
+	uint16_t pixel_blend_mode;
+
 	/* Plane rotation */
 	unsigned int rotation;
 
 	/* Plane zpos */
 	unsigned int zpos;
 	unsigned int normalized_zpos;
+
+	/**
+	 * @color_encoding:
+	 *
+	 * Color encoding for non RGB formats
+	 */
+	enum drm_color_encoding color_encoding;
+
+	/**
+	 * @color_range:
+	 *
+	 * Color range for non RGB formats
+	 */
+	enum drm_color_range color_range;
 
 	/* Clipped coordinates */
 	struct drm_rect src, dst;
@@ -473,6 +493,7 @@ enum drm_plane_type {
  * @funcs: helper functions
  * @properties: property tracking for this plane
  * @type: type of plane (overlay, primary, cursor)
+ * @alpha_property: alpha property for this plane
  * @zpos_property: zpos property for this plane
  * @rotation_property: rotation property for this plane
  * @helper_private: mid-layer private data
@@ -541,8 +562,34 @@ struct drm_plane {
 	 */
 	struct drm_plane_state *state;
 
+	struct drm_property *alpha_property;
 	struct drm_property *zpos_property;
 	struct drm_property *rotation_property;
+	/**
+	 * @blend_mode_property:
+	 * Optional "pixel blend mode" enum property for this plane.
+	 * Blend mode property represents the alpha blending equation selection,
+	 * describing how the pixels from the current plane are composited with
+	 * the background.
+	 */
+	struct drm_property *blend_mode_property;
+
+	/**
+	 * @color_encoding_property:
+	 *
+	 * Optional "COLOR_ENCODING" enum property for specifying
+	 * color encoding for non RGB formats.
+	 * See drm_plane_create_color_properties().
+	 */
+	struct drm_property *color_encoding_property;
+	/**
+	 * @color_range_property:
+	 *
+	 * Optional "COLOR_RANGE" enum property for specifying
+	 * color range for non RGB formats.
+	 * See drm_plane_create_color_properties().
+	 */
+	struct drm_property *color_range_property;
 };
 
 #define obj_to_plane(x) container_of(x, struct drm_plane, base)

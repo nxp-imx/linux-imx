@@ -1836,6 +1836,11 @@ int cdns3_gadget_ep_set_halt(struct usb_ep *ep, int value)
 
 	cdns3_select_ep(priv_dev, ep->desc->bEndpointAddress);
 	if (value) {
+		if (!list_empty(&priv_ep->pending_req_list)) {
+			ret = -EAGAIN;
+			goto finish;
+		}
+
 		cdns3_ep_stall_flush(priv_ep);
 	} else {
 		priv_ep->flags &= ~EP_WEDGE;

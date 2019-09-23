@@ -15,6 +15,8 @@
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_blend.h>
+#include <drm/drm_color_mgmt.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_plane_helper.h>
@@ -23,11 +25,7 @@
 #include "dpu-plane.h"
 #include "imx-drm.h"
 
-/*
- * RGB and packed/2planar YUV formats
- * are widely supported by many fetch units.
- */
-static const uint32_t dpu_primary_formats[] = {
+static const uint32_t dpu_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ABGR8888,
@@ -44,19 +42,6 @@ static const uint32_t dpu_primary_formats[] = {
 	DRM_FORMAT_NV21,
 };
 
-static const uint32_t dpu_overlay_formats[] = {
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_XBGR8888,
-	DRM_FORMAT_RGBX8888,
-	DRM_FORMAT_BGRX8888,
-	DRM_FORMAT_RGB565,
-
-	DRM_FORMAT_YUYV,
-	DRM_FORMAT_UYVY,
-	DRM_FORMAT_NV12,
-	DRM_FORMAT_NV21,
-};
-
 static const uint64_t dpu_format_modifiers[] = {
 	DRM_FORMAT_MOD_VIVANTE_TILED,
 	DRM_FORMAT_MOD_VIVANTE_SUPER_TILED,
@@ -64,6 +49,16 @@ static const uint64_t dpu_format_modifiers[] = {
 	DRM_FORMAT_MOD_LINEAR,
 	DRM_FORMAT_MOD_INVALID,
 };
+
+static unsigned int dpu_plane_get_default_zpos(enum drm_plane_type type)
+{
+	if (type == DRM_PLANE_TYPE_PRIMARY)
+		return 0;
+	else if (type == DRM_PLANE_TYPE_OVERLAY)
+		return 1;
+
+	return 0;
+}
 
 static void dpu_plane_destroy(struct drm_plane *plane)
 {
@@ -87,11 +82,11 @@ static void dpu_plane_reset(struct drm_plane *plane)
 	if (!state)
 		return;
 
-	state->base.zpos = plane->type == DRM_PLANE_TYPE_PRIMARY ? 0 : 1;
+	__drm_atomic_helper_plane_reset(plane, &state->base);
 
-	plane->state = &state->base;
-	plane->state->plane = plane;
-	plane->state->rotation = DRM_MODE_ROTATE_0;
+	plane->state->zpos = dpu_plane_get_default_zpos(plane->type);
+	plane->state->color_encoding = DRM_COLOR_YCBCR_BT601;
+	plane->state->color_range = DRM_COLOR_YCBCR_FULL_RANGE;
 }
 
 static struct drm_plane_state *
@@ -227,6 +222,12 @@ drm_plane_state_to_uvbaseaddr(struct drm_plane_state *state, bool aux_source)
 	       drm_format_plane_cpp(fb->format->format, 1) * x;
 }
 
+static inline bool dpu_plane_fb_format_is_yuv(u32 fmt)
+{
+	return fmt == DRM_FORMAT_YUYV || fmt == DRM_FORMAT_UYVY ||
+	       fmt == DRM_FORMAT_NV12 || fmt == DRM_FORMAT_NV21;
+}
+
 static int dpu_plane_atomic_check(struct drm_plane *plane,
 				  struct drm_plane_state *state)
 {
@@ -346,6 +347,12 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	default:
 		break;
 	}
+
+	/* do not support BT709 full range */
+	if (dpu_plane_fb_format_is_yuv(fb->format->format) &&
+	    state->color_encoding == DRM_COLOR_YCBCR_BT709 &&
+	    state->color_range == DRM_COLOR_YCBCR_FULL_RANGE)
+		return -EINVAL;
 
 again:
 	fu = source_to_fu(res,
@@ -525,7 +532,6 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	bool update_aux_source = false;
 	bool use_prefetch;
 	bool need_modeset;
-	bool is_overlay = plane->type == DRM_PLANE_TYPE_OVERLAY;
 	bool fb_is_interlaced;
 
 	/*
@@ -663,7 +669,10 @@ again:
 	fu->ops->set_src_stride(fu, src_w, src_x, mt_w, bpp, fb->pitches[0],
 				baseaddr, use_prefetch);
 	fu->ops->set_src_buf_dimensions(fu, src_w, src_h, 0, fb_is_interlaced);
-	fu->ops->set_fmt(fu, fb->format->format, fb_is_interlaced);
+	fu->ops->set_pixel_blend_mode(fu, state->pixel_blend_mode,
+					state->alpha, fb->format->format);
+	fu->ops->set_fmt(fu, fb->format->format, state->color_encoding,
+					state->color_range, fb_is_interlaced);
 	fu->ops->enable_src_buf(fu);
 	fu->ops->set_framedimensions(fu, src_w, src_h, fb_is_interlaced);
 	fu->ops->set_baseaddress(fu, src_w, src_x, src_y, mt_w, mt_h, bpp,
@@ -694,7 +703,8 @@ again:
 		fe->ops->set_src_stride(fe, src_w, src_x, mt_w, bpp,
 					fb->pitches[1],
 					uv_baseaddr, use_prefetch);
-		fe->ops->set_fmt(fe, fb->format->format, fb_is_interlaced);
+		fe->ops->set_fmt(fe, fb->format->format, state->color_encoding,
+					state->color_range, fb_is_interlaced);
 		fe->ops->set_src_buf_dimensions(fe, src_w, src_h,
 						fb->format->format,
 						fb_is_interlaced);
@@ -783,7 +793,7 @@ again:
 		if (prefetch_start || uv_prefetch_start) {
 			dprc_first_frame_handle(dprc);
 
-			if (!need_modeset && is_overlay)
+			if (!need_modeset && state->normalized_zpos != 0)
 				framegen_wait_for_frame_counter_moving(fg);
 		}
 
@@ -807,7 +817,8 @@ again:
 	layerblend_pixengcfg_dynamic_prim_sel(lb, stage);
 	layerblend_pixengcfg_dynamic_sec_sel(lb, source);
 	layerblend_control(lb, LB_BLEND);
-	layerblend_blendcontrol(lb, need_hscaler || need_vscaler);
+	layerblend_blendcontrol(lb, state->normalized_zpos,
+				state->pixel_blend_mode, state->alpha);
 	layerblend_pixengcfg_clken(lb, CLKEN__AUTOMATIC);
 	layerblend_position(lb, crtc_x, state->crtc_y);
 
@@ -853,7 +864,7 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 {
 	struct dpu_plane *dpu_plane;
 	struct drm_plane *plane;
-	unsigned int ov_num;
+	unsigned int zpos = dpu_plane_get_default_zpos(type);
 	int ret;
 
 	dpu_plane = kzalloc(sizeof(*dpu_plane), GFP_KERNEL);
@@ -865,45 +876,45 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 
 	plane = &dpu_plane->base;
 
-	if (type == DRM_PLANE_TYPE_PRIMARY)
-		ret = drm_universal_plane_init(drm, plane, possible_crtcs,
-					       &dpu_plane_funcs,
-					       dpu_primary_formats,
-					       ARRAY_SIZE(dpu_primary_formats),
-					       dpu_format_modifiers,
-					       type, NULL);
-	else
-		ret = drm_universal_plane_init(drm, plane, possible_crtcs,
-					       &dpu_plane_funcs,
-					       dpu_overlay_formats,
-					       ARRAY_SIZE(dpu_overlay_formats),
-					       dpu_format_modifiers,
-					       type, NULL);
-	if (ret) {
-		kfree(dpu_plane);
-		return ERR_PTR(ret);
-	}
+	ret = drm_universal_plane_init(drm, plane, possible_crtcs,
+				       &dpu_plane_funcs,
+				       dpu_formats, ARRAY_SIZE(dpu_formats),
+				       dpu_format_modifiers,
+				       type, NULL);
+	if (ret)
+		goto err;
 
 	drm_plane_helper_add(plane, &dpu_plane_helper_funcs);
 
-	switch (type) {
-	case DRM_PLANE_TYPE_PRIMARY:
-		ret = drm_plane_create_zpos_immutable_property(plane, 0);
-		break;
-	case DRM_PLANE_TYPE_OVERLAY:
-		/* filter out the primary plane */
-		ov_num = grp->hw_plane_num - 1;
+	ret = drm_plane_create_zpos_property(plane,
+					     zpos, 0, grp->hw_plane_num - 1);
+	if (ret)
+		goto err;
 
-		ret = drm_plane_create_zpos_property(plane, 1, 1, ov_num);
-		break;
-	default:
-		ret = -EINVAL;
-	}
+	ret = drm_plane_create_alpha_property(plane);
+	if (ret)
+		goto err;
 
-	if (ret) {
-		kfree(dpu_plane);
-		return ERR_PTR(ret);
-	}
+	ret = drm_plane_create_blend_mode_property(plane,
+					BIT(DRM_MODE_BLEND_PIXEL_NONE) |
+					BIT(DRM_MODE_BLEND_PREMULTI)   |
+					BIT(DRM_MODE_BLEND_COVERAGE));
+	if (ret)
+		goto err;
+
+	ret = drm_plane_create_color_properties(plane,
+					BIT(DRM_COLOR_YCBCR_BT601) |
+					BIT(DRM_COLOR_YCBCR_BT709),
+					BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
+					BIT(DRM_COLOR_YCBCR_FULL_RANGE),
+					DRM_COLOR_YCBCR_BT601,
+					DRM_COLOR_YCBCR_FULL_RANGE);
+	if (ret)
+		goto err;
 
 	return dpu_plane;
+
+err:
+	kfree(dpu_plane);
+	return ERR_PTR(ret);
 }
