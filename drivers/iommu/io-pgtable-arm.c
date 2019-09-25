@@ -216,7 +216,7 @@ static void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp,
 {
 	struct device *dev = cfg->iommu_dev;
 	dma_addr_t dma;
-	void *pages = alloc_pages_exact(size, gfp | __GFP_ZERO | __GFP_DMA);
+	void *pages = alloc_pages_exact(size, gfp | __GFP_ZERO | __GFP_DMA32);
 
 	if (!pages)
 		return NULL;
