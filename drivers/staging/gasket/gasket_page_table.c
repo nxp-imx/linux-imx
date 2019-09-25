@@ -877,7 +877,7 @@ static int gasket_alloc_extended_subtable(struct gasket_page_table *pg_tbl,
 	 * part of the memory range is not considered DMA'able.
 	 * This seems to be the case for Juno board with 4.5.0 Linaro kernel
 	 */
-	page_addr = get_zeroed_page(GFP_KERNEL | GFP_DMA);
+	page_addr = get_zeroed_page(GFP_KERNEL | GFP_DMA32);
 	if (!page_addr)
 		return -ENOMEM;
 	pte->page = virt_to_page((void *)page_addr);
