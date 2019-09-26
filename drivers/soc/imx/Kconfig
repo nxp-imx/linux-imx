@@ -52,4 +52,14 @@ config HAVE_IMX_RPMSG
 	select RPMSG_VIRTIO
 	select RPMSG
 	bool
+
+config SECVIO_SC
+	bool "NXP SC secvio support"
+	depends on ARCH_FSL_IMX8QXP || ARCH_FSL_IMX8QM
+	help
+	   If you say yes here you get support for the NXP SNVS security violation module. It includes the possibility to read information
+	   related to security violations and tampers. It also gives the
+	   possibility to register user callbacks when a security violation
+	   occurs.
+
 endmenu
