@@ -607,6 +607,7 @@ struct fsl_easrc_slot {
 	int num_channel;  /*maximum is 8*/
 	int min_channel;
 	int max_channel;
+	int pf_mem_used;
 };
 
 struct fsl_easrc_context {

@@ -23,27 +23,31 @@ struct dpu_crtc {
 	struct device		*dev;
 	struct drm_crtc		base;
 	struct imx_drm_crtc	*imx_crtc;
-	struct dpu_constframe	*cf;
+	struct dpu_constframe	*pa_cf;
+	struct dpu_constframe	*sa_cf;
 	struct dpu_disengcfg	*dec;
 	struct dpu_extdst	*ed;
 	struct dpu_framegen	*fg;
 	struct dpu_signature	*sig;
 	struct dpu_tcon		*tcon;
 	struct dpu_store	*st;
-	struct dpu_constframe	*aux_cf;
+	struct dpu_constframe	*aux_pa_cf;
+	struct dpu_constframe	*aux_sa_cf;
 	struct dpu_disengcfg	*aux_dec;
 	struct dpu_extdst	*aux_ed;
 	struct dpu_framegen	*aux_fg;
 	struct dpu_signature	*aux_sig;
 	struct dpu_tcon		*aux_tcon;
 	/* master */
-	struct dpu_constframe	*m_cf;
+	struct dpu_constframe	*m_pa_cf;
+	struct dpu_constframe	*m_sa_cf;
 	struct dpu_disengcfg	*m_dec;
 	struct dpu_extdst	*m_ed;
 	struct dpu_framegen	*m_fg;
 	struct dpu_tcon		*m_tcon;
 	/* slave */
-	struct dpu_constframe	*s_cf;
+	struct dpu_constframe	*s_pa_cf;
+	struct dpu_constframe	*s_sa_cf;
 	struct dpu_disengcfg	*s_dec;
 	struct dpu_extdst	*s_ed;
 	struct dpu_framegen	*s_fg;

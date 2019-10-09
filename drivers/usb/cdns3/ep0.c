@@ -70,11 +70,14 @@ static void cdns3_ep0_run_transfer(struct cdns3_device *priv_dev,
 static int cdns3_ep0_delegate_req(struct cdns3_device *priv_dev,
 				  struct usb_ctrlrequest *ctrl_req)
 {
-	int ret;
+	int ret = 0;
 
 	spin_unlock(&priv_dev->lock);
 	priv_dev->setup_pending = 1;
-	ret = priv_dev->gadget_driver->setup(&priv_dev->gadget, ctrl_req);
+	if (priv_dev->gadget_driver && priv_dev->gadget_driver->setup
+			&& get_gadget_data(&priv_dev->gadget))
+		ret = priv_dev->gadget_driver->setup(&priv_dev->gadget,
+				ctrl_req);
 	priv_dev->setup_pending = 0;
 	spin_lock(&priv_dev->lock);
 	return ret;
@@ -843,6 +846,7 @@ void cdns3_ep0_config(struct cdns3_device *priv_dev)
 	struct cdns3_usb_regs __iomem *regs;
 	struct cdns3_endpoint *priv_ep;
 	u32 max_packet_size = 64;
+	struct usb_request *request;
 
 	regs = priv_dev->regs;
 
@@ -851,10 +855,9 @@ void cdns3_ep0_config(struct cdns3_device *priv_dev)
 
 	priv_ep = priv_dev->eps[0];
 
-	if (!list_empty(&priv_ep->pending_req_list)) {
-		struct usb_request *request;
-
-		request = cdns3_next_request(&priv_ep->pending_req_list);
+	request = cdns3_next_request(&priv_ep->pending_req_list);
+	if (request) {
+		WARN_ON(1);
 		list_del_init(&request->list);
 	}
 
