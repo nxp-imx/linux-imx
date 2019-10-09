@@ -132,6 +132,7 @@
 #define TXVREFTUNE0_BIT			20
 #define TXVREFTUNE0_MASK		(0xf << 20)
 
+#define MX7D_USB_OTG_PHY_CFG2_DRVVBUS0		BIT(16)
 #define MX7D_USB_OTG_PHY_CFG2_CHRG_DCDENB	BIT(3)
 #define MX7D_USB_OTG_PHY_CFG2_CHRG_VDATSRCENB0	BIT(2)
 #define MX7D_USB_OTG_PHY_CFG2_CHRG_VDATDETENB0	BIT(1)
@@ -180,6 +181,7 @@ struct usbmisc_ops {
 	/* override UTMI termination select */
 	int (*term_select_override)(struct imx_usbmisc_data *data,
 						bool enable, int val);
+	int (*vbus_comparator_on)(struct imx_usbmisc_data *data, bool on);
 };
 
 struct imx_usbmisc {
@@ -984,6 +986,35 @@ static int usbmisc_imx7ulp_init(struct imx_usbmisc_data *data)
 	return 0;
 }
 
+static int usbmisc_imx7d_vbus_comparator_on(struct imx_usbmisc_data *data,
+					    bool on)
+{
+	unsigned long flags;
+	struct imx_usbmisc *usbmisc = dev_get_drvdata(data->dev);
+	u32 val;
+
+	if (data->hsic)
+		return 0;
+
+	spin_lock_irqsave(&usbmisc->lock, flags);
+	/*
+	 * Disable VBUS valid comparator when in suspend mode,
+	 * when real OTG is disabled and DRVVBUS0 is asserted,
+	 * the bandgap circuitry and VBUS Valid comparator are
+	 * still powered, even in suspend or sleep mode.
+	 */
+	val = readl(usbmisc->base + MX7D_USB_OTG_PHY_CFG2);
+	if (on)
+		val |= MX7D_USB_OTG_PHY_CFG2_DRVVBUS0;
+	else
+		val &= ~MX7D_USB_OTG_PHY_CFG2_DRVVBUS0;
+
+	writel(val, usbmisc->base + MX7D_USB_OTG_PHY_CFG2);
+	spin_unlock_irqrestore(&usbmisc->lock, flags);
+
+	return 0;
+}
+
 static const struct usbmisc_ops imx25_usbmisc_ops = {
 	.init = usbmisc_imx25_init,
 	.post = usbmisc_imx25_post,
@@ -1026,6 +1057,7 @@ static const struct usbmisc_ops imx7d_usbmisc_ops = {
 	.power_lost_check = usbmisc_imx7d_power_lost_check,
 	.charger_detection = imx7d_charger_detection,
 	.term_select_override = usbmisc_term_select_override,
+	.vbus_comparator_on = usbmisc_imx7d_vbus_comparator_on,
 };
 
 static const struct usbmisc_ops imx7ulp_usbmisc_ops = {
@@ -1173,6 +1205,21 @@ int imx_usbmisc_term_select_override(struct imx_usbmisc_data *data,
 	return usbmisc->ops->term_select_override(data, enable, val);
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_term_select_override);
+
+int imx_usbmisc_vbus_comparator_on(struct imx_usbmisc_data *data,
+				   bool on)
+{
+	struct imx_usbmisc *usbmisc;
+
+	if (!data)
+		return 0;
+
+	usbmisc = dev_get_drvdata(data->dev);
+	if (!usbmisc->ops->vbus_comparator_on)
+		return 0;
+	return usbmisc->ops->vbus_comparator_on(data, on);
+}
+EXPORT_SYMBOL_GPL(imx_usbmisc_vbus_comparator_on);
 
 static const struct of_device_id usbmisc_imx_dt_ids[] = {
 	{
