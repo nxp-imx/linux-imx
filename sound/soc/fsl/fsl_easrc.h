@@ -681,6 +681,7 @@ struct fsl_easrc {
 	unsigned int bps_iec958[EASRC_CTX_MAX_NUM];
 	unsigned int chn_avail;
 	u64 *rs_coeff;
+	u64 const_coeff;
 	int firmware_loaded;
 	spinlock_t lock;  /* spin lock for resource protection */
 	int easrc_rate;

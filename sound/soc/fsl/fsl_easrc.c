@@ -503,7 +503,6 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 	struct device *dev;
 	u32 inrate, outrate, offset = 0;
 	int ret, i;
-	u64 coeff = 0x3FF0000000000000; /* Used by float->int */
 
 	/* to modify prefilter coeficients, the user must perform
 	 * a write in ASRC_PRE_COEFF_FIFO[COEFF_DATA] while the
@@ -553,20 +552,20 @@ static int fsl_easrc_prefilter_config(struct fsl_easrc *easrc,
 		if (ctx->in_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE &&
 		    ctx->out_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE) {
 			ctx->st1_num_taps = 1;
-			ctx->st1_coeff    = &coeff;
+			ctx->st1_coeff    = &easrc->const_coeff;
 			ctx->st1_num_exp  = 1;
 			ctx->st2_num_taps = 0;
 			ctx->st1_addexp = 31;
 		} else if (ctx->in_params.sample_format != SNDRV_PCM_FORMAT_FLOAT_LE &&
 			   ctx->out_params.sample_format == SNDRV_PCM_FORMAT_FLOAT_LE) {
 			ctx->st1_num_taps = 1;
-			ctx->st1_coeff    = &coeff;
+			ctx->st1_coeff    = &easrc->const_coeff;
 			ctx->st1_num_exp  = 1;
 			ctx->st2_num_taps = 0;
 			ctx->st1_addexp -= ctx->in_params.fmt.addexp;
 		} else {
 			ctx->st1_num_taps = 1;
-			ctx->st1_coeff    = &coeff;
+			ctx->st1_coeff    = &easrc->const_coeff;
 			ctx->st1_num_exp  = 1;
 			ctx->st2_num_taps = 0;
 		}
@@ -2281,6 +2280,7 @@ static int fsl_easrc_probe(struct platform_device *pdev)
 	/*Set default value*/
 	easrc->chn_avail = 32;
 	easrc->rs_num_taps = EASRC_RS_128_TAPS;
+	easrc->const_coeff = 0x3FF0000000000000;
 
 	ret = of_property_read_u32(np, "fsl,asrc-rate",
 				   &easrc->easrc_rate);
