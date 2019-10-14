@@ -60,7 +60,7 @@ enum {
 	IMX8QM_SATA_PHY_REG09_TX_IMPED_RATIO		= 0x09,
 	IMX8QM_SATA_PHY_REG10_TX_POST_CURSOR_RATIO	= 0x0a,
 	IMX8QM_SATA_PHY_GEN1_TX_POST_CURSOR_RATIO	= 0x15,
-	IMX8QM_SATA_PHY_IMPED_RATIO_85OHM		= 0x6c,
+	IMX8QM_SATA_PHY_IMPED_RATIO_100OHM		= 0x5d,
 	IMX8QM_SATA_PHY_REG22_TX_POST_CURSOR_RATIO	= 0x16,
 	IMX8QM_SATA_PHY_GEN2_TX_POST_CURSOR_RATIO	= 0x00,
 	IMX8QM_SATA_PHY_REG24_TX_AMP_RATIO_MARGIN0	= 0x18,
@@ -99,6 +99,9 @@ enum {
 	IMX8QM_SATA_PP3CFG_COMWAKE_BURST_GAP		= 0x08 << 16,
 	IMX8QM_SATA_PP3CFG_COMWAKE_BURST_GAP_MAX	= 0x0f << 8,
 	IMX8QM_SATA_PP3CFG_COMWAKE_BURST_GAP_MIN	= 0x01 << 0,
+	IMX8QM_SATA_AHCI_VEND_PTC			= 0xc8,
+	IMX8QM_SATA_AHCI_VEND_PTC_RXWM_MASK		= 0x7f,
+	IMX8QM_SATA_AHCI_VEND_PTC_RXWM			= 0x29,
 
 	IMX8QM_LPCG_PHYX2_PCLK0_MASK		= (0x3 << 16),
 	IMX8QM_LPCG_PHYX2_PCLK1_MASK		= (0x3 << 20),
@@ -690,6 +693,12 @@ static int imx8_sata_enable(struct ahci_host_priv *hpriv)
 		if (unlikely(reg != imxpriv->imped_ratio))
 			dev_info(dev, "Can't set PHY TX impedance ratio.\n");
 
+		/* RxWaterMark setting */
+		val = readl(hpriv->mmio + IMX8QM_SATA_AHCI_VEND_PTC);
+		val &= ~IMX8QM_SATA_AHCI_VEND_PTC_RXWM_MASK;
+		val |= IMX8QM_SATA_AHCI_VEND_PTC_RXWM;
+		writel(val, hpriv->mmio + IMX8QM_SATA_AHCI_VEND_PTC);
+
 		/* Configure the tx_amplitude to pass the tests. */
 		writeb(IMX8QM_SATA_PHY_TX_AMP_RATIO_MARGIN0, imxpriv->phy_base +
 				IMX8QM_SATA_PHY_REG24_TX_AMP_RATIO_MARGIN0);
@@ -1099,13 +1108,8 @@ static int imx8_sata_probe(struct device *dev, struct imx_ahci_priv *imxpriv)
 	}
 
 	if (of_property_read_u32(np, "fsl,phy-imp", &imxpriv->imped_ratio)) {
-		/*
-		 * Regarding to the differnet Hw designs,
-		 * Set the impedance ratio to 0x6c when 85OHM is used.
-		 * Keep it to default value 0x80, when 100OHM is used.
-		 */
 		dev_info(dev, "phy impedance ratio is not specified.\n");
-		imxpriv->imped_ratio = IMX8QM_SATA_PHY_IMPED_RATIO_85OHM;
+		imxpriv->imped_ratio = IMX8QM_SATA_PHY_IMPED_RATIO_100OHM;
 	}
 	phy_res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy");
 	if (phy_res) {

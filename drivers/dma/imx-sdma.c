@@ -33,7 +33,6 @@
 #include <linux/device.h>
 #include <linux/genalloc.h>
 #include <linux/dma-mapping.h>
-#include <linux/dmapool.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
@@ -42,6 +41,7 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
+#include <linux/workqueue.h>
 
 #include <asm/irq.h>
 #include <linux/platform_data/dma-imx-sdma.h>
@@ -368,7 +368,7 @@ struct sdma_channel {
 	unsigned int			fifo_num;
 	bool				sw_done;
 	u32				sw_done_sel;
-	struct dma_pool			*bd_pool;
+	struct work_struct              terminate_worker;
 };
 
 #define IMX_DMA_SG_LOOP		BIT(0)
@@ -1259,16 +1259,14 @@ static int sdma_alloc_bd(struct sdma_desc *desc)
 				      &desc->bd_phys);
 	if (!desc->bd) {
 		desc->bd_iram = false;
-		desc->bd = dma_pool_alloc(desc->sdmac->bd_pool, GFP_ATOMIC,
-						&desc->bd_phys);
+		desc->bd = dma_zalloc_coherent(desc->sdmac->sdma->dev, bd_size,
+				&desc->bd_phys, GFP_NOWAIT);
 		if (!desc->bd)
 			return ret;
 	}
 	spin_lock_irqsave(&desc->sdmac->vc.lock, flags);
 	desc->sdmac->bd_size_sum += bd_size;
 	spin_unlock_irqrestore(&desc->sdmac->vc.lock, flags);
-
-	memset(desc->bd, 0, bd_size);
 
 	return 0;
 }
@@ -1283,8 +1281,8 @@ static void sdma_free_bd(struct sdma_desc *desc)
 			gen_pool_free(desc->sdmac->sdma->iram_pool,
 				     (unsigned long)desc->bd, bd_size);
 		else
-			dma_pool_free(desc->sdmac->bd_pool, desc->bd,
-					desc->bd_phys);
+			dma_free_coherent(desc->sdmac->sdma->dev, bd_size,
+					desc->bd, desc->bd_phys);
 		spin_lock_irqsave(&desc->sdmac->vc.lock, flags);
 		desc->sdmac->bd_size_sum -= bd_size;
 		spin_unlock_irqrestore(&desc->sdmac->vc.lock, flags);
@@ -1365,9 +1363,10 @@ static int sdma_channel_resume(struct dma_chan *chan)
 	return 0;
 }
 
-static int sdma_terminate_all(struct dma_chan *chan)
+static void sdma_channel_terminate_work(struct work_struct *work)
 {
-	struct sdma_channel *sdmac = to_sdma_chan(chan);
+	struct sdma_channel *sdmac = container_of(work, struct sdma_channel,
+						  terminate_worker);
 	unsigned long flags;
 	LIST_HEAD(head);
 
@@ -1387,10 +1386,30 @@ static int sdma_terminate_all(struct dma_chan *chan)
 		sdmac->desc = NULL;
 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
 	vchan_dma_desc_free_list(&sdmac->vc, &head);
-	sdma_disable_channel(chan);
+
 	sdmac->context_loaded = false;
 
+}
+
+static int sdma_terminate_all(struct dma_chan *chan)
+{
+	struct sdma_channel *sdmac = to_sdma_chan(chan);
+
+	sdma_disable_channel(chan);
+
+	if (sdmac->desc)
+		schedule_work(&sdmac->terminate_worker);
+
 	return 0;
+}
+
+static void sdma_wait_tasklet(struct dma_chan *chan)
+{
+	struct sdma_channel *sdmac = to_sdma_chan(chan);
+
+	tasklet_kill(&sdmac->vc.task);
+
+	flush_work(&sdmac->terminate_worker);
 }
 
 static int sdma_alloc_chan_resources(struct dma_chan *chan)
@@ -1454,10 +1473,6 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 
 	sdmac->bd_size_sum = 0;
 
-	sdmac->bd_pool = dma_pool_create("bd_pool", chan->device->dev,
-				sizeof(struct sdma_buffer_descriptor),
-				32, 0);
-
 	return 0;
 
 disable_clk_ahb:
@@ -1474,6 +1489,8 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 
 	sdma_terminate_all(chan);
 
+	sdma_wait_tasklet(chan);
+
 	sdma_event_disable(sdmac, sdmac->event_id0);
 	if (sdmac->event_id1)
 		sdma_event_disable(sdmac, sdmac->event_id1);
@@ -1485,9 +1502,6 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 
 	clk_disable(sdma->clk_ipg);
 	clk_disable(sdma->clk_ahb);
-
-	dma_pool_destroy(sdmac->bd_pool);
-	sdmac->bd_pool = NULL;
 }
 
 static struct sdma_desc *sdma_transfer_init(struct sdma_channel *sdmac,
@@ -1834,13 +1848,6 @@ static int sdma_config(struct dma_chan *chan,
 	}
 	sdmac->direction = dmaengine_cfg->direction;
 	return sdma_config_channel(chan);
-}
-
-static void sdma_wait_tasklet(struct dma_chan *chan)
-{
-	struct sdma_channel *sdmac = to_sdma_chan(chan);
-
-	tasklet_kill(&sdmac->vc.task);
 }
 
 static enum dma_status sdma_tx_status(struct dma_chan *chan,
@@ -2307,6 +2314,8 @@ static int sdma_probe(struct platform_device *pdev)
 		sdmac->status = DMA_IN_PROGRESS;
 		sdmac->vc.desc_free = sdma_desc_free;
 		INIT_LIST_HEAD(&sdmac->pending);
+		INIT_WORK(&sdmac->terminate_worker,
+				sdma_channel_terminate_work);
 
 		/*
 		 * Add the channel to the DMAC list. Do not add channel 0 though

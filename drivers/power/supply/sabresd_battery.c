@@ -847,7 +847,7 @@ static int max8903_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "create device file failed!\n");
 
-	device_set_wakeup_capable(&pdev->dev, true);
+	device_init_wakeup(&pdev->dev, true);
 
 	max8903_charger_update_status(data);
 	max8903_battery_update_status(data);

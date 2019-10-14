@@ -201,6 +201,66 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+/* In order to support odd channels, force tdm mode for FE-BE case */
+static int imx_aif_hw_params_be(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_card *card = rtd->card;
+	struct device *dev = card->dev;
+	struct imx_ak5558_data *data = snd_soc_card_get_drvdata(card);
+	unsigned int channels = params_channels(params);
+	unsigned long mclk_freq;
+	unsigned int fmt;
+	int ret;
+
+	fmt = SND_SOC_DAIFMT_DSP_B | SND_SOC_DAIFMT_NB_NF |
+		SND_SOC_DAIFMT_CBS_CFS;
+
+	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
+	if (ret) {
+		dev_err(dev, "failed to set cpu dai fmt: %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dai_set_fmt(codec_dai, fmt);
+	if (ret) {
+		dev_err(dev, "failed to set codec dai fmt: %d\n", ret);
+		return ret;
+	}
+
+	/* support TDM256 (8 slots * 32 bits/per slot) */
+	data->slots = 8;
+	data->slot_width = 32;
+
+	ret = snd_soc_dai_set_tdm_slot(cpu_dai,
+			       BIT(channels) - 1, BIT(channels) - 1,
+			       data->slots, data->slot_width);
+	if (ret) {
+		dev_err(dev, "failed to set cpu dai tdm slot: %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dai_set_tdm_slot(codec_dai,
+		       BIT(channels) - 1, BIT(channels) - 1,
+		       8, 32);
+	if (ret) {
+		dev_err(dev, "failed to set codec dai fmt: %d\n", ret);
+		return ret;
+	}
+
+	mclk_freq = ak5558_get_mclk_rate(substream, params);
+	ret = snd_soc_dai_set_sysclk(cpu_dai, FSL_SAI_CLK_MAST1, mclk_freq,
+				     SND_SOC_CLOCK_OUT);
+	if (ret < 0)
+		dev_err(dev, "failed to set cpu_dai mclk1 rate %lu\n",
+			mclk_freq);
+
+	return ret;
+}
+
 static int imx_ak5558_hw_rule_rate(struct snd_pcm_hw_params *p,
 				struct snd_pcm_hw_rule *r)
 {
@@ -254,12 +314,15 @@ static int imx_aif_startup(struct snd_pcm_substream *substream)
 	if (ret)
 		return ret;
 
-	constraint_channels.list = ak5558_channels;
-	constraint_channels.count = ARRAY_SIZE(ak5558_channels);
-	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
-							&constraint_channels);
-	if (ret < 0)
-		return ret;
+	if (!data->tdm_mode) {
+		constraint_channels.list = ak5558_channels;
+		constraint_channels.count = ARRAY_SIZE(ak5558_channels);
+		ret = snd_pcm_hw_constraint_list(runtime, 0,
+						 SNDRV_PCM_HW_PARAM_CHANNELS,
+						 &constraint_channels);
+		if (ret < 0)
+			return ret;
+	}
 
 	return snd_pcm_hw_rule_add(substream->runtime, 0,
 		SNDRV_PCM_HW_PARAM_RATE, imx_ak5558_hw_rule_rate, data,
@@ -279,7 +342,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 };
 
 static struct snd_soc_ops imx_aif_ops_be = {
-	.hw_params = imx_aif_hw_params,
+	.hw_params = imx_aif_hw_params_be,
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,

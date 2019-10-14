@@ -379,6 +379,9 @@ static int i2c_rpbus_probe(struct platform_device *pdev)
 	struct i2c_adapter *adapter;
 	int ret;
 
+	if (!i2c_rpmsg.rpdev)
+		return -EPROBE_DEFER;
+
 	rdata = devm_kzalloc(&pdev->dev, sizeof(*rdata), GFP_KERNEL);
 	if (!rdata)
 		return -ENOMEM;

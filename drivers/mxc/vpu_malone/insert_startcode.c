@@ -744,8 +744,11 @@ struct VPU_FMT_INFO_ARV *get_arv_info(struct vpu_ctx *ctx, u_int8 *src, u_int32 
 
 	arv_frame->data_len = ((src[0] << 24) | (src[1] << 16) | (src[2] << 8) | (src[3]));
 	arv_frame->slice_num = ((src[16] << 24) | (src[17] << 16) | (src[18] << 8) | (src[19]));
-	if (arv_frame->data_len > size || arv_frame->slice_num > size)
+	if (arv_frame->data_len > size || arv_frame->slice_num > size) {
+		vpu_dbg(LVL_WARN, "arv frame info incorrect, data_len=%d  slice_num=%d  buffer_size=%d\n",
+			arv_frame->data_len, arv_frame->slice_num, size);
 		goto err;
+	}
 
 	arv_frame->slice_offset = kcalloc(arv_frame->slice_num, sizeof(u_int32), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(arv_frame->slice_offset)) {

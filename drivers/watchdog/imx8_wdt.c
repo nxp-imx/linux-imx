@@ -104,6 +104,11 @@ static int imx8_wdt_set_pretimeout(struct watchdog_device *wdog,
 {
 	struct arm_smccc_res res;
 
+	/*
+	 * scfw calculate new_pretimeout based on current stamp instead of
+	 * watchdog timeout stamp, convert it to scfw format.
+	 */
+	new_pretimeout = wdog->timeout - new_pretimeout;
 	arm_smccc_smc(FSL_SIP_SRTC, FSL_SIP_SRTC_SET_PRETIME_WDOG,
 			new_pretimeout * 1000, 0, 0, 0, 0, 0,
 			&res);

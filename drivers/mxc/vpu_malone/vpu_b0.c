@@ -3440,7 +3440,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	struct queue_data *This = &ctx->q_data[V4L2_SRC];
 	void *input_buffer;
 	uint32_t buffer_size;
-	u32 frame_bytes;
+	int frame_bytes;
 
 	while (!list_empty(&This->drv_q)) {
 		struct vb2_buffer *vb;
