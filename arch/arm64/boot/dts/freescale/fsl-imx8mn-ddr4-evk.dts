@@ -31,6 +31,10 @@
 		status ="okay";
 	};
 
+	busfreq {
+		status = "disabled";
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
