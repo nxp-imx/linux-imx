@@ -2903,8 +2903,8 @@ static u32 transfer_buffer_to_firmware(struct vpu_ctx *ctx,
 	void *input_buffer = (void *)vb2_plane_vaddr(vb, 0);
 	uint32_t buffer_size = vb->planes[0].bytesused;
 
-	vpu_dbg(LVL_BIT_FUNC, "enter %s, start_flag %d, index=%d, firmware_started=%d\n",
-			__func__, ctx->start_flag, ctx->str_index, ctx->dev->firmware_started);
+	vpu_dbg(LVL_BIT_FUNC, "enter %s, index=%d, firmware_started=%d\n",
+			__func__, ctx->str_index, ctx->dev->firmware_started);
 
 	vpu_dbg(LVL_WARN, "firmware version is %d.%d.%d\n",
 			(pSharedInterface->FWVersion & 0x00ff0000) >> 16,
@@ -2993,7 +2993,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 	u32 frame_bytes;
 	int ret;
 
-	if (ctx->start_flag == true) {
+	if (ctx->firmware_stopped == true) {
 		vpu_calculate_performance(ctx, 0xff, "alloc stream buffer begin");
 		ret = alloc_vpu_buffer(ctx);
 		if (ret) {
@@ -3021,7 +3021,7 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 		if (p_data_req->vb2_buf)
 			vb2_buffer_done(p_data_req->vb2_buf,
 					VB2_BUF_STATE_DONE);
-		ctx->start_flag = false;
+		ctx->firmware_stopped = false;
 	}
 }
 
@@ -4168,7 +4168,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->q_data[V4L2_SRC].qbuf_count,
 			ctx->q_data[V4L2_SRC].dqbuf_count);
 		ctx->firmware_stopped = true;
-		ctx->start_flag = true;
 		ctx->b_firstseq = true;
 		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
@@ -4283,8 +4282,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (!check_seq_info_is_valid(ctx->str_index, &info))
 			break;
 
-		while (ctx->wait_res_change_done && wait_times++ < 100)
+		while (ctx->wait_res_change_done && wait_times++ < 100) {
+			if (!vpu_dec_is_active(ctx))
+				break;
 			mdelay(10);
+		}
+		if (!vpu_dec_is_active(ctx))
+			break;
 		if (ctx->wait_res_change_done)
 			vpu_dbg(LVL_WARN, "warning: ctx[%d] update seq info when waiting res change\n",
 				ctx->str_index);
@@ -5872,7 +5876,9 @@ static bool vpu_dec_is_active(struct vpu_ctx *ctx)
 {
 	if (!ctx)
 		return false;
-	if (ctx->start_flag)
+	if (ctx->firmware_stopped)
+		return false;
+	if (ctx->pending && ctx->pending->request == VID_API_CMD_STOP)
 		return false;
 
 	return true;
@@ -5935,7 +5941,6 @@ static int v4l2_open(struct file *filp)
 	ctx->str_index = idx;
 	dev->ctx[idx] = ctx;
 	ctx->b_firstseq = true;
-	ctx->start_flag = true;
 	ctx->wait_rst_done = false;
 	ctx->wait_res_change_done = false;
 	ctx->firmware_stopped = true;

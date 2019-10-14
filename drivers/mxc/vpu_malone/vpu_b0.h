@@ -372,7 +372,6 @@ struct vpu_ctx {
 	MediaIPFW_Video_SeqInfo seqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
-	bool start_flag;
 	bool wait_rst_done;
 	bool wait_res_change_done;
 	bool seek_flag;
