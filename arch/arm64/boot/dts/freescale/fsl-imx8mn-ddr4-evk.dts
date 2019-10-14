@@ -25,6 +25,10 @@
 		stdout-path = &uart2;
 	};
 
+	busfreq {
+		status = "disabled";
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
