@@ -24,20 +24,14 @@
 #include <linux/module.h>
 #include <linux/videodev2.h>
 #include <linux/firmware.h>
-#include <linux/interrupt.h>
 #include <linux/file.h>
-#include <linux/of_platform.h>
-#include <linux/of_address.h>
-#include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/platform_data/dma-imx.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/pm_runtime.h>
-#include <linux/mx8_mu.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
-#include <linux/version.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -52,6 +46,8 @@
 #include "insert_startcode.h"
 #include "vpu_debug_log.h"
 #include "vpu_ts.h"
+#include "vpu_pm.h"
+#include "vpu_mu.h"
 
 unsigned int vpu_dbg_level_decoder = LVL_WARN;
 static int vpu_frm_depth = INVALID_FRAME_DEPTH;
@@ -457,12 +453,6 @@ static int find_buffer_id(struct vpu_ctx *ctx, u_int32 addr)
 	return i;
 }
 
-static void MU_sendMesgToFW(void __iomem *base, MSG_Type type, uint32_t value)
-{
-	MU_SendMessage(base, 1, value);
-	MU_SendMessage(base, 0, type);
-}
-
 static u32 get_str_buffer_desc_offset(struct vpu_ctx *ctx)
 {
 	return DEC_MFD_XREG_SLV_BASE + MFD_MCX + MFD_MCX_OFF * ctx->str_index;
@@ -677,7 +667,7 @@ static int v4l2_ioctl_querycap(struct file *file,
 	return 0;
 }
 
-static int v4l2_ioctl_enum_fmt_vid_cap_mplane(struct file *file,
+static int v4l2_ioctl_enum_fmt_vid_cap(struct file *file,
 		void *fh,
 		struct v4l2_fmtdesc *f
 		)
@@ -685,6 +675,10 @@ static int v4l2_ioctl_enum_fmt_vid_cap_mplane(struct file *file,
 	struct vpu_v4l2_fmt *fmt;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
+
+	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return -EINVAL;
+
 	if (f->index >= ARRAY_SIZE(formats_yuv_dec))
 		return -EINVAL;
 
@@ -731,7 +725,7 @@ static bool check_fmt_is_support(struct vpu_ctx *ctx, struct vpu_v4l2_fmt *fmt)
 	return support;
 }
 
-static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
+static int v4l2_ioctl_enum_fmt_vid_out(struct file *file,
 		void *fh,
 		struct v4l2_fmtdesc *f
 		)
@@ -741,6 +735,9 @@ static int v4l2_ioctl_enum_fmt_vid_out_mplane(struct file *file,
 	u_int32 index = 0, i;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
+
+	if (f->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return -EINVAL;
 
 	if (f->index >= ARRAY_SIZE(formats_compressed_dec))
 		return -EINVAL;
@@ -888,45 +885,6 @@ static bool set_video_standard(struct vpu_ctx *ctx,
 	return true;
 }
 
-#define VPU_DISABLE_BITS (0x7)
-void check_fuse_value(struct vpu_dev *dev,
-		struct vpu_v4l2_fmt *pformat_table,
-		uint32_t table_size)
-{
-	u_int32 fuse;
-	u_int32 val;
-	u_int32 i;
-	sc_err_t ret;
-
-	if (!dev)
-		return;
-
-	ret = sc_misc_otp_fuse_read(dev->mu_ipcHandle, VPU_DISABLE_BITS, &fuse);
-	if (ret) {
-		vpu_dbg(LVL_WARN, "warning: %s() read value fail: %d\n",
-			__func__, ret);
-		return;
-	}
-
-	val = (fuse >> 2) & 0x3UL;
-	if (val == 0x1UL) {
-		for (i = 0; i < table_size; i++)
-			if (pformat_table[i].fourcc == VPU_PIX_FMT_HEVC)
-				pformat_table[i].disable = 1;
-		vpu_dbg(LVL_WARN, "H265 is disabled\n");
-	} else if (val == 0x2UL) {
-		for (i = 0; i < table_size; i++)
-			if (pformat_table[i].fourcc == V4L2_PIX_FMT_H264)
-				pformat_table[i].disable = 1;
-		vpu_dbg(LVL_WARN, "H264 is disabled\n");
-	} else if (val == 0x3UL) {
-		for (i = 0; i < table_size; i++)
-			pformat_table[i].disable = 1;
-		vpu_dbg(LVL_WARN, "All decoder disabled\n");
-	}
-
-}
-
 static int v4l2_ioctl_s_fmt(struct file *file,
 		void *fh,
 		struct v4l2_format *f
@@ -1069,8 +1027,13 @@ static int vpu_dec_queue_qbuf(struct queue_data *queue,
 	}
 
 	down(&queue->drv_q_lock);
-	if (queue->vb2_q_inited)
+	if (queue->vb2_q_inited) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+		ret = vb2_qbuf(&queue->vb2_q, queue->ctx->dev->v4l2_dev.mdev, buf);
+#else
 		ret = vb2_qbuf(&queue->vb2_q, buf);
+#endif
+	}
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -1739,28 +1702,6 @@ static int vpu_dec_v4l2_ioctl_g_selection(struct file *file, void *fh,
 	return 0;
 }
 
-static int v4l2_ioctl_g_crop(struct file *file,
-		void *fh,
-		struct v4l2_crop *cr
-		)
-{
-	struct v4l2_selection s;
-	int ret;
-
-	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
-
-	if (!cr)
-		return -EINVAL;
-
-	s.type = cr->type;
-	s.target = V4L2_SEL_TGT_CROP;
-	ret = vpu_dec_v4l2_ioctl_g_selection(file, fh, &s);
-	if (!ret)
-		cr->c = s.r;
-
-	return ret;
-}
-
 static int v4l2_ioctl_decoder_cmd(struct file *file,
 		void *fh,
 		struct v4l2_decoder_cmd *cmd
@@ -1989,8 +1930,13 @@ static int vpu_dec_v4l2_ioctl_s_parm(struct file *file, void *fh,
 
 static const struct v4l2_ioctl_ops v4l2_decoder_ioctl_ops = {
 	.vidioc_querycap                = v4l2_ioctl_querycap,
-	.vidioc_enum_fmt_vid_cap_mplane = v4l2_ioctl_enum_fmt_vid_cap_mplane,
-	.vidioc_enum_fmt_vid_out_mplane = v4l2_ioctl_enum_fmt_vid_out_mplane,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
+	.vidioc_enum_fmt_vid_cap	= v4l2_ioctl_enum_fmt_vid_cap,
+	.vidioc_enum_fmt_vid_out	= v4l2_ioctl_enum_fmt_vid_out,
+#else
+	.vidioc_enum_fmt_vid_cap_mplane = v4l2_ioctl_enum_fmt_vid_cap,
+	.vidioc_enum_fmt_vid_out_mplane = v4l2_ioctl_enum_fmt_vid_out,
+#endif
 	.vidioc_g_fmt_vid_cap_mplane    = v4l2_ioctl_g_fmt,
 	.vidioc_g_fmt_vid_out_mplane    = v4l2_ioctl_g_fmt,
 	.vidioc_try_fmt_vid_cap_mplane  = v4l2_ioctl_try_fmt,
@@ -2000,7 +1946,6 @@ static const struct v4l2_ioctl_ops v4l2_decoder_ioctl_ops = {
 	.vidioc_g_parm			= vpu_dec_v4l2_ioctl_g_parm,
 	.vidioc_s_parm			= vpu_dec_v4l2_ioctl_s_parm,
 	.vidioc_expbuf                  = v4l2_ioctl_expbuf,
-	.vidioc_g_crop                  = v4l2_ioctl_g_crop,
 	.vidioc_g_selection		= vpu_dec_v4l2_ioctl_g_selection,
 	.vidioc_decoder_cmd             = v4l2_ioctl_decoder_cmd,
 	.vidioc_subscribe_event         = v4l2_ioctl_subscribe_event,
@@ -2685,11 +2630,12 @@ static void do_send_cmd_to_firmware(struct vpu_ctx *ctx,
 	count_cmd(&ctx->statistic, cmdid);
 	record_log_info(ctx, LOG_COMMAND, cmdid, 0);
 
-	spin_lock(&ctx->dev->cmd_spinlock);
-	rpc_send_cmd_buf(&ctx->dev->shared_mem, idx, cmdid, cmdnum, local_cmddata);
+	mutex_lock(&ctx->dev->cmd_mutex);
+	rpc_send_cmd_buf(&ctx->dev->shared_mem, idx, cmdid, cmdnum,
+			 local_cmddata);
 	mb();
-	MU_SendMessage(ctx->dev->mu_base_virtaddr, 0, COMMAND);
-	spin_unlock(&ctx->dev->cmd_spinlock);
+	vpu_mu_send_msg(ctx->dev, COMMAND, 0xffff);
+	mutex_unlock(&ctx->dev->cmd_mutex);
 }
 
 static struct vpu_dec_cmd_request vpu_dec_cmds[] = {
@@ -4025,7 +3971,7 @@ static void vpu_calculate_performance(struct vpu_ctx *ctx,  u_int32 uEvent, cons
 {
 	u_int64 Time;
 	u_int64 total_Time;
-	struct timeval tv;
+	struct timespec64 ts;
 	struct vpu_dec_perf_queue *perf;
 
 	if (!vpu_show_perf_ena)
@@ -4033,8 +3979,8 @@ static void vpu_calculate_performance(struct vpu_ctx *ctx,  u_int32 uEvent, cons
 	if (!(vpu_show_perf_idx & (1<<ctx->str_index)))
 		return;
 
-	do_gettimeofday(&tv);
-	Time = ((tv.tv_sec * 1000000ULL) + tv.tv_usec) / 1000ULL;
+	ktime_get_real_ts64(&ts);
+	Time = ((ts.tv_sec * 1000000000ULL) + ts.tv_nsec) / 1000000ULL;
 
 	switch (uEvent) {
 	case VID_API_EVENT_PIC_DECODED:
@@ -4592,94 +4538,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	vpu_dbg(LVL_INFO, "leave %s, uEvent %d\n", __func__, uEvent);
 }
 
-
-
-//This code is added for MU
-
-static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
-{
-	struct vpu_dev *dev = This;
-	u32 msg;
-
-	MU_ReceiveMsg(dev->mu_base_virtaddr, 0, &msg);
-	if (msg == 0xaa) {
-		rpc_init_shared_memory(&dev->shared_mem,
-				vpu_dec_cpu_phy_to_mu(dev, dev->m0_rpc_phy),
-				dev->m0_rpc_virt,
-				dev->m0_rpc_size);
-		dev->print_buf = dev->m0_rpc_virt + M0_PRINT_OFFSET;
-		rpc_set_system_cfg_value(dev->shared_mem.pSharedInterface,
-					VPU_REG_BASE);
-
-		/*CM0 use relative address*/
-		spin_lock(&dev->cmd_spinlock);
-		MU_sendMesgToFW(dev->mu_base_virtaddr,
-				RPC_BUF_OFFSET,
-				vpu_dec_cpu_phy_to_mu(dev,  dev->m0_rpc_phy));
-		MU_sendMesgToFW(dev->mu_base_virtaddr,
-				BOOT_ADDRESS,
-				dev->m0_p_fw_space_phy);
-		MU_sendMesgToFW(dev->mu_base_virtaddr, INIT_DONE, 2);
-		spin_unlock(&dev->cmd_spinlock);
-
-	} else if (msg == 0x55) {
-		dev->firmware_started = true;
-		complete(&dev->start_cmp);
-	}  else if (msg == 0xA5) {
-		/*receive snapshot done msg and wakeup complete to suspend*/
-		complete(&dev->snap_done_cmp);
-	} else
-		schedule_work(&dev->msg_work);
-
-	return IRQ_HANDLED;
-}
-
-/* Initialization of the MU code. */
-static int vpu_mu_init(struct vpu_dev *dev)
-{
-	struct device_node *np;
-	unsigned int	vpu_mu_id;
-	u32 irq;
-	int ret = 0;
-
-	/*
-	 * Get the address of MU to be used for communication with the M0 core
-	 */
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx8-mu0-vpu-m0");
-	if (!np) {
-		vpu_err("error: Cannot find MU entry in device tree\n");
-		return -EINVAL;
-	}
-	dev->mu_base_virtaddr = of_iomap(np, 0);
-	WARN_ON(!dev->mu_base_virtaddr);
-
-	ret = of_property_read_u32_index(np,
-				"fsl,vpu_ap_mu_id", 0, &vpu_mu_id);
-	if (ret) {
-		vpu_err("error: Cannot get mu_id %d\n", ret);
-		return -EINVAL;
-	}
-
-	dev->vpu_mu_id = vpu_mu_id;
-
-	irq = of_irq_get(np, 0);
-
-	ret = devm_request_irq(&dev->plat_dev->dev, irq, fsl_vpu_mu_isr,
-				IRQF_EARLY_RESUME, "vpu_mu_isr", (void *)dev);
-	if (ret) {
-		vpu_err("error: request_irq failed %d, error = %d\n", irq, ret);
-		return -EINVAL;
-	}
-
-	if (!dev->vpu_mu_init) {
-		MU_Init(dev->mu_base_virtaddr);
-		MU_EnableRxFullInt(dev->mu_base_virtaddr, 0);
-		dev->vpu_mu_init = 1;
-	}
-
-	return ret;
-}
-
 static void release_vpu_ctx(struct vpu_ctx *ctx)
 {
 	if (!ctx)
@@ -4801,18 +4659,17 @@ static bool receive_msg_queue(struct vpu_ctx *ctx, struct event_msg *msg)
 }
 
 extern u_int32 rpc_MediaIPFW_Video_message_check(struct shared_addr *This);
-static void vpu_msg_run_work(struct work_struct *work)
+static void vpu_receive_msg_event(struct vpu_dev *dev)
 {
-	struct vpu_dev *dev = container_of(work, struct vpu_dev, msg_work);
-	struct vpu_ctx *ctx;
 	struct event_msg msg;
-	struct shared_addr *This = &dev->shared_mem;
+	struct shared_addr *This;
+	struct vpu_ctx *ctx;
 
-	if (!dev || !This)
+	This = &dev->shared_mem;
+	if (!This)
 		return;
 
 	memset(&msg, 0, sizeof(struct event_msg));
-
 	while (rpc_MediaIPFW_Video_message_check(This) == API_MSG_AVAILABLE) {
 		rpc_receive_msg_buf(This, &msg);
 		mutex_lock(&dev->dev_mutex);
@@ -4828,6 +4685,44 @@ static void vpu_msg_run_work(struct work_struct *work)
 	if (rpc_MediaIPFW_Video_message_check(This) == API_MSG_BUFFER_ERROR)
 		vpu_err("error: message size is too big to handle\n");
 }
+
+static void vpu_handle_msg_data(struct vpu_dev *dev, u32 data)
+{
+	if (data == 0xaa) {
+		rpc_init_shared_memory(&dev->shared_mem,
+				vpu_dec_cpu_phy_to_mu(dev, dev->m0_rpc_phy),
+				dev->m0_rpc_virt,
+				dev->m0_rpc_size);
+		dev->print_buf = dev->m0_rpc_virt + M0_PRINT_OFFSET;
+		rpc_set_system_cfg_value(dev->shared_mem.pSharedInterface,
+					VPU_REG_BASE);
+
+		mutex_lock(&dev->cmd_mutex);
+		vpu_mu_send_msg(dev, RPC_BUF_OFFSET,
+				vpu_dec_cpu_phy_to_mu(dev, dev->m0_rpc_phy));
+		vpu_mu_send_msg(dev, BOOT_ADDRESS, dev->m0_p_fw_space_phy);
+		vpu_mu_send_msg(dev, INIT_DONE, 2);
+		mutex_unlock(&dev->cmd_mutex);
+	} else if (data == 0x55) {
+		dev->firmware_started = true;
+		complete(&dev->start_cmp);
+	}  else if (data == 0xA5) {
+		/*receive snapshot done msg and wakeup complete to suspend*/
+		complete(&dev->snap_done_cmp);
+	} else {
+		vpu_receive_msg_event(dev);
+	}
+}
+
+static void vpu_msg_run_work(struct work_struct *work)
+{
+	struct vpu_dev *dev = container_of(work, struct vpu_dev, msg_work);
+	u32 data;
+
+	while (vpu_mu_receive_msg(dev, &data) >= sizeof(u_int32))
+		vpu_handle_msg_data(dev, data);
+}
+
 static void vpu_msg_instance_work(struct work_struct *work)
 {
 	struct vpu_ctx *ctx = container_of(work, struct vpu_ctx, instance_work);
@@ -5026,9 +4921,11 @@ static void init_queue_data(struct vpu_ctx *ctx)
 {
 	init_vb2_queue(&ctx->q_data[V4L2_SRC], V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, ctx);
 	ctx->q_data[V4L2_SRC].type = V4L2_SRC;
+	ctx->q_data[V4L2_SRC].ctx = ctx;
 	sema_init(&ctx->q_data[V4L2_SRC].drv_q_lock, 1);
 	init_vb2_queue(&ctx->q_data[V4L2_DST], V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, ctx);
 	ctx->q_data[V4L2_DST].type = V4L2_DST;
+	ctx->q_data[V4L2_DST].ctx = ctx;
 	sema_init(&ctx->q_data[V4L2_DST].drv_q_lock, 1);
 }
 
@@ -5978,7 +5875,7 @@ static int v4l2_open(struct file *filp)
 		vpu_dbg(LVL_INFO, "done: vpu_firmware_download\n");
 		if (!ctx->dev->firmware_started) {
 			reinit_completion(&ctx->dev->start_cmp);
-			if (!wait_for_completion_timeout(&ctx->dev->start_cmp, msecs_to_jiffies(10000))) {
+			if (!wait_for_completion_timeout(&ctx->dev->start_cmp, msecs_to_jiffies(1000))) {
 				vpu_err("error: don't get start interrupt\n");
 				ret = -1;
 				mutex_unlock(&dev->dev_mutex);
@@ -6206,6 +6103,7 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 	ctx = dev->ctx[idx];
 	vpu_dbg(LVL_WARN, "SWRESET: swreset_vpu_firmware\n");
 	dev->firmware_started = false;
+	kfifo_reset(&dev->mu_msg_fifo);
 
 	do_send_cmd_to_firmware(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
@@ -6294,6 +6192,8 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 	dev->pvpu_decoder_dev->release = video_device_release;
 	dev->pvpu_decoder_dev->vfl_dir = v4l2_videodevice_decoder.vfl_dir;
 	dev->pvpu_decoder_dev->v4l2_dev = &dev->v4l2_dev;
+	dev->pvpu_decoder_dev->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE |
+					     V4L2_CAP_STREAMING;
 
 	video_set_drvdata(dev->pvpu_decoder_dev, dev);
 
@@ -6314,13 +6214,8 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 
 static int init_vpudev_parameters(struct vpu_dev *dev)
 {
-	int ret;
-
-	if (!dev)
-		return -EINVAL;
-
 	mutex_init(&dev->dev_mutex);
-	spin_lock_init(&dev->cmd_spinlock);
+	mutex_init(&dev->cmd_mutex);
 	mutex_init(&dev->fw_flow_mutex);
 	init_completion(&dev->start_cmp);
 	init_completion(&dev->snap_done_cmp);
@@ -6330,12 +6225,6 @@ static int init_vpudev_parameters(struct vpu_dev *dev)
 	dev->instance_mask = 0;
 
 	dev->fw_is_ready = false;
-
-	ret = vpu_mu_init(dev);
-	if (ret) {
-		vpu_err("error: %s vpu mu init failed\n", __func__);
-		return ret;
-	}
 
 	//firmware space for M0
 	dev->m0_p_fw_space_vir = ioremap_wc(dev->m0_p_fw_space_phy,
@@ -6366,7 +6255,6 @@ static int vpu_probe(struct platform_device *pdev)
 	struct vpu_dev *dev;
 	struct resource *res;
 	struct device_node *np = pdev->dev.of_node;
-	unsigned int mu_id;
 	int ret;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
@@ -6376,12 +6264,21 @@ static int vpu_probe(struct platform_device *pdev)
 	dev->plat_dev = pdev;
 	dev->generic_dev = get_device(&pdev->dev);
 
+	ret = vpu_attach_pm_domains(dev);
+	if (ret)
+		goto err_put_dev;
+
+	ret = vpu_mu_request(dev);
+	if (ret)
+		goto err_det_pm;
+
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dev->regs_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(dev->regs_base)) {
 		vpu_err("error: %s could not map regs_base\n", __func__);
 		ret = PTR_ERR(dev->regs_base);
-		goto err_put_dev;
+		goto err_free_mu;
 	}
 
 	ret = parse_dt_info(dev, np);
@@ -6404,30 +6301,27 @@ static int vpu_probe(struct platform_device *pdev)
 		goto err_unreg_v4l2;
 	}
 
-	if (!dev->mu_ipcHandle) {
-		ret = sc_ipc_getMuID(&mu_id);
-		if (ret) {
-			vpu_err("error: --- sc_ipc_getMuID() cannot obtain mu id SCI error! (%d)\n", ret);
-			goto err_rm_vdev;
-		}
+	ret = vpu_sc_check_fuse(dev, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec));
+	if (ret)
+		goto err_rm_vdev;
 
-		ret = sc_ipc_open(&dev->mu_ipcHandle, mu_id);
-		if (ret) {
-			vpu_err("error: --- sc_ipc_getMuID() cannot open MU channel to SCU error! (%d)\n", ret);
-			goto err_rm_vdev;
-		}
+	ret = kfifo_alloc(&dev->mu_msg_fifo,
+			  sizeof(u_int32) * VPU_MAX_NUM_STREAMS * VID_API_MESSAGE_LIMIT,
+			  GFP_KERNEL);
+	if (ret) {
+		vpu_err("error: fail to alloc mu msg fifo\n");
+		goto err_rm_vdev;
 	}
 
 	dev->workqueue = alloc_workqueue("vpu", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!dev->workqueue) {
 		vpu_err("error: %s unable to alloc workqueue\n", __func__);
 		ret = -ENOMEM;
-		goto err_rm_vdev;
+		goto err_free_fifo;
 	}
 
 	INIT_WORK(&dev->msg_work, vpu_msg_run_work);
 
-	check_fuse_value(dev, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec));
 	vpu_enable_hw(dev);
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
@@ -6448,6 +6342,8 @@ err_poweroff:
 	vpu_disable_hw(dev);
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+err_free_fifo:
+	kfifo_free(&dev->mu_msg_fifo);
 err_rm_vdev:
 	if (dev->pvpu_decoder_dev) {
 		video_unregister_device(dev->pvpu_decoder_dev);
@@ -6458,11 +6354,17 @@ err_unreg_v4l2:
 err_dev_iounmap:
 	if (dev->regs_base)
 		iounmap(dev->regs_base);
+err_free_mu:
+	vpu_mu_free(dev);
+err_det_pm:
+	vpu_detach_pm_domains(dev);
 err_put_dev:
 	if (dev->generic_dev) {
 		put_device(dev->generic_dev);
 		dev->generic_dev = NULL;
 	}
+
+	devm_kfree(&pdev->dev, dev);
 
 	return ret;
 }
@@ -6471,11 +6373,14 @@ static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
 
+	vpu_mu_free(dev);
+
 	device_remove_file(&pdev->dev, &dev_attr_precheck_pattern);
 	debugfs_remove_recursive(dev->debugfs_root);
 	dev->debugfs_root = NULL;
 	dev->debugfs_dbglog = NULL;
 	dev->debugfs_fwlog = NULL;
+	kfifo_free(&dev->mu_msg_fifo);
 	destroy_workqueue(dev->workqueue);
 	if (dev->m0_p_fw_space_vir)
 		iounmap(dev->m0_p_fw_space_vir);
@@ -6499,6 +6404,10 @@ static int vpu_remove(struct platform_device *pdev)
 		video_unregister_device(dev->pvpu_decoder_dev);
 
 	v4l2_device_unregister(&dev->v4l2_dev);
+
+	vpu_detach_pm_domains(dev);
+	devm_kfree(&pdev->dev, dev);
+
 	return 0;
 }
 

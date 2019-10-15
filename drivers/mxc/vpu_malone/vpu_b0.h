@@ -20,6 +20,7 @@
 #ifndef __VPU_B0_H
 #define __VPU_B0_H
 
+#include <linux/version.h>
 #include <linux/irqreturn.h>
 #include <linux/mutex.h>
 #include <linux/videodev2.h>
@@ -27,10 +28,16 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fh.h>
 #include <media/videobuf2-v4l2.h>
+#ifdef CONFIG_IMX_SCU
+#include <linux/firmware/imx/ipc.h>
+#include <linux/firmware/imx/svc/misc.h>
+#else
 #include <soc/imx8/sc/svc/irq/api.h>
 #include <soc/imx8/sc/ipc.h>
 #include <soc/imx8/sc/sci.h>
+#endif
 #include <linux/mx8_mu.h>
+#include <linux/mailbox_client.h>
 #include <media/v4l2-event.h>
 #include <linux/kfifo.h>
 #include "vpu_rpc.h"
@@ -57,6 +64,7 @@ extern unsigned int vpu_dbg_level_decoder;
 #define MAX_TIMEOUT_COUNT 10
 #define VPU_REG_BASE 0x40000000
 #define VPU_MAX_STEP_STRING_LENGTH 40
+#define VPU_DISABLE_BITS (0x7)
 
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
 #define INVALID_FRAME_DEPTH -1
@@ -230,6 +238,7 @@ struct queue_data {
 	unsigned long dqbuf_count;
 	unsigned long process_count;
 	bool enable;
+	struct vpu_ctx *ctx;
 };
 
 struct print_buf_desc {
@@ -240,6 +249,20 @@ struct print_buf_desc {
 	u32 read;
 	u32 write;
 	char buffer[0];
+};
+
+#ifdef CONFIG_IMX_SCU
+struct vpu_imx_sc_msg_misc {
+	struct imx_sc_rpc_msg hdr;
+	u32 word;
+} __packed;
+#endif
+
+struct vpu_sc_chan {
+	struct vpu_dev *dev;
+	char name[20];
+	struct mbox_client cl;
+	struct mbox_chan *ch;
 };
 
 struct vpu_ctx;
@@ -256,7 +279,7 @@ struct vpu_dev {
 	u_int32 m0_rpc_phy;
 	u_int32 m0_rpc_size;
 	struct mutex dev_mutex;
-	spinlock_t cmd_spinlock;
+	struct mutex cmd_mutex;
 	struct mutex fw_flow_mutex;
 	bool fw_is_ready;
 	bool firmware_started;
@@ -267,7 +290,6 @@ struct vpu_dev {
 	struct work_struct msg_work;
 	unsigned long instance_mask;
 	unsigned long hang_mask; //this is used to deal with hang issue to reset firmware
-	sc_ipc_t mu_ipcHandle;
 	struct clk *vpu_clk;
 	void __iomem *mu_base_virtaddr;
 	unsigned int vpu_mu_id;
@@ -290,6 +312,20 @@ struct vpu_dev {
 	int precheck_next[64];
 	int precheck_num;
 	char precheck_content[1024];
+
+	struct kfifo mu_msg_fifo;
+	u_int32 vpu_irq;
+
+	/* reserve for kernel version 5.4 or later */
+	struct vpu_sc_chan sc_chan_tx0;
+	struct vpu_sc_chan sc_chan_tx1;
+	struct vpu_sc_chan sc_chan_rx;
+	struct device *pd_vpu;
+	struct device *pd_dec;
+	struct device *pd_mu;
+	struct device_link *pd_vpu_link;
+	struct device_link *pd_dec_link;
+	struct device_link *pd_mu_link;
 };
 
 struct vpu_statistic {

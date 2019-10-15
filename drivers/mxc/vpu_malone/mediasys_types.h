@@ -59,8 +59,12 @@ typedef unsigned int u_int32;
 typedef unsigned char u_int8;
 typedef unsigned long u_int64;
 typedef unsigned int BOOL;
+#ifndef FALSE
 #define FALSE 0
+#endif
+#ifndef TRUE
 #define TRUE 1
+#endif
 #define VPU_MAX_NUM_STREAMS 8
 #define VID_API_NUM_STREAMS 8
 #define VID_API_MAX_BUF_PER_STR 3
