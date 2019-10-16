@@ -386,6 +386,7 @@ struct vpu_ctx {
 	bool fifo_low;
 	bool frame_decoded;
 	bool first_dump_data_flag;
+	bool first_data_flag;
 	u32 req_frame_count;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
