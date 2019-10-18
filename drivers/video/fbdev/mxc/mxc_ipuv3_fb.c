@@ -2,6 +2,8 @@
  * Copyright 2004-2016 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
+/* Copyright 2019 NXP */
+
 /*
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -1353,6 +1355,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 			ipu_disp_set_window_pos(
 					mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch,
 					ov_pos_x, ov_pos_y);
+		mxc_fbi_fg->on_the_fly = false;
 		retval = _setup_disp_channel2(mxc_fbi->ovfbi);
 		if (retval) {
 			ipu_uninit_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
