@@ -567,6 +567,7 @@ static struct dma_async_tx_descriptor *fsl_edma3_prep_dma_cyclic(
 	int sg_len, i;
 	u32 src_addr, dst_addr, last_sg, nbytes;
 	u16 soff, doff, iter;
+	bool major_int = true;
 
 	sg_len = buf_len / period_len;
 	fsl_desc = fsl_edma3_alloc_desc(fsl_chan, sg_len);
@@ -607,11 +608,12 @@ static struct dma_async_tx_descriptor *fsl_edma3_prep_dma_cyclic(
 			dst_addr = fsl_chan->fsc.dev_addr;
 			soff = 0;
 			doff = 0;
+			major_int = false;
 		}
 
 		fsl_edma3_fill_tcd(fsl_chan, fsl_desc->tcd[i].vtcd, src_addr,
 				dst_addr, fsl_chan->fsc.attr, soff, nbytes, 0,
-				iter, iter, doff, last_sg, true, false, true);
+				iter, iter, doff, last_sg, major_int, false, true);
 		dma_buf_next += period_len;
 	}
 
