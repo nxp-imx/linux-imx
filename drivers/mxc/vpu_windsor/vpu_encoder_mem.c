@@ -603,7 +603,8 @@ int vpu_enc_alloc_stream(struct vpu_ctx *ctx)
 	if (ctx->encoder_stream.virt_addr)
 		return 0;
 
-	ctx->encoder_stream.size = STREAM_SIZE;
+	ctx->encoder_stream.size =
+		max_t(u32, ctx->cpb_size * CPB_COUNT, STREAM_SIZE);
 	ret = vpu_enc_alloc_dma_buffer(ctx, &ctx->encoder_stream);
 	if (ret) {
 		vpu_err("alloc encoder stream buffer fail\n");

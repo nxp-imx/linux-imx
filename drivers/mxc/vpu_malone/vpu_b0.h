@@ -3,12 +3,12 @@
  */
 
 /*
- * The code contained herein is licensed under the GNU Lesser General
- * Public License.  You may obtain a copy of the GNU Lesser General
- * Public License Version 2.1 or later at the following locations:
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
  *
- * http://www.opensource.org/licenses/lgpl-license.html
- * http://www.gnu.org/copyleft/lgpl.html
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
  */
 
 /*!
@@ -452,12 +452,12 @@ struct vpu_ctx {
 #define LVL_BIT_FLOW		(1 << 13)
 #define LVL_BIT_FRAME_COUNT	(1 << 14)
 
-#define vpu_err(fmt, arg...) pr_info("[VPU Decoder]\t " fmt, ## arg)
+#define vpu_err(fmt, arg...) pr_info("[VPU Decoder] " fmt, ## arg)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
 		if (vpu_dbg_level_decoder & (level)) \
-			pr_info("[VPU Decoder]\t " fmt, ## arg); \
+			pr_info("[VPU Decoder] " fmt, ## arg); \
 	} while (0)
 
 #define V4L2_NXP_BUF_FLAG_CODECCONFIG		0x00200000
