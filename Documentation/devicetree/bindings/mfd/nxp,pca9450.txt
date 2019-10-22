@@ -1,0 +1,51 @@
+* NXP PCA9450 Power Management Integrated Circuit (PMIC) bindings
+
+Required properties:
+ - compatible		: Should be "nxp,pca9450".
+ - reg			: I2C slave address.
+ - pinctrl-0      	: Pinctrl setting for pmic such as interrupt pin.
+ - gpio_intr		: gpio pin used for interrupt pin.
+ - regulators:          : List of child nodes that specify the regulator
+                            initialization data. Including 6 buck regulators
+			    and 5 ldo regulators.
+
+Example:
+	pmic: pca9450@25 {
+		reg = <0x25>;
+		compatible = "nxp,pca9450";
+		/* PMIC PCA9450 PMIC_nINT GPIO1_IO3 */
+		pinctrl-0 = <&pinctrl_pmic>;
+		gpio_intr = <&gpio1 3 GPIO_ACTIVE_LOW>;
+
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pca9450,pmic-buck2-uses-i2c-dvs;
+			/* Run/Standby voltage */
+			pca9450,pmic-buck2-dvs-voltage = <950000>, <850000>;
+
+			buck1_reg: regulator@0 {
+				reg = <0>;
+				regulator-compatible = "buck1";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2187500>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <3125>;
+			};
+
+			buck2_reg: regulator@1 {
+				reg = <1>;
+				regulator-compatible = "buck2";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <2187500>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <3125>;
+			};
+
+			.....
+
+		};
+	};

@@ -1818,6 +1818,14 @@ config MFD_BD71837
 	  if you say yes here you get support for the BD71837
 	  Power Management chips.
 
+config MFD_PCA9450
+	bool "PCA9450 Power Management chip"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  if you say yes here you get support for the PCA9450
+	  Power Management chips.
+
 menu "Multimedia Capabilities Port drivers"
 	depends on ARCH_SA1100
 
