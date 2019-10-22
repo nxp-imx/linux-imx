@@ -1471,14 +1471,15 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
 	gi->unbind = 1;
+	spin_unlock_irqrestore(&gi->spinlock, flags);
 
 	kfree(otg_desc[0]);
 	otg_desc[0] = NULL;
 	purge_configs_funcs(gi);
-	spin_unlock_irqrestore(&gi->spinlock, flags);
 	composite_dev_cleanup(cdev);
-	spin_lock_irqsave(&gi->spinlock, flags);
 	usb_ep_autoconfig_reset(cdev->gadget);
+
+	spin_lock_irqsave(&gi->spinlock, flags);
 	cdev->gadget = NULL;
 	set_gadget_data(gadget, NULL);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
@@ -1555,6 +1556,10 @@ static void android_disconnect(struct usb_gadget *gadget)
 
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
+	if (!cdev || gi->unbind) {
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+		return;
+	}
 
 	/* accessory HID support can be active while the
 		accessory function is not actually enabled,
@@ -1582,6 +1587,11 @@ static void configfs_composite_suspend(struct usb_gadget *gadget)
 
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
+	if (!cdev || gi->unbind) {
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+		return;
+	}
+
 	composite_suspend(gadget);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
@@ -1597,6 +1607,11 @@ static void configfs_composite_resume(struct usb_gadget *gadget)
 
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
+	if (!cdev || gi->unbind) {
+		spin_unlock_irqrestore(&gi->spinlock, flags);
+		return;
+	}
+
 	composite_resume(gadget);
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
