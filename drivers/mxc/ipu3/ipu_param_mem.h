@@ -1,5 +1,6 @@
 /*
  * Copyright 2005-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2019 NXP
  */
 
 /*
@@ -744,9 +745,12 @@ static inline int __ipu_ch_offset_calc(uint32_t pixel_fmt,
 	case IPU_PIX_FMT_GENERIC_16:
 	case IPU_PIX_FMT_GENERIC_32:
 	case IPU_PIX_FMT_RGB565:
+	case IPU_PIX_FMT_BGRA4444:
+	case IPU_PIX_FMT_BGRA5551:
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
 	case IPU_PIX_FMT_YUV444:
+	case IPU_PIX_FMT_AYUV:
 	case IPU_PIX_FMT_BGRA32:
 	case IPU_PIX_FMT_BGR32:
 	case IPU_PIX_FMT_RGBA32:
