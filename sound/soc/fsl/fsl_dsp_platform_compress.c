@@ -193,32 +193,32 @@ static int dsp_platform_compr_set_params(struct snd_compr_stream *cstream,
 	drv->client->consume_bytes = 0;
 
 	s_param.id = XA_RENDERER_CONFIG_PARAM_SAMPLE_RATE;
-	s_param.value = params->codec.sample_rate;
+	s_param.mixData.value = params->codec.sample_rate;
 	ret = xaf_comp_set_config(drv->client, &drv->component[1], 1, &s_param);
 	if (ret) {
 		dev_err(platform->dev,
 			"set param[cmd:0x%x|val:0x%x] error, err = %d\n",
-			s_param.id, s_param.value, ret);
+			s_param.id, s_param.mixData.value, ret);
 		goto err_comp1_create;
 	}
 
 	s_param.id = XA_RENDERER_CONFIG_PARAM_CHANNELS;
-	s_param.value = params->codec.ch_out;
+	s_param.mixData.value = params->codec.ch_out;
 	ret = xaf_comp_set_config(drv->client, &drv->component[1], 1, &s_param);
 	if (ret) {
 		dev_err(platform->dev,
 			"set param[cmd:0x%x|val:0x%x] error, err = %d\n",
-			s_param.id, s_param.value, ret);
+			s_param.id, s_param.mixData.value, ret);
 		goto err_comp1_create;
 	}
 
 	s_param.id = XA_RENDERER_CONFIG_PARAM_PCM_WIDTH;
-	s_param.value = 16;
+	s_param.mixData.value = 16;
 	ret = xaf_comp_set_config(drv->client, &drv->component[1], 1, &s_param);
 	if (ret) {
 		dev_err(platform->dev,
 			"set param[cmd:0x%x|val:0x%x] error, err = %d\n",
-			s_param.id, s_param.value, ret);
+			s_param.id, s_param.mixData.value, ret);
 		goto err_comp1_create;
 	}
 	return 0;
