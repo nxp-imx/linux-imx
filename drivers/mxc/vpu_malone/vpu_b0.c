@@ -3380,7 +3380,7 @@ static bool verify_decoded_frames(struct vpu_ctx *ctx)
 
 	if (buffer_info->stream_pic_input_count != buffer_info->stream_pic_parsed_count) {
 		vpu_dbg(LVL_WARN,
-			"warning: ctx[%d] decoded frames not correct, input_count: %d, decoded count: %d\n",
+			"ctx[%d] amount inconsistent between input(%d) and output(%d)\n",
 			ctx->str_index, buffer_info->stream_pic_input_count,
 			buffer_info->stream_pic_parsed_count);
 		return false;
@@ -4148,6 +4148,15 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_stopped = true;
 		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
+		/* This also can fix an Andorid case indirectly:
+		 * seek in the beginning, but has not do capture port
+		 * streamoff/on when receive res changed event, then will cause
+		 * seek_flag status incorrect.
+		 * If abort before receive seq_hdr_found evnt will call stop cmd
+		 * to fw, then will reset seek_flag and wait_res_change_done.
+		 */
+		ctx->wait_res_change_done = false;
+		ctx->seek_flag = false;
 		ctx->res_change_occu_count = 0;
 		ctx->res_change_send_count = 0;
 		ctx->res_change_done_count = 0;
