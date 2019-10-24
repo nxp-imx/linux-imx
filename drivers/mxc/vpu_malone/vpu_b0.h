@@ -214,12 +214,11 @@ struct queue_data {
 	unsigned int width;
 	unsigned int height;
 	unsigned int stride;
-	unsigned int bytesperline;
+	unsigned int field;
 	unsigned int num_planes;
 	unsigned int sizeimage[2];
 	unsigned int fourcc;
 	unsigned int vdec_std;
-	struct v4l2_rect rect;
 	int buf_type; // v4l2_buf_type
 	bool vb2_q_inited;
 	struct vb2_queue vb2_q;    // vb2 queue

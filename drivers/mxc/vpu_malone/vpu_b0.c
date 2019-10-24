@@ -801,8 +801,15 @@ static void calculate_frame_size(struct vpu_ctx *ctx)
 
 	luma_size = width * height;
 	chroma_size = width * chroma_height;
-	ctx->q_data[V4L2_DST].sizeimage[0] = luma_size;
-	ctx->q_data[V4L2_DST].sizeimage[1] = chroma_size;
+
+	q_data->width = ctx->seqinfo.uHorRes;
+	q_data->height = ctx->seqinfo.uVerRes;
+	q_data->sizeimage[0] = luma_size;
+	q_data->sizeimage[1] = chroma_size;
+	if (ctx->seqinfo.uProgressive == 1)
+		q_data->field = V4L2_FIELD_NONE;
+	else
+		q_data->field = V4L2_FIELD_INTERLACED;
 }
 
 static int v4l2_ioctl_g_fmt(struct file *file,
@@ -818,34 +825,27 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		MediaIPFW_Video_SeqInfo *info = &ctx->seqinfo;
-
 		q_data = &ctx->q_data[V4L2_DST];
+		down(&q_data->drv_q_lock);
 		if (is_10bit_format(ctx))
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12_10BIT;
 		else
 			pix_mp->pixelformat = V4L2_PIX_FMT_NV12;
+
 		pix_mp->width = q_data->width;
 		pix_mp->height = q_data->height;
-		down(&q_data->drv_q_lock);
-		if (!ctx->b_firstseq && info->uHorRes && info->uVerRes) {
-			pix_mp->width = ctx->seqinfo.uHorRes;
-			pix_mp->height = ctx->seqinfo.uVerRes;
-		}
-		if (info->uProgressive == 1)
-			pix_mp->field = V4L2_FIELD_NONE;
-		else
-			pix_mp->field = V4L2_FIELD_INTERLACED;
-		up(&q_data->drv_q_lock);
+		pix_mp->field = q_data->field;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
-
 		for (i = 0; i < pix_mp->num_planes; i++) {
 			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
 			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
 		}
+		up(&q_data->drv_q_lock);
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
+
+		down(&q_data->drv_q_lock);
 		pix_mp->width = q_data->width;
 		pix_mp->height = q_data->height;
 		pix_mp->field = V4L2_FIELD_NONE;
@@ -856,6 +856,7 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 
 		}
 		pix_mp->pixelformat = q_data->fourcc;
+		up(&q_data->drv_q_lock);
 	} else
 		return -EINVAL;
 	vpu_dbg(LVL_BIT_FLOW, "%s g_fmt : %c%c%c%c %d x %d\n",
@@ -952,10 +953,6 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 			return -EINVAL;
 		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
-		for (i = 0; i < pix_mp->num_planes && !ctx->b_firstseq; i++) {
-			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
-			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
-		}
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
 		if (!set_video_standard(ctx, q_data, f, formats_compressed_dec, ARRAY_SIZE(formats_compressed_dec)))
@@ -964,19 +961,25 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		return -EINVAL;
 
 	q_data->num_planes = pix_mp->num_planes;
-	for (i = 0; i < q_data->num_planes; i++) {
-		if (!V4L2_TYPE_IS_OUTPUT(f->type) && !ctx->b_firstseq)
-			continue;
-		q_data->stride = pix_mp->plane_fmt[i].bytesperline;
-		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
-	}
 	q_data->fourcc = pix_mp->pixelformat;
-	q_data->width = pix_mp->width;
-	q_data->height = pix_mp->height;
-	q_data->rect.left = 0;
-	q_data->rect.top = 0;
-	q_data->rect.width = pix_mp->width;
-	q_data->rect.height = pix_mp->height;
+
+	down(&q_data->drv_q_lock);
+	if (V4L2_TYPE_IS_OUTPUT(f->type) || ctx->b_firstseq) {
+		for (i = 0; i < q_data->num_planes; i++) {
+			q_data->stride = pix_mp->plane_fmt[i].bytesperline;
+			q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
+		}
+		q_data->width = pix_mp->width;
+		q_data->height = pix_mp->height;
+	} else {
+		for (i = 0; i < q_data->num_planes; i++) {
+			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
+			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
+		}
+		pix_mp->width = q_data->width;
+		pix_mp->height = q_data->height;
+	}
+	up(&q_data->drv_q_lock);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		vpu_calculate_performance(ctx, 0xff, "capture set fmt");
@@ -4143,18 +4146,17 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->q_data[V4L2_SRC].qbuf_count,
 			ctx->q_data[V4L2_SRC].dqbuf_count);
 		ctx->firmware_stopped = true;
-		ctx->b_firstseq = true;
 		ctx->frame_decoded = false;
 		ctx->wait_rst_done = false;
 		ctx->res_change_occu_count = 0;
 		ctx->res_change_send_count = 0;
 		ctx->res_change_done_count = 0;
+		ctx->fifo_low = false;
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
+		ctx->b_firstseq = true;
 		respond_req_frame(ctx, &ctx->q_data[V4L2_DST], true);
 		reset_mbi_dcp_count(ctx);
 		memset(&ctx->seqinfo, 0, sizeof(MediaIPFW_Video_SeqInfo));
-		ctx->q_data[V4L2_DST].sizeimage[0] = 0;
-		ctx->q_data[V4L2_DST].sizeimage[1] = 0;
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		vpu_dec_cleanup_event(ctx);
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
@@ -4243,6 +4245,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->frm_dec_delay--;
 		ctx->fifo_low = false;
 		ctx->frame_decoded = true;
+		v4l2_update_stream_addr(ctx, 0);
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
@@ -4273,7 +4276,6 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		if (check_res_is_changed(ctx, &info))
 			ctx->res_change_occu_count++;
 		memcpy(&ctx->seqinfo, &info, sizeof(MediaIPFW_Video_SeqInfo));
-		calculate_frame_size(ctx);
 		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 
 		parse_frame_interval_from_seqinfo(ctx, &ctx->seqinfo);
@@ -4299,19 +4301,20 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->seqinfo.uMatrixCoeffs,
 			ctx->seqinfo.uVideoFullRangeFlag,
 			ctx->seqinfo.uVUIPresent);
+		down(&ctx->q_data[V4L2_DST].drv_q_lock);
+		calculate_frame_size(ctx);
 		if (ctx->b_firstseq) {
-			down(&ctx->q_data[V4L2_DST].drv_q_lock);
 			ctx->b_firstseq = false;
 			reset_mbi_dcp_count(ctx);
 			ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
 			reset_frame_buffer(ctx);
 			ctx->q_data[V4L2_DST].enable = false;
-			up(&ctx->q_data[V4L2_DST].drv_q_lock);
 			ctx->wait_res_change_done = true;
 			send_source_change_event(ctx);
 			pStreamPitchInfo->uFramePitch = 0x4000;
 			vpu_calculate_performance(ctx, uEvent, "seq_hdr_found");
 		}
+		up(&ctx->q_data[V4L2_DST].drv_q_lock);
 		}
 		break;
 	case VID_API_EVENT_PIC_HDR_FOUND:
