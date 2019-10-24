@@ -432,6 +432,13 @@ struct snd_sof_dsp_ops sof_imx8_ops = {
 	.resume			= imx8_dsp_resume,
 	.runtime_suspend	= imx8_dsp_suspend,
 	.runtime_resume		= imx8_dsp_resume,
+
+	/* ALSA HW info flags */
+	.hw_info =	SNDRV_PCM_INFO_MMAP |
+			SNDRV_PCM_INFO_MMAP_VALID |
+			SNDRV_PCM_INFO_INTERLEAVED |
+			SNDRV_PCM_INFO_PAUSE |
+			SNDRV_PCM_INFO_NO_PERIOD_WAKEUP
 };
 EXPORT_SYMBOL(sof_imx8_ops);
 
@@ -471,6 +478,13 @@ struct snd_sof_dsp_ops sof_imx8x_ops = {
 	.resume			= imx8_dsp_resume,
 	.runtime_suspend	= imx8_dsp_suspend,
 	.runtime_resume		= imx8_dsp_resume,
+
+	/* ALSA HW info flags */
+	.hw_info =	SNDRV_PCM_INFO_MMAP |
+			SNDRV_PCM_INFO_MMAP_VALID |
+			SNDRV_PCM_INFO_INTERLEAVED |
+			SNDRV_PCM_INFO_PAUSE |
+			SNDRV_PCM_INFO_NO_PERIOD_WAKEUP
 };
 EXPORT_SYMBOL(sof_imx8x_ops);
 
