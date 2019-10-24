@@ -206,6 +206,20 @@ static const unsigned char jpeg_sos_maximal[] = {0xFF, 0xDA,
 0x11, 0x04, 0x11, 0x00, 0x3F, 0x00,};
 static const unsigned char jpeg_eoi[] = {0xFF, 0xD9};
 
+struct mxc_jpeg_src_buf {
+	/* common v4l buffer stuff -- must be first */
+	struct vb2_v4l2_buffer	b;
+	struct list_head	list;
+
+	/* mxc-jpeg specific */
+	bool			dht_needed;
+};
+
+static inline struct mxc_jpeg_src_buf *vb2_to_mxc_buf(struct vb2_buffer *vb)
+{
+	return container_of(to_vb2_v4l2_buffer(vb), struct mxc_jpeg_src_buf, b);
+}
+
 /*  Print Four-character-code (FOURCC) */
 static char *fourcc_to_str(u32 format)
 {
@@ -506,6 +520,7 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 	void __iomem *reg = jpeg->base_reg;
 	struct device *dev = jpeg->dev;
 	struct vb2_buffer *src_buf, *dst_buf;
+	struct mxc_jpeg_src_buf *jpeg_src_buf;
 	enum vb2_buffer_state buf_state;
 	u32 dec_ret, com_status;
 	unsigned long payload_size;
@@ -542,6 +557,7 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 
 	dst_buf = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
 	src_buf = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
+	jpeg_src_buf = vb2_to_mxc_buf(src_buf);
 
 	if (ctx->aborting) {
 		dev_warn(dev, "Aborting current job\n");
@@ -569,8 +585,8 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 		mxc_jpeg_enc_mode_go(dev, reg);
 		goto job_unlock;
 	}
-	if (ctx->mode == MXC_JPEG_DECODE && ctx->dht_needed) {
-		ctx->dht_needed = false;
+	if (ctx->mode == MXC_JPEG_DECODE && jpeg_src_buf->dht_needed) {
+		jpeg_src_buf->dht_needed = false;
 		dev_dbg(dev, "Decoder DHT cfg finished. Start decoding...\n");
 		goto job_unlock;
 	}
@@ -754,8 +770,10 @@ static void mxc_jpeg_config_dec_desc(struct vb2_buffer *out_buf,
 	dma_addr_t cfg_stream_handle = jpeg->slot_data[slot].cfg_stream_handle;
 	unsigned int *cfg_size = &jpeg->slot_data[slot].cfg_stream_size;
 	void *cfg_stream_vaddr = jpeg->slot_data[slot].cfg_stream_vaddr;
+	struct mxc_jpeg_src_buf *jpeg_src_buf;
 
-	if (ctx->dht_needed) {
+	jpeg_src_buf = vb2_to_mxc_buf(src_buf);
+	if (jpeg_src_buf->dht_needed) {
 		/*
 		 * use the config descriptor to inject a default huffman table
 		 * by chaining it before the decoding descriptor
@@ -788,7 +806,7 @@ static void mxc_jpeg_config_dec_desc(struct vb2_buffer *out_buf,
 	mxc_jpeg_addrs(desc, dst_buf, src_buf, 0);
 	mxc_jpeg_set_bufsize(desc, ALIGN(vb2_plane_size(src_buf, 0), 1024));
 	print_descriptor_info(jpeg->dev, desc);
-	if (ctx->dht_needed) {
+	if (jpeg_src_buf->dht_needed) {
 		/* validate the configuration descriptor */
 		mxc_jpeg_set_desc(cfg_desc_handle, reg, slot);
 	} else {
@@ -1236,7 +1254,7 @@ static void mxc_jpeg_sizeimage(struct mxc_jpeg_q_data *q)
 }
 
 static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
-	u8 *src_addr, u32 size)
+	u8 *src_addr, u32 size, bool *dht_needed)
 {
 	struct device *dev = ctx->mxc_jpeg->dev;
 	struct mxc_jpeg_q_data *q_data_out, *q_data_cap;
@@ -1256,7 +1274,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	stream.addr = src_addr;
 	stream.end = size;
 	stream.loc = 0;
-	ctx->dht_needed = true;
+	*dht_needed = true;
 	while (notfound) {
 		byte = get_byte(&stream);
 		if (byte == -1)
@@ -1273,7 +1291,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		switch (byte) {
 		case DHT:
 			/* DHT marker present, no need to inject default one */
-			ctx->dht_needed = false;
+			*dht_needed = false;
 			break;
 		case SOF2: /* Progressive DCF frame definition */
 			dev_err(dev,
@@ -1416,6 +1434,7 @@ static void mxc_jpeg_buf_queue(struct vb2_buffer *vb)
 	int ret;
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct mxc_jpeg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct mxc_jpeg_src_buf *jpeg_src_buf;
 
 	if (vb->vb2_queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		goto end;
@@ -1423,9 +1442,11 @@ static void mxc_jpeg_buf_queue(struct vb2_buffer *vb)
 	/* for V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE */
 	if (ctx->mode != MXC_JPEG_DECODE)
 		goto end;
+	jpeg_src_buf = vb2_to_mxc_buf(vb);
 	ret = mxc_jpeg_parse(ctx,
 			(u8 *)vb2_plane_vaddr(vb, 0),
-			vb2_get_plane_payload(vb, 0));
+			vb2_get_plane_payload(vb, 0),
+			&jpeg_src_buf->dht_needed);
 	if (ret) {
 		v4l2_err(&ctx->mxc_jpeg->v4l2_dev,
 			 "driver does not support this resolution/format\n");
@@ -1482,7 +1503,7 @@ static int mxc_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	src_vq->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
 	src_vq->drv_priv = ctx;
-	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	src_vq->buf_struct_size = sizeof(struct mxc_jpeg_src_buf);
 	src_vq->ops = &mxc_jpeg_qops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
 	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
