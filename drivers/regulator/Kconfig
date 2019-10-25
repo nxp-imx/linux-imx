@@ -983,5 +983,11 @@ config REGULATOR_BD71837
     help
       This driver supports BD71837 voltage regulator chips.
 
+config REGULATOR_PCA9450
+    tristate "NXP PCA9450 Power Regulator"
+    depends on MFD_PCA9450
+    help
+      This driver supports PCA9450 voltage regulator chips.
+
 endif
 

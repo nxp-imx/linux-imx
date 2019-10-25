@@ -3,12 +3,12 @@
  */
 
 /*
- * The code contained herein is licensed under the GNU Lesser General
- * Public License.  You may obtain a copy of the GNU Lesser General
- * Public License Version 2.1 or later at the following locations:
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
  *
- * http://www.opensource.org/licenses/lgpl-license.html
- * http://www.gnu.org/copyleft/lgpl.html
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
  */
 
 /*!
@@ -214,12 +214,11 @@ struct queue_data {
 	unsigned int width;
 	unsigned int height;
 	unsigned int stride;
-	unsigned int bytesperline;
+	unsigned int field;
 	unsigned int num_planes;
 	unsigned int sizeimage[2];
 	unsigned int fourcc;
 	unsigned int vdec_std;
-	struct v4l2_rect rect;
 	int buf_type; // v4l2_buf_type
 	bool vb2_q_inited;
 	struct vb2_queue vb2_q;    // vb2 queue
@@ -372,7 +371,6 @@ struct vpu_ctx {
 	MediaIPFW_Video_SeqInfo seqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
-	bool start_flag;
 	bool wait_rst_done;
 	bool wait_res_change_done;
 	bool seek_flag;
@@ -387,6 +385,7 @@ struct vpu_ctx {
 	bool fifo_low;
 	bool frame_decoded;
 	bool first_dump_data_flag;
+	bool first_data_flag;
 	u32 req_frame_count;
 	u_int32 mbi_count;
 	u_int32 mbi_size;
@@ -452,12 +451,12 @@ struct vpu_ctx {
 #define LVL_BIT_FLOW		(1 << 13)
 #define LVL_BIT_FRAME_COUNT	(1 << 14)
 
-#define vpu_err(fmt, arg...) pr_info("[VPU Decoder]\t " fmt, ## arg)
+#define vpu_err(fmt, arg...) pr_info("[VPU Decoder] " fmt, ## arg)
 
 #define vpu_dbg(level, fmt, arg...) \
 	do { \
 		if (vpu_dbg_level_decoder & (level)) \
-			pr_info("[VPU Decoder]\t " fmt, ## arg); \
+			pr_info("[VPU Decoder] " fmt, ## arg); \
 	} while (0)
 
 #define V4L2_NXP_BUF_FLAG_CODECCONFIG		0x00200000

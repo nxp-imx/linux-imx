@@ -255,6 +255,15 @@ static int set_force_key_frame(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int set_h264_cpb_size(struct v4l2_ctrl *ctrl)
+{
+	struct vpu_ctx *ctx = v4l2_ctrl_to_ctx(ctrl);
+
+	ctx->cpb_size = ctrl->val * CPB_CTRL_UNIT;
+
+	return 0;
+}
+
 static int add_ctrl_h264_profile(struct vpu_ctx *ctx)
 {
 	static const struct v4l2_ctrl_ops ctrl_h264_profile_ops = {
@@ -566,6 +575,26 @@ static int add_ctrl_force_key_frame(struct vpu_ctx *ctx)
 	return 0;
 }
 
+static int add_ctrl_h264_cpb_size(struct vpu_ctx *ctx)
+{
+	static const struct v4l2_ctrl_ops ctrl_cpb_size_ops = {
+		.s_ctrl = set_h264_cpb_size,
+	};
+	struct v4l2_ctrl *ctrl;
+
+	ctrl = v4l2_ctrl_new_std(&ctx->ctrl_handler,
+				&ctrl_cpb_size_ops,
+				V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE,
+				64, 10240, 1, 1024);
+
+	if (!ctrl) {
+		vpu_err("add ctrl h264 cpb size fail\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int vpu_enc_register_ctrls(struct vpu_ctx *ctx)
 {
 	add_ctrl_h264_profile(ctx);
@@ -582,6 +611,7 @@ static int vpu_enc_register_ctrls(struct vpu_ctx *ctx)
 	add_ctrl_min_buffers_for_output(ctx);
 	add_ctrl_display_re_ordering(ctx);
 	add_ctrl_force_key_frame(ctx);
+	add_ctrl_h264_cpb_size(ctx);
 
 	return 0;
 }

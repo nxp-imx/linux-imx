@@ -71,6 +71,8 @@ extern unsigned int vpu_dbg_level_encoder;
 #define QP_MAX				51
 #define QP_MIN				0
 #define QP_DEFAULT			25
+#define CPB_CTRL_UNIT			1024
+#define CPB_COUNT			3
 
 #define VPU_DISABLE_BITS		0x7
 #define VPU_ENCODER_MASK		0x1
@@ -420,6 +422,7 @@ struct vpu_ctx {
 	unsigned int frozen_count;
 	u_int32 sequence;
 	s64 timestams[VPU_ENC_SEQ_CAPACITY];
+	u32 cpb_size;
 };
 
 #define LVL_ERR		(1 << 0)
@@ -439,7 +442,7 @@ struct vpu_ctx {
 #define LVL_FUNC	(1 << 16)
 
 #ifndef TAG
-#define TAG	"[VPU Encoder]\t "
+#define TAG	"[VPU Encoder] "
 #endif
 
 #define vpu_dbg(level, fmt, arg...) \
