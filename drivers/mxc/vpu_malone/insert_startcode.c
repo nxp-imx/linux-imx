@@ -447,6 +447,7 @@ u_int32 single_seq_info_format(struct queue_data *q_data)
 	case VPU_PIX_FMT_RV:
 	case V4L2_PIX_FMT_MPEG4:
 	case V4L2_PIX_FMT_MPEG2:
+	case V4L2_PIX_FMT_XVID:
 		ret = 1;
 		break;
 	default:
