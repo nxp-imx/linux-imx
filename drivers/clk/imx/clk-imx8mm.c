@@ -103,6 +103,7 @@ static struct imx_pll14xx_clk imx8mm_video_pll __initdata = {
 static struct imx_pll14xx_clk imx8mm_dram_pll __initdata = {
 		.type = PLL_1443X,
 		.rate_table = imx8mm_drampll_tbl,
+		.flags = CLK_GET_RATE_NOCACHE,
 };
 
 static struct imx_pll14xx_clk imx8mm_arm_pll __initdata = {
