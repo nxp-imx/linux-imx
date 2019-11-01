@@ -42,4 +42,6 @@ void vpu_mu_send_msg(struct vpu_dev *dev, MSG_Type type, u_int32 value);
 u_int32 vpu_mu_receive_msg(struct vpu_dev *dev, void *msg);
 int vpu_sc_check_fuse(struct vpu_dev *dev, struct vpu_v4l2_fmt *pformat_table,
 		     u_int32 table_size);
+void vpu_mu_enable_rx(struct vpu_dev *dev);
+
 #endif

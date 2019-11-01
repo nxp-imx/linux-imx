@@ -78,8 +78,7 @@ static int vpu_mu_init(struct vpu_dev *dev)
 	}
 
 	if (!dev->vpu_mu_init) {
-		MU_Init(dev->mu_base_virtaddr);
-		MU_EnableRxFullInt(dev->mu_base_virtaddr, 0);
+		vpu_mu_enable_rx(dev);
 		dev->vpu_mu_init = 1;
 	}
 
@@ -177,4 +176,10 @@ int vpu_sc_check_fuse(struct vpu_dev *dev,
 	sc_ipc_close(ipc);
 
 	return 0;
+}
+
+void vpu_mu_enable_rx(struct vpu_dev *dev)
+{
+	MU_Init(dev->mu_base_virtaddr);
+	MU_EnableRxFullInt(dev->mu_base_virtaddr, 0);
 }

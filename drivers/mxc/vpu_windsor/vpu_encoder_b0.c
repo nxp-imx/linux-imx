@@ -3398,6 +3398,7 @@ static int set_vpu_fw_addr(struct vpu_dev *dev, struct core_device *core_dev)
 	if (!dev || !core_dev)
 		return -EINVAL;
 
+	vpu_enc_mu_enable_rx(core_dev);
 	reg_fw_base = core_dev->reg_csr_base;
 	write_vpu_reg(dev, core_dev->m0_p_fw_space_phy, reg_fw_base);
 	write_vpu_reg(dev, 0x0, reg_fw_base + 4);

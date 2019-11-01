@@ -6532,8 +6532,7 @@ static int resume_vpu_register(struct vpu_dev *vpudev)
 		return -EINVAL;
 
 	vpu_enable_hw(vpudev);
-	MU_Init(vpudev->mu_base_virtaddr);
-	MU_EnableRxFullInt(vpudev->mu_base_virtaddr, 0);
+	vpu_mu_enable_rx(vpudev);
 
 	return 0;
 }

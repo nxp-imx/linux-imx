@@ -67,8 +67,7 @@ static int vpu_enc_mu_init(struct core_device *core_dev)
 	}
 
 	if (!core_dev->vpu_mu_init) {
-		MU_Init(core_dev->mu_base_virtaddr);
-		MU_EnableRxFullInt(core_dev->mu_base_virtaddr, 0);
+		vpu_enc_mu_enable_rx(core_dev);
 		core_dev->vpu_mu_init = 1;
 	}
 
@@ -150,4 +149,10 @@ int vpu_enc_sc_check_fuse(void)
 	}
 
 	return ret;
+}
+
+void vpu_enc_mu_enable_rx(struct core_device *core_dev)
+{
+	MU_Init(core_dev->mu_base_virtaddr);
+	MU_EnableRxFullInt(core_dev->mu_base_virtaddr, 0);
 }

@@ -38,5 +38,6 @@ void vpu_enc_mu_free(struct core_device *core_dev);
 void vpu_enc_mu_send_msg(struct core_device *core_dev, MSG_Type type, u_int32 value);
 u_int32 vpu_enc_mu_receive_msg(struct core_device *core_dev, void *msg);
 int vpu_enc_sc_check_fuse(void);
+void vpu_enc_mu_enable_rx(struct core_device *core_dev);
 
 #endif
