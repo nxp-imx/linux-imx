@@ -11144,6 +11144,48 @@ gckHARDWARE_SetPowerManagementState(
 
     if (flag & gcvPOWER_FLAG_INITIALIZE)
     {
+        gctBOOL hwMmuDisabled =  gcvTRUE;
+
+        /* VIV for 8MM_EVK, maybe power off is failed, the GPU still has been power on,
+        so we need to check the mmu enable flag to see if we need to dummy draw */
+        if (_IsHardwareMatch(Hardware, gcv600, 0x4653))
+        {
+            if (Hardware->options.secureMode == gcvSECURE_IN_NORMAL)
+            {
+                gctUINT32 regMmuCtrl = 0;
+                gcmkONERROR(gckOS_ReadRegisterEx(
+                    Hardware->os,
+                    Hardware->core,
+                    0x00388,
+                    &regMmuCtrl
+                    ));
+
+                hwMmuDisabled = ((((((gctUINT32) (regMmuCtrl)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ) == 0x1)
+                           ? gcvFALSE
+                           : gcvTRUE;
+            }
+            else
+            {
+                gctUINT32 regMmuCtrl = 0;
+
+                gcmkONERROR(gckOS_ReadRegisterEx(
+                    Hardware->os,
+                    Hardware->core,
+                    0x0018C,
+                    &regMmuCtrl
+                    ));
+
+                hwMmuDisabled = ((((((gctUINT32) (regMmuCtrl)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ) == 0x1)
+                              ? gcvFALSE
+                              : gcvTRUE;
+            }
+        }
+
+        if(hwMmuDisabled)
+        {
+            command->dummyDraw = gcvTRUE;
+        }
+
         /* Initialize hardware. */
         gcmkONERROR(gckHARDWARE_InitializeHardware(Hardware));
 
@@ -11153,9 +11195,6 @@ gckHARDWARE_SetPowerManagementState(
 
         /* Force the command queue to reload the next context. */
         command->currContext = gcvNULL;
-
-        /* Trigger a possible dummy draw. */
-        command->dummyDraw = gcvTRUE;
     }
 
     /* Get time until initialized. */
