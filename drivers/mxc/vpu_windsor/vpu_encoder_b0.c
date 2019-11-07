@@ -1631,7 +1631,7 @@ static int sw_reset_firmware(struct core_device *core, int resume)
 
 	vpu_dbg(LVL_INFO, "core[%d] sw reset firmware\n", core->id);
 
-	kfifo_free(&core->mu_msg_fifo);
+	kfifo_reset(&core->mu_msg_fifo);
 
 	init_completion(&core->start_cmp);
 	vpu_core_send_cmd(core, 0, GTB_ENC_CMD_FIRM_RESET, 0, NULL);
