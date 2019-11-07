@@ -1104,11 +1104,18 @@ static irqreturn_t cdns3_device_irq_handler(struct cdns3 *cdns)
 
 	/* check USB device interrupt */
 	reg = readl(&priv_dev->regs->usb_ists);
-	writel(reg, &priv_dev->regs->usb_ists);
-
 	if (reg) {
-		cdns3_check_usb_interrupt_proceed(priv_dev, reg);
-		ret = IRQ_HANDLED;
+		/* After masking interrupts the new interrupts won't be
+		 * reported in usb_ists/ep_ists. In order to not lose some
+		 * of them driver disables only detected interrupts.
+		 * They will be enabled ASAP after clearing source of
+		 * interrupt. This an unusual behavior only applies to
+		 * usb_ists register.
+		 */
+		reg = ~reg & readl(&priv_dev->regs->usb_ien);
+		/* mask deferred interrupt. */
+		writel(reg, &priv_dev->regs->usb_ien);
+		ret = IRQ_WAKE_THREAD;
 	}
 
 	/* check endpoint interrupt */
@@ -1146,6 +1153,14 @@ static irqreturn_t cdns3_device_thread_irq_handler(struct cdns3 *cdns)
 
 	priv_dev = cdns->gadget_dev;
 	spin_lock_irqsave(&priv_dev->lock, flags);
+
+	reg = readl(&priv_dev->regs->usb_ists);
+	if (reg) {
+		writel(reg, &priv_dev->regs->usb_ists);
+		writel(USB_IEN_INIT, &priv_dev->regs->usb_ien);
+		cdns3_check_usb_interrupt_proceed(priv_dev, reg);
+		ret = IRQ_HANDLED;
+	}
 
 	reg = readl(&priv_dev->regs->ep_ists);
 
