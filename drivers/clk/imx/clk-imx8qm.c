@@ -75,8 +75,8 @@ static const char *mclk_out_sels[] = {
 static const char *sai_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *asrc_mux_clk_sels[] = {
@@ -89,22 +89,22 @@ static const char *asrc_mux_clk_sels[] = {
 static const char *esai_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *spdif_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *mqs_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *dc0_sels[] = {
@@ -600,10 +600,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 		WARN_ON(!base_acm);
 
 		clks[IMX8QM_ACM_AUD_CLK0_SEL] = imx_clk_mux_scu("acm_aud_clk0_sel", base_acm + 0x00000, 0, 5, aud_clk_sels, ARRAY_SIZE(aud_clk_sels), FUNCTION_NAME(PD_AUDIO));
-		clks[IMX8QM_ACM_AUD_CLK0_CLK] = imx_clk_gate_scu("acm_aud_clk0_clk", "acm_aud_clk0_sel", SC_R_AUDIO_CLK_0, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
-
 		clks[IMX8QM_ACM_AUD_CLK1_SEL] = imx_clk_mux_scu("acm_aud_clk1_sel", base_acm + 0x10000, 0, 5, aud_clk_sels, ARRAY_SIZE(aud_clk_sels), FUNCTION_NAME(PD_AUDIO));
-		clks[IMX8QM_ACM_AUD_CLK1_CLK] = imx_clk_gate_scu("acm_aud_clk1_clk", "acm_aud_clk1_sel", SC_R_AUDIO_CLK_1, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
 		clks[IMX8QM_ACM_MCLKOUT0_SEL] = imx_clk_mux_scu("acm_mclkout0_sel", base_acm + 0x20000, 0, 3, mclk_out_sels, ARRAY_SIZE(mclk_out_sels), FUNCTION_NAME(PD_AUDIO));
 		clks[IMX8QM_ACM_MCLKOUT1_SEL] = imx_clk_mux_scu("acm_mclkout1_sel", base_acm + 0x30000, 0, 3, mclk_out_sels, ARRAY_SIZE(mclk_out_sels), FUNCTION_NAME(PD_AUDIO));
 		clks[IMX8QM_ACM_SAI0_MCLK_SEL] = imx_clk_mux_scu("acm_sai0_mclk_sel", base_acm + 0xE0000, 0, 2, sai_mclk_sels, ARRAY_SIZE(sai_mclk_sels), FUNCTION_NAME(PD_AUD_SAI_0));
@@ -618,7 +615,6 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 		clks[IMX8QM_ACM_SPDIF1_TX_CLK_SEL] = imx_clk_mux_scu("acm_spdif1_mclk_sel", base_acm + 0x1B0000, 0, 2, spdif_mclk_sels, ARRAY_SIZE(spdif_mclk_sels), FUNCTION_NAME(PD_AUD_SPDIF_1));
 		clks[IMX8QM_ACM_MQS_TX_CLK_SEL] = imx_clk_mux_scu("acm_mqs_mclk_sel", base_acm + 0x1C0000, 0, 2, mqs_mclk_sels, ARRAY_SIZE(mqs_mclk_sels), FUNCTION_NAME(PD_AUD_MQS_0));
 		clks[IMX8QM_ACM_ASRC0_MUX_CLK_SEL] = imx_clk_mux_scu("acm_asrc0_mclk_sel", base_acm + 0x40000, 0, 2, asrc_mux_clk_sels, ARRAY_SIZE(asrc_mux_clk_sels), FUNCTION_NAME(PD_AUD_ASRC_0));
-		clks[IMX8QM_ACM_ASRC1_MUX_CLK_SEL] = imx_clk_mux_scu("acm_asrc1_mclk_sel", base_acm + 0x50000, 0, 2, asrc_mux_clk_sels, ARRAY_SIZE(asrc_mux_clk_sels), FUNCTION_NAME(PD_AUD_ASRC_1));
 		clks[IMX8QM_ACM_ESAI0_MCLK_SEL] = imx_clk_mux_scu("acm_esai0_mclk_sel", base_acm + 0x60000, 0, 2, esai_mclk_sels, ARRAY_SIZE(esai_mclk_sels), FUNCTION_NAME(PD_AUD_ESAI_0));
 		clks[IMX8QM_ACM_ESAI1_MCLK_SEL] = imx_clk_mux_scu("acm_esai1_mclk_sel", base_acm + 0x70000, 0, 2, esai_mclk_sels, ARRAY_SIZE(esai_mclk_sels), FUNCTION_NAME(PD_AUD_ESAI_1));
 	} else
@@ -679,8 +675,6 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_AUD_ASRC_0_MEM] = imx_clk_gate2_scu("aud_asrc0_mem", "ipg_aud_clk_root", LPCG_ADDR(AUD_ASRC_0_LPCG), 8, FUNCTION_NAME(PD_AUD_ASRC_0));
 	clks[IMX8QM_AUD_ASRC_1_IPG] = imx_clk_gate2_scu("aud_asrc1_ipg", "ipg_aud_clk_root", LPCG_ADDR(AUD_ASRC_1_LPCG), 0, FUNCTION_NAME(PD_AUD_ASRC_1));
 	clks[IMX8QM_AUD_ASRC_1_MEM] = imx_clk_gate2_scu("aud_asrc1_mem", "ipg_aud_clk_root", LPCG_ADDR(AUD_ASRC_1_LPCG), 8, FUNCTION_NAME(PD_AUD_ASRC_1));
-	clks[IMX8QM_ACM_ASRC0_MUX_CLK_CLK] = imx_clk_gate_scu("aud_asrc0_mux_clk", "acm_asrc0_mclk_sel", SC_R_ASRC_0, SC_PM_CLK_PER, NULL, 0, 0);
-	clks[IMX8QM_ACM_ASRC1_MUX_CLK_CLK] = imx_clk_gate_scu("aud_asrc1_mux_clk", "acm_asrc1_mclk_sel", SC_R_ASRC_1, SC_PM_CLK_PER, NULL, 0, 0);
 
 	/* DSP */
 	clks[IMX8QM_AUD_DSP_ADB_ACLK] = imx_clk_gate2_scu("aud_dsp_adb_aclk", "ipg_aud_clk_root", LPCG_ADDR(AUD_DSP_LPCG), 16, FUNCTION_NAME(PD_AUD_DSP));
