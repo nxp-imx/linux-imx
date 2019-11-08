@@ -66,29 +66,29 @@ static const char *mclk_out_sels[] = {
 static const char *sai_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *esai_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *spdif_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *mqs_mclk_sels[] = {
 	"aud_acm_aud_pll_clk0_clk",
 	"aud_acm_aud_pll_clk1_clk",
-	"acm_aud_clk0_clk",
-	"acm_aud_clk1_clk",
+	"acm_aud_clk0_sel",
+	"acm_aud_clk1_sel",
 };
 
 static const char *mipi0_sels[] = {
@@ -647,15 +647,9 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 		clks[IMX8QXP_SAI4_RX_BCLK]	= imx_clk_fixed("sai4_rx_bclk", 0);
 
 		clks[IMX8QXP_ACM_AUD_CLK0_SEL]      = imx_clk_mux_scu("acm_aud_clk0_sel",    base_acm+0x000000, 0, 5, aud_clk_sels, ARRAY_SIZE(aud_clk_sels), FUNCTION_NAME(PD_AUD_AUDIO_CLK_0));
-		clks[IMX8QXP_ACM_AUD_CLK0_CLK]      = imx_clk_gate_scu("acm_aud_clk0_clk", "acm_aud_clk0_sel", SC_R_AUDIO_CLK_0, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
 		clks[IMX8QXP_ACM_AUD_CLK1_SEL]      = imx_clk_mux_scu("acm_aud_clk1_sel",    base_acm+0x010000, 0, 5, aud_clk_sels, ARRAY_SIZE(aud_clk_sels), FUNCTION_NAME(PD_AUD_AUDIO_CLK_1));
-		clks[IMX8QXP_ACM_AUD_CLK1_CLK]      = imx_clk_gate_scu("acm_aud_clk1_clk", "acm_aud_clk1_sel", SC_R_AUDIO_CLK_1, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
 		clks[IMX8QXP_ACM_MCLKOUT0_SEL]      = imx_clk_mux_scu("acm_mclkout0_sel",    base_acm+0x020000, 0, 3, mclk_out_sels, ARRAY_SIZE(mclk_out_sels), FUNCTION_NAME(PD_AUD_MCLK_OUT_0));
 		clks[IMX8QXP_ACM_MCLKOUT1_SEL]      = imx_clk_mux_scu("acm_mclkout1_sel",    base_acm+0x030000, 0, 3, mclk_out_sels, ARRAY_SIZE(mclk_out_sels), FUNCTION_NAME(PD_AUD_MCLK_OUT_1));
-		clks[IMX8QXP_ACM_ASRC0_MUX_CLK_SEL] = imx_clk_mux_scu("acm_asrc0_mclk_sel",  base_acm+0x040000, 0, 2, NULL, 0, FUNCTION_NAME(PD_AUD_ASRC_0));
-		clks[IMX8QXP_ACM_ASRC0_MUX_CLK_CLK] = imx_clk_gate_scu("aud_asrc0_mux_clk", "acm_asrc0_mclk_sel", SC_R_ASRC_0, SC_PM_CLK_PER, NULL, 0, 0);
-		clks[IMX8QXP_ACM_ASRC1_MUX_CLK_SEL] = imx_clk_mux_scu("acm_asrc1_mclk_sel",  base_acm+0x050000, 0, 2, NULL, 0, FUNCTION_NAME(PD_AUD_ASRC_1));
-		clks[IMX8QXP_ACM_ASRC1_MUX_CLK_CLK] = imx_clk_gate_scu("aud_asrc1_mux_clk", "acm_asrc1_mclk_sel", SC_R_ASRC_1, SC_PM_CLK_PER, NULL, 0, 0);
 		clks[IMX8QXP_ACM_ESAI0_MCLK_SEL]    = imx_clk_mux_scu("acm_esai0_mclk_sel",  base_acm+0x060000, 0, 2, esai_mclk_sels, ARRAY_SIZE(esai_mclk_sels), FUNCTION_NAME(PD_AUD_ESAI_0));
 		clks[IMX8QXP_ACM_SAI0_MCLK_SEL]     = imx_clk_mux_scu("acm_sai0_mclk_sel",   base_acm+0x0E0000, 0, 2, sai_mclk_sels, ARRAY_SIZE(sai_mclk_sels), FUNCTION_NAME(PD_AUD_SAI_0));
 		clks[IMX8QXP_ACM_SAI1_MCLK_SEL]     = imx_clk_mux_scu("acm_sai1_mclk_sel",   base_acm+0x0F0000, 0, 2, sai_mclk_sels, ARRAY_SIZE(sai_mclk_sels), FUNCTION_NAME(PD_AUD_SAI_1));
