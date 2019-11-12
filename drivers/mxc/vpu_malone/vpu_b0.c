@@ -5930,6 +5930,35 @@ err_find_index:
 	return ret;
 }
 
+static void vpu_dec_disable(struct vpu_ctx *ctx, struct queue_data *queue)
+{
+	bool enable = false;
+
+	down(&queue->drv_q_lock);
+	if (queue->enable) {
+		enable = true;
+		queue->enable = false;
+	}
+	up(&queue->drv_q_lock);
+
+	if (!enable)
+		return;
+
+	vpu_dbg(LVL_BIT_FLOW, "Pls stream off %s of ctx[%d] before release\n",
+		V4L2_TYPE_IS_OUTPUT(queue->vb2_q.type) ? "Output" : "Capture",
+		ctx->str_index);
+	if (!V4L2_TYPE_IS_OUTPUT(queue->vb2_q.type)) {
+		mutex_lock(&ctx->dev->fw_flow_mutex);
+		send_abort_cmd(ctx);
+		mutex_unlock(&ctx->dev->fw_flow_mutex);
+		ctx->capture_ts = TSM_TIMESTAMP_NONE;
+	} else {
+		ctx->output_ts = TSM_TIMESTAMP_NONE;
+	}
+
+	vpu_dec_queue_disable(queue, queue->vb2_q.type);
+}
+
 static int v4l2_release(struct file *filp)
 {
 	struct video_device *vdev = video_devdata(filp);
@@ -5946,6 +5975,9 @@ static int v4l2_release(struct file *filp)
 		ctx->firmware_finished ? "finished" : "not finished",
 		ctx->eos_stop_added ? "eos_added" : "not eos_added",
 		ctx->frm_total_num);
+
+	vpu_dec_disable(ctx, &ctx->q_data[V4L2_SRC]);
+	vpu_dec_disable(ctx, &ctx->q_data[V4L2_DST]);
 
 	mutex_lock(&ctx->dev->fw_flow_mutex);
 	send_stop_cmd(ctx);
