@@ -498,6 +498,8 @@ static const struct imx6_pm_socdata imx6sll_pm_data __initconst = {
 	.pl310_compat = "arm,pl310-cache",
 	.mmdc_io_num = ARRAY_SIZE(imx6sll_mmdc_io_offset),
 	.mmdc_io_offset = imx6sll_mmdc_io_offset,
+	.mmdc_num = ARRAY_SIZE(imx6sll_mmdc_lpddr3_offset),
+	.mmdc_offset = imx6sll_mmdc_lpddr3_offset,
 };
 
 static const struct imx6_pm_socdata imx6sx_pm_data __initconst = {
