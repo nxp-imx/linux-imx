@@ -5865,7 +5865,7 @@ static const struct of_device_id vpu_enc_of_match[] = {
 	  .data = (void *)&supported_plat_types[IMX8QXP]
 	},
 	{}
-}
+};
 MODULE_DEVICE_TABLE(of, vpu_enc_of_match);
 
 static struct platform_driver vpu_enc_driver = {
