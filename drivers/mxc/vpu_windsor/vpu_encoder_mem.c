@@ -29,7 +29,7 @@ int vpu_enc_init_reserved_memory(struct vpu_enc_mem_info *info)
 	memset_io(info->virt_addr, 0, info->size);
 	info->bytesused = 0;
 	INIT_LIST_HEAD(&info->memorys);
-	spin_lock_init(&info->lock);
+	mutex_init(&info->lock);
 
 	return 0;
 }
@@ -42,15 +42,16 @@ void vpu_enc_release_reserved_memory(struct vpu_enc_mem_info *info)
 	if (!info)
 		return;
 
-	spin_lock(&info->lock);
+	mutex_lock(&info->lock);
 	list_for_each_entry_safe(item, tmp, &info->memorys, list) {
 		list_del_init(&item->list);
 		info->bytesused -= item->size;
 		vpu_dbg(LVL_MEM, "free reserved memory %ld\n", item->size);
 		VPU_SAFE_RELEASE(item, vfree);
 	}
-	spin_unlock(&info->lock);
+	mutex_unlock(&info->lock);
 
+	mutex_destroy(&info->lock);
 	if (info->virt_addr) {
 		iounmap(info->virt_addr);
 		info->virt_addr = NULL;
@@ -68,7 +69,7 @@ int vpu_enc_alloc_reserved_mem(struct vpu_enc_mem_info *info,
 	if (!info || !buffer)
 		return -EINVAL;
 
-	spin_lock(&info->lock);
+	mutex_lock(&info->lock);
 	if (buffer->size + info->bytesused > info->size) {
 		ret = -ENOMEM;
 		goto exit;
@@ -104,7 +105,7 @@ int vpu_enc_alloc_reserved_mem(struct vpu_enc_mem_info *info,
 	buffer->phy_addr = item->phy_addr;
 	ret = 0;
 exit:
-	spin_unlock(&info->lock);
+	mutex_unlock(&info->lock);
 	return ret;
 }
 
@@ -134,7 +135,7 @@ int vpu_enc_free_reserved_mem(struct vpu_enc_mem_info *info,
 		return -EINVAL;
 	}
 
-	spin_lock(&info->lock);
+	mutex_lock(&info->lock);
 	list_for_each_entry_safe(item, tmp, &info->memorys, list) {
 		if (offset < item->offset)
 			continue;
@@ -148,7 +149,7 @@ int vpu_enc_free_reserved_mem(struct vpu_enc_mem_info *info,
 		ret = 0;
 		break;
 	}
-	spin_unlock(&info->lock);
+	mutex_unlock(&info->lock);
 
 	return ret;
 }

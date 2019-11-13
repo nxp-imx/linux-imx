@@ -357,7 +357,7 @@ struct vpu_enc_mem_info {
 	unsigned long size;
 	unsigned long bytesused;
 	struct list_head memorys;
-	spinlock_t lock;
+	struct mutex lock;
 };
 
 struct vpu_dev {
