@@ -21,5 +21,6 @@ struct imx_hdcp {
 	struct work_struct prop_work;
 	u8 bus_type;
 	u8 config;
+	u8 enable;
 };
 #endif

@@ -581,6 +581,7 @@ int imx_hdcp_enable(struct imx_hdp *hdp)
 	schedule_work(&hdp->hdcp.prop_work);
 	schedule_delayed_work(&hdp->hdcp.check_work,
 			      DRM_HDCP_CHECK_PERIOD_MS);
+	hdp->hdcp.enable = 1;
 out:
 	mutex_unlock(&hdp->hdcp.mutex);
 	return ret;
@@ -596,7 +597,11 @@ int imx_hdcp_disable(struct imx_hdp *hdp)
 		ret = _imx_hdcp_disable(hdp);
 	}
 	mutex_unlock(&hdp->hdcp.mutex);
-	cancel_delayed_work_sync(&hdp->hdcp.check_work);
+
+	if (hdp->hdcp.enable == 1)
+		cancel_delayed_work_sync(&hdp->hdcp.check_work);
+
+	hdp->hdcp.enable = 0;
 
 	return ret;
 }
