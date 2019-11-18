@@ -33,6 +33,7 @@
 #include <linux/fs.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/audit.h>
 #include <soc/imx8/sc/ipc.h>
 #include <soc/imx8/sc/sci.h>
 #include <soc/imx8/sc/svc/irq/api.h>
@@ -71,6 +72,7 @@ struct imx_secvio_sc_data {
 	sc_ipc_t ipcHandle;
 	struct notifier_block irq_nb;
 	struct notifier_block report_nb;
+	struct notifier_block audit_nb;
 
 	u8 enabled;
 
@@ -304,6 +306,28 @@ static int report_to_user_notify(struct notifier_block *nb,
 		dev_info(dev, "SNVS tamper: Tamper 3\n");
 
 	return 0;
+}
+
+static int report_to_audit_notify(struct notifier_block *nb,
+				  unsigned long status, void *notif_info)
+{
+	int ret = 0;
+	struct audit_buffer *ab;
+	struct notifier_info *info = notif_info;
+
+	ab = audit_log_start(NULL, GFP_KERNEL, AUDIT_INTEGRITY_RULE);
+	if (!ab) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	audit_log_format(ab, " svs=0x%.08x lpsr=0x%.08x lptds=0x%.08x",
+			 info->sv_status, info->tp_status_1, info->tp_status_2);
+	audit_log_task_info(ab, current);
+	audit_log_end(ab);
+
+exit:
+	return ret;
 }
 
 static int call_secvio_config(struct device *dev, u8 id, u8 access, u32 *data0,
@@ -1088,6 +1112,14 @@ static int imx_secvio_sc_setup(struct device *dev)
 		goto error;
 	}
 
+	/* Register the handle to report to audit FW */
+	data->audit_nb.notifier_call = report_to_audit_notify;
+	ret = register_imx_secvio_sc_notifier(&data->audit_nb);
+	if (ret) {
+		dev_err(dev, "Failed to register report audit handler\n");
+		goto error;
+	}
+
 	/* Process current state of the secvio and tampers */
 	imx_secvio_sc_process_state(dev);
 
@@ -1129,6 +1161,14 @@ static int imx_secvio_sc_teardown(struct device *dev)
 		ret = unregister_imx_secvio_sc_notifier(&data->report_nb);
 		if (ret) {
 			dev_err(dev, "Failed to unregister report to user\n");
+			goto exit;
+		}
+	}
+
+	if (data->audit_nb.notifier_call) {
+		ret = unregister_imx_secvio_sc_notifier(&data->audit_nb);
+		if (ret) {
+			dev_err(dev, "Failed to unregister report to audit\n");
 			goto exit;
 		}
 	}
