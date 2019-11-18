@@ -39,12 +39,12 @@
 #define SC_R_PERF                       23
 #define SC_R_USB_1_PHY                  24
 #define SC_R_DC_0_WARP                  25
-#define SC_R_UNUSED7                    26
-#define SC_R_UNUSED8                    27
+#define SC_R_V2X_MU_0                   26
+#define SC_R_V2X_MU_1                   27
 #define SC_R_DC_0_VIDEO0                28
 #define SC_R_DC_0_VIDEO1                29
 #define SC_R_DC_0_FRAC0                 30
-#define SC_R_UNUSED6                    31
+#define SC_R_V2X_MU_2                   31
 #define SC_R_DC_0                       32
 #define SC_R_GPU_2_PID0                 33
 #define SC_R_DC_0_PLL_0                 34
@@ -53,11 +53,11 @@
 #define SC_R_DC_1_BLIT1                 37
 #define SC_R_DC_1_BLIT2                 38
 #define SC_R_DC_1_BLIT_OUT              39
-#define SC_R_UNUSED9                    40
-#define SC_R_UNUSED10                   41
+#define SC_R_V2X_MU_3                   40
+#define SC_R_V2X_MU_4                   41
 #define SC_R_DC_1_WARP                  42
-#define SC_R_UNUSED11                   43
-#define SC_R_UNUSED12                   44
+#define SC_R_TBU_CTL                    43
+#define SC_R_SECVIO                     44
 #define SC_R_DC_1_VIDEO0                45
 #define SC_R_DC_1_VIDEO1                46
 #define SC_R_DC_1_FRAC0                 47
@@ -153,10 +153,10 @@
 #define SC_R_DMA_1_CH29                 137
 #define SC_R_DMA_1_CH30                 138
 #define SC_R_DMA_1_CH31                 139
-#define SC_R_UNUSED1                    140
-#define SC_R_UNUSED2                    141
-#define SC_R_UNUSED3                    142
-#define SC_R_UNUSED4                    143
+#define SC_R_V2X_PID0                   140
+#define SC_R_V2X_PID1                   141
+#define SC_R_V2X_PID2                   142
+#define SC_R_V2X_PID3                   143
 #define SC_R_GPU_0_PID0                 144
 #define SC_R_GPU_0_PID1                 145
 #define SC_R_GPU_0_PID2                 146
@@ -303,8 +303,8 @@
 #define SC_R_M4_0_UART                  287
 #define SC_R_M4_0_I2C                   288
 #define SC_R_M4_0_INTMUX                289
-#define SC_R_UNUSED15                   290
-#define SC_R_UNUSED16                   291
+#define SC_R_ENET_0_A0                  290
+#define SC_R_ENET_0_A1                  291
 #define SC_R_M4_0_MU_0B                 292
 #define SC_R_M4_0_MU_0A0                293
 #define SC_R_M4_0_MU_0A1                294
@@ -379,12 +379,12 @@
 #define SC_R_VPU_PID5                   363
 #define SC_R_VPU_PID6                   364
 #define SC_R_VPU_PID7                   365
-#define SC_R_VPU_UART                   366
-#define SC_R_VPUCORE                    367
-#define SC_R_VPUCORE_0                  368
-#define SC_R_VPUCORE_1                  369
-#define SC_R_VPUCORE_2                  370
-#define SC_R_VPUCORE_3                  371
+#define SC_R_ENET_0_A2                  366
+#define SC_R_ENET_1_A0                  367
+#define SC_R_ENET_1_A1                  368
+#define SC_R_ENET_1_A2                  369
+#define SC_R_ENET_1_A3                  370
+#define SC_R_ENET_1_A4                  371
 #define SC_R_DMA_4_CH0                  372
 #define SC_R_DMA_4_CH1                  373
 #define SC_R_DMA_4_CH2                  374
@@ -562,5 +562,4 @@
 #define SC_R_LAST                       546
 #define SC_R_NONE                       0xFFF0
 
-#endif /* DT_BINDINGS_RSCRC_IMX_H */
-
+#endif				/* DT_BINDINGS_RSCRC_IMX_H */
