@@ -9,7 +9,7 @@
  * Header file containing the public API for the System Controller (SC)
  * Miscellaneous (MISC) function.
  *
- * @addtogroup MISC_SVC (SVC) Miscellaneous Service
+ * @addtogroup MISC_SVC MISC: Miscellaneous Service
  *
  * Module for the Miscellaneous (MISC) service.
  *
@@ -30,7 +30,7 @@
  * @name Defines for type widths
  */
 /*@{*/
-#define SC_MISC_DMA_GRP_W       5U      /* Width of sc_misc_dma_group_t */
+#define SC_MISC_DMA_GRP_W       5U	/* Width of sc_misc_dma_group_t */
 /*@}*/
 
 /*! Max DMA channel priority group */
@@ -40,40 +40,28 @@
  * @name Defines for sc_misc_boot_status_t
  */
 /*@{*/
-#define SC_MISC_BOOT_STATUS_SUCCESS     0U   /* Success */
-#define SC_MISC_BOOT_STATUS_SECURITY    1U   /* Security violation */
+#define SC_MISC_BOOT_STATUS_SUCCESS     0U	/* Success */
+#define SC_MISC_BOOT_STATUS_SECURITY    1U	/* Security violation */
 /*@}*/
 
 /*!
  * @name Defines for sc_misc_temp_t
  */
 /*@{*/
-#define SC_MISC_TEMP                    0U   /* Temp sensor */
-#define SC_MISC_TEMP_HIGH               1U   /* Temp high alarm */
-#define SC_MISC_TEMP_LOW                2U   /* Temp low alarm */
-/*@}*/
-
-/*!
- * @name Defines for sc_misc_seco_auth_cmd_t
- */
-/*@{*/
-#define SC_MISC_AUTH_CONTAINER          0U   /* Authenticate container */
-#define SC_MISC_VERIFY_IMAGE            1U   /* Verify image */
-#define SC_MISC_REL_CONTAINER           2U   /* Release container */
-#define SC_MISC_SECO_AUTH_SECO_FW       3U   /* SECO Firmware */
-#define SC_MISC_SECO_AUTH_HDMI_TX_FW    4U   /* HDMI TX Firmware */
-#define SC_MISC_SECO_AUTH_HDMI_RX_FW    5U   /* HDMI RX Firmware */
+#define SC_MISC_TEMP                    0U	/* Temp sensor */
+#define SC_MISC_TEMP_HIGH               1U	/* Temp high alarm */
+#define SC_MISC_TEMP_LOW                2U	/* Temp low alarm */
 /*@}*/
 
 /*!
  * @name Defines for sc_misc_bt_t
  */
 /*@{*/
-#define SC_MISC_BT_PRIMARY              0U   /* Primary boot */
-#define SC_MISC_BT_SECONDARY            1U   /* Secondary boot */
-#define SC_MISC_BT_RECOVERY             2U   /* Recovery boot */
-#define SC_MISC_BT_MANUFACTURE          3U   /* Manufacture boot */
-#define SC_MISC_BT_SERIAL               4U   /* Serial boot */
+#define SC_MISC_BT_PRIMARY              0U	/* Primary boot */
+#define SC_MISC_BT_SECONDARY            1U	/* Secondary boot */
+#define SC_MISC_BT_RECOVERY             2U	/* Recovery boot */
+#define SC_MISC_BT_MANUFACTURE          3U	/* Manufacture boot */
+#define SC_MISC_BT_SERIAL               4U	/* Serial boot */
 /*@}*/
 
 /* Types */
@@ -87,11 +75,6 @@ typedef uint8_t sc_misc_dma_group_t;
  * This type is used report boot status.
  */
 typedef uint8_t sc_misc_boot_status_t;
-
-/*!
- * This type is used to issue SECO authenticate commands.
- */
-typedef uint8_t sc_misc_seco_auth_cmd_t;
 
 /*!
  * This type is used report boot status.
@@ -128,7 +111,7 @@ typedef uint8_t sc_misc_bt_t;
  * Refer to the [Control List](@ref CONTROLS) for valid control values.
  */
 sc_err_t sc_misc_set_control(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_ctrl_t ctrl, uint32_t val);
+			     sc_ctrl_t ctrl, uint32_t val);
 
 /*!
  * This function gets a miscellaneous control value.
@@ -148,7 +131,7 @@ sc_err_t sc_misc_set_control(sc_ipc_t ipc, sc_rsrc_t resource,
  * Refer to the [Control List](@ref CONTROLS) for valid control values.
  */
 sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_ctrl_t ctrl, uint32_t *val);
+			     sc_ctrl_t ctrl, uint32_t *val);
 
 /* @} */
 
@@ -176,7 +159,7 @@ sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
  * Default is the max priority group for the parent partition of \a pt.
  */
 sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
-	sc_misc_dma_group_t max);
+				   sc_misc_dma_group_t max);
 
 /*!
  * This function configures the priority group for a DMA channel.
@@ -197,88 +180,7 @@ sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
  * sc_misc_set_max_dma_group().
  */
 sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_misc_dma_group_t group);
-
-/* @} */
-
-/*!
- * @name Security Functions
- * @{
- */
-
-/*!
- * @deprecated Use sc_seco_image_load() instead.
- */
-sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, sc_faddr_t addr_src,
-	sc_faddr_t addr_dst, uint32_t len, sc_bool_t fw);
-
-/*!
- * @deprecated Use sc_seco_authenticate() instead.
- */
-sc_err_t sc_misc_seco_authenticate(sc_ipc_t ipc,
-	sc_misc_seco_auth_cmd_t cmd, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_fuse_write() instead.
- */
-sc_err_t sc_misc_seco_fuse_write(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_enable_debug() instead.
- */
-sc_err_t sc_misc_seco_enable_debug(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_forward_lifecycle() instead.
- */
-sc_err_t sc_misc_seco_forward_lifecycle(sc_ipc_t ipc, uint32_t change);
-
-/*!
- * @deprecated Use sc_seco_return_lifecycle() instead.
- */
-sc_err_t sc_misc_seco_return_lifecycle(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_build_info() instead.
- */
-void sc_misc_seco_build_info(sc_ipc_t ipc, uint32_t *version,
-	uint32_t *commit);
-
-/*!
- * @deprecated Use sc_seco_chip_info() instead.
- */
-sc_err_t sc_misc_seco_chip_info(sc_ipc_t ipc, uint16_t *lc,
-	uint16_t *monotonic, uint32_t *uid_l, uint32_t *uid_h);
-
-/*!
- * @deprecated Use sc_seco_attest_mode() instead.
- */
-sc_err_t sc_misc_seco_attest_mode(sc_ipc_t ipc, uint32_t mode);
-
-/*!
- * @deprecated Use sc_seco_attest() instead.
- */
-sc_err_t sc_misc_seco_attest(sc_ipc_t ipc, uint64_t nonce);
-
-/*!
- * @deprecated Use sc_seco_get_attest_pkey() instead.
- */
-sc_err_t sc_misc_seco_get_attest_pkey(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_get_attest_sign() instead.
- */
-sc_err_t sc_misc_seco_get_attest_sign(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_attest_verify() instead.
- */
-sc_err_t sc_misc_seco_attest_verify(sc_ipc_t ipc, sc_faddr_t addr);
-
-/*!
- * @deprecated Use sc_seco_commit() instead.
- */
-sc_err_t sc_misc_seco_commit(sc_ipc_t ipc, uint32_t *info);
+			       sc_misc_dma_group_t group);
 
 /* @} */
 
@@ -315,8 +217,7 @@ sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, sc_bool_t enable);
  * @param[out]    build       pointer to return build number
  * @param[out]    commit      pointer to return commit ID (git SHA-1)
  */
-void sc_misc_build_info(sc_ipc_t ipc, uint32_t *build,
-	uint32_t *commit);
+void sc_misc_build_info(sc_ipc_t ipc, uint32_t *build, uint32_t *commit);
 
 /*!
  * This function is used to return the SCFW API versions.
@@ -333,7 +234,7 @@ void sc_misc_build_info(sc_ipc_t ipc, uint32_t *build,
  * Note a major version difference indicates a break in compatibility.
  */
 void sc_misc_api_ver(sc_ipc_t ipc, uint16_t *cl_maj,
-    uint16_t *cl_min, uint16_t *sv_maj, uint16_t *sv_min);
+		     uint16_t *cl_min, uint16_t *sv_maj, uint16_t *sv_min);
 
 /*!
  * This function is used to return the device's unique ID.
@@ -342,8 +243,7 @@ void sc_misc_api_ver(sc_ipc_t ipc, uint16_t *cl_maj,
  * @param[out]    id_l        pointer to return lower 32-bit of ID [31:0]
  * @param[out]    id_h        pointer to return upper 32-bits of ID [63:32]
  */
-void sc_misc_unique_id(sc_ipc_t ipc, uint32_t *id_l,
-	uint32_t *id_h);
+void sc_misc_unique_id(sc_ipc_t ipc, uint32_t *id_l, uint32_t *id_h);
 
 /* @} */
 
@@ -373,7 +273,8 @@ void sc_misc_unique_id(sc_ipc_t ipc, uint32_t *id_l,
  * FISType and PM_Port.
  */
 sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rsrc_t resource_mst, uint16_t ari, sc_bool_t enable);
+			 sc_rsrc_t resource_mst, uint16_t ari,
+			 sc_bool_t enable);
 
 /*!
  * This function reports boot status.
@@ -433,7 +334,7 @@ sc_err_t sc_misc_otp_fuse_read(sc_ipc_t ipc, uint32_t word, uint32_t *val);
  * The command is passed as is to SECO. SECO uses part of the
  * \a word parameter to indicate if the fuse should be locked
  * after programming. See the "Write common fuse" section of
- * the Security Reference Manual (SRM) for more info.
+ * the SECO API Reference Guide for more info.
  *
  * @return Returns and error code (SC_ERR_NONE = success).
  *
@@ -466,7 +367,7 @@ sc_err_t sc_misc_otp_fuse_write(sc_ipc_t ipc, uint32_t word, uint32_t val);
  * - SC_ERR_NOPOWER if power domain of resource not powered
  */
 sc_err_t sc_misc_set_temp(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_misc_temp_t temp, int16_t celsius, int8_t tenths);
+			  sc_misc_temp_t temp, int16_t celsius, int8_t tenths);
 
 /*!
  * This function gets a temp sensor value.
@@ -485,7 +386,8 @@ sc_err_t sc_misc_set_temp(sc_ipc_t ipc, sc_rsrc_t resource,
  * - SC_ERR_NOPOWER if power domain of resource not powered
  */
 sc_err_t sc_misc_get_temp(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_misc_temp_t temp, int16_t *celsius, int8_t *tenths);
+			  sc_misc_temp_t temp, int16_t *celsius,
+			  int8_t *tenths);
 
 /*!
  * This function returns the boot device.
@@ -552,11 +454,10 @@ sc_err_t sc_misc_rompatch_checksum(sc_ipc_t ipc, uint32_t *checksum);
  * @return Returns and error code (SC_ERR_NONE = success).
  */
 sc_err_t sc_misc_board_ioctl(sc_ipc_t ipc, uint32_t *parm1,
-	uint32_t *parm2, uint32_t *parm3);
+			     uint32_t *parm2, uint32_t *parm3);
 
 /* @} */
 
-#endif /* SC_MISC_API_H */
+#endif				/* SC_MISC_API_H */
 
 /**@}*/
-
