@@ -3404,8 +3404,8 @@ static int set_vpu_fw_addr(struct vpu_dev *dev, struct core_device *core_dev)
 
 	vpu_enc_mu_enable_rx(core_dev);
 	reg_fw_base = core_dev->reg_csr_base;
-	write_vpu_reg(dev, core_dev->m0_p_fw_space_phy, reg_fw_base);
-	write_vpu_reg(dev, 0x0, reg_fw_base + 4);
+	write_vpu_reg(dev, core_dev->m0_p_fw_space_phy, reg_fw_base + CSR_CM0Px_ADDR_OFFSET);
+	write_vpu_reg(dev, 0x0, reg_fw_base + CSR_CM0Px_CPUWAIT);
 
 	return 0;
 }
@@ -5575,14 +5575,15 @@ static int vpu_enc_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int is_core_activated(struct core_device *core)
+static int is_vpu_enc_poweroff(struct core_device *core)
 {
-	WARN_ON(!core);
-
-	if (readl_relaxed(core->mu_base_virtaddr + MU_B0_REG_CONTROL) == 0)
-		return false;
+	/* the csr register 'CM0Px_CPUWAIT' will be cleared to '1' after
+	 * reset(poweoff then poweron)
+	 */
+	if (read_vpu_reg(core->vdev, core->reg_csr_base + CSR_CM0Px_CPUWAIT) == 1)
+		return 1;
 	else
-		return true;
+		return 0;
 }
 
 static int is_need_shapshot(struct vpu_ctx *ctx)
@@ -5731,8 +5732,7 @@ static int resume_core(struct core_device *core)
 		resume_instance(core->ctx[i]);
 	}
 
-	/* if the core isn't activated, it means it has been power off and on */
-	if (!is_core_activated(core)) {
+	if (is_vpu_enc_poweroff(core)) {
 		if (!core->vdev->hw_enable)
 			vpu_enc_enable_hw(core->vdev);
 		if (core->snapshot)

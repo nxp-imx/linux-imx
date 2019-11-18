@@ -62,7 +62,6 @@ extern unsigned int vpu_dbg_level_encoder;
 #define PRINT_SIZE_DEFAULT		0x80000
 #define PRINT_SIZE_MIN			0x20000
 #define STREAM_SIZE			0x300000
-#define MU_B0_REG_CONTROL		(0x10000 + 0x24)
 
 #define MIN_BUFFER_COUNT		3
 #define BITRATE_COEF			1024

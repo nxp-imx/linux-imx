@@ -4937,8 +4937,8 @@ static void release_queue_data(struct vpu_ctx *ctx)
 
 static void enable_csr_reg(struct vpu_dev *This)
 {
-	writel(This->m0_p_fw_space_phy, This->csr_base);
-	writel(0x0, This->csr_base + 4);
+	writel(This->m0_p_fw_space_phy, This->csr_base + CSR_CM0Px_ADDR_OFFSET);
+	writel(0x0, This->csr_base + CSR_CM0Px_CPUWAIT);
 }
 
 static void cleanup_firmware_memory(struct vpu_dev *vpudev)
@@ -6542,20 +6542,13 @@ static int __maybe_unused vpu_suspend(struct device *dev)
 
 static bool is_vpu_poweroff(struct vpu_dev *vpudev)
 {
-	void *mu_cr_addr;
-	u_int32 mu_cr;
-
-	if (!vpudev)
-		return false;
-
-	mu_cr_addr = vpudev->mu_base_virtaddr + 0x10000 + 0x24;
-	mu_cr = readl_relaxed(mu_cr_addr);
-
-	if (mu_cr == 0)// it mean M0+ is already power off/on
+	/* the csr register 'CM0Px_CPUWAIT' will be cleared to '1' after
+	 * reset(poweoff then poweron)
+	 */
+	if (readl_relaxed(vpudev->csr_base + CSR_CM0Px_CPUWAIT) == 1)
 		return true;
 	else
 		return false;
-
 }
 
 static int resume_vpu_register(struct vpu_dev *vpudev)

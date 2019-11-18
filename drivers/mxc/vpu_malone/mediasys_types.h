@@ -792,4 +792,7 @@ typedef struct {
 #define MFD_BLK_CTRL_MFD_SYS_CLOCK_ENABLE_SET           0x00000100
 #define MFD_BLK_CTRL_MFD_SYS_CLOCK_ENABLE_CLR           0x00000104
 
+#define CSR_CM0Px_ADDR_OFFSET				0x00000000
+#define CSR_CM0Px_CPUWAIT				0x00000004
+
 #endif
