@@ -5144,6 +5144,7 @@ static int dbglog_open(struct inode *inode, struct file *filp)
 static struct file_operations dbglog_fops = {
 	.owner = THIS_MODULE,
 	.open = dbglog_open,
+	.release = single_release,
 	.read = seq_read,
 };
 
@@ -5225,6 +5226,7 @@ static int fwlog_open(struct inode *inode, struct file *filp)
 static const struct file_operations fwlog_fops = {
 	.owner = THIS_MODULE,
 	.open = fwlog_open,
+	.release = single_release,
 	.read = seq_read,
 };
 
