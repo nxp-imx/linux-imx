@@ -200,7 +200,7 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_AHB_CONN_CLK_ROOT] = imx_clk_fixed("ahb_conn_clk_root", SC_166MHZ);
 	clks[IMX8QXP_IPG_CONN_CLK_ROOT] = imx_clk_fixed("ipg_conn_clk_root", SC_83MHZ);
 	clks[IMX8QXP_DC_AXI_EXT_CLK]	= imx_clk_fixed("axi_ext_dc_clk_root", SC_800MHZ);
-	clks[IMX8QXP_DC_AXI_INT_CLK]	= imx_clk_fixed("axi_int_dc_clk_root", SC_400MHZ);
+	clks[IMX8QXP_DC_AXI_INT_CLK]	= imx_clk_fixed("axi_int_dc_clk_root", SC_375MHZ);
 	clks[IMX8QXP_DC_CFG_CLK]	= imx_clk_fixed("cfg_dc_clk_root", SC_100MHZ);
 	clks[IMX8QXP_MIPI_IPG_CLK]	= imx_clk_fixed("ipg_mipi_clk_root", SC_120MHZ);
 	clks[IMX8QXP_IMG_AXI_CLK]	= imx_clk_fixed("axi_img_clk_root", SC_400MHZ);
