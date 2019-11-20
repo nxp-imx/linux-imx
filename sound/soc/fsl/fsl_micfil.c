@@ -901,6 +901,9 @@ static int fsl_micfil_reset(struct device *dev)
 		return ret;
 	}
 
+	/* w1c */
+	regmap_write_bits(micfil->regmap, REG_MICFIL_STAT, 0xFF, 0xFF);
+
 	return 0;
 }
 
