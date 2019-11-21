@@ -1128,8 +1128,10 @@ static void clear_queue(struct queue_data *queue)
 	struct vb2_data_req *p_data_req = NULL;
 	struct vb2_data_req *p_temp;
 	struct vb2_buffer *vb;
+	struct vpu_ctx *ctx;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() is called\n", __func__);
+	ctx = container_of(queue, struct vpu_ctx, q_data[queue->type]);
 	check_queue_is_releasd(queue, "clear queue");
 
 	list_for_each_entry_safe(p_data_req, p_temp, &queue->drv_q, list) {
@@ -1142,6 +1144,8 @@ static void clear_queue(struct queue_data *queue)
 			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 	}
 	INIT_LIST_HEAD(&queue->drv_q);
+	if (queue->type == V4L2_SRC)
+		ctx->eos_stop_received = false;
 	vpu_dbg(LVL_BIT_FRAME_COUNT,
 		"%s qbuf_count : %ld, dqbuf_count : %ld\n",
 		queue->type == V4L2_DST ? "CAPTURE" : "OUTPUT",
