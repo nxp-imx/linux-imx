@@ -67,6 +67,8 @@
 /* USB3_SSPHY_STATUS */
 #define PHY_REFCLK_REQ		(1 << 0)
 
+/* USB2_PHY_CTRL2 */
+#define IMX8QXP_C0_FLAG		0x0000000f
 
 /* PHY register definition */
 #define PHY_PMA_CMN_CTRL1			(0xC800 * 4)
