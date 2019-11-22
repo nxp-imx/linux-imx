@@ -1468,6 +1468,12 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 	/* the gi->lock is hold by the caller */
 
 	cdev = get_gadget_data(gadget);
+	/* composite_disconnect() must already have been called
+	 * by the underlying peripheral controller driver!
+	 * so there's no i/o concurrency that could affect the
+	 * state protected by cdev->lock.
+	 */
+	WARN_ON(cdev->config);
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
 	gi->unbind = 1;
@@ -1556,7 +1562,7 @@ static void android_disconnect(struct usb_gadget *gadget)
 
 	gi = container_of(cdev, struct gadget_info, cdev);
 	spin_lock_irqsave(&gi->spinlock, flags);
-	if (!cdev || gi->unbind) {
+	if (!cdev || gi->unbind || !gi->connected) {
 		spin_unlock_irqrestore(&gi->spinlock, flags);
 		return;
 	}
