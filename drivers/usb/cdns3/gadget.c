@@ -63,6 +63,7 @@
 #include <linux/usb/gadget.h>
 #include <linux/pm_runtime.h>
 #include <linux/module.h>
+#include <linux/iopoll.h>
 
 #include "core.h"
 #include "gadget-export.h"
@@ -1579,7 +1580,7 @@ static int cdns3_gadget_ep_disable(struct usb_ep *ep)
 	struct usb_request *request;
 	unsigned long flags;
 	int ret = 0;
-	u32 ep_cfg;
+	u32 ep_cfg, val;
 
 	if (!ep) {
 		pr_err("usbss: invalid parameters\n");
@@ -1602,6 +1603,14 @@ static int cdns3_gadget_ep_disable(struct usb_ep *ep)
 	ep_cfg = readl(&priv_dev->regs->ep_cfg);
 	ep_cfg &= ~EP_CFG_ENABLE;
 	writel(ep_cfg, &priv_dev->regs->ep_cfg);
+
+	/**
+	 * Driver needs some time before resetting endpoint.
+	 * It need waits for clearing DBUSY bit or for timeout expired.
+	 * 10us is enough time for controller to stop transfer.
+	 */
+	readl_poll_timeout_atomic(&priv_dev->regs->ep_sts, val,
+				  !(val & EP_STS_DBUSY), 1, 10);
 
 	writel(EP_CMD_EPRST, &priv_dev->regs->ep_cmd);
 

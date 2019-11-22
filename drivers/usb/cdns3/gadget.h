@@ -603,7 +603,7 @@ struct cdns3_usb_regs {
 /* Not ready (used only in SS mode). */
 #define EP_STS_NRDY		BIT(8)
 /* DMA busy. */
-#define EP_STS_DBUSY(p)		((p) & BIT(9))
+#define EP_STS_DBUSY		BIT(9)
 /* Endpoint Buffer Empty */
 #define EP_STS_BUFFEMPTY(p)	((p) & BIT(10))
 /* Current Cycle Status */
