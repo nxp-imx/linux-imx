@@ -1293,7 +1293,14 @@ static void usb_gadget_remove_driver(struct usb_udc *udc)
 
 	kobject_uevent(&udc->dev.kobj, KOBJ_CHANGE);
 
-	usb_gadget_disconnect(udc->gadget);
+	/*
+	 * Cadence IP has an unknown issue that cause the system hang
+	 * if access register after calling .pullup, so move pullup after
+	 * .unbind which will be done at the controller driver.
+	 */
+	if (strcmp(dev_name(&udc->dev), "5b110000.usb3"))
+		usb_gadget_disconnect(udc->gadget);
+
 	udc->driver->disconnect(udc->gadget);
 	udc->driver->unbind(udc->gadget);
 	usb_gadget_udc_stop(udc);
