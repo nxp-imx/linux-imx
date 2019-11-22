@@ -747,6 +747,9 @@ sc_err_t sc_seco_secvio_config(sc_ipc_t ipc, uint8_t id, uint8_t access,
 			       uint32_t *data2, uint32_t *data3,
 			       uint32_t *data4, uint8_t size);
 
+sc_err_t sc_seco_secvio_dgo_config(sc_ipc_t ipc, uint8_t id, uint8_t access,
+				   uint32_t *data);
+
 /* @} */
 
 #endif				/* SC_SECO_API_H */
