@@ -513,6 +513,35 @@ void cdns3_wa1_restore_cycle_bit(struct cdns3_endpoint *priv_ep)
 	}
 }
 
+static void cdns3_free_aligned_request_buf(struct work_struct *work)
+{
+	struct cdns3_device *priv_dev = container_of(work, struct cdns3_device,
+					aligned_buf_wq);
+	struct cdns3_aligned_buf *buf, *tmp;
+	unsigned long flags;
+
+	spin_lock_irqsave(&priv_dev->lock, flags);
+
+	list_for_each_entry_safe(buf, tmp, &priv_dev->aligned_buf_list, list) {
+		if (!buf->in_use) {
+			list_del(&buf->list);
+
+			/*
+			 * Re-enable interrupts to free DMA capable memory.
+			 * Driver can't free this memory with disabled
+			 * interrupts.
+			 */
+			spin_unlock_irqrestore(&priv_dev->lock, flags);
+			dma_free_coherent(priv_dev->sysdev, buf->size,
+					  buf->buf, buf->dma);
+			kfree(buf);
+			spin_lock_irqsave(&priv_dev->lock, flags);
+		}
+	}
+
+	spin_unlock_irqrestore(&priv_dev->lock, flags);
+}
+
 static int cdns3_prepare_aligned_request_buf(struct cdns3_request *priv_req)
 {
 	struct cdns3_endpoint *priv_ep = priv_req->priv_ep;
@@ -544,7 +573,8 @@ static int cdns3_prepare_aligned_request_buf(struct cdns3_request *priv_req)
 		if (priv_req->aligned_buf) {
 			trace_cdns3_free_aligned_request(priv_req);
 			priv_req->aligned_buf->in_use = 0;
-			priv_dev->run_garbage_colector = 1;
+			queue_work(system_freezable_wq,
+				&priv_dev->aligned_buf_wq);
 		}
 
 		buf->in_use = 1;
@@ -1186,27 +1216,6 @@ static irqreturn_t cdns3_device_thread_irq_handler(struct cdns3 *cdns)
 		priv_dev->shadow_ep_en |= BIT(bit);
 		cdns3_check_ep_interrupt_proceed(priv_dev->eps[bit]);
 		ret = IRQ_HANDLED;
-	}
-
-	if (priv_dev->run_garbage_colector) {
-		struct cdns3_aligned_buf *buf, *tmp;
-
-		list_for_each_entry_safe(buf, tmp, &priv_dev->aligned_buf_list,
-					 list) {
-			if (!buf->in_use) {
-				list_del(&buf->list);
-
-				spin_unlock_irqrestore(&priv_dev->lock, flags);
-				dma_free_coherent(priv_dev->sysdev, buf->size,
-						  buf->buf,
-						  buf->dma);
-				spin_lock_irqsave(&priv_dev->lock, flags);
-
-				kfree(buf);
-			}
-		}
-
-		priv_dev->run_garbage_colector = 0;
 	}
 
 irqend:
@@ -2298,6 +2307,9 @@ static int __cdns3_gadget_init(struct cdns3 *cdns)
 	spin_lock_init(&priv_dev->lock);
 	INIT_WORK(&priv_dev->pending_status_wq,
 		  cdns3_pending_setup_status_handler);
+	INIT_WORK(&priv_dev->aligned_buf_wq,
+		cdns3_free_aligned_request_buf);
+
 
 	/* initialize endpoint container */
 	INIT_LIST_HEAD(&priv_dev->gadget.ep_list);

@@ -1212,7 +1212,6 @@ struct cdns3_device {
 	struct cdns3_endpoint		*eps[CDNS3_ENDPOINTS_MAX_COUNT];
 
 	struct list_head		aligned_buf_list;
-	unsigned			run_garbage_colector:1;
 
 	u32				selected_ep;
 	u16				isoch_delay;
@@ -1232,6 +1231,7 @@ struct cdns3_device {
 	/*in KB */
 	int				onchip_mem_allocated_size;
 	unsigned			start_gadget:1;
+	struct work_struct              aligned_buf_wq;
 };
 
 void cdns3_set_register_bit(void __iomem *ptr, u32 mask);
