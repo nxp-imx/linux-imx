@@ -9,9 +9,13 @@
  * Header file containing the public API for the System Controller (SC)
  * Security (SECO) function.
  *
- * @addtogroup SECO_SVC (SVC) Security Service
+ * @addtogroup SECO_SVC SECO: Security Service
  *
  * Module for the Security (SECO) service.
+ *
+ * @anchor seco_err
+ *
+ * @includedoc seco/details.dox
  *
  * @{
  */
@@ -30,21 +34,22 @@
  * @name Defines for sc_seco_auth_cmd_t
  */
 /*@{*/
-#define SC_SECO_AUTH_CONTAINER          0U   /* Authenticate container */
-#define SC_SECO_VERIFY_IMAGE            1U   /* Verify image */
-#define SC_SECO_REL_CONTAINER           2U   /* Release container */
-#define SC_SECO_AUTH_SECO_FW            3U   /* SECO Firmware */
-#define SC_SECO_AUTH_HDMI_TX_FW         4U   /* HDMI TX Firmware */
-#define SC_SECO_AUTH_HDMI_RX_FW         5U   /* HDMI RX Firmware */
+#define SC_SECO_AUTH_CONTAINER          0U	/* Authenticate container */
+#define SC_SECO_VERIFY_IMAGE            1U	/* Verify image */
+#define SC_SECO_REL_CONTAINER           2U	/* Release container */
+#define SC_SECO_AUTH_SECO_FW            3U	/* SECO Firmware */
+#define SC_SECO_AUTH_HDMI_TX_FW         4U	/* HDMI TX Firmware */
+#define SC_SECO_AUTH_HDMI_RX_FW         5U	/* HDMI RX Firmware */
+#define SC_SECO_EVERIFY_IMAGE           6U	/* Enhanced verify image */
 /*@}*/
 
 /*!
  * @name Defines for seco_rng_stat_t
  */
 /*@{*/
-#define SC_SECO_RNG_STAT_UNAVAILABLE    0U  /* Unable to initialize the RNG */
-#define SC_SECO_RNG_STAT_INPROGRESS     1U  /* Initialization is on-going */
-#define SC_SECO_RNG_STAT_READY          2U  /* Initialized */
+#define SC_SECO_RNG_STAT_UNAVAILABLE    0U	/* Unable to initialize the RNG */
+#define SC_SECO_RNG_STAT_INPROGRESS     1U	/* Initialization is on-going */
+#define SC_SECO_RNG_STAT_READY          2U	/* Initialized */
 /*@}*/
 
 /* Types */
@@ -78,17 +83,20 @@ typedef uint32_t sc_seco_rng_stat_t;
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This is used to load images via the SECO. Examples include SECO
  * Firmware and IVT/CSF data used for authentication. These are usually
  * loaded into SECO TCM. \a addr_src is in secure memory.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_image_load(sc_ipc_t ipc, sc_faddr_t addr_src,
-	sc_faddr_t addr_dst, uint32_t len, sc_bool_t fw);
+			    sc_faddr_t addr_dst, uint32_t len, sc_bool_t fw);
 
 /*!
  * This function is used to authenticate a SECO image or command.
@@ -100,17 +108,65 @@ sc_err_t sc_seco_image_load(sc_ipc_t ipc, sc_faddr_t addr_src,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_BUSY if SECO is busy with another authentication request,
+ * - SC_ERR_FAIL if SECO response is bad,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This is used to authenticate a SECO image or issue a security
  * command. \a addr often points to an container. It is also
  * just data (or even unused) for some commands.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * Implementation of this command depends on the underlying security
+ * architecture of the device. For example, on devices with SECO FW,
+ * the following options apply:
+ *
+ * - cmd=SC_SECO_AUTH_CONTAINER, addr=container address (sends AHAB_AUTH_CONTAINER_REQ to SECO)
+ * - cmd=SC_SECO_VERIFY_IMAGE, addr=image mask (sends AHAB_VERIFY_IMAGE_REQ to SECO)
+ * - cmd=SC_SECO_REL_CONTAINER, addr unused (sends AHAB_RELEASE_CONTAINER_REQ to SECO)
+ * - cmd=SC_SECO_AUTH_HDMI_TX_FW, addr unused (sends AHAB_ENABLE_HDMI_X_REQ with Subsystem=0 to SECO)
+ * - cmd=SC_SECO_AUTH_HDMI_RX_FW, addr unused (sends AHAB_ENABLE_HDMI_X_REQ with Subsystem=1 to SECO)
+ *
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_authenticate(sc_ipc_t ipc,
-	sc_seco_auth_cmd_t cmd, sc_faddr_t addr);
+			      sc_seco_auth_cmd_t cmd, sc_faddr_t addr);
+
+/*!
+ * This function is used to authenticate a SECO image or command. This is an
+ * enhanced version that has additional mask arguments.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     cmd         authenticate command
+ * @param[in]     addr        address of/or metadata
+ * @param[in]     mask1       metadata
+ * @param[in]     mask2       metadata
+ *
+ * Return errors codes:
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_BUSY if SECO is busy with another authentication request,
+ * - SC_ERR_FAIL if SECO response is bad,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
+ *
+ * This supports all the commands found in sc_seco_authenticate(). Those
+ * commands should set both masks to 0 (except SC_SECO_VERIFY_IMAGE).
+
+ * New commands are as follows:
+ *
+ * - cmd=SC_SECO_VERIFY_IMAGE, addr unused, mask1=image mask, mask2 unused (sends AHAB_VERIFY_IMAGE_REQ to SECO)
+ * - cmd=SC_SECO_EVERIFY_IMAGE, addr=container address, mask1=image mask, mask2=move mask (sends AHAB_EVERIFY_IMAGE_REQ to SECO)
+ *
+ * See the <em>SECO API Reference Guide</em> for more info.
+ */
+sc_err_t sc_seco_enh_authenticate(sc_ipc_t ipc,
+				  sc_seco_auth_cmd_t cmd, sc_faddr_t addr,
+				  uint32_t mask1, uint32_t mask2);
 
 /* @} */
 
@@ -128,11 +184,14 @@ sc_err_t sc_seco_authenticate(sc_ipc_t ipc,
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
- * This message is used for going from Open to NXP Closed to OEM Closed.
+ * This function is used for going from Open to NXP Closed to OEM Closed.
  * Note \a change is NOT the new desired lifecycle. It is a lifecycle
- * transition as documented in the Security Reference Manual (SRM).
+ * transition as documented in the <em>SECO API Reference Guide</em>.
  *
  * If any SECO request fails or only succeeds because the part is in an
  * "OEM open" lifecycle, then a request to transition from "NXP closed"
@@ -152,7 +211,10 @@ sc_err_t sc_seco_forward_lifecycle(sc_ipc_t ipc, uint32_t change);
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * Note \a addr must be a pointer to a signed message block.
  *
@@ -160,7 +222,7 @@ sc_err_t sc_seco_forward_lifecycle(sc_ipc_t ipc, uint32_t change);
  * by NXP SRK. For OEM States (Partial Field Return), must be signed by OEM
  * SRK.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_return_lifecycle(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -177,8 +239,11 @@ sc_err_t sc_seco_return_lifecycle(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if \a info is invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if \a info is invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  */
 sc_err_t sc_seco_commit(sc_ipc_t ipc, uint32_t *info);
 
@@ -199,12 +264,15 @@ sc_err_t sc_seco_commit(sc_ipc_t ipc, uint32_t *info);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if \a mode is invalid
- * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if \a mode is invalid,
+ * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This is used to set the SECO attestation mode. This can be prover
- * or verfier. See the Security Reference Manual (SRM) for more on the
+ * or verfier. See the <em>SECO API Reference Guide</em> for more on the
  * suported modes, mode values, and mode behavior.
  */
 sc_err_t sc_seco_attest_mode(sc_ipc_t ipc, uint32_t mode);
@@ -219,14 +287,17 @@ sc_err_t sc_seco_attest_mode(sc_ipc_t ipc, uint32_t mode);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This is used to ask SECO to perform an attestation. The result depends
  * on the attestation mode. After this call, the signature can be
  * requested or a verify can be requested.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_attest(sc_ipc_t ipc, uint64_t nonce);
 
@@ -245,11 +316,14 @@ sc_err_t sc_seco_attest(sc_ipc_t ipc, uint64_t nonce);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if \a addr bad or attestation has not been requested
- * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if \a addr bad or attestation has not been requested,
+ * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_get_attest_pkey(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -268,11 +342,14 @@ sc_err_t sc_seco_get_attest_pkey(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if \a addr bad or attestation has not been requested
- * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if \a addr bad or attestation has not been requested,
+ * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_get_attest_sign(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -289,12 +366,15 @@ sc_err_t sc_seco_get_attest_sign(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if \a addr bad or attestation has not been requested
- * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller
- * - SC_ERR_UNAVAILABLE if SECO not available
- * - SC_ERR_FAIL if signature doesn't match
+ * - SC_ERR_PARM if \a addr bad or attestation has not been requested,
+ * - SC_ERR_NOACCESS if SC_R_ATTESTATON not owned by caller,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_FAIL if signature doesn't match,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_attest_verify(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -317,16 +397,20 @@ sc_err_t sc_seco_attest_verify(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This function is used to encapsulate sensitive keys in a specific structure
  * called a blob, which provides both confidentiality and integrity protection.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_gen_key_blob(sc_ipc_t ipc, uint32_t id,
-	sc_faddr_t load_addr, sc_faddr_t export_addr, uint16_t max_size);
+			      sc_faddr_t load_addr, sc_faddr_t export_addr,
+			      uint16_t max_size);
 
 /*!
  * This function is used to load a SECO key.
@@ -338,18 +422,20 @@ sc_err_t sc_seco_gen_key_blob(sc_ipc_t ipc, uint32_t id,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This function is used to install private cryptographic keys encapsulated
  * in a blob previously generated by SECO. The controller can be either the
  * IEE or the VPU. The blob header carries the controller type and the key
  * size, as provided by the user when generating the key blob.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
-sc_err_t sc_seco_load_key(sc_ipc_t ipc, uint32_t id,
-	sc_faddr_t addr);
+sc_err_t sc_seco_load_key(sc_ipc_t ipc, uint32_t id, sc_faddr_t addr);
 
 /* @} */
 
@@ -368,17 +454,20 @@ sc_err_t sc_seco_load_key(sc_ipc_t ipc, uint32_t id,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This function is supported only in OEM-closed lifecycle. It generates
  * the mfg public key and stores it in a specific location in the secure
  * memory.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_get_mp_key(sc_ipc_t ipc, sc_faddr_t dst_addr,
-	uint16_t dst_size);
+			    uint16_t dst_size);
 
 /*!
  * This function is used to update the manufacturing protection message
@@ -392,18 +481,21 @@ sc_err_t sc_seco_get_mp_key(sc_ipc_t ipc, sc_faddr_t dst_addr,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This function is supported only in OEM-closed lifecycle. It updates the
  * content of the MPMR (Manufacturing Protection Message register of 256
  * bits). This register will be appended to the input-data message when
  * generating the signature. Please refer to the CAAM block guide for details.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_update_mpmr(sc_ipc_t ipc, sc_faddr_t addr,
-	uint8_t size, uint8_t lock);
+			     uint8_t size, uint8_t lock);
 
 /*!
  * This function is used to get the manufacturing protection signature.
@@ -417,8 +509,11 @@ sc_err_t sc_seco_update_mpmr(sc_ipc_t ipc, sc_faddr_t addr,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_PARM if word fuse index param out of range or invalid
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_PARM if word fuse index param out of range or invalid,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * This function is used to generate an ECDSA signature for an input-data
  * message and to store it in a specific location in the secure memory. It
@@ -426,10 +521,11 @@ sc_err_t sc_seco_update_mpmr(sc_ipc_t ipc, sc_faddr_t addr,
  * signature, the RNG must be initialized. In case it has not been started
  * an error will be returned.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_get_mp_sign(sc_ipc_t ipc, sc_faddr_t msg_addr,
-	uint16_t msg_size, sc_faddr_t dst_addr, uint16_t dst_size);
+			     uint16_t msg_size, sc_faddr_t dst_addr,
+			     uint16_t dst_size);
 
 /* @} */
 
@@ -445,8 +541,7 @@ sc_err_t sc_seco_get_mp_sign(sc_ipc_t ipc, sc_faddr_t msg_addr,
  * @param[out]    version     pointer to return build number
  * @param[out]    commit      pointer to return commit ID (git SHA-1)
  */
-void sc_seco_build_info(sc_ipc_t ipc, uint32_t *version,
-	uint32_t *commit);
+void sc_seco_build_info(sc_ipc_t ipc, uint32_t *version, uint32_t *commit);
 
 /*!
  * This function is used to return SECO chip info.
@@ -458,9 +553,16 @@ void sc_seco_build_info(sc_ipc_t ipc, uint32_t *version,
  * @param[out]    uid_h       pointer to return UID (upper 32 bits)
  *
  * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  */
 sc_err_t sc_seco_chip_info(sc_ipc_t ipc, uint16_t *lc,
-	uint16_t *monotonic, uint32_t *uid_l, uint32_t *uid_h);
+			   uint16_t *monotonic, uint32_t *uid_l,
+			   uint32_t *uid_h);
 
 /*!
  * This function securely enables debug.
@@ -471,11 +573,14 @@ sc_err_t sc_seco_chip_info(sc_ipc_t ipc, uint16_t *lc,
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * Note \a addr must be a pointer to a signed message block.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_enable_debug(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -488,11 +593,16 @@ sc_err_t sc_seco_enable_debug(sc_ipc_t ipc, sc_faddr_t addr);
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
+ * Return errors codes:
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
+ *
  * Read of \a idx 0 captures events from SECO. Loop starting
  * with 0 until an error is returned to dump all events.
  */
-sc_err_t sc_seco_get_event(sc_ipc_t ipc, uint8_t idx,
-	uint32_t *event);
+sc_err_t sc_seco_get_event(sc_ipc_t ipc, uint8_t idx, uint32_t *event);
 
 /* @} */
 
@@ -510,14 +620,16 @@ sc_err_t sc_seco_get_event(sc_ipc_t ipc, uint8_t idx,
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * Note \a addr must be a pointer to a signed message block.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_fuse_write(sc_ipc_t ipc, sc_faddr_t addr);
-
 
 /*!
  * This function applies a patch.
@@ -528,11 +640,14 @@ sc_err_t sc_seco_fuse_write(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * Note \a addr must be a pointer to a signed message block.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_patch(sc_ipc_t ipc, sc_faddr_t addr);
 
@@ -545,18 +660,95 @@ sc_err_t sc_seco_patch(sc_ipc_t ipc, sc_faddr_t addr);
  * @return Returns and error code (SC_ERR_NONE = success).
  *
  * Return errors codes:
- * - SC_ERR_UNAVAILABLE if SECO not available
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
  *
  * The RNG is started automatically after all CPUs are booted. This
  * function can be used to start earlier and to check the status.
  *
- * See the Security Reference Manual (SRM) for more info.
+ * See the <em>SECO API Reference Guide</em> for more info.
  */
 sc_err_t sc_seco_start_rng(sc_ipc_t ipc, sc_seco_rng_stat_t *status);
 
+/*!
+ * This function sends a generic signed message to the
+ * SECO SHE/HSM components.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     addr        address of message block
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
+ *
+ * Note \a addr must be a pointer to a signed message block.
+ *
+ * See the <em>SECO API Reference Guide</em> for more info.
+ */
+sc_err_t sc_seco_sab_msg(sc_ipc_t ipc, sc_faddr_t addr);
+
+/*!
+ * This function is used to enable security violation and tamper interrupts.
+ * These are then reported using the IRQ service via the SC_IRQ_SECVIO
+ * interrupt. Note it is automatically enabled at boot.
+ *
+ * @param[in]     ipc         IPC handle
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_NOACCESS if caller does not own SC_R_SECVIO,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
+ *
+ * The security violation interrupt is self-masking. Once it is cleared in
+ * the SNVS it must be re-enabled using this function.
+ */
+sc_err_t sc_seco_secvio_enable(sc_ipc_t ipc);
+
+/*!
+ * This function is used to read/write SNVS security violation
+ * and tamper registers.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     id          register ID
+ * @param[in]     access      0=read, 1=write
+ * @param[in]     data0       pointer to data to read or write
+ * @param[in]     data1       pointer to data to read or write
+ * @param[in]     data2       pointer to data to read or write
+ * @param[in]     data3       pointer to data to read or write
+ * @param[in]     data4       pointer to data to read or write
+ * @param[in]     size        number of valid data words
+ *
+ * @return Returns and error code (SC_ERR_NONE = success).
+ *
+ * Return errors codes:
+ * - SC_ERR_NOACCESS if caller does not own SC_R_SECVIO,
+ * - SC_ERR_UNAVAILABLE if SECO not available,
+ * - SC_ERR_IPC if SECO response has bad header tag or size,
+ * - SC_ERR_VERSION if SECO response has bad version,
+ * - Others, see the [Security Service Detailed Description](\ref seco_err) section
+ *
+ * Unused data words can be passed a NULL pointer.
+ *
+ * See AHAB_MANAGE_SNVS_REQ in the <em>SECO API Reference Guide</em> for
+ * more info.
+ */
+sc_err_t sc_seco_secvio_config(sc_ipc_t ipc, uint8_t id, uint8_t access,
+			       uint32_t *data0, uint32_t *data1,
+			       uint32_t *data2, uint32_t *data3,
+			       uint32_t *data4, uint8_t size);
+
 /* @} */
 
-#endif /* SC_SECO_API_H */
+#endif				/* SC_SECO_API_H */
 
 /**@}*/
-

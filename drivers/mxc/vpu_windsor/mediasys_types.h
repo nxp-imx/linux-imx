@@ -60,8 +60,12 @@ typedef unsigned char u_int8;
 typedef unsigned long u_int64;
 typedef unsigned int BOOL;
 typedef int int32;
+#ifndef FALSE
 #define FALSE 0
+#endif
+#ifndef TRUE
 #define TRUE 1
+#endif
 #define VID_API_NUM_STREAMS 8
 #define VID_API_MAX_BUF_PER_STR 3
 #define VID_API_MAX_NUM_MVC_VIEWS 4
@@ -701,5 +705,8 @@ typedef struct {
 #define MFD_BLK_CTRL_MFD_SYS_RESET_CLR                  0x00000004
 #define MFD_BLK_CTRL_MFD_SYS_CLOCK_ENABLE_SET           0x00000100
 #define MFD_BLK_CTRL_MFD_SYS_CLOCK_ENABLE_CLR           0x00000104
+
+#define CSR_CM0Px_ADDR_OFFSET				0x00000000
+#define CSR_CM0Px_CPUWAIT				0x00000004
 
 #endif

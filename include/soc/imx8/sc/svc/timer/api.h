@@ -9,7 +9,7 @@
  * Header file containing the public API for the System Controller (SC)
  * Timer function.
  *
- * @addtogroup TIMER_SVC (SVC) Timer Service
+ * @addtogroup TIMER_SVC TIMER: Timer Service
  *
  * Module for the Timer service. This includes support for the watchdog, RTC,
  * and system counter. Note every resource partition has a watchdog it can
@@ -32,18 +32,18 @@
  * @name Defines for type widths
  */
 /*@{*/
-#define SC_TIMER_ACTION_W   3U      /* Width of sc_timer_wdog_action_t */
+#define SC_TIMER_ACTION_W   3U	/* Width of sc_timer_wdog_action_t */
 /*@}*/
 
 /*!
  * @name Defines for sc_timer_wdog_action_t
  */
 /*@{*/
-#define SC_TIMER_WDOG_ACTION_PARTITION      0U   /* Reset partition */
-#define SC_TIMER_WDOG_ACTION_WARM           1U   /* Warm reset system */
-#define SC_TIMER_WDOG_ACTION_COLD           2U   /* Cold reset system */
-#define SC_TIMER_WDOG_ACTION_BOARD          3U   /* Reset board */
-#define SC_TIMER_WDOG_ACTION_IRQ            4U   /* Only generate IRQs */
+#define SC_TIMER_WDOG_ACTION_PARTITION      0U	/* Reset partition */
+#define SC_TIMER_WDOG_ACTION_WARM           1U	/* Warm reset system */
+#define SC_TIMER_WDOG_ACTION_COLD           2U	/* Cold reset system */
+#define SC_TIMER_WDOG_ACTION_BOARD          3U	/* Reset board */
+#define SC_TIMER_WDOG_ACTION_IRQ            4U	/* Only generate IRQs */
 /*@}*/
 
 /* Types */
@@ -76,8 +76,7 @@ typedef uint32_t sc_timer_wdog_time_t;
  * @return Returns an error code (SC_ERR_NONE = success, SC_ERR_LOCKED
  *         = locked).
  */
-sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc,
-	sc_timer_wdog_time_t timeout);
+sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc, sc_timer_wdog_time_t timeout);
 
 /*!
  * This function sets the watchdog pre-timeout in milliseconds. If not
@@ -94,7 +93,7 @@ sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc,
  * @return Returns an error code (SC_ERR_NONE = success).
  */
 sc_err_t sc_timer_set_wdog_pre_timeout(sc_ipc_t ipc,
-	sc_timer_wdog_time_t pre_timeout);
+				       sc_timer_wdog_time_t pre_timeout);
 
 /*!
  * This function starts the watchdog.
@@ -104,8 +103,15 @@ sc_err_t sc_timer_set_wdog_pre_timeout(sc_ipc_t ipc,
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
+ * Return errors:
+ * - SC_ERR_NOACCESS if caller's partition is not isolated
+ *
  * If \a lock is set then the watchdog cannot be stopped or the timeout
  * period changed.
+ *
+ * If the calling partition is not isolated then the wdog cannot be used.
+ * This is always the case if a non-secure partition is running on the same
+ * CPU as a secure partition (e.g. Linux under TZ). See sc_rm_partition_alloc().
  */
 sc_err_t sc_timer_start_wdog(sc_ipc_t ipc, sc_bool_t lock);
 
@@ -142,8 +148,9 @@ sc_err_t sc_timer_ping_wdog(sc_ipc_t ipc);
  * @return Returns an error code (SC_ERR_NONE = success).
  */
 sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
-	sc_timer_wdog_time_t *timeout, sc_timer_wdog_time_t *max_timeout,
-	sc_timer_wdog_time_t *remaining_time);
+				  sc_timer_wdog_time_t *timeout,
+				  sc_timer_wdog_time_t *max_timeout,
+				  sc_timer_wdog_time_t *remaining_time);
 
 /*!
  * This function gets the status of the watchdog of a partition. All
@@ -158,8 +165,10 @@ sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  */
-sc_err_t sc_timer_pt_get_wdog_status(sc_ipc_t ipc, sc_rm_pt_t pt, sc_bool_t *enb,
-	sc_timer_wdog_time_t *timeout, sc_timer_wdog_time_t *remaining_time);
+sc_err_t sc_timer_pt_get_wdog_status(sc_ipc_t ipc, sc_rm_pt_t pt,
+				     sc_bool_t *enb,
+				     sc_timer_wdog_time_t *timeout,
+				     sc_timer_wdog_time_t *remaining_time);
 
 /*!
  * This function configures the action to be taken when a watchdog
@@ -179,7 +188,7 @@ sc_err_t sc_timer_pt_get_wdog_status(sc_ipc_t ipc, sc_rm_pt_t pt, sc_bool_t *enb
  * - SC_ERR_LOCKED if the watchdog is locked
  */
 sc_err_t sc_timer_set_wdog_action(sc_ipc_t ipc,
-	sc_rm_pt_t pt, sc_timer_wdog_action_t action);
+				  sc_rm_pt_t pt, sc_timer_wdog_action_t action);
 
 /* @} */
 
@@ -208,7 +217,8 @@ sc_err_t sc_timer_set_wdog_action(sc_ipc_t ipc,
  * - SC_ERR_NOACCESS if caller's partition cannot access SC_R_SYSTEM
  */
 sc_err_t sc_timer_set_rtc_time(sc_ipc_t ipc, uint16_t year, uint8_t mon,
-	uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
+			       uint8_t day, uint8_t hour, uint8_t min,
+			       uint8_t sec);
 
 /*!
  * This function gets the RTC time.
@@ -224,7 +234,8 @@ sc_err_t sc_timer_set_rtc_time(sc_ipc_t ipc, uint16_t year, uint8_t mon,
  * @return Returns an error code (SC_ERR_NONE = success).
  */
 sc_err_t sc_timer_get_rtc_time(sc_ipc_t ipc, uint16_t *year, uint8_t *mon,
-	uint8_t *day, uint8_t *hour, uint8_t *min, uint8_t *sec);
+			       uint8_t *day, uint8_t *hour, uint8_t *min,
+			       uint8_t *sec);
 
 /*!
  * This function gets the RTC time in seconds since 1/1/1970.
@@ -256,7 +267,8 @@ sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec);
  * - SC_ERR_PARM if invalid time/date parameters
  */
 sc_err_t sc_timer_set_rtc_alarm(sc_ipc_t ipc, uint16_t year, uint8_t mon,
-	uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
+				uint8_t day, uint8_t hour, uint8_t min,
+				uint8_t sec);
 
 /*!
  * This function sets the RTC alarm (periodic mode).
@@ -339,8 +351,7 @@ sc_err_t sc_timer_set_sysctr_alarm(sc_ipc_t ipc, uint64_t ticks);
  * Return errors:
  * - SC_ERR_PARM if invalid time/date parameters
  */
-sc_err_t sc_timer_set_sysctr_periodic_alarm(sc_ipc_t ipc,
-	uint64_t ticks);
+sc_err_t sc_timer_set_sysctr_periodic_alarm(sc_ipc_t ipc, uint64_t ticks);
 
 /*!
  * This function cancels the SYSCTR alarm.
@@ -358,7 +369,6 @@ sc_err_t sc_timer_cancel_sysctr_alarm(sc_ipc_t ipc);
 
 /* @} */
 
-#endif /* SC_TIMER_API_H */
+#endif				/* SC_TIMER_API_H */
 
 /**@}*/
-

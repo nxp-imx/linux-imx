@@ -10,7 +10,7 @@
  * Resource Management (RM) function. This includes functions for
  * partitioning resources, pads, and memory regions.
  *
- * @addtogroup RM_SVC (SVC) Resource Management Service
+ * @addtogroup RM_SVC RM: Resource Management Service
  *
  * Module for the Resource Management (RM) service.
  *
@@ -32,44 +32,44 @@
  * @name Defines for type widths
  */
 /*@{*/
-#define SC_RM_PARTITION_W   5U      /* Width of sc_rm_pt_t */
-#define SC_RM_MEMREG_W      6U      /* Width of sc_rm_mr_t */
-#define SC_RM_DID_W         4U      /* Width of sc_rm_did_t */
-#define SC_RM_SID_W         6U      /* Width of sc_rm_sid_t */
-#define SC_RM_SPA_W         2U      /* Width of sc_rm_spa_t */
-#define SC_RM_PERM_W        3U      /* Width of sc_rm_perm_t */
+#define SC_RM_PARTITION_W   5U	/* Width of sc_rm_pt_t */
+#define SC_RM_MEMREG_W      6U	/* Width of sc_rm_mr_t */
+#define SC_RM_DID_W         4U	/* Width of sc_rm_did_t */
+#define SC_RM_SID_W         6U	/* Width of sc_rm_sid_t */
+#define SC_RM_SPA_W         2U	/* Width of sc_rm_spa_t */
+#define SC_RM_PERM_W        3U	/* Width of sc_rm_perm_t */
 /*@}*/
 
 /*!
  * @name Defines for ALL parameters
  */
 /*@{*/
-#define SC_RM_PT_ALL        ((sc_rm_pt_t) UINT8_MAX)   /* All partitions */
-#define SC_RM_MR_ALL        ((sc_rm_mr_t) UINT8_MAX)   /* All memory regions */
+#define SC_RM_PT_ALL        ((sc_rm_pt_t) UINT8_MAX)	/* All partitions */
+#define SC_RM_MR_ALL        ((sc_rm_mr_t) UINT8_MAX)	/* All memory regions */
 /*@}*/
 
 /*!
  * @name Defines for sc_rm_spa_t
  */
 /*@{*/
-#define SC_RM_SPA_PASSTHRU  0U   /* Pass through (attribute driven by master) */
-#define SC_RM_SPA_PASSSID   1U   /* Pass through and output on SID */
-#define SC_RM_SPA_ASSERT    2U   /* Assert (force to be secure/privileged) */
-#define SC_RM_SPA_NEGATE    3U   /* Negate (force to be non-secure/user) */
+#define SC_RM_SPA_PASSTHRU  0U	/* Pass through (attribute driven by master) */
+#define SC_RM_SPA_PASSSID   1U	/* Pass through and output on SID */
+#define SC_RM_SPA_ASSERT    2U	/* Assert (force to be secure/privileged) */
+#define SC_RM_SPA_NEGATE    3U	/* Negate (force to be non-secure/user) */
 /*@}*/
 
 /*!
  * @name Defines for sc_rm_perm_t
  */
 /*@{*/
-#define SC_RM_PERM_NONE         0U   /* No access */
-#define SC_RM_PERM_SEC_R        1U   /* Secure RO */
-#define SC_RM_PERM_SECPRIV_RW   2U   /* Secure privilege R/W */
-#define SC_RM_PERM_SEC_RW       3U   /* Secure R/W */
-#define SC_RM_PERM_NSPRIV_R     4U   /* Secure R/W, non-secure privilege RO */
-#define SC_RM_PERM_NS_R         5U   /* Secure R/W, non-secure RO */
-#define SC_RM_PERM_NSPRIV_RW    6U   /* Secure R/W, non-secure privilege R/W */
-#define SC_RM_PERM_FULL         7U   /* Full access */
+#define SC_RM_PERM_NONE         0U	/* No access */
+#define SC_RM_PERM_SEC_R        1U	/* Secure RO */
+#define SC_RM_PERM_SECPRIV_RW   2U	/* Secure privilege R/W */
+#define SC_RM_PERM_SEC_RW       3U	/* Secure R/W */
+#define SC_RM_PERM_NSPRIV_R     4U	/* Secure R/W, non-secure privilege RO */
+#define SC_RM_PERM_NS_R         5U	/* Secure R/W, non-secure RO */
+#define SC_RM_PERM_NSPRIV_RW    6U	/* Secure R/W, non-secure privilege R/W */
+#define SC_RM_PERM_FULL         7U	/* Full access */
 /*@}*/
 
 /* Types */
@@ -157,7 +157,8 @@ typedef uint8_t sc_rm_perm_t;
  * no CPU. It's useful to separate out a master and the memory it uses.
  */
 sc_err_t sc_rm_partition_alloc(sc_ipc_t ipc, sc_rm_pt_t *pt, sc_bool_t secure,
-	sc_bool_t isolated, sc_bool_t restricted, sc_bool_t grant, sc_bool_t coherent);
+			       sc_bool_t isolated, sc_bool_t restricted,
+			       sc_bool_t grant, sc_bool_t coherent);
 
 /*!
  * This function makes a partition confidential.
@@ -232,8 +233,7 @@ sc_rm_did_t sc_rm_get_did(sc_ipc_t ipc);
  * Assumes no assigned resources or memory regions yet! The number of static
  * DID is fixed by the SC at boot.
  */
-sc_err_t sc_rm_partition_static(sc_ipc_t ipc, sc_rm_pt_t pt,
-	sc_rm_did_t did);
+sc_err_t sc_rm_partition_static(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_did_t did);
 
 /*!
  * This function locks a partition.
@@ -278,8 +278,7 @@ sc_err_t sc_rm_get_partition(sc_ipc_t ipc, sc_rm_pt_t *pt);
  * - SC_ERR_NOACCESS if caller's partition is not the parent of \a pt,
  * - SC_ERR_LOCKED if either partition is locked
  */
-sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt,
-	sc_rm_pt_t pt_parent);
+sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_pt_t pt_parent);
 
 /*!
  * This function moves all movable resources/pads owned by a source partition
@@ -309,7 +308,7 @@ sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt,
  * - SC_ERR_LOCKED if either partition is locked
  */
 sc_err_t sc_rm_move_all(sc_ipc_t ipc, sc_rm_pt_t pt_src, sc_rm_pt_t pt_dst,
-	sc_bool_t move_rsrc, sc_bool_t move_pads);
+			sc_bool_t move_rsrc, sc_bool_t move_pads);
 
 /* @} */
 
@@ -348,8 +347,7 @@ sc_err_t sc_rm_move_all(sc_ipc_t ipc, sc_rm_pt_t pt_src, sc_rm_pt_t pt_dst,
  *   of the owner,
  * - SC_ERR_LOCKED if the owning partition or \a pt is locked
  */
-sc_err_t sc_rm_assign_resource(sc_ipc_t ipc, sc_rm_pt_t pt,
-	sc_rsrc_t resource);
+sc_err_t sc_rm_assign_resource(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rsrc_t resource);
 
 /*!
  * This function flags resources as movable or not.
@@ -372,7 +370,7 @@ sc_err_t sc_rm_assign_resource(sc_ipc_t ipc, sc_rm_pt_t pt,
  * resources from moving.
  */
 sc_err_t sc_rm_set_resource_movable(sc_ipc_t ipc, sc_rsrc_t resource_fst,
-	sc_rsrc_t resource_lst, sc_bool_t movable);
+				    sc_rsrc_t resource_lst, sc_bool_t movable);
 
 /*!
  * This function flags all of a subsystem's resources as movable
@@ -397,7 +395,7 @@ sc_err_t sc_rm_set_resource_movable(sc_ipc_t ipc, sc_rsrc_t resource_fst,
  * resources owned by the caller are set.
  */
 sc_err_t sc_rm_set_subsys_rsrc_movable(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_bool_t movable);
+				       sc_bool_t movable);
 
 /*!
  * This function sets attributes for a resource which is a bus master (i.e.
@@ -426,7 +424,8 @@ sc_err_t sc_rm_set_subsys_rsrc_movable(sc_ipc_t ipc, sc_rsrc_t resource,
  * and generate bus transactions).
  */
 sc_err_t sc_rm_set_master_attributes(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rm_spa_t sa, sc_rm_spa_t pa, sc_bool_t smmu_bypass);
+				     sc_rm_spa_t sa, sc_rm_spa_t pa,
+				     sc_bool_t smmu_bypass);
 
 /*!
  * This function sets the StreamID for a resource which is a bus master (i.e.
@@ -450,7 +449,7 @@ sc_err_t sc_rm_set_master_attributes(sc_ipc_t ipc, sc_rsrc_t resource,
  * bypass.
  */
 sc_err_t sc_rm_set_master_sid(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rm_sid_t sid);
+			      sc_rm_sid_t sid);
 
 /*!
  * This function sets access permissions for a peripheral resource.
@@ -480,7 +479,7 @@ sc_err_t sc_rm_set_master_sid(sc_ipc_t ipc, sc_rsrc_t resource,
  * model and generate bus transactions).
  */
 sc_err_t sc_rm_set_peripheral_permissions(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rm_pt_t pt, sc_rm_perm_t perm);
+					  sc_rm_pt_t pt, sc_rm_perm_t perm);
 
 /*!
  * This function gets ownership status of a resource.
@@ -509,7 +508,7 @@ sc_bool_t sc_rm_is_resource_owned(sc_ipc_t ipc, sc_rsrc_t resource);
  * If \a resource is out of range then SC_ERR_PARM is returned.
  */
 sc_err_t sc_rm_get_resource_owner(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rm_pt_t *pt);
+				  sc_rm_pt_t *pt);
 
 /*!
  * This function is used to test if a resource is a bus master.
@@ -556,7 +555,7 @@ sc_bool_t sc_rm_is_resource_peripheral(sc_ipc_t ipc, sc_rsrc_t resource);
  * - SC_PARM if \a resource is out of range
  */
 sc_err_t sc_rm_get_resource_info(sc_ipc_t ipc, sc_rsrc_t resource,
-	sc_rm_sid_t *sid);
+				 sc_rm_sid_t *sid);
 
 /* @} */
 
@@ -586,15 +585,18 @@ sc_err_t sc_rm_get_resource_info(sc_ipc_t ipc, sc_rsrc_t resource,
  * - SC_ERR_UNAVAILABLE if memory region table is full (no more allocation
  *   space)
  *
- * The area covered by the memory region must currently be owned by the caller.
- * By default, the new region will have access permission set to allow the
- * caller to access.
+ * This function will create a new memory region. The area covered by the
+ * new region must already exist in a memory region owned by the caller. The
+ * result will be two memory regions, the new one overlapping the existing
+ * one. The new region has higher priority. See the XRDC2 MRC documentation
+ * for how it resolves access permissions in this case. By default, the new
+ * region will have access permission set to allow the caller to access.
  */
 sc_err_t sc_rm_memreg_alloc(sc_ipc_t ipc, sc_rm_mr_t *mr,
-	sc_faddr_t addr_start, sc_faddr_t addr_end);
+			    sc_faddr_t addr_start, sc_faddr_t addr_end);
 
 /*!
- * This function requests that the SC split a memory region.
+ * This function requests that the SC split an existing memory region.
  *
  * @param[in]     ipc         IPC handle
  * @param[in]     mr          handle of memory region to split
@@ -615,10 +617,13 @@ sc_err_t sc_rm_memreg_alloc(sc_ipc_t ipc, sc_rm_mr_t *mr,
  * - SC_ERR_UNAVAILABLE if memory region table is full (no more allocation
  *   space)
  *
- * Note the new region must start or end on the split region.
+ * This function will take an existing region and split it into two,
+ * non-overlapping regions. Note the new region must start or end on the
+ * split region.
  */
 sc_err_t sc_rm_memreg_split(sc_ipc_t ipc, sc_rm_mr_t mr,
-	sc_rm_mr_t *mr_ret, sc_faddr_t addr_start, sc_faddr_t addr_end);
+			    sc_rm_mr_t *mr_ret, sc_faddr_t addr_start,
+			    sc_faddr_t addr_end);
 
 /*!
  * This function requests that the SC fragment a memory region.
@@ -641,10 +646,12 @@ sc_err_t sc_rm_memreg_split(sc_ipc_t ipc, sc_rm_mr_t mr,
  *   space)
  *
  * This function finds the memory region containing the address range.
- * It then splits it as required and returns the extracted region.
+ * It then splits it as required and returns the extracted region. The
+ * result is 2-3 non-overlapping regions, depending on how the new region
+ * aligns with existing regions.
  */
 sc_err_t sc_rm_memreg_frag(sc_ipc_t ipc, sc_rm_mr_t *mr_ret,
-	sc_faddr_t addr_start, sc_faddr_t addr_end);
+			   sc_faddr_t addr_start, sc_faddr_t addr_end);
 
 /*!
  * This function frees a memory region.
@@ -685,7 +692,7 @@ sc_err_t sc_rm_memreg_free(sc_ipc_t ipc, sc_rm_mr_t mr);
  * region containing the range specified.
  */
 sc_err_t sc_rm_find_memreg(sc_ipc_t ipc, sc_rm_mr_t *mr,
-	sc_faddr_t addr_start, sc_faddr_t addr_end);
+			   sc_faddr_t addr_start, sc_faddr_t addr_end);
 
 /*!
  * This function assigns ownership of a memory region.
@@ -696,6 +703,12 @@ sc_err_t sc_rm_find_memreg(sc_ipc_t ipc, sc_rm_mr_t *mr,
  * @param[in]     mr          handle of memory region to assign
  *
  * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * This function assigns a memory region to a partition. This partition is then
+ * the owner. All regions always have an owner (one owner). The owner
+ * has various rights to make API calls affecting the region. Ownership
+ * does not imply access to the memory itself (that is based on access
+ * rights).
  *
  * Return errors:
  * - SC_PARM if arguments out of range or invalid,
@@ -715,11 +728,9 @@ sc_err_t sc_rm_assign_memreg(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_mr_t mr);
  *                            applied for
  * @param[in]     perm        permissions to apply to \a mr for \a pt
  *
- * This function assigned a memory region to a partition. This partition is then
- * the owner. All regions always have an owner (one owner). The owner
- * has various rights to make API calls affecting the region. Ownership
- * does not imply access to the memory itself (that is based on access
- * rights).
+ * This operates on the memory region specified. If SC_RM_PT_ALL is specified
+ * then it operates on all the regions owned by the caller that exist at the
+ * time of the call.
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
@@ -734,7 +745,7 @@ sc_err_t sc_rm_assign_memreg(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_mr_t mr);
  * memory region based on the attributes of a transaction from bus master.
  */
 sc_err_t sc_rm_set_memreg_permissions(sc_ipc_t ipc, sc_rm_mr_t mr,
-	sc_rm_pt_t pt, sc_rm_perm_t perm);
+				      sc_rm_pt_t pt, sc_rm_perm_t perm);
 
 /*!
  * This function gets ownership status of a memory region.
@@ -763,7 +774,7 @@ sc_bool_t sc_rm_is_memreg_owned(sc_ipc_t ipc, sc_rm_mr_t mr);
  * - SC_PARM if \a mr is out of range
  */
 sc_err_t sc_rm_get_memreg_info(sc_ipc_t ipc, sc_rm_mr_t mr,
-	sc_faddr_t *addr_start, sc_faddr_t *addr_end);
+			       sc_faddr_t *addr_start, sc_faddr_t *addr_end);
 
 /* @} */
 
@@ -816,7 +827,7 @@ sc_err_t sc_rm_assign_pad(sc_ipc_t ipc, sc_rm_pt_t pt, sc_pad_t pad);
  * pads from moving.
  */
 sc_err_t sc_rm_set_pad_movable(sc_ipc_t ipc, sc_pad_t pad_fst,
-	sc_pad_t pad_lst, sc_bool_t movable);
+			       sc_pad_t pad_lst, sc_bool_t movable);
 
 /*!
  * This function gets ownership status of a pad.
@@ -846,7 +857,6 @@ void sc_rm_dump(sc_ipc_t ipc);
 
 /* @} */
 
-#endif /* SC_RM_API_H */
+#endif				/* SC_RM_API_H */
 
 /**@}*/
-

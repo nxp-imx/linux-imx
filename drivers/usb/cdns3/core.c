@@ -361,38 +361,38 @@ static int cdns3_get_clks(struct device *dev)
 	struct cdns3 *cdns = dev_get_drvdata(dev);
 	int ret = 0;
 
-	cdns->cdns3_clks[0] = devm_clk_get(dev, "usb3_lpm_clk");
+	cdns->cdns3_clks[0] = devm_clk_get(dev, "usb3_ipg_clk");
 	if (IS_ERR(cdns->cdns3_clks[0])) {
 		ret = PTR_ERR(cdns->cdns3_clks[0]);
-		dev_err(dev, "Failed to get usb3_lpm_clk, err=%d\n", ret);
-		return ret;
-	}
-
-	cdns->cdns3_clks[1] = devm_clk_get(dev, "usb3_bus_clk");
-	if (IS_ERR(cdns->cdns3_clks[1])) {
-		ret = PTR_ERR(cdns->cdns3_clks[1]);
-		dev_err(dev, "Failed to get usb3_bus_clk, err=%d\n", ret);
-		return ret;
-	}
-
-	cdns->cdns3_clks[2] = devm_clk_get(dev, "usb3_aclk");
-	if (IS_ERR(cdns->cdns3_clks[2])) {
-		ret = PTR_ERR(cdns->cdns3_clks[2]);
-		dev_err(dev, "Failed to get usb3_aclk, err=%d\n", ret);
-		return ret;
-	}
-
-	cdns->cdns3_clks[3] = devm_clk_get(dev, "usb3_ipg_clk");
-	if (IS_ERR(cdns->cdns3_clks[3])) {
-		ret = PTR_ERR(cdns->cdns3_clks[3]);
 		dev_err(dev, "Failed to get usb3_ipg_clk, err=%d\n", ret);
 		return ret;
 	}
 
-	cdns->cdns3_clks[4] = devm_clk_get(dev, "usb3_core_pclk");
+	cdns->cdns3_clks[1] = devm_clk_get(dev, "usb3_core_pclk");
+	if (IS_ERR(cdns->cdns3_clks[1])) {
+		ret = PTR_ERR(cdns->cdns3_clks[1]);
+		dev_err(dev, "Failed to get usb3_core_pclk, err=%d\n", ret);
+		return ret;
+	}
+
+	cdns->cdns3_clks[2] = devm_clk_get(dev, "usb3_lpm_clk");
+	if (IS_ERR(cdns->cdns3_clks[2])) {
+		ret = PTR_ERR(cdns->cdns3_clks[2]);
+		dev_err(dev, "Failed to get usb3_lpm_clk, err=%d\n", ret);
+		return ret;
+	}
+
+	cdns->cdns3_clks[3] = devm_clk_get(dev, "usb3_bus_clk");
+	if (IS_ERR(cdns->cdns3_clks[3])) {
+		ret = PTR_ERR(cdns->cdns3_clks[3]);
+		dev_err(dev, "Failed to get usb3_bus_clk, err=%d\n", ret);
+		return ret;
+	}
+
+	cdns->cdns3_clks[4] = devm_clk_get(dev, "usb3_aclk");
 	if (IS_ERR(cdns->cdns3_clks[4])) {
 		ret = PTR_ERR(cdns->cdns3_clks[4]);
-		dev_err(dev, "Failed to get usb3_core_pclk, err=%d\n", ret);
+		dev_err(dev, "Failed to get usb3_aclk, err=%d\n", ret);
 		return ret;
 	}
 
@@ -403,13 +403,48 @@ static int cdns3_prepare_enable_clks(struct device *dev)
 {
 	struct cdns3 *cdns = dev_get_drvdata(dev);
 	int i, j, ret = 0;
+	/* clock rate for: usb3_lpm_clk, usb3_bus_clk, and usb3_aclk */
+	unsigned long cdns3_clk_rate_b0[3] = {12000000, 500000000, 125000000};
+	unsigned long cdns3_clk_rate_c0[3] = {12000000, 250000000, 125000000};
+	unsigned long clk_rate;
+	bool c0_chip;
+	u32 val;
 
-	for (i = 0; i < CDNS3_NUM_OF_CLKS; i++) {
+	for (i = 0; i < 2; i++) {
 		ret = clk_prepare_enable(cdns->cdns3_clks[i]);
 		if (ret) {
 			dev_err(dev,
 				"Failed to prepare/enable cdns3 clk, err=%d\n",
 				ret);
+			goto err;
+		}
+	}
+
+	val = readl(cdns->none_core_regs + USB2_PHY_CTRL2);
+	if ((val & IMX8QXP_C0_FLAG) == IMX8QXP_C0_FLAG)
+		c0_chip = true;
+	else
+		c0_chip = false;
+
+	for (; i <= CDNS3_NUM_OF_CLKS - 1; i++) {
+		if (c0_chip)
+			clk_rate = cdns3_clk_rate_c0[i - 2];
+		else
+			clk_rate = cdns3_clk_rate_b0[i - 2];
+
+		ret = clk_set_rate(cdns->cdns3_clks[i], clk_rate);
+		if (ret) {
+			dev_err(dev,
+				"Failed to set rate, err=%d, i=%d\n",
+				ret, i);
+			goto err;
+		}
+
+		ret = clk_prepare_enable(cdns->cdns3_clks[i]);
+		if (ret) {
+			dev_err(dev,
+				"Failed to set clock enable, err=%d, i=%d\n",
+				ret, i);
 			goto err;
 		}
 	}
