@@ -381,9 +381,9 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	dprc->use_aux_prg = false;
 
 	if (start) {
-		dprc_reset(dprc);
-
-		if (!dprc->is_blit_chan)
+		if (dprc->is_blit_chan)
+			dprc_reset(dprc);
+		else
 			dprc_dpu_gpr_configure(dprc, stream_id);
 	}
 

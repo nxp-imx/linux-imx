@@ -152,7 +152,7 @@ void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 	if (WARN_ON(!prg))
 		return;
 
-	if (start)
+	if (start && prg->is_blit)
 		prg_reset(prg);
 
 	/* prg finer cropping into micro-tile block - top/left start point */
