@@ -103,6 +103,18 @@ static void prg_reset(struct prg *prg)
 		usleep_range(1000, 2000);
 
 	prg_write(prg, SOFTRST, PRG_CTRL + CLR);
+
+	/*
+	 * After the above soft reset, PRG width and height are zero.
+	 * With the zero size, PRG is likely to generate a bogus signal
+	 * which indicates it finishes processing one frame as soon as
+	 * PRG works in non-bypass mode.  So, an explicit reg-update with
+	 * non-zero size to avoid the bogus signal.
+	 */
+	prg_write(prg, WIDTH(64), PRG_WIDTH);
+	prg_write(prg, HEIGHT(64), PRG_HEIGHT);
+	prg_write(prg, SHADOW_EN, PRG_CTRL + CLR);
+	prg_write(prg, REG_UPDATE, PRG_REG_UPDATE);
 }
 
 void prg_enable(struct prg *prg)
