@@ -281,7 +281,9 @@ void dprc_disable(struct dprc *dprc)
 	if (WARN_ON(!dprc))
 		return;
 
-	dprc_write(dprc, SHADOW_LOAD_EN | SW_SHADOW_LOAD_SEL, SYSTEM_CTRL0);
+	if (dprc->is_blit_chan)
+		dprc_write(dprc, SHADOW_LOAD_EN | SW_SHADOW_LOAD_SEL,
+								SYSTEM_CTRL0);
 
 	prg_disable(dprc->prgs[0]);
 	if (dprc->has_aux_prg)
