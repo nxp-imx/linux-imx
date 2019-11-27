@@ -1017,10 +1017,18 @@ int fsl_sai_get_reg(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
 	struct soc_mreg_control *mc =
 		(struct soc_mreg_control *)kcontrol->private_value;
+	bool pm_active = pm_runtime_active(component->dev);
 	unsigned int regval;
 	int ret;
 
+	if (pm_active)
+		regcache_cache_bypass(component->regmap, true);
+
 	ret = snd_soc_component_read(component, mc->regbase, &regval);
+
+	if (pm_active)
+		regcache_cache_bypass(component->regmap, false);
+
 	if (ret < 0)
 		return ret;
 
@@ -1277,14 +1285,6 @@ static bool fsl_sai_volatile_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_RDR5:
 	case FSL_SAI_RDR6:
 	case FSL_SAI_RDR7:
-	case FSL_SAI_TTCTL:
-	case FSL_SAI_RTCTL:
-	case FSL_SAI_TTCTN:
-	case FSL_SAI_RTCTN:
-	case FSL_SAI_TBCTN:
-	case FSL_SAI_RBCTN:
-	case FSL_SAI_TTCAP:
-	case FSL_SAI_RTCAP:
 		return true;
 	default:
 		return false;
