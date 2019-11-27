@@ -131,7 +131,7 @@ void prg_disable(struct prg *prg)
 	if (WARN_ON(!prg))
 		return;
 
-	prg_write(prg, BYPASS, PRG_CTRL);
+	prg_write(prg, BYPASS, PRG_CTRL + SET);
 }
 EXPORT_SYMBOL_GPL(prg_disable);
 
