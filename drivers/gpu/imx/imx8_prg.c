@@ -268,6 +268,15 @@ void prg_shadow_enable(struct prg *prg)
 }
 EXPORT_SYMBOL_GPL(prg_shadow_enable);
 
+void prg_shadow_disable(struct prg *prg)
+{
+	if (WARN_ON(!prg))
+		return;
+
+	prg_write(prg, SHADOW_EN, PRG_CTRL + CLR);
+}
+EXPORT_SYMBOL_GPL(prg_shadow_disable);
+
 bool prg_stride_supported(struct prg *prg, unsigned int stride)
 {
 	return stride < 0x10000;

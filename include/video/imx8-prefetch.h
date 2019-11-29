@@ -38,6 +38,7 @@ void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 		   bool start);
 void prg_reg_update(struct prg *prg);
 void prg_shadow_enable(struct prg *prg);
+void prg_shadow_disable(struct prg *prg);
 bool prg_stride_supported(struct prg *prg, unsigned int stride);
 bool prg_stride_double_check(struct prg *prg,
 			     unsigned int width, unsigned int x_offset,
