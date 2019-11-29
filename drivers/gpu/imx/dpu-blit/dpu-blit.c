@@ -148,6 +148,11 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 		       dpu_be->start,
 		       false);
 
+	if (dpu_be->start)
+		dprc_gasket_shadow_disable(dprc);
+	else
+		dprc_gasket_shadow_enable(dprc);
+
 	if (dpu_be->start || dprc_en) {
 		dprc_enable(dprc);
 	}
