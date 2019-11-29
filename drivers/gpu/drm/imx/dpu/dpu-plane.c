@@ -784,6 +784,12 @@ again:
 			       prefetch_start, uv_prefetch_start,
 			       fb_is_interlaced);
 
+		if (need_modeset)
+			/* no shadow with modeset */
+			dprc_gasket_shadow_disable(dprc);
+		else
+			dprc_gasket_shadow_enable(dprc);
+
 		dprc_enable(dprc);
 
 		dprc_reg_update(dprc);
