@@ -60,6 +60,8 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 		    unsigned long baddr, unsigned long uv_baddr,
 		    bool start, bool aux_start, bool interlace_frame);
 void dprc_disable_repeat_en(struct dprc *dprc);
+void dprc_gasket_shadow_enable(struct dprc *dprc);
+void dprc_gasket_shadow_disable(struct dprc *dprc);
 void dprc_reg_update(struct dprc *dprc);
 void dprc_first_frame_handle(struct dprc *dprc);
 void dprc_irq_handle(struct dprc *dprc);

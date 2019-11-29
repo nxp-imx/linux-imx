@@ -591,6 +591,28 @@ void dprc_disable_repeat_en(struct dprc *dprc)
 }
 EXPORT_SYMBOL_GPL(dprc_disable_repeat_en);
 
+void dprc_gasket_shadow_enable(struct dprc *dprc)
+{
+	if (WARN_ON(!dprc))
+		return;
+
+	prg_shadow_enable(dprc->prgs[0]);
+	if (dprc->use_aux_prg)
+		prg_shadow_enable(dprc->prgs[1]);
+}
+EXPORT_SYMBOL_GPL(dprc_gasket_shadow_enable);
+
+void dprc_gasket_shadow_disable(struct dprc *dprc)
+{
+	if (WARN_ON(!dprc))
+		return;
+
+	prg_shadow_disable(dprc->prgs[0]);
+	if (dprc->use_aux_prg)
+		prg_shadow_disable(dprc->prgs[1]);
+}
+EXPORT_SYMBOL_GPL(dprc_gasket_shadow_disable);
+
 void dprc_reg_update(struct dprc *dprc)
 {
 	if (WARN_ON(!dprc))
