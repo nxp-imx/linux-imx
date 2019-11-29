@@ -222,7 +222,7 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 		audioindex = 0;
 
 	/* Setup work queue */
-	i2s_info->rpmsg_wq = create_singlethread_workqueue("rpmsg_i2s");
+	i2s_info->rpmsg_wq = alloc_ordered_workqueue("rpmsg_i2s", WQ_HIGHPRI | WQ_UNBOUND | WQ_FREEZABLE);
 	if (i2s_info->rpmsg_wq == NULL) {
 		dev_err(&pdev->dev, "workqueue create failed\n");
 		return -ENOMEM;
