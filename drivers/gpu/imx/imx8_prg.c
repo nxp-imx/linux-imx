@@ -239,11 +239,6 @@ void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 		val |= DES_DATA_TYPE_8BPP;
 		break;
 	}
-	if (start)
-		/* no shadow for the first frame */
-		val &= ~SHADOW_EN;
-	else
-		val |= SHADOW_EN;
 	prg_write(prg, val, PRG_CTRL);
 
 	dev_dbg(prg->dev, "bits per pixel %u\n", bits_per_pixel);
