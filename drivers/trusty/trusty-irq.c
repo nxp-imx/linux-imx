@@ -49,6 +49,7 @@ struct trusty_irq_state {
 	struct trusty_irq_irqset __percpu *percpu_irqs;
 	struct notifier_block trusty_call_notifier;
 	struct hlist_node cpuhp_node;
+	bool gicv3_workaround;
 };
 
 static int trusty_irq_cpuhp_slot = -1;
@@ -137,12 +138,21 @@ static int trusty_irq_call_notify(struct notifier_block *nb,
 {
 	struct trusty_irq_state *is;
 
-	BUG_ON(!irqs_disabled());
 
 	if (action != TRUSTY_CALL_PREPARE)
 		return NOTIFY_DONE;
 
 	is = container_of(nb, struct trusty_irq_state, trusty_call_notifier);
+	/*
+	 * If use GICv3, we trigger the nop to Trusty OS
+	 * directly instead of yield another pending
+	 * IRQ.
+	 */
+	if (is->gicv3_workaround) {
+	    return NOTIFY_OK;
+	}
+
+	BUG_ON(!irqs_disabled());
 
 	spin_lock(&is->normal_irqs_lock);
 	trusty_irq_enable_pending_irqs(is, &is->normal_irqs, false);
@@ -157,6 +167,17 @@ irqreturn_t trusty_irq_handler(int irq, void *data)
 	struct trusty_irq *trusty_irq = data;
 	struct trusty_irq_state *is = trusty_irq->is;
 	struct trusty_irq_irqset *irqset;
+
+	/*
+	 * If use GICv3, we trigger the nop to Trusty OS
+	 * directly instead of yield another pending
+	 * IRQ.
+	 */
+	if (is->gicv3_workaround) {
+	    trusty_enqueue_nop(is->trusty_dev, NULL);
+	    return IRQ_HANDLED;
+	}
+
 
 	dev_dbg(is->dev, "%s: irq %d, percpu %d, cpu %d, enable %d\n",
 		__func__, irq, trusty_irq->irq, smp_processor_id(),
@@ -484,6 +505,12 @@ static int trusty_irq_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, is);
+	if (of_find_property(is->dev->of_node, "use-gicv3-workaround", NULL)) {
+	    is->gicv3_workaround = true;
+	} else {
+	    is->gicv3_workaround = false;
+	}
+
 
 	is->trusty_call_notifier.notifier_call = trusty_irq_call_notify;
 	ret = trusty_call_notifier_register(is->trusty_dev,

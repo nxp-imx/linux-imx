@@ -43,6 +43,7 @@ struct trusty_state {
 	struct trusty_work __percpu *nop_works;
 	struct list_head nop_queue;
 	spinlock_t nop_lock; /* protects nop_queue */
+	bool gicv3_workaround;
 };
 
 #ifdef CONFIG_ARM64
@@ -142,13 +143,20 @@ static ulong trusty_std_call_helper(struct device *dev, ulong smcnr,
 	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
 
 	while (true) {
-		local_irq_disable();
+		/*
+		 * In GICv3, we don't use non-secure world generated interrupt
+		 * so no need disable IRQ here. Or the non-secure IRQ will never
+		 * be handle before the SMC process exited.
+		 */
+		if (!s->gicv3_workaround)
+			local_irq_disable();
 		atomic_notifier_call_chain(&s->notifier, TRUSTY_CALL_PREPARE,
 					   NULL);
 		ret = trusty_std_call_inner(dev, smcnr, a0, a1, a2);
 		atomic_notifier_call_chain(&s->notifier, TRUSTY_CALL_RETURNED,
 					   NULL);
-		local_irq_enable();
+		if (!s->gicv3_workaround)
+			local_irq_enable();
 
 		if ((int)ret != SM_ERR_BUSY)
 			break;
@@ -498,6 +506,11 @@ static int trusty_probe(struct platform_device *pdev)
 		goto err_add_children;
 	}
 
+	if (of_find_property(s->dev->of_node, "use-gicv3-workaround", NULL)) {
+		s->gicv3_workaround = true;
+	} else {
+		s->gicv3_workaround = false;
+	}
 	return 0;
 
 err_add_children:
