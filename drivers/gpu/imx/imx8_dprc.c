@@ -599,6 +599,19 @@ void dprc_disable_repeat_en(struct dprc *dprc)
 }
 EXPORT_SYMBOL_GPL(dprc_disable_repeat_en);
 
+bool dprc_is_repeat_en(struct dprc *dprc)
+{
+	u32 val;
+
+	if (WARN_ON(!dprc))
+		return false;
+
+	val = dprc_read(dprc, SYSTEM_CTRL0);
+
+	return !!(val & REPEAT_EN);
+}
+EXPORT_SYMBOL_GPL(dprc_is_repeat_en);
+
 void dprc_gasket_shadow_enable(struct dprc *dprc)
 {
 	if (WARN_ON(!dprc))
