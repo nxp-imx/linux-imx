@@ -63,6 +63,7 @@ struct trusty_state {
 	spinlock_t nop_lock; /* protects nop_queue */
 	struct device_dma_parameters dma_parms;
 	struct trusty_sched_share_state *trusty_sched_share_state;
+	bool gicv3_workaround;
 };
 
 static struct trusty_state *trusty_get_state(struct device *dev)
@@ -187,7 +188,13 @@ static unsigned long trusty_std_call_helper(struct device *dev,
 		return SM_ERR_INVALID_PARAMETERS;
 
 	while (true) {
-		trusty_local_irq_disable_before_smc();
+		/*
+		 * In GICv3, we don't use non-secure world generated interrupt
+		 * so no need disable IRQ here. Or the non-secure IRQ will never
+		 * be handle before the SMC process exited.
+		 */
+		if (!s->gicv3_workaround)
+			trusty_local_irq_disable_before_smc();
 
 		/* tell Trusty scheduler what the current priority is */
 		WARN_ON_ONCE(current->policy != SCHED_NORMAL);
@@ -215,7 +222,9 @@ static unsigned long trusty_std_call_helper(struct device *dev,
 			 */
 			trusty_enqueue_nop(dev, NULL);
 		}
-		trusty_local_irq_enable_after_smc();
+
+		if (!s->gicv3_workaround)
+			trusty_local_irq_enable_after_smc();
 
 		if ((int)ret != SM_ERR_BUSY)
 			break;
@@ -1056,6 +1065,12 @@ static int trusty_probe(struct platform_device *pdev)
 	 */
 	if (s->transport->ops->set_sched_share_state && ret)
 		s->transport->ops->set_sched_share_state(s->transport, NULL);
+
+	if (of_find_property(s->dev->of_node, "use-gicv3-workaround", NULL)) {
+		s->gicv3_workaround = true;
+	} else {
+		s->gicv3_workaround = false;
+	}
 
 	return 0;
 
