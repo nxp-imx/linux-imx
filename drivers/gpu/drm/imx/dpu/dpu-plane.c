@@ -773,7 +773,6 @@ again:
 	fu->ops->set_stream_id(fu, stream_id ?
 					DPU_PLANE_SRC_TO_DISP_STREAM1 :
 					DPU_PLANE_SRC_TO_DISP_STREAM0);
-	fu->ops->unpin_off(fu);
 
 	DRM_DEBUG_KMS("[PLANE:%d:%s] %s-0x%02x\n",
 				plane->base.id, plane->name, fu->name, fu->id);
@@ -809,7 +808,6 @@ again:
 		fe->ops->set_stream_id(fe, stream_id ?
 					DPU_PLANE_SRC_TO_DISP_STREAM1 :
 					DPU_PLANE_SRC_TO_DISP_STREAM0);
-		fe->ops->unpin_off(fe);
 
 		DRM_DEBUG_KMS("[PLANE:%d:%s] %s-0x%02x\n",
 				plane->base.id, plane->name, fe->name, fe_id);
