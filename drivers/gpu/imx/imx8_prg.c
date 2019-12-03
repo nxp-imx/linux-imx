@@ -126,12 +126,15 @@ void prg_enable(struct prg *prg)
 }
 EXPORT_SYMBOL_GPL(prg_enable);
 
-void prg_disable(struct prg *prg)
+void prg_disable(struct prg *prg, bool hard)
 {
 	if (WARN_ON(!prg))
 		return;
 
-	prg_write(prg, BYPASS, PRG_CTRL + SET);
+	if (hard)
+		prg_reset(prg);
+	else
+		prg_write(prg, BYPASS, PRG_CTRL + SET);
 }
 EXPORT_SYMBOL_GPL(prg_disable);
 

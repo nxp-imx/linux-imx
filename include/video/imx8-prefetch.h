@@ -30,7 +30,7 @@ struct prg;
 struct prg *
 prg_lookup_by_phandle(struct device *dev, const char *name, int index);
 void prg_enable(struct prg *prg);
-void prg_disable(struct prg *prg);
+void prg_disable(struct prg *prg, bool hard);
 void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 		   unsigned int x_offset, unsigned int y_offset,
 		   unsigned int stride, unsigned int bits_per_pixel,
@@ -52,7 +52,7 @@ struct dprc;
 struct dprc *
 dprc_lookup_by_phandle(struct device *dev, const char *name, int index);
 void dprc_enable(struct dprc *dprc);
-void dprc_disable(struct dprc *dprc);
+void dprc_disable(struct dprc *dprc, bool hard);
 void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 		    unsigned int width, unsigned int height,
 		    unsigned int x_offset, unsigned int y_offset,

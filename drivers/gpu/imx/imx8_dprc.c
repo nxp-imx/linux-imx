@@ -276,7 +276,7 @@ void dprc_enable(struct dprc *dprc)
 }
 EXPORT_SYMBOL_GPL(dprc_enable);
 
-void dprc_disable(struct dprc *dprc)
+void dprc_disable(struct dprc *dprc, bool hard)
 {
 	if (WARN_ON(!dprc))
 		return;
@@ -285,9 +285,9 @@ void dprc_disable(struct dprc *dprc)
 		dprc_write(dprc, SHADOW_LOAD_EN | SW_SHADOW_LOAD_SEL,
 								SYSTEM_CTRL0);
 
-	prg_disable(dprc->prgs[0]);
+	prg_disable(dprc->prgs[0], hard);
 	if (dprc->has_aux_prg)
-		prg_disable(dprc->prgs[1]);
+		prg_disable(dprc->prgs[1], hard);
 
 	if (!dprc->is_blit_chan) {
 		/* avoid garbage data in RTRAM after PRG bypass on-the-fly */

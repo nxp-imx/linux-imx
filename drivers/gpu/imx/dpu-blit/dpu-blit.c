@@ -126,14 +126,14 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 
 	if (baddr == 0x0) {
 		if (!dpu_be->start) {
-			dprc_disable(dprc);
+			dprc_disable(dprc, false);
 			dpu_be->start = true;
 		}
 		return;
 	}
 
 	if (dpu_be->modifier != modifier && !dpu_be->start) {
-		dprc_disable(dprc);
+		dprc_disable(dprc, false);
 		dprc_en = true;
 	}
 
@@ -399,8 +399,8 @@ int dpu_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 	dpu_bliteng->dprc[0] = dpu_be_dprc_get(dpu, 0);
 	dpu_bliteng->dprc[1] = dpu_be_dprc_get(dpu, 1);
 
-	dprc_disable(dpu_bliteng->dprc[0]);
-	dprc_disable(dpu_bliteng->dprc[1]);
+	dprc_disable(dpu_bliteng->dprc[0], false);
+	dprc_disable(dpu_bliteng->dprc[1], false);
 
 	dpu_bliteng->start = true;
 	dpu_bliteng->sync = false;
