@@ -19,6 +19,7 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
 #include <linux/reset.h>
+#include <linux/sys_soc.h>
 
 #define MXC_ISI_DRIVER_NAME	"mxc-isi"
 #define MXC_ISI_MAX_DEVS	8
@@ -320,6 +321,7 @@ struct mxc_isi_dev {
 	u32 req_out_buf_num;
 	u32 status;
 	u8 chain_buf;
+	bool buf_active_reverse;
 
 	atomic_t open_count;
 

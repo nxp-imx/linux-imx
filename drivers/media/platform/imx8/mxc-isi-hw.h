@@ -511,4 +511,5 @@ void mxc_isi_channel_set_m2m_src_addr(struct mxc_isi_dev *mxc_isi,
 			struct mxc_isi_buffer *buf);
 
 void dump_isi_regs(struct mxc_isi_dev *mxc_isi);
+bool is_buf_active(struct mxc_isi_dev *mxc_isi, int buf_id);
 #endif /* MXC_ISI_HW_H_ */
