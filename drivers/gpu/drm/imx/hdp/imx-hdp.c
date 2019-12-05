@@ -1407,6 +1407,9 @@ static void hotplug_work_func(struct work_struct *work)
 		/* Cable Disconnedted  */
 		DRM_INFO("HDMI/DP Cable Plug Out\n");
 		enable_irq(hdp->irq[HPD_IRQ_IN]);
+
+		/* Allow enable EDID read for next plug in event */
+		hdp->no_edid = false;
 	}
 }
 
