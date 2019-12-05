@@ -3477,6 +3477,12 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 
 	if (buffer_id != fs_id) {
 		if (fs_id == MEDIA_PLAYER_SKIPPED_FRAME_ID) {
+			down(&This->drv_q_lock);
+			p_data_req = &This->vb2_reqs[buffer_id];
+			set_data_req_status(p_data_req, FRAME_READY);
+			up(&This->drv_q_lock);
+
+			vpu_dec_skip_ts(ctx);
 			send_skip_event(ctx);
 			ctx->frm_dis_delay--;
 			return;
@@ -3484,18 +3490,16 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 		vpu_err("error: find buffer_id(%d) and firmware return id(%d) doesn't match\n",
 				buffer_id, fs_id);
 	}
-	if (ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status != FRAME_DECODED)
-		vpu_err("error: buffer(%d) need to set FRAME_READY, but previous state %s is not FRAME_DECODED\n",
-				buffer_id, bufstat[ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status]);
-
-	set_data_req_status(&ctx->q_data[V4L2_DST].vb2_reqs[buffer_id],
-				FRAME_READY);
 	ctx->frm_dis_delay--;
 	vpu_dbg(LVL_INFO, "frame total: %d; depth: %d; delay: [dec, dis] = [%d, %d]\n", ctx->frm_total_num,
 		vpu_frm_depth, ctx->frm_dec_delay, ctx->frm_dis_delay);
 
 	down(&This->drv_q_lock);
 	p_data_req = &This->vb2_reqs[buffer_id];
+	if (p_data_req->status != FRAME_DECODED)
+		vpu_err("error: buffer(%d) need to set FRAME_READY, but previous state %s is not FRAME_DECODED\n",
+				buffer_id, bufstat[p_data_req->status]);
+	set_data_req_status(p_data_req, FRAME_READY);
 	if (p_data_req->vb2_buf) {
 		p_data_req->vb2_buf->planes[0].bytesused = This->sizeimage[0];
 		p_data_req->vb2_buf->planes[1].bytesused = This->sizeimage[1];
@@ -3519,6 +3523,7 @@ static void send_skip_event(struct vpu_ctx *ctx)
 	if (!ctx)
 		return;
 
+	ctx->statistic.skipped_frame_count++;
 	vpu_dbg(LVL_INFO, "send skip event\n");
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
@@ -4172,21 +4177,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			break;
 		}
 
-		if (buffer_id != uDecFrmId) {
-			if (uDecFrmId == MEDIA_PLAYER_SKIPPED_FRAME_ID) {
-				send_skip_event(ctx);
-				ctx->frm_dec_delay--;
-				vpu_dec_valid_ts(ctx,
-						consumed_pic_bytesused,
-						NULL);
-				break;
-			}
-			vpu_err("error: VID_API_EVENT_PIC_DECODED address and id doesn't match\n");
-		}
 		p_data_req = &This->vb2_reqs[buffer_id];
-		if (p_data_req->status != FRAME_FREE)
-			vpu_err("error: buffer(%d) need to set FRAME_DECODED, but previous state %s is not FRAME_FREE\n",
-					buffer_id, bufstat[ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status]);
 		set_data_req_status(p_data_req, FRAME_DECODED);
 		if (ctx->seqinfo.uProgressive == 1)
 			p_data_req->bfield = false;
@@ -4731,9 +4722,6 @@ static void vpu_msg_instance_work(struct work_struct *work)
 {
 	struct vpu_ctx *ctx = container_of(work, struct vpu_ctx, instance_work);
 	struct event_msg msg;
-
-	if (!ctx)
-		return;
 
 	memset(&msg, 0, sizeof(struct event_msg));
 
@@ -5342,6 +5330,9 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			"\t%40s:%16ld\n", "capture dqbuf count",
 			This->dqbuf_count);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16ld\n", "skipped frame count",
+			ctx->statistic.skipped_frame_count);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16x\n", "beginning",
 			ctx->beginning);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
@@ -5547,7 +5538,7 @@ static ssize_t precheck_pattern_store(struct device *dev,
 	char *token;
 	char *cur;
 
-	strncpy(strbuf, buf, sizeof(strbuf));
+	strncpy(strbuf, buf, sizeof(strbuf) - 1);
 	cur = strbuf;
 	while ((token = strsep(&cur, delim))) {
 		if (!strlen(token))
@@ -6025,28 +6016,25 @@ static unsigned int v4l2_poll(struct file *filp, poll_table *wait)
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
-	if (ctx) {
-		poll_wait(filp, &ctx->fh.wait, wait);
+	poll_wait(filp, &ctx->fh.wait, wait);
 
-		if (v4l2_event_pending(&ctx->fh)) {
-			vpu_dbg(LVL_INFO, "%s() v4l2_event_pending\n", __func__);
-			rc |= POLLPRI;
-		}
+	if (v4l2_event_pending(&ctx->fh)) {
+		vpu_dbg(LVL_INFO, "%s() v4l2_event_pending\n", __func__);
+		rc |= POLLPRI;
+	}
 
-		src_q = &ctx->q_data[V4L2_SRC].vb2_q;
-		dst_q = &ctx->q_data[V4L2_DST].vb2_q;
+	src_q = &ctx->q_data[V4L2_SRC].vb2_q;
+	dst_q = &ctx->q_data[V4L2_DST].vb2_q;
 
-		if (ctx->firmware_finished && !list_empty(&dst_q->done_list))
-			rc = 0;
+	if (ctx->firmware_finished && !list_empty(&dst_q->done_list))
+		rc = 0;
 
-		poll_wait(filp, &src_q->done_wq, wait);
-		if (!list_empty(&src_q->done_list))
-			rc |= POLLOUT | POLLWRNORM;
-		poll_wait(filp, &dst_q->done_wq, wait);
-		if (!list_empty(&dst_q->done_list))
-			rc |= POLLIN | POLLRDNORM;
-	} else
-		rc = POLLERR;
+	poll_wait(filp, &src_q->done_wq, wait);
+	if (!list_empty(&src_q->done_list))
+		rc |= POLLOUT | POLLWRNORM;
+	poll_wait(filp, &dst_q->done_wq, wait);
+	if (!list_empty(&dst_q->done_list))
+		rc |= POLLIN | POLLRDNORM;
 
 	return rc;
 }
