@@ -804,6 +804,7 @@
 					port@5 {
 						reg = <5>;
 						phy-mode = "gmii";
+						status = "disabled";
 
 						fixed-link {
 							speed = <1000>;
