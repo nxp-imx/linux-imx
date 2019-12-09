@@ -289,6 +289,12 @@ void dprc_disable(struct dprc *dprc)
 	if (dprc->has_aux_prg)
 		prg_disable(dprc->prgs[1]);
 
+	if (!dprc->is_blit_chan) {
+		/* avoid garbage data in RTRAM after PRG bypass on-the-fly */
+		dprc_write(dprc, NUM_X_PIX_WIDE(0), FRAME_1P_PIX_X_CTRL);
+		dprc_write(dprc, NUM_Y_PIX_HIGH(0), FRAME_1P_PIX_Y_CTRL);
+	}
+
 	prg_reg_update(dprc->prgs[0]);
 	if (dprc->has_aux_prg)
 		prg_reg_update(dprc->prgs[1]);
