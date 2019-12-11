@@ -661,7 +661,7 @@ again:
 
 	if (use_prefetch &&
 	    (fu->ops->get_stream_id(fu) == DPU_PLANE_SRC_DISABLED ||
-	     need_modeset))
+	     !dprc_is_repeat_en(dprc) || need_modeset))
 		prefetch_start = true;
 
 	fu->ops->set_burstlength(fu, src_x, mt_w, bpp, baseaddr, use_prefetch);
