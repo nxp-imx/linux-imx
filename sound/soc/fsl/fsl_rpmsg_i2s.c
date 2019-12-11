@@ -301,7 +301,10 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 				    "fsl,imx8mn-rpmsg-i2s")) {
 		rpmsg_i2s->codec_dummy = 1;
 		rpmsg_i2s->version = 2;
-		rpmsg_i2s->rates = SNDRV_PCM_RATE_KNOT;
+		rpmsg_i2s->rates = SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |
+				   SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_88200 |
+				   SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_176400 |
+				   SNDRV_PCM_RATE_192000;
 		rpmsg_i2s->formats = SNDRV_PCM_FMTBIT_S16_LE |
 					SNDRV_PCM_FMTBIT_S24_LE |
 					SNDRV_PCM_FMTBIT_S32_LE;
