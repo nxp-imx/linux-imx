@@ -797,7 +797,7 @@ again:
 		if (prefetch_start || uv_prefetch_start) {
 			dprc_first_frame_handle(dprc);
 
-			if (!need_modeset && state->normalized_zpos != 0)
+			if (!need_modeset)
 				framegen_wait_for_frame_counter_moving(fg);
 		}
 
