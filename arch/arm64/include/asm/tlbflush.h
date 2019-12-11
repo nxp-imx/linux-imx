@@ -121,7 +121,7 @@ static inline void flush_tlb_mm(struct mm_struct *mm)
 	unsigned long asid = ASID(mm) << 48;
 
 	dsb(ishst);
-	if (TKT340553_SW_WORKAROUND && ASID(mm) >> 11) {
+	if (TKT340553_SW_WORKAROUND) {
 		__tlbi(vmalle1is);
 	} else {
 		__tlbi(aside1is, asid);
@@ -136,7 +136,7 @@ static inline void flush_tlb_page(struct vm_area_struct *vma,
 	unsigned long addr = uaddr >> 12 | (ASID(vma->vm_mm) << 48);
 
 	dsb(ishst);
-	if (TKT340553_SW_WORKAROUND && (uaddr >> 36 || (ASID(vma->vm_mm) >> 12))) {
+	if (TKT340553_SW_WORKAROUND) {
 		__tlbi(vmalle1is);
 	} else {
 		__tlbi(vale1is, addr);
@@ -171,7 +171,7 @@ static inline void __flush_tlb_range(struct vm_area_struct *vma,
 
 	dsb(ishst);
 	for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12)) {
-		if (TKT340553_SW_WORKAROUND && (addr & mask || (ASID(vma->vm_mm) >> 12))) {
+		if (TKT340553_SW_WORKAROUND) {
 			__tlbi(vmalle1is);
 		} else if (last_level) {
 			__tlbi(vale1is, addr);
@@ -204,7 +204,7 @@ static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end
 
 	dsb(ishst);
 	for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12)) {
-		if (TKT340553_SW_WORKAROUND && addr >> 24)
+		if (TKT340553_SW_WORKAROUND)
 			__tlbi(vmalle1is);
 		else
 			__tlbi(vaae1is, addr);
@@ -222,7 +222,7 @@ static inline void __flush_tlb_pgtable(struct mm_struct *mm,
 {
 	unsigned long addr = uaddr >> 12 | (ASID(mm) << 48);
 
-	if (TKT340553_SW_WORKAROUND && (uaddr >> 36 || (ASID(mm) >> 12))) {
+	if (TKT340553_SW_WORKAROUND) {
 		__tlbi(vmalle1is);
 	} else {
 		__tlbi(vae1is, addr);

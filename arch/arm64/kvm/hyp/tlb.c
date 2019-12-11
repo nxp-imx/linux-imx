@@ -18,6 +18,8 @@
 #include <asm/kvm_hyp.h>
 #include <asm/tlbflush.h>
 
+extern bool TKT340553_SW_WORKAROUND;
+
 static void __hyp_text __tlb_switch_to_guest_vhe(struct kvm *kvm)
 {
 	u64 val;
@@ -80,8 +82,12 @@ void __hyp_text __kvm_tlb_flush_vmid_ipa(struct kvm *kvm, phys_addr_t ipa)
 	 * Instead, we invalidate Stage-2 for this IPA, and the
 	 * whole of Stage-1. Weep...
 	 */
-	ipa >>= 12;
-	__tlbi(ipas2e1is, ipa);
+	if (TKT340553_SW_WORKAROUND) {
+		__tlbi(vmalls12e1is);
+	} else {
+		ipa >>= 12;
+		__tlbi(ipas2e1is, ipa);
+	}
 
 	/*
 	 * We have to ensure completion of the invalidation at Stage-2,
