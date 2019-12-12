@@ -491,10 +491,11 @@ static void user_cache_maint_handler(unsigned int esr, struct pt_regs *regs)
 		__user_cache_maint("dc civac", address, ret);
 		break;
 	case ESR_ELx_SYS64_ISS_CRM_IC_IVAU:	/* IC IVAU */
-		if (TKT340553_SW_WORKAROUND)
+		if (TKT340553_SW_WORKAROUND) {
 			__user_cache_maint_ivau("ic ialluis", address, ret);
-		else
+		} else {
 			__user_cache_maint("ic ivau", address, ret);
+		}
 		break;
 	default:
 		force_signal_inject(SIGILL, ILL_ILLOPC, regs, 0);
