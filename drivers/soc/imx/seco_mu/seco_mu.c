@@ -632,28 +632,69 @@ static long seco_mu_ioctl_signed_msg_handler (
 				struct seco_mu_device_ctx *dev_ctx,
 				unsigned long arg)
 {
+	sc_ipc_t ipc;
+	uint32_t mu_id;
+	uint32_t pos = 0;
+	sc_err_t sciErr;
 	int err = -EINVAL;
 	struct seco_mu_ioctl_signed_message msg;
+	struct seco_shared_mem *shared_mem= &dev_ctx->non_secure_mem;
+	sc_faddr_t addr;
 
 	do {
 		err = (int)copy_from_user(&msg,
-			(uint8_t *)arg,
-			sizeof(struct seco_mu_ioctl_signed_message));
+				(uint8_t *)arg,
+				sizeof(struct seco_mu_ioctl_signed_message));
+		if (err)
+			break;
+		
+		/* Check there is enough space in the shared memory. */
+		if (msg.msg_size >= shared_mem->size - shared_mem->pos) {
+			err = -ENOMEM;
+			break;
+		}
+		
+		/* Allocate space in shared memory. 8 bytes aligned. */
+		pos = shared_mem->pos;
+		
+		/* 
+		 * We are making the assumtion that only one user will be calling the MU.
+		 * So the application is not using multiple threads calling the Character device.
+		 * As such the call to seco is sequetial, and the memory pool do not need to 
+		 * get updated.
+		 * shared_mem->pos += round_up(msg.msg_size, 8u);
+		 */
+		/* get physical address from the pos */
+		addr = (sc_faddr_t)shared_mem->dma_addr + pos;
+
+		/*
+		 * copy data from user space to this allocated buffer.
+		 */
+		err = (int)copy_from_user(shared_mem->ptr + pos,
+						msg.message,
+						msg.msg_size);
 		if (err)
 			break;
 
-		/*TODO:  Call SCU RPC. */
+		sciErr = (sc_err_t)sc_ipc_getMuID(&mu_id);
 
-		msg.error_code = 0;
+		if (sciErr == SC_ERR_NONE) {
 
-		err = (int)copy_to_user((uint8_t *)arg, &msg,
-			sizeof(struct seco_mu_ioctl_signed_message));
+			sciErr = sc_ipc_open(&ipc, mu_id);
+			if (sciErr != SC_ERR_NONE)
+				break;
+
+			msg.error_code = sc_seco_sab_msg(ipc, addr);
+
+			err = (int)copy_to_user((uint8_t *)arg, &msg,
+				sizeof(struct seco_mu_ioctl_signed_message));
+
+			sc_ipc_close(ipc);
+		}
 	} while (0);
 
 	return (long)err;
 }
-
-
 
 static long seco_mu_ioctl(struct file *fp,
 				unsigned int cmd, unsigned long arg)
