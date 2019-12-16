@@ -404,9 +404,9 @@ static int mscc_ocelot_probe(struct platform_device *pdev)
 		if (phy_mode < 0)
 			phy_mode = PHY_INTERFACE_MODE_NA;
 
-		priv->phy_mode = phy_mode;
+		ocelot_port->phy_mode = phy_mode;
 
-		switch (priv->phy_mode) {
+		switch (ocelot_port->phy_mode) {
 		case PHY_INTERFACE_MODE_NA:
 			continue;
 		case PHY_INTERFACE_MODE_SGMII:
