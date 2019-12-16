@@ -11,8 +11,8 @@
 #include <linux/iopoll.h>
 #include "ocelot.h"
 #include <soc/mscc/ocelot_sys.h>
-#include "ocelot_ana.h"
-#include "ocelot_qsys.h"
+#include <soc/mscc/ocelot_ana.h>
+#include <soc/mscc/ocelot_qsys.h>
 #include "ocelot_rew.h"
 #include "ocelot_dev_gmii.h"
 #include "ocelot_tsn.h"
