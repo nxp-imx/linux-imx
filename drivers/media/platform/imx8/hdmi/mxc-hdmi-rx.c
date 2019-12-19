@@ -832,11 +832,11 @@ int tmdsmon_fn(void *data)
 				if ((resp.val & 1) == 0)
 					change = true;
 			}
-
 		}
 
 		if (change) {
 			if (hdmi_rx->initialized) {
+				hdmirx_hdcp_disable(&hdmi_rx->state);
 				hdmirx_phy_pix_engine_reset(&hdmi_rx->state);
 				hdmirx_stop(&hdmi_rx->state);
 				hdmi_rx->initialized = false;
@@ -857,8 +857,16 @@ int tmdsmon_fn(void *data)
 
 			if (hdmirx_startup(&hdmi_rx->state) < 0)
 				continue;
+
 			hdmi_rx->initialized = true;
 			hdmi_rx->cable_plugin = true;
+		} else {
+			if (hdmi_rx->initialized) {
+				CDN_API_HDCPRX_Status hdcp_status;
+
+				hdmirx_hdcp_get_status(&hdmi_rx->state,
+						       &hdcp_status);
+			}
 		}
 	}
 
@@ -959,6 +967,8 @@ static void hpd5v_work_func(struct work_struct *work)
 		kobject_uevent_env(&hdmi_rx->pdev->dev.kobj, KOBJ_CHANGE, envp);
 		enable_irq(hdmi_rx->irq[HPD5V_IRQ_IN]);
 		hdmi_rx->cable_plugin = false;
+
+		hdmirx_hdcp_disable(&hdmi_rx->state);
 		CDN_API_MainControl_blocking(&hdmi_rx->state, 0, &sts);
 		pr_info("%s(): called CDN_API_MainControl_blocking(0)\n",
 			__func__);
@@ -1158,6 +1168,8 @@ static int mxc_hdmi_remove(struct platform_device *pdev)
 	CDN_API_MainControl_blocking(state, 0, &sts);
 	dev_info(dev, "%s(): called CDN_API_MainControl_blocking(0)\n",
 		 __func__);
+
+	hdmirx_hdcp_disable(&hdmi_rx->state);
 
 	mxc_hdmi_clock_disable(hdmi_rx);
 	pm_runtime_put_sync(dev);

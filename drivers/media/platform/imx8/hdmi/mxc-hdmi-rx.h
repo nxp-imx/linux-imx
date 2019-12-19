@@ -158,6 +158,13 @@ int hdmirx_get_stable_tmds(state_struct *state);
 int mxc_hdmi_frame_timing(struct mxc_hdmi_rx_dev *hdmi_rx);
 void mxc_hdmi_rx_register_audio_driver(struct device *dev);
 void imx8qm_hdmi_phy_reset(state_struct *state, u8 reset);
-
 int get_avi_infoframe(state_struct *state);
+
+void hdmirx_edid_set(state_struct *state);
+void hdmirx_scdc_set(state_struct *state);
+
+void hdmirx_hdcp_enable(state_struct *state);
+void hdmirx_hdcp_disable(state_struct *state);
+int hdmirx_hdcp_get_status(state_struct *state,
+			   CDN_API_HDCPRX_Status *hdcp_status);
 #endif
