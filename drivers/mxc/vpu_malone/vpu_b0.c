@@ -3025,8 +3025,8 @@ static int send_abort_cmd(struct vpu_ctx *ctx)
 	record_log_info(ctx, LOG_PADDING, 0, 0);
 	if (size <= 0)
 		vpu_err("%s(): failed to fill abort padding data\n", __func__);
-	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
 	reinit_completion(&ctx->completion);
+	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_ABORT, 1, &size);
 	if (!wait_for_completion_timeout(&ctx->completion, msecs_to_jiffies(1000))) {
 		ctx->hang_status = true;
 		vpu_err("the path id:%d firmware timeout after send VID_API_CMD_ABORT\n",
@@ -3048,8 +3048,8 @@ static int send_stop_cmd(struct vpu_ctx *ctx)
 
 	ctx->wait_rst_done = true;
 	vpu_dbg(LVL_BIT_FLOW, "ctx[%d] send STOP CMD\n", ctx->str_index);
-	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
 	reinit_completion(&ctx->stop_cmp);
+	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_STOP, 0, NULL);
 	if (!wait_for_completion_timeout(&ctx->stop_cmp, msecs_to_jiffies(1000))) {
 		vpu_dec_clear_pending_cmd(ctx);
 		ctx->hang_status = true;
@@ -6131,9 +6131,9 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx)
 	dev->firmware_started = false;
 	kfifo_reset(&dev->mu_msg_fifo);
 
+	reinit_completion(&dev->start_cmp);
 	do_send_cmd_to_firmware(ctx, 0, VID_API_CMD_FIRM_RESET, 0, NULL);
 
-	reinit_completion(&dev->start_cmp);
 	if (!wait_for_completion_timeout(&dev->start_cmp, msecs_to_jiffies(10000))) {
 		vpu_err("error: %s() fail\n", __func__);
 		return -1;
@@ -6499,7 +6499,7 @@ static void vpu_dec_resume_work(struct vpu_dev *vpudev)
 	int i;
 
 	mutex_lock(&vpudev->dev_mutex);
-	schedule_work(&vpudev->msg_work);
+	queue_work(vpudev->workqueue, &vpudev->msg_work);
 	for (i = 0; i < VPU_MAX_NUM_STREAMS; i++) {
 		struct vpu_ctx *ctx = vpudev->ctx[i];
 
@@ -6520,8 +6520,8 @@ static int __maybe_unused vpu_suspend(struct device *dev)
 	if (vpudev->hang_mask != vpudev->instance_mask) {
 
 		/*if there is an available device, send snapshot command to firmware*/
-		v4l2_vpu_send_snapshot(vpudev);
 		reinit_completion(&vpudev->snap_done_cmp);
+		v4l2_vpu_send_snapshot(vpudev);
 		if (!wait_for_completion_timeout(&vpudev->snap_done_cmp, msecs_to_jiffies(1000))) {
 			vpu_err("error: wait for vpu decoder snapdone event timeout!\n");
 			ret = -1;
@@ -6560,9 +6560,9 @@ static int resume_from_snapshot(struct vpu_dev *vpudev)
 {
 	int ret = 0;
 
+	reinit_completion(&vpudev->start_cmp);
 	enable_csr_reg(vpudev);
 	/*wait for firmware resotre done*/
-	reinit_completion(&vpudev->start_cmp);
 	if (!wait_for_completion_timeout(&vpudev->start_cmp, msecs_to_jiffies(1000))) {
 		vpu_err("error: wait for vpu decoder resume done timeout!\n");
 		ret = -1;
