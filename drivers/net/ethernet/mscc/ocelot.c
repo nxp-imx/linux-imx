@@ -2298,6 +2298,18 @@ void ocelot_set_cpu_port(struct ocelot *ocelot, int cpu,
 			 enum ocelot_tag_prefix injection,
 			 enum ocelot_tag_prefix extraction)
 {
+	int port;
+
+	for (port = 0; port < ocelot->num_phys_ports; port++) {
+		/* Disable old CPU port and enable new one */
+		ocelot_rmw_rix(ocelot, 0, BIT(ocelot->cpu),
+			       ANA_PGID_PGID, PGID_SRC + port);
+		if (port == cpu)
+			continue;
+		ocelot_rmw_rix(ocelot, BIT(cpu), BIT(cpu),
+			       ANA_PGID_PGID, PGID_SRC + port);
+	}
+
 	/* Configure and enable the CPU port. */
 	ocelot_write_rix(ocelot, 0, ANA_PGID_PGID, cpu);
 	ocelot_write_rix(ocelot, BIT(cpu), ANA_PGID_PGID, PGID_CPU);
