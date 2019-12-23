@@ -92,7 +92,7 @@ struct extcon_dev *ev_edev;
 #endif
 
 extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
-extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value);
+extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param);
 static struct vehicle_dummy_drvdata *vehicle_dummy;
 static struct class* vehicle_dummy_class;
 
@@ -174,7 +174,7 @@ static ssize_t turn_store(struct device *dev,
 	}
 	if (turn != vehicle_dummy->turn) {
 		vehicle_dummy->turn = turn;
-		vehicle_hal_set_property(VEHICLE_TURN_SIGNAL, 0, turn);
+		vehicle_hal_set_property(VEHICLE_TURN_SIGNAL, 0, turn, 0);
 	}
 	return size;
 }
@@ -200,7 +200,7 @@ static ssize_t gear_store(struct device *dev,
 	gear = simple_strtoul(buf, NULL, 10);
 	if (gear != vehicle_dummy->gear) {
 		vehicle_dummy->gear = gear;
-		vehicle_hal_set_property(VEHICLE_GEAR, 0, gear);
+		vehicle_hal_set_property(VEHICLE_GEAR, 0, gear, 0);
 		if (gear != GEAR_0 && gear != GEAR_1 && gear != GEAR_2) {
 			pr_err("input value is not correct, please type correct one \n");
 			return -EINVAL;
@@ -238,9 +238,9 @@ static ssize_t temp_left_store(struct device *dev,
 	if (temp != vehicle_dummy->temp_left) {
 		vehicle_dummy->temp_left = temp;
 #ifdef CONFIG_VEHICLE_DRIVER_OREO
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_LEFT_INDEX, temp);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_LEFT_INDEX, temp, 0);
 #else
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_LEFT_INDEX, temp);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_LEFT_INDEX, temp, 0);
 #endif
 	}
 	return size;
@@ -269,9 +269,9 @@ static ssize_t temp_right_store(struct device *dev,
 	if (temp != vehicle_dummy->temp_right) {
 		vehicle_dummy->temp_right = temp;
 #ifdef CONFIG_VEHICLE_DRIVER_OREO
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_RIGHT_INDEX, temp);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_RIGHT_INDEX, temp, 0);
 #else
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_RIGHT_INDEX, temp);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_RIGHT_INDEX, temp, 0);
 #endif
 	}
 	return size;
@@ -304,7 +304,7 @@ static ssize_t fan_direction_store(struct device *dev,
 	}
 	if (fan_direction != vehicle_dummy->fan_direction) {
 		vehicle_dummy->fan_direction = fan_direction;
-		vehicle_hal_set_property(VEHICLE_FAN_DIRECTION, 0, fan_direction);
+		vehicle_hal_set_property(VEHICLE_FAN_DIRECTION, 0, fan_direction, 0);
 	}
 	return size;
 }
@@ -338,7 +338,7 @@ static ssize_t fan_speed_store(struct device *dev,
 
 	if (fan_speed != vehicle_dummy->fan_speed) {
 		vehicle_dummy->fan_speed = fan_speed;
-		vehicle_hal_set_property(VEHICLE_FAN_SPEED, 0, fan_speed);
+		vehicle_hal_set_property(VEHICLE_FAN_SPEED, 0, fan_speed, 0);
 	}
 	return size;
 }
@@ -370,7 +370,7 @@ static ssize_t defrost_left_store(struct device *dev,
 	}
 	if (defrost != vehicle_dummy->defrost_left) {
 		vehicle_dummy->defrost_left = defrost;
-		vehicle_hal_set_property(VEHICLE_DEFROST, 1, defrost);
+		vehicle_hal_set_property(VEHICLE_DEFROST, 1, defrost, 0);
 	}
 	return size;
 }
@@ -402,7 +402,7 @@ static ssize_t defrost_right_store(struct device *dev,
 	}
 	if (defrost != vehicle_dummy->defrost_right) {
 		vehicle_dummy->defrost_right = defrost;
-		vehicle_hal_set_property(VEHICLE_DEFROST, 2, defrost);
+		vehicle_hal_set_property(VEHICLE_DEFROST, 2, defrost, 0);
 	}
 	return size;
 }
@@ -434,7 +434,7 @@ static ssize_t ac_on_store(struct device *dev,
 	}
 	if (ac_on != vehicle_dummy->ac_on) {
 		vehicle_dummy->ac_on = ac_on;
-		vehicle_hal_set_property(VEHICLE_AC, 0, ac_on);
+		vehicle_hal_set_property(VEHICLE_AC, 0, ac_on, 0);
 	}
 	return size;
 }
@@ -466,7 +466,7 @@ static ssize_t auto_on_store(struct device *dev,
 	}
 	if (auto_on != vehicle_dummy->auto_on) {
 		vehicle_dummy->auto_on = auto_on;
-		vehicle_hal_set_property(VEHICLE_AUTO_ON, 0, auto_on);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, 0, auto_on, 0);
 	}
 	return size;
 }
@@ -498,7 +498,7 @@ static ssize_t hvac_on_store(struct device *dev,
 	}
 	if (hvac_on != vehicle_dummy->hvac_on) {
 		vehicle_dummy->hvac_on = hvac_on;
-		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, 0, hvac_on);
+		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, 0, hvac_on, 0);
 	}
 	return size;
 }
@@ -530,7 +530,7 @@ static ssize_t recirc_on_store(struct device *dev,
 	}
 	if (recirc_on != vehicle_dummy->recirc_on) {
 		vehicle_dummy->recirc_on = recirc_on;
-		vehicle_hal_set_property(VEHICLE_RECIRC_ON, 0, recirc_on);
+		vehicle_hal_set_property(VEHICLE_RECIRC_ON, 0, recirc_on, 0);
 	}
 	return size;
 }

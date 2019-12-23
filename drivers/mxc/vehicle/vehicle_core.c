@@ -55,9 +55,19 @@ enum vehicle_power_report_type {
 	DISPLAY_ON,
 };
 
+/*vehicle_power_request_type: androidPwrState in command PWR_REQ*/
+enum vehicle_power_request_type {
+	AP_POWER_REQUEST_ON = 0,
+	AP_POWER_REQUEST_SHUTDOWN_PREPARE,
+	AP_POWER_REQUEST_CANCEL_SHUTDOWN,
+	AP_POWER_REQUEST_FINISHED,
+};
+
 static struct vehicle_core_drvdata *vehicle_core;
 struct vehicle_property_set property_encode;
 struct vehicle_property_set property_decode;
+
+struct vehicle_power_req power_req_encode;
 
 void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops)
 {
@@ -103,7 +113,7 @@ int send_usrmsg(char *pbuf, uint16_t len)
 	return ret;
 }
 
-void vehicle_hal_set_property(u16 prop, u8 index, u32 value)
+void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 {
 	char *buffer;
 
@@ -153,6 +163,20 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value)
 		else if (VEHICLE_TURN_SIGNAL_RIGHT == value)
 			property_encode.value = VEHICLE_TURN_SIGNAL_RIGHT_CLIENT;
 		break;
+	case VEHICLE_POWER_STATE_REQ:
+		if (value != AP_POWER_REQUEST_ON &&
+				value != AP_POWER_REQUEST_SHUTDOWN_PREPARE &&
+				value != AP_POWER_REQUEST_CANCEL_SHUTDOWN &&
+				value != AP_POWER_REQUEST_FINISHED) {
+			kfree(buffer);
+			pr_err("AP_POWER_STATE_REQ: invaliad state\n");
+			return;
+		}
+
+		power_req_encode.prop = AP_POWER_STATE_REQ;
+		power_req_encode.state = value;
+		power_req_encode.param = param;
+		break;
 	default:
 		pr_err("property %d is not supported \n", prop);
 	}
@@ -165,8 +189,13 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value)
 	send_message.msg_type = emulator_MsgType_SET_PROPERTY_CMD;
 	send_message.has_status = true;
 	send_message.status = emulator_Status_RESULT_OK;
-	send_message.value.funcs.encode = &encode_value_callback;
-	send_message.value.arg = &property_encode;
+	if (prop == VEHICLE_POWER_STATE_REQ) {
+		send_message.value.funcs.encode = &encode_power_state_callback;
+		send_message.value.arg = &power_req_encode;
+	} else {
+		send_message.value.funcs.encode = &encode_value_callback;
+		send_message.value.arg = &property_encode;
+	}
 
 	if (!pb_encode(&stream, emulator_EmulatorMessage_fields, &send_message))
 		pr_err("vehicle protocol encode fail \n");

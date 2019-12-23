@@ -21,6 +21,12 @@ struct vehicle_property_set {
 	u32 value;
 };
 
+struct vehicle_power_req {
+	u32 prop;
+	u32 state;
+	u32 param;
+};
+
 struct hw_prop_ops {
 	/* send the control commands to hw */
 	void (*set_control_commands)(u32 prop, u32 area, u32 value);
@@ -48,6 +54,9 @@ struct hw_prop_ops {
 
 #define TURN_SIGNAL_STATE 289408008
 #define GEAR_SELECTION 289408000
+
+#define AP_POWER_STATE_REQ 289475072
+#define AP_POWER_STATE_REPORT 289475073
 
 #define VEHICLE_GEAR_DRIVE_CLIENT 16
 #define VEHICLE_GEAR_PARK_CLIENT 8
@@ -77,6 +86,7 @@ enum vehicle_event_type {
 	VEHICLE_LIGHT,
 	VEHICLE_GEAR,
 	VEHICLE_TURN_SIGNAL,
+	VEHICLE_POWER_STATE_REQ,
 };
 
 /*vehicle_event_gear: stateValue of type VEHICLE_GEAR*/

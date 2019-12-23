@@ -133,7 +133,7 @@ struct extcon_dev *ev_edev;
 #endif
 
 extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
-extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value);
+extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param);
 static struct rpmsg_vehicle_mcu_drvdata *vehicle_rpmsg;
 static struct class* vehicle_rpmsg_class;
 int state = 0;
@@ -300,6 +300,7 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 		msg->retcode = 0;
 		if (vehicle_send_message(msg, vehicle_rpmsg, false))
 			dev_warn(&rpdev->dev, "vehicle_rpmsg_cb send message error \n");
+		vehicle_hal_set_property(VEHICLE_POWER_STATE_REQ, 0, msg->powerstate, msg->statevalue);
 	} else if (msg->header.cmd == VEHICLE_RPMSG_VSTATE) {
 		msg->header.type = VEHICLE_RPMSG_RESPONSE;
 		msg->retcode = 0;
@@ -321,7 +322,7 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 			}
 		}
 
-		vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue);
+		vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue, 0);
 
 		if (vehicle_send_message(msg, vehicle_rpmsg, false))
 			dev_warn(&rpdev->dev, "vehicle_rpmsg_cb send message error \n");

@@ -33,5 +33,7 @@ bool encode_config_callback(pb_ostream_t *stream, const pb_field_t *field, void 
 bool encode_int32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 bool encode_int64_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 bool encode_fix32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_power_state_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_power_state_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 
 #endif

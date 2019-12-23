@@ -194,6 +194,22 @@ bool encode_int32_values_callback(pb_ostream_t *stream, const pb_field_t *field,
 	return pb_encode_varint(stream, *value);
 }
 
+bool encode_power_state_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
+{
+	u32 *value = (u32 *)*arg;
+
+	if (!pb_encode_tag_for_field(stream, field))
+		return false;
+	if (!pb_encode_svarint(stream, *value))
+		return false;
+	value++;
+	if (!pb_encode_tag_for_field(stream, field))
+		return false;
+	if (!pb_encode_svarint(stream, *value))
+		return false;
+	return true;
+}
+
 bool encode_int64_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	u64 *value = (u64 *)*arg;
@@ -207,6 +223,32 @@ bool encode_fix32_values_callback(pb_ostream_t *stream, const pb_field_t *field,
 	if (!pb_encode_tag_for_field(stream, field))
 		return false;
 	return pb_encode_fixed32(stream, (u32 *)*arg);
+}
+
+bool encode_power_state_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
+{
+	struct vehicle_power_req *data = (struct vehicle_power_req*)(*arg);
+
+	emulator_VehiclePropValue propvalue = {};
+	propvalue.prop = data->prop;
+	propvalue.has_value_type = true;
+	propvalue.has_timestamp = true;
+	propvalue.timestamp = 0;
+#ifndef CONFIG_VEHICLE_DRIVER_OREO
+	propvalue.has_status = true;
+	propvalue.status = 0;
+#endif
+	propvalue.int32_values.funcs.encode = &encode_power_state_value_callback;
+	propvalue.int32_values.arg = &data->state;
+	propvalue.value_type = VEHICLEPROPERTYTYPE_INT32;
+
+	pb_encode_tag_for_field(stream,field);
+	if (!pb_encode_submessage(stream, emulator_VehiclePropValue_fields, &propvalue))
+	{
+		printk("%s encode submessage failed \n", __func__);
+		return false;
+	}
+	return true;
 }
 
 bool encode_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
