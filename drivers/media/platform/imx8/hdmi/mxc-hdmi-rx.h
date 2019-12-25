@@ -19,6 +19,7 @@
 #include <linux/mutex.h>
 
 #include <linux/clk.h>
+#include <linux/kthread.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
@@ -132,6 +133,12 @@ struct mxc_hdmi_rx_dev {
 
 	int irq[HPD5V_IRQ_NUM];
 	struct delayed_work hpd5v_work;
+	int tmds_clk;
+	struct task_struct *tmdsmon_th;
+	int tmdsmon_state;
+	u32 last_avi;
+	u8 avi[13];
+	bool initialized;
 };
 
 enum mxc_hdmi_rx_power_state {
@@ -143,11 +150,21 @@ enum mxc_hdmi_rx_power_state {
 void hdmirx_stop(state_struct *state);
 void hdmirx_hotplug_trigger(state_struct *state);
 void hdmirx_phy_pix_engine_reset(state_struct *state);
+int hdmirx_config(state_struct *state);
 int hdmirx_startup(state_struct *state);
 int hdmirx_init(state_struct *state);
 int hdmirx_get_hpd_state(state_struct *state, u8 *hpd);
+int hdmirx_get_stable_tmds(state_struct *state);
 int mxc_hdmi_frame_timing(struct mxc_hdmi_rx_dev *hdmi_rx);
 void mxc_hdmi_rx_register_audio_driver(struct device *dev);
 void imx8qm_hdmi_phy_reset(state_struct *state, u8 reset);
+int get_avi_infoframe(state_struct *state);
 
+void hdmirx_edid_set(state_struct *state);
+void hdmirx_scdc_set(state_struct *state);
+
+void hdmirx_hdcp_enable(state_struct *state);
+void hdmirx_hdcp_disable(state_struct *state);
+int hdmirx_hdcp_get_status(state_struct *state,
+			   CDN_API_HDCPRX_Status *hdcp_status);
 #endif

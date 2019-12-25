@@ -276,16 +276,24 @@ void dprc_enable(struct dprc *dprc)
 }
 EXPORT_SYMBOL_GPL(dprc_enable);
 
-void dprc_disable(struct dprc *dprc)
+void dprc_disable(struct dprc *dprc, bool hard)
 {
 	if (WARN_ON(!dprc))
 		return;
 
-	dprc_write(dprc, SHADOW_LOAD_EN | SW_SHADOW_LOAD_SEL, SYSTEM_CTRL0);
+	if (dprc->is_blit_chan)
+		dprc_write(dprc, SHADOW_LOAD_EN | SW_SHADOW_LOAD_SEL,
+								SYSTEM_CTRL0);
 
-	prg_disable(dprc->prgs[0]);
+	prg_disable(dprc->prgs[0], hard);
 	if (dprc->has_aux_prg)
-		prg_disable(dprc->prgs[1]);
+		prg_disable(dprc->prgs[1], hard);
+
+	if (!dprc->is_blit_chan) {
+		/* avoid garbage data in RTRAM after PRG bypass on-the-fly */
+		dprc_write(dprc, NUM_X_PIX_WIDE(0), FRAME_1P_PIX_X_CTRL);
+		dprc_write(dprc, NUM_Y_PIX_HIGH(0), FRAME_1P_PIX_Y_CTRL);
+	}
 
 	prg_reg_update(dprc->prgs[0]);
 	if (dprc->has_aux_prg)
@@ -373,9 +381,9 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	dprc->use_aux_prg = false;
 
 	if (start) {
-		dprc_reset(dprc);
-
-		if (!dprc->is_blit_chan)
+		if (dprc->is_blit_chan)
+			dprc_reset(dprc);
+		else
 			dprc_dpu_gpr_configure(dprc, stream_id);
 	}
 
@@ -581,6 +589,50 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 				width, height, stride, format, modifier);
 }
 EXPORT_SYMBOL_GPL(dprc_configure);
+
+void dprc_disable_repeat_en(struct dprc *dprc)
+{
+	if (WARN_ON(!dprc))
+		return;
+
+	dprc_write(dprc, REPEAT_EN, SYSTEM_CTRL0 + CLR);
+}
+EXPORT_SYMBOL_GPL(dprc_disable_repeat_en);
+
+bool dprc_is_repeat_en(struct dprc *dprc)
+{
+	u32 val;
+
+	if (WARN_ON(!dprc))
+		return false;
+
+	val = dprc_read(dprc, SYSTEM_CTRL0);
+
+	return !!(val & REPEAT_EN);
+}
+EXPORT_SYMBOL_GPL(dprc_is_repeat_en);
+
+void dprc_gasket_shadow_enable(struct dprc *dprc)
+{
+	if (WARN_ON(!dprc))
+		return;
+
+	prg_shadow_enable(dprc->prgs[0]);
+	if (dprc->use_aux_prg)
+		prg_shadow_enable(dprc->prgs[1]);
+}
+EXPORT_SYMBOL_GPL(dprc_gasket_shadow_enable);
+
+void dprc_gasket_shadow_disable(struct dprc *dprc)
+{
+	if (WARN_ON(!dprc))
+		return;
+
+	prg_shadow_disable(dprc->prgs[0]);
+	if (dprc->use_aux_prg)
+		prg_shadow_disable(dprc->prgs[1]);
+}
+EXPORT_SYMBOL_GPL(dprc_gasket_shadow_disable);
 
 void dprc_reg_update(struct dprc *dprc)
 {

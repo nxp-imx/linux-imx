@@ -1,0 +1,24 @@
+NXP i.MX8 SECO MU
+
+Driver for exchanging messages with SECO core on i.MX8 SOC.
+Communication with SECO is performed through a Messaging Unit (MU).
+Exposes a char device to user-space.
+
+Required properties:
+  - compatible        : Contains "fsl,imx8-seco-mu".
+  - reg               : Offset and length of the register set for the device.
+  - power-domains     : phandle pointing to power domain.
+  - interrupts        : the interrupt line from the MU.
+  - fsl,seco_mu_id    : Index of this MU from SECO point of view.
+  - fsl,seco_max_users: Maximum number of users allowed to share this MU.
+
+Example:
+mu_seco2: mu@31560000 {
+  compatible = "fsl,imx8-seco-mu";
+  reg = <0x0 0x31560000 0x0 0x10000>;
+  power-domains = <&pd_seco_mu_2>;
+  interrupts = <GIC_SPI 448 IRQ_TYPE_LEVEL_HIGH>;
+  fsl,seco_mu_id = <2>;
+  fsl,seco_max_users = <2>;
+  status = "okay";
+};

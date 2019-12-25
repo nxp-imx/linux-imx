@@ -329,6 +329,32 @@
 			};
 		};
 
+		pd_seco_mu: PD_SECO_MU {
+			compatible = "nxp,imx8-pd";
+			reg = <SC_R_NONE>;
+			#power-domain-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pd_seco_mu_2: PD_SECO_MU_2 {
+				reg = <SC_R_SECO_MU_2>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
+			};
+
+			pd_seco_mu_3: PD_SECO_MU_3 {
+				reg = <SC_R_SECO_MU_3>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
+			};
+
+			pd_seco_mu_4: PD_SECO_MU_4 {
+				reg = <SC_R_SECO_MU_4>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_seco_mu>;
+			};
+		};
+
 		pd_conn: PD_CONN {
 			compatible = "nxp,imx8-pd";
 			reg = <SC_R_NONE>;

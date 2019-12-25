@@ -591,7 +591,6 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 		struct dpu_plane_state *old_dpstate;
 		struct drm_plane_state *plane_state;
 		struct dpu_plane *dplane;
-		struct drm_plane *plane;
 		struct dpu_plane_res *res;
 		struct dpu_fetchunit *fu;
 		struct dpu_fetchunit *fe = NULL;
@@ -603,7 +602,6 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 		dpu_block_id_t blend, source;
 		unsigned int stream_id;
 		int lb_id;
-		bool crtc_disabling_on_primary;
 		bool release_aux_source;
 
 		old_dpstate = old_dcstate->dpu_plane_states[i];
@@ -616,8 +614,6 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 
 		release_aux_source = false;
 again:
-		crtc_disabling_on_primary = false;
-
 		if (old_dcstate->use_pc) {
 			if (release_aux_source) {
 				source = old_dpstate->aux_source;
@@ -664,25 +660,11 @@ again:
 			extdst_pixengcfg_src_sel(ed, ed_src);
 		}
 
-		plane = old_dpstate->base.plane;
-		if (!crtc->state->enable &&
-		    plane->type == DRM_PLANE_TYPE_PRIMARY)
-			crtc_disabling_on_primary = true;
-
-		if (crtc_disabling_on_primary && old_dpstate->use_prefetch) {
-			fu->ops->pin_off(fu);
-			if (fetchunit_is_fetchdecode(fu) &&
-			    fe->ops->is_enabled(fe))
-				fe->ops->pin_off(fe);
-		} else {
-			fu->ops->disable_src_buf(fu);
-			fu->ops->unpin_off(fu);
-			if (fetchunit_is_fetchdecode(fu)) {
-				fetchdecode_pixengcfg_dynamic_src_sel(fu,
-								FD_SRC_DISABLE);
-				fe->ops->disable_src_buf(fe);
-				fe->ops->unpin_off(fe);
-			}
+		fu->ops->disable_src_buf(fu);
+		if (fetchunit_is_fetchdecode(fu)) {
+			fetchdecode_pixengcfg_dynamic_src_sel(fu,
+							FD_SRC_DISABLE);
+			fe->ops->disable_src_buf(fe);
 		}
 
 		if (old_dpstate->need_aux_source && !release_aux_source) {
@@ -703,20 +685,123 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct dpu_crtc_state *old_dcstate =
 					to_dpu_crtc_state(old_imx_crtc_state);
 	struct dpu_plane *dplane = to_dpu_plane(crtc->primary);
+	struct dpu_plane_state *old_dpstate;
 	struct dpu_plane_res *res = &dplane->grp->res;
 	struct dpu_extdst *ed = res->ed[dplane->stream_id], *aux_ed;
+	struct dpu_fetchunit *fu;
+	dpu_block_id_t source;
 	struct completion *shdld_done;
 	struct completion *m_content_shdld_done = NULL;
 	struct completion *s_content_shdld_done = NULL;
 	unsigned long ret;
 	int i;
 	bool need_modeset = drm_atomic_crtc_needs_modeset(crtc->state);
+	bool need_wait4fgfcm = false, need_aux_wait4fgfcm = false;
+	bool use_prefetch;
 
 	if (!crtc->state->active && !old_crtc_state->active)
 		return;
 
 	if (!need_modeset && to_disable_dpu_crc(dcstate, old_dcstate))
 		dpu_crtc_disable_crc_source(crtc, old_dcstate->use_pc);
+
+	/*
+	 * Scan over old plane fetchunits to determine if we
+	 * need to wait for FrameGen frame counter moving in
+	 * the next loop prior to DPRC repeat_en disablement
+	 * or not.
+	 */
+	for (i = 0; i < dpu_crtc->hw_plane_num; i++) {
+		bool aux_source_flag;
+
+		old_dpstate = old_dcstate->dpu_plane_states[i];
+		if (!old_dpstate)
+			continue;
+
+		aux_source_flag = false;
+again1:
+		source = aux_source_flag ?
+				old_dpstate->aux_source : old_dpstate->source;
+		use_prefetch = aux_source_flag ?
+					old_dpstate->use_aux_prefetch :
+					old_dpstate->use_prefetch;
+		fu = source_to_fu(res, source);
+		if (!fu)
+			return;
+
+		if (!fu->ops->is_enabled(fu) && use_prefetch && !need_modeset) {
+			if (aux_source_flag)
+				need_aux_wait4fgfcm = true;
+			else
+				need_wait4fgfcm = true;
+		}
+
+		if (old_dpstate->need_aux_source && !aux_source_flag) {
+			aux_source_flag = true;
+			goto again1;
+		}
+	}
+
+	for (i = 0; i < dpu_crtc->hw_plane_num; i++) {
+		struct dpu_fetchunit *fe;
+		struct dpu_hscaler *hs;
+		struct dpu_vscaler *vs;
+		bool aux_source_disable;
+
+		old_dpstate = old_dcstate->dpu_plane_states[i];
+		if (!old_dpstate)
+			continue;
+
+		/*
+		 * Sync with FrameGen frame counter moving so that
+		 * we may disable DPRC repeat_en correctly.
+		 * FIXME: to disable preemption and irq to make sure
+		 *        DPRC repeat_en will be disabled ASAP.
+		 */
+		if (need_wait4fgfcm || need_aux_wait4fgfcm)
+			framegen_wait_for_frame_counter_moving(
+					dcstate->use_pc ?
+						dpu_crtc->m_fg : dpu_crtc->fg);
+
+		aux_source_disable = false;
+again2:
+		source = aux_source_disable ?
+				old_dpstate->aux_source : old_dpstate->source;
+		use_prefetch = aux_source_disable ?
+					old_dpstate->use_aux_prefetch :
+					old_dpstate->use_prefetch;
+		fu = source_to_fu(res, source);
+		if (!fu)
+			return;
+
+		if (!fu->ops->is_enabled(fu)) {
+			fu->ops->set_stream_id(fu, DPU_PLANE_SRC_DISABLED);
+			if (fu->dprc && use_prefetch)
+				dprc_disable_repeat_en(fu->dprc);
+		}
+
+		if (fetchunit_is_fetchdecode(fu)) {
+			fe = fetchdecode_get_fetcheco(fu);
+			if (!fe->ops->is_enabled(fe))
+				fe->ops->set_stream_id(fe,
+							DPU_PLANE_SRC_DISABLED);
+
+			hs = fetchdecode_get_hscaler(fu);
+			if (!hscaler_is_enabled(hs))
+				hscaler_set_stream_id(hs,
+							DPU_PLANE_SRC_DISABLED);
+
+			vs = fetchdecode_get_vscaler(fu);
+			if (!vscaler_is_enabled(vs))
+				vscaler_set_stream_id(vs,
+							DPU_PLANE_SRC_DISABLED);
+		}
+
+		if (old_dpstate->need_aux_source && !aux_source_disable) {
+			aux_source_disable = true;
+			goto again2;
+		}
+	}
 
 	if (dcstate->use_pc) {
 		aux_dpu_crtc = dpu_crtc_get_aux_dpu_crtc(dpu_crtc);
@@ -800,54 +885,6 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 			}
 		} else {
 			extdst_pixengcfg_sync_trigger(ed);
-		}
-	}
-
-	for (i = 0; i < dpu_crtc->hw_plane_num; i++) {
-		struct dpu_plane_state *old_dpstate;
-		struct dpu_fetchunit *fu;
-		struct dpu_fetchunit *fe;
-		struct dpu_hscaler *hs;
-		struct dpu_vscaler *vs;
-		dpu_block_id_t source;
-		bool aux_source_disable;
-
-		old_dpstate = old_dcstate->dpu_plane_states[i];
-		if (!old_dpstate)
-			continue;
-
-		aux_source_disable = false;
-again:
-		source = aux_source_disable ?
-				old_dpstate->aux_source : old_dpstate->source;
-		fu = source_to_fu(res, source);
-		if (!fu)
-			return;
-
-		if (!fu->ops->is_enabled(fu) || fu->ops->is_pinned_off(fu))
-			fu->ops->set_stream_id(fu, DPU_PLANE_SRC_DISABLED);
-
-		if (fetchunit_is_fetchdecode(fu)) {
-			fe = fetchdecode_get_fetcheco(fu);
-			if (!fe->ops->is_enabled(fe) ||
-			     fe->ops->is_pinned_off(fe))
-				fe->ops->set_stream_id(fe,
-							DPU_PLANE_SRC_DISABLED);
-
-			hs = fetchdecode_get_hscaler(fu);
-			if (!hscaler_is_enabled(hs))
-				hscaler_set_stream_id(hs,
-							DPU_PLANE_SRC_DISABLED);
-
-			vs = fetchdecode_get_vscaler(fu);
-			if (!vscaler_is_enabled(vs))
-				vscaler_set_stream_id(vs,
-							DPU_PLANE_SRC_DISABLED);
-		}
-
-		if (old_dpstate->need_aux_source && !aux_source_disable) {
-			aux_source_disable = true;
-			goto again;
 		}
 	}
 

@@ -362,7 +362,7 @@ CDN_API_STATUS CDN_API_HDCP_TX_IS_RECEIVER_ID_VALID_REQ(state_struct *state,
 	internal_process_messages(state);
 	internal_opcode_match_or_return(state);
 	internal_readmsg(state, 1, 1, num);
-	internal_readmsg(state, 2, 1, NULL, -5 * *num, id);
+	internal_readmsg(state, 2, 2, NULL, -5 * *num, id);
 	return CDN_OK;
 }
 

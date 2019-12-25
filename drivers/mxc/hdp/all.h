@@ -51,6 +51,7 @@
 #include "API_Infoframe.h"
 #include "API_Audio.h"
 #include "API_HDCP.h"
+#include "API_HDCPRX.h"
 #include "API_HDMITX.h"
 #include "dptx_framer.h"
 #include "source_car.h"

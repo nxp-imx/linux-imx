@@ -84,12 +84,12 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 {
 	struct imx8_pm_domain *pd;
 	sc_err_t sci_err = SC_ERR_NONE;
+	unsigned int pd_state;
 
 	pd = container_of(domain, struct imx8_pm_domain, pd);
 
 	if (pd->rsrc_id == SC_R_NONE)
 		return 0;
-
 	/* keep uart console power on for no_console_suspend */
 	if (pd->rsrc_id == rsrc_debug_console &&
 		!console_suspend_enabled && !power_on)
@@ -99,15 +99,65 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 		if (is_resume_needed(domain))
 			return 0;
 
-	sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle, pd->rsrc_id,
-		(power_on) ? SC_PM_PW_MODE_ON :
-		pd->pd.state_idx ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
-	if (sci_err) {
-		pr_err("Failed power operation on resource %d sc_err %d\n",
-				pd->rsrc_id, sci_err);
-		return -EINVAL;
-	}
+	/*
+	 * Power domain with no device associated with it is handled
+	 * when the child power domain is powered off/lp.
+	 */
+	if (!power_on && !domain->device_count && pd->dev_attached)
+		return 0;
 
+	pd_state = pd->pd.state_idx;
+
+	if (power_on) {
+		sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
+					pd->rsrc_id, SC_PM_PW_MODE_ON);
+		if (sci_err) {
+			pr_err("Failed power operation on resource %d sc_err %d\n",
+					pd->rsrc_id, sci_err);
+			return -EINVAL;
+		}
+	} else {
+		struct generic_pm_domain *cur_domain = domain, *master = NULL;
+		/*
+		 * Set the state of a parent power domain that has no device
+		 * associated with it to be the same as the child.
+		 * Walk up the power domain tree from the child node to the
+		 * top parent.
+		 */
+		while (!list_empty(&cur_domain->slave_links)) {
+			struct gpd_link *link;
+
+			pd = container_of(cur_domain, struct imx8_pm_domain, pd);
+			if ((cur_domain == domain) || (!cur_domain->device_count)) {
+				sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
+						pd->rsrc_id,
+						(pd_state) ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
+				if (sci_err) {
+					pr_err("Failed power operation on resource %d sc_err %d\n",
+							pd->rsrc_id, sci_err);
+					return -EINVAL;
+				}
+			}
+
+			list_for_each_entry(link, &cur_domain->slave_links, slave_node)
+				master = link->master;
+
+			cur_domain = master;
+		}
+		/* Fix the state for the top parent or a node that has no slave domains */
+		pd = container_of(cur_domain, struct imx8_pm_domain, pd);
+		if ((cur_domain == domain) ||
+			((pd->rsrc_id != SC_R_NONE) && (!cur_domain->device_count))) {
+			sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
+						pd->rsrc_id,
+						(pd_state) ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
+			if (sci_err) {
+				pr_err("Failed power operation on resource %d sc_err %d\n",
+						pd->rsrc_id, sci_err);
+				return -EINVAL;
+			}
+		}
+	}
 	/* keep HDMI TX resource power on */
 	if (power_on && (pd->rsrc_id == SC_R_HDMI ||
 					pd->rsrc_id == SC_R_HDMI_I2S ||
@@ -245,6 +295,7 @@ static int imx8_attach_dev(struct generic_pm_domain *genpd, struct device *dev)
 
 	pd = container_of(genpd, struct imx8_pm_domain, pd);
 
+	pd->dev_attached = true;
 	num_clks = of_count_phandle_with_args(node, "assigned-clocks",
 						"#clock-cells");
 	if (num_clks == -EINVAL)
@@ -285,6 +336,7 @@ static void imx8_detach_dev(struct generic_pm_domain *genpd, struct device *dev)
 	struct imx8_pm_rsrc_clks *imx8_rsrc_clk, *tmp;
 
 	pd = container_of(genpd, struct imx8_pm_domain, pd);
+	pd->dev_attached = false;
 
 	/* Free all the clock entry nodes. */
 	if (list_empty(&pd->clks))
@@ -355,6 +407,7 @@ static void imx8_pd_setup(struct imx8_pm_domain *pd)
 	pd->pd.states[1].power_on_latency_ns =  2500000;
 
 	pd->pd.state_count = 2;
+	pd->dev_attached = true;
 }
 
 static int __init imx8_add_pm_domains(struct device_node *parent,

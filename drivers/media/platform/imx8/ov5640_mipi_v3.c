@@ -39,6 +39,9 @@
 #define OV5640_CHIP_ID_HIGH_BYTE        0x300A
 #define OV5640_CHIP_ID_LOW_BYTE         0x300B
 
+#define OV5640_MIPI_CONTROLL_00		0x300E
+#define MIPI_CONTROLL00_MIPI_MODE	BIT(2)
+
 #define OV5640_SENS_PAD_SOURCE	0
 #define OV5640_SENS_PADS_NUM	1
 
@@ -1011,6 +1014,7 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5640 *sensor = to_ov5640(client);
 	int ret;
+	u8 val;
 
 	if (format->pad)
 		return -EINVAL;
@@ -1025,6 +1029,11 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
 		return 0;
+
+	/* Need to reinitialize sensor after system suspend/resume */
+	ov5640_read_reg(sensor, OV5640_MIPI_CONTROLL_00, &val);
+	if (!(val & MIPI_CONTROLL00_MIPI_MODE))
+		init_device(sensor);
 
 	ret = ov5640_change_mode(sensor);
 	sensor->fmt = fmt;

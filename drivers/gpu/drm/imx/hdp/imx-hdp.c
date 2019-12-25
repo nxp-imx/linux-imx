@@ -163,19 +163,26 @@ int hdp_fw_init(state_struct *state)
 
 	core_rate = clk_get_rate(hdp->clks.clk_core);
 
-	/* configure the clock */
-	CDN_API_SetClock(state, core_rate/1000000);
-	pr_info("CDN_API_SetClock completed\n");
-
-	/* moved from CDN_API_LoadFirmware */
-	cdn_apb_write(state, APB_CTRL << 2, 0);
-	DRM_INFO("Started firmware!\n");
-
 	ret = CDN_API_CheckAlive_blocking(state);
 	if (ret != 0) {
-		DRM_ERROR("CDN_API_CheckAlive failed - check firmware!\n");
-		return -ENXIO;
+		/* Firmware is not running */
+		DRM_WARN("CDN_API_CheckAlive failed - starting firmware\n");
+		/* configure the clock */
+		CDN_API_SetClock(state, core_rate / 1000000);
+		pr_info("CDN_API_SetClock completed\n");
+
+		/* moved from CDN_API_LoadFirmware */
+		cdn_apb_write(state, APB_CTRL << 2, 0);
+		DRM_INFO("Started firmware!\n");
+
+		ret = CDN_API_CheckAlive_blocking(state);
+		if (ret != 0) {
+			DRM_ERROR("CDN_API_CheckAlive failed - check firmware!\n");
+			return -ENXIO;
+		} else
+			DRM_INFO("CDN_API_CheckAlive returned ret = %d\n", ret);
 	} else
+		/* Firmware is alreaady running - do nothing */
 		DRM_INFO("CDN_API_CheckAlive returned ret = %d\n", ret);
 
 	/* turn on IP activity */
@@ -1424,6 +1431,9 @@ static void hotplug_work_func(struct work_struct *work)
 #ifdef CONFIG_EXTCON
 		extcon_set_state_sync(hdp_edev, EXTCON_DISP_HDMI, 0);
 #endif
+
+		/* Allow enable EDID read for next plug in event */
+		hdp->no_edid = false;
 	}
 }
 

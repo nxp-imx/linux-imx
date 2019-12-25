@@ -333,6 +333,7 @@ struct vpu_statistic {
 	unsigned long event[VID_API_EVENT_DEC_CFG_INFO + 2];
 	unsigned long current_cmd;
 	unsigned long current_event;
+	unsigned long skipped_frame_count;
 	struct timespec ts_cmd;
 	struct timespec ts_event;
 	atomic64_t total_dma_size;

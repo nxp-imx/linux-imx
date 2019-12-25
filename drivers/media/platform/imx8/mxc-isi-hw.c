@@ -135,6 +135,15 @@ static void chain_buf(struct mxc_isi_dev *mxc_isi)
 	}
 }
 
+bool is_buf_active(struct mxc_isi_dev *mxc_isi, int buf_id)
+{
+	u32 status = mxc_isi->status;
+	bool reverse = mxc_isi->buf_active_reverse;
+
+	return (buf_id == 1) ? ((reverse) ? (status & 0x100) : (status & 0x200)) :
+			       ((reverse) ? (status & 0x200) : (status & 0x100));
+}
+
 void mxc_isi_channel_set_outbuf(struct mxc_isi_dev *mxc_isi, struct mxc_isi_buffer *buf)
 {
 	struct vb2_buffer *vb2_buf = &buf->v4l2_buf.vb2_buf;
@@ -163,13 +172,13 @@ void mxc_isi_channel_set_outbuf(struct mxc_isi_dev *mxc_isi, struct mxc_isi_buff
 	}
 
 	val = readl(mxc_isi->regs + CHNL_OUT_BUF_CTRL);
-	if (framecount == 0 || ((mxc_isi->status & 0x100) && (framecount != 1))) {
+	if (framecount == 0 || ((is_buf_active(mxc_isi, 2)) && (framecount != 1))) {
 		writel(paddr->y, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_Y);
 		writel(paddr->cb, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_U);
 		writel(paddr->cr, mxc_isi->regs + CHNL_OUT_BUF1_ADDR_V);
 		val ^= CHNL_OUT_BUF_CTRL_LOAD_BUF1_ADDR_MASK;
 		buf->id = MXC_ISI_BUF1;
-	} else if (framecount == 1 || mxc_isi->status & 0x200) {
+	} else if (framecount == 1 || is_buf_active(mxc_isi, 1)) {
 		writel(paddr->y, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_Y);
 		writel(paddr->cb, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_U);
 		writel(paddr->cr, mxc_isi->regs + CHNL_OUT_BUF2_ADDR_V);
