@@ -66,9 +66,6 @@ static int imx8qxp_post_clk_probe(struct platform_device *pdev)
 
 	pr_info("***** imx8qxp_post_clocks_init *****\n");
 
-	clks[IMX8QXP_I2C1_IPG_CLK]   = imx_clk_gate2_scu("i2c1_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(LPI2C_1_LPCG), 16, FUNCTION_NAME(PD_DMA_I2C_1));
-	clks[IMX8QXP_I2C1_DIV] = imx_clk_divider_scu("i2c1_div", SC_R_I2C_1, SC_PM_CLK_PER);
-	clks[IMX8QXP_I2C1_CLK] = imx_clk_gate_scu("i2c1_clk", "i2c1_div", SC_R_I2C_1, SC_PM_CLK_PER, (void __iomem *)(LPI2C_1_LPCG), 0, 0);
 	/* Display controller - DC0 SS */
 	clks[IMX8QXP_DC0_PLL0_DIV] = imx_clk_divider_scu("dc0_pll0_div", SC_R_DC_0_PLL_0, SC_PM_CLK_PLL);
 	clks[IMX8QXP_DC0_PLL1_DIV] = imx_clk_divider_scu("dc0_pll1_div", SC_R_DC_0_PLL_1, SC_PM_CLK_PLL);
@@ -180,6 +177,11 @@ static int imx8qxp_post_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_CM40_I2C_CLK]     = imx_clk_gate_scu("cm40_i2c_clk", "cm40_i2c_div", SC_R_M4_0_I2C, SC_PM_CLK_PER, (void __iomem *)(CM40_I2C_LPCG), 0, 0);
 	clks[IMX8QXP_CM40_I2C_IPG_CLK] = imx_clk_gate2_scu("cm40_i2c_ipg_clk", "ipg_cm40_clk_root", (void __iomem *)(CM40_I2C_LPCG), 16, FUNCTION_NAME(PD_CM40_I2C));
 
+
+	for (i = 0; i < ARRAY_SIZE(clks); i++)
+		if (IS_ERR(clks[i]) && PTR_ERR(clks[i]) != -ENODEV)
+			pr_err("i.MX8QXP post clk %d: register failed with %ld\n",
+				i, PTR_ERR(clks[i]));
 
 	clk_data.clks = clks;
 	clk_data.clk_num = ARRAY_SIZE(clks);

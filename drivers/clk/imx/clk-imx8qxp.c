@@ -354,7 +354,9 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_CAN1_CLK] = imx_clk_gate_scu("can1_clk", "can1_div", SC_R_CAN_1, SC_PM_CLK_PER, (void __iomem *)(FLEX_CAN_1_LPCG), 0, 0);
 	clks[IMX8QXP_CAN2_CLK] = imx_clk_gate_scu("can2_clk", "can2_div", SC_R_CAN_2, SC_PM_CLK_PER, (void __iomem *)(FLEX_CAN_2_LPCG), 0, 0);
 	clks[IMX8QXP_I2C0_IPG_CLK]   = imx_clk_gate2_scu("i2c0_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(LPI2C_0_LPCG), 16, FUNCTION_NAME(PD_DMA_I2C_0));
+#ifndef CONFIG_VEHICLE_CLK_POST_INIT
 	clks[IMX8QXP_I2C1_IPG_CLK]   = imx_clk_gate2_scu("i2c1_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(LPI2C_1_LPCG), 16, FUNCTION_NAME(PD_DMA_I2C_1));
+#endif
 	clks[IMX8QXP_I2C2_IPG_CLK]   = imx_clk_gate2_scu("i2c2_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(LPI2C_2_LPCG), 16, FUNCTION_NAME(PD_DMA_I2C_2));
 	clks[IMX8QXP_I2C3_IPG_CLK]   = imx_clk_gate2_scu("i2c3_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(LPI2C_3_LPCG), 16, FUNCTION_NAME(PD_DMA_I2C_3));
 	clks[IMX8QXP_I2C0_DIV] = imx_clk_divider_scu("i2c0_div", SC_R_I2C_0, SC_PM_CLK_PER);
@@ -363,10 +365,10 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 #endif
 	clks[IMX8QXP_I2C2_DIV] = imx_clk_divider_scu("i2c2_div", SC_R_I2C_2, SC_PM_CLK_PER);
 	clks[IMX8QXP_I2C3_DIV] = imx_clk_divider_scu("i2c3_div", SC_R_I2C_3, SC_PM_CLK_PER);
-#ifndef CONFIG_VEHICLE_CLK_POST_INIT
 	clks[IMX8QXP_I2C0_CLK] = imx_clk_gate_scu("i2c0_clk", "i2c0_div", SC_R_I2C_0, SC_PM_CLK_PER, (void __iomem *)(LPI2C_0_LPCG), 0, 0);
-#endif
+#ifndef CONFIG_VEHICLE_CLK_POST_INIT
 	clks[IMX8QXP_I2C1_CLK] = imx_clk_gate_scu("i2c1_clk", "i2c1_div", SC_R_I2C_1, SC_PM_CLK_PER, (void __iomem *)(LPI2C_1_LPCG), 0, 0);
+#endif
 	clks[IMX8QXP_I2C2_CLK] = imx_clk_gate_scu("i2c2_clk", "i2c2_div", SC_R_I2C_2, SC_PM_CLK_PER, (void __iomem *)(LPI2C_2_LPCG), 0, 0);
 	clks[IMX8QXP_I2C3_CLK] = imx_clk_gate_scu("i2c3_clk", "i2c3_div", SC_R_I2C_3, SC_PM_CLK_PER, (void __iomem *)(LPI2C_3_LPCG), 0, 0);
 	clks[IMX8QXP_FTM0_IPG_CLK] = imx_clk_gate2_scu("ftm0_ipg_clk", "ipg_dma_clk_root", (void __iomem *)(FTM_0_LPCG), 16, FUNCTION_NAME(PD_DMA_FTM_0));
