@@ -51,6 +51,7 @@ unsigned int imx8_get_soc_revision(void)
 {
 	return imx8_soc_rev;
 }
+EXPORT_SYMBOL(imx8_get_soc_revision);
 
 static inline void imx8_set_soc_id(u32 id)
 {
