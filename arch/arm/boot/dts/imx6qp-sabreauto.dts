@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+ OR MIT
 //
 // Copyright 2016 Freescale Semiconductor, Inc.
+// Copyright 2020 NXP
 
 /dts-v1/;
 
@@ -78,7 +79,12 @@
 };
 
 &pcie {
-	status = "disabled";
+	reset-gpio = <&max7310_c 5 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&sata {
+	status = "okay";
 };
 
 &vgen3_reg {
