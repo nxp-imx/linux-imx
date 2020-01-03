@@ -385,7 +385,7 @@
 		};
 
 		qspi: spi@1550000 {
-			compatible = "fsl,ls1012a-qspi", "fsl,ls1021a-qspi";
+			compatible = "fsl,ls1021a-qspi";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x1550000 0x0 0x10000>,
@@ -394,7 +394,6 @@
 			interrupts = <0 99 IRQ_TYPE_LEVEL_HIGH>;
 			clock-names = "qspi_en", "qspi";
 			clocks = <&clockgen 4 0>, <&clockgen 4 0>;
-			big-endian;
 			status = "disabled";
 		};
 
