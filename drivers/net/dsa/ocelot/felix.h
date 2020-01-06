@@ -10,7 +10,6 @@
 struct felix_info {
 	struct resource			*target_io_res;
 	struct resource			*port_io_res;
-	struct resource			*imdio_res;
 	const struct reg_field		*regfields;
 	const u32 *const		*map;
 	const struct ocelot_ops		*ops;
@@ -18,10 +17,8 @@ struct felix_info {
 	const struct ocelot_stat_layout	*stats_layout;
 	unsigned int			num_stats;
 	int				num_ports;
-	int				switch_pci_bar;
-	int				imdio_pci_bar;
+	int				pci_bar;
 	unsigned long			quirks;
-	int (*mdio_bus_alloc)(struct ocelot *ocelot);
 };
 
 extern struct felix_info		felix_info_vsc9959;
@@ -36,8 +33,6 @@ struct felix {
 	struct pci_dev			*pdev;
 	struct felix_info		*info;
 	struct ocelot			ocelot;
-	struct mii_bus			*imdio;
-	struct phy_device		**pcs;
 };
 
 #endif
