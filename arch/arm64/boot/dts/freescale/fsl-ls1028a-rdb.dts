@@ -206,8 +206,6 @@
 		#size-cells = <0>;
 		sgmii_phy0: ethernet-phy@2 {
 			reg = <0x2>;
-			interrupt-parent = <&gpio1>;
-			interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
 		};
 	};
 };
@@ -219,26 +217,18 @@
 &enetc_mdio_pf3 {
 	qsgmii_phy1: ethernet-phy@4 {
 		reg = <0x10>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
 	};
 
 	qsgmii_phy2: ethernet-phy@5 {
 		reg = <0x11>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
 	};
 
 	qsgmii_phy3: ethernet-phy@6 {
 		reg = <0x12>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
 	};
 
 	qsgmii_phy4: ethernet-phy@7 {
 		reg = <0x13>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
 	};
 };
 
