@@ -356,9 +356,7 @@ static void phylink_mac_config_up(struct phylink *pl,
 static void phylink_mac_an_restart(struct phylink *pl)
 {
 	if (pl->link_config.an_enabled &&
-	    (phy_interface_mode_is_8023z(pl->link_config.interface) ||
-	     pl->link_config.interface == PHY_INTERFACE_MODE_SGMII ||
-	     pl->link_config.interface == PHY_INTERFACE_MODE_QSGMII))
+	    phy_interface_mode_is_8023z(pl->link_config.interface))
 		pl->ops->mac_an_restart(pl->config);
 }
 
