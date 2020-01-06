@@ -684,11 +684,13 @@ static int common_nfc_set_geometry(struct gpmi_nand_data *this)
 	struct mtd_info *mtd = nand_to_mtd(&this->nand);
 
 	if (chip->base.eccreq.strength > 0 && chip->base.eccreq.step_size > 0) {
-		if (mtd->oobsize > 1024 || chip->ecc.size < mtd->oobsize)
+		if (mtd->oobsize > 1024
+		    || chip->base.eccreq.step_size < mtd->oobsize)
 			return set_geometry_for_large_oob(this);
 		else
-			return set_geometry_by_ecc_info(this, chip->ecc.strength,
-							chip->ecc.size);
+			return set_geometry_by_ecc_info(this,
+						chip->base.eccreq.strength,
+						chip->base.eccreq.step_size);
 	}
 
 	if ((of_property_read_bool(this->dev->of_node, "fsl,use-minimum-ecc"))
