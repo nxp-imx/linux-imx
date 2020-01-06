@@ -11,34 +11,47 @@
 	slot2_qsgmii0: ethernet-phy@8 {
 		reg = <0x8>;
 	};
+
 	slot2_qsgmii1: ethernet-phy@9 {
 		reg = <0x9>;
 	};
+
 	slot2_qsgmii2: ethernet-phy@a {
 		reg = <0xa>;
 	};
+
 	slot2_qsgmii3: ethernet-phy@b {
 		reg = <0xb>;
 	};
 };
 
 /* l2switch ports */
-&switch_port0 {
-	phy-handle = <&slot2_qsgmii0>;
-	phy-connection-type = "qsgmii";
-};
+&mscc_felix_ports {
+	port@0 {
+		status = "okay";
+		phy-handle = <&slot2_qsgmii0>;
+		phy-mode = "qsgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port1 {
-	phy-handle = <&slot2_qsgmii1>;
-	phy-connection-type = "qsgmii";
-};
+	port@1 {
+		status = "okay";
+		phy-handle = <&slot2_qsgmii1>;
+		phy-mode = "qsgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port2 {
-	phy-handle = <&slot2_qsgmii2>;
-	phy-connection-type = "qsgmii";
-};
+	port@2 {
+		status = "okay";
+		phy-handle = <&slot2_qsgmii2>;
+		phy-mode = "qsgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port3 {
-	phy-handle = <&slot2_qsgmii3>;
-	phy-connection-type = "qsgmii";
+	port@3 {
+		status = "okay";
+		phy-handle = <&slot2_qsgmii3>;
+		phy-mode = "qsgmii";
+		managed = "in-band-status";
+	};
 };

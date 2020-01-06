@@ -11,50 +11,47 @@
 	slot1_sgmii0: ethernet-phy@1c {
 		reg = <0x1c>;
 	};
+
 	slot1_sgmii1: ethernet-phy@1d {
 		reg = <0x1d>;
 	};
+
 	slot1_sgmii2: ethernet-phy@1e {
 		reg = <0x1e>;
 	};
+
 	slot1_sgmii3: ethernet-phy@1f {
 		reg = <0x1f>;
 	};
 };
 
-&mdio_slot2 {
-	/* VSC8234 */
-	slot2_sgmii0: ethernet-phy@1c {
-		reg = <0x1c>;
-	};
-	slot2_sgmii1: ethernet-phy@1d {
-		reg = <0x1d>;
-	};
-	slot2_sgmii2: ethernet-phy@1e {
-		reg = <0x1e>;
-	};
-	slot2_sgmii3: ethernet-phy@1f {
-		reg = <0x1f>;
-	};
-};
-
 /* l2switch ports */
-&switch_port0 {
-	phy-handle = <&slot1_sgmii0>;
-	phy-connection-type = "sgmii";
-};
+&mscc_felix_ports {
+	port@0 {
+		status = "okay";
+		phy-handle = <&slot1_sgmii0>;
+		phy-mode = "sgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port1 {
-	phy-handle = <&slot2_sgmii0>;
-	phy-connection-type = "sgmii";
-};
+	port@1 {
+		status = "okay";
+		phy-handle = <&slot1_sgmii1>;
+		phy-mode = "sgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port2 {
-	phy-handle = <&slot1_sgmii2>;
-	phy-connection-type = "sgmii";
-};
+	port@2 {
+		status = "okay";
+		phy-handle = <&slot1_sgmii2>;
+		phy-mode = "sgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port3 {
-	phy-handle = <&slot1_sgmii3>;
-	phy-connection-type = "sgmii";
+	port@3 {
+		status = "okay";
+		phy-handle = <&slot1_sgmii3>;
+		phy-mode = "sgmii";
+		managed = "in-band-status";
+	};
 };

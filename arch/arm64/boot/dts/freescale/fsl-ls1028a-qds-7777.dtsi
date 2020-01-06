@@ -7,50 +7,50 @@
  */
 
 &mdio_slot1 {
-	/* two ports on AQR412 */
+	slot1_sxgmii0: ethernet-phy@0 {
+		reg = <0x0>;
+		compatible = "ethernet-phy-ieee802.3-c45";
+	};
+
+	slot1_sxgmii1: ethernet-phy@1 {
+		reg = <0x1>;
+		compatible = "ethernet-phy-ieee802.3-c45";
+	};
+
 	slot1_sxgmii2: ethernet-phy@2 {
 		reg = <0x2>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
+
 	slot1_sxgmii3: ethernet-phy@3 {
 		reg = <0x3>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
 };
 
-&mdio_slot2 {
-	slot2_sxgmii0: ethernet-phy@2 {
-		/* AQR112 */
-		reg = <0x2>;
-		compatible = "ethernet-phy-ieee802.3-c45";
-	};
-};
-
-&mdio_slot3 {
-	slot3_sxgmii0: ethernet-phy@2 {
-		/* AQR112 */
-		reg = <0x2>;
-		compatible = "ethernet-phy-ieee802.3-c45";
-	};
-};
-
 /* l2switch ports */
-&switch_port0 {
-	phy-handle = <&slot1_sxgmii2>;
-	phy-connection-type = "2500base-x";
-};
+&mscc_felix_ports {
+	port@0 {
+		status = "okay";
+		phy-handle = <&slot1_sxgmii0>;
+		phy-mode = "2500base-x";
+	};
 
-&switch_port1 {
-	phy-handle = <&slot2_sxgmii0>;
-	phy-connection-type = "2500base-x";
-};
+	port@1 {
+		status = "okay";
+		phy-handle = <&slot1_sxgmii1>;
+		phy-mode = "2500base-x";
+	};
 
-&switch_port2 {
-	phy-handle = <&slot3_sxgmii0>;
-	phy-connection-type = "2500base-x";
-};
+	port@2 {
+		status = "okay";
+		phy-handle = <&slot1_sxgmii2>;
+		phy-mode = "2500base-x";
+	};
 
-&switch_port3 {
-	phy-handle = <&slot1_sxgmii3>;
-	phy-connection-type = "2500base-x";
+	port@3 {
+		status = "okay";
+		phy-handle = <&slot1_sxgmii3>;
+		phy-mode = "2500base-x";
+	};
 };

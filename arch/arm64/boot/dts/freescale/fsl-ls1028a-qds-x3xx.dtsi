@@ -8,41 +8,54 @@
 
 &mdio_slot2 {
 	/* 4 ports on AQR412 */
-	slot2_qsgmii0: ethernet-phy@0 {
+	slot2_qxgmii0: ethernet-phy@0 {
 		reg = <0x0>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
-	slot2_qsgmii1: ethernet-phy@1 {
+
+	slot2_qxgmii1: ethernet-phy@1 {
 		reg = <0x1>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
-	slot2_qsgmii2: ethernet-phy@2 {
+
+	slot2_qxgmii2: ethernet-phy@2 {
 		reg = <0x2>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
-	slot2_qsgmii3: ethernet-phy@3 {
+
+	slot2_qxgmii3: ethernet-phy@3 {
 		reg = <0x3>;
 		compatible = "ethernet-phy-ieee802.3-c45";
 	};
 };
 
 /* l2switch ports */
-&switch_port0 {
-	phy-handle = <&slot2_qsgmii0>;
-	phy-connection-type = "usxgmii";
-};
+&mscc_felix_ports {
+	port@0 {
+		status = "okay";
+		phy-handle = <&slot2_qxgmii0>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port1 {
-	phy-handle = <&slot2_qsgmii1>;
-	phy-connection-type = "usxgmii";
-};
+	port@1 {
+		status = "okay";
+		phy-handle = <&slot2_qxgmii1>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port2 {
-	phy-handle = <&slot2_qsgmii2>;
-	phy-connection-type = "usxgmii";
-};
+	port@2 {
+		status = "okay";
+		phy-handle = <&slot2_qxgmii2>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+	};
 
-&switch_port3 {
-	phy-handle = <&slot2_qsgmii3>;
-	phy-connection-type = "usxgmii";
+	port@3 {
+		status = "okay";
+		phy-handle = <&slot2_qxgmii3>;
+		phy-mode = "usxgmii";
+		managed = "in-band-status";
+	};
 };

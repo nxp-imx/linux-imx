@@ -768,30 +768,39 @@
 				clocks = <&clockgen 4 0>;
 				little-endian;
 			};
-			switch@0,5 {
+
+			ethernet-switch@0,5 {
 				reg = <0x000500 0 0 0 0>;
 				/* IEP INT_B */
 				interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
 
-				ports {
+				mscc_felix_ports: ports {
 					#address-cells = <1>;
 					#size-cells = <0>;
 
 					/* external ports */
-					switch_port0: port@0 {
+					mscc_felix_port0: port@0 {
 						reg = <0>;
+						status = "disabled";
 					};
-					switch_port1: port@1 {
+
+					mscc_felix_port1: port@1 {
 						reg = <1>;
+						status = "disabled";
 					};
-					switch_port2: port@2 {
+
+					mscc_felix_port2: port@2 {
 						reg = <2>;
+						status = "disabled";
 					};
-					switch_port3: port@3 {
+
+					mscc_felix_port3: port@3 {
 						reg = <3>;
+						status = "disabled";
 					};
+
 					/* internal to-cpu ports */
-					port@4 {
+					mscc_felix_port4: port@4 {
 						reg = <4>;
 						ethernet = <&enetc_port2>;
 						phy-mode = "gmii";
@@ -801,7 +810,8 @@
 							full-duplex;
 						};
 					};
-					port@5 {
+
+					mscc_felix_port5: port@5 {
 						reg = <5>;
 						phy-mode = "gmii";
 						status = "disabled";
@@ -813,6 +823,7 @@
 					};
 				};
 			};
+
 			enetc_port3: ethernet@0,6 {
 				compatible = "fsl,enetc";
 				reg = <0x000600 0 0 0 0>;
