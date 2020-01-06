@@ -71,7 +71,6 @@
 /* Advertisement control register. */
 #define ADVERTISE_SLCT		0x001f	/* Selector bits               */
 #define ADVERTISE_CSMA		0x0001	/* Only selector supported     */
-#define ADVERTISE_SGMII		0x0001	/* Can do SGMII                */
 #define ADVERTISE_10HALF	0x0020	/* Try for 10mbps half-duplex  */
 #define ADVERTISE_1000XFULL	0x0020	/* Try for 1000BASE-X full-duplex */
 #define ADVERTISE_10FULL	0x0040	/* Try for 10mbps full-duplex  */
@@ -95,7 +94,6 @@
 
 /* Link partner ability register. */
 #define LPA_SLCT		0x001f	/* Same as advertise selector  */
-#define LPA_SGMII		0x0001	/* Can do SGMII                */
 #define LPA_10HALF		0x0020	/* Can do 10mbps half-duplex   */
 #define LPA_1000XFULL		0x0020	/* Can do 1000BASE-X full-duplex */
 #define LPA_10FULL		0x0040	/* Can do 10mbps full-duplex   */
@@ -106,19 +104,11 @@
 #define LPA_1000XPAUSE_ASYM	0x0100	/* Can do 1000BASE-X pause asym*/
 #define LPA_100BASE4		0x0200	/* Can do 100mbps 4k packets   */
 #define LPA_PAUSE_CAP		0x0400	/* Can pause                   */
-#define LPA_SGMII_DPX_SPD_MASK	0x1C00	/* SGMII duplex and speed bits */
-#define LPA_SGMII_10HALF	0x0000	/* Can do SGMII 10mbps half-duplex */
-#define LPA_SGMII_10FULL	0x1000	/* Can do SGMII 10mbps full-duplex */
-#define LPA_SGMII_100HALF	0x0400	/* Can do SGMII 100mbps half-duplex */
-#define LPA_SGMII_100FULL	0x1400	/* Can do SGMII 100mbps full-duplex */
 #define LPA_PAUSE_ASYM		0x0800	/* Can pause asymetrically     */
-#define LPA_SGMII_1000HALF	0x0800	/* Can do SGMII 1000mbps half-duplex */
-#define LPA_SGMII_1000FULL	0x1800	/* Can do SGMII 1000mbps full-duplex */
 #define LPA_RESV		0x1000	/* Unused...                   */
 #define LPA_RFAULT		0x2000	/* Link partner faulted        */
 #define LPA_LPACK		0x4000	/* Link partner acked us       */
 #define LPA_NPAGE		0x8000	/* Next page bit               */
-#define LPA_SGMII_LINK		0x8000	/* Link partner has link       */
 
 #define LPA_DUPLEX		(LPA_10FULL | LPA_100FULL)
 #define LPA_100			(LPA_100FULL | LPA_100HALF | LPA_100BASE4)
