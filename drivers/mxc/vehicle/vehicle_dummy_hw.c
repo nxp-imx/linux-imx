@@ -54,6 +54,13 @@
 // right turn signal
 #define TURN_2 2
 
+#define POWER_REQ_ON 0
+#define POWER_REQ_SHUTDOWN_PREPARE 1
+#define POWER_REQ_CANCEL_SHUTDOWN 2
+#define POWER_REQ_FINISHED 3
+
+#define POWER_REQ_PARAM_MAX 3
+
 // temperature set from hardware on Android OREO and PIE uses below indexs
 #define AC_TEMP_LEFT_INDEX 1
 #define AC_TEMP_RIGHT_INDEX 4
@@ -76,6 +83,8 @@ struct vehicle_dummy_drvdata {
 	u32 auto_on;
 	u32 hvac_on;
 	u32 recirc_on;
+	u32 power_req_state;
+	u32 power_req_param;
 };
 
 #ifdef CONFIG_EXTCON
@@ -98,7 +107,7 @@ static struct class* vehicle_dummy_class;
 
 void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 {
-	dev_dbg("%s: prop %d, area %d, value %d \n", prop, area, value);
+	dev_dbg("%s: prop %d, area %d, value %d \n", __func__, prop, area, value);
 	switch (prop) {
 	case HVAC_FAN_SPEED:
 		pr_info("set fan speed with value %d\n", value);
@@ -144,6 +153,9 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case HVAC_POWER_ON:
 		pr_info("set hvac power on with value %d\n", value);
 		vehicle_dummy->hvac_on = value;
+		break;
+	case AP_POWER_STATE_REPORT:
+		pr_info("receive power state report with value %d\n", value);
 		break;
 	default:
 		pr_err("this type is not correct!\n");
@@ -537,6 +549,53 @@ static ssize_t recirc_on_store(struct device *dev,
 
 static DEVICE_ATTR(recirc_on, 0664, recirc_on_show, recirc_on_store);
 
+static ssize_t power_req_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%u %u\n", vehicle_dummy->power_req_state, vehicle_dummy->power_req_param);
+}
+
+/* echo "1 1" > /sys/devices/platform/vehicle-dummy/power_req */
+static ssize_t power_req_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t size)
+{
+	char *ret;
+	u32 state;
+	u32 param;
+
+	if (size < 4) {
+		pr_err("input command format is not correct, please type command like this: \"1 1\" \n");
+		return -EINVAL;
+	}
+
+	state = simple_strtoul(buf, NULL, 10);
+	ret = strrchr(buf, ' ');
+	param = simple_strtoul(ret+1, NULL, 10);
+
+	if (state != POWER_REQ_ON && state != POWER_REQ_SHUTDOWN_PREPARE &&
+		state != POWER_REQ_CANCEL_SHUTDOWN && state != POWER_REQ_FINISHED) {
+		pr_err("input power state is not correct, please type correct one \n");
+		return -EINVAL;
+	}
+
+	if (param > POWER_REQ_PARAM_MAX) {
+		pr_err("input power state param is not correct, please type correct one \n");
+		return -EINVAL;
+	}
+
+
+	vehicle_dummy->power_req_state = state;
+	vehicle_dummy->power_req_param = param;
+	vehicle_hal_set_property(VEHICLE_POWER_STATE_REQ, 0, state, param);
+	pr_info("power control with state: %d, param: %d \n", state, param);
+	return size;
+}
+
+static DEVICE_ATTR(power_req, 0664, power_req_show, power_req_store);
+
 static struct vehicle_dummy_drvdata *
 vehicle_get_devtree_pdata(struct device *dev)
 {
@@ -585,6 +644,7 @@ static int vehicle_dummy_hw_probe(struct platform_device *pdev)
 		device_create_file(dev, &dev_attr_temp_left) ||
 		device_create_file(dev, &dev_attr_temp_right) ||
 		device_create_file(dev, &dev_attr_gear) ||
+		device_create_file(dev, &dev_attr_power_req) ||
 		device_create_file(dev, &dev_attr_turn);
 	if (err)
 		return err;
