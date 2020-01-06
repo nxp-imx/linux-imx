@@ -13,7 +13,6 @@
 #include <linux/mfd/syscon.h>
 #include <linux/skbuff.h>
 #include <net/switchdev.h>
-#include <linux/phy/phy.h>
 
 #include "ocelot.h"
 
@@ -255,91 +254,6 @@ static const struct ocelot_ops ocelot_ops = {
 	.reset			= ocelot_reset,
 };
 
-static void ocelot_port_phylink_validate(struct phylink_config *config,
-					 unsigned long *supported,
-					 struct phylink_link_state *state)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	ocelot_phylink_validate(ocelot, port, supported, state);
-}
-
-static int
-ocelot_port_phylink_mac_pcs_get_state(struct phylink_config *config,
-				      struct phylink_link_state *state)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	ocelot_phylink_mac_pcs_get_state(ocelot, port, state);
-
-	return 0;
-}
-
-static void ocelot_port_phylink_mac_an_restart(struct phylink_config *config)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	ocelot_phylink_mac_an_restart(ocelot, port);
-}
-
-static void
-ocelot_port_phylink_mac_config(struct phylink_config *config,
-			       unsigned int link_an_mode,
-			       const struct phylink_link_state *state)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	ocelot_phylink_mac_config(ocelot, port, link_an_mode, state);
-}
-
-static void ocelot_port_phylink_mac_link_down(struct phylink_config *config,
-					      unsigned int link_an_mode,
-					      phy_interface_t interface)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	return ocelot_phylink_mac_link_down(ocelot, port, link_an_mode,
-					    interface);
-}
-
-static void ocelot_port_phylink_mac_link_up(struct phylink_config *config,
-					    unsigned int link_an_mode,
-					    phy_interface_t interface,
-					    struct phy_device *phy)
-{
-	struct net_device *ndev = to_net_dev(config->dev);
-	struct ocelot_port_private *priv = netdev_priv(ndev);
-	struct ocelot *ocelot = priv->port.ocelot;
-	int port = priv->chip_port;
-
-	return ocelot_phylink_mac_link_up(ocelot, port, link_an_mode,
-					  interface, phy);
-}
-
-static const struct phylink_mac_ops ocelot_phylink_ops = {
-	.validate		= ocelot_port_phylink_validate,
-	.mac_link_state		= ocelot_port_phylink_mac_pcs_get_state,
-	.mac_an_restart		= ocelot_port_phylink_mac_an_restart,
-	.mac_config		= ocelot_port_phylink_mac_config,
-	.mac_link_down		= ocelot_port_phylink_mac_link_down,
-	.mac_link_up		= ocelot_port_phylink_mac_link_up,
-};
-
 static int mscc_ocelot_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -447,6 +361,8 @@ static int mscc_ocelot_probe(struct platform_device *pdev)
 	for_each_available_child_of_node(ports, portnp) {
 		struct ocelot_port_private *priv;
 		struct ocelot_port *ocelot_port;
+		struct device_node *phy_node;
+		struct phy_device *phy;
 		struct resource *res;
 		struct phy *serdes;
 		void __iomem *regs;
@@ -465,7 +381,16 @@ static int mscc_ocelot_probe(struct platform_device *pdev)
 		if (IS_ERR(regs))
 			continue;
 
-		err = ocelot_probe_port(ocelot, port, regs);
+		phy_node = of_parse_phandle(portnp, "phy-handle", 0);
+		if (!phy_node)
+			continue;
+
+		phy = of_phy_find_device(phy_node);
+		of_node_put(phy_node);
+		if (!phy)
+			continue;
+
+		err = ocelot_probe_port(ocelot, port, regs, phy);
 		if (err) {
 			of_node_put(portnp);
 			goto out_put_ports;
@@ -479,7 +404,9 @@ static int mscc_ocelot_probe(struct platform_device *pdev)
 		if (phy_mode < 0)
 			phy_mode = PHY_INTERFACE_MODE_NA;
 
-		switch (phy_mode) {
+		priv->phy_mode = phy_mode;
+
+		switch (priv->phy_mode) {
 		case PHY_INTERFACE_MODE_NA:
 			continue;
 		case PHY_INTERFACE_MODE_SGMII:
@@ -516,41 +443,7 @@ static int mscc_ocelot_probe(struct platform_device *pdev)
 			goto out_put_ports;
 		}
 
-		if (serdes) {
-			err = phy_set_mode_ext(serdes, PHY_MODE_ETHERNET,
-					       phy_mode);
-			if (err) {
-				dev_err(ocelot->dev,
-					"Could not set mode of SerDes\n");
-				of_node_put(portnp);
-				goto out_put_ports;
-			}
-		}
-
-		priv->phylink_config.dev = &priv->dev->dev;
-		priv->phylink_config.type = PHYLINK_NETDEV;
-
-		priv->phylink = phylink_create(&priv->phylink_config,
-					       of_fwnode_handle(portnp),
-					       phy_mode, &ocelot_phylink_ops);
-		if (IS_ERR(priv->phylink)) {
-			dev_err(ocelot->dev,
-				"Could not create a phylink instance (%ld)\n",
-				PTR_ERR(priv->phylink));
-			err = PTR_ERR(priv->phylink);
-			priv->phylink = NULL;
-			of_node_put(portnp);
-			goto out_put_ports;
-		}
-
-		err = phylink_of_phy_connect(priv->phylink, portnp, 0);
-		if (err) {
-			dev_err(ocelot->dev, "Could not connect to PHY: %d\n",
-				err);
-			phylink_destroy(priv->phylink);
-			of_node_put(portnp);
-			goto out_put_ports;
-		}
+		priv->serdes = serdes;
 	}
 
 	register_netdevice_notifier(&ocelot_netdevice_nb);
@@ -567,26 +460,11 @@ out_put_ports:
 static int mscc_ocelot_remove(struct platform_device *pdev)
 {
 	struct ocelot *ocelot = platform_get_drvdata(pdev);
-	int port;
 
 	ocelot_deinit(ocelot);
 	unregister_switchdev_blocking_notifier(&ocelot_switchdev_blocking_nb);
 	unregister_switchdev_notifier(&ocelot_switchdev_nb);
 	unregister_netdevice_notifier(&ocelot_netdevice_nb);
-
-	for (port = 0; port < ocelot->num_phys_ports; port++) {
-		struct ocelot_port_private *priv;
-
-		priv = container_of(ocelot->ports[port],
-				    struct ocelot_port_private,
-				    port);
-
-		if (priv->phylink) {
-			rtnl_lock();
-			phylink_destroy(priv->phylink);
-			rtnl_unlock();
-		}
-	}
 
 	return 0;
 }

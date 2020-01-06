@@ -13,7 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
-#include <linux/phylink.h>
+#include <linux/phy.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/skbuff.h>
 #include <linux/iopoll.h>
@@ -406,66 +406,18 @@ static u16 ocelot_wm_enc(u16 value)
 	return value;
 }
 
-void ocelot_phylink_validate(struct ocelot *ocelot, int port,
-			     unsigned long *supported,
-			     struct phylink_link_state *state)
-{
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
-
-	if (state->interface != PHY_INTERFACE_MODE_NA &&
-	    state->interface != PHY_INTERFACE_MODE_GMII &&
-	    state->interface != PHY_INTERFACE_MODE_SGMII &&
-	    state->interface != PHY_INTERFACE_MODE_QSGMII) {
-		bitmap_zero(supported, __ETHTOOL_LINK_MODE_MASK_NBITS);
-		return;
-	}
-
-	/* No half-duplex. */
-	phylink_set_port_modes(mask);
-	phylink_set(mask, Autoneg);
-	phylink_set(mask, Pause);
-	phylink_set(mask, Asym_Pause);
-	phylink_set(mask, 10baseT_Full);
-	phylink_set(mask, 100baseT_Full);
-	phylink_set(mask, 1000baseT_Full);
-	phylink_set(mask, 2500baseT_Full);
-
-	bitmap_and(supported, supported, mask,
-		   __ETHTOOL_LINK_MODE_MASK_NBITS);
-	bitmap_and(state->advertising, state->advertising, mask,
-		   __ETHTOOL_LINK_MODE_MASK_NBITS);
-}
-EXPORT_SYMBOL(ocelot_phylink_validate);
-
-void ocelot_phylink_mac_pcs_get_state(struct ocelot *ocelot, int port,
-				      struct phylink_link_state *state)
-{
-	state->link = 1;
-}
-EXPORT_SYMBOL(ocelot_phylink_mac_pcs_get_state);
-
-void ocelot_phylink_mac_an_restart(struct ocelot *ocelot, int port)
-{
-	/* Not supported */
-}
-EXPORT_SYMBOL(ocelot_phylink_mac_an_restart);
-
-void ocelot_phylink_mac_config(struct ocelot *ocelot, int port,
-			       unsigned int link_an_mode,
-			       const struct phylink_link_state *state)
+void ocelot_adjust_link(struct ocelot *ocelot, int port,
+			struct phy_device *phydev)
 {
 	int speed, mac_speed, mac_mode = DEV_MAC_MODE_CFG_FDX_ENA;
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
-	u32 mac_fc_cfg;
 
 	if (ocelot->quirks & OCELOT_PCS_PERFORMS_RATE_ADAPTATION)
 		speed = SPEED_1000;
 	else
-		speed = state->speed;
+		speed = phydev->speed;
 
 	switch (speed) {
-	case SPEED_UNKNOWN:
-		return;
 	case SPEED_10:
 		mac_speed = OCELOT_SPEED_10;
 		break;
@@ -481,10 +433,15 @@ void ocelot_phylink_mac_config(struct ocelot *ocelot, int port,
 		mac_mode |= DEV_MAC_MODE_CFG_GIGA_MODE_ENA;
 		break;
 	default:
-		dev_err(ocelot->dev, "Unsupported speed on port %d: %d\n",
+		dev_err(ocelot->dev, "Unsupported PHY speed on port %d: %d\n",
 			port, speed);
 		return;
 	}
+
+	phy_print_status(phydev);
+
+	if (!phydev->link)
+		return;
 
 	/* Only full duplex supported for now */
 	ocelot_port_writel(ocelot_port, mac_mode, DEV_MAC_MODE_CFG);
@@ -512,36 +469,27 @@ void ocelot_phylink_mac_config(struct ocelot *ocelot, int port,
 			 QSYS_SWITCH_PORT_MODE, port);
 
 	/* Flow control */
-	mac_fc_cfg = SYS_MAC_FC_CFG_FC_LINK_SPEED(mac_speed);
-	if (state->pause & MLO_PAUSE_RX)
-		mac_fc_cfg |= SYS_MAC_FC_CFG_RX_FC_ENA;
-	if (state->pause & MLO_PAUSE_TX)
-		mac_fc_cfg |= SYS_MAC_FC_CFG_TX_FC_ENA |
-			      SYS_MAC_FC_CFG_PAUSE_VAL_CFG(0xffff) |
-			      SYS_MAC_FC_CFG_FC_LATENCY_CFG(0x7) |
-			      SYS_MAC_FC_CFG_ZERO_PAUSE_ENA;
-	ocelot_write_rix(ocelot, mac_fc_cfg, SYS_MAC_FC_CFG, port);
-
+	ocelot_write_rix(ocelot, SYS_MAC_FC_CFG_PAUSE_VAL_CFG(0xffff) |
+			 SYS_MAC_FC_CFG_RX_FC_ENA | SYS_MAC_FC_CFG_TX_FC_ENA |
+			 SYS_MAC_FC_CFG_ZERO_PAUSE_ENA |
+			 SYS_MAC_FC_CFG_FC_LATENCY_CFG(0x7) |
+			 SYS_MAC_FC_CFG_FC_LINK_SPEED(mac_speed),
+			 SYS_MAC_FC_CFG, port);
 	ocelot_write_rix(ocelot, 0, ANA_POL_FLOWC, port);
 }
-EXPORT_SYMBOL(ocelot_phylink_mac_config);
+EXPORT_SYMBOL(ocelot_adjust_link);
 
-void ocelot_phylink_mac_link_down(struct ocelot *ocelot, int port,
-				  unsigned int link_an_mode,
-				  phy_interface_t interface)
+static void ocelot_port_adjust_link(struct net_device *dev)
 {
-	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	struct ocelot_port_private *priv = netdev_priv(dev);
+	struct ocelot *ocelot = priv->port.ocelot;
+	int port = priv->chip_port;
 
-	ocelot_port_writel(ocelot_port, 0, DEV_MAC_ENA_CFG);
-	ocelot_rmw_rix(ocelot, 0, QSYS_SWITCH_PORT_MODE_PORT_ENA,
-		       QSYS_SWITCH_PORT_MODE, port);
+	ocelot_adjust_link(ocelot, port, dev->phydev);
 }
-EXPORT_SYMBOL(ocelot_phylink_mac_link_down);
 
-void ocelot_phylink_mac_link_up(struct ocelot *ocelot, int port,
-				unsigned int link_an_mode,
-				phy_interface_t interface,
-				struct phy_device *phy)
+void ocelot_port_enable(struct ocelot *ocelot, int port,
+			struct phy_device *phy)
 {
 	/* Enable receiving frames on the port, and activate auto-learning of
 	 * MAC addresses.
@@ -551,22 +499,62 @@ void ocelot_phylink_mac_link_up(struct ocelot *ocelot, int port,
 			 ANA_PORT_PORT_CFG_PORTID_VAL(port),
 			 ANA_PORT_PORT_CFG, port);
 }
-EXPORT_SYMBOL(ocelot_phylink_mac_link_up);
+EXPORT_SYMBOL(ocelot_port_enable);
 
 static int ocelot_port_open(struct net_device *dev)
 {
 	struct ocelot_port_private *priv = netdev_priv(dev);
+	struct ocelot *ocelot = priv->port.ocelot;
+	int port = priv->chip_port;
+	int err;
 
-	phylink_start(priv->phylink);
+	if (priv->serdes) {
+		err = phy_set_mode_ext(priv->serdes, PHY_MODE_ETHERNET,
+				       priv->phy_mode);
+		if (err) {
+			netdev_err(dev, "Could not set mode of SerDes\n");
+			return err;
+		}
+	}
+
+	err = phy_connect_direct(dev, priv->phy, &ocelot_port_adjust_link,
+				 priv->phy_mode);
+	if (err) {
+		netdev_err(dev, "Could not attach to PHY\n");
+		return err;
+	}
+
+	dev->phydev = priv->phy;
+
+	phy_attached_info(priv->phy);
+	phy_start(priv->phy);
+
+	ocelot_port_enable(ocelot, port, priv->phy);
 
 	return 0;
 }
 
+void ocelot_port_disable(struct ocelot *ocelot, int port)
+{
+	struct ocelot_port *ocelot_port = ocelot->ports[port];
+
+	ocelot_port_writel(ocelot_port, 0, DEV_MAC_ENA_CFG);
+	ocelot_rmw_rix(ocelot, 0, QSYS_SWITCH_PORT_MODE_PORT_ENA,
+		       QSYS_SWITCH_PORT_MODE, port);
+}
+EXPORT_SYMBOL(ocelot_port_disable);
+
 static int ocelot_port_stop(struct net_device *dev)
 {
 	struct ocelot_port_private *priv = netdev_priv(dev);
+	struct ocelot *ocelot = priv->port.ocelot;
+	int port = priv->chip_port;
 
-	phylink_stop(priv->phylink);
+	phy_disconnect(priv->phy);
+
+	dev->phydev = NULL;
+
+	ocelot_port_disable(ocelot, port);
 
 	return 0;
 }
@@ -2269,7 +2257,8 @@ void ocelot_init_port(struct ocelot *ocelot, int port)
 EXPORT_SYMBOL(ocelot_init_port);
 
 int ocelot_probe_port(struct ocelot *ocelot, u8 port,
-		      void __iomem *regs)
+		      void __iomem *regs,
+		      struct phy_device *phy)
 {
 	struct ocelot_port_private *priv;
 	struct ocelot_port *ocelot_port;
@@ -2282,6 +2271,7 @@ int ocelot_probe_port(struct ocelot *ocelot, u8 port,
 	SET_NETDEV_DEV(dev, ocelot->dev);
 	priv = netdev_priv(dev);
 	priv->dev = dev;
+	priv->phy = phy;
 	priv->chip_port = port;
 	ocelot_port = &priv->port;
 	ocelot_port->ocelot = ocelot;

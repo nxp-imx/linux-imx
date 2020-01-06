@@ -518,12 +518,17 @@ void ocelot_deinit(struct ocelot *ocelot);
 void ocelot_init_port(struct ocelot *ocelot, int port);
 
 /* DSA callbacks */
+void ocelot_port_enable(struct ocelot *ocelot, int port,
+			struct phy_device *phy);
+void ocelot_port_disable(struct ocelot *ocelot, int port);
 void ocelot_get_strings(struct ocelot *ocelot, int port, u32 sset, u8 *data);
 void ocelot_get_ethtool_stats(struct ocelot *ocelot, int port, u64 *data);
 int ocelot_get_sset_count(struct ocelot *ocelot, int port, int sset);
 int ocelot_get_ts_info(struct ocelot *ocelot, int port,
 		       struct ethtool_ts_info *info);
 void ocelot_set_ageing_time(struct ocelot *ocelot, unsigned int msecs);
+void ocelot_adjust_link(struct ocelot *ocelot, int port,
+			struct phy_device *phydev);
 void ocelot_port_vlan_filtering(struct ocelot *ocelot, int port,
 				bool vlan_aware);
 void ocelot_bridge_stp_state_set(struct ocelot *ocelot, int port, u8 state);
@@ -592,21 +597,4 @@ int ocelot_rtag_parse_enable(struct ocelot *ocelot, u8 port);
 int ocelot_dscp_set(struct ocelot *ocelot, int port,
 		    bool enable, const u8 dscp_ix,
 		    struct tsn_qos_switch_dscp_conf *c);
-void ocelot_phylink_validate(struct ocelot *ocelot, int port,
-			     unsigned long *supported,
-			     struct phylink_link_state *state);
-void ocelot_phylink_mac_pcs_get_state(struct ocelot *ocelot, int port,
-				      struct phylink_link_state *state);
-void ocelot_phylink_mac_an_restart(struct ocelot *ocelot, int port);
-void ocelot_phylink_mac_config(struct ocelot *ocelot, int port,
-			       unsigned int link_an_mode,
-			       const struct phylink_link_state *state);
-void ocelot_phylink_mac_link_down(struct ocelot *ocelot, int port,
-				  unsigned int link_an_mode,
-				  phy_interface_t interface);
-void ocelot_phylink_mac_link_up(struct ocelot *ocelot, int port,
-				unsigned int link_an_mode,
-				phy_interface_t interface,
-				struct phy_device *phy);
-
 #endif
