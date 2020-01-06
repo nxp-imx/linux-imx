@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2019 NXP */
 
-#include <linux/fsl/enetc_mdio.h>
 #include <linux/mdio.h>
 #include <linux/of_mdio.h>
 #include <linux/iopoll.h>
 #include <linux/of.h>
 
 #include "enetc_pf.h"
+#include "enetc_mdio.h"
 
 #define	ENETC_MDIO_CFG	0x0	/* MDIO configuration and status */
 #define	ENETC_MDIO_CTL	0x4	/* MDIO control */
@@ -99,7 +99,6 @@ int enetc_mdio_write(struct mii_bus *bus, int phy_id, int regnum, u16 value)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(enetc_mdio_write);
 
 int enetc_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 {
@@ -155,21 +154,6 @@ int enetc_mdio_read(struct mii_bus *bus, int phy_id, int regnum)
 
 	return value;
 }
-EXPORT_SYMBOL_GPL(enetc_mdio_read);
-
-struct enetc_hw *enetc_hw_alloc(struct device *dev, void __iomem *port_regs)
-{
-	struct enetc_hw *hw;
-
-	hw = devm_kzalloc(dev, sizeof(*hw), GFP_KERNEL);
-	if (!hw)
-		return ERR_PTR(-ENOMEM);
-
-	hw->port = port_regs;
-
-	return hw;
-}
-EXPORT_SYMBOL_GPL(enetc_hw_alloc);
 
 int enetc_mdio_probe(struct enetc_pf *pf)
 {
