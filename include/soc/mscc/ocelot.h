@@ -412,15 +412,7 @@ enum {
 struct ocelot;
 
 struct ocelot_ops {
-	void (*pcs_init)(struct ocelot *ocelot, int port,
-			 unsigned int link_an_mode,
-			 const struct phylink_link_state *state);
-	void (*pcs_an_restart)(struct ocelot *ocelot, int port);
-	void (*pcs_link_state)(struct ocelot *ocelot, int port,
-			       struct phylink_link_state *state);
-	void (*pcs_validate)(struct ocelot *ocelot, int port,
-			     unsigned long *supported,
-			     struct phylink_link_state *state);
+	void (*pcs_init)(struct ocelot *ocelot, int port);
 	int (*reset)(struct ocelot *ocelot);
 };
 
@@ -487,6 +479,8 @@ struct ocelot {
 	struct mutex			ptp_lock;
 	/* Protects the PTP clock */
 	spinlock_t			ptp_clock_lock;
+
+	void (*port_pcs_init)(struct ocelot_port *port);
 };
 
 #define ocelot_read_ix(ocelot, reg, gi, ri) __ocelot_read_ix(ocelot, reg, reg##_GSZ * (gi) + reg##_RSZ * (ri))

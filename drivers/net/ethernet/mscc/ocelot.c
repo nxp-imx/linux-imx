@@ -410,25 +410,43 @@ void ocelot_phylink_validate(struct ocelot *ocelot, int port,
 			     unsigned long *supported,
 			     struct phylink_link_state *state)
 {
-	if (ocelot->ops->pcs_validate)
-		ocelot->ops->pcs_validate(ocelot, port, supported, state);
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
+
+	if (state->interface != PHY_INTERFACE_MODE_NA &&
+	    state->interface != PHY_INTERFACE_MODE_GMII &&
+	    state->interface != PHY_INTERFACE_MODE_SGMII &&
+	    state->interface != PHY_INTERFACE_MODE_QSGMII) {
+		bitmap_zero(supported, __ETHTOOL_LINK_MODE_MASK_NBITS);
+		return;
+	}
+
+	/* No half-duplex. */
+	phylink_set_port_modes(mask);
+	phylink_set(mask, Autoneg);
+	phylink_set(mask, Pause);
+	phylink_set(mask, Asym_Pause);
+	phylink_set(mask, 10baseT_Full);
+	phylink_set(mask, 100baseT_Full);
+	phylink_set(mask, 1000baseT_Full);
+	phylink_set(mask, 2500baseT_Full);
+
+	bitmap_and(supported, supported, mask,
+		   __ETHTOOL_LINK_MODE_MASK_NBITS);
+	bitmap_and(state->advertising, state->advertising, mask,
+		   __ETHTOOL_LINK_MODE_MASK_NBITS);
 }
 EXPORT_SYMBOL(ocelot_phylink_validate);
 
 void ocelot_phylink_mac_pcs_get_state(struct ocelot *ocelot, int port,
 				      struct phylink_link_state *state)
 {
-	if (ocelot->ops->pcs_link_state)
-		ocelot->ops->pcs_link_state(ocelot, port, state);
-	else
-		state->link = 1;
+	state->link = 1;
 }
 EXPORT_SYMBOL(ocelot_phylink_mac_pcs_get_state);
 
 void ocelot_phylink_mac_an_restart(struct ocelot *ocelot, int port)
 {
-	if (ocelot->ops->pcs_an_restart)
-		ocelot->ops->pcs_an_restart(ocelot, port);
+	/* Not supported */
 }
 EXPORT_SYMBOL(ocelot_phylink_mac_an_restart);
 
@@ -472,7 +490,7 @@ void ocelot_phylink_mac_config(struct ocelot *ocelot, int port,
 	ocelot_port_writel(ocelot_port, mac_mode, DEV_MAC_MODE_CFG);
 
 	if (ocelot->ops->pcs_init)
-		ocelot->ops->pcs_init(ocelot, port, link_an_mode, state);
+		ocelot->ops->pcs_init(ocelot, port);
 
 	/* Enable MAC module */
 	ocelot_port_writel(ocelot_port, DEV_MAC_ENA_CFG_RX_ENA |

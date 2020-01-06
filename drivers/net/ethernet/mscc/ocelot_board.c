@@ -204,9 +204,7 @@ static const struct of_device_id mscc_ocelot_match[] = {
 };
 MODULE_DEVICE_TABLE(of, mscc_ocelot_match);
 
-static void ocelot_port_pcs_init(struct ocelot *ocelot, int port,
-				 unsigned int link_an_mode,
-				 const struct phylink_link_state *state)
+static void ocelot_port_pcs_init(struct ocelot *ocelot, int port)
 {
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 
@@ -227,36 +225,6 @@ static void ocelot_port_pcs_init(struct ocelot *ocelot, int port,
 
 	/* No loopback */
 	ocelot_port_writel(ocelot_port, 0, PCS1G_LB_CFG);
-}
-
-void ocelot_port_pcs_validate(struct ocelot *ocelot, int port,
-			      unsigned long *supported,
-			      struct phylink_link_state *state)
-{
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
-
-	if (state->interface != PHY_INTERFACE_MODE_NA &&
-	    state->interface != PHY_INTERFACE_MODE_GMII &&
-	    state->interface != PHY_INTERFACE_MODE_SGMII &&
-	    state->interface != PHY_INTERFACE_MODE_QSGMII) {
-		bitmap_zero(supported, __ETHTOOL_LINK_MODE_MASK_NBITS);
-		return;
-	}
-
-	/* No half-duplex. */
-	phylink_set_port_modes(mask);
-	phylink_set(mask, Autoneg);
-	phylink_set(mask, Pause);
-	phylink_set(mask, Asym_Pause);
-	phylink_set(mask, 10baseT_Full);
-	phylink_set(mask, 100baseT_Full);
-	phylink_set(mask, 1000baseT_Full);
-	phylink_set(mask, 2500baseT_Full);
-
-	bitmap_and(supported, supported, mask,
-		   __ETHTOOL_LINK_MODE_MASK_NBITS);
-	bitmap_and(state->advertising, state->advertising, mask,
-		   __ETHTOOL_LINK_MODE_MASK_NBITS);
 }
 
 static int ocelot_reset(struct ocelot *ocelot)
@@ -284,7 +252,6 @@ static int ocelot_reset(struct ocelot *ocelot)
 
 static const struct ocelot_ops ocelot_ops = {
 	.pcs_init		= ocelot_port_pcs_init,
-	.pcs_validate		= ocelot_port_pcs_validate,
 	.reset			= ocelot_reset,
 };
 
