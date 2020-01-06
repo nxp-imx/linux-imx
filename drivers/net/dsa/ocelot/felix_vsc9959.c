@@ -584,5 +584,4 @@ struct felix_info felix_info_vsc9959 = {
 	.shared_queue_sz	= 128 * 1024,
 	.num_ports		= 6,
 	.pci_bar		= 4,
-	.quirks			= OCELOT_PCS_PERFORMS_RATE_ADAPTATION,
 };

@@ -18,7 +18,6 @@ struct felix_info {
 	unsigned int			num_stats;
 	int				num_ports;
 	int				pci_bar;
-	unsigned long			quirks;
 };
 
 extern struct felix_info		felix_info_vsc9959;

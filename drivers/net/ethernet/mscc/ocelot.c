@@ -409,32 +409,27 @@ static u16 ocelot_wm_enc(u16 value)
 void ocelot_adjust_link(struct ocelot *ocelot, int port,
 			struct phy_device *phydev)
 {
-	int speed, mac_speed, mac_mode = DEV_MAC_MODE_CFG_FDX_ENA;
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
+	int speed, mode = 0;
 
-	if (ocelot->quirks & OCELOT_PCS_PERFORMS_RATE_ADAPTATION)
-		speed = SPEED_1000;
-	else
-		speed = phydev->speed;
-
-	switch (speed) {
+	switch (phydev->speed) {
 	case SPEED_10:
-		mac_speed = OCELOT_SPEED_10;
+		speed = OCELOT_SPEED_10;
 		break;
 	case SPEED_100:
-		mac_speed = OCELOT_SPEED_100;
+		speed = OCELOT_SPEED_100;
 		break;
 	case SPEED_1000:
-		mac_speed = OCELOT_SPEED_1000;
-		mac_mode |= DEV_MAC_MODE_CFG_GIGA_MODE_ENA;
+		speed = OCELOT_SPEED_1000;
+		mode = DEV_MAC_MODE_CFG_GIGA_MODE_ENA;
 		break;
 	case SPEED_2500:
-		mac_speed = OCELOT_SPEED_2500;
-		mac_mode |= DEV_MAC_MODE_CFG_GIGA_MODE_ENA;
+		speed = OCELOT_SPEED_2500;
+		mode = DEV_MAC_MODE_CFG_GIGA_MODE_ENA;
 		break;
 	default:
 		dev_err(ocelot->dev, "Unsupported PHY speed on port %d: %d\n",
-			port, speed);
+			port, phydev->speed);
 		return;
 	}
 
@@ -444,7 +439,8 @@ void ocelot_adjust_link(struct ocelot *ocelot, int port,
 		return;
 
 	/* Only full duplex supported for now */
-	ocelot_port_writel(ocelot_port, mac_mode, DEV_MAC_MODE_CFG);
+	ocelot_port_writel(ocelot_port, DEV_MAC_MODE_CFG_FDX_ENA |
+			   mode, DEV_MAC_MODE_CFG);
 
 	if (ocelot->ops->pcs_init)
 		ocelot->ops->pcs_init(ocelot, port);
@@ -455,11 +451,11 @@ void ocelot_adjust_link(struct ocelot *ocelot, int port,
 
 	/* Take MAC, Port, Phy (intern) and PCS (SGMII/Serdes) clock out of
 	 * reset */
-	ocelot_port_writel(ocelot_port, DEV_CLOCK_CFG_LINK_SPEED(mac_speed),
+	ocelot_port_writel(ocelot_port, DEV_CLOCK_CFG_LINK_SPEED(speed),
 			   DEV_CLOCK_CFG);
 
 	/* No PFC */
-	ocelot_write_gix(ocelot, ANA_PFC_PFC_CFG_FC_LINK_SPEED(mac_speed),
+	ocelot_write_gix(ocelot, ANA_PFC_PFC_CFG_FC_LINK_SPEED(speed),
 			 ANA_PFC_PFC_CFG, port);
 
 	/* Core: Enable port for frame transfer */
@@ -473,7 +469,7 @@ void ocelot_adjust_link(struct ocelot *ocelot, int port,
 			 SYS_MAC_FC_CFG_RX_FC_ENA | SYS_MAC_FC_CFG_TX_FC_ENA |
 			 SYS_MAC_FC_CFG_ZERO_PAUSE_ENA |
 			 SYS_MAC_FC_CFG_FC_LATENCY_CFG(0x7) |
-			 SYS_MAC_FC_CFG_FC_LINK_SPEED(mac_speed),
+			 SYS_MAC_FC_CFG_FC_LINK_SPEED(speed),
 			 SYS_MAC_FC_CFG, port);
 	ocelot_write_rix(ocelot, 0, ANA_POL_FLOWC, port);
 }

@@ -249,7 +249,6 @@ static int felix_init_structs(struct felix *felix, int num_phys_ports)
 	ocelot->num_stats	= felix->info->num_stats;
 	ocelot->shared_queue_sz	= felix->info->shared_queue_sz;
 	ocelot->ops		= felix->info->ops;
-	ocelot->quirks		= felix->info->quirks;
 
 	base = pci_resource_start(felix->pdev, felix->info->pci_bar);
 
