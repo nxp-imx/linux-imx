@@ -36,7 +36,6 @@
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 #include "../../pci.h"
-#include <linux/uaccess.h>
 
 #include "pcie-designware.h"
 
