@@ -215,19 +215,19 @@
 };
 
 &enetc_mdio_pf3 {
-	qsgmii_phy1: ethernet-phy@4 {
+	qsgmii_phy1: ethernet-phy@10 {
 		reg = <0x10>;
 	};
 
-	qsgmii_phy2: ethernet-phy@5 {
+	qsgmii_phy2: ethernet-phy@11 {
 		reg = <0x11>;
 	};
 
-	qsgmii_phy3: ethernet-phy@6 {
+	qsgmii_phy3: ethernet-phy@12 {
 		reg = <0x12>;
 	};
 
-	qsgmii_phy4: ethernet-phy@7 {
+	qsgmii_phy4: ethernet-phy@13 {
 		reg = <0x13>;
 	};
 };
