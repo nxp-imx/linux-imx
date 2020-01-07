@@ -276,6 +276,3 @@
 	lane-mapping = <0x4e>;
 	status = "okay";
 };
-
-#include "fsl-ls1028a-qds-8xxx.dtsi"
-#include "fsl-ls1028a-qds-x5xx.dtsi"
