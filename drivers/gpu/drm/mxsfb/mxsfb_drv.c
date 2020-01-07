@@ -161,7 +161,7 @@ enum drm_mode_status mxsfb_pipe_mode_valid(struct drm_crtc *crtc,
 	else
 		bpp = pipe->plane.state->fb->format->depth;
 
-	bw = mode->crtc_clock * 1000;
+	bw = mode->clock * 1000;
 	bw = bw * mode->hdisplay * mode->vdisplay * (bpp / 8);
 	bw = div_u64(bw, mode->htotal * mode->vtotal);
 
