@@ -21,25 +21,25 @@
 #include <linux/of_platform.h>
 #include "vehicle_core.h"
 
-#define FAN_SPEED_0 2
-#define FAN_SPEED_1 4
-#define FAN_SPEED_2 6
-#define FAN_SPEED_3 8
-#define FAN_SPEED_4 10
-#define FAN_SPEED_5 12
-#define FAN_DIRECTION_0 2
-#define FAN_DIRECTION_1 4
-#define FAN_DIRECTION_2 6
-#define FAN_DIRECTION_3 12
-#define RECIRC_ON 2
+#define FAN_SPEED_0 1
+#define FAN_SPEED_1 2
+#define FAN_SPEED_2 3
+#define FAN_SPEED_3 4
+#define FAN_SPEED_4 5
+#define FAN_SPEED_5 6
+#define FAN_DIRECTION_0 1
+#define FAN_DIRECTION_1 2
+#define FAN_DIRECTION_2 3
+#define FAN_DIRECTION_3 6
+#define RECIRC_ON 1
 #define RECIRC_OFF 0
-#define HVAC_ON 2
+#define HVAC_ON 1
 #define HVAC_OFF 0
-#define AUTO_ON 2
+#define AUTO_ON 1
 #define AUTO_OFF 0
-#define AC_ON 2
+#define AC_ON 1
 #define AC_OFF 0
-#define DEFROST_ON 2
+#define DEFROST_ON 1
 #define DEFROST_OFF 0
 //VEHICLE is in state parking
 #define GEAR_0 1
@@ -158,7 +158,7 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		pr_info("receive power state report with value %d\n", value);
 		break;
 	default:
-		pr_err("this type is not correct!\n");
+		pr_err("this type is not correct: %d:%d:%d!\n", prop, area, value);
 	}
 }
 
@@ -169,7 +169,7 @@ static ssize_t turn_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->turn);
 }
 
-/* echo 0/1/2(none/left/right) > /sys/devices/platform/vehicle_dummy_hw/turn*/
+/* echo 0/1/2(none/left/right) > /sys/devices/platform/vehicle-dummy/turn*/
 static ssize_t turn_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -199,7 +199,7 @@ static ssize_t gear_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->gear);
 }
 
-/*echo 1/2/4(parking/reverse/drive) > /sys/devices/platform/vehicle_dummy_hw/gear*/
+/*echo 1/2/4(parking/reverse/drive) > /sys/devices/platform/vehicle-dummy/gear*/
 static ssize_t gear_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -236,7 +236,7 @@ static ssize_t temp_left_show(struct device *dev,
 	return sprintf(buf, "%d\n", vehicle_dummy->temp_left);
 }
 
-/*echo 1100713529 > /sys/devices/platform/vehicle_dummy_hw/temp_left*/
+/*echo 1100713529 > /sys/devices/platform/vehicle-dummy/temp_left*/
 static ssize_t temp_left_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -267,7 +267,7 @@ static ssize_t temp_right_show(struct device *dev,
 	return sprintf(buf, "%d\n", vehicle_dummy->temp_right);
 }
 
-/*echo 1100713529 > /sys/devices/platform/vehicle_dummy_hw/temp_right*/
+/*echo 1100713529 > /sys/devices/platform/vehicle-dummy/temp_right*/
 static ssize_t temp_right_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -298,7 +298,7 @@ static ssize_t fan_direction_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->fan_direction);
 }
 
-/*echo 2/4/6/12 > /sys/devices/platform/vehicle_dummy_hw/fan_direction*/
+/*echo 1/2/3/6 > /sys/devices/platform/vehicle-dummy/fan_direction*/
 static ssize_t fan_direction_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -330,7 +330,7 @@ static ssize_t fan_speed_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->fan_speed);
 }
 
-/*echo 2/4/6/8/10/12 > /sys/devices/platform/vehicle_dummy_hw/fan_speed*/
+/*echo 1/2/3/4/5/6 > /sys/devices/platform/vehicle-dummy/fan_speed*/
 static ssize_t fan_speed_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -364,7 +364,7 @@ static ssize_t defrost_left_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->defrost_left);
 }
 
-/*echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/defrost_left*/
+/*echo 0/1 > /sys/devices/platform/vehicle-dummy/defrost_left*/
 static ssize_t defrost_left_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -396,7 +396,7 @@ static ssize_t defrost_right_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->defrost_right);
 }
 
-/*echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/defrost_right*/
+/*echo 0/1 > /sys/devices/platform/vehicle-dummy/defrost_right*/
 static ssize_t defrost_right_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -428,7 +428,7 @@ static ssize_t ac_on_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->ac_on);
 }
 
-/*echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/ac_on*/
+/*echo 0/1 > /sys/devices/platform/vehicle-dummy/ac_on*/
 static ssize_t ac_on_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -460,7 +460,7 @@ static ssize_t auto_on_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->auto_on);
 }
 
-/*echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/auto_on*/
+/*echo 0/1 > /sys/devices/platform/vehicle-dummy/auto_on*/
 static ssize_t auto_on_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -489,10 +489,10 @@ static ssize_t hvac_on_show(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
 {
-	return sprintf(buf, "%u\n", vehicle_dummy->ac_on);
+	return sprintf(buf, "%u\n", vehicle_dummy->hvac_on);
 }
 
-/*echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/hvac_on*/
+/*echo 0/1 > /sys/devices/platform/vehicle-dummy/hvac_on*/
 static ssize_t hvac_on_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -524,7 +524,7 @@ static ssize_t recirc_on_show(struct device *dev,
 	return sprintf(buf, "%u\n", vehicle_dummy->recirc_on);
 }
 
-/* echo 0/2 > /sys/devices/platform/vehicle_dummy_hw/recirc_on*/
+/* echo 0/1 > /sys/devices/platform/vehicle-dummy/recirc_on*/
 static ssize_t recirc_on_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,

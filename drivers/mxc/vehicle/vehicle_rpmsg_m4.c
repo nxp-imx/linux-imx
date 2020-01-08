@@ -199,7 +199,7 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	msg.header.type = 0;
 	msg.header.cmd = VEHICLE_RPMSG_CONTROL;
 	msg.client = 0;
-	dev_dbg("%s: prop %d, area %d, value %d \n", prop, area, value);
+	dev_dbg("%s: prop %d, area %d, value %d \n", __func__, prop, area, value);
 	switch (prop) {
 	case HVAC_FAN_SPEED:
 		msg.control_id = VEHICLE_FAN_SPEED;

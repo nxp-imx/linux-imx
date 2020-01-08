@@ -61,7 +61,7 @@ bool decode_config_callback(pb_istream_t *stream, const pb_field_t *field, void 
 bool decode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
 {
 	uint64_t value;
-	if (!pb_decode_varint(stream, &value))
+	if (!pb_decode_svarint(stream, &value))
 		return false;
 	*(u32 *)*arg = (u32)value;
 	return true;
@@ -70,7 +70,7 @@ bool decode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field,
 bool decode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
 {
 	uint64_t value;
-	if (!pb_decode_varint(stream, &value))
+	if (!pb_decode_svarint(stream, &value))
 		return false;
 	*(u64 *)*arg = (u64)value;
 	return true;
@@ -191,7 +191,7 @@ bool encode_int32_values_callback(pb_ostream_t *stream, const pb_field_t *field,
 	u32 *value = (u32 *)*arg;
 	if (!pb_encode_tag_for_field(stream, field))
 		return false;
-	return pb_encode_varint(stream, *value);
+	return pb_encode_svarint(stream, *value);
 }
 
 bool encode_power_state_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
@@ -215,7 +215,7 @@ bool encode_int64_values_callback(pb_ostream_t *stream, const pb_field_t *field,
 	u64 *value = (u64 *)*arg;
 	if (!pb_encode_tag_for_field(stream, field))
 		return false;
-	return pb_encode_varint(stream, *value);
+	return pb_encode_svarint(stream, *value);
 }
 
 bool encode_fix32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)

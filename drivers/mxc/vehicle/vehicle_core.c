@@ -158,10 +158,6 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 		break;
 	case VEHICLE_TURN_SIGNAL:
 		property_encode.prop = TURN_SIGNAL_STATE;
-		if (VEHICLE_TURN_SIGNAL_LEFT == value)
-			property_encode.value = VEHICLE_TURN_SIGNAL_LEFT_CLIENT;
-		else if (VEHICLE_TURN_SIGNAL_RIGHT == value)
-			property_encode.value = VEHICLE_TURN_SIGNAL_RIGHT_CLIENT;
 		break;
 	case VEHICLE_POWER_STATE_REQ:
 		if (value != AP_POWER_REQUEST_ON &&
