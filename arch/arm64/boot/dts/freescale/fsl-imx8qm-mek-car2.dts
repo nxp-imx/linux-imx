@@ -38,6 +38,10 @@
 	clock-frequency = <1000000>;
 };
 
+&i2c0_mipi_csi0 {
+	clock-frequency = <1000000>;
+};
+
 &i2c0_mipi_dsi1 {
 	status = "disabled";
 };
