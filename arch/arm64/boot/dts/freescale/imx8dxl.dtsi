@@ -279,6 +279,7 @@
 #include "imx8dxl-ss-conn.dtsi"
 #include "imx8dxl-ss-lsio.dtsi"
 #include "imx8dxl-ss-hsio.dtsi"
+#include "imx8dxl-ss-ddr.dtsi"
 
 &edma2 {
 	status = "okay";
