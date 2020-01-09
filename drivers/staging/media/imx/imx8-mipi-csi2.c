@@ -846,7 +846,7 @@ static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 
 	if (enable) {
 		pm_runtime_get_sync(dev);
-		if (!csi2dev->running) {
+		if (!csi2dev->running++) {
 			mxc_csi2_get_sensor_fmt(csi2dev);
 			mxc_mipi_csi2_hc_config(csi2dev);
 			mxc_mipi_csi2_reset(csi2dev);
@@ -854,12 +854,10 @@ static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 			mxc_mipi_csi2_enable(csi2dev);
 			mxc_mipi_csi2_reg_dump(csi2dev);
 		}
-		csi2dev->running++;
 	} else {
-		if (csi2dev->running)
+		if (!--csi2dev->running)
 			mxc_mipi_csi2_disable(csi2dev);
 
-		csi2dev->running--;
 		pm_runtime_put(dev);
 	}
 
