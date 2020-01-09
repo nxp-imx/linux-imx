@@ -372,6 +372,13 @@ static void nwl_dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		return;
 	}
 
+	/*
+	 * We need to force call enable for the panel here, in order to
+	 * make the panel initialization execute before our call to
+	 * bridge_enable, where we will enable the DPI and start streaming
+	 * pixels on the data lanes.
+	 */
+	drm_bridge_enable(dsi->panel_bridge);
 }
 
 static void nwl_dsi_bridge_enable(struct drm_bridge *bridge)
