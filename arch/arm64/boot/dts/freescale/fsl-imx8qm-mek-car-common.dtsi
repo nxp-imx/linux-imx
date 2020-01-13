@@ -1,0 +1,187 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "fsl-imx8qm-mek-rpmsg.dts"
+
+/ {
+    /delete-node/ cpus;
+};
+
+/* copied from fsl-imx8-ca72.dtsi */
+/ {
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		idle-states {
+			entry-method = "psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0000000>;
+				entry-latency-us = <700>;
+				exit-latency-us = <250>;
+				min-residency-us = <1000>;
+			};
+
+			CLUSTER_SLEEP: cluster-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x1000000>;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+				wakeup-latency-us = <1500>;
+			};
+		};
+
+		/* We have 2nd clusters having 2 Cortex-A72 cores */
+		A72_0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a72","arm,armv8";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+			next-level-cache = <&A72_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A72_1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a72","arm,armv8";
+			reg = <0x0 0x101>;
+			enable-method = "psci";
+			next-level-cache = <&A72_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A72_L2: l2-cache1 {
+			compatible = "cache";
+		};
+	};
+};
+
+/* copied from fsl-imx8-ca53.dtsi */
+/{
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		idle-states {
+			entry-method = "psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0000000>;
+				entry-latency-us = <700>;
+				exit-latency-us = <250>;
+				min-residency-us = <1000>;
+			};
+
+			CLUSTER_SLEEP: cluster-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x1000000>;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+				wakeup-latency-us = <1500>;
+			};
+		};
+
+		/* We have 1 clusters having 4 Cortex-A53 cores */
+		A53_0: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x0>;
+			enable-method = "psci";
+			next-level-cache = <&A53_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A53_1: cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x1>;
+			enable-method = "psci";
+			next-level-cache = <&A53_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A53_2: cpu@102 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x2>;
+			enable-method = "psci";
+			next-level-cache = <&A53_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A53_3: cpu@103 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x3>;
+			enable-method = "psci";
+			next-level-cache = <&A53_L2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		A53_L2: l2-cache0 {
+			compatible = "cache";
+		};
+	};
+};
+
+/* copied from fsl-imx8qm.dtsi */
+&A53_0 {
+	operating-points = <
+		/* kHz    uV */
+		/* voltage is maintained by SCFW, so no need here */
+		1200000	   0
+		1104000	   0
+		900000	   0
+		600000	   0
+	>;
+	clocks = <&clk IMX8QM_A53_DIV>;
+	clock-latency = <61036>;
+	#cooling-cells = <2>;
+	/delete-property/ cpu-idle-states;
+};
+
+&A72_0 {
+	operating-points = <
+		/* kHz    uV */
+		/* voltage is maintained by SCFW, so no need here */
+		1596000	   0
+		1296000	   0
+		1056000	   0
+		600000     0
+	>;
+	clocks = <&clk IMX8QM_A72_DIV>;
+	clock-latency = <61036>;
+	#cooling-cells = <2>;
+	/delete-property/ cpu-idle-states;
+};
+&A53_1 {
+	/delete-property/ cpu-idle-states;
+};
+
+&A53_2 {
+	/delete-property/ cpu-idle-states;
+};
+
+&A53_3 {
+	/delete-property/ cpu-idle-states;
+};
+
+&A72_1 {
+	/delete-property/ cpu-idle-states;
+};
