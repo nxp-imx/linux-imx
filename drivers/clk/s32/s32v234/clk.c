@@ -31,7 +31,7 @@ PNAME(lin_sels) = {"firc", "fxosc", "dummy",
 		   "periphpll_phi0_div3", "dummy", "dummy",
 		   "dummy", "dummy", "sys6",};
 
-PNAME(sdhc_sels) = {"firc", "fxosc", "dummy",
+PNAME(sdhc_sels) = {"firc", "fxosc", "dummy", "dummy",
 		    "enetpll_dfs3",};
 
 PNAME(enet_sels) = {"firc", "fxosc", "dummy",
