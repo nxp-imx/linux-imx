@@ -281,6 +281,8 @@ static int snvs_secvio_probe(struct platform_device *pdev)
 		svpriv->clk = NULL;
 	}
 
+	clk_prepare_enable(svpriv->clk);
+
 	/* Write the Secvio Enable Config the SVCR */
 	wr_reg32(&svpriv->svregs->hp.secvio_ctl, td_en);
 	wr_reg32(&svpriv->svregs->hp.secvio_intcfg, td_en);
@@ -305,8 +307,6 @@ static int snvs_secvio_probe(struct platform_device *pdev)
 		kfree(svpriv);
 		return -EINVAL;
 	}
-
-	clk_prepare_enable(svpriv->clk);
 
 	hpstate = (rd_reg32(&svpriv->svregs->hp.status) &
 			    HP_STATUS_SSM_ST_MASK) >> HP_STATUS_SSM_ST_SHIFT;
