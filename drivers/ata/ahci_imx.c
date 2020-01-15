@@ -148,6 +148,12 @@ struct imx_ahci_priv {
 	struct clk *phy_apbclk;
 	struct clk *phy_pclk0;
 	struct clk *phy_pclk1;
+	struct clk *per_clk0;
+	struct clk *per_clk1;
+	struct clk *per_clk2;
+	struct clk *per_clk3;
+	struct clk *per_clk4;
+	struct clk *per_clk5;
 	void __iomem *phy_base;
 	int clkreq_gpio;
 	struct regmap *gpr;
@@ -483,6 +489,102 @@ static struct attribute *fsl_sata_ahci_attrs[] = {
 };
 ATTRIBUTE_GROUPS(fsl_sata_ahci);
 
+static int imx8_sata_clk_enable(struct imx_ahci_priv *imxpriv)
+{
+	int ret;
+	struct device *dev = &imxpriv->ahci_pdev->dev;
+
+	/* configure the hsio for sata */
+	ret = clk_prepare_enable(imxpriv->phy_pclk0);
+	if (ret < 0) {
+		dev_err(dev, "can't enable phy_pclk0.\n");
+		return ret;
+	}
+	ret = clk_prepare_enable(imxpriv->phy_pclk1);
+	if (ret < 0) {
+		dev_err(dev, "can't enable phy_pclk1.\n");
+		goto disable_phy_pclk0;
+	}
+	ret = clk_prepare_enable(imxpriv->epcs_tx_clk);
+	if (ret < 0) {
+		dev_err(dev, "can't enable epcs_tx_clk.\n");
+		goto disable_phy_pclk1;
+	}
+	ret = clk_prepare_enable(imxpriv->epcs_rx_clk);
+	if (ret < 0) {
+		dev_err(dev, "can't enable epcs_rx_clk.\n");
+		goto disable_epcs_tx_clk;
+	}
+	ret = clk_prepare_enable(imxpriv->phy_apbclk);
+	if (ret < 0) {
+		dev_err(dev, "can't enable phy_apbclk.\n");
+		goto disable_epcs_rx_clk;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk0);
+	if (ret < 0) {
+		dev_err(dev, "can't enable per_clk.\n");
+		goto disable_phy_apbclk;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk1);
+	if (ret < 0) {
+		dev_err(dev, "can't enable per_clk.\n");
+		goto disable_per_clk0;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk2);
+	if (ret < 0) {
+		dev_err(dev, "can't enable per_clk.\n");
+		goto disable_per_clk1;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk3);
+	if (ret < 0) {
+		dev_err(dev, "can't enable per_clk.\n");
+		goto disable_per_clk2;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk4);
+	if (ret < 0) {
+		dev_err(dev, "can't enable per_clk.\n");
+		goto disable_per_clk3;
+	}
+	ret = clk_prepare_enable(imxpriv->per_clk5);
+	if (ret < 0)
+		dev_err(dev, "can't enable per_clk.\n");
+	else
+		return 0;
+
+	clk_disable_unprepare(imxpriv->per_clk4);
+disable_per_clk3:
+	clk_disable_unprepare(imxpriv->per_clk3);
+disable_per_clk2:
+	clk_disable_unprepare(imxpriv->per_clk2);
+disable_per_clk1:
+	clk_disable_unprepare(imxpriv->per_clk1);
+disable_per_clk0:
+	clk_disable_unprepare(imxpriv->per_clk0);
+disable_phy_apbclk:
+	clk_disable_unprepare(imxpriv->phy_apbclk);
+disable_epcs_rx_clk:
+	clk_disable_unprepare(imxpriv->epcs_rx_clk);
+disable_epcs_tx_clk:
+	clk_disable_unprepare(imxpriv->epcs_tx_clk);
+disable_phy_pclk1:
+	clk_disable_unprepare(imxpriv->phy_pclk1);
+disable_phy_pclk0:
+	clk_disable_unprepare(imxpriv->phy_pclk0);
+	return ret;
+}
+
+static void imx8_sata_clk_disable(struct imx_ahci_priv *imxpriv)
+{
+	clk_disable_unprepare(imxpriv->epcs_rx_clk);
+	clk_disable_unprepare(imxpriv->epcs_tx_clk);
+	clk_disable_unprepare(imxpriv->per_clk5);
+	clk_disable_unprepare(imxpriv->per_clk4);
+	clk_disable_unprepare(imxpriv->per_clk3);
+	clk_disable_unprepare(imxpriv->per_clk2);
+	clk_disable_unprepare(imxpriv->per_clk1);
+	clk_disable_unprepare(imxpriv->per_clk0);
+}
+
 static int imx8_sata_enable(struct ahci_host_priv *hpriv)
 {
 	u32 val, reg;
@@ -490,32 +592,9 @@ static int imx8_sata_enable(struct ahci_host_priv *hpriv)
 	struct imx_ahci_priv *imxpriv = hpriv->plat_data;
 	struct device *dev = &imxpriv->ahci_pdev->dev;
 
-	/* configure the hsio for sata */
-	ret = clk_prepare_enable(imxpriv->phy_pclk0);
-	if (ret < 0) {
-		dev_err(dev, "can't enable phy pclk0.\n");
+	ret = imx8_sata_clk_enable(imxpriv);
+	if (ret)
 		return ret;
-	}
-	ret = clk_prepare_enable(imxpriv->phy_pclk1);
-	if (ret < 0) {
-		dev_err(dev, "can't enable phy pclk1.\n");
-		goto disable_phy_pclk0;
-	}
-	ret = clk_prepare_enable(imxpriv->epcs_tx_clk);
-	if (ret < 0) {
-		dev_err(dev, "can't enable epcs tx clk.\n");
-		goto disable_phy_pclk1;
-	}
-	ret = clk_prepare_enable(imxpriv->epcs_rx_clk);
-	if (ret < 0) {
-		dev_err(dev, "can't enable epcs rx clk.\n");
-		goto disable_epcs_tx_clk;
-	}
-	ret = clk_prepare_enable(imxpriv->phy_apbclk);
-	if (ret < 0) {
-		dev_err(dev, "can't enable phy pclk1.\n");
-		goto disable_epcs_rx_clk;
-	}
 	/* Configure PHYx2 PIPE_RSTN */
 	regmap_read(imxpriv->gpr, IMX8QM_CSR_PCIEA_OFFSET
 			+ IMX8QM_CSR_PCIE_CTRL2_OFFSET, &val);
@@ -744,14 +823,9 @@ static int imx8_sata_enable(struct ahci_host_priv *hpriv)
 
 err_out:
 	clk_disable_unprepare(imxpriv->phy_apbclk);
-disable_epcs_rx_clk:
-	clk_disable_unprepare(imxpriv->epcs_rx_clk);
-disable_epcs_tx_clk:
-	clk_disable_unprepare(imxpriv->epcs_tx_clk);
-disable_phy_pclk1:
 	clk_disable_unprepare(imxpriv->phy_pclk1);
-disable_phy_pclk0:
 	clk_disable_unprepare(imxpriv->phy_pclk0);
+	imx8_sata_clk_disable(imxpriv);
 
 	return ret;
 }
@@ -851,8 +925,7 @@ static void imx_sata_disable(struct ahci_host_priv *hpriv)
 	}
 
 	if (imxpriv->type == AHCI_IMX8QM) {
-		clk_disable_unprepare(imxpriv->epcs_rx_clk);
-		clk_disable_unprepare(imxpriv->epcs_tx_clk);
+		imx8_sata_clk_disable(imxpriv);
 	}
 	clk_disable_unprepare(imxpriv->sata_ref_clk);
 
@@ -1160,6 +1233,36 @@ static int imx8_sata_probe(struct device *dev, struct imx_ahci_priv *imxpriv)
 		return PTR_ERR(imxpriv->phy_apbclk);
 	}
 
+	imxpriv->per_clk0 = devm_clk_get(dev, "per_clk0");
+	if (IS_ERR(imxpriv->per_clk0)) {
+		dev_err(dev, "can't get per_clk0 clock.\n");
+		return PTR_ERR(imxpriv->per_clk0);
+	}
+	imxpriv->per_clk1 = devm_clk_get(dev, "per_clk1");
+	if (IS_ERR(imxpriv->per_clk1)) {
+		dev_err(dev, "can't get per_clk1 clock.\n");
+		return PTR_ERR(imxpriv->per_clk1);
+	}
+	imxpriv->per_clk2 = devm_clk_get(dev, "per_clk2");
+	if (IS_ERR(imxpriv->per_clk2)) {
+		dev_err(dev, "can't get per_clk2 clock.\n");
+		return PTR_ERR(imxpriv->per_clk2);
+	}
+	imxpriv->per_clk3 = devm_clk_get(dev, "per_clk3");
+	if (IS_ERR(imxpriv->per_clk3)) {
+		dev_err(dev, "can't get per_clk3 clock.\n");
+		return PTR_ERR(imxpriv->per_clk3);
+	}
+	imxpriv->per_clk4 = devm_clk_get(dev, "per_clk4");
+	if (IS_ERR(imxpriv->per_clk4)) {
+		dev_err(dev, "can't get per_clk4 clock.\n");
+		return PTR_ERR(imxpriv->per_clk4);
+	}
+	imxpriv->per_clk5 = devm_clk_get(dev, "per_clk5");
+	if (IS_ERR(imxpriv->per_clk5)) {
+		dev_err(dev, "can't get per_clk5 clock.\n");
+		return PTR_ERR(imxpriv->per_clk5);
+	}
 	/* Fetch GPIO, then enable the external OSC */
 	imxpriv->clkreq_gpio = of_get_named_gpio(np, "clkreq-gpio", 0);
 	if (gpio_is_valid(imxpriv->clkreq_gpio)) {
