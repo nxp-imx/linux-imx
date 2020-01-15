@@ -4180,10 +4180,18 @@
 			 <&clk IMX8QM_HSIO_PHY_X1_PCLK>,
 			 <&clk IMX8QM_HSIO_SATA_EPCS_TX_CLK>,
 			 <&clk IMX8QM_HSIO_SATA_EPCS_RX_CLK>,
+			 <&clk IMX8QM_HSIO_PCIE_X1_PER_CLK>,
+			 <&clk IMX8QM_HSIO_PCIE_X2_PER_CLK>,
+			 <&clk IMX8QM_HSIO_SATA_PER_CLK>,
+			 <&clk IMX8QM_HSIO_PHY_X1_PER_CLK>,
+			 <&clk IMX8QM_HSIO_PHY_X2_PER_CLK>,
+			 <&clk IMX8QM_HSIO_MISC_PER_CLK>,
 			 <&clk IMX8QM_HSIO_PHY_X2_PCLK_0>,
 			 <&clk IMX8QM_HSIO_PHY_X2_PCLK_1>,
 			 <&clk IMX8QM_HSIO_PHY_X1_APB_CLK>;
 		clock-names = "sata", "sata_ref", "epcs_tx", "epcs_rx",
+				"per_clk0", "per_clk1", "per_clk2",
+				"per_clk3", "per_clk4", "per_clk5",
 				"phy_pclk0", "phy_pclk1", "phy_apbclk";
 		hsio = <&hsio>;
 		power-domains = <&pd_sata0>;
