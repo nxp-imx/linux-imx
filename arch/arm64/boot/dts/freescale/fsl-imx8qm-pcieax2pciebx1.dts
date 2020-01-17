@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright 2020 NXP
+ */
+
+
+#include "fsl-imx8qm-mek.dts"
+
+/*
+ * Add the PCIeA x2 lanes and PCIeB x1 lane usecase
+ * hsio-cfg = <PCIEAX2PCIEBX1>
+ * NOTE: In this case, the HSIO nodes contained
+ * hsio-cfg = <PCIEAX1PCIEBX1SATA> would be re-configured.
+ */
+&pciea{
+	ext_osc = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pciea>;
+	disable-gpio = <&gpio4 9 GPIO_ACTIVE_LOW>;
+	reset-gpio = <&gpio4 29 GPIO_ACTIVE_LOW>;
+	clkreq-gpio = <&gpio4 27 GPIO_ACTIVE_LOW>;
+	epdev_on-supply = <&epdev_on>;
+	num-lanes = <2>;
+	clocks = <&clk IMX8QM_HSIO_PCIE_A_MSTR_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PCIE_A_SLV_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PHY_X2_PCLK_0>,
+		 <&clk IMX8QM_HSIO_PCIE_X2_PER_CLK>,
+		 <&clk IMX8QM_HSIO_PCIE_A_DBI_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PHY_X2_PER_CLK>,
+		 <&clk IMX8QM_HSIO_MISC_PER_CLK>;
+	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per",
+			"pcie_inbound_axi", "phy_per", "misc_per";
+	hsio-cfg = <PCIEAX2PCIEBX1>;
+	status = "okay";
+};
+
+&pcieb{
+	ext_osc = <1>;
+	clocks = <&clk IMX8QM_HSIO_PCIE_B_MSTR_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PCIE_B_SLV_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PHY_X1_PCLK>,
+		 <&clk IMX8QM_HSIO_PCIE_X1_PER_CLK>,
+		 <&clk IMX8QM_HSIO_PCIE_X2_PER_CLK>,
+		 <&clk IMX8QM_HSIO_PCIE_B_DBI_AXI_CLK>,
+		 <&clk IMX8QM_HSIO_PHY_X1_PER_CLK>,
+		 <&clk IMX8QM_HSIO_MISC_PER_CLK>;
+	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per", "pciex2_per",
+			"pcie_inbound_axi", "phy_per", "misc_per";
+	power-domains = <&pd_pcie1>;
+	hsio-cfg = <PCIEAX2PCIEBX1>;
+	status = "okay";
+};
+
+&sata {
+	status = "disabled";
+};
+
