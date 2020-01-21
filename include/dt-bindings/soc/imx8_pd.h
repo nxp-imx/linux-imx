@@ -72,6 +72,8 @@
 #define PD_HSIO_PCIE_B              hsio_pcie1
 #define PD_HSIO_SATA_0              hsio_sata0
 #define PD_HSIO_GPIO                hsio_gpio
+#define PD_HSIO_SERDES_0            hsio_serdes_0
+#define PD_HSIO_SERDES_1            hsio_serdes_1
 
 #define PD_LCD_0                    lcd0_power_domain
 #define PD_LCD_0_I2C_0              lcd0_i2c0
