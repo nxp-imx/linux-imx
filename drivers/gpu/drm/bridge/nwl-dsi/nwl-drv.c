@@ -565,6 +565,8 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 			clk_set_rate(clk, adjusted->crtc_clock * 1000);
 	}
 
+	memcpy(&dsi->mode, adjusted, sizeof(dsi->mode));
+
 	phy_ref_rate = config->phy_rates[config->phy_rate_idx];
 	clk_set_rate(dsi->phy_ref_clk, phy_ref_rate);
 	ret = nwl_dsi_get_dphy_params(dsi, adjusted, &new_cfg);
@@ -584,8 +586,6 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	/* Save the new desired phy config */
 	memcpy(&dsi->phy_cfg, &new_cfg, sizeof(new_cfg));
 
-	memcpy(&dsi->mode, adjusted, sizeof(dsi->mode));
-	drm_mode_debug_printmodeline(adjusted);
 }
 
 static int nwl_dsi_bridge_attach(struct drm_bridge *bridge)
