@@ -884,19 +884,19 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_HSIO_PCIE_X1_PER_CLK] = imx_clk_gate2_scu("hsio_pcie_x1_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PCIE_X1_CRR3_LPCG), 16, FUNCTION_NAME(PD_HSIO_PCIE_B));
 	clks[IMX8QM_HSIO_PCIE_X2_PER_CLK] = imx_clk_gate2_scu("hsio_pcie_x2_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PCIE_X2_CRR2_LPCG), 16, FUNCTION_NAME(PD_HSIO_PCIE_A));
 	clks[IMX8QM_HSIO_SATA_PER_CLK] = imx_clk_gate2_scu("hsio_sata_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_SATA_CRR4_LPCG), 16, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_PHY_X1_PER_CLK] = imx_clk_gate2_scu("hsio_phy_x1_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X1_CRR1_LPCG), 16, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_PHY_X2_PER_CLK] = imx_clk_gate2_scu("hsio_phy_x2_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_CRR0_LPCG), 16, FUNCTION_NAME(PD_HSIO_PCIE_A));
-	clks[IMX8QM_HSIO_MISC_PER_CLK] = imx_clk_gate2_scu("hsio_misc_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_MISC_LPCG), 16, FUNCTION_NAME(PD_HSIO));
-	clks[IMX8QM_HSIO_PHY_X1_APB_CLK] = imx_clk_gate2_scu("hsio_phy_x1_apb_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X1_LPCG), 16, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_PHY_X2_APB_0_CLK] = imx_clk_gate2_scu("hsio_phy_x2_apb_0_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_LPCG), 16, FUNCTION_NAME(PD_HSIO_PCIE_A));
-	clks[IMX8QM_HSIO_PHY_X2_APB_1_CLK] = imx_clk_gate2_scu("hsio_phy_x2_apb_1_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_LPCG), 20, FUNCTION_NAME(PD_HSIO_PCIE_A));
+	clks[IMX8QM_HSIO_PHY_X1_PER_CLK] = imx_clk_gate2_scu("hsio_phy_x1_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X1_CRR1_LPCG), 16, FUNCTION_NAME(PD_HSIO_SERDES_1));
+	clks[IMX8QM_HSIO_PHY_X2_PER_CLK] = imx_clk_gate2_scu("hsio_phy_x2_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_CRR0_LPCG), 16, FUNCTION_NAME(PD_HSIO_SERDES_0));
+	clks[IMX8QM_HSIO_MISC_PER_CLK] = imx_clk_gate2_scu("hsio_misc_per_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_MISC_LPCG), 16, FUNCTION_NAME(PD_HSIO_GPIO));
+	clks[IMX8QM_HSIO_PHY_X1_APB_CLK] = imx_clk_gate2_scu("hsio_phy_x1_apb_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X1_LPCG), 16, FUNCTION_NAME(PD_HSIO_SERDES_1));
+	clks[IMX8QM_HSIO_PHY_X2_APB_0_CLK] = imx_clk_gate2_scu("hsio_phy_x2_apb_0_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_LPCG), 16, FUNCTION_NAME(PD_HSIO_SERDES_0));
+	clks[IMX8QM_HSIO_PHY_X2_APB_1_CLK] = imx_clk_gate2_scu("hsio_phy_x2_apb_1_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_PHY_X2_LPCG), 20, FUNCTION_NAME(PD_HSIO_SERDES_0));
 	clks[IMX8QM_HSIO_SATA_CLK] = imx_clk_gate2_scu("hsio_sata_clk", "axi_hsio_clk_root", LPCG_ADDR(HSIO_SATA_LPCG), 16, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_GPIO_CLK] = imx_clk_gate2_scu("hsio_gpio_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_GPIO_LPCG), 16, FUNCTION_NAME(PD_HSIO_PCIE_A));
-	clks[IMX8QM_HSIO_PHY_X1_PCLK] = imx_clk_gate2_scu("hsio_phy_x1_pclk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 0, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_PHY_X2_PCLK_0] = imx_clk_gate2_scu("hsio_phy_x2_pclk_0", "dummy", LPCG_ADDR(HSIO_PHY_X2_LPCG), 0, FUNCTION_NAME(PD_HSIO_PCIE_A));
-	clks[IMX8QM_HSIO_PHY_X2_PCLK_1] = imx_clk_gate2_scu("hsio_phy_x2_pclk_1", "dummy", LPCG_ADDR(HSIO_PHY_X2_LPCG), 4, FUNCTION_NAME(PD_HSIO_PCIE_B));
-	clks[IMX8QM_HSIO_SATA_EPCS_RX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_rx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 8, FUNCTION_NAME(PD_HSIO_SATA_0));
-	clks[IMX8QM_HSIO_SATA_EPCS_TX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_tx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 4, FUNCTION_NAME(PD_HSIO_SATA_0));
+	clks[IMX8QM_HSIO_GPIO_CLK] = imx_clk_gate2_scu("hsio_gpio_clk", "per_hsio_clk_root", LPCG_ADDR(HSIO_GPIO_LPCG), 16, FUNCTION_NAME(PD_HSIO_GPIO));
+	clks[IMX8QM_HSIO_PHY_X1_PCLK] = imx_clk_gate2_scu("hsio_phy_x1_pclk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 0, FUNCTION_NAME(PD_HSIO_SERDES_1));
+	clks[IMX8QM_HSIO_PHY_X2_PCLK_0] = imx_clk_gate2_scu("hsio_phy_x2_pclk_0", "dummy", LPCG_ADDR(HSIO_PHY_X2_LPCG), 0, FUNCTION_NAME(PD_HSIO_SERDES_0));
+	clks[IMX8QM_HSIO_PHY_X2_PCLK_1] = imx_clk_gate2_scu("hsio_phy_x2_pclk_1", "dummy", LPCG_ADDR(HSIO_PHY_X2_LPCG), 4, FUNCTION_NAME(PD_HSIO_SERDES_0));
+	clks[IMX8QM_HSIO_SATA_EPCS_RX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_rx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 8, FUNCTION_NAME(PD_HSIO_SERDES_1));
+	clks[IMX8QM_HSIO_SATA_EPCS_TX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_tx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 4, FUNCTION_NAME(PD_HSIO_SERDES_1));
 
 	/* CM40 */
 	clks[IMX8QM_CM40_I2C_DIV]	= imx_clk_divider_scu("cm40_i2c_div", SC_R_M4_0_I2C, SC_PM_CLK_PER);
