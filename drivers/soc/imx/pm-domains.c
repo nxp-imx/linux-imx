@@ -126,9 +126,10 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 		 */
 		while (!list_empty(&cur_domain->slave_links)) {
 			struct gpd_link *link;
-
 			pd = container_of(cur_domain, struct imx8_pm_domain, pd);
-			if ((cur_domain == domain) || (!cur_domain->device_count)) {
+			if ((cur_domain == domain) ||
+				((!cur_domain->device_count) &&
+				(atomic_read(&cur_domain->sd_count) <= 1))) {
 				sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
 						pd->rsrc_id,
 						(pd_state) ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
@@ -137,7 +138,8 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 							pd->rsrc_id, sci_err);
 					return -EINVAL;
 				}
-			}
+			} else
+				break;
 
 			list_for_each_entry(link, &cur_domain->slave_links, slave_node)
 				master = link->master;
@@ -147,7 +149,9 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 		/* Fix the state for the top parent or a node that has no slave domains */
 		pd = container_of(cur_domain, struct imx8_pm_domain, pd);
 		if ((cur_domain == domain) ||
-			((pd->rsrc_id != SC_R_NONE) && (!cur_domain->device_count))) {
+			((pd->rsrc_id != SC_R_NONE) &&
+			(!cur_domain->device_count) &&
+			(atomic_read(&cur_domain->sd_count) <= 1))) {
 			sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
 						pd->rsrc_id,
 						(pd_state) ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
