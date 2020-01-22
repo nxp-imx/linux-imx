@@ -29,3 +29,8 @@
 		};
 	};
 };
+
+&typec_ptn5110 {
+	/delete-property/ ss-sel-gpios;
+	/delete-property/ reset-gpios;
+};
