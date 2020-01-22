@@ -14,3 +14,7 @@
 
 #include "fsl-imx8dx-mek.dtsi"
 #include "fsl-imx8x-mek-rpmsg.dtsi"
+&typec_ptn5110 {
+	/delete-property/ ss-sel-gpios;
+	/delete-property/ reset-gpios;
+};
