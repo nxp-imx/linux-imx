@@ -156,7 +156,7 @@ int vpu_sc_check_fuse(struct vpu_dev *dev,
 		return ret;
 	}
 
-	val = (fuse >> 2) & 0x3UL;
+	val = (fuse >> VPU_IMX_DECODER_FUSE_OFFSET) & 0x3UL;
 	if (val == 0x1UL) {
 		for (i = 0; i < table_size; i++)
 			if (pformat_table[i].fourcc == VPU_PIX_FMT_HEVC)

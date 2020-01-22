@@ -508,6 +508,8 @@ struct vpu_ctx {
 #define V4L2_NXP_FRAME_VERTICAL_ALIGN		512
 #define V4L2_NXP_FRAME_HORIZONTAL_ALIGN		512
 
+#define VPU_IMX_DECODER_FUSE_OFFSET		14
+
 pSTREAM_BUFFER_DESCRIPTOR_TYPE get_str_buffer_desc(struct vpu_ctx *ctx);
 u_int32 got_free_space(u_int32 wptr, u_int32 rptr, u_int32 start, u_int32 end);
 int copy_buffer_to_stream(struct vpu_ctx *ctx, void *buffer, uint32_t length);
