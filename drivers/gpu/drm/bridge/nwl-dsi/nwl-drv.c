@@ -95,6 +95,8 @@ struct nwl_dsi_platform_data {
 	u32 reg_tx_ulps;
 	u32 reg_pxl2dpi;
 	u32 max_instances;
+	u32 tx_clk_rate;
+	u32 rx_clk_rate;
 	bool mux_present;
 	bool shared_phy;
 };
@@ -593,6 +595,7 @@ static int nwl_dsi_bridge_attach(struct drm_bridge *bridge)
 	struct nwl_dsi *dsi = bridge->driver_private;
 	struct drm_bridge *panel_bridge;
 	struct drm_panel *panel;
+	struct clk *phy_parent;
 	int ret;
 
 	ret = drm_of_find_panel_or_bridge(dsi->dev->of_node, 1, 0, &panel,
@@ -611,6 +614,27 @@ static int nwl_dsi_bridge_attach(struct drm_bridge *bridge)
 
 	if (!dsi->panel_bridge)
 		return -EPROBE_DEFER;
+
+	phy_parent = devm_clk_get(dsi->dev, "phy_parent");
+	if (!IS_ERR_OR_NULL(phy_parent)) {
+		ret = clk_set_parent(dsi->phy_ref_clk, phy_parent);
+		ret |= clk_set_parent(dsi->tx_esc_clk, phy_parent);
+		ret |= clk_set_parent(dsi->rx_esc_clk, phy_parent);
+
+		if (ret) {
+			dev_err(dsi->dev,
+				 "Error re-parenting phy/tx/rx clocks: %d",
+				 ret);
+
+			return ret;
+		}
+
+		if (dsi->pdata->tx_clk_rate)
+			clk_set_rate(dsi->tx_esc_clk, dsi->pdata->tx_clk_rate);
+
+		if (dsi->pdata->rx_clk_rate)
+			clk_set_rate(dsi->rx_esc_clk, dsi->pdata->rx_clk_rate);
+	}
 
 	return drm_bridge_attach(bridge->encoder, dsi->panel_bridge, bridge);
 }
@@ -1032,6 +1056,8 @@ static const struct nwl_dsi_platform_data imx8qm_dev = {
 	.reg_tx_ulps = 0x00,
 	.reg_pxl2dpi = 0x04,
 	.max_instances = 2,
+	.tx_clk_rate = 18000000,
+	.rx_clk_rate = 72000000,
 	.shared_phy = false,
 };
 
@@ -1046,6 +1072,8 @@ static const struct nwl_dsi_platform_data imx8qx_dev = {
 	.reg_tx_ulps = 0x30,
 	.reg_pxl2dpi = 0x40,
 	.max_instances = 2,
+	.tx_clk_rate = 18000000,
+	.rx_clk_rate = 72000000,
 	.shared_phy = true,
 };
 
