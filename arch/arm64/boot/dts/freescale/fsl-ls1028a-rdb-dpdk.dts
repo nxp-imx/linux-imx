@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * NXP LS1028A RDB Board device tree file for DPDK
+ *
+ * Copyright 2018-2020 NXP
+ */
+
+/dts-v1/;
+#include "fsl-ls1028a-rdb.dts"
+
+&enetc_port0 {
+	status = "okay";
+	/delete-property/ phy-handle;
+	/delete-property/ phy-connection-type;
+	/delete-node/ mdio;
+
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+};
+
+/delete-node/ &enetc_mdio_pf3;
+
+/* l2switch ports */
+&mscc_felix_ports {
+	port@0 {
+		status = "okay";
+		phy-mode = "qsgmii";
+		/delete-property/ managed;
+		/delete-property/ phy-handle;
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+
+	port@1 {
+		status = "okay";
+		phy-mode = "qsgmii";
+		/delete-property/ managed;
+		/delete-property/ phy-handle;
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+
+	port@2 {
+		status = "okay";
+		phy-mode = "qsgmii";
+		/delete-property/ managed;
+		/delete-property/ phy-handle;
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+
+	port@3 {
+		status = "okay";
+		phy-mode = "qsgmii";
+		/delete-property/ managed;
+		/delete-property/ phy-handle;
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+
+	port@5 {
+		status = "okay";
+		/delete-property/ managed;
+		/delete-property/ phy-handle;
+
+		fixed-link {
+			speed = <1000>;
+			full-duplex;
+		};
+	};
+};
+
+&enetc_port3 {
+	status = "okay";
+};
