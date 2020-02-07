@@ -68,7 +68,9 @@ static int clk_pllv3_wait_lock(struct clk_pllv3 *pll)
 			break;
 		if (time_after(jiffies, timeout))
 			break;
-		usleep_range(50, 500);
+		/* Do not usleep if m4 enabled on i.mx6sx */
+		if (!(imx_src_is_m4_enabled() && clk_on_imx6sx()))
+			usleep_range(50, 500);
 	} while (1);
 
 	return readl_relaxed(pll->base) & BM_PLL_LOCK ? 0 : -ETIMEDOUT;
