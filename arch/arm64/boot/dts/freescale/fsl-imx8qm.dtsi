@@ -152,7 +152,7 @@
 		interrupts = <GIC_SPI 448 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,seco_mu_id = <1>;
 		fsl,seco_max_users = <4>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	mu_seco3: mu@31570000 {
@@ -162,7 +162,7 @@
 		interrupts = <GIC_SPI 449 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,seco_mu_id = <2>;
 		fsl,seco_max_users = <2>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	mu_seco4: mu@31580000 {
@@ -172,7 +172,7 @@
 		interrupts = <GIC_SPI 450 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,seco_mu_id = <3>;
 		fsl,seco_max_users = <2>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	mu13: mu13@5d280000 {
