@@ -1570,3 +1570,17 @@ int ocelot_dscp_set(struct ocelot *ocelot, int port,
 
 	return 0;
 }
+
+void ocelot_preempt_irq_clean(struct ocelot *ocelot)
+{
+	struct ocelot_port *ocelot_port;
+	int port;
+	u32 val;
+
+	val = DEV_GMII_MM_STATISTICS_MM_STATUS_PRMPT_ACTIVE_STICKY;
+	for (port = 0; port < ocelot->num_phys_ports; port++) {
+		ocelot_port = ocelot->ports[port];
+		ocelot_port_rmwl(ocelot_port, val, val,
+				 DEV_GMII_MM_STATISTICS_MM_STATUS);
+	}
+}

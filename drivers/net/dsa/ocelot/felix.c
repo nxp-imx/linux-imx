@@ -688,12 +688,9 @@ static irqreturn_t felix_irq_handler(int irq, void *data)
 
 	/* The INTB interrupt is used for both PTP TX timestamp interrupt
 	 * and preemption status change interrupt on each port.
-	 *
-	 * - Get txtstamp if have
-	 * - TODO: handle preemption. Without handling it, driver may get
-	 *   interrupt storm.
 	 */
 
+	ocelot_preempt_irq_clean(ocelot);
 	ocelot_get_txtstamp(ocelot);
 
 	return IRQ_HANDLED;
