@@ -1,0 +1,41 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "fsl-imx8dx.dtsi"
+#include "fsl-imx8x-mek.dtsi"
+
+/ {
+	model = "Freescale i.MX8DX MEK";
+	compatible = "fsl,imx8dx-mek", "fsl,imx8dx", "fsl,imx8qxp";
+
+	reserved-memory {
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x14000000>;
+			alloc-ranges = <0 0x96000000 0 0x14000000>;
+			linux,cma-default;
+		};
+	};
+};
+
+&typec_ptn5110 {
+	/delete-property/ ss-sel-gpios;
+	/delete-property/ reset-gpios;
+};
+
+&imx8_gpu_ss{
+	reg = <0x0 0x80000000 0x0 0x40000000>, <0x0 0x0 0x0 0x08000000>;
+	reg-names = "phys_baseaddr", "contiguous_mem";
+};

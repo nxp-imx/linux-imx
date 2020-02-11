@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2020
+
+#include "fsl-imx8dx-mek.dts"
+#include "fsl-imx8dx-mek-ov5640.dtsi"
+
+&i2c0_cm40 {
+	ov5640: ov5640@3c {
+		compatible = "ovti,ov5640_v3";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_parallel_csi>;
+		clocks = <&clk IMX8QXP_PARALLEL_CSI_MISC0_CLK>;
+		clock-names = "csi_mclk";
+		pwn-gpios = <&gpio3 2 GPIO_ACTIVE_LOW>;
+		rst-gpios = <&gpio3 3 GPIO_ACTIVE_HIGH>;
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		status = "okay";
+		port {
+			ov5640_ep: endpoint {
+				remote-endpoint = <&parallel_csi_ep>;
+			};
+		};
+	};
+};
