@@ -63,7 +63,7 @@ static int imx8mq_set_target(struct cpufreq_policy *policy, unsigned int index)
 	dev_dbg(cpu_dev, "%u MHz --> %u MHz\n",
 		old_freq / 1000, new_freq / 1000);
 
-	if (new_freq == policy->max) {
+	if (new_freq > old_freq) {
 		if (!IS_ERR(dc_reg)) {
 			ret = regulator_set_voltage_tol(dc_reg, DC_VOLTAGE_MAX, 0);
 			if (ret) {
@@ -89,7 +89,7 @@ static int imx8mq_set_target(struct cpufreq_policy *policy, unsigned int index)
 	clk_set_rate(arm_pll_clk, new_freq * 1000);
 	clk_set_parent(arm_a53_src_clk, arm_pll_out_clk);
 
-	if (old_freq == policy->max) {
+	if (new_freq < old_freq) {
 		if (!IS_ERR(dc_reg)) {
 			ret = regulator_set_voltage_tol(dc_reg, DC_VOLTAGE_MIN, 0);
 			if (ret) {
