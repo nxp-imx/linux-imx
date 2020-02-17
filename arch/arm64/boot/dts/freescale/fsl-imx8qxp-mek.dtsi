@@ -36,6 +36,7 @@
 };
 
 &iomuxc {
+	imx8qxp-mek {
 		pinctrl_sai0: sai0grp {
 			fsl,pins = <
 				SC_P_SAI0_RXD_ADMA_SAI0_RXD 0x0600004c
@@ -44,8 +45,8 @@
 				SC_P_SAI0_TXD_ADMA_SAI0_TXD 0x0600006c
 			>;
 		};
+	};
 };
-
 
 &sai0 {
 	assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
@@ -60,7 +61,7 @@
 
 
 &crypto {
-		status = "disabled";
+	status = "disabled";
 };
 
 / {
