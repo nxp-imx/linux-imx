@@ -231,7 +231,7 @@ void sc_ipc_read(sc_ipc_t handle, void *data)
 void sc_ipc_write(sc_ipc_t handle, const void *data)
 {
 	uint32_t *base;
-	uint8_t count = 0;
+	uint8_t count = 0, msg_size;
 	sc_rpc_msg_t *msg = (sc_rpc_msg_t *) data;
 
 	/* Get MU base associated with IPC channel */
@@ -244,12 +244,15 @@ void sc_ipc_write(sc_ipc_t handle, const void *data)
 	if (msg->size > SC_RPC_MAX_MSG)
 		return;
 
+	/* Load msg->size before send because it's overwritten by reply. */
+	msg_size = msg->size;
+
 	/* Write first word */
 	MU_SendMessage(base, 0, *((uint32_t *) msg));
 	count++;
 
 	/* Write remaining words */
-	while (count < msg->size) {
+	while (count < msg_size) {
 		MU_SendMessage(base, count % MU_TR_COUNT, msg->DATA.u32[count - 1]);
 		count++;
 	}
