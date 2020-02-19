@@ -181,7 +181,6 @@ static int hw_wait_vbus_lower_bsv(struct ci_hdrc *ci)
 void ci_handle_id_switch(struct ci_hdrc *ci)
 {
 	enum ci_role role;
-	int ret = 0;
 
 	mutex_lock(&ci->mutex);
 	role = ci_otg_role(ci);
@@ -200,7 +199,7 @@ void ci_handle_id_switch(struct ci_hdrc *ci)
 			 * care vbus on the board, since it will not affect
 			 * external connector status.
 			 */
-			ret = hw_wait_vbus_lower_bsv(ci);
+			hw_wait_vbus_lower_bsv(ci);
 		else if (ci->vbus_active)
 			/*
 			 * If the role switch happens(e.g. during
@@ -215,13 +214,6 @@ void ci_handle_id_switch(struct ci_hdrc *ci)
 		if (role == CI_ROLE_GADGET)
 			ci_handle_vbus_change(ci);
 
-		/*
-		 * If the role switch happens(e.g. during system
-		 * sleep) and vbus keeps on afterwards, we connect
-		 * gadget as vbus connect event lost.
-		 */
-		if (ret == -ETIMEDOUT)
-			usb_gadget_vbus_connect(&ci->gadget);
 	}
 	mutex_unlock(&ci->mutex);
 }
