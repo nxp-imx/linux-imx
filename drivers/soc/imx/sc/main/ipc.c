@@ -80,8 +80,9 @@ void sc_call_rpc(sc_ipc_t handle, sc_rpc_msg_t *msg, sc_bool_t no_resp)
 	} else {
 		sc_ipc_write(handle, msg);
 		if (!no_resp) {
-			timeout = wait_for_completion_timeout(&rx_completion, HZ / 10);
+			timeout = wait_for_completion_timeout(&rx_completion, HZ * 3);
 			if (!timeout) {
+				memset(rx_msg, 0, sizeof(*rx_msg));
 				pr_err("Timeout for IPC response!\n");
 				mutex_unlock(&scu_mu_mutex);
 				return;
@@ -300,6 +301,7 @@ static irqreturn_t imx8_scu_mu_isr(int irq, void *param)
 
 	irqs = (readl_relaxed(mu_base_virtaddr + 0x20) & (0xf << 24));
 	if (irqs) {
+		memset(rx_msg, 0, sizeof(*rx_msg));
 		sc_ipc_read(mu_ipcHandle, rx_msg);
 		complete(&rx_completion);
 	}
