@@ -448,7 +448,12 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 		}							\
 	} while (0)
 
+#ifdef CONFIG_IMX_SCU_SOC
 extern bool TKT340553_SW_WORKAROUND;
+#else
+#define TKT340553_SW_WORKAROUND 0
+#endif
+
 static void user_cache_maint_handler(unsigned int esr, struct pt_regs *regs)
 {
 	unsigned long address;

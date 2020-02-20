@@ -565,7 +565,12 @@ init_cpu_hwcaps_indirect_list_from_array(const struct arm64_cpu_capabilities *ca
 	}
 }
 
+#ifdef CONFIG_IMX_SCU_SOC
 extern bool TKT340553_SW_WORKAROUND;
+#else
+#define TKT340553_SW_WORKAROUND 0
+#endif
+
 static void __init init_cpu_hwcaps_indirect_list(void)
 {
 	init_cpu_hwcaps_indirect_list_from_array(arm64_features);

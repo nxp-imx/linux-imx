@@ -16,7 +16,11 @@ struct tlb_inv_context {
 	u64		sctlr;
 };
 
+#ifdef CONFIG_IMX_SCU_SOC
 extern bool TKT340553_SW_WORKAROUND;
+#else
+#define TKT340553_SW_WORKAROUND 0
+#endif
 
 static void __hyp_text __tlb_switch_to_guest_vhe(struct kvm *kvm,
 						 struct tlb_inv_context *cxt)

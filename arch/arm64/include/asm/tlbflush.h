@@ -15,7 +15,11 @@
 #include <asm/cputype.h>
 #include <asm/mmu.h>
 
+#ifdef CONFIG_IMX_SCU_SOC
 extern bool TKT340553_SW_WORKAROUND;
+#else
+#define TKT340553_SW_WORKAROUND 0
+#endif
 
 /*
  * Raw TLBI operations.
