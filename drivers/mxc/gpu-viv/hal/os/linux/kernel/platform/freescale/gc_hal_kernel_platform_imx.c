@@ -303,9 +303,13 @@ static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
             printk("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
             break;
         case 1:
-            gckHARDWARE_SetFscaleValue(hardware, maxFscale >> 1); /* switch to 1/2 of max frequency */
-            printk("System is a little hot. GPU3D clock will work at %d/64\n", maxFscale >> 1);
-            break;
+#if defined(CONFIG_ANDROID)
+            if (of_find_compatible_node(NULL, NULL, "fsl,imx8mq-gpu")) {
+                gckHARDWARE_SetFscaleValue(hardware, maxFscale >> 1); /* switch to 1/2 of max frequency */
+                printk("System is a little hot. GPU3D clock will work at %d/64\n", maxFscale >> 1);
+                break;
+            }
+#endif
         case 2:
             gckHARDWARE_SetFscaleValue(hardware, minFscale);
             printk("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
