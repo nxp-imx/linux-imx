@@ -97,12 +97,6 @@
 	};
 };
 
-&a53_opp_table {
-	opp-1200000000 {
-		opp-microvolt = <950000>;
-	};
-};
-
 &clk {
 	assigned-clocks = <&clk IMX8MN_AUDIO_PLL1>, <&clk IMX8MN_AUDIO_PLL2>;
 	assigned-clock-rates = <393216000>, <361267200>;
@@ -831,6 +825,19 @@
 };
 
 &gpu {
+	assigned-clocks = <&clk IMX8MN_CLK_GPU_CORE_SRC>,
+			<&clk IMX8MN_CLK_GPU_SHADER_SRC>,
+			<&clk IMX8MN_CLK_GPU_AXI>,
+			<&clk IMX8MN_CLK_GPU_AHB>,
+			<&clk IMX8MN_GPU_PLL>,
+			<&clk IMX8MN_CLK_GPU_CORE_DIV>,
+			<&clk IMX8MN_CLK_GPU_SHADER_DIV>;
+	assigned-clock-parents = <&clk IMX8MN_GPU_PLL_OUT>,
+			<&clk IMX8MN_GPU_PLL_OUT>,
+			<&clk IMX8MN_SYS_PLL1_800M>,
+			<&clk IMX8MN_SYS_PLL1_800M>;
+	assigned-clock-rates = <0>, <0>, <800000000>, <400000000>, <1200000000>,
+			<400000000>, <400000000>;
 	status= "okay";
 };
 
