@@ -4152,7 +4152,7 @@
 					 <0 0 0 2 &gic 0 74 4>,
 					 <0 0 0 3 &gic 0 75 4>,
 					 <0 0 0 4 &gic 0 76 4>;
-			power-domains = <&pd_pcie1>;
+			power-domains = <&pd_pcie0>;
 			fsl,max-link-speed = <3>;
 			hsio-cfg = <PCIEAX1PCIEBX1SATA>;
 			ctrl-id = <0>; /* pciea */
@@ -4186,10 +4186,11 @@
 				 <&clk IMX8QM_HSIO_PCIE_B_SLV_AXI_CLK>,
 				 <&clk IMX8QM_HSIO_PHY_X2_PCLK_1>,
 				 <&clk IMX8QM_HSIO_PCIE_X1_PER_CLK>,
+				 <&clk IMX8QM_HSIO_PCIE_X2_PER_CLK>,
 				 <&clk IMX8QM_HSIO_PCIE_B_DBI_AXI_CLK>,
 				 <&clk IMX8QM_HSIO_PHY_X2_PER_CLK>,
 				 <&clk IMX8QM_HSIO_MISC_PER_CLK>;
-			clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per",
+			clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per", "pciex2_per",
 				"pcie_inbound_axi", "phy_per", "misc_per";
 
 			interrupt-map-mask = <0 0 0 0x7>;
