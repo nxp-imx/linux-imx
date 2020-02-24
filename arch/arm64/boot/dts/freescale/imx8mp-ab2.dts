@@ -399,7 +399,7 @@
 	 * Bit 1: RX enabled
 	 * Bits 3..2: 0=SPDIF, 1=ARC, 2=EARC, 3=RESERVED
 	 */
-	fsl,xcvr-mode = <0xb>; /* EARC,  RX + TX */
+	fsl,xcvr-mode = <0xa>; /* EARC,  RX */
 	#sound-dai-cells = <0>;
 	status = "okay";
 };
