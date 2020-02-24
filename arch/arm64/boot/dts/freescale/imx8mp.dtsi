@@ -155,7 +155,6 @@
 	edacmc: memory-controller@3d400000 {
 		compatible = "fsl,imx8mp-ddrc";
 		reg = <0x0 0x3d400000 0x0 0x400000>;
-		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
@@ -1560,7 +1559,7 @@
 				reg = <0x32fc2000 0x1000>;
 				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-controller;
-				interrupt-parent = <&gpc>;
+				interrupt-parent = <&gic>;
 				#interrupt-cells = <1>;
 				fsl,channel = <1>;
 				fsl,num-irqs = <64>;
