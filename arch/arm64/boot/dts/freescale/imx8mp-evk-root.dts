@@ -6,6 +6,8 @@
 #include "imx8mp-evk.dts"
 
 / {
+	interrupt-parent = <&gic>;
+
 	resmem: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -13,23 +15,22 @@
 	};
 };
 
-/*
 &cpu_pd_wait {
 	/delete-property/ compatible;
 };
-*/
+
+/delete-node/ &gpc;
 
 &clk {
 	init-on-array = <IMX8MP_CLK_USDHC3_ROOT
 			 IMX8MP_CLK_NAND_USDHC_BUS
+			 IMX8MP_CLK_HSIO_ROOT
 			 IMX8MP_CLK_UART4_ROOT>;
 };
 
-/*
 &{/busfreq} {
 	status = "disabled";
 };
-*/
 
 &{/reserved-memory} {
 	jh_reserved: jh@fdc00000 {
@@ -64,13 +65,11 @@
 };
 
 &iomuxc {
-	imx8mp-evk {
-		pinctrl_uart4: uart4grp {
-			fsl,pins = <
-				MX8MP_IOMUXC_UART4_RXD__UART4_DCE_RX	0x49
-				MX8MP_IOMUXC_UART4_TXD__UART4_DCE_TX	0x49
-			>;
-		};
+	pinctrl_uart4: uart4grp {
+		fsl,pins = <
+			MX8MP_IOMUXC_UART4_RXD__UART4_DCE_RX	0x49
+			MX8MP_IOMUXC_UART4_TXD__UART4_DCE_TX	0x49
+		>;
 	};
 };
 
