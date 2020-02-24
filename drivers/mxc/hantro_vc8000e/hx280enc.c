@@ -699,9 +699,9 @@ static struct file_operations hantroenc_fops = {
 #endif
 };
 
-static int hanro_enc_suspend(struct device *dev, pm_message_t state)
+static int hantro_enc_suspend(struct device *dev, pm_message_t state)
 {
-	int i;
+	int i, j;
 	u32 *reg_buf;
 
 	PDEBUG("%s start..\n", __func__);
@@ -711,8 +711,8 @@ static int hanro_enc_suspend(struct device *dev, pm_message_t state)
 			continue;
 
 		reg_buf = hantroenc_data[i].reg_buf;
-		for (i = 0; i < hantroenc_data[i].core_cfg.iosize; i += 4)
-			reg_buf[i/4] = ioread32((void *)(hantroenc_data[i].hwregs + i));
+		for (j = 0; j < hantroenc_data[i].core_cfg.iosize; j += 4)
+			reg_buf[j/4] = ioread32((void *)(hantroenc_data[i].hwregs + j));
 
 		up(&hantroenc_data[i].core_suspend_sem);
 	}
@@ -721,9 +721,9 @@ static int hanro_enc_suspend(struct device *dev, pm_message_t state)
 	return 0;
 }
 
-static int hanro_enc_resume(struct device *dev)
+static int hantro_enc_resume(struct device *dev)
 {
-	int i;
+	int i, j;
 	u32 *reg_buf;
 
 	PDEBUG("%s start..\n", __func__);
@@ -733,8 +733,8 @@ static int hanro_enc_resume(struct device *dev)
 			continue;
 		reg_buf = hantroenc_data[i].reg_buf;
 
-		for (i = 0; i < hantroenc_data[i].core_cfg.iosize; i += 4)
-			iowrite32(reg_buf[i/4], (void *)(hantroenc_data[i].hwregs + i));
+		for (j = 0; j < hantroenc_data[i].core_cfg.iosize; j += 4)
+			iowrite32(reg_buf[j/4], (void *)(hantroenc_data[i].hwregs + j));
 	}
 
 	PDEBUG("%s succeed!\n", __func__);
@@ -1129,7 +1129,7 @@ static int __maybe_unused hantro_vc8000e_suspend(struct device *dev)
 {
 	pm_message_t state = {0};
 
-	hanro_enc_suspend(dev, state);
+	hantro_enc_suspend(dev, state);
 	pm_runtime_put_sync_suspend(dev);   //power off
 	return 0;
 }
@@ -1140,7 +1140,7 @@ static int __maybe_unused hantro_vc8000e_resume(struct device *dev)
 	hantro_vc8000e_power_on_disirq(hx280enc);
 	hantro_vc8000e_ctrlblk_reset(dev);
 
-	hanro_enc_resume(dev);
+	hantro_enc_resume(dev);
 
 	return 0;
 }
