@@ -568,26 +568,28 @@ static int fsl_xcvr_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+static const struct snd_soc_pcm_stream playback = {
+	.stream_name = "CPU-Playback",
+	.channels_min = 1,
+	.channels_max = 32,
+	.rate_min = 32000,
+	.rate_max = 1536000,
+	.rates = SNDRV_PCM_RATE_KNOT,
+	.formats = FSL_XCVR_FORMATS,
+};
+
+static const struct snd_soc_pcm_stream capture = {
+	.stream_name = "CPU-Capture",
+	.channels_min = 1,
+	.channels_max = 32,
+	.rate_min = 32000,
+	.rate_max = 1536000,
+	.rates = SNDRV_PCM_RATE_KNOT,
+	.formats = FSL_XCVR_FORMATS_RX,
+};
+
 static struct snd_soc_dai_driver fsl_xcvr_dai = {
 	.probe  = fsl_xcvr_dai_probe,
-	.playback = {
-		.stream_name = "CPU-Playback",
-		.channels_min = 1,
-		.channels_max = 32,
-		.rate_min = 32000,
-		.rate_max = 1536000,
-		.rates = SNDRV_PCM_RATE_KNOT,
-		.formats = FSL_XCVR_FORMATS,
-	},
-	.capture = {
-		.stream_name = "CPU-Capture",
-		.channels_min = 1,
-		.channels_max = 32,
-		.rate_min = 32000,
-		.rate_max = 1536000,
-		.rates = SNDRV_PCM_RATE_KNOT,
-		.formats = FSL_XCVR_FORMATS_RX,
-	},
 	.ops = &fsl_xcvr_dai_ops,
 };
 
@@ -971,6 +973,12 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to start SPBA clock.\n");
 		return ret;
 	}
+
+	if (xcvr->mode & FSL_XCVR_DMODE_TX)
+		fsl_xcvr_dai.playback = playback;
+
+	if (xcvr->mode & FSL_XCVR_DMODE_RX)
+		fsl_xcvr_dai.capture = capture;
 
 	ret = devm_snd_soc_register_component(dev, &fsl_xcvr_comp,
 					      &fsl_xcvr_dai, 1);
