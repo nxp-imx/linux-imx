@@ -67,3 +67,8 @@
 	compatible = "fsl,imx8dxl-mu", "fsl,imx8qxp-mu", "fsl,imx6sx-mu";
 	interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 };
+
+&lsio_mu5 {
+	compatible = "fsl,imx8dxl-mu", "fsl,imx8qxp-mu", "fsl,imx6sx-mu";
+	interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+};
