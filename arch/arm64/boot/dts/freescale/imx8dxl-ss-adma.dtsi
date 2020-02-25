@@ -70,3 +70,7 @@
 	compatible = "fsl,imx8dxl-flexcan", "fsl,imx8qxp-flexcan", "fsl,imx8qm-flexcan";
 	interrupts = <GIC_SPI 240 IRQ_TYPE_LEVEL_HIGH>;
 };
+
+&adc0 {
+	interrupts = <GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH>;
+};
