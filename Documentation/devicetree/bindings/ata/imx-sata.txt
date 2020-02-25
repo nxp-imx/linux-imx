@@ -26,6 +26,8 @@ Optional properties:
 - fsl,phy-imp: PHY impedance ratio value refer to the differnt HW design.
   Set it to 0x6c when 85OHM is used, keep it to default value 0x80 when
   100OHM is used.
+- clock-names : imx8qm sata requires some extra cloks "per_clk0",
+  "per_clk1", "per_clk2","per_clk3", "per_clk4", "per_clk5",
 
 Examples:
 
