@@ -15,7 +15,6 @@ static int imx_xcvr_audio_probe(struct platform_device *pdev)
 {
 	struct device_node *xcvr_np, *np = pdev->dev.of_node;
 	struct snd_soc_dai_link_component *dlc;
-	struct snd_soc_dai *cpu_dai, *codec_dai;
 	struct imx_xcvr_data *data;
 	int ret = 0;
 
@@ -56,13 +55,6 @@ static int imx_xcvr_audio_probe(struct platform_device *pdev)
 	data->card.dai_link = &data->dai;
 	data->card.num_links = 1;
 	data->card.owner = THIS_MODULE;
-
-	cpu_dai   = snd_soc_find_dai(data->dai.cpus);
-	codec_dai = snd_soc_find_dai(data->dai.codecs);
-	if (cpu_dai && codec_dai) {
-		codec_dai->driver->playback = cpu_dai->driver->playback;
-		codec_dai->driver->capture  = cpu_dai->driver->capture;
-	}
 
 	ret = snd_soc_of_parse_card_name(&data->card, "model");
 	if (ret)
