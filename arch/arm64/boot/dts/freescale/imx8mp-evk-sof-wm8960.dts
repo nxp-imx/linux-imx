@@ -54,8 +54,8 @@
 			"LINPUT3", "Mic Jack",
 			"RINPUT1", "Mic Jack",
 			"RINPUT2", "Mic Jack",
-			"Playback", "SAI1.OUT",
-			"SAI1.IN", "Capture";
+			"Playback", "SAI3.OUT",
+			"SAI3.IN", "Capture";
 		simple-audio-card,dai-link {
 			format = "i2s";
 			cpu {
@@ -75,7 +75,7 @@
 	#sound-dai-cells = <0>;
 	compatible = "fsl,imx8mp-dsp";
 	reg = <0x0 0x3B6E8000 0x0 0x88000>;
-	tplg-name = "sof-imx8qxp-wm8960.tplg";
+	tplg-name = "sof-imx8mp-wm8960.tplg";
 	machine-drv-name = "asoc-simple-card";
 	status = "okay";
 };
