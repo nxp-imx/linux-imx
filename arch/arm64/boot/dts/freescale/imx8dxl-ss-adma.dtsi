@@ -11,6 +11,17 @@
 	clock-frequency = <160000000>;
 };
 
+&edma2 {
+	interrupts = <GIC_SPI 308 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 309 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 310 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 311 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 312 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 313 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 314 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>;
+};
+
 &lpuart0 {
 	compatible = "fsl,imx8dxl-lpuart", "fsl,imx8qxp-lpuart", "fsl,imx7ulp-lpuart";
 	interrupts = <GIC_SPI 228 IRQ_TYPE_LEVEL_HIGH>;
