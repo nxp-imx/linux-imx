@@ -572,8 +572,11 @@ static ssize_t cdns3_role_store(struct device *dev,
 			     strlen(cdns->roles[role]->name)))
 			break;
 
-	if (role == cdns->role)
+	if (role == CDNS3_ROLE_END)
 		return -EINVAL;
+
+	if (role == cdns->role)
+		return n;
 
 	disable_irq(cdns->irq);
 	ret = cdns3_do_role_switch(cdns, role);
