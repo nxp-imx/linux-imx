@@ -259,6 +259,9 @@ static const struct imx_sc_pd_range imx8qxp_scu_pd_ranges[] = {
 
 	/* SECO SS */
 	{ "seco_mu", IMX_SC_R_SECO_MU_2, 3, true, 2},
+
+	/* DB SS */
+	{ "perf", IMX_SC_R_PERF, 1, false, 0},
 };
 
 static const struct imx_sc_pd_soc imx8qxp_scu_pd = {
