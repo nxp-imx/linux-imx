@@ -2,6 +2,7 @@
 /*
  * Copyright 2013-2014 Freescale Semiconductor, Inc.
  * Copyright 2018 Angelo Dureghello <angelo@sysam.it>
+ * Copyright 2020 NXP
  */
 #ifndef _FSL_EDMA_COMMON_H_
 #define _FSL_EDMA_COMMON_H_
@@ -151,6 +152,7 @@ struct fsl_edma_drvdata {
 	bool			mux_swap;
 	int			(*setup_irq)(struct platform_device *pdev,
 					     struct fsl_edma_engine *fsl_edma);
+	u8			txirq_count;
 };
 
 struct fsl_edma_engine {
@@ -162,7 +164,7 @@ struct fsl_edma_engine {
 	struct mutex		fsl_edma_mutex;
 	const struct fsl_edma_drvdata *drvdata;
 	u32			n_chans;
-	int			txirq;
+	int			*txirqs;
 	int			errirq;
 	bool			big_endian;
 	struct edma_regs	regs;
