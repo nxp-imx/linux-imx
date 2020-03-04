@@ -1075,10 +1075,6 @@ static void enetc_pf_remove(struct pci_dev *pdev)
 	enetc_pci_remove(pdev);
 }
 
-/* Lock for MDIO access errata on LS1028A */
-DEFINE_RWLOCK(enetc_mdio_lock);
-EXPORT_SYMBOL_GPL(enetc_mdio_lock);
-
 static const struct pci_device_id enetc_pf_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_FREESCALE, ENETC_DEV_ID_PF) },
 	{ 0, } /* End of table. */

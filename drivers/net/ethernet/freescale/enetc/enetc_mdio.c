@@ -174,3 +174,7 @@ struct enetc_hw *enetc_hw_alloc(struct device *dev, void __iomem *port_regs)
 	return hw;
 }
 EXPORT_SYMBOL_GPL(enetc_hw_alloc);
+
+/* Lock for MDIO access errata on LS1028A */
+DEFINE_RWLOCK(enetc_mdio_lock);
+EXPORT_SYMBOL_GPL(enetc_mdio_lock);
