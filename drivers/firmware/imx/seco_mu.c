@@ -68,9 +68,9 @@
 #include <linux/firmware/imx/seco_mu_ioctl.h>
 #include <linux/mailbox_client.h>
 
-#define MAX_RECV_SIZE 8
+#define MAX_RECV_SIZE 31
 #define MAX_RECV_SIZE_BYTES (MAX_RECV_SIZE * sizeof(u32))
-#define MAX_MESSAGE_SIZE 20
+#define MAX_MESSAGE_SIZE 31
 #define MAX_MESSAGE_SIZE_BYTES (MAX_MESSAGE_SIZE * sizeof(u32))
 #define MESSAGE_SIZE(hdr) (((struct she_mu_hdr *)(&(hdr)))->size)
 #define MESSAGE_TAG(hdr) (((struct she_mu_hdr *)(&(hdr)))->tag)
@@ -78,14 +78,11 @@
 #define MESSAGING_TAG_COMMAND           (0x17u)
 #define MESSAGING_TAG_RESPONSE          (0xe1u)
 
-/* number of MU_TR registers */
-#define MU_TR_COUNT		(4u)
-/*  number of MU_RR registers */
-#define MU_RR_COUNT		(4u)
-
 #define SECURE_RAM_BASE_ADDRESS	(0x31800000ULL)
 #define SECURE_RAM_BASE_ADDRESS_SCU	(0x20800000u)
 #define SECURE_RAM_SIZE	(0x10000ULL)
+
+#define SECO_MU_DEFAULT_MAX_USERS 4
 
 #define SECO_MU_INTERRUPT_INDEX	(0u)
 #define SECO_DEFAULT_MU_INDEX	(1u)
@@ -162,23 +159,11 @@ struct seco_mu_priv {
 	u32 seco_mu_id;
 
 	struct mbox_client cl;
-	struct com_chan {
-		struct mbox_client cl;
-		struct mbox_chan *chan;
-		u8 idx;
-	} com_chans[MU_TR_COUNT + MU_RR_COUNT];
-	struct mbox_chan *tx_started;
+	struct mbox_chan *tx_chan;
+	struct mbox_chan *rx_chan;
 
 	struct imx_sc_ipc *ipc_scu;
 	u8 seco_part_owner;
-
-	void *debug_ptr;
-
-	struct seco_mu_device_ctx *prot_ctx;
-	u32 prot_buf[MAX_RECV_SIZE];
-	u32 prot_word_received; /* bit arrray of the word received */
-	u32 prot_idx;
-	u32 prot_size;
 };
 
 /* macro to log operation of a misc device */
@@ -368,8 +353,7 @@ static ssize_t seco_mu_fops_write(struct file *fp, const char __user *buf,
 	struct seco_mu_device_ctx *dev_ctx = container_of(fp->private_data,
 					struct seco_mu_device_ctx, miscdev);
 	struct seco_mu_priv *mu_priv = dev_ctx->mu_priv;
-	u32 *data, data_idx = 0, nb_words = 0, header;
-	struct mbox_chan *chan;
+	u32 nb_words = 0, header;
 	int err;
 
 	devctx_dbg(dev_ctx, "write from buf (%p)%ld, ppos=%lld\n", buf, size,
@@ -405,6 +389,9 @@ static ssize_t seco_mu_fops_write(struct file *fp, const char __user *buf,
 		goto exit;
 	}
 
+	print_hex_dump_debug("from user ", DUMP_PREFIX_OFFSET, 4, 4,
+			     dev_ctx->temp_cmd, size, false);
+
 	header = dev_ctx->temp_cmd[0];
 
 	/* Check the message is valid according to tags */
@@ -434,48 +421,22 @@ static ssize_t seco_mu_fops_write(struct file *fp, const char __user *buf,
 	 * carried in the message.
 	 */
 	nb_words = MESSAGE_SIZE(header);
-	if (nb_words * sizeof(u32) != size) {
+	if (nb_words * sizeof(u32) > size) {
 		devctx_err(dev_ctx, "User buffer too small\n");
 		goto exit;
 	}
 
 	mutex_lock(&mu_priv->mu_lock);
 
-	/* Send the first word along with the signaling */
-	data = &dev_ctx->temp_cmd[data_idx];
-	chan = mu_priv->com_chans[0].chan;
-	devctx_dbg(dev_ctx, "sending[%d] %.8x\n", data_idx, *data);
-	err = mbox_send_message(chan, data);
+	/* Send message */
+	devctx_dbg(dev_ctx, "sending message\n");
+	err = mbox_send_message(mu_priv->tx_chan, dev_ctx->temp_cmd);
 	if (err < 0) {
-		devctx_err(dev_ctx, "Failed to send header\n");
+		devctx_err(dev_ctx, "Failed to send message\n");
 		goto unlock;
 	}
 
-	devctx_dbg(dev_ctx, "%s\n", "signaling");
-	err = mbox_send_message(mu_priv->tx_started, data);
-	if (err < 0) {
-		devctx_err(dev_ctx, "Failed to send signal\n");
-		goto unlock;
-	}
-
-	data_idx = 1;
-
-	/* Loop over the data of the message to send */
-	while (data_idx < nb_words) {
-		data = &dev_ctx->temp_cmd[data_idx];
-		chan = mu_priv->com_chans[data_idx % MU_TR_COUNT].chan;
-
-		devctx_dbg(dev_ctx, "sending[%d] %.8x\n", data_idx, *data);
-		err = mbox_send_message(chan, data);
-		if (err < 0) {
-			devctx_err(dev_ctx, "Failed to send data %d\n",
-				   data_idx);
-			goto unlock;
-		}
-		data_idx++;
-	}
-
-	err = data_idx * (u32)sizeof(u32);
+	err = nb_words * (u32)sizeof(u32);
 
 unlock:
 	mutex_unlock(&mu_priv->mu_lock);
@@ -618,7 +579,7 @@ seco_mu_ioctl_shared_mem_cfg_handler(struct seco_mu_device_ctx *dev_ctx,
 	dev_ctx->secure_mem.dma_addr = (dma_addr_t)cfg.base_offset;
 	dev_ctx->secure_mem.size = cfg.size;
 	dev_ctx->secure_mem.pos = 0;
-	dev_ctx->secure_mem.ptr = devm_ioremap_nocache(dev_ctx->dev,
+	dev_ctx->secure_mem.ptr = devm_ioremap(dev_ctx->dev,
 					(phys_addr_t)(SECURE_RAM_BASE_ADDRESS +
 					(u64)dev_ctx->secure_mem.dma_addr),
 					dev_ctx->secure_mem.size);
@@ -883,11 +844,11 @@ static long seco_mu_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 static void seco_mu_rx_callback(struct mbox_client *c, void *msg)
 {
 	struct device *dev = c->dev;
-	struct com_chan *com = container_of(c, struct com_chan, cl);
 	struct seco_mu_priv *priv = dev_get_drvdata(dev);
-	struct seco_mu_device_ctx *dev_ctx = priv->prot_ctx;
-	u32 idx = com->idx;
-	u32 val_msg;
+	struct seco_mu_device_ctx *dev_ctx;
+	bool is_response = false;
+	int msg_size;
+	u32 header;
 
 	dev_dbg(dev, "Message received on mailbox\n");
 
@@ -897,78 +858,48 @@ static void seco_mu_rx_callback(struct mbox_client *c, void *msg)
 		return;
 	}
 
-	val_msg = *(u32 *)msg;
+	header = *(u32 *)msg;
 
-	/* Store the message at its postion*/
-	idx += (priv->prot_word_received & (1 << idx)) ? 4 : 0;
-	priv->prot_buf[idx] = val_msg;
-	priv->prot_word_received |= (1 << idx);
-	priv->prot_idx++;
-	dev_dbg(dev, "Received: %.8x from %d, idx: %d, prot_idx: %d\n", val_msg,
-		com->idx, idx, priv->prot_idx);
+	dev_dbg(dev, "Selecting device\n");
 
-	/* We check if we have received the header */
-	if (idx == 0) {
-		int msg_size;
-
-		dev_dbg(dev, "Selecting device\n");
-
-		/* Incoming command: wake up the receiver if any. */
-		if (MESSAGE_TAG(val_msg) == MESSAGING_TAG_COMMAND) {
-			dev_dbg(dev, "Selecting receiver\n");
-			priv->prot_ctx = priv->cmd_receiver_dev;
-		} else if (MESSAGE_TAG(val_msg) == MESSAGING_TAG_RESPONSE) {
-			dev_dbg(dev, "Selecting waiter\n");
-			/* This is a response. */
-			priv->prot_ctx = priv->waiting_rsp_dev;
-		} else {
-			dev_err(dev,
-				"Failed to select a device for message: %.8x\n",
-				val_msg);
-			return;
-		}
-
-		if (!priv->prot_ctx) {
-			dev_err(dev, "The device context could not be set\n");
-			return;
-		}
-		dev_ctx = priv->prot_ctx;
-
-		/* Init reception */
-		msg_size = MESSAGE_SIZE(val_msg);
-		if (msg_size > MAX_MESSAGE_SIZE) {
-			devctx_err(dev_ctx, "Message is too big (%d > %d)",
-				   msg_size, MAX_RECV_SIZE);
-			return;
-		}
-		priv->prot_size = msg_size;
+	/* Incoming command: wake up the receiver if any. */
+	if (MESSAGE_TAG(header) == MESSAGING_TAG_COMMAND) {
+		dev_dbg(dev, "Selecting cmd receiver\n");
+		dev_ctx = priv->cmd_receiver_dev;
+	} else if (MESSAGE_TAG(header) == MESSAGING_TAG_RESPONSE) {
+		dev_dbg(dev, "Selecting rsp waiter\n");
+		dev_ctx = priv->waiting_rsp_dev;
+		is_response = true;
+	} else {
+		dev_err(dev, "Failed to select a device for message: %.8x\n",
+			header);
+		return;
 	}
 
-	/* Check end of reception */
-	if (priv->prot_idx == priv->prot_size) {
-		devctx_dbg(dev_ctx, "Transfert finished\n");
+	if (!dev_ctx) {
+		dev_err(dev, "No device context selected for message: %.8x\n",
+			header);
+		return;
+	}
 
-		/* Cleanup */
-		priv->prot_ctx = NULL;
-		memcpy(dev_ctx->temp_resp, priv->prot_buf, MAX_RECV_SIZE_BYTES);
-		dev_ctx->temp_resp_size = priv->prot_size;
+	/* Init reception */
+	msg_size = MESSAGE_SIZE(header);
+	if (msg_size > MAX_RECV_SIZE) {
+		devctx_err(dev_ctx, "Message is too big (%d > %d)", msg_size,
+			   MAX_RECV_SIZE);
+		return;
+	}
 
-		priv->prot_idx = 0;
-		priv->prot_size = 0;
-		priv->prot_word_received = 0;
+	memcpy(dev_ctx->temp_resp, msg, msg_size * sizeof(u32));
+	dev_ctx->temp_resp_size = msg_size;
 
-		/* Allow user to read and/or write */
-		dev_ctx->pending_hdr = dev_ctx->temp_resp[0];
-		wake_up_interruptible(&dev_ctx->wq);
+	/* Allow user to read */
+	dev_ctx->pending_hdr = dev_ctx->temp_resp[0];
+	wake_up_interruptible(&dev_ctx->wq);
 
-		if (MESSAGE_TAG(dev_ctx->temp_resp[0]) ==
-				MESSAGING_TAG_RESPONSE) {
-			/*
-			 * The response to the previous command is received.
-			 * Allow following command to be sent on the MU.
-			 */
-			mutex_unlock(&priv->mu_cmd_lock);
-		}
+	if (is_response) {
+		/* Allow user to send new command */
+		mutex_unlock(&priv->mu_cmd_lock);
 	}
 }
 
@@ -1028,16 +959,44 @@ static void if_misc_deregister(void *miscdevice)
 	misc_deregister(miscdevice);
 }
 
+static int seco_mu_request_channel(struct device *dev,
+				   struct mbox_chan **chan,
+				   const char *name)
+{
+	struct seco_mu_priv *priv = dev_get_drvdata(dev);
+	struct mbox_chan *t_chan;
+	int ret = 0;
+
+	t_chan = mbox_request_channel_byname(&priv->cl, name);
+	if (IS_ERR(t_chan)) {
+		ret = PTR_ERR(t_chan);
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev,
+				"Failed to request chan %s ret %d\n", name,
+				ret);
+		goto exit;
+	}
+
+	ret = devm_add_action(dev, if_mbox_free_channel, t_chan);
+	if (ret) {
+		dev_err(dev, "failed to add devm removal of mbox %s\n", name);
+		goto exit;
+	}
+
+	*chan = t_chan;
+
+exit:
+	return ret;
+}
+
 /* Driver probe.*/
 static int seco_mu_probe(struct platform_device *pdev)
 {
 	struct seco_mu_device_ctx *dev_ctx;
 	struct device *dev = &pdev->dev;
 	struct seco_mu_priv *priv;
-	struct mbox_chan *chan;
 	struct device_node *np;
 	int max_nb_users = 0;
-	char *chan_name;
 	char *devname;
 	int ret;
 	int i;
@@ -1096,73 +1055,25 @@ static int seco_mu_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "fsl,seco_max_users", &max_nb_users);
 	if (ret) {
 		dev_warn(dev, "%s: Not able to read mu_max_user", __func__);
-		max_nb_users = 2; /* 2 users max by default. */
+		max_nb_users = SECO_MU_DEFAULT_MAX_USERS;
 	}
 
 	/* Mailbox client configuration */
 	priv->cl.dev = dev;
-	priv->cl.tx_tout = 3000;
 	priv->cl.knows_txdone = true;
 	priv->cl.rx_callback = seco_mu_rx_callback;
 
-	/* Create comm chans */
-	for (i = 0; i < MU_TR_COUNT + MU_RR_COUNT; i++) {
-		struct mbox_client *cl = &priv->com_chans[i].cl;
-
-		if (i < MU_TR_COUNT)
-			chan_name = devm_kasprintf(dev, GFP_KERNEL, "tx%d", i);
-		else
-			chan_name = devm_kasprintf(dev, GFP_KERNEL, "rx%d",
-						   i - 4);
-
-		if (!chan_name) {
-			ret = -ENOMEM;
-			dev_err(dev, "Failed to build chan name %d\n", i);
-			goto exit;
-		}
-
-		memcpy(cl, &priv->cl, sizeof(priv->cl));
-
-		dev_dbg(dev, "request mbox chan %s\n", chan_name);
-		chan = mbox_request_channel_byname(cl, chan_name);
-		if (IS_ERR(chan)) {
-			ret = PTR_ERR(chan);
-			if (ret != -EPROBE_DEFER)
-				dev_err(dev,
-					"Failed to request chan %s ret %d\n",
-					chan_name, ret);
-			goto exit;
-		}
-		priv->com_chans[i].chan = chan;
-		priv->com_chans[i].idx = i - 4;
-
-		ret = devm_add_action(dev, if_mbox_free_channel, chan);
-		if (ret)
-			dev_warn(dev, "failed to add devm removal of mbox\n");
-
-		/* chan_name is not used anymore by mailbox framework */
-		devm_kfree(dev, chan_name);
-	}
-
-	/* Create signaling chan */
-	dev_dbg(dev, "request signal chan %s\n", chan_name);
-
-	priv->tx_started = mbox_request_channel_byname(&priv->cl,
-						       "tx_started");
-	if (IS_ERR(priv->tx_started)) {
-		ret = PTR_ERR(priv->tx_started);
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev,
-				"Failed to request chan %s ret %d\n",
-				chan_name, ret);
+	ret = seco_mu_request_channel(dev, &priv->tx_chan, "txdb");
+	if (ret) {
+		dev_err(dev, "Failed to request txdb channel\n");
 		goto exit;
 	}
 
-	ret = devm_add_action(dev, if_mbox_free_channel,
-			      priv->tx_started);
-	if (ret)
-		dev_warn(dev,
-			 "failed to add managed removal of mbox\n");
+	ret = seco_mu_request_channel(dev, &priv->rx_chan, "rxdb");
+	if (ret) {
+		dev_err(dev, "Failed to request rxdb channel\n");
+		goto exit;
+	}
 
 	/* Create users */
 	for (i = 0; i < max_nb_users; i++) {
