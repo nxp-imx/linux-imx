@@ -888,9 +888,22 @@ static bool set_video_standard(struct vpu_ctx *ctx,
 			if (!check_fmt_is_support(ctx, &pformat_table[i]))
 				return false;
 			q_data->vdec_std = pformat_table[i].vdec_std;
+			q_data->num_planes = pformat_table[i].num_planes;
+			q_data->fourcc = f->fmt.pix_mp.pixelformat;
 		}
 	}
 	return true;
+}
+
+static void set_output_default_sizeimage(struct queue_data *q_data)
+{
+	u32 i;
+
+	for (i = 0; i < q_data->num_planes; i++) {
+		if (q_data->sizeimage[i])
+			continue;
+		q_data->sizeimage[i] = q_data->width * q_data->height;
+	}
 }
 
 static int v4l2_ioctl_s_fmt(struct file *file,
@@ -917,7 +930,6 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		q_data = &ctx->q_data[V4L2_DST];
 		if (!set_video_standard(ctx, q_data, f, formats_yuv_dec, ARRAY_SIZE(formats_yuv_dec)))
 			return -EINVAL;
-		pix_mp->num_planes = 2;
 		pix_mp->colorspace = V4L2_COLORSPACE_REC709;
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		q_data = &ctx->q_data[V4L2_SRC];
@@ -926,8 +938,7 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 	} else
 		return -EINVAL;
 
-	q_data->num_planes = pix_mp->num_planes;
-	q_data->fourcc = pix_mp->pixelformat;
+	pix_mp->num_planes = q_data->num_planes;
 
 	down(&q_data->drv_q_lock);
 	if (V4L2_TYPE_IS_OUTPUT(f->type) || ctx->b_firstseq) {
@@ -945,6 +956,8 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		pix_mp->width = q_data->width;
 		pix_mp->height = q_data->height;
 	}
+	if (V4L2_TYPE_IS_OUTPUT(f->type))
+		set_output_default_sizeimage(q_data);
 	up(&q_data->drv_q_lock);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
