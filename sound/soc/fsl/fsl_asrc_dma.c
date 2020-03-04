@@ -235,7 +235,7 @@ static int fsl_asrc_dma_hw_params(struct snd_pcm_substream *substream,
 			dma_request_channel(mask, filter, &pair->dma_data);
 	else
 		pair->dma_chan[dir] =
-			fsl_asrc_get_dma_channel(pair, dir);
+			dma_request_slave_channel(dev_be, tx ? "tx" : "rx");
 
 	if (!pair->dma_chan[dir]) {
 		dev_err(dev, "failed to request DMA channel for Back-End\n");
