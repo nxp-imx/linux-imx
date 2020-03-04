@@ -191,7 +191,7 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			size = <0 0x3c000000>;
-			alloc-ranges = <0 0x40000000 0 0x70000000>;
+			alloc-ranges = <0 0x40000000 0 0xC0000000>;
 			linux,cma-default;
 		};
 
@@ -1325,7 +1325,7 @@
 			};
 
 			sdma3: dma-controller@30e00000 {
-				compatible = "fsl,imx8mq-sdma", "fsl,imx7d-sdma";
+				compatible = "fsl,imx8mp-sdma", "fsl,imx7d-sdma";
 				reg = <0x30e00000 0x10000>;
 				interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>,
@@ -1339,7 +1339,7 @@
 			};
 
 			sdma2: dma-controller@30e10000 {
-				compatible = "fsl,imx8mq-sdma", "fsl,imx7d-sdma";
+				compatible = "fsl,imx8mp-sdma", "fsl,imx7d-sdma";
 				reg = <0x30e10000 0x10000>;
 				interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SDMA2_ROOT>,
@@ -1561,7 +1561,6 @@
 				reg = <0x32fc2000 0x1000>;
 				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-controller;
-				interrupt-parent = <&gic>;
 				#interrupt-cells = <1>;
 				fsl,channel = <1>;
 				fsl,num-irqs = <64>;

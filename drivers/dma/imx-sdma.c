@@ -630,6 +630,14 @@ static struct sdma_driver_data sdma_imx8mq = {
 	.ecspi_fixed = true,
 };
 
+static struct sdma_driver_data sdma_imx8mp = {
+	.chnenbl0 = SDMA_CHNENBL0_IMX35,
+	.num_events = 48,
+	.script_addrs = &sdma_script_imx7d,
+	.check_ratio = 1,
+	.ecspi_fixed = true,
+};
+
 static const struct platform_device_id sdma_devtypes[] = {
 	{
 		.name = "imx25-sdma",
@@ -662,6 +670,9 @@ static const struct platform_device_id sdma_devtypes[] = {
 		.name = "imx8mq-sdma",
 		.driver_data = (unsigned long)&sdma_imx8mq,
 	}, {
+		.name = "imx8mp-sdma",
+		.driver_data = (unsigned long)&sdma_imx8mp,
+	}, {
 		/* sentinel */
 	}
 };
@@ -678,6 +689,7 @@ static const struct of_device_id sdma_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-sdma", .data = &sdma_imx7d, },
 	{ .compatible = "fsl,imx6ul-sdma", .data = &sdma_imx6ul, },
 	{ .compatible = "fsl,imx8mq-sdma", .data = &sdma_imx8mq, },
+	{ .compatible = "fsl,imx8mp-sdma", .data = &sdma_imx8mp, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, sdma_dt_ids);
@@ -2448,9 +2460,9 @@ static int sdma_suspend(struct device *dev)
 	struct sdma_engine *sdma = platform_get_drvdata(pdev);
 	int i, ret = 0;
 
-	/* Do nothing if not i.MX6SX or i.MX7D*/
+	/* Do nothing if not i.MX6SX or i.MX7D, i.MX8MP */
 	if (sdma->drvdata != &sdma_imx6sx && sdma->drvdata != &sdma_imx7d
-	    && sdma->drvdata != &sdma_imx6ul)
+	   && sdma->drvdata != &sdma_imx6ul && sdma->drvdata != &sdma_imx8mp)
 		return 0;
 
 	clk_enable(sdma->clk_ipg);
@@ -2488,9 +2500,9 @@ static int sdma_resume(struct device *dev)
 	unsigned long timeout = jiffies + msecs_to_jiffies(2);
 	int i, ret;
 
-	/* Do nothing if not i.MX6SX or i.MX7D*/
+	/* Do nothing if not i.MX6SX or i.MX7D, i.MX8MP*/
 	if (sdma->drvdata != &sdma_imx6sx && sdma->drvdata != &sdma_imx7d
-	    && sdma->drvdata != &sdma_imx6ul)
+	    && sdma->drvdata != &sdma_imx6ul && sdma->drvdata != &sdma_imx8mp)
 		return 0;
 
 	clk_enable(sdma->clk_ipg);

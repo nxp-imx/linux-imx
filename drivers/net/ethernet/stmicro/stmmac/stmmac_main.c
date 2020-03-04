@@ -5024,11 +5024,17 @@ int stmmac_resume(struct device *dev)
 		if (priv->plat->clk_ptp_ref)
 			clk_prepare_enable(priv->plat->clk_ptp_ref);
 		/* reset the phy so that it's ready */
-		if (priv->mii)
+		if (priv->mii && priv->mdio_rst_after_resume)
 			stmmac_mdio_reset(priv->mii);
 	}
 
 	netif_device_attach(ndev);
+
+	if (!device_may_wakeup(priv->device)) {
+		rtnl_lock();
+		phylink_start(priv->phylink);
+		rtnl_unlock();
+	}
 
 	mutex_lock(&priv->lock);
 
@@ -5045,12 +5051,6 @@ int stmmac_resume(struct device *dev)
 	stmmac_start_all_queues(priv);
 
 	mutex_unlock(&priv->lock);
-
-	if (!device_may_wakeup(priv->device)) {
-		rtnl_lock();
-		phylink_start(priv->phylink);
-		rtnl_unlock();
-	}
 
 	phylink_mac_change(priv->phylink, true);
 

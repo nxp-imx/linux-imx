@@ -199,6 +199,10 @@ conn_subsys: bus@5b000000 {
 			 <&usb3_lpcg 3>;
 		clock-names = "usb3_lpm_clk", "usb3_bus_clk", "usb3_aclk",
 			"usb3_ipg_clk", "usb3_core_pclk";
+		assigned-clocks = <&clk IMX_SC_R_USB_2 IMX_SC_PM_CLK_PER>,
+				  <&clk IMX_SC_R_USB_2 IMX_SC_PM_CLK_MISC>,
+				  <&clk IMX_SC_R_USB_2 IMX_SC_PM_CLK_MST_BUS>;
+		assigned-clock-rates = <125000000>, <12000000>, <250000000>;
 		power-domains = <&pd IMX_SC_R_USB_2>;
 		cdns3,usbphy = <&usb3phynop1>;
 		status = "disabled";
