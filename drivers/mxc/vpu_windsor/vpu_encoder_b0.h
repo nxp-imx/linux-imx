@@ -467,6 +467,7 @@ struct vpu_ctx {
 	u_int32 sequence;
 	s64 timestams[VPU_ENC_SEQ_CAPACITY];
 	u32 cpb_size;
+	s64 timestamp;
 };
 
 #define LVL_ERR		(1 << 0)

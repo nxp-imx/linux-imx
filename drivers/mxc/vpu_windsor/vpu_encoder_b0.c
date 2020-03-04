@@ -1768,6 +1768,7 @@ static void init_ctx_seq_info(struct vpu_ctx *ctx)
 	ctx->sequence = 0;
 	for (i = 0; i < ARRAY_SIZE(ctx->timestams); i++)
 		ctx->timestams[i] = VPU_ENC_INVALID_TIMESTAMP;
+	ctx->timestamp = VPU_ENC_INVALID_TIMESTAMP;
 }
 
 static void fill_ctx_seq(struct vpu_ctx *ctx, struct vb2_data_req *p_data_req)
@@ -1785,6 +1786,8 @@ static void fill_ctx_seq(struct vpu_ctx *ctx, struct vb2_data_req *p_data_req)
 			p_data_req->sequence);
 	}
 	ctx->timestams[idx] = p_data_req->vb2_buf->timestamp;
+	if (ctx->timestamp < (s64)p_data_req->vb2_buf->timestamp)
+		ctx->timestamp = p_data_req->vb2_buf->timestamp;
 }
 
 static s64 get_ctx_seq_timestamp(struct vpu_ctx *ctx, u32 sequence)
@@ -2374,6 +2377,24 @@ static int append_empty_end_frame(struct vb2_data_req *p_data_req)
 	return 0;
 }
 
+static s64 calculate_timestamp_for_eos(struct vpu_ctx *ctx)
+{
+	struct vpu_attr *attr = NULL;
+	struct v4l2_fract *fival;
+	s64 timestamp;
+	u64 delta = 0;
+
+	timestamp = ctx->timestamp;
+	attr = get_vpu_ctx_attr(ctx);
+	fival = &attr->fival;
+	if (ctx->timestamp != VPU_ENC_INVALID_TIMESTAMP && fival->denominator) {
+		delta = NSEC_PER_SEC * fival->numerator / fival->denominator;
+		timestamp += delta;
+	}
+
+	return timestamp;
+}
+
 static bool is_valid_frame_read_pos(u32 ptr, struct vpu_frame_info *frame)
 {
 	if (ptr < frame->start || ptr >= frame->end)
@@ -2555,10 +2576,8 @@ static bool process_frame_done(struct queue_data *queue)
 		transfer_stream_output(ctx, frame, p_data_req);
 
 	update_stream_desc_rptr(ctx, frame->rptr);
-	if (!frame->eos) {
-		fill_vb_sequence(p_data_req->vb2_buf, frame->info.uFrameID);
-		p_data_req->vb2_buf->timestamp = frame->timestamp;
-	}
+	fill_vb_sequence(p_data_req->vb2_buf, frame->info.uFrameID);
+	p_data_req->vb2_buf->timestamp = frame->timestamp;
 	if (!frame->bytesleft) {
 		put_frame_idle(frame);
 		frame = NULL;
@@ -2786,12 +2805,13 @@ static int handle_event_stop_done(struct vpu_ctx *ctx)
 	disable_fps_sts(get_vpu_ctx_attr(ctx));
 
 	set_bit(VPU_ENC_STATUS_STOP_DONE, &ctx->status);
-	notify_eos(ctx);
 
 	down(&queue->drv_q_lock);
 	frame = get_idle_frame(queue);
 	if (frame) {
 		frame->eos = true;
+		frame->timestamp = calculate_timestamp_for_eos(ctx);
+		frame->info.uFrameID = ctx->sequence;
 		list_add_tail(&frame->list, &queue->frame_q);
 	} else {
 		vpu_err("fail to alloc memory for last frame\n");
@@ -2800,6 +2820,7 @@ static int handle_event_stop_done(struct vpu_ctx *ctx)
 
 	process_stream_output(ctx);
 
+	notify_eos(ctx);
 	clear_start_status(ctx);
 	init_ctx_seq_info(ctx);
 	complete(&ctx->stop_cmp);
@@ -4661,6 +4682,9 @@ static unsigned int vpu_enc_v4l2_poll(struct file *filp, poll_table *wait)
 		rc |= POLLERR;
 		return rc;
 	}
+	if (test_bit(VPU_ENC_STATUS_EOS_SEND, &ctx->status) &&
+			!list_empty(&dst_q->done_list))
+		rc &= ~POLLPRI;
 
 	poll_wait(filp, &src_q->done_wq, wait);
 	if (!list_empty(&src_q->done_list))
