@@ -14,6 +14,10 @@ Required properties:
 - clocks : phandle + clock specifier pairs, one for each entry in clock-names
 - clock-names : should contain: "lin" - the uart clock
 
+Optional properties:
+- dmas : Specifies two DMA channels - one entry for each entry in dma-names
+- dma-names : DMA channel names - "tx" for transmission, "rx" for reception
+
 Example:
 uart0: serial@40053000 {
 	compatible = "fsl,s32v234-linflexuart";
@@ -21,6 +25,9 @@ uart0: serial@40053000 {
 	interrupts = <0 59 4>;
 	clocks = <&clks S32V234_CLK_LIN>;
 	clock-names = "lin";
+	dmas = <&edma 0 20>,
+	       <&edma 0 19>;
+	dma-names = "rx", "tx";
 };
 
 [1] https://www.nxp.com/webapp/Download?colCode=S32V234RM
