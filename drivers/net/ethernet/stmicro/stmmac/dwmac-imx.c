@@ -266,8 +266,10 @@ imx_dwmac_parse_dt(struct imx_priv_data *dwmac, struct device *dev)
 			return PTR_ERR(dwmac->intf_regmap);
 
 		err = of_property_read_u32_index(np, "intf_mode", 1, &dwmac->intf_reg_off);
-		if (!err)
+		if (err) {
 			dev_err(dev, "Can't get intf mode reg offset (%d)\n", err);
+			return err;
+		}
 	}
 
 	return err;
