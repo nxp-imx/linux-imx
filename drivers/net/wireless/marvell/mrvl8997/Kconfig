@@ -1,0 +1,8 @@
+config MRVL8997
+	tristate "Marvell WiFi Driver for 8997"
+	default m
+	depends on CFG80211
+	---help---
+		This adds support for wireless adapters based on Marvell
+		802.11n/ac chipsets. If you choose to build it as a module,
+		it will be build 2 modules moal.ko and mlan.ko
