@@ -4032,10 +4032,14 @@ err_init_fw:
 						 handle->init_wait_q_woken);
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-	wakeup_source_trash(&handle->ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+        wake_lock_destory(&handle->wake_lock);
 #else
-	wake_lock_destroy(&handle->wake_lock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+        woal_wakeup_source_trash(&handle->ws);
+#else
+        wakeup_source_trash(&handle->ws);
+#endif
 #endif
 #endif
 #ifdef CONFIG_PROC_FS
@@ -7691,6 +7695,38 @@ woal_interrupt(unsigned short msg_id, moal_handle *handle)
 	return ret;
 }
 
+#ifdef ANDROID_KERNEL
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+void woal_wakeup_source_init(struct wakeup_source *ws, const char *name)
+{
+    ENTER();
+
+    if(ws){
+        memset(ws, 0, sizeof(*ws));
+        ws->name = name;
+    }
+    wakeup_source_add(ws);
+
+    LEAVE();
+}
+
+void woal_wakeup_source_trash(struct wakeup_source *ws)
+{
+    ENTER();
+
+    if(!ws){
+        PRINTM(MERROR, "ws is null!\n");
+        return;
+    }
+    wakeup_source_remove(ws);
+    __pm_relax(ws);    
+
+    LEAVE();
+}
+#endif
+#endif
+
+
 /**
  * @brief This function adds the card. it will probe the
  *      card, allocate the mlan_private and initialize the device.
@@ -7890,10 +7926,14 @@ woal_add_card(void *card)
 		goto err_registerdev;
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-	wakeup_source_init(&handle->ws, "mwlan");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+    wake_lock_init(&handle->wake_lock, WAKE_LOCK_SUSPEND, "mwlan");
 #else
-	wake_lock_init(&handle->wake_lock, WAKE_LOCK_SUSPEND, "mwlan");
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+	    woal_wakeup_source_init(&handle->ws, "mwlan");
+	#else
+    wakeup_source_init(&handle->ws, "mwlan");
+	#endif
 #endif
 #endif
 
@@ -7917,10 +7957,14 @@ err_init_fw:
 						 handle->init_wait_q_woken);
 	}
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-	wakeup_source_trash(&handle->ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+	        wake_lock_destory(&handle->wake_lock);
 #else
-	wake_lock_destroy(&handle->wake_lock);
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+	        woal_wakeup_source_trash(&handle->ws);
+	#else
+        wakeup_source_trash(&handle->ws);
+	#endif
 #endif
 #endif
 	/* Unregister device */
@@ -8080,10 +8124,14 @@ woal_remove_card(void *card)
 	PRINTM(MINFO, "unregister device\n");
 	woal_unregister_dev(handle);
 #ifdef ANDROID_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-	wakeup_source_trash(&handle->ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+	wake_lock_destory(&handle->wake_lock);
 #else
-	wake_lock_destroy(&handle->wake_lock);
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+	    woal_wakeup_source_trash(&handle->ws);
+	#else
+        wakeup_source_trash(&handle->ws);
+	#endif
 #endif
 #endif
 	/* Free adapter structure */

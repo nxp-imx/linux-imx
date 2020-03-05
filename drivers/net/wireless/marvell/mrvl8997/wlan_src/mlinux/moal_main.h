@@ -2935,4 +2935,10 @@ mlan_status woal_set_rekey_data(moal_private *priv,
 				t_u8 action);
 #endif
 void woal_ioctl_get_misc_conf(moal_private *priv, mlan_ds_misc_cfg *info);
+#ifdef ANDROID_KERNEL
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4 ,0)
+void woal_wakeup_source_init(struct wakeup_source *ws, const char *name);
+void woal_wakeup_source_trash(struct wakeup_source *ws);
+#endif
+#endif
 #endif /* _MOAL_MAIN_H */
