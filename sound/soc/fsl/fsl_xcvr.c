@@ -585,7 +585,7 @@ static const struct snd_soc_pcm_stream capture = {
 	.rate_min = 32000,
 	.rate_max = 1536000,
 	.rates = SNDRV_PCM_RATE_KNOT,
-	.formats = FSL_XCVR_FORMATS_RX,
+	.formats = FSL_XCVR_FORMATS,
 };
 
 static struct snd_soc_dai_driver fsl_xcvr_dai = {
