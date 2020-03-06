@@ -1293,6 +1293,28 @@ static u_int32 get_mbi_size(struct queue_data *queue)
 	return ALIGN(mbi_size, uAlign);
 }
 
+#define DCP_FIXED_MB_ALLOC_TYPICAL	250
+#define DCP_FIXED_MB_ALLOC_WORSTCASE	400
+#define DCP_FIXED_MB_ALLOC		DCP_FIXED_MB_ALLOC_TYPICAL
+static u32 get_dcp_size(struct vpu_ctx *ctx)
+{
+	u32 uNumDcpChunks = ((ctx->seqinfo.uNumDFEAreas >> 16) & 0xff);
+	u32 uNumMbs;
+	u32 width;
+	u32 height;
+	u32 uTotalBinSize;
+
+	if (!uNumDcpChunks)
+		return DCP_SIZE;
+
+	width = ctx->seqinfo.uHorDecodeRes;
+	height = ctx->seqinfo.uVerDecodeRes;
+	uNumMbs = DIV_ROUND_UP(width, 16) * DIV_ROUND_UP(height, 16);
+	uTotalBinSize = uNumMbs * DCP_FIXED_MB_ALLOC * uNumDcpChunks;
+
+	return uTotalBinSize;
+}
+
 static int free_mbi_buffers(struct vpu_ctx *ctx)
 {
 	u_int32 i;
@@ -3859,17 +3881,17 @@ static bool alloc_dcp_to_firmware(struct vpu_ctx *ctx,
 	u_int32 local_cmddata[10];
 	u32 index;
 
-	if (!ctx || !queue)
+	if (!ctx || !queue || !ctx->dcp_size)
 		return false;
 
 	buffer = &ctx->dcp_buffer[ctx->dcp_index];
-	if (!buffer->dma_virt || buffer->dma_size < DCP_SIZE)
+	if (!buffer->dma_virt || buffer->dma_size < ctx->dcp_size)
 		return false;
 
 	index = ctx->str_index;
 	local_cmddata[0] = ctx->dcp_index | (ctx->seqinfo.uActiveSeqTag<<24);
 	local_cmddata[1] = ctx->dcp_buffer[ctx->dcp_index].dma_phy;
-	local_cmddata[2] = DCP_SIZE;
+	local_cmddata[2] = ctx->dcp_size;
 	local_cmddata[3] = 0;
 	local_cmddata[4] = 0;
 	local_cmddata[5] = 0;
@@ -4354,7 +4376,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->seqinfo.uNumDPBFrms,
 			num,
 			ctx->seqinfo.uNumRefFrms,
-			ctx->seqinfo.uNumDFEAreas,
+			ctx->seqinfo.uNumDFEAreas & 0xff,
 			ctx->seqinfo.uProgressive ? "progressive" : "interlaced");
 		vpu_dbg(LVL_BIT_FLOW,
 			"uColorDesc = %d, uTransferChars = %d, uMatrixCoeffs = %d, uVideoFullRangeFlag = %d, uVUIPresent = %d\n",
@@ -4367,8 +4389,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		calculate_frame_size(ctx);
 		if (ctx->b_firstseq) {
 			ctx->b_firstseq = false;
-			reset_mbi_dcp_count(ctx);
 			ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
+			ctx->dcp_size = get_dcp_size(ctx);
 			reset_frame_buffer(ctx);
 			ctx->q_data[V4L2_DST].enable = false;
 			ctx->wait_res_change_done = true;
@@ -4548,6 +4570,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		down(&This->drv_q_lock);
 		reset_mbi_dcp_count(ctx);
 		ctx->mbi_size = get_mbi_size(This);
+		ctx->dcp_size = get_dcp_size(ctx);
 		reset_frame_buffer(ctx);
 		up(&This->drv_q_lock);
 		vpu_dbg(LVL_BIT_FLOW,
@@ -4919,7 +4942,7 @@ static void vpu_dec_alloc_mbi_dcp(struct vpu_ctx *ctx)
 		ret = vpu_dec_alloc_buffer_item(ctx,
 						ctx->dcp_count,
 						ctx->req_dcp_count,
-						DCP_SIZE,
+						ctx->dcp_size,
 						ctx->dcp_buffer,
 						"dcp");
 		if (!ret)
@@ -5572,14 +5595,18 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			ctx->seqinfo.uVerDecodeRes,
 			ctx->seqinfo.uNumDPBFrms,
 			ctx->seqinfo.uNumRefFrms,
-			ctx->seqinfo.uNumDFEAreas);
+			ctx->seqinfo.uNumDFEAreas & 0xff);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d/%16d/%16d\n", "mbi_count",
-			ctx->mbi_index, ctx->mbi_count, ctx->req_mbi_count);
+			"\t%40s:%16d/%16d/%16d(0x%x)\n", "mbi_count",
+			ctx->mbi_index, ctx->mbi_count, ctx->req_mbi_count,
+			ctx->mbi_size);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d/%16d/%16d\n", "dcp_count",
-			ctx->dcp_index, ctx->dcp_count, ctx->req_dcp_count);
+			"\t%40s:%16d/%16d/%16d(0x%x, %d, %d)\n", "dcp_count",
+			ctx->dcp_index, ctx->dcp_count, ctx->req_dcp_count,
+			ctx->dcp_size,
+			ctx->seqinfo.uNumDFEAreas >> 16,
+			DCP_FIXED_MB_ALLOC);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "stream_pic_input_count",
 			buffer_info->stream_pic_input_count);
@@ -5599,15 +5626,6 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 			"\t%40s:%16d\n", "start_code_bypass",
 			ctx->start_code_bypass);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "res change occur",
-			ctx->res_change_occu_count);
-	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "res change send",
-			ctx->res_change_send_count);
-	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "res change done",
-			ctx->res_change_done_count);
-	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "ctx released",
 			ctx->ctx_released);
 	num += scnprintf(buf + num, PAGE_SIZE - num,
@@ -5616,6 +5634,10 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "mu kfifo length",
 			kfifo_len(&ctx->dev->mu_msg_fifo));
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16lld,%16lld\n", "memory used",
+			atomic64_read(&ctx->statistic.total_alloc_size),
+			atomic64_read(&ctx->statistic.total_dma_size));
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%12d.%d.%d\n", "firmware version",
 			(pSharedInterface->FWVersion & 0x00ff0000) >> 16,

@@ -440,9 +440,10 @@ struct vpu_ctx {
 	u32 req_frame_count;
 	u32 req_mbi_count;
 	u32 req_dcp_count;
-	u_int32 mbi_count;
-	u_int32 mbi_size;
-	u_int32 dcp_count;
+	u32 mbi_count;
+	u32 mbi_size;
+	u32 dcp_count;
+	u32 dcp_size;
 	u32 mbi_index;
 	u32 dcp_index;
 	struct dma_buffer dpb_buffer;
