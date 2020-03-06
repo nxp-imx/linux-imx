@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2020 NXP
  */
 
 /*
@@ -94,6 +94,7 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx);
 static void vpu_dec_event_decode_error(struct vpu_ctx *ctx);
 static void vpu_calculate_performance(struct vpu_ctx *ctx, u_int32 uEvent, const char *str);
 static void vpu_dec_cancel_work(struct vpu_dev *vpudev);
+static void vpu_dec_alloc_mbi_dcp(struct vpu_ctx *ctx);
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -4394,11 +4395,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->req_frame_count++;
 			break;
 		}
-		up(&This->drv_q_lock);
-		if (ctx->mbi_count < ctx->req_mbi_count ||
-		    ctx->dcp_count < ctx->req_dcp_count)
-			schedule_work(ctx->alloc_work);
-		down(&This->drv_q_lock);
+		vpu_dec_alloc_mbi_dcp(ctx);
 		respond_req_frame(ctx, This, false);
 		up(&This->drv_q_lock);
 		}
@@ -4863,7 +4860,6 @@ static bool vpu_dec_alloc_buffer_item(struct vpu_ctx *ctx,
 					struct dma_buffer *buffers,
 					const char *desc)
 {
-	struct queue_data *queue = &ctx->q_data[V4L2_DST];
 	struct dma_buffer buffer;
 	int ret;
 
@@ -4878,9 +4874,7 @@ static bool vpu_dec_alloc_buffer_item(struct vpu_ctx *ctx,
 	vpu_dbg(LVL_BIT_FLOW, "alloc %s[%d], size = %d\n", desc, index, size);
 	buffer.dma_size = size;
 
-	up(&queue->drv_q_lock);
 	ret = alloc_dma_buffer(ctx, &buffer);
-	down(&queue->drv_q_lock);
 	if (ret) {
 		vpu_err("error: alloc %s buffer[%d] fail\n", desc, index);
 		return false;
@@ -4894,9 +4888,9 @@ static void vpu_dec_alloc_mbi_dcp(struct vpu_ctx *ctx)
 	struct queue_data *queue = &ctx->q_data[V4L2_DST];
 	int ret;
 
-	down(&queue->drv_q_lock);
 	if (ctx->b_firstseq)
-		goto exit;
+		return;
+
 	while (ctx->mbi_count < ctx->req_mbi_count) {
 		ret = vpu_dec_alloc_buffer_item(ctx,
 						ctx->mbi_count,
@@ -4920,20 +4914,6 @@ static void vpu_dec_alloc_mbi_dcp(struct vpu_ctx *ctx)
 		ctx->dcp_count++;
 	}
 	respond_req_frame(ctx, queue, false);
-exit:
-	up(&queue->drv_q_lock);
-}
-
-static void vpu_alloc_work(struct work_struct *work)
-{
-	struct vpu_ctx_work *ctx_work;
-	struct vpu_ctx *ctx;
-
-	ctx_work = container_of(work, struct vpu_ctx_work, alloc_work);
-	ctx = ctx_work->dev->ctx[ctx_work->str_index];
-	if (!ctx || ctx->ctx_released)
-		return;
-	vpu_dec_alloc_mbi_dcp(ctx);
 }
 
 static int vpu_queue_setup(struct vb2_queue *vq,
@@ -6038,7 +6018,6 @@ static int v4l2_open(struct file *filp)
 	}
 	ctx->instance_work = &dev->ctx_work[idx].instance_work;
 	ctx->delayed_instance_work = &dev->ctx_work[idx].delayed_instance_work;
-	ctx->alloc_work = &dev->ctx_work[idx].alloc_work;
 
 	mutex_init(&ctx->instance_mutex);
 	mutex_init(&ctx->cmd_lock);
@@ -6215,7 +6194,6 @@ static int v4l2_release(struct file *filp)
 
 	cancel_delayed_work_sync(ctx->delayed_instance_work);
 	cancel_work_sync(ctx->instance_work);
-	cancel_work_sync(ctx->alloc_work);
 	kfifo_free(&ctx->msg_fifo);
 	if (ctx->instance_wq)
 		destroy_workqueue(ctx->instance_wq);
@@ -6518,7 +6496,6 @@ static void vpu_dec_init_ctx_work(struct vpu_dev *dev)
 		INIT_WORK(&ctx_work->instance_work, vpu_msg_instance_work);
 		INIT_DELAYED_WORK(&ctx_work->delayed_instance_work,
 				vpu_msg_delayed_instance_work);
-		INIT_WORK(&ctx_work->alloc_work, vpu_alloc_work);
 	}
 }
 
@@ -6741,7 +6718,6 @@ static void vpu_dec_cancel_work(struct vpu_dev *vpudev)
 
 		cancel_delayed_work_sync(&ctx_work->delayed_instance_work);
 		cancel_work_sync(&ctx_work->instance_work);
-		cancel_work_sync(&ctx_work->alloc_work);
 	}
 }
 
@@ -6757,7 +6733,6 @@ static void vpu_dec_resume_work(struct vpu_dev *vpudev)
 
 		if (!ctx || ctx->ctx_released)
 			continue;
-		schedule_work(ctx->alloc_work);
 		queue_work(ctx->instance_wq, ctx->instance_work);
 	}
 	mutex_unlock(&vpudev->dev_mutex);

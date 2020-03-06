@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2020 NXP
  */
 
 /*
@@ -269,7 +269,6 @@ struct vpu_sc_chan {
 struct vpu_ctx_work {
 	struct work_struct instance_work;
 	struct delayed_work delayed_instance_work;
-	struct work_struct alloc_work;
 	int str_index;
 	struct vpu_dev *dev;
 };
@@ -412,7 +411,6 @@ struct vpu_ctx {
 	struct mutex instance_mutex;
 	struct work_struct *instance_work;
 	struct delayed_work *delayed_instance_work;
-	struct work_struct *alloc_work;
 	struct workqueue_struct *instance_wq;
 	struct completion completion;
 	struct completion stop_cmp;
