@@ -274,6 +274,7 @@
 	#include "imx8-ss-hsio.dtsi"
 };
 
+#include "imx8dxl-ss-security.dtsi"
 #include "imx8dxl-ss-adma.dtsi"
 #include "imx8dxl-ss-conn.dtsi"
 #include "imx8dxl-ss-lsio.dtsi"
