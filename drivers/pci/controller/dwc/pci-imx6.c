@@ -1618,6 +1618,8 @@ static void imx6_pcie_regions_setup(struct device *dev)
 	struct dw_pcie *pci = imx6_pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 
+	dw_pcie_dbi_ro_wr_en(pci);
+
 	switch (imx6_pcie->drvdata->variant) {
 	case IMX8QM:
 	case IMX8QXP:
@@ -1657,7 +1659,7 @@ static struct attribute_group imx6_pcie_attrgroup = {
 	.attrs	= imx6_pcie_ep_attrs,
 };
 
-static void imx6_pcie_setup_ep(struct dw_pcie *pci)
+static void imx6_pcie_setup_ep(struct dw_pcie *pci, unsigned int bar_offset)
 {
 	int ret;
 	u32 val;
@@ -1724,16 +1726,16 @@ static void imx6_pcie_setup_ep(struct dw_pcie *pci)
 
 	/* 32bit none-prefetchable 8M bytes memory on bar0 */
 	writel(0x0, pci->dbi_base + PCI_BASE_ADDRESS_0);
-	writel(SZ_8M - 1, pci->dbi_base + (1 << 12)
+	writel(SZ_8M - 1, pci->dbi_base + bar_offset
 			+ PCI_BASE_ADDRESS_0);
 
 	/* None used bar1 */
 	writel(0x0, pci->dbi_base + PCI_BASE_ADDRESS_1);
-	writel(0, pci->dbi_base + (1 << 12) + PCI_BASE_ADDRESS_1);
+	writel(0, pci->dbi_base + bar_offset + PCI_BASE_ADDRESS_1);
 
 	/* 4K bytes IO on bar2 */
 	writel(0x1, pci->dbi_base + PCI_BASE_ADDRESS_2);
-	writel(SZ_4K - 1, pci->dbi_base + (1 << 12) +
+	writel(SZ_4K - 1, pci->dbi_base + bar_offset +
 			PCI_BASE_ADDRESS_2);
 
 	/*
@@ -1742,7 +1744,7 @@ static void imx6_pcie_setup_ep(struct dw_pcie *pci)
 	 * is fixed to 256 bytes.
 	 */
 	writel(0x8, pci->dbi_base + PCI_BASE_ADDRESS_3);
-	writel(SZ_1M - 1, pci->dbi_base + (1 << 12)
+	writel(SZ_1M - 1, pci->dbi_base + bar_offset
 			+ PCI_BASE_ADDRESS_3);
 
 	/*
@@ -1750,9 +1752,9 @@ static void imx6_pcie_setup_ep(struct dw_pcie *pci)
 	 * FIXME BAR4,5 are not enabled yet
 	 */
 	writel(0xc, pci->dbi_base + PCI_BASE_ADDRESS_4);
-	writel(SZ_1M - 1, pci->dbi_base + (1 << 12)
+	writel(SZ_1M - 1, pci->dbi_base + bar_offset
 			+ PCI_BASE_ADDRESS_4);
-	writel(0, pci->dbi_base + (1 << 12) + PCI_BASE_ADDRESS_5);
+	writel(0, pci->dbi_base + bar_offset + PCI_BASE_ADDRESS_5);
 }
 
 static irqreturn_t imx6_pcie_dma_isr(int irq, void *param)
@@ -2359,11 +2361,18 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		}
 
 		dw_pcie_dbi_ro_wr_en(pci);
-		imx6_pcie_setup_ep(pci);
+		switch (imx6_pcie->drvdata->variant) {
+		case IMX8MQ:
+		case IMX8MM:
+			imx6_pcie_setup_ep(pci, SZ_1M);
+			break;
+		default:
+			imx6_pcie_setup_ep(pci, SZ_4K);
+			break;
+		}
 		pci_imx_set_msi_en(pp);
 		platform_set_drvdata(pdev, imx6_pcie);
 		imx6_pcie_regions_setup(dev);
-		dw_pcie_dbi_ro_wr_dis(pci);
 
 		/*
 		 * iMX6SX PCIe has the stand-alone power domain.
