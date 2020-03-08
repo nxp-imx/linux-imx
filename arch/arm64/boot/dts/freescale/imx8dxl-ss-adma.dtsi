@@ -85,3 +85,35 @@
 &adc0 {
 	interrupts = <GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH>;
 };
+
+&spdif0_lpcg {
+	status = "disabled";
+};
+
+&sai0_lpcg {
+	status = "disabled";
+};
+
+&sai1_lpcg {
+	status = "disabled";
+};
+
+&sai2_lpcg {
+	status = "disabled";
+};
+
+&sai3_lpcg {
+	status = "disabled";
+};
+
+&mqs0_lpcg {
+	status = "disabled";
+};
+
+&mclkout0_lpcg {
+	status = "disabled";
+};
+
+&mclkout1_lpcg {
+	status = "disabled";
+};
