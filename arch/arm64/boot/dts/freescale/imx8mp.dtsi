@@ -1300,14 +1300,14 @@
 					status = "disabled";
 				};
 
-				earc: earc@30cc0000 {
+				xcvr: xcvr@30cc0000 {
 					compatible = "fsl,imx8mp-xcvr";
 					reg = <0x30cc0000 0x10000>;
-					interrupts = /* eARC IRQ 0 */
+					interrupts = /* XCVR IRQ 0 */
 						     <GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>,
-						     /* eARC IRQ 1 */
+						     /* XCVR IRQ 1 */
 						     <GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>,
-						     /* eARC PHY - SPDIF wakeup IRQ */
+						     /* XCVR PHY - SPDIF wakeup IRQ */
 						     <GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_EARC_IPG>,
 						 <&audiomix_clk IMX8MP_CLK_AUDIOMIX_EARC_PHY>,

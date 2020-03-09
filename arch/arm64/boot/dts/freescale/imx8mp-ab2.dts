@@ -68,10 +68,10 @@
 		cpu-dai = <&micfil>;
 	};
 
-	sound-earc {
+	sound-xcvr {
 		compatible = "fsl,imx-audio-xcvr";
-		model = "imx-audio-earc";
-		cpu-dai = <&earc>;
+		model = "imx-audio-xcvr";
+		cpu-dai = <&xcvr>;
 	};
 
 	sound-ak4458 {
@@ -391,9 +391,9 @@
 	status = "okay";
 };
 
-&earc {
+&xcvr {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_earc>;
+	pinctrl-0 = <&pinctrl_xcvr>;
 	/**
 	 * Bit 0: TX enabled
 	 * Bit 1: RX enabled
@@ -615,7 +615,7 @@
 		>;
 	};
 
-	pinctrl_earc: earcgrp {
+	pinctrl_xcvr: xcvrgrp {
 		fsl,pins = <
 			MX8MP_IOMUXC_HDMI_DDC_SCL__HDMIMIX_EARC_SCL	0x400001c3
 			MX8MP_IOMUXC_HDMI_DDC_SDA__HDMIMIX_EARC_SDA	0x400001c3
