@@ -918,8 +918,4 @@
 	thermal-zone4 {
 		status = "okay";
 	};
-
-	thermal-zone5 {
-		status = "okay";
-	};
 };
