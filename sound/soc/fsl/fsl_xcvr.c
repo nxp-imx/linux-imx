@@ -29,6 +29,7 @@ struct fsl_xcvr {
 	struct snd_dmaengine_dai_dma_data dma_prms_rx;
 	struct snd_dmaengine_dai_dma_data dma_prms_tx;
 	struct snd_aes_iec958 rx_iec958;
+	struct snd_aes_iec958 tx_iec958;
 };
 
 static const u32 fsl_xcvr_earc_channels[] = { 1, 2, 8, 16, 32, }; /* one bit 6, 12 ? */
@@ -491,8 +492,8 @@ static int fsl_xcvr_type_iec958_info(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int fsl_xcvr_capture_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
+static int fsl_xcvr_rx_cs_get(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
@@ -502,14 +503,48 @@ static int fsl_xcvr_capture_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static struct snd_kcontrol_new fsl_xcvr_ctls[] = {
+static int fsl_xcvr_tx_cs_get(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
+
+	memcpy(ucontrol->value.iec958.status, xcvr->tx_iec958.status, 24);
+
+	return 0;
+}
+
+static int fsl_xcvr_tx_cs_put(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
+
+	memcpy(xcvr->tx_iec958.status, ucontrol->value.iec958.status, 24);
+
+	return 0;
+}
+
+static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
 	/* Status chanel controller */
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
 		.name = SNDRV_CTL_NAME_IEC958("", CAPTURE, DEFAULT),
 		.access = SNDRV_CTL_ELEM_ACCESS_READ,
 		.info = fsl_xcvr_type_iec958_info,
-		.get = fsl_xcvr_capture_get,
+		.get = fsl_xcvr_rx_cs_get,
+	},
+};
+
+static struct snd_kcontrol_new fsl_xcvr_tx_ctls[] = {
+	/* Status chanel controller */
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958("", PLAYBACK, DEFAULT),
+		.access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
+		.info = fsl_xcvr_type_iec958_info,
+		.get = fsl_xcvr_tx_cs_get,
+		.put = fsl_xcvr_tx_cs_put,
 	},
 };
 
@@ -529,8 +564,13 @@ static int fsl_xcvr_dai_probe(struct snd_soc_dai *dai)
 
 	snd_soc_dai_init_dma_data(dai, &xcvr->dma_prms_tx, &xcvr->dma_prms_rx);
 	snd_soc_dai_set_drvdata(dai, xcvr);
-	snd_soc_add_dai_controls(dai, fsl_xcvr_ctls, ARRAY_SIZE(fsl_xcvr_ctls));
 
+	if (xcvr->mode & FSL_XCVR_DMODE_TX)
+		snd_soc_add_dai_controls(dai, fsl_xcvr_tx_ctls,
+					 ARRAY_SIZE(fsl_xcvr_tx_ctls));
+	if (xcvr->mode & FSL_XCVR_DMODE_RX)
+		snd_soc_add_dai_controls(dai, fsl_xcvr_rx_ctls,
+					 ARRAY_SIZE(fsl_xcvr_rx_ctls));
 	/* configure watermarks */
 	mask = FSL_XCVR_EXT_CTRL_RX_FWM_MASK | FSL_XCVR_EXT_CTRL_TX_FWM_MASK;
 	val = (FSL_XCVR_EXT_CTRL_RX_FWM(FSL_XCVR_FIFO_WMK_RX)) | \
