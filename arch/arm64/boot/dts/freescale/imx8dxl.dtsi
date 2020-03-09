@@ -284,10 +284,6 @@
 	status = "okay";
 };
 
-&acm {
-	status = "disabled";
-};
-
 &caam_sm {
 	status = "disabled";
 };

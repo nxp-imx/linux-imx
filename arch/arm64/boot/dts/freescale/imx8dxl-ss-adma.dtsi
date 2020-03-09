@@ -3,12 +3,118 @@
  * Copyright 2019~2020 NXP
  */
 
+/delete-node/ &sai4;
+/delete-node/ &sai5;
+/delete-node/ &esai0;
+/delete-node/ &asrc1;
+/delete-node/ &spdif1;
+/delete-node/ &amix;
+/delete-node/ &adc1;
+/delete-node/ &emvsim0;
+/delete-node/ &edma1;
+/delete-node/ &sai4_lpcg;
+/delete-node/ &sai5_lpcg;
+/delete-node/ &esai0_lpcg;
+/delete-node/ &asrc1_lpcg;
+/delete-node/ &spdif1_lpcg;
+/delete-node/ &amix_lpcg;
+/delete-node/ &emvsim0_lpcg;
+/delete-node/ &adc1_lpcg;
+/delete-node/ &dsp_lpcg;
+/delete-node/ &dsp_ram_lpcg;
+
 &dma_ipg_clk {
 	clock-frequency = <160000000>;
 };
 
 &audio_ipg_clk {
 	clock-frequency = <160000000>;
+};
+
+&edma0 {
+	reg = <0x59200000 0x10000>, /* asrc0 */
+			<0x59210000 0x10000>,
+			<0x59220000 0x10000>,
+			<0x59230000 0x10000>,
+			<0x59240000 0x10000>,
+			<0x59250000 0x10000>,
+			<0x59280000 0x10000>, /* spdif0 rx */
+			<0x59290000 0x10000>, /* spdif0 tx */
+			<0x592c0000 0x10000>, /* sai0 rx */
+			<0x592d0000 0x10000>, /* sai0 tx */
+			<0x592e0000 0x10000>, /* sai1 rx */
+			<0x592f0000 0x10000>, /* sai1 tx */
+			<0x59350000 0x10000>, /* gpt0 */
+			<0x59360000 0x10000>, /* gpt1 */
+			<0x59370000 0x10000>, /* gpt2 */
+			<0x59380000 0x10000>; /* gpt3 */
+	interrupts = <GIC_SPI 262 IRQ_TYPE_LEVEL_HIGH>, /* asrc 0 */
+		<GIC_SPI 263 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 264 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 267 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 327 IRQ_TYPE_LEVEL_HIGH>, /* spdif0 */
+		<GIC_SPI 329 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>, /* sai0 */
+		<GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
+		<GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>,
+		<GIC_SPI 268 IRQ_TYPE_LEVEL_HIGH>, /* gpt0 */
+		<GIC_SPI 269 IRQ_TYPE_LEVEL_HIGH>, /* gpt1 */
+		<GIC_SPI 270 IRQ_TYPE_LEVEL_HIGH>, /* gpt2 */
+		<GIC_SPI 271 IRQ_TYPE_LEVEL_HIGH>; /* gpt3 */
+	interrupt-names = "edma0-chan0-rx", "edma0-chan1-rx", /* asrc0 */
+			"edma0-chan2-rx", "edma0-chan3-tx",
+			"edma0-chan4-tx", "edma0-chan5-tx",
+			"edma0-chan8-rx", "edma0-chan9-tx", /* spdif0 */
+			"edma0-chan12-rx", "edma0-chan13-tx", /* sai0 */
+			"edma0-chan14-rx", "edma0-chan15-tx", /* sai1 */
+			"edma0-chan21-tx",              /* gpt0 */
+			"edma0-chan22-tx",              /* gpt1 */
+			"edma0-chan23-tx",              /* gpt2 */
+			"edma0-chan24-rx";              /* gpt3 */
+	power-domains = <&pd IMX_SC_R_DMA_0_CH0>,
+			<&pd IMX_SC_R_DMA_0_CH1>,
+			<&pd IMX_SC_R_DMA_0_CH2>,
+			<&pd IMX_SC_R_DMA_0_CH3>,
+			<&pd IMX_SC_R_DMA_0_CH4>,
+			<&pd IMX_SC_R_DMA_0_CH5>,
+			<&pd IMX_SC_R_DMA_0_CH8>,
+			<&pd IMX_SC_R_DMA_0_CH9>,
+			<&pd IMX_SC_R_DMA_0_CH12>,
+			<&pd IMX_SC_R_DMA_0_CH13>,
+			<&pd IMX_SC_R_DMA_0_CH14>,
+			<&pd IMX_SC_R_DMA_0_CH15>,
+			<&pd IMX_SC_R_DMA_0_CH21>,
+			<&pd IMX_SC_R_DMA_0_CH22>,
+			<&pd IMX_SC_R_DMA_0_CH23>,
+			<&pd IMX_SC_R_DMA_0_CH24>;
+	power-domain-names = "edma0-chan0", "edma0-chan1",
+			     "edma0-chan2", "edma0-chan3",
+			     "edma0-chan4", "edma0-chan5",
+			     "edma0-chan8", "edma0-chan9",
+			     "edma0-chan12", "edma0-chan13",
+			     "edma0-chan14", "edma0-chan15",
+			     "edma0-chan21", "edma0-chan22",
+			     "edma0-chan23", "edma0-chan24";
+};
+
+&acm {
+	compatible = "nxp,imx8dxl-acm";
+	power-domains = <&pd IMX_SC_R_AUDIO_CLK_0>,
+			<&pd IMX_SC_R_AUDIO_CLK_1>,
+			<&pd IMX_SC_R_MCLK_OUT_0>,
+			<&pd IMX_SC_R_MCLK_OUT_1>,
+			<&pd IMX_SC_R_AUDIO_PLL_0>,
+			<&pd IMX_SC_R_AUDIO_PLL_1>,
+			<&pd IMX_SC_R_ASRC_0>,
+			<&pd IMX_SC_R_SAI_0>,
+			<&pd IMX_SC_R_SAI_1>,
+			<&pd IMX_SC_R_SAI_2>,
+			<&pd IMX_SC_R_SAI_3>,
+			<&pd IMX_SC_R_SPDIF_0>,
+			<&pd IMX_SC_R_MQS_0>;
 };
 
 &edma2 {
