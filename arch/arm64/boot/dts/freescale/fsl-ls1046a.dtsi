@@ -808,7 +808,7 @@
 
 		rcpm: rcpm@1ee208c {
 			compatible = "fsl,ls1046a-rcpm", "fsl,qoriq-rcpm-2.1+";
-			reg = <0x0 0x1ee208c 0x0 0x4>;
+			reg = <0x0 0x1ee2140 0x0 0x4>;
 			#fsl,rcpm-wakeup-cells = <1>;
 		};
 
