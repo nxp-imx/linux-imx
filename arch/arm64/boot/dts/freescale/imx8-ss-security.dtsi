@@ -9,7 +9,7 @@ security_subsys: bus@31400000 {
 	compatible = "simple-bus";
 	#address-cells = <1>;
 	#size-cells = <1>;
-	ranges = <0x31400000 0x0 0x31400000 0x400000>;
+	ranges = <0x31400000 0x0 0x31400000 0x410000>;
 
 	crypto: crypto@31400000 {
 		compatible = "fsl,sec-v4.0";
