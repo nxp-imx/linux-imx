@@ -965,7 +965,8 @@ iomap_ctrl:
 	    !of_machine_is_compatible("fsl,imx8mm") &&
 	    !of_machine_is_compatible("fsl,imx8mq") &&
 	    !of_machine_is_compatible("fsl,imx8qm") &&
-	    !of_machine_is_compatible("fsl,imx8qxp"))
+	    !of_machine_is_compatible("fsl,imx8qxp") &&
+	    !of_machine_is_compatible("fsl,imx8dxl"))
 		ctrlpriv->sm_size = resource_size(&res_regs);
 	else
 		ctrlpriv->sm_size = PG_SIZE_64K;
