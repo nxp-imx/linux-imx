@@ -352,6 +352,14 @@ void lcdifv3_set_fb_hcrop(struct lcdifv3_soc *lcdifv3, u32 src_w,
 	/* config pitch */
 	ctrldescl0_3 |= CTRLDESCL0_3_PITCH(pitch);
 
+	/* enable frame clear to clear FIFO data on
+	 * every vsync blank period to make sure no
+	 * dirty data exits to affect next frame
+	 * display, otherwise some flicker issue may
+	 * be observed in some cases.
+	 */
+	ctrldescl0_3 |= CTRLDESCL0_3_STATE_CLEAR_VSYNC;
+
 	writel(ctrldescl0_3, lcdifv3->base + LCDIFV3_CTRLDESCL0_3);
 }
 EXPORT_SYMBOL(lcdifv3_set_fb_hcrop);
@@ -469,6 +477,16 @@ void lcdifv3_disable_controller(struct lcdifv3_soc *lcdifv3)
 
 	disp_para = readl(lcdifv3->base + LCDIFV3_DISP_PARA);
 	ctrldescl0_5 = readl(lcdifv3->base + LCDIFV3_CTRLDESCL0_5);
+
+	/* disable dma */
+	ctrldescl0_5 &= ~CTRLDESCL0_5_EN;
+	writel(ctrldescl0_5, lcdifv3->base + LCDIFV3_CTRLDESCL0_5);
+
+	/* dma config only takes effect at the end of
+	 * one frame, so add delay to wait dma disable
+	 * done before turn off disp.
+	 */
+	usleep_range(20000, 25000);
 
 	/* disp off */
 	disp_para &= ~DISP_PARA_DISP_ON;

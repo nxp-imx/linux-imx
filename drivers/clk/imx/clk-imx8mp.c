@@ -666,7 +666,7 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 	/* BUS */
 	clks[IMX8MP_CLK_MAIN_AXI] = imx8m_clk_composite_critical("main_axi", imx8mp_main_axi_sels, base + 0x8800);
 	clks[IMX8MP_CLK_ENET_AXI] = imx8m_clk_composite("enet_axi", imx8mp_enet_axi_sels, base + 0x8880);
-	clks[IMX8MP_CLK_NAND_USDHC_BUS] = imx8m_clk_composite_critical("nand_usdhc_bus", imx8mp_nand_usdhc_sels, base + 0x8900);
+	clks[IMX8MP_CLK_NAND_USDHC_BUS] = imx8m_clk_composite("nand_usdhc_bus", imx8mp_nand_usdhc_sels, base + 0x8900);
 	clks[IMX8MP_CLK_VPU_BUS] = imx8m_clk_composite("vpu_bus", imx8mp_vpu_bus_sels, base + 0x8980);
 	clks[IMX8MP_CLK_MEDIA_AXI] = imx8m_clk_composite("media_axi", imx8mp_media_axi_sels, base + 0x8a00);
 	clks[IMX8MP_CLK_MEDIA_APB] = imx8m_clk_composite("media_apb", imx8mp_media_apb_sels, base + 0x8a80);

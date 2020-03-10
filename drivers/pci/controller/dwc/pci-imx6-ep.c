@@ -62,6 +62,7 @@ static int imx_pcie_ep_probe(struct pci_dev *pdev,
 
 	/* Use the first none-hard-wired port as ep */
 	while ((np = of_find_node_by_type(np, "pci"))) {
+		hard_wired = 0;
 		if (!of_device_is_available(np))
 			continue;
 		if (of_property_read_u32(np, "hard-wired", &hard_wired)) {

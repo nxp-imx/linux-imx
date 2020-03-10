@@ -72,6 +72,15 @@ int caam_jr_driver_probed(void)
 }
 EXPORT_SYMBOL(caam_jr_driver_probed);
 
+static void caam_jr_crypto_engine_exit(void *data)
+{
+	struct device *jrdev = data;
+	struct caam_drv_private_jr *jrpriv = dev_get_drvdata(jrdev);
+
+	/* Free the resources of crypto-engine */
+	crypto_engine_exit(jrpriv->engine);
+}
+
 /*
  * Put the CAAM in quiesce, ie stop
  *
@@ -424,8 +433,8 @@ void caam_jr_free(struct device *rdev)
 EXPORT_SYMBOL(caam_jr_free);
 
 /**
- * caam_jr_enqueue() - Enqueue a job descriptor head. Returns 0 if OK,
- * -EBUSY if the queue is full, -EIO if it cannot map the caller's
+ * caam_jr_enqueue() - Enqueue a job descriptor head. Returns -EINPROGRESS
+ * if OK, -ENOSPC if the queue is full, -EIO if it cannot map the caller's
  * descriptor.
  * @dev:  struct device of the job ring to be used
  * @desc: points to a job descriptor that execute our request. All
@@ -476,7 +485,7 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 	    CIRC_SPACE(head, tail, JOBR_DEPTH) <= 0) {
 		spin_unlock_bh(&jrp->inplock);
 		dma_unmap_single(dev, desc_dma, desc_size, DMA_TO_DEVICE);
-		return -EBUSY;
+		return -ENOSPC;
 	}
 
 	head_entry = &jrp->entinfo[head];
@@ -521,7 +530,7 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 
 	spin_unlock_bh(&jrp->inplock);
 
-	return 0;
+	return -EINPROGRESS;
 }
 EXPORT_SYMBOL(caam_jr_enqueue);
 
@@ -656,6 +665,25 @@ static int caam_jr_probe(struct platform_device *pdev)
 	if (error) {
 		dev_err(jrdev, "dma_set_mask_and_coherent failed (%d)\n",
 			error);
+		return error;
+	}
+
+	/* Initialize crypto engine */
+	jrpriv->engine = crypto_engine_alloc_init(jrdev, false);
+	if (!jrpriv->engine) {
+		dev_err(jrdev, "Could not init crypto-engine\n");
+		return -ENOMEM;
+	}
+
+	error = devm_add_action_or_reset(jrdev, caam_jr_crypto_engine_exit,
+					 jrdev);
+	if (error)
+		return error;
+
+	/* Start crypto engine */
+	error = crypto_engine_start(jrpriv->engine);
+	if (error) {
+		dev_err(jrdev, "Could not start crypto-engine\n");
 		return error;
 	}
 
