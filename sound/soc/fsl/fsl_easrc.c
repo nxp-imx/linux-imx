@@ -200,6 +200,12 @@ static int set_rs_ratio(struct fsl_easrc_context *ctx)
 
 	val = ((uint64_t)in_rate << frac_bits) / out_rate;
 	r = (uint32_t *)&val;
+
+	if (r[1] & 0xFFFFF000) {
+		dev_err(&easrc->pdev->dev, "ratio exceed range\n");
+		return -EINVAL;
+	}
+
 	ret = regmap_write(easrc->regmap,
 			   REG_EASRC_RRL(ctx->index),
 			   EASRC_RRL_RS_RL(r[0]));
@@ -2267,6 +2273,7 @@ static int fsl_easrc_probe(struct platform_device *pdev)
 	struct device_node *np;
 	void __iomem *regs;
 	int ret, irq;
+	u32 rstap = 0;
 	u32 width;
 
 	easrc = devm_kzalloc(&pdev->dev, sizeof(*easrc), GFP_KERNEL);
@@ -2316,8 +2323,23 @@ static int fsl_easrc_probe(struct platform_device *pdev)
 
 	/*Set default value*/
 	easrc->chn_avail = 32;
-	easrc->rs_num_taps = EASRC_RS_128_TAPS;
 	easrc->const_coeff = 0x3FF0000000000000;
+
+	of_property_read_u32(np, "fsl,asrc-rstap", &rstap);
+	switch (rstap) {
+	case 32:
+		easrc->rs_num_taps = EASRC_RS_32_TAPS;
+		break;
+	case 64:
+		easrc->rs_num_taps = EASRC_RS_64_TAPS;
+		break;
+	case 128:
+		easrc->rs_num_taps = EASRC_RS_128_TAPS;
+		break;
+	default:
+		easrc->rs_num_taps = EASRC_RS_32_TAPS;
+		break;
+	}
 
 	ret = of_property_read_u32(np, "fsl,asrc-rate",
 				   &easrc->easrc_rate);
