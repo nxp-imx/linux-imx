@@ -27,15 +27,8 @@ properties:
 
   mbox-names:
     items:
-      - const: tx0
-      - const: tx1
-      - const: tx2
-      - const: tx3
-      - const: rx0
-      - const: rx1
-      - const: rx2
-      - const: rx3
-      - const: tx_started
+      - const: txdb
+      - const: rxdb
 
   fsl,seco_mu_id:
     description:
@@ -46,7 +39,7 @@ properties:
 
   fsl,seco_max_users:
     description:
-      Number of channels to create, default to 2
+      Number of channels to create, default to 4
     allOf:
       - $ref: /schemas/types.yaml#/definitions/uint32
       - enum: [0,1,2,3,4,5,6,7,8,9]
@@ -60,18 +53,9 @@ examples:
   - |
     seco_mu: seco_mu {
       compatible = "fsl,imx-seco-mu";
-      mbox-names = "tx0", "tx1", "tx2", "tx3",
-             "rx0", "rx1", "rx2", "rx3",
-             "tx_started";
-      mboxes = <&mu 0 0
-          &mu 0 1
-          &mu 0 2
-          &mu 0 3
-          &mu 1 0
-          &mu 1 1
-          &mu 1 2
-          &mu 1 3
-          &mu 2 0>;
+      mbox-names = "txdb", "rxdb";
+      mboxes = <&mu 2 0
+          &mu 3 0>;
 
       fsl,seco_mu_id = <1>;
       fsl,seco_max_users = <4>;
