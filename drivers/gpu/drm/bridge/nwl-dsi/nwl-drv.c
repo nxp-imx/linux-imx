@@ -351,6 +351,10 @@ static void nwl_dsi_bridge_pre_enable(struct drm_bridge *bridge)
 
 	pm_runtime_get_sync(dsi->dev);
 
+	dsi->pdata->dpi_reset(dsi, true);
+	dsi->pdata->mipi_reset(dsi, true);
+	dsi->pdata->pclk_reset(dsi, true);
+
 	if (dsi->lcdif_clk)
 		clk_prepare_enable(dsi->lcdif_clk);
 
