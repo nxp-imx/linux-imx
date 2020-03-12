@@ -212,10 +212,10 @@
 		cpu-dai = <&micfil>;
 	};
 
-	sound-earc {
+	sound-xcvr {
 		compatible = "fsl,imx-audio-xcvr";
-		model = "imx-audio-earc";
-		cpu-dai = <&earc>;
+		model = "imx-audio-xcvr";
+		cpu-dai = <&xcvr>;
 	};
 
 	lvds_backlight: lvds_backlight {
@@ -668,7 +668,7 @@
 	status = "okay";
 };
 
-&earc {
+&xcvr {
 	/**
 	 * Bit 0: TX enabled
 	 * Bit 1: RX enabled
