@@ -105,6 +105,15 @@
 		enable-active-high;
 	};
 
+	reg_usb_otg1_vbus: regulator-usbotg1-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb_otg1_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&pca9557_b 2 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
 	reg_audio: fixedregulator@2 {
 		compatible = "regulator-fixed";
 		regulator-name = "cs42888_supply";
@@ -240,6 +249,29 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_mlb>;
 	status = "disabled";
+};
+
+&usbphy1 {
+	status = "okay";
+};
+
+&usbotg1 {
+	vbus-supply = <&reg_usb_otg1_vbus>;
+	srp-disable;
+	hnp-disable;
+	adp-disable;
+	power-active-high;
+	disable-over-current;
+	status = "okay";
+};
+
+&usb3phynop1 {
+	status = "okay";
+};
+
+&usbotg3 {
+	dr_mode = "peripheral";
+	status = "okay";
 };
 
 &usdhc1 {
