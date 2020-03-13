@@ -445,7 +445,7 @@ static int sm_key_job(struct device *ksdev, u32 *jobdesc)
 
 	rtn = caam_jr_enqueue(kspriv->smringdev, jobdesc, sm_key_job_done,
 			      &testres);
-	if (rtn)
+	if (rtn != -EINPROGRESS)
 		goto exit;
 
 	wait_for_completion_interruptible(&testres.completion);
