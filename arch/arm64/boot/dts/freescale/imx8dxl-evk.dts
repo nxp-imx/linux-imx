@@ -152,7 +152,7 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		regulator-name = "clk_ext_sel";
-		gpio = <&pca6416_1 10 GPIO_ACTIVE_LOW>;
+		gpio = <&pca6416_1 10 GPIO_ACTIVE_HIGH>;
 		regulator-always-on;
 	};
 };
@@ -366,7 +366,7 @@
 	pinctrl-0 = <&pinctrl_pcieb>;
 	clkreq-gpio = <&lsio_gpio4 1 GPIO_ACTIVE_LOW>;
 	reset-gpio = <&lsio_gpio4 0 GPIO_ACTIVE_LOW>;
-	ext_osc = <1>;
+	ext_osc = <0>;
 	epdev_on-supply = <&epdev_on>;
 	status = "disabled";
 };
