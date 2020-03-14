@@ -604,6 +604,6 @@ void dwc3_drd_exit(struct dwc3 *dwc)
 		break;
 	}
 
-	if (!dwc->edev)
+	if (!dwc->edev && !dwc->role_switch)
 		free_irq(dwc->otg_irq, dwc);
 }
