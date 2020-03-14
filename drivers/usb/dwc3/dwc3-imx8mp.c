@@ -232,14 +232,14 @@ static int dwc3_imx8mp_remove(struct platform_device *pdev)
 	struct dwc3_imx8mp *dwc = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
 
+	pm_runtime_get_sync(dev);
 	of_platform_depopulate(dev);
 
 	clk_disable_unprepare(dwc->bus_clk);
 	clk_disable_unprepare(dwc->sleep_clk);
 
-	pm_runtime_allow(dev);
 	pm_runtime_disable(dev);
-
+	pm_runtime_put_noidle(dev);
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
