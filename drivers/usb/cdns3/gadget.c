@@ -929,12 +929,14 @@ finish:
 }
 
 static void cdns3_transfer_completed(struct cdns3_device *priv_dev,
-				     struct cdns3_endpoint *priv_ep)
+				     struct cdns3_endpoint *priv_ep,
+				     bool is_short)
 {
 	struct cdns3_request *priv_req;
 	struct usb_request *request;
 	struct cdns3_trb *trb;
 	bool request_handled = false;
+	bool transfer_end = false;
 
 	while (!list_empty(&priv_ep->pending_req_list)) {
 		request = cdns3_next_request(&priv_ep->pending_req_list);
@@ -960,7 +962,14 @@ static void cdns3_transfer_completed(struct cdns3_device *priv_dev,
 			trb = priv_ep->trb_pool + priv_ep->dequeue;
 			trace_cdns3_complete_trb(priv_ep, trb);
 
-			request->actual += TRB_LEN(le32_to_cpu(trb->length));
+			if (!transfer_end)
+				request->actual +=
+					TRB_LEN(le32_to_cpu(trb->length));
+
+			if (is_short && priv_req->num_of_trb > 1 &&
+				le32_to_cpu(trb->control) & TRB_SMM)
+				transfer_end = true;
+
 			cdns3_ep_inc_deq(priv_ep);
 		}
 
@@ -1074,20 +1083,22 @@ static int cdns3_check_ep_interrupt_proceed(struct cdns3_endpoint *priv_ep)
 		 */
 		if (priv_ep->type == USB_ENDPOINT_XFER_ISOC &&
 		    !priv_ep->wa1_set)
-			cdns3_transfer_completed(priv_dev, priv_ep);
+			cdns3_transfer_completed(priv_dev, priv_ep, false);
 		else
 			cdns3_rearm_transfer(priv_ep, priv_ep->wa1_set);
 	}
 
 	if ((ep_sts_reg & EP_STS_IOC) || (ep_sts_reg & EP_STS_ISP)) {
+		bool is_short = !!(ep_sts_reg & EP_STS_ISP);
+
 		if (priv_ep->flags & EP_QUIRK_EXTRA_BUF_EN) {
-			if (ep_sts_reg & EP_STS_ISP)
+			if (is_short)
 				priv_ep->flags |= EP_QUIRK_END_TRANSFER;
 			else
 				priv_ep->flags &= ~EP_QUIRK_END_TRANSFER;
 		}
 
-		cdns3_transfer_completed(priv_dev, priv_ep);
+		cdns3_transfer_completed(priv_dev, priv_ep, is_short);
 	}
 
 	/*

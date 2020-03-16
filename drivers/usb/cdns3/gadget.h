@@ -964,9 +964,15 @@ struct cdns3_trb {
 /* Cycle bit - indicates TRB ownership by driver or hw*/
 #define TRB_CYCLE		BIT(0)
 /*
- * When set to '1', the device will toggle its interpretation of the Cycle bit
+ * When set to '1', the device will toggle its interpretation
+ * of the Cycle bit, this bit is for link TRB
  */
 #define TRB_TOGGLE		BIT(1)
+/*
+ * The controller will set it if OUTSMM is detected,
+ * this bit is for normal TRB
+ */
+#define TRB_SMM			BIT(1)
 
 /* Interrupt on short packet*/
 #define TRB_ISP			BIT(2)
