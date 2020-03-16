@@ -601,7 +601,7 @@ int cdns3_ep_run_transfer(struct cdns3_endpoint *priv_ep,
 {
 	struct cdns3_device *priv_dev = priv_ep->cdns3_dev;
 	struct cdns3_request *priv_req;
-	struct cdns3_trb *trb;
+	struct cdns3_trb *trb, *link_trb = NULL;
 	dma_addr_t trb_dma;
 	int prev_enqueue;
 	u32 togle_pcs = 1;
@@ -643,8 +643,7 @@ int cdns3_ep_run_transfer(struct cdns3_endpoint *priv_ep,
 	/* prepare ring */
 	if ((priv_ep->enqueue + num_trb)  >= (priv_ep->num_trbs - 1)) {
 		/*updating C bt in  Link TRB before starting DMA*/
-		struct cdns3_trb *link_trb = priv_ep->trb_pool +
-					     (priv_ep->num_trbs - 1);
+		link_trb = priv_ep->trb_pool + (priv_ep->num_trbs - 1);
 		link_trb->control = ((priv_ep->pcs) ? TRB_CYCLE : 0) |
 				    TRB_TYPE(TRB_LINK) | TRB_CHAIN |
 				    TRB_TOGGLE;
@@ -759,7 +758,22 @@ int cdns3_ep_run_transfer(struct cdns3_endpoint *priv_ep,
 	if (!doorbell || dma_index != priv_ep->wa1_trb_index)
 		cdns3_wa1_restore_cycle_bit(priv_ep);
 
-	trace_cdns3_prepare_trb(priv_ep, priv_req->trb);
+	if (num_trb > 1) {
+		int i = 0;
+
+		while (i < num_trb) {
+			trace_cdns3_prepare_trb(priv_ep, trb + i);
+			if (trb + i == link_trb) {
+				trb = priv_ep->trb_pool;
+				num_trb = num_trb - i;
+				i = 0;
+			} else {
+				i++;
+			}
+		}
+	} else {
+		trace_cdns3_prepare_trb(priv_ep, priv_req->trb);
+	}
 
 	/*
 	 * Memory barrier - Cycle Bit must be set before trb->length  and
