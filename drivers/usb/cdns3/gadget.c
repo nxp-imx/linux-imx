@@ -684,15 +684,19 @@ int cdns3_ep_run_transfer(struct cdns3_endpoint *priv_ep,
 		else
 			length = sg_dma_len(s);
 
-		if (priv_dev->dev_ver == DEV_VER_V2)
-			td_size = DIV_ROUND_UP(length,
+		trb->length = TRB_BURST_LEN(16) | TRB_LEN(length);
+		if (priv_dev->dev_ver == DEV_VER_V2) {
+			td_size = DIV_ROUND_UP(request->length,
 					       priv_ep->endpoint.maxpacket);
 
-		trb->length = TRB_BURST_LEN(16) | TRB_LEN(length);
-		if (priv_dev->gadget.speed == USB_SPEED_SUPER)
-			trb->length |= TRB_TDL_SS_SIZE(td_size);
-		else
-			control |= TRB_TDL_HS_SIZE(td_size);
+			if (sg_iter == 0) {
+				if (priv_dev->gadget.speed == USB_SPEED_SUPER)
+					trb->length |=
+						TRB_TDL_SS_SIZE(td_size);
+				else
+					control |= TRB_TDL_HS_SIZE(td_size);
+			}
+		}
 
 		pcs = priv_ep->pcs ? TRB_CYCLE : 0;
 
