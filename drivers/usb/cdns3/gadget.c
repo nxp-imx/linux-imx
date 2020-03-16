@@ -719,8 +719,14 @@ int cdns3_ep_run_transfer(struct cdns3_endpoint *priv_ep,
 		control = 0;
 
 		++sg_iter;
-		if (request->num_mapped_sgs)
+		if (request->num_mapped_sgs) {
+			trb->control |= TRB_ISP;
+			if (!sg_is_last(s))
+				trb->control |= TRB_CHAIN;
+
 			s = sg_next(s);
+		}
+
 		priv_req->end_trb = priv_ep->enqueue;
 		cdns3_ep_inc_enq(priv_ep);
 		trb = priv_ep->trb_pool + priv_ep->enqueue;
