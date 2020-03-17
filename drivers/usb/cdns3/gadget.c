@@ -2075,6 +2075,8 @@ static void cdns3_gadget_config(struct cdns3_device *priv_dev)
 	writel(USB_CONF_DMULT, &regs->usb_conf);
 	if (priv_dev->dev_ver == DEV_VER_V2)
 		writel(USB_CONF2_EN_TDL_TRB, &regs->usb_conf2);
+	else
+		priv_dev->gadget.sg_supported = 0;
 
 	cdns3_gadget_pullup(&priv_dev->gadget, 1);
 }
