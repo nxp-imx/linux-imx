@@ -795,6 +795,9 @@ static void dwc3_core_setup_global_control(struct dwc3 *dwc)
 	if (dwc->revision < DWC3_REVISION_190A)
 		reg |= DWC3_GCTL_U2RSTECN;
 
+	if (dwc->soft_itp_sync_quirk)
+		reg |= DWC3_GCTL_SOFITPSYNC;
+
 	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
 }
 
@@ -1416,6 +1419,9 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->host_vbus_glitches = device_property_read_bool(dev,
 				"snps,host-vbus-glitches");
+
+	dwc->soft_itp_sync_quirk = device_property_read_bool(dev,
+				"snps,soft-itp-sync");
 
 	dwc->lpm_nyet_threshold = lpm_nyet_threshold;
 	dwc->tx_de_emphasis = tx_de_emphasis;
