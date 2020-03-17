@@ -403,6 +403,9 @@ static int tcpci_init(struct tcpc_dev *tcpc)
 	if (ret < 0)
 		return ret;
 
+	/* Clear fault condition */
+	regmap_write(tcpci->regmap, TCPC_FAULT_STATUS, 0x80);
+
 	if (tcpci->controls_vbus)
 		reg = TCPC_POWER_STATUS_VBUS_PRES;
 	else
@@ -420,7 +423,7 @@ static int tcpci_init(struct tcpc_dev *tcpc)
 	reg = TCPC_ALERT_TX_SUCCESS | TCPC_ALERT_TX_FAILED |
 		TCPC_ALERT_TX_DISCARDED | TCPC_ALERT_RX_STATUS |
 		TCPC_ALERT_RX_HARD_RST | TCPC_ALERT_CC_STATUS |
-		TCPC_ALERT_V_ALARM_LO;
+		TCPC_ALERT_V_ALARM_LO | TCPC_ALERT_FAULT;
 	if (tcpci->controls_vbus)
 		reg |= TCPC_ALERT_POWER_STATUS;
 	return tcpci_write16(tcpci, TCPC_ALERT_MASK, reg);
@@ -429,6 +432,7 @@ static int tcpci_init(struct tcpc_dev *tcpc)
 irqreturn_t tcpci_irq(struct tcpci *tcpci)
 {
 	u16 status;
+	unsigned int reg;
 
 	tcpci_read16(tcpci, TCPC_ALERT, &status);
 
@@ -444,8 +448,6 @@ irqreturn_t tcpci_irq(struct tcpci *tcpci)
 		tcpm_cc_change(tcpci->port);
 
 	if (status & TCPC_ALERT_POWER_STATUS) {
-		unsigned int reg;
-
 		/* Read power status to clear the event */
 		regmap_read(tcpci->regmap, TCPC_POWER_STATUS, &reg);
 		regmap_read(tcpci->regmap, TCPC_POWER_STATUS_MASK, &reg);
@@ -484,6 +486,13 @@ irqreturn_t tcpci_irq(struct tcpci *tcpci)
 		tcpci_write16(tcpci, TCPC_ALERT, TCPC_ALERT_RX_STATUS);
 
 		tcpm_pd_receive(tcpci->port, &msg);
+	}
+
+	/* Clear the fault status anyway */
+	if (status & TCPC_ALERT_FAULT) {
+		regmap_read(tcpci->regmap, TCPC_FAULT_STATUS, &reg);
+		regmap_write(tcpci->regmap, TCPC_FAULT_STATUS,
+				reg | TCPC_FAULT_STATUS_CLEAR);
 	}
 
 	if (status & TCPC_ALERT_RX_HARD_RST)
