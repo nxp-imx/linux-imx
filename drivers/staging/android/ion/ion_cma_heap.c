@@ -13,6 +13,7 @@
 #include <linux/cma.h>
 #include <linux/scatterlist.h>
 #include <linux/highmem.h>
+#include <asm/cacheflush.h>
 
 #include "ion.h"
 
@@ -51,12 +52,22 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 			void *vaddr = kmap_atomic(page);
 
 			memset(vaddr, 0, PAGE_SIZE);
+#ifdef CONFIG_ARM64
+			 __flush_dcache_area(vaddr,PAGE_SIZE);
+#else
+			__cpuc_flush_dcache_area(vaddr,PAGE_SIZE);
+#endif
 			kunmap_atomic(vaddr);
 			page++;
 			nr_clear_pages--;
 		}
 	} else {
 		memset(page_address(pages), 0, size);
+#ifdef CONFIG_ARM64
+		__flush_dcache_area(page_address(pages),size);
+#else
+		__cpuc_flush_dcache_area(page_address(pages),size);
+#endif
 	}
 
 	table = kmalloc(sizeof(*table), GFP_KERNEL);
