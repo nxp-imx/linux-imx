@@ -1381,8 +1381,18 @@ static int ov5640_set_stream_mipi(struct ov5640_dev *sensor, bool on)
 	if (ret)
 		return ret;
 
-	return ov5640_write_reg(sensor, OV5640_REG_FRAME_CTRL01,
+	ret = ov5640_write_reg(sensor, OV5640_REG_FRAME_CTRL01,
 				on ? 0x00 : 0x0f);
+	if (ret)
+		return ret;
+
+	ret = ov5640_write_reg(sensor, OV5640_REG_SYS_CTRL0,
+				on ? 0x02 : 0x42);
+	if (ret)
+		return ret;
+
+	msleep(100);
+	return ret;
 }
 
 static int ov5640_get_sysclk(struct ov5640_dev *sensor)
