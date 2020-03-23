@@ -102,6 +102,9 @@ static int hp_jack_status_check(void *data)
 		if (priv->is_headset_jack) {
 			snd_soc_dapm_enable_pin(dapm, "Mic Jack");
 			snd_soc_dapm_disable_pin(dapm, "Main MIC");
+#ifdef CONFIG_EXTCON
+			extcon_set_state_sync(wm8960_edev, EXTCON_JACK_MICROPHONE, 1);
+#endif
 		}
 		ret = imx_hp_jack_gpio.report;
 	} else {
@@ -112,6 +115,9 @@ static int hp_jack_status_check(void *data)
 		if (priv->is_headset_jack) {
 			snd_soc_dapm_disable_pin(dapm, "Mic Jack");
 			snd_soc_dapm_enable_pin(dapm, "Main MIC");
+#ifdef CONFIG_EXTCON
+			extcon_set_state_sync(wm8960_edev, EXTCON_JACK_MICROPHONE, 0);
+#endif
 		}
 		ret = 0;
 	}
@@ -129,9 +135,15 @@ static int mic_jack_status_check(void *data)
 	mic_status = gpio_get_value(imx_mic_jack_gpio.gpio);
 
 	if (mic_status != priv->mic_active_low) {
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_MICROPHONE, 1);
+#endif
 		snd_soc_dapm_disable_pin(dapm, "Main MIC");
 		ret = imx_mic_jack_gpio.report;
 	} else {
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_MICROPHONE, 0);
+#endif
 		snd_soc_dapm_enable_pin(dapm, "Main MIC");
 		ret = 0;
 	}
@@ -685,6 +697,9 @@ static int imx_wm8960_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register extcon device\n");
 		goto fail;
 	}
+	hp_jack_status_check(&imx_hp_jack);
+	if (!priv->is_headset_jack)
+		mic_jack_status_check(&imx_mic_jack);
 #endif
 out:
 	ret = 0;
