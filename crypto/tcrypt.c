@@ -224,7 +224,7 @@ static void test_aead_speed(const char *algo, int enc, unsigned int secs,
 	struct scatterlist *sg;
 	struct scatterlist *sgout;
 	const char *e;
-	void *assoc;
+	void *assoc, *assoc_out;
 	char *iv;
 	char *xbuf[XBUFSIZE];
 	char *xoutbuf[XBUFSIZE];
@@ -287,6 +287,8 @@ static void test_aead_speed(const char *algo, int enc, unsigned int secs,
 		do {
 			assoc = axbuf[0];
 			memset(assoc, 0xff, aad_size);
+			assoc_out = axbuf[1];
+			memset(assoc_out, 0xff, aad_size);
 
 			if ((*keysize + *b_size) > TVMEMSIZE * PAGE_SIZE) {
 				pr_err("template (%u) too big for tvmem (%lu)\n",
@@ -326,7 +328,7 @@ static void test_aead_speed(const char *algo, int enc, unsigned int secs,
 				     assoc, aad_size);
 
 			sg_init_aead(sgout, xoutbuf,
-				     *b_size + (enc ? authsize : 0), assoc,
+				     *b_size + (enc ? authsize : 0), assoc_out,
 				     aad_size);
 
 			aead_request_set_ad(req, aad_size);
@@ -348,6 +350,9 @@ static void test_aead_speed(const char *algo, int enc, unsigned int secs,
 					       ret);
 					break;
 				}
+
+				memset(assoc, 0xff, aad_size);
+				memset(assoc_out, 0xff, aad_size);
 			}
 
 			aead_request_set_crypt(req, sg, sgout,
