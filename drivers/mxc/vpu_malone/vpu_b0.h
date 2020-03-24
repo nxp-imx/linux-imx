@@ -314,6 +314,8 @@ struct vpu_dev {
 	char precheck_content[1024];
 
 	struct kfifo mu_msg_fifo;
+	void *mu_msg_buffer;
+	unsigned int mu_msg_buffer_size;
 	u_int32 vpu_irq;
 
 	/* reserve for kernel version 5.4 or later */
@@ -399,6 +401,8 @@ struct vpu_ctx {
 	int str_index;
 	struct queue_data q_data[2];
 	struct kfifo msg_fifo;
+	void *msg_buffer;
+	unsigned int msg_buffer_size;
 	struct mutex instance_mutex;
 	struct work_struct instance_work;
 	struct workqueue_struct *instance_wq;
