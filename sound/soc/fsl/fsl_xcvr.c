@@ -82,113 +82,13 @@ static int fsl_xcvr_phy_write(struct fsl_xcvr *xcvr, int reg, int data, int pll_
 	return 0;
 }
 
-static int fsl_xcvr_constr(const struct snd_pcm_substream *substream,
-			   const struct snd_pcm_hw_constraint_list *bits,
-			   const struct snd_pcm_hw_constraint_list *channels,
-			   const struct snd_pcm_hw_constraint_list *rates)
-{
-	struct snd_pcm_runtime *rt = substream->runtime;
-	int ret;
-
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-					 bits);
-	if (ret < 0)
-		return ret;
-
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
-					 channels);
-	if (ret < 0)
-		return ret;
-
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_RATE,
-					 rates);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
 static int fsl_xcvr_prepare(struct snd_pcm_substream *substream,
-			    struct snd_soc_dai *dai)
-{
-	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
-	int ret = 0;
-
-	switch (xcvr->mode & FSL_XCVR_AMODE_MASK) {
-	case FSL_XCVR_AMODE_SPDIF:
-	case FSL_XCVR_AMODE_ARC:
-		ret = 0; /* @todo */
-		break;
-	case FSL_XCVR_AMODE_EARC:
-		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_bits_constr,
-				      &fsl_xcvr_earc_channels_constr,
-				      &fsl_xcvr_earc_rates_constr);
-		break;
-	}
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 			    struct snd_soc_dai *dai)
 {
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	u32 m_ctl = 0, v_ctl = 0, m_isr = 0, v_isr = 0;
-	int ret;
-
-	/* check stream direction is enabled in DTS */
-	if (!(xcvr->mode & BIT(substream->stream))) {
-		dev_err(dai->dev, "%sX not supported\n", tx ? "T" : "R");
-		return -EINVAL;
-	}
-
-	if (xcvr->streams & BIT(substream->stream)) {
-		dev_err(dai->dev, "%sX busy\n", tx ? "T" : "R");
-		return -EBUSY;
-	}
-	xcvr->streams |= BIT(substream->stream);
-
-	switch (xcvr->mode & FSL_XCVR_AMODE_MASK) {
-	case FSL_XCVR_AMODE_SPDIF:
-		if (tx) {
-			fsl_xcvr_phy_write(xcvr, 0x54, 0x1, 0);
-			fsl_xcvr_phy_write(xcvr, 0x4, 0x1, 1);
-			fsl_xcvr_phy_write(xcvr, 0x0, 0x28, 0);
-			fsl_xcvr_phy_write(xcvr, 0x20, 0x60, 0);
-			fsl_xcvr_phy_write(xcvr, 0x30, 0x64, 0);
-			fsl_xcvr_phy_write(xcvr, 0x4, 0x1006000, 0);
-			udelay(25);
-			fsl_xcvr_phy_write(xcvr, 0x8, 0x2000, 0);
-			udelay(100);
-			fsl_xcvr_phy_write(xcvr, 0x40, 0x5, 0);
-
-			fsl_xcvr_phy_write(xcvr, 0x4,  0x20, 1);
-			fsl_xcvr_phy_write(xcvr, 0x74, 0x4000, 1);
-		}
-		break;
-	case FSL_XCVR_AMODE_EARC:
-		if (tx) {
-			fsl_xcvr_phy_write(xcvr, 0x54, 0x1, 0);
-			fsl_xcvr_phy_write(xcvr, 0x4, 0x1, 1);
-			fsl_xcvr_phy_write(xcvr, 0x0, 0x28, 0);
-			fsl_xcvr_phy_write(xcvr, 0x20, 0x60, 0);
-			fsl_xcvr_phy_write(xcvr, 0x30, 0x64, 0);
-			fsl_xcvr_phy_write(xcvr, 0x4, 0x1006000, 0);
-			udelay(25);
-			fsl_xcvr_phy_write(xcvr, 0x8, 0x2000, 0);
-			udelay(100);
-			fsl_xcvr_phy_write(xcvr, 0x40, 0x1, 0);
-
-			fsl_xcvr_phy_write(xcvr, 0x4,  0x20, 1);
-			fsl_xcvr_phy_write(xcvr, 0x74, 0x4000, 1);
-		}
-		break;
-	default:
-		break;
-	}
+	int ret = 0;
 
 	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_IER0,
 				 FSL_XCVR_IRQ_EARC_ALL, FSL_XCVR_IRQ_EARC_ALL);
@@ -234,6 +134,108 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 	if (ret < 0) {
 		dev_err(dai->dev, "Error while setting MO ISR: %d\n", ret);
 		return ret;
+	}
+
+	return 0;
+}
+
+static int fsl_xcvr_constr(const struct snd_pcm_substream *substream,
+			   const struct snd_pcm_hw_constraint_list *bits,
+			   const struct snd_pcm_hw_constraint_list *channels,
+			   const struct snd_pcm_hw_constraint_list *rates)
+{
+	struct snd_pcm_runtime *rt = substream->runtime;
+	int ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
+					 bits);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
+					 channels);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_RATE,
+					 rates);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
+			    struct snd_soc_dai *dai)
+{
+	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
+	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
+	int ret = 0;
+
+	/* check stream direction is enabled in DTS */
+	if (!(xcvr->mode & BIT(substream->stream))) {
+		dev_err(dai->dev, "%sX not supported\n", tx ? "T" : "R");
+		return -EINVAL;
+	}
+
+	if (xcvr->streams & BIT(substream->stream)) {
+		dev_err(dai->dev, "%sX busy\n", tx ? "T" : "R");
+		return -EBUSY;
+	}
+
+	switch (xcvr->mode & FSL_XCVR_AMODE_MASK) {
+	case FSL_XCVR_AMODE_SPDIF:
+	case FSL_XCVR_AMODE_ARC:
+		ret = 0; /* @todo */
+		break;
+	case FSL_XCVR_AMODE_EARC:
+		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_bits_constr,
+				      &fsl_xcvr_earc_channels_constr,
+				      &fsl_xcvr_earc_rates_constr);
+		break;
+	}
+	if (ret < 0)
+		return ret;
+
+	xcvr->streams |= BIT(substream->stream);
+
+	switch (xcvr->mode & FSL_XCVR_AMODE_MASK) {
+	case FSL_XCVR_AMODE_SPDIF:
+		if (tx) {
+			fsl_xcvr_phy_write(xcvr, 0x54, 0x1, 0);
+			fsl_xcvr_phy_write(xcvr, 0x4, 0x1, 1);
+			fsl_xcvr_phy_write(xcvr, 0x0, 0x28, 0);
+			fsl_xcvr_phy_write(xcvr, 0x20, 0x60, 0);
+			fsl_xcvr_phy_write(xcvr, 0x30, 0x64, 0);
+			fsl_xcvr_phy_write(xcvr, 0x4, 0x1006000, 0);
+			udelay(25);
+			fsl_xcvr_phy_write(xcvr, 0x8, 0x2000, 0);
+			udelay(100);
+			fsl_xcvr_phy_write(xcvr, 0x40, 0x5, 0);
+
+			fsl_xcvr_phy_write(xcvr, 0x4,  0x20, 1);
+			fsl_xcvr_phy_write(xcvr, 0x74, 0x4000, 1);
+		}
+		break;
+	case FSL_XCVR_AMODE_EARC:
+		if (tx) {
+			fsl_xcvr_phy_write(xcvr, 0x54, 0x1, 0);
+			fsl_xcvr_phy_write(xcvr, 0x4, 0x1, 1);
+			fsl_xcvr_phy_write(xcvr, 0x0, 0x28, 0);
+			fsl_xcvr_phy_write(xcvr, 0x20, 0x60, 0);
+			fsl_xcvr_phy_write(xcvr, 0x30, 0x64, 0);
+			fsl_xcvr_phy_write(xcvr, 0x4, 0x1006000, 0);
+			udelay(25);
+			fsl_xcvr_phy_write(xcvr, 0x8, 0x2000, 0);
+			udelay(100);
+			fsl_xcvr_phy_write(xcvr, 0x40, 0x1, 0);
+
+			fsl_xcvr_phy_write(xcvr, 0x4,  0x20, 1);
+			fsl_xcvr_phy_write(xcvr, 0x74, 0x4000, 1);
+		}
+		break;
+	default:
+		break;
 	}
 
 	return 0;
