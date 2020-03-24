@@ -5093,10 +5093,15 @@ static void init_vb2_queue(struct queue_data *This, unsigned int type, struct vp
 	// initialize vb2 queue
 	vb2_q->type = type;
 	vb2_q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
-	vb2_q->gfp_flags = GFP_KERNEL | GFP_DMA32 | __GFP_NOWARN;
 	vb2_q->ops = &v4l2_qops;
 	vb2_q->drv_priv = This;
-	vb2_q->mem_ops = (struct vb2_mem_ops *)&vb2_dma_contig_memops;
+	if (V4L2_TYPE_IS_OUTPUT(type)) {
+		vb2_q->mem_ops = &vb2_vmalloc_memops;
+		vb2_q->gfp_flags = GFP_KERNEL;
+	} else {
+		vb2_q->mem_ops = &vb2_dma_contig_memops;
+		vb2_q->gfp_flags = GFP_KERNEL | GFP_DMA32 | __GFP_NOWARN;
+	}
 	vb2_q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	vb2_q->dev = &ctx->dev->plat_dev->dev;
 	ret = vb2_queue_init(vb2_q);
