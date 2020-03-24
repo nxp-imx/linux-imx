@@ -907,7 +907,7 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 	if (IS_ERR(regs))
 		return PTR_ERR(regs);
 
-	xcvr->regmap = devm_regmap_init_mmio_clk(dev, "ipg", regs,
+	xcvr->regmap = devm_regmap_init_mmio_clk(dev, NULL, regs,
 						 &fsl_xcvr_regmap_cfg);
 	if (IS_ERR(xcvr->regmap)) {
 		dev_err(dev, "failed to init XCVR regmap: %ld\n",
@@ -1003,24 +1003,6 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, xcvr);
 	pm_runtime_enable(dev);
 
-	ret = clk_prepare_enable(xcvr->ipg_clk);
-	if (ret) {
-		dev_err(dev, "failed to start IPG clock.\n");
-		return ret;
-	}
-
-	ret = clk_prepare_enable(xcvr->phy_clk);
-	if (ret) {
-		dev_err(dev, "failed to start PHY clock.\n");
-		return ret;
-	}
-
-	ret = clk_prepare_enable(xcvr->spba_clk);
-	if (ret) {
-		dev_err(dev, "failed to start SPBA clock.\n");
-		return ret;
-	}
-
 	if (xcvr->mode & FSL_XCVR_DMODE_TX)
 		fsl_xcvr_dai.playback = playback;
 
@@ -1057,6 +1039,10 @@ static int fsl_xcvr_runtime_suspend(struct device *dev)
 
 	regcache_cache_only(xcvr->regmap, true);
 
+	clk_disable_unprepare(xcvr->spba_clk);
+	clk_disable_unprepare(xcvr->phy_clk);
+	clk_disable_unprepare(xcvr->ipg_clk);
+
 	return 0;
 }
 
@@ -1064,6 +1050,27 @@ static int fsl_xcvr_runtime_resume(struct device *dev)
 {
 	struct fsl_xcvr *xcvr = dev_get_drvdata(dev);
 	int ret;
+
+	ret = clk_prepare_enable(xcvr->ipg_clk);
+	if (ret) {
+		dev_err(dev, "failed to start IPG clock.\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(xcvr->phy_clk);
+	if (ret) {
+		dev_err(dev, "failed to start PHY clock.\n");
+		clk_disable_unprepare(xcvr->ipg_clk);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(xcvr->spba_clk);
+	if (ret) {
+		dev_err(dev, "failed to start SPBA clock.\n");
+		clk_disable_unprepare(xcvr->phy_clk);
+		clk_disable_unprepare(xcvr->ipg_clk);
+		return ret;
+	}
 
 	regcache_cache_only(xcvr->regmap, false);
 	regcache_mark_dirty(xcvr->regmap);
