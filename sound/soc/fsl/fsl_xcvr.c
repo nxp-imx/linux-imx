@@ -456,6 +456,7 @@ static int fsl_xcvr_load_firmware(struct fsl_xcvr *xcvr)
 	struct device *dev = &xcvr->pdev->dev;
 	const struct firmware *fw;
 	int ret = 0, rem, off, out, page = 0, size = FSL_XCVR_REG_OFFSET;
+	u32 mask, val;
 
 	ret = request_firmware(&fw, xcvr->fw_name, dev);
 	if (ret) {
@@ -497,8 +498,32 @@ static int fsl_xcvr_load_firmware(struct fsl_xcvr *xcvr)
 
 err_firmware:
 	release_firmware(fw);
+	if (ret < 0)
+		return ret;
 
-	return ret;
+	/* configure watermarks */
+	mask = FSL_XCVR_EXT_CTRL_RX_FWM_MASK | FSL_XCVR_EXT_CTRL_TX_FWM_MASK;
+	val  = FSL_XCVR_EXT_CTRL_RX_FWM(FSL_XCVR_FIFO_WMK_RX);
+	val |= FSL_XCVR_EXT_CTRL_TX_FWM(FSL_XCVR_FIFO_WMK_TX);
+	/* disable DMA RD/WR */
+	mask |= FSL_XCVR_EXT_CTRL_DMA_RD_DIS | FSL_XCVR_EXT_CTRL_DMA_WR_DIS;
+	val |= FSL_XCVR_EXT_CTRL_DMA_RD_DIS | FSL_XCVR_EXT_CTRL_DMA_WR_DIS;
+	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL, mask, val);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set watermarks: %d\n", ret);
+		return ret;
+	}
+
+	/* configure RX DATAPATH */
+	mask = FSL_XCVR_RX_DPTH_CTRL_CSA | FSL_XCVR_RX_DPTH_CTRL_UDA;
+	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_RX_DPTH_CTRL_SET, mask,
+				 mask);
+	if (ret < 0) {
+		dev_err(dev, "Failed to configure RX DPATH: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
 }
 
 static int fsl_xcvr_type_iec958_info(struct snd_kcontrol *kcontrol,
@@ -577,8 +602,6 @@ static struct snd_soc_dai_ops fsl_xcvr_dai_ops = {
 static int fsl_xcvr_dai_probe(struct snd_soc_dai *dai)
 {
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
-	u32 mask, val;
-	int ret;
 
 	snd_soc_dai_init_dma_data(dai, &xcvr->dma_prms_tx, &xcvr->dma_prms_rx);
 	snd_soc_dai_set_drvdata(dai, xcvr);
@@ -589,40 +612,6 @@ static int fsl_xcvr_dai_probe(struct snd_soc_dai *dai)
 	if (xcvr->mode & FSL_XCVR_DMODE_RX)
 		snd_soc_add_dai_controls(dai, fsl_xcvr_rx_ctls,
 					 ARRAY_SIZE(fsl_xcvr_rx_ctls));
-	/* configure watermarks */
-	mask = FSL_XCVR_EXT_CTRL_RX_FWM_MASK | FSL_XCVR_EXT_CTRL_TX_FWM_MASK;
-	val = (FSL_XCVR_EXT_CTRL_RX_FWM(FSL_XCVR_FIFO_WMK_RX)) | \
-		(FSL_XCVR_EXT_CTRL_TX_FWM(FSL_XCVR_FIFO_WMK_TX));
-	/* disable DMA RD/WR */
-	mask |= FSL_XCVR_EXT_CTRL_DMA_RD_DIS | FSL_XCVR_EXT_CTRL_DMA_WR_DIS;
-	val |= FSL_XCVR_EXT_CTRL_DMA_RD_DIS | FSL_XCVR_EXT_CTRL_DMA_WR_DIS;
-	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL, mask, val);
-	if (ret < 0) {
-		dev_err(dai->dev, "Failed to set watermarks: %d\n", ret);
-		return ret;
-	}
-
-	/* configure TX DATAPATH */
-	mask = FSL_XCVR_TX_DPTH_CTRL_CS_MOD; /* enbl channel status ins */
-	mask |= FSL_XCVR_TX_DPTH_CTRL_UD_MOD; /* enbl user data ins */
-	mask |= FSL_XCVR_TX_DPTH_CTRL_EN_PARITY; /* enbl parity bit ins */
-	mask |= FSL_XCVR_TX_DPTH_CTRL_EN_PREAMBLE; /* enbl preamble ins */
-	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_TX_DPTH_CTRL_SET, mask,
-				 mask);
-	if (ret < 0) {
-		dev_err(dai->dev, "Failed to configure TX DPATH: %d\n", ret);
-		return ret;
-	}
-
-	/* configure RX DATAPATH */
-	mask = FSL_XCVR_RX_DPTH_CTRL_CSA | FSL_XCVR_RX_DPTH_CTRL_UDA;
-	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_RX_DPTH_CTRL_SET, mask,
-				 mask);
-	if (ret < 0) {
-		dev_err(dai->dev, "Failed to configure RX DPATH: %d\n", ret);
-		return ret;
-	}
-
 	return 0;
 }
 
