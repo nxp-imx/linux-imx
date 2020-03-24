@@ -25,10 +25,11 @@
 /* XCVR Registers */
 #define FSL_XCVR_REG_OFFSET		0x800 /* regs offset */
 #define FSL_XCVR_FIFO_SIZE		0x80  /* 128 */
-#define FSL_XCVR_FIFO_WMK_RX		4 /* 4 */
-#define FSL_XCVR_FIFO_WMK_TX		4 /* 4 */
-#define FSL_XCVR_MAXBURST_RX		64 /* 64 */
-#define FSL_XCVR_MAXBURST_TX		64 /* 64 */
+#define FSL_XCVR_FIFO_WMK_RX		(FSL_XCVR_FIFO_SIZE >> 1)   /* 64 */
+#define FSL_XCVR_FIFO_WMK_TX		(FSL_XCVR_FIFO_SIZE >> 1)   /* 64 */
+#define FSL_XCVR_MAXBURST_RX		(FSL_XCVR_FIFO_WMK_RX >> 2) /* 16 */
+#define FSL_XCVR_MAXBURST_TX		(FSL_XCVR_FIFO_WMK_TX >> 2) /* 16 */
+
 #define FSL_XCVR_RX_FIFO_ADDR		0x0C00
 #define FSL_XCVR_TX_FIFO_ADDR		0x0E00
 
