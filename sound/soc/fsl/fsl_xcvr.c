@@ -82,38 +82,53 @@ static int fsl_xcvr_phy_write(struct fsl_xcvr *xcvr, int reg, int data, int pll_
 	return 0;
 }
 
+static int fsl_xcvr_constr(const struct snd_pcm_substream *substream,
+			   const struct snd_pcm_hw_constraint_list *bits,
+			   const struct snd_pcm_hw_constraint_list *channels,
+			   const struct snd_pcm_hw_constraint_list *rates)
+{
+	struct snd_pcm_runtime *rt = substream->runtime;
+	int ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
+					 bits);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
+					 channels);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_RATE,
+					 rates);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int fsl_xcvr_prepare(struct snd_pcm_substream *substream,
 			    struct snd_soc_dai *dai)
 {
-	static struct snd_pcm_hw_constraint_list bits, channels, rates;
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
-	struct snd_pcm_runtime *rt = substream->runtime;
-
 	int ret = 0;
 
 	switch (xcvr->mode & FSL_XCVR_AMODE_MASK) {
 	case FSL_XCVR_AMODE_SPDIF:
 	case FSL_XCVR_AMODE_ARC:
-		return 0; /* @todo */
+		ret = 0; /* @todo */
+		break;
 	case FSL_XCVR_AMODE_EARC:
-		bits = fsl_xcvr_earc_bits_constr;
-		channels = fsl_xcvr_earc_channels_constr;
-		rates = fsl_xcvr_earc_rates_constr;
+		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_bits_constr,
+				      &fsl_xcvr_earc_channels_constr,
+				      &fsl_xcvr_earc_rates_constr);
 		break;
 	}
-
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-					 &bits);
-	if (ret)
+	if (ret < 0)
 		return ret;
 
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
-					 &channels);
-	if (ret)
-		return ret;
-
-	return snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_RATE,
-					  &rates);
+	return 0;
 }
 
 static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
