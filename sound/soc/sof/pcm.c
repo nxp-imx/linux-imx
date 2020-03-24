@@ -435,6 +435,7 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 	struct snd_soc_component *component =
 		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	const struct snd_sof_dsp_ops *ops = sof_ops(sdev);
 	struct snd_sof_pcm *spcm;
 	struct snd_soc_tplg_stream_caps *caps;
 	int ret;
@@ -464,11 +465,8 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 				   le32_to_cpu(caps->period_size_min));
 
 	/* set runtime config */
-	runtime->hw.info = SNDRV_PCM_INFO_MMAP |
-			  SNDRV_PCM_INFO_MMAP_VALID |
-			  SNDRV_PCM_INFO_INTERLEAVED |
-			  SNDRV_PCM_INFO_PAUSE |
-			  SNDRV_PCM_INFO_NO_PERIOD_WAKEUP;
+	runtime->hw.info = ops->hw_info; /* platform-specific */
+
 	runtime->hw.formats = le64_to_cpu(caps->formats);
 	runtime->hw.period_bytes_min = le32_to_cpu(caps->period_size_min);
 	runtime->hw.period_bytes_max = le32_to_cpu(caps->period_size_max);

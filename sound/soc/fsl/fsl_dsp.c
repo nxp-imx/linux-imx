@@ -1258,12 +1258,16 @@ static int fsl_dsp_suspend(struct device *dev)
 	struct xf_proxy *proxy = &dsp_priv->proxy;
 	int ret = 0;
 
-	if (proxy->is_ready) {
+	if (proxy->is_ready & pm_runtime_active(dev)) {
 		ret = xf_cmd_send_suspend(proxy);
 		if (ret) {
 			dev_err(dev, "dsp suspend fail\n");
 			return ret;
 		}
+	}
+	if (dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE) {
+		dsp_priv->dsp_mu_init = 0;
+		proxy->is_ready = 0;
 	}
 
 	ret = pm_runtime_force_suspend(dev);
