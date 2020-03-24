@@ -345,6 +345,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 						"err updating isr %d\n", ret);
 					return ret;
 				}
+				/* fall through */
 
 			case FSL_XCVR_AMODE_SPDIF:
 				ret = regmap_update_bits(xcvr->regmap,
