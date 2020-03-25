@@ -12,6 +12,17 @@
 	model = "FSL i.MX8MP EVK";
 	compatible = "fsl,imx8mp-evk", "fsl,imx8mp";
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		rpmsg_reserved: rpmsg@0xb8000000 {
+			no-map;
+			reg = <0 0xb8000000 0 0x400000>;
+		};
+	};
+
 	chosen {
 		stdout-path = &uart2;
 	};
@@ -579,6 +590,7 @@
 			  <&clk IMX8MP_CLK_PCIE_AUX>;
 	assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_500M>,
 				 <&clk IMX8MP_SYS_PLL2_50M>;
+	reserved-region = <&rpmsg_reserved>;
 	status = "okay";
 };
 

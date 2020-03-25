@@ -18,11 +18,6 @@
 			reg = <0 0x80000000 0 0x1000000>;
 		};
 
-		rpmsg_reserved:rpmsg@0xb8000000 {
-			no-map;
-			reg = <0 0xb8000000 0 0x400000>;
-		};
-
 		rpmsg_dma_reserved:rpmsg_dma@0xb8400000 {
 			compatible = "shared-dma-pool";
 			no-map;

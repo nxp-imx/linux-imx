@@ -1856,7 +1856,7 @@
 		num-lanes = <1>;
 		interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>; /* eDMA */
-		interrupt-names = "msi";
+		interrupt-names = "msi", "dma";
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 0x7>;
 		interrupt-map = <0 0 0 1 &gic GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>,
