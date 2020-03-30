@@ -12,12 +12,13 @@
  * GNU General Public License for more details.
  */
 
-#include "imx8qxp-mek-ov5640.dts"
+#include "imx8qxp-mek-ov5640-rpmsg.dts"
 
 / {
 	firmware {
 		android {
 			fstab {
+				/delete-node/ product;
 				system {
 					compatible = "android,system";
 					/* default emmc node used for GSI */
@@ -42,18 +43,12 @@
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb";
 				};
-				product {
-					compatible = "android,product";
-					/* default emmc node used for GSI */
-					dev = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/product";
-					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
-					dev_mmcblk1 = "/dev/block/platform/bus@5b000000/5b020000.mmc/by-name/product";
-					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
-					dev_mmcblk0 = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/product";
-					type = "ext4";
-					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
+			};
+			vbmeta {
+				/*we need use FirstStageMountVBootV2 if we enable avb*/
+				compatible = "android,vbmeta";
+				/*parts means the partition witch can be mount in first stage*/
+				parts = "vbmeta,dtbo,boot,system,vendor";
 			};
 		};
 	};

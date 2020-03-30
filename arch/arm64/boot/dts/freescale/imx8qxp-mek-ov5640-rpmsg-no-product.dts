@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "imx8qxp-mek-ov5640.dts"
+#include "imx8qxp-mek-ov5640-rpmsg.dts"
 
 / {
 	firmware {
