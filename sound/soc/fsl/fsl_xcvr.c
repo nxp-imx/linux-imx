@@ -514,15 +514,6 @@ err_firmware:
 		return ret;
 	}
 
-	/* configure RX DATAPATH */
-	mask = FSL_XCVR_RX_DPTH_CTRL_CSA | FSL_XCVR_RX_DPTH_CTRL_UDA;
-	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_RX_DPTH_CTRL_SET, mask,
-				 mask);
-	if (ret < 0) {
-		dev_err(dev, "Failed to configure RX DPATH: %d\n", ret);
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -663,12 +654,6 @@ static const struct reg_default fsl_xcvr_reg_defaults[] = {
 	{ FSL_XCVR_RX_DPTH_CTRL_SET,	0x00002C89 },
 	{ FSL_XCVR_RX_DPTH_CTRL_CLR,	0x00002C89 },
 	{ FSL_XCVR_RX_DPTH_CTRL_TOG,	0x00002C89 },
-	{ FSL_XCVR_RX_CS_DATA_0,	0x00000000 },
-	{ FSL_XCVR_RX_CS_DATA_1,	0x00000000 },
-	{ FSL_XCVR_RX_CS_DATA_2,	0x00000000 },
-	{ FSL_XCVR_RX_CS_DATA_3,	0x00000000 },
-	{ FSL_XCVR_RX_CS_DATA_4,	0x00000000 },
-	{ FSL_XCVR_RX_CS_DATA_5,	0x00000000 },
 	{ FSL_XCVR_TX_DPTH_CTRL,	0x00000000 },
 	{ FSL_XCVR_TX_DPTH_CTRL_SET,	0x00000000 },
 	{ FSL_XCVR_TX_DPTH_CTRL_CLR,	0x00000000 },
@@ -710,12 +695,6 @@ static bool fsl_xcvr_readable_reg(struct device *dev, unsigned int reg)
 	case FSL_XCVR_RX_DPTH_CTRL_SET:
 	case FSL_XCVR_RX_DPTH_CTRL_CLR:
 	case FSL_XCVR_RX_DPTH_CTRL_TOG:
-	case FSL_XCVR_RX_CS_DATA_0:
-	case FSL_XCVR_RX_CS_DATA_1:
-	case FSL_XCVR_RX_CS_DATA_2:
-	case FSL_XCVR_RX_CS_DATA_3:
-	case FSL_XCVR_RX_CS_DATA_4:
-	case FSL_XCVR_RX_CS_DATA_5:
 	case FSL_XCVR_TX_DPTH_CTRL:
 	case FSL_XCVR_TX_DPTH_CTRL_SET:
 	case FSL_XCVR_TX_DPTH_CTRL_CLR:
@@ -796,20 +775,35 @@ static irqreturn_t irq0_isr(int irq, void *devid)
 	struct fsl_xcvr *xcvr = (struct fsl_xcvr *)devid;
 	struct device *dev = &xcvr->pdev->dev;
 	struct regmap *regmap = xcvr->regmap;
-	u32 isr, val, csv, i;
+	void __iomem *reg_ctrl, *reg_buff;
+	u32 isr, val;
 
 	regmap_read(regmap, FSL_XCVR_EXT_ISR, &isr);
 	regmap_write(regmap, FSL_XCVR_EXT_ISR_CLR, isr);
 
 	if (isr & FSL_XCVR_IRQ_NEW_CS) {
 		dev_dbg(dev, "Received new CS block\n");
-		for (i = 0; i < 6; i++) {
-			regmap_read(regmap, FSL_XCVR_RX_CS_DATA_0 + 4*i, &val);
-			csv = bitrev32(val);
-			xcvr->rx_iec958.status[0 + (i*4)] = (csv >> 24) & 0xFF;
-			xcvr->rx_iec958.status[1 + (i*4)] = (csv >> 16) & 0xFF;
-			xcvr->rx_iec958.status[2 + (i*4)] = (csv >>  8) & 0xFF;
-			xcvr->rx_iec958.status[3 + (i*4)] = (csv >>  0) & 0xFF;
+		/* Data RAM is 4KiB, last two pages: 8 and 9. Select page 8. */
+		regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
+				   FSL_XCVR_EXT_CTRL_PAGE_MASK,
+				   FSL_XCVR_EXT_CTRL_PAGE(8));
+
+		/* Find updated CS buffer */
+		reg_ctrl = xcvr->ram_addr + FSL_XCVR_RX_CS_CTRL_0;
+		reg_buff = xcvr->ram_addr + FSL_XCVR_RX_CS_BUFF_0;
+		memcpy_fromio(&val, reg_ctrl, sizeof(val));
+		if (!val) {
+			reg_ctrl = xcvr->ram_addr + FSL_XCVR_RX_CS_CTRL_1;
+			reg_buff = xcvr->ram_addr + FSL_XCVR_RX_CS_BUFF_1;
+			memcpy_fromio(&val, reg_ctrl, sizeof(val));
+		}
+
+		if (val) {
+			/* copy CS buffer */
+			memcpy_fromio(&xcvr->rx_iec958.status, reg_buff,
+				      sizeof(xcvr->rx_iec958.status));
+			/* clear CS control register */
+			memset_io(reg_ctrl, 0, sizeof(val));
 		}
 	}
 	if (isr & FSL_XCVR_IRQ_NEW_UD)

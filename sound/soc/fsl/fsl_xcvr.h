@@ -58,12 +58,7 @@
 #define FSL_XCVR_RX_DPTH_CTRL_SET	0x184
 #define FSL_XCVR_RX_DPTH_CTRL_CLR	0x188
 #define FSL_XCVR_RX_DPTH_CTRL_TOG	0x18c
-#define FSL_XCVR_RX_CS_DATA_0		0x190 /* RX channel status bits regs */
-#define FSL_XCVR_RX_CS_DATA_1		0x194
-#define FSL_XCVR_RX_CS_DATA_2		0x198
-#define FSL_XCVR_RX_CS_DATA_3		0x19C
-#define FSL_XCVR_RX_CS_DATA_4		0x1A0
-#define FSL_XCVR_RX_CS_DATA_5		0x1A4
+
 #define FSL_XCVR_TX_DPTH_CTRL		0x220 /* TX datapath ctrl reg */
 #define FSL_XCVR_TX_DPTH_CTRL_SET	0x224
 #define FSL_XCVR_TX_DPTH_CTRL_CLR	0x228
@@ -216,5 +211,11 @@
 #define FSL_XCVR_CS_DATA_1_CH_8			0x7000
 #define FSL_XCVR_CS_DATA_1_CH_16		0xB000
 #define FSL_XCVR_CS_DATA_1_CH_32		0x3000
+
+/* Data memory structures */
+#define FSL_XCVR_RX_CS_CTRL_0		0x20 /* First  RX CS control register */
+#define FSL_XCVR_RX_CS_CTRL_1		0x24 /* Second RX CS control register */
+#define FSL_XCVR_RX_CS_BUFF_0		0x80 /* First  RX CS buffer */
+#define FSL_XCVR_RX_CS_BUFF_1		0xA0 /* Second RX CS buffer */
 
 #endif /* __FSL_XCVR_H */
