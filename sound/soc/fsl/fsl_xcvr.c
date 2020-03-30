@@ -569,7 +569,7 @@ static int fsl_xcvr_tx_cs_put(struct snd_kcontrol *kcontrol,
 }
 
 static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
-	/* Status chanel controller */
+	/* Channel status controller */
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
 		.name = SNDRV_CTL_NAME_IEC958("", CAPTURE, DEFAULT),
@@ -588,7 +588,7 @@ static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
 };
 
 static struct snd_kcontrol_new fsl_xcvr_tx_ctls[] = {
-	/* Status chanel controller */
+	/* Channel status controller */
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
 		.name = SNDRV_CTL_NAME_IEC958("", PLAYBACK, DEFAULT),
