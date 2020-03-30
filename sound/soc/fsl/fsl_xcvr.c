@@ -526,6 +526,15 @@ static int fsl_xcvr_type_iec958_info(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int fsl_xcvr_type_bytes_info(struct snd_kcontrol *kcontrol,
+				    struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
+	uinfo->count = FIELD_SIZEOF(struct snd_aes_iec958, status);
+
+	return 0;
+}
+
 static int fsl_xcvr_rx_cs_get(struct snd_kcontrol *kcontrol,
 			      struct snd_ctl_elem_value *ucontrol)
 {
@@ -566,6 +575,14 @@ static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
 		.name = SNDRV_CTL_NAME_IEC958("", CAPTURE, DEFAULT),
 		.access = SNDRV_CTL_ELEM_ACCESS_READ,
 		.info = fsl_xcvr_type_iec958_info,
+		.get = fsl_xcvr_rx_cs_get,
+	},
+	/* Capture channel status, bytes */
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = "Capture Channel Status",
+		.access = SNDRV_CTL_ELEM_ACCESS_READ,
+		.info = fsl_xcvr_type_bytes_info,
 		.get = fsl_xcvr_rx_cs_get,
 	},
 };
