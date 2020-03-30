@@ -59,6 +59,14 @@ static const char *hdmi_sels[] = {
 	"hdmi_av_pll_clk",
 };
 
+static const char *lcd_pxl_sels[] = {
+	"dummy",
+	"dummy",
+	"dummy",
+	"dummy",
+	"lcd_pxl_bypass_div_clk",
+};
+
 static const char *mipi_sels[] = {
 	"clk_dummy",
 	"clk_dummy",
@@ -130,6 +138,8 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	imx_clk_scu("adc0_clk",  IMX_SC_R_ADC_0, IMX_SC_PM_CLK_PER);
 	imx_clk_scu("pwm_clk",   IMX_SC_R_LCD_0_PWM_0, IMX_SC_PM_CLK_PER);
 	imx_clk_scu("lcd_clk",   IMX_SC_R_LCD_0, IMX_SC_PM_CLK_PER);
+	imx_clk_scu2("lcd_pxl_clk", lcd_pxl_sels, ARRAY_SIZE(lcd_pxl_sels), IMX_SC_R_LCD_0, IMX_SC_PM_CLK_MISC0);
+	imx_clk_scu("lcd_pxl_bypass_div_clk", IMX_SC_R_LCD_0, IMX_SC_PM_CLK_BYPASS);
 
 	/* Audio SS */
 	imx_clk_scu("audio_pll0_clk", IMX_SC_R_AUDIO_PLL_0, IMX_SC_PM_CLK_PLL);
