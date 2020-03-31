@@ -25,6 +25,7 @@ struct fsl_xcvr {
 	const char *fw_name;
 	u8 streams;
 	u32 mode;
+	u32 arc_mode_idx;
 	void __iomem *ram_addr;
 	struct snd_dmaengine_dai_dma_data dma_prms_rx;
 	struct snd_dmaengine_dai_dma_data dma_prms_tx;
@@ -49,6 +50,17 @@ static const struct snd_pcm_hw_constraint_list fsl_xcvr_earc_rates_constr = {
 };
 
 static const u32 fsl_xcvr_spdif_channels[] = { 2, };
+
+static const int fsl_xcvr_arc_mode_ints[] = {
+	FSL_XCVR_ISR_SET_ARC_SE_INT, FSL_XCVR_ISR_SET_ARC_CM_INT,
+};
+
+static const char * const fsl_xcvr_arc_mode[] = {
+	"ARC Single Ended", "ARC Common",
+};
+
+static const struct soc_enum fsl_xcvr_arc_mode_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(fsl_xcvr_arc_mode), fsl_xcvr_arc_mode);
 
 /*
  * pll_phy:  pll 0; phy 1;
@@ -105,6 +117,8 @@ static int fsl_xcvr_prepare(struct snd_pcm_substream *substream,
 		break;
 	case FSL_XCVR_AMODE_ARC:
 		/* Enable ISR */
+		m_isr |= fsl_xcvr_arc_mode_ints[xcvr->arc_mode_idx];
+		v_isr |= fsl_xcvr_arc_mode_ints[xcvr->arc_mode_idx];
 		break;
 	case FSL_XCVR_AMODE_EARC:
 		/* clear CMDC RESET */
@@ -125,7 +139,7 @@ static int fsl_xcvr_prepare(struct snd_pcm_substream *substream,
 
 	ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_ISR_SET, m_isr, v_isr);
 	if (ret < 0) {
-		dev_err(dai->dev, "Error while setting MO ISR: %d\n", ret);
+		dev_err(dai->dev, "Error while setting M0 ISR: %d\n", ret);
 		return ret;
 	}
 
@@ -554,6 +568,31 @@ static int fsl_xcvr_tx_cs_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int fsl_xcvr_arc_mode_put(struct snd_kcontrol *kcontrol,
+				 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	unsigned int *item = ucontrol->value.enumerated.item;
+	int val = snd_soc_enum_item_to_val(e, item[0]);
+
+	xcvr->arc_mode_idx = val;
+
+	return 0;
+}
+
+static int fsl_xcvr_arc_mode_get(struct snd_kcontrol *kcontrol,
+				 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dai *dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
+
+	ucontrol->value.enumerated.item[0] = xcvr->arc_mode_idx;
+
+	return 0;
+}
+
 static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
 	/* Channel status controller */
 	{
@@ -571,6 +610,8 @@ static struct snd_kcontrol_new fsl_xcvr_rx_ctls[] = {
 		.info = fsl_xcvr_type_bytes_info,
 		.get = fsl_xcvr_rx_cs_get,
 	},
+	SOC_ENUM_EXT("ARC Mode", fsl_xcvr_arc_mode_enum,
+		     fsl_xcvr_arc_mode_get, fsl_xcvr_arc_mode_put),
 };
 
 static struct snd_kcontrol_new fsl_xcvr_tx_ctls[] = {
@@ -817,6 +858,17 @@ static irqreturn_t irq0_isr(int irq, void *devid)
 		dev_dbg(dev, "RX/TX FIFO full/empty\n");
 	if (isr & FSL_XCVR_IRQ_ARC_MODE)
 		dev_dbg(dev, "CMDC SM falls out of eARC mode\n");
+	if (isr & FSL_XCVR_IRQ_CMDC_STATUS_UPD) {
+		dev_dbg(dev, "CMDC status update\n");
+		regmap_read(regmap, FSL_XCVR_EXT_STATUS, &val);
+		if (val & FSL_XCVR_EXT_STUS_RX_CMDC_COTO) {
+			dev_dbg(dev, "RX CMDC comma timeout\n");
+			/* Set eARC fallback mode*/
+			val = fsl_xcvr_arc_mode_ints[xcvr->arc_mode_idx];
+			regmap_update_bits(xcvr->regmap, FSL_XCVR_ISR_SET,
+					   val, val);
+		}
+	}
 	if (isr & FSL_XCVR_IRQ_DMA_RD_REQ)
 		dev_dbg(dev, "DMA read request\n");
 	if (isr & FSL_XCVR_IRQ_DMA_WR_REQ)
