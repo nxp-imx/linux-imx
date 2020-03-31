@@ -117,10 +117,10 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-dsp.dtb imx8qxp-mek-ov5640
 			  imx8qxp-lpddr4-val-spdif.dtb imx8qxp-lpddr4-val-gpmi-nand.dtb imx8dxp-lpddr4-val.dtb \
 			  imx8qxp-17x17-val.dtb imx8dx-lpddr4-val.dtb imx8dx-17x17-val.dtb \
 			  imx8qxp-lpddr4-val-mlb.dtb \
-			  imx8qxp-mek-ov5640-no-product.dtb \
+			  imx8qxp-mek-ov5640-rpmsg-no-product.dtb \
 			  imx8qxp-mek-car.dtb \
-			  imx8qxp-mek-ov5640-no-dynamic_partition.dtb \
-			  imx8qxp-mek-ov5640-no-product-no-dynamic_partition.dtb
+			  imx8qxp-mek-ov5640-rpmsg-no-dynamic_partition.dtb \
+			  imx8qxp-mek-ov5640-rpmsg-no-product-no-dynamic_partition.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb \
 			  imx8qxp-mek-inmate.dtb
 
