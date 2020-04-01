@@ -38,12 +38,6 @@ static const struct snd_pcm_hw_constraint_list fsl_xcvr_earc_channels_constr = {
 	.list = fsl_xcvr_earc_channels,
 };
 
-static const u32 fsl_xcvr_earc_bits[] = { 24, };
-static const struct snd_pcm_hw_constraint_list fsl_xcvr_earc_bits_constr = {
-	.count = ARRAY_SIZE(fsl_xcvr_earc_bits),
-	.list = fsl_xcvr_earc_bits,
-};
-
 static const u32 fsl_xcvr_earc_rates[] = {
 	32000, 44100, 48000, 64000, 88200, 96000,
 	128000, 176400, 192000, 256000, 352800, 384000,
@@ -55,7 +49,6 @@ static const struct snd_pcm_hw_constraint_list fsl_xcvr_earc_rates_constr = {
 };
 
 static const u32 fsl_xcvr_spdif_channels[] = { 2, };
-static const u32 fsl_xcvr_spdif_bits[] = { 16, 20, 24, };
 
 /*
  * pll_phy:  pll 0; phy 1;
@@ -140,17 +133,11 @@ static int fsl_xcvr_prepare(struct snd_pcm_substream *substream,
 }
 
 static int fsl_xcvr_constr(const struct snd_pcm_substream *substream,
-			   const struct snd_pcm_hw_constraint_list *bits,
 			   const struct snd_pcm_hw_constraint_list *channels,
 			   const struct snd_pcm_hw_constraint_list *rates)
 {
 	struct snd_pcm_runtime *rt = substream->runtime;
 	int ret;
-
-	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-					 bits);
-	if (ret < 0)
-		return ret;
 
 	ret = snd_pcm_hw_constraint_list(rt, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
 					 channels);
@@ -189,8 +176,7 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 		ret = 0; /* @todo */
 		break;
 	case FSL_XCVR_AMODE_EARC:
-		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_bits_constr,
-				      &fsl_xcvr_earc_channels_constr,
+		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_channels_constr,
 				      &fsl_xcvr_earc_rates_constr);
 		break;
 	}
