@@ -615,10 +615,12 @@ static inline void ahash_done_cpy(struct device *jrdev, u32 *desc, u32 err,
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	struct caam_hash_ctx *ctx = crypto_ahash_ctx(ahash);
 	int ecode = 0;
+	bool has_bklog;
 
 	dev_dbg(jrdev, "%s %d: err 0x%x\n", __func__, __LINE__, err);
 
 	edesc = state->edesc;
+	has_bklog = edesc->bklog;
 
 	if (err)
 		ecode = caam_jr_strstatus(jrdev, err);
@@ -635,7 +637,7 @@ static inline void ahash_done_cpy(struct device *jrdev, u32 *desc, u32 err,
 	 * If no backlog flag, the completion of the request is done
 	 * by CAAM, not crypto engine.
 	 */
-	if (!edesc->bklog)
+	if (!has_bklog)
 		req->base.complete(&req->base, ecode);
 	else
 		crypto_finalize_hash_request(jrp->engine, req, ecode);
@@ -664,10 +666,12 @@ static inline void ahash_done_switch(struct device *jrdev, u32 *desc, u32 err,
 	struct caam_hash_state *state = ahash_request_ctx(req);
 	int digestsize = crypto_ahash_digestsize(ahash);
 	int ecode = 0;
+	bool has_bklog;
 
 	dev_dbg(jrdev, "%s %d: err 0x%x\n", __func__, __LINE__, err);
 
 	edesc = state->edesc;
+	has_bklog = edesc->bklog;
 	if (err)
 		ecode = caam_jr_strstatus(jrdev, err);
 
@@ -687,7 +691,7 @@ static inline void ahash_done_switch(struct device *jrdev, u32 *desc, u32 err,
 	 * If no backlog flag, the completion of the request is done
 	 * by CAAM, not crypto engine.
 	 */
-	if (!edesc->bklog)
+	if (!has_bklog)
 		req->base.complete(&req->base, ecode);
 	else
 		crypto_finalize_hash_request(jrp->engine, req, ecode);
