@@ -700,8 +700,7 @@ static int mipi_csi2_attach_pd(struct mxc_mipi_csi2_dev *csi2dev)
 	}
 	link = device_link_add(dev, csi2dev->pd_csi,
 			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_RPM_ACTIVE);
+			       DL_FLAG_PM_RUNTIME);
 	if (IS_ERR(link))
 		return PTR_ERR(link);
 
@@ -716,8 +715,7 @@ static int mipi_csi2_attach_pd(struct mxc_mipi_csi2_dev *csi2dev)
 	}
 	link = device_link_add(dev, csi2dev->pd_isi,
 			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_RPM_ACTIVE);
+			       DL_FLAG_PM_RUNTIME);
 	if (IS_ERR(link))
 		return PTR_ERR(link);
 
