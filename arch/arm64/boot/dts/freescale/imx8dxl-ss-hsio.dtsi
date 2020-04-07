@@ -20,6 +20,7 @@
 };
 
 &pcieb {
+	compatible = "fsl,imx8qxp-pcie","snps,dw-pcie";
 	interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>,
 				 <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
 	interrupt-names = "msi", "dma";
