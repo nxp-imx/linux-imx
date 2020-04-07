@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2020 NXP
  */
 
 /*
@@ -308,7 +308,7 @@ struct core_device {
 	struct mutex cmd_mutex;
 	bool fw_is_ready;
 	bool firmware_started;
-	struct completion start_cmp;
+	struct completion boot_cmp;
 	struct completion snap_done_cmp;
 	struct workqueue_struct *workqueue;
 	struct work_struct msg_work;
@@ -456,6 +456,7 @@ struct vpu_ctx {
 	MEDIAIP_ENC_MEM_REQ_DATA mem_req;
 	struct core_device *core_dev;
 
+	struct completion start_cmp;
 	struct completion stop_cmp;
 	bool power_status;
 

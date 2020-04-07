@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2020 NXP
  */
 
 /*
@@ -57,7 +57,7 @@
 #include "vpu_encoder_mu.h"
 #include "vpu_encoder_pm.h"
 
-#define VPU_ENC_DRIVER_VERSION		"1.0.1"
+#define VPU_ENC_DRIVER_VERSION		"1.0.2"
 
 struct vpu_frame_info {
 	struct list_head list;
@@ -115,7 +115,8 @@ static char *event2str[] = {
 	ITEM_NAME(VID_API_ENC_EVENT_RESERVED)
 };
 
-static int wait_for_start_done(struct core_device *core, int resume);
+static int wait_for_boot_done(struct core_device *core, int resume);
+static void wait_for_start_done(struct vpu_ctx *ctx);
 static void wait_for_stop_done(struct vpu_ctx *ctx);
 static int sw_reset_firmware(struct core_device *core, int resume);
 static int enable_fps_sts(struct vpu_attr *attr);
@@ -1193,6 +1194,7 @@ static int vpu_enc_v4l2_ioctl_qbuf(struct file *file,
 		configure_codec(ctx);
 		mutex_unlock(&ctx->instance_mutex);
 		mutex_unlock(&ctx->dev->dev_mutex);
+		wait_for_start_done(ctx);
 
 		submit_input_and_encode(ctx);
 		count_yuv_input(ctx);
@@ -1228,6 +1230,7 @@ static int send_eos(struct vpu_ctx *ctx)
 
 	if (!test_and_set_bit(VPU_ENC_STATUS_STOP_SEND, &ctx->status)) {
 		vpu_dbg(LVL_INFO, "stop stream\n");
+		reinit_completion(&ctx->stop_cmp);
 		vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_STREAM_STOP, 0, NULL);
 	}
 
@@ -1430,6 +1433,22 @@ static void clear_core_hang(struct core_device *core)
 	core->hang = false;
 }
 
+static void wait_for_start_done(struct vpu_ctx *ctx)
+{
+	int ret;
+
+	WARN_ON(!ctx);
+
+	if (!test_bit(VPU_ENC_STATUS_CONFIGURED, &ctx->status))
+		return;
+	if (test_bit(VPU_ENC_STATUS_START_DONE, &ctx->status))
+		return;
+	ret = wait_for_completion_timeout(&ctx->start_cmp,
+					msecs_to_jiffies(300));
+	if (!ret && !test_bit(VPU_ENC_STATUS_START_DONE, &ctx->status))
+		vpu_err("wait for start done timeout\n");
+}
+
 static void wait_for_stop_done(struct vpu_ctx *ctx)
 {
 	int ret;
@@ -1443,7 +1462,7 @@ static void wait_for_stop_done(struct vpu_ctx *ctx)
 
 	ret = wait_for_completion_timeout(&ctx->stop_cmp,
 						msecs_to_jiffies(500));
-	if (!ret)
+	if (!ret && !test_bit(VPU_ENC_STATUS_STOP_DONE, &ctx->status))
 		vpu_err("wait for stop done timeout\n");
 }
 
@@ -1506,6 +1525,7 @@ static int vpu_enc_v4l2_ioctl_streamon(struct file *file,
 		configure_codec(ctx);
 		mutex_unlock(&ctx->instance_mutex);
 		mutex_unlock(&ctx->dev->dev_mutex);
+		wait_for_start_done(ctx);
 	}
 
 	return 0;
@@ -1616,9 +1636,9 @@ static int sw_reset_firmware(struct core_device *core, int resume)
 
 	kfifo_reset(&core->mu_msg_fifo);
 
-	init_completion(&core->start_cmp);
+	reinit_completion(&core->boot_cmp);
 	vpu_core_send_cmd(core, 0, GTB_ENC_CMD_FIRM_RESET, 0, NULL);
-	ret = wait_for_start_done(core, resume);
+	ret = wait_for_boot_done(core, resume);
 	if (ret) {
 		set_core_hang(core);
 		return -EINVAL;
@@ -1883,6 +1903,7 @@ static int do_configure_codec(struct vpu_ctx *ctx)
 	pEncExpertModeParam->Calib.cb_base = ctx->encoder_stream.phy_addr;
 	pEncExpertModeParam->Calib.cb_size = ctx->encoder_stream.size;
 
+	reinit_completion(&ctx->start_cmp);
 	show_firmware_version(ctx->core_dev, LVL_INFO);
 	clear_stop_status(ctx);
 	memcpy(enc_param, &attr->param, sizeof(attr->param));
@@ -1906,9 +1927,26 @@ static int check_vpu_ctx_is_ready(struct vpu_ctx *ctx)
 	return true;
 }
 
-static int configure_codec(struct vpu_ctx *ctx)
+static bool vpu_enc_check_ctx_is_alive(struct vpu_ctx *ctx)
 {
 	if (!ctx)
+		return false;
+	if (test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status))
+		return false;
+	if (ctx->ctx_released)
+		return false;
+	if (!ctx->core_dev)
+		return false;
+	if (ctx->str_index >= ctx->core_dev->supported_instance_count)
+		return false;
+	if (ctx != ctx->core_dev->ctx[ctx->str_index])
+		return false;
+	return true;
+}
+
+static int configure_codec(struct vpu_ctx *ctx)
+{
+	if (!vpu_enc_check_ctx_is_alive(ctx))
 		return -EINVAL;
 
 	if (!check_vpu_ctx_is_ready(ctx))
@@ -2666,6 +2704,7 @@ static int handle_event_start_done(struct vpu_ctx *ctx)
 	submit_input_and_encode(ctx);
 
 	enable_fps_sts(get_vpu_ctx_attr(ctx));
+	complete(&ctx->start_cmp);
 
 	return 0;
 }
@@ -2836,6 +2875,21 @@ static int handle_event_stop_done(struct vpu_ctx *ctx)
 	return 0;
 }
 
+static void vpu_stop_ctx_asynchronous(struct vpu_ctx *ctx)
+{
+	if (!ctx || ctx->ctx_released)
+		return;
+	if (!test_bit(VPU_ENC_STATUS_START_DONE, &ctx->status))
+		return;
+	if (!test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status))
+		return;
+	if (test_bit(VPU_ENC_STATUS_STOP_SEND, &ctx->status))
+		return;
+	if (test_bit(VPU_ENC_STATUS_STOP_DONE, &ctx->status))
+		return;
+	request_eos(ctx);
+}
+
 static void vpu_enc_event_handler(struct vpu_ctx *ctx,
 				u_int32 uEvent, u_int32 *event_data)
 {
@@ -2881,6 +2935,8 @@ static void vpu_enc_event_handler(struct vpu_ctx *ctx,
 		vpu_err("........unknown event : 0x%x\n", uEvent);
 		break;
 	}
+	if (test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status))
+		vpu_stop_ctx_asynchronous(ctx);
 }
 
 static void get_core_supported_instance_count(struct core_device *core)
@@ -2917,14 +2973,14 @@ static int re_configure_codecs(struct core_device *core)
 	return 0;
 }
 
-static int wait_for_start_done(struct core_device *core, int resume)
+static int wait_for_boot_done(struct core_device *core, int resume)
 {
 	int ret;
 
 	if (!core)
 		return -EINVAL;
 
-	ret = wait_for_completion_timeout(&core->start_cmp,
+	ret = wait_for_completion_timeout(&core->boot_cmp,
 						msecs_to_jiffies(1000));
 	if (!ret) {
 		vpu_err("error: wait for core[%d] %s done timeout!\n",
@@ -2945,7 +3001,7 @@ static void vpu_core_start_done(struct core_device *core)
 
 	get_core_supported_instance_count(core);
 	core->firmware_started = true;
-	complete(&core->start_cmp);
+	complete(&core->boot_cmp);
 
 	show_firmware_version(core, LVL_ALL);
 }
@@ -2970,11 +3026,8 @@ static struct vpu_ctx *get_ctx_by_index(struct core_device *core, int index)
 		return NULL;
 	}
 
-	if (test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status)) {
-		vpu_err("core[%d]'s ctx[%d] is closed\n",
-				core->id, index);
-		return NULL;
-	}
+	if (test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status))
+		vpu_err("core[%d]'s ctx[%d] is closed\n", core->id, index);
 
 	return ctx;
 }
@@ -3506,13 +3559,13 @@ static int download_vpu_firmware(struct vpu_dev *dev,
 		return 0;
 
 	vpu_dbg(LVL_INFO, "download firmware for core[%d]\n", core_dev->id);
-	init_completion(&core_dev->start_cmp);
+	reinit_completion(&core_dev->boot_cmp);
 	ret = vpu_firmware_download(dev, core_dev->id);
 	if (ret) {
 		vpu_err("error: vpu_firmware_download fail\n");
 		goto exit;
 	}
-	wait_for_start_done(core_dev, 0);
+	wait_for_boot_done(core_dev, 0);
 	if (!core_dev->firmware_started) {
 		vpu_err("core[%d] start firmware failed\n", core_dev->id);
 		ret = -EINVAL;
@@ -3732,6 +3785,7 @@ static int init_vpu_ctx(struct vpu_ctx *ctx)
 	init_ctx_msg_queue(ctx);
 
 	vpu_enc_init_queue_data(ctx);
+	init_completion(&ctx->start_cmp);
 	init_completion(&ctx->stop_cmp);
 
 	set_bit(VPU_ENC_STATUS_INITIALIZED, &ctx->status);
@@ -4544,7 +4598,7 @@ static int release_instance(struct vpu_ctx *ctx)
 	if (!test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status))
 		return 0;
 	if (!test_bit(VPU_ENC_STATUS_FORCE_RELEASE, &ctx->status)) {
-		if (test_bit(VPU_ENC_STATUS_START_SEND, &ctx->status) &&
+		if (test_bit(VPU_ENC_STATUS_CONFIGURED, &ctx->status) &&
 			!test_bit(VPU_ENC_STATUS_STOP_DONE, &ctx->status))
 			return -EINVAL;
 	}
@@ -4653,6 +4707,7 @@ static int vpu_enc_v4l2_release(struct file *filp)
 
 	vpu_log_func();
 
+	wait_for_start_done(ctx);
 	request_eos(ctx);
 	wait_for_stop_done(ctx);
 
@@ -5375,7 +5430,7 @@ static int init_vpu_core_dev(struct core_device *core_dev)
 		return -EINVAL;
 
 	mutex_init(&core_dev->cmd_mutex);
-	init_completion(&core_dev->start_cmp);
+	init_completion(&core_dev->boot_cmp);
 	init_completion(&core_dev->snap_done_cmp);
 
 	core_dev->workqueue = alloc_workqueue("vpu",
@@ -5752,9 +5807,9 @@ static int resume_from_snapshot(struct core_device *core)
 
 	vpu_dbg(LVL_INFO, "core[%d] resume from snapshot\n", core->id);
 
-	init_completion(&core->start_cmp);
+	reinit_completion(&core->boot_cmp);
 	set_vpu_fw_addr(core->vdev, core);
-	ret = wait_for_start_done(core, 1);
+	ret = wait_for_boot_done(core, 1);
 	if (ret) {
 		set_core_force_release(core);
 		reset_vpu_core_dev(core);
