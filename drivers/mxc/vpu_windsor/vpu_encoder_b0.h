@@ -484,7 +484,8 @@ struct vpu_ctx {
 #define LVL_MSG		(1 << 10)
 #define LVL_MEM		(1 << 11)
 #define LVL_BUF		(1 << 12)
-#define LVL_FRAME	(1 << 13)
+#define LVL_FLOW	(1 << 13)
+#define LVL_FRAME	(1 << 14)
 #define LVL_FUNC	(1 << 16)
 
 #ifndef TAG

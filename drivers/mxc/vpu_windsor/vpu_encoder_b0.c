@@ -756,6 +756,16 @@ static int vpu_enc_v4l2_ioctl_s_fmt(struct file *file,
 		ret = set_enc_queue_fmt(q_data, f);
 	mutex_unlock(&ctx->instance_mutex);
 
+	vpu_dbg(LVL_FLOW, "[%d:%d] %s set fmt, %c%c%c%c %dx%d\n",
+			ctx->core_dev->id,
+			ctx->str_index,
+			V4L2_TYPE_IS_OUTPUT(f->type) ? "OUTPUT" : "CAPTURE",
+			f->fmt.pix_mp.pixelformat,
+			f->fmt.pix_mp.pixelformat >> 8,
+			f->fmt.pix_mp.pixelformat >> 16,
+			f->fmt.pix_mp.pixelformat >> 24,
+			f->fmt.pix_mp.width,
+			f->fmt.pix_mp.height);
 	return ret;
 }
 
@@ -830,6 +840,12 @@ static int vpu_enc_v4l2_ioctl_s_parm(struct file *file, void *fh,
 	attr->param.uFrameRate =
 		DIV_ROUND_CLOSEST(fival.denominator, fival.numerator);
 	mutex_unlock(&ctx->instance_mutex);
+	vpu_dbg(LVL_FLOW, "[%d:%d] %s set frame interval : %d / %d\n",
+			ctx->core_dev->id,
+			ctx->str_index,
+			V4L2_TYPE_IS_OUTPUT(parm->type) ? "OUTPUT" : "CAPTURE",
+			fival.numerator,
+			fival.denominator);
 
 	return 0;
 }
@@ -1035,6 +1051,11 @@ static int vpu_enc_v4l2_ioctl_reqbufs(struct file *file,
 		return -EINVAL;
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
+	vpu_dbg(LVL_FLOW, "[%d:%d] %s reqbufs : %d\n",
+		ctx->core_dev->id,
+		ctx->str_index,
+		V4L2_TYPE_IS_OUTPUT(reqbuf->type) ? "OUTPUT" : "CATPURE",
+		reqbuf->count);
 
 	ret = vpu_enc_queue_reqbufs(q_data, reqbuf);
 
@@ -1213,8 +1234,11 @@ static void notify_eos(struct vpu_ctx *ctx)
 
 	mutex_lock(&ctx->instance_mutex);
 	if (!test_bit(VPU_ENC_STATUS_CLOSED, &ctx->status) &&
-		!test_and_set_bit(VPU_ENC_STATUS_EOS_SEND, &ctx->status))
+		!test_and_set_bit(VPU_ENC_STATUS_EOS_SEND, &ctx->status)) {
 		v4l2_event_queue_fh(&ctx->fh, &ev);
+		vpu_dbg(LVL_FLOW, "[%d:%d] send eos event\n",
+				ctx->core_dev->id, ctx->str_index);
+	}
 	mutex_unlock(&ctx->instance_mutex);
 }
 
@@ -1229,9 +1253,10 @@ static int send_eos(struct vpu_ctx *ctx)
 	}
 
 	if (!test_and_set_bit(VPU_ENC_STATUS_STOP_SEND, &ctx->status)) {
-		vpu_dbg(LVL_INFO, "stop stream\n");
 		reinit_completion(&ctx->stop_cmp);
 		vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_STREAM_STOP, 0, NULL);
+		vpu_dbg(LVL_FLOW, "[%d:%d] stop stream\n",
+				ctx->core_dev->id, ctx->str_index);
 	}
 
 	return 0;
@@ -1359,6 +1384,8 @@ static int request_eos(struct vpu_ctx *ctx)
 {
 	WARN_ON(!ctx);
 
+	vpu_dbg(LVL_FLOW, "[%d:%d] request eos\n",
+			ctx->core_dev->id, ctx->str_index);
 	set_bit(VPU_ENC_STATUS_STOP_REQ, &ctx->status);
 	response_stop_stream(ctx);
 
@@ -1477,14 +1504,22 @@ static int vpu_enc_v4l2_ioctl_encoder_cmd(struct file *file,
 			ctx->core_dev->id, ctx->str_index);
 	switch (cmd->cmd) {
 	case V4L2_ENC_CMD_START:
+		vpu_dbg(LVL_FLOW, "[%d:%d] start encoder\n",
+				ctx->core_dev->id, ctx->str_index);
 		vb2_clear_last_buffer_dequeued(&ctx->q_data[V4L2_DST].vb2_q);
 		break;
 	case V4L2_ENC_CMD_STOP:
+		vpu_dbg(LVL_FLOW, "[%d:%d] stop encoder\n",
+				ctx->core_dev->id, ctx->str_index);
 		request_eos(ctx);
 		break;
 	case V4L2_ENC_CMD_PAUSE:
+		vpu_dbg(LVL_FLOW, "[%d:%d] pause encoder\n",
+				ctx->core_dev->id, ctx->str_index);
 		break;
 	case V4L2_ENC_CMD_RESUME:
+		vpu_dbg(LVL_FLOW, "[%d:%d] resume encoder\n",
+				ctx->core_dev->id, ctx->str_index);
 		break;
 	default:
 		return -EINVAL;
@@ -1507,6 +1542,9 @@ static int vpu_enc_v4l2_ioctl_streamon(struct file *file,
 		return -EINVAL;
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
+	vpu_dbg(LVL_FLOW, "[%d:%d] %s streamon\n",
+			ctx->core_dev->id, ctx->str_index,
+			V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
 	attr = get_vpu_ctx_attr(ctx);
 	if (attr) {
@@ -1545,6 +1583,9 @@ static int vpu_enc_v4l2_ioctl_streamoff(struct file *file,
 
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
+	vpu_dbg(LVL_FLOW, "[%d:%d] %s streamoff\n",
+			ctx->core_dev->id, ctx->str_index,
+			V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
 	request_eos(ctx);
 	wait_for_stop_done(ctx);
@@ -1801,7 +1842,7 @@ static void fill_ctx_seq(struct vpu_ctx *ctx, struct vb2_data_req *p_data_req)
 	idx = p_data_req->sequence % VPU_ENC_SEQ_CAPACITY;
 	if (ctx->timestams[idx] != VPU_ENC_INVALID_TIMESTAMP) {
 		count_timestamp_overwrite(ctx);
-		vpu_dbg(LVL_FRAME, "[%d.%d][%d] overwrite timestamp\n",
+		vpu_dbg(LVL_FRAME, "[%d:%d][%d] overwrite timestamp\n",
 			ctx->core_dev->id, ctx->str_index,
 			p_data_req->sequence);
 	}
@@ -1910,6 +1951,8 @@ static int do_configure_codec(struct vpu_ctx *ctx)
 	vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_CONFIGURE_CODEC, 0, NULL);
 
 	show_codec_configure(enc_param, pEncExpertModeParam);
+	vpu_dbg(LVL_FLOW, "[%d:%d] configure codec\n",
+			ctx->core_dev->id, ctx->str_index);
 
 	return 0;
 }
@@ -2437,6 +2480,10 @@ static s64 calculate_timestamp_for_eos(struct vpu_ctx *ctx)
 		timestamp += delta;
 	}
 
+	vpu_dbg(LVL_INFO, "[%d]eos ts : %lld, delta = %lld, %lld, %d / %d\n",
+			ctx->str_index,
+			timestamp, delta, ctx->timestamp,
+			fival->numerator, fival->denominator);
 	return timestamp;
 }
 
@@ -2624,6 +2671,12 @@ static bool process_frame_done(struct queue_data *queue)
 	fill_vb_sequence(p_data_req->vb2_buf, frame->info.uFrameID);
 	set_vb_flags(p_data_req->vb2_buf, p_data_req->buffer_flags);
 	p_data_req->vb2_buf->timestamp = frame->timestamp;
+	vpu_dbg(LVL_FRAME, "[%d:%d] index : %8d, length : %8ld, ts : %lld%s\n",
+			ctx->core_dev->id, ctx->str_index,
+			frame->info.uFrameID,
+			vb2_get_plane_payload(p_data_req->vb2_buf, 0),
+			p_data_req->vb2_buf->timestamp,
+			frame->eos ? " (EOS)" : "");
 	if (!frame->bytesleft) {
 		put_frame_idle(frame);
 		frame = NULL;
@@ -2705,6 +2758,8 @@ static int handle_event_start_done(struct vpu_ctx *ctx)
 
 	enable_fps_sts(get_vpu_ctx_attr(ctx));
 	complete(&ctx->start_cmp);
+	vpu_dbg(LVL_FLOW, "[%d:%d] start done\n",
+			ctx->core_dev->id, ctx->str_index);
 
 	return 0;
 }
@@ -2730,6 +2785,8 @@ static int handle_event_mem_request(struct vpu_ctx *ctx,
 	pEncExpertModeParam->Config.frame_rate_den = attr->fival.denominator;
 	vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_STREAM_START, 0, NULL);
 	set_bit(VPU_ENC_STATUS_START_SEND, &ctx->status);
+	vpu_dbg(LVL_FLOW, "[%d:%d] start stream\n",
+			ctx->core_dev->id, ctx->str_index);
 
 	return 0;
 }
@@ -2852,6 +2909,8 @@ static int handle_event_stop_done(struct vpu_ctx *ctx)
 	disable_fps_sts(get_vpu_ctx_attr(ctx));
 
 	set_bit(VPU_ENC_STATUS_STOP_DONE, &ctx->status);
+	vpu_dbg(LVL_FLOW, "[%d:%d] stop done\n",
+			ctx->core_dev->id, ctx->str_index);
 
 	down(&queue->drv_q_lock);
 	frame = get_idle_frame(queue);
@@ -3095,7 +3154,8 @@ static int process_msg(struct core_device *core)
 		return ret;
 
 	if (header.idx >= ARRAY_SIZE(core->ctx)) {
-		vpu_err("msg idx(%d) is out of range\n", header.idx);
+		vpu_err("msg idx(%d) is out of range, msgid = 0x%x\n",
+				header.idx, header.msgid);
 		rpc_read_msg_array(&core->shared_mem, NULL, header.msgnum);
 		return -EINVAL;
 	}
@@ -4674,6 +4734,8 @@ static int vpu_enc_v4l2_open(struct file *filp)
 		vpu_err("failed to create encoder ctx\n");
 		return -ENOMEM;
 	}
+	vpu_dbg(LVL_FLOW, "[%d:%d] open\n",
+			ctx->core_dev->id, ctx->str_index);
 
 	init_vpu_attr(get_vpu_ctx_attr(ctx));
 	ret = init_vpu_ctx(ctx);
@@ -4707,6 +4769,8 @@ static int vpu_enc_v4l2_release(struct file *filp)
 
 	vpu_log_func();
 
+	vpu_dbg(LVL_FLOW, "[%d:%d] close\n",
+			ctx->core_dev->id, ctx->str_index);
 	wait_for_start_done(ctx);
 	request_eos(ctx);
 	wait_for_stop_done(ctx);
