@@ -239,8 +239,7 @@ static int mxc_pcsi_attach_pd(struct mxc_parallel_csi_dev *pcsidev)
 	}
 	link = device_link_add(dev, pcsidev->pd_pi,
 			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_RPM_ACTIVE);
+			       DL_FLAG_PM_RUNTIME);
 	if (IS_ERR(link))
 		return PTR_ERR(link);
 
@@ -255,8 +254,7 @@ static int mxc_pcsi_attach_pd(struct mxc_parallel_csi_dev *pcsidev)
 	}
 	link = device_link_add(dev, pcsidev->pd_isi,
 			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_RPM_ACTIVE);
+			       DL_FLAG_PM_RUNTIME);
 	if (IS_ERR(link))
 		return PTR_ERR(link);
 
