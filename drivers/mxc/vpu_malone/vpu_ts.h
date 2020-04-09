@@ -115,7 +115,6 @@ typedef struct _TSMReceivedEntry {
 	TSM_TIMESTAMP ts;
 	struct _TSMReceivedEntry *next;
 	unsigned int used:1;
-	unsigned int subentry:1;
 	int size;
 } TSMReceivedEntry;
 
