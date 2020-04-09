@@ -66,7 +66,6 @@ void TSManagerReceive2(void *handle, TSM_TIMESTAMP timestamp, int size)
 #define CLEAR_TSM_RENTRY(entry)\
 	do { \
 		(entry)->used = 0; \
-		(entry)->subentry = 0; \
 		(entry)->next = NULL; \
 	} while (0)
 	TSManager *tsm = (TSManager *) handle;
@@ -85,8 +84,6 @@ void TSManagerReceive2(void *handle, TSM_TIMESTAMP timestamp, int size)
 
 			if (e) {
 				CLEAR_TSM_RENTRY(e);
-				if ((rctl->tail) && (rctl->tail->ts == timestamp))
-					e->subentry = 1;
 				e->ts = timestamp;
 				e->size = size;
 				if (rctl->tail) {
@@ -124,10 +121,6 @@ static TSM_TIMESTAMP TSManagerGetLastTimeStamp(TSMRecivedCtl *rctl,
 			rctl->head = e->next;
 			if (rctl->head == NULL)
 				rctl->tail = NULL;
-			else {
-				if (rctl->head->subentry)
-					rctl->head->used = e->used;
-			}
 			size -= e->size;
 			rctl->cnt--;
 			tsm_free_received_entry(rctl, e);
