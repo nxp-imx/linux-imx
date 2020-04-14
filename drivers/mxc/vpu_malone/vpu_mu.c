@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  */
 
 /*
@@ -69,6 +69,12 @@ static int vpu_rtx_channel_request(struct vpu_sc_chan *sc_chan, bool block, stru
 	struct device *dev = &vdev->plat_dev->dev;
 	struct mbox_client *cl;
 	int ret = 0;
+
+	if (sc_chan->ch && !IS_ERR(sc_chan->ch)) {
+		vpu_dbg(LVL_WARN, "vpu_sc_chan(%s) has been requested\n",
+			sc_chan->name);
+		return 0;
+	}
 
 	/* Normally, use block mode to ensure msg be writed correctly.
 	 * Firmware do not separate read tx1 channel until receive tx0.
@@ -141,16 +147,24 @@ int vpu_mu_request(struct vpu_dev *dev)
 {
 	int ret = 0;
 
-	ret = vpu_rtx_channel_init(dev);
-	if (ret)
-		return ret;
+	if (!dev->vpu_mu_init) {
+		ret = vpu_rtx_channel_init(dev);
+		if (!ret)
+			dev->vpu_mu_init = TRUE;
+		else
+			vpu_dbg(LVL_WARN, "warning: init rtx channel failed, ret: %d\n",
+				ret);
+	}
 
 	return ret;
 }
 
 void vpu_mu_free(struct vpu_dev *dev)
 {
-	vpu_mbox_free(dev);
+	if (dev->vpu_mu_init) {
+		vpu_mbox_free(dev);
+		dev->vpu_mu_init = FALSE;
+	}
 }
 
 void vpu_mu_send_msg(struct vpu_dev *dev, MSG_Type type, u32 value)

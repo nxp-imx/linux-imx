@@ -6548,23 +6548,16 @@ static int vpu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	dev->plat_dev = pdev;
-	dev->generic_dev = get_device(&pdev->dev);
-
 	ret = vpu_attach_pm_domains(dev);
 	if (ret)
 		goto err_put_dev;
-
-	ret = vpu_mu_request(dev);
-	if (ret)
-		goto err_det_pm;
-
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dev->regs_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(dev->regs_base)) {
 		vpu_err("error: %s could not map regs_base\n", __func__);
 		ret = PTR_ERR(dev->regs_base);
-		goto err_free_mu;
+		goto err_det_pm;
 	}
 
 	ret = parse_dt_info(dev, np);
@@ -6615,9 +6608,12 @@ static int vpu_probe(struct platform_device *pdev)
 	INIT_WORK(&dev->msg_work, vpu_msg_run_work);
 	INIT_DELAYED_WORK(&dev->delayed_msg_work, vpu_msg_run_delayed_work);
 
-	vpu_enable_hw(dev);
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
+
+	vpu_enable_hw(dev);
+
+	dev->generic_dev = get_device(&pdev->dev);
 
 	ret = init_vpudev_parameters(dev);
 	if (ret) {
@@ -6650,8 +6646,6 @@ err_unreg_v4l2:
 err_dev_iounmap:
 	if (dev->regs_base)
 		iounmap(dev->regs_base);
-err_free_mu:
-	vpu_mu_free(dev);
 err_det_pm:
 	vpu_detach_pm_domains(dev);
 err_put_dev:
@@ -6668,8 +6662,6 @@ err_put_dev:
 static int vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *dev = platform_get_drvdata(pdev);
-
-	vpu_mu_free(dev);
 
 	device_remove_file(&pdev->dev, &dev_attr_precheck_pattern);
 	debugfs_remove_recursive(dev->debugfs_root);
@@ -6705,6 +6697,10 @@ static int vpu_remove(struct platform_device *pdev)
 	v4l2_device_unregister(&dev->v4l2_dev);
 
 	vpu_detach_pm_domains(dev);
+	if (dev->generic_dev) {
+		put_device(dev->generic_dev);
+		dev->generic_dev = NULL;
+	}
 	devm_kfree(&pdev->dev, dev);
 
 	return 0;
@@ -6712,12 +6708,23 @@ static int vpu_remove(struct platform_device *pdev)
 
 static int vpu_runtime_suspend(struct device *dev)
 {
+	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+
+	if (vpudev->generic_dev)
+		vpu_mu_free(vpudev);
+
 	return 0;
 }
 
 static int vpu_runtime_resume(struct device *dev)
 {
-	return 0;
+	int ret = 0;
+	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+
+	if (vpudev->generic_dev)
+		ret = vpu_mu_request(vpudev);
+
+	return ret;
 }
 
 static int find_first_available_instance(struct vpu_dev *dev)
