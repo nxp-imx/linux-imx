@@ -5388,16 +5388,12 @@ static int init_vpu_core_dev(struct core_device *core_dev)
 
 	INIT_WORK(&core_dev->msg_work, vpu_enc_msg_run_work);
 
-	ret = vpu_enc_mu_request(core_dev);
-	if (ret)
-		goto err_des_work;
-
 	ret = kfifo_alloc(&core_dev->mu_msg_fifo,
 			  sizeof(u32) * VID_API_NUM_STREAMS * VID_API_MESSAGE_LIMIT,
 			  GFP_KERNEL);
 	if (ret) {
 		vpu_err("error: fail to alloc mu msg fifo\n");
-		goto err_free_mu;
+		goto err_des_work;
 	}
 
 	//firmware space for M0
@@ -5438,8 +5434,6 @@ static int init_vpu_core_dev(struct core_device *core_dev)
 
 err_free_fifo:
 	kfifo_free(&core_dev->mu_msg_fifo);
-err_free_mu:
-	vpu_enc_mu_free(core_dev);
 err_des_work:
 	if (core_dev->workqueue) {
 		destroy_workqueue(core_dev->workqueue);
@@ -5687,12 +5681,32 @@ static int vpu_enc_remove(struct platform_device *pdev)
 
 static int vpu_enc_runtime_suspend(struct device *dev)
 {
+	int i;
+	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+
+	for (i = 0; i < vpudev->core_num; i++) {
+		if (!vpudev->core_dev[i].generic_dev)
+			continue;
+		vpu_enc_mu_free(&vpudev->core_dev[i]);
+	}
+
 	return 0;
 }
 
 static int vpu_enc_runtime_resume(struct device *dev)
 {
-	return 0;
+	int i;
+	int ret = 0;
+
+	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
+
+	for (i = 0; i < vpudev->core_num; i++) {
+		if (!vpudev->core_dev[i].generic_dev)
+			continue;
+		ret |= vpu_enc_mu_request(&vpudev->core_dev[i]);
+	}
+
+	return ret;
 }
 
 static int is_vpu_enc_poweroff(struct core_device *core)

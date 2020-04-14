@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  */
 
 /*
@@ -62,6 +62,12 @@ static int vpu_enc_rtx_channel_request(struct vpu_sc_chan *sc_chan, bool block)
 	struct device *dev = sc_chan->dev->generic_dev;
 	struct mbox_client *cl;
 	int ret = 0;
+
+	if (sc_chan->ch && !IS_ERR(sc_chan->ch)) {
+		vpu_dbg(LVL_WARN, "vpu_sc_chan(%s) has been requested\n",
+			sc_chan->name);
+		return 0;
+	}
 
 	cl = &sc_chan->cl;
 	cl->dev = dev;
@@ -134,14 +140,24 @@ int vpu_enc_mu_request(struct core_device *core_dev)
 {
 	int ret = 0;
 
-	ret = vpu_enc_rtx_channel_init(core_dev);
+	if (!core_dev->vpu_mu_init) {
+		ret = vpu_enc_rtx_channel_init(core_dev);
+		if (!ret)
+			core_dev->vpu_mu_init = TRUE;
+		else
+			vpu_dbg(LVL_WARN, "warning: %s init rtx channel failed, ret: %d\n",
+				core_dev->name, ret);
+	}
 
 	return ret;
 }
 
 void vpu_enc_mu_free(struct core_device *core_dev)
 {
-	vpu_enc_mbox_free(core_dev);
+	if (core_dev->vpu_mu_init) {
+		vpu_enc_mbox_free(core_dev);
+		core_dev->vpu_mu_init = FALSE;
+	}
 }
 
 void vpu_enc_mu_send_msg(struct core_device *core_dev, MSG_Type type, u_int32 value)
