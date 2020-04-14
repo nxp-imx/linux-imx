@@ -1311,6 +1311,8 @@ static u32 get_dcp_size(struct vpu_ctx *ctx)
 	height = ctx->seqinfo.uVerDecodeRes;
 	uNumMbs = DIV_ROUND_UP(width, 16) * DIV_ROUND_UP(height, 16);
 	uTotalBinSize = uNumMbs * DCP_FIXED_MB_ALLOC * uNumDcpChunks;
+	uTotalBinSize = min_t(u32, uTotalBinSize, DCP_SIZE);
+	uTotalBinSize = max_t(u32, uTotalBinSize, DCP_SIZE_MINIMUM);
 
 	return uTotalBinSize;
 }
@@ -4387,10 +4389,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			ctx->seqinfo.uVUIPresent);
 		down(&ctx->q_data[V4L2_DST].drv_q_lock);
 		calculate_frame_size(ctx);
+		ctx->dcp_size = get_dcp_size(ctx);
 		if (ctx->b_firstseq) {
 			ctx->b_firstseq = false;
 			ctx->mbi_size = get_mbi_size(&ctx->q_data[V4L2_DST]);
-			ctx->dcp_size = get_dcp_size(ctx);
 			reset_frame_buffer(ctx);
 			ctx->q_data[V4L2_DST].enable = false;
 			ctx->wait_res_change_done = true;
