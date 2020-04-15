@@ -887,15 +887,10 @@ static int ppm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	dev->plat_dev = pdev;
-	dev->generic_dev = get_device(&pdev->dev);
 
 	ret = xuvi_attach_pm_domains(dev);
 	if (ret)
 		goto err_pm;
-
-	ret = xuvi_mu_request(dev);
-	if (ret)
-		goto err_mu;
 
 	ret = parse_dt_info(dev, np);
 	if (ret) {
@@ -952,12 +947,12 @@ static int ppm_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
+	dev->generic_dev = get_device(&pdev->dev);
 	pm_runtime_put_sync(&pdev->dev);
 
 	return 0;
 
 err_put_dev:
-err_mu:
 	xuvi_detach_pm_domains(dev);
 err_pm:
 	if (&dev->msg_fifo)
@@ -1040,8 +1035,11 @@ static int ppm_remove(struct platform_device *pdev)
 
 	pm_runtime_disable(&pdev->dev);
 
-	xuvi_mu_free(dev);
 	xuvi_detach_pm_domains(dev);
+	if (dev->generic_dev) {
+		put_device(dev->generic_dev);
+		dev->generic_dev = NULL;
+	}
 	devm_kfree(&pdev->dev, dev);
 
 	return 0;
@@ -1049,12 +1047,25 @@ static int ppm_remove(struct platform_device *pdev)
 
 static int ppm_runtime_suspend(struct device *dev)
 {
+	struct ppm_dev *ppmdev = (struct ppm_dev *)dev_get_drvdata(dev);
+
+	dprintk(LVL_DEBUG, "ppm_runtime_suspend\n");
+	if (ppmdev->generic_dev)
+		xuvi_mu_free(ppmdev);
+
 	return 0;
 }
 
 static int ppm_runtime_resume(struct device *dev)
 {
-	return 0;
+	int ret = 0;
+	struct ppm_dev *ppmdev = (struct ppm_dev *)dev_get_drvdata(dev);
+
+	dprintk(LVL_DEBUG, "ppm_runtime_resume\n");
+	if (ppmdev->generic_dev)
+		ret = xuvi_mu_request(ppmdev);
+
+	return ret;
 }
 
 static int find_first_available_instance(struct ppm_dev *dev)
@@ -1135,6 +1146,7 @@ static int __maybe_unused ppm_suspend(struct device *dev)
 	int ret = 0;
 
 	dprintk(LVL_INFO, "suspend\n");
+	pm_runtime_get_sync(ppmdev->generic_dev);
 	if (ppmdev->fw_is_ready) {
 		ppm_send_snapshot(ppmdev);
 		reinit_completion(&ppmdev->snap_done_comp);
@@ -1150,6 +1162,7 @@ static int __maybe_unused ppm_suspend(struct device *dev)
 	ppm_dec_cancel_work(ppmdev);
 	ppmdev->suspend = false;
 	dprintk(LVL_INFO, "suspend done\n");
+	pm_runtime_put_sync(ppmdev->generic_dev);
 
 	return ret;
 }
