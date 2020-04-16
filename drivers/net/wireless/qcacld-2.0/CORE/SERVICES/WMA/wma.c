@@ -5461,10 +5461,8 @@ static int wma_unified_link_radio_stats_event_handler(void *handle,
 		 * events may be spoofed. Drop all of them and report error.
 		 */
 		WMA_LOGE("Invalid following WMI_RADIO_LINK_STATS_EVENTID. Discarding this set");
-		rs_results->tx_time_per_power_level = NULL;
 		vos_mem_free(wma_handle->link_stats_results);
 		wma_handle->link_stats_results = NULL;
-		vos_mem_free(rs_results->tx_time_per_power_level);
 		return -EINVAL;
 	}
 
@@ -36512,9 +36510,7 @@ static VOS_STATUS wma_send_dc_to_fw(ol_txrx_pdev_handle pdev, tp_wma_handle wma,
 	therm_data->level_conf[0].priority = 0;
 
 	vos_status =  wma_send_thermal_mitigation_param_cmd_tlv(wma, therm_data);
-	if (VOS_STATUS_SUCCESS ==  vos_status) {
-		vos_mem_free(therm_data);
-	}
+	vos_mem_free(therm_data);
 	return vos_status;
 }
 

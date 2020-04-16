@@ -2715,7 +2715,7 @@ static void hif_flush_async_task(HIF_DEVICE *device)
  */
 static int hif_reset_target(HIF_DEVICE *hif_device)
 {
-	int ret;
+	int ret = 0;
 
 	if (!hif_device || !hif_device->func|| !hif_device->func->card) {
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERROR,
