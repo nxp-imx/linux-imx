@@ -6066,6 +6066,8 @@ static int v4l2_open(struct file *filp)
 	atomic64_set(&ctx->statistic.total_alloc_size, 0);
 
 	ctx->msg_buffer_size = sizeof(struct event_msg) * VID_API_MESSAGE_LIMIT;
+	if (!is_power_of_2(ctx->msg_buffer_size))
+		ctx->msg_buffer_size = roundup_pow_of_two(ctx->msg_buffer_size);
 	ctx->msg_buffer = vzalloc(ctx->msg_buffer_size);
 	if (!ctx->msg_buffer) {
 		vpu_err("fail to alloc fifo when open\n");
@@ -6611,6 +6613,8 @@ static int vpu_probe(struct platform_device *pdev)
 
 	dev->mu_msg_buffer_size =
 		sizeof(u_int32) * VPU_MAX_NUM_STREAMS * VID_API_MESSAGE_LIMIT;
+	if (!is_power_of_2(dev->mu_msg_buffer_size))
+		dev->mu_msg_buffer_size = roundup_pow_of_two(dev->mu_msg_buffer_size);
 	dev->mu_msg_buffer = vzalloc(dev->mu_msg_buffer_size);
 	if (!dev->mu_msg_buffer) {
 		vpu_err("error: fail to alloc mu msg fifo\n");
