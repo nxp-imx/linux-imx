@@ -975,6 +975,7 @@ static void cdns3_transfer_completed(struct cdns3_device *priv_dev,
 		if (request_handled) {
 			cdns3_gadget_giveback(priv_ep, priv_req, 0);
 			request_handled = false;
+			transfer_end = false;
 		} else {
 			return;
 		}
