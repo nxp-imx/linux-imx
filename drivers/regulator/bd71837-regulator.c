@@ -174,10 +174,10 @@ static const struct regulator_linear_range bd71837_buck8_voltage_ranges[] = {
 
 /*
  * LDO1
- * 3.0 to 3.3V (100mV step)
+ * 1.6 to 1.9V (100mV step)
  */
 static const struct regulator_linear_range bd71837_ldo1_voltage_ranges[] = {
-	REGULATOR_LINEAR_RANGE(3000000, 0x00, 0x03, 100000),
+	REGULATOR_LINEAR_RANGE(1600000, 0x00, 0x03, 100000),
 };
 
 /*
@@ -350,7 +350,7 @@ static const struct regulator_desc bd71837_regulators[] = {
 		.owner = THIS_MODULE,
 	},
 	/*
-	 * LDO2 0.9V
+	 * LDO2 0.8V
 	 * Fixed voltage
 	 */
 	{
@@ -359,7 +359,7 @@ static const struct regulator_desc bd71837_regulators[] = {
 		.ops = &bd71837_fixed_regulator_ops,
 		.type = REGULATOR_VOLTAGE,
 		.n_voltages = BD71837_LDO2_VOLTAGE_NUM,
-		.min_uV = 900000,
+		.min_uV = 800000,
 		.enable_reg = BD71837_REG_LDO2_VOLT,
 		.enable_mask = LDO2_EN,
 		.owner = THIS_MODULE,
