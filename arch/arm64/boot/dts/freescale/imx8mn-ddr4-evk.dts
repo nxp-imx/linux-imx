@@ -631,13 +631,8 @@
 				regulator-boot-on;
 				regulator-always-on;
 				regulator-ramp-delay = <1250>;
-			};
-
-			buck3_reg: BUCK3 {
-				// BUCK5 in datasheet
-				regulator-name = "BUCK3";
-				regulator-min-microvolt = <700000>;
-				regulator-max-microvolt = <1350000>;
+				rohm,dvs-run-voltage = <1000000>;
+				rohm,dvs-idle-voltage = <900000>;
 			};
 
 			buck4_reg: BUCK4 {
@@ -687,14 +682,6 @@
 				regulator-name = "LDO3";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-boot-on;
-				regulator-always-on;
-			};
-
-			ldo4_reg: LDO4 {
-				regulator-name = "LDO4";
-				regulator-min-microvolt = <900000>;
-				regulator-max-microvolt = <1800000>;
 				regulator-boot-on;
 				regulator-always-on;
 			};
