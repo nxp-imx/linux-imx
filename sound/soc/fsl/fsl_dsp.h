@@ -128,7 +128,7 @@ struct fsl_dsp {
 #define MSG_BUF_SIZE		8192
 #define INPUT_BUF_SIZE		4096
 #define OUTPUT_BUF_SIZE		16384
-#define DSP_CONFIG_SIZE    4096
+#define DSP_CONFIG_SIZE		8192
 
 void *memcpy_dsp(void *dest, const void *src, size_t count);
 void *memset_dsp(void *dest, int c, size_t count);
