@@ -1108,7 +1108,7 @@
 			};
 		};
 
-		pd_hsio: hsio-power-domain {
+		pd_hsio: PD_HSIO {
 			compatible = "nxp,imx8-pd";
 			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
@@ -3442,8 +3442,11 @@
 			 <&clk IMX8QXP_HSIO_PCIE_SLV_AXI_CLK>,
 			 <&clk IMX8QXP_HSIO_PHY_X1_PCLK>,
 			 <&clk IMX8QXP_HSIO_PCIE_X1_PER_CLK>,
-			 <&clk IMX8QXP_HSIO_PCIE_DBI_AXI_CLK>;
-		clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per", "pcie_inbound_axi";
+			 <&clk IMX8QXP_HSIO_PCIE_DBI_AXI_CLK>,
+			 <&clk IMX8QXP_HSIO_PHY_X1_PER_CLK>,
+			 <&clk IMX8QXP_HSIO_MISC_PER_CLK>;
+		clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per",
+			"pcie_inbound_axi", "phy_per", "misc_per";
 
 		interrupt-map-mask = <0 0 0 0x7>;
 		interrupt-map =  <0 0 0 1 &gic 0 105 4>,
