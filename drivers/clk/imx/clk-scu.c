@@ -979,4 +979,9 @@ static int __init imx_scu_switch_cpufreq_governor(void)
 
 	return 0;
 }
-late_initcall(imx_scu_switch_cpufreq_governor);
+/* Android will switch the governor to schedutil in init
+ * so we don't need to switch it in kernel. This will make
+ * the device stay longer in performance governor, which
+ * would be helpful to reduce the boot time.
+ */
+//late_initcall(imx_scu_switch_cpufreq_governor);
