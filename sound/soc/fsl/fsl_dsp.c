@@ -947,23 +947,6 @@ static int fsl_dsp_detach_pm_domains(struct device *dev,
 	return 0;
 }
 
-/**
- * fsl_dev_put_pm_domains
- */
-static int fsl_dsp_put_pm_domains(struct device *dev,
-				  struct fsl_dsp *dsp)
-{
-	int i;
-
-	if (dsp->num_domains <= 1)
-		return 0;
-
-	for (i = 0; i < dsp->num_domains; i++)
-		pm_runtime_put_sync(dsp->pd_dev[i]);
-
-	return 0;
-}
-
 static int fsl_dsp_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -1013,6 +996,12 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	platform_set_drvdata(pdev, dsp_priv);
+	pm_runtime_enable(&pdev->dev);
+	dsp_priv->dsp_mu_init = 1;
+	dsp_priv->proxy.is_ready = 1;
+	pm_runtime_get_sync(&pdev->dev);
+
 	ret = fsl_dsp_configure(dsp_priv);
 	if (ret < 0)
 		return ret;
@@ -1021,6 +1010,10 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	pm_runtime_put_sync(&pdev->dev);
+	dsp_priv->dsp_mu_init = 0;
+	dsp_priv->proxy.is_ready = 0;
+
 	ret = of_property_read_string(np, "fsl,dsp-firmware", &fw_name);
 	dsp_priv->fw_name = fw_name;
 
@@ -1028,10 +1021,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	dsp_priv->audio_iface = audio_iface;
 
 	ret = of_property_read_u32(np, "fixup-offset", &dsp_priv->fixup_offset);
-
-	platform_set_drvdata(pdev, dsp_priv);
-	pm_runtime_enable(&pdev->dev);
-	fsl_dsp_put_pm_domains(&pdev->dev, dsp_priv);
 
 	dsp_miscdev.fops = &dsp_fops,
 	dsp_miscdev.parent = &pdev->dev,
