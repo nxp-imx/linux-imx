@@ -2780,7 +2780,7 @@ static bool tcpm_start_toggling(struct tcpm_port *port, enum typec_cc_status cc)
 	if (!port->tcpc->start_toggling)
 		return false;
 
-	tcpm_log_force(port, "Start toggling");
+	tcpm_log_force(port, "Start toggling begin with %d", cc);
 	ret = port->tcpc->start_toggling(port->tcpc, port->port_type, cc);
 	return ret == 0;
 }
@@ -3135,7 +3135,14 @@ static void run_state_machine(struct tcpm_port *port)
 				break;
 			}
 		}
-		if (tcpm_start_toggling(port, tcpm_rp_cc(port))) {
+		/*
+		 * PTN5110 has an issue on start drp toggling begins with Rp
+		 * if the remote end always provides VBUS and presents Rp too,
+		 * possibly it can't generate CC change events after detection,
+		 * workaround it by starting drp toggling begins with Rd.
+		 */
+		if (tcpm_start_toggling(port, port->vbus_never_low ?
+				TYPEC_CC_RD : tcpm_rp_cc(port))) {
 			tcpm_set_state(port, TOGGLING, 0);
 			break;
 		}
