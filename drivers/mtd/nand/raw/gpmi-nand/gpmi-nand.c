@@ -158,10 +158,6 @@ static int gpmi_init(struct gpmi_nand_data *this)
 	if (ret < 0)
 		return ret;
 
-	ret = pm_runtime_get_sync(this->dev);
-	if (ret < 0)
-		return ret;
-
 	ret = gpmi_reset_block(r->gpmi_regs, false);
 	if (ret)
 		goto err_out;
