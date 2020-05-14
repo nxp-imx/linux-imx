@@ -25,7 +25,7 @@ struct intmux_irqchip_data {
 	int chanidx;
 	int irq;
 	struct irq_domain *domain;
-	unsigned int irqstat;
+	unsigned long irqstat;
 };
 
 
@@ -114,7 +114,7 @@ static void imx_intmux_irq_handler(struct irq_desc *desc)
 
 	imx_intmux_update_irqstat(irqchip_data);
 
-	for_each_set_bit(pos, (unsigned long *)&irqchip_data->irqstat, 32) {
+	for_each_set_bit(pos, &irqchip_data->irqstat, 32) {
 		virq = irq_find_mapping(irqchip_data->domain, pos);
 		if (virq)
 			generic_handle_irq(virq);
