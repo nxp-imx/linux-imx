@@ -27,49 +27,25 @@
 	port@0 {
 		status = "okay";
 		phy-mode = "qsgmii";
-		/delete-property/ managed;
 		/delete-property/ phy-handle;
-
-		fixed-link {
-			speed = <1000>;
-			full-duplex;
-		};
 	};
 
 	port@1 {
 		status = "okay";
 		phy-mode = "qsgmii";
-		/delete-property/ managed;
 		/delete-property/ phy-handle;
-
-		fixed-link {
-			speed = <1000>;
-			full-duplex;
-		};
 	};
 
 	port@2 {
 		status = "okay";
 		phy-mode = "qsgmii";
-		/delete-property/ managed;
 		/delete-property/ phy-handle;
-
-		fixed-link {
-			speed = <1000>;
-			full-duplex;
-		};
 	};
 
 	port@3 {
 		status = "okay";
 		phy-mode = "qsgmii";
-		/delete-property/ managed;
 		/delete-property/ phy-handle;
-
-		fixed-link {
-			speed = <1000>;
-			full-duplex;
-		};
 	};
 
 	port@5 {
