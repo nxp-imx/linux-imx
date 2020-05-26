@@ -34,6 +34,21 @@
 		mmc0 = &usdhc1;
 		dpu0 = &dpu1;
 		ldb0 = &ldb1;
+		serial1 = &lpuart1;
+		isi0 = &isi_0;
+		isi1 = &isi_1;
+		isi2 = &isi_2;
+		isi3 = &isi_3;
+		isi4 = &isi_4;
+		isi5 = &isi_5;
+		isi6 = &isi_6;
+		isi7 = &isi_7;
+		csi0 = &mipi_csi_0;
+		csi1 = &mipi_csi_1;
+		dphy0 = &mipi0_dphy;
+		dphy1 = &mipi1_dphy;
+		mipi_dsi0 = &mipi0_dsi_host;
+		mipi_dsi1 = &mipi1_dsi_host;
 	};
 
 	cpus {
@@ -92,6 +107,36 @@
 		ranges;
 		passthrough;
 
+		decoder_boot: decoder_boot@0x84000000 {
+			no-map;
+			reg = <0 0x84000000 0 0x2000000>;
+		};
+		encoder_boot: encoder_boot@0x86000000 {
+			no-map;
+			reg = <0 0x86000000 0 0x400000>;
+		};
+		decoder_rpc: decoder_rpc@0x92000000 {
+			no-map;
+			reg = <0 0x92000000 0 0x200000>;
+		};
+		encoder_rpc: encoder_rpc@0x92200000 {
+			no-map;
+			reg = <0 0x92200000 0 0x200000>;
+		};
+		encoder_reserved: encoder_reserved@0x94400000 {
+			no-map;
+			reg = <0 0x94400000 0 0x800000>;
+		};
+		ts_boot: ts_boot@0x95000000 {
+			no-map;
+			reg = <0 0x95000000 0 0x400000>;
+		};
+
+		rpmsg_reserved: rpmsg@0x90000000 {
+			no-map;
+			reg = <0 0x90200000 0 0x200000>;
+		};
+
 		/* global autoconfigured region for contiguous allocations */
 		linux,cma {
 			compatible = "shared-dma-pool";
@@ -100,6 +145,7 @@
 			alloc-ranges = <0 0x96000000 0 0x3c000000>;
 			linux,cma-default;
 		};
+
 	};
 
 	gic: interrupt-controller@3001000 {
@@ -151,6 +197,18 @@
 		interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk0>;
 		clock-names = "apb_pclk";
+	};
+
+	modem_reset: modem-reset {
+		compatible = "gpio-reset";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&pinctrl_modem_reset>;
+		pinctrl-1 = <&pinctrl_modem_reset_sleep>;
+		reset-gpios = <&lsio_gpio4 22 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <2000>;
+		reset-post-delay-ms = <40>;
+		#reset-cells = <0>;
+		xen,passthrough;
 	};
 
 	passthrough {
@@ -215,14 +273,16 @@
 
 		#include "imx8-ss-conn.dtsi"
 		#include "imx8-ss-lsio.dtsi"
-		#include "imx8-ss-dc0.dtsi"
-		#include "imx8-ss-dc1.dtsi"
 		#include "imx8-ss-gpu0.dtsi"
 		#include "imx8-ss-gpu1.dtsi"
+		#include "imx8-ss-vpu.dtsi"
 
-		display-subsystem {
-			compatible = "fsl,imx-display-subsystem";
-			ports = <&dpu1_disp0>, <&dpu1_disp1>;
+		brcmfmac: brcmfmac {
+			compatible = "cypress,brcmfmac";
+			pinctrl-names = "init", "idle", "default";
+			pinctrl-0 = <&pinctrl_wifi_init>;
+			pinctrl-1 = <&pinctrl_wifi_init>;
+			pinctrl-2 = <&pinctrl_wifi>;
 		};
 
 		lvds_backlight0: lvds_backlight@0 {
@@ -243,6 +303,88 @@
 			default-brightness-level = <80>;
 		};
 	};
+
+	display-subsystem {
+		xen,passthrough;
+		compatible = "fsl,imx-display-subsystem";
+		ports = <&dpu1_disp0>, <&dpu1_disp1>;
+	};
+
+	#include "imx8-ss-dc0.dtsi"
+	#include "imx8-ss-dc1.dtsi"
+	#include "imx8-ss-audio.dtsi"
+	#include "imx8-ss-hsio.dtsi"
+	#include "imx8-ss-dma.dtsi"
+	#include "imx8-ss-img.dtsi"
+
+	sc_pwrkey: sc-powerkey {
+		compatible = "fsl,imx8-pwrkey";
+		linux,keycode = <KEY_POWER>;
+		xen,passthrough;
+	};
+
+	reg_audio: fixedregulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "cs42888_supply";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		xen,passthrough;
+	};
+
+	epdev_on: fixedregulator@100 {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&pinctrl_wlreg_on>;
+		pinctrl-1 = <&pinctrl_wlreg_on_sleep>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-name = "epdev_on";
+		gpio = <&lsio_gpio1 13 0>;
+		enable-active-high;
+		xen,passthrough;
+	};
+
+	sound-cs42888 {
+		compatible = "fsl,imx8qm-sabreauto-cs42888",
+				 "fsl,imx-audio-cs42888";
+		model = "imx-cs42888";
+		esai-controller = <&esai0>;
+		audio-codec = <&cs42888>;
+		asrc-controller = <&asrc0>;
+		status = "okay";
+		xen,passthrough;
+	};
+
+	xen_i2c0: xen_i2c@0 {
+		compatible = "xen,i2c";
+		be-adapter = "5a800000.i2c";
+		status = "okay";
+		xen,passthrough;
+	};
+
+	xen_i2c1: xen_i2c@1 {
+		compatible = "xen,i2c";
+		be-adapter = "3b230000.i2c";
+		xen,passthrough;
+		status = "okay";
+	};
+
+	cbtl04gp {
+		compatible = "nxp,cbtl04gp";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_typec_mux>;
+		switch-gpios = <&lsio_gpio4 6 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&lsio_gpio4 19 GPIO_ACTIVE_HIGH>;
+		orientation-switch;
+		xen,passthrough;
+
+		port {
+			usb3_data_ss: endpoint {
+				remote-endpoint = <&typec_con_ss>;
+			};
+		};
+	};
 };
 
 #include "imx8qm-ss-conn.dtsi"
@@ -252,6 +394,48 @@
 #include "imx8qm-ss-lvds.dtsi"
 #include "imx8qm-ss-mipi.dtsi"
 #include "imx8qm-ss-hdmi.dtsi"
+#include "imx8qm-ss-audio.dtsi"
+#include "imx8qm-ss-hsio.dtsi"
+#include "imx8qm-ss-dma.dtsi"
+#include "imx8qm-ss-mipi.dtsi"
+#include "imx8qm-ss-hdmi.dtsi"
+#include "imx8qm-ss-img.dtsi"
+
+&dc0_subsys {
+	xen,passthrough;
+};
+
+&dma_subsys {
+	xen,passthrough;
+	compatible = "simple-bus";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	ranges = <0x5a000000 0x0 0x5a000000 0x1000000>;
+
+
+	edma214: dma-controller@5a2e0000 {
+		compatible = "fsl,imx8qm-edma";
+		reg = <0x5a2e0000 0x10000>, /* channel14 UART1 rx */
+		      <0x5a2f0000 0x10000>; /* channel15 UART1 tx */
+		#dma-cells = <3>;
+		dma-channels = <2>;
+		interrupts = <GIC_SPI 436 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 437 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "edma0-chan14-rx", "edma0-chan15-tx";
+		power-domains = <&pd IMX_SC_R_DMA_0_CH14>,
+				<&pd IMX_SC_R_DMA_0_CH15>;
+		power-domain-names = "edma0-chan14", "edma0-chan15";
+		status = "okay";
+	};
+};
+
+&audio_subsys {
+	xen,passthrough;
+};
+
+&hsio_subsys {
+	xen,passthrough;
+};
 
 &lvds1_subsys {
 	xen,passthrough;
@@ -402,6 +586,19 @@
 };
 
 &iomuxc {
+
+	pinctrl_wifi: wifigrp{
+		fsl,pins = <
+			IMX8QM_SCU_GPIO0_07_SCU_DSC_RTC_CLOCK_OUTPUT_32K	0x20
+		>;
+	};
+
+	pinctrl_wifi_init: wifi_initgrp{
+		fsl,pins = <
+			/* reserve pin init/idle_state to support multiple wlan cards */
+		>;
+	};
+
 	pinctrl_pwm_lvds0: pwmlvds0grp {
 		fsl,pins = <
 			IMX8QM_LVDS0_GPIO00_LVDS0_PWM0_OUT		0x00000020
@@ -412,6 +609,25 @@
 		fsl,pins = <
 			IMX8QM_LVDS0_I2C1_SCL_LVDS0_I2C1_SCL	0xc600004c
 			IMX8QM_LVDS0_I2C1_SDA_LVDS0_I2C1_SDA	0xc600004c
+		>;
+	};
+
+	pinctrl_typec: typecgrp {
+		fsl,pins = <
+			IMX8QM_QSPI1A_DATA0_LSIO_GPIO4_IO26		0x00000021
+		>;
+	};
+
+	pinctrl_typec_mux: typecmuxgrp {
+		fsl,pins = <
+			IMX8QM_QSPI1A_SS0_B_LSIO_GPIO4_IO19		0x60
+			IMX8QM_USB_SS3_TC3_LSIO_GPIO4_IO06		0x60
+		>;
+	};
+
+	pinctrl_usbotg1: usbotg1 {
+		fsl,pins = <
+			IMX8QM_USB_SS3_TC0_CONN_USB_OTG1_PWR		0x00000021
 		>;
 	};
 
@@ -428,6 +644,114 @@
 			IMX8QM_EMMC0_DATA6_CONN_EMMC0_DATA6			0x00000021
 			IMX8QM_EMMC0_DATA7_CONN_EMMC0_DATA7			0x00000021
 			IMX8QM_EMMC0_STROBE_CONN_EMMC0_STROBE			0x00000041
+		>;
+	};
+
+	pinctrl_esai0: esai0grp {
+		fsl,pins = <
+			IMX8QM_ESAI0_FSR_AUD_ESAI0_FSR				0xc6000040
+			IMX8QM_ESAI0_FST_AUD_ESAI0_FST				0xc6000040
+			IMX8QM_ESAI0_SCKR_AUD_ESAI0_SCKR			0xc6000040
+			IMX8QM_ESAI0_SCKT_AUD_ESAI0_SCKT			0xc6000040
+			IMX8QM_ESAI0_TX0_AUD_ESAI0_TX0				0xc6000040
+			IMX8QM_ESAI0_TX1_AUD_ESAI0_TX1				0xc6000040
+			IMX8QM_ESAI0_TX2_RX3_AUD_ESAI0_TX2_RX3			0xc6000040
+			IMX8QM_ESAI0_TX3_RX2_AUD_ESAI0_TX3_RX2			0xc6000040
+			IMX8QM_ESAI0_TX4_RX1_AUD_ESAI0_TX4_RX1			0xc6000040
+			IMX8QM_ESAI0_TX5_RX0_AUD_ESAI0_TX5_RX0			0xc6000040
+		>;
+	};
+
+	pinctrl_pciea: pcieagrp{
+		fsl,pins = <
+			IMX8QM_PCIE_CTRL0_WAKE_B_LSIO_GPIO4_IO28		0x04000021
+			IMX8QM_PCIE_CTRL0_PERST_B_LSIO_GPIO4_IO29		0x06000021
+			IMX8QM_USDHC2_RESET_B_LSIO_GPIO4_IO09			0x06000021
+		>;
+	};
+
+	pinctrl_wlreg_on: wlregongrp{
+		fsl,pins = <
+			IMX8QM_LVDS1_I2C0_SDA_LSIO_GPIO1_IO13		0x06000000
+		>;
+	};
+
+	pinctrl_wlreg_on_sleep: wlregon_sleepgrp{
+		fsl,pins = <
+			IMX8QM_LVDS1_I2C0_SDA_LSIO_GPIO1_IO13		0x07800000
+		>;
+	};
+
+	pinctrl_lpuart1: lpuart1grp {
+		fsl,pins = <
+			IMX8QM_UART1_RX_DMA_UART1_RX		0x06000020
+			IMX8QM_UART1_TX_DMA_UART1_TX		0x06000020
+			IMX8QM_UART1_CTS_B_DMA_UART1_CTS_B	0x06000020
+			IMX8QM_UART1_RTS_B_DMA_UART1_RTS_B	0x06000020
+		>;
+	};
+
+	pinctrl_modem_reset: modemresetgrp {
+		fsl,pins = <
+			IMX8QM_QSPI1A_DQS_LSIO_GPIO4_IO22		0x06000021
+		>;
+	};
+
+	pinctrl_modem_reset_sleep: modemreset_sleepgrp {
+		fsl,pins = <
+			IMX8QM_QSPI1A_DQS_LSIO_GPIO4_IO22		0x07800021
+		>;
+	};
+
+	pinctrl_i2c_mipi_csi0: i2c_mipi_csi0 {
+		fsl,pins = <
+			IMX8QM_MIPI_CSI0_I2C0_SCL_MIPI_CSI0_I2C0_SCL		0xc2000020
+			IMX8QM_MIPI_CSI0_I2C0_SDA_MIPI_CSI0_I2C0_SDA		0xc2000020
+		>;
+	};
+
+	pinctrl_i2c_mipi_csi1: i2c_mipi_csi1 {
+		fsl,pins = <
+			IMX8QM_MIPI_CSI1_I2C0_SCL_MIPI_CSI1_I2C0_SCL		0xc2000020
+			IMX8QM_MIPI_CSI1_I2C0_SDA_MIPI_CSI1_I2C0_SDA		0xc2000020
+		>;
+	};
+
+	pinctrl_mipi_csi0: mipi_csi0 {
+		fsl,pins = <
+			IMX8QM_MIPI_CSI0_GPIO0_00_LSIO_GPIO1_IO27		0xC0000041
+			IMX8QM_MIPI_CSI0_GPIO0_01_LSIO_GPIO1_IO28		0xC0000041
+			IMX8QM_MIPI_CSI0_MCLK_OUT_MIPI_CSI0_ACM_MCLK_OUT	0xC0000041
+		>;
+	};
+
+	pinctrl_mipi_csi1: mipi_csi1 {
+		fsl,pins = <
+			IMX8QM_MIPI_CSI1_GPIO0_00_LSIO_GPIO1_IO30		0xC0000041
+			IMX8QM_MIPI_CSI1_GPIO0_01_LSIO_GPIO1_IO31		0xC0000041
+			IMX8QM_MIPI_CSI1_MCLK_OUT_MIPI_CSI1_ACM_MCLK_OUT	0xC0000041
+		>;
+	};
+
+	pinctrl_isl29023: isl29023grp {
+		fsl,pins = <
+			IMX8QM_USDHC2_WP_LSIO_GPIO4_IO11		0x00000021
+		>;
+	};
+
+	pinctrl_mipi0_lpi2c0: mipi0_lpi2c0grp {
+		fsl,pins = <
+			IMX8QM_MIPI_DSI0_I2C0_SCL_MIPI_DSI0_I2C0_SCL      0xc6000020
+			IMX8QM_MIPI_DSI0_I2C0_SDA_MIPI_DSI0_I2C0_SDA      0xc6000020
+			IMX8QM_MIPI_DSI0_GPIO0_01_LSIO_GPIO1_IO19         0x00000020
+		>;
+	};
+
+	pinctrl_mipi1_lpi2c0: mipi1_lpi2c0grp {
+		fsl,pins = <
+			IMX8QM_MIPI_DSI1_I2C0_SCL_MIPI_DSI1_I2C0_SCL      0xc6000020
+			IMX8QM_MIPI_DSI1_I2C0_SDA_MIPI_DSI1_I2C0_SDA      0xc6000020
+			IMX8QM_MIPI_DSI1_GPIO0_01_LSIO_GPIO1_IO23         0x00000020
 		>;
 	};
 };
@@ -465,7 +789,628 @@
 	status = "disabled";
 };
 
+&usbphy1 {
+	status = "okay";
+};
+
+&usbotg1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usbotg1>;
+	srp-disable;
+	hnp-disable;
+	adp-disable;
+	power-active-high;
+	disable-over-current;
+	status = "okay";
+};
+
+&usb3phynop1 {
+	status = "okay";
+};
+
 &usbotg3 {
+	dr_mode = "otg";
+	extcon = <&ptn5110>;
+	status = "okay";
 	/delete-property/ iommus;
+};
+
+&xen_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	isl29023@44 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_isl29023>;
+		compatible = "fsl,isl29023";
+		reg = <0x44>;
+		rext = <499>;
+		interrupt-parent = <&lsio_gpio4>;
+		interrupts = <11 2>;
+	};
+
+	fxos8700@1e {
+		compatible = "fsl,fxos8700";
+		reg = <0x1e>;
+		interrupt-open-drain;
+	};
+
+	fxas2100x@20 {
+		compatible = "fsl,fxas2100x";
+		reg = <0x20>;
+		interrupt-open-drain;
+	};
+
+	max7322: gpio@68 {
+		compatible = "maxim,max7322";
+		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	mpl3115@60 {
+		compatible = "fsl,mpl3115";
+		reg = <0x60>;
+		interrupt-open-drain;
+	};
+
+	ptn5110: tcpc@51 {
+		compatible = "nxp,ptn5110";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_typec>;
+		reg = <0x51>;
+		interrupt-parent = <&lsio_gpio4>;
+		interrupts = <26 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+
+		usb_con1: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "source";
+			data-role = "dual";
+			source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@1 {
+					reg = <1>;
+					typec_con_ss: endpoint {
+						remote-endpoint = <&usb3_data_ss>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&mu_m0{
+	interrupts = <GIC_SPI 472 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mu1_m0{
+	interrupts = <GIC_SPI 473 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mu2_m0{
+	interrupts = <GIC_SPI 474 IRQ_TYPE_LEVEL_HIGH>;
+	status = "okay";
+};
+
+&mu3_m0{
+	interrupts = <GIC_SPI 475 IRQ_TYPE_LEVEL_HIGH>;
+	status = "okay";
+};
+
+&vpu_decoder {
+	compatible = "nxp,imx8qm-b0-vpudec";
+	boot-region = <&decoder_boot>;
+	rpc-region = <&decoder_rpc>;
+	reg-csr = <0x2d080000>;
+	core_type = <2>;
+	status = "okay";
+};
+
+&vpu_ts {
+	compatible = "nxp,imx8qm-b0-vpu-ts";
+	boot-region = <&ts_boot>;
+	reg-csr = <0x2d0b0000>;
+	status = "okay";
+};
+
+&vpu_encoder {
+	compatible = "nxp,imx8qm-b0-vpuenc";
+	boot-region = <&encoder_boot>;
+	rpc-region = <&encoder_rpc>;
+	reserved-region = <&encoder_reserved>;
+	reg-rpc-system = <0x40000000>;
+	resolution-max = <1920 1920>;
+	power-domains = <&pd IMX_SC_R_VPU_ENC_0>, <&pd IMX_SC_R_VPU_ENC_1>,
+			<&pd IMX_SC_R_VPU>;
+	power-domain-names = "vpuenc1", "vpuenc2", "vpu";
+	mbox-names = "enc1_tx0", "enc1_tx1", "enc1_rx",
+		     "enc2_tx0", "enc2_tx1", "enc2_rx";
+	mboxes = <&mu1_m0 0 0
+		  &mu1_m0 0 1
+		  &mu1_m0 1 0
+		  &mu2_m0 0 0
+		  &mu2_m0 0 1
+		  &mu2_m0 1 0>;
+	status = "okay";
+
+	vpu_enc_core0: core0@1020000 {
+		compatible = "fsl,imx8-mu1-vpu-m0";
+		reg = <0x1020000 0x20000>;
+		reg-csr = <0x1090000 0x10000>;
+		interrupts = <GIC_SPI 473 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,vpu_ap_mu_id = <17>;
+		fw-buf-size = <0x200000>;
+		rpc-buf-size = <0x80000>;
+		print-buf-size = <0x80000>;
+	};
+
+	vpu_enc_core1: core1@1040000 {
+		compatible = "fsl,imx8-mu2-vpu-m0";
+		reg = <0x1040000 0x20000>;
+		reg-csr = <0x10A0000 0x10000>;
+		interrupts = <GIC_SPI 474 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,vpu_ap_mu_id = <18>;
+		fw-buf-size = <0x200000>;
+		rpc-buf-size = <0x80000>;
+		print-buf-size = <0x80000>;
+	};
+};
+
+&lsio_gpio4 {
+	/delete-property/ power-domains;
+};
+
+&lsio_gpio1 {
+	/delete-property/ power-domains;
+};
+
+/* Audio */
+/*&dsp {
+	compatible = "fsl,imx8qm-dsp-v1";
+	status = "okay";
+};
+*/
+
+&asrc0 {
+	fsl,asrc-rate  = <48000>;
+	status = "okay";
+};
+
+&amix {
+	status = "okay";
+};
+
+&esai0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_esai0>;
+	assigned-clocks = <&acm IMX_ADMA_ACM_ESAI0_MCLK_SEL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
+			<&esai0_lpcg 0>;
+	assigned-clock-parents = <&aud_pll_div0_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
+	fsl,txm-rxs;
+	status = "okay";
+};
+
+&sai1 {
+	assigned-clocks = <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai1_lpcg 0>; /* FIXME: should be sai1, original code is 0 */
+	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <49152000>;
+	pinctrl-names = "default";
+	/*pinctrl-0 = <&pinctrl_sai1>;*/
 	status = "disabled";
+};
+
+&sai6 {
+	assigned-clocks = <&acm IMX_ADMA_ACM_SAI6_MCLK_SEL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai6_lpcg 0>;
+	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	fsl,sai-asynchronous;
+	fsl,txm-rxs;
+	status = "disabled";
+};
+
+&sai7 {
+	assigned-clocks = <&acm IMX_ADMA_ACM_SAI7_MCLK_SEL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai7_lpcg 0>;
+	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	fsl,sai-asynchronous;
+	fsl,txm-rxs;
+	status = "disabled";
+};
+
+&xen_i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	cs42888: cs42888@48 {
+		compatible = "cirrus,cs42888";
+		reg = <0x48>;
+		clocks = <&mclkout0_lpcg 0>;
+		clock-names = "mclk";
+		VA-supply = <&reg_audio>;
+		VD-supply = <&reg_audio>;
+		VLS-supply = <&reg_audio>;
+		VLC-supply = <&reg_audio>;
+		reset-gpio = <&lsio_gpio4 25 GPIO_ACTIVE_LOW>;
+		assigned-clocks = <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+				<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+				<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
+				<&mclkout0_lpcg 0>;
+		assigned-clock-rates = <786432000>, <49152000>, <12288000>, <12288000>;
+		fsl,txs-rxm;
+		status = "okay";
+	};
+};
+
+&sai6 {
+	assigned-clocks = <&acm IMX_ADMA_ACM_SAI6_MCLK_SEL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai6_lpcg 0>;
+	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	fsl,sai-asynchronous;
+	fsl,txm-rxs;
+	status = "disabled";
+};
+
+&sai7 {
+	assigned-clocks = <&acm IMX_ADMA_ACM_SAI7_MCLK_SEL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai7_lpcg 0>;
+	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	fsl,sai-asynchronous;
+	fsl,txm-rxs;
+	status = "disabled";
+};
+
+&sata {
+	/delete-property/ iommus;
+};
+
+&pciea{
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pciea>;
+	reset-gpio = <&lsio_gpio4 29 GPIO_ACTIVE_LOW>;
+	disable-gpio = <&lsio_gpio4 9 GPIO_ACTIVE_LOW>;
+	ext_osc = <1>;
+	epdev_on-supply = <&epdev_on>;
+	reserved-region = <&rpmsg_reserved>;
+	status = "okay";
+};
+
+&pcieb{
+	status = "disabled";
+};
+
+&edma2 {
+	status = "disabled";
+};
+
+&lpuart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpuart1>;
+	resets = <&modem_reset>;
+	status = "okay";
+	dmas = <&edma214 15 0 0>, <&edma214 14 0 1>;
+};
+
+&img_subsys {
+	xen,passthrough;
+};
+
+&hdmi_subsys {
+	xen,passthrough;
+};
+
+&mipi0_subsys {
+	xen,passthrough;
+};
+
+&mipi1_subsys {
+	xen,passthrough;
+};
+
+&dsi_ipg_clk {
+	xen,passthrough;
+};
+
+&mipi_pll_div2_clk {
+	xen,passthrough;
+};
+
+&i2c0_mipi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_mipi0_lpi2c0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	adv_bridge0: adv7535@3d {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		compatible = "adi,adv7535";
+		reg = <0x3d>;
+		adi,addr-cec = <0x3b>;
+		adi,dsi-lanes = <4>;
+		adi,dsi-channel = <1>;
+		interrupt-parent = <&lsio_gpio1>;
+		interrupts = <19 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+
+		port@0 {
+			reg = <0>;
+			adv7535_0_in: endpoint {
+				remote-endpoint = <&mipi0_adv_out>;
+			};
+		};
+	};
+};
+
+&mipi0_dphy {
+	status = "okay";
+};
+
+&mipi0_dsi_host {
+	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+			mipi0_adv_out: endpoint {
+				remote-endpoint = <&adv7535_0_in>;
+			};
+		};
+	};
+};
+
+&i2c0_mipi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_mipi1_lpi2c0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	adv_bridge1: adv7535@3d {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		compatible = "adi,adv7535";
+		reg = <0x3d>;
+		adi,addr-cec = <0x3b>;
+		adi,dsi-lanes = <4>;
+		adi,dsi-channel = <1>;
+		interrupt-parent = <&lsio_gpio1>;
+		interrupts = <23 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+
+		port@0 {
+			reg = <0>;
+			adv7535_1_in: endpoint {
+				remote-endpoint = <&mipi1_adv_out>;
+			};
+		};
+	};
+};
+
+&mipi1_dphy {
+	status = "okay";
+};
+
+&mipi1_dsi_host {
+	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+			mipi1_adv_out: endpoint {
+				remote-endpoint = <&adv7535_1_in>;
+			};
+		};
+	};
+};
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+
+	m2m_device {
+		status = "okay";
+	};
+};
+
+&isi_1 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_2 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_3 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_4 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_5 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_6 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_7 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&irqsteer_csi0 {
+	status = "okay";
+};
+
+&irqsteer_csi1 {
+	status = "okay";
+};
+
+&mipi_csi_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	virtual-channel;
+	status = "okay";
+
+	/* Camera 0  MIPI CSI-2 (CSIS0) */
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&max9286_0_ep>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&mipi_csi_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	virtual-channel;
+	status = "okay";
+
+	/* Camera 1  MIPI CSI-2 (CSIS1) */
+	port@1 {
+		reg = <1>;
+		mipi_csi1_ep: endpoint {
+			remote-endpoint = <&max9286_1_ep>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&jpegdec {
+       status = "okay";
+};
+
+&jpegenc {
+       status = "okay";
+};
+
+&i2c_mipi_csi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c_mipi_csi0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	max9286_mipi@6a {
+		compatible = "maxim,max9286_mipi";
+		reg = <0x6a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_csi0>;
+		clocks = <&clk_dummy>;
+		clock-names = "capture_mclk";
+		mclk = <27000000>;
+		mclk_source = <0>;
+		pwn-gpios = <&lsio_gpio1 27 GPIO_ACTIVE_HIGH>;
+		virtual-channel;
+		status = "okay";
+		port {
+			max9286_0_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&i2c_mipi_csi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c_mipi_csi1>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	max9286_mipi@6a {
+		compatible = "maxim,max9286_mipi";
+		reg = <0x6a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_csi1>;
+		clocks = <&clk_dummy>;
+		clock-names = "capture_mclk";
+		mclk = <27000000>;
+		mclk_source = <0>;
+		pwn-gpios = <&lsio_gpio1 30 GPIO_ACTIVE_HIGH>;
+		virtual-channel;
+		status = "okay";
+		port {
+			max9286_1_ep: endpoint {
+				remote-endpoint = <&mipi_csi1_ep>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+
 };
