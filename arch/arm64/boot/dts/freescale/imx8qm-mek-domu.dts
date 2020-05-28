@@ -304,12 +304,6 @@
 		};
 	};
 
-	display-subsystem {
-		xen,passthrough;
-		compatible = "fsl,imx-display-subsystem";
-		ports = <&dpu1_disp0>, <&dpu1_disp1>;
-	};
-
 	#include "imx8-ss-dc0.dtsi"
 	#include "imx8-ss-dc1.dtsi"
 	#include "imx8-ss-audio.dtsi"
@@ -400,6 +394,14 @@
 #include "imx8qm-ss-mipi.dtsi"
 #include "imx8qm-ss-hdmi.dtsi"
 #include "imx8qm-ss-img.dtsi"
+
+/ {
+	display-subsystem {
+		xen,passthrough;
+		compatible = "fsl,imx-display-subsystem";
+		ports = <&dpu1_disp0>, <&dpu1_disp1>;
+	};
+};
 
 &dc0_subsys {
 	xen,passthrough;
