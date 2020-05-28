@@ -199,16 +199,10 @@
 		clock-names = "apb_pclk";
 	};
 
-	modem_reset: modem-reset {
-		compatible = "gpio-reset";
-		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&pinctrl_modem_reset>;
-		pinctrl-1 = <&pinctrl_modem_reset_sleep>;
-		reset-gpios = <&lsio_gpio4 22 GPIO_ACTIVE_LOW>;
-		reset-delay-us = <2000>;
-		reset-post-delay-ms = <40>;
-		#reset-cells = <0>;
-		xen,passthrough;
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&lsio_gpio4 22 GPIO_ACTIVE_LOW>;
+		status ="okay";
 	};
 
 	passthrough {
@@ -1119,7 +1113,6 @@
 &lpuart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpuart1>;
-	resets = <&modem_reset>;
 	status = "okay";
 	dmas = <&edma214 15 0 0>, <&edma214 14 0 1>;
 };
