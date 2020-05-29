@@ -53,4 +53,12 @@
 			};
 		};
 	};
+
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
+		compatible = "nxp,imx-vehicle";
+		status = "okay";
+	};
 };
