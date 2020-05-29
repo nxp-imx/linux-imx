@@ -582,6 +582,14 @@
 };
 
 &iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	pinctrl_hog: hoggrp {
+		fsl,pins = <
+			IMX8QM_QSPI1A_DQS_LSIO_GPIO4_IO22               0x06000021
+		>;
+	};
 
 	pinctrl_wifi: wifigrp{
 		fsl,pins = <
@@ -684,18 +692,6 @@
 			IMX8QM_UART1_TX_DMA_UART1_TX		0x06000020
 			IMX8QM_UART1_CTS_B_DMA_UART1_CTS_B	0x06000020
 			IMX8QM_UART1_RTS_B_DMA_UART1_RTS_B	0x06000020
-		>;
-	};
-
-	pinctrl_modem_reset: modemresetgrp {
-		fsl,pins = <
-			IMX8QM_QSPI1A_DQS_LSIO_GPIO4_IO22		0x06000021
-		>;
-	};
-
-	pinctrl_modem_reset_sleep: modemreset_sleepgrp {
-		fsl,pins = <
-			IMX8QM_QSPI1A_DQS_LSIO_GPIO4_IO22		0x07800021
 		>;
 	};
 
