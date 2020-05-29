@@ -373,6 +373,15 @@
 			};
 		};
 	};
+
+	sound-xtor {
+		compatible = "fsl,imx-audio-xtor";
+		model = "xtor-audio";
+		cpu-dai = <&sai0>;
+		tx-codec-slave = <1>;
+		rx-codec-slave = <1>;
+		status = "okay";
+	};
 };
 
 #include "imx8qm-ss-conn.dtsi"
@@ -695,6 +704,15 @@
 		>;
 	};
 
+	pinctrl_sai0: sai0grp {
+		fsl,pins = <
+			IMX8QM_SPI0_CS1_AUD_SAI0_TXC				0x06000040
+			IMX8QM_SPI2_CS1_AUD_SAI0_TXFS				0x06000040
+			IMX8QM_SAI1_RXFS_AUD_SAI0_RXD				0x06000040
+			IMX8QM_SAI1_RXC_AUD_SAI0_TXD				0x06000060
+		>;
+	};
+
 	pinctrl_i2c_mipi_csi0: i2c_mipi_csi0 {
 		fsl,pins = <
 			IMX8QM_MIPI_CSI0_I2C0_SCL_MIPI_CSI0_I2C0_SCL		0xc2000020
@@ -977,6 +995,17 @@
 };
 
 &amix {
+	status = "okay";
+};
+
+&sai0 {
+	assigned-clocks = <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
+			<&sai0_lpcg 0>;
+	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <49152000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai0>;
 	status = "okay";
 };
 
