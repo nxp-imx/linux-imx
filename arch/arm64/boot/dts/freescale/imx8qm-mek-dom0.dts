@@ -286,6 +286,11 @@
 				IMX8QM_MIPI_DSI1_GPIO0_01
 
 				IMX8QM_SCU_GPIO0_07
+
+				IMX8QM_SPI0_CS1
+				IMX8QM_SPI2_CS1
+				IMX8QM_SAI1_RXFS
+				IMX8QM_SAI1_RXC
 			>;
 
 			gpios = <&lsio_gpio1 13 GPIO_ACTIVE_LOW>,
@@ -644,6 +649,11 @@
 
 &{/cbtl04gp} {
 	status = "disabled";
+};
+
+&audio_subsys {
+	reg = <0 0x59000000 0 0x1000000>;
+	xen,passthrough;
 };
 
 /* Passthrough baseboard audio to DomU */
