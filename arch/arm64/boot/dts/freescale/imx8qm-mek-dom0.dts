@@ -294,6 +294,7 @@
 			>;
 
 			gpios = <&lsio_gpio1 13 GPIO_ACTIVE_LOW>,
+				<&lsio_gpio1 19 GPIO_ACTIVE_LOW>,
 				<&lsio_gpio1 27 GPIO_ACTIVE_LOW>,
 				<&lsio_gpio1 28 GPIO_ACTIVE_LOW>,
 				<&lsio_gpio1 30 GPIO_ACTIVE_LOW>,
