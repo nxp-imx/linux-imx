@@ -1252,24 +1252,6 @@ static ssize_t mx6s_csi_read(struct file *file, char __user *buf,
 	return ret;
 }
 
-static int mx6s_csi_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
-	int ret;
-
-	if (mutex_lock_interruptible(&csi_dev->lock))
-		return -ERESTARTSYS;
-	ret = vb2_mmap(&csi_dev->vb2_vidq, vma);
-	mutex_unlock(&csi_dev->lock);
-
-	pr_debug("vma start=0x%08lx, size=%ld, ret=%d\n",
-		(unsigned long)vma->vm_start,
-		(unsigned long)vma->vm_end-(unsigned long)vma->vm_start,
-		ret);
-
-	return ret;
-}
-
 static struct v4l2_file_operations mx6s_csi_fops = {
 	.owner		= THIS_MODULE,
 	.open		= mx6s_csi_open,
@@ -1277,7 +1259,7 @@ static struct v4l2_file_operations mx6s_csi_fops = {
 	.read		= mx6s_csi_read,
 	.poll		= vb2_fop_poll,
 	.unlocked_ioctl	= video_ioctl2, /* V4L2 ioctl handler */
-	.mmap		= mx6s_csi_mmap,
+	.mmap		= vb2_fop_mmap,
 };
 
 /*
