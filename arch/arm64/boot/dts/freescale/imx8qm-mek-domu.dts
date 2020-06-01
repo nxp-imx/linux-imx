@@ -309,6 +309,7 @@
 		compatible = "fsl,imx8-pwrkey";
 		linux,keycode = <KEY_POWER>;
 		xen,passthrough;
+		status = "okay";
 	};
 
 	reg_audio: fixedregulator@2 {
