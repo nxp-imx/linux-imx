@@ -53,10 +53,12 @@ static int high_bus_count, audio_bus_count, low_bus_count;
 static int cur_bus_freq_mode;
 static int busfreq_suspended;
 static bool cancel_reduce_bus_freq;
+static bool ddr_400mts;
 
 static unsigned int fsp_table[4];
 static unsigned long origin_noc_rate;
 static int low_bus_mode_fsp_index;
+static int audio_bus_mode_fsp_index;
 /* no bypass or dll off mode support if lowest fsp > 667mts */
 static bool bypass_support = true;
 
@@ -117,15 +119,25 @@ static void reduce_bus_freq(void)
 				/* prepare the necessary clk before frequency change */
 				clk_prepare_enable(sys1_pll_40m);
 				clk_prepare_enable(dram_alt_root);
-				clk_prepare_enable(sys1_pll_100m);
+				if(ddr_400mts){
+					clk_prepare_enable(sys1_pll_800m);
+					update_bus_freq(audio_bus_mode_fsp_index);
+					clk_set_parent(dram_alt_src, sys1_pll_800m);
+				} else {
+					clk_prepare_enable(sys1_pll_100m);
+					update_bus_freq(low_bus_mode_fsp_index);
+					clk_set_parent(dram_alt_src, sys1_pll_100m);
+				}
 
-				update_bus_freq(low_bus_mode_fsp_index);
-
-				clk_set_parent(dram_alt_src, sys1_pll_100m);
 				clk_set_parent(dram_core_clk, dram_alt_root);
 				clk_set_parent(dram_apb_src, sys1_pll_40m);
 				clk_set_rate(dram_apb_pre_div, 20000000);
-				clk_disable_unprepare(sys1_pll_100m);
+				if(ddr_400mts){
+					clk_set_rate(dram_alt_src, 400000000);
+					clk_disable_unprepare(sys1_pll_800m);
+				} else {
+					clk_disable_unprepare(sys1_pll_100m);
+				}
 				clk_disable_unprepare(sys1_pll_40m);
 				clk_disable_unprepare(dram_alt_root);
 			} else {
@@ -138,6 +150,7 @@ static void reduce_bus_freq(void)
 				clk_set_rate(dram_apb_pre_div, 160000000);
 				clk_get_rate(dram_pll);
 			}
+
 			/* change the NOC rate */
 			if (of_machine_is_compatible("fsl,imx8mq"))
 				clk_set_rate(noc_div, origin_noc_rate / 8);
@@ -162,15 +175,25 @@ static void reduce_bus_freq(void)
 				/* prepare the necessary clk before frequency change */
 				clk_prepare_enable(sys1_pll_40m);
 				clk_prepare_enable(dram_alt_root);
-				clk_prepare_enable(sys1_pll_100m);
+				if(ddr_400mts){
+					clk_prepare_enable(sys1_pll_800m);
+					update_bus_freq(audio_bus_mode_fsp_index);
+					clk_set_parent(dram_alt_src, sys1_pll_800m);
+				} else {
+					clk_prepare_enable(sys1_pll_100m);
+					update_bus_freq(low_bus_mode_fsp_index);
+					clk_set_parent(dram_alt_src, sys1_pll_100m);
+				}
 
-				update_bus_freq(low_bus_mode_fsp_index);
-
-				clk_set_parent(dram_alt_src, sys1_pll_100m);
 				clk_set_parent(dram_core_clk, dram_alt_root);
 				clk_set_parent(dram_apb_src, sys1_pll_40m);
 				clk_set_rate(dram_apb_pre_div, 20000000);
-				clk_disable_unprepare(sys1_pll_100m);
+				if(ddr_400mts){
+					clk_set_rate(dram_alt_src, 400000000);
+					clk_disable_unprepare(sys1_pll_800m);
+				} else {
+					clk_disable_unprepare(sys1_pll_100m);
+				}
 				clk_disable_unprepare(sys1_pll_40m);
 				clk_disable_unprepare(dram_alt_root);
 			} else {
@@ -550,6 +573,7 @@ static int busfreq_probe(struct platform_device *pdev)
 {
 	int i, err;
 	struct arm_smccc_res res;
+	const struct device_node *np = pdev->dev.of_node;
 
 	busfreq_dev = &pdev->dev;
 
@@ -590,6 +614,8 @@ static int busfreq_probe(struct platform_device *pdev)
 
 	low_bus_mode_fsp_index = i - 1;
 
+	audio_bus_mode_fsp_index = i > 2 ? i - 2:low_bus_mode_fsp_index;
+
 	/*
 	 * if lowest fsp data rate higher than 666mts, then no dll off mode or
 	 * bypass mode support.
@@ -620,6 +646,11 @@ static int busfreq_probe(struct platform_device *pdev)
 
 	/* enter low bus mode if no high speed device enabled */
 	schedule_delayed_work(&bus_freq_daemon, msecs_to_jiffies(10000));
+
+	if (of_property_read_bool(np, "enable-ddr-400mts"))
+		ddr_400mts = true;
+	else
+		ddr_400mts = false;
 
 	return 0;
 }
