@@ -717,6 +717,11 @@ static int trusty_virtio_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void trusty_virtio_shutdown(struct platform_device *pdev)
+{
+	trusty_virtio_remove(pdev);
+}
+
 static const struct of_device_id trusty_of_match[] = {
 	{
 		.compatible = "android,trusty-virtio-v1",
@@ -734,6 +739,7 @@ static struct platform_driver trusty_virtio_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = trusty_of_match,
 	},
+	.shutdown = trusty_virtio_shutdown,
 };
 
 module_platform_driver(trusty_virtio_driver);

@@ -1496,6 +1496,10 @@ static void _txvq_cb(struct virtqueue *txvq)
 	}
 }
 
+static void tipc_virtio_release(struct device *dev) {
+	dev_err(dev, "tipc_virtio_release");
+}
+
 static int tipc_virtio_probe(struct virtio_device *vdev)
 {
 	int err, i;
@@ -1504,6 +1508,8 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	struct virtqueue *vqs[2];
 	vq_callback_t *vq_cbs[] = {_rxvq_cb, _txvq_cb};
 	const char *vq_names[] = { "rx", "tx" };
+
+	vdev->dev.release = tipc_virtio_release;
 
 	dev_dbg(&vdev->dev, "%s:\n", __func__);
 
@@ -1582,7 +1588,6 @@ static void tipc_virtio_remove(struct virtio_device *vdev)
 
 	mutex_lock(&vds->lock);
 	vds->state = VDS_DEAD;
-	vds->vdev = NULL;
 	mutex_unlock(&vds->lock);
 
 	vdev->config->reset(vdev);
@@ -1594,6 +1599,8 @@ static void tipc_virtio_remove(struct virtio_device *vdev)
 	_free_msg_buf_list(&vds->free_buf_list);
 
 	vdev->config->del_vqs(vds->vdev);
+	vdev->config->set_status(vdev, 0);
+	vds->vdev = NULL;
 
 	kref_put(&vds->refcount, _free_vds);
 }
