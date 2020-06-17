@@ -56,8 +56,9 @@ static void mxc_bt_rfkill_reset(void *rfkdata)
 	printk(KERN_INFO "mxc_bt_rfkill_reset\n");
 	if (gpio_is_valid(data->bt_power_gpio)) {
 		gpio_set_value_cansleep(data->bt_power_gpio, 0);
-		msleep(500);
+		msleep(40);
 		gpio_set_value_cansleep(data->bt_power_gpio, 1);
+		msleep(40);
 	}
 }
 
