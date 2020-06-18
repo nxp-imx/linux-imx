@@ -483,8 +483,6 @@ config TI_SCI_INTA_IRQCHIP
 	  If you wish to use interrupt aggregator irq resources managed by the
 	  TI System Controller, say Y here. Otherwise, say N.
 
-endmenu
-
 config SIFIVE_PLIC
 	bool "SiFive Platform-Level Interrupt Controller"
 	depends on RISCV
@@ -502,3 +500,4 @@ config IMX_INTMUX
 	select IRQ_DOMAIN
 	help
 	 Enables the IRQ MUX for NXP IMX platforms
+endmenu

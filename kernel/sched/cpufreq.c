@@ -67,11 +67,11 @@ EXPORT_SYMBOL_GPL(cpufreq_remove_update_util_hook);
  * Return 'true' if:
  * - the local and remote CPUs share @policy,
  * - dvfs_possible_from_any_cpu is set in @policy and the local CPU is not going
- *   offline (in which it is not expected to run cpufreq updates any more).
+ *   offline (in which case it is not expected to run cpufreq updates any more).
  */
 bool cpufreq_this_cpu_can_update(struct cpufreq_policy *policy)
 {
 	return cpumask_test_cpu(smp_processor_id(), policy->cpus) ||
 		(policy->dvfs_possible_from_any_cpu &&
-		rcu_dereference_sched(*this_cpu_ptr(&cpufreq_update_util_data)));
+		 rcu_dereference_sched(*this_cpu_ptr(&cpufreq_update_util_data)));
 }

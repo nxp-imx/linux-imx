@@ -718,9 +718,6 @@ static int msc_win_set_lockout(struct msc_window *win,
 
 	if (old != expect) {
 		ret = -EINVAL;
-		dev_warn_ratelimited(msc_dev(win->msc),
-				     "expected lockout state %d, got %d\n",
-				     expect, old);
 		goto unlock;
 	}
 
@@ -741,6 +738,10 @@ unlock:
 		/* from intel_th_msc_window_unlock(), don't warn if not locked */
 		if (expect == WIN_LOCKED && old == new)
 			return 0;
+
+		dev_warn_ratelimited(msc_dev(win->msc),
+				     "expected lockout state %d, got %d\n",
+				     expect, old);
 	}
 
 	return ret;
@@ -760,7 +761,7 @@ static int msc_configure(struct msc *msc)
 	lockdep_assert_held(&msc->buf_mutex);
 
 	if (msc->mode > MSC_MODE_MULTI)
-		return -ENOTSUPP;
+		return -EINVAL;
 
 	if (msc->mode == MSC_MODE_MULTI) {
 		if (msc_win_set_lockout(msc->cur_win, WIN_READY, WIN_INUSE))
@@ -1294,7 +1295,7 @@ static int msc_buffer_alloc(struct msc *msc, unsigned long *nr_pages,
 	} else if (msc->mode == MSC_MODE_MULTI) {
 		ret = msc_buffer_multi_alloc(msc, nr_pages, nr_wins);
 	} else {
-		ret = -ENOTSUPP;
+		ret = -EINVAL;
 	}
 
 	if (!ret) {
@@ -1530,7 +1531,7 @@ static ssize_t intel_th_msc_read(struct file *file, char __user *buf,
 		if (ret >= 0)
 			*ppos = iter->offset;
 	} else {
-		ret = -ENOTSUPP;
+		ret = -EINVAL;
 	}
 
 put_count:
@@ -1676,9 +1677,12 @@ static int intel_th_msc_init(struct msc *msc)
 	return 0;
 }
 
-static void msc_win_switch(struct msc *msc)
+static int msc_win_switch(struct msc *msc)
 {
 	struct msc_window *first;
+
+	if (list_empty(&msc->win_list))
+		return -EINVAL;
 
 	first = list_first_entry(&msc->win_list, struct msc_window, entry);
 
@@ -1691,6 +1695,8 @@ static void msc_win_switch(struct msc *msc)
 	msc->base_addr = msc_win_base_dma(msc->cur_win);
 
 	intel_th_trace_switch(msc->thdev);
+
+	return 0;
 }
 
 /**
@@ -2025,16 +2031,15 @@ win_switch_store(struct device *dev, struct device_attribute *attr,
 	if (val != 1)
 		return -EINVAL;
 
+	ret = -EINVAL;
 	mutex_lock(&msc->buf_mutex);
 	/*
 	 * Window switch can only happen in the "multi" mode.
 	 * If a external buffer is engaged, they have the full
 	 * control over window switching.
 	 */
-	if (msc->mode != MSC_MODE_MULTI || msc->mbuf)
-		ret = -ENOTSUPP;
-	else
-		msc_win_switch(msc);
+	if (msc->mode == MSC_MODE_MULTI && !msc->mbuf)
+		ret = msc_win_switch(msc);
 	mutex_unlock(&msc->buf_mutex);
 
 	return ret ? ret : size;

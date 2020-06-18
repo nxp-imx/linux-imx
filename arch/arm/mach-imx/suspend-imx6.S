@@ -729,20 +729,3 @@ dsm_resume_mmdc_done:
 
 	ret	lr
 ENDPROC(imx6_suspend)
-
-/*
- * The following code must assume it is running from physical address
- * where absolute virtual addresses to the data section have to be
- * turned into relative ones.
- */
-
-ENTRY(v7_cpu_resume)
-	bl	v7_invalidate_l1
-	is_cortex_a7
-	beq	done
-#ifdef CONFIG_CACHE_L2X0
-	bl	l2c310_early_resume
-#endif
-done:
-	b	cpu_resume
-ENDPROC(v7_cpu_resume)

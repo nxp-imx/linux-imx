@@ -94,7 +94,7 @@ struct imx_sc_msg_req_set_clock_rate {
 struct req_get_clock_rate {
 	__le16 resource;
 	u8 clk;
-} __packed;
+} __packed __aligned(4);
 
 struct resp_get_clock_rate {
 	__le32 rate;

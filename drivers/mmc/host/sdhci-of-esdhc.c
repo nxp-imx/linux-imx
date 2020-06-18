@@ -80,6 +80,7 @@ struct sdhci_esdhc {
 	bool quirk_tuning_erratum_type1;
 	bool quirk_tuning_erratum_type2;
 	bool quirk_ignore_data_inhibit;
+	bool quirk_delay_before_data_reset;
 	bool in_sw_tuning;
 	unsigned int peripheral_clock;
 	const struct esdhc_clk_fixup *clk_fixup;
@@ -757,21 +758,58 @@ static void esdhc_reset(struct sdhci_host *host, u8 mask)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_esdhc *esdhc = sdhci_pltfm_priv(pltfm_host);
-	u32 val;
+	u32 val, bus_width = 0;
+
+	/*
+	 * Add delay to make sure all the DMA transfers are finished
+	 * for quirk.
+	 */
+	if (esdhc->quirk_delay_before_data_reset &&
+	    (mask & SDHCI_RESET_DATA) &&
+	    (host->flags & SDHCI_REQ_USE_DMA))
+		mdelay(5);
+
+	/*
+	 * Save bus-width for eSDHC whose vendor version is 2.2
+	 * or lower for data reset.
+	 */
+	if ((mask & SDHCI_RESET_DATA) &&
+	    (esdhc->vendor_ver <= VENDOR_V_22)) {
+		val = sdhci_readl(host, ESDHC_PROCTL);
+		bus_width = val & ESDHC_CTRL_BUSWIDTH_MASK;
+	}
 
 	sdhci_reset(host, mask);
 
-	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
-	sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+	/*
+	 * Restore bus-width setting and interrupt registers for eSDHC
+	 * whose vendor version is 2.2 or lower for data reset.
+	 */
+	if ((mask & SDHCI_RESET_DATA) &&
+	    (esdhc->vendor_ver <= VENDOR_V_22)) {
+		val = sdhci_readl(host, ESDHC_PROCTL);
+		val &= ~ESDHC_CTRL_BUSWIDTH_MASK;
+		val |= bus_width;
+		sdhci_writel(host, val, ESDHC_PROCTL);
 
-	if (of_find_compatible_node(NULL, NULL, "fsl,p2020-esdhc"))
-		mdelay(5);
+		sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+		sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+	}
 
-	if (mask & SDHCI_RESET_ALL) {
+	/*
+	 * Some bits have to be cleaned manually for eSDHC whose spec
+	 * version is higher than 3.0 for all reset.
+	 */
+	if ((mask & SDHCI_RESET_ALL) &&
+	    (esdhc->spec_ver >= SDHCI_SPEC_300)) {
 		val = sdhci_readl(host, ESDHC_TBCTL);
 		val &= ~ESDHC_TB_EN;
 		sdhci_writel(host, val, ESDHC_TBCTL);
 
+		/*
+		 * Initialize eSDHC_DLLCFG1[DLL_PD_PULSE_STRETCH_SEL] to
+		 * 0 for quirk.
+		 */
 		if (esdhc->quirk_unreliable_pulse_detection) {
 			val = sdhci_readl(host, ESDHC_DLLCFG1);
 			val &= ~ESDHC_DLL_PD_PULSE_STRETCH_SEL;
@@ -851,20 +889,20 @@ static int esdhc_signal_voltage_switch(struct mmc_host *mmc,
 }
 
 static struct soc_device_attribute soc_tuning_erratum_type1[] = {
-	{ .family = "QorIQ T1023", },
-	{ .family = "QorIQ T1040", },
-	{ .family = "QorIQ T2080", },
-	{ .family = "QorIQ LS1021A", },
+	{ .family = "QorIQ T1023", .revision = "1.0", },
+	{ .family = "QorIQ T1040", .revision = "1.0", },
+	{ .family = "QorIQ T2080", .revision = "1.0", },
+	{ .family = "QorIQ LS1021A", .revision = "1.0", },
 	{ },
 };
 
 static struct soc_device_attribute soc_tuning_erratum_type2[] = {
-	{ .family = "QorIQ LS1012A", },
-	{ .family = "QorIQ LS1043A", },
-	{ .family = "QorIQ LS1046A", },
-	{ .family = "QorIQ LS1080A", },
-	{ .family = "QorIQ LS2080A", },
-	{ .family = "QorIQ LA1575A", },
+	{ .family = "QorIQ LS1012A", .revision = "1.0", },
+	{ .family = "QorIQ LS1043A", .revision = "1.*", },
+	{ .family = "QorIQ LS1046A", .revision = "1.0", },
+	{ .family = "QorIQ LS1080A", .revision = "1.0", },
+	{ .family = "QorIQ LS2080A", .revision = "1.0", },
+	{ .family = "QorIQ LA1575A", .revision = "1.0", },
 	{ },
 };
 
@@ -885,10 +923,19 @@ static void esdhc_tuning_block_enable(struct sdhci_host *host, bool enable)
 	esdhc_clock_enable(host, true);
 }
 
-static void esdhc_tuning_window_ptr(struct sdhci_host *host, u8 *window_start,
+static void esdhc_prepare_sw_tuning(struct sdhci_host *host, u8 *window_start,
 				    u8 *window_end)
 {
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_esdhc *esdhc = sdhci_pltfm_priv(pltfm_host);
+	u8 tbstat_15_8, tbstat_7_0;
 	u32 val;
+
+	if (esdhc->quirk_tuning_erratum_type1) {
+		*window_start = 5 * esdhc->div_ratio;
+		*window_end = 3 * esdhc->div_ratio;
+		return;
+	}
 
 	/* Write TBCTL[11:8]=4'h8 */
 	val = sdhci_readl(host, ESDHC_TBCTL);
@@ -908,37 +955,20 @@ static void esdhc_tuning_window_ptr(struct sdhci_host *host, u8 *window_start,
 	val = sdhci_readl(host, ESDHC_TBSTAT);
 	val = sdhci_readl(host, ESDHC_TBSTAT);
 
-	*window_end = val & 0xff;
-	*window_start = (val >> 8) & 0xff;
-}
-
-static void esdhc_prepare_sw_tuning(struct sdhci_host *host, u8 *window_start,
-				    u8 *window_end)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct sdhci_esdhc *esdhc = sdhci_pltfm_priv(pltfm_host);
-	u8 start_ptr, end_ptr;
-
-	if (esdhc->quirk_tuning_erratum_type1) {
-		*window_start = 5 * esdhc->div_ratio;
-		*window_end = 3 * esdhc->div_ratio;
-		return;
-	}
-
-	esdhc_tuning_window_ptr(host, &start_ptr, &end_ptr);
-
 	/* Reset data lines by setting ESDHCCTL[RSTD] */
 	sdhci_reset(host, SDHCI_RESET_DATA);
 	/* Write 32'hFFFF_FFFF to IRQSTAT register */
 	sdhci_writel(host, 0xFFFFFFFF, SDHCI_INT_STATUS);
 
-	/* If TBSTAT[15:8]-TBSTAT[7:0] > (4 * div_ratio) + 2
-	 * or TBSTAT[7:0]-TBSTAT[15:8] > (4 * div_ratio) + 2,
+	/* If TBSTAT[15:8]-TBSTAT[7:0] > 4 * div_ratio
+	 * or TBSTAT[7:0]-TBSTAT[15:8] > 4 * div_ratio,
 	 * then program TBPTR[TB_WNDW_END_PTR] = 4 * div_ratio
 	 * and program TBPTR[TB_WNDW_START_PTR] = 8 * div_ratio.
 	 */
+	tbstat_7_0 = val & 0xff;
+	tbstat_15_8 = (val >> 8) & 0xff;
 
-	if (abs(start_ptr - end_ptr) > (4 * esdhc->div_ratio + 2)) {
+	if (abs(tbstat_15_8 - tbstat_7_0) > (4 * esdhc->div_ratio)) {
 		*window_start = 8 * esdhc->div_ratio;
 		*window_end = 4 * esdhc->div_ratio;
 	} else {
@@ -1010,19 +1040,6 @@ static int esdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		ret = sdhci_execute_tuning(mmc, opcode);
 		if (ret)
 			break;
-
-		/* For type2 affected platforms of the tuning erratum,
-		 * tuning may succeed although eSDHC might not have
-		 * tuned properly. Need to check tuning window.
-		 */
-		if (esdhc->quirk_tuning_erratum_type2 &&
-		    !host->tuning_err) {
-			esdhc_tuning_window_ptr(host, &window_start,
-						&window_end);
-			if (abs(window_start - window_end) >
-			    (4 * esdhc->div_ratio + 2))
-				host->tuning_err = -EAGAIN;
-		}
 
 		/* If HW tuning fails and triggers erratum,
 		 * try workaround.
@@ -1242,6 +1259,10 @@ static void esdhc_init(struct platform_device *pdev, struct sdhci_host *host)
 	if (match)
 		esdhc->clk_fixup = match->data;
 	np = pdev->dev.of_node;
+
+	if (of_device_is_compatible(np, "fsl,p2020-esdhc"))
+		esdhc->quirk_delay_before_data_reset = true;
+
 	clk = of_clk_get(np, 0);
 	if (!IS_ERR(clk)) {
 		/*
@@ -1324,8 +1345,8 @@ static int sdhci_esdhc_probe(struct platform_device *pdev)
 		host->quirks &= ~SDHCI_QUIRK_NO_BUSY_IRQ;
 
 	if (of_find_compatible_node(NULL, NULL, "fsl,p2020-esdhc")) {
-		host->quirks2 |= SDHCI_QUIRK_RESET_AFTER_REQUEST;
-		host->quirks2 |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
+		host->quirks |= SDHCI_QUIRK_RESET_AFTER_REQUEST;
+		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 	}
 
 	if (of_device_is_compatible(np, "fsl,p5040-esdhc") ||

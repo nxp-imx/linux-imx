@@ -347,6 +347,7 @@ static int mpc8xxx_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	gc = &mpc8xxx_gc->gc;
+	gc->parent = &pdev->dev;
 
 	if (of_property_read_bool(np, "little-endian")) {
 		ret = bgpio_init(gc, &pdev->dev, 4,
@@ -387,6 +388,9 @@ static int mpc8xxx_probe(struct platform_device *pdev)
 		gc->get = devtype->gpio_get;
 
 	gc->to_irq = mpc8xxx_gpio_to_irq;
+
+	if (of_device_is_compatible(np, "fsl,qoriq-gpio"))
+		gc->write_reg(mpc8xxx_gc->regs + GPIO_IBE, 0xffffffff);
 
 	ret = gpiochip_add_data(gc, mpc8xxx_gc);
 	if (ret) {

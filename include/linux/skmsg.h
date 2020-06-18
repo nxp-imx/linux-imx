@@ -186,6 +186,7 @@ static inline void sk_msg_xfer(struct sk_msg *dst, struct sk_msg *src,
 	dst->sg.data[which] = src->sg.data[which];
 	dst->sg.data[which].length  = size;
 	dst->sg.size		   += size;
+	src->sg.size		   -= size;
 	src->sg.data[which].length -= size;
 	src->sg.data[which].offset += size;
 }
@@ -354,17 +355,22 @@ static inline void sk_psock_update_proto(struct sock *sk,
 static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
-	sk->sk_write_space = psock->saved_write_space;
+	sk->sk_prot->unhash = psock->saved_unhash;
 
 	if (psock->sk_proto) {
 		struct inet_connection_sock *icsk = inet_csk(sk);
 		bool has_ulp = !!icsk->icsk_ulp_data;
 
-		if (has_ulp)
-			tcp_update_ulp(sk, psock->sk_proto);
-		else
+		if (has_ulp) {
+			tcp_update_ulp(sk, psock->sk_proto,
+				       psock->saved_write_space);
+		} else {
 			sk->sk_prot = psock->sk_proto;
+			sk->sk_write_space = psock->saved_write_space;
+		}
 		psock->sk_proto = NULL;
+	} else {
+		sk->sk_write_space = psock->saved_write_space;
 	}
 }
 
