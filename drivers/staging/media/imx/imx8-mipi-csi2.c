@@ -347,6 +347,9 @@ static int calc_hs_settle(struct mxc_mipi_csi2_dev *csi2dev, u32 dphy_clk)
 	u32 rxhs_settle;
 
 	esc_rate = clk_get_rate(csi2dev->clk_esc) / 1000000;
+	if (!esc_rate)
+		return 0;
+
 	hs_settle = 140 + 8 * 1000 / dphy_clk;
 	rxhs_settle = hs_settle / (1000 / esc_rate) - 1;
 	return rxhs_settle;
