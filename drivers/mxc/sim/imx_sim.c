@@ -1590,7 +1590,11 @@ copy_data:
 			break;
 		}
 
-		sim_check_baud_rate(&sim->baud_rate);
+		ret = sim_check_baud_rate(&sim->baud_rate);
+		if (ret) {
+			pr_err("Invalid baud rate value\n");
+			errval = ret;
+		}
 
 		break;
 	case SIM_IOCTL_WAIT:

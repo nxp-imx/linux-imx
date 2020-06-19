@@ -1440,7 +1440,11 @@ copy_data:
 			break;
 		}
 
-		emvsim_check_baud_rate(&emvsim->baud_rate);
+		ret = emvsim_check_baud_rate(&emvsim->baud_rate);
+		if (ret) {
+			dev_err(emvsim_dev.parent, "Invalid baud rate value\n");
+			errval = ret;
+		}
 
 		break;
 	case SIM_IOCTL_WAIT:
