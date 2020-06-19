@@ -975,6 +975,11 @@ static void trusty_log_cleanup(struct kref *ref)
 	kfree(s);
 }
 
+static void trusty_log_shutdown(struct platform_device *pdev)
+{
+	trusty_log_remove(pdev);
+}
+
 static const struct of_device_id trusty_test_of_match[] = {
 	{ .compatible = "android,trusty-log-v1", },
 	{},
@@ -989,6 +994,7 @@ static struct platform_driver trusty_log_driver = {
 		.name = "trusty-log",
 		.of_match_table = trusty_test_of_match,
 	},
+	.shutdown = trusty_log_shutdown,
 };
 
 module_platform_driver(trusty_log_driver);
