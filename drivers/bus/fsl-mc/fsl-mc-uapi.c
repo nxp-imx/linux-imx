@@ -81,6 +81,7 @@ static int fsl_mc_uapi_dev_open(struct inode *inode, struct file *filep)
 
 error_portal_allocate:
 	mutex_unlock(&mc_uapi->mutex);
+	kfree(priv_data);
 
 	return error;
 }
