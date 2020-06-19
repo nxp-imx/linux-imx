@@ -448,7 +448,7 @@ static int sm_key_job(struct device *ksdev, u32 *jobdesc)
 	if (rtn)
 		goto exit;
 
-	wait_for_completion_interruptible(&testres.completion);
+	wait_for_completion(&testres.completion);
 	rtn = testres.error;
 
 exit:
