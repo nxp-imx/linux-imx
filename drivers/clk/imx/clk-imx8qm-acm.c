@@ -121,11 +121,11 @@ static int imx8qm_acm_clk_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, priv);
 
-	clk_data = kzalloc(sizeof(*clk_data), GFP_KERNEL);
+	clk_data = devm_kzalloc(&pdev->dev, sizeof(*clk_data), GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
 
-	clk_data->clks = kcalloc(IMX_ADMA_ACM_CLK_END,
+	clk_data->clks = devm_kcalloc(&pdev->dev, IMX_ADMA_ACM_CLK_END,
 					sizeof(*clk_data->clks), GFP_KERNEL);
 	if (!clk_data->clks)
 		return -ENOMEM;
