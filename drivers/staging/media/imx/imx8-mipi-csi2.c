@@ -980,7 +980,7 @@ static int mipi_csi2_parse_dt(struct mxc_mipi_csi2_dev *csi2dev)
 
 	node = of_graph_get_next_endpoint(node, NULL);
 	if (!node) {
-		dev_err(dev, "No port node at %s\n", node->full_name);
+		dev_err(dev, "No port node\n");
 		return -EINVAL;
 	}
 
