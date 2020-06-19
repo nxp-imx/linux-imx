@@ -435,11 +435,13 @@ static int mipi_sc_fw_init(struct mxc_mipi_csi2_dev *csi2dev, char enable)
 static uint16_t find_hs_configure(struct v4l2_subdev_format *sd_fmt)
 {
 	struct v4l2_mbus_framefmt *fmt = &sd_fmt->format;
-	u32 frame_rate = fmt->reserved[1];
+	u32 frame_rate;
 	int i;
 
 	if (!fmt)
 		return -EINVAL;
+
+	frame_rate = fmt->reserved[1];
 
 	for (i = 0; i < ARRAY_SIZE(hs_setting); i++) {
 		if (hs_setting[i].width  == fmt->width &&
