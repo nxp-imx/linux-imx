@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2020 NXP
  */
 
 /*
@@ -1420,9 +1421,6 @@ static int mxc_vidioc_s_selection(struct file *file, void *fh,
 	memcpy(&fix_up_selection, s, sizeof(*s));
 
 	if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
-		return -EINVAL;
-
-	if (s->r.width < 0 || s->r.height < 0)
 		return -EINVAL;
 
 	if (s->r.width == 0)
