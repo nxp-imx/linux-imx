@@ -1,0 +1,36 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "imx6ull-9x9-evk.dts"
+
+/ {
+	model = "Freescale i.MX6 ULZ Lite EVK Board";
+
+	aliases {
+		/delete-property/ can0;
+		/delete-property/ can1;
+		/delete-property/ ethernet0;
+		/delete-property/ ethernet1;
+	};
+
+	/delete-node/ backlight;
+	/delete-node/ pxp_v4l2;
+};
+
+/delete-node/ &csi;
+/delete-node/ &fec1;
+/delete-node/ &fec2;
+/delete-node/ &flexcan1;
+/delete-node/ &flexcan2;
+/delete-node/ &lcdif;
+/delete-node/ &ov5640;
+/delete-node/ &pxp;
+/delete-node/ &reg_can_3v3;
+/delete-node/ &tsc;
