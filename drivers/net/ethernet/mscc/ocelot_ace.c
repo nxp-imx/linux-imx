@@ -682,6 +682,7 @@ static void ocelot_ace_rule_del(struct ocelot_acl_block *block,
 
 int ocelot_ace_rule_offload_del(struct ocelot_ace_rule *rule)
 {
+	struct ocelot *ocelot = rule->ocelot;
 	struct ocelot_ace_rule del_ace;
 	struct ocelot_ace_rule *ace;
 	int i, index;
@@ -697,11 +698,11 @@ int ocelot_ace_rule_offload_del(struct ocelot_ace_rule *rule)
 	/* Move up all the blocks over the deleted rule */
 	for (i = index; i < acl_block->count; i++) {
 		ace = ocelot_ace_rule_get_rule_index(acl_block, i);
-		is2_entry_set(rule->ocelot, i, ace);
+		is2_entry_set(ocelot, i, ace);
 	}
 
 	/* Now delete the last rule, because it is duplicated */
-	is2_entry_set(rule->ocelot, acl_block->count, &del_ace);
+	is2_entry_set(ocelot, acl_block->count, &del_ace);
 
 	return 0;
 }
