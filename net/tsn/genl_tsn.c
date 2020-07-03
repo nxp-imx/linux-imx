@@ -441,13 +441,17 @@ static int tsn_simple_reply(struct genl_info *info, u32 cmd,
 	/* netlink lib func */
 	ret = nla_put_string(rep_skb, TSN_ATTR_IFNAME, portname);
 	if (ret < 0)
-		return ret;
+		goto err;
 
 	ret = nla_put_s32(rep_skb, TSN_CMD_ATTR_DATA, retvalue);
 	if (ret < 0)
-		return ret;
+		goto err;
 
 	return tsn_send_reply(rep_skb, info);
+
+err:
+	nlmsg_free(rep_skb);
+	return ret;
 }
 
 struct tsn_port *tsn_init_check(struct genl_info *info,
@@ -519,8 +523,8 @@ static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	cap = tsnops->get_capability(netdev);
-	if (cap < 0) {
-		ret = cap;
+	if (!cap) {
+		ret = -EOPNOTSUPP;
 		goto out;
 	}
 
@@ -789,12 +793,14 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 	}
 
 	if (nla_put_u32(rep_skb, TSN_STREAMID_ATTR_INDEX, sid_index))
-		return -EMSGSIZE;
+		goto err;
 
 	if (valid == 1) {
-		nla_put_flag(rep_skb, TSN_STREAMID_ATTR_ENABLE);
+		if (nla_put_flag(rep_skb, TSN_STREAMID_ATTR_ENABLE))
+			goto err;
 	} else if (valid == 0) {
-		nla_put_flag(rep_skb, TSN_STREAMID_ATTR_DISABLE);
+		if (nla_put_flag(rep_skb, TSN_STREAMID_ATTR_DISABLE))
+			goto err;
 	} else {
 		tsn_simple_reply(info, TSN_CMD_REPLY,
 				 netdev->name, -EINVAL);
@@ -808,7 +814,7 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 	    nla_put_u32(rep_skb, TSN_STREAMID_ATTR_IFIP, sidconf.ifac_iport) ||
 	    nla_put_u32(rep_skb, TSN_STREAMID_ATTR_OFIP, sidconf.ofac_iport) ||
 	    nla_put_u8(rep_skb, TSN_STREAMID_ATTR_TYPE, sidconf.type))
-		return -EMSGSIZE;
+		goto err;
 
 	switch (sidconf.type) {
 	case STREAMID_NULL:
@@ -818,7 +824,7 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 				sidconf.para.nid.vid) ||
 		    nla_put_u8(rep_skb, TSN_STREAMID_ATTR_NTAGGED,
 			       sidconf.para.nid.tagged))
-			return -EMSGSIZE;
+			goto err;
 		break;
 	case STREAMID_SMAC_VLAN:
 		if (NLA_PUT_U64(rep_skb, TSN_STREAMID_ATTR_SMAC,
@@ -827,7 +833,7 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 				sidconf.para.sid.vid) ||
 		    nla_put_u8(rep_skb, TSN_STREAMID_ATTR_STAGGED,
 			       sidconf.para.sid.tagged))
-			return -EMSGSIZE;
+			goto err;
 		break;
 	case STREAMID_DMAC_VLAN:
 	case STREAMID_IP:
@@ -856,14 +862,14 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 			sidcounts.per_stream.input) ||
 	    NLA_PUT_U64(rep_skb, TSN_STREAMID_ATTR_COUNTERS_PSO,
 			sidcounts.per_stream.output))
-		return -EMSGSIZE;
+		goto err;
 
 	for (i = 0; i < 32; i++) {
 		if (NLA_PUT_U64(rep_skb, TSN_STREAMID_ATTR_COUNTERS_PSPPI,
 				sidcounts.per_streamport[i].input) ||
 		    NLA_PUT_U64(rep_skb, TSN_STREAMID_ATTR_COUNTERS_PSPPO,
 				sidcounts.per_streamport[i].output))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	nla_nest_end(rep_skb, sidattr);
@@ -1183,14 +1189,14 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 	}
 
 	if (nla_put_u32(rep_skb, TSN_QCI_SFI_ATTR_INDEX, sfi_handle))
-		return -EMSGSIZE;
+		goto err;
 
 	if (valid) {
 		if (nla_put_flag(rep_skb, TSN_QCI_SFI_ATTR_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	} else {
 		if (nla_put_flag(rep_skb, TSN_QCI_SFI_ATTR_DISABLE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (nla_put_s32(rep_skb, TSN_QCI_SFI_ATTR_STREAM_HANDLE,
@@ -1199,28 +1205,28 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 		       sficonf.priority_spec) ||
 	    nla_put_u32(rep_skb, TSN_QCI_SFI_ATTR_GATE_ID,
 			sficonf.stream_gate_instance_id))
-		return -EMSGSIZE;
+		goto err;
 
 	if (sficonf.stream_filter.maximum_sdu_size)
 		if (nla_put_u16(rep_skb, TSN_QCI_SFI_ATTR_MAXSDU,
 				sficonf.stream_filter.maximum_sdu_size))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sficonf.stream_filter.flow_meter_instance_id >= 0)
 		if (nla_put_s32(rep_skb, TSN_QCI_SFI_ATTR_FLOW_ID,
 				sficonf.stream_filter.flow_meter_instance_id))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sficonf.block_oversize_enable)
 		if (nla_put_flag(rep_skb, TSN_QCI_SFI_ATTR_OVERSIZE_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	if (sficonf.block_oversize)
 		if (nla_put_flag(rep_skb, TSN_QCI_SFI_ATTR_OVERSIZE))
-			return -EMSGSIZE;
+			goto err;
 
 	if (nla_put(rep_skb, TSN_QCI_SFI_ATTR_COUNTERS,
 		    sizeof(struct tsn_qci_psfp_sfi_counters), &sficount))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, sfiattr);
 
@@ -1308,17 +1314,15 @@ static int cmd_qci_sfi_counters_get(struct genl_info *info)
 	}
 
 	if (nla_put_u32(rep_skb, TSN_QCI_SFI_ATTR_INDEX, sfi_handle))
-		return -EMSGSIZE;
+		goto err;
 
 	ret = tsnops->qci_sfi_counters_get(netdev, sfi_handle, &sficount);
-	if (ret < 0) {
-		tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
-		return ret;
-	}
+	if (ret < 0)
+		goto err;
 
 	if (nla_put(rep_skb, TSN_QCI_SFI_ATTR_COUNTERS,
 		    sizeof(struct tsn_qci_psfp_sfi_counters), &sficount))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, sfiattr);
 
@@ -1603,52 +1607,52 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	sgiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SGI);
 	if (!sgiattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u32(rep_skb, TSN_QCI_SGI_ATTR_INDEX, sgi_handle))
-		return -EMSGSIZE;
+		goto err;
 
 	/* Gate enable? sgiadmin.gate_enabled */
 	if (sgiadmin.gate_enabled) {
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	} else {
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_DISABLE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (sgiadmin.config_change)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_CONFCHANGE))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sgiadmin.block_invalid_rx_enable)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_IRXEN))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sgiadmin.block_invalid_rx)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_IRX))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sgiadmin.block_octets_exceeded_enable)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_OEXEN))
-			return -EMSGSIZE;
+			goto err;
 
 	if (sgiadmin.block_octets_exceeded)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_OEX))
-			return -EMSGSIZE;
+			goto err;
 
 	/* Administration */
 	adminattr = nla_nest_start_noflag(rep_skb, TSN_QCI_SGI_ATTR_ADMINENTRY);
 	if (!adminattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (sgiadmin.admin.gate_states)
 		if (nla_put_flag(rep_skb, TSN_SGI_ATTR_CTRL_INITSTATE))
-			return -EMSGSIZE;
+			goto err;
 
 	if (nla_put_u32(rep_skb, TSN_SGI_ATTR_CTRL_CYTIME,
 			sgiadmin.admin.cycle_time) ||
@@ -1658,7 +1662,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 			sgiadmin.admin.base_time) ||
 	    nla_put_u8(rep_skb, TSN_SGI_ATTR_CTRL_INITIPV,
 		       sgiadmin.admin.init_ipv))
-		return -EMSGSIZE;
+		goto err;
 
 	listcount = sgiadmin.admin.control_list_length;
 	if (!listcount)
@@ -1688,19 +1692,19 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 		sglattr = nla_nest_start_noflag(rep_skb,
 						TSN_SGI_ATTR_CTRL_GCLENTRY);
 		if (!sglattr)
-			return -EMSGSIZE;
+			goto err;
 		ipv = (gcl + i)->ipv;
 		ti = (gcl + i)->time_interval;
 		omax = (gcl + i)->octet_max;
 
 		if ((gcl + i)->gate_state)
 			if (nla_put_flag(rep_skb, TSN_SGI_ATTR_GCL_GATESTATE))
-				return -EMSGSIZE;
+				goto err;
 
 		if (nla_put_s8(rep_skb, TSN_SGI_ATTR_GCL_IPV, ipv) ||
 		    nla_put_u32(rep_skb, TSN_SGI_ATTR_GCL_INTERVAL, ti) ||
 		    nla_put_u32(rep_skb, TSN_SGI_ATTR_GCL_OCTMAX, omax))
-			return -EMSGSIZE;
+			goto err;
 
 		/* End administration entry */
 		nla_nest_end(rep_skb, sglattr);
@@ -1708,7 +1712,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 
 	kfree(sgiadmin.admin.gcl);
 	if (nla_put_u8(rep_skb, TSN_SGI_ATTR_CTRL_LEN, listcount))
-		return -EMSGSIZE;
+		goto err;
 
 out1:
 	/* End adminastration */
@@ -1803,23 +1807,23 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	/* Down one netlink attribute level */
 	sgiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SGI);
 	if (!sgiattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u32(rep_skb, TSN_QCI_SGI_ATTR_INDEX, sgi_handle))
-		return -EMSGSIZE;
+		goto err;
 
 	/* Gate enable */
 	if (valid == 1) {
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	} else {
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_DISABLE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (nla_put_u32(rep_skb, TSN_QCI_SGI_ATTR_TICKG,
@@ -1830,20 +1834,20 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 			sgistat.current_time) ||
 	    NLA_PUT_U64(rep_skb, TSN_QCI_SGI_ATTR_CCERROR,
 			sgistat.config_change_error))
-		return -EMSGSIZE;
+		goto err;
 
 	if (sgistat.config_pending)
 		if (nla_put_flag(rep_skb, TSN_QCI_SGI_ATTR_CPENDING))
-			return -EMSGSIZE;
+			goto err;
 
 	/* operation data */
 	operattr = nla_nest_start_noflag(rep_skb, TSN_QCI_SGI_ATTR_OPERENTRY);
 	if (!operattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (sgistat.oper.gate_states)
 		if (nla_put_flag(rep_skb, TSN_SGI_ATTR_CTRL_INITSTATE))
-			return -EMSGSIZE;
+			goto err;
 
 	if (nla_put_u32(rep_skb, TSN_SGI_ATTR_CTRL_CYTIME,
 			sgistat.oper.cycle_time) ||
@@ -1853,7 +1857,7 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 			sgistat.oper.base_time) ||
 	    nla_put_u8(rep_skb, TSN_SGI_ATTR_CTRL_INITIPV,
 		       sgistat.oper.init_ipv))
-		return -EMSGSIZE;
+		goto err;
 
 	/* Loop list */
 	listcount = sgistat.oper.control_list_length;
@@ -1884,19 +1888,19 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 		sglattr = nla_nest_start_noflag(rep_skb,
 						TSN_SGI_ATTR_CTRL_GCLENTRY);
 		if (!sglattr)
-			return -EMSGSIZE;
+			goto err;
 		ipv = (gcl + i)->ipv;
 		ti = (gcl + i)->time_interval;
 		omax = (gcl + i)->octet_max;
 
 		if ((gcl + i)->gate_state)
 			if (nla_put_flag(rep_skb, TSN_SGI_ATTR_GCL_GATESTATE))
-				return -EMSGSIZE;
+				goto err;
 
 		if (nla_put_s8(rep_skb, TSN_SGI_ATTR_GCL_IPV, ipv) ||
 		    nla_put_u32(rep_skb, TSN_SGI_ATTR_GCL_INTERVAL, ti) ||
 		    nla_put_u32(rep_skb, TSN_SGI_ATTR_GCL_OCTMAX, omax))
-			return -EMSGSIZE;
+			goto err;
 
 		/* End operation entry */
 		nla_nest_end(rep_skb, sglattr);
@@ -1904,7 +1908,7 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 
 	kfree(sgistat.oper.gcl);
 	if (nla_put_u8(rep_skb, TSN_SGI_ATTR_CTRL_LEN, listcount))
-		return -EMSGSIZE;
+		goto err;
 out1:
 	/* End operation */
 	nla_nest_end(rep_skb, operattr);
@@ -2087,48 +2091,52 @@ static int cmd_qci_fmi_get(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	fmiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_FMI);
 	if (!fmiattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u32(rep_skb, TSN_QCI_FMI_ATTR_INDEX, index) ||
 	    nla_put_u32(rep_skb, TSN_QCI_FMI_ATTR_CIR, fmiconf.cir) ||
 	    nla_put_u32(rep_skb, TSN_QCI_FMI_ATTR_CBS, fmiconf.cbs) ||
 	    nla_put_u32(rep_skb, TSN_QCI_FMI_ATTR_EIR, fmiconf.eir) ||
 	    nla_put_u32(rep_skb, TSN_QCI_FMI_ATTR_EBS, fmiconf.ebs))
-		return -EMSGSIZE;
+		goto err;
 
 	if (fmiconf.cf)
 		if (nla_put_flag(rep_skb, TSN_QCI_FMI_ATTR_CF))
-			return -EMSGSIZE;
+			goto err;
 
 	if (fmiconf.cm)
 		if (nla_put_flag(rep_skb, TSN_QCI_FMI_ATTR_CM))
-			return -EMSGSIZE;
+			goto err;
 
 	if (fmiconf.drop_on_yellow)
 		if (nla_put_flag(rep_skb, TSN_QCI_FMI_ATTR_DROPYL))
-			return -EMSGSIZE;
+			goto err;
 
 	if (fmiconf.mark_red_enable)
 		if (nla_put_flag(rep_skb, TSN_QCI_FMI_ATTR_MAREDEN))
-			return -EMSGSIZE;
+			goto err;
 
 	if (fmiconf.mark_red)
 		if (nla_put_flag(rep_skb, TSN_QCI_FMI_ATTR_MAREDEN))
-			return -EMSGSIZE;
+			goto err;
 
 	if (nla_put(rep_skb, TSN_QCI_FMI_ATTR_COUNTERS,
 		    sizeof(struct tsn_qci_psfp_fmi_counters), &counters))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, fmiattr);
 
 	tsn_send_reply(rep_skb, info);
 
 	return 0;
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int tsn_qci_fmi_get(struct sk_buff *skb, struct genl_info *info)
@@ -2188,8 +2196,10 @@ static int cmd_qbv_set(struct genl_info *info)
 	}
 
 	na1 = qbv[TSN_QBV_ATTR_ADMINENTRY];
-	NLA_PARSE_NESTED(qbvctrl, TSN_QBV_ATTR_CTRL_MAX,
-			 na1, qbv_ctrl_policy);
+	ret = NLA_PARSE_NESTED(qbvctrl, TSN_QBV_ATTR_CTRL_MAX,
+			       na1, qbv_ctrl_policy);
+	if (ret)
+		return -EINVAL;
 
 	if (qbvctrl[TSN_QBV_ATTR_CTRL_CYCLETIME]) {
 		qbvconfig.admin.cycle_time =
@@ -2320,20 +2330,20 @@ static int cmd_qbv_get(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	qbv = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBV);
 	if (!qbv)
-		return -EMSGSIZE;
+		goto err;
 
 	qbvadminattr = nla_nest_start_noflag(rep_skb, TSN_QBV_ATTR_ADMINENTRY);
 	if (!qbvadminattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (qbvconf.admin.control_list) {
 		len = qbvconf.admin.control_list_length;
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_LISTCOUNT, len))
-			return -EMSGSIZE;
+			goto err;
 
 		for (i = 0; i < len; i++) {
 			struct nlattr *qbv_table;
@@ -2347,34 +2357,34 @@ static int cmd_qbv_get(struct genl_info *info)
 			qbv_table =
 				nla_nest_start_noflag(rep_skb, glisttype);
 			if (!qbv_table)
-				return -EMSGSIZE;
+				goto err;
 
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_ENTRY_ID, i) ||
 			    nla_put_u8(rep_skb, TSN_QBV_ATTR_ENTRY_GC, gs) ||
 			    nla_put_u32(rep_skb, TSN_QBV_ATTR_ENTRY_TM, tp))
-				return -EMSGSIZE;
+				goto err;
 			nla_nest_end(rep_skb, qbv_table);
 		}
 
 		if (qbvconf.admin.gate_states)
 			if (nla_put_u8(rep_skb, TSN_QBV_ATTR_CTRL_GATESTATE,
 				       qbvconf.admin.gate_states))
-				return -EMSGSIZE;
+				goto err;
 
 		if (qbvconf.admin.cycle_time)
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_CYCLETIME,
 					qbvconf.admin.cycle_time))
-				return -EMSGSIZE;
+				goto err;
 
 		if (qbvconf.admin.cycle_time_extension)
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_CYCLETIMEEXT,
 					qbvconf.admin.cycle_time_extension))
-				return -EMSGSIZE;
+				goto err;
 
 		if (qbvconf.admin.base_time)
 			if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CTRL_BASETIME,
 					qbvconf.admin.base_time))
-				return -EMSGSIZE;
+				goto err;
 
 		kfree(qbvconf.admin.control_list);
 
@@ -2386,24 +2396,28 @@ static int cmd_qbv_get(struct genl_info *info)
 
 	if (qbvconf.gate_enabled) {
 		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	} else {
 		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_DISABLE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvconf.maxsdu)
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_MAXSDU, qbvconf.maxsdu))
-			return -EMSGSIZE;
+			goto err;
 
 	if (qbvconf.config_change)
 		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_CONFIGCHANGE))
-			return -EMSGSIZE;
+			goto err;
 
 	nla_nest_end(rep_skb, qbv);
 
 	tsn_send_reply(rep_skb, info);
 
+	return ret;
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
 	return ret;
 }
 
@@ -2448,21 +2462,21 @@ static int cmd_qbv_status_get(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	qbv = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBV);
 	if (!qbv)
-		return -EMSGSIZE;
+		goto err;
 
 	qbvoperattr = nla_nest_start_noflag(rep_skb, TSN_QBV_ATTR_OPERENTRY);
 	if (!qbvoperattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (qbvstatus.oper.control_list) {
 		len = qbvstatus.oper.control_list_length;
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_LISTCOUNT, len)) {
 			nla_nest_cancel(rep_skb, qbvoperattr);
-			return -EMSGSIZE;
+			goto err;
 		}
 
 		for (i = 0; i < len; i++) {
@@ -2476,13 +2490,13 @@ static int cmd_qbv_status_get(struct genl_info *info)
 
 			qbv_table = nla_nest_start_noflag(rep_skb, glisttype);
 			if (!qbv_table)
-				return -EMSGSIZE;
+				goto err;
 
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_ENTRY_ID, i) ||
 			    nla_put_u8(rep_skb, TSN_QBV_ATTR_ENTRY_GC, gs) ||
 			    nla_put_u32(rep_skb, TSN_QBV_ATTR_ENTRY_TM, tp)) {
 				nla_nest_cancel(rep_skb, qbv_table);
-				return -EMSGSIZE;
+				goto err;
 			}
 
 			nla_nest_end(rep_skb, qbv_table);
@@ -2491,25 +2505,25 @@ static int cmd_qbv_status_get(struct genl_info *info)
 		if (qbvstatus.oper.gate_states) {
 			if (nla_put_u8(rep_skb, TSN_QBV_ATTR_CTRL_GATESTATE,
 				       qbvstatus.oper.gate_states))
-				return -EMSGSIZE;
+				goto err;
 		}
 
 		if (qbvstatus.oper.cycle_time) {
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_CYCLETIME,
 					qbvstatus.oper.cycle_time))
-				return -EMSGSIZE;
+				goto err;
 		}
 
 		if (qbvstatus.oper.cycle_time_extension) {
 			if (nla_put_u32(rep_skb, TSN_QBV_ATTR_CTRL_CYCLETIMEEXT,
 					qbvstatus.oper.cycle_time_extension))
-				return -EMSGSIZE;
+				goto err;
 		}
 
 		if (qbvstatus.oper.base_time) {
 			if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CTRL_BASETIME,
 					qbvstatus.oper.base_time))
-				return -EMSGSIZE;
+				goto err;
 		}
 
 		kfree(qbvstatus.oper.control_list);
@@ -2522,42 +2536,46 @@ static int cmd_qbv_status_get(struct genl_info *info)
 	if (qbvstatus.config_change_time) {
 		if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CONFIGCHANGETIME,
 				qbvstatus.config_change_time))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvstatus.tick_granularity) {
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_GRANULARITY,
 				qbvstatus.tick_granularity))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvstatus.current_time) {
 		if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CURRENTTIME,
 				qbvstatus.current_time))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvstatus.config_pending) {
 		if (nla_put_flag(rep_skb, TSN_QBV_ATTR_CONFIGPENDING))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvstatus.config_change_error) {
 		if (NLA_PUT_U64(rep_skb, TSN_QBV_ATTR_CONFIGCHANGEERROR,
 				qbvstatus.config_change_error))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (qbvstatus.supported_list_max) {
 		if (nla_put_u32(rep_skb, TSN_QBV_ATTR_LISTMAX,
 				qbvstatus.supported_list_max))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	nla_nest_end(rep_skb, qbv);
 
 	tsn_send_reply(rep_skb, info);
 
+	return ret;
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
 	return ret;
 }
 
@@ -2695,36 +2713,37 @@ static int tsn_cbs_get(struct sk_buff *skb, struct genl_info *info)
 	ret = tsn_prepare_reply(info, genlhdr->cmd, &rep_skb,
 				NLMSG_ALIGN(MAX_ATTR_SIZE));
 	if (ret < 0)
-		return ret;
+		goto err;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	cbsattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_CBS);
 	if (!cbsattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (!cbsa[TSN_CBS_ATTR_TC_INDEX]) {
 		pr_err("tsn: must to specify the TSN_CBS_ATTR_TC_INDEX\n");
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, -EINVAL);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err;
 	}
 	tc = nla_get_u8(cbsa[TSN_CBS_ATTR_TC_INDEX]);
 
 	ret = tsnops->cbs_get(netdev, tc);
 	if (ret < 0) {
 		pr_err("tsn: cbs_get return error\n");
-		tsn_simple_reply(info, TSN_CMD_REPLY,
-				 netdev->name, ret);
-		return ret;
+		goto err;
 	}
 
 	if (nla_put_u8(rep_skb, TSN_CBS_ATTR_BW, ret & 0XF))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, cbsattr);
 	return tsn_send_reply(rep_skb, info);
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int cmd_qbu_set(struct genl_info *info)
@@ -2831,30 +2850,34 @@ static int cmd_qbu_get_status(struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	qbuattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBU);
 	if (!qbuattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u8(rep_skb, TSN_QBU_ATTR_ADMIN_STATE, pps.admin_state) ||
 	    nla_put_u32(rep_skb,
 			TSN_QBU_ATTR_HOLD_ADVANCE, pps.hold_advance) ||
 	    nla_put_u32(rep_skb,
 			TSN_QBU_ATTR_RELEASE_ADVANCE, pps.release_advance))
-		return -EMSGSIZE;
+		goto err;
 
 	if (pps.preemption_active) {
 		if (nla_put_flag(rep_skb, TSN_QBU_ATTR_ACTIVE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (nla_put_u8(rep_skb, TSN_QBU_ATTR_HOLD_REQUEST, pps.hold_request))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, qbuattr);
 
 	return tsn_send_reply(rep_skb, info);
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int tsn_qbu_get_status(struct sk_buff *skb, struct genl_info *info)
@@ -2998,33 +3021,37 @@ static int tsn_tsd_get(struct sk_buff *skb, struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	tsdattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_TSD);
 	if (!tsdattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u32(rep_skb, TSN_TSD_ATTR_PERIOD, tts.period) ||
 	    nla_put_u32(rep_skb, TSN_TSD_ATTR_MAX_FRM_NUM, tts.maxFrameNum) ||
 	    nla_put_u32(rep_skb, TSN_TSD_ATTR_CYCLE_NUM, tts.cycleNum) ||
 	    nla_put_u32(rep_skb, TSN_TSD_ATTR_LOSS_STEPS, tts.loss_steps) ||
 	    nla_put_u32(rep_skb, TSN_TSD_ATTR_MAX_FRM_NUM, tts.maxFrameNum))
-		return -EMSGSIZE;
+		goto err;
 
 	if (!tts.enable) {
 		if (nla_put_flag(rep_skb, TSN_TSD_ATTR_DISABLE))
-			return -EMSGSIZE;
+			goto err;
 	} else {
 		if (nla_put_flag(rep_skb, TSN_TSD_ATTR_ENABLE))
-			return -EMSGSIZE;
+			goto err;
 	}
 
 	if (tts.flag == 2)
 		if (nla_put_flag(rep_skb, TSN_TSD_ATTR_SYN_IMME))
-			return -EMSGSIZE;
+			goto err;
 
 	nla_nest_end(rep_skb, tsdattr);
 	return tsn_send_reply(rep_skb, info);
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int tsn_ct_set(struct sk_buff *skb, struct genl_info *info)
@@ -3252,11 +3279,11 @@ static int tsn_cbstatus_get(struct sk_buff *skb, struct genl_info *info)
 		return ret;
 
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
-		return -EMSGSIZE;
+		goto err;
 
 	cbattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_CBSTAT);
 	if (!cbattr)
-		return -EMSGSIZE;
+		goto err;
 
 	if (nla_put_u8(rep_skb, TSN_CBSTAT_ATTR_GEN_REC, cbstat.gen_rec) ||
 	    nla_put_u8(rep_skb, TSN_CBSTAT_ATTR_ERR, cbstat.err) ||
@@ -3270,11 +3297,15 @@ static int tsn_cbstatus_get(struct sk_buff *skb, struct genl_info *info)
 	    nla_put_u8(rep_skb, TSN_CBSTAT_ATTR_HIS_LEN, cbstat.his_len) ||
 	    nla_put_u32(rep_skb, TSN_CBSTAT_ATTR_SEQ_HIS,
 			cbstat.seq_his))
-		return -EMSGSIZE;
+		goto err;
 
 	nla_nest_end(rep_skb, cbattr);
 
 	return tsn_send_reply(rep_skb, info);
+err:
+	nlmsg_free(rep_skb);
+	tsn_simple_reply(info, TSN_CMD_REPLY, netdev->name, ret);
+	return ret;
 }
 
 static int tsn_dscp_set(struct sk_buff *skb, struct genl_info *info)
@@ -3557,8 +3588,8 @@ static int tsn_multicast_to_user(unsigned long event,
 				 struct tsn_notifier_info *tsn_info)
 {
 	struct sk_buff *skb;
-	struct genlmsghdr *nlh;
-	int res;
+	struct genlmsghdr *nlh = NULL;
+	int res = 0;
 	struct tsn_qbv_conf *qbvdata;
 
 	/* If new attributes are added, please revisit this allocation */
@@ -3611,6 +3642,9 @@ static int tsn_multicast_to_user(unsigned long event,
 		pr_info("event not supportted!\n");
 		break;
 	}
+
+	if (!nlh)
+		goto done;
 
 	(void)genlmsg_end(skb, nlh);
 
