@@ -289,7 +289,12 @@ void enetc_sched_speed_set(struct net_device *ndev);
 int enetc_setup_tc_cbs(struct net_device *ndev, void *type_data);
 #else
 #define enetc_setup_tc_taprio(ndev, type_data) -EOPNOTSUPP
+#ifdef CONFIG_ENETC_TSN
+void enetc_pspeed_set(struct net_device *ndev);
+#define enetc_sched_speed_set(ndev) enetc_pspeed_set(ndev)
+#else
 #define enetc_sched_speed_set(ndev) (void)0
+#endif
 #define enetc_setup_tc_cbs(ndev, type_data) -EOPNOTSUPP
 #endif
 #ifdef CONFIG_ENETC_TSN
