@@ -235,6 +235,20 @@ void __init imx_init_revision_from_anatop(void)
 			digprog &= ~(0xff << 16);
 			digprog |= (MXC_CPU_IMX6ULZ << 16);
 		}
+
+		/* dummy ID for i.MX6ULZ Lite */
+		np = of_find_compatible_node(NULL, NULL, "fsl,imx6ull-ocotp");
+		if (np) {
+			src_base = of_iomap(np, 0);
+			WARN_ON(!src_base);
+			sbmr2 = readl_relaxed(src_base + 0x460);
+			iounmap(src_base);
+		}
+		if (sbmr2 & BIT(2)) {
+			digprog &= ~(0xff << 16);
+			digprog |= (MXC_CPU_IMX6ULZL << 16);
+		}
+
 	}
 
 	/*

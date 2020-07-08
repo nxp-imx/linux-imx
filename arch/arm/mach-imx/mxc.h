@@ -42,6 +42,7 @@
 #define MXC_CPU_IMX6ULL		0x65
 #define MXC_CPU_IMX6SLL		0x67
 #define MXC_CPU_IMX6ULZ		0x6B
+#define MXC_CPU_IMX6ULZL	0x6C	/* Dummy ID */
 #define MXC_CPU_IMX7D		0x72
 #define MXC_CPU_IMX7ULP		0xff /* TBD */
 
@@ -86,7 +87,8 @@ static inline bool cpu_is_imx6ul(void)
 static inline bool cpu_is_imx6ull(void)
 {
 	return __mxc_cpu_type == MXC_CPU_IMX6ULL ||
-		__mxc_cpu_type == MXC_CPU_IMX6ULZ;
+		__mxc_cpu_type == MXC_CPU_IMX6ULZ ||
+		__mxc_cpu_type == MXC_CPU_IMX6ULZL;
 }
 
 static inline bool cpu_is_imx6sll(void)
@@ -108,7 +110,8 @@ static inline bool cpu_is_imx6(void)
 		__mxc_cpu_type == MXC_CPU_IMX6UL ||
 		__mxc_cpu_type == MXC_CPU_IMX6ULL ||
 		__mxc_cpu_type == MXC_CPU_IMX6SLL ||
-		__mxc_cpu_type == MXC_CPU_IMX6ULZ;
+		__mxc_cpu_type == MXC_CPU_IMX6ULZ ||
+		__mxc_cpu_type == MXC_CPU_IMX6ULZL;
 }
 
 static inline bool cpu_is_imx7d(void)
