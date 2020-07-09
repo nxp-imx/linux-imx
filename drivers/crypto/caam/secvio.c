@@ -224,6 +224,7 @@ static int snvs_secvio_probe(struct platform_device *pdev)
 	svdev = &pdev->dev;
 	dev_set_drvdata(svdev, svpriv);
 	svpriv->pdev = pdev;
+	spin_lock_init(&svpriv->svlock);
 	np = pdev->dev.of_node;
 
 	npirq = of_find_compatible_node(NULL, NULL, "fsl,imx6q-caam-secvio");
