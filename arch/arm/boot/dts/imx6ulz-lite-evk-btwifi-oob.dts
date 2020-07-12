@@ -1,0 +1,22 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6ulz-lite-evk-btwifi.dts"
+
+&pinctrl_wifi {
+	fsl,pins = <
+		/* MUXing for WL_HOST_WAKE */
+		MX6UL_PAD_ENET2_RX_ER__GPIO2_IO15  0x13041
+	>;
+};
+
+&brcmf {
+	interrupt-parent = <&gpio2>;
+	interrupts = <15 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "host-wake";
+};
