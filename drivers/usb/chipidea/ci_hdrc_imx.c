@@ -473,6 +473,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		if (!IS_ERR(pdata.vbus_extcon.edev) ||
 		    of_property_read_bool(np, "usb-role-switch"))
 			data->usbmisc_data->ext_vbus = 1;
+
+		/* usbmisc needs to know dr mode to choose wakeup setting */
+		data->usbmisc_data->available_role =
+				ci_hdrc_query_available_role(data->ci_pdev);
+
 	}
 
 	ret = imx_usbmisc_init_post(data->usbmisc_data);
@@ -480,10 +485,6 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		dev_err(dev, "usbmisc post failed, ret=%d\n", ret);
 		goto disable_device;
 	}
-
-	/* usbmisc needs to know dr mode to choose wakeup setting */
-	data->usbmisc_data->available_role =
-			ci_hdrc_query_available_role(data->ci_pdev);
 
 	if (data->supports_runtime_pm) {
 		pm_runtime_set_active(dev);
