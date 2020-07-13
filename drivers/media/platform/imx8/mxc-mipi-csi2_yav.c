@@ -536,8 +536,12 @@ static int mipi_csis_subdev_host(struct mxc_mipi_csi2_dev *csi2dev)
 		break;
 	}
 
-	v4l2_async_notifier_add_subdev(&csi2dev->subdev_notifier,
+	ret = v4l2_async_notifier_add_subdev(&csi2dev->subdev_notifier,
 					&csi2dev->asd);
+	if (ret) {
+		dev_err(dev, "failed to add subdev to a notifier\n");
+		return ret;
+	}
 
 	csi2dev->subdev_notifier.v4l2_dev = &csi2dev->v4l2_dev;
 	csi2dev->subdev_notifier.ops = &subdev_notifier_ops;
