@@ -182,8 +182,6 @@ int enetc_qbv_set(struct net_device *ndev, struct tsn_qbv_conf *admin_conf)
 		return -ENODEV;
 	}
 
-	enetc_pspeed_set(ndev);
-
 	gcl_len = admin_basic->control_list_length;
 	if (gcl_len > enetc_get_max_gcl_len(&priv->si->hw))
 		return -EINVAL;
