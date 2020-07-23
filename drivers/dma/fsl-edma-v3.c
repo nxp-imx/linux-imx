@@ -1077,7 +1077,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 		 * channel0:0x10000, channel1:0x20000... total 32 channels
 		 * Note: skip first res_mp which we don't care.
 		 */
-		fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 16) & 0x1f;
+		fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 16) & 0x3f;
 		fsl_chan->hw_chanid--;
 
 		ret = of_property_read_string_index(np, "interrupt-names", i,
