@@ -2415,3 +2415,4 @@ static int __init imx_pcie_init(void)
 	return platform_driver_register(&imx_pcie_driver);
 }
 device_initcall(imx_pcie_init);
+MODULE_LICENSE("GPL v2");
