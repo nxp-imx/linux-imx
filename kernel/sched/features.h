@@ -46,11 +46,6 @@ SCHED_FEAT(DOUBLE_TICK, false)
 SCHED_FEAT(NONTASK_CAPACITY, true)
 
 /*
- * Request max frequency from schedutil whenever a RT task is running.
- */
-SCHED_FEAT(SUGOV_RT_MAX_FREQ, false)
-
-/*
  * Queue remote wakeups on the target CPU and process them
  * using the scheduler IPI. Reduces rq->lock contention/bounces.
  */
