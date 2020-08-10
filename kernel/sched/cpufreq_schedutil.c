@@ -213,8 +213,7 @@ unsigned long schedutil_cpu_util(int cpu, unsigned long util_cfs,
 	struct rq *rq = cpu_rq(cpu);
 
 	if (!IS_BUILTIN(CONFIG_UCLAMP_TASK) &&
-	    type == FREQUENCY_UTIL && rt_rq_is_runnable(&rq->rt) &&
-	    sched_feat(SUGOV_RT_MAX_FREQ)) {
+	    type == FREQUENCY_UTIL && rt_rq_is_runnable(&rq->rt)) {
 		return max;
 	}
 
