@@ -2176,6 +2176,8 @@ static int do_configure_codec(struct vpu_ctx *ctx)
 	show_firmware_version(ctx->core_dev, LVL_INFO);
 	clear_stop_status(ctx);
 	memcpy(enc_param, &attr->param, sizeof(attr->param));
+	if (!enc_param->uGopBLength)
+		enc_param->uLowLatencyMode = 1;
 	vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_CONFIGURE_CODEC, 0, NULL);
 
 	show_codec_configure(enc_param, pEncExpertModeParam);

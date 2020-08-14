@@ -74,7 +74,7 @@ extern unsigned int vpu_dbg_level_encoder;
 #define GOP_DEFAULT			30
 #define BFRAMES_H_THRESHOLD		4
 #define BFRAMES_L_THRESHOLD		0
-#define BFRAMES_DEFAULT			2
+#define BFRAMES_DEFAULT			0
 #define QP_MAX				51
 #define QP_MIN				0
 #define QP_DEFAULT			25
