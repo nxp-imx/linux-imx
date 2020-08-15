@@ -18,6 +18,7 @@
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
 	unsigned int		rate_limit_us;
+	unsigned int		freq_coefficient;
 };
 
 struct sugov_policy {
@@ -172,8 +173,9 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
+	unsigned int coefficient = sg_policy->tunables->freq_coefficient;
 
-	freq = map_util_freq(util, freq, max);
+	freq = map_util_freq(util, freq * coefficient, max);
 
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
@@ -619,8 +621,31 @@ rate_limit_us_store(struct gov_attr_set *attr_set, const char *buf, size_t count
 
 static struct governor_attr rate_limit_us = __ATTR_RW(rate_limit_us);
 
+static ssize_t freq_coefficient_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return sprintf(buf, "%u\n", tunables->freq_coefficient);
+}
+
+static ssize_t
+freq_coefficient_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	unsigned int freq_coefficient;
+
+	if (kstrtouint(buf, 10, &freq_coefficient))
+		return -EINVAL;
+
+	tunables->freq_coefficient = freq_coefficient;
+
+	return count;
+}
+static struct governor_attr freq_coefficient = __ATTR_RW(freq_coefficient);
+
 static struct attribute *sugov_attrs[] = {
 	&rate_limit_us.attr,
+	&freq_coefficient.attr,
 	NULL
 };
 ATTRIBUTE_GROUPS(sugov);
@@ -721,6 +746,7 @@ static struct sugov_tunables *sugov_tunables_alloc(struct sugov_policy *sg_polic
 	tunables = kzalloc(sizeof(*tunables), GFP_KERNEL);
 	if (tunables) {
 		gov_attr_set_init(&tunables->attr_set, &sg_policy->tunables_hook);
+		tunables->freq_coefficient = 1;
 		if (!have_governor_per_policy())
 			global_tunables = tunables;
 	}
