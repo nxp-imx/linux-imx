@@ -1859,7 +1859,6 @@
 					assigned-clock-rates = <500000000>;
 					bus-width = <4>;
 					csi-gpr = <&mediamix_gasket0>;
-					csi-gpr2 = <&mediamix_gpr>;
 					gpr = <&mediamix_blk_ctl>;
 					no-reset-control;
 					power-domains = <&mipi_phy1_pd>;
@@ -1880,7 +1879,6 @@
 					assigned-clock-rates = <266000000>;
 					bus-width = <4>;
 					csi-gpr = <&mediamix_gasket1>;
-					csi-gpr2 = <&mediamix_gpr>;
 					gpr = <&mediamix_blk_ctl>;
 					no-reset-control;
 					power-domains = <&mipi_phy2_pd>;
