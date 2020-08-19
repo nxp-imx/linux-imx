@@ -300,3 +300,4 @@ static struct platform_driver trusty_log_driver = {
 };
 
 module_platform_driver(trusty_log_driver);
+MODULE_LICENSE("GPL v2");

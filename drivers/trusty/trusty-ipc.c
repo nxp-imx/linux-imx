@@ -50,7 +50,7 @@
 
 #define TIPC_IOC_MAGIC			'r'
 #define TIPC_IOC_CONNECT		_IOW(TIPC_IOC_MAGIC, 0x80, char *)
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 #define TIPC_IOC_CONNECT_COMPAT		_IOW(TIPC_IOC_MAGIC, 0x80, \
 					     compat_uptr_t)
 #endif
@@ -938,7 +938,7 @@ static long tipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 static long tipc_compat_ioctl(struct file *filp,
 			      unsigned int cmd, unsigned long arg)
 {
@@ -1117,7 +1117,7 @@ static const struct file_operations tipc_fops = {
 	.open		= tipc_open,
 	.release	= tipc_release,
 	.unlocked_ioctl	= tipc_ioctl,
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 	.compat_ioctl	= tipc_compat_ioctl,
 #endif
 	.read_iter	= tipc_read_iter,

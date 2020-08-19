@@ -631,3 +631,4 @@ static void __exit trusty_irq_driver_exit(void)
 
 module_init(trusty_irq_driver_init);
 module_exit(trusty_irq_driver_exit);
+MODULE_LICENSE("GPL v2");

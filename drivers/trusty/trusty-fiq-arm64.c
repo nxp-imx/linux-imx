@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
+#include <linux/module.h>
 
 #include <asm/fiq_glue.h>
 
@@ -40,6 +41,7 @@ void trusty_fiq_handler(struct pt_regs *regs, void *svc_sp)
 		handler->fiq(handler, regs, svc_sp);
 	}
 }
+EXPORT_SYMBOL(trusty_fiq_handler);
 
 static void smp_nop_call(void *info)
 {
@@ -162,6 +164,7 @@ int trusty_fiq_arch_probe(struct platform_device *pdev)
 
 	return 0;
 }
+EXPORT_SYMBOL(trusty_fiq_arch_probe);
 
 void trusty_fiq_arch_remove(struct platform_device *pdev)
 {
@@ -170,3 +173,5 @@ void trusty_fiq_arch_remove(struct platform_device *pdev)
 	trusty_dev = NULL;
 	mutex_unlock(&fiq_glue_lock);
 }
+EXPORT_SYMBOL(trusty_fiq_arch_remove);
+MODULE_LICENSE("GPL v2");
