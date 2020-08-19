@@ -47,7 +47,7 @@ struct trusty_state {
 	bool gicv3_workaround;
 };
 
-#ifdef CONFIG_ARM64
+#if IS_ENABLED(CONFIG_ARM64)
 #define SMC_ARG0		"x0"
 #define SMC_ARG1		"x1"
 #define SMC_ARG2		"x2"
@@ -100,7 +100,7 @@ s32 trusty_fast_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 }
 EXPORT_SYMBOL(trusty_fast_call32);
 
-#ifdef CONFIG_64BIT
+#if IS_ENABLED(CONFIG_64BIT)
 s64 trusty_fast_call64(struct device *dev, u64 smcnr, u64 a0, u64 a1, u64 a2)
 {
 	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
@@ -111,6 +111,7 @@ s64 trusty_fast_call64(struct device *dev, u64 smcnr, u64 a0, u64 a1, u64 a2)
 
 	return smc(smcnr, a0, a1, a2);
 }
+EXPORT_SYMBOL(trusty_fast_call64);
 #endif
 
 static ulong trusty_std_call_inner(struct device *dev, ulong smcnr,
@@ -613,3 +614,4 @@ static void __exit trusty_driver_exit(void)
 
 subsys_initcall(trusty_driver_init);
 module_exit(trusty_driver_exit);
+MODULE_LICENSE("GPL v2");

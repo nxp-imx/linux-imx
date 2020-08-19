@@ -20,10 +20,10 @@
 #include <linux/pagemap.h>
 
 
-#ifdef CONFIG_TRUSTY
+#if IS_ENABLED(CONFIG_TRUSTY)
 s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2);
 s32 trusty_fast_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2);
-#ifdef CONFIG_64BIT
+#if IS_ENABLED(CONFIG_64BIT)
 s64 trusty_fast_call64(struct device *dev, u64 smcnr, u64 a0, u64 a1, u64 a2);
 #endif
 #else
@@ -37,7 +37,7 @@ static inline s32 trusty_fast_call32(struct device *dev, u32 smcnr,
 {
 	return SM_ERR_UNDEFINED_SMC;
 }
-#ifdef CONFIG_64BIT
+#if IS_ENABLED(CONFIG_64BIT)
 static inline s64 trusty_fast_call64(struct device *dev,
 				     u64 smcnr, u64 a0, u64 a1, u64 a2)
 {

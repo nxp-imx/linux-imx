@@ -83,3 +83,4 @@ static void __exit trusty_fiq_driver_exit(void)
 
 subsys_initcall(trusty_fiq_driver_init);
 module_exit(trusty_fiq_driver_exit);
+MODULE_LICENSE("GPL v2");

@@ -14,19 +14,20 @@
 
 #include <linux/types.h>
 #include <linux/printk.h>
+#include <linux/module.h>
 #include <linux/trusty/trusty.h>
 #include <linux/trusty/smcall.h>
 
 static int get_mem_attr(struct page *page, pgprot_t pgprot)
 {
-#if defined(CONFIG_ARM64)
+#if IS_ENABLED(CONFIG_ARM64)
 	uint64_t mair;
 	uint attr_index = (pgprot_val(pgprot) & PTE_ATTRINDX_MASK) >> 2;
 
 	asm ("mrs %0, mair_el1\n" : "=&r" (mair));
 	return (mair >> (attr_index * 8)) & 0xff;
 
-#elif defined(CONFIG_ARM_LPAE)
+#elif IS_ENABLED(CONFIG_ARM_LPAE)
 	uint32_t mair;
 	uint attr_index = ((pgprot_val(pgprot) & L_PTE_MT_MASK) >> 2);
 
@@ -38,7 +39,7 @@ static int get_mem_attr(struct page *page, pgprot_t pgprot)
 	}
 	return (mair >> (attr_index * 8)) & 0xff;
 
-#elif defined(CONFIG_ARM)
+#elif IS_ENABLED(CONFIG_ARM)
 	/* check memory type */
 	switch (pgprot_val(pgprot) & L_PTE_MT_MASK) {
 	case L_PTE_MT_WRITEALLOC:
@@ -92,9 +93,9 @@ int trusty_encode_page_info(struct ns_mem_page_info *inf,
 		return mem_attr;
 
 	/* add other attributes */
-#if defined(CONFIG_ARM64) || defined(CONFIG_ARM_LPAE)
+#if IS_ENABLED(CONFIG_ARM64) || IS_ENABLED(CONFIG_ARM_LPAE)
 	pte |= pgprot_val(pgprot);
-#elif defined(CONFIG_ARM)
+#elif IS_ENABLED(CONFIG_ARM)
 	if (pgprot_val(pgprot) & L_PTE_USER)
 		pte |= (1 << 6);
 	if (pgprot_val(pgprot) & L_PTE_RDONLY)
@@ -131,4 +132,5 @@ int trusty_call32_mem_buf(struct device *dev, u32 smcnr,
 					 (u32)(pg_inf.attr >> 32), size);
 	}
 }
-
+EXPORT_SYMBOL(trusty_call32_mem_buf);
+MODULE_LICENSE("GPL v2");
