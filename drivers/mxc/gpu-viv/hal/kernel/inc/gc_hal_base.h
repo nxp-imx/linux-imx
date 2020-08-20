@@ -485,6 +485,13 @@ gcoHAL_GetProductName(
     );
 
 gceSTATUS
+gcoHAL_GetProductNameWithHardware(
+    IN  gcoHARDWARE Hardware,
+    OUT gctSTRING *ProductName,
+    OUT gctUINT *PID
+    );
+
+gceSTATUS
 gcoHAL_SetFscaleValue(
     IN gcoHAL Hal,
     IN gctUINT CoreIndex,
@@ -537,6 +544,12 @@ gcoHAL_IsFeatureAvailable(
     );
 
 gceSTATUS
+gcoHAL_IsFeatureAvailableWithHardware(
+    IN  gcoHARDWARE Hardware,
+    IN gceFEATURE Feature
+    );
+
+gceSTATUS
 gcoHAL_IsFeatureAvailable1(
     IN gcoHAL Hal,
     IN gceFEATURE Feature
@@ -550,6 +563,12 @@ gcoHAL_QueryChipIdentity(
     OUT gctUINT32* ChipRevision,
     OUT gctUINT32* ChipFeatures,
     OUT gctUINT32* ChipMinorFeatures
+    );
+
+gceSTATUS gcoHAL_QueryChipIdentityWithHardware(
+    IN  gcoHARDWARE Hardware,
+    OUT gceCHIPMODEL* ChipModel,
+    OUT gctUINT32* ChipRevision
     );
 
 gceSTATUS gcoHAL_QueryChipIdentityEx(
