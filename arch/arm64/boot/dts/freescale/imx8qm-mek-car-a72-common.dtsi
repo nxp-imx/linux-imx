@@ -57,7 +57,7 @@
 			next-level-cache = <&A72_L2>;
 			operating-points-v2 = <&a72_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <550>;
+			dynamic-power-coefficient = <735>;
 			capacity-dmips-mhz = <1024>;
 		};
 
@@ -70,7 +70,7 @@
 			next-level-cache = <&A72_L2>;
 			operating-points-v2 = <&a72_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <550>;
+			dynamic-power-coefficient = <735>;
 			capacity-dmips-mhz = <1024>;
 		};
 
@@ -83,7 +83,7 @@
 			next-level-cache = <&A53_L2>;
 			operating-points-v2 = <&a53_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <110>;
+			dynamic-power-coefficient = <149>;
 			capacity-dmips-mhz = <483>;
 		};
 
@@ -96,7 +96,7 @@
 			next-level-cache = <&A53_L2>;
 			operating-points-v2 = <&a53_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <110>;
+			dynamic-power-coefficient = <149>;
 			capacity-dmips-mhz = <483>;
 		};
 
@@ -109,7 +109,7 @@
 			next-level-cache = <&A53_L2>;
 			operating-points-v2 = <&a53_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <110>;
+			dynamic-power-coefficient = <149>;
 			capacity-dmips-mhz = <483>;
 		};
 
@@ -122,7 +122,7 @@
 			next-level-cache = <&A53_L2>;
 			operating-points-v2 = <&a53_opp_table>;
 			#cooling-cells = <2>;
-			dynamic-power-coefficient = <110>;
+			dynamic-power-coefficient = <149>;
 			capacity-dmips-mhz = <483>;
 		};
 
