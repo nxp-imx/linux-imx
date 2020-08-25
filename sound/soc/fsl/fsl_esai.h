@@ -10,6 +10,9 @@
 #ifndef _FSL_ESAI_DAI_H
 #define _FSL_ESAI_DAI_H
 
+#include <sound/dmaengine_pcm.h>
+#include "fsl_esai_mix.h"
+
 /* ESAI Register Map */
 #define REG_ESAI_ETDR		0x00
 #define REG_ESAI_ERDR		0x04
@@ -348,4 +351,71 @@
 #define ESAI_RX_DIV_PSR		3
 #define ESAI_RX_DIV_PM		4
 #define ESAI_RX_DIV_FP		5
+
+/**
+ * fsl_esai_soc_data: soc specific data
+ *
+ * @imx: for imx platform
+ * @reset_at_xrun: flags for enable reset operaton
+ * @use_edma: edma is used.
+ */
+struct fsl_esai_soc_data {
+	bool imx;
+	bool reset_at_xrun;
+	bool use_edma;
+};
+
+/**
+ * fsl_esai: ESAI private data
+ *
+ * @dma_params_rx: DMA parameters for receive channel
+ * @dma_params_tx: DMA parameters for transmit channel
+ * @pdev: platform device pointer
+ * @regmap: regmap handler
+ * @coreclk: clock source to access register
+ * @extalclk: esai clock source to derive HCK, SCK and FS
+ * @fsysclk: system clock source to derive HCK, SCK and FS
+ * @spbaclk: SPBA clock (optional, depending on SoC design)
+ * @soc: soc specific data
+ * @lock: spin lock between hw_reset() and trigger()
+ * @fifo_depth: depth of tx/rx FIFO
+ * @slot_width: width of each DAI slot
+ * @slots: number of slots
+ * @channels: channel num for tx or rx
+ * @hck_rate: clock rate of desired HCKx clock
+ * @sck_rate: clock rate of desired SCKx clock
+ * @hck_dir: the direction of HCKx pads
+ * @sck_div: if using PSR/PM dividers for SCKx clock
+ * @slave_mode: if fully using DAI slave mode
+ * @synchronous: if using tx/rx synchronous mode
+ * @sw_mix: enable sw mix in driver
+ * @name: driver name
+ */
+struct fsl_esai {
+	struct snd_dmaengine_dai_dma_data dma_params_rx;
+	struct snd_dmaengine_dai_dma_data dma_params_tx;
+	struct platform_device *pdev;
+	struct regmap *regmap;
+	struct clk *coreclk;
+	struct clk *extalclk;
+	struct clk *fsysclk;
+	struct clk *spbaclk;
+	const struct fsl_esai_soc_data *soc;
+	struct fsl_esai_mix mix[2];
+	spinlock_t lock; /* Protect hw_reset and trigger */
+	u32 fifo_depth;
+	u32 slot_width;
+	u32 slots;
+	u32 tx_mask;
+	u32 rx_mask;
+	u32 channels[2];
+	u32 hck_rate[2];
+	u32 sck_rate[2];
+	bool hck_dir[2];
+	bool sck_div[2];
+	bool slave_mode[2];
+	bool synchronous;
+	bool sw_mix;
+	char name[32];
+};
 #endif /* _FSL_ESAI_DAI_H */
