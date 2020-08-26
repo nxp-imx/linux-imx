@@ -3034,9 +3034,6 @@ gckVIDMEM_NODE_Construct(
 
     node->metadata.magic = VIV_VIDMEM_METADATA_MAGIC;
     node->metadata.ts_fd = -1;
-#ifdef gcdANDROID
-    node->metadata.ts_address = 0;
-#endif
 
     node->node = VideoNode;
     node->kernel = Kernel;
