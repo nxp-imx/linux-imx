@@ -76,6 +76,7 @@ imx-pcm-dma-common-objs := imx-pcm-dma.o imx-pcm-dma-v2.o
 obj-$(CONFIG_SND_SOC_IMX_PCM_DMA) += imx-pcm-dma-common.o
 obj-$(CONFIG_SND_SOC_IMX_HDMI_DMA) += imx-hdmi-dma.o hdmi_pcm.o
 obj-$(CONFIG_SND_SOC_IMX_PCM_RPMSG) += imx-pcm-rpmsg.o
+obj-$(CONFIG_SND_SOC_IMX_I2S_RPMSG) += imx-i2s-rpmsg.o
 
 # i.MX Machine Support
 snd-soc-eukrea-tlv320-objs := eukrea-tlv320.o
