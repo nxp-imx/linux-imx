@@ -2287,6 +2287,36 @@ static void record_start_time(struct vpu_ctx *ctx, enum QUEUE_TYPE type)
 				ts.tv_nsec / NSEC_PER_MSEC;
 }
 
+static int update_encode_param(struct vpu_ctx *ctx)
+{
+	struct vpu_attr *attr;
+	pMEDIAIP_ENC_PARAM enc_param;
+	pMEDIAIP_ENC_EXPERT_MODE_PARAM expert;
+	bool change = false;
+
+	attr = get_vpu_ctx_attr(ctx);
+	enc_param = get_rpc_enc_param(ctx);
+	expert = get_rpc_expert_mode_param(ctx);
+
+	if (enc_param->eBitRateMode == MEDIAIP_ENC_BITRATECONTROLMODE_CBR &&
+	    attr->param.eBitRateMode == enc_param->eBitRateMode &&
+	    attr->param.uTargetBitrate != enc_param->uTargetBitrate) {
+		vpu_dbg(LVL_CTRL, "[%d] bitrate %d -> %d (kbps)\n",
+				ctx->str_index,
+				enc_param->uTargetBitrate,
+				attr->param.uTargetBitrate);
+		expert->Static.rate_control_bitrate =
+			enc_param->uTargetBitrate = attr->param.uTargetBitrate;
+		change = true;
+	}
+
+	if (!change)
+		return 0;
+
+	vpu_ctx_send_cmd(ctx, GTB_ENC_CMD_PARAMETER_UPD, 0, NULL);
+	return 0;
+}
+
 static bool update_yuv_addr(struct vpu_ctx *ctx)
 {
 	bool bGotAFrame = FALSE;
@@ -2311,6 +2341,7 @@ static bool update_yuv_addr(struct vpu_ctx *ctx)
 	if (desc->uLumaBase != 0)
 		bGotAFrame = TRUE;
 
+	update_encode_param(ctx);
 	/*
 	 * keeps increasing,
 	 * so just a frame input count rather than a Frame buffer ID
