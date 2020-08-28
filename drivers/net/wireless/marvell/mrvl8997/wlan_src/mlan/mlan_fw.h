@@ -160,9 +160,9 @@ extern t_u8 AdhocRates_A[A_SUPPORTED_RATES];
 #define DEF_WAKEUP_FW_GPIO                      0
 
 /** Default auto deep sleep mode */
-#define DEFAULT_AUTO_DS_MODE                  MTRUE
+#define DEFAULT_AUTO_DS_MODE                  MFALSE
 /** Default power save mode */
-#define DEFAULT_PS_MODE                 Wlan802_11PowerModePSP
+#define DEFAULT_PS_MODE                 Wlan802_11PowerModeCAM
 
 #define EVENT_NAN_GENERIC 0x00000075
 #define NAN_EVT_SUBTYPE_SD_EVENT 0
