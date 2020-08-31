@@ -862,7 +862,7 @@
 };
 
 &usb3_phy0 {
-	vbus-power-supply = <&ptn5110>;
+	vbus-power-source = <&ptn5110>;
 	status = "okay";
 };
 
