@@ -448,7 +448,7 @@ static int imx8mq_usb_phy_probe(struct platform_device *pdev)
 	phy_set_drvdata(imx_phy->phy, imx_phy);
 	platform_set_drvdata(pdev, imx_phy);
 
-	if (device_property_present(dev, "vbus-power-supply")) {
+	if (device_property_present(dev, "vbus-power-source")) {
 		imx_phy->chg_det_nb.notifier_call = imx8mq_phy_usb_vbus_notify;
 		power_supply_reg_notifier(&imx_phy->chg_det_nb);
 	}
