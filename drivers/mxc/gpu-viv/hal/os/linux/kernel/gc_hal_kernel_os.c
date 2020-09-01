@@ -271,11 +271,16 @@ _AllocateIntegerId(
 {
     int result;
     gctINT next;
+    unsigned long flags = 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
     idr_preload(GFP_KERNEL | gcdNOWARN);
 
-    spin_lock(&Database->lock);
+    if(in_irq()){
+        spin_lock(&Database->lock);
+    }else{
+        spin_lock_irqsave(&Database->lock, flags);
+    }
 
     next = (Database->curr + 1 <= 0) ? 1 : Database->curr + 1;
 
@@ -289,7 +294,11 @@ _AllocateIntegerId(
         Database->curr = *Id = result;
     }
 
-    spin_unlock(&Database->lock);
+    if(in_irq()){
+        spin_unlock(&Database->lock);
+    }else{
+        spin_unlock_irqrestore(&Database->lock, flags);
+    }
 
     idr_preload_end();
 
@@ -304,7 +313,11 @@ again:
         return gcvSTATUS_OUT_OF_MEMORY;
     }
 
-    spin_lock(&Database->lock);
+    if(in_irq()){
+        spin_lock(&Database->lock);
+    }else{
+        spin_lock_irqsave(&Database->lock, flags);
+    }
 
     next = (Database->curr + 1 <= 0) ? 1 : Database->curr + 1;
 
@@ -316,7 +329,11 @@ again:
         Database->curr = *Id;
     }
 
-    spin_unlock(&Database->lock);
+    if(in_irq()){
+        spin_unlock(&Database->lock);
+    }else{
+        spin_unlock_irqrestore(&Database->lock, flags);
+    }
 
     if (result == -EAGAIN)
     {
@@ -340,12 +357,21 @@ _QueryIntegerId(
     )
 {
     gctPOINTER pointer;
+    unsigned long flags = 0;
 
-    spin_lock(&Database->lock);
+    if(in_irq()){
+        spin_lock(&Database->lock);
+    }else{
+        spin_lock_irqsave(&Database->lock, flags);
+    }
 
     pointer = idr_find(&Database->idr, Id);
 
-    spin_unlock(&Database->lock);
+    if(in_irq()){
+        spin_unlock(&Database->lock);
+    }else{
+        spin_unlock_irqrestore(&Database->lock, flags);
+    }
 
     if (pointer)
     {
@@ -369,11 +395,21 @@ _DestroyIntegerId(
     IN gctUINT32 Id
     )
 {
-    spin_lock(&Database->lock);
+    unsigned long flags = 0;
+
+    if(in_irq()){
+        spin_lock(&Database->lock);
+    }else{
+        spin_lock_irqsave(&Database->lock, flags);
+    }
 
     idr_remove(&Database->idr, Id);
 
-    spin_unlock(&Database->lock);
+    if(in_irq()){
+        spin_unlock(&Database->lock);
+    }else{
+        spin_unlock_irqrestore(&Database->lock, flags);
+    }
 
     return gcvSTATUS_OK;
 }
