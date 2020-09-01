@@ -564,6 +564,7 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		imx_cs42888_dai_v2[1].cpus->of_node = args[1].np;
 		imx_cs42888_dai_v2[1].platforms->of_node = args[1].np;
 		imx_cs42888_dai_v2[2].cpus->dai_name    = dev_name(&esai_pdev->dev);
+		imx_cs42888_dai_v2[2].codecs->of_node   = codec_np;
 
 		snd_soc_card_imx_cs42888.dai_link = imx_cs42888_dai_v2;
 		snd_soc_card_imx_cs42888.num_links = 3;
