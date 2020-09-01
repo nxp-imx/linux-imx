@@ -210,8 +210,8 @@ int generate_black_key(struct device *dev, struct keyblob_info *info)
 	u8 trusted_key, key_enc;
 	u32 *desc = NULL;
 	size_t black_key_length_req = 0;
-	dma_addr_t key_dma, black_key_dma;
-	u8 *tmp_key = NULL, *tmp_black_key = NULL;
+	dma_addr_t black_key_dma;
+	u8 *tmp_black_key = NULL;
 
 	/* Validate device */
 	if (!dev)
@@ -281,27 +281,17 @@ int generate_black_key(struct device *dev, struct keyblob_info *info)
 		__func__, info->key_len, info->black_key, info->black_key_len);
 	dev_dbg(dev, "req:%zu, key_enc: 0x%x]\n", black_key_length_req, key_enc);
 
-	if (not_random) {
-		/* Map input key, this will be sent to CAAM */
-		if (map_write_data(dev, info->key, info->key_len,
-				   &key_dma, &tmp_key)) {
-			dev_err(dev, "Unable to map input key\n");
-			ret = -ENOMEM;
-			goto exit;
-		}
-	}
-
 	/* Map black key, this will be read from CAAM */
 	if (map_read_data(dev, black_key_length_req,
 			  &black_key_dma, &tmp_black_key)) {
 		dev_err(dev, "Unable to map black key\n");
 		ret = -ENOMEM;
-		goto unmap_input_key;
+		goto exit;
 	}
 
 	/* Construct descriptor for black key */
 	if (not_random)
-		ret = cnstr_desc_black_key(&desc, key_dma, info->key_len,
+		ret = cnstr_desc_black_key(&desc, info->key, info->key_len,
 					   black_key_dma, info->black_key_len,
 					   key_enc, trusted_key);
 	else
@@ -338,11 +328,6 @@ unmap_black_key:
 	unmap_read_write_data(dev, black_key_dma, tmp_black_key,
 			      black_key_length_req, DMA_FROM_DEVICE);
 
-unmap_input_key:
-	if (not_random)
-		unmap_read_write_data(dev, key_dma, tmp_key, info->key_len,
-				      DMA_TO_DEVICE);
-
 exit:
 	return ret;
 }
@@ -374,10 +359,11 @@ int caam_blob_encap(struct device *dev, struct keyblob_info *info)
 	int ret = 0;
 	u32 *desc = NULL;
 	size_t black_key_real_len = 0;
+	size_t blob_req_len = 0;
 	u8 mem_type, color, key_enc, trusted_key;
-	dma_addr_t black_key_dma, key_mod_dma, blob_dma;
-	unsigned char *blob = info->blob + BLOB_HEADER_SIZE;
-	u8 *tmp_black_key = NULL, *tmp_key_mod = NULL, *tmp_blob = NULL;
+	dma_addr_t black_key_dma, blob_dma;
+	unsigned char *blob = info->blob;
+	u8 *tmp_black_key = NULL, *tmp_blob = NULL;
 
 	/* Validate device */
 	if (!dev)
@@ -417,12 +403,14 @@ int caam_blob_encap(struct device *dev, struct keyblob_info *info)
 	/* Adapt the size of the black key */
 	black_key_real_len = info->black_key_len;
 
+	blob_req_len = CCM_BLACK_KEY_SIZE(info->key_len);
+
 	/* Check if the blob can be stored */
-	if (info->blob_len < (black_key_real_len + BLOB_OVERHEAD))
+	if (info->blob_len < (blob_req_len + BLOB_OVERHEAD))
 		return -EINVAL;
 
 	/* Update the blob length */
-	info->blob_len = black_key_real_len + BLOB_OVERHEAD;
+	info->blob_len = blob_req_len + BLOB_OVERHEAD;
 
 	dev_dbg(dev, "%s processing: [black_key: %p (%zu) cnstr: %zu",
 		__func__, info->black_key, info->black_key_len,
@@ -446,26 +434,12 @@ int caam_blob_encap(struct device *dev, struct keyblob_info *info)
 			return -ENOMEM;
 	}
 
-	/* Map key modifier, this will be sent to CAAM */
-	if (mem_type == DATA_GENMEM) {
-		if (map_write_data(dev, info->key_mod, info->key_mod_len,
-				   &key_mod_dma, &tmp_key_mod)) {
-			dev_err(dev, "Unable to map key_mod for blob\n");
-			ret = -ENOMEM;
-			goto unmap_black_key;
-		}
-	} else {
-		key_mod_dma = get_caam_dma_addr(info->key_mod);
-		if (!key_mod_dma)
-			return -ENOMEM;
-	}
-
 	/* Map blob, this will be read to CAAM */
 	if (mem_type == DATA_GENMEM) {
 		if (map_read_data(dev, info->blob_len, &blob_dma, &tmp_blob)) {
 			dev_err(dev, "Unable to map blob\n");
 			ret = -ENOMEM;
-			goto unmap_key_mod;
+			goto unmap_black_key;
 		}
 	} else {
 		blob_dma = get_caam_dma_addr(info->blob);
@@ -474,9 +448,9 @@ int caam_blob_encap(struct device *dev, struct keyblob_info *info)
 	}
 
 	/* Construct descriptor for blob encapsulation */
-	ret = cnstr_desc_blob_encap(&desc, black_key_dma, black_key_real_len,
+	ret = cnstr_desc_blob_encap(&desc, black_key_dma, info->key_len,
 				    color, key_enc, trusted_key, mem_type,
-				    key_mod_dma, info->key_mod_len,
+				    info->key_mod, info->key_mod_len,
 				    blob_dma, info->blob_len);
 	if (ret) {
 		dev_err(dev,
@@ -506,11 +480,6 @@ unmap_blob:
 	if (mem_type == DATA_GENMEM)
 		unmap_read_write_data(dev, blob_dma, tmp_blob,
 				      info->blob_len, DMA_FROM_DEVICE);
-
-unmap_key_mod:
-	if (mem_type == DATA_GENMEM)
-		unmap_read_write_data(dev, key_mod_dma, tmp_key_mod,
-				      info->key_mod_len, DMA_TO_DEVICE);
 
 unmap_black_key:
 	if (mem_type == DATA_GENMEM)
@@ -544,9 +513,9 @@ int caam_blob_decap(struct device *dev, struct keyblob_info *info)
 	u32 *desc = NULL;
 	u8 mem_type, color, key_enc, trusted_key;
 	size_t black_key_real_len;
-	dma_addr_t key_mod_dma, black_key_dma, blob_dma;
-	unsigned char *blob = info->blob + BLOB_HEADER_SIZE;
-	u8 *tmp_black_key = NULL, *tmp_key_mod = NULL, *tmp_blob = NULL;
+	dma_addr_t black_key_dma, blob_dma;
+	unsigned char *blob = info->blob + TAG_OVERHEAD_SIZE;
+	u8 *tmp_black_key = NULL, *tmp_blob = NULL;
 
 	/* Validate device */
 	if (!dev)
@@ -599,6 +568,30 @@ int caam_blob_decap(struct device *dev, struct keyblob_info *info)
 	if (info->black_key_len < black_key_real_len)
 		return -EINVAL;
 
+	/*
+	 * Based on key encryption type (ecb or ccm),
+	 * compute the black key size
+	 */
+	if (key_enc == KEY_COVER_ECB)
+		/*
+		 * ECB-Black Key will be padded with zeros to make it a
+		 * multiple of 16 bytes long before it is encrypted,
+		 * and the resulting Black Key will be this length.
+		 */
+		black_key_real_len = ECB_BLACK_KEY_SIZE(info->key_len);
+	else if (key_enc == KEY_COVER_CCM)
+		/*
+		 * CCM-Black Key will always be at least 12 bytes longer,
+		 * since the encapsulation uses a 6-byte nonce and adds
+		 * a 6-byte ICV. But first, the key is padded as necessary so
+		 * that CCM-Black Key is a multiple of 8 bytes long.
+		 */
+		black_key_real_len = CCM_BLACK_KEY_SIZE(info->key_len);
+
+	/* Check if there is enough space for black key */
+	if (info->black_key_len < black_key_real_len)
+		return -EINVAL;
+
 	/* Update black key length with the one computed based on key_enc */
 	info->black_key_len = black_key_real_len;
 
@@ -622,27 +615,13 @@ int caam_blob_decap(struct device *dev, struct keyblob_info *info)
 			return -ENOMEM;
 	}
 
-	/* Map key modifier, this will be sent to CAAM */
-	if (mem_type == DATA_GENMEM) {
-		if (map_write_data(dev, info->key_mod, info->key_mod_len,
-				   &key_mod_dma, &tmp_key_mod)) {
-			dev_err(dev, "Unable to map key_mod for blob decap\n");
-			ret = -ENOMEM;
-			goto unmap_blob;
-		}
-	} else {
-		key_mod_dma = get_caam_dma_addr(info->key_mod);
-		if (!key_mod_dma)
-			return -ENOMEM;
-	}
-
 	/* Map black key, this will be read from CAAM */
 	if (mem_type == DATA_GENMEM) {
 		if (map_read_data(dev, info->black_key_len,
 				  &black_key_dma, &tmp_black_key)) {
 			dev_err(dev, "Unable to map black key for blob decap\n");
 			ret = -ENOMEM;
-			goto unmap_key_mod;
+			goto unmap_blob;
 		}
 	} else {
 		black_key_dma = get_caam_dma_addr(info->black_key);
@@ -651,8 +630,8 @@ int caam_blob_decap(struct device *dev, struct keyblob_info *info)
 	}
 
 	ret = cnstr_desc_blob_decap(&desc, blob_dma, info->blob_len,
-				    key_mod_dma, info->key_mod_len,
-				    black_key_dma, black_key_real_len,
+				    info->key_mod, info->key_mod_len,
+				    black_key_dma, info->key_len,
 				    color, key_enc, trusted_key, mem_type);
 	if (ret) {
 		dev_err(dev,
@@ -679,11 +658,6 @@ unmap_black_key:
 	if (mem_type == DATA_GENMEM)
 		unmap_read_write_data(dev, black_key_dma, tmp_black_key,
 				      info->black_key_len, DMA_FROM_DEVICE);
-
-unmap_key_mod:
-	if (mem_type == DATA_GENMEM)
-		unmap_read_write_data(dev, key_mod_dma, tmp_key_mod,
-				      info->key_mod_len, DMA_TO_DEVICE);
 
 unmap_blob:
 	if (mem_type == DATA_GENMEM)

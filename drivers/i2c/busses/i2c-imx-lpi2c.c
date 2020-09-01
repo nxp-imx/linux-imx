@@ -73,23 +73,23 @@
 #define MCFGR1_IGNACK	BIT(9)
 #define MRDR_RXEMPTY	BIT(14)
 
-#define I2C_CLK_RATIO	2
+#define I2C_CLK_RATIO	24 / 59
 #define CHUNK_DATA	256
 
-#define LPI2C_DEFAULT_RATE	100000
-#define STARDARD_MAX_BITRATE	400000
-#define FAST_MAX_BITRATE	1000000
-#define FAST_PLUS_MAX_BITRATE	3400000
-#define HIGHSPEED_MAX_BITRATE	5000000
+#define STARDARD_MAX_BITRATE	100000
+#define FAST_MAX_BITRATE	400000
+#define FAST_PLUS_MAX_BITRATE	1000000
+#define HIGHSPEED_MAX_BITRATE	3400000
+#define ULTRA_FAST_MAX_BITRATE	5000000
 
 #define I2C_PM_TIMEOUT		1000 /* ms */
 
 enum lpi2c_imx_mode {
-	STANDARD,	/* 100+Kbps */
-	FAST,		/* 400+Kbps */
-	FAST_PLUS,	/* 1.0+Mbps */
-	HS,		/* 3.4+Mbps */
-	ULTRA_FAST,	/* 5.0+Mbps */
+	STANDARD,	/* <=100Kbps */
+	FAST,		/* <=400Kbps */
+	FAST_PLUS,	/* <=1.0Mbps */
+	HS,		/* <=3.4Mbps */
+	ULTRA_FAST,	/* <=5.0Mbps */
 };
 
 enum lpi2c_imx_pincfg {
@@ -162,13 +162,13 @@ static void lpi2c_imx_set_mode(struct lpi2c_imx_struct *lpi2c_imx)
 	unsigned int bitrate = lpi2c_imx->bitrate;
 	enum lpi2c_imx_mode mode;
 
-	if (bitrate < STARDARD_MAX_BITRATE)
+	if (bitrate <= STARDARD_MAX_BITRATE)
 		mode = STANDARD;
-	else if (bitrate < FAST_MAX_BITRATE)
+	else if (bitrate <= FAST_MAX_BITRATE)
 		mode = FAST;
-	else if (bitrate < FAST_PLUS_MAX_BITRATE)
+	else if (bitrate <= FAST_PLUS_MAX_BITRATE)
 		mode = FAST_PLUS;
-	else if (bitrate < HIGHSPEED_MAX_BITRATE)
+	else if (bitrate <= HIGHSPEED_MAX_BITRATE)
 		mode = HS;
 	else
 		mode = ULTRA_FAST;
@@ -215,11 +215,12 @@ static void lpi2c_imx_stop(struct lpi2c_imx_struct *lpi2c_imx)
 	} while (1);
 }
 
-/* CLKLO = I2C_CLK_RATIO * CLKHI, SETHOLD = CLKHI, DATAVD = CLKHI/2 */
+/* CLKLO = (1 - I2C_CLK_RATIO) * clk_cycle, SETHOLD = CLKHI, DATAVD = CLKHI/2
+   CLKHI = I2C_CLK_RATIO * clk_cycle */
 static int lpi2c_imx_config(struct lpi2c_imx_struct *lpi2c_imx)
 {
-	u8 prescale, filt, sethold, clkhi, clklo, datavd;
-	unsigned int clk_rate, clk_cycle;
+	u8 prescale, filt, sethold, datavd;
+	unsigned int clk_rate, clk_cycle, clkhi, clklo;
 	enum lpi2c_imx_pincfg pincfg;
 	unsigned int temp;
 
@@ -238,8 +239,8 @@ static int lpi2c_imx_config(struct lpi2c_imx_struct *lpi2c_imx)
 
 	for (prescale = 0; prescale <= 7; prescale++) {
 		clk_cycle = clk_rate / ((1 << prescale) * lpi2c_imx->bitrate)
-			    - 3 - (filt >> 1);
-		clkhi = (clk_cycle + I2C_CLK_RATIO) / (I2C_CLK_RATIO + 1);
+			    - (2 + filt) / (1 << prescale);
+		clkhi = clk_cycle * I2C_CLK_RATIO;
 		clklo = clk_cycle - clkhi;
 		if (clklo < 64)
 			break;
@@ -670,7 +671,7 @@ static int lpi2c_imx_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(pdev->dev.of_node,
 				   "clock-frequency", &lpi2c_imx->bitrate);
 	if (ret)
-		lpi2c_imx->bitrate = LPI2C_DEFAULT_RATE;
+		lpi2c_imx->bitrate = STARDARD_MAX_BITRATE;
 
 	i2c_set_adapdata(&lpi2c_imx->adapter, lpi2c_imx);
 	platform_set_drvdata(pdev, lpi2c_imx);

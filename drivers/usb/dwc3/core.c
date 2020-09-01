@@ -103,10 +103,12 @@ void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode)
 {
 	u32 reg;
 
-	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
-	reg &= ~(DWC3_GCTL_PRTCAPDIR(DWC3_GCTL_PRTCAP_OTG));
-	reg |= DWC3_GCTL_PRTCAPDIR(mode);
-	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
+	if (mode != DWC3_GCTL_PRTCAP_NONE) {
+		reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+		reg &= ~(DWC3_GCTL_PRTCAPDIR(DWC3_GCTL_PRTCAP_OTG));
+		reg |= DWC3_GCTL_PRTCAPDIR(mode);
+		dwc3_writel(dwc->regs, DWC3_GCTL, reg);
+	}
 
 	dwc->current_dr_role = mode;
 }
@@ -114,19 +116,14 @@ void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode)
 static void __dwc3_set_mode(struct work_struct *work)
 {
 	struct dwc3 *dwc = work_to_dwc(work);
+	struct dwc3_platform_data *dwc3_pdata;
 	unsigned long flags;
 	int ret;
-
-	if (dwc->dr_mode != USB_DR_MODE_OTG)
-		return;
 
 	pm_runtime_get_sync(dwc->dev);
 
 	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_OTG)
 		dwc3_otg_update(dwc, 0);
-
-	if (!dwc->desired_dr_role)
-		goto out;
 
 	if (dwc->desired_dr_role == dwc->current_dr_role)
 		goto out;
@@ -191,8 +188,9 @@ static void __dwc3_set_mode(struct work_struct *work)
 		break;
 	}
 
-	if (dwc->priv_data && dwc->priv_data->set_role_post)
-		dwc->priv_data->set_role_post(dwc, dwc->desired_dr_role);
+	dwc3_pdata = (struct dwc3_platform_data *)dev_get_platdata(dwc->dev);
+	if (dwc3_pdata && dwc3_pdata->set_role_post)
+		dwc3_pdata->set_role_post(dwc, dwc->desired_dr_role);
 
 out:
 	pm_runtime_mark_last_busy(dwc->dev);
@@ -202,6 +200,9 @@ out:
 void dwc3_set_mode(struct dwc3 *dwc, u32 mode)
 {
 	unsigned long flags;
+
+	if (dwc->dr_mode != USB_DR_MODE_OTG)
+		return;
 
 	spin_lock_irqsave(&dwc->lock, flags);
 	dwc->desired_dr_role = mode;
@@ -302,25 +303,32 @@ done:
  */
 static void dwc3_frame_length_adjustment(struct dwc3 *dwc)
 {
+	struct dwc3_platform_data *dwc3_pdata;
 	u32 reg;
 	u32 dft;
 
-	/*
-	 * if GCTL.SOFITPSYNC is set to '1':
-	 * FLADJ_REF_CLK_FLADJ=
-	 * ((125000/ref_clk_period_integer)-(125000/ref_clk_period)) *
-	 * ref_clk_period
-	 * where
-	 * - the ref_clk_period_integer is the integer value of
-	 *   the ref_clk period got by truncating the decimal (fractional)
-	 *   value that is programmed in the GUCTL.REF_CLK_PERIOD field.
-	 * - the ref_clk_period is the ref_clk period including the fractional
-	 *   value.
-	 */
-	if (dwc->soft_itp_sync_quirk) {
+	dwc3_pdata = (struct dwc3_platform_data *)dev_get_platdata(dwc->dev);
+	if (dwc3_pdata && dwc3_pdata->quirks & DWC3_SOFT_ITP_SYNC) {
 		u32 ref_clk_hz, ref_clk_period_integer;
 		u64 temp;
 
+		reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+		reg |= DWC3_GCTL_SOFITPSYNC;
+		dwc3_writel(dwc->regs, DWC3_GCTL, reg);
+
+		/*
+		 * if GCTL.SOFITPSYNC is set to '1':
+		 * FLADJ_REF_CLK_FLADJ=
+		 * ((125000/ref_clk_period_integer)-(125000/ref_clk_period)) *
+		 * ref_clk_period
+		 * where
+		 * - the ref_clk_period_integer is the integer value of
+		 *   the ref_clk period got by truncating the decimal
+		 *   (fractional)  value that is programmed in the
+		 *   GUCTL.REF_CLK_PERIOD field.
+		 * - the ref_clk_period is the ref_clk period including
+		 *   the fractional value.
+		 */
 		reg = dwc3_readl(dwc->regs, DWC3_GFLADJ);
 		ref_clk_hz = clk_get_rate(dwc->clks[0].clk);
 		if (ref_clk_hz == 0) {
@@ -837,9 +845,6 @@ static void dwc3_core_setup_global_control(struct dwc3 *dwc)
 	if (dwc->revision < DWC3_REVISION_190A)
 		reg |= DWC3_GCTL_U2RSTECN;
 
-	if (dwc->soft_itp_sync_quirk)
-		reg |= DWC3_GCTL_SOFITPSYNC;
-
 	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
 }
 
@@ -1281,6 +1286,7 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 static int dwc3_core_init_mode(struct dwc3 *dwc)
 {
 	struct device *dev = dwc->dev;
+	struct dwc3_platform_data *dwc3_pdata;
 	int ret;
 
 	switch (dwc->dr_mode) {
@@ -1327,6 +1333,10 @@ static int dwc3_core_init_mode(struct dwc3 *dwc)
 		dev_err(dev, "Unsupported mode of operation %d\n", dwc->dr_mode);
 		return -EINVAL;
 	}
+
+	dwc3_pdata = (struct dwc3_platform_data *)dev_get_platdata(dwc->dev);
+	if (dwc3_pdata && dwc3_pdata->set_role_post)
+		dwc3_pdata->set_role_post(dwc, dwc->current_dr_role);
 
 	return 0;
 }
@@ -1471,9 +1481,6 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->host_vbus_glitches = device_property_read_bool(dev,
 				"snps,host-vbus-glitches");
-
-	dwc->soft_itp_sync_quirk = device_property_read_bool(dev,
-				"snps,soft-itp-sync");
 
 	dwc->lpm_nyet_threshold = lpm_nyet_threshold;
 	dwc->tx_de_emphasis = tx_de_emphasis;
@@ -1709,9 +1716,9 @@ static int dwc3_remove(struct platform_device *pdev)
 	dwc3_core_exit(dwc);
 	dwc3_ulpi_exit(dwc);
 
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_allow(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	pm_runtime_put_noidle(&pdev->dev);
+	pm_runtime_set_suspended(&pdev->dev);
 
 	dwc3_free_event_buffers(dwc);
 	dwc3_free_scratch_buffers(dwc);

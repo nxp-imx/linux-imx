@@ -186,6 +186,7 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-name = "clk_ext_sel";
 		gpio = <&pca6416_1 10 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 		regulator-always-on;
 	};
 

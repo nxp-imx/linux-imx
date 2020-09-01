@@ -2069,10 +2069,7 @@
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
 			phys = <&usb3_phy0>, <&usb3_phy0>;
 			phy-names = "usb2-phy", "usb3-phy";
-			xhci-no-64bit-support;
-			usb3-resume-missing-cas;
 			snps,dis-u2-freeclk-exists-quirk;
-			snps,soft-itp-sync;
 			status = "disabled";
 		};
 
@@ -2114,10 +2111,7 @@
 			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
 			phys = <&usb3_phy1>, <&usb3_phy1>;
 			phy-names = "usb2-phy", "usb3-phy";
-			xhci-no-64bit-support;
-			usb3-resume-missing-cas;
 			snps,dis-u2-freeclk-exists-quirk;
-			snps,soft-itp-sync;
 			status = "disabled";
 		};
 	};

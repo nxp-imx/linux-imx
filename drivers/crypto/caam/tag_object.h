@@ -17,9 +17,9 @@
  * 0x4f = 'O'
  */
 #define TAG_OBJECT_MAGIC	0x5461674f
-#define TAG_MIN_SIZE		(2 * sizeof(struct header_conf))
 #define TAG_OVERHEAD_SIZE	sizeof(struct header_conf)
-
+#define MIN_KEY_SIZE		16
+#define TAG_MIN_SIZE		(MIN_KEY_SIZE + TAG_OVERHEAD_SIZE)
 /*
  * Tag object type is a bitfield:
  *
@@ -64,13 +64,17 @@
  * @_magic_number     : A magic number to identify the structure
  * @version           : The version of the data contained (e.g. tag object)
  * @type              : The type of data contained (e.g. black key, blob, etc.)
- * @real_len          : Length of the object to be loaded by CAAM
+ * @red_key_len       : Length of the red key to be loaded by CAAM (for key
+ *                      generation or blob encapsulation)
+ * @obj_len           : The total length of the (black/red) object (key/blob),
+ *                      after encryption/encapsulation
  */
 struct header_conf {
 	u32 _magic_number;
 	u32 version;
 	u32 type;
-	u32 real_len;
+	u32 red_key_len;
+	u32 obj_len;
 };
 
 /**
@@ -95,17 +99,11 @@ bool is_black_key(const struct header_conf * const header);
 
 bool is_valid_header_conf(const struct header_conf *header);
 
-int get_tag_object_header_conf(const void *buffer, size_t buffer_size,
-			       struct header_conf **header);
-
 void get_key_conf(const struct header_conf *header,
-		  u32 *real_len, u32 *load_param);
-
-int get_tagged_data(const void *buffer, size_t buffer_size,
-		    const void **data, u32 *data_size);
+		  u32 *red_key_len, u32 *obj_len, u32 *load_param);
 
 void init_tag_object_header(struct header_conf *header, u32 version,
-			    u32 type, size_t len);
+			    u32 type, size_t red_key_len, size_t obj_len);
 
 int set_tag_object_header_conf(const struct header_conf *header,
 			       void *buffer, size_t obj_size, u32 *to_size);

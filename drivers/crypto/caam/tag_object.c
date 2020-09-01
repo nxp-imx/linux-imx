@@ -68,53 +68,25 @@ bool is_valid_header_conf(const struct header_conf *header)
 {
 	return (header->_magic_number == TAG_OBJECT_MAGIC);
 }
-
-/**
- * get_tag_object_header_conf - Retrieve the address of tag object
- *				header configuration
- * @buffer:			Buffer containing the tag object
- * @size:			The size of buffer
- * @header:			Returned tag object header configuration
- *
- * Return:			'0' on success, error code otherwise
- */
-int get_tag_object_header_conf(const void *buffer, size_t size,
-			       struct header_conf **header)
-{
-	bool valid;
-
-	/* Retrieve the tag object */
-	struct tagged_object *tag_obj = (struct tagged_object *)buffer;
-
-	/* Check if one can retrieve the tag object header configuration */
-	if (size < TAG_OVERHEAD_SIZE)
-		return -EINVAL;
-
-	/* Check tag object header configuration */
-	valid = is_valid_header_conf(&tag_obj->header);
-
-	/* Retrieve the tag object header configuration address */
-	*header = &tag_obj->header;
-
-	return valid ? 0 : -EINVAL;
-}
-EXPORT_SYMBOL(get_tag_object_header_conf);
+EXPORT_SYMBOL(is_valid_header_conf);
 
 /**
  * get_key_conf -	Retrieve the key configuration,
  *			meaning the length of the black key and
  *			the KEY command parameters needed for CAAM
  * @header:		The tag object header configuration
- * @real_len:		Key length
+ * @red_key_len:	Red key length
+ * @obj_len:		Black/Red key/blob length
  * @load_param:		Load parameters for KEY command:
  *			- indicator for encrypted keys: plaintext or black
  *			- indicator for encryption mode: AES-ECB or AES-CCM
  *			- indicator for encryption keys: JDKEK or TDKEK
  */
 void get_key_conf(const struct header_conf *header,
-		  u32 *real_len, u32 *load_param)
+		  u32 *red_key_len, u32 *obj_len, u32 *load_param)
 {
-	*real_len = header->real_len;
+	*red_key_len = header->red_key_len;
+	*obj_len = header->obj_len;
 	/* Based on the color of the key, set key encryption bit (ENC) */
 	*load_param = ((header->type >> TAG_OBJ_COLOR_OFFSET) &
 		       TAG_OBJ_COLOR_MASK) << KEY_ENC_OFFSET;
@@ -130,51 +102,23 @@ void get_key_conf(const struct header_conf *header,
 EXPORT_SYMBOL(get_key_conf);
 
 /**
- * get_tagged_data -	Retrieve the address of the data and size
- *			of the tagged object
- * @tagged_object:		Pointer to tag object
- * @tagged_object_size:		The tagged object size
- * @data:			Returned the address of the data from
- *				the tagged object
- * @data_size:			Returned the size of the data from the
- *				tagged object
- *
- * Return:			'0' on success, error code otherwise
- */
-int get_tagged_data(const void *tagged_object, size_t tagged_object_size,
-		    const void **data, u32 *data_size)
-{
-	/* Retrieve the tag object */
-	struct tagged_object *tag_obj = (struct tagged_object *)tagged_object;
-	/* Check if one can retrieve the data from the tagged object */
-	if (tagged_object_size < TAG_OVERHEAD_SIZE)
-		return -EINVAL;
-
-	/* Retrieve the address of the data/object from the tagged object */
-	*data = &tag_obj->object;
-	/* Retrieve the size of the data from the tagged object */
-	*data_size = tagged_object_size - TAG_OVERHEAD_SIZE;
-
-	return 0;
-}
-EXPORT_SYMBOL(get_tagged_data);
-
-/**
  * init_tag_object_header - Initialize the tag object header by setting up
  *			the TAG_OBJECT_MAGIC number, tag object version,
  *			a valid type and the object's length
  * @header:		The header configuration to initialize
  * @version:		The tag object version
  * @type:		The tag object type
- * @len:		The object (actual data) length
+ * @red_key_len:	The red key length
+ * @obj_len:		The object (actual data) length
  */
 void init_tag_object_header(struct header_conf *header, u32 version,
-			    u32 type, size_t len)
+			    u32 type, size_t red_key_len, size_t obj_len)
 {
 	header->_magic_number = TAG_OBJECT_MAGIC;
 	header->version = version;
 	header->type = type;
-	header->real_len = len;
+	header->red_key_len = red_key_len;
+	header->obj_len = obj_len;
 }
 EXPORT_SYMBOL(init_tag_object_header);
 

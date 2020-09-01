@@ -88,7 +88,7 @@
 	sound-ak5552 {
 		compatible = "fsl,imx-audio-ak5552";
 		model = "ak5552-audio";
-		audio-cpu = <&sai3>;
+		audio-cpu = <&sai6>;
 		audio-codec = <&ak5552>;
 	};
 
@@ -235,10 +235,25 @@
 		>;
 	};
 
+	pinctrl_sai6: sai6grp {
+		fsl,pins = <
+			MX8MN_IOMUXC_ENET_TX_CTL_SAI6_MCLK      0xd6
+			MX8MN_IOMUXC_ENET_TD1_SAI6_RX_SYNC      0xd6
+			MX8MN_IOMUXC_ENET_TD0_SAI6_RX_BCLK      0xd6
+			MX8MN_IOMUXC_ENET_TD2_SAI6_RX_DATA0     0xd6
+		>;
+	};
+
 	pinctrl_spdif1: spdif1grp {
 		fsl,pins = <
 			MX8MN_IOMUXC_SPDIF_TX_SPDIF1_OUT	0xd6
 			MX8MN_IOMUXC_SPDIF_RX_SPDIF1_IN		0xd6
+		>;
+	};
+
+	pinctrl_typec1: typec1grp {
+		fsl,pins = <
+			MX8MN_IOMUXC_SD1_STROBE_GPIO2_IO11      0x159
 		>;
 	};
 
@@ -431,6 +446,35 @@
 			adv7535_from_dsim: endpoint {
 				remote-endpoint = <&dsim_to_adv7535>;
 			};
+		};
+	};
+
+	ptn5110_1: tcpc@50 {
+		compatible = "nxp,ptn5110";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_typec1>;
+		reg = <0x50>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <11 8>;
+		status = "okay";
+
+		port {
+			typec1_dr_sw: endpoint {
+				remote-endpoint = <&usb1_drd_sw>;
+			};
+		};
+
+		typec1_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "dual";
+			data-role = "dual";
+			try-power-role = "sink";
+			source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+			sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)
+					PDO_VAR(5000, 20000, 3000)>;
+			op-sink-microwatt = <15000000>;
+			self-powered;
 		};
 	};
 
@@ -655,6 +699,23 @@
 	status = "okay";
 };
 
+&usbotg1 {
+	dr_mode = "host";
+	hnp-disable;
+	srp-disable;
+	adp-disable;
+	usb-role-switch;
+	picophy,pre-emp-curr-control = <3>;
+	picophy,dc-vol-level-adjust = <7>;
+	status = "okay";
+
+	port {
+		usb1_drd_sw: endpoint {
+			remote-endpoint = <&typec1_dr_sw>;
+		};
+	};
+};
+
 &usdhc1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -736,6 +797,21 @@
 		<&clk IMX8MN_CLK_DUMMY>, <&clk IMX8MN_AUDIO_PLL1_OUT>,
 		<&clk IMX8MN_AUDIO_PLL2_OUT>;
 	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+	status = "disabled";
+};
+
+&sai6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai6>;
+	assigned-clocks = <&clk IMX8MN_CLK_SAI6>;
+	assigned-clock-parents = <&clk IMX8MN_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <0>, <24576000>;
+	clocks = <&clk IMX8MN_CLK_SAI6_IPG>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_SAI6_ROOT>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_DUMMY>, <&clk IMX8MN_AUDIO_PLL1_OUT>,
+		<&clk IMX8MN_AUDIO_PLL2_OUT>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+	fsl,sai-asynchronous;
 	status = "okay";
 };
 

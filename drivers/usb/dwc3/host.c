@@ -89,6 +89,7 @@ int dwc3_host_init(struct dwc3 *dwc)
 	int			ret, irq;
 	struct resource		*res;
 	struct platform_device	*dwc3_pdev = to_platform_device(dwc->dev);
+	struct dwc3_platform_data *dwc3_pdata;
 	int			prop_idx = 0;
 
 	/*
@@ -159,6 +160,14 @@ int dwc3_host_init(struct dwc3 *dwc)
 			dev_err(dwc->dev, "failed to add properties to xHCI\n");
 			goto err;
 		}
+	}
+
+	dwc3_pdata = (struct dwc3_platform_data *)dev_get_platdata(dwc->dev);
+	if (dwc3_pdata && dwc3_pdata->xhci_priv) {
+		ret = platform_device_add_data(xhci, dwc3_pdata->xhci_priv,
+					       sizeof(struct xhci_plat_priv));
+		if (ret)
+			goto err;
 	}
 
 	ret = platform_device_add(xhci);

@@ -14,7 +14,7 @@
 /*
  * Minimum key size to be used is 16 bytes and maximum key size fixed
  * is 64 bytes.
- * Blob size to be kept is Maximum key size + blob header added by CAAM.
+ * Blob size to be kept is Maximum key size + tag object header added by CAAM.
  */
 
 #define MIN_KEY_SIZE			16
@@ -23,9 +23,14 @@
 #define MAX_BLACK_KEY_SIZE		(MAX_KEY_SIZE + CCM_OVERHEAD +\
 					TAG_OVERHEAD_SIZE)
 
-#define BLOB_HEADER_SIZE		4
-#define MAX_BLOB_SIZE			(MAX_KEY_SIZE + BLOB_OVERHEAD +\
-					BLOB_HEADER_SIZE)
+/*
+ * For blobs a randomly-generated, 256-bit blob key is used to
+ * encrypt the data using the AES-CCM cryptographic algorithm.
+ * Therefore, blob size is max key size, CCM_OVERHEAD, blob header
+ * added by CAAM and the tagged object header size.
+ */
+#define MAX_BLOB_SIZE			(MAX_KEY_SIZE + CCM_OVERHEAD +\
+					BLOB_OVERHEAD + TAG_OVERHEAD_SIZE)
 
 /* Key modifier for CAAM blobs, used as a revision number */
 static const char caam_key_modifier[KEYMOD_SIZE_GM] = {

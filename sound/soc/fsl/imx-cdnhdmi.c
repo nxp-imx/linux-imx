@@ -31,6 +31,8 @@
 struct imx_cdnhdmi_data {
 	struct snd_soc_dai_link dai;
 	struct snd_soc_card card;
+	struct snd_soc_jack hdmi_jack;
+	struct snd_soc_jack_pin hdmi_jack_pin;
 	int protocol;
 	u32 support_rates[SUPPORT_RATE_NUM];
 	u32 support_rates_num;
@@ -359,6 +361,27 @@ static int imx_cdnhdmi_rx_rates_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int imx_cdnhdmi_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_component *component = codec_dai->component;
+	struct imx_cdnhdmi_data *data = snd_soc_card_get_drvdata(card);
+	int ret;
+
+	data->hdmi_jack_pin.pin = "HDMI Jack";
+	data->hdmi_jack_pin.mask = SND_JACK_LINEOUT;
+	/* enable jack detection */
+	ret = snd_soc_card_jack_new(card, "HDMI Jack", SND_JACK_LINEOUT,
+				    &data->hdmi_jack, &data->hdmi_jack_pin, 1);
+	if (ret) {
+		dev_err(card->dev, "Can't new HDMI Jack %d\n", ret);
+		return ret;
+	}
+
+	return hdmi_codec_set_jack_detect(component, &data->hdmi_jack);
+};
+
 static struct snd_kcontrol_new imx_cdnhdmi_ctrls[] = {
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
@@ -482,6 +505,7 @@ static int imx_cdnhdmi_probe(struct platform_device *pdev)
 	data->dai.dai_fmt = SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF |
 			    SND_SOC_DAIFMT_CBS_CFS;
+	data->dai.init = imx_cdnhdmi_init;
 
 	if (of_property_read_bool(pdev->dev.of_node, "hdmi-out")) {
 		data->dai.playback_only = true;

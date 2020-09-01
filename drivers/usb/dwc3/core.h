@@ -29,6 +29,7 @@
 #include <linux/ulpi/interface.h>
 
 #include <linux/phy/phy.h>
+#include "../host/xhci-plat.h"
 
 #define DWC3_MSG_MAX	500
 
@@ -249,6 +250,7 @@
 
 #define DWC3_GCTL_PRTCAP(n)	(((n) & (3 << 12)) >> 12)
 #define DWC3_GCTL_PRTCAPDIR(n)	((n) << 12)
+#define DWC3_GCTL_PRTCAP_NONE	0
 #define DWC3_GCTL_PRTCAP_HOST	1
 #define DWC3_GCTL_PRTCAP_DEVICE	2
 #define DWC3_GCTL_PRTCAP_OTG	3
@@ -937,8 +939,11 @@ struct dwc3_scratchpad_array {
 	__le64	dma_adr[DWC3_MAX_HIBER_SCRATCHBUFS];
 };
 
-struct dwc3_priv_data {
+struct dwc3_platform_data {
+	struct xhci_plat_priv *xhci_priv;
 	void	(*set_role_post)(struct dwc3 *dwc, u32 role);
+	unsigned long long quirks;
+#define DWC3_SOFT_ITP_SYNC		BIT(0)
 };
 
 /**
@@ -1268,7 +1273,6 @@ struct dwc3 {
 
 	unsigned		dis_metastability_quirk:1;
 	unsigned		host_vbus_glitches:1;
-	unsigned		soft_itp_sync_quirk:1;
 
 	u16			imod_interval;
 };

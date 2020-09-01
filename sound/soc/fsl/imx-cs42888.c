@@ -245,6 +245,28 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"ASRC-Capture",  NULL, "CPU-Capture"},
 };
 
+static const struct snd_soc_dapm_route audio_map_v2[] = {
+	/* Line out jack */
+	{"Line Out Jack", NULL, "AOUT1L"},
+	{"Line Out Jack", NULL, "AOUT1R"},
+	{"Line Out Jack", NULL, "AOUT2L"},
+	{"Line Out Jack", NULL, "AOUT2R"},
+	{"Line Out Jack", NULL, "AOUT3L"},
+	{"Line Out Jack", NULL, "AOUT3R"},
+	{"Line Out Jack", NULL, "AOUT4L"},
+	{"Line Out Jack", NULL, "AOUT4R"},
+	{"AIN1L", NULL, "Line In Jack"},
+	{"AIN1R", NULL, "Line In Jack"},
+	{"AIN2L", NULL, "Line In Jack"},
+	{"AIN2R", NULL, "Line In Jack"},
+	{"Playback",  NULL, "CPU-Playback"},/* dai route for be and fe */
+	{"CPU-Capture",  NULL, "Capture"},
+	{"CPU-Playback",  NULL, "CLIENT0-Playback"},
+	{"CLIENT0-Capture",  NULL, "CPU-Capture"},
+	{"CPU-Playback",  NULL, "CLIENT1-Playback"},
+	{"CLIENT1-Capture",  NULL, "CPU-Capture"},
+};
+
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params) {
 
@@ -265,12 +287,33 @@ static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
+static int be_hw_params_fixup_v2(struct snd_soc_pcm_runtime *rtd,
+				 struct snd_pcm_hw_params *params)
+{
+	struct snd_pcm_substream *substream = snd_soc_dpcm_get_substream(rtd, SNDRV_PCM_STREAM_PLAYBACK);
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct fsl_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
+	struct fsl_esai_mix *mix = &esai->mix[tx];
+	struct snd_interval *channels;
+
+	channels = hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
+	channels->max = channels->min = mix->channels;
+
+	return 0;
+}
+
 SND_SOC_DAILINK_DEFS(hifi,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "cs42888")),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
 SND_SOC_DAILINK_DEFS(hifi_fe,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+SND_SOC_DAILINK_DEFS(hifi_fe2,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_DUMMY()),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
@@ -311,6 +354,44 @@ static struct snd_soc_dai_link imx_cs42888_dai[] = {
 	},
 };
 
+static struct snd_soc_dai_link imx_cs42888_dai_v2[] = {
+	{
+		.name = "HiFi-ASRC-FE1",
+		.stream_name = "HiFi-ASRC-FE1",
+		.dynamic = 1,
+		.ignore_pmdown_time = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.dpcm_merged_chan = 1,
+		.dpcm_merged_rate = 1,
+		.dpcm_merged_format = 1,
+		SND_SOC_DAILINK_REG(hifi_fe),
+	},
+	{
+		.name = "HiFi-ASRC-FE2",
+		.stream_name = "HiFi-ASRC-FE2",
+		.dynamic = 1,
+		.ignore_pmdown_time = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.dpcm_merged_chan = 1,
+		.dpcm_merged_rate = 1,
+		.dpcm_merged_format = 1,
+		SND_SOC_DAILINK_REG(hifi_fe2),
+	},
+	{
+		.name = "HiFi-ASRC-BE",
+		.stream_name = "HiFi-ASRC-BE",
+		.no_pcm = 1,
+		.ignore_pmdown_time = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.ops = &imx_cs42888_surround_ops_be,
+		.be_hw_params_fixup = be_hw_params_fixup_v2,
+		SND_SOC_DAILINK_REG(hifi_be),
+	},
+};
+
 static struct snd_soc_card snd_soc_card_imx_cs42888 = {
 	.name = "cs42888-audio",
 	.dai_link = imx_cs42888_dai,
@@ -331,6 +412,8 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	struct platform_device *esai_pdev;
 	struct platform_device *asrc_pdev = NULL;
 	struct imx_priv *priv = &card_priv;
+	struct of_phandle_args args[2];
+	struct platform_device *cpu_pdev[2];
 	int ret;
 	u32 width;
 
@@ -444,6 +527,48 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 			priv->asrc_format = SNDRV_PCM_FORMAT_S24_LE;
 		else
 			priv->asrc_format = SNDRV_PCM_FORMAT_S16_LE;
+	}
+
+	/* switch to v2 if there is "client-dais" property */
+	if (of_property_read_bool(esai_np, "client-dais")) {
+		ret = of_parse_phandle_with_args(esai_np, "client-dais", NULL, 0,
+						 &args[0]);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "of_parse_phandle_with_args failed\n");
+			return ret;
+		}
+
+		cpu_pdev[0] = of_find_device_by_node(args[0].np);
+		if (!cpu_pdev[0]) {
+			dev_err(&pdev->dev, "failed to find SAI platform device\n");
+			return -EINVAL;
+		}
+
+		ret = of_parse_phandle_with_args(esai_np, "client-dais", NULL, 1,
+						 &args[1]);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "of_parse_phandle_with_args failed\n");
+			return ret;
+		}
+
+		cpu_pdev[1] = of_find_device_by_node(args[1].np);
+		if (!cpu_pdev[1]) {
+			dev_err(&pdev->dev, "failed to find SAI platform device\n");
+			return -EINVAL;
+		}
+
+		imx_cs42888_dai_v2[0].cpus->dai_name    = dev_name(&cpu_pdev[0]->dev);
+		imx_cs42888_dai_v2[0].cpus->of_node = args[0].np;
+		imx_cs42888_dai_v2[0].platforms->of_node = args[0].np;
+		imx_cs42888_dai_v2[1].cpus->dai_name    = dev_name(&cpu_pdev[1]->dev);
+		imx_cs42888_dai_v2[1].cpus->of_node = args[1].np;
+		imx_cs42888_dai_v2[1].platforms->of_node = args[1].np;
+		imx_cs42888_dai_v2[2].cpus->dai_name    = dev_name(&esai_pdev->dev);
+
+		snd_soc_card_imx_cs42888.dai_link = imx_cs42888_dai_v2;
+		snd_soc_card_imx_cs42888.num_links = 3;
+		snd_soc_card_imx_cs42888.dapm_routes = audio_map_v2,
+		snd_soc_card_imx_cs42888.num_dapm_routes = ARRAY_SIZE(audio_map_v2);
 	}
 
 	priv->esai_clk = devm_clk_get(&esai_pdev->dev, "extal");

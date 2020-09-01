@@ -184,6 +184,7 @@
 		regulator-max-microvolt = <3300000>;
 		gpio = <&gpio4 29 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
+		regulator-always-on;
 	};
 
 	cbtl04gp {
@@ -861,6 +862,7 @@
 };
 
 &usb3_phy0 {
+	vbus-power-supply = <&ptn5110>;
 	status = "okay";
 };
 

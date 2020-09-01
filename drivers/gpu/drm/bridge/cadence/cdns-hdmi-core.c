@@ -233,11 +233,35 @@ void cdns_hdmi_mode_set(struct cdns_mhdp_device *mhdp)
 	}
 }
 
+static void handle_plugged_change(struct cdns_mhdp_device *mhdp, bool plugged)
+{
+	if (mhdp->plugged_cb && mhdp->codec_dev)
+		mhdp->plugged_cb(mhdp->codec_dev, plugged);
+}
+
+int cdns_hdmi_set_plugged_cb(struct cdns_mhdp_device *mhdp,
+			     hdmi_codec_plugged_cb fn,
+			     struct device *codec_dev)
+{
+	bool plugged;
+
+	mutex_lock(&mhdp->lock);
+	mhdp->plugged_cb = fn;
+	mhdp->codec_dev = codec_dev;
+	plugged = mhdp->last_connector_result == connector_status_connected;
+	handle_plugged_change(mhdp, plugged);
+	mutex_unlock(&mhdp->lock);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(cdns_hdmi_set_plugged_cb);
+
 static enum drm_connector_status
 cdns_hdmi_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct cdns_mhdp_device *mhdp =
 				container_of(connector, struct cdns_mhdp_device, connector.base);
+	enum drm_connector_status result;
 
 	u8 hpd = 0xf;
 
@@ -245,15 +269,25 @@ cdns_hdmi_connector_detect(struct drm_connector *connector, bool force)
 
 	if (hpd == 1)
 		/* Cable Connected */
-		return connector_status_connected;
+		result = connector_status_connected;
 	else if (hpd == 0)
 		/* Cable Disconnedted */
-		return connector_status_disconnected;
+		result = connector_status_disconnected;
 	else {
 		/* Cable status unknown */
 		DRM_INFO("Unknow cable status, hdp=%u\n", hpd);
-		return connector_status_unknown;
+		result = connector_status_unknown;
 	}
+
+	mutex_lock(&mhdp->lock);
+	if (result != mhdp->last_connector_result) {
+		handle_plugged_change(mhdp,
+				      result == connector_status_connected);
+		mhdp->last_connector_result = result;
+	}
+	mutex_unlock(&mhdp->lock);
+
+	return result;
 }
 
 static int cdns_hdmi_connector_get_modes(struct drm_connector *connector)
@@ -382,13 +416,16 @@ cdns_hdmi_bridge_mode_valid(struct drm_bridge *bridge,
 	if (mode->clock > 594000)
 		return MODE_CLOCK_HIGH;
 
-	/* 4096x2160 is not supported */
-	if (mode->hdisplay > 3840 || mode->vdisplay > 2160)
+	/* 5120 x 2160 is the maximum supported resolution */
+	if (mode->hdisplay > 5120 || mode->vdisplay > 2160)
 		return MODE_BAD_HVALUE;
 
-	vic = drm_match_cea_mode(mode);
-	if (vic == 0)
-		return MODE_BAD;
+	/* imx8mq-hdmi does not support non CEA modes */
+	if (!strncmp("imx8mq-hdmi", mhdp->plat_data->plat_name, 11)) {
+		vic = drm_match_cea_mode(mode);
+		if (vic == 0)
+			return MODE_BAD;
+	}
 
 	mhdp->valid_mode = mode;
 	ret = cdns_mhdp_plat_call(mhdp, phy_video_valid);
@@ -638,6 +675,7 @@ out:
 #ifdef CONFIG_OF
 	mhdp->bridge.base.of_node = dev->of_node;
 #endif
+	mhdp->last_connector_result = connector_status_disconnected;
 
 	memset(&pdevinfo, 0, sizeof(pdevinfo));
 	pdevinfo.parent = dev;

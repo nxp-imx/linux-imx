@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2019
+
+#include "imx8qm-mek-rpmsg.dts"
+
+/ {
+	esai_client0: esai_client@0 {
+		compatible = "fsl,esai-client";
+		fsl,client-id = <0>;
+	};
+
+	esai_client1: esai_client@1 {
+		compatible = "fsl,esai-client";
+		fsl,client-id = <1>;
+	};
+};
+
+&esai0 {
+	client-dais = <&esai_client0>, <&esai_client1>;
+};

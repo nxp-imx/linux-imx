@@ -355,4 +355,14 @@ config DRM_PANEL_TRULY_NT35597_WQXGA
 	help
 	  Say Y here if you want to enable support for Truly NT35597 WQXGA Dual DSI
 	  Video Mode panel
+
+config DRM_PANEL_WKS_101WX001
+	tristate "WKS 101WX001 parallel LCD"
+	depends on OF
+	depends on BACKLIGHT_CLASS_DEVICE
+	select VIDEOMODE_HELPERS
+	help
+	  Say Y here if you want to enable support for the WKS
+	  101WX001 controller for 1280x800 LCD panel
+
 endmenu
