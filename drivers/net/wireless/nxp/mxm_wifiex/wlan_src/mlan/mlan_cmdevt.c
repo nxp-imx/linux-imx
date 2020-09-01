@@ -2310,10 +2310,11 @@ mlan_status wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter,
  *  @brief Cancel all pending cmd.
  *
  *  @param pmadapter    A pointer to mlan_adapter
+ *  @param flag         MTRUE/MFALSE
  *
  *  @return             N/A
  */
-t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
+t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag)
 {
 	cmd_ctrl_node *pcmd_node = MNULL;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
@@ -2338,7 +2339,6 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 #endif
 	if (pmadapter->curr_cmd) {
 		pcmd_node = pmadapter->curr_cmd;
-		pmadapter->curr_cmd = MNULL;
 		if (pcmd_node->pioctl_buf) {
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 			pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
@@ -2347,7 +2347,10 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 						 MLAN_STATUS_FAILURE);
 			pcmd_node->pioctl_buf = MNULL;
 		}
-		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
+		if (flag) {
+			pmadapter->curr_cmd = MNULL;
+			wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
+		}
 	}
 
 	/* Cancel all pending command */

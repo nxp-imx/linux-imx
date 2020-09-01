@@ -6883,6 +6883,12 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 		break;
 	case MFG_CMD_RF_BAND_AG:
 		handle->rf_data->band = misc->param.mfg_generic_cfg.data1;
+		/* set fw default bw and channel config on band change */
+		handle->rf_data->bandwidth = CHANNEL_BW_20MHZ;
+		if (handle->rf_data->band == BAND_2GHZ)
+			handle->rf_data->channel = 6;
+		else if (handle->rf_data->band == BAND_5GHZ)
+			handle->rf_data->channel = 36;
 		break;
 	case MFG_CMD_RF_CHANNELBW:
 		handle->rf_data->bandwidth = misc->param.mfg_generic_cfg.data1;

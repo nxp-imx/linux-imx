@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "186.p2"
+#define MLAN_RELEASE_VERSION "186.p4"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */

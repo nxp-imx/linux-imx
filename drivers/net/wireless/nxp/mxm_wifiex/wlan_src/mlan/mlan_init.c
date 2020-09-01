@@ -1584,7 +1584,7 @@ t_void wlan_free_adapter(pmlan_adapter pmadapter)
 		return;
 	}
 
-	wlan_cancel_all_pending_cmd(pmadapter);
+	wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
 	/* Free command buffer */
 	PRINTM(MINFO, "Free Command buffer\n");
 	wlan_free_cmd_buffer(pmadapter);
@@ -1912,6 +1912,7 @@ mlan_status wlan_init_fw_complete(pmlan_adapter pmadapter)
 	mlan_status status = MLAN_STATUS_SUCCESS;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
+	mlan_private *pmpriv = MNULL;
 
 	ENTER();
 
@@ -1921,10 +1922,12 @@ mlan_status wlan_init_fw_complete(pmlan_adapter pmadapter)
 
 	/* Reconfigure wmm parameter*/
 	if (status == MLAN_STATUS_SUCCESS) {
-		status = wlan_prepare_cmd(
-			wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA),
-			HostCmd_CMD_WMM_PARAM_CONFIG, HostCmd_ACT_GEN_SET, 0,
-			MNULL, &pmadapter->ac_params);
+		pmpriv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA);
+		if (pmpriv)
+			status = wlan_prepare_cmd(pmpriv,
+						  HostCmd_CMD_WMM_PARAM_CONFIG,
+						  HostCmd_ACT_GEN_SET, 0, MNULL,
+						  &pmadapter->ac_params);
 	}
 	/* Invoke callback */
 	ret = pcb->moal_init_fw_complete(pmadapter->pmoal_handle, status);

@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "186"
+#define MLAN_RELEASE_VERSION "186.p4"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -555,6 +555,8 @@ typedef enum {
 #define MIOCTL MBIT(7)
 
 #define MREG_D MBIT(9)
+
+#define MLOG_D MBIT(10)
 
 #define MMPA_D MBIT(15)
 #define MDAT_D MBIT(16)

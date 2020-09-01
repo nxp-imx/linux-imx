@@ -2784,7 +2784,7 @@ mlan_status wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter,
 					 pmlan_ioctl_req pioctl_req);
 #endif
 /**Cancel pending command */
-t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter);
+t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag);
 /**Cancel pending ioctl */
 t_void wlan_cancel_pending_ioctl(pmlan_adapter pmadapter,
 				 pmlan_ioctl_req pioctl_req);

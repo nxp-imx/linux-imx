@@ -2621,14 +2621,11 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 					->priv[priv->phandle->remain_bss_index];
 		/** cancel previous remain on channel */
 		if (priv->phandle->remain_on_channel && remain_priv) {
-			if ((priv->phandle->chan.center_freq !=
-			     chan->center_freq)) {
-				if (woal_cfg80211_remain_on_channel_cfg(
-					    remain_priv, MOAL_IOCTL_WAIT, MTRUE,
-					    &channel_status, NULL, 0, 0))
-					PRINTM(MERROR,
-					       "mgmt_tx:Fail to cancel remain on channel\n");
-			}
+			if (woal_cfg80211_remain_on_channel_cfg(
+				    remain_priv, MOAL_IOCTL_WAIT, MTRUE,
+				    &channel_status, NULL, 0, 0))
+				PRINTM(MERROR,
+				       "mgmt_tx:Fail to cancel remain on channel\n");
 			if (priv->phandle->cookie) {
 				cfg80211_remain_on_channel_expired(
 #if KERNEL_VERSION(3, 6, 0) > CFG80211_VERSION_CODE
@@ -2782,7 +2779,8 @@ int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				tx_info->tx_cookie = *cookie;
 				tx_info->tx_skb = skb;
 				tx_info->tx_seq_num = pmbuf->tx_seq_num;
-				if (priv->phandle->remain_on_channel && !wait)
+				if ((priv->bss_role == MLAN_BSS_ROLE_UAP) &&
+				    (priv->phandle->remain_on_channel && !wait))
 					tx_info->cancel_remain_on_channel =
 						MTRUE;
 				INIT_LIST_HEAD(&tx_info->link);
