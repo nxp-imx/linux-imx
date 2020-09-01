@@ -4095,6 +4095,12 @@ static void _dmabuf_release(struct dma_buf *dmabuf)
 {
     gckVIDMEM_NODE nodeObject = dmabuf->priv;
 
+    if (nodeObject->metadata.ts_dma_buf)
+    {
+        dma_buf_put(nodeObject->metadata.ts_dma_buf);
+        nodeObject->metadata.ts_dma_buf = NULL;
+    }
+
     gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(nodeObject->kernel, nodeObject));
 }
 
