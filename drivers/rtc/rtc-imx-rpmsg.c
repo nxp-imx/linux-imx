@@ -63,6 +63,7 @@ struct rtc_rpmsg_info {
 	struct pm_qos_request pm_qos_req;
 	struct completion cmd_complete;
 	struct mutex lock;
+	bool is_ready;
 };
 
 static struct rtc_rpmsg_info rtc_rpmsg;
@@ -262,6 +263,7 @@ static int rtc_rpmsg_probe(struct rpmsg_device *rpdev)
 	mutex_init(&rtc_rpmsg.lock);
 
 	init_completion(&rtc_rpmsg.cmd_complete);
+	rtc_rpmsg.is_ready = true;
 
 	return ret;
 }
@@ -313,6 +315,11 @@ static int imx_rpmsg_rtc_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "failed to register rpmsg for rtc: %d\n",
 			ret);
+
+	if (!rtc_rpmsg.is_ready) {
+		unregister_rpmsg_driver(&rtc_rpmsg_driver);
+		return -EPROBE_DEFER;
+	}
 
 	data->rtc = devm_rtc_device_register(&pdev->dev, pdev->name,
 					&imx_rpmsg_rtc_ops, THIS_MODULE);
