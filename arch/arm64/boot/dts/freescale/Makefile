@@ -111,7 +111,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb imx8qm-mek-md.dtb
 			  imx8qp-lpddr4-val.dtb imx8dm-lpddr4-val.dtb imx8qm-pcieax2pciebx1.dtb \
 			  imx8qm-mek-car.dtb imx8qm-mek-car-md.dtb \
 			  imx8qm-mek-car-a72.dtb imx8qm-mek-car-md-a72.dtb \
-			  imx8qm-mek-car2-a72.dtb imx8qm-mek-car2-md-a72.dtb
+			  imx8qm-mek-car2-a72.dtb imx8qm-mek-car2-md-a72.dtb \
+			  imx8qm-mek-esai.dtb imx8qm-mek-car-esai.dtb imx8qm-mek-car2-esai.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb imx8qm-mek-domu-car.dtb \
 			  imx8qm-mek-root.dtb imx8qm-mek-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
