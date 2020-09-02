@@ -309,6 +309,11 @@ static int imx_rpmsg_rtc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, data);
 	device_init_wakeup(&pdev->dev, true);
 
+	ret = register_rpmsg_driver(&rtc_rpmsg_driver);
+	if (ret)
+		dev_err(&pdev->dev, "failed to register rpmsg for rtc: %d\n",
+			ret);
+
 	data->rtc = devm_rtc_device_register(&pdev->dev, pdev->name,
 					&imx_rpmsg_rtc_ops, THIS_MODULE);
 	if (IS_ERR(data->rtc)) {
@@ -316,11 +321,6 @@ static int imx_rpmsg_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register rtc: %d\n", ret);
 		goto error_rtc_device_register;
 	}
-
-	ret = register_rpmsg_driver(&rtc_rpmsg_driver);
-	if (ret)
-		dev_err(&pdev->dev, "failed to register rpmsg for rtc: %d\n",
-			ret);
 
 error_rtc_device_register:
 	return ret;
