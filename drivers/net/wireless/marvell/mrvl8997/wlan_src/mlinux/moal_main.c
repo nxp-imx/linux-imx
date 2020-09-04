@@ -106,10 +106,10 @@ extern int host_mlme;
 int drcs_chantime_mode = 0;
 
 /** Auto deep sleep */
-int auto_ds;
+int auto_ds = 2;
 
 /** IEEE PS mode */
-int ps_mode;
+int ps_mode = 2;
 
 /** Max Tx buffer size */
 int max_tx_buf;
