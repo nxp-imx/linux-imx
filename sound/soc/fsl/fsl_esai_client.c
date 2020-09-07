@@ -24,7 +24,7 @@ static struct snd_pcm_hardware fsl_esai_client_pcm_hardware = {
 	.buffer_bytes_max = IMX_SSI_DMABUF_SIZE,
 	.period_bytes_min = 2048,	/* fix period size, for alignment in FE/BE */
 	.period_bytes_max = 2048,
-	.periods_min = 4,		/* periods > 2 (pingpong buffer in BE) */
+	.periods_min = 8,		/* periods > 4 ( 4 buffer in BE) */
 	.periods_max = 255,
 	.fifo_size = 0,
 };

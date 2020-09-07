@@ -28,7 +28,11 @@ struct fsl_esai_mix {
 	struct snd_pcm_substream *fe_substream[MAX_CLIENT_NUM];
 	struct fsl_esai_client *client[MAX_CLIENT_NUM];
 	struct snd_dma_buffer dma_buffer;
-	u32 buffer_offset;
+	struct workqueue_struct  *mix_wq;
+	struct work_struct       work;
+	struct snd_pcm_substream *substream;
+	u32 buffer_read_offset;
+	u32 buffer_write_offset;
 	u32 buffer_bytes;
 	u32 period_bytes;
 	u32 period_num;

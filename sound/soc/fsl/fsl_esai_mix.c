@@ -7,6 +7,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/workqueue.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -68,7 +71,7 @@ int fsl_esai_mix_close(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, int size, bool elapse)
+static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, bool elapse)
 {
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -80,7 +83,13 @@ static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, 
 	struct snd_soc_dpcm *dpcm;
 	unsigned long flags;
 	int sample_offset = 0;
-	int channel_cnt = 0;
+	int client_chn = 0;
+	int mix_chn = 0;
+	int sdo_cnt = 0;
+	int loop_cnt = 0;
+	int avail = 0;
+	int size = 0;
+	int id = 0;
 	int i = 0, j = 0;
 	int dst_idx;
 	u16 *src16;
@@ -106,12 +115,16 @@ static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, 
 	}
 	spin_unlock_irqrestore(&rtd->card->dpcm_lock, flags);
 
-	/* mix->word_width == client->word_width */
-	/* Mix the internal buffer */
-	while (sample_offset * mix->word_width < size) {
-		dst16 = (u16 *)(mix->dma_buffer.area + mix->buffer_offset);
-		for (channel_cnt = 0; channel_cnt < mix->channels; channel_cnt++)
-			*dst16++ = 0;
+	avail = mix->buffer_bytes - mix->buffer_write_offset + mix->buffer_read_offset;
+	if (avail >= mix->buffer_bytes)
+		avail = avail -  mix->buffer_bytes;
+
+	while (avail >= mix->period_bytes) {
+		size = mix->period_bytes;
+		/* mix->word_width == client->word_width */
+		/* Mix the internal buffer */
+		dst16 = (u16 *)(mix->dma_buffer.area + (mix->buffer_write_offset % mix->buffer_bytes));
+		memset(dst16, 0, size);
 
 		for (i = 0;  i < mix->client_cnt;  i++) {
 			if (!mix->client[i])
@@ -122,33 +135,45 @@ static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, 
 
 			/* check client is active ? */
 			if (client_dma->active) {
-				src16 = (u16 *)(client_dma->dma_buffer.area + client_dma->buffer_offset);
-				dst16 = (u16 *)(mix->dma_buffer.area + mix->buffer_offset);
+				sample_offset = 0;
+				id = client->id;
+				sdo_cnt = mix->sdo_cnt;
+				client_chn = client_dma->channels;
+				mix_chn = mix->channels;
+				loop_cnt = size / mix->word_width / mix_chn;
 
-				/* mix the data and reorder it for correct pin */
-				for (j = 0; j < client_dma->channels; j++) {
-					dst_idx = client->id + j * mix->sdo_cnt;
-					dst16[dst_idx] = *src16++;
+				src16 = (u16 *)(client_dma->dma_buffer.area + client_dma->buffer_offset);
+				dst16 = (u16 *)(mix->dma_buffer.area + (mix->buffer_write_offset % mix->buffer_bytes));
+				while (sample_offset < loop_cnt) {
+
+					/* mix the data and reorder it for correct pin */
+					for (j = 0; j < client_chn; j++) {
+						dst_idx = id + j * sdo_cnt;
+						dst16[dst_idx] = *src16++;
+					}
+
+					sample_offset++;
+					dst16 = dst16 + mix_chn;
 				}
 
-				client_dma->buffer_offset += client_dma->channels * client_dma->word_width;
-				client_dma->buffer_offset = client_dma->buffer_offset % client_dma->buffer_bytes;
+				sample_offset = client_dma->buffer_offset + size / mix->client_cnt;
+				sample_offset = sample_offset % client_dma->buffer_bytes;
+				client_dma->buffer_offset = sample_offset;
+
+				if (elapse && mix->fe_substream[i])
+					snd_pcm_period_elapsed(mix->fe_substream[i]);
 			}
 		}
 
-		sample_offset += mix->channels;
-		mix->buffer_offset += mix->channels * mix->word_width;
-		mix->buffer_offset = mix->buffer_offset % mix->buffer_bytes;
-	}
+		mix->buffer_write_offset += size;
+		if (mix->buffer_write_offset > mix->buffer_bytes)
+			mix->buffer_write_offset -= mix->buffer_bytes;
 
-	/* update the pointer of client buffer */
-	for (i = 0;  i < mix->client_cnt;  i++) {
-		if (elapse && mix->fe_substream[i])
-			snd_pcm_period_elapsed(mix->fe_substream[i]);
+		avail -= mix->period_bytes;
 	}
 }
 
-static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream, int size, bool elapse)
+static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream, bool elapse)
 {
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -160,6 +185,13 @@ static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream
 	struct snd_soc_dpcm *dpcm;
 	unsigned long flags;
 	int sample_offset = 0;
+	int client_chn = 0;
+	int mix_chn = 0;
+	int sdi_cnt = 0;
+	int loop_cnt = 0;
+	int id = 0;
+	int size = 0;
+	int avail = 0;
 	int i = 0, j = 0;
 	int src_idx;
 	u16 *src16;
@@ -184,9 +216,14 @@ static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream
 	}
 	spin_unlock_irqrestore(&rtd->card->dpcm_lock, flags);
 
-	/* mix->word_width == client->word_width */
-	/* split the internal buffer */
-	while (sample_offset * mix->word_width < size) {
+	avail = mix->buffer_bytes - mix->buffer_read_offset + mix->buffer_write_offset;
+	if (avail >= mix->buffer_bytes)
+		avail = avail -  mix->buffer_bytes;
+
+	while (avail >= mix->period_bytes) {
+		size = mix->period_bytes;
+		/* mix->word_width == client->word_width */
+		/* split the internal buffer */
 		for (i = 0;  i < mix->client_cnt;  i++) {
 			if (!mix->client[i])
 				continue;
@@ -195,30 +232,56 @@ static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream
 			client_dma = &client->dma[tx];
 
 			if (client_dma->active) {
+				sample_offset = 0;
+				id = client->id;
+				sdi_cnt = mix->sdi_cnt;
+				client_chn = client_dma->channels;
+				mix_chn = mix->channels;
+				loop_cnt = size / mix->word_width / mix_chn;
+
 				dst16 = (u16 *)(client_dma->dma_buffer.area + client_dma->buffer_offset);
-				src16 = (u16 *)(mix->dma_buffer.area + mix->buffer_offset);
+				src16 = (u16 *)(mix->dma_buffer.area + (mix->buffer_read_offset % mix->buffer_bytes));
+				while (sample_offset < loop_cnt) {
 
-				/* split the data to corret client*/
-				for (j = 0; j < client_dma->channels; j++) {
-					src_idx = client->id + j * mix->sdi_cnt;
-					*dst16++ = src16[src_idx];
+					/* split the data to corret client*/
+					for (j = 0; j < client_chn; j++) {
+						src_idx = id + j * sdi_cnt;
+						*dst16++ = src16[src_idx];
+					}
+
+					sample_offset++;
+					src16 = src16 + mix_chn;
 				}
-
-				client_dma->buffer_offset += client_dma->channels * client_dma->word_width;
+				client_dma->buffer_offset += size / mix->client_cnt;
 				client_dma->buffer_offset = client_dma->buffer_offset % client_dma->buffer_bytes;
+
+				if (elapse && mix->fe_substream[i])
+					snd_pcm_period_elapsed(mix->fe_substream[i]);
 			}
 		}
 
-		sample_offset += mix->channels;
-		mix->buffer_offset += mix->channels * mix->word_width;
-		mix->buffer_offset = mix->buffer_offset % mix->buffer_bytes;
-	}
+		mix->buffer_read_offset += size;
+		if (mix->buffer_read_offset > mix->buffer_bytes)
+			mix->buffer_read_offset -= mix->buffer_bytes;
 
-	/* update the pointer of client buffer */
-	for (i = 0;  i < mix->client_cnt;  i++) {
-		if (elapse && mix->fe_substream[i])
-			snd_pcm_period_elapsed(mix->fe_substream[i]);
+		avail -= mix->period_bytes;
 	}
+}
+
+static void fsl_esai_mix_tx_worker(struct work_struct *work)
+{
+	struct fsl_esai_mix *mix;
+
+	mix = container_of(work, struct fsl_esai_mix, work);
+	fsl_esai_mix_buffer_from_fe_tx(mix->substream, true);
+}
+
+static void fsl_esai_mix_rx_worker(struct work_struct *work)
+{
+	struct fsl_esai_mix *mix;
+
+	mix = container_of(work, struct fsl_esai_mix, work);
+	fsl_esai_split_buffer_from_be_rx(mix->substream, true);
 }
 
 /* call back of dma event */
@@ -231,10 +294,19 @@ static void fsl_esai_mix_dma_complete(void *arg)
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	struct fsl_esai_mix *mix = &esai->mix[tx];
 
-	if (tx)
-		fsl_esai_mix_buffer_from_fe_tx(substream, mix->period_bytes, true);
-	else
-		fsl_esai_split_buffer_from_be_rx(substream, mix->period_bytes, true);
+	mix->substream = substream;
+
+	if (tx) {
+		mix->buffer_read_offset = mix->buffer_read_offset + mix->period_bytes;
+		if (mix->buffer_read_offset > mix->buffer_bytes)
+			mix->buffer_read_offset -= mix->buffer_bytes;
+	} else {
+		mix->buffer_write_offset = mix->buffer_write_offset + mix->period_bytes;
+		if (mix->buffer_write_offset > mix->buffer_bytes)
+			mix->buffer_write_offset -= mix->buffer_bytes;
+	}
+
+	queue_work(mix->mix_wq, &mix->work);
 }
 
 static int fsl_esai_mix_prepare_and_submit(struct snd_pcm_substream *substream,
@@ -259,11 +331,15 @@ static int fsl_esai_mix_prepare_and_submit(struct snd_pcm_substream *substream,
 	desc->callback_param = substream;
 	dmaengine_submit(desc);
 
-	mix->buffer_offset = 0;
-
 	/* Mix the tx buffer */
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		fsl_esai_mix_buffer_from_fe_tx(substream, mix->buffer_bytes, false);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		mix->buffer_read_offset = mix->buffer_bytes;
+		mix->buffer_write_offset = 0;
+		fsl_esai_mix_buffer_from_fe_tx(substream, false);
+	} else {
+		mix->buffer_read_offset = 0;
+		mix->buffer_write_offset = 0;
+	}
 
 	return 0;
 }
@@ -311,15 +387,20 @@ int fsl_esai_mix_probe(struct device *dev, struct fsl_esai_mix *mix_rx, struct f
 	mix_tx->sdo_cnt = 2;
 	mix_tx->sdi_cnt = 2;
 	mix_tx->channels = 4;
-	mix_tx->buffer_bytes = 2048 * mix_tx->client_cnt * 2;
+	mix_tx->buffer_bytes = 2048 * mix_tx->client_cnt * 4;
 	mix_tx->period_bytes = 2048 * mix_tx->client_cnt;
-
 	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV,
 				  dev,
 				  IMX_SSI_DMABUF_SIZE * mix_tx->client_cnt,
 				  &mix_tx->dma_buffer);
 	if (ret)
 		return ret;
+
+	mix_tx->mix_wq = alloc_ordered_workqueue("esai_mix_tx", WQ_HIGHPRI | WQ_UNBOUND | WQ_FREEZABLE);
+	if (IS_ERR(mix_tx->mix_wq))
+		dev_err(dev, "failed  create easi mix tx thread\n");
+
+	INIT_WORK(&mix_tx->work, fsl_esai_mix_tx_worker);
 
 	/**
 	 * initialize info for mixing
@@ -330,7 +411,7 @@ int fsl_esai_mix_probe(struct device *dev, struct fsl_esai_mix *mix_rx, struct f
 	mix_rx->sdo_cnt = 2;
 	mix_rx->sdi_cnt = 2;
 	mix_rx->channels = 4;
-	mix_rx->buffer_bytes = 2048 * mix_rx->client_cnt * 2;
+	mix_rx->buffer_bytes = 2048 * mix_rx->client_cnt * 4;
 	mix_rx->period_bytes = 2048 * mix_rx->client_cnt;
 
 	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV,
@@ -340,11 +421,20 @@ int fsl_esai_mix_probe(struct device *dev, struct fsl_esai_mix *mix_rx, struct f
 	if (ret)
 		return ret;
 
+	mix_rx->mix_wq = alloc_ordered_workqueue("esai_mix_rx", WQ_HIGHPRI | WQ_UNBOUND | WQ_FREEZABLE);
+	if (IS_ERR(mix_rx->mix_wq))
+		dev_err(dev, "failed  create easi mix tx thread\n");
+
+	INIT_WORK(&mix_rx->work, fsl_esai_mix_rx_worker);
+
 	return ret;
 }
 
 int fsl_esai_mix_remove(struct device *dev, struct fsl_esai_mix *mix_rx, struct fsl_esai_mix *mix_tx)
 {
+	destroy_workqueue(mix_rx->mix_wq);
+	destroy_workqueue(mix_rx->mix_wq);
+
 	snd_dma_free_pages(&mix_tx->dma_buffer);
 	snd_dma_free_pages(&mix_rx->dma_buffer);
 
