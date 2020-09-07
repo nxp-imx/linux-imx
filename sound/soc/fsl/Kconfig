@@ -102,7 +102,7 @@ config SND_SOC_FSL_DSP
 
 config SND_SOC_FSL_RPMSG_I2S
 	tristate "I2S base on the RPMSG support"
-	depends on HAVE_IMX_RPMSG
+	depends on IMX_REMOTEPROC
 	help
 	  Say Y if you want to add rpmsg i2s support for the Freescale CPUs.
 	  which is depends on the rpmsg.
@@ -148,7 +148,7 @@ config SND_SOC_IMX_PCM_DMA
 
 config SND_SOC_IMX_PCM_RPMSG
 	tristate
-	depends on HAVE_IMX_RPMSG
+	depends on IMX_REMOTEPROC
 	select SND_SOC_GENERIC_DMAENGINE_PCM
 
 config SND_SOC_IMX_I2S_RPMSG
@@ -460,7 +460,7 @@ config SND_SOC_IMX_MICFIL
 
 config SND_SOC_IMX_RPMSG
 	tristate "SoC Audio support for i.MX boards with rpmsg"
-	depends on HAVE_IMX_RPMSG
+	depends on IMX_REMOTEPROC
 	select SND_SOC_IMX_PCM_RPMSG
 	select SND_SOC_IMX_I2S_RPMSG
 	select SND_SOC_FSL_RPMSG_I2S
