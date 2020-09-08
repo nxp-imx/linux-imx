@@ -31,6 +31,7 @@ struct fsl_esai_mix {
 	struct workqueue_struct  *mix_wq;
 	struct work_struct       work;
 	struct snd_pcm_substream *substream;
+	dma_cookie_t cookie;
 	u32 buffer_read_offset;
 	u32 buffer_write_offset;
 	u32 buffer_bytes;
