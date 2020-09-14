@@ -310,7 +310,7 @@ static void dwc3_frame_length_adjustment(struct dwc3 *dwc)
 	dwc3_pdata = (struct dwc3_platform_data *)dev_get_platdata(dwc->dev);
 	if (dwc3_pdata && dwc3_pdata->quirks & DWC3_SOFT_ITP_SYNC) {
 		u32 ref_clk_hz, ref_clk_period_integer;
-		u64 temp;
+		unsigned long long temp;
 
 		reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 		reg |= DWC3_GCTL_SOFITPSYNC;
@@ -337,10 +337,10 @@ static void dwc3_frame_length_adjustment(struct dwc3 *dwc)
 		}
 
 		/* nano seconds the period of ref_clk */
-		ref_clk_period_integer = 1000000000 / ref_clk_hz;
-		temp = 125000L * 1000000000L;
-		temp = temp / ref_clk_hz;
-		temp = temp / ref_clk_period_integer;
+		ref_clk_period_integer = DIV_ROUND_DOWN_ULL(1000000000, ref_clk_hz);
+		temp = 125000ULL * 1000000000ULL;
+		temp = DIV_ROUND_DOWN_ULL(temp, ref_clk_hz);
+		temp = DIV_ROUND_DOWN_ULL(temp, ref_clk_period_integer);
 		temp = temp - 125000;
 		temp = temp << GFLADJ_REFCLK_FLADJ_SHIFT;
 		reg &= ~GFLADJ_REFCLK_FLADJ_MASK;
@@ -1759,6 +1759,11 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 	u32 reg;
 
 	switch (dwc->current_dr_role) {
+	case DWC3_GCTL_PRTCAP_NONE:
+		if (pm_runtime_suspended(dwc->dev))
+			break;
+		dwc3_core_exit(dwc);
+		break;
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		if (pm_runtime_suspended(dwc->dev))
 			break;
@@ -1819,6 +1824,14 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 	u32		reg;
 
 	switch (dwc->current_dr_role) {
+	case DWC3_GCTL_PRTCAP_NONE:
+		if (dwc->core_inited)
+			break;
+
+		ret = dwc3_core_init_for_resume(dwc);
+		if (ret)
+			return ret;
+		break;
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		/*
 		 * system resume may come after runtime resume

@@ -34,3 +34,7 @@
 &sai5 {
 	status = "okay";
 };
+
+&ak5558 {
+	status = "okay";
+};

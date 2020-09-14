@@ -2049,6 +2049,7 @@ static void ov5640_set_power_off(struct ov5640_dev *sensor)
 	ov5640_power(sensor, false);
 	regulator_bulk_disable(OV5640_NUM_SUPPLIES, sensor->supplies);
 	clk_disable_unprepare(sensor->xclk);
+	sensor->streaming = false;
 }
 
 static int ov5640_set_power(struct ov5640_dev *sensor, bool on)

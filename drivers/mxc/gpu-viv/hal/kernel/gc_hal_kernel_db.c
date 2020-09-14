@@ -610,12 +610,20 @@ gckKERNEL_CreateProcessDB(
     database->vidMem.bytes              = 0;
     database->vidMem.maxBytes           = 0;
     database->vidMem.totalBytes         = 0;
+    database->vidMem.freeCount          = 0;
+    database->vidMem.allocCount         = 0;
+
     database->nonPaged.bytes            = 0;
     database->nonPaged.maxBytes         = 0;
     database->nonPaged.totalBytes       = 0;
+    database->nonPaged.freeCount        = 0;
+    database->nonPaged.allocCount       = 0;
+
     database->mapMemory.bytes           = 0;
     database->mapMemory.maxBytes        = 0;
     database->mapMemory.totalBytes      = 0;
+    database->mapMemory.freeCount       = 0;
+    database->mapMemory.allocCount      = 0;
 
     for (i = 0; i < gcmCOUNTOF(database->list); i++)
     {
@@ -627,6 +635,8 @@ gckKERNEL_CreateProcessDB(
         database->vidMemType[i].bytes = 0;
         database->vidMemType[i].maxBytes = 0;
         database->vidMemType[i].totalBytes = 0;
+        database->vidMemType[i].freeCount = 0;
+        database->vidMemType[i].allocCount = 0;
     }
 
     for (i = 0; i < gcvPOOL_NUMBER_OF_POOLS; i++)
@@ -634,6 +644,8 @@ gckKERNEL_CreateProcessDB(
         database->vidMemPool[i].bytes = 0;
         database->vidMemPool[i].maxBytes = 0;
         database->vidMemPool[i].totalBytes = 0;
+        database->vidMemPool[i].freeCount = 0;
+        database->vidMemPool[i].allocCount = 0;
     }
 
     gcmkASSERT(database->refs == gcvNULL);

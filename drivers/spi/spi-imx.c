@@ -1775,8 +1775,13 @@ static int spi_imx_probe(struct platform_device *pdev)
 	/* Request GPIO CS lines, if any */
 	if (!spi_imx->slave_mode && master->cs_gpios) {
 		for (i = 0; i < master->num_chipselect; i++) {
-			if (!gpio_is_valid(master->cs_gpios[i]))
+			if (!gpio_is_valid(master->cs_gpios[i])) {
+				if (master->cs_gpios[i] == -EPROBE_DEFER) {
+					ret = -EPROBE_DEFER;
+					goto out_spi_bitbang;
+				}
 				continue;
+			}
 
 			ret = devm_gpio_request(&pdev->dev,
 						master->cs_gpios[i],

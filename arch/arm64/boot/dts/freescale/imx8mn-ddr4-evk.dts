@@ -547,6 +547,7 @@
 		reg = <0x10>;
 		AVDD-supply = <&reg_audio_board>;
 		DVDD-supply = <&reg_audio_board>;
+		status = "disabled";
 	};
 
 	ak4458_2: ak4458@12 {
@@ -554,6 +555,7 @@
 		reg = <0x12>;
 		AVDD-supply = <&reg_audio_board>;
 		DVDD-supply = <&reg_audio_board>;
+		status = "disabled";
 	};
 
 	ak5558: ak5558@13 {
@@ -562,6 +564,7 @@
 		ak5558,pdn-gpio = <&pca6416 3 GPIO_ACTIVE_HIGH>;
 		AVDD-supply = <&reg_audio_board>;
 		DVDD-supply = <&reg_audio_board>;
+		status = "disabled";
 	};
 
 	ak4497: ak4497@11 {
@@ -570,6 +573,7 @@
 		ak4497,pdn-gpio = <&pca6416 5 GPIO_ACTIVE_HIGH>;
 		AVDD-supply = <&reg_audio_board>;
 		DVDD-supply = <&reg_audio_board>;
+		status = "disabled";
 	};
 
 	ov5640_mipi_0: ov5640_mipi@3c {

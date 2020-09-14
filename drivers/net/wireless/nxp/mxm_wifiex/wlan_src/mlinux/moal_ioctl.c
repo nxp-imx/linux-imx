@@ -6834,7 +6834,9 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_CHANNELBW:
-		if (val != 0 && val != 1 && val != 4)
+		if (val != 0 && val != 1 &&
+		    (val != 4 ||
+		     (val == 4 && handle->rf_data->band == BAND_2GHZ)))
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_CHAN:

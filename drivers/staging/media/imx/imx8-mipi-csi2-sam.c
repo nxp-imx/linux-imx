@@ -1334,6 +1334,7 @@ static long csis_priv_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg_
 		break;
 	default:
 		v4l2_err(&state->sd, "unsupported csi-sam command %d.", cmd);
+		ret = -EINVAL;
 		break;
 	}
 	pm_runtime_put(state->dev);

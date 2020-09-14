@@ -144,6 +144,7 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 	bool random = false;
 	int ret = 0;
 	u32 tmp_len = 0;
+	char null_ch = 0;
 
 	/*
 	 * So far, we only support Black keys, encrypted with JDKEK,
@@ -169,12 +170,24 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 	 */
 	if (create_key_op) {
 		/*
+		 * Validate arguments received from user.
+		 * These must be at least 1 since
+		 * they have null terminator.
+		 */
+		if (key_crt->key_enc_len < 1 || key_crt->key_mode_len < 1 ||
+		    key_crt->key_value_len < 1) {
+			msg = "Invalid arguments.\n";
+			send_err_msg(msg, u64_to_user_ptr(key_crt->blob),
+				     key_crt->blob_len);
+			return -EFAULT;
+		}
+		/*
 		 * Allocate memory for temporary buffer used to
 		 * get the user arguments from user-space
 		 */
 		tmp_size = max_t(size_t, key_crt->key_enc_len,
 				 max_t(size_t, key_crt->key_mode_len,
-				       key_crt->key_value_len));
+				       key_crt->key_value_len)) + 1;
 		tmp = kmalloc(tmp_size, GFP_KERNEL);
 		if (!tmp) {
 			msg = "Unable to allocate memory for temporary buffer.\n";
@@ -182,6 +195,8 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 				     key_crt->blob_len);
 			return -ENOMEM;
 		}
+		/* Add null terminator */
+		tmp[tmp_size - 1] = null_ch;
 		/*
 		 * Validate and set, in type, the Encrypted Key Type
 		 * given from user-space.

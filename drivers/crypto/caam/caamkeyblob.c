@@ -379,7 +379,7 @@ int caam_blob_encap(struct device *dev, struct keyblob_info *info)
 	trusted_key = (info->type >> TAG_OBJ_TK_OFFSET) & 0x1;
 
 	/* Validate input data*/
-	if (!info->black_key || !info->key_mod || !blob)
+	if (!info->key_mod || !blob)
 		return -EINVAL;
 
 	/* Validate object type - only JDKEK keys are supported */
@@ -531,7 +531,7 @@ int caam_blob_decap(struct device *dev, struct keyblob_info *info)
 	trusted_key = (info->type >> TAG_OBJ_TK_OFFSET) & 0x1;
 
 	/* Validate input data*/
-	if (!info->black_key || !info->key_mod || !blob)
+	if (!info->key_mod || !blob)
 		return -EINVAL;
 
 	dev_dbg(dev, "%s input: [blob: %p (%zu), mem_type: %x, color: %x",

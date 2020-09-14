@@ -57,6 +57,8 @@ static int dsp_platform_compr_open(struct snd_compr_stream *cstream)
 	struct fsl_dsp  *dsp_priv = snd_soc_component_get_drvdata(component);
 	struct dsp_data *drv = &dsp_priv->dsp_data;
 
+	if (drv->client)
+		return -EBUSY;
 	drv->client = xf_client_alloc(dsp_priv);
 	if (IS_ERR(drv->client))
 		return PTR_ERR(drv->client);
@@ -121,6 +123,7 @@ static int dsp_platform_compr_free(struct snd_compr_stream *cstream)
 	cancel_work_sync(&drv->client->work);
 
 	fsl_dsp_close_func(drv->client);
+	drv->client = NULL;
 
 	return 0;
 }
