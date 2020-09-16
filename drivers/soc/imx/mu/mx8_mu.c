@@ -66,6 +66,7 @@ void MU_EnableRxFullInt(void __iomem *base, uint32_t index)
 	reg |= MU_CR_RIE0_MASK1 >> index;
 	writel_relaxed(reg, base + offset);
 }
+EXPORT_SYMBOL(MU_EnableRxFullInt);
 
 /*!
  * This function enables specific general purpose interrupt.
@@ -134,6 +135,7 @@ void MU_SendMessageTimeout(void __iomem *base, uint32_t regIndex, uint32_t msg,
 		writel_relaxed(msg, base + MU_ATR0_OFFSET1  + (regIndex * 4));
 	}
 }
+EXPORT_SYMBOL(MU_SendMessageTimeout);
 
 /*
  * Wait to receive message from the other core.
@@ -155,6 +157,7 @@ void MU_ReceiveMsg(void __iomem *base, uint32_t regIndex, uint32_t *msg)
 		*msg = readl_relaxed(base + MU_ARR0_OFFSET1 + (regIndex * 4));
 	}
 }
+EXPORT_SYMBOL(MU_ReceiveMsg);
 
 
 
@@ -182,6 +185,7 @@ void MU_Init(void __iomem *base)
 
 	writel_relaxed(reg, base + offset);
 }
+EXPORT_SYMBOL(MU_Init);
 
 /**@}*/
 
