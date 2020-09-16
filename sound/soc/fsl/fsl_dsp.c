@@ -664,8 +664,10 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 	switch (dsp_priv->dsp_board_type){
 	case DSP_IMX8QM_TYPE:
 	case DSP_IMX8QXP_TYPE:
+#if defined(CONFIG_IMX_SCU)
 		imx_sc_pm_cpu_start(dsp_priv->dsp_ipcHandle,
 				    IMX_SC_R_DSP, true, dsp_priv->iram);
+#endif
 		break;
 	case DSP_IMX8MP_TYPE:
 		imx_audiomix_dsp_start(dsp_priv->audiomix);

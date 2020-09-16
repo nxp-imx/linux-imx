@@ -16,8 +16,9 @@ snd-soc-fsl-audmix-objs := fsl_audmix.o
 snd-soc-fsl-dsp-audiomix-objs := fsl_dsp_audiomix.o
 snd-soc-fsl-asrc-objs := fsl_asrc.o fsl_asrc_dma.o
 snd-soc-fsl-dsp-objs := fsl_dsp.o fsl_dsp_proxy.o fsl_dsp_pool.o \
-	fsl_dsp_library_load.o fsl_dsp_xaf_api.o fsl_dsp_cpu.o \
+	fsl_dsp_library_load.o fsl_dsp_xaf_api.o \
 	fsl_dsp_platform_compress.o
+snd-soc-fsl-dsp-audio-objs := fsl_dsp_cpu.o
 snd-soc-fsl-sai-objs := fsl_sai.o fsl_sai_sysfs.o
 snd-soc-fsl-ssi-y := fsl_ssi.o
 snd-soc-fsl-ssi-$(CONFIG_DEBUG_FS) += fsl_ssi_dbg.o
@@ -38,6 +39,7 @@ obj-$(CONFIG_SND_SOC_FSL_ASOC_CARD) += snd-soc-fsl-asoc-card.o
 snd-soc-fsl-hdmi-objs := fsl_hdmi.o
 obj-$(CONFIG_SND_SOC_FSL_ASRC) += snd-soc-fsl-asrc.o
 obj-$(CONFIG_SND_SOC_FSL_DSP) += snd-soc-fsl-dsp.o
+obj-$(CONFIG_SND_SOC_FSL_DSP_AUDIO) += snd-soc-fsl-dsp-audio.o
 obj-$(CONFIG_SND_SOC_FSL_DSP_AUDIOMIX) += snd-soc-fsl-dsp-audiomix.o
 obj-$(CONFIG_SND_SOC_FSL_SAI) += snd-soc-fsl-sai.o
 obj-$(CONFIG_SND_SOC_FSL_SSI) += snd-soc-fsl-ssi.o
