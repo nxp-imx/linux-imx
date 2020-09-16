@@ -95,6 +95,7 @@ config SND_SOC_FSL_EASRC
 config SND_SOC_FSL_DSP
 	tristate "dsp module support"
 	select SND_SOC_COMPRESS
+	select SND_SOC_FSL_DSP_AUDIO
 	select SND_SOC_FSL_DSP_AUDIOMIX
 	help
 	  Say Y if you want to add hifi 4 support for the Freescale CPUs.
@@ -115,6 +116,11 @@ config SND_SOC_FSL_AUD2HTX
 	select SND_SOC_GENERIC_DMAENGINE_PCM
 	help
 	  Say Y if you want to add AUDIO TO HDMI TX support for NXP.
+
+config SND_SOC_FSL_DSP_AUDIO
+	tristate "DSP Audio platform driver"
+	help
+	  Say Y if you want to add Audio platform driver for DSP
 
 config SND_SOC_FSL_DSP_AUDIOMIX
 	tristate "Audio MIX DSP helper"
