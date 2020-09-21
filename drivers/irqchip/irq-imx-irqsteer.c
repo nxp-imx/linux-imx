@@ -10,6 +10,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqdomain.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/spinlock.h>
@@ -413,3 +414,4 @@ static struct platform_driver imx_irqsteer_driver = {
 	.remove = imx_irqsteer_remove,
 };
 builtin_platform_driver(imx_irqsteer_driver);
+MODULE_LICENSE("GPL");
