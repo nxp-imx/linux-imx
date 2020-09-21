@@ -66,23 +66,23 @@ config RESET_HSDK
 	  This enables the reset controller driver for HSDK board.
 
 config RESET_IMX7
-	bool "i.MX7/8 Reset Driver" if COMPILE_TEST
-	depends on HAS_IOMEM
+	tristate "i.MX7/8 Reset Driver"
+	depends on HAS_IOMEM || COMPILE_TEST
 	default SOC_IMX7D || (ARM64 && ARCH_MXC)
 	select MFD_SYSCON
 	help
 	  This enables the reset controller driver for i.MX7 SoCs.
 
 config RESET_IMX_HDMIMIX
-	bool "i.MX HDMIMIX Reset Driver" if COMPILE_TEST
-	depends on HAS_IOMEM
+	tristate "i.MX HDMIMIX Reset Driver"
+	depends on HAS_IOMEM || COMPILE_TEST
 	default ARCH_MXC
 	help
 	  This enables the hdmimix reset controller driver for i.MX8MP.
 
 config RESET_IMX_AUDIOMIX
-	bool "i.MX Audiomix Reset Driver" if COMPILE_TEST
-	depends on HAS_IOMEM
+	tristate "i.MX Audiomix Reset Driver"
+	depends on HAS_IOMEM || COMPILE_TEST
 	default ARCH_MXC
 	help
 	  This enables the audiomix reset controller driver for i.MX SoCs.

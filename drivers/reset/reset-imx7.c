@@ -7,6 +7,7 @@
  * Author: Andrey Smirnov <andrew.smirnov@gmail.com>
  */
 
+#include <linux/module.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of_device.h>
@@ -294,6 +295,7 @@ static const struct of_device_id imx7_reset_dt_ids[] = {
 	{ .compatible = "fsl,imx8mq-src", .data = &variant_imx8mq },
 	{ /* sentinel */ },
 };
+MODULE_DEVICE_TABLE(of, imx7_reset_dt_ids);
 
 static struct platform_driver imx7_reset_driver = {
 	.probe	= imx7_reset_probe,
@@ -303,3 +305,4 @@ static struct platform_driver imx7_reset_driver = {
 	},
 };
 builtin_platform_driver(imx7_reset_driver);
+MODULE_LICENSE("GPL");
