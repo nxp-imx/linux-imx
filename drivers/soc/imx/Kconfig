@@ -25,7 +25,7 @@ config IMX8M_PM_DOMAINS
 	select PM_GENERIC_DOMAINS
 
 config IMX8M_BUSFREQ
-	bool "i.MX8M busfreq"
+	tristate "i.MX8M busfreq"
 	depends on ARCH_MXC && ARM64
 
 config SECVIO_SC
