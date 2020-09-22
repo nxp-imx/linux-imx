@@ -4,8 +4,10 @@
 
 #include <linux/interrupt.h>
 #include <linux/clockchips.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/platform_device.h>
 
 #include "timer-of.h"
 
@@ -128,7 +130,7 @@ static void __init sysctr_clockevent_init(void)
 					0xff, 0x7fffffff);
 }
 
-static int __init sysctr_timer_init(struct device_node *np)
+static int sysctr_timer_init(struct device_node *np)
 {
 	int ret = 0;
 
@@ -147,4 +149,31 @@ static int __init sysctr_timer_init(struct device_node *np)
 
 	return 0;
 }
+#ifdef MODULE
+static int sysctr_timer_probe(struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	return sysctr_timer_init(np);
+}
+
+static const struct of_device_id sysctr_timer_match_table[] = {
+	{ .compatible = "nxp,sysctr-timer" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, sysctr_timer_match_table);
+
+static struct platform_driver sysctr_timer_driver = {
+	.probe		= sysctr_timer_probe,
+	.driver		= {
+		.name	= "sysctr-timer",
+		.of_match_table = sysctr_timer_match_table,
+	},
+};
+module_platform_driver(sysctr_timer_driver);
+
+#else
 TIMER_OF_DECLARE(sysctr_timer, "nxp,sysctr-timer", sysctr_timer_init);
+#endif
+
+MODULE_LICENSE("GPL");
