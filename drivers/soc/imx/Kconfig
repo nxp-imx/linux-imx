@@ -27,6 +27,7 @@ config IMX8M_PM_DOMAINS
 config IMX8M_BUSFREQ
 	tristate "i.MX8M busfreq"
 	depends on ARCH_MXC && ARM64
+	select HAVE_IMX_BUSFREQ
 
 config SECVIO_SC
 	tristate "NXP SC secvio support"
