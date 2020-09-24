@@ -59,46 +59,90 @@
 		reset-gpios = <&gpio2 10 GPIO_ACTIVE_LOW>;
 	};
 
-	regulators {
-		compatible = "simple-bus";
-		#address-cells = <1>;
-		#size-cells = <0>;
+	reg_usdhc2_vmmc: regulator-usdhc2 {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_reg_usdhc2_vmmc>;
+		regulator-name = "VSD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio2 19 GPIO_ACTIVE_HIGH>;
+		off-on-delay-us = <12000>;
+		enable-active-high;
+	};
 
-		reg_usdhc2_vmmc: regulator-usdhc2 {
-			compatible = "regulator-fixed";
-			regulator-name = "VSD_3V3";
-			pinctrl-0 = <&pinctrl_reg_usdhc2_vmmc>;
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio2 19 GPIO_ACTIVE_HIGH>;
-			enable-active-high;
-			startup-delay-us = <100>;
-			off-on-delay-us = <12000>;
-		};
+	reg_ab2_ana_pwr: regulator-ab2-ana-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "ANA_12V0";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ab2_ana_pwr>;
+		regulator-min-microvolt = <12000000>;
+		regulator-max-microvolt = <12000000>;
+		gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&buck5_reg>;
+		enable-active-high;
+	};
 
-		reg_ab2_ana_pwr: regulator-ab2-ana-pwr {
-			compatible = "regulator-fixed";
-			regulator-name = "ab2_ana_pwr";
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_ab2_ana_pwr>;
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
-			enable-active-high;
-			regulator-always-on;
-		};
+	reg_ab2_vdd_pwr_5v0: regulator-ab2-vdd-pwr-5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "VDD_5V0";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ab2_vdd_pwr_5v0>;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&buck5_reg>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+	};
 
-		reg_ab2_vdd_pwr_5v0: regulator-ab2-vdd-pwr-5v0 {
-			compatible = "regulator-fixed";
-			regulator-name = "ab2_vdd_pwr_5v0";
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_ab2_vdd_pwr_5v0>;
-			regulator-min-microvolt = <5000000>;
-			regulator-max-microvolt = <5000000>;
-			gpio = <&gpio1 7 GPIO_ACTIVE_HIGH>;
-			enable-active-high;
-			regulator-always-on;
-		};
+	reg_adc_dvdd_3v3: reg-adc-dvdd-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "ADC_DVDD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_adc_avdd_5v0: reg-adc-avdd-5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "ADC_AVDD_5V0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_dac_dvdd_3v3: reg-dac-dvdd-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "DAC_DVDD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_dac_avdd_5v0: reg-dac-avdd-5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "DAC_AVDD_5V0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_cph_3v3: reg-cph-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "CPH_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_vdd_pwr_5v0>;
+	};
+
+	reg_cph_1v8: reg-cph-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "CPH_1V8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_cph_3v3>;
 	};
 
 	sound-ak5552 {
@@ -215,6 +259,13 @@
 			>;
 		};
 
+		pinctrl_i2c4: i2c4grp {
+			fsl,pins = <
+				MX8MN_IOMUXC_I2C4_SCL_I2C4_SCL			0x400001c3
+				MX8MN_IOMUXC_I2C4_SDA_I2C4_SDA			0x400001c3
+			>;
+		};
+
 		pinctrl_i2c1_gpio: i2c1grp-gpio {
 			fsl,pins = <
 				MX8MN_IOMUXC_I2C1_SCL_GPIO5_IO14		0x1c3
@@ -233,6 +284,13 @@
 			fsl,pins = <
 				MX8MN_IOMUXC_I2C3_SCL_GPIO5_IO18		0x1c3
 				MX8MN_IOMUXC_I2C3_SDA_GPIO5_IO19		0x1c3
+			>;
+		};
+
+		pinctrl_i2c4_gpio: i2c4grp-gpio {
+			fsl,pins = <
+				MX8MN_IOMUXC_I2C4_SCL_GPIO5_IO20		0x1c3
+				MX8MN_IOMUXC_I2C4_SDA_GPIO5_IO21		0x1c3
 			>;
 		};
 
@@ -644,7 +702,7 @@
 		reg = <0x20>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		vcc-supply = <&buck5_reg>;
+		vcc-supply = <&buck4_reg>;
 	};
 
 	pca6416_2: gpio@21 {
@@ -677,9 +735,19 @@
 		compatible = "asahi-kasei,ak5552";
 		reg = <0x13>;
 		reset-gpios = <&pca6416 2 GPIO_ACTIVE_HIGH>;
-		AVDD-supply = <&reg_ab2_ana_pwr>;
-		DVDD-supply = <&reg_ab2_vdd_pwr_5v0>;
+		AVDD-supply = <&reg_adc_avdd_5v0>;
+		DVDD-supply = <&reg_adc_dvdd_3v3>;
 	};
+};
+
+&i2c4 {
+	clock-frequency = <400000>;
+	pinctrl-names = "default", "gpio";
+	pinctrl-0 = <&pinctrl_i2c4>;
+	pinctrl-1 = <&pinctrl_i2c4_gpio>;
+	scl-gpios = <&gpio5 20 GPIO_ACTIVE_HIGH>;
+	sda-gpios = <&gpio5 21 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
 };
 
 &fec1 {

@@ -1859,7 +1859,6 @@
 					assigned-clock-rates = <500000000>;
 					bus-width = <4>;
 					csi-gpr = <&mediamix_gasket0>;
-					csi-gpr2 = <&mediamix_gpr>;
 					gpr = <&mediamix_blk_ctl>;
 					no-reset-control;
 					power-domains = <&mipi_phy1_pd>;
@@ -1880,7 +1879,6 @@
 					assigned-clock-rates = <266000000>;
 					bus-width = <4>;
 					csi-gpr = <&mediamix_gasket1>;
-					csi-gpr2 = <&mediamix_gpr>;
 					gpr = <&mediamix_blk_ctl>;
 					no-reset-control;
 					power-domains = <&mipi_phy2_pd>;
@@ -2049,8 +2047,9 @@
 	usb3_0: usb@32f10100 {
 		compatible = "fsl,imx8mp-dwc3";
 		reg = <0 0x32f10100 0 0x8>;
-		clocks = <&clk IMX8MP_CLK_HSIO_ROOT>;
-		clock-names = "hsio";
+		clocks = <&clk IMX8MP_CLK_HSIO_ROOT>,
+			 <&clk IMX8MP_CLK_USB_ROOT>;
+		clock-names = "hsio", "suspend";
 		interrupts = <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>;
 		power-domains = <&hsiomix_pd>;
 		#address-cells = <2>;
@@ -2071,10 +2070,7 @@
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
 			phys = <&usb3_phy0>, <&usb3_phy0>;
 			phy-names = "usb2-phy", "usb3-phy";
-			xhci-no-64bit-support;
-			usb3-resume-missing-cas;
 			snps,dis-u2-freeclk-exists-quirk;
-			snps,soft-itp-sync;
 			status = "disabled";
 		};
 
@@ -2094,8 +2090,9 @@
 	usb3_1: usb@32f10108 {
 		compatible = "fsl,imx8mp-dwc3";
 		reg = <0 0x32f10108 0 0x8>;
-		clocks = <&clk IMX8MP_CLK_HSIO_ROOT>;
-		clock-names = "hsio";
+		clocks = <&clk IMX8MP_CLK_HSIO_ROOT>,
+			 <&clk IMX8MP_CLK_USB_ROOT>;
+		clock-names = "hsio", "suspend";
 		interrupts = <GIC_SPI 149 IRQ_TYPE_LEVEL_HIGH>;
 		power-domains = <&hsiomix_pd>;
 		#address-cells = <2>;
@@ -2116,10 +2113,7 @@
 			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
 			phys = <&usb3_phy1>, <&usb3_phy1>;
 			phy-names = "usb2-phy", "usb3-phy";
-			xhci-no-64bit-support;
-			usb3-resume-missing-cas;
 			snps,dis-u2-freeclk-exists-quirk;
-			snps,soft-itp-sync;
 			status = "disabled";
 		};
 	};

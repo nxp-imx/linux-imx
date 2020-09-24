@@ -458,6 +458,11 @@ static int cdns3_do_role_switch(struct cdns3 *cdns, enum cdns3_roles role)
 		return 0;
 	}
 
+	/*
+	 * WORKAROUND: Mass storage gadget calls .ep_disable after
+	 * disconnect with host, wait some time for .ep_disable completion.
+	 */
+	msleep(20);
 	cdns_set_role(cdns, role);
 	ret = cdns3_role_start(cdns, role);
 	if (ret) {

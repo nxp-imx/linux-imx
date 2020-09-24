@@ -2635,6 +2635,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 						PRINTM(MEVENT,
 						       "HostMlme %s: Receive deauth/disassociate\n",
 						       priv->netdev->name);
+						priv->cfg_disconnect = MTRUE;
 						woal_mgmt_frame_register(
 							priv,
 							IEEE80211_STYPE_DEAUTH,

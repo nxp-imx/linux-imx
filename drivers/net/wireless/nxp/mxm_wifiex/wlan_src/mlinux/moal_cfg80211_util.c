@@ -2739,6 +2739,11 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
 	moal_handle *handle = priv->phandle;
 
+	/*Sending this command frequently causes TP to drop.*/
+	/*ToDo : Check in vendor HAL if this callback is needed so frequently
+	 * during normal run*/
+	if (!(drvdbg & MLOG_D))
+		return 0;
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
 	if (req == NULL) {

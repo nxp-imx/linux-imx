@@ -502,8 +502,8 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 		config_data = (t_u32)woal_string_to_number(line);
 		cmd = MFG_CMD_RF_BAND_AG;
 	}
-	if (!strncmp(databuf, "bandwidth", strlen("bandwidth"))) {
-		line += strlen("bandwidth") + 1;
+	if (!strncmp(databuf, "bw", strlen("bw"))) {
+		line += strlen("bw") + 1;
 		config_data = (t_u32)woal_string_to_number(line);
 		cmd = MFG_CMD_RF_CHANNELBW;
 	}
@@ -567,7 +567,7 @@ static int woal_config_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "tx_antenna=%u\n", handle->rf_data->tx_antenna);
 		seq_printf(sfp, "rx_antenna=%u\n", handle->rf_data->rx_antenna);
 		seq_printf(sfp, "band=%u\n", handle->rf_data->band);
-		seq_printf(sfp, "bandwidth=%u\n", handle->rf_data->bandwidth);
+		seq_printf(sfp, "bw=%u\n", handle->rf_data->bandwidth);
 		if (handle->rf_data->channel)
 			seq_printf(sfp, "channel=%u\n",
 				   handle->rf_data->channel);

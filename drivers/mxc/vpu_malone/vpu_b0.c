@@ -1745,6 +1745,7 @@ static int v4l2_ioctl_try_fmt(struct file *file,
 		struct v4l2_format *f
 		)
 {
+	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 	unsigned int table_size;
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -1757,6 +1758,11 @@ static int v4l2_ioctl_try_fmt(struct file *file,
 			return -EINVAL;
 	} else
 		return -EINVAL;
+
+	f->fmt.pix_mp.colorspace = ctx->colorspace;
+	f->fmt.pix_mp.xfer_func = ctx->xfer_func;
+	f->fmt.pix_mp.ycbcr_enc = ctx->ycbcr_enc;
+	f->fmt.pix_mp.quantization = ctx->quantization;
 
 	return 0;
 }

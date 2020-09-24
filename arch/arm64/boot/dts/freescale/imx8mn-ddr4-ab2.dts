@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2019 NXP
+ * Copyright 2020 NXP
  */
 
 /dts-v1/;
@@ -63,32 +63,82 @@
 
 	reg_ab2_ana_pwr: regulator-ab2-ana-pwr {
 		compatible = "regulator-fixed";
-		regulator-name = "ab2_ana_pwr";
+		regulator-name = "ANA_12V0";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ab2_ana_pwr>;
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
+		regulator-min-microvolt = <12000000>;
+		regulator-max-microvolt = <12000000>;
 		gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&buck5_reg>;
 		enable-active-high;
-		regulator-always-on;
 	};
 
 	reg_ab2_vdd_pwr_5v0: regulator-ab2-vdd-pwr-5v0 {
 		compatible = "regulator-fixed";
-		regulator-name = "ab2_vdd_pwr_5v0";
+		regulator-name = "VDD_5V0";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ab2_vdd_pwr_5v0>;
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		gpio = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&buck5_reg>;
 		enable-active-high;
 		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reg_adc_dvdd_3v3: reg-adc-dvdd-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "ADC_DVDD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_adc_avdd_5v0: reg-adc-avdd-5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "ADC_AVDD_5V0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_dac_dvdd_3v3: reg-dac-dvdd-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "DAC_DVDD_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_dac_avdd_5v0: reg-dac-avdd-5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "DAC_AVDD_5V0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_ab2_ana_pwr>;
+	};
+
+	reg_cph_3v3: reg-cph-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "CPH_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_ab2_vdd_pwr_5v0>;
+	};
+
+	reg_cph_1v8: reg-cph-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "CPH_1V8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_cph_3v3>;
 	};
 
 	sound-ak5552 {
 		compatible = "fsl,imx-audio-ak5552";
 		model = "ak5552-audio";
-		audio-cpu = <&sai3>;
+		audio-cpu = <&sai6>;
 		audio-codec = <&ak5552>;
 	};
 
@@ -206,6 +256,13 @@
 		>;
 	};
 
+	pinctrl_i2c4: i2c4grp {
+		fsl,pins = <
+			MX8MN_IOMUXC_I2C4_SCL_I2C4_SCL			0x400001c3
+			MX8MN_IOMUXC_I2C4_SDA_I2C4_SDA			0x400001c3
+		>;
+	};
+
 	pinctrl_i2c2_gpio: i2c2grp-gpio {
 		fsl,pins = <
 			MX8MN_IOMUXC_I2C2_SCL_GPIO5_IO16		0x1c3
@@ -217,6 +274,13 @@
 		fsl,pins = <
 			MX8MN_IOMUXC_I2C3_SCL_GPIO5_IO18		0x1c3
 			MX8MN_IOMUXC_I2C3_SDA_GPIO5_IO19		0x1c3
+		>;
+	};
+
+	pinctrl_i2c4_gpio: i2c4grp-gpio {
+		fsl,pins = <
+			MX8MN_IOMUXC_I2C4_SCL_GPIO5_IO20		0x1c3
+			MX8MN_IOMUXC_I2C4_SDA_GPIO5_IO21		0x1c3
 		>;
 	};
 
@@ -235,10 +299,25 @@
 		>;
 	};
 
+	pinctrl_sai6: sai6grp {
+		fsl,pins = <
+			MX8MN_IOMUXC_ENET_TX_CTL_SAI6_MCLK      0xd6
+			MX8MN_IOMUXC_ENET_TD1_SAI6_RX_SYNC      0xd6
+			MX8MN_IOMUXC_ENET_TD0_SAI6_RX_BCLK      0xd6
+			MX8MN_IOMUXC_ENET_TD2_SAI6_RX_DATA0     0xd6
+		>;
+	};
+
 	pinctrl_spdif1: spdif1grp {
 		fsl,pins = <
 			MX8MN_IOMUXC_SPDIF_TX_SPDIF1_OUT	0xd6
 			MX8MN_IOMUXC_SPDIF_RX_SPDIF1_IN		0xd6
+		>;
+	};
+
+	pinctrl_typec1: typec1grp {
+		fsl,pins = <
+			MX8MN_IOMUXC_SD1_STROBE_GPIO2_IO11      0x159
 		>;
 	};
 
@@ -434,6 +513,35 @@
 		};
 	};
 
+	ptn5110_1: tcpc@50 {
+		compatible = "nxp,ptn5110";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_typec1>;
+		reg = <0x50>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <11 8>;
+		status = "okay";
+
+		port {
+			typec1_dr_sw: endpoint {
+				remote-endpoint = <&usb1_drd_sw>;
+			};
+		};
+
+		typec1_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "dual";
+			data-role = "dual";
+			try-power-role = "sink";
+			source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+			sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)
+					PDO_VAR(5000, 20000, 3000)>;
+			op-sink-microwatt = <15000000>;
+			self-powered;
+		};
+	};
+
 	pca6408_2: gpio@20 {
 		compatible = "ti,tca6408";
 		reg = <0x20>;
@@ -472,9 +580,19 @@
 		compatible = "asahi-kasei,ak5552";
 		reg = <0x13>;
 		reset-gpios = <&pca6416 2 GPIO_ACTIVE_HIGH>;
-		AVDD-supply = <&reg_ab2_ana_pwr>;
-		DVDD-supply = <&reg_ab2_vdd_pwr_5v0>;
+		AVDD-supply = <&reg_adc_avdd_5v0>;
+		DVDD-supply = <&reg_adc_dvdd_3v3>;
 	};
+};
+
+&i2c4 {
+	clock-frequency = <400000>;
+	pinctrl-names = "default", "gpio";
+	pinctrl-0 = <&pinctrl_i2c4>;
+	pinctrl-1 = <&pinctrl_i2c4_gpio>;
+	scl-gpios = <&gpio5 20 GPIO_ACTIVE_HIGH>;
+	sda-gpios = <&gpio5 21 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
 };
 
 &fec1 {
@@ -655,6 +773,23 @@
 	status = "okay";
 };
 
+&usbotg1 {
+	dr_mode = "host";
+	hnp-disable;
+	srp-disable;
+	adp-disable;
+	usb-role-switch;
+	picophy,pre-emp-curr-control = <3>;
+	picophy,dc-vol-level-adjust = <7>;
+	status = "okay";
+
+	port {
+		usb1_drd_sw: endpoint {
+			remote-endpoint = <&typec1_dr_sw>;
+		};
+	};
+};
+
 &usdhc1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -736,6 +871,21 @@
 		<&clk IMX8MN_CLK_DUMMY>, <&clk IMX8MN_AUDIO_PLL1_OUT>,
 		<&clk IMX8MN_AUDIO_PLL2_OUT>;
 	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+	status = "disabled";
+};
+
+&sai6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai6>;
+	assigned-clocks = <&clk IMX8MN_CLK_SAI6>;
+	assigned-clock-parents = <&clk IMX8MN_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <0>, <24576000>;
+	clocks = <&clk IMX8MN_CLK_SAI6_IPG>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_SAI6_ROOT>, <&clk IMX8MN_CLK_DUMMY>,
+		<&clk IMX8MN_CLK_DUMMY>, <&clk IMX8MN_AUDIO_PLL1_OUT>,
+		<&clk IMX8MN_AUDIO_PLL2_OUT>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+	fsl,sai-asynchronous;
 	status = "okay";
 };
 

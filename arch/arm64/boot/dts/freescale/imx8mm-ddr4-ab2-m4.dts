@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include "imx8mm-ab2.dts"
+#include "imx8mm-ddr4-ab2.dts"
 
 / {
 	reserved-memory {
@@ -43,14 +43,6 @@
 		};
 	};
 
-	bt_sco_codec: bt_sco_codec {
-		status = "disabled";
-	};
-
-	sound-bt-sco {
-		status = "disabled";
-	};
-
 	imx8mm-cm4 {
 		compatible = "fsl,imx8mm-cm4";
 		rsc-da = <0xb8000000>;
@@ -76,14 +68,6 @@
 };
 
 &i2c2 {
-	status = "disabled";
-};
-
-&flexspi {
-	status = "disabled";
-};
-
-&sai2 {
 	status = "disabled";
 };
 

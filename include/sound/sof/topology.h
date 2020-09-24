@@ -36,6 +36,10 @@ enum sof_comp_type {
 	SOF_COMP_KPB,			/* A key phrase buffer component */
 	SOF_COMP_SELECTOR,		/**< channel selector component */
 	SOF_COMP_DEMUX,
+	SOF_COMP_ASRC,
+	SOF_COMP_DCBLOCK,
+	SOF_COMP_PP,
+
 	/* keep FILEREAD/FILEWRITE as the last ones */
 	SOF_COMP_FILEREAD = 10000,	/**< host test based file IO */
 	SOF_COMP_FILEWRITE = 10001,	/**< host test based file IO */
@@ -178,6 +182,8 @@ enum sof_ipc_process_type {
 	SOF_PROCESS_CHAN_SELECTOR,	/**< Channel Selector */
 	SOF_PROCESS_MUX,
 	SOF_PROCESS_DEMUX,
+	SOF_PROCESS_DCBLOCK,
+	SOF_PROCESS_PP, /** < Post process */
 };
 
 /* generic "effect", "codec" or proprietary processing component */

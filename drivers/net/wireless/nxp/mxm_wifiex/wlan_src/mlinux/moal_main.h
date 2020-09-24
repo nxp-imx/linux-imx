@@ -215,7 +215,7 @@ Change log:
 /** Define BOOLEAN */
 typedef t_u8 BOOLEAN;
 
-#define INTF_CARDTYPE "---------%s-MX"
+#define INTF_CARDTYPE "---------%s-MXM"
 
 #define KERN_VERSION "4X"
 

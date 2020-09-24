@@ -3970,7 +3970,7 @@ mlan_status wlan_misc_ioctl_warm_reset(pmlan_adapter pmadapter,
 
 	/* Cancel all pending commands and complete ioctls */
 	if (misc->param.fw_reload)
-		wlan_cancel_all_pending_cmd(pmadapter);
+		wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
 
 	/** Init all the head nodes and free all the locks here */
 	for (i = 0; i < pmadapter->priv_num; i++)

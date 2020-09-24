@@ -144,11 +144,11 @@ static struct synaptics_dsx_cap_button_map cap_button_map = {
 };
 
 #ifdef CONFIG_OF_TOUCH
-unsigned int touch_irq;
+int touch_irq;
 #endif
 
 #ifdef CONFIG_OF_TOUCH
-static irqreturn_t tpd_eint_handler(unsigned int irq, struct irq_desc *desc);
+static irqreturn_t tpd_eint_handler(int irq, void *desc);
 #else
 static void tpd_eint_handler(void);
 #endif
@@ -1567,7 +1567,7 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data)
   * is detected.
   */
 #ifdef CONFIG_OF_TOUCH
-static irqreturn_t tpd_eint_handler(unsigned int irq, struct irq_desc *desc)
+static irqreturn_t tpd_eint_handler(int irq, void *desc)
 {
 	disable_irq_nosync(touch_irq);
 

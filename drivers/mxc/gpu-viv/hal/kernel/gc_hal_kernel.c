@@ -2044,20 +2044,11 @@ _SetVidMemMetadata(
     }
     else
     {
-#ifdef gcdANDROID
-        if (nodeObj->metadata.ts_address == 0 && nodeObj->tsNode != NULL)
-        {
-            gctUINT32 PhysicalAddress = 0;
-
-            /* Lock for GPU address. */
-            gcmkONERROR(gckVIDMEM_NODE_Lock(Kernel, nodeObj->tsNode, &PhysicalAddress));
-
-            nodeObj->metadata.ts_address = (
-                    PhysicalAddress + Kernel->hardware->baseAddress);
-
-            gcmkONERROR(gckVIDMEM_NODE_Unlock(Kernel, nodeObj->tsNode, ProcessID, gcvNULL));
+        if ((nodeObj->metadata.ts_fd >= 0) && (nodeObj->metadata.ts_dma_buf != NULL)
+            && !(IS_ERR(nodeObj->metadata.ts_dma_buf))) {
+            dma_buf_put(nodeObj->metadata.ts_dma_buf);
         }
-#else
+
         nodeObj->metadata.ts_fd             = Interface->u.SetVidMemMetadata.ts_fd;
 
         if (nodeObj->metadata.ts_fd >= 0)
@@ -2068,14 +2059,11 @@ _SetVidMemMetadata(
             {
                 gcmkONERROR(gcvSTATUS_NOT_FOUND);
             }
-
-            dma_buf_put(nodeObj->metadata.ts_dma_buf);
         }
         else
         {
             nodeObj->metadata.ts_dma_buf    = NULL;
         }
-#endif
 
         nodeObj->metadata.fc_enabled        = Interface->u.SetVidMemMetadata.fc_enabled;
         nodeObj->metadata.fc_value          = Interface->u.SetVidMemMetadata.fc_value;

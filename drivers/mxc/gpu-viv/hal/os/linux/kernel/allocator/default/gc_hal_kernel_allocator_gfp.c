@@ -479,6 +479,7 @@ _GFPAlloc(
 
     struct gfp_alloc *priv = (struct gfp_alloc *)Allocator->privateData;
     struct gfp_mdl_priv *mdlPriv = gcvNULL;
+    int result;
     int low = 0;
     int high = 0;
 
@@ -565,6 +566,26 @@ _GFPAlloc(
             gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
 
+        mdlPriv->dma_addr = dma_map_page(galcore_device,
+                mdlPriv->contiguousPages, 0, NumPages * PAGE_SIZE,
+                DMA_FROM_DEVICE);
+
+        if (dma_mapping_error(galcore_device, mdlPriv->dma_addr))
+        {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+            if (mdlPriv->exact)
+            {
+                free_pages_exact(page_address(mdlPriv->contiguousPages), bytes);
+            }
+            else
+#endif
+            {
+                __free_pages(mdlPriv->contiguousPages, get_order(bytes));
+            }
+
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
+
 #if defined(CONFIG_X86)
         if (!PageHighMem(mdlPriv->contiguousPages))
         {
@@ -589,6 +610,56 @@ _GFPAlloc(
             {
                 gcmkONERROR(_NonContiguousAlloc(mdlPriv, NumPages, gfp));
             }
+        }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
+    && (defined(ARCH_HAS_SG_CHAIN) || defined(CONFIG_ARCH_HAS_SG_CHAIN))
+        result = sg_alloc_table_from_pages(&mdlPriv->sgt,
+                    mdlPriv->nonContiguousPages, NumPages, 0,
+                    NumPages << PAGE_SHIFT, GFP_KERNEL);
+
+#else
+        result = alloc_sg_list_from_pages(&mdlPriv->sgt.sgl,
+                    mdlPriv->nonContiguousPages, NumPages, 0,
+                    NumPages << PAGE_SHIFT, &mdlPriv->sgt.nents);
+
+        mdlPriv->sgt.orig_nents = mdlPriv->sgt.nents;
+#endif
+        if (result < 0)
+        {
+            if (Mdl->pageUnit1M)
+            {
+                _NonContiguous1MPagesFree(mdlPriv, mdlPriv->numPages1M);
+            }
+            else
+            {
+                _NonContiguousFree(mdlPriv->nonContiguousPages, NumPages);
+            }
+
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
+
+        result = dma_map_sg(galcore_device,
+                    mdlPriv->sgt.sgl, mdlPriv->sgt.nents, DMA_FROM_DEVICE);
+
+        if (result != mdlPriv->sgt.nents)
+        {
+            if (Mdl->pageUnit1M)
+            {
+                _NonContiguous1MPagesFree(mdlPriv, mdlPriv->numPages1M);
+            }
+            else
+            {
+                _NonContiguousFree(mdlPriv->nonContiguousPages, NumPages);
+            }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
+    && (defined (ARCH_HAS_SG_CHAIN) || defined (CONFIG_ARCH_HAS_SG_CHAIN))
+            sg_free_table(&mdlPriv->sgt);
+#else
+            kfree(mdlPriv->sgt.sgl);
+#endif
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
 
 #if defined(CONFIG_X86)
@@ -734,6 +805,24 @@ _GFPFree(
     int low  = 0;
     int high = 0;
 
+    if (mdlPriv->contiguous)
+    {
+        dma_unmap_page(galcore_device, mdlPriv->dma_addr,
+                Mdl->numPages << PAGE_SHIFT, DMA_FROM_DEVICE);
+    }
+    else
+    {
+        dma_unmap_sg(galcore_device, mdlPriv->sgt.sgl, mdlPriv->sgt.nents,
+                DMA_FROM_DEVICE);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
+    && (defined (ARCH_HAS_SG_CHAIN) || defined (CONFIG_ARCH_HAS_SG_CHAIN))
+        sg_free_table(&mdlPriv->sgt);
+#else
+        kfree(mdlPriv->sgt.sgl);
+#endif
+    }
+
     for (i = 0; i < Mdl->numPages; i++)
     {
         if (mdlPriv->contiguous)
@@ -850,18 +939,7 @@ _GFPMmap(
                 __FUNCTION__, __LINE__
                 );
 
-        }
-
-        if (Cacheable)
-        {
-            mdlPriv->dma_addr = dma_map_page(galcore_device,
-                    mdlPriv->contiguousPages, 0, numPages * PAGE_SIZE,
-                    DMA_BIDIRECTIONAL);
-
-            if (dma_mapping_error(galcore_device, mdlPriv->dma_addr))
-            {
-                gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-            }
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
     }
     else
@@ -890,43 +968,6 @@ _GFPMmap(
 
             start += PAGE_SIZE;
         }
-
-        if (Cacheable)
-        {
-            int result;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
-    && (defined(ARCH_HAS_SG_CHAIN) || defined(CONFIG_ARCH_HAS_SG_CHAIN))
-            result = sg_alloc_table_from_pages(&mdlPriv->sgt,
-                        mdlPriv->nonContiguousPages, numPages, 0,
-                        numPages << PAGE_SHIFT, GFP_KERNEL);
-
-#else
-            result = alloc_sg_list_from_pages(&mdlPriv->sgt.sgl,
-                        mdlPriv->nonContiguousPages, numPages, 0,
-                        numPages << PAGE_SHIFT, &mdlPriv->sgt.nents);
-
-            mdlPriv->sgt.orig_nents = mdlPriv->sgt.nents;
-#endif
-            if (result < 0)
-            {
-                gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-            }
-
-            result = dma_map_sg(galcore_device,
-                        mdlPriv->sgt.sgl, mdlPriv->sgt.nents, DMA_BIDIRECTIONAL);
-
-            if (result != mdlPriv->sgt.nents)
-            {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
-    && (defined (ARCH_HAS_SG_CHAIN) || defined (CONFIG_ARCH_HAS_SG_CHAIN))
-                sg_free_table(&mdlPriv->sgt);
-#else
-                kfree(mdlPriv->sgt.sgl);
-#endif
-                gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-            }
-        }
     }
 
 OnError:
@@ -942,35 +983,12 @@ _GFPUnmapUser(
     IN gctUINT32 Size
     )
 {
-    struct gfp_mdl_priv *mdlPriv = Mdl->priv;
-
     MdlMap->cacheable = gcvFALSE;
 
     if (unlikely(current->mm == gcvNULL))
     {
         /* Do nothing if process is exiting. */
         return;
-    }
-
-    if (mdlPriv->contiguous)
-    {
-        if (mdlPriv->dma_addr)
-        {
-            dma_unmap_page(galcore_device, mdlPriv->dma_addr,
-                    Mdl->numPages << PAGE_SHIFT, DMA_BIDIRECTIONAL);
-        }
-    }
-    else if (mdlPriv->sgt.sgl)
-    {
-        dma_unmap_sg(galcore_device, mdlPriv->sgt.sgl, mdlPriv->sgt.nents,
-                DMA_BIDIRECTIONAL);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,6,0) \
-    && (defined (ARCH_HAS_SG_CHAIN) || defined (CONFIG_ARCH_HAS_SG_CHAIN))
-        sg_free_table(&mdlPriv->sgt);
-#else
-        kfree(mdlPriv->sgt.sgl);
-#endif
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)

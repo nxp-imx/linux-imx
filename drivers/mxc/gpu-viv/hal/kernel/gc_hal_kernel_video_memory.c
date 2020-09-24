@@ -3034,9 +3034,6 @@ gckVIDMEM_NODE_Construct(
 
     node->metadata.magic = VIV_VIDMEM_METADATA_MAGIC;
     node->metadata.ts_fd = -1;
-#ifdef gcdANDROID
-    node->metadata.ts_address = 0;
-#endif
 
     node->node = VideoNode;
     node->kernel = Kernel;
@@ -4097,6 +4094,12 @@ OnError:
 static void _dmabuf_release(struct dma_buf *dmabuf)
 {
     gckVIDMEM_NODE nodeObject = dmabuf->priv;
+
+    if (nodeObject->metadata.ts_dma_buf)
+    {
+        dma_buf_put(nodeObject->metadata.ts_dma_buf);
+        nodeObject->metadata.ts_dma_buf = NULL;
+    }
 
     gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(nodeObject->kernel, nodeObject));
 }

@@ -1389,7 +1389,7 @@ This define enables the use of VM for gckCommand and fence buffers.
         When enabled, driver will ignore user and kernel driver version mismatch.
 */
 #ifndef gcdIGNORE_DRIVER_VERSIONS_MISMATCH
-#   define gcdIGNORE_DRIVER_VERSIONS_MISMATCH  0
+#   define gcdIGNORE_DRIVER_VERSIONS_MISMATCH  1
 #endif
 
 /*

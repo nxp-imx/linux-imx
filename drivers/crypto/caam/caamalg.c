@@ -747,9 +747,6 @@ static int skcipher_setkey(struct crypto_skcipher *skcipher, const u8 *key,
 	u32 *desc;
 	const bool is_rfc3686 = alg->caam.rfc3686;
 
-	print_hex_dump_debug("key in @"__stringify(__LINE__)": ",
-			     DUMP_PREFIX_ADDRESS, 16, 4, key, keylen, 1);
-
 	/*
 	 * If the algorithm has support for tagged key,
 	 * this is already set in tk_skcipher_setkey().
@@ -760,6 +757,9 @@ static int skcipher_setkey(struct crypto_skcipher *skcipher, const u8 *key,
 		ctx->cdata.key_virt = key;
 		ctx->cdata.key_inline = true;
 	}
+
+	print_hex_dump_debug("key in @" __stringify(__LINE__) ": ",
+			     DUMP_PREFIX_ADDRESS, 16, 4, key, keylen, 1);
 
 	/* skcipher_encrypt shared descriptor */
 	desc = ctx->sh_desc_enc;
@@ -853,19 +853,28 @@ static int tk_skcipher_setkey(struct crypto_skcipher *skcipher,
 	struct caam_ctx *ctx = crypto_skcipher_ctx(skcipher);
 	struct device *jrdev = ctx->jrdev;
 	struct header_conf *header;
+	struct tagged_object *tag_obj;
 	int ret;
 
-	ctx->cdata.keylen = keylen;
-	ctx->cdata.key_virt = key;
 	ctx->cdata.key_inline = true;
 
-	/* Retrieve the address of the tag object configuration */
-	ret = get_tag_object_header_conf(ctx->cdata.key_virt,
-					 ctx->cdata.keylen, &header);
-	if (ret) {
+	/* Check if one can retrieve the tag object header configuration */
+	if (keylen <= TAG_OVERHEAD_SIZE)
+		return -EINVAL;
+
+	/* Retrieve the tag object */
+	tag_obj = (struct tagged_object *)key;
+
+	/*
+	 * Check tag object header configuration
+	 * and retrieve the tag object header configuration
+	 */
+	if (is_valid_header_conf(&tag_obj->header)) {
+		header = &tag_obj->header;
+	} else {
 		dev_err(jrdev,
 			"unable to get tag object header configuration\n");
-		return ret;
+		return -EINVAL;
 	}
 
 	/* Check if the tag object header is a black key */
@@ -878,21 +887,21 @@ static int tk_skcipher_setkey(struct crypto_skcipher *skcipher,
 	/* Retrieve the black key configuration */
 	get_key_conf(header,
 		     &ctx->cdata.key_real_len,
+		     &ctx->cdata.keylen,
 		     &ctx->cdata.key_cmd_opt);
 
-	/*
-	 * Retrieve the address of the data
-	 * and size of the tagged object
-	 */
-	ret = get_tagged_data(ctx->cdata.key_virt, ctx->cdata.keylen,
-			      &ctx->cdata.key_virt, &ctx->cdata.keylen);
+	/* Retrieve the address of the data of the tagged object */
+	ctx->cdata.key_virt = &tag_obj->object;
+
+	/* Validate key length for AES algorithms */
+	ret = aes_check_keylen(ctx->cdata.key_real_len);
 	if (ret) {
-		dev_err(jrdev,
-			"unable to get data from tagged object\n");
+		crypto_skcipher_set_flags(skcipher,
+					  CRYPTO_TFM_RES_BAD_KEY_LEN);
 		return ret;
 	}
 
-	return skcipher_setkey(skcipher, key, keylen, 0);
+	return skcipher_setkey(skcipher, NULL, 0, 0);
 }
 #endif /* CONFIG_CRYPTO_DEV_FSL_CAAM_TK_API */
 

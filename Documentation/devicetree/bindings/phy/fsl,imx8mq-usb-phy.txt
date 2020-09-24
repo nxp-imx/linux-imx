@@ -9,7 +9,8 @@ Required properties:
 
 Optional properties:
 - vbus-supply: A phandle to the regulator for USB VBUS.
-
+- vbus-power-supply: A phandle to the vbus power supply provider, used to
+		     to detect the possible BC charger type of it.
 Example:
 	usb3_phy0: phy@381f0040 {
 		compatible = "fsl,imx8mq-usb-phy";

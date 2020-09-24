@@ -77,7 +77,7 @@ static inline int secret_size_in_ccm_black_key(int key_size)
 #define KEYMOD_SIZE_GM 16
 
 /* Create job descriptor to cover key */
-int cnstr_desc_black_key(u32 **desc, dma_addr_t key, size_t key_len,
+int cnstr_desc_black_key(u32 **desc, char *key, size_t key_len,
 			 dma_addr_t black_key, size_t black_key_len,
 			 u8 key_enc, u8 trusted_key);
 
@@ -89,12 +89,12 @@ int cnstr_desc_random_black_key(u32 **desc, size_t key_len,
 /* Encapsulate data in a blob */
 int cnstr_desc_blob_encap(u32 **desc, dma_addr_t black_key,
 			  size_t black_key_len, u8 color, u8 key_enc,
-			  u8 trusted_key, u8 mem_type, dma_addr_t key_mod,
+			  u8 trusted_key, u8 mem_type, const void *key_mod,
 			  size_t key_mod_len, dma_addr_t blob, size_t blob_len);
 
 /* Decapsulate data from a blob */
 int cnstr_desc_blob_decap(u32 **desc, dma_addr_t blob, size_t blob_len,
-			  dma_addr_t key_mod, size_t key_mod_len,
+			  const void *key_mod, size_t key_mod_len,
 			  dma_addr_t black_key, size_t black_key_len,
 			  u8 keycolor, u8 key_enc, u8 trusted_key, u8 mem_type);
 

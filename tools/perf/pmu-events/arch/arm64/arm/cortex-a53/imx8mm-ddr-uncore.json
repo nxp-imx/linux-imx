@@ -1,5 +1,24 @@
 [
     {
+	"PublicDescription": "lpddr4 evk board bandwidth usage",
+	"BriefDescription": "imx8mm: percentage of bandwidth usage for ddr0",
+	"MetricName": "imx8mm-ddr0-bandwidth-usage-lpddr4",
+	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 4 / duration_time) / (750 * 1000000 * 4 * 4)",
+	"MetricGroup": "i.MX8MM_DDR_MON",
+	"ScaleUnit": "1e2%",
+	"SocName": "i.MX8MM"
+    },
+    {
+	"PublicDescription": "ddr4 evk board bandwidth usage",
+	"BriefDescription": "imx8mm: percentage of bandwidth usage for ddr0",
+	"MetricName": "imx8mm-ddr0-bandwidth-usage-ddr4",
+	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 4 / duration_time) / (600 * 1000000 * 4 * 4)",
+	"MetricGroup": "i.MX8MM_DDR_MON",
+	"ScaleUnit": "1e2%",
+	"SocName": "i.MX8MM"
+    },
+
+    {
 	"PublicDescription": "Calculate bytes all masters read from DDR based on read-cycles event. DDR interface generates 2 up and 2 down edges in an internal clock cycle, can pass 4 beats of data. 4 bytes of each beat if DDR burst width is 32 bit.",
 	"BriefDescription": "imx8mm: bytes of all masters read from ddr0",
 	"MetricName": "imx8mm-ddr0-all-r",

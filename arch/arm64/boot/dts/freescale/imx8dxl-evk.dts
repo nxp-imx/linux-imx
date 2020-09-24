@@ -186,6 +186,7 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-name = "clk_ext_sel";
 		gpio = <&pca6416_1 10 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 		regulator-always-on;
 	};
 
@@ -892,7 +893,7 @@
 			fsl,pins = <
 				IMX8DXL_FLEXCAN0_RX_ADMA_SAI1_TXC     0x06000040
 				IMX8DXL_FLEXCAN0_TX_ADMA_SAI1_TXFS    0x06000040
-				IMX8DXL_FLEXCAN1_RX_ADMA_SAI1_TXD     0x06000040
+				IMX8DXL_FLEXCAN1_RX_ADMA_SAI1_TXD     0x06000060
 				IMX8DXL_FLEXCAN1_TX_ADMA_SAI1_RXD     0x06000060
 			>;
 		};

@@ -22,42 +22,54 @@ static long caam_keygen_ioctl(struct file *file, unsigned int cmd,
 			      unsigned long arg);
 
 /**
- * tag_black_key      - Tag a black key with a tag object header.
+ * tag_black_obj      - Tag a black object (key/blob) with a tag object header.
  *
  * @info              : keyblob_info structure, which contains
- *                      the black key, obtained from CAAM,
+ *                      the black key/blob, obtained from CAAM,
  *                      that needs to be tagged
- * @black_key_max_len : The maximum size of a black key
+ * @black_max_len     : The maximum size of the black object (blob/key)
+ * @blob              : Used to determine if it's a blob or key object
  *
  * Return             : '0' on success, error code otherwise
  */
-static int tag_black_key(struct keyblob_info *info, size_t black_key_max_len)
+static int tag_black_obj(struct keyblob_info *info, size_t black_max_len,
+			 bool blob)
 {
 	struct header_conf tag;
 	u32 type;
 	int ret;
-	u32 size_tagged = black_key_max_len;
+	u32 size_tagged = black_max_len;
 
 	if (!info)
 		return -EINVAL;
 
 	type = info->type;
 
-	/* Prepare the tag */
-	init_tag_object_header(&tag, 0, type, info->black_key_len);
-
-	/* Set the tag */
-	ret = set_tag_object_header_conf(&tag, info->black_key,
-					 info->black_key_len, &size_tagged);
+	/* Prepare and set the tag */
+	if (blob) {
+		init_tag_object_header(&tag, 0, type, info->key_len,
+				       info->blob_len);
+		ret = set_tag_object_header_conf(&tag, info->blob,
+						 info->blob_len,
+						 &size_tagged);
+	} else {
+		init_tag_object_header(&tag, 0, type, info->key_len,
+				       info->black_key_len);
+		ret = set_tag_object_header_conf(&tag, info->black_key,
+						 info->black_key_len,
+						 &size_tagged);
+	}
 	if (ret)
 		return ret;
 
 	/* Update the size of the black key tagged */
-	info->black_key_len = size_tagged;
+	if (blob)
+		info->blob_len = size_tagged;
+	else
+		info->black_key_len = size_tagged;
 
 	return ret;
 }
-
 /**
  * send_err_msg      - Send the error message from kernel to user-space
  *
@@ -132,6 +144,7 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 	bool random = false;
 	int ret = 0;
 	u32 tmp_len = 0;
+	char null_ch = 0;
 
 	/*
 	 * So far, we only support Black keys, encrypted with JDKEK,
@@ -157,12 +170,24 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 	 */
 	if (create_key_op) {
 		/*
+		 * Validate arguments received from user.
+		 * These must be at least 1 since
+		 * they have null terminator.
+		 */
+		if (key_crt->key_enc_len < 1 || key_crt->key_mode_len < 1 ||
+		    key_crt->key_value_len < 1) {
+			msg = "Invalid arguments.\n";
+			send_err_msg(msg, u64_to_user_ptr(key_crt->blob),
+				     key_crt->blob_len);
+			return -EFAULT;
+		}
+		/*
 		 * Allocate memory for temporary buffer used to
 		 * get the user arguments from user-space
 		 */
 		tmp_size = max_t(size_t, key_crt->key_enc_len,
 				 max_t(size_t, key_crt->key_mode_len,
-				       key_crt->key_value_len));
+				       key_crt->key_value_len)) + 1;
 		tmp = kmalloc(tmp_size, GFP_KERNEL);
 		if (!tmp) {
 			msg = "Unable to allocate memory for temporary buffer.\n";
@@ -170,6 +195,8 @@ static int validate_input(struct caam_keygen_cmd *key_crt, unsigned long arg,
 				     key_crt->blob_len);
 			return -ENOMEM;
 		}
+		/* Add null terminator */
+		tmp[tmp_size - 1] = null_ch;
 		/*
 		 * Validate and set, in type, the Encrypted Key Type
 		 * given from user-space.
@@ -326,16 +353,18 @@ static int keygen_create_keyblob(struct keyblob_info *info)
 	}
 
 	/* Tag the black key so it can be passed to CAAM Crypto API */
-	ret = tag_black_key(info, sizeof(info->black_key));
+	ret = tag_black_obj(info, sizeof(info->black_key), false);
 	if (ret) {
 		dev_err(jrdev, "Black key tagging failed: %d\n", ret);
 		goto free_jr;
 	}
 
-	/* Add the object type as a header to the blob */
-	memcpy(info->blob, &info->type, BLOB_HEADER_SIZE);
-	/* Update blob length with the new added header */
-	info->blob_len += BLOB_HEADER_SIZE;
+	/* Tag the black blob so it can be passed to CAAM Crypto API */
+	ret = tag_black_obj(info, sizeof(info->blob), true);
+	if (ret) {
+		dev_err(jrdev, "Black blob tagging failed: %d\n", ret);
+		goto free_jr;
+	}
 
 free_jr:
 	caam_jr_free(jrdev);
@@ -355,6 +384,8 @@ static int keygen_import_key(struct keyblob_info *info)
 {
 	int ret = 0;
 	struct device *jrdev;
+	struct header_conf *header;
+	struct tagged_object *tag_obj;
 
 	/* Allocate CAAM Job Ring for operation to be performed from CAAM */
 	jrdev = caam_jr_alloc();
@@ -371,11 +402,53 @@ static int keygen_import_key(struct keyblob_info *info)
 			     DUMP_PREFIX_ADDRESS, 16, 4, info->blob,
 			     info->blob_len, 1);
 
-	/* Get object type from blob header */
-	memcpy(&info->type, info->blob, BLOB_HEADER_SIZE);
+	/* Check if one can retrieve the tag object header configuration */
+	if (info->blob_len <= TAG_OVERHEAD_SIZE) {
+		dev_err(jrdev, "Invalid blob length\n");
+		ret = -EINVAL;
+		goto free_jr;
+	}
+
+	/* Retrieve the tag object */
+	tag_obj = (struct tagged_object *)info->blob;
+
+	/*
+	 * Check tag object header configuration
+	 * and retrieve the tag object header configuration
+	 */
+	if (is_valid_header_conf(&tag_obj->header)) {
+		header = &tag_obj->header;
+	} else {
+		dev_err(jrdev,
+			"Unable to get tag object header configuration for blob\n");
+		ret = -EINVAL;
+		goto free_jr;
+	}
+
+	info->key_len = header->red_key_len;
+
+	/* Validate the red key size extracted from blob */
+	if (info->key_len < MIN_KEY_SIZE || info->key_len > MAX_KEY_SIZE) {
+		dev_err(jrdev,
+			"Invalid red key length extracted from blob, expected values are between 16 and 64 bytes\n");
+		ret = -EINVAL;
+		goto free_jr;
+	}
+
+	info->type = header->type;
 
 	/* Update blob length by removing the header size */
-	info->blob_len -= BLOB_HEADER_SIZE;
+	info->blob_len -= TAG_OVERHEAD_SIZE;
+
+	/*
+	 * Check the received, from user, blob length
+	 * with the one from tag header
+	 */
+	if (info->blob_len != header->obj_len) {
+		dev_err(jrdev, "Mismatch between received blob length and the one from tag header\n");
+		ret = -EINVAL;
+		goto free_jr;
+	}
 
 	/*
 	 * Decapsulate the blob into a black key,
@@ -388,7 +461,7 @@ static int keygen_import_key(struct keyblob_info *info)
 	}
 
 	/* Tag the black key so it can be passed to CAAM Crypto API */
-	ret = tag_black_key(info, sizeof(info->black_key));
+	ret = tag_black_obj(info, sizeof(info->black_key), false);
 	if (ret)
 		dev_err(jrdev, "Black key tagging failed: %d\n", ret);
 

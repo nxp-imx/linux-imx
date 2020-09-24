@@ -757,7 +757,7 @@ mlan_status mlan_shutdown_fw(t_void *pmlan_adapter)
 	PRINTM(MINFO, "Shutdown MLAN...\n");
 
 	/* Cancel all pending commands and complete ioctls */
-	wlan_cancel_all_pending_cmd(pmadapter);
+	wlan_cancel_all_pending_cmd(pmadapter, MTRUE);
 
 	/* Clean up priv structures */
 	for (i = 0; i < pmadapter->priv_num; i++) {
@@ -1342,7 +1342,7 @@ mlan_status mlan_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 
 	if (pioctl_req == MNULL) {
 		PRINTM(MMSG, "Cancel all pending cmd!\n");
-		wlan_cancel_all_pending_cmd(pmadapter);
+		wlan_cancel_all_pending_cmd(pmadapter, MFALSE);
 		goto exit;
 	}
 	if (pioctl_req->action == MLAN_ACT_CANCEL) {
