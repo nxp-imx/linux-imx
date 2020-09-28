@@ -160,6 +160,10 @@
 	status = "disabled";
 };
 
+&isi_4 {
+	status = "disabled";
+};
+
 / {
 	firmware {
 		android {
