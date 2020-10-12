@@ -72,7 +72,7 @@ u32 ieee80211_mandatory_rates(struct ieee80211_supported_band *sband,
 }
 EXPORT_SYMBOL(ieee80211_mandatory_rates);
 
-int ieee80211_channel_to_frequency(int chan, enum nl80211_band band)
+u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band)
 {
 	/* see 802.11 17.3.8.3.2 and Annex J
 	 * there are overlapping channel numbers in 5GHz and 2GHz bands */
@@ -81,34 +81,39 @@ int ieee80211_channel_to_frequency(int chan, enum nl80211_band band)
 	switch (band) {
 	case NL80211_BAND_2GHZ:
 		if (chan == 14)
-			return 2484;
+			return MHZ_TO_KHZ(2484);
 		else if (chan < 14)
-			return 2407 + chan * 5;
+			return MHZ_TO_KHZ(2407 + chan * 5);
 		break;
 	case NL80211_BAND_5GHZ:
 		if (chan >= 182 && chan <= 196)
-			return 4000 + chan * 5;
+			return MHZ_TO_KHZ(4000 + chan * 5);
 		else
-			return 5000 + chan * 5;
+			return MHZ_TO_KHZ(5000 + chan * 5);
 		break;
 	case NL80211_BAND_6GHZ:
-		/* see 802.11ax D4.1 27.3.22.2 */
+		/* see 802.11ax D6.1 27.3.23.2 */
+		if (chan == 2)
+			return MHZ_TO_KHZ(5935);
 		if (chan <= 253)
-			return 5940 + chan * 5;
+			return MHZ_TO_KHZ(5950 + chan * 5);
 		break;
 	case NL80211_BAND_60GHZ:
 		if (chan < 7)
-			return 56160 + chan * 2160;
+			return MHZ_TO_KHZ(56160 + chan * 2160);
 		break;
 	default:
 		;
 	}
 	return 0; /* not supported */
 }
-EXPORT_SYMBOL(ieee80211_channel_to_frequency);
+EXPORT_SYMBOL(ieee80211_channel_to_freq_khz);
 
-int ieee80211_frequency_to_channel(int freq)
+int ieee80211_freq_khz_to_channel(u32 freq)
 {
+	/* TODO: just handle MHz for now */
+	freq = KHZ_TO_MHZ(freq);
+
 	/* see 802.11 17.3.8.3.2 and Annex J */
 	if (freq == 2484)
 		return 14;
@@ -128,9 +133,10 @@ int ieee80211_frequency_to_channel(int freq)
 	else
 		return 0;
 }
-EXPORT_SYMBOL(ieee80211_frequency_to_channel);
+EXPORT_SYMBOL(ieee80211_freq_khz_to_channel);
 
-struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq)
+struct ieee80211_channel *ieee80211_get_channel_khz(struct wiphy *wiphy,
+						    u32 freq)
 {
 	enum nl80211_band band;
 	struct ieee80211_supported_band *sband;
@@ -143,14 +149,16 @@ struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq)
 			continue;
 
 		for (i = 0; i < sband->n_channels; i++) {
-			if (sband->channels[i].center_freq == freq)
-				return &sband->channels[i];
+			struct ieee80211_channel *chan = &sband->channels[i];
+
+			if (ieee80211_channel_to_khz(chan) == freq)
+				return chan;
 		}
 	}
 
 	return NULL;
 }
-EXPORT_SYMBOL(ieee80211_get_channel);
+EXPORT_SYMBOL(ieee80211_get_channel_khz);
 
 static void set_mandatory_flags_band(struct ieee80211_supported_band *sband)
 {
@@ -233,7 +241,12 @@ int cfg80211_validate_key_settings(struct cfg80211_registered_device *rdev,
 				   struct key_params *params, int key_idx,
 				   bool pairwise, const u8 *mac_addr)
 {
-	if (key_idx < 0 || key_idx > 5)
+	int max_key_idx = 5;
+
+	if (wiphy_ext_feature_isset(&rdev->wiphy,
+				    NL80211_EXT_FEATURE_BEACON_PROTECTION))
+		max_key_idx = 7;
+	if (key_idx < 0 || key_idx > max_key_idx)
 		return -EINVAL;
 
 	if (!pairwise && mac_addr && !(rdev->wiphy.flags & WIPHY_FLAG_IBSS_RSN))

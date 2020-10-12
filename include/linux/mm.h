@@ -28,6 +28,7 @@
 #include <linux/overflow.h>
 #include <linux/sizes.h>
 #include <linux/android_kabi.h>
+#include <linux/android_vendor.h>
 
 struct mempolicy;
 struct anon_vma;
@@ -113,6 +114,14 @@ extern int mmap_rnd_compat_bits __read_mostly;
 
 #ifndef __pa_symbol
 #define __pa_symbol(x)  __pa(RELOC_HIDE((unsigned long)(x), 0))
+#endif
+
+#ifndef __va_function
+#define __va_function(x) (x)
+#endif
+
+#ifndef __pa_function
+#define __pa_function(x) __pa_symbol(x)
 #endif
 
 #ifndef page_to_virt
@@ -451,6 +460,10 @@ struct vm_fault {
 					 * page table to avoid allocation from
 					 * atomic context.
 					 */
+	unsigned long vma_flags;	/* Speculative Page Fault field */
+	pgprot_t vma_page_prot;		/* Speculative Page Fault field */
+	ANDROID_VENDOR_DATA(1);
+	ANDROID_VENDOR_DATA(2);
 };
 
 /* page entry size for vm->huge_fault() */

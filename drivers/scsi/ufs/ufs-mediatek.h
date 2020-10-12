@@ -28,13 +28,13 @@
 #define REFCLK_REQUEST              BIT(0)
 #define REFCLK_ACK                  BIT(1)
 
-#define REFCLK_REQ_TIMEOUT_MS       3
+#define REFCLK_REQ_TIMEOUT_US       3000
 
 /*
  * Vendor specific pre-defined parameters
  */
-#define UFS_MTK_LIMIT_NUM_LANES_RX  1
-#define UFS_MTK_LIMIT_NUM_LANES_TX  1
+#define UFS_MTK_LIMIT_NUM_LANES_RX  2
+#define UFS_MTK_LIMIT_NUM_LANES_TX  2
 #define UFS_MTK_LIMIT_HSGEAR_RX     UFS_HS_G3
 #define UFS_MTK_LIMIT_HSGEAR_TX     UFS_HS_G3
 #define UFS_MTK_LIMIT_PWMGEAR_RX    UFS_PWM_G4
@@ -70,6 +70,7 @@ enum {
  */
 #define MTK_SIP_UFS_CONTROL               MTK_SIP_SMC_CMD(0x276)
 #define UFS_MTK_SIP_DEVICE_RESET          BIT(1)
+#define UFS_MTK_SIP_CRYPTO_CTRL           BIT(2)
 #define UFS_MTK_SIP_REF_CLK_NOTIFICATION  BIT(3)
 
 /*
@@ -91,6 +92,8 @@ enum {
 struct ufs_mtk_host {
 	struct ufs_hba *hba;
 	struct phy *mphy;
+	bool mphy_powered_on;
+	bool unipro_lpm;
 	bool ref_clk_enabled;
 	u16 ref_clk_ungating_wait_us;
 	u16 ref_clk_gating_wait_us;

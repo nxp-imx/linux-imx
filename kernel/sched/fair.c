@@ -23,6 +23,7 @@
 #include "sched.h"
 
 #include <trace/events/sched.h>
+#include <trace/hooks/sched.h>
 
 /*
  * Targeted preemption latency for CPU-bound tasks:
@@ -6706,6 +6707,12 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
 	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
+	int target_cpu = -1;
+
+	trace_android_rvh_select_task_rq_fair(p, prev_cpu, sd_flag,
+			wake_flags, &target_cpu);
+	if (target_cpu >= 0)
+		return target_cpu;
 
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
@@ -7479,8 +7486,13 @@ static
 int can_migrate_task(struct task_struct *p, struct lb_env *env)
 {
 	int tsk_cache_hot;
+	int can_migrate = 1;
 
 	lockdep_assert_held(&env->src_rq->lock);
+
+	trace_android_rvh_can_migrate_task(p, env->dst_cpu, &can_migrate);
+	if (!can_migrate)
+		return 0;
 
 	/*
 	 * We do not migrate tasks that are:

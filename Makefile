@@ -803,9 +803,18 @@ KBUILD_CFLAGS	+= -fomit-frame-pointer
 endif
 endif
 
-# Initialize all stack variables with a pattern, if desired.
-ifdef CONFIG_INIT_STACK_ALL
+# Initialize all stack variables with a 0xAA pattern.
+ifdef CONFIG_INIT_STACK_ALL_PATTERN
 KBUILD_CFLAGS	+= -ftrivial-auto-var-init=pattern
+endif
+
+# Initialize all stack variables with a zero value.
+ifdef CONFIG_INIT_STACK_ALL_ZERO
+# Future support for zero initialization is still being debated, see
+# https://bugs.llvm.org/show_bug.cgi?id=45497. These flags are subject to being
+# renamed or dropped.
+KBUILD_CFLAGS	+= -ftrivial-auto-var-init=zero
+KBUILD_CFLAGS	+= -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang
 endif
 
 DEBUG_CFLAGS	:= $(call cc-option, -fno-var-tracking-assignments)
@@ -896,7 +905,7 @@ LD_FLAGS_LTO_CLANG := -mllvm -import-instr-limit=5
 KBUILD_LDFLAGS += $(LD_FLAGS_LTO_CLANG)
 KBUILD_LDFLAGS_MODULE += $(LD_FLAGS_LTO_CLANG)
 
-KBUILD_LDS_MODULE += scripts/module-lto.lds
+KBUILD_LDS_MODULE += $(srctree)/scripts/module-lto.lds
 endif
 
 ifdef CONFIG_LTO
@@ -1176,7 +1185,8 @@ targets := vmlinux
 $(sort $(vmlinux-deps)): descend ;
 
 filechk_kernel.release = \
-	echo "$(KERNELVERSION)$$($(CONFIG_SHELL) $(srctree)/scripts/setlocalversion $(srctree))"
+	echo "$(KERNELVERSION)$$($(CONFIG_SHELL) $(srctree)/scripts/setlocalversion \
+		$(srctree) $(BRANCH) $(KMI_GENERATION))"
 
 # Store (new) KERNELRELEASE string in include/config/kernel.release
 include/config/kernel.release: FORCE
@@ -1236,12 +1246,17 @@ endif
 # needs to be updated, so this check is forced on all builds
 
 uts_len := 64
+ifneq (,$(BUILD_NUMBER))
+	UTS_RELEASE=$(KERNELRELEASE)-ab$(BUILD_NUMBER)
+else
+	UTS_RELEASE=$(KERNELRELEASE)
+endif
 define filechk_utsrelease.h
-	if [ `echo -n "$(KERNELRELEASE)" | wc -c ` -gt $(uts_len) ]; then \
-	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2;    \
-	  exit 1;                                                         \
-	fi;                                                               \
-	echo \#define UTS_RELEASE \"$(KERNELRELEASE)\"
+	if [ `echo -n "$(UTS_RELEASE)" | wc -c ` -gt $(uts_len) ]; then \
+		echo '"$(UTS_RELEASE)" exceeds $(uts_len) characters' >&2;    \
+		exit 1;                                                       \
+	fi;                                                             \
+	echo \#define UTS_RELEASE \"$(UTS_RELEASE)\"
 endef
 
 define filechk_version.h
@@ -1878,7 +1893,8 @@ checkstack:
 	$(PERL) $(srctree)/scripts/checkstack.pl $(CHECKSTACK_ARCH)
 
 kernelrelease:
-	@echo "$(KERNELVERSION)$$($(CONFIG_SHELL) $(srctree)/scripts/setlocalversion $(srctree))"
+	@echo "$(KERNELVERSION)$$($(CONFIG_SHELL) $(srctree)/scripts/setlocalversion \
+		$(srctree) $(BRANCH) $(KMI_GENERATION))"
 
 kernelversion:
 	@echo $(KERNELVERSION)

@@ -156,11 +156,6 @@ static void driver_deferred_probe_trigger(void)
 	if (!driver_deferred_probe_enable)
 		return;
 
-	driver_deferred_probe_force_trigger();
-}
-
-void driver_deferred_probe_force_trigger(void)
-{
 	/*
 	 * A successful probe means that all the devices in the pending list
 	 * should be triggered to be reprobed.  Move all the deferred devices
@@ -495,6 +490,18 @@ static void driver_deferred_probe_add_trigger(struct device *dev,
 		driver_deferred_probe_trigger();
 }
 
+static ssize_t state_synced_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	bool val;
+
+	device_lock(dev);
+	val = dev->state_synced;
+	device_unlock(dev);
+	return sprintf(buf, "%u\n", val);
+}
+static DEVICE_ATTR_RO(state_synced);
+
 static int really_probe(struct device *dev, struct device_driver *drv)
 {
 	int ret = -EPROBE_DEFER;
@@ -568,9 +575,16 @@ re_probe:
 		goto dev_groups_failed;
 	}
 
+	if (dev_has_sync_state(dev) &&
+	    device_create_file(dev, &dev_attr_state_synced)) {
+		dev_err(dev, "state_synced sysfs add failed\n");
+		goto dev_sysfs_state_synced_failed;
+	}
+
 	if (test_remove) {
 		test_remove = false;
 
+		device_remove_file(dev, &dev_attr_state_synced);
 		device_remove_groups(dev, drv->dev_groups);
 
 		if (dev->bus->remove)
@@ -600,6 +614,8 @@ re_probe:
 		 drv->bus->name, __func__, dev_name(dev), drv->name);
 	goto done;
 
+dev_sysfs_state_synced_failed:
+	device_remove_groups(dev, drv->dev_groups);
 dev_groups_failed:
 	if (dev->bus->remove)
 		dev->bus->remove(dev);
@@ -1137,6 +1153,7 @@ static void __device_release_driver(struct device *dev, struct device *parent)
 
 		pm_runtime_put_sync(dev);
 
+		device_remove_file(dev, &dev_attr_state_synced);
 		device_remove_groups(dev, drv->dev_groups);
 
 		if (dev->bus && dev->bus->remove)

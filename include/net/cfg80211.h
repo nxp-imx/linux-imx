@@ -126,6 +126,7 @@ enum ieee80211_channel_flags {
  * with cfg80211.
  *
  * @center_freq: center frequency in MHz
+ * @freq_offset: offset from @center_freq, in KHz
  * @hw_value: hardware-specific value for the channel
  * @flags: channel flags from &enum ieee80211_channel_flags.
  * @orig_flags: channel flags at registration time, used by regulatory
@@ -147,6 +148,7 @@ enum ieee80211_channel_flags {
 struct ieee80211_channel {
 	enum nl80211_band band;
 	u32 center_freq;
+	u16 freq_offset;
 	u16 hw_value;
 	u32 flags;
 	int max_antenna_gain;
@@ -260,6 +262,19 @@ struct ieee80211_he_obss_pd {
 };
 
 /**
+ * struct cfg80211_he_bss_color - AP settings for BSS coloring
+ *
+ * @color: the current color.
+ * @disabled: is the feature disabled.
+ * @partial: define the AID equation.
+ */
+struct cfg80211_he_bss_color {
+	u8 color;
+	bool disabled;
+	bool partial;
+};
+
+/**
  * struct ieee80211_sta_ht_cap - STA's HT capabilities
  *
  * This structure describes most essential parameters needed
@@ -324,10 +339,13 @@ struct ieee80211_sta_he_cap {
  *
  * @types_mask: interface types mask
  * @he_cap: holds the HE capabilities
+ * @he_6ghz_capa: HE 6 GHz capabilities, must be filled in for a
+ *	6 GHz band channel (and 0 may be valid value).
  */
 struct ieee80211_sband_iftype_data {
 	u16 types_mask;
 	struct ieee80211_sta_he_cap he_cap;
+	struct ieee80211_he_6ghz_capa he_6ghz_capa;
 };
 
 /**
@@ -480,6 +498,26 @@ ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 }
 
 /**
+ * ieee80211_get_he_6ghz_capa - return HE 6 GHz capabilities
+ * @sband: the sband to search for the STA on
+ * @iftype: the iftype to search for
+ *
+ * Return: the 6GHz capabilities
+ */
+static inline __le16
+ieee80211_get_he_6ghz_capa(const struct ieee80211_supported_band *sband,
+			   enum nl80211_iftype iftype)
+{
+	const struct ieee80211_sband_iftype_data *data =
+		ieee80211_get_sband_iftype_data(sband, iftype);
+
+	if (WARN_ON(!data || !data->he_cap.has_he))
+		return 0;
+
+	return data->he_6ghz_capa.capa;
+}
+
+/**
  * wiphy_read_of_freq_limits - read frequency limits from device tree
  *
  * @wiphy: the wireless device to get extra limits for
@@ -565,6 +603,7 @@ struct vif_params {
  *	with the get_key() callback, must be in little endian,
  *	length given by @seq_len.
  * @seq_len: length of @seq.
+ * @vlan_id: vlan_id for VLAN group key (if nonzero)
  * @mode: key install mode (RX_TX, NO_TX or SET_TX)
  */
 struct key_params {
@@ -572,6 +611,7 @@ struct key_params {
 	const u8 *seq;
 	int key_len;
 	int seq_len;
+	u16 vlan_id;
 	u32 cipher;
 	enum nl80211_key_mode mode;
 };
@@ -587,6 +627,7 @@ struct key_params {
  *	If edmg is requested (i.e. the .channels member is non-zero),
  *	chan will define the primary channel and all other
  *	parameters are ignored.
+ * @freq1_offset: offset from @center_freq1, in KHz
  */
 struct cfg80211_chan_def {
 	struct ieee80211_channel *chan;
@@ -594,6 +635,35 @@ struct cfg80211_chan_def {
 	u32 center_freq1;
 	u32 center_freq2;
 	struct ieee80211_edmg edmg;
+	u16 freq1_offset;
+};
+
+/**
+ * struct cfg80211_tid_cfg - TID specific configuration
+ * @config_override: Flag to notify driver to reset TID configuration
+ *	of the peer.
+ * @tids: bitmap of TIDs to modify
+ * @mask: bitmap of attributes indicating which parameter changed,
+ *	similar to &nl80211_tid_config_supp.
+ * @noack: noack configuration value for the TID
+ */
+struct cfg80211_tid_cfg {
+	bool config_override;
+	u8 tids;
+	u32 mask;
+	enum nl80211_tid_config noack;
+};
+
+/**
+ * struct cfg80211_tid_config - TID configuration
+ * @peer: Station's MAC address
+ * @n_tid_conf: Number of TID specific configurations to be applied
+ * @tid_conf: Configuration change info
+ */
+struct cfg80211_tid_config {
+	const u8 *peer;
+	u32 n_tid_conf;
+	struct cfg80211_tid_cfg tid_conf[];
 };
 
 /**
@@ -648,6 +718,7 @@ cfg80211_chandef_identical(const struct cfg80211_chan_def *chandef1,
 	return (chandef1->chan == chandef2->chan &&
 		chandef1->width == chandef2->width &&
 		chandef1->center_freq1 == chandef2->center_freq1 &&
+		chandef1->freq1_offset == chandef2->freq1_offset &&
 		chandef1->center_freq2 == chandef2->center_freq2);
 }
 
@@ -988,6 +1059,7 @@ enum cfg80211_ap_settings_flags {
  * @twt_responder: Enable Target Wait Time
  * @flags: flags, as defined in enum cfg80211_ap_settings_flags
  * @he_obss_pd: OBSS Packet Detection settings
+ * @he_bss_color: BSS Color settings
  */
 struct cfg80211_ap_settings {
 	struct cfg80211_chan_def chandef;
@@ -1016,6 +1088,7 @@ struct cfg80211_ap_settings {
 	bool twt_responder;
 	u32 flags;
 	struct ieee80211_he_obss_pd he_obss_pd;
+	struct cfg80211_he_bss_color he_bss_color;
 };
 
 /**
@@ -1124,6 +1197,7 @@ struct sta_txpwr {
  *	(bitmask of BIT(%NL80211_STA_FLAG_...))
  * @listen_interval: listen interval or -1 for no change
  * @aid: AID or zero for no change
+ * @vlan_id: VLAN ID for station (if nonzero)
  * @peer_aid: mesh peer AID or zero for no change
  * @plink_action: plink action to take
  * @plink_state: set the peer link state for a station
@@ -1151,6 +1225,7 @@ struct sta_txpwr {
  * @he_capa: HE capabilities of station
  * @he_capa_len: the length of the HE capabilities
  * @airtime_weight: airtime scheduler weight for this station
+ * @he_6ghz_capa: HE 6 GHz Band capabilities of station
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -1159,6 +1234,7 @@ struct station_parameters {
 	u32 sta_modify_mask;
 	int listen_interval;
 	u16 aid;
+	u16 vlan_id;
 	u16 peer_aid;
 	u8 supported_rates_len;
 	u8 plink_action;
@@ -1182,6 +1258,7 @@ struct station_parameters {
 	u8 he_capa_len;
 	u16 airtime_weight;
 	struct sta_txpwr txpwr;
+	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 };
 
 /**
@@ -2620,6 +2697,17 @@ enum wiphy_params_flags {
  * @cache_id: 2-octet cache identifier advertized by a FILS AP identifying the
  *	scope of PMKSA. This is valid only if @ssid_len is non-zero (may be
  *	%NULL).
+ * @pmk_lifetime: Maximum lifetime for PMKSA in seconds
+ *	(dot11RSNAConfigPMKLifetime) or 0 if not specified.
+ *	The configured PMKSA must not be used for PMKSA caching after
+ *	expiration and any keys derived from this PMK become invalid on
+ *	expiration, i.e., the current association must be dropped if the PMK
+ *	used for it expires.
+ * @pmk_reauth_threshold: Threshold time for reauthentication (percentage of
+ *	PMK lifetime, dot11RSNAConfigPMKReauthThreshold) or 0 if not specified.
+ *	Drivers are expected to trigger a full authentication instead of using
+ *	this PMKSA for caching when reassociating to a new BSS after this
+ *	threshold to generate a new PMK before the current one expires.
  */
 struct cfg80211_pmksa {
 	const u8 *bssid;
@@ -2629,6 +2717,8 @@ struct cfg80211_pmksa {
 	const u8 *ssid;
 	size_t ssid_len;
 	const u8 *cache_id;
+	u32 pmk_lifetime;
+	u8 pmk_reauth_threshold;
 };
 
 /**
@@ -3328,6 +3418,8 @@ struct cfg80211_update_owe_info {
  * @set_default_key: set the default key on an interface
  *
  * @set_default_mgmt_key: set the default management frame key on an interface
+
+ * @set_default_beacon_key: set the default Beacon frame key on an interface
  *
  * @set_rekey_data: give the data necessary for GTK rekeying to the driver
  *
@@ -3628,6 +3720,10 @@ struct cfg80211_update_owe_info {
  *
  * @probe_mesh_link: Probe direct Mesh peer's link quality by sending data frame
  *	and overrule HWMP path selection algorithm.
+ * @set_tid_config: TID specific configuration, this can be peer or BSS specific
+ *	This callback may sleep.
+ * @reset_tid_config: Reset TID specific configuration for the peer, for the
+ *	given TIDs. This callback may sleep.
  */
 struct cfg80211_ops {
 	int	(*suspend)(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
@@ -3661,6 +3757,9 @@ struct cfg80211_ops {
 	int	(*set_default_mgmt_key)(struct wiphy *wiphy,
 					struct net_device *netdev,
 					u8 key_index);
+	int	(*set_default_beacon_key)(struct wiphy *wiphy,
+					  struct net_device *netdev,
+					  u8 key_index);
 
 	int	(*start_ap)(struct wiphy *wiphy, struct net_device *dev,
 			    struct cfg80211_ap_settings *settings);
@@ -3948,6 +4047,10 @@ struct cfg80211_ops {
 				   struct cfg80211_update_owe_info *owe_info);
 	int	(*probe_mesh_link)(struct wiphy *wiphy, struct net_device *dev,
 				   const u8 *buf, size_t len);
+	int     (*set_tid_config)(struct wiphy *wiphy, struct net_device *dev,
+				  struct cfg80211_tid_config *tid_conf);
+	int	(*reset_tid_config)(struct wiphy *wiphy, struct net_device *dev,
+				    const u8 *peer, u8 tids);
 };
 
 /*
@@ -4366,6 +4469,21 @@ struct cfg80211_pmsr_capabilities {
 };
 
 /**
+ * struct wiphy_iftype_akm_suites - This structure encapsulates supported akm
+ * suites for interface types defined in @iftypes_mask. Each type in the
+ * @iftypes_mask must be unique across all instances of iftype_akm_suites.
+ *
+ * @iftypes_mask: bitmask of interfaces types
+ * @akm_suites: points to an array of supported akm suites
+ * @n_akm_suites: number of supported AKM suites
+ */
+struct wiphy_iftype_akm_suites {
+	u16 iftypes_mask;
+	const u32 *akm_suites;
+	int n_akm_suites;
+};
+
+/**
  * struct wiphy - wireless hardware description
  * @reg_notifier: the driver's regulatory notification callback,
  *	note that if your driver uses wiphy_apply_custom_regulatory()
@@ -4377,8 +4495,16 @@ struct cfg80211_pmsr_capabilities {
  * @signal_type: signal type reported in &struct cfg80211_bss.
  * @cipher_suites: supported cipher suites
  * @n_cipher_suites: number of supported cipher suites
- * @akm_suites: supported AKM suites
+ * @akm_suites: supported AKM suites. These are the default AKMs supported if
+ *	the supported AKMs not advertized for a specific interface type in
+ *	iftype_akm_suites.
  * @n_akm_suites: number of supported AKM suites
+ * @iftype_akm_suites: array of supported akm suites info per interface type.
+ *	Note that the bits in @iftypes_mask inside this structure cannot
+ *	overlap (i.e. only one occurrence of each type is allowed across all
+ *	instances of iftype_akm_suites).
+ * @num_iftype_akm_suites: number of interface types for which supported akm
+ *	suites are specified separately.
  * @retry_short: Retry limit for short frames (dot11ShortRetryLimit)
  * @retry_long: Retry limit for long frames (dot11LongRetryLimit)
  * @frag_threshold: Fragmentation threshold (dot11FragmentationThreshold);
@@ -4538,6 +4664,13 @@ struct cfg80211_pmsr_capabilities {
  *	@support_mbssid must be set for this to have any effect.
  *
  * @pmsr_capa: peer measurement capabilities
+ *
+ * @tid_config_support: describes the per-TID config support that the
+ *	device has
+ * @tid_config_support.vif: bitmap of attributes (configurations)
+ *	supported by the driver for each vif
+ * @tid_config_support.peer: bitmap of attributes (configurations)
+ *	supported by the driver for each peer
  */
 struct wiphy {
 	/* assign these fields before you register the wiphy */
@@ -4584,6 +4717,9 @@ struct wiphy {
 
 	int n_akm_suites;
 	const u32 *akm_suites;
+
+	const struct wiphy_iftype_akm_suites *iftype_akm_suites;
+	unsigned int num_iftype_akm_suites;
 
 	u8 retry_short;
 	u8 retry_long;
@@ -4681,6 +4817,10 @@ struct wiphy {
 	   support_only_he_mbssid:1;
 
 	const struct cfg80211_pmsr_capabilities *pmsr_capa;
+
+	struct {
+		u64 peer, vif;
+	} tid_config_support;
 
 	char priv[0] __aligned(NETDEV_ALIGN);
 };
@@ -5009,29 +5149,106 @@ static inline void *wdev_priv(struct wireless_dev *wdev)
  */
 
 /**
+ * ieee80211_channel_equal - compare two struct ieee80211_channel
+ *
+ * @a: 1st struct ieee80211_channel
+ * @b: 2nd struct ieee80211_channel
+ * Return: true if center frequency of @a == @b
+ */
+static inline bool
+ieee80211_channel_equal(struct ieee80211_channel *a,
+			struct ieee80211_channel *b)
+{
+	return (a->center_freq == b->center_freq &&
+		a->freq_offset == b->freq_offset);
+}
+
+/**
+ * ieee80211_channel_to_khz - convert ieee80211_channel to frequency in KHz
+ * @chan: struct ieee80211_channel to convert
+ * Return: The corresponding frequency (in KHz)
+ */
+static inline u32
+ieee80211_channel_to_khz(const struct ieee80211_channel *chan)
+{
+	return MHZ_TO_KHZ(chan->center_freq) + chan->freq_offset;
+}
+
+/**
+ * ieee80211_channel_to_freq_khz - convert channel number to frequency
+ * @chan: channel number
+ * @band: band, necessary due to channel number overlap
+ * Return: The corresponding frequency (in KHz), or 0 if the conversion failed.
+ */
+u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band);
+
+/**
  * ieee80211_channel_to_frequency - convert channel number to frequency
  * @chan: channel number
  * @band: band, necessary due to channel number overlap
  * Return: The corresponding frequency (in MHz), or 0 if the conversion failed.
  */
-int ieee80211_channel_to_frequency(int chan, enum nl80211_band band);
+static inline int
+ieee80211_channel_to_frequency(int chan, enum nl80211_band band)
+{
+	return KHZ_TO_MHZ(ieee80211_channel_to_freq_khz(chan, band));
+}
+
+/**
+ * ieee80211_freq_khz_to_channel - convert frequency to channel number
+ * @freq: center frequency in KHz
+ * Return: The corresponding channel, or 0 if the conversion failed.
+ */
+int ieee80211_freq_khz_to_channel(u32 freq);
 
 /**
  * ieee80211_frequency_to_channel - convert frequency to channel number
- * @freq: center frequency
+ * @freq: center frequency in MHz
  * Return: The corresponding channel, or 0 if the conversion failed.
  */
-int ieee80211_frequency_to_channel(int freq);
+static inline int
+ieee80211_frequency_to_channel(int freq)
+{
+	return ieee80211_freq_khz_to_channel(MHZ_TO_KHZ(freq));
+}
+
+/**
+ * ieee80211_get_channel_khz - get channel struct from wiphy for specified
+ * frequency
+ * @wiphy: the struct wiphy to get the channel for
+ * @freq: the center frequency (in KHz) of the channel
+ * Return: The channel struct from @wiphy at @freq.
+ */
+struct ieee80211_channel *
+ieee80211_get_channel_khz(struct wiphy *wiphy, u32 freq);
 
 /**
  * ieee80211_get_channel - get channel struct from wiphy for specified frequency
  *
  * @wiphy: the struct wiphy to get the channel for
- * @freq: the center frequency of the channel
- *
+ * @freq: the center frequency (in MHz) of the channel
  * Return: The channel struct from @wiphy at @freq.
  */
-struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq);
+static inline struct ieee80211_channel *
+ieee80211_get_channel(struct wiphy *wiphy, int freq)
+{
+	return ieee80211_get_channel_khz(wiphy, MHZ_TO_KHZ(freq));
+}
+
+/**
+ * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
+ * @chan: control channel to check
+ *
+ * The Preferred Scanning Channels (PSC) are defined in
+ * Draft IEEE P802.11ax/D5.0, 26.17.2.3.3
+ */
+static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
+{
+	if (chan->band != NL80211_BAND_6GHZ)
+		return false;
+
+	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
+}
 
 /**
  * ieee80211_get_response_rate - get basic rate for a given rate
@@ -7080,6 +7297,19 @@ bool ieee80211_operating_class_to_band(u8 operating_class,
  */
 bool ieee80211_chandef_to_operating_class(struct cfg80211_chan_def *chandef,
 					  u8 *op_class);
+
+/**
+ * ieee80211_chandef_to_khz - convert chandef to frequency in KHz
+ *
+ * @chandef: the chandef to convert
+ *
+ * Returns the center frequency of chandef (1st segment) in KHz.
+ */
+static inline u32
+ieee80211_chandef_to_khz(const struct cfg80211_chan_def *chandef)
+{
+	return MHZ_TO_KHZ(chandef->center_freq1) + chandef->freq1_offset;
+}
 
 /*
  * cfg80211_tdls_oper_request - request userspace to perform TDLS operation

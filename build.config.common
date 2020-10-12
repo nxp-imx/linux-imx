@@ -1,10 +1,11 @@
-BRANCH=android-5.4-stable
-KERNEL_DIR=common
+BRANCH=android11-5.4
+KMI_GENERATION=0
 
 CC=clang
 LD=ld.lld
 NM=llvm-nm
 OBJCOPY=llvm-objcopy
+DEPMOD=depmod
 CLANG_PREBUILT_BIN=prebuilts-master/clang/host/linux-x86/clang-r383902/bin
 BUILDTOOLS_PREBUILT_BIN=build/build-tools/path/linux-x86
 

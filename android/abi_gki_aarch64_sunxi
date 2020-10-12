@@ -1,0 +1,310 @@
+[abi_symbol_list]
+# commonly used symbols
+  pinctrl_get
+  pinctrl_gpio_set_config
+  of_find_node_by_type
+  kmalloc_order
+  down_interruptible
+  dev_pm_set_wake_irq
+  __arm_smccc_hvc
+
+# required by ccu-sunxi-ng.ko
+  clk_notifier_register
+  of_clk_hw_register
+  reset_controller_register
+
+# required by sunxi_pinctrl.ko
+  handle_fasteoi_irq
+  pinctrl_gpio_direction_output
+  pinctrl_gpio_direction_input
+  gpiochip_generic_config
+
+# required by sunxi_uart.ko
+  uart_get_divisor
+  uart_handle_cts_change
+  uart_handle_dcd_change
+  unregister_console
+  uart_insert_char
+
+# required by timer-sunxi.ko
+  clockevents_config_and_register
+  __clocksource_register_scale
+  setup_irq
+
+# required by dump_reg.ko
+  class_create_file_ns
+  class_remove_file_ns
+
+# required by sunxi_nand.ko
+  rq_flush_dcache_pages
+
+# required by sunxi_iommu.ko
+  iommu_group_alloc
+  iommu_group_register_notifier
+
+# required by ums-realtek.ko
+  usb_bulk_msg
+
+# required by ums-sddr09.ko
+  usb_reset_configuration
+
+# required by clk-ddr.ko
+  devm_of_iomap
+
+# required by sunxi-dmc.ko
+  devm_devfreq_register_opp_notifier
+
+# required by sunxi-nsipmu.ko
+
+# required by irq-sunxi-8i-nmi.ko
+  of_io_request_and_map
+  unregister_syscore_ops
+
+# required by tee.ko optee.ko
+  gen_pool_best_fit
+  gen_pool_set_algo
+  gen_pool_virt_to_phys
+  dump_page
+
+# required by sunxi_nsi.ko
+  device_remove_groups
+
+# required by pwm_sunxi_grounp.ko
+  of_pwm_xlate_with_flags
+
+# required by sunxi-ce.ko
+  crypto_register_aead
+  crypto_register_ahash
+  crypto_register_rng
+  crypto_unregister_ahash
+  crypto_unregister_rng
+
+# required by required by audio_driver*.ko :
+  __devm_release_region
+  snd_dmaengine_pcm_close_release_chan
+  snd_dmaengine_pcm_get_chan
+  snd_dmaengine_pcm_open_request_chan
+  snd_dmaengine_pcm_pointer
+  snd_dmaengine_pcm_trigger
+  snd_hwparams_to_dma_slave_config
+  snd_soc_add_card_controls
+  snd_soc_register_card
+  snd_soc_dai_set_clkdiv
+  snd_soc_dai_set_pll
+  snd_dmaengine_pcm_open
+
+# required by xr829.ko
+  bridge_tunnel_header
+  cfg80211_assoc_timeout
+  cfg80211_auth_timeout
+  cfg80211_classify8021d
+  cfg80211_cqm_pktloss_notify
+  cfg80211_rx_assoc_resp
+  cfg80211_rx_mlme_mgmt
+  cfg80211_sched_scan_stopped
+  cfg80211_tx_mlme_mgmt
+  crc32_be
+  __dev_kfree_skb_irq
+  __hw_addr_init
+  __hw_addr_sync
+  __hw_addr_unsync
+  ieee80211_amsdu_to_8023s
+  ieee80211_bss_get_elem
+  ieee80211_data_to_8023_exthdr
+  ieee80211_radiotap_iterator_init
+  ieee80211_radiotap_iterator_next
+  kernel_param_lock
+  kernel_param_unlock
+  round_jiffies_relative
+  sdio_align_size
+  __sw_hweight16
+  device_move
+
+# required by arc4.ko
+  arc4_crypt
+  arc4_setkey
+  crypto_register_skcipher
+  crypto_unregister_skcipher
+  skcipher_walk_done
+  skcipher_walk_virt
+
+# required by vin_v4l2.ko
+  vb2_plane_cookie
+  v4l2_i2c_subdev_init
+  media_entity_find_link
+  media_entity_remote_pad
+  __media_entity_setup_link
+  media_entity_setup_link
+  media_graph_walk_init
+  media_graph_walk_next
+  media_graph_walk_start
+  spi_busnum_to_master
+  spi_unregister_device
+  v4l2_ctrl_cluster
+  v4l2_ctrl_new_int_menu
+  v4l2_ctrl_subdev_subscribe_event
+  v4l2_event_subdev_unsubscribe
+  v4l2_g_ctrl
+  v4l2_i2c_new_subdev
+  v4l2_spi_new_subdev
+  v4l_bound_align_image
+  media_create_pad_link
+  v4l2_ctrl_subscribe_event
+  vb2_fop_mmap
+  vb2_fop_poll
+  vb2_fop_read
+  vb2_fop_release
+  vb2_ioctl_dqbuf
+  vb2_ioctl_expbuf
+  vb2_ioctl_qbuf
+  vb2_ioctl_querybuf
+  vb2_ioctl_reqbufs
+  vb2_ioctl_streamoff
+  vb2_ioctl_streamon
+  vb2_ops_wait_finish
+  vb2_ops_wait_prepare
+  vb2_dma_contig_clear_max_seg_size
+  vb2_dma_contig_memops
+  vb2_dma_contig_set_max_seg_size
+
+# required by videobuf2-memops.ko
+  frame_vector_create
+  frame_vector_destroy
+  get_vaddr_frames
+  put_vaddr_frames
+
+# required by videobuf2-dma-contig.ko
+  frame_vector_to_pages
+  frame_vector_to_pfns
+
+# required by init-input.ko
+  of_find_i2c_device_by_node
+
+# required by ntfs.ko
+  block_is_partially_uptodate
+  buffer_migrate_page
+  create_empty_buffers
+  d_add_ci
+  d_obtain_alias
+  end_buffer_read_sync
+  generic_error_remove_page
+  generic_file_open
+  ihold
+  load_nls_default
+  __lock_page
+  make_bad_inode
+  pagecache_get_page
+  read_cache_page
+  truncate_inode_pages_final
+  __vmalloc
+  __wait_on_buffer
+  io_schedule
+  is_bad_inode
+
+# required by sunxi-keyboard.ko
+  iio_map_array_register
+  iio_map_array_unregister
+
+# required by sunxi*.ko
+  __irq_alloc_domain_generic_chips
+  clk_unregister_fixed_factor
+  clk_unregister_fixed_rate
+  clk_unregister_gate
+  cpufreq_dbs_governor_exit
+  cpufreq_dbs_governor_init
+  cpufreq_dbs_governor_limits
+  cpufreq_dbs_governor_start
+  cpufreq_dbs_governor_stop
+  dbs_update
+  filp_close
+  get_cpu_idle_time_us
+  gov_update_cpu_data
+  irq_gc_ack_set_bit
+  irq_gc_mask_clr_bit
+  irq_gc_mask_set_bit
+  irq_generic_chip_ops
+  irq_get_domain_generic_chip
+  irq_setup_alt_chip
+  rfkill_set_states
+  store_sampling_rate
+  usb_hcds_loaded
+
+# required by smsc95xx.ko
+  crc16
+  device_set_wakeup_enable
+  of_get_mac_address
+  usbnet_defer_kevent
+
+
+# required by microchip.ko
+  __genphy_config_aneg
+  genphy_suspend
+  __mdiobus_read
+  mdiobus_read
+  __mdiobus_write
+  mdiobus_write
+  phy_drivers_register
+  phy_drivers_unregister
+  phy_read_mmd
+  phy_restore_page
+  phy_save_page
+  phy_write_mmd
+
+
+# required by smsc75xx.ko
+  crc16
+  device_set_wakeup_enable
+  of_get_mac_address
+  usbnet_defer_kevent
+
+# required by rtl8150.ko
+  ethtool_convert_legacy_u32_to_link_mode
+
+# required by lan78xx.ko
+  __bitmap_or
+  device_set_wakeup_enable
+  fixed_phy_register
+  fixed_phy_unregister
+  __genphy_config_aneg
+  genphy_read_status
+  irq_domain_add_simple
+  mdiobus_read
+  mdiobus_write
+  of_mdiobus_register
+  phy_connect_direct
+  phy_ethtool_get_eee
+  phy_ethtool_ksettings_get
+  phy_ethtool_ksettings_set
+  phy_ethtool_set_eee
+  phy_ethtool_set_wol
+  phy_find_first
+  phy_read_mmd
+  phy_register_fixup_for_uid
+  phy_remove_link_mode
+  phy_unregister_fixup_for_uid
+  phy_write_mmd
+  usb_scuttle_anchored_urbs
+
+# required by uas.ko
+  usb_wait_anchor_empty_timeout
+  usb_free_streams
+  usb_alloc_streams
+
+# required by echi-pci.ko
+  ehci_init_driver
+  ehci_resume
+  ehci_setup
+  ehci_suspend
+
+# required by xradio_btlpm.ko
+  bt_err
+  bt_info
+
+# required by sun6i-dma.ko
+  dma_get_any_slave_channel
+
+# required by sun50i-cpufreq-nvmem.ko
+  dev_pm_opp_of_get_opp_desc_node
+  dev_pm_opp_put_prop_name
+  dev_pm_opp_put_supported_hw
+  dev_pm_opp_set_prop_name
