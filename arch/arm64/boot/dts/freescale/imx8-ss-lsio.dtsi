@@ -163,6 +163,16 @@ lsio_subsys: bus@5d000000 {
 		power-domains = <&pd IMX_SC_R_MU_5A>;
 	};
 
+	lsio_mu8: mic_intr@5d230000 {
+		compatible = "fsl,imx-mic-intr";
+		reg = <0x5d230000 0x10000>;
+		interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>;
+		/* Also enable MU8B pd since MIC host need touch it's registers */
+		power-domains = <&pd IMX_SC_R_MU_8A>, <&pd IMX_SC_R_MU_8B>;
+		power-domain-names = "pd_a", "pd_b";
+		status = "disabled";
+	};
+
 	lsio_mu13: mailbox@5d280000 {
 		compatible = "fsl,imx8-mu-dsp", "fsl,imx6sx-mu";
 		reg = <0x5d280000 0x10000>;

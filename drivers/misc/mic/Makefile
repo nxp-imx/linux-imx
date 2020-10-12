@@ -5,6 +5,8 @@
 #
 obj-$(CONFIG_INTEL_MIC_HOST) += host/
 obj-$(CONFIG_INTEL_MIC_CARD) += card/
+obj-$(CONFIG_IMX_MIC_CARD) += imx-card/
+obj-$(CONFIG_IMX_MIC_HOST) += imx-host/
 obj-y += bus/
 obj-$(CONFIG_SCIF) += scif/
 obj-$(CONFIG_MIC_COSM) += cosm/

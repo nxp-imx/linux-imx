@@ -314,6 +314,9 @@
 #define NXP_FSPI_MAX_CHIPSELECT		4
 #define NXP_FSPI_MIN_IOMAP	SZ_4M
 
+/* access memory via IPS only due to this errata */
+#define NXP_FSPI_QUIRK_ERR050601	BIT(0)
+
 struct nxp_fspi_devtype_data {
 	unsigned int rxfifo;
 	unsigned int txfifo;
@@ -346,6 +349,14 @@ static const struct nxp_fspi_devtype_data imx8qxp_data = {
 	.little_endian = true,  /* little-endian    */
 };
 
+static const struct nxp_fspi_devtype_data imx8dxl_data = {
+	.rxfifo = SZ_512,       /* (64  * 64 bits)  */
+	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
+	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
+	.quirks = NXP_FSPI_QUIRK_ERR050601,
+	.little_endian = true,  /* little-endian    */
+};
+
 struct nxp_fspi {
 	void __iomem *iobase;
 	void __iomem *ahb_addr;
@@ -363,6 +374,11 @@ struct nxp_fspi {
 #define FSPI_INITILIZED	(1 << 0)
 	int flags;
 };
+
+static inline int nxp_fspi_ips_access_only(struct nxp_fspi *f)
+{
+	return f->devtype_data->quirks & NXP_FSPI_QUIRK_ERR050601;
+}
 
 /*
  * R/W functions for big- or little-endian registers:
@@ -857,9 +873,11 @@ static int nxp_fspi_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	/*
 	 * If we have large chunks of data, we read them through the AHB bus
 	 * by accessing the mapped memory. In all other cases we use
-	 * IP commands to access the flash.
+	 * IP commands to access the flash, but ahb read won't be used for dxl
+	 * since IC errta.
 	 */
-	if (op->data.nbytes > (f->devtype_data->rxfifo - 4) &&
+	if (!nxp_fspi_ips_access_only(f) &&
+	    op->data.nbytes > (f->devtype_data->rxfifo - 4) &&
 	    op->data.dir == SPI_MEM_DATA_IN) {
 		err = nxp_fspi_read_ahb(f, op);
 	} else {
@@ -894,6 +912,10 @@ static int nxp_fspi_adjust_op_size(struct spi_mem *mem, struct spi_mem_op *op)
 			op->data.nbytes = f->devtype_data->ahb_buf_size;
 		else if (op->data.nbytes > (f->devtype_data->rxfifo - 4))
 			op->data.nbytes = ALIGN_DOWN(op->data.nbytes, 8);
+		/* dxl won't use ahb to access data, limit to rxfifo size */
+		if (nxp_fspi_ips_access_only(f) &&
+		    op->data.nbytes > f->devtype_data->rxfifo)
+			op->data.nbytes = f->devtype_data->rxfifo;
 	}
 
 	return 0;
@@ -1182,6 +1204,7 @@ static const struct of_device_id nxp_fspi_dt_ids[] = {
 	{ .compatible = "nxp,lx2160a-fspi", .data = (void *)&lx2160a_data, },
 	{ .compatible = "nxp,imx8mm-fspi", .data = (void *)&imx8mm_data, },
 	{ .compatible = "nxp,imx8qxp-fspi", .data = (void *)&imx8qxp_data, },
+	{ .compatible = "nxp,imx8dxl-fspi", .data = (void *)&imx8dxl_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, nxp_fspi_dt_ids);

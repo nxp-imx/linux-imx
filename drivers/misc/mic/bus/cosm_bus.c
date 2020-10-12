@@ -14,6 +14,13 @@
 /* Unique numbering for cosm devices. */
 static DEFINE_IDA(cosm_index_ida);
 
+static int cosm_uevent(struct device *d, struct kobj_uevent_env *env)
+{
+	struct cosm_device *dev = dev_to_cosm(d);
+
+	return add_uevent_var(env, "MODALIAS=cosm:cosm-dev%u", dev->index);
+}
+
 static int cosm_dev_probe(struct device *d)
 {
 	struct cosm_device *dev = dev_to_cosm(d);
@@ -33,6 +40,7 @@ static int cosm_dev_remove(struct device *d)
 
 static struct bus_type cosm_bus = {
 	.name  = "cosm_bus",
+	.uevent = cosm_uevent,
 	.probe = cosm_dev_probe,
 	.remove = cosm_dev_remove,
 };

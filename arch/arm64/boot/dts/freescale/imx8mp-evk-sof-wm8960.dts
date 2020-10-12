@@ -12,27 +12,6 @@
 		status = "disabled";
 	};
 
-	sai3_port: sai-port {
-		#sound-dai-cells = <0>;
-		compatible = "fsl,sai-dai";
-
-		dai-index = <3>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_sai3>;
-
-		power-domains = <&audiomix_pd>;
-
-		assigned-clocks = <&clk IMX8MP_CLK_SAI3>;
-		assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
-		assigned-clock-rates = <12288000>;
-		clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_IPG>, <&clk IMX8MP_CLK_DUMMY>,
-			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>, <&clk IMX8MP_CLK_DUMMY>,
-			<&clk IMX8MP_CLK_DUMMY>;
-		clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3";
-
-		status="okay";
-	};
-
 	sof-sound-wm8960 {
 		compatible = "simple-audio-card";
 		label = "wm8960-audio";
@@ -60,10 +39,7 @@
 		simple-audio-card,dai-link {
 			format = "i2s";
 			cpu {
-				sound-dai = <&sai3_port>;
-			};
-			plat {
-				sound-dai = <&dsp>;
+				sound-dai = <&dsp 0>;
 			};
 			sndcodec: codec {
 				sound-dai = <&codec>;
@@ -73,18 +49,34 @@
 };
 
 &dsp {
-	#sound-dai-cells = <0>;
+	#sound-dai-cells = <1>;
 	compatible = "fsl,imx8mp-dsp";
-	reg = <0x0 0x3B6E8000 0x0 0x88000>;
-	tplg-name = "sof-imx8mp-wm8960.tplg";
 
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai3>;
+
+	power-domains = <&audiomix_pd>;
 	clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_OCRAMA_IPG>,
 			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_DSP_ROOT>,
 			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_DSPDBG_ROOT>,
 			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_MU2_ROOT>,
 			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>,
-			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_IPG>;
-	clock-names = "ocram", "core", "debug", "mu2", "sdma3", "sai3_ipg";
+			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_IPG>,
+			<&clk IMX8MP_CLK_DUMMY>,
+			<&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>,
+			<&clk IMX8MP_CLK_DUMMY>,
+			<&clk IMX8MP_CLK_DUMMY>;
+	clock-names = "ocram", "core", "debug", "mu2", "sdma3",
+		"sai3_bus", "sai3_mclk0", "sai3_mclk1", "sai3_mclk2", "sai3_mclk3";
+
+	assigned-clocks = <&clk IMX8MP_CLK_SAI3>;
+	assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <12288000>;
+
+
+	reg = <0x0 0x3B6E8000 0x0 0x88000>;
+	tplg-name = "sof-imx8mp-wm8960.tplg";
+
 	machine-drv-name = "asoc-simple-card";
 	status = "okay";
 };

@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2020 NXP
+ */
+
+/dts-v1/;
+
+#include "imx8qm-mek.dts"
+
+&resmem {
+	fsl,imx_mic {
+		compatible = "shared-dma-pool";
+		reusable;
+		size = <0 0x2000000>;
+		alloc-ranges = <0 0xf8000000 0 0x2000000>;
+	};
+};

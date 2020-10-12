@@ -337,7 +337,6 @@
 		 <&pcie0_refclk>;
 	clock-names = "pcie", "pcie_aux", "pcie_phy", "pcie_bus";
 	ext_osc = <1>;
-	reserved-region = <&rpmsg_reserved>;
 	status = "okay";
 };
 

@@ -12,3 +12,10 @@ config PCI_EPF_TEST
 	   for PCI Endpoint.
 
 	   If in doubt, say "N" to disable Endpoint test driver.
+
+config IMX_MIC_EPF
+	tristate "i.MX MIC Endpoint driver"
+	depends on PCI_ENDPOINT && IMX_MIC_CARD
+	help
+	   Enable this configuration option to enable endpoint driver
+	   for i.MX MIC.

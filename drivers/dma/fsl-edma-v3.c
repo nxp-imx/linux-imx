@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
+#include <linux/iopoll.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
@@ -112,6 +113,8 @@
 /* channel name template define in dts */
 #define CHAN_PREFIX			"edma0-chan"
 #define CHAN_POSFIX			"-tx"
+
+#define EDMA_MINOR_LOOP_TIMEOUT		500 /* us */
 
 enum fsl_edma3_pm_state {
 	RUNNING = 0,
@@ -284,9 +287,21 @@ static int fsl_edma3_terminate_all(struct dma_chan *chan)
 	struct fsl_edma3_chan *fsl_chan = to_fsl_edma3_chan(chan);
 	unsigned long flags;
 	LIST_HEAD(head);
+	u32 val;
+
+	fsl_edma3_disable_request(fsl_chan);
+
+	/*
+	 * Checking ACTIVE to ensure minor loop stop indeed to prevent the
+	 * potential illegal memory write if channel not stopped with buffer
+	 * freed. Ignore tx channel since no such risk.
+	 */
+	if (fsl_chan->is_rxchan)
+		readl_poll_timeout_atomic(fsl_chan->membase + EDMA_CH_CSR, val,
+			!(val & EDMA_CH_CSR_ACTIVE), 2,
+			EDMA_MINOR_LOOP_TIMEOUT);
 
 	spin_lock_irqsave(&fsl_chan->vchan.lock, flags);
-	fsl_edma3_disable_request(fsl_chan);
 	fsl_chan->edesc = NULL;
 	fsl_chan->idle = true;
 	fsl_chan->used = false;

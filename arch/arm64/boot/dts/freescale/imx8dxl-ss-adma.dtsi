@@ -186,7 +186,7 @@
 
 &lpspi3 {
 	compatible = "fsl,imx8dxl-spi", "fsl,imx8qxp-spi", "fsl,imx7ulp-spi";
-	interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
+	interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>;
 };
 
 &flexcan1 {

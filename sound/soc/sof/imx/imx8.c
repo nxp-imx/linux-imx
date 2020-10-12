@@ -6,6 +6,7 @@
 //
 // Hardware interface for audio DSP on i.MX8
 
+#include <linux/clk.h>
 #include <linux/firmware.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
@@ -39,6 +40,15 @@
 #define MBOX_OFFSET	0x800000
 #define MBOX_SIZE	0x1000
 
+#define IMX8_DSP_CLK_NUM	9
+static const char *imx8_dsp_clks_names[IMX8_DSP_CLK_NUM] =
+{
+	/* ESAI0 clocks */
+	"esai0_core", "esai0_extal", "esai0_fsys", "esai0_spba",
+	/* SAI1 clocks */
+	"sai1_bus", "sai1_mclk0", "sai1_mclk1", "sai1_mclk2", "sai1_mclk3",
+};
+
 struct imx8_priv {
 	struct device *dev;
 	struct snd_sof_dev *sdev;
@@ -56,7 +66,53 @@ struct imx8_priv {
 	struct device **pd_dev;
 	struct device_link **link;
 
+	struct clk *dsp_clks[IMX8_DSP_CLK_NUM];
 };
+
+static int imx8_init_clocks(struct snd_sof_dev *sdev)
+{
+	int i;
+	struct imx8_priv *priv = (struct imx8_priv *)sdev->private;
+
+	for (i = 0; i < IMX8_DSP_CLK_NUM; i++) {
+		priv->dsp_clks[i] = devm_clk_get(priv->dev, imx8_dsp_clks_names[i]);
+		if (IS_ERR(priv->dsp_clks[i]))
+			priv->dsp_clks[i] = NULL;
+	}
+
+	return 0;
+}
+
+static int imx8_prepare_clocks(struct snd_sof_dev *sdev)
+{
+	int i, ret;
+	struct imx8_priv *priv = (struct imx8_priv *)sdev->private;
+
+	for (i = 0; i < IMX8_DSP_CLK_NUM; i++) {
+		ret = clk_prepare_enable(priv->dsp_clks[i]);
+		if (ret < 0) {
+			dev_err(priv->dev, "Failed to enable clk %s\n",
+				imx8_dsp_clks_names[i]);
+			goto err_dsp_clks;
+		}
+	}
+	return 0;
+
+err_dsp_clks:
+	while (--i >= 0)
+		clk_disable_unprepare(priv->dsp_clks[i]);
+
+	return ret;
+}
+
+static void imx8_disable_clocks(struct snd_sof_dev *sdev)
+{
+	int i;
+	struct imx8_priv *priv = (struct imx8_priv *)sdev->private;
+
+	for (i = 0; i < IMX8_DSP_CLK_NUM; i++)
+		clk_disable_unprepare(priv->dsp_clks[i]);
+}
 
 static void imx8_get_reply(struct snd_sof_dev *sdev)
 {
@@ -331,6 +387,9 @@ done_pm:
 	/* set default mailbox offset for FW ready message */
 	sdev->dsp_box.offset = MBOX_OFFSET;
 
+	imx8_init_clocks(sdev);
+	imx8_prepare_clocks(sdev);
+
 	return 0;
 
 exit_pdev_unregister:
@@ -384,6 +443,8 @@ int imx8_resume(struct snd_sof_dev *sdev)
 	struct imx8_priv *priv = (struct imx8_priv *)sdev->private;
 	int i;
 
+	imx8_prepare_clocks(sdev);
+
 	for (i = 0; i < DSP_MU_CHAN_NUM; i++)
 		imx_dsp_request_channel(priv->dsp_ipc, i);
 
@@ -397,6 +458,8 @@ int imx8_suspend(struct snd_sof_dev *sdev)
 
 	for (i = 0; i < DSP_MU_CHAN_NUM; i++)
 		imx_dsp_free_channel(priv->dsp_ipc, i);
+
+	imx8_disable_clocks(sdev);
 
 	return 0;
 }
@@ -439,7 +502,10 @@ int imx8_dsp_suspend(struct snd_sof_dev *sdev)
 
 static struct snd_soc_dai_driver imx8_dai[] = {
 {
-	.name = "esai-port",
+	.name = "esai0",
+},
+{
+	.name = "sai1",
 },
 };
 
@@ -472,7 +538,7 @@ struct snd_sof_dsp_ops sof_imx8_ops = {
 
 	/* DAI drivers */
 	.drv = imx8_dai,
-	.num_drv = 1, /* we have only 1 ESAI interface on i.MX8 */
+	.num_drv = 2, /* we use ESAI0 / SAI1 i.MX8 */
 
 	/* PM */
 	.suspend		= imx8_dsp_suspend,
@@ -518,7 +584,7 @@ struct snd_sof_dsp_ops sof_imx8x_ops = {
 
 	/* DAI drivers */
 	.drv = imx8_dai,
-	.num_drv = 1, /* we have only 1 ESAI interface on i.MX8 */
+	.num_drv = 2, /* we use ESAI0 / SAI1 on i.MX8X*/
 
 	/* PM */
 	.suspend		= imx8_dsp_suspend,

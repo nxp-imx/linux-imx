@@ -15,6 +15,11 @@
 	status = "disabled";
 };
 
+&lsio_mu8{
+	doorbell-reg = <0x5d2c0000 0x10000>;
+	status = "okay";
+};
+
 &pciea_ep{
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pciea>;

@@ -744,7 +744,6 @@
 		 <&clk IMX8MQ_CLK_PCIE2_PHY>,
 		 <&pcie1_refclk>;
 	clock-names = "pcie", "pcie_aux", "pcie_phy", "pcie_bus";
-	reserved-region = <&rpmsg_reserved>;
 	status = "okay";
 };
 

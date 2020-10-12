@@ -168,6 +168,22 @@ static const struct dmi_system_id nine_bytes_report[] = {
 	{}
 };
 
+/*
+ * Those tablets have their x coordinate inverted
+ */
+static const struct dmi_system_id inverted_x_screen[] = {
+#if defined(CONFIG_DMI) && defined(CONFIG_X86)
+	{
+		.ident = "Cube I15-TC",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Cube"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "I15-TC")
+		},
+	},
+#endif
+	{}
+};
+
 /**
  * goodix_i2c_read - read data from a register of the i2c slave device.
  *
@@ -780,6 +796,12 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 			"Non-standard 9-bytes report format quirk\n");
 	}
 
+	if (dmi_check_system(inverted_x_screen)) {
+		ts->prop.invert_x = true;
+		dev_dbg(&ts->client->dev,
+			"Applying 'inverted x screen' quirk\n");
+	}
+
 	error = input_mt_init_slots(ts->input_dev, ts->max_touch_num,
 				    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
 	if (error) {
@@ -794,6 +816,9 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 			"Failed to register input device: %d", error);
 		return error;
 	}
+
+	if (device_property_read_bool(ts->input_dev->dev.parent, "edge-failling-trigger"))
+		ts->int_trigger_type = GOODIX_INT_TRIGGER;
 
 	ts->irq_flags = goodix_irq_flags[ts->int_trigger_type] | IRQF_ONESHOT;
 	error = goodix_request_irq(ts);

@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/fb.h>
+#include <linux/fbcon.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -276,9 +277,9 @@ static void sii902x_cable_connected(void)
 
 			sii902x.fbi->var.activate |= FB_ACTIVATE_FORCE;
 			console_lock();
-			sii902x.fbi->flags |= FBINFO_MISC_USEREVENT;
-			fb_set_var(sii902x.fbi, &sii902x.fbi->var);
-			sii902x.fbi->flags &= ~FBINFO_MISC_USEREVENT;
+			if (!fb_set_var(sii902x.fbi, &sii902x.fbi->var))
+				fbcon_update_vcs(sii902x.fbi, sii902x.fbi->var.activate & FB_ACTIVATE_ALL);
+
 			console_unlock();
 		}
 		/* Power on sii902x */

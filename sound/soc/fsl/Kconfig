@@ -65,14 +65,6 @@ config SND_SOC_FSL_ESAI
 	  This option is only useful for out-of-tree drivers since
 	  in-tree drivers select it automatically.
 
-config SND_SOC_FSL_DAI
-	tristate "Generic FSL DAI support for Sound Open Firmware"
-	help
-	  Say Y if you want to enable generic FSL DAI support to be used
-	  with Sound Open Firmware. This module takes care of enabling
-	  clocks, power domain, pinctrl for FSL DAIs. The rest of DAI
-	  control is taken care of by SOF firmware.
-
 config SND_SOC_FSL_MICFIL
 	tristate "Pulse Density Modulation Microphone Interface (MICFIL) module support"
 	select REGMAP_MMIO

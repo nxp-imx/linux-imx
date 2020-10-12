@@ -291,7 +291,6 @@
 &flexspi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_flexspi0>;
-	interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 	status = "okay";
 
 	mt35xu512aba0: flash@0 {
@@ -556,7 +555,6 @@
 	reset-gpio = <&lsio_gpio4 0 GPIO_ACTIVE_LOW>;
 	ext_osc = <0>;
 	epdev_on-supply = <&epdev_on>;
-	reserved-region = <&rpmsg_reserved>;
 	status = "okay";
 };
 

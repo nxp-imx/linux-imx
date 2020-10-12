@@ -1290,8 +1290,6 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		do {
 			byte = get_byte(&stream);
 		} while (byte == 0xff);
-		if (byte == -1)
-			return false;
 		if (byte == 0)
 			continue;
 		switch (byte) {

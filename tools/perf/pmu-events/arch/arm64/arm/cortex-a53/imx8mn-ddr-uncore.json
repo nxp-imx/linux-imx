@@ -3,7 +3,7 @@
 	"PublicDescription": "lpddr4 evk board bandwidth usage",
 	"BriefDescription": "imx8mn: percentage of bandwidth usage for ddr0",
 	"MetricName": "imx8mn-ddr0-bandwidth-usage-lpddr4",
-	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 4 / duration_time) / (800 * 1000000 * 4 * 4)",
+	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 2 / duration_time) / (800 * 1000000 * 4 * 2)",
 	"MetricGroup": "i.MX8MN_DDR_MON",
 	"ScaleUnit": "1e2%",
 	"SocName": "i.MX8MN"
@@ -12,25 +12,25 @@
 	"PublicDescription": "ddr4 evk board bandwidth usage",
 	"BriefDescription": "imx8mn: percentage of bandwidth usage for ddr0",
 	"MetricName": "imx8mn-ddr0-bandwidth-usage-ddr4",
-	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 4 / duration_time) / (600 * 1000000 * 4 * 4)",
+	"MetricExpr": "(( imx8_ddr0\\/read\\-cycles\\/ + imx8_ddr0\\/write\\-cycles\\/) * 4 * 2 / duration_time) / (600 * 1000000 * 4 * 2)",
 	"MetricGroup": "i.MX8MN_DDR_MON",
 	"ScaleUnit": "1e2%",
 	"SocName": "i.MX8MN"
     },
 
     {
-	"PublicDescription": "Calculate bytes all masters read from DDR based on read-cycles event. DDR interface generates 2 up and 2 down edges in an internal clock cycle, can pass 4 beats of data. 4 bytes of each beat if DDR burst width is 32 bit.",
+	"PublicDescription": "Calculate bytes all masters read from DDR based on read-cycles event. DDR interface generates 2 up and 2 down edges in an internal clock cycle, can pass 4 beats of data. 2 bytes of each beat since DDR burst width is 16 bit.",
 	"BriefDescription": "imx8mn: bytes of all masters read from ddr0",
 	"MetricName": "imx8mn-ddr0-all-r",
-	"MetricExpr": "imx8_ddr0\\/read\\-cycles\\/ * 4 * 4",
+	"MetricExpr": "imx8_ddr0\\/read\\-cycles\\/ * 4 * 2",
 	"MetricGroup": "i.MX8MN_DDR_MON",
 	"SocName": "i.MX8MN"
     },
     {
-	"PublicDescription": "Calculate bytes all masters write to DDR based on write-cycles event. DDR interface generates 2 up and 2 down edges in an internal clock cycle, can pass 4 beats of data. 4 bytes of each beat if DDR burst width is 32 bit.",
+	"PublicDescription": "Calculate bytes all masters write to DDR based on write-cycles event. DDR interface generates 2 up and 2 down edges in an internal clock cycle, can pass 4 beats of data. 2 bytes of each beat since DDR burst width is 16 bit.",
 	"BriefDescription": "imx8mn: bytes of all masters write to ddr0",
 	"MetricName": "imx8mn-ddr0-all-w",
-	"MetricExpr": "imx8_ddr0\\/write\\-cycles\\/ * 4 * 4",
+	"MetricExpr": "imx8_ddr0\\/write\\-cycles\\/ * 4 * 2",
 	"MetricGroup": "i.MX8MN_DDR_MON",
 	"SocName": "i.MX8MN"
     }

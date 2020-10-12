@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
-menu "Intel MIC & related support"
+menu "Intel/IMX MIC & related support"
 
 comment "Intel MIC Bus Driver"
 
@@ -89,6 +89,33 @@ config INTEL_MIC_CARD
 
 	  For more information see
 	  <http://software.intel.com/en-us/mic-developer>.
+
+comment "IMX MIC Host Driver"
+
+config IMX_MIC_HOST
+	tristate "IMX MIC HOST Driver"
+	depends on ARM64 && PCI && CMA
+	depends on VOP_BUS && MIC_COSM
+	help
+	  Enable MIC host for i.MX plaforms, actually it is a virtnet over PCIe
+	  based on VOP framework.
+
+	  If you are building a host kernel with an IMX MIC device then
+	  say M (recommended) or Y, else say N. If unsure say N.
+
+comment "IMX MIC Card Driver"
+
+config IMX_MIC_CARD
+	tristate "IMX MIC Card Driver"
+	depends on ARM64
+	depends on VOP_BUS
+	select VIRTIO
+	help
+	  Enable MIC card for i.MX plaforms, actually it is a virtnet over PCIe
+	  based on VOP framework.
+
+	  If you are building a card kernel with an IMX MIC device then
+	  say M (recommended) or Y, else say N. If unsure say N.
 
 comment "SCIF Driver"
 

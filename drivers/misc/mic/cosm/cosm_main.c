@@ -12,6 +12,7 @@
 #include <linux/idr.h>
 #include <linux/slab.h>
 #include <linux/cred.h>
+#include <linux/mod_devicetable.h>
 #include "cosm_main.h"
 
 static const char cosm_driver_name[] = "mic";
@@ -321,6 +322,12 @@ static int cosm_suspend(struct device *dev)
 	}
 	return 0;
 }
+
+static struct cosm_device_id __maybe_unused cosm_driver_id_table[] = {
+	{ .name	= "cosm-dev*" },
+	{ },
+};
+MODULE_DEVICE_TABLE(cosm, cosm_driver_id_table);
 
 static const struct dev_pm_ops cosm_pm_ops = {
 	.suspend = cosm_suspend,

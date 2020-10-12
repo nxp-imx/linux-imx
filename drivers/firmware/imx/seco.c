@@ -12,7 +12,7 @@ struct imx_sc_msg_seco_get_build_id {
 	struct imx_sc_rpc_msg hdr;
 	u32 version;
 	u32 commit;
-};
+} __packed __aligned(4);
 
 int imx_sc_seco_build_info(struct imx_sc_ipc *ipc, uint32_t *version,
 			   uint32_t *commit)
@@ -40,7 +40,7 @@ struct imx_sc_msg_seco_sab_msg {
 	struct imx_sc_rpc_msg hdr;
 	u32 smsg_addr_hi;
 	u32 smsg_addr_lo;
-};
+} __packed __aligned(4);
 
 int imx_sc_seco_sab_msg(struct imx_sc_ipc *ipc, u64 smsg_addr)
 {
@@ -99,7 +99,7 @@ struct imx_sc_msg_resp_seco_config {
 	u32 data2;
 	u32 data3;
 	u32 data4;
-} __packed;
+} __packed __aligned(4);
 
 int imx_sc_seco_secvio_config(struct imx_sc_ipc *ipc, u8 id, u8 access,
 			      u32 *data0, u32 *data1, u32 *data2, u32 *data3,
@@ -207,7 +207,7 @@ struct imx_sc_msg_req_seco_dgo_config {
 struct imx_sc_msg_resp_seco_dgo_config {
 	struct imx_sc_rpc_msg hdr;
 	u32 data;
-} __packed;
+} __packed __aligned(4);
 
 int imx_sc_seco_secvio_dgo_config(struct imx_sc_ipc *ipc, u8 id, u8 access,
 				  u32 *data)

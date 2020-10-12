@@ -468,7 +468,7 @@ int xaf_connect(struct xf_client *client,
 		u32 buf_length)
 {
 	/* ...connect p_src output port with p_dest input port */
-	return xf_route(client, &p_src->handle, 0, &p_dest->handle, 0,
+	return xf_route(client, &p_src->handle, 1, &p_dest->handle, 0,
 			num_buf, buf_length, 8);
 }
 
