@@ -484,6 +484,46 @@ reserved_mem_get_physical(
     return gcvSTATUS_OK;
 }
 
+static gceSTATUS
+reserved_mem_GetSGT(
+    IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
+    IN gctSIZE_T Offset,
+    IN gctSIZE_T Bytes,
+    OUT gctPOINTER *SGT
+    )
+{
+    struct page * page = gcvNULL;
+    struct sg_table *sgt = NULL;
+    struct reserved_mem *res = Mdl->priv;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    gcmkASSERT(Offset + Bytes <= Mdl->numPages << PAGE_SHIFT);
+
+    sgt = kmalloc(sizeof(*sgt), GFP_KERNEL);
+    if (!sgt)
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    page = phys_to_page(res->start);
+
+    if (sg_alloc_table(sgt, 1, GFP_KERNEL)){
+        gcmkONERROR(gcvSTATUS_GENERIC_IO);
+    }
+    sg_set_page(sgt->sgl, page, PAGE_ALIGN(Bytes), Offset);
+
+    *SGT = (gctPOINTER)sgt;
+
+OnError:
+    if (gcmIS_ERROR(status) && sgt)
+    {
+        kfree(sgt);
+    }
+
+    return status;
+}
+
 static void
 reserved_mem_dtor(
     gcsALLOCATOR *Allocator
@@ -511,6 +551,7 @@ static gcsALLOCATOR_OPERATIONS reserved_mem_ops = {
     .UnmapKernel        = reserved_mem_unmap_kernel,
     .Cache              = reserved_mem_cache_op,
     .Physical           = reserved_mem_get_physical,
+    .GetSGT             = reserved_mem_GetSGT,
 };
 
 /* GFP allocator entry. */
@@ -546,6 +587,7 @@ _ReservedMemoryAllocatorInit(
 
     allocator->capability = gcvALLOC_FLAG_LINUX_RESERVED_MEM
                           | gcvALLOC_FLAG_CONTIGUOUS
+                          | gcvALLOC_FLAG_DMABUF_EXPORTABLE
                           | gcvALLOC_FLAG_CPU_ACCESS;
 
     *Allocator = allocator;
