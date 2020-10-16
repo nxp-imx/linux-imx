@@ -1220,6 +1220,7 @@ free_priv(void)
 }
 
 static int set_clock(int gpu, int enable);
+static int set_power(int gpu, int enable);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static void imx6sx_optimize_qosc_for_GPU(void)
@@ -1234,6 +1235,7 @@ static void imx6sx_optimize_qosc_for_GPU(void)
     src_base = of_iomap(np, 0);
     WARN_ON(!src_base);
 
+    set_power(gcvCORE_MAJOR, 1);
     set_clock(gcvCORE_MAJOR, 1);
 
     writel_relaxed(0, src_base); /* Disable clkgate & soft_rst */
@@ -1243,6 +1245,8 @@ static void imx6sx_optimize_qosc_for_GPU(void)
     writel_relaxed(0x0f000822, src_base+0x1400+0xe0); /* Set Read QoS 8 for gpu */
 
     set_clock(gcvCORE_MAJOR, 0);
+    set_power(gcvCORE_MAJOR, 0);
+
     return;
 }
 #endif
@@ -1494,7 +1498,11 @@ static inline int set_power(int gpu, int enable)
 #ifdef CONFIG_PM
         pm_runtime_get_sync(priv->pmdev[gpu]);
         if(priv->pm_qos_core == gpu) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+            cpu_latency_qos_add_request(&priv->pm_qos, 0);
+#else
             pm_qos_add_request(&(priv->pm_qos), PM_QOS_CPU_DMA_LATENCY, 0);
+#endif
         }
 #endif
 
@@ -1562,7 +1570,11 @@ static inline int set_power(int gpu, int enable)
 #ifdef CONFIG_PM
         pm_runtime_put_sync(priv->pmdev[gpu]);
         if(priv->pm_qos_core == gpu) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+            cpu_latency_qos_remove_request(&priv->pm_qos);
+#else
             pm_qos_remove_request(&(priv->pm_qos));
+#endif
         }
 #endif
 
