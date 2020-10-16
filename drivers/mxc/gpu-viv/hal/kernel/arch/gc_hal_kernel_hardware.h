@@ -301,6 +301,14 @@ gckHARDWARE_QueryFrequency(
     IN gckHARDWARE Hardware
     );
 
+gceSTATUS
+gckHARDWARE_SetClock(
+    IN gckHARDWARE Hardware,
+    IN gctUINT32 Core,
+    IN gctUINT32 MCScale,
+    IN gctUINT32 SHScale
+    );
+
 #define gcmkWRITE_MEMORY(logical, data) \
     do { \
     gcmkVERIFY_OK(gckOS_WriteMemory(os, logical, data)); \

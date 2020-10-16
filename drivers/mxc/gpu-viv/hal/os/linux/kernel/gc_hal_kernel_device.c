@@ -1018,7 +1018,6 @@ _DumpState(
 **  Idle: Time GPU stays in gcvPOWER_IDLE.
 **  Suspend: Time GPU stays in gcvPOWER_SUSPEND.
 */
-
 static int dumpCore = 0;
 
 static int
@@ -1377,6 +1376,80 @@ static int gc_clk_show(struct seq_file* m, void* data)
     return 0;
 }
 
+static gctUINT32 clkScale[2] = {0, 0};
+
+static int _set_clk(const char* buf)
+{
+    gckHARDWARE hardware;
+    gckGALDEVICE device = galDevice;
+    gctINT n, j, k;
+    gctBOOL isSpace = gcvFALSE;
+    char data[20];
+
+    memset(data, 0, 20);
+    n = j = k = 0;
+
+    while (gcvTRUE)
+    {
+        if ((buf[k] >= '0') && (buf[k] <= '9'))
+        {
+            if (isSpace)
+            {
+                data[n++] = ' ';
+                isSpace = gcvFALSE;
+            }
+            data[n++] = buf[k];
+        }
+        else if (buf[k] == ' ')
+        {
+            if (n > 0)
+            {
+                isSpace = gcvTRUE;
+            }
+        }
+        else if (buf[k] == '\n')
+        {
+            break;
+        }
+        else
+        {
+            printk("Error: command format must be this: echo \"0 32 32\" > /sys/kernel/debug/gc/clk\n");
+            return 0;
+        }
+
+        k++;
+
+        if (k >= 20)
+        {
+            break;
+        }
+    }
+
+    sscanf(data, "%d %d %d", &dumpCore, &clkScale[0], &clkScale[1]);
+
+    printk("Change core:%d MC scale:%d SH scale:%d\n", dumpCore, clkScale[0], clkScale[1]);
+
+    if (device->kernels[dumpCore])
+    {
+        hardware = device->kernels[dumpCore]->hardware;
+
+        gckHARDWARE_SetClock(hardware, dumpCore, clkScale[0], clkScale[1]);
+    }
+    else
+    {
+        printk("Error: invalid core\n");
+    }
+
+    return 0;
+}
+
+static int gc_clk_write(const char __user *buf, size_t count, void* data)
+{
+    _set_clk(buf);
+
+    return count;
+}
+
 static gcsINFO InfoList[] =
 {
     {"info", gc_info_show},
@@ -1389,7 +1462,7 @@ static gcsINFO InfoList[] =
     {"vidmem", gc_vidmem_show_old, gc_vidmem_write},
     {"vidmem64x", gc_vidmem_show, gc_vidmem_write},
     {"dump_trigger", gc_dump_trigger_show, gc_dump_trigger_write},
-    {"clk", gc_clk_show},
+    {"clk", gc_clk_show, gc_clk_write},
 };
 
 static gceSTATUS
@@ -2030,7 +2103,9 @@ gckGALDEVICE_Construct(
                     gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
                 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+                device->registerBases[i] = (gctPOINTER)ioremap(physical, device->requestedRegisterMemSizes[i]);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
                 device->registerBases[i] = (gctPOINTER)memremap(physical, device->requestedRegisterMemSizes[i], MEMREMAP_WT);
 #else
                 device->registerBases[i] = (gctPOINTER)ioremap_nocache(physical, device->requestedRegisterMemSizes[i]);
@@ -2509,7 +2584,7 @@ gckGALDEVICE_Destroy(
                 /* Unmap register memory. */
                 if (Device->requestedRegisterMemBases[i] != 0)
                 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0) && LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
                     memunmap(Device->registerBases[i]);
 #else
                     iounmap(Device->registerBases[i]);

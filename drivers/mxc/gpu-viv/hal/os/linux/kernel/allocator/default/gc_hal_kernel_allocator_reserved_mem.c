@@ -348,7 +348,12 @@ reserved_mem_map_user(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+    down_write(&current->mm->mmap_lock);
+#else
     down_write(&current->mm->mmap_sem);
+#endif
+
     do
     {
         struct vm_area_struct *vma = find_vma(current->mm, (unsigned long)userLogical);
@@ -370,7 +375,12 @@ reserved_mem_map_user(
         MdlMap->vma = vma;
     }
     while (gcvFALSE);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+    up_write(&current->mm->mmap_lock);
+#else
     up_write(&current->mm->mmap_sem);
+#endif
 
 OnError:
     if (gcmIS_ERROR(status) && userLogical)
