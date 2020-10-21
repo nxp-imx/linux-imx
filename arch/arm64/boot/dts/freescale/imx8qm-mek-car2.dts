@@ -171,33 +171,3 @@
 	status = "disabled";
 };
 
-/ {
-	firmware {
-		android {
-			fstab {
-				/delete-node/ system;
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "/dev/block/by-name/system_ext";
-					type = "ext4";
-					mnt_flags = "noatime,ro,errors=panic";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
-				vendor {
-					compatible = "android,vendor";
-					dev = "/dev/block/by-name/vendor";
-					type = "ext4";
-					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
-				product {
-					compatible = "android,product";
-					dev = "/dev/block/by-name/product";
-					type = "ext4";
-					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
-			};
-		};
-	};
-};

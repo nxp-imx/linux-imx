@@ -41,43 +41,41 @@
 	firmware {
 		android {
 			compatible = "android,firmware";
+			/* default emmc node used for GSI */
+			boot_devices = "passthrough/passthrough:bus@5b000000/5b010000.mmc";
+			/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+			boot_devices_mmcblk1 = "passthrough/passthrough:bus@5b000000/5b020000.mmc";
+			/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+			boot_devices_mmcblk0 = "passthrough/passthrough:bus@5b000000/5b010000.mmc";
 			fstab {
 				compatible = "android,fstab";
+				system {
+					compatible = "android,system";
+					dev = "system";
+					type = "ext4";
+					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb/q-gsi.avbpubkey:/avb/r-gsi.avbpubkey:/avb/s-gsi.avbpubkey,logical,first_stage_mount";
+				};
 				vendor {
 					compatible = "android,vendor";
-					/* default emmc node used for GSI */
-					dev = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/vendor";
-					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
-					dev_mmcblk1 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b020000.mmc/by-name/vendor";
-					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
-					dev_mmcblk0 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/vendor";
+					dev = "vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
 				};
 				system_ext {
 					compatible = "android,system_ext";
-					/* default emmc node used for GSI */
-					dev = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/system_ext";
-					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
-					dev_mmcblk1 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b020000.mmc/by-name/system_ext";
-					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
-					dev_mmcblk0 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/system_ext";
+					dev = "system_ext";
 					type = "ext4";
 					mnt_flags = "noatime,ro,errors=panic";
-					fsmgr_flags = "wait,slotselect,avb";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
 				};
 				product {
 					compatible = "android,product";
-					/* default emmc node used for GSI */
-					dev = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/product";
-					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
-					dev_mmcblk1 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b020000.mmc/by-name/product";
-					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
-					dev_mmcblk0 = "/dev/block/platform/passthrough/passthrough:bus@5b000000/5b010000.mmc/by-name/product";
+					dev = "product";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
 				};
 			};
 			vbmeta {
