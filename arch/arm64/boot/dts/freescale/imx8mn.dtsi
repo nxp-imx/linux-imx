@@ -57,7 +57,7 @@
 					dev = "/dev/block/by-name/metadata";
 					type = "ext4";
 					mnt_flags = "noatime,nosuid,nodev,discard,sync";
-					fsmgr_flags = "wait,formattable,first_stage_mount";
+					fsmgr_flags = "wait,formattable,first_stage_mount,check";
 				};
 			};
 			vbmeta {
