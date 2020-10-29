@@ -17,7 +17,8 @@
 &clk {
 	init-on-array = <IMX8MM_CLK_USDHC3_ROOT
 			 IMX8MM_CLK_NAND_USDHC_BUS
-			 IMX8MM_CLK_UART4_ROOT>;
+			 IMX8MM_CLK_UART4_ROOT
+			 IMX8MM_CLK_OCOTP_ROOT>;
 };
 
 &iomuxc {

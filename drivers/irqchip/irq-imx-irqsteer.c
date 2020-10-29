@@ -403,6 +403,7 @@ static const struct of_device_id imx_irqsteer_dt_ids[] = {
 	{ .compatible = "fsl,imx-irqsteer", },
 	{},
 };
+MODULE_DEVICE_TABLE(of, imx_irqsteer_dt_ids);
 
 static struct platform_driver imx_irqsteer_driver = {
 	.driver = {
@@ -413,5 +414,5 @@ static struct platform_driver imx_irqsteer_driver = {
 	.probe = imx_irqsteer_probe,
 	.remove = imx_irqsteer_remove,
 };
-builtin_platform_driver(imx_irqsteer_driver);
-MODULE_LICENSE("GPL");
+module_platform_driver(imx_irqsteer_driver);
+MODULE_LICENSE("GPL v2");

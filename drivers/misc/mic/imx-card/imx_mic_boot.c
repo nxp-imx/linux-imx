@@ -64,7 +64,7 @@ static int _imx_mic_next_db(struct vop_device *vpdev)
 {
 	struct imx_mic_driver *mdrv = g_mdrv;
 	static unsigned int i;
-	unsigned int db_index;
+	unsigned int db_index = MIC_CONFIG_DB;
 
 	if (i == 0)
 		db_index = MIC_CONFIG_DB;

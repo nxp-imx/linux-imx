@@ -167,12 +167,22 @@ static int hw_wait_vbus_lower_bsv(struct ci_hdrc *ci)
 	u32 mask = OTGSC_BSV;
 
 	while (hw_read_otgsc(ci, mask)) {
+
+		msleep(20);
+
+		/*
+		 * If the vbus is higher than AVV after 20ms,
+		 * we will think this vbus is from remote and
+		 * don't wait any longer.
+		 */
+		if (hw_read_otgsc(ci, OTGSC_AVV))
+			return 0;
+
 		if (time_after(jiffies, elapse)) {
 			dev_err(ci->dev, "timeout waiting for %08x in OTGSC\n",
 					mask);
 			return -ETIMEDOUT;
 		}
-		msleep(20);
 	}
 
 	return 0;

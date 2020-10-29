@@ -96,9 +96,6 @@ struct fsl_dsp {
 	void			        *ocram_vir_addr;
 	unsigned long			ocram_phys_addr;
 	int				ocram_reserved_size;
-	void			        *ocram_e_vir_addr;
-	unsigned long			ocram_e_phys_addr;
-	int				ocram_e_reserved_size;
 	void				*msg_buf_virt;
 	dma_addr_t			 msg_buf_phys;
 	int				 msg_buf_size;

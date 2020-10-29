@@ -35,6 +35,7 @@
 #include <linux/reset.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
+#include <linux/busfreq-imx.h>
 #include "../../pci.h"
 
 #include "pcie-designware.h"
@@ -1798,6 +1799,7 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 	u32 tmp;
 	int ret;
 
+	dw_pcie_dbi_ro_wr_en(pci);
 	/*
 	 * Force Gen1 operation when starting the link.  In case the link is
 	 * started in Gen2 mode, there is a possibility the devices on the
@@ -1869,11 +1871,13 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 		dev_info(dev, "Link: Gen2 disabled\n");
 	}
 
+	dw_pcie_dbi_ro_wr_dis(pci);
 	tmp = dw_pcie_readl_dbi(pci, PCIE_RC_LCSR);
 	dev_info(dev, "Link up, Gen%i\n", (tmp >> 16) & 0xf);
 	return 0;
 
 err_reset_phy:
+	dw_pcie_dbi_ro_wr_dis(pci);
 	dev_dbg(dev, "PHY DEBUG_R0=0x%08x DEBUG_R1=0x%08x\n",
 		dw_pcie_readl_dbi(pci, PCIE_PORT_DEBUG0),
 		dw_pcie_readl_dbi(pci, PCIE_PORT_DEBUG1));
@@ -1913,29 +1917,11 @@ static int imx6_pcie_host_init(struct pcie_port *pp)
 
 	if (gpio_is_valid(imx6_pcie->dis_gpio))
 		gpio_set_value_cansleep(imx6_pcie->dis_gpio, 1);
-
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		/*
-		 * Configure the msi_data to 64Kbytes alignment, since
-		 * the 64Kbytes alignment are mandatory required by some
-		 * iMX PCIe inbound/outbound regions.
-		 */
-		pp->msi_data = (u64)(pp->cfg1_base + pp->cfg1_size);
-		if (pp->io)
-			pp->msi_data += pp->io_size;
-		if (pp->msi_data & (SZ_64K - 1))
-			pp->msi_data = ALIGN(pp->msi_data, SZ_64K);
-		/* Program the msi_data */
-		dw_pcie_writel_dbi(pci, PCIE_MSI_ADDR_LO,
-				   lower_32_bits(pp->msi_data));
-		dw_pcie_writel_dbi(pci, PCIE_MSI_ADDR_HI,
-				   upper_32_bits(pp->msi_data));
-	}
-
 	dw_pcie_setup_rc(pp);
 	pci_imx_set_msi_en(pp);
 	if (imx6_pcie_establish_link(imx6_pcie))
 		return -ENODEV;
+	dw_pcie_msi_init(pp);
 
 	return 0;
 }
@@ -2131,6 +2117,7 @@ static int imx_add_pcie_ep(struct imx6_pcie *imx6_pcie,
 
 	ep->phys_base = res->start;
 	ep->addr_size = resource_size(res);
+	ep->page_size = SZ_64K;
 
 	ret = dw_pcie_ep_init(ep);
 	if (ret) {
@@ -2184,6 +2171,36 @@ static void imx6_pcie_ltssm_disable(struct device *dev)
 		dev_err(dev, "ltssm_disable not supported\n");
 	}
 }
+
+static ssize_t bus_freq_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	u32 bus_freq;
+
+	ret = sscanf(buf, "%x\n", &bus_freq);
+	if (ret != 1)
+		return -EINVAL;
+	if (bus_freq) {
+		dev_info(dev, "pcie request bus freq high.\n");
+		request_bus_freq(BUS_FREQ_HIGH);
+	} else {
+		dev_info(dev, "pcie release bus freq high.\n");
+		release_bus_freq(BUS_FREQ_HIGH);
+	}
+
+	return count;
+}
+static DEVICE_ATTR_WO(bus_freq);
+
+static struct attribute *imx_pcie_rc_attrs[] = {
+	&dev_attr_bus_freq.attr,
+	NULL
+};
+
+static struct attribute_group imx_pcie_attrgroup = {
+	.attrs	= imx_pcie_rc_attrs,
+};
 
 #ifdef CONFIG_PM_SLEEP
 static void imx6_pcie_pm_turnoff(struct imx6_pcie *imx6_pcie)
@@ -2660,6 +2677,11 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 
 	switch (imx6_pcie->drvdata->mode) {
 	case DW_PCIE_RC_TYPE:
+		/* add attributes for bus freq */
+		ret = sysfs_create_group(&pdev->dev.kobj, &imx_pcie_attrgroup);
+		if (ret)
+			goto err_ret;
+
 		ret = imx6_add_pcie_port(imx6_pcie, pdev);
 		if (ret < 0) {
 			if (IS_ENABLED(CONFIG_PCI_IMX6_COMPLIANCE_TEST)) {

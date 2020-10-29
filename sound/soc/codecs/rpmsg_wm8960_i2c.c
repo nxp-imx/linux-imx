@@ -152,4 +152,4 @@ static struct i2c_driver rpmsg_wm8960_i2c_driver = {
 
 module_i2c_driver(rpmsg_wm8960_i2c_driver);
 MODULE_DESCRIPTION("rpmsg wm8960 I2C Codec Driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

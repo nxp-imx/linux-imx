@@ -42,12 +42,20 @@
 static struct imx8mp_hdmi_pavi *gpavi;
 
 /* PAI APIs  */
-void imx8mp_hdmi_pai_enable(int channel)
+void imx8mp_hdmi_pai_enable(int channel, int width, int rate, int non_pcm)
 {
 	/* PAI set */
 	writel((0x3030000 | ((channel-1) << 8)),
 			gpavi->base + HTX_PAI_CTRL_EXT);
-	writel(0x1c0c675b, gpavi->base + HTX_PAI_FIELD_CTRL);
+
+	/* hbr */
+	if (non_pcm && width == 32 && channel == 8 && rate == 192000)
+		writel(0x004e77df, gpavi->base + HTX_PAI_FIELD_CTRL);
+	else if (width == 32)
+		writel(0x1c8c675b, gpavi->base + HTX_PAI_FIELD_CTRL);
+	else
+		writel(0x1c0c675b, gpavi->base + HTX_PAI_FIELD_CTRL);
+
 	/* PAI start running */
 	writel(HTX_PAI_CTRL_ENABLE, gpavi->base + HTX_PAI_CTRL);
 }

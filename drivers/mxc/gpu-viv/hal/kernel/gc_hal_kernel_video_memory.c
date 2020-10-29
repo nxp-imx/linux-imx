@@ -61,7 +61,6 @@
 #include <stdlib.h>
 #include <sys/slogcodes.h>
 #include <time.h>
-#include "gc_hal_kernel_os.h"
 
 extern unsigned int slogUsageInterval;
 extern const uint64_t slogLowWaterFPC;
@@ -274,6 +273,12 @@ gckVIDMEM_Construct(
     gcmkVERIFY_ARGUMENT(Bytes > 0);
     gcmkVERIFY_ARGUMENT(Memory != gcvNULL);
 
+    if (BankSize == 0)
+    {
+        /* set two banks in 16:1 */
+        BankSize = Bytes >> 4;
+    }
+
     gcmkSAFECASTSIZET(heapBytes, Bytes);
     gcmkSAFECASTSIZET(bankSize, BankSize);
 
@@ -365,6 +370,11 @@ gckVIDMEM_Construct(
         /* Mark sentinel. */
         memory->sentinel[i].VidMem.bytes = 0;
 
+        if (bankSize == (heapBytes >> 4))
+        {
+            bankSize = heapBytes;
+        }
+
         /* Adjust address for next bank. */
         base += bytes;
         heapBytes   -= bytes;
@@ -375,23 +385,23 @@ gckVIDMEM_Construct(
     memory->mapping[gcvVIDMEM_TYPE_COLOR_BUFFER]    = banks - 1;
     memory->mapping[gcvVIDMEM_TYPE_BITMAP]          = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 7) --banks;
     memory->mapping[gcvVIDMEM_TYPE_DEPTH_BUFFER]    = banks - 1;
     memory->mapping[gcvVIDMEM_TYPE_HZ_BUFFER]       = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 6) --banks;
     memory->mapping[gcvVIDMEM_TYPE_TEXTURE]         = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 5) --banks;
     memory->mapping[gcvVIDMEM_TYPE_VERTEX_BUFFER]   = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 4) --banks;
     memory->mapping[gcvVIDMEM_TYPE_INDEX_BUFFER]    = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 3) --banks;
     memory->mapping[gcvVIDMEM_TYPE_TILE_STATUS]     = banks - 1;
 
-    if (banks > 1) --banks;
+    if (banks > 2) --banks;
     memory->mapping[gcvVIDMEM_TYPE_COMMAND]         = banks - 1;
 
     if (banks > 1) --banks;
@@ -809,9 +819,8 @@ gckVIDMEM_AllocateLinear(
 
         if (do_slog_now) {
             last_slog_time = this_slog_time;
-            slogf(_SLOGC_GRAPHICS_GL, _SLOG_INFO, "%s: Memory->freeBytes = %u, lowest Memory->freeBytes = %u. "
-                    "Handling message from pid: %u. Requested bytes: %zu",
-                    __FUNCTION__, (unsigned) Memory->freeBytes, (unsigned) lowwaterFPC, drv_get_user_pid(), Bytes);
+            slogf(_SLOGC_GRAPHICS_GL, _SLOG_INFO, "%s: Memory->freeBytes = %u, lowest Memory->freeBytes = %u",
+                    __FUNCTION__, (unsigned) Memory->freeBytes, (unsigned) lowwaterFPC);
         }
     }
 #endif
@@ -1351,7 +1360,7 @@ _ConvertPhysical(
         physical -= Kernel->hardware->baseAddress;
 
         /* 2G upper is virtual space, better to move to gckHARDWARE section. */
-        if (physical + Node->Virtual.bytes > 0x80000000)
+        if (Node && (physical + Node->Virtual.bytes > 0x80000000U))
         {
             /* End is above 2G, ie virtual space. */
             status = gcvSTATUS_NOT_SUPPORTED;
@@ -2616,7 +2625,7 @@ gckVIDMEM_UnlockVirtual(
             address = Node->Virtual.addresses[hwType] & ~(4096 - 1);
 
 #if gcdSECURITY
-            if (Node->Virtual.addresses[hwType] > 0x80000000)
+            if (Node->Virtual.addresses[hwType] > 0x80000000U)
             {
                 gcmkONERROR(gckKERNEL_SecurityUnmapMemory(
                     Kernel,

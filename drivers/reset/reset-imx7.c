@@ -9,6 +9,7 @@
 
 #include <linux/module.h>
 #include <linux/mfd/syscon.h>
+#include <linux/module.h>
 #include <linux/mod_devicetable.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
@@ -304,5 +305,5 @@ static struct platform_driver imx7_reset_driver = {
 		.of_match_table	= imx7_reset_dt_ids,
 	},
 };
-builtin_platform_driver(imx7_reset_driver);
-MODULE_LICENSE("GPL");
+module_platform_driver(imx7_reset_driver);
+MODULE_LICENSE("GPL v2");

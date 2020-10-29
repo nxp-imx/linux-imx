@@ -120,7 +120,8 @@ struct dw_hdmi_phy_ops {
 	void (*update_hpd)(struct dw_hdmi *hdmi, void *data,
 			   bool force, bool disabled, bool rxsense);
 	void (*setup_hpd)(struct dw_hdmi *hdmi, void *data);
-	void (*enable_audio)(struct dw_hdmi *hdmi, void *data, int channel);
+	void (*enable_audio)(struct dw_hdmi *hdmi, void *data, int channel,
+			     int width, int rate, int non_pcm);
 	void (*disable_audio)(struct dw_hdmi *hdmi, void *data);
 };
 
@@ -160,6 +161,8 @@ void dw_hdmi_setup_rx_sense(struct dw_hdmi *hdmi, bool hpd, bool rx_sense);
 
 int dw_hdmi_set_plugged_cb(struct dw_hdmi *hdmi, hdmi_codec_plugged_cb fn,
 			   struct device *codec_dev);
+void dw_hdmi_set_sample_non_pcm(struct dw_hdmi *hdmi, unsigned int non_pcm);
+void dw_hdmi_set_sample_width(struct dw_hdmi *hdmi, unsigned int width);
 void dw_hdmi_set_sample_rate(struct dw_hdmi *hdmi, unsigned int rate);
 void dw_hdmi_set_channel_count(struct dw_hdmi *hdmi, unsigned int cnt);
 void dw_hdmi_set_channel_allocation(struct dw_hdmi *hdmi, unsigned int ca);

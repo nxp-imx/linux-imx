@@ -378,7 +378,7 @@ config GPIO_MVEBU
 	select REGMAP_MMIO
 
 config GPIO_MXC
-	tristate "gpio mxc setting"
+	tristate "NXP MXC GPIO Support"
 	default y
 	depends on ARCH_MXC
 	select GPIO_GENERIC

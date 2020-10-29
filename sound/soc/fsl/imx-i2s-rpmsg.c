@@ -167,4 +167,4 @@ static void __exit i2s_rpmsg_exit(void)
 module_init(i2s_rpmsg_init);
 module_exit(i2s_rpmsg_exit);
 
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

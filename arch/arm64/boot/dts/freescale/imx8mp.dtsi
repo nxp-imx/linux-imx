@@ -15,7 +15,7 @@
 
 / {
 	compatible = "fsl,imx8mp";
-	interrupt-parent = <&gpc>;
+	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
 
@@ -180,11 +180,7 @@
 
 		ocram: ocram@900000 {
 			no-map;
-			reg = <0 0x900000 0 0x60000>;
-		};
-		ocram_e: ocram_e@980000 {
-			no-map;
-			reg = <0 0x980000 0 0x10000>;
+			reg = <0 0x900000 0 0x70000>;
 		};
 
 /*
@@ -727,15 +723,6 @@
 				reg = <0x30390000 0x10000>;
 				interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
 				#reset-cells = <1>;
-			};
-
-			gpc: gpc@303a0000 {
-				compatible = "fsl,imx8mp-gpc";
-				reg = <0x303a0000 0x10000>;
-				interrupt-parent = <&gic>;
-				interrupt-controller;
-				broken-wake-request-signals;
-				#interrupt-cells = <3>;
 			};
 		};
 
@@ -1596,6 +1583,7 @@
 				reg = <0x32fc2000 0x1000>;
 				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-controller;
+				interrupt-parent = <&gic>;
 				#interrupt-cells = <1>;
 				fsl,channel = <1>;
 				fsl,num-irqs = <64>;
@@ -1953,7 +1941,7 @@
 				<0 0 0 2 &gic GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>,
 				<0 0 0 3 &gic GIC_SPI 124 IRQ_TYPE_LEVEL_HIGH>,
 				<0 0 0 4 &gic GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
-		fsl,max-link-speed = <2>;
+		fsl,max-link-speed = <3>;
 		power-domains = <&pcie_pd>;
 		resets = <&src IMX8MQ_RESET_PCIEPHY>,
 			 <&src IMX8MQ_RESET_PCIEPHY_PERST>,
@@ -2446,5 +2434,4 @@
 			};
 		};
 	};
-
 };

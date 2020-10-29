@@ -35,7 +35,6 @@
 &dsp {
 	compatible = "fsl,imx8mp-dsp-lpa";
 	ocram = <&ocram>;
-	ocram-e = <&ocram_e>;
 	fsl,dsp-firmware = "imx/dsp/hifi4_imx8mp_lpa.bin";
 	status = "okay";
 };

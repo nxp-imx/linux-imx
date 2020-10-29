@@ -24,7 +24,7 @@ struct imx8mp_hdmi_pavi {
 	struct reset_control *reset_pvi;
 };
 
-void imx8mp_hdmi_pai_enable(int channel);
+void imx8mp_hdmi_pai_enable(int channel, int width, int rate, int non_pcm);
 void imx8mp_hdmi_pai_disable(void);
 
 void imx8mp_hdmi_pvi_enable(struct drm_display_mode *mode);
