@@ -166,7 +166,8 @@ static struct pca9450_board *pca9450_parse_dt(struct i2c_client *client,
 
 	board_info->gpio_intr = of_get_named_gpio(np, "gpio_intr", 0);
 	if (!gpio_is_valid(board_info->gpio_intr)) {
-		dev_err(&client->dev, "no pmic intr pin available\n");
+		if (PTR_ERR(board_info->gpio_intr) != -EPROBE_DEFER)
+			dev_err(&client->dev, "no pmic intr pin available\n");
 		goto err_intr;
 	}
 
@@ -208,7 +209,7 @@ static int pca9450_i2c_probe(struct i2c_client *i2c,
 	}
 
 	if (!pmic_plat_data)
-		return -EINVAL;
+		return -EPROBE_DEFER;
 
 	pca9450 = kzalloc(sizeof(struct pca9450), GFP_KERNEL);
 	if (pca9450 == NULL)
