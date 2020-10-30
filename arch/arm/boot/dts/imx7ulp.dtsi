@@ -25,7 +25,7 @@
 					dev_mmcblk0 = "/dev/block/platform/soc0/40000000.bus/40370000.mmc/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,avb";
+					fsmgr_flags = "wait,avb,avb_keys=/avb";
 				};
 				vendor {
 					compatible = "android,vendor";
