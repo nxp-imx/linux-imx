@@ -24,7 +24,7 @@
 					dev = "system";
 					type = "ext4";
 					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb/q-gsi.avbpubkey:/avb/r-gsi.avbpubkey:/avb/s-gsi.avbpubkey,logical,first_stage_mount";
+					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
 				};
 				vendor {
 					compatible = "android,vendor";

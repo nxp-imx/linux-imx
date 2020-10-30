@@ -15,7 +15,7 @@
 					dev = "/dev/block/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb/q-gsi.avbpubkey:/avb/r-gsi.avbpubkey:/avb/s-gsi.avbpubkey";
+					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb";
 				};
 				system_ext {
 					compatible = "android,system_ext";
