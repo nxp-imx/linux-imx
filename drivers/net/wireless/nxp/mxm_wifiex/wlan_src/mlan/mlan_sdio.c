@@ -661,7 +661,7 @@ static mlan_status wlan_sdio_prog_fw_w_helper(pmlan_adapter pmadapter, t_u8 *fw,
 			check_fw_status = MTRUE;
 	}
 #endif
-#ifdef SD9097
+#if defined(SD9097)
 	if (IS_SD9097(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif

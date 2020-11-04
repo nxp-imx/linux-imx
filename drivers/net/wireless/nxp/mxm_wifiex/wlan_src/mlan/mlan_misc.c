@@ -1579,6 +1579,13 @@ mlan_status wlan_reg_mem_ioctl_reg_rw(pmlan_adapter pmadapter,
 	case MLAN_REG_PSU:
 		cmd_no = HostCmd_CMD_TARGET_ACCESS;
 		break;
+	case MLAN_REG_BCA:
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+	case MLAN_REG_BCA2:
+#endif
+		cmd_no = HostCmd_CMD_BCA_REG_ACCESS;
+		break;
 	default:
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
 		ret = MLAN_STATUS_FAILURE;
@@ -2089,13 +2096,13 @@ static void wlan_fill_link_statistic_in_host(mlan_private *priv,
 
 	/* get wifi_interface_link_layer_info in driver, not in firmware */
 	if (priv->bss_role == MLAN_BSS_ROLE_STA) {
-		iface_stat->info.mode = WIFI_INTERFACE_STA;
+		iface_stat->info.mode = MLAN_INTERFACE_STA;
 		if (priv->media_connected)
-			iface_stat->info.state = WIFI_ASSOCIATING;
+			iface_stat->info.state = MLAN_ASSOCIATING;
 		else
-			iface_stat->info.state = WIFI_DISCONNECTED;
-		iface_stat->info.roaming = WIFI_ROAMING_IDLE;
-		iface_stat->info.capabilities = WIFI_CAPABILITY_QOS;
+			iface_stat->info.state = MLAN_DISCONNECTED;
+		iface_stat->info.roaming = MLAN_ROAMING_IDLE;
+		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
 		memcpy_ext(priv->adapter, iface_stat->info.ssid,
 			   priv->curr_bss_params.bss_descriptor.ssid.ssid,
 			   MLAN_MAX_SSID_LENGTH, MLAN_MAX_SSID_LENGTH);
@@ -2103,8 +2110,8 @@ static void wlan_fill_link_statistic_in_host(mlan_private *priv,
 			   priv->curr_bss_params.bss_descriptor.mac_address,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	} else {
-		iface_stat->info.mode = WIFI_INTERFACE_SOFTAP;
-		iface_stat->info.capabilities = WIFI_CAPABILITY_QOS;
+		iface_stat->info.mode = MLAN_INTERFACE_SOFTAP;
+		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
 	}
 	memcpy_ext(priv->adapter, iface_stat->info.mac_addr, priv->curr_addr,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
@@ -2161,7 +2168,7 @@ static void wlan_fill_link_statistic_in_host(mlan_private *priv,
 				priv->curr_bss_params.bss_descriptor.mac_address,
 				MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 			iface_stat->peer_info[0].capabilities =
-				WIFI_CAPABILITY_QOS;
+				MLAN_CAPABILITY_QOS;
 			wlan_fill_hal_wifi_rate_in_host(
 				priv, iface_stat->peer_info[0].rate_stats,
 				&(iface_stat->peer_info[0].num_rate));
@@ -2183,7 +2190,7 @@ static void wlan_fill_link_statistic_in_host(mlan_private *priv,
 					   MLAN_MAC_ADDR_LENGTH,
 					   MLAN_MAC_ADDR_LENGTH);
 				iface_stat->peer_info[num_peers].capabilities =
-					WIFI_CAPABILITY_QOS;
+					MLAN_CAPABILITY_QOS;
 				wlan_fill_hal_wifi_rate_in_host(
 					priv,
 					iface_stat->peer_info[num_peers]
@@ -2728,7 +2735,7 @@ void wlan_add_ext_capa_info_ie(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		SET_EXTCAP_EXT_CHANNEL_SWITCH(pmpriv->ext_cap);
 	else
 		RESET_EXTCAP_EXT_CHANNEL_SWITCH(pmpriv->ext_cap);
-	if (pbss_desc && wlan_check_11ax_twt_supported(pmpriv, pbss_desc))
+	if (wlan_check_11ax_twt_supported(pmpriv, pbss_desc))
 		SET_EXTCAP_TWT_REQ(pmpriv->ext_cap);
 	memcpy_ext(pmpriv->adapter, &pext_cap->ext_cap, &pmpriv->ext_cap,
 		   sizeof(pmpriv->ext_cap), sizeof(pext_cap->ext_cap));
@@ -5248,7 +5255,7 @@ mlan_status wlan_misc_ioctl_oper_class(pmlan_adapter pmadapter,
 {
 	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_misc_cfg *misc = MNULL;
-	t_u8 channel, bandwidth, oper_class;
+	t_u8 channel, bandwidth, oper_class = 0;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 
 	ENTER();

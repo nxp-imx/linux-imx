@@ -173,6 +173,15 @@ static struct ieee80211_channel mac1_cfg80211_channels_5ghz[] = {
 	{.center_freq = 5805, .hw_value = 161, .max_power = 20},
 	{.center_freq = 5825, .hw_value = 165, .max_power = 20},
 };
+
+struct ieee80211_supported_band mac1_cfg80211_band_2ghz = {
+	.channels = cfg80211_channels_2ghz,
+	.band = IEEE80211_BAND_2GHZ,
+	.n_channels = ARRAY_SIZE(cfg80211_channels_2ghz),
+	.bitrates = cfg80211_rates,
+	.n_bitrates = ARRAY_SIZE(cfg80211_rates),
+};
+
 struct ieee80211_supported_band mac1_cfg80211_band_5ghz = {
 	.channels = mac1_cfg80211_channels_5ghz,
 	.band = IEEE80211_BAND_5GHZ,
@@ -1470,6 +1479,7 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 	mlan_bss_info bss_info;
 
 	ENTER();
+	memset(&bss_info, 0, sizeof(mlan_bss_info));
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
 		woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
 		if (!bss_info.wep_status) {
@@ -1572,6 +1582,7 @@ int woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 		return ret;
 	}
 
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if (!fw_info.fw_supplicant_support) {
 		LEAVE();
@@ -2344,6 +2355,11 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 				       struct net_device *dev, u16 frame_type,
 				       bool reg)
 #else
+#if KERNEL_VERSION(5, 8, 0) <= CFG80211_VERSION_CODE
+void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
+				       struct wireless_dev *wdev,
+				       struct mgmt_frame_regs *upd)
+#else
 /**
  * @brief register/unregister mgmt frame forwarding
  *
@@ -2358,6 +2374,7 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
 				       u16 frame_type, bool reg)
 #endif
+#endif
 {
 #if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
 	struct net_device *dev = wdev->netdev;
@@ -2366,6 +2383,16 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 
 	ENTER();
 
+#if KERNEL_VERSION(5, 8, 0) <= CFG80211_VERSION_CODE
+	if ((upd->interface_stypes & BIT(IEEE80211_STYPE_AUTH >> 4))
+	    /** Supplicant 2.8 always register auth, FW will handle auth when
+	     *  host_mlme=0
+	     */
+	    && !moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
+		upd->interface_stypes &= ~BIT(IEEE80211_STYPE_AUTH >> 4);
+	woal_reg_rx_mgmt_ind(priv, MLAN_ACT_SET, &upd->interface_stypes,
+			     MOAL_NO_WAIT);
+#else
 	if (frame_type == IEEE80211_STYPE_AUTH
 #if KERNEL_VERSION(3, 8, 0) <= CFG80211_VERSION_CODE
 	    /** Supplicant 2.8 always register auth, FW will handle auth when
@@ -2378,7 +2405,7 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 		return;
 	}
 	woal_mgmt_frame_register(priv, frame_type, reg);
-
+#endif
 	LEAVE();
 }
 
@@ -3291,12 +3318,25 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 				       "IE too big, fail copy COUNTRY INFO IE\n");
 			}
 			break;
-		case EXTENDED_SUPPORTED_RATES:
-		case WLAN_EID_ERP_INFO:
 		case HT_CAPABILITY:
 		case HT_OPERATION:
 		case VHT_CAPABILITY:
 		case VHT_OPERATION:
+			if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME)) {
+				if ((out_len + length + 2) < ie_out_len) {
+					moal_memcpy_ext(priv->phandle,
+							ie_out + out_len, pos,
+							length + 2,
+							ie_out_len - out_len);
+					out_len += length + 2;
+				} else {
+					PRINTM(MERROR,
+					       "IE too big, fail copy COUNTRY INFO IE\n");
+				}
+			}
+			break;
+		case EXTENDED_SUPPORTED_RATES:
+		case WLAN_EID_ERP_INFO:
 		/* Fall Through */
 		case REGULATORY_CLASS:
 		/* Fall Through */
@@ -3306,7 +3346,9 @@ static t_u16 woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 			break;
 		case EXTENSION:
 			ext_id = *(pos + 2);
-			if (ext_id == HE_CAPABILITY || ext_id == HE_OPERATION)
+			if ((ext_id == HE_CAPABILITY ||
+			     ext_id == HE_OPERATION) &&
+			    !moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 				break;
 			else {
 				if ((out_len + length + 2) < ie_out_len) {
@@ -3716,8 +3758,9 @@ int woal_cfg80211_mgmt_frame_ie(
 			DBG_HEXDUMP(MCMD_D, "beacon vendor IE",
 				    beacon_ies_data->ie_buffer,
 				    beacon_ies_data->ie_length);
-		} else if (beacon_vendor_index !=
-			   MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
+		}
+		if (beacon_vendor_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK &&
+		    !beacon_ies_data->ie_length) {
 			/* clear the beacon vendor ies */
 			if (beacon_vendor_index > MAX_MGMT_IE_INDEX) {
 				PRINTM(MERROR,
@@ -4166,7 +4209,7 @@ Bit59-61: 0x1 (Max Nc)
 Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 */
 
-#define UAP_HE_MAC_CAP0_MASK 0x01
+#define UAP_HE_MAC_CAP0_MASK 0x00
 #define UAP_HE_MAC_CAP1_MASK 0x00
 #define UAP_HE_MAC_CAP2_MASK 0x00
 #define UAP_HE_MAC_CAP3_MASK 0x00
@@ -4214,7 +4257,7 @@ Bit58: 0x1 (HE SU PPDU and HE MU PPDU with 4xHE-LTF+0.8usGI)
 Bit59-61: 0x1 (Max Nc)
 Bit75: 0x1 (Rx 1024-QAM Support < 242-tone RU)
 */
-#define UAP_HE_2G_MAC_CAP0_MASK 0x01
+#define UAP_HE_2G_MAC_CAP0_MASK 0x00
 #define UAP_HE_2G_MAC_CAP1_MASK 0x00
 #define UAP_HE_2G_MAC_CAP2_MASK 0x00
 #define UAP_HE_2G_MAC_CAP3_MASK 0x00
@@ -4385,6 +4428,8 @@ void woal_cfg80211_free_iftype_data(struct wiphy *wiphy)
 
 	for (band = NL80211_BAND_2GHZ; band < NUM_NL80211_BANDS; ++band) {
 		if (!wiphy->bands[band])
+			continue;
+		if (!wiphy->bands[band]->iftype_data)
 			continue;
 		kfree(wiphy->bands[band]->iftype_data);
 		wiphy->bands[band]->n_iftype_data = 0;

@@ -2294,7 +2294,7 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	pmlan_buffer pmbuf = pmadapter->pcard_pcie->cmdrsp_buf;
-
+	pmlan_buffer cmd_buf = MNULL;
 	t_u16 resp_len = 0;
 
 	ENTER();
@@ -2349,6 +2349,15 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 			mlan_delay_for_sleep_cookie(pmadapter,
 						    MAX_DELAY_LOOP_COUNT);
 #endif
+			cmd_buf = pmadapter->pcard_pcie->cmd_buf;
+			if (cmd_buf) {
+				pcb->moal_unmap_memory(
+					pmadapter->pmoal_handle,
+					cmd_buf->pbuf + cmd_buf->data_offset,
+					cmd_buf->buf_pa, WLAN_UPLD_SIZE,
+					PCI_DMA_TODEVICE);
+				pmadapter->pcard_pcie->cmd_buf = MNULL;
+			}
 		}
 		memcpy_ext(pmadapter, pmadapter->upld_buf,
 			   pmbuf->pbuf + pmbuf->data_offset +
@@ -2990,9 +2999,9 @@ static mlan_status wlan_pcie_prog_fw_w_helper(mlan_adapter *pmadapter,
 				       "Failed reading length from boot code\n");
 				goto done;
 			}
-			if (len)
+			if (len || offset)
 				break;
-			wlan_udelay(pmadapter, 50);
+			wlan_udelay(pmadapter, 10);
 		}
 
 		if (!len) {
@@ -3113,6 +3122,7 @@ static mlan_status wlan_pcie_prog_fw_w_helper(mlan_adapter *pmadapter,
 				goto done;
 			}
 			read_retry_cnt++;
+			pcb->moal_usleep_range(pmadapter->pmoal_handle, 10, 20);
 		} while ((ireg_intr & CPU_INTR_DOOR_BELL) ==
 			 CPU_INTR_DOOR_BELL);
 		/* got interrupt - can unmap buffer now */

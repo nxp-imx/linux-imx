@@ -95,6 +95,79 @@ const struct nl80211_vendor_cmd_info vendor_events[] = {
 	/**add vendor event here*/
 };
 
+/**nxp vendor policies*/
+#if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
+
+static const struct nla_policy woal_ll_stat_policy[ATTR_LL_STATS_MAX + 1] = {
+	[ATTR_LL_STATS_MPDU_SIZE_THRESHOLD] = {.type = NLA_U32},
+	[ATTR_LL_STATS_AGGRESSIVE_STATS_GATHERING] = {.type = NLA_U32},
+	[ATTR_LL_STATS_CLEAR_REQ_MASK] = {.type = NLA_U32},
+	[ATTR_LL_STATS_STOP_REQ] = {.type = NLA_U8}};
+
+static const struct nla_policy woal_logger_policy[ATTR_WIFI_LOGGER_MAX + 1] = {
+	[ATTR_WIFI_LOGGER_RING_ID] = {.type = NLA_STRING},
+	[ATTR_WIFI_LOGGER_VERBOSE_LEVEL] = {.type = NLA_U32},
+	[ATTR_WIFI_LOGGER_FLAGS] = {.type = NLA_U32},
+	[ATTR_WIFI_LOGGER_MIN_DATA_SIZE] = {.type = NLA_U32},
+	[ATTR_WIFI_LOGGER_MAX_INTERVAL_SEC] = {.type = NLA_U32}};
+
+static const struct nla_policy woal_attr_policy[ATTR_WIFI_MAX + 1] = {
+	[ATTR_CHANNELS_BAND] = {.type = NLA_U32},
+	[ATTR_SCAN_MAC_OUI_SET] = {.type = NLA_STRING, .len = 3},
+	[ATTR_NODFS_VALUE] = {.type = NLA_U32},
+	[ATTR_GET_CONCURRENCY_MATRIX_SET_SIZE_MAX] = {.type = NLA_U32},
+};
+
+// clang-format off
+static const struct nla_policy
+	woal_nd_offload_policy[ATTR_ND_OFFLOAD_MAX + 1] = {
+		[ATTR_ND_OFFLOAD_CONTROL] = {.type = NLA_U8},
+};
+// clang-format on
+
+static const struct nla_policy
+	woal_rssi_monitor_policy[ATTR_RSSI_MONITOR_MAX + 1] = {
+		[ATTR_RSSI_MONITOR_CONTROL] = {.type = NLA_U32},
+		[ATTR_RSSI_MONITOR_MIN_RSSI] = {.type = NLA_S8},
+		[ATTR_RSSI_MONITOR_MAX_RSSI] = {.type = NLA_S8},
+};
+
+static const struct nla_policy
+	woal_packet_filter_policy[ATTR_PACKET_FILTER_MAX + 1] = {
+		[ATTR_PACKET_FILTER_TOTAL_LENGTH] = {.type = NLA_U32},
+		[ATTR_PACKET_FILTER_PROGRAM] = {.type = NLA_STRING},
+};
+
+// clang-format off
+static const struct nla_policy
+	woal_fw_roaming_policy[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX + 1] = {
+		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL] = {.type = NLA_U32},
+		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID] = {
+			.type = NLA_MIN_LEN,
+			.len = sizeof(int)},
+		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID] = {
+			.type = NLA_MIN_LEN,
+			.len = sizeof(int)},
+};
+// clang-format on
+
+static const struct nla_policy
+	woal_keep_alive_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] = {
+		[MKEEP_ALIVE_ATTRIBUTE_ID] = {.type = NLA_U8},
+		[MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE] = {.type = NLA_U16},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_MIN_LEN,
+						  .len = 1},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN] = {.type = NLA_U16},
+		[MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR] = {.type = NLA_STRING,
+							.len = ETH_ALEN},
+		[MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR] = {.type = NLA_STRING,
+							.len = ETH_ALEN},
+		[MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC] = {.type = NLA_U32},
+		[MKEEP_ALIVE_ATTRIBUTE_RETRY_INTERVAL] = {.type = NLA_U32},
+		[MKEEP_ALIVE_ATTRIBUTE_RETRY_CNT] = {.type = NLA_U8},
+};
+#endif
+
 /**
  * @brief get the event id of the events array
  *
@@ -728,6 +801,7 @@ static int woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 			   WLAN_FEATURE_CONTROL_ROAMING |
 			   WLAN_FEATURE_SCAN_RAND | WLAN_FEATURE_MKEEP_ALIVE;
 
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if (fw_info.fw_bands & BAND_A)
 		supp_feature_set |= WLAN_FEATURE_INFRA_5G;
@@ -2739,11 +2813,6 @@ static int woal_cfg80211_subcmd_link_statistic_get(struct wiphy *wiphy,
 	t_u64 max_msec = (t_u64)24 * (t_u64)24 * (t_u64)3600 * (t_u64)1000;
 	moal_handle *handle = priv->phandle;
 
-	/*Sending this command frequently causes TP to drop.*/
-	/*ToDo : Check in vendor HAL if this callback is needed so frequently
-	 * during normal run*/
-	if (!(drvdbg & MLOG_D))
-		return 0;
 	/* Allocate an IOCTL request buffer */
 	req = woal_alloc_mlan_ioctl_req(sizeof(t_u32) + BUF_MAXLEN);
 	if (req == NULL) {
@@ -2924,13 +2993,13 @@ static int woal_cfg80211_subcmd_link_statistic_set(struct wiphy *wiphy,
 		return err;
 
 	if (!tb[ATTR_LL_STATS_MPDU_SIZE_THRESHOLD] ||
-	    !tb[ATTR_LL_STATS_AGGRSSIVE_STATS_GATHERING])
+	    !tb[ATTR_LL_STATS_AGGRESSIVE_STATS_GATHERING])
 		return -EINVAL;
 
 	ll_params.mpdu_size_threshold =
 		nla_get_u32(tb[ATTR_LL_STATS_MPDU_SIZE_THRESHOLD]);
 	ll_params.aggressive_statistics_gathering =
-		nla_get_u32(tb[ATTR_LL_STATS_AGGRSSIVE_STATS_GATHERING]);
+		nla_get_u32(tb[ATTR_LL_STATS_AGGRESSIVE_STATS_GATHERING]);
 
 	PRINTM(MEVENT,
 	       "link layer params mpdu_size_threshold = 0x%x, aggressive_statistics_gathering = 0x%x\n",
@@ -3789,7 +3858,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_get_valid_channels,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_attr_policy,
+		.maxattr = ATTR_WIFI_MAX,
 #endif
 	},
 	{
@@ -3801,7 +3871,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_set_scan_mac_oui,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_attr_policy,
+		.maxattr = ATTR_WIFI_MAX,
 #endif
 	},
 	{
@@ -3813,7 +3884,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_link_statistic_set,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_ll_stat_policy,
+		.maxattr = ATTR_LL_STATS_MAX,
 #endif
 	},
 	{
@@ -3837,7 +3909,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_link_statistic_clr,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_ll_stat_policy,
+		.maxattr = ATTR_LL_STATS_MAX,
 #endif
 	},
 #ifdef STA_CFG80211
@@ -3850,7 +3923,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_rssi_monitor,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_rssi_monitor_policy,
+		.maxattr = ATTR_RSSI_MONITOR_MAX,
 #endif
 	},
 #endif
@@ -3875,7 +3949,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_fw_roaming_enable,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_fw_roaming_policy,
+		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
 #endif
 	},
 	{
@@ -3887,7 +3962,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_fw_roaming_config,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_fw_roaming_policy,
+		.maxattr = MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX,
 #endif
 	},
 	{
@@ -3899,7 +3975,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_start_keep_alive,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_keep_alive_policy,
+		.maxattr = MKEEP_ALIVE_ATTRIBUTE_MAX,
 #endif
 	},
 	{
@@ -3914,7 +3991,6 @@ const struct wiphy_vendor_command vendor_commands[] = {
 		.policy = VENDOR_CMD_RAW_DATA,
 #endif
 	},
-
 	{
 		.info = {
 				.vendor_id = MRVL_VENDOR_ID,
@@ -3938,7 +4014,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_11k_cfg,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_nd_offload_policy,
+		.maxattr = ATTR_ND_OFFLOAD_MAX,
 #endif
 	},
 	{
@@ -3999,7 +4076,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_NETDEV,
 		.doit = woal_cfg80211_subcmd_get_wifi_logger_supp_feature_set,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_logger_policy,
+		.maxattr = ATTR_WIFI_LOGGER_MAX,
 #endif
 	},
 	{
@@ -4012,7 +4090,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_get_ring_buff_status,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_logger_policy,
+		.maxattr = ATTR_WIFI_LOGGER_MAX,
 #endif
 	},
 	{
@@ -4025,7 +4104,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_start_logging,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_logger_policy,
+		.maxattr = ATTR_WIFI_LOGGER_MAX,
 #endif
 	},
 	{
@@ -4038,7 +4118,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_get_ring_data,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_logger_policy,
+		.maxattr = ATTR_WIFI_LOGGER_MAX,
 #endif
 	},
 	{
@@ -4090,7 +4171,8 @@ const struct wiphy_vendor_command vendor_commands[] = {
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = woal_cfg80211_subcmd_set_packet_filter,
 #if KERNEL_VERSION(5, 3, 0) <= CFG80211_VERSION_CODE
-		.policy = VENDOR_CMD_RAW_DATA,
+		.policy = woal_packet_filter_policy,
+		.maxattr = ATTR_PACKET_FILTER_MAX,
 #endif
 	},
 	{

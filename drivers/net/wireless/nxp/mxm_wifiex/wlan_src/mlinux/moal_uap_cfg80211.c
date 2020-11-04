@@ -422,18 +422,20 @@ static t_void woal_set_wmm_ies(moal_private *priv, const t_u8 *ie, int len,
 /**
  * @brief initialize AP or GO bss config
  * @param priv            A pointer to moal private structure
+ * @param band		  BAND_2GHZ/BAND_5GHZ
  * @param params          A pointer to cfg80211_ap_settings structure
  * @return                0 -- success, otherwise fail
  */
-t_u8 woal_check_11ac_capability(moal_private *priv,
+t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band,
 				struct cfg80211_ap_settings *params)
 #else
 /**
  * @brief initialize AP or GO bss config
+ * @param band		  BAND_2GHZ/BAND_5GHZ
  * @param priv            A pointer to moal private structure
  * @return                0 -- success, otherwise fail
  */
-t_u8 woal_check_11ac_capability(moal_private *priv)
+t_u8 woal_check_11ac_capability(moal_private *priv, t_u8 band)
 #endif
 {
 	mlan_fw_info fw_info;
@@ -442,8 +444,15 @@ t_u8 woal_check_11ac_capability(moal_private *priv)
 	const u8 *vht_ie = NULL;
 #endif
 	ENTER();
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
-	if (!(fw_info.fw_bands & BAND_AAC)) {
+	if ((band == BAND_5GHZ) && !(fw_info.fw_bands & BAND_AAC)) {
+		PRINTM(MCMND, "FW don't support 5G AC");
+		LEAVE();
+		return enable_11ac;
+	}
+	if ((band == BAND_2GHZ) && !(fw_info.fw_bands & BAND_GAC)) {
+		PRINTM(MCMND, "FW don't support 2G AC");
 		LEAVE();
 		return enable_11ac;
 	}
@@ -479,6 +488,7 @@ t_u8 woal_check_11ax_capability(moal_private *priv, t_u8 band,
 	t_u8 he_txrx_mcs_support[4] = {0xff, 0xff, 0xff, 0xff};
 #endif
 	ENTER();
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if ((band == BAND_5GHZ) && !(fw_info.fw_bands & BAND_AAX)) {
 		PRINTM(MCMND, "FW don't support 5G AX\n");
@@ -963,16 +973,6 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 					priv->channel);
 #endif
 #endif
-
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-			enable_11ac = woal_check_11ac_capability(priv, params);
-			if (enable_11ac &&
-			    ((priv->chan.width == NL80211_CHAN_WIDTH_20) ||
-			     (priv->chan.width == NL80211_CHAN_WIDTH_40)))
-				vht20_40 = MTRUE;
-#else
-			enable_11ac = woal_check_11ac_capability(priv);
-#endif
 #ifdef WIFI_DIRECT_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
 				moal_memcpy_ext(priv->phandle,
@@ -996,6 +996,17 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 		woal_set_uap_rates(priv, sys_config, params->head,
 				   params->head_len, params->tail,
 				   params->tail_len);
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		enable_11ac = woal_check_11ac_capability(
+			priv, sys_config->bandcfg.chanBand, params);
+		if (enable_11ac &&
+		    ((priv->chan.width == NL80211_CHAN_WIDTH_20) ||
+		     (priv->chan.width == NL80211_CHAN_WIDTH_40)))
+			vht20_40 = MTRUE;
+#else
+		enable_11ac = woal_check_11ac_capability(
+			priv, sys_config->bandcfg.chanBand);
 #endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
@@ -1237,22 +1248,23 @@ static int woal_cfg80211_beacon_config(moal_private *priv,
 	    (sys_config->protocol == PROTOCOL_WPA))
 		enable_11n = MFALSE;
 	if (!enable_11n) {
-		woal_set_uap_ht_tx_cfg(priv, sys_config->bandcfg, MFALSE);
+		woal_set_uap_ht_tx_cfg(priv, sys_config->bandcfg, ht_cap,
+				       MFALSE);
 		woal_uap_set_11n_status(priv, sys_config, MLAN_ACT_DISABLE);
 	} else {
-		woal_set_uap_ht_tx_cfg(priv, sys_config->bandcfg, MTRUE);
+		woal_set_uap_ht_tx_cfg(priv, sys_config->bandcfg, ht_cap,
+				       MTRUE);
 		woal_uap_set_11n_status(priv, sys_config, MLAN_ACT_ENABLE);
 		woal_set_get_tx_bf_cap(priv, MLAN_ACT_GET,
 				       &sys_config->tx_bf_cap);
 	}
-	if (sys_config->bandcfg.chanBand == BAND_5GHZ) {
-		if (enable_11ac && enable_11n) {
-			vhtcap_ie = woal_get_vhtcap_info(ie, ie_len);
-			woal_uap_set_11ac_status(priv, MLAN_ACT_ENABLE,
-						 vht20_40, vhtcap_ie);
-		} else
-			woal_uap_set_11ac_status(priv, MLAN_ACT_DISABLE,
-						 vht20_40, NULL);
+	if (enable_11ac && enable_11n) {
+		vhtcap_ie = woal_get_vhtcap_info(ie, ie_len);
+		woal_uap_set_11ac_status(priv, MLAN_ACT_ENABLE, vht20_40,
+					 vhtcap_ie);
+	} else {
+		woal_uap_set_11ac_status(priv, MLAN_ACT_DISABLE, vht20_40,
+					 NULL);
 	}
 	if (enable_11ax && enable_11n) {
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
@@ -1467,6 +1479,12 @@ int woal_cfg80211_add_virt_if(struct wiphy *wiphy,
 
 	ENTER();
 	ASSERT_RTNL();
+	priv = woal_get_vir_priv_bss_type(handle, MLAN_BSS_TYPE_WIFIDIRECT);
+	if (priv && priv->bss_role == MLAN_BSS_ROLE_UAP &&
+	    priv->bss_started == MTRUE) {
+		if (handle->pref_mac)
+			handle = (moal_handle *)handle->pref_mac;
+	}
 	priv = (moal_private *)woal_get_priv_bss_type(handle,
 						      MLAN_BSS_TYPE_WIFIDIRECT);
 	if (!priv || !priv->phandle) {
@@ -1615,15 +1633,34 @@ int woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 	moal_private *vir_priv = NULL;
 	moal_private *remain_priv = NULL;
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+	t_u8 find_bss = MFALSE;
 
 	for (i = 0; i < handle->priv_num; i++) {
 		vir_priv = handle->priv[i];
 		if (vir_priv) {
 			if (vir_priv->netdev == dev) {
+				find_bss = MTRUE;
 				PRINTM(MMSG,
 				       "Del virtual interface %s, index=%d\n",
 				       dev->name, i);
 				break;
+			}
+		}
+	}
+	if (!find_bss) {
+		/* Switch to the other MAC */
+		if (handle->pref_mac)
+			handle = (moal_handle *)handle->pref_mac;
+		for (i = 0; i < handle->priv_num; i++) {
+			vir_priv = handle->priv[i];
+			if (vir_priv) {
+				if (vir_priv->netdev == dev) {
+					find_bss = MTRUE;
+					PRINTM(MMSG,
+					       "Del virtual interface %s, index=%d\n",
+					       dev->name, i);
+					break;
+				}
 			}
 		}
 	}
@@ -2568,8 +2605,7 @@ int woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 					  BIT(NL80211_STA_INFO_TX_BYTES) |
 					  BIT(NL80211_STA_INFO_RX_PACKETS) |
 					  BIT(NL80211_STA_INFO_TX_PACKETS) |
-					  BIT(NL80211_STA_INFO_SIGNAL) |
-					  BIT(NL80211_STA_INFO_TX_BITRATE);
+					  BIT(NL80211_STA_INFO_SIGNAL);
 
 			stainfo->rx_bytes = priv->stats.rx_bytes;
 			stainfo->tx_bytes = priv->stats.tx_bytes;

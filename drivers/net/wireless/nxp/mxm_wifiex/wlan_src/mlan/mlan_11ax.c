@@ -93,23 +93,33 @@ t_u8 wlan_check_ap_11ax_twt_supported(BSSDescriptor_t *pbss_desc)
 t_u8 wlan_check_11ax_twt_supported(mlan_private *pmpriv,
 				   BSSDescriptor_t *pbss_desc)
 {
-	MrvlIEtypes_He_cap_t *phecap = MNULL;
-	MrvlIEtypes_He_cap_t *hw_he_cap = MNULL;
-
-	if (!wlan_check_ap_11ax_twt_supported(pbss_desc))
+	MrvlIEtypes_He_cap_t *phecap =
+		(MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
+	MrvlIEtypes_He_cap_t *hw_he_cap =
+		(MrvlIEtypes_He_cap_t *)&pmpriv->adapter->hw_he_cap;
+	if (pbss_desc && !wlan_check_ap_11ax_twt_supported(pbss_desc)) {
+		PRINTM(MINFO, "AP don't support twt feature\n");
 		return MFALSE;
-	if (pbss_desc->bss_band & BAND_A) {
-		hw_he_cap = (MrvlIEtypes_He_cap_t *)&pmpriv->adapter->hw_he_cap;
-		phecap = (MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
-	} else {
-		hw_he_cap =
-			(MrvlIEtypes_He_cap_t *)&pmpriv->adapter->hw_2g_he_cap;
-		phecap = (MrvlIEtypes_He_cap_t *)&pmpriv->user_2g_he_cap;
 	}
-	if (!(hw_he_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_REQ_SUPPORT))
+	if (pbss_desc) {
+		if (pbss_desc->bss_band & BAND_A) {
+			hw_he_cap = (MrvlIEtypes_He_cap_t *)&pmpriv->adapter
+					    ->hw_he_cap;
+			phecap = (MrvlIEtypes_He_cap_t *)&pmpriv->user_he_cap;
+		} else {
+			hw_he_cap = (MrvlIEtypes_He_cap_t *)&pmpriv->adapter
+					    ->hw_2g_he_cap;
+			phecap =
+				(MrvlIEtypes_He_cap_t *)&pmpriv->user_2g_he_cap;
+		}
+	}
+	if (!(hw_he_cap->he_mac_cap[0] & HE_MAC_CAP_TWT_REQ_SUPPORT)) {
+		PRINTM(MINFO, "FW don't support TWT\n");
 		return MFALSE;
+	}
 	if (phecap->he_mac_cap[0] & HE_MAC_CAP_TWT_REQ_SUPPORT)
 		return MTRUE;
+	PRINTM(MINFO, "USER HE_MAC_CAP don't support TWT\n");
 	return MFALSE;
 }
 

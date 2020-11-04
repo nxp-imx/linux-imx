@@ -285,6 +285,14 @@ static int woal_info_proc_open(struct inode *inode, struct file *file)
 #endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops info_proc_fops = {
+	.proc_open = woal_info_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
 static const struct file_operations info_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = woal_info_proc_open,
@@ -292,6 +300,7 @@ static const struct file_operations info_proc_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
 
 #ifdef SDIO
 #define CMD52_STR_LEN 50
@@ -634,6 +643,15 @@ static int woal_config_proc_open(struct inode *inode, struct file *file)
 #endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops config_proc_fops = {
+	.proc_open = woal_config_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+	.proc_write = woal_config_write,
+};
+#else
 static const struct file_operations config_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = woal_config_proc_open,
@@ -642,6 +660,7 @@ static const struct file_operations config_proc_fops = {
 	.release = single_release,
 	.write = woal_config_write,
 };
+#endif
 
 /**
  *  @brief wifi status proc read function
@@ -676,6 +695,14 @@ static int woal_wifi_status_proc_open(struct inode *inode, struct file *file)
 #endif
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+static const struct proc_ops wifi_status_proc_fops = {
+	.proc_open = woal_wifi_status_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#else
 static const struct file_operations wifi_status_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = woal_wifi_status_proc_open,
@@ -683,6 +710,7 @@ static const struct file_operations wifi_status_proc_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
 
 /********************************************************
 		Global Functions

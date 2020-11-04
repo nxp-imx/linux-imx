@@ -851,6 +851,7 @@ typedef struct {
 	t_u8 data_rates[WLAN_SUPPORTED_RATES];
 	/** Host MLME flag*/
 	t_u8 host_mlme;
+	t_u8 use_mfp;
 } current_bss_params_t;
 
 /** Sleep_params */
@@ -3325,6 +3326,12 @@ mlan_status wlan_cmd_cck_desense_cfg(pmlan_private pmpriv,
 mlan_status wlan_ret_cck_desense_cfg(pmlan_private pmpriv,
 				     HostCmd_DS_COMMAND *resp,
 				     mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_cmd_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			     t_u16 cmd_action, t_void *pdata_buf);
+mlan_status wlan_ret_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+			     mlan_ioctl_req *pioctl_buf);
+
 mlan_status wlan_misc_ioctl_rxabortcfg(pmlan_adapter pmadapter,
 				       pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_rxabortcfg_ext(pmlan_adapter pmadapter,
@@ -3341,6 +3348,8 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			 mlan_ioctl_req *pioctl_buf);
 mlan_status wlan_misc_ioctl_rf_test_cfg(pmlan_adapter pmadapter,
 					pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_arb_cfg(pmlan_adapter pmadapter,
+				    pmlan_ioctl_req pioctl_req);
 /* CFP related functions */
 /** Region code index table */
 extern t_u16 region_code_index[MRVDRV_MAX_REGION_CODE];
@@ -3688,6 +3697,8 @@ void wlan_free_fw_cfp_tables(mlan_adapter *pmadapter);
 mlan_status wlan_misc_chan_reg_cfg(pmlan_adapter pmadapter,
 				   pmlan_ioctl_req pioctl_req);
 
+mlan_status wlan_get_cfp_table(pmlan_adapter pmadapter,
+			       pmlan_ioctl_req pioctl_req);
 mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 			     pmlan_ioctl_req pioctl_req);
 

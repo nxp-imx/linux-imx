@@ -231,7 +231,7 @@ static mlan_status wlan_usb_prog_fw_w_helper(pmlan_adapter pmadapter,
 			check_fw_status = MTRUE;
 	}
 #endif
-#ifdef USB9097
+#if defined(USB9097)
 	if (IS_USB9097(pmadapter->card_type))
 		check_fw_status = MTRUE;
 #endif

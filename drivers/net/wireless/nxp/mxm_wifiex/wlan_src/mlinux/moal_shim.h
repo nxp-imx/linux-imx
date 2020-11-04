@@ -88,6 +88,8 @@ t_s32 moal_memcmp(t_void *pmoal_handle, const t_void *pmem1,
 		  const t_void *pmem2, t_u32 num);
 /** moal_udelay */
 t_void moal_udelay(t_void *pmoal_handle, t_u32 udelay);
+t_void moal_usleep_range(t_void *pmoal_handle, t_u32 min_delay,
+			 t_u32 max_delay);
 mlan_status moal_get_boot_ktime(t_void *pmoal_handle, t_u64 *pnsec);
 mlan_status moal_get_system_time(t_void *pmoal_handle, t_u32 *psec,
 				 t_u32 *pusec);

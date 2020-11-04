@@ -274,6 +274,8 @@ typedef struct _chan_stats {
 /**Private command ID to set/get independent reset*/
 #define PRIV_CMD_IND_RST_CFG "indrstcfg"
 
+#define PRIV_CMD_ARB_CFG "arb"
+
 /**Private command to configure static rx abort config */
 #define PRIV_CMD_RX_ABORT_CFG "rx_abort_cfg"
 /**Private command to configure dynamic rx abort config */
@@ -485,6 +487,83 @@ typedef struct woal_priv_addba {
 	t_u32 tx_amsdu;
 	t_u32 rx_amsdu;
 } woal_addba;
+
+typedef struct _txrate_setting {
+	t_u16 preamble : 2; /*BIT1-BIT0:
+			     *  For legacy 11b: preamble type
+			     *    00    = long
+			     *    01    = short
+			     *    10/11  = reserved
+			     *  For legacy 11g: reserved
+			     *  For 11n: Green field PPDU indicator
+			     *    00 = HT-mix
+			     *    01 = HT-GF
+			     *    10/11 = reserved.
+			     *  For 11ac: reserved.
+			     *  For 11ax:
+			     *    00 = HE-SU
+			     *    01 = HE-EXT-SU
+			     *    10 = HE-MU
+			     *    11 = HE trigger based
+			     */
+	t_u16 bandwidth : 3; /* BIT2- BIT4
+			      * For 11n and 11ac traffic: Bandwidth
+			      *    0 = 20Mhz
+			      *    1 = 40Mhz
+			      *    2 = 80 Mhz
+			      *    3 = 160 Mhz
+			      *    4-7 = reserved
+			      *  For legacy rate : BW>0 implies non-HT
+			      * duplicates. For HE SU PPDU: 0 = 20Mhz 1 = 40Mhz
+			      *    2 = 80 Mhz
+			      *    3 = 160 Mhz
+			      *    4-7 = reserved
+			      *  For HE ER SU PPDU:
+			      *    0 = 242-tone RU
+			      *    1 = upper frequency 106 tone RU within the
+			      * primary 20 Mhz. For HE MU PPDU: 0 = 20Mhz. 1 =
+			      * 40Mhz. 2 = 80Mhz non-preamble puncturing mode 3
+			      * = 160Mhz and 80+80 Mhz non-preamble. 4 = for
+			      * preemble puncturing in 80 Mhz , where in the
+			      * preamble only the secondary 20Mhz is punctured.
+			      *    5 = for preemble puncturing in 80 Mhz ,
+			      *        where in the preamble only one of the two
+			      * 20Mhz subchannels in the secondary 40Mhz is
+			      * punctured. 6 = for preemble puncturing in 160
+			      * Mhz or 80 Mhz + 80 Mhz, where in the primary 80
+			      * Mhz of the preamble only the secondary 20 Mhz is
+			      * punctured. 7 = for preemble puncturing in 160
+			      * Mhz or 80 Mhz + 80 Mhz, where in the primary 80
+			      * Mhz of the preamble the primary 40 Mhz is
+			      * present.
+			      */
+	t_u16 shortGI : 2; /*BIT5- BIT6
+			    *  For legacy: not used
+			    *  For 11n: 00 = normal, 01 =shortGI, 10/11 =
+			    * reserved For 11ac: SGI map to VHT-SIG-A2[0]
+			    *           VHT-SIG-A2[1] is set to 1 if short guard
+			    * interval is used and NSYM mod 10 = 9, otherwise
+			    * set to 0. For 11ax: 00 = 1xHELTF+GI0.8usec 01 =
+			    * 2xHELTF+GI0.8usec 10 = 2xHELTF+GI1.6usec 11 =
+			    * 4xHELTF+GI0.8 usec if both DCM and STBC are 1
+			    *                4xHELTF+GI3.2 usec otherwise
+			    */
+	t_u16 stbc : 1; // BIT7, 0: no STBC; 1: STBC
+	t_u16 dcm : 1; // BIT8, 0: no DCM; 1: DCM used.
+	t_u16 adv_coding : 1; // BIT9, 0: BCC; 1: LDPC.
+	t_u16 doppler : 2; /* BIT11-BIT10,
+			      00: Doppler0
+			      01: Doppler 1 with Mma =10
+			      10: Doppler 1 with Mma =20
+			   */
+	t_u16 max_pktext : 2; /*BIT12-BIT13:
+			       * Max packet extension
+			       *  0 - 0 usec
+			       *  1 - 8 usec
+			       *  2 - 16 usec.
+			       */
+	t_u16 reserverd : 2; // BIT14-BIT15
+} __ATTRIB_PACK__ txrate_setting;
 
 /** data structure for cmd txratecfg */
 typedef struct woal_priv_tx_rate_cfg {

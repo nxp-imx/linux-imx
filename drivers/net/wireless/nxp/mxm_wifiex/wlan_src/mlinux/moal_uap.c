@@ -470,6 +470,88 @@ done:
 }
 
 /**
+ *  @brief configure beacon stuck detect mechanism
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int woal_uap_beacon_stuck(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *pm = NULL;
+	beacon_stuck_detect_para param;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	memset(&param, 0, sizeof(param));
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "woal_uap_beacon_stuck() corrupt data\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (copy_from_user(&param, req->ifr_data, sizeof(param))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	DBG_HEXDUMP(MCMD_D, "beacon_stuck_detect_para", (t_u8 *)&param,
+		    sizeof(param));
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(
+		sizeof(mlan_ds_beacon_stuck_param_cfg));
+	if (ioctl_req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+
+	pm = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	pm->sub_command = MLAN_OID_MISC_BEACON_STUCK;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	pm->param.beacon_stuck_cfg.action = param.action;
+	pm->param.beacon_stuck_cfg.beacon_stuck_detect_count =
+		param.beacon_stuck_detect_count;
+	pm->param.beacon_stuck_cfg.recovery_confirm_count =
+		param.recovery_confirm_count;
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	param.action = pm->param.beacon_stuck_cfg.action;
+	param.beacon_stuck_detect_count =
+		pm->param.beacon_stuck_cfg.beacon_stuck_detect_count;
+	param.recovery_confirm_count =
+		pm->param.beacon_stuck_cfg.recovery_confirm_count;
+
+	/* Copy to user */
+	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
+		PRINTM(MERROR, "Copy to user failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+
+	return ret;
+}
+
+/**
  *  @brief configure tx_pause settings
  *
  *  @param dev      A pointer to net_device structure
@@ -2255,7 +2337,9 @@ static int woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 	case UAP_BAND_STEER:
 		ret = woal_uap_band_steer(dev, req);
 		break;
-
+	case UAP_BEACON_STUCK_DETECT:
+		ret = woal_uap_beacon_stuck(dev, req);
+		break;
 	default:
 		break;
 	}
@@ -3047,7 +3131,7 @@ static int woal_uap_set_wapi_flag_ioctl(moal_private *priv, wapi_msg *msg)
 	}
 	woal_enable_wapi(priv, MTRUE);
 done:
-	if (status != MLAN_STATUS_PENDING)
+	if ((status != MLAN_STATUS_PENDING) && req)
 		kfree(req);
 	LEAVE();
 	return ret;
@@ -3163,7 +3247,8 @@ done:
  *
  *  @return         0 --success, otherwise fail
  */
-int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg, t_u8 en)
+int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,
+			   t_u16 ht_cap, t_u8 en)
 {
 	int ret = 0;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
@@ -3184,13 +3269,13 @@ int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg, t_u8 en)
 	/* Set HT Tx configurations */
 	if (bandcfg.chanBand == BAND_2GHZ) {
 		if (en)
-			cfg_11n->param.tx_cfg.httxcap = 0x20;
+			cfg_11n->param.tx_cfg.httxcap = ht_cap;
 		else
 			cfg_11n->param.tx_cfg.httxcap = 0;
 		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_BG;
 	} else if (bandcfg.chanBand == BAND_5GHZ) {
 		if (en)
-			cfg_11n->param.tx_cfg.httxcap = 0x6f;
+			cfg_11n->param.tx_cfg.httxcap = ht_cap;
 		else
 			cfg_11n->param.tx_cfg.httxcap = 0;
 		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_A;
@@ -3227,6 +3312,7 @@ mlan_status woal_uap_set_11n_status(moal_private *priv,
 	mlan_fw_info fw_info;
 
 	ENTER();
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	if (action == MLAN_ACT_DISABLE) {
 		if ((sys_cfg->supported_mcs_set[0] == 0) &&
 		    (sys_cfg->supported_mcs_set[4] == 0) &&
@@ -3280,6 +3366,7 @@ int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 
 	ENTER();
 
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ac_cfg));
@@ -3407,6 +3494,7 @@ int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 	mlan_ds_11ax_he_cfg he_cfg;
 	ENTER();
 
+	memset(&fw_info, 0, sizeof(mlan_fw_info));
 	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 	if ((band == BAND_5GHZ && !(fw_info.fw_bands & BAND_AAX)) ||
 	    (band == BAND_2GHZ && !(fw_info.fw_bands & BAND_GAX))) {

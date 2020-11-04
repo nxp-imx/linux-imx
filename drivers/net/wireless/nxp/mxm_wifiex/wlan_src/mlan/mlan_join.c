@@ -803,6 +803,7 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 	MrvlIEtypes_RatesParamSet_t *prates_tlv;
 	MrvlIEtypes_AuthType_t *pauth_tlv;
 	MrvlIEtypes_RsnParamSet_t *prsn_ie_tlv = MNULL;
+	MrvlIEtypes_SecurityCfg_t *psecurity_cfg_ie = MNULL;
 	MrvlIEtypes_ChanListParamSet_t *pchan_tlv;
 	WLAN_802_11_RATES rates;
 	t_u32 rates_size;
@@ -972,6 +973,20 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 				wlan_cpu_to_le16(prsn_ie_tlv->header.len);
 			/** parse rsn ie to find whether ft akm is used*/
 			ft_akm = wlan_ft_akm_is_used(pmpriv, pmpriv->wpa_ie);
+			/* Append PMF Configuration coming from cfg80211 layer
+			 */
+			psecurity_cfg_ie = (MrvlIEtypes_SecurityCfg_t *)pos;
+			psecurity_cfg_ie->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_SECURITY_CFG);
+			if (!pmpriv->curr_bss_params.use_mfp)
+				psecurity_cfg_ie->use_mfp = MFALSE;
+			else
+				psecurity_cfg_ie->use_mfp = MTRUE;
+			psecurity_cfg_ie->header.len = sizeof(t_u8);
+			pos += sizeof(psecurity_cfg_ie->header) +
+			       psecurity_cfg_ie->header.len;
+			PRINTM(MCMND, "use_mfp=%d\n",
+			       pmpriv->curr_bss_params.use_mfp);
 		}
 #ifdef DRV_EMBEDDED_SUPPLICANT
 		else if (supplicantIsEnabled(pmpriv->psapriv)) {

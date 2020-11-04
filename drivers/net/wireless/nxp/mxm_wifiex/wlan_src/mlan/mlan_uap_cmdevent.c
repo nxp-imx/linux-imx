@@ -115,6 +115,70 @@ mlan_status wlan_ret_set_get_band_steering_cfg(mlan_private *pmpriv,
 }
 
 /**
+ *  @brief This function prepares command of BEACON_STUCK_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_cmd_set_get_beacon_stuck_cfg(IN pmlan_private pmpriv,
+					      IN HostCmd_DS_COMMAND *cmd,
+					      IN t_u16 cmd_action,
+					      IN t_void *pdata_buf)
+{
+	HostCmd_DS_BEACON_STUCK_CFG *pbeacon_stuck_param_cfg =
+		(HostCmd_DS_BEACON_STUCK_CFG *)(pdata_buf + sizeof(t_u32));
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_UAP_BEACON_STUCK_CFG);
+	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_BEACON_STUCK_CFG) +
+				     S_DS_GEN);
+	cmd->params.beacon_stuck_cfg.beacon_stuck_detect_count =
+		pbeacon_stuck_param_cfg->beacon_stuck_detect_count;
+	cmd->params.beacon_stuck_cfg.recovery_confirm_count =
+		pbeacon_stuck_param_cfg->recovery_confirm_count;
+	cmd->params.beacon_stuck_cfg.action = cmd_action;
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handle response of HostCmd_CMD_UAP_BEACON_STUCK_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         Pointer to command response buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_ret_set_get_beacon_stuck_cfg(mlan_private *pmpriv,
+					      HostCmd_DS_COMMAND *resp,
+					      mlan_ioctl_req *pioctl_buf)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	HostCmd_DS_BEACON_STUCK_CFG *pbeacon_stuck_param_cfg =
+		&resp->params.beacon_stuck_cfg;
+	mlan_ds_misc_cfg *pbeacon_stuck;
+
+	ENTER();
+
+	pbeacon_stuck = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+	pbeacon_stuck->param.beacon_stuck_cfg.action =
+		pbeacon_stuck_param_cfg->action;
+	pbeacon_stuck->param.beacon_stuck_cfg.beacon_stuck_detect_count =
+		pbeacon_stuck_param_cfg->beacon_stuck_detect_count;
+	pbeacon_stuck->param.beacon_stuck_cfg.recovery_confirm_count =
+		pbeacon_stuck_param_cfg->recovery_confirm_count;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function handles the command response error
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -4000,6 +4064,7 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	MrvlIETypes_HTCap_t *phtcap;
 	MrvlIETypes_VHTCap_t *pvhtcap;
+	MrvlIEtypes_Extension_t *pext_tlv;
 	MrvlIEtypes_StaFlag_t *pstaflag;
 	int i;
 
@@ -4103,6 +4168,13 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 			break;
 		case OPER_MODE_NTF:
 			break;
+		case EXTENSION:
+			pext_tlv = (MrvlIEtypes_Extension_t *)tlv;
+			if (pext_tlv->ext_id == HE_CAPABILITY) {
+				sta_ptr->is_11ax_enabled = MTRUE;
+				PRINTM(MCMND, "STA supports 11ax\n");
+			}
+			break;
 		default:
 			break;
 		}
@@ -4119,12 +4191,7 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 		tlv_buf_left -= sizeof(MrvlIEtypesHeader_t) + tlv_len;
 	}
 
-	if (sta_ptr->is_11ac_enabled) {
-		if (pmpriv->uap_channel <= 14)
-			sta_ptr->bandmode = BAND_GAC;
-		else
-			sta_ptr->bandmode = BAND_AAC;
-	} else if (sta_ptr->is_11n_enabled) {
+	if (sta_ptr->is_11n_enabled) {
 		if (pmpriv->uap_channel <= 14)
 			sta_ptr->bandmode = BAND_GN;
 		else
@@ -4136,6 +4203,19 @@ static mlan_status wlan_uap_cmd_add_station(pmlan_private pmpriv,
 			sta_ptr->bandmode = BAND_A;
 	} else
 		sta_ptr->bandmode = BAND_B;
+	if (sta_ptr->is_11ac_enabled) {
+		if (pmpriv->uap_channel <= 14)
+			sta_ptr->bandmode = BAND_GAC;
+		else
+			sta_ptr->bandmode = BAND_AAC;
+	}
+	if (sta_ptr->is_11ax_enabled) {
+		if (pmpriv->uap_channel <= 14)
+			sta_ptr->bandmode = BAND_GAX;
+		else
+			sta_ptr->bandmode = BAND_AAX;
+	}
+
 	for (i = 0; i < MAX_NUM_TID; i++) {
 		if (sta_ptr->is_11n_enabled)
 			sta_ptr->ampdu_sta[i] =
@@ -4390,7 +4470,9 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_BBP_REG_ACCESS:
 	case HostCmd_CMD_RF_REG_ACCESS:
 	case HostCmd_CMD_CAU_REG_ACCESS:
+	case HostCmd_CMD_TARGET_ACCESS:
 	case HostCmd_CMD_802_11_EEPROM_ACCESS:
+	case HostCmd_CMD_BCA_REG_ACCESS:
 		ret = wlan_cmd_reg_access(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
 		break;
@@ -4504,6 +4586,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_802_11_BAND_STEERING:
 		ret = wlan_cmd_set_get_band_steering_cfg(pmpriv, cmd_ptr,
 							 cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_UAP_BEACON_STUCK_CFG:
+		ret = wlan_cmd_set_get_beacon_stuck_cfg(pmpriv, cmd_ptr,
+							cmd_action, pdata_buf);
 		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
@@ -4772,7 +4858,9 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_BBP_REG_ACCESS:
 	case HostCmd_CMD_RF_REG_ACCESS:
 	case HostCmd_CMD_CAU_REG_ACCESS:
+	case HostCmd_CMD_TARGET_ACCESS:
 	case HostCmd_CMD_802_11_EEPROM_ACCESS:
+	case HostCmd_CMD_BCA_REG_ACCESS:
 		ret = wlan_ret_reg_access(pmpriv->adapter, cmdresp_no, resp,
 					  pioctl_buf);
 		break;
@@ -4862,6 +4950,10 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_802_11_BAND_STEERING:
 		ret = wlan_ret_set_get_band_steering_cfg(pmpriv, resp,
 							 pioctl_buf);
+		break;
+	case HostCmd_CMD_UAP_BEACON_STUCK_CFG:
+		ret = wlan_ret_set_get_beacon_stuck_cfg(pmpriv, resp,
+							pioctl_buf);
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
@@ -5337,6 +5429,18 @@ mlan_status wlan_ops_uap_process_event(t_void *priv)
 						   sizeof(eventcause))));
 		pmadapter->fw_hang_report = MTRUE;
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
+		break;
+	case EVENT_WATCHDOG_TMOUT:
+		PRINTM(MEVENT, "EVENT: EVENT_WATCHDOG_TMOUT reasoncode=%d\n",
+		       wlan_le16_to_cpu(*(t_u16 *)(pmbuf->pbuf +
+						   pmbuf->data_offset +
+						   sizeof(eventcause))));
+		pevent->event_id = MLAN_EVENT_ID_DRV_WIFI_STATUS;
+		pevent->event_len = sizeof(pevent->event_id) + sizeof(t_u16);
+		memcpy_ext(pmadapter, (t_u8 *)pevent->event_buf,
+			   pmbuf->pbuf + pmbuf->data_offset +
+				   sizeof(eventcause),
+			   sizeof(t_u16), sizeof(t_u16));
 		break;
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;

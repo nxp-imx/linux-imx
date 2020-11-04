@@ -389,6 +389,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type : Channel band list */
 #define TLV_TYPE_CHANNELBANDLIST (PROPRIETARY_TLV_BASE_ID + 0x2a) /* 0x012a */
 
+/** TLV type : Security Cfg */
+#define TLV_TYPE_SECURITY_CFG (PROPRIETARY_TLV_BASE_ID + 0x3a) /* 0x013a */
+
 /** TLV type : Passphrase */
 #define TLV_TYPE_PASSPHRASE (PROPRIETARY_TLV_BASE_ID + 0x3c) /* 0x013c */
 /** TLV type : SAE Password */
@@ -1479,6 +1482,9 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_He_cap_t {
 /** Host Command ID : Target device access */
 #define HostCmd_CMD_TARGET_ACCESS 0x012a
 
+/** Host Command ID: BCA device access */
+#define HostCmd_CMD_BCA_REG_ACCESS 0x0272
+
 /** Host Command ID: DFS repeater mode */
 #define HostCmd_DFS_REPEATER_MODE 0x012b
 
@@ -1588,6 +1594,8 @@ typedef MLAN_PACK_START struct _power_table_attr {
 #define HostCmd_CMD_TWT_CFG 0x0270
 
 #define HostCmd_CMD_LOW_POWER_MODE_CFG 0x026e
+#define HostCmd_CMD_UAP_BEACON_STUCK_CFG 0x0271
+#define HostCmd_CMD_ARB_CONFIG 0x0273
 
 /** Enhanced PS modes */
 typedef enum _ENH_PS_MODES {
@@ -1797,6 +1805,8 @@ typedef enum _ENH_PS_MODES {
 
 /** Card Event definition : Pre-Beacon Lost */
 #define EVENT_PRE_BEACON_LOST 0x00000031
+
+#define EVENT_WATCHDOG_TMOUT 0x00000032
 
 /** Card Event definition : Add BA event */
 #define EVENT_ADDBA 0x00000033
@@ -2519,6 +2529,26 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RsnParamSet_t {
 	/** RSN IE */
 	t_u8 rsn_ie[];
 } MLAN_PACK_END MrvlIEtypes_RsnParamSet_t;
+
+/** MrvlIEtypes_SecurityCfg_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_SecurityCfg_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** enable 11w */
+	t_u8 use_mfp;
+} MLAN_PACK_END MrvlIEtypes_SecurityCfg_t;
+
+/** Host Command ID : _HostCmd_DS_BEACON_STUCK_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_BEACON_STUCK_CFG {
+	/** ACT_GET/ACT_SET */
+	t_u8 action;
+	/** No of beacon interval after which firmware will check if beacon Tx
+	 * is going fine */
+	t_u8 beacon_stuck_detect_count;
+	/** Upon performing MAC reset, no of beacon interval after which
+	 * firmware will check if recovery was successful */
+	t_u8 recovery_confirm_count;
+} MLAN_PACK_END HostCmd_DS_BEACON_STUCK_CFG;
 
 /** Key Info flag for multicast key */
 #define KEY_INFO_MCAST_KEY 0x01
@@ -5299,6 +5329,16 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MAC_REG_ACCESS {
 	t_u32 value;
 } MLAN_PACK_END HostCmd_DS_MAC_REG_ACCESS;
 
+/** HostCmd_CMD_BCA_REG_ACCESS */
+typedef MLAN_PACK_START struct _HostCmd_DS_BCA_REG_ACCESS {
+	/** Action */
+	t_u16 action;
+	/** BCA register offset */
+	t_u16 offset;
+	/** BCA register value */
+	t_u32 value;
+} MLAN_PACK_END HostCmd_DS_BCA_REG_ACCESS;
+
 /** HostCmd_CMD_BBP_REG_ACCESS */
 typedef MLAN_PACK_START struct _HostCmd_DS_BBP_REG_ACCESS {
 	/** Acion */
@@ -6963,6 +7003,16 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_RX_ABORT_CFG_EXT {
 	t_s8 ceil_rssi_threshold;
 } MLAN_PACK_END HostCmd_DS_CMD_RX_ABORT_CFG_EXT;
 
+/** HostCmd_CMD_ARB_CONFIG */
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_ARB_CONFIG {
+	/** Action */
+	t_u16 action;
+	/** 0-4 */
+	t_u32 arb_mode;
+	/** 1: use FW enhancement, 0: use FW default */
+	t_u32 reserved;
+} MLAN_PACK_END HostCmd_DS_CMD_ARB_CONFIG;
+
 /** HostCmd_DS_CMD_TX_AMPDU_PROT_MODE */
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_TX_AMPDU_PROT_MODE {
 	/** Action */
@@ -7166,7 +7216,8 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_MEM_ACCESS mem;
 		/** Target device access */
 		HostCmd_DS_TARGET_ACCESS target;
-
+		/** BCA register access */
+		HostCmd_DS_BCA_REG_ACCESS bca_reg;
 		/** Inactivity timeout extend */
 		HostCmd_DS_INACTIVITY_TIMEOUT_EXT inactivity_to;
 #ifdef UAP_SUPPORT
@@ -7258,9 +7309,11 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_CHANNEL_TRPC_CONFIG ch_trpc_config;
 		HostCmd_DS_LOW_POWER_MODE_CFG lpm_cfg;
 		HostCmd_DS_BAND_STEERING band_steer_info;
+		HostCmd_DS_BEACON_STUCK_CFG beacon_stuck_cfg;
 		struct mfg_cmd_generic_cfg mfg_generic_cfg;
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
+		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 
