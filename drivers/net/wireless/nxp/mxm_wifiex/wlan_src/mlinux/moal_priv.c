@@ -436,7 +436,7 @@ static int woal_deep_sleep_ioctl(moal_private *priv, struct iwreq *wrq)
 	int ret = 0;
 	int user_data_len;
 	t_u32 deep_sleep = DEEP_SLEEP_OFF;
-	t_u32 data[2];
+	t_u32 data[2] = {0};
 	int copy_len;
 	t_u16 idletime = DEEP_SLEEP_IDLE_TIME;
 
@@ -4077,7 +4077,7 @@ static int woal_tx_bf_cfg_ioctl(moal_private *priv, struct iwreq *wrq)
 {
 	int ret = 0, data_length = wrq->u.data.length;
 	int bf_action = 0, interval = 0;
-	int snr = 0, i, tmp_val;
+	int snr = 0, i, tmp_val = 0;
 	t_u8 buf[MAX_IN_OUT_CHAR], char_count = 0;
 	t_u8 *str, *token, *pos;
 	t_u16 action = 0;

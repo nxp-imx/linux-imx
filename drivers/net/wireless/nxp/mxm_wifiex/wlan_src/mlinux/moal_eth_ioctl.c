@@ -187,7 +187,7 @@ mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
  * @param raw_size      raw data buffer size
  * @return         Number of bytes read
  **/
-int string2raw(char *str, unsigned char *raw, int raw_size)
+int string2raw(unsigned char *str, unsigned char *raw, int raw_size)
 {
 	int len = (strlen(str) + 1) / 2;
 	int i = 0;
@@ -2023,6 +2023,7 @@ int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 	int ret = 0;
 	int user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+	txrate_setting *rate_setting = NULL;
 
 	ENTER();
 
@@ -2121,6 +2122,62 @@ int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				PRINTM(MIOCTL,
 				       "SET: txratefg HE Rate Setting: 0x%x\n",
 				       data[3]);
+
+/* HE Preamble type */
+#define HE_SU_PREAMBLE 0
+#define HE_ER_PREAMBLE 1
+
+/* HE ER SU Type */
+#define HE_ER_SU_BANDWIDTH_TONE242 0
+#define HE_ER_SU_BANDWIDTH_TONE106 1
+
+				rate_setting = (txrate_setting *)&data[3];
+
+				if (data[0] == MLAN_RATE_FORMAT_HE) {
+					if (rate_setting->preamble ==
+					    HE_ER_PREAMBLE) {
+						if (rate_setting->bandwidth ==
+						    HE_ER_SU_BANDWIDTH_TONE242) {
+							if ((data[1] >
+							     MLAN_RATE_INDEX_MCS4) ||
+							    data[2] >
+								    MLAN_RATE_NSS1) {
+								PRINTM(MERROR,
+								       "Invalid rate and MCS or NSS configuration for 242 tone\n");
+								ret = -EINVAL;
+								goto done;
+							}
+						} else if (rate_setting
+								   ->bandwidth ==
+							   HE_ER_SU_BANDWIDTH_TONE106) {
+							if ((data[1] !=
+							     MLAN_RATE_INDEX_MCS0) ||
+							    data[2] !=
+								    MLAN_RATE_NSS1) {
+								PRINTM(MERROR,
+								       "Invalid rate and MCS or NSS configuration\n for 106 tone");
+								ret = -EINVAL;
+								goto done;
+							}
+						} else {
+							PRINTM(MERROR,
+							       "Invalid Bandwidth for HE ER Preamble\n");
+							ret = -EINVAL;
+							goto done;
+						}
+					}
+					if (rate_setting->dcm) {
+						if ((data[1] ==
+						     MLAN_RATE_INDEX_MCS2) ||
+						    (data[1] >
+						     MLAN_RATE_INDEX_MCS4)) {
+							PRINTM(MERROR,
+							       "Invalid MCS configuration if DCM is supported\n");
+							ret = -EINVAL;
+							goto done;
+						}
+					}
+				}
 			} else {
 				rate->param.rate_cfg.rate_setting = 0xffff;
 			}
@@ -6823,8 +6880,10 @@ static int woal_priv_getcfgchanlist(moal_private *priv, t_u8 *respbuf,
 				sband->channels[i].flags;
 			plist->chan_list[i + num_chan].max_power =
 				sband->channels[i].max_power;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
 			plist->chan_list[i + num_chan].dfs_state =
 				sband->channels[i].dfs_state;
+#endif
 		}
 		num_chan += sband->n_channels;
 	}
@@ -9748,7 +9807,7 @@ static int woal_priv_11n_amsdu_aggr_ctrl(moal_private *priv, t_u8 *respbuf,
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
-	int ret = 0, data[2];
+	int ret = 0, data[2] = {0};
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10179,7 +10238,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	int ret = 0;
-	int data[4];
+	int data[4] = {0};
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10284,7 +10343,7 @@ static int woal_priv_dfs53cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	int ret = 0;
-	int data;
+	int data = 0;
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10366,7 +10425,7 @@ static int woal_priv_cfp_code(moal_private *priv, t_u8 *respbuf,
 {
 	int ret = 0;
 	int user_data_len = 0, header_len = 0;
-	int data[2];
+	int data[2] = {0};
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
 	mlan_ds_misc_cfp_code *cfp_code = NULL;
@@ -11142,7 +11201,7 @@ static int woal_priv_tx_bf_cfg(moal_private *priv, t_u8 *respbuf,
 	int header_len = 0;
 	int ret = 0, copy_len = 0;
 	int bf_action = 0, interval = 0;
-	int snr = 0, i, tmp_val;
+	int snr = 0, i, tmp_val = 0;
 	t_u8 buf[MAX_IN_OUT_CHAR], char_count = 0;
 	t_u8 *str, *token, *pos;
 	t_u16 action = 0;
@@ -11635,7 +11694,7 @@ static int woal_priv_robustcoex(moal_private *priv, t_u8 *respbuf,
 				t_u32 respbuflen)
 {
 	int header_len = 0, user_data_len = 0;
-	int ret = 0, data[3];
+	int ret = 0, data[3] = {0};
 	mlan_ds_misc_cfg *robust_coex_cfg = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -11724,7 +11783,7 @@ done:
 static int woal_priv_dmcs(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
 	int header_len = 0, user_data_len = 0;
-	int ret = 0, data[2];
+	int ret = 0, data[2] = {0};
 	mlan_ds_misc_cfg *dmcs_cfg = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -12328,7 +12387,7 @@ static int woal_priv_dfs_repeater_cfg(moal_private *priv, t_u8 *respbuf,
 				      t_u32 respbuflen)
 {
 	int ret = 0;
-	int user_data_len = 0, header_len = 0, data[1];
+	int user_data_len = 0, header_len = 0, data[1] = {0};
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
 	mlan_ds_misc_dfs_repeater *dfs_repeater = NULL;
@@ -13192,23 +13251,25 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 
 	ENTER();
 
-	if (!priv || !priv->phandle) {
-		PRINTM(MERROR, "priv or handle is null\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	if (priv->bss_role != MLAN_BSS_ROLE_UAP) {
+	if (!priv || !priv->phandle || (priv->bss_role != MLAN_BSS_ROLE_UAP) ||
+	    (priv->bss_started != MTRUE)) {
 		PRINTM(MERROR,
-		       "Extended Channel Switch is only allowed for AP/GO mode\n");
+		       "priv or handle is null or interface is not AP/GO"
+		       "or AP is not started\n");
 		ret = -EFAULT;
-		goto done;
+		LEAVE();
+		return ret;
 	}
 
-	if (priv->bss_started != MTRUE) {
-		PRINTM(MERROR, "AP is not started!\n");
-		ret = -EFAULT;
-		goto done;
+	parse_arguments(respbuf + strlen(CMD_NXP) +
+				strlen(PRIV_CMD_EXTEND_CHAN_SWITCH),
+			data, ARRAY_SIZE(data), &user_data_len);
+
+	if (sizeof(int) * user_data_len > sizeof(data)) {
+		PRINTM(MERROR, "Too many arguments\n");
+		ret = -EINVAL;
+		LEAVE();
+		return ret;
 	}
 
 	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
@@ -13230,16 +13291,6 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 	pcust_chansw_ie->mgmt_subtype_mask =
 		MGMT_MASK_BEACON | MGMT_MASK_PROBE_RESP; /*Add IE for
 							    BEACON/probe resp*/
-
-	parse_arguments(respbuf + strlen(CMD_NXP) +
-				strlen(PRIV_CMD_EXTEND_CHAN_SWITCH),
-			data, ARRAY_SIZE(data), &user_data_len);
-
-	if (sizeof(int) * user_data_len > sizeof(data)) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
 
 	chan_switch = (IEEEtypes_ChanSwitchAnn_t *)pcust_chansw_ie->ie_buffer;
 	chan_switch->element_id = CHANNEL_SWITCH_ANN;
@@ -13530,6 +13581,7 @@ static int woal_priv_config_random_mac(moal_private *priv, t_u8 *respbuf,
 	int header_len = 0, space_len = 0, i;
 	t_u8 rand_data[3];
 	const t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0, 0, 0, 0, 0, 0};
+	char fakemac_sts[16];
 
 	ENTER();
 
@@ -13576,8 +13628,11 @@ static int woal_priv_config_random_mac(moal_private *priv, t_u8 *respbuf,
 		goto done;
 	}
 
-	ret = sprintf(respbuf, "FAKEMAC parameter is %s\n",
-		      (t_u8 *)(respbuf + header_len + 1 + space_len)) +
+	memset(fakemac_sts, 0, sizeof(fakemac_sts));
+	snprintf(fakemac_sts, sizeof(fakemac_sts), "%s",
+		 (respbuf + header_len + 1 + space_len));
+	ret = snprintf(respbuf, respbuflen, "FAKEMAC parameter is %s\n",
+		       fakemac_sts) +
 	      1;
 	PRINTM(MMSG, "FAKEMAC parameter is %s\n",
 	       (t_u8 *)(respbuf + header_len + 1 + space_len));
@@ -13917,7 +13972,7 @@ int woal_priv_rx_abort_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[2];
+	int data[2] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14001,7 +14056,7 @@ int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[3];
+	int data[3] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14098,7 +14153,7 @@ int woal_priv_tx_ampdu_prot_mode(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[1];
+	int data[1] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14178,7 +14233,7 @@ int woal_priv_rate_adapt_cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[4];
+	int data[4] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14284,7 +14339,7 @@ int woal_priv_cck_desense_cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[5];
+	int data[5] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14481,6 +14536,83 @@ done:
 	return ret;
 }
 
+/**
+ *  @brief Set/Get HW ARB config
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int woal_priv_arbcfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[1];
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_ARB_CFG);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_ARB_CONFIG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid Parameter\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		if (data[0] < 0 || data[0] > 4) {
+			PRINTM(MERROR, "Invalid Parameter: arb mode 0-4\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		misc->param.arb_cfg.arb_mode = (t_u32)data[0];
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.arb_cfg.arb_mode;
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u32 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
 /**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
@@ -15376,6 +15508,11 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get DFS W53 settings */
 			len = woal_priv_dfs53cfg(priv, buf, priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_ARB_CFG,
+				    strlen(PRIV_CMD_ARB_CFG)) == 0) {
+			/* Set/Get CFP table codes */
+			len = woal_priv_arbcfg(priv, buf, priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_CFP_CODE,
 				    strlen(PRIV_CMD_CFP_CODE)) == 0) {
 			/* Set/Get CFP table codes */
@@ -15698,7 +15835,7 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 	} else if (strncmp(buf, "SETROAMING", strlen("SETROAMING")) == 0) {
 		pdata = buf + strlen("SETROAMING") + 1;
 #ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 			goto done;
 #endif
@@ -15716,7 +15853,7 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 	} else if (strncmp(buf, "ROAM", strlen("ROAM")) == 0) {
 		pdata = buf + strlen("ROAM") + 1;
 #ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 			goto done;
 #endif

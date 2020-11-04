@@ -1943,6 +1943,33 @@ mlan_status wlan_ret_get_sensor_temp(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function handles the command response of arb Cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+			     mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CMD_ARB_CONFIG *cfg_cmd =
+		(HostCmd_DS_CMD_ARB_CONFIG *)&resp->params.arb_cfg;
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.arb_cfg.arb_mode =
+			wlan_le32_to_cpu(cfg_cmd->arb_mode);
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function handles the command response of sta get band and
  * channel
  *
@@ -2533,6 +2560,7 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_CAU_REG_ACCESS:
 	case HostCmd_CMD_TARGET_ACCESS:
 	case HostCmd_CMD_802_11_EEPROM_ACCESS:
+	case HostCmd_CMD_BCA_REG_ACCESS:
 		ret = wlan_ret_reg_access(pmpriv->adapter, cmdresp_no, resp,
 					  pioctl_buf);
 		break;
@@ -2654,6 +2682,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG_EXT:
 		ret = wlan_ret_rxabortcfg_ext(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_ARB_CONFIG:
+		ret = wlan_ret_arb_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_TX_AMPDU_PROT_MODE:
 		ret = wlan_ret_tx_ampdu_prot_mode(pmpriv, resp, pioctl_buf);

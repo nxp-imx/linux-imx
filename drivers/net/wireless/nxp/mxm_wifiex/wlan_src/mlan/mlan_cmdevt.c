@@ -957,7 +957,7 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 		timeout = MRVDRV_TIMER_5S;
 		break;
 	default:
-		timeout = MRVDRV_TIMER_1S * 10;
+		timeout = MRVDRV_TIMER_1S * 2;
 		break;
 	}
 	LEAVE();
@@ -5941,6 +5941,34 @@ mlan_status wlan_cmd_reg_access(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 		cmd_eeprom->value = 0;
 		break;
 	}
+	case HostCmd_CMD_BCA_REG_ACCESS: {
+		HostCmd_DS_BCA_REG_ACCESS *bca_reg;
+		cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_BCA_REG_ACCESS) +
+					     S_DS_GEN);
+		bca_reg = (HostCmd_DS_BCA_REG_ACCESS *)&cmd->params.bca_reg;
+		bca_reg->action = wlan_cpu_to_le16(cmd_action);
+		bca_reg->offset = wlan_cpu_to_le16((t_u16)reg_rw->offset);
+		bca_reg->value = wlan_cpu_to_le32(reg_rw->value);
+#if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
+	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
+		if ((reg_rw->type == MLAN_REG_BCA2) &&
+		    (IS_CARD9098(pmadapter->card_type) ||
+		     IS_CARD9097(pmadapter->card_type))) {
+			tlv = (MrvlIEtypes_Reg_type_t
+				       *)((t_u8 *)cmd +
+					  sizeof(HostCmd_DS_BCA_REG_ACCESS) +
+					  S_DS_GEN);
+			tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_REG_ACCESS_CTRL);
+			tlv->header.len = wlan_cpu_to_le16(sizeof(t_u8));
+			tlv->type = MLAN_REG_BCA2;
+			cmd->size = wlan_cpu_to_le16(
+				sizeof(HostCmd_DS_BCA_REG_ACCESS) + S_DS_GEN +
+				sizeof(MrvlIEtypes_Reg_type_t));
+		}
+#endif
+		break;
+	}
 	default:
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -6038,6 +6066,13 @@ mlan_status wlan_ret_reg_access(mlan_adapter *pmadapter, t_u16 type,
 					MIN(MAX_EEPROM_DATA,
 					    eeprom->byte_count));
 			}
+			break;
+		}
+		case HostCmd_CMD_BCA_REG_ACCESS: {
+			HostCmd_DS_BCA_REG_ACCESS *reg;
+			reg = (HostCmd_DS_BCA_REG_ACCESS *)&resp->params.bca_reg;
+			reg_rw->offset = (t_u32)wlan_le16_to_cpu(reg->offset);
+			reg_rw->value = wlan_le32_to_cpu(reg->value);
 			break;
 		}
 		default:
@@ -6810,7 +6845,7 @@ mlan_status wlan_ret_packet_aggr_ctrl(pmlan_private pmpriv,
 #if defined(USB)
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	t_u8 i;
-	t_u8 change;
+	t_u8 change = 0;
 	usb_tx_aggr_params *pusb_tx_aggr = MNULL;
 #endif
 
@@ -7097,13 +7132,13 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 
 	/* get wifi_interface_link_layer_info in driver, not in firmware */
 	if (priv->bss_role == MLAN_BSS_ROLE_STA) {
-		iface_stat->info.mode = WIFI_INTERFACE_STA;
+		iface_stat->info.mode = MLAN_INTERFACE_STA;
 		if (priv->media_connected)
-			iface_stat->info.state = WIFI_ASSOCIATING;
+			iface_stat->info.state = MLAN_ASSOCIATING;
 		else
-			iface_stat->info.state = WIFI_DISCONNECTED;
-		iface_stat->info.roaming = WIFI_ROAMING_IDLE;
-		iface_stat->info.capabilities = WIFI_CAPABILITY_QOS;
+			iface_stat->info.state = MLAN_DISCONNECTED;
+		iface_stat->info.roaming = MLAN_ROAMING_IDLE;
+		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
 		memcpy_ext(priv->adapter, iface_stat->info.ssid,
 			   priv->curr_bss_params.bss_descriptor.ssid.ssid,
 			   MLAN_MAX_SSID_LENGTH, MLAN_MAX_SSID_LENGTH);
@@ -7111,8 +7146,8 @@ static void wlan_fill_link_statistic(mlan_private *priv,
 			   priv->curr_bss_params.bss_descriptor.mac_address,
 			   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);
 	} else {
-		iface_stat->info.mode = WIFI_INTERFACE_SOFTAP;
-		iface_stat->info.capabilities = WIFI_CAPABILITY_QOS;
+		iface_stat->info.mode = MLAN_INTERFACE_SOFTAP;
+		iface_stat->info.capabilities = MLAN_CAPABILITY_QOS;
 	}
 	memcpy_ext(priv->adapter, iface_stat->info.mac_addr, priv->curr_addr,
 		   MLAN_MAC_ADDR_LENGTH, MLAN_MAC_ADDR_LENGTH);

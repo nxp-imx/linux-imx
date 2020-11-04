@@ -3376,6 +3376,43 @@ void wlan_free_fw_cfp_tables(mlan_adapter *pmadapter)
 }
 
 /**
+ *  @brief Get DFS chan list
+ *
+ *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pioctl_req   Pointer to mlan_ioctl_req
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_get_cfp_table(pmlan_adapter pmadapter,
+			       pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_misc_cfg *ds_misc_cfg = MNULL;
+	mlan_status ret = MLAN_STATUS_FAILURE;
+	chan_freq_power_t *cfp = MNULL;
+	t_u32 cfp_no = 0;
+
+	ENTER();
+	if (pioctl_req) {
+		ds_misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+		if (pioctl_req->action == MLAN_ACT_GET) {
+			cfp = wlan_get_region_cfp_table(
+				pmadapter, pmadapter->region_code,
+				ds_misc_cfg->param.cfp.band, &cfp_no);
+			if (cfp) {
+				ds_misc_cfg->param.cfp.num_chan = cfp_no;
+				memcpy_ext(pmadapter,
+					   ds_misc_cfg->param.cfp.cfp_tbl, cfp,
+					   cfp_no * sizeof(chan_freq_power_t),
+					   cfp_no * sizeof(chan_freq_power_t));
+			}
+			ret = MLAN_STATUS_SUCCESS;
+		}
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief	Get power tables and cfp tables for set region code
  *			into the IOCTL request buffer
  *

@@ -217,7 +217,7 @@ typedef t_u8 BOOLEAN;
 
 #define INTF_CARDTYPE "---------%s-MXM"
 
-#define KERN_VERSION "4X"
+#define KERN_VERSION "5X"
 
 #define V15 "15"
 #define V16 "16"
@@ -991,8 +991,12 @@ struct tx_status_info {
 enum woal_event_type {
 	WOAL_EVENT_CHAN_SWITCH,
 	WOAL_EVENT_BGSCAN_STOP,
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	WOAL_EVENT_DEAUTH,
 	WOAL_EVENT_ASSOC_RESP,
+#endif
+#endif
 };
 
 /** woal event */
@@ -1542,7 +1546,7 @@ enum ext_mod_params {
 	EXT_BEACON_HINTS,
 #endif
 #ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	EXT_HOST_MLME,
 #endif
 #endif
@@ -1662,7 +1666,7 @@ struct _moal_handle {
 	/** Firmware */
 	const struct firmware *firmware;
 	/** Firmware request start time */
-	struct timeval req_fw_time;
+	wifi_timeval req_fw_time;
 	/** Init config file */
 	const struct firmware *init_cfg_data;
 	/** Init config file */
@@ -2406,17 +2410,40 @@ static inline moal_private *woal_get_priv_bss_type(moal_handle *handle,
 	return NULL;
 }
 
+static inline moal_private *woal_get_vir_priv_bss_type(moal_handle *handle,
+						       mlan_bss_type bss_type)
+{
+	int i;
+
+	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+		if (handle->priv[i]) {
+			if (handle->priv[i]->bss_type == bss_type &&
+			    handle->priv[i]->bss_virtual)
+				return handle->priv[i];
+		}
+	}
+	return NULL;
+}
+
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #endif
 
-static inline void woal_get_monotonic_time(struct timeval *tv)
+static inline void woal_get_monotonic_time(wifi_timeval *tv)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	struct timespec64 ts;
+#else
 	struct timespec ts;
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
+	ktime_get_raw_ts64(&ts);
+#else
 	getrawmonotonic(&ts);
+#endif
 	if (tv) {
-		tv->tv_sec = ts.tv_sec;
-		tv->tv_usec = ts.tv_nsec / 1000;
+		tv->time_sec = (t_u32)ts.tv_sec;
+		tv->time_usec = (t_u32)ts.tv_nsec / 1000;
 	}
 }
 

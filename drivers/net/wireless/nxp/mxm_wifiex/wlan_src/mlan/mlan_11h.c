@@ -3005,7 +3005,6 @@ t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter, t_u8 channel)
 	wlan_dfs_timestamp_t *pdfs_ts = MNULL;
 	t_u32 now_sec, now_usec;
 	t_bool ret = MFALSE;
-
 	ENTER();
 	pdfs_ts = wlan_11h_find_dfs_timestamp(pmadapter, channel);
 
@@ -3029,9 +3028,9 @@ t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter, t_u8 channel)
 		}
 
 		/* if entry is expired, remove it */
-		if (!ret)
+		if (!ret) {
 			wlan_11h_remove_dfs_timestamp(pmadapter, pdfs_ts);
-		else
+		} else
 			PRINTM(MMSG,
 			       "11h: channel %d is under NOP - can't use.\n",
 			       channel);
@@ -4043,7 +4042,7 @@ mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_private *pmpriv = MNULL;
-	mlan_private *priv_list[MLAN_MAX_BSS_NUM];
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {0};
 
 	ENTER();
 	switch (pmadapter->event_cause & EVENT_ID_MASK) {

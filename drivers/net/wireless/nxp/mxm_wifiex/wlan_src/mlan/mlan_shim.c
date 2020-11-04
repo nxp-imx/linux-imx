@@ -254,10 +254,14 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pmdevice->callbacks.moal_mfree);
 	MASSERT(pmdevice->callbacks.moal_memset);
 	MASSERT(pmdevice->callbacks.moal_memmove);
+	MASSERT(pmdevice->callbacks.moal_udelay);
+	MASSERT(pmdevice->callbacks.moal_usleep_range);
 
 	if (!pmdevice->callbacks.moal_malloc ||
 	    !pmdevice->callbacks.moal_mfree ||
 	    !pmdevice->callbacks.moal_memset ||
+	    !pmdevice->callbacks.moal_udelay ||
+	    !pmdevice->callbacks.moal_usleep_range ||
 	    !pmdevice->callbacks.moal_memmove) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;

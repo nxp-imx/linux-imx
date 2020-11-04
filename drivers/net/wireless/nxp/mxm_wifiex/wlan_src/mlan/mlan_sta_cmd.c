@@ -2100,6 +2100,48 @@ static mlan_status wlan_cmd_get_sensor_temp(pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function prepares command of arb cfg
+ *
+ *  @param pmpriv      A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_arb_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			     t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_CMD_ARB_CONFIG *cfg_cmd =
+		(HostCmd_DS_CMD_ARB_CONFIG *)&cmd->params.arb_cfg;
+	mlan_ds_misc_arb_cfg *misc_cfg = (mlan_ds_misc_arb_cfg *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_ARB_CONFIG);
+	cmd->size =
+		wlan_cpu_to_le16(sizeof(HostCmd_DS_CMD_ARB_CONFIG) + S_DS_GEN);
+	cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		cfg_cmd->arb_mode = wlan_cpu_to_le32(misc_cfg->arb_mode);
+		if (misc_cfg->arb_mode == 3) {
+#define DEF_ARB_TX_WIN 4
+#define DEF_ARB_TIMEOUT 0
+			pmpriv->add_ba_param.timeout = DEF_ARB_TIMEOUT;
+			pmpriv->add_ba_param.tx_win_size = DEF_ARB_TX_WIN;
+		} else {
+			pmpriv->add_ba_param.timeout =
+				MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
+			pmpriv->add_ba_param.tx_win_size =
+				MLAN_STA_AMPDU_DEF_TXWINSIZE;
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function sends get sta band channel command to firmware.
  *
  *  @param priv         A pointer to mlan_private structure
@@ -2611,6 +2653,7 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_CAU_REG_ACCESS:
 	case HostCmd_CMD_TARGET_ACCESS:
 	case HostCmd_CMD_802_11_EEPROM_ACCESS:
+	case HostCmd_CMD_BCA_REG_ACCESS:
 		ret = wlan_cmd_reg_access(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
 		break;
@@ -2778,6 +2821,9 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_RX_ABORT_CFG_EXT:
 		ret = wlan_cmd_rxabortcfg_ext(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);
+		break;
+	case HostCmd_CMD_ARB_CONFIG:
+		ret = wlan_cmd_arb_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
 	case HostCmd_CMD_TX_AMPDU_PROT_MODE:
 		ret = wlan_cmd_tx_ampdu_prot_mode(pmpriv, cmd_ptr, cmd_action,

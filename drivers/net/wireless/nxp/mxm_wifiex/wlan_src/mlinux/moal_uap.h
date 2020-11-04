@@ -89,6 +89,8 @@ Change log:
 #define UAP_CHAN_SWITCH_COUNT_CFG 23
 #define UAP_BAND_STEER 24
 
+#define UAP_BEACON_STUCK_DETECT 25
+
 /** Private command ID to Power Mode */
 #define UAP_POWER_MODE (SIOCDEVPRIVATE + 3)
 
@@ -422,6 +424,20 @@ typedef struct _band_steer_para {
 
 } band_steer_para;
 
+/** beacon stuck detect mechanism parameters */
+typedef struct _beacon_stuck_detect_para {
+	/** subcmd */
+	t_u32 subcmd;
+	/** Set/Get */
+	t_u8 action;
+	/** No of beacon interval after which firmware will check if beacon Tx
+	 * is going fine */
+	t_u8 beacon_stuck_detect_count;
+	/** Upon performing MAC reset, no of beacon interval after which
+	 * firmware will check if recovery was successful */
+	t_u8 recovery_confirm_count;
+} beacon_stuck_detect_para;
+
 /** tx_data_pause parameters */
 typedef struct _tx_data_pause_para {
 	/** subcmd */
@@ -550,7 +566,8 @@ int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
 int woal_11ax_cfg(moal_private *priv, t_u8 action, mlan_ds_11ax_he_cfg *he_cfg);
 int woal_uap_set_11ax_status(moal_private *priv, t_u8 action, t_u8 band,
 			     IEEEtypes_HECap_t *hecap_ie);
-int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg, t_u8 en);
+int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg,
+			   t_u16 ht_cap, t_u8 en);
 mlan_status woal_uap_set_11n_status(moal_private *priv,
 				    mlan_uap_bss_param *sys_cfg, t_u8 action);
 #ifdef UAP_WEXT

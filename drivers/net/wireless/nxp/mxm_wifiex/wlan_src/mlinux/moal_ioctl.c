@@ -3026,6 +3026,10 @@ int woal_enable_hs(moal_private *priv)
 		sdio_claim_host(((struct sdio_mmc_card *)handle->card)->func);
 	}
 #endif
+
+#ifdef SDIO_SUSPEND_RESUME
+	memset(&pm_info, 0, sizeof(mlan_ds_ps_info));
+#endif
 	if ((handle->hs_activated == MTRUE) ||
 	    (handle->is_suspended == MTRUE)) {
 		PRINTM(MCMND, "suspend success! force=%u skip=%u\n",
@@ -5036,7 +5040,7 @@ int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 {
 	int ret = 0;
 	mlan_scan_resp scan_resp;
-	struct timeval t;
+	wifi_timeval t;
 	ENTER();
 
 	if (MLAN_STATUS_SUCCESS !=
@@ -5055,7 +5059,7 @@ int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 	woal_get_monotonic_time(&t);
 /** scan result timeout value */
 #define SCAN_RESULT_AGEOUT 10
-	if (t.tv_sec > (scan_resp.age_in_secs + SCAN_RESULT_AGEOUT)) {
+	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_AGEOUT)) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -6822,11 +6826,11 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 
 	switch (cmd) {
 	case MFG_CMD_TX_ANT:
-		if (val != 1 && val != 2)
+		if (val != 1 && val != 2 && val != 3)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RX_ANT:
-		if (val != 1 && val != 2)
+		if (val != 1 && val != 2 && val != 3)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_BAND_AG:

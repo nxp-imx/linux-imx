@@ -326,6 +326,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_RF_TEST_GENERIC = 0x00200075,
 	MLAN_OID_MISC_RF_TEST_TX_CONT = 0x00200076,
 	MLAN_OID_MISC_RF_TEST_TX_FRAME = 0x00200077,
+	MLAN_OID_MISC_ARB_CONFIG = 0x00200078,
+	MLAN_OID_MISC_BEACON_STUCK = 0x00200079,
+	MLAN_OID_MISC_CFP_TABLE = 0x0020007A,
 };
 
 /** Sub command size */
@@ -693,6 +696,8 @@ typedef struct _mlan_ssid_bssid {
 	t_u32 channel_flags;
 	/** host mlme flag*/
 	t_u8 host_mlme;
+	/* Use management frame protection (IEEE 802.11w) in this association*/
+	t_u8 use_mfp;
 	/** assoicate resp frame/ie from firmware */
 	mlan_ds_misc_assoc_rsp assoc_rsp;
 } mlan_ssid_bssid, *pmlan_ssid_bssid;
@@ -2833,6 +2838,21 @@ typedef struct _mlan_ds_band_steer_cfg {
 	t_u8 max_btm_req_allowed;
 } mlan_ds_band_steer_cfg, *pmlan_ds_band_steer_cfg;
 
+/** Type definition of mlan_ds_beacon_stuck_param_cfg for MLAN_IOCTL_POWER_CFG
+ */
+typedef struct _mlan_ds_beacon_stuck_param_cfg {
+	/** subcmd */
+	t_u32 subcmd;
+	/** Set/Get */
+	t_u8 action;
+	/** No of beacon interval after which firmware will check if beacon Tx
+	 * is going fine */
+	t_u8 beacon_stuck_detect_count;
+	/** Upon performing MAC reset, no of beacon interval after which
+	 * firmware will check if recovery was successful */
+	t_u8 recovery_confirm_count;
+} mlan_ds_beacon_stuck_param_cfg, *pmlan_ds_beacon_stuck_param_cfg;
+
 /*-----------------------------------------------------------------*/
 /** Power Management Configuration Group */
 /*-----------------------------------------------------------------*/
@@ -3984,11 +4004,13 @@ enum _mlan_reg_type {
 	MLAN_REG_RF,
 	MLAN_REG_CAU = 5,
 	MLAN_REG_PSU = 6,
+	MLAN_REG_BCA = 7,
 #if defined(PCIE9098) || defined(SD9098) || defined(USB9098) ||                \
 	defined(PCIE9097) || defined(USB9097) || defined(SD9097)
 	MLAN_REG_MAC2 = 0x81,
 	MLAN_REG_BBP2 = 0x82,
-	MLAN_REG_RF2 = 0x83
+	MLAN_REG_RF2 = 0x83,
+	MLAN_REG_BCA2 = 0x87
 #endif
 };
 
@@ -4308,6 +4330,14 @@ typedef struct _mlan_ds_misc_cfp_code {
 	/** CFP table code for 5GHz */
 	t_u32 cfp_code_a;
 } mlan_ds_misc_cfp_code;
+
+/** Type definition of mlan_ds_misc_arb_cfg
+ * for MLAN_OID_MISC_ARB_CFG
+ */
+typedef struct _mlan_ds_misc_arb_cfg {
+	/** arb mode 0-4 */
+	t_u32 arb_mode;
+} mlan_ds_misc_arb_cfg;
 
 /** Type definition of mlan_ds_misc_country_code
  *  for MLAN_OID_MISC_COUNTRY_CODE
@@ -4932,6 +4962,17 @@ typedef struct _mlan_ds_misc_chnrgpwr_cfg {
 	/** chnrgpwr buf */
 	t_u8 chnrgpwr_buf[2048];
 } mlan_ds_misc_chnrgpwr_cfg;
+
+/** dfs chan list for MLAN_OID_MISC_CFP_TABLE */
+typedef struct _mlan_ds_misc_cfp_tbl {
+	/** band */
+	t_u8 band;
+	/** num chan */
+	t_u8 num_chan;
+	/** cfp table */
+	chan_freq_power_t cfp_tbl[];
+} mlan_ds_misc_cfp_tbl;
+
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
 	/** Sub-command */
@@ -5042,9 +5083,12 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_chnrgpwr_cfg rgchnpwr_cfg;
 
 		mlan_ds_band_steer_cfg band_steer_cfg;
+		mlan_ds_beacon_stuck_param_cfg beacon_stuck_cfg;
 		struct mfg_cmd_generic_cfg mfg_generic_cfg;
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
+		mlan_ds_misc_arb_cfg arb_cfg;
+		mlan_ds_misc_cfp_tbl cfp;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 
