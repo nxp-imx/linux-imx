@@ -401,6 +401,7 @@ struct i2s_info {
 	struct i2s_rpmsg         rpmsg[I2S_CMD_MAX_NUM];
 	struct i2s_rpmsg         period_done_msg[2];
 	bool                     period_done_msg_enabled[2];
+	bool                     buffer_full[2];
 
 	struct workqueue_struct  *rpmsg_wq;
 	struct work_of_rpmsg	 work_list[WORK_MAX_NUM];
@@ -417,6 +418,7 @@ struct i2s_info {
 	struct mutex             i2c_lock;
 	struct stream_timer      stream_timer[2];
 	int                      prealloc_buffer_size;
+	struct wakeup_source     *rpmsg_wakeup_source;
 };
 
 struct fsl_rpmsg_i2s {

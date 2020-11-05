@@ -233,6 +233,8 @@ static int imx_rpmsg_pcm_close(struct snd_pcm_substream *substream)
 
 	del_timer(&i2s_info->stream_timer[substream->stream].timer);
 
+	__pm_relax(i2s_info->rpmsg_wakeup_source);
+
 	rtd->dai_link->ignore_suspend = 0;
 
 	if (i2s_info->msg_drop_count[substream->stream])
@@ -430,6 +432,7 @@ static int imx_rpmsg_pause(struct snd_pcm_substream *substream)
 		i2s_info->work_write_index++;
 		i2s_info->work_write_index %= WORK_MAX_NUM;
 		spin_unlock_irqrestore(&i2s_info->wq_lock, flags);
+		__pm_relax(i2s_info->rpmsg_wakeup_source);
 	} else {
 		spin_unlock_irqrestore(&i2s_info->wq_lock, flags);
 		return -EPIPE;
@@ -578,6 +581,18 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 		memcpy(&i2s_info->period_done_msg[substream->stream], rpmsg,
 				sizeof(struct i2s_rpmsg_s));
 
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			if (snd_pcm_playback_avail(runtime) == 0)
+				i2s_info->buffer_full[substream->stream] = true;
+			else
+				i2s_info->buffer_full[substream->stream] = false;
+		} else {
+			if (snd_pcm_capture_avail(runtime) == 0)
+				i2s_info->buffer_full[substream->stream] = true;
+			else
+				i2s_info->buffer_full[substream->stream] = false;
+		}
+
 		i2s_info->period_done_msg_enabled[substream->stream] = true;
 		spin_unlock_irqrestore(&i2s_info->lock[substream->stream], flags);
 
@@ -586,7 +601,8 @@ int imx_rpmsg_pcm_ack(struct snd_pcm_substream *substream)
 		else
 			avail = snd_pcm_capture_hw_avail(runtime);
 
-		if ((avail - writen_num * runtime->period_size) <= runtime->period_size) {
+		if ((avail - writen_num * runtime->period_size) <= runtime->period_size
+				|| i2s_info->buffer_full[substream->stream]) {
 			spin_lock_irqsave(&i2s_info->wq_lock, flags);
 			if (i2s_info->work_write_index != i2s_info->work_read_index) {
 				int index = i2s_info->work_write_index;
