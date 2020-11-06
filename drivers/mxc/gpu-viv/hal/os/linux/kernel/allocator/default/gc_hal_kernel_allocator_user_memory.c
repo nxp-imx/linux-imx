@@ -393,6 +393,10 @@ _Import(
 
     memory = (unsigned long)Memory;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (5,4,0)
+    memory = untagged_addr(memory);
+#endif
+
     /* Get the number of required pages. */
     end = (memory + Size + PAGE_SIZE - 1) >> PAGE_SHIFT;
     start = memory >> PAGE_SHIFT;
