@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 config WLAN_VENDOR_NXP
-	bool "NXP devices"
+	tristate "NXP devices"
 	default y
 	---help---
 	  If you have a nxp card belonging to this class, say Y.
