@@ -418,7 +418,10 @@ static int cap_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	/* Create a buffer for discard operation */
 	for (i = 0; i < isi_cap->pix.num_planes; i++) {
-		isi_cap->discard_size[i] = isi_cap->dst_f.sizeimage[i];
+		size_t discard_size = (isi_cap->dst_f.width * isi_cap->dst_f.height * 4 > isi_cap->dst_f.sizeimage[i]) ?
+				isi_cap->dst_f.width * isi_cap->dst_f.height * 4 : isi_cap->dst_f.sizeimage[i];
+
+		isi_cap->discard_size[i] = discard_size;
 		isi_cap->discard_buffer[i] =
 			dma_alloc_coherent(&isi_cap->pdev->dev,
 					   PAGE_ALIGN(isi_cap->discard_size[i]),
