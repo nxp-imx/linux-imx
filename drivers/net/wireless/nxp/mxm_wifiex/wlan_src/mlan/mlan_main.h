@@ -3348,6 +3348,8 @@ mlan_status wlan_ret_mfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 			 mlan_ioctl_req *pioctl_buf);
 mlan_status wlan_misc_ioctl_rf_test_cfg(pmlan_adapter pmadapter,
 					pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_range_ext(pmlan_adapter pmadapter,
+				      pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_arb_cfg(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
 /* CFP related functions */
@@ -3761,6 +3763,11 @@ mlan_status wlan_cmd_set_get_low_power_mode_cfg(pmlan_private pmpriv,
 mlan_status wlan_ret_set_get_low_power_mode_cfg(pmlan_private pmpriv,
 						HostCmd_DS_COMMAND *resp,
 						mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_cmd_range_ext(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			       t_u16 cmd_action, t_void *pdata_buf);
+mlan_status wlan_ret_range_ext(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+			       mlan_ioctl_req *pioctl_buf);
 
 /**
  *  @brief RA based queueing

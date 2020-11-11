@@ -2100,6 +2100,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_get_rgchnpwr_cfg(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_CFP_TABLE)
 			status = wlan_get_cfp_table(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_RANGE_EXT)
+			status = wlan_misc_ioctl_range_ext(pmadapter,
+							   pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

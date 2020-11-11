@@ -547,9 +547,76 @@ static int wlan_cmd_append_osen_ie(mlan_private *priv, t_u8 **ppbuffer)
 	return retlen;
 }
 
+/**
+ *  @brief This function get the rsn_cap from RSN ie buffer.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *
+ *  @param data         A pointer to rsn_ie data after IE header
+ *  @param return       rsn_cap
+ */
+t_u16 wlan_get_rsn_cap(t_u8 *data)
+{
+	t_u16 rsn_cap = 0;
+	t_u16 *ptr;
+	t_u16 pairwise_cipher_count = 0;
+	t_u16 akm_suite_count = 0;
+	/* rsn_cap = data + 2 bytes version + 4 bytes
+	 * group_cipher_suite + 2 bytes pairwise_cipher_count +
+	 * pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN + 2 bytes
+	 * akm_suite_count + akm_suite_count * AKM_SUITE_LEN
+	 */
+	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8));
+	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
+	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
+			sizeof(t_u16) +
+			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
+	akm_suite_count = wlan_le16_to_cpu(*ptr);
+	ptr = (t_u16 *)(data + sizeof(t_u16) + 4 * sizeof(t_u8) +
+			sizeof(t_u16) +
+			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN +
+			sizeof(t_u16) + akm_suite_count * AKM_SUITE_LEN);
+	rsn_cap = wlan_le16_to_cpu(*ptr);
+	PRINTM(MCMND, "rsn_cap=0x%x\n", rsn_cap);
+	return rsn_cap;
+}
+
+/**
+ *  @brief This function check if we should enable 11w
+ *
+ *  @param pmpriv       	A pointer to mlan_private structure
+ *
+ *  @param BSSDescriptor_t      A pointer to BSSDescriptor_t data structure
+ *  @param return       	MTRUE/MFALSE
+ */
+t_u8 wlan_use_mfp(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
+{
+	t_u16 ap_rsn_cap = 0;
+	t_u16 sta_rsn_cap = 0;
+	t_u8 ap_mfpc, ap_mfpr;
+	t_u8 sta_mfpc, sta_mfpr;
+
+	if (pmpriv->wpa_ie[0] != RSN_IE)
+		return 0;
+	sta_rsn_cap = wlan_get_rsn_cap(pmpriv->wpa_ie + 2);
+	if (!pbss_desc->prsn_ie)
+		return 0;
+	ap_rsn_cap = wlan_get_rsn_cap(pbss_desc->prsn_ie->data);
+	ap_mfpc = ((ap_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
+	ap_mfpr = ((ap_rsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
+	sta_mfpc = ((sta_rsn_cap & (0x1 << MFPC_BIT)) == (0x1 << MFPC_BIT));
+	sta_mfpr = ((sta_rsn_cap & (0x1 << MFPR_BIT)) == (0x1 << MFPR_BIT));
+	if (!ap_mfpc && !ap_mfpr)
+		return MFALSE;
+	if (!sta_mfpc && !sta_mfpr)
+		return MFALSE;
+	return MTRUE;
+}
+
 /********************************************************
 				Global Functions
 ********************************************************/
+
 /**
  *  @brief This function updates RSN IE in the association request.
  *
@@ -978,6 +1045,12 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			psecurity_cfg_ie = (MrvlIEtypes_SecurityCfg_t *)pos;
 			psecurity_cfg_ie->header.type =
 				wlan_cpu_to_le16(TLV_TYPE_SECURITY_CFG);
+
+			pmpriv->curr_bss_params.use_mfp =
+				wlan_use_mfp(pmpriv, pbss_desc);
+			PRINTM(MCMND, "use_mfp=%d\n",
+			       pmpriv->curr_bss_params.use_mfp);
+
 			if (!pmpriv->curr_bss_params.use_mfp)
 				psecurity_cfg_ie->use_mfp = MFALSE;
 			else
@@ -985,8 +1058,6 @@ mlan_status wlan_cmd_802_11_associate(mlan_private *pmpriv,
 			psecurity_cfg_ie->header.len = sizeof(t_u8);
 			pos += sizeof(psecurity_cfg_ie->header) +
 			       psecurity_cfg_ie->header.len;
-			PRINTM(MCMND, "use_mfp=%d\n",
-			       pmpriv->curr_bss_params.use_mfp);
 		}
 #ifdef DRV_EMBEDDED_SUPPLICANT
 		else if (supplicantIsEnabled(pmpriv->psapriv)) {

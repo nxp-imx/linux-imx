@@ -40,8 +40,10 @@ Change log:
 ********************************************************/
 #define DRV_NAME "NXP mdriver PCIe"
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 static struct pm_qos_request woal_pcie_pm_qos_req;
+#endif
 #endif
 
 /* PCIE resume handler */
@@ -1344,16 +1346,20 @@ mlan_status woal_pcie_bus_register(void)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+#endif
 #endif
 
 	request_bus_freq(BUS_FREQ_HIGH);
 	/* API registers the NXP PCIE driver */
 	if (pci_register_driver(&wlan_pcie)) {
 		PRINTM(MFATAL, "PCIE Driver Registration Failed \n");
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 		pm_qos_remove_request(&woal_pcie_pm_qos_req);
+#endif
 #endif
 		ret = MLAN_STATUS_FAILURE;
 	}
@@ -1374,8 +1380,10 @@ void woal_pcie_bus_unregister(void)
 	release_bus_freq(BUS_FREQ_HIGH);
 	/* PCIE Driver Unregistration */
 	pci_unregister_driver(&wlan_pcie);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 	pm_qos_remove_request(&woal_pcie_pm_qos_req);
+#endif
 #endif
 
 	LEAVE();
@@ -1480,7 +1488,7 @@ int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		drv_ptr +=
 			sprintf(drv_ptr, "reg:0x%x value=0x%x\n", reg, value);
 
-		mdelay(100);
+		msleep(100);
 	}
 	drv_ptr +=
 		sprintf(drv_ptr,
@@ -1619,7 +1627,7 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		woal_pcie_read_reg(phandle, reg, &value);
 		PRINTM(MERROR, "reg:0x%x value=0x%x\n", reg, value);
 
-		mdelay(100);
+		msleep(100);
 	}
 	PRINTM(MMSG, "Interface registers dump from offset 0x%x to 0x%x\n",
 	       dump_start_reg, dump_end_reg);
@@ -1824,7 +1832,11 @@ rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 				return RDWR_STATUS_FAILURE;
 			}
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		usleep_range(99, 100);
+#else
 		udelay(100);
+#endif
 	}
 	if (ctrl_data == debug_host_ready) {
 		PRINTM(MERROR, "Fail to pull ctrl_data\n");

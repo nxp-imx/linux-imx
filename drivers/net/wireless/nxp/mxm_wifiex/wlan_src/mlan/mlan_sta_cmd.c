@@ -2811,6 +2811,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_11AX_CMD:
 		ret = wlan_cmd_11ax_cmd(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
+	case HostCmd_CMD_RANGE_EXT:
+		ret = wlan_cmd_range_ext(pmpriv, cmd_ptr, cmd_action,
+					 pdata_buf);
+		break;
 	case HostCmd_CMD_TWT_CFG:
 		ret = wlan_cmd_twt_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;

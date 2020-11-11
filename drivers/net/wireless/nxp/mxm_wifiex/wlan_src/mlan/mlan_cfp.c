@@ -96,6 +96,8 @@ static country_code_mapping_t country_code_mapping[] = {
 	{"RU", 0x30, 0x0f}, /* Russia      */
 	{"IN", 0x10, 0x06}, /* India       */
 	{"MY", 0x30, 0x06}, /* Malaysia    */
+	{"NZ", 0x30, 0x30}, /* New Zeland  */
+	{"MX", 0x10, 0x07}, /* Mexico */
 };
 
 /** Country code for ETSI */
@@ -103,7 +105,7 @@ static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
 	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK",
 	"EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "KR", "LV",
 	"LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "RU",
-	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB"};
+	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NZ"};
 
 /**
  * The structure for Channel-Frequency-Power table
@@ -423,7 +425,8 @@ static chan_freq_power_t channel_freq_power_JPN_A[] = {
 	{128, 5640, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE},
 	{132, 5660, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE},
 	{136, 5680, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE},
-	{140, 5700, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE}};
+	{140, 5700, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE},
+	{144, 5720, WLAN_TX_PWR_JP_A_DEFAULT, MTRUE}};
 
 /** Band: 'A', Region: China */
 static chan_freq_power_t channel_freq_power_CN_A[] = {
@@ -497,6 +500,30 @@ static chan_freq_power_t channel_freq_power_RU_A[] = {
 	{157, 5785, WLAN_TX_PWR_DEFAULT, MFALSE},
 	{161, 5805, WLAN_TX_PWR_DEFAULT, MFALSE},
 };
+
+/** Band: 'A', Region: Mexico */
+static chan_freq_power_t channel_freq_power_MX_A[] = {
+	{36, 5180, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{40, 5200, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{44, 5220, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{48, 5240, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{52, 5260, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{56, 5280, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{60, 5300, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{64, 5320, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{100, 5500, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{104, 5520, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{108, 5540, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{112, 5560, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{116, 5580, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{132, 5660, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{136, 5680, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{140, 5700, WLAN_TX_PWR_EMEA_DEFAULT, MTRUE},
+	{149, 5745, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{153, 5765, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{157, 5785, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{161, 5805, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE},
+	{165, 5825, WLAN_TX_PWR_EMEA_DEFAULT, MFALSE}};
 
 /** Band: 'A', Code: 1, Low band (5150-5250 MHz) channels */
 static chan_freq_power_t channel_freq_power_low_band[] = {
@@ -594,6 +621,12 @@ static cfp_table_t cfp_table_A[] = {
 	       */
 	 channel_freq_power_low_middle_high_band,
 	 NELEMENTS(channel_freq_power_low_middle_high_band)},
+	{
+		0x07, /* Mexico */
+		channel_freq_power_MX_A,
+		NELEMENTS(channel_freq_power_MX_A),
+	},
+
 	{
 		0x09, /* SPAIN/Austria/Brazil */
 		channel_freq_power_SPN2_A,
@@ -3429,6 +3462,8 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 	t_u32 cfp_no_bg = 0;
 	chan_freq_power_t *cfp_a = MNULL;
 	t_u32 cfp_no_a = 0;
+	t_u8 cfp_code_a = pmadapter->region_code;
+	t_u8 cfp_code_bg = pmadapter->region_code;
 	t_u32 len = 0, size = 0;
 	t_u8 *req_buf, *tmp;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
@@ -3446,13 +3481,17 @@ mlan_status wlan_get_cfpinfo(pmlan_adapter pmadapter,
 	size = sizeof(pmadapter->country_code) + sizeof(pmadapter->region_code);
 	/* Add size to store region, country and environment codes */
 	size += sizeof(t_u32);
+	if (pmadapter->cfp_code_bg)
+		cfp_code_bg = pmadapter->cfp_code_bg;
 
 	/* Get cfp table and its size corresponding to the region code */
-	cfp_bg = wlan_get_region_cfp_table(pmadapter, pmadapter->region_code,
+	cfp_bg = wlan_get_region_cfp_table(pmadapter, cfp_code_bg,
 					   BAND_G | BAND_B, &cfp_no_bg);
 	size += cfp_no_bg * sizeof(chan_freq_power_t);
-	cfp_a = wlan_get_region_cfp_table(pmadapter, pmadapter->region_code,
-					  BAND_A, &cfp_no_a);
+	if (pmadapter->cfp_code_a)
+		cfp_code_a = pmadapter->cfp_code_a;
+	cfp_a = wlan_get_region_cfp_table(pmadapter, cfp_code_a, BAND_A,
+					  &cfp_no_a);
 	size += cfp_no_a * sizeof(chan_freq_power_t);
 	if (pmadapter->otp_region)
 		size += sizeof(pmadapter->otp_region->environment);

@@ -1059,8 +1059,6 @@ static mlan_status wlan_bss_ioctl_start(pmlan_adapter pmadapter,
 			       "SSID found in scan list ... associating...\n");
 			pmpriv->curr_bss_params.host_mlme =
 				bss->param.ssid_bssid.host_mlme;
-			pmpriv->curr_bss_params.use_mfp =
-				bss->param.ssid_bssid.use_mfp;
 			/* Clear any past association response stored for
 			 * application retrieval */
 			pmpriv->assoc_rsp_size = 0;
@@ -5168,6 +5166,8 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_ARB_CONFIG:
 		status = wlan_misc_ioctl_arb_cfg(pmadapter, pioctl_req);
+		break;
+		status = wlan_misc_ioctl_range_ext(pmadapter, pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

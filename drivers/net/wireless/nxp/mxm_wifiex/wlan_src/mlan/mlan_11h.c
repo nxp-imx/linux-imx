@@ -107,6 +107,14 @@ static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_middle_band = {52,
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band = {
 	100, 11};
 
+/** U-NII sub-band config : Start Channel = 100, NumChans = 5 */
+static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_0 = {
+	100, 5};
+
+/** U-NII sub-band config : Start Channel = 132, NumChans = 3 */
+static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_1 = {
+	132, 3};
+
 /** U-NII sub-band config : Start Channel = 149, NumChans = 5 */
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_upper_band = {149,
 									 5};
@@ -406,6 +414,23 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv, t_u8 band,
 				wlan_11h_unii_lower_band;
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_middle_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_upper_band;
+			break;
+		case 0x7:
+			/* 36-48 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_lower_band;
+			/* 52-64 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_middle_band;
+			/* 100-116 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_mid_upper_band_0;
+			/* 132-140 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_mid_upper_band_1;
+			/* 149-165 */
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_upper_band;
 			break;

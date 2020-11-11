@@ -1319,6 +1319,8 @@ struct _moal_private {
 	t_u8 host_mlme;
 	/** flag for auth */
 	t_u8 auth_flag;
+	/** flag for auth algorithm */
+	t_u16 auth_alg;
 #endif
 #ifdef CONFIG_PROC_FS
 	/** Proc entry */

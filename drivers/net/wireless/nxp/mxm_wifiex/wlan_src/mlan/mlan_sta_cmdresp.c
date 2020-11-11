@@ -2675,6 +2675,9 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_11AX_CMD:
 		ret = wlan_ret_11ax_cmd(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_RANGE_EXT:
+		ret = wlan_ret_range_ext(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCmd_CMD_TWT_CFG:
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG:

@@ -4555,6 +4555,10 @@ mlan_status wlan_ops_uap_prepare_cmd(t_void *priv, t_u16 cmd_no,
 	case HostCmd_CMD_11AX_CMD:
 		ret = wlan_cmd_11ax_cmd(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
+	case HostCmd_CMD_RANGE_EXT:
+		ret = wlan_cmd_range_ext(pmpriv, cmd_ptr, cmd_action,
+					 pdata_buf);
+		break;
 	case HostCmd_CMD_RX_ABORT_CFG:
 		ret = wlan_cmd_rxabortcfg(pmpriv, cmd_ptr, cmd_action,
 					  pdata_buf);
@@ -4924,6 +4928,9 @@ mlan_status wlan_ops_uap_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 		break;
 	case HostCmd_CMD_11AX_CMD:
 		ret = wlan_ret_11ax_cmd(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_RANGE_EXT:
+		ret = wlan_ret_range_ext(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_RX_ABORT_CFG:
 		ret = wlan_ret_rxabortcfg(pmpriv, resp, pioctl_buf);

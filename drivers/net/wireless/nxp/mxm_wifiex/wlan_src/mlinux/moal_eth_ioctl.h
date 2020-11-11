@@ -346,6 +346,8 @@ typedef struct _ssu_params_cfg {
 #define PRIV_CMD_11AXCFG "11axcfg"
 /** Private command: 11AX Cmd */
 #define PRIV_CMD_11AXCMDCFG "11axcmd"
+/** Private command: Range ext Cmd */
+#define PRIV_CMD_RANGE_EXT "range_ext"
 /** Private command: TWT Setup Cfg */
 #define PRIV_CMD_TWT_SETUP "twt_setup"
 /** Private command: TWT Teardown Cfg */

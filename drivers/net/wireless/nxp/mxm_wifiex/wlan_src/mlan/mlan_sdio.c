@@ -1941,22 +1941,30 @@ mlan_status wlan_sdio_interrupt(t_u16 msg_id, pmlan_adapter pmadapter)
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_buffer mbuf;
 	t_u32 sdio_ireg = 0;
+	t_u8 offset = 0;
 	t_u8 max_mp_regs = pmadapter->pcard_sd->reg->max_mp_regs;
 	t_u8 host_int_status_reg =
 		pmadapter->pcard_sd->reg->host_int_status_reg;
 
 	ENTER();
 
-	memset(pmadapter, &mbuf, 0, sizeof(mlan_buffer));
-	mbuf.pbuf = pmadapter->pcard_sd->mp_regs;
-	mbuf.data_len = max_mp_regs;
+	while (max_mp_regs) {
+		memset(pmadapter, &mbuf, 0, sizeof(mlan_buffer));
+		mbuf.pbuf = pmadapter->pcard_sd->mp_regs + offset;
+		mbuf.data_len = MIN(max_mp_regs, MLAN_SDIO_BLOCK_SIZE);
 
-	if (MLAN_STATUS_SUCCESS !=
-	    pcb->moal_read_data_sync(pmadapter->pmoal_handle, &mbuf,
-				     REG_PORT | MLAN_SDIO_BYTE_MODE_MASK, 0)) {
-		PRINTM(MERROR, "moal_read_data_sync: read registers failed\n");
-		pmadapter->dbg.num_int_read_failure++;
-		goto done;
+		if (MLAN_STATUS_SUCCESS !=
+		    pcb->moal_read_data_sync(pmadapter->pmoal_handle, &mbuf,
+					     (REG_PORT + offset) |
+						     MLAN_SDIO_BYTE_MODE_MASK,
+					     0)) {
+			PRINTM(MERROR,
+			       "moal_read_data_sync: read registers failed\n");
+			pmadapter->dbg.num_int_read_failure++;
+			goto done;
+		}
+		offset += mbuf.data_len;
+		max_mp_regs -= mbuf.data_len;
 	}
 
 	DBG_HEXDUMP(MIF_D, "SDIO MP Registers", pmadapter->pcard_sd->mp_regs,

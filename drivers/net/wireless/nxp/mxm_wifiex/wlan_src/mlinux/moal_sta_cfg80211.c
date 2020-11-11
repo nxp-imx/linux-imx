@@ -1867,11 +1867,13 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	}
 	kfree(ssid_bssid);
 
-	if (priv->auth_flag & HOST_MLME_AUTH_PENDING) {
+	if ((priv->auth_alg != WLAN_AUTH_SAE) &&
+	    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
 		PRINTM(MERROR, "pending auth on going\n");
 		LEAVE();
 		return -EBUSY;
 	}
+
 	/** cancel pending scan */
 	woal_cancel_scan(priv, MOAL_IOCTL_WAIT);
 
@@ -1903,9 +1905,11 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 #endif
 
 	/*enable auth register frame*/
-	woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
-	woal_mgmt_frame_register(priv, IEEE80211_STYPE_DEAUTH, MTRUE);
-	woal_mgmt_frame_register(priv, IEEE80211_STYPE_DISASSOC, MTRUE);
+	if (priv->auth_flag == 0) {
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MTRUE);
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_DEAUTH, MTRUE);
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_DISASSOC, MTRUE);
+	}
 
 #define HEADER_SIZE 8
 	// frmctl + durationid + addr1 + addr2 + addr3 + seqctl + addr4
@@ -1988,23 +1992,25 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	}
 
 #define AUTH_TX_DEFAULT_WAIT_TIME 1200
-	if (woal_cfg80211_remain_on_channel_cfg(
-		    priv, MOAL_IOCTL_WAIT, MFALSE, (t_u8 *)&status,
-		    req->bss->channel, 0, AUTH_TX_DEFAULT_WAIT_TIME)) {
-		PRINTM(MERROR, "Fail to configure remain on channel\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (status == MLAN_STATUS_SUCCESS) {
-		priv->phandle->remain_on_channel = MTRUE;
-		moal_memcpy_ext(priv->phandle, &(priv->phandle->chan),
-				req->bss->channel,
-				sizeof(struct ieee80211_channel),
-				sizeof(priv->phandle->chan));
-	} else {
-		PRINTM(MERROR,
-		       "HostMlme %s: Set remain on Channel: with status=%d\n",
-		       dev->name, status);
+	if (priv->auth_flag == 0) {
+		if (woal_cfg80211_remain_on_channel_cfg(
+			    priv, MOAL_IOCTL_WAIT, MFALSE, (t_u8 *)&status,
+			    req->bss->channel, 0, AUTH_TX_DEFAULT_WAIT_TIME)) {
+			PRINTM(MERROR, "Fail to configure remain on channel\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		if (status == MLAN_STATUS_SUCCESS) {
+			priv->phandle->remain_on_channel = MTRUE;
+			moal_memcpy_ext(priv->phandle, &(priv->phandle->chan),
+					req->bss->channel,
+					sizeof(struct ieee80211_channel),
+					sizeof(priv->phandle->chan));
+		} else {
+			PRINTM(MERROR,
+			       "HostMlme %s: Set remain on Channel: with status=%d\n",
+			       dev->name, status);
+		}
 	}
 
 	pmbuf->data_offset = MLAN_MIN_DATA_HEADER_LEN;
@@ -2092,6 +2098,8 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 
 	priv->host_mlme = MTRUE;
 	priv->auth_flag = HOST_MLME_AUTH_PENDING;
+	priv->auth_alg = cpu_to_le16(auth_alg);
+
 	PRINTM(MCMND, "wlan: HostMlme %s send auth to bssid " MACSTR "\n",
 	       dev->name, MAC2STR(req->bss->bssid));
 	DBG_HEXDUMP(MDAT_D, "Auth:", pmbuf->pbuf + pmbuf->data_offset,
@@ -2111,6 +2119,9 @@ static int woal_cfg80211_authenticate(struct wiphy *wiphy,
 	case MLAN_STATUS_FAILURE:
 	default:
 		woal_free_mlan_buffer(priv->phandle, pmbuf);
+		priv->host_mlme = MFALSE;
+		priv->auth_flag = 0;
+		priv->auth_alg = 0xFFFF;
 		ret = -EFAULT;
 		break;
 	}
@@ -2321,8 +2332,29 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 	const u8 *ssid_ie;
 	int wpa_enabled = 0, group_enc_mode = 0, pairwise_enc_mode = 0;
 	mlan_bss_info bss_info;
+	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	if (priv->auth_alg == WLAN_AUTH_SAE) {
+		priv->auth_flag = HOST_MLME_AUTH_DONE;
+
+		woal_mgmt_frame_register(priv, IEEE80211_STYPE_AUTH, MFALSE);
+		PRINTM(MINFO, "wlan: HostMlme %s auth exchange successful\n",
+		       priv->netdev->name);
+
+		if (priv->phandle->remain_on_channel) {
+			if (woal_cfg80211_remain_on_channel_cfg(
+				    priv, MOAL_IOCTL_WAIT, MTRUE,
+				    (t_u8 *)&status, NULL, 0, 0)) {
+				PRINTM(MERROR,
+				       "Failed to cancel remain on channel\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			priv->phandle->remain_on_channel = MFALSE;
+		}
+	}
 
 	if (priv->auth_flag && !(priv->auth_flag & HOST_MLME_AUTH_DONE)) {
 		LEAVE();
@@ -2331,6 +2363,7 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 
 	priv->cfg_connect = MTRUE;
 	priv->assoc_status = 0;
+	priv->auth_alg = 0xFFFF;
 
 	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 	ssid_ie = ieee80211_bss_get_ie(req->bss, WLAN_EID_SSID);
@@ -2414,7 +2447,6 @@ static int woal_cfg80211_associate(struct wiphy *wiphy, struct net_device *dev,
 			goto done;
 	}
 	ssid_bssid.host_mlme = priv->host_mlme;
-	ssid_bssid.use_mfp = req->use_mfp;
 
 	if (req->bss->channel) {
 		ssid_bssid.channel_flags = req->bss->channel->flags;
@@ -2860,10 +2892,6 @@ int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
 		ssid_bssid.channel_flags |= CHAN_FLAGS_MAX;
 		PRINTM(MCMND, "channel flags=0x%x\n", channel->flags);
 	}
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
-	if (conn_param)
-		ssid_bssid.use_mfp = conn_param->mfp;
-#endif
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_bss_start(priv, MOAL_IOCTL_WAIT_TIMEOUT, &ssid_bssid)) {
 		ret = -EFAULT;
@@ -4875,6 +4903,7 @@ static int woal_cfg80211_deauthenticate(struct wiphy *wiphy,
 	if (priv->host_mlme) {
 		priv->host_mlme = MFALSE;
 		priv->auth_flag = 0;
+		priv->auth_alg = 0xFFFF;
 		/*send deauth packet to notify disconnection to wpa_supplicant
 		 */
 		woal_deauth_event(priv, req->reason_code);
@@ -4913,6 +4942,7 @@ static int woal_cfg80211_disassociate(struct wiphy *wiphy,
 	if (priv->host_mlme) {
 		priv->host_mlme = MFALSE;
 		priv->auth_flag = 0;
+		priv->auth_alg = 0xFFFF;
 		/*send deauth packet to notify disconnection to wpa_supplicant
 		 */
 		woal_deauth_event(priv, req->reason_code);

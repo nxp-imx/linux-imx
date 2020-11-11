@@ -58,6 +58,7 @@ static region_code_mapping_t region_code_mapping[] = {
 	{"CN ", 0x50}, /* China       */
 	{"JP ", 0xFE}, /* Japan       */
 	{"JP ", 0xFF}, /* Japan special */
+	{"NE ", 0x30}, /* New Zeland  */
 };
 
 /** Universal region code */

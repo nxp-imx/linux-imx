@@ -88,6 +88,8 @@ static region_code_mapping_t region_code_mapping[] = {
 	{"RU", 0x0f}, /* Russia      */
 	{"IN", 0x06}, /* India       */
 	{"MY", 0x06}, /* Malaysia    */
+	{"MX", 0x07}, /* Mexico    */
+	{"NE", 0x30}, /* New Zeland  */
 };
 
 /** EEPROM Region code mapping table */
@@ -107,7 +109,7 @@ static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
 	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK",
 	"EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "KR", "LV",
 	"LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "RU",
-	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB"};
+	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NE"};
 
 /********************************************************
 			Global Variables

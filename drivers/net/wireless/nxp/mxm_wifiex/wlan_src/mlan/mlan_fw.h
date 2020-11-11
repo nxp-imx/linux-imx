@@ -1590,6 +1590,8 @@ typedef MLAN_PACK_START struct _power_table_attr {
 #define HostCmd_CMD_11AX_CFG 0x0266
 /** Host Command ID: 11AX command */
 #define HostCmd_CMD_11AX_CMD 0x026d
+/** Host Command ID: Range ext command */
+#define HostCmd_CMD_RANGE_EXT 0x0274
 /** Host Command ID: TWT cfg command */
 #define HostCmd_CMD_TWT_CFG 0x0270
 
@@ -4612,6 +4614,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_11AX_CMD_CFG {
 	t_u8 val[];
 } MLAN_PACK_END HostCmd_DS_11AX_CMD_CFG;
 
+/** HostCmd_DS_RANGE_EXT */
+typedef MLAN_PACK_START struct _HostCmd_DS_RANGE_EXT {
+	/** Action */
+	t_u16 action;
+	/** Range ext mode */
+	t_u8 mode;
+} MLAN_PACK_END HostCmd_DS_RANGE_EXT;
+
 /** Type definition of hostcmd_twt_setup */
 typedef struct MLAN_PACK_START _hostcmd_twt_setup {
 	/** Implicit, 0: TWT session is explicit, 1: Session is implicit */
@@ -7297,6 +7307,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_11AX_CFG axcfg;
 		/** HostCmd_DS_11AX_CMD_CFG */
 		HostCmd_DS_11AX_CMD_CFG axcmd;
+		HostCmd_DS_RANGE_EXT range_ext;
 		/** HostCmd_DS_TWT_CFG */
 		HostCmd_DS_TWT_CFG twtcfg;
 

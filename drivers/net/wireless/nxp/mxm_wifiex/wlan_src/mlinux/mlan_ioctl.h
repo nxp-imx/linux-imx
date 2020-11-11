@@ -329,6 +329,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_ARB_CONFIG = 0x00200078,
 	MLAN_OID_MISC_BEACON_STUCK = 0x00200079,
 	MLAN_OID_MISC_CFP_TABLE = 0x0020007A,
+	MLAN_OID_MISC_RANGE_EXT = 0x0020007B,
 };
 
 /** Sub command size */
@@ -696,8 +697,6 @@ typedef struct _mlan_ssid_bssid {
 	t_u32 channel_flags;
 	/** host mlme flag*/
 	t_u8 host_mlme;
-	/* Use management frame protection (IEEE 802.11w) in this association*/
-	t_u8 use_mfp;
 	/** assoicate resp frame/ie from firmware */
 	mlan_ds_misc_assoc_rsp assoc_rsp;
 } mlan_ssid_bssid, *pmlan_ssid_bssid;
@@ -5089,6 +5088,7 @@ typedef struct _mlan_ds_misc_cfg {
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
+		t_u8 range_ext_mode;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

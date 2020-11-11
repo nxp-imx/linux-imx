@@ -934,6 +934,8 @@ static t_u16 wlan_get_cmd_timeout(t_u16 cmd_id)
 	case HostCmd_CMD_802_11_SCAN_EXT:
 		timeout = MRVDRV_TIMER_10S * 2;
 		break;
+	case HostCmd_CMD_FUNC_INIT:
+	case HostCmd_CMD_FUNC_SHUTDOWN:
 	case HostCmd_CMD_802_11_ASSOCIATE:
 	case HostCmd_CMD_802_11_DEAUTHENTICATE:
 	case HostCmd_CMD_802_11_DISASSOCIATE:
@@ -8214,6 +8216,63 @@ mlan_status wlan_ret_get_chan_trpc_config(pmlan_private pmpriv,
 		memcpy_ext(pmadapter, cfg->trpc_buf, (t_u8 *)resp, cfg->length,
 			   sizeof(cfg->trpc_buf));
 	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of RANGE_EXT
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status wlan_cmd_range_ext(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
+			       t_u16 cmd_action, t_void *pdata_buf)
+{
+	HostCmd_DS_RANGE_EXT *range_ext = &cmd->params.range_ext;
+	t_u8 mode = *(t_u8 *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_RANGE_EXT);
+	cmd->size = wlan_cpu_to_le16(sizeof(HostCmd_DS_RANGE_EXT) + S_DS_GEN);
+	range_ext->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET)
+		range_ext->mode = mode;
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of RANGE_EXT
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_range_ext(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
+			       mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	HostCmd_DS_RANGE_EXT *range_ext = &resp->params.range_ext;
+
+	ENTER();
+
+	if (pioctl_buf &&
+	    (wlan_le16_to_cpu(range_ext->action) == HostCmd_ACT_GEN_GET)) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.range_ext_mode = range_ext->mode;
+		PRINTM(MCMND, "Get range ext mode %d\n",
+		       misc_cfg->param.range_ext_mode);
+	}
+
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }

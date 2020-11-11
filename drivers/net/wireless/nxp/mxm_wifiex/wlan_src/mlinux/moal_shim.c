@@ -1655,6 +1655,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		priv->auth_flag = 0;
 		priv->host_mlme = MFALSE;
+		priv->auth_alg = 0xFFFF;
 #endif
 #endif
 #ifdef STA_WEXT
@@ -2413,6 +2414,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 			    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
 				priv->auth_flag = 0;
 				priv->host_mlme = MFALSE;
+				priv->auth_alg = 0xFFFF;
 			}
 			priv->phandle->remain_on_channel = MFALSE;
 			if (priv->phandle->cookie &&
@@ -2624,30 +2626,35 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 						    ((struct ieee80211_mgmt *)
 							     pkt)
 							    ->frame_control)) {
+						PRINTM(MEVENT,
+						       "HostMlme %s: Received auth frame type = 0x%x\n",
+						       priv->netdev->name,
+						       priv->auth_alg);
+
 						if (priv->auth_flag &
 						    HOST_MLME_AUTH_PENDING) {
-							PRINTM(MEVENT,
-							       "HostMlme %s: Receive auth\n",
-							       priv->netdev
-								       ->name);
-							priv->auth_flag &=
-								~HOST_MLME_AUTH_PENDING;
-							priv->auth_flag |=
-								HOST_MLME_AUTH_DONE;
-							priv->phandle
-								->host_mlme_priv =
-								priv;
-							queue_work(
+							if (priv->auth_alg !=
+							    WLAN_AUTH_SAE) {
+								priv->auth_flag &=
+									~HOST_MLME_AUTH_PENDING;
+								priv->auth_flag |=
+									HOST_MLME_AUTH_DONE;
 								priv->phandle
-									->evt_workqueue,
-								&priv->phandle
-									 ->host_mlme_work);
+									->host_mlme_priv =
+									priv;
+								queue_work(
+									priv->phandle
+										->evt_workqueue,
+									&priv->phandle
+										 ->host_mlme_work);
+							}
 						} else {
 							PRINTM(MERROR,
-							       "HostMlme %s: Drop auth pkt,auth_flag=0x%x\n",
+							       "HostMlme %s: Drop auth frame, auth_flag=0x%x auth_alg=0x%x\n",
 							       priv->netdev
 								       ->name,
-							       priv->auth_flag);
+							       priv->auth_flag,
+							       priv->auth_alg);
 							break;
 						}
 					} else {
@@ -2665,6 +2672,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 							MFALSE);
 						priv->host_mlme = MFALSE;
 						priv->auth_flag = 0;
+						priv->auth_alg = 0xFFFF;
 						if (!priv->wdev->current_bss) {
 							PRINTM(MEVENT,
 							       "HostMlme: Drop deauth/disassociate, we already disconnected\n");
