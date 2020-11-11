@@ -166,7 +166,7 @@ static struct pca9450_board *pca9450_parse_dt(struct i2c_client *client,
 
 	board_info->gpio_intr = of_get_named_gpio(np, "gpio_intr", 0);
 	if (!gpio_is_valid(board_info->gpio_intr)) {
-		if (PTR_ERR(board_info->gpio_intr) != -EPROBE_DEFER)
+		if (board_info->gpio_intr != -EPROBE_DEFER)
 			dev_err(&client->dev, "no pmic intr pin available\n");
 		goto err_intr;
 	}
