@@ -2871,9 +2871,7 @@ typedef struct _mlan_ds_beacon_stuck_param_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND                                                    \
-	(HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA |       \
-	 HOST_SLEEP_COND_MAC_EVENT)
+#define HOST_SLEEP_DEF_COND 0
 
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO 0xff
