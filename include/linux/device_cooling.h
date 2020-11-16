@@ -12,7 +12,7 @@
 
 #include <linux/thermal.h>
 
-#ifdef CONFIG_DEVICE_THERMAL
+#if IS_ENABLED(CONFIG_DEVICE_THERMAL)
 int register_devfreq_cooling_notifier(struct notifier_block *nb);
 int unregister_devfreq_cooling_notifier(struct notifier_block *nb);
 struct thermal_cooling_device *devfreq_cooling_register(struct device_node *np,

@@ -113,7 +113,7 @@ static sc_ipc_t gpu_ipcHandle;
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
-#ifdef CONFIG_DEVICE_THERMAL
+#if IS_ENABLED(CONFIG_DEVICE_THERMAL)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 #    include <linux/device_cooling.h>
 #    define REG_THERMAL_NOTIFIER(a) register_devfreq_cooling_notifier(a);
