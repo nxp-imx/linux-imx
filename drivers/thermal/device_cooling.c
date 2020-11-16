@@ -152,3 +152,5 @@ void devfreq_cooling_unregister(struct thermal_cooling_device *cdev)
 	kfree(devfreq_dev);
 }
 EXPORT_SYMBOL_GPL(devfreq_cooling_unregister);
+
+MODULE_LICENSE("GPL v2");
