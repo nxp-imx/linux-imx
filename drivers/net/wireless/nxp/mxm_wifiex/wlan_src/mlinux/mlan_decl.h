@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "207"
+#define MLAN_RELEASE_VERSION "210"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -238,7 +238,7 @@ typedef t_s32 t_sval;
 
 /** Size of command buffer */
 /** because cal_data_size 2.4 k */
-#define MRVDRV_SIZE_OF_CMD_BUFFER (3 * 1024)
+#define MRVDRV_SIZE_OF_CMD_BUFFER (4 * 1024)
 /** Size of rx command buffer */
 #define MLAN_RX_CMD_BUF_SIZE MRVDRV_SIZE_OF_CMD_BUFFER
 /** Upload size */
@@ -754,6 +754,7 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER = 0x80000027,
 	MLAN_EVENT_ID_DRV_DISCONNECT_LOGGER = 0x80000028,
 	MLAN_EVENT_ID_DRV_WIFI_STATUS = 0x80000029,
+	MLAN_EVENT_ID_STORE_HOST_CMD_RESP = 0x80000030,
 } mlan_event_id;
 
 /** Data Structures */
@@ -803,6 +804,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 
 #define OID_TYPE_CAL 0x2
 #define OID_TYPE_DPD 0xa
+#define UNKNOW_DPD_LENGTH 0xffffffff
 
 /** Custom data structure */
 typedef struct _mlan_init_param {
@@ -957,6 +959,18 @@ typedef struct _mlan_event {
 	/** Event buffer */
 	t_u8 event_buf[];
 } mlan_event, *pmlan_event;
+
+/** mlan_cmdresp_event data structure */
+typedef struct _mlan_cmdresp_event {
+	/** BSS index number for multiple BSS support */
+	t_u32 bss_index;
+	/** Event ID */
+	mlan_event_id event_id;
+	/** Event length */
+	t_u32 event_len;
+	/** resp buffer pointer */
+	t_u8 *resp;
+} mlan_cmdresp_event, *pmlan_cmdresp_event;
 
 /** csi event data structure */
 

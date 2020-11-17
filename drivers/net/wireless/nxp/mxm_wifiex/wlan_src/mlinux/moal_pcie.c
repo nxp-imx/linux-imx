@@ -34,7 +34,9 @@ Change log:
 #include <linux/pm_qos.h>
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #include <linux/busfreq-imx.h>
+#endif
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -118,6 +120,8 @@ static const struct pci_device_id wlan_ids[] = {
 };
 /* moal interface ops */
 static moal_if_ops pcie_ops;
+
+MODULE_DEVICE_TABLE(pci, wlan_ids);
 
 /********************************************************
 			Global Variables
@@ -1352,7 +1356,9 @@ mlan_status woal_pcie_bus_register(void)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 	request_bus_freq(BUS_FREQ_HIGH);
+#endif
 	/* API registers the NXP PCIE driver */
 	if (pci_register_driver(&wlan_pcie)) {
 		PRINTM(MFATAL, "PCIE Driver Registration Failed \n");
@@ -1377,7 +1383,9 @@ void woal_pcie_bus_unregister(void)
 {
 	ENTER();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 	release_bus_freq(BUS_FREQ_HIGH);
+#endif
 	/* PCIE Driver Unregistration */
 	pci_unregister_driver(&wlan_pcie);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
@@ -1488,7 +1496,7 @@ int woal_pcie_dump_reg_info(moal_handle *phandle, t_u8 *buffer)
 		drv_ptr +=
 			sprintf(drv_ptr, "reg:0x%x value=0x%x\n", reg, value);
 
-		msleep(100);
+		mdelay(100);
 	}
 	drv_ptr +=
 		sprintf(drv_ptr,
@@ -1627,7 +1635,7 @@ static void woal_pcie_reg_dbg(moal_handle *phandle)
 		woal_pcie_read_reg(phandle, reg, &value);
 		PRINTM(MERROR, "reg:0x%x value=0x%x\n", reg, value);
 
-		msleep(100);
+		mdelay(100);
 	}
 	PRINTM(MMSG, "Interface registers dump from offset 0x%x to 0x%x\n",
 	       dump_start_reg, dump_end_reg);
@@ -1740,6 +1748,7 @@ memory_type_mapping mem_type_mapping_tbl_8897[] = {
 
 #if defined(PCIE8997) || defined(PCIE9098) || defined(PCIE9097)
 #define DEBUG_HOST_READY_8997 0xCC
+#define DEBUG_HOST_EVENT_READY 0xAA
 #define DEBUG_MEMDUMP_FINISH_8997 0xDD
 memory_type_mapping mem_type_mapping_tbl_8997 = {"DUMP", NULL, NULL, 0xDD,
 						 0x00};
@@ -1797,7 +1806,10 @@ rdwr_status woal_pcie_rdwr_firmware(moal_handle *phandle, t_u8 doneflag)
 #if defined(PCIE9098) || defined(PCIE9097)
 	if (IS_PCIE9098(phandle->card_type) ||
 	    IS_PCIE9097(phandle->card_type)) {
-		debug_host_ready = DEBUG_HOST_READY_8997;
+		if (phandle->event_fw_dump)
+			debug_host_ready = DEBUG_HOST_EVENT_READY;
+		else
+			debug_host_ready = DEBUG_HOST_READY_8997;
 		dump_ctrl_reg = PCIE9098_DUMP_CTRL_REG;
 	}
 #endif
@@ -2044,7 +2056,19 @@ void woal_pcie_dump_fw_info_v2(moal_handle *phandle)
 		PRINTM(MERROR, "Could not dump firmwware info\n");
 		return;
 	}
-
+#if defined(PCIE9098) || defined(PCIE9097)
+	if (IS_PCIE9098(phandle->card_type) ||
+	    IS_PCIE9097(phandle->card_type)) {
+		if (phandle->event_fw_dump) {
+			if (RDWR_STATUS_FAILURE !=
+			    woal_pcie_rdwr_firmware(phandle, doneflag))
+				PRINTM(MMSG,
+				       "====PCIE FW DUMP EVENT MODE START ====\n");
+			phandle->event_fw_dump = MFALSE;
+			return;
+		}
+	}
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 	/** Create dump directory*/
 	woal_create_dump_dir(phandle, path_name, sizeof(path_name));

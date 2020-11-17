@@ -2069,6 +2069,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_TX_AMPDU_PROT_MODE)
 			status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 								    pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG)
+			status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(
+				pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RATE_ADAPT_CFG)
 			status = wlan_misc_ioctl_rate_adapt_cfg(pmadapter,
 								pioctl_req);

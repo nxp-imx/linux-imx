@@ -1906,6 +1906,10 @@ struct _moal_handle {
 	t_u8 ioctl_timeout;
 	/** FW dump state */
 	t_u8 fw_dump;
+	/** event fw dump */
+	t_u8 event_fw_dump;
+	/** fw dump buffer total len */
+	t_u64 fw_dump_len;
 	/** FW dump full name */
 	t_u8 firmware_dump_file[128];
 #ifdef SDIO
@@ -2733,6 +2737,8 @@ void woal_store_firmware_dump(moal_handle *phandle, pmlan_event pmevent);
 void woal_store_ssu_dump(moal_handle *phandle, pmlan_event pmevent);
 #endif /* SSU_SUPPORT */
 
+/** save hostcmd response to file */
+t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent);
 int woal_pre_warmreset(moal_private *priv);
 int woal_warmreset(moal_private *priv);
 

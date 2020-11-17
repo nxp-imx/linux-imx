@@ -2833,6 +2833,10 @@ mlan_status wlan_ops_sta_prepare_cmd(t_void *priv, t_u16 cmd_no,
 		ret = wlan_cmd_tx_ampdu_prot_mode(pmpriv, cmd_ptr, cmd_action,
 						  pdata_buf);
 		break;
+	case HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG:
+		ret = wlan_cmd_dot11mc_unassoc_ftm_cfg(pmpriv, cmd_ptr,
+						       cmd_action, pdata_buf);
+		break;
 	case HostCmd_CMD_RATE_ADAPT_CFG:
 		ret = wlan_cmd_rate_adapt_cfg(pmpriv, cmd_ptr, cmd_action,
 					      pdata_buf);

@@ -1365,7 +1365,7 @@ static mlan_status wlan_pcie_delete_cmdrsp_buf(mlan_adapter *pmadapter)
 		pmbuf = pmadapter->pcard_pcie->cmd_buf;
 		pcb->moal_unmap_memory(pmadapter->pmoal_handle,
 				       pmbuf->pbuf + pmbuf->data_offset,
-				       pmbuf->buf_pa, MLAN_SIZE_OF_CMD_BUFFER,
+				       pmbuf->buf_pa, MRVDRV_SIZE_OF_CMD_BUFFER,
 				       PCI_DMA_TODEVICE);
 	}
 
@@ -2362,7 +2362,7 @@ static mlan_status wlan_pcie_process_cmd_resp(mlan_adapter *pmadapter)
 		memcpy_ext(pmadapter, pmadapter->upld_buf,
 			   pmbuf->pbuf + pmbuf->data_offset +
 				   PCIE_INTF_HEADER_LEN,
-			   pmadapter->upld_len, MLAN_SIZE_OF_CMD_BUFFER);
+			   pmadapter->upld_len, MRVDRV_SIZE_OF_CMD_BUFFER);
 
 	} else {
 		pmadapter->cmd_resp_received = MTRUE;

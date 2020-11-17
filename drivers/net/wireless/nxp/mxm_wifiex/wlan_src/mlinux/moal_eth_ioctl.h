@@ -293,6 +293,7 @@ typedef struct _chan_stats {
 #define CCK_DESENSE_MODE_DYN_ENH 2
 /**Private command to configure cck desense config */
 #define PRIV_CMD_CCK_DESENSE_CFG "cck_desense_cfg"
+#define PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG "dot11mc_unassoc_ftm_cfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD (SIOCDEVPRIVATE + 1)

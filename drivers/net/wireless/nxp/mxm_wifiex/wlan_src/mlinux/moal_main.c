@@ -2784,6 +2784,7 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u8 req_fw_nowait = moal_extflg_isset(handle, EXT_REQ_FW_NOWAIT);
 	char *dpd_data_cfg = handle->params.dpd_data_cfg;
+	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 
@@ -2819,8 +2820,10 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 				handle->init_user_conf_wait_q,
 				handle->init_user_conf_wait_flag);
 		} else {
-			if ((request_firmware(&handle->dpd_data, dpd_data_cfg,
-					      handle->hotplug_device)) < 0) {
+			status = request_firmware(&handle->dpd_data,
+						  dpd_data_cfg,
+						  handle->hotplug_device);
+			if (status < 0 && status != -ENOENT) {
 				PRINTM(MERROR,
 				       "DPD data request_firmware() failed\n");
 				ret = MLAN_STATUS_FAILURE;
@@ -2830,6 +2833,8 @@ static mlan_status woal_req_dpd_data(moal_handle *handle,
 		if (handle->dpd_data) {
 			param->pdpd_data_buf = (t_u8 *)handle->dpd_data->data;
 			param->dpd_data_len = handle->dpd_data->size;
+		} else {
+			param->dpd_data_len = UNKNOW_DPD_LENGTH;
 		}
 	}
 
@@ -6195,6 +6200,7 @@ static int woal_get_card_info(moal_handle *phandle)
 #ifdef PCIE9098
 	case CARD_TYPE_PCIE9098:
 		phandle->card_info = &card_info_PCIE9098;
+		phandle->event_fw_dump = MTRUE;
 		break;
 #endif
 #ifdef USB8997
@@ -6987,11 +6993,14 @@ save_ssudump:
 #endif /* SSU_SUPPORT */
 
 #define OFFSET_SEQNUM 4
+#define OFFSET_TYPE 8
+#define DUMP_TYPE_ENDE 2
 t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 {
 	struct file *pfile_fwdump = NULL;
 	loff_t pos = 0;
 	t_u16 seqnum;
+	t_u16 type = 0;
 	t_u8 path_name[64];
 	moal_handle *ref_handle = NULL;
 
@@ -7002,7 +7011,15 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 	else {
 		seqnum = woal_le16_to_cpu(
 			*(t_u16 *)(pmevent->event_buf + OFFSET_SEQNUM));
+		type = woal_le16_to_cpu(
+			*(t_u16 *)(pmevent->event_buf + OFFSET_TYPE));
+
 		if (seqnum == 1) {
+			if (drvdbg & MFW_D)
+				drvdbg &= ~MFW_D;
+			phandle->fw_dump_len = 0;
+			PRINTM(MMSG,
+			       "==== Start Receive FW dump event  ====\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 			/** Create dump directort*/
 			woal_create_dump_dir(phandle, path_name,
@@ -7049,13 +7066,18 @@ t_void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 		LEAVE();
 		return;
 	}
+	phandle->fw_dump_len += pmevent->event_len - OFFSET_SEQNUM;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-	vfs_write(pfile_fwdump, pmevent->event_buf, pmevent->event_len, &pos);
+	vfs_write(pfile_fwdump, pmevent->event_buf + OFFSET_SEQNUM,
+		  pmevent->event_len - OFFSET_SEQNUM, &pos);
 #else
-	kernel_write(pfile_fwdump, pmevent->event_buf, pmevent->event_len,
-		     &pos);
+	kernel_write(pfile_fwdump, pmevent->event_buf + OFFSET_SEQNUM,
+		     pmevent->event_len - OFFSET_SEQNUM, &pos);
 #endif
 	filp_close(pfile_fwdump, NULL);
+	if (type == DUMP_TYPE_ENDE)
+		PRINTM(MMSG, "==== FW DUMP END: %ld bytes ====\n",
+		       (long int)phandle->fw_dump_len);
 	LEAVE();
 	return;
 }
@@ -7094,7 +7116,7 @@ static int woal_save_hex_dump(int rowsize, const void *buf, size_t len,
 		hex_dump_to_buffer(ptr + i, linelen, rowsize, 1, linebuf,
 				   sizeof(linebuf), false);
 
-		pos += sprintf(pos, "%p: %s\n", ptr + i, linebuf);
+		pos += sprintf(pos, "%s\n", linebuf);
 	}
 
 	return pos - (char *)save_buf;
@@ -7437,6 +7459,81 @@ static int woal_dump_mlan_drv_info(moal_private *priv, t_u8 *buf)
 
 	LEAVE();
 	return ptr - (char *)buf;
+}
+#define HostCmd_CMD_CFG_DATA 0x008f
+#define DEF_FW_PATH "/lib/firmware/"
+#define DEF_HOSTCMD_PATH "/lib/firmware/nxp/hostcmd.conf"
+/**
+ *  @brief This function save the hostcmd response to file
+ *
+ *  @param phandle   A pointer to moal_handle
+ *  @param pevent    A pointer to mlan_cmdresp_event
+ *
+ *  @return          N/A
+ */
+t_void woal_save_host_cmdresp(moal_handle *phandle, mlan_cmdresp_event *pevent)
+{
+	HostCmd_DS_GEN *resp;
+	char file_path[256];
+	struct file *pfile = NULL;
+	char *dpd_data_cfg = phandle->params.dpd_data_cfg;
+	int ret;
+	t_u8 *buf;
+	t_u16 command;
+	int len = 0;
+	char *ptr;
+	loff_t pos = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+	mm_segment_t fs;
+#endif
+
+	resp = (HostCmd_DS_GEN *)pevent->resp;
+	command = woal_le16_to_cpu(resp->command);
+	memset(file_path, 0, sizeof(file_path));
+	ret = moal_vmalloc(phandle, pevent->event_len * 5, &buf);
+	if (ret != MLAN_STATUS_SUCCESS || !buf) {
+		PRINTM(MERROR, "Fail to allocate memory to save hostcmd\n");
+		return;
+	}
+	memset(buf, 0, pevent->event_len * 5);
+	ptr = (char *)buf;
+	switch (command) {
+	case HostCmd_CMD_CFG_DATA:
+		if (dpd_data_cfg)
+			sprintf(file_path, "%s%s", DEF_FW_PATH, dpd_data_cfg);
+		else
+			sprintf(file_path, "%s", DEF_HOSTCMD_PATH);
+		break;
+	default:
+		sprintf(file_path, "%s", DEF_HOSTCMD_PATH);
+		break;
+	}
+	pfile = filp_open(file_path, O_CREAT | O_WRONLY | O_APPEND, 0644);
+	if (IS_ERR(pfile)) {
+		PRINTM(MERROR, "Cannot create file %s\n", file_path);
+		moal_vfree(phandle, buf);
+		return;
+	}
+	ptr += sprintf(ptr, "hostcmd_%02x=={\n", command);
+	ptr += woal_save_hex_dump(ROW_SIZE_16, resp, pevent->event_len, MFALSE,
+				  ptr);
+	ptr += sprintf(ptr, "}\n");
+	len = ptr - (char *)buf;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+	vfs_write(pfile, buf, len, &pos);
+	set_fs(fs);
+#else
+	kernel_write(pfile, buf, len, &pos);
+#endif
+	PRINTM(MMSG, "Save hostcmd 0x%02x, cmd len=%d file len=%d to file %s\n",
+	       command, pevent->event_len, len, file_path);
+	if (buf)
+		moal_vfree(phandle, buf);
+	filp_close(pfile, NULL);
+	return;
 }
 
 /**

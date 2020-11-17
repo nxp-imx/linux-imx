@@ -2692,6 +2692,10 @@ mlan_status wlan_ops_sta_process_cmdresp(t_void *priv, t_u16 cmdresp_no,
 	case HostCmd_CMD_TX_AMPDU_PROT_MODE:
 		ret = wlan_ret_tx_ampdu_prot_mode(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG:
+		ret = wlan_ret_dot11mc_unassoc_ftm_cfg(pmpriv, resp,
+						       pioctl_buf);
+		break;
 	case HostCmd_CMD_RATE_ADAPT_CFG:
 		ret = wlan_ret_rate_adapt_cfg(pmpriv, resp, pioctl_buf);
 		break;

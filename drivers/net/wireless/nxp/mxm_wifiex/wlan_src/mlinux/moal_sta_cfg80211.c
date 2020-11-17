@@ -895,7 +895,7 @@ enum moal_tm_attr {
 static const struct nla_policy moal_tm_policy[MOAL_TM_ATTR_MAX + 1] = {
 	[MOAL_TM_ATTR_CMD] = {.type = NLA_U32},
 	[MOAL_TM_ATTR_DATA] = {.type = NLA_BINARY,
-			       .len = MLAN_SIZE_OF_CMD_BUFFER},
+			       .len = MRVDRV_SIZE_OF_CMD_BUFFER},
 };
 
 enum moal_tm_command {
@@ -948,7 +948,7 @@ static int woal_testmode_cmd(struct wiphy *wiphy, void *data, int len)
 		moal_memcpy_ext(priv->phandle, misc_cfg->param.hostcmd.cmd,
 				nla_data(tb[MOAL_TM_ATTR_DATA]),
 				misc_cfg->param.hostcmd.len,
-				MLAN_SIZE_OF_CMD_BUFFER);
+				MRVDRV_SIZE_OF_CMD_BUFFER);
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 		if (status != MLAN_STATUS_SUCCESS) {
 			err = -EFAULT;

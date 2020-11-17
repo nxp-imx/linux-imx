@@ -517,6 +517,7 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 	HostCmd_DS_802_11_CFG_DATA *pcfg_cmd = MNULL;
 	mlan_adapter *pmadapter = MNULL;
 	mlan_callbacks *pcb = MNULL;
+	t_u8 hostcmd_flag = MFALSE;
 
 	ENTER();
 	if (!pmpriv) {
@@ -574,7 +575,7 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 			}
 			ret = wlan_prepare_cmd(pmpriv, 0, 0, 0, MNULL,
 					       (t_void *)hostcmd);
-			memset(pmadapter, buf, 0, MLAN_SIZE_OF_CMD_BUFFER);
+			memset(pmadapter, buf, 0, MRVDRV_SIZE_OF_CMD_BUFFER);
 			ptr = buf;
 			start_raw = MFALSE;
 			pos++;
@@ -583,16 +584,19 @@ static t_u32 wlan_process_hostcmd_cfg(pmlan_private pmpriv, t_u16 cfg_type,
 
 		if (start_raw == MFALSE) {
 			intf_s = wlan_strchr(pos, '=');
-			if (intf_s)
+			if (intf_s) {
+				if (*(intf_s + 1) == '=')
+					hostcmd_flag = MTRUE;
 				intf_e = wlan_strchr(intf_s, '{');
-			else
+			} else
 				intf_e = MNULL;
 
 			if (intf_s && intf_e) {
 				start_raw = MTRUE;
 				pos = intf_e + 1;
 				/* Reserve command head for DPD RAW data conf */
-				if (cfg_type == CFG_TYPE_DPDFILE) {
+				if (cfg_type == CFG_TYPE_DPDFILE &&
+				    !hostcmd_flag) {
 					pcmd = (HostCmd_DS_GEN *)ptr;
 					ptr += S_DS_GEN +
 					       sizeof(HostCmd_DS_802_11_CFG_DATA);
@@ -888,7 +892,7 @@ static mlan_status wlan_ret_host_cmd(pmlan_private pmpriv,
 		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
 		misc->param.hostcmd.len = size;
 		memcpy_ext(pmpriv->adapter, misc->param.hostcmd.cmd,
-			   (void *)resp, size, MLAN_SIZE_OF_CMD_BUFFER);
+			   (void *)resp, size, MRVDRV_SIZE_OF_CMD_BUFFER);
 	}
 
 	LEAVE();
@@ -1512,7 +1516,8 @@ mlan_status wlan_process_event(pmlan_adapter pmadapter)
 			   sizeof(eventcause));
 	}
 
-	if (eventcause != EVENT_PS_SLEEP && eventcause != EVENT_PS_AWAKE) {
+	if (eventcause != EVENT_PS_SLEEP && eventcause != EVENT_PS_AWAKE &&
+	    eventcause != EVENT_FW_DUMP_INFO) {
 		PRINTM_GET_SYS_TIME(MEVENT, &in_ts_sec, &in_ts_usec);
 		PRINTM_NETINTF(MEVENT, priv);
 		PRINTM(MEVENT, "%lu.%06lu : Event: 0x%x\n", in_ts_sec,
@@ -4051,6 +4056,16 @@ mlan_status wlan_adapter_get_hw_spec(pmlan_adapter pmadapter)
 		pmadapter->ptxpwr_data = MNULL;
 		pmadapter->txpwr_data_len = 0;
 	}
+	if (!pmadapter->pdpd_data &&
+	    (pmadapter->dpd_data_len == UNKNOW_DPD_LENGTH)) {
+		ret = wlan_prepare_cmd(priv, HostCmd_CMD_CFG_DATA,
+				       HostCmd_ACT_GEN_GET, OID_TYPE_DPD, MNULL,
+				       MNULL);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
 	/** Cal data dnld cmd prepare */
 	if ((pmadapter->pcal_data) && (pmadapter->cal_data_len > 0)) {
 		ret = wlan_prepare_cmd(priv, HostCmd_CMD_CFG_DATA,
@@ -4577,7 +4592,7 @@ mlan_status wlan_cmd_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_802_11_CFG_DATA *pcfg_data = &(pcmd->params.cfg_data);
 	pmlan_adapter pmadapter = pmpriv->adapter;
-	t_u32 len;
+	t_u32 len = 0;
 	t_u32 data_offset;
 	t_u8 *temp_pcmd = (t_u8 *)pcmd;
 
@@ -4590,9 +4605,6 @@ mlan_status wlan_cmd_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 		len = wlan_parse_cal_cfg((t_u8 *)pmadapter->pcal_data,
 					 pmadapter->cal_data_len,
 					 (t_u8 *)(temp_pcmd + data_offset));
-	} else {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
 	}
 
 	pcfg_data->action = cmd_action;
@@ -4609,7 +4621,6 @@ mlan_status wlan_cmd_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *pcmd,
 	pcfg_data->type = wlan_cpu_to_le16(pcfg_data->type);
 	pcfg_data->data_len = wlan_cpu_to_le16(pcfg_data->data_len);
 
-done:
 	LEAVE();
 	return ret;
 }
@@ -4623,10 +4634,17 @@ done:
  *
  *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_ret_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
-			      t_void *pioctl_buf)
+mlan_status wlan_ret_cfg_data(IN pmlan_private pmpriv,
+			      IN HostCmd_DS_COMMAND *resp,
+			      IN t_void *pioctl_buf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 event_buf[100];
+	mlan_cmdresp_event *pevent = (mlan_cmdresp_event *)event_buf;
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	HostCmd_DS_802_11_CFG_DATA *pcfg_data = &resp->params.cfg_data;
+	t_u16 action;
+	t_u16 type;
 
 	ENTER();
 
@@ -4634,6 +4652,25 @@ mlan_status wlan_ret_cfg_data(pmlan_private pmpriv, HostCmd_DS_COMMAND *resp,
 		PRINTM(MERROR, "CFG data cmd resp failed\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
+
+	if (!pmadapter->pdpd_data &&
+	    (pmadapter->dpd_data_len == UNKNOW_DPD_LENGTH) &&
+	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec) {
+		action = wlan_le16_to_cpu(pcfg_data->action);
+		type = wlan_le16_to_cpu(pcfg_data->type);
+		if (action == HostCmd_ACT_GEN_GET && (type == OID_TYPE_DPD)) {
+			pcfg_data->action =
+				wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+			pevent->bss_index = pmpriv->bss_index;
+			pevent->event_id = MLAN_EVENT_ID_STORE_HOST_CMD_RESP;
+			pevent->resp = (t_u8 *)resp;
+			pevent->event_len = wlan_le16_to_cpu(resp->size);
+			wlan_recv_event(pmpriv,
+					MLAN_EVENT_ID_STORE_HOST_CMD_RESP,
+					(mlan_event *)pevent);
+		}
+	}
+
 	LEAVE();
 	return ret;
 }
@@ -7837,6 +7874,70 @@ mlan_status wlan_ret_rxabortcfg_ext(pmlan_private pmpriv,
 			cfg_cmd->rssi_margin;
 		misc_cfg->param.rx_abort_cfg_ext.ceil_rssi_threshold =
 			cfg_cmd->ceil_rssi_threshold;
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of Dot11mc unassoc ftm cfg
+ *
+ *  @param pmpriv      A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return         MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_cmd_dot11mc_unassoc_ftm_cfg(pmlan_private pmpriv,
+					     HostCmd_DS_COMMAND *cmd,
+					     t_u16 cmd_action,
+					     t_void *pdata_buf)
+{
+	HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG *cfg_cmd =
+		(HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG *)&cmd->params
+			.dot11mc_unassoc_ftm_cfg;
+	mlan_ds_misc_dot11mc_unassoc_ftm_cfg *cfg =
+		(mlan_ds_misc_dot11mc_unassoc_ftm_cfg *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG);
+	cmd->size = wlan_cpu_to_le16(
+		sizeof(HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG) + S_DS_GEN);
+	cfg_cmd->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		cfg_cmd->state = wlan_cpu_to_le16(cfg->state);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of Dot11mc unassoc ftm cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status wlan_ret_dot11mc_unassoc_ftm_cfg(pmlan_private pmpriv,
+					     HostCmd_DS_COMMAND *resp,
+					     mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG *cfg_cmd =
+		(HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG *)&resp->params
+			.dot11mc_unassoc_ftm_cfg;
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.dot11mc_unassoc_ftm_cfg.state =
+			wlan_le16_to_cpu(cfg_cmd->state);
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;

@@ -831,6 +831,8 @@ mlan_status wlan_cmd_twt_cfg(pmlan_private pmpriv, HostCmd_DS_COMMAND *cmd,
 			ds_twtcfg->param.twt_setup.twt_exponent;
 		twt_setup_params->twt_mantissa = wlan_cpu_to_le16(
 			ds_twtcfg->param.twt_setup.twt_mantissa);
+		twt_setup_params->twt_request =
+			ds_twtcfg->param.twt_setup.twt_request;
 		cmd->size += sizeof(hostcmd_twtcfg->param.twt_setup);
 		break;
 	case MLAN_11AX_TWT_TEARDOWN_SUBID:

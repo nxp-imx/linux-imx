@@ -2671,6 +2671,7 @@ typedef struct _mlan_adapter {
 
 /** Ethernet packet type for EAPOL */
 #define MLAN_ETHER_PKT_TYPE_EAPOL (0x888E)
+#define MLAN_ETHER_PKT_TYPE_ARP (0x0806)
 /** Ethernet packet type for WAPI */
 #define MLAN_ETHER_PKT_TYPE_WAPI (0x88B4)
 /** Ethernet packet type offset */
@@ -3312,6 +3313,13 @@ mlan_status wlan_cmd_tx_ampdu_prot_mode(pmlan_private pmpriv,
 mlan_status wlan_ret_tx_ampdu_prot_mode(pmlan_private pmpriv,
 					HostCmd_DS_COMMAND *resp,
 					mlan_ioctl_req *pioctl_buf);
+mlan_status wlan_cmd_dot11mc_unassoc_ftm_cfg(pmlan_private pmpriv,
+					     HostCmd_DS_COMMAND *cmd,
+					     t_u16 cmd_action,
+					     t_void *pdata_buf);
+mlan_status wlan_ret_dot11mc_unassoc_ftm_cfg(pmlan_private pmpriv,
+					     HostCmd_DS_COMMAND *resp,
+					     mlan_ioctl_req *pioctl_buf);
 
 mlan_status wlan_cmd_rate_adapt_cfg(pmlan_private pmpriv,
 				    HostCmd_DS_COMMAND *cmd, t_u16 cmd_action,
@@ -3338,6 +3346,8 @@ mlan_status wlan_misc_ioctl_rxabortcfg_ext(pmlan_adapter pmadapter,
 					   pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_tx_ampdu_prot_mode(pmlan_adapter pmadapter,
 					       pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(pmlan_adapter pmadapter,
+						    pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_rate_adapt_cfg(pmlan_adapter pmadapter,
 					   pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_cck_desense_cfg(pmlan_adapter pmadapter,

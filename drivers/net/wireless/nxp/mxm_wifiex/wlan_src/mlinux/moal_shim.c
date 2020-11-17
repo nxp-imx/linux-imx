@@ -1415,21 +1415,25 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 	t_u8 radar_detected;
 
 	ENTER();
-
-	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
-		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
 		woal_store_firmware_dump(pmoal_handle, pmevent);
 		goto done;
 	}
+	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
+	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
+	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
+		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 #if defined(PCIE)
 	if (pmevent->event_id == MLAN_EVENT_ID_SSU_DUMP_FILE) {
 		woal_store_ssu_dump(pmoal_handle, pmevent);
 		goto done;
 	}
 #endif /* SSU_SUPPORT */
+	if (pmevent->event_id == MLAN_EVENT_ID_STORE_HOST_CMD_RESP) {
+		woal_save_host_cmdresp((moal_handle *)pmoal_handle,
+				       (mlan_cmdresp_event *)pmevent);
+		goto done;
+	}
 	priv = woal_bss_index_to_priv(pmoal_handle, pmevent->bss_index);
 	if (priv == NULL) {
 		PRINTM(MERROR, "%s: priv is null\n", __func__);

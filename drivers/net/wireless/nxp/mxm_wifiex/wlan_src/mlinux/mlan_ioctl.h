@@ -330,6 +330,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_BEACON_STUCK = 0x00200079,
 	MLAN_OID_MISC_CFP_TABLE = 0x0020007A,
 	MLAN_OID_MISC_RANGE_EXT = 0x0020007B,
+	MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG = 0x0020007C,
 };
 
 /** Sub command size */
@@ -2870,9 +2871,7 @@ typedef struct _mlan_ds_beacon_stuck_param_cfg {
 #define HOST_SLEEP_COND_IPV6_PACKET MBIT(31)
 
 /** Host sleep config conditions: Default */
-#define HOST_SLEEP_DEF_COND                                                    \
-	(HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA |       \
-	 HOST_SLEEP_COND_MAC_EVENT)
+#define HOST_SLEEP_DEF_COND 0
 
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO 0xff
@@ -3908,6 +3907,8 @@ typedef struct MLAN_PACK_START _mlan_ds_twt_setup {
 	t_u8 twt_exponent;
 	/** TWT Mantissa Range: [0-sizeof(UINT16)] */
 	t_u16 twt_mantissa;
+	/** TWT Request Type, 0: REQUEST_TWT, 1: SUGGEST_TWT*/
+	t_u8 twt_request;
 } MLAN_PACK_END mlan_ds_twt_setup, *pmlan_ds_twt_setup;
 
 /** Type definition of mlan_ds_twt_teardown for MLAN_OID_11AX_TWT_CFG */
@@ -4175,7 +4176,7 @@ typedef struct _mlan_ds_misc_cmd {
 	/** Command length */
 	t_u32 len;
 	/** Command buffer */
-	t_u8 cmd[MLAN_SIZE_OF_CMD_BUFFER];
+	t_u8 cmd[MRVDRV_SIZE_OF_CMD_BUFFER];
 } mlan_ds_misc_cmd;
 
 /** Maximum number of system clocks */
@@ -4243,6 +4244,14 @@ typedef struct _mlan_ds_misc_tx_ampdu_prot_mode {
 	/** set prot mode */
 	t_u16 mode;
 } mlan_ds_misc_tx_ampdu_prot_mode;
+
+/** Type definition of mlan_ds_misc_dot11mc_unassoc_ftm_cfg
+ * for MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG
+ */
+typedef struct _mlan_ds_misc_dot11mc_unassoc_ftm_cfg {
+	/** set the state */
+	t_u16 state;
+} mlan_ds_misc_dot11mc_unassoc_ftm_cfg;
 
 #define RATEADAPT_ALGO_LEGACY 0
 #define RATEADAPT_ALGO_SR 1
@@ -5089,6 +5098,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_arb_cfg arb_cfg;
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;
+		mlan_ds_misc_dot11mc_unassoc_ftm_cfg dot11mc_unassoc_ftm_cfg;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

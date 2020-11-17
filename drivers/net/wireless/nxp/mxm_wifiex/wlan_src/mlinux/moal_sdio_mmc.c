@@ -111,6 +111,8 @@ static const struct sdio_device_id wlan_ids[] = {
 	{},
 };
 
+MODULE_DEVICE_TABLE(sdio, wlan_ids);
+
 int woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id);
 void woal_sdio_remove(struct sdio_func *func);
 #ifdef SDIO

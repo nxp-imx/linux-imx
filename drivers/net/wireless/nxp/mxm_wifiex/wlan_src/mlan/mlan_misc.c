@@ -5564,6 +5564,38 @@ mlan_status wlan_misc_ioctl_rxabortcfg_ext(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Dot11mc unassociated FTM CFG
+ *
+ *  @param pmadapter   A pointer to mlan_adapter structure
+ *  @param pioctl_req  A pointer to ioctl request buffer
+ *
+ *  @return        MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(pmlan_adapter pmadapter,
+						    pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *pmisc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG,
+			       cmd_action, 0, (t_void *)pioctl_req,
+			       &(pmisc->param.dot11mc_unassoc_ftm_cfg));
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Tx ampdu protection mode
  *
  *  @param pmadapter   A pointer to mlan_adapter structure

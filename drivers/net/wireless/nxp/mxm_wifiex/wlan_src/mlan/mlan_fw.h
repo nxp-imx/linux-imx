@@ -1598,6 +1598,7 @@ typedef MLAN_PACK_START struct _power_table_attr {
 #define HostCmd_CMD_LOW_POWER_MODE_CFG 0x026e
 #define HostCmd_CMD_UAP_BEACON_STUCK_CFG 0x0271
 #define HostCmd_CMD_ARB_CONFIG 0x0273
+#define HostCmd_CMD_DOT11MC_UNASSOC_FTM_CFG 0x0275
 
 /** Enhanced PS modes */
 typedef enum _ENH_PS_MODES {
@@ -4649,10 +4650,12 @@ typedef struct MLAN_PACK_START _hostcmd_twt_setup {
 	t_u8 twt_exponent;
 	/** TWT Mantissa Range: [0-sizeof(UINT16)] */
 	t_u16 twt_mantissa;
+	/** TWT Request Type, 0: REQUEST_TWT, 1: SUGGEST_TWT*/
+	t_u8 twt_request;
 	/** TWT Setup State. Set to 0 by driver, filled by FW in response*/
 	t_u8 twt_setup_state;
 	/** Reserved, set to 0. */
-	t_u8 reserved[3];
+	t_u8 reserved[2];
 } MLAN_PACK_END hostcmd_twt_setup, *phostcmd_twt_setup;
 
 /** Type definition of hostcmd_twt_teardown */
@@ -7031,6 +7034,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_CMD_TX_AMPDU_PROT_MODE {
 	t_u16 mode;
 } MLAN_PACK_END HostCmd_DS_CMD_TX_AMPDU_PROT_MODE;
 
+/** HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG {
+	/** Action */
+	t_u16 action;
+	/** Cfg state */
+	t_u16 state;
+} MLAN_PACK_END HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG;
+
 /** HostCmd_CMD_RATE_ADAPT_CFG */
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_RATE_ADAPT_CFG {
 	/** Action */
@@ -7325,6 +7336,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		struct mfg_cmd_tx_cont mfg_tx_cont;
 		struct mfg_cmd_tx_frame2 mfg_tx_frame2;
 		HostCmd_DS_CMD_ARB_CONFIG arb_cfg;
+		HostCmd_DS_CMD_DOT11MC_UNASSOC_FTM_CFG dot11mc_unassoc_ftm_cfg;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND, *pHostCmd_DS_COMMAND;
 

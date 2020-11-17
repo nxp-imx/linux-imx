@@ -401,7 +401,7 @@ int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 
 	PRINTM(MINFO, "Host command len = %d\n",
 	       woal_le16_to_cpu(cmd_header.size));
-	if (woal_le16_to_cpu(cmd_header.size) > MLAN_SIZE_OF_CMD_BUFFER) {
+	if (woal_le16_to_cpu(cmd_header.size) > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		LEAVE();
 		return -EINVAL;
 	}
@@ -419,7 +419,7 @@ int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 	/* get the whole command */
 	moal_memcpy_ext(priv->phandle, misc_cfg->param.hostcmd.cmd,
 			data_ptr + sizeof(buf_len), misc_cfg->param.hostcmd.len,
-			MLAN_SIZE_OF_CMD_BUFFER);
+			MRVDRV_SIZE_OF_CMD_BUFFER);
 
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -10370,7 +10370,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 		ds_11hcfg->param.dfs_testing.usr_cac_period_msec =
-			(t_u32)data[0];
+			(t_u32)data[0] * 1000;
 		ds_11hcfg->param.dfs_testing.usr_nop_period_sec =
 			(t_u16)data[1];
 		ds_11hcfg->param.dfs_testing.usr_no_chan_change =
@@ -10393,7 +10393,8 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 	}
 
 	if (!user_data_len) {
-		data[0] = ds_11hcfg->param.dfs_testing.usr_cac_period_msec;
+		data[0] =
+			ds_11hcfg->param.dfs_testing.usr_cac_period_msec / 1000;
 		data[1] = ds_11hcfg->param.dfs_testing.usr_nop_period_sec;
 		data[2] = ds_11hcfg->param.dfs_testing.usr_no_chan_change;
 		data[3] = ds_11hcfg->param.dfs_testing.usr_fixed_new_chan;
@@ -14268,6 +14269,86 @@ done:
 }
 
 /**
+ *  @brief Enable/Disable Un-associated Dot11mc FTM Frame exchanges
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int woal_priv_dot11mc_unassoc_ftm_cfg(moal_private *priv, t_u8 *respbuf,
+				      t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[1] = {0};
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len > 1) {
+			PRINTM(MERROR, "Invalid number of args!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data[0] != MTRUE) && (data[0] != MFALSE)) {
+			PRINTM(MERROR, "Invalid state for unassoc ftm\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		misc->param.dot11mc_unassoc_ftm_cfg.state = (t_u16)data[0];
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.dot11mc_unassoc_ftm_cfg.state;
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set/Get Tx  AMPDU protection mode
  *
  *  @param priv         A pointer to moal_private structure
@@ -15224,6 +15305,15 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* tx ampdu protection mode setting */
 			len = woal_priv_tx_ampdu_prot_mode(priv, buf,
 							   priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG,
+				    strlen(PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG)) ==
+			   0) {
+			/* setting for dot11mc un-associated case FTM frame
+			 * exchange */
+			len = woal_priv_dot11mc_unassoc_ftm_cfg(
+				priv, buf, priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_RATE_ADAPT_CFG,

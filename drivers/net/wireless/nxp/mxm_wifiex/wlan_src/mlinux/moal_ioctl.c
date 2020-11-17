@@ -2067,7 +2067,7 @@ int woal_host_command(moal_private *priv, struct iwreq *wrq)
 	PRINTM(MINFO, "Host command len = %u\n", misc->param.hostcmd.len);
 
 	if (!misc->param.hostcmd.len ||
-	    misc->param.hostcmd.len > MLAN_SIZE_OF_CMD_BUFFER) {
+	    misc->param.hostcmd.len > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		PRINTM(MERROR, "Invalid data buffer length\n");
 		ret = -EINVAL;
 		goto done;
@@ -2156,7 +2156,7 @@ int woal_hostcmd_ioctl(struct net_device *dev, struct ifreq *req)
 	PRINTM(MINFO, "Host command len = %d\n",
 	       woal_le16_to_cpu(cmd_header.size));
 
-	if (woal_le16_to_cpu(cmd_header.size) > MLAN_SIZE_OF_CMD_BUFFER) {
+	if (woal_le16_to_cpu(cmd_header.size) > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		ret = -EINVAL;
 		goto done;
 	}
