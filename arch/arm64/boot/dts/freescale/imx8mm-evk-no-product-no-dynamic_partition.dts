@@ -23,21 +23,24 @@
 				/delete-node/ product;
 				system {
 					compatible = "android,system";
-					dev = "/dev/block/by-name/system";
+					/* default emmc node used for GSI */
+					dev = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b60000.mmc/by-name/system";
+					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+					dev_mmcblk1 = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b50000.mmc/by-name/system";
+					/* emmc node which used if androidboot.boot_device_root=mmcblk2 */
+					dev_mmcblk2 = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b60000.mmc/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb";
 				};
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "/dev/block/by-name/system_ext";
-					type = "ext4";
-					mnt_flags = "noatime,ro,errors=panic";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/by-name/vendor";
+					/* default emmc node used for GSI */
+					dev = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b60000.mmc/by-name/vendor";
+					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+					dev_mmcblk1 = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b50000.mmc/by-name/vendor";
+					/* emmc node which used if androidboot.boot_device_root=mmcblk2 */
+					dev_mmcblk2 = "/dev/block/platform/soc@0/soc@0:bus@30800000/30b60000.mmc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb";

@@ -31,13 +31,6 @@
 					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
 				};
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "system_ext";
-					type = "ext4";
-					mnt_flags = "noatime,ro,errors=panic";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
 				vendor {
 					compatible = "android,vendor";
 					dev = "vendor";

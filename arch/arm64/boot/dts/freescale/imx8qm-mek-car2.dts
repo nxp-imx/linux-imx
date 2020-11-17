@@ -176,23 +176,26 @@
 		android {
 			fstab {
 				/delete-node/ system;
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "/dev/block/by-name/system_ext";
-					type = "ext4";
-					mnt_flags = "noatime,ro,errors=panic";
-					fsmgr_flags = "wait,slotselect,avb";
-				};
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/by-name/vendor";
+					/* default emmc node used for GSI */
+					dev = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/vendor";
+					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+					dev_mmcblk1 = "/dev/block/platform/bus@5b000000/5b020000.mmc/by-name/vendor";
+					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+					dev_mmcblk0 = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb";
 				};
 				product {
 					compatible = "android,product";
-					dev = "/dev/block/by-name/product";
+					/* default emmc node used for GSI */
+					dev = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/product";
+					/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+					dev_mmcblk1 = "/dev/block/platform/bus@5b000000/5b020000.mmc/by-name/product";
+					/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+					dev_mmcblk0 = "/dev/block/platform/bus@5b000000/5b010000.mmc/by-name/product";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,slotselect,avb";
