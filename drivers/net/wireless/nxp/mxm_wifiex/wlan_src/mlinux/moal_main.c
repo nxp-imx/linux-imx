@@ -65,6 +65,11 @@ Change log:
 #include <linux/of.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#include <linux/pm_qos.h>
+#endif
+
+#include <linux/busfreq-imx.h>
 /********************************************************
 		 Global Variables
  ********************************************************/
@@ -85,6 +90,12 @@ extern int wifi_status;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int fw_region;
+#endif
+#endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+static struct pm_qos_request woal_pcie_pm_qos_req;
 #endif
 #endif
 /********************************************************
@@ -4357,6 +4368,13 @@ int woal_open(struct net_device *dev)
 
 	ENTER();
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+#endif
+#endif
+	request_bus_freq(BUS_FREQ_HIGH);
+
 	if (priv->phandle->surprise_removed == MTRUE) {
 		PRINTM(MERROR,
 		       "open is not allowed in surprise remove state.\n");
@@ -4518,6 +4536,13 @@ int woal_close(struct net_device *dev)
 #endif /* < 2.6.34 */
 	}
 #endif /* USB_SUSPEND_RESUME */
+
+	release_bus_freq(BUS_FREQ_HIGH);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+	pm_qos_remove_request(&woal_pcie_pm_qos_req);
+#endif
+#endif
 
 	LEAVE();
 	return 0;
