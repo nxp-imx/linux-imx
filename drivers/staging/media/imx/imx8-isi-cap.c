@@ -480,19 +480,37 @@ static void cap_vb2_stop_streaming(struct vb2_queue *q)
 
 	spin_lock_irqsave(&isi_cap->slock, flags);
 
-	list_for_each_entry_safe(buf, tmp, &isi_cap->out_active, list) {
-		list_del_init(&buf->list);
-		if (!buf->discard)
-			vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
-	}
+	while (!list_empty(&isi_cap->out_active)) {
+		buf = list_entry(isi_cap->out_active.next,
+				 struct mxc_isi_buffer, list);
+		list_del(&buf->list);
+		if (buf->discard)
+			continue;
 
-	list_for_each_entry_safe(buf, tmp, &isi_cap->out_pending, list) {
-		list_del_init(&buf->list);
 		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 
-	list_for_each_entry_safe(buf, tmp, &isi_cap->out_discard, list) {
-		list_del_init(&buf->list);
+	while (!list_empty(&isi_cap->out_pending)) {
+		buf = list_entry(isi_cap->out_pending.next,
+				 struct mxc_isi_buffer, list);
+		list_del(&buf->list);
+		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
+	}
+
+	while (!list_empty(&isi_cap->out_discard)) {
+		buf = list_entry(isi_cap->out_discard.next,
+				 struct mxc_isi_buffer, list);
+		list_del(&buf->list);
+	}
+
+	list_for_each_entry_safe(buf, tmp, &isi_cap->out_active, list) {
+		list_del(&buf->list);
+		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
+	}
+
+	list_for_each_entry_safe(buf, tmp, &isi_cap->out_pending, list) {
+		list_del(&buf->list);
+		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 
 	INIT_LIST_HEAD(&isi_cap->out_active);
