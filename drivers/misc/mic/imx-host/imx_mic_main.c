@@ -74,6 +74,8 @@ static int imx_mic_probe(struct pci_dev *pdev,
 	}
 
 	mdev->pdev = pdev;
+	mdev->family = MIC_FAMILY_IMX8;
+	mdev->stepping = pdev->revision;
 
 	rc = pci_enable_device(pdev);
 	if (rc) {

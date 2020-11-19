@@ -80,11 +80,12 @@ static void *imx_mic_get_dp(struct vop_device *vpdev)
 	return mdev->dp;
 }
 
-static dma_addr_t imx_mic_get_dp_dma(struct vop_device *vpdev)
+static int imx_mic_dp_mmap(struct vop_device *vpdev, struct vm_area_struct *vma)
 {
 	struct imx_mic_device *mdev = vpdev_to_mdev(&vpdev->dev);
 
-	return mdev->dp_dma_addr;
+	return dma_mmap_coherent(&mdev->pdev->dev, vma, mdev->dp,
+				 mdev->dp_dma_addr, MIC_DP_SIZE);
 }
 
 static void __iomem *imx_mic_get_remote_dp(struct vop_device *vpdev)
@@ -128,7 +129,7 @@ static struct vop_hw_ops vop_hw_ops = {
 	.ack_interrupt = imx_mic_ack_interrupt,
 	.next_db = imx_mic_next_db,
 	.get_dp = imx_mic_get_dp,
-	.get_dp_dma = imx_mic_get_dp_dma,
+	.dp_mmap = imx_mic_dp_mmap,
 	.get_remote_dp = imx_mic_get_remote_dp,
 	.send_intr = imx_mic_send_intr,
 	.remap = imx_mic_ioremap,
@@ -194,9 +195,26 @@ static void imx_mic_stop(struct cosm_device *cdev, bool force)
 	vop_unregister_device(mdev->vpdev);
 }
 
+static ssize_t imx_mic_family(struct cosm_device *cdev, char *buf)
+{
+	struct imx_mic_device *mdev = cosmdev_to_mdev(cdev);
+	static const char *family[MIC_FAMILY_LAST] = { "x100", "x200", "imx8", "Unknown" };
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", family[mdev->family]);
+}
+
+static ssize_t imx_mic_stepping(struct cosm_device *cdev, char *buf)
+{
+	struct imx_mic_device *mdev = cosmdev_to_mdev(cdev);
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", mdev->stepping);
+}
+
 struct cosm_hw_ops cosm_hw_ops = {
 	.reset = imx_mic_reset,
 	.ready = imx_mic_ready,
 	.start = imx_mic_start,
 	.stop = imx_mic_stop,
+	.family = imx_mic_family,
+	.stepping = imx_mic_stepping,
 };

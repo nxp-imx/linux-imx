@@ -47,7 +47,7 @@ static const struct drm_display_mode default_mode = {
 };
 
 static const u32 wks_bus_formats[] = {
-	MEDIA_BUS_FMT_RGB888_1X24,
+	MEDIA_BUS_FMT_RGB666_1X18,
 };
 
 static const u32 wks_bus_flags = DRM_BUS_FLAG_DE_HIGH |

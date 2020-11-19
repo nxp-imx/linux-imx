@@ -1425,9 +1425,13 @@ static int _set_clk(const char* buf)
         }
     }
 
-    sscanf(data, "%d %d %d", &dumpCore, &clkScale[0], &clkScale[1]);
-
-    printk("Change core:%d MC scale:%d SH scale:%d\n", dumpCore, clkScale[0], clkScale[1]);
+    if (3 == sscanf(data, "%d %d %d", &dumpCore, &clkScale[0], &clkScale[1])) {
+        printk("Change core:%d MC scale:%d SH scale:%d\n",
+                dumpCore, clkScale[0], clkScale[1]);
+    } else {
+        printk("usage: echo \"0 32 32\" > clk\n");
+        return 0;
+    }
 
     if (device->kernels[dumpCore])
     {
@@ -2103,10 +2107,8 @@ gckGALDEVICE_Construct(
                     gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
                 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
                 device->registerBases[i] = (gctPOINTER)ioremap(physical, device->requestedRegisterMemSizes[i]);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
-                device->registerBases[i] = (gctPOINTER)memremap(physical, device->requestedRegisterMemSizes[i], MEMREMAP_WT);
 #else
                 device->registerBases[i] = (gctPOINTER)ioremap_nocache(physical, device->requestedRegisterMemSizes[i]);
 #endif
@@ -2584,11 +2586,8 @@ gckGALDEVICE_Destroy(
                 /* Unmap register memory. */
                 if (Device->requestedRegisterMemBases[i] != 0)
                 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0) && LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
-                    memunmap(Device->registerBases[i]);
-#else
                     iounmap(Device->registerBases[i]);
-#endif
+
                     release_mem_region(Device->requestedRegisterMemBases[i],
                             Device->requestedRegisterMemSizes[i]);
                 }

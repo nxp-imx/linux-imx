@@ -56,8 +56,7 @@ struct mic_device_desc {
  * @vdev_reset: Set to 1 by guest to indicate virtio device has been reset.
  * @guest_ack: Set to 1 by guest to ack a command.
  * @host_ack: Set to 1 by host to ack a command.
- * @used_address_updated: Set to 1 by guest when the used address should be
- * updated.
+ * @must_be_zero: Reserved because this bit is no longer needed.
  * @c2h_vdev_db: The doorbell number to be used by guest. Set by host.
  * @h2c_vdev_db: The doorbell number to be used by host. Set by guest.
  */
@@ -67,7 +66,7 @@ struct mic_device_ctrl {
 	__u8 vdev_reset;
 	__u8 guest_ack;
 	__u8 host_ack;
-	__u8 used_address_updated;
+	__u8 must_be_zero;
 	__s8 c2h_vdev_db;
 	__s8 h2c_vdev_db;
 } __attribute__ ((aligned(8)));
@@ -110,12 +109,12 @@ struct mic_device_page {
  *
  * @address: Guest/MIC physical address of the virtio ring
  * (avail and desc rings)
- * @used_address: Guest/MIC physical address of the used ring
+ * @must_be_zero: Reserved because this bit is no longer needed.
  * @num: The number of entries in the virtio_ring
  */
 struct mic_vqconfig {
 	__le64 address;
-	__le64 used_address;
+	__le64 must_be_zero;
 	__le16 num;
 } __attribute__ ((aligned(8)));
 

@@ -228,7 +228,7 @@
 #define dsim_write(dsim, val, reg)	writel(val, dsim->base + reg)
 
 /* fixed phy ref clk rate */
-#define PHY_REF_CLK		27000
+#define PHY_REF_CLK		12000
 
 #define MAX_MAIN_HRESOL		2047
 #define MAX_MAIN_VRESOL		2047

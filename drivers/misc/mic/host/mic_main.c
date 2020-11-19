@@ -10,6 +10,7 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/poll.h>
+#include <linux/dma-mapping.h>
 
 #include <linux/mic_common.h>
 #include "../common/mic_dev.h"
@@ -44,33 +45,6 @@ MODULE_DEVICE_TABLE(pci, mic_pci_tbl);
 
 /* ID allocator for MIC devices */
 static struct ida g_mic_ida;
-
-/* Initialize the device page */
-static int mic_dp_init(struct mic_device *mdev)
-{
-	mdev->dp = kzalloc(MIC_DP_SIZE, GFP_KERNEL);
-	if (!mdev->dp)
-		return -ENOMEM;
-
-	mdev->dp_dma_addr = mic_map_single(mdev,
-		mdev->dp, MIC_DP_SIZE);
-	if (mic_map_error(mdev->dp_dma_addr)) {
-		kfree(mdev->dp);
-		dev_err(&mdev->pdev->dev, "%s %d err %d\n",
-			__func__, __LINE__, -ENOMEM);
-		return -ENOMEM;
-	}
-	mdev->ops->write_spad(mdev, MIC_DPLO_SPAD, mdev->dp_dma_addr);
-	mdev->ops->write_spad(mdev, MIC_DPHI_SPAD, mdev->dp_dma_addr >> 32);
-	return 0;
-}
-
-/* Uninitialize the device page */
-static void mic_dp_uninit(struct mic_device *mdev)
-{
-	mic_unmap_single(mdev, mdev->dp_dma_addr, MIC_DP_SIZE);
-	kfree(mdev->dp);
-}
 
 /**
  * mic_ops_init: Initialize HW specific operation tables.
@@ -228,11 +202,16 @@ static int mic_probe(struct pci_dev *pdev,
 
 	pci_set_drvdata(pdev, mdev);
 
-	rc = mic_dp_init(mdev);
-	if (rc) {
-		dev_err(&pdev->dev, "mic_dp_init failed rc %d\n", rc);
+	mdev->dp = dma_alloc_coherent(&pdev->dev, MIC_DP_SIZE,
+				      &mdev->dp_dma_addr, GFP_KERNEL);
+	if (!mdev->dp) {
+		dev_err(&pdev->dev, "failed to allocate device page\n");
 		goto smpt_uninit;
 	}
+
+	mdev->ops->write_spad(mdev, MIC_DPLO_SPAD, mdev->dp_dma_addr);
+	mdev->ops->write_spad(mdev, MIC_DPHI_SPAD, mdev->dp_dma_addr >> 32);
+
 	mic_bootparam_init(mdev);
 	mic_create_debug_dir(mdev);
 
@@ -245,7 +224,7 @@ static int mic_probe(struct pci_dev *pdev,
 	return 0;
 cleanup_debug_dir:
 	mic_delete_debug_dir(mdev);
-	mic_dp_uninit(mdev);
+	dma_free_coherent(&pdev->dev, MIC_DP_SIZE, mdev->dp, mdev->dp_dma_addr);
 smpt_uninit:
 	mic_smpt_uninit(mdev);
 free_interrupts:
@@ -284,7 +263,7 @@ static void mic_remove(struct pci_dev *pdev)
 
 	cosm_unregister_device(mdev->cosm_dev);
 	mic_delete_debug_dir(mdev);
-	mic_dp_uninit(mdev);
+	dma_free_coherent(&pdev->dev, MIC_DP_SIZE, mdev->dp, mdev->dp_dma_addr);
 	mic_smpt_uninit(mdev);
 	mic_free_interrupts(mdev, pdev);
 	iounmap(mdev->aper.va);

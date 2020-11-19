@@ -18,7 +18,6 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/dma-mapping.h>
-#include <linux/dma-noncoherent.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 
 #include "vop_main.h"
@@ -33,9 +32,6 @@
  * @dc: Virtio device control
  * @vpdev: VOP device which is the parent for this virtio device
  * @vr: Buffer for accessing the VRING
- * @used_virt: Virtual address of used ring
- * @used: DMA address of used ring
- * @used_size: Size of the used buffer
  * @reset_done: Track whether VOP reset is complete
  * @virtio_cookie: Cookie returned upon requesting a interrupt
  * @c2h_vdev_db: The doorbell used by the guest to interrupt the host
@@ -48,9 +44,6 @@ struct _vop_vdev {
 	struct mic_device_ctrl __iomem *dc;
 	struct vop_device *vpdev;
 	void __iomem *vr[VOP_MAX_VRINGS];
-	void *used_virt[VOP_MAX_VRINGS];
-	dma_addr_t used[VOP_MAX_VRINGS];
-	int used_size[VOP_MAX_VRINGS];
 	struct completion reset_done;
 	struct mic_irq *virtio_cookie;
 	int c2h_vdev_db;
@@ -125,10 +118,7 @@ static void vop_transport_features(struct virtio_device *vdev)
 	 * creates virtio rings on preallocated memory.
 	 */
 	__virtio_clear_bit(vdev, VIRTIO_F_RING_PACKED);
-
-	if (!dev_is_dma_coherent(vdev->dev.parent))
-		/* For i.MX MIC, need use dma to map tx/rx buffer for virtio_ring. */
-		__virtio_set_bit(vdev, VIRTIO_F_IOMMU_PLATFORM);
+	__virtio_set_bit(vdev, VIRTIO_F_IOMMU_PLATFORM);
 }
 
 static int vop_finalize_features(struct virtio_device *vdev)
@@ -254,13 +244,6 @@ static void vop_del_vq(struct virtqueue *vq, int n)
 	struct _vop_vdev *vdev = to_vopvdev(vq->vdev);
 	struct vop_device *vpdev = vdev->vpdev;
 
-	if (dev_is_dma_coherent(_vop_dev(vdev))) {
-		dma_unmap_single(&vpdev->dev, vdev->used[n],
-				 vdev->used_size[n], DMA_BIDIRECTIONAL);
-		free_pages((unsigned long)vdev->used_virt[n],
-			   get_order(vdev->used_size[n]));
-	}
-
 	vring_del_virtqueue(vq);
 	vpdev->hw_ops->unmap(vpdev, vdev->vr[n]);
 	vdev->vr[n] = NULL;
@@ -285,14 +268,12 @@ static struct virtqueue *vop_new_virtqueue(unsigned int index,
 				      void *pages,
 				      bool (*notify)(struct virtqueue *vq),
 				      void (*callback)(struct virtqueue *vq),
-				      const char *name,
-				      void *used)
+				      const char *name)
 {
 	bool weak_barriers = false;
 	struct vring vring;
 
 	vring_init(&vring, num, pages, MIC_VIRTIO_RING_ALIGN);
-	vring.used = used;
 
 	return __vring_new_virtqueue(index, vring, vdev, weak_barriers, context,
 				     notify, callback, name);
@@ -315,7 +296,6 @@ static struct virtqueue *vop_find_vq(struct virtio_device *dev,
 	struct virtqueue *vq;
 	void __iomem *va;
 	struct _mic_vring_info __iomem *info;
-	void *used;
 	int vr_size, _vr_size, err, magic;
 	u8 type = ioread8(&vdev->desc->type);
 
@@ -344,58 +324,16 @@ static struct virtqueue *vop_find_vq(struct virtio_device *dev,
 		goto unmap;
 	}
 
-	vdev->used_size[index] = PAGE_ALIGN(sizeof(__u16) * 3 +
-					     sizeof(struct vring_used_elem) *
-					     le16_to_cpu(config.num));
-	if (!dev_is_dma_coherent(_vop_dev(vdev)))
-		/* imx mic platform doesn't need allocate and reassign used ring  */
-		used = va + PAGE_ALIGN(sizeof(struct vring_desc) * le16_to_cpu(config.num) +
-				       sizeof(__u16) * (3 + le16_to_cpu(config.num)));
-	else
-		used = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
-						get_order(vdev->used_size[index]));
-
-	vdev->used_virt[index] = used;
-	if (!used) {
+	vq = vop_new_virtqueue(index, le16_to_cpu(config.num), dev, ctx,
+			       (void __force *)va, vop_notify, callback,
+			       name);
+	if (!vq) {
 		err = -ENOMEM;
-		dev_err(_vop_dev(vdev), "%s %d err %d\n",
-			__func__, __LINE__, err);
 		goto unmap;
 	}
 
-	vq = vop_new_virtqueue(index, le16_to_cpu(config.num), dev, ctx,
-			       (void __force *)va, vop_notify, callback,
-			       name, used);
-	if (!vq) {
-		err = -ENOMEM;
-		goto free_used;
-	}
-
-	if (!dev_is_dma_coherent(_vop_dev(vdev)))
-		vdev->used[index] = config.address +
-				    PAGE_ALIGN(sizeof(struct vring_desc) * le16_to_cpu(config.num) +
-				    sizeof(__u16) * (3 + le16_to_cpu(config.num)));
-	else {
-		vdev->used[index] = dma_map_single(&vpdev->dev, used,
-						   vdev->used_size[index],
-						   DMA_BIDIRECTIONAL);
-		if (dma_mapping_error(&vpdev->dev, vdev->used[index])) {
-			err = -ENOMEM;
-			dev_err(_vop_dev(vdev), "%s %d err %d\n",
-				__func__, __LINE__, err);
-			goto del_vq;
-		}
-	}
-	writeq(vdev->used[index], &vqconfig->used_address);
-
 	vq->priv = vdev;
 	return vq;
-del_vq:
-	vring_del_virtqueue(vq);
-free_used:
-	if (dev_is_dma_coherent(_vop_dev(vdev)))
-		free_pages((unsigned long)used,
-			   get_order(vdev->used_size[index]));
 unmap:
 	vpdev->hw_ops->unmap(vpdev, vdev->vr[index]);
 	return ERR_PTR(err);
@@ -408,9 +346,7 @@ static int vop_find_vqs(struct virtio_device *dev, unsigned nvqs,
 			struct irq_affinity *desc)
 {
 	struct _vop_vdev *vdev = to_vopvdev(dev);
-	struct vop_device *vpdev = vdev->vpdev;
-	struct mic_device_ctrl __iomem *dc = vdev->dc;
-	int i, err, retry, queue_idx = 0;
+	int i, err, queue_idx = 0;
 
 	/* We must have this many virtqueues. */
 	if (nvqs > ioread8(&vdev->desc->num_vq))
@@ -430,24 +366,6 @@ static int vop_find_vqs(struct virtio_device *dev, unsigned nvqs,
 			err = PTR_ERR(vqs[i]);
 			goto error;
 		}
-	}
-
-	iowrite8(1, &dc->used_address_updated);
-	/*
-	 * Send an interrupt to the host to inform it that used
-	 * rings have been re-assigned.
-	 */
-	vpdev->hw_ops->send_intr(vpdev, vdev->c2h_vdev_db);
-	for (retry = 100; --retry;) {
-		if (!ioread8(&dc->used_address_updated))
-			break;
-		msleep(100);
-	}
-
-	dev_dbg(_vop_dev(vdev), "%s: retry: %d\n", __func__, retry);
-	if (!retry) {
-		err = -ENODEV;
-		goto error;
 	}
 
 	return 0;

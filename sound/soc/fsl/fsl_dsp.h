@@ -133,8 +133,6 @@ struct fsl_dsp {
 	struct clk *sdma_root_clk;
 	struct clk *sai_ipg_clk;
 	struct clk *sai_mclk;
-	struct clk *pll8k_clk;
-	struct clk *pll11k_clk;
 	struct clk *uart_ipg_clk;
 	struct clk *uart_per_clk;
 

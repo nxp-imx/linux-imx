@@ -62,8 +62,6 @@ static int vop_dp_show(struct seq_file *s, void *pos)
 			seq_printf(s, "address 0x%llx ",
 				   vqconfig->address);
 			seq_printf(s, "num %d ", vqconfig->num);
-			seq_printf(s, "used address 0x%llx\n",
-				   vqconfig->used_address);
 		}
 
 		features = (__u32 *)mic_vq_features(d);
@@ -79,8 +77,6 @@ static int vop_dp_show(struct seq_file *s, void *pos)
 		seq_printf(s, "Vdev reset %d\n", dc->vdev_reset);
 		seq_printf(s, "Guest Ack %d ", dc->guest_ack);
 		seq_printf(s, "Host ack %d\n", dc->host_ack);
-		seq_printf(s, "Used address updated %d ",
-			   dc->used_address_updated);
 		seq_printf(s, "Vdev 0x%llx\n", dc->vdev);
 		seq_printf(s, "c2h doorbell %d ", dc->c2h_vdev_db);
 		seq_printf(s, "h2c doorbell %d\n", dc->h2c_vdev_db);

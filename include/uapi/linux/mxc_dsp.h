@@ -79,7 +79,7 @@ enum DSP_ParaType {
 	XA_DOWNMIX_STEREO,
 	XA_STREAM_TYPE,
 	XA_CHAN_MAP_TABLE,
-	//UNIA_CHANNEL_MASK,
+	/*UNIA_CHANNEL_MASK,*/
 	XA_TO_STEREO,
 
 /* dedicate for mp3 dec */

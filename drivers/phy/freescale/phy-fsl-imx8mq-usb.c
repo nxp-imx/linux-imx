@@ -32,11 +32,26 @@
 #define PHY_CTRL2_TXENABLEN0		BIT(8)
 #define PHY_CTRL2_OTG_DISABLE		BIT(9)
 
+#define PHY_CTRL3			0xc
+#define PHY_CTRL3_COMPDISTUNE_MASK	GENMASK(2, 0)
+#define PHY_CTRL3_TXPREEMP_TUNE_MASK	GENMASK(16, 15)
+#define PHY_CTRL3_TXPREEMP_TUNE_SHIFT	15
+#define PHY_CTRL3_TXRISE_TUNE_MASK	GENMASK(21, 20)
+#define PHY_CTRL3_TXRISE_TUNE_SHIFT	20
+/* 1111: +24% ... 0000: -6% step: 2% */
+#define PHY_CTRL3_TXVREF_TUNE_MASK	GENMASK(25, 22)
+#define PHY_CTRL3_TXVREF_TUNE_SHIFT	22
+
+#define PHY_CTRL4			0x10
+#define PHY_CTRL4_PCS_TX_DEEMPH_3P5DB_MASK	GENMASK(20, 15)
+#define PHY_CTRL4_PCS_TX_DEEMPH_3P5DB_SHIFT	15
+
 #define PHY_CTRL5			0x14
 #define PHY_CTRL5_DMPWD_OVERRIDE_SEL	BIT(23)
 #define PHY_CTRL5_DMPWD_OVERRIDE	BIT(22)
 #define PHY_CTRL5_DPPWD_OVERRIDE_SEL	BIT(21)
 #define PHY_CTRL5_DPPWD_OVERRIDE	BIT(20)
+#define PHY_CTRL5_PCS_TX_SWING_FULL_MASK	GENMASK(6, 0)
 
 #define PHY_CTRL6			0x18
 #define PHY_CTRL6_RXTERM_OVERRIDE_SEL	BIT(29)
@@ -49,6 +64,8 @@
 #define PHY_STS0_FSVPLUS		BIT(3)
 #define PHY_STS0_FSVMINUS		BIT(2)
 
+#define PHY_TUNE_DEFAULT		0xffffffff
+
 struct imx8mq_usb_phy {
 	struct phy *phy;
 	struct clk *clk;
@@ -57,6 +74,12 @@ struct imx8mq_usb_phy {
 	struct notifier_block chg_det_nb;
 	struct power_supply *vbus_power_supply;
 	enum power_supply_usb_type chg_type;
+	u32	pcs_tx_swing_full;
+	u32	pcs_tx_deemph_3p5db;
+	u32	tx_vref_tune;
+	u32	tx_rise_tune;
+	u32	tx_preemp_amp_tune;
+	u32	comp_dis_tune;
 };
 
 static int imx8mq_usb_phy_init(struct phy *phy)
@@ -122,6 +145,58 @@ static int imx8mp_usb_phy_init(struct phy *phy)
 	value = readl(imx_phy->base + PHY_CTRL1);
 	value &= ~(PHY_CTRL1_RESET | PHY_CTRL1_ATERESET);
 	writel(value, imx_phy->base + PHY_CTRL1);
+
+
+	/* PHY tuning */
+	if (imx_phy->pcs_tx_deemph_3p5db != PHY_TUNE_DEFAULT) {
+		value = readl(imx_phy->base + PHY_CTRL4);
+		value &= ~PHY_CTRL4_PCS_TX_DEEMPH_3P5DB_MASK;
+		value |= imx_phy->pcs_tx_deemph_3p5db <<
+			 PHY_CTRL4_PCS_TX_DEEMPH_3P5DB_SHIFT;
+		writel(value, imx_phy->base + PHY_CTRL4);
+	}
+
+	if (imx_phy->pcs_tx_swing_full != PHY_TUNE_DEFAULT) {
+		value = readl(imx_phy->base + PHY_CTRL5);
+		value &= ~PHY_CTRL5_PCS_TX_SWING_FULL_MASK;
+		value |= imx_phy->pcs_tx_swing_full;
+		writel(value, imx_phy->base + PHY_CTRL5);
+	}
+
+	if ((imx_phy->tx_vref_tune & imx_phy->tx_rise_tune &
+	    imx_phy->tx_preemp_amp_tune & imx_phy->comp_dis_tune) ==
+	    PHY_TUNE_DEFAULT)
+		/* If all are the default values, no need update. */
+		return 0;
+
+	value = readl(imx_phy->base + PHY_CTRL3);
+	if (imx_phy->tx_vref_tune == PHY_TUNE_DEFAULT)
+		imx_phy->tx_vref_tune = (value & PHY_CTRL3_TXVREF_TUNE_MASK) >>
+					PHY_CTRL3_TXVREF_TUNE_SHIFT;
+
+	if (imx_phy->tx_rise_tune == PHY_TUNE_DEFAULT)
+		imx_phy->tx_rise_tune = (value & PHY_CTRL3_TXRISE_TUNE_MASK) >>
+					PHY_CTRL3_TXRISE_TUNE_SHIFT;
+
+	if (imx_phy->tx_preemp_amp_tune == PHY_TUNE_DEFAULT)
+		imx_phy->tx_preemp_amp_tune = (value &
+					       PHY_CTRL3_TXPREEMP_TUNE_MASK) >>
+					      PHY_CTRL3_TXPREEMP_TUNE_SHIFT;
+
+	if (imx_phy->comp_dis_tune == PHY_TUNE_DEFAULT)
+		imx_phy->comp_dis_tune = value & PHY_CTRL3_COMPDISTUNE_MASK;
+
+	value &= ~(PHY_CTRL3_TXVREF_TUNE_MASK |
+		   PHY_CTRL3_TXRISE_TUNE_MASK |
+		   PHY_CTRL3_TXPREEMP_TUNE_MASK |
+		   PHY_CTRL3_COMPDISTUNE_MASK);
+	value |= imx_phy->tx_vref_tune << PHY_CTRL3_TXVREF_TUNE_SHIFT |
+		 imx_phy->tx_rise_tune << PHY_CTRL3_TXRISE_TUNE_SHIFT |
+		 imx_phy->tx_preemp_amp_tune <<
+		 PHY_CTRL3_TXPREEMP_TUNE_SHIFT |
+		 imx_phy->comp_dis_tune;
+
+	writel(value, imx_phy->base + PHY_CTRL3);
 
 	return 0;
 }
@@ -415,6 +490,35 @@ static struct phy_ops imx8mq_usb_phy_ops = {
 	.owner		= THIS_MODULE,
 };
 
+static void imx8mp_get_phy_tuning_data(struct imx8mq_usb_phy *imx_phy)
+{
+	struct device *dev = imx_phy->phy->dev.parent;
+
+	if (device_property_read_u32(dev, "fsl,phy-tx-vref-tune",
+				     &imx_phy->tx_vref_tune))
+		imx_phy->tx_vref_tune = PHY_TUNE_DEFAULT;
+
+	if (device_property_read_u32(dev, "fsl,phy-tx-rise-tune",
+				     &imx_phy->tx_rise_tune))
+		imx_phy->tx_rise_tune = PHY_TUNE_DEFAULT;
+
+	if (device_property_read_u32(dev, "fsl,phy-tx-preemp-amp-tune",
+				     &imx_phy->tx_preemp_amp_tune))
+		imx_phy->tx_preemp_amp_tune = PHY_TUNE_DEFAULT;
+
+	if (device_property_read_u32(dev, "fsl,phy-comp-dis-tune",
+				     &imx_phy->comp_dis_tune))
+		imx_phy->comp_dis_tune = PHY_TUNE_DEFAULT;
+
+	if (device_property_read_u32(dev, "fsl,pcs-tx-deemph-3p5db",
+				     &imx_phy->pcs_tx_deemph_3p5db))
+		imx_phy->pcs_tx_deemph_3p5db = PHY_TUNE_DEFAULT;
+
+	if (device_property_read_u32(dev, "fsl,phy-pcs-tx-swing-full",
+				     &imx_phy->pcs_tx_swing_full))
+		imx_phy->pcs_tx_swing_full = PHY_TUNE_DEFAULT;
+}
+
 static int imx8mq_usb_phy_probe(struct platform_device *pdev)
 {
 	struct phy_provider *phy_provider;
@@ -452,6 +556,8 @@ static int imx8mq_usb_phy_probe(struct platform_device *pdev)
 		imx_phy->chg_det_nb.notifier_call = imx8mq_phy_usb_vbus_notify;
 		power_supply_reg_notifier(&imx_phy->chg_det_nb);
 	}
+
+	imx8mp_get_phy_tuning_data(imx_phy);
 
 	phy_provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
 

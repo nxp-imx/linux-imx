@@ -29,6 +29,11 @@
 #ifndef __ASM_ARCH_MXC_V4L2_H__
 #define __ASM_ARCH_MXC_V4L2_H__
 
+#include <linux/types.h>
+#ifndef __KERNEL__
+#include <stdint.h>
+#endif
+
 /*
  * For IPUv1 and IPUv3, V4L2_CID_MXC_ROT means encoder ioctl ID.
  * And V4L2_CID_MXC_VF_ROT is viewfinder ioctl ID only for IPUv1 and IPUv3.

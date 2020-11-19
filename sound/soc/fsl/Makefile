@@ -29,7 +29,7 @@ snd-soc-fsl-utils-objs := fsl_utils.o
 snd-soc-fsl-dma-objs := fsl_dma.o
 snd-soc-fsl-easrc-objs := fsl_easrc.o fsl_easrc_dma.o
 snd-soc-fsl-aud2htx-objs := fsl_aud2htx.o
-snd-soc-fsl-xcvr-objs := fsl_xcvr.o
+snd-soc-fsl-xcvr-objs := fsl_xcvr.o fsl_xcvr_sysfs.o
 snd-soc-fsl-esai-client-objs := fsl_esai_client.o
 
 obj-$(CONFIG_SND_SOC_FSL_AUDMIX) += snd-soc-fsl-audmix.o

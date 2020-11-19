@@ -12,6 +12,10 @@
 #include <linux/io.h>
 #include "cosm_main.h"
 
+#ifndef __START_KERNEL_map
+#define __START_KERNEL_map 0
+#endif
+
 /* Debugfs parent dir */
 static struct dentry *cosm_dbg;
 

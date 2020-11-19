@@ -56,7 +56,7 @@ static struct mic_info mic_list;
 
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 
-#define GSO_ENABLED		1
+#define GSO_ENABLED		0
 #define MAX_GSO_SIZE		(64 * 1024)
 #define ETH_H_LEN		14
 #define MAX_NET_PKT_SIZE	(_ALIGN_UP(MAX_GSO_SIZE + ETH_H_LEN, 64))
@@ -65,6 +65,8 @@ static struct mic_info mic_list;
 #ifndef VIRTIO_NET_HDR_F_DATA_VALID
 #define VIRTIO_NET_HDR_F_DATA_VALID	2	/* Csum is valid */
 #endif
+
+#define VIRTCONS_SUPPORT	0
 
 static struct {
 	struct mic_device_desc dd;
@@ -612,7 +614,7 @@ virtio_net(void *arg)
 					copy.out_len, hdr->gso_type);
 #endif
 #ifdef DEBUG
-				disp_iovec(mic, copy, __func__, __LINE__);
+				disp_iovec(mic, &copy, __func__, __LINE__);
 				mpsslog("%s %s %d read from tap 0x%lx\n",
 					mic->name, __func__, __LINE__,
 					len);
@@ -632,7 +634,7 @@ virtio_net(void *arg)
 				if (!err)
 					verify_out_len(mic, &copy);
 #ifdef DEBUG
-				disp_iovec(mic, copy, __func__, __LINE__);
+				disp_iovec(mic, &copy, __func__, __LINE__);
 				mpsslog("%s %s %d wrote to net 0x%lx\n",
 					mic->name, __func__, __LINE__,
 					sum_iovec_len(&copy));
@@ -681,12 +683,12 @@ virtio_net(void *arg)
 						sizeof(struct virtio_net_hdr);
 					verify_out_len(mic, &copy);
 #ifdef DEBUG
-					disp_iovec(mic, copy, __func__,
+					disp_iovec(mic, &copy, __func__,
 						   __LINE__);
 					mpsslog("%s %s %d ",
 						mic->name, __func__, __LINE__);
 					mpsslog("read from net 0x%lx\n",
-						sum_iovec_len(copy));
+						sum_iovec_len(&copy));
 #endif
 					len = writev(net_poll[NET_FD_TUN].fd,
 						copy.iov, copy.iovcnt);
@@ -814,7 +816,7 @@ virtio_console(void *arg)
 			len = readv(pty_fd, copy.iov, copy.iovcnt);
 			if (len > 0) {
 #ifdef DEBUG
-				disp_iovec(mic, copy, __func__, __LINE__);
+				disp_iovec(mic, &copy, __func__, __LINE__);
 				mpsslog("%s %s %d read from tap 0x%lx\n",
 					mic->name, __func__, __LINE__,
 					len);
@@ -834,10 +836,10 @@ virtio_console(void *arg)
 				if (!err)
 					verify_out_len(mic, &copy);
 #ifdef DEBUG
-				disp_iovec(mic, copy, __func__, __LINE__);
+				disp_iovec(mic, &copy, __func__, __LINE__);
 				mpsslog("%s %s %d wrote to net 0x%lx\n",
 					mic->name, __func__, __LINE__,
-					sum_iovec_len(copy));
+					sum_iovec_len(&copy));
 #endif
 				/* Reinitialize IOV for next run */
 				iov0->iov_len = PAGE_SIZE;
@@ -866,12 +868,12 @@ virtio_console(void *arg)
 					iov1->iov_len = copy.out_len;
 					verify_out_len(mic, &copy);
 #ifdef DEBUG
-					disp_iovec(mic, copy, __func__,
+					disp_iovec(mic, &copy, __func__,
 						   __LINE__);
 					mpsslog("%s %s %d ",
 						mic->name, __func__, __LINE__);
 					mpsslog("read from net 0x%lx\n",
-						sum_iovec_len(copy));
+						sum_iovec_len(&copy));
 #endif
 					len = writev(pty_fd,
 						copy.iov, copy.iovcnt);
@@ -883,7 +885,7 @@ virtio_console(void *arg)
 							sum_iovec_len(&copy));
 					} else {
 #ifdef DEBUG
-						disp_iovec(mic, copy, __func__,
+						disp_iovec(mic, &copy, __func__,
 							   __LINE__);
 						mpsslog("%s %s %d ",
 							mic->name, __func__,
@@ -1665,13 +1667,17 @@ retry:
 	mic->pid = fork();
 	switch (mic->pid) {
 	case 0:
+#if VIRTCONS_SUPPORT
 		add_virtio_device(mic, &virtcons_dev_page.dd);
+#endif
 		add_virtio_device(mic, &virtnet_dev_page.dd);
+#if VIRTCONS_SUPPORT
 		err = pthread_create(&mic->mic_console.console_thread, NULL,
 			virtio_console, mic);
 		if (err)
 			mpsslog("%s virtcons pthread_create failed %s\n",
 				mic->name, strerror(err));
+#endif
 		err = pthread_create(&mic->mic_net.net_thread, NULL,
 			virtio_net, mic);
 		if (err)

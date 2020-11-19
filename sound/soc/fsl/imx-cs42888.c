@@ -584,6 +584,9 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		priv->is_codec_master = true;
 
 	snd_soc_card_imx_cs42888.dev = &pdev->dev;
+	ret = snd_soc_of_parse_card_name(&snd_soc_card_imx_cs42888, "model");
+	if (ret)
+		goto fail;
 
 	platform_set_drvdata(pdev, &snd_soc_card_imx_cs42888);
 

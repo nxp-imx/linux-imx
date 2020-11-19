@@ -2354,7 +2354,7 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 	void __iomem *iomem;
 	struct regmap_config regconfig = imx6_pcie_regconfig;
 	int ret;
-	u32 reg;
+	u32 reg, val;
 
 	imx6_pcie = devm_kzalloc(dev, sizeof(*imx6_pcie), GFP_KERNEL);
 	if (!imx6_pcie)
@@ -2674,6 +2674,10 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 	imx6_pcie_init_phy(imx6_pcie);
 	imx6_pcie_deassert_core_reset(imx6_pcie);
 	imx6_setup_phy_mpll(imx6_pcie);
+
+	val = dw_pcie_readl_dbi(pci, PCIE_AMBA_ORDERING_CTRL_OFF);
+	val |= 0xD;
+	dw_pcie_writel_dbi(pci, PCIE_AMBA_ORDERING_CTRL_OFF, val);
 
 	switch (imx6_pcie->drvdata->mode) {
 	case DW_PCIE_RC_TYPE:

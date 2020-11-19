@@ -8,6 +8,11 @@
 #ifndef __FSL_XCVR_H
 #define __FSL_XCVR_H
 
+#include <linux/regmap.h>
+#include <linux/reset.h>
+#include <sound/dmaengine_pcm.h>
+#include <sound/pcm_iec958.h>
+
 #define FSL_XCVR_MODE_SPDIF	0
 #define FSL_XCVR_MODE_ARC	1
 #define FSL_XCVR_MODE_EARC	2
@@ -49,6 +54,16 @@
 #define FSL_XCVR_RX_DPTH_CTRL_CLR	0x188
 #define FSL_XCVR_RX_DPTH_CTRL_TOG	0x18c
 
+#define FSL_XCVR_RX_DPTH_CNTR_CTRL	0x1C0
+#define FSL_XCVR_RX_DPTH_CNTR_CTRL_SET	0x1C4
+#define FSL_XCVR_RX_DPTH_CNTR_CTRL_CLR	0x1C8
+#define FSL_XCVR_RX_DPTH_CNTR_CTRL_TOG	0x1CC
+
+#define FSL_XCVR_RX_DPTH_TSCR		0x1D0
+#define FSL_XCVR_RX_DPTH_BCR		0x1D4
+#define FSL_XCVR_RX_DPTH_BCTR		0x1D8
+#define FSL_XCVR_RX_DPTH_BCRR		0x1DC
+
 #define FSL_XCVR_TX_DPTH_CTRL		0x220 /* TX datapath ctrl reg */
 #define FSL_XCVR_TX_DPTH_CTRL_SET	0x224
 #define FSL_XCVR_TX_DPTH_CTRL_CLR	0x228
@@ -59,6 +74,17 @@
 #define FSL_XCVR_TX_CS_DATA_3		0x23C
 #define FSL_XCVR_TX_CS_DATA_4		0x240
 #define FSL_XCVR_TX_CS_DATA_5		0x244
+
+#define FSL_XCVR_TX_DPTH_CNTR_CTRL	0x260
+#define FSL_XCVR_TX_DPTH_CNTR_CTRL_SET	0x264
+#define FSL_XCVR_TX_DPTH_CNTR_CTRL_CLR	0x268
+#define FSL_XCVR_TX_DPTH_CNTR_CTRL_TOG	0x26C
+
+#define FSL_XCVR_TX_DPTH_TSCR		0x270
+#define FSL_XCVR_TX_DPTH_BCR		0x274
+#define FSL_XCVR_TX_DPTH_BCTR		0x278
+#define FSL_XCVR_TX_DPTH_BCRR		0x27C
+
 #define FSL_XCVR_DEBUG_REG_0		0x2E0
 #define FSL_XCVR_DEBUG_REG_1		0x2F0
 
@@ -132,12 +158,12 @@
 #define FSL_XCVR_IRQ_UNEXP_PRE_REC	BIT(20)
 #define FSL_XCVR_IRQ_ARC_MODE		BIT(21)
 #define FSL_XCVR_IRQ_CH_UD_OFLOW	BIT(22)
-#define FSL_XCVR_IRQ_EARC_ALL		FSL_XCVR_IRQ_NEW_CS | \
-					FSL_XCVR_IRQ_NEW_UD | \
-					FSL_XCVR_IRQ_MUTE | \
-					FSL_XCVR_IRQ_FIFO_UOFL_ERR | \
-					FSL_XCVR_IRQ_HOST_WAKEUP | \
-					FSL_XCVR_IRQ_ARC_MODE
+#define FSL_XCVR_IRQ_EARC_ALL		(FSL_XCVR_IRQ_NEW_CS | \
+					 FSL_XCVR_IRQ_NEW_UD | \
+					 FSL_XCVR_IRQ_MUTE | \
+					 FSL_XCVR_IRQ_FIFO_UOFL_ERR | \
+					 FSL_XCVR_IRQ_HOST_WAKEUP | \
+					 FSL_XCVR_IRQ_ARC_MODE)
 
 #define FSL_XCVR_ISR_CMDC_TX_EN		BIT(3)
 #define FSL_XCVR_ISR_HPD_TGL		BIT(15)
@@ -262,5 +288,33 @@
 #define FSL_XCVR_RX_CS_BUFF_0		0x80 /* First  RX CS buffer */
 #define FSL_XCVR_RX_CS_BUFF_1		0xA0 /* Second RX CS buffer */
 #define FSL_XCVR_CAP_DATA_STR		0x300 /* Capabilities data structure */
+
+#define FSL_XCVR_CAPDS_SIZE	256
+
+struct fsl_xcvr_soc_data {
+	const char *fw_name;
+};
+
+struct fsl_xcvr {
+	const struct fsl_xcvr_soc_data *soc_data;
+	struct platform_device *pdev;
+	struct regmap *regmap;
+	struct clk *ipg_clk;
+	struct clk *pll_ipg_clk;
+	struct clk *phy_clk;
+	struct clk *spba_clk;
+	struct reset_control *reset;
+	u8 streams;
+	u32 mode;
+	u32 arc_mode;
+	void __iomem *ram_addr;
+	struct snd_dmaengine_dai_dma_data dma_prms_rx;
+	struct snd_dmaengine_dai_dma_data dma_prms_tx;
+	struct snd_aes_iec958 rx_iec958;
+	struct snd_aes_iec958 tx_iec958;
+	u8 cap_ds[FSL_XCVR_CAPDS_SIZE];
+};
+
+const struct attribute_group *fsl_xcvr_get_attr_grp(void);
 
 #endif /* __FSL_XCVR_H */

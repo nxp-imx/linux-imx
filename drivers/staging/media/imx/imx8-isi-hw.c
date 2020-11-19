@@ -626,7 +626,7 @@ void mxc_isi_channel_deinit(struct mxc_isi_dev *mxc_isi)
 	mxc_isi_channel_sw_reset(mxc_isi);
 
 	/* deinit channel clk first */
-	val = (CHNL_CTRL_CLK_EN_ENABLE << CHNL_CTRL_CLK_EN_OFFSET);
+	val = (CHNL_CTRL_CLK_EN_DISABLE << CHNL_CTRL_CLK_EN_OFFSET);
 	writel(val, mxc_isi->regs + CHNL_CTRL);
 }
 EXPORT_SYMBOL_GPL(mxc_isi_channel_deinit);

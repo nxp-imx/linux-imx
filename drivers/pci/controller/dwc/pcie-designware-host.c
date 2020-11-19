@@ -718,6 +718,10 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	val |= PORT_LOGIC_SPEED_CHANGE;
 	dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
 
+	val = dw_pcie_readl_dbi(pci, PCIE_AMBA_ORDERING_CTRL_OFF);
+	val |= 0xD;
+	dw_pcie_writel_dbi(pci, PCIE_AMBA_ORDERING_CTRL_OFF, val);
+
 	dw_pcie_dbi_ro_wr_dis(pci);
 }
 EXPORT_SYMBOL_GPL(dw_pcie_setup_rc);
