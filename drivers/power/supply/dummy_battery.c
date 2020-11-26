@@ -217,10 +217,10 @@ static int __init dummy_power_init(void)
     int i;
     int ret;
 
-    usb_property = (struct dummy_usb_property*)kmalloc(sizeof(struct dummy_usb_property*),GFP_KERNEL);
+    usb_property = (struct dummy_usb_property*)kmalloc(sizeof(struct dummy_usb_property),GFP_KERNEL);
     usb_property->online = 1;
 
-    battery_property = (struct dummy_battery_property*)kmalloc(sizeof(struct dummy_battery_property*),GFP_KERNEL);
+    battery_property = (struct dummy_battery_property*)kmalloc(sizeof(struct dummy_battery_property),GFP_KERNEL);
     battery_property->online = 1;
 
     for (i = 0; i < ARRAY_SIZE(dummy_power_supplies); i++) {
