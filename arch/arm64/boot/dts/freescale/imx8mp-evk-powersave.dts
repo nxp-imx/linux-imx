@@ -5,6 +5,18 @@
 
 #include "imx8mp-evk.dts"
 
+&usdhc1 {
+	imx8mp-disable-emmc-request-high;
+};
+
+&usdhc2 {
+	imx8mp-disable-emmc-request-high;
+};
+
+&usdhc3 {
+	imx8mp-disable-emmc-request-high;
+};
+
 / {
   busfreq {
 	enable-gic-100mts;

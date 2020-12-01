@@ -241,7 +241,6 @@ static struct esdhc_soc_data usdhc_imx8mm_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
-			| ESDHC_FLAG_BUSFREQ
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
 };
 
@@ -1538,6 +1537,7 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	int err;
 	struct pltfm_imx_data *imx_data;
 	u32 status;
+	const struct device_node *np = pdev->dev.of_node;
 
 	host = sdhci_pltfm_init(pdev, &sdhci_esdhc_imx_pdata,
 				sizeof(*imx_data));
@@ -1676,6 +1676,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, 1);
 	pm_runtime_enable(&pdev->dev);
+
+	if (!of_property_read_bool(np, "imx8mp-disable-emmc-request-high"))
+		usdhc_imx8mm_data.flags |= ESDHC_FLAG_BUSFREQ;
 
 	return 0;
 
