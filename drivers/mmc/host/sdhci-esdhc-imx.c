@@ -351,8 +351,7 @@ static struct esdhc_soc_data usdhc_imx8mm_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
-			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
-			| ESDHC_FLAG_BUSFREQ,
+			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
 	.quirks = SDHCI_QUIRK_NO_LED,
 };
 
@@ -1841,6 +1840,10 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	struct cqhci_host *cq_host;
 	int err;
 	struct pltfm_imx_data *imx_data;
+	const struct device_node *np = pdev->dev.of_node;
+
+	if (!of_property_read_bool(np, "imx8mp-disable-emmc-request-high"))
+		usdhc_imx8mm_data.flags |= ESDHC_FLAG_BUSFREQ;
 
 	host = sdhci_pltfm_init(pdev, &sdhci_esdhc_imx_pdata,
 				sizeof(*imx_data));
