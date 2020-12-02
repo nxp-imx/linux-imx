@@ -1002,6 +1002,17 @@ rx_process_start:
 		pmadapter->callbacks.moal_spin_unlock(
 			pmadapter->pmoal_handle,
 			pmadapter->rx_data_queue.plock);
+
+		// rx_trace 6
+		if (pmadapter->tp_state_on)
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf,
+				6 /*RX_DROP_P2*/);
+		if (pmadapter->tp_state_drop_point == 6 /*RX_DROP_P2*/) {
+			pmadapter->ops.data_complete(pmadapter, pmbuf, ret);
+			goto rx_process_start;
+		}
+
 		if (pmadapter->delay_task_flag &&
 		    (pmadapter->rx_pkts_queued < LOW_RX_PENDING)) {
 			PRINTM(MEVENT, "Run\n");
@@ -1082,6 +1093,8 @@ process_start:
 #if defined(SDIO) || defined(PCIE)
 		if (!IS_USB(pmadapter->card_type)) {
 			if (pmadapter->rx_pkts_queued > HIGH_RX_PENDING) {
+				pcb->moal_tp_accounting_rx_param(
+					pmadapter->pmoal_handle, 2, 0);
 				PRINTM(MEVENT, "Pause\n");
 				pmadapter->delay_task_flag = MTRUE;
 				mlan_queue_rx_work(pmadapter);
@@ -1318,10 +1331,22 @@ mlan_status mlan_send_packet(t_void *pmlan_adapter, pmlan_buffer pmbuf)
 			PRINTM(MMSG, "wlan: Send EAPOL pkt to " MACSTR "\n",
 			       MAC2STR(pmbuf->pbuf + pmbuf->data_offset));
 		}
-		wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
+		if (pmadapter->tp_state_on)
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
+		if (pmadapter->tp_state_drop_point == 2)
+			return 0;
+		else
+			wlan_add_buf_bypass_txqueue(pmadapter, pmbuf);
 	} else {
-		/* Transmit the packet*/
-		wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
+		if (pmadapter->tp_state_on)
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf->pdesc, 2);
+		if (pmadapter->tp_state_drop_point == 2)
+			return 0;
+		else
+			/* Transmit the packet*/
+			wlan_wmm_add_buf_txqueue(pmadapter, pmbuf);
 	}
 
 	LEAVE();

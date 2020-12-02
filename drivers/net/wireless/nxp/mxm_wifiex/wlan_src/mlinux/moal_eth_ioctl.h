@@ -670,4 +670,6 @@ typedef struct {
 	/** chan_list */
 	wlan_ieee80211_chan chan_list[];
 } __ATTRIB_PACK__ wlan_ieee80211_chan_list;
+
+#define PRIV_CMD_TP_STATE "tp_state"
 #endif /* _WOAL_ETH_PRIV_H_ */

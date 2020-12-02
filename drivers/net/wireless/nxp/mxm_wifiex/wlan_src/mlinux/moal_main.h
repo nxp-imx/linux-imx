@@ -1392,6 +1392,7 @@ struct _moal_private {
 #if CFG80211_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	atomic_t wmm_tx_pending[4];
 #endif
+	struct sk_buff_head tx_q;
 	/** per interface extra headroom */
 	t_u16 extra_tx_head_len;
 	/** TX status spin lock */
@@ -1552,6 +1553,7 @@ enum ext_mod_params {
 	EXT_HOST_MLME,
 #endif
 #endif
+	EXT_TX_WORK,
 	EXT_MAX_PARAM,
 };
 
@@ -1639,6 +1641,46 @@ typedef struct _moal_mod_para {
 	char *reg_alpha2;
 	int dfs53cfg;
 } moal_mod_para;
+
+void woal_tp_acnt_timer_func(void *context);
+void woal_set_tp_state(moal_private *priv);
+#define MAX_TP_ACCOUNT_DROP_POINT_NUM 5
+#define RX_DROP_P1 (MAX_TP_ACCOUNT_DROP_POINT_NUM)
+#define RX_DROP_P2 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 1)
+#define RX_DROP_P3 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 2)
+#define RX_DROP_P4 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 3)
+#define RX_DROP_P5 (MAX_TP_ACCOUNT_DROP_POINT_NUM + 4)
+typedef struct _moal_tp_acnt_t {
+	/* TX accounting */
+	unsigned long tx_packets[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_packets_last[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_packets_rate[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_bytes[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_bytes_last[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_bytes_rate[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long tx_intr_cnt;
+	unsigned long tx_intr_last;
+	unsigned long tx_intr_rate;
+	unsigned long tx_pending;
+	/** RX accounting */
+	unsigned long rx_packets[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_packets_last[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_packets_rate[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_bytes[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_bytes_last[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_bytes_rate[MAX_TP_ACCOUNT_DROP_POINT_NUM];
+	unsigned long rx_intr_cnt;
+	unsigned long rx_intr_last;
+	unsigned long rx_intr_rate;
+	unsigned long rx_pending;
+	unsigned long rx_paused_cnt;
+	/* TP account mode 0-disable 1-enable */
+	unsigned int on;
+	/* drop point */
+	unsigned int drop_point;
+	/* periodic timer */
+	moal_drv_timer timer;
+} moal_tp_acnt_t;
 
 /** Handle data structure for MOAL */
 struct _moal_handle {
@@ -1778,6 +1820,10 @@ struct _moal_handle {
 	spinlock_t evt_lock;
 	/** event queue */
 	struct list_head evt_queue;
+	/** tx workqueue */
+	struct workqueue_struct *tx_workqueue;
+	/** tx work */
+	struct work_struct tx_work;
 	/** remain on channel flag */
 	t_u8 remain_on_channel;
 	/** bss index for remain on channel */
@@ -1870,6 +1916,8 @@ struct _moal_handle {
 #endif
 	/** cac period length, valid only when dfs testing is enabled */
 	long cac_period_jiffies;
+	/** cac restart*/
+	t_u8 cac_restart;
 	/** handle index - for multiple card supports */
 	t_u8 handle_idx;
 #if defined(USB)
@@ -1987,6 +2035,11 @@ struct _moal_handle {
 	t_u8 rf_test_mode;
 	/** pointer to rf test mode data struct */
 	struct rf_test_mode_data *rf_data;
+	/** TP accounting parameters */
+	moal_tp_acnt_t tp_acnt;
+	BOOLEAN is_tp_acnt_timer_set;
+
+	t_u8 request_pm;
 };
 
 /**

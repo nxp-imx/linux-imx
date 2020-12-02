@@ -615,6 +615,68 @@ mlan_status moal_spin_lock(t_void *pmoal_handle, t_void *plock)
 }
 
 /**
+ *  @brief  This function collects TP statistics.
+ *
+ *  @param pmoal_handle Pointer to the MOAL context
+ *  @param buf          pointer to the buffer of a packet
+ *  @param drop_point   Drop pointer user set
+ *
+ *  @return         N/A
+ */
+void moal_tp_accounting(t_void *pmoal_handle, void *buf, t_u32 drop_point)
+{
+	struct sk_buff *skb = NULL;
+	moal_handle *handle = (moal_handle *)pmoal_handle;
+	pmlan_buffer pmbuf = (pmlan_buffer)buf;
+
+	if (drop_point < MAX_TP_ACCOUNT_DROP_POINT_NUM) {
+		if (drop_point == 4) {
+			handle->tp_acnt.tx_bytes[drop_point] += pmbuf->data_len;
+		} else {
+			skb = (struct sk_buff *)buf;
+			handle->tp_acnt.tx_bytes[drop_point] += skb->len;
+		}
+		handle->tp_acnt.tx_packets[drop_point]++;
+	} else if (drop_point <= RX_DROP_P5) {
+		t_u16 rx_len = 0;
+		if (drop_point == RX_DROP_P1 || drop_point == RX_DROP_P2)
+			rx_len = pmbuf->data_len -
+				 *((t_u16 *)(pmbuf->pbuf + pmbuf->data_offset) +
+				   2); // remove rx_pkt_offset
+		else if (drop_point == RX_DROP_P3) // aggr pkt
+			rx_len = pmbuf->data_len;
+		else if (drop_point == RX_DROP_P4) { // before to kernel
+			skb = (struct sk_buff *)buf;
+			rx_len = skb->len;
+		}
+		handle->tp_acnt
+			.rx_bytes[drop_point - MAX_TP_ACCOUNT_DROP_POINT_NUM] +=
+			rx_len;
+		handle->tp_acnt.rx_packets[drop_point -
+					   MAX_TP_ACCOUNT_DROP_POINT_NUM]++;
+	}
+}
+
+void moal_tp_accounting_rx_param(t_void *pmoal_handle, unsigned int type,
+				 unsigned int rsvd1)
+{
+	moal_handle *phandle = (moal_handle *)pmoal_handle;
+	switch (type) {
+	case 0: // Rx interrupt
+		phandle->tp_acnt.rx_intr_cnt++;
+		break;
+	case 1: // rx_pkts_queued
+		phandle->tp_acnt.rx_pending = rsvd1;
+		break;
+	case 2: // paused
+		phandle->tp_acnt.rx_paused_cnt++;
+		break;
+	default:
+		break;
+	}
+}
+
+/**
  *  @brief Request a spin_unlock
  *
  *  @param pmoal_handle Pointer to the MOAL context
@@ -1357,8 +1419,13 @@ mlan_status moal_recv_packet(t_void *pmoal_handle, pmlan_buffer pmbuf)
 						sizeof(dot11_rxcontrol),
 						sizeof(dot11_rxcontrol));
 			}
-
-			if (in_interrupt())
+			// rx_trace 8
+			if (priv->phandle->tp_acnt.on)
+				moal_tp_accounting(handle, skb, RX_DROP_P4);
+			if (priv->phandle->tp_acnt.drop_point == RX_DROP_P4) {
+				status = MLAN_STATUS_PENDING;
+				dev_kfree_skb(skb);
+			} else if (in_interrupt())
 				netif_rx(skb);
 			else {
 				if (atomic_read(&handle->rx_pending) >
@@ -1372,6 +1439,56 @@ mlan_status moal_recv_packet(t_void *pmoal_handle, pmlan_buffer pmbuf)
 done:
 	LEAVE();
 	return status;
+}
+
+/**
+ *  @brief This function checks media_connected state for
+ *  BSS types UAP/STA/P2P_GO/GC
+ *
+ *  @param pmoal_handle Pointer to the MOAL context
+ *
+ */
+int woal_check_media_connected(t_void *pmoal_handle)
+{
+	int i;
+	moal_handle *pmhandle = (moal_handle *)pmoal_handle;
+	moal_private *pmpriv = NULL;
+	for (i = 0; i < pmhandle->priv_num && (pmpriv = pmhandle->priv[i]);
+	     i++) {
+		if ((pmpriv->media_connected == MTRUE)) {
+			return MTRUE;
+		}
+	}
+	return MFALSE;
+}
+
+/**
+ *  @brief This function checks connect and disconnect
+ *  events for BSS types UAP/STA/P2P_GO/GC
+ *
+ *  @param pmoal_handle Pointer to the MOAL context
+ *
+ */
+void moal_connection_status_check_pmqos(t_void *pmoal_handle)
+{
+	moal_handle *pmhandle = (moal_handle *)pmoal_handle;
+	if ((woal_check_media_connected(pmoal_handle) == MTRUE)) {
+		if ((pmhandle->request_pm == MFALSE)) {
+			pmhandle->request_pm = MTRUE;
+#ifdef PCIE
+			if (IS_PCIE(pmhandle->card_type))
+				woal_request_pmqos_busfreq_high();
+#endif
+		}
+	} else {
+		if (pmhandle->request_pm == MTRUE) {
+			pmhandle->request_pm = MFALSE;
+#ifdef PCIE
+			if (IS_PCIE(pmhandle->card_type))
+				woal_release_pmqos_busfreq_high();
+#endif
+		}
+	}
 }
 
 /**
@@ -1511,7 +1628,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 		if (!netif_carrier_ok(priv->netdev))
 			netif_carrier_on(priv->netdev);
 		woal_wake_queue(priv->netdev);
-
+		moal_connection_status_check_pmqos(pmoal_handle);
 		break;
 
 	case MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER:
@@ -1680,6 +1797,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 			priv->rate_index = AUTO_RATE;
 		}
 #endif /* REASSOCIATION */
+		moal_connection_status_check_pmqos(pmoal_handle);
 		break;
 
 	case MLAN_EVENT_ID_FW_MIC_ERR_UNI:
@@ -2384,11 +2502,13 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 		woal_wake_queue(priv->netdev);
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
+		moal_connection_status_check_pmqos(pmoal_handle);
 		break;
 	case MLAN_EVENT_ID_UAP_FW_BSS_IDLE:
 		priv->media_connected = MFALSE;
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
+		moal_connection_status_check_pmqos(pmoal_handle);
 		break;
 	case MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES: {
 		t_u16 status = 0;

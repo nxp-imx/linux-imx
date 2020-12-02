@@ -37,11 +37,11 @@ Change log:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
 #include <linux/busfreq-imx.h>
 #endif
+
 /********************************************************
 			Local Variables
 ********************************************************/
 #define DRV_NAME "NXP mdriver PCIe"
-
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
 static struct pm_qos_request woal_pcie_pm_qos_req;
@@ -121,6 +121,8 @@ static const struct pci_device_id wlan_ids[] = {
 /* moal interface ops */
 static moal_if_ops pcie_ops;
 
+MODULE_DEVICE_TABLE(pci, wlan_ids);
+
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -128,6 +130,33 @@ static moal_if_ops pcie_ops;
 /********************************************************
 			Local Functions
 ********************************************************/
+
+void woal_request_pmqos_busfreq_high()
+{
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+	request_bus_freq(BUS_FREQ_HIGH);
+#endif
+}
+
+void woal_release_pmqos_busfreq_high()
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+	release_bus_freq(BUS_FREQ_HIGH);
+#endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+	pm_qos_remove_request(&woal_pcie_pm_qos_req);
+#endif
+#endif
+}
+
 static mlan_status woal_pcie_preinit(struct pci_dev *pdev);
 
 /**  @brief This function updates the card types
@@ -572,6 +601,8 @@ static int woal_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 	flush_workqueue(handle->evt_workqueue);
 	if (handle->rx_workqueue)
 		flush_workqueue(handle->rx_workqueue);
+	if (handle->tx_workqueue)
+		flush_workqueue(handle->tx_workqueue);
 	pci_enable_wake(pdev, pci_choose_state(pdev, state), 1);
 	pci_save_state(pdev);
 	pci_set_power_state(pdev, pci_choose_state(pdev, state));
@@ -1348,23 +1379,9 @@ mlan_status woal_pcie_bus_register(void)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	ENTER();
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-	pm_qos_add_request(&woal_pcie_pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
-#endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
-	request_bus_freq(BUS_FREQ_HIGH);
-#endif
 	/* API registers the NXP PCIE driver */
 	if (pci_register_driver(&wlan_pcie)) {
 		PRINTM(MFATAL, "PCIE Driver Registration Failed \n");
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-		pm_qos_remove_request(&woal_pcie_pm_qos_req);
-#endif
-#endif
 		ret = MLAN_STATUS_FAILURE;
 	}
 
@@ -1381,16 +1398,8 @@ void woal_pcie_bus_unregister(void)
 {
 	ENTER();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
-	release_bus_freq(BUS_FREQ_HIGH);
-#endif
 	/* PCIE Driver Unregistration */
 	pci_unregister_driver(&wlan_pcie);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-	pm_qos_remove_request(&woal_pcie_pm_qos_req);
-#endif
-#endif
 
 	LEAVE();
 }

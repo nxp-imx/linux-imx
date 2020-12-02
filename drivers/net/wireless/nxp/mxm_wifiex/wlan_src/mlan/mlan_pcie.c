@@ -1959,21 +1959,35 @@ static mlan_status wlan_pcie_process_recv_data(mlan_adapter *pmadapter)
 			/* send buffer to host (which will free it) */
 			pmbuf->data_len = rx_len - PCIE_INTF_HEADER_LEN;
 			pmbuf->data_offset += PCIE_INTF_HEADER_LEN;
-			PRINTM(MINFO,
-			       "RECV DATA: Received packet from FW successfully\n");
-			pmadapter->callbacks.moal_spin_lock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_data_queue.plock);
-			util_enqueue_list_tail(pmadapter->pmoal_handle,
-					       &pmadapter->rx_data_queue,
-					       (pmlan_linked_list)pmbuf, MNULL,
-					       MNULL);
-			pmadapter->rx_pkts_queued++;
-			pmadapter->callbacks.moal_spin_unlock(
-				pmadapter->pmoal_handle,
-				pmadapter->rx_data_queue.plock);
+			// rx_trace 5
+			if (pmadapter->tp_state_on)
+				pmadapter->callbacks.moal_tp_accounting(
+					pmadapter->pmoal_handle, pmbuf,
+					5 /*RX_DROP_P1*/);
+			if (pmadapter->tp_state_drop_point ==
+			    5 /*RX_DROP_P1*/) {
+				pmadapter->ops.data_complete(pmadapter, pmbuf,
+							     ret);
+			} else {
+				PRINTM(MINFO,
+				       "RECV DATA: Received packet from FW successfully\n");
+				pmadapter->callbacks.moal_spin_lock(
+					pmadapter->pmoal_handle,
+					pmadapter->rx_data_queue.plock);
+				util_enqueue_list_tail(
+					pmadapter->pmoal_handle,
+					&pmadapter->rx_data_queue,
+					(pmlan_linked_list)pmbuf, MNULL, MNULL);
+				pmadapter->rx_pkts_queued++;
+				pmadapter->callbacks.moal_tp_accounting_rx_param(
+					pmadapter->pmoal_handle, 1,
+					pmadapter->rx_pkts_queued);
+				pmadapter->callbacks.moal_spin_unlock(
+					pmadapter->pmoal_handle,
+					pmadapter->rx_data_queue.plock);
 
-			pmadapter->data_received = MTRUE;
+				pmadapter->data_received = MTRUE;
+			}
 			/* Create new buffer and attach it to Rx Ring */
 			pmbuf = wlan_alloc_mlan_buffer(pmadapter,
 						       MLAN_RX_DATA_BUF_SIZE,
@@ -3463,6 +3477,8 @@ mlan_status wlan_process_pcie_int_status(mlan_adapter *pmadapter)
 			pcie_ireg &=
 				~pmadapter->pcard_pcie->reg->host_intr_upld_rdy;
 			PRINTM(MINFO, "Rx DATA\n");
+			pmadapter->callbacks.moal_tp_accounting_rx_param(
+				pmadapter->pmoal_handle, 0, 0);
 			ret = wlan_pcie_process_recv_data(pmadapter);
 			if (ret)
 				goto done;
