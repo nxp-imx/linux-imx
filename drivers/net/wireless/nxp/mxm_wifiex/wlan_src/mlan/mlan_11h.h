@@ -142,6 +142,7 @@ mlan_status wlan_11h_print_event_radar_detected(mlan_private *priv,
 						mlan_event *pevent,
 						t_u8 *radar_chan);
 
+t_s32 wlan_11h_cancel_radar_detect(mlan_private *priv);
 /** Handler for DFS_TESTING IOCTL */
 extern mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 					      pmlan_ioctl_req pioctl_req);
@@ -149,9 +150,8 @@ extern mlan_status
 wlan_11h_ioctl_get_channel_nop_info(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
 
-extern mlan_status
-wlan_11h_ioctl_dfs_cancel_chan_report(mlan_private *priv,
-				      pmlan_ioctl_req pioctl_req);
+extern mlan_status wlan_11h_ioctl_dfs_chan_report(mlan_private *priv,
+						  pmlan_ioctl_req pioctl_req);
 extern mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 						    pmlan_ioctl_req pioctl_req);
 

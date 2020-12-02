@@ -4806,6 +4806,29 @@ mlan_status wlan_misc_ioctl_arb_cfg(pmlan_adapter pmadapter,
 	return ret;
 }
 
+/**
+ *  @brief Save tp accounting command configurations.
+ *
+ *  @param pmadapter   A pointer to mlan_adapter structure
+ *  @param pioctl_req  A pointer to ioctl request buffer
+ *
+ *  @return        MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status wlan_misc_ioctl_tp_state(pmlan_adapter pmadapter,
+				     pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_misc_cfg *pmisc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	pmadapter->tp_state_on = pmisc->param.tp_state.on;
+	pmadapter->tp_state_drop_point = pmisc->param.tp_state.drop_point;
+
+	LEAVE();
+	return ret;
+}
+
 mlan_status wlan_misc_ioctl_get_sensor_temp(pmlan_adapter pmadapter,
 					    pmlan_ioctl_req pioctl_req)
 {
@@ -5173,6 +5196,9 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		break;
 	case MLAN_OID_MISC_RANGE_EXT:
 		status = wlan_misc_ioctl_range_ext(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_TP_STATE:
+		status = wlan_misc_ioctl_tp_state(pmadapter, pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

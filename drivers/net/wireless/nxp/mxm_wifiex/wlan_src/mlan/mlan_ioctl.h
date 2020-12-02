@@ -331,6 +331,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_CFP_TABLE = 0x0020007A,
 	MLAN_OID_MISC_RANGE_EXT = 0x0020007B,
 	MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG = 0x0020007C,
+	MLAN_OID_MISC_TP_STATE = 0x0020007D,
 };
 
 /** Sub command size */
@@ -1594,6 +1595,29 @@ typedef struct _mlan_ds_get_stats {
 	t_u64 rx_octets_in_ampdu_cnt;
 	/** ampdu delimiter CRC error count */
 	t_u32 ampdu_delimiter_crc_error_cnt;
+	/** Rx Stuck Related Info*/
+	/** Rx Stuck Issue count */
+	t_u32 rx_stuck_issue_cnt[2];
+	/** Rx Stuck Recovery count */
+	t_u32 rx_stuck_recovery_cnt;
+	/** Rx Stuck TSF */
+	t_u64 rx_stuck_tsf[2];
+	/** Tx Watchdog Recovery Related Info */
+	/** Tx Watchdog Recovery count */
+	t_u32 tx_watchdog_recovery_cnt;
+	/** Tx Watchdog TSF */
+	t_u64 tx_watchdog_tsf[2];
+	/** Channel Switch Related Info */
+	/** Channel Switch Announcement Sent */
+	t_u32 channel_switch_ann_sent;
+	/** Channel Switch State */
+	t_u32 channel_switch_state;
+	/** Register Class */
+	t_u32 reg_class;
+	/** Channel Number */
+	t_u32 channel_number;
+	/** Channel Switch Mode */
+	t_u32 channel_switch_mode;
 } mlan_ds_get_stats, *pmlan_ds_get_stats;
 
 /** Type definition of mlan_ds_uap_stats for MLAN_OID_GET_STATS */
@@ -4077,6 +4101,8 @@ typedef struct _mlan_ds_11h_dfs_testing {
 	/** User-configured fixed channel to change to, 0 to use random channel
 	 */
 	t_u8 usr_fixed_new_chan;
+	/** User-configured cac restart */
+	t_u8 usr_cac_restart;
 } mlan_ds_11h_dfs_testing, *pmlan_ds_11h_dfs_testing;
 
 /** Type definition of mlan_ds_11h_dfs_testing for MLAN_OID_11H_CHAN_NOP_INFO */
@@ -4346,6 +4372,16 @@ typedef struct _mlan_ds_misc_arb_cfg {
 	/** arb mode 0-4 */
 	t_u32 arb_mode;
 } mlan_ds_misc_arb_cfg;
+
+/** Type definition of mlan_ds_misc_tp_state
+ *  for MLAN_OID_MISC_TP_STATE
+ */
+typedef struct _mlan_ds_misc_tp_state {
+	/** TP account mode 0-disable 1-enable */
+	t_u32 on;
+	/** Packet drop point */
+	t_u32 drop_point;
+} mlan_ds_misc_tp_state;
 
 /** Type definition of mlan_ds_misc_country_code
  *  for MLAN_OID_MISC_COUNTRY_CODE
@@ -5099,6 +5135,7 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_misc_cfp_tbl cfp;
 		t_u8 range_ext_mode;
 		mlan_ds_misc_dot11mc_unassoc_ftm_cfg dot11mc_unassoc_ftm_cfg;
+		mlan_ds_misc_tp_state tp_state;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

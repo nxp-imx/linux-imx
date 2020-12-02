@@ -1028,6 +1028,7 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	t_u8 ra[MLAN_MAC_ADDR_LENGTH];
 	int tid_del = 0;
 	int tid = 0;
+	mlan_buffer *pmbuf = MNULL;
 
 	ENTER();
 
@@ -1064,6 +1065,33 @@ static int wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 	}
 	if (ptr->del_ba_count >= DEL_BA_THRESHOLD)
 		wlan_update_del_ba_count(priv, ptr);
+	if (pmadapter->tp_state_on) {
+		pmbuf = (pmlan_buffer)util_peek_list(
+			pmadapter->pmoal_handle, &ptr->buf_head, MNULL, MNULL);
+		if (pmbuf) {
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf->pdesc, 3);
+			if (pmadapter->tp_state_drop_point == 3) {
+				pmbuf = (pmlan_buffer)util_dequeue_list(
+					pmadapter->pmoal_handle, &ptr->buf_head,
+					MNULL, MNULL);
+				PRINTM(MERROR, "Dequeuing the packet %p %p\n",
+				       ptr, pmbuf);
+				priv->wmm.pkts_queued[ptrindex]--;
+				util_scalar_decrement(pmadapter->pmoal_handle,
+						      &priv->wmm.tx_pkts_queued,
+						      MNULL, MNULL);
+				ptr->total_pkts--;
+				pmadapter->callbacks.moal_spin_unlock(
+					pmadapter->pmoal_handle,
+					priv->wmm.ra_list_spinlock);
+				wlan_write_data_complete(pmadapter, pmbuf,
+							 MLAN_STATUS_SUCCESS);
+				LEAVE();
+				return MLAN_STATUS_SUCCESS;
+			}
+		}
+	}
 	if (!ptr->is_11n_enabled ||
 	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT

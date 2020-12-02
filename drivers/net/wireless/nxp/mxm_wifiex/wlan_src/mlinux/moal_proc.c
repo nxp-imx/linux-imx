@@ -270,6 +270,56 @@ static int woal_info_proc_read(struct seq_file *sfp, void *data)
 			   ustats.rsna_4way_hshk_failures);
 	}
 #endif /* UAP_SUPPORT */
+	seq_printf(sfp, "=== tp_acnt.on:%d drop_point:%d ===\n",
+		   handle->tp_acnt.on, handle->tp_acnt.drop_point);
+	seq_printf(sfp, "====Tx accounting====\n");
+	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
+		seq_printf(sfp, "[%d] Tx packets     : %lu\n", i,
+			   handle->tp_acnt.tx_packets[i]);
+		seq_printf(sfp, "[%d] Tx packets last: %lu\n", i,
+			   handle->tp_acnt.tx_packets_last[i]);
+		seq_printf(sfp, "[%d] Tx packets rate: %lu\n", i,
+			   handle->tp_acnt.tx_packets_rate[i]);
+		seq_printf(sfp, "[%d] Tx bytes       : %lu\n", i,
+			   handle->tp_acnt.tx_bytes[i]);
+		seq_printf(sfp, "[%d] Tx bytes last  : %lu\n", i,
+			   handle->tp_acnt.tx_bytes_last[i]);
+		seq_printf(sfp, "[%d] Tx bytes rate  : %luMbps\n", i,
+			   handle->tp_acnt.tx_bytes_rate[i] * 8 / 1024 / 1024);
+	}
+	seq_printf(sfp, "Tx intr cnt    		: %lu\n",
+		   handle->tp_acnt.tx_intr_cnt);
+	seq_printf(sfp, "Tx intr last        : %lu\n",
+		   handle->tp_acnt.tx_intr_last);
+	seq_printf(sfp, "Tx intr rate        : %lu\n",
+		   handle->tp_acnt.tx_intr_rate);
+	seq_printf(sfp, "Tx pending          : %lu\n",
+		   handle->tp_acnt.tx_pending);
+	seq_printf(sfp, "====Rx accounting====\n");
+	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
+		seq_printf(sfp, "[%d] Rx packets     : %lu\n", i,
+			   handle->tp_acnt.rx_packets[i]);
+		seq_printf(sfp, "[%d] Rx packets last: %lu\n", i,
+			   handle->tp_acnt.rx_packets_last[i]);
+		seq_printf(sfp, "[%d] Rx packets rate: %lu\n", i,
+			   handle->tp_acnt.rx_packets_rate[i]);
+		seq_printf(sfp, "[%d] Rx bytes       : %lu\n", i,
+			   handle->tp_acnt.rx_bytes[i]);
+		seq_printf(sfp, "[%d] Rx bytes last  : %lu\n", i,
+			   handle->tp_acnt.rx_bytes_last[i]);
+		seq_printf(sfp, "[%d] Rx bytes rate  : %luMbps\n", i,
+			   handle->tp_acnt.rx_bytes_rate[i] * 8 / 1024 / 1024);
+	}
+	seq_printf(sfp, "Rx intr cnt    	 : %lu\n",
+		   handle->tp_acnt.rx_intr_cnt);
+	seq_printf(sfp, "Rx intr last        : %lu\n",
+		   handle->tp_acnt.rx_intr_last);
+	seq_printf(sfp, "Rx intr rate        : %lu\n",
+		   handle->tp_acnt.rx_intr_rate);
+	seq_printf(sfp, "Rx pending          : %lu\n",
+		   handle->tp_acnt.rx_pending);
+	seq_printf(sfp, "Rx pause            : %lu\n",
+		   handle->tp_acnt.rx_paused_cnt);
 exit:
 	LEAVE();
 	MODULE_PUT;
@@ -481,6 +531,33 @@ static ssize_t woal_config_write(struct file *f, const char __user *buf,
 #endif
 		PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
 		woal_request_fw_reload(handle, config_data);
+	}
+	if (!strncmp(databuf, "drop_point=", strlen("drop_point="))) {
+		line += strlen("drop_point") + 1;
+		config_data = (t_u32)woal_string_to_number(line);
+		if (config_data) {
+			handle->tp_acnt.on = 1;
+			handle->tp_acnt.drop_point = config_data;
+			if (handle->is_tp_acnt_timer_set == MFALSE) {
+				woal_initialize_timer(&handle->tp_acnt.timer,
+						      woal_tp_acnt_timer_func,
+						      handle);
+				handle->is_tp_acnt_timer_set = MTRUE;
+				woal_mod_timer(&handle->tp_acnt.timer, 1000);
+			}
+		} else {
+			if (handle->is_tp_acnt_timer_set) {
+				woal_cancel_timer(&handle->tp_acnt.timer);
+				handle->is_tp_acnt_timer_set = MFALSE;
+			}
+			memset((void *)&handle->tp_acnt, 0,
+			       sizeof(moal_tp_acnt_t));
+		}
+		priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+		if (priv)
+			woal_set_tp_state(priv);
+		PRINTM(MMSG, "on=%d drop_point=%d\n", handle->tp_acnt.on,
+		       handle->tp_acnt.drop_point);
 	}
 	if (!strncmp(databuf, "rf_test_mode", strlen("rf_test_mode"))) {
 		line += strlen("rf_test_mode") + 1;

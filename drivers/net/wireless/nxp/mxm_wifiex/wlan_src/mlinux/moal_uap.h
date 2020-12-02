@@ -495,6 +495,8 @@ typedef struct _dfs_testing_param {
 	t_u8 no_chan_change;
 	/** fixed channel to change to on radar */
 	t_u8 fixed_new_chan;
+	/** CAC restart */
+	t_u8 cac_restart;
 } dfs_testing_para;
 
 /** Channel switch count config */

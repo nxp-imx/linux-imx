@@ -1896,6 +1896,8 @@ t_void wlan_11h_init(mlan_adapter *adapter)
 	pdfs_test->user_nop_period_sec = 0;
 	pdfs_test->no_channel_change_on_radar = MFALSE;
 	pdfs_test->fixed_new_channel_on_radar = 0;
+	pdfs_test->cac_restart = 0;
+	pdfs_test->millisec_dwell_time = 0;
 	adapter->dfs53cfg = adapter->init_para.dfs53cfg;
 
 	LEAVE();
@@ -2144,6 +2146,17 @@ t_bool wlan_11h_radar_detect_required(mlan_private *priv, t_u8 channel)
 	return required;
 }
 
+t_s32 wlan_11h_cancel_radar_detect(mlan_private *priv)
+{
+	t_s32 ret;
+	HostCmd_DS_CHAN_RPT_REQ chan_rpt_req;
+	memset(priv->adapter, &chan_rpt_req, 0x00, sizeof(chan_rpt_req));
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_CHAN_REPORT_REQUEST,
+			       HostCmd_ACT_GEN_SET, 0, (t_void *)MNULL,
+			       (t_void *)&chan_rpt_req);
+	return ret;
+}
+
 /**
  *  @brief Perform a radar measurement if required on given channel
  *
@@ -2232,7 +2245,21 @@ t_s32 wlan_11h_issue_radar_detect(mlan_private *priv,
 				priv->adapter->dfs_test_params
 					.user_cac_period_msec;
 		}
-
+		if (priv->adapter->dfs_test_params.cac_restart) {
+			priv->adapter->dfs_test_params.chan =
+				chan_rpt_req.chan_desc.chanNum;
+			if (chan_rpt_req.millisec_dwell_time)
+				priv->adapter->dfs_test_params
+					.millisec_dwell_time =
+					chan_rpt_req.millisec_dwell_time;
+			else
+				chan_rpt_req.millisec_dwell_time =
+					priv->adapter->dfs_test_params
+						.millisec_dwell_time;
+			memcpy_ext(priv->adapter,
+				   &priv->adapter->dfs_test_params.bandcfg,
+				   &bandcfg, sizeof(bandcfg), sizeof(bandcfg));
+		}
 		PRINTM(MMSG,
 		       "11h: issuing DFS Radar check for channel=%d."
 		       "  Please wait for response...\n",
@@ -2598,7 +2625,7 @@ mlan_status wlan_11h_cmdresp_process(mlan_private *priv,
 		priv->adapter->state_dfs.dfs_check_pending = MTRUE;
 
 		if (resp->params.chan_rpt_req.millisec_dwell_time == 0) {
-			/* from wlan_11h_ioctl_dfs_cancel_chan_report */
+			/* from wlan_11h_ioctl_dfs_chan_report */
 			priv->adapter->state_dfs.dfs_check_pending = MFALSE;
 			priv->adapter->state_dfs.dfs_check_priv = MNULL;
 			priv->adapter->state_dfs.dfs_check_channel = 0;
@@ -2885,6 +2912,7 @@ mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 			pdfs_test_params->no_channel_change_on_radar;
 		dfs_test->usr_fixed_new_chan =
 			pdfs_test_params->fixed_new_channel_on_radar;
+		dfs_test->usr_cac_restart = pdfs_test_params->cac_restart;
 	} else {
 		pdfs_test_params->user_cac_period_msec =
 			dfs_test->usr_cac_period_msec;
@@ -2894,6 +2922,7 @@ mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 			dfs_test->usr_no_chan_change;
 		pdfs_test_params->fixed_new_channel_on_radar =
 			dfs_test->usr_fixed_new_chan;
+		pdfs_test_params->cac_restart = dfs_test->usr_cac_restart;
 	}
 
 	LEAVE();
@@ -2985,15 +3014,15 @@ mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief 802.11h DFS cancel chan report
+ *  @brief 802.11h DFS chan report
  *
  *  @param priv         Pointer to mlan_private
  *  @param pioctl_req   Pointer to mlan_ioctl_req
  *
  *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
-mlan_status wlan_11h_ioctl_dfs_cancel_chan_report(mlan_private *priv,
-						  pmlan_ioctl_req pioctl_req)
+mlan_status wlan_11h_ioctl_dfs_chan_report(mlan_private *priv,
+					   pmlan_ioctl_req pioctl_req)
 {
 	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
 	HostCmd_DS_CHAN_RPT_REQ *chan_rpt_req = MNULL;

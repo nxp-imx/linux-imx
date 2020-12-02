@@ -3533,6 +3533,29 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u64 rx_octets_in_ampdu_cnt;
 	/** ampdu delimiter CRC error count */
 	t_u32 ampdu_delimiter_crc_error_cnt;
+	/** Rx Stuck Related Info*/
+	/** Rx Stuck Issue count */
+	t_u32 rx_stuck_issue_cnt[2];
+	/** Rx Stuck Recovery count */
+	t_u32 rx_stuck_recovery_cnt;
+	/** Rx Stuck TSF */
+	t_u64 rx_stuck_tsf[2];
+	/** Tx Watchdog Recovery Related Info */
+	/** Tx Watchdog Recovery count */
+	t_u32 tx_watchdog_recovery_cnt;
+	/** Tx Watchdog TSF */
+	t_u64 tx_watchdog_tsf[2];
+	/** Channel Switch Related Info */
+	/** Channel Switch Announcement Sent */
+	t_u32 channel_switch_ann_sent;
+	/** Channel Switch State */
+	t_u32 channel_switch_state;
+	/** Register Class */
+	t_u32 reg_class;
+	/** Channel Number */
+	t_u32 channel_number;
+	/** Channel Switch Mode */
+	t_u32 channel_switch_mode;
 } MLAN_PACK_END HostCmd_DS_802_11_GET_LOG;
 
 /* maln wifi rate */

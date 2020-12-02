@@ -1009,6 +1009,8 @@ static int woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 			param.no_chan_change;
 		cfg11h->param.dfs_testing.usr_fixed_new_chan =
 			param.fixed_new_chan;
+		cfg11h->param.dfs_testing.usr_cac_restart = param.cac_restart;
+		priv->phandle->cac_restart = param.cac_restart;
 		priv->phandle->cac_period_jiffies =
 			param.usr_cac_period * HZ / 1000;
 		priv->user_cac_period_msec =
@@ -1029,6 +1031,7 @@ static int woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 			cfg11h->param.dfs_testing.usr_no_chan_change;
 		param.fixed_new_chan =
 			cfg11h->param.dfs_testing.usr_fixed_new_chan;
+		param.cac_restart = cfg11h->param.dfs_testing.usr_cac_restart;
 	}
 	/* Copy to user */
 	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {

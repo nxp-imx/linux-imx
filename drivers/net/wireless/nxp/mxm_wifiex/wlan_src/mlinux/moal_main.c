@@ -635,6 +635,8 @@ static mlan_callbacks woal_callbacks = {
 	.moal_wait_hostcmd_complete = moal_wait_hostcmd_complete,
 	.moal_notify_hostcmd_complete = moal_notify_hostcmd_complete,
 #endif
+	.moal_tp_accounting = moal_tp_accounting,
+	.moal_tp_accounting_rx_param = moal_tp_accounting_rx_param,
 };
 
 int woal_open(struct net_device *dev);
@@ -3731,6 +3733,7 @@ moal_private *woal_add_interface(moal_handle *handle, t_u8 bss_index,
 
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_lock_init(&priv->tx_stat_lock);
+
 #ifdef STA_CFG80211
 #ifdef STA_SUPPORT
 	spin_lock_init(&priv->connect_lock);
@@ -4329,7 +4332,11 @@ void woal_terminate_workqueue(moal_handle *handle)
 		destroy_workqueue(handle->evt_workqueue);
 		handle->evt_workqueue = NULL;
 	}
-
+	if (handle->tx_workqueue) {
+		flush_workqueue(handle->tx_workqueue);
+		destroy_workqueue(handle->tx_workqueue);
+		handle->tx_workqueue = NULL;
+	}
 	LEAVE();
 }
 
@@ -5052,6 +5059,9 @@ void woal_flush_tx_stat_queue(moal_private *priv)
 	}
 	INIT_LIST_HEAD(&priv->tx_stat_queue);
 	spin_unlock_irqrestore(&priv->tx_stat_lock, flags);
+	spin_lock_bh(&(priv->tx_q.lock));
+	__skb_queue_purge(&priv->tx_q);
+	spin_unlock_bh(&(priv->tx_q.lock));
 }
 
 /**
@@ -5421,9 +5431,8 @@ done:
  *
  *  @return        0 --success
  */
-netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
+int woal_start_xmit(moal_private *priv, struct sk_buff *skb)
 {
-	moal_private *priv = (moal_private *)netdev_priv(dev);
 	mlan_buffer *pmbuf = NULL;
 	mlan_status status;
 	struct sk_buff *new_skb = NULL;
@@ -5433,14 +5442,7 @@ netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	int ret = 0;
 
 	ENTER();
-	PRINTM(MDATA, "%lu : %s (bss=%d): Data <= kernel\n", jiffies, dev->name,
-	       priv->bss_index);
 
-	if (priv->phandle->surprise_removed == MTRUE) {
-		dev_kfree_skb_any(skb);
-		priv->stats.tx_dropped++;
-		goto done;
-	}
 	priv->num_tx_timeout = 0;
 	if (!skb->len || (skb->len > ETH_FRAME_LEN)) {
 		PRINTM(MERROR, "Tx Error: Bad skb length %d : %d\n", skb->len,
@@ -5524,6 +5526,50 @@ netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		dev_kfree_skb_any(skb);
 		break;
 	}
+done:
+	LEAVE();
+	return 0;
+}
+
+/**
+ *  @brief This function handles packet transmission
+ *
+ *  @param skb     A pointer to sk_buff structure
+ *  @param dev     A pointer to net_device structure
+ *
+ *  @return        0 --success
+ */
+netdev_tx_t woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	ENTER();
+	PRINTM(MDATA, "%lu : %s (bss=%d): Data <= kernel\n", jiffies, dev->name,
+	       priv->bss_index);
+
+	/* Collect TP statistics */
+	if (priv->phandle->tp_acnt.on)
+		moal_tp_accounting(priv->phandle, skb, 1);
+	/* Drop Tx packets at drop point 1 */
+	if (priv->phandle->tp_acnt.drop_point == 1) {
+		dev_kfree_skb_any(skb);
+		LEAVE();
+		return 0;
+	}
+	if (priv->phandle->surprise_removed == MTRUE) {
+		dev_kfree_skb_any(skb);
+		priv->stats.tx_dropped++;
+		goto done;
+	}
+	if (moal_extflg_isset(priv->phandle, EXT_TX_WORK)) {
+		spin_lock_bh(&(priv->tx_q.lock));
+		__skb_queue_tail(&(priv->tx_q), skb);
+		spin_unlock_bh(&(priv->tx_q.lock));
+
+		queue_work(priv->phandle->tx_workqueue,
+			   &priv->phandle->tx_work);
+		goto done;
+	}
+	woal_start_xmit(priv, skb);
 done:
 	LEAVE();
 	return 0;
@@ -5793,6 +5839,7 @@ void woal_init_priv(moal_private *priv, t_u8 wait_option)
 	}
 #endif
 
+	skb_queue_head_init(&priv->tx_q);
 	memset(&priv->tx_protocols, 0, sizeof(dot11_protocol));
 	memset(&priv->rx_protocols, 0, sizeof(dot11_protocol));
 	priv->media_connected = MFALSE;
@@ -8248,6 +8295,54 @@ t_void woal_rx_work_queue(struct work_struct *work)
 }
 
 /**
+ *  @brief This function dequeue pkt from list
+ *
+ *  @param list    A pointer to struct sk_buff_head
+ *
+ *  @return        skb buffer
+ */
+
+struct sk_buff *woal_skb_dequeue_spinlock(struct sk_buff_head *list)
+{
+	struct sk_buff *result;
+
+	spin_lock_bh(&list->lock);
+	result = __skb_dequeue(list);
+	spin_unlock_bh(&list->lock);
+	return result;
+}
+
+/**
+ *  @brief This workqueue function handles rx_work_process
+ *
+ *  @param work    A pointer to work_struct
+ *
+ *  @return        N/A
+ */
+t_void woal_tx_work_handler(struct work_struct *work)
+{
+	moal_handle *handle = container_of(work, moal_handle, tx_work);
+	moal_private *priv = NULL;
+	int i = 0;
+	struct sk_buff *skb = NULL;
+
+	ENTER();
+	if (handle->surprise_removed == MTRUE) {
+		LEAVE();
+		return;
+	}
+
+	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+		priv = handle->priv[i];
+		while ((skb = woal_skb_dequeue_spinlock(&priv->tx_q)) != NULL) {
+			woal_start_xmit(priv, skb);
+		}
+	}
+
+	LEAVE();
+}
+
+/**
  *  @brief This workqueue function handles main_process
  *
  *  @param work    A pointer to work_struct
@@ -8535,6 +8630,26 @@ moal_handle *woal_add_card(void *card, struct device *dev, moal_if_ops *if_ops,
 		napi_enable(&handle->napi_rx);
 	}
 
+	if (moal_extflg_isset(handle, EXT_TX_WORK)) {
+		/* Create workqueue for tx process */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
+		handle->tx_workqueue = create_workqueue("MOAL_TX_WORKQ");
+#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		handle->tx_workqueue = alloc_workqueue(
+			"MOAL_TX_WORK_QUEUE",
+			WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
+#else
+		handle->tx_workqueue = create_workqueue("MOAL_TX_WORK_QUEUE");
+#endif
+#endif
+		if (!handle->tx_workqueue) {
+			woal_terminate_workqueue(handle);
+			goto err_kmalloc;
+		}
+		MLAN_INIT_WORK(&handle->tx_work, woal_tx_work_handler);
+	}
+
 #ifdef REASSOCIATION
 	PRINTM(MINFO, "Starting re-association thread...\n");
 	handle->reassoc_thread.handle = handle;
@@ -8676,6 +8791,8 @@ mlan_status woal_remove_card(void *card)
 	flush_workqueue(handle->evt_workqueue);
 	if (handle->rx_workqueue)
 		flush_workqueue(handle->rx_workqueue);
+	if (handle->tx_workqueue)
+		flush_workqueue(handle->tx_workqueue);
 
 	if (moal_extflg_isset(handle, EXT_NAPI)) {
 		napi_disable(&handle->napi_rx);
@@ -8741,6 +8858,15 @@ mlan_status woal_remove_card(void *card)
 #endif
 #endif
 #endif
+	if (handle->tp_acnt.on) {
+		handle->tp_acnt.on = 0;
+		handle->tp_acnt.drop_point = 0;
+		if (handle->is_tp_acnt_timer_set) {
+			woal_cancel_timer(&handle->tp_acnt.timer);
+			handle->is_tp_acnt_timer_set = MFALSE;
+		}
+	}
+
 	/* Remove interface */
 	for (i = 0; i < MIN(MLAN_MAX_BSS_NUM, handle->priv_num); i++)
 		woal_remove_interface(handle, i);
