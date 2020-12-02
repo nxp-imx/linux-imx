@@ -7017,7 +7017,8 @@ save_ssudump:
 		return;
 	}
 	DBG_HEXDUMP(MEVT_D, "SSU addr", pmevent->event_buf, 8);
-	moal_memcpy_ext(phandle, &tmpbuf, pmevent->event_buf, 8, 8);
+	moal_memcpy_ext(phandle, &tmpbuf, pmevent->event_buf, sizeof(t_ptr),
+			sizeof(t_ptr));
 	PRINTM(MEVENT, "woal_store_ssu_dump: tmpbuf %p\n", tmpbuf);
 	for (i = 0; i < pmevent->event_len / 4; i++) {
 		if ((i + 1) % 8 == 0)

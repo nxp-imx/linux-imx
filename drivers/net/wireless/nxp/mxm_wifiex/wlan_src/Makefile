@@ -96,6 +96,11 @@ MODEXT = ko
 ccflags-y += -I$(M)/mlan
 ccflags-y += -DLINUX
 
+CONFIG_IMX_SUPPORT=y
+ifeq ($(CONFIG_IMX_SUPPORT),y)
+ccflags-y += -DIMX_SUPPORT
+endif
+
 LD += -S
 
 #############################################################################

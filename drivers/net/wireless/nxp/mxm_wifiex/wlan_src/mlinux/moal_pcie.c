@@ -35,7 +35,9 @@ Change log:
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 #include <linux/busfreq-imx.h>
+#endif
 #endif
 
 /********************************************************
@@ -121,8 +123,6 @@ static const struct pci_device_id wlan_ids[] = {
 /* moal interface ops */
 static moal_if_ops pcie_ops;
 
-MODULE_DEVICE_TABLE(pci, wlan_ids);
-
 /********************************************************
 			Global Variables
 ********************************************************/
@@ -140,14 +140,18 @@ void woal_request_pmqos_busfreq_high()
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 	request_bus_freq(BUS_FREQ_HIGH);
+#endif
 #endif
 }
 
 void woal_release_pmqos_busfreq_high()
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 	release_bus_freq(BUS_FREQ_HIGH);
+#endif
 #endif
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)

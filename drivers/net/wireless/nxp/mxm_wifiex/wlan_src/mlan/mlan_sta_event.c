@@ -981,7 +981,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_SSU_DUMP_FILE;
 		pevent->event_len = MLAN_SSU_BUF_SIZE;
-		*(t_u64 *)pevent->event_buf = (t_u64)pmadapter->ssu_buf->pbuf +
+		*(t_ptr *)pevent->event_buf = (t_ptr)pmadapter->ssu_buf->pbuf +
 					      pmadapter->ssu_buf->data_offset;
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		wlan_free_ssu_pcie_buf(pmadapter);
