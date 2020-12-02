@@ -593,6 +593,32 @@ static mlan_status wlan_ret_get_log(pmlan_private pmpriv,
 		pget_info->param.stats.amsdu_tx_cnt = pmpriv->amsdu_tx_cnt;
 		pget_info->param.stats.msdu_in_tx_amsdu_cnt =
 			pmpriv->msdu_in_tx_amsdu_cnt;
+		pget_info->param.stats.rx_stuck_issue_cnt[0] =
+			wlan_le32_to_cpu(pget_log->rx_stuck_issue_cnt[0]);
+		pget_info->param.stats.rx_stuck_issue_cnt[1] =
+			wlan_le32_to_cpu(pget_log->rx_stuck_issue_cnt[1]);
+		pget_info->param.stats.rx_stuck_recovery_cnt =
+			wlan_le32_to_cpu(pget_log->rx_stuck_recovery_cnt);
+		pget_info->param.stats.rx_stuck_tsf[0] =
+			wlan_le64_to_cpu(pget_log->rx_stuck_tsf[0]);
+		pget_info->param.stats.rx_stuck_tsf[1] =
+			wlan_le64_to_cpu(pget_log->rx_stuck_tsf[1]);
+		pget_info->param.stats.tx_watchdog_recovery_cnt =
+			wlan_le32_to_cpu(pget_log->tx_watchdog_recovery_cnt);
+		pget_info->param.stats.tx_watchdog_tsf[0] =
+			wlan_le64_to_cpu(pget_log->tx_watchdog_tsf[0]);
+		pget_info->param.stats.tx_watchdog_tsf[1] =
+			wlan_le64_to_cpu(pget_log->tx_watchdog_tsf[1]);
+		pget_info->param.stats.channel_switch_ann_sent =
+			wlan_le32_to_cpu(pget_log->channel_switch_ann_sent);
+		pget_info->param.stats.channel_switch_state =
+			wlan_le32_to_cpu(pget_log->channel_switch_state);
+		pget_info->param.stats.reg_class =
+			wlan_le32_to_cpu(pget_log->reg_class);
+		pget_info->param.stats.channel_number =
+			wlan_le32_to_cpu(pget_log->channel_number);
+		pget_info->param.stats.channel_switch_mode =
+			wlan_le32_to_cpu(pget_log->channel_switch_mode);
 		if (pmpriv->adapter->getlog_enable) {
 			pget_info->param.stats.tx_frag_cnt =
 				wlan_le32_to_cpu(pget_log->tx_frag_cnt);

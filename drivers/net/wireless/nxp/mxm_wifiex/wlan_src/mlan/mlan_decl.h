@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "210"
+#define MLAN_RELEASE_VERSION "215"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -856,6 +856,23 @@ enum { SCAN_MODE_MANUAL = 0,
        SCAN_MODE_ACS,
        SCAN_MODE_USER,
 };
+
+/** max cac time 10 minutes */
+#define MAX_CAC_DWELL_TIME 600000
+/** default cac time 60 seconds */
+#define DEF_CAC_DWELL_TIME 60000
+/** start freq for 5G */
+#define START_FREQ_11A_BAND 5000
+/** DFS state */
+typedef enum _dfs_state_t {
+	/** Channel can be used, CAC (Channel Availability Check) must be done
+	   before using it */
+	DFS_USABLE = 0,
+	/** Channel is not available, radar was detected */
+	DFS_UNAVAILABLE = 1,
+	/** Channel is Available, CAC is done and is free of radar */
+	DFS_AVAILABLE = 2,
+} dfs_state_t;
 
 typedef enum _dfs_w53_cfg_t {
 	/** DFS W53 Default Fw Value */
@@ -1747,6 +1764,12 @@ typedef struct _mlan_callbacks {
 	mlan_status (*moal_notify_hostcmd_complete)(t_void *pmoal_handle,
 						    t_u32 bss_index);
 #endif
+	void (*moal_tp_accounting)(t_void *pmoal_handle, t_void *buf,
+				   t_u32 drop_point);
+	void (*moal_tp_accounting_rx_param)(t_void *pmoal_handle,
+					    unsigned int type,
+					    unsigned int rsvd1);
+
 } mlan_callbacks, *pmlan_callbacks;
 
 /** Parameter unchanged, use MLAN default setting */

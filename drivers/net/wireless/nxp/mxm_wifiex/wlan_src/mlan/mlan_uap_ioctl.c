@@ -2175,8 +2175,8 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_11h_ioctl_get_channel_nop_info(
 				pmadapter, pioctl_req);
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_REPORT_REQUEST)
-			status = wlan_11h_ioctl_dfs_cancel_chan_report(
-				pmpriv, pioctl_req);
+			status = wlan_11h_ioctl_dfs_chan_report(pmpriv,
+								pioctl_req);
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_SWITCH_COUNT)
 			status = wlan_11h_ioctl_chan_switch_count(pmadapter,
 								  pioctl_req);

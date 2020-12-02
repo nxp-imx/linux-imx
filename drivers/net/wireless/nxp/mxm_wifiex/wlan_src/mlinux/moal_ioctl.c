@@ -670,6 +670,8 @@ mlan_status woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req,
 				priv->phandle->cac_period_jiffies -
 				(jiffies - priv->phandle->meas_start_jiffies);
 		}
+		if (priv->phandle->cac_restart)
+			cac_left_jiffies = DEF_CAC_DWELL_TIME * HZ / 1000;
 		if (cac_left_jiffies < 0) {
 			/* Avoid driver hang in FW died during CAC measure
 			 * period */

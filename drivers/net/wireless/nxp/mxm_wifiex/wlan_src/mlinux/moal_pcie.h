@@ -139,4 +139,10 @@ typedef struct _pcie_service_card {
 mlan_status woal_pcie_bus_register(void);
 /** Unregister from bus driver function */
 void woal_pcie_bus_unregister(void);
+
+/* pmqos busfreq request handler*/
+void woal_request_pmqos_busfreq_high(void);
+/* pmqos busfreq release handler*/
+void woal_release_pmqos_busfreq_high(void);
+
 #endif /* _MOAL_PCIE_H_ */

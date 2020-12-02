@@ -113,6 +113,7 @@ int shutdown_hs;
 /** SDIO slew rate */
 int slew_rate = 3;
 #endif
+int tx_work = 0;
 
 #if defined(STA_SUPPORT)
 /** 802.11d configuration */
@@ -1077,6 +1078,17 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "napi %s\n",
 			       moal_extflg_isset(handle, EXT_NAPI) ? "on" :
 								     "off");
+		} else if (strncmp(line, "tx_work", strlen("tx_work")) == 0) {
+			if (parse_line_read_int(line, &out_data) !=
+			    MLAN_STATUS_SUCCESS)
+				goto err;
+			if (out_data)
+				moal_extflg_set(handle, EXT_TX_WORK);
+			else
+				moal_extflg_clear(handle, EXT_TX_WORK);
+			PRINTM(MMSG, "tx_work %s\n",
+			       moal_extflg_isset(handle, EXT_TX_WORK) ? "on" :
+									"off");
 		}
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		else if (strncmp(line, "dfs_offload", strlen("dfs_offload")) ==
@@ -1415,6 +1427,9 @@ static void woal_setup_module_param(moal_handle *handle, moal_mod_para *params)
 	}
 	if (napi)
 		moal_extflg_set(handle, EXT_NAPI);
+	if (tx_work)
+		moal_extflg_set(handle, EXT_TX_WORK);
+
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
 		moal_extflg_set(handle, EXT_DFS_OFFLOAD);
@@ -1622,6 +1637,12 @@ void woal_init_from_dev_tree(void)
 			}
 		}
 #endif
+		else if (!strncmp(prop->name, "tx_work", strlen("tx_work"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				PRINTM(MIOCTL, "tx_work=0x%x\n", data);
+				tx_work = data;
+			}
+		}
 #ifdef MFG_CMD_SUPPORT
 		else if (!strncmp(prop->name, "mfg_mode", strlen("mfg_mode"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
@@ -2158,6 +2179,8 @@ MODULE_PARM_DESC(
 	slew_rate,
 	"0:has the slowest slew rate, then 01, then 02, and 03 has the highest slew rate");
 #endif
+module_param(tx_work, uint, 0660);
+MODULE_PARM_DESC(tx_work, "1: Enable tx_work; 0: Disable tx_work");
 module_param(dpd_data_cfg, charp, 0);
 MODULE_PARM_DESC(dpd_data_cfg, "DPD data file name");
 module_param(init_cfg, charp, 0);

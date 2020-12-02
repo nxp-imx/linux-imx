@@ -260,6 +260,13 @@ mlan_status wlan_11n_deaggregate_pkt(mlan_private *priv, pmlan_buffer pmbuf)
 
 	pmbuf->use_count = wlan_11n_get_num_aggrpkts(data, total_pkt_len);
 
+	// rx_trace 7
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_tp_accounting(
+			pmadapter->pmoal_handle, pmbuf, 7 /*RX_DROP_P3*/);
+	if (pmadapter->tp_state_drop_point == 7 /*RX_DROP_P3*/)
+		goto done;
+
 	while (total_pkt_len >= hdr_len) {
 		prx_pkt = (RxPacketHdr_t *)data;
 		/* Length will be in network format, change it to host */
@@ -445,7 +452,10 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 			(pmlan_buffer)util_dequeue_list(pmadapter->pmoal_handle,
 							&pra_list->buf_head,
 							MNULL, MNULL);
-
+		/* Collects TP statistics */
+		if (pmadapter->tp_state_on && (pkt_size > sizeof(TxPD)))
+			pmadapter->callbacks.moal_tp_accounting(
+				pmadapter->pmoal_handle, pmbuf_src->pdesc, 3);
 		pra_list->total_pkts--;
 
 		/* decrement for every PDU taken from the list */
@@ -497,9 +507,18 @@ int wlan_11n_aggregate_pkt(mlan_private *priv, raListTbl *pra_list,
 	pmbuf_aggr->pbuf = data - headroom;
 	tx_param.next_pkt_len =
 		((pmbuf_src) ? pmbuf_src->data_len + sizeof(TxPD) : 0);
+	/* Collects TP statistics */
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
+							pmbuf_aggr, 4);
 
-	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf_aggr,
-					  &tx_param);
+	/* Drop Tx packets at drop point 4 */
+	if (pmadapter->tp_state_drop_point == 4) {
+		wlan_write_data_complete(pmadapter, pmbuf_aggr, ret);
+		goto exit;
+	} else
+		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA,
+						  pmbuf_aggr, &tx_param);
 	switch (ret) {
 #ifdef USB
 	case MLAN_STATUS_PRESOURCE:

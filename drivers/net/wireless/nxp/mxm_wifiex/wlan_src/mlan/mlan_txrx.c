@@ -124,9 +124,15 @@ mlan_status wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf,
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
 		plocal_tx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
 #endif
-
-	ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
-					  tx_param);
+	if (pmadapter->tp_state_on)
+		pmadapter->callbacks.moal_tp_accounting(pmadapter->pmoal_handle,
+							pmbuf, 4);
+	if (pmadapter->tp_state_drop_point == 4)
+		goto done;
+	else {
+		ret = pmadapter->ops.host_to_card(priv, MLAN_TYPE_DATA, pmbuf,
+						  tx_param);
+	}
 done:
 	switch (ret) {
 #ifdef USB

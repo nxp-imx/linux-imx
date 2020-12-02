@@ -116,5 +116,7 @@ mlan_status moal_free_timer(t_void *pmoal_handle, t_void *ptimer);
 mlan_status moal_start_timer(t_void *pmoal_handle, t_void *ptimer,
 			     t_u8 periodic, t_u32 msec);
 mlan_status moal_stop_timer(t_void *pmoal_handle, t_void *ptimer);
-
+void moal_tp_accounting(t_void *pmoal_handle, void *buf, t_u32 drop_point);
+void moal_tp_accounting_rx_param(t_void *pmoal_handle, unsigned int type,
+				 unsigned int rsvd1);
 #endif /*_MOAL_H */

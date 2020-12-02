@@ -1,3 +1,4 @@
+
 /** @file  moal_eth_ioctl.c
   *
   * @brief This file contains private ioctl functions
@@ -10320,7 +10321,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	int ret = 0;
-	int data[4] = {0};
+	int data[5] = {0};
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10347,14 +10348,14 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 		/* SET operation */
 		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
 				&user_data_len);
-		if (user_data_len != 4) {
+		if (user_data_len != 5) {
 			PRINTM(MERROR, "Invalid number of args!\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		if ((unsigned)data[0] > 0xFFFFF) {
+		if ((unsigned)data[0] > 1800) {
 			PRINTM(MERROR,
-			       "The maximum user CAC is 1048575 msec (17 mins approx).\n");
+			       "The maximum user CAC is 1800 seconds (30 mins).\n");
 			ret = -EINVAL;
 			goto done;
 		}
@@ -10369,6 +10370,12 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 			ret = -EINVAL;
 			goto done;
 		}
+		if ((unsigned)data[4] != 0 && ((unsigned)data[4] != 1)) {
+			PRINTM(MERROR, "CAC restart should be 0/1\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
 		ds_11hcfg->param.dfs_testing.usr_cac_period_msec =
 			(t_u32)data[0] * 1000;
 		ds_11hcfg->param.dfs_testing.usr_nop_period_sec =
@@ -10376,6 +10383,8 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 		ds_11hcfg->param.dfs_testing.usr_no_chan_change =
 			data[2] ? 1 : 0;
 		ds_11hcfg->param.dfs_testing.usr_fixed_new_chan = (t_u8)data[3];
+		ds_11hcfg->param.dfs_testing.usr_cac_restart = (t_u8)data[4];
+		priv->phandle->cac_restart = (t_u8)data[4];
 		priv->phandle->cac_period_jiffies = (t_u32)data[0] * HZ / 1000;
 		priv->phandle->usr_nop_period_sec = (t_u16)data[1];
 		req->action = MLAN_ACT_SET;
@@ -10398,6 +10407,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 		data[1] = ds_11hcfg->param.dfs_testing.usr_nop_period_sec;
 		data[2] = ds_11hcfg->param.dfs_testing.usr_no_chan_change;
 		data[3] = ds_11hcfg->param.dfs_testing.usr_fixed_new_chan;
+		data[4] = ds_11hcfg->param.dfs_testing.usr_cac_restart;
 		moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data,
 				sizeof(data), respbuflen);
 		ret = sizeof(data);
@@ -14823,6 +14833,150 @@ done:
 	LEAVE();
 	return ret;
 }
+
+/**
+ *  @brief      Timer function for TP state command.
+ *
+ *  @param data pointer to a buffer
+ *
+ *  @return     N/A
+ */
+void woal_tp_acnt_timer_func(void *context)
+{
+	moal_handle *phandle = (moal_handle *)context;
+	int i = 0;
+
+	if (phandle == NULL)
+		return;
+	PRINTM(MDATA, "####### CPU%d: tp acnt timer\n", smp_processor_id());
+	/* Tx TP accounting */
+	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
+		phandle->tp_acnt.tx_bytes_rate[i] =
+			phandle->tp_acnt.tx_bytes[i] -
+			phandle->tp_acnt.tx_bytes_last[i];
+		phandle->tp_acnt.tx_bytes_last[i] =
+			phandle->tp_acnt.tx_bytes[i];
+	}
+	phandle->tp_acnt.tx_pending = atomic_read(&phandle->tx_pending);
+	/* Tx Interrupt accounting */
+	phandle->tp_acnt.tx_intr_rate =
+		phandle->tp_acnt.tx_intr_cnt - phandle->tp_acnt.tx_intr_last;
+	phandle->tp_acnt.tx_intr_last = phandle->tp_acnt.tx_intr_cnt;
+
+	/* Rx TP accounting */
+	for (i = 0; i < MAX_TP_ACCOUNT_DROP_POINT_NUM; i++) {
+		phandle->tp_acnt.rx_bytes_rate[i] =
+			phandle->tp_acnt.rx_bytes[i] -
+			phandle->tp_acnt.rx_bytes_last[i];
+		phandle->tp_acnt.rx_bytes_last[i] =
+			phandle->tp_acnt.rx_bytes[i];
+	}
+	phandle->tp_acnt.rx_pending = atomic_read(&phandle->rx_pending);
+	// Interrupt accounting, RX
+	phandle->tp_acnt.rx_intr_rate =
+		phandle->tp_acnt.rx_intr_cnt - phandle->tp_acnt.rx_intr_last;
+	phandle->tp_acnt.rx_intr_last = phandle->tp_acnt.rx_intr_cnt;
+
+	/* re-arm timer */
+	woal_mod_timer(&phandle->tp_acnt.timer, 1000);
+}
+
+/**
+ *  @brief      set tp state to mlan
+ *
+ *  @param priv  pointer to moal_private
+ *
+ *  @return     N/A
+ */
+void woal_set_tp_state(moal_private *priv)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	moal_handle *handle = priv->phandle;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL)
+		return;
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_TP_STATE;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	misc->param.tp_state.on = handle->tp_acnt.on;
+	misc->param.tp_state.drop_point = handle->tp_acnt.drop_point;
+	req->action = MLAN_ACT_SET;
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	return;
+}
+
+/**
+ *  @brief Set/Get TP statistics.
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int woal_priv_set_tp_state(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	moal_handle *handle = priv->phandle;
+	int ret = 0;
+	int data[2];
+	int header_len = 0, user_data_len = 0;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_TP_STATE);
+	user_data_len = strlen(respbuf) - header_len;
+	parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+			&user_data_len);
+	if (user_data_len > 2) {
+		PRINTM(MERROR, "Invalid number of args!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	if (user_data_len) {
+		handle->tp_acnt.on = data[0];
+		/* Enable TP statistics collection */
+		if (data[0] == 1) {
+			handle->tp_acnt.drop_point = data[1];
+			if (handle->is_tp_acnt_timer_set == MFALSE) {
+				woal_initialize_timer(&handle->tp_acnt.timer,
+						      woal_tp_acnt_timer_func,
+						      handle);
+				handle->is_tp_acnt_timer_set = MTRUE;
+				woal_mod_timer(&handle->tp_acnt.timer, 1000);
+			}
+		} else {
+			if (handle->is_tp_acnt_timer_set) {
+				woal_cancel_timer(&handle->tp_acnt.timer);
+				handle->is_tp_acnt_timer_set = MFALSE;
+			}
+			memset((void *)&handle->tp_acnt, 0,
+			       sizeof(moal_tp_acnt_t));
+		}
+		woal_set_tp_state(priv);
+	}
+	/* Get command results */
+	if (user_data_len == 0) {
+		moal_memcpy_ext(handle, respbuf, (t_u8 *)(&handle->tp_acnt),
+				sizeof(handle->tp_acnt), respbuflen);
+		ret = sizeof(handle->tp_acnt);
+	}
+
+done:
+	LEAVE();
+	return ret;
+}
+
 /**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
@@ -15955,6 +16109,12 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get low power mode */
 			len = woal_priv_set_get_lpm(priv, buf,
 						    priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_TP_STATE,
+				    strlen(PRIV_CMD_TP_STATE)) == 0) {
+			/* Set/Get TP accounting state */
+			len = woal_priv_set_tp_state(priv, buf,
+						     priv_cmd.total_len);
 			goto handled;
 		} else {
 			PRINTM(MERROR,

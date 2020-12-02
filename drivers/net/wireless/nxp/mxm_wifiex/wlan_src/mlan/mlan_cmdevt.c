@@ -2344,7 +2344,7 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag)
 					 MLAN_STATUS_FAILURE);
 	}
 #endif
-	if (pmadapter->curr_cmd) {
+	if (pmadapter->curr_cmd && flag) {
 		pcmd_node = pmadapter->curr_cmd;
 		if (pcmd_node->pioctl_buf) {
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
@@ -2354,10 +2354,8 @@ t_void wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter, t_u8 flag)
 						 MLAN_STATUS_FAILURE);
 			pcmd_node->pioctl_buf = MNULL;
 		}
-		if (flag) {
-			pmadapter->curr_cmd = MNULL;
-			wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
-		}
+		pmadapter->curr_cmd = MNULL;
+		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 	}
 
 	/* Cancel all pending command */

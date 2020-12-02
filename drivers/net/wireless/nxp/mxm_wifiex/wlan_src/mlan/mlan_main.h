@@ -440,9 +440,9 @@ extern t_void (*assert_callback)(t_void *pmoal_handle, t_u32 cond);
 #define MRVDRV_MAX_CFP_CODE_A 5
 
 /** high rx pending packets */
-#define HIGH_RX_PENDING 100
+#define HIGH_RX_PENDING 1000
 /** low rx pending packets */
-#define LOW_RX_PENDING 80
+#define LOW_RX_PENDING 800
 
 /** Default region code */
 #define MRVDRV_DEFAULT_REGION_CODE 0x10
@@ -1602,6 +1602,14 @@ typedef struct {
 	t_bool no_channel_change_on_radar;
 	/** user-configured new channel to change to on radar */
 	t_u8 fixed_new_channel_on_radar;
+	/** user-configured cac restart */
+	t_u8 cac_restart;
+	/**  cac channel */
+	t_u8 chan;
+	/** band cfg */
+	Band_Config_t bandcfg;
+	/** cac time */
+	t_u32 millisec_dwell_time;
 } wlan_dfs_testing_settings_t;
 
 /**
@@ -2658,6 +2666,10 @@ typedef struct _mlan_adapter {
 	/** authenticator_priv */
 	pmlan_private authenticator_priv;
 #endif
+	/** TP accounting mode 1-enable 0-disable */
+	t_u32 tp_state_on;
+	/** Packet drop point */
+	t_u32 tp_state_drop_point;
 } mlan_adapter, *pmlan_adapter;
 
 /** Check if stream 2X2 enabled */
@@ -3362,6 +3374,8 @@ mlan_status wlan_misc_ioctl_range_ext(pmlan_adapter pmadapter,
 				      pmlan_ioctl_req pioctl_req);
 mlan_status wlan_misc_ioctl_arb_cfg(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_ioctl_tp_state(pmlan_adapter pmadapter,
+				     pmlan_ioctl_req pioctl_req);
 /* CFP related functions */
 /** Region code index table */
 extern t_u16 region_code_index[MRVDRV_MAX_REGION_CODE];
