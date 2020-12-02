@@ -28,6 +28,10 @@
 	status = "disabled";
 };
 
+&ldb {
+	status = "disabled";
+};
+
 &uart1 {
 	imx8mp-disable-uart-request-high;
 };
