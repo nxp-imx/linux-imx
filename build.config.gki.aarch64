@@ -8,6 +8,7 @@ ADDITIONAL_KMI_SYMBOL_LISTS="
 android/abi_gki_aarch64_cuttlefish
 android/abi_gki_aarch64_db845c
 android/abi_gki_aarch64_exynos
+android/abi_gki_aarch64_exynosauto
 android/abi_gki_aarch64_galaxy
 android/abi_gki_aarch64_goldfish
 android/abi_gki_aarch64_hikey960
@@ -17,7 +18,6 @@ android/abi_gki_aarch64_qcom
 android/abi_gki_aarch64_sunxi
 android/abi_gki_aarch64_unisoc
 android/abi_gki_aarch64_vivo
-android/abi_gki_aarch64_workarounds
 android/abi_gki_aarch64_xiaomi
 "
 TRIM_NONLISTED_KMI=1
