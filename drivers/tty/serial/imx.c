@@ -232,6 +232,9 @@ struct imx_port {
 	bool			context_saved;
 
 	struct pm_qos_request   pm_qos_req;
+
+	/* Disable uart equest high in powersave module */
+	bool imx8mp_disable_uart_request_high;
 };
 
 struct imx_port_ucrs {
@@ -1258,7 +1261,8 @@ static void imx_uart_dma_exit(struct imx_port *sport)
 	}
 
 	pm_qos_remove_request(&sport->pm_qos_req);
-	release_bus_freq(BUS_FREQ_HIGH);
+	if(!sport->imx8mp_disable_uart_request_high)
+		release_bus_freq(BUS_FREQ_HIGH);
 }
 
 static int imx_uart_dma_init(struct imx_port *sport)
@@ -1268,7 +1272,8 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	int ret;
 
 	/* request high bus for DMA mode */
-	request_bus_freq(BUS_FREQ_HIGH);
+	if(!sport->imx8mp_disable_uart_request_high)
+		request_bus_freq(BUS_FREQ_HIGH);
 	pm_qos_add_request(&sport->pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 
 	/* Prepare for RX : */
@@ -2251,6 +2256,7 @@ static int imx_uart_probe(struct platform_device *pdev)
 	u32 ucr1;
 	struct resource *res;
 	int txirq, rxirq, rtsirq;
+	const struct device_node *np = pdev->dev.of_node;
 
 	sport = devm_kzalloc(&pdev->dev, sizeof(*sport), GFP_KERNEL);
 	if (!sport)
@@ -2267,6 +2273,11 @@ static int imx_uart_probe(struct platform_device *pdev)
 			sport->port.line);
 		return -EINVAL;
 	}
+
+	if (of_property_read_bool(np, "imx8mp-disable-uart-request-high"))
+		sport->imx8mp_disable_uart_request_high = true;
+	else
+		sport->imx8mp_disable_uart_request_high = false;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);

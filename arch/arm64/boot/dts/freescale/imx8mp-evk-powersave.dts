@@ -27,3 +27,15 @@
 &fec {
 	status = "disabled";
 };
+
+&uart1 {
+	imx8mp-disable-uart-request-high;
+};
+
+&uart2 {
+	imx8mp-disable-uart-request-high;
+};
+
+&uart3 {
+	imx8mp-disable-uart-request-high;
+};
