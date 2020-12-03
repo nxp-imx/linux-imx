@@ -237,6 +237,9 @@ struct imx_port {
 	struct hrtimer		trigger_stop_tx;
 
 	struct pm_qos_request   pm_qos_req;
+
+	/* Disable uart equest high in powersave module */
+	bool imx8mp_disable_uart_request_high;
 };
 
 struct imx_port_ucrs {
@@ -1364,7 +1367,8 @@ static void imx_uart_dma_exit(struct imx_port *sport)
 	}
 
 	cpu_latency_qos_remove_request(&sport->pm_qos_req);
-	release_bus_freq(BUS_FREQ_HIGH);
+	if(!sport->imx8mp_disable_uart_request_high)
+		release_bus_freq(BUS_FREQ_HIGH);
 }
 
 static int imx_uart_dma_init(struct imx_port *sport)
@@ -1375,7 +1379,8 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	int ret;
 
 	/* request high bus for DMA mode */
-	request_bus_freq(BUS_FREQ_HIGH);
+	if(!sport->imx8mp_disable_uart_request_high)
+		request_bus_freq(BUS_FREQ_HIGH);
 	cpu_latency_qos_add_request(&sport->pm_qos_req, 0);
 
 	/* Prepare for RX : */
@@ -2367,7 +2372,13 @@ static int imx_uart_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (of_property_read_bool(np, "imx8mp-disable-uart-request-high"))
+		sport->imx8mp_disable_uart_request_high = true;
+	else
+		sport->imx8mp_disable_uart_request_high = false;
+
 	base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
+
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
