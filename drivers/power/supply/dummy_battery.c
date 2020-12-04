@@ -92,7 +92,7 @@ static int dummy_usb_get_property(struct power_supply *psy,
 
 static int dummy_usb_set_property(struct power_supply *psy,
                                   enum power_supply_property psp,
-                                  union power_supply_propval *val)
+                                  const union power_supply_propval *val)
 {
     int ret = 0;
     switch (psp) {
@@ -169,7 +169,7 @@ static int dummy_battery_get_property(struct power_supply *psy,
 
 static int dummy_battery_set_property(struct power_supply *psy,
                                   enum power_supply_property psp,
-                                  union power_supply_propval *val)
+                                  const union power_supply_propval *val)
 {
     int ret = 0;
     switch (psp) {
