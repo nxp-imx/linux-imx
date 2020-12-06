@@ -1835,7 +1835,7 @@ _BottomHalfUnlockVideoMemory(
         gcmkONERROR(gckVIDMEM_NODE_Dereference(Kernel, nodeObject));
     }
     else
-#else
+#endif
     {
         /* Perform asynchronous unlock */
         gcmkONERROR(gckEVENT_Unlock(Kernel->eventObj, gcvKERNEL_PIXEL, nodeObject));
@@ -1843,7 +1843,7 @@ _BottomHalfUnlockVideoMemory(
         /* Submit the event queue. */
         gcmkONERROR(gckEVENT_Submit(Kernel->eventObj, gcvTRUE, gcvFALSE));
     }
-#endif
+
     return gcvSTATUS_OK;
 
 OnError:
