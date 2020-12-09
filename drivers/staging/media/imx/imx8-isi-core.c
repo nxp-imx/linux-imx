@@ -306,7 +306,6 @@ static int mxc_isi_parse_dt(struct mxc_isi_dev *mxc_isi)
 	int ret = 0;
 
 	mxc_isi->id = of_alias_get_id(node, "isi");
-	mxc_isi->chain_buf = of_property_read_bool(node, "fsl,chain_buf");
 
 	ret = of_property_read_u32_array(node, "interface", mxc_isi->interface, 3);
 	if (ret < 0)
@@ -465,6 +464,10 @@ static int mxc_isi_probe(struct platform_device *pdev)
 			mxc_isi->id);
 		return -EINVAL;
 	}
+
+	mxc_isi->chain = syscon_regmap_lookup_by_phandle(dev->of_node, "isi_chain");
+	if (IS_ERR(mxc_isi->chain))
+		mxc_isi->chain = NULL;
 
 	spin_lock_init(&mxc_isi->slock);
 	mutex_init(&mxc_isi->lock);

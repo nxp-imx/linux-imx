@@ -22,6 +22,7 @@
 
 #include "pcm512x.h"
 
+#define PCM512x_MAX_NUM_SCLK 2
 #define PCM512x_NUM_SUPPLIES 3
 static const char * const pcm512x_supply_names[PCM512x_NUM_SUPPLIES] = {
 	"AVDD",
@@ -31,7 +32,7 @@ static const char * const pcm512x_supply_names[PCM512x_NUM_SUPPLIES] = {
 
 struct pcm512x_priv {
 	struct regmap *regmap;
-	struct clk *sclk;
+	struct clk *sclk[PCM512x_MAX_NUM_SCLK];
 	struct regulator_bulk_data supplies[PCM512x_NUM_SUPPLIES];
 	struct notifier_block supply_nb[PCM512x_NUM_SUPPLIES];
 	int fmt;
@@ -48,6 +49,8 @@ struct pcm512x_priv {
 	int mute;
 	struct mutex mutex;
 	unsigned int bclk_ratio;
+	int num_clocks;
+	int sclk_src;
 };
 
 /*
@@ -584,11 +587,12 @@ static int pcm512x_dai_startup_master(struct snd_pcm_substream *substream,
 	struct device *dev = dai->dev;
 	struct snd_pcm_hw_constraint_ratnums *constraints_no_pll;
 	struct snd_ratnum *rats_no_pll;
+	int ret;
 
-	if (IS_ERR(pcm512x->sclk)) {
+	if (IS_ERR(pcm512x->sclk[0])) {
 		dev_err(dev, "Need SCLK for master mode: %ld\n",
-			PTR_ERR(pcm512x->sclk));
-		return PTR_ERR(pcm512x->sclk);
+			PTR_ERR(pcm512x->sclk[0]));
+		return PTR_ERR(pcm512x->sclk[0]);
 	}
 
 	if (pcm512x->pll_out)
@@ -604,18 +608,39 @@ static int pcm512x_dai_startup_master(struct snd_pcm_substream *substream,
 	if (!constraints_no_pll)
 		return -ENOMEM;
 	constraints_no_pll->nrats = 1;
+	if (!IS_ERR(pcm512x->sclk[1]))
+		constraints_no_pll->nrats = 2;
+
 	rats_no_pll = devm_kzalloc(dev, sizeof(*rats_no_pll), GFP_KERNEL);
 	if (!rats_no_pll)
 		return -ENOMEM;
 	constraints_no_pll->rats = rats_no_pll;
-	rats_no_pll->num = clk_get_rate(pcm512x->sclk) / 64;
+	rats_no_pll->num = clk_get_rate(pcm512x->sclk[0]) / 64;
 	rats_no_pll->den_min = 1;
 	rats_no_pll->den_max = 128;
 	rats_no_pll->den_step = 1;
 
-	return snd_pcm_hw_constraint_ratnums(substream->runtime, 0,
+	ret = snd_pcm_hw_constraint_ratnums(substream->runtime, 0,
 					     SNDRV_PCM_HW_PARAM_RATE,
 					     constraints_no_pll);
+	if (ret) {
+		dev_err(dev, "Failed to set ratnums constraints\n");
+		return ret;
+	}
+
+	if (!IS_ERR(pcm512x->sclk[1])) {
+		rats_no_pll->num = clk_get_rate(pcm512x->sclk[1]) / 64;
+		ret = snd_pcm_hw_constraint_ratnums(substream->runtime, 0,
+					     SNDRV_PCM_HW_PARAM_RATE,
+					     constraints_no_pll);
+		if (ret) {
+			dev_err(dev, "Failed to set ratnums constraints\n");
+			return ret;
+		}
+	}
+
+	return 0;
+
 }
 
 static int pcm512x_dai_startup_slave(struct snd_pcm_substream *substream,
@@ -626,9 +651,9 @@ static int pcm512x_dai_startup_slave(struct snd_pcm_substream *substream,
 	struct device *dev = dai->dev;
 	struct regmap *regmap = pcm512x->regmap;
 
-	if (IS_ERR(pcm512x->sclk)) {
+	if (IS_ERR(pcm512x->sclk[pcm512x->sclk_src])) {
 		dev_info(dev, "No SCLK, using BCLK: %ld\n",
-			 PTR_ERR(pcm512x->sclk));
+			 PTR_ERR(pcm512x->sclk[pcm512x->sclk_src]));
 
 		/* Disable reporting of missing SCLK as an error */
 		regmap_update_bits(regmap, PCM512x_ERROR_DETECT,
@@ -920,7 +945,7 @@ static int pcm512x_set_dividers(struct snd_soc_dai *dai,
 	}
 
 	if (!pcm512x->pll_out) {
-		sck_rate = clk_get_rate(pcm512x->sclk);
+		sck_rate = clk_get_rate(pcm512x->sclk[pcm512x->sclk_src]);
 		bclk_rate = params_rate(params) * lrclk_div;
 		bclk_div = DIV_ROUND_CLOSEST(sck_rate, bclk_rate);
 
@@ -937,7 +962,7 @@ static int pcm512x_set_dividers(struct snd_soc_dai *dai,
 		}
 		bclk_rate = ret;
 
-		pllin_rate = clk_get_rate(pcm512x->sclk);
+		pllin_rate = clk_get_rate(pcm512x->sclk[pcm512x->sclk_src]);
 
 		sck_rate = pcm512x_find_sck(dai, bclk_rate);
 		if (!sck_rate)
@@ -1394,6 +1419,29 @@ static int pcm512x_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
 	return 0;
 }
 
+static int pcm512x_set_sysclk(struct snd_soc_dai *dai, int clk_id,
+			      unsigned int freq, int dir)
+{
+	struct snd_soc_component *component = dai->component;
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
+
+	if (dir == SND_SOC_CLOCK_IN) {
+		switch (clk_id) {
+		case PCM512x_SYSCLK_MCLK1:
+		case PCM512x_SYSCLK_MCLK2:
+			pcm512x->sclk_src = clk_id;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		dev_dbg(component->dev,
+			"SCLK dir: %d; sclk_src: %d\n", dir, clk_id);
+	}
+
+	return 0;
+}
+
 static int pcm512x_digital_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_component *component = dai->component;
@@ -1447,6 +1495,7 @@ static const struct snd_soc_dai_ops pcm512x_dai_ops = {
 	.set_fmt = pcm512x_set_fmt,
 	.digital_mute = pcm512x_digital_mute,
 	.set_bclk_ratio = pcm512x_set_bclk_ratio,
+	.set_sysclk = pcm512x_set_sysclk,
 };
 
 static struct snd_soc_dai_driver pcm512x_dai = {
@@ -1506,6 +1555,7 @@ EXPORT_SYMBOL_GPL(pcm512x_regmap);
 int pcm512x_probe(struct device *dev, struct regmap *regmap)
 {
 	struct pcm512x_priv *pcm512x;
+	char clk_name[8];
 	int i, ret;
 
 	pcm512x = devm_kzalloc(dev, sizeof(struct pcm512x_priv), GFP_KERNEL);
@@ -1563,13 +1613,18 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 		goto err;
 	}
 
-	pcm512x->sclk = devm_clk_get(dev, NULL);
-	if (PTR_ERR(pcm512x->sclk) == -EPROBE_DEFER) {
+	/* default to first sclk */
+	pcm512x->num_clocks = 1;
+	pcm512x->sclk_src = PCM512x_SYSCLK_MCLK1;
+
+	pcm512x->sclk[0] = devm_clk_get(dev, NULL);
+	if (PTR_ERR(pcm512x->sclk[0]) == -EPROBE_DEFER) {
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
-	if (!IS_ERR(pcm512x->sclk)) {
-		ret = clk_prepare_enable(pcm512x->sclk);
+
+	if (!IS_ERR(pcm512x->sclk[0])) {
+		ret = clk_prepare_enable(pcm512x->sclk[0]);
 		if (ret != 0) {
 			dev_err(dev, "Failed to enable SCLK: %d\n", ret);
 			goto err;
@@ -1593,6 +1648,26 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 	if (dev->of_node) {
 		const struct device_node *np = dev->of_node;
 		u32 val;
+
+		if (of_property_read_bool(np, "clocks")) {
+			pcm512x->num_clocks =
+				of_property_count_u32_elems(np, "clocks");
+			if (pcm512x->num_clocks > PCM512x_MAX_NUM_SCLK) {
+				dev_err(dev, "Failed unsupported max sclk: %d\n",
+					pcm512x->num_clocks);
+				goto err;
+			}
+
+			for (i = 0; i < pcm512x->num_clocks; i++) {
+				sprintf(clk_name, "sclk%d", i);
+				pcm512x->sclk[i] = devm_clk_get(dev, clk_name);
+
+				if (IS_ERR(pcm512x->sclk[i])) {
+					dev_info(dev, "Failed to get sclk%d\n", i);
+					pcm512x->sclk[i] = NULL;
+				}
+			}
+		}
 
 		if (of_property_read_u32(np, "pll-in", &val) >= 0) {
 			if (val > 6) {
@@ -1638,8 +1713,10 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 err_pm:
 	pm_runtime_disable(dev);
 err_clk:
-	if (!IS_ERR(pcm512x->sclk))
-		clk_disable_unprepare(pcm512x->sclk);
+	for (i = 0; i < pcm512x->num_clocks; i++) {
+		if (!IS_ERR(pcm512x->sclk[i]))
+			clk_disable_unprepare(pcm512x->sclk[i]);
+	}
 err:
 	regulator_bulk_disable(ARRAY_SIZE(pcm512x->supplies),
 				     pcm512x->supplies);
@@ -1650,10 +1727,13 @@ EXPORT_SYMBOL_GPL(pcm512x_probe);
 void pcm512x_remove(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
+	int i;
 
 	pm_runtime_disable(dev);
-	if (!IS_ERR(pcm512x->sclk))
-		clk_disable_unprepare(pcm512x->sclk);
+	for (i = 0; i < pcm512x->num_clocks; i++) {
+		if (!IS_ERR(pcm512x->sclk[i]))
+			clk_disable_unprepare(pcm512x->sclk[i]);
+	}
 	regulator_bulk_disable(ARRAY_SIZE(pcm512x->supplies),
 			       pcm512x->supplies);
 }
@@ -1663,7 +1743,7 @@ EXPORT_SYMBOL_GPL(pcm512x_remove);
 static int pcm512x_suspend(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
-	int ret;
+	int ret, i;
 
 	ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
 				 PCM512x_RQPD, PCM512x_RQPD);
@@ -1679,8 +1759,10 @@ static int pcm512x_suspend(struct device *dev)
 		return ret;
 	}
 
-	if (!IS_ERR(pcm512x->sclk))
-		clk_disable_unprepare(pcm512x->sclk);
+	for (i = 0; i < pcm512x->num_clocks; i++) {
+		if (!IS_ERR(pcm512x->sclk[i]))
+			clk_disable_unprepare(pcm512x->sclk[i]);
+	}
 
 	return 0;
 }
@@ -1688,13 +1770,15 @@ static int pcm512x_suspend(struct device *dev)
 static int pcm512x_resume(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
-	int ret;
+	int ret, i;
 
-	if (!IS_ERR(pcm512x->sclk)) {
-		ret = clk_prepare_enable(pcm512x->sclk);
-		if (ret != 0) {
-			dev_err(dev, "Failed to enable SCLK: %d\n", ret);
-			return ret;
+	for (i = 0; i < pcm512x->num_clocks; i++) {
+		if (!IS_ERR(pcm512x->sclk[i])) {
+			ret = clk_prepare_enable(pcm512x->sclk[i]);
+			if (ret != 0) {
+				dev_err(dev, "Failed to enable SCLK: %d\n", ret);
+				return ret;
+			}
 		}
 	}
 

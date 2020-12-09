@@ -68,7 +68,8 @@ extern unsigned int vpu_dbg_level_decoder;
 #define VPU_DISABLE_BITS (0x7)
 
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
-#define INVALID_FRAME_DEPTH -1
+#define	VPU_FRAME_DEPTH_MAX     512
+#define VPU_FRAME_DEPTH_DEFAULT 256
 #define DECODER_NODE_NUMBER 12 // use /dev/video12 as vpu decoder
 #define DEFAULT_LOG_DEPTH 20
 #define DEFAULT_FRMDBG_ENABLE 0
@@ -342,7 +343,7 @@ struct vpu_dev {
 };
 
 struct vpu_statistic {
-	unsigned long cmd[VID_API_CMD_YUV_READY + 2];
+	unsigned long cmd[VID_API_CMD_TS + 2];
 	unsigned long event[VID_API_EVENT_DEC_CFG_INFO + 2];
 	unsigned long current_cmd;
 	unsigned long current_event;
@@ -462,15 +463,9 @@ struct vpu_ctx {
 	int frm_dec_delay;
 	int frm_total_num;
 
-	void *tsm;
-	bool tsm_sync_flag;
-	u32 pre_pic_end_addr;
 	long total_qbuf_bytes;
 	long total_write_bytes;
-	long total_consumed_bytes;
-	long total_ts_bytes;
 	u32 extra_size;
-	struct semaphore tsm_lock;
 	s64 output_ts;
 	s64 capture_ts;
 	s64 ts_threshold;

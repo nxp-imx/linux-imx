@@ -199,6 +199,8 @@ typedef struct {
 	u_int32              uProcDaccRngRdCnt;
 	u_int32              uProcDaccRngWrCnt;
 
+	int32                tv_s;
+	u_int32              tv_ns;
 } MEDIAIP_ENC_PIC_INFO, *pMEDIAIP_ENC_PIC_INFO;
 
 typedef enum {

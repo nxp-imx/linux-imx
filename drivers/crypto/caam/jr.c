@@ -795,6 +795,14 @@ static int caam_jr_suspend(struct device *dev)
 		.enable_itr = 0,
 	};
 
+	/* Remove the node from Physical JobR list maintained by driver */
+	spin_lock(&driver_data.jr_alloc_lock);
+	list_del(&jrpriv->list_node);
+	spin_unlock(&driver_data.jr_alloc_lock);
+
+	if (jrpriv->hwrng)
+		caam_rng_exit(dev->parent);
+
 	if (ctrlpriv->caam_off_during_pm) {
 		int err;
 
@@ -853,7 +861,7 @@ static int caam_jr_resume(struct device *dev)
 				clrsetbits_32(&jrpriv->rregs->rconfig_lo,
 					      JRCFG_IMSK, 0);
 
-				return 0;
+				goto add_jr;
 			} else if (ctrlpriv->optee_en) {
 				/* JR has been used by OPTEE, reset it */
 				err = caam_reset_hw_jr(dev);
@@ -875,6 +883,14 @@ static int caam_jr_resume(struct device *dev)
 	} else if (device_may_wakeup(&pdev->dev)) {
 		disable_irq_wake(jrpriv->irq);
 	}
+
+add_jr:
+	spin_lock(&driver_data.jr_alloc_lock);
+	list_add_tail(&jrpriv->list_node, &driver_data.jr_list);
+	spin_unlock(&driver_data.jr_alloc_lock);
+
+	if (jrpriv->hwrng)
+		jrpriv->hwrng = !caam_rng_init(dev->parent);
 
 	return 0;
 }

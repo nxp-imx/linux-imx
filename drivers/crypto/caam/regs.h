@@ -587,7 +587,15 @@ struct rng4tst {
 		u32 rtfrqmax;	/* PRGM=1: freq. count max. limit register */
 		u32 rtfrqcnt;	/* PRGM=0: freq. count register */
 	};
-	u32 rsvd1[40];
+	union {
+		u32 rtscmc;	/* statistical check run monobit count */
+		u32 rtscml;	/* statistical check run monobit limit */
+	};
+	union {
+		u32 rtscrc[6];	/* statistical check run length count */
+		u32 rtscrl[6];	/* statistical check run length limit */
+	};
+	u32 rsvd1[33];
 #define RDSTA_SKVT 0x80000000
 #define RDSTA_SKVN 0x40000000
 #define RDSTA_PR0 BIT(4)

@@ -24,6 +24,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/regmap.h>
 #include <linux/reset.h>
 #include <drm/bridge/sec_mipi_dsim.h>
 #include <drm/drm_bridge.h>
@@ -43,6 +44,7 @@ struct imx_sec_dsim_device {
 	struct reset_control *soft_resetn;
 	struct reset_control *clk_enable;
 	struct reset_control *mipi_reset;
+	struct regmap *blk_ctl;
 
 	atomic_t rpm_suspended;
 };
@@ -78,12 +80,21 @@ static int sec_dsim_rstc_reset(struct reset_control *rstc, bool assert)
 	return ret;
 }
 
+int imx8mp_get_ldo_trim(int ldo);
+
 static void imx_sec_dsim_encoder_helper_enable(struct drm_encoder *encoder)
 {
-	int ret;
+	int ret, reg;
+
 	struct imx_sec_dsim_device *dsim_dev = enc_to_dsim(encoder);
 
 	pm_runtime_get_sync(dsim_dev->dev);
+
+	if (dsim_dev->blk_ctl) {
+		reg = imx8mp_get_ldo_trim(0);
+		if(reg >= 0)
+			regmap_write(dsim_dev->blk_ctl, 0x58, reg & 0x1f);
+	}
 
 	ret = sec_dsim_rstc_reset(dsim_dev->mipi_reset, false);
 	if (ret)
@@ -300,6 +311,12 @@ static int imx_sec_dsim_bind(struct device *dev, struct device *master,
 		return ret;
 
 	drm_encoder_helper_add(encoder, &imx_sec_dsim_encoder_helper_funcs);
+
+	dsim_dev->blk_ctl = syscon_regmap_lookup_by_phandle(np, "blk-ctl");
+	if (IS_ERR(dsim_dev->blk_ctl)) {
+		dev_warn(dev, "failed to get blk_ctl\n");
+		dsim_dev->blk_ctl = NULL;
+	}
 
 	ret = drm_encoder_init(drm_dev, encoder,
 			       &imx_sec_dsim_encoder_funcs,

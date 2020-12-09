@@ -174,6 +174,7 @@ typedef enum {
 	VID_API_CMD_DBG_DUMP_LOG      = 0x1F,
 	/* Begin Encode CMDs */
 	VID_API_CMD_YUV_READY         = 0x20,
+	VID_API_CMD_TS                = 0x21,
 
 	VID_API_CMD_FIRM_RESET        = 0x40,
 
@@ -684,8 +685,13 @@ typedef struct {
 	u_int32                                uFWOffset;
 	u_int32                                uMaxDecoderStreams;
 	MediaIPFW_Video_DbgLogDesc             DbgLogDesc;
-	MediaIPFW_Video_FrameBuffer            StreamFrameBuffer[VID_API_NUM_STREAMS];
-	MediaIPFW_Video_FrameBuffer            StreamDCPBuffer[VID_API_NUM_STREAMS];
+	union {
+		struct {
+			MediaIPFW_Video_FrameBuffer StreamFrameBuffer[VID_API_NUM_STREAMS];
+			MediaIPFW_Video_FrameBuffer StreamDCPBuffer[VID_API_NUM_STREAMS];
+		};
+		BUFFER_DESCRIPTOR_TYPE         StreamApiCmdBufferDesc[VID_API_NUM_STREAMS];
+	};
 	MediaIPFW_Video_UData                  UDataBuffer[VID_API_NUM_STREAMS];
 	MediaIPFW_Video_BufDesc                DebugBufferDesc;
 	MediaIPFW_Video_BufDesc                EngAccessBufferDesc[VID_API_NUM_STREAMS];

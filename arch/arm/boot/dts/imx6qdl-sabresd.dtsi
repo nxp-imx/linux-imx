@@ -452,6 +452,7 @@
 			0x8014 /* 4:FN_DMICCDAT */
 			0x0000 /* 5:Default */
 		>;
+		amic-mono;
 	};
 
 	accelerometer@1c {
