@@ -793,10 +793,7 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 	int ret;
 	unsigned long flags;
 
-	if (sdma->iram_pool)
-		buf_virt = gen_pool_dma_alloc(sdma->iram_pool, size, &buf_phys);
-	else
-		buf_virt = dma_alloc_coherent(sdma->dev, size, &buf_phys,
+	buf_virt = dma_alloc_coherent(sdma->dev, size, &buf_phys,
 					      GFP_KERNEL);
 	if (!buf_virt)
 		return -ENOMEM;
@@ -815,10 +812,7 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 
 	spin_unlock_irqrestore(&sdma->channel_0_lock, flags);
 
-	if (sdma->iram_pool)
-		gen_pool_free(sdma->iram_pool, (unsigned long)buf_virt, size);
-	else
-		dma_free_coherent(sdma->dev, size, buf_virt, buf_phys);
+	dma_free_coherent(sdma->dev, size, buf_virt, buf_phys);
 
 	return ret;
 }
@@ -1410,11 +1404,13 @@ static int sdma_request_channel0(struct sdma_engine *sdma)
 	int ret = -EBUSY;
 
 	if (sdma->iram_pool)
-		sdma->bd0 = gen_pool_dma_alloc(sdma->iram_pool, PAGE_SIZE,
-						&sdma->bd0_phys);
+		sdma->bd0 = gen_pool_dma_alloc(sdma->iram_pool,
+					sizeof(struct sdma_buffer_descriptor),
+					&sdma->bd0_phys);
 	else
-		sdma->bd0 = dma_alloc_coherent(sdma->dev, PAGE_SIZE,
-						&sdma->bd0_phys, GFP_NOWAIT);
+		sdma->bd0 = dma_alloc_coherent(sdma->dev,
+					sizeof(struct sdma_buffer_descriptor),
+					&sdma->bd0_phys, GFP_NOWAIT);
 	if (!sdma->bd0) {
 		ret = -ENOMEM;
 		goto out;
@@ -1438,7 +1434,7 @@ static int sdma_alloc_bd(struct sdma_desc *desc)
 	int ret = 0;
 
 	if (sdma->iram_pool)
-		desc->bd = gen_pool_dma_alloc(sdma->iram_pool, PAGE_SIZE,
+		desc->bd = gen_pool_dma_alloc(sdma->iram_pool, bd_size,
 					      &desc->bd_phys);
 	else
 		desc->bd = dma_alloc_coherent(sdma->dev, bd_size,
@@ -1458,7 +1454,7 @@ static void sdma_free_bd(struct sdma_desc *desc)
 
 	if (sdma->iram_pool)
 		gen_pool_free(sdma->iram_pool, (unsigned long)desc->bd,
-			      PAGE_SIZE);
+			      bd_size);
 	else
 		dma_free_coherent(desc->sdmac->sdma->dev, bd_size, desc->bd,
 				  desc->bd_phys);
@@ -1486,10 +1482,11 @@ static int sdma_runtime_suspend(struct device *dev)
 	/* free channel0 bd */
 	if (sdma->iram_pool)
 		gen_pool_free(sdma->iram_pool, (unsigned long)sdma->bd0,
-			      PAGE_SIZE);
+			      sizeof(struct sdma_buffer_descriptor));
 	else
-		dma_free_coherent(sdma->dev, PAGE_SIZE, sdma->bd0,
-				  sdma->bd0_phys);
+		dma_free_coherent(sdma->dev,
+				  sizeof(struct sdma_buffer_descriptor),
+				  sdma->bd0, sdma->bd0_phys);
 
 	return 0;
 }
