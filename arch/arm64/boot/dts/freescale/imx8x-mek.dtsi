@@ -86,6 +86,11 @@
 		#size-cells = <2>;
 		ranges;
 
+		gpu_reserved: gpu_reserved@0x8800000000 {
+			no-map;
+			reg = <0x8 0x80000000 0 0x10000000>;
+		};
+
 		/*
 		 * 0x8800_0000 ~ 0x8FFF_FFFF is reserved for M4
 		 * Shouldn't be used at A core and Linux side.
@@ -1038,6 +1043,7 @@
 };
 
 &imx8_gpu_ss {
+	memory-region=<&gpu_reserved>;
 	status = "okay";
 };
 
