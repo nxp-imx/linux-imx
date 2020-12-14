@@ -113,16 +113,36 @@ static const struct snd_pcm_hw_constraint_list fsl_rpmsg_rate_constraints = {
 static int fsl_rpmsg_startup(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *cpu_dai)
 {
+	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
+	struct i2s_info *i2s_info = &rpmsg_i2s->i2s_info;
 	int ret;
 
 	ret = snd_pcm_hw_constraint_list(substream->runtime, 0,
 			SNDRV_PCM_HW_PARAM_RATE, &fsl_rpmsg_rate_constraints);
 
+	i2s_info->rpmsg_wakeup_source = wakeup_source_register(cpu_dai->dev,
+			"lpa_rpmsg_wakeup_source");
+	if (i2s_info->rpmsg_wakeup_source == NULL) {
+		dev_err(cpu_dai->dev, "rpmsg wakeup source register failed\n");
+		return -ENOMEM;
+	}
 	return ret;
 }
 
+static void fsl_rpmsg_shutdown(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *cpu_dai)
+{
+	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
+	struct i2s_info *i2s_info = &rpmsg_i2s->i2s_info;
+
+	if (i2s_info->rpmsg_wakeup_source){
+		wakeup_source_unregister(i2s_info->rpmsg_wakeup_source);
+		i2s_info->rpmsg_wakeup_source = NULL;
+	}
+}
 static const struct snd_soc_dai_ops fsl_rpmsg_dai_ops = {
 	.startup	= fsl_rpmsg_startup,
+	.shutdown	= fsl_rpmsg_shutdown,
 };
 
 static struct snd_soc_dai_driver fsl_rpmsg_i2s_dai = {
@@ -180,7 +200,8 @@ static void rpmsg_i2s_work(struct work_struct *work)
 
 		i2s_send_message(&msg, i2s_info);
 		if (i2s_info->buffer_full[0]) {
-			__pm_relax(i2s_info->rpmsg_wakeup_source);
+			if (i2s_info->rpmsg_wakeup_source != NULL)
+				__pm_relax(i2s_info->rpmsg_wakeup_source);
 		}
 
 	} else
@@ -225,12 +246,6 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "fsl,audioindex", &audioindex);
 	if (ret)
 		audioindex = 0;
-
-	i2s_info->rpmsg_wakeup_source = wakeup_source_register(&pdev->dev, "lpa_rpmsg_wakeup_source");
-	if (i2s_info->rpmsg_wakeup_source == NULL) {
-		dev_err(&pdev->dev, "rpmsg wakeup source register failed\n");
-		return -ENOMEM;
-	}
 
 	/* Setup work queue */
 	i2s_info->rpmsg_wq = alloc_ordered_workqueue("rpmsg_i2s", WQ_HIGHPRI | WQ_UNBOUND | WQ_FREEZABLE);
@@ -370,8 +385,6 @@ static int fsl_rpmsg_i2s_remove(struct platform_device *pdev)
 
 	if (i2s_info->rpmsg_wq)
 		destroy_workqueue(i2s_info->rpmsg_wq);
-	if (i2s_info->rpmsg_wakeup_source)
-		wakeup_source_unregister(i2s_info->rpmsg_wakeup_source);
 
 	return 0;
 }
@@ -421,7 +434,9 @@ static int fsl_rpmsg_i2s_resume(struct device *dev)
 	struct i2s_rpmsg *rpmsg_tx;
 	struct i2s_rpmsg *rpmsg_rx;
 
-	__pm_stay_awake(i2s_info->rpmsg_wakeup_source);
+	if (i2s_info->rpmsg_wakeup_source != NULL){
+		__pm_stay_awake(i2s_info->rpmsg_wakeup_source);
+	}
 
 	rpmsg_tx = &i2s_info->rpmsg[I2S_TX_RESUME];
 	rpmsg_rx = &i2s_info->rpmsg[I2S_RX_RESUME];
