@@ -244,7 +244,7 @@ static irqreturn_t caam_jr_interrupt(int irq, void *st_dev)
 	 * tasklet if jobs done.
 	 */
 	irqstate = rd_reg32(&jrp->rregs->jrintstatus);
-	if (!irqstate)
+	if (!(irqstate & ~JRINT_ERR_HALT_MASK))
 		return IRQ_NONE;
 
 	/*
