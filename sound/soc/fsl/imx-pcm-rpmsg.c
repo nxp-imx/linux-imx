@@ -233,7 +233,9 @@ static int imx_rpmsg_pcm_close(struct snd_pcm_substream *substream)
 
 	del_timer(&i2s_info->stream_timer[substream->stream].timer);
 
-	__pm_relax(i2s_info->rpmsg_wakeup_source);
+	if (i2s_info->rpmsg_wakeup_source != NULL) {
+		__pm_relax(i2s_info->rpmsg_wakeup_source);
+	}
 
 	rtd->dai_link->ignore_suspend = 0;
 
@@ -432,7 +434,9 @@ static int imx_rpmsg_pause(struct snd_pcm_substream *substream)
 		i2s_info->work_write_index++;
 		i2s_info->work_write_index %= WORK_MAX_NUM;
 		spin_unlock_irqrestore(&i2s_info->wq_lock, flags);
-		__pm_relax(i2s_info->rpmsg_wakeup_source);
+		if (i2s_info->rpmsg_wakeup_source != NULL) {
+			__pm_relax(i2s_info->rpmsg_wakeup_source);
+		}
 	} else {
 		spin_unlock_irqrestore(&i2s_info->wq_lock, flags);
 		return -EPIPE;
