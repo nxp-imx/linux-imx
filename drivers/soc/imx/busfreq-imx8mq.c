@@ -54,11 +54,13 @@ static int cur_bus_freq_mode;
 static int busfreq_suspended;
 static bool cancel_reduce_bus_freq;
 static bool ddr_400mts;
+static bool gic_100mts;
 
 static unsigned int fsp_table[4];
 static unsigned long origin_noc_rate;
 static int low_bus_mode_fsp_index;
 static int audio_bus_mode_fsp_index;
+static int origin_gic_rate;
 /* no bypass or dll off mode support if lowest fsp > 667mts */
 static bool bypass_support = true;
 
@@ -78,6 +80,7 @@ static struct clk *main_axi_src;
 static struct clk *ahb_div;
 static struct clk *osc_25m;
 static struct clk *sys2_pll_333m;
+static struct clk *gic_div;
 
 static struct delayed_work low_bus_freq_handler;
 static struct delayed_work bus_freq_daemon;
@@ -162,6 +165,10 @@ static void reduce_bus_freq(void)
 				return;
 			}
 			clk_set_rate(ahb_div, rate / 6);
+
+			if(gic_100mts)
+				clk_set_rate(gic_div, origin_gic_rate / 5);
+
 			clk_set_parent(main_axi_src, osc_25m);
 		}
 
@@ -217,6 +224,10 @@ static void reduce_bus_freq(void)
 				return;
 			}
 			clk_set_rate(ahb_div, rate / 6);
+
+			if(gic_100mts)
+				clk_set_rate(gic_div, origin_gic_rate / 5);
+
 			clk_set_parent(main_axi_src, osc_25m);
 		}
 
@@ -310,6 +321,9 @@ static int set_high_bus_freq(int high_bus_freq)
 	clk_set_rate(noc_div, origin_noc_rate);
 	clk_set_rate(ahb_div, 133333333);
 	clk_set_parent(main_axi_src, sys2_pll_333m);
+
+	if(gic_100mts)
+		clk_set_rate(gic_div, origin_gic_rate);
 
 	high_bus_freq_mode = 1;
 	audio_bus_freq_mode = 0;
@@ -516,11 +530,14 @@ static int imx8mq_init_busfreq_clk(struct platform_device *pdev)
 	osc_25m = devm_clk_get(&pdev->dev, "osc_25m");
 	sys2_pll_333m = devm_clk_get(&pdev->dev, "sys2_pll_333m");
 
+	if(gic_100mts)
+		gic_div = devm_clk_get(&pdev->dev, "gic_div");
+
 	if (IS_ERR(dram_pll_clk) || IS_ERR(sys1_pll_400m) || IS_ERR(sys1_pll_100m) ||
 	    IS_ERR(sys1_pll_40m) || IS_ERR(dram_alt_src) || IS_ERR(dram_alt_root) ||
 	    IS_ERR(dram_core_clk) || IS_ERR(dram_apb_src) || IS_ERR(dram_apb_pre_div)
 	    || IS_ERR(noc_div) || IS_ERR(main_axi_src) || IS_ERR(ahb_div)
-	    || IS_ERR(osc_25m) || IS_ERR(sys2_pll_333m)) {
+	    || IS_ERR(osc_25m) || IS_ERR(sys2_pll_333m) || (gic_100mts ? IS_ERR(gic_div) : 0)) {
 		dev_err(&pdev->dev, "failed to get busfreq clk\n");
 		return -EINVAL;
 	}
@@ -546,11 +563,14 @@ static int imx8mm_init_busfreq_clk(struct platform_device *pdev)
 	osc_25m = devm_clk_get(&pdev->dev, "osc_24m");
 	sys2_pll_333m = devm_clk_get(&pdev->dev, "sys_pll2_333m");
 
+	if(gic_100mts)
+		gic_div = devm_clk_get(&pdev->dev, "gic_div");
+
 	if (IS_ERR(dram_pll_clk) || IS_ERR(dram_alt_src) || IS_ERR(dram_alt_root) ||
 	    IS_ERR(dram_core_clk) || IS_ERR(dram_apb_src) || IS_ERR(dram_apb_pre_div) ||
 	    IS_ERR(sys1_pll_800m) || IS_ERR(sys1_pll_100m) || IS_ERR(sys1_pll_40m) ||
 	    IS_ERR(osc_25m) || IS_ERR(noc_div) || IS_ERR(main_axi_src) || IS_ERR(ahb_div) ||
-	    IS_ERR(sys2_pll_333m)) {
+	    IS_ERR(sys2_pll_333m) || (gic_100mts ? IS_ERR(gic_div) : 0)) {
 		dev_err(&pdev->dev, "failed to get busfreq clk\n");
 		return -EINVAL;
 	}
@@ -575,6 +595,11 @@ static int busfreq_probe(struct platform_device *pdev)
 
 	busfreq_dev = &pdev->dev;
 
+	if (of_property_read_bool(np, "enable-gic-100mts"))
+		gic_100mts = true;
+	else
+		gic_100mts = false;
+
 	/* get the clock for DDRC */
 	if (of_machine_is_compatible("fsl,imx8mq"))
 		err = imx8mq_init_busfreq_clk(pdev);
@@ -590,6 +615,14 @@ static int busfreq_probe(struct platform_device *pdev)
 	if (origin_noc_rate == 0) {
 		WARN_ON(1);
 		return -EINVAL;
+	}
+
+	if(gic_100mts){
+		origin_gic_rate = clk_get_rate(gic_div);
+		if (origin_gic_rate == 0){
+			WARN_ON(1);
+			return -EINVAL;
+		}
 	}
 
 	/*
@@ -649,7 +682,6 @@ static int busfreq_probe(struct platform_device *pdev)
 		ddr_400mts = true;
 	else
 		ddr_400mts = false;
-
 
 	return 0;
 }
