@@ -19,6 +19,7 @@
 
 / {
   busfreq {
+	enable-gic-100mts;
 	enable-ddr-400mts;
   };
 };
