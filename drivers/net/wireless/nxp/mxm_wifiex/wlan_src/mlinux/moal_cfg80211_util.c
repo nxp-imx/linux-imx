@@ -143,11 +143,9 @@ static const struct nla_policy
 	woal_fw_roaming_policy[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_MAX + 1] = {
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONTROL] = {.type = NLA_U32},
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_BSSID] = {
-			.type = NLA_BINARY,
-			.len = sizeof(int)},
+			.type = NLA_BINARY},
 		[MRVL_WLAN_VENDOR_ATTR_FW_ROAMING_CONFIG_SSID] = {
-			.type = NLA_BINARY,
-			.len = sizeof(int)},
+			.type = NLA_BINARY},
 };
 // clang-format on
 
@@ -155,7 +153,7 @@ static const struct nla_policy
 	woal_keep_alive_policy[MKEEP_ALIVE_ATTRIBUTE_MAX + 1] = {
 		[MKEEP_ALIVE_ATTRIBUTE_ID] = {.type = NLA_U8},
 		[MKEEP_ALIVE_ATTRIBUTE_ETHER_TYPE] = {.type = NLA_U16},
-		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_BINARY, .len = 1},
+		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT] = {.type = NLA_BINARY},
 		[MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN] = {.type = NLA_U16},
 		[MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR] = {.type = NLA_STRING,
 							.len = ETH_ALEN},

@@ -1121,8 +1121,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 			PRINTM(MMSG, "reg domain set by driver=%s\n",
 			       moal_extflg_isset(handle,
 						 EXT_DISABLE_REGD_BY_DRIVER) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		} else if (strncmp(line, "reg_alpha2", strlen("reg_alpha2")) ==
 			   0) {
 			if (parse_line_read_string(line, &out_str) !=
@@ -1158,8 +1158,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				moal_extflg_clear(handle, EXT_BEACON_HINTS);
 			PRINTM(MMSG, "beacon_hints=%s\n",
 			       moal_extflg_isset(handle, EXT_BEACON_HINTS) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		}
 #endif
 #endif
@@ -1185,8 +1185,8 @@ static mlan_status parse_cfg_read_block(t_u8 *data, t_u32 size,
 				moal_extflg_clear(handle, EXT_HOST_MLME);
 			PRINTM(MMSG, "host_mlme=%s\n",
 			       moal_extflg_isset(handle, EXT_HOST_MLME) ?
-				       "disable" :
-				       "enable");
+				       "enable" :
+				       "disable");
 		}
 #endif
 #endif

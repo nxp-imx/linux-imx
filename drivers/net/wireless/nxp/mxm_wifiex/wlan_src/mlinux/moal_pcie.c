@@ -35,7 +35,9 @@ Change log:
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 #include <linux/busfreq-imx.h>
+#endif
 #endif
 
 /********************************************************
@@ -138,14 +140,18 @@ void woal_request_pmqos_busfreq_high()
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 	request_bus_freq(BUS_FREQ_HIGH);
+#endif
 #endif
 }
 
 void woal_release_pmqos_busfreq_high()
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 70)
+#ifdef IMX_SUPPORT
 	release_bus_freq(BUS_FREQ_HIGH);
+#endif
 #endif
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 6, 0)
