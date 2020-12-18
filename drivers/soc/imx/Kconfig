@@ -40,7 +40,7 @@ config SECVIO_SC
 	   occurs.
 
 config SOC_IMX8M
-	bool "i.MX8M SoC family support"
+	tristate "i.MX8M SoC family support"
 	depends on ARCH_MXC || COMPILE_TEST
 	default ARCH_MXC && ARM64
 	help

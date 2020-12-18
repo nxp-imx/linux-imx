@@ -6,6 +6,7 @@
 #include <linux/arm-smccc.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/sys_soc.h>
@@ -341,3 +342,6 @@ int imx8mp_get_ldo_trim(int ldo)
 	return ldo_trim[ldo];
 }
 EXPORT_SYMBOL_GPL(imx8mp_get_ldo_trim);
+
+MODULE_DESCRIPTION("i.MX8M SoC driver");
+MODULE_LICENSE("GPL v2");
