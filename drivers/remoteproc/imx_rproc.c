@@ -1134,6 +1134,8 @@ static int imx_rproc_probe(struct platform_device *pdev)
 
 	spin_lock_init(&priv->mu_lock);
 
+	INIT_DELAYED_WORK(&(priv->rproc_work), imx_rproc_vq_work);
+
 	ret = imx_rproc_xtr_mbox_init(rproc);
 	if (ret) {
 		if (ret == -EPROBE_DEFER)
@@ -1156,8 +1158,6 @@ static int imx_rproc_probe(struct platform_device *pdev)
 		dev_err(&rproc->dev, "Failed to enable clock\n");
 		goto err_put_rproc;
 	}
-
-	INIT_DELAYED_WORK(&(priv->rproc_work), imx_rproc_vq_work);
 
 	ret = imx_rproc_db_channel_init(rproc);
 	if (ret)
