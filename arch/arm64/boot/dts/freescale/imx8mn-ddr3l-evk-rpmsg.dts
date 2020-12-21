@@ -32,6 +32,34 @@
 			reg = <0 0xb8400000 0 0x100000>;
 			no-map;
 		};
+
+		/*
+		 * The following three is just a workaround
+		 * to avoid Linux use the memory.
+		 * This board only has 1GB memory, the 0xb8000000
+		 * exceeds the DRAM, and round back to 0x78000000,
+		 * since we not modify Mcore image, so we need to avoid
+		 * Linux touch 0x78000000 and mark Mcore ddr demo broken.
+		 */
+		vdev0vring0@78000000 {
+			reg = <0 0x78000000 0 0x8000>;
+			no-map;
+		};
+
+		vdev0vring1@78008000 {
+			reg = <0 0x78008000 0 0x8000>;
+			no-map;
+		};
+
+		rsc-table {
+			reg = <0 0x780ff000 0 0x1000>;
+			no-map;
+		};
+
+		vdevbuffer@78400000 {
+			reg = <0 0x78400000 0 0x100000>;
+			no-map;
+		};
 	};
 
 	sound-wm8524 {

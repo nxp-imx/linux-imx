@@ -1328,12 +1328,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	dsp_priv->sai_mclk = devm_clk_get(&pdev->dev, "sai_mclk");
 	if (IS_ERR(dsp_priv->sai_mclk))
 		dsp_priv->sai_mclk = NULL;
-	dsp_priv->pll8k_clk = devm_clk_get(&pdev->dev, "pll8k");
-	if (IS_ERR(dsp_priv->pll8k_clk))
-		dsp_priv->pll8k_clk = NULL;
-	dsp_priv->pll11k_clk = devm_clk_get(&pdev->dev, "pll11k");
-	if (IS_ERR(dsp_priv->pll11k_clk))
-		dsp_priv->pll11k_clk = NULL;
 	dsp_priv->uart_ipg_clk = devm_clk_get(&pdev->dev, "uart_ipg");
 	if (IS_ERR(dsp_priv->uart_ipg_clk))
 		dsp_priv->uart_ipg_clk = NULL;
@@ -1476,16 +1470,6 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		dev_err(dev, "Failed to enable sai_mclk ret = %d\n", ret);
 		return ret;
 	}
-	ret = clk_prepare_enable(dsp_priv->pll8k_clk);
-	if (ret < 0) {
-		dev_err(dev, "Failed to enable pll8k_clk ret = %d\n", ret);
-		return ret;
-	}
-	ret = clk_prepare_enable(dsp_priv->pll11k_clk);
-	if (ret < 0) {
-		dev_err(dev, "Failed to enable pll11k_clk ret = %d\n", ret);
-		return ret;
-	}
 	ret = clk_prepare_enable(dsp_priv->uart_ipg_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable uart_ipg_clk ret = %d\n", ret);
@@ -1589,8 +1573,6 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(dsp_priv->sdma_root_clk);
 	clk_disable_unprepare(dsp_priv->sai_ipg_clk);
 	clk_disable_unprepare(dsp_priv->sai_mclk);
-	clk_disable_unprepare(dsp_priv->pll8k_clk);
-	clk_disable_unprepare(dsp_priv->pll11k_clk);
 	clk_disable_unprepare(dsp_priv->uart_ipg_clk);
 	clk_disable_unprepare(dsp_priv->uart_per_clk);
 

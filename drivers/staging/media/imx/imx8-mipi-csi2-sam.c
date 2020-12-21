@@ -1275,8 +1275,10 @@ static int csis_s_hdr(struct v4l2_subdev *sd, bool enable)
 
 static int csis_ioc_qcap(struct v4l2_subdev *dev, void *args)
 {
+	struct csi_state *state = mipi_sd_to_csi_state(dev);
 	struct v4l2_capability *cap = (struct v4l2_capability *)args;
 	strcpy((char *)cap->driver, "csi_samsung_subdev");
+	cap->bus_info[0] = state->index;
 	return 0;
 }
 
@@ -1455,8 +1457,7 @@ static int mipi_csis_subdev_init(struct v4l2_subdev *mipi_sd,
 	mipi_sd->owner = THIS_MODULE;
 	snprintf(mipi_sd->name, sizeof(mipi_sd->name), "%s.%d",
 		 CSIS_SUBDEV_NAME, state->index);
-	if (state->index == 0)
-		mipi_sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	mipi_sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	mipi_sd->entity.function = MEDIA_ENT_F_IO_V4L;
 	mipi_sd->dev = &pdev->dev;
 

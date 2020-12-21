@@ -376,16 +376,24 @@ static void kick_trng(struct device *dev, int ent_delay)
 	if (ent_delay <= val)
 		goto start_rng;
 
-	val = rd_reg32(&r4tst->rtsdctl);
-	val = (val & ~RTSDCTL_ENT_DLY_MASK) |
-	      (ent_delay << RTSDCTL_ENT_DLY_SHIFT);
+	val = (ent_delay << RTSDCTL_ENT_DLY_SHIFT) | 512;
 	wr_reg32(&r4tst->rtsdctl, val);
 	/* min. freq. count, equal to 1/4 of the entropy sample length */
 	wr_reg32(&r4tst->rtfrqmin, ent_delay >> 2);
 	/* max. freq. count, equal to 16 times the entropy sample length */
 	wr_reg32(&r4tst->rtfrqmax, ent_delay << 4);
-	/* read the control register */
-	val = rd_reg32(&r4tst->rtmctl);
+
+	wr_reg32(&r4tst->rtscmisc, (2 << 16) | 32);
+	wr_reg32(&r4tst->rtpkrrng, 570);
+	wr_reg32(&r4tst->rtpkrmax, 1600);
+	wr_reg32(&r4tst->rtscml, (122 << 16) | 317);
+	wr_reg32(&r4tst->rtscrl[0],(80 << 16) | 107);
+	wr_reg32(&r4tst->rtscrl[1],(57 << 16) | 62);
+	wr_reg32(&r4tst->rtscrl[2],(39 << 16) | 39);
+	wr_reg32(&r4tst->rtscrl[3],(27 << 16) | 26);
+	wr_reg32(&r4tst->rtscrl[4],(19 << 16) | 18);
+	wr_reg32(&r4tst->rtscrl[5],(18 << 16) | 17);
+
 start_rng:
 	/*
 	 * select raw sampling in both entropy shifter

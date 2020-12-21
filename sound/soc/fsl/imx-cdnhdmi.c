@@ -361,6 +361,10 @@ static int imx_cdnhdmi_rx_rates_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static const struct snd_soc_dapm_widget imx_cdnhdmi_widgets[] = {
+	SND_SOC_DAPM_LINE("HDMI Jack", NULL),
+};
+
 static int imx_cdnhdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_card *card = rtd->card;
@@ -537,6 +541,8 @@ static int imx_cdnhdmi_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	data->card.dapm_widgets = imx_cdnhdmi_widgets;
+	data->card.num_dapm_widgets = ARRAY_SIZE(imx_cdnhdmi_widgets);
 	data->card.dev = &pdev->dev;
 	data->card.owner = THIS_MODULE;
 	ret = snd_soc_of_parse_card_name(&data->card, "model");

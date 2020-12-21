@@ -403,9 +403,6 @@ _GetVIPCoreInfo(
 
     gcmkASSERT(database);
 
-    /* Make compiler happy. */
-    gcQueryFeatureDB(0, 0, 0, 0, 0);
-
     /* Choose one supported format. */
     if (database->NNCoreCount_INT8 > 0)
     {
@@ -1148,6 +1145,10 @@ gckPPU_AddOpCode(
 {
     gceSTATUS status = gcvSTATUS_OK;
 
+    if (!Inst)
+    {
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
 
     Inst[0] = ((((gctUINT32) (Inst[0])) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  5:0) - (0 ?
@@ -1169,11 +1170,6 @@ gckPPU_AddOpCode(
  16:16) - (0 ?
  16:16) + 1) == 32) ?
  ~0U : (~(~0U << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16)));
-
-    if (!Inst)
-    {
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
 
     switch (OpCode)
     {
@@ -6345,7 +6341,7 @@ gckHARDWARE_ResetFlopWithNN(
     return gcvSTATUS_OK;
 
 OnError:
-    if (Command->funcVidMem)
+    if (Command && Command->funcVidMem)
     {
         gcmkVERIFY_OK(_FreeVideoMemory(
             Hardware->kernel,
@@ -6902,7 +6898,6 @@ gckHARDWARE_ResetFlopWithTP(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
-
     dataType = 0x0;
 
     gcmkONERROR(_GetNNDataSize(dataType, &itemBytes));
@@ -6995,7 +6990,7 @@ gckHARDWARE_ResetFlopWithTP(
     return gcvSTATUS_OK;
 
 OnError:
-    if (Command->funcVidMem)
+    if (Command && Command->funcVidMem)
     {
         gcmkVERIFY_OK(_FreeVideoMemory(
             Hardware->kernel,

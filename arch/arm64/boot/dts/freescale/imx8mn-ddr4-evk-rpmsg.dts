@@ -32,6 +32,12 @@
 			reg = <0 0xb8008000 0 0x8000>;
 			no-map;
 		};
+
+		rsc-table {
+			reg = <0 0xb80ff000 0 0x1000>;
+			no-map;
+		};
+
 		vdevbuffer: vdevbuffer@b8400000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0xb8400000 0 0x100000>;

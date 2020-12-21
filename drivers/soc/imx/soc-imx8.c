@@ -22,8 +22,26 @@
 
 #define IMX_SIP_GET_SOC_INFO		0xc2000006
 
+#define IMX_SIP_NOC			0xc2000008
+#define IMX_SIP_NOC_LCDIF		0x0
+#define IMX_SIP_NOC_PRIORITY		0x1
+#define NOC_GPU_PRIORITY		0x10
+#define NOC_DCSS_PRIORITY		0x11
+#define NOC_VPU_PRIORITY		0x12
+#define NOC_CPU_PRIORITY		0x13
+#define NOC_MIX_PRIORITY		0x14
+
 #define OCOTP_UID_LOW			0x410
 #define OCOTP_UID_HIGH			0x420
+
+#define OCOTP_IMX8MP_ANA_TRIM_1		0xd70
+#define OCOTP_IMX8MP_LDO_MASK		0x1f
+#define OCOTP_IMX8MP_LDO0_SHIFT		16
+#define OCOTP_IMX8MP_LDO1_SHIFT		24
+#define OCOTP_IMX8MP_ANA_TRIM_2		0xd80
+#define OCOTP_IMX8MP_LDO2_SHIFT		0
+
+#define OCOTP_IMX8MP_LDO_NUM		3
 
 #define IMX8MP_OCOTP_UID_OFFSET		0x10
 
@@ -36,6 +54,7 @@ struct imx8_soc_data {
 };
 
 static u64 soc_uid;
+static int ldo_trim[3] = { -1, -1, -1 };
 
 static ssize_t soc_uid_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
@@ -115,6 +134,40 @@ static void __init imx8mm_soc_uid(void)
 	of_node_put(np);
 }
 
+static void __init imx8mp_read_ldo_trim(void)
+{
+	void __iomem *ocotp_base;
+	struct device_node *np;
+	u32 fuse;
+
+	if (!of_machine_is_compatible("fsl,imx8mp"))
+		return;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mp-ocotp");
+	if (!np)
+		goto out;
+
+	ocotp_base = of_iomap(np, 0);
+	if (!ocotp_base){
+		WARN_ON(!ocotp_base);
+		goto out;
+	}
+
+	fuse = readl_relaxed(ocotp_base + OCOTP_IMX8MP_ANA_TRIM_2);
+	ldo_trim[2] = fuse & OCOTP_IMX8MP_LDO_MASK;
+
+	fuse = readl_relaxed(ocotp_base + OCOTP_IMX8MP_ANA_TRIM_1);
+	ldo_trim[1] = (fuse >> OCOTP_IMX8MP_LDO1_SHIFT) &
+		OCOTP_IMX8MP_LDO_MASK;
+	ldo_trim[0] = (fuse >> OCOTP_IMX8MP_LDO0_SHIFT) &
+		OCOTP_IMX8MP_LDO_MASK;
+
+	iounmap(ocotp_base);
+
+out:
+	of_node_put(np);
+}
+
 static u32 __init imx8mm_soc_revision(void)
 {
 	struct device_node *np;
@@ -134,6 +187,8 @@ static u32 __init imx8mm_soc_revision(void)
 	of_node_put(np);
 
 	imx8mm_soc_uid();
+
+	imx8mp_read_ldo_trim();
 
 	return rev;
 }
@@ -170,6 +225,23 @@ static const struct of_device_id imx8_soc_match[] = {
 	soc_rev ? \
 	kasprintf(GFP_KERNEL, "%d.%d", (soc_rev >> 4) & 0xf,  soc_rev & 0xf) : \
 	"unknown"
+
+static void __init imx8mq_noc_init(void)
+{
+	struct arm_smccc_res res;
+
+	pr_info("Config NOC for VPU and CPU\n");
+
+	arm_smccc_smc(IMX_SIP_NOC, IMX_SIP_NOC_PRIORITY, NOC_CPU_PRIORITY,
+			0x80000300, 0, 0, 0, 0, &res);
+	if (res.a0)
+		pr_err("Config NOC for CPU fail!\n");
+
+	arm_smccc_smc(IMX_SIP_NOC, IMX_SIP_NOC_PRIORITY, NOC_VPU_PRIORITY,
+			0x80000300, 0, 0, 0, 0, &res);
+	if (res.a0)
+		pr_err("Config NOC for VPU fail!\n");
+}
 
 static int __init imx8_soc_init(void)
 {
@@ -223,6 +295,9 @@ static int __init imx8_soc_init(void)
 	if (IS_ENABLED(CONFIG_ARM_IMX_CPUFREQ_DT))
 		platform_device_register_simple("imx-cpufreq-dt", -1, NULL, 0);
 
+	if (of_machine_is_compatible("fsl,imx8mq"))
+		imx8mq_noc_init();
+
 	return 0;
 
 free_rev:
@@ -260,3 +335,9 @@ int check_m4_enabled(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(check_m4_enabled);
+
+int imx8mp_get_ldo_trim(int ldo)
+{
+	return ldo_trim[ldo];
+}
+EXPORT_SYMBOL_GPL(imx8mp_get_ldo_trim);

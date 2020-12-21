@@ -88,6 +88,8 @@ static region_code_mapping_t region_code_mapping[] = {
 	{"RU", 0x0f}, /* Russia      */
 	{"IN", 0x06}, /* India       */
 	{"MY", 0x06}, /* Malaysia    */
+	{"MX", 0x07}, /* Mexico    */
+	{"NE", 0x30}, /* New Zeland  */
 };
 
 /** EEPROM Region code mapping table */
@@ -107,7 +109,7 @@ static t_u8 eu_country_code_table[][COUNTRY_CODE_LEN] = {
 	"AL", "AD", "AT", "AU", "BY", "BE", "BA", "BG", "HR", "CY", "CZ", "DK",
 	"EE", "FI", "FR", "MK", "DE", "GR", "HU", "IS", "IE", "IT", "KR", "LV",
 	"LI", "LT", "LU", "MT", "MD", "MC", "ME", "NL", "NO", "PL", "RO", "RU",
-	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB"};
+	"SM", "RS", "SI", "SK", "ES", "SE", "CH", "TR", "UA", "UK", "GB", "NE"};
 
 /********************************************************
 			Global Variables
@@ -2065,7 +2067,7 @@ int woal_host_command(moal_private *priv, struct iwreq *wrq)
 	PRINTM(MINFO, "Host command len = %u\n", misc->param.hostcmd.len);
 
 	if (!misc->param.hostcmd.len ||
-	    misc->param.hostcmd.len > MLAN_SIZE_OF_CMD_BUFFER) {
+	    misc->param.hostcmd.len > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		PRINTM(MERROR, "Invalid data buffer length\n");
 		ret = -EINVAL;
 		goto done;
@@ -2154,7 +2156,7 @@ int woal_hostcmd_ioctl(struct net_device *dev, struct ifreq *req)
 	PRINTM(MINFO, "Host command len = %d\n",
 	       woal_le16_to_cpu(cmd_header.size));
 
-	if (woal_le16_to_cpu(cmd_header.size) > MLAN_SIZE_OF_CMD_BUFFER) {
+	if (woal_le16_to_cpu(cmd_header.size) > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		ret = -EINVAL;
 		goto done;
 	}
@@ -3025,6 +3027,10 @@ int woal_enable_hs(moal_private *priv)
 	if (IS_SD(handle->card_type)) {
 		sdio_claim_host(((struct sdio_mmc_card *)handle->card)->func);
 	}
+#endif
+
+#ifdef SDIO_SUSPEND_RESUME
+	memset(&pm_info, 0, sizeof(mlan_ds_ps_info));
 #endif
 	if ((handle->hs_activated == MTRUE) ||
 	    (handle->is_suspended == MTRUE)) {
@@ -5036,7 +5042,7 @@ int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 {
 	int ret = 0;
 	mlan_scan_resp scan_resp;
-	struct timeval t;
+	wifi_timeval t;
 	ENTER();
 
 	if (MLAN_STATUS_SUCCESS !=
@@ -5055,7 +5061,7 @@ int woal_find_essid(moal_private *priv, mlan_ssid_bssid *ssid_bssid,
 	woal_get_monotonic_time(&t);
 /** scan result timeout value */
 #define SCAN_RESULT_AGEOUT 10
-	if (t.tv_sec > (scan_resp.age_in_secs + SCAN_RESULT_AGEOUT)) {
+	if (t.time_sec > (scan_resp.age_in_secs + SCAN_RESULT_AGEOUT)) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -6822,11 +6828,11 @@ mlan_status woal_process_rf_test_mode_cmd(moal_handle *handle, t_u32 cmd,
 
 	switch (cmd) {
 	case MFG_CMD_TX_ANT:
-		if (val != 1 && val != 2)
+		if (val != 1 && val != 2 && val != 3)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RX_ANT:
-		if (val != 1 && val != 2)
+		if (val != 1 && val != 2 && val != 3)
 			err = MTRUE;
 		break;
 	case MFG_CMD_RF_BAND_AG:

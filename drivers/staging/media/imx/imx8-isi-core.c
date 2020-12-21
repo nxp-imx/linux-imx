@@ -37,9 +37,10 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 	struct mxc_isi_dev *mxc_isi = priv;
 	struct device *dev = &mxc_isi->pdev->dev;
 	struct mxc_isi_ier_reg *ier_reg = mxc_isi->pdata->ier_reg;
+	unsigned long flags;
 	u32 status;
 
-	spin_lock(&mxc_isi->slock);
+	spin_lock_irqsave(&mxc_isi->slock, flags);
 
 	status = mxc_isi_get_irq_status(mxc_isi);
 	mxc_isi->status = status;
@@ -72,7 +73,7 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 		      ier_reg->excs_oflw_v_buf_en.mask))
 		dev_dbg(dev, "%s, IRQ EXCS OFLW Error stat=0x%X\n", __func__, status);
 
-	spin_unlock(&mxc_isi->slock);
+	spin_unlock_irqrestore(&mxc_isi->slock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -305,7 +306,6 @@ static int mxc_isi_parse_dt(struct mxc_isi_dev *mxc_isi)
 	int ret = 0;
 
 	mxc_isi->id = of_alias_get_id(node, "isi");
-	mxc_isi->chain_buf = of_property_read_bool(node, "fsl,chain_buf");
 
 	ret = of_property_read_u32_array(node, "interface", mxc_isi->interface, 3);
 	if (ret < 0)
@@ -464,6 +464,10 @@ static int mxc_isi_probe(struct platform_device *pdev)
 			mxc_isi->id);
 		return -EINVAL;
 	}
+
+	mxc_isi->chain = syscon_regmap_lookup_by_phandle(dev->of_node, "isi_chain");
+	if (IS_ERR(mxc_isi->chain))
+		mxc_isi->chain = NULL;
 
 	spin_lock_init(&mxc_isi->slock);
 	mutex_init(&mxc_isi->lock);

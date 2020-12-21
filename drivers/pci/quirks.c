@@ -2518,6 +2518,33 @@ static void quirk_disable_all_msi(struct pci_dev *dev)
 	pci_no_msi();
 	pci_warn(dev, "MSI quirk detected; MSI disabled\n");
 }
+
+static void quirk_disable_nxp_imx_msi(struct pci_dev *dev)
+{
+	struct pci_dev *host_bridge;
+	bool msi_dis = false;
+
+	host_bridge = pci_get_domain_bus_and_slot(pci_domain_nr(dev->bus), 0,
+						  PCI_DEVFN(0, 0));
+	if (host_bridge) {
+		switch (host_bridge->vendor) {
+		case PCI_VENDOR_ID_SYNOPSYS:
+			if (host_bridge->device == 0xabcd)
+				msi_dis = true;
+			break;
+		case PCI_VENDOR_ID_FREESCALE:
+			if (host_bridge->device == 0x0)
+				msi_dis = true;
+		default:
+			break;
+		}
+
+		if (msi_dis)
+			pci_no_msi();
+		pci_dev_put(host_bridge);
+	}
+}
+
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SERVERWORKS, PCI_DEVICE_ID_SERVERWORKS_GCNB_LE, quirk_disable_all_msi);
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RS400_200, quirk_disable_all_msi);
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RS480, quirk_disable_all_msi);
@@ -2526,11 +2553,11 @@ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT3351, quirk_disab
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT3364, quirk_disable_all_msi);
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_8380_0, quirk_disable_all_msi);
 DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_SI, 0x0761, quirk_disable_all_msi);
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_BROADCOM, 0x43ec, quirk_disable_all_msi);
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_BROADCOM, 0x43ef, quirk_disable_all_msi);
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b42, quirk_disable_all_msi);
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b43, quirk_disable_all_msi);
-DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b44, quirk_disable_all_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_BROADCOM, 0x43ec, quirk_disable_nxp_imx_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_BROADCOM, 0x43ef, quirk_disable_nxp_imx_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b42, quirk_disable_nxp_imx_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b43, quirk_disable_nxp_imx_msi);
+DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_MARVELL_EXT, 0x2b44, quirk_disable_nxp_imx_msi);
 
 /* Disable MSI on chipsets that are known to not support it */
 static void quirk_disable_msi(struct pci_dev *dev)

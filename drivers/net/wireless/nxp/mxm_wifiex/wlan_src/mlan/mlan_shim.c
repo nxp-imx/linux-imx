@@ -254,10 +254,14 @@ mlan_status mlan_register(pmlan_device pmdevice, t_void **ppmlan_adapter)
 	MASSERT(pmdevice->callbacks.moal_mfree);
 	MASSERT(pmdevice->callbacks.moal_memset);
 	MASSERT(pmdevice->callbacks.moal_memmove);
+	MASSERT(pmdevice->callbacks.moal_udelay);
+	MASSERT(pmdevice->callbacks.moal_usleep_range);
 
 	if (!pmdevice->callbacks.moal_malloc ||
 	    !pmdevice->callbacks.moal_mfree ||
 	    !pmdevice->callbacks.moal_memset ||
+	    !pmdevice->callbacks.moal_udelay ||
+	    !pmdevice->callbacks.moal_usleep_range ||
 	    !pmdevice->callbacks.moal_memmove) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
@@ -666,7 +670,7 @@ mlan_status mlan_set_init_param(t_void *pmlan_adapter, pmlan_init_param pparam)
 	MASSERT(pmlan_adapter);
 
 	/** Save DPD data in MLAN */
-	if ((pparam->pdpd_data_buf) && (pparam->dpd_data_len > 0)) {
+	if ((pparam->pdpd_data_buf) || (pparam->dpd_data_len > 0)) {
 		pmadapter->pdpd_data = pparam->pdpd_data_buf;
 		pmadapter->dpd_data_len = pparam->dpd_data_len;
 	}
@@ -1304,6 +1308,7 @@ mlan_status mlan_send_packet(t_void *pmlan_adapter, pmlan_buffer pmbuf)
 						  MLAN_ETHER_PKT_TYPE_OFFSET]);
 	if (((pmadapter->priv[pmbuf->bss_index]->port_ctrl_mode == MTRUE) &&
 	     ((eth_type == MLAN_ETHER_PKT_TYPE_EAPOL) ||
+	      (eth_type == MLAN_ETHER_PKT_TYPE_ARP) ||
 	      (eth_type == MLAN_ETHER_PKT_TYPE_WAPI))) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)
 

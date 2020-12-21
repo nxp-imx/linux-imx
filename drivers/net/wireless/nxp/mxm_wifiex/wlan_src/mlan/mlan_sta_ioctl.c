@@ -4493,7 +4493,7 @@ mlan_status wlan_misc_ioctl_mef_cfg(pmlan_adapter pmadapter,
 		buf_len += sizeof(HostCmd_DS_MEF_CFG);
 		filter = buf + buf_len;
 		memcpy_ext(pmpriv->adapter, filter, fltr_buf, sizeof(fltr_buf),
-			   MLAN_SIZE_OF_CMD_BUFFER - buf_len);
+			   MRVDRV_SIZE_OF_CMD_BUFFER - buf_len);
 		buf_len += sizeof(fltr_buf);
 		break;
 	case MEF_CFG_AUTO_ARP_RESP:
@@ -4505,7 +4505,7 @@ mlan_status wlan_misc_ioctl_mef_cfg(pmlan_adapter pmadapter,
 		filter = buf + buf_len;
 		memcpy_ext(pmpriv->adapter, filter, mef_cfg->param.cmd_buf.cmd,
 			   mef_cfg->param.cmd_buf.len,
-			   MLAN_SIZE_OF_CMD_BUFFER - buf_len);
+			   MRVDRV_SIZE_OF_CMD_BUFFER - buf_len);
 		buf_len += mef_cfg->param.cmd_buf.len;
 		break;
 	default:
@@ -4770,6 +4770,37 @@ mlan_status wlan_misc_pmfcfg(pmlan_adapter pmadapter,
 		pmfcfg->mfpc = pmpriv->pmfcfg.mfpc;
 		pmfcfg->mfpr = pmpriv->pmfcfg.mfpr;
 	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief HW ARB Cfg
+ *
+ *  @param pmadapter   A pointer to mlan_adapter structure
+ *  @param pioctl_req  A pointer to ioctl request buffer
+ *
+ *  @return        MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status wlan_misc_ioctl_arb_cfg(pmlan_adapter pmadapter,
+				    pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *pmisc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_ARB_CONFIG, cmd_action, 0,
+			       (t_void *)pioctl_req, &(pmisc->param.arb_cfg));
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
 
 	LEAVE();
 	return ret;
@@ -5116,6 +5147,10 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 		status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 							    pioctl_req);
 		break;
+	case MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG:
+		status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(pmadapter,
+								 pioctl_req);
+		break;
 	case MLAN_OID_MISC_RATE_ADAPT_CFG:
 		status = wlan_misc_ioctl_rate_adapt_cfg(pmadapter, pioctl_req);
 		break;
@@ -5132,6 +5167,12 @@ static mlan_status wlan_misc_cfg_ioctl(pmlan_adapter pmadapter,
 	case MLAN_OID_MISC_RF_TEST_TX_CONT:
 	case MLAN_OID_MISC_RF_TEST_TX_FRAME:
 		status = wlan_misc_ioctl_rf_test_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_ARB_CONFIG:
+		status = wlan_misc_ioctl_arb_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_RANGE_EXT:
+		status = wlan_misc_ioctl_range_ext(pmadapter, pioctl_req);
 		break;
 	default:
 		if (pioctl_req)

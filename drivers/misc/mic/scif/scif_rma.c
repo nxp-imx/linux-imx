@@ -6,7 +6,6 @@
  *
  * Intel SCIF driver.
  */
-#include <linux/intel-iommu.h>
 #include <linux/pagemap.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/signal.h>

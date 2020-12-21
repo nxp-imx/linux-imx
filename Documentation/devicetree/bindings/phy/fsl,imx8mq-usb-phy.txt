@@ -11,6 +11,48 @@ Optional properties:
 - vbus-supply: A phandle to the regulator for USB VBUS.
 - vbus-power-supply: A phandle to the vbus power supply provider, used to
 		     to detect the possible BC charger type of it.
+- fsl,phy-tx-vref-tune: Adjusts the high-speed DC level voltage.
+			- 1111: + 24%
+			- 1110: + 22%
+			.....
+			- 0101: + 4%
+			- 0100: + 2%
+			- 0011: 0 (default on imx8mp)
+			- 0010: – 2%
+			- 0001: – 4%
+			- 0000: – 6%
+- fsl,phy-tx-rise-tune: Adjusts the rise/fall times of the high-speed waveform.
+			- 11: – 3%
+			- 10: – 1%
+			- 01: 0 (default on imx8mp)
+			- 00: + 3%
+- fsl,phy-tx-preemp-amp-tune: This property controls the amount of current
+			    source to DP<#> and DM<#> after a J-to-K or K-to-J
+			    transition. The HS Transmitter pre-emphasis current
+			    is defined in terms of unit amounts. One unit
+			    amount is approximately 600 μA and is defined as 1X
+			    pre-emphasis current.
+				- 11: 3x pre-emphasis current
+				- 10: 2x pre-emphasis current
+				- 01: 1x pre-emphasis current
+				- 00: Disabled (default on imx8mp)
+- fsl,phy-comp-dis-tune: Adjusts the voltage level for the threshold used to
+			 detect a disconnect event at the host.
+				- 111: + 15.54%
+				- 110: + 11.86%
+				- 101: + 7.52%
+				- 100: + 4.08%
+				- 011: 0 (default on imx8mp)
+				- 010: – 3.04%
+				- 001: – 6.5%
+				- 000: – 9.01%
+- fsl,pcs-tx-deemph-3p5db: This property sets the TX driver de-emphasis value
+			   when pipeP_tx_deemph[1:0] is set to 2’b01 (according
+			   to the PIPE3 specification), default value is 23 on
+			   imx8mp.
+- fsl,phy-pcs-tx-swing-full: This property sets the launch amplitude of the
+			     transmitter, default value is 120 (7b'1111000)
+			     on imx8mp.
 Example:
 	usb3_phy0: phy@381f0040 {
 		compatible = "fsl,imx8mq-usb-phy";

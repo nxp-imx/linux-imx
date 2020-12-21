@@ -107,6 +107,14 @@ static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_middle_band = {52,
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band = {
 	100, 11};
 
+/** U-NII sub-band config : Start Channel = 100, NumChans = 5 */
+static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_0 = {
+	100, 5};
+
+/** U-NII sub-band config : Start Channel = 132, NumChans = 3 */
+static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_mid_upper_band_1 = {
+	132, 3};
+
 /** U-NII sub-band config : Start Channel = 149, NumChans = 5 */
 static const IEEEtypes_SupportChan_Subband_t wlan_11h_unii_upper_band = {149,
 									 5};
@@ -406,6 +414,23 @@ wlan_11h_set_supp_channels_ie(mlan_private *priv, t_u8 band,
 				wlan_11h_unii_lower_band;
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_middle_band;
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_upper_band;
+			break;
+		case 0x7:
+			/* 36-48 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_lower_band;
+			/* 52-64 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_middle_band;
+			/* 100-116 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_mid_upper_band_0;
+			/* 132-140 */
+			psup_chan->subband[num_subbands++] =
+				wlan_11h_unii_mid_upper_band_1;
+			/* 149-165 */
 			psup_chan->subband[num_subbands++] =
 				wlan_11h_unii_upper_band;
 			break;
@@ -3005,7 +3030,6 @@ t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter, t_u8 channel)
 	wlan_dfs_timestamp_t *pdfs_ts = MNULL;
 	t_u32 now_sec, now_usec;
 	t_bool ret = MFALSE;
-
 	ENTER();
 	pdfs_ts = wlan_11h_find_dfs_timestamp(pmadapter, channel);
 
@@ -3029,9 +3053,9 @@ t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter, t_u8 channel)
 		}
 
 		/* if entry is expired, remove it */
-		if (!ret)
+		if (!ret) {
 			wlan_11h_remove_dfs_timestamp(pmadapter, pdfs_ts);
-		else
+		} else
 			PRINTM(MMSG,
 			       "11h: channel %d is under NOP - can't use.\n",
 			       channel);
@@ -4043,7 +4067,7 @@ mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_FAILURE;
 	mlan_private *pmpriv = MNULL;
-	mlan_private *priv_list[MLAN_MAX_BSS_NUM];
+	mlan_private *priv_list[MLAN_MAX_BSS_NUM] = {0};
 
 	ENTER();
 	switch (pmadapter->event_cause & EVENT_ID_MASK) {

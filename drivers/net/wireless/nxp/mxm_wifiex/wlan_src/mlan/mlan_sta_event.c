@@ -930,7 +930,7 @@ mlan_status wlan_ops_sta_process_event(t_void *priv)
 	} break;
 
 	case EVENT_FW_DUMP_INFO:
-		PRINTM(MEVENT, "EVENT: Dump FW info\n");
+		PRINTM(MINFO, "EVENT: Dump FW info\n");
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_DUMP_INFO;
 		pevent->event_len = pmbuf->data_len;

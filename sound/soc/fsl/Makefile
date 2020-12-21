@@ -29,7 +29,7 @@ snd-soc-fsl-utils-objs := fsl_utils.o
 snd-soc-fsl-dma-objs := fsl_dma.o
 snd-soc-fsl-easrc-objs := fsl_easrc.o fsl_easrc_dma.o
 snd-soc-fsl-aud2htx-objs := fsl_aud2htx.o
-snd-soc-fsl-xcvr-objs := fsl_xcvr.o
+snd-soc-fsl-xcvr-objs := fsl_xcvr.o fsl_xcvr_sysfs.o
 snd-soc-fsl-esai-client-objs := fsl_esai_client.o
 
 obj-$(CONFIG_SND_SOC_FSL_AUDMIX) += snd-soc-fsl-audmix.o
@@ -107,6 +107,7 @@ snd-soc-imx-hdmi-objs := imx-hdmi.o
 snd-soc-imx-cdnhdmi-objs := imx-cdnhdmi.o
 snd-soc-imx-rpmsg-objs := imx-rpmsg.o
 snd-soc-imx-xcvr-objs := imx-xcvr.o
+snd-soc-imx-pcm512x-objs := imx-pcm512x.o
 
 obj-$(CONFIG_SND_SOC_EUKREA_TLV320) += snd-soc-eukrea-tlv320.o
 obj-$(CONFIG_SND_SOC_PHYCORE_AC97) += snd-soc-phycore-ac97.o
@@ -136,5 +137,6 @@ obj-$(CONFIG_SND_SOC_IMX_SI476X) += snd-soc-imx-si476x.o
 obj-$(CONFIG_SND_SOC_IMX_HDMI) += snd-soc-imx-hdmi.o
 obj-$(CONFIG_SND_SOC_IMX_CDNHDMI) += snd-soc-imx-cdnhdmi.o
 obj-$(CONFIG_SND_SOC_IMX_XCVR) += snd-soc-imx-xcvr.o
+obj-$(CONFIG_SND_SOC_IMX_PCM512X) += snd-soc-imx-pcm512x.o
 
 AFLAGS_hdmi_pcm.o := -march=armv7-a -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp

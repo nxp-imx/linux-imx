@@ -198,7 +198,7 @@ static const struct imx_rproc_att imx_rproc_att_imx8mn[] = {
 	/* QSPI Code - alias */
 	{ 0x08000000, 0x08000000, 0x08000000, 0 },
 	/* DDR (Code) - alias */
-	{ 0x10000000, 0x80000000, 0x0FFE0000, 0 },
+	{ 0x10000000, 0x40000000, 0x0FFE0000, 0 },
 	/* DTCM */
 	{ 0x20000000, 0x00800000, 0x00020000, ATT_OWN },
 	/* OCRAM_S - alias */
@@ -226,11 +226,9 @@ static const struct imx_rproc_att imx_rproc_att_imx8mq[] = {
 	/* QSPI Code - alias */
 	{ 0x08000000, 0x08000000, 0x08000000, 0 },
 	/* DDR (Code) - alias */
-	{ 0x10000000, 0x80000000, 0x0FFE0000, 0 },
-	/* TCML */
-	{ 0x1FFE0000, 0x007E0000, 0x00020000, ATT_OWN },
-	/* TCMU */
-	{ 0x20000000, 0x00800000, 0x00020000, ATT_OWN },
+	{ 0x10000000, 0x40000000, 0x0FFE0000, 0 },
+	/* TCML/U */
+	{ 0x1FFE0000, 0x007E0000, 0x00040000, ATT_OWN },
 	/* OCRAM_S */
 	{ 0x20180000, 0x00180000, 0x00008000, ATT_OWN },
 	/* OCRAM */
@@ -1136,6 +1134,8 @@ static int imx_rproc_probe(struct platform_device *pdev)
 
 	spin_lock_init(&priv->mu_lock);
 
+	INIT_DELAYED_WORK(&(priv->rproc_work), imx_rproc_vq_work);
+
 	ret = imx_rproc_xtr_mbox_init(rproc);
 	if (ret) {
 		if (ret == -EPROBE_DEFER)
@@ -1158,8 +1158,6 @@ static int imx_rproc_probe(struct platform_device *pdev)
 		dev_err(&rproc->dev, "Failed to enable clock\n");
 		goto err_put_rproc;
 	}
-
-	INIT_DELAYED_WORK(&(priv->rproc_work), imx_rproc_vq_work);
 
 	ret = imx_rproc_db_channel_init(rproc);
 	if (ret)

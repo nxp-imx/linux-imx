@@ -1149,9 +1149,9 @@
 				assigned-clocks = <&clk IMX8MN_CLK_DSI_CORE>,
 						  <&clk IMX8MN_CLK_DSI_PHY_REF>;
 				assigned-clock-parents = <&clk IMX8MN_SYS_PLL1_266M>,
-							 <&clk IMX8MN_VIDEO_PLL1_OUT>;
+							 <&clk IMX8MN_CLK_24M>;
 				assigned-clock-rates = <266000000>,
-						       <594000000>;
+						       <12000000>;
 				interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 				resets = <&mipi_dsi_resets>;
 				power-domains = <&mipi_pd>;

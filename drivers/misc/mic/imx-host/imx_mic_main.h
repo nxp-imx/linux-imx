@@ -37,6 +37,8 @@
  * @mmio: MMIO bar information.
  * @aper: Aperture bar information.
  * @id: The unique device id for this MIC device.
+ * @family: The MIC family to which this device belongs.
+ * @stepping: Stepping ID.
  * @dp: virtio device page.
  * @dp_dma_addr: virtio device page DMA address.
  * @num_vectors: The number of MSI vectors that have been allocated.
@@ -49,6 +51,8 @@ struct imx_mic_device {
 	struct mic_mw mmio;
 	struct mic_mw aper;
 	int id;
+	enum mic_hw_family family;
+	u8 stepping;
 	void *dp;
 	dma_addr_t dp_dma_addr;
 	u32 num_vectors;

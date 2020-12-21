@@ -207,7 +207,12 @@ void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 #else
 				       struct net_device *dev,
 #endif
-				       t_u16 frame_type, bool reg);
+#if KERNEL_VERSION(5, 8, 0) <= CFG80211_VERSION_CODE
+				       struct mgmt_frame_regs *upd
+#else
+				       t_u16 frame_type, bool reg
+#endif
+);
 
 int woal_cfg80211_mgmt_tx(struct wiphy *wiphy,
 #if KERNEL_VERSION(3, 6, 0) <= CFG80211_VERSION_CODE
@@ -241,6 +246,7 @@ mlan_status woal_register_cfg80211(moal_private *priv);
 
 extern struct ieee80211_supported_band cfg80211_band_2ghz;
 extern struct ieee80211_supported_band cfg80211_band_5ghz;
+extern struct ieee80211_supported_band mac1_cfg80211_band_2ghz;
 extern struct ieee80211_supported_band mac1_cfg80211_band_5ghz;
 
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)

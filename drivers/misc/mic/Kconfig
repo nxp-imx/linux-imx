@@ -22,7 +22,7 @@ comment "SCIF Bus Driver"
 
 config SCIF_BUS
 	tristate "SCIF Bus Driver"
-	depends on 64BIT && PCI && X86
+	depends on 64BIT && PCI
 	help
 	  This option is selected by any driver which registers a
 	  device or driver on the SCIF Bus, such as CONFIG_INTEL_MIC_HOST
@@ -95,7 +95,7 @@ comment "IMX MIC Host Driver"
 config IMX_MIC_HOST
 	tristate "IMX MIC HOST Driver"
 	depends on ARM64 && PCI && CMA
-	depends on VOP_BUS && MIC_COSM
+	depends on VOP_BUS && SCIF_BUS && MIC_COSM
 	help
 	  Enable MIC host for i.MX plaforms, actually it is a virtnet over PCIe
 	  based on VOP framework.
@@ -108,7 +108,7 @@ comment "IMX MIC Card Driver"
 config IMX_MIC_CARD
 	tristate "IMX MIC Card Driver"
 	depends on ARM64
-	depends on VOP_BUS
+	depends on VOP_BUS && SCIF_BUS && MIC_COSM
 	select VIRTIO
 	help
 	  Enable MIC card for i.MX plaforms, actually it is a virtnet over PCIe
@@ -121,7 +121,7 @@ comment "SCIF Driver"
 
 config SCIF
 	tristate "SCIF Driver"
-	depends on 64BIT && PCI && X86 && SCIF_BUS && IOMMU_SUPPORT
+	depends on 64BIT && PCI && SCIF_BUS && IOMMU_SUPPORT
 	select IOMMU_IOVA
 	help
 	  This enables SCIF Driver support for the Intel Many Integrated
@@ -141,7 +141,7 @@ comment "Intel MIC Coprocessor State Management (COSM) Drivers"
 
 config MIC_COSM
 	tristate "Intel MIC Coprocessor State Management (COSM) Drivers"
-	depends on 64BIT && PCI && X86 && SCIF
+	depends on 64BIT && PCI && SCIF
 	help
 	  This enables COSM driver support for the Intel Many
 	  Integrated Core (MIC) family of PCIe form factor coprocessor

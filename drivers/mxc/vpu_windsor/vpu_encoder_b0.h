@@ -246,7 +246,6 @@ struct vpu_statistic {
 	} strip_sts;
 	bool fps_sts_enable;
 	struct vpu_fps_sts fps[VPU_FPS_STS_CNT];
-	unsigned long timestamp_overwrite;
 };
 
 struct vpu_attr {
@@ -470,7 +469,6 @@ struct vpu_ctx {
 	struct vpu_statistic sts;
 	unsigned int frozen_count;
 	u_int32 sequence;
-	s64 timestams[VPU_ENC_SEQ_CAPACITY];
 	u32 cpb_size;
 	s64 timestamp;
 	u8 colorspace;

@@ -1205,6 +1205,48 @@ static mlan_status wlan_misc_band_steering_cfg(pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Set Beacon Stuck Detect Mechanism Configurations
+ *
+ *  @param pmadapter   A pointer to mlan_adapter structure
+ *  @param pioctl_req  A pointer to ioctl request buffer
+ *
+ *  @return            MLAN_STATUS_SUCCES/MLAN_STATUS_PENDING --success,
+ * otherwise fail
+ */
+static mlan_status wlan_misc_beacon_stuck_cfg(IN pmlan_adapter pmadapter,
+					      IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *pm = MNULL;
+
+	ENTER();
+
+	if (pioctl_req->buf_len < sizeof(mlan_ds_beacon_stuck_param_cfg)) {
+		PRINTM(MWARN, "MLAN bss IOCTL length is too short.\n");
+		pioctl_req->data_read_written = 0;
+		pioctl_req->buf_len_needed =
+			sizeof(mlan_ds_beacon_stuck_param_cfg);
+		pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
+		LEAVE();
+		return MLAN_STATUS_RESOURCE;
+	}
+	pm = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_UAP_BEACON_STUCK_CFG,
+			       (t_u16)pm->param.beacon_stuck_cfg.action, 0,
+			       (t_void *)pioctl_req,
+			       (t_void *)&pm->param.beacon_stuck_cfg);
+
+	LEAVE();
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	return ret;
+}
+
+/**
  *  @brief Set SNMP MIB for 11D
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -2027,6 +2069,9 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_TX_AMPDU_PROT_MODE)
 			status = wlan_misc_ioctl_tx_ampdu_prot_mode(pmadapter,
 								    pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG)
+			status = wlan_misc_ioctl_dot11mc_unassoc_ftm_cfg(
+				pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_RATE_ADAPT_CFG)
 			status = wlan_misc_ioctl_rate_adapt_cfg(pmadapter,
 								pioctl_req);
@@ -2051,8 +2096,16 @@ mlan_status wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_BAND_STEERING)
 			status = wlan_misc_band_steering_cfg(pmadapter,
 							     pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_BEACON_STUCK)
+			status = wlan_misc_beacon_stuck_cfg(pmadapter,
+							    pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_REGIONPWR_CFG)
 			status = wlan_get_rgchnpwr_cfg(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_CFP_TABLE)
+			status = wlan_get_cfp_table(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_RANGE_EXT)
+			status = wlan_misc_ioctl_range_ext(pmadapter,
+							   pioctl_req);
 		break;
 	case MLAN_IOCTL_POWER_CFG:
 		power = (mlan_ds_power_cfg *)pioctl_req->pbuf;

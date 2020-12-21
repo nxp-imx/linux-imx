@@ -53,7 +53,6 @@
 #ifndef SCIF_RMA_H
 #define SCIF_RMA_H
 
-#include <linux/intel-iommu.h>
 #include <linux/mmu_notifier.h>
 
 #include "../bus/scif_bus.h"
@@ -71,6 +70,10 @@
 #define SCIF_IOVA_PFN(addr) ((addr) >> PAGE_SHIFT)
 #define SCIF_DMA_64BIT_PFN SCIF_IOVA_PFN(DMA_BIT_MASK(64))
 #define SCIF_DMA_63BIT_PFN SCIF_IOVA_PFN(DMA_BIT_MASK(63))
+
+#ifndef intel_iommu_enabled
+#define intel_iommu_enabled 0
+#endif
 
 /*
  * struct scif_endpt_rma_info - Per Endpoint Remote Memory Access Information

@@ -87,7 +87,8 @@ static int dsp_platform_compr_free(struct snd_compr_stream *cstream)
 	int ret;
 
 	if (cstream->runtime->state != SNDRV_PCM_STATE_PAUSED &&
-		cstream->runtime->state != SNDRV_PCM_STATE_DRAINING) {
+		cstream->runtime->state != SNDRV_PCM_STATE_DRAINING &&
+		cstream->runtime->state > SNDRV_PCM_STATE_OPEN) {
 		if (dsp_priv->dsp_is_lpa) {
 			ret = xaf_comp_flush(drv->client, &drv->component[0]);
 			if (ret) {
@@ -196,6 +197,35 @@ static int dsp_platform_compr_set_params(struct snd_compr_stream *cstream,
 			drv->renderer_type, ret);
 		goto err_comp0_create;
 	}
+
+	if (drv->codec_type == CODEC_AAC_DEC) {
+		s_param.id = XA_STREAM_TYPE;
+		if (params->codec.format == SND_AUDIOSTREAMFORMAT_MP4ADTS || params->codec.format == SND_AUDIOSTREAMFORMAT_MP2ADTS)
+			s_param.mixData.value = XA_STREAM_ADTS;
+		else if (params->codec.format == SND_AUDIOSTREAMFORMAT_ADIF)
+			s_param.mixData.value = XA_STREAM_ADIF;
+		else
+			s_param.mixData.value = XA_STREAM_RAW;
+		ret = xaf_comp_set_config(drv->client, &drv->component[0], 1, &s_param);
+		if (ret) {
+			dev_err(component->dev,
+				"set param[cmd:0x%x|val:0x%x] error, err = %d\n",
+				s_param.id, s_param.mixData.value, ret);
+			goto err_comp0_create;
+		}
+
+		/* ...set depth before init codec */
+		s_param.id = XA_DEPTH;
+		s_param.mixData.value = 16;
+		ret = xaf_comp_set_config(drv->client, &drv->component[0], 1, &s_param);
+		if (ret) {
+			dev_err(component->dev,
+			"set param[cmd:0x%x|val:0x%x] error, err = %d\n",
+			s_param.id, s_param.mixData.value, ret);
+			goto err_comp0_create;
+		}
+	}
+
 
 	/* ...add component into pipeline */
 	ret = xaf_comp_add(&drv->pipeline, &drv->component[0]);
@@ -666,8 +696,8 @@ static struct snd_compr_codec_caps caps_aac = {
 	.descriptor[1].profiles = 0,
 	.descriptor[1].modes = 0,
 	.descriptor[1].formats =
-			(SND_AUDIOSTREAMFORMAT_MP4ADTS |
-				SND_AUDIOSTREAMFORMAT_RAW),
+			(SND_AUDIOSTREAMFORMAT_MP4ADTS | SND_AUDIOSTREAMFORMAT_MP2ADTS |
+				SND_AUDIOSTREAMFORMAT_ADIF | SND_AUDIOSTREAMFORMAT_RAW),
 };
 
 static int dsp_platform_compr_get_codec_caps(struct snd_compr_stream *cstream,

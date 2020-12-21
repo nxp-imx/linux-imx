@@ -45,12 +45,18 @@
 #include "vpu_b0.h"
 #include "insert_startcode.h"
 #include "vpu_debug_log.h"
-#include "vpu_ts.h"
 #include "vpu_pm.h"
 #include "vpu_mu.h"
 
+#ifndef TSM_TIMESTAMP_NONE
+#define TSM_TIMESTAMP_NONE	-1L
+#endif
+#ifndef TSM_TS_IS_VALID
+#define TSM_TS_IS_VALID(ts)	((ts) >= 0)
+#endif
+
 unsigned int vpu_dbg_level_decoder = LVL_WARN;
-static int vpu_frm_depth = INVALID_FRAME_DEPTH;
+static int vpu_frm_depth = VPU_FRAME_DEPTH_DEFAULT;
 static int vpu_log_depth = DEFAULT_LOG_DEPTH;
 static int vpu_max_bufsize = MAX_BUFFER_SIZE;
 static int vpu_frmdbg_ena = DEFAULT_FRMDBG_ENABLE;
@@ -59,9 +65,6 @@ static int vpu_frmdbg_raw = 1;
 static int vpu_dbe_num = 1;
 static int vpu_frmcrcdump_ena;
 static int stream_buffer_threshold = 0x10000;
-static int tsm_mode = MODE_AI;
-static int tsm_buffer_size = 1024;
-static int tsm_use_consumed_length = 1;
 static int precheck_show_bytes;
 static int vpu_show_perf_ena;
 static int vpu_show_perf_idx = (1 << VPU_MAX_NUM_STREAMS) - 1;
@@ -133,6 +136,7 @@ static char *cmd2str[] = {
 	"VID_API_CMD_DBG_STOP_LOG",
 	"VID_API_CMD_DBG_DUMP_LOG",
 	"VID_API_CMD_YUV_READY",   /*0x20*/
+	"VID_API_CMD_TS",
 };
 
 static char *event2str[] = {
@@ -279,7 +283,7 @@ static void count_cmd(struct vpu_statistic *statistic, u32 cmdid)
 	if (cmdid < ARRAY_SIZE(cmd2str))
 		statistic->cmd[cmdid]++;
 	else
-		statistic->cmd[VID_API_CMD_YUV_READY + 1]++;
+		statistic->cmd[VID_API_CMD_TS + 1]++;
 	statistic->current_cmd = cmdid;
 	ktime_get_raw_ts64(&statistic->ts_cmd);
 }
@@ -1528,7 +1532,8 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 				int size)
 {
 	struct vb2_v4l2_buffer *vbuf;
-	TSM_TIMESTAMP input_ts;
+	s64 input_ts;
+	u32 data[3];
 
 	if (!ctx || !vb)
 		return;
@@ -1548,31 +1553,25 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 	if (TSM_TS_IS_VALID(input_ts) && input_ts > ctx->output_ts)
 		ctx->output_ts = input_ts;
 
-	if (down_interruptible(&ctx->tsm_lock)) {
-		vpu_err("%s() get tsm lock fail\n", __func__);
-		return;
-	}
-
 	if (is_codec_config_data(vb) && !TSM_TS_IS_VALID(input_ts)) {
 		vpu_dbg(LVL_BIT_TS, "[INPUT  TS]codec data\n");
 		ctx->extra_size += size;
-		up(&ctx->tsm_lock);
 		return;
 	}
 
-	if (ctx->tsm_sync_flag) {
-		vpu_dbg(LVL_BIT_TS, "resyncTSManager\n");
-		resyncTSManager(ctx->tsm, input_ts, tsm_mode);
-		ctx->tsm_sync_flag = false;
-	}
 	size += ctx->extra_size;
 	ctx->extra_size = 0;
 	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
-	TSManagerReceive2(ctx->tsm, input_ts, size);
-	ctx->total_ts_bytes += size;
-	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]receive bytes : %8d / %16ld\n",
-			ctx->str_index, size, ctx->total_ts_bytes);
-	up(&ctx->tsm_lock);
+
+	if (input_ts < 0) {
+		data[0] = (u32)-1;
+		data[1] = 0;
+	} else {
+		data[0] = input_ts / NSEC_PER_SEC;
+		data[1] = input_ts % NSEC_PER_SEC;
+	}
+	data[2] = size;
+	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_TS, 3, data);
 }
 
 static int v4l2_ioctl_qbuf(struct file *file,
@@ -1618,74 +1617,6 @@ static int v4l2_ioctl_qbuf(struct file *file,
 	return ret;
 }
 
-static void vpu_dec_send_ts(struct vpu_ctx *ctx, struct v4l2_buffer *buf)
-{
-	TSM_TIMESTAMP ts;
-	struct timespec64 ts64;
-
-	if (down_interruptible(&ctx->tsm_lock)) {
-		vpu_err("%s() get tsm lock fail\n", __func__);
-		return;
-	}
-
-	ts = TSManagerSend2(ctx->tsm, NULL);
-	if (TSM_TS_IS_VALID(ts) && ts < ctx->capture_ts) {
-		vpu_dbg(LVL_BIT_TS, "revise timestamp: %32lld -> %32lld\n",
-				ts, ctx->capture_ts);
-		ts = ctx->capture_ts;
-	}
-	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%32lld (%lld)\n",
-			ts, getTSManagerFrameInterval(ctx->tsm));
-	ts64 = ns_to_timespec64(ts);
-	buf->timestamp.tv_sec = ts64.tv_sec;
-	buf->timestamp.tv_usec = ts64.tv_nsec / NSEC_PER_USEC;
-	buf->flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
-
-	up(&ctx->tsm_lock);
-
-	if (TSM_TS_IS_VALID(ts))
-		ctx->capture_ts = ts;
-}
-
-static void vpu_dec_valid_ts(struct vpu_ctx *ctx,
-				u32 consumed_pic_bytesused,
-				struct vb2_data_req *p_data_req)
-{
-	WARN_ON(!ctx || !ctx->tsm);
-
-	if (down_interruptible(&ctx->tsm_lock)) {
-		vpu_err("%s() get tsm lock fail\n", __func__);
-		return;
-	}
-
-	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]Valid bytes : %8d / %16ld\n",
-				ctx->str_index, consumed_pic_bytesused,
-				ctx->total_consumed_bytes);
-	TSManagerValid2(ctx->tsm,
-			consumed_pic_bytesused,
-			p_data_req ? p_data_req->vb2_buf : NULL);
-
-	up(&ctx->tsm_lock);
-}
-
-static void vpu_dec_skip_ts(struct vpu_ctx *ctx)
-{
-	TSM_TIMESTAMP ts;
-
-	WARN_ON(!ctx || !ctx->tsm);
-
-	if (down_interruptible(&ctx->tsm_lock)) {
-		vpu_err("%s() get tsm lock fail\n", __func__);
-		return;
-	}
-
-	ts = TSManagerSend2(ctx->tsm, NULL);
-
-	up(&ctx->tsm_lock);
-
-	vpu_dbg(LVL_BIT_TS, "[SKIP   TS]%32lld\n", ts);
-}
-
 static int v4l2_ioctl_dqbuf(struct file *file,
 		void *fh,
 		struct v4l2_buffer *buf
@@ -1719,8 +1650,6 @@ static int v4l2_ioctl_dqbuf(struct file *file,
 	if (!V4L2_TYPE_IS_OUTPUT(buf->type) && is_10bit_format(ctx))
 		buf->reserved = 1;
 
-	if (!V4L2_TYPE_IS_OUTPUT(buf->type))
-		vpu_dec_send_ts(ctx, buf);
 	if (V4L2_TYPE_IS_OUTPUT(buf->type))
 		buf->flags &= ~V4L2_NXP_BUF_MASK_FLAGS;
 
@@ -1967,32 +1896,6 @@ static int vpu_dec_v4l2_ioctl_g_parm(struct file *file, void *fh,
 	return 0;
 }
 
-static void vpu_dec_set_tsm_frame_rate(struct vpu_ctx *ctx)
-{
-	u32 numerator;
-	u32 denominator;
-
-	WARN_ON(!ctx || !ctx->tsm);
-
-	if (down_interruptible(&ctx->tsm_lock)) {
-		vpu_err("%s() get tsm lock fail\n", __func__);
-		return;
-	}
-	numerator = ctx->fixed_frame_interval.numerator;
-	denominator = ctx->fixed_frame_interval.denominator;
-	if (numerator && denominator) {
-		setTSManagerFrameRate(ctx->tsm, denominator, numerator);
-		goto exit;
-	}
-
-	numerator = ctx->frame_interval.numerator;
-	denominator = ctx->frame_interval.denominator;
-	if (numerator && denominator)
-		setTSManagerFrameRate(ctx->tsm, denominator, numerator);
-exit:
-	up(&ctx->tsm_lock);
-}
-
 static int vpu_dec_v4l2_ioctl_s_parm(struct file *file, void *fh,
 				struct v4l2_streamparm *parm)
 {
@@ -2012,7 +1915,6 @@ static int vpu_dec_v4l2_ioctl_s_parm(struct file *file, void *fh,
 		parm->parm.capture.timeperframe.numerator / gcd;
 	ctx->fixed_frame_interval.denominator =
 		parm->parm.capture.timeperframe.denominator / gcd;
-	vpu_dec_set_tsm_frame_rate(ctx);
 	mutex_unlock(&ctx->instance_mutex);
 
 	return 0;
@@ -2128,8 +2030,8 @@ static	struct v4l2_ctrl_config vpu_custom_s_cfg[] = {
 		.id = V4L2_CID_USER_FRAME_DEPTH,
 		.name = "frame depth ctrl",
 		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = -1,
-		.max = 999,
+		.min = 1,
+		.max = VPU_FRAME_DEPTH_MAX,
 		.step = 1,
 	},
 	{
@@ -2497,6 +2399,8 @@ static void update_wptr(struct vpu_ctx *ctx,
 	length = (wptr + size - pStrBufDesc->wptr) % size;
 	ctx->total_write_bytes += length;
 
+	vpu_dbg(LVL_BIT_FRAME_BYTES, "[%d]receive bytes : %8d / %16ld\n",
+			ctx->str_index, length, ctx->total_write_bytes);
 	vpu_dbg(LVL_BIT_WPTR, "ctx[%d] wptr : 0x%08x -> 0x%08x\n",
 			ctx->str_index, pStrBufDesc->wptr, wptr);
 	pStrBufDesc->wptr = wptr;
@@ -2776,6 +2680,8 @@ static void vpu_dec_send_cmd(struct vpu_dev *dev, u32 idx, u32 cmdid,
 {
 	WARN_ON(!dev || idx >= VPU_MAX_NUM_STREAMS);
 
+	if (!rpc_check_is_ready(&dev->shared_mem, idx))
+		vpu_err("[%d] is not ready\n", idx);
 	mutex_lock(&dev->cmd_mutex);
 	rpc_send_cmd_buf(&dev->shared_mem, idx, cmdid, cmdnum, local_cmddata);
 	mb();
@@ -3014,7 +2920,6 @@ static int send_start_cmd(struct vpu_ctx *ctx)
 	pStrBufDesc->start = ctx->stream_buffer.dma_phy;
 	pStrBufDesc->end = ctx->stream_buffer.dma_phy + ctx->stream_buffer.dma_size;
 	pStrBufDesc->LWM = 0x01;
-	ctx->pre_pic_end_addr = pStrBufDesc->start;
 	ctx->beginning = pStrBufDesc->start;
 
 	pSharedInterface->pStreamBuffDesc[ctx->str_index][uStrBufIdx] =
@@ -3046,7 +2951,6 @@ static int send_start_cmd(struct vpu_ctx *ctx)
 
 	v4l2_vpu_send_cmd(ctx, ctx->str_index, VID_API_CMD_START, 0, NULL);
 	ctx->firmware_stopped = false;
-	ctx->tsm_sync_flag = true;
 	ctx->first_data_flag = true;
 
 	vpu_calculate_performance(ctx, 0xff, "send start cmd");
@@ -3358,8 +3262,6 @@ static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 		buffer_info->stream_buffer_threshold = frame_threshold[idx];
 	else
 		buffer_info->stream_buffer_threshold = 0;
-
-	buffer_info->stream_pic_input_count = ctx->frm_total_num;
 }
 
 static void set_pic_end_flag(struct vpu_ctx *ctx)
@@ -3386,9 +3288,6 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	if (ctx->fifo_low)
 		return true;
 
-	if (ctx->tsm_sync_flag)
-		return true;
-
 	pStrBufDesc = get_str_buffer_desc(ctx);
 	stream_size = got_used_space(pStrBufDesc->wptr,
 					pStrBufDesc->rptr,
@@ -3402,14 +3301,10 @@ static bool vpu_dec_stream_is_ready(struct vpu_ctx *ctx)
 	/*
 	 *frame depth need to be set by user and then the condition works
 	 */
-	if (vpu_frm_depth != INVALID_FRAME_DEPTH &&
-	    ctx->stream_input_mode == FRAME_LVL) {
-		if ((getTSManagerPreBufferCnt(ctx->tsm)) >= vpu_frm_depth)
+	if (vpu_frm_depth > 0 && ctx->stream_input_mode == FRAME_LVL) {
+		if (ctx->frm_dec_delay >= vpu_frm_depth)
 			return false;
 	}
-
-	if ((getTSManagerPreBufferCnt(ctx->tsm)) >= (tsm_buffer_size * 9 / 10))
-		return false;
 
 	if (ctx->ts_threshold > 0 &&
 		TSM_TS_IS_VALID(ctx->output_ts) &&
@@ -3569,11 +3464,14 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	u_int32 *FrameInfo = (u_int32 *)frame_info;
 	u_int32 fs_id = FrameInfo[0x0];
 	uint32_t stride = FrameInfo[3];
+	s64 timestamp = ((s32)FrameInfo[9] * NSEC_PER_SEC) + FrameInfo[10];
 	bool b10BitFormat = is_10bit_format(ctx);
 	int buffer_id;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s() fs_id=%d, ulFsLumaBase[0]=%x, stride=%d, b10BitFormat=%d, ctx->seqinfo.uBitDepthLuma=%d\n",
 			__func__, fs_id, FrameInfo[1], stride, b10BitFormat, ctx->seqinfo.uBitDepthLuma);
+	vpu_dbg(LVL_BIT_TS, "[OUTPUT TS]%32lld\n", timestamp);
+	ctx->capture_ts = timestamp;
 	v4l2_update_stream_addr(ctx, 0);
 
 	buffer_id = find_buffer_id(ctx, FrameInfo[1]);
@@ -3590,7 +3488,6 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 			set_data_req_status(p_data_req, FRAME_SKIP);
 			up(&This->drv_q_lock);
 
-			vpu_dec_skip_ts(ctx);
 			send_skip_event(ctx);
 			ctx->frm_dis_delay--;
 			return;
@@ -3613,6 +3510,7 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	if (p_data_req->vb2_buf) {
 		p_data_req->vb2_buf->planes[0].bytesused = This->sizeimage[0];
 		p_data_req->vb2_buf->planes[1].bytesused = This->sizeimage[1];
+		p_data_req->vb2_buf->timestamp = timestamp;
 		if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE)
 			vb2_buffer_done(p_data_req->vb2_buf,
 					VB2_BUF_STATE_DONE);
@@ -3733,69 +3631,6 @@ static void add_buffer_to_queue(struct queue_data *q_data, struct vb2_data_req *
 	data_req->queued = true;
 }
 
-static u32 correct_consumed_length(struct vpu_ctx *ctx,
-				u32 consumed_pic_bytesused)
-{
-	long total_read_bytes;
-	long delta;
-	u32 circle_count;
-	u32 stream_size;
-	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
-
-	pStrBufDesc = get_str_buffer_desc(ctx);
-	stream_size = got_used_space(pStrBufDesc->wptr,
-					pStrBufDesc->rptr,
-					pStrBufDesc->start,
-					pStrBufDesc->end);
-	total_read_bytes = ctx->total_write_bytes - stream_size;
-	delta = total_read_bytes - ctx->total_consumed_bytes;
-	if (delta < ctx->stream_buffer.dma_size)
-		return consumed_pic_bytesused;
-
-	circle_count = delta / ctx->stream_buffer.dma_size;
-	vpu_dbg(LVL_BIT_FRAME_BYTES,
-		"ctx[%d] cross over %d circles\n",
-		ctx->str_index, circle_count);
-
-	consumed_pic_bytesused += ctx->stream_buffer.dma_size * circle_count;
-	ctx->total_consumed_bytes += ctx->stream_buffer.dma_size * circle_count;
-
-	return consumed_pic_bytesused;
-}
-
-static u32 get_consumed_pic_bytesused(struct vpu_ctx *ctx,
-					u32 pic_start_addr,
-					u32 pic_end_addr)
-{
-	u32 consumed_pic_bytesused;
-	u32 pic_size;
-
-	consumed_pic_bytesused = pic_end_addr +
-				+ ctx->stream_buffer.dma_size
-				- ctx->pre_pic_end_addr;
-	consumed_pic_bytesused %= ctx->stream_buffer.dma_size;
-	pic_size = pic_end_addr + ctx->stream_buffer.dma_size - pic_start_addr;
-	pic_size %= ctx->stream_buffer.dma_size;
-
-	ctx->total_consumed_bytes += consumed_pic_bytesused;
-	consumed_pic_bytesused = correct_consumed_length(ctx,
-							consumed_pic_bytesused);
-
-	vpu_dbg(LVL_BIT_PIC_ADDR, "<0x%08x 0x%08x>, %8d, %8d\n",
-		pic_start_addr, pic_end_addr, pic_size, consumed_pic_bytesused);
-	if (consumed_pic_bytesused < pic_size)
-		vpu_err("ErrorAddr:[%d] Start(0x%x), End(0x%x), preEnd(0x%x)\n",
-			ctx->str_index,
-			pic_start_addr,
-			pic_end_addr,
-			ctx->pre_pic_end_addr);
-
-
-	ctx->pre_pic_end_addr = pic_end_addr;
-
-	return consumed_pic_bytesused;
-}
-
 static int parse_frame_interval_from_seqinfo(struct vpu_ctx *ctx,
 					MediaIPFW_Video_SeqInfo *seq_info)
 {
@@ -3813,10 +3648,6 @@ static int parse_frame_interval_from_seqinfo(struct vpu_ctx *ctx,
 					ctx->frame_interval.denominator);
 	ctx->frame_interval.numerator /= gcd;
 	ctx->frame_interval.denominator /= gcd;
-
-	mutex_lock(&ctx->instance_mutex);
-	vpu_dec_set_tsm_frame_rate(ctx);
-	mutex_unlock(&ctx->instance_mutex);
 
 	return 0;
 }
@@ -4326,12 +4157,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		int buffer_id;
 		u_int32 uDecFrmId = event_data[7];
 		u_int32 uPicStartAddr = event_data[10];
-		u_int32 uPicEndAddr = event_data[12];
 		struct queue_data *This = &ctx->q_data[V4L2_DST];
 		u_int32 uDpbmcCrc;
 		size_t wr_size;
-		u32 consumed_pic_bytesused = 0;
 		struct vb2_data_req *p_data_req = NULL;
+		u32 consumed_count = event_data[13];
 
 		if (This->vdec_std == VPU_VIDEO_HEVC)
 			uDpbmcCrc = pPerfDcpInfo->uDBEDpbCRC[0];
@@ -4351,20 +4181,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			event_data[0], uPicStartAddr, pQMeterInfo, pPicInfo,
 			pDispInfo, pPerfInfo, pPerfDcpInfo);
 
-		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
-		if (tsm_use_consumed_length)
-			consumed_pic_bytesused = get_consumed_pic_bytesused(ctx,
-							uPicStartAddr,
-							uPicEndAddr);
-		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
-
 		buffer_id = find_buffer_id(ctx, event_data[0]);
 		if (buffer_id == -1) {
 			vpu_err("error: %s() ctx[%d] not find buffer id: %d, addr: 0x%x\n",
 					__func__, ctx->str_index, uDecFrmId, event_data[0]);
-			vpu_dec_valid_ts(ctx,
-					consumed_pic_bytesused,
-					NULL);
 			break;
 		}
 
@@ -4375,18 +4195,20 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		else
 			p_data_req->bfield = true;
 
-		vpu_dec_valid_ts(ctx, consumed_pic_bytesused, p_data_req);
 		This->process_count++;
-		}
 		if (ctx->statistic.event[VID_API_EVENT_PIC_DECODED] == 1)
 			vpu_calculate_performance(ctx, uEvent, "first decoded");
 		else
 			vpu_calculate_performance(ctx, uEvent, NULL);
 
-		ctx->frm_dec_delay--;
+		if (ctx->frm_dec_delay >= consumed_count)
+			ctx->frm_dec_delay -= consumed_count;
+		else
+			ctx->frm_dec_delay = 0;
 		ctx->fifo_low = false;
 		ctx->frame_decoded = true;
 		v4l2_update_stream_addr(ctx, 0);
+		}
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
 		MediaIPFW_Video_SeqInfo *pSeqInfo = (MediaIPFW_Video_SeqInfo *)dev->shared_mem.seq_mem_vir;
@@ -4522,10 +4344,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_INFO, "warning: normal release and previous status %s, frame not for display, queue the buffer to list again\n",
 						bufstat[p_data_req->status]);
 
-				if (p_data_req->status == FRAME_DECODED) {
-					vpu_dec_skip_ts(ctx);
+				if (p_data_req->status == FRAME_DECODED)
 					send_skip_event(ctx);
-				}
 			}
 			if (p_data_req->status != FRAME_ALLOC) {
 				set_data_req_status(p_data_req, FRAME_RELEASE);
@@ -4607,20 +4427,14 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			queue->qbuf_count,
 			queue->dqbuf_count);
 		vpu_dbg(LVL_BIT_FRAME_BYTES,
-				"[%d]total bytes: %ld, %ld, %ld, %ld\n",
+				"[%d]total bytes: %ld, %ld\n",
 				ctx->str_index,
 				ctx->total_qbuf_bytes,
-				ctx->total_ts_bytes,
-				ctx->total_write_bytes,
-				ctx->total_consumed_bytes);
+				ctx->total_write_bytes);
 		update_wptr(ctx, pStrBufDesc, pStrBufDesc->rptr);
-		ctx->pre_pic_end_addr = pStrBufDesc->rptr;
 		ctx->beginning = pStrBufDesc->rptr;
 		ctx->total_qbuf_bytes = 0;
 		ctx->total_write_bytes = 0;
-		ctx->total_consumed_bytes = 0;
-		ctx->total_ts_bytes = 0;
-		ctx->tsm_sync_flag = true;
 		up(&queue->drv_q_lock);
 
 		ctx->frm_dis_delay = 0;
@@ -5438,7 +5252,7 @@ static ssize_t show_instance_command_info(struct device *dev,
 	statistic = &ctx->statistic;
 
 	num += scnprintf(buf + num, PAGE_SIZE - num, "command number:\n");
-	for (i = VID_API_CMD_NULL; i < VID_API_CMD_YUV_READY + 1; i++) {
+	for (i = VID_API_CMD_NULL; i < VID_API_CMD_TS + 1; i++) {
 		size = scnprintf(buf + num, PAGE_SIZE - num,
 				"\t%40s(%2d):%16ld\n",
 				cmd2str[i], i, statistic->cmd[i]);
@@ -5446,7 +5260,7 @@ static ssize_t show_instance_command_info(struct device *dev,
 	}
 
 	num += scnprintf(buf + num, PAGE_SIZE - num, "\t%40s    :%16ld\n",
-			"UNKNOWN COMMAND", statistic->cmd[VID_API_CMD_YUV_READY + 1]);
+			"UNKNOWN COMMAND", statistic->cmd[VID_API_CMD_TS + 1]);
 
 	num += scnprintf(buf + num, PAGE_SIZE - num, "current command:\n");
 	num += scnprintf(buf + num, PAGE_SIZE - num,
@@ -5572,9 +5386,6 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16d\n", "total frame number",
 			ctx->frm_total_num);
-	num += scnprintf(buf + num, PAGE_SIZE - num,
-			"\t%40s:%16d\n", "timestamp delay frame",
-			getTSManagerPreBufferCnt(ctx->tsm));
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16lld\n", "timestamp threshold(ms)",
 			ctx->ts_threshold);
@@ -6159,12 +5970,6 @@ static int v4l2_open(struct file *filp)
 	ctx->quantization = V4L2_QUANTIZATION_LIM_RANGE;
 	INIT_LIST_HEAD(&ctx->cmd_q);
 	INIT_LIST_HEAD(&ctx->perf_q);
-	ctx->tsm = createTSManager(tsm_buffer_size);
-	if (!ctx->tsm)
-		goto err_create_tsm;
-	sema_init(&ctx->tsm_lock, 1);
-	resyncTSManager(ctx->tsm, 0, tsm_mode);
-	ctx->tsm_sync_flag = false;
 	ctx->output_ts = TSM_TIMESTAMP_NONE;
 	ctx->capture_ts = TSM_TIMESTAMP_NONE;
 	create_instance_file(ctx);
@@ -6201,6 +6006,7 @@ static int v4l2_open(struct file *filp)
 	create_fwlog_file(ctx->dev);
 	create_dbglog_file(ctx->dev);
 	mutex_unlock(&dev->dev_mutex);
+	rpc_init_instance(&dev->shared_mem, ctx->str_index);
 	rpc_set_stream_cfg_value(dev->shared_mem.pSharedInterface, ctx->str_index, vpu_dbe_num);
 	init_vpu_buffer(ctx);
 
@@ -6218,10 +6024,6 @@ err_firmware_load:
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
 err_open_crc:
-	if (ctx->tsm)
-		destroyTSManager(ctx->tsm);
-	ctx->tsm = NULL;
-err_create_tsm:
 	remove_instance_file(ctx);
 	dev->ctx[idx] = NULL;
 err_init_kfifo:
@@ -6315,10 +6117,6 @@ static int v4l2_release(struct file *filp)
 	if (ctx->instance_wq)
 		destroy_workqueue(ctx->instance_wq);
 
-	if (ctx->tsm) {
-		destroyTSManager(ctx->tsm);
-		ctx->tsm = NULL;
-	}
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
 	ctrls_delete_decoder(ctx);
@@ -7039,12 +6837,6 @@ module_param(vpu_frmcrcdump_ena, int, 0644);
 MODULE_PARM_DESC(vpu_frmcrcdump_ena, "enable frame crc dump(0-1)");
 module_param(stream_buffer_threshold, int, 0644);
 MODULE_PARM_DESC(stream_buffer_threshold, "stream buffer threshold");
-module_param(tsm_mode, int, 0644);
-MODULE_PARM_DESC(tsm_mode, "timestamp manager mode(0 : ai, 1 : fifo)");
-module_param(tsm_buffer_size, int, 0644);
-MODULE_PARM_DESC(tsm_buffer_size, "timestamp manager buffer size");
-module_param(tsm_use_consumed_length, int, 0644);
-MODULE_PARM_DESC(tsm_use_consumed_length, "timestamp manager use consumed length");
 module_param(precheck_show_bytes, int, 0644);
 MODULE_PARM_DESC(precheck_show_bytes, "show the beginning of content");
 module_param(vpu_show_perf_ena, int, 0644);

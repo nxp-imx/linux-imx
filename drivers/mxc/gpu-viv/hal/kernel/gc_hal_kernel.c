@@ -745,13 +745,12 @@ gckKERNEL_Construct(
     return gcvSTATUS_OK;
 
 OnError:
-    gckOS_SetGPUPower(Os, kernel->core, gcvFALSE, gcvFALSE);
-    *Kernel = gcvNULL;
-
     if (kernel != gcvNULL)
     {
+        gckOS_SetGPUPower(Os, kernel->core, gcvFALSE, gcvFALSE);
         gckKERNEL_Destroy(kernel);
     }
+    *Kernel = gcvNULL;
 
     /* Return the error. */
     gcmkFOOTER();
@@ -1825,11 +1824,24 @@ _BottomHalfUnlockVideoMemory(
     /* Deref handle. */
     gckVIDMEM_HANDLE_Dereference(Kernel, ProcessID, Node);
 
-    /* Unlock video memory, synced. */
-    gcmkONERROR(gckVIDMEM_NODE_Unlock(Kernel, nodeObject, ProcessID, gcvNULL));
+#if gcdENABLE_VG
+    if (Kernel->vg != gcvNULL)
+    {
+        /* Unlock video memory, synced. */
+        gcmkONERROR(gckVIDMEM_NODE_Unlock(Kernel, nodeObject, ProcessID, gcvNULL));
 
-    /* Deref node. */
-    gcmkONERROR(gckVIDMEM_NODE_Dereference(Kernel, nodeObject));
+        /* Deref node. */
+        gcmkONERROR(gckVIDMEM_NODE_Dereference(Kernel, nodeObject));
+    }
+    else
+#endif
+    {
+        /* Perform asynchronous unlock */
+        gcmkONERROR(gckEVENT_Unlock(Kernel->eventObj, gcvKERNEL_PIXEL, nodeObject));
+
+        /* Submit the event queue. */
+        gcmkONERROR(gckEVENT_Submit(Kernel->eventObj, gcvTRUE, gcvFALSE));
+    }
 
     return gcvSTATUS_OK;
 

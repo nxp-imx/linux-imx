@@ -308,9 +308,11 @@ static void imx8mp_hdmi_phy_disable(struct dw_hdmi *dw_hdmi, void *data)
 	regmap_read(hdmi->regmap, 0x200, &val);
 	/* Disable CEC */
 	val &= ~0x2;
-	/* Power down HDMI PHY */
-	val |= 0x8;
-    regmap_write(hdmi->regmap, 0x200, val);
+	/* Power down HDMI PHY
+	 * TODO move PHY power off to hdmi phy driver
+	 * val |= 0x8;
+	 * regmap_write(hdmi->regmap, 0x200, val);
+	*/
 }
 
 static int imx8mp_hdmimix_setup(struct imx_hdmi *hdmi)

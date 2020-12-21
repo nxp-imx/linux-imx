@@ -393,11 +393,30 @@ t_s32 moal_memcmp(t_void *pmoal_handle, const t_void *pmem1,
 t_void moal_udelay(t_void *pmoal_handle, t_u32 delay)
 {
 	if (delay >= 1000)
-		mdelay(delay / 1000);
+		msleep(delay / 1000);
 	if (delay % 1000)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		usleep_range(delay % 1000 - 1, delay % 1000);
+#else
 		udelay(delay % 1000);
+#endif
 }
 
+/**
+ *  @brief  usleep_range function
+ *
+ *  @param pmoal_handle Pointer to the MOAL context
+ *  @param min_delay  minimal delay in micro-second
+ *  @param max_delay  delay in micro-second
+ *
+ *  @return       N/A
+ */
+t_void moal_usleep_range(t_void *pmoal_handle, t_u32 min_delay, t_u32 max_delay)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+	usleep_range(min_delay, max_delay);
+#endif
+}
 /**
  *  @brief Retrieves the current system time
  *
@@ -410,11 +429,11 @@ t_void moal_udelay(t_void *pmoal_handle, t_u32 delay)
 mlan_status moal_get_system_time(t_void *pmoal_handle, t_u32 *psec,
 				 t_u32 *pusec)
 {
-	struct timeval t;
+	wifi_timeval t;
 
 	woal_get_monotonic_time(&t);
-	*psec = (t_u32)t.tv_sec;
-	*pusec = (t_u32)t.tv_usec;
+	*psec = t.time_sec;
+	*pusec = t.time_usec;
 
 	return MLAN_STATUS_SUCCESS;
 }
@@ -869,7 +888,6 @@ mlan_status moal_send_packet_complete(t_void *pmoal_handle, pmlan_buffer pmbuf,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	t_u32 index = 0;
 #endif
-	struct timeval tstamp;
 
 	ENTER();
 	if (pmbuf && pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA) {
@@ -959,9 +977,7 @@ mlan_status moal_send_packet_complete(t_void *pmoal_handle, pmlan_buffer pmbuf,
 done:
 	if ((atomic_read(&handle->tx_pending) == 0) &&
 	    !is_zero_timeval(handle->tx_time_start)) {
-		woal_get_monotonic_time(&tstamp);
-		handle->tx_time_end.time_sec = (t_u32)tstamp.tv_sec;
-		handle->tx_time_end.time_usec = (t_u32)tstamp.tv_usec;
+		woal_get_monotonic_time(&handle->tx_time_end);
 		handle->tx_time +=
 			(t_u64)(timeval_to_usec(handle->tx_time_end) -
 				timeval_to_usec(handle->tx_time_start));
@@ -1396,26 +1412,28 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 #if defined(UAP_CFG80211) || defined(STA_CFG80211)
 	pchan_band_info pchan_info = NULL;
 #endif
-	struct timeval tstamp;
-
 	t_u8 radar_detected;
 
 	ENTER();
-
-	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
-	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
-		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
 		woal_store_firmware_dump(pmoal_handle, pmevent);
 		goto done;
 	}
+	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
+	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
+	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
+		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
 #if defined(PCIE)
 	if (pmevent->event_id == MLAN_EVENT_ID_SSU_DUMP_FILE) {
 		woal_store_ssu_dump(pmoal_handle, pmevent);
 		goto done;
 	}
 #endif /* SSU_SUPPORT */
+	if (pmevent->event_id == MLAN_EVENT_ID_STORE_HOST_CMD_RESP) {
+		woal_save_host_cmdresp((moal_handle *)pmoal_handle,
+				       (mlan_cmdresp_event *)pmevent);
+		goto done;
+	}
 	priv = woal_bss_index_to_priv(pmoal_handle, pmevent->bss_index);
 	if (priv == NULL) {
 		PRINTM(MERROR, "%s: priv is null\n", __func__);
@@ -1558,11 +1576,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 		}
 
 		if (!is_zero_timeval(priv->phandle->scan_time_start)) {
-			woal_get_monotonic_time(&tstamp);
-			priv->phandle->scan_time_end.time_sec =
-				(t_u32)tstamp.tv_sec;
-			priv->phandle->scan_time_end.time_usec =
-				(t_u32)tstamp.tv_usec;
+			woal_get_monotonic_time(&priv->phandle->scan_time_end);
 			priv->phandle->scan_time += (t_u64)(
 				timeval_to_usec(priv->phandle->scan_time_end) -
 				timeval_to_usec(
@@ -1645,6 +1659,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		priv->auth_flag = 0;
 		priv->host_mlme = MFALSE;
+		priv->auth_alg = 0xFFFF;
 #endif
 #endif
 #ifdef STA_WEXT
@@ -1955,6 +1970,9 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 		woal_process_hang(priv->phandle);
 		wifi_status = 2;
 		break;
+	case MLAN_EVENT_ID_DRV_WIFI_STATUS:
+		wifi_status = *(t_u16 *)(pmevent->event_buf + sizeof(t_u32));
+		break;
 	case MLAN_EVENT_ID_FW_BG_SCAN:
 		if (priv->media_connected == MTRUE)
 			priv->bg_scan_start = MFALSE;
@@ -2131,10 +2149,15 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 				woal_cfg80211_dfs_vendor_event(
 					priv, event_dfs_radar_detected,
 					&priv->chan);
-			else
+			else {
 #endif
-				cfg80211_radar_event(priv->wdev->wiphy,
-						     &priv->chan, GFP_KERNEL);
+				if (priv->uap_host_based && priv->bss_started)
+					cfg80211_radar_event(priv->wdev->wiphy,
+							     &priv->chan,
+							     GFP_KERNEL);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			}
+#endif
 		}
 #endif /* CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0 */
 #endif /* UAP_CFG80211 */
@@ -2261,6 +2284,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 					     sizeof(t_u32));
 		}
 #endif
+		memset(&pm_info, 0, sizeof(mlan_ds_ps_info));
 		if (priv->phandle->suspend_fail == MFALSE) {
 			woal_get_pm_info(priv, &pm_info);
 			if (pm_info.is_suspend_allowed == MTRUE) {
@@ -2394,6 +2418,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 			    (priv->auth_flag & HOST_MLME_AUTH_PENDING)) {
 				priv->auth_flag = 0;
 				priv->host_mlme = MFALSE;
+				priv->auth_alg = 0xFFFF;
 			}
 			priv->phandle->remain_on_channel = MFALSE;
 			if (priv->phandle->cookie &&
@@ -2605,30 +2630,35 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 						    ((struct ieee80211_mgmt *)
 							     pkt)
 							    ->frame_control)) {
+						PRINTM(MEVENT,
+						       "HostMlme %s: Received auth frame type = 0x%x\n",
+						       priv->netdev->name,
+						       priv->auth_alg);
+
 						if (priv->auth_flag &
 						    HOST_MLME_AUTH_PENDING) {
-							PRINTM(MEVENT,
-							       "HostMlme %s: Receive auth\n",
-							       priv->netdev
-								       ->name);
-							priv->auth_flag &=
-								~HOST_MLME_AUTH_PENDING;
-							priv->auth_flag |=
-								HOST_MLME_AUTH_DONE;
-							priv->phandle
-								->host_mlme_priv =
-								priv;
-							queue_work(
+							if (priv->auth_alg !=
+							    WLAN_AUTH_SAE) {
+								priv->auth_flag &=
+									~HOST_MLME_AUTH_PENDING;
+								priv->auth_flag |=
+									HOST_MLME_AUTH_DONE;
 								priv->phandle
-									->evt_workqueue,
-								&priv->phandle
-									 ->host_mlme_work);
+									->host_mlme_priv =
+									priv;
+								queue_work(
+									priv->phandle
+										->evt_workqueue,
+									&priv->phandle
+										 ->host_mlme_work);
+							}
 						} else {
 							PRINTM(MERROR,
-							       "HostMlme %s: Drop auth pkt,auth_flag=0x%x\n",
+							       "HostMlme %s: Drop auth frame, auth_flag=0x%x auth_alg=0x%x\n",
 							       priv->netdev
 								       ->name,
-							       priv->auth_flag);
+							       priv->auth_flag,
+							       priv->auth_alg);
 							break;
 						}
 					} else {
@@ -2646,6 +2676,7 @@ mlan_status moal_recv_event(t_void *pmoal_handle, pmlan_event pmevent)
 							MFALSE);
 						priv->host_mlme = MFALSE;
 						priv->auth_flag = 0;
+						priv->auth_alg = 0xFFFF;
 						if (!priv->wdev->current_bss) {
 							PRINTM(MEVENT,
 							       "HostMlme: Drop deauth/disassociate, we already disconnected\n");

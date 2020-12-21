@@ -24,7 +24,7 @@
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION "186.p6"
+#define MLAN_RELEASE_VERSION "210"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -198,6 +198,10 @@ typedef t_s32 t_sval;
 #define MLAN_RATE_INDEX_OFDM7 11
 /** Rate index for MCS 0 */
 #define MLAN_RATE_INDEX_MCS0 0
+/** Rate index for MCS 2 */
+#define MLAN_RATE_INDEX_MCS2 2
+/** Rate index for MCS 4 */
+#define MLAN_RATE_INDEX_MCS4 4
 /** Rate index for MCS 7 */
 #define MLAN_RATE_INDEX_MCS7 7
 /** Rate index for MCS 9 */
@@ -234,7 +238,7 @@ typedef t_s32 t_sval;
 
 /** Size of command buffer */
 /** because cal_data_size 2.4 k */
-#define MRVDRV_SIZE_OF_CMD_BUFFER (3 * 1024)
+#define MRVDRV_SIZE_OF_CMD_BUFFER (4 * 1024)
 /** Size of rx command buffer */
 #define MLAN_RX_CMD_BUF_SIZE MRVDRV_SIZE_OF_CMD_BUFFER
 /** Upload size */
@@ -556,8 +560,6 @@ typedef enum {
 
 #define MREG_D MBIT(9)
 
-#define MLOG_D MBIT(10)
-
 #define MMPA_D MBIT(15)
 #define MDAT_D MBIT(16)
 #define MCMD_D MBIT(17)
@@ -751,6 +753,8 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_DRV_ASSOC_FAILURE_LOGGER = 0x80000026,
 	MLAN_EVENT_ID_DRV_ASSOC_SUCC_LOGGER = 0x80000027,
 	MLAN_EVENT_ID_DRV_DISCONNECT_LOGGER = 0x80000028,
+	MLAN_EVENT_ID_DRV_WIFI_STATUS = 0x80000029,
+	MLAN_EVENT_ID_STORE_HOST_CMD_RESP = 0x80000030,
 } mlan_event_id;
 
 /** Data Structures */
@@ -772,16 +776,35 @@ typedef MLAN_PACK_START struct _MrvlIEtypesHeader {
 	t_u16 len;
 } MLAN_PACK_END MrvlIEtypesHeader_t;
 
+/** MrvlExtIEtypesHeader_t */
+typedef MLAN_PACK_START struct _MrvlExtIEtypesHeader {
+	/** Header type */
+	t_u16 type;
+	/** Header length */
+	t_u16 len;
+	/** ext id */
+	t_u8 ext_id;
+} MLAN_PACK_END MrvlExtIEtypesHeader_t;
+
+/** MrvlIEtypes_Data_t */
+typedef MLAN_PACK_START struct _MrvlExtIEtypes_Data_t {
+	/** Header */
+	MrvlExtIEtypesHeader_t header;
+	/** Data */
+	t_u8 data[];
+} MLAN_PACK_END MrvlExtIEtypes_Data_t;
+
 /** MrvlIEtypes_Data_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
 	/** Header */
 	MrvlIEtypesHeader_t header;
 	/** Data */
-	t_u8 data[1];
+	t_u8 data[];
 } MLAN_PACK_END MrvlIEtypes_Data_t;
 
 #define OID_TYPE_CAL 0x2
 #define OID_TYPE_DPD 0xa
+#define UNKNOW_DPD_LENGTH 0xffffffff
 
 /** Custom data structure */
 typedef struct _mlan_init_param {
@@ -936,6 +959,18 @@ typedef struct _mlan_event {
 	/** Event buffer */
 	t_u8 event_buf[];
 } mlan_event, *pmlan_event;
+
+/** mlan_cmdresp_event data structure */
+typedef struct _mlan_cmdresp_event {
+	/** BSS index number for multiple BSS support */
+	t_u32 bss_index;
+	/** Event ID */
+	mlan_event_id event_id;
+	/** Event length */
+	t_u32 event_len;
+	/** resp buffer pointer */
+	t_u8 *resp;
+} mlan_cmdresp_event, *pmlan_cmdresp_event;
 
 /** csi event data structure */
 
@@ -1259,6 +1294,14 @@ typedef enum {
 	WIFI_PREAMBLE_VHT = 0x4
 } wifi_preamble;
 
+/** timeval */
+typedef struct {
+	/** Time (seconds) */
+	t_u32 time_sec;
+	/** Time (micro seconds) */
+	t_u32 time_usec;
+} wifi_timeval;
+
 #define MAX_NUM_RATE 32
 #define MAX_RADIO 2
 #define MAX_NUM_CHAN 1
@@ -1268,55 +1311,55 @@ typedef enum {
 #define BUF_MAXLEN 4096
 /** connection state */
 typedef enum {
-	WIFI_DISCONNECTED = 0,
-	WIFI_AUTHENTICATING = 1,
-	WIFI_ASSOCIATING = 2,
-	WIFI_ASSOCIATED = 3,
+	MLAN_DISCONNECTED = 0,
+	MLAN_AUTHENTICATING = 1,
+	MLAN_ASSOCIATING = 2,
+	MLAN_ASSOCIATED = 3,
 	/** if done by firmware/driver */
-	WIFI_EAPOL_STARTED = 4,
+	MLAN_EAPOL_STARTED = 4,
 	/** if done by firmware/driver */
-	WIFI_EAPOL_COMPLETED = 5,
-} wifi_connection_state;
+	MLAN_EAPOL_COMPLETED = 5,
+} mlan_connection_state;
 /** roam state */
 typedef enum {
-	WIFI_ROAMING_IDLE = 0,
-	WIFI_ROAMING_ACTIVE = 1,
-} wifi_roam_state;
+	MLAN_ROAMING_IDLE = 0,
+	MLAN_ROAMING_ACTIVE = 1,
+} mlan_roam_state;
 /** interface mode */
 typedef enum {
-	WIFI_INTERFACE_STA = 0,
-	WIFI_INTERFACE_SOFTAP = 1,
-	WIFI_INTERFACE_IBSS = 2,
-	WIFI_INTERFACE_P2P_CLIENT = 3,
-	WIFI_INTERFACE_P2P_GO = 4,
-	WIFI_INTERFACE_NAN = 5,
-	WIFI_INTERFACE_MESH = 6,
-} wifi_interface_mode;
+	MLAN_INTERFACE_STA = 0,
+	MLAN_INTERFACE_SOFTAP = 1,
+	MLAN_INTERFACE_IBSS = 2,
+	MLAN_INTERFACE_P2P_CLIENT = 3,
+	MLAN_INTERFACE_P2P_GO = 4,
+	MLAN_INTERFACE_NAN = 5,
+	MLAN_INTERFACE_MESH = 6,
+} mlan_interface_mode;
 
 /** set for QOS association */
-#define WIFI_CAPABILITY_QOS 0x00000001
+#define MLAN_CAPABILITY_QOS 0x00000001
 /** set for protected association (802.11 beacon frame control protected bit
  * set) */
-#define WIFI_CAPABILITY_PROTECTED 0x00000002
+#define MLAN_CAPABILITY_PROTECTED 0x00000002
 /** set if 802.11 Extended Capabilities element interworking bit is set */
-#define WIFI_CAPABILITY_INTERWORKING 0x00000004
+#define MLAN_CAPABILITY_INTERWORKING 0x00000004
 /** set for HS20 association */
-#define WIFI_CAPABILITY_HS20 0x00000008
+#define MLAN_CAPABILITY_HS20 0x00000008
 /** set is 802.11 Extended Capabilities element UTF-8 SSID bit is set */
-#define WIFI_CAPABILITY_SSID_UTF8 0x00000010
+#define MLAN_CAPABILITY_SSID_UTF8 0x00000010
 /** set is 802.11 Country Element is present */
-#define WIFI_CAPABILITY_COUNTRY 0x00000020
+#define MLAN_CAPABILITY_COUNTRY 0x00000020
 
 /** link layer status */
 typedef struct {
 	/** interface mode */
-	wifi_interface_mode mode;
+	mlan_interface_mode mode;
 	/** interface mac address (self) */
 	t_u8 mac_addr[6];
 	/** connection state (valid for STA, CLI only) */
-	wifi_connection_state state;
+	mlan_connection_state state;
 	/** roaming state */
-	wifi_roam_state roaming;
+	mlan_roam_state roaming;
 	/** WIFI_CAPABILITY_XXX (self) */
 	t_u32 capabilities;
 	/** null terminated SSID */
@@ -1327,7 +1370,7 @@ typedef struct {
 	t_u8 ap_country_str[3];
 	/** country string for this association */
 	t_u8 country_str[3];
-} wifi_interface_link_layer_info, *wifi_interface_handle;
+} mlan_interface_link_layer_info, *mlan_interface_handle;
 
 /** channel statistics */
 typedef struct {
@@ -1339,14 +1382,6 @@ typedef struct {
 	 */
 	t_u32 cca_busy_time;
 } wifi_channel_stat;
-
-/** timeval */
-typedef struct {
-	/** Time (seconds) */
-	t_u32 time_sec;
-	/** Time (micro seconds) */
-	t_u32 time_usec;
-} wifi_timeval;
 
 #define timeval_to_msec(timeval)                                               \
 	(t_u64)((t_u64)(timeval.time_sec) * 1000 +                             \
@@ -1482,7 +1517,7 @@ typedef struct {
 	/** wifi interface */
 	/* wifi_interface_handle iface;*/
 	/** current state of the interface */
-	wifi_interface_link_layer_info info;
+	mlan_interface_link_layer_info info;
 	/** access point beacon received count from connected AP */
 	t_u32 beacon_rx;
 	/** Average beacon offset encountered (beacon_TSF - TBTT)
@@ -1666,6 +1701,9 @@ typedef struct _mlan_callbacks {
 			     const t_void *pmem2, t_u32 num);
 	/** moal_udelay */
 	t_void (*moal_udelay)(t_void *pmoal_handle, t_u32 udelay);
+	/** moal_usleep_range */
+	t_void (*moal_usleep_range)(t_void *pmoal_handle, t_u32 min_delay,
+				    t_u32 max_delay);
 	/** moal_get_boot_ktime */
 	mlan_status (*moal_get_boot_ktime)(t_void *pmoal_handle, t_u64 *pnsec);
 	/** moal_get_system_time */

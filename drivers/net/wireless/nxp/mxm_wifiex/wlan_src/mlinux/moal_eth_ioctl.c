@@ -187,7 +187,7 @@ mlan_status parse_arguments(t_u8 *pos, int *data, int datalen,
  * @param raw_size      raw data buffer size
  * @return         Number of bytes read
  **/
-int string2raw(char *str, unsigned char *raw, int raw_size)
+int string2raw(unsigned char *str, unsigned char *raw, int raw_size)
 {
 	int len = (strlen(str) + 1) / 2;
 	int i = 0;
@@ -401,7 +401,7 @@ int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 
 	PRINTM(MINFO, "Host command len = %d\n",
 	       woal_le16_to_cpu(cmd_header.size));
-	if (woal_le16_to_cpu(cmd_header.size) > MLAN_SIZE_OF_CMD_BUFFER) {
+	if (woal_le16_to_cpu(cmd_header.size) > MRVDRV_SIZE_OF_CMD_BUFFER) {
 		LEAVE();
 		return -EINVAL;
 	}
@@ -419,7 +419,7 @@ int woal_priv_hostcmd(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 	/* get the whole command */
 	moal_memcpy_ext(priv->phandle, misc_cfg->param.hostcmd.cmd,
 			data_ptr + sizeof(buf_len), misc_cfg->param.hostcmd.len,
-			MLAN_SIZE_OF_CMD_BUFFER);
+			MRVDRV_SIZE_OF_CMD_BUFFER);
 
 	status = woal_request_ioctl(priv, req, wait_option);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -554,6 +554,88 @@ static int woal_setget_priv_11axcmdcfg(moal_private *priv, t_u8 *respbuf,
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief             Set/get range ext mode
+ *
+ *
+ *  @param priv    Pointer to the mlan_private driver data struct
+ *  @param respbuf      A pointer to response buffer
+ *  @param len          length used
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return         Number of bytes written if successful else negative value
+ */
+static int woal_setget_priv_range_ext(moal_private *priv, t_u8 *respbuf,
+				      t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[1];
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_RANGE_EXT);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_RANGE_EXT;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid Parameter\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		if (data[0] < 0 || data[0] > 2) {
+			PRINTM(MERROR,
+			       "Invalid Parameter: range_ext mode 0-2\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		misc->param.range_ext_mode = (t_u8)data[0];
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.range_ext_mode;
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u32 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
 	LEAVE();
 	return ret;
 }
@@ -2023,6 +2105,7 @@ int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 	int ret = 0;
 	int user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
+	txrate_setting *rate_setting = NULL;
 
 	ENTER();
 
@@ -2121,6 +2204,62 @@ int woal_setget_priv_txratecfg(moal_private *priv, t_u8 *respbuf,
 				PRINTM(MIOCTL,
 				       "SET: txratefg HE Rate Setting: 0x%x\n",
 				       data[3]);
+
+/* HE Preamble type */
+#define HE_SU_PREAMBLE 0
+#define HE_ER_PREAMBLE 1
+
+/* HE ER SU Type */
+#define HE_ER_SU_BANDWIDTH_TONE242 0
+#define HE_ER_SU_BANDWIDTH_TONE106 1
+
+				rate_setting = (txrate_setting *)&data[3];
+
+				if (data[0] == MLAN_RATE_FORMAT_HE) {
+					if (rate_setting->preamble ==
+					    HE_ER_PREAMBLE) {
+						if (rate_setting->bandwidth ==
+						    HE_ER_SU_BANDWIDTH_TONE242) {
+							if ((data[1] >
+							     MLAN_RATE_INDEX_MCS4) ||
+							    data[2] >
+								    MLAN_RATE_NSS1) {
+								PRINTM(MERROR,
+								       "Invalid rate and MCS or NSS configuration for 242 tone\n");
+								ret = -EINVAL;
+								goto done;
+							}
+						} else if (rate_setting
+								   ->bandwidth ==
+							   HE_ER_SU_BANDWIDTH_TONE106) {
+							if ((data[1] !=
+							     MLAN_RATE_INDEX_MCS0) ||
+							    data[2] !=
+								    MLAN_RATE_NSS1) {
+								PRINTM(MERROR,
+								       "Invalid rate and MCS or NSS configuration\n for 106 tone");
+								ret = -EINVAL;
+								goto done;
+							}
+						} else {
+							PRINTM(MERROR,
+							       "Invalid Bandwidth for HE ER Preamble\n");
+							ret = -EINVAL;
+							goto done;
+						}
+					}
+					if (rate_setting->dcm) {
+						if ((data[1] ==
+						     MLAN_RATE_INDEX_MCS2) ||
+						    (data[1] >
+						     MLAN_RATE_INDEX_MCS4)) {
+							PRINTM(MERROR,
+							       "Invalid MCS configuration if DCM is supported\n");
+							ret = -EINVAL;
+							goto done;
+						}
+					}
+				}
 			} else {
 				rate->param.rate_cfg.rate_setting = 0xffff;
 			}
@@ -6823,8 +6962,10 @@ static int woal_priv_getcfgchanlist(moal_private *priv, t_u8 *respbuf,
 				sband->channels[i].flags;
 			plist->chan_list[i + num_chan].max_power =
 				sband->channels[i].max_power;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 8, 13)
 			plist->chan_list[i + num_chan].dfs_state =
 				sband->channels[i].dfs_state;
+#endif
 		}
 		num_chan += sband->n_channels;
 	}
@@ -9748,7 +9889,7 @@ static int woal_priv_11n_amsdu_aggr_ctrl(moal_private *priv, t_u8 *respbuf,
 {
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
-	int ret = 0, data[2];
+	int ret = 0, data[2] = {0};
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10179,7 +10320,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	int ret = 0;
-	int data[4];
+	int data[4] = {0};
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10229,7 +10370,7 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 			goto done;
 		}
 		ds_11hcfg->param.dfs_testing.usr_cac_period_msec =
-			(t_u32)data[0];
+			(t_u32)data[0] * 1000;
 		ds_11hcfg->param.dfs_testing.usr_nop_period_sec =
 			(t_u16)data[1];
 		ds_11hcfg->param.dfs_testing.usr_no_chan_change =
@@ -10252,7 +10393,8 @@ static int woal_priv_dfs_testing(moal_private *priv, t_u8 *respbuf,
 	}
 
 	if (!user_data_len) {
-		data[0] = ds_11hcfg->param.dfs_testing.usr_cac_period_msec;
+		data[0] =
+			ds_11hcfg->param.dfs_testing.usr_cac_period_msec / 1000;
 		data[1] = ds_11hcfg->param.dfs_testing.usr_nop_period_sec;
 		data[2] = ds_11hcfg->param.dfs_testing.usr_no_chan_change;
 		data[3] = ds_11hcfg->param.dfs_testing.usr_fixed_new_chan;
@@ -10284,7 +10426,7 @@ static int woal_priv_dfs53cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_11h_cfg *ds_11hcfg = NULL;
 	int ret = 0;
-	int data;
+	int data = 0;
 	int user_data_len = 0, header_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -10353,6 +10495,418 @@ done:
 }
 
 /**
+ *  @brief determine the center frquency center index for bandwidth
+ *         of 80 MHz and 160 MHz
+ *
+ ** @param priv          Pointer to moal_private structure
+ *  @param band         band
+ *  @param pri_chan     primary channel
+ *  @param chan_bw      channel bandwidth
+ *
+ *  @return             channel center frequency center, if found; O, otherwise
+ */
+
+t_u8 woal_get_center_freq_idx(moal_private *priv, t_u8 band, t_u32 pri_chan,
+			      t_u8 chan_bw)
+{
+	t_u8 center_freq_idx = 0;
+
+	if (band & BAND_AAC) {
+		switch (pri_chan) {
+		case 36:
+		case 40:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 38;
+				break;
+			}
+			/* fall through */
+		case 44:
+		case 48:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 46;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 42;
+				break;
+			}
+			/* fall through */
+		case 52:
+		case 56:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 54;
+				break;
+			}
+			/* fall through */
+		case 60:
+		case 64:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 62;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 58;
+				break;
+			} else if (chan_bw == CHANNEL_BW_160MHZ) {
+				center_freq_idx = 50;
+				break;
+			}
+			/* fall through */
+		case 68:
+		case 72:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 70;
+				break;
+			}
+			/* fall through */
+		case 76:
+		case 80:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 78;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 74;
+				break;
+			}
+			/* fall through */
+		case 84:
+		case 88:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 86;
+				break;
+			}
+			/* fall through */
+		case 92:
+		case 96:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 94;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 90;
+				break;
+			}
+			/* fall through */
+		case 100:
+		case 104:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 102;
+				break;
+			}
+			/* fall through */
+		case 108:
+		case 112:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 110;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 106;
+				break;
+			}
+			/* fall through */
+		case 116:
+		case 120:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 118;
+				break;
+			}
+			/* fall through */
+		case 124:
+		case 128:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 126;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 122;
+			} else if (chan_bw == CHANNEL_BW_160MHZ) {
+				center_freq_idx = 114;
+			}
+			break;
+		case 132:
+		case 136:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 134;
+				break;
+			}
+			/* fall through */
+		case 140:
+		case 144:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 126;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 138;
+			}
+			break;
+		case 149:
+		case 153:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 151;
+				break;
+			}
+			/* fall through */
+		case 157:
+		case 161:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 159;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 155;
+				break;
+			}
+			/* fall through */
+		case 165:
+		case 169:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 167;
+				break;
+			}
+			/* fall through */
+		case 173:
+		case 177:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 175;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 171;
+				break;
+			}
+			/* fall through */
+		case 184:
+		case 188:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 186;
+				break;
+			}
+			/* fall through */
+		case 192:
+		case 196:
+			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
+			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
+				center_freq_idx = 194;
+				break;
+			} else if (chan_bw == CHANNEL_BW_80MHZ) {
+				center_freq_idx = 190;
+				break;
+			}
+			/* fall through */
+		default: /* error. go to the default */
+			center_freq_idx = 42;
+		}
+	}
+	return center_freq_idx;
+}
+
+/**
+ *  @brief determine the center frquency center index for bandwidth
+ *         of 80 MHz and 160 MHz
+ *
+ ** @param priv          Pointer to moal_private structure
+ *  @param block_tx      0-no need block traffic 1- need block traffic
+ *  @param oper_class    oper_class
+ *  @param channel       channel
+ *  @param switch count  how many csa/ecsa beacon will send out
+ *  @param band_width    1-40Mhz above, 3-40Mhz below, 4-80Mhz, 5-160Mhz
+ *  @param ecsa          MTRUE/MFALSE;
+ *
+ *  @return             channel center frequency center, if found; O, otherwise
+ */
+
+static int woal_channel_switch(moal_private *priv, t_u8 block_tx,
+			       t_u8 oper_class, t_u8 channel, t_u8 switch_count,
+			       t_u8 band_width, t_u8 ecsa)
+{
+	IEEEtypes_ExtChanSwitchAnn_t *ext_chan_switch = NULL;
+	IEEEtypes_ChanSwitchAnn_t *chan_switch = NULL;
+	custom_ie *pcust_chansw_ie = NULL;
+	t_u8 center_freq_idx = 0;
+	IEEEtypes_Header_t *pChanSwWrap_ie = NULL;
+	IEEEtypes_WideBWChanSwitch_t *pbwchansw_ie = NULL;
+	IEEEtypes_VhtTpcEnvelope_t *pvhttpcEnv_ie = NULL;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	t_u8 bw;
+	t_u8 new_oper_class = oper_class;
+	int ret = 0;
+
+	ENTER();
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_CUSTOM_IE;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+	ioctl_req->action = MLAN_ACT_SET;
+	misc->param.cust_ie.type = TLV_TYPE_MGMT_IE;
+	misc->param.cust_ie.len = (sizeof(custom_ie) - MAX_IE_SIZE);
+
+	pcust_chansw_ie = (custom_ie *)&misc->param.cust_ie.ie_data_list[0];
+	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
+	pcust_chansw_ie->ie_length = sizeof(IEEEtypes_ChanSwitchAnn_t);
+	pcust_chansw_ie->mgmt_subtype_mask =
+		MGMT_MASK_BEACON | MGMT_MASK_PROBE_RESP; /*Add IE for
+							    BEACON/probe resp*/
+	chan_switch = (IEEEtypes_ChanSwitchAnn_t *)pcust_chansw_ie->ie_buffer;
+	chan_switch->element_id = CHANNEL_SWITCH_ANN;
+	chan_switch->len = 3;
+	chan_switch->chan_switch_mode = block_tx;
+	chan_switch->new_channel_num = channel;
+	chan_switch->chan_switch_count = switch_count;
+	DBG_HEXDUMP(MCMD_D, "CSA IE", (t_u8 *)pcust_chansw_ie->ie_buffer,
+		    pcust_chansw_ie->ie_length);
+	switch (band_width) {
+	case CHANNEL_BW_40MHZ_ABOVE:
+	case CHANNEL_BW_40MHZ_BELOW:
+		bw = 40;
+		break;
+	case CHANNEL_BW_80MHZ:
+		bw = 80;
+		break;
+	case CHANNEL_BW_160MHZ:
+		bw = 160;
+		break;
+	default:
+		bw = 20;
+		break;
+	}
+	if (!new_oper_class && ecsa)
+		woal_priv_get_nonglobal_operclass_by_bw_channel(
+			priv, bw, channel, &new_oper_class);
+	if (new_oper_class) {
+		pcust_chansw_ie->ie_length +=
+			sizeof(IEEEtypes_ExtChanSwitchAnn_t);
+		ext_chan_switch =
+			(IEEEtypes_ExtChanSwitchAnn_t
+				 *)(pcust_chansw_ie->ie_buffer +
+				    sizeof(IEEEtypes_ChanSwitchAnn_t));
+		ext_chan_switch->element_id = EXTEND_CHANNEL_SWITCH_ANN;
+		ext_chan_switch->len = 4;
+		ext_chan_switch->chan_switch_mode = block_tx;
+		ext_chan_switch->new_oper_class = new_oper_class;
+		ext_chan_switch->new_channel_num = channel;
+		ext_chan_switch->chan_switch_count = switch_count;
+		DBG_HEXDUMP(MCMD_D, "ECSA IE",
+			    (t_u8 *)(pcust_chansw_ie->ie_buffer +
+				     sizeof(IEEEtypes_ChanSwitchAnn_t)),
+			    pcust_chansw_ie->ie_length -
+				    sizeof(IEEEtypes_ChanSwitchAnn_t));
+	}
+	/* bandwidth 40/80/160 should set channel switch wrapper ie for 11ac 5G
+	 * channel*/
+	if (band_width && channel > 14) {
+		pChanSwWrap_ie =
+			(IEEEtypes_Header_t *)(pcust_chansw_ie->ie_buffer +
+					       pcust_chansw_ie->ie_length);
+		pChanSwWrap_ie->element_id = EXT_POWER_CONSTR;
+		pChanSwWrap_ie->len = sizeof(IEEEtypes_WideBWChanSwitch_t);
+
+		pbwchansw_ie = (IEEEtypes_WideBWChanSwitch_t
+					*)((t_u8 *)pChanSwWrap_ie +
+					   sizeof(IEEEtypes_Header_t));
+		pbwchansw_ie->ieee_hdr.element_id = BW_CHANNEL_SWITCH;
+		pbwchansw_ie->ieee_hdr.len =
+			sizeof(IEEEtypes_WideBWChanSwitch_t) -
+			sizeof(IEEEtypes_Header_t);
+
+		center_freq_idx = woal_get_center_freq_idx(priv, BAND_AAC,
+							   channel, band_width);
+		if (band_width == CHANNEL_BW_40MHZ_ABOVE ||
+		    band_width == CHANNEL_BW_40MHZ_BELOW) {
+			pbwchansw_ie->new_channel_width = 0;
+			pbwchansw_ie->new_channel_center_freq0 =
+				center_freq_idx;
+		} else if (band_width == CHANNEL_BW_80MHZ) {
+			pbwchansw_ie->new_channel_width = 1;
+			pbwchansw_ie->new_channel_center_freq0 =
+				center_freq_idx - 4;
+			pbwchansw_ie->new_channel_center_freq1 =
+				center_freq_idx + 4;
+		} else if (band_width == CHANNEL_BW_160MHZ) {
+			pbwchansw_ie->new_channel_width = 2;
+			pbwchansw_ie->new_channel_center_freq0 =
+				center_freq_idx - 8;
+			pbwchansw_ie->new_channel_center_freq1 =
+				center_freq_idx + 8;
+		} else
+			PRINTM(MERROR,
+			       "Invalid bandwidth.Support value 1/3/4/5 for 40+/40-/80/160MHZ\n");
+
+		/*prepare the VHT Transmit Power Envelope IE*/
+		pvhttpcEnv_ie =
+			(IEEEtypes_VhtTpcEnvelope_t
+				 *)((t_u8 *)pChanSwWrap_ie +
+				    sizeof(IEEEtypes_Header_t) +
+				    sizeof(IEEEtypes_WideBWChanSwitch_t));
+		pvhttpcEnv_ie->ieee_hdr.element_id = VHT_TX_POWER_ENV;
+		pvhttpcEnv_ie->ieee_hdr.len =
+			sizeof(IEEEtypes_VhtTpcEnvelope_t) -
+			sizeof(IEEEtypes_Header_t);
+		/* Local Max TX Power Count= 3,
+		 * Local TX Power Unit Inter=EIP(0) */
+		pvhttpcEnv_ie->tpc_info = 3;
+		pvhttpcEnv_ie->local_max_tp_20mhz = 0xff;
+		pvhttpcEnv_ie->local_max_tp_40mhz = 0xff;
+		pvhttpcEnv_ie->local_max_tp_80mhz = 0xff;
+		pChanSwWrap_ie->len += sizeof(IEEEtypes_VhtTpcEnvelope_t);
+		pcust_chansw_ie->ie_length +=
+			pChanSwWrap_ie->len + sizeof(IEEEtypes_Header_t);
+		DBG_HEXDUMP(MCMD_D, "Channel switch wrapper IE",
+			    (t_u8 *)pChanSwWrap_ie,
+			    pChanSwWrap_ie->len + sizeof(IEEEtypes_Header_t));
+	}
+	if (block_tx) {
+		if (netif_carrier_ok(priv->netdev))
+			netif_carrier_off(priv->netdev);
+		woal_stop_queue(priv->netdev);
+		priv->uap_tx_blocked = MTRUE;
+	}
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to set ECSA IE\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	priv->phandle->chsw_wait_q_woken = MFALSE;
+	/* wait for channel switch to complete  */
+	wait_event_interruptible_timeout(
+		priv->phandle->chsw_wait_q, priv->phandle->chsw_wait_q_woken,
+		(u32)HZ * (switch_count + 2) * 110 / 1000);
+
+	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
+	pcust_chansw_ie->mgmt_subtype_mask = 0;
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		PRINTM(MERROR, "Failed to clear ECSA IE\n");
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  * @brief               Set/Get CFP table codes
  *
  * @param priv          Pointer to moal_private structure
@@ -10366,7 +10920,7 @@ static int woal_priv_cfp_code(moal_private *priv, t_u8 *respbuf,
 {
 	int ret = 0;
 	int user_data_len = 0, header_len = 0;
-	int data[2];
+	int data[2] = {0};
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
 	mlan_ds_misc_cfp_code *cfp_code = NULL;
@@ -11142,7 +11696,7 @@ static int woal_priv_tx_bf_cfg(moal_private *priv, t_u8 *respbuf,
 	int header_len = 0;
 	int ret = 0, copy_len = 0;
 	int bf_action = 0, interval = 0;
-	int snr = 0, i, tmp_val;
+	int snr = 0, i, tmp_val = 0;
 	t_u8 buf[MAX_IN_OUT_CHAR], char_count = 0;
 	t_u8 *str, *token, *pos;
 	t_u16 action = 0;
@@ -11635,7 +12189,7 @@ static int woal_priv_robustcoex(moal_private *priv, t_u8 *respbuf,
 				t_u32 respbuflen)
 {
 	int header_len = 0, user_data_len = 0;
-	int ret = 0, data[3];
+	int ret = 0, data[3] = {0};
 	mlan_ds_misc_cfg *robust_coex_cfg = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -11724,7 +12278,7 @@ done:
 static int woal_priv_dmcs(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
 	int header_len = 0, user_data_len = 0;
-	int ret = 0, data[2];
+	int ret = 0, data[2] = {0};
 	mlan_ds_misc_cfg *dmcs_cfg = NULL;
 	mlan_ioctl_req *req = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -12328,7 +12882,7 @@ static int woal_priv_dfs_repeater_cfg(moal_private *priv, t_u8 *respbuf,
 				      t_u32 respbuflen)
 {
 	int ret = 0;
-	int user_data_len = 0, header_len = 0, data[1];
+	int user_data_len = 0, header_len = 0, data[1] = {0};
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc_cfg = NULL;
 	mlan_ds_misc_dfs_repeater *dfs_repeater = NULL;
@@ -12948,223 +13502,6 @@ done:
 }
 
 /**
- *  @brief determine the center frquency center index for bandwidth
- *         of 80 MHz and 160 MHz
- *
- ** @param priv          Pointer to moal_private structure
- *  @param band         band
- *  @param pri_chan     primary channel
- *  @param chan_bw      channel bandwidth
- *
- *  @return             channel center frequency center, if found; O, otherwise
- */
-
-t_u8 woal_get_center_freq_idx(moal_private *priv, t_u8 band, t_u32 pri_chan,
-			      t_u8 chan_bw)
-{
-	t_u8 center_freq_idx = 0;
-
-	if (band & BAND_AAC) {
-		switch (pri_chan) {
-		case 36:
-		case 40:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 38;
-				break;
-			}
-			/* fall through */
-		case 44:
-		case 48:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 46;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 42;
-				break;
-			}
-			/* fall through */
-		case 52:
-		case 56:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 54;
-				break;
-			}
-			/* fall through */
-		case 60:
-		case 64:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 62;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 58;
-				break;
-			} else if (chan_bw == CHANNEL_BW_160MHZ) {
-				center_freq_idx = 50;
-				break;
-			}
-			/* fall through */
-		case 68:
-		case 72:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 70;
-				break;
-			}
-			/* fall through */
-		case 76:
-		case 80:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 78;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 74;
-				break;
-			}
-			/* fall through */
-		case 84:
-		case 88:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 86;
-				break;
-			}
-			/* fall through */
-		case 92:
-		case 96:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 94;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 90;
-				break;
-			}
-			/* fall through */
-		case 100:
-		case 104:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 102;
-				break;
-			}
-			/* fall through */
-		case 108:
-		case 112:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 110;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 106;
-				break;
-			}
-			/* fall through */
-		case 116:
-		case 120:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 118;
-				break;
-			}
-			/* fall through */
-		case 124:
-		case 128:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 126;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 122;
-			} else if (chan_bw == CHANNEL_BW_160MHZ) {
-				center_freq_idx = 114;
-			}
-			break;
-		case 132:
-		case 136:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 134;
-				break;
-			}
-			/* fall through */
-		case 140:
-		case 144:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 126;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 138;
-			}
-			break;
-		case 149:
-		case 153:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 151;
-				break;
-			}
-			/* fall through */
-		case 157:
-		case 161:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 159;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 155;
-				break;
-			}
-			/* fall through */
-		case 165:
-		case 169:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 167;
-				break;
-			}
-			/* fall through */
-		case 173:
-		case 177:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 175;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 171;
-				break;
-			}
-			/* fall through */
-		case 184:
-		case 188:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 186;
-				break;
-			}
-			/* fall through */
-		case 192:
-		case 196:
-			if (chan_bw == CHANNEL_BW_40MHZ_ABOVE ||
-			    chan_bw == CHANNEL_BW_40MHZ_BELOW) {
-				center_freq_idx = 194;
-				break;
-			} else if (chan_bw == CHANNEL_BW_80MHZ) {
-				center_freq_idx = 190;
-				break;
-			}
-			/* fall through */
-		default: /* error. go to the default */
-			center_freq_idx = 42;
-		}
-	}
-	return center_freq_idx;
-}
-
-/**
  ** @brief               Set extended channel switch ie
  **
  ** @param priv          Pointer to moal_private structure
@@ -13179,57 +13516,17 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 	int ret = 0;
 	int user_data_len = 0;
 	int data[5] = {0};
-	IEEEtypes_ExtChanSwitchAnn_t *ext_chan_switch = NULL;
-	IEEEtypes_ChanSwitchAnn_t *chan_switch = NULL;
-	custom_ie *pcust_chansw_ie = NULL;
-	t_u8 center_freq_idx = 0;
-	IEEEtypes_Header_t *pChanSwWrap_ie = NULL;
-	IEEEtypes_WideBWChanSwitch_t *pbwchansw_ie = NULL;
-	IEEEtypes_VhtTpcEnvelope_t *pvhttpcEnv_ie = NULL;
-	mlan_ioctl_req *ioctl_req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
 	ENTER();
 
-	if (!priv || !priv->phandle) {
-		PRINTM(MERROR, "priv or handle is null\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	if (priv->bss_role != MLAN_BSS_ROLE_UAP) {
+	if (!priv || !priv->phandle || (priv->bss_role != MLAN_BSS_ROLE_UAP) ||
+	    (priv->bss_started != MTRUE)) {
 		PRINTM(MERROR,
-		       "Extended Channel Switch is only allowed for AP/GO mode\n");
+		       "priv or handle is null or interface is not AP/GO"
+		       "or AP is not started\n");
 		ret = -EFAULT;
-		goto done;
+		LEAVE();
+		return ret;
 	}
-
-	if (priv->bss_started != MTRUE) {
-		PRINTM(MERROR, "AP is not started!\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (ioctl_req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
-	misc->sub_command = MLAN_OID_MISC_CUSTOM_IE;
-	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
-	ioctl_req->action = MLAN_ACT_SET;
-	misc->param.cust_ie.type = TLV_TYPE_MGMT_IE;
-	misc->param.cust_ie.len = (sizeof(custom_ie) - MAX_IE_SIZE);
-
-	pcust_chansw_ie = (custom_ie *)&misc->param.cust_ie.ie_data_list[0];
-	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
-	pcust_chansw_ie->ie_length = sizeof(IEEEtypes_ChanSwitchAnn_t);
-	pcust_chansw_ie->mgmt_subtype_mask =
-		MGMT_MASK_BEACON | MGMT_MASK_PROBE_RESP; /*Add IE for
-							    BEACON/probe resp*/
 
 	parse_arguments(respbuf + strlen(CMD_NXP) +
 				strlen(PRIV_CMD_EXTEND_CHAN_SWITCH),
@@ -13238,137 +13535,21 @@ static int woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 	if (sizeof(int) * user_data_len > sizeof(data)) {
 		PRINTM(MERROR, "Too many arguments\n");
 		ret = -EINVAL;
-		goto done;
+		LEAVE();
+		return ret;
 	}
 
-	chan_switch = (IEEEtypes_ChanSwitchAnn_t *)pcust_chansw_ie->ie_buffer;
-	chan_switch->element_id = CHANNEL_SWITCH_ANN;
-	chan_switch->len = 3;
-	chan_switch->chan_switch_mode = data[0];
-	chan_switch->new_channel_num = data[2];
-	chan_switch->chan_switch_count = data[3];
-	DBG_HEXDUMP(MCMD_D, "CSA IE", (t_u8 *)pcust_chansw_ie->ie_buffer,
-		    pcust_chansw_ie->ie_length);
-
-	if (data[1] != 0) {
-		pcust_chansw_ie->ie_length +=
-			sizeof(IEEEtypes_ExtChanSwitchAnn_t);
-		ext_chan_switch =
-			(IEEEtypes_ExtChanSwitchAnn_t
-				 *)(pcust_chansw_ie->ie_buffer +
-				    sizeof(IEEEtypes_ChanSwitchAnn_t));
-		ext_chan_switch->element_id = EXTEND_CHANNEL_SWITCH_ANN;
-		ext_chan_switch->len = 4;
-		ext_chan_switch->chan_switch_mode = data[0];
-		ext_chan_switch->new_oper_class = data[1];
-		ext_chan_switch->new_channel_num = data[2];
-		ext_chan_switch->chan_switch_count = data[3];
+	if (data[1]) {
 		if (woal_check_valid_channel_operclass(priv, data[2],
 						       data[1])) {
 			PRINTM(MERROR, "Wrong channel switch parameters!\n");
 			ret = -EINVAL;
 			goto done;
 		}
-		DBG_HEXDUMP(MCMD_D, "ECSA IE",
-			    (t_u8 *)(pcust_chansw_ie->ie_buffer +
-				     sizeof(IEEEtypes_ChanSwitchAnn_t)),
-			    pcust_chansw_ie->ie_length -
-				    sizeof(IEEEtypes_ChanSwitchAnn_t));
 	}
-	/* bandwidth 40/80/160 should set channel switch wrapper ie for 11ac 5G
-	 * channel*/
-	if (data[4] && data[2] > 14) {
-		pChanSwWrap_ie =
-			(IEEEtypes_Header_t *)(pcust_chansw_ie->ie_buffer +
-					       pcust_chansw_ie->ie_length);
-		pChanSwWrap_ie->element_id = EXT_POWER_CONSTR;
-		pChanSwWrap_ie->len = sizeof(IEEEtypes_WideBWChanSwitch_t);
-
-		pbwchansw_ie = (IEEEtypes_WideBWChanSwitch_t
-					*)((t_u8 *)pChanSwWrap_ie +
-					   sizeof(IEEEtypes_Header_t));
-		pbwchansw_ie->ieee_hdr.element_id = BW_CHANNEL_SWITCH;
-		pbwchansw_ie->ieee_hdr.len =
-			sizeof(IEEEtypes_WideBWChanSwitch_t) -
-			sizeof(IEEEtypes_Header_t);
-
-		center_freq_idx = woal_get_center_freq_idx(priv, BAND_AAC,
-							   data[2], data[4]);
-		if (data[4] == CHANNEL_BW_40MHZ_ABOVE ||
-		    data[4] == CHANNEL_BW_40MHZ_BELOW) {
-			pbwchansw_ie->new_channel_width = 0;
-			pbwchansw_ie->new_channel_center_freq0 =
-				center_freq_idx;
-		} else if (data[4] == CHANNEL_BW_80MHZ) {
-			pbwchansw_ie->new_channel_width = 1;
-			pbwchansw_ie->new_channel_center_freq0 =
-				center_freq_idx - 4;
-			pbwchansw_ie->new_channel_center_freq1 =
-				center_freq_idx + 4;
-		} else if (data[4] == CHANNEL_BW_160MHZ) {
-			pbwchansw_ie->new_channel_width = 2;
-			pbwchansw_ie->new_channel_center_freq0 =
-				center_freq_idx - 8;
-			pbwchansw_ie->new_channel_center_freq1 =
-				center_freq_idx + 8;
-		} else
-			PRINTM(MERROR,
-			       "Invalid bandwidth.Support value 1/3/4/5 for 40+/40-/80/160MHZ\n");
-
-		/*prepare the VHT Transmit Power Envelope IE*/
-		pvhttpcEnv_ie =
-			(IEEEtypes_VhtTpcEnvelope_t
-				 *)((t_u8 *)pChanSwWrap_ie +
-				    sizeof(IEEEtypes_Header_t) +
-				    sizeof(IEEEtypes_WideBWChanSwitch_t));
-		pvhttpcEnv_ie->ieee_hdr.element_id = VHT_TX_POWER_ENV;
-		pvhttpcEnv_ie->ieee_hdr.len =
-			sizeof(IEEEtypes_VhtTpcEnvelope_t) -
-			sizeof(IEEEtypes_Header_t);
-		/* Local Max TX Power Count= 3,
-		 * Local TX Power Unit Inter=EIP(0) */
-		pvhttpcEnv_ie->tpc_info = 3;
-		pvhttpcEnv_ie->local_max_tp_20mhz = 0xff;
-		pvhttpcEnv_ie->local_max_tp_40mhz = 0xff;
-		pvhttpcEnv_ie->local_max_tp_80mhz = 0xff;
-		pChanSwWrap_ie->len += sizeof(IEEEtypes_VhtTpcEnvelope_t);
-		pcust_chansw_ie->ie_length +=
-			pChanSwWrap_ie->len + sizeof(IEEEtypes_Header_t);
-		DBG_HEXDUMP(MCMD_D, "Channel switch wrapper IE",
-			    (t_u8 *)pChanSwWrap_ie,
-			    pChanSwWrap_ie->len + sizeof(IEEEtypes_Header_t));
-	}
-
-	if (data[0]) {
-		if (netif_carrier_ok(priv->netdev))
-			netif_carrier_off(priv->netdev);
-		woal_stop_queue(priv->netdev);
-		priv->uap_tx_blocked = MTRUE;
-	}
-
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "Failed to set ECSA IE\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	priv->phandle->chsw_wait_q_woken = MFALSE;
-	/* wait for channel switch to complete  */
-	wait_event_interruptible_timeout(priv->phandle->chsw_wait_q,
-					 priv->phandle->chsw_wait_q_woken,
-					 (u32)HZ * (data[3] + 2) * 110 / 1000);
-
-	pcust_chansw_ie->ie_index = 0xffff; /*Auto index */
-	pcust_chansw_ie->mgmt_subtype_mask = 0;
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		PRINTM(MERROR, "Failed to clear ECSA IE\n");
-	}
+	woal_channel_switch(priv, data[0], data[1], data[2], data[3], data[4],
+			    MFALSE);
 done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(ioctl_req);
-
 	LEAVE();
 	return ret;
 }
@@ -13530,6 +13711,7 @@ static int woal_priv_config_random_mac(moal_private *priv, t_u8 *respbuf,
 	int header_len = 0, space_len = 0, i;
 	t_u8 rand_data[3];
 	const t_u8 zero_mac[MLAN_MAC_ADDR_LENGTH] = {0, 0, 0, 0, 0, 0};
+	char fakemac_sts[16];
 
 	ENTER();
 
@@ -13576,8 +13758,11 @@ static int woal_priv_config_random_mac(moal_private *priv, t_u8 *respbuf,
 		goto done;
 	}
 
-	ret = sprintf(respbuf, "FAKEMAC parameter is %s\n",
-		      (t_u8 *)(respbuf + header_len + 1 + space_len)) +
+	memset(fakemac_sts, 0, sizeof(fakemac_sts));
+	snprintf(fakemac_sts, sizeof(fakemac_sts), "%s",
+		 (respbuf + header_len + 1 + space_len));
+	ret = snprintf(respbuf, respbuflen, "FAKEMAC parameter is %s\n",
+		       fakemac_sts) +
 	      1;
 	PRINTM(MMSG, "FAKEMAC parameter is %s\n",
 	       (t_u8 *)(respbuf + header_len + 1 + space_len));
@@ -13917,7 +14102,7 @@ int woal_priv_rx_abort_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[2];
+	int data[2] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14001,7 +14186,7 @@ int woal_priv_rx_abort_cfg_ext(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[3];
+	int data[3] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14084,6 +14269,86 @@ done:
 }
 
 /**
+ *  @brief Enable/Disable Un-associated Dot11mc FTM Frame exchanges
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int woal_priv_dot11mc_unassoc_ftm_cfg(moal_private *priv, t_u8 *respbuf,
+				      t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[1] = {0};
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_DOT11MC_UNASSOC_FTM_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len > 1) {
+			PRINTM(MERROR, "Invalid number of args!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		if ((data[0] != MTRUE) && (data[0] != MFALSE)) {
+			PRINTM(MERROR, "Invalid state for unassoc ftm\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		misc->param.dot11mc_unassoc_ftm_cfg.state = (t_u16)data[0];
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.dot11mc_unassoc_ftm_cfg.state;
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u8 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set/Get Tx  AMPDU protection mode
  *
  *  @param priv         A pointer to moal_private structure
@@ -14098,7 +14363,7 @@ int woal_priv_tx_ampdu_prot_mode(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[1];
+	int data[1] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14178,7 +14443,7 @@ int woal_priv_rate_adapt_cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[4];
+	int data[4] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14284,7 +14549,7 @@ int woal_priv_cck_desense_cfg(moal_private *priv, t_u8 *respbuf,
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_misc_cfg *misc = NULL;
 	int ret = 0;
-	int data[5];
+	int data[5] = {0};
 	int header_len = 0, user_data_len = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
@@ -14482,6 +14747,83 @@ done:
 }
 
 /**
+ *  @brief Set/Get HW ARB config
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int woal_priv_arbcfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	int ret = 0;
+	int data[1];
+	int header_len = 0, user_data_len = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!respbuf) {
+		PRINTM(MERROR, "response buffer is not available!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	header_len = strlen(CMD_NXP) + strlen(PRIV_CMD_ARB_CFG);
+	user_data_len = strlen(respbuf) - header_len;
+
+	/* Allocate an IOCTL request buffer */
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	/* Fill request buffer */
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_ARB_CONFIG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len != 1) {
+			PRINTM(MERROR, "Invalid Parameter\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		if (data[0] < 0 || data[0] > 4) {
+			PRINTM(MERROR, "Invalid Parameter: arb mode 0-4\n");
+			ret = -EFAULT;
+			goto done;
+		}
+		misc->param.arb_cfg.arb_mode = (t_u32)data[0];
+		req->action = MLAN_ACT_SET;
+	}
+	/* Send IOCTL request to MLAN */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.arb_cfg.arb_mode;
+	moal_memcpy_ext(priv->phandle, respbuf, (t_u32 *)data, sizeof(data),
+			respbuflen);
+	ret = sizeof(data);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+}
+/**
  *  @brief Set priv command for Android
  *  @param dev          A pointer to net_device structure
  *  @param req          A pointer to ifreq structure
@@ -14594,6 +14936,11 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_setget_priv_11axcmdcfg(priv, pdata, len,
 							  MOAL_IOCTL_WAIT);
 			len += strlen(CMD_NXP) + strlen(PRIV_CMD_11AXCMDCFG);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_RANGE_EXT,
+				    strlen(PRIV_CMD_RANGE_EXT)) == 0) {
+			len = woal_setget_priv_range_ext(priv, buf,
+							 priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_HTTXCFG,
 				    strlen(PRIV_CMD_HTTXCFG)) == 0) {
@@ -14958,6 +15305,15 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* tx ampdu protection mode setting */
 			len = woal_priv_tx_ampdu_prot_mode(priv, buf,
 							   priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP),
+				    PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG,
+				    strlen(PRIV_CMD_DOT11MC_UNASSOC_FTM_CFG)) ==
+			   0) {
+			/* setting for dot11mc un-associated case FTM frame
+			 * exchange */
+			len = woal_priv_dot11mc_unassoc_ftm_cfg(
+				priv, buf, priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP),
 				    PRIV_CMD_RATE_ADAPT_CFG,
@@ -15376,6 +15732,11 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			/* Set/Get DFS W53 settings */
 			len = woal_priv_dfs53cfg(priv, buf, priv_cmd.total_len);
 			goto handled;
+		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_ARB_CFG,
+				    strlen(PRIV_CMD_ARB_CFG)) == 0) {
+			/* Set/Get CFP table codes */
+			len = woal_priv_arbcfg(priv, buf, priv_cmd.total_len);
+			goto handled;
 		} else if (strnicmp(buf + strlen(CMD_NXP), PRIV_CMD_CFP_CODE,
 				    strlen(PRIV_CMD_CFP_CODE)) == 0) {
 			/* Set/Get CFP table codes */
@@ -15698,7 +16059,7 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 	} else if (strncmp(buf, "SETROAMING", strlen("SETROAMING")) == 0) {
 		pdata = buf + strlen("SETROAMING") + 1;
 #ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 			goto done;
 #endif
@@ -15716,7 +16077,7 @@ int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 	} else if (strncmp(buf, "ROAM", strlen("ROAM")) == 0) {
 		pdata = buf + strlen("ROAM") + 1;
 #ifdef STA_CFG80211
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		if (moal_extflg_isset(priv->phandle, EXT_HOST_MLME))
 			goto done;
 #endif

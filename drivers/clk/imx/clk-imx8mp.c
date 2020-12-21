@@ -5,6 +5,7 @@
 
 #include <dt-bindings/clock/imx8mp-clock.h>
 #include <linux/clk.h>
+#include <linux/debugfs.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -54,7 +55,6 @@ static const struct imx_pll14xx_rate_table imx8mp_audiopll_tbl[] = {
 };
 
 static const struct imx_pll14xx_rate_table imx8mp_videopll_tbl[] = {
-	PLL_1443X_RATE(2079000000U, 173, 1, 1, 16384),
 	PLL_1443X_RATE(1039500000U, 173, 2, 1, 16384),
 	PLL_1443X_RATE(650000000U, 325, 3, 2, 0),
 	PLL_1443X_RATE(594000000U, 198, 2, 2, 0),
@@ -80,6 +80,7 @@ static struct imx_pll14xx_clk imx8mp_video_pll = {
 static struct imx_pll14xx_clk imx8mp_dram_pll = {
 		.type = PLL_1443X,
 		.rate_table = imx8mp_drampll_tbl,
+		.rate_count = ARRAY_SIZE(imx8mp_drampll_tbl),
 };
 
 static struct imx_pll14xx_clk imx8mp_arm_pll = {
@@ -91,16 +92,19 @@ static struct imx_pll14xx_clk imx8mp_arm_pll = {
 static struct imx_pll14xx_clk imx8mp_gpu_pll = {
 		.type = PLL_1416X,
 		.rate_table = imx8mp_pll1416x_tbl,
+		.rate_count = ARRAY_SIZE(imx8mp_pll1416x_tbl),
 };
 
 static struct imx_pll14xx_clk imx8mp_vpu_pll = {
 		.type = PLL_1416X,
 		.rate_table = imx8mp_pll1416x_tbl,
+		.rate_count = ARRAY_SIZE(imx8mp_pll1416x_tbl),
 };
 
 static struct imx_pll14xx_clk imx8mp_sys_pll = {
 		.type = PLL_1416X,
 		.rate_table = imx8mp_pll1416x_tbl,
+		.rate_count = ARRAY_SIZE(imx8mp_pll1416x_tbl),
 };
 
 static const char *pll_ref_sels[] = { "osc_24m", "dummy", "dummy", "dummy", };
@@ -565,8 +569,8 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 	clks[IMX8MP_GPU_PLL] = imx_clk_pll14xx("gpu_pll", "gpu_pll_ref_sel", base + 0x64, &imx8mp_gpu_pll);
 	clks[IMX8MP_VPU_PLL] = imx_clk_pll14xx("vpu_pll", "vpu_pll_ref_sel", base + 0x74, &imx8mp_vpu_pll);
 	clks[IMX8MP_ARM_PLL] = imx_clk_pll14xx("arm_pll", "arm_pll_ref_sel", base + 0x84, &imx8mp_arm_pll);
-	clks[IMX8MP_SYS_PLL1] = imx_clk_pll14xx("sys_pll1", "sys_pll1_ref_sel", base + 0x94, &imx8mp_sys_pll);
-	clks[IMX8MP_SYS_PLL2] = imx_clk_pll14xx("sys_pll2", "sys_pll2_ref_sel", base + 0x104, &imx8mp_sys_pll);
+	clks[IMX8MP_SYS_PLL1] = imx_clk_fixed("sys_pll1", 800000000);
+	clks[IMX8MP_SYS_PLL2] = imx_clk_fixed("sys_pll2", 1000000000);
 	clks[IMX8MP_SYS_PLL3] = imx_clk_pll14xx("sys_pll3", "sys_pll3_ref_sel", base + 0x114, &imx8mp_sys_pll);
 
 	/* PLL bypass out */
@@ -890,3 +894,83 @@ module_platform_driver(imx8mp_clk_driver);
 MODULE_AUTHOR("Anson Huang <Anson.Huang@nxp.com>");
 MODULE_DESCRIPTION("NXP i.MX8MP clock driver");
 MODULE_LICENSE("GPL v2");
+
+#ifndef MODULE
+/*
+ * Debugfs interface for audio PLL K divider change dynamically.
+ * Monitor control for the Audio PLL K-Divider
+ */
+#ifdef CONFIG_DEBUG_FS
+
+#define KDIV_MASK	GENMASK(15, 0)
+#define MDIV_SHIFT	12
+#define MDIV_MASK	GENMASK(21, 12)
+#define PDIV_SHIFT	4
+#define PDIV_MASK	GENMASK(9, 4)
+#define SDIV_SHIFT	0
+#define SDIV_MASK	GENMASK(2, 0)
+
+static int pll_delta_k_set(void *data, u64 val)
+{
+	struct clk_hw *hw;
+	short int delta_k;
+
+	hw = __clk_get_hw(data);
+	delta_k = (short int) (val & KDIV_MASK);
+
+	clk_set_delta_k(hw, val);
+
+	pr_debug("the delta k is %d\n", delta_k);
+	return 0;
+}
+DEFINE_DEBUGFS_ATTRIBUTE(delta_k_fops, NULL, pll_delta_k_set, "%lld\n");
+
+static int pll_setting_show(struct seq_file *s, void *data)
+{
+	struct clk *pll_clk;
+	struct clk_hw *hw;
+	u32 pll_div_ctrl0, pll_div_ctrl1;
+	u32 mdiv, pdiv, sdiv, kdiv;
+
+	pll_clk = s->private;
+
+	hw = __clk_get_hw(pll_clk);
+
+	clk_get_pll_setting(hw, &pll_div_ctrl0, &pll_div_ctrl1);
+	mdiv = (pll_div_ctrl0 & MDIV_MASK) >> MDIV_SHIFT;
+	pdiv = (pll_div_ctrl0 & PDIV_MASK) >> PDIV_SHIFT;
+	sdiv = (pll_div_ctrl0 & SDIV_MASK) >> SDIV_SHIFT;
+	kdiv = (pll_div_ctrl1 & KDIV_MASK);
+
+	seq_printf(s, "Mdiv: 0x%x; Pdiv: 0x%x; Sdiv: 0x%x; Kdiv: 0x%x\n",
+		mdiv, pdiv, sdiv, kdiv);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(pll_setting);
+
+static int __init pll_debug_init(void)
+{
+	struct dentry *root, *audio_pll1, *audio_pll2;
+
+	if (of_machine_is_compatible("fsl,imx8mp")) {
+		/* create a root dir for audio pll monitor */
+		root = debugfs_create_dir("audio_pll_monitor", NULL);
+		audio_pll1 = debugfs_create_dir("audio_pll1", root);
+		audio_pll2 = debugfs_create_dir("audio_pll2", root);
+
+		debugfs_create_file_unsafe("delta_k", 0444, audio_pll1,
+			clks[IMX8MP_AUDIO_PLL1], &delta_k_fops);
+		debugfs_create_file("pll_parameter", 0x444, audio_pll1,
+			clks[IMX8MP_AUDIO_PLL1], &pll_setting_fops);
+		debugfs_create_file_unsafe("delta_k", 0444, audio_pll2,
+			clks[IMX8MP_AUDIO_PLL2], &delta_k_fops);
+		debugfs_create_file("pll_parameter", 0x444, audio_pll2,
+			clks[IMX8MP_AUDIO_PLL2], &pll_setting_fops);
+	}
+
+	return 0;
+}
+late_initcall(pll_debug_init);
+#endif /* CONFIG_DEBUG_FS */
+#endif /* MODULE */

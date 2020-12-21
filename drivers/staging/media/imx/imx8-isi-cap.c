@@ -419,7 +419,7 @@ static int cap_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		if (!isi_cap->discard_buffer[i]) {
 			for (j = 0; j < i; j++) {
 				dma_free_coherent(&isi_cap->pdev->dev,
-						  isi_cap->discard_size[j],
+						  PAGE_ALIGN(isi_cap->discard_size[j]),
 						  isi_cap->discard_buffer[j],
 						  isi_cap->discard_buffer_dma[j]);
 				dev_err(&isi_cap->pdev->dev,
@@ -430,7 +430,7 @@ static int cap_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		dev_dbg(&isi_cap->pdev->dev,
 			"%s: num_plane=%d discard_size=%d discard_buffer=%p\n"
 			, __func__, i,
-			(int)isi_cap->discard_size[i],
+			PAGE_ALIGN((int)isi_cap->discard_size[i]),
 			isi_cap->discard_buffer[i]);
 	}
 
@@ -470,7 +470,7 @@ static void cap_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct mxc_isi_cap_dev *isi_cap = vb2_get_drv_priv(q);
 	struct mxc_isi_dev *mxc_isi = mxc_isi_get_hostdata(isi_cap->pdev);
-	struct mxc_isi_buffer *buf, *tmp;
+	struct mxc_isi_buffer *buf;
 	unsigned long flags;
 	int i;
 
@@ -483,7 +483,7 @@ static void cap_vb2_stop_streaming(struct vb2_queue *q)
 	while (!list_empty(&isi_cap->out_active)) {
 		buf = list_entry(isi_cap->out_active.next,
 				 struct mxc_isi_buffer, list);
-		list_del(&buf->list);
+		list_del_init(&buf->list);
 		if (buf->discard)
 			continue;
 
@@ -493,24 +493,14 @@ static void cap_vb2_stop_streaming(struct vb2_queue *q)
 	while (!list_empty(&isi_cap->out_pending)) {
 		buf = list_entry(isi_cap->out_pending.next,
 				 struct mxc_isi_buffer, list);
-		list_del(&buf->list);
+		list_del_init(&buf->list);
 		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 
 	while (!list_empty(&isi_cap->out_discard)) {
 		buf = list_entry(isi_cap->out_discard.next,
 				 struct mxc_isi_buffer, list);
-		list_del(&buf->list);
-	}
-
-	list_for_each_entry_safe(buf, tmp, &isi_cap->out_active, list) {
-		list_del(&buf->list);
-		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
-	}
-
-	list_for_each_entry_safe(buf, tmp, &isi_cap->out_pending, list) {
-		list_del(&buf->list);
-		vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
+		list_del_init(&buf->list);
 	}
 
 	INIT_LIST_HEAD(&isi_cap->out_active);
@@ -521,7 +511,7 @@ static void cap_vb2_stop_streaming(struct vb2_queue *q)
 
 	for (i = 0; i < isi_cap->pix.num_planes; i++)
 		dma_free_coherent(&isi_cap->pdev->dev,
-				  isi_cap->discard_size[i],
+				  PAGE_ALIGN(isi_cap->discard_size[i]),
 				  isi_cap->discard_buffer[i],
 				  isi_cap->discard_buffer_dma[i]);
 }
@@ -1228,8 +1218,9 @@ static int mxc_isi_cap_enum_framesizes(struct file *file, void *priv,
 		return ret;
 
 	parent = of_get_parent(isi_cap->pdev->dev.of_node);
-	if ((of_device_is_compatible(parent, "fsl,imx8mn-isi")) &&
-	    (fse.max_width > ISI_2K || fse.min_width > ISI_2K))
+	if ((of_device_is_compatible(parent, "fsl,imx8mp-isi")) &&
+	    (fse.max_width > ISI_2K || fse.min_width > ISI_2K) &&
+	    (isi_cap->id == 1))
 		return -EINVAL;
 
 	if (fse.min_width == fse.max_width &&
@@ -1280,8 +1271,8 @@ static int mxc_isi_cap_enum_frameintervals(struct file *file, void *fh,
 		return ret;
 
 	parent = of_get_parent(isi_cap->pdev->dev.of_node);
-	if (of_device_is_compatible(parent, "fsl,imx8mn-isi") &&
-	    fie.width > ISI_2K)
+	if (of_device_is_compatible(parent, "fsl,imx8mp-isi") &&
+	    fie.width > ISI_2K && isi_cap->id == 1)
 		return -EINVAL;
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
