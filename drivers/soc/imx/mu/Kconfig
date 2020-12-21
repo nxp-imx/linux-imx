@@ -1,0 +1,4 @@
+config SOC_IMX_MU
+	tristate "i.MX SoC MU support"
+	depends on ARCH_MXC
+	default ARCH_MXC && ARM64

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 menu "i.MX SoC drivers"
 
+source "drivers/soc/imx/mu/Kconfig"
+
 config IMX_GPCV2_PM_DOMAINS
 	bool "i.MX GPCv2 PM domains"
 	depends on ARCH_MXC || (COMPILE_TEST && OF)

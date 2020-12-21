@@ -8,6 +8,7 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/module.h>
 #include <linux/mx8_mu.h>
 #include <linux/of.h>
 
@@ -186,6 +187,8 @@ void MU_Init(void __iomem *base)
 	writel_relaxed(reg, base + offset);
 }
 EXPORT_SYMBOL(MU_Init);
+MODULE_DESCRIPTION("i.MX8 SoC MU driver");
+MODULE_LICENSE("GPL v2");
 
 /**@}*/
 

@@ -5,5 +5,5 @@ obj-$(CONFIG_IMX8M_BUSFREQ) += busfreq-imx8mq.o
 obj-$(CONFIG_SOC_IMX8M) += soc-imx8m.o
 obj-$(CONFIG_IMX_SCU_SOC) += soc-imx-scu.o
 obj-$(CONFIG_IMX8M_PM_DOMAINS) += imx8m_pm_domains.o
-obj-y	+= mu/
+obj-$(CONFIG_SOC_IMX_MU) += mu/
 obj-${CONFIG_SECVIO_SC} += secvio/
