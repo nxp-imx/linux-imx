@@ -168,6 +168,7 @@
   drm_atomic_helper_plane_destroy_state
   drm_atomic_helper_plane_duplicate_state
   drm_atomic_helper_plane_reset
+  drm_atomic_helper_setup_commit
   drm_compat_ioctl
   drm_dbg
   drm_dev_alloc
@@ -248,6 +249,9 @@
   idr_find
   idr_for_each
   idr_remove
+  ieee80211_channel_to_freq_khz
+  ieee80211_freq_khz_to_channel
+  ieee80211_get_channel_khz
   ignore_console_lock_warning
   inet_proto_csum_replace4
   init_net
@@ -560,6 +564,7 @@
   single_open
   single_release
   skb_clone
+  skb_copy
   skb_cow_data
   skb_ensure_writable
   skb_push
@@ -1045,6 +1050,7 @@
 
 # required by mmc_hsq.ko
   mmc_cqe_request_done
+  mmc_send_tuning
 
 # required by musb_hdrc.ko
   device_wakeup_enable
@@ -2489,11 +2495,30 @@
   __arm_smccc_smc
 
 # required by mali_gondul.ko
+  __arch_clear_user
   bpf_trace_run5
   ktime_get_raw
   of_machine_is_compatible
   _totalram_pages
   trace_output_call
+  __tracepoint_gpu_mem_total
   trace_print_array_seq
   trace_print_flags_seq
   vmf_insert_pfn_prot
+
+# required by sprd_ion.ko
+  ion_buffer_zero
+  __ion_device_add_heap
+  memset32
+  of_platform_device_create
+  __sg_page_iter_next
+  __sg_page_iter_start
+
+# required by snd-soc-sprd-codec-sc2730.ko
+  dapm_kcontrol_get_value
+  __kfifo_init
+  __kfifo_from_user_r
+  __kfifo_to_user_r
+  snd_pcm_rate_bit_to_rate
+  snd_soc_bytes_info_ext
+  snd_soc_new_compress

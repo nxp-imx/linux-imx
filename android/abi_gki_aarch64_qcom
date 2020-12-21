@@ -21,6 +21,8 @@
   alloc_skb_with_frags
   alloc_workqueue
   amba_bustype
+  amba_driver_register
+  amba_driver_unregister
   anon_inode_getfile
   arch_bpf_jit_check_func
   __arch_clear_user
@@ -162,6 +164,7 @@
   cfg80211_scan_done
   cfg80211_sched_scan_results
   __cfg80211_send_event_skb
+  cfg80211_stop_iface
   cfg80211_tdls_oper_request
   cfg80211_unlink_bss
   cfg80211_update_owe_info_event
@@ -252,6 +255,7 @@
   cpufreq_freq_attr_scaling_boost_freqs
   cpufreq_generic_attr
   cpufreq_generic_frequency_table_verify
+  cpufreq_get_policy
   cpufreq_quick_get_max
   cpufreq_register_driver
   cpufreq_register_notifier
@@ -574,6 +578,7 @@
   dma_resv_test_signaled_rcu
   dma_resv_wait_timeout_rcu
   dma_set_coherent_mask
+  __dma_request_channel
   dma_set_mask
   do_exit
   do_wait_intr
@@ -659,12 +664,15 @@
   drm_connector_list_iter_end
   drm_connector_list_iter_next
   drm_connector_register
+  drm_connector_set_tile_property
   drm_connector_unregister
   drm_connector_update_edid_property
   drm_crtc_cleanup
+  drm_crtc_from_index
   drm_crtc_handle_vblank
   drm_crtc_init_with_planes
   drm_crtc_send_vblank_event
+  drm_crtc_set_max_vblank_count
   drm_crtc_vblank_off
   drm_crtc_vblank_on
   drm_crtc_vblank_reset
@@ -719,6 +727,7 @@
   drm_dp_update_payload_part1
   drm_dp_update_payload_part2
   drm_edid_duplicate
+  drm_edid_is_valid
   drm_encoder_cleanup
   drm_encoder_init
   drm_err
@@ -777,9 +786,11 @@
   drm_mode_copy
   drm_mode_create
   drm_mode_create_dp_colorspace_property
+  drm_mode_create_tile_group
   drm_mode_debug_printmodeline
   drm_mode_duplicate
   drm_mode_equal
+  drm_mode_get_tile_group
   drm_mode_object_find
   drm_mode_object_get
   drm_mode_object_put
@@ -869,6 +880,7 @@
   find_next_zero_bit
   find_snd_usb_substream
   find_vma
+  find_vpid
   finish_wait
   firmware_request_nowarn
   flow_keys_basic_dissector
@@ -896,6 +908,7 @@
   fsl8250_handle_irq
   fs_kobj
   fsstack_copy_attr_all
+  full_name_hash
   fwnode_connection_find_match
   fwnode_get_parent
   fwnode_handle_put
@@ -953,6 +966,7 @@
   get_random_bytes
   get_random_u32
   __get_task_comm
+  get_task_pid
   get_tree_single
   get_unmapped_area
   get_unused_fd_flags
@@ -1190,6 +1204,8 @@
   irq_set_chained_handler_and_data
   irq_set_chip_and_handler_name
   irq_set_chip_data
+  __irq_set_handler
+  irq_set_handler_data
   irq_set_irqchip_state
   irq_set_irq_type
   irq_set_irq_wake
@@ -1218,6 +1234,10 @@
   kern_path
   keyslot_manager_create
   keyslot_manager_private
+  keyslot_manager_set_max_dun_bytes
+  keyslot_manager_reprogram_all_keys
+  keyslot_manager_destroy
+  bio_crypt_should_process
   __kfifo_in
   __kfifo_out
   kfree
@@ -1333,11 +1353,18 @@
   __mdiobus_register
   mdiobus_unregister
   media_create_pad_link
+  media_create_intf_link
   media_device_cleanup
   media_device_init
   __media_device_register
+  media_device_register_entity
   media_device_unregister
+  media_device_unregister_entity
+  media_devnode_create
+  media_devnode_remove
   media_entity_pads_init
+  media_entity_remove_links
+  media_remove_intf_links
   memblock_free
   memchr
   memcmp
@@ -1440,6 +1467,7 @@
   netlink_unicast
   net_ratelimit
   new_inode
+  nf_conntrack_destroy
   nla_memcpy
   __nla_parse
   nla_put_64bit
@@ -1508,12 +1536,15 @@
   of_get_named_gpio_flags
   of_get_next_available_child
   of_get_next_child
+  of_get_next_parent
   of_get_parent
   of_get_property
   of_get_regulator_init_data
   of_graph_get_next_endpoint
   of_graph_get_remote_node
   of_graph_get_remote_port_parent
+  of_graph_get_remote_port
+  of_graph_get_endpoint_by_regs
   of_graph_parse_endpoint
   of_hwspin_lock_get_id
   of_icc_get
@@ -1634,6 +1665,7 @@
   pci_walk_bus
   pci_write_config_dword
   pci_write_config_word
+  pci_dev_present
   PDE_DATA
   __per_cpu_offset
   perf_trace_buf_alloc
@@ -1657,6 +1689,7 @@
   phy_start
   phy_stop
   physvirt_offset
+  pid_task
   pinconf_generic_dt_node_to_map
   pinctrl_dev_get_drvdata
   pinctrl_force_default
@@ -1713,6 +1746,7 @@
   __pm_relax
   pm_relax
   pm_runtime_allow
+  pm_runtime_autosuspend_expiration
   pm_runtime_barrier
   __pm_runtime_disable
   pm_runtime_enable
@@ -1764,6 +1798,7 @@
   put_device
   put_disk
   __put_page
+  put_pid
   __put_task_struct
   put_unused_fd
   put_vaddr_frames
@@ -1858,6 +1893,8 @@
   register_shrinker
   register_syscore_ops
   register_sysctl_table
+  register_virtio_device
+  register_virtio_driver
   regmap_bulk_read
   regmap_bulk_write
   regmap_field_read
@@ -1967,6 +2004,7 @@
   sched_clock
   sched_setattr
   sched_setscheduler
+  sched_setscheduler_nocheck
   schedule
   schedule_timeout
   schedule_timeout_interruptible
@@ -2460,6 +2498,8 @@
   unregister_shrinker
   unregister_syscore_ops
   unregister_sysctl_table
+  unregister_virtio_device
+  unregister_virtio_driver
   up
   update_devfreq
   up_read
@@ -2679,7 +2719,9 @@
   vb2_mmap
   vb2_ops_wait_finish
   vb2_ops_wait_prepare
+  vb2_plane_cookie
   vb2_plane_vaddr
+  vb2_prepare_buf
   vb2_poll
   vb2_qbuf
   vb2_querybuf
@@ -2687,6 +2729,7 @@
   vb2_queue_init
   vb2_queue_release
   vb2_reqbufs
+  vb2_request_object_is_buffer
   vb2_streamoff
   vb2_streamon
   vb2_vmalloc_memops
@@ -2713,6 +2756,29 @@
   video_ioctl2
   __video_register_device
   video_unregister_device
+  virtio_check_driver_offered_feature
+  virtio_config_changed
+  virtio_max_dma_size
+  virtqueue_add_inbuf
+  virtqueue_add_inbuf_ctx
+  virtqueue_add_outbuf
+  virtqueue_add_sgs
+  virtqueue_detach_unused_buf
+  virtqueue_disable_cb
+  virtqueue_enable_cb
+  virtqueue_enable_cb_delayed
+  virtqueue_enable_cb_prepare
+  virtqueue_get_avail_addr
+  virtqueue_get_buf
+  virtqueue_get_buf_ctx
+  virtqueue_get_desc_addr
+  virtqueue_get_used_addr
+  virtqueue_get_vring_size
+  virtqueue_is_broken
+  virtqueue_kick
+  virtqueue_kick_prepare
+  virtqueue_notify
+  virtqueue_poll
   vmalloc
   vmalloc_to_page
   vmalloc_user
@@ -2726,6 +2792,10 @@
   vm_map_ram
   vm_unmap_ram
   vprintk
+  vring_create_virtqueue
+  vring_del_virtqueue
+  vring_interrupt
+  vring_transport_features
   vscnprintf
   vsnprintf
   vunmap
