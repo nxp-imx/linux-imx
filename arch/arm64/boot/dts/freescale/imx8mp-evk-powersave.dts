@@ -22,3 +22,41 @@
 	enable-ddr-400mts;
   };
 };
+
+&fec {
+	status = "disabled";
+};
+
+&eqos {
+	status = "disabled";
+};
+
+/ {
+  sound-hdmi {
+	status = "disabled";
+  };
+};
+
+&irqsteer_hdmi {
+	status = "disabled";
+};
+
+&hdmi_blk_ctrl {
+	status = "disabled";
+};
+
+&hdmi_pavi {
+	status = "disabled";
+};
+
+&hdmi {
+	status = "disabled";
+};
+
+&hdmiphy {
+	status = "disabled";
+};
+
+&lcdif3 {
+	status = "disabled";
+};
