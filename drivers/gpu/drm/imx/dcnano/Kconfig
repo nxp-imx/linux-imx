@@ -1,0 +1,10 @@
+config DRM_IMX_DCNANO
+	tristate "DRM support for NXP i.MX DCNANO Graphics"
+	select DRM_KMS_HELPER
+	select VIDEOMODE_HELPERS
+	select DRM_GEM_CMA_HELPER
+	select DRM_KMS_CMA_HELPER
+	depends on DRM && OF && ARCH_MXC
+	depends on COMMON_CLK
+	help
+	  enable NXP i.MX DCNANO graphics support
