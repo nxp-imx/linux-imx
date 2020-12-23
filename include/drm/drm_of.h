@@ -7,7 +7,6 @@
 #include <drm/drm_bridge.h>
 #endif
 
-struct component_match;
 struct component_master_ops;
 struct component_match;
 struct device;
@@ -26,10 +25,6 @@ void drm_of_component_match_add(struct device *master,
 				struct component_match **matchptr,
 				int (*compare)(struct device *, void *),
 				struct device_node *node);
-extern int drm_of_component_probe_with_match(struct device *dev,
-			   struct component_match *match,
-			   int (*compare_of)(struct device *, void *),
-			   const struct component_master_ops *m_ops);
 int drm_of_component_probe(struct device *dev,
 			   int (*compare_of)(struct device *, void *),
 			   const struct component_master_ops *m_ops);
@@ -59,14 +54,6 @@ drm_of_component_match_add(struct device *master,
 			   int (*compare)(struct device *, void *),
 			   struct device_node *node)
 {
-}
-
-static int drm_of_component_probe_with_match(struct device *dev,
-			   struct component_match *match,
-			   int (*compare_of)(struct device *, void *),
-			   const struct component_master_ops *m_ops)
-{
-	return -EINVAL;
 }
 
 static inline int
