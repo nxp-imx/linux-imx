@@ -337,6 +337,79 @@ static const struct component_master_ops imx_drm_ops = {
 	.unbind = imx_drm_unbind,
 };
 
+static int
+imx_drm_of_component_probe_with_match(struct device *dev,
+				      struct component_match *match,
+				      int (*compare_of)(struct device *, void *),
+				      const struct component_master_ops *m_ops)
+{
+	struct device_node *ep, *port, *remote;
+	int i;
+
+	if (!dev->of_node)
+		return -EINVAL;
+
+	/*
+	 * Bind the crtc's ports first, so that drm_of_find_possible_crtcs()
+	 * called from encoder's .bind callbacks works as expected
+	 */
+	for (i = 0; ; i++) {
+		port = of_parse_phandle(dev->of_node, "ports", i);
+		if (!port)
+			break;
+
+		if (of_device_is_available(port->parent))
+			drm_of_component_match_add(dev, &match, compare_of,
+						   port);
+
+		of_node_put(port);
+	}
+
+	if (i == 0) {
+		dev_err(dev, "missing 'ports' property\n");
+		return -ENODEV;
+	}
+
+	if (!match) {
+		dev_err(dev, "no available port\n");
+		return -ENODEV;
+	}
+
+	/*
+	 * For bound crtcs, bind the encoders attached to their remote endpoint
+	 */
+	for (i = 0; ; i++) {
+		port = of_parse_phandle(dev->of_node, "ports", i);
+		if (!port)
+			break;
+
+		if (!of_device_is_available(port->parent)) {
+			of_node_put(port);
+			continue;
+		}
+
+		for_each_child_of_node(port, ep) {
+			remote = of_graph_get_remote_port_parent(ep);
+			if (!remote || !of_device_is_available(remote)) {
+				of_node_put(remote);
+				continue;
+			} else if (!of_device_is_available(remote->parent)) {
+				dev_warn(dev, "parent device of %pOF is not available\n",
+					 remote);
+				of_node_put(remote);
+				continue;
+			}
+
+			drm_of_component_match_add(dev, &match, compare_of,
+						   remote);
+			of_node_put(remote);
+		}
+		of_node_put(port);
+	}
+
+	return component_master_add_with_match(dev, m_ops, match);
+}
+
 static int imx_drm_platform_probe(struct platform_device *pdev)
 {
 	struct component_match *match = NULL;
@@ -345,8 +418,8 @@ static int imx_drm_platform_probe(struct platform_device *pdev)
 	if (has_dpu(&pdev->dev))
 		add_dpu_bliteng_components(&pdev->dev, &match);
 
-	ret = drm_of_component_probe_with_match(&pdev->dev, match, compare_of,
-						&imx_drm_ops);
+	ret = imx_drm_of_component_probe_with_match(&pdev->dev, match,
+						    compare_of, &imx_drm_ops);
 
 	if (!ret)
 		ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
