@@ -418,10 +418,9 @@ struct hc_driver {
 
 	/* Call for SINGLE_STEP_SET_FEATURE Test for USB2 EH certification */
 #define EHSET_TEST_SINGLE_STEP_SET_FEATURE 0x06
-	int	(*submit_single_step_set_feature)(struct usb_hcd *,
-			struct urb *, int);
 
-	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_USE(1, int (*submit_single_step_set_feature)(struct usb_hcd *,
+				struct urb *, int));
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
