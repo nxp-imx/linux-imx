@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2020 NXP
+ */
+
+#include "imx8qm-mek-hdmi.dts"
+
+&ldb1_phy {
+	status = "okay";
+};
+
+&ldb1 {
+	status = "okay";
+};
+
+&ldb2_phy {
+	status = "okay";
+};
+
+&ldb2 {
+	status = "okay";
+};
+
+&mipi0_dsi_host {
+	status = "okay";
+};
+
+&mipi1_dphy {
+	status = "okay";
+};
+
+&mipi1_dsi_host {
+	status = "okay";
+};
+
+&mipi1_dphy {
+	status = "okay";
+};
