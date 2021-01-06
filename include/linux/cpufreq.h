@@ -288,7 +288,7 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 
 struct cpufreq_driver {
 	char		name[CPUFREQ_NAME_LEN];
-	u32		flags;
+	u8		flags;
 	void		*driver_data;
 
 	/* needed by all drivers */
@@ -412,11 +412,6 @@ struct cpufreq_driver {
  */
 #define CPUFREQ_IS_COOLING_DEV			BIT(7)
 
-/*
- * do not unregister cooling device when cpu offline.
- */
-#define CPUFREQ_SKIP_UNREGISTER			BIT(31)
-
 int cpufreq_register_driver(struct cpufreq_driver *driver_data);
 int cpufreq_unregister_driver(struct cpufreq_driver *driver_data);
 
@@ -427,11 +422,6 @@ static inline int cpufreq_thermal_control_enabled(struct cpufreq_driver *drv)
 {
 	return IS_ENABLED(CONFIG_CPU_THERMAL) &&
 		(drv->flags & CPUFREQ_IS_COOLING_DEV);
-}
-
-static inline int cpufreq_thermal_skip_unregister(struct cpufreq_driver *drv)
-{
-	return (drv->flags & CPUFREQ_SKIP_UNREGISTER);
 }
 
 static inline void cpufreq_verify_within_limits(struct cpufreq_policy_data *policy,
