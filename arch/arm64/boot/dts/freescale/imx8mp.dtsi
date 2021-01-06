@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2019 NXP
+ * Copyright 2019-2021 NXP
  */
 
 #include <dt-bindings/clock/imx8mp-clock.h>
@@ -1838,6 +1838,15 @@
 					compatible = "fsl,imx8mp-dwe";
 					reg = <0x32e30000 0x10000>;
 					interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
+					id = <0>;
+					status = "disabled";
+				};
+
+				dewarp_1: dwe_dup@32e30000 {
+					compatible = "fsl,imx8mp-dwe";
+					reg = <0x32e30000 0x10000>;
+					interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
+					id = <1>;
 					status = "disabled";
 				};
 
