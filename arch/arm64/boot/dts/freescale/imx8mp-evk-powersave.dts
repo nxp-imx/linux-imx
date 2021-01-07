@@ -3,7 +3,7 @@
  * Copyright 2019 NXP
  */
 
-#include "imx8mp-evk.dts"
+#include "imx8mp-evk-rpmsg.dts"
 
 &usdhc1 {
 	imx8mp-disable-emmc-request-high;
