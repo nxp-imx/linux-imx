@@ -1819,6 +1819,7 @@
 					assigned-clock-rates = <500000000>;
 					power-domains = <&ispdwp_pd>;
 					id = <0>;
+					gpr = <&mediamix_blk_ctl>;
 					status = "disabled";
 				};
 
@@ -1835,6 +1836,7 @@
 					assigned-clock-rates = <500000000>;
 					power-domains = <&ispdwp_pd>;
 					id = <1>;
+					gpr = <&mediamix_blk_ctl>;
 					status = "disabled";
 				};
 
