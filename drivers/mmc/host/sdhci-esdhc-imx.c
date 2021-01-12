@@ -1539,6 +1539,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	u32 status;
 	const struct device_node *np = pdev->dev.of_node;
 
+	if (!of_property_read_bool(np, "imx8mp-disable-emmc-request-high"))
+		usdhc_imx8mm_data.flags |= ESDHC_FLAG_BUSFREQ;
+
 	host = sdhci_pltfm_init(pdev, &sdhci_esdhc_imx_pdata,
 				sizeof(*imx_data));
 	if (IS_ERR(host))
@@ -1676,9 +1679,6 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, 1);
 	pm_runtime_enable(&pdev->dev);
-
-	if (!of_property_read_bool(np, "imx8mp-disable-emmc-request-high"))
-		usdhc_imx8mm_data.flags |= ESDHC_FLAG_BUSFREQ;
 
 	return 0;
 
