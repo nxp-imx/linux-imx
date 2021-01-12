@@ -39,6 +39,38 @@
 	};
 };
 
+&cpus {
+	cpu@0{
+		dynamic-power-coefficient = <149>;
+		capacity-dmips-mhz = <483>;
+	};
+
+	cpu@1{
+		dynamic-power-coefficient = <149>;
+		capacity-dmips-mhz = <483>;
+	};
+
+	cpu@2{
+		dynamic-power-coefficient = <149>;
+		capacity-dmips-mhz = <483>;
+	};
+
+	cpu@3{
+		dynamic-power-coefficient = <149>;
+		capacity-dmips-mhz = <483>;
+	};
+
+	cpu@100{
+		dynamic-power-coefficient = <735>;
+		capacity-dmips-mhz = <1024>;
+	};
+
+	cpu@101{
+		dynamic-power-coefficient = <735>;
+		capacity-dmips-mhz = <1024>;
+	};
+};
+
 &{/reserved-memory/linux,cma} {
 	status = "disabled";
 };
