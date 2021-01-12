@@ -761,37 +761,30 @@ static void dw_hdmi_gp_audio_enable(struct dw_hdmi *hdmi)
 	case 32000:
 		sample_freq = 0x03;
 		org_sample_freq = 0x0C;
-		hdmi_writeb(hdmi, 0x31, HDMI_FC_AUDICONF1);
 		break;
 	case 44100:
 		sample_freq = 0x00;
 		org_sample_freq = 0x0F;
-		hdmi_writeb(hdmi, 0x32, HDMI_FC_AUDICONF1);
 		break;
 	case 48000:
 		sample_freq = 0x02;
 		org_sample_freq = 0x0D;
-		hdmi_writeb(hdmi, 0x33, HDMI_FC_AUDICONF1);
 		break;
 	case 88200:
 		sample_freq = 0x08;
 		org_sample_freq = 0x07;
-		hdmi_writeb(hdmi, 0x34, HDMI_FC_AUDICONF1);
 		break;
 	case 96000:
 		sample_freq = 0x0A;
 		org_sample_freq = 0x05;
-		hdmi_writeb(hdmi, 0x35, HDMI_FC_AUDICONF1);
 		break;
 	case 176400:
 		sample_freq = 0x0C;
 		org_sample_freq = 0x03;
-		hdmi_writeb(hdmi, 0x36, HDMI_FC_AUDICONF1);
 		break;
 	case 192000:
 		sample_freq = 0x0E;
 		org_sample_freq = 0x01;
-		hdmi_writeb(hdmi, 0x37, HDMI_FC_AUDICONF1);
 		break;
 	default:
 		break;
