@@ -1728,8 +1728,8 @@ static struct snd_soc_dai_driver fsl_micfil_dai = {
 	.probe = fsl_micfil_dai_probe,
 	.capture = {
 		.stream_name = "CPU-Capture",
-		.channels_min = 1,
-		.channels_max = 8,
+		.channels_min = 2,
+		.channels_max = 2,
 		.rates = FSL_MICFIL_RATES,
 		.formats = FSL_MICFIL_FORMATS,
 	},

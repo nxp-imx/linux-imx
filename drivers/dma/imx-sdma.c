@@ -1601,6 +1601,7 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 	sdmac->event_id1 = data->dma_request2;
 	sdmac->src_dualfifo = data->src_dualfifo;
 	sdmac->dst_dualfifo = data->dst_dualfifo;
+	sdmac->fifo_num = data->fifo_num;
 	/* Get software done selector if sw_done enabled */
 	if (data->done_sel & BIT(31)) {
 		sdmac->sw_done = true;
@@ -2262,6 +2263,7 @@ static struct dma_chan *sdma_xlate(struct of_phandle_args *dma_spec,
 	if (dma_spec->args[2] & BIT(31))
 		data.done_sel = dma_spec->args[2];
 	data.priority = dma_spec->args[2] & 0xff;
+	data.fifo_num = (dma_spec->args[2] & 0xff0000) >> 16;
 	/*
 	 * init dma_request2 to zero, which is not used by the dts.
 	 * For P2P, dma_request2 is init from dma_request_channel(),

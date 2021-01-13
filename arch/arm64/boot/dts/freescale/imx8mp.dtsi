@@ -1297,7 +1297,7 @@
 						 <&clk IMX8MP_CLK_EXT3>;
 					clock-names = "ipg_clk", "ipg_clk_app",
 						      "pll8k", "pll11k", "clkext3";
-					dmas = <&sdma2 24 25 0x80000000>;
+					dmas = <&sdma2 24 25 0x80020000>;
 					dma-names = "rx";
 					power-domains = <&audiomix_pd>;
 					status = "disabled";
