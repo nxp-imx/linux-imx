@@ -103,6 +103,7 @@ struct mxc_gpio_port {
 	struct gpio_chip gc;
 	struct device *dev;
 	u32 both_edges;
+	spinlock_t lock;
 	struct mxc_gpio_reg_saved gpio_saved_reg;
 	bool power_off;
 	bool gpio_ranges;
@@ -585,6 +586,60 @@ static void mxc_gpio_free(struct gpio_chip *chip, unsigned offset)
 	pm_runtime_put(chip->parent);
 }
 
+static void _set_gpio_direction(struct gpio_chip *chip, unsigned offset,
+		int dir)
+{
+	struct mxc_gpio_port *port =
+		container_of(chip, struct mxc_gpio_port, gc);
+	u32 l;
+	unsigned long flags;
+
+	spin_lock_irqsave(&port->lock, flags);
+	l = readl(port->base + GPIO_GDIR);
+	if (dir)
+		l |= 1 << offset;
+	else
+		l &= ~(1 << offset);
+	writel(l, port->base + GPIO_GDIR);
+	spin_unlock_irqrestore(&port->lock, flags);
+}
+
+static void mxc_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+{
+	struct mxc_gpio_port *port =
+		container_of(chip, struct mxc_gpio_port, gc);
+	void __iomem *reg = port->base + GPIO_DR;
+	u32 l;
+	unsigned long flags;
+
+	spin_lock_irqsave(&port->lock, flags);
+	l = (readl(reg) & (~(1 << offset))) | (!!value << offset);
+	writel(l, reg);
+	spin_unlock_irqrestore(&port->lock, flags);
+}
+
+static int mxc_gpio_get(struct gpio_chip *chip, unsigned offset)
+{
+	struct mxc_gpio_port *port =
+		container_of(chip, struct mxc_gpio_port, gc);
+
+	return (readl(port->base + GPIO_PSR) >> offset) & 1;
+}
+
+static int mxc_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
+{
+	_set_gpio_direction(chip, offset, 0);
+	return 0;
+}
+
+static int mxc_gpio_direction_output(struct gpio_chip *chip,
+		unsigned offset, int value)
+{
+	mxc_gpio_set(chip, offset, value);
+	_set_gpio_direction(chip, offset, 1);
+	return 0;
+}
+
 static int mxc_gpio_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -693,13 +748,15 @@ static int mxc_gpio_probe(struct platform_device *pdev)
 							 port);
 	}
 
-	err = bgpio_init(&port->gc, &pdev->dev, 4,
-			 port->base + GPIO_PSR,
-			 port->base + GPIO_DR, NULL,
-			 port->base + GPIO_GDIR, NULL,
-			 BGPIOF_READ_OUTPUT_REG_SET);
-	if (err)
-		goto out_bgio;
+	/* register gpio chip */
+	port->gc.label = dev_name(&pdev->dev);
+	port->gc.direction_input = mxc_gpio_direction_input;
+	port->gc.direction_output = mxc_gpio_direction_output;
+	port->gc.get = mxc_gpio_get;
+	port->gc.set = mxc_gpio_set;
+	port->gc.ngpio = 32;
+
+	spin_lock_init(&port->lock);
 
 	if (of_property_read_bool(np, "gpio-ranges")) {
 		port->gc.request = gpiochip_generic_request;
