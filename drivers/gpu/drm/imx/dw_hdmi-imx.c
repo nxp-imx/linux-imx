@@ -276,8 +276,11 @@ static int imx8mp_hdmi_phy_init(struct dw_hdmi *dw_hdmi, void *data,
 	imx8mp_hdmi_pavi_powerup();
 	imx8mp_hdmi_pvi_enable(mode);
 
-	/* HDMI PHY power up */
 	regmap_read(hdmi->regmap, 0x200, &val);
+	/* HDMI PHY power off */
+	val |= 0x8;
+	regmap_write(hdmi->regmap, 0x200, val);
+	/* HDMI PHY power on */
 	val &= ~0x8;
 	/* Enable CEC */
 	val |= 0x2;
