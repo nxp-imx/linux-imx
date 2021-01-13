@@ -103,7 +103,6 @@ typedef enum {
 	/* 10GBASE-KR, XFI, SFI - single lane 10G Serdes */
 	PHY_INTERFACE_MODE_10GKR,
 	PHY_INTERFACE_MODE_USXGMII,
-	PHY_INTERFACE_MODE_2500SGMII,
 	PHY_INTERFACE_MODE_MAX,
 } phy_interface_t;
 
@@ -181,8 +180,6 @@ static inline const char *phy_modes(phy_interface_t interface)
 		return "10gbase-kr";
 	case PHY_INTERFACE_MODE_USXGMII:
 		return "usxgmii";
-	case PHY_INTERFACE_MODE_2500SGMII:
-		return "sgmii-2500";
 	default:
 		return "unknown";
 	}
