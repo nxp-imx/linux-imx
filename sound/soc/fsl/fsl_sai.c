@@ -743,13 +743,9 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 			if (tx) {
 				sai->dma_params_tx.maxburst =
 						FSL_SAI_MAXBURST_TX * pins;
-				sai->dma_params_tx.fifo_num = pins +
-					   (dl_cfg[dl_cfg_idx].offset[tx] << 4);
 			} else {
 				sai->dma_params_rx.maxburst =
 					FSL_SAI_MAXBURST_RX * pins;
-				sai->dma_params_rx.fifo_num = pins +
-					  (dl_cfg[dl_cfg_idx].offset[tx] << 4);
 			}
 		}
 

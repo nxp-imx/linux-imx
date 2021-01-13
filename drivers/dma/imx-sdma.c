@@ -1915,7 +1915,6 @@ static int sdma_config_write(struct dma_chan *chan,
 		sdmac->watermark_level = dmaengine_cfg->src_maxburst *
 			dmaengine_cfg->src_addr_width;
 		sdmac->word_size = dmaengine_cfg->src_addr_width;
-		sdmac->fifo_num =  dmaengine_cfg->src_fifo_num;
 	} else if (direction == DMA_DEV_TO_DEV) {
 		sdmac->per_address2 = dmaengine_cfg->src_addr;
 		sdmac->per_address = dmaengine_cfg->dst_addr;
@@ -1933,7 +1932,6 @@ static int sdma_config_write(struct dma_chan *chan,
 		sdmac->watermark_level = dmaengine_cfg->dst_maxburst *
 			dmaengine_cfg->dst_addr_width;
 		sdmac->word_size = dmaengine_cfg->dst_addr_width;
-		sdmac->fifo_num =  dmaengine_cfg->dst_fifo_num;
 	}
 	sdmac->direction = direction;
 	return sdma_config_channel(chan);
