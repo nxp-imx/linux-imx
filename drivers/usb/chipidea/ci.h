@@ -297,21 +297,9 @@ static inline int ci_role_start(struct ci_hdrc *ci, enum ci_role role)
 		return -ENXIO;
 
 	ret = ci->roles[role]->start(ci);
-	if (ret)
-		return ret;
-
-	ci->role = role;
-
-	if (ci->usb_phy) {
-		if (role == CI_ROLE_HOST)
-			usb_phy_set_mode(ci->usb_phy,
-					CUR_USB_MODE_HOST);
-		else
-			usb_phy_set_mode(ci->usb_phy,
-					CUR_USB_MODE_DEVICE);
-	}
-
-	return 0;
+	if (!ret)
+		ci->role = role;
+	return ret;
 }
 
 static inline void ci_role_stop(struct ci_hdrc *ci)
@@ -324,9 +312,6 @@ static inline void ci_role_stop(struct ci_hdrc *ci)
 	ci->role = CI_ROLE_END;
 
 	ci->roles[role]->stop(ci);
-
-	if (ci->usb_phy)
-		usb_phy_set_mode(ci->usb_phy, CUR_USB_MODE_NONE);
 }
 
 static inline enum usb_role ci_role_to_usb_role(struct ci_hdrc *ci)
