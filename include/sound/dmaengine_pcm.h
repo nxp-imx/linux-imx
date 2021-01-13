@@ -76,7 +76,6 @@ struct snd_dmaengine_dai_dma_data {
 	const char *chan_name;
 	unsigned int fifo_size;
 	unsigned int flags;
-	unsigned int fifo_num;
 };
 
 void snd_dmaengine_pcm_set_config_from_dai_data(
