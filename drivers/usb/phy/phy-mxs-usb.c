@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2012-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Marek Vasut <marex@denx.de>
  * on behalf of DENX Software Engineering GmbH
  */
@@ -274,7 +273,6 @@ struct mxs_phy {
 	u32 tx_reg_mask;
 	struct regulator *phy_3p0;
 	bool hardware_control_phy2_clk;
-	enum usb_current_mode mode;
 	unsigned long clk_rate;
 };
 
@@ -473,6 +471,18 @@ static void __mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool disconnect)
 		usleep_range(500, 1000);
 }
 
+static bool mxs_phy_is_otg_host(struct mxs_phy *mxs_phy)
+{
+	void __iomem *base = mxs_phy->phy.io_priv;
+	u32 phyctrl = readl(base + HW_USBPHY_CTRL);
+
+	if (IS_ENABLED(CONFIG_USB_OTG) &&
+			!(phyctrl & BM_USBPHY_CTRL_OTG_ID_VALUE))
+		return true;
+
+	return false;
+}
+
 static void mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool on)
 {
 	bool vbus_is_on = false;
@@ -488,7 +498,7 @@ static void mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool on)
 
 	vbus_is_on = mxs_phy_get_vbus_status(mxs_phy);
 
-	if (on && ((!vbus_is_on && mxs_phy->mode != CUR_USB_MODE_HOST) ||
+	if (on && ((!vbus_is_on && !mxs_phy_is_otg_host(mxs_phy)) ||
 			(last_event == USB_EVENT_VBUS)))
 		__mxs_phy_disconnect_line(mxs_phy, true);
 	else
@@ -867,19 +877,6 @@ static int mxs_phy_on_resume(struct usb_phy *phy,
 	return 0;
 }
 
-/*
- * Set the usb current role for phy.
- */
-static int mxs_phy_set_mode(struct usb_phy *phy,
-		enum usb_current_mode mode)
-{
-	struct mxs_phy *mxs_phy = to_mxs_phy(phy);
-
-	mxs_phy->mode = mode;
-
-	return 0;
-}
-
 static int mxs_phy_dcd_start(struct mxs_phy *mxs_phy)
 {
 	void __iomem *base = mxs_phy->phy.io_priv;
@@ -1100,7 +1097,6 @@ static int mxs_phy_probe(struct platform_device *pdev)
 	else
 		mxs_phy->phy.charger_detect	= mxs_phy_charger_detect;
 
-	mxs_phy->phy.set_mode		= mxs_phy_set_mode;
 	if (mxs_phy->data->flags & MXS_PHY_SENDING_SOF_TOO_FAST) {
 		mxs_phy->phy.notify_suspend = mxs_phy_on_suspend;
 		mxs_phy->phy.notify_resume = mxs_phy_on_resume;
