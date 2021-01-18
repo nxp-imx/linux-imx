@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2019 NXP
+ */
+
+#include "imx8mp-evk.dts"
+
+&usdhc1 {
+	imx8mp-disable-emmc-request-high;
+};
+
+&usdhc2 {
+	imx8mp-disable-emmc-request-high;
+};
+
+&usdhc3 {
+	imx8mp-disable-emmc-request-high;
+};
+
+/ {
+  busfreq {
+	enable-gic-100mts;
+	enable-ddr-400mts;
+  };
+};
+
+&fec {
+	status = "disabled";
+};
+
+&ldb {
+	status = "disabled";
+};
+
+&uart1 {
+	imx8mp-disable-uart-request-high;
+};
+
+&uart2 {
+	imx8mp-disable-uart-request-high;
+};
+
+&uart3 {
+	imx8mp-disable-uart-request-high;
+};
+
+/ {
+  sound-hdmi {
+	status = "disabled";
+  };
+};
+
+&irqsteer_hdmi {
+	status = "disabled";
+};
+
+&hdmimix_clk {
+	status = "disabled";
+};
+
+&hdmimix_reset {
+	status = "disabled";
+};
+
+&hdmi_pavi {
+	status = "disabled";
+};
+
+&hdmi {
+	status = "disabled";
+};
+
+&hdmiphy {
+	status = "disabled";
+};
+
+&lcdif3 {
+	status = "disabled";
+};
