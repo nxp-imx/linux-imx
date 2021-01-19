@@ -439,6 +439,11 @@ struct fsl_rpmsg_i2s {
 	int rates;
 	u64 formats;
 	int enable_lpa;
+	struct clk *ipg;
+	struct clk *mclk;
+	struct clk *dma;
+	struct clk *pll8k;
+	struct clk *pll11k;
 };
 
 #define RPMSG_CODEC_DRV_NAME_WM8960 "rpmsg-audio-codec-wm8960"

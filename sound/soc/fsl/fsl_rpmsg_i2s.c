@@ -10,6 +10,7 @@
  *
  */
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
 #include <linux/module.h>
@@ -154,6 +155,54 @@ static int fsl_rpmsg_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	rpmsg->send_msg.param.dai_format = fmt;
 
 	i2s_send_message(rpmsg, i2s_info);
+	return 0;
+}
+
+static int fsl_rpmsg_hw_params(struct snd_pcm_substream *substream,
+			       struct snd_pcm_hw_params *params,
+			       struct snd_soc_dai *dai)
+{
+	struct fsl_rpmsg_i2s *rpmsg_i2s = snd_soc_dai_get_drvdata(dai);
+	struct clk *p = rpmsg_i2s->mclk, *pll = 0, *npll = 0;
+	unsigned int rate = params_rate(params);
+	int ret;
+
+	while (p && rpmsg_i2s->pll8k && rpmsg_i2s->pll11k) {
+		struct clk *pp = clk_get_parent(p);
+
+		if (clk_is_match(pp, rpmsg_i2s->pll8k) ||
+		    clk_is_match(pp, rpmsg_i2s->pll11k)) {
+			pll = pp;
+			break;
+		}
+		p = pp;
+	}
+
+	if (pll) {
+		npll = (do_div(rate, 8000) ? rpmsg_i2s->pll11k :
+			rpmsg_i2s->pll8k);
+		if (!clk_is_match(pll, npll)) {
+			ret = clk_set_parent(p, npll);
+			if (ret < 0)
+				dev_warn(dai->dev,
+					 "failed to set parent %s: %d\n",
+					 __clk_get_name(npll), ret);
+		}
+	}
+
+	ret = clk_prepare_enable(rpmsg_i2s->mclk);
+	if (ret)
+		dev_err(dai->dev, "failed to enable mclk: %d\n", ret);
+
+	return ret;
+}
+
+static int fsl_rpmsg_hw_free(struct snd_pcm_substream *substream,
+			     struct snd_soc_dai *dai)
+{
+	struct fsl_rpmsg_i2s *rpmsg_i2s = snd_soc_dai_get_drvdata(dai);
+
+	clk_disable_unprepare(rpmsg_i2s->mclk);
 
 	return 0;
 }
@@ -162,6 +211,8 @@ static const struct snd_soc_dai_ops fsl_rpmsg_dai_ops = {
 	.startup	= fsl_rpmsg_startup,
         .shutdown       = fsl_rpmsg_shutdown,
 	.set_fmt	= fsl_rpmsg_set_dai_fmt,
+	.hw_params	= fsl_rpmsg_hw_params,
+	.hw_free	= fsl_rpmsg_hw_free,
 };
 
 static struct snd_soc_dai_driver fsl_rpmsg_i2s_dai = {
@@ -405,6 +456,26 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 					&i2s_info->prealloc_buffer_size))
 		i2s_info->prealloc_buffer_size = IMX_DEFAULT_DMABUF_SIZE;
 
+	rpmsg_i2s->ipg = devm_clk_get(&pdev->dev, "ipg");
+	if (IS_ERR(rpmsg_i2s->ipg))
+		rpmsg_i2s->ipg = NULL;
+
+	rpmsg_i2s->mclk = devm_clk_get(&pdev->dev, "mclk");
+	if (IS_ERR(rpmsg_i2s->mclk))
+		rpmsg_i2s->mclk = NULL;
+
+	rpmsg_i2s->dma = devm_clk_get(&pdev->dev, "dma");
+	if (IS_ERR(rpmsg_i2s->dma))
+		rpmsg_i2s->dma = NULL;
+
+	rpmsg_i2s->pll8k = devm_clk_get(&pdev->dev, "pll8k");
+	if (IS_ERR(rpmsg_i2s->pll8k))
+		rpmsg_i2s->pll8k = NULL;
+
+	rpmsg_i2s->pll11k = devm_clk_get(&pdev->dev, "pll11k");
+	if (IS_ERR(rpmsg_i2s->pll11k))
+		rpmsg_i2s->pll11k = NULL;
+
 	platform_set_drvdata(pdev, rpmsg_i2s);
 	pm_runtime_enable(&pdev->dev);
 
@@ -431,9 +502,27 @@ static int fsl_rpmsg_i2s_remove(struct platform_device *pdev)
 static int fsl_rpmsg_i2s_runtime_resume(struct device *dev)
 {
 	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(dev);
+	int ret;
+
+	ret = clk_prepare_enable(rpmsg_i2s->ipg);
+	if (ret) {
+		dev_err(dev, "failed to enable ipg clock: %d\n", ret);
+		goto ipg_err;
+	}
+
+	ret = clk_prepare_enable(rpmsg_i2s->dma);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable dma clock %d\n", ret);
+		goto dma_err;
+	}
 
 	pm_qos_add_request(&rpmsg_i2s->pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 	return 0;
+
+dma_err:
+	clk_disable_unprepare(rpmsg_i2s->ipg);
+ipg_err:
+	return ret;
 }
 
 static int fsl_rpmsg_i2s_runtime_suspend(struct device *dev)
@@ -441,6 +530,10 @@ static int fsl_rpmsg_i2s_runtime_suspend(struct device *dev)
 	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(dev);
 
 	pm_qos_remove_request(&rpmsg_i2s->pm_qos_req);
+
+	clk_disable_unprepare(rpmsg_i2s->dma);
+	clk_disable_unprepare(rpmsg_i2s->ipg);
+
 	return 0;
 }
 #endif
