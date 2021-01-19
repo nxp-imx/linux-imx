@@ -244,6 +244,13 @@ static void __init imx8mq_noc_init(void)
 		pr_err("Config NOC for VPU fail!\n");
 }
 
+static struct attribute *imx_soc_attrs[] = {
+       &dev_attr_soc_uid.attr,
+       NULL
+};
+
+ATTRIBUTE_GROUPS(imx_soc);
+
 static int __init imx8_soc_init(void)
 {
 	struct soc_device_attribute *soc_dev_attr;
@@ -282,16 +289,13 @@ static int __init imx8_soc_init(void)
 		goto free_soc;
 	}
 
+	soc_dev_attr->custom_attr_group = imx_soc_groups[0];
+
 	soc_dev = soc_device_register(soc_dev_attr);
 	if (IS_ERR(soc_dev)) {
 		ret = PTR_ERR(soc_dev);
 		goto free_rev;
 	}
-
-	ret = device_create_file(soc_device_to_device(soc_dev),
-				 &dev_attr_soc_uid);
-	if (ret)
-		goto free_rev;
 
 	if (IS_ENABLED(CONFIG_ARM_IMX_CPUFREQ_DT))
 		platform_device_register_simple("imx-cpufreq-dt", -1, NULL, 0);
