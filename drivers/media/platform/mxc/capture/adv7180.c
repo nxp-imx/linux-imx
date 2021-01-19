@@ -812,25 +812,6 @@ static int ioctl_enum_frameintervals(struct v4l2_int_device *s,
 }
 
 /*!
- * ioctl_g_chip_ident - V4L2 sensor interface handler for
- *			VIDIOC_DBG_G_CHIP_IDENT ioctl
- * @s: pointer to standard V4L2 device structure
- * @id: pointer to int
- *
- * Return 0.
- */
-static int ioctl_g_chip_ident(struct v4l2_int_device *s, int *id)
-{
-	((struct v4l2_dbg_chip_ident *)id)->match.type =
-					V4L2_CHIP_MATCH_I2C_DRIVER;
-	strcpy(((struct v4l2_dbg_chip_ident *)id)->match.name,
-						"adv7180_decoder");
-	((struct v4l2_dbg_chip_ident *)id)->ident = V4L2_IDENT_ADV7180;
-
-	return 0;
-}
-
-/*!
  * ioctl_init - V4L2 sensor interface handler for VIDIOC_INT_INIT
  * @s: pointer to standard V4L2 device structure
  */
@@ -905,8 +886,6 @@ static struct v4l2_int_ioctl_desc adv7180_ioctl_desc[] = {
 	{vidioc_int_enum_frameintervals_num,
 				(v4l2_int_ioctl_func *)
 				ioctl_enum_frameintervals},
-	{vidioc_int_g_chip_ident_num,
-				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
 
 static struct v4l2_int_slave adv7180_slave = {

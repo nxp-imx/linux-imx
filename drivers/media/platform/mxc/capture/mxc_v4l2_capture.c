@@ -2382,18 +2382,6 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		}
 		break;
 	}
-	case VIDIOC_DBG_G_CHIP_IDENT: {
-		struct v4l2_dbg_chip_ident *p = arg;
-		p->ident = V4L2_IDENT_NONE;
-		p->revision = 0;
-		if (cam->sensor)
-			retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
-		else {
-			pr_err("ERROR: v4l2 capture: slave not found!\n");
-			retval = -ENODEV;
-		}
-		break;
-	}
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_QUERYCTRL:
 	case VIDIOC_G_TUNER:
