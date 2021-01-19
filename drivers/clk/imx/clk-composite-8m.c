@@ -123,6 +123,19 @@ static const struct clk_ops imx8m_clk_composite_divider_ops = {
 	.set_rate = imx8m_clk_composite_divider_set_rate,
 };
 
+static char *m4_lpa_required_ccm_slices[ ] = {"audio_ahb","i2c3","sai3","uart4","gic","gpt1","pwm4"};
+
+static bool m4_lpa_required(const char *name){
+	int i;
+
+	for(i = 0; i < sizeof(m4_lpa_required_ccm_slices) / sizeof(m4_lpa_required_ccm_slices[0]); i++){
+		if (strstr(m4_lpa_required_ccm_slices[i], name) != NULL)
+			return true;
+	}
+
+	return false;
+}
+
 struct clk *imx8m_clk_composite_flags(const char *name,
 					const char * const *parent_names,
 					int num_parents, void __iomem *reg,
@@ -156,7 +169,7 @@ struct clk *imx8m_clk_composite_flags(const char *name,
 	div->flags = CLK_DIVIDER_ROUND_CLOSEST;
 
 	/* skip registering the gate ops if M4 is enabled */
-	if (imx_src_is_m4_enabled()) {
+	if (imx_src_is_m4_enabled() && m4_lpa_required(name)){
 		gate_hw = NULL;
 	} else {
 		gate = kzalloc(sizeof(*gate), GFP_KERNEL);
