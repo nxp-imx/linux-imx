@@ -678,22 +678,71 @@ static int v4l2_ioctl_querycap(struct file *file,
 	return 0;
 }
 
+static bool is_10bit_format(struct vpu_ctx *ctx)
+{
+	WARN_ON(!ctx);
+	if (ctx->seqinfo.uBitDepthLuma > 8)
+		return true;
+	if (ctx->seqinfo.uBitDepthChroma > 8)
+		return true;
+	return false;
+}
+
+static u32 vpu_dec_get_capture_fmt(struct vpu_ctx *ctx)
+{
+	WARN_ON(!ctx);
+	if (is_10bit_format(ctx))
+		return V4L2_PIX_FMT_NV12_10BIT;
+	else
+		return V4L2_PIX_FMT_NV12;
+}
+
+static u32 vpu_dec_get_capture_fmt_index(struct vpu_ctx *ctx)
+{
+	u32 i;
+	u32 pixelformat;
+
+	WARN_ON(!ctx);
+	pixelformat = vpu_dec_get_capture_fmt(ctx);
+	for (i = 0; i < ARRAY_SIZE(formats_yuv_dec); i++) {
+		if (formats_yuv_dec[i].fourcc == pixelformat)
+			return i;
+	}
+
+	return ARRAY_SIZE(formats_yuv_dec);
+}
+
 static int v4l2_ioctl_enum_fmt_vid_cap(struct file *file,
 		void *fh,
 		struct v4l2_fmtdesc *f
 		)
 {
 	struct vpu_v4l2_fmt *fmt;
+	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
+	struct queue_data *q_data;
+	u32 fmt_cnt = ARRAY_SIZE(formats_yuv_dec);
+	u32 index;
 
 	vpu_dbg(LVL_BIT_FUNC, "%s()\n", __func__);
 
 	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		return -EINVAL;
 
-	if (f->index >= ARRAY_SIZE(formats_yuv_dec))
+	index = f->index;
+	q_data = &ctx->q_data[V4L2_DST];
+	down(&q_data->drv_q_lock);
+	if (!ctx->b_firstseq) {
+		if (!f->index)
+			index = vpu_dec_get_capture_fmt_index(ctx);
+		else
+			index = fmt_cnt;
+	}
+	up(&q_data->drv_q_lock);
+
+	if (index >= fmt_cnt)
 		return -EINVAL;
 
-	fmt = &formats_yuv_dec[f->index];
+	fmt = &formats_yuv_dec[index];
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	vpu_dbg(LVL_INFO, "CAPTURE fmt[%d] %c%c%c%c\n",
@@ -776,16 +825,6 @@ static int v4l2_ioctl_enum_fmt_vid_out(struct file *file,
 			(f->pixelformat >> 24) & 0xff);
 
 	return 0;
-}
-
-static bool is_10bit_format(struct vpu_ctx *ctx)
-{
-	WARN_ON(!ctx);
-	if (ctx->seqinfo.uBitDepthLuma > 8)
-		return true;
-	if (ctx->seqinfo.uBitDepthChroma > 8)
-		return true;
-	return false;
 }
 
 static void calculate_frame_size(struct vpu_ctx *ctx)
@@ -905,11 +944,7 @@ static int v4l2_ioctl_g_fmt(struct file *file,
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
 		down(&q_data->drv_q_lock);
-		if (is_10bit_format(ctx))
-			pix_mp->pixelformat = V4L2_PIX_FMT_NV12_10BIT;
-		else
-			pix_mp->pixelformat = V4L2_PIX_FMT_NV12;
-
+		pix_mp->pixelformat = vpu_dec_get_capture_fmt(ctx);
 		pix_mp->width = q_data->width;
 		pix_mp->height = q_data->height;
 		pix_mp->field = q_data->field;
