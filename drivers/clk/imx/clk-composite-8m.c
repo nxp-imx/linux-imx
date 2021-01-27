@@ -158,6 +158,25 @@ static const struct clk_ops imx8m_clk_composite_divider_ops = {
 	.determine_rate = imx8m_divider_determine_rate,
 };
 
+#ifdef CONFIG_CLK_POWER_SAVE
+static char *m4_lpa_required_ccm_slices[ ] = {"audio_ahb","i2c3","sai1","sai2","sai3","sai5","uart4","gic","gpt1","pwm3","m7_core","arm_m4_core","audio_axi","ecspi2","dram_alt","dram_apb"};
+#endif
+
+static bool m4_lpa_required(const char *name){
+#ifdef CONFIG_CLK_POWER_SAVE
+	int i;
+
+	for(i = 0; i < sizeof(m4_lpa_required_ccm_slices) / sizeof(m4_lpa_required_ccm_slices[0]); i++){
+		if (strstr(m4_lpa_required_ccm_slices[i], name) != NULL)
+			return true;
+	}
+
+	return false;
+#else
+	return true;
+#endif
+}
+
 static u8 imx8m_clk_composite_mux_get_parent(struct clk_hw *hw)
 {
 	return clk_mux_ops.get_parent(hw);
@@ -294,7 +313,7 @@ struct clk_hw *__imx8m_clk_hw_composite(const char *name,
 	gate->reg = reg;
 	gate->bit_idx = PCG_CGC_SHIFT;
 	gate->lock = &imx_ccm_lock;
-	if (!mcore_booted)
+	if (!mcore_booted || !m4_lpa_required(name))
 		gate_ops = &clk_gate_ops;
 	else
 		gate_ops = &imx8m_clk_composite_gate_ops;
