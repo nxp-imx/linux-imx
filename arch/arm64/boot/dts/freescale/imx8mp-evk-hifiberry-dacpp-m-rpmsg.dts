@@ -70,8 +70,9 @@
 	};
 
 	sound-wm8960 {
-		status = "disabled";
+		audio-codec = <&codec1>;
 	};
+
 
 	rpmsg_i2s: rpmsg-i2s {
 		compatible = "fsl,imx8mp-pcm512x-rpmsg-i2s";
@@ -137,6 +138,7 @@
 
 /delete-node/ &i2c3;
 
+
 &i2c_rpbus_3 {
 	compatible = "fsl,i2c-rpbus";
 	#address-cells = <1>;
@@ -188,6 +190,15 @@
 		clocks = <&ext_osc_22m>, <&ext_osc_24m>;
 		clock-names = "sclk0", "sclk1";
 	};
+
+	codec1: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>;
+		clock-names = "mclk";
+		wlf,shared-lrclk;
+		SPKVDD1-supply = <&reg_audio_pwr>;
+	};
 };
 
 &pwm4{
@@ -221,9 +232,11 @@
 	status = "disabled";
 };
 
+/*
 &sai3 {
 	status = "disabled";
 };
+*/
 
 &sai5 {
 	status = "disabled";
