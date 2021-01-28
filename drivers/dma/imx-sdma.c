@@ -770,7 +770,7 @@ static int sdma_run_channel0(struct sdma_engine *sdma)
 	sdma_enable_channel(sdma, 0);
 
 	ret = readl_relaxed_poll_timeout_atomic(sdma->regs + SDMA_H_STATSTOP,
-						reg, !(reg & 1), 1, 500);
+						reg, !(reg & 1), 1, 5000);
 	if (ret)
 		dev_err(sdma->dev, "Timeout waiting for CH0 ready\n");
 
@@ -2592,7 +2592,7 @@ static int sdma_resume(struct device *dev)
 	}
 
 	/* prepare priority for channel0 to start */
-	sdma_set_channel_priority(&sdma->channel[0], MXC_SDMA_DEFAULT_PRIORITY);
+	sdma_set_channel_priority(&sdma->channel[0], MXC_SDMA_MAX_PRIORITY);
 
 	ret = sdma_get_firmware(sdma, sdma->fw_name);
 	if (ret) {
