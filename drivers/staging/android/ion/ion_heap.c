@@ -197,13 +197,14 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 				      vma->vm_page_prot);
 		if (ret)
 			return ret;
-		if (buffer->flags & ION_FLAG_CACHED)
+		if (buffer->flags & ION_FLAG_CACHED) {
 #ifdef CONFIG_ARM
 			__cpuc_flush_dcache_area(vma->vm_start, vma->vm_end - vma->vm_start);
 			outer_flush_range(__pa(vma->vm_start), __pa(vma->vm_end));
 #else
 			__flush_cache_user_range(vma->vm_start, vma->vm_end);
 #endif
+		}
 		addr += len;
 		if (addr >= vma->vm_end)
 			return 0;
