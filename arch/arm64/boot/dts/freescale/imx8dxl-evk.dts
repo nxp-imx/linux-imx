@@ -350,6 +350,7 @@
 		reg = <0x21>;
 		gpio-controller;
 		#gpio-cells = <2>;
+		power-domains = <&pd IMX_SC_R_BOARD_R2>;
 	};
 
 	pca9548_1: pca9548@70 {
