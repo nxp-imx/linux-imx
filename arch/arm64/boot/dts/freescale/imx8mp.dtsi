@@ -1887,10 +1887,8 @@
 	pcie_phy: pcie-phy@32f00000 {
 		compatible = "fsl,imx8mp-pcie-phy";
 		reg = <0x0 0x32f00000 0x0 0x10000>;
-		clocks = <&clk IMX8MP_CLK_PCIE_PHY>;
+		clocks = <&clk IMX8MP_CLK_DUMMY>;
 		clock-names = "phy";
-		assigned-clocks = <&clk IMX8MP_CLK_PCIE_PHY>;
-		assigned-clock-parents = <&clk IMX8MP_CLK_24M>;
 		#phy-cells = <0>;
 		status = "disabled";
 	};
