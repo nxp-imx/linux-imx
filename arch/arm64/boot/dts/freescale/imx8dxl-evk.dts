@@ -343,6 +343,7 @@
 		reg = <0x20>;
 		gpio-controller;
 		#gpio-cells = <2>;
+		power-domains = <&pd IMX_SC_R_BOARD_R1>;
 	};
 
 	pca6416_2: gpio@21 {
@@ -358,6 +359,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0x70>;
+		power-domains = <&pd IMX_SC_R_BOARD_R0>;
 
 		i2c@0 {
 			#address-cells = <1>;
@@ -468,6 +470,7 @@
 		#gpio-cells = <2>;
 		interrupt-parent = <&lsio_gpio2>;
 		interrupts = <5 IRQ_TYPE_EDGE_RISING>;
+		power-domains = <&pd IMX_SC_R_BOARD_R4>;
 	};
 
 	pca9548_2: pca9548@70 {
@@ -475,6 +478,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0x70>;
+		power-domains = <&pd IMX_SC_R_BOARD_R3>;
 
 		i2c@0 {
 			#address-cells = <1>;
