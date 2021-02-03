@@ -15,9 +15,9 @@
 #if IS_ENABLED(CONFIG_DEVICE_THERMAL)
 int register_devfreq_cooling_notifier(struct notifier_block *nb);
 int unregister_devfreq_cooling_notifier(struct notifier_block *nb);
-struct thermal_cooling_device *devfreq_cooling_register(struct device_node *np,
+struct thermal_cooling_device *device_cooling_register(struct device_node *np,
 							unsigned long states);
-void devfreq_cooling_unregister(struct thermal_cooling_device *cdev);
+void device_cooling_unregister(struct thermal_cooling_device *cdev);
 #else
 static inline
 int register_devfreq_cooling_notifier(struct notifier_block *nb)
@@ -32,14 +32,14 @@ int unregister_devfreq_cooling_notifier(struct notifier_block *nb)
 }
 
 static inline
-struct thermal_cooling_device *devfreq_cooling_register(struct device_node *np,
+struct thermal_cooling_device *device_cooling_register(struct device_node *np,
                                                         unsigned long states)
 {
 	return NULL;
 }
 
 static inline
-void devfreq_cooling_unregister(struct thermal_cooling_device *cdev)
+void device_cooling_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }

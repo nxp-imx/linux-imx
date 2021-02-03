@@ -192,7 +192,7 @@ static int imx8mm_tmu_probe(struct platform_device *pdev)
 		tmu->sensors[i].temp_passive = trips[0].temperature;
 		tmu->sensors[i].temp_critical = trips[1].temperature;
 
-		tmu->sensors[i].cdev = devfreq_cooling_register(NULL, 1);
+		tmu->sensors[i].cdev = device_cooling_register(NULL, 1);
 		if (IS_ERR(tmu->sensors[i].cdev)) {
 			ret = PTR_ERR(tmu->sensors[i].cdev);
 			if (ret != -EPROBE_DEFER)
@@ -210,7 +210,7 @@ static int imx8mm_tmu_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"binding zone %s with cdev %s failed:%d\n",
 				tmu->sensors[i].tzd->type, tmu->sensors[i].cdev->type, ret);
-			devfreq_cooling_unregister(tmu->sensors[i].cdev);
+			device_cooling_unregister(tmu->sensors[i].cdev);
 			return ret;
 		}
 	}

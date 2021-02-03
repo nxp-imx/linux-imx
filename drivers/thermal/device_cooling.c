@@ -106,7 +106,7 @@ static void release_idr(struct idr *idr, int id)
 	mutex_unlock(&devfreq_cooling_lock);
 }
 
-struct thermal_cooling_device *devfreq_cooling_register(struct device_node *np,
+struct thermal_cooling_device *device_cooling_register(struct device_node *np,
 							unsigned long states)
 {
 	struct thermal_cooling_device *cool_dev;
@@ -141,9 +141,9 @@ struct thermal_cooling_device *devfreq_cooling_register(struct device_node *np,
 
 	return cool_dev;
 }
-EXPORT_SYMBOL_GPL(devfreq_cooling_register);
+EXPORT_SYMBOL_GPL(device_cooling_register);
 
-void devfreq_cooling_unregister(struct thermal_cooling_device *cdev)
+void device_cooling_unregister(struct thermal_cooling_device *cdev)
 {
 	struct devfreq_cooling_device *devfreq_dev = cdev->devdata;
 
@@ -151,6 +151,6 @@ void devfreq_cooling_unregister(struct thermal_cooling_device *cdev)
 	release_idr(&devfreq_idr, devfreq_dev->id);
 	kfree(devfreq_dev);
 }
-EXPORT_SYMBOL_GPL(devfreq_cooling_unregister);
+EXPORT_SYMBOL_GPL(device_cooling_unregister);
 
 MODULE_LICENSE("GPL v2");

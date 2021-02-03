@@ -230,7 +230,7 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 		sensor->temp_passive = trip[0].temperature;
 		sensor->temp_critical = trip[1].temperature;
 
-		sensor->cdev = devfreq_cooling_register(NULL, 1);
+		sensor->cdev = device_cooling_register(NULL, 1);
 		if (IS_ERR(sensor->cdev)) {
 			dev_err(&pdev->dev,
 				"failed to register devfreq cooling device: %d\n",
@@ -248,7 +248,7 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 			dev_err(&sensor->tzd->device,
 				"binding zone %s with cdev %s failed:%d\n",
 				sensor->tzd->type, sensor->cdev->type, ret);
-			devfreq_cooling_unregister(sensor->cdev);
+			device_cooling_unregister(sensor->cdev);
 			return ret;
 		}
 	}
