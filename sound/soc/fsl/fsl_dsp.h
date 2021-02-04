@@ -9,6 +9,7 @@
 #define FSL_DSP_H
 #include <uapi/linux/mxc_dsp.h>
 #include <linux/firmware/imx/ipc.h>
+#include <linux/mailbox_client.h>
 #include "fsl_dsp_proxy.h"
 #include "fsl_dsp_platform.h"
 #include "fsl_dsp_audiomix.h"
@@ -22,10 +23,20 @@ typedef void (*memset_func) (void *s, int c, size_t n);
 /* ...maximal number of IPC clients per proxy */
 #define XF_CFG_MAX_IPC_CLIENTS          (1 << 4)
 
+#define NUM_MAILBOX_CHAN 3
+
 enum {
 	DSP_IMX8QXP_TYPE = 0,
 	DSP_IMX8QM_TYPE,
 	DSP_IMX8MP_TYPE,
+};
+
+/* ...dsp mailbox chan */
+struct dsp_mailbox_chan {
+	struct fsl_dsp *dsp_priv;
+	char name[20];
+	struct mbox_client cl;
+	struct mbox_chan *ch;
 };
 
 /* ...proxy client data */
@@ -80,6 +91,8 @@ struct fsl_dsp {
 	struct imx_audiomix_dsp_data 	*audiomix;
 	unsigned int			dsp_mu_id;
 	int				dsp_mu_init;
+	struct dsp_mailbox_chan      chan_tx[3];
+	struct dsp_mailbox_chan      chan_rx0;
 	int				dsp_is_lpa;
 	atomic_long_t			refcnt;
 	unsigned long			paddr;

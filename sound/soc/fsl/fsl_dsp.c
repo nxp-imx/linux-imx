@@ -53,7 +53,6 @@
 #include <linux/fs.h>
 #include <linux/pm_runtime.h>
 #include <linux/pm_domain.h>
-#include <linux/mx8_mu.h>
 #include <linux/uaccess.h>
 #include <linux/poll.h>
 #ifdef CONFIG_COMPAT
@@ -768,56 +767,6 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 	fsl_dsp_start(dsp_priv);
 }
 
-/* Initialization of the MU code. */
-int dsp_mu_init(struct fsl_dsp *dsp_priv)
-{
-	struct device *dev = dsp_priv->dev;
-	struct device_node *np;
-	unsigned int	dsp_mu_id;
-	u32 irq;
-	int ret = 0;
-
-	/*
-	 * Get the address of MU to be used for communication with the dsp
-	 */
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx8-mu-dsp");
-	if (!np) {
-		dev_err(dev, "Cannot find MU entry in device tree\n");
-		return -EINVAL;
-	}
-	dsp_priv->mu_base_virtaddr = of_iomap(np, 0);
-	WARN_ON(!dsp_priv->mu_base_virtaddr);
-
-	ret = of_property_read_u32_index(np,
-				"fsl,dsp_ap_mu_id", 0, &dsp_mu_id);
-	if (ret) {
-		dev_err(dev, "Cannot get mu_id %d\n", ret);
-		return -EINVAL;
-	}
-
-	dsp_priv->dsp_mu_id = dsp_mu_id;
-
-	irq = of_irq_get(np, 0);
-
-	ret = devm_request_irq(dsp_priv->dev, irq, fsl_dsp_mu_isr,
-			IRQF_EARLY_RESUME, "dsp_mu_isr", &dsp_priv->proxy);
-	if (ret) {
-		dev_err(dev, "request_irq failed %d, err = %d\n", irq, ret);
-		return -EINVAL;
-	}
-
-	if (dsp_priv->dsp_is_lpa) {
-		ret = irq_set_irq_wake(irq, 1);
-		if (ret) {
-			dev_err(dev, "Failed to set IRQ %d as wake source: %d\n",
-					irq, ret);
-			return ret;
-		}
-	}
-
-	return ret;
-}
-
 static const struct file_operations dsp_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= fsl_dsp_ioctl,
@@ -1164,12 +1113,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 		goto configure_fail;
 	}
 
-	ret = dsp_mu_init(dsp_priv);
-	if (ret) {
-		pm_runtime_put_sync(&pdev->dev);
-		goto mu_init_fail;
-	}
-
 	pm_runtime_put_sync(&pdev->dev);
 	dsp_priv->dsp_mu_init = 0;
 	dsp_priv->proxy.is_ready = 0;
@@ -1313,10 +1256,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	if (IS_ERR(dsp_priv->debug_clk))
 		dsp_priv->debug_clk = NULL;
 
-	dsp_priv->mu2_clk = devm_clk_get(&pdev->dev, "mu2");
-	if (IS_ERR(dsp_priv->mu2_clk))
-		dsp_priv->mu2_clk = NULL;
-
 	dsp_priv->sdma_root_clk = devm_clk_get(&pdev->dev, "sdma_root");
 	if (IS_ERR(dsp_priv->sdma_root_clk))
 		dsp_priv->sdma_root_clk = NULL;
@@ -1354,7 +1293,6 @@ reserved_node_fail:
 	if (!dsp_priv->dsp_is_lpa)
 		misc_deregister(&dsp_miscdev);
 misc_register_fail:
-mu_init_fail:
 configure_fail:
 	pm_runtime_disable(&pdev->dev);
 	fsl_dsp_detach_pm_domains(&pdev->dev, dsp_priv);
@@ -1453,12 +1391,6 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		goto debug_clk;
 	}
 
-	ret = clk_prepare_enable(dsp_priv->mu2_clk);
-	if (ret < 0) {
-		dev_err(dev, "Failed to enable mu2_clk ret = %d\n", ret);
-		goto mu2_clk;
-	}
-
 	ret = clk_prepare_enable(dsp_priv->sdma_root_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable sdma_root _clk ret = %d\n", ret);
@@ -1508,8 +1440,11 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		imx_audiomix_dsp_pid_set(dsp_priv->audiomix, 0x1);
 
 	if (!dsp_priv->dsp_mu_init) {
-		MU_Init(dsp_priv->mu_base_virtaddr);
-		MU_EnableRxFullInt(dsp_priv->mu_base_virtaddr, 0);
+		ret = dsp_request_chan(proxy);
+		if (ret < 0) {
+			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
+			return ret;
+		}
 		dsp_priv->dsp_mu_init = 1;
 	}
 
@@ -1535,8 +1470,7 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 
 	return 0;
 
-mu2_clk:
-	clk_disable_unprepare(dsp_priv->debug_clk);
+
 debug_clk:
 	clk_disable_unprepare(dsp_priv->audio_axi_clk);
 audio_axi_clk:
@@ -1566,6 +1500,8 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 	struct xf_proxy *proxy = &dsp_priv->proxy;
 	int i;
 
+	dsp_free_chan(proxy);
+
 	dsp_priv->dsp_mu_init = 0;
 	proxy->is_ready = 0;
 
@@ -1583,7 +1519,6 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(dsp_priv->audio_root_clk);
 	clk_disable_unprepare(dsp_priv->audio_axi_clk);
 	clk_disable_unprepare(dsp_priv->debug_clk);
-	clk_disable_unprepare(dsp_priv->mu2_clk);
 	clk_disable_unprepare(dsp_priv->sdma_root_clk);
 	clk_disable_unprepare(dsp_priv->sai_ipg_clk);
 	clk_disable_unprepare(dsp_priv->sai_mclk);
