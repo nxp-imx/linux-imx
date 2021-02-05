@@ -2321,8 +2321,7 @@
 		reg = <0x0 0x3B6E8000 0x0 0x88000>;
 		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_OCRAMA_IPG>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSP_ROOT>,
-			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSPDBG_ROOT>,
-			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_MU2_ROOT>;
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSPDBG_ROOT>;
 		clock-names = "ocram", "core", "debug", "mu2";
 		fsl,dsp-firmware = "imx/dsp/hifi4.bin";
 		power-domains = <&audiomix_pd>;
