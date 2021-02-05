@@ -2326,11 +2326,13 @@
 		clock-names = "ocram", "core", "debug", "mu2";
 		fsl,dsp-firmware = "imx/dsp/hifi4.bin";
 		power-domains = <&audiomix_pd>;
-		mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
-		mboxes = <&mu2 2 0>,
-			<&mu2 2 1>,
-			<&mu2 3 0>,
-			<&mu2 3 1>;
+		mbox-names = "tx0", "tx1", "tx2", "rx0",
+					"txdb0", "txdb1", "rxdb0", "rxdb1";
+		mboxes =
+				<&mu2 0 0>, <&mu2 0 1>,
+				<&mu2 0 2>, <&mu2 1 0>,
+				<&mu2 2 0>, <&mu2 2 1>,
+				<&mu2 3 0>, <&mu2 3 1>;
 		status = "disabled";
 	};
 
