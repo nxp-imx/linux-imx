@@ -137,14 +137,14 @@ struct xf_message *xf_msg_received(struct xf_proxy *proxy,
 }
 
 /*
- * MU related functions
+ *  ...mailbox related functions.
  */
 u32 icm_intr_send(struct xf_proxy *proxy, u32 msg)
 {
 	struct fsl_dsp *dsp_priv = container_of(proxy,
 					struct fsl_dsp, proxy);
 
-	MU_SendMessage(dsp_priv->mu_base_virtaddr, 0, msg);
+	mbox_send_message(dsp_priv->chan_tx[0].ch, &msg);
 	return 0;
 }
 
@@ -161,9 +161,9 @@ int icm_intr_extended_send(struct xf_proxy *proxy,
 	if (msghdr.size != 8)
 		dev_err(dev, "too much ext msg\n");
 
-	MU_SendMessage(dsp_priv->mu_base_virtaddr, 1, ext_msg->phys);
-	MU_SendMessage(dsp_priv->mu_base_virtaddr, 2, ext_msg->size);
-	MU_SendMessage(dsp_priv->mu_base_virtaddr, 0, msg);
+	mbox_send_message(dsp_priv->chan_tx[1].ch, &ext_msg->phys);
+	mbox_send_message(dsp_priv->chan_tx[2].ch, &ext_msg->size);
+	mbox_send_message(dsp_priv->chan_tx[0].ch, &msg);
 
 	return 0;
 }
@@ -222,17 +222,19 @@ long icm_ack_wait(struct xf_proxy *proxy, u32 msg)
 	return 0;
 }
 
-irqreturn_t fsl_dsp_mu_isr(int irq, void *dev_id)
+/*
+ * ...mailbox related functions
+ */
+static void dsp_rx_callback(struct mbox_client *c, void *msg)
 {
-	struct xf_proxy *proxy = dev_id;
-	struct fsl_dsp *dsp_priv = container_of(proxy,
-					struct fsl_dsp, proxy);
-	struct device *dev = dsp_priv->dev;
-	union icm_header_t msghdr;
-	u32 reg;
 
-	MU_ReceiveMsg(dsp_priv->mu_base_virtaddr, 0, &reg);
-	msghdr = (union icm_header_t)reg;
+	struct device *dev = c->dev;
+	struct dsp_mailbox_chan *chan = container_of(c, struct dsp_mailbox_chan, cl);
+	struct fsl_dsp *dsp_priv = container_of(chan, struct fsl_dsp, chan_rx0);
+	struct xf_proxy *proxy = &dsp_priv->proxy;
+	union icm_header_t msghdr;
+
+	msghdr = *(union icm_header_t *)msg;
 
 	if (dsp_priv->dsp_is_lpa)
 		pm_system_wakeup();
@@ -265,8 +267,79 @@ irqreturn_t fsl_dsp_mu_isr(int irq, void *dev_id)
 		dev_dbg(dev, "Received false ICM intr 0x%08x\n",
 							msghdr.allbits);
 	}
+}
 
-	return IRQ_HANDLED;
+static int request_chan(struct fsl_dsp *dsp_priv, struct dsp_mailbox_chan *chan)
+{
+	int ret = 0;
+	struct mbox_client *cl;
+	struct device *dev = dsp_priv->dev;
+
+	cl = &chan->cl;
+	cl->tx_block = false;
+	cl->knows_txdone = false;
+	cl->dev = dev;
+	cl->rx_callback = dsp_rx_callback;
+
+	chan->ch = mbox_request_channel_byname(cl, chan->name);
+	if (IS_ERR(chan->ch)) {
+		chan->ch = NULL;
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+void dsp_free_chan(struct xf_proxy *proxy)
+{
+	struct fsl_dsp *dsp_priv = container_of(proxy,
+				struct fsl_dsp, proxy);
+	int i;
+
+	for (i = 0; i < NUM_MAILBOX_CHAN; i++) {
+		if (dsp_priv->chan_tx[i].ch) {
+			mbox_free_channel(dsp_priv->chan_tx[i].ch);
+			dsp_priv->chan_tx[i].ch = NULL;
+			memset(dsp_priv->chan_tx[i].name, 0, sizeof(dsp_priv->chan_tx[i].name));
+		}
+	}
+	if (dsp_priv->chan_rx0.ch) {
+		mbox_free_channel(dsp_priv->chan_rx0.ch);
+		dsp_priv->chan_rx0.ch =  NULL;
+		memset(dsp_priv->chan_rx0.name, 0, sizeof(dsp_priv->chan_rx0.name));
+	}
+}
+
+/* ...request mailbox chan */
+int dsp_request_chan(struct xf_proxy *proxy)
+{
+	struct fsl_dsp *dsp_priv = container_of(proxy, struct fsl_dsp, proxy);
+	struct device *dev = dsp_priv->dev;
+	int i;
+	int ret = 0;
+
+	for (i = 0; i < NUM_MAILBOX_CHAN; i++) {
+		scnprintf(dsp_priv->chan_tx[i].name, sizeof(dsp_priv->chan_tx[i].name) - 1,
+			"tx%d", i);
+		ret = request_chan(dsp_priv, &dsp_priv->chan_tx[i]);
+		if (ret) {
+			dev_err(dev, "request chan_tx failed\n");
+			goto err;
+		}
+	}
+
+	scnprintf(dsp_priv->chan_rx0.name, sizeof(dsp_priv->chan_rx0.name) - 1,
+		"rx0");
+	ret = request_chan(dsp_priv, &dsp_priv->chan_rx0);
+	if (ret) {
+		dev_err(dev, "request chan_rx0 failed\n");
+		goto err;
+	}
+	return ret;
+
+err:
+	dsp_free_chan(proxy);
+	return ret;
 }
 
 /*
