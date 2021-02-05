@@ -245,10 +245,6 @@ static const char *imx8mp_can2_sels[] = {"osc_24m", "sys_pll2_200m", "sys_pll1_4
 					 "sys_pll1_160m", "sys_pll1_800m", "sys_pll3_out",
 					 "sys_pll2_250m", "audio_pll2_out", };
 
-static const char *imx8mp_pcie_phy_sels[] = {"osc_24m", "sys_pll2_100m", "sys_pll2_500m",
-					     "clk_ext1", "clk_ext2", "clk_ext3",
-					     "clk_ext4", "sys_pll1_400m", };
-
 static const char *imx8mp_pcie_aux_sels[] = {"osc_24m", "sys_pll2_200m", "sys_pll2_50m",
 					     "sys_pll3_out", "sys_pll2_100m", "sys_pll1_80m",
 					     "sys_pll1_160m", "sys_pll1_200m", };
@@ -701,7 +697,6 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 	clks[IMX8MP_CLK_VPU_G2] = imx8m_clk_composite("vpu_g2", imx8mp_vpu_g2_sels, base + 0xa180);
 	clks[IMX8MP_CLK_CAN1] = imx8m_clk_composite("can1", imx8mp_can1_sels, base + 0xa200);
 	clks[IMX8MP_CLK_CAN2] = imx8m_clk_composite("can2", imx8mp_can2_sels, base + 0xa280);
-	clks[IMX8MP_CLK_PCIE_PHY] = imx8m_clk_composite("pcie_phy", imx8mp_pcie_phy_sels, base + 0xa380);
 	clks[IMX8MP_CLK_PCIE_AUX] = imx8m_clk_composite("pcie_aux", imx8mp_pcie_aux_sels, base + 0xa400);
 	clks[IMX8MP_CLK_I2C5] = imx8m_clk_composite("i2c5", imx8mp_i2c5_sels, base + 0xa480);
 	clks[IMX8MP_CLK_I2C6] = imx8m_clk_composite("i2c6", imx8mp_i2c6_sels, base + 0xa500);
