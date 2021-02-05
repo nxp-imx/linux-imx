@@ -83,6 +83,11 @@ Additional required properties for imx8mq-pcie:
 - clock-names: Must include the following additional entries:
 	- "pcie_aux"
 
+Additional required properties to enable L1sub for imx8mq-pcie, imx8mm-pcie
+and imx8mp-pcie:
+- reset-names: Must contain the following entries:
+	       - "clkreq"
+
 Additional required properties for imx8 pcie:
 - hsio-cfg: hsio configration mode when the pcie node is supported.
   mode 1: pciea 2 lanes and one sata ahci port.
