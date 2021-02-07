@@ -301,6 +301,9 @@ static int imx_pcm512x_startup(struct snd_pcm_substream *substream)
 		data->dac_pluspro = (ext_44sclk && ext_48sclk && !ext_nosclk);
 	}
 
+
+
+
 	return 0;
 }
 
@@ -346,6 +349,51 @@ static struct snd_soc_dai_link imx_pcm512x_dai[] = {
 		SND_SOC_DAILINK_REG(hifi),
 	},
 };
+
+static int  tpa6130init(struct snd_soc_component *component){
+
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HPLEFT");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HPRIGHT");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "LEFTIN");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "RIGHTIN");
+}
+
+/* aux device for optional headphone amp */
+static struct snd_soc_aux_dev hifiberry_dacplus_aux_devs[] = {
+        {
+                .dlc = {
+                        .name = "tpa6130a2.2-0060",
+                },
+		.init = tpa6130init,
+        },
+};
+
+
+static struct property tpa_enable_prop = {
+               .name = "status",
+               .length = 4 + 1, /* length 'okay' + 1 */
+               .value = "okay",
+        };
+
+
+
+static int hb_hp_detect(void)
+{
+        struct i2c_adapter *adap = i2c_get_adapter(2);
+        int ret;
+        struct i2c_client tpa_i2c_client = {
+                .addr = 0x60,
+                .adapter = adap,
+        };
+
+        if (!adap)
+                return -EPROBE_DEFER;   /* I2C module not yet available */
+
+        ret = i2c_smbus_read_byte(&tpa_i2c_client) >= 0;
+        i2c_put_adapter(adap);
+        return ret;
+};
+
 
 static int imx_pcm512x_probe(struct platform_device *pdev)
 {
@@ -426,6 +474,42 @@ static int imx_pcm512x_probe(struct platform_device *pdev)
 	data->card.dev = &pdev->dev;
 	data->card.dai_link = data->dai_link;
 	data->card.num_links = 1;
+
+        /* probe for head phone amp */
+        ret = hb_hp_detect();
+        if (ret) {
+		int len;
+		struct device_node *tpa_node;
+		struct property *tpa_prop;
+		struct of_changeset ocs;
+
+		dev_info(&pdev->dev, "found phone amp \n");
+                data->card.aux_dev = hifiberry_dacplus_aux_devs;
+                data->card.num_aux_devs =
+                                ARRAY_SIZE(hifiberry_dacplus_aux_devs);
+                tpa_node = of_find_compatible_node(NULL, NULL, "ti,tpa6130a2");
+                tpa_prop = of_find_property(tpa_node, "status", &len);
+
+                if (strcmp((char *)tpa_prop->value, "okay")) {
+                        /* and activate headphone using change_sets */
+                        dev_info(&pdev->dev, "activating headphone amplifier");
+                        of_changeset_init(&ocs);
+                        ret = of_changeset_update_property(&ocs, tpa_node,
+                                                        &tpa_enable_prop);
+                        if (ret) {
+                                dev_err(&pdev->dev,
+                                "cannot activate headphone amplifier\n");
+                                return -ENODEV;
+                        }
+                        ret = of_changeset_apply(&ocs);
+                        if (ret) {
+                                dev_err(&pdev->dev,
+                                "cannot activate headphone amplifier\n");
+                                return -ENODEV;
+                        }
+                }
+
+        }
 
 	ret = snd_soc_of_parse_card_name(&data->card, "model");
 	if (ret) {
@@ -515,6 +599,7 @@ static int imx_pcm512x_probe(struct platform_device *pdev)
 	}
 	extcon_set_state_sync(rpmsg_edev, EXTCON_JACK_LINE_OUT, 1);
 #endif
+
 
 	ret = 0;
 fail:

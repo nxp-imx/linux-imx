@@ -70,8 +70,9 @@
 	};
 
 	sound-wm8960 {
-		status = "disabled";
+		audio-codec = <&codec1>;
 	};
+
 
 	rpmsg_i2s: rpmsg-i2s {
 		compatible = "fsl,imx8mp-pcm512x-rpmsg-i2s";
@@ -96,13 +97,9 @@
 		audio-widgets =
 			"Line", "Left Line Out Jack",
 			"Line", "Right Line Out Jack";
-			/* "Headphone", "Headphone Jack"; */
 		audio-routing =
 			"Left Line Out Jack", "OUTL",
 			"Right Line Out Jack", "OUTR";
-			/*
-			"Headphone Jack", "HPLEFT",
-			"Headphone Jack", "HPRIGHT"; */
 		bitclock-master = <&codec>;
 		frame-master = <&codec>;
 		dac,24db_digital_gain;
@@ -200,6 +197,16 @@
                 status = "disabled";
         };
 
+
+
+	codec1: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>;
+		clock-names = "mclk";
+		wlf,shared-lrclk;
+		SPKVDD1-supply = <&reg_audio_pwr>;
+	};
 };
 
 &pwm4{
@@ -229,13 +236,11 @@
 	status = "disabled";
 };
 
-&sai2 {
-	status = "disabled";
-};
-
+/*
 &sai3 {
 	status = "disabled";
 };
+*/
 
 &sai5 {
 	status = "disabled";
@@ -245,105 +250,6 @@
 	status = "disabled";
 };
 
-&usdhc1 {
-	imx8mp-disable-emmc-request-high;
-};
-
-&usdhc2 {
-	imx8mp-disable-emmc-request-high;
-};
-
-&usdhc3 {
-	imx8mp-disable-emmc-request-high;
-};
-
-/ {
-  busfreq {
-	enable-gic-100mts;
-	enable-ddr-400mts;
-  };
-};
-
-&fec {
-	status = "disabled";
-};
-
-&ldb {
-	status = "disabled";
-};
-
-&uart1 {
-	imx8mp-disable-uart-request-high;
-};
-
-&uart2 {
-	imx8mp-disable-uart-request-high;
-};
-
-&uart3 {
-	imx8mp-disable-uart-request-high;
-};
-
-/ {
-  sound-hdmi {
-	status = "disabled";
-  };
-};
-
-&irqsteer_hdmi {
-	status = "disabled";
-};
-
-&hdmimix_clk {
-	status = "disabled";
-};
-
-&hdmimix_reset {
-	status = "disabled";
-};
-
-&hdmi_pavi {
-	status = "disabled";
-};
-
-&hdmi {
-	status = "disabled";
-};
-
-&hdmiphy {
-	status = "disabled";
-};
-
-&lcdif3 {
-	status = "disabled";
-};
-
 &easrc {
-	status = "disabled";
+	status = "okay";
 };
-
-&micfil {
-	status = "disabled";
-};
-
-&pcie{
-	status = "disabled";
-};
-
-
-&pcie_phy{
-	status = "disabled";
-};
-
-&ml_vipsi {
-	status = "disabled";
-};
-
-&dsp {
-	status = "disabled";
-};
-
-&easrc {
-	status = "disabled";
-};
-
