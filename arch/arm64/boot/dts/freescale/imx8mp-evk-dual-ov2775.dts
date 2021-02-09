@@ -101,10 +101,6 @@
 	status = "okay";
 };
 
-&dewarp_1 {
-	status = "okay";
-};
-
 &mipi_csi_0 {
 	status = "okay";
 	clock-frequency = <266000000>;
