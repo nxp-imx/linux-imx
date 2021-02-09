@@ -1158,8 +1158,10 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	struct adv7511_link_config link_config;
 	struct adv7511 *adv7511;
 	struct device *dev = &i2c->dev;
+#if IS_ENABLED(CONFIG_OF_DYNAMIC)
 	struct device_node *remote_node = NULL, *endpoint = NULL;
 	struct of_changeset ocs;
+#endif
 	unsigned int main_i2c_addr = i2c->addr << 1;
 	unsigned int edid_i2c_addr = main_i2c_addr + 4;
 	unsigned int cec_i2c_addr = main_i2c_addr - 2;
@@ -1319,6 +1321,7 @@ err_i2c_unregister_edid:
 	i2c_unregister_device(adv7511->i2c_edid);
 uninit_regulators:
 	adv7511_uninit_regulators(adv7511);
+#if IS_ENABLED(CONFIG_OF_DYNAMIC)
 	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
 	if (endpoint)
 		remote_node = of_graph_get_remote_port_parent(endpoint);
@@ -1348,6 +1351,7 @@ uninit_regulators:
 		dev_warn(dev,
 			 "Probe failed. Remote port '%s' disabled\n",
 			 remote_node->full_name);
+#endif
 
 	return ret;
 }
