@@ -275,6 +275,7 @@ imx8mp_ldb_bind(struct device *dev, struct device *master, void *data)
 	struct drm_encoder *encoder[LDB_CH_NUM];
 	int ret;
 	int i;
+	static int bind_failed_times = 0;
 
 	ldb = &imx8mp_ldb->base;
 	ldb->dev = dev;
@@ -302,8 +303,13 @@ imx8mp_ldb_bind(struct device *dev, struct device *master, void *data)
 	pm_runtime_enable(dev);
 
 	ret = ldb_bind(ldb, encoder);
-	if (ret)
+	if (ret) {
+		bind_failed_times++;
+		dev_err(dev, "failed to bind the drm bridge, error number %d \n", ret);
+		if (bind_failed_times > 4)
+			ret = 0;
 		goto disable_pm_runtime;
+	}
 
 	for_each_child_of_node(np, child) {
 		struct imx8mp_ldb_channel *imx8mp_ldb_ch;
