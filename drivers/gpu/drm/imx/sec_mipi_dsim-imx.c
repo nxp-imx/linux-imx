@@ -286,6 +286,7 @@ static int imx_sec_dsim_bind(struct device *dev, struct device *master,
 							   dev);
 	const struct sec_mipi_dsim_plat_data *pdata;
 	struct drm_encoder *encoder;
+	static int bind_failed_times = 0;
 
 	dev_dbg(dev, "%s: dsim bind begin\n", __func__);
 
@@ -342,6 +343,10 @@ static int imx_sec_dsim_bind(struct device *dev, struct device *master,
 		 * when there exists multiple heads display.
 		 */
 		if (ret == -ENODEV)
+			return 0;
+
+		bind_failed_times++;
+		if (bind_failed_times > 4)
 			return 0;
 
 		return ret;
