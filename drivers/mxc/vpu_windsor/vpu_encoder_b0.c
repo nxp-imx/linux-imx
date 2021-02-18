@@ -1425,6 +1425,7 @@ static int vpu_enc_v4l2_ioctl_qbuf(struct file *file,
 static void notify_eos(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
+		.id = 0,
 		.type = V4L2_EVENT_EOS
 	};
 
