@@ -2966,6 +2966,7 @@ static int vpu_dec_cmd_reset(struct vpu_ctx *ctx)
 static void vpu_dec_event_decode_error(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
+		.id = 0,
 		.type = V4L2_EVENT_CODEC_ERROR
 	};
 
@@ -3334,6 +3335,7 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 static void send_skip_event(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
+		.id = 0,
 		.type = V4L2_EVENT_SKIP,
 		.u.data[0] = 0xff,
 	};
@@ -3349,6 +3351,7 @@ static void send_skip_event(struct vpu_ctx *ctx)
 static void send_eos_event(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
+		.id = 0,
 		.type = V4L2_EVENT_EOS
 	};
 
@@ -3362,6 +3365,7 @@ static void send_eos_event(struct vpu_ctx *ctx)
 static void send_source_change_event(struct vpu_ctx *ctx)
 {
 	const struct v4l2_event ev = {
+		.id = 0,
 		.type = V4L2_EVENT_SOURCE_CHANGE,
 		.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION
 	};
@@ -4415,8 +4419,10 @@ static int vpu_next_free_instance(struct vpu_dev *dev)
 	}
 
 	idx = ffz(dev->instance_mask);
-	if (idx < 0 || idx >= VPU_MAX_NUM_STREAMS)
+	if (idx < 0 || idx >= VPU_MAX_NUM_STREAMS) {
+		vpu_err("no free instance\n");
 		return -EBUSY;
+	}
 
 	release_vpu_ctx(dev->ctx[idx]);
 
@@ -5693,6 +5699,7 @@ static int v4l2_open(struct file *filp)
 	pm_runtime_get_sync(dev->generic_dev);
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
+		vpu_err("failed to create decoder ctx\n");
 		pm_runtime_put_sync(dev->generic_dev);
 		return -ENOMEM;
 	}

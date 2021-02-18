@@ -152,7 +152,7 @@ int vpu_mu_request(struct vpu_dev *dev)
 		if (!ret)
 			dev->vpu_mu_init = TRUE;
 		else
-			vpu_dbg(LVL_WARN, "warning: init rtx channel failed, ret: %d\n",
+			vpu_dbg(LVL_WARN, "init rtx channel failed, ret: %d\n",
 				ret);
 	}
 
