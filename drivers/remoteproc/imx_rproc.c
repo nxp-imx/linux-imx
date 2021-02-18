@@ -479,7 +479,7 @@ static int imx_rproc_da_to_sys(struct imx_rproc *priv, u64 da,
 	return -ENOENT;
 }
 
-static void *imx_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len)
+static void *imx_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len, bool *is_iomem)
 {
 	struct imx_rproc *priv = rproc->priv;
 	void *va = NULL;
@@ -577,7 +577,7 @@ static int imx_rproc_parse_memory_regions(struct rproc *rproc)
 				dev_err(priv->dev, "Found duplicated rsc_table\n");
 				return -EINVAL;
 			}
-			priv->rsc_va = rproc_da_to_va(rproc, (u64)da, SZ_1K);
+			priv->rsc_va = rproc_da_to_va(rproc, (u64)da, SZ_1K, NULL);
 			if (!priv->rsc_va) {
 				dev_err(priv->dev, "no map for rsc_table: %x\n", da);
 				return -EINVAL;
