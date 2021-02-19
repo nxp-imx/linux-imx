@@ -16,7 +16,7 @@
 #include <linux/suspend.h>
 #include <linux/syscalls.h>
 #include <linux/pm_runtime.h>
-
+#include <linux/io.h>
 #include "power.h"
 
 #ifdef CONFIG_PM_SLEEP
@@ -630,6 +630,77 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 power_attr(state);
 
+
+/**
+ * lpa - control Low-Power Audio (LPA) mode.
+ *
+ * show() returns current LPA state, which may be either:
+ *   - "0" (disabled), or
+ *   - "1" (enabled).
+ *
+ * store() accepts one of those strings,
+ * and enable or disable LPA flag in ATF accordingly.
+ */
+
+#define IMX_SRC_BASE   0x30390000
+#define SRC_GPR9       0x00000098
+#define LPA_MASK       0x00000F00
+#define LPA_CLEAR_MASK 0xFFFFF0FF
+#define LPA_ENABLED    0x00000500
+
+void __iomem *src_gpr9_reg;
+
+void imx_lpa_enable(bool enable)
+{
+       uint32_t val;
+
+       /* Retrieve SRC GPR9 register content */
+       val = readl(src_gpr9_reg);
+       /* Clear LPA Flag */
+       val &= LPA_CLEAR_MASK;
+       /* Update content */
+       if (enable) {
+               val |= LPA_ENABLED;
+               pr_info("LPA: enabled\n");
+       } else {
+               pr_info("LPA: disabled\n");
+       }
+       writel(val, src_gpr9_reg);
+}
+
+bool imx_lpa_is_enabled(void)
+{
+       uint32_t val;
+
+       /* Retrieve SRC GPR9 register content */
+       val = readl(src_gpr9_reg) & LPA_MASK;
+
+       return (val == LPA_ENABLED);
+}
+
+static ssize_t lpa_show(struct kobject *kobj, struct kobj_attribute *attr,
+                       char *buf)
+{
+       return sprintf(buf, "%u\n", imx_lpa_is_enabled());
+}
+
+static ssize_t lpa_store(struct kobject *kobj, struct kobj_attribute *attr,
+                        const char *buf, size_t n)
+{
+       unsigned long val;
+
+       if (kstrtoul(buf, 10, &val))
+               return -EINVAL;
+       if (val > 1)
+               return -EINVAL;
+
+       imx_lpa_enable(val);
+
+       return n;
+}
+
+power_attr(lpa);
+
 #ifdef CONFIG_PM_SLEEP
 /*
  * The 'wakeup_count' attribute, along with the functions defined in
@@ -856,6 +927,8 @@ static struct attribute * g[] = {
 #ifdef CONFIG_SUSPEND
 	&mem_sleep_attr.attr,
 #endif
+	&lpa_attr.attr,
+
 #ifdef CONFIG_PM_AUTOSLEEP
 	&autosleep_attr.attr,
 #endif
@@ -903,6 +976,8 @@ static int __init pm_init(void)
 	int error = pm_start_workqueue();
 	if (error)
 		return error;
+	/* Map SRC GPR9 register */
+	src_gpr9_reg = ioremap(IMX_SRC_BASE + SRC_GPR9, sizeof(uint32_t));
 	hibernate_image_size_init();
 	hibernate_reserved_size_init();
 	pm_states_init();

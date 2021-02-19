@@ -100,6 +100,25 @@ static int i2s_rpmsg_probe(struct rpmsg_device *rpdev)
 		}
 	}
 
+
+
+	if (rpmsg_i2s->codec_pcm512x) {
+		rpmsg_codec[0].audioindex = rpmsg_i2s->codec_pcm512x >> 16;
+		rpmsg_codec[0].shared_lrclk = true;
+		rpmsg_codec[0].capless = false;
+		codec_pdev = platform_device_register_data(
+					&rpmsg_i2s->pdev->dev,
+					RPMSG_CODEC_DRV_NAME_PCM512X,
+					PLATFORM_DEVID_NONE,
+					&rpmsg_codec[0], sizeof(struct fsl_rpmsg_codec));
+		if (IS_ERR(codec_pdev)) {
+			dev_err(&rpdev->dev,
+				"failed to register rpmsg audio codec\n");
+			ret = PTR_ERR(codec_pdev);
+			return ret;
+		}
+	}
+
 	if (rpmsg_i2s->codec_cs42888) {
 		rpmsg_codec[1].audioindex = rpmsg_i2s->codec_cs42888 >> 16;
 		strcpy(rpmsg_codec[1].name, "cs42888");

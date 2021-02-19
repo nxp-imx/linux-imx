@@ -306,8 +306,9 @@
 #define         GET_CODEC_VALUE         0x15
 #define		I2S_TX_POINTER		0x16
 #define		I2S_RX_POINTER		0x17
+#define		I2S_SAI_FORMAT		0x18
 
-#define         I2S_TYPE_A_NUM          0x18
+#define         I2S_TYPE_A_NUM          0x19
 
 #define         WORK_MAX_NUM		0x30
 
@@ -347,6 +348,7 @@ struct i2s_param_s {
 	unsigned int  buffer_size;  /* register value for SET_CODEC_VALUE*/
 	unsigned int  period_size;
 	unsigned int  buffer_tail;
+	unsigned int  dai_format;
 } __packed;
 
 struct i2s_param_r {
@@ -358,6 +360,7 @@ struct i2s_param_r {
 	unsigned int  reg_data;
 	unsigned char reserved2[4];
 	unsigned int  buffer_tail;
+	unsigned char reserved3[4];
 } __packed;
 
 /* struct of send message */
@@ -429,6 +432,7 @@ struct fsl_rpmsg_i2s {
 	int codec_wm8960;
 	int codec_cs42888;
 	int codec_ak4497;
+	int codec_pcm512x;
 	int codec_in_dt;
 	int force_lpa;
 	int version;
@@ -438,6 +442,7 @@ struct fsl_rpmsg_i2s {
 };
 
 #define RPMSG_CODEC_DRV_NAME_WM8960 "rpmsg-audio-codec-wm8960"
+#define RPMSG_CODEC_DRV_NAME_PCM512X "rpmsg-audio-codec-pcm512x"
 #define RPMSG_CODEC_DRV_NAME_CS42888 "rpmsg-audio-codec-cs42888"
 #define RPMSG_CODEC_DRV_NAME_AK4497 "rpmsg-audio-codec-ak4497"
 

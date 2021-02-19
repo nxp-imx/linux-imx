@@ -1,0 +1,230 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright 2020 NXP
+ */
+
+/dts-v1/;
+
+#include "imx8mp-evk.dts"
+
+/ {
+	aliases {
+		i2c0 = &i2c1;
+		i2c1 = &i2c2;
+		i2c2 = &i2c_rpbus_3;
+	};
+
+	ext_osc_22m: ext-osc-22m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <22579200>;
+		clock-output-names = "sclk0";
+	};
+
+	ext_osc_24m: ext-osc-24m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24576000>;
+		clock-output-names = "sclk1";
+	};
+
+	reg_3v3_vext: regulator-3v3-vext {
+		compatible = "regulator-fixed";
+		regulator-name = "3V3_VEXT";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		m4_reserved: m4@0x80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+
+		vdev0vring0: vdev0vring0@55000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x55000000 0 0x8000>;
+			no-map;
+		};
+
+		vdev0vring1: vdev0vring1@55008000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x55008000 0 0x8000>;
+			no-map;
+		};
+		vdevbuffer: vdevbuffer@55400000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x55400000 0 0x100000>;
+			no-map;
+		};
+
+		audio_reserved: audio@0x81000000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0x81000000 0 0x10000000>;
+		};
+	};
+
+	sound-wm8960 {
+		status = "disabled";
+	};
+
+	rpmsg_i2s: rpmsg-i2s {
+		compatible = "fsl,imx8mp-pcm512x-rpmsg-i2s";
+		/* the audio device index in m4 domain */
+		fsl,audioindex = <0> ;
+		fsl,dma-buffer-size = <0x6000000>;
+		fsl,enable-lpa;
+		power-domains = <&audiomix_pd>;
+		status = "okay";
+	};
+
+	sound-rpmsg {
+		compatible = "fsl,rpmsg-imx-audio-pcm512x";
+                //compatible = "fsl,imx-audio-rpmsg";
+		model = "pcm512x-audio";
+		audio-cpu = <&rpmsg_i2s>;
+                //cpu-dai = <&rpmsg_i2s>;
+		audio-codec = <&codec>;
+		memory-region = <&audio_reserved>;
+		rpmsg-out;
+		format = "i2s";
+		audio-widgets =
+			"Line", "Left Line Out Jack",
+			"Line", "Right Line Out Jack";
+		audio-routing =
+			"Left Line Out Jack", "OUTL",
+			"Right Line Out Jack", "OUTR";
+		//bitclock-master = <&codec>;
+		//frame-master = <&codec>;
+		dac,24db_digital_gain;
+		dac,led_status;
+	};
+
+	imx8mp-cm7 {
+		compatible = "fsl,imx8mn-cm7";
+		rsc-da = <0x55000000>;
+		clocks = <&clk IMX8MP_CLK_M7_DIV>;
+		mbox-names = "tx", "rx", "rxdb";
+		mboxes = <&mu 0 1
+			  &mu 1 1
+			  &mu 3 1>;
+		memory-region = <&vdev0vring0>, <&vdev0vring1>, <&vdevbuffer>;
+		status = "okay";
+	};
+};
+
+/*
+ * ATTENTION: M7 may use IPs like below
+ * ECSPI0/ECSPI2, FLEXCAN, GPIO1/GPIO5, GPT1, I2C3, I2S3, UART4,
+ * PWM4, SDMA1/SDMA2
+ */
+&ecspi2 {
+	status = "disabled";
+};
+
+&flexcan1 {
+	status = "disabled";
+};
+
+&flexspi {
+	status = "disabled";
+};
+
+/delete-node/ &i2c3;
+
+&i2c_rpbus_3 {
+	compatible = "fsl,i2c-rpbus";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+
+	pca6416: gpio@20 {
+		compatible = "ti,tca6416";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	ov5640_1: ov5640_mipi@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi0_pwn>, <&pinctrl_csi0_rst>;
+		clocks = <&clk IMX8MP_CLK_IPP_DO_CLKO2>;
+		clock-names = "xclk";
+		assigned-clocks = <&clk IMX8MP_CLK_IPP_DO_CLKO2>;
+		assigned-clock-parents = <&clk IMX8MP_CLK_24M>;
+		assigned-clock-rates = <24000000>;
+		csi_id = <0>;
+		powerdown-gpios = <&gpio4 1 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 0 GPIO_ACTIVE_LOW>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		mipi_csi;
+		status = "disabled";
+
+		port {
+			ov5640_mipi_1_ep: endpoint {
+				remote-endpoint = <&mipi_csi1_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+			};
+		};
+	};
+
+
+	codec: pcm512x@4d {
+		compatible = "ti,pcm5121,lpa";
+		reg = <0x4d>;
+		AVDD-supply = <&reg_3v3_vext>;
+		DVDD-supply = <&reg_3v3_vext>;
+		CPVDD-supply = <&reg_3v3_vext>;
+		//clocks = <&ext_osc_22m>, <&ext_osc_24m>;
+		//clock-names = "sclk0", "sclk1";
+	};
+};
+
+&pwm4{
+	status = "disabled";
+};
+
+&rpmsg{
+	/*
+	 * 64K for one rpmsg instance:
+	 * --0x55000000~0x5500ffff: pingpong
+	 */
+	vdev-nums = <1>;
+	reg = <0x0 0x55000000 0x0 0x10000>;
+	memory-region = <&vdevbuffer>;
+	status = "disabled";
+};
+
+&sdma1{
+	status = "disabled";
+};
+
+&sdma3{
+	status = "disabled";
+};
+
+&uart4 {
+	status = "disabled";
+};
+
+&sai3 {
+	status = "disabled";
+};
+
+&sai5 {
+	status = "disabled";
+};
+
+&micfil {
+	status = "disabled";
+};

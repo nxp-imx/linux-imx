@@ -140,9 +140,28 @@ static void fsl_rpmsg_shutdown(struct snd_pcm_substream *substream,
 		i2s_info->rpmsg_wakeup_source = NULL;
 	}
 }
+
+static int fsl_rpmsg_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
+{
+	struct fsl_rpmsg_i2s       *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
+	struct i2s_info            *i2s_info =  &rpmsg_i2s->i2s_info;
+
+	struct i2s_rpmsg *rpmsg;
+
+	rpmsg = &i2s_info->rpmsg[I2S_SAI_FORMAT];
+
+	rpmsg->send_msg.header.cmd = I2S_SAI_FORMAT;
+	rpmsg->send_msg.param.dai_format = fmt;
+
+	i2s_send_message(rpmsg, i2s_info);
+
+	return 0;
+}
+
 static const struct snd_soc_dai_ops fsl_rpmsg_dai_ops = {
 	.startup	= fsl_rpmsg_startup,
-	.shutdown	= fsl_rpmsg_shutdown,
+        .shutdown       = fsl_rpmsg_shutdown,
+	.set_fmt	= fsl_rpmsg_set_dai_fmt,
 };
 
 static struct snd_soc_dai_driver fsl_rpmsg_i2s_dai = {
@@ -177,6 +196,7 @@ static const struct of_device_id fsl_rpmsg_i2s_ids[] = {
 	{ .compatible = "fsl,imx8qm-rpmsg-i2s"},
 	{ .compatible = "fsl,imx8mn-rpmsg-i2s"},
 	{ .compatible = "fsl,imx8mp-rpmsg-i2s"},
+	{ .compatible = "fsl,imx8mp-pcm512x-rpmsg-i2s"},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_rpmsg_i2s_ids);
@@ -350,6 +370,24 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 				   SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_88200 |
 				   SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_176400 |
 				   SNDRV_PCM_RATE_192000;
+		rpmsg_i2s->formats = SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE;
+
+		fsl_rpmsg_i2s_dai.playback.rates = rpmsg_i2s->rates;
+		fsl_rpmsg_i2s_dai.playback.formats = rpmsg_i2s->formats;
+		fsl_rpmsg_i2s_dai.capture.rates = rpmsg_i2s->rates;
+		fsl_rpmsg_i2s_dai.capture.formats = rpmsg_i2s->formats;
+	}
+	if (of_device_is_compatible(pdev->dev.of_node,
+				    "fsl,imx8mp-pcm512x-rpmsg-i2s")) {
+		rpmsg_i2s->codec_pcm512x = 1;
+		rpmsg_i2s->codec_in_dt = 1;
+		rpmsg_i2s->version = 2;
+		rpmsg_i2s->rates = SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |
+				   SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_88200 |
+				   SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_176400 |
+				   SNDRV_PCM_RATE_192000| SNDRV_PCM_RATE_384000;
 		rpmsg_i2s->formats = SNDRV_PCM_FMTBIT_S16_LE |
 					SNDRV_PCM_FMTBIT_S24_LE |
 					SNDRV_PCM_FMTBIT_S32_LE;

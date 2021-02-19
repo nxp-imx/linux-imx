@@ -123,17 +123,17 @@ static const struct clk_ops imx8m_clk_composite_divider_ops = {
 	.set_rate = imx8m_clk_composite_divider_set_rate,
 };
 
-static char *m4_lpa_required_ccm_slices[ ] = {"audio_ahb","i2c3","sai3","uart4","gic","gpt1","pwm4"};
+static char *m4_lpa_required_ccm_slices[ ] = {"main_axi","noc","noc_io","ahb_root","audio_ahb","dram_alt","dram_apb","i2c3","sai5","uart4","gic","gpt1","pwm4"};
 
-static bool m4_lpa_required(const char *name){
-	int i;
 
-	for(i = 0; i < sizeof(m4_lpa_required_ccm_slices) / sizeof(m4_lpa_required_ccm_slices[0]); i++){
-		if (strstr(m4_lpa_required_ccm_slices[i], name) != NULL)
-			return true;
-	}
+static int m4_lpa_required(const char *name){
+        int i;
 
-	return false;
+        for(i = 0; i < sizeof(m4_lpa_required_ccm_slices) / sizeof(m4_lpa_required_ccm_slices[0]); i++){
+                if (strstr(m4_lpa_required_ccm_slices[i], name) != NULL)
+                        return 1;
+        }
+        return 0;
 }
 
 struct clk *imx8m_clk_composite_flags(const char *name,

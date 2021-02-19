@@ -627,6 +627,19 @@ config SND_SOC_IMX_PCM512X
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  an pcm512x codec.
 
+config SND_SOC_RPMSG_IMX_PCM512X
+	tristate "SoC RPMSG Audio support for i.MX boards with PCM512x"
+	depends on RPMSG
+	select SND_SOC_IMX_PCM_RPMSG
+	select SND_SOC_IMX_I2S_RPMSG
+	select SND_SOC_FSL_RPMSG_I2S
+        select SND_SOC_RPMSG_PCM512X
+
+	help
+	  SoC RPMSG Audio support for i.MX boards with pcm512x
+	  Say Y if you want to add support for SoC RPMSG audio on an i.MX board with
+	  an pcm512x codec.
+
 endif # SND_IMX_SOC
 
 endmenu

@@ -117,6 +117,16 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (rpmsg_i2s->codec_pcm512x) {
+		if (rpmsg_i2s->codec_in_dt) {
+			data->dai[0].codecs->of_node = codec_np;
+			data->dai[0].codecs->dai_name = "rpmsg-pcm512x-hifi";
+		} else {
+			data->dai[0].codecs->dai_name = "rpmsg-pcm512x-hifi";
+			data->dai[0].codecs->name = "rpmsg-audio-codec-pcm512x";
+		}
+	}
+
 	if (rpmsg_i2s->codec_dummy) {
 		data->dai[0].codecs->dai_name = "snd-soc-dummy-dai";
 		data->dai[0].codecs->name = "snd-soc-dummy";
