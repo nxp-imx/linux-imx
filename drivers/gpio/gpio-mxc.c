@@ -480,7 +480,7 @@ static int mxc_gpio_irq_reqres(struct irq_data *d)
 		return -EINVAL;
 	}
 
-	return irq_chip_pm_get(d);
+	return 0;
 }
 
 static void mxc_gpio_irq_relres(struct irq_data *d)
@@ -489,7 +489,6 @@ static void mxc_gpio_irq_relres(struct irq_data *d)
 	struct mxc_gpio_port *port = gc->private;
 
 	gpiochip_unlock_as_irq(&port->gc, d->hwirq);
-	irq_chip_pm_put(d);
 }
 
 static int mxc_gpio_init_gc(struct mxc_gpio_port *port, int irq_base,
