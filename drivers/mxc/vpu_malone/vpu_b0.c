@@ -6114,6 +6114,14 @@ static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 	dev->m0_rpc_phy = reserved_res.start;
 	dev->m0_rpc_size = reserved_res.end - reserved_res.start;
 
+	if (rpc_check_memory_region(dev->m0_p_fw_space_phy,
+				dev->m0_rpc_phy,
+				dev->m0_rpc_size) != VPU_RPC_MEMORY_UNCACHED) {
+		vpu_err("rpc region<0x%x, 0x%x> isn't uncached for mu\n",
+				dev->m0_rpc_phy, dev->m0_rpc_size);
+		return -EINVAL;
+	}
+
 	ret = of_property_read_u32(np, "reg-csr", &csr_base);
 	if (ret) {
 		vpu_err("error: Cannot get csr offset %d\n", ret);

@@ -121,4 +121,12 @@ u_int32 rpc_MediaIPFW_Video_message_check(struct shared_addr *This);
 bool rpc_check_is_ready(struct shared_addr *This, u32 idx);
 void rpc_init_instance(struct shared_addr *This, u32 idx);
 
+enum {
+	VPU_RPC_MEMORY_INVALID = 0,
+	VPU_RPC_MEMORY_CACHED,
+	VPU_RPC_MEMORY_UNCACHED
+};
+
+u32 rpc_check_memory_region(dma_addr_t base, dma_addr_t addr, u32 size);
+
 #endif
