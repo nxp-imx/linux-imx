@@ -5261,6 +5261,36 @@ static int parse_dt_cores(struct vpu_dev *dev, struct device_node *np)
 	return 0;
 }
 
+static int check_core_region(struct core_device *core, struct vpu_dev *dev)
+{
+	u32 rpc_size;
+
+	if (!core)
+		return -EINVAL;
+
+	rpc_size = core->rpc_buf_size + core->print_buf_size;
+	if (rpc_check_memory_region_encoder(core->m0_p_fw_space_phy,
+			core->m0_rpc_phy,
+			rpc_size) != VPU_RPC_MEMORY_UNCACHED) {
+		vpu_err("rpc region<0x%x,0x%x> isn't uncached for mu[%d]\n",
+				core->m0_rpc_phy,
+				rpc_size,
+				core->id);
+		return -EINVAL;
+	}
+	if (rpc_check_memory_region_encoder(core->m0_p_fw_space_phy,
+			dev->reserved_mem.phy_addr,
+			dev->reserved_mem.size) != VPU_RPC_MEMORY_UNCACHED) {
+		vpu_err("reserved mem<0x%lx,0x%lx> isn't uncached for mu[%d]\n",
+				dev->reserved_mem.phy_addr,
+				dev->reserved_mem.size,
+				core->id);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 {
 	int ret;
@@ -5331,6 +5361,9 @@ static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 		fw_total_size += core->fw_buf_size;
 		rpc_total_size += core->rpc_buf_size;
 		rpc_total_size += core->print_buf_size;
+
+		if (check_core_region(core, dev))
+			return -EINVAL;
 	}
 
 	if (fw_total_size > resource_size(&reserved_fw)) {
