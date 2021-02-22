@@ -383,23 +383,6 @@ static s32 __user *get_out_fence_for_connector(struct drm_atomic_state *state,
 	return fence_ptr;
 }
 
-static void set_android_out_fence_for_crtc(struct drm_atomic_state *state,
-				struct drm_crtc *crtc, s32 __user *fence_ptr)
-{
-	state->crtcs[drm_crtc_index(crtc)].android_out_fence_ptr = fence_ptr;
-}
-
-static s32 __user *get_android_out_fence_for_crtc(
-			struct drm_atomic_state *state, struct drm_crtc *crtc)
-{
-	s32 __user *fence_ptr;
-
-	fence_ptr = state->crtcs[drm_crtc_index(crtc)].android_out_fence_ptr;
-	state->crtcs[drm_crtc_index(crtc)].android_out_fence_ptr = NULL;
-
-	return fence_ptr;
-}
-
 static int
 drm_atomic_replace_property_blob_from_id(struct drm_device *dev,
 					 struct drm_property_blob **blob,
@@ -486,16 +469,6 @@ static int drm_atomic_crtc_set_property(struct drm_crtc *crtc,
 			return -EFAULT;
 
 		set_out_fence_for_crtc(state->state, crtc, fence_ptr);
-	} else if (property == config->prop_android_out_fence_ptr) {
-		s32 __user *fence_ptr = u64_to_user_ptr(val);
-
-		if (!fence_ptr)
-			return 0;
-
-		if (put_user(-1, fence_ptr))
-			return -EFAULT;
-
-		set_android_out_fence_for_crtc(state->state, crtc, fence_ptr);
 	} else if (crtc->funcs->atomic_set_property) {
 		return crtc->funcs->atomic_set_property(crtc, state, property, val);
 	} else {
@@ -529,8 +502,6 @@ drm_atomic_crtc_get_property(struct drm_crtc *crtc,
 	else if (property == config->gamma_lut_property)
 		*val = (state->gamma_lut) ? state->gamma_lut->base.id : 0;
 	else if (property == config->prop_out_fence_ptr)
-		*val = 0;
-	else if (property == config->prop_android_out_fence_ptr)
 		*val = 0;
 	else if (crtc->funcs->atomic_get_property)
 		return crtc->funcs->atomic_get_property(crtc, state, property, val);
@@ -1119,10 +1090,8 @@ static int setup_out_fence(struct drm_out_fence_state *fence_state,
 	if (fence_state->fd < 0)
 		return fence_state->fd;
 
-	if (fence_state->out_fence_ptr) {
-		if (put_user(fence_state->fd, fence_state->out_fence_ptr))
-			return -EFAULT;
-	}
+	if (put_user(fence_state->fd, fence_state->out_fence_ptr))
+		return -EFAULT;
 
 	fence_state->sync_file = sync_file_create(fence);
 	if (!fence_state->sync_file)
@@ -1149,11 +1118,8 @@ static int prepare_signaling(struct drm_device *dev,
 
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		s32 __user *fence_ptr;
-		s32 __user *android_fence_ptr;
 
 		fence_ptr = get_out_fence_for_crtc(crtc_state->state, crtc);
-		android_fence_ptr = get_android_out_fence_for_crtc(
-				crtc_state->state, crtc);
 
 		if (arg->flags & DRM_MODE_PAGE_FLIP_EVENT || fence_ptr) {
 			struct drm_pending_vblank_event *e;
@@ -1180,60 +1146,31 @@ static int prepare_signaling(struct drm_device *dev,
 			}
 		}
 
-		if (fence_ptr || android_fence_ptr) {
+		if (fence_ptr) {
 			struct dma_fence *fence;
 			struct drm_out_fence_state *f;
-			struct drm_fence_event *e;
-			int num = 1;
-
-			if (android_fence_ptr) {
-				e = kzalloc(sizeof (*e), GFP_KERNEL);
-				if (!e)
-					return -ENOMEM;
-
-				crtc_state->fence = e;
-			}
-
-			if (android_fence_ptr && fence_ptr) {
-				num = 2;
-			}
 
 			f = krealloc(*fence_state, sizeof(**fence_state) *
-				(*num_fences + num), GFP_KERNEL);
+				     (*num_fences + 1), GFP_KERNEL);
 			if (!f)
 				return -ENOMEM;
 
-			memset(&f[*num_fences], 0, sizeof(*f) * num);
+			memset(&f[*num_fences], 0, sizeof(*f));
+
+			f[*num_fences].out_fence_ptr = fence_ptr;
 			*fence_state = f;
 
-			if (fence_ptr) {
-				f[*num_fences].out_fence_ptr = fence_ptr;
+			fence = drm_crtc_create_fence(crtc);
+			if (!fence)
+				return -ENOMEM;
 
-				fence = drm_crtc_create_fence(crtc);
-				if (!fence)
-					return -ENOMEM;
-
-				ret = setup_out_fence(&f[(*num_fences)++], fence);
-				if (ret) {
-					dma_fence_put(fence);
-					return ret;
-				}
-				crtc_state->event->base.fence = fence;
+			ret = setup_out_fence(&f[(*num_fences)++], fence);
+			if (ret) {
+				dma_fence_put(fence);
+				return ret;
 			}
-			if (android_fence_ptr) {
-				f[*num_fences].out_fence_ptr = android_fence_ptr;
 
-				fence = drm_crtc_create_fence(crtc);
-				if (!fence)
-					return -ENOMEM;
-
-				ret = setup_out_fence(&f[(*num_fences)++], fence);
-				if (ret) {
-					dma_fence_put(fence);
-					return ret;
-				}
-				crtc_state->fence->fence = fence;
-			}
+			crtc_state->event->base.fence = fence;
 		}
 
 		c++;
@@ -1307,7 +1244,6 @@ static void complete_signaling(struct drm_device *dev,
 
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		struct drm_pending_vblank_event *event = crtc_state->event;
-		struct drm_fence_event *fence = crtc_state->fence;
 		/*
 		 * Free the allocated event. drm_atomic_helper_setup_commit
 		 * can allocate an event too, so only free it if it's ours
@@ -1316,11 +1252,6 @@ static void complete_signaling(struct drm_device *dev,
 		if (event && (event->base.fence || event->base.file_priv)) {
 			drm_event_cancel_free(dev, &event->base);
 			crtc_state->event = NULL;
-		}
-		if (fence && fence->fence) {
-			dma_fence_put(fence->fence);
-			kfree(fence);
-			crtc_state->fence = NULL;
 		}
 	}
 

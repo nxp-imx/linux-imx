@@ -128,7 +128,6 @@ void __drm_atomic_helper_crtc_duplicate_state(struct drm_crtc *crtc,
 	state->zpos_changed = false;
 	state->commit = NULL;
 	state->event = NULL;
-	state->fence = NULL;
 	state->async_flip = false;
 
 	/* Self refresh should be canceled when a new update is available */

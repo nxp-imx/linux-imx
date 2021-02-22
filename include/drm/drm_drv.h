@@ -93,12 +93,6 @@ enum drm_driver_feature {
 	 * synchronization of command submission.
 	 */
 	DRIVER_SYNCOBJ_TIMELINE         = BIT(6),
-	/**
-	 * @DRIVER_ATOMIC_ANDROID_FENCE:
-	 *
-	 * Driver supports the android fence.
-	 */
-	DRIVER_ATOMIC_ANDROID_FENCE	= BIT(7),
 
 	/* IMPORTANT: Below are all the legacy flags, add new ones above. */
 

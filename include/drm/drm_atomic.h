@@ -167,7 +167,6 @@ struct __drm_crtcs_state {
 
 	s32 __user *out_fence_ptr;
 	u64 last_vblank_count;
-	s32 __user *android_out_fence_ptr;
 };
 
 struct __drm_connnectors_state {

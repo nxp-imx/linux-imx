@@ -255,7 +255,7 @@ const struct drm_mode_config_funcs dcss_drm_mode_config_funcs = {
 };
 
 static struct drm_driver dcss_kms_driver = {
-	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_ATOMIC | DRIVER_ATOMIC_ANDROID_FENCE,
+	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_ATOMIC,
 	.gem_free_object_unlocked = drm_gem_cma_free_object,
 	.gem_vm_ops		= &drm_gem_cma_vm_ops,
 	.dumb_create		= drm_gem_cma_dumb_create,

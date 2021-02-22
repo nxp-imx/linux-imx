@@ -77,12 +77,6 @@ struct drm_atomic_state;
 struct drm_crtc_helper_funcs;
 struct drm_plane_helper_funcs;
 
-/* drm fence event */
-struct drm_fence_event {
-	struct dma_fence *fence;
-	struct list_head link;
-};
-
 /**
  * struct drm_crtc_state - mutable CRTC state
  *
@@ -367,7 +361,6 @@ struct drm_crtc_state {
 	 * update, but it should avoid tearing.
 	 */
 	struct drm_pending_vblank_event *event;
-	struct drm_fence_event *fence;
 
 	/**
 	 * @commit:
@@ -1097,14 +1090,6 @@ struct drm_crtc {
 	 * spinlock to protect the fences in the fence_context.
 	 */
 	spinlock_t fence_lock;
-	/**
-	 * Fence queue used to store android out fence list.
-	 */
-	struct list_head fence_queue;
-	/**
-	 * The fence belongs to buffer which is on screen now.
-	 */
-	struct drm_fence_event *on_screen;
 	/**
 	 * @fence_seqno:
 	 *
