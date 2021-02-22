@@ -13,7 +13,6 @@
 #include <linux/platform_device.h>
 #include <linux/pm_opp.h>
 #include <linux/slab.h>
-#include <linux/device_cooling.h>
 
 #define OCOTP_CFG3_SPEED_GRADE_SHIFT	8
 #define OCOTP_CFG3_SPEED_GRADE_MASK	(0x3 << 8)
@@ -26,78 +25,6 @@
 /* cpufreq-dt device registered by imx-cpufreq-dt */
 static struct platform_device *cpufreq_dt_pdev;
 static struct opp_table *cpufreq_opp_table;
-
-#define cpu_cooling_core_mask ((1 << 2) | (1 << 3))   /* offline cpu2 and cpu3 if needed*/
-static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
-       void *dummy)
-{
-	static unsigned long prev_event = 0xffffffff;
-	struct device *cpu_dev = NULL;
-	static int cpus_offlined = 0;
-	int i = 0, ret = 0;
-
-	if (event == prev_event)
-		return NOTIFY_OK;
-
-	prev_event = event;
-
-	switch (event) {
-	case 0: /* default state, no trip point reached*/
-	case 1: /* trip1 temperature are lower than trip2, we can
-		   online the cpu2 and cpu3 to get better performance */
-		for (i = 0; i < num_possible_cpus(); i++) {
-			if (!(cpu_cooling_core_mask & BIT(i)))
-				continue;
-			if (!(cpus_offlined & BIT(i)))
-				continue;
-			cpus_offlined &= ~BIT(i);
-			pr_info("Allow Online CPU%d, devfreq state: %d\n",
-					i, event);
-
-			lock_device_hotplug();
-			if (cpu_online(i)) {
-				unlock_device_hotplug();
-				continue;
-			}
-			cpu_dev = get_cpu_device(i);
-			ret = device_online(cpu_dev);
-			if (ret)
-				pr_err("Error %d online core %d\n",
-						ret, i);
-			unlock_device_hotplug();
-		}
-		break;
-	case 2: /* rise above trip2 temperature, offline cpu2 and cpu3 to
-		   to limit the max online cpu cores */
-		for (i = num_possible_cpus() - 1; i >= 0; i--) {
-			if (!(cpu_cooling_core_mask & BIT(i)))
-				continue;
-			if (cpus_offlined & BIT(i) && !cpu_online(i))
-				continue;
-			pr_info("Set Offline: CPU%d, devfreq state: %d\n",
-					i, event);
-			lock_device_hotplug();
-			if (cpu_online(i)) {
-				cpu_dev = get_cpu_device(i);
-				ret = device_offline(cpu_dev);
-				if (ret < 0)
-					pr_err("Error %d offline core %d\n",
-					       ret, i);
-			}
-			unlock_device_hotplug();
-			cpus_offlined |= BIT(i);
-		}
-		break;
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block thermal_hot_pm_notifier =
-{
-	.notifier_call = thermal_hot_pm_notify,
-};
 
 static int imx_cpufreq_dt_probe(struct platform_device *pdev)
 {
@@ -160,14 +87,11 @@ static int imx_cpufreq_dt_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	register_devfreq_cooling_notifier(&thermal_hot_pm_notifier);
-
 	return 0;
 }
 
 static int imx_cpufreq_dt_remove(struct platform_device *pdev)
 {
-	unregister_devfreq_cooling_notifier(&thermal_hot_pm_notifier);
 	platform_device_unregister(cpufreq_dt_pdev);
 	dev_pm_opp_put_supported_hw(cpufreq_opp_table);
 
