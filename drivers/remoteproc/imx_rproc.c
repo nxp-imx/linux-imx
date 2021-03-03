@@ -482,6 +482,7 @@ static int imx_rproc_da_to_sys(struct imx_rproc *priv, u64 da,
 static void *imx_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len, bool *is_iomem)
 {
 	struct imx_rproc *priv = rproc->priv;
+	const struct imx_rproc_dcfg *dcfg = priv->dcfg;
 	void *va = NULL;
 	u64 sys;
 	int i;
@@ -489,6 +490,8 @@ static void *imx_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len, bool *i
 	if (len == 0)
 		return NULL;
 
+	if (dcfg->elf_mem_hook && is_iomem)
+		*is_iomem = true;
 	/*
 	 * On device side we have many aliases, so we need to convert device
 	 * address (M4) to system bus address first.
@@ -794,16 +797,6 @@ static int imx_rproc_addr_init(struct imx_rproc *priv,
 	return 0;
 }
 
-static void imx_rproc_memcpy(struct rproc *rproc, void *dest, const void *src, size_t count)
-{
-	memcpy_toio((void * __iomem)dest, src, count);
-}
-
-static void imx_rproc_memset(struct rproc *rproc, void *s, int c, size_t count)
-{
-	memset_io((void * __iomem)s, c, count);
-}
-
 static void imx_rproc_vq_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -1066,11 +1059,6 @@ static int imx_rproc_probe(struct platform_device *pdev)
 	if (!dcfg) {
 		ret = -EINVAL;
 		goto err_put_rproc;
-	}
-
-	if (dcfg->elf_mem_hook) {
-		rproc->ops->elf_memcpy = imx_rproc_memcpy;
-		rproc->ops->elf_memset = imx_rproc_memset;
 	}
 
 	priv = rproc->priv;
