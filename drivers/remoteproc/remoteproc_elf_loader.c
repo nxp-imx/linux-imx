@@ -129,22 +129,6 @@ u64 rproc_elf_get_boot_addr(struct rproc *rproc, const struct firmware *fw)
 }
 EXPORT_SYMBOL(rproc_elf_get_boot_addr);
 
-static void rproc_elf_memcpy(struct rproc *rproc, void *dest, const void *src, size_t count)
-{
-	if (!rproc->ops->elf_memcpy)
-		memcpy(dest, src, count);
-
-	rproc->ops->elf_memcpy(rproc, dest, src, count);
-}
-
-static void rproc_elf_memset(struct rproc *rproc, void *s, int c, size_t count)
-{
-	if (!rproc->ops->elf_memset)
-		memset(s, c, count);
-
-	rproc->ops->elf_memset(rproc, s, c, count);
-}
-
 /**
  * rproc_elf_load_segments() - load firmware segments to memory
  * @rproc: remote processor which will be booted using these fw segments
@@ -230,7 +214,7 @@ int rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 
 		/* put the segment where the remote processor expects it */
 		if (filesz)
-			rproc_elf_memcpy(rproc, ptr, elf_data + offset, filesz);
+			memcpy(ptr, elf_data + offset, filesz);
 
 		/*
 		 * Zero out remaining memory for this segment.
@@ -240,7 +224,7 @@ int rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 		 * this.
 		 */
 		if (memsz > filesz)
-			rproc_elf_memset(rproc, ptr + filesz, 0, memsz - filesz);
+			memset(ptr + filesz, 0, memsz - filesz);
 	}
 
 	return ret;
