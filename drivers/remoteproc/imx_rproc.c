@@ -401,6 +401,13 @@ static int imx_rproc_stop(struct rproc *rproc)
 	int ret = 0;
 	__u32 mmsg;
 
+	if (rproc->state == RPROC_CRASHED) {
+		if (dcfg->method == IMX_SCU_API)
+			rproc->autonomous = true;
+		else
+			rproc->autonomous = false;
+	}
+
 	if (rproc->state == RPROC_CRASHED && priv->ipc_only) {
 		priv->flags &= ~REMOTE_IS_READY;
 		return 0;
@@ -987,7 +994,6 @@ static int imx_rproc_detect_mode(struct imx_rproc *priv)
 		if (!imx_sc_rm_is_resource_owned(ipc_handle, priv->rsrc)) {
 			priv->ipc_only = true;
 			priv->early_boot = true;
-			priv->rproc->skip_fw_recovery = true;
 			/*
 			 * Get muB partition id and enable irq in SCFW
 			 * default partition 3

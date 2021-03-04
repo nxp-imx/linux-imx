@@ -553,7 +553,6 @@ struct rproc {
 	u16 elf_machine;
 	struct cdev cdev;
 	bool cdev_put_on_release;
-	bool skip_fw_recovery;
 };
 
 /**

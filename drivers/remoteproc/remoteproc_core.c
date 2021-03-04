@@ -1668,7 +1668,8 @@ static int rproc_stop(struct rproc *rproc, bool crashed)
 	 * be responsible to load its firmware.  As such it is no longer
 	 * autonomous.
 	 */
-	rproc->autonomous = false;
+	if (!crashed)
+		rproc->autonomous = false;
 
 	dev_info(dev, "stopped remote processor %s\n", rproc->name);
 
@@ -1710,7 +1711,7 @@ int rproc_trigger_recovery(struct rproc *rproc)
 	rproc_coredump(rproc);
 
 	/* load firmware */
-	if (!rproc->skip_fw_recovery) {
+	if (!rproc->autonomous) {
 		ret = request_firmware(&firmware_p, rproc->firmware, dev);
 		if (ret < 0) {
 			dev_err(dev, "request_firmware failed: %d\n", ret);
@@ -1721,8 +1722,10 @@ int rproc_trigger_recovery(struct rproc *rproc)
 	/* boot the remote processor up again */
 	ret = rproc_start(rproc, firmware_p);
 
-	if (!rproc->skip_fw_recovery)
+	if (!rproc->autonomous)
 		release_firmware(firmware_p);
+
+	rproc->autonomous = false;
 
 unlock_mutex:
 	mutex_unlock(&rproc->lock);
