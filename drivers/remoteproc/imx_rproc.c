@@ -130,6 +130,7 @@ struct imx_rproc {
 	int				num_domains;
 	struct device			**pm_devices;
 	struct device_link		**pm_devices_link;
+	struct resource_table 		*rsc_table;
 };
 
 static struct imx_sc_ipc *ipc_handle;
@@ -646,7 +647,8 @@ static int imx_rproc_get_loaded_rsc_table(struct device *dev,
 	 * Then we could change to
 	 * rproc->table_ptr = (struct resource_table *)priv->rsc_va;
 	 */
-	rproc->table_ptr = kmemdup(priv->rsc_va, SZ_1K, GFP_KERNEL);
+	priv->rsc_table = kmemdup(priv->rsc_va, SZ_1K, GFP_KERNEL);
+	rproc->table_ptr = priv->rsc_table;
 #endif
 	rproc->table_sz = SZ_1K;
 	rproc->cached_table = NULL;
@@ -695,7 +697,10 @@ static int imx_rproc_elf_load_segments(struct rproc *rproc,
 {
 	struct imx_rproc *priv = rproc->priv;
 
-	if (priv->ipc_only || !fw)
+	if (priv->ipc_only)
+		return 0;
+
+	if (!fw)
 		return -EINVAL;
 
 	return rproc_elf_load_segments(rproc, fw);
@@ -707,8 +712,10 @@ imx_rproc_elf_find_loaded_rsc_table(struct rproc *rproc, const struct firmware *
 	struct imx_rproc *priv = rproc->priv;
 
 
-	if (priv->ipc_only)
+	if (priv->ipc_only) {
+		rproc->table_ptr = priv->rsc_table;
 		return NULL;
+	}
 
 #if 0
 	/*

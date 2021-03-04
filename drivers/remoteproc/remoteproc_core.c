@@ -1707,11 +1707,11 @@ int rproc_trigger_recovery(struct rproc *rproc)
 	if (ret)
 		goto unlock_mutex;
 
-	/* generate coredump */
-	rproc_coredump(rproc);
-
 	/* load firmware */
 	if (!rproc->autonomous) {
+		/* generate coredump */
+		rproc_coredump(rproc);
+
 		ret = request_firmware(&firmware_p, rproc->firmware, dev);
 		if (ret < 0) {
 			dev_err(dev, "request_firmware failed: %d\n", ret);
