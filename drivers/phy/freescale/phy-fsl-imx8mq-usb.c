@@ -295,11 +295,6 @@ static int imx8mq_chg_data_contact_det(struct imx8mq_usb_phy *imx_phy)
 	val |= PHY_CTRL5_DMPWD_OVERRIDE_SEL | PHY_CTRL5_DMPWD_OVERRIDE;
 	writel(val, imx_phy->base + PHY_CTRL5);
 
-	/* Set DPPULLDOWN<#> = 1'b0 */
-	val = readl(imx_phy->base + PHY_CTRL5);
-	val |= PHY_CTRL5_DMPWD_OVERRIDE_SEL | PHY_CTRL5_DMPWD_OVERRIDE;
-	writel(val, imx_phy->base + PHY_CTRL5);
-
 	/* Enable Data Contact Detect (DCD) per the USB BC 1.2 */
 	val = readl(imx_phy->base + PHY_CTRL1);
 	writel(val | PHY_CTRL1_DCDENB, imx_phy->base + PHY_CTRL1);
