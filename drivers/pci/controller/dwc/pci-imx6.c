@@ -2446,6 +2446,10 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		imx6_pcie->ext_osc = 0;
 	if (of_property_read_u32(node, "local-addr", &imx6_pcie->local_addr))
 		imx6_pcie->local_addr = 0;
+	if (of_property_read_bool(node, "l1ss-disabled"))
+		imx6_pcie->l1ss_clkreq = 0;
+	else
+		imx6_pcie->l1ss_clkreq = 1;
 
 	/* Fetch GPIOs */
 	imx6_pcie->clkreq_gpio = of_get_named_gpio(node, "clkreq-gpio", 0);
@@ -2930,6 +2934,10 @@ static void imx6_pcie_l1ss_quirk(struct pci_dev *dev)
 
 	/* Return directly, if the L1SS is not supported by RC */
 	if (!(imx6_pcie->drvdata->flags & IMX6_PCIE_FLAG_SUPPORTS_L1SS))
+		return;
+
+	/* Make sure the L1SS is not force disabled. */
+	if (imx6_pcie->l1ss_clkreq == 0)
 		return;
 
 	reg = dw_pcie_find_ext_capability(pci, PCI_EXT_CAP_ID_L1SS);
