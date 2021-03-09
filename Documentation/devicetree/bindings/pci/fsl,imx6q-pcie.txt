@@ -60,6 +60,9 @@ Optional properties:
 - interrupt-names: Optional include the following entries:
 	- "dma": The interrupt that is asserted when an DMA interrupter
 	is received
+- l1ss-disabled: Force to disable L1SS or not. If present then the L1
+  substate would be force disabled although it might be supported by the
+  chip.
 
 Additional required properties for imx6sx-pcie:
 - clock names: Must include the following additional entries:
