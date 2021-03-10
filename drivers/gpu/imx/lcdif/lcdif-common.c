@@ -29,10 +29,33 @@
 #include <drm/drm_fourcc.h>
 #include <video/imx-lcdif.h>
 #include <video/videomode.h>
+#include <linux/of_device.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #include "lcdif-regs.h"
 
 #define DRIVER_NAME "imx8mm-lcdif"
+#define SMC_ENTITY_IMX_LINUX_OPT 54
+
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 0)
+#define SMC_IMX_LCDIF_ADDR SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 1)
+#define SMC_IMX_LCDIF_REG  SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 2)
+#define OPT_READ 0x1
+#define OPT_WRITE 0x2
+
+#ifdef writel
+#undef writel
+#define writel(val, addr) \
+	do { \
+		if (lcdif->trusty_dev) { \
+			trusty_lcdif_reg(lcdif->trusty_dev, (addr - lcdif->base), val); \
+		} else { \
+			{ __iowmb(); writel_relaxed((val),(addr)); } \
+		}\
+	} while (0)
+
+#endif
 
 struct lcdif_soc {
 	struct device *dev;
@@ -46,6 +69,7 @@ struct lcdif_soc {
 	struct clk *clk_pix;
 	struct clk *clk_disp_axi;
 	struct clk *clk_disp_apb;
+	struct device *trusty_dev;
 };
 
 struct lcdif_soc_pdata {
@@ -78,6 +102,10 @@ static const struct of_device_id imx_lcdif_dt_ids[] = {
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_lcdif_dt_ids);
+
+static void trusty_lcdif_reg(struct device *dev, u32 target, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_LCDIF_REG, target, OPT_WRITE, val);
+}
 
 #ifdef CONFIG_PM
 static int imx_lcdif_runtime_suspend(struct device *dev);
@@ -710,6 +738,8 @@ static int imx_lcdif_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct lcdif_soc *lcdif;
 	struct resource *res;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	dev_dbg(dev, "%s: probe begin\n", __func__);
 
@@ -717,6 +747,26 @@ static int imx_lcdif_probe(struct platform_device *pdev)
 	if (!lcdif) {
 		dev_err(dev, "Can't allocate 'lcdif_soc' structure\n");
 		return -ENOMEM;
+	}
+
+	lcdif->trusty_dev = NULL;
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				if (!trusty_fast_call32(&(pd->dev), SMC_IMX_ECHO, 0, 0, 0)) {
+					lcdif->trusty_dev = &(pd->dev);
+					dev_err(&pdev->dev, "lcdif: get trusty_dev node, use Trusty mode.\n");
+				} else {
+					dev_err(&pdev->dev, "lcdif: failed to get response of echo. Use normal mode.\n");
+				}
+			} else {
+				dev_err(&pdev->dev, "lcdif: failed to get trusty_dev node.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "lcdif: failed to find trusty node. Use normal mode.\n");
+		}
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

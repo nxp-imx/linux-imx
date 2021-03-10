@@ -58,6 +58,11 @@
 	};
 };
 
+&lcdif1 {
+	trusty;
+	status = "okay";
+};
+
 &uart1 {
 	/delete-node/ bluetooth;
 };
