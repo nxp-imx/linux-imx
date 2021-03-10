@@ -61,3 +61,8 @@
 &uart1 {
 	/delete-node/ bluetooth;
 };
+
+&lcdif1 {
+	trusty;
+	status = "okay";
+};
