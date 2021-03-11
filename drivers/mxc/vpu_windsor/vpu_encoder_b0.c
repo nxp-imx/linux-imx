@@ -130,6 +130,7 @@ static int submit_input_and_encode(struct vpu_ctx *ctx);
 static int process_stream_output(struct vpu_ctx *ctx);
 static u32 get_ptr(u32 ptr);
 static int is_vpu_enc_poweroff(struct core_device *core);
+static int request_eos(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -1163,15 +1164,19 @@ static void clear_queue(struct queue_data *queue)
 	INIT_LIST_HEAD(&queue->frame_idle);
 }
 
-static int vpu_enc_queue_disable(struct queue_data *queue,
-				enum v4l2_buf_type type)
+static int vpu_enc_queue_disable(struct queue_data *queue)
 {
 	int ret = -EINVAL;
 
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited)
-		ret = vb2_streamoff(&queue->vb2_q, type);
+		ret = vb2_streamoff(&queue->vb2_q, queue->vb2_q.type);
 	up(&queue->drv_q_lock);
+
+	if (V4L2_TYPE_IS_OUTPUT(queue->vb2_q.type)) {
+		request_eos(queue->ctx);
+		wait_for_stop_done(queue->ctx);
+	}
 
 	return ret;
 }
@@ -1567,6 +1572,7 @@ static int response_stop_stream(struct vpu_ctx *ctx)
 
 	if (!test_bit(VPU_ENC_FLAG_WRITEABLE, &queue->rw_flag))
 		goto exit;
+
 	if (test_and_clear_bit(VPU_ENC_STATUS_STOP_REQ, &ctx->status))
 		send_eos(ctx);
 exit:
@@ -1782,10 +1788,7 @@ static int vpu_enc_v4l2_ioctl_streamoff(struct file *file,
 			ctx->core_dev->id, ctx->str_index,
 			V4L2_TYPE_IS_OUTPUT(i) ? "OUTPUT" : "CAPTURE");
 
-	request_eos(ctx);
-	wait_for_stop_done(ctx);
-
-	ret = vpu_enc_queue_disable(q_data, i);
+	ret = vpu_enc_queue_disable(q_data);
 
 	return ret;
 }
@@ -5016,8 +5019,12 @@ static int vpu_enc_v4l2_release(struct file *filp)
 
 	vpu_dbg(LVL_FLOW, "[%d:%d] close\n",
 			ctx->core_dev->id, ctx->str_index);
+
 	wait_for_start_done(ctx);
-	request_eos(ctx);
+	if (vb2_is_streaming(&ctx->q_data[V4L2_SRC].vb2_q))
+		vpu_enc_queue_disable(&ctx->q_data[V4L2_SRC]);
+	if (vb2_is_streaming(&ctx->q_data[V4L2_DST].vb2_q))
+		vpu_enc_queue_disable(&ctx->q_data[V4L2_DST]);
 	wait_for_stop_done(ctx);
 
 	mutex_lock(&dev->dev_mutex);
