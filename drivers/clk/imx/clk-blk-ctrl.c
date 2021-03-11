@@ -530,6 +530,8 @@ static int imx_blk_ctrl_probe(struct platform_device *pdev)
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 
+	pm_runtime_forbid(dev);
+
 	ret = imx_blk_ctrl_register_clock_controller(dev);
 	if (ret) {
 		pm_runtime_put(dev);
