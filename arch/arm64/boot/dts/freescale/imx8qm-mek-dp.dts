@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2019 NXP
- *	Sandor Yu <Sandor.yu@nxp.com>
+ * Copyright 2021 NXP
+ *	Oliver Brown <oliver.brown@nxp.com>
  */
- /* Three display enabled: HDMI, LVDS, and MIPI DSI */
+ /* Three displays enabled: DP, LVDS, and MIPI DSI */
 
 /dts-v1/;
 
@@ -40,6 +40,14 @@
 };
 
 &ldb1 {
+	status = "disabled";
+};
+
+&ldb2_phy {
+	status = "disabled";
+};
+
+&ldb2 {
 	status = "disabled";
 };
 
@@ -100,9 +108,9 @@
 };
 
 &hdmi {
-	compatible = "cdn,imx8qm-hdmi";
-	firmware-name = "hdmitxfw.bin";
-	lane-mapping = <0x93>;
+	compatible = "cdn,imx8qm-dp";
+	firmware-name = "dpfw.bin";
+	lane-mapping = <0x1b>;
 	status = "okay";
 };
 

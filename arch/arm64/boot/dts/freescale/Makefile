@@ -98,6 +98,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qm-mek-jdi-wuxga-lvds1-panel.dtb \
 			  imx8qm-mek-jdi-wuxga-lvds1-panel-rpmsg.dtb \
 			  imx8qm-mek-usdhc3-m2.dtb imx8qm-mek-usd-wifi.dtb \
+			  imx8qm-mek-dp.dtb \
 			  imx8qm-lpddr4-val.dtb imx8qm-lpddr4-val-mqs.dtb \
 			  imx8qm-lpddr4-val-spdif.dtb imx8qm-mek-ca53.dtb \
 			  imx8qm-mek-ca72.dtb imx8qm-lpddr4-val-ca53.dtb \
