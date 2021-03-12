@@ -584,6 +584,7 @@ static int __cdns_dp_probe(struct platform_device *pdev,
 
 static void __cdns_dp_remove(struct cdns_mhdp_device *mhdp)
 {
+	cdns_mhdp_plat_call(mhdp, power_off);
 	dp_aux_destroy(mhdp);
 	cdns_mhdp_unregister_audio_driver(mhdp->dev);
 }
