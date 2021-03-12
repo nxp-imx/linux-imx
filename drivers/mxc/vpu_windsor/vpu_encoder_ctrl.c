@@ -20,6 +20,7 @@
 
 #define TAG	"[VPU Encoder Ctrl]\t "
 #include <media/v4l2-ctrls.h>
+#include <linux/imx_vpu.h>
 
 #include "vpu_encoder_b0.h"
 #include "vpu_encoder_ctrl.h"
@@ -317,6 +318,19 @@ static int set_h264_vui_sar_height(struct v4l2_ctrl *ctrl)
 	vpu_dbg(LVL_CTRL, "set h264 vui sar height %d\n", ctrl->val);
 	mutex_lock(&ctx->instance_mutex);
 	attr->h264_vui_sar_height = ctrl->val;
+	mutex_unlock(&ctx->instance_mutex);
+
+	return 0;
+}
+
+static int set_sc_enable(struct v4l2_ctrl *ctrl)
+{
+	struct vpu_ctx *ctx = v4l2_ctrl_to_ctx(ctrl);
+	struct vpu_attr *attr = get_vpu_ctx_attr(ctx);
+
+	vpu_dbg(LVL_CTRL, "set sc enable %d\n", ctrl->val);
+	mutex_lock(&ctx->instance_mutex);
+	attr->sc_enable = ctrl->val;
 	mutex_unlock(&ctx->instance_mutex);
 
 	return 0;
@@ -734,6 +748,32 @@ static int add_ctrl_h264_vui_sar_height(struct vpu_ctx *ctx)
 	return 0;
 }
 
+static int add_ctrl_sc_enable(struct vpu_ctx *ctx)
+{
+	static const struct v4l2_ctrl_ops sc_ops = {
+		.s_ctrl = set_sc_enable,
+	};
+	struct v4l2_ctrl_config config = {
+		.id = V4L2_CID_SC_ENABLE,
+		.name = "scene change detect enable",
+		.ops = &sc_ops,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 1,
+	};
+	struct v4l2_ctrl *ctrl;
+
+	ctrl = v4l2_ctrl_new_custom(&ctx->ctrl_handler, &config, NULL);
+	if (!ctrl) {
+		vpu_err("add ctrl sc enable fail\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int vpu_enc_register_ctrls(struct vpu_ctx *ctx)
 {
 	add_ctrl_h264_profile(ctx);
@@ -755,6 +795,7 @@ static int vpu_enc_register_ctrls(struct vpu_ctx *ctx)
 	add_ctrl_h264_vui_sar_idc(ctx);
 	add_ctrl_h264_vui_sar_width(ctx);
 	add_ctrl_h264_vui_sar_height(ctx);
+	add_ctrl_sc_enable(ctx);
 
 	return 0;
 }

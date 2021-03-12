@@ -264,6 +264,7 @@ struct vpu_attr {
 	u32 h264_vui_sar_idc;
 	u32 h264_vui_sar_width;
 	u32 h264_vui_sar_height;
+	u32 sc_enable;
 
 	unsigned long ts_start[2];
 	unsigned long msg_count;

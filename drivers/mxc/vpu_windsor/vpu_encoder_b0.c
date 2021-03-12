@@ -3029,6 +3029,9 @@ static void vpu_enc_config_expert_mode_parm(struct vpu_ctx *ctx)
 		param->Config.h264_video_transfer_char,
 		param->Config.h264_video_matrix_coeff,
 		param->Config.h264_video_full_range);
+
+	if (!attr->sc_enable)
+		param->Config.iac_sc_threshold = 0;
 }
 
 static int handle_event_mem_request(struct vpu_ctx *ctx,
