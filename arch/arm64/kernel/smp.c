@@ -87,8 +87,8 @@ enum ipi_msg_type {
 
 struct irq_domain *ipi_custom_irq_domain;
 static int ipi_irq_base __read_mostly;
-static int nr_ipi __read_mostly = IPI_CUSTOM_LAST + 1;
-static struct irq_desc *ipi_desc[IPI_CUSTOM_LAST + 1] __read_mostly;
+static int nr_ipi __read_mostly = NR_IPI;
+static struct irq_desc *ipi_desc[NR_IPI] __read_mostly;
 
 static void ipi_setup(int cpu);
 
@@ -1060,8 +1060,8 @@ void __init set_smp_ipi_range(int ipi_base, int n)
 {
 	int i;
 
-	WARN_ON(n < IPI_CUSTOM_LAST + 1);
-	nr_ipi = min(n, IPI_CUSTOM_LAST + 1);
+	WARN_ON(n < NR_IPI);
+	nr_ipi = min(n, NR_IPI);
 
 	for (i = 0; i < nr_ipi; i++) {
 		int err;

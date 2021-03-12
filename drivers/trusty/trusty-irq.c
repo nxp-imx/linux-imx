@@ -145,6 +145,8 @@ static int trusty_irq_call_notify(struct notifier_block *nb,
 	    return NOTIFY_OK;
 	}
 
+	BUG_ON(!irqs_disabled());
+
 	spin_lock(&is->normal_irqs_lock);
 	trusty_irq_enable_pending_irqs(is, &is->normal_irqs, false);
 	spin_unlock(&is->normal_irqs_lock);

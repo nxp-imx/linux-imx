@@ -1173,13 +1173,13 @@ static void __init gic_smp_init(void)
 				  gic_starting_cpu, NULL);
 
 	/* Register all 8 non-secure SGIs */
-	base_sgi = __irq_domain_alloc_irqs(gic_data.domain, -1, 16,
+	base_sgi = __irq_domain_alloc_irqs(gic_data.domain, -1, 8,
 					   NUMA_NO_NODE, &sgi_fwspec,
 					   false, NULL);
 	if (WARN_ON(base_sgi <= 0))
 		return;
 
-	set_smp_ipi_range(base_sgi, 16);
+	set_smp_ipi_range(base_sgi, 8);
 }
 
 static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
