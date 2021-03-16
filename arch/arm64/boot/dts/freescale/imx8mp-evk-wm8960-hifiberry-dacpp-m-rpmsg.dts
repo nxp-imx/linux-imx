@@ -80,6 +80,12 @@
 		fsl,audioindex = <0> ;
 		fsl,dma-buffer-size = <0x6000000>;
 		fsl,enable-lpa;
+		clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_IPG>,
+			 <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>,
+			 <&audiomix_clk IMX8MP_CLK_AUDIOMIX_OCRAMA_IPG>,
+			 <&clk IMX8MP_AUDIO_PLL1_OUT>,
+			 <&clk IMX8MP_AUDIO_PLL2_OUT>;
+		clock-names = "bus", "dma","ocrama", "pll8k", "pll11k";
 		power-domains = <&audiomix_pd>;
 		status = "okay";
 	};

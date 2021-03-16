@@ -149,8 +149,9 @@ static int fsl_rpmsg_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 
 	struct i2s_rpmsg *rpmsg;
 
-	rpmsg = &i2s_info->rpmsg[I2S_SAI_FORMAT];
+	rpmsg_i2s->dai_format = fmt;
 
+	rpmsg = &i2s_info->rpmsg[I2S_SAI_FORMAT];
 	rpmsg->send_msg.header.cmd = I2S_SAI_FORMAT;
 	rpmsg->send_msg.param.dai_format = fmt;
 
@@ -166,6 +167,10 @@ static int fsl_rpmsg_hw_params(struct snd_pcm_substream *substream,
 	struct clk *p = rpmsg_i2s->mclk, *pll = 0, *npll = 0;
 	unsigned int rate = params_rate(params);
 	int ret;
+
+	if((rpmsg_i2s->mclk == NULL) ||  
+     	   (rpmsg_i2s->dai_format & SND_SOC_DAIFMT_MASTER_MASK)	== SND_SOC_DAIFMT_CBM_CFM )
+		return 0;
 
 	while (p && rpmsg_i2s->pll8k && rpmsg_i2s->pll11k) {
 		struct clk *pp = clk_get_parent(p);
@@ -202,7 +207,9 @@ static int fsl_rpmsg_hw_free(struct snd_pcm_substream *substream,
 {
 	struct fsl_rpmsg_i2s *rpmsg_i2s = snd_soc_dai_get_drvdata(dai);
 
-	clk_disable_unprepare(rpmsg_i2s->mclk);
+	if((rpmsg_i2s->mclk == NULL) &&  
+     	   (rpmsg_i2s->dai_format & SND_SOC_DAIFMT_MASTER_MASK)	!= SND_SOC_DAIFMT_CBM_CFM )
+		clk_disable_unprepare(rpmsg_i2s->mclk);
 
 	return 0;
 }
@@ -468,6 +475,10 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 	if (IS_ERR(rpmsg_i2s->dma))
 		rpmsg_i2s->dma = NULL;
 
+	rpmsg_i2s->ocrama = devm_clk_get(&pdev->dev, "ocrama");
+	if (IS_ERR(rpmsg_i2s->ocrama))
+		rpmsg_i2s->ocrama = NULL;
+
 	rpmsg_i2s->pll8k = devm_clk_get(&pdev->dev, "pll8k");
 	if (IS_ERR(rpmsg_i2s->pll8k))
 		rpmsg_i2s->pll8k = NULL;
@@ -516,9 +527,17 @@ static int fsl_rpmsg_i2s_runtime_resume(struct device *dev)
 		goto dma_err;
 	}
 
+	ret = clk_prepare_enable(rpmsg_i2s->ocrama);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable ocrama clock %d\n", ret);
+		goto ocrama_err;
+	}
+
 	pm_qos_add_request(&rpmsg_i2s->pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 	return 0;
 
+ocrama_err:
+	clk_disable_unprepare(rpmsg_i2s->dma);
 dma_err:
 	clk_disable_unprepare(rpmsg_i2s->ipg);
 ipg_err:
@@ -531,6 +550,7 @@ static int fsl_rpmsg_i2s_runtime_suspend(struct device *dev)
 
 	pm_qos_remove_request(&rpmsg_i2s->pm_qos_req);
 
+	clk_disable_unprepare(rpmsg_i2s->ocrama);
 	clk_disable_unprepare(rpmsg_i2s->dma);
 	clk_disable_unprepare(rpmsg_i2s->ipg);
 

@@ -437,11 +437,13 @@ struct fsl_rpmsg_i2s {
 	int force_lpa;
 	int version;
 	int rates;
+	int dai_format;
 	u64 formats;
 	int enable_lpa;
 	struct clk *ipg;
 	struct clk *mclk;
 	struct clk *dma;
+	struct clk *ocrama;
 	struct clk *pll8k;
 	struct clk *pll11k;
 };
