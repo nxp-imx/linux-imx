@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2018 NXP
+ * Copyright 2018,2021 NXP
  *	Dong Aisheng <aisheng.dong@nxp.com>
  */
 
@@ -257,6 +257,22 @@
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
+	};
+
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
+		compatible = "nxp,imx-vehicle";
+		status = "disabled";
+	};
+
+	/*
+	 * vehicle M4 driver which can get info from MCU.
+	 */
+	vehicle_rpmsg_m4: vehicle_rpmsg_m4 {
+		compatible = "nxp,imx-vehicle-m4";
+		status = "disabled";
 	};
 
 	timer {
