@@ -27,7 +27,7 @@
 #include "../codecs/wm8960.h"
 #include "fsl_sai.h"
 
-#ifdef CONFIG_EXTCON
+#ifdef CONFIG_EXTCON_WM8960
 struct extcon_dev *wm8960_edev;
 
 static const unsigned int imx_wm8960_extcon_cables[] = {
@@ -75,7 +75,7 @@ static int hp_jack_status_check(void *data)
 	hp_status = gpio_get_value_cansleep(imx_data->imx_hp_jack_gpio.gpio);
 
 	if (hp_status != imx_data->hp_active_low) {
-#ifdef CONFIG_EXTCON
+#ifdef CONFIG_EXTCON_WM8960
 		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 1);
 #endif
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk");
@@ -85,7 +85,7 @@ static int hp_jack_status_check(void *data)
 		}
 		ret = imx_data->imx_hp_jack_gpio.report;
 	} else {
-#ifdef CONFIG_EXTCON
+#ifdef CONFIG_EXTCON_WM8960
 		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 0);
 #endif
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk");
@@ -706,7 +706,7 @@ static int imx_wm8960_probe(struct platform_device *pdev)
 			dev_warn(&pdev->dev, "create mic attr failed (%d)\n", ret);
 	}
 
-#ifdef CONFIG_EXTCON
+#ifdef CONFIG_EXTCON_WM8960
 	wm8960_edev  = devm_extcon_dev_allocate(&pdev->dev, imx_wm8960_extcon_cables);
 	if (IS_ERR(wm8960_edev)) {
 		dev_err(&pdev->dev, "failed to allocate extcon device\n");
