@@ -10,3 +10,4 @@ obj-$(CONFIG_MXC_HANTRO_VC8000E) += hantro_vc8000e/
 obj-$(CONFIG_MXC_HANTRO_V4L2) += hantro_v4l2/
 obj-y += vpu/
 obj-$(CONFIG_MXC_MIPI_CSI2) += mipi/
+obj-$(CONFIG_VEHICLE_CORE) += vehicle/
