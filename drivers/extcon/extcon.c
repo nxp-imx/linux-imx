@@ -169,6 +169,16 @@ static const struct __extcon_info {
 	},
 
 	/* Miscellaneous external connector */
+	[EXTCON_VEHICLE_RPMSG_REGISTER] = {
+		.type = EXTCON_TYPE_MISC,
+		.id = EXTCON_VEHICLE_RPMSG_REGISTER,
+		.name = "VEHICLE_RPMSG_REGISTER",
+	},
+	[EXTCON_VEHICLE_RPMSG_EVENT] = {
+		.type = EXTCON_TYPE_MISC,
+		.id = EXTCON_VEHICLE_RPMSG_EVENT,
+		.name = "VEHICLE_RPMSG_EVENT",
+	},
 	[EXTCON_DOCK] = {
 		.type = EXTCON_TYPE_MISC,
 		.id = EXTCON_DOCK,
