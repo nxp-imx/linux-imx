@@ -1,0 +1,97 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "imx8qm-mek-domu.dts"
+
+/ {
+	trusty {
+		compatible = "android,trusty-smc-v1";
+		ranges;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		trusty-irq {
+			compatible = "android,trusty-irq-v1";
+			interrupt-templates = <&trusty_ipi 0>;
+			interrupt-ranges = < 0 15 0>;
+		};
+		trusty-virtio {
+			compatible = "android,trusty-virtio-v1";
+		};
+		trusty-log {
+			compatible = "android,trusty-log-v1";
+		};
+	};
+	trusty_ipi: interrupt-controller@0 {
+		compatible = "android,CustomIPI";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	firmware {
+		android {
+			compatible = "android,firmware";
+			/* default emmc node used for GSI */
+			boot_devices = "passthrough/passthrough:bus@5b000000/5b010000.mmc";
+			/* sd card node which used if androidboot.boot_device_root=mmcblk1 */
+			boot_devices_mmcblk1 = "passthrough/passthrough:bus@5b000000/5b020000.mmc";
+			/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+			boot_devices_mmcblk0 = "passthrough/passthrough:bus@5b000000/5b010000.mmc";
+			fstab {
+				compatible = "android,fstab";
+				system {
+					compatible = "android,system";
+					dev = "system";
+					type = "ext4";
+					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb/q-gsi.avbpubkey:/avb/r-gsi.avbpubkey:/avb/s-gsi.avbpubkey,logical,first_stage_mount";
+				};
+				vendor {
+					compatible = "android,vendor";
+					dev = "vendor";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+				system_ext {
+					compatible = "android,system_ext";
+					dev = "system_ext";
+					type = "ext4";
+					mnt_flags = "noatime,ro,errors=panic";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+				product {
+					compatible = "android,product";
+					dev = "product";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+			};
+			vbmeta {
+				/*we need use FirstStageMountVBootV2 if we enable avb*/
+				compatible = "android,vbmeta";
+				/*parts means the partition witch can be mount in first stage*/
+				parts = "vbmeta,dtbo,boot,system,vendor,product";
+			};
+		};
+	};
+
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
+		compatible = "nxp,imx-vehicle";
+		status = "okay";
+	};
+};

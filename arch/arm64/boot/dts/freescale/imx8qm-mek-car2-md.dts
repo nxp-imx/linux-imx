@@ -1,0 +1,136 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "imx8qm-mek-car2.dts"
+
+&i2c0_mipi0 {
+	status = "okay";
+};
+
+&mipi0_dphy {
+	status = "okay";
+};
+
+&mipi0_dsi_host {
+	status = "okay";
+};
+
+&adv_bridge0 {
+	status = "okay";
+};
+
+&i2c0_mipi1 {
+	status = "okay";
+};
+
+&mipi1_dphy {
+	status = "okay";
+};
+
+&mipi1_dsi_host {
+	status = "okay";
+};
+
+&adv_bridge1 {
+	status = "okay";
+};
+
+/ {
+	sound-hdmi-tx {
+		compatible = "fsl,imx-audio-cdnhdmi";
+		model = "imx-audio-hdmi-tx";
+		audio-cpu = <&sai5>;
+		protocol = <1>;
+		hdmi-out;
+	};
+
+	sound-hdmi-arc {
+		compatible = "fsl,imx-audio-spdif";
+		model = "imx-hdmi-arc";
+		spdif-controller = <&spdif1>;
+		spdif-in;
+		spdif-out;
+	};
+};
+
+&sai5 {
+	status = "okay";
+};
+
+&sai5_lpcg {
+	status = "okay";
+};
+
+&irqsteer_hdmi {
+	status = "okay";
+};
+
+&hdmi_lpcg_i2c0 {
+	status = "okay";
+};
+
+&hdmi_lpcg_lis_ipg {
+	status = "okay";
+};
+
+&hdmi_lpcg_pwm_ipg {
+	status = "okay";
+};
+
+&hdmi_lpcg_i2s {
+	status = "okay";
+};
+
+&hdmi_lpcg_gpio_ipg {
+	status = "okay";
+};
+
+&hdmi_lpcg_msi_hclk {
+	status = "okay";
+};
+
+&hdmi_lpcg_pxl {
+	status = "okay";
+};
+
+&hdmi_lpcg_phy {
+	status = "okay";
+};
+
+&hdmi_lpcg_apb_mux_csr {
+	status = "okay";
+};
+
+&hdmi_lpcg_apb_mux_ctrl {
+	status = "okay";
+};
+
+&hdmi_lpcg_apb {
+	status = "okay";
+};
+
+&hdmi {
+	compatible = "cdn,imx8qm-hdmi";
+	firmware-name = "hdmitxfw.bin";
+	lane-mapping = <0x93>;
+	status = "okay";
+};
+
+&spdif1 {
+	status = "okay";
+};
+
+&spdif1_lpcg {
+	status = "okay";
+};
