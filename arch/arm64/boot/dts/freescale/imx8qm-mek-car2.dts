@@ -1,0 +1,173 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "imx8qm-mek-rpmsg.dts"
+
+&i2c0 {
+	clock-frequency = <1000000>;
+	isl29023@44 {
+		status = "disabled";
+	};
+
+	fxos8700@1e {
+		status = "disabled";
+	};
+
+	fxas2100x@20 {
+		status = "disabled";
+	};
+
+	/* max7322 used for fec2 */
+	gpio@68 {
+		status = "disabled";
+	};
+
+	mpl3115@60 {
+		status = "disabled";
+	};
+};
+
+&i2c1 {
+	clock-frequency = <1000000>;
+};
+
+&i2c2 {
+	clock-frequency = <1000000>;
+};
+
+&i2c3 {
+	clock-frequency = <1000000>;
+};
+
+&i2c_mipi_csi0 {
+	clock-frequency = <1000000>;
+};
+
+&i2c1_lvds0 {
+	clock-frequency = <500000>;
+};
+
+&i2c1_lvds1 {
+	clock-frequency = <500000>;
+};
+
+&i2c0_mipi0 {
+	status = "disabled";
+};
+
+&mipi0_dphy {
+	status = "disabled";
+};
+
+&mipi0_dsi_host {
+	status = "disabled";
+};
+
+&i2c0_mipi1 {
+	status = "disabled";
+};
+
+&mipi1_dphy {
+	status = "disabled";
+};
+
+&mipi1_dsi_host {
+	status = "disabled";
+};
+
+&pwm_lvds0 {
+	status = "disabled";
+};
+
+&pwm_lvds1 {
+	status = "disabled";
+};
+
+&lvds_backlight0 {
+	status = "disabled";
+};
+
+&lvds_backlight1 {
+	status = "disabled";
+};
+
+&i2c0_hdmi {
+	status = "disabled";
+};
+
+&usdhc2 {
+	status = "disabled";
+};
+
+&amix {
+	status = "disabled";
+};
+
+&asrc0 {
+	status = "disabled";
+};
+
+&jpegdec {
+	status = "disabled";
+};
+
+&jpegenc {
+	status = "disabled";
+};
+
+&wm8960 {
+	quick-probe;
+};
+
+&vehicle_core {
+	status = "okay";
+};
+
+&sata {
+	status = "disabled";
+};
+
+&pcieb{
+	status = "disabled";
+};
+
+/* used for can io expander */
+&pca6416 {
+	status = "disabled";
+};
+
+&fec2 {
+	status = "disabled";
+};
+
+&sai6 {
+	status = "disabled";
+};
+
+&sai7 {
+	status = "disabled";
+};
+
+&emvsim0 {
+	status = "disabled";
+};
+
+&flexspi0 {
+	status = "disabled";
+};
+
+&crypto {
+	status = "disabled";
+};
+

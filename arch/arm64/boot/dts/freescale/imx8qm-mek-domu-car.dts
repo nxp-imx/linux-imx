@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2020
+
+#include "imx8qm-mek-car.dts"
+

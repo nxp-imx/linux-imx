@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2020
+
+#include "imx8qm-mek-car.dts"
+
+&i2c0_mipi0 {
+	status = "okay";
+};
+
+&mipi0_dphy {
+        status = "okay";
+};
+
+&mipi0_dsi_host {
+        status = "okay";
+};
+
+&adv_bridge0 {
+        status = "okay";
+};
+
+&i2c0_mipi1 {
+	status = "okay";
+};
+
+&mipi1_dphy {
+	status = "okay";
+};
+
+&mipi1_dsi_host {
+	status = "okay";
+};
+
+&adv_bridge1 {
+	status = "okay";
+};
