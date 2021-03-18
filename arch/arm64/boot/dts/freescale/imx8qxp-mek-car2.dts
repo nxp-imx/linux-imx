@@ -1,0 +1,166 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "imx8qxp-mek-rpmsg.dts"
+
+&i2c_rpbus_1 {
+	clock-frequency = <1000000>;
+};
+
+&i2c_rpbus_5 {
+	clock-frequency = <1000000>;
+};
+
+&i2c_rpbus_15 {
+	clock-frequency = <1000000>;
+	isl29023@44 {
+		status = "disabled";
+	};
+};
+
+&i2c_mipi_csi0 {
+	clock-frequency = <1000000>;
+};
+
+&i2c0_mipi_lvds0 {
+	clock-frequency = <500000>;
+	adv7535@3d {
+		status = "disabled";
+	};
+};
+
+&i2c0_mipi_lvds1 {
+	clock-frequency = <500000>;
+	adv7535@3d {
+		status = "disabled";
+	};
+};
+
+&pwm_mipi_lvds0 {
+	status = "disabled";
+};
+
+&lvds_backlight0 {
+	status = "disabled";
+};
+
+&pwm_mipi_lvds1 {
+	status = "disabled";
+};
+
+&lvds_backlight1 {
+	status = "disabled";
+};
+
+&mipi0_dphy {
+	status = "disabled";
+};
+
+&mipi0_dsi_host {
+	status = "disabled";
+};
+
+&mipi1_dphy {
+	status = "disabled";
+};
+
+&mipi1_dsi_host {
+	status = "disabled";
+};
+
+&usdhc2 {
+	status = "disabled";
+};
+
+&amix {
+	status = "disabled";
+};
+
+&asrc0 {
+	status = "disabled";
+};
+
+&jpegdec {
+	status = "disabled";
+};
+
+&jpegenc {
+	status = "disabled";
+};
+
+&wm8960 {
+	quick-probe;
+};
+
+&vehicle_core {
+	status = "okay";
+};
+
+/* used for can io expander */
+&pca6416 {
+	status = "disabled";
+};
+
+&ov5640 {
+	status = "disabled";
+};
+
+&i2c_rpbus_12 {
+	status = "disabled";
+};
+
+&i2c_rpbus_14 {
+	status = "disabled";
+};
+
+&adv_bridge0 {
+	status = "disabled";
+};
+
+&adv_bridge1 {
+	status = "disabled";
+};
+
+&fec2 {
+	status = "disabled";
+};
+
+&flexspi0 {
+	status = "disabled";
+};
+
+&parallel_csi {
+	status = "disabled";
+};
+
+&sai4 {
+	status = "disabled";
+};
+
+&sai5 {
+	status = "disabled";
+};
+
+&lpuart3 {
+	status = "disabled";
+};
+
+&crypto {
+	status = "disabled";
+};
+
+&isi_4 {
+	status = "disabled";
+};
+
