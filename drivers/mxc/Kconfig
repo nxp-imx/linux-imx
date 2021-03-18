@@ -35,6 +35,7 @@ source "drivers/mxc/hantro_v4l2/Kconfig"
 endif
 
 source "drivers/mxc/vpu/Kconfig"
+source "drivers/mxc/vehicle/Kconfig"
 
 endmenu
 
