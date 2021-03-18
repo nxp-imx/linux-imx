@@ -37,6 +37,7 @@ source "drivers/mxc/vpu_windsor/Kconfig"
 endif
 
 source "drivers/mxc/vpu/Kconfig"
+source "drivers/mxc/vehicle/Kconfig"
 
 endmenu
 
