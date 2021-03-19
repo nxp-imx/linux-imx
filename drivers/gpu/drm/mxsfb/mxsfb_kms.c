@@ -68,6 +68,14 @@ static void mxsfb_set_formats(struct mxsfb_drm_private *mxsfb)
 	DRM_DEV_DEBUG_DRIVER(drm->dev, "Setting up %s mode\n",
 			     drm_get_format_name(format, &format_name_buf));
 
+	/* Do some clean-up that we might have from a previous mode */
+	ctrl &= ~CTRL_SHIFT_DIR(1);
+	ctrl &= ~CTRL_SHIFT_NUM(0x3f);
+	if (mxsfb->devdata->ipversion >= 4)
+		writel(CTRL2_ODD_LINE_PATTERN(CTRL2_LINE_PATTERN_CLR) |
+		       CTRL2_EVEN_LINE_PATTERN(CTRL2_LINE_PATTERN_CLR),
+		       mxsfb->base + LCDC_V4_CTRL2 + REG_CLR);
+
 	switch (format) {
 	case DRM_FORMAT_BGR565: /* BG16 */
 		if (mxsfb->devdata->ipversion < 4)
@@ -146,7 +154,7 @@ static void mxsfb_set_formats(struct mxsfb_drm_private *mxsfb)
 	}
 
 	writel(ctrl1, mxsfb->base + LCDC_CTRL1);
-	writel(ctrl, mxsfb->base + LCDC_CTRL);
+	writel(ctrl, mxsfb->base + LCDC_CTRL + REG_SET);
 
 	return;
 err:
@@ -575,6 +583,7 @@ static void mxsfb_plane_primary_atomic_update(struct drm_plane *plane,
 	struct mxsfb_drm_private *mxsfb = to_mxsfb_drm_private(plane->dev);
 	struct drm_plane_state *new_state = plane->state;
 	struct drm_framebuffer *fb = plane->state->fb;
+	struct drm_framebuffer *old_fb = old_pstate->fb;
 	dma_addr_t paddr;
 	u32 src_off, src_w, stride, cpp = 0;
 
@@ -597,6 +606,10 @@ static void mxsfb_plane_primary_atomic_update(struct drm_plane *plane,
 		src_w = new_state->src_w >> 16;
 		mxsfb_set_fb_hcrop(mxsfb, src_w, stride);
 	}
+
+	/* Update format if changed */
+	if (fb && old_fb && (old_fb->format->format != fb->format->format))
+		mxsfb_set_formats(mxsfb);
 }
 
 static void mxsfb_plane_overlay_atomic_update(struct drm_plane *plane,
