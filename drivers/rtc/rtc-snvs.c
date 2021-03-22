@@ -14,6 +14,16 @@
 #include <linux/clk.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_SNVS_RTC 53
+#define SMC_SNVS_PROBE SMC_FASTCALL_NR(SMC_ENTITY_SNVS_RTC, 0)
+#define SMC_SNVS_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_SNVS_RTC, 1)
+#define SMC_SNVS_LPCR_OP SMC_FASTCALL_NR(SMC_ENTITY_SNVS_RTC, 2)
+
+#define OPT_READ 0x1
+#define OPT_WRITE 0x2
 
 #define SNVS_LPREGISTER_OFFSET	0x34
 
@@ -33,12 +43,25 @@
 #define SNVS_LPPGDR_INIT	0x41736166
 #define CNTR_TO_SECS_SH		15
 
+static void trusty_snvs_update_lpcr(struct device *dev, u32 target, u32 enable) {
+		trusty_fast_call32(dev, SMC_SNVS_LPCR_OP, target, enable, 0);
+}
+
+static u32 trusty_snvs_read(struct device *dev, u32 target) {
+		return trusty_fast_call32(dev, SMC_SNVS_REGS_OP, target + SNVS_LPREGISTER_OFFSET, OPT_READ, 0);
+}
+
+static void trusty_snvs_write(struct device *dev, u32 target, u32 value) {
+		trusty_fast_call32(dev, SMC_SNVS_REGS_OP, target + SNVS_LPREGISTER_OFFSET, OPT_WRITE, value);
+}
+
 struct snvs_rtc_data {
 	struct rtc_device *rtc;
 	struct regmap *regmap;
 	int offset;
 	int irq;
 	struct clk *clk;
+	struct device *trusty_dev;
 };
 
 /* Read 64 bit timer register, which could be in inconsistent state */
@@ -46,8 +69,13 @@ static u64 rtc_read_lpsrt(struct snvs_rtc_data *data)
 {
 	u32 msb, lsb;
 
-	regmap_read(data->regmap, data->offset + SNVS_LPSRTCMR, &msb);
-	regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &lsb);
+	if (data->trusty_dev) {
+		msb = trusty_snvs_read(data->trusty_dev, SNVS_LPSRTCMR);
+		lsb = trusty_snvs_read(data->trusty_dev, SNVS_LPSRTCLR);
+	} else {
+		regmap_read(data->regmap, data->offset + SNVS_LPSRTCMR, &msb);
+		regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &lsb);
+	}
 	return (u64)msb << 32 | lsb;
 }
 
@@ -81,10 +109,17 @@ static int rtc_read_lp_counter_lsb(struct snvs_rtc_data *data, u32 *lsb)
 	u32 count1, count2;
 	unsigned int timeout = 100;
 
-	regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &count1);
+	if (data->trusty_dev)
+		count1 = trusty_snvs_read(data->trusty_dev, SNVS_LPSRTCLR);
+	else
+		regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &count1);
+
 	do {
 		count2 = count1;
-		regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &count1);
+		if (data->trusty_dev)
+			count1 = trusty_snvs_read(data->trusty_dev, SNVS_LPSRTCLR);
+		else
+			regmap_read(data->regmap, data->offset + SNVS_LPSRTCLR, &count1);
 	} while (count1 != count2 && --timeout);
 	if (!timeout) {
 		dev_err(&data->rtc->dev, "Timeout trying to get valid LPSRT Counter read\n");
@@ -125,11 +160,17 @@ static int snvs_rtc_enable(struct snvs_rtc_data *data, bool enable)
 	int timeout = 1000;
 	u32 lpcr;
 
-	regmap_update_bits(data->regmap, data->offset + SNVS_LPCR, SNVS_LPCR_SRTC_ENV,
-			   enable ? SNVS_LPCR_SRTC_ENV : 0);
+	if (data->trusty_dev)
+		trusty_snvs_update_lpcr(data->trusty_dev, SNVS_LPCR_SRTC_ENV, enable);
+	else
+		regmap_update_bits(data->regmap, data->offset + SNVS_LPCR, SNVS_LPCR_SRTC_ENV,
+					enable ? SNVS_LPCR_SRTC_ENV : 0);
 
 	while (--timeout) {
-		regmap_read(data->regmap, data->offset + SNVS_LPCR, &lpcr);
+		if (data->trusty_dev)
+			lpcr = trusty_snvs_read(data->trusty_dev, SNVS_LPCR);
+		else
+			regmap_read(data->regmap, data->offset + SNVS_LPCR, &lpcr);
 
 		if (enable) {
 			if (lpcr & SNVS_LPCR_SRTC_ENV)
@@ -185,8 +226,13 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		return ret;
 
 	/* Write 32-bit time to 47-bit timer, leaving 15 LSBs blank */
-	regmap_write(data->regmap, data->offset + SNVS_LPSRTCLR, time << CNTR_TO_SECS_SH);
-	regmap_write(data->regmap, data->offset + SNVS_LPSRTCMR, time >> (32 - CNTR_TO_SECS_SH));
+	if (data->trusty_dev) {
+		trusty_snvs_write(data->trusty_dev, SNVS_LPSRTCLR, time << CNTR_TO_SECS_SH);
+		trusty_snvs_write(data->trusty_dev, SNVS_LPSRTCMR, time >> (32 - CNTR_TO_SECS_SH));
+	} else {
+		regmap_write(data->regmap, data->offset + SNVS_LPSRTCLR, time << CNTR_TO_SECS_SH);
+		regmap_write(data->regmap, data->offset + SNVS_LPSRTCMR, time >> (32 - CNTR_TO_SECS_SH));
+	}
 
 	/* Enable RTC again */
 	ret = snvs_rtc_enable(data, true);
@@ -209,10 +255,16 @@ static int snvs_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 			return ret;
 	}
 
-	regmap_read(data->regmap, data->offset + SNVS_LPTAR, &lptar);
+	if (data->trusty_dev)
+		lptar = trusty_snvs_read(data->trusty_dev, SNVS_LPTAR);
+	else
+		regmap_read(data->regmap, data->offset + SNVS_LPTAR, &lptar);
 	rtc_time64_to_tm(lptar, &alrm->time);
 
-	regmap_read(data->regmap, data->offset + SNVS_LPSR, &lpsr);
+	if (data->trusty_dev)
+		lpsr = trusty_snvs_read(data->trusty_dev, SNVS_LPSR);
+	else
+		regmap_read(data->regmap, data->offset + SNVS_LPSR, &lpsr);
 	alrm->pending = (lpsr & SNVS_LPSR_LPTA) ? 1 : 0;
 
 	if (data->clk)
@@ -232,9 +284,13 @@ static int snvs_rtc_alarm_irq_enable(struct device *dev, unsigned int enable)
 			return ret;
 	}
 
-	regmap_update_bits(data->regmap, data->offset + SNVS_LPCR,
-			   (SNVS_LPCR_LPTA_EN | SNVS_LPCR_LPWUI_EN),
-			   enable ? (SNVS_LPCR_LPTA_EN | SNVS_LPCR_LPWUI_EN) : 0);
+	if (data->trusty_dev) {
+		trusty_snvs_update_lpcr(data->trusty_dev, SNVS_LPCR_LPWUI_EN, enable);
+		trusty_snvs_update_lpcr(data->trusty_dev, SNVS_LPCR_LPTA_EN, enable);
+	} else
+		regmap_update_bits(data->regmap, data->offset + SNVS_LPCR,
+				   (SNVS_LPCR_LPTA_EN | SNVS_LPCR_LPWUI_EN),
+				   enable ? (SNVS_LPCR_LPTA_EN | SNVS_LPCR_LPWUI_EN) : 0);
 
 	ret = rtc_write_sync_lp(data);
 
@@ -256,14 +312,25 @@ static int snvs_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 			return ret;
 	}
 
-	regmap_update_bits(data->regmap, data->offset + SNVS_LPCR, SNVS_LPCR_LPTA_EN, 0);
+	if (data->trusty_dev)
+		trusty_snvs_update_lpcr(data->trusty_dev, SNVS_LPCR_LPTA_EN, 0);
+	else
+		regmap_update_bits(data->regmap, data->offset + SNVS_LPCR, SNVS_LPCR_LPTA_EN, 0);
+
 	ret = rtc_write_sync_lp(data);
 	if (ret)
 		return ret;
-	regmap_write(data->regmap, data->offset + SNVS_LPTAR, time);
+
+	if (data->trusty_dev)
+		trusty_snvs_write(data->trusty_dev, SNVS_LPTAR, time);
+	else
+		regmap_write(data->regmap, data->offset + SNVS_LPTAR, time);
 
 	/* Clear alarm interrupt status bit */
-	regmap_write(data->regmap, data->offset + SNVS_LPSR, SNVS_LPSR_LPTA);
+	if (data->trusty_dev)
+		trusty_snvs_write(data->trusty_dev, SNVS_LPSR, SNVS_LPSR_LPTA);
+	else
+		regmap_write(data->regmap, data->offset + SNVS_LPSR, SNVS_LPSR_LPTA);
 
 	if (data->clk)
 		clk_disable(data->clk);
@@ -289,7 +356,10 @@ static irqreturn_t snvs_rtc_irq_handler(int irq, void *dev_id)
 	if (data->clk)
 		clk_enable(data->clk);
 
-	regmap_read(data->regmap, data->offset + SNVS_LPSR, &lpsr);
+	if (data->trusty_dev)
+		lpsr = trusty_snvs_read(data->trusty_dev, SNVS_LPSR);
+	else
+		regmap_read(data->regmap, data->offset + SNVS_LPSR, &lpsr);
 
 	if (lpsr & SNVS_LPSR_LPTA) {
 		events |= (RTC_AF | RTC_IRQF);
@@ -301,7 +371,10 @@ static irqreturn_t snvs_rtc_irq_handler(int irq, void *dev_id)
 	}
 
 	/* clear interrupt status */
-	regmap_write(data->regmap, data->offset + SNVS_LPSR, lpsr);
+	if (data->trusty_dev)
+		trusty_snvs_write(data->trusty_dev, SNVS_LPSR, lpsr);
+	else
+		regmap_write(data->regmap, data->offset + SNVS_LPSR, lpsr);
 
 	if (data->clk)
 		clk_disable(data->clk);
@@ -320,10 +393,34 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	struct snvs_rtc_data *data;
 	int ret;
 	void __iomem *mmio;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	sp = of_find_node_by_name(NULL, "trusty");
+
+	if (sp != NULL) {
+		pd = of_find_device_by_node(sp);
+		if (pd != NULL) {
+			data->trusty_dev = &(pd->dev);
+			dev_err(&pdev->dev, "snvs rtc: get trusty_dev node, use Trusty mode.\n");
+		} else
+			dev_err(&pdev->dev, "snvs rtc: failed to get trusty_dev node\n");
+	} else {
+		dev_err(&pdev->dev, "snvs rtc: failed to find trusty node. Use normal mode.\n");
+		data->trusty_dev = NULL;
+	}
+
+	if (data->trusty_dev) {
+		ret = trusty_fast_call32(data->trusty_dev, SMC_SNVS_PROBE, 0, 0, 0);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "snvs rtc trusty dev failed to probe!nr=0x%x ret=%d\n", SMC_SNVS_PROBE, ret);
+			data->trusty_dev = NULL;
+		}
+	}
 
 	data->rtc = devm_rtc_allocate_device(&pdev->dev);
 	if (IS_ERR(data->rtc))
@@ -368,10 +465,16 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, data);
 
 	/* Initialize glitch detect */
-	regmap_write(data->regmap, data->offset + SNVS_LPPGDR, SNVS_LPPGDR_INIT);
+	if (data->trusty_dev)
+		trusty_snvs_write(data->trusty_dev, SNVS_LPPGDR, SNVS_LPPGDR_INIT);
+	else
+		regmap_write(data->regmap, data->offset + SNVS_LPPGDR, SNVS_LPPGDR_INIT);
 
 	/* Clear interrupt status */
-	regmap_write(data->regmap, data->offset + SNVS_LPSR, 0xffffffff);
+	if (data->trusty_dev)
+		trusty_snvs_write(data->trusty_dev, SNVS_LPSR, 0xffffffff);
+	else
+		regmap_write(data->regmap, data->offset + SNVS_LPSR, 0xffffffff);
 
 	/* Enable RTC */
 	ret = snvs_rtc_enable(data, true);
