@@ -29,7 +29,10 @@
 			basler_ep_0: endpoint {
 				data-lanes = <1 2 3 4>;
 				clock-lanes = <0>;
-				link-frequencies = /bits/ 64 <248000000>;
+				link-frequencies = /bits/ 64 <750000000>;
+				max-lane-frequency = /bits/ 64 <750000000>;
+				max-pixel-frequency = /bits/ 64 <500000000>;
+				max-data-rate = /bits/ 64 <0>;
 				remote-endpoint = <&mipi_csi0_ep>;
 			};
 		};

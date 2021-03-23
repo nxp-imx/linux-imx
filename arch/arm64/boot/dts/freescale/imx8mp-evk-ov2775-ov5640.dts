@@ -53,6 +53,7 @@
 			ov2775_mipi_0_ep: endpoint {
 				data-lanes = <1 2 3 4>;
 				clock-lanes = <0>;
+				max-pixel-frequency = /bits/ 64 <266000000>;
 				remote-endpoint = <&mipi_csi0_ep>;
 			};
 		};
