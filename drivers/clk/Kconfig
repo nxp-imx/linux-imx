@@ -474,6 +474,12 @@ config COMMON_CLK_SP7021
 	  Not all features of the PLL are currently supported
 	  by the driver.
 
+config VEHICLE_POST_INIT
+	bool "Clock and PM domain driver for shared peripherals"
+	help
+	  Shared peripherals are not accessible before other core release them
+	  Initialize these peripheral clock and power after getting these res
+
 source "drivers/clk/actions/Kconfig"
 source "drivers/clk/analogbits/Kconfig"
 source "drivers/clk/baikal-t1/Kconfig"
