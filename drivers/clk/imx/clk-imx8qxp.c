@@ -112,14 +112,36 @@ static inline bool clk_on_imx8dxl(struct device_node *node)
 	return of_device_is_compatible(node, "fsl,imx8dxl-clk") != 0;
 }
 
+static const struct of_device_id imx8qxp_match[] = {
+	{ .compatible = "fsl,scu-clk", },
+	{ .compatible = "fsl,imx8qxp-clk", &imx_clk_scu_rsrc_imx8qxp, },
+	{ .compatible = "fsl,imx8qm-clk", &imx_clk_scu_rsrc_imx8qm, },
+	{ .compatible = "fsl,imx8dxl-clk", &imx_clk_scu_rsrc_imx8dxl, },
+#ifdef CONFIG_VEHICLE_POST_INIT
+	{ .compatible = "fsl,imx8qxp-clk-post", &imx_clk_post_scu_rsrc_imx8qxp, },
+	{ .compatible = "fsl,imx8qm-clk-post", &imx_clk_post_scu_rsrc_imx8qm, },
+#endif
+	{ /* sentinel */ }
+};
+
 static int imx8qxp_clk_probe(struct platform_device *pdev)
 {
+#ifdef CONFIG_VEHICLE_POST_INIT
+	const struct of_device_id *of_id =
+			of_match_device(imx8qxp_match, &pdev->dev);
+#endif
 	struct device_node *ccm_node = pdev->dev.of_node;
 	const struct imx_clk_scu_rsrc_table *rsrc_table;
 	int ret;
 
 	rsrc_table = of_device_get_match_data(&pdev->dev);
-	ret = imx_clk_scu_init(ccm_node, rsrc_table);
+#ifdef CONFIG_VEHICLE_POST_INIT
+	if (strstr(of_id->compatible, "post"))
+		ret = imx_clk_post_scu_init(ccm_node, rsrc_table);
+	else
+#endif
+		ret = imx_clk_scu_init(ccm_node, rsrc_table);
+
 	if (ret)
 		return ret;
 
@@ -307,21 +329,13 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	imx_clk_scu2("hdmi_rx_pxl_clk", hdmi_rx_sels, ARRAY_SIZE(hdmi_rx_sels), IMX_SC_R_HDMI_RX, IMX_SC_PM_CLK_MISC3);
 	imx_clk_scu("hdmi_rx_i2s_clk", IMX_SC_R_HDMI_RX, IMX_SC_PM_CLK_MISC4);
 
-	ret = of_clk_add_hw_provider(ccm_node, imx_scu_of_clk_src_get, imx_scu_clks);
-	if (ret)
-		imx_clk_scu_unregister();
-
-	return ret;
+#ifdef CONFIG_VEHICLE_POST_INIT
+	if (strstr(of_id->compatible, "post"))
+		return 0;
+	else
+#endif
+		return of_clk_add_hw_provider(ccm_node, imx_scu_of_clk_src_get, imx_scu_clks);
 }
-
-static const struct of_device_id imx8qxp_match[] = {
-	{ .compatible = "fsl,scu-clk", },
-	{ .compatible = "fsl,imx8dxl-clk", &imx_clk_scu_rsrc_imx8dxl, },
-	{ .compatible = "fsl,imx8qxp-clk", &imx_clk_scu_rsrc_imx8qxp, },
-	{ .compatible = "fsl,imx8qm-clk", &imx_clk_scu_rsrc_imx8qm, },
-	{ .compatible = "fsl,imx8dxl-clk", &imx_clk_scu_rsrc_imx8dxl, },
-	{ /* sentinel */ }
-};
 
 static struct platform_driver imx8qxp_clk_driver = {
 	.driver = {
@@ -331,6 +345,7 @@ static struct platform_driver imx8qxp_clk_driver = {
 	},
 	.probe = imx8qxp_clk_probe,
 };
+
 module_platform_driver(imx8qxp_clk_driver);
 
 MODULE_AUTHOR("Aisheng Dong <aisheng.dong@nxp.com>");

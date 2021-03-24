@@ -25,9 +25,17 @@ extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8dxl;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8qxp;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8qm;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8dxl;
+#ifdef CONFIG_VEHICLE_POST_INIT
+extern const struct imx_clk_scu_rsrc_table imx_clk_post_scu_rsrc_imx8qxp;
+extern const struct imx_clk_scu_rsrc_table imx_clk_post_scu_rsrc_imx8qm;
+#endif
 
 int imx_clk_scu_init(struct device_node *np,
 		     const struct imx_clk_scu_rsrc_table *data);
+#ifdef CONFIG_VEHICLE_POST_INIT
+int imx_clk_post_scu_init(struct device_node *np,
+		     const struct imx_clk_scu_rsrc_table *data);
+#endif
 struct clk_hw *imx_scu_of_clk_src_get(struct of_phandle_args *clkspec,
 				      void *data);
 struct clk_hw *imx_clk_scu_alloc_dev(const char *name,
