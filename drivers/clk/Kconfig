@@ -359,6 +359,12 @@ config COMMON_CLK_FIXED_MMIO
 	help
 	  Support for Memory Mapped IO Fixed clocks
 
+config VEHICLE_POST_INIT
+	bool "Clock and PM domain driver for shared peripherals"
+	help
+	  Shared peripherals are not accessible before other core release them
+	  Initialize these peripheral clock and power after getting these resources.
+
 source "drivers/clk/actions/Kconfig"
 source "drivers/clk/analogbits/Kconfig"
 source "drivers/clk/baikal-t1/Kconfig"
