@@ -508,8 +508,14 @@ config COMMON_CLK_RPMI
 	depends on MAILBOX
 	default RISCV
 	help
-	  Support for clocks based on the clock service group defined by
-	  the RISC-V platform management interface (RPMI) specification.
+	  Support for clocks based on the clock service group def
+	  the RISC-V platform management interface (RPMI) specifi
+
+config VEHICLE_POST_INIT
+	bool "Clock and PM domain driver for shared peripherals"
+	help
+	  Shared peripherals are not accessible before other core release them
+	  Initialize these peripheral clock and power after getting these res
 
 source "drivers/clk/actions/Kconfig"
 source "drivers/clk/analogbits/Kconfig"

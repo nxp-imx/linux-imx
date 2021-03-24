@@ -10,6 +10,7 @@
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/firmware/imx/svc/rm.h>
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
@@ -26,6 +27,7 @@ static struct imx_sc_ipc *ccm_ipc_handle;
 static struct device_node *pd_np;
 static struct platform_driver imx_clk_scu_driver;
 static const struct imx_clk_scu_rsrc_table *rsrc_table;
+u32 clock_cells;
 
 struct imx_scu_clk_node {
 	const char *name;
@@ -217,6 +219,34 @@ int imx_clk_scu_init(struct device_node *np,
 
 	return platform_driver_register(&imx_clk_scu_driver);
 }
+
+#ifdef CONFIG_VEHICLE_POST_INIT
+int imx_clk_post_scu_init(struct device_node *np, const struct imx_clk_scu_rsrc_table *data)
+{
+	struct platform_device *pd_dev;
+	struct device_node *post_np;
+
+	if (!ccm_ipc_handle)
+		return -EPROBE_DEFER;
+
+	if (of_property_read_u32(np, "#clock-cells", &clock_cells))
+		return -EINVAL;
+
+	if (clock_cells == 2) {
+		post_np = of_find_compatible_node(NULL, NULL, "fsl,imx8qm-scu-pd-post");
+		if (!post_np)
+			post_np = of_find_compatible_node(NULL, NULL, "fsl,imx8qxp-scu-pd-post");
+
+		pd_dev = of_find_device_by_node(post_np);
+		if (!pd_dev || !device_is_bound(&pd_dev->dev))
+			return -EPROBE_DEFER;
+
+		rsrc_table = data;
+	}
+
+	return 0;
+}
+#endif
 
 /*
  * clk_scu_recalc_rate - Get clock rate for a SCU clock
