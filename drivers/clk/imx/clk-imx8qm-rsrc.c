@@ -17,11 +17,13 @@ static u32 imx8qm_clk_scu_rsrc_table[] = {
 	IMX_SC_R_DC_0,
 	IMX_SC_R_DC_0_PLL_0,
 	IMX_SC_R_DC_0_PLL_1,
+#ifndef CONFIG_VEHICLE_POST_INIT
 	IMX_SC_R_DC_1_VIDEO0,
 	IMX_SC_R_DC_1_VIDEO1,
 	IMX_SC_R_DC_1,
 	IMX_SC_R_DC_1_PLL_0,
 	IMX_SC_R_DC_1_PLL_1,
+#endif
 	IMX_SC_R_SPI_0,
 	IMX_SC_R_SPI_1,
 	IMX_SC_R_SPI_2,
@@ -73,12 +75,16 @@ static u32 imx8qm_clk_scu_rsrc_table[] = {
 	IMX_SC_R_LVDS_0_PWM_0,
 	IMX_SC_R_LVDS_0_I2C_0,
 	IMX_SC_R_LVDS_0_I2C_1,
+#ifndef CONFIG_VEHICLE_POST_INIT
 	IMX_SC_R_LVDS_1,
 	IMX_SC_R_LVDS_1_PWM_0,
 	IMX_SC_R_LVDS_1_I2C_0,
 	IMX_SC_R_LVDS_1_I2C_1,
+#endif
 	IMX_SC_R_M4_0_I2C,
+#ifndef CONFIG_VEHICLE_POST_INIT
 	IMX_SC_R_M4_1_I2C,
+#endif
 	IMX_SC_R_AUDIO_PLL_0,
 	IMX_SC_R_VPU_UART,
 	IMX_SC_R_VPUCORE,
@@ -90,9 +96,11 @@ static u32 imx8qm_clk_scu_rsrc_table[] = {
 	IMX_SC_R_MIPI_1_PWM_0,
 	IMX_SC_R_MIPI_1_I2C_0,
 	IMX_SC_R_MIPI_1_I2C_1,
+#ifndef CONFIG_VEHICLE_POST_INIT
 	IMX_SC_R_CSI_0,
 	IMX_SC_R_CSI_0_PWM_0,
 	IMX_SC_R_CSI_0_I2C_0,
+#endif
 	IMX_SC_R_CSI_1,
 	IMX_SC_R_CSI_1_PWM_0,
 	IMX_SC_R_CSI_1_I2C_0,
@@ -115,3 +123,27 @@ const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8qm = {
 	.rsrc = imx8qm_clk_scu_rsrc_table,
 	.num = ARRAY_SIZE(imx8qm_clk_scu_rsrc_table),
 };
+
+#ifdef CONFIG_VEHICLE_POST_INIT
+/* Keep sorted in the ascending order */
+static u32 imx8qm_clk_post_scu_rsrc_table[] = {
+	IMX_SC_R_DC_1_VIDEO0,
+	IMX_SC_R_DC_1_VIDEO1,
+	IMX_SC_R_DC_1,
+	IMX_SC_R_DC_1_PLL_0,
+	IMX_SC_R_DC_1_PLL_1,
+	IMX_SC_R_LVDS_1,
+	IMX_SC_R_LVDS_1_PWM_0,
+	IMX_SC_R_LVDS_1_I2C_0,
+	IMX_SC_R_LVDS_1_I2C_1,
+	IMX_SC_R_M4_1_I2C,
+	IMX_SC_R_CSI_0,
+	IMX_SC_R_CSI_0_PWM_0,
+	IMX_SC_R_CSI_0_I2C_0,
+};
+
+const struct imx_clk_scu_rsrc_table imx_clk_post_scu_rsrc_imx8qm = {
+	.rsrc = imx8qm_clk_post_scu_rsrc_table,
+	.num = ARRAY_SIZE(imx8qm_clk_post_scu_rsrc_table),
+};
+#endif

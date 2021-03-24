@@ -281,6 +281,59 @@ static const struct imx_sc_pd_soc imx8qxp_scu_pd = {
 	.num_ranges = ARRAY_SIZE(imx8qxp_scu_pd_ranges),
 };
 
+#ifdef CONFIG_VEHICLE_POST_INIT
+static const struct imx_sc_pd_range imx8qm_scu_pd_post_ranges[] = {
+	{ "lvds1", IMX_SC_R_LVDS_1, 1, false, 0 },
+	{ "lvds1-i2c0", IMX_SC_R_LVDS_1_I2C_0, 1, false, 0 },
+	{ "lvds1-pwm0", IMX_SC_R_LVDS_1_PWM_0, 1, false, 0 },
+	{ "lvds1", IMX_SC_R_LVDS_1, 1, 0 },
+	{ "dc1", IMX_SC_R_DC_1, 1, false, 0 },
+	{ "dc1-pll", IMX_SC_R_DC_1_PLL_0, 2, true, 0 },
+	{ "dc1-video", IMX_SC_R_DC_1_VIDEO0, 2, true, 0 },
+	/* CM41 SS */
+	{ "cm41_i2c", IMX_SC_R_M4_1_I2C, 1, false, 0 },
+	{ "cm41_intmux", IMX_SC_R_M4_1_INTMUX, 1, false, 0 },
+	/* IMAGE SS */
+	{ "img-pdma", IMX_SC_R_ISI_CH0, 8, true, 0 },
+	{ "img-csi0", IMX_SC_R_CSI_0, 1, false, 0 },
+	{ "img-csi0-i2c0", IMX_SC_R_CSI_0_I2C_0, 1, false, 0 },
+	{ "img-csi0-pwm0", IMX_SC_R_CSI_0_PWM_0, 1, false, 0 },
+};
+
+static const struct imx_sc_pd_soc imx8qm_scu_pd_post = {
+	.pd_ranges = imx8qm_scu_pd_post_ranges,
+	.num_ranges = ARRAY_SIZE(imx8qm_scu_pd_post_ranges),
+};
+
+static const struct imx_sc_pd_range imx8qxp_scu_pd_post_ranges[] = {
+	/* MIPI SS */
+	{ "mipi0", IMX_SC_R_MIPI_0, 1, false, 0 },
+	{ "mipi0-pwm0", IMX_SC_R_MIPI_0_PWM_0, 1, false, 0 },
+	{ "mipi0-i2c", IMX_SC_R_MIPI_0_I2C_0, 2, true, 0 },
+	/* LVDS SS */
+	{ "lvds0", IMX_SC_R_LVDS_0, 1, false, 0 },
+	{ "lvds0-i2c0", IMX_SC_R_LVDS_0_I2C_0, 1, false, 0 },
+	{ "lvds0-pwm0", IMX_SC_R_LVDS_0_PWM_0, 1, false, 0 },
+	/* DC SS */
+	{ "dc0", IMX_SC_R_DC_0, 1, false, 0 },
+	{ "dc0-pll", IMX_SC_R_DC_0_PLL_0, 2, true, 0 },
+	{ "dc0-video", IMX_SC_R_DC_0_VIDEO0, 2, true, 0 },
+	/* CM40 SS */
+	{ "cm40_i2c", IMX_SC_R_M4_0_I2C, 1, false, 0 },
+	{ "cm40_intmux", IMX_SC_R_M4_0_INTMUX, 1, false, 0 },
+	/* IMAGE SS */
+	{ "img-pdma", IMX_SC_R_ISI_CH0, 8, true, 0 },
+	{ "img-csi0", IMX_SC_R_CSI_0, 1, false, 0 },
+	{ "img-csi0-i2c0", IMX_SC_R_CSI_0_I2C_0, 1, false, 0 },
+	{ "img-csi0-pwm0", IMX_SC_R_CSI_0_PWM_0, 1, false, 0 },
+};
+
+static const struct imx_sc_pd_soc imx8qxp_scu_pd_post = {
+	.pd_ranges = imx8qxp_scu_pd_post_ranges,
+	.num_ranges = ARRAY_SIZE(imx8qxp_scu_pd_post_ranges),
+};
+#endif
+
 static struct imx_sc_ipc *pm_ipc_handle;
 
 static inline struct imx_sc_pm_domain *
@@ -484,6 +537,9 @@ imx_scu_add_pm_domain(struct device *dev, int idx,
 	return sc_pd;
 }
 
+#ifdef CONFIG_VEHICLE_POST_INIT
+static struct genpd_onecell_data *origin_pd_data = NULL;
+#endif
 static int imx_scu_init_pm_domains(struct device *dev,
 				    const struct imx_sc_pd_soc *pd_soc)
 {
@@ -520,16 +576,56 @@ static int imx_scu_init_pm_domains(struct device *dev,
 	pd_data->domains = domains;
 	pd_data->num_domains = count;
 	pd_data->xlate = imx_scu_pd_xlate;
+#ifdef CONFIG_VEHICLE_POST_INIT
+	origin_pd_data = pd_data;
+#endif
 
 	of_genpd_add_provider_onecell(dev->of_node, pd_data);
 
 	return 0;
 }
 
+#ifdef CONFIG_VEHICLE_POST_INIT
+static const struct of_device_id imx_sc_pd_match[];
+static int imx_scu_post_init_pm_domains(struct device *dev,
+				    const struct imx_sc_pd_soc *pd_soc)
+{
+	const struct imx_sc_pd_range *pd_ranges = pd_soc->pd_ranges;
+	struct generic_pm_domain **domains;
+	struct imx_sc_pm_domain *sc_pd;
+	u32 count = 0;
+	int i, j;
+
+	if (!origin_pd_data)
+		return -ENODEV;
+
+	count = origin_pd_data->num_domains;
+	domains = origin_pd_data->domains;
+	for (i = 0; i < pd_soc->num_ranges; i++) {
+		for (j = 0; j < pd_ranges[i].num; j++) {
+			sc_pd = imx_scu_add_pm_domain(dev, j, &pd_ranges[i]);
+			if (IS_ERR_OR_NULL(sc_pd))
+				continue;
+
+			domains[count++] = &sc_pd->pd;
+			dev_dbg(dev, "added power domain %s\n", sc_pd->pd.name);
+		}
+	}
+
+	origin_pd_data->num_domains = count;
+
+	return 0;
+}
+#endif
+
 static int imx_sc_pd_probe(struct platform_device *pdev)
 {
 	const struct imx_sc_pd_soc *pd_soc;
 	int ret;
+#ifdef CONFIG_VEHICLE_POST_INIT
+	const struct of_device_id *of_id =
+			of_match_device(imx_sc_pd_match, &pdev->dev);
+#endif
 
 	ret = imx_scu_get_handle(&pm_ipc_handle);
 	if (ret)
@@ -539,14 +635,25 @@ static int imx_sc_pd_probe(struct platform_device *pdev)
 	if (!pd_soc)
 		return -ENODEV;
 
-	imx_sc_pd_get_console_rsrc();
-	imx_sc_pd_enable_irqsteer_wakeup(pdev->dev.of_node);
+#ifdef CONFIG_VEHICLE_POST_INIT
+	if (strstr(of_id->compatible, "post")) {
+		return imx_scu_post_init_pm_domains(&pdev->dev, pd_soc);
+	} else
+#endif
+	{
+		imx_sc_pd_get_console_rsrc();
+		imx_sc_pd_enable_irqsteer_wakeup(pdev->dev.of_node);
 
-	return imx_scu_init_pm_domains(&pdev->dev, pd_soc);
+		return imx_scu_init_pm_domains(&pdev->dev, pd_soc);
+	}
 }
 
 static const struct of_device_id imx_sc_pd_match[] = {
 	{ .compatible = "fsl,imx8qxp-scu-pd", &imx8qxp_scu_pd},
+#ifdef CONFIG_VEHICLE_POST_INIT
+	{ .compatible = "fsl,imx8qxp-scu-pd-post", &imx8qxp_scu_pd_post},
+	{ .compatible = "fsl,imx8qm-scu-pd-post", &imx8qm_scu_pd_post},
+#endif
 	{ .compatible = "fsl,scu-pd", &imx8qxp_scu_pd},
 	{ /* sentinel */ }
 };

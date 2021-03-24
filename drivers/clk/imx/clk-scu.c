@@ -220,6 +220,35 @@ int imx_clk_scu_init(struct device_node *np, const void *data)
 	return 0;
 }
 
+#ifdef CONFIG_VEHICLE_POST_INIT
+int imx_clk_post_scu_init(struct device_node *np, const void *data)
+{
+	struct platform_device *pd_dev;
+	struct device_node *post_np;
+	int ret, i;
+
+	if (!ccm_ipc_handle)
+		return -EPROBE_DEFER;
+
+	if (of_property_read_u32(np, "#clock-cells", &clock_cells))
+		return -EINVAL;
+
+	if (clock_cells == 2) {
+		post_np = of_find_compatible_node(NULL, NULL, "fsl,imx8qm-scu-pd-post");
+		if (!post_np)
+			post_np = of_find_compatible_node(NULL, NULL, "fsl,imx8qxp-scu-pd-post");
+
+		pd_dev = of_find_device_by_node(post_np);
+		if (!pd_dev || !device_is_bound(&pd_dev->dev))
+			return -EPROBE_DEFER;
+
+		rsrc_table = data;
+	}
+
+	return 0;
+}
+#endif
+
 /*
  * clk_scu_recalc_rate - Get clock rate for a SCU clock
  * @hw: clock to get rate for
