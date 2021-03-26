@@ -238,6 +238,7 @@
 				 <&clk IMX8MM_SYS_PLL2_100M>,
 				 <&clk IMX8MM_SYS_PLL2_250M>;
 	ext_osc = <1>;
+	l1ss-disabled;
 	status = "okay";
 };
 
