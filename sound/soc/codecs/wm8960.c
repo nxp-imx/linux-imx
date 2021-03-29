@@ -1330,6 +1330,12 @@ static int wm8960_probe(struct snd_soc_component *component)
 				     ARRAY_SIZE(wm8960_snd_controls));
 	wm8960_add_widgets(component);
 
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_L");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_R");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Playback");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Capture");
+	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "MICB");
+
 	return 0;
 }
 
@@ -1337,7 +1343,7 @@ static const struct snd_soc_component_driver soc_component_dev_wm8960 = {
 	.probe			= wm8960_probe,
 	.set_bias_level		= wm8960_set_bias_level,
 	.suspend_bias_off	= 1,
-	.idle_bias_on		= 1,
+	.idle_bias_on		= 0,
 	.use_pmdown_time	= 1,
 	.endianness		= 1,
 	.non_legacy_dai_naming	= 1,
