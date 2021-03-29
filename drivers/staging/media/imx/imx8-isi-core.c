@@ -405,7 +405,7 @@ static int mxc_isi_soc_match(struct mxc_isi_dev *mxc_isi,
 
 	match = soc_device_match(data);
 	if (!match)
-		return -EINVAL;
+		return -EPROBE_DEFER;
 
 	mxc_isi->buf_active_reverse = false;
 
@@ -451,7 +451,8 @@ static int mxc_isi_probe(struct platform_device *pdev)
 
 	ret = mxc_isi_soc_match(mxc_isi, imx8_soc);
 	if (ret < 0) {
-		dev_err(dev, "Can't match soc version\n");
+		if (ret != -EPROBE_DEFER)
+			dev_err(dev, "Can't match soc version\n");
 		return ret;
 	}
 
