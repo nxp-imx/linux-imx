@@ -200,7 +200,7 @@
          hpamp: hpamp@60 {
                 compatible = "ti,tpa6130a2";
                 reg = <0x60>;
-                status = "disabled";
+                status = "okay";
         };
 
 

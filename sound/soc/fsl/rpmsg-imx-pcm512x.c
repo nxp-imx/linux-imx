@@ -356,6 +356,8 @@ static int  tpa6130init(struct snd_soc_component *component){
 	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HPRIGHT");
 	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "LEFTIN");
 	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "RIGHTIN");
+
+	return 0;
 }
 
 /* aux device for optional headphone amp */
@@ -367,15 +369,6 @@ static struct snd_soc_aux_dev hifiberry_dacplus_aux_devs[] = {
 		.init = tpa6130init,
         },
 };
-
-
-static struct property tpa_enable_prop = {
-               .name = "status",
-               .length = 4 + 1, /* length 'okay' + 1 */
-               .value = "okay",
-        };
-
-
 
 static int hb_hp_detect(void)
 {
@@ -478,37 +471,10 @@ static int imx_pcm512x_probe(struct platform_device *pdev)
         /* probe for head phone amp */
         ret = hb_hp_detect();
         if (ret) {
-		int len;
-		struct device_node *tpa_node;
-		struct property *tpa_prop;
-		struct of_changeset ocs;
-
 		dev_info(&pdev->dev, "found phone amp \n");
                 data->card.aux_dev = hifiberry_dacplus_aux_devs;
                 data->card.num_aux_devs =
                                 ARRAY_SIZE(hifiberry_dacplus_aux_devs);
-                tpa_node = of_find_compatible_node(NULL, NULL, "ti,tpa6130a2");
-                tpa_prop = of_find_property(tpa_node, "status", &len);
-
-                if (strcmp((char *)tpa_prop->value, "okay")) {
-                        /* and activate headphone using change_sets */
-                        dev_info(&pdev->dev, "activating headphone amplifier");
-                        of_changeset_init(&ocs);
-                        ret = of_changeset_update_property(&ocs, tpa_node,
-                                                        &tpa_enable_prop);
-                        if (ret) {
-                                dev_err(&pdev->dev,
-                                "cannot activate headphone amplifier\n");
-                                return -ENODEV;
-                        }
-                        ret = of_changeset_apply(&ocs);
-                        if (ret) {
-                                dev_err(&pdev->dev,
-                                "cannot activate headphone amplifier\n");
-                                return -ENODEV;
-                        }
-                }
-
         }
 
 	ret = snd_soc_of_parse_card_name(&data->card, "model");
