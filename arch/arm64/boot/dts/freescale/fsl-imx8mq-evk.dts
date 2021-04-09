@@ -821,6 +821,7 @@
 	reset-gpio = <&gpio5 28 GPIO_ACTIVE_LOW>;
 	ext_osc = <1>;
 	hard-wired = <1>;
+	vph-supply = <&vgen5_reg>;
 	status = "okay";
 };
 
@@ -830,6 +831,7 @@
 	disable-gpio = <&gpio5 10 GPIO_ACTIVE_LOW>;
 	reset-gpio = <&gpio5 12 GPIO_ACTIVE_LOW>;
 	ext_osc = <1>;
+	vph-supply = <&vgen5_reg>;
 	status = "okay";
 };
 
