@@ -45,6 +45,7 @@
 #define IMX8MQ_GPR_PCIE_REF_USE_PAD		BIT(9)
 #define IMX8MQ_GPR_PCIE_CLK_REQ_OVERRIDE_EN	BIT(10)
 #define IMX8MQ_GPR_PCIE_CLK_REQ_OVERRIDE	BIT(11)
+#define IMX8MQ_GPR_PCIE_VREG_BYPASS		BIT(12)
 #define IMX8MQ_GPR12_PCIE2_CTRL_DEVICE_TYPE	GENMASK(11, 8)
 #define IMX8MQ_PCIE2_BASE_ADDR			0x33c00000
 #define IMX8_HSIO_PCIEB_BASE_ADDR		0x5f010000
@@ -131,6 +132,7 @@ struct imx6_pcie {
 	u32			dma_unroll_offset;
 	int			link_gen;
 	struct regulator	*vpcie;
+	struct regulator	*vph;
 	void __iomem		*phy_base;
 	void __iomem		*hsmix_base;
 
@@ -1374,6 +1376,17 @@ static void imx6_pcie_init_phy(struct imx6_pcie *imx6_pcie)
 				   imx6_pcie_grp_offset(imx6_pcie),
 				   IMX8MQ_GPR_PCIE_REF_USE_PAD,
 				   IMX8MQ_GPR_PCIE_REF_USE_PAD);
+		/*
+		 * Regarding to the datasheet, the PCIE_VPH is suggested
+		 * to be 1.8V. If the PCIE_VPH is supplied by 3.3V, the
+		 * VREG_BYPASS should be cleared to zero.
+		 */
+		if (imx6_pcie->vph &&
+		    regulator_get_voltage(imx6_pcie->vph) > 3000000)
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					   imx6_pcie_grp_offset(imx6_pcie),
+					   IMX8MQ_GPR_PCIE_VREG_BYPASS,
+					   0);
 		break;
 	case IMX8MP:
 		dev_info(imx6_pcie->pci->dev, "%s REF_CLK is used!.\n",
@@ -2492,6 +2505,13 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		if (PTR_ERR(imx6_pcie->vpcie) != -ENODEV)
 			return PTR_ERR(imx6_pcie->vpcie);
 		imx6_pcie->vpcie = NULL;
+	}
+
+	imx6_pcie->vph = devm_regulator_get_optional(&pdev->dev, "vph");
+	if (IS_ERR(imx6_pcie->vph)) {
+		if (PTR_ERR(imx6_pcie->vph) != -ENODEV)
+			return PTR_ERR(imx6_pcie->vph);
+		imx6_pcie->vph = NULL;
 	}
 
 	platform_set_drvdata(pdev, imx6_pcie);
