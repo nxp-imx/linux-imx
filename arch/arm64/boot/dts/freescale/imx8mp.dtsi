@@ -1601,6 +1601,7 @@
 				assigned-clock-parents = <&clk IMX8MP_SYS_PLL1_800M>;
 				assigned-clock-rates = <200000000>;
 				resets = <&hdmimix_reset IMX_HDMIMIX_IRQ_STEER_RESET>;
+				power-domains = <&hdmimix_pd>;
 				status = "disabled";
 			};
 
