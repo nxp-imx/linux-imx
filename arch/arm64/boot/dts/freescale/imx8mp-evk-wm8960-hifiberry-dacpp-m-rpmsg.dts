@@ -258,18 +258,6 @@
 	status = "okay";
 };
 
-&pcie{
-        status = "disabled";
-};
-
-&pcie_ep{
-        status = "disabled";
-};
-
-&pcie_phy{
-        status = "disabled"; 
-};
-
 &usdhc1 {
 	imx8mp-disable-emmc-request-high;
 };
