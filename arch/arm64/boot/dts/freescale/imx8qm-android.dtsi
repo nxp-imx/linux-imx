@@ -42,3 +42,14 @@
 &{/reserved-memory/linux,cma} {
 	status = "disabled";
 };
+
+&{/reserved-memory} {
+	ramoops@91f00000 {
+		compatible = "ramoops";
+		reg = <0 0x91f00000 0 0x00100000>;
+		record-size     = <0x00020000>;
+		console-size    = <0x00020000>;
+		ftrace-size     = <0x00020000>;
+		pmsg-size       = <0x00020000>;
+	};
+};
