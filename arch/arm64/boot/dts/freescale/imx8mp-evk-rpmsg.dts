@@ -94,7 +94,7 @@
 			  &mu 1 1
 			  &mu 3 1>;
 		memory-region = <&vdev0vring0>, <&vdev0vring1>, <&vdevbuffer>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -177,7 +177,7 @@
 	vdev-nums = <1>;
 	reg = <0x0 0x55000000 0x0 0x10000>;
 	memory-region = <&vdevbuffer>;
-	status = "disabled";
+	status = "okay";
 };
 
 &sdma3{

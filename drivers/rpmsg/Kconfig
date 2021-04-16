@@ -56,7 +56,7 @@ config RPMSG_VIRTIO
 	select VIRTIO
 
 config HAVE_IMX_RPMSG
-	bool "IMX RPMSG driver on the AMP SOCs"
+	tristate "IMX RPMSG driver on the AMP SOCs"
 	default y
 	depends on IMX_MBOX
 	select RPMSG_VIRTIO
