@@ -50,4 +50,9 @@ config SOC_IMX8M
 	  support, it will provide the SoC info like SoC family,
 	  ID and revision etc.
 
+config IMX_LPA_CTRL
+	tristate "i.MX8MP lpa power mode control support"
+	depends on ARCH_MXC
+	default n
+
 endmenu

@@ -7,3 +7,4 @@ obj-$(CONFIG_IMX_SCU_SOC) += soc-imx-scu.o
 obj-$(CONFIG_IMX8M_PM_DOMAINS) += imx8m_pm_domains.o
 obj-$(CONFIG_SOC_IMX_MU) += mu/
 obj-${CONFIG_SECVIO_SC} += secvio/
+obj-${CONFIG_IMX_LPA_CTRL} += lpa_ctrl.o
