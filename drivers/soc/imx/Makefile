@@ -10,3 +10,4 @@ obj-${CONFIG_SECVIO_SC} += secvio/
 obj-$(CONFIG_RPMSG_LIFE_CYCLE) += rpmsg_life_cycle.o
 obj-$(CONFIG_IMX8M_PM_DOMAINS) += imx8m_pm_domains.o
 obj-$(CONFIG_IMX8ULP_LPM_CTRL) += imx8ulp_lpm.o
+obj-${CONFIG_IMX_LPA_CTRL} += lpa_ctrl.o

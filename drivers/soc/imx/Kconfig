@@ -74,4 +74,9 @@ config IMX8ULP_LPM_CTRL
 	  If you say yes here you get supoort for DDR frequency scaling support on
 	  i.MX8ULP for scaling the DDR frequency based on user case. The DDR frequency
 	  need to be switched manually by user.
+
+config IMX_LPA_CTRL
+	tristate "i.MX8MP lpa power mode control support"
+	depends on ARCH_MXC
+	default n
 endmenu
