@@ -91,6 +91,8 @@
 
 #define MAX_DATA_SIZE_PER_USER  (65 * 1024)
 
+#define SC_IRQ_V2X_RESET (1<<7)
+
 /* Header of the messages exchange with the SECO */
 struct she_mu_hdr {
 	u8 ver;
@@ -138,6 +140,8 @@ struct seco_mu_device_ctx {
 	u32 temp_cmd[MAX_MESSAGE_SIZE];
 	u32 temp_resp[MAX_RECV_SIZE];
 	u32 temp_resp_size;
+	struct notifier_block scu_notify;
+	bool v2x_reset;
 };
 
 /* Private struct for seco MU driver. */
@@ -275,6 +279,7 @@ static int seco_mu_fops_open(struct inode *nd, struct file *fp)
 	dev_ctx->status = MU_OPENED;
 
 	dev_ctx->pending_hdr = 0;
+	dev_ctx->v2x_reset = 0;
 
 	goto exit;
 
@@ -472,10 +477,21 @@ static ssize_t seco_mu_fops_read(struct file *fp, char __user *buf,
 		goto exit;
 	}
 
+	if (dev_ctx->v2x_reset) {
+		err = -EINVAL;
+		goto exit;
+	}
+
 	/* Wait until the complete message is received on the MU. */
 	err = wait_event_interruptible(dev_ctx->wq, dev_ctx->pending_hdr != 0);
 	if (err) {
 		devctx_err(dev_ctx, "Interrupted by signal\n");
+		goto exit;
+	}
+
+	if (dev_ctx->v2x_reset) {
+		err = -EINVAL;
+		dev_ctx->v2x_reset = 0;
 		goto exit;
 	}
 
@@ -995,6 +1011,20 @@ exit:
 	return ret;
 }
 
+static int imx_sc_v2x_reset_notify(struct notifier_block *nb,
+                                      unsigned long event, void *group)
+{
+	struct seco_mu_device_ctx *dev_ctx = container_of(nb,
+					struct seco_mu_device_ctx, scu_notify);
+
+	if (!(event & SC_IRQ_V2X_RESET))
+		return 0;
+
+	dev_ctx->v2x_reset = true;
+
+	wake_up_interruptible(&dev_ctx->wq);
+	return 0;
+}
 /* Driver probe.*/
 static int seco_mu_probe(struct platform_device *pdev)
 {
@@ -1134,9 +1164,25 @@ static int seco_mu_probe(struct platform_device *pdev)
 
 		ret = devm_add_action(dev, if_misc_deregister,
 				      &dev_ctx->miscdev);
+
+		dev_ctx->scu_notify.notifier_call = imx_sc_v2x_reset_notify;
+
+		ret = imx_scu_irq_register_notifier(&dev_ctx->scu_notify);
+		if (ret) {
+			dev_err(&pdev->dev, "v2x reqister scu notifier failed.\n");
+			return ret;
+		}
+
 		if (ret)
 			dev_warn(dev,
 				 "failed to add managed removal of miscdev\n");
+	}
+
+	ret = imx_scu_irq_group_enable(IMX_SC_IRQ_GROUP_WAKE,
+					SC_IRQ_V2X_RESET, true);
+	if (ret) {
+		dev_warn(&pdev->dev, "v2x Enable irq failed.\n");
+		return ret;
 	}
 
 exit:
