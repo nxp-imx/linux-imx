@@ -11,4 +11,10 @@ menuconfig ION
 	  If you're not using Android its probably safe to
 	  say N here.
 
+config ION_IMX
+	tristate "Ion for imx platform"
+	depends on ARCH_MXC && ION
+	help
+		Choose this option if you wish to get phy address on imx platform
+
 source "drivers/staging/android/ion/heaps/Kconfig"
