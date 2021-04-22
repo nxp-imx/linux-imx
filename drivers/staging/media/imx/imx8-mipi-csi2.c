@@ -924,9 +924,19 @@ static struct mxc_mipi_csi2_pd_ops mxc_imx8ulp_csi2_pd_ops = {
 	.detach = mxc_imx8ulp_csi2_pd_detach,
 };
 
+static int mxc_imx8ulp_csi2_reset(struct mxc_mipi_csi2_dev *csi2dev, int enable)
+{
+	return 0;
+}
+
+static struct mxc_mipi_csi2_rst_ops mxc_imx8ulp_csi2_rst_ops = {
+	.reset = mxc_imx8ulp_csi2_reset,
+};
+
 static struct mxc_mipi_csi2_plat_data mxc_imx8ulp_csi2_pdata = {
 	.clk_ops = &mxc_imx8ulp_csi2_clk_ops,
 	.pd_ops  = &mxc_imx8ulp_csi2_pd_ops,
+	.rst_ops = &mxc_imx8ulp_csi2_rst_ops,
 };
 
 static int mipi_csi2_clk_init(struct mxc_mipi_csi2_dev *csi2dev)
