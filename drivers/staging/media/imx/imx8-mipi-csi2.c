@@ -248,8 +248,14 @@ struct mxc_mipi_csi2_clk_ops {
 	void (*clk_disable)(struct mxc_mipi_csi2_dev *csi2dev);
 };
 
+struct mxc_mipi_csi2_pd_ops {
+	int (*attach)(struct mxc_mipi_csi2_dev *csi2dev);
+	void (*detach)(struct mxc_mipi_csi2_dev *csi2dev);
+};
+
 struct mxc_mipi_csi2_plat_data {
 	struct mxc_mipi_csi2_clk_ops *clk_ops;
+	struct mxc_mipi_csi2_pd_ops *pd_ops;
 };
 
 struct mxc_mipi_csi2_dev {
@@ -749,8 +755,62 @@ static struct mxc_mipi_csi2_clk_ops mxc_csi2_clk_ops = {
 	.clk_disable = mxc_imx8_csi2_clk_disable,
 };
 
+static int mxc_imx8_csi2_pd_attach(struct mxc_mipi_csi2_dev *csi2dev)
+{
+	struct device *dev = &csi2dev->pdev->dev;
+	struct device_link *link;
+
+	csi2dev->pd_csi = dev_pm_domain_attach_by_name(dev, "pd_csi");
+	if (IS_ERR(csi2dev->pd_csi)) {
+		if (PTR_ERR(csi2dev->pd_csi) != -EPROBE_DEFER) {
+			dev_err(dev, "attach pd_csi domain for csi fail\n");
+			return PTR_ERR(csi2dev->pd_csi);
+		} else {
+			return PTR_ERR(csi2dev->pd_csi);
+		}
+	}
+	link = device_link_add(dev, csi2dev->pd_csi,
+			       DL_FLAG_STATELESS |
+			       DL_FLAG_PM_RUNTIME);
+	if (IS_ERR(link))
+		return PTR_ERR(link);
+	csi2dev->pd_csi_link = link;
+
+	csi2dev->pd_isi = dev_pm_domain_attach_by_name(dev, "pd_isi_ch0");
+	if (IS_ERR(csi2dev->pd_isi)) {
+		if (PTR_ERR(csi2dev->pd_isi) != -EPROBE_DEFER) {
+			dev_err(dev, "attach pd_isi_ch0 domain for csi fail\n");
+			return PTR_ERR(csi2dev->pd_isi);
+		} else {
+			return PTR_ERR(csi2dev->pd_isi);
+		}
+	}
+	link = device_link_add(dev, csi2dev->pd_isi,
+			       DL_FLAG_STATELESS |
+			       DL_FLAG_PM_RUNTIME);
+	if (IS_ERR(link))
+		return PTR_ERR(link);
+	csi2dev->pd_isi_link = link;
+
+	return 0;
+}
+
+static void mxc_imx8_csi2_pd_detach(struct mxc_mipi_csi2_dev *csi2dev)
+{
+	device_link_del(csi2dev->pd_csi_link);
+	device_link_del(csi2dev->pd_isi_link);
+	dev_pm_domain_detach(csi2dev->pd_csi, true);
+	dev_pm_domain_detach(csi2dev->pd_isi, true);
+}
+
+static struct mxc_mipi_csi2_pd_ops mxc_csi2_pd_ops = {
+	.attach = mxc_imx8_csi2_pd_attach,
+	.detach = mxc_imx8_csi2_pd_detach,
+};
+
 static struct mxc_mipi_csi2_plat_data mxc_imx8_csi2_pdata = {
 	.clk_ops = &mxc_csi2_clk_ops,
+	.pd_ops  = &mxc_csi2_pd_ops,
 };
 
 static int mxc_imx8ulp_csi2_clk_get(struct mxc_mipi_csi2_dev *csi2dev)
@@ -847,50 +907,20 @@ static int mipi_csi2_clk_init(struct mxc_mipi_csi2_dev *csi2dev)
 
 static int mipi_csi2_attach_pd(struct mxc_mipi_csi2_dev *csi2dev)
 {
-	struct device *dev = &csi2dev->pdev->dev;
-	struct device_link *link;
+	const struct mxc_mipi_csi2_pd_ops *ops = csi2dev->pdata->pd_ops;
 
-	csi2dev->pd_csi = dev_pm_domain_attach_by_name(dev, "pd_csi");
-	if (IS_ERR(csi2dev->pd_csi)) {
-		if (PTR_ERR(csi2dev->pd_csi) != -EPROBE_DEFER) {
-			dev_err(dev, "attach pd_csi domain for csi fail\n");
-			return PTR_ERR(csi2dev->pd_csi);
-		} else {
-			return PTR_ERR(csi2dev->pd_csi);
-		}
-	}
-	link = device_link_add(dev, csi2dev->pd_csi,
-			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME);
-	if (IS_ERR(link))
-		return PTR_ERR(link);
-	csi2dev->pd_csi_link = link;
-
-	csi2dev->pd_isi = dev_pm_domain_attach_by_name(dev, "pd_isi_ch0");
-	if (IS_ERR(csi2dev->pd_isi)) {
-		if (PTR_ERR(csi2dev->pd_isi) != -EPROBE_DEFER) {
-			dev_err(dev, "attach pd_isi_ch0 domain for csi fail\n");
-			return PTR_ERR(csi2dev->pd_isi);
-		} else {
-			return PTR_ERR(csi2dev->pd_isi);
-		}
-	}
-	link = device_link_add(dev, csi2dev->pd_isi,
-			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME);
-	if (IS_ERR(link))
-		return PTR_ERR(link);
-	csi2dev->pd_isi_link = link;
+	if (ops && ops->attach)
+		return ops->attach(csi2dev);
 
 	return 0;
 }
 
 static void mipi_csi2_detach_pd(struct mxc_mipi_csi2_dev *csi2dev)
 {
-	device_link_del(csi2dev->pd_csi_link);
-	device_link_del(csi2dev->pd_isi_link);
-	dev_pm_domain_detach(csi2dev->pd_csi, true);
-	dev_pm_domain_detach(csi2dev->pd_isi, true);
+	const struct mxc_mipi_csi2_pd_ops *ops = csi2dev->pdata->pd_ops;
+
+	if (ops && ops->detach)
+		ops->detach(csi2dev);
 }
 
 static int mipi_csi2_clk_enable(struct mxc_mipi_csi2_dev *csi2dev)
