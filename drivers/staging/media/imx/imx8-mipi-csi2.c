@@ -253,9 +253,14 @@ struct mxc_mipi_csi2_pd_ops {
 	void (*detach)(struct mxc_mipi_csi2_dev *csi2dev);
 };
 
+struct mxc_mipi_csi2_rst_ops {
+	int (*reset)(struct mxc_mipi_csi2_dev *csi2dev, int enable);
+};
+
 struct mxc_mipi_csi2_plat_data {
 	struct mxc_mipi_csi2_clk_ops *clk_ops;
 	struct mxc_mipi_csi2_pd_ops *pd_ops;
+	struct mxc_mipi_csi2_rst_ops *rst_ops;
 };
 
 struct mxc_mipi_csi2_dev {
@@ -436,31 +441,13 @@ static void mxc_mipi_csi2_reg_dump(struct mxc_mipi_csi2_dev *csi2dev)
 	}
 }
 
-static int mipi_sc_fw_init(struct mxc_mipi_csi2_dev *csi2dev, char enable)
+static int mipi_sc_fw_init(struct mxc_mipi_csi2_dev *csi2dev, int enable)
 {
-	struct device *dev = &csi2dev->pdev->dev;
-	u32 rsrc_id;
-	int ret;
+	const struct mxc_mipi_csi2_rst_ops *ops = csi2dev->pdata->rst_ops;
 
-	ret = imx_scu_get_handle(&pm_ipc_handle);
-	if (ret) {
-		dev_err(dev, "sc_misc_MIPI get ipc handle failed! ret = (%d)\n", ret);
-		return ret;
-	}
+	if (ops && ops->reset)
+		return ops->reset(csi2dev, enable);
 
-	if (csi2dev->id == 1)
-		rsrc_id = IMX_SC_R_CSI_1;
-	else
-		rsrc_id = IMX_SC_R_CSI_0;
-
-	ret = imx_sc_misc_set_control(pm_ipc_handle,
-				      rsrc_id, IMX_SC_C_MIPI_RESET, enable);
-	if (ret < 0) {
-		dev_err(dev, "sc_misc_MIPI reset failed! ret = (%d)\n", ret);
-		return ret;
-	}
-
-	msleep(10);
 	return 0;
 }
 
@@ -808,9 +795,42 @@ static struct mxc_mipi_csi2_pd_ops mxc_csi2_pd_ops = {
 	.detach = mxc_imx8_csi2_pd_detach,
 };
 
+static int mxc_imx8_csi2_reset(struct mxc_mipi_csi2_dev *csi2dev, int enable)
+{
+	struct device *dev = &csi2dev->pdev->dev;
+	u32 rsrc_id;
+	int ret;
+
+	ret = imx_scu_get_handle(&pm_ipc_handle);
+	if (ret) {
+		dev_err(dev, "sc_misc_MIPI get ipc handle failed! ret = (%d)\n", ret);
+		return ret;
+	}
+
+	if (csi2dev->id == 1)
+		rsrc_id = IMX_SC_R_CSI_1;
+	else
+		rsrc_id = IMX_SC_R_CSI_0;
+
+	ret = imx_sc_misc_set_control(pm_ipc_handle,
+				      rsrc_id, IMX_SC_C_MIPI_RESET, enable);
+	if (ret < 0) {
+		dev_err(dev, "sc_misc_MIPI reset failed! ret = (%d)\n", ret);
+		return ret;
+	}
+
+	msleep(10);
+	return 0;
+}
+
+static struct mxc_mipi_csi2_rst_ops mxc_csi2_rst_ops = {
+	.reset = mxc_imx8_csi2_reset,
+};
+
 static struct mxc_mipi_csi2_plat_data mxc_imx8_csi2_pdata = {
 	.clk_ops = &mxc_csi2_clk_ops,
 	.pd_ops  = &mxc_csi2_pd_ops,
+	.rst_ops = &mxc_csi2_rst_ops,
 };
 
 static int mxc_imx8ulp_csi2_clk_get(struct mxc_mipi_csi2_dev *csi2dev)
