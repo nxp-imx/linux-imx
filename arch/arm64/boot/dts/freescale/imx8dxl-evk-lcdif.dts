@@ -26,7 +26,9 @@
 &iomuxc {
 	pinctrl_hog: hoggrp {
 		fsl,pins = <
-			IMX8DXL_COMP_CTL_GPIO_1V8_3V3_GPIORHB_PAD  0x000514a0
+			IMX8DXL_COMP_CTL_GPIO_1V8_3V3_GPIORHB_PAD  	0x000514a0
+			IMX8DXL_COMP_CTL_GPIO_1V8_3V3_GPIORHK_PAD	0x000014a0
+			IMX8DXL_SNVS_TAMPER_OUT1_LSIO_GPIO2_IO05_IN	0x0600004c
 		>;
 	};
 };
@@ -48,10 +50,6 @@
 };
 
 &eqos {
-	status = "disabled";
-};
-
-&lpspi3 {
 	status = "disabled";
 };
 
