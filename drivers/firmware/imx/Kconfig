@@ -39,3 +39,13 @@ config IMX_SECO_MU
 	  SAB protocol via the shared Messaging Unit. This driver exposes these
 	  interfaces via a set of file descriptors allowing to configure shared
 	  memory, send and receive messages.
+
+config IMX_S400_API
+	tristate "S400 Baseline API"
+	depends on IMX_MBOX
+	default y
+
+	help
+	  S400 Baseline API. It provides the services to transmit command to and
+	  receive response from the security subsystem through the hardware
+	  device S4 MU-AP.
