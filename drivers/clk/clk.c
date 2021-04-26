@@ -32,6 +32,7 @@ static struct task_struct *enable_owner;
 
 static int prepare_refcnt;
 static int enable_refcnt;
+static bool enable_clk_disable_unused;
 
 static HLIST_HEAD(clk_root_list);
 static HLIST_HEAD(clk_orphan_list);
@@ -1312,7 +1313,70 @@ static int clk_disable_unused(void)
 
 	return 0;
 }
-late_initcall_sync(clk_disable_unused);
+
+static void clk_disable_unused_enable(bool enable)
+{
+	if (enable) {
+		clk_disable_unused();
+		enable_clk_disable_unused = true;
+		pr_info("clk_disable_unused: enabled\n");
+	} else {
+		enable_clk_disable_unused = false;
+		pr_info("clk_disable_unused: disabled\n");
+	}
+}
+
+static bool clk_disable_unused_status(void)
+{
+	return enable_clk_disable_unused;
+}
+
+static ssize_t clk_disable_unused_show(struct kobject *kobj, struct kobj_attribute *attr,
+					char *buf)
+{
+	return sprintf(buf, "%u\n", clk_disable_unused_status());
+}
+
+static ssize_t clk_disable_unused_store(struct kobject *kobj, struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	unsigned long val;
+
+	if (kstrtoul(buf, 10, &val))
+		return -EINVAL;
+	if (val > 1)
+		return -EINVAL;
+
+	clk_disable_unused_enable(val);
+
+	return n;
+}
+
+static struct kobj_attribute  clk_ctrl_attr =
+	__ATTR(enable_clk_disable_unused, 0644, clk_disable_unused_show, clk_disable_unused_store);
+
+static struct attribute * clk_ctrl_attrbute[] = {
+	&clk_ctrl_attr.attr,
+	NULL,
+	};
+
+static const struct attribute_group clk_ctrl_attr_group = {
+	.attrs = clk_ctrl_attrbute,
+};
+
+static const struct attribute_group *clk_ctrl_attr_groups[] = {
+	&clk_ctrl_attr_group,
+	NULL,
+};
+
+static int __init creat_sys_clk_unused(void)
+{
+	struct kobject * clk_ctrl_kobj = kobject_create_and_add("clk_ctrl", NULL);
+	sysfs_create_groups(clk_ctrl_kobj, clk_ctrl_attr_groups);
+
+	return 0;
+}
+late_initcall_sync(creat_sys_clk_unused);
 
 static void clk_unprepare_disable_dev_subtree(struct clk_core *core,
 					      struct device *dev)
