@@ -71,6 +71,7 @@
 
 	sound-wm8960 {
 		audio-codec = <&codec1>;
+		enable-lpa;
 	};
 
 

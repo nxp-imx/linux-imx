@@ -48,6 +48,7 @@ struct imx_wm8960_data {
 	unsigned int clk_frequency;
 	bool is_codec_master;
 	bool is_codec_rpmsg;
+	bool is_lpa_enabled;
 	bool is_playback_only;
 	bool is_capture_only;
 	bool is_stream_in_use[2];
@@ -76,7 +77,8 @@ static int hp_jack_status_check(void *data)
 
 	if (hp_status != imx_data->hp_active_low) {
 #ifdef CONFIG_EXTCON
-		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 1);
+		if (!imx_data->is_lpa_enabled)
+			extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 1);
 #endif
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk");
 		if (imx_data->is_headset_jack) {
@@ -86,7 +88,8 @@ static int hp_jack_status_check(void *data)
 		ret = imx_data->imx_hp_jack_gpio.report;
 	} else {
 #ifdef CONFIG_EXTCON
-		extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 0);
+		if (!imx_data->is_lpa_enabled)
+			extcon_set_state_sync(wm8960_edev, EXTCON_JACK_HEADPHONE, 0);
 #endif
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk");
 		if (imx_data->is_headset_jack) {
@@ -457,6 +460,9 @@ static int imx_wm8960_probe(struct platform_device *pdev)
 	if (of_property_read_bool(pdev->dev.of_node, "codec-rpmsg"))
 		data->is_codec_rpmsg = true;
 
+	if (of_property_read_bool(pdev->dev.of_node, "enable-lpa"))
+		data->is_lpa_enabled = true;
+
 	cpu_np = of_parse_phandle(pdev->dev.of_node, "cpu-dai", 0);
 	if (!cpu_np) {
 		dev_err(&pdev->dev, "cpu dai phandle missing or invalid\n");
@@ -707,15 +713,17 @@ static int imx_wm8960_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_EXTCON
-	wm8960_edev  = devm_extcon_dev_allocate(&pdev->dev, imx_wm8960_extcon_cables);
-	if (IS_ERR(wm8960_edev)) {
-		dev_err(&pdev->dev, "failed to allocate extcon device\n");
-		goto fail;
-	}
-	ret = devm_extcon_dev_register(&pdev->dev,wm8960_edev);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to register extcon device\n");
-		goto fail;
+	if (!data->is_lpa_enabled) {
+		wm8960_edev  = devm_extcon_dev_allocate(&pdev->dev, imx_wm8960_extcon_cables);
+		if (IS_ERR(wm8960_edev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			goto fail;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev,wm8960_edev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			goto fail;
+		}
 	}
 #endif
 out:
