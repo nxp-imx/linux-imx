@@ -133,6 +133,7 @@ struct wm8960_priv {
 	int freq_in;
 	bool is_stream_in_use[2];
 	struct wm8960_data pdata;
+	bool is_lpa_enabled;
 };
 
 #define wm8960_reset(c)	regmap_write(c, WM8960_RESET, 0)
@@ -1330,20 +1331,22 @@ static int wm8960_probe(struct snd_soc_component *component)
 				     ARRAY_SIZE(wm8960_snd_controls));
 	wm8960_add_widgets(component);
 
-	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_L");
-	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_R");
-	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Playback");
-	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Capture");
-	snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "MICB");
+	if (wm8960->is_lpa_enabled) {
+		snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_L");
+		snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "HP_R");
+		snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Playback");
+		snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "Capture");
+		snd_soc_dapm_ignore_suspend(snd_soc_component_get_dapm(component), "MICB");
+	}
 
 	return 0;
 }
 
-static const struct snd_soc_component_driver soc_component_dev_wm8960 = {
+static struct snd_soc_component_driver soc_component_dev_wm8960 = {
 	.probe			= wm8960_probe,
 	.set_bias_level		= wm8960_set_bias_level,
 	.suspend_bias_off	= 1,
-	.idle_bias_on		= 0,
+	.idle_bias_on		= 1,
 	.use_pmdown_time	= 1,
 	.endianness		= 1,
 	.non_legacy_dai_naming	= 1,
@@ -1400,6 +1403,11 @@ static int wm8960_i2c_probe(struct i2c_client *i2c,
 		memcpy(&wm8960->pdata, pdata, sizeof(struct wm8960_data));
 	else if (i2c->dev.of_node)
 		wm8960_set_pdata_from_of(i2c, &wm8960->pdata);
+
+	if (of_property_read_bool(i2c->dev.of_node, "enable-lpa")) {
+		wm8960->is_lpa_enabled = true;
+		soc_component_dev_wm8960.idle_bias_on = 0;
+	}
 
 	do {
 		ret = wm8960_reset(wm8960->regmap);

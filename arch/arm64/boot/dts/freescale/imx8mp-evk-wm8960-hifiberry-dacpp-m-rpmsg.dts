@@ -212,6 +212,7 @@
 		clocks = <&audiomix_clk IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>;
 		clock-names = "mclk";
 		wlf,shared-lrclk;
+		enable-lpa;
 		SPKVDD1-supply = <&reg_audio_pwr>;
 	};
 };
