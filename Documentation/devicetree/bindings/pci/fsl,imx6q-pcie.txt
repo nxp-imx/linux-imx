@@ -32,6 +32,9 @@ Optional properties:
 - reset-gpio-active-high: If present then the reset sequence using the GPIO
   specified in the "reset-gpio" property is reversed (H=reset state,
   L=operation state).
+- vph-supply: Should specify the regulator in charge of VPH one of the three
+  PCIe PHY powers. This regulator can be supplied by both 1.8v and 3.3v voltage
+  supplies. Might be used to distinguish different HW board designs.
 
 Additional required properties for imx6sx-pcie:
 - clock names: Must include the following additional entries:
