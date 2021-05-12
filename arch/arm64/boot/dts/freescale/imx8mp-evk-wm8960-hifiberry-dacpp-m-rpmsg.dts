@@ -86,7 +86,7 @@
 			 <&audiomix_clk IMX8MP_CLK_AUDIOMIX_OCRAMA_IPG>,
 			 <&clk IMX8MP_AUDIO_PLL1_OUT>,
 			 <&clk IMX8MP_AUDIO_PLL2_OUT>;
-		clock-names = "bus", "dma","ocrama", "pll8k", "pll11k";
+		clock-names = "ipg", "dma","ocrama", "pll8k", "pll11k";
 		power-domains = <&audiomix_pd>;
 		status = "okay";
 	};
