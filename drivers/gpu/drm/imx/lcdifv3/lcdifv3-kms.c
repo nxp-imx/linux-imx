@@ -26,9 +26,29 @@ static void lcdifv3_drm_atomic_commit_tail(struct drm_atomic_state *state)
 	drm_atomic_helper_cleanup_planes(dev, state);
 }
 
+static int lcdifv3_drm_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *new_crtc_state;
+	struct drm_display_mode *mode;
+	int i;
+
+	if (state->allow_modeset) {
+		for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
+			WARN_ON(!drm_modeset_is_locked(&crtc->mutex));
+
+			mode = &new_crtc_state->mode;
+			if (!strcmp(mode->name, "1280x720") && drm_mode_vrefresh(mode) == 60) {
+				new_crtc_state->mode_changed = true;
+			}
+		}
+	}
+
+	return drm_atomic_helper_check(dev, state);
+}
 const struct drm_mode_config_funcs lcdifv3_drm_mode_config_funcs = {
 	.fb_create     = drm_gem_fb_create,
-	.atomic_check  = drm_atomic_helper_check,
+	.atomic_check  = lcdifv3_drm_atomic_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
 
