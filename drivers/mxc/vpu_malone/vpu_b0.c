@@ -1634,6 +1634,9 @@ static void vpu_dec_receive_ts(struct vpu_ctx *ctx,
 		return;
 	}
 
+	if (!is_codec_config_data(vb))
+		ctx->statistic.frame_input++;
+
 	size += ctx->extra_size;
 	ctx->extra_size = 0;
 	vpu_dbg(LVL_BIT_TS, "[INPUT  TS]%32lld\n", input_ts);
@@ -1715,6 +1718,12 @@ static int v4l2_ioctl_dqbuf(struct file *file,
 	if (ret) {
 		vpu_err("error: %s() return ret=%d\n", __func__, ret);
 		return ret;
+	}
+
+	if (!V4L2_TYPE_IS_OUTPUT(buf->type)) {
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
+		ctx->statistic.frame_display++;
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
 	}
 
 	if (q_data->vb2_reqs[buf->index].bfield)
@@ -3245,6 +3254,17 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 	if (list_empty(&This->drv_q) && ctx->eos_stop_received) {
 		if (vpu_dec_is_active(ctx)) {
 			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
+			if (ctx->statistic.eos_cnt) {
+				vpu_dbg(LVL_WARN,
+					"Warning : repeated eos at frame %ld (%ld), previous eos has been insert when input %ld frames(%ld bytes)\n",
+					ctx->statistic.frame_input,
+					ctx->total_write_bytes,
+					ctx->statistic.eos_frames, ctx->statistic.eos_bytes);
+			}
+			ctx->statistic.eos_cnt++;
+			ctx->statistic.eos_frames = ctx->statistic.frame_input;
+			ctx->statistic.eos_bytes = ctx->total_write_bytes;
+
 			if (add_scode(ctx, 0, EOS_PADDING_TYPE, true) > 0) {
 				record_log_info(ctx, LOG_EOS, 0, 0);
 				ctx->eos_stop_received = false;
@@ -3884,6 +3904,64 @@ static void vpu_calculate_performance(struct vpu_ctx *ctx,  u_int32 uEvent, cons
 	}
 }
 
+static void vpu_ctx_show_statstic(struct vpu_ctx *ctx, const char *desc)
+{
+	char buf[256];
+	int num = 0;
+	int size = sizeof(buf);
+	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc = get_str_buffer_desc(ctx);
+
+	num += scnprintf(buf + num, size - num, "[%d] ", ctx->str_index);
+	num += scnprintf(buf + num, size - num, "%s,", desc ? desc : "");
+	num += scnprintf(buf + num, size - num, "%c%c%c%c ",
+			ctx->q_data[V4L2_SRC].fourcc,
+			ctx->q_data[V4L2_SRC].fourcc >> 8,
+			ctx->q_data[V4L2_SRC].fourcc >> 16,
+			ctx->q_data[V4L2_SRC].fourcc >> 24);
+	num += scnprintf(buf + num, size - num, "%dx%d,",
+			ctx->q_data[V4L2_DST].width,
+			ctx->q_data[V4L2_DST].height);
+	num += scnprintf(buf + num, size - num, "input:%ld,",
+			ctx->statistic.frame_input);
+	num += scnprintf(buf + num, size - num, "parse:%ld,",
+			ctx->statistic.frame_hdr);
+	num += scnprintf(buf + num, size - num, "decode:%ld,",
+			ctx->statistic.frame_decoded);
+	num += scnprintf(buf + num, size - num, "ready:%ld,",
+			ctx->statistic.frame_ready);
+	num += scnprintf(buf + num, size - num, "skip:%ld,",
+			ctx->statistic.skipped_frame_count);
+	num += scnprintf(buf + num, size - num, "disp:%ld,",
+			ctx->statistic.frame_display);
+	num += scnprintf(buf + num, size - num, "bytes:%ld %ld,",
+			ctx->total_qbuf_bytes, ctx->total_write_bytes);
+	num += scnprintf(buf + num, size - num, "eos:%ld %ld %ld",
+			ctx->statistic.eos_cnt,
+			ctx->statistic.eos_frames,
+			ctx->statistic.eos_bytes);
+	num += scnprintf(buf + num, size - num,
+			",wptr:0x%x 0x%x 0x%x",
+			pStrBufDesc->wptr - pStrBufDesc->start,
+			pStrBufDesc->rptr - pStrBufDesc->start,
+			ctx->beginning - pStrBufDesc->start);
+	vpu_dbg(LVL_BIT_STRM_INFO, "%s\n", buf);
+};
+
+static void vpu_ctx_clear_statistic_on_abort(struct vpu_ctx *ctx)
+{
+
+	vpu_ctx_show_statstic(ctx, "abt");
+
+	ctx->statistic.eos_cnt = 0;
+	ctx->statistic.eos_frames = 0;
+	ctx->statistic.eos_bytes = 0;
+	ctx->statistic.frame_input = 0;
+	ctx->statistic.frame_hdr = 0;
+	ctx->statistic.frame_decoded = 0;
+	ctx->statistic.frame_ready = 0;
+	ctx->statistic.frame_display = 0;
+};
+
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data)
 {
 	struct vpu_dev *dev;
@@ -3976,6 +4054,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		size_t wr_size;
 		struct vb2_data_req *p_data_req = NULL;
 		u32 consumed_count = event_data[13];
+
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
+		ctx->statistic.frame_decoded++;
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
 
 		if (This->vdec_std == VPU_VIDEO_HEVC)
 			uDpbmcCrc = pPerfDcpInfo->uDBEDpbCRC[0];
@@ -4105,6 +4187,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		}
 		break;
 	case VID_API_EVENT_PIC_HDR_FOUND:
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
+		ctx->statistic.frame_hdr++;
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
 		break;
 	case VID_API_EVENT_REQ_FRAME_BUFF: {
 		MEDIA_PLAYER_FSREQ *pFSREQ = (MEDIA_PLAYER_FSREQ *)event_data;
@@ -4188,6 +4273,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_FRAME_BUFF_RDY: {
 		u_int32 *FrameInfo = (u_int32 *)event_data;
 
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
+		ctx->statistic.frame_ready++;
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
+
 		report_buffer_done(ctx, FrameInfo);
 		if (ctx->statistic.event[VID_API_EVENT_FRAME_BUFF_RDY] == 1)
 			vpu_calculate_performance(ctx, uEvent, "first ready");
@@ -4234,6 +4323,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pStrBufDesc->end);
 
 		down(&queue->drv_q_lock);
+		vpu_ctx_clear_statistic_on_abort(ctx);
+
 		vpu_dbg(LVL_BIT_FLOW,
 			"ctx[%d] ABORT DONE, output qbuf(%ld/%ld),dqbuf(%ld)\n",
 			ctx->str_index,
@@ -4312,6 +4403,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	case VID_API_EVENT_STR_FMT_CHANGE:
 		break;
 	case VID_API_EVENT_FINISHED: {
+		down(&ctx->q_data[V4L2_SRC].drv_q_lock);
+		vpu_ctx_show_statstic(ctx, "eos");
+		up(&ctx->q_data[V4L2_SRC].drv_q_lock);
+
 		if (ctx->firmware_finished == true)
 			vpu_err("warning: receive VID_API_EVENT_FINISHED when firmware_finished == true\n");
 		ctx->firmware_finished = true;
@@ -6100,7 +6195,7 @@ static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 		return -EINVAL;
 	}
 	dev->m0_p_fw_space_phy = reserved_res.start;
-	dev->m0_boot_size = reserved_res.end - reserved_res.start;
+	dev->m0_boot_size = resource_size(&reserved_res);
 	reserved_node = of_parse_phandle(np, "rpc-region", 0);
 	if (!reserved_node) {
 		vpu_err("error: rpc-region of_parse_phandle error\n");
@@ -6112,7 +6207,7 @@ static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 		return -EINVAL;
 	}
 	dev->m0_rpc_phy = reserved_res.start;
-	dev->m0_rpc_size = reserved_res.end - reserved_res.start;
+	dev->m0_rpc_size = resource_size(&reserved_res);
 
 	if (rpc_check_memory_region(dev->m0_p_fw_space_phy,
 				dev->m0_rpc_phy,

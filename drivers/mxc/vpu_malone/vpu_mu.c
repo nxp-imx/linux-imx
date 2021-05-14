@@ -21,11 +21,6 @@
 
 static void vpu_mu_inq_msg(struct vpu_dev *dev, void *msg)
 {
-	if (&dev->mu_msg_fifo == NULL) {
-		vpu_err("&dev->mu_msg_fifo == NULL\n");
-		return;
-	}
-
 	if (kfifo_in(&dev->mu_msg_fifo, msg, sizeof(u_int32)) != sizeof(u_int32)) {
 		vpu_err("No memory for mu msg fifo\n");
 		return;
@@ -55,11 +50,6 @@ static void vpu_rx_callback(struct mbox_client *c, void *msg)
 	struct vpu_sc_chan *sc_chan = container_of(c, struct vpu_sc_chan, cl);
 	struct vpu_dev *dev =
 		container_of(sc_chan, struct vpu_dev, sc_chan_rx);
-
-	if (&dev->mu_msg_fifo == NULL) {
-		vpu_err("&dev->mu_msg_fifo == NULL\n");
-		return;
-	}
 
 	vpu_mu_inq_msg(dev, msg);
 }
