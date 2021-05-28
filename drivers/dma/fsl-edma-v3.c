@@ -985,6 +985,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 			of_match_device(fsl_edma3_dt_ids, &pdev->dev);
 	struct fsl_edma3_engine *fsl_edma3;
 	struct fsl_edma3_chan *fsl_chan;
+	struct resource *res_mp;
 	struct resource *res;
 	int len, chans;
 	int ret, i;
@@ -1009,6 +1010,9 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	fsl_edma3->drvdata = (const struct fsl_edma3_drvdata *)of_id->data;
 
 	INIT_LIST_HEAD(&fsl_edma3->dma_dev.channels);
+
+	res_mp = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+
 	for (i = 0; i < fsl_edma3->n_chans; i++) {
 		struct fsl_edma3_chan *fsl_chan = &fsl_edma3->chans[i];
 		const char *txirq_name;
@@ -1020,15 +1024,17 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 		fsl_chan->pdev = pdev;
 		fsl_chan->idle = true;
 		/* Get per channel membase */
-		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		res = platform_get_resource(pdev, IORESOURCE_MEM, i + 1);
 		fsl_chan->membase = devm_ioremap_resource(&pdev->dev, res);
 		if (IS_ERR(fsl_chan->membase))
 			return PTR_ERR(fsl_chan->membase);
 
 		/* Get the hardware chanel id by the channel membase
 		 * channel0:0x10000, channel1:0x20000... total 32 channels
+		 * Note: skip first res_mp which we don't care.
 		 */
-		fsl_chan->hw_chanid = (res->start >> 16) & 0x1f;
+		fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 16) & 0x1f;
+		fsl_chan->hw_chanid--;
 
 		ret = of_property_read_string_index(np, "interrupt-names", i,
 							&txirq_name);
