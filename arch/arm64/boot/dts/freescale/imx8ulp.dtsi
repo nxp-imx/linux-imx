@@ -224,6 +224,15 @@
 				status = "okay";
 			};
 
+			mu: mailbox@29220000 {
+				compatible = "fsl,imx8ulp-mu";
+				reg = <0x29220000 0x10000>;
+				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&pcc3 IMX8ULP_CLK_MU0_B>;
+				#mbox-cells = <2>;
+				status = "disabled";
+			};
+
 			wdog3: watchdog@292a0000 {
 				compatible = "fsl,imx8ulp-wdt", "fsl,imx7ulp-wdt";
 				reg = <0x292a0000 0x10000>;
