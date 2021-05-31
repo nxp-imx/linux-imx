@@ -85,10 +85,10 @@ static int imx8ulp_clk_cgc1_init(struct platform_device *pdev)
 	clks[IMX8ULP_CLK_SPLL3] = imx_clk_hw_pllv4(IMX_PLLV4_IMX8ULP, "spll3", "spll3_pre_sel", base + 0x600);
 	clks[IMX8ULP_CLK_SPLL3_VCODIV] = imx_clk_hw_divider("spll3_vcodiv", "spll3", base + 0x604, 0, 6);
 
-	clks[IMX8ULP_CLK_SPLL3_PFD0] = imx_clk_hw_pfdv2("spll3_pfd0", "spll3_vcodiv", base + 0x614, 0);
-	clks[IMX8ULP_CLK_SPLL3_PFD1] = imx_clk_hw_pfdv2("spll3_pfd1", "spll3_vcodiv", base + 0x614, 1);
-	clks[IMX8ULP_CLK_SPLL3_PFD2] = imx_clk_hw_pfdv2("spll3_pfd2", "spll3_vcodiv", base + 0x614, 2);
-	clks[IMX8ULP_CLK_SPLL3_PFD3] = imx_clk_hw_pfdv2("spll3_pfd3", "spll3_vcodiv", base + 0x614, 3);
+	clks[IMX8ULP_CLK_SPLL3_PFD0] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "spll3_pfd0", "spll3_vcodiv", base + 0x614, 0);
+	clks[IMX8ULP_CLK_SPLL3_PFD1] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "spll3_pfd1", "spll3_vcodiv", base + 0x614, 1);
+	clks[IMX8ULP_CLK_SPLL3_PFD2] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "spll3_pfd2", "spll3_vcodiv", base + 0x614, 2);
+	clks[IMX8ULP_CLK_SPLL3_PFD3] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "spll3_pfd3", "spll3_vcodiv", base + 0x614, 3);
 
 	clks[IMX8ULP_CLK_SPLL3_PFD0_DIV1_GATE] = imx_clk_hw_gate_dis("spll3_pfd0_div1_gate", "spll3_pfd0", base + 0x608, 7);
 	clks[IMX8ULP_CLK_SPLL3_PFD0_DIV2_GATE] = imx_clk_hw_gate_dis("spll3_pfd0_div2_gate", "spll3_pfd0", base + 0x608, 15);
@@ -175,10 +175,10 @@ static int imx8ulp_clk_cgc2_init(struct platform_device *pdev)
 	clks[IMX8ULP_CLK_LPAV_AHB_DIV] = imx_clk_hw_divider_flags("lpav_ahb_div", "lpav_axi_div", base + 0x3c, 14, 6, CLK_IS_CRITICAL);
 	clks[IMX8ULP_CLK_LPAV_BUS_DIV] = imx_clk_hw_divider_flags("lpav_bus_div", "lpav_axi_div", base + 0x3c, 7, 6, CLK_IS_CRITICAL);
 
-	clks[IMX8ULP_CLK_PLL4_PFD0] = imx_clk_hw_pfdv2("pll4_pfd0", "pll4_vcodiv", base + 0x614, 0);
-	clks[IMX8ULP_CLK_PLL4_PFD1] = imx_clk_hw_pfdv2("pll4_pfd1", "pll4_vcodiv", base + 0x614, 1);
-	clks[IMX8ULP_CLK_PLL4_PFD2] = imx_clk_hw_pfdv2("pll4_pfd2", "pll4_vcodiv", base + 0x614, 2);
-	clks[IMX8ULP_CLK_PLL4_PFD3] = imx_clk_hw_pfdv2("pll4_pfd3", "pll4_vcodiv", base + 0x614, 3);
+	clks[IMX8ULP_CLK_PLL4_PFD0] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "pll4_pfd0", "pll4_vcodiv", base + 0x614, 0);
+	clks[IMX8ULP_CLK_PLL4_PFD1] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "pll4_pfd1", "pll4_vcodiv", base + 0x614, 1);
+	clks[IMX8ULP_CLK_PLL4_PFD2] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "pll4_pfd2", "pll4_vcodiv", base + 0x614, 2);
+	clks[IMX8ULP_CLK_PLL4_PFD3] = imx_clk_hw_pfdv2(IMX_PFDV2_IMX8ULP, "pll4_pfd3", "pll4_vcodiv", base + 0x614, 3);
 
 	clks[IMX8ULP_CLK_PLL4_PFD0_DIV1_GATE] = imx_clk_hw_gate_dis("pll4_pfd0_div1_gate", "pll4_pfd0", base + 0x608, 7);
 	clks[IMX8ULP_CLK_PLL4_PFD0_DIV2_GATE] = imx_clk_hw_gate_dis("pll4_pfd0_div2_gate", "pll4_pfd0", base + 0x608, 15);
