@@ -100,7 +100,7 @@ config CLK_IMX8QXP
 	  Build the driver for IMX8QXP SCU based clocks.
 
 config CLK_IMX8ULP
-	bool "IMX8ULP CCM Clock Driver"
+	tristate "IMX8ULP CCM Clock Driver"
 	depends on ARCH_MXC || COMPILE_TEST
 	help
 	    Build the driver for i.MX8ULP CCM Clock Driver
