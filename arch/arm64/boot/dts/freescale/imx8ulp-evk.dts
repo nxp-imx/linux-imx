@@ -85,11 +85,13 @@
 };
 
 &usdhc0 {
-	pinctrl-names = "default", "sleep";
+	pinctrl-names = "default", "state_100mhz", "state_200mhz", "sleep";
 	pinctrl-0 = <&pinctrl_usdhc0>;
 	pinctrl-1 = <&pinctrl_usdhc0>;
+	pinctrl-2 = <&pinctrl_usdhc0>;
+	pinctrl-3 = <&pinctrl_usdhc0>;
 	non-removable;
-	bus-width = <4>;
+	bus-width = <8>;
 	status = "okay";
 };
 
