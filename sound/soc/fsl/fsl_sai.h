@@ -262,7 +262,8 @@ struct fsl_sai_param {
 struct fsl_sai_dl_cfg {
 	unsigned int pins;
 	unsigned int mask[2];
-	unsigned int offset[2];
+	unsigned int start_off[2];
+	unsigned int next_off[2];
 };
 
 struct fsl_sai {
@@ -273,6 +274,7 @@ struct fsl_sai {
 	struct clk *mclk_clk[FSL_SAI_MCLK_MAX];
 	struct clk *pll8k_clk;
 	struct clk *pll11k_clk;
+	struct resource *res;
 
 	bool slave_mode[2];
 	bool is_lsb_first;

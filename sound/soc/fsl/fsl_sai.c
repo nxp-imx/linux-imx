@@ -632,44 +632,47 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 				   FSL_SAI_CR5_FBT_MASK, val_cr5);
 	}
 
-	if (sai->soc_data->dataline != 0x1) {
+	if (__sw_hweight8(dl_cfg[dl_cfg_idx].mask[tx]) <= 1 || sai->is_multi_lane)
+		regmap_update_bits(sai->regmap, FSL_SAI_xCR4(tx, ofs),
+				   FSL_SAI_CR4_FCOMB_MASK, 0);
+	else
+		regmap_update_bits(sai->regmap, FSL_SAI_xCR4(tx, ofs),
+				   FSL_SAI_CR4_FCOMB_MASK, FSL_SAI_CR4_FCOMB_SOFT);
 
-		if (dl_cfg[dl_cfg_idx].mask[tx] <= 1 || sai->is_multi_lane)
-			regmap_update_bits(sai->regmap, FSL_SAI_xCR4(tx, ofs),
-				FSL_SAI_CR4_FCOMB_MASK, 0);
-		else
-			regmap_update_bits(sai->regmap, FSL_SAI_xCR4(tx, ofs),
-				FSL_SAI_CR4_FCOMB_MASK, FSL_SAI_CR4_FCOMB_SOFT);
+	if (tx)
+		sai->dma_params_tx.addr = sai->res->start + FSL_SAI_TDR0 +
+					  dl_cfg[dl_cfg_idx].start_off[tx] * 0x4;
+	else
+		sai->dma_params_rx.addr = sai->res->start + FSL_SAI_RDR0 +
+					  dl_cfg[dl_cfg_idx].start_off[tx] * 0x4;
 
-		if (sai->is_multi_lane) {
-			if (tx) {
-				sai->audio_config[tx].words_per_fifo = min(slots, channels);
-				sai->audio_config[tx].dst_fifo_num = pins;
-				sai->audio_config[tx].dst_fifo_off = dl_cfg[dl_cfg_idx].offset[tx];
-				sai->dma_params_tx.maxburst = sai->audio_config[tx].words_per_fifo * pins;
-				sai->dma_params_tx.peripheral_config = &sai->audio_config[tx];
-				sai->dma_params_tx.peripheral_size = sizeof(sai->audio_config[tx]);
+	if (sai->is_multi_lane) {
+		if (tx) {
+			sai->audio_config[tx].words_per_fifo = min(slots, channels);
+			sai->audio_config[tx].dst_fifo_num = pins;
+			sai->audio_config[tx].dst_fifo_off = dl_cfg[dl_cfg_idx].next_off[tx];
+			sai->dma_params_tx.maxburst = sai->audio_config[tx].words_per_fifo * pins;
+			sai->dma_params_tx.peripheral_config = &sai->audio_config[tx];
+			sai->dma_params_tx.peripheral_size = sizeof(sai->audio_config[tx]);
 
-				regmap_update_bits(sai->regmap, FSL_SAI_TCR1(ofs),
-						   FSL_SAI_CR1_RFW_MASK(sai->soc_data->fifo_depth),
-						   sai->soc_data->fifo_depth - sai->dma_params_tx.maxburst);
-			} else {
-				sai->audio_config[tx].words_per_fifo = min(slots, channels);
-				sai->audio_config[tx].src_fifo_num = pins;
-				sai->audio_config[tx].src_fifo_off = dl_cfg[dl_cfg_idx].offset[tx];
-				sai->dma_params_rx.maxburst = sai->audio_config[tx].words_per_fifo * pins;
-				sai->dma_params_rx.peripheral_config = &sai->audio_config[tx];
-				sai->dma_params_rx.peripheral_size = sizeof(sai->audio_config[tx]);
+			regmap_update_bits(sai->regmap, FSL_SAI_TCR1(ofs),
+					   FSL_SAI_CR1_RFW_MASK(sai->soc_data->fifo_depth),
+					   sai->soc_data->fifo_depth - sai->dma_params_tx.maxburst);
+		} else {
+			sai->audio_config[tx].words_per_fifo = min(slots, channels);
+			sai->audio_config[tx].src_fifo_num = pins;
+			sai->audio_config[tx].src_fifo_off = dl_cfg[dl_cfg_idx].next_off[tx];
+			sai->dma_params_rx.maxburst = sai->audio_config[tx].words_per_fifo * pins;
+			sai->dma_params_rx.peripheral_config = &sai->audio_config[tx];
+			sai->dma_params_rx.peripheral_size = sizeof(sai->audio_config[tx]);
 
-				regmap_update_bits(sai->regmap, FSL_SAI_RCR1(ofs),
-						   FSL_SAI_CR1_RFW_MASK(sai->soc_data->fifo_depth),
-						   sai->dma_params_rx.maxburst - 1);
-			}
+			regmap_update_bits(sai->regmap, FSL_SAI_RCR1(ofs),
+					   FSL_SAI_CR1_RFW_MASK(sai->soc_data->fifo_depth),
+					   sai->dma_params_rx.maxburst - 1);
 		}
-
-		snd_soc_dai_init_dma_data(cpu_dai, &sai->dma_params_tx,
-				&sai->dma_params_rx);
 	}
+
+	snd_soc_dai_init_dma_data(cpu_dai, &sai->dma_params_tx, &sai->dma_params_rx);
 
 	if (__sw_hweight8(dl_cfg[dl_cfg_idx].mask[tx] & 0xFF) < pins) {
 		dev_err(cpu_dai->dev, "channel not supported\n");
@@ -1240,6 +1243,7 @@ static int fsl_sai_read_dlcfg(struct platform_device *pdev, char *pn,
 	int ret, elems, i, index, num_cfg;
 	struct device_node *np = pdev->dev.of_node;
 	struct fsl_sai_dl_cfg *cfg;
+	unsigned long dl_mask;
 	u32 rx, tx, pins;
 
 	*rcfg = NULL;
@@ -1285,9 +1289,13 @@ static int fsl_sai_read_dlcfg(struct platform_device *pdev, char *pn,
 
 		cfg[i].pins = pins;
 		cfg[i].mask[0] = rx;
-		cfg[i].offset[0] = fsl_sai_calc_dl_off(rx);
+		dl_mask = rx;
+		cfg[i].start_off[0] = find_first_bit(&dl_mask, 8);
+		cfg[i].next_off[0] = fsl_sai_calc_dl_off(rx);
 		cfg[i].mask[1] = tx;
-		cfg[i].offset[1] = fsl_sai_calc_dl_off(tx);
+		dl_mask = tx;
+		cfg[i].start_off[1] = find_first_bit(&dl_mask, 8);
+		cfg[i].next_off[1] = fsl_sai_calc_dl_off(tx);
 	}
 
 	*rcfg = cfg;
@@ -1299,7 +1307,6 @@ static int fsl_sai_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct fsl_sai *sai;
 	struct regmap *gpr;
-	struct resource *res;
 	void __iomem *base;
 	char tmp[8];
 	int irq, ret, i;
@@ -1314,8 +1321,8 @@ static int fsl_sai_probe(struct platform_device *pdev)
 
 	sai->is_lsb_first = of_property_read_bool(np, "lsb-first");
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
+	sai->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	base = devm_ioremap_resource(&pdev->dev, sai->res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -1449,8 +1456,8 @@ static int fsl_sai_probe(struct platform_device *pdev)
 				   MCLK_DIR(index));
 	}
 
-	sai->dma_params_rx.addr = res->start + FSL_SAI_RDR0;
-	sai->dma_params_tx.addr = res->start + FSL_SAI_TDR0;
+	sai->dma_params_rx.addr = sai->res->start + FSL_SAI_RDR0;
+	sai->dma_params_tx.addr = sai->res->start + FSL_SAI_TDR0;
 	sai->dma_params_rx.maxburst = FSL_SAI_MAXBURST_RX;
 	sai->dma_params_tx.maxburst = FSL_SAI_MAXBURST_TX;
 
