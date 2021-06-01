@@ -181,6 +181,17 @@ static struct fsl_spdif_soc_data fsl_spdif_imx8qm = {
 	.constrain_period_size = true,
 };
 
+static struct fsl_spdif_soc_data fsl_spdif_imx8ulp = {
+	.imx = true,
+	.shared_root_clock = true,
+	.tx_burst = 2,
+	.rx_burst = 2,
+	.interrupts = 1,
+	.tx_formats = SNDRV_PCM_FMTBIT_S24_LE,
+	.rx_rates = (FSL_SPDIF_RATES_CAPTURE | SNDRV_PCM_RATE_192000),
+	.constrain_period_size = true,
+};
+
 static struct fsl_spdif_soc_data fsl_spdif_imx8mm = {
 	.imx = true,
 	.shared_root_clock = true,
@@ -1719,6 +1730,7 @@ static const struct of_device_id fsl_spdif_dt_ids[] = {
 	{ .compatible = "fsl,imx6sx-spdif", .data = &fsl_spdif_imx6sx, },
 	{ .compatible = "fsl,imx8qm-spdif", .data = &fsl_spdif_imx8qm, },
 	{ .compatible = "fsl,imx8mm-spdif", .data = &fsl_spdif_imx8mm, },
+	{ .compatible = "fsl,imx8ulp-spdif", .data = &fsl_spdif_imx8ulp, },
 	{}
 };
 MODULE_DEVICE_TABLE(of, fsl_spdif_dt_ids);
