@@ -1621,7 +1621,7 @@
 				ranges;
 
 				sai1: sai@30c10000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c10000 0x10000>;
 					interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI1_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1637,7 +1637,7 @@
 				};
 
 				sai2: sai@30c20000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c20000 0x10000>;
 					interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI2_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1653,7 +1653,7 @@
 				};
 
 				sai3: sai@30c30000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c30000 0x10000>;
 					interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1669,7 +1669,7 @@
 				};
 
 				sai5: sai@30c50000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c50000 0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI5_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1685,7 +1685,7 @@
 				};
 
 				sai6: sai@30c60000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c60000 0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI6_IPG>,
@@ -1702,7 +1702,7 @@
 				};
 
 				sai7: sai@30c80000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c80000 0x10000>;
 					interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI7_IPG>, <&clk IMX8MP_CLK_DUMMY>,
