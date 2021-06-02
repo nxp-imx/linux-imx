@@ -148,6 +148,21 @@
 			status = "disabled";
 		};
 
+		s4muap: s4muap@27020000 {
+			compatible = "fsl,imx8ulp-mu-s4";
+			reg = <0x27020000 0x10000>;
+			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <2>;
+			status = "okay";
+		};
+
+		s400_api: s400-api {
+			compatible = "fsl,imx8ulp-s400";
+			mboxes = <&s4muap 0 0 &s4muap 1 0>;
+			mbox-names = "tx", "rx";
+			status = "okay";
+		};
+
 		per_bridge3: bus@29000000 {
 			compatible = "simple-bus";
 			reg = <0x29000000 0x800000>;
