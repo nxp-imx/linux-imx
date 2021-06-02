@@ -74,6 +74,10 @@
 	status = "okay";
 };
 
+&dphy {
+	status = "okay";
+};
+
 &fec {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet>;
