@@ -58,6 +58,12 @@
 			reg = <0 0xa8400000 0 0x100000>;
 			no-map;
 		};
+
+		audio_reserved: audio@0xa8500000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xa8500000 0 0x100000>;
+		};
 	};
 
 	usdhc2_pwrseq: usdhc2_pwrseq {
@@ -95,6 +101,20 @@
 		spdif-controller = <&spdif>;
 		spdif-out;
 	};
+
+	sound-rpmsg {
+		compatible = "fsl,imx-audio-rpmsg";
+		model = "wm8960-audio";
+		cpu-dai = <&rpmsg_i2s>;
+		audio-codec = <&wm8960>;
+		memory-region = <&audio_reserved>;
+		rpmsg-out;
+		rpmsg-in;
+		audio-routing =
+			"LINPUT1", "MICB",
+			"LINPUT3", "MICB";
+	};
+
 };
 
 &dcnano {
@@ -148,6 +168,12 @@
 	lsm6dsm@6a {
 		compatible = "st,lsm6dso";
 		reg = <0x6a>;
+	};
+
+	wm8960: wm8960@1a {
+		compatible = "wlf,wm8960,lpa";
+		reg = <0x1a>;
+		wlf,shared-lrclk;
 	};
 };
 
@@ -373,6 +399,10 @@
 		>;
 	};
 
+};
+
+&rpmsg_i2s {
+	status = "okay";
 };
 
 &sai5 {

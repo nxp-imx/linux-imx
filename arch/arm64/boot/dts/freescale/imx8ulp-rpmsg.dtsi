@@ -23,4 +23,9 @@
 		compatible = "fsl,i2c-rpbus";
 		status = "disabled";
 	};
+
+	rpmsg_i2s: rpmsg-i2s {
+		compatible = "fsl,imx8ulp-rpmsg-i2s";
+		status = "disabled";
+	};
 };
