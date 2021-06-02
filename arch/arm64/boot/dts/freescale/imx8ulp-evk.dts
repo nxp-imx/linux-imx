@@ -131,6 +131,20 @@
 	status = "okay";
 };
 
+&lpspi5 {
+	fsl,spi-num-chipselects = <1>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpspi5>;
+	pinctrl-1 = <&pinctrl_lpspi5>;
+	status = "okay";
+
+	spidev0: spi@0 {
+		reg = <0>;
+		compatible = "ge,achc";
+		spi-max-frequency = <1000000>;
+	};
+};
+
 &lpuart5 {
 	/* console */
 	pinctrl-names = "default", "sleep";
@@ -237,6 +251,15 @@
 			MX8ULP_PAD_PTE22__ENET0_TXD1    0x43
 			MX8ULP_PAD_PTE19__ENET0_REFCLK  0x43
 			MX8ULP_PAD_PTF10__ENET0_1588_CLKIN 0x43
+		>;
+	};
+
+	pinctrl_lpspi5: lpspi5grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF16__LPSPI5_SIN	0x3
+			MX8ULP_PAD_PTF17__LPSPI5_SOUT	0x3
+			MX8ULP_PAD_PTF18__LPSPI5_SCK	0x3
+			MX8ULP_PAD_PTF19__LPSPI5_PCS0	0x3
 		>;
 	};
 
