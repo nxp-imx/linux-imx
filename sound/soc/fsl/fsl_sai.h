@@ -231,6 +231,7 @@ struct fsl_sai_soc_data {
 	unsigned int fifos;
 	unsigned int dataline;
 	unsigned int flags;
+	unsigned int max_register;
 };
 
 /**
