@@ -19,6 +19,10 @@
 		gpio0 = &gpiod;
 		gpio1 = &gpioe;
 		gpio2 = &gpiof;
+		i2c4 = &lpi2c4;
+		i2c5 = &lpi2c5;
+		i2c6 = &lpi2c6;
+		i2c7 = &lpi2c7;
 		mmc0 = &usdhc0;
 		mmc1 = &usdhc1;
 		mmc2 = &usdhc2;
