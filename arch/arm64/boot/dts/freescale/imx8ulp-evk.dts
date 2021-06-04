@@ -189,6 +189,7 @@
 	hnp-disable;
 	srp-disable;
 	adp-disable;
+	over-current-active-low;
 	status = "okay";
 };
 
@@ -208,6 +209,7 @@
 	hnp-disable;
 	srp-disable;
 	adp-disable;
+	over-current-active-low;
 	status = "okay";
 };
 
@@ -287,12 +289,14 @@
 	pinctrl_otgid1: usb1grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTF2__USB0_ID	0x10003
+			MX8ULP_PAD_PTF4__USB0_OC	0x10003
 		>;
 	};
 
 	pinctrl_otgid2: usb2grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTD23__USB1_ID	0x10003
+			MX8ULP_PAD_PTF6__USB1_OC	0x10003
 		>;
 	};
 
