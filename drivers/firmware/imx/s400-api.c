@@ -15,6 +15,8 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/sys_soc.h>
 
 #define MSG_TAG(x)		(((x) & 0xff000000) >> 24)
 #define MSG_COMMAND(x)		(((x) & 0x00ff0000) >> 16)
@@ -156,12 +158,48 @@ static void s400_api_receive_message(struct mbox_client *rx_cl, void *mssg)
 	spin_unlock(&s400_api->lock);
 }
 
+struct device *imx_soc_device_register(void)
+{
+	struct soc_device_attribute *attr;
+	struct soc_device *dev;
+	u32 v[4];
+	int err;
+
+	s400_api_export->tx_msg.header = 0x17970206;
+	s400_api_export->tx_msg.data[0] = 0x1;
+	err = imx_s400_api_call(s400_api_export, v);
+	if (err)
+		return NULL;
+
+	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	if (!attr)
+		return NULL;
+
+	attr->family = kasprintf(GFP_KERNEL, "Freescale i.MX");
+	attr->revision = kasprintf(GFP_KERNEL, "unknown");
+	attr->serial_number = kasprintf(GFP_KERNEL, "%016llX", (u64)v[3] << 32 | v[0]);
+	attr->soc_id = kasprintf(GFP_KERNEL, "i.MX8ULP");
+
+	dev = soc_device_register(attr);
+	if (IS_ERR(dev)) {
+		kfree(attr->soc_id);
+		kfree(attr->serial_number);
+		kfree(attr->revision);
+		kfree(attr->family);
+		kfree(attr);
+		return ERR_CAST(dev);
+	}
+
+	return soc_device_to_device(dev);
+}
+
 static int s400_api_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct of_phandle_args mboxargs;
 	struct imx_s400_api *s400_api;
 	struct mbox_client cl;
+	struct device *soc;
 	int err;
 
 	if (of_parse_phandle_with_args(dev->of_node, "mboxes", "#mbox-cells",
@@ -201,6 +239,12 @@ static int s400_api_probe(struct platform_device *pdev)
 	spin_lock_init(&s400_api->lock);
 
 	s400_api_export = s400_api;
+
+	soc = imx_soc_device_register();
+	if (IS_ERR(soc)) {
+		pr_err("failed to register SoC device: %ld\n", PTR_ERR(soc));
+		return PTR_ERR(soc);
+	}
 
 	dev_set_drvdata(dev, s400_api);
 	return devm_of_platform_populate(dev);
