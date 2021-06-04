@@ -55,11 +55,12 @@ static const char * const lpav_bus_div[] = { "lpav_bus_div" };
 static int imx8ulp_clk_cgc1_init(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct clk_hw_onecell_data *clk_data;
 	struct clk_hw **clks;
 	void __iomem *base;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, IMX8ULP_CLK_CGC1_END),
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, IMX8ULP_CLK_CGC1_END),
 			   GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
@@ -137,17 +138,18 @@ static int imx8ulp_clk_cgc1_init(struct platform_device *pdev)
 
 	imx_check_clk_hws(clks, clk_data->num);
 
-	return of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_data);
+	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 }
 
 static int imx8ulp_clk_cgc2_init(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct clk_hw_onecell_data *clk_data;
 	struct clk_hw **clks;
 	void __iomem *base;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, IMX8ULP_CLK_CGC2_END),
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, IMX8ULP_CLK_CGC2_END),
 			   GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
@@ -218,17 +220,19 @@ static int imx8ulp_clk_cgc2_init(struct platform_device *pdev)
 
 	imx_check_clk_hws(clks, clk_data->num);
 
-	return of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_data);
+	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 }
 
 static int imx8ulp_clk_pcc3_init(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct clk_hw_onecell_data *clk_data;
 	struct clk_hw **clks;
 	void __iomem *base;
+	int ret;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, IMX8ULP_CLK_PCC3_END),
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, IMX8ULP_CLK_PCC3_END),
 			   GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
@@ -292,21 +296,22 @@ static int imx8ulp_clk_pcc3_init(struct platform_device *pdev)
 
 	imx_check_clk_hws(clks, clk_data->num);
 
-	of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_data);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 
 	imx_register_uart_clocks();
 
-	return 0;
+	return ret;
 }
 
 static int imx8ulp_clk_pcc4_init(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct clk_hw_onecell_data *clk_data;
 	struct clk_hw **clks;
 	void __iomem *base;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, IMX8ULP_CLK_PCC4_END),
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, IMX8ULP_CLK_PCC4_END),
 			   GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
@@ -343,17 +348,18 @@ static int imx8ulp_clk_pcc4_init(struct platform_device *pdev)
 
 	imx_check_clk_hws(clks, clk_data->num);
 
-	return of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_data);
+	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 }
 
 static int imx8ulp_clk_pcc5_init(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct clk_hw_onecell_data *clk_data;
 	struct clk_hw **clks;
 	void __iomem *base;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, IMX8ULP_CLK_PCC5_END),
+	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, IMX8ULP_CLK_PCC5_END),
 			   GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
@@ -423,7 +429,7 @@ static int imx8ulp_clk_pcc5_init(struct platform_device *pdev)
 
 	imx_check_clk_hws(clks, clk_data->num);
 
-	return of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_data);
+	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 }
 
 static int imx8ulp_clk_probe(struct platform_device *pdev)
