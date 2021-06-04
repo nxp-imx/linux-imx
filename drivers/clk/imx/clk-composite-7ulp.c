@@ -28,6 +28,7 @@
 static int pcc_gate_enable(struct clk_hw *hw)
 {
 	struct clk_gate *gate = to_clk_gate(hw);
+	unsigned long flags;
 	u32 val;
 	int ret;
 
@@ -35,6 +36,7 @@ static int pcc_gate_enable(struct clk_hw *hw)
 	if (ret)
 		return ret;
 
+	spin_lock_irqsave(gate->lock, flags);
 	/*
 	 * release the sw reset for peripherals associated with
 	 * with this pcc clock.
@@ -42,6 +44,8 @@ static int pcc_gate_enable(struct clk_hw *hw)
 	val = readl(gate->reg);
 	val |= SW_RST;
 	writel(val, gate->reg);
+
+	spin_unlock_irqrestore(gate->lock, flags);
 
 	return 0;
 }
@@ -83,6 +87,8 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 		mux->reg = reg;
 		mux->shift = PCG_PCS_SHIFT;
 		mux->mask = PCG_PCS_MASK;
+		if (has_swrst)
+			mux->lock = &imx_ccm_lock;
 	}
 
 	if (rate_present) {
@@ -100,6 +106,8 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 		fd->nwidth = PCG_PCD_WIDTH;
 		fd->nmask = PCG_PCD_MASK;
 		fd->flags = CLK_FRAC_DIVIDER_ZERO_BASED;
+		if (has_swrst)
+			fd->lock = &imx_ccm_lock;
 	}
 
 	if (gate_present) {
@@ -112,6 +120,8 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 		gate_hw = &gate->hw;
 		gate->reg = reg;
 		gate->bit_idx = PCG_CGC_SHIFT;
+		if (has_swrst)
+			gate->lock = &imx_ccm_lock;
 		/*
 		 * make sure clock is gated during clock tree initialization,
 		 * the HW ONLY allow clock parent/rate changed with clock gated,
