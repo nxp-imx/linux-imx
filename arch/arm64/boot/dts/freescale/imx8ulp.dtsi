@@ -910,6 +910,22 @@
 				#size-cells = <1>;
 				ranges;
 				status = "disabled";
+
+				isi_0: isi@2dac0000 {
+					compatible = "fsl,imx8ulp-isi", "fsl,imx8-isi";
+					reg = <0x2dac0000 0x10000>;
+					interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>;
+					clocks = <&pcc5 IMX8ULP_CLK_ISI>;
+					clock-names = "per";
+					interface = <2 0 2>;
+					no-reset-control;
+					statu = "disabled";
+
+					cap_device {
+						compatible = "imx-isi-capture";
+						status = "disabled";
+					};
+				};
 			};
 
 			dsi: dsi@2db00000 {
