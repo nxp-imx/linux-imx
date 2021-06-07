@@ -61,9 +61,11 @@
 #include <uapi/linux/mxc_dsp.h>
 #include <linux/firmware/imx/svc/misc.h>
 #include <dt-bindings/firmware/imx/rsrc.h>
+#include <linux/mfd/syscon.h>
 
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <linux/arm-smccc.h>
 
 #include "fsl_dsp.h"
 #include "fsl_dsp_pool.h"
@@ -206,6 +208,23 @@ static int fsl_dsp_ipc_msg_to_dsp(struct xf_client *client,
 	buffer = xf_proxy_a2b(&dsp_priv->proxy, msg.address);
 	if (buffer == (void *)-1)
 		return -EFAULT;
+
+	/* Remapping from ARM core to DSP core's view */
+	if (msg.opcode == XF_LOAD_LIB) {
+		struct icm_xtlib_pil_info *icm_info;
+
+		icm_info = (struct icm_xtlib_pil_info *)buffer;
+		icm_info->pil_info.dst_addr      -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.dst_data_addr -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.start_sym     -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.text_addr     -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.init          -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.fini          -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.rel           -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.hash          -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.symtab        -= dsp_priv->sdram_reserved_alias;
+		icm_info->pil_info.strtab        -= dsp_priv->sdram_reserved_alias;
+	}
 
 	/* ...put current proxy client into message session id */
 	msg.session_id = XF_MSG_AP_FROM_USER(msg.session_id, client->id);
@@ -658,6 +677,11 @@ void *memcpy_dsp(void *dest, const void *src, size_t count)
 	return dest;
 }
 
+static void fsl_dsp_sim_lpav_start(struct fsl_dsp *dsp_priv)
+{
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, 0);
+}
+
 static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 {
 	switch (dsp_priv->dsp_board_type){
@@ -668,6 +692,9 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 		break;
 	case DSP_IMX8MP_TYPE:
 		imx_audiomix_dsp_start(dsp_priv->audiomix);
+		break;
+	case DSP_IMX8ULP_TYPE:
+		fsl_dsp_sim_lpav_start(dsp_priv);
 		break;
 	default:
 		break;
@@ -694,6 +721,7 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 	Elf32_Ehdr *ehdr; /* Elf header structure pointer */
 	Elf32_Shdr *shdr; /* Section header structure pointer */
 	Elf32_Addr  sh_addr;
+	Elf32_Addr  base_addr;
 	unsigned char *strtab = 0; /* String table pointer */
 	unsigned char *image; /* Binary image pointer */
 	int i; /* Loop counter */
@@ -730,8 +758,10 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 		sh_addr = shdr->sh_addr;
 
 		if (shdr->sh_type == SHT_NOBITS) {
+			base_addr = sh_addr + dsp_priv->fixup_offset_dram;
+
 			memset_dsp((void *)(dsp_priv->sdram_vir_addr +
-				(sh_addr - dsp_priv->sdram_phys_addr)),
+				(base_addr - dsp_priv->sdram_phys_addr)),
 				0,
 				shdr->sh_size);
 		} else {
@@ -744,8 +774,10 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 				(!strcmp(&strtab[shdr->sh_name], ".clib.data"))     ||
 				(!strcmp(&strtab[shdr->sh_name], ".rtos.percpu.data"))
 			) {
+				base_addr = sh_addr + dsp_priv->sdram_reserved_alias;
+
 				memcpy_dsp((void *)(dsp_priv->sdram_vir_addr
-				  + (sh_addr - dsp_priv->sdram_phys_addr)),
+				  + (base_addr - dsp_priv->sdram_phys_addr)),
 				  (const void *)image,
 				  shdr->sh_size);
 			} else {
@@ -753,7 +785,7 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 				 * fixup addr because we load the firmware from
 				 * the ARM core side
 				 */
-				sh_addr -= dsp_priv->fixup_offset;
+				sh_addr -= dsp_priv->fixup_offset_itcm;
 
 				memcpy_dsp((void *)(dsp_priv->regs +
 						(sh_addr - dsp_priv->paddr)),
@@ -876,6 +908,8 @@ int fsl_dsp_configure(struct fsl_dsp *dsp_priv)
 		return fsl_dsp_configure_scu(dsp_priv);
 	case DSP_IMX8MP_TYPE:
 		return fsl_dsp_configure_audmix(dsp_priv);
+	case DSP_IMX8ULP_TYPE:
+		return 0;
 	default:
 		return -ENODEV;
 	}
@@ -1013,38 +1047,49 @@ static int fsl_dsp_mem_setup_lpa(struct fsl_dsp *dsp_priv)
 
 static int fsl_dsp_mem_setup(struct fsl_dsp *dsp_priv)
 {
-	void *buf_virt;
-	dma_addr_t buf_phys;
-	int size, offset;
+	int offset;
 
-	size = MSG_BUF_SIZE + DSP_CONFIG_SIZE;
-	buf_virt = dma_alloc_coherent(dsp_priv->dev, size, &buf_phys, GFP_KERNEL);
-	if (!buf_virt) {
-		dev_err(dsp_priv->dev, "failed alloc memory.\n");
-		return -ENOMEM;
-	}
+	/*
+	 * Memory allocation:
+	 * We alway reserve 32M memory from DRAM
+	 * The DRAM reserved memory is split into three parts currently.
+	 * The front part is used to keep the dsp firmware, the other part is
+	 * considered as scratch memory for dsp framework.
+	 *
+	 *---------------------------------------------------------------------------
+	 *| Offset                |  Size    |   Usage                              |
+	 *---------------------------------------------------------------------------
+	 *| 0x0 ~ 0xEFFFFF        |  15M     |   Code memory of firmware            |
+	 *---------------------------------------------------------------------------
+	 *| 0xF00000 ~ 0xFFFFFF   |  1M      |   Message buffer + Globle dsp struct |
+	 *---------------------------------------------------------------------------
+	 *| 0x1000000 ~ 0x1FFFFFF |  16M     |   Scratch memory                     |
+	 *---------------------------------------------------------------------------
+	 *
+	 */
 
+	dsp_priv->sdram_reserved_alias = dsp_priv->fixup_offset_dram;
+	/* 1M memory for msg and config */
+	offset = dsp_priv->sdram_reserved_size / 2 - MSG_PLUS_CONFIG_SIZE;
 	/* msg ring buffer memory */
-	dsp_priv->msg_buf_virt = buf_virt;
-	dsp_priv->msg_buf_phys = buf_phys;
+	dsp_priv->msg_buf_virt = dsp_priv->sdram_vir_addr + offset;
+	dsp_priv->msg_buf_phys = dsp_priv->sdram_phys_addr + offset;
 	dsp_priv->msg_buf_size = MSG_BUF_SIZE;
-	offset = MSG_BUF_SIZE;
+	dsp_priv->msg_buf_alias = dsp_priv->fixup_offset_dram;
+	offset += MSG_BUF_SIZE;
 
 	/* keep dsp framework's global data when suspend/resume */
-	dsp_priv->dsp_config_virt = buf_virt + offset;
-	dsp_priv->dsp_config_phys = buf_phys + offset;
+	dsp_priv->dsp_config_virt = dsp_priv->sdram_vir_addr + offset;
+	dsp_priv->dsp_config_phys = dsp_priv->sdram_phys_addr + offset;
 	dsp_priv->dsp_config_size = DSP_CONFIG_SIZE;
+	dsp_priv->dsp_config_alias = dsp_priv->fixup_offset_dram;
 
-	/* scratch memory for dsp framework. The sdram reserved memory
-	 * is split into two equal parts currently. The front part is
-	 * used to keep the dsp firmware, the other part is considered
-	 * as scratch memory for dsp framework.
-	 */
 	dsp_priv->scratch_buf_virt = dsp_priv->sdram_vir_addr +
 		dsp_priv->sdram_reserved_size / 2;
 	dsp_priv->scratch_buf_phys = dsp_priv->sdram_phys_addr +
 		dsp_priv->sdram_reserved_size / 2;
 	dsp_priv->scratch_buf_size = dsp_priv->sdram_reserved_size / 2;
+	dsp_priv->scratch_buf_alias = dsp_priv->fixup_offset_dram;
 
 	return 0;
 }
@@ -1071,7 +1116,12 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 		dsp_priv->dsp_board_type = DSP_IMX8QXP_TYPE;
 	else if (of_device_is_compatible(np, "fsl,imx8qm-dsp-v1"))
 		dsp_priv->dsp_board_type = DSP_IMX8QM_TYPE;
-	else
+	else if (of_device_is_compatible(np, "fsl,imx8ulp-dsp-v1")) {
+		dsp_priv->dsp_board_type = DSP_IMX8ULP_TYPE;
+		dsp_priv->regmap = syscon_regmap_lookup_by_compatible("nxp,imx8ulp-avd-sim");
+		if (IS_ERR(dsp_priv->regmap))
+			return -EPROBE_DEFER;
+	} else
 		dsp_priv->dsp_board_type = DSP_IMX8MP_TYPE;
 
 	if (of_device_is_compatible(np, "fsl,imx8mp-dsp-lpa")) {
@@ -1123,7 +1173,8 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	ret = of_property_read_string(np, "audio-interface", &audio_iface);
 	dsp_priv->audio_iface = audio_iface;
 
-	ret = of_property_read_u32(np, "fixup-offset", &dsp_priv->fixup_offset);
+	ret = of_property_read_u32_index(np, "fixup-offset", 0, &dsp_priv->fixup_offset_itcm);
+	ret = of_property_read_u32_index(np, "fixup-offset", 1, &dsp_priv->fixup_offset_dram);
 
 	if (!dsp_priv->dsp_is_lpa) {
 		dsp_miscdev.fops = &dsp_fops,
@@ -1256,6 +1307,22 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	if (IS_ERR(dsp_priv->debug_clk))
 		dsp_priv->debug_clk = NULL;
 
+	dsp_priv->mu_a_clk = devm_clk_get(&pdev->dev, "mu_a");
+	if (IS_ERR(dsp_priv->mu_a_clk))
+		dsp_priv->mu_a_clk = NULL;
+
+	dsp_priv->mu_b_clk = devm_clk_get(&pdev->dev, "mu_b");
+	if (IS_ERR(dsp_priv->mu_b_clk))
+		dsp_priv->mu_b_clk = NULL;
+
+	dsp_priv->pb_clk = devm_clk_get(&pdev->dev, "pbclk");
+	if (IS_ERR(dsp_priv->pb_clk))
+		dsp_priv->pb_clk = NULL;
+
+	dsp_priv->nic_clk = devm_clk_get(&pdev->dev, "nic");
+	if (IS_ERR(dsp_priv->nic_clk))
+		dsp_priv->nic_clk = NULL;
+
 	dsp_priv->sdma_root_clk = devm_clk_get(&pdev->dev, "sdma_root");
 	if (IS_ERR(dsp_priv->sdma_root_clk))
 		dsp_priv->sdma_root_clk = NULL;
@@ -1281,8 +1348,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	return 0;
 
 register_component_fail:
-	dma_free_coherent(&pdev->dev, size, dsp_priv->msg_buf_virt,
-				dsp_priv->msg_buf_phys);
 alloc_coherent_fail:
 	if (dsp_priv->sdram_vir_addr)
 		iounmap(dsp_priv->sdram_vir_addr);
@@ -1302,14 +1367,10 @@ configure_fail:
 static int fsl_dsp_remove(struct platform_device *pdev)
 {
 	struct fsl_dsp *dsp_priv = platform_get_drvdata(pdev);
-	int size;
 
 	if (!dsp_priv->dsp_is_lpa)
 		misc_deregister(&dsp_miscdev);
 
-	size = MSG_BUF_SIZE + DSP_CONFIG_SIZE;
-	dma_free_coherent(&pdev->dev, size, dsp_priv->msg_buf_virt,
-				dsp_priv->msg_buf_phys);
 	if (dsp_priv->sdram_vir_addr)
 		iounmap(dsp_priv->sdram_vir_addr);
 	if (dsp_priv->ocram_vir_addr)
@@ -1391,40 +1452,64 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		goto debug_clk;
 	}
 
+	ret = clk_prepare_enable(dsp_priv->mu_a_clk);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable mu_a_clk ret = %d\n", ret);
+		goto mu_a_clk;
+	}
+
+	ret = clk_prepare_enable(dsp_priv->mu_b_clk);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable mu_b_clk ret = %d\n", ret);
+		goto mu_b_clk;
+	}
+
+	ret = clk_prepare_enable(dsp_priv->nic_clk);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable nic_clk ret = %d\n", ret);
+		goto nic_clk;
+	}
+
+	ret = clk_prepare_enable(dsp_priv->pb_clk);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable pb_clk ret = %d\n", ret);
+		goto pb_clk;
+	}
+
 	ret = clk_prepare_enable(dsp_priv->sdma_root_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable sdma_root _clk ret = %d\n", ret);
-		return ret;
+		goto sdma_root_clk;
 	}
 	ret = clk_prepare_enable(dsp_priv->sai_ipg_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable sai_ipg_clk ret = %d\n", ret);
-		return ret;
+		goto sai_ipg_clk;
 	}
 	ret = clk_prepare_enable(dsp_priv->sai_mclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable sai_mclk ret = %d\n", ret);
-		return ret;
+		goto sai_mclk;
 	}
 	ret = clk_prepare_enable(dsp_priv->pll8k_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable pll8k_clk ret = %d\n", ret);
-		return ret;
+		goto pll8k_clk;
 	}
 	ret = clk_prepare_enable(dsp_priv->pll11k_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable pll11k_clk ret = %d\n", ret);
-		return ret;
+		goto pll11k_clk;
 	}
 	ret = clk_prepare_enable(dsp_priv->uart_ipg_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable uart_ipg_clk ret = %d\n", ret);
-		return ret;
+		goto uart_ipg_clk;
 	}
 	ret = clk_prepare_enable(dsp_priv->uart_per_clk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable uart_per_clk ret = %d\n", ret);
-		return ret;
+		goto uart_per_clk;
 	}
 
 	if (!dsp_priv->dsp_mu_init && !proxy->is_ready && !fsl_dsp_is_reset(dsp_priv)) {
@@ -1432,6 +1517,17 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		proxy->is_ready = 1;
 	}
 
+	if (dsp_priv->dsp_board_type == DSP_IMX8ULP_TYPE) {
+		struct arm_smccc_res res;
+
+		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, DSP_RST);
+		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, DSP_STALL);
+
+		arm_smccc_smc(FSL_SIP_HIFI_XRDC, 0, 0, 0, 0, 0, 0, 0, &res);
+
+		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
+		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
+	}
 	/*
 	 * Use PID for checking the audiomix is reset or not.
 	 * After resetting, the PID should be 0, then we set the PID=1 in resume.
@@ -1470,7 +1566,28 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 
 	return 0;
 
-
+uart_per_clk:
+	clk_disable_unprepare(dsp_priv->uart_ipg_clk);
+uart_ipg_clk:
+	clk_disable_unprepare(dsp_priv->pll11k_clk);
+pll11k_clk:
+	clk_disable_unprepare(dsp_priv->pll8k_clk);
+pll8k_clk:
+	clk_disable_unprepare(dsp_priv->sai_mclk);
+sai_mclk:
+	clk_disable_unprepare(dsp_priv->sai_ipg_clk);
+sai_ipg_clk:
+	clk_disable_unprepare(dsp_priv->sdma_root_clk);
+sdma_root_clk:
+	clk_disable_unprepare(dsp_priv->pb_clk);
+pb_clk:
+	clk_disable_unprepare(dsp_priv->nic_clk);
+nic_clk:
+	clk_disable_unprepare(dsp_priv->mu_b_clk);
+mu_b_clk:
+	clk_disable_unprepare(dsp_priv->mu_a_clk);
+mu_a_clk:
+	clk_disable_unprepare(dsp_priv->debug_clk);
 debug_clk:
 	clk_disable_unprepare(dsp_priv->audio_axi_clk);
 audio_axi_clk:
@@ -1526,6 +1643,10 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(dsp_priv->pll11k_clk);
 	clk_disable_unprepare(dsp_priv->uart_ipg_clk);
 	clk_disable_unprepare(dsp_priv->uart_per_clk);
+	clk_disable_unprepare(dsp_priv->mu_a_clk);
+	clk_disable_unprepare(dsp_priv->mu_b_clk);
+	clk_disable_unprepare(dsp_priv->nic_clk);
+	clk_disable_unprepare(dsp_priv->pb_clk);
 
 	return 0;
 }
@@ -1591,6 +1712,7 @@ static const struct of_device_id fsl_dsp_ids[] = {
 	{ .compatible = "fsl,imx8qm-dsp-v1", },
 	{ .compatible = "fsl,imx8mp-dsp-v1", },
 	{ .compatible = "fsl,imx8mp-dsp-lpa", },
+	{ .compatible = "fsl,imx8ulp-dsp-v1", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, fsl_dsp_ids);

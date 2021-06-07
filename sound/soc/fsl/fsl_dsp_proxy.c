@@ -184,14 +184,14 @@ int send_dpu_ext_msg_addr(struct xf_proxy *proxy)
 	msghdr.intr = 1;
 	msghdr.msg  = ICM_CORE_INIT;
 	msghdr.size = 8;
-	ext_msg.phys = dsp_priv->msg_buf_phys + (MSG_BUF_SIZE / 2);
+	ext_msg.phys = dsp_priv->msg_buf_phys - dsp_priv->msg_buf_alias + (MSG_BUF_SIZE / 2);
 	ext_msg.size = sizeof(struct dsp_mem_msg);
 
-	dpu_ext_msg->ext_msg_phys = dsp_priv->msg_buf_phys;
+	dpu_ext_msg->ext_msg_phys = dsp_priv->msg_buf_phys - dsp_priv->msg_buf_alias;
 	dpu_ext_msg->ext_msg_size = MSG_BUF_SIZE;
-	dpu_ext_msg->scratch_phys =  dsp_priv->scratch_buf_phys;
+	dpu_ext_msg->scratch_phys =  dsp_priv->scratch_buf_phys - dsp_priv->scratch_buf_alias;
 	dpu_ext_msg->scratch_size =  dsp_priv->scratch_buf_size;
-	dpu_ext_msg->dsp_config_phys =  dsp_priv->dsp_config_phys;
+	dpu_ext_msg->dsp_config_phys =  dsp_priv->dsp_config_phys - dsp_priv->dsp_config_alias;
 	dpu_ext_msg->dsp_config_size =  dsp_priv->dsp_config_size;
 	dpu_ext_msg->dsp_board_type = dsp_priv->dsp_board_type;
 
