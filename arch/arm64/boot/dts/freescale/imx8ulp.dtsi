@@ -125,6 +125,28 @@
 		ranges = <0x0 0x0 0x0 0x40000000>,
 			 <0x60000000 0x0 0x60000000 0x1000000>;
 
+		dsp: dsp@21170000 {
+			compatible = "fsl,imx8ulp-dsp-v1";
+			reg = <0x21170000 0x20000>;
+			clocks = <&cgc2 IMX8ULP_CLK_HIFI_DIVCORE>,
+				 <&cgc2 IMX8ULP_CLK_LPAV_BUS_DIV>,
+				 <&cgc2 IMX8ULP_CLK_HIFI_DIVPLAT>,
+				 <&pcc5 IMX8ULP_CLK_MU3_B>;
+			clock-names = "core", "pbclk", "nic", "mu_b";
+			fsl,dsp-firmware = "imx/dsp/hifi4.bin";
+			mbox-names = "tx0", "tx1", "tx2", "rx0",
+				     "txdb0", "txdb1", "rxdb0", "rxdb1";
+			mboxes = <&mu3 0 0>,
+				 <&mu3 0 1>,
+				 <&mu3 0 2>,
+				 <&mu3 1 0>,
+				 <&mu3 2 0>,
+				 <&mu3 2 1>,
+				 <&mu3 3 0>,
+				 <&mu3 3 1>;
+			status = "disabled";
+		};
+
 		per_bridge3: bus@29000000 {
 			compatible = "simple-bus";
 			reg = <0x29000000 0x800000>;
@@ -243,6 +265,15 @@
 				reg = <0x29220000 0x10000>;
 				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&pcc3 IMX8ULP_CLK_MU0_B>;
+				#mbox-cells = <2>;
+				status = "disabled";
+			};
+
+			mu3: mailbox@29230000 {
+				compatible = "fsl,imx8ulp-mu";
+				reg = <0x29230000 0x10000>;
+				interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&pcc3 IMX8ULP_CLK_MU3_A>;
 				#mbox-cells = <2>;
 				status = "disabled";
 			};
