@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2021 NXP
+ */
+
+/ {
+	firmware {
+		android {
+			compatible = "android,firmware";
+			/* default emmc node used for GSI */
+			boot_devices = "soc@0/29800000.bus/298d0000.mmc";
+			/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+			boot_devices_mmcblk0 = "soc@0/29800000.bus/298d0000.mmc";
+			fstab {
+				compatible = "android,fstab";
+				system {
+					compatible = "android,system";
+					dev = "system";
+					type = "ext4";
+					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
+				};
+				system_ext {
+					compatible = "android,system_ext";
+					dev = "system_ext";
+					type = "ext4";
+					mnt_flags = "noatime,ro,errors=panic";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+				vendor {
+					compatible = "android,vendor";
+					dev = "vendor";
+					type = "ext4";
+					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+				product {
+					compatible = "android,product";
+					dev = "product";
+					type = "ext4";
+					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
+				};
+				metadata {
+					compatible = "android,metadata";
+					dev = "/dev/block/by-name/metadata";
+					type = "ext4";
+					mnt_flags = "noatime,nosuid,nodev,discard,sync";
+					fsmgr_flags = "wait,formattable,first_stage_mount,check";
+				};
+			};
+			vbmeta {
+				/*we need use FirstStageMountVBootV2 if we enable avb*/
+				compatible = "android,vbmeta";
+				/*parts means the partition witch can be mount in first stage*/
+				parts = "vbmeta,dtbo,boot,system,vendor,product";
+			};
+		};
+	};
+};
+
