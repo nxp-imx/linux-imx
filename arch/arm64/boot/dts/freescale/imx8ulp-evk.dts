@@ -531,3 +531,17 @@
 		status = "okay";
 	};
 };
+
+&mipi_csi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "okay";
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			data-lanes = <1 2>;
+			bus-type = <4>;
+		};
+	};
+};
