@@ -7,6 +7,7 @@
 
 #include "imx8ulp.dtsi"
 #include "imx8ulp-rpmsg.dtsi"
+#include "imx8ulp-android.dtsi"
 
 / {
 	model = "NXP i.MX8ULP EVK";
