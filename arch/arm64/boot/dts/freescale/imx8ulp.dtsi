@@ -904,6 +904,14 @@
 				status = "disabled";
 			};
 
+			cameradev: camera {
+				compatible = "fsl,mxc-md", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges;
+				status = "disabled";
+			};
+
 			dsi: dsi@2db00000 {
 				compatible = "fsl,imx8ulp-nwl-dsi";
 				reg = <0x2db00000 0x300>;
