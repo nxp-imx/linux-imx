@@ -519,3 +519,7 @@
 	assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
 	status = "okay";
 };
+
+&cameradev {
+	status = "okay";
+};
