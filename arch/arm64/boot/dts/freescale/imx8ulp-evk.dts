@@ -374,6 +374,7 @@
 	bus-width = <4>;
 	keep-power-in-suspend;
 	non-removable;
+	wakeup-source;
 	status = "okay";
 
 	wifi_wake_host {

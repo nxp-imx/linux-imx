@@ -480,6 +480,7 @@
 	keep-power-in-suspend;
 	non-removable;
 	cap-power-off-card;
+	wakeup-source;
 	/delete-property/ vmmc-supply;
 	mmc-pwrseq = <&usdhc1_pwrseq>;
 	status = "okay";
