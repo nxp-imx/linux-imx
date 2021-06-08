@@ -152,7 +152,7 @@ static int imx_mu_tx_waiting_write(struct imx_mu_priv *priv, u32 val, u32 idx)
 		return -ETIME;
 	}
 
-	imx_mu_write(priv, val, priv->dcfg->xTR + idx * 4);
+	imx_mu_write(priv, val, priv->dcfg->xTR + (idx % 4) * 4);
 
 	return 0;
 }
