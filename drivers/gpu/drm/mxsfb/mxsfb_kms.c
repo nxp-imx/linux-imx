@@ -60,6 +60,17 @@ static void mxsfb_set_formats(struct mxsfb_drm_private *mxsfb)
 	if (mxsfb->connector->display_info.num_bus_formats)
 		bus_format = mxsfb->connector->display_info.bus_formats[0];
 
+	/* Do some clean-up that we might have from a previous mode */
+	ctrl = CTRL_SHIFT_DIR(1);
+	ctrl |= CTRL_SHIFT_NUM(0xff);
+	ctrl |= CTRL_SET_WORD_LENGTH(0xff);
+	ctrl |= CTRL_DF16;
+	ctrl |= CTRL_SET_BUS_WIDTH(0xff);
+	writel(ctrl, mxsfb->base + LCDC_CTRL + REG_CLR);
+	writel(CTRL2_ODD_LINE_PATTERN(CTRL2_LINE_PATTERN_CLR) |
+	       CTRL2_EVEN_LINE_PATTERN(CTRL2_LINE_PATTERN_CLR),
+	       mxsfb->base + LCDC_V4_CTRL2 + REG_CLR);
+
 	ctrl = CTRL_BYPASS_COUNT | CTRL_MASTER;
 
 	/* CTRL1 contains IRQ config and status bits, preserve those. */
@@ -147,7 +158,7 @@ static void mxsfb_set_formats(struct mxsfb_drm_private *mxsfb)
 	}
 
 	writel(ctrl1, mxsfb->base + LCDC_CTRL1);
-	writel(ctrl, mxsfb->base + LCDC_CTRL);
+	writel(ctrl, mxsfb->base + LCDC_CTRL + REG_SET);
 
 	return;
 err:
@@ -610,6 +621,7 @@ static void mxsfb_plane_primary_atomic_update(struct drm_plane *plane,
 	struct mxsfb_drm_private *mxsfb = to_mxsfb_drm_private(plane->dev);
 	struct drm_plane_state *new_state = plane->state;
 	struct drm_framebuffer *fb = plane->state->fb;
+	struct drm_framebuffer *old_fb = old_pstate->fb;
 	dma_addr_t paddr;
 	u32 src_off, src_w, stride, cpp = 0;
 
@@ -632,6 +644,10 @@ static void mxsfb_plane_primary_atomic_update(struct drm_plane *plane,
 		src_w = new_state->src_w >> 16;
 		mxsfb_set_fb_hcrop(mxsfb, src_w, stride);
 	}
+
+	/* Update format if changed */
+	if (old_fb && old_fb->format->format != fb->format->format)
+		mxsfb_set_formats(mxsfb);
 }
 
 static void mxsfb_plane_overlay_atomic_update(struct drm_plane *plane,
