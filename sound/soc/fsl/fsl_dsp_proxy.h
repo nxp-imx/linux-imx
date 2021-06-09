@@ -402,9 +402,6 @@ xf_cmd_send_recv_complete(struct xf_client *client, struct xf_proxy *proxy,
 			  struct work_struct *work,
 			  struct completion *completion);
 
-/* ...mu interrupt handle */
-irqreturn_t fsl_dsp_mu_isr(int irq, void *dev_id);
-
 /* ...initialize client pending message queue */
 void xf_msg_queue_init(struct xf_msg_queue *queue);
 
@@ -417,7 +414,7 @@ void xf_msg_free(struct xf_proxy *proxy, struct xf_message *m);
 /* ...release all pending messages */
 void xf_msg_free_all(struct xf_proxy *proxy, struct xf_msg_queue *queue);
 
-/* ...wait mu interrupt */
+/* ...wait mailbox callback */
 long icm_ack_wait(struct xf_proxy *proxy, u32 msg);
 
 /* ...shared memory translation - kernel virtual address to shared address */
@@ -425,6 +422,10 @@ u32 xf_proxy_b2a(struct xf_proxy *proxy, void *b);
 
 /* ...shared memory translation - shared address to kernel virtual address */
 void *xf_proxy_a2b(struct xf_proxy *proxy, u32 address);
+
+/* ...mailbox request and free */
+int dsp_request_chan(struct xf_proxy *proxy);
+void dsp_free_chan(struct xf_proxy *proxy);
 
 int xf_cmd_send_suspend(struct xf_proxy *proxy);
 int xf_cmd_send_resume(struct xf_proxy *proxy);

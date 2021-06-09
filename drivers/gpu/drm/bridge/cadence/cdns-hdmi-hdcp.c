@@ -393,7 +393,7 @@ static int hdmi_hdcp_check_receviers(struct cdns_mhdp_device *mhdp)
 	DRM_INFO("INFO: Number of Receivers: %d\n", hdcp_num_rec);
 
 	for (i = 0; i < hdcp_num_rec; ++i) {
-		DRM_INFO("\tReveiver ID%2d: %.2X%.2X%.2X%.2X%.2X\n",
+		DRM_INFO("\tReceiver ID%2d: %.2X%.2X%.2X%.2X%.2X\n",
 			 i,
 			 hdcp_rec_id[i][0],
 			 hdcp_rec_id[i][1],
@@ -743,7 +743,7 @@ static int _hdmi_hdcp_disable(struct cdns_mhdp_device *mhdp)
 
 static int _hdmi_hdcp_enable(struct cdns_mhdp_device *mhdp)
 {
-	int i, ret = 0, tries = 9;
+	int i, ret = 0, tries = 9, tries14 = 50;
 	u8 hpd_sts;
 
 	hpd_sts = cdns_mhdp_read_hpd(mhdp);
@@ -771,7 +771,7 @@ static int _hdmi_hdcp_enable(struct cdns_mhdp_device *mhdp)
 		}
 	}
 
-	for (i = 0; i < tries; i++) {
+	for (i = 0; i < tries14; i++) {
 		if (mhdp->hdcp.config & HDCP_CONFIG_1_4) {
 			ret = hdmi_hdcp_auth(mhdp, HDCP_TX_1);
 			if (ret == 0)
@@ -830,7 +830,7 @@ static void show_hdcp_supported(struct cdns_mhdp_device *mhdp)
 {
 	if ((mhdp->hdcp.config & (HDCP_CONFIG_1_4 | HDCP_CONFIG_2_2)) ==
 		    (HDCP_CONFIG_1_4 | HDCP_CONFIG_2_2))
-		DRM_INFO("Both HDCP 1.4 and 2 2 are enabled\n");
+		DRM_INFO("Both HDCP 1.4 and 2.2 are enabled\n");
 	else if (mhdp->hdcp.config & HDCP_CONFIG_1_4)
 		DRM_INFO("Only HDCP 1.4 is enabled\n");
 	else if (mhdp->hdcp.config & HDCP_CONFIG_2_2)

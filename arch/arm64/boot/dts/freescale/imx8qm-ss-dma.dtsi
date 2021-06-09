@@ -111,7 +111,8 @@
 
 /* edma0 called in imx8qm RM with the same address in edma2 of imx8qxp */
 &edma2 {
-	reg = <0x5a200000 0x10000>, /* channel0 LPSPI0 rx */
+	reg = <0x5a1f0000 0x10000>,
+	      <0x5a200000 0x10000>, /* channel0 LPSPI0 rx */
 	      <0x5a210000 0x10000>, /* channel1 LPSPI0 tx */
 	      <0x5a220000 0x10000>, /* channel2 LPSPI1 rx */
 	      <0x5a230000 0x10000>, /* channel3 LPSPI1 tx */

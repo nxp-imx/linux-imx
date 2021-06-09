@@ -2216,6 +2216,8 @@ gckKERNEL_ConfigPowerManagement(
 
     gcmkHEADER();
 
+    gcmkONERROR(gckHARDWARE_QueryPowerManagement(Kernel->hardware, &Interface->u.ConfigPowerManagement.oldValue));
+
     gcmkONERROR(gckHARDWARE_EnablePowerManagement(Kernel->hardware, enable));
 
     if (enable == gcvFALSE)
@@ -4048,7 +4050,7 @@ gckKERNEL_Recovery(
     if (mask)
     {
         /* Handle all outstanding events now. */
-        gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, mask));
+        gcmkONERROR(gckOS_AtomSetMask(eventObj->pending, mask));
     }
 
     for (i = 0; i < 32; i++)

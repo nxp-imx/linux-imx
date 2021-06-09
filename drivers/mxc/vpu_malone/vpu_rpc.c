@@ -485,3 +485,33 @@ void rpc_init_instance(struct shared_addr *This, u32 idx)
 	if (desc->wptr >= desc->end)
 		desc->wptr = desc->start;
 }
+
+struct rpc_region_t {
+	dma_addr_t start;
+	dma_addr_t end;
+	u32 type;
+};
+
+u32 rpc_check_memory_region(dma_addr_t base, dma_addr_t addr, u32 size)
+{
+	const struct rpc_region_t rpc_regions[] = {
+		{0x00000000, 0x08000000, VPU_RPC_MEMORY_CACHED},
+		{0x08000000, 0x10000000, VPU_RPC_MEMORY_UNCACHED},
+		{0x10000000, 0x20000000, VPU_RPC_MEMORY_CACHED},
+		{0x20000000, 0x40000000, VPU_RPC_MEMORY_UNCACHED}
+	};
+	int i;
+
+	if (addr < base)
+		return VPU_RPC_MEMORY_INVALID;
+
+	addr -= base;
+	for (i = 0; i < ARRAY_SIZE(rpc_regions); i++) {
+		const struct rpc_region_t *region = &rpc_regions[i];
+
+		if (addr >= region->start && addr + size < region->end)
+			return region->type;
+	}
+
+	return VPU_RPC_MEMORY_INVALID;
+}

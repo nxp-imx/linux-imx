@@ -8786,6 +8786,52 @@ gckHARDWARE_QueryPowerState(
 
 /*******************************************************************************
 **
+**  gckHARDWARE_QueryPowerManagement
+**
+**  Query GPU power management function.
+**
+**  INPUT:
+**
+**      gckHARDWARE Harwdare
+**          Pointer to an gckHARDWARE object.
+**
+**  OUTPUT:
+**
+**      gctBOOL *Enable
+**          Power Mangement Enabling State.
+**
+*/
+gceSTATUS
+gckHARDWARE_QueryPowerManagement(
+    IN gckHARDWARE Hardware,
+    OUT gctBOOL *Enable
+    )
+{
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    if (_IsHardwareMatch(Hardware, gcv7000, 0x6008))
+    {
+        *Enable = gcvFALSE;
+    }
+    else
+    {
+        gcmkVERIFY_OK(gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex, gcvINFINITE));
+
+        *Enable = Hardware->options.powerManagement;
+
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
+    }
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
 **  gckHARDWARE_EnablePowerManagement
 **
 **  Configure GPU power management function.
@@ -11932,13 +11978,35 @@ gckHARDWARE_Reset(
     IN gckHARDWARE Hardware
     )
 {
-    gceSTATUS status;
+    gceSTATUS status = gcvSTATUS_OK;
+    gctBOOL powerManagement = gcvFALSE;
+    gctBOOL globalAcquired = gcvFALSE;
 
     gcmkHEADER_ARG("Hardware=0x%x", Hardware);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
     gcmkVERIFY_OBJECT(Hardware->kernel, gcvOBJ_KERNEL);
+
+    powerManagement = Hardware->options.powerManagement;
+
+    if (powerManagement)
+    {
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(
+        Hardware, gcvFALSE
+        ));
+    }
+
+    gcmkONERROR(gckHARDWARE_SetPowerState(
+        Hardware, gcvPOWER_ON_AUTO
+        ));
+
+    /* Grab the global semaphore. */
+    gcmkONERROR(gckOS_AcquireSemaphore(
+        Hardware->os, Hardware->globalSemaphore
+        ));
+
+    globalAcquired = gcvTRUE;
 
     /* Record context ID in debug register before reset. */
     gcmkONERROR(gckHARDWARE_UpdateContextID(Hardware));
@@ -11958,16 +12026,26 @@ gckHARDWARE_Reset(
         gcmkONERROR(_ResetGPU(Hardware, Hardware->os, Hardware->core));
     }
 
-    /* Force the command queue to reload the next context. */
-    Hardware->kernel->command->currContext = gcvNULL;
-
     /* Initialize hardware. */
     gcmkONERROR(gckHARDWARE_InitializeHardware(Hardware));
 
-    /* Jump to address into which GPU should run if it doesn't stuck. */
-    if (Hardware->wlFE)
+    /* Force the command queue to reload the next context. */
+    Hardware->kernel->command->currContext = gcvNULL;
+
+    gcmkONERROR(gckCOMMAND_Start(Hardware->kernel->command));
+
+    /* Release the global semaphore. */
+    gcmkONERROR(gckOS_ReleaseSemaphore(
+        Hardware->os, Hardware->globalSemaphore
+        ));
+
+    globalAcquired = gcvFALSE;
+
+    if (powerManagement)
     {
-        gcmkONERROR(gckWLFE_Execute(Hardware, Hardware->lastWaitLink, 16));
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(
+            Hardware, gcvTRUE
+            ));
     }
 
     gcmkPRINT("[galcore]: recovery done");
@@ -11978,6 +12056,14 @@ gckHARDWARE_Reset(
 
 OnError:
     gcmkPRINT("[galcore]: Hardware not reset successfully, give up");
+
+    if (globalAcquired)
+    {
+        /* Release the global semaphore. */
+        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
+            Hardware->os, Hardware->globalSemaphore
+            ));
+    }
 
     /* Return the error. */
     gcmkFOOTER();
