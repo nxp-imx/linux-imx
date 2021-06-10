@@ -180,14 +180,14 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 
 static struct gpio_rpmsg_data *gpio_get_pin_msg(struct imx_rpmsg_gpio_port *port, unsigned int offset)
 {
-	struct gpio_rpmsg_data *msg = port->gpio_pins[offset].msg;
-
-	if (!msg)
-		msg = kzalloc(sizeof(struct gpio_rpmsg_data), GFP_KERNEL);
+	if (!port->gpio_pins[offset].msg)
+		port->gpio_pins[offset].msg =
+			kzalloc(sizeof(struct gpio_rpmsg_data), GFP_KERNEL);
 	else
-		memset(msg, 0, sizeof(struct gpio_rpmsg_data));
+		memset(port->gpio_pins[offset].msg, 0,
+		       sizeof(struct gpio_rpmsg_data));
 
-	return msg;
+	return port->gpio_pins[offset].msg;
 };
 
 static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
