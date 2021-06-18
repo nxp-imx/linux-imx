@@ -1153,7 +1153,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dsp_priv);
 	pm_runtime_enable(&pdev->dev);
-	dsp_priv->dsp_mu_init = 1;
 	dsp_priv->proxy.is_ready = 1;
 	pm_runtime_get_sync(&pdev->dev);
 
@@ -1164,7 +1163,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
-	dsp_priv->dsp_mu_init = 0;
 	dsp_priv->proxy.is_ready = 0;
 
 	ret = of_property_read_string(np, "fsl,dsp-firmware", &fw_name);
@@ -1511,9 +1509,11 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		dev_err(dev, "Failed to enable uart_per_clk ret = %d\n", ret);
 		goto uart_per_clk;
 	}
+	ret = dsp_request_chan(proxy);
+	if (ret < 0)
+			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
 
-	if (!dsp_priv->dsp_mu_init && !proxy->is_ready && !fsl_dsp_is_reset(dsp_priv)) {
-		dsp_priv->dsp_mu_init = 1;
+	if (!proxy->is_ready && !fsl_dsp_is_reset(dsp_priv)) {
 		proxy->is_ready = 1;
 	}
 
@@ -1532,17 +1532,8 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 	 * Use PID for checking the audiomix is reset or not.
 	 * After resetting, the PID should be 0, then we set the PID=1 in resume.
 	 */
-	if (!dsp_priv->dsp_mu_init && !proxy->is_ready && dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE)
+	if (!proxy->is_ready && dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE)
 		imx_audiomix_dsp_pid_set(dsp_priv->audiomix, 0x1);
-
-	if (!dsp_priv->dsp_mu_init) {
-		ret = dsp_request_chan(proxy);
-		if (ret < 0) {
-			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
-			return ret;
-		}
-		dsp_priv->dsp_mu_init = 1;
-	}
 
 	if (!proxy->is_ready) {
 		init_completion(&proxy->cmd_complete);
@@ -1619,7 +1610,6 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 
 	dsp_free_chan(proxy);
 
-	dsp_priv->dsp_mu_init = 0;
 	proxy->is_ready = 0;
 
 	for (i = 0; i < 4; i++)

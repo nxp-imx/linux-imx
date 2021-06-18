@@ -90,7 +90,6 @@ struct fsl_dsp {
 	void __iomem			*mu_base_virtaddr;
 	struct imx_sc_ipc		*dsp_ipcHandle;
 	struct imx_audiomix_dsp_data 	*audiomix;
-	int				dsp_mu_init;
 	struct dsp_mailbox_chan      chan_tx[3];
 	struct dsp_mailbox_chan      chan_rx0;
 	int				dsp_is_lpa;
