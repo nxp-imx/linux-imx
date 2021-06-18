@@ -691,7 +691,7 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 				    IMX_SC_R_DSP, true, dsp_priv->iram);
 		break;
 	case DSP_IMX8MP_TYPE:
-		imx_audiomix_dsp_start(dsp_priv->audiomix);
+		imx_audiomix_dsp_runstall(dsp_priv->audiomix, 0);
 		break;
 	case DSP_IMX8ULP_TYPE:
 		fsl_dsp_sim_lpav_start(dsp_priv);
@@ -701,16 +701,36 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 	}
 }
 
-static bool fsl_dsp_is_reset(struct fsl_dsp *dsp_priv)
+static void imx8mp_dsp_reset(struct fsl_dsp *dsp_priv)
+{
+	int pwrctl;
+	/* put DSP into reset and stall */
+	pwrctl = readl(dsp_priv->dap + IMX8M_DAP_PWRCTL);
+	pwrctl |= IMX8M_PWRCTL_CORERESET;
+	writel(pwrctl, dsp_priv->dap + IMX8M_DAP_PWRCTL);
+
+	/* keep reset asserted for 10 cycles */
+	usleep_range(1, 2);
+
+	imx_audiomix_dsp_runstall(dsp_priv->audiomix, AudioDSP_REG2_RUNSTALL);
+
+	/* take the DSP out of reset and keep stalled for FW loading */
+	pwrctl = readl(dsp_priv->dap + IMX8M_DAP_PWRCTL);
+	pwrctl &= ~IMX8M_PWRCTL_CORERESET;
+	writel(pwrctl, dsp_priv->dap + IMX8M_DAP_PWRCTL);
+}
+
+static void fsl_dsp_reset(struct fsl_dsp *dsp_priv)
 {
 	switch (dsp_priv->dsp_board_type) {
 	case DSP_IMX8QM_TYPE:
 	case DSP_IMX8QXP_TYPE:
-		return true;
+		break;
 	case DSP_IMX8MP_TYPE:
-		return imx_audiomix_dsp_reset(dsp_priv->audiomix);
+		imx8mp_dsp_reset(dsp_priv);
+		break;
 	default:
-		return true;
+		break;
 	}
 }
 
@@ -1231,6 +1251,15 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE) {
+		dsp_priv->dap = devm_ioremap(&pdev->dev, IMX8M_DAP_DEBUG, IMX8M_DAP_DEBUG_SIZE);
+		if (!dsp_priv->dap) {
+			dev_err(&pdev->dev, "error: failed to map DAP debug memory area");
+			ret = -ENODEV;
+			goto reserved_node_fail;
+		}
+	}
+
 	/* initialize the reference counter for dsp_priv
 	 * structure
 	 */
@@ -1513,10 +1542,6 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 	if (ret < 0)
 			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
 
-	if (!proxy->is_ready && !fsl_dsp_is_reset(dsp_priv)) {
-		proxy->is_ready = 1;
-	}
-
 	if (dsp_priv->dsp_board_type == DSP_IMX8ULP_TYPE) {
 		struct arm_smccc_res res;
 
@@ -1528,14 +1553,10 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
 		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
 	}
-	/*
-	 * Use PID for checking the audiomix is reset or not.
-	 * After resetting, the PID should be 0, then we set the PID=1 in resume.
-	 */
-	if (!proxy->is_ready && dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE)
-		imx_audiomix_dsp_pid_set(dsp_priv->audiomix, 0x1);
 
 	if (!proxy->is_ready) {
+		fsl_dsp_reset(dsp_priv);
+
 		init_completion(&proxy->cmd_complete);
 
 		ret = request_firmware_nowait(THIS_MODULE,

@@ -88,6 +88,7 @@ struct fsl_dsp {
 	const char			*audio_iface;
 	void __iomem			*regs;
 	void __iomem			*mu_base_virtaddr;
+	void __iomem			*dap;
 	struct imx_sc_ipc		*dsp_ipcHandle;
 	struct imx_audiomix_dsp_data 	*audiomix;
 	struct dsp_mailbox_chan      chan_tx[3];
@@ -193,6 +194,12 @@ struct xf_client *xf_client_alloc(struct fsl_dsp *dsp_priv);
 
 int fsl_dsp_open_func(struct fsl_dsp *dsp_priv, struct xf_client *client);
 int fsl_dsp_close_func(struct xf_client *client);
+
+/* DAP registers */
+#define IMX8M_DAP_DEBUG                0x28800000
+#define IMX8M_DAP_DEBUG_SIZE   (64 * 1024)
+#define IMX8M_DAP_PWRCTL       (0x4000 + 0x3020)
+#define IMX8M_PWRCTL_CORERESET         BIT(16)
 
 /* 8ULP SIM register */
 #define  REG_SIM_LPAV_SYSCTRL0     0x8
