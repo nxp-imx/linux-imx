@@ -720,6 +720,19 @@ static void imx8mp_dsp_reset(struct fsl_dsp *dsp_priv)
 	writel(pwrctl, dsp_priv->dap + IMX8M_DAP_PWRCTL);
 }
 
+static void imx8ulp_dsp_reset(struct fsl_dsp *dsp_priv)
+{
+	struct arm_smccc_res res;
+
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, DSP_RST);
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, DSP_STALL);
+
+	arm_smccc_smc(FSL_SIP_HIFI_XRDC, 0, 0, 0, 0, 0, 0, 0, &res);
+
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
+}
+
 static void fsl_dsp_reset(struct fsl_dsp *dsp_priv)
 {
 	switch (dsp_priv->dsp_board_type) {
@@ -728,6 +741,9 @@ static void fsl_dsp_reset(struct fsl_dsp *dsp_priv)
 		break;
 	case DSP_IMX8MP_TYPE:
 		imx8mp_dsp_reset(dsp_priv);
+		break;
+	case DSP_IMX8ULP_TYPE:
+		imx8ulp_dsp_reset(dsp_priv);
 		break;
 	default:
 		break;
@@ -1541,18 +1557,6 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 	ret = dsp_request_chan(proxy);
 	if (ret < 0)
 			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
-
-	if (dsp_priv->dsp_board_type == DSP_IMX8ULP_TYPE) {
-		struct arm_smccc_res res;
-
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, DSP_RST);
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, DSP_STALL);
-
-		arm_smccc_smc(FSL_SIP_HIFI_XRDC, 0, 0, 0, 0, 0, 0, 0, &res);
-
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
-	}
 
 	if (!proxy->is_ready) {
 		fsl_dsp_reset(dsp_priv);
