@@ -74,6 +74,7 @@
 	keep-power-in-suspend;
 	non-removable;
 	cap-power-off-card;
+	wakeup-source;
 	mmc-pwrseq = <&usdhc2_pwrseq>;
 
 	wifi_wake_host {

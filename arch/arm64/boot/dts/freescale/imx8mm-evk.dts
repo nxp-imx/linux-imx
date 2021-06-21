@@ -90,6 +90,7 @@
 	pm-ignore-notify;
 	keep-power-in-suspend;
 	non-removable;
+	wakeup-source;
 	mmc-pwrseq = <&usdhc1_pwrseq>;
 	status = "okay";
 

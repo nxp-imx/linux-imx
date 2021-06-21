@@ -7,6 +7,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/reset/imx8ulp-pcc-reset.h>
+#include <dt-bindings/power/imx8ulp-power.h>
 #include <dt-bindings/reset/imx8ulp-sim-reset.h>
 
 #include "imx8ulp-pinfunc.h"
@@ -119,6 +120,35 @@
 		clock-frequency = <24000000>;
 		clock-output-names = "sosc";
 		#clock-cells = <0>;
+	};
+
+	sram@2201f000 {
+		compatible = "mmio-sram";
+		reg = <0x0 0x2201f000 0x0 0x1000>;
+
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0 0x0 0x2201f000 0x1000>;
+
+		scmi_buf: scmi_buf@0 {
+			compatible = "arm,scmi-shmem";
+			reg = <0x0 0x400>;
+		};
+	};
+
+	firmware {
+		scmi {
+			compatible = "arm,scmi-smc";
+			arm,smc-id = <0xc20000fe>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			shmem = <&scmi_buf>;
+
+			scmi_devpd: protocol@11 {
+				reg = <0x11>;
+				#power-domain-cells = <1>;
+			};
+		};
 	};
 
 	soc@0 {
@@ -562,6 +592,7 @@
 					 <&cgc1 IMX8ULP_CLK_XBAR_AD_DIVPLAT>,
 					 <&pcc4 IMX8ULP_CLK_USDHC0>;
 				clock-names = "ipg", "ahb", "per";
+				power-domains = <&scmi_devpd IMX8ULP_PD_USDHC0>;
 				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2>, <&pcc4 IMX8ULP_CLK_USDHC0>;
 				assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 				assigned-clock-rates = <396000000>, <396000000>;
@@ -579,6 +610,7 @@
 					 <&cgc1 IMX8ULP_CLK_NIC_PER_DIVPLAT>,
 					 <&pcc4 IMX8ULP_CLK_USDHC1>;
 				clock-names = "ipg", "ahb", "per";
+				power-domains = <&scmi_devpd IMX8ULP_PD_USDHC1>;
 				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2>, <&pcc4 IMX8ULP_CLK_USDHC1>;
 				assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 				assigned-clock-rates = <396000000>, <396000000>;
@@ -596,6 +628,7 @@
 					 <&cgc1 IMX8ULP_CLK_NIC_PER_DIVPLAT>,
 					 <&pcc4 IMX8ULP_CLK_USDHC2>;
 				clock-names = "ipg", "ahb", "per";
+				power-domains = <&scmi_devpd IMX8ULP_PD_USDHC2_USB1>;
 				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2>, <&pcc4 IMX8ULP_CLK_USDHC2>;
 				assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 				assigned-clock-rates = <396000000>, <396000000>;
@@ -610,6 +643,7 @@
 				reg = <0x29900000 0x200>;
 				interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&pcc4 IMX8ULP_CLK_USB0>;
+				power-domains = <&scmi_devpd IMX8ULP_PD_USB0>;
 				phys = <&usbphy1>;
 				fsl,usbmisc = <&usbmisc1 0>;
 				ahb-burst-config = <0x0>;
@@ -639,6 +673,7 @@
 				reg = <0x29920000 0x200>;
 				interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&pcc4 IMX8ULP_CLK_USB1>;
+				power-domains = <&scmi_devpd IMX8ULP_PD_USDHC2_USB1>;
 				phys = <&usbphy2>;
 				fsl,usbmisc = <&usbmisc2 0>;
 				ahb-burst-config = <0x0>;
@@ -718,6 +753,7 @@
 
 			edma2: dma-controller@2d800000 {
 				compatible = "fsl,imx8ulp-edma";
+				power-domains = <&scmi_devpd IMX8ULP_PD_DMA2>;
 				reg = <0x2d800000 0x10000>,
 				      <0x2d810000 0x10000>, <0x2d820000 0x10000>,
 				      <0x2d830000 0x10000>, <0x2d840000 0x10000>,
@@ -918,6 +954,7 @@
 					reg = <0x2dac0000 0x10000>;
 					interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&pcc5 IMX8ULP_CLK_ISI>;
+					power-domains = <&scmi_devpd IMX8ULP_PD_ISI>;
 					clock-names = "per";
 					interface = <2 0 2>;
 					no-reset-control;
@@ -938,6 +975,7 @@
 						 <&pcc5 IMX8ULP_CLK_CSI_CLK_ESC>,
 						 <&pcc5 IMX8ULP_CLK_CSI_REGS>;
 					clock-names = "clk_core", "clk_ui", "clk_esc", "clk_regs";
+					power-domains = <&scmi_devpd IMX8ULP_PD_MIPI_CSI>;
 					assigned-clocks = <&cgc2 IMX8ULP_CLK_PLL4_PFD1>,
 							  <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV1>,
 							  <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV2>,
@@ -970,6 +1008,7 @@
 					 <&pcc5 IMX8ULP_CLK_DSI_TX_ESC>,
 					 <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>;
 				clock-names = "core", "rx_esc", "tx_esc", "phy_ref";
+				power-domains = <&scmi_devpd IMX8ULP_PD_MIPI_DSI>;
 				assigned-clocks = <&pcc5 IMX8ULP_CLK_DSI>;
 				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD3_DIV2>;
 				assigned-clock-rates = <79200000>;
@@ -1023,6 +1062,7 @@
 			clocks = <&pcc5 IMX8ULP_CLK_GPU3D>,
 				<&cgc1 IMX8ULP_CLK_DUMMY>;
 			clock-names = "core", "shader";
+			power-domains = <&scmi_devpd IMX8ULP_PD_GPU3D>;
 			assigned-clocks = <&cgc2 IMX8ULP_CLK_PLL4_PFD2>,
 				<&cgc2 IMX8ULP_CLK_PLL4_PFD2_DIV2>,
 				<&pcc5 IMX8ULP_CLK_GPU3D>;
@@ -1040,6 +1080,7 @@
 			interrupts =  <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&pcc5 IMX8ULP_CLK_GPU2D>;
 			clock-names = "core";
+			power-domains = <&scmi_devpd IMX8ULP_PD_GPU2D>;
 			assigned-clocks = <&cgc2 IMX8ULP_CLK_PLL4_PFD2>,
 				<&cgc2 IMX8ULP_CLK_PLL4_PFD2_DIV2>,
 				<&pcc5 IMX8ULP_CLK_GPU2D>;
@@ -1059,6 +1100,7 @@
 				 <&cgc2 IMX8ULP_CLK_LPAV_AHB_DIV>,
 				 <&pcc5 IMX8ULP_CLK_DC_NANO>;
 			clock-names = "axi", "ahb", "pixel";
+			power-domains = <&scmi_devpd IMX8ULP_PD_DCNANO>;
 			assigned-clocks = <&pcc5 IMX8ULP_CLK_DC_NANO>;
 			assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV1>;
 			status = "disabled";

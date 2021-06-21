@@ -693,7 +693,7 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 #endif
 		break;
 	case DSP_IMX8MP_TYPE:
-		imx_audiomix_dsp_start(dsp_priv->audiomix);
+		imx_audiomix_dsp_runstall(dsp_priv->audiomix, 0);
 		break;
 	case DSP_IMX8ULP_TYPE:
 		fsl_dsp_sim_lpav_start(dsp_priv);
@@ -703,16 +703,52 @@ static void fsl_dsp_start(struct fsl_dsp *dsp_priv)
 	}
 }
 
-static bool fsl_dsp_is_reset(struct fsl_dsp *dsp_priv)
+static void imx8mp_dsp_reset(struct fsl_dsp *dsp_priv)
+{
+	int pwrctl;
+	/* put DSP into reset and stall */
+	pwrctl = readl(dsp_priv->dap + IMX8M_DAP_PWRCTL);
+	pwrctl |= IMX8M_PWRCTL_CORERESET;
+	writel(pwrctl, dsp_priv->dap + IMX8M_DAP_PWRCTL);
+
+	/* keep reset asserted for 10 cycles */
+	usleep_range(1, 2);
+
+	imx_audiomix_dsp_runstall(dsp_priv->audiomix, AudioDSP_REG2_RUNSTALL);
+
+	/* take the DSP out of reset and keep stalled for FW loading */
+	pwrctl = readl(dsp_priv->dap + IMX8M_DAP_PWRCTL);
+	pwrctl &= ~IMX8M_PWRCTL_CORERESET;
+	writel(pwrctl, dsp_priv->dap + IMX8M_DAP_PWRCTL);
+}
+
+static void imx8ulp_dsp_reset(struct fsl_dsp *dsp_priv)
+{
+	struct arm_smccc_res res;
+
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, DSP_RST);
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, DSP_STALL);
+
+	arm_smccc_smc(FSL_SIP_HIFI_XRDC, 0, 0, 0, 0, 0, 0, 0, &res);
+
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
+	regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
+}
+
+static void fsl_dsp_reset(struct fsl_dsp *dsp_priv)
 {
 	switch (dsp_priv->dsp_board_type) {
 	case DSP_IMX8QM_TYPE:
 	case DSP_IMX8QXP_TYPE:
-		return true;
+		break;
 	case DSP_IMX8MP_TYPE:
-		return imx_audiomix_dsp_reset(dsp_priv->audiomix);
+		imx8mp_dsp_reset(dsp_priv);
+		break;
+	case DSP_IMX8ULP_TYPE:
+		imx8ulp_dsp_reset(dsp_priv);
+		break;
 	default:
-		return true;
+		break;
 	}
 }
 
@@ -1155,7 +1191,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dsp_priv);
 	pm_runtime_enable(&pdev->dev);
-	dsp_priv->dsp_mu_init = 1;
 	dsp_priv->proxy.is_ready = 1;
 	pm_runtime_get_sync(&pdev->dev);
 
@@ -1166,7 +1201,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_put_sync(&pdev->dev);
-	dsp_priv->dsp_mu_init = 0;
 	dsp_priv->proxy.is_ready = 0;
 
 	ret = of_property_read_string(np, "fsl,dsp-firmware", &fw_name);
@@ -1232,6 +1266,15 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed alloc memory.\n");
 			ret = -ENOMEM;
 			goto alloc_coherent_fail;
+		}
+	}
+
+	if (dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE) {
+		dsp_priv->dap = devm_ioremap(&pdev->dev, IMX8M_DAP_DEBUG, IMX8M_DAP_DEBUG_SIZE);
+		if (!dsp_priv->dap) {
+			dev_err(&pdev->dev, "error: failed to map DAP debug memory area");
+			ret = -ENODEV;
+			goto reserved_node_fail;
 		}
 	}
 
@@ -1513,40 +1556,13 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 		dev_err(dev, "Failed to enable uart_per_clk ret = %d\n", ret);
 		goto uart_per_clk;
 	}
-
-	if (!dsp_priv->dsp_mu_init && !proxy->is_ready && !fsl_dsp_is_reset(dsp_priv)) {
-		dsp_priv->dsp_mu_init = 1;
-		proxy->is_ready = 1;
-	}
-
-	if (dsp_priv->dsp_board_type == DSP_IMX8ULP_TYPE) {
-		struct arm_smccc_res res;
-
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, DSP_RST);
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_STALL, DSP_STALL);
-
-		arm_smccc_smc(FSL_SIP_HIFI_XRDC, 0, 0, 0, 0, 0, 0, 0, &res);
-
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_RST, 0);
-		regmap_update_bits(dsp_priv->regmap, REG_SIM_LPAV_SYSCTRL0, DSP_DBG_RST, 0);
-	}
-	/*
-	 * Use PID for checking the audiomix is reset or not.
-	 * After resetting, the PID should be 0, then we set the PID=1 in resume.
-	 */
-	if (!dsp_priv->dsp_mu_init && !proxy->is_ready && dsp_priv->dsp_board_type == DSP_IMX8MP_TYPE)
-		imx_audiomix_dsp_pid_set(dsp_priv->audiomix, 0x1);
-
-	if (!dsp_priv->dsp_mu_init) {
-		ret = dsp_request_chan(proxy);
-		if (ret < 0) {
+	ret = dsp_request_chan(proxy);
+	if (ret < 0)
 			dev_err(dev, "Failed to request mailbox chan, ret = %d\n", ret);
-			return ret;
-		}
-		dsp_priv->dsp_mu_init = 1;
-	}
 
 	if (!proxy->is_ready) {
+		fsl_dsp_reset(dsp_priv);
+
 		init_completion(&proxy->cmd_complete);
 
 		ret = request_firmware_nowait(THIS_MODULE,
@@ -1621,7 +1637,6 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 
 	dsp_free_chan(proxy);
 
-	dsp_priv->dsp_mu_init = 0;
 	proxy->is_ready = 0;
 
 	for (i = 0; i < 4; i++)
