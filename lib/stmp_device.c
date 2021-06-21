@@ -11,8 +11,7 @@
 #include <linux/io.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
-#include <linux/compiler.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/stmp_device.h>
 
 #define STMP_MODULE_CLKGATE	(1 << 30)
@@ -75,3 +74,4 @@ error:
 	return -ETIMEDOUT;
 }
 EXPORT_SYMBOL(stmp_reset_block);
+MODULE_LICENSE("GPL v2");

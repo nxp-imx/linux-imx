@@ -75,7 +75,7 @@ config GENERIC_IOMAP
 	select GENERIC_PCI_IOMAP
 
 config STMP_DEVICE
-	bool
+	tristate "stmp-style device functions"
 
 config ARCH_USE_CMPXCHG_LOCKREF
 	bool
