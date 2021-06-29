@@ -90,6 +90,13 @@ menuconfig DMABUF_SYSFS_STATS
 	   Android is the only user of this and it turned out that this resulted
 	   in quite some performance problems.
 
+config DMABUF_IMX
+	tristate "Ion for imx platform"
+	depends on ARCH_MXC && DMABUF_HEAPS
+	help
+		Choose this option if you wish to implement feature in imx,
+		like get phy address according to dma_buf
+
 source "drivers/dma-buf/heaps/Kconfig"
 
 endmenu
