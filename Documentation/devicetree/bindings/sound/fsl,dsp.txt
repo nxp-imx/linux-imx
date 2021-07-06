@@ -4,7 +4,8 @@ The IP is from Cadence.
 
 Required properties:
 
-  - compatible	: Contains "fsl,imx8qxp-dsp".
+  - compatible	: Contains one of "fsl,imx8qxp-dsp-v1", "fsl,imx8qm-dsp-v1",
+		  "fsl,imx8mp-dsp-v1", "fsl,imx8ulp-dsp-v1",
   - reg		: Offset and length of the register set for the device.
 
 Example:

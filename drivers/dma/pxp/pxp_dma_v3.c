@@ -46,7 +46,6 @@ void __iomem *fpga_tcml_base;
 void __iomem *pinctrl_base;
 #endif
 
-
 #define PXP_FILL_TIMEOUT	3000
 #define busy_wait(cond)							\
 	({                                                              \
@@ -1117,8 +1116,8 @@ static void dump_pxp_reg2(struct pxps *pxp)
 
 static void print_param(struct pxp_layer_param *p, char *s)
 {
-	pr_debug("%s: t/l/w/h/s %d/%d/%d/%d/%d, addr %x\n", s,
-		p->top, p->left, p->width, p->height, p->stride, p->paddr);
+	pr_debug("%s: t/l/w/h/s %d/%d/%d/%d/%d, addr %p\n", s,
+		p->top, p->left, p->width, p->height, p->stride, (void *)p->paddr);
 }
 
 /* when it is, return yuv plane number */
@@ -2028,7 +2027,7 @@ static uint8_t fmt_store_from_common(uint32_t out)
 }
 
 static void filter_possible_inputs(struct pxp_pixmap *input,
-				   uint32_t *possible)
+				   size_t *possible)
 {
 	uint8_t clear = 0xff;
 	uint8_t position = 0;
@@ -2074,7 +2073,7 @@ static void filter_possible_inputs(struct pxp_pixmap *input,
 }
 
 static void filter_possible_outputs(struct pxp_pixmap *output,
-				    uint32_t *possible)
+				    size_t *possible)
 {
 	uint8_t clear = 0xff;
 	uint8_t position = 0;
@@ -2111,7 +2110,7 @@ static void filter_possible_outputs(struct pxp_pixmap *output,
 	} while (1);
 }
 
-static uint32_t calc_shortest_path(uint32_t *nodes_used)
+static uint32_t calc_shortest_path(size_t *nodes_used)
 {
 	uint32_t distance = 0;
 	uint32_t from = 0, to = 0, bypass, end;
@@ -2164,12 +2163,12 @@ static uint32_t calc_shortest_path(uint32_t *nodes_used)
 static uint32_t find_best_path(uint32_t inputs,
 			       uint32_t outputs,
 			       struct pxp_pixmap *in,
-			       uint32_t *nodes_used)
+			       size_t *nodes_used)
 {
-	uint32_t outs;
-	uint32_t nodes_add, best_nodes_used = 0;
+	size_t outs;
+	size_t nodes_add, best_nodes_used = 0;
 	uint8_t in_pos = 0, out_pos = 0;
-	uint32_t nodes_in_path, best_nodes_in_path = 0;
+	size_t nodes_in_path, best_nodes_in_path = 0;
 	uint32_t best_distance = DISTANCE_INFINITY, distance;
 
 	do {
@@ -2248,7 +2247,7 @@ static uint32_t find_best_path(uint32_t inputs,
 				best_nodes_in_path = nodes_in_path;
 			}
 			pr_debug("%s: out_pos = %d, nodes_in_path = 0x%x, nodes_add = 0x%x, distance = 0x%x\n",
-				 __func__, out_pos, nodes_in_path, nodes_add, distance);
+				 __func__, out_pos, (u32)nodes_in_path, (u32)nodes_add, distance);
 
 			clear_bit(out_pos, (unsigned long *)&nodes_add);
 
@@ -3034,7 +3033,7 @@ static void pxp_lut_config(struct pxp_op_info *op)
 static int pxp_2d_task_config(struct pxp_pixmap *input,
 			      struct pxp_pixmap *output,
 			      struct pxp_op_info *op,
-			      uint32_t nodes_used)
+			      size_t nodes_used)
 {
 	uint8_t position = 0;
 
@@ -3161,13 +3160,13 @@ static int pxp_2d_op_handler(struct pxps *pxp)
 	struct pxp_task_info *task = &pxp->task;
 	struct pxp_op_info *op = &task->op_info;
 	struct pxp_pixmap *input, *output, *input_s0, *input_s1;
-	uint32_t possible_inputs, possible_outputs;
-	uint32_t possible_inputs_s0, possible_inputs_s1;
-	uint32_t inputs_filter_s0, inputs_filter_s1;
-	uint32_t nodes_used = 0, nodes_in_path;
-	uint32_t partial_nodes_used = 0;
-	uint32_t nodes_used_s0 = 0, nodes_used_s1 = 0;
-	uint32_t nodes_in_path_s0, nodes_in_path_s1;
+	size_t possible_inputs, possible_outputs;
+	size_t possible_inputs_s0, possible_inputs_s1;
+	size_t inputs_filter_s0, inputs_filter_s1;
+	size_t nodes_used = 0, nodes_in_path;
+	size_t partial_nodes_used = 0;
+	size_t nodes_used_s0 = 0, nodes_used_s1 = 0;
+	size_t nodes_in_path_s0, nodes_in_path_s1;
 	uint32_t val;
 
 	output = &task->output[0];
@@ -3256,7 +3255,7 @@ reparse:
 		}
 
 		pr_debug("%s: nodes_in_path = 0x%x, nodes_used = 0x%x\n",
-			  __func__, nodes_in_path, nodes_used);
+			  __func__, (u32)nodes_in_path, (u32)nodes_used);
 		if (!nodes_used) {
 			dev_err(&pxp->pdev->dev, "unsupport 2d operation\n");
 			return -EINVAL;
@@ -3362,7 +3361,7 @@ reparse:
 			return -EINVAL;
 
 		pr_debug("%s: poss_s0 = 0x%x, poss_s1 = 0x%x, poss_out = 0x%x\n",
-			 __func__, possible_inputs_s0, possible_inputs_s1, possible_outputs);
+			 __func__, (u32)possible_inputs_s0, (u32)possible_inputs_s1, (u32)possible_outputs);
 
 		inputs_filter_s0 = possible_inputs_s0;
 		inputs_filter_s1 = possible_inputs_s1;
@@ -3438,7 +3437,7 @@ alpha1:
 						  1 << PXP_2D_ALPHA1_S0,
 						  input_s0,
 						  &partial_nodes_used);
-		pr_debug("%s: nodes_in_path_s0 = 0x%x\n", __func__, nodes_in_path_s0);
+		pr_debug("%s: nodes_in_path_s0 = 0x%x\n", __func__, (u32)nodes_in_path_s0);
 		BUG_ON(!nodes_in_path_s0);
 
 		nodes_used_s0 |= partial_nodes_used;
@@ -3464,7 +3463,7 @@ alpha1:
 		BUG_ON(!(nodes_in_path_s0 & possible_outputs));
 		nodes_used_s0 |= partial_nodes_used;
 		pr_debug("%s: nodes_in_path_s0 = 0x%x, nodes_used_s0 = 0x%x\n",
-			 __func__, nodes_in_path_s0, nodes_used_s0);
+			 __func__, (u32)nodes_in_path_s0, (u32)nodes_used_s0);
 
 		clear_bit(PXP_2D_AS,
 			  (unsigned long *)&possible_inputs_s1);
@@ -3475,7 +3474,7 @@ alpha1:
 						  input_s1,
 						  &nodes_used_s1);
 		pr_debug("%s: poss_s1 = 0x%x, nodes_used_s1 = 0x%x\n",
-			 __func__, possible_inputs_s1, nodes_used_s1);
+			 __func__, (u32)possible_inputs_s1, (u32)nodes_used_s1);
 		BUG_ON(!nodes_in_path_s1);
 		/* To workaround an IC bug */
 		path_ctrl0.mux4_sel = 0x0;
@@ -3486,12 +3485,12 @@ config:
 		}
 
 		pr_debug("%s: nodes_in_path_s0 = 0x%x, nodes_used_s0 = 0x%x, nodes_in_path_s1 = 0x%x, nodes_used_s1 = 0x%x\n",
-			 __func__, nodes_in_path_s0, nodes_used_s0, nodes_in_path_s1, nodes_used_s1);
+			 __func__, (u32)nodes_in_path_s0, (u32)nodes_used_s0, (u32)nodes_in_path_s1, (u32)nodes_used_s1);
 		pxp_2d_calc_mux(nodes_in_path_s0, &path_ctrl0);
 		pxp_2d_calc_mux(nodes_in_path_s1, &path_ctrl0);
 
-		pr_debug("%s: s0 paddr = 0x%x, s1 paddr = 0x%x, out paddr = 0x%x\n",
-			 __func__, input_s0->paddr, input_s1->paddr, output->paddr);
+		pr_debug("%s: s0 paddr = 0x%p, s1 paddr = 0x%p, out paddr = 0x%p\n",
+			 __func__, (void *)input_s0->paddr, (void *)input_s1->paddr, (void *)output->paddr);
 
 		if (nodes_used_s0 & (1 << PXP_2D_ROTATION1)) {
 			clear_bit(PXP_2D_ROTATION1, (unsigned long *)&nodes_used_s0);
@@ -3908,20 +3907,20 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 		output->crop.height = proc_data->drect.height;
 	}
 
-	pr_debug("%s:%d S0 w/h %d/%d paddr %08x\n", __func__, __LINE__,
+	pr_debug("%s:%d S0 w/h %d/%d paddr %p\n", __func__, __LINE__,
 		 pxp->pxp_conf_state.s0_param.width,
 		 pxp->pxp_conf_state.s0_param.height,
-		 pxp->pxp_conf_state.s0_param.paddr);
+		 (void *)pxp->pxp_conf_state.s0_param.paddr);
 	pr_debug("%s:%d S0 crop (top, left)=(%d, %d), (width, height)=(%d, %d)\n",
 		__func__, __LINE__,
 		pxp->pxp_conf_state.s0_param.crop.top,
 		pxp->pxp_conf_state.s0_param.crop.left,
 		pxp->pxp_conf_state.s0_param.crop.width,
 		pxp->pxp_conf_state.s0_param.crop.height);
-	pr_debug("%s:%d OUT w/h %d/%d paddr %08x\n", __func__, __LINE__,
+	pr_debug("%s:%d OUT w/h %d/%d paddr %p\n", __func__, __LINE__,
 		 pxp->pxp_conf_state.out_param.width,
 		 pxp->pxp_conf_state.out_param.height,
-		 pxp->pxp_conf_state.out_param.paddr);
+		 (void *)pxp->pxp_conf_state.out_param.paddr);
 }
 
 static int pxpdma_dostart_work(struct pxps *pxp)
@@ -4402,7 +4401,7 @@ static void pxp_soft_reset(struct pxps *pxp)
 }
 
 static void pxp_sram_init(struct pxps *pxp, u32 select,
-			u32 buffer_addr, u32 length)
+			void *buffer_addr, u32 length)
 {
 	u32 i;
 
@@ -5703,7 +5702,7 @@ static void pxp_wfe_b_configure(struct pxps *pxp)
 		BF_PXP_WFB_ARRAY_FLAG9_MASK_L_OFS(9),
 		pxp->base + HW_PXP_WFB_ARRAY_FLAG9_MASK);
 
-	pxp_sram_init(pxp, WFE_B, (u32)active_matrix_data_8x8, 64);
+	pxp_sram_init(pxp, WFE_B, active_matrix_data_8x8, 64);
 
 	/* Store */
 	__raw_writel(
@@ -6929,7 +6928,7 @@ static void pxp_set_final_lut_data(struct pxps *pxp)
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 
 	if (proc_data->quant_bit < 2) {
-		pxp_sram_init(pxp, DITHER0_LUT, (u32)bit1_dither_data_8x8, 64);
+		pxp_sram_init(pxp, DITHER0_LUT, bit1_dither_data_8x8, 64);
 
 		__raw_writel(
 				BF_PXP_DITHER_FINAL_LUT_DATA0_DATA0(0x0) |
@@ -6959,7 +6958,7 @@ static void pxp_set_final_lut_data(struct pxps *pxp)
 				BF_PXP_DITHER_FINAL_LUT_DATA3_DATA15(0xf0),
 				pxp->base + HW_PXP_DITHER_FINAL_LUT_DATA3);
 	} else if (proc_data->quant_bit < 4) {
-		pxp_sram_init(pxp, DITHER0_LUT, (u32)bit2_dither_data_8x8, 64);
+		pxp_sram_init(pxp, DITHER0_LUT, bit2_dither_data_8x8, 64);
 
 		__raw_writel(
 				BF_PXP_DITHER_FINAL_LUT_DATA0_DATA0(0x0) |
@@ -6989,7 +6988,7 @@ static void pxp_set_final_lut_data(struct pxps *pxp)
 				BF_PXP_DITHER_FINAL_LUT_DATA3_DATA15(0xf0),
 				pxp->base + HW_PXP_DITHER_FINAL_LUT_DATA3);
 	} else {
-		pxp_sram_init(pxp, DITHER0_LUT, (u32)bit4_dither_data_8x8, 64);
+		pxp_sram_init(pxp, DITHER0_LUT, bit4_dither_data_8x8, 64);
 
 		__raw_writel(
 				BF_PXP_DITHER_FINAL_LUT_DATA0_DATA0(0x0) |
@@ -7623,34 +7622,42 @@ static int pxp_init_interrupt(struct platform_device *pdev)
 {
 	int legacy_irq, std_irq, err;
 	struct pxps *pxp = platform_get_drvdata(pdev);
+	int irq_cnt = 0;
 
-	legacy_irq = platform_get_irq(pdev, 0);
-	if (legacy_irq < 0) {
-		dev_err(&pdev->dev, "failed to get pxp legacy irq: %d\n",
-			legacy_irq);
-		return legacy_irq;
-	}
-
-	std_irq = platform_get_irq(pdev, 1);
-	if (std_irq < 0) {
-		dev_err(&pdev->dev, "failed to get pxp standard irq: %d\n",
-			std_irq);
-		return std_irq;
-	}
-
-	err = devm_request_irq(&pdev->dev, legacy_irq, pxp_irq, 0,
-				"pxp-dmaengine-legacy", pxp);
-	if (err) {
-		dev_err(&pdev->dev, "Request pxp legacy irq failed: %d\n", err);
-		return err;
-	}
-
-	err = devm_request_irq(&pdev->dev, std_irq, pxp_irq, 0,
-				"pxp-dmaengine-std", pxp);
-	if (err) {
-		dev_err(&pdev->dev, "Request pxp standard irq failed: %d\n",
-			err);
-		return err;
+	irq_cnt = platform_irq_count(pdev);
+	switch (irq_cnt) {
+	case 2:
+		std_irq = platform_get_irq(pdev, 1);
+		if (std_irq < 0) {
+			dev_err(&pdev->dev, "failed to get pxp standard irq: %d\n",
+				std_irq);
+			return std_irq;
+		}
+		err = devm_request_irq(&pdev->dev, std_irq, pxp_irq, 0,
+					"pxp-dmaengine-std", pxp);
+		if (err) {
+			dev_err(&pdev->dev, "Request pxp standard irq failed: %d\n",
+				err);
+			return err;
+		}
+		/* fallthrough */
+	case 1:
+		legacy_irq = platform_get_irq(pdev, 0);
+		if (legacy_irq < 0) {
+			dev_err(&pdev->dev, "failed to get pxp legacy irq: %d\n",
+				legacy_irq);
+			return legacy_irq;
+		}
+		err = devm_request_irq(&pdev->dev, legacy_irq, pxp_irq, 0,
+					"pxp-dmaengine-legacy", pxp);
+		if (err) {
+			dev_err(&pdev->dev, "Request pxp legacy irq failed: %d\n", err);
+			return -ENXIO;
+		}
+		break;
+	default:
+		pr_err("failed to get pxp irq count=(%d)\n", irq_cnt);
+		return -EINVAL;
 	}
 
 	pxp->irq = legacy_irq;
@@ -7974,6 +7981,7 @@ static int pxp_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
+	pxp_clk_enable(pxp);
 	pxp_soft_reset(pxp);
 	pxp_writel(0x0, HW_PXP_CTRL);
 	/* Initialize DMA engine */
@@ -7981,7 +7989,6 @@ static int pxp_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto exit;
 
-	pxp_clk_enable(pxp);
 	pxp_soft_reset(pxp);
 
 	/* Initialize PXP Interrupt */

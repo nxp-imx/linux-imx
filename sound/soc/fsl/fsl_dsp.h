@@ -9,6 +9,7 @@
 #define FSL_DSP_H
 #include <uapi/linux/mxc_dsp.h>
 #include <linux/firmware/imx/ipc.h>
+#include <linux/mailbox_client.h>
 #include "fsl_dsp_proxy.h"
 #include "fsl_dsp_platform.h"
 #include "fsl_dsp_audiomix.h"
@@ -22,10 +23,21 @@ typedef void (*memset_func) (void *s, int c, size_t n);
 /* ...maximal number of IPC clients per proxy */
 #define XF_CFG_MAX_IPC_CLIENTS          (1 << 4)
 
+#define NUM_MAILBOX_CHAN 3
+
 enum {
 	DSP_IMX8QXP_TYPE = 0,
 	DSP_IMX8QM_TYPE,
 	DSP_IMX8MP_TYPE,
+	DSP_IMX8ULP_TYPE,
+};
+
+/* ...dsp mailbox chan */
+struct dsp_mailbox_chan {
+	struct fsl_dsp *dsp_priv;
+	char name[20];
+	struct mbox_client cl;
+	struct mbox_chan *ch;
 };
 
 /* ...proxy client data */
@@ -76,10 +88,11 @@ struct fsl_dsp {
 	const char			*audio_iface;
 	void __iomem			*regs;
 	void __iomem			*mu_base_virtaddr;
+	void __iomem			*dap;
 	struct imx_sc_ipc		*dsp_ipcHandle;
 	struct imx_audiomix_dsp_data 	*audiomix;
-	unsigned int			dsp_mu_id;
-	int				dsp_mu_init;
+	struct dsp_mailbox_chan      chan_tx[3];
+	struct dsp_mailbox_chan      chan_rx0;
 	int				dsp_is_lpa;
 	atomic_long_t			refcnt;
 	unsigned long			paddr;
@@ -90,6 +103,7 @@ struct fsl_dsp {
 	void			        *sdram_vir_addr;
 	unsigned long			sdram_phys_addr;
 	int				sdram_reserved_size;
+	int				sdram_reserved_alias;
 	void			        *dram_reserved_vir_addr;
 	unsigned long			dram_reserved_phys_addr;
 	int				dram_reserved_size;
@@ -99,14 +113,18 @@ struct fsl_dsp {
 	void				*msg_buf_virt;
 	dma_addr_t			 msg_buf_phys;
 	int				 msg_buf_size;
+	int				 msg_buf_alias;
 	void				*scratch_buf_virt;
 	dma_addr_t			 scratch_buf_phys;
 	int				 scratch_buf_size;
+	int				 scratch_buf_alias;
 	void				*dsp_config_virt;
 	dma_addr_t			 dsp_config_phys;
 	int				 dsp_config_size;
+	int				 dsp_config_alias;
 	int				 dsp_board_type;
-	unsigned int			fixup_offset;
+	unsigned int			fixup_offset_itcm;  /* itcm */
+	unsigned int			fixup_offset_dram;
 
 	/* ...proxy data structures */
 	struct xf_proxy proxy;
@@ -129,7 +147,6 @@ struct fsl_dsp {
 	struct clk *audio_root_clk;
 	struct clk *audio_axi_clk;
 	struct clk *debug_clk;
-	struct clk *mu2_clk;
 	struct clk *sdma_root_clk;
 	struct clk *sai_ipg_clk;
 	struct clk *sai_mclk;
@@ -137,9 +154,13 @@ struct fsl_dsp {
 	struct clk *pll11k_clk;
 	struct clk *uart_ipg_clk;
 	struct clk *uart_per_clk;
-
+	struct clk *mu_a_clk;
+	struct clk *mu_b_clk;
+	struct clk *nic_clk;
+	struct clk *pb_clk;
 	struct device **pd_dev;
 	struct device_link **pd_dev_link;
+	struct regmap *regmap;
 	int    num_domains;
 };
 
@@ -158,10 +179,13 @@ struct fsl_dsp {
 #define SYSROM_OFFSET		0x58000
 #define SYSROM_SIZE		0x30000
 
-#define MSG_BUF_SIZE		8192
 #define INPUT_BUF_SIZE		4096
 #define OUTPUT_BUF_SIZE		16384
+
+#define MSG_BUF_SIZE		8192
 #define DSP_CONFIG_SIZE		8192
+/* 1M memory for msg + config */
+#define MSG_PLUS_CONFIG_SIZE    0x100000
 
 void *memcpy_dsp(void *dest, const void *src, size_t count);
 void *memset_dsp(void *dest, int c, size_t count);
@@ -170,5 +194,23 @@ struct xf_client *xf_client_alloc(struct fsl_dsp *dsp_priv);
 
 int fsl_dsp_open_func(struct fsl_dsp *dsp_priv, struct xf_client *client);
 int fsl_dsp_close_func(struct xf_client *client);
+
+/* DAP registers */
+#define IMX8M_DAP_DEBUG                0x28800000
+#define IMX8M_DAP_DEBUG_SIZE   (64 * 1024)
+#define IMX8M_DAP_PWRCTL       (0x4000 + 0x3020)
+#define IMX8M_PWRCTL_CORERESET         BIT(16)
+
+/* 8ULP SIM register */
+#define  REG_SIM_LPAV_SYSCTRL0     0x8
+#define  DSP_DBG_RST               BIT(25)
+#define  DSP_PLAT_CLK_EN           BIT(19)
+#define  DSP_PBCLK_EN              BIT(18)
+#define  DSP_CLK_EN                BIT(17)
+#define  DSP_RST                   BIT(16)
+#define  DSP_OCD_HALT              BIT(14)
+#define  DSP_STALL                 BIT(13)
+
+#define  FSL_SIP_HIFI_XRDC         0xc200000e
 
 #endif

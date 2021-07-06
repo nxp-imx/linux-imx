@@ -197,10 +197,14 @@ static int enc_setvui(struct v4l2_format *v4l2fmt, struct v4l2_daemon_enc_params
 	else
 		encparams->specific.enc_h26x_cmd.videoRange = 1;
 	encparams->specific.enc_h26x_cmd.vuiColorPrimaries = 0;
-	for (i = 0; i < ARRAY_SIZE(colorprimaries); i++) {
-		if (colorprimaries[i] == colorspace) {
-			encparams->specific.enc_h26x_cmd.vuiColorPrimaries = i;
-			break;
+	if (colorspace == V4L2_COLORSPACE_SRGB)	//SRGB is duplicated with REC709
+		encparams->specific.enc_h26x_cmd.vuiColorPrimaries = 1;
+	else {
+		for (i = 0; i < ARRAY_SIZE(colorprimaries); i++) {
+			if (colorprimaries[i] == colorspace) {
+				encparams->specific.enc_h26x_cmd.vuiColorPrimaries = i;
+				break;
+			}
 		}
 	}
 	encparams->specific.enc_h26x_cmd.vuiTransferCharacteristics = 0;
@@ -532,6 +536,12 @@ static struct vsi_video_fmt vsi_coded_fmt[] = {
 		.dec_fmt = V4L2_DAEMON_CODEC_DEC_AVS2,
 		.flag = (V4L2_FMT_FLAG_DYN_RESOLUTION | V4L2_FMT_FLAG_COMPRESSED),
 	},
+	{
+		.fourcc = V4L2_PIX_FMT_XVID,
+		.enc_fmt = V4L2_DAEMON_CODEC_UNKNOW_TYPE,
+		.dec_fmt = V4L2_DAEMON_CODEC_DEC_XVID,
+		.flag = (V4L2_FMT_FLAG_DYN_RESOLUTION | V4L2_FMT_FLAG_COMPRESSED),
+	},
 };
 
 static int istiledfmt(int pixelformat)
@@ -564,10 +574,10 @@ void vsi_enum_encfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 {
 	switch (pixel_format) {
 	case V4L2_PIX_FMT_HEVC:
-		f->stepwise.min_width = 144;
+		f->stepwise.min_width = 132;
 		f->stepwise.max_width = 1920;
 		f->stepwise.step_width = 2;
-		f->stepwise.min_height = 144;
+		f->stepwise.min_height = 128;
 		f->stepwise.max_height = 1088;
 		f->stepwise.step_height = 2;
 		break;
@@ -597,12 +607,21 @@ void vsi_enum_encfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 		f->stepwise.step_height = 2;
 		break;
 	default:
-		f->stepwise.min_width = 132;
-		f->stepwise.max_width = 1920;
-		f->stepwise.step_width = 2;
-		f->stepwise.min_height = 96;
-		f->stepwise.max_height = 1088;
-		f->stepwise.step_height = 2;
+		if (vsi_v4l2_hwconfig.enc_isH1) {
+			f->stepwise.min_width = 144;
+			f->stepwise.max_width = 1920;
+			f->stepwise.step_width = 4;
+			f->stepwise.min_height = 96;
+			f->stepwise.max_height = 1088;
+			f->stepwise.step_height = 2;
+		} else {
+			f->stepwise.min_width = 132;
+			f->stepwise.max_width = 1920;
+			f->stepwise.step_width = 2;
+			f->stepwise.min_height = 128;
+			f->stepwise.max_height = 1088;
+			f->stepwise.step_height = 2;
+		}
 		break;
 	}
 	f->type = V4L2_FRMSIZE_TYPE_STEPWISE;
@@ -906,6 +925,7 @@ static void vsi_set_default_parameter_enc(
 	enc_params->specific.enc_h26x_cmd.log2MaxFrameNum = 12;
 	enc_params->specific.enc_h26x_cmd.cuInfoVersion = 2;
 	enc_params->specific.enc_h26x_cmd.parallelCoreNum = 1;
+	enc_params->specific.enc_h26x_cmd.idrHdr = 1;
 }
 
 void vsiv4l2_initcfg(struct vsi_v4l2_ctx *ctxp)

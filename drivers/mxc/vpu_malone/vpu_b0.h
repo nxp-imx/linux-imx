@@ -329,6 +329,14 @@ struct vpu_statistic {
 	struct timespec64 ts_event;
 	atomic64_t total_dma_size;
 	atomic64_t total_alloc_size;
+	unsigned long frame_input;
+	unsigned long frame_hdr;
+	unsigned long frame_decoded;
+	unsigned long frame_ready;
+	unsigned long frame_display;
+	unsigned long eos_cnt;
+	unsigned long eos_frames;
+	unsigned long eos_bytes;
 };
 
 struct dma_buffer {
@@ -483,6 +491,7 @@ struct vpu_ctx {
 #define LVL_BIT_FUNC		(1 << 12)
 #define LVL_BIT_FLOW		(1 << 13)
 #define LVL_BIT_FRAME_COUNT	(1 << 14)
+#define LVL_BIT_STRM_INFO	(1 << 15)
 
 #define vpu_err(fmt, arg...) pr_info("[VPU Decoder] " fmt, ## arg)
 

@@ -896,7 +896,7 @@ static void __init imx7d_clocks_init(struct device_node *ccm_node)
 	/* set parent of EPDC pixel clock */
 	clk_set_parent(hws[IMX7D_EPDC_PIXEL_ROOT_SRC]->clk, hws[IMX7D_PLL_SYS_MAIN_CLK]->clk);
 
-	imx_register_uart_clocks();
+	imx_register_uart_clocks(7);
 
 }
 CLK_OF_DECLARE(imx7d, "fsl,imx7d-ccm", imx7d_clocks_init);

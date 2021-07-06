@@ -558,8 +558,7 @@
 				};
 
 				sai2: sai@30020000 {
-					compatible = "fsl,imx8mq-sai",
-						     "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mn-sai", "fsl,imx8mm-sai";
 					reg = <0x30020000 0x10000>;
 					interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&clk IMX8MN_CLK_SAI2_IPG>,
@@ -573,7 +572,7 @@
 				};
 
 				sai3: sai@30030000 {
-					compatible = "fsl,imx8mm-sai", "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mn-sai", "fsl,imx8mm-sai";
 					reg = <0x30030000 0x10000>;
 					interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&clk IMX8MN_CLK_SAI3_IPG>,
@@ -587,7 +586,7 @@
 				};
 
 				sai5: sai@30050000 {
-					compatible = "fsl,imx8mm-sai", "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mn-sai", "fsl,imx8mm-sai";
 					reg = <0x30050000 0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&clk IMX8MN_CLK_SAI5_IPG>,
@@ -603,8 +602,7 @@
 				};
 
 				sai6: sai@30060000 {
-					compatible = "fsl,imx8mq-sai",
-						     "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mn-sai", "fsl,imx8mm-sai";
 					reg = <0x30060000  0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&clk IMX8MN_CLK_SAI6_IPG>,
@@ -618,8 +616,7 @@
 				};
 
 				sai7: sai@300b0000 {
-					compatible = "fsl,imx8mq-sai",
-						     "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mn-sai", "fsl,imx8mm-sai";
 					reg = <0x300b0000 0x10000>;
 					interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&clk IMX8MN_CLK_SAI7_IPG>,

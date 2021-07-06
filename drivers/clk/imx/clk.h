@@ -12,9 +12,9 @@ extern spinlock_t imx_ccm_lock;
 void imx_check_clocks(struct clk *clks[], unsigned int count);
 void imx_check_clk_hws(struct clk_hw *clks[], unsigned int count);
 #ifndef MODULE
-void imx_register_uart_clocks(void);
+void imx_register_uart_clocks(unsigned int clk_count);
 #else
-static inline void imx_register_uart_clocks(void)
+static inline void imx_register_uart_clocks(unsigned int clk_count)
 {
 }
 #endif
@@ -44,6 +44,16 @@ enum imx_sscg_pll_type {
 enum imx_pll14xx_type {
 	PLL_1416X,
 	PLL_1443X,
+};
+
+enum imx_pllv4_type {
+	IMX_PLLV4_IMX7ULP,
+	IMX_PLLV4_IMX8ULP,
+};
+
+enum imx_pfdv2_type {
+	IMX_PFDV2_IMX7ULP,
+	IMX_PFDV2_IMX8ULP,
 };
 
 /* NOTE: Rate table should be kept sorted in descending order. */
@@ -214,8 +224,8 @@ struct clk_hw *imx_clk_hw_pllv3(enum imx_pllv3_type type, const char *name,
 		.kdiv	=	(_k),			\
 	}
 
-struct clk_hw *imx_clk_hw_pllv4(const char *name, const char *parent_name,
-			     void __iomem *base);
+struct clk_hw *imx_clk_hw_pllv4(enum imx_pllv4_type type, const char *name,
+		const char *parent_name, void __iomem *base);
 
 struct clk_hw *clk_hw_register_gate2(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
@@ -238,8 +248,8 @@ struct clk_hw *imx_clk_hw_gate_exclusive(const char *name, const char *parent,
 struct clk_hw *imx_clk_hw_pfd(const char *name, const char *parent_name,
 		void __iomem *reg, u8 idx);
 
-struct clk_hw *imx_clk_hw_pfdv2(const char *name, const char *parent_name,
-			     void __iomem *reg, u8 idx);
+struct clk_hw *imx_clk_hw_pfdv2(enum imx_pfdv2_type type, const char *name,
+	 const char *parent_name, void __iomem *reg, u8 idx);
 
 struct clk_hw *imx_clk_hw_busy_divider(const char *name, const char *parent_name,
 				 void __iomem *reg, u8 shift, u8 width,
@@ -261,6 +271,12 @@ struct clk_hw *imx7ulp_clk_hw_composite(const char *name,
 				     int num_parents, bool mux_present,
 				     bool rate_present, bool gate_present,
 				     void __iomem *reg);
+
+struct clk_hw *imx8ulp_clk_hw_composite(const char *name,
+				     const char * const *parent_names,
+				     int num_parents, bool mux_present,
+				     bool rate_present, bool gate_present,
+				     void __iomem *reg, bool has_swrst);
 
 struct clk_hw *imx_clk_hw_fixup_divider(const char *name, const char *parent,
 				  void __iomem *reg, u8 shift, u8 width,

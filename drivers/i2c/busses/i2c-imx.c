@@ -1237,7 +1237,7 @@ static int i2c_imx_xfer(struct i2c_adapter *adapter,
 		enable_runtime_pm = true;
 	}
 
-	result = pm_runtime_get_sync(i2c_imx->adapter.dev.parent);
+	result = pm_runtime_resume_and_get(i2c_imx->adapter.dev.parent);
 	if (result < 0) {
 		if (enable_runtime_pm)
 			pm_runtime_disable(i2c_imx->adapter.dev.parent);
@@ -1409,7 +1409,7 @@ static int i2c_imx_slave_init(struct imx_i2c_struct *i2c_imx)
 	int temp;
 
 	/* Resume */
-	temp = pm_runtime_get_sync(i2c_imx->adapter.dev.parent);
+	temp = pm_runtime_resume_and_get(i2c_imx->adapter.dev.parent);
 	if (temp < 0) {
 		dev_err(&i2c_imx->adapter.dev, "failed to resume i2c controller");
 		return temp;
@@ -1629,7 +1629,7 @@ static int i2c_imx_probe(struct platform_device *pdev)
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-	ret = pm_runtime_get_sync(&pdev->dev);
+	ret = pm_runtime_resume_and_get(&pdev->dev);
 	if (ret < 0)
 		goto rpm_disable;
 
@@ -1716,7 +1716,7 @@ static int i2c_imx_remove(struct platform_device *pdev)
 	struct imx_i2c_struct *i2c_imx = platform_get_drvdata(pdev);
 	int irq, ret;
 
-	ret = pm_runtime_get_sync(&pdev->dev);
+	ret = pm_runtime_resume_and_get(&pdev->dev);
 	if (ret < 0)
 		return ret;
 

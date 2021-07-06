@@ -46,7 +46,8 @@
 
 &edma0 {
 	compatible = "fsl,imx8qm-edma";
-	reg = <0x59280000 0x10000>, /* spdif0 rx */
+	reg = <0x5a1f0000 0x10000>,
+		<0x59280000 0x10000>, /* spdif0 rx */
 		<0x59290000 0x10000>, /* spdif0 tx */
 		<0x592c0000 0x10000>, /* sai0 rx */
 		<0x592d0000 0x10000>, /* sai0 tx */

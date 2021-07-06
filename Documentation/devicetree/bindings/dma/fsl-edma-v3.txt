@@ -9,8 +9,10 @@ Required properties:
 - compatible :
 	- "fsl,imx8qm-edma" for eDMA used similar to that on i.MX8QM SoC
 	- "fsl,imx8qm-adma" for audio eDMA used on i.MX8QM
+	- "fsl,imx8ulp-edma" for eDMA used on i.MX8ULP
 - reg : Specifies base physical address(s) and size of the eDMA channel registers.
-	Each eDMA channel has separated register's address and size.
+	Each eDMA channel has separated register's address and size. The first one
+	is Manage Page address space.
 - interrupts : A list of interrupt-specifiers, each channel has one interrupt.
 - interrupt-names : Should contain below template:
 	"edmaX-chanX-Xx"
@@ -19,7 +21,7 @@ Required properties:
 	     |---> edma controller instance, 0, 1, 2,..etc
 
 - #dma-cells : Must be <3>.
-	The 1st cell specifies the channel ID.
+	The 1st cell specifies the channel ID, but source/event id on i.mx8ulp
 	The 2nd cell specifies the channel priority.
 	The 3rd cell specifies the channel attributes which include below:
 	BIT(0): transmit or receive:
@@ -30,8 +32,13 @@ Required properties:
 		0: not dual fifo case, 1: dualfifo case.
 	See the SoC's reference manual for all the supported request sources.
 - dma-channels : Number of channels supported by the controller
+
+Optional properties :
 - power-domains: Power domains for edma channel used.
 - power-domain-names: Power domains name for edma channel used.
+- clocks : A list of phandle and clock-specifier pairs, one for each entry in
+	clock-names. The first one is for Manage Page
+- clock-names : A list of channel clock names.
 
 Examples:
 edma0: dma-controller@40018000 {
@@ -57,6 +64,27 @@ edma0: dma-controller@40018000 {
 	status = "okay";
 };
 
+or i.mx8ulp:
+	edma1: dma-controller@29010000 {
+		compatible = "fsl,imx8ulp-edma";
+		reg = <0x29010000 0x10000>,
+		      <0x29020000 0x10000>,
+		      <0x29030000 0x10000>;
+		#dma-cells = <3>;
+		dma-channels = <2>;
+		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "edma1-chan0-tx",
+				  "edma1-chan1-tx";
+		clocks = <&pcc3 IMX8ULP_CLK_DMA1_MP>,
+			 <&pcc3 IMX8ULP_CLK_DMA1_CH0>,
+			 <&pcc3 IMX8ULP_CLK_DMA1_CH1>;
+		clock-names = "edma-mp-clk",
+			      "edma1-chan0-clk",
+			      "edma1-chan1-clk";
+		status = "okay";
+	};
+
 * DMA clients
 DMA client drivers that uses the DMA function must use the format described
 in the dma.txt file, using a three-cell specifier for each channel: the 1st
@@ -79,4 +107,20 @@ lpuart1: serial@5a070000 {
 	dmas = <&edma0 15 0 0>,
 		<&edma0 14 0 1>;
 	status = "disabled";
+};
+
+or i.mx8ulp:
+lpuart5: serial@293a0000 {
+	compatible = "fsl,imx8ulp-lpuart", "fsl,imx7ulp-lpuart";
+	reg = <0x293a0000 0x1000>;
+	interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&pcc3 IMX8ULP_CLK_LPUART5>;
+	clock-names = "ipg";
+	assigned-clocks = <&pcc3 IMX8ULP_CLK_LPUART5>;
+	assigned-clock-parents = <&cgc1 IMX8ULP_CLK_LPOSC>;
+	assigned-clock-rates = <24000000>;
+	dmas = <&edma1 58 0 0>, <&edma1 57 0 1>;
+	dma-names = "tx","rx";
+
+	status = "okay";
 };

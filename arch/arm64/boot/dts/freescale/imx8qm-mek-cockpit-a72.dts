@@ -1853,7 +1853,8 @@
 };
 
 &edma0{
-	reg = <0x592e0000 0x10000>, /* sai1 rx */
+	reg = <0x591f0000 0x10000>,
+		<0x592e0000 0x10000>, /* sai1 rx */
 		<0x592f0000 0x10000>; /* sai1 tx */
 	dma-channels = <2>;
 	interrupts = <GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
@@ -1866,7 +1867,8 @@
 };
 
 &edma2 {
-	reg = <0x5a300000 0x10000>, /* channel16 UART2 rx */
+	reg = <0x5a1f0000 0x10000>,
+	      <0x5a300000 0x10000>, /* channel16 UART2 rx */
 	      <0x5a310000 0x10000>; /* channel17 UART2 tx */
 	#dma-cells = <3>;
 	dma-channels = <2>;

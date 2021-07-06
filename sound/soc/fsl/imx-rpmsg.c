@@ -23,12 +23,13 @@
 #include <sound/control.h>
 #include <sound/pcm_params.h>
 #include <sound/soc-dapm.h>
-#include <linux/pinctrl/consumer.h>
+#include <sound/simple_card_utils.h>
 #include "fsl_rpmsg_i2s.h"
 
 struct imx_rpmsg_data {
 	struct snd_soc_dai_link dai[1];
 	struct snd_soc_card card;
+	struct asoc_simple_jack hp_jack;
 };
 
 static const struct snd_soc_dapm_widget imx_wm8960_dapm_widgets[] = {
@@ -172,6 +173,14 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 		goto fail;
+	}
+
+	if (rpmsg_i2s->codec_wm8960) {
+		data->hp_jack.pin.pin = "Headphone Jack";
+		data->hp_jack.pin.mask = SND_JACK_HEADPHONE;
+		snd_soc_card_jack_new(&data->card, "Headphone Jack", SND_JACK_HEADPHONE,
+				      &data->hp_jack.jack, &data->hp_jack.pin, 1);
+		snd_soc_jack_report(&data->hp_jack.jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
 	}
 
 #ifdef CONFIG_EXTCON

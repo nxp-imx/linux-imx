@@ -453,7 +453,8 @@
 
 	edma214: dma-controller@5a2e0000 {
 		compatible = "fsl,imx8qm-edma";
-		reg = <0x5a2e0000 0x10000>, /* channel14 UART1 rx */
+		reg = <0x5a1f0000 0x10000>,
+		      <0x5a2e0000 0x10000>, /* channel14 UART1 rx */
 		      <0x5a2f0000 0x10000>; /* channel15 UART1 tx */
 		#dma-cells = <3>;
 		dma-channels = <2>;

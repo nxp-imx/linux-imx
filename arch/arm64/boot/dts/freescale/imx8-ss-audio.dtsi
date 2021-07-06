@@ -21,7 +21,8 @@ audio_subsys: bus@59000000 {
 
 	edma0: dma-controller@591F0000 {
 		compatible = "fsl,imx8qm-edma";
-		reg = <0x59200000 0x10000>, /* asrc0 */
+		reg =	<0x591f0000 0x10000>,
+			<0x59200000 0x10000>, /* asrc0 */
 			<0x59210000 0x10000>,
 			<0x59220000 0x10000>,
 			<0x59230000 0x10000>,
@@ -102,7 +103,8 @@ audio_subsys: bus@59000000 {
 
 	edma1: dma-controller@599F0000 {
 		compatible = "fsl,imx8qm-edma";
-		reg = <0x59A00000 0x10000>, /* asrc1 */
+		reg =	<0x599F0000 0x10000>,
+			<0x59A00000 0x10000>, /* asrc1 */
 			<0x59A10000 0x10000>,
 			<0x59A20000 0x10000>,
 			<0x59A30000 0x10000>,

@@ -500,7 +500,7 @@
 	status = "okay";
 
 	adv_bridge: adv7535@3d {
-		compatible = "adi,adv7533";
+		compatible = "adi,adv7535";
 		reg = <0x3d>;
 		adi,addr-cec = <0x3b>;
 		adi,dsi-lanes = <4>;

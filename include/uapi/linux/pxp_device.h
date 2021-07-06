@@ -30,7 +30,7 @@ struct pxp_mem_desc {
 	unsigned int handle;
 	unsigned int size;
 	dma_addr_t phys_addr;
-	unsigned int virt_uaddr;		/* virtual user space address */
+	void *virt_uaddr;		/* virtual user space address */
 	unsigned int mtype;
 };
 

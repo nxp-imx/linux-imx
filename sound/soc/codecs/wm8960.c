@@ -608,7 +608,7 @@ static const int bclk_divs[] = {
  *		- lrclk      = sysclk / dac_divs
  *		- 10 * bclk  = sysclk / bclk_divs
  *
- * @wm8960_priv: wm8960 codec private data
+ * @wm8960: codec private data
  * @mclk: MCLK used to derive sysclk
  * @sysclk_idx: sysclk_divs index for found sysclk
  * @dac_idx: dac_divs index for found lrclk

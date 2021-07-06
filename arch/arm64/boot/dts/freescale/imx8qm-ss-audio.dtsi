@@ -12,7 +12,8 @@
 
 /* edma2 called in imx8qm RM with the same address in edma0 of imx8qxp */
 &edma0{
-	reg =   <0x59200000 0x10000>, /* asrc0 */
+	reg =   <0x591f0000 0x10000>,
+		<0x59200000 0x10000>, /* asrc0 */
 		<0x59210000 0x10000>,
 		<0x59220000 0x10000>,
 		<0x59230000 0x10000>,
@@ -97,7 +98,8 @@
 
 /* edma3 called in imx8qm RM with the same address in edma1 of imx8qxp */
 &edma1{
-	reg =   <0x59A00000 0x10000>, /* asrc1 */
+	reg =   <0x599F0000 0x10000>,
+		<0x59A00000 0x10000>, /* asrc1 */
 		<0x59A10000 0x10000>,
 		<0x59A20000 0x10000>,
 		<0x59A30000 0x10000>,

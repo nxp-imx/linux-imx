@@ -132,4 +132,12 @@ pENC_DSA_STATUS_t rpc_get_dsa_status(struct shared_addr *shared_mem, int index);
 void rpc_set_print_buffer(struct shared_addr *shared_mem,
 				unsigned long print_phy_addr, u32 size);
 
+enum {
+	VPU_RPC_MEMORY_INVALID = 0,
+	VPU_RPC_MEMORY_CACHED,
+	VPU_RPC_MEMORY_UNCACHED
+};
+
+u32 rpc_check_memory_region_encoder(dma_addr_t base, dma_addr_t addr, u32 size);
+
 #endif

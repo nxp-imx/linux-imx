@@ -79,11 +79,6 @@
 	assigned-clock-rates = <12288000>;
 
 	audio-interface = "sai";
-	mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
-	mboxes = <&mu2 2 0>,
-		<&mu2 2 1>,
-		<&mu2 3 0>,
-		<&mu2 3 1>;
 	fsl,dsp-firmware = "imx/dsp/hifi4.bin";
 	status = "okay";
 };

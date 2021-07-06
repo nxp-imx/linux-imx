@@ -632,7 +632,7 @@ static int imx8mq_clocks_probe(struct platform_device *pdev)
 	clk_set_parent(hws[IMX8MQ_CLK_CSI2_PHY_REF]->clk, hws[IMX8MQ_SYS2_PLL_1000M]->clk);
 	clk_set_parent(hws[IMX8MQ_CLK_CSI2_ESC]->clk, hws[IMX8MQ_SYS1_PLL_800M]->clk);
 
-	imx_register_uart_clocks();
+	imx_register_uart_clocks(4);
 
 	return 0;
 

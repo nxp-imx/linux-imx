@@ -19,29 +19,11 @@ struct imx_audiomix_dsp_data {
 	struct regmap *regmap;
 };
 
-void imx_audiomix_dsp_start(struct imx_audiomix_dsp_data *data)
+void imx_audiomix_dsp_runstall(struct imx_audiomix_dsp_data *data, u32 val)
 {
-	regmap_update_bits(data->regmap, AudioDSP_REG2, 1 << 5,  0);
+	regmap_update_bits(data->regmap, AudioDSP_REG2, 1 << 5,  val);
 }
-EXPORT_SYMBOL(imx_audiomix_dsp_start);
-
-void imx_audiomix_dsp_pid_set(struct imx_audiomix_dsp_data *data, u32 val)
-{
-	regmap_write(data->regmap, AudioDSP_REG3, val);
-}
-EXPORT_SYMBOL(imx_audiomix_dsp_pid_set);
-
-bool imx_audiomix_dsp_reset(struct imx_audiomix_dsp_data *data)
-{
-	u32 val = 0;
-
-	regmap_read(data->regmap, AudioDSP_REG3, &val);
-	if (val == 0)
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(imx_audiomix_dsp_reset);
+EXPORT_SYMBOL(imx_audiomix_dsp_runstall);
 
 bool imx_audiomix_dsp_pwaitmode(struct imx_audiomix_dsp_data *data)
 {

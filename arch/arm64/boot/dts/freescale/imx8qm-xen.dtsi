@@ -263,7 +263,8 @@ dma_subsys: bus@5a000000 {
 	/* edma0 called in imx8qm RM with the same address in edma2 of imx8qxp */
 	edma214: dma-controller@5a2e0000 {
 		compatible = "fsl,imx8qm-edma";
-		reg = <0x5a2e0000 0x10000>, /* channel14 UART1 rx */
+		reg = <0x5a1f0000 0x10000>,
+		      <0x5a2e0000 0x10000>, /* channel14 UART1 rx */
 		      <0x5a2f0000 0x10000>; /* channel15 UART1 tx */
 		#dma-cells = <3>;
 		dma-channels = <2>;
@@ -281,7 +282,8 @@ dma_subsys: bus@5a000000 {
 };
 
 &edma2 {
-	reg = <0x5a200000 0x10000>, /* channel0 LPSPI0 rx */
+	reg = <0x5a1f0000 0x10000>,
+	      <0x5a200000 0x10000>, /* channel0 LPSPI0 rx */
 	      <0x5a210000 0x10000>, /* channel1 LPSPI0 tx */
 	      <0x5a260000 0x10000>, /* channel6 LPSPI3 rx */
 	      <0x5a270000 0x10000>, /* channel7 LPSPI3 tx */

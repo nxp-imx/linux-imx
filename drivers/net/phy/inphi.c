@@ -574,6 +574,12 @@ int inphi_probe(struct phy_device *phydev)
 	return 0;
 }
 
+static void inphi_remove(struct phy_device *phydev)
+{
+	cancel_delayed_work_sync(&mykmod_work);
+	destroy_workqueue(wq);
+}
+
 static struct phy_driver inphi_driver[] = {
 {
 	.phy_id		= PHY_ID_IN112525,
@@ -581,6 +587,7 @@ static struct phy_driver inphi_driver[] = {
 	.name		= "Inphi 112525_S03",
 	.features	= PHY_GBIT_FEATURES,
 	.probe		= &inphi_probe,
+	.remove		= &inphi_remove,
 },
 };
 

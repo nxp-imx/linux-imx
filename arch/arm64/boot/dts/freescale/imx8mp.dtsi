@@ -1506,8 +1506,9 @@
 					interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_COR>,
 						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AXI>,
-						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AHB>;
-					clock-names = "core", "axi", "ahb";
+						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AHB>,
+						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_MIPI_CSI_ACLK>;
+					clock-names = "core", "axi", "ahb", "sensor";
 					assigned-clocks = <&clk IMX8MP_CLK_MEDIA_ISP>;
 					assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_500M>;
 					assigned-clock-rates = <500000000>;
@@ -1524,8 +1525,9 @@
 					interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_COR>,
 						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AXI>,
-						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AHB>;
-					clock-names = "core", "axi", "ahb";
+						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_ISP_AHB>,
+						 <&media_blk_ctrl IMX8MP_CLK_MEDIA_BLK_CTRL_MIPI_CSI_ACLK>;
+					clock-names = "core", "axi", "ahb", "sensor";
 					assigned-clocks = <&clk IMX8MP_CLK_MEDIA_ISP>;
 					assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_500M>;
 					assigned-clock-rates = <500000000>;
@@ -1622,7 +1624,7 @@
 				ranges;
 
 				sai1: sai@30c10000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c10000 0x10000>;
 					interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI1_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1638,7 +1640,7 @@
 				};
 
 				sai2: sai@30c20000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c20000 0x10000>;
 					interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI2_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1654,7 +1656,7 @@
 				};
 
 				sai3: sai@30c30000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c30000 0x10000>;
 					interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1670,7 +1672,7 @@
 				};
 
 				sai5: sai@30c50000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c50000 0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI5_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -1686,7 +1688,7 @@
 				};
 
 				sai6: sai@30c60000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c60000 0x10000>;
 					interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI6_IPG>,
@@ -1703,7 +1705,7 @@
 				};
 
 				sai7: sai@30c80000 {
-					compatible = "fsl,imx8mq-sai", "fsl,imx6sx-sai";
+					compatible = "fsl,imx8mp-sai", "fsl,imx8mm-sai";
 					reg = <0x30c80000 0x10000>;
 					interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 					clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI7_IPG>, <&clk IMX8MP_CLK_DUMMY>,
@@ -2322,16 +2324,17 @@
 		reg = <0x0 0x3B6E8000 0x0 0x88000>;
 		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_OCRAMA_IPG>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSP_ROOT>,
-			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSPDBG_ROOT>,
-			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_MU2_ROOT>;
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSPDBG_ROOT>;
 		clock-names = "ocram", "core", "debug", "mu2";
 		fsl,dsp-firmware = "imx/dsp/hifi4.bin";
 		power-domains = <&audiomix_pd>;
-		mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
-		mboxes = <&mu2 2 0>,
-			<&mu2 2 1>,
-			<&mu2 3 0>,
-			<&mu2 3 1>;
+		mbox-names = "tx0", "tx1", "tx2", "rx0",
+					"txdb0", "txdb1", "rxdb0", "rxdb1";
+		mboxes =
+				<&mu2 0 0>, <&mu2 0 1>,
+				<&mu2 0 2>, <&mu2 1 0>,
+				<&mu2 2 0>, <&mu2 2 1>,
+				<&mu2 3 0>, <&mu2 3 1>;
 		status = "disabled";
 	};
 

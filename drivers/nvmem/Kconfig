@@ -270,4 +270,15 @@ config SPRD_EFUSE
 	  This driver can also be built as a module. If so, the module
 	  will be called nvmem-sprd-efuse.
 
+config NVMEM_IMX_OCOTP_FSB_S400
+	tristate "i.MX FSB/S400-API ocotp fuse box support"
+	depends on IMX_S400_API
+	default y
+	help
+	  This is a driver for the ocotp fuse box which can be accessed by
+	  FSB and S400-API.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called nvmem-imx-ocotp-fsb-s400.
+
 endif
