@@ -334,6 +334,9 @@ void __page_pinner_mark_migration_failed_pages(struct list_head *page_list)
 	struct page_ext *page_ext;
 
 	list_for_each_entry(page, page_list, lru) {
+		/* The page will be freed by putback_movable_pages soon */
+		if (page_count(page) == 1)
+			continue;
 		page_ext = lookup_page_ext(page);
 		if (unlikely(!page_ext))
 			continue;
@@ -472,17 +475,17 @@ static int __init page_pinner_init(void)
 
 	pp_debugfs_root = debugfs_create_dir("page_pinner", NULL);
 
-	debugfs_create_file("longterm_pinner", 0400, pp_debugfs_root, NULL,
+	debugfs_create_file("longterm_pinner", 0444, pp_debugfs_root, NULL,
 			    &proc_longterm_pinner_operations);
 
-	debugfs_create_file("threshold", 0444, pp_debugfs_root, NULL,
+	debugfs_create_file("threshold", 0644, pp_debugfs_root, NULL,
 			    &pp_threshold_fops);
 
-	debugfs_create_file("alloc_contig_failed", 0400,
+	debugfs_create_file("alloc_contig_failed", 0444,
 			    pp_debugfs_root, NULL,
 			    &proc_alloc_contig_failed_operations);
 
-	debugfs_create_file("failure_tracking", 0444,
+	debugfs_create_file("failure_tracking", 0644,
 			    pp_debugfs_root, NULL,
 			    &failure_tracking_fops);
 	return 0;

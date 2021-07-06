@@ -533,7 +533,6 @@ int mmc_add_host(struct mmc_host *host)
 #endif
 
 	mmc_start_host(host);
-
 	return 0;
 }
 

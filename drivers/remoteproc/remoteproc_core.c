@@ -39,6 +39,7 @@
 #include <linux/virtio_ring.h>
 #include <asm/byteorder.h>
 #include <linux/platform_device.h>
+#include <trace/hooks/remoteproc.h>
 
 #include "remoteproc_internal.h"
 
@@ -1731,6 +1732,7 @@ int rproc_trigger_recovery(struct rproc *rproc)
 	rproc->autonomous = false;
 
 unlock_mutex:
+	trace_android_vh_rproc_recovery(rproc);
 	mutex_unlock(&rproc->lock);
 	return ret;
 }
@@ -2427,8 +2429,8 @@ void rproc_report_crash(struct rproc *rproc, enum rproc_crash_type type)
 	dev_err(&rproc->dev, "crash detected in %s: type %s\n",
 		rproc->name, rproc_crash_to_string(type));
 
-	/* create a new task to handle the error */
-	schedule_work(&rproc->crash_handler);
+	/* Have a worker handle the error; ensure system is not suspended */
+	queue_work(system_freezable_wq, &rproc->crash_handler);
 }
 EXPORT_SYMBOL(rproc_report_crash);
 
