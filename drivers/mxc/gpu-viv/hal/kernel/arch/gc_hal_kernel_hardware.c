@@ -2038,7 +2038,7 @@ _SetupSRAMVidMem(
             }
             else
             {
-                char sRAMName[20];
+                char sRAMName[32];
                 gctUINT64 data = 0;
                 gctBOOL sRAMRequested;
 
@@ -8102,7 +8102,7 @@ _PmInitializeGPU(
 {
     gceSTATUS status;
 
-    /* Initialize hardware. */
+   /* Initialize hardware. */
     gcmkONERROR(gckHARDWARE_InitializeHardware(Hardware));
 
     gcmkONERROR(gckHARDWARE_SetFastClear(Hardware,

@@ -2962,7 +2962,7 @@ gckGALDEVICE_Suspend(
     )
 {
     gctUINT i;
-    gceSTATUS status;
+    gceSTATUS status = gcvSTATUS_OK;
     gckHARDWARE hardware;
 #if gcdENABLE_VG
     gckVGHARDWARE vgHardware;
@@ -3156,11 +3156,15 @@ gckGALDEVICE_Resume(
 #if gcdENABLE_VG
         if (i == gcvCORE_VG)
         {
+            vgHardware = Device->kernels[i]->vg->hardware;
+
             gcmkONERROR(gckVGHARDWARE_SetPowerState(vgHardware, state));
         }
         else
 #endif
         {
+            hardware = Device->kernels[i]->hardware;
+
             gcmkONERROR(gckHARDWARE_SetPowerState(hardware, state));
         }
 

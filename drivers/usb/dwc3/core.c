@@ -107,10 +107,10 @@ void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode)
 	u32 reg, reg_mode;
 
 	/* Set PRTCAPDIR to be device mode for disconnect */
-	if (mode != DWC3_GCTL_PRTCAP_HOST)
+	if (mode == DWC3_GCTL_PRTCAP_NONE)
 		reg_mode = DWC3_GCTL_PRTCAP_DEVICE;
 	else
-		reg_mode = DWC3_GCTL_PRTCAP_HOST;
+		reg_mode = mode;
 
 	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 	reg &= ~(DWC3_GCTL_PRTCAPDIR(DWC3_GCTL_PRTCAP_OTG));
