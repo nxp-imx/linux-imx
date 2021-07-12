@@ -4,7 +4,7 @@ menu "i.MX SoC drivers"
 source "drivers/soc/imx/mu/Kconfig"
 
 config IMX_GPCV2_PM_DOMAINS
-	bool "i.MX GPCv2 PM domains"
+	tristate "i.MX GPCv2 PM domains"
 	depends on ARCH_MXC || (COMPILE_TEST && OF)
 	depends on PM
 	select PM_GENERIC_DOMAINS

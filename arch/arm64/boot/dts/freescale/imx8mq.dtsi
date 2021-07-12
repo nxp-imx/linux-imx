@@ -698,10 +698,9 @@
 					 * it as a shared PCIE power
 					 * domain.
 					 */
-					pgc_pcie: power-domain@1 {
+					pgc_pcie2: power-domain@1 {
 						#power-domain-cells = <0>;
-						reg = <IMX8M_POWER_DOMAIN_PCIE1>;
-						power-domains = <&pgc_pcie2>;
+						reg = <IMX8M_POWER_DOMAIN_PCIE2>;
 					};
 
 					pgc_otg1: power-domain@2 {
@@ -749,9 +748,10 @@
 						reg = <IMX8M_POWER_DOMAIN_MIPI_CSI2>;
 					};
 
-					pgc_pcie2: power-domain@a {
+					pgc_pcie: power-domain@a {
 						#power-domain-cells = <0>;
-						reg = <IMX8M_POWER_DOMAIN_PCIE2>;
+						reg = <IMX8M_POWER_DOMAIN_PCIE1>;
+						power-domains = <&pgc_pcie2>;
 					};
 				};
 			};
