@@ -109,6 +109,26 @@ static const struct drm_crtc_funcs dcss_crtc_funcs = {
 	.disable_vblank = dcss_disable_vblank,
 };
 
+static struct drm_pending_vblank_event *create_out_fence_event(
+		struct drm_crtc *crtc, struct drm_pending_vblank_event *commit_event)
+{
+	struct drm_pending_vblank_event *e = NULL;
+
+	e = kzalloc(sizeof *e, GFP_KERNEL);
+	if (!e)
+		return NULL;
+
+	e->event.base.type = DRM_EVENT_FLIP_COMPLETE;
+	e->event.base.length = sizeof(e->event);
+	e->event.vbl.crtc_id = crtc->base.id;
+
+	e->pipe = commit_event->pipe;
+	e->sequence = commit_event->sequence + 1;
+	e->base.fence = commit_event->base.fence;
+
+	return e;
+}
+
 static void dcss_crtc_atomic_begin(struct drm_crtc *crtc,
 				   struct drm_crtc_state *old_crtc_state)
 {
@@ -120,11 +140,21 @@ static void dcss_crtc_atomic_flush(struct drm_crtc *crtc,
 {
 	struct dcss_crtc *dcss_crtc = to_dcss_crtc(crtc);
 	struct dcss_dev *dcss = dcss_crtc->base.dev->dev_private;
+	struct drm_device *dev = crtc->dev;
+	struct drm_pending_vblank_event *fence_event;
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	if (crtc->state->event) {
 		WARN_ON(drm_crtc_vblank_get(crtc));
 		drm_crtc_arm_vblank_event(crtc, crtc->state->event);
+		if (crtc->state->event->base.fence) {
+			fence_event = create_out_fence_event(crtc, crtc->state->event);
+			if (fence_event) {
+				WARN_ON(drm_crtc_vblank_get(crtc));
+				crtc->state->event->base.fence = NULL;
+				list_add_tail(&fence_event->base.link, &dev->vblank_event_list);
+			}
+		}
 		crtc->state->event = NULL;
 	}
 	spin_unlock_irq(&crtc->dev->event_lock);
