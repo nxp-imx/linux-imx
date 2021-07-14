@@ -2076,18 +2076,6 @@ static int vsc85xx_read_status(struct phy_device *phydev)
 	return genphy_read_status(phydev);
 }
 
-static int vsc8514_config_inband_aneg(struct phy_device *phydev, bool enabled)
-{
-	int reg_val = 0;
-
-	if (enabled)
-		reg_val = MSCC_PHY_SERDES_ANEG;
-
-	return phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_3,
-				MSCC_PHY_SERDES_PCS_CTRL, MSCC_PHY_SERDES_ANEG,
-				reg_val);
-}
-
 static int vsc8514_probe(struct phy_device *phydev)
 {
 	struct vsc8531_private *vsc8531;
@@ -2279,7 +2267,6 @@ static struct phy_driver vsc85xx_driver[] = {
 	.phy_id_mask	= 0xfffffff0,
 	.soft_reset	= &genphy_soft_reset,
 	.config_init    = &vsc8514_config_init,
-	.config_inband_aneg = vsc8514_config_inband_aneg,
 	.config_aneg    = &vsc85xx_config_aneg,
 	.read_status	= &vsc85xx_read_status,
 	.ack_interrupt  = &vsc85xx_ack_interrupt,
