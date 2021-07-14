@@ -766,18 +766,6 @@ static int phy_check_link_status(struct phy_device *phydev)
 	return 0;
 }
 
-int phy_config_inband_aneg(struct phy_device *phydev, bool enabled)
-{
-	if (!phydev->drv)
-		return -EIO;
-
-	if (!phydev->drv->config_inband_aneg)
-		return -EOPNOTSUPP;
-
-	return phydev->drv->config_inband_aneg(phydev, enabled);
-}
-EXPORT_SYMBOL(phy_config_inband_aneg);
-
 /**
  * phy_start_aneg - start auto-negotiation for this PHY device
  * @phydev: the phy_device struct

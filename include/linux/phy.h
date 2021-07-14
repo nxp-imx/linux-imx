@@ -739,13 +739,6 @@ struct phy_driver {
 	 */
 	int (*config_aneg)(struct phy_device *phydev);
 
-	/**
-	 * @config_inband_aneg: Enable or disable in-band auto-negotiation for
-	 * the system-side interface if the PHY operates in a mode that
-	 * requires it: (Q)SGMII, USXGMII, 1000Base-X, etc.
-	 */
-	int (*config_inband_aneg)(struct phy_device *phydev, bool enabled);
-
 	/** @aneg_done: Determines the auto negotiation result */
 	int (*aneg_done)(struct phy_device *phydev);
 
@@ -1432,7 +1425,6 @@ void phy_detach(struct phy_device *phydev);
 void phy_start(struct phy_device *phydev);
 void phy_stop(struct phy_device *phydev);
 int phy_start_aneg(struct phy_device *phydev);
-int phy_config_inband_aneg(struct phy_device *phydev, bool enabled);
 int phy_aneg_done(struct phy_device *phydev);
 int phy_speed_down(struct phy_device *phydev, bool sync);
 int phy_speed_up(struct phy_device *phydev);

@@ -979,14 +979,6 @@ static int phylink_bringup_phy(struct phylink *pl, struct phy_device *phy,
 		return ret;
 	}
 
-	ret = phy_config_inband_aneg(phy,
-				     (pl->cur_link_an_mode == MLO_AN_INBAND));
-	if (ret && ret != -EOPNOTSUPP) {
-		phylink_warn(pl, "failed to configure PHY in-band autoneg: %d\n",
-			     ret);
-		return ret;
-	}
-
 	phy->phylink = pl;
 	phy->phy_link_change = phylink_phy_change;
 
