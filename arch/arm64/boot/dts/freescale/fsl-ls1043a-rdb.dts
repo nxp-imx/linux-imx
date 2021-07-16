@@ -166,10 +166,12 @@
 	mdio@fc000 {
 		rgmii_phy1: ethernet-phy@1 {
 			reg = <0x1>;
+			rtl821x,aldps-disable;
 		};
 
 		rgmii_phy2: ethernet-phy@2 {
 			reg = <0x2>;
+			rtl821x,aldps-disable;
 		};
 
 		qsgmii_phy1: ethernet-phy@4 {

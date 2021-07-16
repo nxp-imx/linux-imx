@@ -12,17 +12,6 @@
 	model = "FSL i.MX8MM Audio board 2.0";
 	compatible = "fsl,imx8mm-ab2", "fsl,imx8mm";
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		rpmsg_reserved: rpmsg@0xb8000000 {
-			no-map;
-			reg = <0 0xb8000000 0 0x400000>;
-		};
-	};
-
 	chosen {
 		stdout-path = &uart2;
 	};

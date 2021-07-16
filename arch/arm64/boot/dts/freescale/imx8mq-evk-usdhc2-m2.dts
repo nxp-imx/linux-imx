@@ -74,6 +74,7 @@
 	non-removable;
 	wakeup-source;
 	mmc-pwrseq = <&usdhc2_pwrseq>;
+	fsl,sdio-interrupt-enabled;
 
 	wifi_wake_host {
 		compatible = "nxp,wifi-wake-host";

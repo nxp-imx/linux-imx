@@ -18,17 +18,6 @@
 			reg = <0 0x80000000 0 0x1000000>;
 		};
 
-		rpmsg_reserved: rpmsg@0xb8000000 {
-			no-map;
-			reg = <0 0xb8000000 0 0x400000>;
-		};
-
-		rpmsg_dma_reserved:rpmsg_dma@0xb8400000 {
-			compatible = "shared-dma-pool";
-			no-map;
-			reg = <0 0xb8400000 0 0x100000>;
-		};
-
 		rsc_table: rsc_table@b8000000 {
 			reg = <0 0xb8000000 0 0x8000>;
 			no-map;
@@ -80,17 +69,6 @@
 };
 
 &pwm4 {
-	status = "disabled";
-};
-
-&rpmsg{
-	/*
-	 * 64K for one rpmsg instance:
-	 * --0xb8000000~0xb800ffff: pingpong
-	 */
-	vdev-nums = <1>;
-	reg = <0x0 0xb8000000 0x0 0x10000>;
-	memory-region = <&vdevbuffer>;
 	status = "disabled";
 };
 

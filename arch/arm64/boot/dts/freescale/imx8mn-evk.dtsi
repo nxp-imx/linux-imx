@@ -473,6 +473,7 @@
 	wakeup-source;
 	/delete-property/ vmmc-supply;
 	mmc-pwrseq = <&usdhc1_pwrseq>;
+	fsl,sdio-interrupt-enabled;
 	status = "okay";
 
 	wifi_wake_host {

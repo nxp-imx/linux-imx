@@ -23,7 +23,7 @@
 		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
 		irq-gpios = <&gpio5 7 GPIO_ACTIVE_HIGH>;
 		edge-failling-trigger;
-		touchscreen-size-x = <720>;
-		touchscreen-size-y = <1440>;
+		touchscreen-size-x = <1080>;
+		touchscreen-size-y = <1920>;
 	};
 };

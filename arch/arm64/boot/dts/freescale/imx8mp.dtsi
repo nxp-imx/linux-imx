@@ -2184,20 +2184,6 @@
 		};
 	};
 
-	rpmsg: rpmsg{
-		compatible = "fsl,imx8mq-rpmsg";
-		/* up to now, the following channels are used in imx rpmsg
-		 * - tx1/rx1: messages channel.
-		 * - general interrupt1: remote proc finish re-init rpmsg stack
-		 *   when A core is partition reset.
-		 */
-		mbox-names = "tx", "rx", "rxdb";
-		mboxes = <&mu 0 1
-			  &mu 1 1
-			  &mu 3 1>;
-		status = "disabled";
-	};
-
 	vpu_g1: vpu_g1@38300000 {
 		compatible = "nxp,imx8mm-hantro","nxp,imx8mp-hantro";
 		reg = <0x0 0x38300000 0x0 0x100000>;

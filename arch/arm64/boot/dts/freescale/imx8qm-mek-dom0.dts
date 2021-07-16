@@ -346,11 +346,6 @@
 			reg = <0 0x88000000 0 0x8000000>;
 			xen,passthrough;
 		};
-		rpmsg@0x90000000 {
-			no-map;
-			reg = <0 0x90200000 0 0x200000>;
-			xen,passthrough;
-		};
 		decoder_rpc@0x92000000 {
 			no-map;
 			reg = <0 0x92000000 0 0x200000>;

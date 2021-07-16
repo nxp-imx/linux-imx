@@ -29,5 +29,6 @@ obj-y += analogix/
 obj-y += cadence/
 obj-y += synopsys/
 obj-$(CONFIG_DRM_ITE_IT6263) += it6263.o
+obj-$(CONFIG_DRM_ITE_IT6263) += it6161.o
 obj-$(CONFIG_DRM_SEC_MIPI_DSIM) += sec-dsim.o
 obj-$(CONFIG_DRM_NXP_SEIKO_43WVFIG) += nxp-seiko-43wvfig.o

@@ -72,6 +72,10 @@
 	};
 };
 
+&{/reserved-memory/linux,cma} {
+	alloc-ranges = <0 0x40000000 0 0x60000000>;
+};
+
 &uart2 {
 	/* uart2 is used by the 2nd OS, so configure pin and clk */
 	pinctrl-0 = <&pinctrl_uart2>, <&pinctrl_uart4>;

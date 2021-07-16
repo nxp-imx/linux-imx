@@ -106,6 +106,17 @@ properties:
       Only eMMC HS400 mode need to take care of this property.
     default: 0
 
+  fsl,sdio-interrupt-enabled:
+  $ref: /schemas/types.yaml#/definitions/uint32
+  description: |
+      Recommend for SDIO cards that enables SDIO interrupt for SDR104 and SDR50 operating
+      modes. SDIO interrupt uses DAT[1] to signal the card's interrupt to the i.MX
+      device. uSDHC tuning mechanism must use DAT[0] and CMD signals to avoid a possible
+      conflict and incorrect delay line calculated by the uSDHC auto tuning mechanism.
+      Enabling this device tree property is only recommended for layouts that are
+      matching the SD interface length.
+  default: 0
+
 required:
   - compatible
   - reg

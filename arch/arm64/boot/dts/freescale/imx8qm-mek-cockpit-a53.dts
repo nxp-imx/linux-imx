@@ -116,15 +116,6 @@
 			no-map;
 			reg = <0 0x88000000 0 0x8000000>;
 		};
-		rpmsg_reserved: rpmsg@0x90000000 {
-			no-map;
-			reg = <0 0x90000000 0 0x400000>;
-		};
-		rpmsg_dma_reserved:rpmsg_dma@0x90400000 {
-			compatible = "shared-dma-pool";
-			no-map;
-			reg = <0 0x90400000 0 0x100000>;
-		};
 		shmem_dma_reserved:shmem_dma@0x92000000 {
 			compatible = "shared-dma-pool";
 			no-map;
@@ -883,28 +874,7 @@
 	disable-gpio = <&lsio_gpio4 9 GPIO_ACTIVE_LOW>;
 	ext_osc = <1>;
 	epdev_on-supply = <&epdev_on>;
-	reserved-region = <&rpmsg_reserved>;
 	status = "disabled";
-};
-
-&rpmsg0{
-	/*
-	 * 64K for one rpmsg instance:
-	 */
-	vdev-nums = <2>;
-	reg = <0x0 0x90000000 0x0 0x20000>;
-	memory-region = <&rpmsg_dma_reserved>;
-	status = "okay";
-};
-
-&rpmsg1{
-	/*
-	 * 64K for one rpmsg instance:
-	 */
-	vdev-nums = <2>;
-	reg = <0x0 0x90100000 0x0 0x20000>;
-	memory-region = <&rpmsg_dma_reserved>;
-	status = "okay";
 };
 
 &imx_shmem_net {

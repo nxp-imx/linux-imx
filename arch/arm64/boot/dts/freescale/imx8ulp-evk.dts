@@ -42,6 +42,16 @@
 		};
 	};
 
+	rpmsg_keys: rpmsg-keys {
+		compatible = "fsl,rpmsg-keys";
+
+		power-on {
+			label = "PowerOn";
+			linux,code = <KEY_POWER>;
+			rpmsg-key,wakeup;
+		};
+	};
+
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -166,6 +176,14 @@
 
 &dsi {
 	status = "okay";
+	ports {
+		port@1 {
+			reg = <1>;
+			mipi_dsi_out: endpoint {
+				remote-endpoint = <&it6161_from_dsim>;
+			};
+		};
+	};
 };
 
 &dsp {
@@ -266,6 +284,21 @@
 			};
 		};
 	};
+
+	ite_bridge: it6161@6c {
+		compatible = "ite,it6161";
+		reg = <0x6c>;
+		it6161-addr-hdmi-tx = <0x4c>;
+		interrupt-parent = <&rpmsg_gpioa>;
+		interrupts = <19 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+
+		port {
+			it6161_from_dsim: endpoint {
+				remote-endpoint = <&mipi_dsi_out>;
+			};
+		};
+	};
 };
 
 &i2c_rpbus_1 {
@@ -291,6 +324,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_lpspi5>;
 	pinctrl-1 = <&pinctrl_lpspi5>;
+	cs-gpios = <&gpiof 19 GPIO_ACTIVE_LOW>;
 	status = "okay";
 
 	spidev0: spi@0 {
@@ -471,7 +505,7 @@
 			MX8ULP_PAD_PTF16__LPSPI5_SIN	0x3
 			MX8ULP_PAD_PTF17__LPSPI5_SOUT	0x3
 			MX8ULP_PAD_PTF18__LPSPI5_SCK	0x3
-			MX8ULP_PAD_PTF19__LPSPI5_PCS0	0x3
+			MX8ULP_PAD_PTF19__PTF19		0x3
 		>;
 	};
 
@@ -529,28 +563,28 @@
 
 	pinctrl_usdhc0: usdhc0grp {
 		fsl,pins = <
-			MX8ULP_PAD_PTD1__SDHC0_CMD	0x43
-			MX8ULP_PAD_PTD2__SDHC0_CLK	0x10042
-			MX8ULP_PAD_PTD10__SDHC0_D0	0x43
-			MX8ULP_PAD_PTD9__SDHC0_D1	0x43
-			MX8ULP_PAD_PTD8__SDHC0_D2	0x43
-			MX8ULP_PAD_PTD7__SDHC0_D3	0x43
-			MX8ULP_PAD_PTD6__SDHC0_D4	0x43
-			MX8ULP_PAD_PTD5__SDHC0_D5	0x43
-			MX8ULP_PAD_PTD4__SDHC0_D6	0x43
-			MX8ULP_PAD_PTD3__SDHC0_D7	0x43
-			MX8ULP_PAD_PTD11__SDHC0_DQS	0x10042
+			MX8ULP_PAD_PTD1__SDHC0_CMD	0x3
+			MX8ULP_PAD_PTD2__SDHC0_CLK	0x10002
+			MX8ULP_PAD_PTD10__SDHC0_D0	0x3
+			MX8ULP_PAD_PTD9__SDHC0_D1	0x3
+			MX8ULP_PAD_PTD8__SDHC0_D2	0x3
+			MX8ULP_PAD_PTD7__SDHC0_D3	0x3
+			MX8ULP_PAD_PTD6__SDHC0_D4	0x3
+			MX8ULP_PAD_PTD5__SDHC0_D5	0x3
+			MX8ULP_PAD_PTD4__SDHC0_D6	0x3
+			MX8ULP_PAD_PTD3__SDHC0_D7	0x3
+			MX8ULP_PAD_PTD11__SDHC0_DQS	0x10002
 		>;
 	};
 
 	pinctrl_usdhc2_pte: usdhc2ptegrp {
 		fsl,pins = <
-			MX8ULP_PAD_PTE1__SDHC2_D0	0x43
-			MX8ULP_PAD_PTE0__SDHC2_D1	0x43
-			MX8ULP_PAD_PTE5__SDHC2_D2	0x43
-			MX8ULP_PAD_PTE4__SDHC2_D3	0x43
-			MX8ULP_PAD_PTE2__SDHC2_CLK	0x10042
-			MX8ULP_PAD_PTE3__SDHC2_CMD	0x43
+			MX8ULP_PAD_PTE1__SDHC2_D0	0x3
+			MX8ULP_PAD_PTE0__SDHC2_D1	0x3
+			MX8ULP_PAD_PTE5__SDHC2_D2	0x3
+			MX8ULP_PAD_PTE4__SDHC2_D3	0x3
+			MX8ULP_PAD_PTE2__SDHC2_CLK	0x10002
+			MX8ULP_PAD_PTE3__SDHC2_CMD	0x3
 			MX8ULP_PAD_PTE7__PTE7		0x10003
 		>;
 	};

@@ -35,11 +35,6 @@
 			reg = <0 0x88000000 0 0x8000000>;
 		};
 
-		rpmsg_reserved: rpmsg@0x90200000 {
-			no-map;
-			reg = <0 0x90200000 0 0x200000>;
-		};
-
 /*
  *		Memory reserved for optee usage. Please do not use.
  *		This will be automaticky added to dtb if OP-TEE is installed.

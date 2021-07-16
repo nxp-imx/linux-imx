@@ -227,6 +227,7 @@
 
 			rgmii_phy1: ethernet-phy@1 { /* MAC3 */
 				reg = <0x1>;
+				rtl821x,aldps-disable;
 			};
 		};
 
@@ -238,6 +239,7 @@
 
 			rgmii_phy2: ethernet-phy@2 { /* MAC4 */
 				reg = <0x2>;
+				rtl821x,aldps-disable;
 			};
 		};
 

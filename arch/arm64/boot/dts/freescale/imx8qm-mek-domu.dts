@@ -101,7 +101,6 @@
 	 * The reserved memory will be used when using U-Boot loading android
 	 * image. For booting kernel using xl tool, pass args:
 	 * cma=960M@2400M-3584M
-	 * For the rpmsg_reserved area, need xl tool to create for non-android.
 	 */
 	reserved-memory {
 		#address-cells = <2>;
@@ -136,11 +135,6 @@
 		ts_boot: ts_boot@0x95000000 {
 			no-map;
 			reg = <0 0x95000000 0 0x400000>;
-		};
-
-		rpmsg_reserved: rpmsg@0x90000000 {
-			no-map;
-			reg = <0 0x90200000 0 0x200000>;
 		};
 
 		/* global autoconfigured region for contiguous allocations */
@@ -1150,7 +1144,6 @@
 	disable-gpio = <&lsio_gpio4 9 GPIO_ACTIVE_LOW>;
 	ext_osc = <1>;
 	epdev_on-supply = <&epdev_on>;
-	reserved-region = <&rpmsg_reserved>;
 	status = "okay";
 };
 

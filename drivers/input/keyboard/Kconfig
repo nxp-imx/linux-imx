@@ -446,7 +446,6 @@ config KEYBOARD_MPR121
 
 config KEYBOARD_RPMSG
        tristate "i.MX Rpmsg Keys Driver"
-       depends on (SOC_IMX7ULP)
        depends on RPMSG
        depends on OF
        help

@@ -459,7 +459,7 @@
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPSPI4>;
 				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
-				assigned-clock-rates = <16000000>;
+				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 64 0 0>, <&edma1 63 0 1>;
 				dma-names = "tx","rx";
 				status = "disabled";
@@ -476,7 +476,7 @@
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPSPI5>;
 				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
-				assigned-clock-rates = <16000000>;
+				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 66 0 0>, <&edma1 65 0 1>;
 				dma-names = "tx","rx";
 				status = "disabled";

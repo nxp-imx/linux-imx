@@ -16,11 +16,6 @@
 			reg = <0 0x80000000 0 0x1000000>;
 		};
 
-		rpmsg_reserved: rpmsg@0xb8200000 {
-			no-map;
-			reg = <0 0xb8200000 0 0x200000>;
-		};
-
 		vdev0vring0: vdev0vring0@b8000000 {
 			reg = <0 0xb8000000 0 0x8000>;
 			no-map;
@@ -61,6 +56,12 @@
 		fsl,audioindex = <0> ;
 		fsl,dma-buffer-size = <0x6000000>;
 		fsl,enable-lpa;
+		clocks = <&clk IMX8MN_CLK_SAI3_IPG>,
+			 <&clk IMX8MN_CLK_SAI3_ROOT>,
+			 <&clk IMX8MN_CLK_SDMA3_ROOT>,
+			 <&clk IMX8MN_AUDIO_PLL1_OUT>,
+			 <&clk IMX8MN_AUDIO_PLL2_OUT>;
+		clock-names = "bus", "mclk", "dma", "pll8k", "pll11k";
 		status = "okay";
 	};
 
@@ -107,17 +108,6 @@
 };
 
 &pwm3 {
-	status = "disabled";
-};
-
-&rpmsg{
-	/*
-	 * 64K for one rpmsg instance:
-	 * --0xb8000000~0xb800ffff: pingpong
-	 */
-	vdev-nums = <1>;
-	reg = <0x0 0xb8000000 0x0 0x10000>;
-	memory-region = <&vdevbuffer>;
 	status = "disabled";
 };
 
