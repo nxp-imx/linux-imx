@@ -344,7 +344,16 @@ EXPORT_SYMBOL(of_mdiobus_register);
  */
 struct mdio_device *of_mdio_find_device(struct device_node *np)
 {
-	return fwnode_mdio_find_device(of_fwnode_handle(np));
+	struct device *d;
+
+	if (!np)
+		return NULL;
+
+	d = bus_find_device_by_of_node(&mdio_bus_type, np);
+	if (!d)
+		return NULL;
+
+	return to_mdio_device(d);
 }
 EXPORT_SYMBOL(of_mdio_find_device);
 
