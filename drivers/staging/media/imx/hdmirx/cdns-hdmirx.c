@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 NXP
+ * Copyright 2019-2024 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -389,7 +389,9 @@ static void hdmirx_pixel_link_encoder(struct cdns_hdmirx_device *hdmirx)
 /* -----------------------------------------------------------------------------
  * v4l2_subdev_video_ops
  */
-static int hdmirx_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
+static int hdmirx_set_frame_interval(struct v4l2_subdev *sd,
+			struct v4l2_subdev_state *state,
+			struct v4l2_subdev_frame_interval *ival)
 {
 	struct cdns_hdmirx_device *hdmirx = cdns_sd_to_hdmi(sd);
 	struct device *dev = &hdmirx->pdev->dev;
@@ -399,44 +401,21 @@ static int hdmirx_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 	return 0;
 }
 
-static int hdmirx_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
+static int hdmirx_get_frame_interval(struct v4l2_subdev *sd,
+			struct v4l2_subdev_state *state,
+			struct v4l2_subdev_frame_interval *ival)
 {
-	struct v4l2_captureparm *cparm = &a->parm.capture;
 	struct cdns_hdmirx_device *hdmirx = cdns_sd_to_hdmi(sd);
-	int ret = 0;
 
 	if (hdmirx->cable_plugin == false) {
 		dev_warn(&hdmirx->pdev->dev, "No Cable Connected!\n");
 		return -EINVAL;
 	}
 
-	switch (a->type) {
-	/* This is the only case currently handled. */
-	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
-	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-		memset(a, 0, sizeof(*a));
-		a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		cparm->timeperframe.denominator = hdmirx->timings->fps;
-		cparm->timeperframe.numerator = 1;
-		ret = 0;
-		break;
+	ival->interval.denominator = hdmirx->timings->fps;
+	ival->interval.numerator = 1;
 
-	/* These are all the possible cases. */
-	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
-	case V4L2_BUF_TYPE_VIDEO_OVERLAY:
-	case V4L2_BUF_TYPE_VBI_CAPTURE:
-	case V4L2_BUF_TYPE_VBI_OUTPUT:
-	case V4L2_BUF_TYPE_SLICED_VBI_CAPTURE:
-	case V4L2_BUF_TYPE_SLICED_VBI_OUTPUT:
-		ret = -EINVAL;
-		break;
-	default:
-		pr_debug("type is unknown - %d\n", a->type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	return 0;
 }
 
 static int hdmirx_s_stream(struct v4l2_subdev *sd, int enable)
@@ -484,8 +463,6 @@ static int hdmirx_s_stream(struct v4l2_subdev *sd, int enable)
 
 static const struct v4l2_subdev_video_ops cdns_video_ops_hdmi = {
 	.s_stream = hdmirx_s_stream,
-	.g_parm =	hdmirx_g_parm,
-	.s_parm =	hdmirx_s_parm,
 };
 
 /* -----------------------------------------------------------------------------
@@ -685,6 +662,8 @@ static const struct v4l2_subdev_pad_ops cdns_pad_ops_hdmi = {
 	.set_edid = hdmirx_set_edid,
 	.dv_timings_cap = hdmirx_dv_timings_cap,
 	.enum_dv_timings = hdmirx_enum_dv_timings,
+	.get_frame_interval =	hdmirx_get_frame_interval,
+	.set_frame_interval =	hdmirx_set_frame_interval,
 };
 
 static int hdmirx_s_power(struct v4l2_subdev *sd, int on)

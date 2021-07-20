@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Copyright (C) 2014-2016 Freescale Semiconductor, Inc. All Rights Reserved.
- * Copyright 2019 NXP
+ * Copyright 2019-2024 NXP
  */
 
 /*!
@@ -1627,19 +1627,32 @@ static int mx6s_vidioc_s_selection(struct file *file, void *priv,
 static int mx6s_vidioc_g_parm(struct file *file, void *priv,
 			     struct v4l2_streamparm *a)
 {
+	struct v4l2_subdev_frame_interval ival = { 0 };
+	int ret;
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	return v4l2_subdev_call(sd, video, g_parm, a);
+	ret = v4l2_subdev_call_state_active(sd, pad, get_frame_interval, &ival);
+	if (!ret)
+		a->parm.capture.timeperframe = ival.interval;
+	return ret;
 }
 
 static int mx6s_vidioc_s_parm(struct file *file, void *priv,
 				struct v4l2_streamparm *a)
 {
+	int ret;
+	struct v4l2_subdev_frame_interval ival = {
+		.interval = a->parm.capture.timeperframe
+	};
+
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	return v4l2_subdev_call(sd, video, s_parm, a);
+	ret = v4l2_subdev_call_state_active(sd, pad, set_frame_interval, &ival);
+	if (!ret)
+		a->parm.capture.timeperframe = ival.interval;
+	return ret;
 }
 
 static int mx6s_vidioc_enum_framesizes(struct file *file, void *priv,
