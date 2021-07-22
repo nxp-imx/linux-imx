@@ -1260,3 +1260,6 @@ imx95-19x19-verdin-os08a20-isp-adv7535-dtbs := imx95-19x19-verdin.dtb \
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-os08a20-isp-adv7535.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk-iw612.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-md.dtb
+
+dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-pcie1-m2-gki.dtb imx8mq-evk-lcdif-adv7535-gki.dtb \
+                          imx8mq-evk-dcss-rm67199-gki.dtb  imx8mq-evk-dcss-rm67191-gki.dtb imx8mq-evk-dual-display-gki.dtb

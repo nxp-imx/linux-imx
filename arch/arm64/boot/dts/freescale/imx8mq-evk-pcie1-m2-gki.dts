@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2021 NXP
+ */
+#include "imx8mq-evk-pcie1-m2.dts"
+
+/ {
+  interrupt-parent = <&gic>;
+};
+
+&gpc {
+  /delete-property/ interrupts;
+  /delete-property/ interrupt-parent;
+  /delete-property/ interrupt-controller;
+  /delete-property/ broken-wake-request-signals;
+  /delete-property/ #interrupt-cells;
+};
