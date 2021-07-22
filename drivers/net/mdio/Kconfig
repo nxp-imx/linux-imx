@@ -28,7 +28,8 @@ config OF_MDIO
 	  OpenFirmware MDIO bus (Ethernet PHY) accessors
 
 config ACPI_MDIO
-	def_tristate PHYLIB
+	tristate "ACPI MDIO Support"
+	default PHYLIB
 	depends on ACPI
 	depends on PHYLIB
 	help
