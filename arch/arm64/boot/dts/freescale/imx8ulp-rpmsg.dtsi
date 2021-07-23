@@ -49,11 +49,6 @@
 		status = "okay";
 	};
 
-	rpmsg_i2s: rpmsg-i2s {
-		compatible = "fsl,imx8ulp-rpmsg-i2s";
-		status = "disabled";
-	};
-
 	tpm_rpchip_0: pwm {
 		compatible = "fsl,pwm-rpchip";
 		#pwm-cells = <3>;

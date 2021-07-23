@@ -51,26 +51,18 @@
 		status = "disabled";
 	};
 
-	rpmsg_i2s: rpmsg-i2s {
-		compatible = "fsl,imx8mn-rpmsg-i2s";
-		/* the audio device index in m4 domain */
-		fsl,audioindex = <0> ;
-		fsl,dma-buffer-size = <0x6000000>;
+	rpmsg_audio: rpmsg_audio {
+		compatible = "fsl,imx8mn-rpmsg-audio";
+		model = "wm8524-audio";
 		fsl,enable-lpa;
+		fsl,rpmsg-out;
 		clocks = <&clk IMX8MN_CLK_SAI3_IPG>,
 			 <&clk IMX8MN_CLK_SAI3_ROOT>,
 			 <&clk IMX8MN_CLK_SDMA3_ROOT>,
 			 <&clk IMX8MN_AUDIO_PLL1_OUT>,
 			 <&clk IMX8MN_AUDIO_PLL2_OUT>;
-		clock-names = "bus", "mclk", "dma", "pll8k", "pll11k";
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
 		status = "okay";
-	};
-
-	sound-rpmsg {
-		compatible = "fsl,imx-audio-rpmsg";
-		model = "wm8524-audio";
-		cpu-dai = <&rpmsg_i2s>;
-		rpmsg-out;
 	};
 
 	imx8mn-cm7 {

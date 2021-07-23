@@ -151,19 +151,18 @@
 		spdif-out;
 	};
 
-	sound-rpmsg {
-		compatible = "fsl,imx-audio-rpmsg";
+	rpmsg_audio: rpmsg-audio {
+		compatible = "fsl,imx8ulp-rpmsg-audio";
 		model = "wm8960-audio";
-		cpu-dai = <&rpmsg_i2s>;
+		fsl,rpmsg-out;
+		fsl,rpmsg-in;
 		audio-codec = <&wm8960>;
 		memory-region = <&audio_reserved>;
-		rpmsg-out;
-		rpmsg-in;
 		audio-routing =
 			"LINPUT1", "MICB",
 			"LINPUT3", "MICB";
+		status = "okay";
 	};
-
 };
 
 &dcnano {
@@ -589,10 +588,6 @@
 		>;
 	};
 
-};
-
-&rpmsg_i2s {
-	status = "okay";
 };
 
 &sai5 {

@@ -1076,6 +1076,7 @@
 					 <&pcc5 IMX8ULP_CLK_PXP>;
 				clock-names = "pxp_ipg", "pxp_axi";
 				interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+				power-domains = <&scmi_devpd IMX8ULP_PD_PXP>;
 				status = "disabled";
 			};
 		};

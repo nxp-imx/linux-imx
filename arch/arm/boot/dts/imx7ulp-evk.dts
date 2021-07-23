@@ -237,19 +237,11 @@
 		compatible = "fsl,rpmsg-input";
 	};
 
-	rpmsg_i2s: rpmsg-i2s {
-		compatible = "fsl,imx7ulp-rpmsg-i2s";
-		/* the audio device index in m4 domain */
-		fsl,audioindex = <0> ;
-		status = "okay";
-	};
-
-	sound-rpmsg {
-		compatible = "fsl,imx-audio-rpmsg";
+	rpmsg_audio: rpmsg_audio {
+		compatible = "fsl,imx7ulp-rpmsg-audio";
 		model = "wm8960-audio";
-		cpu-dai = <&rpmsg_i2s>;
-		rpmsg-out;
-		rpmsg-in;
+		fsl,rpmsg-out;
+		fsl,rpmsg-in;
 		audio-routing =
 			"Headphone Jack", "HP_L",
 			"Headphone Jack", "HP_R",

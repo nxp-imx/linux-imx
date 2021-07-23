@@ -47,7 +47,7 @@ struct rpmsg_wm8960_priv {
 	int freq_in;
 	bool is_stream_in_use[2];
 	struct wm8960_data pdata;
-	struct fsl_rpmsg_i2s *rpmsg_i2s;
+	struct rpmsg_info *info;
 	int audioindex;
 };
 

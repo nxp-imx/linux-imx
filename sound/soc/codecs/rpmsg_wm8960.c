@@ -25,7 +25,7 @@
 #include <sound/soc.h>
 #include <sound/tlv.h>
 #include <sound/wm8960.h>
-#include "../fsl/fsl_rpmsg_i2s.h"
+#include "../fsl/imx-pcm-rpmsg.h"
 #include "wm8960.h"
 #include "rpmsg_wm8960.h"
 
@@ -1323,18 +1323,15 @@ static int rpmsg_wm8960_probe(struct snd_soc_component *component)
 static int rpmsg_wm8960_read(void *context, unsigned int reg, unsigned int *val)
 {
 	struct rpmsg_wm8960_priv *wm8960 = context;
-	struct fsl_rpmsg_i2s *rpmsg_i2s = wm8960->rpmsg_i2s;
-	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
-	struct i2s_rpmsg_s   *rpmsg = &i2s_info->rpmsg[GET_CODEC_VALUE].send_msg;
+	struct rpmsg_info *info = wm8960->info;
+	struct rpmsg_s_msg *s_msg = &info->msg[GET_CODEC_VALUE].s_msg;
 	int err, reg_val;
 
-	mutex_lock(&i2s_info->i2c_lock);
-	rpmsg->param.audioindex = wm8960->audioindex;
-	rpmsg->param.buffer_addr = reg;
-	rpmsg->header.cmd = GET_CODEC_VALUE;
-	err = i2s_info->send_message(&i2s_info->rpmsg[GET_CODEC_VALUE], i2s_info);
-	reg_val = i2s_info->rpmsg[GET_CODEC_VALUE].recv_msg.param.reg_data;
-	mutex_unlock(&i2s_info->i2c_lock);
+	s_msg->param.audioindex = wm8960->audioindex;
+	s_msg->param.buffer_addr = reg;
+	s_msg->header.cmd = GET_CODEC_VALUE;
+	err = info->send_message(&info->msg[GET_CODEC_VALUE], info);
+	reg_val = info->msg[GET_CODEC_VALUE].r_msg.param.reg_data;
 	if (err)
 		return -EIO;
 
@@ -1345,18 +1342,15 @@ static int rpmsg_wm8960_read(void *context, unsigned int reg, unsigned int *val)
 static int rpmsg_wm8960_write(void *context, unsigned int reg, unsigned int val)
 {
 	struct rpmsg_wm8960_priv *wm8960 = context;
-	struct fsl_rpmsg_i2s *rpmsg_i2s = wm8960->rpmsg_i2s;
-	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
-	struct i2s_rpmsg_s   *rpmsg = &i2s_info->rpmsg[SET_CODEC_VALUE].send_msg;
+	struct rpmsg_info *info = wm8960->info;
+	struct rpmsg_s_msg   *s_msg = &info->msg[SET_CODEC_VALUE].s_msg;
 	int err;
 
-	mutex_lock(&i2s_info->i2c_lock);
-	rpmsg->param.audioindex = wm8960->audioindex;
-	rpmsg->param.buffer_addr = reg;
-	rpmsg->param.buffer_size = val;
-	rpmsg->header.cmd = SET_CODEC_VALUE;
-	err = i2s_info->send_message(&i2s_info->rpmsg[SET_CODEC_VALUE], i2s_info);
-	mutex_unlock(&i2s_info->i2c_lock);
+	s_msg->param.audioindex = wm8960->audioindex;
+	s_msg->param.buffer_addr = reg;
+	s_msg->param.buffer_size = val;
+	s_msg->header.cmd = SET_CODEC_VALUE;
+	err = info->send_message(&info->msg[SET_CODEC_VALUE], info);
 	if (err)
 		return -EIO;
 
@@ -1416,18 +1410,21 @@ static const struct dev_pm_ops wm8960_pm = {
 
 static int rpmsg_wm8960_codec_probe(struct platform_device *pdev)
 {
-	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(pdev->dev.parent);
-	struct fsl_rpmsg_codec *pdata = pdev->dev.platform_data;
+	struct rpmsg_info *info = dev_get_drvdata(pdev->dev.parent);
+	struct rpmsg_codec *pdata = pdev->dev.platform_data;
 	struct rpmsg_wm8960_priv *wm8960;
 	int ret;
 	int repeat_reset = 10;
+
+	if (!info)
+		return -EPROBE_DEFER;
 
 	wm8960 = devm_kzalloc(&pdev->dev, sizeof(struct rpmsg_wm8960_priv),
 			      GFP_KERNEL);
 	if (wm8960 == NULL)
 		return -ENOMEM;
 
-	wm8960->rpmsg_i2s = rpmsg_i2s;
+	wm8960->info = info;
 
 	wm8960->mclk = devm_clk_get(pdev->dev.parent, "mclk");
 	if (IS_ERR(wm8960->mclk)) {
@@ -1510,4 +1507,5 @@ static struct platform_driver rpmsg_wm8960_codec_driver = {
 module_platform_driver(rpmsg_wm8960_codec_driver);
 
 MODULE_DESCRIPTION("rpmsg wm8960 Codec Driver");
+MODULE_ALIAS("platform:" RPMSG_CODEC_DRV_NAME_WM8960);
 MODULE_LICENSE("GPL");

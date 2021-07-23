@@ -26,8 +26,8 @@
 #include <sound/soc.h>
 #include <sound/tlv.h>
 #include <sound/wm8960.h>
-#include "../fsl/fsl_rpmsg_i2s.h"
 #include "wm8960.h"
+#include "../fsl/imx-pcm-rpmsg.h"
 #include "rpmsg_wm8960.h"
 
 extern struct regmap_config rpmsg_wm8960_regmap;

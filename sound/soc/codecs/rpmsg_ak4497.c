@@ -28,7 +28,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
-#include "../fsl/fsl_rpmsg_i2s.h"
+#include "../fsl/imx-pcm-rpmsg.h"
 
 #include "rpmsg_ak4497.h"
 
@@ -49,7 +49,7 @@ struct rpmsg_ak4497_priv {
 	int mute_gpio;
 	int fmt;
 	struct regulator_bulk_data supplies[AK4497_NUM_SUPPLIES];
-	struct fsl_rpmsg_i2s *rpmsg_i2s;
+	struct rpmsg_info *info;
 	int audioindex;
 	struct platform_device *pdev;
 };
@@ -975,18 +975,15 @@ struct snd_soc_component_driver rpmsg_codec_dev_ak4497 = {
 static int rpmsg_ak4497_read(void *context, unsigned int reg, unsigned int *val)
 {
 	struct rpmsg_ak4497_priv *ak4497 = context;
-	struct fsl_rpmsg_i2s *rpmsg_i2s = ak4497->rpmsg_i2s;
-	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
-	struct i2s_rpmsg_s   *rpmsg = &i2s_info->rpmsg[GET_CODEC_VALUE].send_msg;
+	struct rpmsg_info *info = ak4497->info;
+	struct rpmsg_s_msg *s_msg = &info->msg[GET_CODEC_VALUE].s_msg;
 	int err, reg_val;
 
-	mutex_lock(&i2s_info->i2c_lock);
-	rpmsg->param.audioindex = ak4497->audioindex;
-	rpmsg->param.buffer_addr = reg;
-	rpmsg->header.cmd = GET_CODEC_VALUE;
-	err = i2s_info->send_message(&i2s_info->rpmsg[GET_CODEC_VALUE], i2s_info);
-	reg_val = i2s_info->rpmsg[GET_CODEC_VALUE].recv_msg.param.reg_data;
-	mutex_unlock(&i2s_info->i2c_lock);
+	s_msg->param.audioindex = ak4497->audioindex;
+	s_msg->param.buffer_addr = reg;
+	s_msg->header.cmd = GET_CODEC_VALUE;
+	err = info->send_message(&info->msg[GET_CODEC_VALUE], info);
+	reg_val = info->msg[GET_CODEC_VALUE].r_msg.param.reg_data;
 	if (err)
 		return -EIO;
 
@@ -997,18 +994,15 @@ static int rpmsg_ak4497_read(void *context, unsigned int reg, unsigned int *val)
 static int rpmsg_ak4497_write(void *context, unsigned int reg, unsigned int val)
 {
 	struct rpmsg_ak4497_priv *ak4497 = context;
-	struct fsl_rpmsg_i2s *rpmsg_i2s = ak4497->rpmsg_i2s;
-	struct i2s_info      *i2s_info =  &rpmsg_i2s->i2s_info;
-	struct i2s_rpmsg_s   *rpmsg = &i2s_info->rpmsg[SET_CODEC_VALUE].send_msg;
+	struct rpmsg_info *info = ak4497->info;
+	struct rpmsg_s_msg *s_msg = &info->msg[SET_CODEC_VALUE].s_msg;
 	int err;
 
-	mutex_lock(&i2s_info->i2c_lock);
-	rpmsg->param.audioindex = ak4497->audioindex;
-	rpmsg->param.buffer_addr = reg;
-	rpmsg->param.buffer_size = val;
-	rpmsg->header.cmd = SET_CODEC_VALUE;
-	err = i2s_info->send_message(&i2s_info->rpmsg[SET_CODEC_VALUE], i2s_info);
-	mutex_unlock(&i2s_info->i2c_lock);
+	s_msg->param.audioindex = ak4497->audioindex;
+	s_msg->param.buffer_addr = reg;
+	s_msg->param.buffer_size = val;
+	s_msg->header.cmd = SET_CODEC_VALUE;
+	err = info->send_message(&info->msg[SET_CODEC_VALUE], info);
 	if (err)
 		return -EIO;
 
@@ -1032,18 +1026,21 @@ static const struct regmap_config rpmsg_ak4497_regmap = {
 
 static int rpmsg_ak4497_codec_probe(struct platform_device *pdev)
 {
-	struct fsl_rpmsg_i2s *rpmsg_i2s = dev_get_drvdata(pdev->dev.parent);
-	struct fsl_rpmsg_codec *pdata = pdev->dev.platform_data;
+	struct rpmsg_info *info = dev_get_drvdata(pdev->dev.parent);
+	struct rpmsg_codec *pdata = pdev->dev.platform_data;
 	struct rpmsg_ak4497_priv *ak4497;
 	int ret = 0;
 	int i;
+
+	if (!info)
+		return -EPROBE_DEFER;
 
 	ak4497 = devm_kzalloc(&pdev->dev,
 			      sizeof(struct rpmsg_ak4497_priv), GFP_KERNEL);
 	if (ak4497 == NULL)
 		return -ENOMEM;
 
-	ak4497->rpmsg_i2s = rpmsg_i2s;
+	ak4497->info = info;
 	ak4497->pdev = pdev;
 
 	ak4497->regmap = devm_regmap_init(&pdev->dev, NULL, ak4497, &rpmsg_ak4497_regmap);
@@ -1103,4 +1100,5 @@ module_platform_driver(rpmsg_ak4497_codec_driver);
 MODULE_AUTHOR("Junichi Wakasugi <wakasugi.jb@om.asahi-kasei.co.jp>");
 MODULE_AUTHOR("Daniel Baluta <daniel.baluta@nxp.com>");
 MODULE_DESCRIPTION("ASoC ak4497 codec driver");
+MODULE_ALIAS("platform:" RPMSG_CODEC_DRV_NAME_AK4497);
 MODULE_LICENSE("GPL");

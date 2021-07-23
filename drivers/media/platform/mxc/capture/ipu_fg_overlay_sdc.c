@@ -493,8 +493,10 @@ static int foreground_stop(void *private)
 	fbvar.nonstd = cam->fb_origin_std;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	err = fb_set_var(fbi, &fbvar);
-	if (err)
+	if (err) {
 		printk(KERN_WARNING "fb_set_var err code %d\n", err);
+		err = 0;
+	}
 
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();

@@ -393,6 +393,9 @@ struct usdpaa_ioctl_link_status_args {
 	char    if_name[IF_NAME_MAX_LEN];
 	/* link status(UP/DOWN) */
 	int     link_status;
+	int	link_speed;
+	int	link_duplex;
+	int	link_autoneg;
 };
 
 struct usdpaa_ioctl_update_link_status {
@@ -402,11 +405,27 @@ struct usdpaa_ioctl_update_link_status {
 	int     set_link_status;
 };
 
+struct usdpaa_ioctl_update_link_speed {
+	/* network device node name*/
+	char    if_name[IF_NAME_MAX_LEN];
+	int	link_speed;
+	int	link_duplex;
+};
+
 #define USDPAA_IOCTL_GET_LINK_STATUS \
 	_IOWR(USDPAA_IOCTL_MAGIC, 0x10, struct usdpaa_ioctl_link_status_args)
 
 #define USDPAA_IOCTL_UPDATE_LINK_STATUS \
 	_IOW(USDPAA_IOCTL_MAGIC, 0x11, struct usdpaa_ioctl_update_link_status)
+
+#define USDPAA_IOCTL_UPDATE_LINK_SPEED \
+	_IOW(USDPAA_IOCTL_MAGIC, 0x12, struct usdpaa_ioctl_update_link_speed)
+
+#define USDPAA_IOCTL_GET_IOCTL_VERSION \
+	_IOR(USDPAA_IOCTL_MAGIC, 0x14, int)
+
+#define USDPAA_IOCTL_RESTART_LINK_AUTONEG \
+	_IOW(USDPAA_IOCTL_MAGIC, 0x13, char *)
 
 #ifdef __cplusplus
 }

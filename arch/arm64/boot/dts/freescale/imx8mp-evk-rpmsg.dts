@@ -61,33 +61,26 @@
 		status = "disabled";
 	};
 
-	rpmsg_i2s: rpmsg-i2s {
-		compatible = "fsl,imx8mp-rpmsg-i2s";
-		/* the audio device index in m4 domain */
-		fsl,audioindex = <0> ;
-		fsl,dma-buffer-size = <0x6000000>;
+	rpmsg_audio: rpmsg-audio {
+		compatible = "fsl,imx8mp-rpmsg-audio";
+		model = "wm8960-audio";
 		fsl,enable-lpa;
+		fsl,rpmsg-out;
 		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_IPG>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_MCLK1>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SDMA3_ROOT>,
 			 <&clk IMX8MP_AUDIO_PLL1_OUT>,
 			 <&clk IMX8MP_AUDIO_PLL2_OUT>;
-		clock-names = "bus", "mclk", "dma", "pll8k", "pll11k";
-		power-domains = <&audiomix_pd>;
-		status = "okay";
-	};
-
-	sound-rpmsg {
-		compatible = "fsl,imx-audio-rpmsg";
-		model = "wm8960-audio";
-		cpu-dai = <&rpmsg_i2s>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
 		audio-codec = <&codec>;
 		memory-region = <&audio_reserved>;
-		rpmsg-out;
+		power-domains = <&audiomix_pd>;
 		audio-routing =
 			"LINPUT1", "MICB",
 			"LINPUT3", "MICB";
+		status = "okay";
 	};
+
 	imx8mp-cm7 {
 		compatible = "fsl,imx8mn-cm7";
 		rsc-da = <0x55000000>;
