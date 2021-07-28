@@ -551,6 +551,7 @@
   of_node_name_eq
   of_parse_phandle
   of_parse_phandle_with_args
+  of_parse_phandle_with_fixed_args
   of_phy_simple_xlate
   of_platform_depopulate
   of_platform_populate
@@ -604,7 +605,6 @@
   platform_irq_count
   pm_genpd_init
   pm_genpd_remove
-  __pm_relax
   __pm_runtime_disable
   pm_runtime_enable
   pm_runtime_force_resume
@@ -645,7 +645,6 @@
   rdev_get_drvdata
   rdev_get_id
   refcount_warn_saturate
-  regcache_cache_bypass
   regcache_cache_only
   regcache_mark_dirty
   regcache_sync
@@ -1054,9 +1053,6 @@
   usb_role_switch_register
   usb_role_switch_unregister
   usb_udc_vbus_handler
-
-# required by ci_hdrc_msm.ko
-  of_parse_phandle_with_fixed_args
 
 # required by ci_hdrc_pci.ko
   pcim_enable_device
@@ -1611,6 +1607,7 @@
   bitmap_parse
   cpumask_next_and
   default_wake_function
+  done_path_create
   hex_dump_to_buffer
   in4_pton
   init_dummy_netdev
@@ -1622,8 +1619,8 @@
   iw_handler_set_spy
   iw_handler_set_thrspy
   kern_path_create
-  ktime_get_raw
   ktime_get_raw_ts64
+  mmc_hw_reset
   mmc_set_data_timeout
   mmc_wait_for_req
   __netif_napi_del
@@ -1648,6 +1645,7 @@
   pci_save_state
   pci_set_power_state
   PDE_DATA
+  __pm_relax
   pm_wakeup_ws_event
   proc_create_data
   proc_mkdir
@@ -1994,15 +1992,11 @@
   snd_soc_info_volsw_sx
   snd_soc_put_volsw_sx
 
-# required by snd-soc-fsl-rpmsg-i2s.ko
-  __pm_stay_awake
-  wakeup_source_register
-  wakeup_source_unregister
-
 # required by snd-soc-fsl-sai.ko
   kstrtouint
 
 # required by snd-soc-fsl-spdif.ko
+  regcache_cache_bypass
   snd_soc_add_dai_controls
   snd_soc_get_pcm_runtime
 
@@ -2027,6 +2021,7 @@
 
 # required by snd-soc-imx-rpmsg.ko
   of_reserved_mem_device_init_by_idx
+  snd_soc_get_dai_name
 
 # required by snd-soc-rpmsg-ak4497.ko
   gpio_free
