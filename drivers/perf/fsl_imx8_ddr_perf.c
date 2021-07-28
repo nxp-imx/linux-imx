@@ -822,8 +822,10 @@ static int ddr_perf_probe(struct platform_device *pdev)
 			return ret;
 	} else
 		return -EINVAL;
-	if (!name)
-		return -ENOMEM;
+	if (!name) {
+		ret = -ENOMEM;
+		goto cpuhp_state_err;
+	}
 
 	pmu->cpu = raw_smp_processor_id();
 	ret = cpuhp_setup_state_multi(CPUHP_AP_ONLINE_DYN,

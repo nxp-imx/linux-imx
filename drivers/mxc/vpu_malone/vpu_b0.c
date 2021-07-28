@@ -827,19 +827,16 @@ static int v4l2_ioctl_enum_fmt_vid_out(struct file *file,
 	return 0;
 }
 
-static void calculate_frame_size(struct vpu_ctx *ctx)
+static void calculate_frame_size(struct queue_data *q_data, u32 width, u32 height, bool is_10bit)
 {
-	u_int32 width = ctx->seqinfo.uHorDecodeRes;
-	u_int32 height = ctx->seqinfo.uVerDecodeRes;
 	u_int32 luma_size;
 	u_int32 chroma_size;
 	u_int32 chroma_height;
-	bool b10BitFormat = is_10bit_format(ctx);
-	struct queue_data *q_data;
 
-	q_data = &ctx->q_data[V4L2_DST];
+	q_data->width = ALIGN(width, 8);
+	q_data->height = ALIGN(height, V4L2_NXP_FRAME_VERTICAL_ALIGN);
 
-	width = b10BitFormat?(width + ((width + 3) >> 2)):width;
+	width =  is_10bit ? (width + ((width + 3) >> 2)) : width;
 	width = ALIGN(width, V4L2_NXP_FRAME_HORIZONTAL_ALIGN);
 	q_data->stride = width;
 
@@ -849,10 +846,22 @@ static void calculate_frame_size(struct vpu_ctx *ctx)
 	luma_size = width * height;
 	chroma_size = width * chroma_height;
 
-	q_data->width = ctx->seqinfo.uHorRes;
-	q_data->height = ctx->seqinfo.uVerRes;
 	q_data->sizeimage[0] = luma_size;
 	q_data->sizeimage[1] = chroma_size;
+}
+
+static void vdec_setup_capture_size(struct vpu_ctx *ctx)
+{
+	struct queue_data *q_data;
+
+	q_data = &ctx->q_data[V4L2_DST];
+
+	calculate_frame_size(q_data,
+			ctx->seqinfo.uHorDecodeRes,
+			ctx->seqinfo.uVerDecodeRes,
+			is_10bit_format(ctx));
+	q_data->width = ctx->seqinfo.uHorRes;
+	q_data->height = ctx->seqinfo.uVerRes;
 	if (ctx->seqinfo.uProgressive == 1)
 		q_data->field = V4L2_FIELD_NONE;
 	else
@@ -1097,13 +1106,26 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 	pix_mp->num_planes = q_data->num_planes;
 
 	down(&q_data->drv_q_lock);
-	if (V4L2_TYPE_IS_OUTPUT(f->type) || ctx->b_firstseq) {
+	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
 		for (i = 0; i < q_data->num_planes; i++) {
 			q_data->stride = pix_mp->plane_fmt[i].bytesperline;
 			q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
 		}
 		q_data->width = pix_mp->width;
 		q_data->height = pix_mp->height;
+		set_output_default_sizeimage(q_data);
+	} else if (ctx->b_firstseq) {
+		calculate_frame_size(q_data, pix_mp->width, pix_mp->height, false);
+		for (i = 0; i < q_data->num_planes; i++) {
+			if (q_data->stride < pix_mp->plane_fmt[i].bytesperline)
+				q_data->stride = pix_mp->plane_fmt[i].bytesperline;
+			else
+				pix_mp->plane_fmt[i].bytesperline = q_data->stride;
+			if (q_data->sizeimage[i] < pix_mp->plane_fmt[i].sizeimage)
+				q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
+			else
+				pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
+		}
 	} else {
 		for (i = 0; i < q_data->num_planes; i++) {
 			pix_mp->plane_fmt[i].bytesperline = q_data->stride;
@@ -1112,8 +1134,6 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		pix_mp->width = q_data->width;
 		pix_mp->height = q_data->height;
 	}
-	if (V4L2_TYPE_IS_OUTPUT(f->type))
-		set_output_default_sizeimage(q_data);
 	up(&q_data->drv_q_lock);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
@@ -4171,7 +4191,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				ctx->seqinfo.uTransferChars,
 				ctx->seqinfo.uMatrixCoeffs,
 				ctx->seqinfo.uVideoFullRangeFlag);
-		calculate_frame_size(ctx);
+		vdec_setup_capture_size(ctx);
 		ctx->dcp_size = get_dcp_size(ctx);
 		if (ctx->b_firstseq) {
 			ctx->b_firstseq = false;

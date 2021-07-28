@@ -46,9 +46,9 @@
 #define rmb()		dsb(ld)
 #define wmb()		dsb(st)
 
-#define dma_mb()	dmb(osh)
-#define dma_rmb()	dmb(oshld)
-#define dma_wmb()	dmb(oshst)
+#define dma_mb()	dmb(sy)
+#define dma_rmb()	dmb(ld)
+#define dma_wmb()	dmb(st)
 
 /*
  * Generate a mask for array_index__nospec() that is ~0UL when 0 <= idx < sz

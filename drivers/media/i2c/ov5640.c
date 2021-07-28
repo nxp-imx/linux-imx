@@ -1611,8 +1611,9 @@ ov5640_find_mode(struct ov5640_dev *sensor, enum ov5640_frame_rate fr,
 				      width, height);
 
 	if (!mode ||
-	    (!nearest && (mode->hact != width || mode->vact != height)))
+	    (!nearest && (mode->hact != width || mode->vact != height))) {
 		return NULL;
+	}
 
 	return mode;
 }

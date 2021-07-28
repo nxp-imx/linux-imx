@@ -2961,6 +2961,49 @@ gckOS_Delay(
 
 /*******************************************************************************
 **
+**  gckOS_Udelay
+**
+**  Delay execution of the current thread for a number of microseconds.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to an gckOS object.
+**
+**      gctUINT32 Delay
+**          Delay to sleep, specified in microseconds.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_Udelay(
+    IN gckOS Os,
+    IN gctUINT32 Delay
+    )
+{
+    gcmkHEADER_ARG("Os=%p Delay=%u", Os, Delay);
+
+    if (Delay > 0)
+    {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
+        ktime_t delay = ktime_set((Delay / USEC_PER_SEC), (Delay % USEC_PER_SEC) * NSEC_PER_USEC);
+        __set_current_state(TASK_UNINTERRUPTIBLE);
+        schedule_hrtimeout(&delay, HRTIMER_MODE_REL);
+#else
+        usleep_range((unsigned long)Delay, (unsigned long)Delay + 1);
+#endif
+    }
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+
+/*******************************************************************************
+**
 **  gckOS_GetTicks
 **
 **  Get the number of milliseconds since the system started.
@@ -5521,6 +5564,13 @@ gckOS_Signal(
 #endif
     unsigned long flags = 0;
 
+    /*
+     * Default interruptible set to false.
+     * Can be used in the future as argument, received from userspace through
+     * the interfacem similas as gckOS_WaitSignal() does.
+     */
+    gctBOOL interruptible = gcvFALSE;
+
     gcmkHEADER_ARG("Os=%p Signal=%p State=%d", Os, Signal, State);
 
     /* Verify the arguments. */
@@ -5558,7 +5608,28 @@ gckOS_Signal(
     {
         signal->done = 1;
 
-        wake_up(&signal->wait);
+        if (signal->manualReset)
+        {
+            if (interruptible)
+            {
+                wake_up_interruptible_all(&signal->wait);
+            }
+            else
+            {
+                wake_up_all(&signal->wait);
+            }
+        }
+        else
+        {
+            if (interruptible)
+            {
+                wake_up_interruptible(&signal->wait);
+            }
+            else
+            {
+                wake_up(&signal->wait);
+            }
+        }
 
 #if gcdLINUX_SYNC_FILE
 #ifndef CONFIG_SYNC_FILE
@@ -7297,6 +7368,22 @@ gckOS_QueryOption(
     }
 
     return status;
+}
+
+gceSTATUS
+gckOS_QueryKernel(
+    IN gckKERNEL Kernel,
+    IN gctINT index,
+    OUT gckKERNEL * KernelOut
+    )
+{
+    if (Kernel && KernelOut)
+    {
+        gckGALDEVICE device = Kernel->os->device;
+        *KernelOut = device->kernels[index];
+    }
+
+    return gcvSTATUS_OK;
 }
 
 gceSTATUS

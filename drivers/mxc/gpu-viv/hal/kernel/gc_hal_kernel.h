@@ -650,6 +650,7 @@ struct _gckKERNEL
 
     gctUINT32                   timeoutPID;
     gctBOOL                     threadInitialized;
+    gctPOINTER                  resetStatus;
 };
 
 struct _FrequencyHistory
@@ -1446,6 +1447,10 @@ typedef struct _gcsDEVICE
 
     /* Mutex for multi-core combine mode command submission */
     gctPOINTER                  commitMutex;
+
+    /* Mutex for recovery all core */
+    gctPOINTER                  recoveryMutex;
+
 }
 gcsDEVICE;
 
@@ -1876,6 +1881,12 @@ gckKERNEL_AllocateVideoMemory(
     IN OUT gctSIZE_T * Bytes,
     IN OUT gcePOOL * Pool,
     OUT gckVIDMEM_NODE * NodeObject
+    );
+
+gceSTATUS
+gckHARDWARE_QueryIdleUnlocked(
+    IN gckHARDWARE Hardware,
+    OUT gctBOOL_PTR IsIdle
     );
 
 gceSTATUS

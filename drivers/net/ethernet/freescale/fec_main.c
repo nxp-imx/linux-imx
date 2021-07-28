@@ -3443,12 +3443,12 @@ static int fec_set_features(struct net_device *netdev,
 	return 0;
 }
 
-u16 fec_enet_get_raw_vlan_tci(struct sk_buff *skb)
+static u16 fec_enet_get_raw_vlan_tci(struct sk_buff *skb)
 {
 	struct vlan_ethhdr *vhdr;
 	unsigned short vlan_TCI = 0;
 
-	if (skb->protocol == ntohs(ETH_P_ALL)) {
+	if (skb->protocol == htons(ETH_P_ALL)) {
 		vhdr = (struct vlan_ethhdr *)(skb->data);
 		vlan_TCI = ntohs(vhdr->h_vlan_TCI);
 	}
@@ -3456,8 +3456,8 @@ u16 fec_enet_get_raw_vlan_tci(struct sk_buff *skb)
 	return vlan_TCI;
 }
 
-u16 fec_enet_select_queue(struct net_device *ndev, struct sk_buff *skb,
-			  struct net_device *sb_dev)
+static u16 fec_enet_select_queue(struct net_device *ndev, struct sk_buff *skb,
+				 struct net_device *sb_dev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	u16 vlan_tag;
@@ -3469,7 +3469,7 @@ u16 fec_enet_select_queue(struct net_device *ndev, struct sk_buff *skb,
 	if (!vlan_tag)
 		return vlan_tag;
 
-	return  fec_enet_vlan_pri_to_queue[vlan_tag >> 13];
+	return fec_enet_vlan_pri_to_queue[vlan_tag >> 13];
 }
 
 static const struct net_device_ops fec_netdev_ops = {

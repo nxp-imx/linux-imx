@@ -788,6 +788,13 @@ gckOS_Delay(
     IN gctUINT32 Delay
     );
 
+/* Delay a number of milliseconds. */
+gceSTATUS
+gckOS_Udelay(
+    IN gckOS Os,
+    IN gctUINT32 Delay
+    );
+
 /* Get time in milliseconds. */
 gceSTATUS
 gckOS_GetTicks(
@@ -1665,6 +1672,14 @@ gckKERNEL_CloseUserData(
     OUT gctPOINTER * KernelPointer
     );
 
+/* Query kernel by core index */
+gceSTATUS
+gckOS_QueryKernel(
+    IN gckKERNEL Kernel,
+    IN gctINT index,
+    OUT gckKERNEL * KernelOut
+    );
+
 gceSTATUS
 gckDVFS_Construct(
     IN gckHARDWARE Hardware,
@@ -1891,6 +1906,12 @@ gceSTATUS
 gckHARDWARE_SetPowerState(
     IN gckHARDWARE Hardware,
     IN gceCHIPPOWERSTATE State
+    );
+
+gceSTATUS
+gckHARDWARE_QueryPowerStateUnlocked(
+    IN gckHARDWARE Hardware,
+    OUT gceCHIPPOWERSTATE* State
     );
 
 gceSTATUS
