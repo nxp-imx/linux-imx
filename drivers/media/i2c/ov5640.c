@@ -359,7 +359,7 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x583b, 0x28, 0, 0}, {0x583c, 0x42, 0, 0}, {0x583d, 0xce, 0, 0},
 	{0x5025, 0x00, 0, 0}, {0x3a0f, 0x30, 0, 0}, {0x3a10, 0x28, 0, 0},
 	{0x3a1b, 0x30, 0, 0}, {0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0},
-	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x42, 0, 0}, {0x3c00, 0x04, 0, 300},
+	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x42, 0, 0}, {0x3c00, 0x04, 0, 100},
 	{0x302c, 0xc2, 0, 0},
 };
 
@@ -1325,7 +1325,11 @@ static int ov5640_set_stream_mipi(struct ov5640_dev *sensor, bool on)
 	if (ret)
 		return ret;
 
-	msleep(100);
+	int delay_ms = 100;
+	if (sensor->current_mode->id <= OV5640_MODE_VGA_640_480)
+		delay_ms = 50;
+
+	msleep(delay_ms);
 	return ret;
 }
 
@@ -1910,6 +1914,7 @@ static int ov5640_restore_mode(struct ov5640_dev *sensor)
 	ret = ov5640_load_regs(sensor, &ov5640_mode_init_data);
 	if (ret < 0)
 		return ret;
+
 	sensor->last_mode = &ov5640_mode_init_data;
 
 	ret = ov5640_mod_reg(sensor, OV5640_REG_SYS_ROOT_DIVIDER, 0x3f,
@@ -2371,6 +2376,10 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 		sensor->current_mode = new_mode;
 		sensor->pending_mode_change = true;
 	}
+
+	int delay_ms = (sensor->current_mode->id <= OV5640_MODE_VGA_640_480) ? 50 : 200;
+	msleep(delay_ms);
+
 	if (mbus_fmt->code != sensor->fmt.code)
 		sensor->pending_fmt_change = true;
 
