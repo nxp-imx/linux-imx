@@ -4,6 +4,18 @@
 #include "imx8mp-evk.dts"
 
 / {
+	reserved-memory {
+		/delete-node/ dsp_reserved;
+		/delete-node/ dsp_vdev0vring0;
+		/delete-node/ dsp_vdev0vring1;
+		/delete-node/ dsp_vdev0buffer;
+
+		dsp_reserved: dsp@92400000 {
+			reg = <0 0x92400000 0 0x2000000>;
+			no-map;
+		};
+	};
+
 	sound-wm8960 {
 		status = "disabled";
 	};
@@ -69,6 +81,12 @@
 	clock-names = "ipg", "ocram", "core",
 		"sai3_bus", "sai3_mclk0", "sai3_mclk1", "sai3_mclk2", "sai3_mclk3",
 		"sdma3_root";
+
+	mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
+	mboxes = <&mu2 2 0>, <&mu2 2 1>,
+		 <&mu2 3 0>, <&mu2 3 1>;
+	memory-region = <&dsp_reserved>;
+	/delete-property/ firmware-name;
 
 	tplg-name = "sof-imx8mp-wm8960.tplg";
 	machine-drv-name = "asoc-simple-card";

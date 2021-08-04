@@ -16,11 +16,6 @@
 			reg = <0 0x80000000 0 0x1000000>;
 		};
 
-		rsc_table: rsc_table@b8000000 {
-			reg = <0 0xb8000000 0 0x8000>;
-			no-map;
-		};
-
 		vdev0vring0: vdev0vring0@b8000000 {
 			reg = <0 0xb8000000 0 0x8000>;
 			no-map;
@@ -31,7 +26,7 @@
 			no-map;
 		};
 
-		rsc-table {
+		rsc_table: rsc_table@b80ff000 {
 			reg = <0 0xb80ff000 0 0x1000>;
 			no-map;
 		};

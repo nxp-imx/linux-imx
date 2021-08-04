@@ -70,7 +70,20 @@
 		};
 
 		dsp_reserved: dsp@8e000000 {
-			reg = <0 0x8e000000 0 0x2000000>;
+			reg = <0 0x8e000000 0 0x1ef0000>;
+			no-map;
+		};
+		dsp_vdev0vring0: vdev0vring0@8fef0000 {
+			reg = <0 0x8fef0000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0vring1: vdev0vring1@8fef8000 {
+			reg = <0 0x8fef8000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0buffer: vdev0buffer@8ff00000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x8ff00000 0 0x100000>;
 			no-map;
 		};
 
@@ -188,8 +201,8 @@
 &dsp {
 	assigned-clocks = <&cgc2 IMX8ULP_CLK_HIFI_SEL>;
 	assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4>;
-	memory-region = <&dsp_reserved>;
-	fixup-offset = <0 0x74000000>;
+	memory-region = <&dsp_vdev0buffer>, <&dsp_vdev0vring0>,
+			<&dsp_vdev0vring1>, <&dsp_reserved>;
 	status = "okay";
 };
 
@@ -246,11 +259,6 @@
 		#gpio-cells = <2>;
 	};
 
-	fxos8700@1e {
-		compatible = "fsl,fxos8700";
-		reg = <0x1e>;
-	};
-
 	mpl3115@60 {
 		compatible = "fsl,mpl3115";
 		reg = <0x60>;
@@ -288,6 +296,7 @@
 		compatible = "ite,it6161";
 		reg = <0x6c>;
 		it6161-addr-hdmi-tx = <0x4c>;
+		enable-gpios = <&pca6416_1 9 GPIO_ACTIVE_LOW>;
 		interrupt-parent = <&rpmsg_gpioa>;
 		interrupts = <19 IRQ_TYPE_LEVEL_LOW>;
 		status = "okay";
@@ -349,10 +358,18 @@
 	status = "okay";
 };
 
+&lpuart7 {
+	/* FT4232 PortD: need to connect J25/J26 2-3 */
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpuart7>;
+	pinctrl-1 = <&pinctrl_lpuart7>;
+	status = "okay";
+};
+
 &lpi2c7 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <100000>;
+	clock-frequency = <400000>;
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_lpi2c7>;
 	pinctrl-1 = <&pinctrl_lpi2c7>;
@@ -524,6 +541,13 @@
 		>;
 	};
 
+	pinctrl_lpuart7: lpuart7grp {
+		fsl,pins = <
+			MX8ULP_PAD_PTF22__LPUART7_TX	0x3
+			MX8ULP_PAD_PTF23__LPUART7_RX	0x3
+		>;
+	};
+
 	pinctrl_lpi2c7: lpi2c7grp {
 		fsl,pins = <
 			MX8ULP_PAD_PTE12__LPI2C7_SCL	0x20
@@ -550,7 +574,7 @@
 			MX8ULP_PAD_PTF26__I2S5_TX_BCLK  0x43
 			MX8ULP_PAD_PTF27__I2S5_TX_FS    0x43
 			MX8ULP_PAD_PTF28__I2S5_TXD0     0x43
-			MX8ULP_PAD_PTF23__I2S5_RXD2     0x43
+			MX8ULP_PAD_PTF24__I2S5_RXD3 	0x43
 		>;
 	};
 
@@ -596,7 +620,7 @@
 	pinctrl-0 = <&pinctrl_sai5>;
 	assigned-clocks = <&cgc1 IMX8ULP_CLK_SAI5_SEL>;
 	assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
-	fsl,dataline = <0 0x04 0x01>;
+	fsl,dataline = <0 0x08 0x01>;
 	status = "okay";
 };
 

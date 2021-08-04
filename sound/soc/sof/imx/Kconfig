@@ -15,6 +15,7 @@ config SND_SOC_SOF_IMX_OF
 	def_tristate SND_SOC_SOF_OF
 	select SND_SOC_SOF_IMX8 if SND_SOC_SOF_IMX8_SUPPORT
 	select SND_SOC_SOF_IMX8M if SND_SOC_SOF_IMX8M_SUPPORT
+	select SND_SOC_SOF_IMX8ULP if SND_SOC_SOF_IMX8ULP_SUPPORT
 	help
 	  This option is not user-selectable but automagically handled by
 	  'select' statements at a higher level
@@ -51,6 +52,22 @@ config SND_SOC_SOF_IMX8M_SUPPORT
 	  If unsure select "N".
 
 config SND_SOC_SOF_IMX8M
+	tristate
+	select SND_SOC_SOF_IMX_COMMON
+	select SND_SOC_SOF_XTENSA
+	help
+	  This option is not user-selectable but automagically handled by
+	  'select' statements at a higher level
+
+config SND_SOC_SOF_IMX8ULP_SUPPORT
+	bool "SOF support for i.MX8ULP"
+	depends on IMX_DSP=y || IMX_DSP=SND_SOC_SOF_OF
+	help
+	  This adds support for Sound Open Firmware for NXP i.MX8ULP platforms
+	  Say Y if you have such a device.
+	  If unsure select "N".
+
+config SND_SOC_SOF_IMX8ULP
 	tristate
 	select SND_SOC_SOF_IMX_COMMON
 	select SND_SOC_SOF_XTENSA

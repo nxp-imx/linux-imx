@@ -274,6 +274,8 @@ struct it6161 {
 	u32 it6161_addr_hdmi_tx;
 	u32 it6161_addr_cec;
 
+	struct gpio_desc *enable_gpio;
+
 	u32 hdmi_tx_rclk; /* kHz */
 	u32 hdmi_tx_pclk;
 	u32 mipi_rx_mclk;
@@ -775,7 +777,7 @@ static void hdmi_tx_generate_blank_timing(struct it6161 *it6161)
 	bool enable_de_only = true;
 	u8 polarity;
 	u16 hsync_start, hsync_end, vsync_start, vsync_end, htotal, hde_start, vtotal;
-	u16 vsync_start_2nd, vsync_end_2nd, vsync_rising_at_h_2nd;
+	u16 vsync_start_2nd = 0, vsync_end_2nd = 0, vsync_rising_at_h_2nd;
 
 	polarity =
 	    ((display_mode->flags & DRM_MODE_FLAG_PHSYNC) == DRM_MODE_FLAG_PHSYNC) ? 0x02 : 0x00;
@@ -934,7 +936,7 @@ static int it6161_ddc_get_edid_operation(struct it6161 *it6161, u8 *buffer,
 					 u8 segment, u8 offset, u8 size)
 {
 	struct device *dev = &it6161->i2c_hdmi_tx->dev;
-	u8 status, i;
+	int status, i;
 
 	if (!buffer)
 		return -ENOMEM;
@@ -971,7 +973,8 @@ error:
 static int it6161_get_edid_block(void *data, u8 *buf, u32 block_num, size_t len)
 {
 	struct it6161 *it6161 = data;
-	u8 offset, ret, step = 8;
+	u8 offset, step = 8;
+	int ret;
 
 	step = min_t(u8, step, DDC_FIFO_MAXREQ);
 
@@ -1030,9 +1033,14 @@ static void it6161_variable_config(struct it6161 *it6161)
 
 static struct edid *it6161_get_edid(struct it6161 *it6161)
 {
+	struct device *dev = &it6161->i2c_hdmi_tx->dev;
 	struct edid *edid;
 
 	edid = drm_do_get_edid(&it6161->connector, it6161_get_edid_block, it6161);
+	if (!edid) {
+		DRM_DEV_ERROR(dev, "Failed to read EDID\n");
+		return 0;
+	}
 
 	hdmi_tx_set_capability_from_edid_parse(it6161, edid);
 
@@ -1049,6 +1057,10 @@ static int it6161_get_modes(struct drm_connector *connector)
 	mutex_lock(&it6161->mode_lock);
 
 	edid = it6161_get_edid(it6161);
+	if (!edid) {
+		DRM_DEV_ERROR(dev, "Failed to read EDID\n");
+		return 0;
+	}
 
 	err = drm_connector_update_edid_property(connector, edid);
 	if (err) {
@@ -1533,11 +1545,11 @@ static void hdmi_tx_setup_pclk_div2(struct it6161 *it6161)
 static void hdmi_tx_setup_csc(struct it6161 *it6161)
 {
 	struct device *dev = &it6161->i2c_hdmi_tx->dev;
-	u8 ucData, csc, i;
+	u8 ucData, csc = 0, i;
 	u8 filter = 0;	/* filter is for Video CTRL DN_FREE_GO,EN_DITHER,and ENUDFILT */
 	u8 input_mode = it6161->hdmi_tx_input_color_space;
 	u8 output_mode = it6161->hdmi_tx_output_color_space;
-	u8 *ptable;
+	u8 *ptable = NULL;
 
 	/* (1) YUV422 in,RGB/YUV444 output (Output is 8-bit,input is 12-bit)
 	 * (2) YUV444/422  in,RGB output (CSC enable,and output is not YUV422)
@@ -1742,7 +1754,7 @@ static void setHDMITX_ChStat(struct it6161 *it6161, u8 ucIEC60958ChStat[])
 
 static void setHDMITX_LPCMAudio(u8 AudioSrcNum, u8 AudSWL, u8 bAudInterface)
 {
-	u8 AudioEnable, AudioFormat, bTDMSetting;
+	u8 AudioEnable = 0, AudioFormat = 0, bTDMSetting;
 
 	switch (AudSWL) {
 	case 16:
@@ -2358,6 +2370,8 @@ static void mipi_rx_prec_get_display_mode(struct it6161 *it6161)
 	int p_hfront_porch, p_hsyncw, p_hback_porch, p_hactive, p_htotal;
 	int p_vfront_porch, p_vsyncw, p_vback_porch, p_vactive, p_vtotal;
 
+	memset(&display_mode, 0, sizeof(display_mode));
+
 	p_hfront_porch = mipi_rx_read_word(it6161, 0x30) & 0x3FFF;
 	p_hsyncw = mipi_rx_read_word(it6161, 0x32) & 0x3FFF;
 	p_hback_porch = mipi_rx_read_word(it6161, 0x34) & 0x3FFF;
@@ -2777,7 +2791,7 @@ static int it6161_i2c_probe(struct i2c_client *i2c_mipi_rx,
 	it6161->regmap_hdmi_tx = devm_regmap_init_i2c(it6161->i2c_hdmi_tx, &it6161_hdmi_tx_bridge_regmap_config);
 	if (IS_ERR(it6161->regmap_hdmi_tx)) {
 		DRM_DEV_ERROR(dev, "regmap_hdmi_tx i2c init failed");
-		return PTR_ERR(it6161->regmap_mipi_rx);
+		return PTR_ERR(it6161->regmap_hdmi_tx);
 	}
 
 	if (device_property_read_u32(dev, "it6161-addr-cec", &it6161->it6161_addr_cec) < 0)
@@ -2791,6 +2805,13 @@ static int it6161_i2c_probe(struct i2c_client *i2c_mipi_rx,
 
 	if (!it6161_check_device_ready(it6161))
 		return -ENODEV;
+
+	/* The enable GPIO is optional. */
+	it6161->enable_gpio = devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
+	if (IS_ERR(it6161->enable_gpio))
+		DRM_DEV_INFO(dev, "No enable GPIO");
+	else
+		gpiod_set_value_cansleep(it6161->enable_gpio, 1);
 
 	it6161->enable_drv_hold = DEFAULT_DRV_HOLD;
 	it6161_set_interrupts_active_level(HIGH);

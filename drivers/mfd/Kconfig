@@ -833,6 +833,14 @@ config MFD_MAX17135
 	  This is the MAX17135 PMIC support. It includes
 	  core support for communication with the MAX17135 chip.
 
+config MFD_FP9931
+	tristate "Fitipower FP9931 EPD PMIC Core"
+	depends on I2C && OF
+
+	help
+	  This is the FP9931 PMIC support. It includes
+	  core support for communication with the FP9931 chip.
+
 config MFD_MAX77620
 	bool "Maxim Semiconductor MAX77620 and MAX20024 PMIC Support"
 	depends on I2C=y

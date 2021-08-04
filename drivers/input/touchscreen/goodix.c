@@ -1355,9 +1355,11 @@ static int __maybe_unused goodix_resume(struct device *dev)
 			return error;
 		}
 
-		error = goodix_send_cfg(ts, ts->config, ts->chip->config_len);
-		if (error)
-			return error;
+		if (ts->load_cfg_from_disk) {
+			error = goodix_send_cfg(ts, ts->config, ts->chip->config_len);
+			if (error)
+				return error;
+		}
 	}
 
 	error = goodix_request_irq(ts);

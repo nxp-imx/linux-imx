@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright 2017-2020 NXP
+ * Copyright 2017-2021 NXP
  */
 /*
  * Based on STMP378X LCDIF
@@ -145,9 +145,12 @@ struct mxc_epdc_fb_data {
 	struct completion powerdown_compl;
 	struct clk *epdc_clk_axi;
 	struct clk *epdc_clk_pix;
+	struct clk *epdc_clk_ahb;
 	struct regulator *display_regulator;
 	struct regulator *vcom_regulator;
 	struct regulator *v3p3_regulator;
+	struct regulator *vpos_regulator;
+	struct regulator *vneg_regulator;
 	bool fw_default_load;
 	int rev;
 
@@ -173,13 +176,13 @@ struct mxc_epdc_fb_data {
 	bool wv_modes_update;
 	bool waveform_is_advanced;
 	u32 *waveform_buffer_virt;
-	u32 waveform_buffer_phys;
+	dma_addr_t waveform_buffer_phys;
 	u32 waveform_buffer_size;
 	u32 *working_buffer_virt;
-	u32 working_buffer_phys;
+	dma_addr_t working_buffer_phys;
 	u32 working_buffer_size;
 	u32 *tmp_working_buffer_virt;
-	u32 tmp_working_buffer_phys;
+	dma_addr_t tmp_working_buffer_phys;
 	dma_addr_t *phys_addr_updbuf;
 	void **virt_addr_updbuf;
 	u32 upd_buffer_num;
@@ -804,7 +807,7 @@ static inline void epdc_set_temp(u32 temp)
 	unsigned int ext_temp, ext_temp_index = temp;
 
 	if (temp == DEFAULT_TEMP_INDEX) {
-		ret = max17135_reg_read(REG_MAX17135_EXT_TEMP, &ext_temp);
+		/*ret = max17135_reg_read(REG_MAX17135_EXT_TEMP, &ext_temp);*/
 		if (ret == 0) {
 			ext_temp = ext_temp >> 8;
 			dev_dbg(g_fb_data->dev, "the current external temperature is %d\n",
@@ -993,7 +996,11 @@ static inline bool epdc_any_luts_real_available(void)
 static inline bool epdc_any_luts_available(void)
 {
 #ifdef EPDC_STANDARD_MODE
+#ifdef CONFIG_ARM
 	if (((u32)used_luts != ~0UL) || ((u32)(used_luts >> 32) != ~0UL))
+#else
+	if (used_luts != ~0ULL)
+#endif
 		return 1;
 	else
 		return 0;
@@ -1045,10 +1052,15 @@ static int epdc_choose_next_lut(struct mxc_epdc_fb_data *fb_data, int *next_lut)
 
 	used_luts |= 0x1;
 
+#ifdef CONFIG_ARM
 	if ((u32)used_luts != ~0UL)
 		*next_lut = ffz((u32)used_luts);
 	else if ((u32)(used_luts >> 32) != ~0UL)
 		*next_lut = ffz((u32)(used_luts >> 32)) + 32;
+#else
+	if (used_luts != ~0ULL)
+		*next_lut = ffz(used_luts);
+#endif
 
 	return 0;
 }
@@ -1202,6 +1214,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 	/* Enable clocks to access EPDC regs */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
+	clk_prepare_enable(fb_data->epdc_clk_ahb);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 
 	/* Reset */
@@ -1404,12 +1417,14 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 	/* Disable clock */
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
+	clk_disable_unprepare(fb_data->epdc_clk_ahb);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
 }
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 {
 	int ret = 0;
+	u32 val;
 	mutex_lock(&fb_data->power_mutex);
 
 	/*
@@ -1428,9 +1443,27 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	fb_data->updates_active = true;
 
+	if (fb_data->vpos_regulator) {
+		ret = regulator_set_voltage(fb_data->vpos_regulator,
+						15000000, 15060000);
+		if (ret) {
+			dev_dbg(fb_data->dev, "Unable to set VPOS voltage "
+				"ret = %d\n", ret);
+		}
+	}
+
+	if (fb_data->vneg_regulator) {
+		ret = regulator_set_voltage(fb_data->vneg_regulator,
+						15000000, 15060000);
+		if (ret) {
+			dev_dbg(fb_data->dev, "Unable to set VNEG voltage "
+				"ret = %d\n", ret);
+		}
+	}
+
 	/* Enable the v3p3 regulator */
 	ret = regulator_enable(fb_data->v3p3_regulator);
-	if (IS_ERR((void *)ret)) {
+	if (ret) {
 		dev_err(fb_data->dev, "Unable to enable V3P3 regulator."
 			"err = 0x%x\n", ret);
 		mutex_unlock(&fb_data->power_mutex);
@@ -1443,20 +1476,29 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	/* Enable clocks to EPDC */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
+	clk_prepare_enable(fb_data->epdc_clk_ahb);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
 
+
 	/* Enable power to the EPD panel */
-	ret = regulator_enable(fb_data->display_regulator);
-	if (IS_ERR((void *)ret)) {
-		dev_err(fb_data->dev, "Unable to enable DISPLAY regulator."
-			"err = 0x%x\n", ret);
-		mutex_unlock(&fb_data->power_mutex);
-		return;
+	if (fb_data->display_regulator) {
+		ret = regulator_enable(fb_data->display_regulator);
+		if (ret) {
+			dev_err(fb_data->dev, "Unable to enable DISPLAY regulator."
+				"err = 0x%x\n", ret);
+			mutex_unlock(&fb_data->power_mutex);
+			return;
+		}
+	} else {
+		val = __raw_readl(EPDC_GPIO);
+		val |= EPDC_GPIO_PWRWAKE;
+		__raw_writel(val, EPDC_GPIO);
 	}
+
 	ret = regulator_enable(fb_data->vcom_regulator);
-	if (IS_ERR((void *)ret)) {
+	if (ret) {
 		dev_err(fb_data->dev, "Unable to enable VCOM regulator."
 			"err = 0x%x\n", ret);
 		mutex_unlock(&fb_data->power_mutex);
@@ -1470,6 +1512,7 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 {
+	u32 val;
 	mutex_lock(&fb_data->power_mutex);
 
 	/* If powering_down has been cleared, a powerup
@@ -1485,11 +1528,19 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 
 	/* Disable power to the EPD panel */
 	regulator_disable(fb_data->vcom_regulator);
-	regulator_disable(fb_data->display_regulator);
+
+	if (fb_data->display_regulator)
+		regulator_disable(fb_data->display_regulator);
+	else {
+		val = __raw_readl(EPDC_GPIO);
+		val &= ~EPDC_GPIO_PWRWAKE;
+		__raw_writel(val, EPDC_GPIO);
+	}
 
 	/* Disable clocks to EPDC */
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_SET);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
+	clk_disable_unprepare(fb_data->epdc_clk_ahb);
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
 
 	pm_runtime_put_sync_suspend(fb_data->dev);
@@ -3711,9 +3762,11 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			struct mxc_epdc_fb_data *fb_data = info ?
 				(struct mxc_epdc_fb_data *)info:g_fb_data;
 			flush_cache_all();
+#ifdef CONFIG_ARM
 			outer_flush_range(fb_data->working_buffer_phys,
 				fb_data->working_buffer_phys +
 				fb_data->working_buffer_size);
+#endif
 			if (copy_to_user((void __user *)arg,
 				(const void *) fb_data->working_buffer_virt,
 				fb_data->working_buffer_size))
@@ -3721,9 +3774,11 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			else
 				ret = 0;
 			flush_cache_all();
+#ifdef CONFIG_ARM
 			outer_flush_range(fb_data->working_buffer_phys,
 				fb_data->working_buffer_phys +
 				fb_data->working_buffer_size);
+#endif
 			break;
 		}
 
@@ -4759,6 +4814,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 
 	/* Enable clocks to access EPDC regs */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
+	clk_prepare_enable(fb_data->epdc_clk_ahb);
 
 	target_pix_clk = fb_data->cur_mode->vmode->pixclock;
 
@@ -4793,6 +4849,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 
 	/* Disable clocks */
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
+	clk_disable_unprepare(fb_data->epdc_clk_ahb);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
 
 	fb_data->hw_ready = true;
@@ -5093,7 +5150,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->num_screens = NUM_SCREENS_MIN;
 
 	fb_data->map_size = buf_size * fb_data->num_screens;
-	dev_dbg(&pdev->dev, "memory to allocate: %d\n", fb_data->map_size);
+	dev_dbg(&pdev->dev, "memory to allocate: %zx\n", fb_data->map_size);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
@@ -5117,8 +5174,8 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto out_cmap;
 	}
-	dev_dbg(&pdev->dev, "allocated at %p:0x%x\n", info->screen_base,
-		fb_data->phys_start);
+	dev_dbg(&pdev->dev, "allocated at %p:%p\n", info->screen_base,
+		(void*)fb_data->phys_start);
 
 	var_info = &info->var;
 	var_info->activate = FB_ACTIVATE_TEST;
@@ -5217,16 +5274,23 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 
 	fb_data->epdc_clk_axi = clk_get(fb_data->dev, "epdc_axi");
 	if (IS_ERR(fb_data->epdc_clk_axi)) {
+		ret = PTR_ERR(fb_data->epdc_clk_axi);
 		dev_err(&pdev->dev, "Unable to get EPDC AXI clk."
-			"err = %d\n", (int)fb_data->epdc_clk_axi);
-		ret = -ENODEV;
+			"err = %d\n", ret);
+		goto out_dma_fb;
+	}
+	fb_data->epdc_clk_ahb = clk_get(fb_data->dev, "epdc_ahb");
+	if (IS_ERR(fb_data->epdc_clk_ahb)) {
+		ret = PTR_ERR(fb_data->epdc_clk_ahb);
+		dev_err(&pdev->dev, "Unable to get EPDC ahb clk."
+			"err = %d\n", ret);
 		goto out_dma_fb;
 	}
 	fb_data->epdc_clk_pix = clk_get(fb_data->dev, "epdc_pix");
 	if (IS_ERR(fb_data->epdc_clk_pix)) {
+		ret = PTR_ERR(fb_data->epdc_clk_pix);
 		dev_err(&pdev->dev, "Unable to get EPDC pix clk."
-			"err = %d\n", (int)fb_data->epdc_clk_pix);
-		ret = -ENODEV;
+			"err = %d\n", ret);
 		goto out_dma_fb;
 	}
 
@@ -5294,8 +5358,8 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 			goto out_upd_buffers;
 		}
 
-		dev_dbg(fb_data->info.device, "allocated %d bytes @ 0x%08X\n",
-			fb_data->max_pix_size, fb_data->phys_addr_updbuf[i]);
+		dev_dbg(fb_data->info.device, "allocated %d bytes @ %p\n",
+			fb_data->max_pix_size, (void *)fb_data->phys_addr_updbuf[i]);
 	}
 
 	/* Counter indicating which update buffer should be used next. */
@@ -5442,26 +5506,52 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 #endif
 
 	/* get pmic regulators */
-	fb_data->display_regulator = devm_regulator_get(&pdev->dev, "DISPLAY");
+	fb_data->display_regulator = devm_regulator_get_optional(&pdev->dev, "DISPLAY");
 	if (IS_ERR(fb_data->display_regulator)) {
-		dev_err(&pdev->dev, "Unable to get display PMIC regulator."
-			"err = 0x%x\n", (int)fb_data->display_regulator);
-		ret = -ENODEV;
-		goto out_dma_work_buf;
+		ret = PTR_ERR(fb_data->display_regulator);
+		if (ret != -ENODEV) {
+			dev_err(&pdev->dev, "Unable to get display PMIC regulator."
+				"err = %d\n", ret);
+			goto out_dma_work_buf;
+		}
+		fb_data->display_regulator = NULL;
 	}
 	fb_data->vcom_regulator = devm_regulator_get(&pdev->dev, "VCOM");
 	if (IS_ERR(fb_data->vcom_regulator)) {
+		ret = PTR_ERR(fb_data->vcom_regulator);
 		dev_err(&pdev->dev, "Unable to get VCOM regulator."
-			"err = 0x%x\n", (int)fb_data->vcom_regulator);
-		ret = -ENODEV;
+			"err = %d\n", ret);
+		ret = -EPROBE_DEFER;
 		goto out_dma_work_buf;
 	}
 	fb_data->v3p3_regulator = devm_regulator_get(&pdev->dev, "V3P3");
 	if (IS_ERR(fb_data->v3p3_regulator)) {
+		ret = PTR_ERR(fb_data->v3p3_regulator);
 		dev_err(&pdev->dev, "Unable to get V3P3 regulator."
-			"err = 0x%x\n", (int)fb_data->vcom_regulator);
-		ret = -ENODEV;
+			"err = %d\n", ret);
+		ret = -EPROBE_DEFER;
 		goto out_dma_work_buf;
+	}
+	fb_data->vpos_regulator = devm_regulator_get_optional(&pdev->dev, "VPOS");
+	if (IS_ERR(fb_data->vpos_regulator)) {
+		ret = PTR_ERR(fb_data->vpos_regulator);
+		if (ret != -ENODEV) {
+			dev_err(&pdev->dev, "Unable to get VPOS regulator."
+				"err = %d\n", ret);
+			goto out_dma_work_buf;
+		}
+		fb_data->vpos_regulator = NULL;
+	}
+
+	fb_data->vneg_regulator = devm_regulator_get_optional(&pdev->dev, "VNEG");
+	if (IS_ERR(fb_data->vneg_regulator)) {
+		ret = PTR_ERR(fb_data->vneg_regulator);
+		if (ret != -ENODEV) {
+			dev_err(&pdev->dev, "Unable to get VNEG regulator."
+				"err = %d\n", ret);
+			goto out_dma_work_buf;
+		}
+		fb_data->vneg_regulator = NULL;
 	}
 
 	if (device_create_file(info->dev, &fb_attrs[0]))
@@ -6785,8 +6875,10 @@ static void do_dithering_processing_Y1_v1_0(
 	}
 
 	flush_cache_all();
+#ifdef CONFIG_ARM
 	outer_flush_range(update_region_phys_ptr, update_region_phys_ptr +
 			update_region->height * update_region->width);
+#endif
 }
 
 /*
@@ -6844,8 +6936,10 @@ static void do_dithering_processing_Y4_v1_0(
 	}
 
 	flush_cache_all();
+#ifdef CONFIG_ARM
 	outer_flush_range(update_region_phys_ptr, update_region_phys_ptr +
 			update_region->height * update_region->width);
+#endif
 }
 
 static int __init mxc_epdc_fb_init(void)

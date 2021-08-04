@@ -907,6 +907,13 @@ static int nxp_fspi_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 		reg |= FSPI_MCR0_RXCLKSRC(3);
 		fspi_writel(f, reg, f->iobase + FSPI_MCR0);
 		f->flags |= FSPI_RXCLKSRC_3;
+	} else if ((f->flags & FSPI_RXCLKSRC_3) &&
+		   !op->cmd.dtr && !op->addr.dtr &&
+		   !op->dummy.dtr && !op->data.dtr) {
+		reg = fspi_readl(f, f->iobase + FSPI_MCR0);
+		reg &= ~FSPI_MCR0_RXCLKSRC(3);
+		fspi_writel(f, reg, f->iobase + FSPI_MCR0);
+		f->flags &= ~FSPI_RXCLKSRC_3;
 	}
 
 	nxp_fspi_prepare_lut(f, op);
@@ -934,6 +941,7 @@ static int nxp_fspi_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 	pm_runtime_put_autosuspend(f->dev);
 
 	mutex_unlock(&f->lock);
+	return err;
 
 err_mutex:
 	mutex_unlock(&f->lock);

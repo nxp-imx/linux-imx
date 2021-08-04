@@ -28,7 +28,7 @@
 			no-map;
 		};
 
-		rsc-table {
+		rsc_table: rsc_table@b80ff000 {
 			reg = <0 0xb80ff000 0 0x1000>;
 			no-map;
 		};
@@ -37,10 +37,6 @@
 			compatible = "shared-dma-pool";
 			reg = <0 0xb8400000 0 0x100000>;
 			no-map;
-		};
-
-		rsc_table: rsc_table@b8000000 {
-			reg = <0 0xb8000000 0 0x8000>;
 		};
 	};
 

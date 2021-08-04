@@ -81,6 +81,14 @@
 		reg-names = "phys_baseaddr", "contiguous_mem";
 	};
 
+	pmu {
+		compatible = "arm,cortex-a35-pmu";
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_PPI 7
+			     (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_HIGH)>;
+		interrupt-affinity = <&A35_0>, <&A35_1>;
+	};
+
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
@@ -176,25 +184,25 @@
 			 <0x60000000 0x0 0x60000000 0x1000000>;
 
 		dsp: dsp@21170000 {
-			compatible = "fsl,imx8ulp-dsp-v1";
+			compatible = "fsl,imx8ulp-hifi4";
 			reg = <0x21170000 0x20000>;
 			clocks = <&cgc2 IMX8ULP_CLK_HIFI_DIVCORE>,
 				 <&cgc2 IMX8ULP_CLK_LPAV_BUS_DIV>,
 				 <&cgc2 IMX8ULP_CLK_HIFI_DIVPLAT>,
 				 <&pcc5 IMX8ULP_CLK_MU3_B>;
-			clock-names = "core", "pbclk", "nic", "mu_b";
-			fsl,dsp-firmware = "imx/dsp/hifi4.bin";
-			mbox-names = "tx0", "tx1", "tx2", "rx0",
-				     "txdb0", "txdb1", "rxdb0", "rxdb1";
+			clock-names = "dsp_clk1", "dsp_clk2", "dsp_clk3", "mu_b";
+			firmware-name = "imx/dsp/hifi4.bin";
+			mbox-names = "tx0", "rx0", "rxdb0";
 			mboxes = <&mu3 0 0>,
-				 <&mu3 0 1>,
-				 <&mu3 0 2>,
 				 <&mu3 1 0>,
-				 <&mu3 2 0>,
-				 <&mu3 2 1>,
-				 <&mu3 3 0>,
-				 <&mu3 3 1>;
+				 <&mu3 3 0>;
+			syscon = <&avd_sim>;
 			status = "disabled";
+		};
+
+		caam_sm: caam-sm@26000000 {
+			compatible = "fsl,imx6q-caam-sm";
+			reg = <0x26000000 0x8000>;
 		};
 
 		ocotp: efuse@27010000 {
@@ -217,6 +225,8 @@
 			compatible = "fsl,imx8ulp-s400";
 			mboxes = <&s4muap 0 0 &s4muap 1 0>;
 			mbox-names = "tx", "rx";
+			fsl,s4_muap_id = <0>;
+			fsl,s4muap_max_users = <1>;
 			status = "okay";
 		};
 
@@ -382,6 +392,38 @@
 				#reset-cells = <1>;
 			};
 
+			crypto: crypto@292e0000 {
+				compatible = "fsl,sec-v4.0";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x292e0000 0x10000>;
+				ranges = <0 0x292e0000 0x10000>;
+
+				sec_jr0: jr@1000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x1000 0x1000>;
+					interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+				};
+
+				sec_jr1: jr@2000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x2000 0x1000>;
+					interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+				};
+
+				sec_jr2: jr@3000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x3000 0x1000>;
+					interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+				};
+
+				sec_jr3: jr@4000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x4000 0x1000>;
+					interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+				};
+			};
+
 			tpm5: tpm@29340000 {
 				compatible = "fsl,imx8ulp-tpm", "fsl,imx7ulp-tpm";
 				reg = <0x29340000 0x1000>;
@@ -389,6 +431,22 @@
 				clocks = <&pcc3 IMX8ULP_CLK_TPM5>,
 					 <&pcc3 IMX8ULP_CLK_TPM5>;
 				clock-names = "ipg", "per";
+				status = "disabled";
+			};
+
+			i3c2: i3c-master@29360000 {
+				#address-cells = <3>;
+				#size-cells = <0>;
+				compatible = "silvaco,i3c-master";
+				reg = <0x29360000 0x10000>;
+				interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&pcc3 IMX8ULP_CLK_I3C2>,
+					 <&pcc3 IMX8ULP_CLK_I3C2>,
+					 <&cgc1 IMX8ULP_CLK_DUMMY>;
+				clock-names = "pclk", "fast_clk", "slow_clk";
+				assigned-clocks = <&pcc3 IMX8ULP_CLK_I3C2>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
+				assigned-clock-rates = <48000000>;
 				status = "disabled";
 			};
 
@@ -400,7 +458,7 @@
 					 <&pcc3 IMX8ULP_CLK_LPI2C4>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPI2C4>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 46 0 0>, <&edma1 45 0 1>;
 				dma-names = "tx","rx";
@@ -415,7 +473,7 @@
 					 <&pcc3 IMX8ULP_CLK_LPI2C5>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPI2C5>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 48 0 0>, <&edma1 47 0 1>;
 				dma-names = "tx","rx";
@@ -443,7 +501,7 @@
 				clocks = <&pcc3 IMX8ULP_CLK_LPUART5>;
 				clock-names = "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPUART5>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_CGC2_SOSC_DIV2>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SOSC_DIV2>;
 				assigned-clock-rates = <24000000>;
 				status = "disabled";
 			};
@@ -458,7 +516,7 @@
 					 <&pcc3 IMX8ULP_CLK_LPSPI4>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPSPI4>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 64 0 0>, <&edma1 63 0 1>;
 				dma-names = "tx","rx";
@@ -475,7 +533,7 @@
 					 <&pcc3 IMX8ULP_CLK_LPSPI5>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_LPSPI5>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 66 0 0>, <&edma1 65 0 1>;
 				dma-names = "tx","rx";
@@ -518,7 +576,7 @@
 					 <&pcc4 IMX8ULP_CLK_LPI2C6>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc4 IMX8ULP_CLK_LPI2C6>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 50 0 0>, <&edma1 49 0 1>;
 				dma-names = "tx","rx";
@@ -533,7 +591,7 @@
 					 <&pcc4 IMX8ULP_CLK_LPI2C7>;
 				clock-names = "per", "ipg";
 				assigned-clocks = <&pcc4 IMX8ULP_CLK_LPI2C7>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
 				assigned-clock-rates = <48000000>;
 				dmas = <&edma1 52 0 0>, <&edma1 51 0 1>;
 				dma-names = "tx","rx";
@@ -1066,6 +1124,20 @@
 				clocks = <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>;
 				clock-names = "phy_ref";
 				#phy-cells = <0>;
+				status = "disabled";
+			};
+
+			epdc: epdc@2db30000 {
+				compatible = "fsl,imx7d-epdc";
+				reg = <0x2db30000 0x10000>;
+				clocks = <&cgc2 IMX8ULP_CLK_LPAV_AXI_DIV>,
+					 <&pcc5 IMX8ULP_CLK_EPDC>,
+					 <&cgc2 IMX8ULP_CLK_LPAV_AHB_DIV>;
+				clock-names = "epdc_axi", "epdc_pix", "epdc_ahb";
+				assigned-clocks = <&pcc5 IMX8ULP_CLK_EPDC>, <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV1>;
+				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV1>;
+				assigned-clock-rates = <0>, <58666667>;
+				interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 

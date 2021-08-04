@@ -352,19 +352,17 @@
 		ranges = <0x55000000 0x0 0x55000000 0x1000000>;
 
 		dsp: dsp@556e8000 {
-			compatible = "fsl,imx8qm-dsp";
+			compatible = "fsl,imx8qm-hifi4";
 			reg = <0x556e8000 0x88000>;
 			clocks = <&clk_dummy>,
 				 <&clk_dummy>,
 				 <&clk_dummy>;
-			clock-names = "ipg", "ocram", "core";
-			fsl,dsp-firmware = "imx/dsp/hifi4.bin";
+			clock-names = "dsp_clk1", "dsp_clk2", "dsp_clk3";
+			firmware-name = "imx/dsp/hifi4.bin";
 			power-domains = <&pd IMX_SC_R_MU_13A>,
 					<&pd IMX_SC_R_MU_13B>,
 					<&pd IMX_SC_R_DSP>,
 					<&pd IMX_SC_R_DSP_RAM>;
-			memory-region = <&dsp_reserved>;
-			fixup-offset = <0x4000000>;
 			status = "disabled";
 		};
 	};

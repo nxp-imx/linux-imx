@@ -129,9 +129,22 @@
 			no-map;
 			reg = <0 0xd2200000 0 0x200000>;
 		};
-		dsp_reserved: dsp@0x92400000 {
+		dsp_reserved: dsp@92400000 {
+			reg = <0 0x92400000 0 0x1ef0000>;
 			no-map;
-			reg = <0 0x92400000 0 0x2000000>;
+		};
+		dsp_vdev0vring0: vdev0vring0@942f0000 {
+			reg = <0 0x942f0000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0vring1: vdev0vring1@942f8000 {
+			reg = <0 0x942f8000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0buffer: vdev0buffer@94300000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x94300000 0 0x100000>;
+			no-map;
 		};
 		encoder_reserved: encoder_reserved@0xd4400000 {
 			no-map;
@@ -410,7 +423,7 @@
 };
 
 &dsp {
-	compatible = "fsl,imx8qm-dsp-v1";
+	compatible = "fsl,imx8qm-hifi4";
 	status = "disabled";
 };
 
@@ -901,8 +914,8 @@
 		#size-cells = <1>;
 		compatible = "jedec,spi-nor";
 		spi-max-frequency = <133000000>;
-		spi-tx-bus-width = <4>;
-		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <8>;
 	};
 };
 

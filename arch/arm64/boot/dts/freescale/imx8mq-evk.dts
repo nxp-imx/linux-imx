@@ -672,6 +672,7 @@
 				 <&clk IMX8MQ_SYS2_PLL_250M>;
 	hard-wired = <1>;
 	vph-supply = <&vgen5_reg>;
+	l1ss-disabled;
 	status = "okay";
 };
 
@@ -693,6 +694,7 @@
 				 <&clk IMX8MQ_SYS2_PLL_100M>,
 				 <&clk IMX8MQ_SYS2_PLL_250M>;
 	vph-supply = <&vgen5_reg>;
+	l1ss-disabled;
 	status = "okay";
 
 	wifi_wake_host {
@@ -833,7 +835,7 @@
 		#size-cells = <1>;
 		compatible = "jedec,spi-nor";
 		spi-max-frequency = <29000000>;
-		spi-tx-bus-width = <4>;
+		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <4>;
 		spi-nor,ddr-quad-read-dummy = <6>;
 	};

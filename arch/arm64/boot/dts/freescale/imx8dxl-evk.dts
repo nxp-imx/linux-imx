@@ -52,11 +52,6 @@
 			linux,cma-default;
 		};
 
-		rsc_table: rsc_table@90000000 {
-			reg = <0 0x90000000 0 0x8000>;
-			no-map;
-		};
-
 		vdev0vring0: vdev0vring0@90000000 {
 			reg = <0 0x90000000 0 0x8000>;
 			no-map;
@@ -77,7 +72,7 @@
 			no-map;
 		};
 
-		rsc-table {
+		rsc_table: rsc_table@900ff000 {
 			reg = <0 0x900ff000 0 0x1000>;
 			no-map;
 		};
@@ -344,8 +339,8 @@
 		#size-cells = <1>;
 		compatible = "jedec,spi-nor";
 		spi-max-frequency = <133000000>;
-		spi-tx-bus-width = <4>;
-		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <8>;
 	};
 };
 

@@ -15,6 +15,7 @@
 extern struct snd_sof_dsp_ops sof_imx8_ops;
 extern struct snd_sof_dsp_ops sof_imx8x_ops;
 extern struct snd_sof_dsp_ops sof_imx8m_ops;
+extern struct snd_sof_dsp_ops sof_imx8ulp_ops;
 
 /* platform specific devices */
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_IMX8)
@@ -42,6 +43,16 @@ static struct sof_dev_desc sof_of_imx8mp_desc = {
 	.default_fw_filename = "sof-imx8m.ri",
 	.nocodec_tplg_filename = "sof-imx8-nocodec.tplg",
 	.ops = &sof_imx8m_ops,
+};
+#endif
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_IMX8ULP)
+static struct sof_dev_desc sof_of_imx8ulp_desc = {
+	.default_fw_path = "imx/sof",
+	.default_tplg_path = "imx/sof-tplg",
+	.default_fw_filename = "sof-imx8ulp.ri",
+	.nocodec_tplg_filename = "sof-imx8ulp-nocodec.tplg",
+	.ops = &sof_imx8ulp_ops,
 };
 #endif
 
@@ -169,6 +180,9 @@ static const struct of_device_id sof_of_ids[] = {
 #endif
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_IMX8M)
 	{ .compatible = "fsl,imx8mp-dsp", .data = &sof_of_imx8mp_desc},
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_IMX8ULP)
+	{ .compatible = "fsl,imx8ulp-dsp", .data = &sof_of_imx8ulp_desc},
 #endif
 	{ }
 };

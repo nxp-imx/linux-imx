@@ -189,8 +189,21 @@
 		};
 
 		dsp_reserved: dsp@92400000 {
+			reg = <0 0x92400000 0 0x1ef0000>;
 			no-map;
-			reg = <0 0x92400000 0 0x2000000>;
+		};
+		dsp_vdev0vring0: vdev0vring0@942f0000 {
+			reg = <0 0x942f0000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0vring1: vdev0vring1@942f8000 {
+			reg = <0 0x942f8000 0 0x8000>;
+			no-map;
+		};
+		dsp_vdev0buffer: vdev0buffer@94300000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x94300000 0 0x100000>;
+			no-map;
 		};
 
 
@@ -1848,7 +1861,6 @@
 				compatible = "fsl,imx8-mu-dsp", "fsl,imx6sx-mu";
 				reg = <0x30E60000 0x10000>;
 				interrupts = <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
-				fsl,dsp_ap_mu_id = <2>;
 				 #mbox-cells = <2>;
 				clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_MU2_ROOT>;
 				status = "okay";
@@ -2305,22 +2317,21 @@
 	};
 
 	dsp: dsp@3b6e8000 {
-		compatible = "fsl,imx8mp-dsp-v1";
-		memory-region = <&dsp_reserved>;
+		compatible = "fsl,imx8mp-hifi4";
 		reg = <0x0 0x3B6E8000 0x0 0x88000>;
 		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_OCRAMA_IPG>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSP_ROOT>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_DSPDBG_ROOT>;
-		clock-names = "ocram", "core", "debug", "mu2";
-		fsl,dsp-firmware = "imx/dsp/hifi4.bin";
+		clock-names = "dsp_clk1", "dsp_clk2", "dsp_clk3";
+		firmware-name = "imx/dsp/hifi4.bin";
 		power-domains = <&audiomix_pd>;
-		mbox-names = "tx0", "tx1", "tx2", "rx0",
-					"txdb0", "txdb1", "rxdb0", "rxdb1";
-		mboxes =
-				<&mu2 0 0>, <&mu2 0 1>,
-				<&mu2 0 2>, <&mu2 1 0>,
-				<&mu2 2 0>, <&mu2 2 1>,
-				<&mu2 3 0>, <&mu2 3 1>;
+		mbox-names = "tx0", "rx0", "rxdb0";
+		mboxes = <&mu2 0 0>,
+			 <&mu2 1 0>,
+			 <&mu2 3 0>;
+		memory-region = <&dsp_vdev0buffer>, <&dsp_vdev0vring0>,
+				<&dsp_vdev0vring1>, <&dsp_reserved>;
+		syscon = <&audio_blk_ctrl>;
 		status = "disabled";
 	};
 
