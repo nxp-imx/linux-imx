@@ -784,6 +784,9 @@ imx_rproc_elf_find_loaded_rsc_table(struct rproc *rproc, const struct firmware *
 		return NULL;
 	}
 
+	if (priv->rsc_va)
+		return priv->rsc_va;
+
 	return rproc_elf_find_loaded_rsc_table(rproc, fw);
 }
 

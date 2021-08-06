@@ -366,6 +366,7 @@ static int nwl_dsi_config_dpi(struct nwl_dsi *dsi)
 	bool burst_mode;
 	int hfront_porch, hback_porch, vfront_porch, vback_porch;
 	int hsync_len, vsync_len;
+	int hfp, hbp, hsa;
 
 	hfront_porch = dsi->mode.hsync_start - dsi->mode.hdisplay;
 	hsync_len = dsi->mode.hsync_end - dsi->mode.hsync_start;
@@ -419,9 +420,33 @@ static int nwl_dsi_config_dpi(struct nwl_dsi *dsi)
 			      dsi->mode.hdisplay);
 	}
 
-	nwl_dsi_write(dsi, NWL_DSI_HFP, hfront_porch);
-	nwl_dsi_write(dsi, NWL_DSI_HBP, hback_porch);
-	nwl_dsi_write(dsi, NWL_DSI_HSA, hsync_len);
+	if (of_device_is_compatible(dsi->panel_bridge->of_node,
+				    "raydium,rm68200")) {
+		int bytes = mipi_dsi_pixel_format_to_bpp(dsi->format) >> 3;
+
+		/*
+		 * FIXME: This is a workaround for display shift
+		 * of the RM68200 panel. It is based on previous
+		 * knowledge got from support task for external
+		 * DSI bridges by turning the hfp/hbp/hsa to be
+		 * in bytes and substracting certain magic values.
+		 * Furthermore, rounding hsa up to 2 is needed.
+		 * This can be fixed as soon as formulas to
+		 * determine the settings are available.
+		 */
+		hfp = bytes * hfront_porch - 12;
+		hbp = bytes * hback_porch - 10;
+		hsa = bytes * hsync_len - 10;
+		hsa = roundup(hsa, 2);
+	} else {
+		hfp = hfront_porch;
+		hbp = hback_porch;
+		hsa = hsync_len;
+	}
+
+	nwl_dsi_write(dsi, NWL_DSI_HFP, hfp);
+	nwl_dsi_write(dsi, NWL_DSI_HBP, hbp);
+	nwl_dsi_write(dsi, NWL_DSI_HSA, hsa);
 
 	nwl_dsi_write(dsi, NWL_DSI_ENABLE_MULT_PKTS, 0x0);
 	nwl_dsi_write(dsi, NWL_DSI_BLLP_MODE, 0x1);

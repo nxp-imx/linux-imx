@@ -201,6 +201,8 @@ static inline void *phy_get_drvdata(struct phy *phy)
 	return dev_get_drvdata(&phy->dev);
 }
 
+extern struct dentry *phy_debugfs_root;
+
 #if IS_ENABLED(CONFIG_GENERIC_PHY)
 int phy_pm_runtime_get(struct phy *phy);
 int phy_pm_runtime_get_sync(struct phy *phy);

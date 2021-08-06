@@ -8144,7 +8144,7 @@ _PmStallCommand(
     if (Broadcast)
     {
         /* Check for idle. */
-        gcmkONERROR(gckHARDWARE_QueryIdleUnlocked(Hardware, &idle));
+        gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
 
         if (!idle)
         {
@@ -8156,6 +8156,23 @@ _PmStallCommand(
     {
         /* Wait to finish all commands. */
         status = gckCOMMAND_Stall(Command, gcvTRUE);
+
+        if (!gcmIS_SUCCESS(status))
+        {
+            goto OnError;
+        }
+
+        for (;;)
+        {
+            gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
+
+            if (idle)
+            {
+                break;
+            }
+
+            gcmkVERIFY_OK(gckOS_Delay(Hardware->os, 1));
+        }
     }
 
 OnError:
@@ -9021,14 +9038,24 @@ gckHARDWARE_SetFscaleValue(
     gceSTATUS status;
     gctUINT32 clock;
     gctBOOL acquired = gcvFALSE;
-
+    gctBOOL commitMutexAcquired = gcvFALSE;
     gcmkHEADER_ARG("Hardware=0x%x FscaleValue=%d", Hardware, FscaleValue);
 
     gcmkVERIFY_ARGUMENT(FscaleValue > 0 && FscaleValue <= 64);
 
+    gcmkONERROR(gckOS_AcquireMutex(Hardware->kernel->os,
+                Hardware->kernel->device->commitMutex,
+                gcvINFINITE
+                ));
+
+    commitMutexAcquired = gcvTRUE;
+
+    gcmkONERROR(gckCOMMAND_Stall(Hardware->kernel->command, gcvFALSE));
+
     gcmkONERROR(
         gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex, gcvINFINITE));
     acquired =  gcvTRUE;
+
 
     Hardware->kernel->timeOut = Hardware->kernel->timeOut * Hardware->powerOnFscaleVal / 64;
 
@@ -9039,8 +9066,6 @@ gckHARDWARE_SetFscaleValue(
     if (Hardware->chipPowerState == gcvPOWER_ON)
     {
         gctUINT32 data;
-
-        gcmkONERROR(gckCOMMAND_Stall(Hardware->kernel->command, gcvTRUE));
 
         gcmkONERROR(
             gckOS_ReadRegisterEx(Hardware->os,
@@ -9305,6 +9330,9 @@ gckHARDWARE_SetFscaleValue(
     }
 
     gcmkVERIFY(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
+    acquired = gcvFALSE;
+    gcmkONERROR(gckOS_ReleaseMutex(Hardware->kernel->os, Hardware->kernel->device->commitMutex));
+    commitMutexAcquired = gcvFALSE;
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -9314,7 +9342,10 @@ OnError:
     {
         gcmkVERIFY(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
     }
-
+    if (commitMutexAcquired)
+    {
+        gcmkONERROR(gckOS_ReleaseMutex(Hardware->kernel->os, Hardware->kernel->device->commitMutex));
+}
     gcmkFOOTER();
     return status;
 }
@@ -9359,7 +9390,7 @@ gckHARDWARE_SetMinFscaleValue(
 #endif
 
 gceSTATUS
-gckHARDWARE_QueryIdleUnlocked(
+gckHARDWARE_QueryIdle(
     IN gckHARDWARE Hardware,
     OUT gctBOOL_PTR IsIdle
     )
@@ -9511,32 +9542,6 @@ gckHARDWARE_QueryIdleUnlocked(
     return gcvSTATUS_OK;
 
 OnError:
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
-}
-
-gceSTATUS
-gckHARDWARE_QueryIdle(
-    IN gckHARDWARE Hardware,
-    OUT gctBOOL_PTR IsIdle
-    )
-{
-    gceSTATUS status;
-
-    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
-    gcmkVERIFY_ARGUMENT(IsIdle != gcvNULL);
-
-    gcmkVERIFY_OK(gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex,
-            gcvINFINITE));
-
-    status = gckHARDWARE_QueryIdleUnlocked(Hardware, IsIdle);
-
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
-
     /* Return the status. */
     gcmkFOOTER();
     return status;
