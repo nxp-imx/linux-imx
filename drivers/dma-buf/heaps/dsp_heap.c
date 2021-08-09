@@ -79,7 +79,7 @@ static const struct dma_buf_ops dsp_heap_buf_ops = {
 	.release = dsp_heap_dma_buf_release,
 };
 
-static int dsp_heap_allocate(struct dma_heap *heap,
+static struct dma_buf *dsp_heap_allocate(struct dma_heap *heap,
 			     unsigned long len,
 			     unsigned long fd_flags,
 			     unsigned long heap_flags)
@@ -112,14 +112,7 @@ static int dsp_heap_allocate(struct dma_heap *heap,
 		return ret;
 	}
 
-	ret = dma_buf_fd(dmabuf, fd_flags);
-	if (ret < 0) {
-		dma_buf_put(dmabuf);
-		/* just return, as put will call release and that will free */
-		return ret;
-	}
-
-	return ret;
+	return dmabuf;
 }
 
 static const struct dma_heap_ops dsp_heap_ops = {
