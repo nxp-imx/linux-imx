@@ -2,7 +2,7 @@
 /*
  * V4L2 Capture CSI Subdev for Freescale i.MX8QM/QXP SOC
  *
- * Copyright (c) 2019 NXP Semiconductor
+ * Copyright 2019-2021 NXP
  *
  */
 

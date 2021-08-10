@@ -1982,7 +1982,7 @@ static int vpu_dec_v4l2_ioctl_g_parm(struct file *file, void *fh,
 		denominator = ctx->frame_interval.denominator;
 	}
 	if (!numerator || !denominator) {
-		numerator = 0;
+		numerator = 1;
 		denominator = 0;
 	}
 	parm->parm.capture.timeperframe.numerator = numerator;
@@ -2017,6 +2017,11 @@ static int vpu_dec_v4l2_ioctl_s_parm(struct file *file, void *fh,
 	ctx->fixed_frame_interval.denominator =
 		parm->parm.capture.timeperframe.denominator / gcd;
 	mutex_unlock(&ctx->instance_mutex);
+
+	vpu_dbg(LVL_BIT_FLOW, "%s s_parm : %d / %d\n",
+			V4L2_TYPE_IS_OUTPUT(parm->type) ? "OUTPUT" : "CAPTURE",
+			parm->parm.capture.timeperframe.numerator,
+			parm->parm.capture.timeperframe.denominator);
 
 	return 0;
 }

@@ -61,7 +61,11 @@
 			reg = <0 0x92200000 0 0x200000>;
 		};
 		dsp_reserved: dsp@92400000 {
-			reg = <0 0x92400000 0 0x1ef0000>;
+			reg = <0 0x92400000 0 0x1000000>;
+			no-map;
+		};
+		dsp_reserved_heap: dsp_reserved_heap {
+			reg = <0 0x93400000 0 0xef0000>;
 			no-map;
 		};
 		dsp_vdev0vring0: vdev0vring0@942f0000 {
