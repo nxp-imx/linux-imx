@@ -481,7 +481,7 @@ static int imx_dsp_rproc_da_to_sys(struct imx_dsp_rproc *priv, u64 da,
 	return -ENOENT;
 }
 
-static void *imx_dsp_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len)
+static void *imx_dsp_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len, bool *is_iomem)
 {
 	struct imx_dsp_rproc *priv = rproc->priv;
 	void *va = NULL;
