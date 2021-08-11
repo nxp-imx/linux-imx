@@ -491,6 +491,7 @@ struct rpmsg_info {
 	/* period done */
 	struct rpmsg_msg         notify[2];
 	bool                     notify_updated[2];
+	bool                     buffer_full[2];
 
 	struct workqueue_struct  *rpmsg_wq;
 	struct work_of_rpmsg	 work_list[WORK_MAX_NUM];
@@ -505,6 +506,7 @@ struct rpmsg_info {
 	spinlock_t               wq_lock; /* spin lock for resource protection */
 	struct mutex             msg_lock; /* mutex for resource protection */
 	struct stream_timer      stream_timer[2];
+	struct wakeup_source     *rpmsg_wakeup_source;
 };
 
 struct rpmsg_codec {

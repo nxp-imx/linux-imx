@@ -310,6 +310,12 @@ static int imx_rpmsg_pcm_close(struct snd_soc_component *component,
 
 	del_timer(&info->stream_timer[substream->stream].timer);
 
+	if (info->rpmsg_wakeup_source != NULL) {
+		__pm_relax(info->rpmsg_wakeup_source);
+		wakeup_source_unregister(info->rpmsg_wakeup_source);
+		info->rpmsg_wakeup_source = NULL;
+	}
+
 	rtd->dai_link->ignore_suspend = 0;
 
 	if (info->msg_drop_count[substream->stream])
@@ -326,6 +332,7 @@ static int imx_rpmsg_pcm_prepare(struct snd_soc_component *component,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 	struct fsl_rpmsg *rpmsg = dev_get_drvdata(cpu_dai->dev);
+	struct rpmsg_info *info = dev_get_drvdata(component->dev);
 
 	/*
 	 * NON-MMAP mode, NONBLOCK, Version 2, enable lpa in dts
@@ -340,6 +347,15 @@ static int imx_rpmsg_pcm_prepare(struct snd_soc_component *component,
 		 */
 		rtd->dai_link->ignore_suspend = 1;
 		rpmsg->force_lpa = 1;
+
+		if (info->rpmsg_wakeup_source == NULL) {
+			info->rpmsg_wakeup_source = wakeup_source_register(component->dev,
+					"lpa_rpmsg_wakeup_source");
+			if (info->rpmsg_wakeup_source == NULL) {
+				dev_err(component->dev, "rpmsg wakeup source register failed\n");
+				return -ENOMEM;
+			}
+		}
 	} else {
 		rpmsg->force_lpa = 0;
 	}
@@ -442,6 +458,9 @@ static int imx_rpmsg_pause(struct snd_soc_component *component,
 		msg = &info->msg[RX_PAUSE];
 		msg->s_msg.header.cmd = RX_PAUSE;
 	}
+
+	if (info->rpmsg_wakeup_source != NULL)
+		__pm_relax(info->rpmsg_wakeup_source);
 
 	return imx_rpmsg_insert_workqueue(substream, msg, info);
 }
@@ -576,6 +595,19 @@ static int imx_rpmsg_pcm_ack(struct snd_soc_component *component,
 		memcpy(&info->notify[substream->stream], msg,
 		       sizeof(struct rpmsg_s_msg));
 		info->notify_updated[substream->stream] = true;
+
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			if (snd_pcm_playback_avail(runtime) == 0)
+				info->buffer_full[substream->stream] = true;
+			else
+				info->buffer_full[substream->stream] = false;
+		} else {
+			if (snd_pcm_capture_avail(runtime) == 0)
+				info->buffer_full[substream->stream] = true;
+			else
+				info->buffer_full[substream->stream] = false;
+		}
+
 		spin_unlock_irqrestore(&info->lock[substream->stream], flags);
 
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -596,7 +628,8 @@ static int imx_rpmsg_pcm_ack(struct snd_soc_component *component,
 		 * pointer may be updated by ack function later, we can
 		 * send latest pointer to M core side.
 		 */
-		if ((avail - written_num * period_size) <= period_size) {
+		if ((avail - written_num * period_size) <= period_size
+				|| info->buffer_full[substream->stream]) {
 			imx_rpmsg_insert_workqueue(substream, msg, info);
 		} else if (rpmsg->force_lpa && !timer_pending(timer)) {
 			int time_msec;
@@ -724,6 +757,10 @@ static void imx_rpmsg_pcm_work(struct work_struct *work)
 		info->notify_updated[TX] = false;
 		spin_unlock_irqrestore(&info->lock[TX], flags);
 		info->send_message(&msg, info);
+		if (info->buffer_full[SNDRV_PCM_STREAM_PLAYBACK]) {
+			if (info->rpmsg_wakeup_source != NULL)
+				__pm_relax(info->rpmsg_wakeup_source);
+		}
 	} else {
 		spin_unlock_irqrestore(&info->lock[TX], flags);
 	}
@@ -880,6 +917,9 @@ static int imx_rpmsg_pcm_resume(struct device *dev)
 	struct rpmsg_info *info = dev_get_drvdata(dev);
 	struct rpmsg_msg *rpmsg_tx;
 	struct rpmsg_msg *rpmsg_rx;
+
+	if (info->rpmsg_wakeup_source != NULL)
+		__pm_stay_awake(info->rpmsg_wakeup_source);
 
 	rpmsg_tx = &info->msg[TX_RESUME];
 	rpmsg_rx = &info->msg[RX_RESUME];
