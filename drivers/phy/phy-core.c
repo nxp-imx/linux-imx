@@ -11,7 +11,6 @@
 #include <linux/export.h>
 #include <linux/module.h>
 #include <linux/err.h>
-#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/of.h>
@@ -25,8 +24,6 @@ static DEFINE_MUTEX(phy_provider_mutex);
 static LIST_HEAD(phy_provider_list);
 static LIST_HEAD(phys);
 static DEFINE_IDA(phy_ida);
-struct dentry *phy_debugfs_root;
-EXPORT_SYMBOL_GPL(phy_debugfs_root);
 
 static void devm_phy_release(struct device *dev, void *res)
 {
@@ -1165,8 +1162,6 @@ static int __init phy_core_init(void)
 	}
 
 	phy_class->dev_release = phy_release;
-
-	phy_debugfs_root = debugfs_create_dir("phy", NULL);
 
 	return 0;
 }
