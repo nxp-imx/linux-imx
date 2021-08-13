@@ -626,6 +626,12 @@ static int _hardware_enqueue(struct ci_hw_ep *hwep, struct ci_hw_req *hwreq)
 
 	ret = hw_ep_prime(ci, hwep->num, hwep->dir,
 			   hwep->type == USB_ENDPOINT_XFER_CONTROL);
+
+	/* If HW did not advance by update Queue head, reprime */
+	if (hwep->qh.ptr->td.next == cpu_to_le32(firstnode->dma))
+		ret = hw_ep_prime(ci, hwep->num, hwep->dir,
+				  hwep->type == USB_ENDPOINT_XFER_CONTROL);
+
 done:
 	return ret;
 }
