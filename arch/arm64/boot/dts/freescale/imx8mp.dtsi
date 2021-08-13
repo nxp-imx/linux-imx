@@ -2036,6 +2036,7 @@
 			power-domains = <&hsiomix_pd>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			dma-ranges = <0x40000000 0x40000000 0xc0000000>;
 			ranges;
 			status = "disabled";
 
@@ -2079,6 +2080,7 @@
 			power-domains = <&hsiomix_pd>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			dma-ranges = <0x40000000 0x40000000 0xc0000000>;
 			ranges;
 			status = "disabled";
 
