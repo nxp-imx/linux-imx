@@ -323,9 +323,8 @@ static void rpmsg_eptdev_release_device(struct device *dev)
 	kfree(eptdev);
 }
 
-static struct rpmsg_eptdev *__rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev,
-							 struct device *parent,
-							 struct rpmsg_channel_info chinfo)
+int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent,
+			       struct rpmsg_channel_info chinfo)
 {
 	struct rpmsg_eptdev *eptdev;
 	struct device *dev;
@@ -333,7 +332,7 @@ static struct rpmsg_eptdev *__rpmsg_chrdev_eptdev_create(struct rpmsg_device *rp
 
 	eptdev = kzalloc(sizeof(*eptdev), GFP_KERNEL);
 	if (!eptdev)
-		return ERR_PTR(-ENOMEM);
+		return -ENOMEM;
 
 	dev = &eptdev->dev;
 	eptdev->rpdev = rpdev;
@@ -375,10 +374,9 @@ static struct rpmsg_eptdev *__rpmsg_chrdev_eptdev_create(struct rpmsg_device *rp
 	if (ret) {
 		dev_err(dev, "device_add failed: %d\n", ret);
 		put_device(dev);
-		return ERR_PTR(ret);
 	}
 
-	return eptdev;
+	return ret;
 
 free_ept_ida:
 	ida_simple_remove(&rpmsg_ept_ida, dev->id);
@@ -388,19 +386,7 @@ free_eptdev:
 	put_device(dev);
 	kfree(eptdev);
 
-	return ERR_PTR(ret);
-}
-
-int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent,
-			       struct rpmsg_channel_info chinfo)
-{
-	struct rpmsg_eptdev *eptdev;
-
-	eptdev = __rpmsg_chrdev_eptdev_create(rpdev, parent, chinfo);
-	if (IS_ERR(eptdev))
-		return PTR_ERR(eptdev);
-
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(rpmsg_chrdev_eptdev_create);
 
