@@ -19,7 +19,8 @@
 #include <linux/mutex.h>
 #include <linux/poll.h>
 #include <linux/rpmsg/byteorder.h>
-#include <uapi/linux/rpmsg.h>
+
+#define RPMSG_ADDR_ANY		0xFFFFFFFF
 
 struct rpmsg_device;
 struct rpmsg_endpoint;
