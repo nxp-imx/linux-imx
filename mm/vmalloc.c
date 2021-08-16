@@ -327,6 +327,7 @@ int map_kernel_range(unsigned long start, unsigned long size, pgprot_t prot,
 	flush_cache_vmap(start, start + size);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(map_kernel_range);
 
 int is_vmalloc_or_module_addr(const void *x)
 {
