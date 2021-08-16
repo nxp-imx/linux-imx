@@ -179,9 +179,6 @@ void rpmsg_destroy_ept(struct rpmsg_endpoint *);
 struct rpmsg_endpoint *rpmsg_create_ept(struct rpmsg_device *,
 					rpmsg_rx_cb_t cb, void *priv,
 					struct rpmsg_channel_info chinfo);
-struct rpmsg_endpoint *rpmsg_create_default_ept(struct rpmsg_device *rpdev,
-						rpmsg_rx_cb_t cb, void *priv,
-						struct rpmsg_channel_info chinfo);
 
 int rpmsg_send(struct rpmsg_endpoint *ept, void *data, int len);
 int rpmsg_sendto(struct rpmsg_endpoint *ept, void *data, int len, u32 dst);
@@ -240,16 +237,6 @@ static inline struct rpmsg_endpoint *rpmsg_create_ept(struct rpmsg_device *rpdev
 						      rpmsg_rx_cb_t cb,
 						      void *priv,
 						      struct rpmsg_channel_info chinfo)
-{
-	/* This shouldn't be possible */
-	WARN_ON(1);
-
-	return NULL;
-}
-
-static inline struct rpmsg_endpoint *rpmsg_create_default_ept(struct rpmsg_device *rpdev,
-							      rpmsg_rx_cb_t cb, void *priv,
-							      struct rpmsg_channel_info chinfo)
 {
 	/* This shouldn't be possible */
 	WARN_ON(1);
