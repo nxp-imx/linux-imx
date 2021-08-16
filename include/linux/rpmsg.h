@@ -171,9 +171,8 @@ static inline __rpmsg64 cpu_to_rpmsg64(struct rpmsg_device *rpdev, u64 val)
 
 #if IS_ENABLED(CONFIG_RPMSG)
 
-int rpmsg_register_device(struct rpmsg_device *rpdev);
-int rpmsg_unregister_device(struct device *parent,
-			    struct rpmsg_channel_info *chinfo);
+int register_rpmsg_device(struct rpmsg_device *dev);
+void unregister_rpmsg_device(struct rpmsg_device *dev);
 int __register_rpmsg_driver(struct rpmsg_driver *drv, struct module *owner);
 void unregister_rpmsg_driver(struct rpmsg_driver *drv);
 void rpmsg_destroy_ept(struct rpmsg_endpoint *);
@@ -199,18 +198,15 @@ int rpmsg_set_signals(struct rpmsg_endpoint *ept, u32 set, u32 clear);
 
 #else
 
-static inline int rpmsg_register_device(struct rpmsg_device *rpdev)
+static inline int register_rpmsg_device(struct rpmsg_device *dev)
 {
 	return -ENXIO;
 }
 
-static inline int rpmsg_unregister_device(struct device *parent,
-					  struct rpmsg_channel_info *chinfo)
+static inline void unregister_rpmsg_device(struct rpmsg_device *dev)
 {
 	/* This shouldn't be possible */
 	WARN_ON(1);
-
-	return -ENXIO;
 }
 
 static inline int __register_rpmsg_driver(struct rpmsg_driver *drv,

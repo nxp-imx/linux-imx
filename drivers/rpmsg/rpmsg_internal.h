@@ -79,6 +79,10 @@ struct rpmsg_endpoint_ops {
 	int (*set_signals)(struct rpmsg_endpoint *ept, u32 set, u32 clear);
 };
 
+int rpmsg_register_device(struct rpmsg_device *rpdev);
+int rpmsg_unregister_device(struct device *parent,
+			    struct rpmsg_channel_info *chinfo);
+
 struct device *rpmsg_find_device(struct device *parent,
 				 struct rpmsg_channel_info *chinfo);
 
