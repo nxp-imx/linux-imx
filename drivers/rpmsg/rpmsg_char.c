@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2021, STMicroelectronics
  * Copyright (c) 2016, Linaro Ltd.
  * Copyright (c) 2012, Michal Simek <monstr@monstr.eu>
  * Copyright (c) 2012, PetaLogix
@@ -22,8 +21,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <uapi/linux/rpmsg.h>
-
-#include "rpmsg_char.h"
 
 #define RPMSG_DEV_MAX	(MINORMASK + 1)
 
@@ -79,7 +76,7 @@ struct rpmsg_eptdev {
 	wait_queue_head_t readq;
 };
 
-int rpmsg_chrdev_eptdev_destroy(struct device *dev, void *data)
+static int rpmsg_eptdev_destroy(struct device *dev, void *data)
 {
 	struct rpmsg_eptdev *eptdev = dev_to_eptdev(dev);
 
@@ -98,7 +95,6 @@ int rpmsg_chrdev_eptdev_destroy(struct device *dev, void *data)
 
 	return 0;
 }
-EXPORT_SYMBOL(rpmsg_chrdev_eptdev_destroy);
 
 static int rpmsg_ept_cb(struct rpmsg_device *rpdev, void *buf, int len,
 			void *priv, u32 addr)
@@ -282,7 +278,7 @@ static long rpmsg_eptdev_ioctl(struct file *fp, unsigned int cmd,
 	if (cmd != RPMSG_DESTROY_EPT_IOCTL)
 		return -EINVAL;
 
-	return rpmsg_chrdev_eptdev_destroy(&eptdev->dev, NULL);
+	return rpmsg_eptdev_destroy(&eptdev->dev, NULL);
 }
 
 static const struct file_operations rpmsg_eptdev_fops = {
@@ -341,9 +337,10 @@ static void rpmsg_eptdev_release_device(struct device *dev)
 	kfree(eptdev);
 }
 
-int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent,
+static int rpmsg_eptdev_create(struct rpmsg_ctrldev *ctrldev,
 			       struct rpmsg_channel_info chinfo)
 {
+	struct rpmsg_device *rpdev = ctrldev->rpdev;
 	struct rpmsg_eptdev *eptdev;
 	struct device *dev;
 	int ret;
@@ -363,7 +360,7 @@ int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent
 
 	device_initialize(dev);
 	dev->class = rpmsg_class;
-	dev->parent = parent;
+	dev->parent = &ctrldev->dev;
 	dev->groups = rpmsg_eptdev_groups;
 	dev_set_drvdata(dev, eptdev);
 
@@ -406,7 +403,6 @@ free_eptdev:
 
 	return ret;
 }
-EXPORT_SYMBOL(rpmsg_chrdev_eptdev_create);
 
 static int rpmsg_ctrldev_open(struct inode *inode, struct file *filp)
 {
@@ -446,7 +442,7 @@ static long rpmsg_ctrldev_ioctl(struct file *fp, unsigned int cmd,
 	chinfo.src = eptinfo.src;
 	chinfo.dst = eptinfo.dst;
 
-	return rpmsg_chrdev_eptdev_create(ctrldev->rpdev, &ctrldev->dev, chinfo);
+	return rpmsg_eptdev_create(ctrldev, chinfo);
 };
 
 static const struct file_operations rpmsg_ctrldev_fops = {
@@ -532,7 +528,7 @@ static void rpmsg_chrdev_remove(struct rpmsg_device *rpdev)
 	int ret;
 
 	/* Destroy all endpoints */
-	ret = device_for_each_child(&ctrldev->dev, NULL, rpmsg_chrdev_eptdev_destroy);
+	ret = device_for_each_child(&ctrldev->dev, NULL, rpmsg_eptdev_destroy);
 	if (ret)
 		dev_warn(&rpdev->dev, "failed to nuke endpoints: %d\n", ret);
 
