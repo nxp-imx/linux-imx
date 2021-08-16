@@ -15,6 +15,15 @@ config RPMSG_CHAR
 	  in /dev. They make it possible for user-space programs to send and
 	  receive rpmsg packets.
 
+config RPMSG_RAW
+	tristate "RPMSG raw device interface"
+	depends on RPMSG
+	depends on NET
+	help
+	  Say Y here to export rpmsg endpoints as device files, usually found
+	  in /dev. They make it possible for user-space programs to send and
+	  receive rpmsg packets.
+
 config RPMSG_MTK_SCP
 	tristate "MediaTek SCP"
 	depends on MTK_SCP
