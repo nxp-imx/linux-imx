@@ -45,8 +45,6 @@ static DEFINE_IDA(rpmsg_minor_ida);
  * @queue_lock:	synchronization of @queue operations
  * @queue:	incoming message queue
  * @readq:	wait object for incoming queue
- * @static_ept: specify if the endpoint has to be created at each device opening or
- *              if the default endpoint should be used.
  */
 struct rpmsg_eptdev {
 	struct device dev;
@@ -61,8 +59,6 @@ struct rpmsg_eptdev {
 	spinlock_t queue_lock;
 	struct sk_buff_head queue;
 	wait_queue_head_t readq;
-
-	bool static_ept;
 };
 
 int rpmsg_chrdev_eptdev_destroy(struct device *dev, void *data)
@@ -120,15 +116,7 @@ static int rpmsg_eptdev_open(struct inode *inode, struct file *filp)
 
 	get_device(dev);
 
-	/*
-	 * If the static_ept is set to true, the rpmsg device default endpoint is used.
-	 * Else a new endpoint is created on open that will be destroyed on release.
-	 */
-	if (eptdev->static_ept)
-		ept = rpdev->ept;
-	else
-		ept = rpmsg_create_ept(rpdev, rpmsg_ept_cb, eptdev, eptdev->chinfo);
-
+	ept = rpmsg_create_ept(rpdev, rpmsg_ept_cb, eptdev, eptdev->chinfo);
 	if (!ept) {
 		dev_err(dev, "failed to open %s\n", eptdev->chinfo.name);
 		put_device(dev);
@@ -149,8 +137,7 @@ static int rpmsg_eptdev_release(struct inode *inode, struct file *filp)
 	/* Close the endpoint, if it's not already destroyed by the parent */
 	mutex_lock(&eptdev->ept_lock);
 	if (eptdev->ept) {
-		if (!eptdev->static_ept)
-			rpmsg_destroy_ept(eptdev->ept);
+		rpmsg_destroy_ept(eptdev->ept);
 		eptdev->ept = NULL;
 	}
 	mutex_unlock(&eptdev->ept_lock);
@@ -276,10 +263,6 @@ static long rpmsg_eptdev_ioctl(struct file *fp, unsigned int cmd,
 
 	if (cmd != RPMSG_DESTROY_EPT_IOCTL)
 		return -EINVAL;
-
-	/* Don't allow to destroy a default endpoint. */
-	if (!eptdev->rpdev || eptdev->ept == eptdev->rpdev->ept)
-		return -EPERM;
 
 	return rpmsg_chrdev_eptdev_destroy(&eptdev->dev, NULL);
 }
