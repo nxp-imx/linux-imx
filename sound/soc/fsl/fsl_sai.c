@@ -1328,10 +1328,10 @@ static int fsl_sai_probe(struct platform_device *pdev)
 
 	if (sai->soc_data->reg_offset == 8) {
 		fsl_sai_regmap_config.reg_defaults = fsl_sai_reg_defaults_ofs8;
+		fsl_sai_regmap_config.max_register = FSL_SAI_MDIV;
 		fsl_sai_regmap_config.num_reg_defaults =
 			ARRAY_SIZE(fsl_sai_reg_defaults_ofs8);
 	}
-	fsl_sai_regmap_config.max_register = sai->soc_data->max_register;
 
 	sai->regmap = devm_regmap_init_mmio_clk(&pdev->dev,
 			NULL, base, &fsl_sai_regmap_config);

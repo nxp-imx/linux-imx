@@ -5883,22 +5883,12 @@ static void mxc_epdc_fb_shutdown(struct platform_device *pdev)
 {
 	struct mxc_epdc_fb_data *fb_data = platform_get_drvdata(pdev);
 
-	/* Disable power to the EPD panel */
-	if (regulator_is_enabled(fb_data->vcom_regulator))
-		regulator_disable(fb_data->vcom_regulator);
-	if (regulator_is_enabled(fb_data->display_regulator))
-		regulator_disable(fb_data->display_regulator);
-
 	/* Disable clocks to EPDC */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_SET);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
-
-	/* turn off the V3p3 */
-	if (regulator_is_enabled(fb_data->v3p3_regulator))
-		regulator_disable(fb_data->v3p3_regulator);
 }
 
 static struct platform_driver mxc_epdc_fb_driver = {

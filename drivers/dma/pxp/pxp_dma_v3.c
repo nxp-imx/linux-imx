@@ -4272,12 +4272,6 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	spin_unlock(&pxp_chan->lock);
 
 	pxp_clk_enable(pxp);
-
-	pxp_soft_reset(pxp);
-	if (pxp->devdata && pxp->devdata->pxp_data_path_config)
-		pxp->devdata->pxp_data_path_config(pxp);
-	__raw_writel(0xffff, pxp->base + HW_PXP_IRQ_MASK);
-
 	wake_up_interruptible(&pxp->thread_waitq);
 }
 
@@ -6409,6 +6403,9 @@ static void pxp_lut_cleanup_multiple(struct pxps *pxp, u64 lut, bool set)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
+
+	if (of_machine_is_compatible("fsl,imx8ulp"))
+		return;
 
 	if (proc_data->lut_cleanup == 1) {
 		if (set) {

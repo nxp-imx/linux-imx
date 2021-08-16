@@ -4535,9 +4535,8 @@ static int dpaa2_eth_remove(struct fsl_mc_device *ls_dev)
 #ifdef CONFIG_DEBUG_FS
 	dpaa2_dbg_remove(priv);
 #endif
-	dpaa2_eth_disconnect_mac(priv);
-
 	unregister_netdev(net_dev);
+	dpaa2_eth_disconnect_mac(priv);
 
 	dpaa2_eth_dl_port_del(priv);
 	dpaa2_eth_dl_traps_unregister(priv);

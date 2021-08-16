@@ -117,19 +117,35 @@ int sof_compr_open(struct snd_soc_component *component,
 int sof_compr_free(struct snd_soc_component *component,
 		   struct snd_compr_stream *cstream)
 {
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
 	struct snd_compr_runtime *runtime = cstream->runtime;
 	struct sof_compr_stream *sstream = runtime->private_data;
+	struct sof_ipc_stream stream;
+	struct sof_ipc_reply reply;
 	struct snd_sof_pcm *spcm;
+	int ret = 0;
 
 	spcm = snd_sof_find_spcm_dai(component, rtd);
 	if (!spcm)
 		return -EINVAL;
 
+	stream.hdr.size = sizeof(stream);
+	stream.hdr.cmd = SOF_IPC_GLB_STREAM_MSG | SOF_IPC_STREAM_PCM_FREE;
+	stream.comp_id = spcm->stream[cstream->direction].comp_id;
+
+	if (spcm->prepared[cstream->direction]) {
+		ret = sof_ipc_tx_message(sdev->ipc, stream.hdr.cmd,
+					 &stream, sizeof(stream),
+					 &reply, sizeof(reply));
+		if (!ret)
+			spcm->prepared[cstream->direction] = false;
+	}
+
 	cancel_work_sync(&spcm->stream[cstream->direction].period_elapsed_work);
 	kfree(sstream);
 
-	return 0;
+	return ret;
 }
 
 int sof_compr_set_params(struct snd_soc_component *component,

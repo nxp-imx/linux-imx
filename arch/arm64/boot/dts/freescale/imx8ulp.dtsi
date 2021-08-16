@@ -1134,9 +1134,9 @@
 					 <&pcc5 IMX8ULP_CLK_EPDC>,
 					 <&cgc2 IMX8ULP_CLK_LPAV_AHB_DIV>;
 				clock-names = "epdc_axi", "epdc_pix", "epdc_ahb";
-				assigned-clocks = <&pcc5 IMX8ULP_CLK_EPDC>, <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV1>;
-				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV1>;
-				assigned-clock-rates = <0>, <58666667>;
+				assigned-clocks = <&pcc5 IMX8ULP_CLK_EPDC>, <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV2>;
+				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV2>;
+				assigned-clock-rates = <0>, <40000000>;
 				interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
@@ -1148,7 +1148,6 @@
 					 <&pcc5 IMX8ULP_CLK_PXP>;
 				clock-names = "pxp_ipg", "pxp_axi";
 				interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
-				power-domains = <&scmi_devpd IMX8ULP_PD_PXP>;
 				status = "disabled";
 			};
 		};
