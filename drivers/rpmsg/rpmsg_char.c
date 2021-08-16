@@ -25,8 +25,6 @@
 
 #include "rpmsg_char.h"
 
-#define RPMSG_CHAR_DEVNAME "rpmsg-raw"
-
 static dev_t rpmsg_major;
 static struct class *rpmsg_class;
 
@@ -423,61 +421,6 @@ int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent
 }
 EXPORT_SYMBOL(rpmsg_chrdev_eptdev_create);
 
-static int rpmsg_chrdev_probe(struct rpmsg_device *rpdev)
-{
-	struct rpmsg_channel_info chinfo;
-	struct rpmsg_eptdev *eptdev;
-	struct rpmsg_endpoint *ept;
-
-	memcpy(chinfo.name, RPMSG_CHAR_DEVNAME, sizeof(RPMSG_CHAR_DEVNAME));
-	chinfo.src = rpdev->src;
-	chinfo.dst = rpdev->dst;
-
-	eptdev =  __rpmsg_chrdev_eptdev_create(rpdev, &rpdev->dev, chinfo);
-	if (IS_ERR(eptdev))
-		return PTR_ERR(eptdev);
-
-	/*
-	 * Create the default endpoint associated to the rpmsg device and provide rpmsg_eptdev
-	 * structure as callback private data.
-	 */
-	ept = rpmsg_create_default_ept(rpdev, rpmsg_ept_cb, eptdev, eptdev->chinfo);
-	if (!ept) {
-		dev_err(&rpdev->dev, "failed to create %s\n", eptdev->chinfo.name);
-		put_device(&eptdev->dev);
-		return -EINVAL;
-	}
-
-	/*
-	 * Do not allow the creation and release of an endpoint on /dev/rpmsgX open and close,
-	 * reuse the default endpoint instead
-	 */
-	eptdev->static_ept = true;
-
-	return 0;
-}
-
-static void rpmsg_chrdev_remove(struct rpmsg_device *rpdev)
-{
-	int ret;
-
-	ret = device_for_each_child(&rpdev->dev, NULL, rpmsg_chrdev_eptdev_destroy);
-	if (ret)
-		dev_warn(&rpdev->dev, "failed to destroy endpoints: %d\n", ret);
-}
-
-static struct rpmsg_device_id rpmsg_chrdev_id_table[] = {
-	{ .name	= RPMSG_CHAR_DEVNAME },
-	{ },
-};
-
-static struct rpmsg_driver rpmsg_chrdev_driver = {
-	.probe = rpmsg_chrdev_probe,
-	.remove = rpmsg_chrdev_remove,
-	.id_table = rpmsg_chrdev_id_table,
-	.drv.name = "rpmsg_chrdev",
-};
-
 static int rpmsg_chrdev_init(void)
 {
 	int ret;
@@ -491,30 +434,16 @@ static int rpmsg_chrdev_init(void)
 	rpmsg_class = class_create(THIS_MODULE, "rpmsg");
 	if (IS_ERR(rpmsg_class)) {
 		pr_err("failed to create rpmsg class\n");
-		ret = PTR_ERR(rpmsg_class);
-		goto free_region;
-	}
-
-	ret = register_rpmsg_driver(&rpmsg_chrdev_driver);
-	if (ret < 0) {
-		pr_err("rpmsg: failed to register rpmsg raw driver\n");
-		goto free_class;
+		unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
+		return PTR_ERR(rpmsg_class);
 	}
 
 	return 0;
-
-free_class:
-	class_destroy(rpmsg_class);
-free_region:
-	unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
-
-	return ret;
 }
 postcore_initcall(rpmsg_chrdev_init);
 
 static void rpmsg_chrdev_exit(void)
 {
-	unregister_rpmsg_driver(&rpmsg_chrdev_driver);
 	class_destroy(rpmsg_class);
 	unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
 }
