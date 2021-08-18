@@ -849,21 +849,6 @@ static const struct file_operations dsp_fops = {
 	.release	= fsl_dsp_close,
 };
 
-extern struct snd_compress_ops dsp_platform_compr_lpa_ops;
-
-static const struct snd_soc_component_driver dsp_soc_platform_lpa_drv  = {
-	.name		= FSL_DSP_COMP_NAME,
-	.compress_ops      = &dsp_platform_compr_lpa_ops,
-};
-
-extern struct snd_compress_ops dsp_platform_compress_ops;
-
-static const struct snd_soc_component_driver dsp_soc_platform_drv  = {
-	.name		= FSL_DSP_COMP_NAME,
-	.compress_ops	= &dsp_platform_compress_ops
-};
-
-
 int fsl_dsp_configure_audmix(struct fsl_dsp *dsp_priv) {
 	struct device_node *np;
 	struct platform_device *pdev;
@@ -1295,20 +1280,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	/* ...initialize mutex */
 	mutex_init(&dsp_priv->dsp_mutex);
 
-	if (dsp_priv->dsp_is_lpa) {
-		ret = devm_snd_soc_register_component(&pdev->dev, &dsp_soc_platform_lpa_drv, NULL, 0);
-		if (ret) {
-			dev_err(&pdev->dev, "registering soc platform failed\n");
-			goto register_component_fail;
-		}
-	} else {
-		ret = devm_snd_soc_register_component(&pdev->dev, &dsp_soc_platform_drv, NULL, 0);
-		if (ret) {
-			dev_err(&pdev->dev, "registering soc platform failed\n");
-			goto register_component_fail;
-		}
-	}
-
 	dsp_priv->esai_ipg_clk = devm_clk_get(&pdev->dev, "esai_ipg");
 	if (IS_ERR(dsp_priv->esai_ipg_clk))
 		dsp_priv->esai_ipg_clk = NULL;
@@ -1392,7 +1363,6 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 
 	return 0;
 
-register_component_fail:
 alloc_coherent_fail:
 	if (dsp_priv->sdram_vir_addr)
 		iounmap(dsp_priv->sdram_vir_addr);
