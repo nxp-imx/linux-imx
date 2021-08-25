@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0+
-// Copyright 2020 NXP Semiconductors.
+// Copyright 2020 NXP
 
 #include <linux/clk.h>
 #include <linux/module.h>
