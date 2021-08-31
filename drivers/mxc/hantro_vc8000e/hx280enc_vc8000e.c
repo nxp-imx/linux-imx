@@ -55,6 +55,10 @@
 #include <linux/compat.h>
 #include <linux/of.h>
 
+/* head file related to smc */
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/of_platform.h>
 /* our own stuff */
 #include "hx280enc.h"
 
@@ -64,6 +68,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #define DEVICE_NAME		"mxc_hantro_vc8000e"
+static struct device *trusty_dev;
 static struct device *hantro_vc8000e_dev;
 static struct clk *hantro_clk_vc8000e;
 static struct clk *hantro_clk_vc8000e_bus;
@@ -153,6 +158,53 @@ static struct class *hantro_enc_class;
 static struct device *hantro_enc_dev;
 
 /******************************************************************************/
+/*define smc intrface*/
+#define SMC_ENTITY_VPU_ENCODER 56
+#define SMC_HANTROENC_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 0)
+#define SMC_VPU_ENC_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 1)
+#define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 2)
+
+#ifndef OPT_READ
+#define OPT_READ 0x1
+#endif
+#ifndef OPT_WRITE
+#define OPT_WRITE 0x2
+#endif
+
+static u32 trusty_vpu_enc_read(hantroenc_t *dev, u32 target)
+{
+	if (trusty_dev)
+		return trusty_fast_call32(trusty_dev, SMC_VPU_ENC_REGS_OP, target, OPT_READ, 0);
+	else
+		return ioread32(dev->hwregs + target);
+	return 0;
+}
+
+static void trusty_vpu_enc_write(hantroenc_t *dev, u32 target, u32 value)
+{
+	if (trusty_dev)
+		trusty_fast_call32(trusty_dev, SMC_VPU_ENC_REGS_OP, target, OPT_WRITE, value);
+	else
+		iowrite32(value, dev->hwregs + target);
+}
+
+static u32 trusty_ctrlblk_read(u32 target, volatile u8 *iobase)
+{
+	if (trusty_dev)
+		return trusty_fast_call32(trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_READ, 0);
+	else
+		return ioread32(iobase + target);
+}
+
+static void trusty_ctrlblk_write(u32 target, u32 value, volatile u8 *iobase)
+{
+	if (trusty_dev)
+		trusty_fast_call32(trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_WRITE, value);
+	else
+		iowrite32(value, iobase + target);
+}
+
+/*********************/
 #ifndef VSI
 static int hantro_vc8000e_clk_enable(struct device *dev)
 {
@@ -188,20 +240,20 @@ static int hantro_vc8000e_ctrlblk_reset(struct device *dev)
 	hantro_vc8000e_clk_enable(dev);
 	iobase = ioremap(BLK_CTL_BASE, 0x10000);
 
-	val = ioread32(iobase);
+	val = trusty_ctrlblk_read(0, iobase);
 	val &= (~0x4);
-	iowrite32(val, iobase); // assert soft reset
+	trusty_ctrlblk_write(0, val, iobase); // assert soft reset
 	udelay(2);
 
-	val = ioread32(iobase);
+	val = trusty_ctrlblk_read(0, iobase);
 	val |= 0x4;
-	iowrite32(val, iobase); // release soft reset
+	trusty_ctrlblk_write(0, val, iobase); // release soft reset
 
-	val = ioread32(iobase+0x4);
+	val = trusty_ctrlblk_read(0x4, iobase);
 	val |= 0x4;
-	iowrite32(val, iobase + 0x4); // enable clock
+	trusty_ctrlblk_write(0x4, val, iobase); // enable clock
 
-	iowrite32(0xFFFFFFFF, iobase + 0x14); // fuse encoder enable
+	trusty_ctrlblk_write(0x14, 0xFFFFFFFF, iobase); // fuse encoder enable
 	iounmap(iobase);
 	hantro_vc8000e_clk_disable(dev);
 	return 0;
@@ -427,7 +479,7 @@ static int hantroenc_write_regs(struct enc_regs_buffer *regs)
 		return ret;
 
 	for (i = 0; i < regs->size / 4; i++)
-		iowrite32(reg_buf[i], (dev->hwregs + regs->offset) + i * 4);
+		trusty_vpu_enc_write(dev, regs->offset + i * 4, reg_buf[i]);
 
 	return ret;
 }
@@ -454,7 +506,7 @@ static int hantroenc_read_regs(struct enc_regs_buffer *regs)
 	reg_buf = &dev->reg_buf[regs->offset / 4];
 
 	for (i = 0; i < regs->size / 4; i++)
-		reg_buf[i] = ioread32((dev->hwregs + regs->offset) + i * 4);
+		reg_buf[i] = trusty_vpu_enc_read(dev, regs->offset + i * 4);
 
 	ret = copy_to_user((void __user *)regs->regs, reg_buf, regs->size);
 
@@ -575,11 +627,9 @@ static long hantroenc_ioctl(struct file *filp,
 
 		if (down_interruptible(&hantroenc_data[core_id].core_suspend_sem))
 			return -ERESTARTSYS;
-
-		reg_value = (u32)ioread32(hantroenc_data[core_id].hwregs + 0x14);
+		reg_value = (u32)trusty_vpu_enc_read(&hantroenc_data[core_id], 0x14);
 		reg_value |= 0x01;
-		iowrite32(reg_value, hantroenc_data[core_id].hwregs + 0x14);
-
+		trusty_vpu_enc_write(&hantroenc_data[core_id], 0x14, reg_value);
 		break;
 	}
 
@@ -814,7 +864,7 @@ static int hantro_enc_suspend(struct device *dev, pm_message_t state)
 		if (hantroenc_data[i].irq_status & 0x04) {
 			reg_buf = hantroenc_data[i].reg_buf;
 			for (j = 0; j < hantroenc_data[i].core_cfg.iosize; j += 4)
-				reg_buf[j / 4] = ioread32(hantroenc_data[i].hwregs + j);
+				reg_buf[j/4] = trusty_vpu_enc_read(&hantroenc_data[i], j);
 		}
 
 		up(&hantroenc_data[i].core_suspend_sem);
@@ -838,7 +888,7 @@ static int hantro_enc_resume(struct device *dev)
 
 		if (hantroenc_data[i].irq_status & 0x04) {
 			for (j = 0; j < hantroenc_data[i].core_cfg.iosize; j += 4)
-				iowrite32(reg_buf[j / 4], hantroenc_data[i].hwregs + j);
+				trusty_vpu_enc_write(&hantroenc_data[i], j, reg_buf[j/4]);
 			hantroenc_data[i].reg_corrupt = 0;
 		}
 	}
@@ -963,9 +1013,8 @@ static void __exit hantroenc_cleanup(void)
 	for (i = 0; i < total_core_num; i++) {
 		if (hantroenc_data[i].is_valid == 0)
 			continue;
-		writel(0, hantroenc_data[i].hwregs + 0x14); /* disable HW */
-		writel(0, hantroenc_data[i].hwregs + 0x04); /* clear enc IRQ */
-
+		trusty_vpu_enc_write(&hantroenc_data[i], 0x14, 0);
+		trusty_vpu_enc_write(&hantroenc_data[i], 0x04, 0);
 		/* free the encoder IRQ */
 		if (hantroenc_data[i].core_cfg.irq != -1)
 			free_irq(hantroenc_data[i].core_cfg.irq, (void *)&hantroenc_data[i]);
@@ -1011,7 +1060,7 @@ static int ReserveIO(void)
 		}
 
 		/*read hwid and check validness and store it*/
-		hwid = (u32)ioread32(hantroenc_data[i].hwregs);
+		hwid = (u32)trusty_vpu_enc_read(&hantroenc_data[i], 0);
 		PDEBUG("hwid=0x%08x\n", hwid);
 
 		/* check for encoder HW ID */
@@ -1075,7 +1124,7 @@ static irqreturn_t hantroenc_isr(int irq, void *dev_id)
 		u32 wClr;
 
 		pr_err("hantroenc_isr:received IRQ but core is not reserved!\n");
-		irq_status = (u32)ioread32(dev->hwregs + 0x04);
+		irq_status = (u32)trusty_vpu_enc_read(dev, 0x04);
 		if (irq_status & 0x01) {
 			/*  Disable HW when buffer over-flow happen
 			*  HW behavior changed in over-flow
@@ -1083,20 +1132,20 @@ static irqreturn_t hantroenc_isr(int irq, void *dev_id)
 			*    new version:  ask SW cleanup HWIF_ENC_E when buffer over-flow
 			*/
 			if (irq_status & 0x20)
-				iowrite32(0, dev->hwregs + 0x14);
+				trusty_vpu_enc_write(dev, 0x14, 0);
 
 			/* clear all IRQ bits. (hwId >= 0x80006100) means IRQ is cleared by writting 1 */
-			hwId = ioread32(dev->hwregs);
+			hwId = trusty_vpu_enc_read(dev, 0);
 			majorId = (hwId & 0x0000FF00) >> 8;
 			wClr = (majorId >= 0x61) ? irq_status : (irq_status & (~0x1FD));
-			iowrite32(wClr, dev->hwregs + 0x04);
+			trusty_vpu_enc_write(dev, 0x04, wClr);
 		}
 		spin_unlock_irqrestore(&owner_lock, flags);
 		return IRQ_HANDLED;
 	}
 	spin_unlock_irqrestore(&owner_lock, flags);
 
-	irq_status = (u32)ioread32(dev->hwregs + 0x04);
+	irq_status = (u32)trusty_vpu_enc_read(dev, 0x04);
 	if (irq_status & 0x01) {
 		u32 hwId;
 		u32 majorId;
@@ -1107,13 +1156,13 @@ static irqreturn_t hantroenc_isr(int irq, void *dev_id)
 		*    new version:  ask SW cleanup HWIF_ENC_E when buffer over-flow
 		*/
 		if (irq_status & 0x20)
-			iowrite32(0, dev->hwregs + 0x14);
+			trusty_vpu_enc_write(dev, 0x14, 0);
 
 		/* clear all IRQ bits. (hwId >= 0x80006100) means IRQ is cleared by writting 1 */
-		hwId = ioread32(dev->hwregs);
+		hwId = trusty_vpu_enc_read(dev, 0);
 		majorId = (hwId & 0x0000FF00) >> 8;
 		wClr = (majorId >= 0x61) ? irq_status : (irq_status & (~0x1FD));
-		iowrite32(wClr, dev->hwregs + 0x04);
+		trusty_vpu_enc_write(dev, 0x04, wClr);
 
 		spin_lock_irqsave(&owner_lock, flags);
 		dev->irq_received = 1;
@@ -1139,9 +1188,9 @@ static void ResetAsic(hantroenc_t *dev)
 	for (n = 0; n < total_core_num; n++) {
 		if (dev[n].is_valid == 0)
 			continue;
-		iowrite32(0, dev[n].hwregs + 0x14);
+		trusty_vpu_enc_write(dev, 0x14, 0);
 		for (i = 4; i < dev[n].core_cfg.iosize; i += 4)
-			iowrite32(0, dev[n].hwregs + i);
+			trusty_vpu_enc_write(dev, i, 0);
 	}
 }
 
@@ -1153,7 +1202,7 @@ static void dump_regs(unsigned long data)
 
 	PDEBUG("Reg Dump Start\n");
 	for (i = 0; i < dev->iosize; i += 4) {
-		PDEBUG("\toffset %02X = %08X\n", i, ioread32(dev->hwregs + i));
+		PDEBUG("\toffset %02X = %08X\n", i, trusty_vpu_enc_read(dev, i));
 	}
 	PDEBUG("Reg Dump End\n");
 }
@@ -1172,6 +1221,23 @@ static int hantro_vc8000e_probe(struct platform_device *pdev)
 		pr_err("hantro vc8000e: unable to get vpu base addr\n");
 		return -ENODEV;
 	}
+	/* init trusty_dev */
+	trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+	if (trusty_dev) {
+		int ret = trusty_fast_call32(trusty_dev, SMC_HANTROENC_PROBE,
+				0, 0, 0);
+
+		if (ret < 0) {
+			pr_err("hantro_enc driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
+					SMC_HANTROENC_PROBE, ret);
+			trusty_dev = NULL;
+		} else {
+			pr_err("trusty vpu driver probe ok, use trusty mode.\n");
+		}
+	} else {
+		dev_err(&pdev->dev, "hantro_enc: failed to find trusty node. Use normal mode.\n");
+	}
+	/* init trusty_dev end */
 
 	core_array[0].base_addr = res->start;
 	core_array[0].irq = platform_get_irq_byname(pdev, "irq_hantro_vc8000e");
