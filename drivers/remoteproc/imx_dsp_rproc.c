@@ -846,8 +846,7 @@ static int imx_dsp_attach_pm_domains(struct imx_dsp_rproc *priv)
 		priv->pd_dev_link[i] = device_link_add(dev,
 						       priv->pd_dev[i],
 						       DL_FLAG_STATELESS |
-						       DL_FLAG_PM_RUNTIME |
-						       DL_FLAG_RPM_ACTIVE);
+						       DL_FLAG_PM_RUNTIME);
 		if (IS_ERR(priv->pd_dev_link[i])) {
 			dev_pm_domain_detach(priv->pd_dev[i], false);
 			ret = PTR_ERR(priv->pd_dev_link[i]);
