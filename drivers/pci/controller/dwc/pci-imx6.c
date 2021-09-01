@@ -1193,7 +1193,6 @@ static void imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 		msleep(20);
 		gpio_set_value_cansleep(imx6_pcie->reset_gpio,
 					!imx6_pcie->gpio_active_high);
-		msleep(100);
 	}
 
 	switch (imx6_pcie->drvdata->variant) {
@@ -1246,6 +1245,7 @@ static void imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 		break;
 	case IMX8MP:
 	case IMX8MP_EP:
+		msleep(20);
 		reset_control_deassert(imx6_pcie->pciephy_reset);
 		reset_control_deassert(imx6_pcie->pciephy_perst);
 
@@ -1924,6 +1924,7 @@ static int imx6_pcie_host_init(struct pcie_port *pp)
 	pci_imx_set_msi_en(pp);
 	if (imx6_pcie_establish_link(imx6_pcie))
 		return -ENODEV;
+	msleep(100);
 	dw_pcie_msi_init(pp);
 
 	return 0;
