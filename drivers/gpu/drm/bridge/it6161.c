@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
+#include <linux/extcon-provider.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
@@ -93,6 +94,14 @@
 #define HDMI_TX_PCLK_DIV2			FALSE
 
 #define HDMI_TX_MODE				HDMI_TX_ENABLE_DE_ONLY
+
+#ifdef CONFIG_EXTCON
+static const unsigned int it6161_hdmi_extcon_cables[] = {
+	EXTCON_DISP_HDMI,
+	EXTCON_NONE,
+};
+struct extcon_dev *it6161_hdmi_edev;
+#endif
 
 enum hdmi_tx_mode {
 	HDMI_TX_NONE,
@@ -1094,6 +1103,13 @@ static enum drm_connector_status it6161_detect(struct drm_connector *connector, 
 	if (hpd) {
 		it6161_variable_config(it6161);
 		status = connector_status_connected;
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(it6161_hdmi_edev, EXTCON_DISP_HDMI, 1);
+#endif
+	} else {
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(it6161_hdmi_edev, EXTCON_DISP_HDMI, 0);
+#endif
 	}
 	DRM_DEV_INFO(dev, "hpd:%s\n", hpd ? "high" : "low");
 
@@ -1288,6 +1304,13 @@ static enum drm_connector_status it6161_bridge_detect(struct drm_bridge *bridge)
 	if (hpd) {
 		it6161_variable_config(it6161);
 		status = connector_status_connected;
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(it6161_hdmi_edev, EXTCON_DISP_HDMI, 1);
+#endif
+	} else {
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(it6161_hdmi_edev, EXTCON_DISP_HDMI, 0);
+#endif
 	}
 
 	it6161_set_interrupts_active_level(HIGH);
@@ -2831,6 +2854,19 @@ static int it6161_i2c_probe(struct i2c_client *i2c_mipi_rx,
 		DRM_DEV_ERROR(dev, "it6112 failed to request INTP threaded IRQ: %d", err);
 		return err;
 	}
+
+#ifdef CONFIG_EXTCON
+	it6161_hdmi_edev = devm_extcon_dev_allocate(dev, it6161_hdmi_extcon_cables);
+	if (IS_ERR(it6161_hdmi_edev)) {
+		dev_err(dev, "failed to allocate extcon device\n");
+		goto out;
+	}
+	if (devm_extcon_dev_register(dev,it6161_hdmi_edev) < 0) {
+		dev_err(dev, "failed to register extcon device\n");
+		goto out;
+	}
+out:
+#endif
 
 	i2c_set_clientdata(i2c_mipi_rx, it6161);
 	it6161->bridge.funcs = &it6161_bridge_funcs;
