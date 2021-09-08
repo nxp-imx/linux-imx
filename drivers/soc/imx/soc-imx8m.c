@@ -176,7 +176,7 @@ static __maybe_unused const struct of_device_id imx8_soc_match[] = {
 	kasprintf(GFP_KERNEL, "%d.%d", (soc_rev >> 4) & 0xf,  soc_rev & 0xf) : \
 	"unknown"
 
-static void __init imx8mq_noc_init(void)
+static void imx8mq_noc_init(void)
 {
 	struct arm_smccc_res res;
 
