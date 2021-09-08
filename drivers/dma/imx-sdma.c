@@ -1631,6 +1631,9 @@ static int sdma_runtime_resume(struct device *dev)
 		if (!sdma->bd0)
 			ret = -ENOMEM;
 
+		sdma->channel_control[0].base_bd_ptr = sdma->bd0_phys;
+		sdma->channel_control[0].current_bd_ptr = sdma->bd0_phys;
+
 		sdma->is_on = true;
 		sdma->fw_loaded = true;
 
