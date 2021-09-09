@@ -184,12 +184,6 @@ static inline bool qdisc_run_begin(struct Qdisc *qdisc)
 		 */
 		smp_mb__before_atomic();
 
-		/* Paired with smp_mb__after_atomic() to make sure
-		 * STATE_MISSED checking is synchronized with clearing
-		 * in pfifo_fast_dequeue().
-		 */
-		smp_mb__before_atomic();
-
 		/* If the MISSED flag is set, it means other thread has
 		 * set the MISSED flag before second spin_trylock(), so
 		 * we can return false here to avoid multi cpus doing
