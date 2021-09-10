@@ -2598,7 +2598,9 @@ static void it6161_hdmi_tx_interrupt_reg06_process(struct it6161 *it6161, u8 reg
 	struct device *dev = &it6161->i2c_hdmi_tx->dev;
 
 	if (reg06 & B_TX_INT_HPD_PLUG) {
-		drm_helper_hpd_irq_event(it6161->bridge.dev);
+		if (it6161->bridge.dev)
+			drm_helper_hpd_irq_event(it6161->bridge.dev);
+
 		if (hdmi_tx_get_sink_hpd(it6161)) {
 			DRM_DEV_INFO(dev, "HDMI Cable Plug In\n");
 			hdmi_tx_video_reset(it6161);
