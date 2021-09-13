@@ -887,4 +887,9 @@
 			reg = <0x4c200200 0x200>;
 		};
 	};
+
+	display-subsystem {
+		compatible = "fsl,imx-display-subsystem";
+		ports = <&lcdif_disp>;
+	};
 };
