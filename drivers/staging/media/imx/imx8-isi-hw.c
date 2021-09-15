@@ -709,12 +709,7 @@ void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi, bool m2m_enabled)
 	}
 
 	dump_isi_regs(mxc_isi);
-
-	int delay_ms = 300;
-	if (mxc_isi->isi_cap && (mxc_isi->isi_cap->dst_f.width <= 640) && (mxc_isi->isi_cap->dst_f.height <= 480))
-		delay_ms = 100;
-
-	msleep(delay_ms);
+	msleep(300);
 }
 EXPORT_SYMBOL_GPL(mxc_isi_channel_enable);
 
