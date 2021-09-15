@@ -340,6 +340,8 @@ struct mxc_isi_cap_dev {
 	size_t     discard_size[MXC_MAX_PLANES];
 	void       *discard_buffer[MXC_MAX_PLANES];
 	dma_addr_t discard_buffer_dma[MXC_MAX_PLANES];
+
+	bool set_power_in_open_close;
 };
 
 struct mxc_isi_dev {
