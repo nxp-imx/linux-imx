@@ -373,63 +373,20 @@ static int imx8qm_ipg_clk_enable(struct imx_mhdp_device *imx_mhdp)
 	return ret;
 }
 
-static int imx8qm_ipg_clk_disable(struct imx_mhdp_device *imx_mhdp)
+static void imx8qm_ipg_clk_disable(struct imx_mhdp_device *imx_mhdp)
 {
-	int ret;
 	struct imx_hdp_clks *clks = &imx_mhdp->clks;
-	struct device *dev = imx_mhdp->mhdp.dev;
 
-	ret = clk_prepare_enable(clks->clk_i2s_bypass);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk i2s bypass error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_i2s);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk i2s error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_apb_ctrl);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk apb ctrl error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_apb_csr);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk apb csr error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_msi);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk msierror\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_lis);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk lis error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->lpcg_apb);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk apb error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->clk_core);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk core error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->clk_ipg);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre clk_ipg error\n", __func__);
-		return ret;
-	}
-	ret = clk_prepare_enable(clks->dig_pll);
-	if (ret < 0) {
-		dev_err(dev, "%s, pre dig pll error\n", __func__);
-		return ret;
-	}
-	return ret;
+	clk_disable_unprepare(clks->clk_i2s_bypass);
+	clk_disable_unprepare(clks->lpcg_i2s);
+	clk_disable_unprepare(clks->lpcg_apb_ctrl);
+	clk_disable_unprepare(clks->lpcg_apb_csr);
+	clk_disable_unprepare(clks->lpcg_msi);
+	clk_disable_unprepare(clks->lpcg_lis);
+	clk_disable_unprepare(clks->lpcg_apb);
+	clk_disable_unprepare(clks->clk_core);
+	clk_disable_unprepare(clks->clk_ipg);
+	clk_disable_unprepare(clks->dig_pll);
 }
 
 static void imx8qm_ipg_clk_set_rate(struct imx_mhdp_device *imx_mhdp)
