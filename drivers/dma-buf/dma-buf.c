@@ -390,6 +390,11 @@ out_unlock:
 	return ret;
 }
 
+static void dma_buf_ioc_phy_release(struct device *dev)
+{
+	return;
+}
+
 static long dma_buf_ioctl(struct file *file,
 			  unsigned int cmd, unsigned long arg)
 {
@@ -416,11 +421,18 @@ static long dma_buf_ioctl(struct file *file,
 		dev.coherent_dma_mask = DMA_BIT_MASK(64);
 		dev.dma_mask = &dev.coherent_dma_mask;
 		dev.parent = NULL;
+		dev.release = dma_buf_ioc_phy_release;
 		dev_set_name(&dev, "dma_phy");
-		device_add(&dev);
+		ret  = device_add(&dev);
+		if (ret < 0) {
+			put_device(&dev);
+			return ret;
+		}
 		arch_setup_dma_ops(&dev, 0, 0, NULL, false);
 		attachment = dma_buf_attach(dmabuf, &dev);
 		if (!attachment || IS_ERR(attachment)) {
+			device_del(&dev);
+			put_device(&dev);
 			mutex_unlock(&dev_lock);
 			return -EFAULT;
 		}
@@ -433,6 +445,7 @@ static long dma_buf_ioctl(struct file *file,
 		}
 		dma_buf_detach(dmabuf, attachment);
 		device_del(&dev);
+		put_device(&dev);
 		mutex_unlock(&dev_lock);
 		if (copy_to_user((void __user *) arg, &phys, sizeof(phys)))
 			return -EFAULT;
