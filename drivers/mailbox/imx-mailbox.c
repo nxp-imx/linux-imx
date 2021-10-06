@@ -377,7 +377,7 @@ static irqreturn_t imx_mu_isr(int irq, void *p)
 	}
 
 	if (priv->suspend)
-		pm_system_wakeup();
+		pm_system_irq_wakeup(priv->irq);
 
 	return IRQ_HANDLED;
 }
