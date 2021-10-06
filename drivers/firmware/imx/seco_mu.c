@@ -91,8 +91,6 @@
 
 #define MAX_DATA_SIZE_PER_USER  (65 * 1024)
 
-#define SC_IRQ_V2X_RESET (1<<7)
-
 /* Header of the messages exchange with the SECO */
 struct she_mu_hdr {
 	u8 ver;
@@ -1017,7 +1015,7 @@ static int imx_sc_v2x_reset_notify(struct notifier_block *nb,
 	struct seco_mu_device_ctx *dev_ctx = container_of(nb,
 					struct seco_mu_device_ctx, scu_notify);
 
-	if (!(event & SC_IRQ_V2X_RESET))
+	if (!(event & IMX_SC_IRQ_V2X_RESET))
 		return 0;
 
 	dev_ctx->v2x_reset = true;
@@ -1179,7 +1177,7 @@ static int seco_mu_probe(struct platform_device *pdev)
 	}
 
 	ret = imx_scu_irq_group_enable(IMX_SC_IRQ_GROUP_WAKE,
-					SC_IRQ_V2X_RESET, true);
+					IMX_SC_IRQ_V2X_RESET, true);
 	if (ret) {
 		dev_warn(&pdev->dev, "v2x Enable irq failed.\n");
 		return ret;
