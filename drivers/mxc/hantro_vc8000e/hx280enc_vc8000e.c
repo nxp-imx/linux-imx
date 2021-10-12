@@ -471,7 +471,7 @@ static int hantroenc_write_regs(unsigned long arg)
 	if (ret)
 		return ret;
 	if (regs.core_id >= total_core_num ||
-	    (regs.offset + regs.size) / 4 > ARRAY_SIZE(hantroenc_data[regs.core_id].reg_buf)) {
+	    (regs.offset + regs.size) > sizeof(hantroenc_data[regs.core_id].reg_buf)) {
 		pr_err("%s invalid param, core_id:%d, offset:%d, size:%d\n",
 			__func__, regs.core_id, regs.offset, regs.size);
 		return -EINVAL;
@@ -501,7 +501,7 @@ static int hantroenc_read_regs(unsigned long arg)
 	if (ret)
 		return ret;
 	if (regs.core_id >= total_core_num ||
-	    (regs.offset + regs.size) / 4 > ARRAY_SIZE(hantroenc_data[regs.core_id].reg_buf)) {
+	    (regs.offset + regs.size) > sizeof(hantroenc_data[regs.core_id].reg_buf)) {
 		pr_err("%s invalid param, core_id:%d, offset:%d, size:%d\n",
 			__func__, regs.core_id, regs.offset, regs.size);
 		return -EINVAL;

@@ -95,52 +95,29 @@ static int vsi_dec_reqbufs(
 	return ret;
 }
 
-/*choose input source of index*/
-static int vsi_dec_s_input(struct file *file, void *priv, unsigned int index)
-{
-	v4l2_klog(LOGLVL_FLOW, "%s", __func__);
-	if (!vsi_v4l2_daemonalive())
-		return -ENODEV;
-	return 0;
-}
-
-static int vsi_dec_s_parm(struct file *filp, void *priv, struct v4l2_streamparm *parm)
+static int vsi_dec_create_bufs(struct file *filp, void *priv,
+				struct v4l2_create_buffers *create)
 {
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(filp->private_data);
-
-	v4l2_klog(LOGLVL_CONFIG, "%s:%d:%d", __func__,
-		parm->parm.output.timeperframe.numerator, parm->parm.output.timeperframe.denominator);
+	int ret;
+	struct vb2_queue *q;
 
 	if (!vsi_v4l2_daemonalive())
 		return -ENODEV;
-	if (!isvalidtype(parm->type, ctx->flag))
+	if (!isvalidtype(create->format.type, ctx->flag))
 		return -EINVAL;
 
-	if (mutex_lock_interruptible(&ctx->ctxlock))
-		return -EBUSY;
-	if (binputqueue(parm->type))
-		ctx->mediacfg.outputparam = parm->parm.output;
+	if (binputqueue(create->format.type))
+		q = &ctx->input_que;
 	else
-		ctx->mediacfg.capparam = parm->parm.capture;
-	mutex_unlock(&ctx->ctxlock);
-	return 0;
-}
+		q = &ctx->output_que;
 
-static int vsi_dec_g_parm(struct file *filp, void *priv, struct v4l2_streamparm *parm)
-{
-	struct vsi_v4l2_ctx *ctx = fh_to_ctx(filp->private_data);
+	ret = vb2_create_bufs(q, create);
 
-	v4l2_klog(LOGLVL_CONFIG, "%s:%d", __func__, parm->type);
-	if (!vsi_v4l2_daemonalive())
-		return -ENODEV;
-	if (!isvalidtype(parm->type, ctx->flag))
-		return -EINVAL;
+	v4l2_klog(LOGLVL_CONFIG, "%lx:%s:%d create for %d buffer, got %d:%d",
+		ctx->ctxid, __func__, create->format.type, create->count, q->num_buffers, ret);
 
-	if (binputqueue(parm->type))
-		parm->parm.output = ctx->mediacfg.outputparam;
-	else
-		parm->parm.capture = ctx->mediacfg.capparam;
-	return 0;
+	return ret;
 }
 
 static int vsi_dec_g_fmt(struct file *file, void *priv, struct v4l2_format *f)
@@ -161,7 +138,9 @@ static int vsi_dec_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 	int ret;
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(file->private_data);
 
-	v4l2_klog(LOGLVL_CONFIG, "%lx:%s:%d", ctx->ctxid, __func__, f->type);
+	v4l2_klog(LOGLVL_CONFIG, "%s fmt:%x, res:%dx%d\n", __func__,
+		  f->fmt.pix.pixelformat, f->fmt.pix.width,
+		  f->fmt.pix.height);
 	if (!vsi_v4l2_daemonalive())
 		return -ENODEV;
 	if (!isvalidtype(f->type, ctx->flag))
@@ -532,15 +511,11 @@ static int vsi_dec_try_fmt(struct file *file, void *prv, struct v4l2_format *f)
 {
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(file->private_data);
 
-	v4l2_klog(LOGLVL_CONFIG, "%s", __func__);
 	if (!vsi_v4l2_daemonalive())
 		return -ENODEV;
-	if (!isvalidtype(f->type, ctx->flag))
-		return -EINVAL;
 
-	if (vsi_find_format(ctx, f) == NULL)
-		return -EINVAL;
-	vsi_dec_getvui(f, &ctx->mediacfg.decparams.dec_info.dec_info);
+	vsiv4l2_verifyfmt(ctx, f);
+	vsi_dec_getvui(ctx, f);
 	return 0;
 }
 
@@ -567,26 +542,6 @@ static int vsi_dec_enum_fmt(struct file *file, void *prv, struct v4l2_fmtdesc *f
 	return 0;
 }
 
-static int vsi_dec_set_selection(struct file *file, void *prv, struct v4l2_selection *s)
-{
-	struct vsi_v4l2_ctx *ctx = fh_to_ctx(file->private_data);
-	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
-
-	//NXP has no PP, so any crop like setting won't work for decoder
-	if (!vsi_v4l2_daemonalive())
-		return -ENODEV;
-	if (mutex_lock_interruptible(&ctx->ctxlock))
-		return -EBUSY;
-	pcfg->decparams.dec_info.dec_info.visible_rect.left = s->r.left;
-	pcfg->decparams.dec_info.dec_info.visible_rect.top = s->r.top;
-	pcfg->decparams.dec_info.dec_info.visible_rect.width = s->r.width;
-	pcfg->decparams.dec_info.dec_info.visible_rect.height = s->r.height;
-	mutex_unlock(&ctx->ctxlock);
-	v4l2_klog(LOGLVL_CONFIG, "%lx:%s:%d,%d,%d,%d",
-		ctx->ctxid, __func__, s->r.left, s->r.top, s->r.width, s->r.height);
-	return 0;
-}
-
 static int vsi_dec_get_selection(struct file *file, void *prv, struct v4l2_selection *s)
 {
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(file->private_data);
@@ -594,11 +549,27 @@ static int vsi_dec_get_selection(struct file *file, void *prv, struct v4l2_selec
 
 	if (!vsi_v4l2_daemonalive())
 		return -ENODEV;
-	s->r.left = pcfg->decparams.dec_info.dec_info.visible_rect.left;
-	s->r.top = pcfg->decparams.dec_info.dec_info.visible_rect.top;
-	s->r.width = pcfg->decparams.dec_info.dec_info.visible_rect.width;
-	s->r.height = pcfg->decparams.dec_info.dec_info.visible_rect.height;
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
 
+	switch (s->target) {
+	case V4L2_SEL_TGT_COMPOSE:
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+	case V4L2_SEL_TGT_COMPOSE_PADDED:
+		s->r.left = pcfg->decparams.dec_info.dec_info.visible_rect.left;
+		s->r.top = pcfg->decparams.dec_info.dec_info.visible_rect.top;
+		s->r.width = pcfg->decparams.dec_info.dec_info.visible_rect.width;
+		s->r.height = pcfg->decparams.dec_info.dec_info.visible_rect.height;
+		break;
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+		s->r.left = 0;
+		s->r.top = 0;
+		s->r.width = pcfg->decparams.dec_info.io_buffer.output_width;
+		s->r.height = pcfg->decparams.dec_info.io_buffer.output_width;
+		break;
+	default:
+		return -EINVAL;
+	}
 	v4l2_klog(LOGLVL_CONFIG, "%lx:%s:%d,%d,%d,%d",
 		ctx->ctxid, __func__, s->r.left, s->r.top, s->r.width, s->r.height);
 
@@ -609,16 +580,21 @@ static int vsi_dec_subscribe_event(
 	struct v4l2_fh *fh,
 	const struct v4l2_event_subscription *sub)
 {
-	int ret;
-
-	if (!vsi_v4l2_daemonalive())
-		return -ENODEV;
-	if (sub->type == V4L2_EVENT_SKIP)
-		ret = v4l2_event_subscribe(fh, sub, 16, NULL);	//max dpb buffer num
-	else
-		ret = v4l2_event_subscribe(fh, sub, 0, NULL);
-	v4l2_klog(LOGLVL_CONFIG, "%s:%d", __func__, sub->type);
-	return ret;
+	switch (sub->type) {
+	case V4L2_EVENT_CTRL:
+		return v4l2_ctrl_subscribe_event(fh, sub);
+	case V4L2_EVENT_SKIP:
+		return v4l2_event_subscribe(fh, sub, 16, NULL);
+	case V4L2_EVENT_SOURCE_CHANGE:
+		return v4l2_src_change_event_subscribe(fh, sub);
+	case V4L2_EVENT_EOS:
+	case V4L2_EVENT_CODEC_ERROR:
+	case V4L2_EVENT_CROPCHANGE:
+	case V4L2_EVENT_INVALID_OPTION:
+		return v4l2_event_subscribe(fh, sub, 0, NULL);
+	default:
+		return -EINVAL;
+	}
 }
 
 static int vsi_dec_handlestop_unspec(struct vsi_v4l2_ctx *ctx)
@@ -637,11 +613,33 @@ static int vsi_dec_handlestop_unspec(struct vsi_v4l2_ctx *ctx)
 	return 0;
 }
 
+static int vsi_dec_try_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
+{
+	switch (cmd->cmd) {
+	case V4L2_ENC_CMD_STOP:
+		cmd->stop.pts = 0;
+		break;
+	case V4L2_ENC_CMD_START:
+		cmd->start.speed = 0;
+		cmd->start.format = V4L2_DEC_START_FMT_NONE;
+		break;
+	case V4L2_DEC_CMD_RESET:
+		break;
+	case V4L2_ENC_CMD_PAUSE:
+	case V4L2_ENC_CMD_RESUME:
+	default:
+		return -EINVAL;
+	}
+
+	cmd->flags = 0;
+
+	return 0;
+}
+
 int vsi_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 {
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(file->private_data);
-	//u32 flag = cmd->flags;
-	int ret = -EBUSY;
+	int ret = 0;
 
 	v4l2_klog(LOGLVL_BRIEF, "%lx:%s:%d in state %d:%d", ctx->ctxid, __func__,
 		cmd->cmd, ctx->status, vb2_is_streaming(&ctx->output_que));
@@ -670,6 +668,7 @@ int vsi_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cm
 	case V4L2_DEC_CMD_PAUSE:
 	case V4L2_DEC_CMD_RESUME:
 	default:
+		ret = -EINVAL;
 		break;
 	}
 	mutex_unlock(&ctx->ctxlock);
@@ -680,6 +679,7 @@ int vsi_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cm
 static const struct v4l2_ioctl_ops vsi_dec_ioctl = {
 	.vidioc_querycap = vsi_dec_querycap,
 	.vidioc_reqbufs             = vsi_dec_reqbufs,
+	.vidioc_create_bufs         = vsi_dec_create_bufs,
 	.vidioc_prepare_buf         = vsi_dec_prepare_buf,
 	//create_buf can be provided now since we don't know buf type in param
 	.vidioc_querybuf            = vsi_dec_querybuf,
@@ -687,9 +687,6 @@ static const struct v4l2_ioctl_ops vsi_dec_ioctl = {
 	.vidioc_dqbuf               = vsi_dec_dqbuf,
 	.vidioc_streamon        = vsi_dec_streamon,
 	.vidioc_streamoff       = vsi_dec_streamoff,
-	.vidioc_s_input             = vsi_dec_s_input,
-	.vidioc_s_parm		= vsi_dec_s_parm,
-	.vidioc_g_parm		= vsi_dec_g_parm,
 	.vidioc_g_fmt_vid_cap = vsi_dec_g_fmt,
 	//.vidioc_g_fmt_vid_cap_mplane = vsi_dec_g_fmt,
 	.vidioc_s_fmt_vid_cap = vsi_dec_s_fmt,
@@ -711,12 +708,11 @@ static const struct v4l2_ioctl_ops vsi_dec_ioctl = {
 	.vidioc_g_fmt_vid_out = vsi_dec_g_fmt,
 	//.vidioc_g_fmt_vid_out_mplane = vsi_dec_g_fmt,
 
-	.vidioc_s_selection = vsi_dec_set_selection,		//VIDIOC_S_SELECTION, VIDIOC_S_CROP
 	.vidioc_g_selection = vsi_dec_get_selection,		//VIDIOC_G_SELECTION, VIDIOC_G_CROP
 
 	.vidioc_subscribe_event = vsi_dec_subscribe_event,
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
-
+	.vidioc_try_decoder_cmd = vsi_dec_try_decoder_cmd,
 	.vidioc_decoder_cmd = vsi_dec_decoder_cmd,
 };
 
@@ -729,14 +725,16 @@ static int vsi_dec_queue_setup(
 	struct device *alloc_devs[])
 {
 	struct vsi_v4l2_ctx *ctx = fh_to_ctx(vq->drv_priv);
-	int i;
+	int i, ret;
 
-	vsiv4l2_buffer_config(ctx, vq->type, nbuffers, nplanes, sizes);
+	ret = vsiv4l2_buffer_config(ctx, vq, nbuffers, nplanes, sizes);
 	v4l2_klog(LOGLVL_CONFIG, "%lx:%s:%d,%d,%d", ctx->ctxid, __func__, *nbuffers, *nplanes, sizes[0]);
 
-	for (i = 0; i < *nplanes; i++)
-		alloc_devs[i] = ctx->dev->dev;
-	return 0;
+	if (ret == 0) {
+		for (i = 0; i < *nplanes; i++)
+			alloc_devs[i] = ctx->dev->dev;
+	}
+	return ret;
 }
 
 static void vsi_dec_buf_queue(struct vb2_buffer *vb)
@@ -1098,7 +1096,6 @@ static int v4l2_dec_open(struct file *filp)
 		goto err_enc_dec_exit;
 	}
 	vsiv4l2_initcfg(ctx);
-	vsiv4l2_initfmt(ctx);
 	vsi_dec_setup_ctrls(&ctx->ctrlhdl);
 	vfh = (struct v4l2_fh *)filp->private_data;
 	vfh->ctrl_handler = &ctx->ctrlhdl;

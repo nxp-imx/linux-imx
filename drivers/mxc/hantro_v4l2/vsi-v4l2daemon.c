@@ -543,9 +543,10 @@ int vsi_v4l2_addinstance(pid_t *ppid)
 	if (mutex_lock_interruptible(&instance_lock))
 		return -EBUSY;
 
-	if (v4l2_fn >= MAX_STREAMS)
+	if (v4l2_fn >= MAX_STREAMS) {
+		v4l2_klog(LOGLVL_WARNING, "opened instances more than max count:%d\n", v4l2_fn);
 		ret = -EBUSY;
-	else {
+	} else {
 		v4l2_fn++;
 		if (v4l2_fn == 1 && invoke_vsidaemon) {
 			ret = invoke_daemonapp();

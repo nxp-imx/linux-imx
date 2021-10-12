@@ -149,7 +149,7 @@ static int fsl_asrc_dma_hw_params(struct snd_soc_component *component,
 	u8 dir = tx ? OUT : IN;
 	dma_cap_mask_t mask;
 	int ret, width;
-	enum sdma_peripheral_type be_peripheral_type;
+	enum sdma_peripheral_type be_peripheral_type = IMX_DMATYPE_SSI;
 	struct device_node *of_dma_node;
 
 	/* Fetch the Back-End dma_data from DPCM */

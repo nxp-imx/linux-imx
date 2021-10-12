@@ -210,8 +210,9 @@
 };
 
 &fec {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_enet>;
+	pinctrl-1 = <&pinctrl_enet>;
 	assigned-clocks = <&cgc1 IMX8ULP_CLK_ENET_TS_SEL>;
 	assigned-clock-parents = <&clock_ext_ts>;
 	phy-mode = "rmii";

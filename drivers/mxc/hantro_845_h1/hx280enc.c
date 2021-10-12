@@ -383,7 +383,7 @@ static int hx280enc_write_regs(unsigned long arg)
 	ret = copy_from_user(&regs, (void *)arg, sizeof(regs));
 	if (ret)
 		return ret;
-	if ((regs.offset + regs.size) / 4 > ARRAY_SIZE(dev->mirror_regs)) {
+	if ((regs.offset + regs.size) > sizeof(dev->mirror_regs)) {
 		pr_err("%s invalid param, offset:%d, size:%d\n",
 			__func__, regs.offset, regs.size);
 		return -EINVAL;
@@ -411,7 +411,7 @@ static int hx280enc_read_regs(unsigned long arg)
 	ret = copy_from_user(&regs, (void *)arg, sizeof(regs));
 	if (ret)
 		return ret;
-	if ((regs.offset + regs.size) / 4 > ARRAY_SIZE(dev->mirror_regs)) {
+	if ((regs.offset + regs.size) > sizeof(dev->mirror_regs)) {
 		pr_err("%s invalid param, offset:%d, size:%d\n",
 			__func__, regs.offset, regs.size);
 		return -EINVAL;
@@ -554,10 +554,8 @@ static long hx280enc_ioctl32(struct file *filp, unsigned int cmd, unsigned long 
 	mm_segment_t old_fs = get_fs(); \
 	set_fs(KERNEL_DS); \
 	err = hx280enc_ioctl(filp, cmd, arg); \
-	if (err) { \
-		set_fs(old_fs); \
-		return err; \
-	} \
+	if (err) \
+	return err; \
 	set_fs(old_fs); \
 }
 
