@@ -16,6 +16,7 @@
 #define LCDC_CTRL1			0x10
 #define LCDC_V4_CTRL2			0x20
 #define LCDC_V3_TRANSFER_COUNT		0x20
+#define LCDC_V4_CTRL2			0x20
 #define LCDC_V4_TRANSFER_COUNT		0x30
 #define LCDC_V4_CUR_BUF			0x40
 #define LCDC_V4_NEXT_BUF		0x50
