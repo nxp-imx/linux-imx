@@ -490,7 +490,6 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 									i++;
 								}
 							}
-							index += index_inc;
 						}
 					}
 

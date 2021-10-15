@@ -48,6 +48,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/pm_qos.h>
 #include <linux/sizes.h>
 
@@ -1247,7 +1248,7 @@ static int nxp_fspi_need_reinit(struct nxp_fspi *f)
 }
 
 
-int nxp_fspi_runtime_suspend(struct device *dev)
+static int nxp_fspi_runtime_suspend(struct device *dev)
 {
 	struct nxp_fspi *f = dev_get_drvdata(dev);
 
@@ -1256,7 +1257,7 @@ int nxp_fspi_runtime_suspend(struct device *dev)
 	return 0;
 }
 
-int nxp_fspi_runtime_resume(struct device *dev)
+static int nxp_fspi_runtime_resume(struct device *dev)
 {
 	struct nxp_fspi *f = dev_get_drvdata(dev);
 
@@ -1268,9 +1269,37 @@ int nxp_fspi_runtime_resume(struct device *dev)
 	return 0;
 }
 
+static int nxp_fspi_suspend(struct device *dev)
+{
+	int ret;
+
+	ret = pinctrl_pm_select_sleep_state(dev);
+	if (ret) {
+		dev_err(dev, "select flexspi sleep pinctrl failed!\n");
+		return ret;
+	}
+
+	return pm_runtime_force_suspend(dev);
+}
+
+static int nxp_fspi_resume(struct device *dev)
+{
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret)
+		return ret;
+
+	ret = pinctrl_pm_select_default_state(dev);
+	if (ret)
+		dev_err(dev, "select flexspi default pinctrl failed!\n");
+
+	return ret;
+}
+
 static const struct dev_pm_ops nxp_fspi_pm_ops = {
 	SET_RUNTIME_PM_OPS(nxp_fspi_runtime_suspend, nxp_fspi_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(nxp_fspi_suspend, nxp_fspi_resume)
 };
 
 #endif /* CONFIG_PM */

@@ -104,9 +104,14 @@ int sof_compr_open(struct snd_soc_component *component,
 
 	dir = cstream->direction;
 
+	if (spcm->stream[dir].cstream) {
+		kfree(sstream);
+		return -EBUSY;
+	}
+
+	spcm->stream[dir].cstream = cstream;
 	spcm->stream[dir].posn.host_posn = 0;
 	spcm->stream[dir].posn.dai_posn = 0;
-	spcm->stream[dir].cstream = cstream;
 	spcm->prepared[dir] = false;
 
 	runtime->private_data = sstream;
@@ -143,6 +148,7 @@ int sof_compr_free(struct snd_soc_component *component,
 	}
 
 	cancel_work_sync(&spcm->stream[cstream->direction].period_elapsed_work);
+	spcm->stream[cstream->direction].cstream = NULL;
 	kfree(sstream);
 
 	return ret;
@@ -232,6 +238,12 @@ int sof_compr_trigger(struct snd_soc_component *component,
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_STOP;
+		break;
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_PAUSE;
+		break;
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_RELEASE;
 		break;
 	default:
 		dev_err(component->dev, "error: unhandled trigger cmd %d\n", cmd);

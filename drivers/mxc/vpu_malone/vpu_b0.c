@@ -3277,7 +3277,7 @@ static void enqueue_stream_data(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 		vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 	}
 	if (list_empty(&This->drv_q) && ctx->eos_stop_received) {
-		if (vpu_dec_is_active(ctx)) {
+		if (vpu_dec_is_active(ctx) && ctx->statistic.frame_input) {
 			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
 			if (ctx->statistic.eos_cnt) {
 				vpu_dbg(LVL_WARN,

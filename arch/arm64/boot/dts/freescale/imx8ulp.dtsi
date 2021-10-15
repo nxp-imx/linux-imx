@@ -50,6 +50,7 @@
 			reg = <0x0 0x0>;
 			enable-method = "psci";
 			next-level-cache = <&A35_L2>;
+			cpu-idle-states = <&cpu_sleep>;
 		};
 
 		A35_1: cpu@1 {
@@ -58,10 +59,24 @@
 			reg = <0x0 0x1>;
 			enable-method = "psci";
 			next-level-cache = <&A35_L2>;
+			cpu-idle-states = <&cpu_sleep>;
 		};
 
 		A35_L2: l2-cache0 {
 			compatible = "cache";
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			cpu_sleep: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0>;
+				local-timer-stop;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+			};
 		};
 	};
 
@@ -374,7 +389,6 @@
 				compatible = "fsl,imx8ulp-mu";
 				reg = <0x29220000 0x10000>;
 				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&pcc3 IMX8ULP_CLK_MU0_B>;
 				#mbox-cells = <2>;
 				status = "disabled";
 			};
@@ -455,9 +469,21 @@
 				compatible = "fsl,imx8ulp-tpm", "fsl,imx7ulp-tpm";
 				reg = <0x29340000 0x1000>;
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&pcc3 IMX8ULP_CLK_TPM5>,
-					 <&pcc3 IMX8ULP_CLK_TPM5>;
+				clocks = <&sosc>, <&sosc>;
 				clock-names = "ipg", "per";
+				status = "okay";
+			};
+
+			flexio_i2c_master: flexio@29350000 {
+				compatible = "imx,flexio_i2c_master";
+				reg = <0x29350000 0x10000>;
+				interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&pcc3 IMX8ULP_CLK_FLEXIO1>,
+					 <&pcc3 IMX8ULP_CLK_FLEXIO1>;
+				clock-names = "per", "ipg";
+				assigned-clocks = <&pcc3 IMX8ULP_CLK_FLEXIO1>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-rates = <24000000>;
 				status = "disabled";
 			};
 

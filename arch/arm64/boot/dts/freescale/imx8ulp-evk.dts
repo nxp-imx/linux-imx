@@ -231,8 +231,9 @@
 };
 
 &flexspi2 {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_flexspi2_ptd>;
+	pinctrl-1 = <&pinctrl_flexspi2_ptd>;
 	status = "okay";
 
 	mx25uw51345gxdi00: flash@0 {

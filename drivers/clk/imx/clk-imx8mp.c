@@ -485,12 +485,6 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 	hws[IMX8MP_CLK_EXT2] = imx_obtain_fixed_clk_hw(np, "clk_ext2");
 	hws[IMX8MP_CLK_EXT3] = imx_obtain_fixed_clk_hw(np, "clk_ext3");
 	hws[IMX8MP_CLK_EXT4] = imx_obtain_fixed_clk_hw(np, "clk_ext4");
-	hws[IMX8MP_SAI1_MCLK] = imx_obtain_fixed_clk_hw(np, "sai1_mclk");
-	hws[IMX8MP_SAI2_MCLK] = imx_obtain_fixed_clk_hw(np, "sai2_mclk");
-	hws[IMX8MP_SAI3_MCLK] = imx_obtain_fixed_clk_hw(np, "sai3_mclk");
-	hws[IMX8MP_SAI5_MCLK] = imx_obtain_fixed_clk_hw(np, "sai5_mclk");
-	hws[IMX8MP_SAI6_MCLK] = imx_obtain_fixed_clk_hw(np, "sai6_mclk");
-	hws[IMX8MP_SAI7_MCLK] = imx_obtain_fixed_clk_hw(np, "sai7_mclk");
 
 	hws[IMX8MP_AUDIO_PLL1_REF_SEL] = imx_clk_hw_mux("audio_pll1_ref_sel", anatop_base + 0x0, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));
 	hws[IMX8MP_AUDIO_PLL2_REF_SEL] = imx_clk_hw_mux("audio_pll2_ref_sel", anatop_base + 0x14, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));

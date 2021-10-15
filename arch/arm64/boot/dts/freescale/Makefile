@@ -204,7 +204,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-sof-cs42888.dtb imx8qm-mek-sof-wm8960.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8dxl-evk-root.dtb imx8dxl-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-rk055hdmipi4m.dtb \
 			  imx8ulp-evk-lpspi-slave.dtb imx8ulp-evk-sof-btsco.dtb \
-			  imx8ulp-evk-i3c.dtb imx8ulp-evk-epdc.dtb
+			  imx8ulp-evk-i3c.dtb imx8ulp-evk-epdc.dtb \
+			  imx8ulp-evk-flexio-i2c.dtb
 
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb

@@ -482,6 +482,8 @@ static int cdns_hdmi_connector_atomic_check(struct drm_connector *connector,
 		drm_atomic_get_old_connector_state(state, connector);
 	struct drm_crtc *crtc = new_con_state->crtc;
 	struct drm_crtc_state *new_crtc_state;
+	struct cdns_mhdp_device *mhdp =
+		container_of(connector, struct cdns_mhdp_device, connector.base);
 
 	cdns_hdmi_hdcp_atomic_check(connector, old_con_state, new_con_state);
 	if (!new_con_state->crtc)
@@ -499,6 +501,8 @@ static int cdns_hdmi_connector_atomic_check(struct drm_connector *connector,
 			!new_con_state->hdr_output_metadata ||
 			!old_con_state->hdr_output_metadata ||
 			new_con_state->colorspace != old_con_state->colorspace;
+		/* save new connector state */
+		memcpy(&mhdp->connector.new_state, new_con_state, sizeof(struct drm_connector_state));
 	}
 
 	/*
@@ -538,6 +542,8 @@ static int cdns_hdmi_bridge_attach(struct drm_bridge *bridge,
 
 	connector->interlace_allowed = 1;
 	connector->polled = DRM_CONNECTOR_POLL_HPD;
+	if (!strncmp("imx8mq-hdmi", mhdp->plat_data->plat_name, 11))
+		connector->ycbcr_420_allowed = true;
 
 	drm_connector_helper_add(connector, &cdns_hdmi_connector_helper_funcs);
 
@@ -626,7 +632,7 @@ bool cdns_hdmi_bridge_mode_fixup(struct drm_bridge *bridge,
 				 struct drm_display_mode *adjusted_mode)
 {
 	struct cdns_mhdp_device *mhdp = bridge->driver_private;
-	struct drm_connector_state *conn_state = mhdp->connector.base.state;
+	struct drm_connector_state *new_state = &mhdp->connector.new_state;
 	struct drm_display_info *di = &mhdp->connector.base.display_info;
 	struct video_info *video = &mhdp->video_info;
 	int vic = drm_match_cea_mode(mode);
@@ -642,50 +648,42 @@ bool cdns_hdmi_bridge_mode_fixup(struct drm_bridge *bridge,
 		return true;
 	}
 
-	/* imx8mq */
-	if (conn_state->colorspace == DRM_MODE_COLORIMETRY_DEFAULT)
-		return !drm_mode_is_420_only(di, mode);
-
-	if (conn_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_RGB) {
+	/* H20 Section 7.2.2, Colorimetry BT2020 for pixel encoding 10bpc or more */
+	if (new_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_RGB) {
 		if (drm_mode_is_420_only(di, mode))
 			return false;
 
+		/* BT2020_RGB for RGB 10bit or more  */
 		/* 10b RGB is not supported for following VICs */
 		if (vic == 97 || vic == 96 || vic == 95 || vic == 93 || vic == 94)
 			return false;
 
 		video->color_depth = 10;
-
-		return true;
-	}
-
-	if (conn_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_CYCC ||
-	    conn_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_YCC) {
-		if (drm_mode_is_420_only(di, mode)) {
+	} else if (new_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_CYCC ||
+	    new_state->colorspace == DRM_MODE_COLORIMETRY_BT2020_YCC) {
+		/* BT2020_YCC/CYCC for YUV 10bit or more */
+		if (drm_mode_is_420_only(di, mode) ||
+				drm_mode_is_420_also(di, mode))
 			video->color_fmt = YCBCR_4_2_0;
+		else
+			video->color_fmt = YCBCR_4_2_2;
 
-			if (di->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_36)
-				video->color_depth = 12;
-			else if (di->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_30)
-				video->color_depth = 10;
-			else
-				return false;
-
-			return true;
-		}
-
-		video->color_fmt = YCBCR_4_2_2;
-
-		if (!(di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36))
-			return false;
-
-		video->color_depth = 12;
-
-		return true;
-	}
-
-	video->color_fmt = drm_mode_is_420_only(di, mode) ? YCBCR_4_2_0 : YCBCR_4_4_4;
-	video->color_depth = 8;
+		if (di->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_36)
+			video->color_depth = 12;
+		else if (di->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_30)
+			video->color_depth = 10;
+	} else if (new_state->colorspace == DRM_MODE_COLORIMETRY_SMPTE_170M_YCC ||
+	    new_state->colorspace == DRM_MODE_COLORIMETRY_BT709_YCC ||
+		new_state->colorspace == DRM_MODE_COLORIMETRY_XVYCC_601 ||
+		new_state->colorspace == DRM_MODE_COLORIMETRY_XVYCC_709 ||
+		new_state->colorspace == DRM_MODE_COLORIMETRY_SYCC_601) {
+		/* Colorimetry for HD and SD YUV */
+		if (drm_mode_is_420_only(di, mode) || drm_mode_is_420_also(di, mode))
+			video->color_fmt = YCBCR_4_2_0;
+		else
+			video->color_fmt = YCBCR_4_4_4;
+	} else if (new_state->colorspace == DRM_MODE_COLORIMETRY_DEFAULT)
+		return !drm_mode_is_420_only(di, mode);
 
 	return true;
 }
