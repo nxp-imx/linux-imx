@@ -7,13 +7,40 @@
 #include <sound/soc.h>
 #include "fsl_spdif.h"
 
+#define SUPPORT_RATE_NUM 10
+
 struct imx_spdif_data {
 	struct snd_soc_dai_link dai;
 	struct snd_soc_card card;
+	u32 support_rates[SUPPORT_RATE_NUM];
+	u32 support_rates_num;
 };
 
 #define CLK_8K_FREQ    24576000
 #define CLK_11K_FREQ   22579200
+
+static int imx_spdif_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct imx_spdif_data *data = snd_soc_card_get_drvdata(card);
+	static struct snd_pcm_hw_constraint_list constraint_rates;
+	int ret;
+
+	if (!data->support_rates_num)
+		return 0;
+
+	constraint_rates.list = data->support_rates;
+	constraint_rates.count = data->support_rates_num;
+
+	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
+					 &constraint_rates);
+	if (ret)
+		return ret;
+
+	return 0;
+}
 
 static int imx_spdif_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
@@ -37,6 +64,7 @@ static int imx_spdif_hw_params(struct snd_pcm_substream *substream,
 }
 
 static struct snd_soc_ops imx_spdif_ops = {
+	.startup = imx_spdif_startup,
 	.hw_params = imx_spdif_hw_params,
 };
 
@@ -45,7 +73,7 @@ static int imx_spdif_audio_probe(struct platform_device *pdev)
 	struct device_node *spdif_np, *np = pdev->dev.of_node;
 	struct imx_spdif_data *data;
 	struct snd_soc_dai_link_component *comp;
-	int ret = 0;
+	int ret = 0, i;
 
 	spdif_np = of_parse_phandle(np, "spdif-controller", 0);
 	if (!spdif_np) {
@@ -90,6 +118,16 @@ static int imx_spdif_audio_probe(struct platform_device *pdev)
 		goto end;
 	}
 
+	for (i = 0; i < SUPPORT_RATE_NUM; i++) {
+		ret = of_property_read_u32_index(pdev->dev.of_node,
+						 "fsl,constraint-rate",
+						 i, &data->support_rates[i]);
+		if (!ret)
+			data->support_rates_num = i + 1;
+		else
+			break;
+	}
+
 	data->card.dev = &pdev->dev;
 	data->card.dai_link = &data->dai;
 	data->card.num_links = 1;
@@ -99,6 +137,7 @@ static int imx_spdif_audio_probe(struct platform_device *pdev)
 	if (ret)
 		goto end;
 
+	snd_soc_card_set_drvdata(&data->card, data);
 	ret = devm_snd_soc_register_card(&pdev->dev, &data->card);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card failed: %d\n", ret);

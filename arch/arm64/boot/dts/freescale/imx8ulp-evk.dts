@@ -160,6 +160,8 @@
 		model = "imx-spdif";
 		spdif-controller = <&spdif>;
 		spdif-out;
+		fsl,constraint-rate = <16000>, <32000>, <48000>,
+				      <64000>, <96000>, <192000>;
 	};
 
 	rpmsg_audio: rpmsg-audio {
@@ -273,6 +275,8 @@
 		compatible = "wlf,wm8960,lpa";
 		reg = <0x1a>;
 		wlf,shared-lrclk;
+		clocks = <&wm8960_mclk>;
+		clock-names = "mclk";
 	};
 
 	ov5640_mipi: ov5640_mipi@3c {
@@ -615,8 +619,9 @@
 
 &sai5 {
 	#sound-dai-cells = <0>;
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_sai5>;
+	pinctrl-1 = <&pinctrl_sai5>;
 	assigned-clocks = <&cgc1 IMX8ULP_CLK_SAI5_SEL>;
 	assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
 	fsl,dataline = <0 0x08 0x01>;
@@ -624,8 +629,9 @@
 };
 
 &spdif {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_spdif>;
+	pinctrl-1 = <&pinctrl_spdif>;
 	assigned-clocks = <&cgc2 IMX8ULP_CLK_SPDIF_SEL>;
 	assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
 	status = "okay";

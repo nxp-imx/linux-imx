@@ -442,12 +442,10 @@ static irqreturn_t goodix_ts_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-#if 0
 static void goodix_free_irq(struct goodix_ts_data *ts)
 {
 	devm_free_irq(&ts->client->dev, ts->client->irq, ts);
 }
-#endif
 
 static int goodix_request_irq(struct goodix_ts_data *ts)
 {
@@ -1286,7 +1284,7 @@ static int __maybe_unused goodix_suspend(struct device *dev)
 	}
 
 	/* Free IRQ as IRQ pin is used as output in the suspend sequence */
-	disable_irq(client->irq);
+	goodix_free_irq(ts);
 
 	/* Output LOW on the INT pin for 5 ms */
 	error = goodix_irq_direction_output(ts, 0);
@@ -1364,7 +1362,9 @@ static int __maybe_unused goodix_resume(struct device *dev)
 		}
 	}
 
-	enable_irq(client->irq);
+	error = goodix_request_irq(ts);
+	if (error)
+		return error;
 
 	return 0;
 }

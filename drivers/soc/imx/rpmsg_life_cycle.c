@@ -31,7 +31,10 @@ static struct rpmsg_device *life_cycle_rpdev;
 static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 		unsigned long action, void *unused)
 {
-	int ret, cpu;
+	int ret;
+#ifdef CONFIG_HOTPLUG_CPU
+	int cpu;
+#endif
 	struct pm_rpmsg_data msg;
 
 	/* return early if it is RESTART case */
@@ -43,6 +46,7 @@ static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 	 * put into DPD mode without risk.
 	 */
 
+#ifdef CONFIG_HOTPLUG_CPU
 	for_each_online_cpu(cpu) {
 		if (cpu == cpumask_first(cpu_online_mask))
 			continue;
@@ -52,7 +56,7 @@ static int rpmsg_life_cycle_notifier(struct notifier_block *nb,
 			return NOTIFY_BAD;
 		}
 	}
-
+#endif
 	msg.header.cate = IMX_RMPSG_LIFECYCLE;
 	msg.header.major = IMX_RMPSG_MAJOR;
 	msg.header.minor = IMX_RMPSG_MINOR;

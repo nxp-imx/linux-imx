@@ -61,6 +61,7 @@
 		model = "wm8960-audio";
 		fsl,enable-lpa;
 		fsl,rpmsg-out;
+		fsl,rpmsg-in;
 		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_IPG>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SAI3_MCLK1>,
 			 <&audio_blk_ctrl IMX8MP_CLK_AUDIO_BLK_CTRL_SDMA3_ROOT>,
