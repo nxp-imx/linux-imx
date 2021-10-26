@@ -790,7 +790,8 @@ static int sec_mipi_dsim_bridge_attach(struct drm_bridge *bridge,
 
 		remote = of_graph_get_remote_port_parent(endpoint);
 
-		if (!remote || !of_device_is_available(remote)) {
+		if (!remote || !of_device_is_available(remote) ||
+		    of_node_check_flag(endpoint, OF_DETACHED)) {
 			of_node_put(remote);
 			endpoint = of_graph_get_next_endpoint(np, endpoint);
 			continue;

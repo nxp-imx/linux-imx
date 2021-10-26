@@ -1174,6 +1174,14 @@ static int nwl_dsi_bridge_attach(struct drm_bridge *bridge,
 	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 	struct clk *phy_parent;
 	int ret;
+	struct device_node *endpoint;
+
+	endpoint = of_graph_get_endpoint_by_regs(dsi->dev->of_node, 1, 0);
+	if (!endpoint || of_node_check_flag(endpoint, OF_DETACHED)) {
+		of_node_put(endpoint);
+		return -ENODEV;
+	}
+	of_node_put(endpoint);
 
 	dsi->panel_bridge = devm_drm_of_get_bridge(dsi->dev, dsi->dev->of_node,
 						   1, 0);
