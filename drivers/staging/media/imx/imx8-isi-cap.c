@@ -701,6 +701,8 @@ static int mxc_isi_capture_open(struct file *file)
 	struct mxc_isi_cap_dev *isi_cap = video_drvdata(file);
 	struct mxc_isi_dev *mxc_isi = mxc_isi_get_hostdata(isi_cap->pdev);
 	struct device *dev = &isi_cap->pdev->dev;
+	struct v4l2_subdev *sd;
+	struct v4l2_subdev *sd2;
 	int ret = -EBUSY;
 
 	mutex_lock(&isi_cap->lock);
@@ -716,6 +718,17 @@ static int mxc_isi_capture_open(struct file *file)
 		return ret;
 	}
 
+	sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
+	if (!sd)
+		return -ENODEV;
+
+	sd2 = mxc_get_remote_subdev(sd, __func__);
+	if (sd2) {
+		dev_info(dev, "%s: src name is %s\n", __func__, sd2->name);
+		if (strstr(sd2->name, "ov5640"))
+			isi_cap->set_power_in_open_close = true;
+	}
+
 	mutex_lock(&isi_cap->lock);
 	ret = v4l2_fh_open(file);
 	if (ret) {
@@ -725,6 +738,15 @@ static int mxc_isi_capture_open(struct file *file)
 	mutex_unlock(&isi_cap->lock);
 
 	pm_runtime_get_sync(dev);
+
+	if (isi_cap->set_power_in_open_close) {
+		ret = v4l2_subdev_call(sd, core, s_power, 1);
+		if (ret) {
+			dev_err(dev, "Call subdev s_power fail!\n");
+			pm_runtime_put(dev);
+			return ret;
+		}
+	}
 
 	mutex_lock(&isi_cap->lock);
 	ret = isi_cap_fmt_init(isi_cap);
@@ -746,6 +768,7 @@ static int mxc_isi_capture_release(struct file *file)
 	struct mxc_isi_dev *mxc_isi = mxc_isi_get_hostdata(isi_cap->pdev);
 	struct device *dev = &isi_cap->pdev->dev;
 	struct vb2_queue *q = vdev->queue;
+	struct v4l2_subdev *sd;
 	int ret = -1;
 
 	if (!isi_cap->is_link_setup)
@@ -753,6 +776,10 @@ static int mxc_isi_capture_release(struct file *file)
 
 	if (isi_cap->is_streaming[isi_cap->id])
 		mxc_isi_cap_streamoff(file, NULL, q->type);
+
+	sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
+	if (!sd)
+		goto label;
 
 	mutex_lock(&isi_cap->lock);
 	ret = _vb2_fop_release(file, NULL);
@@ -766,6 +793,14 @@ static int mxc_isi_capture_release(struct file *file)
 	if (atomic_read(&mxc_isi->usage_count) > 0 &&
 	    atomic_dec_and_test(&mxc_isi->usage_count))
 		mxc_isi_channel_deinit(mxc_isi);
+
+	if (isi_cap->set_power_in_open_close) {
+		ret = v4l2_subdev_call(sd, core, s_power, 0);
+		if (ret < 0 && ret != -ENOIOCTLCMD) {
+			dev_err(dev, "%s s_power fail\n", __func__);
+			goto label;
+		}
+	}
 
 label:
 	mutex_lock(&mxc_isi->lock);
@@ -1103,11 +1138,13 @@ static int mxc_isi_cap_streamon(struct file *file, void *priv,
 	dev_dbg(dev, "%s\n", __func__);
 
 	if (!isi_cap->is_streaming[isi_cap->id]) {
-		src_sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
-		ret = (!src_sd) ? -EINVAL : v4l2_subdev_call(src_sd, core, s_power, 1);
-		if (ret) {
-			v4l2_err(&isi_cap->sd, "Call subdev s_power fail!\n");
-			return ret;
+		if (false == isi_cap->set_power_in_open_close) {
+			src_sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
+			ret = (!src_sd) ? -EINVAL : v4l2_subdev_call(src_sd, core, s_power, 1);
+			if (ret) {
+				v4l2_err(&isi_cap->sd, "Call subdev s_power fail!\n");
+				return ret;
+			}
 		}
 
 		ret = mxc_isi_config_parm(isi_cap);
@@ -1139,7 +1176,8 @@ static int mxc_isi_cap_streamon(struct file *file, void *priv,
 disable:
 	mxc_isi_channel_disable_loc(mxc_isi);
 power:
-	v4l2_subdev_call(src_sd, core, s_power, 0);
+	if (false == isi_cap->set_power_in_open_close)
+		v4l2_subdev_call(src_sd, core, s_power, 0);
 	return ret;
 }
 
@@ -1165,8 +1203,11 @@ static int mxc_isi_cap_streamoff(struct file *file, void *priv,
 		isi_cap->is_streaming[isi_cap->id] = 0;
 		mxc_isi->is_streaming = 0;
 
-		src_sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
-		return v4l2_subdev_call(src_sd, core, s_power, 0);
+		if (false == isi_cap->set_power_in_open_close) {
+			src_sd = mxc_get_remote_subdev(&isi_cap->sd, __func__);
+			ret = v4l2_subdev_call(src_sd, core, s_power, 0);
+		}
+		return ret;
 	}
 
 	return 0;
