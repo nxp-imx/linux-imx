@@ -257,7 +257,8 @@ int ldb_bind(struct ldb *ldb, struct drm_encoder **encoder)
 			goto free_child;
 		}
 
-		if (!of_device_is_available(child))
+		if (!of_device_is_available(child) ||
+		    of_node_check_flag(child, OF_DETACHED))
 			continue;
 
 		if (ldb->dual && i > 0) {

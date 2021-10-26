@@ -370,7 +370,8 @@ imx8qm_ldb_bind(struct device *dev, struct device *master, void *data)
 		if (ret || i < 0 || i > 1)
 			return -EINVAL;
 
-		if (!of_device_is_available(child))
+		if (!of_device_is_available(child) ||
+		    of_node_check_flag(child, OF_DETACHED))
 			continue;
 
 		encoder[i] = &imx8qm_ldb->channel[i].encoder;
@@ -402,7 +403,8 @@ imx8qm_ldb_bind(struct device *dev, struct device *master, void *data)
 			goto get_phy;
 		}
 
-		if (!of_device_is_available(child))
+		if (!of_device_is_available(child) ||
+		    of_node_check_flag(child, OF_DETACHED))
 			continue;
 
 		imx8qm_ldb_ch = &imx8qm_ldb->channel[i];
