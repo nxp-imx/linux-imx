@@ -263,13 +263,16 @@
 			status = "okay";
 		};
 
-		s400_api: s400-api {
-			compatible = "fsl,imx8ulp-s400";
+		sentnl_mu: sentinel-mu {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "fsl,imx-sentinel";
 			mboxes = <&s4muap 0 0 &s4muap 1 0>;
 			mbox-names = "tx", "rx";
-			fsl,s4_muap_id = <0>;
-			fsl,s4muap_max_users = <1>;
+			fsl,sentnl_mu_id = <2>;
+			fsl,sentnl_mu_max_users = <4>;
 			status = "okay";
+			dma-ranges = <0x80000000 0x80000000 0x20000000>;
 		};
 
 		per_bridge3: bus@29000000 {
@@ -418,12 +421,8 @@
 				clocks = <&rosc>, <&sosc>, <&frosc>, <&lposc>;
 				clock-names = "rosc", "sosc", "frosc", "lposc";
 				#clock-cells = <1>;
-				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3>,
-						  <&cgc1 IMX8ULP_CLK_SPLL3_PFD1>,
-						  <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
-				assigned-clock-rates = <540672000>,
-						       <540672000>,
-						       <12288000>;
+				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
+				assigned-clock-rates = <12288000>;
 			};
 
 			pcc3: clock-controller@292d0000 {
@@ -498,8 +497,8 @@
 					 <&cgc1 IMX8ULP_CLK_DUMMY>;
 				clock-names = "pclk", "fast_clk", "slow_clk";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_I3C2>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
-				assigned-clock-rates = <48000000>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SOSC_DIV2>;
+				assigned-clock-rates = <24000000>;
 				status = "disabled";
 			};
 

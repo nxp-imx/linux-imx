@@ -51,6 +51,9 @@
 		model = "wm8524-audio";
 		fsl,enable-lpa;
 		fsl,rpmsg-out;
+		assigned-clocks = <&clk IMX8MN_CLK_SAI3>;
+		assigned-clock-parents = <&clk IMX8MN_AUDIO_PLL1_OUT>;
+		assigned-clock-rates = <24576000>;
 		clocks = <&clk IMX8MN_CLK_SAI3_IPG>,
 			 <&clk IMX8MN_CLK_SAI3_ROOT>,
 			 <&clk IMX8MN_CLK_SDMA3_ROOT>,

@@ -272,7 +272,7 @@ config SPRD_EFUSE
 
 config NVMEM_IMX_OCOTP_FSB_S400
 	tristate "i.MX FSB/S400-API ocotp fuse box support"
-	depends on IMX_S400_API
+	depends on IMX_SENTNL_MU
 	default y
 	help
 	  This is a driver for the ocotp fuse box which can be accessed by

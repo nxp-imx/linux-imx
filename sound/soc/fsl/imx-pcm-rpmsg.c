@@ -179,7 +179,7 @@ static int imx_rpmsg_pcm_hw_params(struct snd_soc_component *component,
 		msg->s_msg.param.channels = RPMSG_CH_STEREO;
 		break;
 	default:
-		ret = -EINVAL;
+		msg->s_msg.param.channels = params_channels(params);
 		break;
 	}
 
@@ -239,7 +239,11 @@ static void imx_rpmsg_timer_callback(struct timer_list *t)
 static int imx_rpmsg_pcm_open(struct snd_soc_component *component,
 			      struct snd_pcm_substream *substream)
 {
+	struct snd_pcm_hardware pcm_hardware = imx_rpmsg_pcm_hardware;
 	struct rpmsg_info *info = dev_get_drvdata(component->dev);
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	struct fsl_rpmsg *rpmsg = dev_get_drvdata(cpu_dai->dev);
 	struct rpmsg_msg *msg;
 	int ret = 0;
 	int cmd;
@@ -267,10 +271,11 @@ static int imx_rpmsg_pcm_open(struct snd_soc_component *component,
 
 	info->send_message(msg, info);
 
-	imx_rpmsg_pcm_hardware.period_bytes_max =
-			imx_rpmsg_pcm_hardware.buffer_bytes_max / 2;
+	pcm_hardware.buffer_bytes_max = rpmsg->buffer_size;
+	pcm_hardware.period_bytes_max =
+			pcm_hardware.buffer_bytes_max / 2;
 
-	snd_soc_set_runtime_hwparams(substream, &imx_rpmsg_pcm_hardware);
+	snd_soc_set_runtime_hwparams(substream, &pcm_hardware);
 
 	ret = snd_pcm_hw_constraint_integer(substream->runtime,
 					    SNDRV_PCM_HW_PARAM_PERIODS);
@@ -710,7 +715,6 @@ static int imx_rpmsg_pcm_new(struct snd_soc_component *component,
 			goto out;
 	}
 
-	imx_rpmsg_pcm_hardware.buffer_bytes_max = rpmsg->buffer_size;
 out:
 	/* free preallocated buffers in case of error */
 	if (ret)
@@ -794,6 +798,7 @@ static void imx_rpmsg_pcm_work(struct work_struct *work)
 static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 {
 	struct snd_soc_component *component;
+	struct device_node *np;
 	struct rpmsg_info *info;
 	int ret, i;
 
@@ -806,7 +811,7 @@ static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 	info->rpdev = container_of(pdev->dev.parent, struct rpmsg_device, dev);
 	info->dev = &pdev->dev;
 	/* Setup work queue */
-	info->rpmsg_wq = alloc_ordered_workqueue("rpmsg_audio",
+	info->rpmsg_wq = alloc_ordered_workqueue(info->rpdev->id.name,
 						 WQ_HIGHPRI |
 						 WQ_UNBOUND |
 						 WQ_FREEZABLE);
@@ -845,11 +850,17 @@ static int imx_rpmsg_pcm_probe(struct platform_device *pdev)
 	if (ret)
 		goto fail;
 
-	component = snd_soc_lookup_component(&pdev->dev, IMX_PCM_DRV_NAME);
+	component = snd_soc_lookup_component(&pdev->dev, NULL);
 	if (!component) {
 		ret = -EINVAL;
 		goto fail;
 	}
+	/* platform component name is used by machine driver to link with */
+	component->name = IMX_PCM_DRV_NAME;
+	np = of_find_node_by_name(NULL, "rpmsg_audio");
+	if (np && of_property_read_bool(np, "fsl,platform"))
+		component->name = info->rpdev->id.name;
+
 #ifdef CONFIG_DEBUG_FS
 	component->debugfs_prefix = "rpmsg";
 #endif

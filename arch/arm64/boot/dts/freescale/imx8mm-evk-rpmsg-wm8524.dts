@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
 /*
- * Copyright 2019 NXP
+ * Copyright 2021 NXP
  */
 
 /dts-v1/;
@@ -38,6 +38,7 @@
 			reg = <0 0xb8400000 0 0x100000>;
 			no-map;
 		};
+
 	};
 
 	bt_sco_codec: bt_sco_codec {
@@ -52,20 +53,42 @@
 		status = "disabled";
 	};
 
+	sound-micfil {
+		status = "disabled";
+	};
+
 	wm8524: audio-codec {
 		status = "disabled";
 	};
 
 	rpmsg_audio: rpmsg_audio {
 		compatible = "fsl,imx8mm-rpmsg-audio";
-		model = "ak4497-audio";
+		model = "wm8524-audio";
+		fsl,platform = "rpmsg-audio-channel";
 		fsl,enable-lpa;
 		fsl,rpmsg-out;
-		assigned-clocks = <&clk IMX8MM_CLK_SAI1>;
+		assigned-clocks = <&clk IMX8MM_CLK_SAI3>;
 		assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
-		assigned-clock-rates = <49152000>;
-		clocks = <&clk IMX8MM_CLK_SAI1_IPG>,
-			 <&clk IMX8MM_CLK_SAI1_ROOT>,
+		assigned-clock-rates = <12288000>;
+		clocks = <&clk IMX8MM_CLK_SAI3_IPG>,
+			 <&clk IMX8MM_CLK_SAI3_ROOT>,
+			 <&clk IMX8MM_CLK_SDMA3_ROOT>,
+			 <&clk IMX8MM_AUDIO_PLL1_OUT>,
+			 <&clk IMX8MM_AUDIO_PLL2_OUT>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
+		status = "okay";
+	};
+
+	rpmsg_micfil: rpmsg_micfil {
+		compatible = "fsl,imx8mm-rpmsg-audio";
+		model = "micfil-audio";
+		fsl,platform = "rpmsg-micfil-channel";
+		fsl,rpmsg-in;
+		assigned-clocks = <&clk IMX8MM_CLK_PDM>;
+		assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
+		assigned-clock-rates = <196608000>;
+		clocks = <&clk IMX8MM_CLK_PDM_IPG>,
+			 <&clk IMX8MM_CLK_PDM_ROOT>,
 			 <&clk IMX8MM_CLK_SDMA3_ROOT>,
 			 <&clk IMX8MM_AUDIO_PLL1_OUT>,
 			 <&clk IMX8MM_AUDIO_PLL2_OUT>;
@@ -115,6 +138,10 @@
 	status = "disabled";
 };
 
+&micfil {
+	status = "disabled";
+};
+
 &sai3 {
 	status = "disabled";
 };
@@ -128,5 +155,9 @@
 };
 
 &flexspi {
+	status = "disabled";
+};
+
+&uart3 {
 	status = "disabled";
 };
