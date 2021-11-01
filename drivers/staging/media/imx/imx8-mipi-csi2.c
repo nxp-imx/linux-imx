@@ -1304,8 +1304,6 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 	v4l2_set_subdevdata(&csi2dev->sd, pdev);
 	platform_set_drvdata(pdev, csi2dev);
 
-	mipi_csi2_clk_enable(csi2dev);
-
 	mipi_sc_fw_init(csi2dev, 1);
 
 	csi2dev->running = 0;

@@ -533,11 +533,13 @@ static int mxc_isi_m2m_open(struct file *file)
 	int ret = 0;
 
 	mutex_lock(&isi_m2m->lock);
-	if (isi_m2m->refcnt > 0)
-		goto unlock;
-
 	if (mxc_isi->cap_enabled) {
 		dev_err(dev, "ISI channel[%d] is busy\n", isi_m2m->id);
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	if (isi_m2m->refcnt > 0) {
 		ret = -EBUSY;
 		goto unlock;
 	}
@@ -576,7 +578,8 @@ static int mxc_isi_m2m_open(struct file *file)
 	goto unlock;
 
 unlock:
-	isi_m2m->refcnt++;
+	if (ret == 0)
+		isi_m2m->refcnt++;
 	mutex_unlock(&isi_m2m->lock);
 	return ret;
 }
@@ -603,7 +606,6 @@ static int mxc_isi_m2m_release(struct file *file)
 
 		pm_runtime_put(dev);
 	}
-
 	mutex_unlock(&isi_m2m->lock);
 
 	return 0;

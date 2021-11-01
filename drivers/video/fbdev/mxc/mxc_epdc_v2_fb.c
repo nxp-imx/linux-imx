@@ -294,6 +294,23 @@ static struct fb_videomode ed060xh2c1mode = {
 	.flag = 0,
 };
 
+static struct fb_videomode ed060xh7u2mode = {
+	.name = "ED060XH7U2",
+	.refresh = 85,
+	.xres = 1024,
+	.yres = 758,
+	.pixclock = 40000000,
+	.left_margin = 12,
+	.right_margin = 76,
+	.upper_margin = 4,
+	.lower_margin = 5,
+	.hsync_len = 12,
+	.vsync_len = 2,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+
 static struct fb_videomode e60_v110_mode = {
 	.name = "E60_V110",
 	.refresh = 50,
@@ -365,6 +382,19 @@ static struct fb_videomode e97_v110_mode = {
 static struct imx_epdc_fb_mode panel_modes[] = {
 	{
 		&ed060xh2c1mode,	/* struct fb_videomode *mode */
+		4, 	/* vscan_holdoff */
+		10, 	/* sdoed_width */
+		20, 	/* sdoed_delay */
+		10, 	/* sdoez_width */
+		20, 	/* sdoez_delay */
+		524, 	/* GDCLK_HP */
+		327, 	/* GDSP_OFF */
+		0, 	/* GDOE_OFF */
+		19, 	/* gdclk_offs */
+		1, 	/* num_ce */
+	},
+	{
+		&ed060xh7u2mode,
 		4, 	/* vscan_holdoff */
 		10, 	/* sdoed_width */
 		20, 	/* sdoed_delay */
@@ -1200,6 +1230,7 @@ static void epdc_set_vertical_timing(u32 vert_start, u32 vert_end,
 	__raw_writel(reg_val, EPDC_TCE_VSCAN);
 }
 
+/* Initialize EPDC, passing pointer to EPDC registers */
 static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 {
 	struct imx_epdc_fb_mode *epdc_mode = fb_data->cur_mode;
@@ -1212,6 +1243,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	int j;
 	unsigned char *bb_p;
 
+	pm_runtime_get_sync(fb_data->dev);
 	/* Enable clocks to access EPDC regs */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
 	clk_prepare_enable(fb_data->epdc_clk_ahb);
@@ -1419,6 +1451,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
 	clk_disable_unprepare(fb_data->epdc_clk_ahb);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
+	pm_runtime_put_sync_suspend(fb_data->dev);
 }
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
@@ -1479,8 +1512,7 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	clk_prepare_enable(fb_data->epdc_clk_ahb);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 
-	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
-
+	epdc_init_settings(fb_data);
 
 	/* Enable power to the EPD panel */
 	if (fb_data->display_regulator) {
@@ -1561,9 +1593,6 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 
 static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 {
-	/* Initialize EPDC, passing pointer to EPDC registers */
-	epdc_init_settings(fb_data);
-
 	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
