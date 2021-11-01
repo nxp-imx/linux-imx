@@ -363,9 +363,10 @@ pipe_read(struct kiocb *iocb, struct iov_iter *to)
 		 * _very_ unlikely case that the pipe was full, but we got
 		 * no data.
 		 */
-		if (unlikely(was_full))
+		if (unlikely(was_full)) {
 			wake_up_interruptible_sync_poll(&pipe->wr_wait, EPOLLOUT | EPOLLWRNORM);
-		kill_fasync(&pipe->fasync_writers, SIGIO, POLL_OUT);
+			kill_fasync(&pipe->fasync_writers, SIGIO, POLL_OUT);
+		}
 
 		/*
 		 * But because we didn't read anything, at this point we can
@@ -384,11 +385,12 @@ pipe_read(struct kiocb *iocb, struct iov_iter *to)
 		wake_next_reader = false;
 	__pipe_unlock(pipe);
 
-	if (was_full)
+	if (was_full) {
 		wake_up_interruptible_sync_poll(&pipe->wr_wait, EPOLLOUT | EPOLLWRNORM);
+		kill_fasync(&pipe->fasync_writers, SIGIO, POLL_OUT);
+	}
 	if (wake_next_reader)
 		wake_up_interruptible_sync_poll(&pipe->rd_wait, EPOLLIN | EPOLLRDNORM);
-	kill_fasync(&pipe->fasync_writers, SIGIO, POLL_OUT);
 	if (ret > 0)
 		file_accessed(filp);
 	return ret;
@@ -566,9 +568,10 @@ pipe_write(struct kiocb *iocb, struct iov_iter *from)
 		 * become empty while we dropped the lock.
 		 */
 		__pipe_unlock(pipe);
-		if (was_empty)
+		if (was_empty) {
 			wake_up_interruptible_sync_poll(&pipe->rd_wait, EPOLLIN | EPOLLRDNORM);
-		kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
+			kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
+		}
 		wait_event_interruptible_exclusive(pipe->wr_wait, pipe_writable(pipe));
 		__pipe_lock(pipe);
 		was_empty = pipe_empty(pipe->head, pipe->tail);
@@ -587,13 +590,11 @@ out:
 	 * This is particularly important for small writes, because of
 	 * how (for example) the GNU make jobserver uses small writes to
 	 * wake up pending jobs
-	 *
-	 * Epoll nonsensically wants a wakeup whether the pipe
-	 * was already empty or not.
 	 */
-	if (was_empty || pipe->poll_usage)
+	if (was_empty) {
 		wake_up_interruptible_sync_poll(&pipe->rd_wait, EPOLLIN | EPOLLRDNORM);
-	kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
+		kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
+	}
 	if (wake_next_writer)
 		wake_up_interruptible_sync_poll(&pipe->wr_wait, EPOLLOUT | EPOLLWRNORM);
 	if (ret > 0 && sb_start_write_trylock(file_inode(filp)->i_sb)) {
@@ -652,9 +653,6 @@ pipe_poll(struct file *filp, poll_table *wait)
 	__poll_t mask;
 	struct pipe_inode_info *pipe = filp->private_data;
 	unsigned int head, tail;
-
-	/* Epoll has some historical nasty semantics, this enables them */
-	pipe->poll_usage = 1;
 
 	/*
 	 * Reading pipe state only -- no need for acquiring the semaphore.
