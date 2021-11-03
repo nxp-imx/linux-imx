@@ -220,11 +220,24 @@
 			pmsg-size       = <0x00020000>;
 		};
 
+		pmem_1: pmem@0x94500000 {
+			no-map;
+			reg = <0 0x94500000 0 0x00010000>;
+		};
+
 		unmapped_region: unmapped {
 			 compatible = "imx-secure-ion-pool";
 			 reg = <0x0 0xE0000000 0 0x10000000>;
 		};
 
+	};
+
+	pmem@0x94500000 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		compatible = "pmem-region";
+		reg = <0 0x94500000 0 0x00010000>;
+		volatile;
 	};
 
 	osc_32k: clock-osc-32k {

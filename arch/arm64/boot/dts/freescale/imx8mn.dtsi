@@ -209,6 +209,19 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+
+		pmem_1: pmem@0xb8500000 {
+			no-map;
+			reg = <0 0xb8500000 0 0x00010000>;
+		};
+	};
+
+	pmem@0xb8500000 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		compatible = "pmem-region";
+		reg = <0 0xb8500000 0 0x00010000>;
+		volatile;
 	};
 
 	osc_32k: clock-osc-32k {

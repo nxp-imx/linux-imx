@@ -156,6 +156,10 @@
 		#size-cells = <2>;
 		ranges;
 
+		pmem_1: pmem@0xbdef0000 {
+			no-map;
+			reg = <0 0xbdef0000 0 0x00010000>;
+		};
 		ramoops@0xbdf00000 {
 			compatible = "ramoops";
 			reg = <0 0xbdf00000 0 0x00100000>;
@@ -164,6 +168,14 @@
 			ftrace-size     = <0x00020000>;
 			rpmsg-size      = <0x00020000>;
 		};
+	};
+
+	pmem@0xbdef0000 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		compatible = "pmem-region";
+		reg = <0 0xbdef0000 0 0x00010000>;
+		volatile;
 	};
 
 	osc_32k: clock-osc-32k {

@@ -241,7 +241,19 @@
 			no-map;
 			reg = <0 0x94400000 0 0x800000>;
 		};
+		pmem@0x94c00000 {
+			no-map;
+			reg = <0 0x94c00000 0 0x00010000>;
+		};
 
+	};
+
+	pmem@0x94c00000 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		compatible = "pmem-region";
+		reg = <0 0x94c00000 0 0x00010000>;
+		volatile;
 	};
 
 	epdev_on: fixedregulator@100 {
