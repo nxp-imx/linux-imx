@@ -22,7 +22,11 @@ static void cdns_mhdp_imx_encoder_disable(struct drm_encoder *encoder)
 	struct drm_bridge *bridge = drm_bridge_chain_get_first_bridge(encoder);
 	struct cdns_mhdp_device *mhdp = bridge->driver_private;
 
-	cdns_hdmi_phy_shutdown(mhdp);
+	if (mhdp->is_dp)
+		cdns_dp_phy_shutdown(mhdp);
+	else
+		cdns_hdmi_phy_shutdown(mhdp);
+
 	cdns_mhdp_plat_call(mhdp, plat_init);
 }
 

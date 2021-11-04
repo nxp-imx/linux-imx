@@ -235,22 +235,10 @@ static void rm68200_init_sequence(struct rm68200 *ctx)
 static int rm68200_disable(struct drm_panel *panel)
 {
 	struct rm68200 *ctx = panel_to_rm68200(panel);
-
-	if (!ctx->enabled)
-		return 0;
-
-	ctx->enabled = false;
-
-	return 0;
-}
-
-static int rm68200_unprepare(struct drm_panel *panel)
-{
-	struct rm68200 *ctx = panel_to_rm68200(panel);
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	int ret;
 
-	if (!ctx->prepared)
+	if (!ctx->enabled)
 		return 0;
 
 	ret = mipi_dsi_dcs_set_display_off(dsi);
@@ -262,6 +250,18 @@ static int rm68200_unprepare(struct drm_panel *panel)
 		dev_warn(panel->dev, "failed to enter sleep mode: %d\n", ret);
 
 	msleep(120);
+
+	ctx->enabled = false;
+
+	return 0;
+}
+
+static int rm68200_unprepare(struct drm_panel *panel)
+{
+	struct rm68200 *ctx = panel_to_rm68200(panel);
+
+	if (!ctx->prepared)
+		return 0;
 
 	gpiod_set_value_cansleep(ctx->enable_gpio, 0);
 
@@ -280,7 +280,6 @@ static int rm68200_unprepare(struct drm_panel *panel)
 static int rm68200_prepare(struct drm_panel *panel)
 {
 	struct rm68200 *ctx = panel_to_rm68200(panel);
-	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
 	int ret;
 
 	if (ctx->prepared)
@@ -301,6 +300,20 @@ static int rm68200_prepare(struct drm_panel *panel)
 
 	gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 
+	ctx->prepared = true;
+
+	return 0;
+}
+
+static int rm68200_enable(struct drm_panel *panel)
+{
+	struct rm68200 *ctx = panel_to_rm68200(panel);
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	int ret;
+
+	if (ctx->enabled)
+		return 0;
+
 	rm68200_init_sequence(ctx);
 
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
@@ -314,18 +327,6 @@ static int rm68200_prepare(struct drm_panel *panel)
 		return ret;
 
 	msleep(20);
-
-	ctx->prepared = true;
-
-	return 0;
-}
-
-static int rm68200_enable(struct drm_panel *panel)
-{
-	struct rm68200 *ctx = panel_to_rm68200(panel);
-
-	if (ctx->enabled)
-		return 0;
 
 	ctx->enabled = true;
 
