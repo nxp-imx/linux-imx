@@ -217,7 +217,7 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 	if (of_property_read_bool(np, "fsl,enable-lpa")) {
 		rpmsg->enable_lpa = 1;
 		rpmsg->buffer_size = LPA_LARGE_BUFFER_SIZE;
-	} else {
+	} else if (!rpmsg->buffer_size) {
 		rpmsg->buffer_size = IMX_DEFAULT_DMABUF_SIZE;
 	}
 
