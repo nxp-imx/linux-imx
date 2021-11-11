@@ -369,6 +369,16 @@ config SND_SOC_IMX_RPMSG
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  a rpmsg devices.
 
+config SND_SOC_IMX_PCM512X_RPMSG
+	tristate "SoC Audio support for pcm512x on i.MX boards with rpmsg"
+	depends on RPMSG
+	select SND_SOC_IMX_RPMSG
+	help
+	  SoC Audio support for pcm512x on i.MX boards with rpmsg.
+	  There should be rpmsg devices defined in other core (M core)
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  a rpmsg devices.
+
 config SND_SOC_IMX_CARD
 	tristate "SoC Audio Graph Sound Card support for i.MX boards"
 	depends on OF && I2C
