@@ -71,7 +71,7 @@ struct fb_fence_commit
 	struct fb_fence_context *context;
 
 	// physical address.
-	int64_t smem_start;
+	unsigned long smem_start;
 	struct fb_var_screeninfo screeninfo;
 
 	struct fb_fence_event *in_fence;
