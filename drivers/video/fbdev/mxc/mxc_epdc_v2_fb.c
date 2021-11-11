@@ -6015,6 +6015,8 @@ static void pxp_dma_done(void *arg)
 			   &fb_data->epdc_intr_work);
 	}
 
+	/* save histogram status to avoid it's freed before use */
+	fb_data->hist_status = tx_desc->hist_status;
 	/* This call will signal wait_for_completion_timeout() in send_buffer_to_pxp */
 	complete(&fb_data->pxp_tx_cmpl);
 }
@@ -6891,7 +6893,7 @@ static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat)
 		fb_data->pxp_conf.proc_data.lut_map_updated)
 		fb_data->pxp_conf.proc_data.lut_map_updated = false;
 
-	*hist_stat = to_tx_desc(fb_data->txd)->hist_status;
+	*hist_stat = fb_data->hist_status;
 	dma_release_channel(&fb_data->pxp_chan->dma_chan);
 	fb_data->pxp_chan = NULL;
 
