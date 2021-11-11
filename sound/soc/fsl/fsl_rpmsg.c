@@ -56,6 +56,9 @@ static int fsl_rpmsg_hw_params(struct snd_pcm_substream *substream,
 	u64 rate = params_rate(params);
 	int ret = 0;
 
+	if(p == NULL)
+		return 0;
+
 	/* Get current pll parent */
 	while (p && rpmsg->pll8k && rpmsg->pll11k) {
 		struct clk *pp = clk_get_parent(p);
@@ -97,7 +100,7 @@ static int fsl_rpmsg_hw_free(struct snd_pcm_substream *substream,
 {
 	struct fsl_rpmsg *rpmsg = snd_soc_dai_get_drvdata(dai);
 
-	if (rpmsg->mclk_streams & BIT(substream->stream)) {
+	if ((rpmsg->mclk != NULL) && (rpmsg->mclk_streams & BIT(substream->stream))) {
 		clk_disable_unprepare(rpmsg->mclk);
 		rpmsg->mclk_streams &= ~BIT(substream->stream);
 	}
@@ -212,6 +215,7 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 	struct snd_soc_dai_driver *dai_drv;
 	const char *dai_name;
 	struct fsl_rpmsg *rpmsg;
+	const char *model_string;
 	int ret;
 
 	dai_drv = devm_kzalloc(&pdev->dev, sizeof(struct snd_soc_dai_driver), GFP_KERNEL);
@@ -245,6 +249,11 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 			    of_device_is_compatible(np, "fsl,imx93-rpmsg-audio"))
 				dai_drv->capture.rates = SNDRV_PCM_RATE_16000;
 		}
+
+		of_property_read_string(np, "model", &model_string);
+		if(!strcmp("pcm512x-audio", model_string)) {
+			dai_drv->playback.rates |= SNDRV_PCM_RATE_384000;
+		}
 	}
 
 	/* Use rpmsg channel name as cpu dai name */
@@ -273,9 +282,15 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 	if (IS_ERR(rpmsg->ipg))
 		return PTR_ERR(rpmsg->ipg);
 
-	rpmsg->mclk = devm_clk_get_optional(&pdev->dev, "mclk");
-	if (IS_ERR(rpmsg->mclk))
-		return PTR_ERR(rpmsg->mclk);
+	if (of_property_read_bool(np, "pcm512x-sound-card")) {
+		rpmsg->ocram = devm_clk_get_optional(&pdev->dev, "ocram");
+		if (IS_ERR(rpmsg->ocram))
+			return PTR_ERR(rpmsg->ocram);
+	} else {
+		rpmsg->mclk = devm_clk_get_optional(&pdev->dev, "mclk");
+		if (IS_ERR(rpmsg->mclk))
+			return PTR_ERR(rpmsg->mclk);
+	}
 
 	rpmsg->dma = devm_clk_get_optional(&pdev->dev, "dma");
 	if (IS_ERR(rpmsg->dma))
@@ -347,8 +362,18 @@ static int fsl_rpmsg_runtime_resume(struct device *dev)
 		goto dma_err;
 	}
 
+	if(rpmsg->ocram != NULL){
+		ret = clk_prepare_enable(rpmsg->ocram);
+		if (ret) {
+			dev_err(dev, "Failed to enable ocram clock %d\n", ret);
+			goto ocram_err;
+		}
+	}
+
 	return 0;
 
+ocram_err:
+	clk_disable_unprepare(rpmsg->dma);
 dma_err:
 	clk_disable_unprepare(rpmsg->ipg);
 ipg_err:
@@ -359,6 +384,8 @@ static int fsl_rpmsg_runtime_suspend(struct device *dev)
 {
 	struct fsl_rpmsg *rpmsg = dev_get_drvdata(dev);
 
+	if(rpmsg->ocram != NULL)
+		clk_disable_unprepare(rpmsg->ocram);
 	clk_disable_unprepare(rpmsg->dma);
 	clk_disable_unprepare(rpmsg->ipg);
 

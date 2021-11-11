@@ -34,6 +34,7 @@ struct fsl_rpmsg_soc_data {
 struct fsl_rpmsg {
 	struct clk *ipg;
 	struct clk *mclk;
+	struct clk *ocram;
 	struct clk *dma;
 	struct clk *pll8k;
 	struct clk *pll11k;

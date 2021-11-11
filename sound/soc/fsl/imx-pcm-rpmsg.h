@@ -522,6 +522,7 @@ struct rpmsg_codec {
 
 #define RPMSG_CODEC_DRV_NAME_WM8960 "rpmsg-codec-wm8960"
 #define RPMSG_CODEC_DRV_NAME_AK4497 "rpmsg-codec-ak4497"
+#define RPMSG_CODEC_DRV_NAME_PCM512X "rpmsg-codec-pcm512x"
 #define IMX_PCM_DRV_NAME "imx_pcm_rpmsg"
 
 #endif /* IMX_PCM_RPMSG_H */

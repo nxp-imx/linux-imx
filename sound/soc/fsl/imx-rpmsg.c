@@ -15,6 +15,7 @@
 #include <sound/simple_card_utils.h>
 #include "imx-pcm-rpmsg.h"
 #include "../codecs/wm8960.h"
+#include "imx-pcm512x-rpmsg.h"
 
 struct imx_rpmsg {
 	struct snd_soc_dai_link dai;
@@ -162,6 +163,14 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+#if IS_ENABLED(CONFIG_SND_SOC_IMX_PCM512X_RPMSG)
+	of_property_read_string(np, "model", &model_string);
+
+	if(!strcmp("pcm512x-audio", model_string)) {
+		imx_pcm512x_rpmsg_init_data(pdev, (void **)(&data));
+	}
+#endif
+
 	ret = of_reserved_mem_device_init_by_idx(&pdev->dev, np, 0);
 	if (ret)
 		dev_warn(&pdev->dev, "no reserved DMA memory\n");
@@ -220,6 +229,12 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 
 	if (of_property_read_bool(np, "fsl,enable-lpa"))
 		data->lpa = true;
+
+#if IS_ENABLED(CONFIG_SND_SOC_IMX_PCM512X_RPMSG)
+	if(!strcmp("pcm512x-audio", model_string)) {
+		imx_pcm512x_rpmsg_probe(pdev, data);
+	}
+#endif
 
 	data->card.dev = &pdev->dev;
 	data->card.owner = THIS_MODULE;
