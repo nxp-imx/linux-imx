@@ -141,6 +141,10 @@
 	status = "okay";
 };
 
+&dcnano {
+	status = "disabled";
+};
+
 &fec {
 	status = "disabled";
 };
