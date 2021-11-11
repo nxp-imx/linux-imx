@@ -396,6 +396,8 @@ snd-soc-zl38060-y := zl38060.o
 snd-soc-rpmsg-wm8960-y := rpmsg_wm8960.o
 snd-soc-rpmsg-wm8960-i2c-y := rpmsg_wm8960_i2c.o
 snd-soc-rpmsg-ak4497-y := rpmsg_ak4497.o
+snd-soc-rpmsg-pcm512x-objs := rpmsg_pcm512x.o
+snd-soc-rpmsg-pcm512x-i2c-objs := rpmsg_pcm512x_i2c.o
 
 # Amp
 snd-soc-max9877-y := max9877.o
@@ -812,6 +814,8 @@ obj-$(CONFIG_SND_SOC_WSA884X)	+= snd-soc-wsa884x.o
 obj-$(CONFIG_SND_SOC_ZL38060)	+= snd-soc-zl38060.o
 obj-$(CONFIG_SND_SOC_RPMSG_WM8960)	+= snd-soc-rpmsg-wm8960.o
 obj-$(CONFIG_SND_SOC_RPMSG_WM8960_I2C)	+= snd-soc-rpmsg-wm8960-i2c.o
+obj-$(CONFIG_SND_SOC_RPMSG_PCM512X)	+= snd-soc-rpmsg-pcm512x.o
+obj-$(CONFIG_SND_SOC_RPMSG_PCM512X_I2C)	+= snd-soc-rpmsg-pcm512x-i2c.o
 obj-$(CONFIG_SND_SOC_RPMSG_AK4497)	+= snd-soc-rpmsg-ak4497.o
 
 # Amp
