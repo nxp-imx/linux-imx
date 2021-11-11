@@ -242,6 +242,10 @@ struct mxc_epdc_fb_data {
 
 	/* qos */
 	struct regmap *qos_regmap;
+
+#ifdef CONFIG_FB_FENCE
+	struct fb_fence_context context;
+#endif
 };
 
 struct waveform_data_header {
@@ -2607,7 +2611,14 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		sg_dma_address(&fb_data->sg[0]) =
 			upd_desc_list->upd_data.alt_buffer_data.phys_addr
 				+ pxp_input_offs;
-	else {
+	else if (upd_desc_list->upd_data.flags & EPDC_FLAG_FB_FROM_USERSPACE) {
+		sg_dma_address(&fb_data->sg[0]) =
+			upd_desc_list->upd_data.userspace_buffer + pxp_input_offs;
+		sg_set_page(&fb_data->sg[0],
+			phys_to_page(upd_desc_list->upd_data.userspace_buffer),
+			fb_data->max_pix_size * fb_data->default_bpp/8,
+			offset_in_page(upd_desc_list->upd_data.userspace_buffer));
+	} else {
 		sg_dma_address(&fb_data->sg[0]) =
 			fb_data->info.fix.smem_start + fb_data->fb_offset
 			+ pxp_input_offs;
@@ -3693,6 +3704,42 @@ static int mxc_epdc_get_pwrdown_delay(struct fb_info *info)
 	return fb_data->pwrdown_delay;
 }
 
+#ifdef CONFIG_FB_FENCE
+static int mxc_epdc_update_data(int64_t dma_address, struct fb_var_screeninfo *var, struct fb_info *fb_info)
+{
+	int ret = -EINVAL;
+	struct mxcfb_update_data upd_data;
+	struct mxc_epdc_fb_data *fb_data = fb_info ? (struct mxc_epdc_fb_data *)fb_info : g_fb_data;
+	static uint32_t marker_val = 1;
+	struct mxcfb_update_marker_data upd_marker_data;
+
+	upd_data.update_mode = UPDATE_MODE_FULL;
+	upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
+	upd_data.update_region.left = var->xoffset;
+	upd_data.update_region.width = fb_info->var.xres;
+	upd_data.update_region.top = var->yoffset;
+	upd_data.update_region.height = fb_info->var.yres;
+	upd_data.temp = TEMP_USE_AMBIENT;
+	upd_data.flags = EPDC_FLAG_FB_FROM_USERSPACE;
+	upd_data.userspace_buffer = dma_address;
+	upd_data.update_marker = marker_val++;
+
+	ret = mxc_epdc_fb_send_update(&upd_data, fb_info);
+	if (ret)
+		dev_err(fb_data->dev, "Update screen failed, err=%d\n", ret);
+
+	upd_marker_data.update_marker = upd_data.update_marker;
+	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data, fb_info);
+	if (ret > 0) {
+		fb_handle_fence(&fb_data->context);
+	} else {
+		dev_err(fb_data->dev, "Update screen is not completed\n");
+	}
+
+	return ret;
+}
+#endif
+
 static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			     unsigned long arg)
 {
@@ -3764,6 +3811,20 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 			break;
 		}
+#ifdef CONFIG_FB_FENCE
+	case MXCFB_PRESENT_SCREEN:
+		{
+			struct mxcfb_datainfo buffer;
+			struct mxc_epdc_fb_data *fb_data = info ?
+				(struct mxc_epdc_fb_data *)info:g_fb_data;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = fb_present_screen(&fb_data->context, &buffer);
+		}
+		break;
+#endif
 
 	case MXCFB_SET_PWRDOWN_DELAY:
 		{
@@ -3961,6 +4022,7 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
+	default:
 		mxc_epdc_fb_flush_updates(fb_data);
 		break;
 	}
@@ -5705,6 +5767,9 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	}
 
 	g_fb_data = fb_data;
+#ifdef CONFIG_FB_FENCE
+	fb_init_fence_context(&fb_data->context, "mxcepdcfb", info, mxc_epdc_update_data);
+#endif
 
 	pm_runtime_enable(fb_data->dev);
 
