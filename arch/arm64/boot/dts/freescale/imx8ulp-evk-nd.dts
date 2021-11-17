@@ -18,7 +18,13 @@
 };
 
 &mipi_csi0 {
-	/* Place Holder */
+	assigned-clock-rates =  <396000000>,
+				<176000000>,
+				<132000000>,
+				<396000000>,
+				<176000000>,
+				<132000000>,
+				<79200000>;
 };
 
 &epdc {
@@ -26,9 +32,9 @@
 };
 
 &dsp {
-	assigned-clocks = <&cgc2 IMX8ULP_CLK_HIFI_DIVCORE>,
-			  <&cgc2 IMX8ULP_CLK_HIFI_DIVPLAT>;
-	assigned-clock-rates = <260000000>, <150000000>;
+	assigned-clocks = <&cgc2 IMX8ULP_CLK_HIFI_SEL>, <&cgc2 IMX8ULP_CLK_HIFI_DIVCORE>;
+	assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0>;
+	assigned-clock-rates = <0>, <260000000>;
 };
 
 &i3c2 {
@@ -36,13 +42,19 @@
 };
 
 &usdhc0 {
+	assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>, <&pcc4 IMX8ULP_CLK_USDHC0>;
+	assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 	assigned-clock-rates = <198000000>, <198000000>;
 };
 
 &usdhc1 {
+	assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>, <&pcc4 IMX8ULP_CLK_USDHC1>;
+	assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 	assigned-clock-rates = <198000000>, <198000000>;
 };
 
 &usdhc2 {
+	assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>, <&pcc4 IMX8ULP_CLK_USDHC2>;
+	assigned-clock-parents = <0>, <&cgc1 IMX8ULP_CLK_SPLL3_PFD2_DIV1>;
 	assigned-clock-rates = <198000000>, <198000000>;
 };
