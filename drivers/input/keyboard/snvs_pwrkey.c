@@ -231,7 +231,7 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 
 	pdata->emulate_press = of_property_read_bool(np, "emulate-press");
 
-	pdata->clk = devm_clk_get(&pdev->dev, "snvs");
+	pdata->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pdata->clk)) {
 		pdata->clk = NULL;
 	} else {
