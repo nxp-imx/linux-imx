@@ -346,7 +346,7 @@ static int imx8ulp_clk_pcc3_init(struct platform_device *pdev)
 	clks[IMX8ULP_CLK_LPI2C4] = imx8ulp_clk_hw_composite("lpi2c4", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xdc, 1);
 	clks[IMX8ULP_CLK_LPI2C5] = imx8ulp_clk_hw_composite("lpi2c5", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xe0, 1);
 	clks[IMX8ULP_CLK_LPUART4] = imx8ulp_clk_hw_composite("lpuart4", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xe4, 1);
-	clks[IMX8ULP_CLK_LPUART5] = imx8ulp_clk_hw_composite("lpuart5", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xe8, 1);
+	clks[IMX8ULP_CLK_LPUART5] = imx8ulp_clk_hw_composite_flags("lpuart5", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xe8, 1, CLK_IS_CRITICAL);
 	clks[IMX8ULP_CLK_LPSPI4] = imx8ulp_clk_hw_composite("lpspi4", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xec, 1);
 	clks[IMX8ULP_CLK_LPSPI5] = imx8ulp_clk_hw_composite("lpspi5", pcc3_periph_bus_sels, ARRAY_SIZE(pcc3_periph_bus_sels), true, true, true, base + 0xf0, 1);
 
