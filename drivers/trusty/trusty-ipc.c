@@ -2658,6 +2658,8 @@ static void tipc_virtio_remove(struct virtio_device *vdev)
 	kref_put(&vds->refcount, _free_vds);
 }
 
+// TODO (b/207176288) This needs to be sent upstream
+#define VIRTIO_ID_TRUSTY_IPC 13 /* virtio trusty ipc */
 static const struct virtio_device_id tipc_virtio_id_table[] = {
 	{ VIRTIO_ID_TRUSTY_IPC, VIRTIO_DEV_ANY_ID },
 	{ 0 },
