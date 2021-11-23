@@ -424,6 +424,8 @@ static size_t fsl_edma3_desc_residue(struct fsl_edma3_chan *fsl_chan,
 
 	if (dir == DMA_MEM_TO_DEV)
 		cur_addr = readl(addr + EDMA_TCD_SADDR);
+	else
+		cur_addr = readl(addr + EDMA_TCD_DADDR);
 
 	/* skip the tcds before curidx in cyclic case */
 	if (edesc->iscyclic)
