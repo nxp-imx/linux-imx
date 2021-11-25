@@ -209,6 +209,16 @@
 		};
 	};
 
+	resmem: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		secure_region: secure {
+			 compatible = "imx-secure-ion-pool";
+			 reg = <0x0 0xE0000000 0 0x10000000>;
+		};
+        };
+
 	pmu {
 		compatible = "arm,cortex-a53-pmu";
 		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH>;
