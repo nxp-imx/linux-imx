@@ -9,7 +9,13 @@ ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mm_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mn_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8ulp_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mq_gki.fragment"
-POST_DEFCONFIG_CMDS="rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}"
+
+POST_DEFCONFIG_CMDS="update_config"
+function update_config() {
+    ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
+         -e HAVE_IMX_BUSFREQ
+    rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}
+}
 
 FILES="
 arch/arm64/boot/Image
