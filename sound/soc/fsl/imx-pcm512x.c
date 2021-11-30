@@ -30,7 +30,7 @@
 #define DAC_CLK_EXT_48K 24576000UL
 
 struct imx_pcm512x_data {
-	struct snd_soc_dai_link dai_link[3];
+	struct snd_soc_dai_link dai_link[1];
 	struct snd_soc_card card;
 	struct snd_soc_codec_conf *codec_conf;
 	struct gpio_desc *mute_gpio;
