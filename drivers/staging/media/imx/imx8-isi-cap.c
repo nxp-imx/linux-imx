@@ -449,6 +449,22 @@ static int cap_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 				dev_err(&isi_cap->pdev->dev,
 					"alloc dma buffer(%d) fail\n", j);
 			}
+			while (!list_empty(&isi_cap->out_active)) {
+				buf = list_entry(isi_cap->out_active.next,
+						 struct mxc_isi_buffer, list);
+				list_del_init(&buf->list);
+				if (buf->discard)
+					continue;
+
+				vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
+			}
+
+			while (!list_empty(&isi_cap->out_pending)) {
+				buf = list_entry(isi_cap->out_pending.next,
+						 struct mxc_isi_buffer, list);
+				list_del_init(&buf->list);
+				vb2_buffer_done(&buf->v4l2_buf.vb2_buf, VB2_BUF_STATE_ERROR);
+			}
 			return -ENOMEM;
 		}
 		dev_dbg(&isi_cap->pdev->dev,
