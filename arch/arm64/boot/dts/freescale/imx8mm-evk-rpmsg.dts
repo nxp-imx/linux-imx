@@ -61,6 +61,9 @@
 		model = "ak4497-audio";
 		fsl,enable-lpa;
 		fsl,rpmsg-out;
+		assigned-clocks = <&clk IMX8MM_CLK_SAI1>;
+		assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
+		assigned-clock-rates = <49152000>;
 		clocks = <&clk IMX8MM_CLK_SAI1_IPG>,
 			 <&clk IMX8MM_CLK_SAI1_ROOT>,
 			 <&clk IMX8MM_CLK_SDMA3_ROOT>,

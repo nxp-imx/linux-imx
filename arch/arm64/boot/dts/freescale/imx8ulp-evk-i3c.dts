@@ -9,6 +9,10 @@
 	status = "disabled";
 };
 
+&lpspi5 {
+	status = "disabled";
+};
+
 &i2c_rpbus_0 {
 	/delete-node/lsm6dsm@6a;
 };

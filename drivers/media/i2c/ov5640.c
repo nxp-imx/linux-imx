@@ -1291,7 +1291,17 @@ static int ov5640_set_stream_dvp(struct ov5640_dev *sensor, bool on)
 
 static int ov5640_set_stream_mipi(struct ov5640_dev *sensor, bool on)
 {
+	const struct ov5640_mode_info *mode;
+	u8 line_sync;
 	int ret;
+
+	mode = sensor->current_mode;
+	line_sync = (mode->id == OV5640_MODE_XGA_1024_768 ||
+		     mode->id == OV5640_MODE_QSXGA_2592_1944) ? 0 : 1;
+	ret = ov5640_write_reg(sensor, OV5640_REG_MIPI_CTRL00,
+			       0x24 | (line_sync << 4));
+	if (ret)
+		return ret;
 
 	/*
 	 * Enable/disable the MIPI interface
@@ -2027,9 +2037,10 @@ static int ov5640_set_power_mipi(struct ov5640_dev *sensor, bool on)
 	 *
 	 * 0x4800 = 0x24
 	 * [5] = 1	: Gate clock when 'no packets'
+	 * [4] = 1	: Line sync enable
 	 * [2] = 1	: MIPI bus in LP11 when 'no packets'
 	 */
-	ret = ov5640_write_reg(sensor, OV5640_REG_MIPI_CTRL00, 0x24);
+	ret = ov5640_write_reg(sensor, OV5640_REG_MIPI_CTRL00, 0x34);
 	if (ret)
 		return ret;
 

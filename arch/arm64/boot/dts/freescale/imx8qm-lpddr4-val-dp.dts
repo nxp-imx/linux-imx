@@ -86,7 +86,9 @@
 
 &hdmi {
 	compatible = "cdn,imx8qm-dp";
+	firmware-name = "dpfw.bin";
 	lane-mapping = <0x1b>;
+	hdcp-config = <0x2>;
 	status = "okay";
 };
 

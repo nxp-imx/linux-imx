@@ -307,6 +307,8 @@ static int imx_dsp_rproc_stop(struct rproc *rproc)
 	struct device *dev = priv->dev;
 	int ret = 0;
 
+	flush_workqueue(priv->workqueue);
+
 	if (rproc->state == RPROC_CRASHED) {
 		priv->flags &= ~REMOTE_IS_READY;
 		return 0;
@@ -597,7 +599,7 @@ static int imx_dsp_rproc_mbox_init(struct imx_dsp_rproc *priv)
 	cl = &priv->cl;
 	cl->dev = dev;
 	cl->tx_block = true;
-	cl->tx_tout = 200;
+	cl->tx_tout = 100;
 	cl->knows_txdone = false;
 	cl->rx_callback = imx_dsp_rproc_rx_callback;
 

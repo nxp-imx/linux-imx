@@ -182,8 +182,14 @@ MODULE_DEVICE_TABLE(of, fsl_rpmsg_ids);
 static int fsl_rpmsg_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct snd_soc_dai_driver *dai_drv;
 	struct fsl_rpmsg *rpmsg;
 	int ret;
+
+	dai_drv = devm_kzalloc(&pdev->dev, sizeof(struct snd_soc_dai_driver), GFP_KERNEL);
+	if (!dai_drv)
+		return -ENOMEM;
+	memcpy(dai_drv, &fsl_rpmsg_dai, sizeof(fsl_rpmsg_dai));
 
 	rpmsg = devm_kzalloc(&pdev->dev, sizeof(struct fsl_rpmsg), GFP_KERNEL);
 	if (!rpmsg)
@@ -191,16 +197,27 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 
 	rpmsg->soc_data = of_device_get_match_data(&pdev->dev);
 	if (rpmsg->soc_data) {
-		fsl_rpmsg_dai.playback.rates = rpmsg->soc_data->rates;
-		fsl_rpmsg_dai.capture.rates = rpmsg->soc_data->rates;
-		fsl_rpmsg_dai.playback.formats = rpmsg->soc_data->formats;
-		fsl_rpmsg_dai.capture.formats = rpmsg->soc_data->formats;
+		dai_drv->playback.rates = rpmsg->soc_data->rates;
+		dai_drv->capture.rates = rpmsg->soc_data->rates;
+		dai_drv->playback.formats = rpmsg->soc_data->formats;
+		dai_drv->capture.formats = rpmsg->soc_data->formats;
+
+		/* setup rpmsg-micfil channels and rates */
+		if (of_node_name_eq(np, "rpmsg_micfil")) {
+			rpmsg->buffer_size = 0x100000;
+			dai_drv->capture.channels_min = 1;
+			dai_drv->capture.channels_max = 8;
+			dai_drv->capture.rates = SNDRV_PCM_RATE_8000_48000;
+			dai_drv->capture.formats = SNDRV_PCM_FMTBIT_S32_LE;
+			if (of_device_is_compatible(np, "fsl,imx8mm-rpmsg-audio"))
+				dai_drv->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
+		}
 	}
 
 	if (of_property_read_bool(np, "fsl,enable-lpa")) {
 		rpmsg->enable_lpa = 1;
 		rpmsg->buffer_size = LPA_LARGE_BUFFER_SIZE;
-	} else {
+	} else if (!rpmsg->buffer_size) {
 		rpmsg->buffer_size = IMX_DEFAULT_DMABUF_SIZE;
 	}
 
@@ -229,13 +246,13 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 
 	ret = devm_snd_soc_register_component(&pdev->dev, &fsl_component,
-					      &fsl_rpmsg_dai, 1);
+					      dai_drv, 1);
 	if (ret)
 		return ret;
 
 	rpmsg->card_pdev = platform_device_register_data(&pdev->dev,
 							 "imx-audio-rpmsg",
-							 PLATFORM_DEVID_NONE,
+							 PLATFORM_DEVID_AUTO,
 							 NULL,
 							 0);
 	if (IS_ERR(rpmsg->card_pdev)) {

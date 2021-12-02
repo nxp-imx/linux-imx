@@ -242,6 +242,10 @@ struct mxc_epdc_fb_data {
 
 	/* qos */
 	struct regmap *qos_regmap;
+
+#ifdef CONFIG_FB_FENCE
+	struct fb_fence_context context;
+#endif
 };
 
 struct waveform_data_header {
@@ -279,6 +283,23 @@ struct mxcfb_waveform_data_file {
 
 static struct fb_videomode ed060xh2c1mode = {
 	.name = "ED060XH2C1",
+	.refresh = 85,
+	.xres = 1024,
+	.yres = 758,
+	.pixclock = 40000000,
+	.left_margin = 12,
+	.right_margin = 76,
+	.upper_margin = 4,
+	.lower_margin = 5,
+	.hsync_len = 12,
+	.vsync_len = 2,
+	.sync = 0,
+	.vmode = FB_VMODE_NONINTERLACED,
+	.flag = 0,
+};
+
+static struct fb_videomode ed060xh7u2mode = {
+	.name = "ED060XH7U2",
 	.refresh = 85,
 	.xres = 1024,
 	.yres = 758,
@@ -365,6 +386,19 @@ static struct fb_videomode e97_v110_mode = {
 static struct imx_epdc_fb_mode panel_modes[] = {
 	{
 		&ed060xh2c1mode,	/* struct fb_videomode *mode */
+		4, 	/* vscan_holdoff */
+		10, 	/* sdoed_width */
+		20, 	/* sdoed_delay */
+		10, 	/* sdoez_width */
+		20, 	/* sdoez_delay */
+		524, 	/* GDCLK_HP */
+		327, 	/* GDSP_OFF */
+		0, 	/* GDOE_OFF */
+		19, 	/* gdclk_offs */
+		1, 	/* num_ce */
+	},
+	{
+		&ed060xh7u2mode,
 		4, 	/* vscan_holdoff */
 		10, 	/* sdoed_width */
 		20, 	/* sdoed_delay */
@@ -1200,6 +1234,7 @@ static void epdc_set_vertical_timing(u32 vert_start, u32 vert_end,
 	__raw_writel(reg_val, EPDC_TCE_VSCAN);
 }
 
+/* Initialize EPDC, passing pointer to EPDC registers */
 static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 {
 	struct imx_epdc_fb_mode *epdc_mode = fb_data->cur_mode;
@@ -1212,6 +1247,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	int j;
 	unsigned char *bb_p;
 
+	pm_runtime_get_sync(fb_data->dev);
 	/* Enable clocks to access EPDC regs */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
 	clk_prepare_enable(fb_data->epdc_clk_ahb);
@@ -1419,6 +1455,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
 	clk_disable_unprepare(fb_data->epdc_clk_ahb);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
+	pm_runtime_put_sync_suspend(fb_data->dev);
 }
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
@@ -1479,8 +1516,7 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	clk_prepare_enable(fb_data->epdc_clk_ahb);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
 
-	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
-
+	epdc_init_settings(fb_data);
 
 	/* Enable power to the EPD panel */
 	if (fb_data->display_regulator) {
@@ -1561,9 +1597,6 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 
 static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 {
-	/* Initialize EPDC, passing pointer to EPDC registers */
-	epdc_init_settings(fb_data);
-
 	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
@@ -2578,7 +2611,14 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 		sg_dma_address(&fb_data->sg[0]) =
 			upd_desc_list->upd_data.alt_buffer_data.phys_addr
 				+ pxp_input_offs;
-	else {
+	else if (upd_desc_list->upd_data.flags & EPDC_FLAG_FB_FROM_USERSPACE) {
+		sg_dma_address(&fb_data->sg[0]) =
+			upd_desc_list->upd_data.userspace_buffer + pxp_input_offs;
+		sg_set_page(&fb_data->sg[0],
+			phys_to_page(upd_desc_list->upd_data.userspace_buffer),
+			fb_data->max_pix_size * fb_data->default_bpp/8,
+			offset_in_page(upd_desc_list->upd_data.userspace_buffer));
+	} else {
 		sg_dma_address(&fb_data->sg[0]) =
 			fb_data->info.fix.smem_start + fb_data->fb_offset
 			+ pxp_input_offs;
@@ -3664,6 +3704,42 @@ static int mxc_epdc_get_pwrdown_delay(struct fb_info *info)
 	return fb_data->pwrdown_delay;
 }
 
+#ifdef CONFIG_FB_FENCE
+static int mxc_epdc_update_data(int64_t dma_address, struct fb_var_screeninfo *var, struct fb_info *fb_info)
+{
+	int ret = -EINVAL;
+	struct mxcfb_update_data upd_data;
+	struct mxc_epdc_fb_data *fb_data = fb_info ? (struct mxc_epdc_fb_data *)fb_info : g_fb_data;
+	static uint32_t marker_val = 1;
+	struct mxcfb_update_marker_data upd_marker_data;
+
+	upd_data.update_mode = UPDATE_MODE_FULL;
+	upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
+	upd_data.update_region.left = var->xoffset;
+	upd_data.update_region.width = fb_info->var.xres;
+	upd_data.update_region.top = var->yoffset;
+	upd_data.update_region.height = fb_info->var.yres;
+	upd_data.temp = TEMP_USE_AMBIENT;
+	upd_data.flags = EPDC_FLAG_FB_FROM_USERSPACE;
+	upd_data.userspace_buffer = dma_address;
+	upd_data.update_marker = marker_val++;
+
+	ret = mxc_epdc_fb_send_update(&upd_data, fb_info);
+	if (ret)
+		dev_err(fb_data->dev, "Update screen failed, err=%d\n", ret);
+
+	upd_marker_data.update_marker = upd_data.update_marker;
+	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data, fb_info);
+	if (ret > 0) {
+		fb_handle_fence(&fb_data->context);
+	} else {
+		dev_err(fb_data->dev, "Update screen is not completed\n");
+	}
+
+	return ret;
+}
+#endif
+
 static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			     unsigned long arg)
 {
@@ -3735,6 +3811,20 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 			break;
 		}
+#ifdef CONFIG_FB_FENCE
+	case MXCFB_PRESENT_SCREEN:
+		{
+			struct mxcfb_datainfo buffer;
+			struct mxc_epdc_fb_data *fb_data = info ?
+				(struct mxc_epdc_fb_data *)info:g_fb_data;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = fb_present_screen(&fb_data->context, &buffer);
+		}
+		break;
+#endif
 
 	case MXCFB_SET_PWRDOWN_DELAY:
 		{
@@ -3932,6 +4022,7 @@ static int mxc_epdc_fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
+	default:
 		mxc_epdc_fb_flush_updates(fb_data);
 		break;
 	}
@@ -5676,6 +5767,9 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	}
 
 	g_fb_data = fb_data;
+#ifdef CONFIG_FB_FENCE
+	fb_init_fence_context(&fb_data->context, "mxcepdcfb", info, mxc_epdc_update_data);
+#endif
 
 	pm_runtime_enable(fb_data->dev);
 
@@ -5921,6 +6015,8 @@ static void pxp_dma_done(void *arg)
 			   &fb_data->epdc_intr_work);
 	}
 
+	/* save histogram status to avoid it's freed before use */
+	fb_data->hist_status = tx_desc->hist_status;
 	/* This call will signal wait_for_completion_timeout() in send_buffer_to_pxp */
 	complete(&fb_data->pxp_tx_cmpl);
 }
@@ -6797,7 +6893,7 @@ static int pxp_complete_update(struct mxc_epdc_fb_data *fb_data, u32 *hist_stat)
 		fb_data->pxp_conf.proc_data.lut_map_updated)
 		fb_data->pxp_conf.proc_data.lut_map_updated = false;
 
-	*hist_stat = to_tx_desc(fb_data->txd)->hist_status;
+	*hist_stat = fb_data->hist_status;
 	dma_release_channel(&fb_data->pxp_chan->dma_chan);
 	fb_data->pxp_chan = NULL;
 

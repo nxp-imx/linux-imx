@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2016 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2021 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -1976,9 +1976,9 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 
 	case HDMI_EDID_FAIL:
 		mxc_hdmi_default_edid_cfg(hdmi);
-		/* fall through */
+		fallthrough;
 	case HDMI_EDID_NO_MODES:
-		/* fall through */
+		fallthrough;
 	default:
 		mxc_hdmi_default_modelist(hdmi);
 		break;

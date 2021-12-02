@@ -185,7 +185,6 @@ struct nwl_dsi {
 	struct list_head valid_modes;
 	u32 clk_drop_lvl;
 	bool use_dcss;
-	bool modeset_done;
 };
 
 static const struct regmap_config nwl_dsi_regmap_config = {
@@ -294,7 +293,7 @@ static u32 ps2bc(struct nwl_dsi *dsi, unsigned long long ps)
 	u32 bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
 
 	return DIV64_U64_ROUND_UP(ps * dsi->mode.clock * bpp,
-				  dsi->lanes * 8 * NSEC_PER_SEC);
+				  dsi->lanes * 8ULL * NSEC_PER_SEC);
 }
 
 /*
@@ -327,13 +326,15 @@ static int nwl_dsi_config_host(struct nwl_dsi *dsi)
 	DRM_DEV_DEBUG_DRIVER(dsi->dev, "DSI Lanes %d\n", dsi->lanes);
 	nwl_dsi_write(dsi, NWL_DSI_CFG_NUM_LANES, dsi->lanes - 1);
 
-	if (dsi->dsi_mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) {
+	if (dsi->dsi_mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS)
 		nwl_dsi_write(dsi, NWL_DSI_CFG_NONCONTINUOUS_CLK, 0x01);
-		nwl_dsi_write(dsi, NWL_DSI_CFG_AUTOINSERT_EOTP, 0x01);
-	} else {
+	else
 		nwl_dsi_write(dsi, NWL_DSI_CFG_NONCONTINUOUS_CLK, 0x00);
+
+	if (dsi->dsi_mode_flags & MIPI_DSI_MODE_EOT_PACKET)
 		nwl_dsi_write(dsi, NWL_DSI_CFG_AUTOINSERT_EOTP, 0x00);
-	}
+	else
+		nwl_dsi_write(dsi, NWL_DSI_CFG_AUTOINSERT_EOTP, 0x01);
 
 	/* values in byte clock cycles */
 	cycles = ui2bc(dsi, cfg->clk_pre);
@@ -798,7 +799,7 @@ static irqreturn_t nwl_dsi_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int nwl_dsi_mode_set(struct nwl_dsi *dsi)
+static int nwl_dsi_enable(struct nwl_dsi *dsi)
 {
 	struct device *dev = dsi->dev;
 	union phy_configure_opts *phy_cfg = &dsi->phy_cfg;
@@ -926,8 +927,6 @@ nwl_dsi_bridge_atomic_post_disable(struct drm_bridge *bridge,
 		clk_disable_unprepare(dsi->lcdif_clk);
 
 	pm_runtime_put(dsi->dev);
-
-	dsi->modeset_done = false;
 }
 
 static unsigned long nwl_dsi_get_bit_clock(struct nwl_dsi *dsi,
@@ -1248,15 +1247,6 @@ static int nwl_dsi_bridge_atomic_check(struct drm_bridge *bridge,
 		adjusted->flags |= (DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC);
 	}
 
-	/*
-	 * Do a full modeset if crtc_state->active is changed to be true.
-	 * This ensures our ->mode_set() is called to get the DSI controller
-	 * and the PHY ready to send DCS commands, when only the connector's
-	 * DPMS is brought out of "Off" status.
-	 */
-	if (crtc_state->active_changed && crtc_state->active)
-		crtc_state->mode_changed = true;
-
 	return 0;
 }
 
@@ -1271,9 +1261,6 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	unsigned long phy_ref_rate;
 	struct mode_config *config;
 	int ret;
-
-	if (dsi->modeset_done)
-		return;
 
 	DRM_DEV_DEBUG_DRIVER(dsi->dev, "Setting mode:\n");
 	drm_mode_debug_printmodeline(adjusted_mode);
@@ -1309,8 +1296,16 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
  
 	/* Save the new desired phy config */
 	memcpy(&dsi->phy_cfg, &new_cfg, sizeof(new_cfg));
+}
 
-	pm_runtime_get_sync(dev);
+static void
+nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
+				 struct drm_bridge_state *old_bridge_state)
+{
+	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
+	int ret;
+
+	pm_runtime_get_sync(dsi->dev);
 
 	dsi->pdata->dpi_reset(dsi, true);
 	dsi->pdata->mipi_reset(dsi, true);
@@ -1339,28 +1334,19 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	/* Step 1 from DSI reset-out instructions */
 	ret = dsi->pdata->pclk_reset(dsi, false);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "Failed to deassert PCLK: %d\n", ret);
+		DRM_DEV_ERROR(dsi->dev, "Failed to deassert PCLK: %d\n", ret);
 		return;
 	}
 
 	/* Step 2 from DSI reset-out instructions */
-	nwl_dsi_mode_set(dsi);
+	nwl_dsi_enable(dsi);
 
 	/* Step 3 from DSI reset-out instructions */
 	ret = dsi->pdata->mipi_reset(dsi, false);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "Failed to deassert DSI: %d\n", ret);
+		DRM_DEV_ERROR(dsi->dev, "Failed to deassert DSI: %d\n", ret);
 		return;
 	}
-
-	dsi->modeset_done = true;
-}
-
-static void
-nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
-				 struct drm_bridge_state *old_bridge_state)
-{
-	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 
 	/*
 	 * We need to force call enable for the panel here, in order to

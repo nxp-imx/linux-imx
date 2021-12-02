@@ -48,6 +48,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/pm_qos.h>
 #include <linux/sizes.h>
 
@@ -215,9 +216,13 @@
 
 #define FSPI_DLLACR			0xC0
 #define FSPI_DLLACR_OVRDEN		BIT(8)
+#define FSPI_DLLACR_SLVDLY(x)          ((x) << 3)
+#define FSPI_DLLACR_DLLEN              BIT(0)
 
 #define FSPI_DLLBCR			0xC4
 #define FSPI_DLLBCR_OVRDEN		BIT(8)
+#define FSPI_DLLBCR_SLVDLY(x)          ((x) << 3)
+#define FSPI_DLLBCR_DLLEN              BIT(0)
 
 #define FSPI_STS0			0xE0
 #define FSPI_STS0_DLPHB(x)		((x) << 8)
@@ -369,6 +374,7 @@ struct nxp_fspi {
 	u32 memmap_phy_size;
 	u32 memmap_start;
 	u32 memmap_len;
+	u32 dll_slvdly;
 	struct clk *clk, *clk_en;
 	struct device *dev;
 	struct completion c;
@@ -378,6 +384,7 @@ struct nxp_fspi {
 	int selected;
 #define FSPI_INITILIZED	(1 << 0)
 #define FSPI_RXCLKSRC_3	(1 << 1)
+#define FSPI_DTR_ODD_ADDR	(1 << 2)
 	int flags;
 };
 
@@ -796,22 +803,42 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 {
 	void __iomem *base = f->iobase;
 	int i, ret;
-	int len = op->data.nbytes;
+	int len, cnt;
 	u8 *buf = (u8 *) op->data.buf.in;
+
+	/* DTR with ODD address need read one more byte */
+	len = (f->flags & FSPI_DTR_ODD_ADDR) ? op-> data.nbytes + 1 : op->data.nbytes;
 
 	/*
 	 * Default value of water mark level is 8 bytes, hence in single
 	 * read request controller can read max 8 bytes of data.
 	 */
-	for (i = 0; i < ALIGN_DOWN(len, 8); i += 8) {
+	cnt = ALIGN_DOWN(len, 8);
+
+	for (i = 0; i < cnt;) {
 		/* Wait for RXFIFO available */
 		ret = fspi_readl_poll_tout(f, f->iobase + FSPI_INTR,
 					   FSPI_INTR_IPRXWA, 0,
 					   POLL_TOUT, true);
 		WARN_ON(ret);
 
-		*(u32 *)(buf + i) = fspi_readl(f, base + FSPI_RFDR);
-		*(u32 *)(buf + i + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
+		if (f->flags & FSPI_DTR_ODD_ADDR && !i) {
+			/*
+			 * DTR read always start from 2bytes alignment address,
+			 * if read from an odd address A, it actually read from
+			 * address A-1, need to abandon the first byte here
+			 */
+			u8 tmp[8];
+			*(u32 *)tmp = fspi_readl(f, base + FSPI_RFDR);
+			*(u32 *)(tmp + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
+			memcpy(buf, tmp + 1, 7);
+			i += 7;
+			f->flags &= ~FSPI_DTR_ODD_ADDR;
+		} else {
+			*(u32 *)(buf + i) = fspi_readl(f, base + FSPI_RFDR);
+			*(u32 *)(buf + i + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
+			i += 8;
+		}
 		/* move the FIFO pointer */
 		fspi_writel(f, FSPI_INTR_IPRXWA, base + FSPI_INTR);
 	}
@@ -821,13 +848,13 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 		int size, j;
 
 		buf = op->data.buf.in + i;
+		len -= i;
 		/* Wait for RXFIFO available */
 		ret = fspi_readl_poll_tout(f, f->iobase + FSPI_INTR,
 					   FSPI_INTR_IPRXWA, 0,
 					   POLL_TOUT, true);
 		WARN_ON(ret);
 
-		len = op->data.nbytes - i;
 		for (j = 0; j < op->data.nbytes - i; j += 4) {
 			tmp = fspi_readl(f, base + FSPI_RFDR + j);
 			size = min(len, 4);
@@ -858,15 +885,31 @@ static int nxp_fspi_do_op(struct nxp_fspi *f, const struct spi_mem_op *op)
 	init_completion(&f->c);
 
 	fspi_writel(f, op->addr.val, base + FSPI_IPCR0);
+
 	/*
 	 * Always start the sequence at the same index since we update
 	 * the LUT at each exec_op() call. And also specify the DATA
 	 * length, since it's has not been specified in the LUT.
+	 *
+	 * OCTAL DTR read always start from 2bytes alignment address,
+	 * if read from an odd address A, it actually read from
+	 * address A-1, need to read one more byte to get all
+	 * data needed.
 	 */
-	fspi_writel(f, op->data.nbytes |
-		 (SEQID_LUT << FSPI_IPCR1_SEQID_SHIFT) |
-		 (seqnum << FSPI_IPCR1_SEQNUM_SHIFT),
-		 base + FSPI_IPCR1);
+
+	if ((op->addr.val & 1) && (op->data.dir == SPI_MEM_DATA_IN) &&
+	    op->cmd.dtr && op->addr.dtr && op->dummy.dtr && op->data.dtr) {
+		f->flags |= FSPI_DTR_ODD_ADDR;
+		fspi_writel(f, (op->data.nbytes + 1) |
+			 (SEQID_LUT << FSPI_IPCR1_SEQID_SHIFT) |
+			 (seqnum << FSPI_IPCR1_SEQNUM_SHIFT),
+			 base + FSPI_IPCR1);
+	} else {
+		fspi_writel(f, op->data.nbytes |
+			 (SEQID_LUT << FSPI_IPCR1_SEQID_SHIFT) |
+			 (seqnum << FSPI_IPCR1_SEQNUM_SHIFT),
+			 base + FSPI_IPCR1);
+	}
 
 	/* Trigger the LUT now. */
 	fspi_writel(f, FSPI_IPCMD_TRG, base + FSPI_IPCMD);
@@ -1008,6 +1051,13 @@ static int nxp_fspi_default_setup(struct nxp_fspi *f)
 	/* Reset the DLL register to default value */
 	fspi_writel(f, FSPI_DLLACR_OVRDEN, base + FSPI_DLLACR);
 	fspi_writel(f, FSPI_DLLBCR_OVRDEN, base + FSPI_DLLBCR);
+
+	if (f->dll_slvdly) {
+		fspi_writel(f, FSPI_DLLACR_DLLEN | FSPI_DLLACR_SLVDLY(f->dll_slvdly),
+			    base + FSPI_DLLACR);
+		fspi_writel(f, FSPI_DLLBCR_DLLEN | FSPI_DLLBCR_SLVDLY(f->dll_slvdly),
+			    base + FSPI_DLLBCR);
+	}
 
 	/* enable module */
 	fspi_writel(f, FSPI_MCR0_AHB_TIMEOUT(0xFF) |
@@ -1179,6 +1229,9 @@ static int nxp_fspi_probe(struct platform_device *pdev)
 		goto err_disable_clk;
 	}
 
+	/* check if need to set the slave delay line */
+	of_property_read_u32(np, "nxp,fspi-dll-slvdly", &f->dll_slvdly);
+
 	mutex_init(&f->lock);
 
 	ctlr->bus_num = -1;
@@ -1247,7 +1300,7 @@ static int nxp_fspi_need_reinit(struct nxp_fspi *f)
 }
 
 
-int nxp_fspi_runtime_suspend(struct device *dev)
+static int nxp_fspi_runtime_suspend(struct device *dev)
 {
 	struct nxp_fspi *f = dev_get_drvdata(dev);
 
@@ -1256,7 +1309,7 @@ int nxp_fspi_runtime_suspend(struct device *dev)
 	return 0;
 }
 
-int nxp_fspi_runtime_resume(struct device *dev)
+static int nxp_fspi_runtime_resume(struct device *dev)
 {
 	struct nxp_fspi *f = dev_get_drvdata(dev);
 
@@ -1268,9 +1321,37 @@ int nxp_fspi_runtime_resume(struct device *dev)
 	return 0;
 }
 
+static int nxp_fspi_suspend(struct device *dev)
+{
+	int ret;
+
+	ret = pinctrl_pm_select_sleep_state(dev);
+	if (ret) {
+		dev_err(dev, "select flexspi sleep pinctrl failed!\n");
+		return ret;
+	}
+
+	return pm_runtime_force_suspend(dev);
+}
+
+static int nxp_fspi_resume(struct device *dev)
+{
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret)
+		return ret;
+
+	ret = pinctrl_pm_select_default_state(dev);
+	if (ret)
+		dev_err(dev, "select flexspi default pinctrl failed!\n");
+
+	return ret;
+}
+
 static const struct dev_pm_ops nxp_fspi_pm_ops = {
 	SET_RUNTIME_PM_OPS(nxp_fspi_runtime_suspend, nxp_fspi_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(nxp_fspi_suspend, nxp_fspi_resume)
 };
 
 #endif /* CONFIG_PM */

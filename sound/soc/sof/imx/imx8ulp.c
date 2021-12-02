@@ -437,6 +437,8 @@ int imx8ulp_suspend(struct snd_sof_dev *sdev)
 	int i;
 	struct imx8ulp_priv *priv = (struct imx8ulp_priv *)sdev->pdata->hw_pdata;
 
+	regmap_update_bits(priv->regmap_sim, SYSCTRL0, EXECUTE_BIT, EXECUTE_BIT);
+
 	for (i = 0; i < DSP_MU_CHAN_NUM; i++)
 		imx_dsp_free_channel(priv->dsp_ipc, i);
 

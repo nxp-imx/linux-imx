@@ -80,11 +80,11 @@ static void release_ctx(struct vsi_v4l2_ctx *ctx, int notifydaemon)
 {
 	int ret = 0;
 
-	if (notifydaemon == 1 && (ctx->status != VSI_STATUS_INIT || ctx->error < 0)) {
+	if (notifydaemon == 1 && test_bit(CTX_FLAG_DAEMONLIVE_BIT, &ctx->flag)) {
 		if (isdecoder(ctx))
 			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_DEC, NULL);
 		else
-			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF, NULL);
+			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_ENC, NULL);
 	}
 	/*vsi_vpu_buf obj is freed here, together with all buffer memory */
 	return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
@@ -209,7 +209,7 @@ int vsi_v4l2_reset_ctx(struct vsi_v4l2_ctx *ctx)
 			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_DEC, NULL);
 			ctx->flag = CTX_FLAG_DEC;
 		} else {
-			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF, NULL);
+			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_ENC, NULL);
 			ctx->flag = CTX_FLAG_ENC;
 			set_bit(CTX_FLAG_ENC_FLUSHBUF, &ctx->flag);
 		}
@@ -295,12 +295,19 @@ int vsi_v4l2_send_reschange(struct vsi_v4l2_ctx *ctx)
 {
 	struct v4l2_event event;
 
+	if (ctx->need_capture_on)
+		vsi_dec_capture_on(ctx);
+
+	if (!ctx->reschanged_need_notify)
+		return 0;
+
 	vsi_v4l2_update_decfmt(ctx);
 
 	memset((void *)&event, 0, sizeof(struct v4l2_event));
 	event.type = V4L2_EVENT_SOURCE_CHANGE,
 	event.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
 	v4l2_event_queue_fh(&ctx->fh, &event);
+	ctx->reschanged_need_notify = false;
 	return 0;
 }
 
@@ -324,31 +331,20 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 		v4l2_klog(LOGLVL_BRIEF, "reso=%d:%d,bitdepth=%d,stride=%d,dpb=%d:%d,orig yuvfmt=%d",
 			decinfo->frame_width, decinfo->frame_height, decinfo->bit_depth, pmsg->params.dec_params.io_buffer.output_wstride,
 			decinfo->needed_dpb_nums, decinfo->dpb_buffer_size, decinfo->src_pix_fmt);
+		ctx->reschange_cnt++;
+		pcfg->decparams_bkup.dec_info = pmsg->params.dec_params.dec_info;
+		pcfg->decparams_bkup.io_buffer.srcwidth = pmsg->params.dec_params.io_buffer.srcwidth;
+		pcfg->decparams_bkup.io_buffer.srcheight = pmsg->params.dec_params.io_buffer.srcheight;
+		pcfg->decparams_bkup.io_buffer.output_width = pmsg->params.dec_params.io_buffer.output_width;
+		pcfg->decparams_bkup.io_buffer.output_height = pmsg->params.dec_params.io_buffer.output_height;
+		pcfg->decparams_bkup.io_buffer.output_wstride = pmsg->params.dec_params.io_buffer.output_wstride;
+		pcfg->minbuf_4output_bkup = pmsg->params.dec_params.dec_info.dec_info.needed_dpb_nums;
+		pcfg->sizeimagedst_bkup = pmsg->params.dec_params.io_buffer.OutBufSize;
 		if ((ctx->status == DEC_STATUS_DECODING || ctx->status == DEC_STATUS_DRAINING)
 			&& !list_empty(&ctx->output_que.done_list)) {
-			pcfg->decparams_bkup.dec_info = pmsg->params.dec_params.dec_info;
-			pcfg->decparams_bkup.io_buffer.srcwidth = pmsg->params.dec_params.io_buffer.srcwidth;
-			pcfg->decparams_bkup.io_buffer.srcheight = pmsg->params.dec_params.io_buffer.srcheight;
-			pcfg->decparams_bkup.io_buffer.output_width = pmsg->params.dec_params.io_buffer.output_width;
-			pcfg->decparams_bkup.io_buffer.output_height = pmsg->params.dec_params.io_buffer.output_height;
-			pcfg->decparams_bkup.io_buffer.output_wstride = pmsg->params.dec_params.io_buffer.output_wstride;
-			pcfg->minbuf_4output_bkup = pmsg->params.dec_params.dec_info.dec_info.needed_dpb_nums;
-			pcfg->sizeimagedst_bkup = pmsg->params.dec_params.io_buffer.OutBufSize;
 			set_bit(CTX_FLAG_DELAY_SRCCHANGED_BIT, &ctx->flag);
 		} else {
-			pcfg->decparams.dec_info.dec_info = pmsg->params.dec_params.dec_info.dec_info;
-			pcfg->decparams.dec_info.io_buffer.srcwidth = pmsg->params.dec_params.dec_info.io_buffer.srcwidth;
-			pcfg->decparams.dec_info.io_buffer.srcheight = pmsg->params.dec_params.dec_info.io_buffer.srcheight;
-			pcfg->decparams.dec_info.io_buffer.output_width = pmsg->params.dec_params.dec_info.io_buffer.output_width;
-			pcfg->decparams.dec_info.io_buffer.output_height = pmsg->params.dec_params.dec_info.io_buffer.output_height;
-			pcfg->decparams.dec_info.io_buffer.output_wstride = pmsg->params.dec_params.dec_info.io_buffer.output_wstride;
-			pcfg->bytesperline = pmsg->params.dec_params.dec_info.io_buffer.output_wstride;
-			pcfg->orig_dpbsize = decinfo->dpb_buffer_size;
-			pcfg->src_pixeldepth = decinfo->bit_depth;
-			pcfg->minbuf_4output =
-				pcfg->minbuf_4capture = pmsg->params.dec_params.dec_info.dec_info.needed_dpb_nums;
-			pcfg->sizeimagedst[0] =
-				pmsg->params.dec_params.io_buffer.OutBufSize;
+			vsi_dec_update_reso(ctx);
 			vsi_v4l2_send_reschange(ctx);
 		}
 		if (pmsg->params.dec_params.dec_info.dec_info.colour_description_present_flag)
@@ -398,7 +394,10 @@ int vsi_v4l2_handle_streamoffdone(struct vsi_v4l2_msg *pmsg)
 	ctx = find_ctx(ctxid);
 	if (ctx == NULL)
 		return -ESRCH;
-	set_bit(CTX_FLAG_STREAMOFFDONE, &ctx->flag);
+	if (pmsg->cmd_id == V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE)
+		set_bit(CTX_FLAG_CAPTUREOFFDONE, &ctx->flag);
+	else
+		set_bit(CTX_FLAG_OUTPUTOFFDONE, &ctx->flag);
 	wake_up_interruptible_all(&ctx->capoffdone_queue);
 	v4l2_klog(LOGLVL_FLOW, "%lx got cap streamoff done", ctxid);
 	return 0;

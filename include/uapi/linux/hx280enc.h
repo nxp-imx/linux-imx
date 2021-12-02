@@ -25,6 +25,7 @@
 #ifndef _UAPI_HX280ENC_H_
 #define _UAPI_HX280ENC_H_
 #include <linux/ioctl.h>    /* needed for the _IOW etc stuff used later */
+#include <linux/types.h>
 
 /*
  * Macros to help debugging
@@ -42,6 +43,14 @@
 #else
 #  define PDEBUG(fmt, args...)  /* not debugging: nothing */
 #endif
+
+struct enc_regs_buffer {
+	__u32 core_id;
+	__u32 *regs;
+	__u32 offset;
+	__u32 size;
+	__u32 *reserved;
+};
 
 /*
  * Ioctl definitions
@@ -74,6 +83,10 @@
 #define HX280ENC_IOCH_ENC_RESERVE   _IOR(HX280ENC_IOC_MAGIC, 11, unsigned int *)
 #define HX280ENC_IOCH_ENC_RELEASE   _IOR(HX280ENC_IOC_MAGIC, 12, unsigned int *)
 #define HX280ENC_IOCG_CORE_WAIT     _IOR(HX280ENC_IOC_MAGIC, 13, unsigned int *)
+
+#define HX280ENC_IOC_WRITE_REGS     _IOW(HX280ENC_IOC_MAGIC, 14, struct enc_regs_buffer *)
+#define HX280ENC_IOC_READ_REGS      _IOR(HX280ENC_IOC_MAGIC, 15, struct enc_regs_buffer *)
+
 #define HX280ENC_IOC_MAXNR 30
 
 #endif /* !_UAPI_HX280ENC_H_ */

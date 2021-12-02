@@ -69,7 +69,7 @@ struct gpio_rpmsg_data {
 
 struct imx_rpmsg_gpio_pin {
 	u32 irq_type;
-	struct gpio_rpmsg_data *msg;
+	struct gpio_rpmsg_data msg;
 };
 
 struct imx_rpmsg_gpio_port {
@@ -144,7 +144,7 @@ static int gpio_send_message(struct imx_rpmsg_gpio_port *port,
 		}
 
 		/* copy the reply message */
-		memcpy(port->gpio_pins[info->reply_msg->pin_idx].msg,
+		memcpy(&port->gpio_pins[info->reply_msg->pin_idx].msg,
 		       info->reply_msg, sizeof(*info->reply_msg));
 
 		err = 0;
@@ -180,14 +180,11 @@ static int gpio_rpmsg_cb(struct rpmsg_device *rpdev,
 
 static struct gpio_rpmsg_data *gpio_get_pin_msg(struct imx_rpmsg_gpio_port *port, unsigned int offset)
 {
-	if (!port->gpio_pins[offset].msg)
-		port->gpio_pins[offset].msg =
-			kzalloc(sizeof(struct gpio_rpmsg_data), GFP_KERNEL);
-	else
-		memset(port->gpio_pins[offset].msg, 0,
-		       sizeof(struct gpio_rpmsg_data));
+	struct gpio_rpmsg_data *msg = &port->gpio_pins[offset].msg;
 
-	return port->gpio_pins[offset].msg;
+	memset(msg, 0, sizeof(struct gpio_rpmsg_data));
+
+	return msg;
 };
 
 static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
@@ -197,8 +194,6 @@ static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 	int ret;
 
 	msg = gpio_get_pin_msg(port, gpio);
-	if (!msg)
-		return -ENOMEM;
 	msg->header.cate = IMX_RPMSG_GPIO;
 	msg->header.major = IMX_RMPSG_MAJOR;
 	msg->header.minor = IMX_RMPSG_MINOR;
@@ -209,7 +204,7 @@ static int imx_rpmsg_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 
 	ret = gpio_send_message(port, msg, &gpio_rpmsg, true);
 	if (!ret)
-		return !!port->gpio_pins[gpio].msg->in.value;
+		return !!port->gpio_pins[gpio].msg.in.value;
 
 	return ret;
 }
@@ -221,8 +216,6 @@ static int imx_rpmsg_gpio_direction_input(struct gpio_chip *gc,
 	struct gpio_rpmsg_data *msg = NULL;
 
 	msg = gpio_get_pin_msg(port, gpio);
-	if (!msg)
-		return -ENOMEM;
 	msg->header.cate = IMX_RPMSG_GPIO;
 	msg->header.major = IMX_RMPSG_MAJOR;
 	msg->header.minor = IMX_RMPSG_MINOR;
@@ -258,8 +251,6 @@ static void imx_rpmsg_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 	struct gpio_rpmsg_data *msg = NULL;
 
 	msg = gpio_get_pin_msg(port, gpio);
-	if (!msg)
-		return;
 	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, msg);
 	gpio_send_message(port, msg, &gpio_rpmsg, true);
 }
@@ -271,8 +262,6 @@ static int imx_rpmsg_gpio_direction_output(struct gpio_chip *gc,
 	struct gpio_rpmsg_data *msg = NULL;
 
 	msg = gpio_get_pin_msg(port, gpio);
-	if (!msg)
-		return -ENOMEM;
 	imx_rpmsg_gpio_direction_output_init(gc, gpio, val, msg);
 	return gpio_send_message(port, msg, &gpio_rpmsg, true);
 }
@@ -316,8 +305,6 @@ static int imx_rpmsg_irq_set_wake(struct irq_data *d, u32 enable)
 	u32 gpio_idx = d->hwirq;
 
 	msg = gpio_get_pin_msg(port, gpio_idx);
-	if (!msg)
-		return -ENOMEM;
 	msg->header.cate = IMX_RPMSG_GPIO;
 	msg->header.major = IMX_RMPSG_MAJOR;
 	msg->header.minor = IMX_RMPSG_MINOR;
@@ -365,8 +352,6 @@ static void imx_rpmsg_unmask_irq(struct irq_data *d)
 	u32 gpio_idx = d->hwirq;
 
 	msg = gpio_get_pin_msg(port, gpio_idx);
-	if (!msg)
-		return;
 	msg->header.cate = IMX_RPMSG_GPIO;
 	msg->header.major = IMX_RMPSG_MAJOR;
 	msg->header.minor = IMX_RMPSG_MINOR;
@@ -409,8 +394,6 @@ static void imx_rpmsg_irq_shutdown(struct irq_data *d)
 	u32 gpio_idx = d->hwirq;
 
 	msg = gpio_get_pin_msg(port, gpio_idx);
-	if (!msg)
-		return;
 	msg->header.cate = IMX_RPMSG_GPIO;
 	msg->header.major = IMX_RMPSG_MAJOR;
 	msg->header.minor = IMX_RMPSG_MINOR;
@@ -427,8 +410,6 @@ static void imx_rpmsg_irq_shutdown(struct irq_data *d)
 	imx_rpmsg_gpio_send_work.port = port;
 
 	queue_work(imx_rpmsg_gpio_workqueue, &(imx_rpmsg_gpio_send_work.rpmsg_send_wq));
-
-	kfree(port->gpio_pins[gpio_idx].msg);
 }
 
 static struct irq_chip imx_rpmsg_irq_chip = {
@@ -439,22 +420,6 @@ static struct irq_chip imx_rpmsg_irq_chip = {
 	.irq_shutdown = imx_rpmsg_irq_shutdown,
 	/* TBD: Add .irq_disable support */
 };
-
-static int imx_rpmsg_gpio_request(struct gpio_chip *gc, unsigned int offset)
-{
-	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-
-	gpio_get_pin_msg(port, offset);
-
-	return 0;
-}
-
-static void imx_rpmsg_gpio_free(struct gpio_chip *gc, unsigned int offset)
-{
-	struct imx_rpmsg_gpio_port *port = gpiochip_get_data(gc);
-
-	kfree(port->gpio_pins[offset].msg);
-}
 
 static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 {
@@ -476,8 +441,6 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	gpio_rpmsg.port_store[port->idx] = port;
 
 	gc = &port->gc;
-	gc->request = imx_rpmsg_gpio_request;
-	gc->free = imx_rpmsg_gpio_free;
 	gc->of_node = np;
 	gc->parent = dev;
 	gc->label = kasprintf(GFP_KERNEL, "imx-rpmsg-gpio-%d", port->idx);

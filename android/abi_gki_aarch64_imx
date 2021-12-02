@@ -38,6 +38,7 @@
   cec_register_adapter
   cec_transmit_attempt_done_ts
   cec_unregister_adapter
+  __cfi_slowpath
   __check_object_size
   __class_create
   class_destroy
@@ -74,6 +75,7 @@
   component_unbind_all
   __const_udelay
   consume_skb
+  _copy_to_iter
   cpu_bit_bitmap
   __cpuhp_remove_state
   __cpuhp_setup_state
@@ -92,6 +94,7 @@
   debugfs_create_dir
   debugfs_create_file
   debugfs_remove
+  deferred_free
   delayed_work_timer_fn
   del_timer
   del_timer_sync
@@ -177,12 +180,15 @@
   dma_buf_attach
   dma_buf_detach
   dma_buf_export
-  dma_buf_fd
   dma_buf_get
   dma_buf_map_attachment
   dma_buf_put
   dma_buf_unmap_attachment
   dma_free_attrs
+  dma_heap_add
+  dma_heap_get_dev
+  dma_heap_get_drvdata
+  dma_heap_get_name
   dmam_alloc_attrs
   dma_map_page_attrs
   dma_map_sg_attrs
@@ -204,9 +210,7 @@
   dma_unmap_page_attrs
   dma_unmap_sg_attrs
   down_interruptible
-  down_read
   down_trylock
-  down_write
   driver_unregister
   drm_add_edid_modes
   drm_atomic_get_crtc_state
@@ -334,9 +338,7 @@
   event_triggers_call
   extcon_set_state_sync
   filp_close
-  filp_open
   find_next_bit
-  find_next_zero_bit
   finish_wait
   flush_work
   flush_workqueue
@@ -419,7 +421,6 @@
   jiffies_to_msecs
   kasan_flag_enabled
   kasprintf
-  kernel_write
   kfree
   kfree_sensitive
   kfree_skb
@@ -429,12 +430,10 @@
   kmalloc_order_trace
   kmem_cache_alloc_trace
   kmemdup
-  kobject_create_and_add
   kobject_put
   kobject_uevent_env
   kthread_create_on_node
   kthread_should_stop
-  kthread_stop
   ktime_get
   ktime_get_mono_fast_ns
   ktime_get_real_ts64
@@ -464,6 +463,7 @@
   memdup_user
   memmove
   memset
+  __memset_io
   memstart_addr
   mipi_dsi_attach
   mipi_dsi_create_packet
@@ -552,6 +552,8 @@
   of_parse_phandle
   of_parse_phandle_with_args
   of_parse_phandle_with_fixed_args
+  of_phandle_iterator_init
+  of_phandle_iterator_next
   of_phy_simple_xlate
   of_platform_depopulate
   of_platform_populate
@@ -605,6 +607,7 @@
   platform_irq_count
   pm_genpd_init
   pm_genpd_remove
+  __pm_relax
   __pm_runtime_disable
   pm_runtime_enable
   pm_runtime_force_resume
@@ -685,6 +688,18 @@
   reset_control_deassert
   rpmsg_send
   rpmsg_sendto
+  rproc_add
+  rproc_add_carveout
+  rproc_alloc
+  rproc_coredump_add_segment
+  rproc_da_to_va
+  rproc_del
+  rproc_elf_get_boot_addr
+  rproc_elf_load_rsc_table
+  rproc_elf_sanity_check
+  rproc_free
+  rproc_mem_entry_init
+  rproc_vq_interrupt
   rtnl_is_locked
   rtnl_lock
   rtnl_unlock
@@ -701,12 +716,17 @@
   sg_init_one
   sg_init_table
   sg_next
+  __sg_page_iter_next
+  __sg_page_iter_start
   single_open
   single_release
   skb_copy_bits
+  skb_dequeue
   skb_pull
   skb_push
   skb_put
+  skb_queue_purge
+  skb_queue_tail
   skb_trim
   snd_ctl_boolean_mono_info
   snd_dma_alloc_pages
@@ -783,7 +803,6 @@
   tasklet_init
   tasklet_kill
   __tasklet_schedule
-  _totalram_pages
   trace_event_buffer_commit
   trace_event_buffer_reserve
   trace_event_ignore_this_pid
@@ -809,8 +828,6 @@
   unregister_rpmsg_driver
   unregister_virtio_driver
   up
-  up_read
-  up_write
   usleep_range
   v4l2_async_notifier_add_fwnode_subdev
   v4l2_async_notifier_add_subdev
@@ -1061,6 +1078,12 @@
 # required by clk-blk-ctrl.ko
   pm_runtime_forbid
 
+# required by cma_heap.ko
+  cma_alloc
+  cma_get_name
+  cma_release
+  dma_contiguous_default_area
+
 # required by cpufreq-dt.ko
   cpufreq_enable_boost_support
   cpufreq_freq_attr_scaling_available_freqs
@@ -1192,6 +1215,7 @@
   cache_line_size
   dev_pm_opp_add
   dev_pm_opp_remove
+  dma_buf_fd
   dma_fence_array_ops
   dma_fence_context_alloc
   dma_fence_default_wait
@@ -1201,6 +1225,8 @@
   dma_fence_signal_locked
   dma_fence_wait_timeout
   down
+  down_read
+  down_write
   driver_create_file
   driver_remove_file
   drm_gem_handle_create
@@ -1222,6 +1248,7 @@
   iommu_set_fault_handler
   iommu_unmap
   kstrtoint_from_user
+  kthread_stop
   ktime_get_ts64
   mutex_trylock
   __page_pinner_migration_failed
@@ -1236,6 +1263,9 @@
   sync_file_create
   sync_file_get_fence
   __task_pid_nr_ns
+  _totalram_pages
+  up_read
+  up_write
   vm_mmap
   vm_munmap
 
@@ -1341,7 +1371,10 @@
   snd_dmaengine_pcm_trigger
 
 # required by imx-pcm-rpmsg.ko
+  __pm_stay_awake
   snd_soc_lookup_component
+  wakeup_source_register
+  wakeup_source_unregister
 
 # required by imx-sdma.ko
   dma_async_device_register
@@ -1433,83 +1466,15 @@
 # required by imx8mp-ldb.ko
   devm_of_phy_get
 
-# required by imx_rpmsg_tty.ko
-  print_hex_dump
-  put_tty_driver
-  __tty_alloc_driver
-  tty_port_close
-  tty_port_destroy
-  tty_port_init
-  tty_port_install
-  tty_port_open
-  tty_prepare_flip_string
-  tty_register_driver
-  tty_set_operations
-  tty_std_termios
-  tty_unregister_driver
+# required by imx_dsp_rproc.ko
+  rproc_of_parse_firmware
 
 # required by imx_rproc.ko
-  of_phandle_iterator_init
-  of_phandle_iterator_next
-  rproc_add
-  rproc_add_carveout
-  rproc_alloc
-  rproc_coredump_add_segment
-  rproc_da_to_va
-  rproc_del
   rproc_elf_find_loaded_rsc_table
-  rproc_elf_get_boot_addr
-  rproc_elf_load_rsc_table
   rproc_elf_load_segments
-  rproc_elf_sanity_check
-  rproc_free
-  rproc_mem_entry_init
-  rproc_vq_interrupt
 
 # required by imxdrm.ko
   component_match_add_release
-
-# required by ion-alloc.ko
-  arch_dma_prep_coherent
-  compat_ptr_ioctl
-  debugfs_create_u64
-  __flush_cache_user_range
-  freezing_slow_path
-  generic_file_llseek
-  __init_rwsem
-  kernel_kobj
-  __module_get
-  plist_add
-  plist_del
-  ptr_to_hashval
-  __refrigerator
-  register_shrinker
-  sched_set_normal
-  __sg_page_iter_next
-  __sg_page_iter_start
-  simple_attr_open
-  simple_attr_read
-  simple_attr_release
-  simple_attr_write
-  sysfs_create_groups
-  system_freezing_cnt
-  unregister_shrinker
-
-# required by ion_cma_heap.ko
-  cma_alloc
-  cma_for_each_area
-  cma_get_name
-  cma_release
-
-# required by ion_sys_heap.ko
-  contig_page_data
-  mod_node_page_state
-
-# required by ion_unmapped_heap.ko
-  gen_pool_add_owner
-  gen_pool_alloc_algo_owner
-  gen_pool_create
-  gen_pool_destroy
 
 # required by irq-imx-irqsteer.ko
   __irq_domain_add
@@ -1590,13 +1555,10 @@
   skb_complete_wifi_ack
   skb_copy
   skb_copy_expand
-  skb_dequeue
   skb_ensure_writable
   __skb_get_hash
   __skb_gso_segment
   skb_queue_head
-  skb_queue_purge
-  skb_queue_tail
   system_freezable_wq
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
@@ -1607,7 +1569,6 @@
   bitmap_parse
   cpumask_next_and
   default_wake_function
-  done_path_create
   hex_dump_to_buffer
   in4_pton
   init_dummy_netdev
@@ -1618,7 +1579,6 @@
   iw_handler_get_thrspy
   iw_handler_set_spy
   iw_handler_set_thrspy
-  kern_path_create
   ktime_get_raw_ts64
   mmc_hw_reset
   mmc_set_data_timeout
@@ -1645,7 +1605,6 @@
   pci_save_state
   pci_set_power_state
   PDE_DATA
-  __pm_relax
   pm_wakeup_ws_event
   proc_create_data
   proc_mkdir
@@ -1677,7 +1636,6 @@
   strim
   strncasecmp
   strsep
-  vfs_mkdir
   vprintk
   wakeup_source_add
   wakeup_source_remove
@@ -1914,6 +1872,14 @@
 # required by reset-dispmix.ko
   __regmap_init_mmio_clk
 
+# required by rpmsg_raw.ko
+  compat_ptr_ioctl
+  _copy_from_iter_full
+  rpmsg_create_ept
+  rpmsg_destroy_ept
+  rpmsg_poll
+  rpmsg_trysendto
+
 # required by rtc-snvs.ko
   devm_rtc_allocate_device
   __rtc_register_device
@@ -1958,6 +1924,12 @@
   drm_atomic_get_new_bridge_state
   reset_control_put
 
+# required by secure_heap.ko
+  gen_pool_add_owner
+  gen_pool_alloc_algo_owner
+  gen_pool_create
+  gen_pool_destroy
+
 # required by snd-soc-fsl-asoc-card.ko
   snd_soc_dai_set_pll
   snd_soc_dapm_disable_pin
@@ -1973,13 +1945,6 @@
   snd_soc_register_component
   snd_soc_unregister_component
 
-# required by snd-soc-fsl-dsp.ko
-  kernel_read
-  __memset_io
-  snd_soc_rtdcom_lookup
-  sysfs_streq
-  vfs_llseek
-
 # required by snd-soc-fsl-easrc.ko
   snd_pcm_format_big_endian
   snd_pcm_format_linear
@@ -1987,6 +1952,7 @@
   snd_soc_info_xr_sx
 
 # required by snd-soc-fsl-micfil.ko
+  kobject_create_and_add
   kstrtoull
   snd_soc_get_volsw_sx
   snd_soc_info_volsw_sx
@@ -2064,6 +2030,7 @@
   wait_for_completion_interruptible
 
 # required by spidev.ko
+  find_next_zero_bit
   __spi_register_driver
   spi_setup
   spi_sync
@@ -2077,13 +2044,18 @@
   input_set_abs_params
   input_unregister_device
 
+# required by system_heap.ko
+  dmabuf_page_pool_alloc
+  dmabuf_page_pool_create
+  dmabuf_page_pool_destroy
+  dmabuf_page_pool_free
+
 # required by timer-imx-sysctr.ko
   clockevents_config_and_register
   timer_of_init
 
 # required by trusty-ipc.ko
   _copy_from_iter
-  _copy_to_iter
   fget
   import_iovec
   strncpy_from_user
@@ -2143,8 +2115,8 @@
   virtqueue_enable_cb
 
 # required by vsiv4l2.ko
-  call_usermodehelper
   devm_device_add_group
+  v4l2_event_dequeue
   vb2_prepare_buf
 
 # required by vvcam-video.ko

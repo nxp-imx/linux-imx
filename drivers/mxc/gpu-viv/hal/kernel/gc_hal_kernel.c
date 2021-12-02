@@ -2930,7 +2930,7 @@ gckKERNEL_Dispatch(
     gckKERNEL kernel = Kernel;
     gctUINT32 processID;
 #if !USE_NEW_LINUX_SIGNAL
-    gctSIGNAL   signal;
+    gctSIGNAL   signal = gcvNULL;
 #endif
 
     gctBOOL powerMutexAcquired = gcvFALSE;
@@ -3360,6 +3360,7 @@ gckKERNEL_Dispatch(
                             Interface->u.DebugLevelZone.enable);
         break;
 
+#if gcdDUMP_IN_KERNEL
     case gcvHAL_DEBUG_DUMP:
         gckOS_DumpBuffer(Kernel->os,
                          Interface->u.DebugDump.type,
@@ -3368,6 +3369,7 @@ gckKERNEL_Dispatch(
                          Interface->u.DebugDump.size);
         status = gcvSTATUS_OK;
         break;
+#endif
 
     case gcvHAL_DUMP_GPU_STATE:
         {
@@ -4030,7 +4032,7 @@ gckKERNEL_AttachProcessEx(
             }
         }
 
-        if (Kernel->timeoutPID == PID)
+        if (Kernel->timeoutPID == PID && Kernel->hardware != gcvNULL)
         {
             Kernel->timeOut = Kernel->hardware->type == gcvHARDWARE_2D
                             ? gcdGPU_2D_TIMEOUT
@@ -4520,7 +4522,7 @@ gckKERNEL_CreateIntegerDatabase(
 
     *Database = database;
 
-    gcmkFOOTER_ARG("*Database=0x%08X", *Database);
+    gcmkFOOTER_ARG("*Database=%p", *Database);
     return gcvSTATUS_OK;
 
 OnError:
@@ -4747,7 +4749,7 @@ gckKERNEL_QueryIntegerId(
 
     gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
 
-    gcmkFOOTER_ARG("*Pointer=0x%08X", *Pointer);
+    gcmkFOOTER_ARG("*Pointer=%p", *Pointer);
     return gcvSTATUS_OK;
 
 OnError:
@@ -4793,7 +4795,7 @@ gckKERNEL_QueryPointerFromName(
     /* Lookup in database to get pointer. */
     gcmkONERROR(gckKERNEL_QueryIntegerId(database, Name, &pointer));
 
-    gcmkFOOTER_ARG("pointer=0x%X", pointer);
+    gcmkFOOTER_ARG("pointer=%p", pointer);
     return pointer;
 
 OnError:
@@ -4809,7 +4811,7 @@ gckKERNEL_DeleteName(
 {
     gctPOINTER database = Kernel->db->pointerDatabase;
 
-    gcmkHEADER_ARG("Kernel=%p Name=%p", Kernel, Name);
+    gcmkHEADER_ARG("Kernel=%p Name=0x%x", Kernel, Name);
 
     /* Free name if exists. */
     gcmkVERIFY_OK(gckKERNEL_FreeIntegerId(database, Name));
@@ -5228,7 +5230,41 @@ OnError:
 /*******************************************************************************\
 *************************** List Helper *****************************************
 \*******************************************************************************/
+#ifdef LINUX_VERSION_CODE
+void inline
+gcsLIST_Init(
+    gcsLISTHEAD_PTR Node
+    )
+{
+    INIT_LIST_HEAD(Node);
+}
 
+void inline
+gcsLIST_Add(
+    gcsLISTHEAD_PTR New,
+    gcsLISTHEAD_PTR Head
+    )
+{
+    list_add(New, Head);
+}
+
+void inline
+gcsLIST_AddTail(
+    gcsLISTHEAD_PTR New,
+    gcsLISTHEAD_PTR Head
+    )
+{
+    list_add_tail(New, Head);
+}
+
+void inline
+gcsLIST_Del(
+    gcsLISTHEAD_PTR Node
+    )
+{
+    list_del_init(Node);
+}
+#else
 static void
 _ListAdd(
     gcsLISTHEAD_PTR New,
@@ -5286,6 +5322,7 @@ gcsLIST_Del(
 {
     _ListDel(Node->prev, Node->next);
 }
+#endif
 
 gctBOOL
 gcsLIST_Empty(
@@ -5728,7 +5765,7 @@ gckDEVICE_SetTimeOut(
         }
         else
         {
-            kernel = coreList->kernels[i];
+            continue;
         }
 
         kernel->timeOut = Interface->u.SetTimeOut.timeOut;
@@ -5750,6 +5787,8 @@ gckDEVICE_Dispatch(
     gckKERNEL kernel;
     gceHARDWARE_TYPE type = Interface->hardwareType;
     gctUINT32 coreIndex = Interface->coreIndex;
+
+    gcmkHEADER_ARG("Device=%p Interface=%p", Device, Interface);
 
     switch (Interface->command)
     {
@@ -5777,6 +5816,7 @@ gckDEVICE_Dispatch(
     }
     else
     {
+        gcmkVERIFY_ARGUMENT(coreIndex < gcvCORE_COUNT);
         /* Need go through gckKERNEL dispatch. */
         if (type == gcvHARDWARE_3D || type == gcvHARDWARE_3D2D || type == gcvHARDWARE_VIP)
         {
@@ -5784,6 +5824,7 @@ gckDEVICE_Dispatch(
         }
         else
         {
+            gcmkVERIFY_ARGUMENT(type < gcvHARDWARE_NUM_TYPES);
             kernel = Device->map[type].kernels[coreIndex];
         }
 
@@ -5800,6 +5841,8 @@ gckDEVICE_Dispatch(
 
         /* Interface->status is handled in gckKERNEL_Dispatch(). */
     }
+
+    gcmkFOOTER();
 
     return status;
 }

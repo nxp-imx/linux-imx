@@ -328,7 +328,7 @@ void dcss_dtrc_set_res(struct dcss_dtrc *dtrc, int ch_num,
 	ch->pix_format = pixel_format;
 	ch->format_modifier = fb->modifier;
 
-	pix_depth = ch->pix_format == DRM_FORMAT_NV12_10LE40 ? 10 : 8;
+	pix_depth = ch->pix_format == DRM_FORMAT_NV15 ? 10 : 8;
 
 	old_xres = state->src_w >> 16;
 	old_yres = state->src_h >> 16;
@@ -355,7 +355,7 @@ void dcss_dtrc_set_res(struct dcss_dtrc *dtrc, int ch_num,
 	 *   - 128 pixels for width (8-bit) or 256 (10-bit);
 	 *   - 8 lines for height;
 	 */
-	width_align = ch->pix_format == DRM_FORMAT_NV12_10LE40 ? 0xff : 0x7f;
+	width_align = ch->pix_format == DRM_FORMAT_NV15 ? 0xff : 0x7f;
 
 	if (xres == old_xres && !(xres & width_align) &&
 	    yres == old_yres && !(yres & 0xf)) {
@@ -460,7 +460,7 @@ void dcss_dtrc_enable(struct dcss_dtrc *dtrc, int ch_num, bool enable)
 
 	fdctl = ch->dctl & ~(PIX_DEPTH_8BIT_EN | COMPRESSION_DIS);
 
-	fdctl |= ch->pix_format == DRM_FORMAT_NV12_10LE40 ? 0 : PIX_DEPTH_8BIT_EN;
+	fdctl |= ch->pix_format == DRM_FORMAT_NV15 ? 0 : PIX_DEPTH_8BIT_EN;
 
 	if (ch->format_modifier != DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED)
 		fdctl |= COMPRESSION_DIS;

@@ -396,7 +396,7 @@ static void format_bufinfo_dec(struct vsi_v4l2_ctx *ctx, struct vsi_v4l2_msg *pm
 		decbufinfo->busInBuf = 0;
 		decbufinfo->inBufSize = 0;
 		decbufinfo->busOutBuf = busaddr[0] + buf->planes[0].data_offset;
-		decbufinfo->OutBufSize = ctx->outbuflen[buf->index];//ctx->mediacfg.sizeimagedst[0];
+		decbufinfo->OutBufSize = buf->planes[0].length - buf->planes[0].data_offset;
 		decbufinfo->bytesused = buf->planes[0].bytesused;
 		if (((ctx->mediacfg.src_pixeldepth == ctx->mediacfg.decparams.dec_info.io_buffer.outputPixelDepth)
 			&& ctx->mediacfg.src_pixeldepth != 16)	//p010 can only set by user, not from ctrl sw
@@ -429,7 +429,8 @@ int vsiv4l2_execcmd(struct vsi_v4l2_ctx *ctx, enum v4l2_daemon_cmd_id id, void *
 	case V4L2_DAEMON_VIDIOC_EXIT:
 		ret = vsi_v4l2_sendcmd(id, 0, 0, NULL, &retflag, 0, 0);
 		break;
-	case V4L2_DAEMON_VIDIOC_STREAMOFF:
+	case V4L2_DAEMON_VIDIOC_DESTROY_ENC:
+	case V4L2_DAEMON_VIDIOC_ENC_RESET:
 		ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
 			ctx->mediacfg.encparams.general.codecFormat, NULL, &retflag, 0, 0);
 		break;
@@ -453,12 +454,20 @@ int vsiv4l2_execcmd(struct vsi_v4l2_ctx *ctx, enum v4l2_daemon_cmd_id id, void *
 			ctx->mediacfg.encparams.general.codecFormat, NULL, &retflag, 0, param);
 		break;
 	case V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT:
-		ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
-			ctx->mediacfg.decparams.dec_info.io_buffer.inputFormat, NULL, &retflag, 0, 0);
+		if (isencoder(ctx))
+			ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
+				ctx->mediacfg.encparams.general.inputFormat, NULL, &retflag, 0, 0);
+		else
+			ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
+				ctx->mediacfg.decparams.dec_info.io_buffer.inputFormat, NULL, &retflag, 0, 0);
 		break;
 	case V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE:
-		ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
-			ctx->mediacfg.decparams.dec_info.io_buffer.outBufFormat, NULL, &retflag, 0, 0);
+		if (isencoder(ctx))
+			ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
+				ctx->mediacfg.encparams.general.codecFormat, NULL, &retflag, 0, 0);
+		else
+			ret = vsi_v4l2_sendcmd(id, ctx->ctxid,
+				ctx->mediacfg.decparams.dec_info.io_buffer.outBufFormat, NULL, &retflag, 0, 0);
 		break;
 	case V4L2_DAEMON_VIDIOC_STREAMON_OUTPUT:
 		ret = vsi_v4l2_sendcmd(id, ctx->ctxid, ctx->mediacfg.decparams.dec_info.io_buffer.inputFormat,
@@ -543,9 +552,10 @@ int vsi_v4l2_addinstance(pid_t *ppid)
 	if (mutex_lock_interruptible(&instance_lock))
 		return -EBUSY;
 
-	if (v4l2_fn >= MAX_STREAMS)
+	if (v4l2_fn >= MAX_STREAMS) {
+		v4l2_klog(LOGLVL_WARNING, "opened instances more than max count:%d\n", v4l2_fn);
 		ret = -EBUSY;
-	else {
+	} else {
 		v4l2_fn++;
 		if (v4l2_fn == 1 && invoke_vsidaemon) {
 			ret = invoke_daemonapp();
@@ -628,6 +638,7 @@ static int vsi_handle_daemonmsg(struct vsi_v4l2_msg *pmsg)
 	case V4L2_DAEMON_VIDIOC_WARNONOPTION:
 		return vsi_v4l2_handle_warningmsg(pmsg);
 	case V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE:
+	case V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE:
 		return vsi_v4l2_handle_streamoffdone(pmsg);
 	default:
 		return -EINVAL;

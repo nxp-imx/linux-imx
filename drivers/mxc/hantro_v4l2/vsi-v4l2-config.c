@@ -39,8 +39,6 @@
 #include "vsi-v4l2-priv.h"
 
 static struct vsi_v4l2_dev_info vsi_v4l2_hwconfig = {0};
-static void calcPlanesize(struct vsi_v4l2_ctx *ctx, int pixelformat, int width, int height, int size[], int type, int planeno);
-static int vsiv4l2_verifyfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt);
 
 /*copy from daemon header*/
 enum VCEncLevel {
@@ -254,28 +252,31 @@ static int enc_setvui(struct v4l2_format *v4l2fmt, struct v4l2_daemon_enc_params
 	return 0;
 }
 
-void vsi_dec_getvui(struct v4l2_format *v4l2fmt, struct v4l2_daemon_dec_info *decinfo)
+void vsi_dec_getvui(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
-	u32 colorspace, quantization, transfer, matrixcoeff;
+	struct v4l2_daemon_dec_info *dec_info = &ctx->mediacfg.decparams.dec_info.dec_info;
+	struct v4l2_pix_format *pix = &fmt->fmt.pix;
 
-	colorspace = quantization = transfer = matrixcoeff = 0;
-	if (decinfo->colour_description_present_flag) {
-		quantization = (decinfo->video_range == 0 ?
+	if (dec_info->colour_description_present_flag) {
+		pix->quantization = (dec_info->video_range == 0 ?
 					V4L2_QUANTIZATION_LIM_RANGE :
 					V4L2_QUANTIZATION_FULL_RANGE);
-		if (decinfo->colour_primaries < ARRAY_SIZE(colorprimaries))
-			colorspace = colorprimaries[decinfo->colour_primaries];
-		if (decinfo->transfer_characteristics < ARRAY_SIZE(colortransfers))
-			transfer = colortransfers[decinfo->transfer_characteristics];
-		if (decinfo->matrix_coefficients < ARRAY_SIZE(colormatrixcoefs))
-			matrixcoeff = colormatrixcoefs[decinfo->matrix_coefficients];
+		if (dec_info->colour_primaries < ARRAY_SIZE(colorprimaries))
+			pix->colorspace = colorprimaries[dec_info->colour_primaries];
+		if (dec_info->transfer_characteristics < ARRAY_SIZE(colortransfers))
+			pix->xfer_func = colortransfers[dec_info->transfer_characteristics];
+		if (dec_info->matrix_coefficients < ARRAY_SIZE(colormatrixcoefs))
+			pix->ycbcr_enc = colormatrixcoefs[dec_info->matrix_coefficients];
+	} else {
+		pix->colorspace = ctx->mediacfg.colorspace;
+		pix->quantization = ctx->mediacfg.quantization;
+		pix->xfer_func = ctx->mediacfg.xfer_func;
+		pix->ycbcr_enc = ctx->mediacfg.ycbcr_enc;
 	}
-	v4l2fmt->fmt.pix.quantization = quantization;
-	v4l2fmt->fmt.pix.colorspace = colorspace;
-	v4l2fmt->fmt.pix.xfer_func = transfer;
-	v4l2fmt->fmt.pix.ycbcr_enc = matrixcoeff;
+
 	v4l2_klog(LOGLVL_CONFIG, "%s:%x:%d:%d:%d:%d",
-		__func__, v4l2fmt->fmt.pix_mp.pixelformat, colorspace, transfer, matrixcoeff, quantization);
+		  __func__, pix->pixelformat, pix->colorspace, pix->xfer_func,
+		  pix->ycbcr_enc, pix->quantization);
 }
 
 void vsi_dec_updatevui(struct v4l2_daemon_dec_info *src, struct v4l2_daemon_dec_info *dst)
@@ -286,6 +287,66 @@ void vsi_dec_updatevui(struct v4l2_daemon_dec_info *src, struct v4l2_daemon_dec_
 	dst->colour_primaries = src->colour_primaries;
 	dst->transfer_characteristics = src->transfer_characteristics;
 	dst->matrix_coefficients = src->matrix_coefficients;
+}
+
+static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
+{
+	if (vsi_v4l2_hwconfig.max_dec_resolution > 1920) {
+		switch (pixel_format) {
+		case V4L2_PIX_FMT_HEVC:
+			f->stepwise.min_width = 144;
+			f->stepwise.max_width = 4096;
+			f->stepwise.min_height = 144;
+			f->stepwise.max_height = 2160;
+			break;
+		case V4L2_PIX_FMT_H264:
+			f->stepwise.min_width = 96;
+			f->stepwise.max_width = 4096;
+			f->stepwise.min_height = 48;
+			f->stepwise.max_height = 2160;
+			break;
+		case V4L2_PIX_FMT_VP9:
+			f->stepwise.min_width = 96;
+			f->stepwise.max_width = 4096;
+			f->stepwise.min_height = 72;
+			f->stepwise.max_height = 2160;
+			break;
+		case V4L2_PIX_FMT_VP8:
+		case V4L2_PIX_FMT_MPEG4:
+		case V4L2_PIX_FMT_XVID:
+		case V4L2_PIX_FMT_MPEG2:
+		case V4L2_PIX_FMT_H263:
+		case V4L2_PIX_FMT_VC1_ANNEX_G:
+		case V4L2_PIX_FMT_VC1_ANNEX_L:
+		case V4L2_PIX_FMT_JPEG:
+		default:
+			f->stepwise.min_width = 48;
+			f->stepwise.max_width = 1920;
+			f->stepwise.min_height = 48;
+			f->stepwise.max_height = 1088;
+			break;
+		}
+	} else {
+		switch (pixel_format) {
+		case V4L2_PIX_FMT_HEVC:
+			f->stepwise.min_width = 144;
+			f->stepwise.min_height = 144;
+			break;
+		case V4L2_PIX_FMT_VP9:
+			f->stepwise.min_width = 72;
+			f->stepwise.min_height = 72;
+			break;
+		case V4L2_PIX_FMT_H264:
+		case V4L2_PIX_FMT_VP8:
+			f->stepwise.min_width = 48;
+			f->stepwise.min_height = 48;
+			break;
+		default:
+			break;
+		}
+		f->stepwise.max_width = 1920;
+		f->stepwise.max_height = 1088;
+	}
 }
 
 int vsi_get_Level(struct vsi_v4l2_ctx *ctx, int mediatype, int dir, int level)
@@ -740,9 +801,10 @@ struct vsi_video_fmt *vsi_find_format(struct vsi_v4l2_ctx *ctx, struct v4l2_form
 	if (braw) {
 		for (i = 0; i < ARRAY_SIZE(vsi_raw_fmt); i++) {
 			if (vsi_raw_fmt[i].fourcc == fourcc) {
-				retfmt = &vsi_raw_fmt[i];
-				if (isdecoder(ctx) && retfmt->dec_fmt == V4L2_DAEMON_CODEC_UNKNOW_TYPE)
-					retfmt = NULL;
+				if (isencoder(ctx) && vsi_raw_fmt[i].enc_fmt != V4L2_DAEMON_CODEC_UNKNOW_TYPE)
+					retfmt = &vsi_raw_fmt[i];
+				if (isdecoder(ctx) && vsi_raw_fmt[i].dec_fmt != V4L2_DAEMON_CODEC_UNKNOW_TYPE)
+					retfmt = &vsi_raw_fmt[i];
 				break;
 			}
 		}
@@ -928,7 +990,7 @@ static void vsi_set_default_parameter_enc(
 	enc_params->specific.enc_h26x_cmd.idrHdr = 1;
 }
 
-static struct vsi_video_fmt *vsi_find_fist_fmt(bool is_enc)
+static struct vsi_video_fmt *vsi_find_first_fmt(bool is_enc)
 {
 	int i;
 
@@ -942,78 +1004,7 @@ static struct vsi_video_fmt *vsi_find_fist_fmt(bool is_enc)
 	return NULL;
 }
 
-void vsiv4l2_initcfg(struct vsi_v4l2_ctx *ctxp)
-{
-	struct vsi_v4l2_mediacfg *ctx = &ctxp->mediacfg;
-	struct vsi_video_fmt *vfmt = NULL;
-	int enc_fmt = V4L2_DAEMON_CODEC_UNKNOW_TYPE;
-	int dec_fmt = V4L2_DAEMON_CODEC_UNKNOW_TYPE;
-	u32 enc_fmt_fourcc = 0;
-	u32 dec_fmt_fourcc = 0;
-
-	vfmt = vsi_find_fist_fmt(1);
-	if (vfmt) {
-		enc_fmt = vfmt->enc_fmt;
-		enc_fmt_fourcc = vfmt->fourcc;
-	}
-	vfmt = vsi_find_fist_fmt(0);
-	if (vfmt) {
-		dec_fmt = vfmt->dec_fmt;
-		dec_fmt_fourcc = vfmt->fourcc;
-	}
-
-	v4l2_klog(LOGLVL_CONFIG, "%lx:%s default enc_fmt:%d, dec_fmt:%d\n",
-		  ctxp->ctxid, __func__, enc_fmt, dec_fmt);
-
-	ctx->decparams.dec_info.io_buffer.inputFormat = dec_fmt;
-	ctx->decparams.dec_info.io_buffer.outBufFormat = VSI_V4L2_DEC_PIX_FMT_NV12;
-	ctx->decparams.dec_info.io_buffer.outputPixelDepth = DEFAULT_PIXELDEPTH;
-	ctx->src_pixeldepth = DEFAULT_PIXELDEPTH;
-	ctx->decparams.dec_info.dec_info.bit_depth = DEFAULT_PIXELDEPTH;
-	vsi_set_default_parameter_enc(&ctx->encparams, enc_fmt);
-
-	if (isencoder(ctxp)) {
-		ctx->srcplanes = 2;
-		ctx->infmt_fourcc = V4L2_PIX_FMT_NV12;
-		ctx->outfmt_fourcc = enc_fmt_fourcc;
-	} else {
-		ctx->srcplanes = 1;
-		ctx->infmt_fourcc = dec_fmt_fourcc;
-		ctx->outfmt_fourcc = V4L2_PIX_FMT_NV12;
-	}
-	ctx->dstplanes = 1;
-	ctx->profile_hevc = VCENC_HEVC_MAIN_PROFILE;
-	ctx->profile_h264 = VCENC_H264_BASE_PROFILE;
-	ctx->profile_vp9 = VCENC_VP9_MAIN_PROFILE;
-	ctx->encparams.specific.enc_h26x_cmd.gopSize = DEFAULT_GOP_SIZE;
-
-	ctx->encparams.general.inputFormat = VCENC_FMT_INVALID;
-	ctx->field = V4L2_FIELD_NONE;
-	ctx->colorspace = V4L2_COLORSPACE_REC709;
-	ctx->quantization = V4L2_QUANTIZATION_LIM_RANGE;
-	ctx->minbuf_4capture = 1;
-	ctx->minbuf_4output = 1;
-
-	ctx->capparam.capability = ctx->capparam.capturemode = V4L2_CAP_TIMEPERFRAME;
-	ctx->capparam.readbuffers = 1;
-	ctx->capparam.timeperframe.numerator = 1;
-	ctx->capparam.timeperframe.denominator = 25;
-
-	ctx->outputparam.capability = ctx->outputparam.outputmode = V4L2_CAP_TIMEPERFRAME;
-	ctx->outputparam.writebuffers = 1;
-	ctx->outputparam.timeperframe.numerator = 1;
-	ctx->outputparam.timeperframe.denominator = 25;
-
-	ctx->encparams.general.inputRateNumer = 1;
-	ctx->encparams.general.inputRateDenom = 25;
-
-	ctx->encparams.general.outputRateNumer = 1;
-	ctx->encparams.general.outputRateDenom = 25;
-
-	ctx->multislice_mode = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;	//0
-}
-
-void vsiv4l2_initfmt(struct vsi_v4l2_ctx *ctx)
+static void vsiv4l2_initfmt(struct vsi_v4l2_ctx *ctx)
 {
 	struct v4l2_format f;
 	struct vsi_v4l2_mediacfg *cfg = &ctx->mediacfg;
@@ -1047,6 +1038,79 @@ void vsiv4l2_initfmt(struct vsi_v4l2_ctx *ctx)
 		f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		vsiv4l2_setfmt(ctx, &f);
 	}
+}
+
+void vsiv4l2_initcfg(struct vsi_v4l2_ctx *ctxp)
+{
+	struct vsi_v4l2_mediacfg *ctx = &ctxp->mediacfg;
+	struct vsi_video_fmt *vfmt = NULL;
+	int enc_fmt = V4L2_DAEMON_CODEC_UNKNOW_TYPE;
+	int dec_fmt = V4L2_DAEMON_CODEC_UNKNOW_TYPE;
+	u32 enc_fmt_fourcc = 0;
+	u32 dec_fmt_fourcc = 0;
+
+	v4l2_klog(LOGLVL_CONFIG, "%lx:%s default enc_fmt:%d, dec_fmt:%d\n",
+		  ctxp->ctxid, __func__, enc_fmt, dec_fmt);
+
+	if (isencoder(ctxp)) {
+		vfmt = vsi_find_first_fmt(1);
+		if (!vfmt)
+			return;
+		enc_fmt = vfmt->enc_fmt;
+		enc_fmt_fourcc = vfmt->fourcc;
+		vsi_set_default_parameter_enc(&ctx->encparams, enc_fmt);
+
+		ctx->srcplanes = 2;
+		ctx->infmt_fourcc = V4L2_PIX_FMT_NV12;
+		ctx->outfmt_fourcc = enc_fmt_fourcc;
+		ctx->flags = vfmt->flag;
+	} else {
+		vfmt = vsi_find_first_fmt(0);
+		if (!vfmt)
+			return;
+		dec_fmt = vfmt->dec_fmt;
+		dec_fmt_fourcc = vfmt->fourcc;
+		ctx->decparams.dec_info.io_buffer.inputFormat = dec_fmt;
+		ctx->decparams.dec_info.io_buffer.outBufFormat = VSI_V4L2_DEC_PIX_FMT_NV12;
+		ctx->decparams.dec_info.io_buffer.outputPixelDepth = DEFAULT_PIXELDEPTH;
+		ctx->src_pixeldepth = DEFAULT_PIXELDEPTH;
+		ctx->decparams.dec_info.dec_info.bit_depth = DEFAULT_PIXELDEPTH;
+		ctx->srcplanes = 1;
+		ctx->infmt_fourcc = dec_fmt_fourcc;
+		ctx->outfmt_fourcc = V4L2_PIX_FMT_NV12;
+		ctx->flags = vfmt->flag;
+	}
+	ctx->dstplanes = 1;
+	ctx->profile_hevc = VCENC_HEVC_MAIN_PROFILE;
+	ctx->profile_h264 = VCENC_H264_BASE_PROFILE;
+	ctx->profile_vp9 = VCENC_VP9_MAIN_PROFILE;
+	ctx->encparams.specific.enc_h26x_cmd.gopSize = DEFAULT_GOP_SIZE;
+
+	ctx->encparams.general.inputFormat = VCENC_FMT_INVALID;
+	ctx->field = V4L2_FIELD_NONE;
+	ctx->colorspace = V4L2_COLORSPACE_REC709;
+	ctx->quantization = V4L2_QUANTIZATION_LIM_RANGE;
+	ctx->minbuf_4capture = 1;
+	ctx->minbuf_4output = 1;
+
+	ctx->capparam.capability = V4L2_CAP_TIMEPERFRAME;
+	ctx->capparam.readbuffers = 0;
+	ctx->capparam.timeperframe.numerator = 1;
+	ctx->capparam.timeperframe.denominator = 25;
+
+	ctx->outputparam.capability = V4L2_CAP_TIMEPERFRAME;
+	ctx->outputparam.writebuffers = 0;
+	ctx->outputparam.timeperframe.numerator = 1;
+	ctx->outputparam.timeperframe.denominator = 25;
+
+	ctx->encparams.general.inputRateNumer = 1;
+	ctx->encparams.general.inputRateDenom = 25;
+
+	ctx->encparams.general.outputRateNumer = 1;
+	ctx->encparams.general.outputRateDenom = 25;
+
+	ctx->multislice_mode = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;	//0
+	vsiv4l2_initfmt(ctxp);
 }
 
 static int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg)
@@ -1115,7 +1179,7 @@ static void verifyPlanesize(unsigned int psize[], int braw, int pixelformat, int
 		}
 		if (planeno == 1) {
 			totalsize = basesize + extsize + padsize;
-			psize[0] = max_t(int, PAGE_ALIGN(totalsize), psize[0]);
+			psize[0] = max_t(int, totalsize, psize[0]);
 		} else if (planeno == 2) {
 			psize[0] = basesize;
 			psize[1] = extsize;
@@ -1128,12 +1192,12 @@ static void verifyPlanesize(unsigned int psize[], int braw, int pixelformat, int
 		//for coded format we support 1 plane only
 		//except certain header the CR data can be any small
 		//so just make it page aligned.
-		psize[0] = max_t(int, PAGE_ALIGN(basesize), psize[0]);
+		psize[0] = max_t(int, basesize, psize[0]);
 	}
 	v4l2_klog(LOGLVL_CONFIG, "%s:%d:%d:%d", __func__, psize[0], psize[1], psize[2]);
 }
 
-static int config_planeno(int pixelformat)
+static int vsiv4l2_config_planeno(int pixelformat)
 {
 	switch (pixelformat) {
 	case V4L2_PIX_FMT_NV12:
@@ -1164,7 +1228,7 @@ static int is_quadsizefmt(int fmt)
 	return 0;
 }
 
-static int vsiv4l2_enc_getalign(u32 srcfmt, u32 dstfmt, int width)
+int vsiv4l2_enc_getalign(u32 srcfmt, u32 dstfmt, int width)
 {
 	int bytesperline = width;
 
@@ -1192,93 +1256,67 @@ static int vsiv4l2_enc_getalign(u32 srcfmt, u32 dstfmt, int width)
 static int vsiv4l2_setfmt_enc(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
-	int i;
+	struct v4l2_pix_format_mplane *pixmp = &fmt->fmt.pix_mp;
 	struct vsi_video_fmt *targetfmt;
-	int userset_planeno;
-	unsigned int *psize;
-	int braw = brawfmt(ctx->flag, fmt->type);
+	int ret = 0;
+	int i;
 
+	ret = vsiv4l2_verifyfmt(ctx, fmt);
+	if (ret != 0)
+		return ret;
 	targetfmt = vsi_find_format(ctx, fmt);
-	if (targetfmt == NULL || fmt->fmt.pix_mp.width <= 0 ||
-	    fmt->fmt.pix_mp.height <= 0) {
-		v4l2_klog(LOGLVL_WARNING, "%lx:%s: invalid format.\n",
-			  ctx->ctxid, __func__);
-		return -EINVAL;
-	}
-
-	v4l2_klog(LOGLVL_CONFIG, "%s:%d:%x", __func__, fmt->type, fmt->fmt.pix_mp.pixelformat);
-	if (binputqueue(fmt->type))
-		psize = pcfg->sizeimagesrc;
-	else
-		psize = pcfg->sizeimagedst;
-
-	vsiv4l2_verifyfmt(ctx, fmt);
 	if (binputqueue(fmt->type)) {
-		pcfg->encparams.general.lumWidthSrc = fmt->fmt.pix_mp.width;
-		pcfg->encparams.general.lumHeightSrc = fmt->fmt.pix_mp.height;
+		pcfg->width_src = pixmp->width;
+		pcfg->height_src = pixmp->height;
+		pcfg->encparams.general.horOffsetSrc = 0;
+		pcfg->encparams.general.verOffsetSrc = 0;
+		pcfg->encparams.general.width = pixmp->width;
+		pcfg->encparams.general.height = pixmp->height;
 		pcfg->encparams.general.inputFormat = targetfmt->enc_fmt;
-		pcfg->infmt_fourcc = fmt->fmt.pix_mp.pixelformat;
+		pcfg->infmt_fourcc = pixmp->pixelformat;
+		pcfg->bytesperline = pixmp->plane_fmt[0].bytesperline;
+		for (i = 0; i < pixmp->num_planes; i++)
+			pcfg->sizeimagesrc[i] = pixmp->plane_fmt[i].sizeimage;
 	} else {
-		pcfg->encparams.general.width = fmt->fmt.pix_mp.width;
-		pcfg->encparams.general.height = fmt->fmt.pix_mp.height;
+		pcfg->encparams.general.width = pixmp->width;
+		pcfg->encparams.general.height = pixmp->height;
 		pcfg->encparams.general.codecFormat = targetfmt->enc_fmt;
-		pcfg->outfmt_fourcc = fmt->fmt.pix_mp.pixelformat;
+		pcfg->outfmt_fourcc = pixmp->pixelformat;
 		pcfg->encparams.specific.enc_h26x_cmd.profile = get_fmtprofile(pcfg);
+		for (i = 0; i < pixmp->num_planes; i++)
+			pcfg->sizeimagedst[i] = pixmp->plane_fmt[i].sizeimage;
 	}
-	userset_planeno = fmt->fmt.pix_mp.num_planes;
-	//force it
-	if (braw)
-		fmt->fmt.pix_mp.num_planes = config_planeno(fmt->fmt.pix_mp.pixelformat);
-	else
-		fmt->fmt.pix_mp.num_planes = 1;
-	pcfg->bytesperline = vsiv4l2_enc_getalign(pcfg->encparams.general.inputFormat, pcfg->encparams.general.codecFormat, fmt->fmt.pix_mp.plane_fmt[0].bytesperline);
-	if (pcfg->bytesperline == 0)
-		pcfg->bytesperline = vsiv4l2_enc_getalign(pcfg->encparams.general.inputFormat, pcfg->encparams.general.codecFormat, fmt->fmt.pix_mp.width);
 
-	if (fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_YUV420) {
-		fmt->fmt.pix_mp.plane_fmt[0].bytesperline = pcfg->bytesperline;
-		fmt->fmt.pix_mp.plane_fmt[1].bytesperline =
-			fmt->fmt.pix_mp.plane_fmt[2].bytesperline = pcfg->bytesperline/2;
-	} else {
-		for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++)
-			fmt->fmt.pix_mp.plane_fmt[i].bytesperline = pcfg->bytesperline;
+	if (binputqueue(fmt->type)) {
+		if (is_doublesizefmt(targetfmt->enc_fmt))
+			pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline/2;
+		else if (is_quadsizefmt(targetfmt->enc_fmt))
+			pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline/4;
+		else
+			pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline;
+
+		pcfg->encparams.general.lumHeightSrc = pixmp->height;
 	}
-	if (is_doublesizefmt(targetfmt->enc_fmt))
-		pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline/2;
-	else if (is_quadsizefmt(targetfmt->enc_fmt))
-		pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline/4;
-	else
-		pcfg->encparams.general.lumWidthSrc = pcfg->bytesperline;
-
-	if (fmt->fmt.pix_mp.num_planes == userset_planeno) {
-		for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++)
-			psize[i] = fmt->fmt.pix_mp.plane_fmt[i].sizeimage;
-		verifyPlanesize(psize, braw, fmt->fmt.pix_mp.pixelformat, pcfg->bytesperline, fmt->fmt.pix_mp.height, userset_planeno, 0);
-	} else
-		calcPlanesize(ctx, fmt->fmt.pix_mp.pixelformat, pcfg->bytesperline, fmt->fmt.pix_mp.height, psize, fmt->type, fmt->fmt.pix_mp.num_planes);
-	for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++)
-		fmt->fmt.pix_mp.plane_fmt[i].sizeimage = psize[i];
 
 	if (binputqueue(fmt->type))
-		pcfg->srcplanes = fmt->fmt.pix_mp.num_planes;
+		pcfg->srcplanes = pixmp->num_planes;
 	else
-		pcfg->dstplanes = fmt->fmt.pix_mp.num_planes;
-	pcfg->field = fmt->fmt.pix_mp.field;
-	pcfg->colorspace = fmt->fmt.pix_mp.colorspace;
-	pcfg->flags = fmt->fmt.pix_mp.flags;
-	pcfg->quantization = fmt->fmt.pix_mp.quantization;
-	pcfg->xfer_func = fmt->fmt.pix_mp.xfer_func;
+		pcfg->dstplanes = pixmp->num_planes;
+	pcfg->field = pixmp->field;
+	pcfg->colorspace = pixmp->colorspace;
+	pcfg->flags = pixmp->flags;
+	pcfg->quantization = pixmp->quantization;
+	pcfg->xfer_func = pixmp->xfer_func;
+	pcfg->ycbcr_enc = pixmp->ycbcr_enc;
 	enc_setvui(fmt, &pcfg->encparams);
 
-	if (binputqueue(fmt->type)) {
-		v4l2_klog(LOGLVL_CONFIG, "%d:%d:%d:%d",
-			fmt->fmt.pix_mp.num_planes, fmt->fmt.pix_mp.plane_fmt[0].bytesperline,
-			fmt->fmt.pix_mp.plane_fmt[0].sizeimage, fmt->fmt.pix_mp.plane_fmt[1].sizeimage);
-	} else {
-		v4l2_klog(LOGLVL_CONFIG, "%d:%d:%d",
-			fmt->fmt.pix_mp.num_planes, fmt->fmt.pix_mp.plane_fmt[0].bytesperline, fmt->fmt.pix_mp.plane_fmt[0].sizeimage);
-	}
-	return 0;
+	v4l2_klog(LOGLVL_CONFIG, "%s type:%d, planes:%d, res:%dx%d, bytesperline:%d, sizeimage:%d,%d,%d\n",
+		__func__, fmt->type, pixmp->num_planes, pixmp->width,
+		pixmp->height, pixmp->plane_fmt[0].bytesperline,
+		pixmp->plane_fmt[0].sizeimage, pixmp->plane_fmt[1].sizeimage,
+		pixmp->plane_fmt[2].sizeimage);
+
+	return ret;
 }
 
 static void vsiv4l2_convertpixel2MB(
@@ -1422,85 +1460,67 @@ static int vsiv4l2_decidepixeldepth(int pixelformat, int origdepth)
 static int vsiv4l2_setfmt_dec(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_pix_format *pix = &fmt->fmt.pix;
 	struct vsi_video_fmt *targetfmt;
-	unsigned int *psize;
-	int braw = brawfmt(ctx->flag, fmt->type);
+	int ret = 0;
 
+	ret = vsiv4l2_verifyfmt(ctx, fmt);
+	if (ret != 0)
+		return ret;
 	targetfmt = vsi_find_format(ctx, fmt);
-	if (targetfmt == NULL || fmt->fmt.pix.width <= 0 ||
-	    fmt->fmt.pix.height <= 0) {
-		v4l2_klog(LOGLVL_WARNING, "%lx:%s: invalid format.\n",
-			  ctx->ctxid, __func__);
-		return -EINVAL;
-	}
-
-	if (binputqueue(fmt->type))
-		psize = pcfg->sizeimagesrc;
-	else
-		psize = pcfg->sizeimagedst;
-
-	v4l2_klog(LOGLVL_BRIEF, "%s:%d:%x:%d:%d:%d:%d", __func__,
-		fmt->type, fmt->fmt.pix.pixelformat, fmt->fmt.pix.width, fmt->fmt.pix.height, fmt->fmt.pix.bytesperline, psize[0]);
-	fmt->fmt.pix_mp.num_planes = 1;
 	if (binputqueue(fmt->type)) {
-		pcfg->decparams.dec_info.io_buffer.srcwidth = fmt->fmt.pix.width;
-		pcfg->decparams.dec_info.io_buffer.srcheight = fmt->fmt.pix.height;
+		pcfg->decparams.dec_info.io_buffer.srcwidth = pix->width;
+		pcfg->decparams.dec_info.io_buffer.srcheight = pix->height;
 		pcfg->decparams.dec_info.io_buffer.inputFormat = targetfmt->dec_fmt;
+		pcfg->infmt_fourcc = pix->pixelformat;
 	} else {
-		//dtrc is only for HEVC and VP9
-		if (istiledfmt(targetfmt->dec_fmt)
-			&& pcfg->decparams.dec_info.io_buffer.inputFormat != V4L2_DAEMON_CODEC_DEC_VP9
-			&& pcfg->decparams.dec_info.io_buffer.inputFormat != V4L2_DAEMON_CODEC_DEC_HEVC)
-			return -EINVAL;
-		if (pcfg->decparams.dec_info.io_buffer.output_width)
-			fmt->fmt.pix.width = pcfg->decparams.dec_info.io_buffer.output_width;
-		if (pcfg->decparams.dec_info.io_buffer.output_height)
-			fmt->fmt.pix.height = pcfg->decparams.dec_info.io_buffer.output_height;
-		pcfg->decparams.dec_info.io_buffer.outBufFormat = targetfmt->dec_fmt;
-		pcfg->decparams.dec_info.io_buffer.outputPixelDepth =
-			vsiv4l2_decidepixeldepth(targetfmt->dec_fmt, pcfg->src_pixeldepth);
-	}
-	psize[0] = fmt->fmt.pix.sizeimage;
-	if (!binputqueue(fmt->type)) {
-		if (pcfg->decparams.dec_info.io_buffer.outputPixelDepth < pcfg->src_pixeldepth) {
-			pcfg->bytesperline = fmt->fmt.pix.width * pcfg->decparams.dec_info.io_buffer.outputPixelDepth / 8;
-			pcfg->bytesperline = ALIGN(pcfg->bytesperline, 16);
-			if (fmt->fmt.pix.sizeimage * pcfg->src_pixeldepth <
-				pcfg->decparams.dec_info.io_buffer.outputPixelDepth * pcfg->orig_dpbsize) {
-				verifyPlanesize(psize, braw, fmt->fmt.pix.pixelformat, pcfg->bytesperline, fmt->fmt.pix.height, 1, 1);
-				fmt->fmt.pix.sizeimage = psize[0];
-			}
-		} else if (fmt->fmt.pix.sizeimage < pcfg->orig_dpbsize)
-			fmt->fmt.pix.sizeimage = psize[0] = pcfg->orig_dpbsize;
+		pcfg->outfmt_fourcc = pix->pixelformat;
 
-		if (!pcfg->bytesperline) {
-			pcfg->bytesperline = fmt->fmt.pix.width * pcfg->decparams.dec_info.io_buffer.outputPixelDepth / 8;
+		if (!test_bit(CTX_FLAG_SRCCHANGED_BIT, &ctx->flag)) {
+			pcfg->decparams.dec_info.io_buffer.output_width = pix->width;
+			pcfg->decparams.dec_info.io_buffer.output_height = pix->height;
+			pcfg->decparams.dec_info.io_buffer.outBufFormat = targetfmt->dec_fmt;
+			pcfg->bytesperline = pix->bytesperline;
+			pcfg->decparams.dec_info.dec_info.visible_rect.left = 0;
+			pcfg->decparams.dec_info.dec_info.visible_rect.top = 0;
+			pcfg->decparams.dec_info.dec_info.visible_rect.width = pix->width;
+			pcfg->decparams.dec_info.dec_info.visible_rect.height = pix->height;
+		} else {
+			//dtrc is only for HEVC and VP9
+			if (istiledfmt(targetfmt->dec_fmt)
+				&& pcfg->decparams.dec_info.io_buffer.inputFormat != V4L2_DAEMON_CODEC_DEC_VP9
+				&& pcfg->decparams.dec_info.io_buffer.inputFormat != V4L2_DAEMON_CODEC_DEC_HEVC)
+				return -EINVAL;
+			if (pcfg->decparams.dec_info.io_buffer.output_width)
+				pix->width = pcfg->decparams.dec_info.io_buffer.output_width;
+			if (pcfg->decparams.dec_info.io_buffer.output_height)
+				pix->height = pcfg->decparams.dec_info.io_buffer.output_height;
+			pcfg->decparams.dec_info.io_buffer.outBufFormat = targetfmt->dec_fmt;
+			pcfg->decparams.dec_info.io_buffer.outputPixelDepth =
+				vsiv4l2_decidepixeldepth(targetfmt->dec_fmt, pcfg->src_pixeldepth);
+			pcfg->bytesperline = pix->width * pcfg->decparams.dec_info.io_buffer.outputPixelDepth / 8;
 			pcfg->bytesperline = ALIGN(pcfg->bytesperline, 16);
+			pix->bytesperline = pcfg->bytesperline;
 		}
-		fmt->fmt.pix.bytesperline = pcfg->bytesperline;
 	}
-
-	if (!psize[0]) {
-		verifyPlanesize(psize, braw, fmt->fmt.pix.pixelformat,
-				pcfg->bytesperline ? pcfg->bytesperline : fmt->fmt.pix.width,
-				fmt->fmt.pix.height, 1, 1);
-		fmt->fmt.pix.sizeimage = psize[0];
-	}
+	ret = vsiv4l2_verifyfmt(ctx, fmt);
 
 	if (binputqueue(fmt->type))
-		pcfg->srcplanes = 1;
+		pcfg->sizeimagesrc[0] = pix->sizeimage;
 	else
-		pcfg->dstplanes = 1;
-	pcfg->field = fmt->fmt.pix.field;
-	pcfg->colorspace = fmt->fmt.pix.colorspace;
-	pcfg->flags = fmt->fmt.pix.flags;
-	pcfg->quantization = fmt->fmt.pix.quantization;
-	pcfg->xfer_func = fmt->fmt.pix.xfer_func;
-	v4l2_klog(LOGLVL_CONFIG, "%d:%d", fmt->fmt.pix.bytesperline, fmt->fmt.pix.sizeimage);
+		pcfg->sizeimagedst[0] = pix->sizeimage;
+	pcfg->field = pix->field;
+	pcfg->colorspace = pix->colorspace;
+	pcfg->flags = pix->flags;
+	pcfg->quantization = pix->quantization;
+	pcfg->xfer_func = pix->xfer_func;
+	pcfg->ycbcr_enc = pix->ycbcr_enc;
 
-	return 0;
+	v4l2_klog(LOGLVL_CONFIG, "%s type:%d, res:%dx%d, bytesperline:%d, sizeimage:%d\n",
+		__func__, fmt->type, pix->width, pix->height, pix->bytesperline,
+		pix->sizeimage);
+	return ret;
 }
-
 
 int vsiv4l2_setfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
@@ -1510,41 +1530,151 @@ int vsiv4l2_setfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 		return vsiv4l2_setfmt_dec(ctx, fmt);
 }
 
-static int vsiv4l2_verifyfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
+static int vsiv4l2_verifyfmt_enc(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_pix_format_mplane *pixmp = &fmt->fmt.pix_mp;
 	struct v4l2_frmsizeenum fmsize;
+	struct vsi_video_fmt *vfmt = NULL;
+	int braw;
+	u32 bytesperline;
+	unsigned int psize[VB2_MAX_PLANES] = { 0 };
+	int i;
 
-	/* verify and change format member to valid range */
+	if (!isvalidtype(fmt->type, ctx->flag)) {
+		if (V4L2_TYPE_IS_OUTPUT(fmt->type))
+			fmt->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+		else
+			fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	}
 
-	if (!binputqueue(fmt->type))
-		fmsize.pixel_format = fmt->fmt.pix_mp.pixelformat;
-	else
+	braw = brawfmt(ctx->flag, fmt->type);
+	vfmt = vsi_find_format(ctx, fmt);
+	if (!vfmt) {
+		vfmt = vsi_enum_encformat(0, braw);
+		if (!vfmt)
+			return -EINVAL;
+		pixmp->pixelformat = vfmt->fourcc;
+	}
+
+	if (binputqueue(fmt->type))
 		fmsize.pixel_format = pcfg->outfmt_fourcc;
+	else
+		fmsize.pixel_format = pixmp->pixelformat;
 	vsi_enum_encfsize(&fmsize, fmsize.pixel_format);
 
-	if (fmt->fmt.pix_mp.width < fmsize.stepwise.min_width)
-		fmt->fmt.pix_mp.width = fmsize.stepwise.min_width;
-	if (fmt->fmt.pix_mp.width > fmsize.stepwise.max_width)
-		fmt->fmt.pix_mp.width = fmsize.stepwise.max_width;
-	if (fmt->fmt.pix_mp.height < fmsize.stepwise.min_height)
-		fmt->fmt.pix_mp.height = fmsize.stepwise.min_height;
-	if (fmt->fmt.pix_mp.height > fmsize.stepwise.max_height)
-		fmt->fmt.pix_mp.height = fmsize.stepwise.max_height;
+	pixmp->width = min(pixmp->width, fmsize.stepwise.max_width);
+	pixmp->width = max_t(u32, pixmp->width, fmsize.stepwise.min_width);
+	pixmp->height = min(pixmp->height, fmsize.stepwise.max_height);
+	pixmp->height = max_t(u32, pixmp->height, fmsize.stepwise.min_height);
 
 	if (vsi_v4l2_hwconfig.enc_isH1) {
-		if (fmt->fmt.pix_mp.width & 0x3)
-			fmt->fmt.pix_mp.width = ALIGN(fmt->fmt.pix_mp.width, 4);
+		if (pixmp->width & 0x3)
+			pixmp->width = ALIGN(pixmp->width, 4);
 	} else {
-		if (fmt->fmt.pix_mp.width & 0x1)
-			fmt->fmt.pix_mp.width = ALIGN(fmt->fmt.pix_mp.width, 2);
+		if (pixmp->width & 0x1)
+			pixmp->width = ALIGN(pixmp->width, 2);
 	}
-	if (fmt->fmt.pix_mp.height & 0x1)
-		fmt->fmt.pix_mp.height = ALIGN(fmt->fmt.pix_mp.height, 2);
-	v4l2_klog(LOGLVL_CONFIG, "%s:%x:%d:%d", __func__,
-		fmsize.pixel_format, fmt->fmt.pix_mp.width, fmt->fmt.pix_mp.height);
+	if (pixmp->height & 0x1)
+		pixmp->height = ALIGN(pixmp->height, 2);
+
+	if (pixmp->field == V4L2_FIELD_ANY)
+		pixmp->field = V4L2_FIELD_NONE;
+
+	bytesperline = max_t(int, pixmp->plane_fmt[0].bytesperline, pixmp->width);
+	if (braw) {
+		pixmp->num_planes = vsiv4l2_config_planeno(pixmp->pixelformat);
+		bytesperline = vsiv4l2_enc_getalign(vfmt->enc_fmt,
+			pcfg->encparams.general.codecFormat, bytesperline);
+	} else {
+		pixmp->num_planes = 1;
+	}
+
+	if (pixmp->pixelformat == V4L2_PIX_FMT_YUV420) {
+		pixmp->plane_fmt[0].bytesperline = bytesperline;
+		pixmp->plane_fmt[1].bytesperline = bytesperline / 2;
+		pixmp->plane_fmt[2].bytesperline = bytesperline / 2;
+	} else {
+		for (i = 0; i < pixmp->num_planes; i++)
+			pixmp->plane_fmt[i].bytesperline = bytesperline;
+	}
+
+	for (i = 0; i < pixmp->num_planes; i++)
+		psize[i] = pixmp->plane_fmt[i].sizeimage;
+	verifyPlanesize(psize, braw, pixmp->pixelformat, bytesperline,
+			pixmp->height, pixmp->num_planes, 0);
+	for (i = 0; i < pixmp->num_planes; i++)
+		pixmp->plane_fmt[i].sizeimage = psize[i];
 
 	return 0;
+}
+
+static int vsiv4l2_verifyfmt_dec(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
+{
+	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_pix_format *pix = &fmt->fmt.pix;
+	struct v4l2_frmsizeenum fmsize;
+	struct vsi_video_fmt *vfmt = NULL;
+	u32 bytesperline;
+	int braw;
+	unsigned int psize[VB2_MAX_PLANES] = { 0 };
+
+	if (!isvalidtype(fmt->type, ctx->flag)) {
+		if (V4L2_TYPE_IS_OUTPUT(fmt->type))
+			fmt->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+		else
+			fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	}
+
+	braw = brawfmt(ctx->flag, fmt->type);
+	vfmt = vsi_find_format(ctx, fmt);
+	if (!vfmt) {
+		vfmt = vsi_enum_dec_format(0, braw, ctx);
+		if (!vfmt)
+			return -EINVAL;
+		pix->pixelformat = vfmt->fourcc;
+	}
+	if (pix->field == V4L2_FIELD_ANY)
+		pix->field = V4L2_FIELD_NONE;
+
+	if (binputqueue(fmt->type))
+		fmsize.pixel_format = pix->pixelformat;
+	else
+		fmsize.pixel_format = pcfg->infmt_fourcc;
+
+	vsi_enum_decfsize(&fmsize, fmsize.pixel_format);
+	pix->width = min(pix->width, fmsize.stepwise.max_width);
+	pix->width = max_t(u32, pix->width, fmsize.stepwise.min_width);
+	pix->height = min(pix->height, fmsize.stepwise.max_height);
+	pix->height = max_t(u32, pix->height, fmsize.stepwise.min_height);
+
+	if (braw) {
+		if (!test_bit(CTX_FLAG_SRCCHANGED_BIT, &ctx->flag)) {
+			bytesperline = ALIGN(pix->width, 16);
+		} else {
+			int outputPixelDepth = vsiv4l2_decidepixeldepth(vfmt->dec_fmt, pcfg->src_pixeldepth);
+
+			bytesperline = ALIGN(pix->width * outputPixelDepth / 8, 16);
+		}
+	} else {
+		bytesperline = pix->width;
+	}
+	pix->bytesperline = bytesperline;
+
+	psize[0] = pix->sizeimage;
+	verifyPlanesize(psize, braw, pix->pixelformat, bytesperline,
+			pix->height, 1, 1);
+	pix->sizeimage = psize[0];
+
+	return 0;
+}
+
+int vsiv4l2_verifyfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
+{
+	if (isencoder(ctx))
+		return vsiv4l2_verifyfmt_enc(ctx, fmt);
+	else
+		return vsiv4l2_verifyfmt_dec(ctx, fmt);
 }
 
 int vsiv4l2_verifycrop(struct v4l2_selection *s)
@@ -1615,81 +1745,86 @@ static u32 find_local_dec_format(s32 fmt, int braw)
 static int vsiv4l2_getfmt_enc(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_pix_format_mplane *pixmp = &fmt->fmt.pix_mp;
 	int i;
 	int *psize = (binputqueue(fmt->type) ? pcfg->sizeimagesrc : pcfg->sizeimagedst);
 
 	if (binputqueue(fmt->type)) {
-		fmt->fmt.pix_mp.width = pcfg->encparams.general.lumWidthSrc;
-		fmt->fmt.pix_mp.height = pcfg->encparams.general.lumHeightSrc;
-		fmt->fmt.pix_mp.pixelformat = pcfg->infmt_fourcc;
+		pixmp->width = pcfg->width_src;
+		pixmp->height = pcfg->height_src;
+		pixmp->pixelformat = pcfg->infmt_fourcc;
 	} else {
-		fmt->fmt.pix_mp.width = pcfg->encparams.general.width;
-		fmt->fmt.pix_mp.height = pcfg->encparams.general.height;
-		fmt->fmt.pix_mp.pixelformat = pcfg->outfmt_fourcc;
+		pixmp->width = pcfg->encparams.general.width;
+		pixmp->height = pcfg->encparams.general.height;
+		pixmp->pixelformat = pcfg->outfmt_fourcc;
 	}
-	fmt->fmt.pix_mp.field = pcfg->field;
+	pixmp->field = pcfg->field;
 	if (binputqueue(fmt->type))
-		fmt->fmt.pix_mp.num_planes = pcfg->srcplanes;
+		pixmp->num_planes = pcfg->srcplanes;
 	else
-		fmt->fmt.pix_mp.num_planes = pcfg->dstplanes;
-	if (fmt->fmt.pix_mp.num_planes == 0)
-		fmt->fmt.pix_mp.num_planes = 1;
-	for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++)
-		fmt->fmt.pix_mp.plane_fmt[i].sizeimage = psize[i];
-	if (fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_YUV420) {
-		fmt->fmt.pix_mp.plane_fmt[0].bytesperline = pcfg->bytesperline;
-		fmt->fmt.pix_mp.plane_fmt[1].bytesperline =
-			fmt->fmt.pix_mp.plane_fmt[2].bytesperline = pcfg->bytesperline/2;
+		pixmp->num_planes = pcfg->dstplanes;
+	if (pixmp->num_planes == 0)
+		pixmp->num_planes = 1;
+	for (i = 0; i < pixmp->num_planes; i++)
+		pixmp->plane_fmt[i].sizeimage = psize[i];
+	if (pixmp->pixelformat == V4L2_PIX_FMT_YUV420) {
+		pixmp->plane_fmt[0].bytesperline = pcfg->bytesperline;
+		pixmp->plane_fmt[1].bytesperline =
+			pixmp->plane_fmt[2].bytesperline = pcfg->bytesperline/2;
 		i = 3;
 	} else {
-		for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++)
-			fmt->fmt.pix_mp.plane_fmt[i].bytesperline = pcfg->bytesperline;
+		for (i = 0; i < pixmp->num_planes; i++)
+			pixmp->plane_fmt[i].bytesperline = pcfg->bytesperline;
 	}
 
 	for (; i < VIDEO_MAX_PLANES; i++) {
-		fmt->fmt.pix_mp.plane_fmt[i].bytesperline = 0;
-		fmt->fmt.pix_mp.plane_fmt[i].sizeimage = 0;
+		pixmp->plane_fmt[i].bytesperline = 0;
+		pixmp->plane_fmt[i].sizeimage = 0;
 	}
-	v4l2_klog(LOGLVL_CONFIG, "%s:%x:%d:%d:%d:%d", __func__,
-		fmt->fmt.pix_mp.pixelformat, fmt->fmt.pix_mp.num_planes,
-		fmt->fmt.pix_mp.plane_fmt[0].sizeimage, fmt->fmt.pix_mp.plane_fmt[1].sizeimage,
-		fmt->fmt.pix_mp.plane_fmt[0].bytesperline);
-	fmt->fmt.pix_mp.colorspace = pcfg->colorspace;
-	fmt->fmt.pix_mp.flags = pcfg->flags;
-	fmt->fmt.pix_mp.quantization = pcfg->quantization;
-	fmt->fmt.pix_mp.xfer_func = pcfg->xfer_func;
+
+	pixmp->colorspace = pcfg->colorspace;
+	pixmp->flags = pcfg->flags;
+	pixmp->quantization = pcfg->quantization;
+	pixmp->xfer_func = pcfg->xfer_func;
+	pixmp->ycbcr_enc = pcfg->ycbcr_enc;
+
+	v4l2_klog(LOGLVL_CONFIG, "%s type:%d, planes:%d, res:%dx%d, bytesperline:%d, sizeimage:%d,%d,%d\n",
+		__func__, fmt->type, pixmp->num_planes, pixmp->width,
+		pixmp->height, pixmp->plane_fmt[0].bytesperline,
+		pixmp->plane_fmt[0].sizeimage, pixmp->plane_fmt[1].sizeimage,
+		pixmp->plane_fmt[2].sizeimage);
 	return 0;
 }
 
 static int vsiv4l2_getfmt_dec(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_pix_format *pix = &fmt->fmt.pix;
 	int braw = brawfmt(ctx->flag, fmt->type);
 	int *psize = (binputqueue(fmt->type) ? pcfg->sizeimagesrc : pcfg->sizeimagedst);
 
 	if (binputqueue(fmt->type)) {
-		fmt->fmt.pix.width = pcfg->decparams.dec_info.io_buffer.srcwidth;
-		fmt->fmt.pix.height = pcfg->decparams.dec_info.io_buffer.srcheight;
-		fmt->fmt.pix.pixelformat = find_local_dec_format(pcfg->decparams.dec_info.io_buffer.inputFormat, braw);
+		pix->width = pcfg->decparams.dec_info.io_buffer.srcwidth;
+		pix->height = pcfg->decparams.dec_info.io_buffer.srcheight;
+		pix->pixelformat = find_local_dec_format(pcfg->decparams.dec_info.io_buffer.inputFormat, braw);
+		pix->bytesperline = pix->width;
 	} else {
-		fmt->fmt.pix.width = pcfg->decparams.dec_info.io_buffer.output_width;
-		fmt->fmt.pix.height = pcfg->decparams.dec_info.io_buffer.output_height;
-		fmt->fmt.pix.bytesperline = pcfg->bytesperline;    //return latest value
-		fmt->fmt.pix.pixelformat = find_local_dec_format(pcfg->decparams.dec_info.io_buffer.outBufFormat, braw);
+		pix->width = pcfg->decparams.dec_info.io_buffer.output_width;
+		pix->height = pcfg->decparams.dec_info.io_buffer.output_height;
+		pix->bytesperline = pcfg->bytesperline;
+		pix->pixelformat = find_local_dec_format(pcfg->decparams.dec_info.io_buffer.outBufFormat, braw);
 	}
-	fmt->fmt.pix.field = pcfg->field;
-	fmt->fmt.pix.sizeimage = psize[0];
-	fmt->fmt.pix.colorspace = pcfg->colorspace;
-	fmt->fmt.pix.flags = pcfg->flags;
-	fmt->fmt.pix.quantization = pcfg->quantization;
-	fmt->fmt.pix.xfer_func = pcfg->xfer_func;
-	vsi_dec_getvui(fmt, &pcfg->decparams.dec_info.dec_info);
-	v4l2_klog(LOGLVL_CONFIG, "%s:%x:%d:%d", __func__,
-		fmt->fmt.pix.pixelformat, fmt->fmt.pix.sizeimage,  fmt->fmt.pix.bytesperline);
+	pix->field = pcfg->field;
+	pix->sizeimage = psize[0];
+	pix->flags = pcfg->flags;
+
+	vsi_dec_getvui(ctx, fmt);
+
+	v4l2_klog(LOGLVL_CONFIG, "%s type:%d, res:%dx%d, bytesperline:%d, sizeimage:%d\n",
+		__func__, fmt->type, pix->width, pix->height, pix->bytesperline,
+		pix->sizeimage);
 	return 0;
 }
-
-
 
 int vsiv4l2_getfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
@@ -1724,95 +1859,49 @@ void vsi_v4l2_update_decfmt(struct vsi_v4l2_ctx *ctx)
 	}
 }
 
-static void calcPlanesize(struct vsi_v4l2_ctx *ctx, int pixelformat, int width, int height, int size[], int type, int planeno)
-{
-	int i, basesize, extsize = 0, quadsize = 0;
-	int braw = brawfmt(ctx->flag, type);
-
-	for (i = 0; i < planeno; i++)
-		size[i] = 0;
-	basesize = width * height;
-	if (!braw)
-		size[0] = ALIGN(basesize + ENC_EXTRA_HEADER_SIZE, PAGE_SIZE);
-	else {	/*raw formats*/
-		if (enc_isRGBformat(pixelformat)) {
-			extsize = 0;
-			quadsize = 0;
-		} else {
-			switch (pixelformat) {
-			case V4L2_PIX_FMT_NV12:
-			case V4L2_PIX_FMT_NV21:
-			case V4L2_PIX_FMT_YUV420:
-				extsize = basesize / 2;
-				quadsize = basesize / 4;
-				break;
-			case V4L2_PIX_FMT_YUYV:
-				extsize = 0;
-				quadsize = 0;
-				break;
-			default:
-				extsize = basesize;
-				quadsize = basesize / 2;
-				break;
-			}
-		}
-		if (planeno == 1) {
-			size[0] = basesize + extsize;
-		} else if (planeno == 2) {
-			size[0] = basesize;
-			size[1] = extsize;
-		} else if (planeno == 3) {
-			size[0] = basesize;
-			size[1] = quadsize;
-			size[2] = quadsize;
-		}
-	}
-	v4l2_klog(LOGLVL_CONFIG, "%s:%d:%d:%d:%d", __func__,
-		planeno, size[0], size[1], size[2]);
-}
-
-void vsiv4l2_buffer_config(
+int vsiv4l2_buffer_config(
 	struct vsi_v4l2_ctx *ctx,
-	int type,
+	struct vb2_queue *vq,
 	unsigned int *nbuffers,
 	unsigned int *nplanes,
 	unsigned int sizes[]
 )
 {
-	struct v4l2_format fmt;
-	int i;
-	int *psize = (binputqueue(type) ? ctx->mediacfg.sizeimagesrc : ctx->mediacfg.sizeimagedst);
+	int i, planes;
+	int *psize;
+	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
 
-	fmt.type = type;
-	vsiv4l2_getfmt(ctx, &fmt);
-	for (i = 0; i < VB2_MAX_PLANES; i++)
-		sizes[i] = 0;
-	if (isdecoder(ctx) && !binputqueue(type)) {
-		if (*nbuffers < ctx->mediacfg.minbuf_4capture)
-			*nbuffers = ctx->mediacfg.minbuf_4capture;
+	if (binputqueue(vq->type)) {
+		planes = pcfg->srcplanes;
+		psize = pcfg->sizeimagesrc;
+	} else {
+		planes = pcfg->dstplanes;
+		psize = pcfg->sizeimagedst;
 	}
-	if (isencoder(ctx)) {
-		/*the upper limit is done in videobuf2-core*/
-		if (*nbuffers < ctx->mediacfg.encparams.specific.enc_h26x_cmd.gopSize)
-			*nbuffers = ctx->mediacfg.encparams.specific.enc_h26x_cmd.gopSize;
-		*nplanes = fmt.fmt.pix_mp.num_planes;
-	} else
-		*nplanes = 1;
-	for (i = 0; i < *nplanes; i++) {
-		if (psize[i] <= 0) {
-			v4l2_klog(LOGLVL_WARNING, "%lx:%d::%s:planes[%d] size is invalid(%d).\n",
-				  ctx->ctxid, type, __func__, i, psize[i]);
-			sizes[i] = PAGE_SIZE;
-		} else {
-			sizes[i] = psize[i];
+	if (*nplanes) {
+		if (*nplanes != planes)
+			return -EINVAL;
+		for (i = 0; i < planes; i++) {
+			if (sizes[i] < psize[i])
+				return -EINVAL;
 		}
+	}
+	*nplanes = planes;
+	for (i = 0; i < planes; i++)
+		sizes[i] = psize[i];
 
+	if (isencoder(ctx)) {
+		if (*nbuffers + vq->num_buffers < ctx->mediacfg.encparams.specific.enc_h26x_cmd.gopSize)
+			*nbuffers = ctx->mediacfg.encparams.specific.enc_h26x_cmd.gopSize - vq->num_buffers;
+	} else {
+		if (!binputqueue(vq->type) && *nbuffers + vq->num_buffers < ctx->mediacfg.minbuf_4capture)
+			*nbuffers = ctx->mediacfg.minbuf_4capture - vq->num_buffers;
 	}
 
-	v4l2_klog(LOGLVL_BRIEF, "%lx:%d::%s:%d:%d:%d:%d:%d", ctx->ctxid, type, __func__,
+	v4l2_klog(LOGLVL_BRIEF, "%lx:%d::%s:%d:%d:%d:%d:%d", ctx->ctxid, vq->type, __func__,
 		*nbuffers, *nplanes, sizes[0], sizes[1], sizes[2]);
+	return 0;
 }
-
 
 void vsiv4l2_set_hwinfo(struct vsi_v4l2_dev_info *hwinfo)
 {

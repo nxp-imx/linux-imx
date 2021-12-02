@@ -106,6 +106,7 @@ struct mxcfb_rect {
 #define EPDC_FLAG_USE_ALT_BUFFER		0x100
 #define EPDC_FLAG_TEST_COLLISION		0x200
 #define EPDC_FLAG_GROUP_UPDATE			0x400
+#define EPDC_FLAG_FB_FROM_USERSPACE		0x800
 #define EPDC_FLAG_USE_DITHERING_Y1		0x2000
 #define EPDC_FLAG_USE_DITHERING_Y4		0x4000
 #define EPDC_FLAG_USE_REGAL				0x8000
@@ -138,6 +139,7 @@ struct mxcfb_update_data {
 	int dither_mode;
 	int quant_bit;
 	struct mxcfb_alt_buffer_data alt_buffer_data;
+	unsigned long userspace_buffer;
 };
 
 struct mxcfb_update_marker_data {
@@ -176,7 +178,7 @@ struct mxcfb_buffer {
 struct mxcfb_datainfo {
 	struct fb_var_screeninfo screeninfo;
 	// physical address.
-	int64_t smem_start;
+	unsigned long smem_start;
 	// in fence.
 	int32_t fence_fd;
 	// out fence.

@@ -23,7 +23,7 @@
 &hdmi {
 	compatible = "cdn,imx8mq-dp";
 	lane-mapping = <0xc6>;
-
+	hdcp-config = <0x2>;
 	status = "okay";
 
 	port@1 {

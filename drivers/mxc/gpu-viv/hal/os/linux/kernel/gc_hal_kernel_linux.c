@@ -295,10 +295,8 @@ gckKERNEL_DestroyProcessReservedUserMap(
     /* when unmap reserved memory, we don't need real logical*/
     gctPOINTER Logical = (gctPOINTER)0xFFFFFFFF;
     gctINT i;
-    PLINUX_MDL mdl;
-    PLINUX_MDL_MAP mdlMap = gcvNULL;
 
-    gcmkHEADER_ARG("Logical=0x%08x pid=%u",
+    gcmkHEADER_ARG("Logical=%p pid=%u",
                    Logical, Pid);
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
@@ -309,24 +307,14 @@ gckKERNEL_DestroyProcessReservedUserMap(
     bytes = device->internalSize;
     if (bytes)
     {
-        mdl = physHandle;
-        mdlMap = FindMdlMap(mdl, Pid);
-        if (mdlMap)
-        {
-            gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
-        }
+        gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
     }
 
     physHandle = (PLINUX_MDL)device->externalPhysical;
     bytes = device->externalSize;
     if (bytes)
     {
-        mdl = physHandle;
-        mdlMap = FindMdlMap(mdl, Pid);
-        if (mdlMap)
-        {
-            gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
-        }
+        gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
     }
 
     /* System memory. */
@@ -334,12 +322,7 @@ gckKERNEL_DestroyProcessReservedUserMap(
     bytes = device->contiguousSize;
     if (bytes)
     {
-        mdl = physHandle;
-        mdlMap = FindMdlMap(mdl, Pid);
-        if (mdlMap)
-        {
-            gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
-        }
+        gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
     }
 
     /* External shared SRAM memory. */
@@ -349,12 +332,7 @@ gckKERNEL_DestroyProcessReservedUserMap(
         bytes = device->extSRAMSizes[i];
         if (bytes)
         {
-            mdl = physHandle;
-            mdlMap = FindMdlMap(mdl, Pid);
-            if (mdlMap)
-            {
-                gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
-            }
+            gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
         }
     }
 
@@ -367,12 +345,7 @@ gckKERNEL_DestroyProcessReservedUserMap(
             bytes = Kernel->sRAMSizes[i];
             if (bytes)
             {
-                mdl = physHandle;
-                mdlMap = FindMdlMap(mdl, Pid);
-                if (mdlMap)
-                {
-                    gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
-                }
+                gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
             }
         }
     }
@@ -555,7 +528,7 @@ gckKERNEL_UnmapVideoMemory(
     gctPHYS_ADDR physHandle = gcvNULL;
     gctUINT64 mappingInOne  = 1;
 
-    gcmkHEADER_ARG("Logical=0x%08x pid=%u Bytes=%u",
+    gcmkHEADER_ARG("Logical=%p pid=%u Bytes=%zu",
                    Logical, Pid, Bytes);
 
     /* Verify the arguments. */

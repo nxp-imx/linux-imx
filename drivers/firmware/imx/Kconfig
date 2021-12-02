@@ -40,12 +40,13 @@ config IMX_SECO_MU
 	  interfaces via a set of file descriptors allowing to configure shared
 	  memory, send and receive messages.
 
-config IMX_S400_API
-	tristate "S400 Baseline API"
+config IMX_SENTNL_MU
+	tristate "i.MX Embedded Security Element (SENTINEL) support."
 	depends on IMX_MBOX
-	default y
+	default y if ARM64
 
 	help
-	  S400 Baseline API. It provides the services to transmit command to and
-	  receive response from the security subsystem through the hardware
-	  device S4 MU-AP.
+	  It is possible to use APIs exposed by the SENTINEL like base, HSM & SHE
+	  using the SAB protocol via the shared Messaging Unit. This driver exposes
+	  these interfaces via a set of file descriptors allowing to configure shared
+	  memory, send and receive messages.

@@ -28,8 +28,8 @@
 };
 
 &sai5 {
-	dmas = <&sdma2 8 7 2>, <&sdma2 9 8 2>;
+	dmas = <&sdma2 8 24 0>, <&sdma2 9 24 0>;
 	assigned-clock-rates = <24576000>;
-	fsl,dataline,dsd = <0 0xf 0xf>;
+	fsl,dataline,dsd = <4 0xf 0xf>;
 	status = "okay";
 };

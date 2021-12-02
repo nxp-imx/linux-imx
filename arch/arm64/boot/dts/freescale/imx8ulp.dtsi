@@ -9,6 +9,7 @@
 #include <dt-bindings/reset/imx8ulp-pcc-reset.h>
 #include <dt-bindings/power/imx8ulp-power.h>
 #include <dt-bindings/reset/imx8ulp-sim-reset.h>
+#include <dt-bindings/thermal/thermal.h>
 
 #include "imx8ulp-pinfunc.h"
 
@@ -49,6 +50,7 @@
 			reg = <0x0 0x0>;
 			enable-method = "psci";
 			next-level-cache = <&A35_L2>;
+			cpu-idle-states = <&cpu_sleep>;
 		};
 
 		A35_1: cpu@1 {
@@ -57,10 +59,24 @@
 			reg = <0x0 0x1>;
 			enable-method = "psci";
 			next-level-cache = <&A35_L2>;
+			cpu-idle-states = <&cpu_sleep>;
 		};
 
 		A35_L2: l2-cache0 {
 			compatible = "cache";
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			cpu_sleep: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0>;
+				local-timer-stop;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+			};
 		};
 	};
 
@@ -92,6 +108,27 @@
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
+	};
+
+	thermal-zones {
+		cpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <2000>;
+			thermal-sensors = <&scmi_sensor>;
+			trips {
+				cpu_alert0: trip0 {
+					temperature = <85000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				cpu_crit0: trip1 {
+					temperature = <95000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
 	};
 
 	timer {
@@ -169,6 +206,11 @@
 				reg = <0x11>;
 				#power-domain-cells = <1>;
 			};
+
+			scmi_sensor: protocol@15 {
+				reg = <0x15>;
+				#thermal-sensor-cells = <0>;
+			};
 		};
 	};
 
@@ -221,13 +263,16 @@
 			status = "okay";
 		};
 
-		s400_api: s400-api {
-			compatible = "fsl,imx8ulp-s400";
+		sentnl_mu: sentinel-mu {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "fsl,imx-sentinel";
 			mboxes = <&s4muap 0 0 &s4muap 1 0>;
 			mbox-names = "tx", "rx";
-			fsl,s4_muap_id = <0>;
-			fsl,s4muap_max_users = <1>;
+			fsl,sentnl_mu_id = <2>;
+			fsl,sentnl_mu_max_users = <4>;
 			status = "okay";
+			dma-ranges = <0x80000000 0x80000000 0x20000000>;
 		};
 
 		per_bridge3: bus@29000000 {
@@ -347,7 +392,6 @@
 				compatible = "fsl,imx8ulp-mu";
 				reg = <0x29220000 0x10000>;
 				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&pcc3 IMX8ULP_CLK_MU0_B>;
 				#mbox-cells = <2>;
 				status = "disabled";
 			};
@@ -377,12 +421,8 @@
 				clocks = <&rosc>, <&sosc>, <&frosc>, <&lposc>;
 				clock-names = "rosc", "sosc", "frosc", "lposc";
 				#clock-cells = <1>;
-				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3>,
-						  <&cgc1 IMX8ULP_CLK_SPLL3_PFD1>,
-						  <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
-				assigned-clock-rates = <540672000>,
-						       <540672000>,
-						       <12288000>;
+				assigned-clocks = <&cgc1 IMX8ULP_CLK_SPLL3_PFD1_DIV1>;
+				assigned-clock-rates = <12288000>;
 			};
 
 			pcc3: clock-controller@292d0000 {
@@ -428,9 +468,21 @@
 				compatible = "fsl,imx8ulp-tpm", "fsl,imx7ulp-tpm";
 				reg = <0x29340000 0x1000>;
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&pcc3 IMX8ULP_CLK_TPM5>,
-					 <&pcc3 IMX8ULP_CLK_TPM5>;
+				clocks = <&sosc>, <&sosc>;
 				clock-names = "ipg", "per";
+				status = "okay";
+			};
+
+			flexio_i2c_master: flexio@29350000 {
+				compatible = "imx,flexio_i2c_master";
+				reg = <0x29350000 0x10000>;
+				interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&pcc3 IMX8ULP_CLK_FLEXIO1>,
+					 <&pcc3 IMX8ULP_CLK_FLEXIO1>;
+				clock-names = "per", "ipg";
+				assigned-clocks = <&pcc3 IMX8ULP_CLK_FLEXIO1>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_XBAR_DIVBUS>;
+				assigned-clock-rates = <24000000>;
 				status = "disabled";
 			};
 
@@ -445,8 +497,8 @@
 					 <&cgc1 IMX8ULP_CLK_DUMMY>;
 				clock-names = "pclk", "fast_clk", "slow_clk";
 				assigned-clocks = <&pcc3 IMX8ULP_CLK_I3C2>;
-				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_FROSC_DIV2>;
-				assigned-clock-rates = <48000000>;
+				assigned-clock-parents = <&cgc1 IMX8ULP_CLK_SOSC_DIV2>;
+				assigned-clock-rates = <24000000>;
 				status = "disabled";
 			};
 
@@ -1138,6 +1190,7 @@
 				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD0_DIV2>;
 				assigned-clock-rates = <0>, <40000000>;
 				interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+				power-domains = <&scmi_devpd IMX8ULP_PD_PXP>;
 				status = "disabled";
 			};
 
@@ -1148,6 +1201,7 @@
 					 <&pcc5 IMX8ULP_CLK_PXP>;
 				clock-names = "pxp_ipg", "pxp_axi";
 				interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+				power-domains = <&scmi_devpd IMX8ULP_PD_PXP>;
 				status = "disabled";
 			};
 		};

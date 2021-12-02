@@ -91,4 +91,13 @@
 #define HANTRO_DEC_IRQ               0x100
 #define HANTRO_PP_IRQ                0x100
 
+#define HWIF_RLC_VLC_BASE            12
+#define HWIF_DEC_OUT_BASE            13
+
+#define HWIF_DEC_RSY_BASE            175
+#define HWIF_STREAM_BASE             169
+#define HWIF_DEC_OUT_YBASE           65
+#define HWIF_DEC_DSY_BASE            186
+#define HWIF_DEC_OUT_TYBASE          190
+
 #endif /* SOFTWARE_LINUX_DWL_DWL_DEFS_H_ */

@@ -4,24 +4,14 @@
  */
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
-#include <drm/drm_edid.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
-#include <linux/delay.h>
-#include <linux/device.h>
 #include <linux/err.h>
 #include <linux/extcon-provider.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/pm_runtime.h>
-#include <linux/regmap.h>
-#include <linux/regulator/consumer.h>
-#include <linux/types.h>
-#include <linux/wait.h>
 #include <sound/hdmi-codec.h>
 
 #include "it6161.h"
@@ -272,17 +262,14 @@ struct it6161 {
 	struct drm_connector connector;
 	struct i2c_client *i2c_mipi_rx;
 	struct i2c_client *i2c_hdmi_tx;
-	struct i2c_client *i2c_cec;
 	struct device_node *host_node;
 	struct mipi_dsi_device *dsi;
 	struct mutex mode_lock;
 
 	struct regmap *regmap_mipi_rx;
 	struct regmap *regmap_hdmi_tx;
-	struct regmap *regmap_cec;
 
 	u32 it6161_addr_hdmi_tx;
-	u32 it6161_addr_cec;
 
 	struct gpio_desc *enable_gpio;
 
@@ -340,22 +327,6 @@ static const struct regmap_config it6161_hdmi_tx_bridge_regmap_config = {
 	.cache_type = REGCACHE_NONE,
 };
 
-static const struct regmap_range it6161_cec_bridge_volatile_ranges[] = {
-	{.range_min = 0, .range_max = 0xFF},
-};
-
-static const struct regmap_access_table it6161_cec_bridge_volatile_table = {
-	.yes_ranges = it6161_cec_bridge_volatile_ranges,
-	.n_yes_ranges = ARRAY_SIZE(it6161_cec_bridge_volatile_ranges),
-};
-
-static const struct regmap_config it6161_cec_bridge_regmap_config = {
-	.reg_bits = 8,
-	.val_bits = 8,
-	.volatile_table = &it6161_cec_bridge_volatile_table,
-	.cache_type = REGCACHE_NONE,
-};
-
 static int it6161_mipi_rx_read(struct it6161 *it6161, u32 reg_addr)
 {
 	struct device *dev = &it6161->i2c_mipi_rx->dev;
@@ -369,21 +340,6 @@ static int it6161_mipi_rx_read(struct it6161 *it6161, u32 reg_addr)
 	}
 
 	return value;
-}
-
-static int mipi_rx_read_word(struct it6161 *it6161, u32 reg)
-{
-	int val_0, val_1;
-
-	val_0 = it6161_mipi_rx_read(it6161, reg);
-	if (val_0 < 0)
-		return val_0;
-
-	val_1 = it6161_mipi_rx_read(it6161, reg + 1);
-	if (val_1 < 0)
-		return val_1;
-
-	return (val_1 << 8) | val_0;
 }
 
 static int it6161_mipi_rx_write(struct it6161 *it6161, u32 addr, u32 val)
@@ -433,21 +389,6 @@ static int it6161_hdmi_tx_read(struct it6161 *it6161, u32 reg_addr)
 	return value;
 }
 
-static int hdmi_tx_read_word(struct it6161 *it6161, u32 reg)
-{
-	int val_0, val_1;
-
-	val_0 = it6161_hdmi_tx_read(it6161, reg);
-	if (val_0 < 0)
-		return val_0;
-
-	val_1 = it6161_hdmi_tx_read(it6161, reg + 1);
-	if (val_1 < 0)
-		return val_1;
-
-	return (val_1 << 8) | val_0;
-}
-
 static int it6161_hdmi_tx_write(struct it6161 *it6161, u32 addr, u32 val)
 {
 	struct device *dev = &it6161->i2c_mipi_rx->dev;
@@ -483,35 +424,6 @@ static int it6161_hdmi_tx_set_bits(struct it6161 *it6161, u32 reg,
 static inline int it6161_hdmi_tx_change_bank(struct it6161 *it6161, int x)
 {
 	return it6161_hdmi_tx_set_bits(it6161, 0x0F, 0x03, x & 0x03);
-}
-
-static int it6161_cec_read(struct it6161 *it6161, u32 addr)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	u32 value;
-	int err;
-
-	err = regmap_read(it6161->regmap_cec, addr, &value);
-	if (err < 0) {
-		DRM_DEV_ERROR(dev, "cec read failed reg[0x%x] err: %d", addr, err);
-		return err;
-	}
-
-	return value;
-}
-
-static int it6161_cec_write(struct it6161 *it6161, u32 addr, u32 val)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	int err;
-
-	err = regmap_write(it6161->regmap_cec, addr, val);
-	if (err < 0) {
-		DRM_DEV_ERROR(dev, "cec write failed reg[0x%x] = 0x%x err = %d", addr, val, err);
-		return err;
-	}
-
-	return 0;
 }
 
 static inline struct it6161 *connector_to_it6161(struct drm_connector *c)
@@ -1358,177 +1270,6 @@ static bool it6161_check_device_ready(struct it6161 *it6161)
 	return false;
 }
 
-static u32 hdmi_tx_calc_rclk(struct it6161 *it6161)
-{
-	int i;
-	long sum = 0, RCLKCNT, TimeLoMax, retry = 5;
-	struct device *dev = &it6161->i2c_hdmi_tx->dev;
-
-	/* Init CEC  */
-	it6161_hdmi_tx_write(it6161, 0x8D, (CEC_I2C_SLAVE_ADDR|0x01));
-	msleep(10);
-
-	for (i = 0; i < retry; i++) {
-		it6161_cec_write(it6161, 0x09, 1);
-		msleep(100);
-		it6161_cec_write(it6161, 0x09, 0);
-		RCLKCNT = it6161_cec_read(it6161, 0x47);
-		RCLKCNT <<= 8;
-		RCLKCNT |= it6161_cec_read(it6161, 0x46);
-		RCLKCNT <<= 8;
-		RCLKCNT |= it6161_cec_read(it6161, 0x45);
-		sum += RCLKCNT;
-	}
-
-	sum /= retry;
-	RCLKCNT = sum / 1000;
-	it6161_cec_write(it6161, 0x0C, (RCLKCNT & 0xFF));
-
-	/* Disable CEC  */
-	it6161_hdmi_tx_set_bits(it6161, 0x8D, 0x01, 0x00);
-
-	it6161->hdmi_tx_rclk = (sum << 4) / 108;
-	DRM_DEV_DEBUG_DRIVER(dev, "hdmi tx rclk = %d.%d MHz", it6161->hdmi_tx_rclk / 1000,
-		 it6161->hdmi_tx_rclk % 1000);
-
-	TimeLoMax = (sum << 4) / 10;	/* 10*TxRCLK; */
-	if (TimeLoMax > 0x3FFFF)
-		TimeLoMax = 0x3FFFF;
-
-	DRM_DEV_DEBUG_DRIVER(dev, "TimeLoMax = %08lx\n", TimeLoMax);
-	it6161_hdmi_tx_write(it6161, 0x47, (TimeLoMax & 0xFF));
-	it6161_hdmi_tx_write(it6161, 0x48, ((TimeLoMax & 0xFF00) >> 8));
-	it6161_hdmi_tx_set_bits(it6161, 0x49, 0x03, ((TimeLoMax & 0x30000) >> 16));
-
-	return it6161->hdmi_tx_rclk;
-}
-
-u32 hdmi_tx_calc_pclk(struct it6161 *it6161)
-{
-	struct device *dev = &it6161->i2c_hdmi_tx->dev;
-	u8 uc, RCLKFreqSelRead;
-	int div, i;
-	u32 sum, count;
-
-	it6161_hdmi_tx_change_bank(it6161, 0);
-
-	RCLKFreqSelRead = (it6161_hdmi_tx_read(it6161, 0x5D) & 0x04) >> 2;
-	/* PCLK Count Pre-Test */
-	it6161_hdmi_tx_set_bits(it6161, 0xD7, 0xF0, 0x80);
-	msleep(1);
-	it6161_hdmi_tx_set_bits(it6161, 0xD7, 0x80, 0x00);
-
-	count = it6161_hdmi_tx_read(it6161, 0xD7) & 0xF;
-	count <<= 8;
-	count |= it6161_hdmi_tx_read(it6161, 0xD8);
-
-	if (RCLKFreqSelRead)
-		count <<= 1;
-
-	for (div = 7; div > 0; div--)
-		if (count < (1 << (11 - div)))
-			break;
-
-	if (div < 0)
-		div = 0;
-
-	it6161_hdmi_tx_set_bits(it6161, 0xD7, 0x70, div << 4);
-
-	uc = it6161_hdmi_tx_read(it6161, 0xD7) & 0x7F;
-	for (i = 0, sum = 0; i < 100; i++) {
-		it6161_hdmi_tx_write(it6161, 0xD7, uc | 0x80);
-		msleep(1);
-		it6161_hdmi_tx_write(it6161, 0xD7, uc);
-
-		count = it6161_hdmi_tx_read(it6161, 0xD7) & 0xF;
-		count <<= 8;
-		count |= it6161_hdmi_tx_read(it6161, 0xD8);
-		if (RCLKFreqSelRead)
-			count <<= 1;
-		sum += count;
-	}
-	sum /= 100;
-	count = sum;
-
-	it6161->hdmi_tx_pclk = it6161->hdmi_tx_rclk * 128 / count * 16;	/* 128*16=2048 */
-	it6161->hdmi_tx_pclk *= (1 << div);
-
-	DRM_DEV_DEBUG_DRIVER(dev, "hdmi tx pclk = %d.%d MHz",
-				it6161->hdmi_tx_pclk / 1000, it6161->hdmi_tx_pclk % 1000);
-	return it6161->hdmi_tx_pclk;
-}
-
-static void hdmi_tx_get_display_mode(struct it6161 *it6161)
-{
-	struct drm_display_mode display_mode;
-	struct device *dev = &it6161->i2c_hdmi_tx->dev;
-	u32 hsyncpol, vsyncpol, interlaced;
-	u32 htotal, hdes, hdee, hsyncw, hactive, hfront_porch, H2ndVRRise;
-	u32 vtotal, vdes, vdee, vsyncw, vactive, vfront_porch, vdes2nd, vdee2nd;
-	u32 vsyncw2nd, VRS2nd, vdew2nd, vfph2nd, vbph2nd;
-	u8 rega9;
-
-	hdmi_tx_calc_rclk(it6161);
-	hdmi_tx_calc_pclk(it6161);
-
-	/* enable video timing read back */
-	it6161_hdmi_tx_set_bits(it6161, 0xA8, 0x08, 0x08);
-
-	rega9 = it6161_hdmi_tx_read(it6161, 0xa9);
-	hsyncpol = rega9 & 0x01;
-	vsyncpol = (rega9 & 0x02) >> 1;
-	interlaced = (rega9 & 0x04) >> 2;
-
-	htotal = hdmi_tx_read_word(it6161, 0x98) & 0x0FFF;
-	hdes = hdmi_tx_read_word(it6161, 0x90) & 0x0FFF;
-	hdee = hdmi_tx_read_word(it6161, 0x92) & 0x0FFF;
-	hsyncw = hdmi_tx_read_word(it6161, 0x94) & 0x0FFF;
-	hactive = hdee - hdes;
-	hfront_porch = htotal - hdee;
-
-	vtotal = hdmi_tx_read_word(it6161, 0xA6) & 0x0FFF;
-	vdes = hdmi_tx_read_word(it6161, 0x9C) & 0x0FFF;
-	vdee = hdmi_tx_read_word(it6161, 0x9E) & 0x0FFF;
-	vsyncw = it6161_hdmi_tx_read(it6161, 0xA0);
-	vactive = vdee - vdes;
-	vfront_porch = (interlaced == 0x01) ? (vtotal / 2 - vdee) : (vtotal - vdee);
-
-	display_mode.clock = it6161->hdmi_tx_pclk;
-	display_mode.hdisplay = hactive;
-	display_mode.hsync_start = hactive + hfront_porch;
-	display_mode.hsync_end = hactive + hfront_porch + hsyncw;
-	display_mode.htotal = htotal;
-	display_mode.vdisplay = vactive;
-	display_mode.vsync_start = vactive + vfront_porch;
-	display_mode.vsync_end = vactive + vfront_porch + vsyncw;
-	display_mode.vtotal = vtotal;
-	display_mode.flags =
-	    ((hsyncpol == 0x01) ? DRM_MODE_FLAG_PHSYNC : DRM_MODE_FLAG_NHSYNC) |
-		((vsyncpol == 0x01) ? DRM_MODE_FLAG_PVSYNC : DRM_MODE_FLAG_NVSYNC)
-	    | ((interlaced == 0x01) ? DRM_MODE_FLAG_INTERLACE : 0x00);
-
-	if (interlaced) {
-		vdes2nd = hdmi_tx_read_word(it6161, 0xA2) & 0x0FFF;
-		vdee2nd = hdmi_tx_read_word(it6161, 0xA4) & 0x0FFF;
-		VRS2nd = hdmi_tx_read_word(it6161, 0xB1) & 0x0FFF;
-		vsyncw2nd = it6161_hdmi_tx_read(it6161, 0xA1);
-		H2ndVRRise = hdmi_tx_read_word(it6161, 0x96) & 0x0FFF;
-		vdew2nd = vdee2nd - vdes2nd;
-		vfph2nd = VRS2nd - vdee;
-		vbph2nd = vdes2nd - VRS2nd - vsyncw2nd;
-		DRM_DEV_DEBUG_DRIVER(dev, "vdew2nd    = %d\n", vdew2nd);
-		DRM_DEV_DEBUG_DRIVER(dev, "vfph2nd    = %d\n", vfph2nd);
-		DRM_DEV_DEBUG_DRIVER(dev, "VSyncW2nd  = %d\n", vsyncw2nd);
-		DRM_DEV_DEBUG_DRIVER(dev, "vbph2nd    = %d\n", vbph2nd);
-		DRM_DEV_DEBUG_DRIVER(dev, "H2ndVRRise = %d\n", H2ndVRRise);
-	}
-
-	/* disable video timing read back */
-	it6161_hdmi_tx_set_bits(it6161, 0xA8, 0x08, 0x00);
-
-	DRM_DEV_DEBUG_DRIVER(dev, "hdmi tx mode " DRM_MODE_FMT "\n", DRM_MODE_ARG(&it6161->display_mode));
-}
-
 static void it6161_hdmi_tx_set_av_mute(struct it6161 *it6161, u8 bEnable)
 {
 	it6161_hdmi_tx_change_bank(it6161, 0);
@@ -2301,126 +2042,6 @@ static void mipi_rx_calc_rclk(struct it6161 *it6161)
 	it6161_mipi_rx_write(it6161, 0x91, t10usint & 0xFF);
 }
 
-static void mipi_rx_calc_mclk(struct it6161 *it6161)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	u32 i, rddata, sum = 0, calc_time = 3;
-
-	for (i = 0; i < calc_time; i++) {
-		it6161_mipi_rx_set_bits(it6161, 0x9B, 0x80, 0x80);
-		msleep(5);
-		it6161_mipi_rx_set_bits(it6161, 0x9B, 0x80, 0x00);
-
-		rddata = it6161_mipi_rx_read(it6161, 0x9B) & 0x0F;
-		rddata <<= 8;
-		rddata += it6161_mipi_rx_read(it6161, 0x9A);
-		sum += rddata;
-	}
-
-	sum /= calc_time;
-	it6161->mipi_rx_mclk = it6161->mipi_rx_rclk * 2048 / sum;
-	DRM_DEV_DEBUG_DRIVER(dev, "MCLK = %d.%03dMHz",
-					it6161->mipi_rx_mclk / 1000, it6161->mipi_rx_mclk % 1000);
-}
-
-static void mipi_rx_calc_pclk(struct it6161 *it6161)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	u32 rddata, sum = 0, retry = 3;
-	u8 i;
-
-	it6161_mipi_rx_set_bits(it6161, 0x99, 0x80, 0x00);
-
-	for (i = 0; i < retry; i++) {
-		it6161_mipi_rx_set_bits(it6161, 0x99, 0x80, 0x80);
-		msleep(5);
-		it6161_mipi_rx_set_bits(it6161, 0x99, 0x80, 0x00);
-		msleep(1);
-
-		rddata = it6161_mipi_rx_read(it6161, 0x99) & 0x0F;
-		rddata <<= 8;
-		rddata += it6161_mipi_rx_read(it6161, 0x98);
-		sum += rddata;
-	}
-
-	sum /= retry;
-	it6161->mipi_rx_pclk = it6161->mipi_rx_rclk * 2048 / sum;
-	DRM_DEV_DEBUG_DRIVER(dev, "it6161->mipi_rx_pclk = %d.%03dMHz",
-			it6161->mipi_rx_pclk / 1000, it6161->mipi_rx_pclk % 1000);
-}
-
-static void mipi_rx_show_mrec(struct it6161 *it6161)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	int m_hfront_porch, m_hsyncw, m_hback_porch, m_hactive, MHVR2nd, MHBlank;
-	int m_vfront_porch, m_vsyncw, m_vback_porch, m_vactive, MVFP2nd, MVTotal;
-
-	m_hfront_porch = mipi_rx_read_word(it6161, 0x50) & 0x3FFF;
-	m_hsyncw = mipi_rx_read_word(it6161, 0x52) & 0x3FFF;
-	m_hback_porch = mipi_rx_read_word(it6161, 0x54) & 0x3FFF;
-	m_hactive = mipi_rx_read_word(it6161, 0x56) & 0x3FFF;
-	MHVR2nd = mipi_rx_read_word(it6161, 0x58) & 0x3FFF;
-
-	MHBlank = m_hfront_porch + m_hsyncw + m_hback_porch;
-
-	m_vfront_porch = mipi_rx_read_word(it6161, 0x5A) & 0x3FFF;
-	m_vsyncw = mipi_rx_read_word(it6161, 0x5C) & 0x3FFF;
-	m_vback_porch = mipi_rx_read_word(it6161, 0x5E) & 0x3FFF;
-	m_vactive = mipi_rx_read_word(it6161, 0x60) & 0x3FFF;
-	MVFP2nd = mipi_rx_read_word(it6161, 0x62) & 0x3FFF;
-
-	MVTotal = m_vfront_porch + m_vsyncw + m_vback_porch + m_vactive;
-
-	DRM_DEV_DEBUG_DRIVER(dev, "m_hfront_porch    = %d\n", m_hfront_porch);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_hsyncw    = %d\n", m_hsyncw);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_hback_porch    = %d\n", m_hback_porch);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_hactive   = %d\n", m_hactive);
-	DRM_DEV_DEBUG_DRIVER(dev, "MHVR2nd = %d\n", MHVR2nd);
-	DRM_DEV_DEBUG_DRIVER(dev, "MHBlank  = %d\n", MHBlank);
-
-	DRM_DEV_DEBUG_DRIVER(dev, "m_vfront_porch    = %d\n", m_vfront_porch);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_vsyncw    = %d\n", m_vsyncw);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_vback_porch   = %d\n", m_vback_porch);
-	DRM_DEV_DEBUG_DRIVER(dev, "m_vactive   = %d\n", m_vactive);
-	DRM_DEV_DEBUG_DRIVER(dev, "MVFP2nd   = %d\n", MVFP2nd);
-	DRM_DEV_DEBUG_DRIVER(dev, "MVTotal = %d\n", MVTotal);
-}
-
-static void mipi_rx_prec_get_display_mode(struct it6161 *it6161)
-{
-	struct device *dev = &it6161->i2c_mipi_rx->dev;
-	struct drm_display_mode display_mode;
-
-	int p_hfront_porch, p_hsyncw, p_hback_porch, p_hactive, p_htotal;
-	int p_vfront_porch, p_vsyncw, p_vback_porch, p_vactive, p_vtotal;
-
-	memset(&display_mode, 0, sizeof(display_mode));
-
-	p_hfront_porch = mipi_rx_read_word(it6161, 0x30) & 0x3FFF;
-	p_hsyncw = mipi_rx_read_word(it6161, 0x32) & 0x3FFF;
-	p_hback_porch = mipi_rx_read_word(it6161, 0x34) & 0x3FFF;
-	p_hactive = mipi_rx_read_word(it6161, 0x36) & 0x3FFF;
-	p_htotal = mipi_rx_read_word(it6161, 0x38) & 0x3FFF;
-
-	p_vfront_porch = mipi_rx_read_word(it6161, 0x3A) & 0x3FFF;
-	p_vsyncw = mipi_rx_read_word(it6161, 0x3C) & 0x3FFF;
-	p_vback_porch = mipi_rx_read_word(it6161, 0x3E) & 0x3FFF;
-	p_vactive = mipi_rx_read_word(it6161, 0x40) & 0x3FFF;
-	p_vtotal = mipi_rx_read_word(it6161, 0x42) & 0x3FFF;
-
-	display_mode.clock = it6161->mipi_rx_pclk;
-	display_mode.hdisplay = p_hactive;
-	display_mode.hsync_start = p_hactive + p_hfront_porch;
-	display_mode.hsync_end = p_hactive + p_hfront_porch + p_hsyncw;
-	display_mode.htotal = p_htotal;
-	display_mode.vdisplay = p_vactive;
-	display_mode.vsync_start = p_vactive + p_vfront_porch;
-	display_mode.vsync_end = p_vactive + p_vfront_porch + p_vsyncw;
-	display_mode.vtotal = p_vtotal;
-
-	DRM_DEV_DEBUG_DRIVER(dev, "mipi rx pmode " DRM_MODE_FMT "\n", DRM_MODE_ARG(&display_mode));
-}
-
 static void mipi_rx_reset_p_domain(struct it6161 *it6161)
 {
 	/* Video Clock Domain Reset */
@@ -2451,8 +2072,6 @@ static void it6161_mipi_rx_interrupt_reg06_process(struct it6161 *it6161, u8 reg
 			data_id = it6161_mipi_rx_read(it6161, 0x28);
 			DRM_DEV_DEBUG_DRIVER(dev, "mipi receive video format: 0x%02x", data_id);
 			mipi_rx_calc_rclk(it6161);
-			mipi_rx_calc_mclk(it6161);
-			mipi_rx_show_mrec(it6161);
 			mipi_rx_afe_configuration(it6161, data_id);
 			mipi_rx_reset_p_domain(it6161);
 		}
@@ -2463,8 +2082,6 @@ static void it6161_mipi_rx_interrupt_reg06_process(struct it6161 *it6161, u8 reg
 		if (p_video_stable) {
 			DRM_DEV_DEBUG_DRIVER(dev, "PVidStb Change to HIGH");
 			mipi_rx_calc_rclk(it6161);
-			mipi_rx_calc_pclk(it6161);
-			mipi_rx_prec_get_display_mode(it6161);
 
 			it6161_mipi_rx_write(it6161, 0xC0, (EnTxCRC << 7) + TxCRCnum);
 			/* setup 1 sec timer interrupt */
@@ -2616,8 +2233,6 @@ static void it6161_hdmi_tx_interrupt_reg08_process(struct it6161 *it6161, u8 reg
 	if (reg08 & B_TX_INT_VIDSTABLE) {
 		it6161_hdmi_tx_write(it6161, REG_TX_INT_STAT3, reg08);
 		if (hdmi_tx_get_video_state(it6161)) {
-			hdmi_tx_get_display_mode(it6161);
-
 			hdmi_tx_set_output_process(it6161);
 			it6161_hdmi_tx_set_av_mute(it6161, FALSE);
 		}
@@ -2818,15 +2433,6 @@ static int it6161_i2c_probe(struct i2c_client *i2c_mipi_rx,
 	if (IS_ERR(it6161->regmap_hdmi_tx)) {
 		DRM_DEV_ERROR(dev, "regmap_hdmi_tx i2c init failed");
 		return PTR_ERR(it6161->regmap_hdmi_tx);
-	}
-
-	if (device_property_read_u32(dev, "it6161-addr-cec", &it6161->it6161_addr_cec) < 0)
-		it6161->it6161_addr_cec = 0x4E;
-	it6161->i2c_cec = i2c_new_dummy_device(i2c_mipi_rx->adapter, it6161->it6161_addr_cec);
-	it6161->regmap_cec = devm_regmap_init_i2c(it6161->i2c_cec, &it6161_cec_bridge_regmap_config);
-	if (IS_ERR(it6161->regmap_cec)) {
-		DRM_DEV_ERROR(dev, "regmap_cec i2c init failed");
-		return PTR_ERR(it6161->regmap_cec);
 	}
 
 	if (!it6161_check_device_ready(it6161))

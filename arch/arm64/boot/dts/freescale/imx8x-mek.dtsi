@@ -158,6 +158,19 @@
 			no-map;
 			reg = <0 0x94400000 0 0x800000>;
 		};
+
+		pmem@0x94c00000 {
+			no-map;
+			reg = <0 0x94c00000 0 0x00010000>;
+		};
+	};
+
+	pmem@0x94c00000 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		compatible = "pmem-region";
+		reg = <0 0x94c00000 0 0x00010000>;
+		volatile;
 	};
 
 	reg_usdhc2_vmmc: usdhc2-vmmc {
@@ -831,6 +844,7 @@
 &flexspi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_flexspi0>;
+	nxp,fspi-dll-slvdly = <4>;
 	status = "okay";
 
 	flash0: mt35xu512aba@0 {
@@ -839,7 +853,7 @@
 		#size-cells = <1>;
 		compatible = "jedec,spi-nor";
 		spi-max-frequency = <133000000>;
-		spi-tx-bus-width = <1>;
+		spi-tx-bus-width = <8>;
 		spi-rx-bus-width = <8>;
 	};
 };

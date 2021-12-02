@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2021 NXP
+ */
+
+#include "imx6ull-14x14-evk.dts"
+#include "imx6ul-evk-btwifi-sdio3_0.dtsi"
