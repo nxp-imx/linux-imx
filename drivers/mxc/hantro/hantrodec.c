@@ -49,6 +49,9 @@
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
 #include <linux/compat.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/of_platform.h>
 //#include <linux/busfreq-imx.h>
 
 #ifdef CONFIG_DEVICE_THERMAL
@@ -173,6 +176,7 @@ typedef struct {
 	int cores;
 	struct fasync_struct *async_queue_dec;
 	struct fasync_struct *async_queue_pp;
+	struct device *trusty_dev;
 } hantrodec_t;
 
 static hantrodec_t hantrodec_data; /* dynamic allocation? */
@@ -256,6 +260,110 @@ static int hantro_update_voltage(struct device *dev)
 }
 #endif
 
+#define SMC_ENTITY_VPU 55
+#define SMC_HANTRO_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
+#define SMC_VPU_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 1)
+#define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 2)
+
+#ifndef OPT_READ
+#define OPT_READ  0x1
+#endif
+#ifndef OPT_WRITE
+#define OPT_WRITE 0x2
+#endif
+#ifndef OPT_SECURE_WRITE
+#define OPT_SECURE_WRITE 0x3
+#endif
+#ifndef OPT_SECURE_CTRL_WRITE
+#define OPT_SECURE_CTRL_WRITE 0x4
+#endif
+#ifndef OPT_SECURE_PPCTRL_WRITE
+#define OPT_SECURE_PPCTRL_WRITE 0x5
+#endif
+
+static u32 secure_regs_g1[2] = {HWIF_RLC_VLC_BASE,
+				HWIF_DEC_OUT_BASE};
+static u32 secure_regs_g2[5] = {HWIF_DEC_RSY_BASE,
+				HWIF_STREAM_BASE,
+				HWIF_DEC_OUT_YBASE,
+				HWIF_DEC_DSY_BASE,
+				HWIF_DEC_OUT_TYBASE};
+#define comp_secure_regs(id) \
+	do { \
+		if ((target/4) == secure_regs_##id[i]) {\
+			return true; \
+		} \
+	} while (0)
+
+static bool check_secure_regs(u32 target, int id)
+{
+	int array_size = id == 0 ? 2 : 5;
+
+	for (size_t i = 0; i < array_size; i++) {
+		if (id == 0)
+			comp_secure_regs(g1);
+		else
+			comp_secure_regs(g2);
+	}
+	return false;
+}
+
+enum SMC_TYPE {WRITE_REGS = 0, WRITE_SECURE_CTRL_REGS, WRITE_SECURE_PPCTRL_REGS};
+
+static u32 trusty_vpu_read(hantrodec_t *dev, u32 target, u32 id)
+{
+	if (dev->trusty_dev)
+		return trusty_fast_call32(dev->trusty_dev, SMC_VPU_REGS_OP, target,
+			 (id << 0x4 | OPT_READ), 0);
+	else
+		return ioread32(dev->hwregs[id] + target);
+}
+
+static void trusty_vpu_write(hantrodec_t *dev, u32 target, u32 value, u32 id,
+		enum SMC_TYPE smc_type)
+{
+	if (dev->trusty_dev) {
+		switch (smc_type) {
+		case WRITE_REGS:
+			if (check_secure_regs(target, id))
+				trusty_fast_call32(dev->trusty_dev, SMC_VPU_REGS_OP, target,
+					(id << 0x4 | OPT_SECURE_WRITE), value);
+			else
+				trusty_fast_call32(dev->trusty_dev, SMC_VPU_REGS_OP, target,
+					(id << 0x4 | OPT_WRITE), value);
+			break;
+		case WRITE_SECURE_CTRL_REGS:
+			trusty_fast_call32(dev->trusty_dev, SMC_VPU_REGS_OP, target,
+				(id << 0x4 | OPT_SECURE_CTRL_WRITE), value);
+			break;
+		case WRITE_SECURE_PPCTRL_REGS:
+			trusty_fast_call32(dev->trusty_dev, SMC_VPU_REGS_OP, target,
+				(id << 0x4 | OPT_SECURE_PPCTRL_WRITE), value);
+			break;
+		}
+	} else {
+		iowrite32(value, dev->hwregs[id] + target);
+	}
+}
+
+static u32 trusty_ctrlblk_read(hantrodec_t *dev, u32 target, u8 *iobase)
+{
+	if (dev->trusty_dev)
+		return trusty_fast_call32(dev->trusty_dev, SMC_CTRLBLK_REGS_OP,
+				target, OPT_READ, 0);
+	else
+		return ioread32(iobase + target);
+}
+
+static void trusty_ctrlblk_write(hantrodec_t *dev, u32 target, u32 value, u8 *iobase)
+{
+	if (dev->trusty_dev)
+		trusty_fast_call32(dev->trusty_dev, SMC_CTRLBLK_REGS_OP,
+				target, OPT_WRITE, value);
+	else
+		iowrite32(value, iobase + target);
+}
+
 static int hantro_clk_enable(struct device *dev)
 {
 	clk_prepare(hantro_clk_g1);
@@ -291,11 +399,11 @@ static int hantro_ctrlblk_reset(struct device *dev)
 	//config G1/G2
 	hantro_clk_enable(dev);
 	iobase = (volatile u8 *)ioremap(BLK_CTL_BASE, 0x10000);
-	iowrite32(0x3, iobase);  //VPUMIX G1/G2 block soft reset  control
-	iowrite32(0x3, iobase+4); //VPUMIX G1/G2 block clock enable control
-	iowrite32(0xFFFFFFFF, iobase + 0x8); // all G1 fuse dec enable
-	iowrite32(0xFFFFFFFF, iobase + 0xC); // all G1 fuse pp enable
-	iowrite32(0xFFFFFFFF, iobase + 0x10); // all G2 fuse dec enable
+	trusty_ctrlblk_write(&hantrodec_data, 0, 0x3, iobase);  //VPUMIX G1/G2 block soft reset  control
+	trusty_ctrlblk_write(&hantrodec_data, 4, 0x3, iobase); //VPUMIX G1/G2 block clock enable control
+	trusty_ctrlblk_write(&hantrodec_data, 0x8, 0xFFFFFFFF, iobase); // all G1 fuse dec enable
+	trusty_ctrlblk_write(&hantrodec_data, 0xC, 0xFFFFFFFF, iobase); // all G1 fuse pp enable
+	trusty_ctrlblk_write(&hantrodec_data, 0x10, 0xFFFFFFFF, iobase); // all G2 fuse dec enable
 	iounmap(iobase);
 	hantro_clk_disable(dev);
 	return 0;
@@ -362,7 +470,7 @@ static void ReadCoreConfig(hantrodec_t *dev)
 	for (c = 0; c < dev->cores; c++) {
 		/* Decoder configuration */
 		if (IS_G1(dev->hw_id[c])) {
-			reg = ioread32(dev->hwregs[c] + HANTRODEC_SYNTH_CFG * 4);
+			reg = trusty_vpu_read(dev, HANTRODEC_SYNTH_CFG * 4, c);
 
 			tmp = (reg >> DWL_H264_E) & 0x3U;
 			if (tmp)
@@ -394,7 +502,7 @@ static void ReadCoreConfig(hantrodec_t *dev)
 				pr_debug("hantrodec: Core[%d] has VP6\n", c);
 			cfg[c] |= tmp ? 1 << DWL_CLIENT_TYPE_VP6_DEC : 0;
 
-			reg = ioread32(dev->hwregs[c] + HANTRODEC_SYNTH_CFG_2 * 4);
+			reg = trusty_vpu_read(dev, HANTRODEC_SYNTH_CFG_2 * 4, c);
 
 			/* VP7 and WEBP is part of VP8 */
 			mask =  (1 << DWL_VP8_E) | (1 << DWL_VP7_E) | (1 << DWL_WEBP_E);
@@ -420,7 +528,7 @@ static void ReadCoreConfig(hantrodec_t *dev)
 			/* Post-processor configuration */
 			//reg = ioread32(dev->hwregs[c] + HANTROPP_SYNTH_CFG * 4);
 		} else {
-			reg = ioread32(dev->hwregs[c] + HANTRODEC_SYNTH_CFG_2 * 4);
+			reg = trusty_vpu_read(dev, HANTRODEC_SYNTH_CFG_2 * 4, c);
 
 			tmp = (reg >> DWL_HEVC_E) & 0x3U;
 			if (tmp)
@@ -434,7 +542,7 @@ static void ReadCoreConfig(hantrodec_t *dev)
 		}
 
 		/* Post-processor configuration */
-		reg = ioread32(dev->hwregs[c] + HANTRODECPP_SYNTH_CFG * 4);
+		reg = trusty_vpu_read(dev, HANTRODECPP_SYNTH_CFG * 4, c);
 
 		tmp = (reg >> DWL_PP_E) & 0x01U;
 		if (tmp)
@@ -522,9 +630,9 @@ static int hantrodec_choose_core(int is_g1)
 
 	// G1 use, set to 1; G2 use, set to 0, choose the one you are using
 	if (is_g1)
-		iowrite32(0x1, reg + 0x14);  // VPUMIX only use G1
+		trusty_ctrlblk_write(&hantrodec_data, 0x14, 0x1, reg);  // VPUMIX only use G1
 	else
-		iowrite32(0x0, reg + 0x14); // VPUMIX only use G2
+		trusty_ctrlblk_write(&hantrodec_data, 0x14, 0x0, reg); // VPUMIX only use G2
 
 	if (reg)
 		iounmap((void *)reg);
@@ -571,7 +679,7 @@ void ReleaseDecoder(hantrodec_t *dev, long Core)
 	u32 status;
 	unsigned long flags;
 
-	status = ioread32(dev->hwregs[Core] + HANTRODEC_IRQ_STAT_DEC_OFF);
+	status = trusty_vpu_read(dev, HANTRODEC_IRQ_STAT_DEC_OFF, Core);
 
 	/* make sure HW is disabled */
 	if (status & HANTRODEC_DEC_E) {
@@ -579,7 +687,7 @@ void ReleaseDecoder(hantrodec_t *dev, long Core)
 
 		/* abort decoder */
 		status |= HANTRODEC_DEC_ABORT | HANTRODEC_DEC_IRQ_DISABLE;
-		iowrite32(status, dev->hwregs[Core] + HANTRODEC_IRQ_STAT_DEC_OFF);
+		trusty_vpu_write(dev, HANTRODEC_IRQ_STAT_DEC_OFF, status, Core, WRITE_REGS);
 	}
 
 	spin_lock_irqsave(&owner_lock, flags);
@@ -617,7 +725,7 @@ void ReleasePostProcessor(hantrodec_t *dev, long Core)
 {
 	unsigned long flags;
 
-	u32 status = ioread32(dev->hwregs[Core] + HANTRO_IRQ_STAT_PP_OFF);
+	u32 status = trusty_vpu_read(dev, HANTRO_IRQ_STAT_PP_OFF, Core);
 
 	/* make sure HW is disabled */
 	if (status & HANTRO_PP_E) {
@@ -628,7 +736,7 @@ void ReleasePostProcessor(hantrodec_t *dev, long Core)
 
 		/* disable postprocessor */
 		status &= (~HANTRO_PP_E);
-		iowrite32(0x10, dev->hwregs[Core] + HANTRO_IRQ_STAT_PP_OFF);
+		trusty_vpu_write(dev, HANTRO_IRQ_STAT_PP_OFF, 0x10, Core, WRITE_REGS);
 	}
 
 	spin_lock_irqsave(&owner_lock, flags);
@@ -703,10 +811,10 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 		/* write dec regs but the status reg[1] to hardware */
 		/* both original and extended regs need to be written */
 		for (i = 2; i <= HANTRO_DEC_ORG_LAST_REG; i++)
-			iowrite32(dec_regs[id][i], dev->hwregs[id] + i*4);
+			trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 #ifdef USE_64BIT_ENV
 		for (i = HANTRO_DEC_EXT_FIRST_REG; i <= HANTRO_DEC_EXT_LAST_REG; i++)
-			iowrite32(dec_regs[id][i], dev->hwregs[id] + i*4);
+			trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 #endif
 	} else {
 		ret = copy_from_user(dec_regs[id], Core->regs, HANTRO_G2_DEC_REGS*4);
@@ -717,11 +825,11 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 
 		/* write all regs but the status reg[1] to hardware */
 		for (i = 2; i <= HANTRO_G2_DEC_LAST_REG; i++)
-			iowrite32(dec_regs[id][i], dev->hwregs[id] + i*4);
+			trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 	}
 
 	/* write the status register, which may start the decoder */
-	iowrite32(dec_regs[id][1], dev->hwregs[id] + 4);
+	trusty_vpu_write(dev, 4, dec_regs[id][1], id, WRITE_SECURE_CTRL_REGS);
 
 	PDEBUG("flushed registers on Core %d\n", id);
 
@@ -741,10 +849,10 @@ long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 		/* read all registers from hardware */
 		/* both original and extended regs need to be read */
 		for (i = 0; i <= HANTRO_DEC_ORG_LAST_REG; i++)
-			dec_regs[id][i] = ioread32(dev->hwregs[id] + i*4);
+			dec_regs[id][i] = trusty_vpu_read(dev, i*4, id);
 #ifdef USE_64BIT_ENV
 		for (i = HANTRO_DEC_EXT_FIRST_REG; i <= HANTRO_DEC_EXT_LAST_REG; i++)
-			dec_regs[id][i] = ioread32(dev->hwregs[id] + i*4);
+			dec_regs[id][i] = trusty_vpu_read(dev, i*4, id);
 #endif
 
 		if (timeout) {
@@ -774,7 +882,7 @@ long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 
 		/* read all registers from hardware */
 		for (i = 0; i <= HANTRO_G2_DEC_LAST_REG; i++)
-			dec_regs[id][i] = ioread32(dev->hwregs[id] + i*4);
+			dec_regs[id][i] = trusty_vpu_read(dev, i*4, id);
 
 		if (timeout) {
 			/* Enable TIMEOUT bits in Reg[1] */
@@ -859,14 +967,14 @@ long PPFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 	/* write all regs but the status reg[1] to hardware */
 	/* both original and extended regs need to be written */
 	for (i = HANTRO_PP_ORG_FIRST_REG + 1; i <= HANTRO_PP_ORG_LAST_REG; i++)
-		iowrite32(dec_regs[id][i], dev->hwregs[id] + i*4);
+		trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 #ifdef USE_64BIT_ENV
 	for (i = HANTRO_PP_EXT_FIRST_REG; i <= HANTRO_PP_EXT_LAST_REG; i++)
-		iowrite32(dec_regs[id][i], dev->hwregs[id] + i*4);
+		trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 #endif
 	/* write the stat reg, which may start the PP */
-	iowrite32(dec_regs[id][HANTRO_PP_ORG_FIRST_REG],
-	dev->hwregs[id] + HANTRO_PP_ORG_FIRST_REG * 4);
+	trusty_vpu_write(dev, HANTRO_PP_ORG_FIRST_REG * 4,
+		dec_regs[id][HANTRO_PP_ORG_FIRST_REG], id, WRITE_SECURE_PPCTRL_REGS);
 
 	return 0;
 }
@@ -888,10 +996,10 @@ long PPRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 	/* read all registers from hardware */
 	/* both original and extended regs need to be read */
 	for (i = HANTRO_PP_ORG_FIRST_REG; i <= HANTRO_PP_ORG_LAST_REG; i++)
-		dec_regs[id][i] = ioread32(dev->hwregs[id] + i*4);
+		dec_regs[id][i] = trusty_vpu_read(dev, i*4, id);
 #ifdef USE_64BIT_ENV
 	for (i = HANTRO_PP_EXT_FIRST_REG; i <= HANTRO_PP_EXT_LAST_REG; i++)
-		dec_regs[id][i] = ioread32(dev->hwregs[id] + i*4);
+		dec_regs[id][i] = trusty_vpu_read(dev, i*4, id);
 #endif
 	/* put registers to user space*/
 	/* put original registers to user space*/
@@ -1225,7 +1333,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		__get_user(id, (u32 *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
-		id = ioread32(hantrodec_data.hwregs[id]);
+		id = trusty_vpu_read(&hantrodec_data, 0, id);
 		__put_user(id, (u32 *) arg);
 		return 0;
 	}
@@ -1575,7 +1683,7 @@ static int CheckHwId(hantrodec_t *dev)
 
 	for (i = 0; i < dev->cores; i++) {
 		if (dev->hwregs[i] != NULL) {
-			hwid = readl(dev->hwregs[i]);
+			hwid = trusty_vpu_read(dev, 0, i);
 			pr_debug("hantrodec: Core %d HW ID=0x%16lx\n", i, hwid);
 			hwid = (hwid >> 16) & 0xFFFF; /* product version only */
 
@@ -1680,12 +1788,13 @@ irqreturn_t hantrodec_isr(int irq, void *dev_id)
 		volatile u8 *hwregs = dev->hwregs[i];
 
 		/* interrupt status register read */
-		irq_status_dec = ioread32(hwregs + HANTRODEC_IRQ_STAT_DEC_OFF);
+		irq_status_dec = trusty_vpu_read(dev, HANTRODEC_IRQ_STAT_DEC_OFF, i);
 
 		if (irq_status_dec & HANTRODEC_DEC_IRQ) {
 			/* clear dec IRQ */
 			irq_status_dec &= (~HANTRODEC_DEC_IRQ);
-			iowrite32(irq_status_dec, hwregs + HANTRODEC_IRQ_STAT_DEC_OFF);
+			trusty_vpu_write(dev, HANTRODEC_IRQ_STAT_DEC_OFF, irq_status_dec,
+					i, WRITE_REGS);
 
 			PDEBUG("decoder IRQ received! Core %d\n", i);
 
@@ -1721,20 +1830,21 @@ void ResetAsic(hantrodec_t *dev)
 	u32 status;
 
 	for (j = 0; j < dev->cores; j++) {
-		status = ioread32(dev->hwregs[j] + HANTRODEC_IRQ_STAT_DEC_OFF);
+		status = trusty_vpu_read(dev, HANTRODEC_IRQ_STAT_DEC_OFF, j);
 
 		if (status & HANTRODEC_DEC_E) {
 			/* abort with IRQ disabled */
 			status = HANTRODEC_DEC_ABORT | HANTRODEC_DEC_IRQ_DISABLE;
-			iowrite32(status, dev->hwregs[j] + HANTRODEC_IRQ_STAT_DEC_OFF);
+			trusty_vpu_write(dev, HANTRODEC_IRQ_STAT_DEC_OFF, status, j, WRITE_REGS);
 		}
 
 		if (IS_G1(dev->hw_id[j]))
 			/* reset PP */
-			iowrite32(0, dev->hwregs[j] + HANTRO_IRQ_STAT_PP_OFF);
+			trusty_vpu_write(dev, HANTRO_IRQ_STAT_PP_OFF, 0, j, WRITE_REGS);
 
-		for (i = 4; i < dev->iosize[j]; i += 4)
-			iowrite32(0, dev->hwregs[j] + i);
+		for (i = 8; i < dev->iosize[j]; i += 4)
+			trusty_vpu_write(dev, i, 0, j, WRITE_REGS);
+		trusty_vpu_write(dev, 4, 0, j, WRITE_SECURE_CTRL_REGS);
 	}
 }
 
@@ -1754,10 +1864,10 @@ void dump_regs(hantrodec_t *dev)
 	for (c = 0; c < dev->cores; c++) {
 		for (i = 0; i < dev->iosize[c]; i += 4*4) {
 			PDEBUG("\toffset %04X: %08X  %08X  %08X  %08X\n", i,
-			ioread32(dev->hwregs[c] + i),
-			ioread32(dev->hwregs[c] + i + 4),
-			ioread32(dev->hwregs[c] + i + 8),
-			ioread32(dev->hwregs[c] + i + 12));
+			trusty_vpu_read(dev, i, c),
+			trusty_vpu_read(dev, i + 4, c),
+			trusty_vpu_read(dev, i + 8, c),
+			trusty_vpu_read(dev, i + 12, c);
 		}
 	}
 	PDEBUG("Reg Dump End\n");
@@ -1771,12 +1881,39 @@ static int hantro_dev_probe(struct platform_device *pdev)
 	struct resource *res;
 	unsigned long reg_base;
 
+	struct device_node *sp = NULL;
+
 	hantro_dev = &pdev->dev;
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "regs_hantro");
 	if (!res) {
 		pr_err("hantro: unable to get vpu base addr\n");
 		return -ENODEV;
 	}
+	/* add trusty device into hantrodec_data */
+	sp = of_find_node_by_name(NULL, "trusty");
+	if (sp != NULL) {
+		struct platform_device *pd;
+
+		pd = of_find_device_by_node(sp);
+		if (pd != NULL)
+			hantrodec_data.trusty_dev = &(pd->dev);
+		else
+			hantrodec_data.trusty_dev = NULL;
+	} else {
+		hantrodec_data.trusty_dev = NULL;
+	}
+	if (hantrodec_data.trusty_dev) {
+		int ret = trusty_fast_call32(hantrodec_data.trusty_dev,
+				SMC_HANTRO_PROBE, 0, 0, 0);
+		if (ret < 0) {
+			pr_err("vpu driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
+					SMC_HANTRO_PROBE, ret);
+			hantrodec_data.trusty_dev = NULL;
+		} else {
+			pr_info("trusty vpu driver probe ok, use trusty mode.\n");
+		}
+	}
+
 	reg_base = res->start;
 	if ((ulong)reg_base != multicorebase[0]) {
 		pr_err("hantrodec: regbase(0x%lX) not equal to expected value(0x%lX)\n", reg_base, multicorebase[0]);
