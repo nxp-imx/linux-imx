@@ -32,7 +32,7 @@
 #include <linux/file.h>
 #include <linux/sync_file.h>
 
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 
 static const struct dma_fence_ops fb_fence_ops;
 
@@ -310,6 +310,7 @@ int fb_present_screen(struct fb_fence_context *context, struct mxcfb_datainfo *b
 	return 0;
 }
 EXPORT_SYMBOL(fb_present_screen);
+MODULE_LICENSE("GPL v2");
 
 #endif
 
