@@ -7,7 +7,7 @@ config FB_CMDLINE
 	bool
 
 config FB_NOTIFY
-	bool
+	tristate "Support for frame buffer notify"
 
 menuconfig FB
 	tristate "Support for frame buffer devices"
