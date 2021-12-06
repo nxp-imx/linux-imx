@@ -8,7 +8,7 @@ config FB_CORE
 	tristate
 
 config FB_NOTIFY
-	bool
+	tristate "Support for frame buffer notify"
 
 config FIRMWARE_EDID
 	bool "Enable firmware EDID"
