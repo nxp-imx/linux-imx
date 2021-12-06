@@ -243,7 +243,7 @@ struct mxc_epdc_fb_data {
 	/* qos */
 	struct regmap *qos_regmap;
 
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 	struct fb_fence_context context;
 #endif
 };
@@ -3704,7 +3704,7 @@ static int mxc_epdc_get_pwrdown_delay(struct fb_info *info)
 	return fb_data->pwrdown_delay;
 }
 
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 static int mxc_epdc_update_data(int64_t dma_address, struct fb_var_screeninfo *var, struct fb_info *fb_info)
 {
 	int ret = -EINVAL;
@@ -3811,7 +3811,7 @@ static int mxc_epdc_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 			break;
 		}
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 	case MXCFB_PRESENT_SCREEN:
 		{
 			struct mxcfb_datainfo buffer;
@@ -5767,7 +5767,7 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 	}
 
 	g_fb_data = fb_data;
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 	fb_init_fence_context(&fb_data->context, "mxcepdcfb", info, mxc_epdc_update_data);
 #endif
 

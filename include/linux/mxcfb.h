@@ -40,7 +40,7 @@ enum {
 	MXCFB_REFRESH_PARTIAL,
 };
 
-#ifdef CONFIG_FB_FENCE
+#if IS_ENABLED(CONFIG_FB_FENCE)
 /* fb fence event */
 struct fb_fence_event {
 	struct dma_fence fence;

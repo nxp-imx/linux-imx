@@ -767,4 +767,4 @@ int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	return 0;
 }
 EXPORT_SYMBOL(mxc_edid_read);
-
+MODULE_LICENSE("GPL v2");
