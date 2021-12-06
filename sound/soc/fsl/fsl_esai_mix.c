@@ -27,7 +27,7 @@ int fsl_esai_mix_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_dmaengine_dai_dma_data *dma_data;
-	struct dma_slave_config config;
+	struct dma_slave_config config = {0};
 	int err = 0;
 
 	mix->channels   = params_channels(params);
