@@ -807,7 +807,33 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 	u8 *buf = (u8 *) op->data.buf.in;
 
 	/* DTR with ODD address need read one more byte */
-	len = (f->flags & FSPI_DTR_ODD_ADDR) ? op-> data.nbytes + 1 : op->data.nbytes;
+	len = (f->flags & FSPI_DTR_ODD_ADDR) ? op->data.nbytes + 1 : op->data.nbytes;
+
+	/* handle the DTR with ODD address case */
+	if (f->flags & FSPI_DTR_ODD_ADDR) {
+		u8 tmp[8];
+		/* Wait for RXFIFO available */
+		ret = fspi_readl_poll_tout(f, f->iobase + FSPI_INTR,
+					   FSPI_INTR_IPRXWA, 0,
+					   POLL_TOUT, true);
+		WARN_ON(ret);
+		/*
+		 * DTR read always start from 2bytes alignment address,
+		 * if read from an odd address A, it actually read from
+		 * address A-1, need to discard the first byte here
+		 */
+		*(u32 *)tmp = fspi_readl(f, base + FSPI_RFDR);
+		*(u32 *)(tmp + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
+		cnt = min(len, 8);
+		/* discard the first byte */
+		memcpy(buf, tmp + 1, cnt - 1);
+		len -= cnt;
+		buf = op->data.buf.in + cnt - 1;
+		f->flags &= ~FSPI_DTR_ODD_ADDR;
+
+		/* move the FIFO pointer */
+		fspi_writel(f, FSPI_INTR_IPRXWA, base + FSPI_INTR);
+	}
 
 	/*
 	 * Default value of water mark level is 8 bytes, hence in single
@@ -822,23 +848,9 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 					   POLL_TOUT, true);
 		WARN_ON(ret);
 
-		if (f->flags & FSPI_DTR_ODD_ADDR && !i) {
-			/*
-			 * DTR read always start from 2bytes alignment address,
-			 * if read from an odd address A, it actually read from
-			 * address A-1, need to abandon the first byte here
-			 */
-			u8 tmp[8];
-			*(u32 *)tmp = fspi_readl(f, base + FSPI_RFDR);
-			*(u32 *)(tmp + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
-			memcpy(buf, tmp + 1, 7);
-			i += 7;
-			f->flags &= ~FSPI_DTR_ODD_ADDR;
-		} else {
-			*(u32 *)(buf + i) = fspi_readl(f, base + FSPI_RFDR);
-			*(u32 *)(buf + i + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
-			i += 8;
-		}
+		*(u32 *)(buf + i) = fspi_readl(f, base + FSPI_RFDR);
+		*(u32 *)(buf + i + 4) = fspi_readl(f, base + FSPI_RFDR + 4);
+		i += 8;
 		/* move the FIFO pointer */
 		fspi_writel(f, FSPI_INTR_IPRXWA, base + FSPI_INTR);
 	}
@@ -847,7 +859,7 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 		u32 tmp;
 		int size, j;
 
-		buf = op->data.buf.in + i;
+		buf += i;
 		len -= i;
 		/* Wait for RXFIFO available */
 		ret = fspi_readl_poll_tout(f, f->iobase + FSPI_INTR,
@@ -867,6 +879,7 @@ static void nxp_fspi_read_rxfifo(struct nxp_fspi *f,
 	fspi_writel(f, FSPI_IPRXFCR_CLR, base + FSPI_IPRXFCR);
 	/* move the FIFO pointer */
 	fspi_writel(f, FSPI_INTR_IPRXWA, base + FSPI_INTR);
+
 }
 
 static int nxp_fspi_do_op(struct nxp_fspi *f, const struct spi_mem_op *op)
@@ -897,19 +910,16 @@ static int nxp_fspi_do_op(struct nxp_fspi *f, const struct spi_mem_op *op)
 	 * data needed.
 	 */
 
-	if ((op->addr.val & 1) && (op->data.dir == SPI_MEM_DATA_IN) &&
-	    op->cmd.dtr && op->addr.dtr && op->dummy.dtr && op->data.dtr) {
-		f->flags |= FSPI_DTR_ODD_ADDR;
+	if (f->flags & FSPI_DTR_ODD_ADDR)
 		fspi_writel(f, (op->data.nbytes + 1) |
 			 (SEQID_LUT << FSPI_IPCR1_SEQID_SHIFT) |
 			 (seqnum << FSPI_IPCR1_SEQNUM_SHIFT),
 			 base + FSPI_IPCR1);
-	} else {
+	else
 		fspi_writel(f, op->data.nbytes |
 			 (SEQID_LUT << FSPI_IPCR1_SEQID_SHIFT) |
 			 (seqnum << FSPI_IPCR1_SEQNUM_SHIFT),
 			 base + FSPI_IPCR1);
-	}
 
 	/* Trigger the LUT now. */
 	fspi_writel(f, FSPI_IPCMD_TRG, base + FSPI_IPCMD);
@@ -1008,14 +1018,32 @@ static int nxp_fspi_adjust_op_size(struct spi_mem *mem, struct spi_mem_op *op)
 		if (op->data.nbytes > f->devtype_data->txfifo)
 			op->data.nbytes = f->devtype_data->txfifo;
 	} else {
+		/* need to handle the OCTAL DTR read with odd dtr case */
+		if ((op->addr.val & 1) && op->cmd.dtr && op->addr.dtr &&
+		    op->dummy.dtr && op->data.dtr) {
+			f->flags |= FSPI_DTR_ODD_ADDR;
+		}
+
 		if (op->data.nbytes > f->devtype_data->ahb_buf_size)
 			op->data.nbytes = f->devtype_data->ahb_buf_size;
 		else if (op->data.nbytes > (f->devtype_data->rxfifo - 4))
 			op->data.nbytes = ALIGN_DOWN(op->data.nbytes, 8);
+
 		/* dxl won't use ahb to access data, limit to rxfifo size */
 		if (nxp_fspi_ips_access_only(f) &&
-		    op->data.nbytes > f->devtype_data->rxfifo)
-			op->data.nbytes = f->devtype_data->rxfifo;
+		    op->data.nbytes >= f->devtype_data->rxfifo) {
+			/*
+			 * adjust size to to odd number so the OCTAL DTR
+			 * read with odd address only triggers once, when
+			 * reading large chunks of data
+			 */
+			if (f->flags & FSPI_DTR_ODD_ADDR) {
+				op->data.nbytes = f->devtype_data->rxfifo
+						  - 4 - 1;
+			} else {
+				op->data.nbytes = f->devtype_data->rxfifo;
+			}
+		}
 	}
 
 	return 0;
