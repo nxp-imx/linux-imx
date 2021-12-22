@@ -286,8 +286,9 @@ _ShrinkMemory(
 static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
        void *dummy)
 {
-    static gctUINT orgFscale, minFscale, maxFscale;
+    static gctUINT orgFscale;
     static unsigned long prev_event = 0xffffffff;
+    gctUINT curFscale, minFscale, maxFscale;
     gckHARDWARE hardware;
     gckGALDEVICE galDevice;
     gctUINT FscaleVal = orgFscale;
@@ -312,8 +313,9 @@ static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
         return NOTIFY_OK;
     }
 
+    gckHARDWARE_GetFscaleValue(hardware, &curFscale, &minFscale, &maxFscale);
     if (prev_event == 0xffffffff) /* get initial value of Fscale */
-        gckHARDWARE_GetFscaleValue(hardware,&orgFscale,&minFscale, &maxFscale);
+        orgFscale = curFscale;
     else if (prev_event == event)
         return NOTIFY_OK;
 
