@@ -20,8 +20,8 @@
 #define _LINUX_DMABUF_IMX_H
 
 struct dmabuf_imx_phys_data {
-	int dmafd;
-	unsigned long phys;
+	__u32 dmafd;
+	uint64_t phys;
 };
 
 #define DMABUF_GET_PHYS   _IOWR('M', 32, struct dmabuf_imx_phys_data)

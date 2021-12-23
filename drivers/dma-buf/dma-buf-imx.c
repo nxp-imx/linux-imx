@@ -101,6 +101,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 static const struct file_operations ion_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = ion_ioctl,
+	.compat_ioctl = ion_ioctl,
 };
 
 static int dmabuf_imx_init(void)
