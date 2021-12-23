@@ -2211,6 +2211,8 @@ static void sdma_load_firmware(const struct firmware *fw, void *context)
 		if (sdma->fw_fail)
 			dev_info(sdma->dev, "external firmware not found, using ROM firmware\n");
 		else {
+			/*add a bit delay to wait for firmware priv released */
+			msleep(20);
 			request_firmware_nowait(THIS_MODULE,
 					FW_ACTION_HOTPLUG, sdma->fw_name,
 					sdma->dev, GFP_KERNEL, sdma,
