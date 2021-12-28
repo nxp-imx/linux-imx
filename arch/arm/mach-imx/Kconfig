@@ -268,6 +268,7 @@ config SOC_IMX7ULP
 	select PINCTRL_IMX7ULP
 	select SOC_IMX7D_CA7 if ARCH_MULTI_V7
 	select SOC_IMX7D_CM4 if ARM_SINGLE_ARMV7M
+	imply GPIO_VF610
 	help
 	  This enables support for Freescale i.MX7 Ultra Low Power processor.
 
@@ -275,6 +276,7 @@ config SOC_VF610
 	bool "Vybrid Family VF610 support"
 	select ARM_GIC if ARCH_MULTI_V7
 	select PINCTRL_VF610
+	imply GPIO_VF610
 
 	help
 	  This enables support for Freescale Vybrid VF610 processor.

@@ -676,11 +676,11 @@ config GPIO_UNIPHIER
 	  Say yes here to support UniPhier GPIOs.
 
 config GPIO_VF610
-	def_bool y
+	bool "Vybrid VF610/i.MX7ULP GPIO driver"
 	depends on ARCH_MXC
 	select GPIOLIB_IRQCHIP
 	help
-	  Say yes here to support Vybrid vf610 GPIOs.
+	  Say yes here to support Vybrid VF610/i.MX7ULP GPIOs.
 
 config GPIO_VISCONTI
 	tristate "Toshiba Visconti GPIO support"
