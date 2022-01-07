@@ -5,7 +5,7 @@
 
 /dts-v1/;
 
-#include "imx8mp-evk.dts"
+#include "imx8mp-evk-powersave-non-rpmsg.dts"
 
 / {
 	aliases {
