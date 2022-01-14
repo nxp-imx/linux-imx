@@ -21,15 +21,39 @@ config TRUSTY
 
 if TRUSTY
 
+config TRUSTY_FFA_TRANSPORT
+	tristate "Trusty transport based on FFA"
+	depends on ARM_FFA_TRANSPORT
+	default y
+	help
+	  Enable ARM FF-A based transport for Trusty.
+
+	  If you want to use ARM FF-A based transport for sending Trusty messages
+	  to secure world and/or performing memory sharing operations, answer Y.
+
+	  This transport can also be used in tandem with TRUSTY_SMC_TRANSPORT
+	  where the FF-A driver is used for the memory operations, while the
+	  legacy SMC transport is used to call into Trusty.
+
 config TRUSTY_SMC_TRANSPORT
 	tristate
-	default m
+	prompt "Trusty transport based on SMC" if TRUSTY_FFA_TRANSPORT
+	default y
 	help
-	  Enable SMC based transport for Trusty. This transport is required for
-	  Trusty API version < TRUSTY_API_VERSION_MEM_OBJ.
+	  Enable SMC based transport for Trusty.
+
+	  If TRUSTY_SMC_TRANSPORT_USE_FFA_TRANSPORT is also Y,
+	  the SMC transport will use the firmware driver
+	  and call into the memory operation implementation from
+	  the FF-A transport enabled by TRUSTY_FFA_TRANSPORT.
 
 	  If you want to use legacy SMC based transport for sending Trusty
 	  messages to secure world, answer Y.
+
+config TRUSTY_SMC_TRANSPORT_USE_FFA_TRANSPORT
+	bool
+	depends on TRUSTY_SMC_TRANSPORT && TRUSTY_FFA_TRANSPORT
+	default y
 
 config TRUSTY_IRQ
 	bool "Trusty IRQ support"

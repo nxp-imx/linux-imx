@@ -4,6 +4,7 @@
  */
 
 #include <linux/arm-smccc.h>
+#include <linux/kconfig.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -14,6 +15,7 @@
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
 
+#include "trusty-ffa.h"
 #include "trusty-smc.h"
 #include "trusty-transport.h"
 
@@ -21,6 +23,7 @@ static struct platform_driver trusty_smc_driver;
 
 struct trusty_smc_state {
 	struct device *dev;
+	struct device_link *ffa_dev_link;
 	struct trusty_transport transport;
 	struct device *core_dev;
 	void *ffa_tx;
@@ -70,6 +73,12 @@ static int trusty_smc_share_or_lend_memory(struct trusty_transport *tr, u64 *id,
 
 	if (WARN_ON(!s))
 		return -EINVAL;
+
+#if IS_ENABLED(CONFIG_TRUSTY_SMC_TRANSPORT_USE_FFA_TRANSPORT)
+	if (s->ffa_dev_link)
+		return trusty_ffa_dev_share_or_lend_memory(s->ffa_dev_link->supplier, id, sglist,
+							   nents, pgprot, tag, lend, pg_inf);
+#endif
 
 	if (WARN_ON(!s->ffa_tx))
 		return -EOPNOTSUPP;
@@ -197,6 +206,11 @@ static int trusty_smc_reclaim_memory(struct trusty_transport *tr, u64 id,
 	if (WARN_ON(!s))
 		return -EINVAL;
 
+#if IS_ENABLED(CONFIG_TRUSTY_SMC_TRANSPORT_USE_FFA_TRANSPORT)
+	if (s->ffa_dev_link)
+		return trusty_ffa_dev_reclaim_memory(s->ffa_dev_link->supplier, id, sglist, nents);
+#endif
+
 	mutex_lock(&s->share_memory_msg_lock);
 
 	smc_ret = trusty_smc8(SMC_FC_FFA_MEM_RECLAIM, (u32)id, id >> 32, 0, 0,
@@ -235,6 +249,10 @@ static int trusty_init_msg_buf(struct trusty_smc_state *s)
 	phys_addr_t rx_paddr;
 	int ret;
 	struct smc_ret8 smc_ret;
+
+	/* The FF-A driver owns the buffers */
+	if (s->ffa_dev_link)
+		return 0;
 
 	/* Get supported FF-A version and check if it is compatible */
 	smc_ret = trusty_smc8(SMC_FC_FFA_VERSION, FFA_CURRENT_VERSION, 0, 0,
@@ -336,7 +354,11 @@ static void trusty_free_msg_buf(struct trusty_smc_state *s)
 {
 	struct smc_ret8 smc_ret;
 
-	/* If we got NOT_SUPPORTED earlier, there is nothing to free here */
+	/*
+	 * If we got NOT_SUPPORTED earlier,
+	 * or the FF-A driver owns the buffers,
+	 * there is nothing to free here.
+	 */
 	if (!s->ffa_tx)
 		return;
 
@@ -356,9 +378,62 @@ static const struct trusty_transport_ops trusty_smc_transport_ops = {
 	.reclaim_memory = &trusty_smc_reclaim_memory,
 };
 
+#if IS_ENABLED(CONFIG_TRUSTY_SMC_TRANSPORT_USE_FFA_TRANSPORT)
+static struct device_link *trusty_smc_get_ffa_link(struct platform_device *pdev)
+{
+	struct device *ffa_dev;
+	struct device_link *link;
+
+	ffa_dev = trusty_ffa_find_device();
+	if (ffa_dev == ERR_PTR(-ENOENT)) {
+		/*
+		 * ffa-core.ko is not loaded, fall back to builtin code.
+		 * We would also check for ffa-module.ko but it does
+		 * not export any symbols that we can check with symbol_get()
+		 * so we assume that whoever loads ffa-core.ko will also
+		 * load ffa-module.ko after that but before we get here.
+		 */
+		return NULL;
+	} else if (IS_ERR(ffa_dev)) {
+		dev_err(&pdev->dev, "Trusty FF-A partition error (%ld)\n",
+			PTR_ERR(ffa_dev));
+		return ERR_CAST(ffa_dev);
+	} else if (WARN_ON(!ffa_dev)) {
+		return ERR_PTR(-EINVAL);
+	}
+
+	/*
+	 * The FF-A device was successfully created,
+	 * since ffa_setup_partitions creates the devices
+	 * from the ffa-module init function, but the new
+	 * devices might not have been probed yet.
+	 */
+	link = device_link_add(&pdev->dev, ffa_dev,
+			       DL_FLAG_AUTOPROBE_CONSUMER);
+	put_device(ffa_dev);
+
+	if (!link) {
+		dev_err(&pdev->dev, "failed to add device link\n");
+		return ERR_PTR(-EINVAL);
+	}
+
+	/* Supplier has not been probed yet */
+	if (link->status == DL_STATE_DORMANT)
+		return ERR_PTR(-EPROBE_DEFER);
+
+	return link;
+}
+#else
+static struct device_link *trusty_smc_get_ffa_link(struct platform_device *pdev)
+{
+	return NULL;
+}
+#endif
+
 static int trusty_smc_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct device_link *link;
 	struct platform_device *core_pdev;
 	struct trusty_smc_state *s;
 	struct device_node *node = pdev->dev.of_node;
@@ -368,6 +443,12 @@ static int trusty_smc_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	link = trusty_smc_get_ffa_link(pdev);
+	if (IS_ERR(link)) {
+		ret = PTR_ERR(link);
+		goto err_ffa_link;
+	}
+
 	s = kzalloc(sizeof(*s), GFP_KERNEL);
 	if (!s) {
 		ret = -ENOMEM;
@@ -375,6 +456,7 @@ static int trusty_smc_probe(struct platform_device *pdev)
 	}
 
 	s->dev = &pdev->dev;
+	s->ffa_dev_link = link;
 	s->transport.magic = TRUSTY_TRANSPORT_MAGIC;
 	s->transport.ops = &trusty_smc_transport_ops;
 
@@ -405,6 +487,7 @@ err_init_msg_buf:
 	mutex_destroy(&s->share_memory_msg_lock);
 	kfree(s);
 err_allocate_state:
+err_ffa_link:
 	return ret;
 }
 
