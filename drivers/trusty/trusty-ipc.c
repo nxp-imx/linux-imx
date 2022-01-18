@@ -1546,10 +1546,16 @@ static int dn_share_fd(struct tipc_dn_chan *dn, int fd,
 		goto cleanup_handle;
 	}
 
-	ret = trusty_transfer_memory(tipc_shared_handle_dev(shared_handle),
-				     &mem_id, shared_handle->sgt->sgl,
-				     shared_handle->sgt->orig_nents, prot, tag,
-				     lend);
+	if (lend)
+		ret = trusty_lend_memory(tipc_shared_handle_dev(shared_handle),
+					 &mem_id, shared_handle->sgt->sgl,
+					 shared_handle->sgt->orig_nents, prot,
+					 tag);
+	else
+		ret = trusty_share_memory(tipc_shared_handle_dev(shared_handle),
+					  &mem_id, shared_handle->sgt->sgl,
+					  shared_handle->sgt->orig_nents, prot,
+					  tag);
 
 	if (ret < 0) {
 		dev_dbg(dev, "Transferring memory failed: %d\n", ret);

@@ -158,8 +158,9 @@ void trusty_register_sched_share(struct device *device,
 	}
 
 	/* share memory with Trusty */
-	result = trusty_share_memory(sched_share_state->dev, &mem_id, sched_share_state->sg,
-				     sched_share_state->num_pages, PAGE_KERNEL);
+	result = trusty_share_memory(sched_share_state->dev, &mem_id,
+				     sched_share_state->sg, sched_share_state->num_pages,
+				     PAGE_KERNEL, TRUSTY_DEFAULT_MEM_OBJ_TAG);
 	if (result != 0) {
 		dev_err(sched_share_state->dev, "trusty_share_memory failed: %d\n",
 			result);

@@ -628,7 +628,8 @@ static int trusty_virtio_add_devices(struct trusty_ctx *tctx)
 
 	sg_init_one(&tctx->shared_sg, descr_va, descr_buf_sz);
 	ret = trusty_share_memory(tctx->dev->parent, &descr_id,
-				  &tctx->shared_sg, 1, PAGE_KERNEL);
+				  &tctx->shared_sg, 1, PAGE_KERNEL,
+				  TRUSTY_DEFAULT_MEM_OBJ_TAG);
 	if (ret) {
 		dev_err(tctx->dev, "trusty_share_memory failed: %d\n", ret);
 		goto err_share_memory;

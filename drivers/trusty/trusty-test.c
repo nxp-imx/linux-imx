@@ -138,7 +138,8 @@ static int trusty_test_share_objs(struct trusty_test_state *s,
 		t1 = ktime_get();
 		tmpret = trusty_share_memory(s->trusty_dev, &obj->mem_id,
 					     obj->sgt.sgl, obj->sgt.nents,
-					     PAGE_KERNEL);
+					     PAGE_KERNEL,
+					     TRUSTY_DEFAULT_MEM_OBJ_TAG);
 		t2 = ktime_get();
 		if (tmpret) {
 			ret = tmpret;
