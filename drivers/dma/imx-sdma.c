@@ -708,6 +708,30 @@ MODULE_DEVICE_TABLE(of, sdma_dt_ids);
 #define SDMA_H_CONFIG_ACR	BIT(4)  /* indicates if AHB freq /core freq = 2 or 1 */
 #define SDMA_H_CONFIG_CSM	(3)       /* indicates which context switch mode is selected*/
 
+static void sdma_pm_clk_enable(struct sdma_engine *sdma, bool direct, bool enable)
+{
+	if (enable) {
+		if (sdma->drvdata->pm_runtime)
+			pm_runtime_get_sync(sdma->dev);
+		else {
+			clk_enable(sdma->clk_ipg);
+			clk_enable(sdma->clk_ahb);
+		}
+	} else {
+		if (sdma->drvdata->pm_runtime) {
+			if (direct) {
+				pm_runtime_put_sync_suspend(sdma->dev);
+			} else {
+				pm_runtime_mark_last_busy(sdma->dev);
+				pm_runtime_put_autosuspend(sdma->dev);
+			}
+		} else {
+			clk_disable(sdma->clk_ipg);
+			clk_disable(sdma->clk_ahb);
+		}
+	}
+}
+
 static inline u32 chnenbl_ofs(struct sdma_engine *sdma, unsigned int event)
 {
 	u32 chnenbl0 = sdma->drvdata->chnenbl0;
@@ -1037,13 +1061,7 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 	struct sdma_engine *sdma = dev_id;
 	unsigned long stat;
 
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdma->dev);
-	else {
-		clk_enable(sdma->clk_ipg);
-		clk_enable(sdma->clk_ahb);
-	}
-
+	sdma_pm_clk_enable(sdma, false, true);
 	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
 	writel_relaxed(stat, sdma->regs + SDMA_H_INTR);
 	/* channel 0 is special and not handled here, see run_channel0() */
@@ -1073,13 +1091,7 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 		__clear_bit(channel, &stat);
 	}
 
-	if (sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdma->dev);
-		pm_runtime_put_autosuspend(sdma->dev);
-	} else {
-		clk_disable(sdma->clk_ipg);
-		clk_disable(sdma->clk_ahb);
-	}
+	sdma_pm_clk_enable(sdma, false, false);
 
 	return IRQ_HANDLED;
 }
@@ -1322,9 +1334,7 @@ static int sdma_terminate_all(struct dma_chan *chan)
 	struct sdma_channel *sdmac = to_sdma_chan(chan);
 	unsigned long flags;
 
-	if (sdmac->sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
-
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 	spin_lock_irqsave(&sdmac->vc.lock, flags);
 
 	sdma_disable_channel(chan);
@@ -1344,10 +1354,7 @@ static int sdma_terminate_all(struct dma_chan *chan)
 
 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
 
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 
 	return 0;
 }
@@ -1753,9 +1760,7 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 	if (unlikely(!sdmac->sdma->fw_data))
 		return;
 
-	if (sdmac->sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
-
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 	sdma_terminate_all(chan);
 
 	sdma_channel_synchronize(chan);
@@ -1771,11 +1776,7 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 
 	kfree(sdmac->audio_config);
 	sdmac->audio_config = NULL;
-
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 }
 
 static struct sdma_desc *sdma_transfer_init(struct sdma_channel *sdmac,
@@ -1839,14 +1840,11 @@ static struct dma_async_tx_descriptor *sdma_prep_memcpy(
 	dev_dbg(sdma->dev, "memcpy: %pad->%pad, len=%zu, channel=%d.\n",
 		&dma_src, &dma_dst, len, channel);
 
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
-
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 	desc = sdma_transfer_init(sdmac, DMA_MEM_TO_MEM,
 					len / SDMA_BD_MAX_CNT + 1);
 	if (!desc) {
-		if (sdma->drvdata->pm_runtime)
-			pm_runtime_put_sync_suspend(sdmac->sdma->dev);
+		sdma_pm_clk_enable(sdmac->sdma, true, false);
 		return NULL;
 	}
 
@@ -1880,10 +1878,7 @@ static struct dma_async_tx_descriptor *sdma_prep_memcpy(
 		bd->mode.status = param;
 	} while (len);
 
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 
 	return vchan_tx_prep(&sdmac->vc, &desc->vd, flags);
 }
@@ -1900,9 +1895,7 @@ static struct dma_async_tx_descriptor *sdma_prep_slave_sg(
 	struct scatterlist *sg;
 	struct sdma_desc *desc;
 
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
-
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 	sdma_config_write(chan, &sdmac->slave_config, direction);
 
 	desc = sdma_transfer_init(sdmac, direction, sg_len);
@@ -1969,10 +1962,7 @@ static struct dma_async_tx_descriptor *sdma_prep_slave_sg(
 		bd->mode.status = param;
 	}
 
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 
 	return vchan_tx_prep(&sdmac->vc, &desc->vd, flags);
 err_bd_out:
@@ -1980,8 +1970,8 @@ err_bd_out:
 	kfree(desc);
 err_out:
 	sdmac->status = DMA_ERROR;
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_put_sync_suspend(sdmac->sdma->dev);
+	sdma_pm_clk_enable(sdmac->sdma, true, false);
+
 	return NULL;
 }
 
@@ -1999,8 +1989,7 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 
 	dev_dbg(sdma->dev, "%s channel: %d\n", __func__, channel);
 
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 
 	if (sdmac->peripheral_type != IMX_DMATYPE_HDMI)
 		num_periods = buf_len / period_len;
@@ -2056,10 +2045,7 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 		i++;
 	}
 
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 
 	return vchan_tx_prep(&sdmac->vc, &desc->vd, flags);
 err_bd_out:
@@ -2067,8 +2053,8 @@ err_bd_out:
 	kfree(desc);
 err_out:
 	sdmac->status = DMA_ERROR;
-	if (sdma->drvdata->pm_runtime)
-		pm_runtime_put_sync_suspend(sdmac->sdma->dev);
+	sdma_pm_clk_enable(sdmac->sdma, true, false);
+
 	return NULL;
 }
 
@@ -2187,18 +2173,13 @@ static void sdma_issue_pending(struct dma_chan *chan)
 	struct sdma_channel *sdmac = to_sdma_chan(chan);
 	unsigned long flags;
 
-	if (sdmac->sdma->drvdata->pm_runtime)
-		pm_runtime_get_sync(sdmac->sdma->dev);
-
+	sdma_pm_clk_enable(sdmac->sdma, false, true);
 	spin_lock_irqsave(&sdmac->vc.lock, flags);
 	if (vchan_issue_pending(&sdmac->vc) && !sdmac->desc)
 		sdma_start_desc(sdmac);
 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
 
-	if (sdmac->sdma->drvdata->pm_runtime) {
-		pm_runtime_mark_last_busy(sdmac->sdma->dev);
-		pm_runtime_put_autosuspend(sdmac->sdma->dev);
-	}
+	sdma_pm_clk_enable(sdmac->sdma, false, false);
 }
 
 static void sdma_load_firmware(const struct firmware *fw, void *context)
