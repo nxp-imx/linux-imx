@@ -1284,6 +1284,7 @@ static void genpd_sync_power_off(struct generic_pm_domain *genpd, bool use_lock,
 {
 	struct gpd_link *link;
 
+#if !defined(CONFIG_IMX_GKI_FIX) || defined(CONFIG_IMX_GKI_8Q_FIX)
 	/*
 	 * Give the power domain a chance to switch to the deepest state in
 	 * case it's already off but in an intermediate low power state.
@@ -1296,6 +1297,10 @@ static void genpd_sync_power_off(struct generic_pm_domain *genpd, bool use_lock,
 	if (!genpd_status_on(genpd) &&
 	    genpd->state_idx == (genpd->state_count - 1))
 		return;
+#else
+	if (!genpd_status_on(genpd) || genpd_is_always_on(genpd))
+		return;
+#endif
 
 	if (genpd->suspended_count != genpd->device_count)
 		return;
@@ -1316,8 +1321,10 @@ static void genpd_sync_power_off(struct generic_pm_domain *genpd, bool use_lock,
 		genpd->states[genpd->state_idx].usage++;
 	}
 
+#if !defined(CONFIG_IMX_GKI_FIX) || defined(CONFIG_IMX_GKI_8Q_FIX)
 	if (genpd->status == GENPD_STATE_OFF)
 		return;
+#endif
 
 	genpd->status = GENPD_STATE_OFF;
 
@@ -1365,8 +1372,11 @@ static void genpd_sync_power_on(struct generic_pm_domain *genpd, bool use_lock,
 	}
 
 	_genpd_power_on(genpd, false);
+
+#if !defined(CONFIG_IMX_GKI_FIX) || defined(CONFIG_IMX_GKI_8Q_FIX)
 	/* restore save power domain state after resume */
 	genpd->state_idx = genpd->state_idx_saved;
+#endif
 
 	genpd->status = GENPD_STATE_ON;
 }
