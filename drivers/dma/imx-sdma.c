@@ -2246,7 +2246,7 @@ static void sdma_load_firmware(const struct firmware *fw, void *context)
 		memcpy(sdma->fw_data, fw->data, fw->size);
 
 		if (!sdma->drvdata->pm_runtime)
-			pm_runtime_get_sync(sdma->dev);
+			sdma_runtime_resume(sdma->dev);
 	}
 
 err_firmware:
@@ -2599,9 +2599,8 @@ static int sdma_probe(struct platform_device *pdev)
 		pm_runtime_use_autosuspend(&pdev->dev);
 		pm_runtime_mark_last_busy(&pdev->dev);
 		pm_runtime_set_suspended(&pdev->dev);
+		pm_runtime_enable(&pdev->dev);
 	}
-
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
@@ -2635,9 +2634,12 @@ static int sdma_remove(struct platform_device *pdev)
 		sdma_free_chan_resources(&sdmac->vc.chan);
 	}
 
-	pm_runtime_disable(&pdev->dev);
-	pm_runtime_set_suspended(&pdev->dev);
-	pm_runtime_dont_use_autosuspend(&pdev->dev);
+	if (sdma->drvdata->pm_runtime) {
+		pm_runtime_disable(&pdev->dev);
+		pm_runtime_dont_use_autosuspend(&pdev->dev);
+	} else {
+		sdma_runtime_suspend(&pdev->dev);
+	}
 
 	platform_set_drvdata(pdev, NULL);
 	return 0;
