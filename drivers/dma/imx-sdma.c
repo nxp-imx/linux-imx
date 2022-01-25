@@ -1480,8 +1480,6 @@ static int sdma_config_channel(struct dma_chan *chan)
 	if (sdmac->event_id1)
 		sdma_event_enable(sdmac, sdmac->event_id1);
 
-	sdma_get_pc(sdmac, sdmac->peripheral_type);
-
 	if ((sdmac->peripheral_type != IMX_DMATYPE_MEMORY) &&
 			(sdmac->peripheral_type != IMX_DMATYPE_DSP)) {
 		/* Handle multiple event channels differently */
@@ -1784,11 +1782,6 @@ static struct sdma_desc *sdma_transfer_init(struct sdma_channel *sdmac,
 {
 	struct sdma_desc *desc;
 
-	if (!sdmac->sdma->fw_loaded && sdmac->is_ram_script) {
-		dev_err(sdmac->sdma->dev, "sdma firmware not ready!\n");
-		goto err_out;
-	}
-
 	desc = kzalloc((sizeof(*desc)), GFP_NOWAIT);
 	if (!desc)
 		goto err_out;
@@ -1894,9 +1887,12 @@ static struct dma_async_tx_descriptor *sdma_prep_slave_sg(
 	int channel = sdmac->channel;
 	struct scatterlist *sg;
 	struct sdma_desc *desc;
+	int ret;
 
 	sdma_pm_clk_enable(sdmac->sdma, false, true);
-	sdma_config_write(chan, &sdmac->slave_config, direction);
+	ret = sdma_config_write(chan, &sdmac->slave_config, direction);
+	if (ret)
+		goto err_out;
 
 	desc = sdma_transfer_init(sdmac, direction, sg_len);
 	if (!desc)
@@ -1986,6 +1982,7 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 	int channel = sdmac->channel;
 	int i = 0, buf = 0;
 	struct sdma_desc *desc;
+	int ret;
 
 	dev_dbg(sdma->dev, "%s channel: %d\n", __func__, channel);
 
@@ -1994,7 +1991,9 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 	if (sdmac->peripheral_type != IMX_DMATYPE_HDMI)
 		num_periods = buf_len / period_len;
 
-	sdma_config_write(chan, &sdmac->slave_config, direction);
+	ret = sdma_config_write(chan, &sdmac->slave_config, direction);
+	if (ret)
+		goto err_out;
 
 	desc = sdma_transfer_init(sdmac, direction, num_periods);
 	if (!desc)
@@ -2066,6 +2065,12 @@ static int sdma_config_write(struct dma_chan *chan,
 
 	sdmac->watermark_level = 0;
 	sdmac->is_ram_script = false;
+	sdma_get_pc(sdmac, sdmac->peripheral_type);
+
+	if (!sdmac->sdma->fw_loaded && sdmac->is_ram_script) {
+		dev_warn_once(sdmac->sdma->dev, "sdma firmware not ready!\n");
+		return -EPERM;
+	}
 
 	if (direction == DMA_DEV_TO_MEM) {
 		sdmac->per_address = dmaengine_cfg->src_addr;
