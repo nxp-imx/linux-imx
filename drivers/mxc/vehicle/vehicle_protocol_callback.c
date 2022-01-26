@@ -99,10 +99,12 @@ bool decode_value_callback(pb_istream_t *stream, const pb_field_t *field, void *
 	propvalue.int32_values.arg = &data->value;
 	propvalue.float_values.funcs.decode = &decode_float_values_callback;
 	propvalue.float_values.arg = &data->value;
-	/*hvac have not use this field now.*/
-	//propvalue.int64_values.funcs.decode = &decode_int64_values_callback;
-	//propvalue.string_value.funcs.decode = &decode_config_string_callback;
-	//propvalue.bytes_value.funcs.decode = &decode_config_string_callback;
+	propvalue.string_value.funcs.decode = &decode_config_string_callback;
+	propvalue.string_value.arg = &data->value;
+	propvalue.int64_values.funcs.decode = &decode_int64_values_callback;
+	propvalue.int64_values.arg = &data->value;
+	// Callback list must be extended if vhal starts to
+	// using new property variable type.
 
 	if (!pb_decode(stream, emulator_VehiclePropValue_fields, &propvalue))
 	{
