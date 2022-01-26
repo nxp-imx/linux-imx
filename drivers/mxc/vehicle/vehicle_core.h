@@ -62,6 +62,8 @@ struct hw_prop_ops {
 #define VEHICLE_GEAR_PARK_CLIENT 4
 #define VEHICLE_GEAR_REVERSE_CLIENT 2
 
+#define WATCHDOG_ALIVE 290459441
+
 /*vehicle_event_type: stateType in command VSTATE*/
 enum vehicle_event_type {
 	VEHICLE_AC = 0,
