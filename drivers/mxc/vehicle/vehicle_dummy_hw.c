@@ -157,6 +157,9 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case AP_POWER_STATE_REPORT:
 		pr_info("receive power state report with value %d\n", value);
 		break;
+	case WATCHDOG_ALIVE:
+		// Proper action is TBD
+		break;
 	default:
 		pr_err("this type is not correct: %d:%d:%d!\n", prop, area, value);
 	}
