@@ -127,7 +127,7 @@ err_sched_state_alloc:
 	return -ENOMEM;
 }
 
-void trusty_register_sched_share(struct device *device,
+int trusty_register_sched_share(struct device *device,
 		struct trusty_sched_share_state *sched_share_state)
 {
 	int result = 0;
@@ -198,7 +198,7 @@ void trusty_register_sched_share(struct device *device,
 
 	sched_share_state->is_registered = true;
 
-	return;
+	return 0;
 
 err_smc_std_call32:
 	trusty_sched_share_reclaim_memory(sched_share_state);
@@ -207,7 +207,7 @@ err_rsrc_sg_lookup:
 	kfree(sched_share_state->sg);
 	sched_share_state->sg = NULL;
 err_rsrc_alloc_sg:
-	return;
+	return result;
 
 }
 

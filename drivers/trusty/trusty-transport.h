@@ -13,6 +13,7 @@
 #define TRUSTY_TRANSPORT_MAGIC 0x54727354726E7370ULL
 
 struct ns_mem_page_info;
+struct trusty_sched_share_state;
 struct trusty_transport;
 
 struct trusty_transport_ops {
@@ -26,6 +27,8 @@ struct trusty_transport_ops {
 	int (*reclaim_memory)(struct trusty_transport *tr, u64 id,
 			      struct scatterlist *sglist,
 			      unsigned int nents);
+	void (*set_sched_share_state)(struct trusty_transport *tr,
+				      struct trusty_sched_share_state *tsss);
 };
 
 struct trusty_transport {

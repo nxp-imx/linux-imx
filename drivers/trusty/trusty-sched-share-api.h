@@ -15,7 +15,7 @@ struct trusty_sched_share_state;
 
 int trusty_alloc_sched_share(struct device *device,
 		struct trusty_sched_share_state **state);
-void trusty_register_sched_share(struct device *device,
+int trusty_register_sched_share(struct device *device,
 		struct trusty_sched_share_state *sched_share_state);
 void trusty_unregister_sched_share(struct trusty_sched_share_state *sched_share_state);
 void trusty_free_sched_share(struct trusty_sched_share_state *sched_share_state);
