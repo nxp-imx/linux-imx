@@ -18,7 +18,7 @@
 struct vehicle_property_set {
 	u32 prop;
 	u32 area_id;
-	u32 value;
+	u64 value;
 };
 
 struct vehicle_power_req {
