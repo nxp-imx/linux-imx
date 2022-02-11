@@ -1274,7 +1274,7 @@ static int imx_rproc_probe(struct platform_device *pdev)
 					 &priv->mub_partition))
 			priv->mub_partition = 3;
 
-		ret = imx_scu_irq_group_enable(5, BIT(priv->mub_partition),
+		ret = imx_scu_irq_group_enable(IMX_SC_IRQ_GROUP_REBOOTED, BIT(priv->mub_partition),
 					       true);
 		if (ret) {
 			dev_warn(dev, "Enable irq failed.\n");
@@ -1283,7 +1283,7 @@ static int imx_rproc_probe(struct platform_device *pdev)
 
 		ret = imx_scu_irq_register_notifier(&priv->proc_nb);
 		if (ret) {
-			imx_scu_irq_group_enable(5, BIT(priv->mub_partition),
+			imx_scu_irq_group_enable(IMX_SC_IRQ_GROUP_REBOOTED, BIT(priv->mub_partition),
 						 false);
 			dev_warn(dev, "reqister scu notifier failed.\n");
 			goto err_put_clk;
