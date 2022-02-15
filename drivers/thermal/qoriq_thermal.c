@@ -258,7 +258,7 @@ static int tmu_init_throttle_cdev(struct device *dev,
 		}
 		ttp->max_state = val;
 
-		tcd = device_cooling_register(np_tcc, ttp->max_state);
+		tcd = device_gpu_cooling_register(np_tcc, ttp->max_state);
 		of_node_put(np_tcc);
 		if (IS_ERR(tcd)) {
 			ret = PTR_ERR(tcd);
@@ -520,7 +520,7 @@ static int qoriq_tmu_remove(struct platform_device *pdev)
 		if (i == 0) {
 			for (j=0; j<THROTTLE_NUM; j++)
 				if (sens->throt_cfgs[j].inited)
-					device_cooling_unregister(sens->throt_cfgs[j].cdev);
+					device_gpu_cooling_unregister(sens->throt_cfgs[j].cdev);
 			if (sens->trip_temp)
 				kfree(sens->trip_temp);
 		}

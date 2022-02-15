@@ -273,6 +273,10 @@ static void dcnano_crtc_atomic_enable(struct drm_crtc *crtc,
 		case DRM_FORMAT_XRGB8888:
 			primary_fb_fmt = FBCFG_FORMAT_R8G8B8;
 			break;
+		case DRM_FORMAT_ARGB8888:
+			/* discard alpha, only used in android recovery mode */
+			primary_fb_fmt = FBCFG_FORMAT_R8G8B8;
+			break;
 		}
 	}
 

@@ -346,7 +346,7 @@ static void trusty_vpu_write(hantrodec_t *dev, u32 target, u32 value, u32 id,
 	}
 }
 
-static u32 trusty_ctrlblk_read(hantrodec_t *dev, u32 target, u8 *iobase)
+static u32 trusty_ctrlblk_read(hantrodec_t *dev, u32 target, volatile u8 *iobase)
 {
 	if (dev->trusty_dev)
 		return trusty_fast_call32(dev->trusty_dev, SMC_CTRLBLK_REGS_OP,
@@ -355,7 +355,7 @@ static u32 trusty_ctrlblk_read(hantrodec_t *dev, u32 target, u8 *iobase)
 		return ioread32(iobase + target);
 }
 
-static void trusty_ctrlblk_write(hantrodec_t *dev, u32 target, u32 value, u8 *iobase)
+static void trusty_ctrlblk_write(hantrodec_t *dev, u32 target, u32 value, volatile u8 *iobase)
 {
 	if (dev->trusty_dev)
 		trusty_fast_call32(dev->trusty_dev, SMC_CTRLBLK_REGS_OP,

@@ -28,6 +28,7 @@
 static const u32 dcnano_primary_plane_formats[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888, /* only used in android recovery mode */
 };
 
 static unsigned int

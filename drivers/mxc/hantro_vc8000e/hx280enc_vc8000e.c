@@ -188,7 +188,7 @@ static void trusty_vpu_enc_write(hantroenc_t *dev, u32 target, u32 value)
 		iowrite32(value, dev->hwregs + target);
 }
 
-static u32 trusty_ctrlblk_read(u32 target, u8 *iobase)
+static u32 trusty_ctrlblk_read(u32 target, volatile u8 *iobase)
 {
 	if (trusty_dev)
 		return trusty_fast_call32(trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_READ, 0);
@@ -196,7 +196,7 @@ static u32 trusty_ctrlblk_read(u32 target, u8 *iobase)
 		return ioread32(iobase + target);
 }
 
-static void trusty_ctrlblk_write(u32 target, u32 value, u8 *iobase)
+static void trusty_ctrlblk_write(u32 target, u32 value, volatile u8 *iobase)
 {
 	if (trusty_dev)
 		trusty_fast_call32(trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_WRITE, value);

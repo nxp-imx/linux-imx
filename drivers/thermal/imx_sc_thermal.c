@@ -29,6 +29,7 @@ struct imx_sc_sensor {
 	int temp_passive;
 	int temp_critical;
 };
+struct thermal_cooling_device *cooling_device;
 
 struct imx_sc_thermal_data {
 	struct imx_sc_sensor *sensor;
@@ -136,6 +137,8 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 	struct imx_sc_sensor *sensor;
 	const struct thermal_trip *trip;
 	int ret;
+	struct device_node *np_cdev;
+	int val;
 
 	ret = imx_scu_get_handle(&thermal_ipc_handle);
 	if (ret)
@@ -146,6 +149,8 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	sensor_np = of_node_get(pdev->dev.of_node);
+
+	np_cdev = of_find_node_by_name(NULL, "devfreq");
 
 	for_each_available_child_of_node(np, child) {
 		sensor = devm_kzalloc(&pdev->dev, sizeof(*sensor), GFP_KERNEL);
@@ -184,36 +189,56 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 		sensor->temp_passive = trip[0].temperature;
 		sensor->temp_critical = trip[1].temperature;
 
-		sensor->cdev = device_cooling_register(NULL, 1);
-		if (IS_ERR(sensor->cdev)) {
-			dev_err(&pdev->dev,
-				"failed to register devfreq cooling device: %d\n",
-				ret);
-			return ret;
-		}
+		if (!np_cdev) {
+			sensor->cdev = device_cooling_register(NULL, 1);
+			if (IS_ERR(sensor->cdev)) {
+				dev_err(&pdev->dev,
+					"failed to register devfreq cooling device: %d\n",
+					ret);
+				return ret;
+			}
 
-		ret = thermal_zone_bind_cooling_device(sensor->tzd,
-			IMX_TRIP_PASSIVE,
-			sensor->cdev,
-			THERMAL_NO_LIMIT,
-			THERMAL_NO_LIMIT,
-			THERMAL_WEIGHT_DEFAULT);
-		if (ret) {
-			dev_err(&sensor->tzd->device,
-				"binding zone %s with cdev %s failed:%d\n",
-				sensor->tzd->type, sensor->cdev->type, ret);
-			device_cooling_unregister(sensor->cdev);
-			return ret;
+			ret = thermal_zone_bind_cooling_device(sensor->tzd,
+				IMX_TRIP_PASSIVE,
+				sensor->cdev,
+				THERMAL_NO_LIMIT,
+				THERMAL_NO_LIMIT,
+				THERMAL_WEIGHT_DEFAULT);
+			if (ret) {
+				dev_err(&sensor->tzd->device,
+					"binding zone %s with cdev %s failed:%d\n",
+					sensor->tzd->type, sensor->cdev->type, ret);
+				device_cooling_unregister(sensor->cdev);
+				return ret;
+			}
 		}
 	}
 
 	of_node_put(sensor_np);
 
-	return ret;
+	if (np_cdev) {
+		ret = of_property_read_u32(np_cdev, "throttle,max_state", &val);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"devfreq: missing throttle max state\n");
+			return ret;
+		}
+
+		cooling_device = device_gpu_cooling_register(np_cdev, val);
+		if (IS_ERR(cooling_device)) {
+			dev_err(&pdev->dev,
+				"failed to register devfreq cooling device: %d\n",
+				ret);
+			return PTR_ERR(cooling_device);
+		}
+	}
+	return 0;
 }
 
 static int imx_sc_thermal_remove(struct platform_device *pdev)
 {
+	if (cooling_device)
+		device_gpu_cooling_unregister(cooling_device);
 	return 0;
 }
 

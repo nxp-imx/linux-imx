@@ -128,6 +128,7 @@ static const struct clk_ops imx8m_clk_composite_divider_ops = {
 static char *m4_lpa_required_ccm_slices[ ] = {"audio_ahb","i2c3","sai1","sai2","sai3","sai5","uart4","gic","gpt1","pwm3","m7_core","arm_m4_core","audio_axi","ecspi2","dram_alt","dram_apb"};
 
 static bool m4_lpa_required(const char *name){
+#ifdef CONFIG_CLK_POWER_SAVE
 	int i;
 
 	for(i = 0; i < sizeof(m4_lpa_required_ccm_slices) / sizeof(m4_lpa_required_ccm_slices[0]); i++){
@@ -136,6 +137,9 @@ static bool m4_lpa_required(const char *name){
 	}
 
 	return false;
+#else
+	return true;
+#endif
 }
 
 static u8 imx8m_clk_composite_mux_get_parent(struct clk_hw *hw)

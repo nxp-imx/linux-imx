@@ -384,6 +384,11 @@
 		};
 	};
 
+	throttle_devfreq: devfreq {
+		throttle,max_state = <1>;
+		#cooling-cells = <2>;
+	};
+
 	thermal_zones: thermal-zones {
 		cpu-thermal0 {
 			polling-delay-passive = <250>;
@@ -455,6 +460,13 @@
 					type = "critical";
 				};
 			};
+			cooling-maps {
+				map0 {
+					trip = <&gpu_alert0>;
+					cooling-device =
+					<&throttle_devfreq 0 1>;
+				};
+			};
 		};
 
 		gpu-thermal1 {
@@ -471,6 +483,13 @@
 					temperature = <127000>;
 					hysteresis = <2000>;
 					type = "critical";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&gpu_alert1>;
+					cooling-device =
+					<&throttle_devfreq 0 1>;
 				};
 			};
 		};

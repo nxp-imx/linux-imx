@@ -279,6 +279,11 @@
 		clock-output-names = "xtal_24MHz";
 	};
 
+	throttle_devfreq: devfreq {
+		throttle,max_state = <1>;
+		#cooling-cells = <2>;
+	};
+
 	thermal_zones: thermal-zones {
 		cpu-thermal0 {
 			polling-delay-passive = <250>;

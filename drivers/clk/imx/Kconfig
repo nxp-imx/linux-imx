@@ -105,3 +105,7 @@ config CLK_IMX8ULP
 	select RESET_CONTROLLER
 	help
 	    Build the driver for i.MX8ULP CCM Clock Driver
+
+config CLK_POWER_SAVE
+	bool "Disable clks when M core enabled"
+	default n
