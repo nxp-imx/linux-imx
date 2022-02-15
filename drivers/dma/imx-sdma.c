@@ -1801,8 +1801,10 @@ static struct sdma_desc *sdma_transfer_init(struct sdma_channel *sdmac,
 		goto err_desc_out;
 
 	/* No slave_config called in MEMCPY case, so do here */
-	if (direction == DMA_MEM_TO_MEM)
+	if (direction == DMA_MEM_TO_MEM) {
 		sdma_config_ownership(sdmac, false, true, false);
+		sdma_set_channel_priority(sdmac, sdmac->prio);
+	}
 
 	if (sdma_load_context(sdmac))
 		goto err_desc_out;
