@@ -38,3 +38,7 @@
 		};
 	};
 };
+
+&{/reserved-memory/linux,cma} {
+	status = "disabled";
+};
