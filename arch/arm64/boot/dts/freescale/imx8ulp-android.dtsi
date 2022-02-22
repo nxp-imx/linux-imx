@@ -50,4 +50,10 @@
 		ftrace-size     = <0x00020000>;
 		pmsg-size      = <0x00020000>;
 	};
+
+	/* secure heap for secureime */
+	secure_region: secure {
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xA9600000 0 0x6000000>;
+	};
 };
