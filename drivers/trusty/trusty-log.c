@@ -207,6 +207,7 @@ struct trusty_log_state {
 	u32 last_wake_put;
 	bool have_first_reader;
 	bool registered;
+	u32 api_ver;
 };
 
 static inline u32 u32_add_overflow(u32 a, u32 b)
@@ -770,7 +771,7 @@ static bool trusty_supports_logging(struct device *device)
 	return true;
 }
 
-static int trusty_log_init(struct platform_device *pdev)
+static int trusty_log_init(struct platform_device *pdev, u32 api_ver)
 {
 	struct trusty_log_state *s;
 	struct scatterlist *sg;
@@ -789,33 +790,53 @@ static int trusty_log_init(struct platform_device *pdev)
 	spin_lock_init(&s->lock);
 	s->dev = &pdev->dev;
 	s->trusty_dev = s->dev->parent;
+	s->api_ver = api_ver;
 
-	s->log_num_pages = DIV_ROUND_UP(log_size_param + sizeof(struct log_rb),
+	if (api_ver < TRUSTY_API_VERSION_MEM_OBJ) {
+		/*
+		 * allocate physical continuous memory for
+		 * Trusty api version < TRUSTY_API_VERSION_MEM_OBJ
+		 */
+		s->log_num_pages = 1;
+	} else {
+		s->log_num_pages = DIV_ROUND_UP(log_size_param + sizeof(struct log_rb),
 					PAGE_SIZE);
+	}
+
 	s->sg = kcalloc(s->log_num_pages, sizeof(*s->sg), GFP_KERNEL);
 	if (!s->sg) {
 		result = -ENOMEM;
 		goto error_alloc_sg;
 	}
 
-	log_size = s->log_num_pages * PAGE_SIZE;
-	mem = vzalloc(log_size);
-	if (!mem) {
-		result = -ENOMEM;
-		goto error_alloc_log;
-	}
-
-	s->log = (struct log_rb *)mem;
-
-	sg_init_table(s->sg, s->log_num_pages);
-	for_each_sg(s->sg, sg, s->log_num_pages, i) {
-		struct page *pg = vmalloc_to_page(mem + (i * PAGE_SIZE));
-
-		if (!pg) {
+	if (api_ver < TRUSTY_API_VERSION_MEM_OBJ) {
+		s->log = (struct log_rb *)kzalloc(log_size_param, GFP_KERNEL);
+		if (!(s->log)) {
 			result = -ENOMEM;
-			goto err_share_memory;
+			goto error_alloc_log;
 		}
-		sg_set_page(sg, pg, PAGE_SIZE, 0);
+		log_size = log_size_param;
+		sg_init_one(s->sg, s->log, log_size_param);
+	} else {
+		log_size = s->log_num_pages * PAGE_SIZE;
+		mem = vzalloc(log_size);
+		if (!mem) {
+			result = -ENOMEM;
+			goto error_alloc_log;
+		}
+
+		s->log = (struct log_rb *)mem;
+
+		sg_init_table(s->sg, s->log_num_pages);
+		for_each_sg(s->sg, sg, s->log_num_pages, i) {
+			struct page *pg = vmalloc_to_page(mem + (i * PAGE_SIZE));
+
+			if (!pg) {
+				result = -ENOMEM;
+				goto err_share_memory;
+			}
+			sg_set_page(sg, pg, PAGE_SIZE, 0);
+		}
 	}
 	/*
 	 * This will fail for Trusty api version < TRUSTY_API_VERSION_MEM_OBJ
@@ -895,7 +916,10 @@ error_std_call:
 		 */
 	} else {
 err_share_memory:
-		vfree(s->log);
+		if (api_ver < TRUSTY_API_VERSION_MEM_OBJ)
+			kfree(s->log);
+		else
+			vfree(s->log);
 	}
 error_alloc_log:
 	kfree(s->sg);
@@ -908,16 +932,18 @@ error_alloc_state:
 static int trusty_log_probe(struct platform_device *pdev)
 {
 	int rc;
+	u32 api_ver;
 
 	if (!trusty_supports_logging(pdev->dev.parent))
 		return -ENXIO;
 
-	rc = trusty_log_init(pdev);
-	if (rc && log_size_param > TRUSTY_LOG_MIN_SIZE) {
-		dev_warn(&pdev->dev, "init failed, retrying with 1-page log\n");
-		log_size_param = TRUSTY_LOG_MIN_SIZE;
-		rc = trusty_log_init(pdev);
+	api_ver = trusty_get_api_version(pdev->dev.parent);
+	if (api_ver < TRUSTY_API_VERSION_MEM_OBJ) {
+		// use default log size regardless of trusty_log.log_size
+		log_size_param = TRUSTY_LOG_DEFAULT_SIZE;
 	}
+
+	rc = trusty_log_init(pdev, api_ver);
 	return rc;
 }
 
@@ -969,7 +995,10 @@ static void trusty_log_cleanup(struct kref *ref)
 		 * It is not safe to free this memory if trusty_revoke_memory
 		 * fails. Leak it in that case.
 		 */
-		vfree(s->log);
+		if (s->api_ver < TRUSTY_API_VERSION_MEM_OBJ)
+			kfree(s->log);
+		else
+			vfree(s->log);
 	}
 	kfree(s->sg);
 	kfree(s);
