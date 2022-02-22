@@ -53,4 +53,10 @@
 		ftrace-size     = <0x00020000>;
 		pmsg-size       = <0x00020000>;
 	};
+
+	/* secure heap for secure video playback (up to 4K) */
+	secure_region: secure {
+		 compatible = "imx-secure-ion-pool";
+		 reg = <0x0 0xE0000000 0 0x18000000>;
+	};
 };

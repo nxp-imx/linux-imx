@@ -52,4 +52,8 @@
 		ftrace-size     = <0x00020000>;
 		pmsg-size       = <0x00020000>;
         };
+	secure_region: secure {
+		 compatible = "imx-secure-ion-pool";
+		 reg = <0x0 0xE0000000 0 0x10000000>;
+	};
 };
