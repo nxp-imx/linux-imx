@@ -7,6 +7,7 @@
 // Author: Nicolin Chen <nicoleotsuka@gmail.com>
 
 #include <linux/clk.h>
+#include <linux/extcon-provider.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
@@ -194,6 +195,16 @@ static const struct snd_soc_dapm_widget fsl_asoc_card_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("AMIC", NULL),
 	SND_SOC_DAPM_MIC("DMIC", NULL),
 };
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *fsl_asoc_card_edev;
+
+static const unsigned int fsl_asoc_card_cables[] = {
+	EXTCON_JACK_MICROPHONE,
+	EXTCON_JACK_HEADPHONE,
+	EXTCON_NONE,
+};
+#endif
 
 static bool fsl_asoc_card_is_ac97(struct fsl_asoc_card_priv *priv)
 {
@@ -699,11 +710,20 @@ static int hp_jack_event(struct notifier_block *nb, unsigned long event,
 	struct snd_soc_jack *jack = (struct snd_soc_jack *)data;
 	struct snd_soc_dapm_context *dapm = &jack->card->dapm;
 
-	if (event & SND_JACK_HEADPHONE)
+	if (event & SND_JACK_HEADPHONE) {
+#ifdef CONFIG_EXTCON
+		if (fsl_asoc_card_edev)
+			extcon_set_state_sync(fsl_asoc_card_edev, EXTCON_JACK_HEADPHONE, 1);
+#endif
 		/* Disable speaker if headphone is plugged in */
 		return snd_soc_dapm_disable_pin(dapm, "Ext Spk");
-	else
+	} else {
+#ifdef CONFIG_EXTCON
+		if (fsl_asoc_card_edev)
+			extcon_set_state_sync(fsl_asoc_card_edev, EXTCON_JACK_HEADPHONE, 0);
+#endif
 		return snd_soc_dapm_enable_pin(dapm, "Ext Spk");
+	}
 }
 
 static struct notifier_block hp_jack_nb = {
@@ -1268,6 +1288,22 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 		snd_soc_jack_notifier_register(&priv->mic_jack.jack, &mic_jack_nb);
 	}
 
+#ifdef CONFIG_EXTCON
+	if (of_device_is_compatible(np, "fsl,imx-audio-wm8960") ||
+			of_device_is_compatible(np, "fsl,imx-audio-wm8962")) {
+		fsl_asoc_card_edev = devm_extcon_dev_allocate(&pdev->dev,
+				fsl_asoc_card_cables);
+		if (IS_ERR(fsl_asoc_card_edev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			goto asrc_fail;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev,fsl_asoc_card_edev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			goto asrc_fail;
+		}
+	}
+#endif
 asrc_fail:
 	of_node_put(asrc_np);
 	of_node_put(codec_np[0]);

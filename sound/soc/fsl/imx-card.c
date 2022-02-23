@@ -13,6 +13,7 @@
 #include <sound/pcm.h>
 #include <sound/soc-dapm.h>
 #include <sound/simple_card_utils.h>
+#include <linux/extcon-provider.h>
 
 #include "fsl_sai.h"
 
@@ -121,6 +122,15 @@ struct imx_card_data {
 	u32 asrc_rate;
 	snd_pcm_format_t asrc_format;
 };
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *imx_card_edev;
+
+static const unsigned int imx_card_cables[] = {
+	EXTCON_JACK_HEADPHONE,
+	EXTCON_NONE,
+};
+#endif
 
 static struct imx_akcodec_fs_mul ak4458_fs_mul[] = {
 	/* Normal, < 32kHz */
@@ -918,6 +928,22 @@ static int imx_card_probe(struct platform_device *pdev)
 	ret = devm_snd_soc_register_card(&pdev->dev, &data->card);
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "snd_soc_register_card failed\n");
+
+#ifdef CONFIG_EXTCON
+	if (plat_data->type == CODEC_AK4458) {
+		imx_card_edev = devm_extcon_dev_allocate(&pdev->dev, imx_card_cables);
+		if (IS_ERR(imx_card_edev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			return 0;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev, imx_card_edev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			return 0;
+		}
+		extcon_set_state_sync(imx_card_edev, EXTCON_JACK_HEADPHONE, 1);
+	}
+#endif
 
 	return 0;
 }
