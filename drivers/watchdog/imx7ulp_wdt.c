@@ -46,7 +46,7 @@
 #define WDOG_RCS_WAIT_TIMEOUT	10000
 #define WDOG_RCS_POST_WAIT 3000
 
-#define RETRY_MAX 5
+#define RETRY_MAX 50
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0000);
