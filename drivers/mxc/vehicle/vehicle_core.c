@@ -147,6 +147,10 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 	case VEHICLE_HVAC_POWER_ON:
 		property_encode.prop = HVAC_POWER_ON;
 		break;
+	case VEHICLE_SEAT_TEMPERATURE:
+		property_encode.prop = HVAC_SEAT_TEMPERATURE;
+		property_encode.area_id = (u32)index;
+		break;
 	case VEHICLE_GEAR:
 		property_encode.prop = GEAR_SELECTION;
 		if (VEHICLE_GEAR_DRIVE == value)
