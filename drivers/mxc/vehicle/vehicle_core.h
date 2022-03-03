@@ -63,6 +63,7 @@ struct hw_prop_ops {
 #define VEHICLE_GEAR_REVERSE_CLIENT 2
 
 #define WATCHDOG_ALIVE 290459441
+#define HVAC_SEAT_TEMPERATURE 356517131
 
 /*vehicle_event_type: stateType in command VSTATE*/
 enum vehicle_event_type {
@@ -83,6 +84,7 @@ enum vehicle_event_type {
 	VEHICLE_GEAR,
 	VEHICLE_TURN_SIGNAL,
 	VEHICLE_POWER_STATE_REQ,
+	VEHICLE_SEAT_TEMPERATURE,
 };
 
 /*vehicle_event_gear: stateValue of type VEHICLE_GEAR*/
