@@ -69,6 +69,15 @@
 #define PIE_AC_TEMP_LEFT_INDEX 49
 #define PIE_AC_TEMP_RIGHT_INDEX 68
 
+// seat temperature indexes
+#define SEAT_TEMP_LEFT_INDEX 1
+#define SEAT_TEMP_RIGHT_INDEX 4
+// seat temperature values
+#define SEAT_TEMP_0 0 // off
+#define SEAT_TEMP_1 1
+#define SEAT_TEMP_2 2
+#define SEAT_TEMP_3 3
+
 struct vehicle_dummy_drvdata {
 	struct device *dev;
 	u32 gear;
@@ -85,6 +94,8 @@ struct vehicle_dummy_drvdata {
 	u32 recirc_on;
 	u32 power_req_state;
 	u32 power_req_param;
+	u32 seat_temp_left;
+	u32 seat_temp_right;
 };
 
 #ifdef CONFIG_EXTCON
@@ -159,6 +170,16 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		break;
 	case WATCHDOG_ALIVE:
 		// Proper action is TBD
+		break;
+	case HVAC_SEAT_TEMPERATURE:
+		pr_info("set seat temperature index %d with value %d\n", area, value);
+		if (area == SEAT_TEMP_LEFT_INDEX) {
+			vehicle_dummy->seat_temp_left = value;
+		} else if (area == SEAT_TEMP_RIGHT_INDEX) {
+			vehicle_dummy->seat_temp_right = value;
+		} else {
+			pr_err("unknown index: %d:%d:%d!\n", prop, area, value);
+		}
 		break;
 	default:
 		pr_err("this type is not correct: %d:%d:%d!\n", prop, area, value);
@@ -293,6 +314,70 @@ static ssize_t temp_right_store(struct device *dev,
 }
 
 static DEVICE_ATTR(temp_right, 0664, temp_right_show, temp_right_store);
+
+static ssize_t seat_temp_left_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", vehicle_dummy->seat_temp_left);
+}
+
+/*echo 0/1/2/3 > /sys/devices/platform/vehicle-dummy/seat_temp_left*/
+static ssize_t seat_temp_left_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t size)
+{
+	u32 seat_temp;
+
+	if (!size)
+		return -EINVAL;
+	seat_temp = simple_strtoul(buf, NULL, 10);
+	if (seat_temp != SEAT_TEMP_0 && seat_temp != SEAT_TEMP_1 &&
+		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3) {
+		pr_err("input value is not correct, please type correct one \n");
+		return -EINVAL;
+	}
+	if (seat_temp != vehicle_dummy->seat_temp_left) {
+		vehicle_dummy->seat_temp_left = seat_temp;
+		vehicle_hal_set_property(VEHICLE_SEAT_TEMPERATURE, SEAT_TEMP_LEFT_INDEX, seat_temp, 0);
+	}
+	return size;
+}
+
+static DEVICE_ATTR(seat_temp_left, 0664, seat_temp_left_show, seat_temp_left_store);
+
+static ssize_t seat_temp_right_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", vehicle_dummy->seat_temp_right);
+}
+
+/*echo 0/1/2/3 > /sys/devices/platform/vehicle-dummy/seat_temp_right*/
+static ssize_t seat_temp_right_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t size)
+{
+	u32 seat_temp;
+
+	if (!size)
+		return -EINVAL;
+	seat_temp = simple_strtoul(buf, NULL, 10);
+	if (seat_temp != SEAT_TEMP_0 && seat_temp != SEAT_TEMP_1 &&
+		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3) {
+		pr_err("input value is not correct, please type correct one \n");
+		return -EINVAL;
+	}
+	if (seat_temp != vehicle_dummy->seat_temp_right) {
+		vehicle_dummy->seat_temp_right = seat_temp;
+		vehicle_hal_set_property(VEHICLE_SEAT_TEMPERATURE, SEAT_TEMP_RIGHT_INDEX, seat_temp, 0);
+	}
+	return size;
+}
+
+static DEVICE_ATTR(seat_temp_right, 0664, seat_temp_right_show, seat_temp_right_store);
 
 static ssize_t fan_direction_show(struct device *dev,
 			struct device_attribute *attr,
@@ -648,6 +733,8 @@ static int vehicle_dummy_hw_probe(struct platform_device *pdev)
 		device_create_file(dev, &dev_attr_temp_right) ||
 		device_create_file(dev, &dev_attr_gear) ||
 		device_create_file(dev, &dev_attr_power_req) ||
+		device_create_file(dev, &dev_attr_seat_temp_left) ||
+		device_create_file(dev, &dev_attr_seat_temp_right) ||
 		device_create_file(dev, &dev_attr_turn);
 	if (err)
 		return err;
