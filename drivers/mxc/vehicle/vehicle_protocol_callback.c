@@ -276,7 +276,7 @@ bool encode_value_callback(pb_ostream_t *stream, const pb_field_t *field, void *
 		HVAC_AUTO_ON == data->prop || HVAC_AC_ON == data->prop ||
 		HVAC_RECIRC_ON == data->prop || HVAC_POWER_ON == data->prop ||
 		HVAC_DEFROSTER == data->prop || TURN_SIGNAL_STATE == data->prop ||
-		GEAR_SELECTION == data->prop) {
+		GEAR_SELECTION == data->prop || HVAC_SEAT_TEMPERATURE == data->prop) {
 		propvalue.int32_values.funcs.encode = &encode_int32_values_callback;
 		propvalue.int32_values.arg = &data->value;
 		propvalue.value_type = VEHICLEPROPERTYTYPE_INT32;
