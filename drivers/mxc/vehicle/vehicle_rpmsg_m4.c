@@ -235,6 +235,9 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case WATCHDOG_ALIVE:
 		// Proper action is TBD
 		break;
+	case HVAC_SEAT_TEMPERATURE:
+		msg.control_id = VEHICLE_SEAT_TEMPERATURE;
+		break;
 	default:
 		pr_err("this type is not correct!\n");
 	}
