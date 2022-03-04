@@ -77,7 +77,6 @@
 #define SEAT_TEMP_1 1
 #define SEAT_TEMP_2 2
 #define SEAT_TEMP_3 3
-#define SEAT_TEMP_4 4
 
 struct vehicle_dummy_drvdata {
 	struct device *dev;
@@ -323,7 +322,7 @@ static ssize_t seat_temp_left_show(struct device *dev,
 	return sprintf(buf, "%d\n", vehicle_dummy->seat_temp_left);
 }
 
-/*echo 0/1/2/3/4 > /sys/devices/platform/vehicle-dummy/seat_temp_left*/
+/*echo 0/1/2/3 > /sys/devices/platform/vehicle-dummy/seat_temp_left*/
 static ssize_t seat_temp_left_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -335,8 +334,7 @@ static ssize_t seat_temp_left_store(struct device *dev,
 		return -EINVAL;
 	seat_temp = simple_strtoul(buf, NULL, 10);
 	if (seat_temp != SEAT_TEMP_0 && seat_temp != SEAT_TEMP_1 &&
-		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3 &&
-		seat_temp != SEAT_TEMP_4) {
+		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3) {
 		pr_err("input value is not correct, please type correct one \n");
 		return -EINVAL;
 	}
@@ -356,7 +354,7 @@ static ssize_t seat_temp_right_show(struct device *dev,
 	return sprintf(buf, "%d\n", vehicle_dummy->seat_temp_right);
 }
 
-/*echo 0/1/2/3/4 > /sys/devices/platform/vehicle-dummy/seat_temp_right*/
+/*echo 0/1/2/3 > /sys/devices/platform/vehicle-dummy/seat_temp_right*/
 static ssize_t seat_temp_right_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -368,8 +366,7 @@ static ssize_t seat_temp_right_store(struct device *dev,
 		return -EINVAL;
 	seat_temp = simple_strtoul(buf, NULL, 10);
 	if (seat_temp != SEAT_TEMP_0 && seat_temp != SEAT_TEMP_1 &&
-		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3 &&
-		seat_temp != SEAT_TEMP_4) {
+		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3) {
 		pr_err("input value is not correct, please type correct one \n");
 		return -EINVAL;
 	}
