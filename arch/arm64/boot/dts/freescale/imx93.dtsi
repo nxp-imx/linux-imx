@@ -744,6 +744,19 @@
 			clock-names = "apb", "axi", "nic", "disp", "cam",
 				      "pxp", "lcdif", "isi", "csi", "dsi";
 			#power-domain-cells = <1>;
+
+			dphy: dphy {
+				compatible = "fsl,imx93-mipi-dphy";
+				clocks = <&clk IMX93_CLK_MIPI_PHY_CFG>,
+					 <&clk IMX93_CLK_24M>;
+				clock-names = "phy_cfg", "phy_ref";
+				assigned-clocks = <&clk IMX93_CLK_MIPI_PHY_CFG>;
+				assigned-clock-parents = <&clk IMX93_CLK_24M>;
+				assigned-clock-rates = <24000000>;
+				#phy-cells = <0>;
+				power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_DSI>;
+				status = "disabled";
+			};
 		};
 
 		lcdif: lcd-controller@4ae30000 {
