@@ -7,6 +7,7 @@
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
+#include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <drm/drm_bridge_connector.h>
@@ -221,6 +222,9 @@ struct dcss_dev *dcss_dev_create(struct device *dev, bool hdmi_output)
 	struct resource *res;
 	struct dcss_dev *dcss;
 	const struct dcss_type_data *devtype;
+	struct device_node *np = dev->of_node;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	devtype = of_device_get_match_data(dev);
 	if (!devtype) {
@@ -261,6 +265,23 @@ struct dcss_dev *dcss_dev_create(struct device *dev, bool hdmi_output)
 	}
 
 	dcss->start_addr = res->start;
+
+  	dcss->trusty_dev = NULL;
+	if (of_find_property(np, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				if (!trusty_fast_call32(&(pd->dev), SMC_IMX_DCSS_ECHO, 0, 0, 0)) {
+					dcss->trusty_dev = &(pd->dev);
+					dev_err(&pdev->dev, "dcss: get trusty_dev node, use Trusty mode.\n");
+				} else
+					dev_err(&pdev->dev, "dcss: failed to get response of echo. Use normal mode.\n");
+			} else
+				dev_err(&pdev->dev, "dcss: failed to get trusty_dev node.\n");
+		} else
+			dev_err(&pdev->dev, "dcss: failed to find trusty node. Use normal mode.\n");
+	}
 
 	ret = dcss_submodules_init(dcss);
 	if (ret) {

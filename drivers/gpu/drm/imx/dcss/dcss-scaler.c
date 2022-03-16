@@ -93,6 +93,8 @@ struct dcss_scaler {
 	struct dcss_wrscl *wrscl;
 	struct dcss_rdsrc *rdsrc;
 	int ch_using_wrscl;
+
+	struct device* trusty_dev;
 };
 
 /* scaler coefficients generator */
@@ -335,6 +337,7 @@ int dcss_scaler_init(struct dcss_dev *dcss, unsigned long scaler_base)
 	scaler->wrscl = dcss->wrscl;
 	scaler->rdsrc = dcss->rdsrc;
 	scaler->ch_using_wrscl = -1;
+	scaler->trusty_dev = dcss->trusty_dev;
 
 	if (dcss_scaler_ch_init_all(scaler, scaler_base))
 		return -ENOMEM;
@@ -349,7 +352,8 @@ void dcss_scaler_exit(struct dcss_scaler *scl)
 	for (ch_no = 0; ch_no < 3; ch_no++) {
 		struct dcss_scaler_ch *ch = &scl->ch[ch_no];
 
-		dcss_writel(0, ch->base_reg + DCSS_SCALER_CTRL);
+		dcss_writel(scl->trusty_dev, 0, ch->base_reg + DCSS_SCALER_CTRL,
+				DCSS_SCALER_CTRL, SCALER, ch_no);
 	}
 }
 

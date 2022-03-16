@@ -83,6 +83,8 @@ struct dcss_ctxld {
 	bool armed;
 
 	spinlock_t lock; /* protects concurent access to private data */
+
+	struct device* trusty_dev;
 };
 
 static irqreturn_t dcss_ctxld_irq_handler(int irq, void *data)
@@ -112,8 +114,9 @@ static irqreturn_t dcss_ctxld_irq_handler(int irq, void *data)
 			ctxld->ctx_size[ctxld->current_ctx ^ 1][CTX_SB_LP]);
 	}
 
-	dcss_clr(irq_status & (CTXLD_IRQ_ERROR | CTXLD_IRQ_COMPLETION),
-		 ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
+	dcss_clr(ctxld->trusty_dev, irq_status & (CTXLD_IRQ_ERROR | CTXLD_IRQ_COMPLETION),
+		 ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS, DCSS_CTXLD_CONTROL_STATUS,
+		 CTXLD, 0);
 
 	return IRQ_HANDLED;
 }
@@ -141,32 +144,37 @@ static int dcss_ctxld_irq_config(struct dcss_ctxld *ctxld,
 
 static void dcss_ctxld_hw_cfg(struct dcss_ctxld *ctxld)
 {
-	dcss_writel(RD_ERR_EN | SB_HP_COMP_EN |
+	dcss_writel(ctxld->trusty_dev, RD_ERR_EN | SB_HP_COMP_EN |
 		    DB_PEND_SB_REC_EN | AHB_ERR_EN | RD_ERR | AHB_ERR,
-		    ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
+		    ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS, DCSS_CTXLD_CONTROL_STATUS,
+		    CTXLD, 0);
 }
 
 static void dcss_ctxld_free_ctx(struct dcss_ctxld *ctxld)
 {
-	struct dcss_ctxld_item *ctx;
-	int i;
+        if (!ctxld->trusty_dev) {
+		struct dcss_ctxld_item *ctx;
+		int i;
 
-	for (i = 0; i < 2; i++) {
-		if (ctxld->db[i]) {
-			dma_free_coherent(ctxld->dev,
-					  CTXLD_DB_CTX_ENTRIES * sizeof(*ctx),
-					  ctxld->db[i], ctxld->db_paddr[i]);
-			ctxld->db[i] = NULL;
-			ctxld->db_paddr[i] = 0;
-		}
+		for (i = 0; i < 2; i++) {
+			if (ctxld->db[i]) {
+				dma_free_coherent(ctxld->dev,
+						  CTXLD_DB_CTX_ENTRIES * sizeof(*ctx),
+						  ctxld->db[i], ctxld->db_paddr[i]);
+				ctxld->db[i] = NULL;
+				ctxld->db_paddr[i] = 0;
+			}
 
-		if (ctxld->sb_hp[i]) {
-			dma_free_coherent(ctxld->dev,
-					  CTXLD_SB_CTX_ENTRIES * sizeof(*ctx),
-					  ctxld->sb_hp[i], ctxld->sb_paddr[i]);
-			ctxld->sb_hp[i] = NULL;
-			ctxld->sb_paddr[i] = 0;
+			if (ctxld->sb_hp[i]) {
+				dma_free_coherent(ctxld->dev,
+						  CTXLD_SB_CTX_ENTRIES * sizeof(*ctx),
+						  ctxld->sb_hp[i], ctxld->sb_paddr[i]);
+				ctxld->sb_hp[i] = NULL;
+				ctxld->sb_paddr[i] = 0;
+			}
 		}
+	} else {
+		trusty_dcss_ctxld_freebuf(ctxld->trusty_dev, 0, 0, 0);
 	}
 }
 
@@ -174,7 +182,6 @@ static int dcss_ctxld_alloc_ctx(struct dcss_ctxld *ctxld)
 {
 	struct dcss_ctxld_item *ctx;
 	int i;
-
 	for (i = 0; i < 2; i++) {
 		ctx = dma_alloc_coherent(ctxld->dev,
 					 CTXLD_DB_CTX_ENTRIES * sizeof(*ctx),
@@ -192,9 +199,22 @@ static int dcss_ctxld_alloc_ctx(struct dcss_ctxld *ctxld)
 
 		ctxld->sb_hp[i] = ctx;
 		ctxld->sb_lp[i] = ctx + CTXLD_SB_HP_CTX_ENTRIES;
+		if (ctxld->trusty_dev) {
+			int ret = trusty_dcss_ctxld_allocbuf(ctxld->trusty_dev,
+					(i+1), ctxld->db_paddr[i], ctxld->sb_paddr[i]);
+			if (ret < 0)
+				printk("dcss_ctxld alloc buffer failed!\n");
+		}
+	}
+	if (ctxld->trusty_dev) {
+		int ret = trusty_dcss_ctxld_allocbuf(ctxld->trusty_dev, NONE, 0, 0);
+		if (ret < 0)
+			printk("dcss_ctxld alloc buffer failed!\n");
+		return ret;
 	}
 
 	return 0;
+
 }
 
 int dcss_ctxld_init(struct dcss_dev *dcss, unsigned long ctxld_base)
@@ -208,7 +228,7 @@ int dcss_ctxld_init(struct dcss_dev *dcss, unsigned long ctxld_base)
 
 	dcss->ctxld = ctxld;
 	ctxld->dev = dcss->dev;
-
+	ctxld->trusty_dev = dcss->trusty_dev;
 	spin_lock_init(&ctxld->lock);
 
 	ret = dcss_ctxld_alloc_ctx(ctxld);
@@ -254,7 +274,6 @@ static int dcss_ctxld_enable_locked(struct dcss_ctxld *ctxld)
 
 	if (!dcss)
 		return 0;
-
 	dcss_dpr_write_sysctrl(dcss->dpr);
 
 	dcss_scaler_write_sclctrl(dcss->scaler);
@@ -263,41 +282,48 @@ static int dcss_ctxld_enable_locked(struct dcss_ctxld *ctxld)
 		dcss_dtrc_switch_banks(dcss->dtrc);
 		ctxld->armed = true;
 	}
+	if (ctxld->trusty_dev) {
+		trusty_dcss_ctxld_reg(ctxld->trusty_dev, curr_ctx, 0, 0);
+	} else {
+		sb_hp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_HP];
+		sb_lp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_LP];
+		db_cnt = ctxld->ctx_size[curr_ctx][CTX_DB];
 
-	sb_hp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_HP];
-	sb_lp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_LP];
-	db_cnt = ctxld->ctx_size[curr_ctx][CTX_DB];
+		/* make sure SB_LP context area comes after SB_HP */
+		if (sb_lp_cnt &&
+		    ctxld->sb_lp[curr_ctx] != ctxld->sb_hp[curr_ctx] + sb_hp_cnt) {
+			struct dcss_ctxld_item *sb_lp_adjusted;
 
-	/* make sure SB_LP context area comes after SB_HP */
-	if (sb_lp_cnt &&
-	    ctxld->sb_lp[curr_ctx] != ctxld->sb_hp[curr_ctx] + sb_hp_cnt) {
-		struct dcss_ctxld_item *sb_lp_adjusted;
+			sb_lp_adjusted = ctxld->sb_hp[curr_ctx] + sb_hp_cnt;
 
-		sb_lp_adjusted = ctxld->sb_hp[curr_ctx] + sb_hp_cnt;
+			memcpy(sb_lp_adjusted, ctxld->sb_lp[curr_ctx],
+			       sb_lp_cnt * CTX_ITEM_SIZE);
+		}
 
-		memcpy(sb_lp_adjusted, ctxld->sb_lp[curr_ctx],
-		       sb_lp_cnt * CTX_ITEM_SIZE);
+		db_base = db_cnt ? ctxld->db_paddr[curr_ctx] : 0;
+
+		dcss_writel(ctxld->trusty_dev, db_base, ctxld->ctxld_reg + DCSS_CTXLD_DB_BASE_ADDR,
+				DCSS_CTXLD_DB_BASE_ADDR, CTXLD, 0);
+		dcss_writel(ctxld->trusty_dev, db_cnt, ctxld->ctxld_reg + DCSS_CTXLD_DB_COUNT,
+				DCSS_CTXLD_DB_COUNT, CTXLD, 0);
+
+		if (sb_hp_cnt)
+			sb_count = ((sb_hp_cnt << SB_HP_COUNT_POS) & SB_HP_COUNT_MASK) |
+				   ((sb_lp_cnt << SB_LP_COUNT_POS) & SB_LP_COUNT_MASK);
+		else
+			sb_count = (sb_lp_cnt << SB_HP_COUNT_POS) & SB_HP_COUNT_MASK;
+
+		sb_base = sb_count ? ctxld->sb_paddr[curr_ctx] : 0;
+
+		dcss_writel(ctxld->trusty_dev, sb_base, ctxld->ctxld_reg + DCSS_CTXLD_SB_BASE_ADDR,
+				DCSS_CTXLD_SB_BASE_ADDR, CTXLD, 0);
+		dcss_writel(ctxld->trusty_dev, sb_count, ctxld->ctxld_reg + DCSS_CTXLD_SB_COUNT,
+				DCSS_CTXLD_SB_COUNT, CTXLD, 0);
 	}
 
-	db_base = db_cnt ? ctxld->db_paddr[curr_ctx] : 0;
-
-	dcss_writel(db_base, ctxld->ctxld_reg + DCSS_CTXLD_DB_BASE_ADDR);
-	dcss_writel(db_cnt, ctxld->ctxld_reg + DCSS_CTXLD_DB_COUNT);
-
-	if (sb_hp_cnt)
-		sb_count = ((sb_hp_cnt << SB_HP_COUNT_POS) & SB_HP_COUNT_MASK) |
-			   ((sb_lp_cnt << SB_LP_COUNT_POS) & SB_LP_COUNT_MASK);
-	else
-		sb_count = (sb_lp_cnt << SB_HP_COUNT_POS) & SB_HP_COUNT_MASK;
-
-	sb_base = sb_count ? ctxld->sb_paddr[curr_ctx] : 0;
-
-	dcss_writel(sb_base, ctxld->ctxld_reg + DCSS_CTXLD_SB_BASE_ADDR);
-	dcss_writel(sb_count, ctxld->ctxld_reg + DCSS_CTXLD_SB_COUNT);
-
 	/* enable the context loader */
-	dcss_set(CTXLD_ENABLE, ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
-
+	dcss_set(ctxld->trusty_dev, CTXLD_ENABLE, ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS,
+			DCSS_CTXLD_CONTROL_STATUS, CTXLD, 0);
 	ctxld->in_use = true;
 
 	/*
@@ -305,11 +331,17 @@ static int dcss_ctxld_enable_locked(struct dcss_ctxld *ctxld)
 	 * in the modules' settings take place there.
 	 */
 	ctxld->current_ctx ^= 1;
-
+	if (ctxld->trusty_dev) {
+		u32 para1 = (ctxld->current_ctx & 0xf) | ((CTX_DB & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+		para1 = (ctxld->current_ctx & 0xf) | ((CTX_SB_HP & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+		para1 = (ctxld->current_ctx & 0xf) | ((CTX_SB_LP & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+	}
 	ctxld->ctx_size[ctxld->current_ctx][CTX_DB] = 0;
 	ctxld->ctx_size[ctxld->current_ctx][CTX_SB_HP] = 0;
 	ctxld->ctx_size[ctxld->current_ctx][CTX_SB_LP] = 0;
-
 	return 0;
 }
 
@@ -338,20 +370,28 @@ void dcss_ctxld_write_irqsafe(struct dcss_ctxld *ctxld, u32 ctx_id, u32 val,
 			      u32 reg_ofs)
 {
 	int curr_ctx = ctxld->current_ctx;
-	struct dcss_ctxld_item *ctx[] = {
-		[CTX_DB] = ctxld->db[curr_ctx],
-		[CTX_SB_HP] = ctxld->sb_hp[curr_ctx],
-		[CTX_SB_LP] = ctxld->sb_lp[curr_ctx]
-	};
-	int item_idx = ctxld->ctx_size[curr_ctx][ctx_id];
 
-	if (item_idx + 1 > dcss_ctxld_ctx_size[ctx_id]) {
-		WARN_ON(1);
-		return;
+	if (ctxld->trusty_dev) {
+		u32 para1 = (curr_ctx & 0xf) | ((ctx_id & 0xf) << 4) | (0 << 8);
+		u32 para2 = val;
+		u32 para3 = reg_ofs;
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, para2, para3);
+	} else {
+		struct dcss_ctxld_item *ctx[] = {
+			[CTX_DB] = ctxld->db[curr_ctx],
+			[CTX_SB_HP] = ctxld->sb_hp[curr_ctx],
+			[CTX_SB_LP] = ctxld->sb_lp[curr_ctx]
+		};
+		int item_idx = ctxld->ctx_size[curr_ctx][ctx_id];
+
+		if (item_idx + 1 > dcss_ctxld_ctx_size[ctx_id]) {
+			WARN_ON(1);
+			return;
+		}
+
+		ctx[ctx_id][item_idx].val = val;
+		ctx[ctx_id][item_idx].ofs = reg_ofs;
 	}
-
-	ctx[ctx_id][item_idx].val = val;
-	ctx[ctx_id][item_idx].ofs = reg_ofs;
 	ctxld->ctx_size[curr_ctx][ctx_id] += 1;
 }
 
@@ -409,6 +449,15 @@ int dcss_ctxld_suspend(struct dcss_ctxld *ctxld)
 	ctxld->ctx_size[0][CTX_DB] = 0;
 	ctxld->ctx_size[0][CTX_SB_HP] = 0;
 	ctxld->ctx_size[0][CTX_SB_LP] = 0;
+
+	if (ctxld->trusty_dev) {
+		u32 para1 = (0 & 0xf) | ((CTX_DB & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+		para1 = (0 & 0xf) | ((CTX_SB_HP & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+		para1 = (0 & 0xf) | ((CTX_SB_LP & 0xf) << 4) | (1 << 8);
+		trusty_dcss_ctxld_bufw(ctxld->trusty_dev, para1, 0, 0);
+	}
 
 	spin_unlock_irq(&ctxld->lock);
 

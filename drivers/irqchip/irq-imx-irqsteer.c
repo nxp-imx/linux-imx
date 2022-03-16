@@ -14,10 +14,13 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
 #include <linux/spinlock.h>
 #include <linux/pm_domain.h>
 #include <linux/reset.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define CTRL_STRIDE_OFF(_t, _r)	(_t * 4 * _r)
 #define CHANCTRL		0x0
@@ -28,6 +31,14 @@
 #define CHAN_MASTRSTAT(t)	(CTRL_STRIDE_OFF(t, 3) + 0x8)
 
 #define CHAN_MAX_OUTPUT_INT	0x8
+
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_IMX_DCSS_OPT 56
+#define SMC_IMX_DCSS_IRQ_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 5)
+#define SMC_IMX_DCSS_IRQ_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 6)
+
 
 struct irqsteer_data {
 	void __iomem		*regs;
@@ -42,7 +53,21 @@ struct irqsteer_data {
 	struct device		*dev;
 	struct device		*pd_csi;
 	struct device		*pd_isi;
+	struct device           *trusty_dev;
 };
+
+#ifdef writel_relaxed
+#undef writel_relaxed
+#endif
+
+#define writel_relaxed(v, c) \
+	do { \
+		if (data->trusty_dev) { \
+			trusty_fast_call32(data->trusty_dev, SMC_IMX_DCSS_IRQ_REG, (__force u32)cpu_to_le32(v), (data->regs - c), 0); \
+		} else { \
+			(void)__raw_writel((__force u32)cpu_to_le32(v),(c)); \
+		} \
+	} while(0)
 
 static int imx_irqsteer_get_reg_index(struct irqsteer_data *data,
 				      unsigned long irqnum)
@@ -199,8 +224,26 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	struct irqsteer_data *data;
 	u32 irqs_num;
 	int i, ret;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
+  	data->trusty_dev = NULL;
+	if (of_find_property(np, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				if (!trusty_fast_call32(&(pd->dev), SMC_IMX_DCSS_IRQ_ECHO, 0, 0, 0)) {
+					data->trusty_dev = &(pd->dev);
+					dev_err(&pdev->dev, "imx_irqsteer: get trusty_dev node, use Trusty mode.\n");
+				} else
+					dev_err(&pdev->dev, "imx_irqsteer: failed to get response of echo. Use normal mode.\n");
+			} else
+				dev_err(&pdev->dev, "imx_irqsteer: failed to get trusty_dev node.\n");
+		} else
+			dev_err(&pdev->dev, "imx_irqsteer: failed to find trusty node. Use normal mode.\n");
+	}
 	if (!data)
 		return -ENOMEM;
 

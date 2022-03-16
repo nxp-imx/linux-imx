@@ -13,19 +13,83 @@
 #include <linux/pm.h>
 #include <video/videomode.h>
 
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_IMX_DCSS_OPT 56
+#define SMC_IMX_DCSS_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 0)
+#define SMC_IMX_DCSS_ALLOC_BUFFER SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 1)
+#define SMC_IMX_DCSS_BUFFER_WRITE SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 2)
+#define SMC_IMX_DCSS_REG  SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 3)
+#define SMC_IMX_DCSS_CTXLD_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 4)
+#define SMC_IMX_DCSS_RELEASE_BUFFER SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 7)
+
 #define SET			0x04
 #define CLR			0x08
 #define TGL			0x0C
 
-#define dcss_writel(v, c)	writel((v), (c))
 #define dcss_readl(c)		readl(c)
-#define dcss_set(v, c)		writel((v), (c) + SET)
-#define dcss_clr(v, c)		writel((v), (c) + CLR)
-#define dcss_toggle(v, c)	writel((v), (c) + TGL)
 
-static inline void dcss_update(u32 v, u32 m, void __iomem *c)
+static inline void trusty_dcss_reg(struct device *dev, u32 target, u32 parm, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_DCSS_REG, target, parm, val);
+}
+
+static inline int trusty_dcss_ctxld_allocbuf(struct device *dev, u32 target, u32 parm, u32 val) {
+	int ret = trusty_fast_call32(dev, SMC_IMX_DCSS_ALLOC_BUFFER, target, parm, val);
+	return ret;
+}
+
+static inline int trusty_dcss_ctxld_bufw(struct device *dev, u32 target, u32 parm, u32 val) {
+	int ret = trusty_fast_call32(dev, SMC_IMX_DCSS_BUFFER_WRITE, target, parm, val);
+	return ret;
+}
+
+static inline void trusty_dcss_ctxld_reg(struct device *dev, u32 target, u32 parm, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_DCSS_CTXLD_REG, target, parm, val);
+}
+
+static inline void trusty_dcss_ctxld_freebuf(struct device *dev, u32 target, u32 parm, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_DCSS_RELEASE_BUFFER, target, parm, val);
+}
+
+#define dcss_writel(trusty_dev, val, addr, addr_offset, type, ch_num) \
+	do { \
+		if (trusty_dev) { \
+			trusty_dcss_reg(trusty_dev, addr_offset, (type | (ch_num << 4)), val); \
+		} else { \
+			writel((val), (addr)); \
+		} \
+	} while (0)
+
+
+#define dcss_set(trusty_dev, v, c, addr_offset, type, ch_num)            dcss_writel(trusty_dev, (v), (c) + SET, addr_offset + SET, type, ch_num)
+#define dcss_clr(trusty_dev, v, c, addr_offset, type, ch_num)            dcss_writel(trusty_dev, (v), (c) + CLR, addr_offset + CLR, type, ch_num)
+#define dcss_toggle(trusty_dev, v, c, addr_offset, type, ch_num)         dcss_writel(trusty_dev, (v), (c) + TGL, addr_offset + TGL, type, ch_num)
+
+enum dcss_reg_type {
+	DPR,
+	BLKCTL,
+	CTXLD,
+	DTG,
+	RDSRC,
+	WRSCL,
+	SCALER,
+	SS,
+	DEC400D,
+	HDR10,
+	DTRC,
+};
+
+enum ctxld_buffer_type {
+	NONE,
+	FROUNT,
+	BACKGROUND,
+};
+
+static inline void dcss_update(struct device *dev, u32 v, u32 m, void __iomem *c,
+		u32 addr_offset, u32 type, u32 ch_num)
 {
-	writel((readl(c) & ~(m)) | (v), (c));
+	dcss_writel(dev, (readl(c) & ~(m)) | (v), (c), addr_offset, type, ch_num);
 }
 
 #define DCSS_DBG_REG(reg)	{.name = #reg, .ofs = reg}
@@ -98,6 +162,8 @@ struct dcss_dev {
 
 	void (*disable_callback)(void *data);
 	struct completion disable_completion;
+
+	struct device *trusty_dev;
 };
 
 struct dcss_dev *dcss_drv_dev_to_dcss(struct device *dev);
