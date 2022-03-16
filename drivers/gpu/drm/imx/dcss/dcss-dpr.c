@@ -121,6 +121,8 @@ struct dcss_dpr {
 	u32  ctx_id;
 
 	struct dcss_dpr_ch ch[3];
+
+	struct device* trusty_dev;
 };
 
 static void dcss_dpr_write(struct dcss_dpr_ch *ch, u32 val, u32 ofs)
@@ -150,7 +152,8 @@ static int dcss_dpr_ch_init_all(struct dcss_dpr *dpr, unsigned long dpr_base)
 		ch->dpr = dpr;
 		ch->ch_num = i;
 
-		dcss_writel(0xff, ch->base_reg + DCSS_DPR_IRQ_MASK);
+		dcss_writel(dpr->trusty_dev, 0xff, ch->base_reg + DCSS_DPR_IRQ_MASK,
+				DCSS_DPR_IRQ_MASK, DPR, ch->ch_num);
 	}
 
 	return 0;
@@ -169,6 +172,7 @@ int dcss_dpr_init(struct dcss_dev *dcss, unsigned long dpr_base)
 	dpr->ctxld = dcss->ctxld;
 	dpr->ctx_id = CTX_SB_HP;
 	dpr->dtrc = dcss->dtrc;
+	dpr->trusty_dev = dcss->trusty_dev;
 
 	if (dcss_dpr_ch_init_all(dpr, dpr_base))
 		return -ENOMEM;
@@ -184,7 +188,9 @@ void dcss_dpr_exit(struct dcss_dpr *dpr)
 	for (ch_no = 0; ch_no < 3; ch_no++) {
 		struct dcss_dpr_ch *ch = &dpr->ch[ch_no];
 
-		dcss_writel(0, ch->base_reg + DCSS_DPR_SYSTEM_CTRL0);
+		dcss_writel(dpr->trusty_dev, 0, ch->base_reg + DCSS_DPR_SYSTEM_CTRL0,
+				DCSS_DPR_SYSTEM_CTRL0, DPR, ch_no);
+
 	}
 }
 

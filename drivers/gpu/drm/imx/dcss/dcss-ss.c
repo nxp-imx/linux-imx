@@ -68,12 +68,15 @@ struct dcss_ss {
 	u32 ctx_id;
 
 	bool in_use;
+
+	struct device* trusty_dev;
 };
 
 static void dcss_ss_write(struct dcss_ss *ss, u32 val, u32 ofs)
 {
 	if (!ss->in_use)
-		dcss_writel(val, ss->base_reg + ofs);
+		dcss_writel(ss->trusty_dev, val, ss->base_reg + ofs,
+				ofs, SS, 0);
 
 	dcss_ctxld_write(ss->ctxld, ss->ctx_id, val,
 			 ss->base_ofs + ofs);
@@ -91,6 +94,8 @@ int dcss_ss_init(struct dcss_dev *dcss, unsigned long ss_base)
 	ss->dev = dcss->dev;
 	ss->ctxld = dcss->ctxld;
 
+	ss->trusty_dev = dcss->trusty_dev;
+
 	ss->base_reg = devm_ioremap(ss->dev, ss_base, SZ_4K);
 	if (!ss->base_reg) {
 		dev_err(ss->dev, "ss: unable to remap ss base\n");
@@ -106,7 +111,8 @@ int dcss_ss_init(struct dcss_dev *dcss, unsigned long ss_base)
 void dcss_ss_exit(struct dcss_ss *ss)
 {
 	/* stop SS */
-	dcss_writel(0, ss->base_reg + DCSS_SS_SYS_CTRL);
+	dcss_writel(ss->trusty_dev, 0, ss->base_reg + DCSS_SS_SYS_CTRL,
+			DCSS_SS_SYS_CTRL, SS, 0);
 }
 
 void dcss_ss_subsam_set(struct dcss_ss *ss,
@@ -186,6 +192,7 @@ void dcss_ss_enable(struct dcss_ss *ss)
 
 void dcss_ss_shutoff(struct dcss_ss *ss)
 {
-	dcss_writel(0, ss->base_reg + DCSS_SS_SYS_CTRL);
+	dcss_writel(ss->trusty_dev, 0, ss->base_reg + DCSS_SS_SYS_CTRL,
+			DCSS_SS_SYS_CTRL, SS, 0);
 	ss->in_use = false;
 }

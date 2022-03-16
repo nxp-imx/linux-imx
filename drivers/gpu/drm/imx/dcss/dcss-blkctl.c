@@ -24,18 +24,22 @@
 struct dcss_blkctl {
 	struct dcss_dev *dcss;
 	void __iomem *base_reg;
+
+	struct device* trusty_dev;
 };
 
 void dcss_blkctl_cfg(struct dcss_blkctl *blkctl)
 {
 	if (blkctl->dcss->hdmi_output)
-		dcss_writel(0, blkctl->base_reg + DCSS_BLKCTL_CONTROL0);
+		dcss_writel(blkctl->trusty_dev, 0, blkctl->base_reg + DCSS_BLKCTL_CONTROL0,
+				DCSS_BLKCTL_CONTROL0, BLKCTL, 0);
 	else
-		dcss_writel(DISPMIX_PIXCLK_SEL,
-			    blkctl->base_reg + DCSS_BLKCTL_CONTROL0);
+		dcss_writel(blkctl->trusty_dev, DISPMIX_PIXCLK_SEL,
+			    blkctl->base_reg + DCSS_BLKCTL_CONTROL0, DCSS_BLKCTL_CONTROL0,
+			    BLKCTL, 0);
 
-	dcss_set(B_CLK_RESETN | APB_CLK_RESETN | P_CLK_RESETN | RTR_CLK_RESETN,
-		 blkctl->base_reg + DCSS_BLKCTL_RESET_CTRL);
+	dcss_set(blkctl->trusty_dev, B_CLK_RESETN | APB_CLK_RESETN | P_CLK_RESETN | RTR_CLK_RESETN,
+		 blkctl->base_reg + DCSS_BLKCTL_RESET_CTRL, DCSS_BLKCTL_RESET_CTRL, BLKCTL, 0);
 }
 
 int dcss_blkctl_init(struct dcss_dev *dcss, unsigned long blkctl_base)
@@ -46,6 +50,7 @@ int dcss_blkctl_init(struct dcss_dev *dcss, unsigned long blkctl_base)
 	if (!blkctl)
 		return -ENOMEM;
 
+	blkctl->trusty_dev = dcss->trusty_dev;
 	blkctl->base_reg = devm_ioremap(dcss->dev, blkctl_base, SZ_4K);
 	if (!blkctl->base_reg) {
 		dev_err(dcss->dev, "unable to remap BLK CTRL base\n");
