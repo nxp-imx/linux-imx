@@ -64,3 +64,11 @@
 &uart3 {
        /delete-node/ bluetooth;
 };
+
+&dcss {
+	trusty;
+};
+
+&irqsteer {
+	trusty;
+};
