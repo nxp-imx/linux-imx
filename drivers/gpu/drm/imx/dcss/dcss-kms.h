@@ -32,6 +32,9 @@ struct dcss_crtc {
 	struct dcss_plane	*plane[3];
 	int			irq;
 	bool			disable_ctxld_kick_irq;
+
+	struct drm_property	*force_modeset;
+	uint32_t		force_modeset_val;
 };
 
 struct dcss_crtc_state {
