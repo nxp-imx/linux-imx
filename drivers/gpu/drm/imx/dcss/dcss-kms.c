@@ -25,7 +25,21 @@ DEFINE_DRM_GEM_DMA_FOPS(dcss_cma_fops);
 static int dcss_kms_atomic_check(struct drm_device *dev,
 				 struct drm_atomic_state *state)
 {
-	int ret;
+	int ret, i;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *new_crtc_state;
+	struct dcss_crtc *dcss_crtc;
+
+	if (state->allow_modeset) {
+		for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
+			WARN_ON(!drm_modeset_is_locked(&crtc->mutex));
+			dcss_crtc = to_dcss_crtc(crtc);
+			if (dcss_crtc->force_modeset_val) {
+				new_crtc_state->mode_changed = true;
+				dcss_crtc->force_modeset_val = false;
+			}
+		}
+	}
 
 	ret = drm_atomic_helper_check_modeset(dev, state);
 	if (ret)

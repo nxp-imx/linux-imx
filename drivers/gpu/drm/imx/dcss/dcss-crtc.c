@@ -100,6 +100,34 @@ static void dcss_disable_vblank(struct drm_crtc *crtc)
 		dcss_dtg_ctxld_kick_irq_enable(dcss->dtg, false);
 }
 
+static int dcss_drm_crtc_atomic_set_property(struct drm_crtc *crtc,
+					struct drm_crtc_state *state,
+					struct drm_property *property,
+					uint64_t val)
+{
+	struct dcss_crtc *dcss_crtc = to_dcss_crtc(crtc);
+	if (property == dcss_crtc->force_modeset)
+		dcss_crtc->force_modeset_val = val;
+	else
+		return -EINVAL;
+	return 0;
+}
+
+static int dcss_drc_crtc_atomic_get_property(struct drm_crtc *crtc,
+					const struct drm_crtc_state *state,
+					struct drm_property *property,
+					uint64_t *val)
+{
+	struct dcss_crtc *dcss_crtc = to_dcss_crtc(crtc);
+
+	if (property == dcss_crtc->force_modeset)
+		*val = dcss_crtc->force_modeset_val;
+	else
+		return -EINVAL;
+	return 0;
+}
+
+
 static const struct drm_crtc_funcs dcss_crtc_funcs = {
 	.set_config = drm_atomic_helper_set_config,
 	.destroy = drm_crtc_cleanup,
@@ -109,6 +137,8 @@ static const struct drm_crtc_funcs dcss_crtc_funcs = {
 	.atomic_destroy_state = dcss_drm_crtc_atomic_destroy_state,
 	.enable_vblank = dcss_enable_vblank,
 	.disable_vblank = dcss_disable_vblank,
+	.atomic_set_property    = dcss_drm_crtc_atomic_set_property,
+	.atomic_get_property    = dcss_drc_crtc_atomic_get_property,
 };
 
 static void dcss_crtc_atomic_begin(struct drm_crtc *crtc,
@@ -396,6 +426,7 @@ int dcss_crtc_init(struct dcss_crtc *crtc, struct drm_device *drm)
 	struct dcss_dev *dcss = drm->dev_private;
 	struct platform_device *pdev = to_platform_device(dcss->dev);
 	int ret;
+	struct drm_property *prop;
 
 	crtc->plane[0] = dcss_plane_init(drm, drm_crtc_mask(&crtc->base),
 					 DRM_PLANE_TYPE_PRIMARY, 2);
@@ -423,6 +454,14 @@ int dcss_crtc_init(struct dcss_crtc *crtc, struct drm_device *drm)
 		crtc->plane[2] = NULL;
 
 	drm_plane_create_alpha_property(&crtc->plane[0]->base);
+
+	prop = drm_property_create_range(drm, 0, "force_modeset", 0, 2);
+	if (!prop) {
+		dev_err(dcss->dev, "cannot create force_modeset property\n");
+		return -ENOMEM;
+	}
+	crtc->force_modeset = prop;
+	drm_object_attach_property(&crtc->base.base, prop, 0);
 
 	crtc->irq = platform_get_irq_byname(pdev, "vblank");
 	if (crtc->irq < 0)
