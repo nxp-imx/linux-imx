@@ -538,7 +538,7 @@ static void trusty_smc_exit(void)
 	platform_driver_unregister(&trusty_smc_driver);
 }
 
-subsys_initcall(trusty_smc_init);
+module_init(trusty_smc_init);
 module_exit(trusty_smc_exit);
 
 MODULE_LICENSE("GPL v2");
