@@ -92,7 +92,7 @@ int mxsfb_create_output(struct drm_device *drm)
 					 &mxsfb_panel_connector_helper_funcs);
 		ret = drm_connector_init(drm, mxsfb->connector,
 					 &mxsfb_panel_connector_funcs,
-					 DRM_MODE_CONNECTOR_Unknown);
+					 DRM_MODE_CONNECTOR_DPI);
 	}
 
 	return ret;
