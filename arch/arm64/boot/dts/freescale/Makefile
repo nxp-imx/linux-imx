@@ -245,6 +245,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8dxl-evk-root.dtb imx8dxl-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb imx93-11x11-evk-rpmsg.dtb \
 			  imx93-11x11-evk-lpspi.dtb imx93-11x11-evk-lpspi-slave.dtb \
 			  imx93-11x11-evk-i3c.dtb imx93-11x11-evk-rm67199.dtb \
+			  imx93-11x11-evk-inmate.dtb imx93-11x11-evk-root.dtb \
 			  imx93-11x11-evk-boe-wxga-lvds-panel.dtb imx93-11x11-evk-mqs.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb \
 			  s32v234-sbc.dtb
