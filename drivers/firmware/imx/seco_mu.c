@@ -168,6 +168,9 @@ struct seco_mu_priv {
 
 	struct imx_sc_ipc *ipc_scu;
 	u8 seco_part_owner;
+
+	int max_ctx;
+	struct seco_mu_device_ctx **ctxs;
 };
 
 /* macro to log operation of a misc device */
@@ -1121,6 +1124,9 @@ static int seco_mu_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
+	priv->max_ctx = max_nb_users;
+	priv->ctxs = devm_kzalloc(dev, sizeof(dev_ctx) * max_nb_users, GFP_KERNEL);
+
 	/* Create users */
 	for (i = 0; i < max_nb_users; i++) {
 		dev_ctx = devm_kzalloc(dev, sizeof(*dev_ctx), GFP_KERNEL);
@@ -1134,6 +1140,9 @@ static int seco_mu_probe(struct platform_device *pdev)
 		dev_ctx->dev = dev;
 		dev_ctx->status = MU_FREE;
 		dev_ctx->mu_priv = priv;
+
+		priv->ctxs[i] = dev_ctx;
+
 		/* Default value invalid for an header. */
 		init_waitqueue_head(&dev_ctx->wq);
 
@@ -1187,6 +1196,20 @@ exit:
 	return ret;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int secu_mu_resume(struct device *dev)
+{
+	struct seco_mu_priv *priv = dev_get_drvdata(dev);
+	int i=0;
+
+	for (i = 0; i < priv->max_ctx; i++) {
+		priv->ctxs[i]->v2x_reset = true;
+		wake_up_interruptible(&priv->ctxs[i]->wq);
+	}
+	return 0;
+}
+#endif
+
 static const struct of_device_id seco_mu_match[] = {
 	{
 		.compatible = "fsl,imx-seco-mu",
@@ -1195,10 +1218,15 @@ static const struct of_device_id seco_mu_match[] = {
 };
 MODULE_DEVICE_TABLE(of, seco_mu_match);
 
+static const struct dev_pm_ops secu_mu_pm = {
+        SET_SYSTEM_SLEEP_PM_OPS(NULL, secu_mu_resume)
+};
+
 static struct platform_driver seco_mu_driver = {
 	.driver = {
 		.name = "seco_mu",
 		.of_match_table = seco_mu_match,
+		.pm = &secu_mu_pm,
 	},
 	.probe       = seco_mu_probe,
 };
