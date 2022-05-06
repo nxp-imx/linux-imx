@@ -308,9 +308,6 @@ static int lpi2c_imx_master_enable(struct lpi2c_imx_struct *lpi2c_imx)
 	if (ret)
 		goto rpm_put;
 
-	if (lpi2c_imx->can_use_dma)
-		writel(MDER_TDDE | MDER_RDDE, lpi2c_imx->base + LPI2C_MDER);
-
 	temp = readl(lpi2c_imx->base + LPI2C_MCR);
 	temp |= MCR_MEN;
 	writel(temp, lpi2c_imx->base + LPI2C_MCR);
@@ -663,7 +660,14 @@ static int lpi2c_imx_xfer(struct i2c_adapter *adapter,
 			lpi2c_imx->dma_buf = i2c_get_dma_safe_msg_buf(&msgs[i],
 							    I2C_DMA_THRESHOLD);
 			if (lpi2c_imx->dma_buf) {
+				/* Enable I2C DMA function */
+				writel(MDER_TDDE | MDER_RDDE, lpi2c_imx->base + LPI2C_MDER);
+
 				result = lpi2c_dma_xfer(lpi2c_imx, &msgs[i]);
+
+				/* Disable I2C DMA function */
+				writel(0, lpi2c_imx->base + LPI2C_MDER);
+
 				if (result != I2C_USE_PIO)
 					goto stop;
 			}
