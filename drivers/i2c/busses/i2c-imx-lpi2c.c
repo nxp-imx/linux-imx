@@ -84,6 +84,7 @@
 #define I2C_PM_TIMEOUT		1000 /* ms */
 #define I2C_DMA_THRESHOLD	16 /* bytes */
 #define I2C_USE_PIO		(-150)
+#define I2C_NDF			(-151)
 
 enum lpi2c_imx_mode {
 	STANDARD,	/* <=100Kbps */
@@ -126,6 +127,7 @@ struct lpi2c_imx_struct {
 	bool			can_use_dma;
 	bool			using_dma;
 	bool			xferred;
+	bool			is_ndf;
 	struct i2c_msg		*msg;
 	dma_addr_t		dma_addr;
 	struct dma_chan		*dma_tx;
@@ -584,25 +586,23 @@ static int lpi2c_imx_push_rx_cmd(struct lpi2c_imx_struct *lpi2c_imx,
 	unsigned int temp, rx_remain;
 	unsigned long orig_jiffies = jiffies;
 
-	if ((msg->flags & I2C_M_RD)) {
-		rx_remain = msg->len;
-		do {
-			temp = rx_remain > CHUNK_DATA ?
-				CHUNK_DATA - 1 : rx_remain - 1;
-			temp |= (RECV_DATA << 8);
-			while ((readl(lpi2c_imx->base + LPI2C_MFSR) & 0xff) > 2) {
-				if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(1000))) {
-					dev_dbg(&lpi2c_imx->adapter.dev, "txfifo empty timeout\n");
-					if (lpi2c_imx->adapter.bus_recovery_info)
-						i2c_recover_bus(&lpi2c_imx->adapter);
-					return -ETIMEDOUT;
-				}
-				schedule();
+	rx_remain = msg->len;
+	do {
+		temp = rx_remain > CHUNK_DATA ?
+			CHUNK_DATA - 1 : rx_remain - 1;
+		temp |= (RECV_DATA << 8);
+		while ((readl(lpi2c_imx->base + LPI2C_MFSR) & 0xff) > 2) {
+			if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(1000))) {
+				dev_dbg(&lpi2c_imx->adapter.dev, "txfifo empty timeout\n");
+				if (lpi2c_imx->adapter.bus_recovery_info)
+					i2c_recover_bus(&lpi2c_imx->adapter);
+				return -ETIMEDOUT;
 			}
-			writel(temp, lpi2c_imx->base + LPI2C_MTDR);
-			rx_remain = rx_remain - (temp & 0xff) - 1;
-		} while (rx_remain > 0);
-	}
+			schedule();
+		}
+		writel(temp, lpi2c_imx->base + LPI2C_MTDR);
+		rx_remain = rx_remain - (temp & 0xff) - 1;
+	} while (rx_remain > 0);
 
 	return 0;
 }
@@ -613,15 +613,23 @@ static int lpi2c_dma_xfer(struct lpi2c_imx_struct *lpi2c_imx,
 	int result;
 
 	result = lpi2c_dma_submit(lpi2c_imx, msg);
-	if (!result) {
+	if (result)
+		return I2C_USE_PIO;
+
+	if ((msg->flags & I2C_M_RD)) {
 		result = lpi2c_imx_push_rx_cmd(lpi2c_imx, msg);
 		if (result)
 			return result;
-		result = lpi2c_imx_msg_complete(lpi2c_imx);
-		return result;
 	}
 
-	return I2C_USE_PIO;
+	result = lpi2c_imx_msg_complete(lpi2c_imx);
+	if (result)
+		return result;
+
+	if (lpi2c_imx->is_ndf)
+		result = I2C_NDF;
+
+	return result;
 }
 
 static int lpi2c_imx_xfer(struct i2c_adapter *adapter,
@@ -634,6 +642,8 @@ static int lpi2c_imx_xfer(struct i2c_adapter *adapter,
 	result = lpi2c_imx_master_enable(lpi2c_imx);
 	if (result)
 		return result;
+
+	lpi2c_imx->is_ndf = false;
 
 	for (i = 0; i < num; i++) {
 		lpi2c_imx->xferred = false;
@@ -740,10 +750,7 @@ static irqreturn_t lpi2c_imx_isr(int irq, void *dev_id)
 	temp = readl(lpi2c_imx->base + LPI2C_MSR);
 
 	if (temp & MSR_NDF) {
-		if (lpi2c_imx->using_dma) {
-			lpi2c_cleanup_dma(lpi2c_imx);
-			writel(GEN_STOP << 8, lpi2c_imx->base + LPI2C_MTDR);
-		}
+		lpi2c_imx->is_ndf = true;
 		complete(&lpi2c_imx->complete);
 		goto ret;
 	}
