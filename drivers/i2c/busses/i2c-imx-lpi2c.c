@@ -527,7 +527,7 @@ static int lpi2c_dma_submit(struct lpi2c_imx_struct *lpi2c_imx,
 	struct dma_async_tx_descriptor *txdesc;
 	dma_cookie_t cookie;
 
-	lpi2c_imx->dma_len = read ? msg->len - 1 : msg->len;
+	lpi2c_imx->dma_len = msg->len;
 	lpi2c_imx->msg = msg;
 	lpi2c_imx->dma_direction = dir;
 
