@@ -196,6 +196,9 @@
 #define IMX93_CLK_TMC_GATE		187
 #define IMX93_CLK_PMRO_GATE		188
 #define IMX93_CLK_32K			189
-#define IMX93_CLK_END			190
+#define IMX93_CLK_SAI1_IPG		190
+#define IMX93_CLK_SAI2_IPG		191
+#define IMX93_CLK_SAI3_IPG		192
+#define IMX93_CLK_END			193
 
 #endif
