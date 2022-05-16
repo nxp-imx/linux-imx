@@ -7,6 +7,8 @@
 	firmware {
 		android {
 			compatible = "android,firmware";
+			/* default emmc node used for GSI */
+			boot_devices = "bus@5b000000/5b010000.mmc";
 			vbmeta {
 				/*we need use FirstStageMountVBootV2 if we enable avb*/
 				compatible = "android,vbmeta";
