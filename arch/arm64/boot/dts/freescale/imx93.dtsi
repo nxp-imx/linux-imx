@@ -349,6 +349,11 @@
 			gpio-ranges = <&iomuxc 0 0 32>;
 		};
 
+		ocotp: efuse@47510000 {
+			compatible = "fsl,imx93-ocotp", "syscon";
+			reg = <0x47510000 0x10000>;
+		};
+
 		s4muap: s4muap@47520000 {
 			compatible = "fsl,imx93-mu-s4";
 			reg = <0x47520000 0x10000>;
