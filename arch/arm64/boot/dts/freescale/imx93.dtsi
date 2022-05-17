@@ -152,6 +152,23 @@
 				status = "okay";
 			};
 
+			bbnsm: bbnsm@44440000 {
+				compatible = "syscon", "simple-mfd";
+				reg = <0x44440000 0x10000>;
+
+				bbnsm_rtc: rtc {
+					compatible = "nxp,bbnsm-rtc";
+					regmap = <&bbnsm>;
+					interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+				};
+
+				bbnsm_pwrkey: pwrkey {
+					compatible = "nxp,bbnsm-pwrkey";
+					regmap = <&bbnsm>;
+					interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+				};
+			};
+
 			clk: clock-controller@44450000 {
 				compatible = "fsl,imx93-ccm";
 				reg = <0x44450000 0x10000>;
