@@ -126,6 +126,7 @@
 				interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&osc_24m>;
 				clock-names = "per";
+				no-divider;
 			};
 
 			lpuart1: serial@44380000 {
