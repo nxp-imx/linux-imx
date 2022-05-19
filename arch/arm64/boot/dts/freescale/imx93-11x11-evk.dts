@@ -42,6 +42,11 @@
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
 	};
+
+	usdhc3_pwrseq: usdhc3_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&pcal6524 20 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &adc1 {
@@ -285,6 +290,28 @@
 	no-mmc;
 };
 
+&usdhc3 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&pinctrl_usdhc3>, <&pinctrl_usdhc3_wlan>;
+	pinctrl-1 = <&pinctrl_usdhc3>, <&pinctrl_usdhc3_wlan>;
+	pinctrl-2 = <&pinctrl_usdhc3>, <&pinctrl_usdhc3_wlan>;
+	mmc-pwrseq = <&usdhc3_pwrseq>;
+	pinctrl-assert-gpios = <&pcal6524 13 GPIO_ACTIVE_HIGH>;
+	bus-width = <4>;
+	keep-power-in-suspend;
+	non-removable;
+	wakeup-source;
+	fsl,sdio-async-interrupt-enabled;
+	status = "okay";
+
+	wifi_wake_host {
+		compatible = "nxp,wifi-wake-host";
+		interrupt-parent = <&gpio3>;
+		interrupts = <26 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "host-wake";
+	};
+};
+
 &iomuxc {
 	pinctrl_eqos: eqosgrp {
 		fsl,pins = <
@@ -404,6 +431,23 @@
 			MX93_PAD_SD2_DATA2__USDHC2_DATA2	0x13fe
 			MX93_PAD_SD2_DATA3__USDHC2_DATA3	0x13fe
 			MX93_PAD_SD2_VSELECT__USDHC2_VSELECT	0x51e
+		>;
+	};
+
+	pinctrl_usdhc3: usdhc3grp {
+		fsl,pins = <
+			MX93_PAD_SD3_CLK__USDHC3_CLK			0x17fe
+			MX93_PAD_SD3_CMD__USDHC3_CMD			0x13fe
+			MX93_PAD_SD3_DATA0__USDHC3_DATA0		0x13fe
+			MX93_PAD_SD3_DATA1__USDHC3_DATA1        	0x13fe
+			MX93_PAD_SD3_DATA2__USDHC3_DATA2        	0x13fe
+			MX93_PAD_SD3_DATA3__USDHC3_DATA3        	0x13fe
+		>;
+	};
+
+	pinctrl_usdhc3_wlan: usdhc3wlangrp {
+		fsl,pins = <
+			MX93_PAD_CCM_CLKO1__GPIO3_IO26			0x31e
 		>;
 	};
 };
