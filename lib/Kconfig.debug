@@ -411,7 +411,6 @@ config PAHOLE_HAS_LANG_EXCLUDE
 
 config DEBUG_INFO_BTF_MODULES
 	bool "Generate BTF type information for kernel modules"
-	default y
 	depends on DEBUG_INFO_BTF && MODULES && PAHOLE_HAS_SPLIT_BTF
 	help
 	  Generate compact split BTF type information for kernel modules.
