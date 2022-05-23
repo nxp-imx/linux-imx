@@ -350,8 +350,20 @@
 		};
 
 		ocotp: efuse@47510000 {
-			compatible = "fsl,imx93-ocotp", "syscon";
+			compatible = "fsl,imx93-ocotp", "syscon", "simple-mfd";
 			reg = <0x47510000 0x10000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			imx93_uid: soc-uid@6 {
+				reg = <0xc0 0x8>;
+			};
+
+			imx93_soc: imx93-soc {
+				compatible = "fsl,imx93-soc";
+				nvmem-cells = <&imx93_uid>;
+				nvmem-cell-names = "soc_unique_id";
+			};
 		};
 
 		s4muap: s4muap@47520000 {
@@ -359,9 +371,21 @@
 			reg = <0x47520000 0x10000>;
 			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "txirq", "rxirq";
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 			status = "okay";
+		};
+
+		sentnl_mu: sentnl-mu {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "fsl,imx-ele";
+			mboxes = <&s4muap 0 0 &s4muap 1 0>;
+			mbox-names = "tx", "rx";
+			fsl,sentnl_mu_id = <2>;
+			fsl,sentnl_mu_max_users = <4>;
+			status = "okay";
+			dma-ranges = <0x80000000 0x80000000 0x20000000>;
 		};
 	};
 };
