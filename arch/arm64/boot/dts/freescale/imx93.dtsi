@@ -7,6 +7,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/power/imx93-power.h>
 
 #include "imx93-pinfunc.h"
 
@@ -177,6 +178,23 @@
 				clocks = <&osc_32k>, <&osc_24m>, <&clk_ext1>;
 				clock-names = "osc_32k", "osc_24m", "clk_ext1";
 				status = "okay";
+			};
+
+			src: src@44460000 {
+				compatible = "fsl,imx93-src", "syscon";
+				reg = <0x44460000 0x10000>;
+
+				slice {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					mediamix: power-domain@0 {
+						reg = <IMX93_POWER_DOMAIN_MEDIAMIX>;
+						#power-domain-cells = <0>;
+						clocks = <&clk IMX93_CLK_MEDIA_AXI>,
+							 <&clk IMX93_CLK_MEDIA_APB>;
+					};
+				};
 			};
 
 			anatop: anatop@44480000 {
