@@ -164,6 +164,17 @@
 		interrupt-parent = <&gpio3>;
 		interrupts = <27 IRQ_TYPE_LEVEL_LOW>;
 	};
+
+	adp5585: mfd@34 {
+		compatible = "adi,adp5585";
+		reg = <0x34>;
+
+		adp5585gpio: gpio@34 {
+			compatible = "adp5585-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+	};
 };
 
 &lpuart1 { /* console */
