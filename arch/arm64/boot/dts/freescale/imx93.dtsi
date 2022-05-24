@@ -253,6 +253,17 @@
 				status = "disabled";
 			};
 
+			tpm4: pwm@424f0000 {
+				compatible = "fsl,imx7ulp-pwm";
+				reg = <0x424f0000 0x1000>;
+				clocks = <&clk IMX93_CLK_TPM4_GATE>;
+				assigned-clocks = <&clk IMX93_CLK_TPM4>;
+				assigned-clock-parents = <&clk IMX93_CLK_24M>;
+				assigned-clock-rates = <24000000>;
+				#pwm-cells = <3>;
+				status = "disabled";
+			};
+
 			lpi2c3: i2c@42530000 {
 				compatible = "fsl,imx93-lpi2c", "fsl,imx7ulp-lpi2c";
 				reg = <0x42530000 0x10000>;
