@@ -17,6 +17,8 @@
 	#size-cells = <2>;
 
 	aliases {
+		ethernet0 = &fec;
+		ethernet1 = &eqos;
 		mmc0 = &usdhc1;
 		mmc1 = &usdhc2;
 		mmc2 = &usdhc3;
@@ -210,6 +212,11 @@
 			#size-cells = <1>;
 			ranges;
 
+			wakeupmix_gpr: blk-ctrl-wakeupmix@42420000 {
+				compatible = "syscon";
+				reg = <0x42420000 0x1000>;
+			};
+
 			mu2: mailbox@42440000 {
 				compatible = "fsl,imx93-mu", "fsl,imx8ulp-mu";
 				reg = <0x42440000 0x10000>;
@@ -305,6 +312,55 @@
 				bus-width = <4>;
 				fsl,tuning-start-tap = <20>;
 				fsl,tuning-step= <2>;
+				status = "disabled";
+			};
+
+			fec: ethernet@42890000 {
+				compatible = "fsl,imx93-fec", "fsl,imx8mp-fec", "fsl,imx8mq-fec";
+				reg = <0x42890000 0x10000>;
+				interrupts = <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 180 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 181 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 182 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_WAKEUP_AXI>,
+					 <&clk IMX93_CLK_WAKEUP_AXI>,
+					 <&clk IMX93_CLK_ENET_TIMER1>,
+					 <&clk IMX93_CLK_ENET_REF>,
+					 <&clk IMX93_CLK_ENET_REF_PHY>;
+				clock-names = "ipg", "ahb", "ptp",
+					      "enet_clk_ref", "enet_out";
+				assigned-clocks = <&clk IMX93_CLK_ENET_TIMER1>,
+						  <&clk IMX93_CLK_ENET_REF>,
+						  <&clk IMX93_CLK_ENET_REF_PHY>;
+				assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>,
+							 <&clk IMX93_CLK_SYS_PLL_PFD0_DIV2>,
+							 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
+				assigned-clock-rates = <100000000>, <250000000>, <50000000>;
+				fsl,num-tx-queues = <3>;
+				fsl,num-rx-queues = <3>;
+				fsl,wakeup_irq = <2>;
+				status = "disabled";
+			};
+
+			eqos: ethernet@428a0000 {
+				compatible = "nxp,imx93-dwmac-eqos", "snps,dwmac-5.10a";
+				reg = <0x428a0000 0x10000>;
+				interrupts = <GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "eth_wake_irq", "macirq";
+				clocks = <&clk IMX93_CLK_WAKEUP_AXI>,
+					 <&clk IMX93_CLK_WAKEUP_AXI>,
+					 <&clk IMX93_CLK_ENET_TIMER2>,
+					 <&clk IMX93_CLK_ENET>,
+					 <&clk IMX93_CLK_WAKEUP_AXI>;
+				clock-names = "stmmaceth", "pclk", "ptp_ref", "tx", "mem";
+				assigned-clocks = <&clk IMX93_CLK_ENET_TIMER2>,
+						  <&clk IMX93_CLK_ENET>;
+				assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>,
+							 <&clk IMX93_CLK_SYS_PLL_PFD0_DIV2>;
+				assigned-clock-rates = <100000000>, <250000000>;
+				intf_mode = <&wakeupmix_gpr 0x28>;
+				clk_csr = <0>;
 				status = "disabled";
 			};
 
