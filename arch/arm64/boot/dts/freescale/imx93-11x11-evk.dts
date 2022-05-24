@@ -16,6 +16,15 @@
 		stdout-path = &lpuart1;
 	};
 
+	reg_can2_stby: regulator-can2-stby {
+		compatible = "regulator-fixed";
+		regulator-name = "can2-stby";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&adp5585gpio 5 GPIO_ACTIVE_LOW>;
+		enable-active-low;
+	};
+
 	reg_usdhc2_vmmc: regulator-usdhc2 {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
@@ -84,6 +93,13 @@
 			rtl821x,clkout-disable;
 		};
 	};
+};
+
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2>;
+	xceiver-supply = <&reg_can2_stby>;
+	status = "okay";
 };
 
 &lpi2c1 {
@@ -298,6 +314,13 @@
 			MX93_PAD_ENET2_TD3__ENET1_RGMII_TD3		0x57e
 			MX93_PAD_ENET2_TXC__ENET1_RGMII_TXC		0x5fe
 			MX93_PAD_ENET2_TX_CTL__ENET1_RGMII_TX_CTL	0x57e
+		>;
+	};
+
+	pinctrl_flexcan2: flexcan2grp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO25__CAN2_TX	0x139e
+			MX93_PAD_GPIO_IO27__CAN2_RX	0x139e
 		>;
 	};
 
