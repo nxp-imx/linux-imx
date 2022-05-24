@@ -580,6 +580,12 @@
 			#power-domain-cells = <1>;
 		};
 
+		ddr-pmu@4e300dc0 {
+			compatible = "fsl,imx93-ddr-pmu";
+			reg = <0x4e300dc0 0x200>;
+			interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
 		usbphynop1: usbphynop1 {
 			compatible = "usb-nop-xceiv";
 			clocks = <&clk IMX93_CLK_USB_PHY_BURUNIN>;
