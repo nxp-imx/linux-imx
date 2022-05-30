@@ -283,6 +283,17 @@
 			#gpio-cells = <2>;
 		};
 	};
+
+	ap1302: ap1302_mipi@3c {
+		compatible = "onsemi,ap1302";
+		reg = <0x3c>;
+		reset-gpios   = <&adp5585gpio 0 GPIO_ACTIVE_LOW>;
+		isp_en-gpios  = <&adp5585gpio_isp 2 GPIO_ACTIVE_HIGH>;
+		DVDD-supply   = <&reg_dvdd_1v2>;
+		VDDIO-supply  = <&reg_vddio_1v8>;
+		AVDD-supply   = <&reg_avdd_2v8>;
+		status = "okay";
+	};
 };
 
 &lpi2c2 {
