@@ -42,6 +42,7 @@
 		serial5 = &lpuart6;
 		serial6 = &lpuart7;
 		serial7 = &lpuart8;
+		isi0 = &isi_0;
 	};
 
 	cpus {
@@ -878,6 +879,30 @@
 				#size-cells = <1>;
 				ranges;
 				status = "disabled";
+
+				isi_0: isi@4ae40000{
+					compatible = "fsl,imx93-isi", "fsl,imx8-isi";
+					reg = <0x4ae40000 0x10000>;
+					interrupts = <GIC_SPI 172 IRQ_TYPE_LEVEL_HIGH>;
+					clocks = <&clk IMX93_CLK_ISI_GATE>,
+						 <&clk IMX93_CLK_MEDIA_AXI>;
+					clock-names = "per", "axi";
+					assigned-clocks = <&clk IMX93_CLK_MEDIA_AXI>,
+							  <&clk IMX93_CLK_MEDIA_APB>;
+					assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1>,
+								 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
+					assigned-clock-rates = <400000000>, <133333333>;
+					interface = <2 0 2>;
+					no-reset-control;
+					power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_ISI>;
+					gasket = <&media_blk_ctrl>;
+					status = "disabled";
+
+					cap_device {
+						compatible = "imx-isi-capture";
+						status = "disabled";
+					};
+				};
 			};
 		};
 
