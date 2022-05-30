@@ -64,6 +64,14 @@ config IMX8_MIPI_CSI2_SAM
 	  Enable support for video4linux MIPI CSI2 Samsung driver for
 	  i.MX8MN platform.
 
+config DWC_MIPI_CSI2_HOST
+       tristate "IMX93 MIPI CSI2 DWC Controller"
+       depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+       default y
+       help
+         Enable support for video4linux MIPI CSI2 DWC driver for
+         i.MX93 platform.
+
 config IMX8_ISI_HW
 	tristate "IMX8 Image Sensor Interface hardware driver"
 	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
