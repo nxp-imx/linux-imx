@@ -127,6 +127,12 @@
 		VDDIO-supply  = <&reg_vddio_1v8>;
 		AVDD-supply   = <&reg_avdd_2v8>;
 		status = "okay";
+
+		port {
+			ar1302_mipi_ep: endpoint {
+				remote-endpoint = <&mipi_csi_ep>;
+			};
+		};
 	};
 };
 

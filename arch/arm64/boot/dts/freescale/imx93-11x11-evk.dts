@@ -293,6 +293,12 @@
 		VDDIO-supply  = <&reg_vddio_1v8>;
 		AVDD-supply   = <&reg_avdd_2v8>;
 		status = "okay";
+
+		port {
+			ar1302_mipi_ep: endpoint {
+				remote-endpoint = <&mipi_csi_ep>;
+			};
+		};
 	};
 };
 
@@ -670,4 +676,33 @@
 
 &epxp {
 	status = "okay";
+};
+
+&cameradev {
+	status = "okay";
+};
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&mipi_csi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@0 {
+		reg = <0>;
+		mipi_csi_ep: endpoint {
+			remote-endpoint = <&ar1302_mipi_ep>;
+			data-lanes = <2>;
+			cfg-clk-range = <28>;
+			hs-clk-range = <0x2b>;
+			bus-type = <4>;
+		};
+	};
 };
