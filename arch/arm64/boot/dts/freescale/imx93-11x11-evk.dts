@@ -215,6 +215,18 @@
 			self-powered;
 		};
 	};
+
+	adp5585_isp: mfd-isp@34 {
+		compatible = "adi,adp5585";
+		reg = <0x34>;
+		status = "okay";
+
+		adp5585gpio_isp: gpio-isp@34 {
+			compatible = "adp5585-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
+	};
 };
 
 &lpi2c2 {
