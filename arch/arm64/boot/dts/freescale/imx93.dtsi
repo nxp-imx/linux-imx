@@ -871,6 +871,14 @@
 				power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_PXP>;
 				status = "disabled";
 			};
+
+			cameradev: camera {
+				compatible = "fsl,mxc-md", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges;
+				status = "disabled";
+			};
 		};
 
 		gpio2: gpio@43810080 {
