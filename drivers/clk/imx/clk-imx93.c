@@ -15,6 +15,10 @@
 
 #include "clk.h"
 
+static u32 share_count_sai1;
+static u32 share_count_sai2;
+static u32 share_count_sai3;
+
 enum clk_sel {
 	LOW_SPEED_IO_SEL,
 	NON_IO_SEL,
@@ -210,9 +214,6 @@ static const struct imx93_clk_ccgr {
 	{ IMX93_CLK_USDHC1_GATE,	"usdhc1",	"usdhc1_root",		0x9380, },
 	{ IMX93_CLK_USDHC2_GATE,	"usdhc2",	"usdhc2_root",		0x93c0, },
 	{ IMX93_CLK_USDHC3_GATE,	"usdhc3",	"usdhc3_root",		0x9400, },
-	{ IMX93_CLK_SAI1_GATE,		"sai1",		"sai1_root",		0x9440, },
-	{ IMX93_CLK_SAI2_GATE,		"sai2",		"sai2_root",		0x9480, },
-	{ IMX93_CLK_SAI3_GATE,		"sai3",		"sai3_root",		0x94c0, },
 	{ IMX93_CLK_MIPI_CSI_GATE,	"mipi_csi",	"media_apb_root",	0x9580, },
 	{ IMX93_CLK_MIPI_DSI_GATE,	"mipi_dsi",	"media_apb_root",	0x95c0, },
 	{ IMX93_CLK_LVDS_GATE,		"lvds",		"media_ldb_root",	0x9600, },
@@ -304,6 +305,13 @@ static int imx93_clocks_probe(struct platform_device *pdev)
 							 base + ccgr->off, 0,
 							 ccgr->flags);
 	}
+
+	clks[IMX93_CLK_SAI1_GATE] = imx_clk_hw_gate2_shared2("sai1_mclk", "sai1_root", base + 0x9440, 0, &share_count_sai1);
+	clks[IMX93_CLK_SAI1_IPG] = imx_clk_hw_gate2_shared2("sai1_ipg_clk", "bus_aon_root", base + 0x9440, 0, &share_count_sai1);
+	clks[IMX93_CLK_SAI2_GATE] = imx_clk_hw_gate2_shared2("sai2_mclk", "sai2_root", base + 0x9480, 0, &share_count_sai2);
+	clks[IMX93_CLK_SAI2_IPG] = imx_clk_hw_gate2_shared2("sai2_ipg_clk", "bus_wakeup_root", base + 0x9480, 0, &share_count_sai2);
+	clks[IMX93_CLK_SAI3_GATE] = imx_clk_hw_gate2_shared2("sai3_mclk", "sai3_root", base + 0x94c0, 0, &share_count_sai3);
+	clks[IMX93_CLK_SAI3_IPG] = imx_clk_hw_gate2_shared2("sai3_ipg_clk", "bus_wakeup_root", base + 0x94c0, 0, &share_count_sai3);
 
 	imx_check_clk_hws(clks, IMX93_CLK_END);
 
