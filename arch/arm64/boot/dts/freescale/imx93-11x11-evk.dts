@@ -189,6 +189,17 @@
 			sound-dai = <&bt_sco_codec 1>;
 		};
 	};
+
+	sound-xcvr {
+		compatible = "fsl,imx-audio-card";
+		model = "imx-audio-xcvr";
+		pri-dai-link {
+			link-name = "XCVR PCM";
+			cpu {
+				sound-dai = <&xcvr>;
+			};
+		};
+	};
 };
 
 &sai1 {
@@ -218,6 +229,24 @@
 	assigned-clocks = <&clk IMX93_CLK_PDM>;
 	assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
 	assigned-clock-rates = <196608000>;
+	status = "okay";
+};
+
+&xcvr {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif>;
+	clocks = <&clk IMX93_CLK_BUS_WAKEUP>,
+		<&clk IMX93_CLK_SPDIF_GATE>,
+		<&clk IMX93_CLK_DUMMY>,
+		<&clk IMX93_CLK_AUD_XCVR_GATE>,
+		<&clk IMX93_CLK_AUDIO_PLL>;
+	clock-names = "ipg", "phy", "spba", "pll_ipg", "pll8k";
+	assigned-clocks = <&clk IMX93_CLK_SPDIF>,
+			 <&clk IMX93_CLK_AUDIO_XCVR>;
+	assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>,
+			 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
+	assigned-clock-rates = <12288000>, <200000000>;
 	status = "okay";
 };
 
@@ -824,6 +853,13 @@
 			MX93_PAD_PDM_CLK__PDM_CLK			0x31e
 			MX93_PAD_PDM_BIT_STREAM0__PDM_BIT_STREAM00	0x31e
 			MX93_PAD_PDM_BIT_STREAM1__PDM_BIT_STREAM01	0x31e
+		>;
+	};
+
+	pinctrl_spdif: spdifgrp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO22__SPDIF_IN		0x31e
+			MX93_PAD_GPIO_IO23__SPDIF_OUT		0x31e
 		>;
 	};
 };
