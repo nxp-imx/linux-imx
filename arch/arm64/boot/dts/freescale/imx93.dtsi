@@ -129,6 +129,11 @@
 			#size-cells = <1>;
 			ranges;
 
+			anomix_ns_gpr: blk-ctrl-anomix@44210000 {
+				compatible = "syscon";
+				reg = <0x44210000 0x1000>;
+			};
+
 			mu1: mailbox@44230000 {
 				compatible = "fsl,imx93-mu", "fsl,imx8ulp-mu";
 				reg = <0x44230000 0x10000>;
@@ -309,6 +314,25 @@
 				status = "disabled";
 			};
 
+			sai1: sai@443b0000 {
+				compatible = "fsl,imx93-sai";
+				reg = <0x443b0000 0x10000>;
+				interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_SAI1_IPG>, <&clk IMX93_CLK_DUMMY>,
+					 <&clk IMX93_CLK_SAI1_GATE>, <&clk IMX93_CLK_DUMMY>,
+					 <&clk IMX93_CLK_DUMMY>;
+				clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3";
+				dmas = <&edma1 22 0 1>, <&edma1 21 0 0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+
+			mqs1: mqs1 {
+				compatible = "fsl,imx93-mqs";
+				gpr = <&anomix_ns_gpr>;
+				status = "disabled";
+			};
+
 			iomuxc: pinctrl@443c0000 {
 				compatible = "fsl,imx93-iomuxc";
 				reg = <0x443c0000 0x10000>;
@@ -338,6 +362,8 @@
 				#clock-cells = <1>;
 				clocks = <&osc_32k>, <&osc_24m>, <&clk_ext1>;
 				clock-names = "osc_32k", "osc_24m", "clk_ext1";
+				assigned-clocks = <&clk IMX93_CLK_AUDIO_PLL>;
+				assigned-clock-rates = <393216000>;
 				status = "okay";
 			};
 
@@ -361,6 +387,24 @@
 			anatop: anatop@44480000 {
 				compatible = "fsl,imx93-anatop", "syscon";
 				reg = <0x44480000 0x10000>;
+			};
+
+			micfil: micfil@44520000 {
+				compatible = "fsl,imx93-micfil";
+				reg = <0x44520000 0x10000>;
+				interrupts = <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_BUS_AON>,
+					 <&clk IMX93_CLK_PDM_GATE>,
+					 <&clk IMX93_CLK_AUDIO_PLL>,
+					 <&clk IMX93_CLK_DUMMY>;
+				clock-names = "ipg_clk", "ipg_clk_app",
+					     "pll8k", "clkext3";
+				dmas = <&edma1 29 0 5>;
+				dma-names = "rx";
+				status = "disabled";
 			};
 
 			adc1: adc@44530000 {
@@ -653,6 +697,60 @@
 				assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
 				assigned-clock-rates = <40000000>;
 				fsl,clk-source = /bits/ 8 <0>;
+				status = "disabled";
+			};
+
+			sai2: sai@42650000 {
+				compatible = "fsl,imx93-sai";
+				reg = <0x42650000 0x10000>;
+				interrupts = <GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_SAI2_IPG>, <&clk IMX93_CLK_DUMMY>,
+					 <&clk IMX93_CLK_SAI2_GATE>,
+					 <&clk IMX93_CLK_DUMMY>, <&clk IMX93_CLK_DUMMY>;
+				clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3";
+				dmas = <&edma2 59 0 1>, <&edma2 58 0 0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+
+			sai3: sai@42660000 {
+				compatible = "fsl,imx93-sai";
+				reg = <0x42660000 0x10000>;
+				interrupts = <GIC_SPI 171 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_SAI3_IPG>, <&clk IMX93_CLK_DUMMY>,
+					 <&clk IMX93_CLK_SAI3_GATE>,
+					 <&clk IMX93_CLK_DUMMY>, <&clk IMX93_CLK_DUMMY>;
+				clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3";
+				dmas = <&edma2 61 0 1>, <&edma2 60 0 0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+
+			mqs2: mqs2 {
+				compatible = "fsl,imx93-mqs";
+				gpr = <&wakeupmix_gpr>;
+				status = "disabled";
+			};
+
+			xcvr: xcvr@42680000 {
+				compatible = "fsl,imx93-xcvr";
+				reg = <0x42680000 0x800>,
+					  <0x42680800 0x400>,
+					  <0x42680c00 0x080>,
+					  <0x42680e00 0x080>;
+				reg-names = "ram", "regs", "rxfifo",
+						    "txfifo";
+				interrupts = /* XCVR IRQ 0 */
+					     <GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>,
+						 /* XCVR IRQ 1 */
+					     <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_BUS_WAKEUP>,
+					 <&clk IMX93_CLK_SPDIF_GATE>,
+					 <&clk IMX93_CLK_DUMMY>,
+					 <&clk IMX93_CLK_AUD_XCVR_GATE>;
+				clock-names = "ipg", "phy", "spba", "pll_ipg";
+				dmas = <&edma2 65 0 1>, <&edma2 66 0 0>;
+				dma-names = "rx", "tx";
 				status = "disabled";
 			};
 
