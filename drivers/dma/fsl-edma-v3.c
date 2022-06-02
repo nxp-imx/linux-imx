@@ -570,8 +570,8 @@ void fsl_edma3_fill_tcd(struct fsl_edma3_chan *fsl_chan,
 	tcd->soff = cpu_to_le16(EDMA_TCD_SOFF_SOFF(soff));
 
 	if (fsl_chan->is_dfifo) {
-		/* set mloff as -8 */
-		nbytes |= EDMA_TCD_NBYTES_MLOFF(-8);
+		/* set mloff to support dual fifo and multiple fifo */
+		nbytes |= EDMA_TCD_NBYTES_MLOFF(-(fsl_chan->fsc.burst * 4));
 		/* enable DMLOE/SMLOE */
 		if (fsl_chan->fsc.dir == DMA_MEM_TO_DEV) {
 			nbytes |= EDMA_TCD_NBYTES_DMLOE;
