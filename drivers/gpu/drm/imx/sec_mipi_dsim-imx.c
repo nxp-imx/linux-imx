@@ -48,9 +48,12 @@ struct imx_sec_dsim_device {
 	struct clk *clk_pllref;
 	struct drm_encoder encoder;
 
-	struct reset_control *soft_resetn;
-	struct reset_control *clk_enable;
-	struct reset_control *mipi_reset;
+	struct reset_control *clkref_reset;
+	struct reset_control *pclk_reset;
+	struct reset_control *i_preset;
+	struct reset_control *clkref_en;
+	struct reset_control *pclk_en;
+	struct reset_control *m_reset;
 
 	atomic_t rpm_suspended;
 
@@ -132,9 +135,9 @@ imx_sec_dsim_encoder_atomic_enable(struct drm_encoder *encoder,
 
 	pm_runtime_get_sync(dsim_dev->dev);
 
-	ret = sec_dsim_rstc_reset(dsim_dev->mipi_reset, false);
+	ret = sec_dsim_rstc_reset(dsim_dev->m_reset, false);
 	if (ret)
-		dev_err(dsim_dev->dev, "deassert mipi_reset failed\n");
+		dev_err(dsim_dev->dev, "deassert m_reset failed\n");
 
 	dsim_dev->enabled = true;
 }
@@ -162,9 +165,9 @@ disable:
 	if (!dsim_dev->enabled)
 		return;
 
-	ret = sec_dsim_rstc_reset(dsim_dev->mipi_reset, true);
+	ret = sec_dsim_rstc_reset(dsim_dev->m_reset, true);
 	if (ret)
-		dev_err(dsim_dev->dev, "deassert mipi_reset failed\n");
+		dev_err(dsim_dev->dev, "deassert m_reset failed\n");
 
 	pm_runtime_put_sync(dsim_dev->dev);
 
@@ -282,71 +285,58 @@ MODULE_DEVICE_TABLE(of, imx_sec_dsim_dt_ids);
 
 static int sec_dsim_of_parse_resets(struct imx_sec_dsim_device *dsim)
 {
-	int ret;
 	struct device *dev = dsim->dev;
-	struct device_node *np = dev->of_node;
-	struct device_node *parent, *child;
-	struct of_phandle_args args;
-	struct reset_control *rstc;
-	const char *compat;
-	uint32_t len, rstc_num = 0;
+	int ret;
 
-	/* TODO: bypass resets for imx8mp platform */
-	compat = of_get_property(np, "compatible", NULL);
-	if (unlikely(!compat))
-		return -ENODEV;
-
-	len = strlen(compat);
-	if (!of_compat_cmp(compat, "fsl,imx8mp-mipi-dsim", len))
-		return 0;
-
-	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
-					 0, &args);
-	if (ret)
+	dsim->clkref_reset = devm_reset_control_get_optional_exclusive(dev, "clkref_reset");
+	if (IS_ERR(dsim->clkref_reset)) {
+		ret = PTR_ERR(dsim->clkref_reset);
+		dev_err(dev,
+			"failed to get clkref_reset reset control: %d\n", ret);
 		return ret;
-
-	parent = args.np;
-	for_each_child_of_node(parent, child) {
-		compat = of_get_property(child, "compatible", NULL);
-		if (!compat)
-			continue;
-
-		rstc = of_reset_control_array_get(child, false, false, true);
-		if (IS_ERR(rstc))
-			continue;
-
-		len = strlen(compat);
-		if (!of_compat_cmp("dsi,soft-resetn", compat, len)) {
-			dsim->soft_resetn = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("dsi,clk-enable", compat, len)) {
-			dsim->clk_enable = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("dsi,mipi-reset", compat, len)) {
-			dsim->mipi_reset = rstc;
-			rstc_num++;
-		} else
-			dev_warn(dev, "invalid dsim reset node: %s\n", compat);
 	}
 
-	if (!rstc_num) {
-		dev_err(dev, "no invalid reset control exists\n");
-		return -EINVAL;
+	dsim->pclk_reset = devm_reset_control_get_optional_exclusive(dev, "pclk_reset");
+	if (IS_ERR(dsim->pclk_reset)) {
+		ret = PTR_ERR(dsim->pclk_reset);
+		dev_err(dev,
+			"failed to get pclk_reset reset control: %d\n", ret);
+		return ret;
+	}
+
+	dsim->i_preset = devm_reset_control_get_optional_exclusive(dev, "i_preset");
+	if (IS_ERR(dsim->i_preset)) {
+		ret = PTR_ERR(dsim->i_preset);
+		dev_err(dev,
+			"failed to get i_preset reset control: %d\n", ret);
+		return ret;
+	}
+
+	dsim->clkref_en = devm_reset_control_get_optional_exclusive(dev, "clkref_en");
+	if (IS_ERR(dsim->clkref_en)) {
+		ret = PTR_ERR(dsim->clkref_en);
+		dev_err(dev,
+			"failed to get clkref_en reset control: %d\n", ret);
+		return ret;
+	}
+
+	dsim->pclk_en = devm_reset_control_get_optional_exclusive(dev, "pclk_en");
+	if (IS_ERR(dsim->pclk_en)) {
+		ret = PTR_ERR(dsim->pclk_en);
+		dev_err(dev,
+			"failed to get pclk_en reset control: %d\n", ret);
+		return ret;
+	}
+
+	dsim->m_reset = devm_reset_control_get_optional_exclusive(dev, "m_reset");
+	if (IS_ERR(dsim->m_reset)) {
+		ret = PTR_ERR(dsim->m_reset);
+		dev_err(dev,
+			"failed to get m_reset reset control: %d\n", ret);
+		return ret;
 	}
 
 	return 0;
-}
-
-static void sec_dsim_of_put_resets(struct imx_sec_dsim_device *dsim)
-{
-	if (dsim->soft_resetn)
-		reset_control_put(dsim->soft_resetn);
-
-	if (dsim->clk_enable)
-		reset_control_put(dsim->clk_enable);
-
-	if (dsim->mipi_reset)
-		reset_control_put(dsim->mipi_reset);
 }
 
 static int imx_sec_dsim_bind(struct device *dev, struct device *master,
@@ -463,7 +453,6 @@ static int imx_sec_dsim_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &imx_sec_dsim_ops);
 	pm_runtime_disable(&pdev->dev);
-	sec_dsim_of_put_resets(dsim_dev);
 
 	return 0;
 }
@@ -527,21 +516,39 @@ static int imx_sec_dsim_runtime_resume(struct device *dev)
 	if (WARN_ON(unlikely(ret)))
 		return ret;
 
-	ret = sec_dsim_rstc_reset(dsim_dev->soft_resetn, false);
+	ret = sec_dsim_rstc_reset(dsim_dev->i_preset, false);
 	if (ret) {
-		dev_err(dev, "deassert soft_resetn failed\n");
+		dev_err(dev, "deassert i_preset failed\n");
 		return ret;
 	}
 
-	ret = sec_dsim_rstc_reset(dsim_dev->clk_enable, true);
+	ret = sec_dsim_rstc_reset(dsim_dev->clkref_reset, false);
 	if (ret) {
-		dev_err(dev, "assert clk_enable failed\n");
+		dev_err(dev, "deassert clkref_reset failed\n");
 		return ret;
 	}
 
-	ret = sec_dsim_rstc_reset(dsim_dev->mipi_reset, false);
+	ret = sec_dsim_rstc_reset(dsim_dev->pclk_reset, false);
 	if (ret) {
-		dev_err(dev, "deassert mipi_reset failed\n");
+		dev_err(dev, "deassert pclk_reset failed\n");
+		return ret;
+	}
+
+	ret = sec_dsim_rstc_reset(dsim_dev->clkref_en, true);
+	if (ret) {
+		dev_err(dev, "assert clkref_en failed\n");
+		return ret;
+	}
+
+	ret = sec_dsim_rstc_reset(dsim_dev->pclk_en, true);
+	if (ret) {
+		dev_err(dev, "assert pclk_en failed\n");
+		return ret;
+	}
+
+	ret = sec_dsim_rstc_reset(dsim_dev->m_reset, false);
+	if (ret) {
+		dev_err(dev, "deassert m_reset failed\n");
 		return ret;
 	}
 

@@ -435,8 +435,8 @@ struct csi_state {
 	struct regmap *gasket;
 	struct regmap *mix_gpr;
 
-	struct reset_control *soft_resetn;
-	struct reset_control *clk_enable;
+	struct reset_control *csi_pclk_en;
+	struct reset_control *csi_aclk_en;
 	struct reset_control *mipi_reset;
 	struct reset_control *csi_rst_pclk;
 	struct reset_control *csi_rst_aclk;
@@ -1546,68 +1546,81 @@ static int mipi_csis_subdev_init(struct v4l2_subdev *mipi_sd,
  */
 static int mipi_csis_imx8mn_parse_resets(struct csi_state *state)
 {
-	int ret;
 	struct device *dev = state->dev;
-	struct device_node *np = dev->of_node;
-	struct device_node *parent, *child;
-	struct of_phandle_args args;
 	struct reset_control *rstc;
-	const char *compat;
-	uint32_t len, rstc_num = 0;
+	int ret;
 
-	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
-					 0, &args);
-	if (ret)
+	rstc = devm_reset_control_get_optional_exclusive(dev, "pclk_reset");
+	if (IS_ERR(rstc)) {
+		ret = PTR_ERR(rstc);
+		dev_err(dev, "failed to get csi proc clk reset control: %d\n", ret);
 		return ret;
-
-	parent = args.np;
-	for_each_child_of_node(parent, child) {
-		compat = of_get_property(child, "compatible", NULL);
-		if (!compat)
-			continue;
-
-		rstc = of_reset_control_array_get(child, false, false, true);
-		if (IS_ERR(rstc))
-			continue;
-
-		len = strlen(compat);
-		if (!of_compat_cmp("csi,soft-resetn", compat, len)) {
-			state->soft_resetn = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("csi,clk-enable", compat, len)) {
-			state->clk_enable = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("csi,mipi-reset", compat, len)) {
-			state->mipi_reset = rstc;
-			rstc_num++;
-		} else {
-			dev_warn(dev, "invalid csis reset node: %s\n", compat);
-		}
 	}
+	state->csi_rst_pclk= rstc;
 
-	if (!rstc_num) {
-		dev_err(dev, "no invalid reset control exists\n");
-		return -EINVAL;
+	rstc = devm_reset_control_get_optional_exclusive(dev, "aclk_reset");
+	if (IS_ERR(rstc)) {
+		ret = PTR_ERR(rstc);
+		dev_err(dev, "failed to get csi ack clk reset control: %d\n", ret);
+		return ret;
 	}
-	of_node_put(parent);
+	state->csi_rst_aclk = rstc;
+
+	rstc = devm_reset_control_get_optional_exclusive(dev, "s_reset");
+	if (IS_ERR(rstc)) {
+		ret = PTR_ERR(rstc);
+		dev_err(dev, "failed to get csi slave reset control: %d\n", ret);
+		return ret;
+	}
+	state->mipi_reset = rstc;
 
 	return 0;
 }
 
 static int mipi_csis_imx8mn_resets_assert(struct csi_state *state)
 {
-	if (!state->soft_resetn)
+	struct device *dev = state->dev;
+	int ret;
+
+	if (!state->csi_rst_pclk|| !state->csi_rst_aclk)
 		return -EINVAL;
 
-	return reset_control_assert(state->soft_resetn);
+	ret = reset_control_assert(state->csi_rst_pclk);
+	if (ret) {
+		dev_err(dev, "assert csi proc reset failed\n");
+		return ret;
+	}
+
+	ret = reset_control_assert(state->csi_rst_aclk);
+	if (ret) {
+		dev_err(dev, "assert csi apb reset failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int mipi_csis_imx8mn_resets_deassert(struct csi_state *state)
 {
-	if (!state->soft_resetn)
+	struct device *dev = state->dev;
+	int ret;
+
+	if (!state->csi_rst_pclk|| !state->csi_rst_aclk)
 		return -EINVAL;
 
-	return reset_control_deassert(state->soft_resetn);
+	ret = reset_control_deassert(state->csi_rst_pclk);
+	if (ret) {
+		dev_err(dev, "deassert csi proc reset failed\n");
+		return ret;
+	}
+
+	ret = reset_control_deassert(state->csi_rst_aclk);
+	if (ret) {
+		dev_err(dev, "deassert csi apb reset failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static struct mipi_csis_rst_ops imx8mn_rst_ops = {
@@ -1618,26 +1631,73 @@ static struct mipi_csis_rst_ops imx8mn_rst_ops = {
 
 static int mipi_csis_imx8mn_gclk_get(struct csi_state *state)
 {
-	if (state->clk_enable)
-		return 0;
+	struct device *dev = state->dev;
+	struct reset_control *clk_rst;
+	int ret;
 
-	return mipi_csis_imx8mn_parse_resets(state);
+	clk_rst = devm_reset_control_get_optional_exclusive(dev, "pclk_en");
+	if (IS_ERR(clk_rst)) {
+		ret = PTR_ERR(clk_rst);
+		dev_err(dev, "failed to get csi proc clk enable control: %d\n", ret);
+		return ret;
+	}
+	state->csi_pclk_en = clk_rst;
+
+	clk_rst = devm_reset_control_get_optional_exclusive(dev, "aclk_en");
+	if (IS_ERR(clk_rst)) {
+		ret = PTR_ERR(clk_rst);
+		dev_err(dev, "failed to get csi ack clk enable control: %d\n", ret);
+		return ret;
+	}
+	state->csi_aclk_en = clk_rst;
+
+	return 0;
 }
 
 static int mipi_csis_imx8mn_gclk_enable(struct csi_state *state)
 {
-	if (!state->clk_enable)
+	struct device *dev = state->dev;
+	int ret;
+
+	if (!state->csi_pclk_en|| !state->csi_aclk_en)
 		return -EINVAL;
 
-	return reset_control_assert(state->clk_enable);
+	ret = reset_control_assert(state->csi_pclk_en);
+	if (ret) {
+		dev_err(dev, "assert csi proc clock failed\n");
+		return ret;
+	}
+
+	ret = reset_control_assert(state->csi_aclk_en);
+	if (ret) {
+		dev_err(dev, "assert csi ack clock failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int mipi_csis_imx8mn_gclk_disable(struct csi_state *state)
 {
-	if (!state->clk_enable)
+	struct device *dev = state->dev;
+	int ret;
+
+	if (!state->csi_pclk_en|| !state->csi_aclk_en)
 		return -EINVAL;
 
-	return reset_control_deassert(state->clk_enable);
+	ret = reset_control_deassert(state->csi_pclk_en);
+	if (ret) {
+		dev_err(dev, "deassert csi proc clock failed\n");
+		return ret;
+	}
+
+	ret = reset_control_deassert(state->csi_aclk_en);
+	if (ret) {
+		dev_err(dev, "deassert csi ack clock failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static struct mipi_csis_gate_clk_ops imx8mn_gclk_ops = {

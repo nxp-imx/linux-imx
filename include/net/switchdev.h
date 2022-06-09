@@ -81,6 +81,13 @@ struct switchdev_obj_port_vlan {
 	struct switchdev_obj obj;
 	u16 flags;
 	u16 vid;
+	/* If set, the notifier signifies a change of one of the following
+	 * flags for a VLAN that already exists:
+	 * - BRIDGE_VLAN_INFO_PVID
+	 * - BRIDGE_VLAN_INFO_UNTAGGED
+	 * Entries with BRIDGE_VLAN_INFO_BRENTRY unset are not notified at all.
+	 */
+	bool changed;
 };
 
 #define SWITCHDEV_OBJ_PORT_VLAN(OBJ) \
@@ -299,29 +306,14 @@ void switchdev_port_fwd_mark_set(struct net_device *dev,
 				 struct net_device *group_dev,
 				 bool joining);
 
-int switchdev_handle_fdb_add_to_device(struct net_device *dev,
+int switchdev_handle_fdb_event_to_device(struct net_device *dev, unsigned long event,
 		const struct switchdev_notifier_fdb_info *fdb_info,
 		bool (*check_cb)(const struct net_device *dev),
 		bool (*foreign_dev_check_cb)(const struct net_device *dev,
 					     const struct net_device *foreign_dev),
-		int (*add_cb)(struct net_device *dev,
-			      const struct net_device *orig_dev, const void *ctx,
-			      const struct switchdev_notifier_fdb_info *fdb_info),
-		int (*lag_add_cb)(struct net_device *dev,
-				  const struct net_device *orig_dev, const void *ctx,
-				  const struct switchdev_notifier_fdb_info *fdb_info));
-
-int switchdev_handle_fdb_del_to_device(struct net_device *dev,
-		const struct switchdev_notifier_fdb_info *fdb_info,
-		bool (*check_cb)(const struct net_device *dev),
-		bool (*foreign_dev_check_cb)(const struct net_device *dev,
-					     const struct net_device *foreign_dev),
-		int (*del_cb)(struct net_device *dev,
-			      const struct net_device *orig_dev, const void *ctx,
-			      const struct switchdev_notifier_fdb_info *fdb_info),
-		int (*lag_del_cb)(struct net_device *dev,
-				  const struct net_device *orig_dev, const void *ctx,
-				  const struct switchdev_notifier_fdb_info *fdb_info));
+		int (*mod_cb)(struct net_device *dev, struct net_device *orig_dev,
+			      unsigned long event, const void *ctx,
+			      const struct switchdev_notifier_fdb_info *fdb_info));
 
 int switchdev_handle_port_obj_add(struct net_device *dev,
 			struct switchdev_notifier_port_obj_info *port_obj_info,
@@ -329,9 +321,24 @@ int switchdev_handle_port_obj_add(struct net_device *dev,
 			int (*add_cb)(struct net_device *dev, const void *ctx,
 				      const struct switchdev_obj *obj,
 				      struct netlink_ext_ack *extack));
+int switchdev_handle_port_obj_add_foreign(struct net_device *dev,
+			struct switchdev_notifier_port_obj_info *port_obj_info,
+			bool (*check_cb)(const struct net_device *dev),
+			bool (*foreign_dev_check_cb)(const struct net_device *dev,
+						     const struct net_device *foreign_dev),
+			int (*add_cb)(struct net_device *dev, const void *ctx,
+				      const struct switchdev_obj *obj,
+				      struct netlink_ext_ack *extack));
 int switchdev_handle_port_obj_del(struct net_device *dev,
 			struct switchdev_notifier_port_obj_info *port_obj_info,
 			bool (*check_cb)(const struct net_device *dev),
+			int (*del_cb)(struct net_device *dev, const void *ctx,
+				      const struct switchdev_obj *obj));
+int switchdev_handle_port_obj_del_foreign(struct net_device *dev,
+			struct switchdev_notifier_port_obj_info *port_obj_info,
+			bool (*check_cb)(const struct net_device *dev),
+			bool (*foreign_dev_check_cb)(const struct net_device *dev,
+						     const struct net_device *foreign_dev),
 			int (*del_cb)(struct net_device *dev, const void *ctx,
 				      const struct switchdev_obj *obj));
 
@@ -426,33 +433,14 @@ call_switchdev_blocking_notifiers(unsigned long val,
 }
 
 static inline int
-switchdev_handle_fdb_add_to_device(struct net_device *dev,
+switchdev_handle_fdb_event_to_device(struct net_device *dev, unsigned long event,
 		const struct switchdev_notifier_fdb_info *fdb_info,
 		bool (*check_cb)(const struct net_device *dev),
 		bool (*foreign_dev_check_cb)(const struct net_device *dev,
 					     const struct net_device *foreign_dev),
-		int (*add_cb)(struct net_device *dev,
-			      const struct net_device *orig_dev, const void *ctx,
-			      const struct switchdev_notifier_fdb_info *fdb_info),
-		int (*lag_add_cb)(struct net_device *dev,
-				  const struct net_device *orig_dev, const void *ctx,
-				  const struct switchdev_notifier_fdb_info *fdb_info))
-{
-	return 0;
-}
-
-static inline int
-switchdev_handle_fdb_del_to_device(struct net_device *dev,
-		const struct switchdev_notifier_fdb_info *fdb_info,
-		bool (*check_cb)(const struct net_device *dev),
-		bool (*foreign_dev_check_cb)(const struct net_device *dev,
-					     const struct net_device *foreign_dev),
-		int (*del_cb)(struct net_device *dev,
-			      const struct net_device *orig_dev, const void *ctx,
-			      const struct switchdev_notifier_fdb_info *fdb_info),
-		int (*lag_del_cb)(struct net_device *dev,
-				  const struct net_device *orig_dev, const void *ctx,
-				  const struct switchdev_notifier_fdb_info *fdb_info))
+		int (*mod_cb)(struct net_device *dev, struct net_device *orig_dev,
+			      unsigned long event, const void *ctx,
+			      const struct switchdev_notifier_fdb_info *fdb_info))
 {
 	return 0;
 }
@@ -468,10 +456,34 @@ switchdev_handle_port_obj_add(struct net_device *dev,
 	return 0;
 }
 
+static inline int switchdev_handle_port_obj_add_foreign(struct net_device *dev,
+			struct switchdev_notifier_port_obj_info *port_obj_info,
+			bool (*check_cb)(const struct net_device *dev),
+			bool (*foreign_dev_check_cb)(const struct net_device *dev,
+						     const struct net_device *foreign_dev),
+			int (*add_cb)(struct net_device *dev, const void *ctx,
+				      const struct switchdev_obj *obj,
+				      struct netlink_ext_ack *extack))
+{
+	return 0;
+}
+
 static inline int
 switchdev_handle_port_obj_del(struct net_device *dev,
 			struct switchdev_notifier_port_obj_info *port_obj_info,
 			bool (*check_cb)(const struct net_device *dev),
+			int (*del_cb)(struct net_device *dev, const void *ctx,
+				      const struct switchdev_obj *obj))
+{
+	return 0;
+}
+
+static inline int
+switchdev_handle_port_obj_del_foreign(struct net_device *dev,
+			struct switchdev_notifier_port_obj_info *port_obj_info,
+			bool (*check_cb)(const struct net_device *dev),
+			bool (*foreign_dev_check_cb)(const struct net_device *dev,
+						     const struct net_device *foreign_dev),
 			int (*del_cb)(struct net_device *dev, const void *ctx,
 				      const struct switchdev_obj *obj))
 {

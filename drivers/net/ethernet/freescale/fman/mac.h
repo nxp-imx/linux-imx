@@ -1,4 +1,5 @@
 /* Copyright 2008-2015 Freescale Semiconductor, Inc.
+ * Copyright 2020 Puresoftware Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -52,7 +53,9 @@ struct mac_device {
 	struct phy_device	*phy_dev;
 	phy_interface_t		phy_if;
 	struct device_node	*phy_node;
+	struct fwnode_handle	*fwnode_phy;
 
+	bool fixed_link_phy;
 	bool autoneg_pause;
 	bool rx_pause_req;
 	bool tx_pause_req;

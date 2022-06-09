@@ -43,6 +43,7 @@
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsi_dbg.h>
 #include <scsi/scsi_eh.h>
+#include <linux/android_kabi.h>
 
 #include "ufs.h"
 #include "ufs_quirks.h"
@@ -222,6 +223,8 @@ struct ufshcd_lrb {
 #endif
 
 	bool req_abort_skip;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -344,7 +347,8 @@ struct ufs_hba_variant_ops {
 					enum ufs_notify_change_status);
 	int	(*apply_dev_quirks)(struct ufs_hba *hba);
 	void	(*fixup_dev_quirks)(struct ufs_hba *hba);
-	int     (*suspend)(struct ufs_hba *, enum ufs_pm_op);
+	int     (*suspend)(struct ufs_hba *, enum ufs_pm_op,
+					enum ufs_notify_change_status);
 	int     (*resume)(struct ufs_hba *, enum ufs_pm_op);
 	void	(*dbg_register_dump)(struct ufs_hba *hba);
 	int	(*phy_initialization)(struct ufs_hba *);
@@ -356,6 +360,11 @@ struct ufs_hba_variant_ops {
 			       const union ufs_crypto_cfg_entry *cfg, int slot);
 	void	(*event_notify)(struct ufs_hba *hba,
 				enum ufs_event_type evt, void *data);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 /* clock gating state  */
@@ -395,6 +404,8 @@ struct ufs_clk_gating {
 	bool is_initialized;
 	int active_reqs;
 	struct workqueue_struct *clk_gating_workq;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct ufs_saved_pwr_info {
@@ -441,6 +452,8 @@ struct ufs_clk_scaling {
 	bool is_initialized;
 	bool is_busy_started;
 	bool is_suspended;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define UFS_EVENT_HIST_LENGTH 8
@@ -956,6 +969,11 @@ struct ufs_hba {
 #endif
 	u32 luns_avail;
 	bool complete_put;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 /* Returns true if clocks can be gated. Otherwise false */
@@ -1343,10 +1361,11 @@ static inline void ufshcd_vops_fixup_dev_quirks(struct ufs_hba *hba)
 		hba->vops->fixup_dev_quirks(hba);
 }
 
-static inline int ufshcd_vops_suspend(struct ufs_hba *hba, enum ufs_pm_op op)
+static inline int ufshcd_vops_suspend(struct ufs_hba *hba, enum ufs_pm_op op,
+				enum ufs_notify_change_status status)
 {
 	if (hba->vops && hba->vops->suspend)
-		return hba->vops->suspend(hba, op);
+		return hba->vops->suspend(hba, op, status);
 
 	return 0;
 }

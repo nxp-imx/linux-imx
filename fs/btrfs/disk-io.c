@@ -441,17 +441,31 @@ static int csum_one_extent_buffer(struct extent_buffer *eb)
 	else
 		ret = btrfs_check_leaf_full(eb);
 
-	if (ret < 0) {
-		btrfs_print_tree(eb, 0);
+	if (ret < 0)
+		goto error;
+
+	/*
+	 * Also check the generation, the eb reached here must be newer than
+	 * last committed. Or something seriously wrong happened.
+	 */
+	if (unlikely(btrfs_header_generation(eb) <= fs_info->last_trans_committed)) {
+		ret = -EUCLEAN;
 		btrfs_err(fs_info,
-			"block=%llu write time tree block corruption detected",
-			eb->start);
-		WARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));
-		return ret;
+			"block=%llu bad generation, have %llu expect > %llu",
+			  eb->start, btrfs_header_generation(eb),
+			  fs_info->last_trans_committed);
+		goto error;
 	}
 	write_extent_buffer(eb, result, 0, fs_info->csum_size);
 
 	return 0;
+
+error:
+	btrfs_print_tree(eb, 0);
+	btrfs_err(fs_info, "block=%llu write time tree block corruption detected",
+		  eb->start);
+	WARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));
+	return ret;
 }
 
 /* Checksum all dirty extent buffers in one bio_vec */
@@ -1724,9 +1738,10 @@ again:
 
 	ret = btrfs_insert_fs_root(fs_info, root);
 	if (ret) {
-		btrfs_put_root(root);
-		if (ret == -EEXIST)
+		if (ret == -EEXIST) {
+			btrfs_put_root(root);
 			goto again;
+		}
 		goto fail;
 	}
 	return root;
@@ -3400,6 +3415,17 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
 	}
 
 	if (sectorsize != PAGE_SIZE) {
+		/*
+		 * V1 space cache has some hardcoded PAGE_SIZE usage, and is
+		 * going to be deprecated.
+		 *
+		 * Force to use v2 cache for subpage case.
+		 */
+		btrfs_clear_opt(fs_info->mount_opt, SPACE_CACHE);
+		btrfs_set_and_info(fs_info, FREE_SPACE_TREE,
+			"forcing free space tree for sector size %u with page size %lu",
+			sectorsize, PAGE_SIZE);
+
 		btrfs_warn(fs_info,
 		"read-write for sector size %u with page size %lu is experimental",
 			   sectorsize, PAGE_SIZE);

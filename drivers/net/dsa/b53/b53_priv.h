@@ -107,6 +107,7 @@ struct b53_device {
 
 	struct mutex reg_mutex;
 	struct mutex stats_mutex;
+	struct mutex arl_mutex;
 	const struct b53_io_ops *ops;
 
 	/* chip specific data */
@@ -324,8 +325,9 @@ void b53_get_strings(struct dsa_switch *ds, int port, u32 stringset,
 void b53_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data);
 int b53_get_sset_count(struct dsa_switch *ds, int port, int sset);
 void b53_get_ethtool_phy_stats(struct dsa_switch *ds, int port, uint64_t *data);
-int b53_br_join(struct dsa_switch *ds, int port, struct net_device *bridge);
-void b53_br_leave(struct dsa_switch *ds, int port, struct net_device *bridge);
+int b53_br_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge,
+		bool *tx_fwd_offload, struct netlink_ext_ack *extack);
+void b53_br_leave(struct dsa_switch *ds, int port, struct dsa_bridge bridge);
 void b53_br_set_stp_state(struct dsa_switch *ds, int port, u8 state);
 void b53_br_fast_age(struct dsa_switch *ds, int port);
 int b53_br_flags_pre(struct dsa_switch *ds, int port,
@@ -362,17 +364,22 @@ int b53_vlan_add(struct dsa_switch *ds, int port,
 int b53_vlan_del(struct dsa_switch *ds, int port,
 		 const struct switchdev_obj_port_vlan *vlan);
 int b53_fdb_add(struct dsa_switch *ds, int port,
-		const unsigned char *addr, u16 vid);
+		const unsigned char *addr, u16 vid,
+		struct dsa_db db);
 int b53_fdb_del(struct dsa_switch *ds, int port,
-		const unsigned char *addr, u16 vid);
+		const unsigned char *addr, u16 vid,
+		struct dsa_db db);
 int b53_fdb_dump(struct dsa_switch *ds, int port,
 		 dsa_fdb_dump_cb_t *cb, void *data);
 int b53_mdb_add(struct dsa_switch *ds, int port,
-		const struct switchdev_obj_port_mdb *mdb);
+		const struct switchdev_obj_port_mdb *mdb,
+		struct dsa_db db);
 int b53_mdb_del(struct dsa_switch *ds, int port,
-		const struct switchdev_obj_port_mdb *mdb);
+		const struct switchdev_obj_port_mdb *mdb,
+		struct dsa_db db);
 int b53_mirror_add(struct dsa_switch *ds, int port,
-		   struct dsa_mall_mirror_tc_entry *mirror, bool ingress);
+		   struct dsa_mall_mirror_tc_entry *mirror, bool ingress,
+		   struct netlink_ext_ack *extack);
 enum dsa_tag_protocol b53_get_tag_protocol(struct dsa_switch *ds, int port,
 					   enum dsa_tag_protocol mprot);
 void b53_mirror_del(struct dsa_switch *ds, int port,

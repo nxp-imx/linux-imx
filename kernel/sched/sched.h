@@ -2077,6 +2077,8 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 #define WF_MIGRATED 0x20 /* Internal use, task got migrated */
 #define WF_ON_CPU   0x40 /* Wakee is on_cpu */
 
+#define WF_ANDROID_VENDOR	0x1000 /* Vendor specific for Android */
+
 #ifdef CONFIG_SMP
 static_assert(WF_EXEC == SD_BALANCE_EXEC);
 static_assert(WF_FORK == SD_BALANCE_FORK);
@@ -2134,6 +2136,8 @@ extern const u32		sched_prio_to_wmult[40];
 #else
 #define ENQUEUE_MIGRATED	0x00
 #endif
+
+#define ENQUEUE_WAKEUP_SYNC	0x80
 
 #define RETRY_TASK		((void *)-1UL)
 

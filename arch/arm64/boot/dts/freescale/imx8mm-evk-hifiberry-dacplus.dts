@@ -38,19 +38,28 @@
 	sound-pcm512x {
 		compatible = "fsl,imx-audio-pcm512x";
 		model = "pcm512x-audio";
-		audio-cpu = <&sai5>;
-		audio-codec = <&pcm512x>;
-		format = "i2s";
 		audio-widgets =
 			"Line", "Left Line Out Jack",
 			"Line", "Right Line Out Jack";
 		audio-routing =
 			"Left Line Out Jack", "OUTL",
 			"Right Line Out Jack", "OUTR";
-		bitclock-master = <&pcm512x>;
-		frame-master = <&pcm512x>;
 		dac,24db_digital_gain;
 		dac,led_status;
+		dac,sclk;
+
+		pri-dai-link {
+			link-name = "pcm512x-hifi";
+			format = "i2s";
+			bitclock-master = <&sndcodec>;
+			frame-master = <&sndcodec>;
+			cpu {
+				sound-dai = <&sai5>;
+			};
+			sndcodec: codec {
+				sound-dai = <&pcm512x>;
+			};
+		};
 	};
 };
 
@@ -79,6 +88,7 @@
 		CPVDD-supply = <&reg_3v3_vext>;
 		clocks = <&ext_osc_22m>, <&ext_osc_24m>;
 		clock-names = "sclk0", "sclk1";
+		#sound-dai-cells = <0>;
 	};
 };
 
@@ -98,5 +108,10 @@
 };
 
 &sai5 {
+	#sound-dai-cells = <0>;
+	/delete-property/ fsl,sai-asynchronous;
+	/delete-property/ fsl,sai-multi-lane;
+	dmas = <&sdma2 8 2 0>, <&sdma2 9 2 0>;
+	assigned-clock-rates = <24576000>;
 	status = "okay";
 };

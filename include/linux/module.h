@@ -290,7 +290,8 @@ extern typeof(name) __mod_##type##__##name##_device_table		\
  * files require multiple MODULE_FIRMWARE() specifiers */
 #define MODULE_FIRMWARE(_firmware) MODULE_INFO(firmware, _firmware)
 
-#define MODULE_IMPORT_NS(ns) MODULE_INFO(import_ns, #ns)
+#define _MODULE_IMPORT_NS(ns)	MODULE_INFO(import_ns, #ns)
+#define MODULE_IMPORT_NS(ns)	_MODULE_IMPORT_NS(ns)
 
 struct notifier_block;
 
@@ -473,10 +474,8 @@ struct module {
 	unsigned int num_bpf_raw_events;
 	struct bpf_raw_event_map *bpf_raw_events;
 #endif
-#ifdef CONFIG_DEBUG_INFO_BTF_MODULES
 	unsigned int btf_data_size;
 	void *btf_data;
-#endif
 #ifdef CONFIG_JUMP_LABEL
 	struct jump_entry *jump_entries;
 	unsigned int num_jump_entries;

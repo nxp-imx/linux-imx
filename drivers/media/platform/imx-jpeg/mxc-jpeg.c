@@ -330,6 +330,10 @@ static unsigned int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-3)");
 
+static unsigned int sw_reset = 1;
+module_param(sw_reset, int, 0644);
+MODULE_PARM_DESC(sw_reset, "SW reset every frame (0=no reset, 1=do reset)");
+
 static void mxc_jpeg_bytesperline(struct mxc_jpeg_q_data *q, u32 precision);
 static void mxc_jpeg_sizeimage(struct mxc_jpeg_q_data *q);
 
@@ -520,6 +524,7 @@ static bool mxc_jpeg_alloc_slot_data(struct mxc_jpeg_dev *jpeg,
 				     GFP_ATOMIC);
 	if (!cfg_stm)
 		goto err;
+	memset(cfg_stm, 0, MXC_JPEG_MAX_CFG_STREAM);
 	jpeg->slot_data[slot].cfg_stream_vaddr = cfg_stm;
 
 skip_alloc:
@@ -665,6 +670,8 @@ buffers_done:
 	v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 	v4l2_m2m_buf_done(src_buf, buf_state);
 	v4l2_m2m_buf_done(dst_buf, buf_state);
+	if (sw_reset)
+		mxc_jpeg_sw_reset(reg);
 	spin_unlock(&jpeg->hw_lock);
 	v4l2_m2m_job_finish(jpeg->m2m_dev, ctx->fh.m2m_ctx);
 	return IRQ_HANDLED;
@@ -756,7 +763,7 @@ static unsigned int mxc_jpeg_setup_cfg_stream(void *cfg_stream_vaddr,
 					      u32 fourcc,
 					      u16 w, u16 h)
 {
-	unsigned int offset = 0;
+	unsigned int offset = 0x80;
 	u8 *cfg = (u8 *)cfg_stream_vaddr;
 	struct mxc_jpeg_sof *sof;
 	struct mxc_jpeg_sos *sos;
@@ -2362,9 +2369,33 @@ static int mxc_jpeg_runtime_suspend(struct device *dev)
 }
 #endif
 
+#ifdef CONFIG_PM_SLEEP
+static int mxc_jpeg_suspend(struct device *dev)
+{
+	struct mxc_jpeg_dev *jpeg = dev_get_drvdata(dev);
+
+	v4l2_m2m_suspend(jpeg->m2m_dev);
+	return pm_runtime_force_suspend(dev);
+}
+
+static int mxc_jpeg_resume(struct device *dev)
+{
+	struct mxc_jpeg_dev *jpeg = dev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret < 0)
+		return ret;
+
+	v4l2_m2m_resume(jpeg->m2m_dev);
+	return ret;
+}
+#endif
+
 static const struct dev_pm_ops	mxc_jpeg_pm_ops = {
 	SET_RUNTIME_PM_OPS(mxc_jpeg_runtime_suspend,
 			   mxc_jpeg_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(mxc_jpeg_suspend, mxc_jpeg_resume)
 };
 
 static int mxc_jpeg_remove(struct platform_device *pdev)

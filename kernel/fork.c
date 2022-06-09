@@ -402,6 +402,13 @@ void vm_area_free(struct vm_area_struct *vma)
 	free_anon_vma_name(vma);
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	if (atomic_read(&vma->vm_mm->mm_users) > 1) {
+		if (vma->vm_file) {
+			struct mm_struct *mm = vma->vm_mm;
+			percpu_down_write(mm->mmu_notifier_lock);
+			____vm_area_free(vma);
+			percpu_up_write(mm->mmu_notifier_lock);
+			return;
+		}
 		call_rcu(&vma->vm_rcu, __vm_area_free);
 		return;
 	}
@@ -1007,6 +1014,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 #ifdef CONFIG_MEMCG
 	tsk->active_memcg = NULL;
 #endif
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	memset(&tsk->android_vendor_data1, 0, sizeof(tsk->android_vendor_data1));
+	memset(&tsk->android_oem_data1, 0, sizeof(tsk->android_oem_data1));
+#endif
+	trace_android_vh_dup_task_struct(tsk, orig);
 	return tsk;
 
 free_stack:
@@ -1118,6 +1130,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		goto fail_nocontext;
 
 	mm->user_ns = get_user_ns(user_ns);
+	lru_gen_init_mm(mm);
 	return mm;
 
 fail_nocontext:
@@ -1160,6 +1173,7 @@ static inline void __mmput(struct mm_struct *mm)
 	}
 	if (mm->binfmt)
 		module_put(mm->binfmt->module);
+	lru_gen_del_mm(mm);
 	mmdrop(mm);
 }
 
@@ -2656,6 +2670,13 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		p->vfork_done = &vfork;
 		init_completion(&vfork);
 		get_task_struct(p);
+	}
+
+	if (IS_ENABLED(CONFIG_LRU_GEN) && !(clone_flags & CLONE_VM)) {
+		/* lock the task to synchronize with memcg migration */
+		task_lock(p);
+		lru_gen_add_mm(p->mm);
+		task_unlock(p);
 	}
 
 	wake_up_new_task(p);

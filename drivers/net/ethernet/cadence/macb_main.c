@@ -547,13 +547,8 @@ static void macb_validate(struct phylink_config *config,
 	if (bp->caps & MACB_CAPS_GIGABIT_MODE_AVAILABLE &&
 	    (state->interface == PHY_INTERFACE_MODE_NA ||
 	     state->interface == PHY_INTERFACE_MODE_10GBASER)) {
-		phylink_set(mask, 10000baseCR_Full);
-		phylink_set(mask, 10000baseER_Full);
+		phylink_set_10g_modes(mask);
 		phylink_set(mask, 10000baseKR_Full);
-		phylink_set(mask, 10000baseLR_Full);
-		phylink_set(mask, 10000baseLRM_Full);
-		phylink_set(mask, 10000baseSR_Full);
-		phylink_set(mask, 10000baseT_Full);
 		if (state->interface != PHY_INTERFACE_MODE_NA)
 			goto out;
 	}
@@ -1689,11 +1684,19 @@ static void macb_tx_restart(struct macb_queue *queue)
 	unsigned int head = queue->tx_head;
 	unsigned int tail = queue->tx_tail;
 	struct macb *bp = queue->bp;
+	unsigned int head_idx, tbqp;
 
 	if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
 		queue_writel(queue, ISR, MACB_BIT(TXUBR));
 
 	if (head == tail)
+		return;
+
+	tbqp = queue_readl(queue, TBQP) / macb_dma_desc_get_size(bp);
+	tbqp = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, tbqp));
+	head_idx = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, head));
+
+	if (tbqp == head_idx)
 		return;
 
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));

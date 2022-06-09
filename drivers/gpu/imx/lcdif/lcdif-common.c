@@ -61,8 +61,10 @@ struct lcdif_soc {
 
 	int irq;
 	void __iomem *base;
-	struct reset_control *soft_resetn;
-	struct reset_control *clk_enable;
+	struct reset_control *apb_clk_en;
+	struct reset_control *pixel_clk_en;
+	struct reset_control *apb_clk_reset;
+	struct reset_control *pixel_clk_reset;
 	atomic_t rpm_suspended;
 
 	struct clk *clk_pix;
@@ -687,45 +689,40 @@ err_register:
 
 static int lcdif_of_parse_resets(struct lcdif_soc *lcdif)
 {
-	int ret;
 	struct device *dev = lcdif->dev;
-	struct device_node *np = dev->of_node;
-	struct device_node *parent, *child;
-	struct of_phandle_args args;
-	struct reset_control *rstc;
-	const char *compat;
-	uint32_t len, rstc_num = 0;
+	int ret;
 
-	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
-					 0, &args);
-	if (ret)
+	lcdif->apb_clk_en = devm_reset_control_get_optional_exclusive(dev, "apb_clk_en");
+	if (IS_ERR(lcdif->apb_clk_en)) {
+		ret = PTR_ERR(lcdif->apb_clk_en);
+		dev_err(dev,
+			"failed to get apb_clk_en reset control: %d\n", ret);
 		return ret;
-
-	parent = args.np;
-	for_each_child_of_node(parent, child) {
-		compat = of_get_property(child, "compatible", NULL);
-		if (!compat)
-			continue;
-
-		rstc = of_reset_control_array_get(child, false, false, true);
-		if (IS_ERR(rstc))
-			continue;
-
-		len = strlen(compat);
-		if (!of_compat_cmp("lcdif,soft-resetn", compat, len)) {
-			lcdif->soft_resetn = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("lcdif,clk-enable", compat, len)) {
-			lcdif->clk_enable = rstc;
-			rstc_num++;
-		}
-		else
-			dev_warn(dev, "invalid lcdif reset node: %s\n", compat);
 	}
 
-	if (!rstc_num) {
-		dev_err(dev, "no invalid reset control exists\n");
-		return -EINVAL;
+	lcdif->pixel_clk_en = devm_reset_control_get_optional_exclusive(dev, "pixel_clk_en");
+	if (IS_ERR(lcdif->pixel_clk_en)) {
+		ret = PTR_ERR(lcdif->pixel_clk_en);
+		dev_err(dev,
+			"failed to get pixel_clk_en reset control: %d\n", ret);
+		return ret;
+	}
+
+	lcdif->apb_clk_reset = devm_reset_control_get_optional_exclusive(dev, "apb_clk_reset");
+	if (IS_ERR(lcdif->apb_clk_reset)) {
+		ret = PTR_ERR(lcdif->apb_clk_reset);
+		dev_err(dev,
+			"failed to get apb_clk_reset reset control: %d\n", ret);
+		return ret;
+	}
+
+	lcdif->pixel_clk_reset = devm_reset_control_get_optional_exclusive(dev, "pixel_clk_reset");
+	if (IS_ERR(lcdif->pixel_clk_reset)) {
+		ret = PTR_ERR(lcdif->pixel_clk_reset);
+		dev_err(dev,
+			"failed to get pixel_clk_reset reset control: %d\n",
+			ret);
+		return ret;
 	}
 
 	return 0;
@@ -863,15 +860,27 @@ static int imx_lcdif_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	ret = lcdif_rstc_reset(lcdif->soft_resetn, false);
+	ret = lcdif_rstc_reset(lcdif->apb_clk_reset, false);
 	if (ret) {
-		dev_err(dev, "deassert soft_resetn failed\n");
+		dev_err(dev, "deassert apb_clk_reset failed\n");
 		return ret;
 	}
 
-	ret = lcdif_rstc_reset(lcdif->clk_enable, true);
+	ret = lcdif_rstc_reset(lcdif->pixel_clk_reset, false);
 	if (ret) {
-		dev_err(dev, "assert clk_enable failed\n");
+		dev_err(dev, "deassert pixel_clk_reset failed\n");
+		return ret;
+	}
+
+	ret = lcdif_rstc_reset(lcdif->apb_clk_en, true);
+	if (ret) {
+		dev_err(dev, "assert apb_clk_en failed\n");
+		return ret;
+	}
+
+	ret = lcdif_rstc_reset(lcdif->pixel_clk_en, true);
+	if (ret) {
+		dev_err(dev, "assert pixel_clk_en failed\n");
 		return ret;
 	}
 
@@ -883,7 +892,7 @@ static int imx_lcdif_runtime_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops imx_lcdif_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(imx_lcdif_suspend, imx_lcdif_resume)
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(imx_lcdif_suspend, imx_lcdif_resume)
 	SET_RUNTIME_PM_OPS(imx_lcdif_runtime_suspend,
 			   imx_lcdif_runtime_resume, NULL)
 };

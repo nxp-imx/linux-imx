@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2017-2018, The Linux foundation. All rights reserved.
+/*
+ * Copyright (c) 2017-2018, The Linux foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ */
+
+/* Disable MMIO tracing to prevent excessive logging of unwanted MMIO traces */
+#define __DISABLE_TRACE_MMIO__
 
 #include <linux/clk.h>
 #include <linux/console.h>
@@ -20,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#include <linux/pinctrl/consumer.h>
 
 static bool con_enabled = IS_ENABLED(CONFIG_SERIAL_QCOM_GENI_CONSOLE_DEFAULT_ENABLED);
 module_param(con_enabled, bool, 0644);
@@ -1360,6 +1367,10 @@ static int qcom_geni_serial_probe(struct platform_device *pdev)
 
 	if (console && !con_enabled) {
 		dev_err(&pdev->dev, "%s, Console Disabled\n", __func__);
+		ret = pinctrl_pm_select_sleep_state(&pdev->dev);
+		if (ret)
+			dev_err(&pdev->dev,
+				"failed to set pinctrl state to sleep %d\n", ret);
 		platform_set_drvdata(pdev, port);
 		return ret;
 	}
@@ -1496,15 +1507,18 @@ static int qcom_geni_serial_remove(struct platform_device *pdev)
 
 static int __maybe_unused qcom_geni_serial_sys_suspend(struct device *dev)
 {
+	struct uart_port *uport;
+	struct qcom_geni_private_data *private_data;
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
-	struct uart_port *uport = &port->uport;
-	struct qcom_geni_private_data *private_data = uport->private_data;
 
 	/* Platform driver is registered for console and when console
 	 * is disabled from cmdline simply return success.
 	 */
 	if (port->is_console && !con_enabled)
 		return 0;
+
+	uport = &port->uport;
+	private_data = uport->private_data;
 
 	/*
 	 * This is done so we can hit the lowest possible state in suspend
@@ -1520,9 +1534,18 @@ static int __maybe_unused qcom_geni_serial_sys_suspend(struct device *dev)
 static int __maybe_unused qcom_geni_serial_sys_resume(struct device *dev)
 {
 	int ret;
+	struct uart_port *uport;
+	struct qcom_geni_private_data *private_data;
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
-	struct uart_port *uport = &port->uport;
-	struct qcom_geni_private_data *private_data = uport->private_data;
+
+	/* Platform driver is registered for console and when console
+	 * is disabled from cmdline simply return success.
+	 */
+	if (port->is_console && !con_enabled)
+		return 0;
+
+	uport = &port->uport;
+	private_data = uport->private_data;
 
 	ret = uart_resume_port(private_data->drv, uport);
 	if (uart_console(uport)) {

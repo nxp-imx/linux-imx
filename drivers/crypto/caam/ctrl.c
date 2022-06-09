@@ -612,11 +612,19 @@ static void caam_dma_dev_unregister(void *data)
 	platform_device_unregister(data);
 }
 
+static bool needs_entropy_delay_adjustment(void)
+{
+	if (of_machine_is_compatible("fsl,imx6sx"))
+		return true;
+	return false;
+}
+
 static int caam_ctrl_rng_init(struct device *dev)
 {
 	struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
 	struct caam_ctrl __iomem *ctrl = ctrlpriv->ctrl;
-	int ret, gen_sk, ent_delay = RTSDCTL_ENT_DLY_MIN;
+	int ret, gen_sk;
+	u32 ent_delay = RTSDCTL_ENT_DLY_MIN;
 	u8 rng_vid;
 
 	if (ctrlpriv->era < 10) {
@@ -637,6 +645,16 @@ static int caam_ctrl_rng_init(struct device *dev)
 
 		rng_vid = (rd_reg32(&vreg->rng) & CHA_VER_VID_MASK) >>
 			  CHA_VER_VID_SHIFT;
+	}
+
+	/*
+	 * Read entropy-delay property from device tree. If property is not
+	 * available or missing, update the entropy delay value only for imx6sx.
+	 */
+	if (device_property_read_u32(dev, "entropy-delay", &ent_delay)) {
+		dev_dbg(dev, "entropy-delay property missing in DT\n");
+		if (needs_entropy_delay_adjustment())
+			ent_delay = 12000;
 	}
 
 	/*
@@ -682,6 +700,15 @@ static int caam_ctrl_rng_init(struct device *dev)
 			 */
 			ret = instantiate_rng(dev, inst_handles,
 					      gen_sk);
+			/*
+			 * Entropy delay is determined via TRNG characterization.
+			 * TRNG characterization is run across different voltages
+			 * and temperatures.
+			 * If worst case value for ent_dly is identified,
+			 * the loop can be skipped for that platform.
+			 */
+			if (needs_entropy_delay_adjustment())
+				break;
 			if (ret == -EAGAIN)
 				/*
 				 * if here, the loop will rerun,

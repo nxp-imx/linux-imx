@@ -161,9 +161,9 @@ static const struct imx_rproc_att imx_rproc_att_imx8qxp[] = {
 	/* dev addr , sys addr  , size	    , flags */
 	{ 0x08000000, 0x08000000, 0x10000000, 0},
 	/* TCML */
-	{ 0x1FFE0000, 0x34FE0000, 0x00020000, ATT_OWN },
+	{ 0x1FFE0000, 0x34FE0000, 0x00020000, ATT_OWN | ATT_IOMEM},
 	/* TCMU */
-	{ 0x20000000, 0x35000000, 0x00020000, ATT_OWN },
+	{ 0x20000000, 0x35000000, 0x00020000, ATT_OWN | ATT_IOMEM},
 	/* OCRAM(Low 96KB) */
 	{ 0x21000000, 0x00100000, 0x00018000, 0},
 	/* OCRAM */

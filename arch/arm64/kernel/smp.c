@@ -239,6 +239,7 @@ asmlinkage notrace void secondary_start_kernel(void)
 	 * Log the CPU info before it is marked online and might get read.
 	 */
 	cpuinfo_store_cpu();
+	store_cpu_topology(cpu);
 
 	/*
 	 * Enable GIC and timers.
@@ -247,7 +248,6 @@ asmlinkage notrace void secondary_start_kernel(void)
 
 	ipi_setup(cpu);
 
-	store_cpu_topology(cpu);
 	numa_add_cpu(cpu);
 
 	/*
@@ -1009,7 +1009,12 @@ void __init set_smp_ipi_range(int ipi_base, int n)
 		WARN_ON(err);
 
 		ipi_desc[i] = irq_to_desc(ipi_base + i);
-		irq_set_status_flags(ipi_base + i, IRQ_HIDDEN);
+
+		if (i != IPI_RESCHEDULE)
+			irq_set_status_flags(ipi_base + i, IRQ_HIDDEN);
+		else
+			/* The recheduling IPI is special... */
+			irq_set_status_flags(ipi_base + i, IRQ_HIDDEN|IRQ_RAW);
 	}
 
 	ipi_irq_base = ipi_base;

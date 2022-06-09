@@ -230,10 +230,10 @@
 #define ANA_TABLES_SFIDACCESS_SFID_TBL_CMD(x)             ((x) & GENMASK(1, 0))
 #define ANA_TABLES_SFIDACCESS_SFID_TBL_CMD_M              GENMASK(1, 0)
 
-#define SFIDACCESS_CMD_IDLE                             0
-#define SFIDACCESS_CMD_READ                             1
-#define SFIDACCESS_CMD_WRITE                            2
-#define SFIDACCESS_CMD_INIT				3
+#define SFIDACCESS_CMD_IDLE                               0
+#define SFIDACCESS_CMD_READ                               1
+#define SFIDACCESS_CMD_WRITE                              2
+#define SFIDACCESS_CMD_INIT                               3
 
 #define ANA_TABLES_SFIDTIDX_SGID_VALID                    BIT(26)
 #define ANA_TABLES_SFIDTIDX_SGID(x)                       (((x) << 18) & GENMASK(25, 18))
@@ -264,7 +264,7 @@
 #define ANA_SG_CONFIG_REG_3_INIT_IPS_M                    GENMASK(24, 21)
 #define ANA_SG_CONFIG_REG_3_INIT_IPS_X(x)                 (((x) & GENMASK(24, 21)) >> 21)
 #define ANA_SG_CONFIG_REG_3_IPV_VALID                     BIT(24)
-#define ANA_SG_CONFIG_REG_3_IPV_INVALID(x)		  (((x) << 24) & GENMASK(24, 24))
+#define ANA_SG_CONFIG_REG_3_IPV_INVALID(x)                (((x) << 24) & GENMASK(24, 24))
 #define ANA_SG_CONFIG_REG_3_INIT_IPV(x)                   (((x) << 21) & GENMASK(23, 21))
 #define ANA_SG_CONFIG_REG_3_INIT_IPV_M                    GENMASK(23, 21)
 #define ANA_SG_CONFIG_REG_3_INIT_IPV_X(x)                 (((x) & GENMASK(23, 21)) >> 21)

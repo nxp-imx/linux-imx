@@ -336,65 +336,73 @@ static struct mxc_isi_dev_ops mxc_imx8mn_clk_ops = {
 
 static int mxc_isi_imx8mn_parse_resets(struct mxc_isi_dev *mxc_isi)
 {
-	int ret;
 	struct device *dev = &mxc_isi->pdev->dev;
-	struct device_node *np = dev->of_node;
-	struct device_node *parent, *child;
-	struct of_phandle_args args;
 	struct reset_control *rstc;
-	const char *compat;
-	u32 len, rstc_num = 0;
+	int ret;
 
-	ret = of_parse_phandle_with_args(np, "resets", "#reset-cells",
-					 0, &args);
-	if (ret)
+	rstc = devm_reset_control_get_optional_exclusive(dev, "proc_clk_reset");
+	if (IS_ERR(rstc)) {
+		ret = PTR_ERR(rstc);
+		dev_err(dev, "failed to get isi proc clk reset control: %d\n", ret);
 		return ret;
-
-	parent = args.np;
-	for_each_child_of_node(parent, child) {
-		compat = of_get_property(child, "compatible", NULL);
-		if (!compat)
-			continue;
-
-		rstc = of_reset_control_array_get(child, false, false, true);
-		if (IS_ERR(rstc))
-			continue;
-
-		len = strlen(compat);
-		if (!of_compat_cmp("isi,soft-resetn", compat, len)) {
-			mxc_isi->soft_resetn = rstc;
-			rstc_num++;
-		} else if (!of_compat_cmp("isi,clk-enable", compat, len)) {
-			mxc_isi->clk_enable = rstc;
-			rstc_num++;
-		} else {
-			dev_warn(dev, "invalid isi reset node: %s\n", compat);
-		}
 	}
+	mxc_isi->isi_rst_proc = rstc;
 
-	if (!rstc_num) {
-		dev_err(dev, "no invalid reset control exists\n");
-		return -EINVAL;
+	rstc = devm_reset_control_get_optional_exclusive(dev, "apb_clk_reset");
+	if (IS_ERR(rstc)) {
+		ret = PTR_ERR(rstc);
+		dev_err(dev, "failed to get isi apb clk reset control: %d\n", ret);
+		return ret;
 	}
+	mxc_isi->isi_rst_apb = rstc;
 
-	of_node_put(parent);
 	return 0;
 }
 
 static int mxc_isi_imx8mn_resets_assert(struct mxc_isi_dev *mxc_isi)
 {
-	if (!mxc_isi->soft_resetn)
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	if (!mxc_isi->isi_rst_proc || !mxc_isi->isi_rst_apb)
 		return -EINVAL;
 
-	return reset_control_assert(mxc_isi->soft_resetn);
+	ret = reset_control_assert(mxc_isi->isi_rst_proc);
+	if (ret) {
+		dev_err(dev, "assert isi proc reset failed\n");
+		return ret;
+	}
+
+	ret = reset_control_assert(mxc_isi->isi_rst_apb);
+	if (ret) {
+		dev_err(dev, "assert isi apb reset failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int mxc_isi_imx8mn_resets_deassert(struct mxc_isi_dev *mxc_isi)
 {
-	if (!mxc_isi->soft_resetn)
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	if (!mxc_isi->isi_rst_proc || !mxc_isi->isi_rst_apb)
 		return -EINVAL;
 
-	return reset_control_deassert(mxc_isi->soft_resetn);
+	ret = reset_control_deassert(mxc_isi->isi_rst_proc);
+	if (ret) {
+		dev_err(dev, "deassert isi proc reset failed\n");
+		return ret;
+	}
+
+	ret = reset_control_deassert(mxc_isi->isi_rst_apb);
+	if (ret) {
+		dev_err(dev, "deassert isi apb reset failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static struct mxc_isi_rst_ops mxc_imx8mn_isi_rst_ops = {
@@ -405,26 +413,74 @@ static struct mxc_isi_rst_ops mxc_imx8mn_isi_rst_ops = {
 
 static int mxc_isi_imx8mn_gclk_get(struct mxc_isi_dev *mxc_isi)
 {
-	if (mxc_isi->clk_enable)
-		return 0;
+	struct device *dev = &mxc_isi->pdev->dev;
+	struct reset_control *clk_rst;
+	int ret;
 
-	return mxc_isi_imx8mn_parse_resets(mxc_isi);
+	clk_rst = devm_reset_control_get_optional_exclusive(dev, "proc_clk_en");
+	if (IS_ERR(clk_rst)) {
+		ret = PTR_ERR(clk_rst);
+		dev_err(dev, "failed to get isi proc clk enable control: %d\n", ret);
+		return ret;
+	}
+	mxc_isi->isi_clk_proc = clk_rst;
+
+	clk_rst = devm_reset_control_get_optional_exclusive(dev, "apb_clk_en");
+	if (IS_ERR(clk_rst)) {
+		ret = PTR_ERR(clk_rst);
+		dev_err(dev, "failed to get isi apb clk enable control: %d\n", ret);
+		return ret;
+	}
+	mxc_isi->isi_clk_apb = clk_rst;
+
+	return 0;
+
 }
 
 static int mxc_isi_imx8mn_gclk_enable(struct mxc_isi_dev *mxc_isi)
 {
-	if (!mxc_isi->clk_enable)
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	if (!mxc_isi->isi_clk_proc || !mxc_isi->isi_clk_apb)
 		return -EINVAL;
 
-	return reset_control_assert(mxc_isi->clk_enable);
+	ret = reset_control_assert(mxc_isi->isi_clk_proc);
+	if (ret) {
+		dev_err(dev, "assert isi proc clock failed\n");
+		return ret;
+	}
+
+	ret = reset_control_assert(mxc_isi->isi_clk_apb);
+	if (ret) {
+		dev_err(dev, "assert isi apb clock failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int mxc_isi_imx8mn_gclk_disable(struct mxc_isi_dev *mxc_isi)
 {
-	if (!mxc_isi->clk_enable)
+	struct device *dev = &mxc_isi->pdev->dev;
+	int ret;
+
+	if (!mxc_isi->isi_clk_proc || !mxc_isi->isi_clk_apb)
 		return -EINVAL;
 
-	return reset_control_deassert(mxc_isi->clk_enable);
+	ret = reset_control_deassert(mxc_isi->isi_clk_proc);
+	if (ret) {
+		dev_err(dev, "deassert isi proc clock failed\n");
+		return ret;
+	}
+
+	ret = reset_control_assert(mxc_isi->isi_clk_apb);
+	if (ret) {
+		dev_err(dev, "deassert isi apb clock failed\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static struct mxc_isi_gate_clk_ops mxc_imx8mn_isi_gclk_ops = {

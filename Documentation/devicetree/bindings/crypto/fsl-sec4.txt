@@ -62,6 +62,12 @@ PROPERTIES
       Definition: A standard property. Define the 'ERA' of the SEC
           device.
 
+   - entropy-delay
+      Usage: optional
+      Value type: <u32>
+      Definition: A property which specifies the length (in system clocks)
+          of each Entropy sample taken.
+
    - #address-cells
        Usage: required
        Value type: <u32>

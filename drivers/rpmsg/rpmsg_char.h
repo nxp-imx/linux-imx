@@ -1,14 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) STMicroelectronics 2021.
+ * Copyright (C) 2022, STMicroelectronics
  */
 
 #ifndef __RPMSG_CHRDEV_H__
 #define __RPMSG_CHRDEV_H__
 
-#define RPMSG_DEV_MAX	(MINORMASK + 1)
-
-#if IS_REACHABLE(CONFIG_RPMSG_CHAR)
+#if IS_ENABLED(CONFIG_RPMSG_CHAR)
 /**
  * rpmsg_chrdev_eptdev_create() - register char device based on an endpoint
  * @rpdev:  prepared rpdev to be used for creating endpoints
@@ -30,22 +28,19 @@ int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent
  */
 int rpmsg_chrdev_eptdev_destroy(struct device *dev, void *data);
 
-#else  /*IS_REACHABLE(CONFIG_RPMSG_CHAR) */
+#else  /*IS_ENABLED(CONFIG_RPMSG_CHAR) */
 
 static inline int rpmsg_chrdev_eptdev_create(struct rpmsg_device *rpdev, struct device *parent,
 					     struct rpmsg_channel_info chinfo)
 {
-	return -EINVAL;
+	return -ENXIO;
 }
 
 static inline int rpmsg_chrdev_eptdev_destroy(struct device *dev, void *data)
 {
-	/* This shouldn't be possible */
-	WARN_ON(1);
-
-	return 0;
+	return -ENXIO;
 }
 
-#endif /*IS_REACHABLE(CONFIG_RPMSG_CHAR) */
+#endif /*IS_ENABLED(CONFIG_RPMSG_CHAR) */
 
 #endif /*__RPMSG_CHRDEV_H__ */

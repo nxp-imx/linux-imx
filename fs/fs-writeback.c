@@ -1739,6 +1739,10 @@ static int writeback_single_inode(struct inode *inode,
 	 */
 	if (!(inode->i_state & I_DIRTY_ALL))
 		inode_cgwb_move_to_attached(inode, wb);
+	else if (!(inode->i_state & I_SYNC_QUEUED) &&
+		 (inode->i_state & I_DIRTY))
+		redirty_tail_locked(inode, wb);
+
 	spin_unlock(&wb->list_lock);
 	inode_sync_complete(inode);
 out:
@@ -2494,7 +2498,7 @@ void __mark_inode_dirty(struct inode *inode, int flags)
 out_unlock_inode:
 	spin_unlock(&inode->i_lock);
 }
-EXPORT_SYMBOL(__mark_inode_dirty);
+EXPORT_SYMBOL_NS(__mark_inode_dirty, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * The @s_sync_lock is used to serialise concurrent sync operations
@@ -2660,7 +2664,7 @@ void try_to_writeback_inodes_sb(struct super_block *sb, enum wb_reason reason)
 	__writeback_inodes_sb_nr(sb, get_nr_dirty_pages(), reason, true);
 	up_read(&sb->s_umount);
 }
-EXPORT_SYMBOL(try_to_writeback_inodes_sb);
+EXPORT_SYMBOL_NS(try_to_writeback_inodes_sb, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * sync_inodes_sb	-	sync sb inode pages
@@ -2727,7 +2731,7 @@ int write_inode_now(struct inode *inode, int sync)
 	might_sleep();
 	return writeback_single_inode(inode, &wbc);
 }
-EXPORT_SYMBOL(write_inode_now);
+EXPORT_SYMBOL_NS(write_inode_now, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * sync_inode_metadata - write an inode to disk
@@ -2747,4 +2751,4 @@ int sync_inode_metadata(struct inode *inode, int wait)
 
 	return writeback_single_inode(inode, &wbc);
 }
-EXPORT_SYMBOL(sync_inode_metadata);
+EXPORT_SYMBOL_NS(sync_inode_metadata, ANDROID_GKI_VFS_EXPORT_ONLY);

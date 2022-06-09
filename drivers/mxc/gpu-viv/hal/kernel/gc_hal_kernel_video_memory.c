@@ -209,6 +209,18 @@ _Merge(
     return status;
 }
 
+static gceSTATUS
+_TraceGpuMem(
+    IN gckOS Os,
+    IN gctINT32 ProcessID,
+    IN gctINT64 Delta
+    )
+{
+    gckOS_TraceGpuMemory(Os, ProcessID, Delta);
+
+    return gcvSTATUS_OK;
+}
+
 /******************************************************************************\
 ******************************* gckVIDMEM API Code ******************************
 \******************************************************************************/
@@ -897,6 +909,8 @@ gckVIDMEM_AllocateLinear(
     /* Adjust the number of free bytes. */
     Memory->freeBytes   -= node->VidMem.bytes;
 
+    _TraceGpuMem(Memory->os, (gctINT32)node->VidMem.processID, node->VidMem.bytes);
+
     if (Memory->freeBytes < Memory->minFreeBytes)
     {
         Memory->minFreeBytes = Memory->freeBytes;
@@ -1018,6 +1032,8 @@ gckVIDMEM_AllocateVirtual(
                                   &node->Virtual.bytes,
                                   &node->Virtual.gid,
                                   &node->Virtual.physical));
+
+    _TraceGpuMem(os, -1, node->Virtual.bytes);
 
     /* Calculate required GPU page (4096) count. */
     /* Assume start address is 4096 aligned. */
@@ -1805,6 +1821,8 @@ gckVIDMEM_AllocateVirtualChunk(
                               &Bytes,
                               &node));
 
+    _TraceGpuMem(Kernel->os, -1, Bytes);
+
     /* Return pointer to the gcuVIDMEM_NODE union. */
     *Node = node;
 
@@ -1958,6 +1976,8 @@ gckVIDMEM_Free(
             /* Update the number of free bytes. */
             memory->freeBytes += Node->VidMem.bytes;
 
+            _TraceGpuMem(Kernel->os, (gctINT32)Node->VidMem.processID, -(gctINT64)Node->VidMem.bytes);
+
             /* Find the next free node. */
             for (node = Node->VidMem.next;
                  node != gcvNULL && node->VidMem.nextFree == gcvNULL;
@@ -2050,6 +2070,8 @@ gckVIDMEM_Free(
                 }
 
                 vidMemBlock->freeBytes += Node->VirtualChunk.bytes;
+
+                _TraceGpuMem(Kernel->os, -1, -(gctINT64)Node->VirtualChunk.bytes);
 
                 /* Find the next free chunk. */
                 for (node = Node->VirtualChunk.next;
@@ -2148,6 +2170,8 @@ gckVIDMEM_Free(
     gcmkVERIFY_OK(gckOS_FreePagedMemory(kernel->os,
                                         Node->Virtual.physical,
                                         Node->Virtual.bytes));
+
+    _TraceGpuMem(Kernel->os, -1, -(gctINT64)Node->Virtual.bytes);
 
     /* Delete the gcuVIDMEM_NODE union. */
     gcmkVERIFY_OK(gcmkOS_SAFE_FREE(kernel->os, Node));
@@ -4579,6 +4603,8 @@ gckVIDMEM_NODE_WrapUserMemory(
                 referenced = gcvTRUE;
                 found = gcvTRUE;
 
+                _TraceGpuMem(Kernel->os, -1, dmabuf->size);
+
                 *NodeObject = nodeObject;
                 *Bytes = (gctUINT64)dmabuf->size;
             }
@@ -4639,6 +4665,8 @@ gckVIDMEM_NODE_WrapUserMemory(
 
             node->Virtual.pageCount = (pageCountCpu * pageSizeCpu -
                     (physicalAddress & (pageSizeCpu - 1) & ~(4096 - 1))) >> 12;
+
+            _TraceGpuMem(Kernel->os, -1, node->Virtual.bytes);
 
             *NodeObject = nodeObject;
             *Bytes = (gctUINT64)node->Virtual.bytes;

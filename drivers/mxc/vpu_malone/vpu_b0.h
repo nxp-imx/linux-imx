@@ -69,7 +69,6 @@ extern unsigned int vpu_dbg_level_decoder;
 
 #define V4L2_PIX_FMT_NV12_10BIT    v4l2_fourcc('N', 'T', '1', '2') /*  Y/CbCr 4:2:0 for 10bit  */
 #define	VPU_FRAME_DEPTH_MAX     512
-#define VPU_FRAME_DEPTH_DEFAULT 256
 #define DECODER_NODE_NUMBER 12 // use /dev/video12 as vpu decoder
 #define DEFAULT_LOG_DEPTH 20
 #define DEFAULT_FRMDBG_ENABLE 0
@@ -449,10 +448,6 @@ struct vpu_ctx {
 	struct file *crc_fp;
 	loff_t pos;
 
-	int frm_dis_delay;
-	int frm_dec_delay;
-	int frm_total_num;
-
 	long total_qbuf_bytes;
 	long total_write_bytes;
 	u32 extra_size;
@@ -511,6 +506,15 @@ struct vpu_ctx {
 		if (vpu_dbg_level_decoder & (level)) \
 			pr_info("[VPU Decoder] " fmt, ## arg); \
 	} while (0)
+
+#define vpu_warn(ctx, fmt, arg...)	\
+	vpu_dbg(LVL_WARN, "warning: ctx[%d] %c%c%c%c: "fmt, \
+			ctx->str_index, \
+			ctx->q_data[0].fourcc, \
+			ctx->q_data[0].fourcc >> 8, \
+			ctx->q_data[0].fourcc >> 16, \
+			ctx->q_data[0].fourcc >> 24, \
+			## arg)
 
 #define V4L2_NXP_BUF_FLAG_CODECCONFIG		0x00200000
 #define V4L2_NXP_BUF_FLAG_TIMESTAMP_INVALID	0x00400000

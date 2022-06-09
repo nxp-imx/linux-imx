@@ -65,3 +65,7 @@
 	fsl,dataline,dsd = <4 0xf 0xf>;
 	status = "okay";
 };
+
+&uart3 {
+    status = "disabled";
+};

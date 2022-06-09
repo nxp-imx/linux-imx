@@ -24,6 +24,8 @@ struct qbman_swp_desc {
 	void *cena_bar; /* Cache-enabled portal base address */
 	void __iomem *cinh_bar; /* Cache-inhibited portal base address */
 	u32 qman_version;
+	u32 qman_clk;
+	u32 qman_256_cycles_per_ns;
 };
 
 #define QBMAN_SWP_INTERRUPT_EQRI 0x01
@@ -156,6 +158,11 @@ struct qbman_swp {
 	} eqcr;
 
 	spinlock_t access_spinlock;
+
+	/* Interrupt coalescing */
+	u32 irq_threshold;
+	u32 irq_holdoff;
+	int use_adaptive_rx_coalesce;
 };
 
 /* Function pointers */
@@ -536,7 +543,7 @@ static inline int qbman_swp_CDAN_set_context_enable(struct qbman_swp *s,
 static inline void *qbman_swp_mc_complete(struct qbman_swp *swp, void *cmd,
 					  u8 cmd_verb)
 {
-	int loopvar = 2000;
+	int loopvar = 10000;
 
 	qbman_swp_mc_submit(swp, cmd, cmd_verb);
 
@@ -651,5 +658,11 @@ static inline const struct dpaa2_dq *qbman_swp_dqrr_next(struct qbman_swp *s)
 {
 	return qbman_swp_dqrr_next_ptr(s);
 }
+
+int qbman_swp_set_irq_coalescing(struct qbman_swp *p, u32 irq_threshold,
+				 u32 irq_holdoff);
+
+void qbman_swp_get_irq_coalescing(struct qbman_swp *p, u32 *irq_threshold,
+				  u32 *irq_holdoff);
 
 #endif /* __FSL_QBMAN_PORTAL_H */

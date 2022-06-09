@@ -8,6 +8,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
+#include <linux/pcs-lynx.h>
 #include "enetc_ierb.h"
 #include "enetc_pf.h"
 
@@ -765,10 +766,14 @@ static void enetc_pf_netdev_setup(struct enetc_si *si, struct net_device *ndev,
 
 	ndev->hw_features = NETIF_F_SG | NETIF_F_RXCSUM |
 			    NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX |
-			    NETIF_F_HW_VLAN_CTAG_FILTER | NETIF_F_LOOPBACK;
+			    NETIF_F_HW_VLAN_CTAG_FILTER | NETIF_F_LOOPBACK |
+			    NETIF_F_HW_CSUM | NETIF_F_TSO | NETIF_F_TSO6;
 	ndev->features = NETIF_F_HIGHDMA | NETIF_F_SG | NETIF_F_RXCSUM |
 			 NETIF_F_HW_VLAN_CTAG_TX |
-			 NETIF_F_HW_VLAN_CTAG_RX;
+			 NETIF_F_HW_VLAN_CTAG_RX |
+			 NETIF_F_HW_CSUM | NETIF_F_TSO | NETIF_F_TSO6;
+	ndev->vlan_features = NETIF_F_SG | NETIF_F_HW_CSUM |
+			      NETIF_F_TSO | NETIF_F_TSO6;
 
 	if (si->num_rss)
 		ndev->hw_features |= NETIF_F_RXHASH;
@@ -829,7 +834,7 @@ static int enetc_imdio_create(struct enetc_pf *pf)
 {
 	struct device *dev = &pf->si->pdev->dev;
 	struct enetc_mdio_priv *mdio_priv;
-	struct lynx_pcs *pcs_lynx;
+	struct phylink_pcs *phylink_pcs;
 	struct mdio_device *pcs;
 	struct mii_bus *bus;
 	int err;
@@ -861,8 +866,8 @@ static int enetc_imdio_create(struct enetc_pf *pf)
 		goto unregister_mdiobus;
 	}
 
-	pcs_lynx = lynx_pcs_create(pcs);
-	if (!pcs_lynx) {
+	phylink_pcs = lynx_pcs_create(pcs);
+	if (!phylink_pcs) {
 		mdio_device_free(pcs);
 		err = -ENOMEM;
 		dev_err(dev, "cannot create lynx pcs (%d)\n", err);
@@ -870,7 +875,7 @@ static int enetc_imdio_create(struct enetc_pf *pf)
 	}
 
 	pf->imdio = bus;
-	pf->pcs = pcs_lynx;
+	pf->pcs = phylink_pcs;
 
 	return 0;
 
@@ -883,8 +888,11 @@ free_mdio_bus:
 
 static void enetc_imdio_remove(struct enetc_pf *pf)
 {
+	struct mdio_device *mdio_device;
+
 	if (pf->pcs) {
-		mdio_device_free(pf->pcs->mdio);
+		mdio_device = lynx_get_mdio_device(pf->pcs);
+		mdio_device_free(mdio_device);
 		lynx_pcs_destroy(pf->pcs);
 	}
 	if (pf->imdio) {
@@ -983,7 +991,7 @@ static void enetc_pl_mac_config(struct phylink_config *config,
 
 	priv = netdev_priv(pf->si->ndev);
 	if (pf->pcs)
-		phylink_set_pcs(priv->phylink, &pf->pcs->pcs);
+		phylink_set_pcs(priv->phylink, pf->pcs);
 }
 
 static void enetc_force_rgmii_mac(struct enetc_hw *hw, int speed, int duplex)

@@ -162,6 +162,14 @@ config CRYPTO_DEV_FSL_CAAM_RNG_API
 	  Selecting this will register the SEC4 hardware rng to
 	  the hw_random API for supplying the kernel entropy pool.
 
+config CRYPTO_DEV_FSL_CAAM_PRNG_API
+	bool "Register Pseudo random number generation implementation with Crypto API"
+	default y
+	select CRYPTO_RNG
+	help
+	  Selecting this will register the SEC hardware prng to
+	  the Crypto API.
+
 config CRYPTO_DEV_FSL_CAAM_TK_API
 	bool "Register tagged key cryptography implementations with Crypto API"
 	default y
@@ -234,6 +242,9 @@ config CRYPTO_DEV_FSL_CAAM_JR_UIO
 
 	  To compile this as a module, choose M here: the module
 	  will be called fsl_jr_uio.
+
+config CRYPTO_DEV_FSL_CAAM_BLOB_GEN
+	bool
 
 endif # CRYPTO_DEV_FSL_CAAM_JR
 

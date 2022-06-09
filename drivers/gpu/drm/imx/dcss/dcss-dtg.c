@@ -256,6 +256,8 @@ void dcss_dtg_sync_set(struct dcss_dtg *dtg, struct videomode *vm)
 
 	dtg->dis_ulc_x = dis_ulc_x;
 	dtg->dis_ulc_y = dis_ulc_y;
+	if (dtg->trusty_dev)
+		trusty_dcss_get_dtg_dis_ulc(dtg->trusty_dev, dtg->dis_ulc_x, dtg->dis_ulc_y, 0);
 
 	sb_ctxld_trig = ((0 * dis_lrc_y / 100) << TC_CTXLD_SB_Y_POS) &
 							TC_CTXLD_SB_Y_MASK;

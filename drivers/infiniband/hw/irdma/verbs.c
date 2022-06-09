@@ -1617,13 +1617,13 @@ int irdma_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr, int attr_mask,
 
 	if (issue_modify_qp && iwqp->ibqp_state > IB_QPS_RTS) {
 		if (dont_wait) {
-			if (iwqp->cm_id && iwqp->hw_tcp_state) {
+			if (iwqp->hw_tcp_state) {
 				spin_lock_irqsave(&iwqp->lock, flags);
 				iwqp->hw_tcp_state = IRDMA_TCP_STATE_CLOSED;
 				iwqp->last_aeq = IRDMA_AE_RESET_SENT;
 				spin_unlock_irqrestore(&iwqp->lock, flags);
-				irdma_cm_disconn(iwqp);
 			}
+			irdma_cm_disconn(iwqp);
 		} else {
 			int close_timer_started;
 
@@ -2506,7 +2506,7 @@ static int irdma_dealloc_mw(struct ib_mw *ibmw)
 	cqp_info = &cqp_request->info;
 	info = &cqp_info->in.u.dealloc_stag.info;
 	memset(info, 0, sizeof(*info));
-	info->pd_id = iwpd->sc_pd.pd_id & 0x00007fff;
+	info->pd_id = iwpd->sc_pd.pd_id;
 	info->stag_idx = ibmw->rkey >> IRDMA_CQPSQ_STAG_IDX_S;
 	info->mr = false;
 	cqp_info->cqp_cmd = IRDMA_OP_DEALLOC_STAG;
@@ -3018,7 +3018,7 @@ static int irdma_dereg_mr(struct ib_mr *ib_mr, struct ib_udata *udata)
 	cqp_info = &cqp_request->info;
 	info = &cqp_info->in.u.dealloc_stag.info;
 	memset(info, 0, sizeof(*info));
-	info->pd_id = iwpd->sc_pd.pd_id & 0x00007fff;
+	info->pd_id = iwpd->sc_pd.pd_id;
 	info->stag_idx = ib_mr->rkey >> IRDMA_CQPSQ_STAG_IDX_S;
 	info->mr = true;
 	if (iwpbl->pbl_allocated)

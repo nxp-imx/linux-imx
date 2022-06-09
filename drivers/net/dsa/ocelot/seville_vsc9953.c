@@ -19,6 +19,10 @@
 #define MSCC_MIIM_CMD_REGAD_SHIFT		20
 #define MSCC_MIIM_CMD_PHYAD_SHIFT		25
 #define MSCC_MIIM_CMD_VLD			BIT(31)
+#define VSC9953_VCAP_POLICER_BASE		11
+#define VSC9953_VCAP_POLICER_MAX		31
+#define VSC9953_VCAP_POLICER_BASE2		120
+#define VSC9953_VCAP_POLICER_MAX2		161
 
 static const u32 vsc9953_ana_regmap[] = {
 	REG(ANA_ADVLEARN,			0x00b500),
@@ -1092,7 +1096,7 @@ static int vsc9953_mdio_bus_alloc(struct ocelot *ocelot)
 	int rc;
 
 	felix->pcs = devm_kcalloc(dev, felix->info->num_ports,
-				  sizeof(struct phy_device *),
+				  sizeof(struct phylink_pcs *),
 				  GFP_KERNEL);
 	if (!felix->pcs) {
 		dev_err(dev, "failed to allocate array for PCS PHYs\n");
@@ -1121,9 +1125,9 @@ static int vsc9953_mdio_bus_alloc(struct ocelot *ocelot)
 
 	for (port = 0; port < felix->info->num_ports; port++) {
 		struct ocelot_port *ocelot_port = ocelot->ports[port];
-		int addr = port + 4;
+		struct phylink_pcs *phylink_pcs;
 		struct mdio_device *pcs;
-		struct lynx_pcs *lynx;
+		int addr = port + 4;
 
 		if (dsa_is_unused_port(felix->ds, port))
 			continue;
@@ -1135,13 +1139,13 @@ static int vsc9953_mdio_bus_alloc(struct ocelot *ocelot)
 		if (IS_ERR(pcs))
 			continue;
 
-		lynx = lynx_pcs_create(pcs);
-		if (!lynx) {
+		phylink_pcs = lynx_pcs_create(pcs);
+		if (!phylink_pcs) {
 			mdio_device_free(pcs);
 			continue;
 		}
 
-		felix->pcs[port] = lynx;
+		felix->pcs[port] = phylink_pcs;
 
 		dev_info(dev, "Found PCS at internal MDIO address %d\n", addr);
 	}
@@ -1155,13 +1159,15 @@ static void vsc9953_mdio_bus_free(struct ocelot *ocelot)
 	int port;
 
 	for (port = 0; port < ocelot->num_phys_ports; port++) {
-		struct lynx_pcs *pcs = felix->pcs[port];
+		struct phylink_pcs *phylink_pcs = felix->pcs[port];
+		struct mdio_device *mdio_device;
 
-		if (!pcs)
+		if (!phylink_pcs)
 			continue;
 
-		mdio_device_free(pcs->mdio);
-		lynx_pcs_destroy(pcs);
+		mdio_device = lynx_get_mdio_device(phylink_pcs);
+		mdio_device_free(mdio_device);
+		lynx_pcs_destroy(phylink_pcs);
 	}
 
 	/* mdiobus_unregister and mdiobus_free handled by devres */
@@ -1176,6 +1182,10 @@ static const struct felix_info seville_info_vsc9953 = {
 	.stats_layout		= vsc9953_stats_layout,
 	.num_stats		= ARRAY_SIZE(vsc9953_stats_layout),
 	.vcap			= vsc9953_vcap_props,
+	.vcap_pol_base		= VSC9953_VCAP_POLICER_BASE,
+	.vcap_pol_max		= VSC9953_VCAP_POLICER_MAX,
+	.vcap_pol_base2		= VSC9953_VCAP_POLICER_BASE2,
+	.vcap_pol_max2		= VSC9953_VCAP_POLICER_MAX2,
 	.num_mact_rows		= 2048,
 	.num_ports		= 10,
 	.num_tx_queues		= OCELOT_NUM_TC,
@@ -1183,6 +1193,7 @@ static const struct felix_info seville_info_vsc9953 = {
 	.mdio_bus_free		= vsc9953_mdio_bus_free,
 	.phylink_validate	= vsc9953_phylink_validate,
 	.prevalidate_phy_mode	= vsc9953_prevalidate_phy_mode,
+	.init_regmap		= ocelot_regmap_init,
 };
 
 static int seville_probe(struct platform_device *pdev)

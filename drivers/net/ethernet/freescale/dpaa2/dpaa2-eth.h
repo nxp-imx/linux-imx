@@ -122,6 +122,7 @@ enum dpaa2_eth_swa_type {
 	DPAA2_ETH_SWA_SINGLE,
 	DPAA2_ETH_SWA_SG,
 	DPAA2_ETH_SWA_XDP,
+	DPAA2_ETH_SWA_SW_TSO,
 };
 
 /* Must keep this struct smaller than DPAA2_ETH_SWA_SIZE */
@@ -142,6 +143,12 @@ struct dpaa2_eth_swa {
 			int dma_size;
 			struct xdp_frame *xdpf;
 		} xdp;
+		struct {
+			struct sk_buff *skb;
+			int num_sg;
+			int sgt_size;
+			int is_last_fd;
+		} tso;
 	};
 };
 
@@ -347,7 +354,7 @@ static inline struct dpaa2_faead *dpaa2_get_faead(void *buf_addr, bool swa)
  * hardware becomes unresponsive, but not give up too easily if
  * the portal really is busy for valid reasons
  */
-#define DPAA2_ETH_SWP_BUSY_RETRIES	1000
+#define DPAA2_ETH_SWP_BUSY_RETRIES	10000
 
 /* Driver statistics, other than those in struct rtnl_link_stats64.
  * These are usually collected per-CPU and aggregated by ethtool.
@@ -357,6 +364,8 @@ struct dpaa2_eth_drv_stats {
 	__u64	tx_conf_bytes;
 	__u64	tx_sg_frames;
 	__u64	tx_sg_bytes;
+	__u64	tx_tso_frames;
+	__u64	tx_tso_bytes;
 	__u64	rx_sg_frames;
 	__u64	rx_sg_bytes;
 	/* Linear skbs sent as a S/G FD due to insufficient headroom */
@@ -387,7 +396,11 @@ struct dpaa2_eth_ch_stats {
 	__u64 xdp_redirect;
 	/* Must be last, does not show up in ethtool stats */
 	__u64 frames;
+	__u64 frames_per_cdan;
+	__u64 bytes_per_cdan;
 };
+
+#define DPAA2_ETH_CH_STATS	7
 
 /* Maximum number of queues associated with a DPNI */
 #define DPAA2_ETH_MAX_TCS		8
@@ -492,7 +505,14 @@ struct dpaa2_eth_trap_data {
 	struct dpaa2_eth_priv *priv;
 };
 
+#define DPAA2_ETH_SG_ENTRIES_MAX	(PAGE_SIZE / sizeof(struct scatterlist))
+
 #define DPAA2_ETH_DEFAULT_COPYBREAK	512
+
+#define DPAA2_ETH_ENQUEUE_MAX_FDS	200
+struct dpaa2_eth_fds {
+	struct dpaa2_fd array[DPAA2_ETH_ENQUEUE_MAX_FDS];
+};
 
 /* Driver private data */
 struct dpaa2_eth_priv {
@@ -578,6 +598,7 @@ struct dpaa2_eth_priv {
 
 	u32 rx_copybreak;
 	bool ceetm_en;
+	struct dpaa2_eth_fds __percpu *fd;
 };
 
 struct dpaa2_eth_devlink_priv {

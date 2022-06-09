@@ -368,8 +368,8 @@ struct mxc_isi_dev {
 
 	const struct mxc_isi_plat_data *pdata;
 
-	struct reset_control *soft_resetn;
-	struct reset_control *clk_enable;
+	struct reset_control *isi_clk_proc;
+	struct reset_control *isi_clk_apb;
 	struct reset_control *isi_rst_proc;
 	struct reset_control *isi_rst_apb;
 	struct reset_control *isi_rst_bus;

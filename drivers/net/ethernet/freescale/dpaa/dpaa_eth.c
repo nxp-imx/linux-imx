@@ -1,5 +1,6 @@
 /* Copyright 2008 - 2016 Freescale Semiconductor Inc.
  * Copyright 2020 NXP
+ * Copyright 2020 Puresoftware Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -57,6 +58,7 @@
 #include <linux/bpf_trace.h>
 #include <soc/fsl/bman.h>
 #include <soc/fsl/qman.h>
+#include <linux/acpi.h>
 #include "fman.h"
 #include "fman_port.h"
 #include "mac.h"
@@ -2918,13 +2920,27 @@ static int dpaa_phy_init(struct net_device *net_dev)
 	struct mac_device *mac_dev;
 	struct phy_device *phy_dev;
 	struct dpaa_priv *priv;
+	struct device *dev;
 
 	priv = netdev_priv(net_dev);
 	mac_dev = priv->mac_dev;
 
-	phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
-				 &dpaa_adjust_link, 0,
-				 mac_dev->phy_if);
+	if (is_acpi_node(mac_dev->fwnode_phy)) {
+		dev = bus_find_device_by_fwnode(&mdio_bus_type,
+						mac_dev->fwnode_phy);
+		if (dev) {
+			phy_dev = to_phy_device(dev);
+			WARN_ON(phy_dev->attached_dev);
+			phy_dev = phy_connect(net_dev, phydev_name(phy_dev),
+					      &dpaa_adjust_link, mac_dev->phy_if);
+		} else {
+			phy_dev = NULL;
+		}
+	} else {
+		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+					 &dpaa_adjust_link, 0, mac_dev->phy_if);
+	}
+
 	if (!phy_dev) {
 		netif_err(priv, ifup, net_dev, "init_phy() failed\n");
 		return -ENODEV;

@@ -1,5 +1,6 @@
 /*
  * Copyright 2008-2015 Freescale Semiconductor Inc.
+ * Copyright 2020 Puresoftware Ltd.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -1154,6 +1155,29 @@ int memac_free(struct fman_mac *memac)
 	return 0;
 }
 
+static struct phy_device *memac_get_pcsphy(struct fman_mac_params *params)
+{
+	struct phy_device *phy;
+	struct device *dev;
+
+	/* in case of DTB, of_ calls are applicable */
+	if (params->internal_phy_node) {
+		phy = of_phy_find_device(params->internal_phy_node);
+	/* in case of ACPI, fwnode_ calls are applicable */
+	} else if (params->internal_phy_fwnode) {
+		dev = bus_find_device_by_fwnode(&mdio_bus_type,
+						params->internal_phy_fwnode);
+		if (dev)
+			phy = to_phy_device(dev);
+		else
+			phy = NULL;
+	} else {
+		phy = NULL;
+	}
+
+	return phy;
+}
+
 struct fman_mac *memac_config(struct fman_mac_params *params)
 {
 	struct fman_mac *memac;
@@ -1197,15 +1221,9 @@ struct fman_mac *memac_config(struct fman_mac_params *params)
 
 	if (memac->phy_if == PHY_INTERFACE_MODE_SGMII ||
 	    memac->phy_if == PHY_INTERFACE_MODE_QSGMII) {
-		if (!params->internal_phy_node) {
-			pr_err("PCS PHY node is not available\n");
-			memac_free(memac);
-			return NULL;
-		}
-
-		memac->pcsphy = of_phy_find_device(params->internal_phy_node);
+		memac->pcsphy = memac_get_pcsphy(params);
 		if (!memac->pcsphy) {
-			pr_err("of_phy_find_device (PCS PHY) failed\n");
+			pr_err("memac_get_pcsphy failed\n");
 			memac_free(memac);
 			return NULL;
 		}

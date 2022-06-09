@@ -14,6 +14,7 @@
 #include <sound/pcm.h>
 #include <sound/soc-dapm.h>
 #include <sound/simple_card_utils.h>
+#include <linux/extcon-provider.h>
 
 #include "fsl_sai.h"
 
@@ -117,6 +118,15 @@ struct imx_card_data {
 	u32 asrc_rate;
 	u32 asrc_format;
 };
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *imx_card_edev;
+
+static const unsigned int imx_card_cables[] = {
+	EXTCON_JACK_HEADPHONE,
+	EXTCON_NONE,
+};
+#endif
 
 static struct imx_akcodec_fs_mul ak4458_fs_mul[] = {
 	/* Normal, < 32kHz */
@@ -354,8 +364,12 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 	else
 		mclk_freq = params_rate(params) * slots * slot_width;
 	/* Use the maximum freq from DSD512 (512*44100 = 22579200) */
-	if (format_is_dsd(params) && (params_rate(params) % 44100 == 0))
-		mclk_freq = 22579200;
+	if (format_is_dsd(params)) {
+		if (params_rate(params) % 11025 == 0)
+			mclk_freq = 22579200;
+		else
+			mclk_freq = 24576000;
+	}
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, link_data->cpu_sysclk_id, mclk_freq,
 				     SND_SOC_CLOCK_OUT);
@@ -835,6 +849,22 @@ static int imx_card_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 		return ret;
 	}
+
+#ifdef CONFIG_EXTCON
+	if (plat_data->type == CODEC_AK4458) {
+		imx_card_edev = devm_extcon_dev_allocate(&pdev->dev, imx_card_cables);
+		if (IS_ERR(imx_card_edev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			return 0;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev, imx_card_edev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			return 0;
+		}
+		extcon_set_state_sync(imx_card_edev, EXTCON_JACK_HEADPHONE, 1);
+	}
+#endif
 
 	return 0;
 }

@@ -10,15 +10,11 @@
 #include <soc/mscc/ocelot_sys.h>
 #include <soc/mscc/ocelot.h>
 
-int ocelot_ptp_gettime64(struct ptp_clock_info *ptp, struct timespec64 *ts)
+static void __ocelot_ptp_gettime64(struct ocelot *ocelot, struct timespec64 *ts)
 {
-	struct ocelot *ocelot = container_of(ptp, struct ocelot, ptp_info);
-	unsigned long flags;
 	time64_t s;
 	u32 val;
 	s64 ns;
-
-	spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
 
 	val = ocelot_read_rix(ocelot, PTP_PIN_CFG, TOD_ACC_PIN);
 	val &= ~(PTP_PIN_CFG_SYNC | PTP_PIN_CFG_ACTION_MASK | PTP_PIN_CFG_DOM);
@@ -30,8 +26,6 @@ int ocelot_ptp_gettime64(struct ptp_clock_info *ptp, struct timespec64 *ts)
 	s += ocelot_read_rix(ocelot, PTP_PIN_TOD_SEC_LSB, TOD_ACC_PIN);
 	ns = ocelot_read_rix(ocelot, PTP_PIN_TOD_NSEC, TOD_ACC_PIN);
 
-	spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
-
 	/* Deal with negative values */
 	if (ns >= 0x3ffffff0 && ns <= 0x3fffffff) {
 		s--;
@@ -40,18 +34,27 @@ int ocelot_ptp_gettime64(struct ptp_clock_info *ptp, struct timespec64 *ts)
 	}
 
 	set_normalized_timespec64(ts, s, ns);
+}
+
+int ocelot_ptp_gettime64(struct ptp_clock_info *ptp, struct timespec64 *ts)
+{
+	struct ocelot *ocelot = container_of(ptp, struct ocelot, ptp_info);
+	unsigned long flags;
+
+	spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
+
+	__ocelot_ptp_gettime64(ocelot, ts);
+
+	spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
+
 	return 0;
 }
 EXPORT_SYMBOL(ocelot_ptp_gettime64);
 
-int ocelot_ptp_settime64(struct ptp_clock_info *ptp,
-			 const struct timespec64 *ts)
+static void __ocelot_ptp_settime64(struct ocelot *ocelot,
+				   const struct timespec64 *ts)
 {
-	struct ocelot *ocelot = container_of(ptp, struct ocelot, ptp_info);
-	unsigned long flags;
 	u32 val;
-
-	spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
 
 	val = ocelot_read_rix(ocelot, PTP_PIN_CFG, TOD_ACC_PIN);
 	val &= ~(PTP_PIN_CFG_SYNC | PTP_PIN_CFG_ACTION_MASK | PTP_PIN_CFG_DOM);
@@ -70,21 +73,44 @@ int ocelot_ptp_settime64(struct ptp_clock_info *ptp,
 	val |= PTP_PIN_CFG_ACTION(PTP_PIN_ACTION_LOAD);
 
 	ocelot_write_rix(ocelot, val, PTP_PIN_CFG, TOD_ACC_PIN);
+}
+
+int ocelot_ptp_settime64(struct ptp_clock_info *ptp,
+			 const struct timespec64 *ts)
+{
+	struct ocelot *ocelot = container_of(ptp, struct ocelot,
+					     ptp_info);
+	unsigned long flags;
+
+	mutex_lock(&ocelot->tas_lock);
+
+	spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
+
+	__ocelot_ptp_settime64(ocelot, ts);
 
 	spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
+
+	if (ocelot->ops->tas_clock_adjust)
+		ocelot->ops->tas_clock_adjust(ocelot);
+
+	mutex_unlock(&ocelot->tas_lock);
+
 	return 0;
 }
 EXPORT_SYMBOL(ocelot_ptp_settime64);
 
 int ocelot_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 {
-	if (delta > -(NSEC_PER_SEC / 2) && delta < (NSEC_PER_SEC / 2)) {
-		struct ocelot *ocelot = container_of(ptp, struct ocelot,
-						     ptp_info);
-		unsigned long flags;
-		u32 val;
+	struct ocelot *ocelot = container_of(ptp, struct ocelot,
+					     ptp_info);
+	unsigned long flags;
 
-		spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
+	mutex_lock(&ocelot->tas_lock);
+
+	spin_lock_irqsave(&ocelot->ptp_clock_lock, flags);
+
+	if (delta > -(NSEC_PER_SEC / 2) && delta < (NSEC_PER_SEC / 2)) {
+		u32 val;
 
 		val = ocelot_read_rix(ocelot, PTP_PIN_CFG, TOD_ACC_PIN);
 		val &= ~(PTP_PIN_CFG_SYNC | PTP_PIN_CFG_ACTION_MASK |
@@ -103,20 +129,26 @@ int ocelot_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 		val |= PTP_PIN_CFG_ACTION(PTP_PIN_ACTION_DELTA);
 
 		ocelot_write_rix(ocelot, val, PTP_PIN_CFG, TOD_ACC_PIN);
-
-		spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
 	} else {
 		/* Fall back using ocelot_ptp_settime64 which is not exact. */
 		struct timespec64 ts;
 		u64 now;
 
-		ocelot_ptp_gettime64(ptp, &ts);
+		__ocelot_ptp_gettime64(ocelot, &ts);
 
 		now = ktime_to_ns(timespec64_to_ktime(ts));
 		ts = ns_to_timespec64(now + delta);
 
-		ocelot_ptp_settime64(ptp, &ts);
+		__ocelot_ptp_settime64(ocelot, &ts);
 	}
+
+	spin_unlock_irqrestore(&ocelot->ptp_clock_lock, flags);
+
+	if (ocelot->ops->tas_clock_adjust)
+		ocelot->ops->tas_clock_adjust(ocelot);
+
+	mutex_unlock(&ocelot->tas_lock);
+
 	return 0;
 }
 EXPORT_SYMBOL(ocelot_ptp_adjtime);

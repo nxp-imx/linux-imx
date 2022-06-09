@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2022 NXP
+ */
+
 #include <linux/arm-smccc.h>
 #include <linux/clk.h>
 #include <linux/device.h>

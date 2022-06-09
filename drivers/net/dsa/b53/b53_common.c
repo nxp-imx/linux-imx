@@ -1550,7 +1550,7 @@ int b53_vlan_del(struct dsa_switch *ds, int port,
 }
 EXPORT_SYMBOL(b53_vlan_del);
 
-/* Address Resolution Logic routines */
+/* Address Resolution Logic routines. Caller must hold &dev->arl_mutex. */
 static int b53_arl_op_wait(struct b53_device *dev)
 {
 	unsigned int timeout = 10;
@@ -1712,9 +1712,11 @@ static int b53_arl_op(struct b53_device *dev, int op, int port,
 }
 
 int b53_fdb_add(struct dsa_switch *ds, int port,
-		const unsigned char *addr, u16 vid)
+		const unsigned char *addr, u16 vid,
+		struct dsa_db db)
 {
 	struct b53_device *priv = ds->priv;
+	int ret;
 
 	/* 5325 and 5365 require some more massaging, but could
 	 * be supported eventually
@@ -1722,16 +1724,26 @@ int b53_fdb_add(struct dsa_switch *ds, int port,
 	if (is5325(priv) || is5365(priv))
 		return -EOPNOTSUPP;
 
-	return b53_arl_op(priv, 0, port, addr, vid, true);
+	mutex_lock(&priv->arl_mutex);
+	ret = b53_arl_op(priv, 0, port, addr, vid, true);
+	mutex_unlock(&priv->arl_mutex);
+
+	return ret;
 }
 EXPORT_SYMBOL(b53_fdb_add);
 
 int b53_fdb_del(struct dsa_switch *ds, int port,
-		const unsigned char *addr, u16 vid)
+		const unsigned char *addr, u16 vid,
+		struct dsa_db db)
 {
 	struct b53_device *priv = ds->priv;
+	int ret;
 
-	return b53_arl_op(priv, 0, port, addr, vid, false);
+	mutex_lock(&priv->arl_mutex);
+	ret = b53_arl_op(priv, 0, port, addr, vid, false);
+	mutex_unlock(&priv->arl_mutex);
+
+	return ret;
 }
 EXPORT_SYMBOL(b53_fdb_del);
 
@@ -1788,6 +1800,8 @@ int b53_fdb_dump(struct dsa_switch *ds, int port,
 	int ret;
 	u8 reg;
 
+	mutex_lock(&priv->arl_mutex);
+
 	/* Start search operation */
 	reg = ARL_SRCH_STDN;
 	b53_write8(priv, B53_ARLIO_PAGE, B53_ARL_SRCH_CTL, reg);
@@ -1795,18 +1809,18 @@ int b53_fdb_dump(struct dsa_switch *ds, int port,
 	do {
 		ret = b53_arl_search_wait(priv);
 		if (ret)
-			return ret;
+			break;
 
 		b53_arl_search_rd(priv, 0, &results[0]);
 		ret = b53_fdb_copy(port, &results[0], cb, data);
 		if (ret)
-			return ret;
+			break;
 
 		if (priv->num_arl_bins > 2) {
 			b53_arl_search_rd(priv, 1, &results[1]);
 			ret = b53_fdb_copy(port, &results[1], cb, data);
 			if (ret)
-				return ret;
+				break;
 
 			if (!results[0].is_valid && !results[1].is_valid)
 				break;
@@ -1814,14 +1828,18 @@ int b53_fdb_dump(struct dsa_switch *ds, int port,
 
 	} while (count++ < b53_max_arl_entries(priv) / 2);
 
+	mutex_unlock(&priv->arl_mutex);
+
 	return 0;
 }
 EXPORT_SYMBOL(b53_fdb_dump);
 
 int b53_mdb_add(struct dsa_switch *ds, int port,
-		const struct switchdev_obj_port_mdb *mdb)
+		const struct switchdev_obj_port_mdb *mdb,
+		struct dsa_db db)
 {
 	struct b53_device *priv = ds->priv;
+	int ret;
 
 	/* 5325 and 5365 require some more massaging, but could
 	 * be supported eventually
@@ -1829,17 +1847,24 @@ int b53_mdb_add(struct dsa_switch *ds, int port,
 	if (is5325(priv) || is5365(priv))
 		return -EOPNOTSUPP;
 
-	return b53_arl_op(priv, 0, port, mdb->addr, mdb->vid, true);
+	mutex_lock(&priv->arl_mutex);
+	ret = b53_arl_op(priv, 0, port, mdb->addr, mdb->vid, true);
+	mutex_unlock(&priv->arl_mutex);
+
+	return ret;
 }
 EXPORT_SYMBOL(b53_mdb_add);
 
 int b53_mdb_del(struct dsa_switch *ds, int port,
-		const struct switchdev_obj_port_mdb *mdb)
+		const struct switchdev_obj_port_mdb *mdb,
+		struct dsa_db db)
 {
 	struct b53_device *priv = ds->priv;
 	int ret;
 
+	mutex_lock(&priv->arl_mutex);
 	ret = b53_arl_op(priv, 0, port, mdb->addr, mdb->vid, false);
+	mutex_unlock(&priv->arl_mutex);
 	if (ret)
 		dev_err(ds->dev, "failed to delete MDB entry\n");
 
@@ -1847,7 +1872,8 @@ int b53_mdb_del(struct dsa_switch *ds, int port,
 }
 EXPORT_SYMBOL(b53_mdb_del);
 
-int b53_br_join(struct dsa_switch *ds, int port, struct net_device *br)
+int b53_br_join(struct dsa_switch *ds, int port, struct dsa_bridge bridge,
+		bool *tx_fwd_offload, struct netlink_ext_ack *extack)
 {
 	struct b53_device *dev = ds->priv;
 	s8 cpu_port = dsa_to_port(ds, port)->cpu_dp->index;
@@ -1874,7 +1900,7 @@ int b53_br_join(struct dsa_switch *ds, int port, struct net_device *br)
 	b53_read16(dev, B53_PVLAN_PAGE, B53_PVLAN_PORT_MASK(port), &pvlan);
 
 	b53_for_each_port(dev, i) {
-		if (dsa_to_port(ds, i)->bridge_dev != br)
+		if (!dsa_port_offloads_bridge(dsa_to_port(ds, i), &bridge))
 			continue;
 
 		/* Add this local port to the remote port VLAN control
@@ -1898,7 +1924,7 @@ int b53_br_join(struct dsa_switch *ds, int port, struct net_device *br)
 }
 EXPORT_SYMBOL(b53_br_join);
 
-void b53_br_leave(struct dsa_switch *ds, int port, struct net_device *br)
+void b53_br_leave(struct dsa_switch *ds, int port, struct dsa_bridge bridge)
 {
 	struct b53_device *dev = ds->priv;
 	struct b53_vlan *vl = &dev->vlans[0];
@@ -1910,7 +1936,7 @@ void b53_br_leave(struct dsa_switch *ds, int port, struct net_device *br)
 
 	b53_for_each_port(dev, i) {
 		/* Don't touch the remaining ports */
-		if (dsa_to_port(ds, i)->bridge_dev != br)
+		if (!dsa_port_offloads_bridge(dsa_to_port(ds, i), &bridge))
 			continue;
 
 		b53_read16(dev, B53_PVLAN_PAGE, B53_PVLAN_PORT_MASK(i), &reg);
@@ -2088,7 +2114,8 @@ out:
 EXPORT_SYMBOL(b53_get_tag_protocol);
 
 int b53_mirror_add(struct dsa_switch *ds, int port,
-		   struct dsa_mall_mirror_tc_entry *mirror, bool ingress)
+		   struct dsa_mall_mirror_tc_entry *mirror, bool ingress,
+		   struct netlink_ext_ack *extack)
 {
 	struct b53_device *dev = ds->priv;
 	u16 reg, loc;
@@ -2705,6 +2732,7 @@ struct b53_device *b53_switch_alloc(struct device *base,
 
 	mutex_init(&dev->reg_mutex);
 	mutex_init(&dev->stats_mutex);
+	mutex_init(&dev->arl_mutex);
 
 	return dev;
 }
