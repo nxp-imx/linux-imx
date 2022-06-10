@@ -74,3 +74,14 @@
 &ldb_phy {
 	status = "okay";
 };
+
+&lpi2c1 {
+	exc80h60: touch@2a {
+		compatible = "eeti,exc80h60";
+		reg = <0x2a>;
+		interrupt-parent = <&pcal6524>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&pcal6524 17 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
