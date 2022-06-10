@@ -263,7 +263,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qm-mek-car2-a72.dtb \
 			  imx8qm-mek-car2-md-a72.dtb \
 			  imx8qm-mek-car-a72.dtb \
-			  imx8qm-mek-car-md-a72.dtb
+			  imx8qm-mek-car-md-a72.dtb \
+			  imx8qm-mek-car2-a72-sof.dtb \
+			  imx8qm-mek-car-a72-sof.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb \
 			  imx8qm-mek-root.dtb imx8qm-mek-inmate.dtb
 
@@ -365,7 +367,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-ov5640.dtb \
 			  imx8qxp-mek-car-no-product.dtb \
 			  imx8qxp-mek-car2-no-product.dtb \
 			  imx8qxp-mek-car.dtb \
-			  imx8qxp-mek-car2.dtb
+			  imx8qxp-mek-car2.dtb \
+			  imx8qxp-mek-car-sof.dtb \
+			  imx8qxp-mek-car2-sof.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb \
 			  imx8qxp-mek-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-14x14-evk.dtb \

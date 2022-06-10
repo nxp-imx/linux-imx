@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2022
+
+#include "imx8qxp-mek-car2.dts"
+#include "imx8qxp-mek-sof-cs42888.dtsi"
