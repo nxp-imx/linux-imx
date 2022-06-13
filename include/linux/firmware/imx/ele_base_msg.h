@@ -6,6 +6,8 @@
 #ifndef ELE_BASE_MSG_H
 #define ELE_BASE_MSG_H
 
+#include <linux/types.h>
+
 #define MAX_RECV_SIZE 31
 #define MAX_RECV_SIZE_BYTES (MAX_RECV_SIZE * sizeof(u32))
 #define MAX_MESSAGE_SIZE 31
@@ -13,6 +15,7 @@
 
 #define MESSAGING_VERSION_6		0x6
 
+#define ELE_PING_REQ			0x1
 #define ELE_OEM_CNTN_AUTH_REQ	0x87
 #define ELE_VERIFY_IMAGE_REQ		0x88
 #define ELE_RELEASE_CONTAINER_REQ	0x89
@@ -32,5 +35,6 @@
 
 
 int read_common_fuse(uint16_t fuse_index, u32 *value);
+int ele_ping(void);
 
 #endif

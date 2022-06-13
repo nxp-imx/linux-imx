@@ -139,3 +139,38 @@ int read_common_fuse(uint16_t fuse_id, u32 *value)
 	return err;
 }
 EXPORT_SYMBOL_GPL(read_common_fuse);
+
+int ele_ping(void)
+{
+	struct ele_mu_priv *priv = NULL;
+	unsigned int tag, command, size, ver, status;
+	int err;
+
+	err = get_ele_mu_priv(&priv);
+	if (err) {
+		pr_err("Error: iMX EdgeLock Enclave MU is not probed successfully.\n");
+		return err;
+	}
+	err = plat_fill_cmd_msg_hdr((struct mu_hdr *)&priv->tx_msg.header, ELE_PING_REQ, 4);
+	if (err) {
+		pr_err("Error: plat_fill_cmd_msg_hdr failed.\n");
+		return err;
+	}
+
+	err = imx_ele_msg_send_rcv(priv);
+	if (err < 0)
+		return err;
+
+	tag = MSG_TAG(priv->rx_msg.header);
+	command = MSG_COMMAND(priv->rx_msg.header);
+	size = MSG_SIZE(priv->rx_msg.header);
+	ver = MSG_VER(priv->rx_msg.header);
+	status = RES_STATUS(priv->rx_msg.data[0]);
+
+	if (tag == 0xe1 && command == ELE_PING_REQ &&
+	    size == 0x2 && ver == ELE_VERSION && status == ELE_SUCCESS_IND)
+		return 0;
+
+	return -EAGAIN;
+}
+EXPORT_SYMBOL_GPL(ele_ping);
