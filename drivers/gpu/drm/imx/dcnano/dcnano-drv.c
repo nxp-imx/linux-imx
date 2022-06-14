@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/of_platform.h>
 
 #include <drm/clients/drm_client_setup.h>
 #include <drm/drm_atomic_helper.h>
@@ -135,6 +136,7 @@ err:
 static int dcnano_probe(struct platform_device *pdev)
 {
 	struct dcnano_dev *dcnano;
+	struct device *dev = &pdev->dev;
 	struct drm_device *drm;
 	int ret;
 
@@ -145,6 +147,21 @@ static int dcnano_probe(struct platform_device *pdev)
 				    struct dcnano_dev, base);
 	if (IS_ERR(dcnano))
 		return PTR_ERR(dcnano);
+
+	dcnano->trusty_dev = NULL;
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		dcnano->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (dcnano->trusty_dev) {
+			if (!trusty_fast_call32(dcnano->trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+				dev_err(&pdev->dev, "dcnano: get trusty_dev node, use Trusty mode.\n");
+			} else {
+				dcnano->trusty_dev = NULL;
+				dev_err(&pdev->dev, "dcnano: failed to get response of echo. Use normal mode.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dcnano: failed to find trusty node. Use normal mode.\n");
+		}
+	}
 
 	drm = &dcnano->base;
 	dev_set_drvdata(&pdev->dev, dcnano);
