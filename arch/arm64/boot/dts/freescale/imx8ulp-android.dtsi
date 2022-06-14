@@ -62,6 +62,10 @@
 	};
 };
 
+&dcnano {
+	trusty;
+};
+
 &lpuart6 {
        /delete-node/ bluetooth;
 };
