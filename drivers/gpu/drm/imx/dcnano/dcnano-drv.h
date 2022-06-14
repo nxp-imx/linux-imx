@@ -47,6 +47,7 @@ struct dcnano_dev {
 	int disp_xfer_mode;
 	struct drm_property *prop_disp_xfer;
 	int lpd_app_cmd;
+	struct device *trusty_dev;
 };
 
 static inline struct dcnano_dev *to_dcnano_dev(struct drm_device *drm)
