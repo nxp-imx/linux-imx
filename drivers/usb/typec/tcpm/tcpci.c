@@ -11,7 +11,6 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#include <linux/of_irq.h>
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/usb/pd.h>
@@ -46,8 +45,6 @@ struct tcpci {
 
 	struct tcpc_dev tcpc;
 	struct tcpci_data *data;
-	unsigned int irq_mask;
-	bool irq_falling_edge;
 };
 
 struct tcpci_chip {
@@ -689,20 +686,17 @@ static int tcpci_init(struct tcpc_dev *tcpc)
 		if (ret < 0)
 			return ret;
 	}
-	tcpci->irq_mask = reg;
-
 	return tcpci_write16(tcpci, TCPC_ALERT_MASK, reg);
 }
 
 irqreturn_t tcpci_irq(struct tcpci *tcpci)
 {
-	u16 status = 0;
+	u16 status;
 	int ret;
 	unsigned int raw;
 
 	tcpci_read16(tcpci, TCPC_ALERT, &status);
 
-recheck:
 	/*
 	 * Clear alert status for everything except RX_STATUS, which shouldn't
 	 * be cleared until we have successfully retrieved message.
@@ -787,12 +781,6 @@ recheck:
 		tcpm_pd_transmit_complete(tcpci->port, TCPC_TX_DISCARDED);
 	else if (status & TCPC_ALERT_TX_FAILED)
 		tcpm_pd_transmit_complete(tcpci->port, TCPC_TX_FAILED);
-
-	if (tcpci->irq_falling_edge) {
-		tcpci_read16(tcpci, TCPC_ALERT, &status);
-		if (status & tcpci->irq_mask)
-			goto recheck;
-	}
 
 	return IRQ_HANDLED;
 }
@@ -890,7 +878,6 @@ static int tcpci_probe(struct i2c_client *client,
 		       const struct i2c_device_id *i2c_id)
 {
 	struct tcpci_chip *chip;
-	unsigned long irq_flags, irq_type;
 	int err;
 	u16 val = 0;
 
@@ -915,16 +902,9 @@ static int tcpci_probe(struct i2c_client *client,
 		return PTR_ERR(chip->tcpci);
 
 	irq_set_status_flags(client->irq, IRQ_DISABLE_UNLAZY);
-
-	irq_type = irqd_get_trigger_type(irq_get_irq_data(client->irq));
-	if (irq_type == IRQF_TRIGGER_FALLING) {
-		irq_flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
-		chip->tcpci->irq_falling_edge = true;
-	} else {
-		irq_flags = IRQF_ONESHOT | IRQF_TRIGGER_LOW;
-	}
 	err = devm_request_threaded_irq(&client->dev, client->irq, NULL,
-					_tcpci_irq, irq_flags,
+					_tcpci_irq,
+					IRQF_ONESHOT | IRQF_TRIGGER_LOW,
 					dev_name(&client->dev), chip);
 	if (err < 0) {
 		tcpci_unregister_port(chip->tcpci);
