@@ -348,8 +348,8 @@
 	ptn5110: tcpc@50 {
 		compatible = "nxp,ptn5110";
 		reg = <0x50>;
-		interrupt-parent = <&pcal6524>;
-		interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <27 IRQ_TYPE_LEVEL_LOW>;
 		status = "okay";
 
 		port {
@@ -375,8 +375,8 @@
 	ptn5110_2: tcpc@51 {
 		compatible = "nxp,ptn5110";
 		reg = <0x51>;
-		interrupt-parent = <&pcal6524>;
-		interrupts = <9 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <27 IRQ_TYPE_LEVEL_LOW>;
 		status = "okay";
 
 		port {
