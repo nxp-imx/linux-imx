@@ -857,7 +857,8 @@ static int fsl_sai_startup(struct snd_pcm_substream *substream,
 {
 	struct fsl_sai *sai = snd_soc_dai_get_drvdata(cpu_dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
-	int ret;
+	int ret, i, j, k = 0;
+	unsigned long clk_rate[2];
 
 	/*
 	 * EDMA controller needs period size to be a multiple of
@@ -869,8 +870,24 @@ static int fsl_sai_startup(struct snd_pcm_substream *substream,
 					   tx ? sai->dma_params_tx.maxburst :
 					   sai->dma_params_rx.maxburst);
 
+	sai->constraint_rates = fsl_sai_rate_constraints;
+	if (sai->pll8k_clk || sai->pll11k_clk) {
+		sai->constraint_rates.list = sai->constraint_rates_list;
+		sai->constraint_rates.count = 0;
+		for (i = 0; i < FAL_SAI_NUM_RATES; i++) {
+			clk_rate[0] = clk_get_rate(sai->pll8k_clk);
+			clk_rate[1] = clk_get_rate(sai->pll11k_clk);
+			for (j = 0; j < 2; j++) {
+				if (clk_rate[j] != 0 &&
+				    do_div(clk_rate[j], fsl_sai_rates[i]) == 0) {
+					sai->constraint_rates_list[k++] = fsl_sai_rates[i];
+					sai->constraint_rates.count++;
+				}
+			}
+		}
+	}
 	ret = snd_pcm_hw_constraint_list(substream->runtime, 0,
-			SNDRV_PCM_HW_PARAM_RATE, &fsl_sai_rate_constraints);
+			SNDRV_PCM_HW_PARAM_RATE, &sai->constraint_rates);
 
 	return ret;
 }
