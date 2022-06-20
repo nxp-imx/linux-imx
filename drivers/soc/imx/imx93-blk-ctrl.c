@@ -99,7 +99,7 @@ static int imx93_blk_ctrl_power_on(struct generic_pm_domain *genpd)
 	/* release reset */
 	regmap_set_bits(bc->regmap, BLK_SFT_RSTN, data->rst_mask);
 
-	dev_info(bc->dev, "pd_on: name: %s\n", genpd->name);
+	dev_dbg(bc->dev, "pd_on: name: %s\n", genpd->name);
 
 	return 0;
 
@@ -115,7 +115,7 @@ static int imx93_blk_ctrl_power_off(struct generic_pm_domain *genpd)
 	const struct imx93_blk_ctrl_domain_data *data = domain->data;
 	struct imx93_blk_ctrl *bc = domain->bc;
 
-	dev_info(bc->dev, "pd_off: name: %s\n", genpd->name);
+	dev_dbg(bc->dev, "pd_off: name: %s\n", genpd->name);
 
 	regmap_clear_bits(bc->regmap, BLK_SFT_RSTN, data->rst_mask);
 	regmap_set_bits(bc->regmap, BLK_CLK_EN, data->clk_mask);
