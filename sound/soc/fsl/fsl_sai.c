@@ -858,7 +858,7 @@ static int fsl_sai_startup(struct snd_pcm_substream *substream,
 	struct fsl_sai *sai = snd_soc_dai_get_drvdata(cpu_dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	int ret, i, j, k = 0;
-	unsigned long clk_rate[2];
+	u64 clk_rate[2];
 
 	/*
 	 * EDMA controller needs period size to be a multiple of
