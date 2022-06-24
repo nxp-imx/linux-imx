@@ -217,7 +217,7 @@ struct fsl_edma3_engine {
 static struct fsl_edma3_drvdata fsl_edma_imx8q = {
 	.has_pd = true,
 	.dmamuxs = 0,
-	.has_chclk = true,
+	.has_chclk = false,
 	.has_chmux = true,
 };
 
@@ -1140,7 +1140,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 		}
 		clk_prepare_enable(fsl_edma3->clk_mp);
 	} else {
-		fsl_edma3->dmaclk = devm_clk_get(&pdev->dev, "edma");
+		fsl_edma3->dmaclk = devm_clk_get_optional(&pdev->dev, "edma");
 		if (IS_ERR(fsl_edma3->dmaclk)) {
 			dev_err(&pdev->dev, "Missing DMA block clock.\n");
 			return PTR_ERR(fsl_edma3->dmaclk);
