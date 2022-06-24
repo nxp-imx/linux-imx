@@ -83,6 +83,8 @@ static int adp5585_i2c_probe(struct i2c_client *i2c,
 				const struct i2c_device_id *id)
 {
 	struct adp5585_dev *adp5585;
+	u8 reg;
+	int ret;
 
 	adp5585 = devm_kzalloc(&i2c->dev, sizeof(struct adp5585_dev),
 				GFP_KERNEL);
@@ -94,6 +96,10 @@ static int adp5585_i2c_probe(struct i2c_client *i2c,
 	adp5585->i2c_client = i2c;
 	adp5585->read_reg = adp5585_i2c_read_reg;
 	adp5585->write_reg = adp5585_i2c_write_reg;
+
+	ret = adp5585_i2c_read_reg(adp5585, ADP5585_ID, &reg);
+	if (ret)
+		return ret;
 
 	return devm_mfd_add_devices(adp5585->dev, PLATFORM_DEVID_AUTO,
 				    adp5585_devs, ARRAY_SIZE(adp5585_devs),
