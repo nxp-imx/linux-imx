@@ -11,7 +11,7 @@
 	};
 };
 
-&lpi2c1 {
+&lpi2c3 {
 	status = "disabled";
 	/delete-node/ tcpc@51;
 };
