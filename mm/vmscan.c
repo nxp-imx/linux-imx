@@ -716,6 +716,8 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 					  : SHRINK_BATCH;
 	long scanned = 0, next_deferred;
 
+	trace_android_vh_do_shrink_slab(shrinker, shrinkctl, priority);
+
 	freeable = shrinker->count_objects(shrinker, shrinkctl);
 	if (freeable == 0 || freeable == SHRINK_EMPTY)
 		return freeable;
@@ -908,6 +910,11 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 {
 	unsigned long ret, freed = 0;
 	struct shrinker *shrinker;
+	bool bypass = false;
+
+	trace_android_vh_shrink_slab_bypass(gfp_mask, nid, memcg, priority, &bypass);
+	if (bypass)
+		return 0;
 
 	/*
 	 * The root memcg might be allocated even though memcg is disabled
@@ -2724,6 +2731,7 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 		goto out;
 	}
 
+	trace_android_vh_tune_swappiness(&swappiness);
 	/*
 	 * Global reclaim will swap to prevent OOM even with no
 	 * swappiness, but memcg users want to use this knob to
@@ -2798,6 +2806,7 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	fraction[1] = fp;
 	denominator = ap + fp;
 out:
+	trace_android_vh_tune_scan_type((char *)(&scan_balance));
 	for_each_evictable_lru(lru) {
 		int file = is_file_lru(lru);
 		unsigned long lruvec_size;
@@ -6399,6 +6408,7 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 
 	return nr_reclaimed;
 }
+EXPORT_SYMBOL_GPL(try_to_free_mem_cgroup_pages);
 #endif
 
 static void age_active_anon(struct pglist_data *pgdat,
