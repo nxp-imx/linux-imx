@@ -44,6 +44,9 @@
 #define REG_DZ_TGT_FCT		0x1010
 #define REG_SFX_MODE		0x1016
 #define REG_SS_HEAD_PT0		0x1174
+#define REG_ATOMIC		0x1184
+#define REG_PREVIEW_WIDTH	0x2000
+#define REG_PREVIEW_HEIGHT	0x2002
 #define REG_AE_BV_OFF		0x5014
 #define REG_AE_BV_BIAS		0x5016
 #define REG_AWB_CTRL		0x5100
@@ -95,6 +98,9 @@ struct ap1302_device {
 	struct gpio_desc *isp_en;
 
 	const struct firmware *fw;
+	const struct ap1302_res_info *cur_mode;
+
+	bool mode_change;
 };
 /* Static definitions */
 static struct regmap_config ap1302_reg16_config = {
@@ -223,6 +229,7 @@ static void ap1302_fw_handler(const struct firmware *fw, void *context)
 	struct ap1302_device *ap1302_dev = context;
 	struct device *dev = &ap1302_dev->i2c_client->dev;
 	struct v4l2_subdev *sd = &ap1302_dev->subdev;
+	struct v4l2_mbus_framefmt *fmt = &ap1302_dev->fmt;
 	struct ap1302_firmware *ap1302_fw;
 	const u8 *fw_data;
 	u16 regVal, win_pos = 0;
@@ -309,6 +316,9 @@ static void ap1302_fw_handler(const struct firmware *fw, void *context)
 			ap1302_fw->checksum, regVal);
 		return;
 	}
+
+	ap1302_write_reg(ap1302_dev, REG_PREVIEW_WIDTH, fmt->width);
+	ap1302_write_reg(ap1302_dev, REG_PREVIEW_HEIGHT, fmt->height);
 
 	release_firmware(fw);
 	ap1302_s_stream(sd, 0);
@@ -409,6 +419,12 @@ static int ap1302_set_fmt(struct v4l2_subdev *sd,
 	if (!mode)
 	      return -EINVAL;
 
+	ap1302_dev->mode_change = false;
+	if (mode != ap1302_dev->cur_mode) {
+		ap1302_dev->cur_mode = mode;
+		ap1302_dev->mode_change = true;
+	}
+
 	memcpy(fmt, mbus_fmt, sizeof(*fmt));
 	fmt->width  = mode->hact;
 	fmt->height = mode->vact;
@@ -485,10 +501,17 @@ static int ap1302_s_frame_interval(struct v4l2_subdev *sd,
 static int ap1302_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ap1302_device *ap1302_dev = to_ap1302_device(sd);
+	struct v4l2_mbus_framefmt *fmt = &ap1302_dev->fmt;
 
 	mutex_lock(&ap1302_dev->lock);
 	if (enable) {
 		ap1302_write_reg(ap1302_dev, 0x601A, 0x8340);
+		if (ap1302_dev->mode_change) {
+			ap1302_write_reg(ap1302_dev, REG_ATOMIC, 0x1);
+			ap1302_write_reg(ap1302_dev, REG_PREVIEW_WIDTH, fmt->width);
+			ap1302_write_reg(ap1302_dev, REG_PREVIEW_HEIGHT, fmt->height);
+			ap1302_write_reg(ap1302_dev, REG_ATOMIC, 0xB);
+		}
 		mdelay(50);
 	}
 	else {
@@ -638,6 +661,7 @@ static int ap1302_probe(struct i2c_client *client,
 	fmt->width        = ap1302_preview_res[0].width;
 	fmt->height       = ap1302_preview_res[0].height;
 	fmt->field        = V4L2_FIELD_NONE;
+	ap1302_dev->cur_mode = &ap1302_preview_res[0];
 
 	/* default 60fps */
 	ap1302_dev->frame_interval.numerator = 1;
