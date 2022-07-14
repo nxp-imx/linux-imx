@@ -2878,7 +2878,8 @@ static int lpuart_probe(struct platform_device *pdev)
 	sport->port.type = PORT_LPUART;
 	sport->devtype = sdata->devtype;
 	sport->rx_watermark = sdata->rx_watermark;
-	sport->dma_eeop = is_imx8qxp_lpuart(sport) || is_imx8ulp_lpuart(sport);
+	/* Temporary disabled. DMA timer used instead. */
+	sport->dma_eeop = 0;
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0)
