@@ -596,7 +596,8 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 	dev_dbg(dev, "Irq %d on slot %d.\n", irq, slot);
 
 	ctx = v4l2_m2m_get_curr_priv(jpeg->m2m_dev);
-	WARN_ON(!ctx);
+	if (WARN_ON(!ctx))
+		goto job_unlock;
 
 	if (slot != ctx->slot) {
 		/* TODO investigate when adding multi-instance support */
