@@ -12,6 +12,7 @@
 #include <linux/component.h>
 #include <linux/debugfs.h>
 #include <linux/iopoll.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
@@ -741,7 +742,7 @@ static u32 dw_mipi_dsi_get_hcomponent_lbcc(struct dw_mipi_dsi *dsi,
 		return 0;
 	}
 
-	lbcc = (u64)hcomponent * mode->clock * bpp / (dsi->lanes * 8);
+	lbcc = div_u64((u64)hcomponent * mode->clock * bpp, dsi->lanes * 8);
 
 	frac = lbcc % mode->clock;
 	lbcc = lbcc / mode->clock;
