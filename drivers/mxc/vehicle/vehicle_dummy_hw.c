@@ -168,7 +168,11 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case AP_POWER_STATE_REPORT:
 		pr_info("receive power state report with value %d\n", value);
 		break;
+	case AP_POWER_STATE_REQ:
+		// Proper action is TBD
+		break;
 	case WATCHDOG_ALIVE:
+	case DISPLAY_BRIGHTNESS:
 		// Proper action is TBD
 		break;
 	case HVAC_SEAT_TEMPERATURE:
@@ -180,6 +184,111 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		} else {
 			pr_err("unknown index: %d:%d:%d!\n", prop, area, value);
 		}
+		break;
+	case GEAR_SELECTION:
+	case TURN_SIGNAL_STATE:
+	case CURRENT_GEAR:
+		// GEAR is handled in mxc vehicle driver
+		break;
+	case INFO_MAKE:
+	case INFO_MODEL:
+	case POWER_POLICY_REQ:
+	case FUEL_DOOR_OPEN:
+	case EV_CHARGE_PORT_OPEN:
+	case EV_CHARGE_PORT_CONNECTED:
+	case PARKING_BRAKE_ON:
+	case FUEL_LEVEL_LOW:
+	case NIGHT_MODE:
+	case ABS_ACTIVE:
+	case TRACTION_CONTROL_ACTIVE:
+	case SUPPORT_CUSTOMIZE_VENDOR_PERMISSION:
+	case INFO_MODEL_YEAR:
+	case INFO_FUEL_DOOR_LOCATION:
+	case INFO_EV_PORT_LOCATION:
+	case ENGINE_OIL_LEVEL:
+	case IGNITION_STATE:
+	case HVAC_STEERING_WHEEL_HEAT:
+	case HVAC_TEMPERATURE_DISPLAY_UNITS:
+	case DISTANCE_DISPLAY_UNITS:
+	case TIRE_PRESSURE_DISPLAY_UNITS:
+	case VEHICLE_SPEED_DISPLAY_UNITS:
+	case HEADLIGHTS_STATE:
+	case HIGH_BEAM_LIGHTS_STATE:
+	case FOG_LIGHTS_STATE:
+	case PARKING_BRAKE_AUTO_APPLY:
+	case HAZARD_LIGHTS_STATE:
+	case HEADLIGHTS_SWITCH:
+	case HIGH_BEAM_LIGHTS_SWITCH:
+	case FOG_LIGHTS_SWITCH:
+	case HAZARD_LIGHTS_SWITCH:
+	case CLUSTER_SWITCH_UI:
+	case CLUSTER_REQUEST_DISPLAY:
+	case POWER_POLICY_GROUP_REQ:
+	case CURRENT_POWER_POLICY:
+	case ELECTRONIC_TOLL_COLLECTION_CARD_TYPE:
+	case ELECTRONIC_TOLL_COLLECTION_CARD_STATUS:
+	case INFO_FUEL_TYPE:
+	case INFO_EV_CONNECTOR_TYPE:
+	case INFO_DRIVER_SEAT:
+	case INFO_EXTERIOR_DIMENSIONS:
+	case INFO_MULTI_EV_PORT_LOCATIONS:
+	case HW_KEY_INPUT:
+	case HW_ROTARY_INPUT:
+	case HW_CUSTOM_INPUT:
+	case EVS_SERVICE_REQUEST:
+	case CLUSTER_DISPLAY_STATE:
+	case EPOCH_TIME:
+	case VHAL_HEARTBEAT:
+	case WHEEL_TICK:
+	case INFO_FUEL_CAPACITY:
+	case INFO_EV_BATTERY_CAPACITY:
+	case PERF_ODOMETER:
+	case PERF_VEHICLE_SPEED:
+	case PERF_STEERING_ANGLE:
+	case PERF_REAR_STEERING_ANGLE:
+	case ENGINE_OIL_TEMP:
+	case ENGINE_RPM:
+	case FUEL_LEVEL:
+	case RANGE_REMAINING:
+	case EV_BATTERY_LEVEL:
+	case EV_BATTERY_INSTANTANEOUS_CHARGE_RATE:
+	case ENV_OUTSIDE_TEMPERATURE:
+	case HVAC_TEMPERATURE_VALUE_SUGGESTION:
+	case STORAGE_ENCRYPTION_BINDING_SEED:
+	case CLUSTER_NAVIGATION_STATE:
+	case INITIAL_USER_INFO:
+	case SWITCH_USER:
+	case CREATE_USER:
+	case REMOVE_USER:
+	case USER_IDENTIFICATION_ASSOCIATION:
+	case WATCHDOG_TERMINATED_PROCESS:
+	case CLUSTER_REPORT_STATE:
+	case WINDOW_LOCK:
+	case VEHICLE_MAP_SERVICE:
+	case WINDOW_POS:
+	case HVAC_MAX_AC_ON:
+	case HVAC_MAX_DEFROST_ON:
+	case HVAC_DUAL_ON:
+	case HVAC_AUTO_RECIRC_ON:
+	case HVAC_SEAT_VENTILATION:
+	case HVAC_ELECTRIC_DEFROSTER_ON:
+	case SEAT_OCCUPANCY:
+	case HVAC_FAN_DIRECTION_AVAILABLE:
+	case DOOR_LOCK:
+	case DOOR_POS:
+	case TIRE_PRESSURE:
+		// Proper action is TBD
+		break;
+	case VENDOR_EXTENSION_STRING_PROPERTY:
+	case VENDOR_EXTENSION_BOOLEAN_PROPERTY:
+	case VENDOR_EXTENSION_FLOAT_PROPERTY:
+	case VENDOR_EXTENSION_INT_PROPERTY:
+	case kMixedTypePropertyForTest:
+	case kSetIntPropertyFromVehicleForTest:
+	case kSetFloatPropertyFromVehicleForTest:
+	case kSetBooleanPropertyFromVehicleForTest:
+	case kGenerateFakeDataControllingProperty:
+		// Proper action is TBD
 		break;
 	default:
 		pr_err("this type is not correct: %d:%d:%d!\n", prop, area, value);
