@@ -121,7 +121,9 @@ static int imx9_init_soc_probe(struct platform_device *pdev)
 	 * A ELE ping request must be send at least once every day(24 hours),
 	 * so setup a delay work with 1 hour interval to ping sentinel periodically.
 	 */
-	return schedule_delayed_work(&ele_ping_work, ELE_PING_INTERVAL);
+	schedule_delayed_work(&ele_ping_work, ELE_PING_INTERVAL);
+
+	return 0;
 }
 
 static const struct of_device_id imx9_soc_of_match[] = {
