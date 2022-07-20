@@ -236,13 +236,8 @@ static void ap1302_fw_handler(const struct firmware *fw, void *context)
 	int ret;
 
 	if (fw == NULL) {
-		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
-					"imx/camera/ap1302.fw", dev, GFP_KERNEL,
-					ap1302_dev, ap1302_fw_handler);
-		if (ret) {
-			dev_err(dev, "Failed request_firmware err %d\n", ret);
-			return;
-		}
+		dev_err(dev, "Failed to request_firmware\n");
+		return;
 	}
 
 	ap1302_fw = (struct ap1302_firmware *)fw->data;
