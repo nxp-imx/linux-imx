@@ -12,6 +12,7 @@
 #include <linux/firmware/imx/svc/misc.h>
 #include <linux/mfd/syscon.h>
 #include <linux/reset.h>
+#include <linux/extcon-provider.h>
 
 #include "imx-common.h"
 
@@ -33,6 +34,14 @@
 #define PB_CLK_BIT              BIT(18)
 #define PLAT_CLK_BIT            BIT(19)
 #define DEBUG_LOGIC_BIT         BIT(25)
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *sof_imx8_edev;
+static const unsigned int sof_imx8_extcon_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
+#endif
 
 struct imx8m_chip_data {
 	void __iomem *dap;
@@ -127,6 +136,20 @@ static int imx8_probe(struct snd_sof_dev *sdev)
 
 	common->chip_pdata = sc_ipc_handle;
 
+#ifdef CONFIG_EXTCON
+	sof_imx8_edev  = devm_extcon_dev_allocate(&sdev->dev, sof_imx8_extcon_cables);
+	if (IS_ERR(sof_imx8_edev)) {
+		dev_err(&sdev->dev, "failed to allocate extcon device\n");
+		return 0;
+	}
+	ret = devm_extcon_dev_register(&sdev->dev, sof_imx8_edev);
+	if (ret < 0) {
+		dev_err(&sdev->dev, "failed to register extcon device\n");
+		return 0;
+	}
+	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
+#endif
+
 	return 0;
 }
 
@@ -184,6 +207,19 @@ static int imx8m_probe(struct snd_sof_dev *sdev)
 				     "failed to get dsp runstall reset control\n");
 
 	common->chip_pdata = chip;
+
+#ifdef CONFIG_EXTCON
+	sof_imx8_edev  = devm_extcon_dev_allocate(&sdev->dev, sof_imx8_extcon_cables);
+	if (IS_ERR(sof_imx8_edev)) {
+		dev_err(&sdev->dev, "failed to allocate extcon device\n");
+		return 0;
+	}
+	if (devm_extcon_dev_register(&sdev->dev, sof_imx8_edev) < 0) {
+		dev_err(&sdev->dev, "failed to register extcon device\n");
+		return 0;
+	}
+	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
+#endif
 
 	return 0;
 }
