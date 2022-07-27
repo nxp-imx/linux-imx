@@ -7,6 +7,7 @@
 // Hardware interface for audio DSP on i.MX8M
 
 #include <linux/bits.h>
+#include <linux/extcon-provider.h>
 #include <linux/firmware.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of_platform.h>
@@ -39,6 +40,14 @@
 #define AudioDSP_REG3	0x10c
 
 #define AudioDSP_REG2_RUNSTALL	BIT(5)
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *sof_edev;
+static const unsigned int sof_extcon_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
+#endif
 
 struct imx8m_priv {
 	struct device *dev;
@@ -253,6 +262,20 @@ static int imx8m_probe(struct snd_sof_dev *sdev)
 		dev_err(sdev->dev, "failed to enable clocks: %d\n", ret);
 		goto exit_pdev_unregister;
 	}
+
+#ifdef CONFIG_EXTCON
+	sof_edev  = devm_extcon_dev_allocate(&pdev->dev, sof_extcon_cables);
+	if (IS_ERR(sof_edev)) {
+		dev_err(&pdev->dev, "failed to allocate extcon device\n");
+		return 0;
+	}
+	ret = devm_extcon_dev_register(&pdev->dev,sof_edev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to register extcon device\n");
+		return 0;
+	}
+	extcon_set_state_sync(sof_edev, EXTCON_JACK_LINE_OUT, 1);
+#endif
 
 	return 0;
 

@@ -6,6 +6,7 @@
 //
 // Hardware interface for audio DSP on i.MX8
 
+#include <linux/extcon-provider.h>
 #include <linux/firmware.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
@@ -40,6 +41,14 @@
 
 #define MBOX_OFFSET	0x800000
 #define MBOX_SIZE	0x1000
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *sof_imx8_edev;
+static const unsigned int sof_imx8_extcon_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
+#endif
 
 struct imx8_priv {
 	struct device *dev;
@@ -315,6 +324,20 @@ static int imx8_probe(struct snd_sof_dev *sdev)
 		dev_err(sdev->dev, "failed to enable clocks: %d\n", ret);
 		goto exit_pdev_unregister;
 	}
+
+#ifdef CONFIG_EXTCON
+	sof_imx8_edev  = devm_extcon_dev_allocate(&pdev->dev, sof_imx8_extcon_cables);
+	if (IS_ERR(sof_imx8_edev)) {
+		dev_err(&pdev->dev, "failed to allocate extcon device\n");
+		return 0;
+	}
+	ret = devm_extcon_dev_register(&pdev->dev, sof_imx8_edev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to register extcon device\n");
+		return 0;
+	}
+	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
+#endif
 
 	return 0;
 
