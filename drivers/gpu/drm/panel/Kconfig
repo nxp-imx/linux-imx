@@ -1025,4 +1025,13 @@ config DRM_PANEL_WKS_101WX001
 	  Say Y here if you want to enable support for the WKS
 	  101WX001 controller for 1280x800 LCD panel
 
+config DRM_PANEL_NXP_RM67162
+	tristate "NXP RM67162 392x392 DSI panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for NXP RM67162
+	  392x392 DSI panel.
+
 endmenu
