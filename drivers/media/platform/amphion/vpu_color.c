@@ -25,9 +25,9 @@ static const u8 colorprimaries[] = {
 	V4L2_COLORSPACE_470_SYSTEM_BG,  /*Rec. ITU-R BT.470-6 System B, G*/
 	V4L2_COLORSPACE_SMPTE170M,      /*SMPTE170M*/
 	V4L2_COLORSPACE_SMPTE240M,      /*SMPTE240M*/
-	0,                              /*Generic film*/
+	V4L2_COLORSPACE_GENERIC_FILM,   /*Generic film*/
 	V4L2_COLORSPACE_BT2020,         /*Rec. ITU-R BT.2020-2*/
-	0,                              /*SMPTE ST 428-1*/
+	V4L2_COLORSPACE_ST428,          /*SMPTE ST 428-1*/
 };
 
 static const u8 colortransfers[] = {
@@ -35,21 +35,21 @@ static const u8 colortransfers[] = {
 	V4L2_XFER_FUNC_709,             /*Rec. ITU-R BT.709-6*/
 	0,
 	0,
-	0,                              /*Rec. ITU-R BT.470-6 System M*/
-	0,                              /*Rec. ITU-R BT.470-6 System B, G*/
+	V4L2_XFER_FUNC_GAMMA22,         /*Rec. ITU-R BT.470-6 System M*/
+	V4L2_XFER_FUNC_GAMMA28,         /*Rec. ITU-R BT.470-6 System B, G*/
 	V4L2_XFER_FUNC_709,             /*SMPTE170M*/
 	V4L2_XFER_FUNC_SMPTE240M,       /*SMPTE240M*/
 	V4L2_XFER_FUNC_NONE,            /*Linear transfer characteristics*/
 	0,
 	0,
-	0,                              /*IEC 61966-2-4*/
-	0,                              /*Rec. ITU-R BT.1361-0 extended colour gamut*/
+	V4L2_XFER_FUNC_XVYCC,           /*IEC 61966-2-4*/
+	V4L2_XFER_FUNC_BT1361,          /*Rec. ITU-R BT.1361-0 extended colour gamut*/
 	V4L2_XFER_FUNC_SRGB,            /*IEC 61966-2-1 sRGB or sYCC*/
 	V4L2_XFER_FUNC_709,             /*Rec. ITU-R BT.2020-2 (10 bit system)*/
 	V4L2_XFER_FUNC_709,             /*Rec. ITU-R BT.2020-2 (12 bit system)*/
 	V4L2_XFER_FUNC_SMPTE2084,       /*SMPTE ST 2084*/
-	0,                              /*SMPTE ST 428-1*/
-	0                               /*Rec. ITU-R BT.2100-0 hybrid log-gamma (HLG)*/
+	V4L2_XFER_FUNC_ST428,           /*SMPTE ST 428-1*/
+	V4L2_XFER_FUNC_HLG,             /*Rec. ITU-R BT.2100-0 hybrid log-gamma (HLG)*/
 };
 
 static const u8 colormatrixcoefs[] = {
@@ -57,7 +57,7 @@ static const u8 colormatrixcoefs[] = {
 	V4L2_YCBCR_ENC_709,              /*Rec. ITU-R BT.709-6*/
 	0,
 	0,
-	0,                               /*Title 47 Code of Federal Regulations*/
+	V4L2_YCBCR_ENC_BT470_6M,         /*Title 47 Code of Federal Regulations*/
 	V4L2_YCBCR_ENC_601,              /*Rec. ITU-R BT.601-7 625*/
 	V4L2_YCBCR_ENC_601,              /*Rec. ITU-R BT.601-7 525*/
 	V4L2_YCBCR_ENC_SMPTE240M,        /*SMPTE240M*/
