@@ -268,6 +268,7 @@ struct vpu_inst {
 	u32 min_buffer_cap;
 	u32 min_buffer_out;
 	u32 total_input_count;
+	int header_separate;
 
 	struct v4l2_rect crop;
 	u32 colorspace;

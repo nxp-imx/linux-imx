@@ -212,6 +212,9 @@ static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY:
 		vdec->params.display_delay = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
+		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? 1 : 0;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -270,6 +273,13 @@ static int vdec_ctrl_init(struct vpu_inst *inst)
 			       V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2,
 			       0,
 			       V4L2_MPEG_VIDEO_HEVC_LEVEL_4);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
+			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+			       ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
+				 (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 
 	ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
 				 V4L2_CID_MIN_BUFFERS_FOR_CAPTURE, 1, 32, 1, 2);
