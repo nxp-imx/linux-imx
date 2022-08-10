@@ -82,6 +82,7 @@
 
 #define EDMA_TCD_SOFF_SOFF(x)		(x)
 #define EDMA_TCD_NBYTES_NBYTES(x)	(x)
+#define EDMA_TCD_NBYTES_MLOFF_NBYTES(x)	((x) & GENMASK(9, 0))
 #define EDMA_TCD_NBYTES_MLOFF(x)	(x << 10)
 #define EDMA_TCD_NBYTES_DMLOE		(1 << 30)
 #define EDMA_TCD_NBYTES_SMLOE		(1 << 31)
@@ -174,6 +175,8 @@ struct fsl_edma3_chan {
 struct fsl_edma3_drvdata {
 	bool has_pd;
 	u32 dmamuxs;
+	bool has_chclk;
+	bool has_chmux;
 };
 
 struct fsl_edma3_desc {
@@ -195,11 +198,13 @@ struct fsl_edma3_engine {
 	struct mutex		fsl_edma3_mutex;
 	u32			n_chans;
 	int			errirq;
-	#define MAX_CHAN_NUM	32
+	#define MAX_CHAN_NUM	64
 	struct fsl_edma3_reg_save edma_regs[MAX_CHAN_NUM];
 	bool			swap;	/* remote/local swapped on Audio edma */
+	bool                    bus_axi;
 	const struct fsl_edma3_drvdata *drvdata;
 	struct clk		*clk_mp;
+	struct clk              *dmaclk;
 	struct fsl_edma3_chan	chans[];
 };
 
@@ -207,11 +212,22 @@ struct fsl_edma3_engine {
 static struct fsl_edma3_drvdata fsl_edma_imx8q = {
 	.has_pd = true,
 	.dmamuxs = 0,
+	.has_chclk = false,
+	.has_chmux = true,
 };
 
 static struct fsl_edma3_drvdata fsl_edma_imx8ulp = {
 	.has_pd = false,
 	.dmamuxs = 1,
+	.has_chclk = true,
+	.has_chmux = true,
+};
+
+static struct fsl_edma3_drvdata fsl_edma_imx93 = {
+	.has_pd = false,
+	.dmamuxs = 0,
+	.has_chclk = false,
+	.has_chmux = false,
 };
 
 static struct fsl_edma3_chan *to_fsl_edma3_chan(struct dma_chan *chan)
@@ -248,7 +264,8 @@ static void fsl_edma3_enable_request(struct fsl_edma3_chan *fsl_chan)
 
 	writel(val, addr + EDMA_CH_SBR);
 
-	if (fsl_chan->srcid && !readl(addr + EDMA_CH_MUX))
+	if ((fsl_chan->edma3->drvdata->has_chmux || fsl_chan->edma3->bus_axi) &&
+	    fsl_chan->srcid && !readl(addr + EDMA_CH_MUX))
 		writel(fsl_chan->srcid, addr + EDMA_CH_MUX);
 
 	val = readl(addr + EDMA_CH_CSR);
@@ -262,7 +279,8 @@ static void fsl_edma3_disable_request(struct fsl_edma3_chan *fsl_chan)
 	void __iomem *addr = fsl_chan->membase;
 	u32 val = readl(addr + EDMA_CH_CSR);
 
-	if (fsl_chan->srcid)
+	if ((fsl_chan->edma3->drvdata->has_chmux || fsl_chan->edma3->bus_axi) &&
+	    fsl_chan->srcid)
 		writel(0, addr + EDMA_CH_MUX);
 
 	val &= ~EDMA_CH_CSR_ERQ;
@@ -407,12 +425,19 @@ static size_t fsl_edma3_desc_residue(struct fsl_edma3_chan *fsl_chan,
 	enum dma_transfer_direction dir = fsl_chan->fsc.dir;
 	dma_addr_t cur_addr, dma_addr;
 	size_t len, size;
+	u32 nbytes = 0;
 	int i;
 
 	/* calculate the total size in this desc */
-	for (len = i = 0; i < fsl_chan->edesc->n_tcds; i++)
-		len += le32_to_cpu(edesc->tcd[i].vtcd->nbytes)
-			* le16_to_cpu(edesc->tcd[i].vtcd->biter);
+	for (len = i = 0; i < fsl_chan->edesc->n_tcds; i++) {
+		if ((edesc->tcd[i].vtcd->nbytes & EDMA_TCD_NBYTES_DMLOE) ||
+		    (edesc->tcd[i].vtcd->nbytes & EDMA_TCD_NBYTES_SMLOE))
+			nbytes = EDMA_TCD_NBYTES_MLOFF_NBYTES(edesc->tcd[i].vtcd->nbytes);
+		else
+			nbytes = le32_to_cpu(edesc->tcd[i].vtcd->nbytes);
+
+		len += nbytes * le16_to_cpu(edesc->tcd[i].vtcd->biter);
+	}
 
 	if (!in_progress)
 		return len;
@@ -424,8 +449,14 @@ static size_t fsl_edma3_desc_residue(struct fsl_edma3_chan *fsl_chan,
 
 	/* figure out the finished and calculate the residue */
 	for (i = 0; i < fsl_chan->edesc->n_tcds; i++) {
-		size = le32_to_cpu(edesc->tcd[i].vtcd->nbytes)
-			* le16_to_cpu(edesc->tcd[i].vtcd->biter);
+		if ((edesc->tcd[i].vtcd->nbytes & EDMA_TCD_NBYTES_DMLOE) ||
+		    (edesc->tcd[i].vtcd->nbytes & EDMA_TCD_NBYTES_SMLOE))
+			nbytes = EDMA_TCD_NBYTES_MLOFF_NBYTES(edesc->tcd[i].vtcd->nbytes);
+		else
+			nbytes = le32_to_cpu(edesc->tcd[i].vtcd->nbytes);
+
+		size = nbytes * le16_to_cpu(edesc->tcd[i].vtcd->biter);
+
 		if (dir == DMA_MEM_TO_DEV)
 			dma_addr = le32_to_cpu(edesc->tcd[i].vtcd->saddr);
 		else
@@ -530,8 +561,8 @@ void fsl_edma3_fill_tcd(struct fsl_edma3_chan *fsl_chan,
 	tcd->soff = cpu_to_le16(EDMA_TCD_SOFF_SOFF(soff));
 
 	if (fsl_chan->is_dfifo) {
-		/* set mloff as -8 */
-		nbytes |= EDMA_TCD_NBYTES_MLOFF(-8);
+		/* set mloff to support dual fifo and multiple fifo */
+		nbytes |= EDMA_TCD_NBYTES_MLOFF(-(fsl_chan->fsc.burst * 4));
 		/* enable DMLOE/SMLOE */
 		if (fsl_chan->fsc.dir == DMA_MEM_TO_DEV) {
 			nbytes |= EDMA_TCD_NBYTES_DMLOE;
@@ -794,7 +825,7 @@ static struct dma_async_tx_descriptor *fsl_edma3_prep_memcpy(
 	fsl_chan->is_sw = true;
 
 	/* To match with copy_align and max_seg_size so 1 tcd is enough */
-	fsl_edma3_fill_tcd(fsl_chan, &fsl_desc->tcd[0], dma_src, dma_dst,
+	fsl_edma3_fill_tcd(fsl_chan, fsl_desc->tcd[0].vtcd, dma_src, dma_dst,
 			EDMA_TCD_ATTR_SSIZE_64BYTE | EDMA_TCD_ATTR_DSIZE_64BYTE,
 			64, len, 0, 1, 1, 64, 0, true, true, false);
 
@@ -886,7 +917,8 @@ static struct dma_chan *fsl_edma3_xlate(struct of_phandle_args *dma_spec,
 			fsl_chan->is_dfifo = dma_spec->args[2] & ARGS_DFIFO;
 			mutex_unlock(&fsl_edma3->fsl_edma3_mutex);
 			return chan;
-		} else if (fsl_edma3->drvdata->dmamuxs && !fsl_chan->srcid) {
+		} else if ((fsl_edma3->drvdata->dmamuxs || fsl_edma3->bus_axi) &&
+			   !fsl_chan->srcid) {
 			chan = dma_get_slave_channel(chan);
 			chan->device->privatecnt++;
 			fsl_chan->priority = dma_spec->args[1];
@@ -908,7 +940,8 @@ static int fsl_edma3_alloc_chan_resources(struct dma_chan *chan)
 	struct platform_device *pdev = fsl_chan->pdev;
 	int ret;
 
-	clk_prepare_enable(fsl_chan->clk);
+	if (fsl_chan->edma3->drvdata->has_chclk)
+		clk_prepare_enable(fsl_chan->clk);
 
 	fsl_chan->tcd_pool = dma_pool_create("tcd_pool", chan->device->dev,
 				sizeof(struct fsl_edma3_hw_tcd),
@@ -972,7 +1005,9 @@ static void fsl_edma3_free_chan_resources(struct dma_chan *chan)
 	if (fsl_chan->edma3->drvdata->has_pd)
 		pm_runtime_put_sync_suspend(fsl_chan->dev);
 
-	clk_disable_unprepare(fsl_chan->clk);
+	if (fsl_chan->edma3->drvdata->has_chclk)
+		clk_disable_unprepare(fsl_chan->clk);
+
 	fsl_chan->is_sw = false;
 }
 
@@ -1036,6 +1071,7 @@ static const struct of_device_id fsl_edma3_dt_ids[] = {
 	{ .compatible = "fsl,imx8qm-edma", .data = &fsl_edma_imx8q},
 	{ .compatible = "fsl,imx8qm-adma", .data = &fsl_edma_imx8q},
 	{ .compatible = "fsl,imx8ulp-edma", .data = &fsl_edma_imx8ulp},
+	{ .compatible = "fsl,imx93-edma", .data = &fsl_edma_imx93},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_edma3_dt_ids);
@@ -1078,13 +1114,24 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 
 	res_mp = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
-	fsl_edma3->clk_mp = devm_clk_get_optional(&pdev->dev, "edma-mp-clk");
-	if (IS_ERR(fsl_edma3->clk_mp)) {
-		dev_err(&pdev->dev, "Can't get mp clk.\n");
-		return PTR_ERR(fsl_edma3->clk_mp);
-	}
-	clk_prepare_enable(fsl_edma3->clk_mp);
+	if (of_property_read_bool(np, "fsl,edma-axi"))
+		fsl_edma3->bus_axi = true;
 
+	if (fsl_edma3->drvdata->has_chclk) {
+		fsl_edma3->clk_mp = devm_clk_get(&pdev->dev, "edma-mp-clk");
+		if (IS_ERR(fsl_edma3->clk_mp)) {
+			dev_err(&pdev->dev, "Can't get mp clk.\n");
+			return PTR_ERR(fsl_edma3->clk_mp);
+		}
+		clk_prepare_enable(fsl_edma3->clk_mp);
+	} else {
+		fsl_edma3->dmaclk = devm_clk_get_optional(&pdev->dev, "edma");
+		if (IS_ERR(fsl_edma3->dmaclk)) {
+			dev_err(&pdev->dev, "Missing DMA block clock.\n");
+			return PTR_ERR(fsl_edma3->dmaclk);
+		}
+		clk_prepare_enable(fsl_edma3->dmaclk);
+	}
 	for (i = 0; i < fsl_edma3->n_chans; i++) {
 		struct fsl_edma3_chan *fsl_chan = &fsl_edma3->chans[i];
 		const char *txirq_name;
@@ -1103,12 +1150,17 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 		if (IS_ERR(fsl_chan->membase))
 			return PTR_ERR(fsl_chan->membase);
 
-		/* Get the hardware chanel id by the channel membase
-		 * channel0:0x10000, channel1:0x20000... total 32 channels
-		 * Note: skip first res_mp which we don't care.
-		 */
-		fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 16) & 0x3f;
-		fsl_chan->hw_chanid--;
+		if (fsl_edma3->bus_axi) {
+			fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 15) & 0x7f;
+			fsl_chan->hw_chanid = fsl_chan->hw_chanid - 2;
+		} else {
+			/* Get the hardware chanel id by the channel membase
+			 * channel0:0x10000, channel1:0x20000... total 32 channels
+			 * Note: skip first res_mp which we don't care.
+			 */
+			fsl_chan->hw_chanid = ((res->start - res_mp->start) >> 16) & 0x3f;
+			fsl_chan->hw_chanid--;
+		}
 
 		ret = of_property_read_string_index(np, "interrupt-names", i,
 							&txirq_name);
@@ -1144,12 +1196,15 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 
 		memcpy(fsl_chan->txirq_name, txirq_name, strlen(txirq_name));
 
-		strncpy(clk_name, txirq_name, strlen(CHAN_PREFIX) + id_len);
-		strcpy(clk_name + strlen(CHAN_PREFIX) + id_len, CLK_POSFIX);
-		fsl_chan->clk = devm_clk_get_optional(&pdev->dev,
-						     (const char *)clk_name);
-		if (IS_ERR(fsl_chan->clk))
-			return PTR_ERR(fsl_chan->clk);
+		if (fsl_edma3->drvdata->has_chclk) {
+			strncpy(clk_name, txirq_name, strlen(CHAN_PREFIX) + id_len);
+			strcpy(clk_name + strlen(CHAN_PREFIX) + id_len, CLK_POSFIX);
+			fsl_chan->clk = devm_clk_get(&pdev->dev,
+							     (const char *)clk_name);
+
+			if (IS_ERR(fsl_chan->clk))
+				return PTR_ERR(fsl_chan->clk);
+		}
 
 		fsl_chan->vchan.desc_free = fsl_edma3_free_desc;
 		vchan_init(&fsl_chan->vchan, &fsl_edma3->dma_dev);
@@ -1180,6 +1235,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	fsl_edma3->dma_dev.device_terminate_all = fsl_edma3_terminate_all;
 	fsl_edma3->dma_dev.device_issue_pending = fsl_edma3_issue_pending;
 	fsl_edma3->dma_dev.device_synchronize = fsl_edma3_synchronize;
+	fsl_edma3->dma_dev.residue_granularity = DMA_RESIDUE_GRANULARITY_SEGMENT;
 
 	fsl_edma3->dma_dev.src_addr_widths = FSL_EDMA_BUSWIDTHS;
 	fsl_edma3->dma_dev.dst_addr_widths = FSL_EDMA_BUSWIDTHS;
@@ -1239,7 +1295,8 @@ static int fsl_edma3_remove(struct platform_device *pdev)
 	of_dma_controller_free(np);
 	dma_async_device_unregister(&fsl_edma3->dma_dev);
 
-	clk_disable_unprepare(fsl_edma3->clk_mp);
+	if (fsl_edma3->drvdata->has_chclk)
+		clk_disable_unprepare(fsl_edma3->clk_mp);
 
 	return 0;
 }

@@ -463,7 +463,7 @@ This define enables the use of VM for gckCommand and fence buffers.
         otherwise GPU will enter gcvPOWER_IDLE.
 */
 #ifndef gcdPOWER_SUSPEND_WHEN_IDLE
-#   define gcdPOWER_SUSPEND_WHEN_IDLE          0
+#   define gcdPOWER_SUSPEND_WHEN_IDLE          1
 #endif
 
 #ifndef gcdFPGA_BUILD
@@ -1399,5 +1399,19 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 #endif /* __gc_hal_options_h_ */
+
+/*
+ *   gcdENABLE_VIDEO_MEMORY_TRACE
+ *       Dynamic trace video memory, if set to 1.
+ *       Depends on kernel support.
+ *       Only support Linux OS currently.
+ */
+#ifndef gcdENABLE_VIDEO_MEMORY_TRACE
+#ifdef gcdANDROID
+#    define gcdENABLE_VIDEO_MEMORY_TRACE            1
+#    else
+#    define gcdENABLE_VIDEO_MEMORY_TRACE            0
+#    endif
+#endif
 
 

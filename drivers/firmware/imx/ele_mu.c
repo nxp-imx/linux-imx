@@ -12,6 +12,7 @@
 #include <linux/export.h>
 #include <linux/firmware/imx/ele_base_msg.h>
 #include <linux/firmware/imx/ele_mu_ioctl.h>
+#include <linux/genalloc.h>
 #include <linux/io.h>
 #include <linux/init.h>
 #include <linux/mailbox_client.h>
@@ -22,10 +23,31 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sys_soc.h>
+#include <linux/workqueue.h>
 
 #include "ele_mu.h"
 
+#define ELE_PING_INTERVAL	(3600 * HZ)
+
 struct ele_mu_priv *ele_priv_export;
+
+struct imx_info {
+	bool socdev;
+};
+
+static const struct imx_info imx8ulp_info = {
+	.socdev = true,
+};
+
+static const struct imx_info imx93_info = {
+	.socdev = false,
+};
+
+static const struct of_device_id ele_mu_match[] = {
+	{ .compatible = "fsl,imx-ele", .data = (void *)&imx8ulp_info},
+	{ .compatible = "fsl,imx93-ele", .data = (void *)&imx93_info},
+	{},
+};
 
 int get_ele_mu_priv(struct ele_mu_priv **export)
 {
@@ -36,7 +58,6 @@ int get_ele_mu_priv(struct ele_mu_priv **export)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(get_ele_mu_priv);
-
 
 /*
  * Callback called by mailbox FW when data are received
@@ -124,28 +145,69 @@ static void ele_mu_rx_callback(struct mbox_client *c, void *msg)
 	}
 }
 
-struct soc_device *imx_soc_device_register(void)
+static void ele_ping_handler(struct work_struct *work)
+{
+	int ret;
+
+	ret = ele_ping();
+	if (ret)
+		pr_err("ping ele failed, try again!\n");
+
+	/* reschedule the delay work */
+	schedule_delayed_work(to_delayed_work(work), ELE_PING_INTERVAL);
+}
+static DECLARE_DELAYED_WORK(ele_ping_work, ele_ping_handler);
+
+static int imx_soc_device_register(struct platform_device *pdev)
 {
 	struct soc_device_attribute *attr;
 	struct soc_device *dev;
+	struct gen_pool *sram_pool;
+	u32 *get_info_data;
+	phys_addr_t get_info_addr;
+	u32 soc_rev;
 	u32 v[4];
 	int err;
 
 	err = read_common_fuse(OTP_UNIQ_ID, v);
 	if (err)
-		return NULL;
+		return err;
+
+	sram_pool = of_gen_pool_get(pdev->dev.of_node, "sram-pool", 0);
+	if (!sram_pool) {
+		pr_err("Unable to get sram pool\n");
+		return -EINVAL;
+	}
+
+	get_info_data = (u32 *)gen_pool_alloc(sram_pool, 0x100);
+	if (!get_info_data) {
+		pr_err("Unable to alloc sram from sram pool\n");
+		return -ENOMEM;
+	}
+
+	get_info_addr = gen_pool_virt_to_phys(sram_pool, (ulong)get_info_data);
 
 	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
-		return NULL;
+		return -ENOMEM;
+
+	err = ele_get_info(get_info_addr, 23 * sizeof(u32));
+	if (err) {
+		attr->revision = kasprintf(GFP_KERNEL, "A0");
+	} else {
+		soc_rev = (get_info_data[1] & 0xffff0000) >> 16;
+		if (soc_rev == 0xA100)
+			attr->revision = kasprintf(GFP_KERNEL, "A1");
+		else
+			attr->revision = kasprintf(GFP_KERNEL, "A0");
+	}
 
 	err = of_property_read_string(of_root, "model", &attr->machine);
 	if (err) {
 		kfree(attr);
-		return NULL;
+		return -EINVAL;
 	}
 	attr->family = kasprintf(GFP_KERNEL, "Freescale i.MX");
-	attr->revision = kasprintf(GFP_KERNEL, "1.0");
 	attr->serial_number = kasprintf(GFP_KERNEL, "%016llX", (u64)v[3] << 32 | v[0]);
 	attr->soc_id = kasprintf(GFP_KERNEL, "i.MX8ULP");
 
@@ -157,10 +219,10 @@ struct soc_device *imx_soc_device_register(void)
 		kfree(attr->family);
 		kfree(attr->machine);
 		kfree(attr);
-		return ERR_CAST(dev);
+		return PTR_ERR(dev);
 	}
 
-	return dev;
+	return 0;
 }
 
 /*
@@ -391,7 +453,7 @@ static int ele_mu_ioctl_get_mu_info(struct ele_mu_device_ctx *dev_ctx,
 	info.ele_mu_id = (u8)priv->ele_mu_id;
 	info.interrupt_idx = 0;
 	info.tz = 0;
-	info.did = 0x7;
+	info.did = (u8)priv->ele_mu_did;
 
 	devctx_dbg(dev_ctx,
 		   "info [mu_idx: %d, irq_idx: %d, tz: 0x%x, did: 0x%x]\n",
@@ -746,9 +808,10 @@ static int ele_mu_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct ele_mu_priv *priv;
 	struct device_node *np;
+	const struct of_device_id *of_id = of_match_device(ele_mu_match, dev);
+	struct imx_info *info = (struct imx_info *)of_id->data;
 	int max_nb_users = 0;
 	char *devname;
-	struct soc_device *soc;
 	int ret;
 	int i;
 
@@ -779,10 +842,18 @@ static int ele_mu_probe(struct platform_device *pdev)
 	priv->cmd_receiver_dev = NULL;
 	priv->waiting_rsp_dev = NULL;
 
+	ret = of_property_read_u32(np, "fsl,ele_mu_did", &priv->ele_mu_did);
+	if (ret) {
+		ret = -EINVAL;
+		dev_err(dev, "%s: Not able to read ele_mu_did", __func__);
+		goto exit;
+	}
+
 	ret = of_property_read_u32(np, "fsl,ele_mu_id", &priv->ele_mu_id);
 	if (ret) {
-		dev_warn(dev, "%s: Not able to read mu_id", __func__);
-		priv->ele_mu_id = S4_DEFAULT_MUAP_INDEX;
+		ret = -EINVAL;
+		dev_err(dev, "%s: Not able to read ele_mu_id", __func__);
+		goto exit;
 	}
 
 	ret = of_property_read_u32(np, "fsl,ele_mu_max_users", &max_nb_users);
@@ -874,11 +945,19 @@ static int ele_mu_probe(struct platform_device *pdev)
 
 	ele_priv_export = priv;
 
-	soc = imx_soc_device_register();
-	if (IS_ERR(soc)) {
-		pr_err("failed to register SoC device: %ld\n", PTR_ERR(soc));
-		return PTR_ERR(soc);
+	if (info->socdev) {
+		ret = imx_soc_device_register(pdev);
+		if (ret) {
+			pr_err("failed to register SoC device: %d\n", ret);
+			return ret;
+		}
 	}
+
+	/*
+	 * A ELE ping request must be send at least once every day(24 hours),
+	 * so setup a delay work with 1 hour interval to ping sentinel periodically.
+	 */
+	schedule_delayed_work(&ele_ping_work, ELE_PING_INTERVAL);
 
 	dev_set_drvdata(dev, priv);
 	return devm_of_platform_populate(dev);
@@ -891,17 +970,13 @@ static int ele_mu_remove(struct platform_device *pdev)
 {
 	struct ele_mu_priv *priv;
 
+	cancel_delayed_work_sync(&ele_ping_work);
 	priv = dev_get_drvdata(&pdev->dev);
 	mbox_free_channel(priv->tx_chan);
 	mbox_free_channel(priv->rx_chan);
 
 	return 0;
 }
-
-static const struct of_device_id ele_mu_match[] = {
-	{ .compatible = "fsl,imx-ele", },
-	{},
-};
 
 static struct platform_driver ele_mu_driver = {
 	.driver = {
@@ -911,6 +986,8 @@ static struct platform_driver ele_mu_driver = {
 	.probe = ele_mu_probe,
 	.remove = ele_mu_remove,
 };
+MODULE_DEVICE_TABLE(of, ele_mu_match);
+
 module_platform_driver(ele_mu_driver);
 
 MODULE_AUTHOR("Pankaj Gupta <pankaj.gupta@nxp.com>");

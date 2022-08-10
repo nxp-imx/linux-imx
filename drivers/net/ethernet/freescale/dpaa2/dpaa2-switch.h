@@ -3,7 +3,7 @@
  * DPAA2 Ethernet Switch declarations
  *
  * Copyright 2014-2016 Freescale Semiconductor Inc.
- * Copyright 2017-2021 NXP
+ * Copyright 2017-2022 NXP
  *
  */
 
@@ -105,6 +105,12 @@ struct dpaa2_switch_fdb {
 	bool			in_use;
 };
 
+struct dpaa2_switch_lag {
+	struct net_device	*bond_dev;
+	bool			in_use;
+	u8			id;
+};
+
 struct dpaa2_switch_acl_entry {
 	struct list_head	list;
 	u16			prio;
@@ -161,6 +167,8 @@ struct ethsw_port_priv {
 
 	struct dpaa2_switch_filter_block *filter_block;
 	struct dpaa2_mac	*mac;
+
+	struct dpaa2_switch_lag	*lag;
 };
 
 /* Switch data */
@@ -188,6 +196,8 @@ struct ethsw_core {
 	struct dpaa2_switch_fdb		*fdbs;
 	struct dpaa2_switch_filter_block *filter_blocks;
 	u16				mirror_port;
+
+	struct dpaa2_switch_lag		*lags;
 };
 
 static inline int dpaa2_switch_get_index(struct ethsw_core *ethsw,
@@ -277,4 +287,33 @@ int dpaa2_switch_block_offload_mirror(struct dpaa2_switch_filter_block *block,
 
 int dpaa2_switch_block_unoffload_mirror(struct dpaa2_switch_filter_block *block,
 					struct ethsw_port_priv *port_priv);
+
+/* Returns true if any port of this switch offloads the given bridge */
+static inline bool
+dpaa2_switch_offloads_bridge_dev(struct ethsw_core *ethsw,
+				 const struct net_device *bridge_dev)
+{
+	struct ethsw_port_priv *port_priv;
+	int i;
+
+	for (i = 0; i < ethsw->sw_attr.num_ifs; i++) {
+		port_priv = ethsw->ports[i];
+		if (port_priv->fdb->bridge_dev == bridge_dev)
+			return true;
+	}
+
+	return false;
+}
+
+static inline bool
+dpaa2_switch_port_offloads_bridge_port(struct ethsw_port_priv *port_priv,
+				       const struct net_device *dev)
+{
+	if (port_priv->lag && port_priv->lag->bond_dev == dev)
+		return true;
+	if (port_priv->netdev == dev)
+		return true;
+	return false;
+}
+
 #endif	/* __ETHSW_H */

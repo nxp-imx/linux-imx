@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/of_platform.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_drv.h>
@@ -133,8 +134,11 @@ err:
 static int dcnano_probe(struct platform_device *pdev)
 {
 	struct dcnano_dev *dcnano;
+	struct device *dev = &pdev->dev;
 	struct drm_device *drm;
 	int ret;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	if (!pdev->dev.of_node)
 		return -ENODEV;
@@ -143,6 +147,26 @@ static int dcnano_probe(struct platform_device *pdev)
 				    struct dcnano_dev, base);
 	if (IS_ERR(dcnano))
 		return PTR_ERR(dcnano);
+
+	dcnano->trusty_dev = NULL;
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				if (!trusty_fast_call32(&(pd->dev), SMC_IMX_ECHO, 0, 0, 0)) {
+					dcnano->trusty_dev = &(pd->dev);
+					dev_err(&pdev->dev, "dcnano: get trusty_dev node, use Trusty mode.\n");
+				} else {
+					dev_err(&pdev->dev, "dcnano: failed to get response of echo. Use normal mode.\n");
+				}
+			} else {
+				dev_err(&pdev->dev, "dcnano: failed to get trusty_dev node.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dcnano: failed to find trusty node. Use normal mode.\n");
+		}
+	}
 
 	drm = &dcnano->base;
 	dev_set_drvdata(&pdev->dev, dcnano);

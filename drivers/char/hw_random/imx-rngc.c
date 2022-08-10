@@ -270,6 +270,8 @@ static int imx_rngc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+	init_completion(&rngc->rng_op_done);
+
 	ret = devm_request_irq(&pdev->dev,
 			irq, imx_rngc_irq, 0, pdev->name, (void *)rngc);
 	if (ret) {
@@ -277,7 +279,6 @@ static int imx_rngc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	init_completion(&rngc->rng_op_done);
 
 	rngc->rng.name = pdev->name;
 	rngc->rng.init = imx_rngc_init;

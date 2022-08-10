@@ -54,6 +54,13 @@
 #define FSL_XCVR_RX_DPTH_CTRL_CLR	0x188
 #define FSL_XCVR_RX_DPTH_CTRL_TOG	0x18c
 
+#define FSL_XCVR_RX_CS_DATA_0		0x190
+#define FSL_XCVR_RX_CS_DATA_1		0x194
+#define FSL_XCVR_RX_CS_DATA_2		0x198
+#define FSL_XCVR_RX_CS_DATA_3		0x19C
+#define FSL_XCVR_RX_CS_DATA_4		0x1A0
+#define FSL_XCVR_RX_CS_DATA_5		0x1A4
+
 #define FSL_XCVR_RX_DPTH_CNTR_CTRL	0x1C0
 #define FSL_XCVR_RX_DPTH_CNTR_CTRL_SET	0x1C4
 #define FSL_XCVR_RX_DPTH_CNTR_CTRL_CLR	0x1C8
@@ -290,9 +297,12 @@
 #define FSL_XCVR_CAP_DATA_STR		0x300 /* Capabilities data structure */
 
 #define FSL_XCVR_CAPDS_SIZE	256
+#define SPDIF_NUM_RATES 7
 
 struct fsl_xcvr_soc_data {
 	const char *fw_name;
+	bool spdif_only;
+	bool use_edma;
 };
 
 struct fsl_xcvr {
@@ -303,6 +313,8 @@ struct fsl_xcvr {
 	struct clk *pll_ipg_clk;
 	struct clk *phy_clk;
 	struct clk *spba_clk;
+	struct clk *pll8k_clk;
+	struct clk *pll11k_clk;
 	struct reset_control *reset;
 	u8 streams;
 	u32 mode;
@@ -313,6 +325,8 @@ struct fsl_xcvr {
 	struct snd_aes_iec958 rx_iec958;
 	struct snd_aes_iec958 tx_iec958;
 	u8 cap_ds[FSL_XCVR_CAPDS_SIZE];
+	struct snd_pcm_hw_constraint_list spdif_constr_rates;
+	u32 spdif_constr_rates_list[SPDIF_NUM_RATES];
 };
 
 const struct attribute_group *fsl_xcvr_get_attr_grp(void);

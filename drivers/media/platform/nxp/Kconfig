@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+# V4L drivers
+
+comment "NXP media platform drivers"
+
+# mem2mem drivers
+
+source "drivers/media/platform/nxp/imx-jpeg/Kconfig"

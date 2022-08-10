@@ -19,6 +19,15 @@ config MFD_CS5535
 	  This is the core driver for CS5535/CS5536 MFD functions.  This is
 	  necessary for using the board's GPIO and MFGPT functionality.
 
+config MFD_ADP5585
+	tristate "ADI ADP5585 core functions"
+	select MFD_CORE
+	depends on I2C && OF
+
+	help
+	  This is ADI adp5585 core support, implement the support for
+	  communication through i2c bus.
+
 config MFD_ALTERA_A10SR
 	bool "Altera Arria10 DevKit System Resource chip"
 	depends on ARCH_INTEL_SOCFPGA && SPI_MASTER=y && OF

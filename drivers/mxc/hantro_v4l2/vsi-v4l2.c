@@ -238,6 +238,7 @@ int vsi_v4l2_reset_ctx(struct vsi_v4l2_ctx *ctx)
 		return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
 		removeallcropinfo(ctx);
 		ctx->status = VSI_STATUS_INIT;
+		ctx->reschange_cnt = 0;
 		vsi_set_ctx_error(ctx, 0);
 		if (isdecoder(ctx)) {
 			wake_up_interruptible_all(&ctx->retbuf_queue);
@@ -344,6 +345,7 @@ int vsi_v4l2_send_reschange(struct vsi_v4l2_ctx *ctx)
 	event.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
 	v4l2_event_queue_fh(&ctx->fh, &event);
 	ctx->reschanged_need_notify = false;
+	ctx->reschange_notified = true;
 	return 0;
 }
 
@@ -378,6 +380,7 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 		pcfg->decparams_bkup.io_buffer.output_wstride = pmsg->params.dec_params.io_buffer.output_wstride;
 		pcfg->minbuf_4output_bkup = pmsg->params.dec_params.dec_info.dec_info.needed_dpb_nums;
 		pcfg->sizeimagedst_bkup = pmsg->params.dec_params.io_buffer.OutBufSize;
+		set_bit(CTX_FLAG_SRCCHANGED_BIT, &ctx->flag);
 		if ((ctx->status == DEC_STATUS_DECODING || ctx->status == DEC_STATUS_DRAINING)
 			&& !list_empty(&ctx->output_que.done_list)) {
 			set_bit(CTX_FLAG_DELAY_SRCCHANGED_BIT, &ctx->flag);
@@ -387,7 +390,6 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 		}
 		if (pmsg->params.dec_params.dec_info.dec_info.colour_description_present_flag)
 			vsi_dec_updatevui(&pmsg->params.dec_params.dec_info.dec_info, &pcfg->decparams.dec_info.dec_info);
-		set_bit(CTX_FLAG_SRCCHANGED_BIT, &ctx->flag);
 		mutex_unlock(&ctx->ctxlock);
 	}
 	put_ctx(ctx);

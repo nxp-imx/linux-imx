@@ -86,6 +86,8 @@ enum sof_system_suspend_state {
 };
 
 struct sof_compr_stream {
+	uint16_t channels;
+	uint16_t sample_container_bytes;
 	unsigned int copied_total;
 	unsigned int sample_rate;
 	size_t posn_offset;

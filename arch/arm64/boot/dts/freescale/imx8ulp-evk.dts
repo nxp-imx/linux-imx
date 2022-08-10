@@ -238,7 +238,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		ethphy: ethernet-phy {
+		ethphy: ethernet-phy@1 {
 			reg = <1>;
 			micrel,led-mode = <1>;
 		};

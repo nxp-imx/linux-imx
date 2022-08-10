@@ -1223,7 +1223,6 @@
 				nvmem-cell-names = "mac-address";
 				fsl,stop-mode = <&gpr 0x10 3>;
 				nvmem_macaddr_swap;
-				fsl,wakeup_irq = <2>;
 				status = "disabled";
 			};
 

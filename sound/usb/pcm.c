@@ -299,6 +299,9 @@ int snd_usb_audioformat_set_sync_ep(struct snd_usb_audio *chip,
 	bool is_playback;
 	int err;
 
+	if (fmt->sync_ep)
+		return 0; /* already set up */
+
 	alts = snd_usb_get_host_interface(chip, fmt->iface, fmt->altsetting);
 	if (!alts)
 		return 0;
@@ -312,7 +315,7 @@ int snd_usb_audioformat_set_sync_ep(struct snd_usb_audio *chip,
 	 * Generic sync EP handling
 	 */
 
-	if (altsd->bNumEndpoints < 2)
+	if (fmt->ep_idx > 0 || altsd->bNumEndpoints < 2)
 		return 0;
 
 	is_playback = !(get_endpoint(alts, 0)->bEndpointAddress & USB_DIR_IN);
@@ -447,16 +450,21 @@ static int configure_endpoints(struct snd_usb_audio *chip,
 		/* stop any running stream beforehand */
 		if (stop_endpoints(subs, false))
 			sync_pending_stops(subs);
+		if (subs->sync_endpoint) {
+			err = snd_usb_endpoint_configure(chip, subs->sync_endpoint);
+			if (err < 0)
+				return err;
+		}
 		err = snd_usb_endpoint_configure(chip, subs->data_endpoint);
 		if (err < 0)
 			return err;
 		snd_usb_set_format_quirk(subs, subs->cur_audiofmt);
-	}
-
-	if (subs->sync_endpoint) {
-		err = snd_usb_endpoint_configure(chip, subs->sync_endpoint);
-		if (err < 0)
-			return err;
+	} else {
+		if (subs->sync_endpoint) {
+			err = snd_usb_endpoint_configure(chip, subs->sync_endpoint);
+			if (err < 0)
+				return err;
+		}
 	}
 
 	return 0;
@@ -1559,6 +1567,7 @@ static int snd_usb_substream_playback_trigger(struct snd_pcm_substream *substrea
 {
 	struct snd_usb_substream *subs = substream->runtime->private_data;
 	int err;
+	bool suspend = true;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -1586,6 +1595,10 @@ static int snd_usb_substream_playback_trigger(struct snd_pcm_substream *substrea
 			subs->cur_audiofmt->altsetting);
 		return 0;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
+		trace_android_vh_audio_usb_offload_suspend(substream, cmd, &suspend);
+		if (!suspend)
+			return 0;
+		fallthrough;
 	case SNDRV_PCM_TRIGGER_STOP:
 		stop_endpoints(subs, substream->runtime->status->state == SNDRV_PCM_STATE_DRAINING);
 		snd_usb_endpoint_set_callback(subs->data_endpoint,

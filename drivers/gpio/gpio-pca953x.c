@@ -352,6 +352,9 @@ static const struct regmap_config pca953x_i2c_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
 
+	.use_single_read = true,
+	.use_single_write = true,
+
 	.readable_reg = pca953x_readable_register,
 	.writeable_reg = pca953x_writeable_register,
 	.volatile_reg = pca953x_volatile_register,
@@ -896,14 +899,17 @@ static int device_pca95xx_init(struct pca953x_chip *chip, u32 invert)
 {
 	DECLARE_BITMAP(val, MAX_LINE);
 	int ret;
+	u8 regaddr;
 
-	ret = regcache_sync_region(chip->regmap, chip->regs->output,
-				   chip->regs->output + NBANK(chip));
+	regaddr = pca953x_recalc_addr(chip, chip->regs->output, 0);
+	ret = regcache_sync_region(chip->regmap, regaddr,
+				   regaddr + NBANK(chip) - 1);
 	if (ret)
 		goto out;
 
-	ret = regcache_sync_region(chip->regmap, chip->regs->direction,
-				   chip->regs->direction + NBANK(chip));
+	regaddr = pca953x_recalc_addr(chip, chip->regs->direction, 0);
+	ret = regcache_sync_region(chip->regmap, regaddr,
+				   regaddr + NBANK(chip) - 1);
 	if (ret)
 		goto out;
 
@@ -983,19 +989,14 @@ static int pca953x_probe(struct i2c_client *client,
 
 	chip->client = client;
 
-	reg = devm_regulator_get_optional(&client->dev, "vcc");
-	if (IS_ERR(reg)) {
-		if (PTR_ERR(reg) != -ENODEV)
-			return dev_err_probe(&client->dev, PTR_ERR(reg), "reg get err\n");
-		reg = NULL;
-	}
+	reg = devm_regulator_get(&client->dev, "vcc");
+	if (IS_ERR(reg))
+		return dev_err_probe(&client->dev, PTR_ERR(reg), "reg get err\n");
 
-	if (reg) {
-		ret = regulator_enable(reg);
-		if (ret) {
-			dev_err(&client->dev, "reg en err: %d\n", ret);
-			return ret;
-		}
+	ret = regulator_enable(reg);
+	if (ret) {
+		dev_err(&client->dev, "reg en err: %d\n", ret);
+		return ret;
 	}
 	chip->regulator = reg;
 
@@ -1089,8 +1090,7 @@ static int pca953x_probe(struct i2c_client *client,
 	return 0;
 
 err_exit:
-	if (chip->regulator)
-		regulator_disable(chip->regulator);
+	regulator_disable(chip->regulator);
 	return ret;
 }
 
@@ -1109,8 +1109,7 @@ static int pca953x_remove(struct i2c_client *client)
 		ret = 0;
 	}
 
-	if (chip->regulator)
-		regulator_disable(chip->regulator);
+	regulator_disable(chip->regulator);
 
 	return ret;
 }
@@ -1120,20 +1119,21 @@ static int pca953x_regcache_sync(struct device *dev)
 {
 	struct pca953x_chip *chip = dev_get_drvdata(dev);
 	int ret;
+	u8 regaddr;
 
 	/*
 	 * The ordering between direction and output is important,
 	 * sync these registers first and only then sync the rest.
 	 */
-	ret = regcache_sync_region(chip->regmap, chip->regs->direction,
-				   chip->regs->direction + NBANK(chip));
+	regaddr = pca953x_recalc_addr(chip, chip->regs->direction, 0);
+	ret = regcache_sync_region(chip->regmap, regaddr, regaddr + NBANK(chip) - 1);
 	if (ret) {
 		dev_err(dev, "Failed to sync GPIO dir registers: %d\n", ret);
 		return ret;
 	}
 
-	ret = regcache_sync_region(chip->regmap, chip->regs->output,
-				   chip->regs->output + NBANK(chip));
+	regaddr = pca953x_recalc_addr(chip, chip->regs->output, 0);
+	ret = regcache_sync_region(chip->regmap, regaddr, regaddr + NBANK(chip) - 1);
 	if (ret) {
 		dev_err(dev, "Failed to sync GPIO out registers: %d\n", ret);
 		return ret;
@@ -1141,16 +1141,18 @@ static int pca953x_regcache_sync(struct device *dev)
 
 #ifdef CONFIG_GPIO_PCA953X_IRQ
 	if (chip->driver_data & PCA_PCAL) {
-		ret = regcache_sync_region(chip->regmap, PCAL953X_IN_LATCH,
-					   PCAL953X_IN_LATCH + NBANK(chip));
+		regaddr = pca953x_recalc_addr(chip, PCAL953X_IN_LATCH, 0);
+		ret = regcache_sync_region(chip->regmap, regaddr,
+					   regaddr + NBANK(chip) - 1);
 		if (ret) {
 			dev_err(dev, "Failed to sync INT latch registers: %d\n",
 				ret);
 			return ret;
 		}
 
-		ret = regcache_sync_region(chip->regmap, PCAL953X_INT_MASK,
-					   PCAL953X_INT_MASK + NBANK(chip));
+		regaddr = pca953x_recalc_addr(chip, PCAL953X_INT_MASK, 0);
+		ret = regcache_sync_region(chip->regmap, regaddr,
+					   regaddr + NBANK(chip) - 1);
 		if (ret) {
 			dev_err(dev, "Failed to sync INT mask registers: %d\n",
 				ret);
@@ -1171,8 +1173,7 @@ static int pca953x_suspend(struct device *dev)
 	if (atomic_read(&chip->wakeup_path))
 		device_set_wakeup_path(dev);
 	else
-		if (chip->regulator)
-			regulator_disable(chip->regulator);
+		regulator_disable(chip->regulator);
 
 	return 0;
 }
@@ -1182,20 +1183,15 @@ static int pca953x_resume(struct device *dev)
 	struct pca953x_chip *chip = dev_get_drvdata(dev);
 	int ret;
 
-	regcache_cache_only(chip->regmap, false);
-
 	if (!atomic_read(&chip->wakeup_path)) {
-		if (chip->regulator) {
-			ret = regulator_enable(chip->regulator);
-			if (ret) {
-				dev_err(dev, "Failed to enable regulator: %d\n", ret);
-				return 0;
-			}
-		} else {
+		ret = regulator_enable(chip->regulator);
+		if (ret) {
+			dev_err(dev, "Failed to enable regulator: %d\n", ret);
 			return 0;
 		}
 	}
 
+	regcache_cache_only(chip->regmap, false);
 	regcache_mark_dirty(chip->regmap);
 	ret = pca953x_regcache_sync(dev);
 	if (ret)

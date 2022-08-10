@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2022 NXP
+ */
+
+#include "imx93-11x11-evk.dts"
+
+/ {
+	lvds_backlight: lvds_backlight {
+		compatible = "pwm-backlight";
+		pwms = <&adp5585pwm 0 100000 0>;
+		enable-gpios = <&adp5585gpio 8 GPIO_ACTIVE_HIGH>;
+		power-supply = <&reg_vdd_12v>;
+		status = "okay";
+
+		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
+				     10 11 12 13 14 15 16 17 18 19
+				     20 21 22 23 24 25 26 27 28 29
+				     30 31 32 33 34 35 36 37 38 39
+				     40 41 42 43 44 45 46 47 48 49
+				     50 51 52 53 54 55 56 57 58 59
+				     60 61 62 63 64 65 66 67 68 69
+				     70 71 72 73 74 75 76 77 78 79
+				     80 81 82 83 84 85 86 87 88 89
+				     90 91 92 93 94 95 96 97 98 99
+				    100>;
+		default-brightness-level = <80>;
+	};
+
+	lvds_panel {
+		compatible = "boe,ev121wxm-n10-1850";
+		backlight = <&lvds_backlight>;
+
+		port {
+			panel_lvds_in: endpoint {
+				remote-endpoint = <&lvds_out>;
+			};
+		};
+	};
+};
+
+&adv7535 {
+	status = "disabled";
+};
+
+&dphy {
+	status = "disabled";
+};
+
+&dsi {
+	status = "disabled";
+};
+
+&lcdif {
+	assigned-clock-rates = <498000000>, <71142857>, <400000000>, <133333333>;
+};
+
+&ldb {
+	status = "okay";
+
+	lvds-channel@0 {
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds_out: endpoint {
+				remote-endpoint = <&panel_lvds_in>;
+			};
+		};
+	};
+};
+
+&ldb_phy {
+	status = "okay";
+};
+
+&lpi2c1 {
+	exc80h60: touch@2a {
+		compatible = "eeti,exc80h60";
+		reg = <0x2a>;
+		interrupt-parent = <&pcal6524>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&pcal6524 17 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};

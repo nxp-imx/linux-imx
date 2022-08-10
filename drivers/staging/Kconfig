@@ -108,4 +108,6 @@ source "drivers/staging/wfx/Kconfig"
 
 source "drivers/staging/fsl_ppfe/Kconfig"
 
+source "drivers/staging/ethosu/Kconfig"
+
 endif # STAGING

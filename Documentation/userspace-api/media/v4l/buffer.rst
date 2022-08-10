@@ -607,6 +607,17 @@ Buffer Flags
 	the format. Any subsequent call to the
 	:ref:`VIDIOC_DQBUF <VIDIOC_QBUF>` ioctl will not block anymore,
 	but return an ``EPIPE`` error code.
+    * .. _`V4L2-BUF-FLAG-HEADERS-ONLY`:
+
+      - ``V4L2_BUF_FLAG_HEADERS_ONLY``
+      - 0x00200000
+      - This flag may be set when the buffer only contains codec
+	header, but does not contain any frame data. Usually the codec
+	header is merged to the next idr frame, with the flag
+	``V4L2_BUF_FLAG_KEYFRAME``, but there is still some scenes that will
+	split the header and queue it separately. This flag can set only when
+	codec support V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
+	and the header mode is set to V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE
     * .. _`V4L2-BUF-FLAG-REQUEST-FD`:
 
       - ``V4L2_BUF_FLAG_REQUEST_FD``

@@ -1161,7 +1161,7 @@ nwl_dsi_bridge_mode_valid(struct drm_bridge *bridge,
 	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 	struct mode_config *config;
 	unsigned long pll_rate;
-	int bit_rate;
+	unsigned long bit_rate;
 
 	bit_rate = nwl_dsi_get_bit_clock(dsi, mode->clock * 1000, dsi->lanes);
  
@@ -1204,7 +1204,7 @@ static int nwl_dsi_bridge_atomic_check(struct drm_bridge *bridge,
 
 	DRM_DEV_DEBUG_DRIVER(dsi->dev, "lanes=%u, data_rate=%lu\n",
 			     config->lanes, config->bitclock);
-	if (config->lanes < 2 || config->lanes > 4)
+	if (config->lanes < 1 || config->lanes > 4)
 		return -EINVAL;
 
 	/* Max data rate for this controller is 1.5Gbps */
@@ -1299,26 +1299,27 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 	int ret;
 
-	pm_runtime_get_sync(dsi->dev);
+	if (pm_runtime_resume_and_get(dsi->dev) < 0)
+		return;
 
 	dsi->pdata->dpi_reset(dsi, true);
 	dsi->pdata->mipi_reset(dsi, true);
 	dsi->pdata->pclk_reset(dsi, true);
 
 	if (dsi->lcdif_clk && clk_prepare_enable(dsi->lcdif_clk) < 0)
-		return;
+		goto runtime_put;
 	if (dsi->core_clk && clk_prepare_enable(dsi->core_clk) < 0)
-		return;
+		goto runtime_put;
 	if (dsi->bypass_clk && clk_prepare_enable(dsi->bypass_clk) < 0)
-		return;
+		goto runtime_put;
 	if (dsi->pixel_clk && clk_prepare_enable(dsi->pixel_clk) < 0)
-		return;
+		goto runtime_put;
 	/*
 	 * Enable rx_esc clock for some platforms to access DSI host controller
 	 * and PHY registers.
 	 */
 	if (dsi->pdata->rx_clk_quirk && clk_prepare_enable(dsi->rx_esc_clk) < 0)
-		return;
+		goto runtime_put;
 
 	/* Always use normal mode(full mode) for Type-4 display */
 	if (dsi->pdata->reg_cm)
@@ -1329,7 +1330,7 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	ret = dsi->pdata->pclk_reset(dsi, false);
 	if (ret < 0) {
 		DRM_DEV_ERROR(dsi->dev, "Failed to deassert PCLK: %d\n", ret);
-		return;
+		goto runtime_put;
 	}
 
 	/* Step 2 from DSI reset-out instructions */
@@ -1339,7 +1340,7 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	ret = dsi->pdata->mipi_reset(dsi, false);
 	if (ret < 0) {
 		DRM_DEV_ERROR(dsi->dev, "Failed to deassert DSI: %d\n", ret);
-		return;
+		goto runtime_put;
 	}
 
 	/*
@@ -1349,6 +1350,11 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	 * pixels on the data lanes.
 	 */
 	drm_bridge_chain_enable(dsi->panel_bridge);
+
+	return;
+
+runtime_put:
+	pm_runtime_put_sync(dsi->dev);
 }
 
 static void

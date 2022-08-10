@@ -241,7 +241,7 @@ static void xsk_configure_umem(struct ifobject *data, void *buffer, u64 size, in
 		.fill_size = XSK_RING_PROD__DEFAULT_NUM_DESCS,
 		.comp_size = XSK_RING_CONS__DEFAULT_NUM_DESCS,
 		.frame_size = XSK_UMEM__DEFAULT_FRAME_SIZE,
-		.frame_headroom = frame_headroom,
+		.frame_headroom = umem->frame_headroom,
 		.flags = XSK_UMEM__DEFAULT_FLAGS
 	};
 	struct xsk_umem_info *umem;
@@ -420,7 +420,7 @@ static struct pkt *pkt_stream_get_pkt(struct pkt_stream *pkt_stream, u32 pkt_nb)
 	return &pkt_stream->pkts[pkt_nb];
 }
 
-static struct pkt_stream *pkt_stream_generate(u32 nb_pkts, u32 pkt_len)
+static struct pkt_stream *pkt_stream_generate(struct xsk_umem_info *umem, u32 nb_pkts, u32 pkt_len)
 {
 	struct pkt_stream *pkt_stream;
 	u32 i;
@@ -435,7 +435,7 @@ static struct pkt_stream *pkt_stream_generate(u32 nb_pkts, u32 pkt_len)
 
 	pkt_stream->nb_pkts = nb_pkts;
 	for (i = 0; i < nb_pkts; i++) {
-		pkt_stream->pkts[i].addr = (i % num_frames) * XSK_UMEM__DEFAULT_FRAME_SIZE;
+		pkt_stream->pkts[i].addr = (i % umem->num_frames) * XSK_UMEM__DEFAULT_FRAME_SIZE;
 		pkt_stream->pkts[i].len = pkt_len;
 		pkt_stream->pkts[i].payload = i;
 	}
@@ -753,7 +753,7 @@ static void tx_stats_validate(struct ifobject *ifobject)
 
 static void thread_common_ops(struct ifobject *ifobject, void *bufs)
 {
-	u64 umem_sz = num_frames * XSK_UMEM__DEFAULT_FRAME_SIZE;
+	u64 umem_sz = ifobject->umem->num_frames * XSK_UMEM__DEFAULT_FRAME_SIZE;
 	int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
 	size_t mmap_sz = umem_sz;
 	int ctr = 0;
@@ -868,9 +868,10 @@ static void testapp_validate(void)
 		exit_with_error(errno);
 
 	if (stat_test_type == STAT_TEST_TX_INVALID)
-		pkt_stream = pkt_stream_generate(DEFAULT_PKT_CNT, XSK_UMEM__INVALID_FRAME_SIZE);
+		pkt_stream = pkt_stream_generate(test->ifobj_tx->umem, DEFAULT_PKT_CNT,
+						 XSK_UMEM__INVALID_FRAME_SIZE);
 	else
-		pkt_stream = pkt_stream_generate(DEFAULT_PKT_CNT, PKT_SIZE);
+		pkt_stream = pkt_stream_generate(test->ifobj_tx->umem, DEFAULT_PKT_CNT, PKT_SIZE);
 	ifdict_tx->pkt_stream = pkt_stream;
 	ifdict_rx->pkt_stream = pkt_stream;
 
@@ -969,12 +970,11 @@ static void testapp_stats(void)
 
 		/* reset defaults */
 		rxqsize = XSK_RING_CONS__DEFAULT_NUM_DESCS;
-		frame_headroom = XSK_UMEM__DEFAULT_FRAME_HEADROOM;
 
 		switch (stat_test_type) {
 		case STAT_TEST_RX_DROPPED:
-			frame_headroom = XSK_UMEM__DEFAULT_FRAME_SIZE -
-						XDP_PACKET_HEADROOM - 1;
+			test->ifobj_rx->umem->frame_headroom = XSK_UMEM__DEFAULT_FRAME_SIZE -
+				XDP_PACKET_HEADROOM - 1;
 			break;
 		case STAT_TEST_RX_FULL:
 			rxqsize = RX_FULL_RXQSIZE;
@@ -1029,7 +1029,6 @@ static void run_pkt_test(int mode, int type)
 	second_step = 0;
 	stat_test_type = -1;
 	rxqsize = XSK_RING_CONS__DEFAULT_NUM_DESCS;
-	frame_headroom = XSK_UMEM__DEFAULT_FRAME_HEADROOM;
 
 	configured_mode = mode;
 

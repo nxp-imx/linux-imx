@@ -156,8 +156,8 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 		sensor = devm_kzalloc(&pdev->dev, sizeof(*sensor), GFP_KERNEL);
 		if (!sensor) {
 			of_node_put(child);
-			of_node_put(sensor_np);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto put_node;
 		}
 
 		ret = thermal_zone_of_get_sensor_id(child,
@@ -214,7 +214,9 @@ static int imx_sc_thermal_probe(struct platform_device *pdev)
 		}
 	}
 
+put_node:
 	of_node_put(sensor_np);
+	of_node_put(np);
 
 	if (np_cdev) {
 		ret = of_property_read_u32(np_cdev, "throttle,max_state", &val);

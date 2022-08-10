@@ -534,7 +534,19 @@ static struct platform_driver snvs_rtc_driver = {
 	},
 	.probe		= snvs_rtc_probe,
 };
-module_platform_driver(snvs_rtc_driver);
+
+static int __init snvs_rtc_driver_init(void)
+{
+	return platform_driver_register(&snvs_rtc_driver);
+}
+
+static void __exit snvs_rtc_driver_exit(void)
+{
+	platform_driver_unregister(&snvs_rtc_driver);
+}
+
+device_initcall_sync(snvs_rtc_driver_init);
+module_exit(snvs_rtc_driver_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("Freescale SNVS RTC Driver");

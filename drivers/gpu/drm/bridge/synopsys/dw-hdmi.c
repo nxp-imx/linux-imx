@@ -2996,6 +2996,14 @@ static void dw_hdmi_bridge_atomic_enable(struct drm_bridge *bridge,
 	hdmi->curr_conn = connector;
 	dw_hdmi_update_power(hdmi);
 	dw_hdmi_update_phy_mask(hdmi);
+
+	/* Workaround for update hdmi audio eld data when cable plugin.
+	 * plugged_cb is called in bridge_detect to update eld, but eld
+	 * data is not updated until get_edid. Call handle_plugged_change
+	 * in bridge_atomic_enable to make sure eld data is update after
+	 * edid data are read */
+	handle_plugged_change(hdmi,
+			hdmi->last_connector_result == connector_status_connected);
 	mutex_unlock(&hdmi->mutex);
 }
 

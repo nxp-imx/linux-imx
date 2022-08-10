@@ -43,7 +43,7 @@ config IMX_SECO_MU
 config IMX_EL_ENCLAVE
 	tristate "i.MX Embedded EdgeLock Enclave support."
 	depends on IMX_MBOX
-	default y if ARM64
+	default m if ARM64
 
 	help
 	  It is possible to use APIs exposed by the iMX EdgeLock Enclave like base, HSM &

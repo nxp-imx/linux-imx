@@ -47,7 +47,7 @@ struct clk_pllv4 {
 };
 
 /* Valid PLL MULT Table */
-static const int pllv4_mult_table[] = {33, 27, 22, 20, 17, 16};
+static const int pllv4_mult_table[] = {40, 33, 27, 22, 20, 17, 16};
 
 #define to_clk_pllv4(__hw) container_of(__hw, struct clk_pllv4, hw)
 

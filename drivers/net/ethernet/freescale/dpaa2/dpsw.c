@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright 2014-2016 Freescale Semiconductor Inc.
- * Copyright 2017-2021 NXP
+ * Copyright 2017-2022 NXP
  *
  */
 
@@ -1656,6 +1656,35 @@ int dpsw_if_remove_reflection(struct fsl_mc_io *mc_io, u32 cmd_flags, u16 token,
 	cmd_params->if_id = cpu_to_le16(if_id);
 	cmd_params->vlan_id = cpu_to_le16(cfg->vlan_id);
 	dpsw_set_field(cmd_params->filter, FILTER, cfg->filter);
+
+	return mc_send_command(mc_io, &cmd);
+}
+
+/**
+ * dpsw_lag_set_cfg() - Set LAG configuration
+ * @mc_io:   Pointer to MC portal's I/O object
+ * @cmd_flags:      Command flags; one or more of 'MC_CMD_FLAG_'
+ * @token:   Token of DPSW object
+ * @cfg:     pointer to LAG configuration
+ *
+ * Return:   '0' on Success; Error code otherwise.
+ */
+int dpsw_lag_set(struct fsl_mc_io *mc_io, u32 cmd_flags, u16 token,
+		 const struct dpsw_lag_cfg *cfg)
+{
+	struct fsl_mc_command cmd = { 0 };
+	struct dpsw_cmd_lag *cmd_params;
+	int i = 0;
+
+	cmd.header = mc_encode_cmd_header(DPSW_CMDID_SET_LAG, cmd_flags, token);
+
+	cmd_params = (struct dpsw_cmd_lag *)cmd.params;
+	cmd_params->group_id = cfg->group_id;
+	cmd_params->num_ifs = cfg->num_ifs;
+	cmd_params->phase = cfg->phase;
+
+	for (i = 0; i < cfg->num_ifs; i++)
+		cmd_params->if_id[i] = cfg->if_id[i];
 
 	return mc_send_command(mc_io, &cmd);
 }

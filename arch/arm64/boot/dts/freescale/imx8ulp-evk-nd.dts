@@ -5,6 +5,12 @@
 
 #include "imx8ulp-evk.dts"
 
+/ {
+	imx8ulp-lpm {
+		sys-dvfs-enabled;
+	};
+};
+
 &gpu3d {
 	assigned-clock-rates = <200000000>, <200000000>, <200000000>;
 };
@@ -25,6 +31,7 @@
 				<176000000>,
 				<132000000>,
 				<79200000>;
+
 };
 
 &epdc {

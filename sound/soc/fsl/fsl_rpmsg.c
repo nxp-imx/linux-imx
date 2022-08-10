@@ -189,6 +189,7 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct snd_soc_dai_driver *dai_drv;
 	struct fsl_rpmsg *rpmsg;
+	const char *model_string;
 	int ret;
 
 	dai_drv = devm_kzalloc(&pdev->dev, sizeof(struct snd_soc_dai_driver), GFP_KERNEL);
@@ -202,7 +203,6 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 
 	rpmsg->soc_data = of_device_get_match_data(&pdev->dev);
 	if (rpmsg->soc_data) {
-		const char *model_string;
 		dai_drv->playback.rates = rpmsg->soc_data->rates;
 		dai_drv->capture.rates = rpmsg->soc_data->rates;
 		dai_drv->playback.formats = rpmsg->soc_data->formats;
@@ -223,6 +223,11 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 		if(!strcmp("pcm512x-audio", model_string)) {
 			dai_drv->playback.rates |= SNDRV_PCM_RATE_384000;
 		}
+
+		/* constrain rates of wm8524 codec */
+		of_property_read_string(np, "model", &model_string);
+		if (!strcmp("wm8524-audio", model_string))
+			dai_drv->playback.rates = SNDRV_PCM_RATE_8000_192000;
 	}
 	if (of_property_read_bool(np, "fsl,enable-lpa")) {
 		rpmsg->enable_lpa = 1;

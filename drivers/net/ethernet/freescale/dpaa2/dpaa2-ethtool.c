@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2014-2016 Freescale Semiconductor Inc.
- * Copyright 2016 NXP
- * Copyright 2020 NXP
+ * Copyright 2016-2022 NXP
  */
 
 #include <linux/net_tstamp.h>
@@ -64,7 +63,16 @@ static char dpaa2_ethtool_extras[][ETH_GSTRING_LEN] = {
 	"[qbman] rx pending bytes",
 	"[qbman] tx conf pending frames",
 	"[qbman] tx conf pending bytes",
-	"[qbman] buffer count",
+	"[qbman] num dpbps",
+	"[qbman] buffer count dpbp#1",
+	"[qbman] buffer count dpbp#2",
+	"[qbman] buffer count dpbp#3",
+	"[qbman] buffer count dpbp#4",
+	"[qbman] buffer count dpbp#5",
+	"[qbman] buffer count dpbp#6",
+	"[qbman] buffer count dpbp#7",
+	"[qbman] buffer count dpbp#8",
+	"[qbman] buffer count dpbp#9",
 };
 
 #define DPAA2_ETH_NUM_EXTRA_STATS	ARRAY_SIZE(dpaa2_ethtool_extras)
@@ -308,12 +316,16 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 	*(data + i++) = fcnt_tx_total;
 	*(data + i++) = bcnt_tx_total;
 
-	err = dpaa2_io_query_bp_count(NULL, priv->bpid, &buf_cnt);
-	if (err) {
-		netdev_warn(net_dev, "Buffer count query error %d\n", err);
-		return;
+	*(data + i++) = priv->num_bps;
+	for (j = 0; j < priv->num_bps; j++) {
+		err = dpaa2_io_query_bp_count(NULL, priv->bp[j]->bpid, &buf_cnt);
+		if (err) {
+			netdev_warn(net_dev, "Buffer count query error %d\n", err);
+			return;
+		}
+		*(data + i + j) = buf_cnt;
 	}
-	*(data + i++) = buf_cnt;
+	i += DPAA2_ETH_MAX_BPS;
 
 	if (dpaa2_eth_has_mac(priv))
 		dpaa2_mac_get_ethtool_stats(priv->mac, data + i);
@@ -876,6 +888,36 @@ restore_rx_usecs:
 	return err;
 }
 
+static void dpaa2_eth_get_channels(struct net_device *net_dev,
+				   struct ethtool_channels *channels)
+{
+	struct dpaa2_eth_priv *priv = netdev_priv(net_dev);
+	int queue_count = dpaa2_eth_queue_count(priv);
+
+	channels->max_rx = queue_count;
+	channels->max_tx = queue_count;
+	/* Tx conf and Rx err */
+	channels->max_other = queue_count + 1;
+	channels->max_combined = channels->max_rx +
+				 channels->max_tx +
+				 channels->max_other;
+
+	channels->rx_count = queue_count;
+	channels->tx_count = queue_count;
+	/* Tx conf and Rx err */
+	channels->other_count = queue_count + 1;
+	channels->combined_count = channels->rx_count +
+				   channels->tx_count +
+				   channels->other_count;
+}
+
+static int dpaa2_eth_set_channels(struct net_device *net_dev,
+				  struct ethtool_channels *channels)
+{
+	netdev_err(net_dev, "No support for dynamic channel reconfiguration\n");
+	return -EOPNOTSUPP;
+}
+
 const struct ethtool_ops dpaa2_ethtool_ops = {
 	.supported_coalesce_params = ETHTOOL_COALESCE_RX_USECS |
 				     ETHTOOL_COALESCE_USE_ADAPTIVE_RX,
@@ -896,4 +938,6 @@ const struct ethtool_ops dpaa2_ethtool_ops = {
 	.set_tunable = dpaa2_eth_set_tunable,
 	.get_coalesce = dpaa2_eth_get_coalesce,
 	.set_coalesce = dpaa2_eth_set_coalesce,
+	.get_channels = dpaa2_eth_get_channels,
+	.set_channels = dpaa2_eth_set_channels,
 };

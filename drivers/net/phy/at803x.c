@@ -812,6 +812,12 @@ static int at803x_config_init(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 
+	if (phydev->drv->phy_id == ATH8031_PHY_ID) {
+		ret = at8031_pll_config(phydev);
+		if (ret < 0)
+			return ret;
+	}
+
 	/* The Atheros 803x PHY will go to hibernate mode after
 	 * 10 seconds if no activity on the link.
 	 * When in hibernation, it will not provide any clock to the MAC.

@@ -10,6 +10,7 @@
 #include <linux/platform_data/dma-imx.h>
 #include <sound/dmaengine_pcm.h>
 
+#define FAL_SAI_NUM_RATES  20
 #define FSL_SAI_FORMATS (SNDRV_PCM_FMTBIT_S16_LE |\
 			 SNDRV_PCM_FMTBIT_S24_LE |\
 			 SNDRV_PCM_FMTBIT_S32_LE |\
@@ -84,8 +85,8 @@
 #define FSL_SAI_xCR3(tx, ofs)	(tx ? FSL_SAI_TCR3(ofs) : FSL_SAI_RCR3(ofs))
 #define FSL_SAI_xCR4(tx, ofs)	(tx ? FSL_SAI_TCR4(ofs) : FSL_SAI_RCR4(ofs))
 #define FSL_SAI_xCR5(tx, ofs)	(tx ? FSL_SAI_TCR5(ofs) : FSL_SAI_RCR5(ofs))
-#define FSL_SAI_xDR(tx, ofs)	(tx ? FSL_SAI_TDR(ofs) : FSL_SAI_RDR(ofs))
-#define FSL_SAI_xFR(tx, ofs)	(tx ? FSL_SAI_TFR(ofs) : FSL_SAI_RFR(ofs))
+#define FSL_SAI_xDR0(tx)	(tx ? FSL_SAI_TDR0 : FSL_SAI_RDR0)
+#define FSL_SAI_xFR0(tx)	(tx ? FSL_SAI_TFR0 : FSL_SAI_RFR0)
 #define FSL_SAI_xMR(tx)		(tx ? FSL_SAI_TMR : FSL_SAI_RMR)
 
 /* SAI Transmit/Receive Control Register */
@@ -233,6 +234,7 @@ struct fsl_sai_soc_data {
 	unsigned int dataline;
 	unsigned int flags;
 	unsigned int max_register;
+	unsigned int max_burst[2];
 };
 
 /**
@@ -311,6 +313,8 @@ struct fsl_sai {
 	struct sdma_audio_config audio_config[2];
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_state;
+	struct snd_pcm_hw_constraint_list constraint_rates;
+	unsigned int constraint_rates_list[FAL_SAI_NUM_RATES];
 };
 
 const struct attribute_group *fsl_sai_get_dev_attribute_group(bool monitor_spdif);

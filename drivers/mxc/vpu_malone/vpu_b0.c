@@ -1452,14 +1452,13 @@ static int alloc_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 			(dma_addr_t *)&buffer->dma_phy,
 			GFP_KERNEL | GFP_DMA32 | __GFP_NOWARN);
 
-	if (!buffer->dma_virt) {
+	if (IS_ERR_OR_NULL(buffer->dma_virt)) {
 		vpu_err("error: %s() dma buffer alloc size(%x) fail!\n",
 				__func__,  buffer->dma_size);
 		vpu_dec_event_decode_error(ctx);
 		return -ENOMEM;
 	}
 
-	memset_io(buffer->dma_virt, 0, buffer->dma_size);
 	atomic64_add(buffer->dma_size, &ctx->statistic.total_dma_size);
 	return 0;
 }

@@ -1364,8 +1364,12 @@ enum v4l2_mpeg_video_h264_entropy_mode -
     (enum)
 
 enum v4l2_mpeg_video_header_mode -
-    Determines whether the header is returned as the first buffer or is
-    it returned together with the first frame. Applicable to encoders.
+    Determines whether the header is returned as the first buffer
+    with flag V4L2_BUF_FLAG_HEADERS_ONLY or is
+    it returned together with the first frame.
+    Applicable to encoders and decoders.
+    If it's not implemented in a driver,
+    V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME is to be assumed,
     Possible values are:
 
 .. raw:: latex
@@ -1379,7 +1383,7 @@ enum v4l2_mpeg_video_header_mode -
     :stub-columns: 0
 
     * - ``V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE``
-      - The stream header is returned separately in the first buffer.
+      - The stream header is returned separately in the first buffer with the flag V4L2_BUF_FLAG_HEADERS_ONLY.
     * - ``V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME``
       - The stream header is returned together with the first encoded
 	frame.

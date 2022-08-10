@@ -639,4 +639,13 @@ config DRM_PANEL_WKS_101WX001
 	  Say Y here if you want to enable support for the WKS
 	  101WX001 controller for 1280x800 LCD panel
 
+config DRM_PANEL_USMP_RM67162
+	tristate "US Micro Products RM67162 400x400 DSI panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for USMP RM67162
+	  400x400 DSI panel.
+
 endmenu

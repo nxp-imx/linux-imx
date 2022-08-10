@@ -887,6 +887,7 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 		int enqueue = 0;
 		struct rt_rq *rt_rq = sched_rt_period_rt_rq(rt_b, i);
 		struct rq *rq = rq_of_rt_rq(rt_rq);
+		struct rq_flags rf;
 		int skip;
 
 		/*
@@ -901,7 +902,7 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 		if (skip)
 			continue;
 
-		raw_spin_rq_lock(rq);
+		rq_lock(rq, &rf);
 		update_rq_clock(rq);
 
 		if (rt_rq->rt_time) {
@@ -939,7 +940,7 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 
 		if (enqueue)
 			sched_rt_rq_enqueue(rt_rq);
-		raw_spin_rq_unlock(rq);
+		rq_unlock(rq, &rf);
 	}
 
 	if (!throttled && (!rt_bandwidth_enabled() || rt_b->rt_runtime == RUNTIME_INF))
@@ -1037,6 +1038,8 @@ static void update_curr_rt(struct rq *rq)
 
 	curr->se.exec_start = now;
 	cgroup_account_cputime(curr, delta_exec);
+
+	trace_android_vh_sched_stat_runtime_rt(curr, delta_exec);
 
 	if (!rt_bandwidth_enabled())
 		return;
@@ -1693,6 +1696,7 @@ static inline void set_next_task_rt(struct rq *rq, struct task_struct *p, bool f
 	 */
 	if (rq->curr->sched_class != &rt_sched_class)
 		update_rt_rq_load_avg(rq_clock_pelt(rq), rq, 0);
+	trace_android_rvh_update_rt_rq_load_avg(rq_clock_pelt(rq), rq, p, 0);
 
 	rt_queue_push_tasks(rq);
 }
@@ -1755,6 +1759,7 @@ static void put_prev_task_rt(struct rq *rq, struct task_struct *p)
 	update_curr_rt(rq);
 
 	update_rt_rq_load_avg(rq_clock_pelt(rq), rq, 1);
+	trace_android_rvh_update_rt_rq_load_avg(rq_clock_pelt(rq), rq, p, 1);
 
 	/*
 	 * The previous task needs to be made eligible for pushing
@@ -2571,6 +2576,7 @@ static void task_tick_rt(struct rq *rq, struct task_struct *p, int queued)
 
 	update_curr_rt(rq);
 	update_rt_rq_load_avg(rq_clock_pelt(rq), rq, 1);
+	trace_android_rvh_update_rt_rq_load_avg(rq_clock_pelt(rq), rq, p, 1);
 
 	watchdog(rq, p);
 

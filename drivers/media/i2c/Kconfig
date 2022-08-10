@@ -1296,6 +1296,17 @@ config VIDEO_NOON010PC30
 	help
 	  This driver supports NOON010PC30 CIF camera from Siliconfile
 
+config VIDEO_AP1302
+	tristate "ON Semiconductor's Advanced Image Coporcessor AP1302 support"
+	depends on OF
+	depends on GPIOLIB && VIDEO_V4L2 && I2C
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the ONSEMI AP1302 camera
+	  sensor with a MIPI CSI-2 interface
+
 source "drivers/media/i2c/m5mols/Kconfig"
 
 config VIDEO_MAX9271_LIB

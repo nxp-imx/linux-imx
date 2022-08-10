@@ -218,6 +218,8 @@ int sof_compr_set_params(struct snd_soc_component *component,
 
 	sstream->posn_offset = sdev->stream_box.offset + ipc_params_reply.posn_offset;
 	sstream->sample_rate = params->codec.sample_rate;
+	sstream->channels = params->codec.ch_out;
+	sstream->sample_container_bytes = pcm->params.sample_container_bytes;
 	spcm->prepared[cstream->direction] = true;
 
 	kfree(pcm);
@@ -303,9 +305,20 @@ static int sof_compr_pointer(struct snd_soc_component *component,
 {
 	struct snd_compr_runtime *runtime = cstream->runtime;
 	struct sof_compr_stream *sstream = runtime->private_data;
+	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+	struct snd_sof_pcm *spcm;
+	uint64_t dai_posn;
+
+	spcm = snd_sof_find_spcm_dai(component, rtd);
+	if (!spcm)
+		return -EINVAL;
+
+	dai_posn = spcm->stream[cstream->direction].posn.dai_posn;
 
 	tstamp->sampling_rate = sstream->sample_rate;
 	tstamp->copied_total = sstream->copied_total;
+	tstamp->pcm_io_frames = div_u64(dai_posn,
+					sstream->channels * sstream->sample_container_bytes);
 
 	return 0;
 }

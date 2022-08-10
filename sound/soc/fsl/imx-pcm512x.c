@@ -396,11 +396,6 @@ static int imx_asoc_card_parse_dt(struct snd_soc_card *card,
 		link->platforms->of_node = link->cpus->of_node;
 
 		codec_np = of_get_child_by_name(np, "codec");
-		if (!codec_np) {
-			dev_err(dev, "failed to get codec phandle missing or invalid\n");
-			goto fail;
-		}
-
 		if (codec_np) {
 			ret = snd_soc_of_get_dai_link_codecs(dev, codec_np, link);
 			if (ret) {

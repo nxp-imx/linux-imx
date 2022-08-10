@@ -377,6 +377,11 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 		dev_err(dev, "failed to set cpui dai mclk1 rate (%lu): %d\n", mclk_freq, ret);
 		return ret;
 	}
+	ret = snd_soc_dai_set_sysclk(codec_dai, 0, mclk_freq, SND_SOC_CLOCK_IN);
+	if (ret && ret != -ENOTSUPP) {
+		dev_err(dev, "failed to set codec dai mclk rate (%lu): %d\n", mclk_freq, ret);
+		return ret;
+	}
 
 	return 0;
 }
@@ -593,9 +598,8 @@ static int imx_card_parse_of(struct imx_card_data *data)
 
 		ret = snd_soc_of_get_dai_name(cpu, &link->cpus->dai_name);
 		if (ret) {
-			if (ret != -EPROBE_DEFER)
-				dev_err(card->dev, "%s: error getting cpu dai name: %d\n",
-					link->name, ret);
+			dev_err_probe(card->dev, ret,
+				      "%s: error getting cpu dai name\n", link->name);
 			goto err;
 		}
 
@@ -603,9 +607,8 @@ static int imx_card_parse_of(struct imx_card_data *data)
 		if (codec) {
 			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
 			if (ret < 0) {
-				if (ret != -EPROBE_DEFER)
-					dev_err(dev, "%s: codec dai not found: %d\n",
-						link->name, ret);
+				dev_err_probe(dev, ret, "%s: codec dai not found\n",
+						link->name);
 				goto err;
 			}
 
@@ -844,11 +847,8 @@ static int imx_card_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, &data->card);
-	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
-		return ret;
-	}
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "snd_soc_register_card failed\n");
 
 #ifdef CONFIG_EXTCON
 	if (plat_data->type == CODEC_AK4458) {

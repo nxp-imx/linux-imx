@@ -124,6 +124,7 @@ struct ele_mu_priv {
 	 */
 	struct mutex mu_cmd_lock;
 	struct device *dev;
+	u32 ele_mu_did;
 	u32 ele_mu_id;
 	u8 cmd_tag;
 	u8 rsp_tag;

@@ -44,3 +44,4 @@ obj-$(CONFIG_FIELDBUS_DEV)     += fieldbus/
 obj-$(CONFIG_QLGE)		+= qlge/
 obj-$(CONFIG_WFX)		+= wfx/
 obj-$(CONFIG_FSL_PPFE)		+= fsl_ppfe/
+obj-$(CONFIG_ETHOSU)		+= ethosu/

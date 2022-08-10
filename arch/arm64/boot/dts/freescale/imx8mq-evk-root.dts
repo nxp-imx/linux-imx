@@ -69,6 +69,14 @@
 		no-map;
 		reg = <0 0xbfb00000 0x0 0x00200000>;
 	};
+
+	linux,cma {
+		compatible = "shared-dma-pool";
+		reusable;
+		size = <0 0x30000000>;
+		alloc-ranges = <0 0x80000000 0 0x30000000>;
+		linux,cma-default;
+	};
 };
 
 &uart1 {

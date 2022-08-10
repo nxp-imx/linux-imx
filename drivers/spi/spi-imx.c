@@ -237,10 +237,12 @@ static bool spi_imx_can_dma(struct spi_master *master, struct spi_device *spi,
 	if (!master->dma_rx)
 		return false;
 
-	if (spi_imx->slave_mode)
+	if (transfer->len < spi_imx->devtype_data->fifo_size) {
+		spi_imx->dynamic_burst = 0;
 		return false;
+	}
 
-	if (transfer->len < spi_imx->devtype_data->fifo_size)
+	if (spi_imx->slave_mode && transfer->len % 4)
 		return false;
 
 	spi_imx->dynamic_burst = 0;
@@ -522,6 +524,59 @@ static void mx51_ecspi_disable(struct spi_imx_data *spi_imx)
 	writel(ctrl, spi_imx->base + MX51_ECSPI_CTRL);
 }
 
+static void spi_imx_dma_transfer_convert_8(u8 *buf, int length)
+{
+	int i;
+	u32 val = 0;
+
+	for (i = 0; i < length / 4; i++)
+	{
+		memcpy(((u8 *)&val), (const void *)(buf + i * 4), 4);
+		val = cpu_to_be32(val);
+		memcpy((void *)(buf + i * 4), ((u8 *)&val), 4);
+	}
+}
+
+static void spi_imx_dma_transfer_convert_16(u8* buf, int length)
+{
+	int i;
+	u32 val = 0;
+
+	for (i = 0; i < length / 4; i++)
+	{
+		memcpy(((u8 *)&val), (const void *)(buf + i * 4), 4);
+		val = (val << 16) | (val >> 16);
+		memcpy((void *)(buf + i * 4), ((u8 *)&val), 4);
+	}
+}
+
+static int spi_imx_slave_dma_convert(struct spi_transfer *t, int dir)
+{
+	if (t->bits_per_word <= 8) {
+		if (dir == DMA_FROM_DEVICE) {
+			if (!t->rx_buf)
+				return -EINVAL;
+			spi_imx_dma_transfer_convert_8((u8 *)t->rx_buf, t->len);
+		} else {
+			if (!t->tx_buf)
+				return -EINVAL;
+			spi_imx_dma_transfer_convert_8((u8 *)t->tx_buf, t->len);
+		}
+	} else if (t->bits_per_word <= 16) {
+		if (dir == DMA_FROM_DEVICE) {
+			if (!t->rx_buf)
+				return -EINVAL;
+			spi_imx_dma_transfer_convert_16((u8 *)t->rx_buf, t->len);
+		} else {
+			if (!t->tx_buf)
+				return -EINVAL;
+			spi_imx_dma_transfer_convert_16((u8 *)t->tx_buf, t->len);
+		}
+	}
+
+	return 0;
+}
+
 static int mx51_ecspi_prepare_message(struct spi_imx_data *spi_imx,
 				      struct spi_message *msg)
 {
@@ -608,6 +663,10 @@ static int mx51_ecspi_prepare_message(struct spi_imx_data *spi_imx,
 	 * min_speed_hz is ~0 and the resulting delay is zero.
 	 */
 	list_for_each_entry(xfer, &msg->transfers, transfer_list) {
+		if (spi_imx->slave_mode &&
+		    spi_imx_can_dma(spi_imx->bitbang.master, spi, xfer))
+			spi_imx_slave_dma_convert(xfer, DMA_TO_DEVICE);
+
 		if (!xfer->speed_hz)
 			continue;
 		min_speed_hz = min(xfer->speed_hz, min_speed_hz);
@@ -1245,22 +1304,28 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 			spi_imx->spi_bus_clk = t->speed_hz;
 	}
 
-	spi_imx->bits_per_word = t->bits_per_word;
+	if (spi_imx_can_dma(spi_imx->bitbang.master, spi, t))
+		spi_imx->usedma = 1;
+	else
+		spi_imx->usedma = 0;
+
+	if (spi_imx->slave_mode && spi_imx->usedma)
+		spi_imx->bits_per_word = 32;
+	else
+		spi_imx->bits_per_word = t->bits_per_word;
 
 	/*
 	 * Initialize the functions for transfer. To transfer non byte-aligned
 	 * words, we have to use multiple word-size bursts, we can't use
 	 * dynamic_burst in that case.
 	 */
-	if (spi_imx->devtype_data->dynamic_burst && !spi_imx->slave_mode &&
+	if (spi_imx->dynamic_burst && !spi_imx->slave_mode &&
 	    !(spi->mode & SPI_CS_WORD) &&
 	    (spi_imx->bits_per_word == 8 ||
 	    spi_imx->bits_per_word == 16 ||
 	    spi_imx->bits_per_word == 32)) {
-
 		spi_imx->rx = spi_imx_buf_rx_swap;
 		spi_imx->tx = spi_imx_buf_tx_swap;
-		spi_imx->dynamic_burst = 1;
 
 	} else {
 		if (spi_imx->bits_per_word <= 8) {
@@ -1273,13 +1338,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 			spi_imx->rx = spi_imx_buf_rx_u32;
 			spi_imx->tx = spi_imx_buf_tx_u32;
 		}
-		spi_imx->dynamic_burst = 0;
 	}
-
-	if (spi_imx_can_dma(spi_imx->bitbang.master, spi, t))
-		spi_imx->usedma = true;
-	else
-		spi_imx->usedma = false;
 
 	if (spi_imx->slave_mode) {
 		spi_imx->rx = mx53_ecspi_rx_slave;
@@ -1385,8 +1444,15 @@ static int spi_imx_dma_transfer(struct spi_imx_data *spi_imx,
 	unsigned int bytes_per_word, i;
 	int ret;
 
+	if ((is_imx51_ecspi(spi_imx) || is_imx53_ecspi(spi_imx)) &&
+	    transfer->len > MX53_MAX_TRANSFER_BYTES && spi_imx->slave_mode) {
+		dev_err(spi_imx->dev, "Transaction too big, max size is %d bytes\n",
+			MX53_MAX_TRANSFER_BYTES);
+		return -EMSGSIZE;
+	}
+
 	/* Get the right burst length from the last sg to ensure no tail data */
-	bytes_per_word = spi_imx_bytes_per_word(transfer->bits_per_word);
+	bytes_per_word = spi_imx_bytes_per_word(spi_imx->bits_per_word);
 	for (i = spi_imx->devtype_data->fifo_size / 2; i > 0; i--) {
 		if (!(sg_dma_len(last_sg) % (i * bytes_per_word)))
 			break;
@@ -1441,28 +1507,64 @@ static int spi_imx_dma_transfer(struct spi_imx_data *spi_imx,
 	reinit_completion(&spi_imx->dma_tx_completion);
 	dma_async_issue_pending(master->dma_tx);
 
-	spi_imx->devtype_data->trigger(spi_imx);
+	if (!spi_imx->slave_mode) {
+		spi_imx->devtype_data->trigger(spi_imx);
 
-	transfer_timeout = spi_imx_calculate_timeout(spi_imx, transfer->len);
+		transfer_timeout = spi_imx_calculate_timeout(spi_imx, transfer->len);
 
-	/* Wait SDMA to finish the data transfer.*/
-	timeout = wait_for_completion_timeout(&spi_imx->dma_tx_completion,
-						transfer_timeout);
-	if (!timeout) {
-		dev_err(spi_imx->dev, "I/O Error in DMA TX\n");
-		dmaengine_terminate_all(master->dma_tx);
-		dmaengine_terminate_all(master->dma_rx);
-		return -ETIMEDOUT;
+		/* Wait SDMA to finish the data transfer.*/
+		timeout = wait_for_completion_timeout(&spi_imx->dma_tx_completion,
+							transfer_timeout);
+		if (!timeout) {
+			dev_err(spi_imx->dev, "I/O Error in DMA TX\n");
+			dmaengine_terminate_all(master->dma_tx);
+			dmaengine_terminate_all(master->dma_rx);
+			return -ETIMEDOUT;
+		}
+
+		timeout = wait_for_completion_timeout(&spi_imx->dma_rx_completion,
+						      transfer_timeout);
+		if (!timeout) {
+			dev_err(&master->dev, "I/O Error in DMA RX\n");
+			spi_imx->devtype_data->reset(spi_imx);
+			dmaengine_terminate_all(master->dma_rx);
+			return -ETIMEDOUT;
+		}
+	} else {
+		spi_imx->slave_aborted = false;
+
+		spi_imx->devtype_data->trigger(spi_imx);
+
+		if (wait_for_completion_interruptible(&spi_imx->dma_tx_completion) ||
+			spi_imx->slave_aborted) {
+			dev_dbg(spi_imx->dev,
+				"I/O Error in DMA TX interrupted\n");
+			dmaengine_terminate_all(master->dma_tx);
+			dmaengine_terminate_all(master->dma_rx);
+			return -EINTR;
+		}
+
+		if (wait_for_completion_interruptible(&spi_imx->dma_rx_completion) ||
+			spi_imx->slave_aborted) {
+			dev_dbg(spi_imx->dev,
+				"I/O Error in DMA RX interrupted\n");
+			dmaengine_terminate_all(master->dma_tx);
+			dmaengine_terminate_all(master->dma_rx);
+			return -EINTR;
+		}
+
+		if (spi_imx->devtype_data->disable)
+			spi_imx->devtype_data->disable(spi_imx);
 	}
 
-	timeout = wait_for_completion_timeout(&spi_imx->dma_rx_completion,
-					      transfer_timeout);
-	if (!timeout) {
-		dev_err(&master->dev, "I/O Error in DMA RX\n");
-		spi_imx->devtype_data->reset(spi_imx);
-		dmaengine_terminate_all(master->dma_rx);
-		return -ETIMEDOUT;
-	}
+	/* ecspi has a HW issue when works in Slave mode,
+	 * after 64 words writtern to TXFIFO, even TXFIFO becomes empty,
+	 * ECSPI_TXDATA keeps shift out the last word data,
+	 * so we have to disable ECSPI when in slave mode after the
+	 * transfer completes
+	 */
+	if (spi_imx->devtype_data->disable && spi_imx->slave_mode)
+		spi_imx->devtype_data->disable(spi_imx);
 
 	return transfer->len;
 /* fallback to pio */
@@ -1556,7 +1658,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	while (spi_imx->devtype_data->rx_available(spi_imx))
 		readl(spi_imx->base + MXC_CSPIRXDATA);
 
-	if (spi_imx->slave_mode)
+	if (spi_imx->slave_mode && !spi_imx->usedma)
 		return spi_imx_pio_transfer_slave(spi, transfer);
 
 	transfer->effective_speed_hz = spi_imx->spi_bus_clk;
@@ -1592,6 +1694,7 @@ spi_imx_prepare_message(struct spi_master *master, struct spi_message *msg)
 		return ret;
 	}
 
+	spi_imx->dynamic_burst = spi_imx->devtype_data->dynamic_burst;
 	ret = spi_imx->devtype_data->prepare_message(spi_imx, msg);
 	if (ret) {
 		pm_runtime_mark_last_busy(spi_imx->dev);
@@ -1605,6 +1708,14 @@ static int
 spi_imx_unprepare_message(struct spi_master *master, struct spi_message *msg)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(master);
+	struct spi_transfer *xfer;
+
+	if (spi_imx->slave_mode && spi_imx->usedma &&
+	    (is_imx51_ecspi(spi_imx) || is_imx53_ecspi(spi_imx))) {
+		list_for_each_entry(xfer, &msg->transfers, transfer_list) {
+			spi_imx_slave_dma_convert(xfer, DMA_FROM_DEVICE);
+		}
+	}
 
 	pm_runtime_mark_last_busy(spi_imx->dev);
 	pm_runtime_put_autosuspend(spi_imx->dev);

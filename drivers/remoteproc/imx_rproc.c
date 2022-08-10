@@ -6,6 +6,7 @@
 #include <dt-bindings/firmware/imx/rsrc.h>
 #include <linux/arm-smccc.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/firmware/imx/sci.h>
 #include <linux/interrupt.h>
@@ -140,6 +141,7 @@ struct imx_rproc {
 	int				num_domains;
 	struct device			**pm_devices;
 	struct device_link		**pm_devices_link;
+	u32				startup_delay;
 };
 
 static struct imx_sc_ipc *ipc_handle;
@@ -170,6 +172,32 @@ static const struct imx_rproc_att imx_rproc_att_imx8qxp[] = {
 	{ 0x21100000, 0x00100000, 0x00040000, 0},
 	/* DDR (Data) */
 	{ 0x80000000, 0x80000000, 0x60000000, 0 },
+};
+
+static const struct imx_rproc_att imx_rproc_att_imx93[] = {
+	/* dev addr , sys addr  , size	    , flags */
+	/* TCM CODE NON-SECURE */
+	{ 0x0FFC0000, 0x201C0000, 0x00020000, ATT_OWN | ATT_IOMEM },
+	{ 0x0FFE0000, 0x201E0000, 0x00020000, ATT_OWN | ATT_IOMEM },
+
+	/* TCM CODE SECURE */
+	{ 0x1FFC0000, 0x201C0000, 0x00020000, ATT_OWN | ATT_IOMEM },
+	{ 0x1FFE0000, 0x201E0000, 0x00020000, ATT_OWN | ATT_IOMEM },
+
+	/* TCM SYS NON-SECURE*/
+	{ 0x20000000, 0x20200000, 0x00020000, ATT_OWN | ATT_IOMEM },
+	{ 0x20020000, 0x20220000, 0x00020000, ATT_OWN | ATT_IOMEM },
+
+	/* TCM SYS SECURE*/
+	{ 0x30000000, 0x20200000, 0x00020000, ATT_OWN | ATT_IOMEM },
+	{ 0x30020000, 0x20220000, 0x00020000, ATT_OWN | ATT_IOMEM },
+
+	/* DDR */
+	{ 0x80000000, 0x80000000, 0x10000000, 0 },
+	{ 0x90000000, 0x80000000, 0x10000000, 0 },
+
+	{ 0xC0000000, 0xa0000000, 0x10000000, 0 },
+	{ 0xD0000000, 0xa0000000, 0x10000000, 0 },
 };
 
 static const struct imx_rproc_att imx_rproc_att_imx8mn[] = {
@@ -354,6 +382,11 @@ static const struct imx_rproc_dcfg imx_rproc_cfg_imx8qm = {
 	.method		= IMX_SCU_API,
 };
 
+static const struct imx_rproc_dcfg imx_rproc_cfg_imx93 = {
+	.att		= imx_rproc_att_imx93,
+	.att_size	= ARRAY_SIZE(imx_rproc_att_imx93),
+	.method		= IMX_RPROC_SMC,
+};
 
 static int imx_rproc_ready(struct rproc *rproc)
 {
@@ -485,6 +518,9 @@ static int imx_rproc_start(struct rproc *rproc)
 		dev_err(dev, "Failed to enable remote core!\n");
 	else
 		ret = imx_rproc_ready(rproc);
+
+	if (priv->startup_delay)
+		msleep(priv->startup_delay);
 
 	return ret;
 }
@@ -656,6 +692,9 @@ static int imx_rproc_prepare(struct rproc *rproc)
 		 * No need to do extra handlings, rproc_add_virtio_dev will handle it.
 		 */
 		if (!strcmp(it.node->name, "vdev0buffer"))
+			continue;
+
+		if (!strcmp(it.node->name, "rsc-table"))
 			continue;
 
 		rmem = of_reserved_mem_lookup(it.node);
@@ -1047,11 +1086,11 @@ static int imx_rproc_detect_mode(struct imx_rproc *priv)
 
 		if (priv->num_domains) {
 			priv->pm_devices = devm_kcalloc(dev, priv->num_domains,
-							sizeof(struct device), GFP_KERNEL);
+							sizeof(*priv->pm_devices), GFP_KERNEL);
 			if (!priv->pm_devices)
 				return -ENOMEM;
 			priv->pm_devices_link = devm_kcalloc(dev, priv->num_domains,
-							     sizeof(struct device_link),
+							     sizeof(*priv->pm_devices_link),
 							     GFP_KERNEL);
 			if (!priv->pm_devices)
 				return -ENOMEM;
@@ -1221,6 +1260,10 @@ static int imx_rproc_probe(struct platform_device *pdev)
 	if (priv->early_boot)
 		rproc->auto_boot = true;
 
+	ret = of_property_read_u32(dev->of_node, "fsl,startup-delay-ms", &priv->startup_delay);
+	if (ret)
+		priv->startup_delay = 0;
+
 	ret = rproc_add(rproc);
 	if (ret) {
 		dev_err(dev, "rproc_add failed\n");
@@ -1268,6 +1311,7 @@ static const struct of_device_id imx_rproc_of_match[] = {
 	{ .compatible = "fsl,imx8qxp-cm4", .data = &imx_rproc_cfg_imx8qxp },
 	{ .compatible = "fsl,imx8qm-cm4", .data = &imx_rproc_cfg_imx8qm },
 	{ .compatible = "fsl,imx8ulp-cm33", .data = &imx_rproc_cfg_imx8ulp },
+	{ .compatible = "fsl,imx93-cm33", .data = &imx_rproc_cfg_imx93 },
 	{},
 };
 MODULE_DEVICE_TABLE(of, imx_rproc_of_match);

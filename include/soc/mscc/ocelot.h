@@ -689,6 +689,7 @@ struct ocelot_port {
 
 	bool				force_forward;
 	u8				cut_thru;
+	u8				preemptable_prios;
 
 	int				speed;
 

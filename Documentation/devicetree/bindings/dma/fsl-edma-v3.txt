@@ -10,6 +10,7 @@ Required properties:
 	- "fsl,imx8qm-edma" for eDMA used similar to that on i.MX8QM SoC
 	- "fsl,imx8qm-adma" for audio eDMA used on i.MX8QM
 	- "fsl,imx8ulp-edma" for eDMA used on i.MX8ULP
+	- "fsl,imx93-edma" for eDMA used on i.MX93
 - reg : Specifies base physical address(s) and size of the eDMA channel registers.
 	Each eDMA channel has separated register's address and size. The first one
 	is Manage Page address space.
@@ -34,11 +35,12 @@ Required properties:
 - dma-channels : Number of channels supported by the controller
 
 Optional properties :
-- power-domains: Power domains for edma channel used.
-- power-domain-names: Power domains name for edma channel used.
+- power-domains : Power domains for edma channel used.
+- power-domain-names : Power domains name for edma channel used.
 - clocks : A list of phandle and clock-specifier pairs, one for each entry in
 	clock-names. The first one is for Manage Page
 - clock-names : A list of channel clock names.
+- fsl,edma-axi : The bus type is AXI.
 
 Examples:
 edma0: dma-controller@40018000 {

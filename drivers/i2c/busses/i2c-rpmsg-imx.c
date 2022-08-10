@@ -36,13 +36,13 @@
  *   +---------------+---+---+---+---+---+---+---+---+
  *   |       11      |         Return Value          |
  *   +---------------+---+---+---+---+---+---+---+---+
- *   |    12 ~ 13    |            BUS ID             |
+ *   |    12 ~ 13    |            Address            |
  *   +---------------+---+---+---+---+---+---+---+---+
- *   |    14 ~ 15    |            Address            |
+ *   |    14 ~ 15    |             Flags             |
  *   +---------------+---+---+---+---+---+---+---+---+
  *   |    16 ~ 17    |           Data Len            |
  *   +---------------+---+---+---+---+---+---+---+---+
- *   |    18 ~ 33    |        16 Bytes Data          |
+ *   |    18 ~ 495   |        478 Bytes Data         |
  *   +---------------+---+---+---+---+---+---+---+---+
  *
  * The definition of Return Value:
@@ -78,7 +78,7 @@
 #include <linux/delay.h>
 #include <linux/rpmsg.h>
 
-#define I2C_RPMSG_MAX_BUF_SIZE			16
+#define I2C_RPMSG_MAX_BUF_SIZE			478
 #define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
 #define I2C_RPMSG_CATEGORY			0x09
@@ -90,6 +90,11 @@
 #define I2C_RPMSG_PRIORITY			0x01
 
 #define I2C_RPMSG_M_STOP			0x0200
+
+struct i2c_rpmsg_devtype_data {
+	unsigned int max_buf_size;
+	bool dynamic_buffer_support;
+};
 
 struct i2c_rpmsg_msg {
 	struct imx_rpmsg_head header;
@@ -107,6 +112,7 @@ struct i2c_rpmsg_info {
 	struct rpmsg_device *rpdev;
 	struct device *dev;
 	struct i2c_rpmsg_msg *msg;
+	const struct i2c_rpmsg_devtype_data *devtype_data;
 	struct completion cmd_complete;
 	struct mutex lock;
 
@@ -118,6 +124,7 @@ static struct i2c_rpmsg_info i2c_rpmsg;
 
 struct imx_rpmsg_i2c_data {
 	struct i2c_adapter adapter;
+	const struct i2c_rpmsg_devtype_data *devtype_data;
 };
 
 static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
@@ -153,9 +160,14 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 static int rpmsg_xfer(struct i2c_rpmsg_msg *rmsg, struct i2c_rpmsg_info *info)
 {
 	int ret = 0;
+	int xfer_len = sizeof(struct i2c_rpmsg_msg) - I2C_RPMSG_MAX_BUF_SIZE;
 
-	ret = rpmsg_send(info->rpdev->ept, (void *)rmsg,
-						sizeof(struct i2c_rpmsg_msg));
+	if (info->devtype_data->dynamic_buffer_support)
+		xfer_len += rmsg->len;
+	else
+		xfer_len += info->devtype_data->max_buf_size;
+
+	ret = rpmsg_send(info->rpdev->ept, (void *)rmsg, xfer_len);
 	if (ret < 0) {
 		dev_err(&info->rpdev->dev, "rpmsg_send failed: %d\n", ret);
 		return ret;
@@ -186,10 +198,10 @@ static int i2c_rpmsg_read(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	if (!info->rpdev)
 		return -EINVAL;
 
-	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
+	if (msg->len > info->devtype_data->max_buf_size) {
 		dev_err(&info->rpdev->dev,
 		"%s failed: data length greater than %d, len=%d\n",
-		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
+		__func__, info->devtype_data->max_buf_size, msg->len);
 		return -EINVAL;
 	}
 
@@ -236,10 +248,10 @@ int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	if (!info || !info->rpdev)
 		return -EINVAL;
 
-	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
+	if (msg->len > info->devtype_data->max_buf_size) {
 		dev_err(&info->rpdev->dev,
 		"%s failed: data length greater than %d, len=%d\n",
-		__func__, I2C_RPMSG_MAX_BUF_SIZE, msg->len);
+		__func__, info->devtype_data->max_buf_size, msg->len);
 		return -EINVAL;
 	}
 
@@ -329,6 +341,7 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 
 		pmsg = &msgs[i];
 
+		i2c_rpmsg.devtype_data = rdata->devtype_data;
 		i2c_rpmsg.bus_id = rdata->adapter.nr;
 		i2c_rpmsg.addr = pmsg->addr;
 
@@ -386,6 +399,7 @@ static int i2c_rpbus_probe(struct platform_device *pdev)
 	if (!rdata)
 		return -ENOMEM;
 
+	rdata->devtype_data = of_device_get_match_data(&pdev->dev);
 	adapter = &rdata->adapter;
 	/* setup i2c adapter description */
 	adapter->owner = THIS_MODULE;
@@ -429,8 +443,19 @@ static int i2c_rpbus_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static struct i2c_rpmsg_devtype_data i2c_rpmsg_devtype_data = {
+	.max_buf_size = 16,
+	.dynamic_buffer_support = false,
+};
+
+static struct i2c_rpmsg_devtype_data i2c_rpmsg_v2_devtype_data = {
+	.max_buf_size = I2C_RPMSG_MAX_BUF_SIZE,
+	.dynamic_buffer_support = true,
+};
+
 static const struct of_device_id imx_rpmsg_i2c_dt_ids[] = {
-	{ .compatible = "fsl,i2c-rpbus", },
+	{ .compatible = "fsl,i2c-rpbus", .data = &i2c_rpmsg_devtype_data},
+	{ .compatible = "fsl,i2c-rpbus-v2", .data = &i2c_rpmsg_v2_devtype_data},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_rpmsg_i2c_dt_ids);

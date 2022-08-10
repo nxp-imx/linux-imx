@@ -63,6 +63,14 @@ config DRM_IMX8MP_LDB
 	  Choose this to enable the internal LVDS Display Bridge (LDB)
 	  found on i.MX8mp processors.
 
+config DRM_IMX93_LDB
+	tristate "Support for i.MX93 LVDS displays"
+	depends on DRM_IMX && DRM_FSL_IMX_LVDS_BRIDGE
+	depends on PHY_FSL_IMX8MP_LVDS
+	help
+	  Choose this to enable the internal LVDS Display Bridge (LDB)
+	  found on i.MX93 processors.
+
 config DRM_IMX_IPUV3
 	tristate
 	depends on DRM_IMX
@@ -74,6 +82,13 @@ config IMX8MP_HDMI_PAVI
 	tristate "NXP i.MX8MP HDMI Audio Video (PVI/PAI)"
 	help
 	  Choose this if you want to use HDMI PAI/PVI on i.MX8MP.
+
+config DRM_IMX_DW_MIPI_DSI
+	tristate "Freescale i.MX DRM Synopsys DesignWare MIPI DSI"
+	select DRM_DW_MIPI_DSI
+	depends on DRM_IMX
+	help
+	  Choose this if you want to use Synopsys DesignWare MIPI DSI on i.MX93.
 
 config DRM_IMX_HDMI
 	tristate "Freescale i.MX DRM HDMI"

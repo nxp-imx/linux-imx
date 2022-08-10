@@ -478,6 +478,15 @@ static int felix_qbu_set(struct net_device *ndev, u8 preemptible)
 
 	ocelot_port = ocelot->ports[port];
 
+	mutex_lock(&ocelot->fwd_domain_lock);
+
+	if (ocelot_port->cut_thru & preemptible) {
+		netdev_err(ndev,
+			   "A priority cannot be preemptable and cut-through at the same time.\n");
+		mutex_unlock(&ocelot->fwd_domain_lock);
+		return -EBUSY;
+	}
+
 	ocelot_port_rmwl(ocelot_port,
 			 DEV_MM_CONFIG_ENABLE_CONFIG_MM_RX_ENA |
 			 DEV_MM_CONFIG_ENABLE_CONFIG_MM_TX_ENA,
@@ -490,6 +499,10 @@ static int felix_qbu_set(struct net_device *ndev, u8 preemptible)
 		       QSYS_PREEMPTION_CFG_P_QUEUES_M,
 		       QSYS_PREEMPTION_CFG,
 		       port);
+
+	ocelot_port->preemptable_prios = preemptible;
+
+	mutex_unlock(&ocelot->fwd_domain_lock);
 
 	return 0;
 }
@@ -1459,6 +1472,13 @@ static int felix_cut_thru_set(struct net_device *ndev, u8 cut_thru)
 	ocelot_port = ocelot->ports[port];
 
 	mutex_lock(&ocelot->fwd_domain_lock);
+
+	if (cut_thru & ocelot_port->preemptable_prios) {
+		netdev_err(ndev,
+			   "A priority cannot be preemptable and cut-through at the same time.\n");
+		mutex_unlock(&ocelot->fwd_domain_lock);
+		return -EBUSY;
+	}
 
 	ocelot_port->cut_thru = cut_thru;
 	ocelot->ops->cut_through_fwd(ocelot);

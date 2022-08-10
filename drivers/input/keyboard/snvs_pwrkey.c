@@ -379,7 +379,19 @@ static struct platform_driver imx_snvs_pwrkey_driver = {
 	},
 	.probe = imx_snvs_pwrkey_probe,
 };
-module_platform_driver(imx_snvs_pwrkey_driver);
+
+static int __init imx_snvs_pwrkey_driver_init(void)
+{
+	return platform_driver_register(&imx_snvs_pwrkey_driver);
+}
+
+static void __exit imx_snvs_pwrkey_driver_exit(void)
+{
+	platform_driver_unregister(&imx_snvs_pwrkey_driver);
+}
+
+device_initcall_sync(imx_snvs_pwrkey_driver_init);
+module_exit(imx_snvs_pwrkey_driver_exit);
 
 MODULE_AUTHOR("Freescale Semiconductor");
 MODULE_DESCRIPTION("i.MX snvs power key Driver");

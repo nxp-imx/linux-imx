@@ -18,14 +18,6 @@
 		reg = <0x0 0x40000000 0 0x80000000>;
 	};
 
-	ir_recv: ir-receiver {
-		compatible = "gpio-ir-receiver";
-		gpios = <&gpio1 13 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_ir_recv>;
-		linux,autosuspend-period = <125>;
-	};
-
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -757,12 +749,6 @@
 };
 
 &iomuxc {
-	pinctrl_ir_recv: ir-recv {
-		fsl,pins = <
-			MX8MM_IOMUXC_GPIO1_IO13_GPIO1_IO13		0x4f
-		>;
-	};
-
 	pinctrl_csi_pwn: csi_pwn_grp {
 		fsl,pins = <
 			MX8MM_IOMUXC_GPIO1_IO07_GPIO1_IO7		0x19

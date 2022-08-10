@@ -15,7 +15,7 @@
 
 		power-on {
 			label = "PowerOn";
-			gpios = <&gpiof 26 GPIO_ACTIVE_LOW>;
+			gpios = <&gpiof 11 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_POWER>;
 		};
 	};
@@ -57,7 +57,7 @@
 
 &pinctrl_gpio_keys {
 	fsl,pins = <
-		MX8ULP_PAD_PTF26__PTF26		0x3
+		MX8ULP_PAD_PTF11__PTF11		0x3
 	>;
 };
 

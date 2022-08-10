@@ -904,7 +904,7 @@ static int tcpci_probe(struct i2c_client *client,
 	irq_set_status_flags(client->irq, IRQ_DISABLE_UNLAZY);
 	err = devm_request_threaded_irq(&client->dev, client->irq, NULL,
 					_tcpci_irq,
-					IRQF_ONESHOT | IRQF_TRIGGER_LOW,
+					IRQF_SHARED | IRQF_ONESHOT | IRQF_TRIGGER_LOW,
 					dev_name(&client->dev), chip);
 	if (err < 0) {
 		tcpci_unregister_port(chip->tcpci);

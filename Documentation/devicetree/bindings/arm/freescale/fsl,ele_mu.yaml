@@ -30,6 +30,13 @@ properties:
       - const: tx
       - const: rx
 
+  fsl,ele_mu_did:
+    description:
+      Identify the owner of mu(msg unit) with id mentioned at ele_mu_id
+    allOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - enum: [0,1,2,3,4,5,6,7]
+
   fsl,ele_mu_id:
     description:
       Identify the driver instance, used to create the channels, default to 1

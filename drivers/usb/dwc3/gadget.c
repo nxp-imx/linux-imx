@@ -2464,7 +2464,9 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	int			ret;
 
 	is_on = !!is_on;
+
 	dwc->softconnect = is_on;
+
 	/*
 	 * Per databook, when we want to stop the gadget, if a control transfer
 	 * is still in process, complete it and get the core into setup phase.
@@ -2499,6 +2501,9 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 		pm_runtime_put(dwc->dev);
 		return 0;
 	}
+
+	if (dwc->pullups_connected == is_on)
+		return 0;
 
 	/*
 	 * Synchronize and disable any further event handling while controller
@@ -3339,13 +3344,13 @@ static bool dwc3_gadget_endpoint_trbs_complete(struct dwc3_ep *dep,
 	struct dwc3		*dwc = dep->dwc;
 	bool			no_started_trb = true;
 
-	if (!dep->endpoint.desc)
-		return no_started_trb;
-
 	dwc3_gadget_ep_cleanup_completed_requests(dep, event, status);
 
 	if (dep->flags & DWC3_EP_END_TRANSFER_PENDING)
 		goto out;
+
+	if (!dep->endpoint.desc)
+		return no_started_trb;
 
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
 		list_empty(&dep->started_list) &&

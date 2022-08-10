@@ -10,6 +10,13 @@
 #include <linux/bitfield.h>
 #include <linux/io.h>
 #include <linux/sizes.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_IMX_LINUX_OPT 54
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 0)
+#define SMC_IMX_DCNANO_REG  SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 1)
+#define OPT_WRITE 0x2
 
 #define DCNANO_FRAMEBUFFERCONFIG	0x1240
 /* double buffered */
@@ -413,6 +420,22 @@
 #define  DEBUGCOUNTERVALUE_MASK		GENMASK(31, 0)
 #define  DEBUGCOUNTERVALUE(x)		FIELD_PREP(DEBUGCOUNTERVALUE_MASK, (x))
 #define  DEBUGCOUNTERVALUE_MAX		FIELD_MAX(DEBUGCOUNTERVALUE_MASK)
+
+#ifdef writel
+#undef writel
+#define writel(val, addr) \
+	do { \
+		if (dcnano->trusty_dev) { \
+			trusty_dcnano_reg(dcnano->trusty_dev, (addr - dcnano->mmio_base), val); \
+		} else { \
+			{ __iowmb(); writel_relaxed((val),(addr)); } \
+		}\
+	} while (0)
+#endif
+
+static void trusty_dcnano_reg(struct device *dev, u32 target, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_DCNANO_REG, target, OPT_WRITE, val);
+}
 
 static inline u32 dcnano_read(struct dcnano_dev *dcnano, unsigned int reg)
 {
