@@ -257,6 +257,15 @@
 		reg = <0x6a>;
 	};
 
+	heart-rate@57 {
+		compatible = "maxim,max30105";// max30101 is almost the same as max30105
+		reg = <0x57>;
+		maxim,red-led-current-microamp = <7000>;
+		maxim,green-led-current-microamp = <7000>;
+		maxim,ir-led-current-microamp = <7000>;
+		interrupt-parent = <&rpmsg_gpiob>;
+		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+	};
 };
 
 &cm33 {
