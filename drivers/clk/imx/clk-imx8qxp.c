@@ -96,7 +96,7 @@ static const char *mipi0_sels[] = {
 	"mipi0_pll_clk",
 	"mipi0_pll_div2_clk",
 	"dummy",
-	"mipi0_lvds_bypass_clk",
+	"mipi0_bypass_clk",
 };
 
 static const char *mipi1_sels[] = {
@@ -104,7 +104,7 @@ static const char *mipi1_sels[] = {
 	"mipi1_pll_clk",
 	"mipi1_pll_div2_clk",
 	"dummy",
-	"mipi1_lvds_bypass_clk",
+	"mipi1_bypass_clk",
 };
 
 static const char *sdhc0_sels[] = {
@@ -121,6 +121,22 @@ static const char *sdhc1_sels[] = {
 	"conn_pll1_clk",
 	"dummy",
 	"dummy",
+};
+
+static const char *lvds0_sels[] = {
+	"clk_dummy",
+	"clk_dummy",
+	"clk_dummy",
+	"clk_dummy",
+	"lvds0_bypass_clk",
+};
+
+static const char *lvds1_sels[] = {
+	"clk_dummy",
+	"clk_dummy",
+	"clk_dummy",
+	"clk_dummy",
+	"lvds1_bypass_clk",
 };
 
 static const char *sdhc2_sels[] = {
@@ -498,11 +514,13 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_MIPI0_BYPASS_CLK] = imx_clk_divider_scu("mipi0_bypass_clk", SC_R_MIPI_0, SC_PM_CLK_BYPASS);
 	clks[IMX8QXP_MIPI0_PIXEL_DIV] = imx_clk_divider_scu("mipi0_pixel_div", SC_R_MIPI_0, SC_PM_CLK_PER);
 	clks[IMX8QXP_MIPI0_PIXEL_CLK] = imx_clk_gate_scu("mipi0_pixel_clk", "mipi0_pixel_div", SC_R_MIPI_0, SC_PM_CLK_PER, NULL, 0, 0);
-	clks[IMX8QXP_MIPI0_LVDS_PIXEL_DIV] = imx_clk_divider_scu("mipi0_lvds_pixel_div", SC_R_LVDS_0, SC_PM_CLK_MISC2);
-	clks[IMX8QXP_MIPI0_LVDS_PIXEL_CLK] = imx_clk_gate_scu("mipi0_lvds_pixel_clk", "mipi0_lvds_pixel_div", SC_R_LVDS_0, SC_PM_CLK_MISC2, NULL, 0, 0);
-	clks[IMX8QXP_MIPI0_LVDS_BYPASS_CLK] = imx_clk_divider_scu("mipi0_lvds_bypass_clk", SC_R_LVDS_0, SC_PM_CLK_BYPASS);
-	clks[IMX8QXP_MIPI0_LVDS_PHY_DIV] = imx_clk_divider_scu("mipi0_lvds_phy_div", SC_R_LVDS_0, SC_PM_CLK_MISC3);
-	clks[IMX8QXP_MIPI0_LVDS_PHY_CLK] = imx_clk_gate_scu("mipi0_lvds_phy_clk", "mipi0_lvds_phy_div", SC_R_LVDS_0, SC_PM_CLK_MISC3, NULL, 0, 0);
+	clks[IMX8QXP_MIPI0_LVDS_PIXEL_SEL] = imx_clk_mux2_scu("lvds0_pixel_sel", lvds0_sels, ARRAY_SIZE(lvds0_sels), SC_R_LVDS_0, SC_PM_CLK_MISC2);
+	clks[IMX8QXP_MIPI0_LVDS_PIXEL_DIV] = imx_clk_divider2_scu("lvds0_pixel_div", "lvds0_pixel_sel", SC_R_LVDS_0, SC_PM_CLK_MISC2);
+	clks[IMX8QXP_MIPI0_LVDS_PIXEL_CLK] = imx_clk_gate_scu("lvds0_pixel_clk", "lvds0_pixel_div", SC_R_LVDS_0, SC_PM_CLK_MISC2, NULL, 0, 0);
+	clks[IMX8QXP_MIPI0_LVDS_BYPASS_CLK] = imx_clk_divider_scu("lvds0_bypass_clk", SC_R_LVDS_0, SC_PM_CLK_BYPASS);
+	clks[IMX8QXP_MIPI0_LVDS_PHY_SEL] = imx_clk_mux2_scu("lvds0_phy_sel", lvds0_sels, ARRAY_SIZE(lvds0_sels), SC_R_LVDS_0, SC_PM_CLK_MISC3);
+	clks[IMX8QXP_MIPI0_LVDS_PHY_DIV] = imx_clk_divider2_scu("lvds0_phy_div", "lvds0_phy_sel", SC_R_LVDS_0, SC_PM_CLK_MISC3);
+	clks[IMX8QXP_MIPI0_LVDS_PHY_CLK] = imx_clk_gate_scu("lvds0_phy_clk", "lvds0_phy_div", SC_R_LVDS_0, SC_PM_CLK_MISC3, NULL, 0, 0);
 	clks[IMX8QXP_MIPI0_DSI_TX_ESC_SEL] = imx_clk_mux2_scu("mipi0_dsi_tx_esc_sel", mipi0_sels, ARRAY_SIZE(mipi0_sels), SC_R_MIPI_0, SC_PM_CLK_MST_BUS);
 	clks[IMX8QXP_MIPI0_DSI_TX_ESC_DIV] = imx_clk_divider2_scu("mipi0_dsi_tx_esc_div", "mipi0_dsi_tx_esc_sel", SC_R_MIPI_0, SC_PM_CLK_MST_BUS);
 	clks[IMX8QXP_MIPI0_DSI_TX_ESC_CLK] = imx_clk_gate_scu("mipi0_dsi_tx_esc_clk", "mipi0_dsi_tx_esc_div", SC_R_MIPI_0, SC_PM_CLK_MST_BUS, NULL, 0, 0);
@@ -527,11 +545,13 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_MIPI1_BYPASS_CLK] = imx_clk_divider_scu("mipi1_bypass_clk", SC_R_MIPI_1, SC_PM_CLK_BYPASS);
 	clks[IMX8QXP_MIPI1_PIXEL_DIV] = imx_clk_divider_scu("mipi1_pixel_div", SC_R_MIPI_1, SC_PM_CLK_PER);
 	clks[IMX8QXP_MIPI1_PIXEL_CLK] = imx_clk_gate_scu("mipi1_pixel_clk", "mipi1_pixel_div", SC_R_MIPI_1, SC_PM_CLK_PER, NULL, 0, 0);
-	clks[IMX8QXP_MIPI1_LVDS_PIXEL_DIV] = imx_clk_divider_scu("mipi1_lvds_pixel_div", SC_R_LVDS_1, SC_PM_CLK_MISC2);
-	clks[IMX8QXP_MIPI1_LVDS_PIXEL_CLK] = imx_clk_gate_scu("mipi1_lvds_pixel_clk", "mipi1_lvds_pixel_div", SC_R_LVDS_1, SC_PM_CLK_MISC2, NULL, 0, 0);
-	clks[IMX8QXP_MIPI1_LVDS_BYPASS_CLK] = imx_clk_divider_scu("mipi1_lvds_bypass_clk", SC_R_LVDS_1, SC_PM_CLK_BYPASS);
-	clks[IMX8QXP_MIPI1_LVDS_PHY_DIV] = imx_clk_divider_scu("mipi1_lvds_phy_div", SC_R_LVDS_1, SC_PM_CLK_MISC3);
-	clks[IMX8QXP_MIPI1_LVDS_PHY_CLK] = imx_clk_gate_scu("mipi1_lvds_phy_clk", "mipi1_lvds_phy_div", SC_R_LVDS_1, SC_PM_CLK_MISC3, NULL, 0, 0);
+	clks[IMX8QXP_MIPI1_LVDS_PIXEL_SEL] = imx_clk_mux2_scu("lvds1_pixel_sel", lvds1_sels, ARRAY_SIZE(lvds1_sels), SC_R_LVDS_1, SC_PM_CLK_MISC2);
+	clks[IMX8QXP_MIPI1_LVDS_PIXEL_DIV] = imx_clk_divider2_scu("lvds1_pixel_div", "lvds1_pixel_sel", SC_R_LVDS_1, SC_PM_CLK_MISC2);
+	clks[IMX8QXP_MIPI1_LVDS_PIXEL_CLK] = imx_clk_gate_scu("lvds1_pixel_clk", "lvds1_pixel_div", SC_R_LVDS_1, SC_PM_CLK_MISC2, NULL, 0, 0);
+	clks[IMX8QXP_MIPI1_LVDS_BYPASS_CLK] = imx_clk_divider_scu("lvds1_bypass_clk", SC_R_LVDS_1, SC_PM_CLK_BYPASS);
+	clks[IMX8QXP_MIPI1_LVDS_PHY_SEL] = imx_clk_mux2_scu("lvds1_phy_sel", lvds1_sels, ARRAY_SIZE(lvds1_sels), SC_R_LVDS_1, SC_PM_CLK_MISC3);
+	clks[IMX8QXP_MIPI1_LVDS_PHY_DIV] = imx_clk_divider2_scu("lvds1_phy_div", "lvds1_phy_sel", SC_R_LVDS_1, SC_PM_CLK_MISC3);
+	clks[IMX8QXP_MIPI1_LVDS_PHY_CLK] = imx_clk_gate_scu("lvds1_phy_clk", "lvds1_phy_div", SC_R_LVDS_1, SC_PM_CLK_MISC3, NULL, 0, 0);
 	clks[IMX8QXP_MIPI1_DSI_TX_ESC_SEL] = imx_clk_mux2_scu("mipi1_dsi_tx_esc_sel", mipi1_sels, ARRAY_SIZE(mipi1_sels), SC_R_MIPI_1, SC_PM_CLK_MST_BUS);
 	clks[IMX8QXP_MIPI1_DSI_TX_ESC_DIV] = imx_clk_divider2_scu("mipi1_dsi_tx_esc_div", "mipi1_dsi_tx_esc_sel", SC_R_MIPI_1, SC_PM_CLK_MST_BUS);
 	clks[IMX8QXP_MIPI1_DSI_TX_ESC_CLK] = imx_clk_gate_scu("mipi1_dsi_tx_esc_clk", "mipi1_dsi_tx_esc_div", SC_R_MIPI_1, SC_PM_CLK_MST_BUS, NULL, 0, 0);
