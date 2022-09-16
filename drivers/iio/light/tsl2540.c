@@ -540,7 +540,7 @@ static int tsl2540_write_raw(struct iio_dev *indio_dev,
 static irqreturn_t tsl2540_event_handler(int irq, void *private)
 {
 	struct iio_dev *indio_dev = private;
-	struct tsl2772_chip *chip = iio_priv(indio_dev);
+	struct tsl2540_chip *chip = iio_priv(indio_dev);
 	s64 timestamp = iio_get_time_ns(indio_dev);
 	int ret;
 
