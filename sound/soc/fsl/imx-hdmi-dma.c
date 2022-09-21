@@ -741,7 +741,7 @@ static int hdmi_sdma_config(struct snd_pcm_substream *substream,
 				snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct device *dai_dev = &priv->pdev->dev;
 	struct device *dev = component->dev;
-	struct dma_slave_config slave_config;
+	struct dma_slave_config slave_config = { 0 };
 	int ret;
 
 	priv->dma_channel = dma_request_slave_channel(dai_dev, "tx");
