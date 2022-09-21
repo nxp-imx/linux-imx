@@ -54,7 +54,7 @@ static int imx_pcm_hw_params(struct snd_soc_component *component,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 	struct snd_dmaengine_dai_dma_data *dma_data;
-	struct dma_slave_config config;
+	struct dma_slave_config config = { 0 };
 	struct dma_chan *chan;
 	int err = 0;
 
