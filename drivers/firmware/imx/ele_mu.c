@@ -809,7 +809,8 @@ static int ele_mu_probe(struct platform_device *pdev)
 	struct ele_mu_priv *priv;
 	struct device_node *np;
 	const struct of_device_id *of_id = of_match_device(ele_mu_match, dev);
-	struct imx_info *info = (struct imx_info *)of_id->data;
+	struct imx_info *info = (of_id != NULL) ? (struct imx_info *)of_id->data
+						: NULL;
 	int max_nb_users = 0;
 	char *devname;
 	int ret;
@@ -937,7 +938,12 @@ static int ele_mu_probe(struct platform_device *pdev)
 
 		ret = devm_add_action(dev, if_misc_deregister,
 				      &dev_ctx->miscdev);
-
+		if (ret) {
+			dev_err(dev,
+				"failed[%d] to add action to the misc-dev\n",
+				ret);
+			goto exit;
+		}
 	}
 
 	init_completion(&priv->done);
@@ -945,11 +951,12 @@ static int ele_mu_probe(struct platform_device *pdev)
 
 	ele_priv_export = priv;
 
-	if (info->socdev) {
+	if (info && info->socdev) {
 		ret = imx_soc_device_register(pdev);
 		if (ret) {
-			pr_err("failed to register SoC device: %d\n", ret);
-			return ret;
+			dev_err(dev,
+				"failed[%d] to register SoC device\n", ret);
+			goto exit;
 		}
 	}
 

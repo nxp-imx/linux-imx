@@ -43,6 +43,7 @@
 
 /* Device, Driver information */
 #define DEVICE_NAME	"elants_i2c"
+#define MAX_FINGER_NUM	10
 
 /* Convert from rows or columns into resolution */
 #define ELAN_TS_RESOLUTION(n, m)   (((n) - 1) * (m))
@@ -71,8 +72,8 @@
 #define CMD_HEADER_REK		0x66
 
 /* FW position data */
-#define PACKET_SIZE_OLD		40
-#define PACKET_SIZE		55
+#define PACKET_SIZE_10_FINGER_OLD	40
+#define PACKET_SIZE_10_FINGER		55
 #define MAX_CONTACT_NUM		10
 #define FW_POS_HEADER		0
 #define FW_POS_STATE		1
@@ -83,12 +84,12 @@
 #define FW_POS_WIDTH		35
 #define FW_POS_PRESSURE		45
 
+#define HEADER_REPORT_2_FINGER	0x5A
+#define HEADER_REPORT_5_FINGER	0x5D
 #define HEADER_REPORT_10_FINGER	0x62
 
 /* Header (4 bytes) plus 3 full 10-finger packets */
 #define MAX_PACKET_SIZE		169
-
-#define BOOT_TIME_DELAY_MS	50
 
 /* FW read command, 0x53 0x?? 0x0, 0x01 */
 #define E_ELAN_INFO_FW_VER	0x00
@@ -114,8 +115,9 @@
 /* calibration timeout definition */
 #define ELAN_CALI_TIMEOUT_MSEC	12000
 
-#define ELAN_POWERON_DELAY_USEC	500
+#define ELAN_POWERON_DELAY_USEC	5000
 #define ELAN_RESET_DELAY_MSEC	20
+#define BOOT_TIME_DELAY_MS	500
 
 /* FW boot code version */
 #define BC_VER_H_BYTE_FOR_EKTH3900x1_I2C        0x72
@@ -133,6 +135,7 @@
 enum elants_chip_id {
 	EKTH3500,
 	EKTF3624,
+	EWD1000,
 };
 
 enum elants_state {
@@ -173,6 +176,9 @@ struct elants_data {
 	enum elants_state state;
 	enum elants_chip_id chip_id;
 	enum elants_iap_mode iap_mode;
+	bool elan_buffer_mode;
+	unsigned int num_fingers;
+	int touch_status[MAX_FINGER_NUM];
 
 	/* Guards against concurrent access to the device via sysfs */
 	struct mutex sysfs_mutex;
@@ -497,8 +503,8 @@ static int elants_i2c_query_ts_info_ektf(struct elants_data *ts)
 	ts->phy_y = phy_y;
 
 	/* eKTF doesn't report max size, set it to default values */
-	ts->x_max = 2240 - 1;
-	ts->y_max = 1408 - 1;
+	ts->x_max = phy_x;
+	ts->y_max = phy_y;
 
 	return 0;
 }
@@ -666,6 +672,7 @@ static int elants_i2c_initialize(struct elants_data *ts)
 			error = elants_i2c_query_ts_info_ekth(ts);
 		break;
 	case EKTF3624:
+	case EWD1000:
 		if (!error)
 			error = elants_i2c_query_ts_info_ektf(ts);
 		break;
@@ -966,67 +973,116 @@ out:
 /*
  * Event reporting.
  */
+void force_release_pos(struct elants_data *ts)
+{
+	int i;
+	for (i=0; i < MAX_FINGER_NUM; i++) {
+		if (ts->touch_status[i] == 0)
+			continue;
+		input_mt_slot(ts->input, i);
+		input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, 0);
+		ts->touch_status[i] = 0;
+	}
+	input_sync(ts->input);
+}
 
 static void elants_i2c_mt_event(struct elants_data *ts, u8 *buf,
 				size_t packet_size)
 {
 	struct input_dev *input = ts->input;
-	unsigned int n_fingers;
+	unsigned int n_fingers, finger_num;
 	unsigned int tool_type;
-	u16 finger_state;
-	int i;
+	u16 finger_state, active;
+	int i, idx, btn_idx;
 
-	n_fingers = buf[FW_POS_STATE + 1] & 0x0f;
-	finger_state = ((buf[FW_POS_STATE + 1] & 0x30) << 4) |
-			buf[FW_POS_STATE];
+	if (buf[0] == HEADER_REPORT_10_FINGER) { /* for 10 fingers */
+		finger_num = 10;
+		n_fingers = buf[2] & 0x0f;
+		finger_state = buf[2] & 0x30;
+		finger_state = (finger_state << 4) | buf[1];
+		idx=3;
+		btn_idx=33;
+	} else if (buf[0] == HEADER_REPORT_5_FINGER) { /* for 5 fingers  */
+		finger_num = 5;
+		n_fingers = buf[1] & 0x07;
+		finger_state = buf[1] >>3;
+		idx=2;
+		btn_idx=17;
+	} else { /* for 2 fingers */
+		finger_num = 2;
+		n_fingers = ((buf[7] & 0x01) ? 1 : 0) + ((buf[7] & 0x02) ? 1 : 0);
+		finger_state = buf[7] & 0x03;
+		idx=1;
+		btn_idx=7;
+	}
 
 	dev_dbg(&ts->client->dev,
 		"n_fingers: %u, state: %04x\n",  n_fingers, finger_state);
 
 	/* Note: all fingers have the same tool type */
-	tool_type = buf[FW_POS_TOOL_TYPE] & BIT(0) ?
-			MT_TOOL_FINGER : MT_TOOL_PALM;
+	if (buf[0] == HEADER_REPORT_2_FINGER)
+		tool_type = MT_TOOL_FINGER;
+	else
+		tool_type = buf[btn_idx] & BIT(0) ? MT_TOOL_FINGER : MT_TOOL_PALM;
 
-	for (i = 0; i < MAX_CONTACT_NUM && n_fingers; i++) {
-		if (finger_state & 1) {
-			unsigned int x, y, p, w;
-			u8 *pos;
+	if (n_fingers > 0) {
+		for (i=0; i<finger_num; i++)
+			if (ts->touch_status[i] != 0)
+				break;
+		if (i >= finger_num)
+			input_report_key(input, BTN_TOUCH, 1);
+	}
 
-			pos = &buf[FW_POS_XY + i * 3];
-			x = (((u16)pos[0] & 0xf0) << 4) | pos[1];
-			y = (((u16)pos[0] & 0x0f) << 8) | pos[2];
+	for (i = 0; i < finger_num; i++) {
+		active = finger_state & 0x1;
+		if (active || ts->touch_status[i]) {
+			input_mt_slot(ts->input, i);
+			input_mt_report_slot_state(ts->input, tool_type, active);
+			if (active) {
+				unsigned int x, y, p, w;
+				u8 *pos;
 
-			/*
-			 * eKTF3624 may have use "old" touch-report format,
-			 * depending on a device and TS firmware version.
-			 * For example, ASUS Transformer devices use the "old"
-			 * format, while ASUS Nexus 7 uses the "new" formant.
-			 */
-			if (packet_size == PACKET_SIZE_OLD &&
-			    ts->chip_id == EKTF3624) {
-				w = buf[FW_POS_WIDTH + i / 2];
-				w >>= 4 * (~i & 1);
-				w |= w << 4;
-				w |= !w;
-				p = w;
-			} else {
-				p = buf[FW_POS_PRESSURE + i];
-				w = buf[FW_POS_WIDTH + i];
+				pos = &buf[idx + i * 3];
+				x = (((u16)pos[0] & 0xf0) << 4) | pos[1];
+				y = (((u16)pos[0] & 0x0f) << 8) | pos[2];
+
+				/*
+				 * eKTF3624 may have use "old" touch-report format,
+				 * depending on a device and TS firmware version.
+				 * For example, ASUS Transformer devices use the "old"
+				 * format, while ASUS Nexus 7 uses the "new" formant.
+				 */
+				if (packet_size == PACKET_SIZE_10_FINGER_OLD &&
+				    ts->chip_id == EKTF3624) {
+					w = buf[FW_POS_WIDTH + i / 2];
+					w >>= 4 * (~i & 1);
+					w |= w << 4;
+					w |= !w;
+					p = w;
+				} else if (packet_size == PACKET_SIZE_10_FINGER) {
+					p = buf[FW_POS_PRESSURE + i];
+					w = buf[FW_POS_WIDTH + i];
+				} else {
+					p = 50;
+					w = 50;
+				}
+
+				dev_dbg(&ts->client->dev, "i=%d x=%d y=%d p=%d w=%d\n",
+					i, x, y, p, w);
+
+				touchscreen_report_pos(input, &ts->prop, x, y, true);
+				input_event(input, EV_ABS, ABS_MT_PRESSURE, p);
+				input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, w);
 			}
-
-			dev_dbg(&ts->client->dev, "i=%d x=%d y=%d p=%d w=%d\n",
-				i, x, y, p, w);
-
-			input_mt_slot(input, i);
-			input_mt_report_slot_state(input, tool_type, true);
-			touchscreen_report_pos(input, &ts->prop, x, y, true);
-			input_event(input, EV_ABS, ABS_MT_PRESSURE, p);
-			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, w);
-
-			n_fingers--;
 		}
-
+		ts->touch_status[i] = active;
 		finger_state >>= 1;
+		idx += 3;
+	}
+
+	if (n_fingers == 0) {
+		input_report_key(input, BTN_TOUCH, 0); //for all finger up
+		force_release_pos(ts);
 	}
 
 	input_mt_sync_frame(input);
@@ -1047,31 +1103,51 @@ static u8 elants_i2c_calculate_checksum(u8 *buf)
 static void elants_i2c_event(struct elants_data *ts, u8 *buf,
 			     size_t packet_size)
 {
-	u8 checksum = elants_i2c_calculate_checksum(buf);
+	u8 header, checksum;
 
-	if (unlikely(buf[FW_POS_CHECKSUM] != checksum))
-		dev_warn(&ts->client->dev,
+	header = buf[FW_POS_HEADER];
+	if ((header != HEADER_REPORT_10_FINGER) && (header != HEADER_REPORT_5_FINGER)
+	     && (header != HEADER_REPORT_2_FINGER)) {
+		dev_warn(&ts->client->dev, "%s: unknown packet type: %02x\n",
+			 __func__, buf[FW_POS_HEADER]);
+		return;
+	}
+
+	if (buf[FW_POS_HEADER] == HEADER_REPORT_10_FINGER) {
+		checksum = elants_i2c_calculate_checksum(buf);
+		if (buf[FW_POS_CHECKSUM] != checksum) {
+			dev_warn(&ts->client->dev,
 			 "%s: invalid checksum for packet %02x: %02x vs. %02x\n",
 			 __func__, buf[FW_POS_HEADER],
 			 checksum, buf[FW_POS_CHECKSUM]);
-	else if (unlikely(buf[FW_POS_HEADER] != HEADER_REPORT_10_FINGER))
-		dev_warn(&ts->client->dev,
-			 "%s: unknown packet type: %02x\n",
-			 __func__, buf[FW_POS_HEADER]);
-	else
-		elants_i2c_mt_event(ts, buf, packet_size);
+			return;
+		}
+	}
+
+	elants_i2c_mt_event(ts, buf, packet_size);
 }
 
-static irqreturn_t elants_i2c_irq(int irq, void *_dev)
+static irqreturn_t elants_i2c_irq_handler(int irq, void *_dev)
 {
 	const u8 wait_packet[] = { 0x64, 0x64, 0x64, 0x64 };
 	struct elants_data *ts = _dev;
 	struct i2c_client *client = ts->client;
-	int report_count, report_len;
+	int report_count, report_len, packet_size;
 	int i;
 	int len;
 
-	len = i2c_master_recv_dmasafe(client, ts->buf, sizeof(ts->buf));
+	if (ts->elan_buffer_mode)
+		packet_size = sizeof(ts->buf);
+	else if (ts->num_fingers == 2)
+		packet_size = 8;
+	else if (ts->num_fingers == 5)
+		packet_size = 24;
+	else if (ts->num_fingers == 10)
+		packet_size = 44;
+	else
+		packet_size = 44;
+
+	len = i2c_master_recv_dmasafe(client, ts->buf, packet_size);
 	if (len < 0) {
 		dev_err(&client->dev, "%s: failed to read data: %d\n",
 			__func__, len);
@@ -1080,6 +1156,11 @@ static irqreturn_t elants_i2c_irq(int irq, void *_dev)
 
 	dev_dbg(&client->dev, "%s: packet %*ph\n",
 		__func__, HEADER_SIZE, ts->buf);
+
+	if (!ts->elan_buffer_mode) {
+		elants_i2c_event(ts, ts->buf, packet_size);
+		goto out;
+	}
 
 	switch (ts->state) {
 	case ELAN_WAIT_RECALIBRATION:
@@ -1145,11 +1226,11 @@ static irqreturn_t elants_i2c_irq(int irq, void *_dev)
 
 			report_len = ts->buf[FW_HDR_LENGTH] / report_count;
 
-			if (report_len == PACKET_SIZE_OLD &&
+			if (report_len == PACKET_SIZE_10_FINGER_OLD &&
 			    ts->chip_id == EKTF3624) {
 				dev_dbg_once(&client->dev,
 					     "using old report format\n");
-			} else if (report_len != PACKET_SIZE) {
+			} else if (report_len != PACKET_SIZE_10_FINGER) {
 				dev_err(&client->dev,
 					"mismatching report length: %*ph\n",
 					HEADER_SIZE, ts->buf);
@@ -1478,6 +1559,10 @@ static int elants_i2c_probe(struct i2c_client *client)
 
 		ts->keep_power_in_suspend = true;
 	}
+	ts->elan_buffer_mode = !device_property_read_bool(&client->dev, "elan,non-buffer-mode");
+	error = device_property_read_u32(&client->dev, "elan,num-fingers", &(ts->num_fingers));
+	if (error)
+		ts->num_fingers = 10; /* default support 10 fingers*/
 
 	error = elants_i2c_power_on(ts);
 	if (error)
@@ -1534,7 +1619,7 @@ static int elants_i2c_probe(struct i2c_client *client)
 	input_abs_set_res(ts->input, ABS_MT_POSITION_Y, ts->y_res);
 	input_abs_set_res(ts->input, ABS_MT_TOUCH_MAJOR, ts->major_res);
 
-	error = input_mt_init_slots(ts->input, MAX_CONTACT_NUM,
+	error = input_mt_init_slots(ts->input, ts->num_fingers,
 				    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
 	if (error) {
 		dev_err(&client->dev,
@@ -1559,7 +1644,7 @@ static int elants_i2c_probe(struct i2c_client *client)
 		irqflags = IRQF_TRIGGER_FALLING;
 
 	error = devm_request_threaded_irq(&client->dev, client->irq,
-					  NULL, elants_i2c_irq,
+					  NULL, elants_i2c_irq_handler,
 					  irqflags | IRQF_ONESHOT,
 					  client->name, ts);
 	if (error) {
@@ -1665,6 +1750,7 @@ static const struct i2c_device_id elants_i2c_id[] = {
 	{ DEVICE_NAME, EKTH3500 },
 	{ "ekth3500", EKTH3500 },
 	{ "ektf3624", EKTF3624 },
+	{ "ewd1000", EWD1000 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, elants_i2c_id);
@@ -1681,6 +1767,7 @@ MODULE_DEVICE_TABLE(acpi, elants_acpi_id);
 static const struct of_device_id elants_of_match[] = {
 	{ .compatible = "elan,ekth3500", .data = (void *)EKTH3500 },
 	{ .compatible = "elan,ektf3624", .data = (void *)EKTF3624 },
+	{ .compatible = "elan,ewd1000", .data = (void *)EWD1000 },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, elants_of_match);

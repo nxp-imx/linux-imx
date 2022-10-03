@@ -1941,6 +1941,7 @@
   trace_event_reg
   trace_handle_return
   __traceiter_android_rvh_after_enqueue_task
+  __traceiter_android_rvh_audio_usb_offload_disconnect
   __traceiter_android_rvh_can_migrate_task
   __traceiter_android_rvh_commit_creds
   __traceiter_android_rvh_cpu_overutilized
@@ -2108,6 +2109,7 @@
   tty_driver_flush_buffer
   tty_flip_buffer_push
   tty_insert_flip_string_fixed_flag
+  tty_ldisc_flush
   tty_register_ldisc
   tty_set_termios
   tty_termios_baud_rate

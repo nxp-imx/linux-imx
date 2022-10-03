@@ -24,8 +24,6 @@
 #include "vpu_msgs.h"
 #include "vpu_helpers.h"
 
-#define MIN_BUFFER_SIZE		(80 * 1024)
-
 void vpu_inst_lock(struct vpu_inst *inst)
 {
 	mutex_lock(&inst->lock);
@@ -162,6 +160,11 @@ static int vpu_calc_fmt_bytesperline(struct v4l2_format *f, struct vpu_format *f
 	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
 	int i;
 
+	if (fmt->flags & V4L2_FMT_FLAG_COMPRESSED) {
+		for (i = 0; i < fmt->comp_planes; i++)
+			fmt->bytesperline[i] = 0;
+		return 0;
+	}
 	if (pixmp->num_planes == fmt->comp_planes) {
 		for (i = 0; i < fmt->comp_planes; i++)
 			fmt->bytesperline[i] = pixmp->plane_fmt[i].bytesperline;
@@ -182,12 +185,14 @@ static int vpu_calc_fmt_bytesperline(struct v4l2_format *f, struct vpu_format *f
 static int vpu_calc_fmt_sizeimage(struct vpu_inst *inst, struct vpu_format *fmt)
 {
 	u32 stride = 1;
-	const struct vpu_core_resources *res;
 	int i;
 
-	res = vpu_get_resource(inst);
-	if (res)
-		stride = res->stride;
+	if (!(fmt->flags & V4L2_FMT_FLAG_COMPRESSED)) {
+		const struct vpu_core_resources *res = vpu_get_resource(inst);
+
+		if (res)
+			stride = res->stride;
+	}
 
 	for (i = 0; i < fmt->comp_planes; i++) {
 		fmt->sizeimage[i] = vpu_helper_get_plane_size(fmt->pixfmt,
@@ -198,8 +203,10 @@ static int vpu_calc_fmt_sizeimage(struct vpu_inst *inst, struct vpu_format *fmt)
 							      fmt->field != V4L2_FIELD_NONE ? 1 : 0,
 							      &fmt->bytesperline[i]);
 		fmt->sizeimage[i] = max_t(u32, fmt->sizeimage[i], PAGE_SIZE);
-		if (fmt->flags & V4L2_FMT_FLAG_COMPRESSED)
-			fmt->sizeimage[i] = max_t(u32, fmt->sizeimage[i], MIN_BUFFER_SIZE);
+		if (fmt->flags & V4L2_FMT_FLAG_COMPRESSED) {
+			fmt->sizeimage[i] = clamp_val(fmt->sizeimage[i], SZ_128K, SZ_8M);
+			fmt->bytesperline[i] = 0;
+		}
 	}
 
 	return 0;
@@ -245,8 +252,8 @@ int vpu_try_fmt_common(struct vpu_inst *inst, struct v4l2_format *f, struct vpu_
 	fmt->field = pixmp->field == V4L2_FIELD_ANY ? V4L2_FIELD_NONE : pixmp->field;
 	vpu_calc_fmt_bytesperline(f, fmt);
 	vpu_calc_fmt_sizeimage(inst, fmt);
-	if (fmt->flags & V4L2_FMT_FLAG_COMPRESSED)
-		fmt->sizeimage[0] = max_t(u32, pixmp->plane_fmt[0].sizeimage, fmt->sizeimage[0]);
+	if ((fmt->flags & V4L2_FMT_FLAG_COMPRESSED) && pixmp->plane_fmt[0].sizeimage)
+		fmt->sizeimage[0] = clamp_val(pixmp->plane_fmt[0].sizeimage, SZ_128K, SZ_8M);
 
 	pixmp->pixelformat = fmt->pixfmt;
 	pixmp->width = fmt->width;

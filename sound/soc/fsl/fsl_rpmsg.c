@@ -5,6 +5,7 @@
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
+#include <linux/extcon-provider.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/of_address.h>
@@ -33,6 +34,14 @@ static const unsigned int fsl_rpmsg_rates[] = {
 	32000, 48000, 96000, 88200, 176400, 192000,
 	352800, 384000, 705600, 768000, 1411200, 2822400,
 };
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *rpmsg_edev;
+static const unsigned int imx_rpmsg_extcon_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
+#endif
 
 static const struct snd_pcm_hw_constraint_list fsl_rpmsg_rate_constraints = {
 	.count = ARRAY_SIZE(fsl_rpmsg_rates),
@@ -283,6 +292,22 @@ static int fsl_rpmsg_probe(struct platform_device *pdev)
 		ret = PTR_ERR(rpmsg->card_pdev);
 		return ret;
 	}
+
+#ifdef CONFIG_EXTCON
+	if (rpmsg->enable_lpa) {
+		rpmsg_edev  = devm_extcon_dev_allocate(&pdev->dev, imx_rpmsg_extcon_cables);
+		if (IS_ERR(rpmsg_edev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			return 0;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev,rpmsg_edev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			return 0;
+		}
+		extcon_set_state_sync(rpmsg_edev, EXTCON_JACK_LINE_OUT, 1);
+	}
+#endif
 
 	return 0;
 }

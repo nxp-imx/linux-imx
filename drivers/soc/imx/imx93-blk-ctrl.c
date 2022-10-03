@@ -30,6 +30,8 @@
 #define PXP_W_DEFAULT_QOS_OFF	20
 #define PXP_W_CFG_QOS_OFF	16
 
+#define ISI_CACHE_REG		0x14
+
 #define ISI_QOS_REG		0x1C
 #define ISI_V_DEFAULT_QOS_OFF	28
 #define ISI_V_CFG_QOS_OFF	24
@@ -72,6 +74,7 @@ struct imx93_blk_ctrl_domain_data {
 	u32 clk_mask;
 	u32 num_qos;
 	struct imx93_blk_ctrl_qos qos[DOMAIN_MAX_QOS];
+	const struct regmap_access_table *reg_access_table;
 };
 
 #define DOMAIN_MAX_CLKS 4
@@ -84,15 +87,26 @@ struct imx93_blk_ctrl_domain {
 };
 
 struct imx93_blk_ctrl_data {
-	int max_reg;
 	const struct imx93_blk_ctrl_domain_data *domains;
 	const struct imx93_blk_ctrl_domain_data *bus;
 	int num_domains;
 };
 
+static const struct regmap_range imx93_media_blk_ctl_yes_ranges[] = {
+		regmap_reg_range(BLK_SFT_RSTN, BLK_CLK_EN),
+		regmap_reg_range(LCDIF_QOS_REG, ISI_CACHE_REG),
+		regmap_reg_range(ISI_QOS_REG, ISI_QOS_REG),
+};
+
+static const struct regmap_access_table imx93_media_blk_ctl_access_table = {
+	.yes_ranges	= imx93_media_blk_ctl_yes_ranges,
+	.n_yes_ranges	= ARRAY_SIZE(imx93_media_blk_ctl_yes_ranges),
+};
+
 static const struct imx93_blk_ctrl_domain_data imx93_media_blk_ctl_bus_data = {
 	.clk_names = (const char *[]){ "axi", "apb", "nic", },
 	.num_clks = 3,
+	.reg_access_table = &imx93_media_blk_ctl_access_table,
 };
 
 static inline struct imx93_blk_ctrl_domain *
@@ -204,17 +218,20 @@ imx93_blk_ctrl_xlate(struct of_phandle_args *args, void *data)
 
 static int imx93_blk_ctrl_probe(struct platform_device *pdev)
 {
-	const struct imx93_blk_ctrl_data *bc_data;
 	struct device *dev = &pdev->dev;
+	const struct imx93_blk_ctrl_data *bc_data = of_device_get_match_data(dev);
+	const struct imx93_blk_ctrl_domain_data *bus = bc_data->bus;
 	struct imx93_blk_ctrl *bc;
 	void __iomem *base;
 	int i, ret;
-	const struct imx93_blk_ctrl_domain_data *bus;
 
 	struct regmap_config regmap_config = {
 		.reg_bits	= 32,
 		.val_bits	= 32,
 		.reg_stride	= 4,
+		.rd_table	= bus->reg_access_table,
+		.wr_table	= bus->reg_access_table,
+		.max_register   = SZ_4K,
 	};
 
 	bc = devm_kzalloc(dev, sizeof(*bc), GFP_KERNEL);
@@ -223,14 +240,11 @@ static int imx93_blk_ctrl_probe(struct platform_device *pdev)
 
 	bc->dev = dev;
 
-	bc_data = of_device_get_match_data(dev);
-
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
-	regmap_config.max_register = bc_data->max_reg;
-	bc->regmap = devm_regmap_init_mmio(dev, base, &regmap_config);
+	bc->regmap = regmap_init_mmio(NULL, base, &regmap_config);
 	if (IS_ERR(bc->regmap))
 		return dev_err_probe(dev, PTR_ERR(bc->regmap),
 				     "failed to init regmap\n");
@@ -238,18 +252,20 @@ static int imx93_blk_ctrl_probe(struct platform_device *pdev)
 	bc->domains = devm_kcalloc(dev, bc_data->num_domains + 1,
 				   sizeof(struct imx93_blk_ctrl_domain),
 				   GFP_KERNEL);
-	if (!bc->domains)
-		return -ENOMEM;
-
-	bus = bc_data->bus;
+	if (!bc->domains) {
+		ret = -ENOMEM;
+		goto free_regmap;
+	}
 
 	bc->onecell_data.num_domains = bc_data->num_domains;
 	bc->onecell_data.xlate = imx93_blk_ctrl_xlate;
 	bc->onecell_data.domains =
 		devm_kcalloc(dev, bc_data->num_domains,
 			     sizeof(struct generic_pm_domain *), GFP_KERNEL);
-	if (!bc->onecell_data.domains)
-		return -ENOMEM;
+	if (!bc->onecell_data.domains) {
+		ret = -ENOMEM;
+		goto free_regmap;
+	}
 
 	for (i = 0; i < bus->num_clks; i++)
 		bc->clks[i].id = bus->clk_names[i];
@@ -258,7 +274,7 @@ static int imx93_blk_ctrl_probe(struct platform_device *pdev)
 	ret = devm_clk_bulk_get(dev, bc->num_clks, bc->clks);
 	if (ret) {
 		dev_err_probe(dev, ret, "failed to get bus clock\n");
-		return ret;
+		goto free_regmap;
 	}
 
 	for (i = 0; i < bc_data->num_domains; i++) {
@@ -307,6 +323,9 @@ static int imx93_blk_ctrl_probe(struct platform_device *pdev)
 cleanup_pds:
 	for (i--; i >= 0; i--)
 		pm_genpd_remove(&bc->domains[i].genpd);
+
+free_regmap:
+	regmap_exit(bc->regmap);
 
 	return ret;
 }
@@ -413,7 +432,6 @@ static const struct imx93_blk_ctrl_domain_data imx93_media_blk_ctl_domain_data[]
 };
 
 static const struct imx93_blk_ctrl_data imx93_media_blk_ctl_dev_data = {
-	.max_reg = 0x90,
 	.domains = imx93_media_blk_ctl_domain_data,
 	.bus = &imx93_media_blk_ctl_bus_data,
 	.num_domains = ARRAY_SIZE(imx93_media_blk_ctl_domain_data),

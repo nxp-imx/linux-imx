@@ -2465,6 +2465,9 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 
 	is_on = !!is_on;
 
+	if (dwc->pullups_connected == is_on)
+		return 0;
+
 	dwc->softconnect = is_on;
 
 	/*
@@ -2502,8 +2505,10 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 		return 0;
 	}
 
-	if (dwc->pullups_connected == is_on)
+	if (dwc->pullups_connected == is_on) {
+		pm_runtime_put(dwc->dev);
 		return 0;
+	}
 
 	/*
 	 * Synchronize and disable any further event handling while controller

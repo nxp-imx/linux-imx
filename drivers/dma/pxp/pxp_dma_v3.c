@@ -2762,15 +2762,30 @@ static int pxp_rotation0_config(struct pxp_pixmap *input)
 
 static int pxp_csc2_config(struct pxp_pixmap *output)
 {
-	if (is_yuv(output->format)) {
-		/* RGB -> YCbCr */
+	u32 coeffs[2][6] = {
+		{ 0x00810042, 0x07DA0019, 0x007007B6,
+		  0x07A20070, 0x001007EE, 0x00800080 },
+		{ 0x0096004D, 0x05DA001D, 0x007005B6,
+		  0x057C009E, 0x000005E6, 0x00000000 },
+	};
+	u32 legacy_mode = 0;
+
+	if (output->format == PXP_PIX_FMT_GREY ||
+	    output->format == PXP_PIX_FMT_GY04) {
+		pxp_writel(0x4, HW_PXP_CSC2_CTRL);
+		legacy_mode = 1;
+	} else if (is_yuv(output->format)) {
 		pxp_writel(0x6, HW_PXP_CSC2_CTRL);
-		pxp_writel(0x00810042, HW_PXP_CSC2_COEF0);
-		pxp_writel(0x07DA0019, HW_PXP_CSC2_COEF1);
-		pxp_writel(0x007007B6, HW_PXP_CSC2_COEF2);
-		pxp_writel(0x07A20070, HW_PXP_CSC2_COEF3);
-		pxp_writel(0x001007EE, HW_PXP_CSC2_COEF4);
-		pxp_writel(0x00800080, HW_PXP_CSC2_COEF5);
+		legacy_mode = 0;
+	}
+
+	if (is_yuv(output->format)) {
+		pxp_writel(coeffs[legacy_mode][0], HW_PXP_CSC2_COEF0);
+		pxp_writel(coeffs[legacy_mode][1], HW_PXP_CSC2_COEF1);
+		pxp_writel(coeffs[legacy_mode][2], HW_PXP_CSC2_COEF2);
+		pxp_writel(coeffs[legacy_mode][3], HW_PXP_CSC2_COEF3);
+		pxp_writel(coeffs[legacy_mode][4], HW_PXP_CSC2_COEF4);
+		pxp_writel(coeffs[legacy_mode][5], HW_PXP_CSC2_COEF5);
 	}
 
 	pxp_writel(BF_PXP_CTRL_ENABLE_CSC2(1), HW_PXP_CTRL_SET);
@@ -4118,7 +4133,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	dma_async_tx_callback callback;
 	void *callback_param;
 	unsigned long flags;
-	u32 hist_status;
+	u32 hist_status = 0;
 	int pxp_irq_status = 0;
 
 	dump_pxp_reg(pxp);
@@ -4174,7 +4189,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 		pxp_writel(BM_PXP_CTRL_ENABLE, HW_PXP_CTRL_CLR);
 	}
 
-	if (pxp->devdata->version < PXP_V3_IMX93) {
+	if (pxp->devdata && pxp->devdata->version < PXP_V3_IMX93) {
 		pxp_collision_status_report(pxp, &col_info);
 		pxp_histogram_status_report(pxp, &hist_status);
 		/*XXX before a new update operation, we should

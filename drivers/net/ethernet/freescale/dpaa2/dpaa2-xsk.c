@@ -97,14 +97,14 @@ static void dpaa2_xsk_rx(struct dpaa2_eth_priv *priv,
 	/* Tracing point */
 	trace_dpaa2_rx_xsk_fd(priv->net_dev, fd);
 
+	vaddr = dpaa2_iova_to_virt(priv->iommu_domain, addr);
+	percpu_stats = this_cpu_ptr(priv->percpu_stats);
+
 	if (fd_format != dpaa2_fd_single) {
 		WARN_ON(priv->xdp_prog);
 		/* AF_XDP doesn't support any other formats */
 		goto err_frame_format;
 	}
-
-	vaddr = dpaa2_iova_to_virt(priv->iommu_domain, addr);
-	percpu_stats = this_cpu_ptr(priv->percpu_stats);
 
 	xdp_act = dpaa2_xsk_run_xdp(priv, ch, fq, (struct dpaa2_fd *)fd, vaddr);
 	if (xdp_act != XDP_PASS) {
@@ -202,7 +202,7 @@ static int dpaa2_xsk_enable_pool(struct net_device *dev,
 {
 	struct dpaa2_eth_priv *priv = netdev_priv(dev);
 	struct dpni_pools_cfg pools_params = { 0 };
-	int i, err;
+	int i, err, err2;
 	bool up;
 
 	if (priv->dpni_attrs.wriop_version != DPAA2_WRIOP_VERSION(3, 0, 0))
@@ -235,7 +235,7 @@ static int dpaa2_xsk_enable_pool(struct net_device *dev,
 	priv->bp[priv->num_bps] = dpaa2_eth_allocate_dpbp(priv);
 	if (IS_ERR(priv->bp[priv->num_bps])) {
 		err = PTR_ERR(priv->bp[priv->num_bps]);
-		goto err_mem_model;
+		goto err_bp_alloc;
 	}
 	priv->channel[qid]->xsk_zc = true;
 	priv->channel[qid]->xsk_pool = pool;
@@ -253,7 +253,7 @@ static int dpaa2_xsk_enable_pool(struct net_device *dev,
 	err = dpni_set_pools(priv->mc_io, 0, priv->mc_token, &pools_params);
 	if (err) {
 		netdev_err(dev, "dpni_set_pools() failed\n");
-		goto err_free_dpbp;
+		goto err_set_pools;
 	}
 
 	if (up) {
@@ -267,19 +267,18 @@ static int dpaa2_xsk_enable_pool(struct net_device *dev,
 
 	return 0;
 
-err_free_dpbp:
-	err |= dpaa2_xsk_disable_pool(dev, qid);
-	if (up)
-		dpaa2_eth_open(dev);
-	return err;
+err_set_pools:
+	err2 = dpaa2_xsk_disable_pool(dev, qid);
+	if (err2)
+		netdev_err(dev, "dpaa2_xsk_disable_pool() failed %d\n", err2);
+err_bp_alloc:
+	err2 = xdp_rxq_info_reg_mem_model(&priv->channel[qid]->xdp_rxq,
+					  MEM_TYPE_PAGE_ORDER0, NULL);
+	if (err2)
+		netdev_err(dev, "xsk_rxq_info_reg_mem_model() failed with %d)\n", err2);
 err_mem_model:
-	err = xdp_rxq_info_reg_mem_model(&priv->channel[qid]->xdp_rxq,
-					 MEM_TYPE_PAGE_ORDER0, NULL);
-	if (err)
-		netdev_err(dev, "xsk_rxq_info_reg_mem_model() failed (err = %d)\n",
-			   err);
-err_dma_unmap:
 	xsk_pool_dma_unmap(pool, 0);
+err_dma_unmap:
 	if (up)
 		dpaa2_eth_open(dev);
 

@@ -1,0 +1,91 @@
+* NXP - pca995x LED driver
+
+The PCA995x family of chips are  I2C-bus controlled 16-channel
+constant current LED driver optimized for dimming and blinking
+57 mA Red/Green/Blue/Amber (RGBA) LEDs.
+Note that the top side markings of the pca995x chips are PCA9952
+and PCA9955.
+
+Required properties:
+- compatible : should be one of :
+	"nxp,pca9955btw"
+	"nxp,pca995xtw"
+- #address-cells: must be 1
+- #size-cells: must be 0
+- reg: I2C slave address. depends on the model and HW connections.
+
+Optional properties:
+- reset-gpios: use a GPIO to control the reset line of the chip.
+
+LED sub-node properties:
+- reg : number of LED line.
+		from 0 to 15 for the both pca9955btw & pca995xtw
+- label : (optional)
+	see Documentation/devicetree/bindings/leds/common.txt
+- linux,default-trigger : (optional)
+	see Documentation/devicetree/bindings/leds/common.txt
+
+Examples:
+
+/* TechNexion's voice HAT board */
+pca995tw: pca995xtw@60 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	compatible = "nxp,pca995xtw";
+	reset-gpios = <&gpio5 7 GPIO_ACTIVE_HIGH>;
+	reg = <0x60>;
+
+	led0 {
+		label = "blue0";
+		linux,default-trigger = "none";
+		reg = <0>;
+	};
+
+	led1 {
+		label = "green0";
+		linux,default-trigger = "none";
+		reg = <1>;
+	};
+
+	led2 {
+		label = "red0";
+		linux,default-trigger = "none";
+		reg = <2>;
+	};
+};
+
+/* NXP's 8MIC board */
+pca995btw: pca995btw@7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	compatible = "nxp,pca995btw";
+	reg = <0x07>;
+
+	led0 {
+		label = "green0";
+		linux,default-trigger = "none";
+		reg = <0>;
+	};
+
+	led1 {
+		label = "blue0";
+		linux,default-trigger = "none";
+		reg = <1>;
+	};
+
+	led2 {
+		label = "red0";
+		linux,default-trigger = "none";
+		reg = <2>;
+	};
+
+	led3 {
+		label = "green1";
+		linux,default-trigger = "none";
+		reg = <3>;
+	};
+};
+
+For more information please check the information bellow:
+https://www.nxp.com/docs/en/data-sheet/PCA9952_PCA9955.pdf
+https://www.nxp.com/docs/en/data-sheet/PCA9955B.pdf

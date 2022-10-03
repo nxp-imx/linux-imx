@@ -12,6 +12,7 @@
 #include <drm/drm_device.h>
 #include <linux/busfreq-imx.h>
 #include <drm/drm_modeset_helper.h>
+#include <linux/of_reserved_mem.h>
 
 #include "dcss-dev.h"
 #include "dcss-kms.h"
@@ -261,6 +262,11 @@ struct dcss_dev *dcss_dev_create(struct device *dev, bool hdmi_output)
 	}
 
 	dcss->start_addr = res->start;
+
+	ret = of_reserved_mem_device_init_by_idx(&pdev->dev, np, 0);
+	if (ret) {
+		dev_err(&pdev->dev,"dcss: dma memory initial failed\n");
+	}
 
   	dcss->trusty_dev = NULL;
 	if (of_find_property(np, "trusty", NULL)) {

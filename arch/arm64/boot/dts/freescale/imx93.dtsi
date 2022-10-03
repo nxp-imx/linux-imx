@@ -89,6 +89,11 @@
 		clock-output-names = "clk_ext1";
 	};
 
+	pmu {
+		compatible = "arm,cortex-a55-pmu";
+		interrupts = <GIC_PPI 7 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_HIGH)>;
+	};
+
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
@@ -1340,10 +1345,13 @@
 			compatible = "fsl,imx8mm-usb", "fsl,imx7d-usb";
 			reg = <0x4c100000 0x200>;
 			interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>;
-			clock-names = "usb1_ctrl_root_clk";
-			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>;
-			assigned-clock-parents = <&clk IMX93_CLK_HSIO>;
+			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
+				 <&clk IMX93_CLK_HSIO_32K_GATE>;
+			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
+			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
+					  <&clk IMX93_CLK_HSIO_32K_GATE>;
+			assigned-clock-parents = <&clk IMX93_CLK_HSIO>,
+						 <&clk IMX93_CLK_32K>;
 			fsl,usbphy = <&usbphynop1>;
 			fsl,usbmisc = <&usbmisc1 0>;
 			status = "disabled";
@@ -1365,10 +1373,13 @@
 			compatible = "fsl,imx8mm-usb", "fsl,imx7d-usb";
 			reg = <0x4c200000 0x200>;
 			interrupts = <GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>;
-			clock-names = "usb2_ctrl_root_clk";
-			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>;
-			assigned-clock-parents = <&clk IMX93_CLK_HSIO>;
+			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
+				 <&clk IMX93_CLK_HSIO_32K_GATE>;
+			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
+			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
+					  <&clk IMX93_CLK_HSIO_32K_GATE>;
+			assigned-clock-parents = <&clk IMX93_CLK_HSIO>,
+						 <&clk IMX93_CLK_32K>;
 			fsl,usbphy = <&usbphynop2>;
 			fsl,usbmisc = <&usbmisc2 0>;
 			status = "disabled";

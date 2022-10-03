@@ -3,13 +3,13 @@
  * Copyright 2022 NXP
  */
 
-#include "imx8ulp-evk.dts"
+#include "imx8ulp-evk-rk055hdmipi4mv2.dts"
 / {
     reserved-memory {
         lpa_reserved: lpa_reserved@c0000000 {
             compatible = "shared-dma-pool";
             no-map;
-            reg = <0 0xc0000000 0 0x10000000>;
+            reg = <0 0xc0000000 0 0xa000000>;
         };
     };
 };

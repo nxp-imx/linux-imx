@@ -51,6 +51,7 @@ obj-$(CONFIG_TSL2583)		+= tsl2583.o
 obj-$(CONFIG_TSL2591)		+= tsl2591.o
 obj-$(CONFIG_TSL2772)		+= tsl2772.o
 obj-$(CONFIG_TSL4531)		+= tsl4531.o
+obj-$(CONFIG_TSL2540)		+= tsl2540.o
 obj-$(CONFIG_US5182D)		+= us5182d.o
 obj-$(CONFIG_VCNL4000)		+= vcnl4000.o
 obj-$(CONFIG_VCNL4035)		+= vcnl4035.o

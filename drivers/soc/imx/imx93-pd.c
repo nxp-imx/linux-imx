@@ -209,6 +209,7 @@ static int imx93_pd_probe(struct platform_device *pdev)
 		}
 
 		domain = &pd[index];
+		domain->dev = dev;
 
 		domain->num_clks = of_clk_bulk_get_all(np, &domain->clks);
 		if (domain->num_clks < 0) {

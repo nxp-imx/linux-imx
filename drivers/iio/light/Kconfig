@@ -528,6 +528,15 @@ config TSL4531
 	  To compile this driver as a module, choose M here: the
 	  module will be called tsl4531.
 
+config TSL2540
+	tristate "AMS TSL2540 ambient light sensors"
+	depends on I2C
+	help
+	  Say Y here if you want to build a driver for the AMS TSL2540 device.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tsl2540.
+
 config US5182D
 	tristate "UPISEMI light and proximity sensor"
 	depends on I2C
