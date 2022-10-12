@@ -3762,6 +3762,7 @@ static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
 static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	int delay;
 	int ret = 0;
 
 	if (enable) {
@@ -3799,6 +3800,10 @@ static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 
 		if (!ret)
 			sensor->streaming = enable;
+
+		/* wait camera stable */
+		delay = (enable) ? 100 : 0;
+		msleep(delay);
 	}
 
 out:
