@@ -820,6 +820,9 @@ static bool vdec_check_source_change(struct vpu_inst *inst)
 	if (!inst->fh.m2m_ctx)
 		return false;
 
+	if (vdec->reset_codec)
+		return false;
+
 	sibling = vpu_helper_find_sibling(inst, inst->cap_format.type, inst->cap_format.pixfmt);
 	if (sibling && vdec->codec_info.pixfmt == sibling->pixfmt)
 		vdec->codec_info.pixfmt = inst->cap_format.pixfmt;
@@ -1147,7 +1150,8 @@ static void vdec_event_seq_hdr(struct vpu_inst *inst, struct vpu_dec_codec_info 
 		vdec->seq_tag = vdec->codec_info.tag;
 		if (vdec->is_source_changed) {
 			vdec_update_state(inst, VPU_CODEC_STATE_DYAMIC_RESOLUTION_CHANGE, 0);
-			vpu_notify_source_change(inst);
+			vdec->source_change++;
+			vdec_handle_resolution_change(inst);
 			vdec->is_source_changed = false;
 		}
 	}
@@ -1394,6 +1398,8 @@ static void vdec_abort(struct vpu_inst *inst)
 		  vdec->decoded_frame_count,
 		  vdec->display_frame_count,
 		  vdec->sequence);
+	if (!vdec->seq_hdr_found)
+		vdec->reset_codec = true;
 	vdec->params.end_flag = 0;
 	vdec->drain = 0;
 	vdec->params.frame_count = 0;
@@ -1523,8 +1529,7 @@ static int vdec_start_session(struct vpu_inst *inst, u32 type)
 	}
 
 	if (V4L2_TYPE_IS_OUTPUT(type)) {
-		if (inst->state == VPU_CODEC_STATE_SEEK)
-			vdec_update_state(inst, vdec->state, 1);
+		vdec_update_state(inst, vdec->state, 1);
 		vdec->eos_received = 0;
 		vpu_process_output_buffer(inst);
 	} else {
@@ -1688,6 +1693,7 @@ static int vdec_open(struct file *file)
 		return ret;
 
 	vdec->fixed_fmt = false;
+	vdec->state = VPU_CODEC_STATE_ACTIVE;
 	inst->min_buffer_cap = VDEC_MIN_BUFFER_CAP;
 	inst->min_buffer_out = VDEC_MIN_BUFFER_OUT;
 	vdec_init(file);

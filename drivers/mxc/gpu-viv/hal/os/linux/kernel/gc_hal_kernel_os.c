@@ -2436,6 +2436,38 @@ gckOS_UnmapPhysical(
 **
 **      Nothing.
 */
+#if IS_ENABLED(CONFIG_PROVE_LOCKING)
+gceSTATUS
+gckOS_DeleteMutex(
+    IN gckOS Os,
+    IN gctPOINTER Mutex
+    )
+{
+    gceSTATUS status = gcvSTATUS_OK;
+
+    struct key_mutex *key_mut = (struct key_mutex *)Mutex;
+
+    gcmkHEADER_ARG("Os=%p Mutex=%p", Os, Mutex);
+
+    /* Validate the arguments. */
+    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
+    gcmkVERIFY_ARGUMENT(Mutex != gcvNULL);
+
+    /* Destroy the mutex. */
+
+    mutex_destroy((struct mutex *)&key_mut->mut);
+    lockdep_unregister_key(&key_mut->key);
+
+    /* Free the mutex structure. */
+    gcmkONERROR(gckOS_Free(Os, Mutex));
+
+OnError:
+    /* Return status. */
+    gcmkFOOTER();
+    return status;
+}
+
+#else
 gceSTATUS
 gckOS_DeleteMutex(
     IN gckOS Os,
@@ -2461,6 +2493,7 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+#endif
 
 /*******************************************************************************
 **

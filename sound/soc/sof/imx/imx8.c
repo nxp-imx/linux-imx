@@ -7,6 +7,7 @@
 // Hardware interface for audio DSP on i.MX8
 
 #include <linux/clk.h>
+#include <linux/extcon-provider.h>
 #include <linux/firmware.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
@@ -57,6 +58,14 @@ static const char *imx8_dai_clks_names[IMX8_DAI_CLK_NUM] =
 	/* SAI1 clocks */
 	"sai1_bus", "sai1_mclk0", "sai1_mclk1", "sai1_mclk2", "sai1_mclk3",
 };
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *sof_imx8_edev;
+static const unsigned int sof_imx8_extcon_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
+#endif
 
 struct imx8_priv {
 	struct device *dev;
@@ -421,6 +430,20 @@ static int imx8_probe(struct snd_sof_dev *sdev)
 
 	imx8_init_clocks(sdev);
 	imx8_prepare_clocks(sdev);
+
+#ifdef CONFIG_EXTCON
+	sof_imx8_edev  = devm_extcon_dev_allocate(&pdev->dev, sof_imx8_extcon_cables);
+	if (IS_ERR(sof_imx8_edev)) {
+		dev_err(&pdev->dev, "failed to allocate extcon device\n");
+		return 0;
+	}
+	ret = devm_extcon_dev_register(&pdev->dev, sof_imx8_edev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to register extcon device\n");
+		return 0;
+	}
+	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
+#endif
 
 	return 0;
 

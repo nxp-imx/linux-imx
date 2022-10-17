@@ -244,6 +244,12 @@ int vsi_dec_capture_on(struct vsi_v4l2_ctx *ctx)
 
 	if (!ctx->need_capture_on || !ctx->reschange_cnt)
 		return 0;
+
+	if (ctx->reschange_notified && !vb2_is_streaming(&ctx->input_que)) {
+		v4l2_klog(LOGLVL_BRIEF, "handle seek first, then source change\n");
+		return 0;
+	}
+
 	ret = vb2_streamon(&ctx->output_que, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 	if (ret)
 		return ret;
@@ -348,6 +354,19 @@ void vsi_dec_update_reso(struct vsi_v4l2_ctx *ctx)
 	pcfg->sizeimagedst[3] = 0;
 }
 
+static void vsi_dec_return_queued_buffers(struct vb2_queue *q)
+{
+	struct vb2_buffer *vb;
+
+	list_for_each_entry(vb, &q->queued_list, queued_entry) {
+		if (vb->state == VB2_BUF_STATE_QUEUED)
+			vb->state = VB2_BUF_STATE_DEQUEUED;
+	}
+	INIT_LIST_HEAD(&q->queued_list);
+	q->queued_count = 0;
+	q->waiting_for_buffers = !q->is_output;
+}
+
 static int vsi_dec_streamoff(
 	struct file *file,
 	void *priv,
@@ -377,6 +396,7 @@ static int vsi_dec_streamoff(
 	if (!binputqueue(type)) {
 		ctx->need_capture_on = false;
 		if (!vb2_is_streaming(q)) {
+			vsi_dec_return_queued_buffers(q);
 			mutex_unlock(&ctx->ctxlock);
 			return 0;
 		}
