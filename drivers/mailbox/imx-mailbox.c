@@ -86,12 +86,23 @@ struct imx_mu_dcfg {
 	u32	xRR[4];		/* Receive Registers */
 	u32	xSR;		/* Status Register */
 	u32	xCR;		/* Control Register */
+	u32	xBUF;		/* MU Buffer Register */
 };
 
 static struct imx_mu_priv *to_imx_mu_priv(struct mbox_controller *mbox)
 {
 	return container_of(mbox, struct imx_mu_priv, mbox);
 }
+
+uint8_t *get_mu_buf(struct mbox_chan *chan)
+{
+	uint8_t *addr;
+	struct imx_mu_priv *priv = to_imx_mu_priv(chan->mbox);
+
+	addr = priv->base + priv->dcfg->xBUF;
+	return addr;
+}
+EXPORT_SYMBOL(get_mu_buf);
 
 static void imx_mu_write(struct imx_mu_priv *priv, u32 val, u32 offs)
 {
@@ -722,6 +733,7 @@ static const struct imx_mu_dcfg imx_mu_cfg_imx8_seco = {
 	.xRR	= {0x10, 0x14, 0x18, 0x1c},
 	.xSR	= 0x20,
 	.xCR	= 0x24,
+	.xBUF	= 0x8000,
 };
 
 static const struct of_device_id imx_mu_dt_ids[] = {

@@ -130,6 +130,7 @@ int mbox_controller_register(struct mbox_controller *mbox); /* can sleep */
 void mbox_controller_unregister(struct mbox_controller *mbox); /* can sleep */
 void mbox_chan_received_data(struct mbox_chan *chan, void *data); /* atomic */
 void mbox_chan_txdone(struct mbox_chan *chan, int r); /* atomic */
+uint8_t *get_mu_buf(struct mbox_chan *chan);
 
 int devm_mbox_controller_register(struct device *dev,
 				  struct mbox_controller *mbox);
