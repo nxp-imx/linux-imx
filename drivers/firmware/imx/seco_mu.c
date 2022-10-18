@@ -67,6 +67,7 @@
 #include <dt-bindings/firmware/imx/rsrc.h>
 #include <linux/firmware/imx/seco_mu_ioctl.h>
 #include <linux/mailbox_client.h>
+#include <linux/mailbox_controller.h>
 
 #define MAX_RECV_SIZE 31
 #define MAX_RECV_SIZE_BYTES (MAX_RECV_SIZE * sizeof(u32))
@@ -624,6 +625,10 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 	struct seco_shared_mem *shared_mem;
 	int err = -EINVAL;
 	u32 pos;
+	u8 *addr;
+
+	struct seco_mu_priv *priv = dev_get_drvdata(dev_ctx->dev);
+	struct mbox_chan *tx_chan = priv->tx_chan;
 
 	err = (int)copy_from_user(&io,
 		(u8 *)arg,
@@ -633,6 +638,10 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 		err = -EFAULT;
 		goto exit;
 	}
+
+	/* Function call to retrieve MU Buffer address */
+	if (io.flags & SECO_MU_IO_FLAGS_SHE_V2X)
+		addr = get_mu_buf(tx_chan);
 
 	devctx_dbg(dev_ctx, "io [buf: %p(%d) flag: %x]\n",
 		   io.user_buf, io.length, io.flags);
@@ -649,25 +658,32 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 	}
 
 	/* Select the shared memory to be used for this buffer. */
-	if (io.flags & SECO_MU_IO_FLAGS_USE_SEC_MEM) {
-		/* App requires to use secure memory for this buffer.*/
-		shared_mem = &dev_ctx->secure_mem;
-	} else {
-		/* No specific requirement for this buffer. */
-		shared_mem = &dev_ctx->non_secure_mem;
+	if (!(io.flags & SECO_MU_IO_FLAGS_SHE_V2X)) {
+		if (io.flags & SECO_MU_IO_FLAGS_USE_SEC_MEM) {
+			/* App requires to use secure memory for this buffer.*/
+			shared_mem = &dev_ctx->secure_mem;
+		} else {
+			/* No specific requirement for this buffer. */
+			shared_mem = &dev_ctx->non_secure_mem;
+		}
 	}
 
 	/* Check there is enough space in the shared memory. */
-	if (io.length >= shared_mem->size - shared_mem->pos) {
+	if (!(io.flags & SECO_MU_IO_FLAGS_SHE_V2X) &&
+	     (io.length >= shared_mem->size - shared_mem->pos)) {
 		devctx_err(dev_ctx, "Not enough space in shared memory\n");
 		err = -ENOMEM;
 		goto exit;
 	}
 
-	/* Allocate space in shared memory. 8 bytes aligned. */
-	pos = shared_mem->pos;
-	shared_mem->pos += round_up(io.length, 8u);
-	io.seco_addr = (u64)shared_mem->dma_addr + pos;
+	if (!(io.flags & SECO_MU_IO_FLAGS_SHE_V2X)) {
+		/* Allocate space in shared memory. 8 bytes aligned. */
+		pos = shared_mem->pos;
+		shared_mem->pos += round_up(io.length, 8u);
+		io.seco_addr = (u64)shared_mem->dma_addr + pos;
+	} else {
+		io.seco_addr = (u64)addr;
+	}
 
 	if ((io.flags & SECO_MU_IO_FLAGS_USE_SEC_MEM) &&
 	    !(io.flags & SECO_MU_IO_FLAGS_USE_SHORT_ADDR))
@@ -679,8 +695,13 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 		 * buffer is input:
 		 * copy data from user space to this allocated buffer.
 		 */
-		err = (int)copy_from_user(shared_mem->ptr + pos, io.user_buf,
-					  io.length);
+		if (io.flags & SECO_MU_IO_FLAGS_SHE_V2X) {
+			err = (int)copy_from_user(addr, io.user_buf, io.length);
+		} else {
+			err = (int)copy_from_user(shared_mem->ptr + pos,
+						  io.user_buf,
+						  io.length);
+		}
 		if (err) {
 			devctx_err(dev_ctx,
 				   "Failed copy data to shared memory\n");
@@ -704,7 +725,10 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 			goto exit;
 		}
 
-		out_buf_desc->out_ptr = shared_mem->ptr + pos;
+		if (io.flags & SECO_MU_IO_FLAGS_SHE_V2X)
+			out_buf_desc->out_ptr = addr;
+		else
+			out_buf_desc->out_ptr = shared_mem->ptr + pos;
 		out_buf_desc->out_usr_ptr = io.user_buf;
 		out_buf_desc->out_size = io.length;
 		list_add_tail(&out_buf_desc->link, &dev_ctx->pending_out);
