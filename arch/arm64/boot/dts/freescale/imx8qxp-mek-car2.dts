@@ -91,14 +91,6 @@
 	status = "disabled";
 };
 
-&jpegdec {
-	status = "disabled";
-};
-
-&jpegenc {
-	status = "disabled";
-};
-
 &wm8960 {
 	quick-probe;
 };
