@@ -330,7 +330,7 @@ static int sec_dsim_of_parse_resets(struct imx_sec_dsim_device *dsim)
 	}
 
 	if (!rstc_num) {
-		dev_err(dev, "no invalid reset control exists\n");
+		dev_err(dev, "no valid reset control exists\n");
 		return -EINVAL;
 	}
 
