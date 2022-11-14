@@ -224,6 +224,7 @@ u32 vpu_get_fmt_plane_size(struct vpu_format *fmt, u32 plane_no)
 		return fmt->sizeimage[plane_no];
 	if (plane_no < fmt->mem_planes - 1)
 		return fmt->sizeimage[plane_no];
+
 	size = fmt->sizeimage[plane_no];
 	for (i = fmt->mem_planes; i < fmt->comp_planes; i++)
 		size += fmt->sizeimage[i];
@@ -687,6 +688,10 @@ static int vpu_v4l2_release(struct vpu_inst *inst)
 		inst->workqueue = NULL;
 	}
 
+	if (inst->fh.m2m_ctx) {
+		v4l2_m2m_ctx_release(inst->fh.m2m_ctx);
+		inst->fh.m2m_ctx = NULL;
+	}
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 	mutex_destroy(&inst->lock);
 	v4l2_fh_del(&inst->fh);
@@ -768,13 +773,6 @@ int vpu_v4l2_close(struct file *file)
 	struct vpu_inst *inst = to_inst(file);
 
 	vpu_trace(vpu->dev, "tgid = %d, pid = %d, inst = %p\n", inst->tgid, inst->pid, inst);
-
-	vpu_inst_lock(inst);
-	if (inst->fh.m2m_ctx) {
-		v4l2_m2m_ctx_release(inst->fh.m2m_ctx);
-		inst->fh.m2m_ctx = NULL;
-	}
-	vpu_inst_unlock(inst);
 
 	call_void_vop(inst, release);
 	vpu_inst_unregister(inst);

@@ -32,6 +32,61 @@ static void ethosu_core_set_capacity(struct ethosu_buffer *buf,
 	cbuf->size = (uint32_t)buf->capacity - buf->offset - buf->size;
 }
 
+int ethosu_rpmsg_register(struct ethosu_rpmsg *erp,
+			  struct ethosu_rpmsg_msg *msg)
+{
+	msg->id = idr_alloc_cyclic(&erp->msg_idr, msg, 0, INT_MAX, GFP_KERNEL);
+	if (msg->id < 0)
+		return msg->id;
+
+	return 0;
+}
+
+void ethosu_rpmsg_deregister(struct ethosu_rpmsg *erp,
+			     struct ethosu_rpmsg_msg *msg)
+{
+	idr_remove(&erp->msg_idr, msg->id);
+}
+
+struct ethosu_rpmsg_msg *ethosu_rpmsg_find(struct ethosu_rpmsg *erp,
+					   int msg_id)
+{
+	struct ethosu_rpmsg_msg *ptr =
+		(struct ethosu_rpmsg_msg *)idr_find(&erp->msg_idr, msg_id);
+
+	if (!ptr)
+		return ERR_PTR(-EINVAL);
+
+	return ptr;
+}
+
+void ethosu_rpmsg_fail(struct ethosu_rpmsg *erp)
+{
+	struct ethosu_rpmsg_msg *cur;
+	int id;
+
+	idr_for_each_entry(&erp->msg_idr, cur, id) {
+		cur->fail(cur);
+	}
+}
+
+void ethosu_rpmsg_resend(struct ethosu_rpmsg *erp)
+{
+	struct ethosu_rpmsg_msg *cur;
+	struct rpmsg_device *rpdev = erp->rpdev;
+	int id;
+	int ret;
+
+	idr_for_each_entry(&erp->msg_idr, cur, id) {
+		ret = cur->resend(cur);
+		if (ret) {
+			dev_warn(&rpdev->dev, "Failed to resend msg. ret=%d",
+				 ret);
+			cur->fail(cur);
+		}
+	}
+}
+
 static int ethosu_rpmsg_send(struct ethosu_rpmsg *erp, uint32_t type)
 {
 	struct ethosu_core_msg msg;
@@ -69,7 +124,8 @@ int ethosu_rpmsg_version_request(struct ethosu_rpmsg *erp)
 	return ethosu_rpmsg_send(erp, ETHOSU_CORE_MSG_VERSION_REQ);
 }
 
-int ethosu_rpmsg_capabilities_request(struct ethosu_rpmsg *erp, void *user_arg)
+int ethosu_rpmsg_capabilities_request(struct ethosu_rpmsg *erp,
+				      struct ethosu_rpmsg_msg *rpmsg)
 {
 	struct ethosu_core_msg msg = {
 		.magic  = ETHOSU_CORE_MSG_MAGIC,
@@ -77,7 +133,7 @@ int ethosu_rpmsg_capabilities_request(struct ethosu_rpmsg *erp, void *user_arg)
 		.length = sizeof(struct ethosu_core_capabilities_req)
 	};
 	struct ethosu_core_capabilities_req req = {
-		.user_arg = (uint64_t)user_arg
+		.user_arg = rpmsg->id
 	};
 	struct rpmsg_device *rpdev = erp->rpdev;
 	uint8_t data[sizeof(struct ethosu_core_msg) +
@@ -128,12 +184,13 @@ int ethosu_rpmsg_power_request(struct ethosu_rpmsg *erp,
 }
 
 int ethosu_rpmsg_inference(struct ethosu_rpmsg *erp,
-			   void *user_arg,
+			   struct ethosu_rpmsg_msg *rpmsg,
 			   uint32_t ifm_count,
 			   struct ethosu_buffer **ifm,
 			   uint32_t ofm_count,
 			   struct ethosu_buffer **ofm,
 			   struct ethosu_buffer *network,
+			   u32 network_index,
 			   uint8_t *pmu_event_config,
 			   uint8_t pmu_event_config_count,
 			   uint8_t pmu_cycle_counter_enable,
@@ -158,7 +215,7 @@ int ethosu_rpmsg_inference(struct ethosu_rpmsg *erp,
 		return -EINVAL;
 	}
 
-	req.user_arg = (uint64_t)user_arg;
+	req.user_arg = rpmsg->id;
 	req.ifm_count = ifm_count;
 	req.ofm_count = ofm_count;
 	req.pmu_cycle_counter_enable = pmu_cycle_counter_enable;
@@ -173,7 +230,13 @@ int ethosu_rpmsg_inference(struct ethosu_rpmsg *erp,
 	for (i = 0; i < ETHOSU_CORE_PMU_MAX; i++)
 		req.pmu_event_config[i] = pmu_event_config[i];
 
-	ethosu_core_set_size(network, &req.network);
+	if (network) {
+		req.network.type = ETHOSU_CORE_NETWORK_BUFFER;
+		ethosu_core_set_size(network, &req.network.buffer);
+	} else {
+		req.network.type = ETHOSU_CORE_NETWORK_INDEX;
+		req.network.index = network_index;
+	}
 
 	memcpy(data, &msg, sizeof(struct ethosu_core_msg));
 	memcpy(data + sizeof(struct ethosu_core_msg), &req,
@@ -182,6 +245,80 @@ int ethosu_rpmsg_inference(struct ethosu_rpmsg *erp,
 	ret = rpmsg_send(rpdev->ept, (void *)&data,
 			 sizeof(struct ethosu_core_msg) +
 			 sizeof(struct ethosu_core_inference_req));
+	if (ret) {
+		dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+int ethosu_rpmsg_network_info_request(struct ethosu_rpmsg *erp,
+				      struct ethosu_rpmsg_msg *rpmsg,
+				      struct ethosu_buffer *network,
+				      uint32_t network_index)
+{
+	struct ethosu_core_msg msg = {
+		.magic  = ETHOSU_CORE_MSG_MAGIC,
+		.type   = ETHOSU_CORE_MSG_NETWORK_INFO_REQ,
+		.length = sizeof(struct ethosu_core_network_info_req)
+	};
+	struct ethosu_core_network_info_req req;
+	struct rpmsg_device *rpdev = erp->rpdev;
+	u8 data[sizeof(struct ethosu_core_msg) +
+		sizeof(struct ethosu_core_network_info_req)];
+	int ret;
+
+	req.user_arg = rpmsg->id;
+
+	if (network) {
+		req.network.type = ETHOSU_CORE_NETWORK_BUFFER;
+		ethosu_core_set_size(network, &req.network.buffer);
+	} else {
+		req.network.type = ETHOSU_CORE_NETWORK_INDEX;
+		req.network.index = network_index;
+	}
+
+	memcpy(data, &msg, sizeof(struct ethosu_core_msg));
+	memcpy(data + sizeof(struct ethosu_core_msg), &req,
+	       sizeof(struct ethosu_core_network_info_req));
+
+	ret = rpmsg_send(rpdev->ept, (void *)&data,
+			 sizeof(struct ethosu_core_msg) +
+			 sizeof(struct ethosu_core_network_info_req));
+	if (ret) {
+		dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+int ethosu_rpmsg_cancel_inference(struct ethosu_rpmsg *erp,
+				  struct ethosu_rpmsg_msg *rpmsg,
+				  int inference_handle)
+{
+	struct ethosu_core_msg msg = {
+		.magic  = ETHOSU_CORE_MSG_MAGIC,
+		.type   = ETHOSU_CORE_MSG_CAPABILITIES_REQ,
+		.length = sizeof(struct ethosu_core_cancel_inference_req)
+	};
+	struct ethosu_core_cancel_inference_req req;
+	struct rpmsg_device *rpdev = erp->rpdev;
+	u8 data[sizeof(struct ethosu_core_msg) +
+		sizeof(struct ethosu_core_cancel_inference_req)];
+	int ret;
+
+	req.user_arg = rpmsg->id;
+	req.inference_handle = inference_handle;
+
+	memcpy(data, &msg, sizeof(struct ethosu_core_msg));
+	memcpy(data + sizeof(struct ethosu_core_msg), &req,
+	       sizeof(struct ethosu_core_cancel_inference_req));
+
+	ret = rpmsg_send(rpdev->ept, (void *)&data,
+			 sizeof(struct ethosu_core_msg) +
+			 sizeof(struct ethosu_core_cancel_inference_req));
 	if (ret) {
 		dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
 		return ret;
@@ -215,8 +352,8 @@ static int ethosu_rpmsg_probe(struct rpmsg_device *rpdev)
 	grp->rpdev = rpdev;
 	dev_set_drvdata(&rpdev->dev, grp);
 
-	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
-		 rpdev->src, rpdev->dst);
+	dev_dbg(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
+		rpdev->src, rpdev->dst);
 
 	ret = rpmsg_send(rpdev->ept, MSG, strlen(MSG));
 	if (ret) {
@@ -229,7 +366,7 @@ static int ethosu_rpmsg_probe(struct rpmsg_device *rpdev)
 
 static void ethosu_rpmsg_remove(struct rpmsg_device *rpdev)
 {
-	dev_info(&rpdev->dev, "rpmsg ethosu driver is removed\n");
+	dev_dbg(&rpdev->dev, "rpmsg ethosu driver is removed\n");
 }
 
 static struct rpmsg_device_id rpmsg_driver_ethosu_id_table[] = {
@@ -252,6 +389,8 @@ int ethosu_rpmsg_init(struct ethosu_rpmsg *erp,
 	grp = erp;
 	erp->callback = callback;
 	erp->user_arg = user_arg;
+	erp->ping_count = 0;
+	idr_init(&erp->msg_idr);
 
 	return register_rpmsg_driver(&ethosu_rpmsg_driver);
 }

@@ -24,6 +24,7 @@
 		linux,cma {
 			compatible = "shared-dma-pool";
 			reusable;
+			alloc-ranges = <0 0x80000000 0 0x40000000>;
 			size = <0 0x10000000>;
 			linux,cma-default;
 		};
@@ -281,7 +282,7 @@
 	pinctrl-0 = <&pinctrl_pdm>;
 	assigned-clocks = <&clk IMX93_CLK_PDM>;
 	assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
-	assigned-clock-rates = <196608000>;
+	assigned-clock-rates = <49152000>;
 	status = "okay";
 };
 
@@ -325,8 +326,6 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <1>;
 			eee-broken-1000t;
-			rtl821x,aldps-disable;
-			rtl821x,clkout-disable;
 		};
 	};
 };
@@ -348,8 +347,6 @@
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <2>;
 			eee-broken-1000t;
-			rtl821x,aldps-disable;
-			rtl821x,clkout-disable;
 		};
 	};
 };

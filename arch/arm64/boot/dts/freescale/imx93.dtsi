@@ -8,6 +8,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/power/imx93-power.h>
+#include <dt-bindings/thermal/thermal.h>
 
 #include "imx93-pinfunc.h"
 
@@ -50,12 +51,27 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		idle-states {
+			entry-method = "psci";
+
+			cpu_pd_wait: cpu-pd-wait {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010033>;
+				local-timer-stop;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+				wakeup-latency-us = <1500>;
+			};
+		};
+
 		A55_0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a55";
 			reg = <0x0>;
 			enable-method = "psci";
 			#cooling-cells = <2>;
+			cpu-idle-states = <&cpu_pd_wait>;
 		};
 
 		A55_1: cpu@100 {
@@ -64,6 +80,7 @@
 			reg = <0x100>;
 			enable-method = "psci";
 			#cooling-cells = <2>;
+			cpu-idle-states = <&cpu_pd_wait>;
 		};
 
 	};
@@ -118,6 +135,38 @@
 		interrupt-controller;
 		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&gic>;
+	};
+
+	thermal-zones {
+		cpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <2000>;
+
+			thermal-sensors = <&tmu 0>;
+
+			trips {
+				cpu_alert: cpu-alert {
+					temperature = <80000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				cpu_crit: cpu-crit {
+					temperature = <90000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+		};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert>;
+					cooling-device =
+						<&A55_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&A55_1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
 	};
 
 	soc@0 {
@@ -409,6 +458,21 @@
 			anatop: anatop@44480000 {
 				compatible = "fsl,imx93-anatop", "syscon";
 				reg = <0x44480000 0x10000>;
+			};
+
+			tmu: tmu@44482000 {
+				compatible = "fsl,imx93-tmu";
+				reg = <0x44482000 0x1000>;
+				clocks = <&clk IMX93_CLK_TMC_GATE>;
+				little-endian;
+				fsl,tmu-calibration = <0x0000000e 0x800000da
+						       0x00000029 0x800000e9
+						       0x00000056 0x80000102
+						       0x000000a2 0x8000012a
+						       0x00000116 0x80000166
+						       0x00000195 0x800001a7
+						       0x000001b2 0x800001b6>;
+				#thermal-sensor-cells = <0>;
 			};
 
 			micfil: micfil@44520000 {
@@ -732,6 +796,21 @@
 				assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
 				assigned-clock-rates = <40000000>;
 				fsl,clk-source = /bits/ 8 <0>;
+				status = "disabled";
+			};
+
+			flexspi1: spi@425e0000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "nxp,imx93-fspi", "nxp,imx8mm-fspi";
+				reg = <0x425e0000 0x10000>, <0x28000000 0x10000000>;
+				reg-names = "fspi_base", "fspi_mmap";
+				interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk IMX93_CLK_FLEXSPI1_GATE>,
+					 <&clk IMX93_CLK_FLEXSPI1_GATE>;
+				clock-names = "fspi", "fspi_en";
+				assigned-clocks = <&clk IMX93_CLK_FLEXSPI1>;
+				assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1>;
 				status = "disabled";
 			};
 
@@ -1078,6 +1157,20 @@
 					power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_CSI>;
 					status = "disabled";
 				};
+
+				parallel_csi: pcsi@4ac10070 {
+					compatible = "fsl,imx93-parallel-csi";
+					reg = <0x4ac10070 0x10>;
+					clocks = <&clk IMX93_CLK_MIPI_CSI_GATE>,
+						 <&clk IMX93_CLK_MEDIA_APB>;
+					clock-names = "pixel", "ipg";
+					assigned-clocks = <&clk IMX93_CLK_CAM_PIX>;
+					assigned-clock-parents = <&clk IMX93_CLK_VIDEO_PLL>;
+					assigned-clock-rates = <140000000>;
+					pi_gpr = <&media_blk_ctrl>;
+					power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_CSI>;
+					status = "disabled";
+				};
 			};
 		};
 
@@ -1092,7 +1185,7 @@
 			clocks = <&clk IMX93_CLK_GPIO2_GATE>,
 				 <&clk IMX93_CLK_GPIO2_GATE>;
 			clock-names = "gpio", "port";
-			gpio-ranges = <&iomuxc 0 32 32>;
+			gpio-ranges = <&iomuxc 0 4 30>;
 		};
 
 		gpio3: gpio@43820080 {
@@ -1106,7 +1199,8 @@
 			clocks = <&clk IMX93_CLK_GPIO3_GATE>,
 				 <&clk IMX93_CLK_GPIO3_GATE>;
 			clock-names = "gpio", "port";
-			gpio-ranges = <&iomuxc 0 64 32>;
+			gpio-ranges = <&iomuxc 0 84 8>, <&iomuxc 8 66 18>,
+				      <&iomuxc 26 34 2>, <&iomuxc 28 0 4>;
 		};
 
 		gpio4: gpio@43830080 {
@@ -1120,7 +1214,7 @@
 			clocks = <&clk IMX93_CLK_GPIO4_GATE>,
 				 <&clk IMX93_CLK_GPIO4_GATE>;
 			clock-names = "gpio", "port";
-			gpio-ranges = <&iomuxc 0 96 32>;
+			gpio-ranges = <&iomuxc 0 38 28>, <&iomuxc 28 36 2>;
 		};
 
 		gpio1: gpio@47400080 {
@@ -1134,7 +1228,7 @@
 			clocks = <&clk IMX93_CLK_GPIO1_GATE>,
 				 <&clk IMX93_CLK_GPIO1_GATE>;
 			clock-names = "gpio", "port";
-			gpio-ranges = <&iomuxc 0 0 32>;
+			gpio-ranges = <&iomuxc 0 92 16>;
 		};
 
 		ocotp: efuse@47510000 {
@@ -1179,7 +1273,7 @@
 
 		media_blk_ctrl: blk-ctrl@4ac10000 {
 			compatible = "fsl,imx93-media-blk-ctrl", "syscon", "simple-mfd";
-			reg = <0x4ac10000 0x10000>;
+			reg = <0x4ac10000 0x70>;
 			power-domains = <&mediamix>;
 			clocks = <&clk IMX93_CLK_MEDIA_APB>,
 				 <&clk IMX93_CLK_MEDIA_AXI>,
@@ -1206,6 +1300,25 @@
 				#phy-cells = <0>;
 				power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_DSI>;
 				status = "disabled";
+			};
+
+			parallel_disp_fmt: dpi {
+				compatible = "fsl,imx93-parallel-display-format";
+				power-domains = <&mediamix>;
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+
+						dpi_to_lcdif: endpoint {
+							remote-endpoint = <&lcdif_to_dpi>;
+						};
+					};
+				};
 			};
 		};
 
@@ -1325,6 +1438,7 @@
 
 				lcdif_to_dpi: endpoint@2 {
 					reg = <2>;
+					remote-endpoint = <&dpi_to_lcdif>;
 				};
 			};
 		};
@@ -1348,10 +1462,9 @@
 			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
 				 <&clk IMX93_CLK_HSIO_32K_GATE>;
 			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
-			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
-					  <&clk IMX93_CLK_HSIO_32K_GATE>;
-			assigned-clock-parents = <&clk IMX93_CLK_HSIO>,
-						 <&clk IMX93_CLK_32K>;
+			assigned-clocks = <&clk IMX93_CLK_HSIO>;
+			assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
+			assigned-clock-rates = <133000000>;
 			fsl,usbphy = <&usbphynop1>;
 			fsl,usbmisc = <&usbmisc1 0>;
 			status = "disabled";
@@ -1376,10 +1489,9 @@
 			clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
 				 <&clk IMX93_CLK_HSIO_32K_GATE>;
 			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
-			assigned-clocks = <&clk IMX93_CLK_USB_CONTROLLER_GATE>,
-					  <&clk IMX93_CLK_HSIO_32K_GATE>;
-			assigned-clock-parents = <&clk IMX93_CLK_HSIO>,
-						 <&clk IMX93_CLK_32K>;
+			assigned-clocks = <&clk IMX93_CLK_HSIO>;
+			assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
+			assigned-clock-rates = <133000000>;
 			fsl,usbphy = <&usbphynop2>;
 			fsl,usbmisc = <&usbmisc2 0>;
 			status = "disabled";

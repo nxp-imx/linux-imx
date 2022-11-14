@@ -11,6 +11,7 @@
 #include <keys/trusted_tee.h>
 #include <keys/trusted_caam.h>
 #include <keys/trusted_tpm.h>
+#include <keys/trusted_dcp.h>
 #include <linux/capability.h>
 #include <linux/err.h>
 #include <linux/init.h>
@@ -30,7 +31,7 @@ MODULE_PARM_DESC(rng, "Select trusted key RNG");
 
 static char *trusted_key_source;
 module_param_named(source, trusted_key_source, charp, 0);
-MODULE_PARM_DESC(source, "Select trusted keys source (tpm, tee or caam)");
+MODULE_PARM_DESC(source, "Select trusted keys source (tpm, tee, caam or dcp)");
 
 static const struct trusted_key_source trusted_key_sources[] = {
 #if IS_REACHABLE(CONFIG_TRUSTED_KEYS_TPM)
@@ -41,6 +42,9 @@ static const struct trusted_key_source trusted_key_sources[] = {
 #endif
 #if IS_REACHABLE(CONFIG_TRUSTED_KEYS_CAAM)
 	{ "caam", &trusted_key_caam_ops },
+#endif
+#if IS_REACHABLE(CONFIG_TRUSTED_KEYS_DCP)
+	{ "dcp", &trusted_key_dcp_ops },
 #endif
 };
 
@@ -79,6 +83,8 @@ static int datablob_parse(char **datablob, struct trusted_key_payload *p)
 	int key_cmd;
 	char *c;
 
+	p->is_hw_bound = !HW_BOUND_KEY;
+
 	/* main command */
 	c = strsep(datablob, " \t");
 	if (!c)
@@ -94,6 +100,13 @@ static int datablob_parse(char **datablob, struct trusted_key_payload *p)
 		if (ret < 0 || keylen < MIN_KEY_SIZE || keylen > MAX_KEY_SIZE)
 			return -EINVAL;
 		p->key_len = keylen;
+		do {
+			/* Second argument onwards,
+			 * determine if tied to HW */
+			c = strsep(datablob, " \t");
+			if ((c != NULL) && (strcmp(c, "hw") == 0))
+				p->is_hw_bound = HW_BOUND_KEY;
+		} while (c != NULL);
 		ret = Opt_new;
 		break;
 	case Opt_load:
@@ -107,6 +120,13 @@ static int datablob_parse(char **datablob, struct trusted_key_payload *p)
 		ret = hex2bin(p->blob, c, p->blob_len);
 		if (ret < 0)
 			return -EINVAL;
+		do {
+			/* Second argument onwards,
+			 * determine if tied to HW */
+			c = strsep(datablob, " \t");
+			if ((c != NULL) && (strcmp(c, "hw") == 0))
+				p->is_hw_bound = HW_BOUND_KEY;
+		} while (c != NULL);
 		ret = Opt_load;
 		break;
 	case Opt_update:

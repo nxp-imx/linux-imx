@@ -2140,7 +2140,7 @@ static int fec_restore_mii_bus(struct net_device *ndev)
 
 	writel(0xffc00000, fep->hwp + FEC_IEVENT);
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
-	writel(FEC_ENET_MII, fep->hwp + FEC_IMASK);
+	writel(0, fep->hwp + FEC_IMASK);
 	writel(FEC_ENET_ETHEREN, fep->hwp + FEC_ECNTRL);
 
 	pm_runtime_mark_last_busy(&fep->pdev->dev);

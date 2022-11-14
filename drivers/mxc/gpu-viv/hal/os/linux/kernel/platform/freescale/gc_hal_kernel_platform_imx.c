@@ -934,6 +934,7 @@ static const struct component_ops mxc_gpu_sub_ops =
 static const struct of_device_id mxc_gpu_sub_match[] =
 {
     { .compatible = "fsl,imx8-gpu"},
+    { .compatible = "vivante,gc"},
     { /* sentinel */ }
 };
 
@@ -1070,13 +1071,19 @@ static inline int get_power_imx8_subsystem(struct device *pdev)
 
         clk_axi = clk_get(&pdev_gpu->dev, "axi");
 
-        if (IS_ERR(clk_axi))
-            clk_axi = NULL;
+        if (IS_ERR(clk_axi)) {
+            clk_axi = clk_get(&pdev_gpu->dev, "bus");
+            if (IS_ERR(clk_axi))
+                clk_axi = NULL;
+        }
 
         clk_ahb = clk_get(&pdev_gpu->dev, "ahb");
 
-        if (IS_ERR(clk_ahb))
-            clk_ahb = NULL;
+        if (IS_ERR(clk_ahb)) {
+            clk_ahb = clk_get(&pdev_gpu->dev, "reg");
+            if (IS_ERR(clk_ahb))
+                clk_ahb = NULL;
+        }
 
         clk_shader = clk_get(&pdev_gpu->dev, "shader");
 
@@ -1894,12 +1901,7 @@ _AdjustParam(
 
     if ((of_find_compatible_node(NULL, NULL, "fsl,imx8mq-gpu") ||
     of_find_compatible_node(NULL, NULL, "fsl,imx8mm-gpu") ||
-    of_find_compatible_node(NULL, NULL, "fsl,imx8mn-gpu")) &&
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
-        ((Args->baseAddress + totalram_pages() * PAGE_SIZE) > 0x100000000))
-#else
-        ((Args->baseAddress + totalram_pages * PAGE_SIZE) > 0x100000000))
-#endif
+    of_find_compatible_node(NULL, NULL, "fsl,imx8mn-gpu")))
     {
         Platform->flagBits |= gcvPLATFORM_FLAG_LIMIT_4G_ADDRESS;
     }
@@ -2013,11 +2015,6 @@ int gckPLATFORM_Init(struct platform_driver *pdrv,
 #ifdef IMX_GPU_SUBSYSTEM
     if (of_find_compatible_node(NULL, NULL, "fsl,imx8-gpu-ss")) {
         use_imx_gpu_subsystem = 1;
-
-        if (!of_find_compatible_node(NULL, NULL, "fsl,imx8-gpu")) {
-            printk(KERN_ERR "Incorrect device-tree, please update dtb.");
-            return -EINVAL;
-        }
     }
 #endif
 

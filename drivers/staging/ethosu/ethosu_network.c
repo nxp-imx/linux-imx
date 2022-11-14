@@ -1,5 +1,5 @@
 /*
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020,2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,6 +27,7 @@
 #include "ethosu_buffer.h"
 #include "ethosu_device.h"
 #include "ethosu_inference.h"
+#include "ethosu_network_info.h"
 #include "uapi/ethosu.h"
 
 #include <linux/anon_inodes.h>
@@ -67,9 +68,11 @@ static void ethosu_network_destroy(struct kref *kref)
 	struct ethosu_network *net =
 		container_of(kref, struct ethosu_network, kref);
 
-	dev_info(net->edev->dev, "Network destroy. handle=0x%pK\n", net);
+	dev_dbg(net->edev->dev, "Network destroy. net=0x%pK\n", net);
 
-	ethosu_buffer_put(net->buf);
+	if (net->buf)
+		ethosu_buffer_put(net->buf);
+
 	devm_kfree(net->edev->dev, net);
 }
 
@@ -78,7 +81,8 @@ static int ethosu_network_release(struct inode *inode,
 {
 	struct ethosu_network *net = file->private_data;
 
-	dev_info(net->edev->dev, "Network release. handle=0x%pK\n", net);
+	dev_dbg(net->edev->dev, "Network release. file=0x%pK, net=0x%pK\n",
+		file, net);
 
 	ethosu_network_put(net);
 
@@ -97,18 +101,37 @@ static long ethosu_network_ioctl(struct file *file,
 	if (ret)
 		return ret;
 
-	dev_info(net->edev->dev, "Ioctl: cmd=%u, arg=%lu\n", cmd, arg);
+	dev_dbg(net->edev->dev,
+		"Network ioctl: file=0x%pK, net=0x%pK, cmd=0x%x, arg=0x%lx\n",
+		file, net, cmd, arg);
 
 	switch (cmd) {
+	case ETHOSU_IOCTL_NETWORK_INFO: {
+		struct ethosu_uapi_network_info uapi;
+
+		if (copy_from_user(&uapi, udata, sizeof(uapi)))
+			break;
+
+		dev_dbg(net->edev->dev,
+			 "Network ioctl: Network info. net=0x%pK\n",
+			 net);
+
+		ret = ethosu_network_info_request(net, &uapi);
+		if (ret)
+			break;
+
+		ret = copy_to_user(udata, &uapi, sizeof(uapi)) ? -EFAULT : 0;
+		break;
+	}
 	case ETHOSU_IOCTL_INFERENCE_CREATE: {
 		struct ethosu_uapi_inference_create uapi;
 
 		if (copy_from_user(&uapi, udata, sizeof(uapi)))
 			break;
 
-		dev_info(net->edev->dev,
-			 "Ioctl: Inference. ifm_fd=%u, ofm_fd=%u\n",
-			 uapi.ifm_fd[0], uapi.ofm_fd[0]);
+		dev_dbg(net->edev->dev,
+			"Network ioctl: Inference. ifm_fd=%u, ofm_fd=%u\n",
+			uapi.ifm_fd[0], uapi.ofm_fd[0]);
 
 		ret = ethosu_inference_create(net->edev, net, &uapi);
 		break;
@@ -128,42 +151,47 @@ static long ethosu_network_ioctl(struct file *file,
 int ethosu_network_create(struct ethosu_device *edev,
 			  struct ethosu_uapi_network_create *uapi)
 {
-	struct ethosu_buffer *buf;
 	struct ethosu_network *net;
 	int ret = -ENOMEM;
 
-	buf = ethosu_buffer_get_from_fd(uapi->fd);
-	if (IS_ERR(buf))
-		return PTR_ERR(buf);
-
 	net = devm_kzalloc(edev->dev, sizeof(*net), GFP_KERNEL);
-	if (!net) {
-		ret = -ENOMEM;
-		goto put_buf;
-	}
+	if (!net)
+		return -ENOMEM;
 
 	net->edev = edev;
-	net->buf = buf;
+	net->buf = NULL;
 	kref_init(&net->kref);
+
+	if (uapi->type == ETHOSU_UAPI_NETWORK_BUFFER) {
+		net->buf = ethosu_buffer_get_from_fd(uapi->fd);
+		if (IS_ERR(net->buf)) {
+			ret = PTR_ERR(net->buf);
+			goto free_net;
+		}
+	} else {
+		net->index = uapi->index;
+	}
 
 	ret = anon_inode_getfd("ethosu-network", &ethosu_network_fops, net,
 			       O_RDWR | O_CLOEXEC);
 	if (ret < 0)
-		goto free_net;
+		goto put_buf;
 
 	net->file = fget(ret);
 	fput(net->file);
 
-	dev_info(edev->dev, "Network create. handle=0x%pK",
-		 net);
+	dev_dbg(edev->dev,
+		"Network create. file=0x%pK, fd=%d, net=0x%pK, buf=0x%pK, index=%u",
+		net->file, ret, net, net->buf, net->index);
 
 	return ret;
 
+put_buf:
+	if (net->buf)
+		ethosu_buffer_put(net->buf);
+
 free_net:
 	devm_kfree(edev->dev, net);
-
-put_buf:
-	ethosu_buffer_put(buf);
 
 	return ret;
 }
@@ -195,7 +223,7 @@ void ethosu_network_get(struct ethosu_network *net)
 	kref_get(&net->kref);
 }
 
-void ethosu_network_put(struct ethosu_network *net)
+int ethosu_network_put(struct ethosu_network *net)
 {
-	kref_put(&net->kref, ethosu_network_destroy);
+	return kref_put(&net->kref, ethosu_network_destroy);
 }

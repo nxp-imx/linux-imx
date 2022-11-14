@@ -354,6 +354,11 @@ static int cs42xx8_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
+	if (cs42xx8->is_tdm && !tx && cs42xx8->rate[tx] > 100000) {
+		dev_err(component->dev, "ADC does not support Quad-Speed Mode in the TDM format\n");
+		return -EINVAL;
+	}
+
 	mask = CS42XX8_FUNCMOD_MFREQ_MASK;
 	val = cs42xx8_ratios[i].mfreq;
 

@@ -396,6 +396,46 @@ dma_subsys: bus@5a000000 {
 		status = "disabled";
 	};
 
+	edma3: dma-controller@5a9f0000 {
+		compatible = "fsl,imx8qm-edma";
+		reg = <0x5a9f0000 0x10000>,
+		      <0x5aa00000 0x10000>, /* channel0 LPI2C0 rx */
+		      <0x5aa10000 0x10000>, /* channel1 LPI2C0 tx */
+		      <0x5aa20000 0x10000>, /* channel2 LPI2C1 rx */
+		      <0x5aa30000 0x10000>, /* channel3 LPI2C1 tx */
+		      <0x5aa40000 0x10000>, /* channel4 LPI2C2 rx */
+		      <0x5aa50000 0x10000>, /* channel5 LPI2C2 tx */
+		      <0x5aa60000 0x10000>, /* channel6 LPI2C3 rx */
+		      <0x5aa70000 0x10000>; /* channel7 LPI2C3 tx */
+		#dma-cells = <3>;
+		dma-channels = <8>;
+		interrupts = <GIC_SPI 424 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 425 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 426 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 427 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 428 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 429 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 430 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 431 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "edma3-chan0-rx", "edma3-chan1-tx",
+				  "edma3-chan2-rx", "edma3-chan3-tx",
+				  "edma3-chan4-rx", "edma3-chan5-tx",
+				  "edma3-chan6-rx", "edma3-chan7-tx";
+		power-domains = <&pd IMX_SC_R_DMA_3_CH0>,
+				<&pd IMX_SC_R_DMA_3_CH1>,
+				<&pd IMX_SC_R_DMA_3_CH2>,
+				<&pd IMX_SC_R_DMA_3_CH3>,
+				<&pd IMX_SC_R_DMA_3_CH4>,
+				<&pd IMX_SC_R_DMA_3_CH5>,
+				<&pd IMX_SC_R_DMA_3_CH6>,
+				<&pd IMX_SC_R_DMA_3_CH7>;
+		power-domain-names = "edma3-chan0", "edma3-chan1",
+				     "edma3-chan2", "edma3-chan3",
+				     "edma3-chan4", "edma3-chan5",
+				     "edma3-chan6", "edma3-chan7";
+		status = "disabled";
+	};
+
 	flexcan1: can@5a8d0000 {
 		compatible = "fsl,imx8qxp-flexcan", "fsl,imx8qm-flexcan";
 		reg = <0x5a8d0000 0x10000>;

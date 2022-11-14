@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 //
 // Copyright 2016 Freescale Semiconductor, Inc.
+// Copyright 2022 NXP
 
 #include <linux/clk.h>
 #include <linux/device_cooling.h>
@@ -26,9 +27,11 @@
 #define TMTMIR_DEFAULT	0x0000000f
 #define TIER_DISABLE	0x0
 #define TEUMR0_V2		0x51009c00
+#define TEUMR0_V21		0x55010c00
 #define TMSARA_V2		0xe
 #define TMU_VER1		0x1
 #define TMU_VER2		0x2
+#define TMU_VER93		0x3
 #define TMU_TEMP_PASSIVE_COOL_DELTA	10000
 
 #define REGS_TMR	0x000	/* Mode Register */
@@ -55,6 +58,7 @@
 					    * Site Register
 					    */
 #define TRITSR_V	BIT(31)
+#define TRITSR_TP5	BIT(9)
 #define REGS_V2_TMSAR(n)	(0x304 + 16 * (n))	/* TMU monitoring
 						* site adjustment register
 						*/
@@ -137,10 +141,16 @@ static int tmu_get_temp(void *p, int *temp)
 				     10 * USEC_PER_MSEC))
 		return -ENODATA;
 
-	if (qdata->ver == TMU_VER1)
+	if (qdata->ver == TMU_VER1) {
 		*temp = (val & GENMASK(7, 0)) * MILLIDEGREE_PER_DEGREE;
-	else
+	} else if (qdata->ver == TMU_VER93) {
+		if (val & TRITSR_TP5)
+			*temp = milli_kelvin_to_millicelsius((val & GENMASK(8, 0)) * MILLIDEGREE_PER_DEGREE + 500);
+		else
+			*temp = kelvin_to_millicelsius(val & GENMASK(8, 0));
+	} else {
 		*temp = kelvin_to_millicelsius(val & GENMASK(8, 0));
+	}
 
 	return 0;
 }
@@ -380,10 +390,35 @@ static int qoriq_tmu_calibration(struct device *dev,
 	return 0;
 }
 
+static int imx93_tmu_calibration(struct device *dev,
+				 struct qoriq_tmu_data *data)
+{
+	const u32 *calibration = NULL;
+	u32 cal_pt = 0;
+	u32 val = 0;
+	unsigned int len = 0;
+	unsigned int i = 0;
+
+	calibration = of_get_property(dev->of_node, "fsl,tmu-calibration", &len);
+	if (calibration == NULL || len / 8 > 16 || len % 8) {
+		dev_err(dev, "invalid tmu calibration\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < len; i += 0x8, calibration += 2) {
+		cal_pt = i / 8;
+		regmap_write(data->regmap, REGS_TTCFGR, cal_pt);
+		val = of_read_number(calibration, 1);
+		regmap_write(data->regmap, REGS_TSCFGR, val);
+		val = of_read_number(calibration + 1, 1);
+		regmap_write(data->regmap, REGS_TTRnCR(cal_pt), val);
+	}
+
+	return 0;
+}
+
 static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 {
-	int i;
-
 	/* Disable interrupt, using polling instead */
 	regmap_write(data->regmap, REGS_TIER, TIER_DISABLE);
 
@@ -391,11 +426,12 @@ static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 
 	if (data->ver == TMU_VER1) {
 		regmap_write(data->regmap, REGS_TMTMIR, TMTMIR_DEFAULT);
+	} else if (data->ver == TMU_VER93) {
+		regmap_write(data->regmap, REGS_V2_TMTMIR, TMTMIR_DEFAULT);
+		regmap_write(data->regmap, REGS_V2_TEUMR(0), TEUMR0_V21);
 	} else {
 		regmap_write(data->regmap, REGS_V2_TMTMIR, TMTMIR_DEFAULT);
 		regmap_write(data->regmap, REGS_V2_TEUMR(0), TEUMR0_V2);
-		for (i = 0; i < SITES_MAX; i++)
-			regmap_write(data->regmap, REGS_V2_TMSAR(i), TMSARA_V2);
 	}
 
 	/* Disable monitoring */
@@ -404,7 +440,7 @@ static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 
 static const struct regmap_range qoriq_yes_ranges[] = {
 	regmap_reg_range(REGS_TMR, REGS_TSCFGR),
-	regmap_reg_range(REGS_TTRnCR(0), REGS_TTRnCR(3)),
+	regmap_reg_range(REGS_TTRnCR(0), REGS_TTRnCR(15)),
 	regmap_reg_range(REGS_V2_TEUMR(0), REGS_V2_TEUMR(2)),
 	regmap_reg_range(REGS_V2_TMSAR(0), REGS_V2_TMSAR(15)),
 	regmap_reg_range(REGS_IPBRR(0), REGS_IPBRR(1)),
@@ -492,9 +528,15 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 	}
 	data->ver = (ver >> 8) & 0xff;
 
+	if (of_find_compatible_node(NULL, NULL, "fsl,imx93-tmu"))
+		data->ver = TMU_VER93;
+
 	qoriq_tmu_init_device(data);	/* TMU initialization */
 
-	ret = qoriq_tmu_calibration(dev, data);	/* TMU calibration */
+	if (data->ver == TMU_VER93)
+		ret = imx93_tmu_calibration(dev, data);
+	else
+		ret = qoriq_tmu_calibration(dev, data);	/* TMU calibration */
 	if (ret < 0)
 		return ret;
 
@@ -570,6 +612,7 @@ static SIMPLE_DEV_PM_OPS(qoriq_tmu_pm_ops,
 static const struct of_device_id qoriq_tmu_match[] = {
 	{ .compatible = "fsl,qoriq-tmu", },
 	{ .compatible = "fsl,imx8mq-tmu", },
+	{ .compatible = "fsl,imx93-tmu", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, qoriq_tmu_match);

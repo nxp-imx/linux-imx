@@ -1,21 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
- *
- * This program is free software and is provided to you under the terms of the
- * GNU General Public License version 2 as published by the Free Software
- * Foundation, and any use by you of this program is subject to the terms
- * of such GNU licence.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, you can access it online at
- * http://www.gnu.org/licenses/gpl-2.0.html.
- *
- * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (c) 2022 Arm Limited.
  */
 
 #ifndef ETHOSU_CORE_INTERFACE_H
@@ -32,7 +17,9 @@ namespace EthosU {
 #endif
 
 /** Maximum number of IFM/OFM buffers per inference */
-#define ETHOSU_CORE_BUFFER_MAX 16
+#define ETHOSU_CORE_BUFFER_MAX 4
+/** Maximum number of dimensions for input and output */
+#define ETHOSU_CORE_DIM_MAX 4
 
 /** Maximum number of PMU counters to be returned for inference */
 #define ETHOSU_CORE_PMU_MAX 4
@@ -60,7 +47,12 @@ enum ethosu_core_msg_type {
 	ETHOSU_CORE_MSG_VERSION_RSP,
 	ETHOSU_CORE_MSG_CAPABILITIES_REQ,
 	ETHOSU_CORE_MSG_CAPABILITIES_RSP,
+	ETHOSU_CORE_MSG_NETWORK_INFO_REQ,
+	ETHOSU_CORE_MSG_NETWORK_INFO_RSP,
+	ETHOSU_CORE_MSG_CANCEL_INFERENCE_REQ,
+	ETHOSU_CORE_MSG_CANCEL_INFERENCE_RSP,
 	ETHOSU_CORE_MSG_POWER_REQ,
+	ETHOSU_CORE_MSG_POWER_RSP,
 	ETHOSU_CORE_MSG_MAX
 };
 
@@ -92,28 +84,66 @@ struct ethosu_core_queue {
 	uint8_t                         data[];
 };
 
+/**
+ * enum ethosu_core_status - Status
+ */
 enum ethosu_core_status {
 	ETHOSU_CORE_STATUS_OK,
-	ETHOSU_CORE_STATUS_ERROR
+	ETHOSU_CORE_STATUS_ERROR,
+	ETHOSU_CORE_STATUS_RUNNING,
+	ETHOSU_CORE_STATUS_REJECTED,
+	ETHOSU_CORE_STATUS_ABORTED,
+	ETHOSU_CORE_STATUS_ABORTING,
 };
 
+/**
+ * struct ethosu_core_buffer - Buffer descriptor
+ *
+ * Pointer and size to a buffer within the Ethos-U
+ * address space.
+ */
 struct ethosu_core_buffer {
 	uint32_t ptr;
 	uint32_t size;
 };
 
+/**
+ * enum ethosu_core_network_type - Network buffer type
+ */
+enum ethosu_core_network_type {
+	ETHOSU_CORE_NETWORK_BUFFER = 1,
+	ETHOSU_CORE_NETWORK_INDEX
+};
+
+/**
+ * struct ethosu_core_network_buffer - Network buffer
+ */
+struct ethosu_core_network_buffer {
+	u32 type;
+	union {
+		struct ethosu_core_buffer buffer;
+		u32                       index;
+	};
+};
+
+/**
+ * struct ethosu_core_inference_req - Inference request
+ */
 struct ethosu_core_inference_req {
 	uint64_t                  user_arg;
 	uint32_t                  ifm_count;
 	struct ethosu_core_buffer ifm[ETHOSU_CORE_BUFFER_MAX];
 	uint32_t                  ofm_count;
 	struct ethosu_core_buffer ofm[ETHOSU_CORE_BUFFER_MAX];
-	struct ethosu_core_buffer network;
+	struct ethosu_core_network_buffer network;
 	uint8_t                   pmu_event_config[ETHOSU_CORE_PMU_MAX];
 	uint32_t                  pmu_cycle_counter_enable;
 	uint32_t                  inference_type;
 };
 
+/**
+ * struct ethosu_core_inference_rsp - Inference response
+ */
 struct ethosu_core_inference_rsp {
 	uint64_t user_arg;
 	uint32_t ofm_count;
@@ -126,7 +156,37 @@ struct ethosu_core_inference_rsp {
 };
 
 /**
- * struct ethosu_core_msg_verson - Message protocol version
+ * struct ethosu_core_network_info_req - Network information request
+ */
+struct ethosu_core_network_info_req {
+	u64                               user_arg;
+	struct ethosu_core_network_buffer network;
+};
+
+/**
+ * struct ethosu_core_network_info_rsp - Network information response
+ */
+struct ethosu_core_network_info_rsp {
+	u64      user_arg;
+	char     desc[32];
+	u32      is_vela;
+	u32      ifm_count;
+	u32      ifm_size[ETHOSU_CORE_BUFFER_MAX];
+	u32      ifm_types[ETHOSU_CORE_BUFFER_MAX];
+	u32      ifm_offset[ETHOSU_CORE_BUFFER_MAX];
+	u32      ifm_dims[ETHOSU_CORE_BUFFER_MAX];
+	u32      ifm_shapes[ETHOSU_CORE_BUFFER_MAX][ETHOSU_CORE_DIM_MAX];
+	u32      ofm_count;
+	u32      ofm_size[ETHOSU_CORE_BUFFER_MAX];
+	u32      ofm_types[ETHOSU_CORE_BUFFER_MAX];
+	u32      ofm_offset[ETHOSU_CORE_BUFFER_MAX];
+	u32      ofm_dims[ETHOSU_CORE_BUFFER_MAX];
+	u32      ofm_shapes[ETHOSU_CORE_BUFFER_MAX][ETHOSU_CORE_DIM_MAX];
+	u32      status;
+};
+
+/**
+ * struct ethosu_core_msg_version - Message protocol version
  */
 struct ethosu_core_msg_version {
 	uint8_t major;
@@ -160,6 +220,22 @@ struct ethosu_core_msg_capabilities_rsp {
 	uint32_t macs_per_cc;
 	uint32_t cmd_stream_version;
 	uint32_t custom_dma;
+};
+
+/**
+ * struct ethosu_core_cancel_inference_req - Message cancel inference request
+ */
+struct ethosu_core_cancel_inference_req {
+	u64 user_arg;
+	u64 inference_handle;
+};
+
+/**
+ * struct ethosu_core_cancel_inference_rsp - Message cancel inference response
+ */
+struct ethosu_core_cancel_inference_rsp {
+	u64 user_arg;
+	u32 status;
 };
 
 enum ethosu_core_power_req_type {

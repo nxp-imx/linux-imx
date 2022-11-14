@@ -35,6 +35,7 @@ struct seco_mu_ioctl_signed_message {
 #define SECO_MU_IO_FLAGS_IS_INPUT	(0x01u)
 #define SECO_MU_IO_FLAGS_USE_SEC_MEM	(0x02u)
 #define SECO_MU_IO_FLAGS_USE_SHORT_ADDR	(0x04u)
+#define SECO_MU_IO_FLAGS_SHE_V2X	(0x08u)
 
 #define SECO_MU_IOCTL			0x0A /* like MISC_MAJOR. */
 #define SECO_MU_IOCTL_ENABLE_CMD_RCV	_IO(SECO_MU_IOCTL, 0x01)

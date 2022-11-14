@@ -292,7 +292,8 @@ imx8mp_ldb_bind(struct device *dev, struct device *master, void *data)
 		if (ret || i < 0 || i > 1)
 			return -EINVAL;
 
-		if (!of_device_is_available(child))
+		if (!of_device_is_available(child) ||
+		    of_node_check_flag(child, OF_DETACHED))
 			continue;
 
 		encoder[i] = &imx8mp_ldb->channel[i].encoder;

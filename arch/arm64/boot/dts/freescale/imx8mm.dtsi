@@ -1136,29 +1136,6 @@
 
 		};
 
-		noc: interconnect@32700000 {
-			compatible = "fsl,imx8mm-noc", "fsl,imx8m-noc";
-			reg = <0x32700000 0x100000>;
-			clocks = <&clk IMX8MM_CLK_NOC>;
-			fsl,ddrc = <&ddrc>;
-			#interconnect-cells = <1>;
-			operating-points-v2 = <&noc_opp_table>;
-
-			noc_opp_table: opp-table {
-				compatible = "operating-points-v2";
-
-				opp-150M {
-					opp-hz = /bits/ 64 <150000000>;
-				};
-				opp-375M {
-					opp-hz = /bits/ 64 <375000000>;
-				};
-				opp-750M {
-					opp-hz = /bits/ 64 <750000000>;
-				};
-			};
-		};
-
 		aips4: bus@32c00000 {
 			compatible = "fsl,aips-bus", "simple-bus";
 			reg = <0x32c00000 0x400000>;
@@ -1402,16 +1379,6 @@
 			#interrupt-cells = <3>;
 			interrupt-controller;
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
-		ddrc: memory-controller@3d400000 {
-			compatible = "fsl,imx8mm-ddrc", "fsl,imx8m-ddrc";
-			reg = <0x3d400000 0x400000>;
-			clock-names = "core", "pll", "alt", "apb";
-			clocks = <&clk IMX8MM_CLK_DRAM_CORE>,
-				 <&clk IMX8MM_DRAM_PLL>,
-				 <&clk IMX8MM_CLK_DRAM_ALT>,
-				 <&clk IMX8MM_CLK_DRAM_APB>;
 		};
 
 		ddr-pmu@3d800000 {

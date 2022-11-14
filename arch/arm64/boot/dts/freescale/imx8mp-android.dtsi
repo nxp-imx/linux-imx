@@ -11,59 +11,6 @@
 			boot_devices_mmcblk1 = "soc@0/30800000.bus/30b50000.mmc";
 			/* emmc node which used if androidboot.boot_device_root=mmcblk2 */
 			boot_devices_mmcblk2 = "soc@0/30800000.bus/30b60000.mmc";
-			fstab {
-				compatible = "android,fstab";
-				system {
-					compatible = "android,system";
-					dev = "system";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
-				};
-				system_ext4 {
-					compatible = "android,system";
-					dev = "system";
-					type = "ext4";
-					mnt_point = "/system";
-					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
-				};
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "system_ext";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				vendor {
-					compatible = "android,vendor";
-					dev = "vendor";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				vendor_dlkm {
-					compatible = "android,vendor_dlkm";
-					dev = "vendor_dlkm";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				product {
-					compatible = "android,product";
-					dev = "product";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				metadata {
-					compatible = "android,metadata";
-					dev = "/dev/block/by-name/metadata";
-					type = "f2fs";
-					mnt_flags = "noatime,nosuid,nodev,discard,sync,fsync_mode=nobarrier";
-					fsmgr_flags = "wait,formattable,first_stage_mount,check";
-				};
-			};
 			vbmeta {
 				/*we need use FirstStageMountVBootV2 if we enable avb*/
 				compatible = "android,vbmeta";

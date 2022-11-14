@@ -895,7 +895,8 @@ _return:
 }
 
 static const struct acpi_device_id mac_acpi_match[] = {
-	{"NXP0025", 0}
+	{"NXP0025", 0},
+	{},
 };
 MODULE_DEVICE_TABLE(acpi, mac_acpi_match);
 

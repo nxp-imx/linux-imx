@@ -548,6 +548,7 @@ void phylink_mac_change(struct phylink *, bool up);
 
 void phylink_start(struct phylink *);
 void phylink_stop(struct phylink *);
+void phylink_set_mac_pm(struct phylink *pl);
 
 void phylink_suspend(struct phylink *pl, bool mac_wol);
 void phylink_resume(struct phylink *pl);

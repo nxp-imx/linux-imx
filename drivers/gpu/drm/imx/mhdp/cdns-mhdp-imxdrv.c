@@ -172,6 +172,9 @@ static int cdns_mhdp_imx_bind(struct device *dev, struct device *master,
 		return -ENOMEM;
 
 	match = of_match_node(cdns_mhdp_imx_dt_ids, pdev->dev.of_node);
+	if (!match)
+		return -EFAULT;
+
 	plat_data = match->data;
 	encoder = &imx_mhdp->encoder;
 

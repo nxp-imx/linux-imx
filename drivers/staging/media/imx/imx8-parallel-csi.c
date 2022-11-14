@@ -17,6 +17,7 @@
 #include <linux/memory.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
@@ -31,6 +32,8 @@
 #include <dt-bindings/pinctrl/pads-imx8qxp.h>
 #include <linux/init.h>
 #include <linux/pm_domain.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 #include "imx8-common.h"
 
@@ -41,7 +44,6 @@
 #define CI_PI_BASE_OFFSET	0x0U
 
 /* CI_PI INTERFACE Control */
-#define IF_CTRL_REG                     (CI_PI_BASE_OFFSET + 0x00)
 #define IF_CTRL_REG_PL_ENABLE           BIT_U(0)
 #define IF_CTRL_REG_PL_VALID            BIT_U(1)
 #define IF_CTRL_REG_PL_ADDR(x)          (((x) & 0x7U) << 2)
@@ -62,16 +64,14 @@
 #define IF_CTRL_REG_IF_FORCE_VSYNV_OVERRIDE         0x2
 #define IF_CTRL_REG_IF_FORCE_DATA_ENABLE_OVERRIDE   0x1
 
-#define IF_CTRL_REG_SET                 (CI_PI_BASE_OFFSET + 0x04)
-#define IF_CTRL_REG_CLR                 (CI_PI_BASE_OFFSET + 0x08)
-#define IF_CTRL_REG_TOG                 (CI_PI_BASE_OFFSET + 0x0C)
-
 /* CSI INTERFACE CONTROL REG */
-#define CSI_CTRL_REG                    (CI_PI_BASE_OFFSET + 0x10)
 #define CSI_CTRL_REG_CSI_EN                     BIT_U(0)
 #define CSI_CTRL_REG_PIXEL_CLK_POL              BIT_U(1)
+#define CSI_CTRL_REG_PIXEL_CLK_POL_OFFSET       (1)
 #define CSI_CTRL_REG_HSYNC_POL                  BIT_U(2)
+#define CSI_CTRL_REG_HSYNC_POL_OFFSET		(2)
 #define CSI_CTRL_REG_VSYNC_POL                  BIT_U(3)
+#define CSI_CTRL_REG_VSYNC_POL_OFFSET           (3)
 #define CSI_CTRL_REG_DE_POL                     BIT_U(4)
 #define CSI_CTRL_REG_PIXEL_DATA_POL             BIT_U(5)
 #define CSI_CTRL_REG_CCIR_EXT_VSYNC_EN          BIT_U(6)
@@ -106,33 +106,66 @@
 #define DATA_TYPE_IN_BAYER_12BITS         0xB
 #define DATA_TYPE_IN_BAYER_16BITS         0xC
 
-#define CSI_CTRL_REG_SET                (CI_PI_BASE_OFFSET + 0x14)
-#define CSI_CTRL_REG_CLR                (CI_PI_BASE_OFFSET + 0x18)
-#define CSI_CTRL_REG_TOG                (CI_PI_BASE_OFFSET + 0x1C)
-
 /* CSI interface Status */
-#define CSI_STATUS                      (CI_PI_BASE_OFFSET + 0x20)
 #define CSI_STATUS_FIELD_TOGGLE         BIT_U(0)
 #define CSI_STATUS_ECC_ERROR            BIT_U(1)
 
-#define CSI_STATUS_SET                  (CI_PI_BASE_OFFSET + 0x24)
-#define CSI_STATUS_CLR                  (CI_PI_BASE_OFFSET + 0x28)
-#define CSI_STATUS_TOG                  (CI_PI_BASE_OFFSET + 0x2C)
-
 /* CSI INTERFACE CONTROL REG1 */
-#define CSI_CTRL_REG1                   (CI_PI_BASE_OFFSET + 0x30)
 #define CSI_CTRL_REG1_PIXEL_WIDTH(v)    (((v) & 0xFFFFU) << 0)
 #define CSI_CTRL_REG1_VSYNC_PULSE(v)    (((v) & 0xFFFFU) << 16)
 
-#define CSI_CTRL_REG1_SET               (CI_PI_BASE_OFFSET + 0x34)
-#define CSI_CTRL_REG1_CLR               (CI_PI_BASE_OFFSET + 0x38)
-#define CSI_CTRL_REG1_TOG               (CI_PI_BASE_OFFSET + 0x3C)
+#define DISP_MIX_CAMERA_MUX			0x30
+#define DISP_MIX_CAMERA_MUX_DATA_TYPE(x)	(((x) & 0x3f) << 3)
+#define DISP_MIX_CAMERA_MUX_GASKET_ENABLE	(1 << 16)
+
+enum csi_in_data_type {
+	CSI_IN_DT_UYVY_BT656_8	= 0x0,
+	CSI_IN_DT_UYVY_BT656_10,
+	CSI_IN_DT_RGB_8,
+	CSI_IN_DT_BGR_8,
+	CSI_IN_DT_YVYU_8	= 0x5,
+	CSI_IN_DT_YUV_8,
+	CSI_IN_DT_RAW_8		= 0x9,
+	CSI_IN_DT_RAW_10,
+};
+
+enum source_type {
+	SRC_TYPE_MIPI_CSI = 0,
+	SRC_TYPE_PARALLEL,
+};
+
+struct mxc_parallel_csi_dev;
+
+struct mxc_pcsi_power_domain_ops {
+	int (*attach_pd)(struct mxc_parallel_csi_dev *pcsidev);
+	void (*deattach_pd)(struct mxc_parallel_csi_dev *pcsidev);
+};
+
+struct mxc_pcsi_plat_data {
+	u32 version;
+	u32 if_ctrl_reg;
+	u32 interface_status;
+	u32 interface_ctrl_reg;
+	u32 interface_ctrl_reg1;
+	bool has_gasket;
+	u8 def_hsync_pol;
+	u8 def_vsync_pol;
+	u8 def_pixel_clk_pol;
+	u8 def_csi_in_data_type;
+	const struct mxc_pcsi_power_domain_ops *pd_ops;
+};
 
 enum {
 	PI_MODE_INIT,
 	PI_GATE_CLOCK_MODE,
 	PI_CCIR_MODE,
 };
+
+enum {
+	PI_V1 = 0x0,
+	PI_V2,
+};
+
 struct mxc_parallel_csi_dev {
 	struct v4l2_subdev	sd;
 	struct v4l2_device	v4l2_dev;
@@ -142,7 +175,7 @@ struct mxc_parallel_csi_dev {
 
 	void __iomem *csr_regs;
 	void __iomem *lpcg_regs;
-	struct platform_device *pdev;
+	struct device *dev;
 	u32 flags;
 	int irq;
 
@@ -160,6 +193,9 @@ struct mxc_parallel_csi_dev {
 	struct device_link *pd_pi_link;
 	struct device_link *pd_isi_link;
 
+	const struct mxc_pcsi_plat_data *pdata;
+	struct regmap *gasket;
+
 	struct mutex lock;
 
 	u8 running;
@@ -176,18 +212,22 @@ static int format;
 module_param(format, int, 0644);
 MODULE_PARM_DESC(format, "Format level (0-2)");
 
+static const struct of_device_id parallel_csi_of_match[];
+
 #ifdef DEBUG
 static void mxc_pcsi_regs_dump(struct mxc_parallel_csi_dev *pcsidev)
 {
-	struct device *dev = &pcsidev->pdev->dev;
+	struct device *dev = pcsidev->dev;
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 	struct {
 		u32 offset;
-		const char *const name[32];
+		const char *const name;
 	} registers[] = {
-		{ 0x00, "HW_IF_CTRL_REG" },
-		{ 0x10, "HW_CSI_CTRL_REG" },
-		{ 0x20, "HW_CSI_STATUS" },
-		{ 0x30, "HW_CSI_CTRL_REG1" },
+		{ pdata->if_ctrl_reg, "HW_IF_CTRL_REG" },
+		{ pdata->interface_ctrl_reg, "HW_CSI_CTRL_REG" },
+		{ pdata->interface_status, "HW_CSI_STATUS" },
+		{ pdata->interface_ctrl_reg1, "HW_CSI_CTRL_REG1" },
+
 	};
 	u32 i;
 
@@ -201,24 +241,50 @@ static void mxc_pcsi_regs_dump(struct mxc_parallel_csi_dev *pcsidev)
 static void mxc_pcsi_regs_dump(struct mxc_parallel_csi_dev *pcsidev) { }
 #endif
 
+static void gasket_dump(struct mxc_parallel_csi_dev *pcsidev)
+{
+	struct device *dev = pcsidev->dev;
+	struct regmap *gasket = pcsidev->gasket;
+	u32 val;
+
+	if (!pcsidev->pdata->has_gasket)
+		return;
+
+	regmap_read(gasket, DISP_MIX_CAMERA_MUX, &val);
+	dev_dbg(dev, "gasket: CAMERA MUX: %#x\n", val);
+}
+
 static struct mxc_parallel_csi_dev *sd_to_mxc_pcsi_dev(struct v4l2_subdev *sdev)
 {
 	return container_of(sdev, struct mxc_parallel_csi_dev, sd);
 }
 
+static void disp_mix_gasket_config(struct mxc_parallel_csi_dev *pcsidev)
+{
+	struct regmap *gasket = pcsidev->gasket;
+	u32 val;
+
+	if (!pcsidev->pdata->has_gasket)
+		return;
+
+	regmap_read(gasket, DISP_MIX_CAMERA_MUX, &val);
+	val |= (SRC_TYPE_PARALLEL << 17);
+	regmap_write(gasket, DISP_MIX_CAMERA_MUX, val);
+}
+
 static int mxc_pcsi_clk_get(struct mxc_parallel_csi_dev *pcsidev)
 {
-	struct device *dev = &pcsidev->pdev->dev;
+	struct device *dev = pcsidev->dev;
 
 	pcsidev->clk_pixel = devm_clk_get(dev, "pixel");
 	if (IS_ERR(pcsidev->clk_pixel)) {
-		dev_info(dev, "failed to get parallel csi pixel clk\n");
+		dev_err(dev, "failed to get parallel csi pixel clk\n");
 		return PTR_ERR(pcsidev->clk_pixel);
 	}
 
 	pcsidev->clk_ipg = devm_clk_get(dev, "ipg");
 	if (IS_ERR(pcsidev->clk_ipg)) {
-		dev_info(dev, "failed to get parallel ipg pixel clk\n");
+		dev_err(dev, "failed to get parallel ipg pixel clk\n");
 		return PTR_ERR(pcsidev->clk_ipg);
 	}
 
@@ -227,55 +293,27 @@ static int mxc_pcsi_clk_get(struct mxc_parallel_csi_dev *pcsidev)
 
 static int mxc_pcsi_attach_pd(struct mxc_parallel_csi_dev *pcsidev)
 {
-	struct device *dev = &pcsidev->pdev->dev;
-	struct device_link *link;
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 
-	pcsidev->pd_pi = dev_pm_domain_attach_by_name(dev, "pd_pi");
-	if (IS_ERR(pcsidev->pd_pi)) {
-		if (PTR_ERR(pcsidev->pd_pi) != -EPROBE_DEFER) {
-			dev_err(dev, "attach pd_pi domain for pi fail\n");
-			return PTR_ERR(pcsidev->pd_pi);
-		} else {
-			return PTR_ERR(pcsidev->pd_pi);
-		}
-	}
-	link = device_link_add(dev, pcsidev->pd_pi,
-			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME);
-	if (IS_ERR(link))
-		return PTR_ERR(link);
-	pcsidev->pd_pi_link = link;
+	if (!pdata || !pdata->pd_ops || !pdata->pd_ops->attach_pd)
+		return 0;
 
-	pcsidev->pd_isi = dev_pm_domain_attach_by_name(dev, "pd_isi_ch0");
-	if (IS_ERR(pcsidev->pd_isi)) {
-		if (PTR_ERR(pcsidev->pd_isi) != -EPROBE_DEFER) {
-			dev_err(dev, "attach pd_isi_ch0 domain for pi fail\n");
-			return PTR_ERR(pcsidev->pd_isi);
-		} else {
-			return PTR_ERR(pcsidev->pd_isi);
-		}
-	}
-	link = device_link_add(dev, pcsidev->pd_isi,
-			       DL_FLAG_STATELESS |
-			       DL_FLAG_PM_RUNTIME);
-	if (IS_ERR(link))
-		return PTR_ERR(link);
-	pcsidev->pd_isi_link = link;
-
-	return 0;
+	return pdata->pd_ops->attach_pd(pcsidev);
 }
 
 static void mxc_pcsi_detach_pd(struct mxc_parallel_csi_dev *pcsidev)
 {
-	device_link_del(pcsidev->pd_pi_link);
-	device_link_del(pcsidev->pd_isi_link);
-	dev_pm_domain_detach(pcsidev->pd_pi, true);
-	dev_pm_domain_detach(pcsidev->pd_isi, true);
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
+
+	if (!pdata || !pdata->pd_ops || !pdata->pd_ops->deattach_pd)
+		return;
+
+	return pdata->pd_ops->deattach_pd(pcsidev);
 }
 
 static int mxc_pcsi_clk_enable(struct mxc_parallel_csi_dev *pcsidev)
 {
-	struct device *dev = &pcsidev->pdev->dev;
+	struct device *dev = pcsidev->dev;
 	int ret;
 
 	if (pcsidev->clk_enable)
@@ -283,13 +321,13 @@ static int mxc_pcsi_clk_enable(struct mxc_parallel_csi_dev *pcsidev)
 
 	ret = clk_prepare_enable(pcsidev->clk_pixel);
 	if (ret < 0) {
-		dev_info(dev, "enable pixel clk error (%d)\n", ret);
+		dev_err(dev, "enable pixel clk error (%d)\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(pcsidev->clk_ipg);
 	if (ret < 0) {
-		dev_info(dev, "enable ipg clk error (%d)\n", ret);
+		dev_err(dev, "enable ipg clk error (%d)\n", ret);
 		return ret;
 	}
 	pcsidev->clk_enable = true;
@@ -310,43 +348,55 @@ static void mxc_pcsi_clk_disable(struct mxc_parallel_csi_dev *pcsidev)
 
 static void mxc_pcsi_sw_reset(struct mxc_parallel_csi_dev *pcsidev)
 {
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 	u32 val;
 
 	/* Softwaret Reset */
-	val = CSI_CTRL_REG_SOFTRST;
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val |= CSI_CTRL_REG_SOFTRST;
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 
 	msleep(1);
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_CLR);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val &= ~CSI_CTRL_REG_SOFTRST;
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 }
 
 static void mxc_pcsi_csr_config(struct mxc_parallel_csi_dev *pcsidev)
 {
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 	u32 val;
 
 	/* Software Reset */
 	mxc_pcsi_sw_reset(pcsidev);
 
 	/* Config PL Data Type */
-	val = IF_CTRL_REG_DATA_TYPE(DATA_TYPE_OUT_YUV444);
-	writel(val, pcsidev->csr_regs + IF_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->if_ctrl_reg);
+	val |= IF_CTRL_REG_DATA_TYPE(DATA_TYPE_OUT_YUV444);
+	writel(val, pcsidev->csr_regs + pdata->if_ctrl_reg);
 
 	/* Enable sync Force */
-	val = (CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val |= (CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 
 	/* Enable Pixel Link */
-	val = IF_CTRL_REG_PL_ENABLE;
-	writel(val, pcsidev->csr_regs + IF_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->if_ctrl_reg);
+	val |= IF_CTRL_REG_PL_ENABLE;
+	writel(val, pcsidev->csr_regs + pdata->if_ctrl_reg);
 
 	/* Enable Pixel Link */
-	val = IF_CTRL_REG_PL_VALID;
-	writel(val, pcsidev->csr_regs + IF_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->if_ctrl_reg);
+	val |= IF_CTRL_REG_PL_VALID;
+	writel(val, pcsidev->csr_regs + pdata->if_ctrl_reg);
 
 	/* Config CTRL REG */
-	val = readl(pcsidev->csr_regs + CSI_CTRL_REG);
-	val |= (CSI_CTRL_REG_DATA_TYPE_IN(DATA_TYPE_IN_UYVY_BT656_8BITS) |
-		CSI_CTRL_REG_HSYNC_POL |
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+
+	val |= (CSI_CTRL_REG_DATA_TYPE_IN(pdata->def_csi_in_data_type) |
+		pdata->def_hsync_pol << CSI_CTRL_REG_HSYNC_POL_OFFSET |
+		pdata->def_vsync_pol << CSI_CTRL_REG_VSYNC_POL_OFFSET |
+		pdata->def_pixel_clk_pol << CSI_CTRL_REG_PIXEL_CLK_POL_OFFSET |
 		CSI_CTRL_REG_MASK_VSYNC_COUNTER(3) |
 		CSI_CTRL_REG_HSYNC_PULSE(2));
 
@@ -362,53 +412,89 @@ static void mxc_pcsi_csr_config(struct mxc_parallel_csi_dev *pcsidev)
 			CSI_CTRL_REG_CCIR_ECC_ERR_CORRECT_EN);
 	}
 
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG);
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
+}
+
+static int get_interface_ctrl_reg1_param(struct mxc_parallel_csi_dev *pcsidev,
+					 u32 *pixel_width, u32 *vsync_pulse)
+{
+	u32 version = pcsidev->pdata->version;
+
+	switch (version) {
+	case PI_V1:
+		*pixel_width = pcsidev->format.width - 1;
+		*vsync_pulse = pcsidev->format.width << 1;
+		break;
+	case PI_V2:
+		*pixel_width = 10;
+		*vsync_pulse = pcsidev->format.width - 1;
+		break;
+	default:
+		dev_err(pcsidev->dev, "Not support PI version %d\n", version);
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static void mxc_pcsi_config_ctrl_reg1(struct mxc_parallel_csi_dev *pcsidev)
 {
-	struct device *dev = &pcsidev->pdev->dev;
+	struct device *dev = pcsidev->dev;
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
+	u32 pixel_width;
+	u32 vsync_pulse;
 	u32 val;
+	int ret;
 
 	if (pcsidev->format.width <= 0 || pcsidev->format.height <= 0) {
 		dev_dbg(dev, "%s width/height invalid\n", __func__);
 		return;
 	}
 
-	/* Config Pixel Width */
-	val = (CSI_CTRL_REG1_PIXEL_WIDTH(pcsidev->format.width - 1) |
-	       CSI_CTRL_REG1_VSYNC_PULSE(pcsidev->format.width << 1));
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG1);
+	ret = get_interface_ctrl_reg1_param(pcsidev, &pixel_width, &vsync_pulse);
+	if (ret < 0)
+		return;
+
+	val = (CSI_CTRL_REG1_PIXEL_WIDTH(pixel_width) |
+	       CSI_CTRL_REG1_VSYNC_PULSE(vsync_pulse));
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg1);
 }
 
 static void mxc_pcsi_enable_csi(struct mxc_parallel_csi_dev *pcsidev)
 {
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 	u32 val;
 
 	/* Enable CSI */
-	val = CSI_CTRL_REG_CSI_EN;
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val |= CSI_CTRL_REG_CSI_EN;
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 
 	/* Disable SYNC Force */
-	val = (CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_CLR);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val &= ~(CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 }
 
 static void mxc_pcsi_disable_csi(struct mxc_parallel_csi_dev *pcsidev)
 {
+	const struct mxc_pcsi_plat_data *pdata = pcsidev->pdata;
 	u32 val;
 
 	/* Enable Sync Force */
-	val = (CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_SET);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val |= (CSI_CTRL_REG_HSYNC_FORCE_EN | CSI_CTRL_REG_VSYNC_FORCE_EN);
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 
 	/* Disable CSI */
-	val = CSI_CTRL_REG_CSI_EN;
-	writel(val, pcsidev->csr_regs + CSI_CTRL_REG_CLR);
+	val = readl(pcsidev->csr_regs + pdata->interface_ctrl_reg);
+	val &= ~CSI_CTRL_REG_CSI_EN;
+	writel(val, pcsidev->csr_regs + pdata->interface_ctrl_reg);
 
 	/* Disable Pixel Link */
-	val = IF_CTRL_REG_PL_VALID | IF_CTRL_REG_PL_ENABLE;
-	writel(val, pcsidev->csr_regs + IF_CTRL_REG_CLR);
+	val = readl(pcsidev->csr_regs + pdata->if_ctrl_reg);
+	val &= ~(IF_CTRL_REG_PL_VALID | IF_CTRL_REG_PL_ENABLE);
+	writel(val, pcsidev->csr_regs + pdata->if_ctrl_reg);
 }
 
 static struct media_pad *
@@ -498,9 +584,8 @@ static int mxc_pcsi_get_sensor_fmt(struct mxc_parallel_csi_dev *pcsidev)
 	    mf->code == MEDIA_BUS_FMT_UYVY8_2X8)
 		pcsidev->uv_swap = 1;
 
-	dev_dbg(&pcsidev->pdev->dev,
-		"width=%d, height=%d, fmt.code=0x%x\n",
-		mf->width, mf->height, mf->code);
+	dev_dbg(pcsidev->dev, "width=%d, height=%d, fmt.code=0x%x\n",
+				mf->width, mf->height, mf->code);
 
 	return 0;
 }
@@ -620,7 +705,7 @@ static int mxc_pcsi_s_frame_interval(struct v4l2_subdev *sd,
 static int mxc_pcsi_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct mxc_parallel_csi_dev *pcsidev = sd_to_mxc_pcsi_dev(sd);
-	struct device *dev = &pcsidev->pdev->dev;
+	struct device *dev = pcsidev->dev;
 
 	dev_dbg(dev, "%s: enable = %d\n", __func__, enable);
 
@@ -631,12 +716,16 @@ static int mxc_pcsi_s_stream(struct v4l2_subdev *sd, int enable)
 			mxc_pcsi_csr_config(pcsidev);
 			mxc_pcsi_config_ctrl_reg1(pcsidev);
 			mxc_pcsi_enable_csi(pcsidev);
+			disp_mix_gasket_config(pcsidev);
 			mxc_pcsi_regs_dump(pcsidev);
+			gasket_dump(pcsidev);
 		}
 		pcsidev->running++;
 	} else {
-		if (pcsidev->running)
+		if (pcsidev->running) {
+			mxc_pcsi_regs_dump(pcsidev);
 			mxc_pcsi_disable_csi(pcsidev);
+		}
 		pcsidev->running--;
 		pm_runtime_put(dev);
 	}
@@ -709,7 +798,24 @@ static int mxc_parallel_csi_probe(struct platform_device *pdev)
 	if (!pcsidev)
 		return -ENOMEM;
 
-	pcsidev->pdev = pdev;
+	pcsidev->dev = dev;
+	platform_set_drvdata(pdev, pcsidev);
+
+	pcsidev->pdata = of_device_get_match_data(dev);
+	if (!pcsidev->pdata) {
+		dev_err(dev, "Can't get platform device data\n");
+		return -EINVAL;
+	}
+
+	if (pcsidev->pdata->has_gasket) {
+		pcsidev->gasket = syscon_regmap_lookup_by_phandle(dev->of_node,
+								  "pi_gpr");
+		if (IS_ERR(pcsidev->gasket)) {
+			ret = PTR_ERR(pcsidev->gasket);
+			dev_err(dev, "failed to get gasket: %d\n", ret);
+			return ret;
+		}
+	}
 
 	mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pcsidev->csr_regs = devm_ioremap_resource(dev, mem_res);
@@ -750,7 +856,6 @@ static int mxc_parallel_csi_probe(struct platform_device *pdev)
 	pcsidev->sd.entity.ops = &mxc_pcsi_sd_media_ops;
 
 	v4l2_set_subdevdata(&pcsidev->sd, pdev);
-	platform_set_drvdata(pdev, pcsidev);
 
 	pcsidev->running = 0;
 	pm_runtime_enable(dev);
@@ -806,6 +911,87 @@ static int parallel_csi_runtime_resume(struct device *dev)
 	return 0;
 }
 
+static int imx8_pcsi_attach_pd(struct mxc_parallel_csi_dev *pcsidev)
+{
+	struct device *dev = pcsidev->dev;
+	struct device_link *link;
+
+	pcsidev->pd_pi = dev_pm_domain_attach_by_name(dev, "pd_pi");
+	if (IS_ERR(pcsidev->pd_pi)) {
+		if (PTR_ERR(pcsidev->pd_pi) != -EPROBE_DEFER) {
+			dev_err(dev, "attach pd_pi domain for pi fail\n");
+			return PTR_ERR(pcsidev->pd_pi);
+		} else {
+			return PTR_ERR(pcsidev->pd_pi);
+		}
+	}
+	link = device_link_add(dev, pcsidev->pd_pi,
+			       DL_FLAG_STATELESS |
+			       DL_FLAG_PM_RUNTIME);
+	if (IS_ERR(link))
+		return PTR_ERR(link);
+	pcsidev->pd_pi_link = link;
+
+	pcsidev->pd_isi = dev_pm_domain_attach_by_name(dev, "pd_isi_ch0");
+	if (IS_ERR(pcsidev->pd_isi)) {
+		if (PTR_ERR(pcsidev->pd_isi) != -EPROBE_DEFER) {
+			dev_err(dev, "attach pd_isi_ch0 domain for pi fail\n");
+			return PTR_ERR(pcsidev->pd_isi);
+		} else {
+			return PTR_ERR(pcsidev->pd_isi);
+		}
+	}
+	link = device_link_add(dev, pcsidev->pd_isi,
+			       DL_FLAG_STATELESS |
+			       DL_FLAG_PM_RUNTIME);
+	if (IS_ERR(link))
+		return PTR_ERR(link);
+	pcsidev->pd_isi_link = link;
+
+	return 0;
+}
+
+static void imx8_pcsi_deattch_pd(struct mxc_parallel_csi_dev *pcsidev)
+{
+	device_link_del(pcsidev->pd_pi_link);
+	device_link_del(pcsidev->pd_isi_link);
+	dev_pm_domain_detach(pcsidev->pd_pi, true);
+	dev_pm_domain_detach(pcsidev->pd_isi, true);
+}
+
+static const struct mxc_pcsi_power_domain_ops imx8_pd_ops = {
+	.attach_pd	= imx8_pcsi_attach_pd,
+	.deattach_pd	= imx8_pcsi_deattch_pd,
+};
+
+static const struct mxc_pcsi_plat_data imx8_pdata = {
+	.version		= PI_V1,
+	.if_ctrl_reg		= 0x0,
+	.interface_ctrl_reg	= 0x10,
+	.interface_status	= 0x20,
+	.interface_ctrl_reg1	= 0x30,
+	.has_gasket		= false,
+	.def_hsync_pol		= 1,
+	.def_vsync_pol		= 0,
+	.def_pixel_clk_pol	= 0,
+	.def_csi_in_data_type	= CSI_IN_DT_UYVY_BT656_8,
+	.pd_ops			= &imx8_pd_ops,
+};
+
+static const struct mxc_pcsi_plat_data imx93_pdata = {
+	.version		= PI_V2,
+	.if_ctrl_reg		= 0x0,
+	.interface_status	= 0x4,
+	.interface_ctrl_reg	= 0x8,
+	.interface_ctrl_reg1	= 0xc,
+	.has_gasket		= true,
+	.def_hsync_pol		= 0,
+	.def_vsync_pol		= 0,
+	.def_pixel_clk_pol	= 0,
+	.def_csi_in_data_type	= CSI_IN_DT_YVYU_8,
+	.pd_ops			= NULL,
+};
+
 static const struct dev_pm_ops parallel_csi_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(parallel_csi_pm_suspend, parallel_csi_pm_resume)
 	SET_RUNTIME_PM_OPS(parallel_csi_runtime_suspend,
@@ -814,7 +1000,8 @@ static const struct dev_pm_ops parallel_csi_pm_ops = {
 };
 
 static const struct of_device_id parallel_csi_of_match[] = {
-	{	.compatible = "fsl,mxc-parallel-csi",},
+	{	.compatible = "fsl,mxc-parallel-csi",   .data = &imx8_pdata},
+	{	.compatible = "fsl,imx93-parallel-csi", .data = &imx93_pdata},
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, parallel_csi_of_match);

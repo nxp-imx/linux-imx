@@ -331,6 +331,10 @@ static int imx7ulp_wdt_probe(struct platform_device *pdev)
 				    "fsl,imx8ulp-wdt")) {
 		dev_info(dev, "imx8ulp wdt probe\n");
 		imx7ulp_wdt->post_rcs_wait = false;
+	} else if (of_device_is_compatible(dev->of_node,
+				    "fsl,imx93-wdt")) {
+		dev_info(dev, "imx93 wdt probe\n");
+		imx7ulp_wdt->post_rcs_wait = false;
 	} else {
 		dev_info(dev, "imx7ulp wdt probe\n");
 	}

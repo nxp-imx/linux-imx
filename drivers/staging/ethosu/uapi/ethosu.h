@@ -1,5 +1,5 @@
 /*
- * (C) COPYRIGHT 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -44,7 +44,8 @@ namespace EthosU {
 
 #define ETHOSU_IOCTL_PING               ETHOSU_IO(0x00)
 #define ETHOSU_IOCTL_VERSION_REQ        ETHOSU_IO(0x01)
-#define ETHOSU_IOCTL_CAPABILITIES_REQ   ETHOSU_IO(0x02)
+#define ETHOSU_IOCTL_CAPABILITIES_REQ   ETHOSU_IOR(0x02, \
+						   struct ethosu_uapi_device_capabilities)
 #define ETHOSU_IOCTL_BUFFER_CREATE      ETHOSU_IOR(0x10, \
 						   struct ethosu_uapi_buffer_create)
 #define ETHOSU_IOCTL_BUFFER_SET         ETHOSU_IOR(0x11, \
@@ -53,13 +54,20 @@ namespace EthosU {
 						   struct ethosu_uapi_buffer)
 #define ETHOSU_IOCTL_NETWORK_CREATE     ETHOSU_IOR(0x20, \
 						   struct ethosu_uapi_network_create)
+#define ETHOSU_IOCTL_NETWORK_INFO       ETHOSU_IOR(0x21, \
+						   struct ethosu_uapi_network_info)
 #define ETHOSU_IOCTL_INFERENCE_CREATE   ETHOSU_IOR(0x30, \
 						   struct ethosu_uapi_inference_create)
 #define ETHOSU_IOCTL_INFERENCE_STATUS   ETHOSU_IOR(0x31, \
 						   struct ethosu_uapi_result_status)
+#define ETHOSU_IOCTL_INFERENCE_CANCEL   ETHOSU_IOR(0x32, \
+						   struct ethosu_uapi_cancel_inference_status)
 
 /* Maximum number of IFM/OFM file descriptors per network */
 #define ETHOSU_FD_MAX                   16
+
+/* Maximum number of dimensions for input and output */
+#define ETHOSU_DIM_MAX                   8
 
 /* Maximum number of PMUs available */
 #define ETHOSU_PMU_EVENT_MAX             4
@@ -73,7 +81,11 @@ namespace EthosU {
  */
 enum ethosu_uapi_status {
 	ETHOSU_UAPI_STATUS_OK,
-	ETHOSU_UAPI_STATUS_ERROR
+	ETHOSU_UAPI_STATUS_ERROR,
+	ETHOSU_UAPI_STATUS_RUNNING,
+	ETHOSU_UAPI_STATUS_REJECTED,
+	ETHOSU_UAPI_STATUS_ABORTED,
+	ETHOSU_UAPI_STATUS_ABORTING,
 };
 
 /**
@@ -97,11 +109,60 @@ struct ethosu_uapi_buffer {
 };
 
 /**
+ * enum ethosu_uapi_network_create - Network buffer type.
+ * @ETHOSU_UAPI_NETWORK_BUFFER:	Network is stored in a buffer handle.
+ * @ETHOSU_UAPI_NETWORK_INDEX:	Network is built into firmware and referenced by
+ *                              index.
+ */
+enum ethosu_uapi_network_type {
+	ETHOSU_UAPI_NETWORK_BUFFER = 1,
+	ETHOSU_UAPI_NETWORK_INDEX
+};
+
+/**
  * struct ethosu_uapi_network_create - Create network request
+ * @type:	Buffer type. See @ethosu_uapi_network_type.
  * @fd:		Buffer file descriptor
+ * @index:	Buffer index compiled into firmware binary.
  */
 struct ethosu_uapi_network_create {
-	__u32 fd;
+	u32 type;
+	union {
+		__u32 fd;
+		__u32 index;
+	};
+};
+
+/**
+ * struct ethosu_uapi_network_info - Network info
+ * @desc:		Network description
+ * @ifm_count:		Number of IFM buffers
+ * @ifm_size:		IFM buffer sizes
+ * @ifm_types:          IFM data types
+ * @ifm_offset:         IFM data offset in arena
+ * @ifm_dims:           IFM buffer dimensions
+ * @ifm_shapes:         IFM buffer shapes
+ * @ofm_count:		Number of OFM buffers
+ * @ofm_size:		OFM buffer sizes
+ * @ofm_offset:         OFM data offset in arena
+ * @ofm_dims:           OFM buffer dimensions
+ * @ofm_shapes:         OFM buffer shapes
+ */
+struct ethosu_uapi_network_info {
+	char  desc[32];
+	__u32 is_vela;
+	__u32 ifm_count;
+	__u32 ifm_size[ETHOSU_FD_MAX];
+	__u32 ifm_types[ETHOSU_FD_MAX];
+	__u32 ifm_offset[ETHOSU_FD_MAX];
+	__u32 ifm_dims[ETHOSU_FD_MAX];
+	__u32 ifm_shapes[ETHOSU_FD_MAX][ETHOSU_DIM_MAX];
+	__u32 ofm_count;
+	__u32 ofm_size[ETHOSU_FD_MAX];
+	__u32 ofm_types[ETHOSU_FD_MAX];
+	__u32 ofm_offset[ETHOSU_FD_MAX];
+	__u32 ofm_dims[ETHOSU_FD_MAX];
+	__u32 ofm_shapes[ETHOSU_FD_MAX][ETHOSU_DIM_MAX];
 };
 
 /**
@@ -158,7 +219,7 @@ struct ethosu_uapi_device_hw_cfg {
 };
 
 /**
- * struct ethosu_uapi_capabilities - Device capabilities
+ * struct ethosu_uapi_device_capabilities - Device capabilities
  * @hw_id:                     Hardware identification
  * @hw_cfg:                    Hardware configuration
  * @driver_patch_rev:          Driver version patch
@@ -208,6 +269,14 @@ struct ethosu_uapi_result_status {
 	enum ethosu_uapi_status       status;
 	struct ethosu_uapi_pmu_config pmu_config;
 	struct ethosu_uapi_pmu_counts pmu_count;
+};
+
+/**
+ * struct ethosu_uapi_cancel_status - Status of inference cancellation.
+ * @status	OK if inference cancellation was performed, ERROR otherwise.
+ */
+struct ethosu_uapi_cancel_inference_status {
+	enum ethosu_uapi_status status;
 };
 
 #ifdef __cplusplus

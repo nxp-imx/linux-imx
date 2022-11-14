@@ -11,59 +11,6 @@
 			boot_devices_mmcblk1 = "soc@0/30800000.bus/30b50000.mmc";
 			/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
 			boot_devices_mmcblk0 = "soc@0/30800000.bus/30b40000.mmc";
-			fstab {
-				compatible = "android,fstab";
-				system {
-					compatible = "android,system";
-					dev = "system";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
-				};
-				system_ext4 {
-					compatible = "android,system";
-					dev = "system";
-					type = "ext4";
-					mnt_point = "/system";
-					mnt_flags = "noatime,errors=panic,ro,barrier=1,inode_readahead_blks=8";
-					fsmgr_flags = "wait,slotselect,avb,avb_keys=/avb,logical,first_stage_mount";
-				};
-				system_ext {
-					compatible = "android,system_ext";
-					dev = "system_ext";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				vendor {
-					compatible = "android,vendor";
-					dev = "vendor";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				vendor_dlkm {
-					compatible = "android,vendor_dlkm";
-					dev = "vendor_dlkm";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				product {
-					compatible = "android,product";
-					dev = "product";
-					type = "erofs";
-					mnt_flags = "ro";
-					fsmgr_flags = "wait,slotselect,avb,logical,first_stage_mount";
-				};
-				metadata {
-					compatible = "android,metadata";
-					dev = "/dev/block/by-name/metadata";
-					type = "f2fs";
-					mnt_flags = "noatime,nosuid,nodev,discard,sync,fsync_mode=nobarrier";
-					fsmgr_flags = "wait,formattable,first_stage_mount,check";
-				};
-			};
 			vbmeta {
 				/*we need use FirstStageMountVBootV2 if we enable avb*/
 				compatible = "android,vbmeta";
@@ -98,6 +45,14 @@
 };
 
 &resmem {
+	ramoops@0xdff00000 {
+		compatible = "ramoops";
+		reg = <0 0xdff00000 0 0x00100000>;
+		record-size     = <0x00020000>;
+		console-size    = <0x00020000>;
+		ftrace-size     = <0x00020000>;
+		pmsg-size       = <0x00020000>;
+	};
 	secure_region: secure {
 		 compatible = "imx-secure-ion-pool";
 		 reg = <0x0 0xE0000000 0 0x18000000>;
@@ -105,7 +60,7 @@
 	secure_dma: secure_mm@f8000000 {
 		compatible = "shared-dma-pool";
 		no-map;
-		reg = <0 0xF8000000 0 0x2800000>;
+		reg = <0 0xF8000000 0 0x6000000>;
 	};
 };
 

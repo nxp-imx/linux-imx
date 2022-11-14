@@ -1187,6 +1187,7 @@ static int v4l2_dec_open(struct file *filp)
 		vb2_queue_release(&ctx->input_que);
 		goto err_enc_dec_exit;
 	}
+	q->quirk_poll_must_check_waiting_for_buffers = false;
 	vsiv4l2_initcfg(ctx);
 	vsi_dec_setup_ctrls(&ctx->ctrlhdl);
 	vfh = (struct v4l2_fh *)filp->private_data;
@@ -1247,12 +1248,14 @@ static __poll_t vsi_dec_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &fh->wait, wait);
 
 	if (!vsi_v4l2_daemonalive())
-		ret |= POLLERR;
+		ret |= EPOLLERR;
 
 	if (v4l2_event_pending(&ctx->fh)) {
 		v4l2_klog(LOGLVL_BRIEF, "%s event", __func__);
-		ret |= POLLPRI;
+		ret |= EPOLLPRI;
 	}
+	if (ctx->output_que.last_buffer_dequeued)
+		ret |= (EPOLLIN | EPOLLRDNORM);
 	if (vb2_is_streaming(&ctx->output_que))
 		ret |= vb2_poll(&ctx->output_que, file, wait);
 	ret |= vb2_poll(&ctx->input_que, file, wait);
@@ -1265,7 +1268,7 @@ static __poll_t vsi_dec_poll(struct file *file, poll_table *wait)
 			ret |= vb2_poll(&ctx->input_que, file, wait);
 	}
 	if (ctx->error < 0)
-		ret |= POLLERR;
+		ret |= EPOLLERR;
 	v4l2_klog(LOGLVL_VERBOSE, "%s:%x", __func__, ret);
 	return ret;
 }

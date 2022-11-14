@@ -1714,6 +1714,15 @@ void phylink_stop(struct phylink *pl)
 }
 EXPORT_SYMBOL_GPL(phylink_stop);
 
+void phylink_set_mac_pm(struct phylink *pl)
+{
+	ASSERT_RTNL();
+
+	if (pl->phydev)
+		pl->phydev->mac_managed_pm = true;
+}
+EXPORT_SYMBOL_GPL(phylink_set_mac_pm);
+
 /**
  * phylink_suspend() - handle a network device suspend event
  * @pl: a pointer to a &struct phylink returned from phylink_create()

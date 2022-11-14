@@ -65,17 +65,14 @@ const struct vpu_format *vpu_helper_find_sibling(struct vpu_inst *inst, u32 type
 	const struct vpu_format *sibling;
 
 	fmt = vpu_helper_find_format(inst, type, pixelfmt);
-	if (!fmt)
+	if (!fmt || !fmt->sibling)
 		return NULL;
-	if (!fmt->sibling)
-		return NULL;
+
 	sibling = vpu_helper_find_format(inst, type, fmt->sibling);
-	if (!sibling)
+	if (!sibling || sibling->sibling != fmt->pixfmt ||
+	    sibling->comp_planes != fmt->comp_planes)
 		return NULL;
-	if (sibling->sibling != fmt->pixfmt)
-		return NULL;
-	if (sibling->comp_planes != fmt->comp_planes)
-		return NULL;
+
 	return sibling;
 }
 

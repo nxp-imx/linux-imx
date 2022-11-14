@@ -7,7 +7,6 @@
 
 #include <linux/types.h>
 #include <linux/completion.h>
-#include <linux/mailbox_client.h>
 #include <linux/module.h>
 
 #include <linux/firmware/imx/ele_base_msg.h>
@@ -34,7 +33,7 @@ static int plat_fill_cmd_msg_hdr(struct mu_hdr *hdr, uint8_t cmd, uint32_t len)
 	return err;
 }
 
-static int imx_ele_msg_send_rcv(struct ele_mu_priv *priv)
+int imx_ele_msg_send_rcv(struct ele_mu_priv *priv)
 {
 	unsigned int wait;
 	int err = 0;
@@ -209,4 +208,95 @@ int ele_get_info(phys_addr_t addr, u32 data_size)
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(ele_get_info);
+
+/*
+ * ele_get_trng_state() - prepare and send the command to read
+ *                        crypto lib and TRNG state
+ * TRNG state
+ *  0x1		TRNG is in program mode
+ *  0x2		TRNG is still generating entropy
+ *  0x3		TRNG entropy is valid and ready to be read
+ *  0x4		TRNG encounter an error while generating entropy
+ *
+ * CSAL state
+ *  0x0		Crypto Lib random context initialization is not done yet
+ *  0x1		Crypto Lib random context initialization is on-going
+ *  0x2		Crypto Lib random context initialization succeed
+ *  0x3		Crypto Lib random context initialization failed
+ *
+ * returns: csal and trng state.
+ *
+ */
+int ele_get_trng_state(void)
+{
+	struct ele_mu_priv *priv;
+	int ret;
+	unsigned int tag, command, size, ver, status;
+
+	/* access ele_mu_priv data structure pointer*/
+	ret = get_ele_mu_priv(&priv);
+	if (ret)
+		return ret;
+
+	ret = plat_fill_cmd_msg_hdr((struct mu_hdr *)&priv->tx_msg.header,
+				    ELE_GET_TRNG_STATE_REQ, 4);
+	if (ret)
+		return ret;
+
+	ret = imx_ele_msg_send_rcv(priv);
+	if (ret < 0)
+		return ret;
+
+	tag = MSG_TAG(priv->rx_msg.header);
+	command = MSG_COMMAND(priv->rx_msg.header);
+	size = MSG_SIZE(priv->rx_msg.header);
+	ver = MSG_VER(priv->rx_msg.header);
+	status = RES_STATUS(priv->rx_msg.data[0]);
+	if (tag == 0xe1 && command == ELE_GET_TRNG_STATE_REQ && size == 0x03 &&
+	    ver == 0x06 && status == 0xd6) {
+		return (priv->rx_msg.data[1] & CSAL_TRNG_STATE_MASK);
+	}
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(ele_get_trng_state);
+
+/*
+ * ele_start_rng() - prepare and send the command to start
+ *                   initialization of the Sentinel RNG context
+ *
+ * returns:  0 on success.
+ */
+int ele_start_rng(void)
+{
+	struct ele_mu_priv *priv;
+	int ret;
+	unsigned int tag, command, size, ver, status;
+
+	/* access ele_mu_priv data structure pointer*/
+	ret = get_ele_mu_priv(&priv);
+	if (ret)
+		return ret;
+
+	ret = plat_fill_cmd_msg_hdr((struct mu_hdr *)&priv->tx_msg.header, ELE_START_RNG_REQ, 4);
+	if (ret)
+		return ret;
+
+	ret = imx_ele_msg_send_rcv(priv);
+	if (ret < 0)
+		return ret;
+
+	tag = MSG_TAG(priv->rx_msg.header);
+	command = MSG_COMMAND(priv->rx_msg.header);
+	size = MSG_SIZE(priv->rx_msg.header);
+	ver = MSG_VER(priv->rx_msg.header);
+	status = RES_STATUS(priv->rx_msg.data[0]);
+	if (tag == 0xe1 && command == ELE_START_RNG_REQ && size == 0x02 &&
+	    ver == 0x06 && status == 0xd6) {
+		return 0;
+	}
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(ele_start_rng);
 MODULE_LICENSE("GPL v2");

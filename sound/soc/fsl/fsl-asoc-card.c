@@ -396,6 +396,12 @@ static int fsl_asoc_card_startup(struct snd_pcm_substream *substream)
 		if (ret)
 			return ret;
 
+		ret = snd_pcm_hw_constraint_mask64(runtime,
+						 SNDRV_PCM_HW_PARAM_FORMAT,
+						 SNDRV_PCM_FMTBIT_S16_LE |
+						 SNDRV_PCM_FMTBIT_S32_LE);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
@@ -720,6 +726,7 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 	struct platform_device *client_pdev[2];
 	const char *codec_dai_name;
 	const char *codec_dev_name;
+	u32 asrc_fmt = 0;
 	u32 width;
 	int ret;
 
@@ -1033,8 +1040,8 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 			goto asrc_fail;
 		}
 
-		ret = of_property_read_u32(asrc_np, "fsl,asrc-format",
-					   &priv->asrc_format);
+		ret = of_property_read_u32(asrc_np, "fsl,asrc-format", &asrc_fmt);
+		priv->asrc_format = (__force snd_pcm_format_t)asrc_fmt;
 		if (ret) {
 			/* Fallback to old binding; translate to asrc_format */
 			ret = of_property_read_u32(asrc_np, "fsl,asrc-width",

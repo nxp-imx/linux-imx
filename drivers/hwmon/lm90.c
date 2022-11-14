@@ -1023,6 +1023,12 @@ static ssize_t pec_store(struct device *dev, struct device_attribute *dummy,
 
 static DEVICE_ATTR_RW(pec);
 
+static int adjust_temp_diode(int temp)
+{
+	return (((((temp / 1000) - CONFIG_SERIES_DIODE_RESISTANCE_PARAM + 273) *
+				1008 / 1022) - 273) * 1000 + (temp % 1000));
+}
+
 static int lm90_get_temp11(struct lm90_data *data, int index)
 {
 	s16 temp11 = data->temp11[index];
@@ -1038,6 +1044,9 @@ static int lm90_get_temp11(struct lm90_data *data, int index)
 	/* +16 degrees offset for temp2 for the LM99 */
 	if (data->kind == lm99 && index <= 2)
 		temp += 16000;
+
+	if (index == REMOTE_TEMP)
+		temp = adjust_temp_diode(temp);
 
 	return temp;
 }

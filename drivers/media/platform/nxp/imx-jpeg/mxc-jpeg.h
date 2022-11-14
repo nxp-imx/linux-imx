@@ -50,6 +50,7 @@ enum mxc_jpeg_mode {
  * @h_align:	horizontal alignment order (align to 2^h_align)
  * @v_align:	vertical alignment order (align to 2^v_align)
  * @flags:	flags describing format applicability
+ * @precision:  jpeg sample precision
  */
 struct mxc_jpeg_fmt {
 	const char				*name;
