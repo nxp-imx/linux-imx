@@ -7,13 +7,10 @@
  * Copyright 2022 NXP
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/hw_random.h>
 #include <linux/firmware/imx/ele_base_msg.h>
 #include "ele_mu.h"
-
-#define CSAL_STATE_SHIFT	8
-#define CSAL_STATE_MASK		0x0000ff00
-#define TRNG_STATE_MASK		0x000000ff
 
 struct ele_trng {
 	struct hwrng rng;
@@ -47,25 +44,32 @@ static int plat_fill_rng_msg_hdr(struct mu_hdr *hdr, uint8_t cmd, uint32_t len)
 int ele_get_random(struct hwrng *rng, void *data, size_t len, bool wait)
 {
 	struct ele_mu_priv *priv;
-	int ret;
 	unsigned int tag, command, size, ver, status;
-	phys_addr_t addr = virt_to_phys(data);
+	dma_addr_t dst_dma;
+	u8 *buf;
+	int ret;
 
 	/* access ele_mu_priv data structure pointer*/
 	ret = get_ele_mu_priv(&priv);
 	if (ret)
 		return ret;
 
+	buf = dmam_alloc_coherent(priv->dev, len, &dst_dma, GFP_KERNEL);
+	if (!buf) {
+		dev_err(priv->dev, "Failed to map destination buffer memory\n");
+		return -ENOMEM;
+	}
+
 	ret = plat_fill_rng_msg_hdr((struct mu_hdr *)&priv->tx_msg.header, ELE_GET_RANDOM_REQ, 16);
 	if (ret)
-		return ret;
+		goto exit;
 
 	priv->tx_msg.data[0] = 0x0;
-	priv->tx_msg.data[1] = lower_32_bits(addr);
+	priv->tx_msg.data[1] = dst_dma;
 	priv->tx_msg.data[2] = len;
 	ret = imx_ele_msg_send_rcv(priv);
 	if (ret < 0)
-		return ret;
+		goto exit;
 
 	tag = MSG_TAG(priv->rx_msg.header);
 	command = MSG_COMMAND(priv->rx_msg.header);
@@ -74,32 +78,20 @@ int ele_get_random(struct hwrng *rng, void *data, size_t len, bool wait)
 	status = RES_STATUS(priv->rx_msg.data[0]);
 	if (tag == 0xe1 && command == ELE_GET_RANDOM_REQ && size == 0x02 &&
 	    ver == 0x07 && status == 0xd6) {
-		return len;
-	}
+		memcpy(data, buf, len);
+		ret = len;
+	} else
+		ret = -EINVAL;
 
-	return -EINVAL;
+exit:
+	dmam_free_coherent(priv->dev, len, buf, dst_dma);
+	return ret;
 }
 
 int ele_trng_init(struct device *dev)
 {
 	struct ele_trng *trng;
-	int ret, csal_state, trng_state;
-
-	ret = ele_get_trng_state();
-	if (ret < 0) {
-		dev_err(dev, "Failed to get trng state\n");
-		return ret;
-	}
-
-	csal_state = (ret & CSAL_STATE_MASK) >> CSAL_STATE_SHIFT;
-	trng_state = ret & TRNG_STATE_MASK;
-	if (csal_state != 0x2 || trng_state != 0x3) {
-		ret = ele_start_rng();
-		if (ret) {
-			dev_err(dev, "Failed to start rng\n");
-			return ret;
-		}
-	}
+	int ret;
 
 	trng = devm_kzalloc(dev, sizeof(*trng), GFP_KERNEL);
 	if (!trng)

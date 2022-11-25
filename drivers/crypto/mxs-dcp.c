@@ -240,7 +240,7 @@ static int mxs_dcp_run_aes(struct dcp_async_ctx *actx,
 	struct dcp_aes_req_ctx *rctx = skcipher_request_ctx(req);
 	int ret, len_crypto_hdl, len_unique_hdl;
 	const struct fdt_property *prop_crypto, *prop_unique;
-	int nodeoff = fdt_path_offset(initial_boot_params, "/soc/bus@2200000/crypto@2280000");
+	int nodeoff = fdt_node_offset_by_compatible(initial_boot_params, -1, "fsl,imx28-dcp");
 
 	if (nodeoff < 0) {
 		pr_info("node to update the SoC serial number is not found.\n");
@@ -1276,7 +1276,7 @@ int mxs_dcp_blob_to_key(struct dcp_key_payload *p)
 {
 	int len_crypto_hdl, len_unique_hdl;
 	const struct fdt_property *prop_crypto, *prop_unique;
-	int nodeoff = fdt_path_offset(initial_boot_params, "/soc/bus@2200000/crypto@2280000");
+	int nodeoff = fdt_node_offset_by_compatible(initial_boot_params, -1, "fsl,imx28-dcp");
 
 	if (nodeoff < 0) {
 		pr_info("node to update the SoC serial number is not found.\n");

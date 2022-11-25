@@ -3731,11 +3731,10 @@ static int mxc_epdc_update_data(int64_t dma_address, struct fb_var_screeninfo *v
 
 	upd_marker_data.update_marker = upd_data.update_marker;
 	ret = mxc_epdc_fb_wait_update_complete(&upd_marker_data, fb_info);
-	if (ret > 0) {
-		fb_handle_fence(&fb_data->context);
-	} else {
+	if (ret < 0)
 		dev_err(fb_data->dev, "Update screen is not completed\n");
-	}
+
+	fb_handle_fence(&fb_data->context);
 
 	return ret;
 }
