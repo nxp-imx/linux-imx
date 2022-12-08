@@ -19,6 +19,7 @@
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -30,22 +31,27 @@
 #define ELE_PING_INTERVAL	(3600 * HZ)
 #define ELE_TRNG_STATE_OK	0x203
 
+#define RESERVED_DMA_POOL	BIT(1)
+
 struct ele_mu_priv *ele_priv_export;
 
 struct imx_info {
 	bool socdev;
 	/* platform specific flag to enable/disable the Sentinel True RNG */
 	bool enable_ele_trng;
+	bool reserved_dma_ranges;
 };
 
 static const struct imx_info imx8ulp_info = {
 	.socdev = true,
 	.enable_ele_trng = false,
+	.reserved_dma_ranges = true,
 };
 
 static const struct imx_info imx93_info = {
 	.socdev = false,
 	.enable_ele_trng = true,
+	.reserved_dma_ranges = false,
 };
 
 static const struct of_device_id ele_mu_match[] = {
@@ -990,6 +996,16 @@ static int ele_mu_probe(struct platform_device *pdev)
 
 	ele_priv_export = priv;
 
+	if (info && info->reserved_dma_ranges) {
+		ret = of_reserved_mem_device_init(dev);
+		if (ret) {
+			dev_err(dev, "failed to init reserved memory region %d\n", ret);
+			priv->flags &= (~RESERVED_DMA_POOL);
+			goto exit;
+		}
+		priv->flags |= RESERVED_DMA_POOL;
+	}
+
 	if (info && info->socdev) {
 		ret = imx_soc_device_register(pdev);
 		if (ret) {
@@ -1015,6 +1031,13 @@ static int ele_mu_probe(struct platform_device *pdev)
 	return devm_of_platform_populate(dev);
 
 exit:
+	/* if execution control reaches here, ele-mu probe fail.
+	 * hence doing the cleanup
+	 */
+	if (priv->flags & RESERVED_DMA_POOL) {
+		of_reserved_mem_device_release(dev);
+		priv->flags &= (~RESERVED_DMA_POOL);
+	}
 	return ret;
 }
 
@@ -1026,6 +1049,11 @@ static int ele_mu_remove(struct platform_device *pdev)
 	priv = dev_get_drvdata(&pdev->dev);
 	mbox_free_channel(priv->tx_chan);
 	mbox_free_channel(priv->rx_chan);
+
+	if (priv->flags & RESERVED_DMA_POOL) {
+		of_reserved_mem_device_release(&pdev->dev);
+		priv->flags &= (~RESERVED_DMA_POOL);
+	}
 
 	return 0;
 }
