@@ -1921,6 +1921,8 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI0_LVDS_PHY_CLK>;
 		clock-names = "phy";
+		assigned-clocks = <&clk IMX8QXP_MIPI0_LVDS_PHY_SEL>;
+		assigned-clock-parents = <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>;
 		status = "disabled";
 	};
 
@@ -1933,6 +1935,14 @@
 			 <&clk IMX8QXP_MIPI1_LVDS_PIXEL_CLK>,
 			 <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>;
 		clock-names = "pixel", "bypass", "aux_pixel", "aux_bypass";
+		assigned-clocks = <&clk IMX8QXP_MIPI0_LVDS_PIXEL_SEL>,
+				  <&clk IMX8QXP_MIPI1_LVDS_PIXEL_SEL>,
+				  <&clk IMX8QXP_MIPI0_LVDS_PHY_SEL>,
+				  <&clk IMX8QXP_MIPI1_LVDS_PHY_SEL>;
+		assigned-clock-parents = <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>;
 		power-domains = <&pd_mipi_dsi_0_lvds>;
 		gpr = <&lvds_region1>;
 		aux-gpr = <&lvds_region2>;
@@ -2099,6 +2109,8 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI1_LVDS_PHY_CLK>;
 		clock-names = "phy";
+		assigned-clocks = <&clk IMX8QXP_MIPI1_LVDS_PHY_SEL>;
+		assigned-clock-parents = <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>;
 		status = "disabled";
 	};
 
@@ -2111,6 +2123,14 @@
 			 <&clk IMX8QXP_MIPI0_LVDS_PIXEL_CLK>,
 			 <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>;
 		clock-names = "pixel", "bypass", "aux_pixel", "aux_bypass";
+		assigned-clocks = <&clk IMX8QXP_MIPI1_LVDS_PIXEL_SEL>,
+				  <&clk IMX8QXP_MIPI0_LVDS_PIXEL_SEL>,
+				  <&clk IMX8QXP_MIPI1_LVDS_PHY_SEL>,
+				  <&clk IMX8QXP_MIPI0_LVDS_PHY_SEL>;
+		assigned-clock-parents = <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>,
+					 <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>;
 		power-domains = <&pd_mipi_dsi_1_lvds>;
 		gpr = <&lvds_region2>;
 		aux-gpr = <&lvds_region1>;
