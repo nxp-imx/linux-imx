@@ -93,7 +93,6 @@ int send_usrmsg(char *pbuf, uint16_t len)
 	struct nlmsghdr *nlh;
 
 	int ret;
-
 	nl_skb = nlmsg_new(len, GFP_ATOMIC);
 	if(!nl_skb) {
 		pr_err("netlink alloc failure\n");
@@ -123,18 +122,23 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 	switch (prop) {
 	case VEHICLE_FAN_SPEED:
 		property_encode.prop = HVAC_FAN_SPEED;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_FAN_DIRECTION:
 		property_encode.prop = HVAC_FAN_DIRECTION;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_AUTO_ON:
 		property_encode.prop = HVAC_AUTO_ON;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_AC:
 		property_encode.prop = HVAC_AC_ON;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_RECIRC_ON:
 		property_encode.prop = HVAC_RECIRC_ON;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_DEFROST:
 		property_encode.prop = HVAC_DEFROSTER;
@@ -146,6 +150,7 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 		break;
 	case VEHICLE_HVAC_POWER_ON:
 		property_encode.prop = HVAC_POWER_ON;
+		property_encode.area_id = HVAC_ALL;
 		break;
 	case VEHICLE_SEAT_TEMPERATURE:
 		property_encode.prop = HVAC_SEAT_TEMPERATURE;
@@ -196,7 +201,6 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 		send_message.value.funcs.encode = &encode_value_callback;
 		send_message.value.arg = &property_encode;
 	}
-
 	if (!pb_encode(&stream, emulator_EmulatorMessage_fields, &send_message))
 		pr_err("vehicle protocol encode fail \n");
 	send_usrmsg(buffer, stream.bytes_written);
