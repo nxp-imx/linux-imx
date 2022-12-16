@@ -32,6 +32,22 @@ struct hw_prop_ops {
 	void (*set_control_commands)(u32 prop, u32 area, u32 value);
 };
 
+/* areaId defines - begin */
+#define VEHICLE_AREA_SEAT_ROW_1_LEFT   1    /* 0x0001 */
+#define VEHICLE_AREA_SEAT_ROW_1_CENTER 2    /* 0x0002 */
+#define VEHICLE_AREA_SEAT_ROW_1_RIGHT  4    /* 0x0004 */
+#define VEHICLE_AREA_SEAT_ROW_2_LEFT   16   /* 0x0010 */
+#define VEHICLE_AREA_SEAT_ROW_2_CENTER 32   /* 0x0020 */
+#define VEHICLE_AREA_SEAT_ROW_2_RIGHT  64   /* 0x0040 */
+#define VEHICLE_AREA_SEAT_ROW_3_LEFT   256  /* 0x0100 */
+#define VEHICLE_AREA_SEAT_ROW_3_CENTER 512  /* 0x0200 */
+#define VEHICLE_AREA_SEAT_ROW_3_RIGHT  1024 /* 0x0400 */
+
+#define HVAC_LEFT VEHICLE_AREA_SEAT_ROW_1_LEFT | VEHICLE_AREA_SEAT_ROW_2_LEFT | VEHICLE_AREA_SEAT_ROW_2_CENTER
+#define HVAC_RIGHT VEHICLE_AREA_SEAT_ROW_1_RIGHT | VEHICLE_AREA_SEAT_ROW_2_RIGHT
+#define HVAC_ALL HVAC_LEFT | HVAC_RIGHT
+/* areaId defines - end */
+
 #ifdef CONFIG_VEHICLE_DRIVER_OREO
 #define HVAC_FAN_SPEED 306185472
 #define HVAC_FAN_DIRECTION 306185473
@@ -163,10 +179,6 @@ struct hw_prop_ops {
 #define VENDOR_EXTENSION_FLOAT_PROPERTY 627048706 // (int)(0x102 | VehiclePropertyGroup::VENDOR | VehiclePropertyType::FLOAT | VehicleArea::SEAT);
 #define VENDOR_EXTENSION_INT_PROPERTY 591397123 //(int)(0x103 | VehiclePropertyGroup::VENDOR | VehiclePropertyType::INT32 | VehicleArea::WINDOW);
 #define kMixedTypePropertyForTest 568332561 //0x1111 | VehiclePropertyGroup::VENDOR | VehicleArea::GLOBAL | VehiclePropertyType::MIXED;
-#define kSetIntPropertyFromVehicleForTest 568332562 //0x1112 | VehiclePropertyGroup::VENDOR | VehicleArea::GLOBAL | VehiclePropertyType::MIXED;
-#define kSetFloatPropertyFromVehicleForTest 568332563 //0x1113 | VehiclePropertyGroup::VENDOR | VehicleArea::GLOBAL | VehiclePropertyType::MIXED;
-#define kSetBooleanPropertyFromVehicleForTest 568332564 //0x1114 | VehiclePropertyGroup::VENDOR | VehicleArea::GLOBAL | VehiclePropertyType::MIXED;
-#define kGenerateFakeDataControllingProperty 568329830 //0x0666 | VehiclePropertyGroup::VENDOR | VehicleArea::GLOBAL | VehiclePropertyType::MIXED;
 
 /*vehicle_event_type: stateType in command VSTATE*/
 enum vehicle_event_type {
