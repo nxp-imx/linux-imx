@@ -284,10 +284,6 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case VENDOR_EXTENSION_FLOAT_PROPERTY:
 	case VENDOR_EXTENSION_INT_PROPERTY:
 	case kMixedTypePropertyForTest:
-	case kSetIntPropertyFromVehicleForTest:
-	case kSetFloatPropertyFromVehicleForTest:
-	case kSetBooleanPropertyFromVehicleForTest:
-	case kGenerateFakeDataControllingProperty:
 		// Proper action is TBD
 		break;
 	default:
