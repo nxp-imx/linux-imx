@@ -139,6 +139,8 @@ struct ele_mu_priv {
 	 * the time of ele-mu probe.
 	 */
 	int flags;
+	int max_dev_ctx;
+	struct ele_mu_device_ctx **ctxs;
 };
 
 int get_ele_mu_priv(struct ele_mu_priv **export);

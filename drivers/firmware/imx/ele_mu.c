@@ -942,6 +942,9 @@ static int ele_mu_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
+	priv->max_dev_ctx = max_nb_users;
+	priv->ctxs = devm_kzalloc(dev, sizeof(dev_ctx) * max_nb_users, GFP_KERNEL);
+
 	/* Create users */
 	for (i = 0; i < max_nb_users; i++) {
 		dev_ctx = devm_kzalloc(dev, sizeof(*dev_ctx), GFP_KERNEL);
@@ -955,6 +958,9 @@ static int ele_mu_probe(struct platform_device *pdev)
 		dev_ctx->dev = dev;
 		dev_ctx->status = MU_FREE;
 		dev_ctx->priv = priv;
+
+		priv->ctxs[i] = dev_ctx;
+
 		/* Default value invalid for an header. */
 		init_waitqueue_head(&dev_ctx->wq);
 
@@ -1058,10 +1064,28 @@ static int ele_mu_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int ele_mu_resume(struct device *dev)
+{
+	struct ele_mu_priv *priv = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < priv->max_dev_ctx; i++)
+		wake_up_interruptible(&priv->ctxs[i]->wq);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops ele_mu_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(NULL, ele_mu_resume)
+};
+
 static struct platform_driver ele_mu_driver = {
 	.driver = {
 		.name = "fsl-ele-mu",
 		.of_match_table = ele_mu_match,
+		.pm = &ele_mu_pm,
 	},
 	.probe = ele_mu_probe,
 	.remove = ele_mu_remove,
