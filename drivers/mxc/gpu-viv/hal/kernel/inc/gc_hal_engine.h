@@ -2261,6 +2261,12 @@ gcoTEXTURE_SetDepthTextureFlag(
     );
 
 gceSTATUS
+gcoTEXTURE_SetSurfType(
+    IN gcoTEXTURE Texture,
+    IN gceSURF_TYPE type
+    );
+
+gceSTATUS
 gcoTEXTURE_BindTextureTS(
     IN gcsTEXTURE_BINDTEXTS_ARGS * args
     );
