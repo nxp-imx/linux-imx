@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 NXP
+ * Copyright 2020-2022 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,6 +13,16 @@
  */
 
 #include "imx8qm-mek-rpmsg.dts"
+
+/ {
+	reg_usdhc3_vmmc: usdhc3-vmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "SD3_SPWR";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		power-domains = <&pd IMX_SC_R_BOARD_R3>;
+	};
+};
 
 &i2c0 {
 	clock-frequency = <100000>;
@@ -106,8 +116,46 @@
 	status = "disabled";
 };
 
+&epdev_on {
+	regulator-always-on;
+};
+
+&iomuxc {
+	pinctrl_usdhc3_gpio: usdhc3grpgpio {
+		fsl,pins = <
+			IMX8QM_USDHC2_VSELECT_LSIO_GPIO4_IO10	0x00000021
+		>;
+	};
+
+	pinctrl_usdhc3: usdhc3grp {
+		fsl,pins = <
+			IMX8QM_USDHC2_CLK_CONN_USDHC2_CLK	0x06000041
+			IMX8QM_USDHC2_CMD_CONN_USDHC2_CMD	0x00000021
+			IMX8QM_USDHC2_DATA0_CONN_USDHC2_DATA0	0x00000021
+			IMX8QM_USDHC2_DATA1_CONN_USDHC2_DATA1	0x00000021
+			IMX8QM_USDHC2_DATA2_CONN_USDHC2_DATA2	0x00000021
+			IMX8QM_USDHC2_DATA3_CONN_USDHC2_DATA3	0x00000021
+		>;
+	};
+};
+
 &usdhc2 {
 	status = "disabled";
+};
+
+&usdhc3 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&pinctrl_usdhc3>,<&pinctrl_usdhc3_gpio>;
+	pinctrl-1 = <&pinctrl_usdhc3>,<&pinctrl_usdhc3_gpio>;
+	pinctrl-2 = <&pinctrl_usdhc3>,<&pinctrl_usdhc3_gpio>;
+	bus-width = <4>;
+	pinctrl-assert-gpios = <&lsio_gpio4 10 GPIO_ACTIVE_HIGH>;
+	pm-ignore-notify;
+	keep-power-in-suspend;
+	non-removable;
+	cap-power-off-card;
+	vmmc-supply = <&reg_usdhc3_vmmc>;
+	status = "okay";
 };
 
 &amix {
