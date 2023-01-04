@@ -7094,7 +7094,6 @@ static int nl80211_new_station(struct sk_buff *skb, struct genl_info *info)
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
 	int err;
 	struct net_device *dev = info->user_ptr[1];
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct station_parameters params;
 	u8 *mac_addr = NULL;
 	u32 auth_assoc = BIT(NL80211_STA_FLAG_AUTHENTICATED) |
@@ -7332,24 +7331,9 @@ static int nl80211_new_station(struct sk_buff *skb, struct genl_info *info)
 	/* be aware of params.vlan when changing code here */
 
 	wdev_lock(dev->ieee80211_ptr);
-	if (wdev->valid_links) {
-		if (params.link_sta_params.link_id < 0) {
-			err = -EINVAL;
-			goto out;
-		}
-		if (!(wdev->valid_links & BIT(params.link_sta_params.link_id))) {
-			err = -ENOLINK;
-			goto out;
-		}
-	} else {
-		if (params.link_sta_params.link_id >= 0) {
-			err = -EINVAL;
-			goto out;
-		}
-	}
 	err = rdev_add_station(rdev, dev, mac_addr, &params);
-out:
 	wdev_unlock(dev->ieee80211_ptr);
+
 	dev_put(params.vlan);
 	return err;
 }
