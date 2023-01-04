@@ -25,6 +25,7 @@
 #include "vpu_v4l2.h"
 #include "vpu_cmds.h"
 #include "vpu_rpc.h"
+#include <linux/imx_vpu.h>
 
 #define VDEC_MIN_BUFFER_CAP		8
 #define VDEC_MIN_BUFFER_OUT		8
@@ -205,6 +206,10 @@ static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
 		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? 1 : 0;
 		break;
+	case V4L2_CID_SECUREMODE:
+		dev_info(inst->dev, "vpu driver enter secure mode\n");
+		inst->secure_mode = ctrl->val;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -218,12 +223,23 @@ static const struct v4l2_ctrl_ops vdec_ctrl_ops = {
 	.g_volatile_ctrl = vpu_helper_g_volatile_ctrl,
 };
 
+static struct v4l2_ctrl_config secure_config = {
+	.ops = &vdec_ctrl_ops,
+	.id = V4L2_CID_SECUREMODE,
+	.name = "en/disable secure mode",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+};
+
 static int vdec_ctrl_init(struct vpu_inst *inst)
 {
 	struct v4l2_ctrl *ctrl;
 	int ret;
 
-	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 20);
+	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 21);
 	if (ret)
 		return ret;
 
@@ -251,6 +267,8 @@ static int vdec_ctrl_init(struct vpu_inst *inst)
 				 V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 1, 32, 1, 2);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
+
+	ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler, &secure_config, NULL);
 
 	if (inst->ctrl_handler.error) {
 		ret = inst->ctrl_handler.error;
