@@ -1859,19 +1859,16 @@
 		clocks =
 			<&clk IMX8QXP_MIPI0_DSI_PHY_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_CLK>,
-			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_CLK>;
-		clock-names = "phy_ref", "tx_esc", "rx_esc";
-		assigned-clocks =
+			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_PHY_SEL>,
 			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_SEL>,
-			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_CLK>,
-			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_CLK>;
-		assigned-clock-rates = <0>, <0>, <0>, <18000000>, <72000000>;
-		assigned-clock-parents =
-			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>,
-			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>;
+		clock-names = "phy_ref", "tx_esc", "rx_esc",
+			      "phy_ref_sel", "tx_esc_sel", "rx_esc_sel",
+			      "phy_parent";
+		nwl,tx-esc-clock-rate = <18000000>;
+		nwl,rx-esc-clock-rate = <72000000>;
 		power-domains = <&pd_mipi_dsi0>;
 		phys = <&mipi_dsi_phy1>;
 		phy-names = "dphy";
@@ -1921,8 +1918,6 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI0_LVDS_PHY_CLK>;
 		clock-names = "phy";
-		assigned-clocks = <&clk IMX8QXP_MIPI0_LVDS_PHY_SEL>;
-		assigned-clock-parents = <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>;
 		status = "disabled";
 	};
 
@@ -2047,19 +2042,16 @@
 		clocks =
 			<&clk IMX8QXP_MIPI1_DSI_PHY_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_CLK>,
-			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_CLK>;
-		clock-names = "phy_ref", "tx_esc", "rx_esc";
-		assigned-clocks =
+			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_PHY_SEL>,
 			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_SEL>,
-			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_CLK>,
-			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_CLK>;
-		assigned-clock-rates = <0>, <0>, <0>, <18000000>, <72000000>;
-		assigned-clock-parents =
-			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>,
-			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>;
+		clock-names = "phy_ref", "tx_esc", "rx_esc",
+			      "phy_ref_sel", "tx_esc_sel", "rx_esc_sel",
+			      "phy_parent";
+		nwl,tx-esc-clock-rate = <18000000>;
+		nwl,rx-esc-clock-rate = <72000000>;
 		power-domains = <&pd_mipi_dsi1>;
 		phys = <&mipi_dsi_phy2>;
 		phy-names = "dphy";
@@ -2109,8 +2101,6 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI1_LVDS_PHY_CLK>;
 		clock-names = "phy";
-		assigned-clocks = <&clk IMX8QXP_MIPI1_LVDS_PHY_SEL>;
-		assigned-clock-parents = <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>;
 		status = "disabled";
 	};
 
