@@ -1350,3 +1350,5 @@
 	boot = <&vpu_boot>;
 	sram = <&sram1>;
 };
+
+#include "imx95-android.dtsi"

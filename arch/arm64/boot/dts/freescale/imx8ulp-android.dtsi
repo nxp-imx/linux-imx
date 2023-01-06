@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2022 NXP
+ */
+
+/ {
+	firmware {
+		android {
+			compatible = "android,firmware";
+			/* emmc node which used if androidboot.boot_device_root=mmcblk0 */
+			boot_devices_mmcblk0 = "soc@0/29800000.bus/298d0000.mmc";
+			vbmeta {
+				/*we need use FirstStageMountVBootV2 if we enable avb*/
+				compatible = "android,vbmeta";
+				/*parts means the partition witch can be mount in first stage*/
+				parts = "vbmeta,dtbo,boot,init_boot,system,vendor,vendor_dlkm,product";
+			};
+		};
+	};
+
+	trusty {
+		compatible = "android,trusty-smc-v1";
+		ranges;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		trusty-irq {
+			compatible = "android,trusty-irq-v1";
+			interrupt-ranges = < 0 15 0>;
+			ipi-range = <8 15 8>;
+		};
+		trusty-virtio {
+			compatible = "android,trusty-virtio-v1";
+		};
+		trusty-log {
+			compatible = "android,trusty-log-v1";
+		};
+	};
+};

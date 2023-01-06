@@ -1559,3 +1559,5 @@ pcam_i2c: &cm40_i2c {
 		>;
 	};
 };
+
+#include "imx8qxp-android.dtsi"

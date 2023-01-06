@@ -1313,3 +1313,5 @@
 &dphy_rx {
 	status = "okay";
 };
+
+#include "imx93-android.dtsi"

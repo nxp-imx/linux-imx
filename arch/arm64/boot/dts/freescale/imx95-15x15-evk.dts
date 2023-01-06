@@ -1245,3 +1245,5 @@
 	pinctrl-names = "default";
 	status = "okay";
 };
+
+#include "imx95-android.dtsi"
