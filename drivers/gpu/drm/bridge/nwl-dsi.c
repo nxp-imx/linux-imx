@@ -229,6 +229,12 @@ struct nwl_mipi_dsi {
 	struct clk_config		rx_esc;
 	struct clk_config		tx_esc;
 
+	/* Optional clocks */
+	struct clk_config		phy_ref_sel;
+	struct clk_config		rx_esc_sel;
+	struct clk_config		tx_esc_sel;
+	struct clk_config		phy_parent;
+
 	void __iomem			*base;
 	int				irq;
 
@@ -411,27 +417,38 @@ static void nwl_dsi_enable_clocks(struct nwl_mipi_dsi *dsi, u32 clks)
 	unsigned long rate;
 
 	if (clks & CLK_PHY_REF && !dsi->phy_ref.enabled) {
+		if (!IS_ERR_OR_NULL(dsi->phy_parent.clk))
+			clk_set_parent(dsi->phy_ref_sel.clk,
+				       dsi->phy_parent.clk);
 		clk_prepare_enable(dsi->phy_ref.clk);
 		dsi->phy_ref.enabled = true;
 		rate = clk_get_rate(dsi->phy_ref.clk);
-		DRM_DEV_DEBUG_DRIVER(dev,
-				"Enabled phy_ref clk (rate=%lu)\n", rate);
+		DRM_DEV_DEBUG_DRIVER(dev, "Enabled phy_ref clk (rate=%lu)\n",
+				     rate);
 	}
 
 	if (clks & CLK_RX_ESC && !dsi->rx_esc.enabled) {
+		if (!IS_ERR_OR_NULL(dsi->phy_parent.clk))
+			clk_set_parent(dsi->rx_esc_sel.clk,
+				       dsi->phy_parent.clk);
 		clk_set_rate(dsi->rx_esc.clk, dsi->rx_esc.rate);
 		clk_prepare_enable(dsi->rx_esc.clk);
 		dsi->rx_esc.enabled = true;
 		rate = clk_get_rate(dsi->rx_esc.clk);
+		DRM_DEV_DEBUG_DRIVER(dev, "Enabled rx_esc clk (rate=%lu)\n",
+				     rate);
 	}
 
 	if (clks & CLK_TX_ESC && !dsi->tx_esc.enabled) {
+		if (!IS_ERR_OR_NULL(dsi->phy_parent.clk))
+			clk_set_parent(dsi->tx_esc_sel.clk,
+				       dsi->phy_parent.clk);
 		clk_set_rate(dsi->tx_esc.clk, dsi->tx_esc.rate);
 		clk_prepare_enable(dsi->tx_esc.clk);
 		dsi->tx_esc.enabled = true;
 		rate = clk_get_rate(dsi->tx_esc.clk);
-		DRM_DEV_DEBUG_DRIVER(dev,
-				"Enabled tx_esc clk (rate=%lu)\n", rate);
+		DRM_DEV_DEBUG_DRIVER(dev, "Enabled tx_esc clk (rate=%lu)\n",
+				     rate);
 	}
 }
 
@@ -448,6 +465,7 @@ static void nwl_dsi_disable_clocks(struct nwl_mipi_dsi *dsi, u32 clks)
 	if (clks & CLK_RX_ESC && dsi->rx_esc.enabled) {
 		clk_disable_unprepare(dsi->rx_esc.clk);
 		dsi->rx_esc.enabled = false;
+		DRM_DEV_DEBUG_DRIVER(dev, "Disabled rx_esc clk\n");
 	}
 
 	if (clks & CLK_TX_ESC && dsi->tx_esc.enabled) {
@@ -455,7 +473,6 @@ static void nwl_dsi_disable_clocks(struct nwl_mipi_dsi *dsi, u32 clks)
 		dsi->tx_esc.enabled = false;
 		DRM_DEV_DEBUG_DRIVER(dev, "Disabled tx_esc clk\n");
 	}
-
 }
 
 static void nwl_dsi_init_interrupts(struct nwl_mipi_dsi *dsi)
@@ -610,10 +627,9 @@ static void nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	actual_phy_rate = clk_get_rate(dsi->phy_ref.clk);
 	dsi->dsi_device->lanes = config->lanes;
 	DRM_DEV_DEBUG_DRIVER(dsi->dev,
-		"Using phy_ref rate: %u (actual: %u), "
-		"bitclock: %lu, lanes: %u\n",
-		config->phyref_rate, actual_phy_rate,
-		config->bitclock, config->lanes);
+			     "Using phy_ref rate: %u (actual: %u), bitclock: %lu, lanes: %u\n",
+			     config->phyref_rate, actual_phy_rate,
+			     config->bitclock, config->lanes);
 
 	dsi->curr_mode = drm_mode_duplicate(bridge->dev, adjusted);
 }
@@ -1302,6 +1318,7 @@ static int nwl_dsi_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct resource *res;
 	int ret;
+	u32 rx_clk = 0, tx_clk = 0;
 
 	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
@@ -1331,7 +1348,14 @@ static int nwl_dsi_probe(struct platform_device *pdev)
 		return ret;
 	}
 	dsi->rx_esc.clk = clk;
-	dsi->rx_esc.rate = clk_get_rate(clk);
+	ret = of_property_read_u32(dev->of_node, "nwl,rx-esc-clock-rate",
+				   &rx_clk);
+	if (!ret) {
+		dsi->rx_esc.rate = rx_clk;
+		dev_info(dev, "Found nwl,rx-esc-clock-rate %ld\n",
+			 dsi->rx_esc.rate);
+	} else
+		dsi->rx_esc.rate = clk_get_rate(clk);
 	dsi->rx_esc.enabled = false;
 
 	clk = devm_clk_get(dev, "tx_esc");
@@ -1341,8 +1365,51 @@ static int nwl_dsi_probe(struct platform_device *pdev)
 		return ret;
 	}
 	dsi->tx_esc.clk = clk;
-	dsi->tx_esc.rate = clk_get_rate(clk);
+	ret = of_property_read_u32(dev->of_node, "nwl,tx-esc-clock-rate",
+				   &tx_clk);
+	if (!ret) {
+		dsi->tx_esc.rate = tx_clk;
+		dev_info(dev, "Found nwl,tx-esc-clock-rate %ld\n",
+			 dsi->tx_esc.rate);
+	} else
+		dsi->tx_esc.rate = clk_get_rate(clk);
 	dsi->tx_esc.enabled = false;
+
+	clk = devm_clk_get(dev, "phy_parent");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		dev_info(dev, "Failed to get optional phy_parent clock: %d\n",
+			 ret);
+	}
+
+	dsi->phy_parent.clk = clk;
+	dsi->phy_parent.enabled = false;
+
+	clk = devm_clk_get(dev, "phy_ref_sel");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		dev_info(dev, "Failed to get optional phy_ref_sel clock: %d\n",
+			 ret);
+	}
+	dsi->phy_ref_sel.clk = clk;
+	dsi->phy_ref_sel.enabled = false;
+
+	clk = devm_clk_get(dev, "rx_esc_sel");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		dev_info(dev, "Failed to get rx_esc_sel clock: %d\n", ret);
+	}
+	dsi->rx_esc_sel.clk = clk;
+	dsi->rx_esc_sel.enabled = false;
+
+	clk = devm_clk_get(dev, "tx_esc_sel");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		dev_info(dev, "Failed to get tx_esc_sel clock: %d\n", ret);
+	}
+	dsi->tx_esc_sel.clk = clk;
+	dsi->tx_esc_sel.enabled = false;
+
 	/* TX clk rate must be RX clk rate divided by 4 */
 	if (dsi->tx_esc.rate != (dsi->rx_esc.rate / 4))
 		dsi->tx_esc.rate = dsi->rx_esc.rate / 4;
