@@ -25,7 +25,14 @@
 #include "vpu_v4l2.h"
 #include "vpu_cmds.h"
 #include "vpu_rpc.h"
+#include "vpu_imx8q.h"
 #include <linux/imx_vpu.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
+#include <linux/device.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define VDEC_SLOT_CNT_DFT		32
 #define VDEC_MIN_BUFFER_CAP		8
@@ -1680,7 +1687,16 @@ static void vdec_stop(struct vpu_inst *inst, bool free)
 	vdec_clear_fs(&vdec->dcp);
 	if (free) {
 		vpu_free_dma(&vdec->udata);
-		vpu_free_dma(&inst->stream_buffer);
+		if (inst->secure_mode) {
+			dma_heap_buffer_free(inst->secure_stream_dma_buf);
+			inst->stream_buffer.virt = NULL;
+			inst->stream_buffer.phys = 0;
+			inst->stream_buffer.length = 0;
+			inst->stream_buffer.bytesused = 0;
+			inst->stream_buffer.dev = NULL;
+		} else {
+			vpu_free_dma(&inst->stream_buffer);
+		}
 	}
 	vdec_update_state(inst, VPU_CODEC_STATE_DEINIT, 1);
 	vdec->reset_codec = false;
@@ -1717,6 +1733,44 @@ static void vdec_init_params(struct vdec_t *vdec)
 	vdec->params.end_flag = 0;
 }
 
+static int secure_vpu_alloc_dma(struct vpu_inst *inst) {
+	const char* secure_heap_name = "secure";
+	struct dma_heap* secure_heap;
+	struct dma_buf* buf;
+	int ret = 0;
+	struct dma_buf_attachment *attachment = NULL;
+	struct sg_table *sgt = NULL;
+	struct device* dev;
+	unsigned long phys = 0;
+	dev = inst->dev;
+
+	secure_heap = dma_heap_find(secure_heap_name);
+	// allocate secure dma_buf
+	buf = dma_heap_buffer_alloc(secure_heap, inst->stream_buffer.length, O_RDWR | O_CLOEXEC, 0);
+
+	// Get phys addr
+	attachment = dma_buf_attach(buf, dev);
+
+	if (!attachment || IS_ERR(attachment)) {
+		dma_buf_put(buf);
+		return -EFAULT;
+	}
+
+	sgt = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+	if (sgt && !IS_ERR(sgt)) {
+		phys = sg_dma_address(sgt->sgl);
+
+		dma_buf_unmap_attachment(attachment, sgt,
+			DMA_BIDIRECTIONAL);
+	}
+
+	dma_buf_detach(buf, attachment);
+	inst->stream_buffer.phys = phys;
+	inst->secure_stream_dma_buf = buf;
+	dev_info(inst->dev, "stream_buffer.phys = 0x%lx\n", phys);
+	return ret;
+}
+
 static int vdec_start(struct vpu_inst *inst)
 {
 	struct vdec_t *vdec = inst->priv;
@@ -1744,7 +1798,16 @@ static int vdec_start(struct vpu_inst *inst)
 			inst->stream_buffer.length = stream_buffer_size;
 			inst->stream_buffer.recorder = inst->recorder;
 			inst->stream_buffer.label = "ring-buf";
-			ret = vpu_alloc_dma(inst->core, &inst->stream_buffer);
+			if (inst->secure_mode) {
+				dev_info(inst->dev, "allocate secure ring buffer\n");
+				ret = secure_vpu_alloc_dma(inst);
+				if (ret)
+					dev_err(inst->vpu->dev, "alloc secure ring buffer failed err=%d\n", ret);
+
+			} else {
+				dev_info(inst->dev, "use normal ring buffer\n");
+				ret = vpu_alloc_dma(inst->core, &inst->stream_buffer);
+			}
 			if (ret) {
 				dev_err(inst->dev, "[%d] alloc stream buffer fail\n", inst->id);
 				goto error;
