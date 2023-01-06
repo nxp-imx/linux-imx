@@ -20,3 +20,12 @@ config DMABUF_HEAPS_DSP
           Choose this option to enable the dsp dmabuf heap. The dsp heap
           is allocated by gen allocater. it's allocated according the dts.
           If in doubt, say Y.
+
+config IMX8QM_WIDEVINE_L1
+	bool "Enable widevine l1 on imx8qm"
+	default n
+	depends on DMABUF_HEAPS
+	help
+	  Enable secure heap on imx8qm, but linux have no permission to write
+	  it. So use this config to skip.
+
