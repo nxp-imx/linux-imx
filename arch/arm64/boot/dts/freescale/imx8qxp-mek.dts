@@ -23,3 +23,5 @@
 &imx8_gpu_ss {
 	memory-region=<&gpu_reserved>;
 };
+
+#include "imx8qxp-android.dtsi"

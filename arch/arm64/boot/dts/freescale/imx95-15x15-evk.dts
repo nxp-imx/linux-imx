@@ -1145,3 +1145,5 @@
 			       <12288000>, <0>;
 	status = "okay";
 };
+
+#include "imx95-android.dtsi"

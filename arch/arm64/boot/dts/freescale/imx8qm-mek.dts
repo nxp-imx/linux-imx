@@ -1689,3 +1689,5 @@
 	memory-region = <&encoder2_boot>, <&encoder2_rpc>;
 	status = "okay";
 };
+
+#include "imx8qm-android.dtsi"

@@ -151,3 +151,5 @@
 		DOVDD-supply = <&buck5_reg>;
 	};
 };
+
+#include "imx8mn-android.dtsi"
