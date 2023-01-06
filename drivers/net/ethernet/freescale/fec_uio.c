@@ -1105,7 +1105,7 @@ static int fec_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
 	return ret;
 }
 
-static int __init fec_uio_init(struct fec_dev *fec_dev)
+static int fec_uio_init(struct fec_dev *fec_dev)
 {
 	struct fec_uio_info *fec_uio_info;
 	int ret;
