@@ -25,18 +25,48 @@
 #include <linux/debugfs.h>
 #include "vpu.h"
 #include "vpu_imx8q.h"
+#include "vpu_core.h"
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
 
 bool debug;
 module_param(debug, bool, 0644);
 
+struct vpu_fastcall_message* fastcall_msg = NULL;
+u8* hdr = NULL;
+u32 hdr_size = 8192;
+struct vpu_ctx vctx;
+
+u32 trusty_vpu_reg(struct device *dev, u32 target, u32 val, u32 w_r) {
+        if (w_r == 0x2)
+                return trusty_fast_call32(dev, SMC_WV_CONTROL_VPU, target, OPT_WRITE, val);
+        if (w_r == 0x1)
+                return trusty_fast_call32(dev, SMC_WV_CONTROL_VPU, target, OPT_READ, 0);
+        return 0;
+}
+
+void copy_wrapper(struct vpu_inst *inst, void *src_virt, void *dst_virt, u32 size) {
+	trusty_fast_call32(inst->vpu->trusty_dev, SMC_WV_COPY, vctx.message_buffer_id, 0, 0);
+}
+
+void memset_wrapper(struct vpu_inst *inst, void *dst_virt, u32 offset, u32 value, u32 size) {
+	trusty_fast_call32(inst->vpu->trusty_dev, SMC_WV_MEMSET, offset, value, size);
+}
+
+
 void vpu_writel(struct vpu_dev *vpu, u32 reg, u32 val)
 {
-	writel(val, vpu->base + reg);
+	writel_vpu(val, vpu->base + reg);
 }
 
 u32 vpu_readl(struct vpu_dev *vpu, u32 reg)
 {
-	return readl(vpu->base + reg);
+	if (vpu->trusty_dev) {
+		return trusty_vpu_reg(vpu->trusty_dev, reg, 0, OPT_READ);
+	} else {
+		return readl(vpu->base + reg);
+	}
 }
 
 static void vpu_dev_get(struct vpu_dev *vpu)
@@ -88,6 +118,7 @@ static int vpu_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct vpu_dev *vpu;
 	int ret;
+	struct device_node *sp = NULL;
 
 	dev_dbg(dev, "probe\n");
 	vpu = devm_kzalloc(dev, sizeof(*vpu), GFP_KERNEL);
@@ -97,6 +128,9 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu->pdev = pdev;
 	vpu->dev = dev;
 	mutex_init(&vpu->lock);
+	mutex_init(&vpu->copy_lock);
+	mutex_init(&vpu->memset_lock);
+	mutex_init(&vpu->hdr_lock);
 	INIT_LIST_HEAD(&vpu->cores);
 	platform_set_drvdata(pdev, vpu);
 	atomic_set(&vpu->ref_vpu, 0);
@@ -112,6 +146,7 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(vpu->base))
 		return PTR_ERR(vpu->base);
+	vpu_malone_base = vpu->base;
 
 	vpu->res = of_device_get_match_data(dev);
 	if (!vpu->res)
@@ -128,6 +163,35 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu->encoder.function = MEDIA_ENT_F_PROC_VIDEO_ENCODER;
 	vpu->decoder.type = VPU_CORE_TYPE_DEC;
 	vpu->decoder.function = MEDIA_ENT_F_PROC_VIDEO_DECODER;
+
+	/*check trusty node*/
+	if (vpu->res->plat_type == IMX8QM) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			struct platform_device *pd;
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				vpu->trusty_dev = &(pd->dev);
+				dev_info(dev,"vpu amphion will use trusty mode\n");
+				ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+				if (ret < 0) {
+					dev_err(dev, "trusty dev failed to probe!nr=0x%x error=%d\n", SMC_WV_PROBE, ret);
+					vpu->trusty_dev = NULL;
+				} else {
+					dev_info(dev,"vpu amphion will use trusty mode\n");
+					trusty_dev = vpu->trusty_dev;
+				}
+			} else {
+				vpu->trusty_dev = NULL;
+			}
+		} else {
+			vpu->trusty_dev = NULL;
+		}
+	} else {
+		vpu->trusty_dev = NULL;
+	}
+	/* end */
+
 	ret = vpu_add_func(vpu, &vpu->decoder);
 	if (ret)
 		goto err_add_decoder;
@@ -140,6 +204,39 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu->debugfs = debugfs_create_dir("amphion_vpu", NULL);
 
 	of_platform_populate(dev->of_node, NULL, NULL, dev);
+
+	if (vpu->trusty_dev && vpu->res->plat_type == IMX8QM) {
+		vctx.message_buffer_sz = PAGE_ALIGN(sizeof(trusty_shared_mem_id_t) + 16);
+		vctx.message_buffer = alloc_pages_exact(vctx.message_buffer_sz, GFP_KERNEL);
+		fastcall_msg = (struct vpu_fastcall_message*)vctx.message_buffer;
+		sg_init_one(&vctx.message_sg, vctx.message_buffer, vctx.message_buffer_sz);
+
+		ret = trusty_share_memory_compat(vpu->trusty_dev,
+				&vctx.message_buffer_id, &vctx.message_sg, 1, PAGE_KERNEL);
+		if (ret) {
+			dev_err(dev, "vpu share messgae buffer failed ret=0x%d\n",ret);
+		}
+
+		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_MESSAGE_BUFFER,
+				(vctx.message_buffer_id & 0xffffffff), (vctx.message_buffer_id >> 32),vctx.message_buffer_sz);
+
+		vctx.hdr_buffer_sz = hdr_size;
+		vctx.hdr_buffer = alloc_pages_exact(vctx.hdr_buffer_sz, GFP_KERNEL);
+		sg_init_one(&vctx.hdr_sg, vctx.hdr_buffer, vctx.hdr_buffer_sz);
+		hdr = vctx.hdr_buffer;
+		ret = trusty_share_memory_compat(vpu->trusty_dev,
+				&vctx.hdr_buffer_id, &vctx.hdr_sg, 1, PAGE_KERNEL);
+		if (ret)
+			dev_err(dev, "vpu share hdr buffer failed ret=0x%d\n",ret);
+		else
+		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_HDR, (vctx.hdr_buffer_id & 0xffffffff),
+				(vctx.hdr_buffer_id >> 32), vctx.hdr_buffer_sz);
+
+		//mmap secure heap, message, hdr shared memory
+		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_MMAP_SAHRE_MEMORY, 1, 0, 0);
+		if (ret)
+			dev_err(dev, "decoder mmap shared buffer failed\n");
+	}
 
 	return 0;
 
@@ -161,6 +258,36 @@ static void vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_dev *vpu = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
+	int ret;
+
+	if (vpu->trusty_dev && vpu->res->plat_type == IMX8QM) {
+		/* unmmap trusty shared memory */
+		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_MMAP_SAHRE_MEMORY, 0, 0, 0);
+		if (ret)
+			dev_err(dev, "decoder unmmap shared buffer failed\n");
+
+		/* free hdr shared memory */
+		ret = trusty_reclaim_memory(vpu->trusty_dev, vctx.hdr_buffer_id,
+				&vctx.hdr_sg, 1);
+		if (WARN_ON(ret)) {
+			dev_err(dev, "vpu_revoke_hdr_shared_memory failed: %d 0x%llx\n",
+						ret, vctx.hdr_buffer_id);
+		} else {
+			free_pages_exact(vctx.hdr_buffer, vctx.hdr_buffer_sz);
+			fastcall_msg = NULL;
+		}
+		/* free fastcall message memory */
+		ret = trusty_reclaim_memory(vpu->trusty_dev, vctx.message_buffer_id,
+				&vctx.message_sg, 1);
+		if (WARN_ON(ret)) {
+			dev_err(dev, "vpu_revoke_message_shared_memory failed: %d 0x%llx\n",
+				ret, vctx.message_buffer_id);
+		} else {
+			free_pages_exact(vctx.message_buffer, vctx.message_buffer_sz);
+			hdr = NULL;
+		}
+		/* free shared memory end */
+	}
 
 	debugfs_remove_recursive(vpu->debugfs);
 	vpu->debugfs = NULL;
@@ -173,6 +300,9 @@ static void vpu_remove(struct platform_device *pdev)
 	media_device_cleanup(&vpu->mdev);
 	v4l2_device_unregister(&vpu->v4l2_dev);
 	mutex_destroy(&vpu->lock);
+	mutex_destroy(&vpu->copy_lock);
+	mutex_destroy(&vpu->memset_lock);
+	mutex_destroy(&vpu->hdr_lock);
 }
 
 static int __maybe_unused vpu_runtime_resume(struct device *dev)
@@ -261,3 +391,4 @@ module_exit(vpu_driver_exit);
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("Linux VPU driver for Freescale i.MX8Q");
 MODULE_LICENSE("GPL v2");
+MODULE_IMPORT_NS(DMA_BUF);
