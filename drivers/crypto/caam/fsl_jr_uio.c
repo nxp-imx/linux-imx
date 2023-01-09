@@ -111,7 +111,7 @@ static int jr_uio_irqcontrol(struct uio_info *dev_info, int irqon)
 	return 0;
 }
 
-static int __init jr_uio_init(struct jr_dev *uio_dev)
+static int jr_uio_init(struct jr_dev *uio_dev)
 {
 	int ret;
 	struct jr_uio_info *info;
