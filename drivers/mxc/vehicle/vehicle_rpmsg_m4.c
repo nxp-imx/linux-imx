@@ -237,6 +237,7 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		break;
 	case WATCHDOG_ALIVE:
 	case DISPLAY_BRIGHTNESS:
+	case PERF_VEHICLE_SPEED:
 		// Proper action is TBD
 		return;
 	case HVAC_SEAT_TEMPERATURE:
@@ -300,7 +301,6 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	case INFO_FUEL_CAPACITY:
 	case INFO_EV_BATTERY_CAPACITY:
 	case PERF_ODOMETER:
-	case PERF_VEHICLE_SPEED:
 	case PERF_STEERING_ANGLE:
 	case PERF_REAR_STEERING_ANGLE:
 	case ENGINE_OIL_TEMP:
