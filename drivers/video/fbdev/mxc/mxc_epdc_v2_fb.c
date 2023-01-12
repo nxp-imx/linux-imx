@@ -3714,7 +3714,7 @@ static int mxc_epdc_update_data(int64_t dma_address, struct fb_var_screeninfo *v
 	static uint32_t marker_val = 1;
 	struct mxcfb_update_marker_data upd_marker_data;
 
-	upd_data.update_mode = UPDATE_MODE_FULL;
+	upd_data.update_mode = UPDATE_MODE_PARTIAL;
 	upd_data.waveform_mode = WAVEFORM_MODE_AUTO;
 	upd_data.update_region.left = var->xoffset;
 	upd_data.update_region.width = fb_info->var.xres;
