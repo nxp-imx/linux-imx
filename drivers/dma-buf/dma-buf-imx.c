@@ -93,6 +93,30 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		return 0;
 	}
+	case DMABUF_GET_HEAP_NAME:{
+		struct dma_buf *dmabuf;
+		struct dmabuf_imx_heap_name data;
+		// copy dmabuf_imx_heap_name from user space to kernel space
+		if (copy_from_user(&data, (void __user *)arg,
+			sizeof(struct dmabuf_imx_heap_name)))
+			return -EFAULT;
+
+		// get the dmafd from user space.
+		// dma_buf is from dma_buf_get according the dma fd.
+		dmabuf = dma_buf_get(data.dmafd);
+		if (!dmabuf || IS_ERR(dmabuf)) {
+			return -EFAULT;
+		}
+
+		strscpy(data.name, dmabuf->exp_name, sizeof(data.name));
+		dma_buf_put(dmabuf);
+
+		// put the phys address to user space through dmabuf_imx_heap_name
+		if (copy_to_user((void __user *)arg, &data,
+			sizeof(struct dmabuf_imx_heap_name)))
+			return -EFAULT;
+		return 0;
+	}
 	default:
 		return -ENOTTY;
 	}
