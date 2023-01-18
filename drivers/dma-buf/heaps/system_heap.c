@@ -15,14 +15,19 @@
 #include <linux/dma-mapping.h>
 #include <linux/dma-heap.h>
 #include <linux/err.h>
+#include <linux/genalloc.h>
 #include <linux/highmem.h>
 #include <linux/iommu.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/printk.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/scatterlist.h>
 #include <linux/swiotlb.h>
 #include <linux/vmalloc.h>
+
+static struct dma_heap *secure_heap;
+static struct gen_pool *secure_heap_pool;
 
 struct system_heap_buffer {
 	struct dma_heap *heap;
@@ -508,6 +513,169 @@ static struct dma_heap_ops system_uncached_heap_ops = {
 	.allocate = system_uncached_heap_not_initialized,
 };
 
+static int secure_heap_zero_buffer(struct system_heap_buffer *buffer)
+{
+	struct sg_table *sgt = &buffer->sg_table;
+	struct sg_page_iter piter;
+	struct page *p;
+	void *vaddr;
+	int ret = 0;
+
+	for_each_sgtable_page(sgt, &piter, 0) {
+		p = sg_page_iter_page(&piter);
+		vaddr = kmap_atomic(p);
+		memset(vaddr, 0, PAGE_SIZE);
+		kunmap_atomic(vaddr);
+	}
+
+	return ret;
+}
+
+static void secure_heap_dma_buf_release(struct dma_buf *dmabuf)
+{
+	struct system_heap_buffer *buffer = dmabuf->priv;
+	struct sg_table *table;
+	struct scatterlist *sg;
+	int i;
+
+	secure_heap_zero_buffer(buffer);
+	table = &buffer->sg_table;
+	for_each_sg(table->sgl, sg, table->nents, i) {
+		gen_pool_free(secure_heap_pool,
+						sg_dma_address(sg),
+						sg_dma_len(sg));
+	}
+
+	sg_free_table(table);
+	kfree(buffer);
+}
+
+static const struct dma_buf_ops secure_heap_buf_ops = {
+	.attach = system_heap_attach,
+	.detach = system_heap_detach,
+	.map_dma_buf = system_heap_map_dma_buf,
+	.unmap_dma_buf = system_heap_unmap_dma_buf,
+	.begin_cpu_access = system_heap_dma_buf_begin_cpu_access,
+	.end_cpu_access = system_heap_dma_buf_end_cpu_access,
+	.mmap = system_heap_mmap,
+	.vmap = system_heap_vmap,
+	.vunmap = system_heap_vunmap,
+	.release = secure_heap_dma_buf_release,
+};
+
+static struct dma_buf *secure_heap_do_allocate(struct dma_heap *heap,
+					       unsigned long len,
+					       unsigned long fd_flags,
+					       unsigned long heap_flags,
+					       bool uncached)
+{
+	struct system_heap_buffer *buffer;
+	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+	unsigned long size = roundup(len,  PAGE_SIZE);
+	struct dma_buf *dmabuf;
+	struct sg_table *table;
+	int ret = -ENOMEM;
+	unsigned long phy_addr;
+
+	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
+	if (!buffer)
+		return ERR_PTR(-ENOMEM);
+
+	INIT_LIST_HEAD(&buffer->attachments);
+	mutex_init(&buffer->lock);
+	buffer->heap = heap;
+	buffer->len = size;
+	buffer->uncached = uncached;
+
+	phy_addr = gen_pool_alloc(secure_heap_pool, size);
+	if (!phy_addr)
+		goto free_buffer;
+
+	table = &buffer->sg_table;
+	if (sg_alloc_table(table, 1, GFP_KERNEL))
+		goto free_buffer;
+
+	sg_set_page(table->sgl,
+			phys_to_page(phy_addr),
+			size, 0);
+	sg_dma_address(table->sgl) = phy_addr;
+	sg_dma_len(table->sgl) = size;
+
+	/* create the dmabuf */
+	exp_info.exp_name = dma_heap_get_name(heap);
+	exp_info.ops = &secure_heap_buf_ops;
+	exp_info.size = buffer->len;
+	exp_info.flags = fd_flags;
+	exp_info.priv = buffer;
+	dmabuf = dma_buf_export(&exp_info);
+	if (IS_ERR(dmabuf)) {
+		ret = PTR_ERR(dmabuf);
+		goto free_pages;
+	}
+
+	return dmabuf;
+
+free_pages:
+	sg_free_table(table);
+
+free_buffer:
+	kfree(buffer);
+
+	return ERR_PTR(ret);
+}
+
+static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
+					    unsigned long len,
+					    unsigned long fd_flags,
+					    unsigned long heap_flags)
+{
+	/* Use uncached buffer by default */
+	return secure_heap_do_allocate(heap, len, fd_flags, heap_flags, true);
+}
+
+static struct dma_heap_ops secure_heap_ops = {
+	.allocate = secure_heap_allocate,
+};
+
+static int secure_heap_create(void)
+{
+	struct dma_heap_export_info exp_info;
+	struct device_node np;
+	struct reserved_mem *rmem;
+	int ret = -EINVAL;
+
+	/* Add secure memory which reserved in dts into pool of genallocater */
+	np.full_name = "secure";
+	rmem = of_reserved_mem_lookup(&np);
+	if (!rmem || !rmem->base || !rmem->size)
+		return 0;
+
+	/* All allocations should be a multiple of 64K bytes */
+	secure_heap_pool = gen_pool_create(PAGE_SHIFT + 4, -1);
+	if (!secure_heap_pool)
+		return -ENOMEM;
+
+	ret = gen_pool_add(secure_heap_pool, rmem->base, rmem->size, -1);
+	if (ret)
+		goto fail;
+
+	exp_info.name = "secure";
+	exp_info.ops = &secure_heap_ops;
+	exp_info.priv = NULL;
+
+	secure_heap = dma_heap_add(&exp_info);
+	if (IS_ERR(secure_heap)) {
+		ret = PTR_ERR(secure_heap);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	gen_pool_destroy(secure_heap_pool);
+	return ret;
+}
+
 static int __init system_heap_create(void)
 {
 	struct dma_heap_export_info exp_info;
@@ -534,7 +702,7 @@ static int __init system_heap_create(void)
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	system_uncached_heap_ops.allocate = system_uncached_heap_allocate;
 
-	return 0;
+	return secure_heap_create();
 }
 module_init(system_heap_create);
 MODULE_LICENSE("GPL v2");
