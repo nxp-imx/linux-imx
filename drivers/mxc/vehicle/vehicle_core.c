@@ -38,29 +38,22 @@ struct vehicle_core_drvdata {
 	const struct hw_prop_ops *prop_ops;
 };
 
-/*vehicle_event_door_type: stateValue of type VEHICLE_DOOR*/
-enum vehicle_event_door_type {
-	VEHICLE_DOOR_UNLOCK = 0,
-	VEHICLE_DOOR_LOCK,
+/* param in command PWR_REQ */
+enum vehicle_power_request_param {
+	AP_POWER_REQUEST_PARAM_SHUTDOWN_IMMEDIATELY = 1,
+	AP_POWER_REQUEST_PARAM_CAN_SLEEP,
+	AP_POWER_REQUEST_PARAM_SHUTDOWN_ONLY,
+	AP_POWER_REQUEST_PARAM_SLEEP_IMMEDIATELY,
+	AP_POWER_REQUEST_PARAM_HIBERNATE_IMMEDIATELY,
+	AP_POWER_REQUEST_PARAM_CAN_HIBERNATE,
 };
 
-/*vehicle_power_report_type: androidPwrState in command PWR_REPORT*/
-enum vehicle_power_report_type {
-	BOOT_COMPLETE = 0,
-	DEEP_SLEEP_ENTRY,
-	DEEP_SLEEP_EXIT,
-	SHUTDOWN_POSTPONE,
-	SHUTDOWN_START,
-	DISPLAY_OFF,
-	DISPLAY_ON,
-};
-
-/*vehicle_power_request_type: androidPwrState in command PWR_REQ*/
-enum vehicle_power_request_type {
-	AP_POWER_REQUEST_ON = 0,
-	AP_POWER_REQUEST_SHUTDOWN_PREPARE,
-	AP_POWER_REQUEST_CANCEL_SHUTDOWN,
-	AP_POWER_REQUEST_FINISHED,
+/* state in command PWR_REQ */
+enum vehicle_power_request_state {
+	AP_POWER_REQUEST_STATE_ON = 0,
+	AP_POWER_REQUEST_STATE_SHUTDOWN_PREPARE,
+	AP_POWER_REQUEST_STATE_CANCEL_SHUTDOWN,
+	AP_POWER_REQUEST_STATE_FINISHED,
 };
 
 static struct vehicle_core_drvdata *vehicle_core;
@@ -169,12 +162,22 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 		property_encode.prop = TURN_SIGNAL_STATE;
 		break;
 	case VEHICLE_POWER_STATE_REQ:
-		if (value != AP_POWER_REQUEST_ON &&
-				value != AP_POWER_REQUEST_SHUTDOWN_PREPARE &&
-				value != AP_POWER_REQUEST_CANCEL_SHUTDOWN &&
-				value != AP_POWER_REQUEST_FINISHED) {
+		if (value != AP_POWER_REQUEST_STATE_ON &&
+				value != AP_POWER_REQUEST_STATE_SHUTDOWN_PREPARE &&
+				value != AP_POWER_REQUEST_STATE_CANCEL_SHUTDOWN &&
+				value != AP_POWER_REQUEST_STATE_FINISHED) {
 			kfree(buffer);
-			pr_err("AP_POWER_STATE_REQ: invaliad state\n");
+			pr_err("AP_POWER_STATE_REQ: invalid state\n");
+			return;
+		}
+		if (param != AP_POWER_REQUEST_PARAM_SHUTDOWN_IMMEDIATELY &&
+				param != AP_POWER_REQUEST_PARAM_CAN_SLEEP &&
+				param != AP_POWER_REQUEST_PARAM_SHUTDOWN_ONLY &&
+				param != AP_POWER_REQUEST_PARAM_SLEEP_IMMEDIATELY &&
+				param != AP_POWER_REQUEST_PARAM_HIBERNATE_IMMEDIATELY &&
+				param != AP_POWER_REQUEST_PARAM_CAN_HIBERNATE) {
+			kfree(buffer);
+			pr_err("AP_POWER_STATE_REQ: invalid param\n");
 			return;
 		}
 

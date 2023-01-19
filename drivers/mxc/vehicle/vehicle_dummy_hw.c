@@ -54,12 +54,17 @@
 // right turn signal
 #define TURN_2 2
 
-#define POWER_REQ_ON 0
-#define POWER_REQ_SHUTDOWN_PREPARE 1
-#define POWER_REQ_CANCEL_SHUTDOWN 2
-#define POWER_REQ_FINISHED 3
+#define POWER_REQ_STATE_ON 0
+#define POWER_REQ_STATE_SHUTDOWN_PREPARE 1
+#define POWER_REQ_STATE_CANCEL_SHUTDOWN 2
+#define POWER_REQ_STATE_FINISHED 3
 
-#define POWER_REQ_PARAM_MAX 3
+#define POWER_REQ_PARAM_SHUTDOWN_IMMEDIATELY 1
+#define POWER_REQ_PARAM_CAN_SLEEP 2
+#define POWER_REQ_PARAM_SHUTDOWN_ONLY 3
+#define POWER_REQ_PARAM_SLEEP_IMMEDIATELY 4
+#define POWER_REQ_PARAM_HIBERNATE_IMMEDIATELY 5
+#define POWER_REQ_PARAM_CAN_HIBERNATE 6
 
 // temperature set from hardware on Android OREO and PIE uses below indexs
 #define AC_TEMP_LEFT_INDEX 1
@@ -781,17 +786,23 @@ static ssize_t power_req_store(struct device *dev,
 	ret = strrchr(buf, ' ');
 	param = simple_strtoul(ret+1, NULL, 10);
 
-	if (state != POWER_REQ_ON && state != POWER_REQ_SHUTDOWN_PREPARE &&
-		state != POWER_REQ_CANCEL_SHUTDOWN && state != POWER_REQ_FINISHED) {
-		pr_err("input power state is not correct, please type correct one \n");
+	if (state != POWER_REQ_STATE_ON &&
+		state != POWER_REQ_STATE_SHUTDOWN_PREPARE &&
+		state != POWER_REQ_STATE_CANCEL_SHUTDOWN &&
+		state != POWER_REQ_STATE_FINISHED) {
+		pr_err("input power request state is not correct, please type correct one \n");
 		return -EINVAL;
 	}
 
-	if (param > POWER_REQ_PARAM_MAX) {
-		pr_err("input power state param is not correct, please type correct one \n");
+	if (param != POWER_REQ_PARAM_SHUTDOWN_IMMEDIATELY &&
+		param != POWER_REQ_PARAM_CAN_SLEEP &&
+		param != POWER_REQ_PARAM_SHUTDOWN_ONLY &&
+		param != POWER_REQ_PARAM_SLEEP_IMMEDIATELY &&
+		param != POWER_REQ_PARAM_HIBERNATE_IMMEDIATELY &&
+		param != POWER_REQ_PARAM_CAN_HIBERNATE) {
+		pr_err("input power request param is not correct, please type correct one \n");
 		return -EINVAL;
 	}
-
 
 	vehicle_dummy->power_req_state = state;
 	vehicle_dummy->power_req_param = param;
