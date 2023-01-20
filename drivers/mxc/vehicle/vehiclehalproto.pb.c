@@ -109,4 +109,5 @@ STATIC_ASSERT((pb_membersize(emulator_VehiclePropConfig, area_configs) < 65536 &
 STATIC_ASSERT((pb_membersize(emulator_VehiclePropConfig, area_configs) < 256 && pb_membersize(emulator_EmulatorMessage, prop) < 256 && pb_membersize(emulator_EmulatorMessage, config) < 256 && pb_membersize(emulator_EmulatorMessage, value) < 256), YOU_MUST_DEFINE_PB_FIELD_16BIT_FOR_MESSAGES_emulator_VehicleAreaConfig_emulator_VehiclePropConfig_emulator_VehiclePropValue_emulator_VehiclePropGet_emulator_EmulatorMessage)
 #endif
 
-
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("NXP Semiconductor");

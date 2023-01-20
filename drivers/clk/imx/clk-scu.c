@@ -224,7 +224,6 @@ int imx_clk_post_scu_init(struct device_node *np, const struct imx_clk_scu_rsrc_
 {
 	struct platform_device *pd_dev;
 	struct device_node *post_np;
-	int ret, i;
 
 	if (!ccm_ipc_handle)
 		return -EPROBE_DEFER;
