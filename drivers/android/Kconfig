@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 menu "Android"
 
+config ANDROID
+	bool "Android Drivers"
+	default y
+	help
+	  Enable support for various codes needed on the Android platform
+
 config ANDROID_BINDER_IPC
 	bool "Android Binder IPC Driver"
 	depends on MMU
