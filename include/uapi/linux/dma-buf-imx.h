@@ -27,7 +27,7 @@ struct dmabuf_imx_phys_data {
 };
 struct dmabuf_imx_heap_name {
 	__u32 dmafd;
-	__u8 name[16];
+	__u8 name[32];
 };
 
 #define DMABUF_GET_PHYS   _IOWR('M', 32, struct dmabuf_imx_phys_data)
