@@ -1,7 +1,6 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2022 NXP
- * Author:- Kshitiz Varshney <kshitiz.varshney@nxp.com>
  */
 
 #ifndef __DCP_TRUSTED_KEY_H__
