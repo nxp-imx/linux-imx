@@ -693,7 +693,13 @@ void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi, bool m2m_enabled)
 	}
 
 	dump_isi_regs(mxc_isi);
-	msleep(300);
+	/*
+	 * Delay reduced to PASS Android EvsHidlTest#CameraStreamPerformance/0_EvsEnumeratorHw
+	 * test. The test expect 500ms to first frame. Original 300ms delay reduced to 150ms
+	 * otherwise the delay makes this corner case. This delay needs to be fine tuned for given
+	 * resolution in corresponding use case.
+	*/
+	msleep(150);
 }
 EXPORT_SYMBOL_GPL(mxc_isi_channel_enable);
 
