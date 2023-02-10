@@ -1181,7 +1181,11 @@ static int patch_param_imx6(struct platform_device *pdev,
         args->registerSizes[gcvCORE_MAJOR] = res->end - res->start + 1;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
     irqLine = platform_get_irq_byname_optional(pdev, "irq_2d");
+#else
+    irqLine = platform_get_irq_byname(pdev, "irq_2d");
+#endif
 
 	if (irqLine > 0)
 		args->irqs[gcvCORE_2D] = irqLine;
@@ -1195,7 +1199,11 @@ static int patch_param_imx6(struct platform_device *pdev,
         args->registerSizes[gcvCORE_2D] = res->end - res->start + 1;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
     irqLine = platform_get_irq_byname_optional(pdev, "irq_vg");
+#else
+    irqLine = platform_get_irq_byname(pdev, "irq_vg");
+#endif
 
 	if (irqLine > 0)
 		args->irqs[gcvCORE_VG] = irqLine;
