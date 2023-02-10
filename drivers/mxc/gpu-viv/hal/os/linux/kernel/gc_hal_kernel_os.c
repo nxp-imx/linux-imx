@@ -1253,6 +1253,7 @@ gckOS_UnmapMemory(
     IN gctPOINTER Logical
     )
 {
+    gceSTATUS status = gcvSTATUS_OK;
     gcmkHEADER_ARG("Os=%p Physical=0%p Bytes=0x%zx Logical=%p",
                    Os, Physical, Bytes, Logical);
 
@@ -1262,11 +1263,11 @@ gckOS_UnmapMemory(
     gcmkVERIFY_ARGUMENT(Bytes > 0);
     gcmkVERIFY_ARGUMENT(Logical != gcvNULL);
 
-    gckOS_UnmapMemoryEx(Os, Physical, Bytes, Logical, _GetProcessID());
+    gcmkONERROR(gckOS_UnmapMemoryEx(Os, Physical, Bytes, Logical, _GetProcessID()));
 
-    /* Success. */
+OnError:
     gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
+    return status;
 }
 
 

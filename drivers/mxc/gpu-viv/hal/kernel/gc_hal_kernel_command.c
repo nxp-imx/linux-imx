@@ -2451,13 +2451,16 @@ _CommitWaitLinkOnce(
             ));
 
 #if gcdCAPTURE_ONLY_MODE
-        for (i = 0; i < gcdCONTEXT_BUFFER_COUNT; ++i)
-        {
-            gcsCONTEXT_PTR buffer = contextBuffer;
+        if (Command->kernel->core == 0) {
+            for (i = 0; i < gcdCONTEXT_BUFFER_COUNT; ++i) {
+                gcsCONTEXT_PTR buffer = contextBuffer;
 
-            gckOS_CopyToUserData(Command->os, buffer->logical, CommandBuffer->contextLogical[i], Context->bufferSize);
+                gckOS_CopyToUserData(Command->os, buffer->logical,
+                                     CommandBuffer->contextLogical[i],
+                                     Context->bufferSize);
 
-            buffer = buffer->next;
+                buffer = buffer->next;
+            }
         }
 #endif
 

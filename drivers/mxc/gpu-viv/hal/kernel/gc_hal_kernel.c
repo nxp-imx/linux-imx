@@ -3545,6 +3545,16 @@ gckKERNEL_Dispatch(
                     gckVIDMEM_HANDLE_Lookup(Kernel, processID, context->buffer->handle, &nodeObject));
 
                 Interface->u.Attach.captureSize = nodeObject->captureSize;
+
+                if (Kernel->core != 0) {
+                    gcmkVERIFY_OK(
+                        gckKERNEL_AddProcessDB(Kernel,
+                                               processID, gcvDB_CONTEXT,
+                                               gcmINT2PTR(Interface->u.Attach.context),
+                                               gcvNULL,
+                                               0));
+                }
+
                 break;
             }
             else
