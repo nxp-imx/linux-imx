@@ -236,10 +236,6 @@ MODULE_PARM_DESC(smallBatch, "Enable/disable GPU small batch feature, enable by 
 static int allMapInOne = 1;
 module_param(allMapInOne, int, 0644);
 MODULE_PARM_DESC(allMapInOne, "Mapping kernel video memory to user, 0 means mapping every time, otherwise only mapping one time");
-
-static uint gpuTimeout = gcdGPU_TIMEOUT;
-module_param(gpuTimeout, uint, 0644);
-MODULE_PARM_DESC(gpuTimeout, "Timeout of operation that needs to wait for the GPU");
 /*******************************************************************************
 ***************************** SRAM description *********************************
 *******************************************************************************/
@@ -439,8 +435,6 @@ _InitModuleParam(
 
     p->mmuDynamicMap = mmuDynamicMap;
     p->allMapInOne = allMapInOne;
-
-    p->gpuTimeout = gpuTimeout;
 #if !gcdENABLE_3D
     p->irqs[gcvCORE_MAJOR]          = irqLine = -1;
     p->registerBases[gcvCORE_MAJOR] = registerMemBase = 0;
@@ -560,8 +554,6 @@ _SyncModuleParam(
     mmuPageTablePool = p->mmuDynamicMap;
     mmuDynamicMap = p->mmuDynamicMap;
     allMapInOne = p->allMapInOne;
-
-    gpuTimeout = p->gpuTimeout;
 }
 
 void
@@ -694,7 +686,7 @@ gckOS_DumpParam(
     printk("  mmuDynamicMap     = %d\n", mmuDynamicMap);
 
     printk("Build options:\n");
-    printk("  gpuTimeout    = %d\n", gpuTimeout);
+    printk("  gcdGPU_TIMEOUT    = %d\n", gcdGPU_TIMEOUT);
     printk("  gcdGPU_2D_TIMEOUT = %d\n", gcdGPU_2D_TIMEOUT);
     printk("  gcdINTERRUPT_STATISTIC = %d\n", gcdINTERRUPT_STATISTIC);
 }

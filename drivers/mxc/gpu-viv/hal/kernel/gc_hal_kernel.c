@@ -528,7 +528,6 @@ gckKERNEL_Construct(
     gctUINT64 data;
     gctUINT32 recovery;
     gctUINT32 stuckDump;
-    gctUINT gpuTimeout = 0;
     gctUINT64 dynamicMap = 1;
 
     gcmkHEADER_ARG("Os=%p Context=%p", Os, Context);
@@ -722,7 +721,7 @@ gckKERNEL_Construct(
         }
         kernel->timeOut = kernel->hardware->type == gcvHARDWARE_2D
                         ? gcdGPU_2D_TIMEOUT
-                        : gpuTimeout
+                        : gcdGPU_TIMEOUT
                         ;
 
 #if gcdSHARED_PAGETABLE
@@ -4101,7 +4100,7 @@ gckKERNEL_AttachProcessEx(
             }
             Kernel->timeOut = Kernel->hardware->type == gcvHARDWARE_2D
                             ? gcdGPU_2D_TIMEOUT
-                            : gpuTimeout;
+                            : gcdGPU_TIMEOUT;
         }
     }
 
