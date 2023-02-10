@@ -7390,6 +7390,10 @@ gckOS_QueryOption(
     {
         *Value = device->args.mmuException;
     }
+    else if (!strcmp(Option, "gpuTimeout"))
+    {
+        *Value = device->args.gpuTimeout;
+    }
     else if (!strcmp(Option, "extSRAMSizes"))
     {
         memcpy(Value, device->args.extSRAMSizes,
