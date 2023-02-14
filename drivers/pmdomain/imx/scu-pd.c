@@ -337,7 +337,15 @@ struct syscore_ops imx_pm_domains_syscore_ops = {
 static void imx_sc_pd_get_console_rsrc(void)
 {
 	struct of_phandle_args specs;
+	struct device_node *of_stdout = NULL;
 	int ret;
+
+	if (of_chosen) {
+		const char *name = NULL;
+		of_property_read_string(of_chosen, "stdout-path", &name);
+		if (name)
+			of_stdout = of_find_node_opts_by_path(name, NULL);
+	}
 
 	if (!of_stdout)
 		return;
