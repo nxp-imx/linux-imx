@@ -36,7 +36,7 @@ struct imx_sc_rpc_msg {
 	uint8_t func;
 };
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 /*
  * This is an function to send an RPC message over an IPC channel.
  * It is called by client-side SCFW API function shims.

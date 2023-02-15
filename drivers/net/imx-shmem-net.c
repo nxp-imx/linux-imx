@@ -32,7 +32,7 @@
 #include <linux/clk.h>
 #include <linux/mutex.h>
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 #include <linux/firmware/imx/sci.h>
 #endif
 #include <linux/mailbox_client.h>
@@ -1005,7 +1005,7 @@ static int mu_enable_reset_irq(struct net_device *ndev)
 	dev_dbg(&isndev->pdev->dev, "watching reset from partition %d\n",
 		isndev->mub_partition);
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 	/* Request for the partition reset interrupt. */
 	sciErr = imx_scu_irq_group_enable(SC_IRQ_GROUP_REBOOTED,
 					  BIT(isndev->mub_partition), true);
@@ -1170,7 +1170,7 @@ retry:
 	return 0;
 
 err_reset_irq:
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 	imx_scu_irq_unregister_notifier(&in->pnotifier);
 #endif
 

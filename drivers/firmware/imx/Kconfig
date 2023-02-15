@@ -11,7 +11,7 @@ config IMX_DSP
 	  exchange information with DSP side.
 
 config IMX_SCU
-	bool "IMX SCU Protocol driver"
+	tristate "IMX SCU Protocol driver"
 	depends on IMX_MBOX
 	select SOC_BUS
 	help

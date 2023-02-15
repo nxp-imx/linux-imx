@@ -7,7 +7,7 @@
 #include <linux/circ_buf.h>
 #include <linux/delay.h>
 #include <linux/err.h>
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 #include <linux/firmware/imx/sci.h>
 #endif
 #include <linux/init.h>
@@ -365,7 +365,7 @@ static void rpmsg_work_handler(struct work_struct *work)
 	spin_unlock_irqrestore(&rpdev->mu_lock, flags);
 }
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 static void imx_rpmsg_restore(struct imx_rpmsg_vproc *rpdev)
 {
 	int i;
@@ -549,7 +549,7 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	rpdev->pdev = pdev;
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 	rpdev->proc_nb.notifier_call = imx_rpmsg_partition_notify;
 #endif
 	variant = (uintptr_t)of_device_get_match_data(dev);
@@ -614,7 +614,7 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, rpdev);
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 	if (rpdev->variant == IMX8QXP || rpdev->variant == IMX8QM) {
 		/* Get muB partition id and enable irq in SCFW then */
 		if (of_property_read_u32(np, "mub-partition",
