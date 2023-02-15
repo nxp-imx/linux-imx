@@ -46,7 +46,7 @@ enum imx_misc_func {
  * Control Functions
  */
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 int imx_sc_misc_set_control(struct imx_sc_ipc *ipc, u32 resource,
 			    u8 ctrl, u32 val);
 

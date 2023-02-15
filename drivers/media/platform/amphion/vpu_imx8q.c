@@ -20,7 +20,7 @@
 #define IMX8Q_CSR_CM0Px_ADDR_OFFSET			0x00000000
 #define IMX8Q_CSR_CM0Px_CPUWAIT				0x00000004
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 #include <linux/firmware/imx/ipc.h>
 #include <linux/firmware/imx/svc/misc.h>
 
@@ -189,7 +189,7 @@ int vpu_imx8q_check_memory_region(dma_addr_t base, dma_addr_t addr, u32 size)
 	return VPU_CORE_MEMORY_INVALID;
 }
 
-#ifdef CONFIG_IMX_SCU
+#if IS_ENABLED(CONFIG_IMX_SCU)
 static u32 vpu_imx8q_get_fuse(void)
 {
 	static u32 fuse_got;

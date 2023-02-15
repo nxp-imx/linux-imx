@@ -1096,6 +1096,7 @@ init_cpucap_indirect_list_from_array(const struct arm64_cpu_capabilities *caps)
 }
 
 bool TKT340553_SW_WORKAROUND;
+EXPORT_SYMBOL_GPL(TKT340553_SW_WORKAROUND);
 static void __init init_cpucap_indirect_list(void)
 {
 	init_cpucap_indirect_list_from_array(arm64_features);
