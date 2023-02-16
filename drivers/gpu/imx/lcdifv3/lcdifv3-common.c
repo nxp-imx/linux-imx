@@ -826,7 +826,18 @@ struct platform_driver imx_lcdifv3_driver = {
 	},
 };
 
-module_platform_driver(imx_lcdifv3_driver);
+static int __init imx_lcdifv3_driver_init(void)
+{
+	return platform_driver_register(&imx_lcdifv3_driver);
+}
+
+static void __exit imx_lcdifv3_driver_exit(void)
+{
+	platform_driver_unregister(&imx_lcdifv3_driver);
+}
+
+device_initcall_sync(imx_lcdifv3_driver_init);
+module_exit(imx_lcdifv3_driver_exit);
 
 MODULE_DESCRIPTION("NXP i.MX LCDIFV3 Display Controller driver");
 MODULE_AUTHOR("Fancy Fang <chen.fang@nxp.com>");
