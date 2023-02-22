@@ -70,3 +70,7 @@
 &lcdif2 {
 	status = "disabled";
 };
+
+&vpumix_blk_ctrl {
+	trusty;
+};
