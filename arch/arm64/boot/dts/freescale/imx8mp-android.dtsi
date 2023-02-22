@@ -66,3 +66,7 @@
 	trusty;
 	status = "okay";
 };
+
+&vpumix_blk_ctrl {
+	trusty;
+};

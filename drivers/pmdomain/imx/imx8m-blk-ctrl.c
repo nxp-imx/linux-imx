@@ -20,12 +20,28 @@
 #include <dt-bindings/power/imx8mn-power.h>
 #include <dt-bindings/power/imx8mp-power.h>
 #include <dt-bindings/power/imx8mq-power.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define BLK_SFT_RSTN	0x0
 #define BLK_CLK_EN	0x4
 #define BLK_MIPI_RESET_DIV	0x8 /* Mini/Nano/Plus DISPLAY_BLK_CTRL only */
 #define BLK_LCDIF_ARCACHE_CTRL	0x4C
 #define BLK_ISI_CACHE_CTRL	0x50
+
+#define SMC_ENTITY_VPU 55
+#define SMC_HANTRO_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
+#define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 2)
+
+#ifndef OPT_WRITE
+#define OPT_WRITE 0x2
+#endif
+#ifndef OPT_READ
+#define OPT_READ 0x1
+#endif
+
+
+enum smc_type {WRITE_REG=0, SET_BIT_REG, CLEAR_BIT_REG};
 
 struct imx8m_blk_ctrl_domain;
 
@@ -37,6 +53,7 @@ struct imx8m_blk_ctrl {
 	struct regmap *noc_regmap;
 	struct imx8m_blk_ctrl_domain *domains;
 	struct genpd_onecell_data onecell_data;
+	struct device *trusty_dev;
 };
 
 struct imx8m_blk_ctrl_noc_data {
@@ -50,7 +67,6 @@ struct imx8m_blk_ctrl_hurry_data {
 	u32 off;
 	u32 hurry_mask;
 };
-
 #define DOMAIN_MAX_NOC		4
 struct imx8m_blk_ctrl_domain_data {
 	const char *name;
@@ -92,6 +108,57 @@ struct imx8m_blk_ctrl_data {
 	bool has_noc;
 };
 
+static u32 trusty_ctrlblk_read(struct imx8m_blk_ctrl *bc, u32 target)
+{
+	if (bc->trusty_dev) {
+		return trusty_fast_call32(bc->trusty_dev, SMC_CTRLBLK_REGS_OP,
+			target, OPT_READ, 0);
+	} else {
+		u32 val;
+		regmap_read(bc->regmap, target, &val);
+		return val;
+	}
+
+}
+
+static int update_set_bits(struct imx8m_blk_ctrl* bc, unsigned int target, unsigned int mask, unsigned int val) {
+	u32 orig, tmp;
+	int ret = 0;
+
+	orig = trusty_ctrlblk_read(bc, target);
+	tmp = orig & ~mask;
+	tmp |= val & mask;
+	if (tmp != orig) {
+		ret = trusty_fast_call32(bc->trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_WRITE, tmp);
+	}
+	return ret;
+}
+
+static void trusty_ctrlblk_write(struct imx8m_blk_ctrl* bc, u32 target, u32 val, u32 mask, enum smc_type type)
+{
+	if (bc->trusty_dev) {
+		int ret = 0;
+		if (type == WRITE_REG) {
+			ret = trusty_fast_call32(bc->trusty_dev, SMC_CTRLBLK_REGS_OP, target, OPT_WRITE, val);
+		} else if (type == SET_BIT_REG) {
+			ret = update_set_bits(bc, target, mask, mask);
+		} else if (type == CLEAR_BIT_REG) {
+			ret = update_set_bits(bc, target, mask, 0);
+		}
+		if (ret)
+			dev_err(bc->dev, "trusty_ctrlblk_write failed ret=%d\n", ret);
+	} else {
+		if (type == WRITE_REG) {
+			regmap_write(bc->regmap, target, val);
+		} else if (type == SET_BIT_REG) {
+			regmap_set_bits(bc->regmap, target, mask);
+		} else if (type == CLEAR_BIT_REG) {
+			regmap_clear_bits(bc->regmap, target, mask);
+		}
+	}
+}
+
+
 static inline struct imx8m_blk_ctrl_domain *
 to_imx8m_blk_ctrl_domain(struct generic_pm_domain *genpd)
 {
@@ -109,7 +176,8 @@ static int imx8m_blk_ctrl_qos_set(struct imx8m_blk_ctrl_domain *domain)
 		return 0;
 
 	if (data->hurry_data)
-		regmap_set_bits(bc->regmap, data->hurry_data->off, data->hurry_data->hurry_mask);
+		trusty_ctrlblk_write(bc, data->hurry_data->off, data->hurry_data->hurry_mask,
+				data->hurry_data->hurry_mask, SET_BIT_REG);
 
 	if (!regmap)
 		return 0;
@@ -144,9 +212,9 @@ static int imx8m_blk_ctrl_power_on(struct generic_pm_domain *genpd)
 	}
 
 	/* put devices into reset */
-	regmap_clear_bits(bc->regmap, BLK_SFT_RSTN, data->rst_mask);
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, 0, data->rst_mask, CLEAR_BIT_REG);
 	if (data->mipi_phy_rst_mask)
-		regmap_clear_bits(bc->regmap, BLK_MIPI_RESET_DIV, data->mipi_phy_rst_mask);
+		trusty_ctrlblk_write(bc, BLK_MIPI_RESET_DIV, 0, data->mipi_phy_rst_mask, CLEAR_BIT_REG);
 
 	/* enable upstream and blk-ctrl clocks to allow reset to propagate */
 	ret = clk_bulk_prepare_enable(data->num_clks, domain->clks);
@@ -154,7 +222,7 @@ static int imx8m_blk_ctrl_power_on(struct generic_pm_domain *genpd)
 		dev_err(bc->dev, "failed to enable clocks\n");
 		goto bus_put;
 	}
-	regmap_set_bits(bc->regmap, BLK_CLK_EN, data->clk_mask);
+	trusty_ctrlblk_write(bc, BLK_CLK_EN, data->clk_mask, data->clk_mask, SET_BIT_REG);
 
 	/* power up upstream GPC domain */
 	ret = pm_runtime_get_sync(domain->power_dev);
@@ -167,9 +235,10 @@ static int imx8m_blk_ctrl_power_on(struct generic_pm_domain *genpd)
 	udelay(5);
 
 	/* release reset */
-	regmap_set_bits(bc->regmap, BLK_SFT_RSTN, data->rst_mask);
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, data->rst_mask, data->rst_mask, SET_BIT_REG);
 	if (data->mipi_phy_rst_mask)
-		regmap_set_bits(bc->regmap, BLK_MIPI_RESET_DIV, data->mipi_phy_rst_mask);
+		trusty_ctrlblk_write(bc, BLK_MIPI_RESET_DIV, data->mipi_phy_rst_mask,
+				data->mipi_phy_rst_mask, SET_BIT_REG);
 
 	imx8m_blk_ctrl_qos_set(domain);
 
@@ -197,10 +266,10 @@ static int imx8m_blk_ctrl_power_off(struct generic_pm_domain *genpd)
 
 	/* put devices into reset and disable clocks */
 	if (data->mipi_phy_rst_mask)
-		regmap_clear_bits(bc->regmap, BLK_MIPI_RESET_DIV, data->mipi_phy_rst_mask);
+		trusty_ctrlblk_write(bc, BLK_MIPI_RESET_DIV, 0, data->mipi_phy_rst_mask, CLEAR_BIT_REG);
 
-	regmap_clear_bits(bc->regmap, BLK_SFT_RSTN, data->rst_mask);
-	regmap_clear_bits(bc->regmap, BLK_CLK_EN, data->clk_mask);
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, 0, data->rst_mask, CLEAR_BIT_REG);
+	trusty_ctrlblk_write(bc, BLK_CLK_EN, 0, data->clk_mask, CLEAR_BIT_REG);
 
 	/* power down upstream GPC domain */
 	pm_runtime_put(domain->power_dev);
@@ -217,6 +286,7 @@ static int imx8m_blk_ctrl_probe(struct platform_device *pdev)
 {
 	const struct imx8m_blk_ctrl_data *bc_data;
 	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 	struct imx8m_blk_ctrl *bc;
 	struct regmap *regmap;
 	void __iomem *base;
@@ -273,6 +343,25 @@ static int imx8m_blk_ctrl_probe(struct platform_device *pdev)
 	regmap = syscon_regmap_lookup_by_compatible("fsl,imx8m-noc");
 	if (!IS_ERR(regmap))
 		bc->noc_regmap = regmap;
+
+	/* if the device contains trusty node, use the smcc to control the register */
+	if (of_find_property(np, "trusty", NULL)) {
+		bc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (bc->trusty_dev) {
+			if (!trusty_fast_call32(bc->trusty_dev, SMC_HANTRO_PROBE, 0, 0, 0)) {
+				dev_info(dev, "BLK CTRL use trusty mode\n");
+			} else {
+				dev_info(dev, "BLK CTRL use normal mode\n");
+				bc->trusty_dev = NULL;
+			}
+		} else {
+			dev_info(dev, "BLK CTRL use normal mode\n");
+		}
+	} else {
+		dev_info(dev, "BLK CTRL use normal mode\n");
+		bc->trusty_dev = NULL;
+	}
+	/* end */
 
 	for (i = 0; i < bc_data->num_domains; i++) {
 		const struct imx8m_blk_ctrl_domain_data *data = &bc_data->domains[i];
@@ -479,8 +568,9 @@ static int imx8mm_vpu_power_notifier(struct notifier_block *nb,
 	 * allow the handshake with the GPC to progress we put the VPUs
 	 * in reset and ungate the clocks.
 	 */
-	regmap_clear_bits(bc->regmap, BLK_SFT_RSTN, BIT(0) | BIT(1) | BIT(2));
-	regmap_set_bits(bc->regmap, BLK_CLK_EN, BIT(0) | BIT(1) | BIT(2));
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, 0, BIT(0) | BIT(1) | BIT(2), CLEAR_BIT_REG);
+	trusty_ctrlblk_write(bc, BLK_CLK_EN, BIT(0) | BIT(1) | BIT(2),
+			BIT(0) | BIT(1) | BIT(2), SET_BIT_REG);
 
 	if (action == GENPD_NOTIFY_ON) {
 		/*
@@ -491,10 +581,10 @@ static int imx8mm_vpu_power_notifier(struct notifier_block *nb,
 		udelay(5);
 
 		/* set "fuse" bits to enable the VPUs */
-		regmap_set_bits(bc->regmap, 0x8, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0xc, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0x10, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0x14, 0xffffffff);
+		trusty_ctrlblk_write(bc, 0x8, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0xc, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0x10, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0x14, 0xffffffff, 0xffffffff, SET_BIT_REG);
 	}
 
 	return NOTIFY_OK;
@@ -542,9 +632,9 @@ static int imx8mp_vpu_h1_power_notifier(struct notifier_block *nb,
 	struct imx8m_blk_ctrl *bc = domain->bc;
 
 	if (action == GENPD_NOTIFY_PRE_ON)
-		regmap_clear_bits(bc->regmap, BLK_CLK_EN, BIT(2));
+		trusty_ctrlblk_write(bc, BLK_CLK_EN, 0, BIT(2), CLEAR_BIT_REG);
 	else if (action == IMX_GPCV2_NOTIFY_ON_ADB400)
-		regmap_set_bits(bc->regmap, BLK_CLK_EN, BIT(2));
+		trusty_ctrlblk_write(bc, BLK_CLK_EN, BIT(2), BIT(2), SET_BIT_REG);
 
 	return NOTIFY_OK;
 }
@@ -762,8 +852,8 @@ static int imx8mp_media_power_notifier(struct notifier_block *nb,
 		return NOTIFY_OK;
 
 	/* Enable bus clock and deassert bus reset */
-	regmap_set_bits(bc->regmap, BLK_CLK_EN, BIT(8));
-	regmap_set_bits(bc->regmap, BLK_SFT_RSTN, BIT(8));
+	trusty_ctrlblk_write(bc, BLK_CLK_EN, BIT(8), BIT(8), SET_BIT_REG);
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, BIT(8), BIT(8), SET_BIT_REG);
 
 	/*
 	 * On power up we have no software backchannel to the GPC to
