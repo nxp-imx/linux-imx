@@ -1,3 +1,2 @@
-obj-y +=  imx-secvio-sc.o
-obj-$(CONFIG_DEBUG_FS) += imx-secvio-debugfs.o
-obj-$(CONFIG_AUDIT) += imx-secvio-audit.o
+obj-$(CONFIG_SECVIO_SC) += soc-imx-secvio-sc.o
+soc-imx-secvio-sc-objs += imx-secvio-sc.o imx-secvio-debugfs.o imx-secvio-audit.o
