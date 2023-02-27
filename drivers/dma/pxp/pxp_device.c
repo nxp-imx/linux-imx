@@ -1218,3 +1218,4 @@ void unregister_pxp_device(void)
 }
 EXPORT_SYMBOL_GPL(unregister_pxp_device);
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("DMA_BUF");
