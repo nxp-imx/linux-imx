@@ -409,7 +409,8 @@ config GPIO_IMX_RPMSG
 	  This driver support i.MX7ULP RPMSG virtual GPIOs.
 
 config GPIO_IMX_SCU
-       def_bool y
+       tristate "NXP i.MX8 SCU GPIO support"
+       default y
        depends on IMX_SCU
 
 config GPIO_IXP4XX
