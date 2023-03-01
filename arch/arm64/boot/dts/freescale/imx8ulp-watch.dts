@@ -280,6 +280,29 @@
 		interrupt-parent = <&rpmsg_gpiob>;
 		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 	};
+
+	bat: fuel-gauge@36 {
+		compatible = "maxim,max17055";
+		reg = <0x36>;
+		interrupt-parent = <&rpmsg_gpiob>;
+		interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
+		maxim,over-heat-temp = <700>;
+		maxim,over-volt = <4500>;
+		maxim,rsns-microohm = <5000>;
+	};
+
+	mp2662: charger@7 {
+		compatible = "mp,mp2662";
+		reg = <0x07>;
+		interrupt-parent = <&rpmsg_gpiob>;
+		interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+		mp,battery-regulation-voltage = <4200000>; /* 4.2V */
+		mp,charge-current = <128000>; /* 128mA */
+		mp,termination-current = <3000>;  /* 3mA */
+		mp,precharge-current = <3000>; /* 3mA */
+		mp,minimum-sys-voltage = <4600000>; /* 4.6V */
+	};
+
 };
 
 &cm33 {
