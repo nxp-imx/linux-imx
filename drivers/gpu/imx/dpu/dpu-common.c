@@ -24,6 +24,7 @@
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
 #include <video/dpu.h>
 #include <video/imx8-pc.h>
 #include <video/imx8-prefetch.h>
@@ -698,14 +699,20 @@ static int dpu_irq_init(struct dpu_soc *dpu)
 
 #define DPU_IRQ_CHIP_PM_GET(name)					\
 {									\
-	ret = irq_chip_pm_get(irq_get_irq_data(dpu->irq_##name));	\
-	if (ret < 0) {							\
-		dev_err(dpu->dev,					\
-			"failed to get irq chip PM for irq%d %d\n",	\
-						dpu->irq_##name, ret);	\
-		goto pm_get_rollback;					\
-	}								\
-	dpu->irq_chip_pm_get_##name = true;				\
+	struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
+	if (data->domain) { \
+		struct device *dev = data->domain->dev; \
+		if (IS_ENABLED(CONFIG_PM) && dev) { \
+			ret = pm_runtime_resume_and_get(dev); \
+			if (ret < 0) {							\
+				dev_err(dpu->dev,					\
+					"failed to get irq chip PM for irq%d %d\n",	\
+								dpu->irq_##name, ret);	\
+				goto pm_get_rollback;					\
+			}								\
+			dpu->irq_chip_pm_get_##name = true;				\
+		} \
+	} \
 }
 
 	DPU_IRQ_CHIP_PM_GET(extdst0_shdload);
@@ -748,9 +755,15 @@ irq_set_chained_handler_and_data(dpu->irq_##name, dpu_##name##_irq_handler, dpu)
 #define DPU_IRQ_CHIP_PM_PUT_CHECK(name)					\
 {									\
 	if (dpu->irq_chip_pm_get_##name) {				\
-		irq_chip_pm_put(irq_get_irq_data(dpu->irq_##name));	\
+		struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
+		if (data->domain) { \
+			struct device *dev = data->domain->dev; \
+			if (IS_ENABLED(CONFIG_PM) && dev) { \
+				ret = pm_runtime_put(dev); \
+			} \
+		} \
 		dpu->irq_chip_pm_get_##name = false;			\
-	}								\
+	} \
 }
 
 	return 0;
@@ -802,7 +815,13 @@ irq_set_chained_handler_and_data(dpu->irq_##name, NULL, NULL)
 
 #define DPU_IRQ_CHIP_PM_PUT(name)				\
 {								\
-	irq_chip_pm_put(irq_get_irq_data(dpu->irq_##name));	\
+	struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
+	if (data->domain) { \
+		struct device *dev = data->domain->dev; \
+		if (IS_ENABLED(CONFIG_PM) && dev) { \
+			pm_runtime_put(dev); \
+		} \
+	} \
 	dpu->irq_chip_pm_get_##name = false;			\
 }
 
