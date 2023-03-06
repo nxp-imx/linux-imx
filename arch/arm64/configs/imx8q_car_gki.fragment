@@ -222,7 +222,8 @@ CONFIG_ARM_IMX_CPUFREQ_DT=m
 # Vehicle driver
 CONFIG_VEHICLE_CORE=m
 
-CONFIG_IMX_GKI_FIX=y
+# "CONFIG_IMX_GKI_FIX=y" removed, otherwise it breaks
+# suspend mode functionality on imx8qm/qxp
 CONFIG_LTO_CLANG_THIN=y
 
 # CONFIG_ARM64_BTI_KERNEL is not set
