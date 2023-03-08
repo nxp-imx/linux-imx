@@ -30,6 +30,7 @@
 #define BLK_ISI_CACHE_CTRL	0x50
 
 #define SMC_ENTITY_VPU 55
+#define SMC_HANTRO_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
 #define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 2)
 
 #ifndef OPT_WRITE
@@ -350,8 +351,13 @@ static int imx8m_blk_ctrl_probe(struct platform_device *pdev)
 			struct platform_device *pd;
 			pd = of_find_device_by_node(sp);
 			if (pd != NULL) {
-				dev_info(dev, "BLK CTRL use trusty mode\n");
-				bc->trusty_dev = &(pd->dev);
+				if (!trusty_fast_call32(&(pd->dev), SMC_HANTRO_PROBE, 0, 0, 0)) {
+					bc->trusty_dev = &(pd->dev);
+					dev_info(dev, "BLK CTRL use trusty mode\n");
+				} else {
+					dev_info(dev, "BLK CTRL use normal mode\n");
+					bc->trusty_dev = NULL;
+				}
 			} else {
 				dev_info(dev, "BLK CTRL use normal mode\n");
 				bc->trusty_dev = NULL;
