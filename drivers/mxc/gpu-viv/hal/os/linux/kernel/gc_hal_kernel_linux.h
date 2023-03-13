@@ -330,7 +330,7 @@ _GetProcessID(
     )
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
-    return task_tgid_vnr(current);
+    return task_tgid_nr(current);
 #else
     return current->tgid;
 #endif

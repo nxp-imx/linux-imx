@@ -342,7 +342,7 @@ void cfg80211_destroy_ifaces(struct cfg80211_registered_device *rdev)
 
 			wiphy_lock(&rdev->wiphy);
 			cfg80211_leave(rdev, wdev);
-			rdev_del_virtual_intf(rdev, wdev);
+			cfg80211_remove_virtual_intf(rdev, wdev);
 			wiphy_unlock(&rdev->wiphy);
 		}
 	}
@@ -918,6 +918,23 @@ int wiphy_register(struct wiphy *wiphy)
 		 wiphy->max_num_akm_suites > CFG80211_MAX_NUM_AKM_SUITES)
 		return -EINVAL;
 
+	/* check backport information when indicated */
+	if (wiphy->backport) {
+		int i;
+		const struct wiphy_backport *backport = wiphy->backport;
+
+		/* should implement num_iftype_ext_capab2 */
+		if (WARN_ON(wiphy->num_iftype_ext_capab !=
+			    backport->num_iftype_ext_capab2))
+			return -EINVAL;
+
+		for (i = 0; i < wiphy->num_iftype_ext_capab; i++) {
+			if (WARN_ON(wiphy->iftype_ext_capab[i].iftype !=
+				    backport->iftype_ext_capab2[i].iftype))
+				return -EINVAL;
+		}
+	}
+
 	/* check and set up bitrates */
 	ieee80211_set_bitrate_flags(wiphy);
 
@@ -1436,6 +1453,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 	case NETDEV_GOING_DOWN:
 		wiphy_lock(&rdev->wiphy);
 		cfg80211_leave(rdev, wdev);
+		cfg80211_remove_links(wdev);
 		wiphy_unlock(&rdev->wiphy);
 		break;
 	case NETDEV_DOWN:

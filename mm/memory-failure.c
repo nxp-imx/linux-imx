@@ -490,7 +490,7 @@ static void collect_procs_anon(struct page *page, struct list_head *to_kill,
 	struct anon_vma *av;
 	pgoff_t pgoff;
 
-	av = page_lock_anon_vma_read(page);
+	av = page_lock_anon_vma_read(page, NULL);
 	if (av == NULL)	/* Not actually mapped anymore */
 		return;
 
@@ -699,6 +699,9 @@ static int kill_accessing_process(struct task_struct *p, unsigned long pfn,
 		.pfn = pfn,
 	};
 	priv.tk.tsk = p;
+
+	if (!p->mm)
+		return -EFAULT;
 
 	mmap_read_lock(p->mm);
 	ret = walk_page_range(p->mm, 0, TASK_SIZE, &hwp_walk_ops,

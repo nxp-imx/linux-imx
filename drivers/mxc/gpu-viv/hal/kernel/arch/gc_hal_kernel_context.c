@@ -3700,7 +3700,7 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00E10 >> 2, 0x00000000, 4, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00E04 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00E40 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x00E08 >> 2, ((((gctUINT32) (0x17000031)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+    index += _State(Context, index, 0x00E08 >> 2, ((((gctUINT32) (0x17800031)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  2:2) - (0 ?
  2:2) + 1) == 32) ?
  ~0U : (~(~0U << ((1 ?

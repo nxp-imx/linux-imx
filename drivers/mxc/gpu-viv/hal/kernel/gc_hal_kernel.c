@@ -2173,6 +2173,10 @@ OnError:
 */
 #if defined(CONFIG_DMA_SHARED_BUFFER)
 #include <linux/dma-buf.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#include <linux/module.h>
+MODULE_IMPORT_NS(DMA_BUF);
+#endif
 
 gceSTATUS
 _SetVidMemMetadata(
@@ -3541,6 +3545,16 @@ gckKERNEL_Dispatch(
                     gckVIDMEM_HANDLE_Lookup(Kernel, processID, context->buffer->handle, &nodeObject));
 
                 Interface->u.Attach.captureSize = nodeObject->captureSize;
+
+                if (Kernel->core != 0) {
+                    gcmkVERIFY_OK(
+                        gckKERNEL_AddProcessDB(Kernel,
+                                               processID, gcvDB_CONTEXT,
+                                               gcmINT2PTR(Interface->u.Attach.context),
+                                               gcvNULL,
+                                               0));
+                }
+
                 break;
             }
             else

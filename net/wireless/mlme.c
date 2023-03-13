@@ -4,7 +4,7 @@
  *
  * Copyright (c) 2009, Jouni Malinen <j@w1.fi>
  * Copyright (c) 2015		Intel Deutschland GmbH
- * Copyright (C) 2019-2020 Intel Corporation
+ * Copyright (C) 2019-2020, 2022 Intel Corporation
  */
 
 #include <linux/kernel.h>
@@ -154,33 +154,35 @@ void cfg80211_auth_timeout(struct net_device *dev, const u8 *addr)
 }
 EXPORT_SYMBOL(cfg80211_auth_timeout);
 
-void cfg80211_assoc_timeout(struct net_device *dev, struct cfg80211_bss *bss)
+void cfg80211_assoc_failure(struct net_device *dev,
+			    struct cfg80211_assoc_failure *data)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct wiphy *wiphy = wdev->wiphy;
 	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+	const u8 *addr = data->ap_mld_addr ?: data->bss[0]->bssid;
+	int i;
 
-	trace_cfg80211_send_assoc_timeout(dev, bss->bssid);
+	trace_cfg80211_send_assoc_failure(dev, data);
 
-	nl80211_send_assoc_timeout(rdev, dev, bss->bssid, GFP_KERNEL);
-	cfg80211_sme_assoc_timeout(wdev);
+	if (data->timeout) {
+		nl80211_send_assoc_timeout(rdev, dev, addr, GFP_KERNEL);
+		cfg80211_sme_assoc_timeout(wdev);
+	} else {
+		cfg80211_sme_abandon_assoc(wdev);
+	}
 
-	cfg80211_unhold_bss(bss_from_pub(bss));
-	cfg80211_put_bss(wiphy, bss);
+	for (i = 0; i < ARRAY_SIZE(data->bss); i++) {
+		struct cfg80211_bss *bss = data->bss[i];
+
+		if (!bss)
+			continue;
+
+		cfg80211_unhold_bss(bss_from_pub(bss));
+		cfg80211_put_bss(wiphy, bss);
+	}
 }
-EXPORT_SYMBOL(cfg80211_assoc_timeout);
-
-void cfg80211_abandon_assoc(struct net_device *dev, struct cfg80211_bss *bss)
-{
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	struct wiphy *wiphy = wdev->wiphy;
-
-	cfg80211_sme_abandon_assoc(wdev);
-
-	cfg80211_unhold_bss(bss_from_pub(bss));
-	cfg80211_put_bss(wiphy, bss);
-}
-EXPORT_SYMBOL(cfg80211_abandon_assoc);
+EXPORT_SYMBOL(cfg80211_assoc_failure);
 
 void cfg80211_tx_mlme_mgmt(struct net_device *dev, const u8 *buf, size_t len,
 			   bool reconnect)
@@ -370,7 +372,7 @@ int cfg80211_mlme_deauth(struct cfg80211_registered_device *rdev,
 }
 
 int cfg80211_mlme_disassoc(struct cfg80211_registered_device *rdev,
-			   struct net_device *dev, const u8 *bssid,
+			   struct net_device *dev, const u8 *ap_addr,
 			   const u8 *ie, int ie_len, u16 reason,
 			   bool local_state_change)
 {
@@ -380,6 +382,7 @@ int cfg80211_mlme_disassoc(struct cfg80211_registered_device *rdev,
 		.local_state_change = local_state_change,
 		.ie = ie,
 		.ie_len = ie_len,
+		.ap_addr = ap_addr,
 	};
 	int err;
 
@@ -388,10 +391,7 @@ int cfg80211_mlme_disassoc(struct cfg80211_registered_device *rdev,
 	if (!wdev->connected)
 		return -ENOTCONN;
 
-	if (ether_addr_equal(wdev->links[0].client.current_bss->pub.bssid,
-			     bssid))
-		req.bss = &wdev->links[0].client.current_bss->pub;
-	else
+	if (memcmp(wdev->u.client.connected_addr, ap_addr, ETH_ALEN))
 		return -ENOTCONN;
 
 	err = rdev_disassoc(rdev, dev, &req);
@@ -637,6 +637,18 @@ void cfg80211_mlme_purge_registrations(struct wireless_dev *wdev)
 	cfg80211_mgmt_registrations_update(wdev);
 }
 
+static bool cfg80211_allowed_address(struct wireless_dev *wdev, const u8 *addr)
+{
+	int i;
+
+	for_each_valid_link(wdev, i) {
+		if (ether_addr_equal(addr, wdev->links[i].addr))
+			return true;
+	}
+
+	return ether_addr_equal(addr, wdev_address(wdev));
+}
+
 int cfg80211_mlme_mgmt_tx(struct cfg80211_registered_device *rdev,
 			  struct wireless_dev *wdev,
 			  struct cfg80211_mgmt_tx_params *params, u64 *cookie)
@@ -735,7 +747,7 @@ int cfg80211_mlme_mgmt_tx(struct cfg80211_registered_device *rdev,
 			return err;
 	}
 
-	if (!ether_addr_equal(mgmt->sa, wdev_address(wdev))) {
+	if (!cfg80211_allowed_address(wdev, mgmt->sa)) {
 		/* Allow random TA to be used with Public Action frames if the
 		 * driver has indicated support for this. Otherwise, only allow
 		 * the local address to be used.
@@ -759,15 +771,15 @@ int cfg80211_mlme_mgmt_tx(struct cfg80211_registered_device *rdev,
 	return rdev_mgmt_tx(rdev, wdev, params, cookie);
 }
 
-bool cfg80211_rx_mgmt_khz(struct wireless_dev *wdev, int freq, int sig_dbm,
-			  const u8 *buf, size_t len, u32 flags)
+bool cfg80211_rx_mgmt_ext(struct wireless_dev *wdev,
+			  struct cfg80211_rx_info *info)
 {
 	struct wiphy *wiphy = wdev->wiphy;
 	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
 	struct cfg80211_mgmt_registration *reg;
 	const struct ieee80211_txrx_stypes *stypes =
 		&wiphy->mgmt_stypes[wdev->iftype];
-	struct ieee80211_mgmt *mgmt = (void *)buf;
+	struct ieee80211_mgmt *mgmt = (void *)info->buf;
 	const u8 *data;
 	int data_len;
 	bool result = false;
@@ -775,7 +787,7 @@ bool cfg80211_rx_mgmt_khz(struct wireless_dev *wdev, int freq, int sig_dbm,
 		cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE);
 	u16 stype;
 
-	trace_cfg80211_rx_mgmt(wdev, freq, sig_dbm);
+	trace_cfg80211_rx_mgmt(wdev, info);
 	stype = (le16_to_cpu(mgmt->frame_control) & IEEE80211_FCTL_STYPE) >> 4;
 
 	if (!(stypes->rx & BIT(stype))) {
@@ -783,8 +795,8 @@ bool cfg80211_rx_mgmt_khz(struct wireless_dev *wdev, int freq, int sig_dbm,
 		return false;
 	}
 
-	data = buf + ieee80211_hdrlen(mgmt->frame_control);
-	data_len = len - ieee80211_hdrlen(mgmt->frame_control);
+	data = info->buf + ieee80211_hdrlen(mgmt->frame_control);
+	data_len = info->len - ieee80211_hdrlen(mgmt->frame_control);
 
 	spin_lock_bh(&rdev->mgmt_registrations_lock);
 
@@ -801,9 +813,8 @@ bool cfg80211_rx_mgmt_khz(struct wireless_dev *wdev, int freq, int sig_dbm,
 		/* found match! */
 
 		/* Indicate the received Action frame to user space */
-		if (nl80211_send_mgmt(rdev, wdev, reg->nlportid,
-				      freq, sig_dbm,
-				      buf, len, flags, GFP_ATOMIC))
+		if (nl80211_send_mgmt(rdev, wdev, reg->nlportid, info,
+				      GFP_ATOMIC))
 			continue;
 
 		result = true;
@@ -815,7 +826,7 @@ bool cfg80211_rx_mgmt_khz(struct wireless_dev *wdev, int freq, int sig_dbm,
 	trace_cfg80211_return_bool(result);
 	return result;
 }
-EXPORT_SYMBOL(cfg80211_rx_mgmt_khz);
+EXPORT_SYMBOL(cfg80211_rx_mgmt_ext);
 
 void cfg80211_sched_dfs_chan_update(struct cfg80211_registered_device *rdev)
 {

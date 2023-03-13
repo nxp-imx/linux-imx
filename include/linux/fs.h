@@ -41,8 +41,8 @@
 #include <linux/stddef.h>
 #include <linux/mount.h>
 #include <linux/cred.h>
-#include <linux/android_kabi.h>
 #include <linux/mnt_idmapping.h>
+#include <linux/android_kabi.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -521,6 +521,11 @@ static inline int i_mmap_trylock_write(struct address_space *mapping)
 static inline void i_mmap_unlock_write(struct address_space *mapping)
 {
 	up_write(&mapping->i_mmap_rwsem);
+}
+
+static inline int i_mmap_trylock_read(struct address_space *mapping)
+{
+	return down_read_trylock(&mapping->i_mmap_rwsem);
 }
 
 static inline void i_mmap_lock_read(struct address_space *mapping)

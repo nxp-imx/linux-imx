@@ -919,14 +919,20 @@ static long DecRestoreRegs(hantrodec_t *dev)
 
 	//G1
 	if (dec_owner[0]) {
-		for (i = 1; i <= HANTRO_DEC_ORG_LAST_REG; i++)
-			iowrite32(dec_regs[0][i], dev->hwregs[0] + i * 4);
+		trusty_vpu_write(dev, 4, dec_regs[0][1], 0, WRITE_SECURE_CTRL_REGS);
+		for (i = 2; i <= HANTRO_DEC_ORG_LAST_REG; i++)
+			trusty_vpu_write(dev, i*4, dec_regs[0][i], 0, WRITE_REGS);
 	}
 	//G2
 	if (dec_owner[1]) {
 	/* write all regs to hardware */
-		for (i = 1; i <= HANTRO_G2_DEC_LAST_REG; i++)
-			iowrite32(dec_regs[1][i], dev->hwregs[1] + i * 4);
+		trusty_vpu_write(dev, 4, dec_regs[0][1], 1, WRITE_SECURE_CTRL_REGS);
+		trusty_vpu_write(dev, HANTRO_PP_ORG_FIRST_REG * 4,
+			dec_regs[1][HANTRO_PP_ORG_FIRST_REG], 1, WRITE_SECURE_PPCTRL_REGS);
+		for (i = 2; i <= HANTRO_PP_ORG_FIRST_REG - 1; i++)
+			trusty_vpu_write(dev, i*4, dec_regs[1][i], 1, WRITE_REGS);
+		for (i = HANTRO_PP_ORG_FIRST_REG + 1; i <= HANTRO_G2_DEC_LAST_REG; i++)
+			trusty_vpu_write(dev, i*4, dec_regs[1][i], 1, WRITE_REGS);
 	}
 
 	return 0;
@@ -943,7 +949,7 @@ static long DecStoreRegs(hantrodec_t *dev)
 			/* read all registers from hardware */
 			/* both original and extended regs need to be read */
 			for (i = 0; i <= HANTRO_DEC_ORG_LAST_REG; i++)
-				dec_regs[0][i] = ioread32(dev->hwregs[0] + i * 4);
+				dec_regs[0][i] = trusty_vpu_read(dev, i*4, 0);
 
 			up(&core_suspend_sem[0]);
 		}
@@ -956,7 +962,7 @@ static long DecStoreRegs(hantrodec_t *dev)
 		} else {
 			/* read all registers from hardware */
 			for (i = 0; i <= HANTRO_G2_DEC_LAST_REG; i++)
-				dec_regs[1][i] = ioread32(dev->hwregs[1] + i * 4);
+				dec_regs[1][i] = trusty_vpu_read(dev, i*4, 1);
 
 			up(&core_suspend_sem[1]);
 		}

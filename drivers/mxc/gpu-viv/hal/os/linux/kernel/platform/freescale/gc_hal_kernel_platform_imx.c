@@ -1165,11 +1165,14 @@ static int patch_param_imx6(struct platform_device *pdev,
                 gcsMODULE_PARAMETERS *args)
 {
     struct resource* res;
+	int irqLine = -1;
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_3d");
+	irqLine = platform_get_irq_byname(pdev, "irq_3d");
 
-    if (res)
-        args->irqs[gcvCORE_MAJOR] = res->start;
+	if (irqLine > 0)
+		args->irqs[gcvCORE_MAJOR] = irqLine;
+	else
+		dev_dbg(&pdev->dev, "no irq_3d ret=%d", irqLine);
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_3d");
 
@@ -1178,10 +1181,16 @@ static int patch_param_imx6(struct platform_device *pdev,
         args->registerSizes[gcvCORE_MAJOR] = res->end - res->start + 1;
     }
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_2d");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+    irqLine = platform_get_irq_byname_optional(pdev, "irq_2d");
+#else
+    irqLine = platform_get_irq_byname(pdev, "irq_2d");
+#endif
 
-    if (res)
-        args->irqs[gcvCORE_2D] = res->start;
+	if (irqLine > 0)
+		args->irqs[gcvCORE_2D] = irqLine;
+	else
+		dev_dbg(&pdev->dev, "no irq_2d ret=%d", irqLine);
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_2d");
 
@@ -1190,10 +1199,16 @@ static int patch_param_imx6(struct platform_device *pdev,
         args->registerSizes[gcvCORE_2D] = res->end - res->start + 1;
     }
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_vg");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+    irqLine = platform_get_irq_byname_optional(pdev, "irq_vg");
+#else
+    irqLine = platform_get_irq_byname(pdev, "irq_vg");
+#endif
 
-    if (res)
-        args->irqs[gcvCORE_VG] = res->start;
+	if (irqLine > 0)
+		args->irqs[gcvCORE_VG] = irqLine;
+	else
+		dev_dbg(&pdev->dev, "no irq_vg ret=%d", irqLine);
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_vg");
 

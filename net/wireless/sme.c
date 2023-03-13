@@ -722,7 +722,7 @@ void __cfg80211_connect_result(struct net_device *dev,
 			       bool wextev)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	const struct element *country_elem;
+	const struct element *country_elem = NULL;
 	const u8 *country_data;
 	u8 country_datalen;
 #ifdef CONFIG_CFG80211_WEXT
@@ -784,9 +784,11 @@ void __cfg80211_connect_result(struct net_device *dev,
 #endif
 
 	if (cr->status == WLAN_STATUS_SUCCESS) {
-		for_each_valid_link(cr, link) {
-			if (WARN_ON_ONCE(!cr->links[link].bss))
-				break;
+		if (!wiphy_to_rdev(wdev->wiphy)->ops->connect) {
+			for_each_valid_link(cr, link) {
+				if (WARN_ON_ONCE(!cr->links[link].bss))
+					break;
+			}
 		}
 
 		for_each_valid_link(cr, link) {
