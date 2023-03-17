@@ -279,6 +279,7 @@ static const struct of_device_id imx8_pcie_phy_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, imx8_pcie_phy_of_match);
 
+#ifndef MODULE
 static int __init imx8_pcie_phy_fine_tune(char *str)
 {
 	if (!strcmp(str, "yes")) {
@@ -289,6 +290,7 @@ static int __init imx8_pcie_phy_fine_tune(char *str)
 }
 
 __setup("pcie_phy_tuned=", imx8_pcie_phy_fine_tune);
+#endif
 
 static int imx8_pcie_phy_probe(struct platform_device *pdev)
 {
