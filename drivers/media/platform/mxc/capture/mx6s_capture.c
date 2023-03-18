@@ -886,8 +886,10 @@ static int mx6s_start_streaming(struct vb2_queue *vq, unsigned int count)
 	struct mx6s_csi_dev *csi_dev = vb2_get_drv_priv(vq);
 	struct vb2_buffer *vb;
 	struct mx6s_buffer *buf;
+	struct mx6s_buffer *tmp;
 	unsigned long phys;
 	unsigned long flags;
+	int ret = 0;
 
 	if (count < 2)
 		return -ENOBUFS;
@@ -904,8 +906,10 @@ static int mx6s_start_streaming(struct vb2_queue *vq, unsigned int count)
 					PAGE_ALIGN(csi_dev->discard_size),
 					&csi_dev->discard_buffer_dma,
 					GFP_DMA | GFP_KERNEL);
-	if (!csi_dev->discard_buffer)
-		return -ENOMEM;
+	if (!csi_dev->discard_buffer) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	spin_lock_irqsave(&csi_dev->slock, flags);
 
@@ -945,6 +949,31 @@ static int mx6s_start_streaming(struct vb2_queue *vq, unsigned int count)
 	spin_unlock_irqrestore(&csi_dev->slock, flags);
 
 	return mx6s_csi_enable(csi_dev);
+
+err:
+	pr_info("%s: fail, clean up lists\n", __func__);
+	spin_lock_irqsave(&csi_dev->slock, flags);
+
+	list_for_each_entry_safe(buf, tmp,
+		&csi_dev->active_bufs, internal.queue) {
+		list_del_init(&buf->internal.queue);
+		if (buf->internal.discard == false)
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
+	}
+
+	list_for_each_entry_safe(buf, tmp,
+		&csi_dev->capture, internal.queue) {
+		list_del_init(&buf->internal.queue);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
+	}
+
+	INIT_LIST_HEAD(&csi_dev->capture);
+	INIT_LIST_HEAD(&csi_dev->active_bufs);
+	INIT_LIST_HEAD(&csi_dev->discard);
+
+	spin_unlock_irqrestore(&csi_dev->slock, flags);
+
+	return ret;
 }
 
 static void mx6s_stop_streaming(struct vb2_queue *vq)
