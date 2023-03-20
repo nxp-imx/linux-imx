@@ -34,6 +34,8 @@ load(
     "get_gki_protected_modules_list",
     "get_kunit_modules_list",
 )
+load(":imx.bzl", "define_imx")
+define_imx()
 
 package(
     default_visibility = [
