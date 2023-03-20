@@ -417,7 +417,6 @@ config DEBUG_INFO_BTF_MODULES
 
 config MODULE_ALLOW_BTF_MISMATCH
 	bool "Allow loading modules with non-matching BTF type info"
-	depends on DEBUG_INFO_BTF_MODULES
 	help
 	  For modules whose split BTF does not match vmlinux, load without
 	  BTF rather than refusing to load. The default behavior with
