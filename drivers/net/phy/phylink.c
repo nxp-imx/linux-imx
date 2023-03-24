@@ -231,8 +231,10 @@ int phylink_interface_max_speed(phy_interface_t interface)
 	case PHY_INTERFACE_MODE_GMII:
 		return SPEED_1000;
 
-	case PHY_INTERFACE_MODE_2500SGMII:
 	case PHY_INTERFACE_MODE_2500BASEX:
+#ifndef CONFIG_IMX_GKI_FIX
+	case PHY_INTERFACE_MODE_2500SGMII:
+#endif
 	case PHY_INTERFACE_MODE_10G_QXGMII:
 		return SPEED_2500;
 
@@ -248,11 +250,15 @@ int phylink_interface_max_speed(phy_interface_t interface)
 		return SPEED_10000;
 
 	case PHY_INTERFACE_MODE_25GBASER:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_25GKR:
+#endif
 		return SPEED_25000;
 
 	case PHY_INTERFACE_MODE_XLGMII:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_40GKR4:
+#endif
 		return SPEED_40000;
 
 	case PHY_INTERFACE_MODE_INTERNAL:
@@ -551,7 +557,9 @@ static unsigned long phylink_get_capabilities(phy_interface_t interface,
 		break;
 
 	case PHY_INTERFACE_MODE_2500BASEX:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_2500SGMII:
+#endif
 		caps |= MAC_2500FD;
 		break;
 
@@ -568,12 +576,16 @@ static unsigned long phylink_get_capabilities(phy_interface_t interface,
 		break;
 
 	case PHY_INTERFACE_MODE_25GBASER:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_25GKR:
+#endif
 		caps |= MAC_25000FD;
 		break;
 
 	case PHY_INTERFACE_MODE_XLGMII:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_40GKR4:
+#endif
 		caps |= MAC_40000FD;
 		break;
 
@@ -838,6 +850,7 @@ skip_interface_checks:
  */
 static phy_interface_t phylink_c73_linkmode_to_interface(unsigned long *supported)
 {
+#ifndef CONFIG_IMX_GKI_FIX
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_40000baseKR4_Full_BIT, supported))
 		return PHY_INTERFACE_MODE_40GKR4;
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseKR_Full_BIT, supported) ||
@@ -845,6 +858,7 @@ static phy_interface_t phylink_c73_linkmode_to_interface(unsigned long *supporte
 	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseKR_S_Full_BIT, supported) ||
 	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseCR_S_Full_BIT, supported))
 		return PHY_INTERFACE_MODE_25GKR;
+#endif
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_10000baseKR_Full_BIT, supported))
 		return PHY_INTERFACE_MODE_10GKR;
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseKX_Full_BIT, supported))
@@ -2059,13 +2073,20 @@ static int phylink_validate_phy(struct phylink *pl, struct phy_device *phy,
 	 * against all interface modes, which may lead to more ethtool link
 	 * modes being advertised than are actually supported.
 	 */
+#ifdef CONFIG_IMX_GKI_FIX
+	if (phy->is_c45 && state->rate_matching == RATE_MATCH_NONE &&
+	    state->interface != PHY_INTERFACE_MODE_RXAUI &&
+	    state->interface != PHY_INTERFACE_MODE_XAUI &&
+	    state->interface != PHY_INTERFACE_MODE_USXGMII)
+		state->interface = PHY_INTERFACE_MODE_NA;
+#else
 	if (phy->is_c45 && state->rate_matching == RATE_MATCH_NONE &&
 	    state->interface != PHY_INTERFACE_MODE_RXAUI &&
 	    state->interface != PHY_INTERFACE_MODE_XAUI &&
 	    state->interface != PHY_INTERFACE_MODE_USXGMII &&
 	    state->interface != PHY_INTERFACE_MODE_10G_QXGMII)
 		state->interface = PHY_INTERFACE_MODE_NA;
-
+#endif
 	return phylink_validate(pl, supported, state);
 }
 

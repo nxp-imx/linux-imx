@@ -693,7 +693,9 @@ static inline int phylink_get_link_timer_ns(phy_interface_t interface)
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_USXGMII:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_10G_QXGMII:
+#endif
 		return 1600000;
 
 	case PHY_INTERFACE_MODE_1000BASEX:
