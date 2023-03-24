@@ -999,6 +999,7 @@ struct phy_driver {
 	 */
 	int (*config_aneg)(struct phy_device *phydev);
 
+#ifndef CONFIG_IMX_GKI_FIX
 	/**
 	 * @validate_inband_aneg: Report what types of in-band auto-negotiation
 	 * are available for the given PHY interface type. Returns a bit mask
@@ -1014,6 +1015,7 @@ struct phy_driver {
 	 * requires it: (Q)SGMII, USXGMII, 1000Base-X, etc.
 	 */
 	int (*config_inband_aneg)(struct phy_device *phydev, bool enabled);
+#endif
 
 	/** @aneg_done: Determines the auto negotiation result */
 	int (*aneg_done)(struct phy_device *phydev);

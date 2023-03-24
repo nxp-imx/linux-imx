@@ -1008,6 +1008,7 @@ static int phy_check_link_status(struct phy_device *phydev)
 int phy_validate_inband_aneg(struct phy_device *phydev,
 			     phy_interface_t interface)
 {
+#ifndef CONFIG_IMX_GKI_FIX
 	/* We may be called before phy_attach_direct() force-binds the
 	 * generic PHY driver to this device. In that case, report an unknown
 	 * setting rather than -EIO as most other functions do.
@@ -1016,6 +1017,9 @@ int phy_validate_inband_aneg(struct phy_device *phydev,
 		return PHY_INBAND_ANEG_UNKNOWN;
 
 	return phydev->drv->validate_inband_aneg(phydev, interface);
+#else
+	return PHY_INBAND_ANEG_UNKNOWN;
+#endif
 }
 EXPORT_SYMBOL_GPL(phy_validate_inband_aneg);
 
@@ -1024,10 +1028,14 @@ int phy_config_inband_aneg(struct phy_device *phydev, bool enabled)
 	if (!phydev->drv)
 		return -EIO;
 
+#ifndef CONFIG_IMX_GKI_FIX
 	if (!phydev->drv->config_inband_aneg)
 		return -EOPNOTSUPP;
 
 	return phydev->drv->config_inband_aneg(phydev, enabled);
+#else
+	return -EOPNOTSUPP;
+#endif
 }
 EXPORT_SYMBOL_GPL(phy_config_inband_aneg);
 
