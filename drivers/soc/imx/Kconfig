@@ -79,4 +79,8 @@ config IMX_LPA_CTRL
 	tristate "i.MX8MP lpa power mode control support"
 	depends on ARCH_MXC
 	default n
+
+config IMX_GKI_FIX
+	bool "IMX GKI fix issue"
+	default n
 endmenu
