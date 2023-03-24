@@ -850,6 +850,7 @@ static int uio_mmap(struct file *filep, struct vm_area_struct *vma)
 		goto out;
 	}
 
+#ifndef CONFIG_IMX_GKI_FIX
 	if (idev->info->mem[mi].readonly) {
 		if (vma->vm_flags & VM_WRITE) {
 			ret = -EINVAL;
@@ -858,6 +859,7 @@ static int uio_mmap(struct file *filep, struct vm_area_struct *vma)
 
 		vm_flags_clear(vma, VM_MAYWRITE);
 	}
+#endif
 
 	if (idev->info->mmap) {
 		ret = idev->info->mmap(idev->info, vma);
