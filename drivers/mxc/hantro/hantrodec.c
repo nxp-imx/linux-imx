@@ -926,7 +926,7 @@ static long DecRestoreRegs(hantrodec_t *dev)
 	//G2
 	if (dec_owner[1]) {
 	/* write all regs to hardware */
-		trusty_vpu_write(dev, 4, dec_regs[0][1], 1, WRITE_SECURE_CTRL_REGS);
+		trusty_vpu_write(dev, 4, dec_regs[1][1], 1, WRITE_SECURE_CTRL_REGS);
 		trusty_vpu_write(dev, HANTRO_PP_ORG_FIRST_REG * 4,
 			dec_regs[1][HANTRO_PP_ORG_FIRST_REG], 1, WRITE_SECURE_PPCTRL_REGS);
 		for (i = 2; i <= HANTRO_PP_ORG_FIRST_REG - 1; i++)
