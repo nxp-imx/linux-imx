@@ -60,3 +60,7 @@
 		 reg = <0x0 0xE0000000 0 0x18000000>;
 	};
 };
+
+&uart3 {
+       /delete-node/ bluetooth;
+};

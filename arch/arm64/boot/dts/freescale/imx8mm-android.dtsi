@@ -53,3 +53,7 @@
 		pmsg-size      = <0x00020000>;
 	};
 };
+
+&uart1 {
+       /delete-node/ bluetooth;
+};
