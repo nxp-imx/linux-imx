@@ -61,3 +61,7 @@
 		reg = <0x0 0xA9600000 0 0x6000000>;
 	};
 };
+
+&lpuart6 {
+       /delete-node/ bluetooth;
+};

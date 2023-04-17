@@ -42,3 +42,7 @@
 &{/reserved-memory/linux,cma} {
 	status = "disabled";
 };
+
+&lpuart5 {
+       /delete-node/ bluetooth;
+};
