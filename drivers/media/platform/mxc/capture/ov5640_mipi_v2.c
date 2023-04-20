@@ -1012,13 +1012,14 @@ static int ov5640_download_firmware(struct ov5640 *sensor,
 	register u8 Val = 0;
 	u8 RegVal = 0;
 	int i, retval = 0;
-
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 	for (i = 0; i < ArySize; ++i, ++pModeSetting) {
 		Delay_ms = pModeSetting->u32Delay_ms;
 		RegAddr = pModeSetting->u16RegAddr;
 		Val = pModeSetting->u8Val;
 		Mask = pModeSetting->u8Mask;
 
+		pr_emerg("RegAddr:0x%08x u8Val:0x%08x u8Mask:0x%08x \n",RegAddr,Val,Mask);
 		if (Mask) {
 			retval = ov5640_read_reg(sensor, RegAddr, &RegVal);
 			if (retval < 0)
@@ -1056,7 +1057,7 @@ static int ov5640_change_mode_exposure_calc(struct ov5640 *sensor,
 	int light_freq, cap_bandfilt, cap_maxband;
 	long cap_gain16_shutter;
 	int retval = 0;
-
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 	/* check if the input mode and frame rate is valid */
 	pModeSetting =
 		ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
@@ -1180,7 +1181,7 @@ static int ov5640_change_mode_direct(struct ov5640 *sensor,
 	struct reg_value *pModeSetting = NULL;
 	s32 ArySize = 0;
 	int retval = 0;
-
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 	/* check if the input mode and frame rate is valid */
 	pModeSetting =
 		ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
@@ -1201,6 +1202,7 @@ static int ov5640_change_mode_direct(struct ov5640 *sensor,
 
 	OV5640_stream_off(sensor);
 
+	pr_emerg("zeiss:func %s :frame_rate:%d mode:%d \n",__func__,frame_rate,mode);
 	/* Write capture setting */
 	retval = ov5640_download_firmware(sensor, pModeSetting, ArySize);
 	if (retval < 0)
@@ -1242,6 +1244,7 @@ static int ov5640_init_mode(struct ov5640 *sensor,
 
 		sensor->pix.width = 640;
 		sensor->pix.height = 480;
+		pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 		retval = ov5640_download_firmware(sensor, pModeSetting,
 						  ArySize);
 		if (retval < 0)
@@ -1249,6 +1252,7 @@ static int ov5640_init_mode(struct ov5640 *sensor,
 
 		pModeSetting = ov5640_setting_30fps_VGA_640_480;
 		ArySize = ARRAY_SIZE(ov5640_setting_30fps_VGA_640_480);
+		pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 		retval = ov5640_download_firmware(sensor, pModeSetting,
 						  ArySize);
 	} else if ((dn_mode == SUBSAMPLING && orig_dn_mode == SCALING) ||
@@ -1409,6 +1413,8 @@ static int ov5640_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 				"The camera frame rate is not supported!\n");
 			return -EINVAL;
 		}
+
+		pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 
 		orig_mode = sensor->streamcap.capturemode;
 		ret = ov5640_init_mode(sensor, frame_rate,
@@ -1827,7 +1833,8 @@ static int ov5640_probe(struct i2c_client *client,
 			retval);
 
 	OV5640_stream_off(sensor);
-	dev_info(dev, "Camera is found\n");
+	dev_info(dev, "Zeiss Camera is found\n");
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
 	return retval;
 }
 
