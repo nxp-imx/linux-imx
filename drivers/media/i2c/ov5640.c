@@ -3946,6 +3946,9 @@ static int ov5640_probe(struct i2c_client *client)
 	if (ret)
 		goto free_ctrls;
 
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
+	pr_emerg("zeiss:In File %s in func %s ln:%d \n",__FILE__, __func__,__LINE__);
+	
 	return 0;
 
 free_ctrls:
@@ -3968,20 +3971,20 @@ static void ov5640_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id ov5640_id[] = {
-	{"ov5640", 0},
+	{"ov5640_mipi", 0},
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, ov5640_id);
 
 static const struct of_device_id ov5640_dt_ids[] = {
-	{ .compatible = "ovti,ov5640" },
+	{ .compatible = "ovti,ov5640_mipi" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, ov5640_dt_ids);
 
 static struct i2c_driver ov5640_i2c_driver = {
 	.driver = {
-		.name  = "ov5640",
+		.name  = "ov5640_mipi",
 		.of_match_table	= ov5640_dt_ids,
 	},
 	.id_table = ov5640_id,
