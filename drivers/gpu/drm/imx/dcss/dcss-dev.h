@@ -24,6 +24,7 @@
 #define SMC_IMX_DCSS_CTXLD_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 4)
 #define SMC_IMX_DCSS_RELEASE_BUFFER SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 7)
 #define SMC_IMX_DCSS_GET_DIS_ULC SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 8)
+#define SMC_INIT_DISPLAY_PARAM SMC_FASTCALL_NR(SMC_ENTITY_IMX_DCSS_OPT, 9)
 
 #define SET			0x04
 #define CLR			0x08
@@ -56,6 +57,11 @@ static inline void trusty_dcss_ctxld_freebuf(struct device *dev, u32 target, u32
 static inline void trusty_dcss_get_dtg_dis_ulc(struct device *dev, u32 param1, u32 param2, u32 param3) {
 	trusty_fast_call32(dev, SMC_IMX_DCSS_GET_DIS_ULC, param1, param2, param3);
 }
+
+static inline void trusty_dcss_set_display_mode(struct device *dev, u32 param1, u32 param2, u32 param3) {
+        trusty_fast_call32(dev, SMC_INIT_DISPLAY_PARAM, param1, param2, param3);
+}
+
 
 #define dcss_writel(trusty_dev, val, addr, addr_offset, type, ch_num) \
 	do { \
