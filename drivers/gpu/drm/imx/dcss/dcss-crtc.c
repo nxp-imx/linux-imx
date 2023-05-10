@@ -177,6 +177,7 @@ static void dcss_crtc_atomic_enable(struct drm_crtc *crtc,
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	struct drm_display_mode *old_mode = &old_crtc_state->adjusted_mode;
 	struct videomode vm;
+	u32 param1, param2, param3;
 
 	drm_display_mode_to_videomode(mode, &vm);
 
@@ -186,6 +187,25 @@ static void dcss_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	dcss_ss_subsam_set(dcss->ss, dcss_crtc_state->output_encoding);
 	dcss_dtg_css_set(dcss->dtg, dcss_crtc_state->output_encoding);
+
+	/* send display mode params to trusty */
+	if (dcss->trusty_dev) {
+		param1 = vm.hactive;
+		param2 = (vm.hback_porch << 16) | vm.hfront_porch;
+		param3 = vm.hsync_len << 16 | 0;
+		trusty_dcss_set_display_mode(dcss->trusty_dev, param1, param2, param3);
+
+		param1 = vm.vactive;
+		param2 = (vm.vback_porch << 16) | vm.vfront_porch;
+		param3 = vm.vsync_len << 16 | 1;
+
+		trusty_dcss_set_display_mode(dcss->trusty_dev, param1, param2, param3);
+
+		param1 = mode->flags & DRM_MODE_FLAG_PHSYNC;
+		param2 = mode->flags & DRM_MODE_FLAG_PVSYNC;
+		param3 = 2;
+		trusty_dcss_set_display_mode(dcss->trusty_dev, param1, param2, param3);
+	}
 
 	if (!drm_mode_equal(mode, old_mode) || !old_crtc_state->active) {
 		dcss_dtg_sync_set(dcss->dtg, &vm);
