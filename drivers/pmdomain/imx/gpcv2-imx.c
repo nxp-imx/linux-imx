@@ -320,6 +320,7 @@ struct imx_pgc_domain {
 	unsigned int pgc_sw_pup_reg;
 	unsigned int pgc_sw_pdn_reg;
 	const struct imx_pgc_noc_data *noc_data[DOMAIN_MAX_NOC];
+	u32 parent;
 };
 
 struct imx_pgc_domain_data {
@@ -722,6 +723,7 @@ static const struct imx_pgc_domain imx8m_pgc_domains[] = {
 			.map = IMX8M_PCIE1_A53_DOMAIN,
 		},
 		.pgc   = BIT(IMX8M_PGC_PCIE1),
+		.parent = IMX8M_POWER_DOMAIN_PCIE2,
 	},
 
 	[IMX8M_POWER_DOMAIN_USB_OTG1] = {
@@ -893,6 +895,7 @@ static const struct imx_pgc_domain imx8mm_pgc_domains[] = {
 			.map = IMX8MM_PCIE_A53_DOMAIN,
 		},
 		.pgc   = BIT(IMX8MM_PGC_PCIE),
+		.parent = IMX8MM_POWER_DOMAIN_HSIOMIX,
 	},
 
 	[IMX8MM_POWER_DOMAIN_OTG1] = {
@@ -939,6 +942,7 @@ static const struct imx_pgc_domain imx8mm_pgc_domains[] = {
 		},
 
 		.pgc   = BIT(IMX8MM_PGC_GPU2D) | BIT(IMX8MM_PGC_GPU3D),
+		.parent = IMX8MM_POWER_DOMAIN_GPUMIX,
 	},
 
 	[IMX8MM_POWER_DOMAIN_VPUMIX] = {
@@ -1205,6 +1209,7 @@ static const struct imx_pgc_domain imx8mp_pgc_domains[] = {
 		.noc_data = {
 			&imx8mp_pgc_noc_data[IMX8MP_GPU2D],
 		},
+		.parent = IMX8MP_POWER_DOMAIN_GPUMIX,
 	},
 
 	[IMX8MP_POWER_DOMAIN_GPUMIX] = {
@@ -1247,6 +1252,7 @@ static const struct imx_pgc_domain imx8mp_pgc_domains[] = {
 		.noc_data = {
 			&imx8mp_pgc_noc_data[IMX8MP_GPU3D],
 		},
+		.parent = IMX8MP_POWER_DOMAIN_GPUMIX,
 	},
 
 	[IMX8MP_POWER_DOMAIN_MEDIAMIX] = {
