@@ -300,7 +300,12 @@ INSTALL_TARGETS	= zinstall uinstall install
 
 PHONY += bzImage $(BOOT_TARGETS) $(INSTALL_TARGETS)
 
+ifeq ($(CONFIG_KERNEL_COMPRESS_NONE),y)
+bootpImage uImage: Image
+else
 bootpImage uImage: zImage
+endif
+
 zImage: Image
 
 $(BOOT_TARGETS): vmlinux
