@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2021-2023 NXP
+ */
+
+#include "imx8ulp-evk.dts"
+
+/ {
+	lpd: low-power-display {
+		compatible = "nxp,low-power-display";
+		backlight-ctrl = <1>; // 0:none, 1:apd, 2:rtd
+		memory-region = <&mcu_reserved>;
+		status = "okay";
+	};
+};
+
+&dcnano {
+	/* should bigger than 0, 1:unblank, 2:blank */
+	disp-xfer-mode = <1>;
+};
+
+/delete-node/ &ite_bridge;
+
+&dsi {
+        status = "okay";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        panel@0 {
+                compatible = "nxp,rm67162";
+                reg = <0>;
+                dsi-lanes = <1>;
+                video-mode = <1>;
+                reset-gpios = <&gpiof 8 GPIO_ACTIVE_LOW>;
+                vcc-supply = <&reg_5v>;
+                iovcc-supply = <&reg_5v>;
+
+                port {
+                        panel_in: endpoint {
+                                remote-endpoint = <&mipi_dsi_out>;
+                        };
+                };
+        };
+
+        ports {
+                port@1 {
+                        reg = <1>;
+
+                        mipi_dsi_out: endpoint {
+                                remote-endpoint = <&panel_in>;
+                        };
+                };
+        };
+};
+
+&{/reserved-memory} {
+	mcu_reserved: mcu@a0000000 {
+		reg = <0 0xa0000000 0 0x2000000>; //reserve 32M for mcu
+		no-map;
+	};
+};
+
+&rpmsg_keys {
+	power-on {
+		label = "PowerOn";
+		linux,code = <KEY_POWER>;
+	};
+};
+

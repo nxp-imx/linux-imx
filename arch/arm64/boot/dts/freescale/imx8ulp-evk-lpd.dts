@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2021 NXP
+ */
+
+#include "imx8ulp-evk-rk055hdmipi4mv2.dts"
+
+/ {
+	lpd: low-power-display {
+		compatible = "nxp,low-power-display";
+		backlight-ctrl = <2>; // 0:none, 1:apd, 2:rtd
+		memory-region = <&mcu_reserved>;
+		status = "okay";
+	};
+};
+
+&dcnano {
+	/* should bigger than 0, 1:unblank, 2:blank */
+	disp-xfer-mode = <1>;
+};
+
+&{/reserved-memory} {
+	mcu_reserved: mcu@a0000000 {
+		reg = <0 0xa0000000 0 0x2000000>; //reserve 32M for mcu
+		no-map;
+	};
+};
+
+&rpmsg_keys {
+	power-on {
+		label = "PowerOn";
+		linux,code = <KEY_POWER>;
+	};
+};
