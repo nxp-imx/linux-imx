@@ -107,6 +107,13 @@ config DRM_IMX_SEC_DSIM
 	  Choose this to enable the internal SEC MIPI DSIM controller
 	  found on i.MX platform.
 
+config DRM_IMX_RPMSG
+	tristate "Support for low power display"
+	depends on RPMSG
+	help
+	  Choose this to enable low power display on i.MX8ULP platform. APD can
+	  share display to RTD without reinit display related resources.
+
 source "drivers/gpu/drm/imx/dcnano/Kconfig"
 source "drivers/gpu/drm/imx/dpu/Kconfig"
 source "drivers/gpu/drm/imx/dpu95/Kconfig"
