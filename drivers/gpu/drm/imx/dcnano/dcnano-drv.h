@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2020,2021 NXP
+ * Copyright 2020-2023 NXP
  */
 
 #ifndef __DCNANO_DRV_H__
@@ -45,6 +45,10 @@ struct dcnano_dev {
 
 	enum dcnano_port port;
 	struct device *trusty_dev;
+
+	int disp_xfer_mode;
+	struct drm_property *prop_disp_xfer;
+	int lpd_app_cmd;
 };
 
 static inline struct dcnano_dev *to_dcnano_dev(struct drm_device *drm)
