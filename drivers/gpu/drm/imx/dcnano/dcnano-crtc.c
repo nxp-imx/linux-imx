@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2020,2021 NXP
+ * Copyright 2020-2023 NXP
  */
 
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/irq.h>
 #include <linux/pm_runtime.h>
+#include <linux/display-rpmsg.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -251,6 +253,7 @@ static void dcnano_crtc_atomic_enable(struct drm_crtc *crtc,
 	int i;
 	u32 primary_fb_fmt = 0;
 	u32 val;
+	u16 rpmsg_fb_fmt;
 
 	dcnano_crtc_dbg(crtc, "mode " DRM_MODE_FMT "\n", DRM_MODE_ARG(adj));
 
@@ -274,13 +277,16 @@ static void dcnano_crtc_atomic_enable(struct drm_crtc *crtc,
 		switch (new_plane_state->fb->format->format) {
 		case DRM_FORMAT_RGB565:
 			primary_fb_fmt = FBCFG_FORMAT_R5G6B5;
+			rpmsg_fb_fmt = LPD_FB_FORMAT_RGB565;
 			break;
 		case DRM_FORMAT_XRGB8888:
 			primary_fb_fmt = FBCFG_FORMAT_R8G8B8;
+			rpmsg_fb_fmt = LPD_FB_FORMAT_XRGB888;
 			break;
 		case DRM_FORMAT_ARGB8888:
 			/* discard alpha, only used in android recovery mode */
 			primary_fb_fmt = FBCFG_FORMAT_R8G8B8;
+			rpmsg_fb_fmt = LPD_FB_FORMAT_XRGB888;
 			break;
 		}
 	}
@@ -294,6 +300,11 @@ static void dcnano_crtc_atomic_enable(struct drm_crtc *crtc,
 	dcnano_write(dcnano, DCNANO_FRAMEBUFFERCONFIG, val);
 
 	dcnano_crtc_queue_state_event(crtc);
+
+	if (dcnano->disp_xfer_mode > 0) {
+		lpd_update_display_mode(adj->crtc_hdisplay, adj->crtc_vdisplay,
+					rpmsg_fb_fmt, LPD_FB_MOD_LINEAR);
+	}
 }
 
 static void dcnano_crtc_atomic_disable(struct drm_crtc *crtc,
@@ -371,6 +382,39 @@ static const struct drm_crtc_helper_funcs dcnano_crtc_helper_funcs = {
 	.get_scanout_position	= dcnano_crtc_get_scanout_position,
 };
 
+int dcnano_crtc_set_property(struct drm_crtc *crtc,
+				   struct drm_crtc_state *state,
+				   struct drm_property *property,
+				   uint64_t val)
+{
+	struct dcnano_dev *dcnano = crtc_to_dcnano_dev(crtc);
+	if (property == dcnano->prop_disp_xfer) {
+		dcnano->disp_xfer_mode = val;
+
+		if (val == 1) { // unblank
+			lpd_send_power_state(DISP_APD_UNBLANK);
+		} else if (val == 2) { // blank
+			lpd_send_power_state(DISP_APD_BLANK);
+		}
+	}
+
+	dcnano_crtc_dbg(crtc, "set property disp_xfer_mode = %llu (%s)\n", val, val == 1 ? "unblank" : "blank");
+
+	return 0;
+}
+
+int dcnano_crtc_get_property(struct drm_crtc *crtc,
+				   const struct drm_crtc_state *state,
+				   struct drm_property *property,
+				   uint64_t *val)
+{
+	struct dcnano_dev *dcnano = crtc_to_dcnano_dev(crtc);
+	if (property == dcnano->prop_disp_xfer)
+		*val = dcnano->disp_xfer_mode;
+
+	return 0;
+}
+
 static u32 dcnano_crtc_get_vblank_counter(struct drm_crtc *crtc)
 {
 	struct dcnano_dev *dcnano = crtc_to_dcnano_dev(crtc);
@@ -402,6 +446,8 @@ static const struct drm_crtc_funcs dcnano_crtc_funcs = {
 	.page_flip		= drm_atomic_helper_page_flip,
 	.atomic_duplicate_state	= drm_atomic_helper_crtc_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_crtc_destroy_state,
+	.atomic_set_property	= dcnano_crtc_set_property,
+	.atomic_get_property	= dcnano_crtc_get_property,
 	.get_vblank_counter	= dcnano_crtc_get_vblank_counter,
 	.enable_vblank		= dcnano_crtc_enable_vblank,
 	.disable_vblank		= dcnano_crtc_disable_vblank,
@@ -468,6 +514,7 @@ static void dcnano_reset_all_debug_counters(struct dcnano_dev *dcnano)
 int dcnano_crtc_init(struct dcnano_dev *dcnano)
 {
 	int ret;
+	struct drm_property *prop;
 
 	ret = dcnano_plane_init(dcnano);
 	if (ret)
@@ -485,6 +532,15 @@ int dcnano_crtc_init(struct dcnano_dev *dcnano)
 	ret = dcnano_get_pll_clock(dcnano);
 	if (ret)
 		return ret;
+
+	if (dcnano->disp_xfer_mode > 0) {
+		prop = drm_property_create_range(&dcnano->base, DRM_MODE_PROP_ATOMIC,
+					"DISPLAY_TRANSFER", 0, U64_MAX);
+		if (!prop)
+			return -ENOMEM;
+		dcnano->prop_disp_xfer = prop;
+		drm_object_attach_property(&dcnano->crtc.base, prop, dcnano->disp_xfer_mode);
+	}
 
 	dcnano_reset_all_debug_counters(dcnano);
 

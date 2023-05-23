@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2020,2021 NXP
+ * Copyright 2020-2023 NXP
  */
 
 #include <linux/delay.h>
@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/display-rpmsg.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_drv.h>
@@ -131,6 +132,29 @@ err:
 	return ret;
 }
 
+static int dcnano_drm_set_power(struct device *dev, int state)
+{
+        struct dcnano_dev *dcnano = dev_get_drvdata(dev);
+
+        if (state == LPD_DEVICE_POWER_ON) {
+		dcnano->lpd_app_cmd = 1;
+		DRM_DEV_INFO(dcnano->base.dev, "Get request from MCU: set display power on\n");
+        } else if (state == LPD_DEVICE_POWER_OFF) {
+		DRM_DEV_INFO(dcnano->base.dev, "Get request from MCU: set display power off\n");
+	}
+
+	return 0;
+}
+static int dcnano_drm_application_command(struct device *dev, int cmd, void *para)
+{
+	struct dcnano_dev *dcnano = dev_get_drvdata(dev);
+	if (cmd == DISP_APP_SHOW_UI) {
+		dcnano->lpd_app_cmd = 1;
+		DRM_DEV_INFO(dcnano->base.dev, "Get application command= %d from MCU\n", cmd);
+	}
+	return 0;
+}
+
 static int dcnano_probe(struct platform_device *pdev)
 {
 	struct dcnano_dev *dcnano;
@@ -191,6 +215,18 @@ static int dcnano_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	if (of_property_read_bool(pdev->dev.of_node, "disp-xfer-mode")) {
+		ret = of_property_read_u32(pdev->dev.of_node, "disp-xfer-mode",
+						&dcnano->disp_xfer_mode);
+		if (ret) {
+			DRM_DEV_ERROR(drm->dev,
+				"failed to read 'disp-xfer-mode' property: %d\n", ret);
+			return ret;
+		}
+	} else {
+		dcnano->disp_xfer_mode = 0;
+	}
+
 	pm_runtime_enable(drm->dev);
 
 	dcnano->tied_resets = devm_reset_control_get(drm->dev, NULL);
@@ -239,6 +275,12 @@ static int dcnano_probe(struct platform_device *pdev)
 
 	drm_fbdev_dma_setup(drm, legacyfb_depth);
 
+	if (dcnano->disp_xfer_mode > 0) {
+		lpd_display_register(&pdev->dev, true);
+		lpd_api_register(LPD_DRM_CALLBACK_PM, (void *)dcnano_drm_set_power);
+		lpd_api_register(LPD_DRM_CALLBACK_APP, (void *)dcnano_drm_application_command);
+	}
+
 	return 0;
 
 err_register:
@@ -260,6 +302,10 @@ static void dcnano_remove(struct platform_device *pdev)
 	struct dcnano_dev *dcnano = dev_get_drvdata(&pdev->dev);
 	struct drm_device *drm = &dcnano->base;
 
+        if (dcnano->disp_xfer_mode > 0) {
+                lpd_display_register(&pdev->dev, false);
+        }
+
 	drm_dev_unregister(drm);
 
 	drm_kms_helper_poll_fini(drm);
@@ -277,14 +323,32 @@ static int __maybe_unused dcnano_suspend(struct device *dev)
 {
 	struct dcnano_dev *dcnano = dev_get_drvdata(dev);
 
-	return drm_mode_config_helper_suspend(&dcnano->base);
+	if (dcnano->disp_xfer_mode > 0) {
+		DRM_DEV_INFO(dcnano->base.dev, "DRM suspend operation skipped\n");
+		return 0;
+	} else {
+		return drm_mode_config_helper_suspend(&dcnano->base);
+	}
 }
 
 static int __maybe_unused dcnano_resume(struct device *dev)
 {
 	struct dcnano_dev *dcnano = dev_get_drvdata(dev);
 
-	return drm_mode_config_helper_resume(&dcnano->base);
+	if (dcnano->disp_xfer_mode > 0) {
+		if ((dcnano->disp_xfer_mode == 1) || (dcnano->lpd_app_cmd == 1)) {
+			// Workaround here to make display work normally for A core.
+			drm_mode_config_helper_suspend(&dcnano->base);
+			usleep_range(1000, 1200);
+			drm_mode_config_helper_resume(&dcnano->base);
+			dcnano->lpd_app_cmd = 0;
+		} else {
+			DRM_DEV_INFO(dcnano->base.dev, "DRM resume operation skipped\n");
+		}
+		return 0;
+	} else {
+		return drm_mode_config_helper_resume(&dcnano->base);
+	}
 }
 
 static int __maybe_unused dcnano_runtime_suspend(struct device *dev)
