@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2023 NXP
+ */
+#include "imx8mm-evk.dts"
+
+&usdhc1 {
+	status = "disabled";
+};
