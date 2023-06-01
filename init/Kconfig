@@ -300,6 +300,11 @@ config KERNEL_LZO
 	  size is about 10% bigger than gzip; however its speed
 	  (both compression and decompression) is the fastest.
 
+config KERNEL_COMPRESS_NONE
+	bool "NONE"
+	help
+	  No compression of the kernel image. Fastest decompression time.
+
 config KERNEL_LZ4
 	bool "LZ4"
 	depends on HAVE_KERNEL_LZ4

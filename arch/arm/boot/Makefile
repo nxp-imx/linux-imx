@@ -63,8 +63,14 @@ $(obj)/Image: vmlinux FORCE
 $(obj)/compressed/vmlinux: $(obj)/Image FORCE
 	$(Q)$(MAKE) $(build)=$(obj)/compressed $@
 
+ifeq ($(CONFIG_KERNEL_COMPRESS_NONE),y)
+$(obj)/zImage: FORCE
+	@$(kecho) 'Kernel configured for no compression (CONFIG_COMPRESS_NONE=y)'
+	@false
+else
 $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
 	$(call if_changed,objcopy)
+endif
 
 endif
 
@@ -78,6 +84,20 @@ else
   endif
 endif
 
+ifeq ($(UIMAGE_LOADADDR),)
+  UIMAGE_LOADADDR=$(shell /bin/bash -c 'printf "0x%08x" \
+					$$[$(CONFIG_DRAM_BASE) + 0x008000]')
+endif
+
+ifeq ($(UIMAGE_ENTRYADDR),)
+  ifeq ($(CONFIG_THUMB2_KERNEL),y)
+    # Set bit 0 to 1 so that "mov pc, rx" switches to Thumb-2 mode
+    UIMAGE_ENTRYADDR?=$(shell echo $(UIMAGE_LOADADDR) | sed -e "s/.$$/1/")
+  else
+    UIMAGE_ENTRYADDR?=$(UIMAGE_LOADADDR)
+  endif
+endif
+
 check_for_multiple_loadaddr = \
 if [ $(words $(UIMAGE_LOADADDR)) -ne 1 ]; then \
 	echo 'multiple (or no) load addresses: $(UIMAGE_LOADADDR)'; \
@@ -86,9 +106,14 @@ if [ $(words $(UIMAGE_LOADADDR)) -ne 1 ]; then \
 	false; \
 fi
 
+ifeq ($(CONFIG_KERNEL_COMPRESS_NONE),y)
+$(obj)/uImage:	$(obj)/Image FORCE
+	$(call if_changed,uimage)
+else
 $(obj)/uImage:	$(obj)/zImage FORCE
 	@$(check_for_multiple_loadaddr)
 	$(call if_changed,uimage)
+endif
 
 $(obj)/bootp/bootp: $(obj)/zImage initrd FORCE
 	$(Q)$(MAKE) $(build)=$(obj)/bootp $@
