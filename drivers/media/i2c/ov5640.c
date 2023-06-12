@@ -3330,6 +3330,7 @@ static int ov5640_set_ctrl_vflip(struct ov5640_dev *sensor, int value)
 			      (BIT(2) | BIT(1)) : 0);
 }
 
+#if 0
 static int ov5640_set_ctrl_vblank(struct ov5640_dev *sensor, int value)
 {
 	const struct ov5640_mode_info *mode = sensor->current_mode;
@@ -3338,6 +3339,7 @@ static int ov5640_set_ctrl_vblank(struct ov5640_dev *sensor, int value)
 	return ov5640_write_reg16(sensor, OV5640_REG_TIMING_VTS,
 				  mode->height + value);
 }
+#endif
 
 static int ov5640_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -3377,7 +3379,7 @@ static int ov5640_s_ctrl(struct v4l2_ctrl *ctrl)
 	const struct ov5640_mode_info *mode = sensor->current_mode;
 	const struct ov5640_timings *timings;
 	unsigned int exp_max;
-	int ret;
+	int ret = 0;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
 
@@ -3433,7 +3435,8 @@ static int ov5640_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ov5640_set_ctrl_vflip(sensor, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
-		ret = ov5640_set_ctrl_vblank(sensor, ctrl->val);
+		/* Temporarily disable vblank control */
+		/* ret = ov5640_set_ctrl_vblank(sensor, ctrl->val); */
 		break;
 	default:
 		ret = -EINVAL;
