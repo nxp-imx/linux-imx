@@ -112,3 +112,10 @@ config CLK_IMX93
 	select MXC_CLK
 	help
 	    Build the driver for i.MX93 CCM Clock Driver
+
+config CLK_IMXRT1020
+	tristate "IMXRT1020 CCM Clock Driver"
+	depends on SOC_IMXRT || COMPILE_TEST
+	select MXC_CLK
+	help
+	    Build the driver for i.MXRT1020 CCM Clock Driver
