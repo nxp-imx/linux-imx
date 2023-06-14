@@ -533,6 +533,8 @@ static void vehicle_init_handler(struct work_struct *work)
 	}
 }
 
+/* This functions is on used now */
+#if 0
 /* send unregister event to M4 core
  * M4 will not send can event to ap once get the unregister signal successfully.
  */
@@ -556,6 +558,7 @@ static void vehicle_deinit_handler(struct work_struct *work)
 		}
 	}
 }
+#endif
 
 static int vehicle_rpmsg_probe(struct rpmsg_device *rpdev)
 {
