@@ -109,9 +109,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_SEMC_ALT_SEL] = imx_clk_hw_mux("semc_alt_sel",
 		base + 0x14, 7, 1,
 		semc_alt_sels, ARRAY_SIZE(semc_alt_sels));
-	hws[IMXRT1020_CLK_SEMC_SEL] = imx_clk_hw_mux("semc_sel",
+	hws[IMXRT1020_CLK_SEMC_SEL] = imx_clk_hw_mux_flags("semc_sel",
 		base + 0x14, 6, 1,
-		semc_sels, ARRAY_SIZE(semc_sels));
+		semc_sels, ARRAY_SIZE(semc_sels), CLK_IS_CRITICAL);
 
 	hws[IMXRT1020_CLK_AHB_PODF] = imx_clk_hw_divider("ahb", "periph_sel",
 		base + 0x14, 10, 3);
