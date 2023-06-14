@@ -293,3 +293,6 @@ bool encode_value_callback(pb_ostream_t *stream, const pb_field_t *field, void *
 	}
 	return true;
 }
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("NXP Semiconductor");
