@@ -130,7 +130,7 @@
 };
 
 &A55_1 {
-	status = "disabled";
+	status = "fail";
 };
 
 &adc1 {
