@@ -312,6 +312,7 @@ struct imx_pgc_domain {
 	unsigned int pgc_sw_pup_reg;
 	unsigned int pgc_sw_pdn_reg;
 	const struct imx_pgc_noc_data *noc_data[DOMAIN_MAX_NOC];
+	u32 parent;
 };
 
 struct imx_pgc_domain_data {
@@ -370,6 +371,9 @@ static int imx_pgc_domain_probe(struct platform_device *pdev)
 		dev_err(domain->dev, "Failed to add genpd provider\n");
 		goto out_genpd_remove;
 	}
+
+	if (domain->parent)
+		pm_genpd_add_subdomain(pd_to_genpd(domain->dev->pm_domain), &domain->genpd);
 
 	return 0;
 

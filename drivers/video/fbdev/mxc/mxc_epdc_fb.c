@@ -4455,7 +4455,7 @@ static ssize_t store_update(struct device *device,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
-	struct mxcfb_update_data update;
+	struct mxcfb_update_data update = { 0 };
 	struct fb_info *info = dev_get_drvdata(device);
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 
@@ -4465,6 +4465,8 @@ static ssize_t store_update(struct device *device,
 		update.waveform_mode = fb_data->wv_modes.mode_gc16;
 	else if (strncmp(buf, "gc4", 3) == 0)
 		update.waveform_mode = fb_data->wv_modes.mode_gc4;
+	else
+		update.waveform_mode = fb_data->wv_modes.mode_du;
 
 	/* Now, request full screen update */
 	update.update_region.left = 0;
@@ -4482,7 +4484,7 @@ static ssize_t store_update(struct device *device,
 }
 
 static struct device_attribute fb_attrs[] = {
-	__ATTR(update, S_IRUGO|S_IWUSR, NULL, store_update),
+	__ATTR(update, S_IWUSR, NULL, store_update),
 };
 
 static const struct of_device_id imx_epdc_dt_ids[] = {
@@ -4941,9 +4943,6 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 		goto out_dma_work_buf;
 	}
 
-	if (device_create_file(info->dev, &fb_attrs[0]))
-		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
-
 	fb_data->cur_update = NULL;
 
 	mutex_init(&fb_data->queue_mutex);
@@ -5060,6 +5059,9 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 			"register_framebuffer failed with error %d\n", ret);
 		goto out_lutmap;
 	}
+
+	if (device_create_file(info->dev, &fb_attrs[0]))
+		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
 
 	g_fb_data = fb_data;
 

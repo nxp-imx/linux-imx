@@ -18,7 +18,6 @@ function update_config() {
     rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}
 }
 
-MAKE_GOALS="${MAKE_GOALS}"
 FILES="${FILES}"
 ANDROID_PRODUCT_OUT="dummy"
 ANDROID=yes

@@ -700,6 +700,12 @@ static int imx8mp_blk_ctrl_probe(struct platform_device *pdev)
 		goto cleanup_pds;
 	}
 
+	for (i = 0; i < bc_data->num_domains; i++) {
+		struct imx8mp_blk_ctrl_domain *domain = &bc->domains[i];
+
+		pm_genpd_add_subdomain(pd_to_genpd(bc->bus_power_dev->pm_domain), &domain->genpd);
+	}
+
 	bc->power_nb.notifier_call = bc_data->power_notifier_fn;
 	ret = dev_pm_genpd_add_notifier(bc->bus_power_dev, &bc->power_nb);
 	if (ret) {

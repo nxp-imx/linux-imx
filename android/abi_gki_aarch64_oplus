@@ -7,10 +7,12 @@
   console_printk
   cpufreq_frequency_table_get_index
   cpufreq_policy_transition_delay_us
+  cpufreq_update_util_data
   device_create_bin_file
   device_remove_bin_file
   devres_destroy
   down_read_trylock
+  drm_crtc_vblank_waitqueue
   filp_close
   for_each_kernel_tracepoint
   freq_qos_add_notifier
@@ -28,6 +30,7 @@
   ip6_route_me_harder
   ip_route_me_harder
   ipv6_find_hdr
+  is_ashmem_file
   jiffies_64_to_clock_t
   ktime_get_coarse_real_ts64
   memory_cgrp_subsys
@@ -70,6 +73,7 @@
   tcf_exts_dump_stats
   tcf_exts_validate
   tcf_queue_work
+  __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_account_task_time
   __traceiter_android_vh_do_futex
@@ -100,19 +104,30 @@
   __traceiter_android_vh_binder_select_worklist_ilocked
   __traceiter_android_vh_binder_thread_read
   __traceiter_android_vh_binder_thread_release
+  __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_exit_signal
+  __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_mutex_can_spin_on_owner
   __traceiter_android_vh_mutex_opt_spin_finish
   __traceiter_android_vh_mutex_opt_spin_start
+  __traceiter_android_vh_cpufreq_acct_update_power  
+  __traceiter_android_vh_cleanup_old_buffers_bypass
+  __traceiter_android_vh_dm_bufio_shrink_scan_bypass
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_rwsem_can_spin_on_owner
   __traceiter_android_vh_rwsem_opt_spin_finish
   __traceiter_android_vh_rwsem_opt_spin_start
   __traceiter_android_vh_rwsem_wake_finish
+  __traceiter_android_vh_sched_stat_runtime_rt
+  __traceiter_android_vh_shrink_node_memcgs
   __traceiter_sched_stat_blocked
   __traceiter_sched_stat_iowait
+  __traceiter_sched_stat_runtime
   __traceiter_sched_stat_sleep
   __traceiter_sched_stat_wait
   __traceiter_sched_waking
+  __traceiter_task_rename
+  __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_account_task_time
   __tracepoint_android_vh_alter_mutex_list_add
@@ -128,25 +143,35 @@
   __tracepoint_android_vh_binder_thread_read
   __tracepoint_android_vh_binder_thread_release
   __tracepoint_android_vh_do_futex
+  __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_exit_signal
   __tracepoint_android_vh_futex_sleep_start
   __tracepoint_android_vh_futex_wait_end
   __tracepoint_android_vh_futex_wait_start
   __tracepoint_android_vh_futex_wake_this
   __tracepoint_android_vh_futex_wake_traverse_plist
   __tracepoint_android_vh_futex_wake_up_q_finish
+  __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_mutex_can_spin_on_owner
   __tracepoint_android_vh_mutex_opt_spin_finish
   __tracepoint_android_vh_mutex_opt_spin_start
+  __tracepoint_android_vh_cpufreq_acct_update_power
+  __tracepoint_android_vh_cleanup_old_buffers_bypass
+  __tracepoint_android_vh_dm_bufio_shrink_scan_bypass
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_rwsem_can_spin_on_owner
   __tracepoint_android_vh_rwsem_opt_spin_finish
   __tracepoint_android_vh_rwsem_opt_spin_start
   __tracepoint_android_vh_rwsem_wake_finish
+  __tracepoint_android_vh_sched_stat_runtime_rt
+  __tracepoint_android_vh_shrink_node_memcgs
   __tracepoint_sched_stat_blocked
   __tracepoint_sched_stat_iowait
+  __tracepoint_sched_stat_runtime
   __tracepoint_sched_stat_sleep
   __tracepoint_sched_stat_wait
   __tracepoint_sched_waking
+  __tracepoint_task_rename
   typec_mux_get_drvdata
   unregister_memory_notifier
   unregister_tcf_proto_ops

@@ -525,7 +525,9 @@ bool cdns_hdmi_bridge_mode_fixup(struct drm_bridge *bridge,
 		if ((mode->clock * di->bpc / 8) > di->max_tmds_clock)
 			return true;
 
-		video->color_depth = di->bpc;
+		/* only bpc less than 12 is supported */
+		if (di->bpc == 10 || di->bpc == 6)
+			video->color_depth = di->bpc;
 
 		return true;
 	}
@@ -802,6 +804,8 @@ static void __cdns_hdmi_remove(struct cdns_mhdp_device *mhdp)
 #endif
 	cdns_mhdp_unregister_audio_driver(mhdp->dev);
 	cnds_hdcp_remove_device_files(mhdp);
+
+	cdns_mhdp_plat_call(mhdp, power_off);
 }
 
 /* -----------------------------------------------------------------------------

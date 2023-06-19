@@ -1134,6 +1134,7 @@ struct dwc3_platform_data {
  * @dis_split_quirk: set to disable split boundary.
  * @host_vbus_glitches: set to avoid vbus glitch during
  *                      xhci reset.
+ * @suspended: set to track suspend event due to U3/L2.
  * @imod_interval: set the interrupt moderation interval in 250ns
  *			increments or 0 to disable.
  * @max_cfg_eps: current max number of IN eps used across all USB configs.
@@ -1177,7 +1178,6 @@ struct dwc3 {
 	struct clk		*ref_clk;
 	struct clk		*susp_clk;
 
-	bool			core_inited;
 	struct reset_control	*reset;
 
 	struct usb_phy		*usb2_phy;
@@ -1353,6 +1353,7 @@ struct dwc3 {
 
 	unsigned		dis_split_quirk:1;
 	unsigned		async_callbacks:1;
+	unsigned		suspended:1;
 
 	u16			imod_interval;
 
@@ -1360,6 +1361,7 @@ struct dwc3 {
 	int			last_fifo_depth;
 	int			num_ep_resized;
 	struct dentry		*debug_root;
+	bool			core_inited;
 };
 
 #define INCRX_BURST_MODE 0

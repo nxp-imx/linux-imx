@@ -4829,7 +4829,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	struct mxcfb_waveform_data_file *wv_file;
 	int wv_data_offs;
 	int i;
-	struct mxcfb_update_data update;
+	struct mxcfb_update_data update = { 0 };
 	struct mxcfb_update_marker_data upd_marker_data;
 	struct fb_var_screeninfo *screeninfo = &fb_data->epdc_fb_var;
 	u32 xres, yres;
@@ -4983,6 +4983,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	update.temp = TEMP_USE_AMBIENT;
 	update.flags = 0;
 	update.dither_mode = 0;
+	update.quant_bit = 0;
 
 	upd_marker_data.update_marker = update.update_marker;
 
@@ -5030,7 +5031,7 @@ static ssize_t store_update(struct device *device,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
-	struct mxcfb_update_data update;
+	struct mxcfb_update_data update = { 0 };
 	struct fb_info *info = dev_get_drvdata(device);
 	struct mxc_epdc_fb_data *fb_data = (struct mxc_epdc_fb_data *)info;
 
@@ -5040,6 +5041,8 @@ static ssize_t store_update(struct device *device,
 		update.waveform_mode = fb_data->wv_modes.mode_gc16;
 	else if (strncmp(buf, "gc4", 3) == 0)
 		update.waveform_mode = fb_data->wv_modes.mode_gc4;
+	else
+		update.waveform_mode = fb_data->wv_modes.mode_du;
 
 	/* Now, request full screen update */
 	update.update_region.left = 0;
@@ -5057,7 +5060,7 @@ static ssize_t store_update(struct device *device,
 }
 
 static struct device_attribute fb_attrs[] = {
-	__ATTR(update, S_IRUGO|S_IWUSR, NULL, store_update),
+	__ATTR(update, S_IWUSR, NULL, store_update),
 };
 
 static const struct of_device_id imx_epdc_dt_ids[] = {
@@ -5664,9 +5667,6 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->vneg_regulator = NULL;
 	}
 
-	if (device_create_file(info->dev, &fb_attrs[0]))
-		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
-
 	fb_data->cur_update = NULL;
 
 	mutex_init(&fb_data->queue_mutex);
@@ -5784,6 +5784,9 @@ static int mxc_epdc_fb_probe(struct platform_device *pdev)
 			"register_framebuffer failed with error %d\n", ret);
 		goto out_lutmap;
 	}
+
+	if (device_create_file(info->dev, &fb_attrs[0]))
+		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
 
 	g_fb_data = fb_data;
 #if IS_ENABLED(CONFIG_FB_FENCE)

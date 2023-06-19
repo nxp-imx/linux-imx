@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2021-2022 NXP
+ * Copyright 2021-2023 NXP
  */
 
 #ifndef ELE_MU_H
@@ -39,6 +39,15 @@
 #define devctx_err(p_devctx, fmt, va_args...) \
 	miscdev_err((&(p_devctx)->miscdev), fmt, ##va_args)
 
+#define MAX_RECV_SIZE 31
+#define MAX_RECV_SIZE_BYTES (MAX_RECV_SIZE * sizeof(u32))
+#define MAX_MESSAGE_SIZE 31
+#define MAX_MESSAGE_SIZE_BYTES (MAX_MESSAGE_SIZE * sizeof(u32))
+#define ELE_SUCCESS_IND			0xD6
+#define ELE_FAILURE_IND			0x29
+
+#define ELE_MSG_DATA_NUM		10
+
 #define MSG_TAG(x)			(((x) & 0xff000000) >> 24)
 #define MSG_COMMAND(x)			(((x) & 0x00ff0000) >> 16)
 #define MSG_SIZE(x)			(((x) & 0x0000ff00) >> 8)
@@ -63,10 +72,10 @@ struct ele_imem_buf {
 	u32 size;
 };
 
-struct ele_obuf_desc {
-	u8 *out_ptr;
-	u8 *out_usr_ptr;
-	u32 out_size;
+struct ele_buf_desc {
+	u8 *shared_buf_ptr;
+	u8 *usr_buf_ptr;
+	u32 size;
 	struct list_head link;
 };
 
@@ -94,6 +103,7 @@ struct ele_mu_device_ctx {
 	struct semaphore fops_lock;
 
 	u32 pending_hdr;
+	struct list_head pending_in;
 	struct list_head pending_out;
 
 	struct ele_shared_mem secure_mem;

@@ -10,6 +10,7 @@
 #include <linux/dev_printk.h>
 #include <linux/errno.h>
 #include <linux/export.h>
+#include <linux/firmware/imx/ele_fw_api.h>
 #include <linux/firmware/imx/ele_base_msg.h>
 #include <linux/firmware/imx/ele_mu_ioctl.h>
 #include <linux/genalloc.h>
@@ -47,18 +48,21 @@ struct imx_info {
 	/* platform specific flag to enable/disable the Sentinel True RNG */
 	bool enable_ele_trng;
 	bool reserved_dma_ranges;
+	bool init_fw;
 };
 
 static const struct imx_info imx8ulp_info = {
 	.socdev = true,
 	.enable_ele_trng = false,
 	.reserved_dma_ranges = true,
+	.init_fw = false,
 };
 
 static const struct imx_info imx93_info = {
 	.socdev = false,
 	.enable_ele_trng = true,
 	.reserved_dma_ranges = true,
+	.init_fw = true,
 };
 
 static const struct of_device_id ele_mu_match[] = {
@@ -128,7 +132,6 @@ static void ele_mu_rx_callback(struct mbox_client *c, void *msg)
 			priv->rx_msg = *(struct ele_api_msg *)msg;
 			complete(&priv->done);
 			spin_unlock(&priv->lock);
-			mutex_unlock(&priv->mu_cmd_lock);
 			return;
 		}
 	} else {
@@ -157,11 +160,9 @@ static void ele_mu_rx_callback(struct mbox_client *c, void *msg)
 	dev_ctx->pending_hdr = dev_ctx->temp_resp[0];
 	wake_up_interruptible(&dev_ctx->wq);
 
-	if (is_response) {
+	if (is_response)
 		priv->waiting_rsp_dev = NULL;
-		/* Allow user to send new command */
-		mutex_unlock(&priv->mu_cmd_lock);
-	}
+
 }
 
 static void ele_ping_handler(struct work_struct *work)
@@ -184,7 +185,7 @@ static int imx_soc_device_register(struct platform_device *pdev)
 	struct gen_pool *sram_pool;
 	u32 *get_info_data;
 	phys_addr_t get_info_addr;
-	u32 soc_rev;
+	u8 major_ver, minor_ver;
 	u32 v[4];
 	int err;
 
@@ -210,15 +211,16 @@ static int imx_soc_device_register(struct platform_device *pdev)
 	if (!attr)
 		return -ENOMEM;
 
-	err = ele_get_info(get_info_addr, 23 * sizeof(u32));
+	err = ele_get_info(get_info_addr, ELE_GET_INFO_READ_SZ);
 	if (err) {
 		attr->revision = kasprintf(GFP_KERNEL, "A0");
 	} else {
-		soc_rev = (get_info_data[1] & 0xffff0000) >> 16;
-		if (soc_rev == 0xA100)
-			attr->revision = kasprintf(GFP_KERNEL, "A1");
+		major_ver = (get_info_data[1] & 0xffff0000) >> 24;
+		minor_ver = (get_info_data[1] & 0xffff0000) & 0xFF;
+		if (minor_ver)
+			attr->revision = kasprintf(GFP_KERNEL, "%x.%x", major_ver, minor_ver);
 		else
-			attr->revision = kasprintf(GFP_KERNEL, "A0");
+			attr->revision = kasprintf(GFP_KERNEL, "%x", major_ver);
 	}
 
 	gen_pool_free(sram_pool, (unsigned long)get_info_data, 0x100);
@@ -339,8 +341,8 @@ static ssize_t ele_mu_fops_write(struct file *fp, const char __user *buf,
 	/* Check the message is valid according to tags */
 	if (header.tag == ele_mu_priv->cmd_tag) {
 		/*
-		 * unlocked in ele_mu_receive_work_handler when the
-		 * response to this command is received.
+		 * unlocked in ele_mu_fops_read when the
+		 * response to this command is read.
 		 */
 		mutex_lock(&ele_mu_priv->mu_cmd_lock);
 		ele_mu_priv->waiting_rsp_dev = dev_ctx;
@@ -364,6 +366,7 @@ static ssize_t ele_mu_fops_write(struct file *fp, const char __user *buf,
 	 */
 	nb_words = header.size;
 	if (nb_words * sizeof(u32) != size) {
+		err = -EINVAL;
 		devctx_err(dev_ctx, "User buffer too small\n");
 		goto exit;
 	}
@@ -384,6 +387,8 @@ unlock:
 	mutex_unlock(&ele_mu_priv->mu_lock);
 
 exit:
+	if (err < 0)
+		mutex_unlock(&ele_mu_priv->mu_cmd_lock);
 	up(&dev_ctx->fops_lock);
 	return err;
 }
@@ -398,9 +403,11 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 	struct ele_mu_device_ctx *dev_ctx = container_of(fp->private_data,
 							 struct ele_mu_device_ctx,
 							 miscdev);
+	struct ele_mu_priv *ele_mu_priv = dev_ctx->priv;
 	u32 data_size = 0, size_to_copy = 0;
-	struct ele_obuf_desc *b_desc;
+	struct ele_buf_desc *b_desc;
 	int err;
+	struct mu_hdr header;
 
 	devctx_dbg(dev_ctx, "read to buf %p(%ld), ppos=%lld\n", buf, size,
 		   ((ppos) ? *ppos : 0));
@@ -439,13 +446,13 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 	 */
 	while (!list_empty(&dev_ctx->pending_out)) {
 		b_desc = list_first_entry_or_null(&dev_ctx->pending_out,
-						  struct ele_obuf_desc,
+						  struct ele_buf_desc,
 						  link);
-		if (b_desc->out_usr_ptr && b_desc->out_ptr) {
+		if (b_desc->usr_buf_ptr && b_desc->shared_buf_ptr) {
 			devctx_dbg(dev_ctx, "Copy output data to user\n");
-			err = (int)copy_to_user(b_desc->out_usr_ptr,
-						b_desc->out_ptr,
-						b_desc->out_size);
+			err = (int)copy_to_user(b_desc->usr_buf_ptr,
+						b_desc->shared_buf_ptr,
+						b_desc->size);
 			if (err) {
 				devctx_err(dev_ctx,
 					   "Failed to copy output data to user\n");
@@ -453,9 +460,15 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 				goto exit;
 			}
 		}
+
+		if (b_desc->shared_buf_ptr)
+			memset(b_desc->shared_buf_ptr, 0, b_desc->size);
+
 		__list_del_entry(&b_desc->link);
 		devm_kfree(dev_ctx->dev, b_desc);
 	}
+
+	header = *((struct mu_hdr *) (&dev_ctx->temp_resp[0]));
 
 	/* Copy data from the buffer */
 	print_hex_dump_debug("to user ", DUMP_PREFIX_OFFSET, 4, 4,
@@ -476,6 +489,31 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 	dev_ctx->pending_hdr = 0;
 
 exit:
+	/*
+	 * Clean the used Shared Memory space,
+	 * whether its Input Data copied from user buffers, or
+	 * Data received from FW.
+	 */
+	while (!list_empty(&dev_ctx->pending_in) ||
+	       !list_empty(&dev_ctx->pending_out)) {
+		if (!list_empty(&dev_ctx->pending_in))
+			b_desc = list_first_entry_or_null(&dev_ctx->pending_in,
+							  struct ele_buf_desc,
+							  link);
+		else
+			b_desc = list_first_entry_or_null(&dev_ctx->pending_out,
+							  struct ele_buf_desc,
+							  link);
+
+		if (b_desc->shared_buf_ptr)
+			memset(b_desc->shared_buf_ptr, 0, b_desc->size);
+
+		__list_del_entry(&b_desc->link);
+		devm_kfree(dev_ctx->dev, b_desc);
+	}
+	if (header.tag == ele_mu_priv->rsp_tag)
+		mutex_unlock(&ele_mu_priv->mu_cmd_lock);
+
 	up(&dev_ctx->fops_lock);
 	return err;
 }
@@ -536,7 +574,7 @@ exit:
 static int ele_mu_ioctl_setup_iobuf_handler(struct ele_mu_device_ctx *dev_ctx,
 					    unsigned long arg)
 {
-	struct ele_obuf_desc *out_buf_desc;
+	struct ele_buf_desc *b_desc;
 	struct ele_mu_ioctl_setup_iobuf io = {0};
 	struct ele_shared_mem *shared_mem;
 	int err = -EINVAL;
@@ -596,7 +634,9 @@ static int ele_mu_ioctl_setup_iobuf_handler(struct ele_mu_device_ctx *dev_ctx,
 		goto exit;
 	}
 
-	if (io.flags & SECO_MU_IO_FLAGS_IS_INPUT) {
+	memset(shared_mem->ptr + pos, 0, io.length);
+	if ((io.flags & SECO_MU_IO_FLAGS_IS_INPUT) ||
+	    (io.flags & SECO_MU_IO_FLAGS_IS_IN_OUT)) {
 		/*
 		 * buffer is input:
 		 * copy data from user space to this allocated buffer.
@@ -609,45 +649,38 @@ static int ele_mu_ioctl_setup_iobuf_handler(struct ele_mu_device_ctx *dev_ctx,
 			err = -EFAULT;
 			goto exit;
 		}
-	} else {
-		if (io.flags & SECO_MU_IO_FLAGS_IS_IN_OUT) {
-		/*
-		 * buffer is input and output both:
-		 * flush the memory "shared_mem->ptr + pos" with
-		 * size io.length.
-		 */
-			err = (int)copy_from_user(shared_mem->ptr + pos, io.user_buf,
-						  io.length);
-			if (err) {
-				devctx_err(dev_ctx,
-					   "Failed copy data to shared memory\n");
-				err = -EFAULT;
-				goto exit;
-			}
-		}
-
-		/*
-		 * buffer is output:
-		 * add an entry in the "pending buffers" list so data
-		 * can be copied to user space when receiving SECO
-		 * response.
-		 */
-		out_buf_desc = devm_kmalloc(dev_ctx->dev, sizeof(*out_buf_desc),
-					    GFP_KERNEL);
-		if (!out_buf_desc) {
-			err = -ENOMEM;
-			devctx_err(dev_ctx,
-				   "Failed allocating mem for pending buffer\n"
-				   );
-			goto exit;
-		}
-
-		out_buf_desc->out_ptr = shared_mem->ptr + pos;
-		out_buf_desc->out_usr_ptr = io.user_buf;
-		out_buf_desc->out_size = io.length;
-		list_add_tail(&out_buf_desc->link, &dev_ctx->pending_out);
 	}
 
+	b_desc = devm_kmalloc(dev_ctx->dev, sizeof(*b_desc), GFP_KERNEL);
+	if (!b_desc) {
+		err = -ENOMEM;
+		devctx_err(dev_ctx,
+			   "Failed allocating mem for pending buffer\n"
+			   );
+		goto exit;
+	}
+
+	b_desc->shared_buf_ptr = shared_mem->ptr + pos;
+	b_desc->usr_buf_ptr = io.user_buf;
+	b_desc->size = io.length;
+
+	if (io.flags & SECO_MU_IO_FLAGS_IS_INPUT) {
+		/*
+		 * buffer is input:
+		 * add an entry in the "pending input buffers" list so
+		 * that copied data can be cleaned from shared memory
+		 * later.
+		 */
+		list_add_tail(&b_desc->link, &dev_ctx->pending_in);
+	} else {
+		/*
+		 * buffer is output:
+		 * add an entry in the "pending out buffers" list so data
+		 * can be copied to user space when receiving ELE
+		 * response.
+		 */
+		list_add_tail(&b_desc->link, &dev_ctx->pending_out);
+	}
 copy:
 	/* Provide the EdgeLock Enclave address to user space only if success. */
 	err = (int)copy_to_user((u8 *)arg, &io,
@@ -729,7 +762,7 @@ static int ele_mu_fops_close(struct inode *nd, struct file *fp)
 	struct ele_mu_device_ctx *dev_ctx = container_of(fp->private_data,
 					struct ele_mu_device_ctx, miscdev);
 	struct ele_mu_priv *priv = dev_ctx->priv;
-	struct ele_obuf_desc *out_buf_desc;
+	struct ele_buf_desc *b_desc;
 
 	/* Avoid race if closed at the same time */
 	if (down_trylock(&dev_ctx->fops_lock))
@@ -768,12 +801,22 @@ static int ele_mu_fops_close(struct inode *nd, struct file *fp)
 	dev_ctx->non_secure_mem.size = 0;
 	dev_ctx->non_secure_mem.pos = 0;
 
-	while (!list_empty(&dev_ctx->pending_out)) {
-		out_buf_desc = list_first_entry_or_null(&dev_ctx->pending_out,
-						struct ele_obuf_desc,
-						link);
-		__list_del_entry(&out_buf_desc->link);
-		devm_kfree(dev_ctx->dev, out_buf_desc);
+	while (!list_empty(&dev_ctx->pending_in) ||
+	       !list_empty(&dev_ctx->pending_out)) {
+		if (!list_empty(&dev_ctx->pending_in))
+			b_desc = list_first_entry_or_null(&dev_ctx->pending_in,
+							  struct ele_buf_desc,
+							  link);
+		else
+			b_desc = list_first_entry_or_null(&dev_ctx->pending_out,
+							  struct ele_buf_desc,
+							  link);
+
+		if (b_desc->shared_buf_ptr)
+			memset(b_desc->shared_buf_ptr, 0, b_desc->size);
+
+		__list_del_entry(&b_desc->link);
+		devm_kfree(dev_ctx->dev, b_desc);
 	}
 
 	dev_ctx->status = MU_FREE;
@@ -994,6 +1037,7 @@ static int ele_mu_probe(struct platform_device *pdev)
 		init_waitqueue_head(&dev_ctx->wq);
 
 		INIT_LIST_HEAD(&dev_ctx->pending_out);
+		INIT_LIST_HEAD(&dev_ctx->pending_in);
 		sema_init(&dev_ctx->fops_lock, 1);
 
 		devname = devm_kasprintf(dev, GFP_KERNEL, "ele_mu%d_ch%d",
@@ -1039,6 +1083,13 @@ static int ele_mu_probe(struct platform_device *pdev)
 			goto exit;
 		}
 		priv->flags |= RESERVED_DMA_POOL;
+	}
+
+	if (info && info->init_fw) {
+		/* start initializing ele fw */
+		ret = ele_init_fw();
+		if (ret)
+			dev_err(dev, "Failed to initialize ele fw.\n");
 	}
 
 	if (info && info->socdev) {

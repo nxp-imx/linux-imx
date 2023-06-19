@@ -324,6 +324,8 @@ _IMX_IN_TREE_MODULES = [
     "drivers/iio/industrialio-sw-trigger.ko",
     "net/wireless/cfg80211.ko",
     "net/mac80211/mac80211.ko",
+    "drivers/gpu/drm/imx/display-imx-rpmsg.ko",
+    "drivers/cpufreq/cpufreq-dt-platdev.ko",
 ]
 
 def define_imx():
@@ -335,6 +337,10 @@ def define_imx():
         kbuild_symtypes="true",
         kmi_symbol_list = "//common:android/abi_gki_aarch64_imx",
         base_kernel = "//common:kernel_aarch64",
+        make_goals = [
+          "Image",
+          "modules",
+        ],
     )
 
     kernel_abi(

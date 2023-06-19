@@ -64,17 +64,11 @@ int imx_ele_msg_send_rcv(struct ele_mu_priv *priv)
 
 	wait = msecs_to_jiffies(1000);
 	if (!wait_for_completion_timeout(&priv->done, wait)) {
-		mutex_unlock(&priv->mu_cmd_lock);
 		pr_err("Error: wait_for_completion timed out.\n");
-		return -ETIMEDOUT;
+		err = -ETIMEDOUT;
 	}
 
-	/* As part of func ele_mu_rx_callback() execution,
-	 * response will copied to ele_msg->rsp_msg.
-	 *
-	 * Lock: (mutex_unlock(&ele_mu_priv->mu_cmd_lock),
-	 * will be unlocked if it is a response.
-	 */
+	mutex_unlock(&priv->mu_cmd_lock);
 
 	return err;
 }

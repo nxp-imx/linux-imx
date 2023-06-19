@@ -637,7 +637,8 @@ static const struct reg_value ov5640_setting_low_res[] = {
 	{0x3a0a, 0x00, 0, 0}, {0x3a0b, 0xf6, 0, 0}, {0x3a0e, 0x03, 0, 0},
 	{0x3a0d, 0x04, 0, 0}, {0x3a14, 0x03, 0, 0}, {0x3a15, 0xd8, 0, 0},
 	{0x4001, 0x02, 0, 0}, {0x4004, 0x02, 0, 0}, {0x3824, 0x02, 0, 0},
-	{0x4407, 0x04, 0, 0}, {0x5001, 0xa3, 0, 0},
+	{0x4407, 0x04, 0, 0}, {0x460c, 0x20, 0, 0},
+	{0x5001, 0xa3, 0, 0},
 	{0x3008, 0x02, 0, 15},
 };
 
@@ -695,7 +696,7 @@ static const struct reg_value ov5640_setting_QSXGA_2592_1944[] = {
 	{0x3a0a, 0x00, 0, 0}, {0x3a0b, 0xf6, 0, 0}, {0x3a0e, 0x03, 0, 0},
 	{0x3a0d, 0x04, 0, 0}, {0x3a14, 0x03, 0, 0}, {0x3a15, 0xd8, 0, 0},
 	{0x4001, 0x02, 0, 0}, {0x4004, 0x06, 0, 0},
-	{0x4407, 0x04, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
+	{0x4407, 0x04, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x20, 0, 0},
 	{0x3824, 0x02, 0, 0}, {0x5001, 0x83, 0, 70},
 	{0x3008, 0x02, 0, 20},
 };
@@ -3342,6 +3343,7 @@ static int ov5640_set_ctrl_vflip(struct ov5640_dev *sensor, int value)
 			      (BIT(2) | BIT(1)) : 0);
 }
 
+#if 0
 static int ov5640_set_ctrl_vblank(struct ov5640_dev *sensor, int value)
 {
 	const struct ov5640_mode_info *mode = sensor->current_mode;
@@ -3350,6 +3352,7 @@ static int ov5640_set_ctrl_vblank(struct ov5640_dev *sensor, int value)
 	return ov5640_write_reg16(sensor, OV5640_REG_TIMING_VTS,
 				  mode->height + value);
 }
+#endif
 
 static int ov5640_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -3384,7 +3387,7 @@ static int ov5640_s_ctrl(struct v4l2_ctrl *ctrl)
 	const struct ov5640_mode_info *mode = sensor->current_mode;
 	const struct ov5640_timings *timings;
 	unsigned int exp_max;
-	int ret;
+	int ret = 0;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
 
@@ -3440,7 +3443,8 @@ static int ov5640_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ov5640_set_ctrl_vflip(sensor, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
-		ret = ov5640_set_ctrl_vblank(sensor, ctrl->val);
+		/* Temporarily disable vblank control */
+		/* ret = ov5640_set_ctrl_vblank(sensor, ctrl->val); */
 		break;
 	default:
 		ret = -EINVAL;
