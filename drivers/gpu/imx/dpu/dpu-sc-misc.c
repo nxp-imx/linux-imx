@@ -14,11 +14,26 @@
 
 #include <dt-bindings/firmware/imx/rsrc.h>
 #include "dpu-prv.h"
+#include <linux/trusty/trusty.h>
+#include <linux/trusty/smcall.h>
+
+#define SMC_ENTITY_SCU 56
+#define SMC_SCU_MISC_CONTROL SMC_FASTCALL_NR(SMC_ENTITY_SCU, 0)
+#define TRUSTY_NOT_CONTROL  (-100)
 
 static inline int
 dpu_sc_misc_set_ctrl(struct dpu_soc *dpu, u32 rsc, u8 ctrl, u32 val)
 {
-	return imx_sc_misc_set_control(dpu->dpu_ipc_handle, rsc, ctrl, val);
+	int ret = 0;
+	if (dpu->trusty_dev) {
+		ret = trusty_fast_call32(dpu->trusty_dev, SMC_SCU_MISC_CONTROL, rsc, ctrl, val);
+		if (ret == TRUSTY_NOT_CONTROL)
+			ret = imx_sc_misc_set_control(dpu->dpu_ipc_handle, rsc, ctrl, val);
+	} else {
+		ret = imx_sc_misc_set_control(dpu->dpu_ipc_handle, rsc, ctrl, val);
+	}
+
+	return ret;
 }
 
 int dpu_sc_misc_get_handle(struct dpu_soc *dpu)
