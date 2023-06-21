@@ -83,4 +83,8 @@ config IMX_LPA_CTRL
 config IMX_GKI_FIX
 	bool "IMX GKI fix issue"
 	default n
+
+config IMX_GKI_8Q_FIX
+	bool "IMX GKI 8Q fix issue"
+	default n
 endmenu
