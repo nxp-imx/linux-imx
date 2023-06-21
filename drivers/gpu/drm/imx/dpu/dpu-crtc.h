@@ -83,6 +83,7 @@ struct dpu_crtc {
 	u32			crc_green;
 	u32			crc_blue;
 	u32			dual_crc_flag;
+	struct device		*trusty_dev;
 };
 
 struct dpu_crc {

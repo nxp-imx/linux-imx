@@ -34,6 +34,19 @@
 #include "dpu-kms.h"
 #include "dpu-plane.h"
 #include "imx-drm.h"
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_VPU 55
+#define SMC_WV_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
+
+#define SMC_ENTITY_SCU 56
+#define SMC_SCU_MISC_CONTROL SMC_FASTCALL_NR(SMC_ENTITY_SCU, 0)
+#define SMC_WV_POWER_SET SMC_FASTCALL_NR(SMC_ENTITY_SCU, 1)
+#define SMC_WV_DPU_POWER_SET SMC_FASTCALL_NR(SMC_ENTITY_SCU, 2)
 
 static inline struct dpu_plane_state **
 alloc_dpu_plane_states(struct dpu_crtc *dpu_crtc)
@@ -303,6 +316,13 @@ static void dpu_crtc_atomic_disable(struct drm_crtc *crtc,
 	struct dpu_fetchunit *fu;
 	unsigned long flags;
 	int i;
+	int ret;
+
+	if (dpu_crtc->trusty_dev) {
+		ret = trusty_fast_call32(dpu_crtc->trusty_dev, SMC_WV_DPU_POWER_SET, 0, 0, 0);
+		if (ret)
+			DRM_DEV_ERROR(dpu_crtc->dev, "Move DPU resource failed with %d.\n", ret);
+	}
 
 	if (dcstate->crc.source != DPU_CRC_SRC_NONE)
 		dpu_crtc_disable_crc_source(crtc, dcstate->use_pc);
@@ -1455,6 +1475,8 @@ static int dpu_crtc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct dpu_crtc *dpu_crtc;
+	struct device_node *sp;
+	int ret;
 
 	if (!dev->platform_data)
 		return -EINVAL;
@@ -1462,6 +1484,25 @@ static int dpu_crtc_probe(struct platform_device *pdev)
 	dpu_crtc = devm_kzalloc(dev, sizeof(*dpu_crtc), GFP_KERNEL);
 	if (!dpu_crtc)
 		return -ENOMEM;
+
+	sp = of_find_node_by_name(NULL, "trusty");
+	if (sp != NULL) {
+		dpu_crtc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (dpu_crtc->trusty_dev) {
+			ret = trusty_fast_call32(dpu_crtc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+			if (ret) {
+				dpu_crtc->trusty_dev = NULL;
+				dev_err(&pdev->dev, "dpu-crtc: trusty probe test failed, use Normal mode\n");
+			} else {
+				dev_info(&pdev->dev, "dpu-crtc: get trusty_dev node, use Trusty mode.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dpu-crtc: failed to get trusty_dev node.\n");
+		}
+	} else {
+		dpu_crtc->trusty_dev = NULL;
+		dev_err(&pdev->dev, "dpu-crtc: failed to find trusty node. Use normal mode.\n");
+	}
 
 	dev_set_drvdata(dev, dpu_crtc);
 

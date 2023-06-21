@@ -94,3 +94,46 @@
 &lpuart1 {
        /delete-node/ bluetooth;
 };
+
+&dc1_dpr1_channel1 {
+	trusty;
+};
+&dc1_dpr1_channel2 {
+	trusty;
+};
+&dc1_dpr1_channel3 {
+	trusty;
+};
+&dc1_dpr2_channel1 {
+	trusty;
+};
+&dc1_dpr2_channel2 {
+	trusty;
+};
+&dc1_dpr2_channel3 {
+	trusty;
+};
+&dc0_dpr1_channel1 {
+	trusty;
+};
+&dc0_dpr1_channel2 {
+	trusty;
+};
+&dc0_dpr1_channel3 {
+	trusty;
+};
+&dc0_dpr2_channel1 {
+	trusty;
+};
+&dc0_dpr2_channel2 {
+	trusty;
+};
+&dc0_dpr2_channel3 {
+	trusty;
+};
+&dpu1 {
+	trusty;
+};
+&dpu2 {
+	trusty;
+};

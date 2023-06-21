@@ -281,6 +281,8 @@ struct dpu_soc {
 	struct dpu_store	*st_priv[1];
 	struct dpu_tcon		*tcon_priv[2];
 	struct dpu_vscaler	*vs_priv[3];
+
+	struct device *trusty_dev;
 };
 
 int dpu_format_horz_chroma_subsampling(u32 format);
