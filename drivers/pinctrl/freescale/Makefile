@@ -34,6 +34,7 @@ obj-$(CONFIG_PINCTRL_IMX23)	+= pinctrl-imx23.o
 obj-$(CONFIG_PINCTRL_IMX25)	+= pinctrl-imx25.o
 obj-$(CONFIG_PINCTRL_IMX28)	+= pinctrl-imx28.o
 obj-$(CONFIG_PINCTRL_IMXRT1050)	+= pinctrl-imxrt1050.o
+obj-$(CONFIG_PINCTRL_IMXRT1020)	+= pinctrl-imxrt1020.o
 obj-$(CONFIG_PINCTRL_IMXRT1170)	+= pinctrl-imxrt1170.o
 obj-$(CONFIG_PINCTRL_S32V234)	+= pinctrl-s32v234.o
 obj-$(CONFIG_PINCTRL_S32V_CORE)	+= pinctrl-s32v-core.o
