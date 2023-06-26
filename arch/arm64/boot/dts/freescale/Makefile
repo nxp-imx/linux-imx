@@ -376,7 +376,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-9x9-qsb.dtb \
 			  imx93-9x9-qsb-ld.dtb imx93-9x9-qsb-aud-hat.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx91p-9x9-qsb.dtb imx91p-9x9-qsb-aud-hat.dtb \
-			  imx91p-9x9-qsb-mt9m114.dtb
+			  imx91p-9x9-qsb-mt9m114.dtb \
+			  imx91p-9x9-qsb-flexspi-m2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx91p-11x11-evk.dtb imx91p-11x11-evk-mt9m114.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw72xx-0x-imx219.dtb
