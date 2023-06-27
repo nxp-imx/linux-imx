@@ -116,26 +116,59 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 	case VEHICLE_FAN_SPEED:
 		property_encode.prop = HVAC_FAN_SPEED;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != FAN_SPEED_0 && property_encode.value != FAN_SPEED_1 &&
+			property_encode.value != FAN_SPEED_2 && property_encode.value != FAN_SPEED_3 &&
+			property_encode.value != FAN_SPEED_4 && property_encode.value != FAN_SPEED_5) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_FAN_DIRECTION:
 		property_encode.prop = HVAC_FAN_DIRECTION;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != FAN_DIRECTION_0 && property_encode.value != FAN_DIRECTION_1 &&
+			property_encode.value != FAN_DIRECTION_2 && property_encode.value != FAN_DIRECTION_3) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_AUTO_ON:
 		property_encode.prop = HVAC_AUTO_ON;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != AUTO_ON && property_encode.value != AUTO_OFF) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_AC:
 		property_encode.prop = HVAC_AC_ON;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != AC_ON && property_encode.value != AC_OFF) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_RECIRC_ON:
 		property_encode.prop = HVAC_RECIRC_ON;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != RECIRC_ON && property_encode.value != RECIRC_OFF) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_DEFROST:
 		property_encode.prop = HVAC_DEFROSTER;
 		property_encode.area_id = (u32)index;
+		if (property_encode.value != DEFROST_ON && property_encode.value != DEFROST_OFF) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_AC_TEMP:
 		property_encode.prop = HVAC_TEMPERATURE_SET;
@@ -144,10 +177,21 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 	case VEHICLE_HVAC_POWER_ON:
 		property_encode.prop = HVAC_POWER_ON;
 		property_encode.area_id = HVAC_ALL;
+		if (property_encode.value != HVAC_ON && property_encode.value != HVAC_OFF) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_SEAT_TEMPERATURE:
 		property_encode.prop = HVAC_SEAT_TEMPERATURE;
 		property_encode.area_id = (u32)index;
+		if (property_encode.value != SEAT_TEMP_0 && property_encode.value != SEAT_TEMP_1 &&
+			property_encode.value != SEAT_TEMP_2 && property_encode.value != SEAT_TEMP_3) {
+			pr_err("input value is not correct, please type correct one \n");
+			kfree(buffer);
+			return;
+		}
 		break;
 	case VEHICLE_GEAR:
 		property_encode.prop = GEAR_SELECTION;

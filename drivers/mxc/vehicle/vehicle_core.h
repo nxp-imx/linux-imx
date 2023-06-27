@@ -15,6 +15,42 @@
 #ifndef VEHICLE_CORE_H
 #define VEHICLE_CORE_H
 
+// seat temperature indexes
+#define SEAT_TEMP_LEFT_INDEX 1
+#define SEAT_TEMP_RIGHT_INDEX 4
+// seat temperature values
+#define SEAT_TEMP_0 0 // off
+#define SEAT_TEMP_1 1
+#define SEAT_TEMP_2 2
+#define SEAT_TEMP_3 3
+
+#define DEFROST_ON 1
+#define DEFROST_OFF 0
+
+#define AC_ON 1
+#define AC_OFF 0
+
+#define AUTO_ON 1
+#define AUTO_OFF 0
+
+#define HVAC_ON 1
+#define HVAC_OFF 0
+
+#define RECIRC_ON 1
+#define RECIRC_OFF 0
+
+#define FAN_SPEED_0 1
+#define FAN_SPEED_1 2
+#define FAN_SPEED_2 3
+#define FAN_SPEED_3 4
+#define FAN_SPEED_4 5
+#define FAN_SPEED_5 6
+
+#define FAN_DIRECTION_0 1
+#define FAN_DIRECTION_1 2
+#define FAN_DIRECTION_2 3
+#define FAN_DIRECTION_3 6
+
 struct vehicle_property_set {
 	u32 prop;
 	u32 area_id;
