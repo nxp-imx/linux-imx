@@ -21,26 +21,6 @@
 #include <linux/of_platform.h>
 #include "vehicle_core.h"
 
-#define FAN_SPEED_0 1
-#define FAN_SPEED_1 2
-#define FAN_SPEED_2 3
-#define FAN_SPEED_3 4
-#define FAN_SPEED_4 5
-#define FAN_SPEED_5 6
-#define FAN_DIRECTION_0 1
-#define FAN_DIRECTION_1 2
-#define FAN_DIRECTION_2 3
-#define FAN_DIRECTION_3 6
-#define RECIRC_ON 1
-#define RECIRC_OFF 0
-#define HVAC_ON 1
-#define HVAC_OFF 0
-#define AUTO_ON 1
-#define AUTO_OFF 0
-#define AC_ON 1
-#define AC_OFF 0
-#define DEFROST_ON 1
-#define DEFROST_OFF 0
 //VEHICLE is in state parking
 #define GEAR_0 1
 //VEHICLE is in state reverse
@@ -74,14 +54,6 @@
 #define PIE_AC_TEMP_LEFT_INDEX 49
 #define PIE_AC_TEMP_RIGHT_INDEX 68
 
-// seat temperature indexes
-#define SEAT_TEMP_LEFT_INDEX 1
-#define SEAT_TEMP_RIGHT_INDEX 4
-// seat temperature values
-#define SEAT_TEMP_0 0 // off
-#define SEAT_TEMP_1 1
-#define SEAT_TEMP_2 2
-#define SEAT_TEMP_3 3
 
 struct vehicle_dummy_drvdata {
 	struct device *dev;
@@ -456,11 +428,7 @@ static ssize_t seat_temp_left_store(struct device *dev,
 	if (!size)
 		return -EINVAL;
 	seat_temp = simple_strtoul(buf, NULL, 10);
-	if (seat_temp != SEAT_TEMP_0 && seat_temp != SEAT_TEMP_1 &&
-		seat_temp != SEAT_TEMP_2 && seat_temp != SEAT_TEMP_3) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (seat_temp != vehicle_dummy->seat_temp_left) {
 		vehicle_dummy->seat_temp_left = seat_temp;
 		vehicle_hal_set_property(VEHICLE_SEAT_TEMPERATURE, SEAT_TEMP_LEFT_INDEX, seat_temp, 0);
@@ -520,11 +488,7 @@ static ssize_t fan_direction_store(struct device *dev,
 	if (!size)
 		return -EINVAL;
 	fan_direction = simple_strtoul(buf, NULL, 10);
-	if (fan_direction != FAN_DIRECTION_0 && fan_direction != FAN_DIRECTION_1 &&
-		fan_direction != FAN_DIRECTION_2 && fan_direction != FAN_DIRECTION_3) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (fan_direction != vehicle_dummy->fan_direction) {
 		vehicle_dummy->fan_direction = fan_direction;
 		vehicle_hal_set_property(VEHICLE_FAN_DIRECTION, 0, fan_direction, 0);
@@ -552,12 +516,6 @@ static ssize_t fan_speed_store(struct device *dev,
 	if (!size)
 		return -EINVAL;
 	fan_speed = simple_strtoul(buf, NULL, 10);
-	if (fan_speed != FAN_SPEED_0 && fan_speed != FAN_SPEED_1 &&
-		fan_speed != FAN_SPEED_2 && fan_speed != FAN_SPEED_3 &&
-		fan_speed != FAN_SPEED_4 && fan_speed != FAN_SPEED_5) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
 
 	if (fan_speed != vehicle_dummy->fan_speed) {
 		vehicle_dummy->fan_speed = fan_speed;
@@ -587,10 +545,7 @@ static ssize_t defrost_left_store(struct device *dev,
 		return -EINVAL;
 
 	defrost = simple_strtoul(buf, NULL, 10);
-	if (defrost != DEFROST_ON && defrost != DEFROST_OFF) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (defrost != vehicle_dummy->defrost_left) {
 		vehicle_dummy->defrost_left = defrost;
 		vehicle_hal_set_property(VEHICLE_DEFROST, 1, defrost, 0);
@@ -651,10 +606,7 @@ static ssize_t ac_on_store(struct device *dev,
 		return -EINVAL;
 
 	ac_on = simple_strtoul(buf, NULL, 10);
-	if (ac_on != AC_ON && ac_on != AC_OFF) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (ac_on != vehicle_dummy->ac_on) {
 		vehicle_dummy->ac_on = ac_on;
 		vehicle_hal_set_property(VEHICLE_AC, 0, ac_on, 0);
@@ -683,10 +635,7 @@ static ssize_t auto_on_store(struct device *dev,
 		return -EINVAL;
 
 	auto_on = simple_strtoul(buf, NULL, 10);
-	if (auto_on != AUTO_ON && auto_on != AUTO_OFF) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (auto_on != vehicle_dummy->auto_on) {
 		vehicle_dummy->auto_on = auto_on;
 		vehicle_hal_set_property(VEHICLE_AUTO_ON, 0, auto_on, 0);
@@ -715,10 +664,7 @@ static ssize_t hvac_on_store(struct device *dev,
 		return -EINVAL;
 
 	hvac_on = simple_strtoul(buf, NULL, 10);
-	if (hvac_on != HVAC_ON && hvac_on != HVAC_OFF) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (hvac_on != vehicle_dummy->hvac_on) {
 		vehicle_dummy->hvac_on = hvac_on;
 		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, 0, hvac_on, 0);
@@ -747,10 +693,7 @@ static ssize_t recirc_on_store(struct device *dev,
 		return -EINVAL;
 
 	recirc_on = simple_strtoul(buf, NULL, 10);
-	if (recirc_on != RECIRC_ON && recirc_on != RECIRC_OFF) {
-		pr_err("input value is not correct, please type correct one \n");
-		return -EINVAL;
-	}
+
 	if (recirc_on != vehicle_dummy->recirc_on) {
 		vehicle_dummy->recirc_on = recirc_on;
 		vehicle_hal_set_property(VEHICLE_RECIRC_ON, 0, recirc_on, 0);
