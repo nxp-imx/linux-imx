@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright(C) 2023
+ * Copyright(C) 2023, Emcraft Systems
  * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
@@ -13,8 +13,17 @@
 
 #include "clk.h"
 
+static struct clk_div_table clk_enet_ref_table[] = {
+	{ .val = 0, .div = 20, },
+	{ .val = 1, .div = 10, },
+	{ .val = 2, .div = 5, },
+	{ .val = 3, .div = 4, },
+	{ /* sentinel */ }
+};
+
 static const char * const pll2_bypass_sels[] = {"pll2_sys", "osc", };
 static const char * const pll3_bypass_sels[] = {"pll3_usb_otg", "osc", };
+static const char * const pll6_bypass_sels[] = {"pll6", "osc", };
 
 static const char *const pre_periph_sels[] = { "pll2_sys", "pll2_pfd3_297m", "pll3_pfd3_454_74m", "arm_podf", };
 static const char *const periph_sels[] = { "pre_periph_sel", "todo", };
@@ -61,6 +70,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		base + 0x30, 0x1);
 	hws[IMXRT1020_CLK_PLL3_USB_OTG] = imx_clk_hw_pllv3(IMX_PLLV3_USB, "pll3_usb_otg", "osc",
 		base + 0x10, 0x1);
+	hws[IMXRT1020_CLK_PLL6] = imx_clk_hw_pllv3(IMX_PLLV3_ENET, "pll6", "osc",
+		base + 0xe0, 0x1);
+
 	/* PLL bypass out */
 	hws[IMXRT1020_CLK_PLL2_BYPASS] = imx_clk_hw_mux_flags("pll2_bypass",
 		base + 0x30, 16, 1,
@@ -68,6 +80,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_PLL3_BYPASS] = imx_clk_hw_mux_flags("pll3_bypass",
 		base + 0x10, 16, 1,
 		pll3_bypass_sels, ARRAY_SIZE(pll3_bypass_sels), CLK_SET_RATE_PARENT);
+	hws[IMXRT1020_CLK_PLL6_BYPASS] = imx_clk_hw_mux_flags("pll6_bypass",
+		base + 0xe0, 16, 1,
+		pll6_bypass_sels, ARRAY_SIZE(pll6_bypass_sels), CLK_SET_RATE_PARENT);
 
 	hws[IMXRT1020_CLK_PLL3_80M] = imx_clk_hw_fixed_factor("pll3_80m",  "pll3_usb_otg", 1, 6);
 
@@ -83,6 +98,11 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		base + 0xf0, 1);
 	hws[IMXRT1020_CLK_PLL3_PFD3_454_74M] = imx_clk_hw_pfd("pll3_pfd3_454_74m", "pll3_usb_otg",
 		base + 0xf0, 3);
+
+	hws[IMXRT1020_CLK_PLL6_ENET] = imx_clk_hw_gate("pll6_enet", "pll6_bypass", base + 0xe0, 13);
+	hws[IMXRT1020_CLK_ENET_REF] = clk_hw_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
+								  base + 0xe0, 0, 2, 0, clk_enet_ref_table,
+								  &imx_ccm_lock);
 
 	/* CCM clocks */
 	base = devm_platform_ioremap_resource(pdev, 0);
@@ -139,6 +159,7 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_LPUART1] = imx_clk_hw_gate2("lpuart1", "lpuart_podf", base + 0x7c, 24);
 	hws[IMXRT1020_CLK_SEMC] = imx_clk_hw_gate2("semc", "semc_podf", base + 0x74, 4);
 	hws[IMXRT1020_CLK_USBOH3] = imx_clk_hw_gate2("usboh3", "ipg", base + 0x80, 0);
+	hws[IMXRT1020_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", base + 0x6c, 10);
 
 	imx_check_clk_hws(hws, IMXRT1020_CLK_END);
 
