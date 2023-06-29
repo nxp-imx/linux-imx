@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
  * Copyright(C) 2023, Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
 #ifndef __DT_BINDINGS_CLOCK_IMXRT1020_H
@@ -49,7 +50,10 @@
 #define IMXRT1020_CLK_IPG_PODF			40
 #define IMXRT1020_CLK_PER_CLK_SEL		41
 #define IMXRT1020_CLK_PER_PODF			42
-#define IMXRT1020_CLK_USBOH3			43
-#define IMXRT1020_CLK_END			44
+#define IMXRT1020_CLK_ENET			43
+#define IMXRT1020_CLK_PLL6			44
+#define IMXRT1020_CLK_ENET_REF			45
+#define IMXRT1020_CLK_USBOH3			46
+#define IMXRT1020_CLK_END			47
 
 #endif /* __DT_BINDINGS_CLOCK_IMXRT1020_H */
