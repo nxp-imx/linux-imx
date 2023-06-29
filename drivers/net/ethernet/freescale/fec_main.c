@@ -3831,6 +3831,49 @@ out:
 	return ret;
 }
 
+static int fec_enet_set_ref_clk_dir(struct platform_device *pdev,
+				     struct device_node *np)
+{
+	struct device_node *gpr_np;
+	u32 out_val[4];
+	u32 reg, bit, dir;
+	struct regmap *gpr;
+	int ret = 0;
+
+	gpr_np = of_parse_phandle(np, "fsl,ref-clk-dir", 0);
+	if (!gpr_np)
+		return 0;
+
+	ret = of_property_read_u32_array(np, "fsl,ref-clk-dir", out_val,
+					 ARRAY_SIZE(out_val));
+	if (ret) {
+		dev_dbg(&pdev->dev, "no ref-clk-dir mode property\n");
+		goto out;
+	}
+
+	gpr = syscon_node_to_regmap(gpr_np);
+	if (IS_ERR(gpr)) {
+		dev_err(&pdev->dev, "could not find gpr regmap\n");
+		ret = PTR_ERR(gpr);
+		goto out;
+	}
+
+	reg = out_val[1];
+	bit = out_val[2];
+	dir = out_val[3];
+
+	if (dir)
+		regmap_update_bits(gpr, reg, BIT(bit), BIT(bit));
+	else
+		regmap_update_bits(gpr, reg, BIT(bit), 0);
+
+out:
+	of_node_put(gpr_np);
+
+	return ret;
+}
+
+
 static int
 fec_probe(struct platform_device *pdev)
 {
@@ -3907,6 +3950,10 @@ fec_probe(struct platform_device *pdev)
 	ret = fec_enet_init_stop_mode(fep, np);
 	if (ret)
 		goto failed_stop_mode;
+
+	ret = fec_enet_set_ref_clk_dir(pdev, np);
+	if (ret)
+		goto failed_set_clk_dir;
 
 	phy_node = of_parse_phandle(np, "phy-handle", 0);
 	if (!phy_node && of_phy_is_fixed_link(np)) {
@@ -4099,6 +4146,7 @@ failed_rgmii_delay:
 	if (of_phy_is_fixed_link(np))
 		of_phy_deregister_fixed_link(np);
 	of_node_put(phy_node);
+failed_set_clk_dir:
 failed_stop_mode:
 failed_ipc_init:
 failed_phy:
