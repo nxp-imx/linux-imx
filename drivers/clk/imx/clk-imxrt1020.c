@@ -44,7 +44,6 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	struct device_node *anp;
 	int ret;
-	int i;
 
 	clk_hw_data = kzalloc(struct_size(clk_hw_data, hws,
 					  IMXRT1020_CLK_END), GFP_KERNEL);
@@ -100,6 +99,7 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		base + 0xf0, 3);
 
 	hws[IMXRT1020_CLK_PLL6_ENET] = imx_clk_hw_gate("pll6_enet", "pll6_bypass", base + 0xe0, 13);
+	hws[IMXRT1020_CLK_PLL6_500M] = imx_clk_hw_gate("pll6_500m", "pll6_bypass", base + 0xe0, 22);
 	hws[IMXRT1020_CLK_ENET_REF] = clk_hw_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
 								  base + 0xe0, 0, 2, 0, clk_enet_ref_table,
 								  &imx_ccm_lock);
@@ -108,6 +108,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (WARN_ON(IS_ERR(base)))
 		return PTR_ERR(base);
+
+	hws[IMXRT1020_CLK_ARM_PODF] = imx_clk_hw_divider("arm_podf", "pll6_500m",
+		base + 0x10, 0, 3);
 
 	hws[IMXRT1020_CLK_PRE_PERIPH_SEL] = imx_clk_hw_mux("pre_periph_sel",
 		base + 0x18, 18, 2,
@@ -134,9 +137,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		semc_sels, ARRAY_SIZE(semc_sels), CLK_IS_CRITICAL);
 
 	hws[IMXRT1020_CLK_AHB_PODF] = imx_clk_hw_divider("ahb", "periph_sel",
-		base + 0x14, 10, 3);
-	hws[IMXRT1020_CLK_IPG_PODF] = imx_clk_hw_divider("ipg", "ahb",
-		base + 0x14, 8, 2);
+							       base + 0x14, 10, 3);
+	hws[IMXRT1020_CLK_IPG_PODF] = imx_clk_hw_divider_flags("ipg", "ahb",
+							 base + 0x14, 8, 2, CLK_IS_CRITICAL);
 
 	hws[IMXRT1020_CLK_PER_CLK_SEL] = imx_clk_hw_mux("perclk_sel",
 		base + 0x1c, 6, 1,
