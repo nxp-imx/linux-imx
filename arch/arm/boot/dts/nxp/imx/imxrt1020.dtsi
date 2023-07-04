@@ -1,0 +1,169 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+/*
+ * Copyright (C) 2023 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
+ */
+
+#include "../../armv7-m.dtsi"
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imxrt1020-clock.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	clocks {
+		osc: osc {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <24000000>;
+		};
+
+		gpt_clk: gpt_clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <3000000>;
+		};
+	};
+
+	soc {
+		iomuxc: pinctrl@401f8000 {
+			compatible = "fsl,imxrt1020-iomuxc";
+			reg = <0x401f8000 0x4000>;
+			fsl,mux_mask = <0x7>;
+		};
+
+		gpr: iomuxc-gpr@400ac000 {
+			compatible = "fsl,imxrt1020-iomuxc-gpr", "syscon";
+			reg = <0x400ac000 0x4000>;
+		};
+
+		iomuxc_snvs: pinctrl-snvs@400a8000 {
+			compatible = "fsl,imxrt1020-iomuxc-snvs";
+			reg = <0x400a8000 0x4000>;
+			fsl,mux_mask = <0x7>;
+		};
+
+		anatop: anatop@400d8000 {
+
+			compatible = "fsl,imxrt-anatop";
+			reg = <0x400d8000 0x4000>;
+		};
+
+		clks: clock-controller@400fc000 {
+			compatible = "fsl,imxrt1020-ccm";
+			reg = <0x400fc000 0x4000>;
+			interrupts = <95>, <96>;
+			clocks = <&osc>;
+			clock-names = "osc";
+			#clock-cells = <1>;
+		};
+
+		gpt: gpt@401ec000 {
+			compatible = "fsl,imxrt1020-gpt", "fsl,imx6dl-gpt", "fsl,imx6sl-gpt";
+			reg = <0x401ec000 0x4000>;
+			interrupts = <100>;
+			clocks = <&gpt_clk>;
+			clock-names = "per";
+			status = "disabled";
+		};
+
+		fec: ethernet@402d8000 {
+			compatible = "fsl,imxrt1020-fec", "fsl,mvf600-fec";
+			reg = <0x402d8000 0x1000>;
+			interrupts = <114>;
+			clocks = <&clks IMXRT1020_CLK_ENET>,
+				 <&clks IMXRT1020_CLK_AHB_PODF>;
+			clock-names = "ipg", "ahb";
+			status = "disabled";
+		};
+
+		lpuart1: serial@40184000 {
+			compatible = "fsl,imxrt1020-lpuart", "fsl,imxrt1050-lpuart";
+			reg = <0x40184000 0x4000>;
+			interrupts = <20>;
+			clocks = <&clks IMXRT1020_CLK_LPUART1>;
+			clock-names = "ipg";
+			status = "disabled";
+		};
+
+		usdhc1: mmc@402c0000 {
+			compatible = "fsl,imx6sl-usdhc";
+			reg = <0x402c0000 0x1000>;
+			interrupts = <110>;
+			clocks = <&clks IMXRT1020_CLK_USDHC1>,
+				 <&clks IMXRT1020_CLK_USDHC1>,
+				 <&clks IMXRT1020_CLK_USDHC1>;
+			clock-names = "ipg", "ahb", "per";
+			status = "disabled";
+		};
+
+		gpio1: gpio@401b8000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x401b8000 0x4000>;
+			interrupts = <80>, <81>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio2: gpio@401bc000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x401bc000 0x4000>;
+			interrupts = <82>, <83>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio3: gpio@401c0000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x401c0000 0x4000>;
+			interrupts = <84>, <85>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gpio5: gpio@400c0000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x400c0000 0x4000>;
+			interrupts = <88>, <89>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		usbphy1: usbphy@400d9000 {
+			compatible = "fsl,imxrt-usbphy", "fsl,imx23-usbphy";
+			reg = <0x400d9000 0x1000>;
+			interrupts = <65>;
+			clocks = <&clks IMXRT1020_CLK_PLL3_USB_OTG>;
+		};
+
+		usbotg1: usb@402e0000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx27-usb";
+			reg = <0x402e0000 0x200>;
+			interrupts = <113>;
+			clocks = <&clks IMXRT1020_CLK_USBOH3>;
+			fsl,usbphy = <&usbphy1>;
+			fsl,usbmisc = <&usbmisc 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc: usbmisc@402e0800 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x402e0800 0x200>;
+			clocks = <&clks IMXRT1020_CLK_USBOH3>;
+		};
+	};
+};
