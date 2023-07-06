@@ -160,7 +160,7 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_USDHC1] = imx_clk_hw_gate2("usdhc1", "usdhc1_podf", base + 0x80, 2);
 	hws[IMXRT1020_CLK_USDHC2] = imx_clk_hw_gate2("usdhc2", "usdhc2_podf", base + 0x80, 4);
 	hws[IMXRT1020_CLK_LPUART1] = imx_clk_hw_gate2("lpuart1", "lpuart_podf", base + 0x7c, 24);
-	hws[IMXRT1020_CLK_SEMC] = imx_clk_hw_gate2("semc", "semc_podf", base + 0x74, 4);
+	hws[IMXRT1020_CLK_SEMC] = imx_clk_hw_gate2_flags("semc", "semc_podf", base + 0x74, 4, CLK_IS_CRITICAL);
 	hws[IMXRT1020_CLK_USBOH3] = imx_clk_hw_gate2("usboh3", "ipg", base + 0x80, 0);
 	hws[IMXRT1020_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", base + 0x6c, 10);
 
