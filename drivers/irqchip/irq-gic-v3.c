@@ -215,10 +215,11 @@ static void gic_do_wait_for_rwp(void __iomem *base, u32 bit)
 }
 
 /* Wait for completion of a distributor change */
-static void gic_dist_wait_for_rwp(void)
+void gic_v3_dist_wait_for_rwp(void)
 {
 	gic_do_wait_for_rwp(gic_data.dist_base, GICD_CTLR_RWP);
 }
+EXPORT_SYMBOL_GPL(gic_v3_dist_wait_for_rwp);
 
 /* Wait for completion of a redistributor change */
 static void gic_redist_wait_for_rwp(void)
@@ -365,7 +366,7 @@ static void gic_mask_irq(struct irq_data *d)
 	if (gic_irq_in_rdist(d))
 		gic_redist_wait_for_rwp();
 	else
-		gic_dist_wait_for_rwp();
+		gic_v3_dist_wait_for_rwp();
 }
 
 static void gic_eoimode1_mask_irq(struct irq_data *d)
@@ -834,7 +835,7 @@ static bool gic_has_group0(void)
 	return val != 0;
 }
 
-static void __init gic_dist_init(void)
+void gic_v3_dist_init(void)
 {
 	unsigned int i;
 #ifndef CONFIG_GIC_GENTLE_CONFIG
@@ -859,7 +860,7 @@ static void __init gic_dist_init(void)
 
 	/* Disable the distributor */
 	writel_relaxed(0, base + GICD_CTLR);
-	gic_dist_wait_for_rwp();
+	gic_v3_dist_wait_for_rwp();
 
 	/*
 	 * Configure SPIs as non-secure Group-1. This will only matter
@@ -896,7 +897,7 @@ static void __init gic_dist_init(void)
 
 	/* Enable distributor with ARE, Group1, and wait for it to drain */
 	writel_relaxed(val, base + GICD_CTLR);
-	gic_dist_wait_for_rwp();
+	gic_v3_dist_wait_for_rwp();
 
 #ifndef CONFIG_GIC_GENTLE_CONFIG
 	/* In a SoC running multiple OSes on ARM clusters sharing the same GIC,
@@ -922,6 +923,7 @@ static void __init gic_dist_init(void)
 	}
 #endif
 }
+EXPORT_SYMBOL_GPL(gic_v3_dist_init);
 
 static int gic_iterate_rdists(int (*fn)(struct redist_region *, void __iomem *))
 {
@@ -1217,7 +1219,7 @@ static int gic_dist_supports_lpis(void)
 		!gicv3_nolpi);
 }
 
-static void gic_cpu_init(void)
+void gic_v3_cpu_init(void)
 {
 	void __iomem *rbase;
 	int i;
@@ -1244,6 +1246,7 @@ static void gic_cpu_init(void)
 	/* initialise system registers */
 	gic_cpu_sys_reg_init();
 }
+EXPORT_SYMBOL_GPL(gic_v3_cpu_init);
 
 #ifdef CONFIG_SMP
 
@@ -1252,7 +1255,7 @@ static void gic_cpu_init(void)
 
 static int gic_starting_cpu(unsigned int cpu)
 {
-	gic_cpu_init();
+	gic_v3_cpu_init();
 
 	if (gic_dist_supports_lpis())
 		its_cpu_init();
@@ -1438,13 +1441,21 @@ static inline void gic_cpu_pm_init(void) { }
 #endif /* CONFIG_CPU_PM */
 
 #ifdef CONFIG_PM
-static void gic_resume(void)
+void gic_v3_resume(void)
 {
 	trace_android_vh_gic_resume(&gic_data);
 }
+EXPORT_SYMBOL_GPL(gic_v3_resume);
+
+static int gic_v3_suspend(void)
+{
+	trace_android_vh_gic_v3_suspend(&gic_data);
+	return 0;
+}
 
 static struct syscore_ops gic_syscore_ops = {
-	.resume = gic_resume,
+	.resume = gic_v3_resume,
+	.suspend = gic_v3_suspend,
 };
 
 static void gic_syscore_init(void)
@@ -1454,6 +1465,8 @@ static void gic_syscore_init(void)
 
 #else
 static inline void gic_syscore_init(void) { }
+void gic_v3_resume(void) { }
+static int gic_v3_suspend(void) { return 0; }
 #endif
 
 
@@ -1941,8 +1954,8 @@ static int __init gic_init_bases(void __iomem *dist_base,
 
 	gic_update_rdist_properties();
 
-	gic_dist_init();
-	gic_cpu_init();
+	gic_v3_dist_init();
+	gic_v3_cpu_init();
 	gic_smp_init();
 	gic_cpu_pm_init();
 	gic_syscore_init();

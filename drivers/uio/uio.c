@@ -713,7 +713,7 @@ static const struct vm_operations_struct uio_logical_vm_ops = {
 
 static int uio_mmap_logical(struct vm_area_struct *vma)
 {
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+	vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
 	vma->vm_ops = &uio_logical_vm_ops;
 	return 0;
 }
@@ -799,7 +799,7 @@ static int uio_mmap(struct file *filep, struct vm_area_struct *vma)
 			goto out;
 		}
 
-		vma->vm_flags &= ~VM_MAYWRITE;
+		vm_flags_clear(vma, VM_MAYWRITE);
 	}
 #endif
 

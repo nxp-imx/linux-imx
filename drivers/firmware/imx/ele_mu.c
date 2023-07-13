@@ -407,7 +407,7 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 	u32 data_size = 0, size_to_copy = 0;
 	struct ele_buf_desc *b_desc;
 	int err;
-	struct mu_hdr header;
+	struct mu_hdr header = {0};
 
 	devctx_dbg(dev_ctx, "read to buf %p(%ld), ppos=%lld\n", buf, size,
 		   ((ppos) ? *ppos : 0));
