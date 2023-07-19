@@ -88,7 +88,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_4>;
 		clock-output-names = "csi0_lpcg_core_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_CSI_0>;
 	};
 
 	csi0_esc_lpcg: clock-controller@5822301c {
@@ -98,7 +98,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_4>;
 		clock-output-names = "csi0_lpcg_esc_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_CSI_0>;
 	};
 
 	i2c_mipi_csi0: i2c@58226000 {
@@ -164,7 +164,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_4>;
 		clock-output-names = "csi1_lpcg_core_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_CSI_1>;
 	};
 
 	csi1_esc_lpcg: clock-controller@5824301c {
@@ -174,7 +174,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_4>;
 		clock-output-names = "csi1_lpcg_esc_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_CSI_1>;
 	};
 
 	i2c_mipi_csi1: i2c@58246000 {
@@ -242,7 +242,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_4>;
 		clock-output-names = "pi0_lpcg_ipg_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_PI_0>;
 	};
 
 	pi0_pxl_lpcg: clock-controller@58263018 {
@@ -252,7 +252,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_0>;
 		clock-output-names = "pi0_lpcg_pxl_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_PI_0>;
 	};
 
 	pi0_misc_lpcg: clock-controller@5826301c {
@@ -262,7 +262,7 @@ img_subsys: bus@58000000 {
 		#clock-cells = <1>;
 		clock-indices = <IMX_LPCG_CLK_0>;
 		clock-output-names = "pi0_lpcg_misc_clk";
-		power-domains = <&pd IMX_SC_R_ISI_CH0>;
+		power-domains = <&pd IMX_SC_R_PI_0>;
 	};
 
 	i2c0_parallel: i2c@58266000 {
