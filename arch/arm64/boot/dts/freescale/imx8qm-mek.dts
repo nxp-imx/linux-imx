@@ -52,9 +52,9 @@
 		#size-cells = <2>;
 		ranges;
 
-		decoder_boot: decoder_boot@84000000 {
+		decoder_boot: decoder_boot@96000000 {
 			no-map;
-			reg = <0 0x84000000 0 0x2000000>;
+			reg = <0 0x96000000 0 0x2000000>;
 		};
 		encoder1_boot: encoder1_boot@86000000 {
 			no-map;
@@ -156,9 +156,9 @@
 			reusable;
 		};
 
-		decoder_rpc: decoder_rpc@92000000 {
+		decoder_rpc: decoder_rpc@a4000000 {
 			no-map;
-			reg = <0 0x92000000 0 0x100000>;
+			reg = <0 0xa4000000 0 0x100000>;
 		};
 
 		encoder1_rpc: encoder1_rpc@94400000 {
