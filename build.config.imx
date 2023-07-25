@@ -7,6 +7,7 @@ ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mp_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mm_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mn_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8q_gki.fragment \
+${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8q_car_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8ulp_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mq_gki.fragment"
 
