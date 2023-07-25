@@ -27,6 +27,9 @@
 #include "vpu_cmds.h"
 #include <linux/of_reserved_mem.h>
 #include <linux/delay.h>
+#include <linux/arm-smccc.h>
+
+int vpu_parition = -1;
 
 u32 trusty_vpu_core_reg(struct device *dev, u32 target, u32 val, u32 w_r) {
 	if (w_r == 0x2)
@@ -54,10 +57,13 @@ static int vpu_core_load_firmware(struct vpu_core *core)
 {
 	const struct firmware *pfw = NULL;
 	int ret = 0;
+	struct arm_smccc_res res;
 
-	if (!core->fw.virt) {
-		dev_err(core->dev, "firmware buffer is not ready\n");
-		return -EINVAL;
+	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->res->plat_type != IMX8QM || core->vpu->trusty_dev == NULL) {
+		if (!core->fw.virt) {
+			dev_err(core->dev, "firmware buffer is not ready\n");
+			return -EINVAL;
+		}
 	}
 
 	ret = request_firmware(&pfw, core->res->fwname, core->dev);
@@ -75,8 +81,18 @@ static int vpu_core_load_firmware(struct vpu_core *core)
 		goto exit;
 	}
 
-	memset(core->fw.virt, 0, core->fw.length);
-	memcpy(core->fw.virt, pfw->data, pfw->size);
+	if (core->vpu->trusty_dev && (core->type == VPU_CORE_TYPE_DEC) && (core->vpu->res->plat_type == IMX8QM)) {
+		if (vpu_parition > 0) {
+			arm_smccc_smc(IMX_SIP_CONFIGURE_MEM_FOR_VPU, vpu_parition, 0, 0, 0, 0, 0, 0, &res);
+			if (res.a0)
+				dev_err(core->dev, "IMX_SIP_CONFIGURE_MEM_FOR_VPU ret : %d\n", (int)res.a0);
+		} else {
+			dev_err(core->dev, "IMX_SIP_CONFIGURE_MEM_FOR_VPU VPU partition number is invalid\n");
+		}
+	} else {
+		memset(core->fw.virt, 0, core->fw.length);
+		memcpy(core->fw.virt, pfw->data, pfw->size);
+	}
 	core->fw.bytesused = pfw->size;
 	ret = vpu_iface_on_firmware_loaded(core);
 exit:
@@ -392,8 +408,8 @@ struct vpu_core *vpu_request_core(struct vpu_dev *vpu, enum vpu_core_type type)
 	if (core->vpu->res->plat_type == IMX8QM) {
 		if (core->request_count == 0) {
 			if (core->vpu->trusty_dev && (type == VPU_CORE_TYPE_DEC)) {
-				ret = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 1, 0, 0);
-				if (ret)
+				vpu_parition = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 1, 0, 0);
+				if (vpu_parition < 0)
 					dev_err(core->dev, "decoder power on failed\n");
 				else
 					dev_info(core->dev, "vpu partirion number : %d\n", vpu_parition);
@@ -626,7 +642,8 @@ static int vpu_core_parse_dt(struct vpu_core *core, struct device_node *np)
 		return -EINVAL;
 	}
 
-	core->fw.virt = memremap(core->fw.phys, core->fw.length, MEMREMAP_WC);
+	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->res->plat_type != IMX8QM || core->vpu->trusty_dev == NULL)
+		core->fw.virt = memremap(core->fw.phys, core->fw.length, MEMREMAP_WC);
 	core->rpc.virt = memremap(core->rpc.phys, core->rpc.length, MEMREMAP_WC);
 	memset(core->rpc.virt, 0, core->rpc.length);
 

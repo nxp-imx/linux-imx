@@ -85,9 +85,9 @@
 			reg = <0x8 0x80000000 0 0x10000000>;
 		};
 
-		decoder_boot: decoder_boot@84000000 {
+		decoder_boot: decoder_boot@96000000 {
 			no-map;
-			reg = <0 0x84000000 0 0x2000000>;
+			reg = <0 0x96000000 0 0x2000000>;
 		};
 		encoder1_boot: encoder1_boot@86000000 {
 			no-map;
@@ -97,9 +97,9 @@
 			no-map;
 			reg = <0 0x86200000 0 0x200000>;
 		};
-		decoder_rpc: decoder_rpc@92000000 {
+		decoder_rpc: decoder_rpc@a4000000 {
 			no-map;
-			reg = <0 0x92000000 0 0x100000>;
+			reg = <0 0xa4000000 0 0x100000>;
 		};
 		dsp_reserved: dsp@92400000 {
 			reg = <0 0x92400000 0 0x1000000>;
