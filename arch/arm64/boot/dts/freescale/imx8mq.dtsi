@@ -1652,7 +1652,7 @@
 				<&clk IMX8MQ_GPU_PLL_OUT>,
 				<&clk IMX8MQ_GPU_PLL_OUT>,
 				<&clk IMX8MQ_GPU_PLL_OUT>;
-		assigned-clock-rates = <800000000>, <800000000>, <800000000>, <800000000>;
+		assigned-clock-rates = <800000000>, <800000000>, <800000000>, <400000000>;
 		power-domains = <&pgc_gpu>;
 		status = "disabled";
 	};
