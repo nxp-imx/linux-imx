@@ -40,6 +40,10 @@ struct vfp_hard_struct {
 #ifdef CONFIG_SMP
 	__u32 cpu;
 #endif
+
+#ifdef CONFIG_VFPM
+	__u32 used;
+#endif
 };
 
 union vfp_state {

@@ -34,7 +34,7 @@ obj-$(CONFIG_ATAGS_PROC)	+= atags_proc.o
 obj-$(CONFIG_DEPRECATED_PARAM_STRUCT) += atags_compat.o
 
 ifeq ($(CONFIG_CPU_V7M),y)
-obj-y		+= entry-v7m.o v7m.o
+obj-y		+= entry-v7m.o v7m.o traps-v7m.o
 else
 obj-y		+= entry-armv.o
 endif
@@ -83,6 +83,11 @@ obj-$(CONFIG_ARM_CPU_TOPOLOGY)  += topology.o
 obj-$(CONFIG_VDSO)		+= vdso.o
 obj-$(CONFIG_EFI)		+= efi.o
 obj-$(CONFIG_PARAVIRT)	+= paravirt.o
+obj-$(CONFIG_VFPM)		+= vfp-m.o
+ifeq ($(CONFIG_VFPM),y)
+# -mfpu is already set by the upper level Makefile
+CFLAGS_vfp-m.o			:= -mfloat-abi=softfp
+endif
 
 obj-y			+= head$(MMUEXT).o
 obj-$(CONFIG_DEBUG_LL)	+= debug.o
