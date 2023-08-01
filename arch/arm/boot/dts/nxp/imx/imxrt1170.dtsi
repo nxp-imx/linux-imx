@@ -34,6 +34,12 @@
 	};
 
 	soc {
+		iomuxc: iomuxc@400e8000 {
+			compatible = "fsl,imxrt1170-iomuxc";
+			reg = <0x400e8000 0x4000>;
+			fsl,mux_mask = <0xf>;
+		};
+
 		lpuart1: serial@4007c000 {
 			compatible = "fsl,imxrt-lpuart", "fsl,imxrt1050-lpuart";
 			reg = <0x4007c000 0x4000>;
