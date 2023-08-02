@@ -7,6 +7,7 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/platform_device.h>
 
@@ -323,14 +324,122 @@ static const struct imx_pinctrl_soc_info imxrt1170_pinctrl_info = {
 	.gpr_compatible = "fsl,imxrt1170-iomuxc-gpr",
 };
 
+/* LPSR PADs */
+
+enum imxrt1170_lpsr_pads {
+	IMXRT1170_PAD_GPIO_LPSR_00,
+	IMXRT1170_PAD_GPIO_LPSR_01,
+	IMXRT1170_PAD_GPIO_LPSR_02,
+	IMXRT1170_PAD_GPIO_LPSR_03,
+	IMXRT1170_PAD_GPIO_LPSR_04,
+	IMXRT1170_PAD_GPIO_LPSR_05,
+	IMXRT1170_PAD_GPIO_LPSR_06,
+	IMXRT1170_PAD_GPIO_LPSR_07,
+	IMXRT1170_PAD_GPIO_LPSR_08,
+	IMXRT1170_PAD_GPIO_LPSR_09,
+	IMXRT1170_PAD_GPIO_LPSR_10,
+	IMXRT1170_PAD_GPIO_LPSR_11,
+	IMXRT1170_PAD_GPIO_LPSR_12,
+	IMXRT1170_PAD_GPIO_LPSR_13,
+	IMXRT1170_PAD_GPIO_LPSR_14,
+	IMXRT1170_PAD_GPIO_LPSR_15,
+};
+
+/* Pad names for the pinmux subsystem */
+static const struct pinctrl_pin_desc imxrt1170_pinctrl_lpsr_pads[] = {
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_00),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_01),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_02),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_03),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_04),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_05),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_06),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_07),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_08),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_09),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_10),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_11),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_12),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_13),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_14),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_LPSR_15),
+};
+
+static const struct imx_pinctrl_soc_info imxrt1170_pinctrl_lpsr_info = {
+	.pins = imxrt1170_pinctrl_lpsr_pads,
+	.npins = ARRAY_SIZE(imxrt1170_pinctrl_lpsr_pads),
+	.flags = ZERO_OFFSET_VALID,
+	.gpr_compatible = "fsl,imxrt1170-iomuxc-lpsr-gpr",
+};
+
+
+/* SNVS PADs */
+
+enum imxrt1170_snvs_pads {
+	IMXRT1170_PAD_WAKEUP_DIG,
+	IMXRT1170_PAD_PMIC_ON_REQ_DIG,
+	IMXRT1170_PAD_PMIC_STBY_REQ_DIG,
+	IMXRT1170_PAD_GPIO_SNVS_00,
+	IMXRT1170_PAD_GPIO_SNVS_01,
+	IMXRT1170_PAD_GPIO_SNVS_02,
+	IMXRT1170_PAD_GPIO_SNVS_03,
+	IMXRT1170_PAD_GPIO_SNVS_04,
+	IMXRT1170_PAD_GPIO_SNVS_05,
+	IMXRT1170_PAD_GPIO_SNVS_06,
+	IMXRT1170_PAD_GPIO_SNVS_07,
+	IMXRT1170_PAD_GPIO_SNVS_08,
+	IMXRT1170_PAD_GPIO_SNVS_09,
+	IMXRT1170_PAD_TEST_MODE_DIG,
+	IMXRT1170_PAD_POR_B_DIG,
+	IMXRT1170_PAD_ONOFF_DIG,
+};
+
+/* Pad names for the pinmux subsystem */
+static const struct pinctrl_pin_desc imxrt1170_pinctrl_snvs_pads[] = {
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_WAKEUP_DIG),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_PMIC_ON_REQ_DIG),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_PMIC_STBY_REQ_DIG),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_00),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_01),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_02),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_03),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_04),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_05),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_06),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_07),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_08),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_GPIO_SNVS_09),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_TEST_MODE_DIG),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_POR_B_DIG),
+	IMX_PINCTRL_PIN(IMXRT1170_PAD_ONOFF_DIG),
+};
+
+static const struct imx_pinctrl_soc_info imxrt1170_pinctrl_snvs_info = {
+	.pins = imxrt1170_pinctrl_snvs_pads,
+	.npins = ARRAY_SIZE(imxrt1170_pinctrl_snvs_pads),
+	.flags = ZERO_OFFSET_VALID,
+};
+
 static const struct of_device_id imxrt1170_pinctrl_of_match[] = {
 	{ .compatible = "fsl,imxrt1170-iomuxc", .data = &imxrt1170_pinctrl_info, },
+	{ .compatible = "fsl,imxrt1170-lpsr-iomuxc", .data = &imxrt1170_pinctrl_lpsr_info, },
+	{ .compatible = "fsl,imxrt1170-snvs-iomuxc", .data = &imxrt1170_pinctrl_snvs_info, },
 	{ /* sentinel */ }
 };
 
 static int imxrt1170_pinctrl_probe(struct platform_device *pdev)
 {
-	return imx_pinctrl_probe(pdev, &imxrt1170_pinctrl_info);
+	const struct of_device_id *match;
+	struct imx_pinctrl_soc_info *pinctrl_info;
+
+	match = of_match_device(imxrt1170_pinctrl_of_match, &pdev->dev);
+
+	if (!match)
+		return -ENODEV;
+
+	pinctrl_info = (struct imx_pinctrl_soc_info *) match->data;
+
+	return imx_pinctrl_probe(pdev, pinctrl_info);
 }
 
 static struct platform_driver imxrt1170_pinctrl_driver = {

@@ -40,6 +40,18 @@
 			fsl,mux_mask = <0xf>;
 		};
 
+		iomuxc_lpsr: iomuxc_lpsr@40c08000 {
+			compatible = "fsl,imxrt1170-lpsr-iomuxc";
+			reg = <0x40c08000 0x4000>;
+			fsl,mux_mask = <0xf>;
+		};
+
+		iomuxc_snvs: iomuxc_snvs@40c94000 {
+			compatible = "fsl,imxrt1170-lpsr-iomuxc";
+			reg = <0x40c94000 0x4000>;
+			fsl,mux_mask = <0x7>;
+		};
+
 		lpuart1: serial@4007c000 {
 			compatible = "fsl,imxrt-lpuart", "fsl,imxrt1050-lpuart";
 			reg = <0x4007c000 0x4000>;
