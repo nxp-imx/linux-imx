@@ -620,16 +620,20 @@ EXPORT_SYMBOL_GPL(phy_validate);
 int phy_get_status(struct phy *phy, enum phy_status_type type,
 		   union phy_status_opts *opts)
 {
-	int ret;
+	int ret = 0;
 
 	if (!phy)
 		return -EINVAL;
 
+#ifndef CONFIG_IMX_GKI_FIX
 	if (!phy->ops->get_status)
 		return -EOPNOTSUPP;
+#endif
 
 	mutex_lock(&phy->mutex);
+#ifndef CONFIG_IMX_GKI_FIX
 	ret = phy->ops->get_status(phy, type, opts);
+#endif
 	mutex_unlock(&phy->mutex);
 
 	return ret;
