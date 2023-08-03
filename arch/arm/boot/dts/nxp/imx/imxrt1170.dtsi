@@ -105,11 +105,12 @@
 		};
 
 		fec1: ethernet@40424000 {
-			compatible = "fsl,imxrt1xxx-fec";
+			compatible = "fsl,mvf600-fec";
 			reg = <0x40424000 0x4000>;
+			interrupts = <137>;
 
-			fsl,num-tx-queues=<3>;
-			fsl,num-rx-queues=<3>;
+			fsl,num-tx-queues=<1>;
+			fsl,num-rx-queues=<1>;
 			status = "disabled";
                 };
 
