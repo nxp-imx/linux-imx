@@ -99,10 +99,12 @@
 
 		usdhc1: usdhc@40418000 {
 			compatible = "fsl,imxrt-usdhc", "fsl,imx6sl-usdhc";
-			reg = <0x40418000 0x10000>;
+			reg = <0x40418000 0x4000>;
 			interrupts = <133>;
-			clocks = <&clks IMXRT1170_CLK_USDHC1>;
-			clock-names = "per";
+			clocks = <&clks IMXRT1170_CLK_USDHC1>,
+				 <&clks IMXRT1170_CLK_USDHC1>,
+				 <&clks IMXRT1170_CLK_USDHC1>;
+			clock-names = "ipg", "ahb", "per";
 			bus-width = <4>;
 			fsl,tuning-start-tap = <20>;
 			fsl,tuning-step= <2>;
