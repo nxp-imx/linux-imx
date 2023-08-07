@@ -31,7 +31,7 @@
 	};
 
 	fxos8700@1e {
-		status = "disabled";
+		status = "okay";
 	};
 
 	fxas2100x@20 {
