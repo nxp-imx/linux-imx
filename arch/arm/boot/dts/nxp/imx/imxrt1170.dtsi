@@ -49,6 +49,8 @@
 		gpio12 = &gpio13;
 		mmc0 = &usdhc1;
 		serial0 = &lpuart1;
+		usbphy0 = &usbphy1;
+		usbphy1 = &usbphy2;
 	};
 
 	soc {
@@ -285,5 +287,61 @@
 			clock-names = "per";
 			status = "disabled";
 		};
+
+		usbotg1: usb1@40430000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx6ul-usb";
+			reg = <0x40430000 0x200>;
+			interrupts = <136>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+			fsl,usbphy = <&usbphy1>;
+			fsl,usbmisc = <&usbmisc1 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc1: usbmisc1@40430200 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x40430200 0x200>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		usbphy1: usbphy1@40434000 {
+			compatible = "fsl,imx7ulp-usbphy", "fsl,imx6ul-usbphy";
+			reg = <0x40434000 0x1000>;
+			interrupts = <90>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+
+		usbotg2: usb2@4042c0000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx6ul-usb";
+			reg = <0x4042c000 0x200>;
+			interrupts = <135>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+			fsl,usbphy = <&usbphy2>;
+			fsl,usbmisc = <&usbmisc2 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc2: usbmisc2@4042c200 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x4042c200 0x200>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		usbphy2: usbphy2@40438000 {
+			compatible = "fsl,imx7ulp-usbphy", "fsl,imx6ul-usbphy";
+			reg = <0x40438000 0x1000>;
+			interrupts = <91>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
 	};
 };
