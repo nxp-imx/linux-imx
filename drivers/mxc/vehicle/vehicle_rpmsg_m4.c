@@ -37,7 +37,8 @@
 
 /*command type which used between AP and M4 core*/
 enum vehicle_cmd {
-	VEHICLE_RPMSG_REGISTER = 0,
+	VEHICLE_RPMSG_INIT = 0,
+	VEHICLE_RPMSG_REGISTER,
 	VEHICLE_RPMSG_UNREGISTER,
 	VEHICLE_RPMSG_CONTROL,
 	VEHICLE_RPMSG_PWR_REPORT,
@@ -148,7 +149,7 @@ static int vehicle_send_message(struct vehicle_rpmsg_data *msg,
 	int err;
         
 	if (!info->rpdev) {
-		dev_dbg(info->dev,
+		dev_err(info->dev,
 			"rpmsg channel not ready, m4 image ready?\n");
 		return -EINVAL;
 	}
@@ -203,30 +204,39 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	msg.header.type = 0;
 	msg.header.cmd = VEHICLE_RPMSG_CONTROL;
 	msg.client = 0;
+	msg.control_id = (u16)VEHICLE_UNSUPPORTED;
 	dev_dbg("%s: prop %d, area %d, value %d \n", __func__, prop, area, value);
 	switch (prop) {
 	case HVAC_FAN_SPEED:
+		pr_info("set fan speed with value %d\n", value);
 		msg.control_id = VEHICLE_FAN_SPEED;
 		break;
 	case HVAC_FAN_DIRECTION:
+		pr_info("set fan direction with value %d\n", value);
 		msg.control_id = VEHICLE_FAN_DIRECTION;
 		break;
 	case HVAC_AUTO_ON:
+		pr_info("set fan auto on with value %d\n", value);
 		msg.control_id = VEHICLE_AUTO_ON;
 		break;
 	case HVAC_AC_ON:
+		pr_info("set fan ac on with value %d\n", value);
 		msg.control_id = VEHICLE_AC;
 		break;
 	case HVAC_RECIRC_ON:
+		pr_info("set fan recirc on with value %d\n", value);
 		msg.control_id = VEHICLE_RECIRC_ON;
 		break;
 	case HVAC_DEFROSTER:
+		pr_info("set defroster index %d with value %d\n", area, value);
 		msg.control_id = VEHICLE_DEFROST;
 		break;
 	case HVAC_TEMPERATURE_SET:
+		pr_info("set temp index %d with value %d\n", area, value);
 		msg.control_id = VEHICLE_AC_TEMP;
 		break;
 	case HVAC_POWER_ON:
+		pr_info("set hvac power on with value %d\n", value);
 		msg.control_id = VEHICLE_HVAC_POWER_ON;
 		break;
 	case AP_POWER_STATE_REPORT:
@@ -241,6 +251,7 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		// Proper action is TBD
 		return;
 	case HVAC_SEAT_TEMPERATURE:
+		pr_info("set seat temperature index %d with value %d\n", area, value);
 		msg.control_id = VEHICLE_SEAT_TEMPERATURE;
 		break;
 	case GEAR_SELECTION:
@@ -582,15 +593,23 @@ static int vehicle_rpmsg_probe(struct rpmsg_device *rpdev)
 	}
 #endif
 	vehicle_rpmsg->rpdev = rpdev;
-
+	init_completion(&vehicle_rpmsg->cmd_complete);
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 			rpdev->src, rpdev->dst);
 
-	init_completion(&vehicle_rpmsg->cmd_complete);
+	struct vehicle_rpmsg_data msg;
 
-	INIT_DELAYED_WORK(&vehicle_rpmsg->vehicle_register_work,
-				vehicle_init_handler);
-	schedule_delayed_work(&vehicle_rpmsg->vehicle_register_work, 0);
+	msg.header.cate = IMX_RPMSG_VEHICLE;
+	msg.header.major = IMX_RMPSG_MAJOR;
+	msg.header.minor = IMX_RMPSG_MINOR;
+	msg.header.type = 0;
+	msg.header.cmd = VEHICLE_RPMSG_INIT;
+	msg.client = 0;
+	msg.reserved1 = 0;
+
+	if (vehicle_send_message(&msg, vehicle_rpmsg, false)) {
+		pr_err("rpmsg init failed!\n");
+	}
 
 	return 0;
 }
@@ -621,18 +640,14 @@ static ssize_t register_store(struct device *dev,
 		const char *buf,
 		size_t size)
 {
-	size_t err;
-
 	if (!size)
 		return -EINVAL;
 
 	unsigned long state_set = simple_strtoul(buf, NULL, 10);
 	if (state_set == 1 && state_set != state) {
-		err = register_rpmsg_driver(&vehicle_rpmsg_driver);
-		if (err < 0) {
-			pr_err("register rpmsg driver failed\n");
-			return -EINVAL;
-		}
+		INIT_DELAYED_WORK(&vehicle_rpmsg->vehicle_register_work,
+				vehicle_init_handler);
+		schedule_delayed_work(&vehicle_rpmsg->vehicle_register_work, 0);
 		state = state_set;
 	}
 	return size;
@@ -714,11 +729,19 @@ static struct platform_driver vehicle_device_driver = {
 static int vehicle_mcu_init(void)
 {
 	int err;
+
 	err = platform_driver_register(&vehicle_device_driver);
 	if (err) {
 		pr_err("Failed to register rpmsg vehicle driver\n");
 		return err;
 	}
+
+	err = register_rpmsg_driver(&vehicle_rpmsg_driver);
+	if (err < 0) {
+		pr_err("register rpmsg driver failed\n");
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
