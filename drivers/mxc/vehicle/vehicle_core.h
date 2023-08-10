@@ -249,6 +249,7 @@ enum vehicle_event_type {
 	VEHICLE_TURN_SIGNAL,
 	VEHICLE_POWER_STATE_REQ,
 	VEHICLE_SEAT_TEMPERATURE,
+	VEHICLE_UNSUPPORTED = -1,
 };
 
 /*vehicle_event_gear: stateValue of type VEHICLE_GEAR*/
