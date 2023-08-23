@@ -105,6 +105,7 @@ static void *vb2_dma_sg_alloc(struct vb2_buffer *vb, struct device *dev,
 	struct sg_table *sgt;
 	int ret;
 	int num_pages;
+	size_t max_segment = 0;
 
 	if (WARN_ON(!dev) || WARN_ON(!size))
 		return ERR_PTR(-EINVAL);
@@ -134,8 +135,11 @@ static void *vb2_dma_sg_alloc(struct vb2_buffer *vb, struct device *dev,
 	if (ret)
 		goto fail_pages_alloc;
 
-	ret = sg_alloc_table_from_pages(buf->dma_sgt, buf->pages,
-			buf->num_pages, 0, size, GFP_KERNEL);
+	if (dev)
+		max_segment = dma_max_mapping_size(dev);
+	if (max_segment == 0)
+		max_segment = UINT_MAX;
+	ret = sg_alloc_table_from_pages_segment(buf->dma_sgt, buf->pages, buf->num_pages, 0, size, max_segment, GFP_KERNEL);
 	if (ret)
 		goto fail_table_alloc;
 
