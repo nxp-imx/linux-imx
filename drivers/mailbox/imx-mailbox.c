@@ -400,6 +400,65 @@ static int imx_mu_specific_rx(struct imx_mu_priv *priv, struct imx_mu_con_priv *
 	return 0;
 }
 
+static int imx_mu_cm0p_tx(struct imx_mu_priv *priv,
+			  struct imx_mu_con_priv *cp,
+			  void *data)
+{
+	u32 *arg = data;
+	int i;
+	u32 num_tr = 4;
+
+	if (cp->type != IMX_MU_TYPE_TX) {
+		dev_warn_ratelimited(priv->dev,
+				     "Send data on wrong channel type: %d\n",
+				     cp->type);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < num_tr; i++)
+		imx_mu_write(priv, *arg++, priv->dcfg->xTR + i * 4);
+
+	imx_mu_xcr_rmw(priv,
+		       IMX_MU_TCR,
+		       IMX_MU_xCR_TIEn(priv->dcfg->type, cp->idx),
+		       0);
+
+	return 0;
+}
+
+static int imx_mu_cm0p_rx(struct imx_mu_priv *priv, struct imx_mu_con_priv *cp)
+{
+	u32 num_tr = 4;
+	u32 rsr, xsr;
+	int ret = 0;
+	u32 *data;
+	int i;
+
+	data = (u32 *)priv->msg;
+	rsr = priv->dcfg->xSR[IMX_MU_RSR];
+
+	for (i = 0; i < num_tr; i++) {
+		ret = readl_poll_timeout(priv->base + rsr, xsr,
+					 xsr & IMX_MU_xSR_RFn(priv->dcfg->type, i), 0,
+					 5 * USEC_PER_SEC);
+		if (ret) {
+			dev_err(priv->dev, "timeout read idx %d\n", i);
+			return ret;
+		}
+
+		*data++ = imx_mu_read(priv, priv->dcfg->xRR + i * 4);
+	}
+
+	imx_mu_xcr_rmw(priv,
+		       IMX_MU_RCR,
+		       IMX_MU_xCR_RIEn(priv->dcfg->type, cp->idx),
+		       0);
+
+	mbox_chan_received_data(cp->chan, (void *)priv->msg);
+
+	return 0;
+}
+
 static int imx_mu_seco_tx(struct imx_mu_priv *priv, struct imx_mu_con_priv *cp,
 			  void *data)
 {
@@ -790,6 +849,37 @@ static void imx_mu_get_tr_rr(struct imx_mu_priv *priv)
 	}
 }
 
+static struct mbox_chan *imx_mu_cm0p_xlate(struct mbox_controller *mbox,
+					   const struct of_phandle_args *sp)
+{
+	u32 type, idx, chan;
+
+	if (sp->args_count != 2) {
+		dev_err(mbox->dev, "Invalid argument count %d\n", sp->args_count);
+		return ERR_PTR(-EINVAL);
+	}
+
+	type = sp->args[0]; /* channel type */
+	idx = sp->args[1]; /* index */
+
+	switch (type) {
+	case IMX_MU_TYPE_TX:
+	case IMX_MU_TYPE_RX:
+		if (idx != 0) {
+			dev_err(mbox->dev, "Invalid chan idx: %d\n", idx);
+			return ERR_PTR(-EINVAL);
+		}
+
+		chan = type;
+		break;
+	default:
+		dev_err(mbox->dev, "Invalid chan type: %d\n", type);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return &mbox->chans[chan];
+}
+
 static int imx_mu_init_generic(struct imx_mu_priv *priv)
 {
 	unsigned int i;
@@ -866,6 +956,32 @@ static int imx_mu_init_seco(struct imx_mu_priv *priv)
 	if (ret)
 		return ret;
 	priv->mbox.of_xlate = imx_mu_seco_xlate;
+
+	return 0;
+}
+
+static int imx_mu_init_cm0p(struct imx_mu_priv *priv)
+{
+	unsigned int i;
+
+	for (i = 0; i < IMX_MU_S4_CHANS; i++) {
+		struct imx_mu_con_priv *cp = &priv->con_priv[i];
+
+		/*ISP FW uses RR3 as MSG-ID, so use this as index reference */
+		cp->idx = 0;
+		cp->type = i;
+		cp->chan = &priv->mbox_chans[i];
+		priv->mbox_chans[i].con_priv = cp;
+		snprintf(cp->irq_desc, sizeof(cp->irq_desc),
+			 "imx_mu_chan[%i-%i]", cp->type, cp->idx);
+	}
+
+	priv->mbox.num_chans = IMX_MU_S4_CHANS;
+	priv->mbox.of_xlate = imx_mu_cm0p_xlate;
+
+	/* Set default MU configuration */
+	for (i = 0; i < IMX_MU_xCR_MAX; i++)
+		imx_mu_write(priv, 0, priv->dcfg->xCR[i]);
 
 	return 0;
 }
@@ -1077,6 +1193,17 @@ static const struct imx_mu_dcfg imx_mu_cfg_imx95_v2x = {
 	.xBUF   = 0x8000,
 };
 
+static const struct imx_mu_dcfg imx_mu_cfg_imx95_cm0p = {
+	.tx	= imx_mu_cm0p_tx,
+	.rx	= imx_mu_cm0p_rx,
+	.init	= imx_mu_init_cm0p,
+	.type	= IMX_MU_V2 | IMX_MU_V2_S4,
+	.xTR	= 0x200,
+	.xRR	= 0x280,
+	.xSR	= {0xC, 0x118, 0x124, 0x12C},
+	.xCR	= {0x8, 0x110, 0x114, 0x120, 0x128},
+};
+
 static const struct imx_mu_dcfg imx_mu_cfg_imx8_scu = {
 	.tx	= imx_mu_specific_tx,
 	.rx	= imx_mu_specific_rx,
@@ -1109,6 +1236,7 @@ static const struct of_device_id imx_mu_dt_ids[] = {
 	{ .compatible = "fsl,imx94-mu-ele", .data = &imx_mu_cfg_imx94_ele },
 	{ .compatible = "fsl,imx94-mu-v2x", .data = &imx_mu_cfg_imx94_v2x },
 	{ .compatible = "fsl,imx95-mu", .data = &imx_mu_cfg_imx8ulp },
+	{ .compatible = "fsl,imx95-mu-cm0p", .data = &imx_mu_cfg_imx95_cm0p },
 	{ .compatible = "fsl,imx95-mu-ele", .data = &imx_mu_cfg_imx8ulp_s4 },
 	{ .compatible = "fsl,imx95-mu-v2x", .data = &imx_mu_cfg_imx95_v2x },
 	{ .compatible = "fsl,imx8-mu-scu", .data = &imx_mu_cfg_imx8_scu },
