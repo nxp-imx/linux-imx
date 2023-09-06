@@ -113,7 +113,11 @@
 };
 
 &i2c_rpbus_14 {
-	status = "disabled";
+	status = "okay";
+
+	fxos8700@1e {
+		status = "okay";
+	};
 };
 
 &adv_bridge0 {
