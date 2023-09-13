@@ -16,9 +16,11 @@
 #define IMXRT1170_CLK_SRC_COMMON "rcosc48M_div2", "osc", "rcosc400M", "rcosc16M"
 
 static const char * const m7_sels[] = {IMXRT1170_CLK_SRC_COMMON,
-"pll_arm_out", "pll1_sys", "pll3_sys", "video_pll"};
+"pll_arm", "pll1_sys", "pll3_sys", "video_pll"};
 static const char * const bus_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll3_sys", "pll1_div5", "pll2_sys", "pll2_pfd3"};
+static const char * const bus_lpsr_sels[] = {IMXRT1170_CLK_SRC_COMMON,
+"pll3_pfd3", "pll3_sys", "pll2_sys", "pll1_div5"};
 static const char * const lpuart1_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll3_div2", "pll1_div5", "pll2_sys", "pll2_pfd3"};
 static const char * const gpt1_sels[] = {IMXRT1170_CLK_SRC_COMMON,
@@ -29,7 +31,6 @@ static const char * const semc_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll1_div5", "pll2_sys", "pll2_pfd1", "pll3_pfd0"};
 static const char * const enet1_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll1_div2", "audio_pll", "pll1_div5", "pll2_pfd1"};
-
 
 struct clk_hw *imxrt1170_clk_pll_div_out_composite(const char *name, const char *parent_name,
 						void __iomem *reg, int div_factor, int gate_bit, unsigned long flags)
@@ -143,21 +144,14 @@ static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 	       imx_clk_hw_fixed_factor("rcosc48M_div2",  "rcosc48M", 1, 2);
 
 	hws[IMXRT1170_CLK_PLL_ARM] =
-	       imx_clk_hw_pll_arm_rt1170("pll_arm", "osc", base + 0x200);
-	hws[IMXRT1170_CLK_PLL_ARM_OUT] =
-	       imx_clk_hw_gate_dis("pll_arm_out", "pll_arm", base + 0x200, 30);
+	       imx_clk_hw_pll_rt1170(IMXRT1170_PLLARM, "pll_arm", "osc", base + 0x200);
 
 	hws[IMXRT1170_CLK_PLL3] =
-	       imx_clk_hw_pllv3(IMX_PLLV3_SYS_RT1170, "pll3_sys", "osc",
-			     base + 0x210, 1);
+	       imx_clk_hw_pll_rt1170(IMXRT1170_PLL3, "pll3_sys", "osc", base + 0x210);
 	hws[IMXRT1170_CLK_PLL2] =
-	       imx_clk_hw_pllv3(IMX_PLLV3_SYS_RT1170, "pll2_sys", "osc",
-			     base + 0x240, 1);
+	       imx_clk_hw_pll_rt1170(IMXRT1170_PLL2, "pll2_sys", "osc", base + 0x240);
 	hws[IMXRT1170_CLK_PLL1] =
-	       imx_clk_hw_pllv3(IMX_PLLV3_ENET_1G, "pll1_sys", "osc",
-			     base + 0x2c0, 1);
-	hws[IMXRT1170_CLK_PLL1_OUT] =
-	       imx_clk_hw_gate_dis("pll1_out", "pll1_sys", base + 0x2c0, 14);
+	       imx_clk_hw_pll_rt1170(IMXRT1170_PLL1, "pll1_sys", "osc", base + 0x2c0);
 
 	hws[IMXRT1170_CLK_PLL3_PFD0] =
 	       imx_clk_hw_pfd("pll3_pfd0", "pll3_sys", base + 0x230, 0);
@@ -181,9 +175,9 @@ static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 	       imxrt1170_clk_pll_div_out_composite("pll3_div2", "pll3_sys", base + 0x210, 2, 3, 0);
 
 	hws[IMXRT1170_CLK_PLL1_DIV2] =
-	       imxrt1170_clk_pll_div_out_composite("pll1_div2", "pll1_out", base + 0x2c0, 2, 25, 0);
+	       imxrt1170_clk_pll_div_out_composite("pll1_div2", "pll1_sys", base + 0x2c0, 2, 25, 0);
 	hws[IMXRT1170_CLK_PLL1_DIV5] =
-	       imxrt1170_clk_pll_div_out_composite("pll1_div5", "pll1_out", base + 0x2c0, 5, 26, 0);
+	       imxrt1170_clk_pll_div_out_composite("pll1_div5", "pll1_sys", base + 0x2c0, 5, 26, 0);
 
 	/* CCM clocks */
 	np = ccm_node;
