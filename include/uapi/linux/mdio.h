@@ -126,6 +126,7 @@
 #define MDIO_AN_STAT1_COMPLETE		BMSR_ANEGCOMPLETE
 #define MDIO_AN_STAT1_PAGE		0x0040	/* Page received */
 #define MDIO_AN_STAT1_XNP		0x0080	/* Extended next page status */
+#define MDIO_AN_STAT1_PDET_FAULT	0x0200	/* Parallel Detection fault, Table 45-311: AN status register */
 
 /* Speed register. */
 #define MDIO_SPEED_10G			0x0001	/* 10G capable */

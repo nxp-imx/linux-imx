@@ -32,6 +32,8 @@
 
 #define SC_TIMER_WDOG_ACTION_PARTITION	0
 
+#define SC_TIMER_ERR_BUSY		10
+
 static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0000);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started (default="
@@ -58,7 +60,9 @@ static int imx_sc_wdt_start(struct watchdog_device *wdog)
 
 	arm_smccc_smc(IMX_SIP_TIMER, IMX_SIP_TIMER_START_WDOG,
 		      0, 0, 0, 0, 0, 0, &res);
-	if (res.a0)
+
+	/* Ignore if already enabled(SC_TIMER_ERR_BUSY) */
+	if (res.a0 && res.a0 != SC_TIMER_ERR_BUSY)
 		return -EACCES;
 
 	arm_smccc_smc(IMX_SIP_TIMER, IMX_SIP_TIMER_SET_WDOG_ACT,

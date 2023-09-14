@@ -22,6 +22,15 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <video/imx8-prefetch.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_SCU 56
+#define SMC_SCU_MISC_CONTROL SMC_FASTCALL_NR(SMC_ENTITY_SCU, 0)
+#define TRUSTY_NOT_CONTROL  (-100)
+
+#define SMC_ENTITY_VPU 55
+#define SMC_WV_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
 
 #define SET					0x4
 #define CLR					0x8
@@ -163,6 +172,7 @@ struct dprc {
 	struct prg *prgs[2];
 	bool has_aux_prg;
 	bool use_aux_prg;
+	struct device *trusty_dev;
 };
 
 struct dprc_format_info {
@@ -300,8 +310,15 @@ dprc_dpu_gpr_configure(struct dprc *dprc, unsigned int stream_id)
 {
 	int ret;
 
-	ret = imx_sc_misc_set_control(dprc->ipc_handle,
-		dprc->sc_resource, IMX_SC_C_KACHUNK_SEL, stream_id);
+	if (dprc->trusty_dev) {
+		ret = trusty_fast_call32(dprc->trusty_dev, SMC_SCU_MISC_CONTROL, dprc->sc_resource, IMX_SC_C_KACHUNK_SEL, stream_id);
+		if (ret == TRUSTY_NOT_CONTROL)
+			ret = imx_sc_misc_set_control(dprc->ipc_handle,
+					dprc->sc_resource, IMX_SC_C_KACHUNK_SEL, stream_id);
+	} else {
+		ret = imx_sc_misc_set_control(dprc->ipc_handle,
+			dprc->sc_resource, IMX_SC_C_KACHUNK_SEL, stream_id);
+	}
 	if (ret)
 		dev_warn(dprc->dev, "failed to set KACHUNK_SEL: %d\n", ret);
 }
@@ -311,8 +328,15 @@ dprc_prg_sel_configure(struct dprc *dprc, u32 resource, bool enable)
 {
 	int ret;
 
-	ret = imx_sc_misc_set_control(dprc->ipc_handle,
+	if (dprc->trusty_dev) {
+		ret = trusty_fast_call32(dprc->trusty_dev, SMC_SCU_MISC_CONTROL, resource, IMX_SC_C_SEL0, enable);
+		if (ret == TRUSTY_NOT_CONTROL)
+			ret = imx_sc_misc_set_control(dprc->ipc_handle,
+					resource, IMX_SC_C_SEL0, enable);
+	} else {
+		ret = imx_sc_misc_set_control(dprc->ipc_handle,
 				resource, IMX_SC_C_SEL0, enable);
+	}
 	if (ret)
 		dev_warn(dprc->dev, "failed to set SEL0: %d\n", ret);
 }
@@ -775,6 +799,8 @@ static int dprc_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct dprc *dprc;
 	int ret, i;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	dprc = devm_kzalloc(dev, sizeof(*dprc), GFP_KERNEL);
 	if (!dprc)
@@ -809,6 +835,28 @@ static int dprc_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(dev, "cannot get SC resource %d\n", ret);
 		return ret;
+	}
+
+	dprc->trusty_dev = NULL;
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				dprc->trusty_dev = &(pd->dev);
+				ret = trusty_fast_call32(dprc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+				if (ret) {
+				        dprc->trusty_dev = NULL;
+				        dev_err(&pdev->dev, "dprc: trusty probe test failed, use Normal mode\n");
+				} else {
+				        dev_info(&pdev->dev, "dprc: get trusty_dev node, use Trusty mode.\n");
+				}
+			} else {
+				dev_err(&pdev->dev, "dprc: failed to get trusty_dev node.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dprc: failed to find trusty node. Use normal mode.\n");
+		}
 	}
 
 	switch (dprc->sc_resource) {

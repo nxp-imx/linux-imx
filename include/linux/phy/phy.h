@@ -19,6 +19,7 @@
 #include <linux/phy/phy-dp.h>
 #include <linux/phy/phy-lvds.h>
 #include <linux/phy/phy-mipi-dphy.h>
+#include <linux/phy/phy-xgkr.h>
 
 struct phy;
 
@@ -39,6 +40,9 @@ enum phy_mode {
 	PHY_MODE_UFS_HS_B,
 	PHY_MODE_PCIE,
 	PHY_MODE_ETHERNET,
+#ifndef CONFIG_IMX_GKI_FIX
+	PHY_MODE_ETHERNET_PHY,
+#endif
 	PHY_MODE_MIPI_DPHY,
 	PHY_MODE_SATA,
 	PHY_MODE_LVDS,
@@ -60,11 +64,16 @@ enum phy_media {
  *		the DisplayPort protocol.
  * @lvds:	Configuration set applicable for phys supporting
  *		the LVDS phy mode.
+ * @xgkr:	Configuration set applicable for phys supporting
+ *		the 10GBase-KR phy mode.
  */
 union phy_configure_opts {
 	struct phy_configure_opts_mipi_dphy	mipi_dphy;
 	struct phy_configure_opts_dp		dp;
 	struct phy_configure_opts_lvds		lvds;
+#ifndef CONFIG_IMX_GKI_FIX
+	struct phy_configure_opts_xgkr		xgkr;
+#endif
 };
 
 /**
@@ -122,6 +131,21 @@ struct phy_ops {
 			    union phy_configure_opts *opts);
 	int	(*reset)(struct phy *phy);
 	int	(*calibrate)(struct phy *phy);
+
+	/**
+	 * @check_cdr_lock:
+	 *
+	 * Optional.
+	 *
+	 * Check that the CDR (Clock and Data Recovery) logic has locked onto
+	 * bit transitions in the RX stream.
+	 *
+	 * Returns: 0 if the operation was successful, negative error code
+	 * otherwise.
+	 */
+#ifndef CONFIG_IMX_GKI_FIX
+	int	(*check_cdr_lock)(struct phy *phy, bool *cdr_locked);
+#endif
 	void	(*release)(struct phy *phy);
 	struct module *owner;
 };
@@ -234,6 +258,7 @@ int phy_set_speed(struct phy *phy, int speed);
 int phy_configure(struct phy *phy, union phy_configure_opts *opts);
 int phy_validate(struct phy *phy, enum phy_mode mode, int submode,
 		 union phy_configure_opts *opts);
+int phy_check_cdr_lock(struct phy *phy, bool *cdr_locked);
 
 static inline enum phy_mode phy_get_mode(struct phy *phy)
 {
@@ -404,6 +429,14 @@ static inline int phy_configure(struct phy *phy,
 
 static inline int phy_validate(struct phy *phy, enum phy_mode mode, int submode,
 			       union phy_configure_opts *opts)
+{
+	if (!phy)
+		return 0;
+
+	return -ENOSYS;
+}
+
+static inline int phy_check_cdr_lock(struct phy *phy, bool *cdr_locked)
 {
 	if (!phy)
 		return 0;

@@ -29,6 +29,11 @@
 #include <video/imx8-pc.h>
 #include <video/imx8-prefetch.h>
 #include "dpu-prv.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_VPU 55
+#define SMC_WV_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
 
 #define IMX_DPU_BLITENG_NAME "imx-drm-dpu-bliteng"
 
@@ -1241,6 +1246,8 @@ static int dpu_probe(struct platform_device *pdev)
 	unsigned long dpu_base;
 	const struct dpu_data *data;
 	int ret;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	of_id = of_match_device(dpu_dt_ids, &pdev->dev);
 	if (!of_id)
@@ -1264,6 +1271,28 @@ static int dpu_probe(struct platform_device *pdev)
 	dpu->irq_line_num = platform_irq_count(pdev);
 	if (dpu->irq_line_num < 0)
 		return dpu->irq_line_num;
+
+	dpu->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				dpu->trusty_dev = &(pd->dev);
+				ret = trusty_fast_call32(dpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+				if (ret) {
+				        dpu->trusty_dev = NULL;
+				        dev_err(&pdev->dev, "dpu: trusty probe test failed, use Normal mode\n");
+				} else {
+				        dev_info(&pdev->dev, "dpu: get trusty_dev node, use Trusty mode.\n");
+				}
+			} else {
+				dev_err(&pdev->dev, "dpu: failed to get trusty_dev node.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dpu: failed to find trusty node. Use normal mode.\n");
+		}
+	}
 
 	dpu_units_addr_dbg(dpu, pdev, dpu_base);
 

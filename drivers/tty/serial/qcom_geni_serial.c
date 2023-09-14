@@ -1484,18 +1484,17 @@ static int qcom_geni_serial_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, port);
 	port->handle_rx = console ? handle_rx_console : handle_rx_uart;
 
-	ret = uart_add_one_port(drv, uport);
-	if (ret)
-		return ret;
-
 	irq_set_status_flags(uport->irq, IRQ_NOAUTOEN);
 	ret = devm_request_irq(uport->dev, uport->irq, qcom_geni_serial_isr,
 			IRQF_TRIGGER_HIGH, port->name, uport);
 	if (ret) {
 		dev_err(uport->dev, "Failed to get IRQ ret %d\n", ret);
-		uart_remove_one_port(drv, uport);
 		return ret;
 	}
+
+	ret = uart_add_one_port(drv, uport);
+	if (ret)
+		return ret;
 
 	/*
 	 * Set pm_runtime status as ACTIVE so that wakeup_irq gets
@@ -1530,7 +1529,7 @@ static int qcom_geni_serial_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __maybe_unused qcom_geni_serial_sys_suspend(struct device *dev)
+static int qcom_geni_serial_sys_suspend(struct device *dev)
 {
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
 	struct uart_port *uport = &port->uport;
@@ -1547,7 +1546,7 @@ static int __maybe_unused qcom_geni_serial_sys_suspend(struct device *dev)
 	return uart_suspend_port(private_data->drv, uport);
 }
 
-static int __maybe_unused qcom_geni_serial_sys_resume(struct device *dev)
+static int qcom_geni_serial_sys_resume(struct device *dev)
 {
 	int ret;
 	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
@@ -1595,10 +1594,12 @@ static int qcom_geni_serial_sys_hib_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops qcom_geni_serial_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(qcom_geni_serial_sys_suspend,
-					qcom_geni_serial_sys_resume)
-	.restore = qcom_geni_serial_sys_hib_resume,
-	.thaw = qcom_geni_serial_sys_hib_resume,
+	.suspend = pm_sleep_ptr(qcom_geni_serial_sys_suspend),
+	.resume = pm_sleep_ptr(qcom_geni_serial_sys_resume),
+	.freeze = pm_sleep_ptr(qcom_geni_serial_sys_suspend),
+	.poweroff = pm_sleep_ptr(qcom_geni_serial_sys_suspend),
+	.restore = pm_sleep_ptr(qcom_geni_serial_sys_hib_resume),
+	.thaw = pm_sleep_ptr(qcom_geni_serial_sys_hib_resume),
 };
 
 static const struct of_device_id qcom_geni_serial_match_table[] = {

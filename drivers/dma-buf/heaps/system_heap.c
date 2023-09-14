@@ -543,7 +543,9 @@ static int secure_heap_zero_buffer(struct system_heap_buffer *buffer)
 	for_each_sgtable_page(sgt, &piter, 0) {
 		p = sg_page_iter_page(&piter);
 		vaddr = kmap_atomic(p);
+#if !defined(CONFIG_IMX8QM_WIDEVINE_L1)
 		memset(vaddr, 0, PAGE_SIZE);
+#endif
 		kunmap_atomic(vaddr);
 	}
 

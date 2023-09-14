@@ -276,6 +276,26 @@ static const struct sof_topology_token acpdmic_tokens[] = {
 		offsetof(struct sof_ipc_dai_acpdmic_params, pdm_ch)},
 };
 
+/* ACPI2S */
+static const struct sof_topology_token acpi2s_tokens[] = {
+	{SOF_TKN_AMD_ACPI2S_RATE, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_acp_params, fsync_rate)},
+	{SOF_TKN_AMD_ACPI2S_CH, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_acp_params, tdm_slots)},
+	{SOF_TKN_AMD_ACPI2S_TDM_MODE, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_acp_params, tdm_mode)},
+};
+
+/* MICFIL PDM */
+static const struct sof_topology_token micfil_pdm_tokens[] = {
+	{SOF_TKN_IMX_MICFIL_RATE,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_micfil_params, pdm_rate)},
+	{SOF_TKN_IMX_MICFIL_CH,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_micfil_params, pdm_ch)},
+};
+
 /* Core tokens */
 static const struct sof_topology_token core_tokens[] = {
 	{SOF_TKN_COMP_CORE_ID, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
@@ -311,6 +331,7 @@ static const struct sof_token_info ipc3_token_list[SOF_TOKEN_COUNT] = {
 	[SOF_SAI_TOKENS] = {"SAI tokens", sai_tokens, ARRAY_SIZE(sai_tokens)},
 	[SOF_AFE_TOKENS] = {"AFE tokens", afe_tokens, ARRAY_SIZE(afe_tokens)},
 	[SOF_ACPDMIC_TOKENS] = {"ACPDMIC tokens", acpdmic_tokens, ARRAY_SIZE(acpdmic_tokens)},
+	[SOF_ACPI2S_TOKENS]   = {"ACPI2S tokens", acpi2s_tokens, ARRAY_SIZE(acpi2s_tokens)},
 };
 
 /**
@@ -1125,6 +1146,37 @@ static int sof_link_esai_load(struct snd_soc_component *scomp, struct snd_sof_da
 	return 0;
 }
 
+static int sof_link_micfil_load(struct snd_soc_component *scomp, struct snd_sof_dai_link *slink,
+				  struct sof_ipc_dai_config *config, struct snd_sof_dai *dai)
+{
+	struct snd_soc_tplg_hw_config *hw_config = slink->hw_configs;
+	struct sof_dai_private_data *private = dai->private;
+	u32 size = sizeof(*config);
+	int ret;
+
+       /* handle master/slave and inverted clocks */
+	sof_dai_set_format(hw_config, config);
+
+	config->hdr.size = size;
+
+	/* parse the required set of MICFIL PDM tokens based on num_hw_cfgs */
+	ret = sof_update_ipc_object(scomp, &config->micfil, SOF_MICFIL_TOKENS, slink->tuples,
+				    slink->num_tuples, size, slink->num_hw_configs);
+	if (ret < 0)
+		return ret;
+
+	dev_info(scomp->dev, "MICFIL PDM config dai_index %d channel %d rate %d\n",
+		 config->dai_index, config->micfil.pdm_ch, config->micfil.pdm_rate);
+
+	dai->number_configs = 1;
+	dai->current_config = 0;
+	private->dai_config = kmemdup(config, size, GFP_KERNEL);
+	if (!private->dai_config)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int sof_link_acp_dmic_load(struct snd_soc_component *scomp, struct snd_sof_dai_link *slink,
 				  struct sof_ipc_dai_config *config, struct snd_sof_dai *dai)
 {
@@ -1193,6 +1245,7 @@ static int sof_link_acp_sp_load(struct snd_soc_component *scomp, struct snd_sof_
 	struct snd_soc_tplg_hw_config *hw_config = slink->hw_configs;
 	struct sof_dai_private_data *private = dai->private;
 	u32 size = sizeof(*config);
+	int ret;
 
 	/* handle master/slave and inverted clocks */
 	sof_dai_set_format(hw_config, config);
@@ -1201,12 +1254,15 @@ static int sof_link_acp_sp_load(struct snd_soc_component *scomp, struct snd_sof_
 	memset(&config->acpsp, 0, sizeof(config->acpsp));
 	config->hdr.size = size;
 
-	config->acpsp.fsync_rate = le32_to_cpu(hw_config->fsync_rate);
-	config->acpsp.tdm_slots = le32_to_cpu(hw_config->tdm_slots);
+	ret = sof_update_ipc_object(scomp, &config->acpsp, SOF_ACPI2S_TOKENS, slink->tuples,
+				    slink->num_tuples, size, slink->num_hw_configs);
+	if (ret < 0)
+		return ret;
 
-	dev_info(scomp->dev, "ACP_SP config ACP%d channel %d rate %d\n",
+
+	dev_info(scomp->dev, "ACP_SP config ACP%d channel %d rate %d tdm_mode %d\n",
 		 config->dai_index, config->acpsp.tdm_slots,
-		 config->acpsp.fsync_rate);
+		 config->acpsp.fsync_rate, config->acpsp.tdm_mode);
 
 	dai->number_configs = 1;
 	dai->current_config = 0;
@@ -1223,6 +1279,7 @@ static int sof_link_acp_hs_load(struct snd_soc_component *scomp, struct snd_sof_
 	struct snd_soc_tplg_hw_config *hw_config = slink->hw_configs;
 	struct sof_dai_private_data *private = dai->private;
 	u32 size = sizeof(*config);
+	int ret;
 
 	/* Configures the DAI hardware format and inverted clocks */
 	sof_dai_set_format(hw_config, config);
@@ -1231,12 +1288,14 @@ static int sof_link_acp_hs_load(struct snd_soc_component *scomp, struct snd_sof_
 	memset(&config->acphs, 0, sizeof(config->acphs));
 	config->hdr.size = size;
 
-	config->acphs.fsync_rate = le32_to_cpu(hw_config->fsync_rate);
-	config->acphs.tdm_slots = le32_to_cpu(hw_config->tdm_slots);
+	ret = sof_update_ipc_object(scomp, &config->acphs, SOF_ACPI2S_TOKENS, slink->tuples,
+				    slink->num_tuples, size, slink->num_hw_configs);
+	if (ret < 0)
+		return ret;
 
-	dev_info(scomp->dev, "ACP_HS config ACP%d channel %d rate %d\n",
+	dev_info(scomp->dev, "ACP_HS config ACP%d channel %d rate %d tdm_mode %d\n",
 		 config->dai_index, config->acphs.tdm_slots,
-		 config->acphs.fsync_rate);
+		 config->acphs.fsync_rate, config->acphs.tdm_mode);
 
 	dai->number_configs = 1;
 	dai->current_config = 0;
@@ -1541,13 +1600,18 @@ static int sof_ipc3_widget_setup_comp_dai(struct snd_sof_widget *swidget)
 		case SOF_DAI_IMX_ESAI:
 			ret = sof_link_esai_load(scomp, slink, config, dai);
 			break;
+		case SOF_DAI_IMX_MICFIL:
+			ret = sof_link_micfil_load(scomp, slink, config, dai);
+			break;
 		case SOF_DAI_AMD_BT:
 			ret = sof_link_acp_bt_load(scomp, slink, config, dai);
 			break;
 		case SOF_DAI_AMD_SP:
+		case SOF_DAI_AMD_SP_VIRTUAL:
 			ret = sof_link_acp_sp_load(scomp, slink, config, dai);
 			break;
 		case SOF_DAI_AMD_HS:
+		case SOF_DAI_AMD_HS_VIRTUAL:
 			ret = sof_link_acp_hs_load(scomp, slink, config, dai);
 			break;
 		case SOF_DAI_AMD_DMIC:

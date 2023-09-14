@@ -45,6 +45,8 @@ static struct clk_bulk_data imx8m_aux_clks[] = {
 	{ .id = "sai3_mclk2" },
 	{ .id = "sai3_mclk3" },
 	{ .id = "sdma3_root" },
+	{ .id = "pdm_ipg_clk"},
+	{ .id = "pdm_ipg_clk_app"},
 };
 
 /* DAP registers */
@@ -353,6 +355,13 @@ static struct snd_soc_dai_driver imx8m_dai[] = {
 	.capture = {
 		.channels_min = 1,
 		.channels_max = 32,
+	},
+},
+{
+	.name = "micfil",
+	.capture = {
+		.channels_min = 1,
+		.channels_max = 8,
 	},
 },
 };

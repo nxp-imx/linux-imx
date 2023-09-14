@@ -438,6 +438,7 @@
 
 &usbphy1 {
 	status = "okay";
+	fsl,tx-d-cal = <110>;
 };
 
 &usbmisc1 {
@@ -458,6 +459,7 @@
 
 &usbphy2 {
 	status = "okay";
+	fsl,tx-d-cal = <110>;
 };
 
 &usbmisc2 {

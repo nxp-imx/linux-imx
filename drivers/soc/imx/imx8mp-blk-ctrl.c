@@ -61,7 +61,7 @@ struct imx8mp_blk_ctrl_domain_data {
 	const unsigned int flags;
 };
 
-#define DOMAIN_MAX_CLKS 2
+#define DOMAIN_MAX_CLKS 3
 
 struct imx8mp_blk_ctrl_domain {
 	struct generic_pm_domain genpd;
@@ -131,6 +131,8 @@ static void imx8mp_hsio_blk_ctrl_power_on(struct imx8mp_blk_ctrl *bc,
 	default:
 		break;
 	}
+
+	imx8mp_qos_set(domain);
 }
 
 static void imx8mp_hsio_blk_ctrl_power_off(struct imx8mp_blk_ctrl *bc,
@@ -436,8 +438,8 @@ static const struct imx8mp_blk_ctrl_domain_data imx8mp_hdmi_domain_data[] = {
 	},
 	[IMX8MP_HDMIBLK_PD_LCDIF] = {
 		.name = "hdmiblk-lcdif",
-		.clk_names = (const char *[]){ "axi", "apb" },
-		.num_clks = 2,
+		.clk_names = (const char *[]){ "axi", "apb", "fdcc" },
+		.num_clks = 3,
 		.gpc_name = "lcdif",
 		.hurry_data = &imx8mp_hdmi_hurry_data[IMX8MP_HDMIBLK_LCDIF],
 		.noc_data = {
@@ -464,8 +466,8 @@ static const struct imx8mp_blk_ctrl_domain_data imx8mp_hdmi_domain_data[] = {
 	},
 	[IMX8MP_HDMIBLK_PD_HDMI_TX] = {
 		.name = "hdmiblk-hdmi-tx",
-		.clk_names = (const char *[]){ "apb", "ref_266m" },
-		.num_clks = 2,
+		.clk_names = (const char *[]){ "apb", "ref_266m", "fdcc" },
+		.num_clks = 3,
 		.gpc_name = "hdmi-tx",
 	},
 	[IMX8MP_HDMIBLK_PD_HDMI_TX_PHY] = {

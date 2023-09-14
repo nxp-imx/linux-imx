@@ -318,7 +318,7 @@ conn_subsys: bus@5b000000 {
 				     "usb3_core_pclk",
 				     "usb3_phy_clk",
 				     "usb3_aclk";
-		power-domains = <&pd IMX_SC_R_USB_2_PHY>;
+		power-domains = <&pd IMX_SC_R_USB_2>;
 	};
 
 	rawnand_0_lpcg: clock-controller@5b290000 {

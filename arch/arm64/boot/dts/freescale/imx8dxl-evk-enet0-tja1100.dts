@@ -19,6 +19,12 @@
 	phy-mode = "rmii";
 	phy-handle = <&ethphy2>;
 	phy-supply = <&mii_select>;
+	phy-reset-gpios = <&pca6416_1 0 GPIO_ACTIVE_LOW>;
+	phy-reset-duration = <20>;
+	phy-reset-post-delay = <100>;
+	/delete-property/ rx-internal-delay-ps;
+	/delete-property/ tx-internal-delay-ps;
+
 	status = "okay";
 
 	mdio {
@@ -28,7 +34,6 @@
 		ethphy2: ethernet-phy@2 {
 			compatible = "ethernet-phy-ieee802.3-c22";
 			reg = <5>;
-			nxp,rmii-refclk-in;
 		};
 	};
 };
@@ -40,7 +45,7 @@
 			IMX8DXL_COMP_CTL_GPIO_1V8_3V3_ENET_ENETB1_PAD	0x000014a0
 			IMX8DXL_ENET0_MDC_CONN_ENET0_MDC			0x06000020
 			IMX8DXL_ENET0_MDIO_CONN_ENET0_MDIO			0x06000020
-			IMX8DXL_ENET0_RGMII_TXC_CONN_ENET0_RCLK50M_OUT		0x06000060
+			IMX8DXL_ENET0_RGMII_TXC_CONN_ENET0_RCLK50M_IN		0x06000060
 			IMX8DXL_ENET0_RGMII_TX_CTL_CONN_ENET0_RGMII_TX_CTL	0x00000060
 			IMX8DXL_ENET0_RGMII_TXD0_CONN_ENET0_RGMII_TXD0		0x00000060
 			IMX8DXL_ENET0_RGMII_TXD1_CONN_ENET0_RGMII_TXD1		0x00000060

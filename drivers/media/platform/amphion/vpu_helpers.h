@@ -25,8 +25,14 @@ int vpu_helper_copy_from_stream_buffer(struct vpu_buffer *stream_buffer,
 				       u32 *rptr, u32 size, void *dst);
 int vpu_helper_copy_to_stream_buffer(struct vpu_buffer *stream_buffer,
 				     u32 *wptr, u32 size, void *src);
+int vpu_helper_secure_copy_to_stream_buffer(struct vpu_buffer *stream_buffer,
+				     u32 *wptr, u32 size, size_t align_size,void *src,
+				     struct vpu_inst *inst, struct vb2_buffer *vb);
 int vpu_helper_memset_stream_buffer(struct vpu_buffer *stream_buffer,
 				    u32 *wptr, u8 val, u32 size);
+int vpu_helper_secure_memset_stream_buffer(struct vpu_buffer *stream_buffer,
+				    u32 *wptr, u8 val, u32 size,
+				    struct vpu_inst *inst);
 u32 vpu_helper_get_free_space(struct vpu_inst *inst);
 u32 vpu_helper_get_used_space(struct vpu_inst *inst);
 int vpu_helper_g_volatile_ctrl(struct v4l2_ctrl *ctrl);

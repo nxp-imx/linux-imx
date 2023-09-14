@@ -362,7 +362,6 @@ static int cdns_imx_suspend(struct device *dev)
 	return 0;
 }
 
-
 /* Indicate if the controller was power lost before */
 static inline bool cdns_imx_is_power_lost(struct cdns_imx *data)
 {
@@ -380,7 +379,7 @@ static int __maybe_unused cdns_imx_system_resume(struct device *dev)
 	struct cdns_imx *data = dev_get_drvdata(dev);
 	int ret;
 
-	ret = cdns_imx_resume(dev);
+	ret = pm_runtime_force_resume(dev);
 	if (ret)
 		return ret;
 
@@ -405,7 +404,7 @@ static int cdns_imx_platform_suspend(struct device *dev,
 
 static const struct dev_pm_ops cdns_imx_pm_ops = {
 	SET_RUNTIME_PM_OPS(cdns_imx_suspend, cdns_imx_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(cdns_imx_suspend, cdns_imx_system_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, cdns_imx_system_resume)
 };
 
 static const struct of_device_id cdns_imx_of_match[] = {

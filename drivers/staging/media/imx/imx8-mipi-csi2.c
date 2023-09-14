@@ -30,7 +30,6 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-device.h>
 #include <linux/pm_domain.h>
-#include <linux/pm_runtime.h>
 
 #include "imx8-common.h"
 
@@ -305,6 +304,7 @@ struct mxc_mipi_csi2_dev {
 	u8  data_lanes[4];
 	u8  vchannel;
 	u8  running;
+	bool runtime_suspend;
 };
 
 struct mxc_hs_info {
@@ -1021,6 +1021,16 @@ static int mipi_csi2_s_frame_interval(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(sen_sd, video, s_frame_interval, interval);
 }
 
+static void mipi_csi2_hw_config(struct mxc_mipi_csi2_dev *csi2dev)
+{
+	mxc_csi2_get_sensor_fmt(csi2dev);
+	mxc_mipi_csi2_hc_config(csi2dev);
+	mxc_mipi_csi2_reset(csi2dev);
+	mxc_mipi_csi2_csr_config(csi2dev);
+	mxc_mipi_csi2_enable(csi2dev);
+	mxc_mipi_csi2_reg_dump(csi2dev);
+}
+
 static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
@@ -1033,17 +1043,14 @@ static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 	if (enable) {
 		pm_runtime_get_sync(dev);
 		if (!csi2dev->running++) {
-			mxc_csi2_get_sensor_fmt(csi2dev);
-			mxc_mipi_csi2_hc_config(csi2dev);
-			mxc_mipi_csi2_reset(csi2dev);
-			mxc_mipi_csi2_csr_config(csi2dev);
-			mxc_mipi_csi2_enable(csi2dev);
-			mxc_mipi_csi2_reg_dump(csi2dev);
+			if (!csi2dev->runtime_suspend)
+				mipi_csi2_hw_config(csi2dev);
 		}
 	} else {
-		if (!--csi2dev->running)
-			mxc_mipi_csi2_disable(csi2dev);
-
+		if (!--csi2dev->running) {
+			if (!csi2dev->runtime_suspend)
+				mxc_mipi_csi2_disable(csi2dev);
+		}
 		pm_runtime_put(dev);
 	}
 
@@ -1158,6 +1165,8 @@ static int mipi_csi2_parse_dt(struct mxc_mipi_csi2_dev *csi2dev)
 	csi2dev->id = of_alias_get_id(node, "csi");
 
 	csi2dev->vchannel = of_property_read_bool(node, "virtual-channel");
+
+	csi2dev->runtime_suspend = of_property_read_bool(node, "runtime_suspend");
 
 	node = of_graph_get_next_endpoint(node, NULL);
 	if (!node) {
@@ -1284,20 +1293,21 @@ static int mipi_csi2_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int  mipi_csi2_pm_suspend(struct device *dev)
+static int mipi_csi2_pm_suspend(struct device *dev)
 {
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
 
-	if (csi2dev->running > 0) {
-		dev_warn(dev, "running, prevent entering suspend.\n");
-		return -EAGAIN;
+	if (!csi2dev->runtime_suspend) {
+		if (csi2dev->running > 0) {
+			dev_warn(dev, "running, prevent entering suspend.\n");
+			return -EAGAIN;
+		}
 	}
 
 	return pm_runtime_force_suspend(dev);
 }
 
-static int  mipi_csi2_pm_resume(struct device *dev)
+static int mipi_csi2_pm_resume(struct device *dev)
 {
 	return pm_runtime_force_resume(dev);
 }
@@ -1305,25 +1315,58 @@ static int  mipi_csi2_pm_resume(struct device *dev)
 static int  mipi_csi2_runtime_suspend(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
+	struct v4l2_subdev *sen_sd;
+	int ret;
+
+	if (csi2dev->runtime_suspend) {
+		if (csi2dev->running > 0) {
+			sen_sd = mxc_get_remote_subdev(csi2dev, __func__);
+			if (!sen_sd)
+				return -EINVAL;
+
+			ret = v4l2_subdev_call(sen_sd, video, s_stream, 0);
+			if (ret < 0 && ret != -ENOIOCTLCMD)
+				return ret;
+		}
+
+		mxc_mipi_csi2_disable(csi2dev);
+		mipi_sc_fw_init(csi2dev, 0);
+	}
 
 	mipi_csi2_clk_disable(csi2dev);
+
 	return 0;
 }
 
 static int  mipi_csi2_runtime_resume(struct device *dev)
 {
 	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
+	struct v4l2_subdev *sen_sd;
 	int ret;
 
 	ret = mipi_csi2_clk_enable(csi2dev);
 	if (ret)
 		return ret;
 
+	if (csi2dev->runtime_suspend) {
+		mipi_sc_fw_init(csi2dev, 1);
+		mipi_csi2_hw_config(csi2dev);
+		if (csi2dev->running > 0) {
+			sen_sd = mxc_get_remote_subdev(csi2dev, __func__);
+			if (!sen_sd)
+				return -EINVAL;
+
+			ret = v4l2_subdev_call(sen_sd, video, s_stream, 1);
+			if (ret < 0 && ret != -ENOIOCTLCMD)
+				return ret;
+		}
+	}
+
 	return 0;
 }
 
 static const struct dev_pm_ops mipi_csi_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(mipi_csi2_pm_suspend, mipi_csi2_pm_resume)
+	LATE_SYSTEM_SLEEP_PM_OPS(mipi_csi2_pm_suspend, mipi_csi2_pm_resume)
 	SET_RUNTIME_PM_OPS(mipi_csi2_runtime_suspend, mipi_csi2_runtime_resume, NULL)
 };
 

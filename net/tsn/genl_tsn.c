@@ -513,10 +513,8 @@ static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 	int ret;
 
 	port = tsn_init_check(info, &netdev);
-	if (!port) {
-		ret = -ENODEV;
-		goto out;
-	}
+	if (!port)
+		return -ENODEV;
 
 	tsnops = port->tsnops;
 	if (!tsnops->get_capability) {
@@ -912,10 +910,8 @@ static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
 	int ret;
 
 	port = tsn_init_check(info, &netdev);
-	if (!port) {
-		ret = -EINVAL;
-		goto out;
-	}
+	if (!port)
+		return -ENODEV;
 
 	tsnops = port->tsnops;
 

@@ -70,6 +70,26 @@
 
 #define MALONE_DEC_FMT_RV_MASK			BIT(21)
 
+struct device *trusty_dev;
+void __iomem *vpu_malone_base;
+
+void vpu_malone_writel(u32 val, unsigned int* reg)
+{
+        writel_vpu_malone(val, (u32)((void*)reg - vpu_malone_base));
+}
+
+u32 vpu_malone_readl(unsigned int* reg)
+{
+        if (trusty_dev) {
+                return trusty_vpu_reg(trusty_dev, (u32)((void*)reg - vpu_malone_base), 0, OPT_READ);
+        } else {
+                return readl(reg);
+        }
+}
+
+extern u8* hdr;
+extern u32 hdr_size;
+
 enum vpu_malone_stream_input_mode {
 	INVALID_MODE = 0,
 	FRAME_LVL,
@@ -499,11 +519,12 @@ int vpu_malone_config_stream_buffer(struct vpu_shared_addr *shared,
 	struct vpu_dec_ctrl *hc = shared->priv;
 	struct vpu_malone_str_buffer __iomem *str_buf = hc->str_buf[instance];
 
-	writel(buf->phys, &str_buf->start);
-	writel(buf->phys, &str_buf->rptr);
-	writel(buf->phys, &str_buf->wptr);
-	writel(buf->phys + buf->length, &str_buf->end);
-	writel(0x1, &str_buf->lwm);
+	vpu_malone_writel(buf->phys, &str_buf->start);
+	vpu_malone_writel(buf->phys, &str_buf->rptr);
+	vpu_malone_writel(buf->phys, &str_buf->wptr);
+	vpu_malone_writel(buf->phys + buf->length, &str_buf->end);
+	vpu_malone_writel(0x1, &str_buf->lwm);
+
 
 	iface->stream_buffer_desc[instance][0] = hc->buf_addr[instance];
 
@@ -518,10 +539,10 @@ int vpu_malone_get_stream_buffer_desc(struct vpu_shared_addr *shared,
 	struct vpu_malone_str_buffer __iomem *str_buf = hc->str_buf[instance];
 
 	if (desc) {
-		desc->wptr = readl(&str_buf->wptr);
-		desc->rptr = readl(&str_buf->rptr);
-		desc->start = readl(&str_buf->start);
-		desc->end = readl(&str_buf->end);
+		desc->wptr = vpu_malone_readl(&str_buf->wptr);
+		desc->rptr = vpu_malone_readl(&str_buf->rptr);
+		desc->start = vpu_malone_readl(&str_buf->start);
+		desc->end = vpu_malone_readl(&str_buf->end);
 	}
 
 	return 0;
@@ -531,14 +552,14 @@ static void vpu_malone_update_wptr(struct vpu_malone_str_buffer __iomem *str_buf
 {
 	/*update wptr after data is written*/
 	mb();
-	writel(wptr, &str_buf->wptr);
+	vpu_malone_writel(wptr, &str_buf->wptr);
 }
 
 static void vpu_malone_update_rptr(struct vpu_malone_str_buffer __iomem *str_buf, u32 rptr)
 {
 	/*update rptr after data is read*/
 	mb();
-	writel(rptr, &str_buf->rptr);
+	vpu_malone_writel(rptr, &str_buf->rptr);
 }
 
 int vpu_malone_update_stream_buffer(struct vpu_shared_addr *shared,
@@ -661,7 +682,9 @@ static int vpu_malone_set_params(struct vpu_shared_addr *shared,
 		hc->jpg[instance].jpg_mjpeg_interlaced = 0;
 	}
 
-	hc->codec_param[instance].disp_imm = params->b_dis_reorder ? 1 : 0;
+	hc->codec_param[instance].disp_imm = params->display_delay_enable ? 1 : 0;
+	if (malone_format != MALONE_FMT_AVC)
+		hc->codec_param[instance].disp_imm = 0;
 	hc->codec_param[instance].dbglog_enable = 0;
 	iface->dbglog_desc.level = 0;
 
@@ -1060,31 +1083,50 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 	const u32 padding_size = 4096;
 	int ret;
 
+	struct vpu_inst* inst = container_of(stream_buffer, struct vpu_inst, stream_buffer);
+	mutex_lock(&inst->vpu->hdr_lock);
+
 	ps = get_padding_scode(scode_type, pixelformat);
 	if (!ps)
 		return -EINVAL;
 
-	wptr = readl(&str_buf->wptr);
+	wptr = vpu_malone_readl(&str_buf->wptr);
 	if (wptr < stream_buffer->phys || wptr > stream_buffer->phys + stream_buffer->length)
 		return -EINVAL;
 	if (wptr == stream_buffer->phys + stream_buffer->length)
 		wptr = stream_buffer->phys;
 	size = ALIGN(wptr, 4) - wptr;
-	if (size)
-		vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
+	if (size) {
+		if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+			vpu_helper_secure_memset_stream_buffer(stream_buffer, &wptr, 0, size, inst);
+		else
+			vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
+	}
 	total_size += size;
 
 	size = sizeof(ps->data);
-	ret = vpu_helper_copy_to_stream_buffer(stream_buffer, &wptr, size, (void *)ps->data);
-	if (ret < 0)
+	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode) {
+		memset(hdr, 0, hdr_size);
+		memcpy(hdr, ps->data, size);
+		ret = vpu_helper_secure_copy_to_stream_buffer(stream_buffer, &wptr, size, hdr_size, hdr, inst, NULL);
+	} else {
+		ret = vpu_helper_copy_to_stream_buffer(stream_buffer, &wptr, size, (void *)ps->data);
+	}
+	if (ret < 0) {
 		return -EINVAL;
+	}
 	total_size += size;
 
 	size = padding_size - sizeof(ps->data);
-	vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
+	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+		vpu_helper_secure_memset_stream_buffer(stream_buffer, &wptr, 0, size, inst);
+	else
+		vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
 	total_size += size;
 
 	vpu_malone_update_wptr(str_buf, wptr);
+
+	mutex_unlock(&inst->vpu->hdr_lock);
 	return total_size;
 }
 
@@ -1311,6 +1353,15 @@ static int vpu_malone_insert_scode_pic(struct malone_scode_t *scode, u32 codec_i
 	return sizeof(hdr);
 }
 
+static int vpu_malone_insert_scode_vc1_g_seq(struct malone_scode_t *scode)
+{
+	if (!scode->inst->total_input_count)
+		return 0;
+	if (vpu_vb_is_codecconfig(to_vb2_v4l2_buffer(scode->vb)))
+		scode->need_data = 0;
+	return 0;
+}
+
 static int vpu_malone_insert_scode_vc1_g_pic(struct malone_scode_t *scode)
 {
 	struct vb2_v4l2_buffer *vbuf;
@@ -1342,6 +1393,8 @@ static int vpu_malone_insert_scode_vc1_l_seq(struct malone_scode_t *scode)
 	int size = 0;
 	u8 rcv_seqhdr[MALONE_VC1_RCV_SEQ_HEADER_LEN];
 
+	if (vpu_vb_is_codecconfig(to_vb2_v4l2_buffer(scode->vb)))
+		scode->need_data = 0;
 	if (scode->inst->total_input_count)
 		return 0;
 	scode->need_data = 0;
@@ -1420,6 +1473,7 @@ static int vpu_malone_insert_scode_vp8_pic(struct malone_scode_t *scode)
 	int size = 0;
 	u8 ivf_hdr[MALONE_VP8_IVF_FRAME_HEADER_LEN] = {0};
 
+
 	ret = vpu_malone_insert_scode_pic(scode, MALONE_CODEC_ID_VP8, sizeof(ivf_hdr));
 	if (ret < 0)
 		return ret;
@@ -1456,6 +1510,7 @@ static const struct malone_scode_handler scode_handlers[] = {
 	},
 	{
 		.pixelformat = V4L2_PIX_FMT_VC1_ANNEX_G,
+		.insert_scode_seq = vpu_malone_insert_scode_vc1_g_seq,
 		.insert_scode_pic = vpu_malone_insert_scode_vc1_g_pic,
 	},
 	{
@@ -1517,7 +1572,7 @@ static int vpu_malone_input_frame_data(struct vpu_malone_str_buffer __iomem *str
 {
 	struct malone_scode_t scode;
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	u32 wptr = readl(&str_buf->wptr);
+	u32 wptr = vpu_malone_readl(&str_buf->wptr);
 	int size = 0;
 	int ret = 0;
 
@@ -1544,10 +1599,19 @@ static int vpu_malone_input_frame_data(struct vpu_malone_str_buffer __iomem *str
 	size += ret;
 	wptr = scode.wptr;
 
-	ret = vpu_helper_copy_to_stream_buffer(&inst->stream_buffer,
-					       &wptr,
-					       vb2_get_plane_payload(vb, 0),
-					       vb2_plane_vaddr(vb, 0));
+	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+		ret = vpu_helper_secure_copy_to_stream_buffer(&inst->stream_buffer,
+						       &wptr,
+						       vb2_get_plane_payload(vb, 0),
+						       0,
+						       vb2_plane_vaddr(vb, 0),
+						       inst,
+						       vb);
+	else
+		ret = vpu_helper_copy_to_stream_buffer(&inst->stream_buffer,
+						       &wptr,
+						       vb2_get_plane_payload(vb, 0),
+						       vb2_plane_vaddr(vb, 0));
 	if (ret < 0)
 		return -ENOMEM;
 	size += vb2_get_plane_payload(vb, 0);
@@ -1571,13 +1635,22 @@ static int vpu_malone_input_frame_data(struct vpu_malone_str_buffer __iomem *str
 static int vpu_malone_input_stream_data(struct vpu_malone_str_buffer __iomem *str_buf,
 					struct vpu_inst *inst, struct vb2_buffer *vb)
 {
-	u32 wptr = readl(&str_buf->wptr);
+	u32 wptr = vpu_malone_readl(&str_buf->wptr);
 	int ret = 0;
 
-	ret = vpu_helper_copy_to_stream_buffer(&inst->stream_buffer,
-					       &wptr,
-					       vb2_get_plane_payload(vb, 0),
-					       vb2_plane_vaddr(vb, 0));
+	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+		ret = vpu_helper_secure_copy_to_stream_buffer(&inst->stream_buffer,
+							      &wptr,
+							      vb2_get_plane_payload(vb, 0),
+							      0,
+							      vb2_plane_vaddr(vb, 0),
+							      inst,
+							      vb);
+	else
+		ret = vpu_helper_copy_to_stream_buffer(&inst->stream_buffer,
+						       &wptr,
+						       vb2_get_plane_payload(vb, 0),
+						       vb2_plane_vaddr(vb, 0));
 	if (ret < 0)
 		return -ENOMEM;
 

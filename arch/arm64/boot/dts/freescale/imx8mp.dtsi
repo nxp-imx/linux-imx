@@ -1453,8 +1453,9 @@
 				clocks = <&clk IMX8MP_CLK_HDMI_APB>,
 					 <&clk IMX8MP_CLK_HDMI_ROOT>,
 					 <&clk IMX8MP_CLK_HDMI_REF_266M>,
-					 <&clk IMX8MP_CLK_HDMI_24M>;
-				clock-names = "apb", "axi", "ref_266m", "ref_24m";
+					 <&clk IMX8MP_CLK_HDMI_24M>,
+					 <&clk IMX8MP_CLK_HDMI_FDCC_TST>;
+				clock-names = "apb", "axi", "ref_266m", "ref_24m", "fdcc";
 				power-domains = <&pgc_hdmimix>, <&pgc_hdmimix>,
 						<&pgc_hdmimix>, <&pgc_hdmimix>,
 						<&pgc_hdmimix>, <&pgc_hdmimix>,

@@ -49,7 +49,7 @@ static int adp5585_pwm_reg_write(struct adp5585_pwm_chip *adp5585_pwm, u8 reg, u
 	return adp5585->write_reg(adp5585, reg, val);
 }
 
-static void pwm_adp5585_get_state(struct pwm_chip *chip,
+static int pwm_adp5585_get_state(struct pwm_chip *chip,
 				  struct pwm_device *pwm,
 				  struct pwm_state *state)
 {
@@ -77,6 +77,8 @@ static void pwm_adp5585_get_state(struct pwm_chip *chip,
 	/* get channel status */
 	adp5585_pwm_reg_read(adp5585_pwm, ADP5585_PWM_CFG, &temp);
 	state->enabled = temp & ADP5585_PWM_CFG_EN;
+
+	return 0;
 }
 
 static int pwm_adp5585_apply(struct pwm_chip *chip,

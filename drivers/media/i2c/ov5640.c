@@ -570,7 +570,7 @@ static const struct reg_value ov5640_init_setting[] = {
 	{0x3002, 0x1c, 0, 0}, {0x3004, 0xff, 0, 0}, {0x3006, 0xc3, 0, 0},
 	{0x302e, 0x08, 0, 0}, {0x4300, 0x3f, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x4407, 0x04, 0, 0},
-	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
+	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x20, 0, 0},
 	{0x4837, 0x0a, 0, 0}, {0x3824, 0x02, 0, 0},
 	{0x5000, 0xa7, 0, 0}, {0x5001, 0xa3, 0, 0}, {0x5180, 0xff, 0, 0},
 	{0x5181, 0xf2, 0, 0}, {0x5182, 0x00, 0, 0}, {0x5183, 0x14, 0, 0},
@@ -1601,7 +1601,7 @@ static int ov5640_set_dvp_pclk(struct ov5640_dev *sensor)
 			 &bit_div, &pclk_div);
 
 	if (bit_div == 2)
-		bit_div = 0xA;
+		bit_div = 8;
 
 	ret = ov5640_mod_reg(sensor, OV5640_REG_SC_PLL_CTRL0,
 			     0x0f, bit_div);
@@ -2882,12 +2882,22 @@ static int ov5640_try_fmt_internal(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void __v4l2_ctrl_vblank_update(struct ov5640_dev *sensor, u32 vblank)
+{
+	const struct ov5640_mode_info *mode = sensor->current_mode;
+
+	__v4l2_ctrl_modify_range(sensor->ctrls.vblank, OV5640_MIN_VBLANK,
+				 OV5640_MAX_VTS - mode->height, 1, vblank);
+
+	__v4l2_ctrl_s_ctrl(sensor->ctrls.vblank, vblank);
+}
+
 static int ov5640_update_pixel_rate(struct ov5640_dev *sensor)
 {
 	const struct ov5640_mode_info *mode = sensor->current_mode;
 	enum ov5640_pixel_rate_id pixel_rate_id = mode->pixel_rate;
 	struct v4l2_mbus_framefmt *fmt = &sensor->fmt;
-	const struct ov5640_timings *timings;
+	const struct ov5640_timings *timings = ov5640_timings(sensor, mode);
 	s32 exposure_val, exposure_max;
 	unsigned int hblank;
 	unsigned int i = 0;
@@ -2905,6 +2915,8 @@ static int ov5640_update_pixel_rate(struct ov5640_dev *sensor)
 	if (!ov5640_is_csi2(sensor)) {
 		__v4l2_ctrl_s_ctrl_int64(sensor->ctrls.pixel_rate,
 					 ov5640_calc_pixel_rate(sensor));
+
+		__v4l2_ctrl_vblank_update(sensor, timings->vblank_def);
 
 		return 0;
 	}
@@ -2948,7 +2960,6 @@ static int ov5640_update_pixel_rate(struct ov5640_dev *sensor)
 	__v4l2_ctrl_s_ctrl_int64(sensor->ctrls.pixel_rate, pixel_rate);
 	__v4l2_ctrl_s_ctrl(sensor->ctrls.link_freq, i);
 
-	timings = ov5640_timings(sensor, mode);
 	hblank = timings->htot - mode->width;
 	__v4l2_ctrl_modify_range(sensor->ctrls.hblank,
 				 hblank, hblank, 1, hblank);
@@ -2967,9 +2978,7 @@ static int ov5640_update_pixel_rate(struct ov5640_dev *sensor)
 			mode->height;
 	}
 
-	__v4l2_ctrl_modify_range(sensor->ctrls.vblank, OV5640_MIN_VBLANK,
-				 OV5640_MAX_VTS - mode->height, 1, vblank);
-	__v4l2_ctrl_s_ctrl(sensor->ctrls.vblank, vblank);
+	__v4l2_ctrl_vblank_update(sensor, vblank);
 
 	exposure_max = timings->crop.height + vblank - 4;
 	exposure_val = clamp_t(s32, sensor->ctrls.exposure->val,

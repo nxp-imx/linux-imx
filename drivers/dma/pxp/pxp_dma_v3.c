@@ -1108,7 +1108,9 @@ static void dump_pxp_reg(struct pxps *pxp)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(regs); i++) {
-		if (pxp->devdata->version == PXP_V3_IMX93 && regs[i].opt)
+		if (pxp->devdata &&
+		    pxp->devdata->version == PXP_V3_IMX93 &&
+		    regs[i].opt)
 			continue;
 
 		val = __raw_readl(pxp->base + regs[i].offset);
@@ -1904,7 +1906,9 @@ static int pxp_start(struct pxps *pxp)
 
 	val = (BM_PXP_CTRL_ENABLE | BM_PXP_CTRL_BLOCK_SIZE);
 
-	if (proc_data->lut_transform && pxp_is_v3(pxp)) {
+	if (pxp->devdata &&
+	    pxp_is_v3(pxp) &&
+	    proc_data->lut_transform) {
 		val |= (BM_PXP_CTRL_ENABLE_CSC2 |
 		        BM_PXP_CTRL_ENABLE_ROTATE0 |
 			BM_PXP_CTRL_ENABLE_ROTATE1);
@@ -7204,7 +7208,7 @@ static void pxp_dithering_process(struct pxps *pxp)
 	if (pxp->devdata && pxp->devdata->pxp_dithering_configure)
 		pxp->devdata->pxp_dithering_configure(pxp);
 
-	if (pxp_is_v3(pxp))
+	if (pxp->devdata && pxp_is_v3(pxp))
 		val = BF_PXP_DITHER_CTRL_ENABLE0            (1) |
 		      BF_PXP_DITHER_CTRL_ENABLE1            (0) |
 		      BF_PXP_DITHER_CTRL_ENABLE2            (0) |
@@ -7218,7 +7222,7 @@ static void pxp_dithering_process(struct pxps *pxp)
 		      BF_PXP_DITHER_CTRL_BUSY2              (0) |
 		      BF_PXP_DITHER_CTRL_BUSY1              (0) |
 		      BF_PXP_DITHER_CTRL_BUSY0              (0);
-	else if (pxp_is_v3p(pxp)) {
+	else if (pxp->devdata && pxp_is_v3p(pxp)) {
 		if (proc_data->dither_mode != 0 &&
 			proc_data->dither_mode != 3) {
 			dev_err(pxp->dev, "Not supported dithering mode. "

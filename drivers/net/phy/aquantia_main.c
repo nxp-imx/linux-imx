@@ -23,6 +23,7 @@
 #define PHY_ID_AQCS109	0x03a1b5c2
 #define PHY_ID_AQR405	0x03a1b4b0
 #define PHY_ID_AQR113C	0x31c31c12
+#define PHY_ID_AQR115	0x31c31c63
 #define PHY_ID_AQR112	0x03a1b662
 #define PHY_ID_AQR412	0x03a1b712
 
@@ -903,6 +904,25 @@ static struct phy_driver aqr_driver[] = {
 	.link_change_notify = aqr107_link_change_notify,
 },
 {
+	PHY_ID_MATCH_MODEL(PHY_ID_AQR115),
+	.name		= "Aquantia AQR115",
+	.probe		= aqr107_probe,
+	.get_rate_matching = aqr107_get_rate_matching,
+	.config_init	= aqcs109_config_init,
+	.config_aneg	= aqr_config_aneg,
+	.config_intr	= aqr_config_intr,
+	.handle_interrupt = aqr_handle_interrupt,
+	.read_status	= aqr107_read_status,
+	.get_tunable    = aqr107_get_tunable,
+	.set_tunable    = aqr107_set_tunable,
+	.suspend	= aqr107_suspend,
+	.resume		= aqr107_resume,
+	.get_sset_count	= aqr107_get_sset_count,
+	.get_strings	= aqr107_get_strings,
+	.get_stats	= aqr107_get_stats,
+	.link_change_notify = aqr107_link_change_notify,
+},
+{
 	PHY_ID_MATCH_MODEL(PHY_ID_AQR112),
 	.name		= "Aquantia AQR112",
 	.config_aneg    = aqr_config_aneg_set_prot,
@@ -931,6 +951,7 @@ static struct mdio_device_id __maybe_unused aqr_tbl[] = {
 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQCS109) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR405) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR113C) },
+	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR115) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR112) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_AQR412) },
 	{ }

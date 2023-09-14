@@ -24,7 +24,6 @@ extern const struct dev_pm_ops imx_clk_lpcg_scu_pm_ops;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8dxl;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8qxp;
 extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8qm;
-extern const struct imx_clk_scu_rsrc_table imx_clk_scu_rsrc_imx8dxl;
 #ifdef CONFIG_VEHICLE_POST_INIT
 extern const struct imx_clk_scu_rsrc_table imx_clk_post_scu_rsrc_imx8qxp;
 extern const struct imx_clk_scu_rsrc_table imx_clk_post_scu_rsrc_imx8qm;

@@ -105,7 +105,7 @@ int ele_init_fw(void)
 	status = RES_STATUS(priv->rx_msg.data[0]);
 
 	if (tag == 0xe1 && command == ELE_INIT_FW_REQ && size == 0x02 &&
-	    ver == 0x06 && status == 0xd6)
+	    ver == MESSAGING_VERSION_7 && status == 0xd6)
 		return 0;
 
 	return -EINVAL;

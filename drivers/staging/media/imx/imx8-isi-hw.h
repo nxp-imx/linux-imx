@@ -426,6 +426,8 @@ enum isi_csi_coeff {
 	RGB2YUV,
 };
 
+int mxc_isi_config_parm(struct mxc_isi_cap_dev *isi_cap);
+
 void mxc_isi_channel_init(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_channel_deinit(struct mxc_isi_dev *mxc_isi);
 void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi, bool m2m_enabled);
@@ -482,4 +484,5 @@ bool is_buf_active(struct mxc_isi_dev *mxc_isi, int buf_id);
 
 struct device *mxc_isi_dev_get_parent(struct platform_device *pdev);
 struct mxc_isi_dev *mxc_isi_get_hostdata(struct platform_device *pdev);
+
 #endif /* __MXC_ISI_HW_H__ */

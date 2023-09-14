@@ -166,7 +166,6 @@ typedef struct {
 	volatile u8 *hwregs;
 	int irq;
 	int hw_id;
-	int hw_active;
 	int core_id;
 	//int cores;
 	//struct fasync_struct *async_queue_dec;
@@ -175,6 +174,7 @@ typedef struct {
 	u32 dec_regs[DEC_IO_SIZE_MAX/4];
 	struct semaphore dec_core_sem;
 	struct semaphore pp_core_sem;
+	struct semaphore core_suspend_sem;
 	struct file *dec_owner;
 	struct file *pp_owner;
 	u32 cfg;
@@ -888,8 +888,10 @@ static long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 
 	}
 
-	if (dev->dec_regs[1] & 0x1)
-		dev->hw_active = 1;
+	if (dev->dec_regs[1] & 0x1) {
+		if (down_timeout(&dev->core_suspend_sem, msecs_to_jiffies(10000)))
+			pr_err("core suspend sem down error id %d\n", dev->core_id);
+	}
 	/* write the status register, which may start the decoder */
 	trusty_vpu_write(dev, 4, dev->dec_regs[1], WRITE_SECURE_CTRL_REGS);
 	PDEBUG("flushed registers on Core %d\n", dev->core_id);
@@ -1044,6 +1046,7 @@ static long WaitDecReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 	} else if (ret == 0) {
 		pr_err("DEC[%d]  wait_event_interruptible timeout\n", dev->core_id);
 		dev->timeout = 1;
+		up(&dev->core_suspend_sem);
 	}
 
 	atomic_inc(&dev->irq_tx);
@@ -1516,67 +1519,60 @@ static int get_hantro_core_desc32(struct core_desc *kp, struct core_desc_32 __us
 	return 0;
 }
 
-static int put_hantro_core_desc32(struct core_desc *kp, struct core_desc_32 __user *up)
+static bool hantrodec_is_compat_ptr_ioctl(unsigned int cmd)
 {
-	u32 tmp = (u32)((unsigned long)kp->regs);
-
-	if (!access_ok(up, sizeof(struct core_desc_32)) ||
-				put_user(kp->id, &up->id) ||
-				put_user(kp->size, &up->size) ||
-				put_user(tmp, &up->regs)) {
-		return -EFAULT;
-	}
-	return 0;
-}
-static long hantrodec_ioctl32(struct file *filp, unsigned int cmd, unsigned long arg)
-{
-#define HANTRO_IOCTL32(err, filp, cmd, arg) { \
-		err = hantrodec_ioctl(filp, cmd, arg); \
-		if (err) \
-			return err; \
-	}
-
-	union {
-		struct core_desc kcore;
-		unsigned long kux;
-		unsigned int kui;
-	} karg;
-	void __user *up = compat_ptr(arg);
-	long err = 0;
+	bool ret = true;
 
 	switch (_IOC_NR(cmd)) {
-	case _IOC_NR(HANTRODEC_IOCGHWOFFSET):
-	case _IOC_NR(HANTRODEC_IOC_MC_OFFSETS):
-		err = get_user(karg.kux, (s32 __user *)up);
-		if (err)
-			return err;
-		HANTRO_IOCTL32(err, filp, cmd, (unsigned long)&karg);
-		err = put_user(((s32)karg.kux), (s32 __user *)up);
-		break;
-	case _IOC_NR(HANTRODEC_IOCGHWIOSIZE):
-	case _IOC_NR(HANTRODEC_IOC_MC_CORES):
-	case _IOC_NR(HANTRODEC_IOCG_CORE_WAIT):
-	case _IOC_NR(HANTRODEC_IOX_ASIC_ID):
-		err = get_user(karg.kui, (s32 __user *)up);
-		if (err)
-			return err;
-		HANTRO_IOCTL32(err, filp, cmd, (unsigned long)&karg);
-		err = put_user(((s32)karg.kui), (s32 __user *)up);
-		break;
 	case _IOC_NR(HANTRODEC_IOCS_DEC_PUSH_REG):
 	case _IOC_NR(HANTRODEC_IOCS_PP_PUSH_REG):
 	case _IOC_NR(HANTRODEC_IOCX_DEC_WAIT):
 	case _IOC_NR(HANTRODEC_IOCX_PP_WAIT):
 	case _IOC_NR(HANTRODEC_IOCS_DEC_PULL_REG):
 	case _IOC_NR(HANTRODEC_IOCS_PP_PULL_REG):
-		err = get_hantro_core_desc32(&karg.kcore, up);
-		if (err)
-			return err;
-		HANTRO_IOCTL32(err, filp, cmd, (unsigned long)&karg);
-		err = put_hantro_core_desc32(&karg.kcore, up);
+		ret = false;
 		break;
 	default:
-		err = hantrodec_ioctl(filp, cmd, (unsigned long)up);
+		break;
+	}
+
+	return ret;
+}
+
+static long hantrodec_ioctl32(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	long err = 0;
+	struct core_desc Core;
+
+	if (hantrodec_is_compat_ptr_ioctl(cmd))
+		return compat_ptr_ioctl(filp, cmd, arg);
+
+	err = get_hantro_core_desc32(&Core, up);
+	if (err)
+		return err;
+
+	if (Core.id >= cores)
+		return -EFAULT;
+
+	switch (_IOC_NR(cmd)) {
+	case _IOC_NR(HANTRODEC_IOCS_DEC_PUSH_REG):
+		err = DecFlushRegs(&hantrodec_data[Core.id], &Core);
+		break;
+	case _IOC_NR(HANTRODEC_IOCS_PP_PUSH_REG):
+		err = PPFlushRegs(&hantrodec_data[Core.id], &Core);
+		break;
+	case _IOC_NR(HANTRODEC_IOCX_DEC_WAIT):
+		err = WaitDecReadyAndRefreshRegs(&hantrodec_data[Core.id], &Core);
+		break;
+	case _IOC_NR(HANTRODEC_IOCX_PP_WAIT):
+		err = WaitPPReadyAndRefreshRegs(&hantrodec_data[Core.id], &Core);
+		break;
+	case _IOC_NR(HANTRODEC_IOCS_DEC_PULL_REG):
+		err = DecRefreshRegs(&hantrodec_data[Core.id], &Core);
+		break;
+	case _IOC_NR(HANTRODEC_IOCS_PP_PULL_REG):
+		err = PPRefreshRegs(&hantrodec_data[Core.id], &Core);
 		break;
 	}
 
@@ -1736,6 +1732,7 @@ static int hantrodec_init(struct platform_device *pdev, int id)
 
 	sema_init(&hantrodec_data[id].dec_core_sem, 1);
 	sema_init(&hantrodec_data[id].pp_core_sem, 1);
+	sema_init(&hantrodec_data[id].core_suspend_sem, 1);
 
 	/* read configuration fo all cores */
 	ReadCoreConfig(&hantrodec_data[id]);
@@ -1937,7 +1934,7 @@ static irqreturn_t hantrodec_isr(int irq, void *dev_id)
 
 		if (irq_status_dec & HANTRODEC_DEC_DONE) {
 			PDEBUG("decoder IRQ received! Core %d\n", dev->core_id);
-			dev->hw_active = 0;
+			up(&dev->core_suspend_sem);
 
 			atomic_inc(&hantrodec_data[dev->core_id].irq_rx);
 
@@ -2146,12 +2143,13 @@ static int __maybe_unused hantro_suspend(struct device *dev)
 
 	if (hantrodev->dec_owner) {
 		/* polling until hw is idle */
-		while (hantrodev->hw_active) {
-			pr_info("DEC[%d] is still in active when suspend !\n", hantrodev->core_id);
-			usleep_range(5000, 10000);
+		if (down_timeout(&hantrodev->core_suspend_sem, msecs_to_jiffies(10000))) {
+			pr_err("sem down error when store regs, id %d\n", hantrodev->core_id);
+		} else {
+			/*let's backup all registers from HW to shadow register to support suspend*/
+			DecStoreRegs(hantrodev);
+			up(&hantrodev->core_suspend_sem);
 		}
-		/* let's backup all registers from H/W to shadow register to support suspend */
-		DecStoreRegs(hantrodev);
 	}
 
 	pm_runtime_put_sync_suspend(dev);   //power off

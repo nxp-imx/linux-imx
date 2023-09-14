@@ -63,6 +63,7 @@ struct mxc_gpio_port {
 	struct clk *clk;
 	int irq;
 	int irq_high;
+	void (*mx_irq_handler)(struct irq_desc *desc);
 	struct irq_domain *domain;
 	struct gpio_chip gc;
 	struct device *dev;
@@ -500,6 +501,8 @@ static int mxc_gpio_probe(struct platform_device *pdev)
 		 * is more robust and easier.
 		 */
 		irq_set_chained_handler(port->irq, mx2_gpio_irq_handler);
+		port->irq_high = -1;
+		port->mx_irq_handler = mx2_gpio_irq_handler;
 	} else {
 		/* setup one handler for each entry */
 		irq_set_chained_handler_and_data(port->irq,
@@ -509,6 +512,7 @@ static int mxc_gpio_probe(struct platform_device *pdev)
 			irq_set_chained_handler_and_data(port->irq_high,
 							 mx3_gpio_irq_handler,
 							 port);
+		port->mx_irq_handler = mx3_gpio_irq_handler;
 	}
 
 	err = bgpio_init(&port->gc, &pdev->dev, 4,
@@ -649,6 +653,9 @@ static int __maybe_unused mxc_gpio_runtime_suspend(struct device *dev)
 
 	mxc_gpio_save_regs(port);
 	clk_disable_unprepare(port->clk);
+	irq_set_chained_handler_and_data(port->irq, NULL, NULL);
+	if (port->irq_high > 0)
+		irq_set_chained_handler_and_data(port->irq_high, NULL, NULL);
 
 	return 0;
 }
@@ -659,9 +666,21 @@ static int __maybe_unused mxc_gpio_runtime_resume(struct device *dev)
 	struct mxc_gpio_port *port = platform_get_drvdata(pdev);
 	int ret;
 
+	irq_set_chained_handler_and_data(port->irq,
+					 port->mx_irq_handler, port);
+	if (port->irq_high > 0)
+		/* setup handler for GPIO 16 to 31 */
+		irq_set_chained_handler_and_data(port->irq_high,
+						 port->mx_irq_handler,
+						 port);
+
 	ret = clk_prepare_enable(port->clk);
-	if (ret)
+	if (ret) {
+		irq_set_chained_handler_and_data(port->irq, NULL, NULL);
+		if (port->irq_high > 0)
+			irq_set_chained_handler_and_data(port->irq_high, NULL, NULL);
 		return ret;
+	}
 
 	mxc_gpio_restore_regs(port);
 

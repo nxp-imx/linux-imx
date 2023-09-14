@@ -177,7 +177,7 @@ static int felix_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *shaper_co
 	int i, port = dp->index;
 	u32 val, reg;
 
-	mutex_lock(&ocelot->tas_lock);
+	mutex_lock(&ocelot->fwd_domain_lock);
 
 	ocelot_rmw(ocelot,
 		   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM(port),
@@ -208,7 +208,7 @@ static int felix_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *shaper_co
 	list = kmalloc_array(admin->control_list_length,
 			     sizeof(struct tsn_qbv_entry), GFP_KERNEL);
 	if (!list) {
-		mutex_unlock(&ocelot->tas_lock);
+		mutex_unlock(&ocelot->fwd_domain_lock);
 		return -ENOMEM;
 	}
 
@@ -229,7 +229,7 @@ static int felix_qbv_get(struct net_device *ndev, struct tsn_qbv_conf *shaper_co
 		list++;
 	}
 
-	mutex_unlock(&ocelot->tas_lock);
+	mutex_unlock(&ocelot->fwd_domain_lock);
 
 	return 0;
 }
@@ -298,7 +298,7 @@ static int felix_qbv_get_status(struct net_device *ndev,
 	ptptime_t cur_time;
 	u32 val;
 
-	mutex_lock(&ocelot->tas_lock);
+	mutex_lock(&ocelot->fwd_domain_lock);
 
 	ocelot_rmw(ocelot,
 		   QSYS_TAS_PARAM_CFG_CTRL_PORT_NUM(port),
@@ -331,7 +331,7 @@ static int felix_qbv_get_status(struct net_device *ndev,
 	qbvstatus->current_time = cur_time;
 	felix_qbv_get_gatelist(ocelot, oper);
 
-	mutex_unlock(&ocelot->tas_lock);
+	mutex_unlock(&ocelot->fwd_domain_lock);
 
 	return 0;
 }
@@ -340,6 +340,7 @@ static int felix_qbu_set(struct net_device *ndev, u8 preemptible)
 {
 	struct dsa_port *dp = dsa_port_from_netdev(ndev);
 	struct ocelot *ocelot = dp->ds->priv;
+	struct felix *felix = ocelot_to_felix(ocelot);
 	struct ocelot_port *ocelot_port;
 	int port = dp->index;
 
@@ -368,6 +369,9 @@ static int felix_qbu_set(struct net_device *ndev, u8 preemptible)
 		       port);
 
 	ocelot_port->preemptable_prios = preemptible;
+
+	if (ocelot_port->taprio && felix->info->tas_guard_bands_update)
+		felix->info->tas_guard_bands_update(ocelot, port);
 
 	mutex_unlock(&ocelot->fwd_domain_lock);
 

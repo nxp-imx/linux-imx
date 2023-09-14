@@ -27,6 +27,14 @@ definitions:
     description: dai-link uses bit clock inversion
     $ref: /schemas/types.yaml#/definitions/flag
 
+  playback-only:
+    description: dai-link is used only for playback
+    $ref: /schemas/types.yaml#/definitions/flag
+
+  capture-only:
+    description: dai-link is used only for capture
+    $ref: /schemas/types.yaml#/definitions/flag
+
   dai-tdm-slot-num:
     description: see tdm-slot.txt.
     $ref: /schemas/types.yaml#/definitions/uint32

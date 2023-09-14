@@ -12,11 +12,37 @@
 #include <linux/mailbox_client.h>
 #include <linux/mailbox_controller.h>
 #include <linux/kfifo.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/trusty/trusty_ipc.h>
+
 
 #define VPU_TIMEOUT_WAKEUP	msecs_to_jiffies(200)
 #define VPU_TIMEOUT		msecs_to_jiffies(1000)
 #define VPU_INST_NULL_ID	(-1L)
 #define VPU_MSG_BUFFER_SIZE	(8192)
+#define SECURE_MEMORY_BASE      (0xE0000000)
+#define SECURE_MEMORY_SIZE      (0x10000000)
+
+#define SMC_ENTITY_VPU 55
+#define SMC_WV_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
+#define SMC_WV_COPY SMC_FASTCALL_NR(SMC_ENTITY_VPU, 1)
+#define SMC_WV_MEMSET SMC_FASTCALL_NR(SMC_ENTITY_VPU, 2)
+#define SMC_WV_MESSAGE_BUFFER SMC_FASTCALL_NR(SMC_ENTITY_VPU, 3)
+#define SMC_WV_HDR SMC_FASTCALL_NR(SMC_ENTITY_VPU, 4)
+#define SMC_WV_CONTROL_VPU SMC_FASTCALL_NR(SMC_ENTITY_VPU, 5)
+#define SMC_WV_CONTROL_VPU_CORE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 6)
+#define SMC_WV_MMAP_SAHRE_MEMORY SMC_FASTCALL_NR(SMC_ENTITY_VPU, 7)
+#define SMC_WV_FIRMWARE_LOADED SMC_FASTCALL_NR(SMC_ENTITY_VPU, 8)
+#define SMC_WV_GET_STATE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 9)
+
+#define SMC_ENTITY_SCU 56
+#define SMC_WV_POWER_SET SMC_FASTCALL_NR(SMC_ENTITY_SCU, 1)
+
+#define IMX_SIP_CONFIGURE_MEM_FOR_VPU	0xC2000010
+
+#define OPT_WRITE 0x2
+#define OPT_READ 0x1
 
 enum imx_plat_type {
 	IMX8QXP = 0,
@@ -39,6 +65,17 @@ struct vpu_resources {
 	int (*setup_encoder)(struct vpu_dev *vpu);
 	int (*setup_decoder)(struct vpu_dev *vpu);
 	int (*reset)(struct vpu_dev *vpu);
+};
+
+struct vpu_ctx {
+	void			*message_buffer;
+	struct scatterlist	message_sg;
+	trusty_shared_mem_id_t	message_buffer_id;
+	size_t			message_buffer_sz;
+	void                    *hdr_buffer;
+	struct scatterlist      hdr_sg;
+	trusty_shared_mem_id_t  hdr_buffer_id;
+	size_t                  hdr_buffer_sz;
 };
 
 struct vpu_buffer {
@@ -81,6 +118,11 @@ struct vpu_dev {
 	atomic_t ref_dec;
 
 	struct dentry *debugfs;
+	struct device *trusty_dev;
+	struct mutex copy_lock;
+	struct mutex memset_lock;
+	struct mutex hdr_lock;
+
 };
 
 struct vpu_format {
@@ -262,6 +304,7 @@ struct vpu_inst {
 	u32 min_buffer_out;
 	u32 total_input_count;
 	int header_separate;
+	int secure_mode;
 
 	struct v4l2_rect crop;
 	u32 colorspace;
@@ -277,6 +320,8 @@ struct vpu_inst {
 	pid_t pid;
 	pid_t tgid;
 	struct dentry *debugfs;
+	int stream_buffer_fd;
+	struct dma_buf* secure_stream_dma_buf;
 
 	void *priv;
 };
@@ -306,6 +351,13 @@ struct vpu_vb2_buffer {
 	dma_addr_t chroma_v;
 	unsigned int state;
 	u32 tag;
+};
+
+struct vpu_fastcall_message {
+	uint32_t secure_memory_offset;
+	uint32_t src_offset;
+	uint32_t dst_offset;
+	uint64_t size;
 };
 
 void vpu_writel(struct vpu_dev *vpu, u32 reg, u32 val);
@@ -356,6 +408,9 @@ void vpu_inst_record_flow(struct vpu_inst *inst, u32 flow);
 int vpu_core_driver_init(void);
 void vpu_core_driver_exit(void);
 
+void copy_wrapper(struct vpu_inst *inst, void *src_virt, void *dst_virt, u32 size);
+void memset_wrapper(struct vpu_inst *inst, void *dst_virt, u32 offset, u32 value, u32 size);
+
 extern bool debug;
 #define vpu_trace(dev, fmt, arg...)					\
 	do {								\
@@ -364,3 +419,37 @@ extern bool debug;
 	} while (0)
 
 #endif
+
+
+u32 trusty_vpu_reg(struct device *dev, u32 target, u32 val, u32 w_r);
+u32 trusty_vpu_core_reg(struct device *dev, u32 target, u32 val, u32 w_r);
+extern struct device *trusty_dev;
+extern void __iomem *vpu_malone_base;
+#define writel_vpu(val, addr) \
+        do { \
+                if (vpu->trusty_dev) { \
+                        trusty_vpu_reg(vpu->trusty_dev, (addr - vpu->base), val, OPT_WRITE); \
+                } else { \
+                        writel(val, addr); \
+                }\
+        } while (0)
+
+#define writel_vpu_malone(val, addr) \
+        do { \
+                if (trusty_dev) { \
+                        trusty_vpu_reg(trusty_dev, addr, val, OPT_WRITE); \
+                } else { \
+                        writel(val, addr + vpu_malone_base); \
+                }\
+        } while (0)
+
+#define core_writel(val, addr) \
+        do { \
+                if (core->vpu->trusty_dev && (core->id == 0)) { \
+                        trusty_vpu_core_reg(core->vpu->trusty_dev, (addr - core->base), val, OPT_WRITE); \
+                } else { \
+                        writel(val, addr); \
+                }\
+        } while (0)
+
+

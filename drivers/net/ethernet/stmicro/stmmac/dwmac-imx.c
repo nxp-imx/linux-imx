@@ -43,6 +43,9 @@
 #define DMA_BUS_MODE			0x00001000
 #define DMA_BUS_MODE_SFT_RESET		(0x1 << 0)
 #define RMII_RESET_SPEED		(0x3 << 14)
+#define BASET10_RESET_SPEED		(0x2 << 14)
+#define RGMII_RESET_SPEED		(0x0 << 14)
+#define CTRL_SPEED_MASK			(0x3 << 14)
 
 struct imx_dwmac_ops {
 	u32 addr_width;
@@ -59,6 +62,7 @@ struct imx_priv_data {
 	struct regmap *intf_regmap;
 	u32 intf_reg_off;
 	bool rmii_refclk_ext;
+	void __iomem *base_addr;
 
 	const struct imx_dwmac_ops *ops;
 	struct plat_stmmacenet_data *plat_dat;
@@ -246,6 +250,61 @@ static void imx_dwmac_fix_speed(void *priv, unsigned int speed)
 		dev_err(dwmac->dev, "failed to set tx rate %lu\n", rate);
 }
 
+static bool imx_dwmac_is_fixed_link(struct imx_priv_data *dwmac)
+{
+	struct plat_stmmacenet_data *plat_dat;
+	struct device_node *dn;
+
+	if (!dwmac || !dwmac->plat_dat)
+		return false;
+
+	plat_dat = dwmac->plat_dat;
+	dn = of_get_child_by_name(dwmac->dev->of_node, "fixed-link");
+	if (!dn)
+		return false;
+
+	if (plat_dat->phy_node == dn || plat_dat->phylink_node == dn)
+		return true;
+
+	return false;
+}
+
+static void imx_dwmac_fix_speed_mx93(void *priv, unsigned int speed)
+{
+	struct plat_stmmacenet_data *plat_dat;
+	struct imx_priv_data *dwmac = priv;
+	int val, ctrl, old_ctrl;
+
+	imx_dwmac_fix_speed(priv, speed);
+
+	old_ctrl = readl(dwmac->base_addr + MAC_CTRL_REG);
+	plat_dat = dwmac->plat_dat;
+	ctrl = old_ctrl & ~CTRL_SPEED_MASK;
+
+	/* by default ctrl will be SPEED_1000 */
+	if (speed == SPEED_100)
+		ctrl |= RMII_RESET_SPEED;
+	if (speed == SPEED_10)
+		ctrl |= BASET10_RESET_SPEED;
+
+	if (imx_dwmac_is_fixed_link(dwmac)) {
+		writel(ctrl, dwmac->base_addr + MAC_CTRL_REG);
+
+		/* Ensure the settings for CTRL are applied */
+		wmb();
+
+		val = MX93_GPR_ENET_QOS_INTF_SEL_RGMII;
+		regmap_update_bits(dwmac->intf_regmap, dwmac->intf_reg_off,
+				   MX93_GPR_ENET_QOS_INTF_MODE_MASK, val);
+		usleep_range(50, 100);
+		val = MX93_GPR_ENET_QOS_INTF_SEL_RGMII | MX93_GPR_ENET_QOS_CLK_GEN_EN;
+		regmap_update_bits(dwmac->intf_regmap, dwmac->intf_reg_off,
+				   MX93_GPR_ENET_QOS_INTF_MODE_MASK, val);
+
+		writel(old_ctrl, dwmac->base_addr + MAC_CTRL_REG);
+	}
+}
+
 static int imx_dwmac_mx93_reset(void *priv, void __iomem *ioaddr)
 {
 	struct plat_stmmacenet_data *plat_dat = priv;
@@ -352,8 +411,11 @@ static int imx_dwmac_probe(struct platform_device *pdev)
 	plat_dat->exit = imx_dwmac_exit;
 	plat_dat->clks_config = imx_dwmac_clks_config;
 	plat_dat->fix_mac_speed = imx_dwmac_fix_speed;
+	if (of_machine_is_compatible("fsl,imx93"))
+		plat_dat->fix_mac_speed = imx_dwmac_fix_speed_mx93;
 	plat_dat->bsp_priv = dwmac;
 	dwmac->plat_dat = plat_dat;
+	dwmac->base_addr = stmmac_res.addr;
 
 	ret = imx_dwmac_clks_config(dwmac, true);
 	if (ret)

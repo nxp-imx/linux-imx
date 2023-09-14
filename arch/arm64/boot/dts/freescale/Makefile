@@ -118,7 +118,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk.dtb imx8mp-evk-rm67191.dtb imx8mp-evk-it626
 			  imx8mp-evk-ov2775-ov5640.dtb imx8mp-evk-basler-ov5640.dtb imx8mp-evk-basler.dtb \
 			  imx8mp-evk-basler-ov2775.dtb imx8mp-evk-dual-basler.dtb \
 			  imx8mp-evk-dual-ov2775.dtb imx8mp-evk-spdif-lb.dtb imx8mp-evk-dsp.dtb \
-			  imx8mp-evk-sof-wm8960.dtb \
+			  imx8mp-evk-sof-wm8960.dtb imx8mp-evk-sof-pdm.dtb \
 			  imx8mp-evk-os08a20-ov5640.dtb imx8mp-evk-os08a20.dtb \
 			  imx8mp-evk-dual-os08a20.dtb \
 			  imx8mp-evk-iqaudio-dacplus.dtb imx8mp-evk-iqaudio-dacpro.dtb imx8mp-evk-hifiberry-dacplus.dtb \
@@ -324,7 +324,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8dxl-phantom-mek.dtb \
 			  imx8dxl-orangebox.dtb \
 			  imx8dxl-orangebox-sd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-ov5640.dtb \
-			  imx8qxp-mek-enet2.dtb imx8qxp-mek-enet2-tja1100.dtb \
+			  imx8qxp-mek-enet2.dtb imx8qxp-mek-enet2-sja1105.dtb \
+			  imx8qxp-mek-enet2-tja1100.dtb \
 			  imx8qxp-mek-sof-cs42888.dtb imx8qxp-mek-sof-wm8960.dtb imx8qxp-mek-sof.dtb\
 			  imx8qxp-mek-rpmsg.dtb imx8qxp-mek-a0.dtb \
 			  imx8qxp-mek-it6263-lvds0-dual-channel.dtb \
@@ -375,7 +376,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb \
 dtb-$(CONFIG_ARCH_MXC) += imx93-14x14-evk.dtb \
 			  imx93-14x14-evk-tja1103.dtb imx93-14x14-evk-rm67199.dtb \
 			  imx93-14x14-evk-mqs.dtb imx93-14x14-evk-aud-hat.dtb \
-			  imx93-14x14-evk-lvds-it6263.dtb
+			  imx93-14x14-evk-lvds-it6263.dtb imx93-14x14-evk-sja1105.dtb \
+			  imx93-14x14-evk-flexspi-m2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
 			  imx93-11x11-evk-inmate.dtb imx93-11x11-evk-root.dtb imx93-11x11-evk-flexio-i2c.dtb \
 			  imx93-11x11-evk-lpspi.dtb imx93-11x11-evk-lpspi-slave.dtb \
@@ -393,7 +395,27 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-9x9-qsb.dtb \
 			  imx93-9x9-qsb-mt9m114.dtb \
 			  imx93-9x9-qsb-i3c.dtb \
 			  imx93-9x9-qsb-lpspi.dtb imx93-9x9-qsb-lpspi-slave.dtb \
-			  imx93-9x9-qsb-ld.dtb imx93-9x9-qsb-aud-hat.dtb
+			  imx93-9x9-qsb-ld.dtb imx93-9x9-qsb-aud-hat.dtb \
+			  imx93-9x9-qsb-rpmsg.dtb imx93-9x9-qsb-rpmsg-lpv.dtb
+
+dtb-$(CONFIG_ARCH_MXC) += imx91p-9x9-qsb.dtb imx91p-9x9-qsb-aud-hat.dtb \
+			  imx91p-9x9-qsb-mt9m114.dtb \
+			  imx91p-9x9-qsb-flexspi-m2.dtb \
+			  imx91p-9x9-qsb-spi-nand-m2.dtb \
+			  imx91p-9x9-qsb-i3c.dtb \
+			  imx91p-9x9-qsb-lpspi.dtb \
+			  imx91p-9x9-qsb-lpspi-slave.dtb \
+			  imx91p-9x9-qsb-ld.dtb \
+			  imx91p-9x9-qsb-ontat-wvga-panel.dtb \
+			  imx91p-9x9-qsb-can1.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91p-11x11-evk.dtb imx91p-11x11-evk-mt9m114.dtb \
+			  imx91p-11x11-evk-mqs.dtb imx91p-11x11-evk-aud-hat.dtb \
+			  imx91p-11x11-evk-ontat-wvga-panel.dtb \
+			  imx91p-11x11-evk-flexspi-m2.dtb \
+			  imx91p-11x11-evk-ld.dtb \
+			  imx91p-11x11-evk-i3c.dtb \
+			  imx91p-11x11-evk-lpspi.dtb \
+			  imx91p-11x11-evk-lpspi-slave.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw72xx-0x-imx219.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw72xx-0x-rs232-rts.dtb
@@ -414,7 +436,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-md.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-powersave.dtb imx8mp-evk-powersave-non-rpmsg.dtb \
                           imx8mp-evk-hifiberry-dacpp-m-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-pcie1-m2-gki.dtb imx8mq-evk-lcdif-adv7535-gki.dtb \
-                          imx8mq-evk-dcss-rm67199-gki.dtb  imx8mq-evk-dcss-rm67191-gki.dtb imx8mq-evk-dual-display-gki.dtb
+                          imx8mq-evk-dcss-rm67199-gki.dtb  imx8mq-evk-dcss-rm67191-gki.dtb \
+                          imx8mq-evk-dual-display-gki.dtb  imx8mq-evk-gki.dtb
 
 imx8mp-evk-revb4-powersave-non-rpmsg-dtbs := imx8mp-evk-powersave-non-rpmsg.dtb imx8mp-evk-revb4.dtbo
 

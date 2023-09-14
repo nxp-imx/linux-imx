@@ -59,8 +59,13 @@ static void imx8qm_pixel_link_mux(struct imx_mhdp_device *imx_mhdp)
 static void imx8qm_pixel_link_valid(u32 dual_mode)
 {
 	struct imx_sc_ipc *handle;
+	int ret = 0;
 
-	imx_scu_get_handle(&handle);
+	ret = imx_scu_get_handle(&handle);
+	if (ret) {
+		DRM_ERROR("Failed to get scu ipc handle (%d)\n", ret);
+		return;
+	}
 
 	imx_sc_misc_set_control(handle, IMX_SC_R_DC_0, IMX_SC_C_PXL_LINK_MST1_VLD, 1);
 	if (dual_mode)
@@ -70,8 +75,13 @@ static void imx8qm_pixel_link_valid(u32 dual_mode)
 static void imx8qm_pixel_link_invalid(u32 dual_mode)
 {
 	struct imx_sc_ipc *handle;
+	int ret = 0;
 
-	imx_scu_get_handle(&handle);
+	ret = imx_scu_get_handle(&handle);
+	if (ret) {
+		DRM_ERROR("Failed to get scu ipc handle (%d)\n", ret);
+		return;
+	}
 
 	imx_sc_misc_set_control(handle, IMX_SC_R_DC_0, IMX_SC_C_PXL_LINK_MST1_VLD, 0);
 	if (dual_mode)
@@ -81,8 +91,13 @@ static void imx8qm_pixel_link_invalid(u32 dual_mode)
 static void imx8qm_pixel_link_sync_enable(u32 dual_mode)
 {
 	struct imx_sc_ipc *handle;
+	int ret = 0;
 
-	imx_scu_get_handle(&handle);
+	ret = imx_scu_get_handle(&handle);
+	if (ret) {
+		DRM_ERROR("Failed to get scu ipc handle (%d)\n", ret);
+		return;
+	}
 
 	if (dual_mode)
 		imx_sc_misc_set_control(handle, IMX_SC_R_DC_0, IMX_SC_C_SYNC_CTRL, 3);
@@ -93,8 +108,13 @@ static void imx8qm_pixel_link_sync_enable(u32 dual_mode)
 static void imx8qm_pixel_link_sync_disable(u32 dual_mode)
 {
 	struct imx_sc_ipc *handle;
+	int ret = 0;
 
-	imx_scu_get_handle(&handle);
+	ret = imx_scu_get_handle(&handle);
+	if (ret) {
+		DRM_ERROR("Failed to get scu ipc handle (%d)\n", ret);
+		return;
+	}
 
 	if (dual_mode)
 		imx_sc_misc_set_control(handle, IMX_SC_R_DC_0, IMX_SC_C_SYNC_CTRL, 0);
@@ -644,6 +664,14 @@ int cdns_mhdp_firmware_init_imx8qm(struct cdns_mhdp_device *mhdp)
 
 	/* turn on IP activity */
 	cdns_mhdp_set_firmware_active(&imx_mhdp->mhdp, 1);
+
+	if (mhdp->is_dp) {
+		ret = cdns_mhdp_set_maximum_defer_retry(mhdp,
+							mhdp->i2c_over_aux_retries);
+		if (!ret)
+			DRM_INFO("set maximum defer retry to %d",
+				 mhdp->i2c_over_aux_retries);
+	}
 
 	DRM_INFO("HDP FW Version - ver %d verlib %d\n",
 			cdns_mhdp_bus_read(mhdp, VER_L) + (cdns_mhdp_bus_read(mhdp, VER_H) << 8),

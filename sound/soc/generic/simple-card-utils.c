@@ -136,6 +136,30 @@ int asoc_simple_parse_daifmt(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(asoc_simple_parse_daifmt);
 
+int asoc_simple_parse_link_direction(struct device *dev, struct device_node *node, char *prefix,
+				     bool *playback_only, bool *capture_only)
+{
+	bool is_playback_only = false;
+	bool is_capture_only = false;
+
+	if (!prefix)
+		prefix = "";
+
+	is_playback_only = of_property_read_bool(node, "playback-only");
+	is_capture_only = of_property_read_bool(node, "capture-only");
+
+	if (is_playback_only && is_capture_only) {
+		dev_err(dev, "Invalid configuration, both playback-only / capture-only are set\n");
+		return -EINVAL;
+	}
+
+	*playback_only = is_playback_only;
+	*capture_only = is_capture_only;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(asoc_simple_parse_link_direction);
+
 int asoc_simple_parse_tdm_width_map(struct device *dev, struct device_node *np,
 				    struct asoc_simple_dai *dai)
 {
@@ -335,7 +359,7 @@ int asoc_simple_startup(struct snd_pcm_substream *substream)
 		}
 		ret = snd_pcm_hw_constraint_minmax(substream->runtime, SNDRV_PCM_HW_PARAM_RATE,
 			fixed_rate, fixed_rate);
-		if (ret)
+		if (ret < 0)
 			goto codec_err;
 	}
 

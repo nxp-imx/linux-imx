@@ -2768,8 +2768,7 @@ static int clk_core_set_parent_nolock(struct clk_core *core,
 	if (!core)
 		return 0;
 
-	if ((core->parent == parent) &&
-		!(core->flags & CLK_SET_PARENT_NOCACHE))
+	if (core->parent == parent)
 		return 0;
 
 	/* verify ops for multi-parent clks */

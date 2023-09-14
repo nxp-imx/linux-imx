@@ -14,6 +14,10 @@
 #include "vpu_core.h"
 #include "vpu_rpc.h"
 #include "vpu_helpers.h"
+#include "vpu_v4l2.h"
+
+extern struct vpu_fastcall_message* fastcall_msg;
+extern trusty_shared_mem_id_t fastcall_msg_mem_id;
 
 int vpu_helper_find_in_array_u8(const u8 *array, u32 size, u32 x)
 {
@@ -74,6 +78,7 @@ const struct vpu_format *vpu_helper_find_sibling(struct vpu_inst *inst, u32 type
 		return NULL;
 
 	return sibling;
+	mutex_lock(&inst->vpu->hdr_lock);
 }
 
 bool vpu_helper_match_format(struct vpu_inst *inst, u32 type, u32 fmta, u32 fmtb)
@@ -93,6 +98,7 @@ const struct vpu_format *vpu_helper_enum_format(struct vpu_inst *inst, u32 type,
 {
 	const struct vpu_format *pfmt;
 	int i = 0;
+
 
 	if (!inst || !inst->formats)
 		return NULL;
@@ -299,6 +305,59 @@ int vpu_helper_copy_to_stream_buffer(struct vpu_buffer *stream_buffer,
 	return 0;
 }
 
+int vpu_helper_secure_copy_to_stream_buffer(struct vpu_buffer *stream_buffer,
+				     u32 *wptr, u32 size, size_t align_size, void *src, struct vpu_inst *inst,
+				     struct vb2_buffer *vb)
+{
+	u32 offset;
+	u32 start;
+	u32 end;
+	void *virt;
+
+	mutex_lock(&inst->vpu->copy_lock);
+	if (!stream_buffer || !wptr || !src)
+		return -EINVAL;
+
+	if (!size)
+		return 0;
+
+	offset = *wptr;
+	start = stream_buffer->phys;
+	end = start + stream_buffer->length;
+	virt = stream_buffer->virt;
+
+        if (offset < start || offset > end)
+                return -EINVAL;
+
+	/*get src mem_id*/
+	if (align_size == 0) {
+		uint64_t secure_fd_paddr = vpu_get_vb_phy_addr(vb, 0);
+		fastcall_msg->secure_memory_offset = secure_fd_paddr - 0xE0000000;
+	} else {
+		fastcall_msg->secure_memory_offset = 0x10000000;
+	}
+
+	if (offset + size <= end) {
+		fastcall_msg->src_offset = 0;
+		fastcall_msg->dst_offset = inst->stream_buffer.phys - SECURE_MEMORY_BASE + offset - start;
+		fastcall_msg->size = size;
+		copy_wrapper(inst, src, virt + (offset - start), size);
+	} else {
+		fastcall_msg->src_offset = 0;
+		fastcall_msg->dst_offset = inst->stream_buffer.phys - SECURE_MEMORY_BASE + offset - start;
+		fastcall_msg->size = end - offset;
+		copy_wrapper(inst, src, virt + (offset - start), end - offset);
+		fastcall_msg->src_offset = end - offset;
+		fastcall_msg->dst_offset = inst->stream_buffer.phys - SECURE_MEMORY_BASE;
+		fastcall_msg->size = size + offset - end;
+		copy_wrapper(inst, src + end - offset, virt, size + offset - end);
+	}
+
+	*wptr = vpu_helper_step_walk(stream_buffer, offset, size);
+	mutex_unlock(&inst->vpu->copy_lock);
+	return 0;
+}
+
 int vpu_helper_memset_stream_buffer(struct vpu_buffer *stream_buffer,
 				    u32 *wptr, u8 val, u32 size)
 {
@@ -332,6 +391,45 @@ int vpu_helper_memset_stream_buffer(struct vpu_buffer *stream_buffer,
 		offset -= stream_buffer->length;
 
 	*wptr = offset;
+
+	return 0;
+}
+
+int vpu_helper_secure_memset_stream_buffer(struct vpu_buffer *stream_buffer,
+				    u32 *wptr, u8 val, u32 size, struct vpu_inst *inst)
+{
+	u32 offset;
+	u32 start;
+	u32 end;
+	void *virt;
+
+	mutex_lock(&inst->vpu->memset_lock);
+	if (!stream_buffer || !wptr)
+		return -EINVAL;
+
+	if (!size)
+		return 0;
+
+	offset = *wptr;
+	start = stream_buffer->phys;
+	end = start + stream_buffer->length;
+	virt = stream_buffer->virt;
+	if (offset < start || offset > end)
+		return -EINVAL;
+
+	if (offset + size <= end) {
+		memset_wrapper(inst, virt + (offset - start),  (offset - start), val, size);
+	} else {
+		memset_wrapper(inst, virt + (offset - start),  (offset - start), val, end - offset);
+		memset_wrapper(inst, virt, 0, val, size + offset - end);
+	}
+
+	offset += size;
+	if (offset >= end)
+		offset -= stream_buffer->length;
+
+	*wptr = offset;
+	mutex_unlock(&inst->vpu->memset_lock);
 
 	return 0;
 }

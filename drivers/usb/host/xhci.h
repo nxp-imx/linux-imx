@@ -1906,7 +1906,7 @@ struct xhci_hcd {
 #define XHCI_DISABLE_SPARSE	BIT_ULL(38)
 #define XHCI_SG_TRB_CACHE_SIZE_QUIRK	BIT_ULL(39)
 #define XHCI_NO_SOFT_RETRY	BIT_ULL(40)
-#define XHCI_BROKEN_D3COLD	BIT_ULL(41)
+#define XHCI_BROKEN_D3COLD_S2I	BIT_ULL(41)
 #define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(42)
 #define XHCI_SUSPEND_RESUME_CLKS	BIT_ULL(43)
 #define XHCI_RESET_TO_DEFAULT	BIT_ULL(44)
@@ -2307,6 +2307,11 @@ struct xhci_vendor_ops {
 	void (*alloc_container_ctx)(struct xhci_hcd *xhci, struct xhci_container_ctx *ctx,
 				    int type, gfp_t flags);
 	void (*free_container_ctx)(struct xhci_hcd *xhci, struct xhci_container_ctx *ctx);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 struct xhci_vendor_ops *xhci_vendor_get_ops(struct xhci_hcd *xhci);

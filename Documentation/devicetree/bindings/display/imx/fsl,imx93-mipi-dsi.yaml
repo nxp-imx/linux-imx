@@ -35,11 +35,13 @@ properties:
     items:
       - description: byte clock
       - description: apb clock
+      - description: pixel clock
 
   clock-names:
     items:
       - const: byte
       - const: pclk
+      - const: pixel
 
   assigned-clocks: true
   assigned-clock-parents: true
@@ -94,8 +96,9 @@ examples:
         reg = <0x4ae10000 0x4000>;
         interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&clk IMX93_CLK_MIPI_TEST_BYTE>,
-                 <&clk IMX93_CLK_MIPI_DSI_GATE>;
-        clock-names = "byte", "pclk";
+                 <&clk IMX93_CLK_MIPI_DSI_GATE>,
+                 <&clk IMX93_CLK_MEDIA_DISP_PIX>;
+        clock-names = "byte", "pclk", "pixel";
         assigned-clocks = <&clk IMX93_CLK_MIPI_TEST_BYTE>,
                           <&clk IMX93_CLK_MEDIA_APB>;
         assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD0>,

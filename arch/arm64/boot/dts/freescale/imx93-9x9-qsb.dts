@@ -58,8 +58,8 @@
 			no-map;
 		};
 
-		rsc_table: rsc-table@2021f000 {
-			reg = <0 0x2021f000 0 0x1000>;
+		rsc_table: rsc-table@2021e000 {
+			reg = <0 0x2021e000 0 0x1000>;
 			no-map;
 		};
 
@@ -92,6 +92,16 @@
 		fsl,cm33-proc = <&cm33>;
 		memory-region = <&ethosu_mem>;
 		power-domains = <&mlmix>;
+	};
+
+	reg_rpi_3v3: regulator-rpi {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		regulator-name = "VDD_RPI_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pcal6524 21 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 
 	reg_usdhc2_vmmc: regulator-usdhc2 {
@@ -248,6 +258,14 @@
 			0x0000 /* 4:FN_DMICCDAT */
 			0x0000 /* 5:Default */
 		>;
+	};
+
+	pcf2131: rtc@53 {
+			compatible = "nxp,pcf2131";
+			reg = <0x53>;
+			interrupt-parent = <&pcal6524>;
+			interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
+			status = "okay";
 	};
 
 	ptn5110: tcpc@50 {

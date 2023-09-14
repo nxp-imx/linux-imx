@@ -34,6 +34,7 @@
 #define FIRMWARE_W9098	"nxp/uartuart9098_bt_v1.bin"
 #define FIRMWARE_IW416	"nxp/uartiw416_bt_v0.bin"
 #define FIRMWARE_IW612	"nxp/uartspi_n61x_v1.bin.se"
+#define FIRMWARE_HELPER	"nxp/helper_uart_3000000.bin"
 
 #define CHIP_ID_W9098		0x5c03
 #define CHIP_ID_IW416		0x7201
@@ -123,7 +124,7 @@ struct psmode_cmd_payload {
 } __packed;
 
 struct btnxpuart_data {
-	bool fw_download_3M_baudrate;
+	const char *helper_fw_name;
 	const char *fw_name;
 };
 
@@ -150,6 +151,7 @@ struct btnxpuart_dev {
 	u32 fw_init_baudrate;
 	bool timeout_changed;
 	bool baudrate_changed;
+	bool helper_downloaded;
 
 	struct ps_data psdata;
 	struct btnxpuart_data *nxp_data;
@@ -167,6 +169,13 @@ struct btnxpuart_dev {
 #define NXP_CRC_ERROR_V3	0x7c
 
 #define HDR_LEN			16
+
+#define NXP_RECV_CHIP_VER_V1 \
+	.type = NXP_V1_CHIP_VER_PKT, \
+	.hlen = 4, \
+	.loff = 0, \
+	.lsize = 0, \
+	.maxlen = 4
 
 #define NXP_RECV_FW_REQ_V1 \
 	.type = NXP_V1_FW_REQ_PKT, \
@@ -192,6 +201,11 @@ struct btnxpuart_dev {
 struct v1_data_req {
 	__le16 len;
 	__le16 len_comp;
+} __packed;
+
+struct v1_start_ind {
+	__le16 chip_id;
+	__le16 chip_id_comp;
 } __packed;
 
 struct v3_data_req {
@@ -518,9 +532,10 @@ static int nxp_download_firmware(struct hci_dev *hdev)
 	nxpdev->fw_v3_offset_correction = 0;
 	nxpdev->baudrate_changed = false;
 	nxpdev->timeout_changed = false;
+	nxpdev->helper_downloaded = false;
 
 	serdev_device_set_baudrate(nxpdev->serdev, HCI_NXP_PRI_BAUDRATE);
-	serdev_device_set_flow_control(nxpdev->serdev, 0);
+	serdev_device_set_flow_control(nxpdev->serdev, false);
 	nxpdev->current_baudrate = HCI_NXP_PRI_BAUDRATE;
 
 	/* Wait till FW is downloaded and CTS becomes low */
@@ -533,7 +548,7 @@ static int nxp_download_firmware(struct hci_dev *hdev)
 		return -ETIMEDOUT;
 	}
 
-	serdev_device_set_flow_control(nxpdev->serdev, 1);
+	serdev_device_set_flow_control(nxpdev->serdev, true);
 	err = serdev_device_wait_for_cts(nxpdev->serdev, 1, 60000);
 	if (err < 0) {
 		bt_dev_err(hdev, "CTS is still high. FW Download failed.");
@@ -664,60 +679,103 @@ static int nxp_request_firmware(struct hci_dev *hdev, const char *fw_name)
 }
 
 /* for legacy chipsets with V1 bootloader */
+static int nxp_recv_chip_ver_v1(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
+	struct v1_start_ind *req;
+	__u16 chip_id;
+
+	req = skb_pull_data(skb, sizeof(*req));
+	if (!req)
+		goto free_skb;
+
+	chip_id = le16_to_cpu(req->chip_id ^ req->chip_id_comp);
+	if (chip_id == 0xffff) {
+		nxpdev->fw_dnld_v1_offset = 0;
+		nxpdev->fw_v1_sent_bytes = 0;
+		nxpdev->fw_v1_expected_len = HDR_LEN;
+		release_firmware(nxpdev->fw);
+		memset(nxpdev->fw_name, 0, sizeof(nxpdev->fw_name));
+		nxp_send_ack(NXP_ACK_V1, hdev);
+	}
+
+free_skb:
+	kfree_skb(skb);
+	return 0;
+}
+
 static int nxp_recv_fw_req_v1(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	struct btnxpuart_data *nxp_data = nxpdev->nxp_data;
 	struct v1_data_req *req;
-	u32 requested_len;
+	__u16 len;
 
 	if (!process_boot_signature(nxpdev))
 		goto free_skb;
 
-	req = (struct v1_data_req *)skb_pull_data(skb, sizeof(struct v1_data_req));
+	req = skb_pull_data(skb, sizeof(*req));
 	if (!req)
 		goto free_skb;
 
-	if ((req->len ^ req->len_comp) != 0xffff) {
+	len = __le16_to_cpu(req->len ^ req->len_comp);
+	if (len != 0xffff) {
 		bt_dev_dbg(hdev, "ERR: Send NAK");
 		nxp_send_ack(NXP_NAK_V1, hdev);
 		goto free_skb;
 	}
 	nxp_send_ack(NXP_ACK_V1, hdev);
 
-	if (nxp_data->fw_download_3M_baudrate) {
+	len = __le16_to_cpu(req->len);
+
+	if (!nxp_data->helper_fw_name) {
 		if (!nxpdev->timeout_changed) {
-			nxpdev->timeout_changed = nxp_fw_change_timeout(hdev, req->len);
+			nxpdev->timeout_changed = nxp_fw_change_timeout(hdev,
+									len);
 			goto free_skb;
 		}
 		if (!nxpdev->baudrate_changed) {
-			nxpdev->baudrate_changed = nxp_fw_change_baudrate(hdev, req->len);
+			nxpdev->baudrate_changed = nxp_fw_change_baudrate(hdev,
+									  len);
 			if (nxpdev->baudrate_changed) {
 				serdev_device_set_baudrate(nxpdev->serdev,
 							   HCI_NXP_SEC_BAUDRATE);
-				serdev_device_set_flow_control(nxpdev->serdev, 1);
+				serdev_device_set_flow_control(nxpdev->serdev, true);
 				nxpdev->current_baudrate = HCI_NXP_SEC_BAUDRATE;
 			}
 			goto free_skb;
 		}
 	}
 
-	if (nxp_request_firmware(hdev, nxp_data->fw_name))
-		goto free_skb;
+	if (!nxp_data->helper_fw_name || nxpdev->helper_downloaded) {
+		if (nxp_request_firmware(hdev, nxp_data->fw_name))
+			goto free_skb;
+	} else if (nxp_data->helper_fw_name && !nxpdev->helper_downloaded) {
+		if (nxp_request_firmware(hdev, nxp_data->helper_fw_name))
+			goto free_skb;
+	}
 
-	requested_len = req->len;
-	if (requested_len == 0) {
-		bt_dev_dbg(hdev, "FW Downloaded Successfully: %zu bytes", nxpdev->fw->size);
-		clear_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
-		wake_up_interruptible(&nxpdev->fw_dnld_done_wait_q);
+	if (!len) {
+		bt_dev_dbg(hdev, "FW Downloaded Successfully: %zu bytes",
+			   nxpdev->fw->size);
+		if (nxp_data->helper_fw_name && !nxpdev->helper_downloaded) {
+			nxpdev->helper_downloaded = true;
+			serdev_device_wait_until_sent(nxpdev->serdev, 0);
+			serdev_device_set_baudrate(nxpdev->serdev,
+						   HCI_NXP_SEC_BAUDRATE);
+			serdev_device_set_flow_control(nxpdev->serdev, true);
+		} else {
+			clear_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
+			wake_up_interruptible(&nxpdev->fw_dnld_done_wait_q);
+		}
 		goto free_skb;
 	}
-	if (requested_len & 0x01) {
+	if (len & 0x01) {
 		/* The CRC did not match at the other end.
 		 * Simply send the same bytes again.
 		 */
-		requested_len = nxpdev->fw_v1_sent_bytes;
-		bt_dev_dbg(hdev, "CRC error. Resend %d bytes of FW.", requested_len);
+		len = nxpdev->fw_v1_sent_bytes;
+		bt_dev_dbg(hdev, "CRC error. Resend %d bytes of FW.", len);
 	} else {
 		nxpdev->fw_dnld_v1_offset += nxpdev->fw_v1_sent_bytes;
 
@@ -731,24 +789,23 @@ static int nxp_recv_fw_req_v1(struct hci_dev *hdev, struct sk_buff *skb)
 		 * mismatch, clearly the driver and FW are out of sync,
 		 * and we need to re-send the previous header again.
 		 */
-		if (requested_len == nxpdev->fw_v1_expected_len) {
-			if (requested_len == HDR_LEN)
+		if (len == nxpdev->fw_v1_expected_len) {
+			if (len == HDR_LEN)
 				nxpdev->fw_v1_expected_len = nxp_get_data_len(nxpdev->fw->data +
 									nxpdev->fw_dnld_v1_offset);
 			else
 				nxpdev->fw_v1_expected_len = HDR_LEN;
-		} else if (requested_len == HDR_LEN) {
+		} else if (len == HDR_LEN) {
 			/* FW download out of sync. Send previous chunk again */
 			nxpdev->fw_dnld_v1_offset -= nxpdev->fw_v1_sent_bytes;
 			nxpdev->fw_v1_expected_len = HDR_LEN;
 		}
 	}
 
-	if (nxpdev->fw_dnld_v1_offset + requested_len <= nxpdev->fw->size)
-		serdev_device_write_buf(nxpdev->serdev,
-					nxpdev->fw->data + nxpdev->fw_dnld_v1_offset,
-					requested_len);
-	nxpdev->fw_v1_sent_bytes = requested_len;
+	if (nxpdev->fw_dnld_v1_offset + len <= nxpdev->fw->size)
+		serdev_device_write_buf(nxpdev->serdev, nxpdev->fw->data +
+					nxpdev->fw_dnld_v1_offset, len);
+	nxpdev->fw_v1_sent_bytes = len;
 
 free_skb:
 	kfree_skb(skb);
@@ -778,13 +835,16 @@ static char *nxp_get_fw_name_from_chipid(struct hci_dev *hdev, u16 chipid)
 
 static int nxp_recv_chip_ver_v3(struct hci_dev *hdev, struct sk_buff *skb)
 {
-	struct v3_start_ind *req = skb_pull_data(skb, sizeof(struct v3_start_ind));
+	struct v3_start_ind *req = skb_pull_data(skb, sizeof(*req));
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
+	u16 chip_id;
 
 	if (!process_boot_signature(nxpdev))
 		goto free_skb;
 
-	if (!nxp_request_firmware(hdev, nxp_get_fw_name_from_chipid(hdev, req->chip_id)))
+	chip_id = le16_to_cpu(req->chip_id);
+	if (!nxp_request_firmware(hdev, nxp_get_fw_name_from_chipid(hdev,
+								    chip_id)))
 		nxp_send_ack(NXP_ACK_V3, hdev);
 
 free_skb:
@@ -796,52 +856,59 @@ static int nxp_recv_fw_req_v3(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	struct v3_data_req *req;
+	__u16 len;
+	__u32 offset;
 
 	if (!process_boot_signature(nxpdev))
 		goto free_skb;
 
-	req = (struct v3_data_req *)skb_pull_data(skb, sizeof(struct v3_data_req));
+	req = skb_pull_data(skb, sizeof(*req));
 	if (!req || !nxpdev->fw)
 		goto free_skb;
 
 	nxp_send_ack(NXP_ACK_V3, hdev);
 
+	len = __le16_to_cpu(req->len);
+
 	if (!nxpdev->timeout_changed) {
-		nxpdev->timeout_changed = nxp_fw_change_timeout(hdev, req->len);
+		nxpdev->timeout_changed = nxp_fw_change_timeout(hdev, len);
 		goto free_skb;
 	}
 
 	if (!nxpdev->baudrate_changed) {
-		nxpdev->baudrate_changed = nxp_fw_change_baudrate(hdev, req->len);
+		nxpdev->baudrate_changed = nxp_fw_change_baudrate(hdev, len);
 		if (nxpdev->baudrate_changed) {
 			serdev_device_set_baudrate(nxpdev->serdev,
 						   HCI_NXP_SEC_BAUDRATE);
-			serdev_device_set_flow_control(nxpdev->serdev, 1);
+			serdev_device_set_flow_control(nxpdev->serdev, true);
 			nxpdev->current_baudrate = HCI_NXP_SEC_BAUDRATE;
 		}
 		goto free_skb;
 	}
 
 	if (req->len == 0) {
-		bt_dev_dbg(hdev, "FW Downloaded Successfully: %zu bytes", nxpdev->fw->size);
+		bt_dev_dbg(hdev, "FW Downloaded Successfully: %zu bytes",
+			   nxpdev->fw->size);
 		clear_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
 		wake_up_interruptible(&nxpdev->fw_dnld_done_wait_q);
 		goto free_skb;
 	}
 	if (req->error)
-		bt_dev_dbg(hdev, "FW Download received err 0x%02x from chip", req->error);
+		bt_dev_dbg(hdev, "FW Download received err 0x%02x from chip",
+			   req->error);
 
-	if (req->offset < nxpdev->fw_v3_offset_correction) {
+	offset = __le32_to_cpu(req->offset);
+	if (offset < nxpdev->fw_v3_offset_correction) {
 		/* This scenario should ideally never occur. But if it ever does,
 		 * FW is out of sync and needs a power cycle.
 		 */
-		bt_dev_err(hdev, "Something went wrong during FW download. Please power cycle and try again");
+		bt_dev_err(hdev, "Something went wrong during FW download");
+		bt_dev_err(hdev, "Please power cycle and try again");
 		goto free_skb;
 	}
 
-	serdev_device_write_buf(nxpdev->serdev,
-				nxpdev->fw->data + req->offset - nxpdev->fw_v3_offset_correction,
-				req->len);
+	serdev_device_write_buf(nxpdev->serdev, nxpdev->fw->data + offset -
+				nxpdev->fw_v3_offset_correction, len);
 
 free_skb:
 	kfree_skb(skb);
@@ -917,7 +984,7 @@ free_skb:
 static int nxp_check_boot_sign(struct btnxpuart_dev *nxpdev)
 {
 	serdev_device_set_baudrate(nxpdev->serdev, HCI_NXP_PRI_BAUDRATE);
-	serdev_device_set_flow_control(nxpdev->serdev, 0);
+	serdev_device_set_flow_control(nxpdev->serdev, true);
 	set_bit(BTNXPUART_CHECK_BOOT_SIGNATURE, &nxpdev->tx_state);
 
 	return wait_event_interruptible_timeout(nxpdev->check_boot_sign_wait_q,
@@ -945,7 +1012,6 @@ static int nxp_setup(struct hci_dev *hdev)
 		clear_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
 	}
 
-	serdev_device_set_flow_control(nxpdev->serdev, 1);
 	device_property_read_u32(&nxpdev->serdev->dev, "fw-init-baudrate",
 				 &nxpdev->fw_init_baudrate);
 	if (!nxpdev->fw_init_baudrate)
@@ -1143,6 +1209,7 @@ static const struct h4_recv_pkt nxp_recv_pkts[] = {
 	{ H4_RECV_ACL,          .recv = hci_recv_frame },
 	{ H4_RECV_SCO,          .recv = hci_recv_frame },
 	{ H4_RECV_EVENT,        .recv = hci_recv_frame },
+	{ NXP_RECV_CHIP_VER_V1, .recv = nxp_recv_chip_ver_v1 },
 	{ NXP_RECV_FW_REQ_V1,   .recv = nxp_recv_fw_req_v1 },
 	{ NXP_RECV_CHIP_VER_V3, .recv = nxp_recv_chip_ver_v3 },
 	{ NXP_RECV_FW_REQ_V3,   .recv = nxp_recv_fw_req_v3 },
@@ -1252,17 +1319,17 @@ static void nxp_serdev_remove(struct serdev_device *serdev)
 	hci_free_dev(hdev);
 }
 
-static struct btnxpuart_data w8987_data = {
-	.fw_download_3M_baudrate = true,
+static struct btnxpuart_data w8987_data __maybe_unused = {
+	.helper_fw_name = NULL,
 	.fw_name = FIRMWARE_W8987,
 };
 
-static struct btnxpuart_data w8997_data = {
-	.fw_download_3M_baudrate = false,
+static struct btnxpuart_data w8997_data __maybe_unused = {
+	.helper_fw_name = FIRMWARE_HELPER,
 	.fw_name = FIRMWARE_W8997,
 };
 
-static const struct of_device_id nxpuart_of_match_table[] = {
+static const struct of_device_id nxpuart_of_match_table[] __maybe_unused = {
 	{ .compatible = "nxp,88w8987-bt", .data = &w8987_data },
 	{ .compatible = "nxp,88w8997-bt", .data = &w8997_data },
 	{ }

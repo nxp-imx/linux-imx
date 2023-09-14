@@ -114,7 +114,7 @@ static int read_fuse_word(struct ele_mu_priv *priv, u32 *value)
 	return -EINVAL;
 }
 
-int read_common_fuse(uint16_t fuse_id, u32 *value)
+int read_common_fuse(uint16_t fuse_id, u32 *value, bool special_id)
 {
 	struct ele_mu_priv *priv = NULL;
 	int err;
@@ -137,7 +137,11 @@ int read_common_fuse(uint16_t fuse_id, u32 *value)
 
 	switch (fuse_id) {
 	case OTP_UNIQ_ID:
-		err = read_otp_uniq_id(priv, value);
+		if (special_id)
+			err = read_otp_uniq_id(priv, value);
+		else
+			err = read_fuse_word(priv, value);
+
 		break;
 	default:
 		err = read_fuse_word(priv, value);

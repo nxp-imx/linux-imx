@@ -3,7 +3,7 @@
  * Copyright 2019 NXP.
  */
 
-#include "imx8mq-evk-pcie1-m2.dts"
+#include "imx8mq-evk.dts"
 
 / {
 	sound-hdmi {

@@ -59,8 +59,8 @@
 			no-map;
 		};
 
-		rsc_table: rsc-table@2021f000 {
-			reg = <0 0x2021f000 0 0x1000>;
+		rsc_table: rsc-table@2021e000 {
+			reg = <0 0x2021e000 0 0x1000>;
 			no-map;
 		};
 
@@ -163,7 +163,16 @@
 
 	usdhc3_pwrseq: usdhc3_pwrseq {
 		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&pcal6524 20 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&pcal6524 12 GPIO_ACTIVE_LOW>;
+	};
+
+	reg_usdhc3_vmmc: usdhc3-vmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "M2_WiFi_ON";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&pcal6524 20 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 
 	reg_dvdd_sel: regulator-dvdd_sel {
@@ -617,7 +626,7 @@
 	pinctrl-1 = <&pinctrl_usdhc3>, <&pinctrl_usdhc3_wlan>;
 	pinctrl-2 = <&pinctrl_usdhc3>, <&pinctrl_usdhc3_wlan>;
 	mmc-pwrseq = <&usdhc3_pwrseq>;
-	pinctrl-assert-gpios = <&pcal6524 13 GPIO_ACTIVE_HIGH>;
+	vmmc-supply = <&reg_usdhc3_vmmc>;
 	bus-width = <4>;
 	keep-power-in-suspend;
 	non-removable;

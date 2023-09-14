@@ -42,6 +42,14 @@
 		status = "disabled";
 	};
 
+	sound-bt-sco {
+		status = "disabled";
+	};
+
+	sound-xcvr {
+		status = "disabled";
+	};
+
 	rpmsg_audio: rpmsg_audio {
 		compatible = "fsl,imx93-rpmsg-audio";
 		model = "wm8962-audio";
@@ -157,5 +165,13 @@
 };
 
 &edma2{
+	status = "disabled";
+};
+
+&sai1 {
+	status = "disabled";
+};
+
+&xcvr {
 	status = "disabled";
 };

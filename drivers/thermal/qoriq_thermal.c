@@ -22,6 +22,7 @@
 #define SITES_MAX		16
 #define TMR_DISABLE		0x0
 #define TMR_ME			0x80000000
+#define TMR_CMD			BIT(29)
 #define TMR_ALPF		0x0c000000
 #define TMR_ALPF_V2		0x03000000
 #define TMTMIR_DEFAULT	0x0000000f
@@ -600,6 +601,12 @@ static int __maybe_unused qoriq_tmu_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
+	if (data->ver == TMU_VER93) {
+		ret = regmap_update_bits(data->regmap, REGS_TMR, TMR_CMD, TMR_CMD);
+		if (ret)
+			return ret;
+	}
+
 	clk_disable_unprepare(data->clk);
 
 	return 0;
@@ -613,6 +620,12 @@ static int __maybe_unused qoriq_tmu_resume(struct device *dev)
 	ret = clk_prepare_enable(data->clk);
 	if (ret)
 		return ret;
+
+	if (data->ver == TMU_VER93) {
+		ret = regmap_update_bits(data->regmap, REGS_TMR, TMR_CMD, 0);
+		if (ret)
+			return ret;
+	}
 
 	/* Enable monitoring */
 	return regmap_update_bits(data->regmap, REGS_TMR, TMR_ME, TMR_ME);

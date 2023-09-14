@@ -319,6 +319,29 @@ static const u32 vsc9959_sys_regmap[] = {
 	REG(SYS_COUNT_RX_GREEN_PRIO_5,		0x0000a4),
 	REG(SYS_COUNT_RX_GREEN_PRIO_6,		0x0000a8),
 	REG(SYS_COUNT_RX_GREEN_PRIO_7,		0x0000ac),
+	REG(SYS_COUNT_RX_ASSEMBLY_ERRS,		0x0000b0),
+	REG(SYS_COUNT_RX_SMD_ERRS,		0x0000b4),
+	REG(SYS_COUNT_RX_ASSEMBLY_OK,		0x0000b8),
+	REG(SYS_COUNT_RX_MERGE_FRAGMENTS,	0x0000bc),
+	REG(SYS_COUNT_RX_PMAC_OCTETS,		0x0000c0),
+	REG(SYS_COUNT_RX_PMAC_UNICAST,		0x0000c4),
+	REG(SYS_COUNT_RX_PMAC_MULTICAST,	0x0000c8),
+	REG(SYS_COUNT_RX_PMAC_BROADCAST,	0x0000cc),
+	REG(SYS_COUNT_RX_PMAC_SHORTS,		0x0000d0),
+	REG(SYS_COUNT_RX_PMAC_FRAGMENTS,	0x0000d4),
+	REG(SYS_COUNT_RX_PMAC_JABBERS,		0x0000d8),
+	REG(SYS_COUNT_RX_PMAC_CRC_ALIGN_ERRS,	0x0000dc),
+	REG(SYS_COUNT_RX_PMAC_SYM_ERRS,		0x0000e0),
+	REG(SYS_COUNT_RX_PMAC_64,		0x0000e4),
+	REG(SYS_COUNT_RX_PMAC_65_127,		0x0000e8),
+	REG(SYS_COUNT_RX_PMAC_128_255,		0x0000ec),
+	REG(SYS_COUNT_RX_PMAC_256_511,		0x0000f0),
+	REG(SYS_COUNT_RX_PMAC_512_1023,		0x0000f4),
+	REG(SYS_COUNT_RX_PMAC_1024_1526,	0x0000f8),
+	REG(SYS_COUNT_RX_PMAC_1527_MAX,		0x0000fc),
+	REG(SYS_COUNT_RX_PMAC_PAUSE,		0x000100),
+	REG(SYS_COUNT_RX_PMAC_CONTROL,		0x000104),
+	REG(SYS_COUNT_RX_PMAC_LONGS,		0x000108),
 	REG(SYS_COUNT_TX_OCTETS,		0x000200),
 	REG(SYS_COUNT_TX_UNICAST,		0x000204),
 	REG(SYS_COUNT_TX_MULTICAST,		0x000208),
@@ -350,6 +373,20 @@ static const u32 vsc9959_sys_regmap[] = {
 	REG(SYS_COUNT_TX_GREEN_PRIO_6,		0x000270),
 	REG(SYS_COUNT_TX_GREEN_PRIO_7,		0x000274),
 	REG(SYS_COUNT_TX_AGED,			0x000278),
+	REG(SYS_COUNT_TX_MM_HOLD,		0x00027c),
+	REG(SYS_COUNT_TX_MERGE_FRAGMENTS,	0x000280),
+	REG(SYS_COUNT_TX_PMAC_OCTETS,		0x000284),
+	REG(SYS_COUNT_TX_PMAC_UNICAST,		0x000288),
+	REG(SYS_COUNT_TX_PMAC_MULTICAST,	0x00028c),
+	REG(SYS_COUNT_TX_PMAC_BROADCAST,	0x000290),
+	REG(SYS_COUNT_TX_PMAC_PAUSE,		0x000294),
+	REG(SYS_COUNT_TX_PMAC_64,		0x000298),
+	REG(SYS_COUNT_TX_PMAC_65_127,		0x00029c),
+	REG(SYS_COUNT_TX_PMAC_128_255,		0x0002a0),
+	REG(SYS_COUNT_TX_PMAC_256_511,		0x0002a4),
+	REG(SYS_COUNT_TX_PMAC_512_1023,		0x0002a8),
+	REG(SYS_COUNT_TX_PMAC_1024_1526,	0x0002ac),
+	REG(SYS_COUNT_TX_PMAC_1527_MAX,		0x0002b0),
 	REG(SYS_COUNT_DROP_LOCAL,		0x000400),
 	REG(SYS_COUNT_DROP_TAIL,		0x000404),
 	REG(SYS_COUNT_DROP_YELLOW_PRIO_0,	0x000408),
@@ -571,6 +608,43 @@ static const struct reg_field vsc9959_regfields[REGFIELD_MAX] = {
 
 static const struct ocelot_stat_layout vsc9959_stats_layout[OCELOT_NUM_STATS] = {
 	OCELOT_COMMON_STATS,
+	OCELOT_STAT_ETHTOOL(RX_ASSEMBLY_ERRS, "rx_assembly_errs"),
+	OCELOT_STAT_ETHTOOL(RX_SMD_ERRS, "rx_smd_errs"),
+	OCELOT_STAT_ETHTOOL(RX_ASSEMBLY_OK, "rx_assembly_ok"),
+	OCELOT_STAT_ETHTOOL(RX_MERGE_FRAGMENTS, "rx_merge_fragments"),
+	OCELOT_STAT_ETHTOOL(TX_MERGE_FRAGMENTS, "tx_merge_fragments"),
+	OCELOT_STAT_ETHTOOL(TX_MM_HOLD, "tx_mm_hold"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_OCTETS, "rx_pmac_octets"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_UNICAST, "rx_pmac_unicast"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_MULTICAST, "rx_pmac_multicast"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_BROADCAST, "rx_pmac_broadcast"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_SHORTS, "rx_pmac_shorts"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_FRAGMENTS, "rx_pmac_fragments"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_JABBERS, "rx_pmac_jabbers"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_CRC_ALIGN_ERRS, "rx_pmac_crc_align_errs"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_SYM_ERRS, "rx_pmac_sym_errs"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_64, "rx_pmac_64"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_65_127, "rx_pmac_65_127"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_128_255, "rx_pmac_128_255"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_256_511, "rx_pmac_256_511"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_512_1023, "rx_pmac_512_1023"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_1024_1526, "rx_pmac_1024_1526"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_1527_MAX, "rx_pmac_1527_max"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_PAUSE, "rx_pmac_pause"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_CONTROL, "rx_pmac_control"),
+	OCELOT_STAT_ETHTOOL(RX_PMAC_LONGS, "rx_pmac_longs"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_OCTETS, "tx_pmac_octets"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_UNICAST, "tx_pmac_unicast"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_MULTICAST, "tx_pmac_multicast"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_BROADCAST, "tx_pmac_broadcast"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_PAUSE, "tx_pmac_pause"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_64, "tx_pmac_64"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_65_127, "tx_pmac_65_127"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_128_255, "tx_pmac_128_255"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_256_511, "tx_pmac_256_511"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_512_1023, "tx_pmac_512_1023"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_1024_1526, "tx_pmac_1024_1526"),
+	OCELOT_STAT_ETHTOOL(TX_PMAC_1527_MAX, "tx_pmac_1527_max"),
 };
 
 static const struct vcap_field vsc9959_vcap_es0_keys[] = {
@@ -1206,6 +1280,17 @@ static u32 vsc9959_tas_tc_max_sdu(struct tc_taprio_qopt_offload *taprio, int tc)
 	return taprio->max_sdu[tc] + ETH_HLEN + 2 * VLAN_HLEN + ETH_FCS_LEN;
 }
 
+/**
+ * ethtool_mm_frag_size_add_to_min - Translate (standard) additional fragment
+ *	size expressed as multiplier into (absolute) minimum fragment size
+ *	value expressed in octets
+ * @val_add: Value of addFragSize multiplier
+ */
+static inline u32 ethtool_mm_frag_size_add_to_min(u32 val_add)
+{
+	return (ETH_ZLEN + ETH_FCS_LEN) * (1 + val_add) - ETH_FCS_LEN;
+}
+
 /* Update QSYS_PORT_MAX_SDU to make sure the static guard bands added by the
  * switch (see the ALWAYS_GUARD_BAND_SCH_Q comment) are correct at all MTU
  * values (the default value is 1518). Also, for traffic class windows smaller
@@ -1217,13 +1302,14 @@ static void vsc9959_tas_guard_bands_update(struct ocelot *ocelot, int port)
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 	struct tc_taprio_qopt_offload *taprio;
 	u64 min_gate_len[OCELOT_NUM_TC];
+	u32 val, maxlen, add_frag_size;
+	u64 needed_min_frag_time_ps;
 	int speed, picos_per_byte;
 	u64 needed_bit_time_ps;
-	u32 val, maxlen;
 	u8 tas_speed;
 	int tc;
 
-	lockdep_assert_held(&ocelot->tas_lock);
+	lockdep_assert_held(&ocelot->fwd_domain_lock);
 
 	taprio = ocelot_port->taprio;
 
@@ -1257,15 +1343,22 @@ static void vsc9959_tas_guard_bands_update(struct ocelot *ocelot, int port)
 	/* Consider the standard Ethernet overhead of 8 octets preamble+SFD,
 	 * 4 octets FCS, 12 octets IFG.
 	 */
-	needed_bit_time_ps = (maxlen + 24) * picos_per_byte;
+	needed_bit_time_ps = (u64)(maxlen + 24) * picos_per_byte;
+
+	/* Preemptible TCs don't need to pass a full MTU, the port will
+	 * automatically emit a HOLD request when a preemptible TC gate closes
+	 */
+	val = ocelot_read_rix(ocelot, QSYS_PREEMPTION_CFG, port);
+	add_frag_size = QSYS_PREEMPTION_CFG_MM_ADD_FRAG_SIZE_X(val);
+	needed_min_frag_time_ps = picos_per_byte *
+		(u64)(24 + 2 * ethtool_mm_frag_size_add_to_min(add_frag_size));
 
 	dev_dbg(ocelot->dev,
-		"port %d: max frame size %d needs %llu ps at speed %d\n",
-		port, maxlen, needed_bit_time_ps, speed);
+		"port %d: max frame size %d needs %llu ps, %llu ps for mPackets at speed %d\n",
+		port, maxlen, needed_bit_time_ps, needed_min_frag_time_ps,
+		speed);
 
 	vsc9959_tas_min_gate_lengths(taprio, min_gate_len);
-
-	mutex_lock(&ocelot->fwd_domain_lock);
 
 	for (tc = 0; tc < OCELOT_NUM_TC; tc++) {
 		u32 requested_max_sdu = vsc9959_tas_tc_max_sdu(taprio, tc);
@@ -1275,7 +1368,9 @@ static void vsc9959_tas_guard_bands_update(struct ocelot *ocelot, int port)
 		remaining_gate_len_ps =
 			vsc9959_tas_remaining_gate_len_ps(min_gate_len[tc]);
 
-		if (remaining_gate_len_ps > needed_bit_time_ps) {
+		if ((ocelot_port->preemptable_prios & BIT(tc)) ?
+		    remaining_gate_len_ps > needed_min_frag_time_ps :
+		    remaining_gate_len_ps > needed_bit_time_ps) {
 			/* Setting QMAXSDU_CFG to 0 disables oversized frame
 			 * dropping.
 			 */
@@ -1329,8 +1424,6 @@ static void vsc9959_tas_guard_bands_update(struct ocelot *ocelot, int port)
 	ocelot_write_rix(ocelot, maxlen, QSYS_PORT_MAX_SDU, port);
 
 	ocelot->ops->cut_through_fwd(ocelot);
-
-	mutex_unlock(&ocelot->fwd_domain_lock);
 }
 
 static void vsc9959_sched_speed_set(struct ocelot *ocelot, int port,
@@ -1357,7 +1450,7 @@ static void vsc9959_sched_speed_set(struct ocelot *ocelot, int port,
 		break;
 	}
 
-	mutex_lock(&ocelot->tas_lock);
+	mutex_lock(&ocelot->fwd_domain_lock);
 
 	ocelot_rmw_rix(ocelot,
 		       QSYS_TAG_CONFIG_LINK_SPEED(tas_speed),
@@ -1367,7 +1460,7 @@ static void vsc9959_sched_speed_set(struct ocelot *ocelot, int port,
 	if (ocelot_port->taprio)
 		vsc9959_tas_guard_bands_update(ocelot, port);
 
-	mutex_unlock(&ocelot->tas_lock);
+	mutex_unlock(&ocelot->fwd_domain_lock);
 
 #ifdef CONFIG_MSCC_FELIX_SWITCH_TSN
 	felix_cbs_reset(ocelot, port, speed);
@@ -1418,7 +1511,7 @@ static int vsc9959_qos_port_tas_set(struct ocelot *ocelot, int port,
 	int ret, i;
 	u32 val;
 
-	mutex_lock(&ocelot->tas_lock);
+	mutex_lock(&ocelot->fwd_domain_lock);
 
 	if (!taprio->enable) {
 		ocelot_rmw_rix(ocelot, 0, QSYS_TAG_CONFIG_ENABLE,
@@ -1429,7 +1522,7 @@ static int vsc9959_qos_port_tas_set(struct ocelot *ocelot, int port,
 
 		vsc9959_tas_guard_bands_update(ocelot, port);
 
-		mutex_unlock(&ocelot->tas_lock);
+		mutex_unlock(&ocelot->fwd_domain_lock);
 		return 0;
 	}
 
@@ -1506,7 +1599,7 @@ static int vsc9959_qos_port_tas_set(struct ocelot *ocelot, int port,
 	vsc9959_tas_guard_bands_update(ocelot, port);
 
 err:
-	mutex_unlock(&ocelot->tas_lock);
+	mutex_unlock(&ocelot->fwd_domain_lock);
 
 	return ret;
 }
@@ -1519,7 +1612,7 @@ static void vsc9959_tas_clock_adjust(struct ocelot *ocelot)
 	int port;
 	u32 val;
 
-	mutex_lock(&ocelot->tas_lock);
+	mutex_lock(&ocelot->fwd_domain_lock);
 
 	for (port = 0; port < ocelot->num_phys_ports; port++) {
 		ocelot_port = ocelot->ports[port];
@@ -1557,7 +1650,7 @@ static void vsc9959_tas_clock_adjust(struct ocelot *ocelot)
 			       QSYS_TAG_CONFIG_ENABLE,
 			       QSYS_TAG_CONFIG, port);
 	}
-	mutex_unlock(&ocelot->tas_lock);
+	mutex_unlock(&ocelot->fwd_domain_lock);
 }
 
 static int vsc9959_qos_port_cbs_set(struct dsa_switch *ds, int port,

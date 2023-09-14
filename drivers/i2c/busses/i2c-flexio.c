@@ -142,7 +142,7 @@ static irqreturn_t imx_flexio_i2c_isr(int irq, void *dev_id)
 			break;
 		case READ_END:
 			i2c_dev->stop = LAST_8_BIT;
-			fallthrough;
+			break;
 		default:
 			break;
 		}

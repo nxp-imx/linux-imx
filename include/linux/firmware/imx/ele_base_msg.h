@@ -33,7 +33,7 @@
 #define ELE_IMEM_EXPORT			0x1
 #define ELE_IMEM_IMPORT			0x2
 
-int read_common_fuse(uint16_t fuse_index, u32 *value);
+int read_common_fuse(uint16_t fuse_index, u32 *value, bool special_id);
 int ele_ping(void);
 int ele_get_info(phys_addr_t addr, u32 data_size);
 int ele_service_swap(phys_addr_t addr, u32 addr_size, u16 flag);

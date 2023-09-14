@@ -680,6 +680,12 @@ static int seco_mu_ioctl_setup_iobuf_handler(struct seco_mu_device_ctx *dev_ctx,
 		shared_mem->pos += round_up(io.length, 8u);
 		io.seco_addr = (u64)shared_mem->dma_addr + pos;
 	} else {
+		if (io.length > MAX_DATA_SIZE_PER_USER) {
+			devctx_err(dev_ctx, "Buffer length exceeded the max limit\n");
+			err = -ENOMEM;
+			goto exit;
+		}
+
 		io.seco_addr = (u64)addr;
 	}
 

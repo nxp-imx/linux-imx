@@ -25,6 +25,14 @@
 #include "vpu_v4l2.h"
 #include "vpu_cmds.h"
 #include "vpu_rpc.h"
+#include "vpu_imx8q.h"
+#include <linux/imx_vpu.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
+#include <linux/device.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define VDEC_MIN_BUFFER_CAP		8
 #define VDEC_MIN_BUFFER_OUT		8
@@ -192,12 +200,23 @@ static const struct vpu_format vdec_formats[] = {
 static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct vpu_inst *inst = ctrl_to_inst(ctrl);
+	struct vdec_t *vdec = inst->priv;
 	int ret = 0;
 
 	vpu_inst_lock(inst);
 	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE:
+		vdec->params.display_delay_enable = ctrl->val;
+		break;
+	case V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY:
+		vdec->params.display_delay = ctrl->val;
+		break;
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
 		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? 1 : 0;
+		break;
+	case V4L2_CID_SECUREMODE:
+		dev_info(inst->dev, "vpu driver enter secure mode\n");
+		inst->secure_mode = ctrl->val;
 		break;
 	default:
 		ret = -EINVAL;
@@ -213,21 +232,40 @@ static const struct v4l2_ctrl_ops vdec_ctrl_ops = {
 	.g_volatile_ctrl = vpu_helper_g_volatile_ctrl,
 };
 
+static struct v4l2_ctrl_config secure_config = {
+	.ops = &vdec_ctrl_ops,
+	.id = V4L2_CID_SECUREMODE,
+	.name = "en/disable secure mode",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+};
+
 static int vdec_ctrl_init(struct vpu_inst *inst)
 {
 	struct v4l2_ctrl *ctrl;
 	int ret;
 
-	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 20);
+	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 21);
 	if (ret)
 		return ret;
 
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
+			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY,
+			  0, 0, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
+			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE,
+			  0, 1, 1, 0);
+
 	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
-			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
-			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
-			       ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
-				 (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
-			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
+			  V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+			  V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+			  ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
+				  (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
+			  V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 
 	ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
 				 V4L2_CID_MIN_BUFFERS_FOR_CAPTURE, 1, 32, 1, 2);
@@ -238,6 +276,8 @@ static int vdec_ctrl_init(struct vpu_inst *inst)
 				 V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 1, 32, 1, 2);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
+
+	ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler, &secure_config, NULL);
 
 	if (inst->ctrl_handler.error) {
 		ret = inst->ctrl_handler.error;
@@ -1439,7 +1479,16 @@ static void vdec_stop(struct vpu_inst *inst, bool free)
 	vdec_clear_fs(&vdec->dcp);
 	if (free) {
 		vpu_free_dma(&vdec->udata);
-		vpu_free_dma(&inst->stream_buffer);
+		if (inst->secure_mode) {
+			dma_heap_buffer_free(inst->secure_stream_dma_buf);
+			inst->stream_buffer.virt = NULL;
+			inst->stream_buffer.phys = 0;
+			inst->stream_buffer.length = 0;
+			inst->stream_buffer.bytesused = 0;
+			inst->stream_buffer.dev = NULL;
+		} else {
+			vpu_free_dma(&inst->stream_buffer);
+		}
 	}
 	vdec_update_state(inst, VPU_CODEC_STATE_DEINIT, 1);
 	vdec->reset_codec = false;
@@ -1473,6 +1522,44 @@ static void vdec_init_params(struct vdec_t *vdec)
 	vdec->params.end_flag = 0;
 }
 
+static int secure_vpu_alloc_dma(struct vpu_inst *inst) {
+	const char* secure_heap_name = "secure";
+	struct dma_heap* secure_heap;
+	struct dma_buf* buf;
+	int ret = 0;
+	struct dma_buf_attachment *attachment = NULL;
+	struct sg_table *sgt = NULL;
+	struct device* dev;
+	unsigned long phys = 0;
+	dev = inst->dev;
+
+	secure_heap = dma_heap_find(secure_heap_name);
+	// allocate secure dma_buf
+	buf = dma_heap_buffer_alloc(secure_heap, inst->stream_buffer.length, O_RDWR | O_CLOEXEC, 0);
+
+	// Get phys addr
+	attachment = dma_buf_attach(buf, dev);
+
+	if (!attachment || IS_ERR(attachment)) {
+		dma_buf_put(buf);
+		return -EFAULT;
+	}
+
+	sgt = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+	if (sgt && !IS_ERR(sgt)) {
+		phys = sg_dma_address(sgt->sgl);
+
+		dma_buf_unmap_attachment(attachment, sgt,
+			DMA_BIDIRECTIONAL);
+	}
+
+	dma_buf_detach(buf, attachment);
+	inst->stream_buffer.phys = phys;
+	inst->secure_stream_dma_buf = buf;
+	dev_info(inst->dev, "stream_buffer.phys = 0x%lx\n", phys);
+	return ret;
+}
+
 static int vdec_start(struct vpu_inst *inst)
 {
 	struct vdec_t *vdec = inst->priv;
@@ -1496,7 +1583,16 @@ static int vdec_start(struct vpu_inst *inst)
 		stream_buffer_size = vpu_iface_get_stream_buffer_size(inst->core);
 		if (stream_buffer_size > 0) {
 			inst->stream_buffer.length = stream_buffer_size;
-			ret = vpu_alloc_dma(inst->core, &inst->stream_buffer);
+			if (inst->secure_mode) {
+				dev_info(inst->dev, "allocate secure ring buffer\n");
+				ret = secure_vpu_alloc_dma(inst);
+				if (ret)
+					dev_err(inst->vpu->dev, "alloc secure ring buffer failed err=%d\n", ret);
+
+			} else {
+				dev_info(inst->dev, "use normal ring buffer\n");
+				ret = vpu_alloc_dma(inst->core, &inst->stream_buffer);
+			}
 			if (ret) {
 				dev_err(inst->dev, "[%d] alloc stream buffer fail\n", inst->id);
 				goto error;

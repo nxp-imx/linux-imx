@@ -189,7 +189,7 @@ static int imx_soc_device_register(struct platform_device *pdev)
 	u32 v[4];
 	int err;
 
-	err = read_common_fuse(OTP_UNIQ_ID, v);
+	err = read_common_fuse(OTP_UNIQ_ID, v, true);
 	if (err)
 		return err;
 
@@ -1135,7 +1135,7 @@ exit:
 	/* if execution control reaches here, ele-mu probe fail.
 	 * hence doing the cleanup
 	 */
-	if (priv->flags & RESERVED_DMA_POOL) {
+	if (priv && (priv->flags & RESERVED_DMA_POOL)) {
 		of_reserved_mem_device_release(dev);
 		priv->flags &= (~RESERVED_DMA_POOL);
 	}

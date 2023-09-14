@@ -31,6 +31,7 @@ struct dw_mipi_dsi_imx {
 	void __iomem *base;
 
 	struct clk *byte_clk;
+	struct clk *pixel_clk;
 
 	struct phy *phy;
 	union phy_configure_opts phy_cfg;
@@ -85,6 +86,26 @@ dw_mipi_dsi_imx_mode_valid(void *priv_data,
 	union phy_configure_opts phy_cfg;
 
 	return __dw_mipi_dsi_imx_mode_valid(priv_data, mode, &phy_cfg);
+}
+
+static bool dw_mipi_dsi_mode_fixup(void *priv_data,
+				   const struct drm_display_mode *mode,
+				   struct drm_display_mode *adjusted_mode)
+{
+	struct dw_mipi_dsi_imx *dsi = priv_data;
+	unsigned long pixel_clock_rate;
+	unsigned long rounded_rate;
+
+	pixel_clock_rate = mode->clock * 1000;
+	rounded_rate = clk_round_rate(dsi->pixel_clk, pixel_clock_rate);
+
+	memcpy(adjusted_mode, mode, sizeof(*mode));
+	adjusted_mode->clock = rounded_rate / 1000;
+
+	DRM_DEV_DEBUG(dsi->dev, "adj clock %d for mode " DRM_MODE_FMT "\n",
+		      adjusted_mode->clock, DRM_MODE_ARG(mode));
+
+	return true;
 }
 
 static int dw_mipi_dsi_imx_phy_init(void *priv_data)
@@ -295,68 +316,6 @@ static const struct dw_mipi_dsi_host_ops dw_mipi_dsi_imx_host_ops = {
 	.attach = dw_mipi_dsi_imx_host_attach,
 };
 
-static bool
-dw_mipi_dsi_imx_hcomponents_need_fixup(struct dw_mipi_dsi_imx *dsi,
-				       int bpp,
-				       const struct drm_display_mode *mode)
-{
-	int htotal = mode->htotal;
-	int hsa = mode->hsync_end - mode->hsync_start;
-	int hbp = mode->htotal - mode->hsync_end;
-	int divisor = dsi->lanes * 8;
-
-	/*
-	 * It appears that (hcomponent * bpp) / (8 * lanes)
-	 * should be no remainder.
-	 */
-	return !!((htotal * bpp) % divisor) ||
-	       !!((hsa * bpp) % divisor) ||
-	       !!((hbp * bpp) % divisor);
-}
-
-static int dw_mipi_dsi_imx_fixup_hcomponent(struct dw_mipi_dsi_imx *dsi,
-					    int bpp, int component)
-{
-	int divisor, i;
-
-	divisor = dsi->lanes * 8;
-
-	for (i = 0; i < divisor; i++) {
-		if ((bpp * (component + i)) % divisor == 0) {
-			component += i;
-			break;
-		}
-	}
-
-	return component;
-}
-
-static void
-dw_mipi_dsi_imx_fixup_hcomponents(struct dw_mipi_dsi_imx *dsi,
-				  int bpp,
-				  const struct drm_display_mode *mode,
-				  struct drm_display_mode *adj)
-{
-	struct device *dev = dsi->dev;
-	int hfp = mode->hsync_start - mode->hdisplay;
-	int hsa = mode->hsync_end - mode->hsync_start;
-	int hbp = mode->htotal - mode->hsync_end;
-
-	hfp = dw_mipi_dsi_imx_fixup_hcomponent(dsi, bpp, hfp);
-	adj->hsync_start = adj->hdisplay + hfp;
-
-	hsa = dw_mipi_dsi_imx_fixup_hcomponent(dsi, bpp, hsa);
-	adj->hsync_end = adj->hsync_start + hsa;
-
-	hbp = dw_mipi_dsi_imx_fixup_hcomponent(dsi, bpp, hbp);
-	adj->htotal = adj->hsync_end + hbp;
-
-	DRM_DEV_DEBUG(dev, "fixing up mode:\n");
-	DRM_DEV_DEBUG(dev, "\tModeline " DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
-	DRM_DEV_DEBUG(dev, "adjusted mode:\n");
-	DRM_DEV_DEBUG(dev, "\tModeline " DRM_MODE_FMT "\n", DRM_MODE_ARG(adj));
-}
-
 static int
 dw_mipi_dsi_encoder_atomic_check(struct drm_encoder *encoder,
 				 struct drm_crtc_state *crtc_state,
@@ -387,31 +346,6 @@ dw_mipi_dsi_encoder_atomic_check(struct drm_encoder *encoder,
 	/* Force mode_changed to true, when CRTC state is changed to active. */
 	if (crtc_state->active_changed && crtc_state->active)
 		crtc_state->mode_changed = true;
-
-	if (crtc_state->active) {
-		const struct drm_display_mode *mode = &crtc_state->mode;
-		struct drm_display_mode *adj = &crtc_state->adjusted_mode;
-		union phy_configure_opts phy_cfg;
-		struct phy_configure_opts_mipi_dphy *cfg = &phy_cfg.mipi_dphy;
-		enum drm_mode_status mode_status;
-		int bpp;
-
-		mode_status = __dw_mipi_dsi_imx_mode_valid(dsi, mode, &phy_cfg);
-		if (mode_status != MODE_OK)
-			return -EINVAL;
-
-		bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
-		if (bpp < 0)
-			return -EINVAL;
-
-		adj->clock = cfg->hs_clk_rate * dsi->lanes / bpp / MSEC_PER_SEC;
-		if (adj->clock != mode->clock)
-			DRM_DEV_DEBUG(dev, "adjust mode clock %dKHz->%dKHz\n",
-				      mode->clock, adj->clock);
-
-		if (dw_mipi_dsi_imx_hcomponents_need_fixup(dsi, bpp, mode))
-			dw_mipi_dsi_imx_fixup_hcomponents(dsi, bpp, mode, adj);
-	}
 
 	return 0;
 }
@@ -522,6 +456,14 @@ static int dw_mipi_dsi_imx_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	dsi->pixel_clk = devm_clk_get(dev, "pixel");
+	if (IS_ERR(dsi->pixel_clk)) {
+		ret = PTR_ERR(dsi->pixel_clk);
+		if (ret != -EPROBE_DEFER)
+			DRM_DEV_ERROR(dev, "failed to get pixel clk: %d\n", ret);
+		return ret;
+	}
+
 	dsi->phy = devm_phy_get(dev, "dphy");
 	if (IS_ERR(dsi->phy)) {
 		ret = PTR_ERR(dsi->phy);
@@ -534,6 +476,7 @@ static int dw_mipi_dsi_imx_probe(struct platform_device *pdev)
 	dsi->pdata.base = dsi->base;
 	dsi->pdata.max_data_lanes = 4;
 	dsi->pdata.mode_valid = dw_mipi_dsi_imx_mode_valid;
+	dsi->pdata.mode_fixup = dw_mipi_dsi_mode_fixup;
 	dsi->pdata.phy_ops = &dw_mipi_dsi_imx_phy_ops;
 	dsi->pdata.host_ops = &dw_mipi_dsi_imx_host_ops;
 	dsi->pdata.priv_data = dsi;

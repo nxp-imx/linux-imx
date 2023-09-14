@@ -1083,10 +1083,12 @@
 					power-domains = <&scmi_devpd IMX8ULP_PD_ISI>;
 					interface = <2 0 2>;
 					no-reset-control;
+					runtime_suspend;
 					status = "disabled";
 
 					cap_device {
 						compatible = "imx-isi-capture";
+						runtime_suspend;
 						status = "disabled";
 					};
 				};
@@ -1117,6 +1119,7 @@
 								<105600000>,
 								<79200000>,
 								<79200000>;
+					runtime_suspend;
 					status = "disabled";
 				};
 			};
@@ -1184,9 +1187,8 @@
 					 <&pcc5 IMX8ULP_CLK_EPDC>,
 					 <&cgc2 IMX8ULP_CLK_LPAV_AHB_DIV>;
 				clock-names = "epdc_axi", "epdc_pix", "epdc_ahb";
-				assigned-clocks = <&pcc5 IMX8ULP_CLK_EPDC>, <&cgc2 IMX8ULP_CLK_PLL4_PFD3_DIV2>;
-				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD3_DIV2>;
-				assigned-clock-rates = <0>, <40000000>;
+				assigned-clocks = <&pcc5 IMX8ULP_CLK_EPDC>;
+				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV1>;
 				power-domains = <&scmi_devpd IMX8ULP_PD_PXP>;
 				interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";

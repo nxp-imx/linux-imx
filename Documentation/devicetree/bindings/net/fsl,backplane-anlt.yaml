@@ -1,0 +1,240 @@
+# SPDX-License-Identifier: GPL-2.0+
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/fsl,backplane-anlt.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Freescale Backplane Ethernet PHY
+
+maintainers:
+  - Vladimir Oltean <vladimir.oltean@nxp.com>
+
+description: |
+  Some QorIQ and Layerscape SoCs have an additional block on each SerDes
+  networking lane, based on an IP core from MoreThanIP, which performs IEEE
+  802.3 clause 73 base page exchanges (for auto-negotiation) and clause 72
+  training frame exchanges (for link training).
+
+  By default, this AN/LT block comes up with auto-negotiation disabled, and
+  in that case it allows itself to be quickly bypassed from the data path and
+  for the PCS link to come up without its involvement.
+
+  Software can optionally make use of it, to turn the PCS, AN/LT block and lane
+  (PMA/PMD) into a full copper backplane internal PHY.
+
+  As a warning, this binding has not been peer reviewed, and may (and likely
+  will be) subject to future incompatible changes. Also, the binding for the
+  multi-lane link modes (40GBase-KR4) is not currently backed up by a driver
+  implementation.
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          - items:
+              - const: fsl,lx2160a-backplane-anlt
+              - const: ethernet-phy-ieee802.3-c45
+    then:
+      $ref: ethernet-phy.yaml#
+
+properties:
+  compatible:
+    oneOf:
+      - items:
+          - const: fsl,lx2160a-backplane-anlt
+          - const: ethernet-phy-ieee802.3-c45
+      - const: fsl,lx2160a-secondary-anlt
+
+  reg:
+    minimum: 0
+    maximum: 31
+    description: |
+      The address of the AN/LT block within the internal MDIO bus of the MAC it
+      is attached to.
+
+      In the 1000Base-KX and 10GBase-KR link modes, the AN/LT block responds at
+      the same MDIO address as the PCS (determined by the SGMIInCR1[MDEV_PORT]
+      or SXGMIInCR1[MDEV_PORT] registers of the SerDes block, by default 0).
+      The PCS and AN/LT block respond to different MMDs, though.
+
+      In the 25GBase-KR and higher link modes, the AN/LT block responds at a
+      different MDIO address than the PCS, determined by the
+      ANLTnCR1[MDEV_PORT] register of the SerDes block. By default this is 4
+      for lanes A and E, 5 for lanes B and F, 6 for lanes C and G, 7 for lanes
+      D and H.
+
+      The PCS responds in all cases at the address determined by the MDEV_PORT
+      field of the SGMIInCR1, SXGMIIaCR1, E25GaCR1, E40GaCR1, E50GaCR1 or
+      E100GaCR1 registers of the SerDes block.
+
+  phys:
+    maxItems: 1
+    description:
+      phandle for the generic PHY (SerDes lane) that acts as PMA/PMD layer
+
+  pcs-handle:
+    maxItems: 1
+    description:
+      phandle for the technology-dependent PCS block corresponding to the
+      initial (RCW-based) configuration of the port. Must be omitted for the
+      link modes where the PCS and AN/LT block respond at the same MDIO
+      address. Must be specified otherwise.
+
+  secondary-anlt-handle:
+    maxItems: 1
+    description:
+      In case this is the primary (first) lane of a multi-lane link mode, this
+      property holds an array of phandles for the other AN/LT blocks, that are
+      involved in link training but not in auto-negotiation. These have the
+      "fsl,lx2160a-secondary-anlt" compatible string.
+
+required:
+  - compatible
+  - reg
+  - phys
+
+unevaluatedProperties: false
+
+examples:
+
+  # LX2160A lanes A, B, C, D with SerDes 1 protocol 19: dpmac2 uses 40GBase-KR4
+  - |
+    dpmac2 {
+        phy-handle = <&mac2_backplane_anlt>;
+        phy-connection-type = "internal";
+    };
+
+    pcs_mdio2 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        pcs2: ethernet-phy@0 {
+            reg = <0>;
+        };
+
+        mac2_backplane_anlt: ethernet-phy@7 {
+            compatible = "fsl,lx2160a-backplane-anlt",
+                          "ethernet-phy-ieee802.3-c45";
+            reg = <7>; /* according to ANLTDCR1[MDEV_PORT] */
+            phys = <&serdes_1 3>; /* lane D */
+            max-speed = <40000>;
+            pcs-handle = <&pcs2>;
+            secondary-anlt-handle = <&mac2_lane2_anlt>, <&mac2_lane3_anlt>,
+                                    <&mac2_lane4_anlt>;
+        };
+
+        mac2_lane2_anlt: ethernet-backplane-anlt@6 {
+            compatible = "fsl,lx2160a-secondary-anlt";
+            reg = <6>; /* according to ANLTCCR1[MDEV_PORT] */
+            phys = <&serdes_1 2>; /* lane C */
+        };
+
+        mac2_lane3_anlt: ethernet-backplane-anlt@5 {
+            compatible = "fsl,lx2160a-secondary-anlt";
+            reg = <5>; /* according to ANLTBCR1[MDEV_PORT] */
+            phys = <&serdes_1 1>; /* lane B */
+        };
+
+        mac2_lane4_anlt: ethernet-backplane-anlt@4 {
+            compatible = "fsl,lx2160a-secondary-anlt";
+            reg = <4>; /* according to ANLTACR1[MDEV_PORT] */
+            phys = <&serdes_1 0>; /* lane A */
+        };
+    };
+
+  # LX2160A lane E with SerDes 1 protocol 19: dpmac6 uses 25GBase-KR
+  - |
+    dpmac6 {
+        phy-handle = <&mac6_backplane_anlt>;
+        phy-connection-type = "internal";
+    };
+
+    pcs_mdio6 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        pcs6: ethernet-phy@0 {
+            reg = <0>;
+        };
+
+        mac6_backplane_anlt: ethernet-phy@4 {
+            compatible = "fsl,lx2160a-backplane-anlt",
+                          "ethernet-phy-ieee802.3-c45";
+            reg = <4>; /* according to ANLTFCR1[MDEV_PORT] */
+            phys = <&serdes_1 4>; /* lane E */
+            max-speed = <25000>;
+            pcs-handle = <&pcs6>;
+        };
+    };
+
+  # LX2160A lane F with SerDes 1 protocol 19: dpmac5 uses 25GBase-KR
+  - |
+    dpmac5 {
+        phy-handle = <&mac5_backplane_anlt>;
+        phy-connection-type = "internal";
+    };
+
+    pcs_mdio5 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        pcs5: ethernet-phy@0 {
+            reg = <0>;
+        };
+
+        mac5_backplane_anlt: ethernet-phy@5 {
+            compatible = "fsl,lx2160a-backplane-anlt",
+                         "ethernet-phy-ieee802.3-c45";
+            reg = <5>; /* according to ANLTFCR1[MDEV_PORT] */
+            phys = <&serdes_1 5>; /* lane F */
+            max-speed = <25000>;
+            pcs-handle = <&pcs5>;
+        };
+    };
+
+  # LX2160A lane G with SerDes 1 protocol 19: dpmac4 uses 10GBase-KR
+  - |
+    dpmac4 {
+        phy-handle = <&mac4_backplane_anlt>;
+        phy-connection-type = "internal";
+    };
+
+    pcs_mdio4 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        mac4_backplane_anlt: ethernet-phy@0 {
+            compatible = "fsl,lx2160a-backplane-anlt",
+                         "ethernet-phy-ieee802.3-c45";
+            reg = <0>; /* merged with PCS SXGMIIGCR1[MDEV_PORT] */
+            phys = <&serdes_1 7>; /* lane G */
+            max-speed = <10000>;
+            /* no pcs-handle to &pcs4 */
+        };
+    };
+
+  # LX2160A lane H with SerDes 1 protocol 19: dpmac3 uses 10GBase-KR
+  - |
+    dpmac3 {
+        phy-handle = <&mac3_backplane_anlt>;
+        phy-connection-type = "internal";
+    };
+
+    pcs_mdio3 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        mac3_backplane_anlt: ethernet-phy@0 {
+            compatible = "fsl,lx2160a-backplane-anlt",
+                         "ethernet-phy-ieee802.3-c45";
+            reg = <0>; /* merged with PCS SXGMIIHCR1[MDEV_PORT] */
+            phys = <&serdes_1 7>; /* lane H */
+            max-speed = <10000>;
+            /* no pcs-handle to &pcs3 */
+        };
+    };

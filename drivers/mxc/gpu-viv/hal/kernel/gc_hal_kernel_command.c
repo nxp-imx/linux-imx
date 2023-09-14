@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2022 Vivante Corporation
+*    Copyright (c) 2014 - 2023 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2022 Vivante Corporation
+*    Copyright (C) 2014 - 2023 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -4066,6 +4066,10 @@ gckCOMMAND_DumpExecutingBuffer(IN gckCOMMAND Command)
     return gcvSTATUS_OK;
 
 OnError:
+#if gcdDUMP_HW_SUBCOMMAND
+    if (subCommandList.count > 0)
+        _DestroySubCmdList(kernel->os, &subCommandList);
+#endif
     return status;
 }
 

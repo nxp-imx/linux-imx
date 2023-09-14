@@ -512,7 +512,7 @@ struct clk_hw *__imx_clk_scu(struct device *dev, const char *name,
 	 * clock status from HW instead of using the possible invalid
 	 * cached rate.
 	 */
-	init.flags = CLK_GET_RATE_NOCACHE | CLK_SET_PARENT_NOCACHE;
+	init.flags = CLK_GET_RATE_NOCACHE;
 	clk->hw.init = &init;
 
 	hw = &clk->hw;

@@ -277,6 +277,26 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	trace_xhci_inc_enq(ring);
 }
 
+static int xhci_num_trbs_to(struct xhci_segment *start_seg, union xhci_trb *start,
+			    struct xhci_segment *end_seg, union xhci_trb *end,
+			    unsigned int num_segs)
+{
+	union xhci_trb *last_on_seg;
+	int num = 0;
+	int i = 0;
+
+	do {
+		if (start_seg == end_seg && end >= start)
+			return num + (end - start);
+		last_on_seg = &start_seg->trbs[TRBS_PER_SEGMENT - 1];
+		num += last_on_seg - start;
+		start_seg = start_seg->next;
+		start = start_seg->trbs;
+	} while (i++ <= num_segs);
+
+	return -EINVAL;
+}
+
 /*
  * Check to see if there's room to enqueue num_trbs on the ring and make sure
  * enqueue pointer will not advance into dequeue segment. See rules above.
@@ -695,7 +715,7 @@ deq_found:
 		trb_sct = SCT_FOR_TRB(SCT_PRI_TR);
 	ret = queue_command(xhci, cmd,
 		lower_32_bits(addr) | trb_sct | new_cycle,
-		upper_32_bits(addr),
+		upper_32_bits((u64) addr),
 		STREAM_ID_FOR_TRB(stream_id), SLOT_ID_FOR_TRB(slot_id) |
 		EP_ID_FOR_TRB(ep_index) | TRB_TYPE(TRB_SET_DEQ), false);
 	if (ret < 0) {
@@ -2143,6 +2163,7 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		     u32 trb_comp_code)
 {
 	struct xhci_ep_ctx *ep_ctx;
+	int trbs_freed;
 
 	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep->ep_index);
 
@@ -2214,9 +2235,15 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 	}
 
 	/* Update ring dequeue pointer */
+	trbs_freed = xhci_num_trbs_to(ep_ring->deq_seg, ep_ring->dequeue,
+				      td->last_trb_seg, td->last_trb,
+				      ep_ring->num_segs);
+	if (trbs_freed < 0)
+		xhci_dbg(xhci, "Failed to count freed trbs at TD finish\n");
+	else
+		ep_ring->num_trbs_free += trbs_freed;
 	ep_ring->dequeue = td->last_trb;
 	ep_ring->deq_seg = td->last_trb_seg;
-	ep_ring->num_trbs_free += td->num_trbs - 1;
 	inc_deq(xhci, ep_ring);
 
 	return xhci_td_cleanup(xhci, td, ep_ring, td->status);
@@ -3912,7 +3939,7 @@ int xhci_submit_single_step_set_feature(struct usb_hcd *hcd,
 		field |= TRB_DIR_IN;
 		queue_trb(xhci, ep_ring, true,
 				lower_32_bits(urb->transfer_dma),
-				upper_32_bits(urb->transfer_dma),
+				upper_32_bits((u64) urb->transfer_dma),
 				length_field,
 				field | ep_ring->cycle_state);
 	}
@@ -4430,7 +4457,7 @@ int xhci_queue_address_device(struct xhci_hcd *xhci, struct xhci_command *cmd,
 		dma_addr_t in_ctx_ptr, u32 slot_id, enum xhci_setup_dev setup)
 {
 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
-			upper_32_bits(in_ctx_ptr), 0,
+			upper_32_bits((u64) in_ctx_ptr), 0,
 			TRB_TYPE(TRB_ADDR_DEV) | SLOT_ID_FOR_TRB(slot_id)
 			| (setup == SETUP_CONTEXT_ONLY ? TRB_BSR : 0), false);
 }
@@ -4456,7 +4483,7 @@ int xhci_queue_configure_endpoint(struct xhci_hcd *xhci,
 		u32 slot_id, bool command_must_succeed)
 {
 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
-			upper_32_bits(in_ctx_ptr), 0,
+			upper_32_bits((u64) in_ctx_ptr), 0,
 			TRB_TYPE(TRB_CONFIG_EP) | SLOT_ID_FOR_TRB(slot_id),
 			command_must_succeed);
 }
@@ -4466,7 +4493,7 @@ int xhci_queue_evaluate_context(struct xhci_hcd *xhci, struct xhci_command *cmd,
 		dma_addr_t in_ctx_ptr, u32 slot_id, bool command_must_succeed)
 {
 	return queue_command(xhci, cmd, lower_32_bits(in_ctx_ptr),
-			upper_32_bits(in_ctx_ptr), 0,
+			upper_32_bits((u64) in_ctx_ptr), 0,
 			TRB_TYPE(TRB_EVAL_CONTEXT) | SLOT_ID_FOR_TRB(slot_id),
 			command_must_succeed);
 }

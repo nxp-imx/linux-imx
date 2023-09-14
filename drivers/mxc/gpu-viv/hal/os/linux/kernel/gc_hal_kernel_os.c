@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2022 Vivante Corporation
+*    Copyright (c) 2014 - 2023 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2022 Vivante Corporation
+*    Copyright (C) 2014 - 2023 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -403,7 +403,11 @@ _QueryProcessPageTable(IN gctPOINTER Logical, OUT gctPHYS_ADDR_T *Address)
         /* vmalloc area. */
         *Address = page_to_phys(vmalloc_to_page(Logical)) | offset;
         return gcvSTATUS_OK;
-    } else if (virt_addr_valid(logical)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+    } else if (virt_addr_valid((void *)logical)) {
+#else
+	} else if (virt_addr_valid(logical)) {
+#endif
         /* Kernel logical address. */
         *Address = virt_to_phys(Logical);
         return gcvSTATUS_OK;
@@ -712,7 +716,12 @@ gckOS_Construct(IN gctPOINTER Context, OUT gckOS *Os)
         /* Out of memory. */
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
 
-    os->paddingPage = alloc_page(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN);
+#if defined(CONFIG_ZONE_DMA32) && LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+    os->paddingPage = alloc_page(GFP_KERNEL | __GFP_DMA32 | gcdNOWARN);
+#else
+    os->paddingPage = alloc_page(GFP_KERNEL | __GFP_DMA | gcdNOWARN);
+#endif
+
     if (os->paddingPage == gcvNULL)
         /* Out of memory. */
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);

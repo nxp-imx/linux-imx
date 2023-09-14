@@ -282,7 +282,7 @@ static int imx_pcm512x_set_bias_level(struct snd_soc_card *card,
 			break;
 		/* mute amp */
 		gpiod_set_value_cansleep(data->mute_gpio, 0);
-		fallthrough;
+		break;
 	default:
 		break;
 	}

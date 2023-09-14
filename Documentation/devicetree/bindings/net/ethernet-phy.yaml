@@ -49,6 +49,14 @@ properties:
       - items:
           - pattern: "^ethernet-phy-id[a-f0-9]{4}\\.[a-f0-9]{4}$"
           - const: ethernet-phy-ieee802.3-c45
+      - items:
+          - const: fsl,lx2160a-backplane-anlt
+          - const: ethernet-phy-ieee802.3-c45
+        description:
+          Some C45 PHYs have no PHY ID in the standard location, and there is
+          also no PHY ID allocated for them to fake. They are identified by the
+          primary compatible string, plus the secondary one to distinguish them
+          from a raw MDIO device.
 
   reg:
     minimum: 0
