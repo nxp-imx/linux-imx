@@ -2,6 +2,8 @@
 /*
  * Copyright (C) 2019
  * Author(s): Giulio Benetti <giulio.benetti@benettiengineering.com>
+ * Copyright (C) 2023 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
 #include "../../armv7-m.dtsi"
@@ -41,6 +43,11 @@
 			compatible = "fsl,imxrt1050-iomuxc";
 			reg = <0x401f8000 0x4000>;
 			fsl,mux_mask = <0x7>;
+		};
+
+		gpr: iomuxc-gpr@400ac000 {
+			compatible = "fsl,imxrt1050-iomuxc-gpr", "syscon";
+			reg = <0x400ac000 0x4000>;
 		};
 
 		anatop: anatop@400d8000 {
@@ -155,6 +162,16 @@
 			interrupts = <100>;
 			clocks = <&osc3M>;
 			clock-names = "per";
+		};
+
+		fec: ethernet@402d8000 {
+			compatible = "fsl,imxrt1050-fec", "fsl,mvf600-fec";
+			reg = <0x402d8000 0x1000>;
+			interrupts = <114>;
+			clocks = <&clks IMXRT1050_CLK_ENET>,
+				 <&clks IMXRT1050_CLK_AHB_PODF>;
+			clock-names = "ipg", "ahb";
+			status = "disabled";
 		};
 	};
 };
