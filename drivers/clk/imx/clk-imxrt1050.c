@@ -4,6 +4,8 @@
  * Author(s):
  * Jesse Taube <Mr.Bossman075@gmail.com>
  * Giulio Benetti <giulio.benetti@benettiengineering.com>
+ * Copyright (C) 2023 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -13,12 +15,21 @@
 
 #include "clk.h"
 
+static struct clk_div_table clk_enet_ref_table[] = {
+	{ .val = 0, .div = 20, },
+	{ .val = 1, .div = 10, },
+	{ .val = 2, .div = 5, },
+	{ .val = 3, .div = 4, },
+	{ /* sentinel */ }
+};
+
 static const char * const pll_ref_sels[] = {"osc", "dummy", };
 static const char * const per_sels[] = {"ipg_pdof", "osc", };
 static const char * const pll1_bypass_sels[] = {"pll1_arm", "pll1_arm_ref_sel", };
 static const char * const pll2_bypass_sels[] = {"pll2_sys", "pll2_sys_ref_sel", };
 static const char * const pll3_bypass_sels[] = {"pll3_usb_otg", "pll3_usb_otg_ref_sel", };
 static const char * const pll5_bypass_sels[] = {"pll5_video", "pll5_video_ref_sel", };
+static const char * const pll6_bypass_sels[] = {"pll6", "osc", };
 static const char *const pre_periph_sels[] = {
 	"pll2_sys", "pll2_pfd2_396m", "pll2_pfd0_352m", "arm_podf", };
 static const char *const periph_sels[] = { "pre_periph_sel", "todo", };
@@ -80,6 +91,8 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 		"pll3_usb_otg_ref_sel", pll_base + 0x10, 0x1);
 	hws[IMXRT1050_CLK_PLL5_VIDEO] = imx_clk_hw_pllv3(IMX_PLLV3_AV, "pll5_video",
 		"pll5_video_ref_sel", pll_base + 0xa0, 0x7f);
+	hws[IMXRT1050_CLK_PLL6] = imx_clk_hw_pllv3(IMX_PLLV3_ENET, "pll6", "osc",
+		pll_base + 0xe0, 0x1);
 
 	/* PLL bypass out */
 	hws[IMXRT1050_CLK_PLL1_BYPASS] = imx_clk_hw_mux_flags("pll1_bypass", pll_base + 0x0, 16, 1,
@@ -90,6 +103,8 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 		pll3_bypass_sels, ARRAY_SIZE(pll3_bypass_sels), CLK_SET_RATE_PARENT);
 	hws[IMXRT1050_CLK_PLL5_BYPASS] = imx_clk_hw_mux_flags("pll5_bypass", pll_base + 0xa0, 16, 1,
 		pll5_bypass_sels, ARRAY_SIZE(pll5_bypass_sels), CLK_SET_RATE_PARENT);
+	hws[IMXRT1050_CLK_PLL6_BYPASS] = imx_clk_hw_mux_flags("pll6_bypass", pll_base + 0xe0, 16, 1,
+		pll6_bypass_sels, ARRAY_SIZE(pll6_bypass_sels), CLK_SET_RATE_PARENT);
 
 	hws[IMXRT1050_CLK_VIDEO_POST_DIV_SEL] = imx_clk_hw_divider("video_post_div_sel",
 		"pll5_video", pll_base + 0xa0, 19, 2);
@@ -103,6 +118,11 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_PLL2_PFD2_396M] = imx_clk_hw_pfd("pll2_pfd2_396m", "pll2_sys", pll_base + 0x100, 2);
 	hws[IMXRT1050_CLK_PLL3_PFD1_664_62M] = imx_clk_hw_pfd("pll3_pfd1_664_62m", "pll3_usb_otg", pll_base + 0xf0, 1);
 	hws[IMXRT1050_CLK_PLL3_PFD3_454_74M] = imx_clk_hw_pfd("pll3_pfd3_454_74m", "pll3_usb_otg", pll_base + 0xf0, 3);
+
+	hws[IMXRT1050_CLK_PLL6_ENET] = imx_clk_hw_gate("pll6_enet", "pll6", pll_base + 0xe0, 13);
+	hws[IMXRT1050_CLK_ENET_REF] = clk_hw_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
+								    pll_base + 0xe0, 0, 2, 0, clk_enet_ref_table,
+								    &imx_ccm_lock);
 
 	/* CCM clocks */
 	ccm_base = devm_platform_ioremap_resource(pdev, 0);
@@ -148,6 +168,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_LCDIF_PIX] = imx_clk_hw_gate2("lcdif_pix", "lcdif", ccm_base + 0x74, 10);
 	hws[IMXRT1050_CLK_DMA] = imx_clk_hw_gate("dma", "ipg", ccm_base + 0x7C, 6);
 	hws[IMXRT1050_CLK_DMA_MUX] = imx_clk_hw_gate("dmamux0", "ipg", ccm_base + 0x7C, 7);
+	hws[IMXRT1050_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", ccm_base + 0x6c, 10);
 	imx_check_clk_hws(hws, IMXRT1050_CLK_END);
 
 	ret = of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_hw_data);
