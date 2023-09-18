@@ -2,12 +2,14 @@
 /*
  * Copyright (C) 2019
  * Author(s): Giulio Benetti <giulio.benetti@benettiengineering.com>
+ * Copyright (C) 2023 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
 #ifndef _DT_BINDINGS_PINCTRL_IMXRT1050_PINFUNC_H
 #define _DT_BINDINGS_PINCTRL_IMXRT1050_PINFUNC_H
 
-#define IMX_PAD_SION	0x40000000
+#include "imxrt10xx-padctrl.h"
 
 /*
  * The pin function ID is a tuple of
