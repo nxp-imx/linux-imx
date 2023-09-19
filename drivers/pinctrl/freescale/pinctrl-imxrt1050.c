@@ -2,6 +2,8 @@
 /*
  * Copyright (C) 2020
  * Author(s): Giulio Benetti <giulio.benetti@benettiengineering.com>
+ * Copyright (C) 2023 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
 #include <linux/err.h>
@@ -283,14 +285,44 @@ static const struct imx_pinctrl_soc_info imxrt1050_pinctrl_info = {
 	.gpr_compatible = "fsl,imxrt1050-iomuxc-gpr",
 };
 
+enum imxrt1050_snvs_pads {
+	IMXRT1050_PAD_WAKEUP,
+	IMXRT1050_PAD_PMIC_ON_REQ,
+	IMXRT1050_PAD_PMIC_STBY_REQ,
+};
+
+static const struct pinctrl_pin_desc imxrt1050_pinctrl_snvs_pads[] = {
+	IMX_PINCTRL_PIN(IMXRT1050_PAD_WAKEUP),
+	IMX_PINCTRL_PIN(IMXRT1050_PAD_PMIC_ON_REQ),
+	IMX_PINCTRL_PIN(IMXRT1050_PAD_PMIC_STBY_REQ),
+};
+
+static const struct imx_pinctrl_soc_info imxrt1050_pinctrl_snvs_info = {
+	.pins = imxrt1050_pinctrl_snvs_pads,
+	.npins = ARRAY_SIZE(imxrt1050_pinctrl_snvs_pads),
+	.flags = ZERO_OFFSET_VALID,
+	.gpr_compatible = "fsl,imxrt1050-iomuxc-svns-gpr",
+};
+
 static const struct of_device_id imxrt1050_pinctrl_of_match[] = {
 	{ .compatible = "fsl,imxrt1050-iomuxc", .data = &imxrt1050_pinctrl_info, },
+	{ .compatible = "fsl,imxrt1050-iomuxc-snvs", .data = &imxrt1050_pinctrl_snvs_info, },
 	{ /* sentinel */ }
 };
 
 static int imxrt1050_pinctrl_probe(struct platform_device *pdev)
 {
-	return imx_pinctrl_probe(pdev, &imxrt1050_pinctrl_info);
+	const struct of_device_id *match;
+	struct imx_pinctrl_soc_info *pinctrl_info;
+
+	match = of_match_device(imxrt1050_pinctrl_of_match, &pdev->dev);
+
+	if (!match)
+		return -ENODEV;
+
+	pinctrl_info = (struct imx_pinctrl_soc_info *) match->data;
+
+	return imx_pinctrl_probe(pdev, pinctrl_info);
 }
 
 static struct platform_driver imxrt1050_pinctrl_driver = {

@@ -50,6 +50,12 @@
 			reg = <0x400ac000 0x4000>;
 		};
 
+		iomuxc_snvs: pinctrl-snvs@400a8000 {
+			compatible = "fsl,imxrt1050-iomuxc-snvs";
+			reg = <0x400a8000 0x4000>;
+			fsl,mux_mask = <0x7>;
+		};
+
 		anatop: anatop@400d8000 {
 			compatible = "fsl,imxrt-anatop";
 			reg = <0x400d8000 0x4000>;
