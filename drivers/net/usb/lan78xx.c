@@ -2410,7 +2410,11 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 
 	if (phydev->mdio.dev.of_node) {
 		u32 reg;
+		u32 led_modes[4];
+		u16 regval = 0;
 		int len;
+		int shifter = 0;
+		int i;
 
 		len = of_property_count_elems_of_size(phydev->mdio.dev.of_node,
 						      "microchip,led-modes",
@@ -2427,6 +2431,24 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 				(len > 2) * HW_CFG_LED2_EN_ |
 				(len > 3) * HW_CFG_LED3_EN_;
 			lan78xx_write_reg(dev, HW_CFG, reg);
+
+			/* Sanity check */
+			len = len > 4 ? 4 : len;
+
+			ret = of_property_read_u32_array(phydev->mdio.dev.of_node,
+							 "microchip,led-modes",
+							 led_modes,
+							 len);
+			if (!ret) {
+				for(i = 0; i < len; i++) {
+					regval |= (led_modes[i] << shifter);
+					shifter += 4;
+				}
+				lan78xx_mdiobus_write(dev->mdiobus,
+						      MII_ACC_PHY_ADDR,
+						      MII_IDX_LED_MODE_REG,
+						      regval);
+			}
 		}
 	}
 

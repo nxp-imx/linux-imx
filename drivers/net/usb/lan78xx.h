@@ -604,6 +604,9 @@
 #define MII_DATA			(0x124)
 #define MII_DATA_MASK_			(0x0000FFFF)
 
+#define MII_ACC_PHY_ADDR		(1)
+#define MII_IDX_LED_MODE_REG		(29)
+
 #define MAC_RGMII_ID			(0x128)
 #define MAC_RGMII_ID_TXC_DELAY_EN_	(0x00000002)
 #define MAC_RGMII_ID_RXC_DELAY_EN_	(0x00000001)
