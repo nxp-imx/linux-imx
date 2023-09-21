@@ -29,6 +29,20 @@
 		};
 	};
 
+	aliases {
+		gpio0 = &gpio1;
+		gpio1 = &gpio2;
+		gpio2 = &gpio3;
+		gpio3 = &gpio4;
+		gpio4 = &gpio5;
+		mmc0 = &usdhc1;
+		serial0 = &lpuart1;
+		usb0 = &usbotg1;
+		usb1 = &usbotg2;
+		usbphy0 = &usbphy1;
+		usbphy1 = &usbphy2;
+	};
+
 	soc {
 		lpuart1: serial@40184000 {
 			compatible = "fsl,imxrt1050-lpuart", "fsl,imx7ulp-lpuart";
@@ -72,13 +86,15 @@
 				<&clks IMXRT1050_CLK_PLL1_BYPASS>,
 				<&clks IMXRT1050_CLK_PLL2_BYPASS>,
 				<&clks IMXRT1050_CLK_PLL3_BYPASS>,
+				<&clks IMXRT1050_CLK_PLL7_BYPASS>,
 				<&clks IMXRT1050_CLK_PLL3_PFD1_664_62M>,
 				<&clks IMXRT1050_CLK_PLL2_PFD2_396M>;
 			assigned-clock-parents = <&clks IMXRT1050_CLK_PLL1_REF_SEL>,
 				<&clks IMXRT1050_CLK_PLL1_ARM>,
 				<&clks IMXRT1050_CLK_PLL2_SYS>,
-				<&clks IMXRT1050_CLK_PLL3_USB_OTG>,
-				<&clks IMXRT1050_CLK_PLL3_USB_OTG>,
+				<&clks IMXRT1050_CLK_PLL3>,
+				<&clks IMXRT1050_CLK_PLL7>,
+				<&clks IMXRT1050_CLK_PLL3>,
 				<&clks IMXRT1050_CLK_PLL2_SYS>;
 		};
 
@@ -178,6 +194,53 @@
 				 <&clks IMXRT1050_CLK_AHB_PODF>;
 			clock-names = "ipg", "ahb";
 			status = "disabled";
+		};
+
+		usbphy1: usbphy@400d9000 {
+			compatible = "fsl,imxrt-usbphy", "fsl,imx23-usbphy";
+			reg = <0x400d9000 0x1000>;
+			interrupts = <65>;
+			clocks = <&clks IMXRT1050_CLK_USBPHY1>;
+		};
+
+		usbphy2: usbphy@400da000 {
+			compatible = "fsl,imxrt-usbphy", "fsl,imx23-usbphy";
+			reg = <0x400da000 0x1000>;
+			interrupts = <66>;
+			clocks = <&clks IMXRT1050_CLK_USBPHY2>;
+		};
+
+		usbotg1: usb@402e0000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx27-usb";
+			reg = <0x402e0000 0x200>;
+			interrupts = <113>;
+			clocks = <&clks IMXRT1050_CLK_USBOH3>;
+			fsl,usbphy = <&usbphy1>;
+			fsl,usbmisc = <&usbmisc 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbotg2: usb@402e0200 {
+			compatible = "fsl,imxrt-usb", "fsl,imx27-usb";
+			reg = <0x402e0200 0x200>;
+			interrupts = <112>;
+			clocks = <&clks IMXRT1050_CLK_USBOH3>;
+			fsl,usbphy = <&usbphy2>;
+			fsl,usbmisc = <&usbmisc 1>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc: usbmisc@402e0800 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x402e0800 0x200>;
+			clocks = <&clks IMXRT1050_CLK_USBOH3>;
 		};
 	};
 };
