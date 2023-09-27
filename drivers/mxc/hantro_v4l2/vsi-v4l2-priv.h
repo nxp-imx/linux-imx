@@ -451,6 +451,7 @@ int vsiv4l2_verifycrop(struct v4l2_selection *s);
 void vsi_v4l2_update_ctrlcfg(struct v4l2_ctrl_config *cfg);
 void vsi_v4l2_reset_performance(struct vsi_v4l2_ctx *ctx);
 bool vsi_v4l2_ctrl_is_applicable(struct vsi_v4l2_ctx *ctx, u32 ctrl_id);
+int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg);
 
 static inline int isencoder(struct vsi_v4l2_ctx *ctx)
 {
