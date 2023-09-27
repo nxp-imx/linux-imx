@@ -1399,7 +1399,7 @@ void vsiv4l2_initcfg(struct vsi_v4l2_ctx *ctxp)
 	vsiv4l2_initfmt(ctxp);
 }
 
-static int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg)
+int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg)
 {
 	int codecFormat = pcfg->encparams.general.codecFormat;
 

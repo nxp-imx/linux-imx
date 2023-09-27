@@ -493,6 +493,7 @@ void vsi_update_sar(struct vsi_v4l2_ctx *ctx);
 void vsi_update_slice_size(struct vsi_v4l2_ctx *ctx);
 int vsi_alloc_dma(struct device *dev, struct vpu_buf *vb);
 void vsi_free_dma(struct vpu_buf *vb);
+int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg);
 
 static inline int isencoder(struct vsi_v4l2_ctx *ctx)
 {

@@ -1132,6 +1132,8 @@ static int vsi_v4l2_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
 	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
 		ret = vsi_set_profile(ctx, ctrl->id, ctrl->val);
+		if (ret >= 0)
+			ctx->mediacfg.encparams.specific.enc_h26x_cmd.profile = get_fmtprofile(&ctx->mediacfg);
 		return ret;
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
 		ctx->mediacfg.encparams.general.bitPerSecond = ctrl->val;
