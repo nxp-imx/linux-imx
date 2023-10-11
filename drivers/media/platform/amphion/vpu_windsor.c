@@ -940,6 +940,7 @@ static int vpu_windsor_set_profile(struct vpu_enc_param *param, u32 profile)
 {
 	switch (profile) {
 	case V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE:
+	case V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE:
 		param->profile = MEDIAIP_ENC_PROF_H264_BP;
 		break;
 	case V4L2_MPEG_VIDEO_H264_PROFILE_MAIN:

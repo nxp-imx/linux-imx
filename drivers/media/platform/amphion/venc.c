@@ -601,8 +601,9 @@ static int venc_ctrl_init(struct vpu_inst *inst)
 			       V4L2_CID_MPEG_VIDEO_H264_PROFILE,
 			       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
 			       ~((1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
-				 (1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
+				(1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+				(1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+				(1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
 			       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
 
 	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
