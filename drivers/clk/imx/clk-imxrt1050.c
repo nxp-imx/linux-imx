@@ -129,6 +129,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 		"video_post_div_sel", pll_base + 0x170, 30, 2);
 
 	hws[IMXRT1050_CLK_PLL3_80M] = imx_clk_hw_fixed_factor("pll3_80m",  "pll3", 1, 6);
+	hws[IMXRT1050_CLK_PLL3_60M] = imx_clk_hw_fixed_factor("pll3_60m",  "pll3", 1, 8);
 
 	hws[IMXRT1050_CLK_PLL2_PFD0_352M] = imx_clk_hw_pfd("pll2_pfd0_352m", "pll2_sys", pll_base + 0x100, 0);
 	hws[IMXRT1050_CLK_PLL2_PFD1_594M] = imx_clk_hw_pfd("pll2_pfd1_594m", "pll2_sys", pll_base + 0x100, 1);
@@ -163,6 +164,8 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 		usdhc_sels, ARRAY_SIZE(usdhc_sels));
 	hws[IMXRT1050_CLK_LPUART_SEL] = imx_clk_hw_mux("lpuart_sel", ccm_base + 0x24, 6, 1,
 		lpuart_sels, ARRAY_SIZE(lpuart_sels));
+	hws[IMXRT1050_CLK_LPI2C_SEL] = imx_clk_hw_mux("lpi2c_sel", ccm_base + 0x38, 18, 1,
+		lpi2c_sels, ARRAY_SIZE(lpi2c_sels));
 	hws[IMXRT1050_CLK_LCDIF_SEL] = imx_clk_hw_mux("lcdif_sel", ccm_base + 0x38, 15, 3,
 		lcdif_sels, ARRAY_SIZE(lcdif_sels));
 	hws[IMXRT1050_CLK_PER_CLK_SEL] = imx_clk_hw_mux("per_sel", ccm_base + 0x1C, 6, 1,
@@ -179,6 +182,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_USDHC1_PODF] = imx_clk_hw_divider("usdhc1_podf", "usdhc1_sel", ccm_base + 0x24, 11, 3);
 	hws[IMXRT1050_CLK_USDHC2_PODF] = imx_clk_hw_divider("usdhc2_podf", "usdhc2_sel", ccm_base + 0x24, 16, 3);
 	hws[IMXRT1050_CLK_LPUART_PODF] = imx_clk_hw_divider("lpuart_podf", "lpuart_sel", ccm_base + 0x24, 0, 6);
+	hws[IMXRT1050_CLK_LPI2C_PODF] = imx_clk_hw_divider("lpi2c_podf", "lpi2c_sel", ccm_base + 0x38, 19, 6);
 	hws[IMXRT1050_CLK_LCDIF_PRED] = imx_clk_hw_divider("lcdif_pred", "lcdif_sel", ccm_base + 0x38, 12, 3);
 	hws[IMXRT1050_CLK_LCDIF_PODF] = imx_clk_hw_divider("lcdif_podf", "lcdif_pred", ccm_base + 0x18, 23, 3);
 
