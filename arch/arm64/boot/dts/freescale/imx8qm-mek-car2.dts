@@ -175,7 +175,7 @@
 };
 
 &pcieb{
-	status = "disabled";
+	status = "okay";
 };
 
 /* used for can io expander */
