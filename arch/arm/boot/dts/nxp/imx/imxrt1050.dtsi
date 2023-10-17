@@ -242,5 +242,14 @@
 			reg = <0x402e0800 0x200>;
 			clocks = <&clks IMXRT1050_CLK_USBOH3>;
 		};
+
+		lpi2c1: lpci2c@403f0000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x403f0000 0x4000>;
+			interrupts = <28>;
+			clocks = <&clks IMXRT1050_CLK_LPI2C1>, <&clks IMXRT1050_CLK_IPG_PDOF>;
+			clock-names = "per", "ipg";
+			status = "disabled";
+		};
 	};
 };
