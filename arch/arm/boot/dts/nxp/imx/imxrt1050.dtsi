@@ -41,6 +41,8 @@
 		usb1 = &usbotg2;
 		usbphy0 = &usbphy1;
 		usbphy1 = &usbphy2;
+		adc1 = &adc1;
+		adc2 = &adc2;
 	};
 
 	soc {
@@ -249,6 +251,16 @@
 			interrupts = <28>;
 			clocks = <&clks IMXRT1050_CLK_LPI2C1>, <&clks IMXRT1050_CLK_IPG_PDOF>;
 			clock-names = "per", "ipg";
+			status = "disabled";
+		};
+
+		adc1: adc@400c4000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		adc2: adc@400c8000 {
+			/* TBD */
 			status = "disabled";
 		};
 	};

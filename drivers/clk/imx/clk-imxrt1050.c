@@ -44,6 +44,11 @@ static const char *const semc_sels[] = { "periph_sel", "semc_alt_sel", };
 static struct clk_hw **hws;
 static struct clk_hw_onecell_data *clk_hw_data;
 
+static void add_adc_clocks(void __iomem *ccm_base) {
+	/* TBD */
+	return;
+}
+
 static int imxrt1050_clocks_probe(struct platform_device *pdev)
 {
 	void __iomem *ccm_base;
@@ -161,6 +166,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_LCDIF_PRED] = imx_clk_hw_divider("lcdif_pred", "lcdif_sel", ccm_base + 0x38, 12, 3);
 	hws[IMXRT1050_CLK_LCDIF_PODF] = imx_clk_hw_divider("lcdif_podf", "lcdif_pred", ccm_base + 0x18, 23, 3);
 
+	add_adc_clocks(ccm_base);
 	hws[IMXRT1050_CLK_USDHC1] = imx_clk_hw_gate2("usdhc1", "usdhc1_podf", ccm_base + 0x80, 2);
 	hws[IMXRT1050_CLK_USDHC2] = imx_clk_hw_gate2("usdhc2", "usdhc2_podf", ccm_base + 0x80, 4);
 	hws[IMXRT1050_CLK_LPUART1] = imx_clk_hw_gate2("lpuart1", "lpuart_podf", ccm_base + 0x7c, 24);
