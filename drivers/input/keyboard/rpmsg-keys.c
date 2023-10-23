@@ -67,7 +67,7 @@ struct rpmsg_keys_drvdata {
 	struct delayed_work keysetup_work;
 	struct completion cmd_complete;
 	int nbuttons;
-	struct rpmsg_keys_button buttons[0];
+	struct rpmsg_keys_button buttons[];
 };
 
 static struct rpmsg_keys_drvdata *keys_rpmsg;
