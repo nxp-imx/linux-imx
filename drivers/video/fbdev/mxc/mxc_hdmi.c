@@ -1974,7 +1974,9 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 	}
 
 	/* Setting video mode */
+	lock_fb_info(hdmi->fbi);
 	mxc_hdmi_set_mode(hdmi);
+	unlock_fb_info(hdmi->fbi);
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 }
