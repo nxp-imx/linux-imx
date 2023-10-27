@@ -263,5 +263,25 @@
 			/* TBD */
 			status = "disabled";
 		};
+
+		lpspi1: lpspi@40394000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi2: lpspi@40398000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi3: lpspi@4039c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi4: lpspi@403a0000 {
+			/* TBD */
+			status = "disabled";
+		};
 	};
 };

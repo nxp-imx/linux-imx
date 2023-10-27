@@ -40,11 +40,18 @@ static const char *const lcdif_sels[] = {
 	"pll2_pfd1_594m", "pll3_pfd1_664_62m", };
 static const char *const semc_alt_sels[] = { "pll2_pfd2_396m", "pll3_pfd1_664_62m", };
 static const char *const semc_sels[] = { "periph_sel", "semc_alt_sel", };
+static const char *const lpi2c_sels[] = { "pll3_60m", "osc", };
+static const char *const lpspi_sels[] = { "pll3_pfd1_664_62m",  "pll3_pfd0_720m", "pll2_sys", "pll2_pfd2_396m" };
 
 static struct clk_hw **hws;
 static struct clk_hw_onecell_data *clk_hw_data;
 
 static void add_adc_clocks(void __iomem *ccm_base) {
+	/* TBD */
+	return;
+}
+
+static void add_lpspi_clocks(void __iomem *ccm_base) {
 	/* TBD */
 	return;
 }
@@ -123,6 +130,12 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_PLL2_PFD2_396M] = imx_clk_hw_pfd("pll2_pfd2_396m", "pll2_sys", pll_base + 0x100, 2);
 	hws[IMXRT1050_CLK_PLL3_PFD1_664_62M] = imx_clk_hw_pfd("pll3_pfd1_664_62m", "pll3_usb_otg", pll_base + 0xf0, 1);
 	hws[IMXRT1050_CLK_PLL3_PFD3_454_74M] = imx_clk_hw_pfd("pll3_pfd3_454_74m", "pll3_usb_otg", pll_base + 0xf0, 3);
+	hws[IMXRT1050_CLK_PLL3_PFD0_720M] = imx_clk_hw_pfd("pll3_pfd0_720m", "pll3", pll_base + 0xf0, 0);
+	hws[IMXRT1050_CLK_PLL3_PFD1_664_62M] = imx_clk_hw_pfd("pll3_pfd1_664_62m", "pll3", pll_base + 0xf0, 1);
+	hws[IMXRT1050_CLK_PLL3_PFD3_454_74M] = imx_clk_hw_pfd("pll3_pfd3_454_74m", "pll3", pll_base + 0xf0, 3);
+
+	hws[IMXRT1050_CLK_USBPHY1] = imx_clk_hw_gate("pll3_usbphy1", "pll3", pll_base + 0x10, 6);
+	hws[IMXRT1050_CLK_USBPHY2] = imx_clk_hw_gate("pll7_usbphy2", "pll7", pll_base + 0x20, 6);
 
 	hws[IMXRT1050_CLK_PLL6_ENET] = imx_clk_hw_gate("pll6_enet", "pll6", pll_base + 0xe0, 13);
 	hws[IMXRT1050_CLK_ENET_REF] = clk_hw_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
@@ -167,6 +180,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_LCDIF_PODF] = imx_clk_hw_divider("lcdif_podf", "lcdif_pred", ccm_base + 0x18, 23, 3);
 
 	add_adc_clocks(ccm_base);
+	add_lpspi_clocks(ccm_base);
 	hws[IMXRT1050_CLK_USDHC1] = imx_clk_hw_gate2("usdhc1", "usdhc1_podf", ccm_base + 0x80, 2);
 	hws[IMXRT1050_CLK_USDHC2] = imx_clk_hw_gate2("usdhc2", "usdhc2_podf", ccm_base + 0x80, 4);
 	hws[IMXRT1050_CLK_LPUART1] = imx_clk_hw_gate2("lpuart1", "lpuart_podf", ccm_base + 0x7c, 24);
