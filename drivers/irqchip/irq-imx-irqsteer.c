@@ -378,7 +378,6 @@ static int imx_irqsteer_runtime_resume(struct device *dev)
 
 	return 0;
 }
-#endif
 
 static const struct dev_pm_ops imx_irqsteer_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
@@ -386,6 +385,11 @@ static const struct dev_pm_ops imx_irqsteer_pm_ops = {
 	SET_RUNTIME_PM_OPS(imx_irqsteer_runtime_suspend,
 			   imx_irqsteer_runtime_resume, NULL)
 };
+
+#define IRQSTEER_PM_OPS_PTR (&imx_irqsteer_pm_ops)
+#else
+#define IRQSTEER_PM_OPS_PTR NULL
+#endif
 
 static const struct of_device_id imx_irqsteer_dt_ids[] = {
 	{ .compatible = "fsl,imx-irqsteer", },
@@ -397,7 +401,7 @@ static struct platform_driver imx_irqsteer_driver = {
 	.driver = {
 		.name = "imx-irqsteer",
 		.of_match_table = imx_irqsteer_dt_ids,
-		.pm = &imx_irqsteer_pm_ops,
+		.pm = IRQSTEER_PM_OPS_PTR,
 	},
 	.probe = imx_irqsteer_probe,
 	.remove = imx_irqsteer_remove,
