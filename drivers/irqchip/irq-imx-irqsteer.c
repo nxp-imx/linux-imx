@@ -191,7 +191,7 @@ static int imx_irqsteer_chans_enable(struct irqsteer_data *data)
 {
 	int ret;
 
-	ret = clk_prepare_enable(irqsteer_data->ipg_clk);
+	ret = clk_prepare_enable(data->ipg_clk);
 	if (ret) {
 		dev_err(data->dev, "failed to enable ipg clk: %d\n", ret);
 		return ret;
