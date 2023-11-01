@@ -99,7 +99,7 @@ static int clk_pllimxrt1170_prepare(struct clk_hw *hw)
 		return 0;
 	}
 
-	val &= pll->stable_mask;
+	val &= ~pll->stable_mask;
 	val |= pll->gate_mask;
 	val &= ~pll->enable_mask;
 	writel_relaxed(val, pll->base);
