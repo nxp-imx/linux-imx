@@ -81,7 +81,8 @@ struct imxrt1170_clk_root {
 static struct imxrt1170_clk_root clk_roots[] = {
 	{ IMXRT1170_CLK_ROOT_M7, "m7_root", m7_sels, 0, CLK_IS_CRITICAL },
 	{ IMXRT1170_CLK_ROOT_BUS, "bus_root", bus_sels, (2 * 0x80), CLK_IS_CRITICAL },
-        { IMXRT1170_CLK_ROOT_SEMC, "semc_root", semc_sels, (4 * 0x80), CLK_IS_CRITICAL },
+	{ IMXRT1170_CLK_ROOT_BUS_LPSR, "bus_lpsr_root", bus_lpsr_sels, (3 * 0x80), CLK_IS_CRITICAL },
+	{ IMXRT1170_CLK_ROOT_SEMC, "semc_root", semc_sels, (4 * 0x80), CLK_IS_CRITICAL },
 	{ IMXRT1170_CLK_ROOT_GPT1, "gpt1_root", gpt1_sels, (14 * 0x80), },
 	{ IMXRT1170_CLK_ROOT_LPUART1, "lpuart1_root", lpuart1_sels, (25 * 0x80), },
 	{ IMXRT1170_CLK_ROOT_ENET1, "enet1_root", enet1_sels, (51 * 0x80), },
