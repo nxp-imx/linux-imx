@@ -51,6 +51,9 @@
 		serial0 = &lpuart1;
 		usbphy0 = &usbphy1;
 		usbphy1 = &usbphy2;
+		can0 = &flexcan1;
+		can1 = &flexcan2;
+		can2 = &flexcan3;
 	};
 
 	soc {
@@ -343,5 +346,19 @@
 			clocks = <&clks IMXRT1170_CLK_USB>;
 		};
 
+		flexcan1: can@400c4000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexcan2: can@400c8000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexcan3: can@40c3c000 {
+			/* TBD */
+			status = "disabled";
+		};
 	};
 };
