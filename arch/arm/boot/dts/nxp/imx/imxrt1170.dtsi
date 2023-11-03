@@ -485,12 +485,28 @@
                 };
 
 		flexspi1: spi@400cc000 {
-			/* TBD */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "nxp,imxrt1170-fspi";
+			reg = <0x400cc000 0x4000>, <0x30000000 0x40000000>;
+			reg-names = "fspi_base", "fspi_mmap";
+			interrupts = <130>;
+			clocks = <&clks IMXRT1170_CLK_ROOT_FLEXSPI1>,
+                                 <&clks IMXRT1170_CLK_FLEXSPI1>;
+			clock-names = "fspi", "fspi_en";
 			status = "disabled";
 		};
 
 		flexspi2: spi@400d0000 {
-			/* TBD */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "nxp,imxrt1170-fspi";
+			reg = <0x400d0000 0x4000>, <0x60000000 0x40000000>;
+			reg-names = "fspi_base", "fspi_mmap";
+			interrupts = <131>;
+			clocks = <&clks IMXRT1170_CLK_ROOT_FLEXSPI2>,
+                                 <&clks IMXRT1170_CLK_FLEXSPI2>;
+			clock-names = "fspi", "fspi_en";
 			status = "disabled";
 		};
 
