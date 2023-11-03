@@ -373,5 +373,14 @@
                         status = "disabled";
                 };
 
+		flexspi1: spi@400cc000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexspi2: spi@400d0000 {
+			/* TBD */
+			status = "disabled";
+		};
 	};
 };
