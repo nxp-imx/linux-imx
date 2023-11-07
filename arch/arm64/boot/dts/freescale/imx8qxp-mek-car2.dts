@@ -25,7 +25,7 @@
 &i2c_rpbus_15 {
 	clock-frequency = <1000000>;
 	isl29023@44 {
-		status = "disabled";
+		status = "okay";
 	};
 };
 
