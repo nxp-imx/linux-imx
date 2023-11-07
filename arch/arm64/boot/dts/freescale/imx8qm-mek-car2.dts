@@ -27,7 +27,7 @@
 &i2c0 {
 	clock-frequency = <100000>;
 	isl29023@44 {
-		status = "disabled";
+		status = "okay";
 	};
 
 	fxos8700@1e {
