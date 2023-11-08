@@ -54,6 +54,8 @@
 		can0 = &flexcan1;
 		can1 = &flexcan2;
 		can2 = &flexcan3;
+		adc1 = &adc1;
+		adc2 = &adc2;
 	};
 
 	soc {
@@ -360,5 +362,16 @@
 			/* TBD */
 			status = "disabled";
 		};
+
+		adc1: adc@40050000 {
+			/* TBD */
+                        status = "disabled";
+                };
+
+                adc2: adc@40054000 {
+			/* TBD */
+                        status = "disabled";
+                };
+
 	};
 };
