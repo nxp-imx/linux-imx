@@ -4,6 +4,8 @@
 #ifndef __UAPI_GENL_TSN_H
 #define __UAPI_GENL_TSN_H
 
+#include <linux/types.h>
+
 #define	TSN_GENL_NAME		"TSN_GEN_CTRL"
 #define	TSN_GENL_VERSION	0x1
 
