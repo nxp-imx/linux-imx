@@ -99,8 +99,9 @@ struct imxrt1170_clk_ccgr {
 
 static struct imxrt1170_clk_ccgr clk_ccgrs[] = {
 	{ IMXRT1170_CLK_M7, "m7", "m7_root", 0x6000, CLK_IS_CRITICAL },
-        { IMXRT1170_CLK_SEMC, "semc", "semc_root", (0x6000 + (33 * 0x20)), CLK_IS_CRITICAL },
-        { IMXRT1170_CLK_GPT1, "gpt1", "gpt1_root", (0x6000 + (64 * 0x20)), },
+	{ IMXRT1170_CLK_EDMA, "edma", "bus_root", (0x6000 + (20 * 0x20)) },
+	{ IMXRT1170_CLK_SEMC, "semc", "semc_root", (0x6000 + (33 * 0x20)), CLK_IS_CRITICAL },
+	{ IMXRT1170_CLK_GPT1, "gpt1", "gpt1_root", (0x6000 + (64 * 0x20)), },
 	{ IMXRT1170_CLK_LPUART1, "lpuart1", "lpuart1_root", (0x6000 + (86 * 0x20)), },
 	{ IMXRT1170_CLK_ENET1, "enet1", "enet1_root", (0x6000 + (112 * 0x20)), },
 	{ IMXRT1170_CLK_USB, "usb", "bus_root", (0x6000 + (115 * 0x20)), },

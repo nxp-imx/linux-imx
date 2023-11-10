@@ -104,6 +104,19 @@
 			clock-names = "osc", "rcosc16M";
 		};
 
+		edma0: dma-controller@40080000 {
+			#dma-cells = <2>;
+			compatible = "fsl,imx7ulp-edma";
+			reg = <0x40070000 0x4000>,
+				<0x40074000 0x4000>;
+			dma-channels = <32>;
+			interrupts = <0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>,
+				     <8>, <9>, <10>, <11>, <12>, <13>, <14>, <15>, <16>;
+			clock-names = "dma", "dmamux0";
+			clocks = <&clks IMXRT1170_CLK_EDMA>,
+				 <&clks IMXRT1170_CLK_EDMA>;
+		};
+
 		usdhc1: usdhc@40418000 {
 			compatible = "fsl,imxrt-usdhc", "fsl,imx6sl-usdhc";
 			reg = <0x40418000 0x4000>;
