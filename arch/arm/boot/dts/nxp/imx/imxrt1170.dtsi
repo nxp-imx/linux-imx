@@ -382,5 +382,35 @@
 			/* TBD */
 			status = "disabled";
 		};
+
+		lpspi1: spi@40114000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi2: spi@40118000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi3: spi@4011c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi4: spi@40120000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi5: spi@40c2c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi6: spi@40c30000 {
+			/* TBD */
+			status = "disabled";
+		};
 	};
 };
