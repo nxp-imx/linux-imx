@@ -172,7 +172,7 @@ static u32 mhdp_cec_write_message(struct cdns_mhdp_cec *cec, struct cec_msg *msg
 	}
 
 	for (i = 0; i < msg->len; ++i)
-		printk("msg[%d]=0x%x\n",i, msg->msg[i]);
+		dev_dbg(cec->dev, "msg[%d]=0x%x\n",i, msg->msg[i]);
 
 	/* Write Message to register */
 	for (i = 0; i < msg->len; ++i) {
