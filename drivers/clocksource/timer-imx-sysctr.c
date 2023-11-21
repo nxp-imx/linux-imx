@@ -177,7 +177,7 @@ static struct timer_of to_sysctr = {
 	},
 };
 
-static int __init __sysctr_timer_init(struct device_node *np)
+static int __sysctr_timer_init(struct device_node *np)
 {
 	struct sysctr_private *priv;
 	void __iomem *base;
@@ -207,7 +207,7 @@ static int __init __sysctr_timer_init(struct device_node *np)
 	return 0;
 }
 
-static int __init sysctr_timer_init(struct device_node *np)
+static int sysctr_timer_init(struct device_node *np)
 {
 	struct sysctr_private *priv;
 	int ret;
