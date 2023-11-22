@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
+#include <linux/arm-smccc.h>
 #include <linux/bits.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
@@ -9,6 +10,9 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include "clk.h"
+
+#include <soc/imx/src.h>
+#include <soc/imx/soc.h>
 
 #define CCM_CCDR			0x4
 #define CCDR_MMDC_CH0_MASK		BIT(17)
@@ -237,6 +241,33 @@ static int __init setup_uart_clk(char *uart_rate)
 __setup("uart_from_osc", setup_uart_clk);
 
 #endif
+
+#define FSL_SIP_SRC                    0xc2000005
+#define FSL_SIP_SRC_M4_START           0x00
+#define FSL_SIP_SRC_M4_STARTED         0x01
+
+/* To indicate M4 enabled or not on i.MX8MQ */
+static bool m4_is_enabled;
+bool imx_src_is_m4_enabled(void)
+{
+	return m4_is_enabled;
+}
+EXPORT_SYMBOL_GPL(imx_src_is_m4_enabled);
+
+int check_m4_enabled(void)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(FSL_SIP_SRC, FSL_SIP_SRC_M4_STARTED, 0,
+			0, 0, 0, 0, 0, &res);
+			m4_is_enabled = !!res.a0;
+
+	if (m4_is_enabled)
+		printk("M4 is started\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(check_m4_enabled);
 
 MODULE_DESCRIPTION("Common clock support for NXP i.MX SoC family");
 MODULE_LICENSE("GPL v2");
