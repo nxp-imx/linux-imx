@@ -159,7 +159,4 @@
 &isi_4 {
 	status = "disabled";
 };
-/* BT UART DMA disabled due to BT HAL stability problems */
-&lpuart1 {
-	/delete-property/ dmas;
-};
+
