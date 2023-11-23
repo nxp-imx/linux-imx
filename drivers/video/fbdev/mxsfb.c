@@ -1487,7 +1487,12 @@ static int mxsfb_init_fbinfo(struct mxsfb_info *host)
 		dev_dbg(fb_info->device, "use reserved memory fb @ paddr=0x%08X, size=%d.\n",
 			host->reserved_mem->base, host->reserved_mem->size);
 	} else  {
+#if !defined(CONFIG_SOC_IMXRT)
 		fb_info->fix.smem_len = SZ_32M;
+#else
+		fb_info->fix.smem_len = SZ_1M;
+#endif
+
 
 		/* Memory allocation for framebuffer */
 		if (mxsfb_map_videomem(fb_info) < 0)

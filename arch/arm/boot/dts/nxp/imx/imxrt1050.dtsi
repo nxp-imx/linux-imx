@@ -113,6 +113,17 @@
 				 <&clks IMXRT1050_CLK_DMA_MUX>;
 		};
 
+		lcdif: lcdif@402b8000 {
+			compatible = "fsl,imx28-lcdif";
+			reg = <0x402b8000 0x4000>;
+			interrupts = <42>;
+			clocks = <&clks IMXRT1050_CLK_LCDIF_PIX>,
+				 <&clks IMXRT1050_CLK_LCDIF_APB>,
+				 <&clks IMXRT1050_CLK_DUMMY>;
+			clock-names = "pix", "axi", "disp_axi";
+			status = "disabled";
+		};
+
 		usdhc1: mmc@402c0000 {
 			compatible = "fsl,imxrt1050-usdhc", "fsl,imx6sl-usdhc";
 			reg = <0x402c0000 0x4000>;
