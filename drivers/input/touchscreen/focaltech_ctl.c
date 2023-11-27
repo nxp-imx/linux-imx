@@ -55,7 +55,7 @@ static int ft_rw_iic_drv_RDWR(struct i2c_client *client, unsigned long arg)
 	int i;
 
 	if (!access_ok
-	    (VERIFY_READ, (struct ft_rw_i2c_queue *)arg,
+	    ((struct ft_rw_i2c_queue *)arg,
 	     sizeof(struct ft_rw_i2c_queue)))
 		return -EFAULT;
 
