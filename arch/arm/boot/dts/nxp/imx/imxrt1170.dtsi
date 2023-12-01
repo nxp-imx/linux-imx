@@ -361,6 +361,66 @@
 			clocks = <&clks IMXRT1170_CLK_USB>;
 		};
 
+		lpi2c1: lpci2c@40104000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40104000 0x4000>;
+			interrupts = <32>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c2: lpci2c@40108000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40108000 0x4000>;
+			interrupts = <33>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c3: lpci2c@4010c000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x4010c000 0x4000>;
+			interrupts = <34>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c4: lpci2c@40110000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40110000 0x4000>;
+			interrupts = <35>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c5: lpci2c@40c34000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40c34000 0x4000>;
+			interrupts = <36>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c6: lpci2c@40c38000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40c38000 0x4000>;
+			interrupts = <37>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		flexcan1: can@400c4000 {
 			/* TBD */
 			status = "disabled";
