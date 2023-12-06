@@ -23,6 +23,7 @@
 		brightness-levels = <0 100>;
 		num-interpolated-steps = <100>;
 		default-brightness-level = <80>;
+		status = "disabled";
 	};
 
 	lvds_backlight1: lvds-backlight-1 {
@@ -31,6 +32,7 @@
 		brightness-levels = <0 100>;
 		num-interpolated-steps = <100>;
 		default-brightness-level = <80>;
+		status = "disabled";
 	};
 
 	memory@80000000 {

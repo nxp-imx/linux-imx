@@ -18,6 +18,10 @@
 	};
 };
 
+&lvds_backlight {
+	status = "okay";
+};
+
 /delete-node/ &lvds_bridge;
 
 &ldb {

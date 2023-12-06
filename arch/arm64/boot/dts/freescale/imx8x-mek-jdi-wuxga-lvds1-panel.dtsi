@@ -17,6 +17,10 @@
 	};
 };
 
+&lvds_backlight0 {
+	status = "okay";
+};
+
 /delete-node/ &it6263_1_in;
 
 &ldb2 {

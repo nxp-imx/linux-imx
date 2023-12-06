@@ -107,6 +107,7 @@
 		brightness-levels = <0 255>;
 		num-interpolated-steps = <255>;
 		default-brightness-level = <250>;
+		status = "disabled";
 	};
 
 	ir-receiver {
