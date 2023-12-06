@@ -33,6 +33,7 @@
 				     90 91 92 93 94 95 96 97 98 99
 				    100>;
 		default-brightness-level = <80>;
+		status = "disabled";
 	};
 
 	lvds_backlight1: lvds-backlight-1 {
@@ -51,6 +52,7 @@
 				     90 91 92 93 94 95 96 97 98 99
 				    100>;
 		default-brightness-level = <80>;
+		status = "disabled";
 	};
 
 	memory@80000000 {
