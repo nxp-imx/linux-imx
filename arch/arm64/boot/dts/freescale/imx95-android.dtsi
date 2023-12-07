@@ -8,9 +8,9 @@
 		android {
 			compatible = "android,firmware";
 			/* sd card node which used if androidboot.boot_device_root=mmcblk0 */
-			boot_devices_mmcblk0 = "soc@0/42800000.bus/42850000.mmc";
+			boot_devices_mmcblk0 = "soc/42800000.bus/42850000.mmc";
 			/* emmc node which used if androidboot.boot_device_root=mmcblk1 */
-			boot_devices_mmcblk1 = "soc@0/42800000.bus/42860000.mmc";
+			boot_devices_mmcblk1 = "soc/42800000.bus/42860000.mmc";
 			vbmeta {
 				/*we need use FirstStageMountVBootV2 if we enable avb*/
 				compatible = "android,vbmeta";
