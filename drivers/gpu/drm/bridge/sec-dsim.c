@@ -2056,6 +2056,12 @@ panel:
 		/* TODO */
 		connector->dpms = DRM_MODE_DPMS_OFF;
 
+		ret = drm_connector_set_orientation_from_panel(connector, dsim->panel);
+		if (ret) {
+			dev_err(dev, "Unable to set orientation: %d\n", ret);
+			goto cleanup_connector;
+		}
+
 		ret = drm_connector_attach_encoder(connector, encoder);
 		if (ret)
 			goto cleanup_connector;
