@@ -123,7 +123,7 @@ void traps_v7m_init(void){
 	writel(readl(&NVIC->system_handler_csr) | USGFAULTENA | BUSFAULTENA,
 			&NVIC->system_handler_csr);
 	writel(
-#ifndef CONFIG_ARM_V7M_NO_UNALIGN_TRP
+#if !defined(CONFIG_ARM_V7M_NO_UNALIGN_TRP) && 0
 		UNALIGN_TRP |
 #endif
 		DIV_0_TRP | readl(&NVIC->config_control),
