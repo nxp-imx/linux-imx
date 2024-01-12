@@ -418,17 +418,17 @@ static int fsl_esai_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	if (esai_priv->consumer_mode[0] == esai_priv->consumer_mode[1]) {
 		/* DAI clock master masks */
 		switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-		case SND_SOC_DAIFMT_CBM_CFM:
+		case SND_SOC_DAIFMT_BC_FC:
 			esai_priv->consumer_mode[0] = true;
 			esai_priv->consumer_mode[1] = true;
 			break;
-		case SND_SOC_DAIFMT_CBS_CFM:
+		case SND_SOC_DAIFMT_BP_FC:
 			xccr |= ESAI_xCCR_xCKD;
 			break;
-		case SND_SOC_DAIFMT_CBM_CFS:
+		case SND_SOC_DAIFMT_BC_FP:
 			xccr |= ESAI_xCCR_xFSD;
 			break;
-		case SND_SOC_DAIFMT_CBS_CFS:
+		case SND_SOC_DAIFMT_BP_FP:
 			xccr |= ESAI_xCCR_xFSD | ESAI_xCCR_xCKD;
 			esai_priv->consumer_mode[0] = false;
 			esai_priv->consumer_mode[1] = false;
