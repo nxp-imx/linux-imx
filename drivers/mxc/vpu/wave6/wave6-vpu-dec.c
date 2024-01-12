@@ -527,6 +527,15 @@ static void wave6_update_v4l2_ctrls(struct vpu_instance *inst,
 	}
 }
 
+static inline bool wave6_vpu_vb_is_headers_only(struct vb2_v4l2_buffer *vbuf)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vbuf->vb2_buf.vb2_queue);
+
+	if (inst->header_separate)
+		return vbuf->flags & V4L2_BUF_FLAG_HEADERS_ONLY ? true : false;
+	return false;
+}
+
 static int wave6_vpu_dec_start_decode(struct vpu_instance *inst)
 {
 	struct dec_param pic_param;
@@ -619,10 +628,16 @@ static void wave6_handle_skipped_frame(struct vpu_instance *inst)
 {
 	struct vb2_v4l2_buffer *src_buf;
 	struct vpu_buffer *vpu_buf;
+	enum vb2_buffer_state state = VB2_BUF_STATE_ERROR;
+	bool headers_only;
 
 	src_buf = v4l2_m2m_next_src_buf(inst->v4l2_fh.m2m_ctx);
 	if (!src_buf)
 		return;
+
+	headers_only = wave6_vpu_vb_is_headers_only(src_buf);
+	if (headers_only)
+		state = VB2_BUF_STATE_DONE;
 
 	vpu_buf = wave6_to_vpu_buf(src_buf);
 	if (!vpu_buf || !vpu_buf->consumed)
@@ -630,11 +645,13 @@ static void wave6_handle_skipped_frame(struct vpu_instance *inst)
 
 	dprintk(inst->dev->dev, "[%d] skip frame %d\n", inst->id, inst->sequence);
 
-	inst->sequence++;
+	if (!headers_only) {
+		inst->sequence++;
+		inst->error_buf_num++;
+	}
 	inst->processed_buf_num++;
-	inst->error_buf_num++;
 	src_buf = v4l2_m2m_src_buf_remove(inst->v4l2_fh.m2m_ctx);
-	v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_ERROR);
+	v4l2_m2m_buf_done(src_buf, state);
 }
 
 static void wave6_handle_display_frame(struct vpu_instance *inst,
@@ -1335,6 +1352,9 @@ static int wave6_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VPU_SECURE_MODE:
 		inst->secure_mode = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
+		inst->header_separate = (ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1878,6 +1898,12 @@ static int wave6_vpu_open_dec(struct file *filp)
 	v4l2_ctrl_new_std(&inst->v4l2_ctrl_hdl, &wave6_vpu_dec_ctrl_ops,
 			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE,
 			  0, 1, 1, 0);
+	v4l2_ctrl_new_std_menu(&inst->v4l2_ctrl_hdl, &wave6_vpu_dec_ctrl_ops,
+			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+			       ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
+				 (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 	v4l2_ctrl_new_std_menu(&inst->v4l2_ctrl_hdl, &wave6_vpu_dec_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
 			       V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN, 0,
