@@ -609,8 +609,7 @@ static const struct iio_chan_spec tsl2540_channels[] = {
 	}
 };
 
-static int tsl2540_probe(struct i2c_client *clientp,
-			 const struct i2c_device_id *id)
+static int tsl2540_probe(struct i2c_client *clientp)
 {
 	struct iio_dev *indio_dev;
 	struct tsl2540_chip *chip;
