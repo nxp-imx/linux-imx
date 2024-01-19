@@ -82,3 +82,8 @@
 &vpuctrl {
 	trusty;
 };
+
+&lpuart5 {
+       /delete-node/ bluetooth;
+};
+
