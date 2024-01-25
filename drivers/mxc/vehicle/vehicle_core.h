@@ -81,7 +81,8 @@ struct hw_prop_ops {
 
 #define HVAC_LEFT VEHICLE_AREA_SEAT_ROW_1_LEFT | VEHICLE_AREA_SEAT_ROW_2_LEFT | VEHICLE_AREA_SEAT_ROW_2_CENTER
 #define HVAC_RIGHT VEHICLE_AREA_SEAT_ROW_1_RIGHT | VEHICLE_AREA_SEAT_ROW_2_RIGHT
-#define HVAC_ALL HVAC_LEFT | HVAC_RIGHT
+//Due to VHAL migration from hidl to aidl, details in commit message
+#define HVAC_ALL VEHICLE_AREA_SEAT_ROW_1_LEFT
 /* areaId defines - end */
 
 #ifdef CONFIG_VEHICLE_DRIVER_OREO
