@@ -378,8 +378,12 @@ static enum v4l2_colorspace to_v4l2_colorspace(u32 colour_primaries)
 		return V4L2_COLORSPACE_SMPTE170M;
 	case 7:
 		return V4L2_COLORSPACE_SMPTE240M;
+	case 8:
+		return V4L2_COLORSPACE_GENERIC_FILM;
 	case 9:
 		return V4L2_COLORSPACE_BT2020;
+	case 10:
+		return V4L2_COLORSPACE_ST428;
 	case 11:
 		return V4L2_COLORSPACE_DCI_P3;
 	default:
@@ -392,18 +396,32 @@ static enum v4l2_xfer_func to_v4l2_xfer_func(u32 transfer_characteristics)
 	switch (transfer_characteristics) {
 	case 1:
 		return V4L2_XFER_FUNC_709;
+	case 4:
+		return V4L2_XFER_FUNC_GAMMA22;
+	case 5:
+		return V4L2_XFER_FUNC_GAMMA28;
 	case 6:
 		return V4L2_XFER_FUNC_709;
 	case 7:
 		return V4L2_XFER_FUNC_SMPTE240M;
 	case 8:
 		return V4L2_XFER_FUNC_NONE;
+	case 11:
+		return V4L2_XFER_FUNC_XVYCC;
+	case 12:
+		return V4L2_XFER_FUNC_BT1361;
 	case 13:
 		return V4L2_XFER_FUNC_SRGB;
 	case 14:
 		return V4L2_XFER_FUNC_709;
+	case 15:
+		return V4L2_XFER_FUNC_709;
 	case 16:
 		return V4L2_XFER_FUNC_SMPTE2084;
+	case 17:
+		return V4L2_XFER_FUNC_ST428;
+	case 18:
+		return V4L2_XFER_FUNC_HLG;
 	default:
 		return V4L2_XFER_FUNC_DEFAULT;
 	}
@@ -414,6 +432,8 @@ static enum v4l2_ycbcr_encoding to_v4l2_ycbcr_encoding(u32 matrix_coeffs)
 	switch (matrix_coeffs) {
 	case 1:
 		return V4L2_YCBCR_ENC_709;
+	case 4:
+		return V4L2_YCBCR_ENC_BT470_6M;
 	case 5:
 		return V4L2_YCBCR_ENC_601;
 	case 6:
