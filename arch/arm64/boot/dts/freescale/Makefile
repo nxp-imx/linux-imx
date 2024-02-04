@@ -873,3 +873,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk-iw612.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-pcie1-m2-gki.dtb imx8mq-evk-lcdif-adv7535-gki.dtb \
                           imx8mq-evk-dcss-rm67199-gki.dtb  imx8mq-evk-dcss-rm67191-gki.dtb imx8mq-evk-dual-display-gki.dtb imx8mq-evk-gki.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8ulp-watch.dtb imx8ulp-evk-lpd.dtb imx8ulp-evk-g1120b0mipi.dtb
+
+imx95-19x19-evk-adv7535-it6263-lvds1-ap1302-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-adv7535.dtbo \
+						     imx95-19x19-evk-it6263-lvds1.dtbo \
+						     imx95-19x19-evk-ap1302.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-adv7535-it6263-lvds1-ap1302.dtb
