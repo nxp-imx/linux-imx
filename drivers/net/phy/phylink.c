@@ -851,9 +851,7 @@ static phy_interface_t phylink_c73_linkmode_to_interface(unsigned long *supporte
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_40000baseKR4_Full_BIT, supported))
 		return PHY_INTERFACE_MODE_40GKR4;
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseKR_Full_BIT, supported) ||
-	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseCR_Full_BIT, supported) ||
-	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseKR_S_Full_BIT, supported) ||
-	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseCR_S_Full_BIT, supported))
+	    linkmode_test_bit(ETHTOOL_LINK_MODE_25000baseCR_Full_BIT, supported))
 		return PHY_INTERFACE_MODE_25GKR;
 #endif
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_10000baseKR_Full_BIT, supported))
@@ -3716,8 +3714,6 @@ static struct {
 	{ ETHTOOL_LINK_MODE_40000baseKR4_Full_BIT, SPEED_40000 },
 	{ ETHTOOL_LINK_MODE_25000baseKR_Full_BIT, SPEED_25000 },
 	{ ETHTOOL_LINK_MODE_25000baseCR_Full_BIT, SPEED_25000 },
-	{ ETHTOOL_LINK_MODE_25000baseKR_S_Full_BIT, SPEED_25000 },
-	{ ETHTOOL_LINK_MODE_25000baseCR_S_Full_BIT, SPEED_25000 },
 	{ ETHTOOL_LINK_MODE_10000baseKR_Full_BIT, SPEED_10000 },
 	{ ETHTOOL_LINK_MODE_10000baseKX4_Full_BIT, SPEED_10000 },
 	/* 5GBASE-KR not supported */
