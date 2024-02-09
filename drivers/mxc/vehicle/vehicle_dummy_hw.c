@@ -126,17 +126,10 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		break;
 	case HVAC_TEMPERATURE_SET:
 		pr_info("set temp index %d with value %d\n", area, value);
-#ifdef CONFIG_VEHICLE_DRIVER_OREO
 		if (area == AC_TEMP_LEFT_INDEX)
 			vehicle_dummy->temp_left = value;
 		else if (area == AC_TEMP_RIGHT_INDEX)
 			vehicle_dummy->temp_right = value;
-#else
-		if (area == PIE_AC_TEMP_LEFT_INDEX)
-			vehicle_dummy->temp_left = value;
-		else if (area == PIE_AC_TEMP_RIGHT_INDEX)
-			vehicle_dummy->temp_right = value;
-#endif
 		break;
 	case HVAC_POWER_ON:
 		pr_info("set hvac power on with value %d\n", value);
@@ -368,11 +361,7 @@ static ssize_t temp_left_store(struct device *dev,
 	temp = simple_strtoul(buf, NULL, 10);
 	if (temp != vehicle_dummy->temp_left) {
 		vehicle_dummy->temp_left = temp;
-#ifdef CONFIG_VEHICLE_DRIVER_OREO
 		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_LEFT_INDEX, temp, 0);
-#else
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_LEFT_INDEX, temp, 0);
-#endif
 	}
 	return size;
 }
@@ -399,11 +388,7 @@ static ssize_t temp_right_store(struct device *dev,
 	temp = simple_strtoul(buf, NULL, 10);
 	if (temp != vehicle_dummy->temp_right) {
 		vehicle_dummy->temp_right = temp;
-#ifdef CONFIG_VEHICLE_DRIVER_OREO
 		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_RIGHT_INDEX, temp, 0);
-#else
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, PIE_AC_TEMP_RIGHT_INDEX, temp, 0);
-#endif
 	}
 	return size;
 }
