@@ -2821,6 +2821,7 @@
   timer_of_init
   timer_shutdown_sync
   timespec64_add_safe
+  TKT340553_SW_WORKAROUND
   _totalram_pages
   touchscreen_parse_properties
   touchscreen_report_pos
