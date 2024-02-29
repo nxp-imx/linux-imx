@@ -304,9 +304,9 @@ static int vds_start_unmap(struct tipc_virtio_dev *vds,
 
 		if (vds->reuse_msgbuf) {
 			dev_dbg(&vds->vdev->dev,
-					"%s: reclaim in progress id= %lu sg= %p dev_addr= %p\n",
+					"%s: reclaim in progress id= %llu sg= %p dev_addr= %pad\n",
 					__func__, mb->buf_id, &mb->sg,
-					sg_dma_address(&mb->sg));
+					&sg_dma_address(&mb->sg));
 
 			/* move from local list to reclaim in progress list */
 			mutex_lock(&vds->reclaim_list_lock);
@@ -2183,7 +2183,7 @@ static void _handle_unmap_rsp(struct tipc_virtio_dev *vds,
 		if (mb->buf_id == rsp->id) {
 			if (!list_is_first(tmp_list, &vds->reclaim_in_progress)) {
 				dev_warn(&vds->vdev->dev,
-						"%s: unmap response out of order id= %lu, result= %d\n",
+						"%s: unmap response out of order id= %llu, result= %d\n",
 						__func__, rsp->id, rsp->result);
 			}
 			list_del(&mb->node);
@@ -2197,13 +2197,13 @@ static void _handle_unmap_rsp(struct tipc_virtio_dev *vds,
 	mutex_unlock(&vds->reclaim_list_lock);
 
 	if (!mb) {
-		dev_err(&vds->vdev->dev, "%s: msg buf not found for id= %lu, result= %d\n",
+		dev_err(&vds->vdev->dev, "%s: msg buf not found for id= %llu, result= %d\n",
 				__func__, rsp->id, rsp->result);
 		return;
 	}
 
-	dev_dbg(&vds->vdev->dev, "%s: calling reclaim on id= %ld sg= %p dev_addr= %p\n",
-			__func__, rsp->id, &mb->sg, sg_dma_address(&mb->sg));
+	dev_dbg(&vds->vdev->dev, "%s: calling reclaim on id= %llu sg= %p dev_addr= %pad\n",
+			__func__, rsp->id, &mb->sg, &sg_dma_address(&mb->sg));
 
 	vds_free_msg_buf(vds, mb);
 
@@ -2499,7 +2499,7 @@ tipc_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 	else
 		ret = 0; /* below shrinkable limit; tell shrinker to stop */
 
-	dev_dbg(&vds->vdev->dev, "%s: reporting %d free message buffers (actual= %d)\n",
+	dev_dbg(&vds->vdev->dev, "%s: reporting %ld free message buffers (actual= %lu)\n",
 			__func__, ret, vds_actual_free_cnt);
 
 	return (unsigned long)ret;
@@ -2514,7 +2514,7 @@ tipc_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 
 	ret = vds_reduce_buf_cnt(vds, sc->nr_to_scan);
 
-	dev_dbg(&vds->vdev->dev, "%s: freed %d; asked to free %d of %d\n", __func__,
+	dev_dbg(&vds->vdev->dev, "%s: freed %lu; asked to free %lu of %d\n", __func__,
 			ret, sc->nr_to_scan,
 			vds->free_msg_buf_cnt + vds->free_rx_cnt);
 
