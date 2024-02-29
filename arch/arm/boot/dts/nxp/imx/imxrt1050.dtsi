@@ -37,6 +37,8 @@
 		gpio4 = &gpio5;
 		mmc0 = &usdhc1;
 		serial0 = &lpuart1;
+		serial1 = &lpuart2;
+		serial2 = &lpuart3;
 		usb0 = &usbotg1;
 		usb1 = &usbotg2;
 		usbphy0 = &usbphy1;
@@ -52,6 +54,30 @@
 			interrupts = <20>;
 			clocks = <&clks IMXRT1050_CLK_LPUART1>;
 			clock-names = "ipg";
+			status = "disabled";
+		};
+
+		lpuart2: serial@40188000 {
+			compatible = "fsl,imxrt1050-lpuart", "fsl,imx7ulp-lpuart";
+			reg = <0x40188000 0x1000>;
+			interrupts = <21>;
+			clocks = <&clks IMXRT1050_CLK_LPUART2>;
+			clock-names = "ipg";
+			dmas = <&edma1 0 67>,
+			       <&edma1 0 66>;
+			dma-names = "rx","tx";
+			status = "disabled";
+		};
+
+		lpuart3: serial@4018c000 {
+			compatible = "fsl,imxrt1050-lpuart", "fsl,imx7ulp-lpuart";
+			reg = <0x4018c000 0x1000>;
+			interrupts = <22>;
+			clocks = <&clks IMXRT1050_CLK_LPUART3>;
+			clock-names = "ipg";
+			dmas = <&edma1 0 5>,
+			       <&edma1 0 4>;
+			dma-names = "rx","tx";
 			status = "disabled";
 		};
 
