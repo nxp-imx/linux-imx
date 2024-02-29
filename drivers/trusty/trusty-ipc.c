@@ -19,6 +19,7 @@
 #include <linux/uio.h>
 #include <linux/file.h>
 #include <linux/version.h>
+#include <linux/shrinker.h>
 
 #include <linux/virtio.h>
 #include <linux/virtio_ids.h>
@@ -184,7 +185,11 @@ struct tipc_virtio_dev {
 	struct list_head reclaim_in_progress;
 	wait_queue_head_t reclaim_done;
 	bool reuse_msgbuf;
+#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
+	struct shrinker *mb_shrinker;
+#else
 	struct shrinker mb_shrinker;
+#endif
 	wait_queue_head_t sendq;
 	struct idr addr_idr;
 	enum tipc_device_state state;
@@ -2487,12 +2492,23 @@ static void _txvq_cb(struct virtqueue *txvq)
 	}
 }
 
+#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
+static struct tipc_virtio_dev *tipc_shrinker_to_vds(struct shrinker *shrink)
+{
+	return shrink->private_data;
+}
+#else
+static struct tipc_virtio_dev *tipc_shrinker_to_vds(struct shrinker *shrink)
+{
+	return container_of(shrink, struct tipc_virtio_dev, mb_shrinker);
+}
+#endif
+
 static unsigned long
 tipc_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	unsigned long vds_actual_free_cnt;
-	struct tipc_virtio_dev *vds =
-			container_of(shrink, struct tipc_virtio_dev, mb_shrinker);
+	struct tipc_virtio_dev *vds = tipc_shrinker_to_vds(shrink);
 	long ret;
 
 	vds_actual_free_cnt = vds->free_msg_buf_cnt + vds->free_rx_cnt;
@@ -2515,8 +2531,7 @@ tipc_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 static unsigned long
 tipc_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
-	struct tipc_virtio_dev *vds =
-			container_of(shrink, struct tipc_virtio_dev, mb_shrinker);
+	struct tipc_virtio_dev *vds = tipc_shrinker_to_vds(shrink);
 	unsigned long ret;
 
 	ret = vds_reduce_buf_cnt(vds, sc->nr_to_scan);
@@ -2603,6 +2618,19 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	vdev->priv = vds;
 	vds->state = VDS_OFFLINE;
 
+#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
+	vds->mb_shrinker = shrinker_alloc(0, "trusty-ipc-shrinker");
+	if (!vds->mb_shrinker) {
+		err = -ENOMEM;
+		goto err_shrinker_alloc;
+	}
+
+	vds->mb_shrinker->count_objects = tipc_shrink_count;
+	vds->mb_shrinker->scan_objects = tipc_shrink_scan;
+	vds->mb_shrinker->seeks = DEFAULT_SEEKS;
+	vds->mb_shrinker->private_data = vds;
+	shrinker_register(vds->mb_shrinker);
+#else
 	vds->mb_shrinker.count_objects = tipc_shrink_count;
 	vds->mb_shrinker.scan_objects = tipc_shrink_scan;
 	vds->mb_shrinker.seeks = DEFAULT_SEEKS;
@@ -2611,6 +2639,7 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	err = register_shrinker(&vds->mb_shrinker
 			TRUSTY_IPC_REGISTER_SHRINKER_ARG
 			);
+#endif
 	if (err) {
 		pr_err("failed to register shrinker: %d\n", err);
 		goto err_register_shrinker;
@@ -2620,6 +2649,10 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	return 0;
 
 err_register_shrinker:
+#if (KERNEL_VERSION(6, 7, 0) <= LINUX_VERSION_CODE)
+	shrinker_free(vds->mb_shrinker);
+err_shrinker_alloc:
+#endif
 err_free_rx_buffers:
 	_cleanup_vq(vds, vds->rxvq);
 err_find_vqs:
