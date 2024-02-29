@@ -16,6 +16,10 @@
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
 #include <linux/seq_file.h>
+#include <linux/version.h>
+#if (KERNEL_VERSION(5, 14, 0) <= LINUX_VERSION_CODE)
+#include <linux/panic_notifier.h>
+#endif
 #include <asm/page.h>
 #include "trusty-log.h"
 
