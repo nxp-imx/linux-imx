@@ -18,6 +18,7 @@
 #include <linux/compat.h>
 #include <linux/uio.h>
 #include <linux/file.h>
+#include <linux/version.h>
 
 #include <linux/virtio.h>
 #include <linux/virtio_ids.h>
@@ -48,6 +49,12 @@
 
 #ifdef CONFIG_COMPAT
 #define TIPC_IOC32_CONNECT	_IOW(TIPC_IOC_MAGIC, 0x80, compat_uptr_t)
+#endif
+
+#if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
+#define TRUSTY_IPC_REGISTER_SHRINKER_ARG , "trusty-ipc-shrinker"
+#else
+#define TRUSTY_IPC_REGISTER_SHRINKER_ARG
 #endif
 
 struct tipc_virtio_dev;
@@ -2601,7 +2608,9 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	vds->mb_shrinker.seeks = DEFAULT_SEEKS;
 	vds->mb_shrinker.batch = 0;
 
-	err = register_shrinker(&vds->mb_shrinker);
+	err = register_shrinker(&vds->mb_shrinker
+			TRUSTY_IPC_REGISTER_SHRINKER_ARG
+			);
 	if (err) {
 		pr_err("failed to register shrinker: %d\n", err);
 		goto err_register_shrinker;
