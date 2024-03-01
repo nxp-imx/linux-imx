@@ -2730,4 +2730,5 @@ module_exit(tipc_exit);
 
 MODULE_DEVICE_TABLE(tipc, tipc_virtio_id_table);
 MODULE_DESCRIPTION("Trusty IPC driver");
+MODULE_IMPORT_NS(DMA_BUF);
 MODULE_LICENSE("GPL v2");
