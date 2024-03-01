@@ -521,6 +521,15 @@ static struct fsl_edma_drvdata imxrt1050_data = {
 	.setup_irq = fsl_edma2_irq_init,
 };
 
+static struct fsl_edma_drvdata imxrt1170_data = {
+	.dmamuxs = 1,
+	.chreg_off = EDMA_TCD,
+	.chreg_space_sz = sizeof(struct fsl_edma_hw_tcd),
+	.flags = FSL_EDMA_DRV_HAS_DMACLK | FSL_EDMA_DRV_CONFIG32,
+	.mux_slot_mask = 0xff,
+	.setup_irq = fsl_edma2_irq_init,
+};
+
 static struct fsl_edma_drvdata imx8qm_data = {
 	.flags = FSL_EDMA_DRV_HAS_PD | FSL_EDMA_DRV_EDMA3 | FSL_EDMA_DRV_MEM_REMOTE
 		 | FSL_EDMA_DRV_ERRIRQ_SHARE,
@@ -571,6 +580,7 @@ static const struct of_device_id fsl_edma_dt_ids[] = {
 	{ .compatible = "fsl,ls1028a-edma", .data = &ls1028a_data},
 	{ .compatible = "fsl,imx7ulp-edma", .data = &imx7ulp_data},
 	{ .compatible = "fsl,imxrt1050-edma", .data = &imxrt1050_data},
+	{ .compatible = "fsl,imxrt1170-edma", .data = &imxrt1170_data},
 	{ .compatible = "fsl,imx8qm-edma", .data = &imx8qm_data},
 	{ .compatible = "fsl,imx8ulp-edma", .data = &imx8ulp_data},
 	{ .compatible = "fsl,imx93-edma3", .data = &imx93_data3},
