@@ -315,4 +315,10 @@ config POWER_MLXBF
 	help
 	  This driver supports reset or low power mode handling for Mellanox BlueField.
 
+
+config POWER_RESET_IMX
+	tristate "NXP Reset Driver for Platforms with System Manager"
+	depends on ARM_PSCI_FW
+	help
+	  This driver supports reset for i.MX platforms with system manager.
 endif
