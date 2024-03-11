@@ -37,6 +37,11 @@
 			compatible = "android,trusty-log-v1";
 		};
 	};
+
+	reset_ctrl {
+		compatible = "imx8q,resetctrl";
+		status = "okay";
+	};
 };
 
 &{/reserved-memory/linux,cma} {
