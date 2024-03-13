@@ -142,7 +142,8 @@ void dpu95_fe_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_fe_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_fetchunit *fu;
 
@@ -160,6 +161,8 @@ int dpu95_fe_init(struct dpu95_soc *dpu, unsigned int index,
 	if (!fu->base)
 		return -ENOMEM;
 
+	fu->reg_offset = base - dpu_base;
+	fu->reg_aux_offset = pec_base - dpu_base;
 	fu->dpu = dpu;
 	fu->id = id;
 	fu->index = index;

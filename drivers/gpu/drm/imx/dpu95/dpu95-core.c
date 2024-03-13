@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
@@ -880,7 +881,7 @@ static int dpu95_submodules_init(struct dpu95_soc *dpu, unsigned long dpu_base)
 			aux_ofs = us->aux_ofss ? dpu_base + us->aux_ofss[j] : 0;
 
 			ret = us->init(dpu, j, us->ids[j], us->types[j],
-				       aux_ofs, dpu_base + us->ofss[j]);
+				       aux_ofs, dpu_base + us->ofss[j], dpu_base);
 			if (ret) {
 				dev_err(dpu->dev,
 					"failed to initialize %s%d: %d\n",
@@ -962,6 +963,21 @@ int dpu95_core_init(struct dpu95_drm_device *dpu_drm)
 	unsigned long dpu_base;
 	struct resource *res;
 	int ret;
+	struct device *trusty_dev = NULL;
+
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (trusty_dev != NULL) {
+			if (!trusty_fast_call32(trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+				dpu->trusty_dev = trusty_dev;
+				dev_err(&pdev->dev, "dpu: get trusty_dev node, use Trusty mode.\n");
+			} else {
+				dev_err(&pdev->dev, "dpu: failed to get response of echo. Use normal mode.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "dpu: failed to find trusty node. Use normal mode.\n");
+		}
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)

@@ -21,18 +21,29 @@ struct dpu95_dither {
 	int id;
 	unsigned int index;
 	struct dpu95_soc *dpu;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static inline u32 dpu95_aux_dt_read(struct dpu95_dither *dt,
 				    unsigned int offset)
 {
-	return readl(dt->aux_base + offset);
+	if (dt->dpu->trusty_dev) {
+		return trusty_fast_call32(dt->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, dt->reg_aux_offset, offset, 0);
+	} else {
+		return readl(dt->aux_base + offset);
+	}
 }
 
 static inline void dpu95_aux_dt_write(struct dpu95_dither *dt,
 				      unsigned int offset, u32 value)
 {
-	writel(value, dt->aux_base + offset);
+	if (dt->dpu->trusty_dev) {
+		trusty_fast_call32(dt->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, dt->reg_aux_offset, offset, value);
+	} else {
+		writel(value, dt->aux_base + offset);
+	}
 }
 
 static inline void dpu95_aux_dt_write_mask(struct dpu95_dither *dt,
@@ -99,7 +110,8 @@ void dpu95_dt_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_dt_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long aux_base, unsigned long base)
+		  unsigned long aux_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_dither *dt;
 
@@ -107,6 +119,8 @@ int dpu95_dt_init(struct dpu95_soc *dpu, unsigned int index,
 	if (!dt)
 		return -ENOMEM;
 
+	dt->reg_offset = base - dpu_base;
+	dt->reg_aux_offset = aux_base - dpu_base;
 	dpu->dt[index] = dt;
 
 	dt->aux_base = devm_ioremap(dpu->dev, aux_base, SZ_16);
