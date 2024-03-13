@@ -47,3 +47,6 @@
 &{/reserved-memory/linux,cma} {
        status = "disabled";
 };
+&dpu {
+	trusty;
+};

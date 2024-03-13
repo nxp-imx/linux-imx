@@ -18,6 +18,14 @@
 #include <drm/drm_color_mgmt.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modes.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+
+#define SMC_ENTITY_IMX_LINUX_OPT 54
+
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 0)
+#define SMC_IMX_DPU_REG_SET  SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 1)
+#define SMC_IMX_DPU_REG_GET  SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 2)
 
 /* IRQ register */
 #define INTERRUPTENABLE(n)		(0x8 + 0x4 * (n))
@@ -440,6 +448,8 @@ struct dpu95_soc {
 	struct dpu95_fetchunit		*fy[4];
 	struct dpu95_hscaler		*hs[2];
 	struct dpu95_layerblend		*lb[6];
+
+	struct device *trusty_dev;
 };
 
 struct dpu95_units {
@@ -453,7 +463,8 @@ struct dpu95_units {
 	/* software initialization */
 	int (*init)(struct dpu95_soc *dpu, unsigned int index,
 		    unsigned int id, enum dpu95_unit_type type,
-		    unsigned long aux_base, unsigned long base);
+		    unsigned long aux_base, unsigned long base,
+		    unsigned long dpu_base);
 
 	/* hardware initialization */
 	void (*hw_init)(struct dpu95_soc *dpu, unsigned int index);
@@ -485,7 +496,7 @@ struct dpu95_constframe *dpu95_cf_cont_get(struct dpu95_soc *dpu,
 void dpu95_cf_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_cf_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Domain Blend Unit */
 struct dpu95_domainblend;
@@ -498,7 +509,7 @@ struct dpu95_domainblend *dpu95_db_get(struct dpu95_soc *dpu95, int id);
 void dpu95_db_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_db_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long unused, unsigned long base);
+		  unsigned long unused, unsigned long base, unsigned long dpu_base);
 
 /* Dither Unit */
 struct dpu95_dither;
@@ -512,7 +523,7 @@ struct dpu95_dither *dpu95_dt_get(struct dpu95_soc *dpu95, int id);
 void dpu95_dt_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_dt_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long aux_base, unsigned long base);
+		  unsigned long aux_base, unsigned long base, unsigned long dpu_base);
 
 /* External Destination Unit */
 struct dpu95_extdst;
@@ -526,14 +537,14 @@ struct dpu95_extdst *dpu95_ed_cont_get(struct dpu95_soc *dpu,
 void dpu95_ed_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_ed_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Fetch ECO Unit */
 struct dpu95_fetchunit *dpu95_fe_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_fe_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_fe_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Frame Generator Unit */
 struct dpu95_framegen;
@@ -563,21 +574,21 @@ struct dpu95_framegen *dpu95_fg_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_fg_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_fg_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long unused, unsigned long base);
+		  unsigned long unused, unsigned long base, unsigned long dpu_base);
 
 /* Fetch Layer Unit */
 struct dpu95_fetchunit *dpu95_fl_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_fl_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_fl_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Fetch YUV Unit */
 struct dpu95_fetchunit *dpu95_fy_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_fy_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_fy_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Horizontal Scaler Unit */
 struct dpu95_hscaler;
@@ -610,7 +621,7 @@ struct dpu95_hscaler *dpu95_hs_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_hs_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_hs_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 /* Layer Blend Unit */
 struct dpu95_layerblend;
@@ -629,7 +640,7 @@ struct dpu95_layerblend *dpu95_lb_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_lb_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
 struct dpu95_fetchunit_ops {
 	void (*set_pec_dynamic_src_sel)(struct dpu95_fetchunit *fu,

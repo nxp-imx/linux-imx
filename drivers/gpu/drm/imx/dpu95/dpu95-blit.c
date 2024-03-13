@@ -29,13 +29,21 @@ static int imx_dpu_num;
 
 static inline u32 dpu95_be_read(struct dpu_bliteng *dpu_be, unsigned int offset)
 {
-	return readl(dpu_be->base + offset);
+	if (dpu_be->dpu->trusty_dev) {
+		return trusty_fast_call32(dpu_be->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, 0, offset, 0);
+	} else {
+		return readl(dpu_be->base + offset);
+	}
 }
 
 static inline void dpu95_be_write(struct dpu_bliteng *dpu_be, u32 value,
 	unsigned int offset)
 {
-	writel(value, dpu_be->base + offset);
+	if (dpu_be->dpu->trusty_dev) {
+		trusty_fast_call32(dpu_be->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, 0, offset, value);
+	} else {
+		writel(value, dpu_be->base + offset);
+	}
 }
 
 static void dpu95_cs_wait_fifo_space(struct dpu_bliteng *dpu_be)

@@ -58,6 +58,9 @@ struct dpu95_layerblend {
 	unsigned int index;
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static const enum dpu95_link_id dpu95_lb_link_id[] = {
@@ -103,13 +106,21 @@ static const enum dpu95_link_id sec_sels[] = {
 static inline u32 dpu95_pec_lb_read(struct dpu95_layerblend *lb,
 				    unsigned int offset)
 {
-	return readl(lb->pec_base + offset);
+	if (lb->dpu->trusty_dev) {
+		return trusty_fast_call32(lb->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, lb->reg_aux_offset, offset, 0);
+	} else {
+		return readl(lb->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_lb_write(struct dpu95_layerblend *lb,
 				      unsigned int offset, u32 value)
 {
-	writel(value, lb->pec_base + offset);
+	if (lb->dpu->trusty_dev) {
+		trusty_fast_call32(lb->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, lb->reg_aux_offset, offset, value);
+	} else {
+		writel(value, lb->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_lb_write_mask(struct dpu95_layerblend *lb,
@@ -125,13 +136,21 @@ static inline void dpu95_pec_lb_write_mask(struct dpu95_layerblend *lb,
 
 static inline u32 dpu95_lb_read(struct dpu95_layerblend *lb, unsigned int offset)
 {
-	return readl(lb->base + offset);
+	if (lb->dpu->trusty_dev) {
+		return trusty_fast_call32(lb->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, lb->reg_offset, offset, 0);
+	} else {
+		return readl(lb->base + offset);
+	}
 }
 
 static inline void dpu95_lb_write(struct dpu95_layerblend *lb,
 				  unsigned int offset, u32 value)
 {
-	writel(value, lb->base + offset);
+	if (lb->dpu->trusty_dev) {
+		trusty_fast_call32(lb->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, lb->reg_offset, offset, value);
+	} else {
+		writel(value, lb->base + offset);
+	}
 }
 
 static inline void dpu95_lb_write_mask(struct dpu95_layerblend *lb,
@@ -286,7 +305,8 @@ void dpu95_lb_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_layerblend *lb;
 
@@ -296,6 +316,8 @@ int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 
 	dpu->lb[index] = lb;
 
+	lb->reg_offset = base - dpu_base;
+	lb->reg_aux_offset = pec_base - dpu_base;
 	lb->pec_base = devm_ioremap(dpu->dev, pec_base, SZ_16);
 	if (!lb->pec_base)
 		return -ENOMEM;

@@ -34,6 +34,9 @@ struct dpu95_constframe {
 	unsigned int index;
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static const enum dpu95_link_id dpu95_cf_link_id[] = {
@@ -44,7 +47,11 @@ static const enum dpu95_link_id dpu95_cf_link_id[] = {
 static inline void dpu95_cf_write(struct dpu95_constframe *cf,
 				  unsigned int offset, u32 value)
 {
-	writel(value, cf->base + offset);
+	if (cf->dpu->trusty_dev) {
+		trusty_fast_call32(cf->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, cf->reg_offset, offset, value);
+	} else {
+		writel(value, cf->base + offset);
+	}
 }
 
 static void dpu95_cf_enable_shden(struct dpu95_constframe *cf)
@@ -107,7 +114,8 @@ void dpu95_cf_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_cf_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_constframe *cf;
 
@@ -115,6 +123,8 @@ int dpu95_cf_init(struct dpu95_soc *dpu, unsigned int index,
 	if (!cf)
 		return -ENOMEM;
 
+	cf->reg_offset = base - dpu_base;
+	cf->reg_aux_offset = pec_base - dpu_base;
 	dpu->cf[index] = cf;
 
 	cf->pec_base = devm_ioremap(dpu->dev, pec_base, SZ_16);

@@ -123,17 +123,50 @@ struct dpu95_framegen {
 	int id;
 	unsigned int index;
 	struct dpu95_soc *dpu;
+	unsigned int reg_offset;
 };
 
+static int dpu95_fg_readl_timeout(struct dpu95_framegen *fg, u32 offset, u32 val, u32 con, u32 sleep_us, u32 timeout_us) {
+	if (fg->dpu->trusty_dev) {
+		u64 __timeout_us = (timeout_us);
+		unsigned long __sleep_us = (sleep_us);
+		ktime_t __timeout = ktime_add_us(ktime_get(), __timeout_us);
+		might_sleep_if((__sleep_us) != 0);
+		for (;;) {
+			val = trusty_fast_call32(fg->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, fg->reg_offset, offset, 0);
+			if (val & con)
+				break;
+			if (__timeout_us &&
+				ktime_compare(ktime_get(), __timeout) > 0) {
+				val = trusty_fast_call32(fg->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, fg->reg_offset, offset, 0);
+				break;
+			}
+			if (__sleep_us)
+				usleep_range((__sleep_us >> 2) + 1, __sleep_us);
+			cpu_relax();
+		}
+		return (val & con) ? 0 : -ETIMEDOUT;
+	} else {
+		return readl_poll_timeout(fg->base + offset, val, val & con, sleep_us, timeout_us);
+	}
+}
 static inline u32 dpu95_fg_read(struct dpu95_framegen *fg, unsigned int offset)
 {
-	return readl(fg->base + offset);
+	if (fg->dpu->trusty_dev) {
+		return trusty_fast_call32(fg->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, fg->reg_offset, offset, 0);
+	} else {
+		return readl(fg->base + offset);
+	}
 }
 
 static inline void dpu95_fg_write(struct dpu95_framegen *fg,
 				  unsigned int offset, u32 value)
 {
-	writel(value, fg->base + offset);
+	if (fg->dpu->trusty_dev) {
+		trusty_fast_call32(fg->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, fg->reg_offset, offset, value);
+	} else {
+		writel(value, fg->base + offset);
+	}
 }
 
 static inline void dpu95_fg_write_mask(struct dpu95_framegen *fg,
@@ -298,11 +331,11 @@ void dpu95_fg_secondary_clear_channel_status(struct dpu95_framegen *fg)
 int dpu95_fg_wait_for_primary_syncup(struct dpu95_framegen *fg)
 {
 	struct device *dev = fg->dpu->dev;
-	u32 val;
+	u32 val = 0;
 	int ret;
 
-	ret = readl_poll_timeout(fg->base + FGCHSTAT, val,
-				 val & PRIMSYNCSTAT, 5, 100000);
+	ret = dpu95_fg_readl_timeout(fg, FGCHSTAT, val,
+				 PRIMSYNCSTAT, 5, 100000);
 	if (ret) {
 		dev_dbg(dev, "failed to wait for FrameGen%u primary syncup\n",
 			fg->id);
@@ -317,11 +350,11 @@ int dpu95_fg_wait_for_primary_syncup(struct dpu95_framegen *fg)
 int dpu95_fg_wait_for_secondary_syncup(struct dpu95_framegen *fg)
 {
 	struct device *dev = fg->dpu->dev;
-	u32 val;
+	u32 val = 0;
 	int ret;
 
-	ret = readl_poll_timeout(fg->base + FGCHSTAT, val,
-				 val & SECSYNCSTAT, 5, 100000);
+	ret = dpu95_fg_readl_timeout(fg,  FGCHSTAT, val,
+				 SECSYNCSTAT, 5, 100000);
 	if (ret) {
 		dev_dbg(dev, "failed to wait for FrameGen%u secondary syncup\n",
 			fg->id);
@@ -380,7 +413,8 @@ void dpu95_fg_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_fg_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long unused, unsigned long base)
+		  unsigned long unused, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_framegen *fg;
 
@@ -388,6 +422,7 @@ int dpu95_fg_init(struct dpu95_soc *dpu, unsigned int index,
 	if (!fg)
 		return -ENOMEM;
 
+	fg->reg_offset = base - dpu_base;
 	dpu->fg[index] = fg;
 
 	fg->base = devm_ioremap(dpu->dev, base, SZ_256);

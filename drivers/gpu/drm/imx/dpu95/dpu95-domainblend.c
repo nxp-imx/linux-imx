@@ -64,18 +64,27 @@ struct dpu95_domainblend {
 	int id;
 	unsigned int index;
 	struct dpu95_soc *dpu;
+	unsigned int reg_offset;
 };
 
 static inline u32 dpu95_db_read(struct dpu95_domainblend *db,
 				unsigned int offset)
 {
-	return readl(db->base + offset);
+	if (db->dpu->trusty_dev) {
+		return trusty_fast_call32(db->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, db->reg_offset, offset, 0);
+	} else {
+		return readl(db->base + offset);
+	}
 }
 
 static inline void dpu95_db_write(struct dpu95_domainblend *db,
 				  unsigned int offset, u32 value)
 {
-	writel(value, db->base + offset);
+	if (db->dpu->trusty_dev) {
+		trusty_fast_call32(db->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, db->reg_offset, offset, value);
+	} else {
+		writel(value, db->base + offset);
+	}
 }
 
 static inline void dpu95_db_write_mask(struct dpu95_domainblend *db,
@@ -165,13 +174,15 @@ void dpu95_db_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_db_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long unused, unsigned long base)
+		  unsigned long unused, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_domainblend *db;
 
 	db = devm_kzalloc(dpu->dev, sizeof(*db), GFP_KERNEL);
 	if (!db)
 		return -ENOMEM;
+	db->reg_offset = base - dpu_base;
 
 	dpu->db[index] = db;
 

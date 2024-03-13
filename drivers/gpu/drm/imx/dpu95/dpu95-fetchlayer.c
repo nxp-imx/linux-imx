@@ -94,13 +94,16 @@ void dpu95_fl_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_fl_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_fetchunit *fu;
 
 	fu = devm_kzalloc(dpu->dev, sizeof(*fu), GFP_KERNEL);
 	if (!fu)
 		return -ENOMEM;
+	fu->reg_offset = base - dpu_base;
+	fu->reg_aux_offset = pec_base - base;
 
 	dpu->fl[index] = fu;
 

@@ -29,6 +29,9 @@ struct dpu95_hscaler {
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
 	const struct dpu95_hscaler_ops *ops;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static const enum dpu95_link_id dpu95_hs_link_id[] = {
@@ -52,13 +55,21 @@ static const enum dpu95_link_id src_sels[2][6] = {
 static inline u32 dpu95_pec_hs_read(struct dpu95_hscaler *hs,
 				    unsigned int offset)
 {
-	return readl(hs->pec_base + offset);
+	if (hs->dpu->trusty_dev) {
+		return trusty_fast_call32(hs->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, hs->reg_aux_offset, offset, 0);
+	} else {
+		return readl(hs->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_hs_write(struct dpu95_hscaler *hs,
 				      unsigned int offset, u32 value)
 {
-	writel(value, hs->pec_base + offset);
+	if (hs->dpu->trusty_dev) {
+		trusty_fast_call32(hs->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, hs->reg_aux_offset, offset, value);
+	} else {
+		writel(value, hs->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_hs_write_mask(struct dpu95_hscaler *hs,
@@ -74,13 +85,21 @@ static inline void dpu95_pec_hs_write_mask(struct dpu95_hscaler *hs,
 
 static inline u32 dpu95_hs_read(struct dpu95_hscaler *hs, unsigned int offset)
 {
-	return readl(hs->base + offset);
+	if (hs->dpu->trusty_dev) {
+		return trusty_fast_call32(hs->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, hs->reg_offset, offset, 0);
+	} else {
+		return readl(hs->base + offset);
+	}
 }
 
 static inline void dpu95_hs_write(struct dpu95_hscaler *hs,
 				  unsigned int offset, u32 value)
 {
-	writel(value, hs->base + offset);
+	if (hs->dpu->trusty_dev) {
+		trusty_fast_call32(hs->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, hs->reg_offset, offset, value);
+	} else {
+		writel(value, hs->base + offset);
+	}
 }
 
 static inline void dpu95_hs_write_mask(struct dpu95_hscaler *hs,
@@ -281,13 +300,16 @@ const struct dpu95_hscaler_ops *dpu95_hs_get_ops(struct dpu95_hscaler *hs)
 
 int dpu95_hs_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_hscaler *hs;
 
 	hs = devm_kzalloc(dpu->dev, sizeof(*hs), GFP_KERNEL);
 	if (!hs)
 		return -ENOMEM;
+	hs->reg_offset = base - dpu_base;
+	hs->reg_aux_offset = pec_base - dpu_base;
 
 	dpu->hs[index] = hs;
 

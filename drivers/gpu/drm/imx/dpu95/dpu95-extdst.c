@@ -61,6 +61,9 @@ struct dpu95_extdst {
 	unsigned int index;
 	bool inuse;
 	struct dpu95_soc *dpu;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static const enum dpu95_link_id src_sels[] = {
@@ -76,13 +79,21 @@ static const enum dpu95_link_id src_sels[] = {
 static inline u32 dpu95_pec_ed_read(struct dpu95_extdst *ed,
 				    unsigned int offset)
 {
-	return readl(ed->pec_base + offset);
+	if (ed->dpu->trusty_dev) {
+		return trusty_fast_call32(ed->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, ed->reg_aux_offset, offset, 0);
+	} else {
+		return readl(ed->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_ed_write(struct dpu95_extdst *ed,
 				      unsigned int offset, u32 value)
 {
-	writel(value, ed->pec_base + offset);
+	if (ed->dpu->trusty_dev) {
+		trusty_fast_call32(ed->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, ed->reg_aux_offset, offset, value);
+	} else {
+		writel(value, ed->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_ed_write_mask(struct dpu95_extdst *ed,
@@ -98,13 +109,21 @@ static inline void dpu95_pec_ed_write_mask(struct dpu95_extdst *ed,
 
 static inline u32 dpu95_ed_read(struct dpu95_extdst *ed, unsigned int offset)
 {
-	return readl(ed->base + offset);
+	if (ed->dpu->trusty_dev) {
+		return trusty_fast_call32(ed->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, ed->reg_offset, offset, 0);
+	} else {
+		return readl(ed->base + offset);
+	}
 }
 
 static inline void dpu95_ed_write(struct dpu95_extdst *ed,
 				  unsigned int offset, u32 value)
 {
-	writel(value, ed->base + offset);
+	if (ed->dpu->trusty_dev) {
+		trusty_fast_call32(ed->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, ed->reg_offset, offset, value);
+	} else {
+		writel(value, ed->base + offset);
+	}
 }
 
 static inline void dpu95_ed_write_mask(struct dpu95_extdst *ed,
@@ -224,7 +243,8 @@ void dpu95_ed_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_ed_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base)
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_extdst *ed;
 
@@ -233,6 +253,8 @@ int dpu95_ed_init(struct dpu95_soc *dpu, unsigned int index,
 		return -ENOMEM;
 
 	dpu->ed[index] = ed;
+	ed->reg_offset = base - dpu_base;
+	ed->reg_aux_offset = pec_base - dpu_base;
 
 	ed->pec_base = devm_ioremap(dpu->dev, pec_base, SZ_32);
 	if (!ed->pec_base)

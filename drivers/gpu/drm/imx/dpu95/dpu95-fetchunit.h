@@ -227,7 +227,6 @@ struct dpu95_fetchunit {
 	void __iomem *base;
 	char name[12];
 	struct list_head node;
-	unsigned int reg_offset;
 	unsigned int id;
 	unsigned int index;
 	unsigned int sub_id;	/* for fractional fetch units */
@@ -246,6 +245,9 @@ struct dpu95_fetchunit {
 	u32 reg_offset2;
 	u32 reg_burstbuffermanagement;
 	u32 reg_burstbufferproperties;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 extern const struct dpu95_fetchunit_ops dpu95_fu_common_ops;
@@ -253,24 +255,40 @@ extern const struct dpu95_fetchunit_ops dpu95_fu_common_ops;
 static inline void
 dpu95_pec_fu_write(struct dpu95_fetchunit *fu, unsigned int offset, u32 value)
 {
-	writel(value, fu->pec_base + offset);
+	if (fu->dpu->trusty_dev) {
+		trusty_fast_call32(fu->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, fu->reg_aux_offset, offset, value);
+	} else {
+		writel(value, fu->pec_base + offset);
+	}
 }
 
 static inline u32 dpu95_pec_fu_read(struct dpu95_fetchunit *fu,
 				    unsigned int offset)
 {
-	return readl(fu->pec_base + offset);
+	if (fu->dpu->trusty_dev) {
+		return trusty_fast_call32(fu->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, fu->reg_aux_offset, offset, 0);
+	} else {
+		return readl(fu->pec_base + offset);
+	}
 }
 
 static inline u32 dpu95_fu_read(struct dpu95_fetchunit *fu, unsigned int offset)
 {
-	return readl(fu->base + offset);
+	if (fu->dpu->trusty_dev) {
+		return trusty_fast_call32(fu->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, fu->reg_offset, offset, 0);
+	} else {
+		return readl(fu->base + offset);
+	}
 }
 
 static inline void
 dpu95_fu_write(struct dpu95_fetchunit *fu, unsigned int offset, u32 value)
 {
-	writel(value, fu->base + offset);
+	if (fu->dpu->trusty_dev) {
+		trusty_fast_call32(fu->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, fu->reg_offset, offset, value);
+	} else {
+		writel(value, fu->base + offset);
+	}
 }
 
 static inline void dpu95_fu_write_mask(struct dpu95_fetchunit *fu,
