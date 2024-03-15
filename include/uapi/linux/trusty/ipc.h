@@ -30,6 +30,7 @@ enum transfer_kind {
 	TRUSTY_SHARE = 0,
 	TRUSTY_LEND = 1,
 	TRUSTY_SEND_SECURE = 2,
+	TRUSTY_SEND_SECURE_OR_SHARE = 3,
 };
 
 /**

@@ -1509,8 +1509,9 @@ static int dn_share_fd(struct tipc_dn_chan *dn, int fd,
 	 */
 	if (!ret) {
 		/* Use shared memory ID owned by dma_buf */
-		if (transfer_kind != TRUSTY_SEND_SECURE) {
-			dev_err(dev, "transfer_kind: %d, must be TRUSTY_SEND_SECURE\n",
+		if (transfer_kind != TRUSTY_SEND_SECURE &&
+		    transfer_kind != TRUSTY_SEND_SECURE_OR_SHARE) {
+			dev_err(dev, "transfer_kind: %d, must be TRUSTY_SEND_SECURE{_OR_SHARE}\n",
 				transfer_kind);
 			ret = -EINVAL;
 			goto cleanup_handle;
@@ -1677,6 +1678,7 @@ static long filp_send_ioctl(struct file *filp,
 		case TRUSTY_SHARE:
 		case TRUSTY_LEND:
 		case TRUSTY_SEND_SECURE:
+		case TRUSTY_SEND_SECURE_OR_SHARE:
 			break;
 		default:
 			dev_err(dev, "Unknown transfer type: 0x%x\n",
