@@ -59,9 +59,15 @@
 #endif
 
 #if (KERNEL_VERSION(6, 4, 0) <= LINUX_VERSION_CODE)
-#define TRUSTY_IPC_CLASS_CREATE_ARG_THIS_MODULE
+static struct class * __must_check trusty_ipc_class_create(const char *name)
+{
+	return class_create(name);
+}
 #else
-#define TRUSTY_IPC_CLASS_CREATE_ARG_THIS_MODULE THIS_MODULE,
+static struct class * __must_check trusty_ipc_class_create(const char *name)
+{
+	return class_create(THIS_MODULE, name);
+}
 #endif
 
 struct tipc_virtio_dev;
@@ -2739,9 +2745,7 @@ static int __init tipc_init(void)
 	}
 
 	tipc_major = MAJOR(dev);
-	tipc_class = class_create(
-			TRUSTY_IPC_CLASS_CREATE_ARG_THIS_MODULE
-			KBUILD_MODNAME);
+	tipc_class = trusty_ipc_class_create(KBUILD_MODNAME);
 	if (IS_ERR(tipc_class)) {
 		ret = PTR_ERR(tipc_class);
 		pr_err("%s: class_create failed: %d\n", __func__, ret);
