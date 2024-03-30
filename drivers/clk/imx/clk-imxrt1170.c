@@ -35,6 +35,10 @@ static const char * const lpi2c1_4_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll3_div2", "pll1_div5", "pll2_sys", "pll2_pfd3"};
 static const char * const lpi2c5_6_sels[] = {IMXRT1170_CLK_SRC_COMMON,
 "pll3_pfd3", "pll3_sys", "pll2_pfd3", "pll1_div5"};
+static const char * const elcdif_sels[] = {IMXRT1170_CLK_SRC_COMMON,
+"pll2_sys", "pll2_pfd2", "pll3_pfd0", "video_pll"};
+static const char * const mipi_dsi_sels[] = {IMXRT1170_CLK_SRC_COMMON,
+"pll2_sys", "pll2_pfd0", "pll3_pfd0", "video_pll"};
 
 struct clk_hw *imxrt1170_clk_pll_div_out_composite(const char *name, const char *parent_name,
 						void __iomem *reg, int div_factor, int gate_bit, unsigned long flags)
@@ -97,6 +101,9 @@ static struct imxrt1170_clk_root clk_roots[] = {
 	{ IMXRT1170_CLK_ROOT_LPI2C6, "lpi2c6_root", lpi2c5_6_sels, (42 * 0x80), },
 	{ IMXRT1170_CLK_ROOT_ENET1, "enet1_root", enet1_sels, (51 * 0x80), },
 	{ IMXRT1170_CLK_ROOT_USDHC1, "usdhc1_root", usdhc1_sels, (58 * 0x80), },
+	{ IMXRT1170_CLK_ROOT_ELCDIF, "elcdif_root", elcdif_sels, (69 * 0x80), },
+	{ IMXRT1170_CLK_ROOT_MIPI_REF, "mipi_ref_root", mipi_dsi_sels, (71 * 0x80), },
+	{ IMXRT1170_CLK_ROOT_MIPI_ESC, "mipi_esc_root", mipi_dsi_sels, (72 * 0x80), },
 };
 
 struct imxrt1170_clk_ccgr {
@@ -122,10 +129,18 @@ static struct imxrt1170_clk_ccgr clk_ccgrs[] = {
 	{ IMXRT1170_CLK_ENET1, "enet1", "enet1_root", (0x6000 + (112 * 0x20)), },
 	{ IMXRT1170_CLK_USB, "usb", "bus_root", (0x6000 + (115 * 0x20)), },
 	{ IMXRT1170_CLK_USDHC1, "usdhc1", "usdhc1_root", (0x6000 + (117 * 0x20)), },
+	{ IMXRT1170_CLK_ELCDIF, "elcdif", "elcdif_root", (0x6000 + (129 * 0x20)), },
+	{ IMXRT1170_CLK_MIPI_DSI, "mipi_dsi", "mipi_ref_root", (0x6000 + (131 * 0x20)), },
 };
 
 static struct clk_hw **hws;
 static struct clk_hw_onecell_data *clk_hw_data;
+
+/* base address of the CLOCK_GROUPn_CONTROL register */
+#define IMXRT1170_CCM_CLOCK_GROUP_CONTROL_SET(base, grp_id) (base + 0x4000 + ((grp_id) * 0x80))
+#define CGC_DIV0_SHIFT		0
+#define CGC_RSTDIV_SHIFT	16
+#define CGC_OFF_SHIFT		24
 
 static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 {
@@ -135,6 +150,7 @@ static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 	struct imxrt1170_clk_root *root;
 	struct imxrt1170_clk_ccgr *ccgr;
 	int ret, i;
+	u32 group_control;
 
 	clk_hw_data = kzalloc(struct_size(clk_hw_data, hws,
 					  IMXRT1170_CLK_END), GFP_KERNEL);
@@ -215,6 +231,11 @@ static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 		hws[ccgr->clk_id] = imx_clk_hw_gate_flags(ccgr->name, ccgr->parent_names,
 							  base + ccgr->off, 0, ccgr->flags);
 	}
+
+	/* Hardcode divisor = 2 for the MIPI DSI tx_esc clock in the clock group control #1 */
+	group_control = (1 << CGC_DIV0_SHIFT) | (1 << CGC_RSTDIV_SHIFT) | (0 << CGC_OFF_SHIFT);
+	writel_relaxed(group_control, IMXRT1170_CCM_CLOCK_GROUP_CONTROL_SET(base, 1));
+	hws[IMXRT1170_CLK_MIPI_DSI_TX_ESC] = imx_clk_hw_fixed_factor("mipi_tx_esc",  "mipi_esc_root", 1, 2);
 
 	imx_check_clk_hws(hws, IMXRT1170_CLK_END);
 
