@@ -263,6 +263,7 @@ config SOC_IMXRT
 	bool "i.MXRT support"
 	depends on ARM_SINGLE_ARMV7M
 	select ARMV7M_SYSTICK if ARM_SINGLE_ARMV7M
+	select FB_PROVIDE_GET_FB_UNMAPPED_AREA if FB
 	help
 	  This enables support for Freescale i.MXRT Crossover processor.
 

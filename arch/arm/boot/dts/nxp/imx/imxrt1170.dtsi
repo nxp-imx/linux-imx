@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /*
- * Copyright (C) 2023 Emcraft Systems
+ * Copyright (C) 2023-2024 Emcraft Systems
  * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
  */
 
@@ -359,6 +359,34 @@
 			reg = <0x40438000 0x1000>;
 			interrupts = <91>;
 			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		mipi_dsi: mipi_dsi@4080c000 {
+			compatible = "fsl,imxrt1170-mipi-dsi";
+			reg = <0x4080c000 0x1000>;
+			interrupts = <59>;
+			clocks = <&clks IMXRT1170_CLK_MIPI_DSI>, <&clks IMXRT1170_CLK_ROOT_MIPI_ESC>;
+			clock-names = "mipi_dsi_dphy", "mipi_dsi_esc";
+			data-lanes-num = <2>;
+			phy-ref-clkfreq = <24000000>;
+			max-data-rate  = <800000000>;
+			sim = <&gpr>;
+			pgmc-bpc-reg = <0x40c88800 0x800>;
+			status = "disabled";
+		};
+
+		lcdif: lcdif@40804000 {
+			compatible = "fsl,imx28-lcdif";
+			reg = <0x40804000 0x1000>;
+			interrupts = <54>;
+			clocks = <&clks IMXRT1170_CLK_DUMMY>,
+				 <&clks IMXRT1170_CLK_ELCDIF>,
+				 <&clks IMXRT1170_CLK_DUMMY>;
+			clock-names = "axi", "pix", "disp_axi";
+			assigned-clocks = <&clks IMXRT1170_CLK_ROOT_ELCDIF>;
+			assigned-clock-parents = <&clks IMXRT1170_CLK_PLL2>;
+			assigned-clock-rates = <66000000>;
+			status = "disabled";
 		};
 
 		lpi2c1: lpci2c@40104000 {
