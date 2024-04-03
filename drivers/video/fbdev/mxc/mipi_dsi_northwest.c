@@ -89,6 +89,12 @@ static struct mipi_dsi_match_lcd mipi_dsi_lcd_db[] = {
 	 {mipid_rm68191_get_lcd_videomode, mipid_rm68191_lcd_setup}
 	},
 #endif
+#ifdef CONFIG_FB_MXC_RK_PANEL_RK055AHD091
+	{
+	 "ROCKTECH-RK055AHD091",
+	 {mipid_hx8394_get_lcd_videomode, mipid_hx8394_lcd_setup}
+	},
+#endif
 	{
 	"", {NULL, NULL}
 	}
@@ -737,8 +743,13 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 		hbp_period = mode->left_margin;
 		hsa_period = mode->hsync_len;
 #else
+#ifdef CONFIG_FB_MXC_RK_PANEL_RK055AHD091
+		hfp_period = mode->right_margin * (bpp >> 3) - 12;
+		hbp_period = mode->left_margin * (bpp >> 3) - 10;
+#else
 		hfp_period = mode->right_margin * (bpp >> 3);
 		hbp_period = mode->left_margin * (bpp >> 3);
+#endif
 		hsa_period = mode->hsync_len * (bpp >> 3);
 #endif
 		break;

@@ -182,5 +182,10 @@ void mipid_rm68191_get_lcd_videomode(struct fb_videomode **mode, int *size,
                                      struct mipi_lcd_config **data);
 int mipid_rm68191_lcd_setup(struct mipi_dsi_info *mipi_dsi);
 #endif
+#ifdef CONFIG_FB_MXC_RK_PANEL_RK055AHD091
+void mipid_hx8394_get_lcd_videomode(struct fb_videomode **mode, int *size,
+                                     struct mipi_lcd_config **data);
+int mipid_hx8394_lcd_setup(struct mipi_dsi_info *mipi_dsi);
+#endif
 
 #endif
