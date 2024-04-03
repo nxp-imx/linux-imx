@@ -91,6 +91,24 @@ struct mipi_dsi_bus_mux {
 	int (*get_mux) (int dev_id, int disp_id);
 };
 
+struct mipi_dsi_soc_data {
+	u32 flags;
+	u32 rst_reg_offset;
+	u32 dpi_nrst_mask;
+	u32 esc_nrst_mask;
+	u32 byte_nrst_mask;
+	u32 pclk_nrst_mask;
+	u32 pll_en_mask;
+	u32 pgmc_bpc_base;
+	u32 rx_esc_clk_rate;
+};
+
+#define SOC_HAVE_PCLK_NRST BIT(1)
+#define SOC_HAVE_PLL_EN BIT(2)
+#define SOC_HAVE_DSI_SD BIT(3)
+#define SOC_HAVE_MIPI_PHY_POWER_CTRL_IN_PGMC BIT(4)
+
+
 /* driver private data */
 struct mipi_dsi_info {
 	struct platform_device		*pdev;
@@ -98,6 +116,7 @@ struct mipi_dsi_info {
 	void __iomem			*phy_base;
 	struct regmap			*regmap;
 	struct regmap			*mux_sel;
+	const struct mipi_dsi_soc_data	*sdata;
 	const struct mipi_dsi_bus_mux	*bus_mux;
 	int				dsi_power_on;
 	int				lcd_inited;
