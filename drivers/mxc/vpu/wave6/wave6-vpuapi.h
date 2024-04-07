@@ -979,6 +979,7 @@ struct vpu_instance {
 
 	struct vpu_buf aux_vbuf[AUX_BUF_TYPE_MAX][WAVE6_MAX_FBS];
 	struct vpu_buf ar_vbuf;
+	bool secure_mode;
 	enum display_mode disp_mode;
 
 	unsigned int frame_rate;

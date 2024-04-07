@@ -13,6 +13,7 @@
 
 #define VPU_DEC_DEV_NAME "C&M Wave6 VPU decoder"
 #define VPU_DEC_DRV_NAME "wave6-dec"
+#define V4L2_CID_VPU_SECURE_MODE (V4L2_CID_USER_BASE + 0x10b7)
 
 static const struct vpu_format wave6_vpu_dec_fmt_list[2][6] = {
 	[VPU_FMT_TYPE_CODEC] = {
@@ -1469,6 +1470,9 @@ static int wave6_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
 	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
 		break;
+	case V4L2_CID_VPU_SECURE_MODE:
+		inst->secure_mode = ctrl->val;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1478,6 +1482,17 @@ static int wave6_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops wave6_vpu_dec_ctrl_ops = {
 	.s_ctrl = wave6_vpu_dec_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config wave6_vpu_secure_mode = {
+	.ops = &wave6_vpu_dec_ctrl_ops,
+	.id = V4L2_CID_VPU_SECURE_MODE,
+	.name = "secure mode",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.def = 0,
+	.min = 0,
+	.max = 1,
+	.step = 1,
 };
 
 static void wave6_set_dec_openparam(struct dec_open_param *open_param,
@@ -1901,6 +1916,8 @@ static int wave6_vpu_open_dec(struct file *filp)
 			       V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE);
 
 	imx_mur_new_v4l2_ctrl(&inst->v4l2_ctrl_hdl, inst->recorder);
+
+	v4l2_ctrl_new_custom(&inst->v4l2_ctrl_hdl, &wave6_vpu_secure_mode, NULL);
 
 	if (inst->v4l2_ctrl_hdl.error) {
 		ret = -ENODEV;
