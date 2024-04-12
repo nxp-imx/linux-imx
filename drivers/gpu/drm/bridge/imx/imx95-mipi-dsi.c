@@ -748,7 +748,7 @@ static int imx95_dsi_phy_init(void *priv_data)
 	int bpp, ret;
 
 	ret = mux_control_try_select(dsi->mux, !dsi->use_pl0);
-	if (ret < 0) {
+	if (ret < 0 && ret != -EBUSY) {
 		dev_err(dsi->dev, "failed to select input: %d\n", ret);
 		return ret;
 	}
