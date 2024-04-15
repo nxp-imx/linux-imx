@@ -31,6 +31,7 @@ static const char *const usdhc_sels[] = { "pll2_pfd2_396m", "pll2_pfd0_352m", };
 static const char *const lpuart_sels[] = { "pll3_80m", "osc", };
 static const char *const semc_alt_sels[] = { "pll2_pfd2_396m", "pll3_pfd1_664_62m", };
 static const char *const semc_sels[] = { "periph_sel", "semc_alt_sel", };
+static const char *const lpi2c_sels[] = { "pll3_60m", "osc", };
 
 static const char * const perclk_sels[] = {"ipg", "osc", };
 
@@ -85,6 +86,8 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 
 	hws[IMXRT1020_CLK_PLL3_80M] = imx_clk_hw_fixed_factor("pll3_80m",  "pll3_usb_otg", 1, 6);
 
+	hws[IMXRT1020_CLK_PLL3_60M] = imx_clk_hw_fixed_factor("pll3_60m",  "pll3_usb_otg", 1, 8);
+
 	hws[IMXRT1020_CLK_PLL2_PFD0_352M] = imx_clk_hw_pfd("pll2_pfd0_352m", "pll2_sys",
 		base + 0x100, 0);
 	hws[IMXRT1020_CLK_PLL2_PFD1_594M] = imx_clk_hw_pfd("pll2_pfd1_594m", "pll2_sys",
@@ -129,6 +132,9 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_LPUART_SEL] = imx_clk_hw_mux("lpuart_sel",
 		base + 0x24, 6, 1,
 		lpuart_sels, ARRAY_SIZE(lpuart_sels));
+	hws[IMXRT1020_CLK_LPI2C_SEL] = imx_clk_hw_mux("lpi2c_sel",
+		base + 0x38, 18, 1,
+		lpi2c_sels, ARRAY_SIZE(lpi2c_sels));
 	hws[IMXRT1020_CLK_SEMC_ALT_SEL] = imx_clk_hw_mux("semc_alt_sel",
 		base + 0x14, 7, 1,
 		semc_alt_sels, ARRAY_SIZE(semc_alt_sels));
@@ -154,6 +160,8 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		base + 0x24, 16, 3);
 	hws[IMXRT1020_CLK_LPUART_PODF] = imx_clk_hw_divider("lpuart_podf", "lpuart_sel",
 		base + 0x24, 0, 6);
+	hws[IMXRT1020_CLK_LPI2C_PODF] = imx_clk_hw_divider("lpi2c_podf", "lpi2c_sel",
+		base + 0x38, 19, 6);
 	hws[IMXRT1020_CLK_SEMC_PODF] = imx_clk_hw_divider("semc_podf", "semc_sel",
 		base + 0x14, 16, 3);
 
@@ -163,6 +171,10 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 	hws[IMXRT1020_CLK_SEMC] = imx_clk_hw_gate2_flags("semc", "semc_podf", base + 0x74, 4, CLK_IS_CRITICAL);
 	hws[IMXRT1020_CLK_USBOH3] = imx_clk_hw_gate2("usboh3", "ipg", base + 0x80, 0);
 	hws[IMXRT1020_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", base + 0x6c, 10);
+	hws[IMXRT1020_CLK_LPI2C1] = imx_clk_hw_gate2("lpi2c1", "lpi2c_podf", base + 0x70, 6);
+	hws[IMXRT1020_CLK_LPI2C2] = imx_clk_hw_gate2("lpi2c2", "lpi2c_podf", base + 0x70, 8);
+	hws[IMXRT1020_CLK_LPI2C3] = imx_clk_hw_gate2("lpi2c3", "lpi2c_podf", base + 0x70, 10);
+	hws[IMXRT1020_CLK_LPI2C4] = imx_clk_hw_gate2("lpi2c4", "lpi2c_podf", base + 0x80, 24);
 
 	imx_check_clk_hws(hws, IMXRT1020_CLK_END);
 
