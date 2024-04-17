@@ -1138,6 +1138,7 @@ struct vpu_device {
 	struct mutex pause_lock;
 	const struct wave6_match_data *res;
 	struct dentry *debugfs;
+	struct device *trusty_dev;
 };
 
 struct vpu_instance;
