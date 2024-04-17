@@ -1513,6 +1513,7 @@ static int mxsfb_dispdrv_init(struct platform_device *pdev,
 
 	memset(&setting, 0x0, sizeof(setting));
 	setting.fbi = fbi;
+	setting.default_bpp = fbi->var.bits_per_pixel;
 	memcpy(disp_dev, host->disp_dev, strlen(host->disp_dev));
 	disp_dev[strlen(host->disp_dev)] = '\0';
 
