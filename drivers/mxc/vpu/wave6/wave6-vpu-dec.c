@@ -12,7 +12,9 @@
 #include "wave6-trace.h"
 
 #define VPU_DEC_DEV_NAME "C&M Wave6 VPU decoder"
+#define VPU_SECURE_DEC_DEV_NAME "C&M Wave6 VPU secure decoder"
 #define VPU_DEC_DRV_NAME "wave6-dec"
+#define VPU_SECURE_DEC_DRV_NAME "wave6-sec-dec"
 #define V4L2_CID_VPU_SECURE_MODE (V4L2_CID_USER_BASE + 0x10b7)
 
 static const struct vpu_format wave6_vpu_dec_fmt_list[2][6] = {
@@ -977,10 +979,13 @@ finish_decode:
 
 static int wave6_vpu_dec_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 {
-	strscpy(cap->driver, VPU_DEC_DRV_NAME, sizeof(cap->driver));
+	struct vpu_instance *inst = wave6_to_vpu_inst(file_to_v4l2_fh(file));
+	if (inst->dev->trusty_dev)
+		strscpy(cap->driver, VPU_SECURE_DEC_DRV_NAME, sizeof(cap->driver));
+	else
+		strscpy(cap->driver, VPU_DEC_DRV_NAME, sizeof(cap->driver));
 	strscpy(cap->card, VPU_DEC_DRV_NAME, sizeof(cap->card));
 	strscpy(cap->bus_info, "platform:" VPU_DEC_DRV_NAME, sizeof(cap->bus_info));
-
 	return 0;
 }
 
@@ -1992,7 +1997,10 @@ int wave6_vpu_dec_register_device(struct vpu_device *dev)
 
 	dev->video_dev_dec = vdev_dec;
 
-	strscpy(vdev_dec->name, VPU_DEC_DEV_NAME, sizeof(vdev_dec->name));
+	if (dev->trusty_dev)
+		strscpy(vdev_dec->name, VPU_SECURE_DEC_DEV_NAME, sizeof(vdev_dec->name));
+	else
+		strscpy(vdev_dec->name, VPU_DEC_DEV_NAME, sizeof(vdev_dec->name));
 	vdev_dec->fops = &wave6_vpu_dec_fops;
 	vdev_dec->ioctl_ops = &wave6_vpu_dec_ioctl_ops;
 	vdev_dec->release = video_device_release_empty;

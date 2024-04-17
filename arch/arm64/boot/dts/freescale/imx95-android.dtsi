@@ -62,5 +62,9 @@
 		compatible = "imx-secure-ion-pool";
 		reg = <0x0 0xA1000000 0 0x2800000>;
 	};
+};
 
+&vpu1 {
+	status = "okay";
+	trusty;
 };

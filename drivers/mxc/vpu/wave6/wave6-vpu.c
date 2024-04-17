@@ -24,6 +24,8 @@
 #include "wave6-hw.h"
 #include "wave6-vpu-ctrl.h"
 #include "wave6-vpu-dbg.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define CREATE_TRACE_POINTS
 #include "wave6-trace.h"
@@ -34,6 +36,9 @@
 
 #define WAVE6_IS_ENC BIT(0)
 #define WAVE6_IS_DEC BIT(1)
+
+#define SMC_ENTITY_IMX_WAVE_LINUX_OPT 55
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 0)
 
 static unsigned int debug;
 module_param(debug, uint, 0644);
@@ -312,6 +317,22 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 		dev->recorder = wave6_vpu_ctrl_get_recorder(dev->ctrl);
 	} else {
 		dev->recorder = imx_mur_create_node(NULL, dev_name(dev->dev));
+	}
+
+	/* find trusty node */
+	dev->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+		dev->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (dev->trusty_dev) {
+			ret = trusty_fast_call32(dev->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+			if (ret < 0) {
+				dev_info(&pdev->dev, "failed to get response of echo. vpu use normal mode.\n");
+				dev->trusty_dev = NULL;
+			} else
+				dev_info(&pdev->dev, "vpu will use secure mode\n");
+		} else {
+			dev_info(&pdev->dev, "failed to get trusty device. vpu use normal mode.\n");
+		}
 	}
 
 	ret = devm_clk_bulk_get_all(&pdev->dev, &dev->clks);

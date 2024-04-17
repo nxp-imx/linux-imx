@@ -902,6 +902,7 @@ struct vpu_device {
 	struct imx_mur_node *recorder;
 
 	bool force_dma_sync;
+	struct device *trusty_dev;
 };
 
 struct vpu_instance;
