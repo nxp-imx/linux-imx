@@ -189,6 +189,11 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_DMA] = imx_clk_hw_gate("dma", "ipg", ccm_base + 0x7C, 6);
 	hws[IMXRT1050_CLK_DMA_MUX] = imx_clk_hw_gate("dmamux0", "ipg", ccm_base + 0x7C, 7);
 	hws[IMXRT1050_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", ccm_base + 0x6c, 10);
+	hws[IMXRT1050_CLK_USBOH3] = imx_clk_hw_gate2("usboh3", "ipg", ccm_base + 0x80, 0);
+	hws[IMXRT1050_CLK_LPI2C1] = imx_clk_hw_gate2("lpi2c1", "lpi2c_podf", ccm_base + 0x70, 6);
+	hws[IMXRT1050_CLK_LPI2C2] = imx_clk_hw_gate2("lpi2c2", "lpi2c_podf", ccm_base + 0x70, 8);
+	hws[IMXRT1050_CLK_LPI2C3] = imx_clk_hw_gate2("lpi2c3", "lpi2c_podf", ccm_base + 0x70, 10);
+	hws[IMXRT1050_CLK_LPI2C4] = imx_clk_hw_gate2("lpi2c4", "lpi2c_podf", ccm_base + 0x80, 24);
 	imx_check_clk_hws(hws, IMXRT1050_CLK_END);
 
 	ret = of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_hw_data);

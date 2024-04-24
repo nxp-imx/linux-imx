@@ -288,6 +288,41 @@
 			interrupts = <28>;
 			clocks = <&clks IMXRT1050_CLK_LPI2C1>, <&clks IMXRT1050_CLK_IPG_PODF>;
 			clock-names = "per", "ipg";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c2: lpci2c@403f4000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x403f4000 0x4000>;
+			interrupts = <29>;
+			clocks = <&clks IMXRT1050_CLK_LPI2C2>, <&clks IMXRT1050_CLK_IPG_PODF>;
+			clock-names = "per", "ipg";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c3: lpci2c@403f8000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x403f8000 0x4000>;
+			interrupts = <30>;
+			clocks = <&clks IMXRT1050_CLK_LPI2C3>, <&clks IMXRT1050_CLK_IPG_PODF>;
+			clock-names = "per", "ipg";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c4: lpci2c@403fc000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x403fc000 0x4000>;
+			interrupts = <31>;
+			clocks = <&clks IMXRT1050_CLK_LPI2C4>, <&clks IMXRT1050_CLK_IPG_PODF>;
+			clock-names = "per", "ipg";
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 		};
 
