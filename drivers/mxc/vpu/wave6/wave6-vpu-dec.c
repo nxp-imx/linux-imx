@@ -133,14 +133,25 @@ static void wave6_vpu_dec_release_fb(struct vpu_instance *inst)
 	int i;
 
 	for (i = 0; i < WAVE6_MAX_FBS; i++) {
-		wave6_free_dma(&inst->frame_vbuf[i]);
-		memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_SEG_MAP][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_PRE_ENT][i]);
+		if (inst->secure_mode) {
+			wave6_free_secure_dma_memory(inst->dev, &inst->frame_vbuf[i]);
+			memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_SEG_MAP][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_PRE_ENT][i]);
+		} else {
+			wave6_free_dma(&inst->frame_vbuf[i]);
+			memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_SEG_MAP][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_PRE_ENT][i]);
+		}
 	}
 }
 
@@ -247,7 +258,10 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 	num = min_t(u32, num, WAVE6_MAX_FBS);
 	for (i = 0; i < num; i++) {
 		inst->aux_vbuf[type][i].size = size;
-		ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][i]);
+		if (inst->secure_mode) {
+			ret = wave6_allocate_secure_dma_memory(inst->dev, &inst->aux_vbuf[type][i]);
+		} else
+			ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][i]);
 		if (ret) {
 			dev_err(inst->dev->dev, "%s: Alloc fail\n", __func__);
 			return ret;
@@ -1420,7 +1434,10 @@ static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst)
 		unsigned int ch_size = ALIGN(fb_stride / 2, 32) * fb_height;
 
 		vframe->size = l_size + ch_size;
-		ret = wave6_alloc_dma(inst->dev->dev, vframe);
+		if (inst->secure_mode) {
+			ret = wave6_allocate_secure_dma_memory(inst->dev, vframe);
+		} else
+			ret = wave6_alloc_dma(inst->dev->dev, vframe);
 		if (ret) {
 			dev_err(inst->dev->dev, "alloc FBC buffer fail : %zu\n",
 				vframe->size);

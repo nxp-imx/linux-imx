@@ -12,6 +12,9 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
 
 /* system register write */
 #define vpu_write_reg(VPU_DEV, ADDR, DATA) wave6_vdi_writel(VPU_DEV, ADDR, DATA)
@@ -23,6 +26,7 @@ struct vpu_buf {
 	dma_addr_t daddr;
 	void *vaddr;
 	struct device *dev;
+	struct dma_buf* secure_dma_buf;
 };
 
 struct vpu_dma_buf {

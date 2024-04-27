@@ -11,6 +11,7 @@
 #include <linux/clk.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
 #include <linux/pm_runtime.h>
@@ -28,6 +29,8 @@
 #include "wave6-regdefine.h"
 #include "wave6-vdi.h"
 #include "wave6-vpu-ctrl.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define wave6_wait_event_freezable_timeout(wq_head, condition, timeout)	 \
 ({                                                                       \
@@ -72,6 +75,27 @@ struct vpu_ctrl_resource {
 
 #define W6_NXP_SW_UART_LOGER                         (W6_REG_BASE + 0x00f0)
 #define TRACEBUF_SIZE 131072
+
+#define SMC_ENTITY_IMX_WAVE_LINUX_OPT 55
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 0)
+#define SMC_IMX_VCPU_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 2)
+#define OPT_WRITE 0x1
+
+#ifdef writel
+#undef writel
+#define writel(val, addr) \
+	do { \
+		if (ctrl->trusty_dev) { \
+			trusty_vcpu_set_reg(ctrl->trusty_dev, (addr - ctrl->reg_base), val); \
+		} else { \
+			{ __iowmb(); writel_relaxed((val),(addr)); } \
+		}\
+	} while (0)
+#endif
+
+static void trusty_vcpu_set_reg(struct device *dev, u32 target, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_VCPU_REG, target, OPT_WRITE, val);
+}
 
 static unsigned int enable_fwlog;
 module_param(enable_fwlog, uint, 0644);
@@ -124,6 +148,7 @@ struct vpu_ctrl {
 	struct device *dev_perf;
 	int clk_id;
 	unsigned long *freq_table;
+	struct device *trusty_dev;
 };
 
 #define DOMAIN_VPU_PWR  0
@@ -660,8 +685,10 @@ static void wave6_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 		goto exit;
 	}
 
-	wave6_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
-	memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	if (!ctrl->trusty_dev) {
+		wave6_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
+		memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	}
 
 exit:
 	mutex_lock(&ctrl->ctrl_lock);
@@ -1129,6 +1156,8 @@ static int wave6_vpu_ctrl_probe(struct platform_device *pdev)
 	struct device_node *np;
 	const struct vpu_ctrl_resource *res;
 	int ret;
+	struct device_node *sp;
+	struct platform_device * pd;
 
 	/* physical addresses limited to 32 bits */
 	dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
@@ -1148,6 +1177,28 @@ static int wave6_vpu_ctrl_probe(struct platform_device *pdev)
 	ctrl->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(ctrl->reg_base))
 		return PTR_ERR(ctrl->reg_base);
+
+	/* find trusty node */
+	ctrl->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+		sp = of_find_node_by_name(NULL, "trusty");
+		if (sp != NULL) {
+			pd = of_find_device_by_node(sp);
+			if (pd != NULL) {
+				ctrl->trusty_dev = &(pd->dev);
+				ret = trusty_fast_call32(ctrl->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+				if (ret < 0)
+					ctrl->trusty_dev = NULL;
+				else
+					dev_info(&pdev->dev, "vcpu will use secure mode\n");
+			} else {
+				dev_info(&pdev->dev,"failed to get response of echo. vcpu use normal mode.\n");
+			}
+		} else {
+			dev_info(&pdev->dev, "failed to get response of echo. vcpu use normal mode.\n");
+		}
+	}
+
 	ret = devm_clk_bulk_get_all(&pdev->dev, &ctrl->clks);
 	if (ret < 0) {
 		dev_warn(&pdev->dev, "unable to get clocks: %d\n", ret);
