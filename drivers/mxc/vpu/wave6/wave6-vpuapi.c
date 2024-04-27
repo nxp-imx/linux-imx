@@ -416,18 +416,32 @@ int wave6_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 		inst->allocated_fb_num = 0;
 		inst->registered_fb_num = 0;
 		for (i = 0; i < WAVE6_MAX_FBS; i++) {
-			wave6_free_dma(&inst->frame_y_vbuf[i]);
-			wave6_free_dma(&inst->frame_c_vbuf[i]);
+			if (inst->secure_mode) {
+				wave6_free_secure_dma_memory(inst->dev, &inst->frame_y_vbuf[i]);
+				wave6_free_secure_dma_memory(inst->dev, &inst->frame_c_vbuf[i]);
+			} else {
+				wave6_free_dma(&inst->frame_y_vbuf[i]);
+				wave6_free_dma(&inst->frame_c_vbuf[i]);
+			}
 			memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
 			memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
 
-			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+			if (inst->secure_mode)
+				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+			else
+				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
 			memset(&p_dec_info->vb_mv[i], 0, sizeof(struct vpu_buf));
 
-			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			if (inst->secure_mode)
+				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			else
+				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
 			memset(&p_dec_info->vb_fbc_y_tbl[i], 0, sizeof(struct vpu_buf));
 
-			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			if (inst->secure_mode)
+				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			else
+				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
 			memset(&p_dec_info->vb_fbc_c_tbl[i], 0, sizeof(struct vpu_buf));
 		}
 		break;

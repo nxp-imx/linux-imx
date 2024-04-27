@@ -140,12 +140,21 @@ static void wave6_vpu_dec_release_fb(struct vpu_instance *inst)
 	inst->allocated_fb_num = 0;
 	inst->registered_fb_num = 0;
 	for (i = 0; i < WAVE6_MAX_FBS; i++) {
-		wave6_free_dma(&inst->frame_y_vbuf[i]);
-		wave6_free_dma(&inst->frame_c_vbuf[i]);
-		memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+		if (inst->secure_mode) {
+			wave6_free_secure_dma_memory(inst->dev, &inst->frame_y_vbuf[i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->frame_c_vbuf[i]);
+			memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+		} else {
+			wave6_free_dma(&inst->frame_y_vbuf[i]);
+			wave6_free_dma(&inst->frame_c_vbuf[i]);
+			memset(&inst->frame_buf[i], 0, sizeof(struct frame_buffer));
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
+			wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
+		}
 	}
 }
 
@@ -246,7 +255,11 @@ static int wave6_allocate_fbc_buffer(struct vpu_instance *inst, int idx)
 	vframe_y->size = fb_stride * fb_height;
 	vframe_y->recorder = inst->recorder;
 	vframe_y->label = "fbc-y";
-	ret = wave6_alloc_dma(inst->dev->dev, vframe_y);
+	if (inst->secure_mode) {
+		ret = wave6_allocate_secure_dma_memory(inst->dev, vframe_y);
+	} else {
+		ret = wave6_alloc_dma(inst->dev->dev, vframe_y);
+	}
 	if (ret) {
 		dev_err(inst->dev->dev, "alloc FBC_Y buffer fail : %zu\n",
 			vframe_y->size);
@@ -256,7 +269,11 @@ static int wave6_allocate_fbc_buffer(struct vpu_instance *inst, int idx)
 	vframe_c->size = ALIGN(fb_stride / 2, W6_FBC_BUF_ALIGNMENT) * fb_height;
 	vframe_c->recorder = inst->recorder;
 	vframe_c->label = "fbc-c";
-	ret = wave6_alloc_dma(inst->dev->dev, vframe_c);
+	if (inst->secure_mode) {
+		ret = wave6_allocate_secure_dma_memory(inst->dev, vframe_c);
+	} else {
+		ret = wave6_alloc_dma(inst->dev->dev, vframe_c);
+	}
 	if (ret) {
 		dev_err(inst->dev->dev, "alloc FBC_C buffer fail : %zu\n",
 			vframe_c->size);
@@ -298,7 +315,10 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 	inst->aux_vbuf[type][idx].size = size;
 	inst->aux_vbuf[type][idx].recorder = inst->recorder;
 	inst->aux_vbuf[type][idx].label = wave6_vpu_get_aux_name(type);
-	ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][idx]);
+	if (inst->secure_mode) {
+		ret = wave6_allocate_secure_dma_memory(inst->dev, &inst->aux_vbuf[type][idx]);
+	} else
+		ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][idx]);
 	if (ret) {
 		dev_dbg(inst->dev->dev, "%s: Alloc fail (type %d)\n", __func__, type);
 		return ret;

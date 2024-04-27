@@ -56,15 +56,20 @@
 &{/reserved-memory/} {
 	secure_region: secure {
 		compatible = "imx-secure-ion-pool";
-		reg = <0x0 0xA3800000 0 0x10000000>;
-	};
-	secure_framebuffer_region {
-		compatible = "imx-secure-ion-pool";
-		reg = <0x0 0xA1000000 0 0x2800000>;
+		reg = <0x0 0xA0000000 0 0x14F00000>;
 	};
 };
 
 &vpu1 {
 	status = "okay";
+	trusty;
+};
+
+&vpu_boot {
+	reg = <0 0xB4F00000 0 0x100000>;
+	no-map;
+};
+
+&vpuctrl {
 	trusty;
 };

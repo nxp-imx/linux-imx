@@ -12,6 +12,9 @@
 #include <linux/slab.h>
 #include <linux/device.h>
 #include "wave6-vpuconfig.h"
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
 
 #define vpu_write_reg(VPU_DEV, ADDR, DATA) wave6_vdi_writel(VPU_DEV, ADDR, DATA)
 #define vpu_read_reg(VPU_DEV, ADDR) wave6_vdi_readl(VPU_DEV, ADDR)
@@ -23,6 +26,7 @@ struct vpu_buf {
 	struct device *dev;
 	struct imx_mur_node *recorder;
 	const char *label;
+	struct dma_buf* secure_dma_buf;
 };
 
 struct vpu_dma_buf {

@@ -1002,6 +1002,8 @@ struct vpu_instance {
 void wave6_vdi_writel(struct vpu_device *vpu_device, unsigned int addr, unsigned int data);
 unsigned int wave6_vdi_readl(struct vpu_device *vpu_dev, unsigned int addr);
 unsigned int wave6_vdi_convert_endian(unsigned int endian);
+int wave6_allocate_secure_dma_memory(struct vpu_device *vpu_dev, struct vpu_buf *vb);
+void wave6_free_secure_dma_memory(struct vpu_device *vpu_dev, struct vpu_buf *vb);
 
 int wave6_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *pop);
 int wave6_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res);
