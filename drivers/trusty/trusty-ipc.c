@@ -918,8 +918,13 @@ static int tipc_shared_handle_drop(struct tipc_shared_handle *shared_handle)
 	}
 
 	if (shared_handle->sgt)
-		dma_buf_unmap_attachment(shared_handle->attach,
-					 shared_handle->sgt, DMA_BIDIRECTIONAL);
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+		dma_buf_unmap_attachment_unlocked(
+#else
+		dma_buf_unmap_attachment(
+#endif
+			shared_handle->attach, shared_handle->sgt,
+			DMA_BIDIRECTIONAL);
 	if (shared_handle->attach)
 		dma_buf_detach(shared_handle->dma_buf, shared_handle->attach);
 	if (shared_handle->dma_buf)
@@ -1538,8 +1543,12 @@ static int dn_share_fd(struct tipc_dn_chan *dn, int fd,
 		goto cleanup_handle;
 	}
 
-	shared_handle->sgt = dma_buf_map_attachment(shared_handle->attach,
-						    DMA_BIDIRECTIONAL);
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	shared_handle->sgt = dma_buf_map_attachment_unlocked(
+#else
+	shared_handle->sgt = dma_buf_map_attachment(
+#endif
+				shared_handle->attach, DMA_BIDIRECTIONAL);
 	if (IS_ERR(shared_handle->sgt)) {
 		ret = PTR_ERR(shared_handle->sgt);
 		shared_handle->sgt = NULL;
