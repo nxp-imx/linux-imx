@@ -2557,7 +2557,7 @@ lpuart32_console_write(struct console *co, const char *s, unsigned int count)
  * if the port was already initialised (eg, by a boot loader),
  * try to determine the current setup.
  */
-static void __init
+static void
 lpuart_console_get_options(struct lpuart_port *sport, int *baud,
 			   int *parity, int *bits)
 {
@@ -2606,7 +2606,7 @@ lpuart_console_get_options(struct lpuart_port *sport, int *baud,
 				"from %d to %d\n", baud_raw, *baud);
 }
 
-static void __init
+static void
 lpuart32_console_get_options(struct lpuart_port *sport, int *baud,
 			   int *parity, int *bits)
 {
@@ -2652,7 +2652,7 @@ lpuart32_console_get_options(struct lpuart_port *sport, int *baud,
 				"from %d to %d\n", baud_raw, *baud);
 }
 
-static int __init lpuart_console_setup(struct console *co, char *options)
+static int lpuart_console_setup(struct console *co, char *options)
 {
 	struct lpuart_port *sport;
 	int baud = 115200;
@@ -3234,7 +3234,7 @@ static struct platform_driver lpuart_driver = {
 	},
 };
 
-static int __init lpuart_serial_init(void)
+static int lpuart_serial_init(void)
 {
 	int ret = uart_register_driver(&lpuart_reg);
 
