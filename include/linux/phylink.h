@@ -193,7 +193,9 @@ struct phylink_config {
 	unsigned long lpi_capabilities;
 	u32 lpi_timer_default;
 	bool eee_enabled_default;
+#ifndef CONFIG_IMX_GKI_FIX
 	unsigned int cfg_link_an_mode;
+#endif
 };
 
 void phylink_limit_mac_speed(struct phylink_config *config, u32 max_speed);
@@ -500,7 +502,9 @@ struct phylink_pcs {
 	struct phylink *phylink;
 	bool poll;
 	bool rxc_always_on;
+#ifndef CONFIG_IMX_GKI_FIX
 	unsigned int cfg_link_an_mode;
+#endif
 };
 
 /**

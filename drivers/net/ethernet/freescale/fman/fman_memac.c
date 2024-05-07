@@ -640,10 +640,10 @@ static struct phylink_pcs *memac_select_pcs(struct phylink_config *config,
 					    phy_interface_t iface)
 {
 	struct fman_mac *memac = fman_config_to_mac(config)->fman_mac;
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (phylink_autoneg_c73(config->cfg_link_an_mode))
 		return memac->c73_pcs;
-
+#endif
 	switch (iface) {
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_1000BASEX:
