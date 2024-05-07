@@ -93,10 +93,10 @@ static void lynx_pcs_get_state(struct phylink_pcs *pcs,
 			       struct phylink_link_state *state)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (phylink_autoneg_c73(pcs->cfg_link_an_mode))
 		return mtip_backplane_get_state(lynx->anlt[PRIMARY_LANE], state);
-
+#endif
 	switch (state->interface) {
 	case PHY_INTERFACE_MODE_1000BASEX:
 	case PHY_INTERFACE_MODE_SGMII:
@@ -252,10 +252,10 @@ static int lynx_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode,
 static void lynx_pcs_an_restart(struct phylink_pcs *pcs)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (phylink_autoneg_c73(pcs->cfg_link_an_mode))
 		return mtip_backplane_an_restart(lynx->anlt[PRIMARY_LANE]);
-
+#endif
 	phylink_mii_c22_pcs_an_restart(lynx->mdio);
 }
 
@@ -362,10 +362,10 @@ static int lynx_pcs_validate(struct phylink_pcs *pcs, unsigned long *supported,
 			     const struct phylink_link_state *state)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (!phylink_autoneg_c73(pcs->cfg_link_an_mode))
 		return 0;
-
+#endif
 	if (!lynx->num_phys) {
 		linkmode_zero(supported);
 		dev_err(&lynx->mdio->dev, "C73 autoneg requires SerDes\n");
@@ -374,7 +374,7 @@ static int lynx_pcs_validate(struct phylink_pcs *pcs, unsigned long *supported,
 
 	return mtip_backplane_validate(lynx->serdes[PRIMARY_LANE], supported);
 }
-
+#ifndef CONFIG_IMX_GKI_FIX
 static int lynx_pcs_c73_init(struct phylink_pcs *pcs)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
@@ -420,16 +420,16 @@ static void lynx_pcs_c73_teardown(struct phylink_pcs *pcs)
 		if (lynx->anlt[i])
 			mtip_backplane_destroy(lynx->anlt[i]);
 }
-
+#endif
 static int lynx_pcs_enable(struct phylink_pcs *pcs)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
 	size_t i;
 	int err;
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (phylink_autoneg_c73(pcs->cfg_link_an_mode))
 		return lynx_pcs_c73_init(pcs);
-
+#endif
 	/* The backplane AN/LT deals with lane power management */
 	for (i = 0; i < lynx->num_phys; i++) {
 		err = phy_power_on(lynx->serdes[i]);
@@ -444,10 +444,10 @@ static void lynx_pcs_disable(struct phylink_pcs *pcs)
 {
 	struct lynx_pcs *lynx = phylink_pcs_to_lynx(pcs);
 	size_t i;
-
+#ifndef CONFIG_IMX_GKI_FIX
 	if (phylink_autoneg_c73(pcs->cfg_link_an_mode))
 		return lynx_pcs_c73_teardown(pcs);
-
+#endif
 	/* The backplane AN/LT deals with lane power management */
 	for (i = 0; i < lynx->num_phys; i++)
 		phy_power_off(lynx->serdes[i]);
