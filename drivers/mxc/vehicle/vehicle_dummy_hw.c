@@ -755,7 +755,8 @@ static ssize_t hvac_on_store(struct device *dev,
 
 	if (hvac_on != vehicle_dummy->hvac_on) {
 		vehicle_dummy->hvac_on = hvac_on;
-		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, 0, hvac_on, 0);
+		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, VEHICLE_AREA_SEAT_ROW_1_LEFT , hvac_on, 0);
+		vehicle_hal_set_property(VEHICLE_HVAC_POWER_ON, VEHICLE_AREA_SEAT_ROW_1_RIGHT, hvac_on, 0);
 	}
 	return size;
 }
