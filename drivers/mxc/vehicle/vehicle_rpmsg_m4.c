@@ -603,8 +603,13 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 			}
 		}
 
-		vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue, 0);
-
+		if (msg->statetype == VEHICLE_HVAC_POWER_ON){
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
+		}
+		else {
+			vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue, 0);
+		}
 		if (vehicle_send_message(msg, vehicle_rpmsg, false))
 			dev_warn(&rpdev->dev, "vehicle_rpmsg_cb send message error \n");
 	}
