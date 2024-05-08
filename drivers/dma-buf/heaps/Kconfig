@@ -31,8 +31,8 @@ config DMABUF_HEAPS_DSP
           is allocated by gen allocater. it's allocated according the dts.
           If in doubt, say Y.
 
-config IMX8QM_WIDEVINE_L1
-	bool "Enable widevine l1 on imx8qm"
+config WIDEVINE_L1_SKIP_MEMSET_SECUREHEAP
+	bool "skip memset secure heap"
 	default n
 	depends on DMABUF_HEAPS
 	help
