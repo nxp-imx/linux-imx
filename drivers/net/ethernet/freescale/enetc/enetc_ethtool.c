@@ -1436,11 +1436,12 @@ static int enetc_get_ts_info(struct net_device *ndev,
 	int *phc_idx;
 
 	if (is_enetc_rev1(priv->si)) {
-		phc_idx = symbol_get(enetc_phc_index);
+		preempt_disable();
+		phc_idx = &enetc_phc_index;
 		if (phc_idx) {
 			info->phc_index = *phc_idx;
-			symbol_put(enetc_phc_index);
 		}
+		preempt_enable();
 	} else {
 		int domain;
 
