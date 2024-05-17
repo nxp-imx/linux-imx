@@ -56,7 +56,7 @@
 &{/reserved-memory/} {
 	secure_region: secure {
 		compatible = "imx-secure-ion-pool";
-		reg = <0x0 0xA0000000 0 0x14F00000>;
+		reg = <0x0 0xA0000000 0 0x1EF00000>;
 	};
 };
 
@@ -66,7 +66,7 @@
 };
 
 &vpu_boot {
-	reg = <0 0xB4F00000 0 0x100000>;
+	reg = <0 0xBEF00000 0 0x100000>;
 	no-map;
 };
 
