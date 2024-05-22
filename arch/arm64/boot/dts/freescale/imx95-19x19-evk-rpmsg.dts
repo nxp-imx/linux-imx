@@ -207,3 +207,7 @@
 	/delete-property/ dmas;
 	/delete-property/ dma-names;
 };
+
+&pcie1 {
+	status = "disabled";
+};
