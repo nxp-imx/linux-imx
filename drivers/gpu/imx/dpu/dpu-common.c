@@ -707,7 +707,7 @@ static int dpu_irq_init(struct dpu_soc *dpu)
 {									\
 	struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
 	if (data->domain) { \
-		struct device *dev = data->domain->dev; \
+		struct device *dev = data->domain->pm_dev; \
 		if (IS_ENABLED(CONFIG_PM) && dev) { \
 			ret = pm_runtime_resume_and_get(dev); \
 			if (ret < 0) {							\
@@ -763,7 +763,7 @@ irq_set_chained_handler_and_data(dpu->irq_##name, dpu_##name##_irq_handler, dpu)
 	if (dpu->irq_chip_pm_get_##name) {				\
 		struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
 		if (data->domain) { \
-			struct device *dev = data->domain->dev; \
+			struct device *dev = data->domain->pm_dev; \
 			if (IS_ENABLED(CONFIG_PM) && dev) { \
 				ret = pm_runtime_put(dev); \
 			} \
@@ -823,7 +823,7 @@ irq_set_chained_handler_and_data(dpu->irq_##name, NULL, NULL)
 {								\
 	struct irq_data *data = irq_get_irq_data(dpu->irq_##name); \
 	if (data->domain) { \
-		struct device *dev = data->domain->dev; \
+		struct device *dev = data->domain->pm_dev; \
 		if (IS_ENABLED(CONFIG_PM) && dev) { \
 			pm_runtime_put(dev); \
 		} \
