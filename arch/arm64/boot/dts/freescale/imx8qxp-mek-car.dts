@@ -1,0 +1,86 @@
+/*
+ * Copyright 2020 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "imx8qxp-mek-car2.dts"
+
+&img_subsys {
+	status = "disabled";
+};
+
+&dc0_subsys {
+	status = "disabled";
+};
+
+&lvds_subsys {
+	status = "disabled";
+};
+
+&vehicle_rpmsg_m4 {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	status = "okay";
+	ranges;
+	fsl,resources = <&lvds_subsys>,
+			<&dc0_subsys>,
+			<&img_subsys>;
+
+	pd_post: imx8qxp-pd {
+		compatible = "fsl,imx8qxp-scu-pd-post";
+		#power-domain-cells = <1>;
+	};
+
+	clk_post: clk1 {
+		compatible = "fsl,imx8qxp-clk-post";
+		#clock-cells = <2>;
+	};
+};
+
+&lvds_bridge0 {
+	/delete-property/ reset-gpios;
+};
+&lvds_bridge1 {
+	/delete-property/ reset-gpios;
+};
+
+/ {
+	firmware {
+		android {
+			fstab {
+				/delete-node/ system;
+				system_ext {
+					compatible = "android,system_ext";
+					dev = "/dev/block/by-name/system_ext";
+					type = "ext4";
+					mnt_flags = "noatime,ro,errors=panic";
+					fsmgr_flags = "wait,slotselect,avb";
+				};
+				vendor {
+					compatible = "android,vendor";
+					dev = "/dev/block/by-name/vendor";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb";
+				};
+				product {
+					compatible = "android,product";
+					dev = "/dev/block/by-name/product";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait,slotselect,avb";
+				};
+			};
+		};
+	};
+};
+
