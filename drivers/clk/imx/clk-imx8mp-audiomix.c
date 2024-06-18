@@ -15,10 +15,15 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 #include <dt-bindings/clock/imx8mp-clock.h>
 
 #include "clk.h"
+
+#define IMX8MP_DSP_NOC_OFFSET  0x208
+#define IMX8MP_DSP_NOC_PRIORITY        0x80000404
 
 #define CLKEN0			0x000
 #define CLKEN1			0x004
@@ -262,6 +267,7 @@ static const u16 audiomix_regs[] = {
 struct clk_imx8mp_audiomix_priv {
 	void __iomem *base;
 	u32 regs_save[ARRAY_SIZE(audiomix_regs)];
+	struct regmap *regmap;
 
 	/* Must be last */
 	struct clk_hw_onecell_data clk_data;
@@ -363,6 +369,7 @@ static int clk_imx8mp_audiomix_probe(struct platform_device *pdev)
 		return PTR_ERR(base);
 
 	priv->base = base;
+	priv->regmap = syscon_regmap_lookup_by_compatible("fsl,imx8m-noc");
 	dev_set_drvdata(dev, priv);
 
 	/*
@@ -474,7 +481,13 @@ static int clk_imx8mp_audiomix_runtime_suspend(struct device *dev)
 
 static int clk_imx8mp_audiomix_runtime_resume(struct device *dev)
 {
+	struct clk_imx8mp_audiomix_priv *priv = dev_get_drvdata(dev);
+	struct regmap *regmap = priv->regmap;
+
 	clk_imx8mp_audiomix_save_restore(dev, false);
+
+	if (!IS_ERR(regmap))
+		regmap_write(regmap, IMX8MP_DSP_NOC_OFFSET, IMX8MP_DSP_NOC_PRIORITY);
 
 	return 0;
 }
