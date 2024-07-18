@@ -726,7 +726,11 @@ static ssize_t auto_on_store(struct device *dev,
 
 	if (auto_on != vehicle_dummy->auto_on) {
 		vehicle_dummy->auto_on = auto_on;
-		vehicle_hal_set_property(VEHICLE_AUTO_ON, 0, auto_on, 0);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, VEHICLE_AREA_SEAT_ROW_1_LEFT , auto_on, 0);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, VEHICLE_AREA_SEAT_ROW_1_RIGHT, auto_on, 0);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, VEHICLE_AREA_SEAT_ROW_2_LEFT , auto_on, 0);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, VEHICLE_AREA_SEAT_ROW_2_RIGHT, auto_on, 0);
+		vehicle_hal_set_property(VEHICLE_AUTO_ON, VEHICLE_AREA_SEAT_ROW_2_CENTER, auto_on, 0);
 	}
 	return size;
 }

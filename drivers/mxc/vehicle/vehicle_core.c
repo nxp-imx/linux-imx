@@ -136,7 +136,7 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 		break;
 	case VEHICLE_AUTO_ON:
 		property_encode.prop = HVAC_AUTO_ON;
-		property_encode.area_id = HVAC_ALL;
+		property_encode.area_id = (u32)index;
 		if (property_encode.value != AUTO_ON && property_encode.value != AUTO_OFF) {
 			pr_err("input value is not correct, please type correct one \n");
 			kfree(buffer);
