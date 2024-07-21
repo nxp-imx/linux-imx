@@ -143,7 +143,7 @@
 			compatible = "fsl,imxrt-usbphy", "fsl,imx23-usbphy";
 			reg = <0x400d9000 0x1000>;
 			interrupts = <65>;
-			clocks = <&clks IMXRT1020_CLK_PLL3_USB_OTG>;
+			clocks = <&clks IMXRT1020_CLK_USBPHY1>;
 		};
 
 		usbotg1: usb@402e0000 {

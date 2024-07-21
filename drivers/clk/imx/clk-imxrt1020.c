@@ -68,7 +68,7 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 
 	hws[IMXRT1020_CLK_PLL2_SYS] = imx_clk_hw_pllv3(IMX_PLLV3_GENERIC, "pll2_sys", "osc",
 		base + 0x30, 0x1);
-	hws[IMXRT1020_CLK_PLL3_USB_OTG] = imx_clk_hw_pllv3(IMX_PLLV3_USB, "pll3_usb_otg", "osc",
+	hws[IMXRT1020_CLK_PLL3] = imx_clk_hw_pllv3(IMX_PLLV3_USB, "pll3_usb_otg", "osc",
 		base + 0x10, 0x1);
 	hws[IMXRT1020_CLK_PLL6] = imx_clk_hw_pllv3(IMX_PLLV3_ENET, "pll6", "osc",
 		base + 0xe0, 0x1);
@@ -100,6 +100,8 @@ static int imxrt1020_clk_probe(struct platform_device *pdev)
 		base + 0xf0, 1);
 	hws[IMXRT1020_CLK_PLL3_PFD3_454_74M] = imx_clk_hw_pfd("pll3_pfd3_454_74m", "pll3_usb_otg",
 		base + 0xf0, 3);
+
+	hws[IMXRT1020_CLK_USBPHY1] = imx_clk_hw_gate("pll3_usbphy1", "pll3_usb_otg", base + 0x10, 6);
 
 	hws[IMXRT1020_CLK_PLL6_ENET] = imx_clk_hw_gate("pll6_enet", "pll6_bypass", base + 0xe0, 13);
 	hws[IMXRT1020_CLK_PLL6_500M] = imx_clk_hw_gate("pll6_500m", "pll6_bypass", base + 0xe0, 22);
