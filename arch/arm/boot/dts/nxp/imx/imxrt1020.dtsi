@@ -209,5 +209,15 @@
 			#size-cells = <0>;
 			status = "disabled";
 		};
+
+		adc1: adc@400c4000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		adc2: adc@400c8000 {
+			/* TBD */
+			status = "disabled";
+		};
 	};
 };
