@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
+#include <linux/vmalloc.h>
 
 #include "trusty-test.h"
 

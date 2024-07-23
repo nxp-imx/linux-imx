@@ -10,6 +10,8 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/scatterlist.h>
+#include <linux/vmalloc.h>
+
 #include <linux/trusty/trusty.h>
 #include "trusty-sched-share.h"
 
