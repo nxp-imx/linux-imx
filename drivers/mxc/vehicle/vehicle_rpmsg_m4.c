@@ -607,6 +607,13 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
 		}
+		else if (msg->statetype == VEHICLE_AUTO_ON){
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_LEFT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_RIGHT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_CENTER ,  msg->statevalue, 0);
+			}
 		else {
 			vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue, 0);
 		}
