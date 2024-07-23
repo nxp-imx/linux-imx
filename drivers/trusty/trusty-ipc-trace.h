@@ -61,7 +61,7 @@ TRACE_EVENT(trusty_ipc_connect,
 	),
 	TP_fast_assign(
 		__entry->chan = chan ? chan->local : ~0U;
-		__assign_str(port, port);
+		__assign_str(port);
 		__entry->state = chan ? chan->state : 0;
 	),
 	TP_printk("chan=%u port=%s state=%s", __entry->chan, __get_str(port),
