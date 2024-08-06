@@ -510,6 +510,7 @@ const struct of_device_id of_shared_match_table[] = {
 	{ .compatible = "simple-bus", },
 	{} /* Empty terminated list */
 };
+
 static void notice_evs_released(struct rpmsg_device *rpdev)
 {
 	struct device_node *dev_node, *shared_node;
@@ -829,6 +830,7 @@ static int vehicle_mcu_remove(struct platform_device *pdev)
 
 static const struct of_device_id imx_vehicle_mcu_id[] = {
 	{ .compatible = "nxp,imx-vehicle-m4", },
+	{ .compatible = "nxp,imx-vehicle-m7", },
 	{},
 };
 
@@ -836,7 +838,7 @@ static struct platform_driver vehicle_device_driver = {
 	.probe          = vehicle_mcu_probe,
 	.remove         = vehicle_mcu_remove,
 	.driver         =  {
-		.name   = "rpmsg-vehicle-m4",
+		.name   = "rpmsg-vehicle-m4/m7",
 		.of_match_table = imx_vehicle_mcu_id,
 	}
 };
@@ -870,4 +872,4 @@ module_exit(vehicle_mcu_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NXP Semiconductor");
-MODULE_DESCRIPTION("VEHICLE M4 image");
+MODULE_DESCRIPTION("VEHICLE M4/M7 image");

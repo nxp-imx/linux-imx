@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2024 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/nxp,imx95-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+#include "imx95-pinfunc.h"
+
+&{/} {
+	reserved-memory {
+		m7_framebuffer_reserved: m7@8e000000 {
+			no-map;
+			reg = <0 0x8e000000 0 0x2000000>;
+		};
+	};
+};
+
+&vehicle_core {
+	status = "okay";
+};
+
+&vehicle_rpmsg_m7 {
+	status = "okay";
+};
