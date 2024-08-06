@@ -508,11 +508,17 @@ static int lynx_pcs_validate_addr(struct mdio_device *mdiodev,
 			.type = PHY_PCVT_ETHERNET_PCS,
 		},
 	};
+#ifndef CONFIG_IMX_GKI_FIX
 	int i, err;
+#else
+	int i;
+#endif
 
+#ifndef CONFIG_IMX_GKI_FIX
 	err = phy_get_status(serdes, PHY_STATUS_PCVT_COUNT, &opts1);
 	if (err)
 		return err;
+#endif
 
 	for (i = 0; i < opts1.pcvt_count.num_pcvt; i++) {
 		union phy_status_opts opts2 = {
@@ -522,9 +528,11 @@ static int lynx_pcs_validate_addr(struct mdio_device *mdiodev,
 			},
 		};
 
+#ifndef CONFIG_IMX_GKI_FIX
 		err = phy_get_status(serdes, PHY_STATUS_PCVT_ADDR, &opts2);
 		if (err)
 			return err;
+#endif
 
 		/* For a multi-port protocol converter, the match is
 		 * approximate, since for full confidence, we'd have to
