@@ -61,7 +61,11 @@ TRACE_EVENT(trusty_ipc_connect,
 	),
 	TP_fast_assign(
 		__entry->chan = chan ? chan->local : ~0U;
+#if (KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE)
+		__assign_str(port);
+#else
 		__assign_str(port, port);
+#endif
 		__entry->state = chan ? chan->state : 0;
 	),
 	TP_printk("chan=%u port=%s state=%s", __entry->chan, __get_str(port),
