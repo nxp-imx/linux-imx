@@ -409,20 +409,20 @@ err_share_memory:
 
 static int trusty_virtio_find_vqs(struct virtio_device *vdev, unsigned int nvqs,
 				  struct virtqueue *vqs[],
-				  vq_callback_t *callbacks[],
-				  const char * const names[],
-				  const bool *ctxs,
+				  struct virtqueue_info vqs_info[],
 				  struct irq_affinity *desc)
 {
+	struct virtqueue_info *vqi;
 	unsigned int i;
 	int ret;
 	bool ctx = false;
 
 	for (i = 0; i < nvqs; i++) {
+		vqi = &vqs_info[i];
 		ctx = false;
-		if (ctxs)
-			ctx = ctxs[i];
-		vqs[i] = _find_vq(vdev, i, callbacks[i], names[i], ctx);
+		if (vqi->ctx)
+			ctx = vqi->ctx;
+		vqs[i] = _find_vq(vdev, i, vqi->callback, vqi->name, ctx);
 		if (IS_ERR(vqs[i])) {
 			ret = PTR_ERR(vqs[i]);
 			_del_vqs(vdev);
