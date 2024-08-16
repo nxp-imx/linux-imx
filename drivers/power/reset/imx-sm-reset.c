@@ -57,7 +57,14 @@ static int imx_restart_handler(struct notifier_block *this,
 	uint32_t reset_type;
 	bool board_reset;
 
-	board_reset = !strncmp(cmd, BOARD_RESET_MESSAGE,
+	if (cmd == NULL) {
+		/* The 'cmd' can be null if the reboot was triggered
+		 * by some emergency reboot like sysrq. Trigger board
+		 * reset by default in such case to fully reload.
+		 */
+		board_reset = true;
+	} else
+		board_reset = !strncmp(cmd, BOARD_RESET_MESSAGE,
 			            sizeof(BOARD_RESET_MESSAGE));
 
 	if (board_reset)
