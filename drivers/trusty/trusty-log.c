@@ -917,13 +917,12 @@ static int trusty_log_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int trusty_log_remove(struct platform_device *pdev)
+static void trusty_log_remove(struct platform_device *pdev)
 {
 	struct trusty_log_state *s = platform_get_drvdata(pdev);
 
 	trusty_log_sfile_unregister(s);
 	kref_put(&s->refcount, trusty_log_cleanup);
-	return 0;
 }
 
 static void trusty_log_cleanup(struct kref *ref)
