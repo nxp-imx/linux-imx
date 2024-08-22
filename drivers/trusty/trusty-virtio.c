@@ -7,6 +7,7 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 
 #include <linux/dma-map-ops.h>
 #include <linux/module.h>
@@ -409,20 +410,44 @@ err_share_memory:
 
 static int trusty_virtio_find_vqs(struct virtio_device *vdev, unsigned int nvqs,
 				  struct virtqueue *vqs[],
+/*
+ * TODO: change to 6.11. The version here should be 6.11, but android-mainline
+ * is still on 6.10 with 6.11 some changes merged. Since there is no other
+ * 6.10 gki kernel temporarily treat 6.10 as 6.11.
+ */
+#if (KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE)
+				  struct virtqueue_info vqs_info[],
+#else
 				  vq_callback_t *callbacks[],
 				  const char * const names[],
 				  const bool *ctxs,
+#endif
 				  struct irq_affinity *desc)
 {
 	unsigned int i;
 	int ret;
+	vq_callback_t *callback;
+	const char *name;
 	bool ctx = false;
 
 	for (i = 0; i < nvqs; i++) {
+/*
+ * TODO: change to 6.11. The version here should be 6.11, but android-mainline
+ * is still on 6.10 with 6.11 some changes merged. Since there is no other
+ * 6.10 gki kernel temporarily treat 6.10 as 6.11.
+ */
+#if (KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE)
+		callback = vqs_info[i].callback;
+		name = vqs_info[i].name;
+		ctx = vqs_info[i].ctx;
+#else
+		callback = callbacks[i];
+		name = names[i];
 		ctx = false;
 		if (ctxs)
 			ctx = ctxs[i];
-		vqs[i] = _find_vq(vdev, i, callbacks[i], names[i], ctx);
+#endif
+		vqs[i] = _find_vq(vdev, i, callback, name, ctx);
 		if (IS_ERR(vqs[i])) {
 			ret = PTR_ERR(vqs[i]);
 			_del_vqs(vdev);

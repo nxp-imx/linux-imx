@@ -2567,8 +2567,20 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	struct tipc_virtio_dev *vds;
 	struct tipc_dev_config config;
 	struct virtqueue *vqs[2];
+/*
+ * TODO: change to 6.11. The version here should be 6.11, but android-mainline
+ * is still on 6.10 with 6.11 some changes merged. Since there is no other
+ * 6.10 gki kernel temporarily treat 6.10 as 6.11.
+ */
+#if (KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE)
+	static struct virtqueue_info vq_infos[] = {
+		{ .name = "rx", .callback = _rxvq_cb, .ctx = false },
+		{ .name = "tx", .callback = _txvq_cb, .ctx = false },
+	};
+#else
 	vq_callback_t *vq_cbs[] = {_rxvq_cb, _txvq_cb};
 	static const char * const vq_names[] = { "rx", "tx" };
+#endif
 
 	vds = kzalloc(sizeof(*vds), GFP_KERNEL);
 	if (!vds)
@@ -2604,7 +2616,17 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	vds->cdev_name[sizeof(vds->cdev_name)-1] = '\0';
 
 	/* find tx virtqueues (rx and tx and in this order) */
-	err = vdev->config->find_vqs(vdev, 2, vqs, vq_cbs, vq_names, NULL,
+	err = vdev->config->find_vqs(vdev, 2, vqs,
+/*
+ * TODO: change to 6.11. The version here should be 6.11, but android-mainline
+ * is still on 6.10 with 6.11 some changes merged. Since there is no other
+ * 6.10 gki kernel temporarily treat 6.10 as 6.11.
+ */
+#if (KERNEL_VERSION(6, 10, 0) <= LINUX_VERSION_CODE)
+				     vq_infos,
+#else
+				     vq_cbs, vq_names, NULL,
+#endif
 				     NULL);
 	if (err)
 		goto err_find_vqs;
