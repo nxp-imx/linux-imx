@@ -10,6 +10,12 @@
 /delete-node/ &dsp_vdev0vring1;
 /delete-node/ &dsp_vdev0buffer;
 
+&a72_opp_table {
+    opp-1596000000 {
+		status = "disabled";
+	};
+};
+
 / {
 	compatible = "fsl,imx8qm-mek-revd";
 

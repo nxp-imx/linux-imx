@@ -9,6 +9,12 @@
 /dts-v1/;
 /plugin/;
 
+&a72_opp_table {
+    opp-1596000000 {
+		status = "disabled";
+	};
+};
+
 &{/} {
 
 	sound-wm8960 {
