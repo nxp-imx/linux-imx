@@ -566,7 +566,7 @@ err_alloc_is:
 	return ret;
 }
 
-static int trusty_irq_remove(struct platform_device *pdev)
+static void trusty_irq_remove(struct platform_device *pdev)
 {
 	int ret;
 	unsigned long irq_flags;
@@ -575,7 +575,7 @@ static int trusty_irq_remove(struct platform_device *pdev)
 	ret = cpuhp_state_remove_instance(trusty_irq_cpuhp_slot,
 					  &is->cpuhp_node);
 	if (WARN_ON(ret))
-		return ret;
+		return;
 
 	spin_lock_irqsave(&is->normal_irqs_lock, irq_flags);
 	trusty_irq_disable_irqset(is, &is->normal_irqs);
@@ -587,8 +587,6 @@ static int trusty_irq_remove(struct platform_device *pdev)
 					&is->trusty_call_notifier);
 	free_percpu(is->percpu_irqs);
 	kfree(is);
-
-	return 0;
 }
 
 static const struct of_device_id trusty_test_of_match[] = {
@@ -600,7 +598,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_test_of_match);
 
 static struct platform_driver trusty_irq_driver = {
 	.probe = trusty_irq_probe,
-	.remove = trusty_irq_remove,
+	.remove_new = trusty_irq_remove,
 	.driver	= {
 		.name = "trusty-irq",
 		.of_match_table = trusty_test_of_match,

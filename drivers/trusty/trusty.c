@@ -1180,7 +1180,7 @@ err_allocate_state:
 	return ret;
 }
 
-static int trusty_remove(struct platform_device *pdev)
+static void trusty_remove(struct platform_device *pdev)
 {
 	unsigned int cpu;
 	struct trusty_state *s = platform_get_drvdata(pdev);
@@ -1206,7 +1206,6 @@ static int trusty_remove(struct platform_device *pdev)
 	s->dev->dma_parms = NULL;
 	kfree(s->version_str);
 	kfree(s);
-	return 0;
 }
 
 static const struct of_device_id trusty_of_match[] = {
@@ -1218,7 +1217,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_of_match);
 
 static struct platform_driver trusty_driver = {
 	.probe = trusty_probe,
-	.remove = trusty_remove,
+	.remove_new = trusty_remove,
 	.driver	= {
 		.name = "trusty",
 		.of_match_table = trusty_of_match,
