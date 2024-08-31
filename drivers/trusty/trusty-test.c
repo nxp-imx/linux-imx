@@ -411,12 +411,11 @@ static int trusty_test_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int trusty_test_remove(struct platform_device *pdev)
+static void trusty_test_remove(struct platform_device *pdev)
 {
 	struct trusty_log_state *s = platform_get_drvdata(pdev);
 
 	kfree(s);
-	return 0;
 }
 
 static const struct of_device_id trusty_test_of_match[] = {
@@ -428,7 +427,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_test_of_match);
 
 static struct platform_driver trusty_test_driver = {
 	.probe = trusty_test_probe,
-	.remove = trusty_test_remove,
+	.remove_new = trusty_test_remove,
 	.driver = {
 		.name = "trusty-test",
 		.of_match_table = trusty_test_of_match,

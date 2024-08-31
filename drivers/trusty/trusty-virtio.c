@@ -798,7 +798,7 @@ err_create_check_wq:
 	return ret;
 }
 
-static int trusty_virtio_remove(struct platform_device *pdev)
+static void trusty_virtio_remove(struct platform_device *pdev)
 {
 	struct trusty_ctx *tctx = platform_get_drvdata(pdev);
 	int ret;
@@ -835,7 +835,6 @@ static int trusty_virtio_remove(struct platform_device *pdev)
 
 	/* free context */
 	kfree(tctx);
-	return 0;
 }
 
 static const struct of_device_id trusty_of_match[] = {
@@ -849,7 +848,7 @@ MODULE_DEVICE_TABLE(of, trusty_of_match);
 
 static struct platform_driver trusty_virtio_driver = {
 	.probe = trusty_virtio_probe,
-	.remove = trusty_virtio_remove,
+	.remove_new = trusty_virtio_remove,
 	.driver = {
 		.name = "trusty-virtio",
 		.of_match_table = trusty_of_match,
