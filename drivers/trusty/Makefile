@@ -13,4 +13,4 @@ obj-$(CONFIG_TRUSTY_TEST)	+= trusty-test.o
 obj-$(CONFIG_TRUSTY_VIRTIO)	+= trusty-virtio.o
 obj-$(CONFIG_TRUSTY_VIRTIO_IPC)	+= trusty-ipc.o
 
-ccflags-$(CONFIG_TRUSTY)	+= -I$(src) -I$(src)/../../include
+ccflags-y			+= -I$(src) -I$(src)/../../include
