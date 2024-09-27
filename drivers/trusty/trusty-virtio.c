@@ -715,8 +715,18 @@ static dma_addr_t trusty_virtio_dma_map_page(struct device *dev,
 	return buf->buf_id;
 }
 
+static void trusty_virtio_dma_unmap_page(struct device *dev,
+					 dma_addr_t dma_handle,
+					 size_t size,
+					 enum dma_data_direction dir,
+					 unsigned long attrs)
+{
+	return;
+}
+
 static const struct dma_map_ops trusty_virtio_dma_map_ops = {
 	.map_page = trusty_virtio_dma_map_page,
+	.unmap_page = trusty_virtio_dma_unmap_page,
 };
 
 static int trusty_virtio_probe(struct platform_device *pdev)
