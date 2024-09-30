@@ -352,6 +352,7 @@ struct vpu_vb2_buffer {
 	dma_addr_t chroma_v;
 	unsigned int state;
 	u32 tag;
+	u32 average_qp;
 };
 
 struct vpu_fastcall_message {

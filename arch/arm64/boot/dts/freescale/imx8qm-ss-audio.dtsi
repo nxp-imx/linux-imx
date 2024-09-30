@@ -53,7 +53,8 @@
 			<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>, /* sai2 */
 			<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>, /* sai3 */
 			<GIC_SPI 326 IRQ_TYPE_LEVEL_HIGH>, /* sai4 */
-			<GIC_SPI 328 IRQ_TYPE_LEVEL_HIGH>; /* sai5 */
+			<GIC_SPI 328 IRQ_TYPE_LEVEL_HIGH>, /* sai5 */
+			<GIC_SPI 369 IRQ_TYPE_LEVEL_HIGH>; /* err */
 	interrupt-names = "edma2-chan0-rx", "edma2-chan1-rx", /* asrc0 */
 			"edma2-chan2-rx", "edma2-chan3-tx",
 			"edma2-chan4-tx", "edma2-chan5-tx",
@@ -63,7 +64,8 @@
 			"edma2-chan12-rx", "edma2-chan13-tx", /* sai0 */
 			"edma2-chan14-rx", "edma2-chan15-tx", /* sai1 */
 			"edma2-chan16-rx", "edma2-chan17-tx", /* sai2, dai3 */
-			"edma2-chan18-rx", "edma2-chan19-tx"; /* sai4, sai5 */
+			"edma2-chan18-rx", "edma2-chan19-tx", /* sai4, sai5 */
+			"edma2-err";
 	power-domains = <&pd IMX_SC_R_DMA_2_CH0>,
 			<&pd IMX_SC_R_DMA_2_CH1>,
 			<&pd IMX_SC_R_DMA_2_CH2>,
@@ -117,12 +119,14 @@
 			<GIC_SPI 387 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 330 IRQ_TYPE_LEVEL_HIGH>, /* sai6 */
 			<GIC_SPI 330 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>; /* sai7 */
+			<GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>, /* sai7 */
+			<GIC_SPI 371 IRQ_TYPE_LEVEL_HIGH>; /* err */
 	interrupt-names = "edma3-chan0-rx", "edma3-chan1-rx", /* asrc1 */
 			"edma3-chan2-rx", "edma3-chan3-tx",
 			"edma3-chan4-tx", "edma3-chan5-tx",
 			"edma3-chan8-rx", "edma3-chan9-tx", /* sai6 */
-			"edma3-chan10-tx";                 /* sai7 */
+			"edma3-chan10-tx",                 /* sai7 */
+			"edma3-err";
 	power-domains = <&pd IMX_SC_R_DMA_3_CH0>,
 			<&pd IMX_SC_R_DMA_3_CH1>,
 			<&pd IMX_SC_R_DMA_3_CH2>,

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -57,6 +57,9 @@ void kbase_increment_device_id(void);
  *
  * When a device file is opened for the first time,
  * load firmware and initialize hardware counter components.
+ *
+ * It is safe for this function to be called multiple times without ill
+ * effects. Only the first call would be effective.
  *
  * Return: 0 on success. An error code on failure.
  */

@@ -65,8 +65,8 @@
 		reg = <0x38>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_dsi_csi>;
+		reset-gpio = <&adp5585gpio 5 GPIO_ACTIVE_LOW>;
 		irq-gpio = <&gpio3 27 GPIO_ACTIVE_HIGH>;
-		reset-gpio = <&adp5585gpio 4 GPIO_ACTIVE_LOW>;
 		touchscreen-size-x = <1080>;
 		touchscreen-size-y = <2340>;
 		max-touch-number = <10>;

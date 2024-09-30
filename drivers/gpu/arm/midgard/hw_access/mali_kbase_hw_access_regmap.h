@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -307,6 +307,16 @@
 /* TILER_CONFIG register */
 #define TC_CLOCK_GATE_OVERRIDE (1ul << 0)
 /* End TILER_CONFIG register */
+
+/* L2_FEATURES register */
+#define L2_FEATURES_CACHE_SIZE_SHIFT GPU_U(16)
+#define L2_FEATURES_CACHE_SIZE_MASK (GPU_U(0xFF) << L2_FEATURES_CACHE_SIZE_SHIFT)
+#define L2_FEATURES_CACHE_SIZE_GET(reg_val) \
+	(((reg_val)&L2_FEATURES_CACHE_SIZE_MASK) >> L2_FEATURES_CACHE_SIZE_SHIFT)
+#define L2_FEATURES_CACHE_SIZE_SET(reg_val, value)     \
+	(~(~(reg_val) | L2_FEATURES_CACHE_SIZE_MASK) | \
+	 (((value) << L2_FEATURES_CACHE_SIZE_SHIFT) & L2_FEATURES_CACHE_SIZE_MASK))
+/* End L2_FEATURES register */
 
 /* L2_CONFIG register */
 #define L2_CONFIG_SIZE_SHIFT 16

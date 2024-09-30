@@ -26,6 +26,7 @@
 #define NEOISP_MIN_H             (64u)
 #define NEOISP_MAX_W             (4096u)
 #define NEOISP_MAX_H             (4096u)
+#define NEOISP_MAX_BPP           (4)
 #define NEOISP_ALIGN_W           (3)
 #define NEOISP_ALIGN_H           (3)
 #define NEOISP_FMT_CAP           (0)
@@ -36,7 +37,8 @@
 #define NEOISP_MAX_CTRLS         (1)
 #define NEOISP_CTRL_PARAMS       (0)
 
-#define NEOISP_FMT_VCAP_COUNT    (15)
+#define NEOISP_FMT_VCAP_COUNT    (14)
+#define NEOISP_FMT_VCAP_IR_COUNT (2)
 #define NEOISP_FMT_VOUT_COUNT    (24)
 #define NEOISP_FMT_MCAP_COUNT    (1)
 #define NEOISP_FMT_MOUT_COUNT    (1)
@@ -67,6 +69,7 @@
 
 #define FMT_IS_YUV(x) ( \
 		((x) == V4L2_PIX_FMT_GREY) || \
+		((x) == V4L2_PIX_FMT_Y16)  || \
 		((x) == V4L2_PIX_FMT_NV12) || \
 		((x) == V4L2_PIX_FMT_NV21) || \
 		((x) == V4L2_PIX_FMT_NV16) || \
@@ -87,11 +90,6 @@
 /*
  * enums
  */
-enum neoisp_q_type_e {
-	NEOISP_QUEUE_SRC = 0,
-	NEOISP_QUEUE_DST = 1,
-};
-
 enum neoisp_fmt_type_e {
 	NEOISP_FMT_VIDEO_CAPTURE = BIT(0),
 	NEOISP_FMT_VIDEO_OUTPUT = BIT(1),
@@ -140,7 +138,6 @@ struct neoisp_fmt_s {
 	__u8 pl_divisors[VB2_MAX_PLANES];
 	__u8 ibpp;
 	__u8 is_rgb;
-	__u8 is_rgb_ir;
 	enum neoisp_fmt_type_e type;
 };
 
@@ -164,6 +161,7 @@ struct neoisp_node_s {
 	struct vb2_queue queue;
 	struct v4l2_format format;
 	const struct neoisp_fmt_s *neoisp_format;
+	struct v4l2_rect crop;
 };
 
 struct neoisp_node_group_s {
@@ -177,6 +175,9 @@ struct neoisp_node_group_s {
 	__u32 streaming_map; /* bitmap of which nodes are streaming */
 	struct media_pad pad[NEOISP_NODES_COUNT]; /* output pads first */
 	dma_addr_t params_dma_addr;
+	__u32 *any_buf;
+	dma_addr_t any_dma;
+	__u32 any_size;
 	struct neoisp_meta_params_s *params;
 };
 
@@ -202,7 +203,7 @@ struct neoisp_dev_s {
 	__s32 num_clks;
 	struct neoisp_node_group_s node_group[NEOISP_NODE_GROUPS_COUNT];
 	struct neoisp_job_s queued_job, running_job;
-	__s32 hw_busy; /* non-zero if a job is queued or is being started */
+	bool hw_busy; /* non-zero if a job is queued or is being started */
 	spinlock_t hw_lock; /* protects "hw_busy" flag and streaming_map */
 };
 
@@ -242,6 +243,7 @@ struct neoisp_mod_params_s {
 	struct {
 		__u32 disable_params;
 		__u32 disable_stats;
+		__u32 enable_debugfs;
 	} test;
 	struct neoisp_mparam_conf_s conf;
 	struct neoisp_mparam_packetizer_s pack;
@@ -251,9 +253,10 @@ struct neoisp_mod_params_s {
  * globals
  */
 extern const int neoisp_fields_a[NEOISP_FIELD_COUNT]; /* array of all fields offsets */
-extern const struct regmap_config neoisp_regmap_config;
+extern struct regmap_config neoisp_regmap_config;
 extern const struct v4l2_frmsize_stepwise neoisp_frmsize_stepwise;
 extern const struct neoisp_fmt_s formats_vcap[NEOISP_FMT_VCAP_COUNT];
+extern const struct neoisp_fmt_s formats_vcap_ir[NEOISP_FMT_VCAP_IR_COUNT];
 extern const struct neoisp_fmt_s formats_vout[NEOISP_FMT_VOUT_COUNT];
 extern const struct neoisp_fmt_s formats_mcap[NEOISP_FMT_MCAP_COUNT];
 extern const struct neoisp_fmt_s formats_mout[NEOISP_FMT_MOUT_COUNT];

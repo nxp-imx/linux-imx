@@ -733,9 +733,10 @@ static int mx51_ecspi_prepare_transfer(struct spi_imx_data *spi_imx,
 	if (spi_imx->target_mode)
 		ctrl |= (spi_imx->target_burst * 8 - 1)
 			<< MX51_ECSPI_CTRL_BL_OFFSET;
-	else
+	else {
 		ctrl |= (spi_imx->bits_per_word - 1)
 			<< MX51_ECSPI_CTRL_BL_OFFSET;
+	}
 
 	/* set clock speed */
 	ctrl &= ~(0xf << MX51_ECSPI_CTRL_POSTDIV_OFFSET |

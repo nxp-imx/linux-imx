@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -121,44 +121,24 @@ static vm_fault_t kbase_native_mgm_vmf_insert_pfn_prot(struct memory_group_manag
 	return vmf_insert_pfn_prot(vma, addr, pfn, pgprot);
 }
 
-/**
- * kbase_native_mgm_update_gpu_pte - Native method to modify a GPU page table
- *                                   entry
- *
- * @mgm_dev:   The memory group manager the request is being made through.
- * @group_id:  A physical memory group ID, which must be valid but is not used.
- *             Its valid range is 0 .. MEMORY_GROUP_MANAGER_NR_GROUPS-1.
- * @mmu_level: The level of the MMU page table where the page is getting mapped.
- * @pte:       The prepared page table entry.
- *
- * This function simply returns the @pte without modification.
- *
- * Return: A GPU page table entry to be stored in a page table.
- */
 static u64 kbase_native_mgm_update_gpu_pte(struct memory_group_manager_device *mgm_dev,
-					   unsigned int group_id, int mmu_level, u64 pte)
+					   unsigned int group_id, unsigned int pbha_id,
+					   unsigned int pte_flags, int mmu_level, u64 pte)
 {
-	CSTD_UNUSED(mgm_dev);
-	CSTD_UNUSED(group_id);
-	CSTD_UNUSED(mmu_level);
+	if (WARN_ON(group_id >= MEMORY_GROUP_MANAGER_NR_GROUPS))
+		return pte;
+
+	if ((pte_flags & BIT(MMA_VIOLATION)) && pbha_id) {
+		pr_warn_once("MMA violation! Applying PBHA override workaround to PTE\n");
+		pte |= ((u64)pbha_id << PTE_PBHA_SHIFT) & PTE_PBHA_MASK;
+	}
+
+	/* Address could be translated into a different bus address here */
+	pte |= ((u64)1 << PTE_RES_BIT_MULTI_AS_SHIFT);
 
 	return pte;
 }
 
-/**
- * kbase_native_mgm_pte_to_original_pte - Native method to undo changes done in
- *                                        kbase_native_mgm_update_gpu_pte()
- *
- * @mgm_dev:   The memory group manager the request is being made through.
- * @group_id:  A physical memory group ID, which must be valid but is not used.
- *             Its valid range is 0 .. MEMORY_GROUP_MANAGER_NR_GROUPS-1.
- * @mmu_level: The level of the MMU page table where the page is getting mapped.
- * @pte:       The prepared page table entry.
- *
- * This function simply returns the @pte without modification.
- *
- * Return: A GPU page table entry to be stored in a page table.
- */
 static u64 kbase_native_mgm_pte_to_original_pte(struct memory_group_manager_device *mgm_dev,
 						unsigned int group_id, int mmu_level, u64 pte)
 {
@@ -166,17 +146,32 @@ static u64 kbase_native_mgm_pte_to_original_pte(struct memory_group_manager_devi
 	CSTD_UNUSED(group_id);
 	CSTD_UNUSED(mmu_level);
 
+	/* Undo the group ID modification */
+	pte &= ~PTE_PBHA_MASK;
+	/* Undo the bit set */
+	pte &= ~((u64)1 << PTE_RES_BIT_MULTI_AS_SHIFT);
+
 	return pte;
 }
 
+static bool kbase_native_mgm_get_import_memory_cached_access_permitted(
+	struct memory_group_manager_device *mgm_dev,
+	struct memory_group_manager_import_data *import_data)
+{
+	CSTD_UNUSED(mgm_dev);
+	CSTD_UNUSED(import_data);
+
+	return true;
+}
+
 struct memory_group_manager_device kbase_native_mgm_dev = {
-	.ops = {
-		.mgm_alloc_page = kbase_native_mgm_alloc,
-		.mgm_free_page = kbase_native_mgm_free,
-		.mgm_get_import_memory_id = NULL,
-		.mgm_vmf_insert_pfn_prot = kbase_native_mgm_vmf_insert_pfn_prot,
-		.mgm_update_gpu_pte = kbase_native_mgm_update_gpu_pte,
-		.mgm_pte_to_original_pte = kbase_native_mgm_pte_to_original_pte,
-	},
+	.ops = { .mgm_alloc_page = kbase_native_mgm_alloc,
+		 .mgm_free_page = kbase_native_mgm_free,
+		 .mgm_get_import_memory_id = NULL,
+		 .mgm_vmf_insert_pfn_prot = kbase_native_mgm_vmf_insert_pfn_prot,
+		 .mgm_update_gpu_pte = kbase_native_mgm_update_gpu_pte,
+		 .mgm_pte_to_original_pte = kbase_native_mgm_pte_to_original_pte,
+		 .mgm_get_import_memory_cached_access_permitted =
+			 kbase_native_mgm_get_import_memory_cached_access_permitted },
 	.data = NULL
 };

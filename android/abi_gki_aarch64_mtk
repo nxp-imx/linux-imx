@@ -828,6 +828,7 @@
   drm_connector_list_iter_end
   drm_connector_list_iter_next
   drm_connector_register
+  drm_connector_set_path_property
   drm_connector_unregister
   drm_connector_update_edid_property
   drm_crtc_add_crc_entry
@@ -2028,6 +2029,7 @@
   phy_basic_t1_features
   phy_connect
   phy_connect_direct
+  phy_create_lookup
   phy_disconnect
   phy_do_ioctl_running
   phy_drivers_register
@@ -2950,6 +2952,7 @@
   __traceiter_android_rvh_try_to_wake_up_success
   __traceiter_android_rvh_update_cpu_capacity
   __traceiter_android_rvh_update_misfit_status
+  __traceiter_android_rvh_util_est_update
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_alter_futex_plist_add
   __traceiter_android_vh_alter_rwsem_list_add
@@ -3067,6 +3070,7 @@
   __tracepoint_android_rvh_try_to_wake_up_success
   __tracepoint_android_rvh_update_cpu_capacity
   __tracepoint_android_rvh_update_misfit_status
+  __tracepoint_android_rvh_util_est_update
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_alter_futex_plist_add
   __tracepoint_android_vh_alter_rwsem_list_add

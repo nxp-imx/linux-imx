@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -32,6 +32,7 @@
 
 #include <linux/version.h>
 #include <linux/pm_opp.h>
+#include <linux/pm_domain.h>
 #include "mali_kbase_devfreq.h"
 
 /**
@@ -118,6 +119,7 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 #endif
 	unsigned long volts[BASE_MAX_NR_CLOCKS_REGULATORS] = { 0 };
 	unsigned int i;
+	int err;
 	u64 core_mask;
 
 	nominal_freq = *target_freq;
@@ -136,7 +138,6 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 #if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 	dev_pm_opp_put(opp);
 #endif
-
 	/*
 	 * Only update if there is a change of frequency
 	 */
@@ -165,8 +166,6 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 	for (i = 0; i < kbdev->nr_clocks; i++) {
 		if (kbdev->regulators[i] && kbdev->current_voltages[i] != volts[i] &&
 		    kbdev->current_freqs[i] < freqs[i]) {
-			int err;
-
 			err = regulator_set_voltage(kbdev->regulators[i], volts[i], volts[i]);
 			if (!err) {
 				kbdev->current_voltages[i] = volts[i];
@@ -179,10 +178,9 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 	}
 #endif
 
+#ifdef IMX_USE_CCF
 	for (i = 0; i < kbdev->nr_clocks; i++) {
 		if (kbdev->clocks[i]) {
-			int err;
-
 			err = clk_set_rate(kbdev->clocks[i], freqs[i]);
 			if (!err) {
 #if IS_ENABLED(CONFIG_REGULATOR)
@@ -196,6 +194,26 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 			}
 		}
 	}
+#else
+#if KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE
+	if (kbdev->dev_gpuperf) {
+		err = dev_pm_genpd_set_performance_state(kbdev->dev_gpuperf, nominal_freq/1000);
+		/* For ENODEV or EOPNOTSUPP do not return error code */
+		if (err && !((err == -ENODEV) || (err == -EOPNOTSUPP))) {
+			dev_err(dev, "Failed to set opp (%d) (target %lu)\n",
+					err, nominal_freq/1000);
+			return err;
+		}
+		dev_dbg(dev, "gpu freq set target %lukHz\n", nominal_freq/1000);
+		for (i = 0; i < kbdev->nr_clocks; i++) {
+#if IS_ENABLED(CONFIG_REGULATOR)
+			original_freqs[i] = kbdev->current_freqs[i];
+#endif
+			kbdev->current_freqs[i] = freqs[i];
+		}
+	}
+#endif
+#endif
 
 	kbase_devfreq_set_core_mask(kbdev, core_mask);
 
@@ -203,8 +221,6 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 	for (i = 0; i < kbdev->nr_clocks; i++) {
 		if (kbdev->regulators[i] && kbdev->current_voltages[i] != volts[i] &&
 		    original_freqs[i] > freqs[i]) {
-			int err;
-
 			err = regulator_set_voltage(kbdev->regulators[i], volts[i], volts[i]);
 			if (!err) {
 				kbdev->current_voltages[i] = volts[i];
@@ -431,7 +447,7 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 		err = of_property_read_u64(node, "opp-hz-real", real_freqs);
 #endif
 		if (err < 0) {
-			dev_warn(kbdev->dev, "Failed to read opp-hz-real property with error %d\n",
+			dev_warn(kbdev->dev, "Failed to read opp-hz-real property with error %d",
 				 err);
 			continue;
 		}
@@ -439,8 +455,8 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 		err = of_property_read_u32_array(node, "opp-microvolt", opp_volts,
 						 kbdev->nr_regulators);
 		if (err < 0) {
-			dev_warn(kbdev->dev,
-				 "Failed to read opp-microvolt property with error %d\n", err);
+			dev_warn(kbdev->dev, "Failed to read opp-microvolt property with error %d",
+				 err);
 			continue;
 		}
 #endif
@@ -450,10 +466,11 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 		if (core_mask != shader_present && corestack_driver_control) {
 			dev_warn(
 				kbdev->dev,
-				"Ignoring OPP %llu - Dynamic Core Scaling not supported on this GPU\n",
+				"Ignoring OPP %llu - Dynamic Core Scaling not supported on this GPU",
 				opp_freq);
 			continue;
 		}
+
 
 		core_count_p = of_get_property(node, "opp-core-count", NULL);
 		if (core_count_p) {

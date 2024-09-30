@@ -92,15 +92,15 @@
 };
 
 &flexcan2 {
-	clocks = <&can1_lpcg IMX_LPCG_CLK_4>,
-		 <&can1_lpcg IMX_LPCG_CLK_0>;
+	clocks = <&can1_lpcg 1>,
+		 <&can1_lpcg 0>;
 	assigned-clocks = <&clk IMX_SC_R_CAN_1 IMX_SC_PM_CLK_PER>;
 	fsl,clk-source = /bits/ 8 <1>;
 };
 
 &flexcan3 {
-	clocks = <&can2_lpcg IMX_LPCG_CLK_4>,
-		 <&can2_lpcg IMX_LPCG_CLK_0>;
+	clocks = <&can2_lpcg 1>,
+		 <&can2_lpcg 0>;
 	assigned-clocks = <&clk IMX_SC_R_CAN_2 IMX_SC_PM_CLK_PER>;
 	fsl,clk-source = /bits/ 8 <1>;
 };
@@ -149,7 +149,8 @@
 		     <GIC_SPI 440 IRQ_TYPE_LEVEL_HIGH>,
 		     <GIC_SPI 441 IRQ_TYPE_LEVEL_HIGH>,
 		     <GIC_SPI 442 IRQ_TYPE_LEVEL_HIGH>,
-		     <GIC_SPI 443 IRQ_TYPE_LEVEL_HIGH>;
+		     <GIC_SPI 443 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
 	interrupt-names = "edma0-chan0-rx", "edma0-chan1-tx",
 			  "edma0-chan2-rx", "edma0-chan3-tx",
 			  "edma0-chan4-rx", "edma0-chan5-tx",
@@ -158,7 +159,8 @@
 			  "edma0-chan14-rx", "edma0-chan15-tx",
 			  "edma0-chan16-rx", "edma0-chan17-tx",
 			  "edma0-chan18-rx", "edma0-chan19-tx",
-			  "edma0-chan20-rx", "edma0-chan21-tx";
+			  "edma0-chan20-rx", "edma0-chan21-tx",
+			  "edma0-err";
 	power-domains = <&pd IMX_SC_R_DMA_0_CH0>,
 			<&pd IMX_SC_R_DMA_0_CH1>,
 			<&pd IMX_SC_R_DMA_0_CH2>,

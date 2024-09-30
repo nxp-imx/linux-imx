@@ -158,4 +158,6 @@ config MAX31865
 	  This driver can also be build as a module. If so, the module
 	  will be called max31865.
 
+source "drivers/iio/temperature/p3t/Kconfig"
+
 endmenu

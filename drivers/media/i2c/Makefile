@@ -153,4 +153,4 @@ obj-$(CONFIG_VIDEO_WM8739) += wm8739.o
 obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
 obj-$(CONFIG_VIDEO_AP1302)     += ap1302.o
 obj-$(CONFIG_VIDEO_AP130X)     += ap130x.o
-obj-$(CONFIG_VIDEO_OS08A20) += os08a20/
+obj-$(CONFIG_VIDEO_OX05B1S) += ox05b1s/

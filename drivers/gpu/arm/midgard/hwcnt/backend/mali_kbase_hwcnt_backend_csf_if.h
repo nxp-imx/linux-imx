@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -68,7 +68,7 @@ struct kbase_hwcnt_backend_csf_if_enable {
  * @prfcnt_block_size: Bytes of each performance counter block.
  * @l2_count:          The MMU L2 cache count.
  * @csg_count:         The total number of CSGs in the system
- * @core_mask:         Shader core mask.
+ * @sc_core_mask:         Shader core mask.
  * @clk_cnt:           Clock domain count in the system.
  * @clearing_samples:  Indicates whether counters are cleared after each sample
  *                     is taken.
@@ -80,7 +80,7 @@ struct kbase_hwcnt_backend_csf_if_prfcnt_info {
 	size_t prfcnt_block_size;
 	size_t l2_count;
 	u32 csg_count;
-	u64 core_mask;
+	u64 sc_core_mask;
 	u8 clk_cnt;
 	bool clearing_samples;
 };
@@ -113,6 +113,20 @@ typedef void (*kbase_hwcnt_backend_csf_if_lock_fn)(struct kbase_hwcnt_backend_cs
  */
 typedef void (*kbase_hwcnt_backend_csf_if_unlock_fn)(struct kbase_hwcnt_backend_csf_if_ctx *ctx,
 						     unsigned long flags);
+
+/**
+ * typedef kbase_hwcnt_backend_csf_if_acquire_fn - Enable counter collection.
+ *
+ * @ctx:   Non-NULL pointer to a CSF context.
+ */
+typedef void (*kbase_hwcnt_backend_csf_if_acquire_fn)(struct kbase_hwcnt_backend_csf_if_ctx *ctx);
+
+/**
+ * typedef kbase_hwcnt_backend_csf_if_release_fn - Disable counter collection.
+ *
+ * @ctx:   Non-NULL pointer to a CSF context.
+ */
+typedef void (*kbase_hwcnt_backend_csf_if_release_fn)(struct kbase_hwcnt_backend_csf_if_ctx *ctx);
 
 /**
  * typedef kbase_hwcnt_backend_csf_if_get_prfcnt_info_fn - Get performance
@@ -272,6 +286,10 @@ typedef void (*kbase_hwcnt_backend_csf_if_get_gpu_cycle_count_fn)(
  * @assert_lock_held:    Function ptr to assert backend spinlock is held.
  * @lock:                Function ptr to acquire backend spinlock.
  * @unlock:              Function ptr to release backend spinlock.
+ * @acquire:             Callback to indicate that counter collection has
+ *                       been enabled.
+ * @release:             Callback to indicate that counter collection has
+ *                       been disabled.
  * @get_prfcnt_info:     Function ptr to get performance counter related
  *                       information.
  * @ring_buf_alloc:      Function ptr to allocate ring buffer for CSF HWC.
@@ -292,6 +310,8 @@ struct kbase_hwcnt_backend_csf_if {
 	kbase_hwcnt_backend_csf_if_assert_lock_held_fn assert_lock_held;
 	kbase_hwcnt_backend_csf_if_lock_fn lock;
 	kbase_hwcnt_backend_csf_if_unlock_fn unlock;
+	kbase_hwcnt_backend_csf_if_acquire_fn acquire;
+	kbase_hwcnt_backend_csf_if_release_fn release;
 	kbase_hwcnt_backend_csf_if_get_prfcnt_info_fn get_prfcnt_info;
 	kbase_hwcnt_backend_csf_if_ring_buf_alloc_fn ring_buf_alloc;
 	kbase_hwcnt_backend_csf_if_ring_buf_sync_fn ring_buf_sync;

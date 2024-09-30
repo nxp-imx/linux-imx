@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -149,15 +149,31 @@
  *   from the parent process.
  * 11.40:
  * - Remove KBASE_IOCTL_HWCNT_READER_SETUP and KBASE_HWCNT_READER_* ioctls.
+ * - Made the BASE_MEM_DONT_NEED memory flag queryable.
  * 11.41:
  * - Disallows changing the sharability on the GPU of imported dma-bufs to
  *   BASE_MEM_COHERENT_SYSTEM using KBASE_IOCTL_MEM_FLAGS_CHANGE.
  * 11.42:
  * - Implement full block state support for hardware counters.
- */
+ * 11.43:
+ * - Made the BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP and BASE_MEM_KERNEL_SYNC memory
+ *   flags queryable.
+ * 11.44:
+ * - Made the SAME_VA memory flag queryable.
+ * 11.45:
+ * - Re-allow child process to do supported file operations (like mmap, ioctl
+ *   read, poll) on the file descriptor of mali device that was inherited
+ *   from the parent process.
+ * 11.46:
+ * - Remove renderpass_id from base_jd_atom_v2 to deprecate support for JM Incremental Rendering
+ * 11.47:
+ * - Reject non-protected allocations containing the BASE_MEM_PROTECTED memory flag.
+ * - Reject allocations containing the BASE_MEM_DONT_NEED memory flag (it is only settable).
+ * - Reject allocations containing the BASE_MEM_UNUSED_BIT_xx memory flags.
+  */
 
 #define BASE_UK_VERSION_MAJOR 11
-#define BASE_UK_VERSION_MINOR 42
+#define BASE_UK_VERSION_MINOR 47
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between

@@ -44,8 +44,7 @@
 &pcal6524 {
 	/* SW select the SAI1 pins for M.2. Or set SW4[2] to 1 on board */
 	m2-sai1-sel-hog {
-		gpio-hog;
-		gpios = <18 GPIO_ACTIVE_HIGH>;
+		/delete-property/ output-low;
 		output-high;
 	};
 

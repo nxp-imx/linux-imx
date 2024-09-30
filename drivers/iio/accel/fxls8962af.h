@@ -15,6 +15,7 @@ enum {
 	fxls8974cf,
 };
 
+void fxls8962af_core_shutdown(struct device *dev);
 int fxls8962af_core_probe(struct device *dev, struct regmap *regmap, int irq);
 int fxls8962af_core_remove(struct device *dev);
 

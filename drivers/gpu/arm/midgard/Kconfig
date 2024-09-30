@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012-2023 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2012-2024 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -65,6 +65,8 @@ config MALI_NO_MALI
 	  All calls to the simulated hardware will complete immediately as if the hardware
 	  completed the task.
 
+endchoice
+
 config MALI_NO_MALI_DEFAULT_GPU
 	string "Default GPU for No Mali"
 	depends on MALI_NO_MALI
@@ -72,8 +74,12 @@ config MALI_NO_MALI_DEFAULT_GPU
 	help
 	  This option sets the default GPU to identify as for No Mali builds.
 
-
-endchoice
+config MALI_IS_FPGA
+	bool "Enable build of Mali kernel driver for FPGA"
+	depends on MALI_MIDGARD
+	default n
+	help
+	  This is the default HW backend.
 
 menu "Platform specific options"
 source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
@@ -81,6 +87,7 @@ endmenu
 
 config MALI_CSF_SUPPORT
 	bool "Enable Mali CSF based GPU support"
+	depends on MALI_MIDGARD
 	default n
 	help
 	  Enables support for CSF based GPUs.
@@ -162,6 +169,18 @@ config MALI_CORESIGHT
 	bool "Enable Kbase CoreSight tracing support"
 	default n
 
+config MALI_HW_ERRATA_1485982_NOT_AFFECTED
+	bool "Disable workaround for KBASE_HW_ISSUE_GPU2017_1336"
+	depends on MALI_MIDGARD
+	default y
+	help
+	  This option disables the default workaround for GPU2017-1336. The
+	  workaround keeps the L2 cache powered up except for powerdown and reset.
+
+	  The workaround introduces a limitation that will prevent the running of
+	  protected mode content on fully coherent platforms, as the switch to IO
+	  coherency mode requires the L2 to be turned off.
+
 menuconfig MALI_EXPERT
 	depends on MALI_MIDGARD
 	bool "Enable Expert Settings"
@@ -215,16 +234,6 @@ config MALI_CORESTACK
 	  This feature is currently only supported on t-Six and t-HEx GPUs.
 
 	  If unsure, say N.
-
-comment "Platform options"
-	depends on MALI_MIDGARD && MALI_EXPERT
-
-config MALI_ERROR_INJECT
-	bool "Enable No Mali error injection"
-	depends on MALI_MIDGARD && MALI_EXPERT && MALI_NO_MALI
-	default n
-	help
-	  Enables insertion of errors to test module failure and recovery mechanisms.
 
 comment "Debug options"
 	depends on MALI_MIDGARD && MALI_EXPERT
@@ -306,7 +315,7 @@ endchoice
 
 config MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS
 	bool "Enable runtime selection of performance counters set via debugfs"
-	depends on MALI_MIDGARD && MALI_EXPERT && DEBUG_FS
+	depends on MALI_MIDGARD && MALI_EXPERT && DEBUG_FS && !MALI_CSF_SUPPORT
 	default n
 	help
 	  Select this option to make the secondary set of performance counters
@@ -352,20 +361,8 @@ config MALI_PWRSOFT_765
 	  If using kernel >= v4.10 then say N, otherwise if devfreq cooling
 	  changes have been backported say Y to avoid compilation errors.
 
-config MALI_HW_ERRATA_1485982_NOT_AFFECTED
-	bool "Disable workaround for BASE_HW_ISSUE_GPU2017_1336"
-	depends on MALI_MIDGARD && MALI_EXPERT
-	default n
-	help
-	  This option disables the default workaround for GPU2017-1336. The
-	  workaround keeps the L2 cache powered up except for powerdown and reset.
-
-	  The workaround introduces a limitation that will prevent the running of
-	  protected mode content on fully coherent platforms, as the switch to IO
-	  coherency mode requires the L2 to be turned off.
-
 config MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE
-	bool "Use alternative workaround for BASE_HW_ISSUE_GPU2017_1336"
+	bool "Use alternative workaround for KBASE_HW_ISSUE_GPU2017_1336"
 	depends on MALI_MIDGARD && MALI_EXPERT && !MALI_HW_ERRATA_1485982_NOT_AFFECTED
 	default n
 	help
@@ -389,7 +386,7 @@ config MALI_ARBITRATION
 config MALI_TRACE_POWER_GPU_WORK_PERIOD
 	bool "Enable per-application GPU metrics tracepoints"
 	depends on MALI_MIDGARD
-	default y
+	default n
 	help
 	  This option enables per-application GPU metrics tracepoints.
 

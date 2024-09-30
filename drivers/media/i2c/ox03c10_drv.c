@@ -40,10 +40,7 @@ static int ox03c10_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_state *state,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (code->pad != 0)
-		return -EINVAL;
-
-	if (code->index > 1)
+	if (code->pad != 0 || code->index > 0)
 		return -EINVAL;
 
 	code->code = MEDIA_BUS_FMT_SBGGR16_1X16;
@@ -200,10 +197,6 @@ static int ox03c10_v4l2_init(struct ox03c10_priv *priv)
 	ret = ox03c10_v4l2_init_controls(priv);
 	if (ret)
 		return ret;
-
-	strscpy(sd->name, DRIVER_NAME, sizeof(sd->name));
-	strlcat(sd->name, ".", sizeof(sd->name));
-	strlcat(sd->name, dev_name(priv->dev), sizeof(sd->name));
 
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 	sd->ctrl_handler = ox03c10_ctrl_handler_get(priv->sensor);

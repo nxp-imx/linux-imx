@@ -197,9 +197,6 @@ static int fts_get_ic_information(struct fts_ts_data *ts_data)
 		msleep(INTERVAL_READ_REG);
 	} while ((cnt * INTERVAL_READ_REG) < TIMEOUT_READ_REG);
 
-	if (ret)
-		return -EPROBE_DEFER;
-
 	if ((cnt * INTERVAL_READ_REG) >= TIMEOUT_READ_REG) {
 		for (cnt = 0; cnt < 3; cnt++) {
 			dev_info(&ts_data->client->dev, "fw is invalid, need read boot id");
@@ -282,6 +279,7 @@ static int fts_input_report_b(struct fts_ts_data *ts_data, struct ts_event *even
 		if (EVENT_DOWN(events[i].flag)) {
 			input_mt_slot(input_dev, events[i].id);
 			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, true);
+			input_report_key(input_dev, BTN_TOUCH, 1);
 			input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, events[i].area);
 			input_report_abs(input_dev, ABS_MT_WIDTH_MAJOR, events[i].minor);
 
@@ -313,14 +311,10 @@ static int fts_input_report_b(struct fts_ts_data *ts_data, struct ts_event *even
 					dev_dbg(&ts_data->client->dev, "[B]P%d UP!", i);
 				input_mt_slot(input_dev, i);
 				input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
+				input_report_key(input_dev, BTN_TOUCH, 0);
 			}
 		}
 	}
-
-	if (touch_down_point_cur)
-		input_report_key(input_dev, BTN_TOUCH, 1);
-	else if (touch_event_coordinate || ts_data->touch_points)
-		input_report_key(input_dev, BTN_TOUCH, 0);
 
 	ts_data->touch_points = touch_down_point_cur;
 	input_sync(input_dev);
@@ -647,16 +641,15 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 	touch_y_max = (pdata->y_max + 1) * FTS_TOUCH_HIRES_X - 1;
 #endif
 
+	input_mt_init_slots(input_dev, pdata->max_touch_number, INPUT_MT_DIRECT);
+
 	input_set_capability(input_dev, EV_ABS, ABS_MT_POSITION_X);
 	input_set_capability(input_dev, EV_ABS, ABS_MT_POSITION_Y);
 
+	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, touch_x_max - 1, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, touch_y_max - 1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 0xFF, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, 0xFF, 0, 0);
-
-	input_abs_set_max(input_dev, ABS_MT_POSITION_X, touch_x_max - 1);
-	input_abs_set_max(input_dev, ABS_MT_POSITION_Y, touch_y_max - 1);
-
-	input_mt_init_slots(input_dev, pdata->max_touch_number, INPUT_MT_DIRECT);
 
 	ret = input_register_device(input_dev);
 	if (ret) {
@@ -772,10 +765,15 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 		return -EINVAL;
 	}
 
-	pdata->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
-	if (!gpio_is_valid(pdata->reset_gpio)) {
-		dev_err(dev, "reset-gpio not set\n");
-		return -EINVAL;
+	pdata->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+	if (!pdata->reset_gpio) {
+		dev_info(dev, "reset-gpio not set\n");
+	} else {
+		ret = PTR_ERR_OR_ZERO(pdata->reset_gpio);
+		if (ret) {
+			dev_err(dev, "Failed to get reset gpio (%d)\n", ret);
+			return ret;
+		}
 	}
 
 	dev_info(dev, "max touch number:%d, irq gpio:%d",
@@ -805,12 +803,23 @@ int fts_ts_suspend(struct fts_ts_data *ts_data)
 	return 0;
 }
 
+static void fts_reset_proc(struct fts_ts_data *ts_data, int hdelayms)
+{
+	if (ts_data->pdata->reset_gpio) {
+		gpiod_set_value_cansleep(ts_data->pdata->reset_gpio, 1);
+		usleep_range(1000, 2000);
+		gpiod_set_value_cansleep(ts_data->pdata->reset_gpio, 0);
+		msleep(hdelayms);
+	}
+}
+
 int fts_ts_resume(struct fts_ts_data *ts_data)
 {
 	if (!ts_data->suspended) {
 		dev_dbg(&ts_data->client->dev, "Already in awake state");
 		return 0;
 	}
+	fts_reset_proc(ts_data, FTS_RESET_MS);
 
 	ts_data->suspended = false;
 	fts_release_all_finger(ts_data);
@@ -884,8 +893,10 @@ int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 	}
 
 	ret = fts_parse_dt(ts_data->dev, ts_data->pdata);
-	if (ret)
+	if (ret) {
 		dev_err(&ts_data->client->dev, "device-tree parse fail");
+		goto err_parse_dt;
+	}
 
 	ts_data->ts_workqueue = create_singlethread_workqueue("fts_wq");
 	if (!ts_data->ts_workqueue)
@@ -920,9 +931,7 @@ int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 		goto err_gpio_config;
 	}
 
-	gpio_direction_output(ts_data->pdata->reset_gpio, 0);
-	usleep_range(15000, 17000);
-	gpio_direction_output(ts_data->pdata->reset_gpio, 1);
+	fts_reset_proc(ts_data, FTS_RESET_MS);
 
 	ret = fts_get_ic_information(ts_data);
 	if (ret) {
@@ -963,6 +972,7 @@ err_bus_init:
 		destroy_workqueue(ts_data->ts_workqueue);
 	kfree_safe(ts_data->bus_tx_buf);
 	kfree_safe(ts_data->bus_rx_buf);
+err_parse_dt:
 	kfree_safe(ts_data->pdata);
 
 	return ret;

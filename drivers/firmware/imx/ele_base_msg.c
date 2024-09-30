@@ -17,9 +17,10 @@ int ele_get_info(struct device *dev, phys_addr_t addr, u32 data_size)
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -53,6 +54,7 @@ int ele_get_info(struct device *dev, phys_addr_t addr, u32 data_size)
 
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 
 	return ret;
 }
@@ -64,9 +66,10 @@ int ele_get_v2x_fw_state(struct device *dev, uint32_t *state)
 	unsigned int status;
 	struct mu_hdr *hdr;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	hdr = (struct mu_hdr *)&priv->tx_msg->header;
 
@@ -101,6 +104,7 @@ int ele_get_v2x_fw_state(struct device *dev, uint32_t *state)
 	}
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 
@@ -110,9 +114,10 @@ int ele_write_fuse(struct device *dev, uint16_t fuse_id, u32 value, bool lock)
 	unsigned int status, ind;
 	int ret;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -150,6 +155,7 @@ int ele_write_fuse(struct device *dev, uint16_t fuse_id, u32 value, bool lock)
 
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ele_write_fuse);
@@ -160,9 +166,10 @@ int ele_ping(struct device *dev)
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -194,6 +201,7 @@ int ele_ping(struct device *dev)
 exit:
 	imx_se_free_tx_rx_buf(priv);
 
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 
@@ -221,9 +229,10 @@ int ele_get_trng_state(struct device *dev)
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -258,6 +267,7 @@ int ele_get_trng_state(struct device *dev)
 exit:
 	imx_se_free_tx_rx_buf(priv);
 
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 
@@ -273,9 +283,10 @@ int ele_start_rng(struct device *dev)
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -307,6 +318,7 @@ int ele_start_rng(struct device *dev)
 exit:
 	imx_se_free_tx_rx_buf(priv);
 
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 
@@ -318,9 +330,10 @@ int ele_service_swap(struct device *dev,
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -361,6 +374,7 @@ int ele_service_swap(struct device *dev,
 	}
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 
 	return ret;
 }
@@ -371,9 +385,10 @@ int ele_fw_authenticate(struct device *dev, phys_addr_t addr)
 	unsigned int status;
 	int ret;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -407,6 +422,7 @@ int ele_fw_authenticate(struct device *dev, phys_addr_t addr)
 	}
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 
 	return ret;
 }
@@ -495,9 +511,10 @@ int read_common_fuse(struct device *dev,
 	struct ele_mu_priv *priv = dev_get_drvdata(dev);
 	int ret;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -526,6 +543,60 @@ int read_common_fuse(struct device *dev,
 exit:
 	imx_se_free_tx_rx_buf(priv);
 
+	mutex_unlock(&priv->mu_cmd_lock);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(read_common_fuse);
+
+
+int ele_voltage_change_req(struct device *dev, bool start)
+{
+	struct ele_mu_priv *priv = dev_get_drvdata(dev);
+	int ret;
+	unsigned int status;
+	uint8_t cmd = start ? ELE_VOLT_CHANGE_START_REQ : ELE_VOLT_CHANGE_FINISH_REQ;
+
+	if (start)
+		mutex_lock(&priv->mu_cmd_lock);
+
+	ret = imx_se_alloc_tx_rx_buf(priv);
+	if (ret)
+		goto exit;
+
+	ret = plat_fill_cmd_msg_hdr(priv,
+				    (struct mu_hdr *)&priv->tx_msg->header,
+				    cmd,
+				    ELE_VOLT_CHANGE_REQ_MSG_SZ,
+				    true);
+	if (ret) {
+		pr_err("Error: plat_fill_cmd_msg_hdr failed.\n");
+		goto exit;
+	}
+
+	ret = imx_ele_msg_send_rcv(priv);
+	if (ret < 0)
+		goto exit;
+
+	ret  = validate_rsp_hdr(priv,
+				priv->rx_msg->header,
+				cmd,
+				ELE_VOLT_CHANGE_RSP_MSG_SZ,
+				true);
+	if (ret)
+		goto exit;
+
+	status = RES_STATUS(priv->rx_msg->data[0]);
+	if (status != priv->success_tag) {
+		dev_err(dev, "Command Id[%d], Response Failure = 0x%x",
+			ELE_VOLT_CHANGE_START_REQ, status);
+		ret = -1;
+	}
+
+exit:
+	imx_se_free_tx_rx_buf(priv);
+
+	if (!start || ret)
+		mutex_unlock(&priv->mu_cmd_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ele_voltage_change_req);

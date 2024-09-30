@@ -438,9 +438,6 @@
 				compatible = "st,lsm303agr-magn";
 				reg = <0x1e>;
 				st,drdy-int-pin = <1>;
-				interrupt-parent = <&lsio_gpio4>;
-				interrupt-open-drain;
-				interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
 			};
 		};
 	};
@@ -1152,7 +1149,7 @@
 		reg = <0x44>;
 		rext = <499>;
 		interrupt-parent = <&lsio_gpio4>;
-		interrupts = <11 2>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
 	};
 
 	fxas21002c@20 {

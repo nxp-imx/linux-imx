@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -591,12 +591,19 @@ void kbase_csf_firmware_enable_mcu(struct kbase_device *kbdev);
 void kbase_csf_firmware_disable_mcu(struct kbase_device *kbdev);
 
 /**
- * kbase_csf_firmware_disable_mcu_wait - Wait for the MCU to reach disabled
- *                                       status.
+ * kbase_csf_firmware_disable_mcu_wait - Wait for the MCU to reach disabled status.
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  */
 void kbase_csf_firmware_disable_mcu_wait(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_stop_firmware_and_wait - Disable firmware and wait for the MCU to reach
+ *                                    disabled status.
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ */
+void kbase_csf_stop_firmware_and_wait(struct kbase_device *kbdev);
 
 #ifdef KBASE_PM_RUNTIME
 /**
@@ -617,6 +624,7 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev);
  */
 bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev);
 #endif
+
 
 /**
  * kbase_csf_firmware_trigger_reload() - Trigger the reboot of MCU firmware, for
@@ -925,5 +933,28 @@ int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev);
  * Return: 0 if success, or negative error code on failure.
  */
 int kbase_csf_firmware_req_core_dump(struct kbase_device *const kbdev);
+
+#ifdef KBASE_PM_RUNTIME
+
+/**
+ * kbase_csf_firmware_soi_update - Update FW Sleep-on-Idle config
+ *
+ * @kbdev: Device pointer
+ *
+ * This function reconfigures the FW Sleep-on-Idle configuration if necessary.
+ */
+void kbase_csf_firmware_soi_update(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_soi_disable_on_scheduler_suspend - Disable FW Sleep-on-Idle config
+ *                                                       on scheduler suspension
+ *
+ * @kbdev: Device pointer
+ *
+ * Return: 0 on success, otherwise failure
+ */
+int kbase_csf_firmware_soi_disable_on_scheduler_suspend(struct kbase_device *kbdev);
+
+#endif /* KBASE_PM_RUNTIME */
 
 #endif

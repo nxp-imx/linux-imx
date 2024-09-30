@@ -29,6 +29,8 @@ struct vpu_buffer {
 	ktime_t ts_finish;
 	ktime_t ts_output;
 	u64 hw_time;
+
+	u32 average_qp;
 };
 
 enum vpu_fmt_type {
@@ -90,5 +92,7 @@ int wave6_vpu_subscribe_event(struct v4l2_fh *fh,
 			      const struct v4l2_event_subscription *sub);
 void wave6_vpu_return_buffers(struct vpu_instance *inst,
 			      unsigned int type, enum vb2_buffer_state state);
-
+u32 wave6_vpu_get_consumed_fb_num(struct vpu_instance *inst);
+u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst);
+void wave6_vpu_pause(struct device *dev, int resume);
 #endif

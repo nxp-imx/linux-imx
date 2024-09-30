@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,6 +28,16 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <mali_kbase_ctx_sched.h>
+#include <mmu/mali_kbase_mmu_faults_decoder.h>
+
+bool kbase_is_gpu_removed(struct kbase_device *kbdev)
+{
+	if (!kbase_has_arbiter(kbdev))
+		return false;
+
+
+	return (KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(GPU_ID)) == 0);
+}
 
 /**
  * kbase_report_gpu_fault - Report a GPU fault of the device.
@@ -78,6 +88,7 @@ static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 {
 	u32 power_changed_mask = (POWER_CHANGED_ALL | MCU_STATUS_GPU_IRQ);
+	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ, NULL, val);
@@ -85,7 +96,6 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		kbase_gpu_fault_interrupt(kbdev);
 
 	if (val & GPU_PROTECTED_FAULT) {
-		struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 		unsigned long flags;
 
 		dev_err_ratelimited(kbdev->dev, "GPU fault in protected mode");
@@ -139,10 +149,33 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		unsigned long flags;
 
 		dev_dbg(kbdev->dev, "Doorbell mirror interrupt received");
+
+		/* Assume that the doorbell comes from userspace which
+		 * presents new works in order to invalidate a possible GPU
+		 * idle event.
+		 * If the doorbell was raised by KBase then the FW would handle
+		 * the pending doorbell then raise a 2nd GBL_IDLE IRQ which
+		 * would allow us to put the GPU to sleep.
+		 */
+		atomic_set(&scheduler->gpu_no_longer_idle, true);
+
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbase_pm_disable_db_mirror_interrupt(kbdev);
-		kbdev->pm.backend.exit_gpu_sleep_mode = true;
-		kbase_csf_scheduler_invoke_tick(kbdev);
+
+		if (likely(kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP)) {
+			kbdev->pm.backend.exit_gpu_sleep_mode = true;
+			kbase_csf_scheduler_invoke_tick(kbdev);
+		} else if (likely(test_bit(KBASE_GPU_SUPPORTS_FW_SLEEP_ON_IDLE,
+					   &kbdev->pm.backend.gpu_sleep_allowed)) &&
+			   (kbdev->pm.backend.mcu_state != KBASE_MCU_ON_PEND_SLEEP)) {
+			/* The firmware is going to sleep on its own but new
+			 * doorbells were rung before we manage to handle
+			 * the GLB_IDLE IRQ in the bottom half. We shall enable
+			 * DB notification to allow the DB to be handled by FW.
+			 */
+			dev_dbg(kbdev->dev, "Re-enabling MCU immediately following DB_MIRROR IRQ");
+			kbase_pm_enable_mcu_db_notification(kbdev);
+		}
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
 #endif
@@ -169,9 +202,12 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		 * cores.
 		 */
 		if (kbdev->pm.backend.l2_always_on ||
-		    kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TTRX_921))
+		    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TTRX_921))
 			kbase_pm_power_changed(kbdev);
 	}
+
+	if (val & MCU_STATUS_GPU_IRQ)
+		wake_up_all(&kbdev->csf.event_wait);
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_DONE, NULL, val);
 }

@@ -286,6 +286,11 @@ M: G.n. Zhou <guoniu.zhou@nxp.com>
 F: Documentation/devicetree/bindings/media/imx8-parallel-csi.txt
 F: drivers/staging/media/imx/imx8-parallel-csi.c
 
+capture/ox05b1s
+M: Mirela Rabulea <mirela.rabulea@nxp.com>
+F: drivers/media/i2c/ox05b1s/*
+F: Documentation/devicetree/bindings/media/i2c/ovti,ox05b1s.yaml
+
 capture/ox03c10
 M: Laurentiu Palcu <laurentiu.palcu@oss.nxp.com>
 R: Robert Chiras <robert.chiras@nxp.com>
@@ -307,11 +312,6 @@ F: arch/arm64/boot/dts/freescale/imx95-19x19-evk-neoisp.dtso
 F: Documentation/userspace-api/media/v4l/neo-isp-hw-mapping.rst
 F: drivers/media/platform/nxp/neoisp/neoisp*
 F: include/uapi/linux/nxp_neoisp.h
-
-capture/os08a20
-M: Mirela Rabulea <mirela.rabulea@nxp.com>
-M: Alice Yuan <alice.yuan@nxp.com>
-F: drivers/media/i2c/os08a20/*
 
 clock/imx
 M: Jacky Bai <jacky.bai@nxp.com>

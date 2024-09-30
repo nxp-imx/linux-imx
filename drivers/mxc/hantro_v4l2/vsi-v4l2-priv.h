@@ -22,6 +22,7 @@
 
 #include <linux/version.h>
 #include <linux/v4l2-controls.h>
+#include <linux/debugfs.h>
 #include <linux/imx_vpu.h>
 #include "vsi-v4l2.h"
 
@@ -249,11 +250,13 @@ struct vsi_v4l2_device {
 	struct video_device *vdec;
 	struct mutex lock;
 	struct mutex irqlock;
+	struct dentry *debugfs;
 };
 
 struct vsi_vpu_buf {
 	struct vb2_v4l2_buffer vb;
 	struct list_head list;
+	u32 average_qp;
 };
 
 struct vsi_queued_buf {
@@ -297,6 +300,17 @@ enum {
 	BUF_FLAG_DONE,			/*buf returned from daemon*/
 	BUF_FLAG_CROPCHANGE,		/*crop area update not sent to app but buffed */
 	BUF_FLAG_TIMESTAMP_INVALID,
+};
+
+struct vsi_vpu_performance_info {
+	ktime_t ts_start;
+	ktime_t ts_last;
+	ktime_t ts_disp_first;
+	ktime_t ts_disp_last;
+	u64 total_time;
+	u64 input_buf_num;
+	u64 processed_buf_num;
+	u64 display_frame_num;
 };
 
 struct vsi_v4l2_ctx {
@@ -351,6 +365,16 @@ struct vsi_v4l2_ctx {
 	u32 cap_sequence;
 
 	bool header_separate;
+	pid_t tgid;
+	pid_t pid;
+
+	struct vsi_vpu_performance_info performance;
+	struct dentry *debugfs;
+};
+
+struct vsi_v4l2_ctrl_applicable {
+	u32 id;
+	u32 applicable_pixelformat[4];
 };
 
 int vsi_v4l2_release(struct file *filp);
@@ -375,6 +399,8 @@ struct video_device *vsi_v4l2_probe_enc(
 void vsi_v4l2_release_enc(struct video_device *venc);
 struct video_device *vsi_v4l2_probe_dec(struct platform_device *pdev, struct vsi_v4l2_device *vpu);
 void vsi_v4l2_release_dec(struct video_device *vdec);
+int vsi_v4l2_create_dbgfs_file(struct vsi_v4l2_ctx *ctx);
+void vsi_v4l2_remove_dbgfs_file(struct vsi_v4l2_ctx *ctx);
 
 u64 vsi_v4l2_getbandwidth(void);
 int vsiv4l2_initdaemon(void);
@@ -425,6 +451,8 @@ void vsi_convertIPCM(struct vsi_v4l2_ctx *ctx);
 int vsiv4l2_verifycrop(struct v4l2_selection *s);
 void vsi_v4l2_update_ctrlcfg(struct v4l2_ctrl_config *cfg);
 int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg);
+void vsi_v4l2_reset_performance(struct vsi_v4l2_ctx *ctx);
+bool vsi_v4l2_ctrl_is_applicable(struct vsi_v4l2_ctx *ctx, u32 ctrl_id);
 
 static inline int isencoder(struct vsi_v4l2_ctx *ctx)
 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -29,6 +29,7 @@
 #include <device/mali_kbase_device.h>
 #include <mali_kbase_as_fault_debugfs.h>
 #include <mmu/mali_kbase_mmu_internal.h>
+#include <mmu/mali_kbase_mmu_faults_decoder.h>
 
 void kbase_mmu_get_as_setup(struct kbase_mmu_table *mmut, struct kbase_mmu_setup *const setup)
 {
@@ -52,9 +53,10 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 					 struct kbase_fault *fault)
 {
 	struct kbase_device *const kbdev = kctx->kbdev;
-	u32 const status = fault->status;
-	u32 const exception_type = (status & 0xFF);
-	u32 const exception_data = (status >> 8) & 0xFFFFFF;
+	const u32 status = fault->status;
+	const u32 exception_type = AS_FAULTSTATUS_EXCEPTION_TYPE_GET(status);
+	const u32 access_type = AS_FAULTSTATUS_ACCESS_TYPE_GET(status);
+	const u32 source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
 	unsigned int const as_no = as->number;
 	unsigned long flags;
 	const uintptr_t fault_addr = fault->addr;
@@ -64,10 +66,17 @@ void kbase_gpu_report_bus_fault_and_kill(struct kbase_context *kctx, struct kbas
 		"GPU bus fault in AS%u at PA %pK\n"
 		"raw fault status: 0x%X\n"
 		"exception type 0x%X: %s\n"
-		"exception data 0x%X\n"
+		"access type 0x%X: %s\n"
+		"source id 0x%X (core_id:utlb:IR 0x%X:0x%X:0x%X): %s, %s\n"
 		"pid: %d\n",
 		as_no, (void *)fault_addr, status, exception_type,
-		kbase_gpu_exception_name(exception_type), exception_data, kctx->pid);
+		kbase_gpu_exception_name(exception_type), access_type,
+		kbase_gpu_access_type_name(access_type), source_id,
+		FAULT_SOURCE_ID_CORE_ID_GET(source_id), FAULT_SOURCE_ID_UTLB_ID_GET(source_id),
+		fault_source_id_internal_requester_get(kbdev, source_id),
+		fault_source_id_core_type_description_get(kbdev, source_id),
+		fault_source_id_internal_requester_get_str(kbdev, source_id, access_type),
+		kctx->pid);
 
 	/* switch to UNMAPPED mode, will abort all jobs and stop any hw counter
 	 * dumping AS transaction begin
@@ -105,22 +114,42 @@ void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct kbase_as
 
 	if (!kbase_ctx_flag(kctx, KCTX_PAGE_FAULT_REPORT_SKIP)) {
 		/* decode the fault status */
-		u32 exception_type = fault->status & 0xFF;
-		u32 access_type = (fault->status >> 8) & 0x3;
-		u32 source_id = (fault->status >> 16);
-
+		const u32 status = fault->status;
+		const u32 exception_type = AS_FAULTSTATUS_EXCEPTION_TYPE_GET(status);
+		const u32 access_type = AS_FAULTSTATUS_ACCESS_TYPE_GET(status);
+		const u32 source_id = AS_FAULTSTATUS_SOURCE_ID_GET(status);
 		/* terminal fault, print info about the fault */
-		dev_err(kbdev->dev,
-			"Unhandled Page fault in AS%u at VA 0x%016llX\n"
-			"Reason: %s\n"
-			"raw fault status: 0x%X\n"
-			"exception type 0x%X: %s\n"
-			"access type 0x%X: %s\n"
-			"source id 0x%X\n"
-			"pid: %d\n",
-			as_no, fault->addr, reason_str, fault->status, exception_type,
-			kbase_gpu_exception_name(exception_type), access_type,
-			kbase_gpu_access_type_name(fault->status), source_id, kctx->pid);
+		if (kbdev->gpu_props.gpu_id.product_model < GPU_ID_MODEL_MAKE(9, 0)) {
+			dev_err(kbdev->dev,
+				"Unhandled Page fault in AS%u at VA 0x%016llX\n"
+				"Reason: %s\n"
+				"raw fault status: 0x%X\n"
+				"exception type 0x%X: %s\n"
+				"access type 0x%X: %s\n"
+				"pid: %d\n",
+				as_no, fault->addr, reason_str, status, exception_type,
+				kbase_gpu_exception_name(exception_type), access_type,
+				kbase_gpu_access_type_name(status), kctx->pid);
+		} else {
+			dev_err(kbdev->dev,
+				"Unhandled Page fault in AS%u at VA 0x%016llX\n"
+				"Reason: %s\n"
+				"raw fault status: 0x%X\n"
+				"exception type 0x%X: %s\n"
+				"access type 0x%X: %s\n"
+				"source id 0x%X (core_id:utlb:IR 0x%X:0x%X:0x%X): %s, %s\n"
+				"pid: %d\n",
+				as_no, fault->addr, reason_str, status, exception_type,
+				kbase_gpu_exception_name(exception_type), access_type,
+				kbase_gpu_access_type_name(status), source_id,
+				FAULT_SOURCE_ID_CORE_ID_GET(source_id),
+				FAULT_SOURCE_ID_UTLB_ID_GET(source_id),
+				fault_source_id_internal_requester_get(kbdev, source_id),
+				fault_source_id_core_type_description_get(kbdev, source_id),
+				fault_source_id_internal_requester_get_str(kbdev, source_id,
+									   access_type),
+				kctx->pid);
+		}
 	}
 
 	/* hardware counters dump fault handling */
@@ -256,7 +285,7 @@ static void validate_protected_page_fault(struct kbase_device *kbdev)
 	 */
 	u32 protected_debug_mode = 0;
 
-	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PROTECTED_DEBUG_MODE)) {
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_PROTECTED_DEBUG_MODE)) {
 		protected_debug_mode = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)) &
 				       GPU_STATUS_GPU_DBG_ENABLED;
 	}
@@ -370,13 +399,6 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);
 
 	dev_dbg(kbdev->dev, "Leaving %s irq_stat %u\n", __func__, irq_stat);
-}
-
-int kbase_mmu_switch_to_ir(struct kbase_context *const kctx, struct kbase_va_region *const reg)
-{
-	dev_dbg(kctx->kbdev->dev, "Switching to incremental rendering for region %pK\n",
-		(void *)reg);
-	return kbase_job_slot_softstop_start_rp(kctx, reg);
 }
 
 int kbase_mmu_as_init(struct kbase_device *kbdev, unsigned int i)

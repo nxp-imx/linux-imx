@@ -39,6 +39,8 @@ void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 	pix_mp->plane_fmt[0].bytesperline = stride_y;
 	pix_mp->plane_fmt[0].sizeimage = stride_y * height;
 
+	stride_y = DIV_ROUND_UP(stride_y, fmt_info->bpp[0]);
+
 	for (i = 1; i < fmt_info->comp_planes; i++) {
 		unsigned int stride_c, sizeimage_c;
 
@@ -101,6 +103,12 @@ unsigned int wave6_default_bytesperline(unsigned int fourcc, unsigned int width)
 	return bytesperline;
 }
 
+dma_addr_t wave6_get_dma_addr(struct vb2_v4l2_buffer *buf, unsigned int plane_no)
+{
+	return vb2_dma_contig_plane_dma_addr(&buf->vb2_buf, plane_no) +
+			buf->planes[plane_no].data_offset;
+}
+
 struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 						  dma_addr_t addr)
 {
@@ -110,19 +118,13 @@ struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		vb2_v4l2_buf = &v4l2_m2m_buf->vb;
-		if (addr == vb2_dma_contig_plane_dma_addr(&vb2_v4l2_buf->vb2_buf, 0)) {
+		if (addr == wave6_get_dma_addr(vb2_v4l2_buf, 0)) {
 			dst_buf = vb2_v4l2_buf;
 			break;
 		}
 	}
 
 	return dst_buf;
-}
-
-dma_addr_t wave6_get_dma_addr(struct vb2_v4l2_buffer *buf, unsigned int plane_no)
-{
-	return vb2_dma_contig_plane_dma_addr(&buf->vb2_buf, plane_no) +
-			buf->planes[plane_no].data_offset;
 }
 
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
@@ -177,6 +179,40 @@ void wave6_vpu_return_buffers(struct vpu_instance *inst,
 			v4l2_m2m_buf_done(buf, state);
 		}
 	}
+}
+
+u32 wave6_vpu_get_consumed_fb_num(struct vpu_instance *inst)
+{
+	struct vb2_v4l2_buffer *vb2_v4l2_buf;
+	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	struct vpu_buffer *vpu_buf;
+	u32 num = 0;
+
+	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
+		vb2_v4l2_buf = &v4l2_m2m_buf->vb;
+		vpu_buf = wave6_to_vpu_buf(vb2_v4l2_buf);
+		if (vpu_buf->consumed)
+			num++;
+	}
+
+	return num;
+}
+
+u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst)
+{
+	struct vb2_v4l2_buffer *vb2_v4l2_buf;
+	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	struct vpu_buffer *vpu_buf;
+	u32 num = 0;
+
+	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
+		vb2_v4l2_buf = &v4l2_m2m_buf->vb;
+		vpu_buf = wave6_to_vpu_buf(vb2_v4l2_buf);
+		if (vpu_buf->used)
+			num++;
+	}
+
+	return num;
 }
 
 static bool wave6_vpu_check_fb_available(struct vpu_instance *inst)
@@ -271,8 +307,6 @@ void wave6_vpu_handle_performance(struct vpu_instance *inst, struct vpu_buffer *
 	if (!inst || !vpu_buf)
 		return;
 
-	if (!inst->performance.ts_first)
-		inst->performance.ts_first = vpu_buf->ts_input;
 	inst->performance.ts_last = vpu_buf->ts_output;
 
 	latency = vpu_buf->ts_output - vpu_buf->ts_input;

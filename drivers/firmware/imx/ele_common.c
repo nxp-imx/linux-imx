@@ -62,14 +62,12 @@ int imx_ele_msg_send_rcv(struct ele_mu_priv *priv)
 	unsigned int wait;
 	int err;
 
-	mutex_lock(&priv->mu_cmd_lock);
 	mutex_lock(&priv->mu_lock);
 
 	err = mbox_send_message(priv->tx_chan, priv->tx_msg);
 	if (err < 0) {
 		pr_err("Error: mbox_send_message failure.\n");
 		mutex_unlock(&priv->mu_lock);
-		mutex_unlock(&priv->mu_cmd_lock);
 		return err;
 	}
 	err = 0;
@@ -82,7 +80,6 @@ int imx_ele_msg_send_rcv(struct ele_mu_priv *priv)
 		err = -ETIMEDOUT;
 	}
 
-	mutex_unlock(&priv->mu_cmd_lock);
 
 	return err;
 }

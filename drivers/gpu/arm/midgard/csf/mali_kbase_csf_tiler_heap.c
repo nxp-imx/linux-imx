@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -218,7 +218,7 @@ static void remove_unlinked_chunk(struct kbase_context *kctx,
 	if (WARN_ON(!list_empty(&chunk->link)))
 		return;
 
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 	kbase_vunmap(kctx, &chunk->map);
 	/* KBASE_REG_DONT_NEED regions will be confused with ephemeral regions (inc freed JIT
 	 * regions), and so we must clear that flag too before freeing.
@@ -231,7 +231,7 @@ static void remove_unlinked_chunk(struct kbase_context *kctx,
 	chunk->region->flags &= ~KBASE_REG_DONT_NEED;
 #endif
 	kbase_mem_free_region(kctx, chunk->region);
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
 	kfree(chunk);
 }
@@ -260,8 +260,9 @@ static struct kbase_csf_tiler_heap_chunk *alloc_new_chunk(struct kbase_context *
 							  u64 chunk_size)
 {
 	u64 nr_pages = PFN_UP(chunk_size);
-	u64 flags = BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR | BASE_MEM_PROT_CPU_WR |
-		    BASEP_MEM_NO_USER_FREE | BASE_MEM_COHERENT_LOCAL | BASE_MEM_PROT_CPU_RD;
+	base_mem_alloc_flags flags = BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
+				     BASE_MEM_PROT_CPU_WR | BASEP_MEM_NO_USER_FREE |
+				     BASE_MEM_COHERENT_LOCAL | BASE_MEM_PROT_CPU_RD;
 	struct kbase_csf_tiler_heap_chunk *chunk = NULL;
 	/* The chunk kernel mapping needs to be large enough to:
 	 * - initially zero the CHUNK_HDR_SIZE area
@@ -350,13 +351,14 @@ static struct kbase_csf_tiler_heap_chunk *alloc_new_chunk(struct kbase_context *
 	}
 
 	remove_external_chunk_mappings(kctx, chunk);
-	kbase_gpu_vm_unlock(kctx);
 
 	/* If page migration is enabled, we don't want to migrate tiler heap pages.
 	 * This does not change if the constituent pages are already marked as isolated.
 	 */
 	if (kbase_is_page_migration_enabled())
-		kbase_set_phy_alloc_page_status(chunk->region->gpu_alloc, NOT_MOVABLE);
+		kbase_set_phy_alloc_page_status(kctx, chunk->region->gpu_alloc, NOT_MOVABLE);
+
+	kbase_gpu_vm_unlock(kctx);
 
 	return chunk;
 
@@ -640,7 +642,7 @@ static bool kbasep_is_buffer_descriptor_region_suitable(struct kbase_context *co
 
 	if (!(reg->flags & KBASE_REG_CPU_RD) || kbase_is_region_shrinkable(reg) ||
 	    (reg->flags & KBASE_REG_PF_GROW)) {
-		dev_err(kctx->kbdev->dev, "Region has invalid flags: 0x%lX!\n", reg->flags);
+		dev_err(kctx->kbdev->dev, "Region has invalid flags: 0x%llX!\n", reg->flags);
 		return false;
 	}
 
@@ -737,7 +739,7 @@ int kbase_csf_tiler_heap_init(struct kbase_context *const kctx, u32 const chunk_
 					  KBASE_VMAP_FLAG_PERMANENT_MAP_ACCOUNTING);
 
 		if (kbase_is_page_migration_enabled())
-			kbase_set_phy_alloc_page_status(buf_desc_reg->gpu_alloc, NOT_MOVABLE);
+			kbase_set_phy_alloc_page_status(kctx, buf_desc_reg->gpu_alloc, NOT_MOVABLE);
 
 		kbase_gpu_vm_unlock(kctx);
 
@@ -1058,6 +1060,7 @@ static bool delete_chunk_physical_pages(struct kbase_csf_tiler_heap *heap, u64 c
 	struct kbase_csf_tiler_heap_chunk *chunk = NULL;
 
 	lockdep_assert_held(&heap->kctx->csf.tiler_heaps.lock);
+	lockdep_assert_held(&kctx->kbdev->csf.scheduler.lock);
 
 	chunk = find_chunk(heap, chunk_gpu_va);
 	if (unlikely(!chunk)) {

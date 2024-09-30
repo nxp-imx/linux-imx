@@ -10,3 +10,15 @@ CFLAGS += -g -O2 -Werror -Wall -I. -I../../include -I../../../usr/include -Wno-p
 clean:
 	${RM} *.o *.d vsock_test vsock_diag_test vsock_perf
 -include *.d
+
+VSOCK_INSTALL_PATH ?=
+
+install: all
+ifdef VSOCK_INSTALL_PATH
+	mkdir -p $(VSOCK_INSTALL_PATH)
+	install -m 744 vsock_test $(VSOCK_INSTALL_PATH)
+	install -m 744 vsock_perf $(VSOCK_INSTALL_PATH)
+	install -m 744 vsock_diag_test $(VSOCK_INSTALL_PATH)
+else
+	$(error Error: set VSOCK_INSTALL_PATH to use install)
+endif

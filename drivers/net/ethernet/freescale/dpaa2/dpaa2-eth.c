@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2014-2016 Freescale Semiconductor Inc.
- * Copyright 2016-2022 NXP
+ * Copyright 2016-2022, 2024 NXP
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -44,6 +44,14 @@ static void dpaa2_eth_detect_features(struct dpaa2_eth_priv *priv)
 	if (dpaa2_eth_cmp_dpni_ver(priv, DPNI_PTP_ONESTEP_VER_MAJOR,
 				   DPNI_PTP_ONESTEP_VER_MINOR) >= 0)
 		priv->features |= DPAA2_ETH_FEATURE_ONESTEP_CFG_DIRECT;
+
+	if (dpaa2_eth_cmp_dpni_ver(priv, DPNI_NUM_TX_TCS_VER_MAJOR,
+				   DPNI_NUM_TX_TCS_VER_MINOR) >= 0)
+		priv->features |= DPAA2_ETH_FEATURE_GET_NUM_TX_TCS;
+
+	if (dpaa2_eth_cmp_dpni_ver(priv, DPNI_MACSEC_VER_MAJOR,
+				   DPNI_MACSEC_VER_MINOR) >= 0)
+		priv->features |= DPAA2_ETH_FEATURE_MACSEC;
 }
 
 static void dpaa2_update_ptp_onestep_indirect(struct dpaa2_eth_priv *priv,
@@ -576,6 +584,11 @@ void dpaa2_eth_receive_skb(struct dpaa2_eth_priv *priv,
 	if (likely(dpaa2_fd_get_frc(fd) & DPAA2_FD_FRC_FASV)) {
 		status = le32_to_cpu(fas->status);
 		dpaa2_eth_validate_rx_csum(priv, status, skb);
+
+		if (priv->secy_id && (status & DPAA2_FAS_MS)) {
+			dst_hold(&priv->md_dst->dst);
+			skb_dst_set(skb, &priv->md_dst->dst);
+		}
 	}
 
 	skb->protocol = eth_type_trans(skb, priv->net_dev);
@@ -810,7 +823,8 @@ static int dpaa2_eth_ptp_parse(struct sk_buff *skb,
 static void dpaa2_eth_enable_tx_tstamp(struct dpaa2_eth_priv *priv,
 				       struct dpaa2_fd *fd,
 				       void *buf_start,
-				       struct sk_buff *skb)
+				       struct sk_buff *skb,
+				       bool memset_faead)
 {
 	struct ptp_tstamp origin_timestamp;
 	u8 msgtype, twostep, udp;
@@ -835,6 +849,10 @@ static void dpaa2_eth_enable_tx_tstamp(struct dpaa2_eth_priv *priv,
 	 */
 	ctrl = DPAA2_FAEAD_A2V | DPAA2_FAEAD_UPDV | DPAA2_FAEAD_UPD;
 	faead = dpaa2_get_faead(buf_start, true);
+	if (memset_faead) {
+		faead->conf_fqid = 0;
+		faead->ctrl = 0;
+	}
 	faead->ctrl = cpu_to_le32(ctrl);
 
 	if (skb->cb[0] == TX_TSTAMP_ONESTEP_SYNC) {
@@ -1414,6 +1432,39 @@ err_sgt_get:
 	return err;
 }
 
+static void dpaa2_eth_mark_macsec(struct dpaa2_eth_priv *priv, struct sk_buff *skb,
+				  struct dpaa2_fd *fd, int num_fds,
+				  bool memset_faead)
+{
+	struct dpaa2_faead *faead;
+	struct dpaa2_fd *crr_fd;
+	dma_addr_t fd_addr;
+	void *buf_start;
+	u32 ctrl, frc;
+	int i;
+
+	for (i = 0; i < num_fds; i++) {
+		crr_fd = &fd[i];
+		fd_addr = dpaa2_fd_get_addr(crr_fd);
+		buf_start = dpaa2_iova_to_virt(priv->iommu_domain, fd_addr);
+
+		frc = dpaa2_fd_get_frc(crr_fd);
+		dpaa2_fd_set_frc(crr_fd, frc | DPAA2_FD_FRC_FAEADV);
+
+		ctrl = dpaa2_fd_get_ctrl(fd);
+		dpaa2_fd_set_ctrl(fd, ctrl | DPAA2_FD_CTRL_ASAL);
+
+		faead = dpaa2_get_faead(buf_start, true);
+		if (memset_faead) {
+			faead->conf_fqid = 0;
+			faead->ctrl = 0;
+		}
+		ctrl = le32_to_cpu(faead->ctrl);
+		ctrl |= DPAA2_FAEAD_MCVV | DPAA2_FAEAD_A2V | DPAA2_FAEAD_MCV;
+		faead->ctrl = cpu_to_le32(ctrl);
+	}
+}
+
 static netdev_tx_t __dpaa2_eth_tx(struct sk_buff *skb,
 				  struct net_device *net_dev)
 {
@@ -1423,6 +1474,7 @@ static netdev_tx_t __dpaa2_eth_tx(struct sk_buff *skb,
 	struct rtnl_link_stats64 *percpu_stats;
 	unsigned int needed_headroom;
 	int num_fds = 1, max_retries;
+	bool memset_faead = true;
 	struct dpaa2_eth_fq *fq;
 	struct netdev_queue *nq;
 	int err, i, ch_id = 0;
@@ -1436,8 +1488,6 @@ static netdev_tx_t __dpaa2_eth_tx(struct sk_buff *skb,
 	percpu_extras = this_cpu_ptr(priv->percpu_extras);
 	fd = (this_cpu_ptr(priv->fd))->array;
 
-	needed_headroom = dpaa2_eth_needed_headroom(skb);
-
 	/* We'll be holding a back-reference to the skb until Tx Confirmation;
 	 * we don't want that overwritten by a concurrent Tx with a cloned skb.
 	 */
@@ -1447,6 +1497,8 @@ static netdev_tx_t __dpaa2_eth_tx(struct sk_buff *skb,
 		percpu_stats->tx_dropped++;
 		return NETDEV_TX_OK;
 	}
+
+	needed_headroom = dpaa2_eth_needed_headroom(skb);
 
 	/* Setup the FD fields */
 
@@ -1478,8 +1530,13 @@ static netdev_tx_t __dpaa2_eth_tx(struct sk_buff *skb,
 		goto err_build_fd;
 	}
 
-	if (swa && skb->cb[0])
-		dpaa2_eth_enable_tx_tstamp(priv, fd, swa, skb);
+	if (swa && skb->cb[0]) {
+		dpaa2_eth_enable_tx_tstamp(priv, fd, swa, skb, memset_faead);
+		memset_faead = false;
+	}
+
+	if (dpaa2_macsec_skb_is_offload(skb))
+		dpaa2_eth_mark_macsec(priv, skb, fd, num_fds, memset_faead);
 
 	/* Tracing point */
 	for (i = 0; i < num_fds; i++)
@@ -2148,7 +2205,7 @@ set_cgtd:
 
 	td.threshold = DPAA2_ETH_CG_TAILDROP_THRESH(priv);
 	td.units = DPNI_CONGESTION_UNIT_FRAMES;
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_rx_tc_count(priv); i++) {
 		err = dpni_set_taildrop(priv->mc_io, 0, priv->mc_token,
 					DPNI_CP_GROUP, DPNI_QUEUE_RX,
 					i, 0, &td);
@@ -2422,6 +2479,8 @@ static void dpaa2_eth_add_uc_hw_addr(const struct net_device *net_dev,
 	int err;
 
 	netdev_for_each_uc_addr(ha, net_dev) {
+		if (ether_addr_equal(ha->addr, net_dev->dev_addr))
+			continue;
 		err = dpni_add_mac_addr(priv->mc_io, 0, priv->mc_token,
 					ha->addr);
 		if (err)
@@ -2969,9 +3028,9 @@ static int dpaa2_eth_setup_mqprio(struct net_device *net_dev,
 	if (num_tc == net_dev->num_tc)
 		return 0;
 
-	if (num_tc  > dpaa2_eth_tc_count(priv)) {
+	if (num_tc  > dpaa2_eth_tx_tc_count(priv)) {
 		netdev_err(net_dev, "Max %d traffic classes supported\n",
-			   dpaa2_eth_tc_count(priv));
+			   dpaa2_eth_tx_tc_count(priv));
 		return -EOPNOTSUPP;
 	}
 
@@ -3376,7 +3435,7 @@ static void dpaa2_eth_setup_fqs(struct dpaa2_eth_priv *priv)
 		priv->fq[priv->num_fqs++].flowid = (u16)i;
 	}
 
-	for (j = 0; j < dpaa2_eth_tc_count(priv); j++) {
+	for (j = 0; j < dpaa2_eth_rx_tc_count(priv); j++) {
 		for (i = 0; i < dpaa2_eth_queue_count(priv); i++) {
 			priv->fq[priv->num_fqs].type = DPAA2_RX_FQ;
 			priv->fq[priv->num_fqs].consume = dpaa2_eth_rx;
@@ -3683,7 +3742,7 @@ static void dpaa2_eth_update_tx_fqids(struct dpaa2_eth_priv *priv)
 		fq = &priv->fq[i];
 		if (fq->type != DPAA2_TX_CONF_FQ)
 			continue;
-		for (j = 0; j < dpaa2_eth_tc_count(priv); j++) {
+		for (j = 0; j < dpaa2_eth_tx_tc_count(priv); j++) {
 			err = dpni_get_queue(priv->mc_io, 0, priv->mc_token,
 					     DPNI_QUEUE_TX, j, fq->flowid,
 					     &queue, &qid);
@@ -3722,7 +3781,7 @@ static int dpaa2_eth_set_vlan_qos(struct dpaa2_eth_priv *priv)
 	 * Also, we need to extract just the 3-bit PCP field from the VLAN
 	 * header and we can only do that by using a mask
 	 */
-	if (dpaa2_eth_tc_count(priv) == 1 || !dpaa2_eth_fs_mask_enabled(priv)) {
+	if (dpaa2_eth_rx_tc_count(priv) == 1 || !dpaa2_eth_fs_mask_enabled(priv)) {
 		dev_dbg(dev, "VLAN-based QoS classification not supported\n");
 		return -EOPNOTSUPP;
 	}
@@ -3786,7 +3845,7 @@ static int dpaa2_eth_set_vlan_qos(struct dpaa2_eth_priv *priv)
 	 * classes to accommodate all priority levels, the lowest ones end up
 	 * on TC 0 which was configured as default
 	 */
-	for (i = dpaa2_eth_tc_count(priv) - 1, pcp = 7; i >= 0; i--, pcp--) {
+	for (i = dpaa2_eth_rx_tc_count(priv) - 1, pcp = 7; i >= 0; i--, pcp--) {
 		*(__be16 *)key = cpu_to_be16(pcp << VLAN_PRIO_SHIFT);
 		dma_sync_single_for_device(dev, key_params.key_iova,
 					   key_size * 2, DMA_TO_DEVICE);
@@ -3851,6 +3910,8 @@ static int dpaa2_eth_setup_dpni(struct fsl_mc_device *ls_dev)
 		goto close;
 	}
 
+	dpaa2_eth_detect_features(priv);
+
 	ls_dev->mc_io = priv->mc_io;
 	ls_dev->mc_handle = priv->mc_token;
 
@@ -3860,8 +3921,14 @@ static int dpaa2_eth_setup_dpni(struct fsl_mc_device *ls_dev)
 		goto close;
 	}
 
-	err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
-				  &priv->dpni_attrs);
+	if (priv->features & DPAA2_ETH_FEATURE_GET_NUM_TX_TCS) {
+		err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
+					  &priv->dpni_attrs, DPNI_CMDID_GET_ATTR_V2);
+	} else {
+		err = dpni_get_attributes(priv->mc_io, 0, priv->mc_token,
+					  &priv->dpni_attrs, DPNI_CMDID_GET_ATTR);
+		priv->dpni_attrs.num_tx_tcs = priv->dpni_attrs.num_rx_tcs;
+	}
 	if (err) {
 		dev_err(dev, "dpni_get_attributes() failed (err=%d)\n", err);
 		goto close;
@@ -3972,7 +4039,7 @@ static int dpaa2_eth_setup_tx_flow(struct dpaa2_eth_priv *priv,
 	struct dpni_queue_id qid;
 	int i, err;
 
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_tx_tc_count(priv); i++) {
 		err = dpni_get_queue(priv->mc_io, 0, priv->mc_token,
 				     DPNI_QUEUE_TX, i, fq->flowid,
 				     &queue, &qid);
@@ -4124,7 +4191,7 @@ static int dpaa2_eth_config_legacy_hash_key(struct dpaa2_eth_priv *priv, dma_add
 	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
 	dist_cfg.dist_mode = DPNI_DIST_MODE_HASH;
 
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_rx_tc_count(priv); i++) {
 		err = dpni_set_rx_tc_dist(priv->mc_io, 0, priv->mc_token,
 					  i, &dist_cfg);
 		if (err) {
@@ -4149,7 +4216,7 @@ static int dpaa2_eth_config_hash_key(struct dpaa2_eth_priv *priv, dma_addr_t key
 	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
 	dist_cfg.enable = 1;
 
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_rx_tc_count(priv); i++) {
 		dist_cfg.tc = i;
 		err = dpni_set_rx_hash_dist(priv->mc_io, 0, priv->mc_token,
 					    &dist_cfg);
@@ -4181,7 +4248,7 @@ static int dpaa2_eth_config_cls_key(struct dpaa2_eth_priv *priv, dma_addr_t key)
 	dist_cfg.dist_size = dpaa2_eth_queue_count(priv);
 	dist_cfg.enable = 1;
 
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_rx_tc_count(priv); i++) {
 		dist_cfg.tc = i;
 		err = dpni_set_rx_fs_dist(priv->mc_io, 0, priv->mc_token,
 					  &dist_cfg);
@@ -4612,8 +4679,6 @@ static int dpaa2_eth_netdev_init(struct net_device *net_dev)
 		return err;
 	}
 
-	dpaa2_eth_detect_features(priv);
-
 	/* Capabilities listing */
 	supported |= IFF_LIVE_ADDR_CHANGE;
 
@@ -4678,6 +4743,10 @@ static int dpaa2_eth_connect_mac(struct dpaa2_eth_priv *priv)
 	if (IS_ERR(dpmac_dev) || dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type)
 		return 0;
 
+#if IS_ENABLED(CONFIG_MACSEC)
+	dpaa2_eth_macsec_init(priv);
+#endif
+
 	dpaa2_mac_driver_detach(dpmac_dev);
 
 	mac = kzalloc(sizeof(struct dpaa2_mac), GFP_KERNEL);
@@ -4737,6 +4806,10 @@ static void dpaa2_eth_disconnect_mac(struct dpaa2_eth_priv *priv)
 	dpaa2_mac_close(mac);
 	dpaa2_mac_driver_attach(mac->mc_dev);
 	kfree(mac);
+
+#if IS_ENABLED(CONFIG_MACSEC)
+	dpaa2_eth_macsec_deinit(priv);
+#endif
 }
 
 static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
@@ -4856,7 +4929,9 @@ static int dpaa2_eth_probe(struct fsl_mc_device *dpni_dev)
 	dev = &dpni_dev->dev;
 
 	/* Net device */
-	net_dev = alloc_etherdev_mq(sizeof(*priv), DPAA2_ETH_MAX_NETDEV_QUEUES);
+	net_dev = alloc_etherdev_mqs(sizeof(*priv),
+				     DPAA2_ETH_MAX_NETDEV_TX_QUEUES,
+				     DPAA2_ETH_MAX_NETDEV_RX_QUEUES);
 	if (!net_dev) {
 		dev_err(dev, "alloc_etherdev_mq() failed\n");
 		return -ENOMEM;

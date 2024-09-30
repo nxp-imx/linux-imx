@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2011-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -357,6 +357,7 @@ enum l2_config_override_result {
 /**
  * kbase_read_l2_config_from_dt - Read L2 configuration
  * @kbdev: The kbase device for which to get the L2 configuration.
+ * @regdump: Pointer to struct kbase_gpuprops_regdump structure.
  *
  * Check for L2 configuration overrides in module parameters and device tree.
  * Override values in module parameters take priority over override values in
@@ -366,9 +367,16 @@ enum l2_config_override_result {
  *         overridden, L2_CONFIG_OVERRIDE_NONE if no overrides are provided.
  *         L2_CONFIG_OVERRIDE_FAIL otherwise.
  */
-static enum l2_config_override_result kbase_read_l2_config_from_dt(struct kbase_device *const kbdev)
+static enum l2_config_override_result
+kbase_read_l2_config_from_dt(struct kbase_device *const kbdev,
+			     struct kbasep_gpuprops_regdump *regdump)
 {
 	struct device_node *np = kbdev->dev->of_node;
+	/*
+	 * CACHE_SIZE bit fields in L2_FEATURES register, default value after the reset/powerup
+	 * holds the maximum size of the cache that can be programmed in L2_CONFIG register.
+	 */
+	const u8 l2_size_max = L2_FEATURES_CACHE_SIZE_GET(regdump->l2_features);
 
 	if (!np)
 		return L2_CONFIG_OVERRIDE_NONE;
@@ -378,8 +386,12 @@ static enum l2_config_override_result kbase_read_l2_config_from_dt(struct kbase_
 	else if (of_property_read_u8(np, "l2-size", &kbdev->l2_size_override))
 		kbdev->l2_size_override = 0;
 
-	if (kbdev->l2_size_override != 0 && kbdev->l2_size_override < OVERRIDE_L2_SIZE_MIN_LOG2)
+	if (kbdev->l2_size_override != 0 && (kbdev->l2_size_override < OVERRIDE_L2_SIZE_MIN_LOG2 ||
+					     kbdev->l2_size_override > l2_size_max)) {
+		dev_err(kbdev->dev, "Invalid Cache Size in %s",
+			override_l2_size ? "Module parameters" : "Device tree node");
 		return L2_CONFIG_OVERRIDE_FAIL;
+	}
 
 	/* Check overriding value is supported, if not will result in
 	 * undefined behavior.
@@ -425,11 +437,11 @@ int kbase_gpuprops_update_l2_features(struct kbase_device *kbdev)
 {
 	int err = 0;
 
-	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_L2_CONFIG)) {
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_L2_CONFIG)) {
 		struct kbasep_gpuprops_regdump *regdump = &PRIV_DATA_REGDUMP(kbdev);
 
 		/* Check for L2 cache size & hash overrides */
-		switch (kbase_read_l2_config_from_dt(kbdev)) {
+		switch (kbase_read_l2_config_from_dt(kbdev, regdump)) {
 		case L2_CONFIG_OVERRIDE_FAIL:
 			err = -EIO;
 			goto exit;
@@ -687,7 +699,7 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 		data->thread_props.max_thread_group_split = THREAD_MTGS_DEFAULT;
 	}
 
-	if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_THREAD_GROUP_SPLIT))
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_THREAD_GROUP_SPLIT))
 		data->thread_props.max_thread_group_split = 0;
 
 	/* Raw Register Values */

@@ -43,6 +43,8 @@ properties:
 
   dma-channels:
     const: 32
+    minimum: 1
+    maximum: 64
 
   clocks:
     maxItems: 2

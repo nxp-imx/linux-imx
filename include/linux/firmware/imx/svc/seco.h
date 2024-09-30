@@ -45,6 +45,7 @@ int imx_sc_seco_secvio_dgo_config(struct imx_sc_ipc *ipc, u8 id, u8 access,
 int imx_scu_init_fw(struct device *dev);
 int imx_scu_sec_mem_cfg(struct file *fp, uint32_t offset, uint32_t size);
 int imx_scu_mem_access(struct file *fp);
+int imx_scu_signed_msg(struct file *fp, uint8_t *msg, uint32_t size, uint32_t *error);
 #else /* IS_ENABLED(CONFIG_IMX_SCU) */
 static inline
 int imx_sc_seco_build_info(struct imx_sc_ipc *ipc, uint32_t *version,
@@ -88,6 +89,12 @@ int imx_scu_init_fw(struct device *dev)
 
 static inline
 int imx_scu_sec_mem_cfg(struct file *fp, uint32_t offset, uint32_t size)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline
+int imx_scu_signed_msg(struct file *fp, uint8_t *msg, uint32_t size, uint32_t *error)
 {
 	return -EOPNOTSUPP;
 }

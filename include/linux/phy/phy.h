@@ -58,6 +58,7 @@ enum phy_media {
 enum phy_status_type {
 	/* Valid for PHY_MODE_ETHERNET and PHY_MODE_ETHERNET_LINKMODE */
 	PHY_STATUS_CDR_LOCK,
+	PHY_STATUS_PCVT_COUNT,
 	PHY_STATUS_PCVT_ADDR,
 };
 
@@ -82,9 +83,15 @@ enum phy_pcvt_type {
 
 struct phy_status_opts_pcvt {
 	enum phy_pcvt_type type;
+	size_t index;
 	union {
 		unsigned int mdio;
 	} addr;
+};
+
+struct phy_status_opts_pcvt_count {
+	enum phy_pcvt_type type;
+	size_t num_pcvt;
 };
 
 /* If the CDR (Clock and Data Recovery) block is able to lock onto the RX bit
@@ -100,10 +107,12 @@ struct phy_status_opts_cdr {
  * union phy_status_opts - Opaque generic phy status
  *
  * @cdr:	Configuration set applicable for PHY_STATUS_CDR_LOCK.
+ * @pcvt_count:	Configuration set applicable for PHY_STATUS_PCVT_COUNT.
  * @pcvt:	Configuration set applicable for PHY_STATUS_PCVT_ADDR.
  */
 union phy_status_opts {
 	struct phy_status_opts_cdr		cdr;
+	struct phy_status_opts_pcvt_count	pcvt_count;
 	struct phy_status_opts_pcvt		pcvt;
 };
 

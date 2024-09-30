@@ -56,7 +56,7 @@
 
 #ifdef CONFIG_DEVFREQ_THERMAL
 #include <linux/thermal.h>
-DEFINE_SPINLOCK(thermal_lock);
+static DEFINE_SPINLOCK(thermal_lock);
 /*1:hot, 0: not hot*/
 #define HANTRO_COOLING_MAX_STATE 1
 static int thermal_event;
@@ -136,7 +136,7 @@ static const int DecHwId[] = {
 	0x6732 /* G2 */
 };
 
-ulong multicorebase[HXDEC_MAX_CORES] = {
+static ulong multicorebase[HXDEC_MAX_CORES] = {
 	SOCLE_LOGIC_0_BASE,
 	SOCLE_LOGIC_1_BASE
 };
@@ -169,7 +169,7 @@ static int hantrodec_major; /* dynamic allocation */
 typedef struct {
 	char *buffer;
 	unsigned int iosize[HXDEC_MAX_CORES];
-	volatile u8 *hwregs[HXDEC_MAX_CORES];
+	void __iomem *hwregs[HXDEC_MAX_CORES];
 	int irq[HXDEC_MAX_CORES];
 	int hw_id[HXDEC_MAX_CORES];
 	int cores;
@@ -195,26 +195,26 @@ static void dump_regs(hantrodec_t *dev);
 static irqreturn_t hantrodec_isr(int irq, void *dev_id);
 
 static u32 dec_regs[HXDEC_MAX_CORES][DEC_IO_SIZE_MAX/4];
-struct semaphore dec_core_sem;
-struct semaphore pp_core_sem;
-struct semaphore core_suspend_sem[HXDEC_MAX_CORES];
+static struct semaphore dec_core_sem;
+static struct semaphore pp_core_sem;
+static struct semaphore core_suspend_sem[HXDEC_MAX_CORES];
 
 static int dec_irq;
 static int pp_irq;
 
-atomic_t irq_rx = ATOMIC_INIT(0);
-atomic_t irq_tx = ATOMIC_INIT(0);
+static atomic_t irq_rx = ATOMIC_INIT(0);
+static atomic_t irq_tx = ATOMIC_INIT(0);
 
 static struct file *dec_owner[HXDEC_MAX_CORES];
 static struct file *pp_owner[HXDEC_MAX_CORES];
 
 /* spinlock_t owner_lock = SPIN_LOCK_UNLOCKED; */
-DEFINE_SPINLOCK(owner_lock);
+static DEFINE_SPINLOCK(owner_lock);
 
-DECLARE_WAIT_QUEUE_HEAD(dec_wait_queue);
-DECLARE_WAIT_QUEUE_HEAD(pp_wait_queue);
+static DECLARE_WAIT_QUEUE_HEAD(dec_wait_queue);
+static DECLARE_WAIT_QUEUE_HEAD(pp_wait_queue);
 
-DECLARE_WAIT_QUEUE_HEAD(hw_queue);
+static DECLARE_WAIT_QUEUE_HEAD(hw_queue);
 
 #define DWL_CLIENT_TYPE_H264_DEC         1U
 #define DWL_CLIENT_TYPE_MPEG4_DEC        2U
@@ -386,14 +386,14 @@ static int hantro_clk_disable(struct device *dev)
 
 static int hantro_ctrlblk_reset(struct device *dev)
 {
-	volatile u8 *iobase;
+	void __iomem *iobase;
 
 	if (hantrodec_data.skip_blkctrl)
 		return 0;
 
 	//config G1/G2
 	hantro_clk_enable(dev);
-	iobase = (volatile u8 *)ioremap(BLK_CTL_BASE, 0x10000);
+	iobase = ioremap(BLK_CTL_BASE, 0x10000);
 	trusty_ctrlblk_write(&hantrodec_data, 0, 0x3, iobase);  //VPUMIX G1/G2 block soft reset  control
 	trusty_ctrlblk_write(&hantrodec_data, 4, 0x3, iobase); //VPUMIX G1/G2 block clock enable control
 	trusty_ctrlblk_write(&hantrodec_data, 0x8, 0xFFFFFFFF, iobase); // all G1 fuse dec enable
@@ -564,7 +564,7 @@ static int CoreHasFormat(const u32 *cfg, int Core, u32 format)
 	return (cfg[Core] & (1 << format)) ? 1 : 0;
 }
 
-int GetDecCore(long Core, hantrodec_t *dev, struct file *filp)
+static int GetDecCore(long Core, hantrodec_t *dev, struct file *filp)
 {
 	int success = 0;
 	unsigned long flags;
@@ -580,8 +580,7 @@ int GetDecCore(long Core, hantrodec_t *dev, struct file *filp)
 	return success;
 }
 
-int GetDecCoreAny(long *Core, hantrodec_t *dev, struct file *filp,
-			unsigned long format)
+static int GetDecCoreAny(long *Core, hantrodec_t *dev, struct file *filp, unsigned long format)
 {
 	int success = 0;
 	long c;
@@ -599,7 +598,8 @@ int GetDecCoreAny(long *Core, hantrodec_t *dev, struct file *filp,
 
 	return success;
 }
-int GetDecCoreID(hantrodec_t *dev, struct file *filp,
+
+static int GetDecCoreID(hantrodec_t *dev, struct file *filp,
 			unsigned long format)
 {
 	long c;
@@ -619,7 +619,7 @@ int GetDecCoreID(hantrodec_t *dev, struct file *filp,
 
 static int hantrodec_choose_core(int is_g1)
 {
-	volatile unsigned char *reg = NULL;
+	void __iomem *reg = NULL;
 	unsigned int blk_base = BLK_CTL_BASE;
 
 	PDEBUG("hantrodec_choose_core\n");
@@ -628,7 +628,7 @@ static int hantrodec_choose_core(int is_g1)
 		return -EBUSY;
 	}
 
-	reg = (volatile u8 *) ioremap(blk_base, 0x1000);
+	reg = ioremap(blk_base, 0x1000);
 
 	if (reg == NULL) {
 		pr_err("blk_ctl: failed to ioremap HW regs\n");
@@ -643,14 +643,13 @@ static int hantrodec_choose_core(int is_g1)
 		trusty_ctrlblk_write(&hantrodec_data, 0x14, 0x0, reg); // VPUMIX only use G2
 
 	if (reg)
-		iounmap((void *)reg);
+		iounmap(reg);
 	release_mem_region(blk_base, 0x1000);
 	PDEBUG("hantrodec_choose_core OK!\n");
 	return 0;
 }
 
-
-long ReserveDecoder(hantrodec_t *dev, struct file *filp, unsigned long format)
+static long ReserveDecoder(hantrodec_t *dev, struct file *filp, unsigned long format)
 {
 	long Core = -1;
 
@@ -685,7 +684,7 @@ long ReserveDecoder(hantrodec_t *dev, struct file *filp, unsigned long format)
 	return Core;
 }
 
-void ReleaseDecoder(hantrodec_t *dev, long Core)
+static void ReleaseDecoder(hantrodec_t *dev, long Core)
 {
 	u32 status;
 	unsigned long flags;
@@ -713,7 +712,7 @@ void ReleaseDecoder(hantrodec_t *dev, long Core)
 
 }
 
-long ReservePostProcessor(hantrodec_t *dev, struct file *filp)
+static long ReservePostProcessor(hantrodec_t *dev, struct file *filp)
 {
 	unsigned long flags;
 
@@ -732,7 +731,7 @@ long ReservePostProcessor(hantrodec_t *dev, struct file *filp)
 	return Core;
 }
 
-void ReleasePostProcessor(hantrodec_t *dev, long Core)
+static void ReleasePostProcessor(hantrodec_t *dev, long Core)
 {
 	unsigned long flags;
 
@@ -759,44 +758,7 @@ void ReleasePostProcessor(hantrodec_t *dev, long Core)
 	up(&pp_core_sem);
 }
 
-long ReserveDecPp(hantrodec_t *dev, struct file *filp, unsigned long format)
-{
-	/* reserve Core 0, DEC+PP for pipeline */
-	unsigned long flags;
-
-	long Core = 0;
-
-	/* check that Core has the requested dec format */
-	if (!CoreHasFormat(cfg, Core, format))
-		return -EFAULT;
-
-	/* check that Core has PP */
-	if (!CoreHasFormat(cfg, Core, DWL_CLIENT_TYPE_PP))
-		return -EFAULT;
-
-	/* reserve a Core */
-	if (down_interruptible(&dec_core_sem))
-		return -ERESTARTSYS;
-
-	/* wait until the Core is available */
-	if (wait_event_interruptible(hw_queue,	GetDecCore(Core, dev, filp) != 0)) {
-		up(&dec_core_sem);
-		return -ERESTARTSYS;
-	}
-
-	if (down_interruptible(&pp_core_sem)) {
-		ReleaseDecoder(dev, Core);
-		return -ERESTARTSYS;
-	}
-
-	spin_lock_irqsave(&owner_lock, flags);
-	pp_owner[Core] = filp;
-	spin_unlock_irqrestore(&owner_lock, flags);
-
-	return Core;
-}
-
-long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
+static long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	long ret = 0, i;
 
@@ -804,7 +766,9 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 
 	if (IS_G1(dev->hw_id[id])) {
 		/* copy original dec regs to kernal space*/
-		ret = copy_from_user(dec_regs[id], Core->regs, HANTRO_DEC_ORG_REGS*4);
+		ret = copy_from_user(dec_regs[id],
+				     (void __user *)Core->regs,
+				     HANTRO_DEC_ORG_REGS * 4);
 		if (ret) {
 			pr_err("copy_from_user failed, returned %li\n", ret);
 			return -EFAULT;
@@ -812,7 +776,8 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 #ifdef USE_64BIT_ENV
 		/* copy extended dec regs to kernal space*/
 		ret = copy_from_user(dec_regs[id] + HANTRO_DEC_EXT_FIRST_REG,
-				Core->regs + HANTRO_DEC_EXT_FIRST_REG, HANTRO_DEC_EXT_REGS * 4);
+				     (void __user *)(Core->regs + HANTRO_DEC_EXT_FIRST_REG),
+				     HANTRO_DEC_EXT_REGS * 4);
 #endif
 		if (ret) {
 			pr_err("copy_from_user failed, returned %li\n", ret);
@@ -828,7 +793,9 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 			trusty_vpu_write(dev, i*4, dec_regs[id][i], id, WRITE_REGS);
 #endif
 	} else {
-		ret = copy_from_user(dec_regs[id], Core->regs, HANTRO_G2_DEC_REGS*4);
+		ret = copy_from_user(dec_regs[id],
+				     (void __user *)Core->regs,
+				     HANTRO_G2_DEC_REGS * 4);
 		if (ret) {
 			pr_err("copy_from_user failed, returned %li\n", ret);
 			return -EFAULT;
@@ -852,7 +819,7 @@ long DecFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 	return 0;
 }
 
-long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
+static long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	long ret, i;
 	u32 id = Core->id;
@@ -881,11 +848,14 @@ long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 
 		/* put registers to user space*/
 		/* put original registers to user space*/
-		ret = copy_to_user(Core->regs, dec_regs[id], HANTRO_DEC_ORG_REGS*4);
+		ret = copy_to_user((void __user *)Core->regs,
+				   dec_regs[id],
+				   HANTRO_DEC_ORG_REGS * 4);
 #ifdef USE_64BIT_ENV
 		/*put extended registers to user space*/
-		ret = copy_to_user(Core->regs + HANTRO_DEC_EXT_FIRST_REG,
-				dec_regs[id] + HANTRO_DEC_EXT_FIRST_REG, HANTRO_DEC_EXT_REGS * 4);
+		ret = copy_to_user((void __user *)(Core->regs + HANTRO_DEC_EXT_FIRST_REG),
+				   dec_regs[id] + HANTRO_DEC_EXT_FIRST_REG,
+				   HANTRO_DEC_EXT_REGS * 4);
 #endif
 		if (ret) {
 			pr_err("copy_to_user failed, returned %li\n", ret);
@@ -909,7 +879,7 @@ long DecRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 		}
 
 		/* put registers to user space*/
-		ret = copy_to_user(Core->regs, dec_regs[id], HANTRO_G2_DEC_REGS*4);
+		ret = copy_to_user((void __user *)Core->regs, dec_regs[id], HANTRO_G2_DEC_REGS * 4);
 		if (ret) {
 			pr_err("copy_to_user failed, returned %li\n", ret);
 			return -EFAULT;
@@ -995,7 +965,7 @@ static int CheckDecIrq(hantrodec_t *dev, int id)
 	return rdy;
 }
 
-long WaitDecReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
+static long WaitDecReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	u32 id = Core->id;
 	long ret;
@@ -1019,7 +989,7 @@ long WaitDecReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 	return DecRefreshRegs(dev, Core);
 }
 
-long PPFlushRegs(hantrodec_t *dev, struct core_desc *Core)
+static long PPFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	long ret = 0;
 	u32 id = Core->id;
@@ -1027,11 +997,13 @@ long PPFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 
 	/* copy original dec regs to kernal space*/
 	ret = copy_from_user(dec_regs[id] + HANTRO_PP_ORG_FIRST_REG,
-			Core->regs + HANTRO_PP_ORG_FIRST_REG, HANTRO_PP_ORG_REGS*4);
+			     (void __user *)(Core->regs + HANTRO_PP_ORG_FIRST_REG),
+			     HANTRO_PP_ORG_REGS * 4);
 #ifdef USE_64BIT_ENV
 	/* copy extended dec regs to kernal space*/
 	ret = copy_from_user(dec_regs[id] + HANTRO_PP_EXT_FIRST_REG,
-			Core->regs + HANTRO_PP_EXT_FIRST_REG, HANTRO_PP_EXT_REGS*4);
+			     (void __user *)(Core->regs + HANTRO_PP_EXT_FIRST_REG),
+			     HANTRO_PP_EXT_REGS * 4);
 #endif
 	if (ret) {
 		pr_err("copy_from_user failed, returned %li\n", ret);
@@ -1053,7 +1025,7 @@ long PPFlushRegs(hantrodec_t *dev, struct core_desc *Core)
 	return 0;
 }
 
-long PPRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
+static long PPRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	long i, ret;
 	u32 id = Core->id;
@@ -1077,12 +1049,14 @@ long PPRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 #endif
 	/* put registers to user space*/
 	/* put original registers to user space*/
-	ret = copy_to_user(Core->regs + HANTRO_PP_ORG_FIRST_REG,
-			dec_regs[id] + HANTRO_PP_ORG_FIRST_REG, HANTRO_PP_ORG_REGS*4);
+	ret = copy_to_user((void __user *)(Core->regs + HANTRO_PP_ORG_FIRST_REG),
+			   dec_regs[id] + HANTRO_PP_ORG_FIRST_REG,
+			   HANTRO_PP_ORG_REGS * 4);
 #ifdef USE_64BIT_ENV
 	/* put extended registers to user space*/
-	ret = copy_to_user(Core->regs + HANTRO_PP_EXT_FIRST_REG,
-			dec_regs[id] + HANTRO_PP_EXT_FIRST_REG, HANTRO_PP_EXT_REGS * 4);
+	ret = copy_to_user((void __user *)(Core->regs + HANTRO_PP_EXT_FIRST_REG),
+			   dec_regs[id] + HANTRO_PP_EXT_FIRST_REG,
+			   HANTRO_PP_EXT_REGS * 4);
 #endif
 	if (ret) {
 		pr_err("copy_to_user failed, returned %li\n", ret);
@@ -1112,7 +1086,7 @@ static int CheckPPIrq(hantrodec_t *dev, int id)
 	return rdy;
 }
 
-long WaitPPReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
+static long WaitPPReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 {
 	u32 id = Core->id;
 
@@ -1129,7 +1103,7 @@ long WaitPPReadyAndRefreshRegs(hantrodec_t *dev, struct core_desc *Core)
 	return PPRefreshRegs(dev, Core);
 }
 
-static int CheckCoreIrq(hantrodec_t *dev, const struct file *filp, int *id)
+static int CheckCoreIrq(hantrodec_t *dev, const struct file *filp, u32 *id)
 {
 	unsigned long flags;
 	int rdy = 0, n = 0;
@@ -1170,7 +1144,7 @@ static int CheckCoreIrq(hantrodec_t *dev, const struct file *filp, int *id)
 	return rdy;
 }
 
-long WaitCoreReady(hantrodec_t *dev, const struct file *filp, int *id)
+static long WaitCoreReady(hantrodec_t *dev, const struct file *filp, u32 *id)
 {
 	PDEBUG("wait_event_interruptible CORE\n");
 
@@ -1214,56 +1188,56 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 	 * "write" is reversed
 	 */
 	if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok((void *) arg, _IOC_SIZE(cmd));
+		err = !access_ok((void __user *)arg, _IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err = !access_ok((void *) arg, _IOC_SIZE(cmd));
+		err = !access_ok((void __user *)arg, _IOC_SIZE(cmd));
 
 	if (err)
 		return -EFAULT;
 
 	switch (_IOC_NR(cmd)) {
 	case _IOC_NR(HANTRODEC_IOC_CLI): {
-		__u32 id;
+		u32 id;
 
-		__get_user(id, (__u32 *)arg);
+		__get_user(id, (u32 __user *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
 		disable_irq(hantrodec_data.irq[id]);
 		break;
 	}
 	case _IOC_NR(HANTRODEC_IOC_STI): {
-		__u32 id;
+		u32 id;
 
-		__get_user(id, (__u32 *)arg);
+		__get_user(id, (u32 __user *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
 		enable_irq(hantrodec_data.irq[id]);
 		break;
 	}
 	case _IOC_NR(HANTRODEC_IOCGHWOFFSET): {
-		__u32 id;
+		u32 id;
 
-		__get_user(id, (__u32 *)arg);
+		__get_user(id, (u32 __user *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
 
-		__put_user(multicorebase[id], (unsigned long *) arg);
+		__put_user(multicorebase[id], (u32 __user *)arg);
 		break;
 	}
 	case _IOC_NR(HANTRODEC_IOCGHWIOSIZE): {
-		__u32 id;
-		__u32 io_size;
+		u32 id;
+		u32 io_size;
 
-		__get_user(id, (__u32 *)arg);
+		__get_user(id, (u32 __user *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
 		io_size = hantrodec_data.iosize[id];
-		__put_user(io_size, (u32 *) arg);
+		__put_user(io_size, (u32 __user *)arg);
 
 		return 0;
 	}
 	case _IOC_NR(HANTRODEC_IOC_MC_OFFSETS): {
-		tmp = copy_to_user((u64 *) arg, multicorebase, sizeof(multicorebase));
+		tmp = copy_to_user((u64 __user *)arg, multicorebase, sizeof(multicorebase));
 		if (err) {
 			pr_err("copy_to_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1271,14 +1245,14 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		break;
 	}
 	case _IOC_NR(HANTRODEC_IOC_MC_CORES):
-		__put_user(hantrodec_data.cores, (unsigned int *) arg);
+		__put_user(hantrodec_data.cores, (u32 __user *)arg);
 		PDEBUG("hantrodec_data.cores=%d\n", hantrodec_data.cores);
 		break;
 	case _IOC_NR(HANTRODEC_IOCS_DEC_PUSH_REG): {
 		struct core_desc Core;
 
 		/* get registers from user space*/
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1294,7 +1268,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		struct core_desc Core;
 
 		/* get registers from user space*/
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1310,7 +1284,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		struct core_desc Core;
 
 		/* get registers from user space*/
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1325,7 +1299,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		struct core_desc Core;
 
 		/* get registers from user space*/
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1368,7 +1342,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		struct core_desc Core;
 
 		/* get registers from user space */
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1383,7 +1357,7 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		struct core_desc Core;
 
 		/* get registers from user space */
-		tmp = copy_from_user(&Core, (void *)arg, sizeof(struct core_desc));
+		tmp = copy_from_user(&Core, (void __user *)arg, sizeof(struct core_desc));
 		if (tmp) {
 			pr_err("copy_from_user failed, returned %li\n", tmp);
 			return -EFAULT;
@@ -1395,20 +1369,20 @@ static long hantrodec_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		return WaitPPReadyAndRefreshRegs(&hantrodec_data, &Core);
 	}
 	case _IOC_NR(HANTRODEC_IOCG_CORE_WAIT): {
-		int id;
+		u32 id;
 
 		tmp = WaitCoreReady(&hantrodec_data, filp, &id);
-		__put_user(id, (int *) arg);
+		__put_user(id, (u32 __user *)arg);
 		return tmp;
 	}
 	case _IOC_NR(HANTRODEC_IOX_ASIC_ID): {
 		u32 id;
 
-		__get_user(id, (u32 *)arg);
+		__get_user(id, (u32 __user *)arg);
 		if (id >= hantrodec_data.cores)
 			return -EFAULT;
 		id = trusty_vpu_read(&hantrodec_data, 0, id);
-		__put_user(id, (u32 *) arg);
+		__put_user(id, (u32 __user *)arg);
 		return 0;
 	}
 	case _IOC_NR(HANTRODEC_IOCG_CORE_ID): {
@@ -1610,7 +1584,7 @@ static const struct file_operations hantrodec_fops = {
  *Return type     : int
  *---------------------------------------------------------------------------
  */
-int hantrodec_init(struct platform_device *pdev)
+static int hantrodec_init(struct platform_device *pdev)
 {
 	int result;
 	int irq_0, irq_1;
@@ -1713,7 +1687,7 @@ err:
  *Return type     : int
  *---------------------------------------------------------------------------
  */
-void hantrodec_cleanup(void)
+static void hantrodec_cleanup(void)
 {
 	hantrodec_t *dev = &hantrodec_data;
 	int n = 0;
@@ -1792,8 +1766,8 @@ static int ReserveIO(void)
 				return -EBUSY;
 			}
 
-			hantrodec_data.hwregs[i] = (volatile u8 *) ioremap(multicorebase[i],
-			hantrodec_data.iosize[i]);
+			hantrodec_data.hwregs[i] = ioremap(multicorebase[i],
+							   hantrodec_data.iosize[i]);
 
 			if (hantrodec_data.hwregs[i] == NULL) {
 				pr_err("hantrodec: failed to ioremap HW regs\n");
@@ -1826,7 +1800,7 @@ static void ReleaseIO(void)
 
 	for (i = 0; i < hantrodec_data.cores; i++) {
 		if (hantrodec_data.hwregs[i])
-			iounmap((void *) hantrodec_data.hwregs[i]);
+			iounmap(hantrodec_data.hwregs[i]);
 		release_mem_region(multicorebase[i], hantrodec_data.iosize[i]);
 	}
 }

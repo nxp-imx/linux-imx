@@ -78,6 +78,9 @@
 #define VEND_REVISION_IP_VER_X(x)	(((x) & GENMASK(7, 4)) >> 4)
 #define VEND_REVISION_IP_REV_X(x)	((x) & GENMASK(3, 0))
 
+#define C45_SGMII_IF_MODE		0x8014
+#define C45_SGMII_IF_MODE_SPEED_1G	8
+
 #define IRQ_PCS_TX_LP_IDLE		BIT(9)
 #define IRQ_PCS_RX_LP_IDLE		BIT(8)
 #define IRQ_PCS_TX_LOC_FAULT		BIT(7)
@@ -250,6 +253,11 @@ struct mtip_backplane {
 	 */
 	struct mutex lt_lock;
 	struct mutex an_restart_lock;
+};
+
+struct mtip_regs_backup {
+	int an_ctrl;
+	u64 base_page;
 };
 
 /* Auto-Negotiation Control and Status Registers are on page 0: 0x0 */
@@ -449,6 +457,13 @@ static int mtip_read_pcs(struct mtip_backplane *priv, int reg)
 	return mdiodev_c45_read(mdiodev, MDIO_MMD_PCS, reg);
 }
 
+static int mtip_write_pcs(struct mtip_backplane *priv, int reg, u16 val)
+{
+	struct mdio_device *mdiodev = priv->pcs_mdiodev;
+
+	return mdiodev_c45_write(mdiodev, MDIO_MMD_PCS, reg, val);
+}
+
 static int mtip_reset_pcs(struct mtip_backplane *priv)
 {
 	struct mdio_device *mdiodev = priv->pcs_mdiodev;
@@ -637,8 +652,7 @@ int mtip_backplane_resume(struct mtip_backplane *priv)
 
 	priv->lane_powered_on = true;
 
-	if (!priv->is_subordinate)
-		mtip_start_irqpoll(priv);
+	mtip_start_irqpoll(priv);
 
 	return 0;
 }
@@ -1109,12 +1123,13 @@ EXPORT_SYMBOL(mtip_backplane_an_restart);
  * deadlocking with the irqpoll thread, they must signal to the irqpoll thread
  * to do so.
  */
-static void mtip_an_restart_from_lt(struct mtip_backplane *priv)
+static void mtip_an_restart_from_lt(struct mtip_backplane *priv, bool local)
 {
 	struct device *dev = &priv->mdiodev->dev;
 	struct mtip_backplane *coordinator;
 
-	dev_dbg(dev, "Link training requests autoneg restart\n");
+	dev_dbg(dev, "%s link training requests autoneg restart\n",
+		local ? "Local" : "Remote");
 
 	coordinator = priv->is_subordinate ? priv->coordinator : priv;
 
@@ -1465,7 +1480,7 @@ static void mtip_local_tx_lt_work(struct kthread_work *work)
 
 out:
 	if (err && !READ_ONCE(priv->lt_stop_request))
-		mtip_an_restart_from_lt(priv);
+		mtip_an_restart_from_lt(priv, true);
 
 	kfree(lt_work);
 }
@@ -1539,7 +1554,7 @@ static void mtip_remote_tx_lt_work(struct kthread_work *work)
 
 out:
 	if (err && !READ_ONCE(priv->lt_stop_request))
-		mtip_an_restart_from_lt(priv);
+		mtip_an_restart_from_lt(priv, false);
 
 	kfree(lt_work);
 }
@@ -1550,6 +1565,11 @@ static int mtip_start_lt(struct mtip_backplane *priv)
 	struct device *dev = &priv->mdiodev->dev;
 	struct mtip_lt_work *remote_tx_lt_work;
 	struct mtip_lt_work *local_tx_lt_work;
+	union phy_configure_opts opts = {
+		.ethernet = {
+			.type = C72_LT_INIT,
+		},
+	};
 	int err;
 
 	lockdep_assert_held(&irqpoll->lock);
@@ -1567,6 +1587,10 @@ static int mtip_start_lt(struct mtip_backplane *priv)
 	}
 
 	err = mtip_reset_lt(priv);
+	if (err)
+		goto out_free_remote_tx_lt;
+
+	err = phy_configure(priv->serdes, &opts);
 	if (err)
 		goto out_free_remote_tx_lt;
 
@@ -1674,13 +1698,36 @@ static bool mtip_read_link_unlatch(struct mtip_backplane *priv)
 	return old_link;
 }
 
+static void mtip_update_cfg_link_mode(struct mtip_backplane *priv,
+				      enum ethtool_link_mode_bit_indices link_mode)
+{
+	priv->cfg_link_mode = link_mode;
+
+	if (priv->model == MTIP_MODEL_LX2160A &&
+	    link_mode != ETHTOOL_LINK_MODE_1000baseKX_Full_BIT) {
+		priv->an_regs = mtip_lx2160a_an_regs;
+		priv->lt_regs = mtip_lx2160a_lt_regs;
+		priv->lt_mmd = MDIO_MMD_AN;
+	} else {
+		priv->an_regs = mtip_an_regs;
+		priv->lt_regs = mtip_lt_regs;
+		priv->lt_mmd = MDIO_MMD_PMAPMD;
+	}
+}
+
 static struct mdio_device *
 mtip_get_mdiodev_for_link_mode(struct mii_bus *bus, struct phy *serdes,
 			       enum ethtool_link_mode_bit_indices link_mode)
 {
-	union phy_status_opts opts = {
+	union phy_status_opts opts1 = {
+		.pcvt_count = {
+			.type = PHY_PCVT_ETHERNET_ANLT,
+		},
+	};
+	union phy_status_opts opts2 = {
 		.pcvt = {
 			.type = PHY_PCVT_ETHERNET_ANLT,
+			.index = 0,
 		},
 	};
 	struct mdio_device *mdiodev;
@@ -1690,57 +1737,99 @@ mtip_get_mdiodev_for_link_mode(struct mii_bus *bus, struct phy *serdes,
 	if (err)
 		return ERR_PTR(err);
 
-	err = phy_get_status(serdes, PHY_STATUS_PCVT_ADDR, &opts);
+	err = phy_get_status(serdes, PHY_STATUS_PCVT_COUNT, &opts1);
 	if (err)
 		return ERR_PTR(err);
 
-	mdiodev = mdio_device_create(bus, opts.pcvt.addr.mdio);
+	if (opts1.pcvt_count.num_pcvt != 1) {
+		dev_err(&serdes->dev, "Expected 1 AN/LT protocol converter, but lane reports %zu\n",
+			opts1.pcvt_count.num_pcvt);
+		return ERR_PTR(-ENODEV);
+	}
+
+	err = phy_get_status(serdes, PHY_STATUS_PCVT_ADDR, &opts2);
+	if (err)
+		return ERR_PTR(err);
+
+	mdiodev = mdio_device_create(bus, opts2.pcvt.addr.mdio);
 	if (!mdiodev)
 		return ERR_PTR(-ENODEV);
 
 	return mdiodev;
 }
 
-/* TODO: untested code path, see if we need to apply the configuration of the
- * old AN/LT block to the new one
- */
-static int mtip_reconfigure(struct mtip_backplane *priv,
-			    enum ethtool_link_mode_bit_indices resolved)
+static int mtip_backup_regs(struct mtip_backplane *priv,
+			    struct mtip_regs_backup *backup)
 {
+	int err;
+
+	err = mtip_read_an(priv, AN_CTRL);
+	if (err < 0)
+		return err;
+
+	backup->an_ctrl = err;
+
+	err = mtip_read_adv(priv, &backup->base_page);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+static int mtip_restore_regs(struct mtip_backplane *priv,
+			     const struct mtip_regs_backup *backup)
+{
+	int err;
+
+	err = mtip_write_an(priv, AN_CTRL, backup->an_ctrl);
+	if (err)
+		return err;
+
+	err = mtip_write_adv(priv, backup->base_page);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+static int mtip_reconfigure(struct mtip_backplane *priv, void *args)
+{
+	const enum ethtool_link_mode_bit_indices *resolved = args;
 	struct device *dev = &priv->mdiodev->dev;
+	struct mtip_regs_backup backup;
 	struct mdio_device *mdiodev;
+	int err;
 
 	dev_info(dev, "Resolved link mode %s but configured for %s, reconfiguring...\n",
-		 ethtool_link_mode_str(resolved),
+		 ethtool_link_mode_str(*resolved),
 		 ethtool_link_mode_str(priv->cfg_link_mode));
 
+	err = mtip_backup_regs(priv, &backup);
+	if (err)
+		return err;
+
 	mdiodev = mtip_get_mdiodev_for_link_mode(priv->bus, priv->serdes,
-						 resolved);
+						 *resolved);
 	if (IS_ERR(mdiodev))
 		return PTR_ERR(mdiodev);
 
 	mdio_device_put(priv->mdiodev);
 	priv->mdiodev = mdiodev;
-	priv->cfg_link_mode = resolved;
+	mtip_update_cfg_link_mode(priv, *resolved);
 
-	return 0;
+	return mtip_restore_regs(priv, &backup);
 }
 
-static int mtip_apply_serdes_protocol(struct mtip_backplane *priv, void *args)
+/* In 1000Base-KX mode, the normal PCS registers driven by pcs-lynx.c for
+ * SGMII/1000Base-X are still available, but not as clause 22, but rather as
+ * clause 45, MMD PCS, starting with address 0x8000. One of the platform
+ * requirements is to configure this PCS as for 1000Base-X (do not use SGMII
+ * AN, force speed to 1G).
+ */
+static int mtip_fixup_c45_sgmii_if_mode(struct mtip_backplane *priv)
 {
-	const enum ethtool_link_mode_bit_indices *resolved = args;
-	struct device *dev = &priv->mdiodev->dev;
-	int err;
-
-	err = phy_set_mode_ext(priv->serdes, PHY_MODE_ETHERNET_LINKMODE,
-			       *resolved);
-	if (err) {
-		dev_err(dev, "phy_set_mode_ext(%s) returned %pe\n",
-			ethtool_link_mode_str(*resolved), ERR_PTR(err));
-		return err;
-	}
-
-	return 0;
+	return mtip_write_pcs(priv, C45_SGMII_IF_MODE,
+			      C45_SGMII_IF_MODE_SPEED_1G);
 }
 
 static int mtip_c73_page_received(struct mtip_backplane *priv,
@@ -1774,24 +1863,24 @@ static int mtip_c73_page_received(struct mtip_backplane *priv,
 	linkmode_and(common, advertising, lp_advertising);
 
 	err = linkmode_c73_priority_resolution(common, &resolved);
+
+	dev_info(dev,
+		"C73 page received, LD %04x:%04x:%04x (%*pb), LP %04x:%04x:%04x (%*pb)%s%s\n",
+		C73_ADV_2(base_page), C73_ADV_1(base_page), C73_ADV_0(base_page),
+		__ETHTOOL_LINK_MODE_MASK_NBITS, advertising,
+		C73_ADV_2(lpa), C73_ADV_1(lpa), C73_ADV_0(lpa),
+		__ETHTOOL_LINK_MODE_MASK_NBITS, lp_advertising,
+		err == 0 ? ", resolved link mode " : "",
+		err == 0 ? ethtool_link_mode_str(resolved) : ", no common link mode");
+
 	if (err) {
 		*an_restart_reason = AN_RESTART_REASON_NO_HCD;
 		return 0;
 	}
 
-	dev_dbg(dev,
-		"C73 page received, LD %04x:%04x:%04x, LP %04x:%04x:%04x, resolved link mode %s\n",
-		C73_ADV_2(base_page), C73_ADV_1(base_page), C73_ADV_0(base_page),
-		C73_ADV_2(lpa), C73_ADV_1(lpa), C73_ADV_0(lpa),
-		ethtool_link_mode_str(resolved));
-
-	err = for_each_lane_args(mtip_apply_serdes_protocol, priv, &resolved);
-	if (err)
-		return err;
-
 	if (resolved != priv->cfg_link_mode) {
 		*an_restart_reason = AN_RESTART_REASON_RECONFIG;
-		return mtip_reconfigure(priv, resolved);
+		return for_each_lane_args(mtip_reconfigure, priv, &resolved);
 	}
 
 	for (i = 0; i < priv->num_subordinates; i++) {
@@ -1826,6 +1915,12 @@ static int mtip_c73_page_received(struct mtip_backplane *priv,
 			return err;
 	}
 
+	if (resolved == ETHTOOL_LINK_MODE_1000baseKX_Full_BIT) {
+		err = mtip_fixup_c45_sgmii_if_mode(priv);
+		if (err)
+			return err;
+	}
+
 	priv->link_mode = resolved;
 	priv->link_mode_resolved = true;
 
@@ -1842,6 +1937,12 @@ static void mtip_c73_remote_fault(struct mtip_backplane *priv, bool fault)
 static bool mtip_are_all_lanes_trained(struct mtip_backplane *priv)
 {
 	int i;
+
+	if (!priv->link_mode_resolved)
+		return false;
+
+	if (!link_mode_needs_training(priv->link_mode))
+		return true;
 
 	if (!priv->local_tx_lt_done || !priv->remote_tx_lt_done)
 		return false;
@@ -1943,13 +2044,14 @@ skip_c73_page:
 	/* Make sure the lane goes back into DME page exchange mode
 	 * after a link drop
 	 */
-	if (priv->link_mode_resolved && !new_page &&
+	if (!an_restart_reason && priv->link_mode_resolved && !new_page &&
 	    (irqpoll->old_pcs_stat & MDIO_STAT1_LSTATUS) &&
 	    !(pcs_stat & MDIO_STAT1_LSTATUS))
 		an_restart_reason = AN_RESTART_REASON_PCS_LINK_DROP;
 
 	/* Paranoid workaround for undetermined issue */
-	if (!priv->link_mode_resolved && (val & MDIO_AN_STAT1_COMPLETE) &&
+	if (!an_restart_reason &&
+	    !priv->link_mode_resolved && (val & MDIO_AN_STAT1_COMPLETE) &&
 	    priv->an_enabled && time_after(jiffies, priv->last_an_restart +
 					   msecs_to_jiffies(MTIP_AN_TIMEOUT_MS))) {
 		dev_err(dev,
@@ -1967,7 +2069,8 @@ skip_c73_page:
 	 * that state. Detect it and exit it if 1 second has passed since link
 	 * training has completed, but the 'autoneg done' bit hasn't asserted.
 	 */
-	if (mtip_are_all_lanes_trained(priv) && !(val & MDIO_AN_STAT1_COMPLETE) &&
+	if (!an_restart_reason &&
+	    mtip_are_all_lanes_trained(priv) && !(val & MDIO_AN_STAT1_COMPLETE) &&
 	    time_after(jiffies, priv->last_lt_done +
 		       msecs_to_jiffies(MTIP_LT_TIMEOUT_MS))) {
 		dev_err(dev, "AN did not complete after link training completed\n");
@@ -2198,19 +2301,7 @@ struct mtip_backplane *mtip_backplane_create(struct mdio_device *pcs_mdiodev,
 	priv->serdes = serdes;
 	priv->model = model;
 	priv->bus = bus;
-	priv->cfg_link_mode = cfg_link_mode;
-
-	switch (model) {
-	case MTIP_MODEL_LX2160A:
-		priv->an_regs = mtip_lx2160a_an_regs;
-		priv->lt_regs = mtip_lx2160a_lt_regs;
-		priv->lt_mmd = MDIO_MMD_AN;
-		break;
-	default:
-		priv->an_regs = mtip_an_regs;
-		priv->lt_regs = mtip_lt_regs;
-		priv->lt_mmd = MDIO_MMD_PMAPMD;
-	}
+	mtip_update_cfg_link_mode(priv, cfg_link_mode);
 
 	err = mtip_detect(priv);
 	if (err)

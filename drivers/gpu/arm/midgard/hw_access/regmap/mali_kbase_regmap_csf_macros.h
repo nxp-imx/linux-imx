@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -184,6 +184,7 @@
  * Begin MMU MEMATTR register values
  */
 #define AS_MEMATTR_ATTRIBUTE0_MEMORY_TYPE_SHARED 0x0
+
 
 /* CSF_CONFIG register */
 #define CSF_CONFIG_FORCE_COHERENCY_FEATURES_SHIFT 2

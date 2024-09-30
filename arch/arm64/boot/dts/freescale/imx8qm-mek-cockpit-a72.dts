@@ -1831,8 +1831,10 @@
 	      <0x592f0000 0x10000>; /* sai1 tx */
 	dma-channels = <2>;
 	interrupts = <GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
-		<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>;
-	interrupt-names = "edma2-chan14-rx", "edma2-chan15-tx"; /* sai1 */
+		     <GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 369 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "edma2-chan14-rx", "edma2-chan15-tx", /* sai1 */
+			  "edma2-err"; /* err */
 	power-domains = <&pd IMX_SC_R_DMA_2_CH14>,
 		<&pd IMX_SC_R_DMA_2_CH15>;
 	power-domain-names = "edma2-chan14", "edma2-chan15";
@@ -1843,11 +1845,14 @@
 	reg = <0x5a1f0000 0x10000>, /* mp */
 	      <0x5a300000 0x10000>, /* channel16 UART2 rx */
 	      <0x5a310000 0x10000>; /* channel17 UART2 tx */
+
 	#dma-cells = <3>;
 	dma-channels = <2>;
 	interrupts = <GIC_SPI 438 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 439 IRQ_TYPE_LEVEL_HIGH>;
-	interrupt-names = "edma0-chan16-rx", "edma0-chan17-tx";
+		     <GIC_SPI 439 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "edma0-chan16-rx", "edma0-chan17-tx",
+			  "edma0-err";
 	power-domains = <&pd IMX_SC_R_DMA_0_CH16>,
 			<&pd IMX_SC_R_DMA_0_CH17>;
 	power-domain-names = "edma0-chan16", "edma0-chan17";

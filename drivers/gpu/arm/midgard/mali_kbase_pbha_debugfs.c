@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -50,8 +50,8 @@ static int int_id_overrides_show(struct seq_file *sfile, void *data)
 #endif /* MALI_USE_CSF */
 
 		for (j = 0; j < sizeof(u32); ++j) {
-			u8 r_val;
-			u8 w_val;
+			u8 r_val = 0;
+			u8 w_val = 0;
 
 			switch (j) {
 			case 0:
@@ -84,24 +84,32 @@ static ssize_t int_id_overrides_write(struct file *file, const char __user *ubuf
 {
 	struct seq_file *sfile = file->private_data;
 	struct kbase_device *kbdev = sfile->private;
-	char raw_str[128];
+	char *raw_str = NULL;
 	unsigned int id;
 	unsigned int r_val;
 	unsigned int w_val;
 
 	CSTD_UNUSED(ppos);
 
-	if (count >= sizeof(raw_str))
-		return -E2BIG;
-	if (copy_from_user(raw_str, ubuf, count))
+	raw_str = kvmalloc(count + 1, GFP_KERNEL);
+	if (!raw_str)
+		return -ENOMEM;
+
+	if (copy_from_user(raw_str, ubuf, count)) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 	raw_str[count] = '\0';
 
-	if (sscanf(raw_str, "%u %x %x", &id, &r_val, &w_val) != 3)
+	if (sscanf(raw_str, "%u %x %x", &id, &r_val, &w_val) != 3) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 
-	if (kbase_pbha_record_settings(kbdev, true, id, r_val, w_val))
+	if (kbase_pbha_record_settings(kbdev, true, id, r_val, w_val)) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 
 	/* This is a debugfs config write, so reset GPU such that changes take effect ASAP */
 	kbase_pm_context_active(kbdev);
@@ -111,6 +119,8 @@ static ssize_t int_id_overrides_write(struct file *file, const char __user *ubuf
 	}
 
 	kbase_pm_context_idle(kbdev);
+
+	kvfree(raw_str);
 
 	return (ssize_t)count;
 }
@@ -167,24 +177,32 @@ static ssize_t propagate_bits_write(struct file *file, const char __user *ubuf, 
 	struct seq_file *sfile = file->private_data;
 	struct kbase_device *kbdev = sfile->private;
 	/* 32 characters should be enough for the input string in any base */
-	char raw_str[32];
+	char *raw_str = NULL;
 	unsigned long propagate_bits;
 
 	CSTD_UNUSED(ppos);
 
-	if (count >= sizeof(raw_str))
-		return -E2BIG;
-	if (copy_from_user(raw_str, ubuf, count))
+	raw_str = kvmalloc(count + 1, GFP_KERNEL);
+	if (!raw_str)
+		return -ENOMEM;
+
+	if (copy_from_user(raw_str, ubuf, count)) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 	raw_str[count] = '\0';
-	if (kstrtoul(raw_str, 0, &propagate_bits))
+	if (kstrtoul(raw_str, 0, &propagate_bits)) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 
 	/* Check propagate_bits input argument does not
 	 * exceed the maximum size of the propagate_bits mask.
 	 */
-	if (propagate_bits > (L2_CONFIG_PBHA_HWU_MASK >> L2_CONFIG_PBHA_HWU_SHIFT))
+	if (propagate_bits > (L2_CONFIG_PBHA_HWU_MASK >> L2_CONFIG_PBHA_HWU_SHIFT)) {
+		kvfree(raw_str);
 		return -EINVAL;
+	}
 	/* Cast to u8 is safe as check is done already to ensure size is within
 	 * correct limits.
 	 */
@@ -196,6 +214,7 @@ static ssize_t propagate_bits_write(struct file *file, const char __user *ubuf, 
 		kbase_reset_gpu_wait(kbdev);
 	}
 
+	kvfree(raw_str);
 	return (ssize_t)count;
 }
 
@@ -234,7 +253,7 @@ void kbase_pbha_debugfs_init(struct kbase_device *kbdev)
 		debugfs_create_file("int_id_overrides", mode, debugfs_pbha_dir, kbdev,
 				    &pbha_int_id_overrides_fops);
 #if MALI_USE_CSF
-		if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PBHA_HWU))
+		if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_PBHA_HWU))
 			debugfs_create_file("propagate_bits", mode, debugfs_pbha_dir, kbdev,
 					    &pbha_propagate_bits_fops);
 #endif /* MALI_USE_CSF */

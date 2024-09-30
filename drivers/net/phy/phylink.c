@@ -1258,8 +1258,15 @@ static void phylink_major_config(struct phylink *pl, bool restart,
 	if (pl->pcs)
 		phylink_pcs_post_config(pl->pcs, state->interface);
 
-	if (pl->pcs_state == PCS_STATE_STARTING || pcs_changed)
-		phylink_pcs_enable(pl->pcs);
+	if (pl->pcs_state == PCS_STATE_STARTING || pcs_changed) {
+		err = phylink_pcs_enable(pl->pcs);
+		if (err < 0) {
+			phylink_err(pl, "pcs_enable() failed: %pe\n",
+				    ERR_PTR(err));
+			pl->pcs = NULL;
+			return;
+		}
+	}
 
 	neg_mode = pl->cur_link_an_mode;
 	if (pl->pcs && pl->pcs->neg_mode)
@@ -2300,6 +2307,7 @@ void phylink_stop(struct phylink *pl)
 	pl->pcs_state = PCS_STATE_DOWN;
 
 	phylink_pcs_disable(pl->pcs);
+	pl->pcs = NULL;
 }
 EXPORT_SYMBOL_GPL(phylink_stop);
 

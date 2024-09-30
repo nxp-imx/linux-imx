@@ -28,8 +28,7 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
-	num = scnprintf(str, sizeof(str),
-			"%s : product 0x%x, fw_version %d.%d.%d(r%d), hw_version 0x%x\n",
+	num = scnprintf(str, sizeof(str), "%s : product 0x%x, fw_ver %d.%d.%d(r%d), hw_ver 0x%x\n",
 			dev_name(inst->dev->dev), inst->dev->product_code,
 			(inst->dev->fw_version >> 24) & 0xFF,
 			(inst->dev->fw_version >> 16) & 0xFF,
@@ -38,8 +37,9 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
-	num = scnprintf(str, sizeof(str), "state = %s\n",
-			wave6_vpu_instance_state_name(inst->state));
+	num = scnprintf(str, sizeof(str), "state = %s, pause request %d\n",
+			wave6_vpu_instance_state_name(inst->state),
+			inst->dev->pause_request);
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -70,6 +70,14 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 			inst->dst_fmt.width,
 			inst->dst_fmt.height,
 			vq->last_buffer_dequeued);
+	if (seq_write(s, str, num))
+		return 0;
+
+	num = scnprintf(str, sizeof(str),
+			"capture queued %d, consumed %d, used %d\n",
+			v4l2_m2m_num_dst_bufs_ready(inst->v4l2_fh.m2m_ctx),
+			wave6_vpu_get_consumed_fb_num(inst),
+			wave6_vpu_get_used_fb_num(inst));
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -150,7 +158,8 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 		if (seq_write(s, str, num))
 			return 0;
 	} else {
-		struct enc_wave_param *param = &inst->enc_param;
+		struct enc_info *p_enc_info = &inst->codec_info->enc_info;
+		struct enc_wave_param *param = &p_enc_info->open_param.wave_param;
 
 		num = scnprintf(str, sizeof(str), "profile %d, level %d, tier %d\n",
 				param->profile, param->level, param->tier);
@@ -164,7 +173,7 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 
 		num = scnprintf(str, sizeof(str), "rc %d, mode %d, bitrate %d\n",
 				param->en_rate_control,
-				inst->rc_mode,
+				param->rc_mode,
 				param->enc_bit_rate);
 		if (seq_write(s, str, num))
 			return 0;

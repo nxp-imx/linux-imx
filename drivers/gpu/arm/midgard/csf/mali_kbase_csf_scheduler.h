@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -235,7 +235,8 @@ void kbase_csf_scheduler_early_term(struct kbase_device *kbdev);
  * No explicit re-initialization is done for CSG & CS interface I/O pages;
  * instead, that happens implicitly on firmware reload.
  *
- * Should be called only after initiating the GPU reset.
+ * Should be called either after initiating the GPU reset or when MCU reset is
+ * expected to follow such as GPU_LOST case.
  */
 void kbase_csf_scheduler_reset(struct kbase_device *kbdev);
 
@@ -488,6 +489,48 @@ static inline bool kbase_csf_scheduler_all_csgs_idle(struct kbase_device *kbdev)
 }
 
 /**
+ * kbase_csf_scheduler_enqueue_sync_update_work() - Add a context to the list
+ *                                                  of contexts to handle
+ *                                                  SYNC_UPDATE events.
+ *
+ * @kctx: The context to handle SYNC_UPDATE event
+ *
+ * This function wakes up kbase_csf_scheduler_kthread() to handle pending
+ * SYNC_UPDATE events for all contexts.
+ */
+void kbase_csf_scheduler_enqueue_sync_update_work(struct kbase_context *kctx);
+
+/**
+ * kbase_csf_scheduler_enqueue_protm_event_work() - Add a group to the list
+ *                                                  of groups to handle
+ *                                                  PROTM requests.
+ *
+ * @group: The group to handle protected mode request
+ *
+ * This function wakes up kbase_csf_scheduler_kthread() to handle pending
+ * protected mode requests for all groups.
+ */
+void kbase_csf_scheduler_enqueue_protm_event_work(struct kbase_queue_group *group);
+
+/**
+ * kbase_csf_scheduler_enqueue_kcpuq_work() - Wake up kbase_csf_scheduler_kthread() to process
+ *                                            pending commands for a KCPU queue.
+ *
+ * @queue: The queue to process pending commands for
+ */
+void kbase_csf_scheduler_enqueue_kcpuq_work(struct kbase_kcpu_command_queue *queue);
+
+/**
+ * kbase_csf_scheduler_wait_for_kthread_pending_work - Wait until a pending work has completed in
+ *                                                     kbase_csf_scheduler_kthread().
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface
+ * @pending: The work to wait for
+ */
+void kbase_csf_scheduler_wait_for_kthread_pending_work(struct kbase_device *kbdev,
+						       atomic_t *pending);
+
+/**
  * kbase_csf_scheduler_invoke_tick() - Invoke the scheduling tick
  *
  * @kbdev: Pointer to the device
@@ -591,11 +634,8 @@ int kbase_csf_scheduler_handle_runtime_suspend(struct kbase_device *kbdev);
  * @kbdev: Pointer to the device
  *
  * This function is called when a GPU idle IRQ has been raised.
- *
- * Return: true if the PM state machine needs to be invoked after the processing
- *         of GPU idle irq, otherwise false.
  */
-bool kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev);
+void kbase_csf_scheduler_process_gpu_idle_event(struct kbase_device *kbdev);
 
 /**
  * kbase_csf_scheduler_get_nr_active_csgs() - Get the number of active CSGs
@@ -652,5 +692,7 @@ void kbase_csf_scheduler_force_wakeup(struct kbase_device *kbdev);
  */
 void kbase_csf_scheduler_force_sleep(struct kbase_device *kbdev);
 #endif
+
+bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev);
 
 #endif /* _KBASE_CSF_SCHEDULER_H_ */

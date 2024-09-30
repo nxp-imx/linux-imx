@@ -56,6 +56,18 @@ enum max96724_gmsl_speed {
 	MAX96724_GMSL_6G		= 2,
 };
 
+
+enum max96724_i2c_speed {
+	MAX96724_I2C_BPS_9920,
+	MAX96724_I2C_BPS_33200,
+	MAX96724_I2C_BPS_99200,
+	MAX96724_I2C_BPS_123000,
+	MAX96724_I2C_BPS_203000,
+	MAX96724_I2C_BPS_397000,
+	MAX96724_I2C_BPS_625000,
+	MAX96724_I2C_BPS_980000,
+};
+
 struct max96724_source {
 	struct v4l2_subdev *sd;
 	struct fwnode_handle *fwnode;
@@ -521,7 +533,7 @@ static int max96724_parse_dt(struct max96724_priv *priv)
 	return 0;
 }
 
-static unsigned int max96724_reset_gmsl_links(struct max96724_priv *priv)
+static unsigned int max96724_check_gmsl_links(struct max96724_priv *priv)
 {
 	unsigned int locked_links_mask = 0;
 	unsigned int links_mask = priv->gmsl_link_mask;
@@ -535,9 +547,6 @@ static unsigned int max96724_reset_gmsl_links(struct max96724_priv *priv)
 
 	regmap_update_bits(priv->rmap, MAX96724_DEV_REG6,
 			   LINK_EN_A | LINK_EN_B | LINK_EN_C | LINK_EN_D,
-			   priv->gmsl_link_mask);
-	regmap_update_bits(priv->rmap, MAX96724_TOP_CTRL_CTRL1,
-			   RESET_ONESHOT_A | RESET_ONESHOT_B | RESET_ONESHOT_C | RESET_ONESHOT_D,
 			   priv->gmsl_link_mask);
 
 	timeout = jiffies + msecs_to_jiffies(100);
@@ -568,13 +577,32 @@ static int max96724_chip_init(struct max96724_priv *priv)
 {
 	unsigned int locked_links;
 	struct device *dev = &priv->client->dev;
+	int i, retries = 3;
+
+	while (retries--) {
+		locked_links = max96724_check_gmsl_links(priv);
+		if (locked_links == priv->gmsl_link_mask)
+			break;
+
+		regmap_write(priv->rmap, MAX96724_TOP_CTRL_PWR1, RESET_ALL);
+		usleep_range(2000, 2500);
+	}
+
+	if (locked_links == 0) {
+		dev_err(dev, "No GMSL link has locked after 3 retries. Abort!\n");
+		return -ENODEV;
+	}
+
+	dev_info(dev, "GMSL link mask: configured = 0x%x, locked = 0x%x\n",
+		 priv->gmsl_link_mask, locked_links);
+
+	/* Disable links that didn't lock. Perhaps user didn't connect all sensors. */
+	regmap_update_bits(priv->rmap, MAX96724_DEV_REG6,
+			   LINK_EN_A | LINK_EN_B | LINK_EN_C | LINK_EN_D,
+			   locked_links);
 
 	/* Disable remote control channel on all links. */
 	regmap_write(priv->rmap, MAX96724_DEV_REG3, 0xff);
-
-	/* Disable all GMSL links. We'll enable only the ones we need later. */
-	regmap_update_bits(priv->rmap, MAX96724_DEV_REG6,
-			   LINK_EN_A | LINK_EN_B | LINK_EN_C | LINK_EN_D, 0);
 
 	/* Disable all video pipes access. */
 	regmap_write(priv->rmap, MAX96724_DEV_REG4, 0);
@@ -588,14 +616,10 @@ static int max96724_chip_init(struct max96724_priv *priv)
 	/* Disable all video pipes */
 	regmap_write(priv->rmap, MAX96724_VIDEO_PIPE_SEL_VIDEO_PIPE_EN, 0);
 
-	locked_links = max96724_reset_gmsl_links(priv);
-	if (locked_links == 0) {
-		dev_err(dev, "No GMSL link has locked. Abort!\n");
-		return -ENODEV;
-	}
-
-	dev_info(dev, "GMSL link mask: configured = 0x%x, locked = 0x%x\n",
-		 priv->gmsl_link_mask, locked_links);
+	/* Set I2C speed on al GMSL ports to 980kbps */
+	for (i = 0; i < 4; i++)
+		regmap_update_bits(priv->rmap, MAX96724_CC_G2P0_I2C_1(i), MST_BT_P0_A_MASK,
+				   MAX96724_I2C_BPS_980000 << MST_BT_P0_A_SHIFT);
 
 	priv->gmsl_link_mask = locked_links;
 	priv->gmsl_links_used = hweight8(locked_links);

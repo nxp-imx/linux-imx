@@ -140,6 +140,7 @@
 #define INTERVAL_READ_REG_RESUME	50  /* unit:ms */
 #define TIMEOUT_READ_REG			1000 /* unit:ms */
 #define FTS_READY_MS				10
+#define FTS_RESET_MS				200
 #define kfree_safe(pbuf) do {\
 	kfree(pbuf);\
 	pbuf = NULL;\
@@ -172,7 +173,6 @@ struct ts_ic_info {
 struct fts_ts_platform_data {
 	u32 irq_gpio;
 	u32 irq_gpio_flags;
-	u32 reset_gpio;
 	u32 key_number;
 	u32 keys[FTS_MAX_KEYS];
 	u32 key_y_coords[FTS_MAX_KEYS];
@@ -182,6 +182,7 @@ struct fts_ts_platform_data {
 	u32 x_min;
 	u32 y_min;
 	u32 max_touch_number;
+	struct gpio_desc *reset_gpio;
 };
 
 struct ts_event {

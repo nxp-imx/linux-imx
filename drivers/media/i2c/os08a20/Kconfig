@@ -1,9 +1,0 @@
-config VIDEO_OS08A20
-	tristate "OmniVision OS08A20 sensor support"
-	depends on OF
-	depends on GPIOLIB && VIDEO_V4L2_I2C && VIDEO_V4L2_SUBDEV_API
-	depends on MEDIA_CAMERA_SUPPORT
-	select V4L2_FWNODE
-	help
-	  This is a Video4Linux2 sensor driver for the Omnivision
-	  OS08A20 camera sensor with a MIPI CSI-2 interface.

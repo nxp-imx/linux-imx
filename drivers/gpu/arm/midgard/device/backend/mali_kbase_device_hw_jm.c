@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,6 +27,14 @@
 #include <device/mali_kbase_device.h>
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
+
+bool kbase_is_gpu_removed(struct kbase_device *kbdev)
+{
+	if (!kbase_has_arbiter(kbdev))
+		return false;
+
+	return (KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(GPU_ID)) == 0);
+}
 
 /**
  * kbase_report_gpu_fault - Report a GPU fault.
@@ -95,7 +103,7 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		 * cores.
 		 */
 		if (kbdev->pm.backend.l2_always_on ||
-		    kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TTRX_921))
+		    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TTRX_921))
 			kbase_pm_power_changed(kbdev);
 	}
 

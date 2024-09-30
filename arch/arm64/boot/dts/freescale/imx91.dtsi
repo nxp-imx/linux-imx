@@ -1230,7 +1230,7 @@
 							  <&clk IMX91_CLK_MEDIA_APB>;
 					assigned-clock-parents = <&clk IMX91_CLK_SYS_PLL_PFD1>,
 								 <&clk IMX91_CLK_SYS_PLL_PFD1_DIV2>;
-					assigned-clock-rates = <400000000>, <133333333>;
+					assigned-clock-rates = <200000000>, <133333333>;
 					interface = <2 0 2>;
 					no-reset-control;
 					power-domains = <&media_blk_ctrl IMX91_MEDIABLK_PD_ISI>;
@@ -1325,12 +1325,12 @@
 				reg = <0xc0 0x10>;
 			};
 
-			tmu_trim1: mac-address@28 {
-				reg = <0x28 0x4>;
+			tmu_trim1: tmu-trim@a0 {
+				reg = <0xa0 0x4>;
 			};
 
-			tmu_trim2: mac-address@29 {
-				reg = <0x29 0x4>;
+			tmu_trim2: tmu-trim@a4 {
+				reg = <0xa4 0x4>;
 			};
 
 			eth_mac1: mac-address@4ec {

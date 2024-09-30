@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -41,11 +41,12 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_GATOR_SUPPORT ?= y
         CONFIG_MALI_ARBITRATION ?= n
         CONFIG_MALI_PARTITION_MANAGER ?= n
-        CONFIG_MALI_64BIT_HW_ACCESS ?= n
+
 
         ifneq ($(CONFIG_MALI_NO_MALI),y)
-            # Prevent misuse when CONFIG_MALI_NO_MALI=y
+            # Prevent misuse when CONFIG_MALI_NO_MALI!=y
             CONFIG_MALI_REAL_HW ?= y
+        else
             CONFIG_MALI_CORESIGHT = n
         endif
 
@@ -76,7 +77,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
             else
                 # Prevent misuse when CONFIG_MALI_NO_MALI=n
                 CONFIG_MALI_REAL_HW = y
-                CONFIG_MALI_ERROR_INJECT = n
             endif
 
 
@@ -108,7 +108,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
             CONFIG_MALI_JOB_DUMP = n
             CONFIG_MALI_NO_MALI = n
             CONFIG_MALI_REAL_HW = y
-            CONFIG_MALI_ERROR_INJECT = n
             CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED = n
             CONFIG_MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE = n
             CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS = n
@@ -157,7 +156,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_MIDGARD \
         CONFIG_MALI_CSF_SUPPORT \
         CONFIG_MALI_GATOR_SUPPORT \
-        CONFIG_MALI_ARBITER_SUPPORT \
         CONFIG_MALI_ARBITRATION \
         CONFIG_MALI_PARTITION_MANAGER \
         CONFIG_MALI_REAL_HW \
@@ -171,7 +169,7 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_PWRSOFT_765 \
         CONFIG_MALI_JOB_DUMP \
         CONFIG_MALI_NO_MALI \
-        CONFIG_MALI_ERROR_INJECT \
+        CONFIG_MALI_IS_FPGA \
         CONFIG_MALI_HW_ERRATA_1485982_NOT_AFFECTED \
         CONFIG_MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE \
         CONFIG_MALI_PRFCNT_SET_PRIMARY \
@@ -272,6 +270,8 @@ CFLAGS_MODULE += -Wmissing-field-initializers
 CFLAGS_MODULE += -Wno-type-limits
 CFLAGS_MODULE += $(call cc-option, -Wmaybe-uninitialized)
 CFLAGS_MODULE += $(call cc-option, -Wunused-macros)
+# The following ensures the stack frame does not get larger than a page
+CFLAGS_MODULE += -Wframe-larger-than=4096
 
 KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN2
 

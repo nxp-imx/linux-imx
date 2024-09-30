@@ -381,7 +381,8 @@ audio_subsys: bus@59000000 {
 				<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>, /* sai2 */
 				<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>, /* sai3 */
 				<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>;
+				<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 369 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "edma0-chan0-rx", "edma0-chan1-rx", /* asrc0 */
 				"edma0-chan2-rx", "edma0-chan3-tx",
 				"edma0-chan4-tx", "edma0-chan5-tx",
@@ -391,7 +392,8 @@ audio_subsys: bus@59000000 {
 				"edma0-chan14-rx", "edma0-chan15-tx", /* sai1 */
 				"edma0-chan16-rx", "edma0-chan17-rx", /* sai2, sai3 */
 				"edma0-chan21-tx",              /* gpt5 */
-				"edma0-chan23-rx";              /* gpt7 */
+				"edma0-chan23-rx",              /* gpt7 */
+				"edma0-err";                    /* err */
 		power-domains = <&pd IMX_SC_R_DMA_0_CH0>,
 				<&pd IMX_SC_R_DMA_0_CH1>,
 				<&pd IMX_SC_R_DMA_0_CH2>,
@@ -445,12 +447,14 @@ audio_subsys: bus@59000000 {
 				<GIC_SPI 387 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 330 IRQ_TYPE_LEVEL_HIGH>, /* sai4 */
 				<GIC_SPI 330 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>; /* sai5 */
+				<GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>, /* sai5 */
+				<GIC_SPI 371 IRQ_TYPE_LEVEL_HIGH>; /* err */
 		interrupt-names = "edma1-chan0-rx", "edma1-chan1-rx", /* asrc1 */
 				"edma1-chan2-rx", "edma1-chan3-tx",
 				"edma1-chan4-tx", "edma1-chan5-tx",
 				"edma1-chan8-rx", "edma1-chan9-tx", /* sai4 */
-				"edma1-chan10-tx";                 /* sai5 */
+				"edma1-chan10-tx",                 /* sai5 */
+				"edma1-err";                       /* err */
 		power-domains = <&pd IMX_SC_R_DMA_1_CH0>,
 				<&pd IMX_SC_R_DMA_1_CH1>,
 				<&pd IMX_SC_R_DMA_1_CH2>,

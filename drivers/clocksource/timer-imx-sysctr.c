@@ -25,14 +25,46 @@
 
 #define SYS_CTR_CLK_DIV		0x3
 
+#define SYSCTRL_IMX95		BIT(0)
+
 static void __iomem *sys_ctr_base __ro_after_init;
 static u32 cmpcr __ro_after_init;
+static u32 sysctr_flag __ro_after_init;
 static u32 cntcv_hi = CNTCV_HI;
 static u32 cntcv_lo = CNTCV_LO;
+static struct timer_of to_sysctr;
+
+static inline bool sysctr_is_imx95(void)
+{
+	return sysctr_flag & SYSCTRL_IMX95 ? true : false;
+}
+
+static void sysctr_timer_read_write(void __iomem *addr, u32 mask, u32 val, int count)
+{
+	u32 i = 0;
+
+	while ((readl(addr) & mask) != val) {
+		writel(val, addr);
+		count--;
+		if (count <= 0) {
+			pr_err("%s:%x:%x write failed, retry: %u\n",
+			       __func__, (uint32_t)(addr - sys_ctr_base), val, i++);
+			count = 1000;
+		}
+	}
+}
 
 static void sysctr_timer_enable(bool enable)
 {
-	writel(enable ? cmpcr | SYS_CTR_EN : cmpcr, sys_ctr_base + CMPCR);
+	u32 val;
+
+	val = enable ? cmpcr | SYS_CTR_EN : cmpcr;
+	writel(val, sys_ctr_base + CMPCR);
+
+	if (!sysctr_is_imx95())
+		return;
+
+	sysctr_timer_read_write(sys_ctr_base + CMPCR, val, val, 1000);
 }
 
 static void sysctr_irq_acknowledge(void)
@@ -76,7 +108,18 @@ static int sysctr_set_next_event(unsigned long delta,
 	writel_relaxed(cmp_hi, sys_ctr_base + CMPCV_HI);
 	writel_relaxed(cmp_lo, sys_ctr_base + CMPCV_LO);
 
+	if (sysctr_is_imx95())
+		disable_irq_nosync(to_sysctr.clkevt.irq);
+
 	sysctr_timer_enable(true);
+
+	if (!sysctr_is_imx95())
+		return 0;
+
+	sysctr_timer_read_write(sys_ctr_base + CMPCV_HI, GENMASK(31, 0), cmp_hi, 1000);
+	sysctr_timer_read_write(sys_ctr_base + CMPCV_LO, GENMASK(31, 0), cmp_lo, 1000);
+
+	enable_irq(to_sysctr.clkevt.irq);
 
 	return 0;
 }
@@ -149,6 +192,7 @@ static int sysctr_timer_init(struct device_node *np)
 	if (of_device_is_compatible(np, "nxp,imx95-sysctr-timer")) {
 		cntcv_hi = CNTCV_HI_IMX95;
 		cntcv_lo = CNTCV_LO_IMX95;
+		sysctr_flag |= SYSCTRL_IMX95;
 	}
 
 	sys_ctr_base = timer_of_base(&to_sysctr);

@@ -42,8 +42,8 @@
 	reg_mt9m114_extclk: regulator-mt9m114-extclk {
 		compatible = "regulator-fixed";
 		regulator-name = "mt9m114-extclk";
-		startup-delay-us = <1000>;
-		off-on-delay-us  = <0>;
+		startup-delay-us = <10000>;
+		off-on-delay-us  = <200>;
 		gpio = <&pca9538 3 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
@@ -59,9 +59,10 @@
 	reg_mt9m114_ctrl_4t245: regulator-mt9m114-ctrl-4t245 {
 		compatible = "regulator-fixed";
 		regulator-name = "mt9m114-ctrl-4t245";
+		startup-delay-us = <10000>;
+		off-on-delay-us  = <200>;
 		gpio = <&pca9538 5 GPIO_ACTIVE_HIGH>;
 		enable-active-low;
-		regulator-always-on;
 	};
 
 	reg_mt9m114_ctrl_16t245: regulator-mt9m114-ctrl-16t245 {
@@ -160,6 +161,7 @@
 		AVDD-supply      = <&reg_mt9m114_avdd>;
 		DVDD-supply      = <&reg_mt9m114_dvdd>;
 		EXTCLK-supply    = <&reg_mt9m114_extclk>;
+		CTRL_4T245-supply = <&reg_mt9m114_ctrl_4t245>;
 		mclk             = <27000000>;
 		status = "okay";
 

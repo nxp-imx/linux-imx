@@ -22,9 +22,10 @@ int v2x_start_rng(struct device *dev)
 	int ret;
 	unsigned int status;
 
+	mutex_lock(&priv->mu_cmd_lock);
 	ret = imx_se_alloc_tx_rx_buf(priv);
 	if (ret)
-		return ret;
+		goto exit;
 
 	ret = plat_fill_cmd_msg_hdr(priv,
 				    (struct mu_hdr *)&priv->tx_msg->header,
@@ -63,6 +64,7 @@ int v2x_start_rng(struct device *dev)
 
 exit:
 	imx_se_free_tx_rx_buf(priv);
+	mutex_unlock(&priv->mu_cmd_lock);
 
 	return ret;
 }

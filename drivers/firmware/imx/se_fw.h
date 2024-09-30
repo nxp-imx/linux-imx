@@ -41,6 +41,7 @@ struct ele_imem_buf {
 	u8 *buf;
 	phys_addr_t phyaddr;
 	u32 size;
+	u32 state;
 };
 
 struct ele_buf_desc {
@@ -73,6 +74,7 @@ struct ele_mu_device_ctx {
 	wait_queue_head_t wq;
 	struct semaphore fops_lock;
 
+	bool signal_recvd;
 	u32 pending_hdr;
 	struct list_head pending_in;
 	struct list_head pending_out;
@@ -154,6 +156,7 @@ struct ele_mu_priv {
 	struct perf_time_frame time_frame;
 	struct imx_sc_ipc *ipc_scu;
 	u8 part_owner;
+	u8 *se_img_file_to_load;
 };
 
 uint32_t get_se_soc_id(struct device *dev);

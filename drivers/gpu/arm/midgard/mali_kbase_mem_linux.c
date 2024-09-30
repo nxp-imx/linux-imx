@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -46,6 +46,7 @@
 #include <mali_kbase_caps.h>
 #include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_reset_gpu.h>
+#include <linux/version_compat_defs.h>
 
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
      (KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
@@ -81,8 +82,6 @@
  */
 #define KBASE_MEM_ION_SYNC_WORKAROUND
 #endif
-
-#define IR_THRESHOLD_STEPS (256u)
 
 /*
  * fully_backed_gpf_memory - enable full physical backing of all grow-on-GPU-page-fault
@@ -294,7 +293,7 @@ void kbase_phy_alloc_mapping_put(struct kbase_context *kctx, struct kbase_vmap_s
 }
 
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
-					u64 extension, u64 *flags, u64 *gpu_va,
+					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info)
 {
 	struct kbase_va_region *reg;
@@ -319,9 +318,8 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	else
 		dev_dbg(dev, "Keeping requested GPU VA of 0x%llx\n", (unsigned long long)*gpu_va);
 
-	if (!kbase_check_alloc_flags(*flags)) {
-		dev_warn(dev, "%s called with bad flags (%llx)", __func__,
-			 (unsigned long long)*flags);
+	if (!kbase_check_alloc_flags(kctx, *flags)) {
+		dev_warn(dev, "%s called with bad flags (%llx)", __func__, *flags);
 		goto bad_flags;
 	}
 
@@ -333,6 +331,12 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		*flags &= ~(BASE_MEM_COHERENT_SYSTEM_REQUIRED | BASE_MEM_COHERENT_SYSTEM);
 	}
 #endif
+
+	/* Ensure GPU cached if CPU cached */
+	if ((*flags & BASE_MEM_CACHED_CPU) != 0) {
+		dev_warn_once(dev, "Clearing BASE_MEM_UNCACHED_GPU flag to avoid MMA violation\n");
+		*flags &= ~BASE_MEM_UNCACHED_GPU;
+	}
 
 	if ((*flags & BASE_MEM_UNCACHED_GPU) != 0 &&
 	    (*flags & BASE_MEM_COHERENT_SYSTEM_REQUIRED) != 0) {
@@ -405,17 +409,8 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		*flags &= ~BASE_MEM_CACHED_CPU;
 
 	if (*flags & BASE_MEM_GROW_ON_GPF) {
-		unsigned int const ir_threshold =
-			(unsigned int)atomic_read(&kctx->kbdev->memdev.ir_threshold);
-
-		reg->threshold_pages =
-			((va_pages * ir_threshold) + (IR_THRESHOLD_STEPS / 2)) / IR_THRESHOLD_STEPS;
-	} else
-		reg->threshold_pages = 0;
-
-	if (*flags & BASE_MEM_GROW_ON_GPF) {
-		/* kbase_check_alloc_sizes() already checks extension is valid for
-		 * assigning to reg->extension
+		/* kbase_check_alloc_sizes() already checks extension is valid for assigning to
+		 * reg->extension.
 		 */
 		reg->extension = extension;
 #if !MALI_USE_CSF
@@ -433,7 +428,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	}
 	reg->initial_commit = commit_pages;
 
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	if (reg->flags & KBASE_REG_PERMANENT_KERNEL_MAPPING) {
 		/* Permanent kernel mappings must happen as soon as
@@ -443,7 +438,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		 */
 		int err = kbase_phy_alloc_mapping_init(kctx, reg, va_pages, commit_pages);
 		if (err < 0) {
-			kbase_gpu_vm_unlock(kctx);
+			kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 			goto no_kern_mapping;
 		}
 	}
@@ -455,7 +450,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		/* Bind to a cookie */
 		if (bitmap_empty(kctx->cookies, BITS_PER_LONG)) {
 			dev_err(dev, "No cookies available for allocation!");
-			kbase_gpu_vm_unlock(kctx);
+			kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 			goto no_cookie;
 		}
 		/* return a cookie */
@@ -472,7 +467,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	} else /* we control the VA */ {
 		size_t align = 1;
 
-		if (kctx->kbdev->pagesize_2mb) {
+		if (kbase_is_large_pages_enabled()) {
 			/* If there's enough (> 33 bits) of GPU VA space, align to 2MB
 			* boundaries. The similar condition is used for mapping from
 			* the SAME_VA zone inside kbase_context_get_unmapped_area().
@@ -490,7 +485,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		}
 		if (kbase_gpu_mmap(kctx, reg, *gpu_va, va_pages, align, mmu_sync_info) != 0) {
 			dev_warn(dev, "Failed to map memory on GPU");
-			kbase_gpu_vm_unlock(kctx);
+			kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 			goto no_mmap;
 		}
 		/* return real GPU VA */
@@ -508,7 +503,7 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	}
 #endif /* MALI_JIT_PRESSURE_LIMIT_BASE */
 
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
 #if MALI_USE_CSF
 	if (*flags & BASE_MEM_FIXABLE)
@@ -596,9 +591,11 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			*out |= BASE_MEM_COHERENT_SYSTEM;
 		if (KBASE_REG_SHARE_IN & reg->flags)
 			*out |= BASE_MEM_COHERENT_LOCAL;
-		if (KBASE_REG_DONT_NEED & reg->flags)
-			*out |= BASE_MEM_DONT_NEED;
-		if (mali_kbase_supports_mem_grow_on_gpf(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_dont_need(kctx->api_version)) {
+			if (KBASE_REG_DONT_NEED & reg->flags)
+				*out |= BASE_MEM_DONT_NEED;
+		}
+		if (mali_kbase_supports_query_mem_grow_on_gpf(kctx->api_version)) {
 			/* Prior to this version, this was known about by
 			 * user-side but we did not return them. Returning
 			 * it caused certain clients that were not expecting
@@ -608,7 +605,7 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			if (KBASE_REG_PF_GROW & reg->flags)
 				*out |= BASE_MEM_GROW_ON_GPF;
 		}
-		if (mali_kbase_supports_mem_protected(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_protected(kctx->api_version)) {
 			/* Prior to this version, this was known about by
 			 * user-side but we did not return them. Returning
 			 * it caused certain clients that were not expecting
@@ -634,9 +631,30 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			else
 				*out |= BASE_MEM_FIXABLE;
 		}
-#endif
+#endif /* MALI_USE_CSF */
 		if (KBASE_REG_GPU_VA_SAME_4GB_PAGE & reg->flags)
 			*out |= BASE_MEM_GPU_VA_SAME_4GB_PAGE;
+		if (mali_kbase_supports_query_mem_import_sync_on_map_unmap(kctx->api_version)) {
+			if (reg->gpu_alloc->type == KBASE_MEM_TYPE_IMPORTED_UMM) {
+				if (reg->gpu_alloc->imported.umm.need_sync)
+					*out |= BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP;
+			}
+		}
+		if (mali_kbase_supports_query_mem_kernel_sync(kctx->api_version)) {
+			if (unlikely(reg->cpu_alloc != reg->gpu_alloc))
+				*out |= BASE_MEM_KERNEL_SYNC;
+		}
+		if (mali_kbase_supports_query_mem_same_va(kctx->api_version)) {
+			if (kbase_bits_to_zone(reg->flags) == SAME_VA_ZONE) {
+				/* Imported memory is an edge case, where declaring it SAME_VA
+				 * would be ambiguous.
+				 */
+				if (reg->gpu_alloc->type != KBASE_MEM_TYPE_IMPORTED_UMM &&
+				    reg->gpu_alloc->type != KBASE_MEM_TYPE_IMPORTED_USER_BUF) {
+					*out |= BASE_MEM_SAME_VA;
+				}
+			}
+		}
 
 		*out |= kbase_mem_group_id_set(reg->cpu_alloc->group_id);
 
@@ -667,7 +685,9 @@ out_unlock:
 static unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 							       struct shrink_control *sc)
 {
-	struct kbase_context *kctx = container_of(s, struct kbase_context, reclaim);
+	struct kbase_context *kctx =
+		KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct kbase_context, reclaim);
+
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
 
@@ -717,8 +737,15 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 	struct kbase_mem_phy_alloc *tmp;
 	unsigned long freed = 0;
 
-	kctx = container_of(s, struct kbase_context, reclaim);
+	kctx = KBASE_GET_KBASE_DATA_FROM_SHRINKER(s, struct kbase_context, reclaim);
 
+#if MALI_USE_CSF
+	if (!down_read_trylock(&kctx->kbdev->csf.mmu_sync_sem)) {
+		dev_warn(kctx->kbdev->dev,
+			 "Can't shrink GPU memory when P.Mode entrance is in progress");
+		return 0;
+	}
+#endif
 	mutex_lock(&kctx->jit_evict_lock);
 
 	list_for_each_entry_safe(alloc, tmp, &kctx->evict_list, evict_node) {
@@ -757,32 +784,36 @@ static unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s
 	}
 
 	mutex_unlock(&kctx->jit_evict_lock);
-
+#if MALI_USE_CSF
+	up_read(&kctx->kbdev->csf.mmu_sync_sem);
+#endif
 	return freed;
 }
 
 int kbase_mem_evictable_init(struct kbase_context *kctx)
 {
+	struct shrinker *reclaim;
+
 	INIT_LIST_HEAD(&kctx->evict_list);
 	mutex_init(&kctx->jit_evict_lock);
 
-	kctx->reclaim.count_objects = kbase_mem_evictable_reclaim_count_objects;
-	kctx->reclaim.scan_objects = kbase_mem_evictable_reclaim_scan_objects;
-	kctx->reclaim.seeks = DEFAULT_SEEKS;
-	/* Kernel versions prior to 3.1 :
-	 * struct shrinker does not define batch
-	 */
-#if KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE
-	register_shrinker(&kctx->reclaim);
-#else
-	register_shrinker(&kctx->reclaim, "mali-mem");
-#endif
+	reclaim = KBASE_INIT_RECLAIM(kctx, reclaim, "mali-mem");
+	if (!reclaim)
+		return -ENOMEM;
+	KBASE_SET_RECLAIM(kctx, reclaim, reclaim);
+
+	reclaim->count_objects = kbase_mem_evictable_reclaim_count_objects;
+	reclaim->scan_objects = kbase_mem_evictable_reclaim_scan_objects;
+	reclaim->seeks = DEFAULT_SEEKS;
+
+	KBASE_REGISTER_SHRINKER(reclaim, "mali-mem", kctx);
+
 	return 0;
 }
 
 void kbase_mem_evictable_deinit(struct kbase_context *kctx)
 {
-	unregister_shrinker(&kctx->reclaim);
+	KBASE_UNREGISTER_SHRINKER(kctx->reclaim);
 }
 
 /**
@@ -849,7 +880,7 @@ void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 	/* Indicate to page migration that the memory can be reclaimed by the shrinker.
 	 */
 	if (kbase_is_page_migration_enabled())
-		kbase_set_phy_alloc_page_status(gpu_alloc, NOT_MOVABLE);
+		kbase_set_phy_alloc_page_status(kctx, gpu_alloc, NOT_MOVABLE);
 
 	mutex_unlock(&kctx->jit_evict_lock);
 	kbase_mem_evictable_mark_reclaim(gpu_alloc);
@@ -907,7 +938,7 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
 			 * from.
 			 */
 			if (kbase_is_page_migration_enabled())
-				kbase_set_phy_alloc_page_status(gpu_alloc, ALLOCATED_MAPPED);
+				kbase_set_phy_alloc_page_status(kctx, gpu_alloc, ALLOCATED_MAPPED);
 		}
 	}
 
@@ -925,7 +956,8 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
  *
  * Return: 0 on success, error code otherwise.
  */
-static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx, unsigned int flags,
+static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx,
+					       base_mem_alloc_flags flags,
 					       struct kbase_va_region *reg)
 {
 	unsigned int real_flags = 0;
@@ -1008,7 +1040,7 @@ static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx, unsig
  *
  * Return: 0 on success, error code otherwise.
  */
-static int kbase_mem_flags_change_native(struct kbase_context *kctx, unsigned int flags,
+static int kbase_mem_flags_change_native(struct kbase_context *kctx, base_mem_alloc_flags flags,
 					 struct kbase_va_region *reg)
 {
 	bool kbase_reg_dont_need_flag = (KBASE_REG_DONT_NEED & reg->flags);
@@ -1040,8 +1072,8 @@ static int kbase_mem_flags_change_native(struct kbase_context *kctx, unsigned in
 	return ret;
 }
 
-int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned int flags,
-			   unsigned int mask)
+int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, base_mem_alloc_flags flags,
+			   base_mem_alloc_flags mask)
 {
 	struct kbase_va_region *reg;
 	int ret = -EINVAL;
@@ -1058,7 +1090,7 @@ int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned in
 
 	/* Lock down the context, and find the region */
 	down_write(kbase_mem_get_process_mmap_lock());
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	/* Validate the region */
 	reg = kbase_region_tracker_find_region_base_address(kctx, gpu_addr);
@@ -1110,7 +1142,7 @@ int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned in
 	}
 
 out_unlock:
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 	up_write(kbase_mem_get_process_mmap_lock());
 
 	return ret;
@@ -1118,8 +1150,8 @@ out_unlock:
 
 #define KBASE_MEM_IMPORT_HAVE_PAGES (1UL << BASE_MEM_FLAGS_NR_BITS)
 
-int kbase_mem_do_sync_imported(struct kbase_context *kctx, struct kbase_va_region *reg,
-			       enum kbase_sync_type sync_fn)
+int kbase_sync_imported_umm(struct kbase_context *kctx, struct kbase_va_region *reg,
+			    enum kbase_sync_type sync_fn)
 {
 	int ret = -EINVAL;
 	struct dma_buf __maybe_unused *dma_buf;
@@ -1314,7 +1346,7 @@ int kbase_mem_umm_map(struct kbase_context *kctx, struct kbase_va_region *reg)
 		if (IS_ENABLED(CONFIG_MALI_DMA_BUF_LEGACY_COMPAT) ||
 		    alloc->imported.umm.need_sync) {
 			if (!kbase_is_region_invalid_or_free(reg)) {
-				err = kbase_mem_do_sync_imported(kctx, reg, KBASE_SYNC_TO_DEVICE);
+				err = kbase_sync_imported_umm(kctx, reg, KBASE_SYNC_TO_DEVICE);
 				WARN_ON_ONCE(err);
 			}
 		}
@@ -1376,7 +1408,7 @@ void kbase_mem_umm_unmap(struct kbase_context *kctx, struct kbase_va_region *reg
 		if (IS_ENABLED(CONFIG_MALI_DMA_BUF_LEGACY_COMPAT) ||
 		    alloc->imported.umm.need_sync) {
 			if (!kbase_is_region_invalid_or_free(reg)) {
-				int err = kbase_mem_do_sync_imported(kctx, reg, KBASE_SYNC_TO_CPU);
+				int err = kbase_sync_imported_umm(kctx, reg, KBASE_SYNC_TO_CPU);
 				WARN_ON_ONCE(err);
 			}
 		}
@@ -1428,7 +1460,7 @@ static int get_umm_memory_group_id(struct kbase_context *kctx, struct dma_buf *d
  * object that wraps the dma-buf.
  */
 static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, int fd, u64 *va_pages,
-						  u64 *flags, u32 padding)
+						  base_mem_alloc_flags *flags, u32 padding)
 {
 	struct kbase_va_region *reg;
 	struct dma_buf *dma_buf;
@@ -1574,7 +1606,8 @@ u32 kbase_get_cache_line_alignment(struct kbase_device *kbdev)
 
 static struct kbase_va_region *kbase_mem_from_user_buffer(struct kbase_context *kctx,
 							  unsigned long address, unsigned long size,
-							  u64 *va_pages, u64 *flags)
+							  u64 *va_pages,
+							  base_mem_alloc_flags *flags)
 {
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone = CUSTOM_VA_ZONE;
@@ -1706,7 +1739,7 @@ bad_size:
 	return NULL;
 }
 
-u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride, u64 nents,
+u64 kbase_mem_alias(struct kbase_context *kctx, base_mem_alloc_flags *flags, u64 stride, u64 nents,
 		    struct base_mem_aliasing_info *ai, u64 *num_pages)
 {
 	struct kbase_va_region *reg;
@@ -1791,7 +1824,7 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride, u64 nent
 	if (!reg->gpu_alloc->imported.alias.aliased)
 		goto no_aliased_array;
 
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	/* validate and add src handles */
 	for (i = 0; i < nents; i++) {
@@ -1901,7 +1934,7 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride, u64 nent
 	reg->flags &= ~KBASE_REG_FREE;
 	reg->flags &= ~KBASE_REG_GROWABLE;
 
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
 	return gpu_va;
 
@@ -1912,7 +1945,7 @@ bad_handle:
 	 * them is handled by putting reg's allocs, so no rollback of those
 	 * actions is done here.
 	 */
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 no_aliased_array:
 invalid_flags:
 	kbase_mem_phy_alloc_put(reg->cpu_alloc);
@@ -1928,7 +1961,8 @@ bad_flags:
 }
 
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
-		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags)
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages,
+		     base_mem_alloc_flags *flags)
 {
 	struct kbase_va_region *reg;
 
@@ -2013,7 +2047,7 @@ int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 	if (!reg)
 		goto no_reg;
 
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	/* mmap needed to setup VA? */
 	if (*flags & (BASE_MEM_SAME_VA | BASE_MEM_NEED_MMAP)) {
@@ -2047,13 +2081,13 @@ int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 	/* clear out private flags */
 	*flags &= ((1UL << BASE_MEM_FLAGS_NR_BITS) - 1);
 
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
 	return 0;
 
 no_gpu_va:
 no_cookie:
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 	kbase_mem_phy_alloc_put(reg->cpu_alloc);
 	kbase_mem_phy_alloc_put(reg->gpu_alloc);
 	kfree(reg);
@@ -2093,7 +2127,7 @@ void kbase_mem_shrink_cpu_mapping(struct kbase_context *kctx, struct kbase_va_re
 		/* Nothing to do */
 		return;
 
-	unmap_mapping_range(kctx->kfile->filp->f_inode->i_mapping,
+	unmap_mapping_range(kctx->filp->f_inode->i_mapping,
 			    (loff_t)(gpu_va_start + new_pages) << PAGE_SHIFT,
 			    (loff_t)(old_pages - new_pages) << PAGE_SHIFT, 1);
 }
@@ -2139,7 +2173,7 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	}
 
 	down_write(kbase_mem_get_process_mmap_lock());
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	/* Validate the region */
 	reg = kbase_region_tracker_find_region_base_address(kctx, gpu_addr);
@@ -2247,7 +2281,7 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	}
 
 out_unlock:
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 	if (read_locked)
 		up_read(kbase_mem_get_process_mmap_lock());
 	else
@@ -2271,11 +2305,16 @@ int kbase_mem_shrink(struct kbase_context *const kctx, struct kbase_va_region *c
 		return -EINVAL;
 
 	old_pages = kbase_reg_current_backed_size(reg);
-	if (WARN_ON(old_pages < new_pages))
+	if (old_pages < new_pages) {
+		dev_warn(
+			kctx->kbdev->dev,
+			"Requested number of pages (%llu) is larger than the current number of pages (%llu)",
+			new_pages, old_pages);
 		return -EINVAL;
+	}
 
 	delta = old_pages - new_pages;
-	if (kctx->kbdev->pagesize_2mb) {
+	if (kbase_is_large_pages_enabled()) {
 		struct tagged_addr *start_free = reg->gpu_alloc->pages + new_pages;
 
 		/* Move the end of new commited range to a valid location.
@@ -2329,7 +2368,7 @@ static void kbase_cpu_vm_close(struct vm_area_struct *vma)
 	KBASE_DEBUG_ASSERT(map->kctx);
 	KBASE_DEBUG_ASSERT(map->alloc);
 
-	kbase_gpu_vm_lock(map->kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(map->kctx);
 
 	if (map->free_on_close) {
 		KBASE_DEBUG_ASSERT(kbase_bits_to_zone(map->region->flags) == SAME_VA_ZONE);
@@ -2343,10 +2382,9 @@ static void kbase_cpu_vm_close(struct vm_area_struct *vma)
 	list_del(&map->mappings_list);
 
 	kbase_va_region_alloc_put(map->kctx, map->region);
-	kbase_gpu_vm_unlock(map->kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(map->kctx);
 
 	kbase_mem_phy_alloc_put(map->alloc);
-	kbase_file_dec_cpu_mapping_count(map->kctx->kfile);
 	kfree(map);
 }
 
@@ -2546,7 +2584,6 @@ static int kbase_cpu_mmap(struct kbase_context *kctx, struct kbase_va_region *re
 		map->alloc->properties |= KBASE_MEM_PHY_ALLOC_ACCESSED_CACHED;
 
 	list_add(&map->mappings_list, &map->alloc->mappings);
-	kbase_file_inc_cpu_mapping_count(kctx->kfile);
 
 out:
 	return err;
@@ -2746,7 +2783,7 @@ int kbase_context_mmap(struct kbase_context *const kctx, struct vm_area_struct *
 		goto out;
 	}
 
-	kbase_gpu_vm_lock(kctx);
+	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
 	if (vma->vm_pgoff == PFN_DOWN(BASE_MEM_MAP_TRACKING_HANDLE)) {
 		/* The non-mapped tracking helper page */
@@ -2781,11 +2818,11 @@ int kbase_context_mmap(struct kbase_context *const kctx, struct vm_area_struct *
 #endif /* defined(CONFIG_MALI_VECTOR_DUMP) */
 #if MALI_USE_CSF
 	case PFN_DOWN(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE):
-		kbase_gpu_vm_unlock(kctx);
+		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 		err = kbase_csf_cpu_mmap_user_reg_page(kctx, vma);
 		goto out;
 	case PFN_DOWN(BASEP_MEM_CSF_USER_IO_PAGES_HANDLE)... PFN_DOWN(BASE_MEM_COOKIE_BASE) - 1: {
-		kbase_gpu_vm_unlock(kctx);
+		kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 		mutex_lock(&kctx->csf.lock);
 		err = kbase_csf_cpu_mmap_user_io_pages(kctx, vma);
 		mutex_unlock(&kctx->csf.lock);
@@ -2879,7 +2916,7 @@ int kbase_context_mmap(struct kbase_context *const kctx, struct vm_area_struct *
 	}
 #endif /* defined(CONFIG_MALI_VECTOR_DUMP) */
 out_unlock:
-	kbase_gpu_vm_unlock(kctx);
+	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 out:
 	if (err)
 		dev_err(dev, "mmap failed %d\n", err);
@@ -3064,7 +3101,7 @@ static int kbase_vmap_phy_pages(struct kbase_context *kctx, struct kbase_va_regi
 		return -ENOMEM;
 	}
 
-	if (reg->flags & KBASE_REG_DONT_NEED)
+	if (kbase_is_region_shrinkable(reg))
 		return -EINVAL;
 
 	prot = PAGE_KERNEL;
@@ -3273,25 +3310,6 @@ void kbasep_os_process_page_usage_update(struct kbase_context *kctx, int pages)
 #endif
 }
 
-static void kbase_special_vm_open(struct vm_area_struct *vma)
-{
-	struct kbase_context *kctx = vma->vm_private_data;
-
-	kbase_file_inc_cpu_mapping_count(kctx->kfile);
-}
-
-static void kbase_special_vm_close(struct vm_area_struct *vma)
-{
-	struct kbase_context *kctx = vma->vm_private_data;
-
-	kbase_file_dec_cpu_mapping_count(kctx->kfile);
-}
-
-static const struct vm_operations_struct kbase_vm_special_ops = {
-	.open = kbase_special_vm_open,
-	.close = kbase_special_vm_close,
-};
-
 static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_struct *vma)
 {
 	if (vma_pages(vma) != 1)
@@ -3300,10 +3318,7 @@ static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_
 	/* no real access */
 	vm_flags_clear(vma, VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
 	vm_flags_set(vma, VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
-	vma->vm_ops = &kbase_vm_special_ops;
-	vma->vm_private_data = kctx;
 
-	kbase_file_inc_cpu_mapping_count(kctx->kfile);
 	return 0;
 }
 
@@ -3364,7 +3379,6 @@ static void kbase_csf_user_io_pages_vm_close(struct vm_area_struct *vma)
 	struct kbase_device *kbdev;
 	int err;
 	bool reset_prevented = false;
-	struct kbase_file *kfile;
 
 	if (!queue) {
 		pr_debug("Close method called for the new User IO pages mapping vma\n");
@@ -3373,7 +3387,6 @@ static void kbase_csf_user_io_pages_vm_close(struct vm_area_struct *vma)
 
 	kctx = queue->kctx;
 	kbdev = kctx->kbdev;
-	kfile = kctx->kfile;
 
 	err = kbase_reset_gpu_prevent_and_wait(kbdev);
 	if (err)
@@ -3391,9 +3404,8 @@ static void kbase_csf_user_io_pages_vm_close(struct vm_area_struct *vma)
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
 
-	kbase_file_dec_cpu_mapping_count(kfile);
 	/* Now as the vma is closed, drop the reference on mali device file */
-	fput(kfile->filp);
+	fput(kctx->filp);
 }
 
 #if (KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE)
@@ -3543,7 +3555,6 @@ static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct v
 	/* Also adjust the vm_pgoff */
 	vma->vm_pgoff = queue->db_file_offset;
 
-	kbase_file_inc_cpu_mapping_count(kctx->kfile);
 	return 0;
 
 map_failed:
@@ -3583,7 +3594,6 @@ static void kbase_csf_user_reg_vm_close(struct vm_area_struct *vma)
 {
 	struct kbase_context *kctx = vma->vm_private_data;
 	struct kbase_device *kbdev;
-	struct kbase_file *kfile;
 
 	if (unlikely(!kctx)) {
 		pr_debug("Close function called for the unexpected mapping");
@@ -3591,7 +3601,6 @@ static void kbase_csf_user_reg_vm_close(struct vm_area_struct *vma)
 	}
 
 	kbdev = kctx->kbdev;
-	kfile = kctx->kfile;
 
 	if (unlikely(!kctx->csf.user_reg.vma))
 		dev_warn(kbdev->dev, "user_reg VMA pointer unexpectedly NULL for ctx %d_%d",
@@ -3603,9 +3612,8 @@ static void kbase_csf_user_reg_vm_close(struct vm_area_struct *vma)
 
 	kctx->csf.user_reg.vma = NULL;
 
-	kbase_file_dec_cpu_mapping_count(kfile);
 	/* Now as the VMA is closed, drop the reference on mali device file */
-	fput(kfile->filp);
+	fput(kctx->filp);
 }
 
 /**
@@ -3735,7 +3743,6 @@ static int kbase_csf_cpu_mmap_user_reg_page(struct kbase_context *kctx, struct v
 	vma->vm_ops = &kbase_csf_user_reg_vm_ops;
 	vma->vm_private_data = kctx;
 
-	kbase_file_inc_cpu_mapping_count(kctx->kfile);
 	return 0;
 }
 

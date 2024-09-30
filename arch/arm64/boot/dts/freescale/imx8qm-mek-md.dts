@@ -13,26 +13,6 @@
 	status = "okay";
 };
 
-&ldb2_phy {
-	status = "okay";
-};
-
-&ldb2 {
-	status = "okay";
-};
-
-&mipi0_dsi_host {
-	status = "okay";
-};
-
-&mipi1_dphy {
-	status = "okay";
-};
-
-&mipi1_dsi_host {
-	status = "okay";
-};
-
-&mipi1_dphy {
-	status = "okay";
+&adv_bridge0 {
+	status = "disabled";
 };

@@ -36,6 +36,7 @@
  */
 struct neoisp_meta_params_s neoisp_default_params = {
 	.features_cfg = {
+		.head_color_cfg = 1,
 		.hdr_decompress_input0_cfg = 1,
 		.hdr_decompress_input1_cfg = 1,
 		.obwb0_cfg = 1,
@@ -63,11 +64,11 @@ struct neoisp_meta_params_s neoisp_default_params = {
 		.drc_local_tonemap_cfg = 1,
 	},
 	.regs = {
-	.decompress_input0 = { .ctrl_enable = 1,
-		.knee_point1 = (1 << 16) - 1, /* default ibpp is 16 */
-		.knee_ratio0 = 1 << 4,
-		.knee_ratio4 = 1 << 4,
+	.head_color = {
+		.ctrl_hoffset = 0,
+		.ctrl_voffset = 0,
 	},
+	.decompress_input0 = { .ctrl_enable = 1	},
 	.decompress_input1 = { .ctrl_enable = 0 },
 	.obwb[0] = {
 		.ctrl_obpp = 3,
@@ -103,9 +104,21 @@ struct neoisp_meta_params_s neoisp_default_params = {
 		.b_ctrl_offset = 0,
 		},
 	.hdr_merge = { .ctrl_enable = 0, },
-	.rgbir = { .ctrl_enable = 0, },
+	.rgbir = { .ctrl_enable = 0,
+		.ccm0_ccm = 1 << 8,
+		.ccm1_ccm = 1 << 8,
+		.ccm2_ccm = 1 << 8,
+		.ccm0_th_threshold = 0xff000u, /* default reset value */
+		.ccm1_th_threshold = 0xff000u, /* default reset value */
+		.ccm2_th_threshold = 0xff000u, /* default reset value */
+	},
 	.stat = {},
-	.ir_compress = { .ctrl_enable = 0, },
+	.ir_compress = { .ctrl_enable = 0,
+		.ctrl_obpp = 0,
+		.knee_point1_kneepoint = (1 << 20) - 1,
+		.knee_ratio01_ratio0 = 8u,
+		.knee_ratio4_ratio4 = 8u,
+	},
 	.bnr = {
 		.ctrl_enable = 1,
 		.ctrl_debug = 0,
@@ -135,7 +148,7 @@ struct neoisp_meta_params_s neoisp_default_params = {
 		.cpeak_peak_sel = 0,
 		.cpeak_peak_low = 1 << 7,
 		.cpeak_peak_high = 1 << 8,
-		.cedge_th0_edge_th0 = 10,
+		.cedge_th0_edge_th0 = 20,
 		.cedge_scale_scale = 1 << 10,
 		.cedge_scale_shift = 10,
 		.cedges_th0_edge_th0 = 20,
@@ -146,12 +159,12 @@ struct neoisp_meta_params_s neoisp_default_params = {
 		.cedgea_scale_shift = 10,
 		.cluma_x_th0_th = 20,
 		.cluma_y_th_luma_y_th0 = 10,
-		.cluma_y_th_luma_y_th1 = 0,
+		.cluma_y_th_luma_y_th1 = 1 << 8,
 		.cluma_scale_scale = 1 << 10,
 		.cluma_scale_shift = 10,
 		.calpha_gain_gain = 1 << 8,
 		.calpha_gain_offset = 0,
-		.stretch_gain = 32 << 8,
+		.stretch_gain = 1 << 8,
 	},
 	.vignetting_ctrl = { .ctrl_enable = 0, },
 	.ctemp  = { .ctrl_enable = 0, },
@@ -224,6 +237,13 @@ static inline void ctx_blk_write(uint32_t field, __u32 *ptr, __u32 *dest)
 		return;
 	}
 	memcpy(&dest[woffset], ptr, wcount * sizeof(__u32));
+}
+
+static void neoisp_set_head_color(struct neoisp_reg_params_s *p, struct neoisp_dev_s *neoispd)
+{
+	regmap_field_write(neoispd->regs.fields[NEO_HC_CTRL_CAM0_IDX],
+			NEO_HC_CTRL_CAM0_HOFFSET_SET(p->head_color.ctrl_hoffset)
+			| NEO_HC_CTRL_CAM0_VOFFSET_SET(p->head_color.ctrl_voffset));
 }
 
 static void neoisp_set_hdr_decompress0(struct neoisp_reg_params_s *p, struct neoisp_dev_s *neoispd)
@@ -1037,6 +1057,8 @@ int neoisp_set_params(struct neoisp_dev_s *neoispd, struct neoisp_meta_params_s 
 	__u32 *mem = (__u32 *)neoispd->mmio_tcm;
 
 	/* update selected blocks wrt feature config flag */
+	if (force || p->features_cfg.head_color_cfg)
+		neoisp_set_head_color(&p->regs, neoispd);
 	if (force || p->features_cfg.hdr_decompress_input0_cfg)
 		neoisp_set_hdr_decompress0(&p->regs, neoispd);
 	if (force || p->features_cfg.hdr_decompress_input1_cfg)
@@ -1096,7 +1118,7 @@ int neoisp_set_params(struct neoisp_dev_s *neoispd, struct neoisp_meta_params_s 
  */
 int neoisp_program_ctx(struct neoisp_dev_s *neoispd, __u32 ctx_id)
 {
-	struct neoisp_meta_params_s *params = &neoispd->node_group[ctx_id].params[VB2_MAX_FRAME];
+	struct neoisp_meta_params_s *params = neoispd->node_group[ctx_id].params;
 
 	return neoisp_set_params(neoispd, params, true);
 }
@@ -1104,65 +1126,74 @@ int neoisp_program_ctx(struct neoisp_dev_s *neoispd, __u32 ctx_id)
 /*
  * neoisp_update_ctx is used to update parameters to a saved context with ctx_id index
  */
-int neoisp_update_ctx(struct neoisp_dev_s *neoispd, __u32 ctx_id, struct neoisp_meta_params_s *new)
+int neoisp_update_ctx(struct neoisp_dev_s *neoispd, __u32 ctx_id)
 {
-	struct neoisp_meta_params_s *par = &neoispd->node_group[ctx_id].params[VB2_MAX_FRAME];
+	struct neoisp_meta_params_s *new, *params = neoispd->node_group[ctx_id].params;
+	struct neoisp_buffer_s *buf = neoispd->queued_job.buf[NEOISP_PARAMS_NODE];
+
+	if (IS_ERR_OR_NULL(buf))
+		return 0; /* no params buffer provided */
+
+	new = (struct neoisp_meta_params_s *)vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
 
 	/* update selected blocks wrt feature config flag */
+	if (new->features_cfg.head_color_cfg)
+		memcpy(&params->regs.head_color, &new->regs.head_color,
+				sizeof(new->regs.head_color));
 	if (new->features_cfg.hdr_decompress_input0_cfg)
-		memcpy(&par->regs.decompress_input0, &new->regs.decompress_input0,
+		memcpy(&params->regs.decompress_input0, &new->regs.decompress_input0,
 				sizeof(new->regs.decompress_input0));
 	if (new->features_cfg.hdr_decompress_input1_cfg)
-		memcpy(&par->regs.decompress_input1, &new->regs.decompress_input1,
+		memcpy(&params->regs.decompress_input1, &new->regs.decompress_input1,
 				sizeof(new->regs.decompress_input1));
 	if (new->features_cfg.obwb0_cfg)
-		memcpy(&par->regs.obwb[0], &new->regs.obwb[0], sizeof(new->regs.obwb[0]));
+		memcpy(&params->regs.obwb[0], &new->regs.obwb[0], sizeof(new->regs.obwb[0]));
 	if (new->features_cfg.obwb1_cfg)
-		memcpy(&par->regs.obwb[1], &new->regs.obwb[1], sizeof(new->regs.obwb[1]));
+		memcpy(&params->regs.obwb[1], &new->regs.obwb[1], sizeof(new->regs.obwb[1]));
 	if (new->features_cfg.obwb2_cfg)
-		memcpy(&par->regs.obwb[2], &new->regs.obwb[2], sizeof(new->regs.obwb[2]));
+		memcpy(&params->regs.obwb[2], &new->regs.obwb[2], sizeof(new->regs.obwb[2]));
 	if (new->features_cfg.hdr_merge_cfg)
-		memcpy(&par->regs.hdr_merge, &new->regs.hdr_merge, sizeof(new->regs.hdr_merge));
+		memcpy(&params->regs.hdr_merge, &new->regs.hdr_merge, sizeof(new->regs.hdr_merge));
 	if (new->features_cfg.rgbir_cfg)
-		memcpy(&par->regs.rgbir, &new->regs.rgbir, sizeof(new->regs.rgbir));
+		memcpy(&params->regs.rgbir, &new->regs.rgbir, sizeof(new->regs.rgbir));
 	if (new->features_cfg.stat_cfg)
-		memcpy(&par->regs.stat, &new->regs.stat, sizeof(new->regs.stat));
+		memcpy(&params->regs.stat, &new->regs.stat, sizeof(new->regs.stat));
 	if (new->features_cfg.ir_compress_cfg)
-		memcpy(&par->regs.ir_compress, &new->regs.ir_compress,
+		memcpy(&params->regs.ir_compress, &new->regs.ir_compress,
 				sizeof(new->regs.ir_compress));
 	if (new->features_cfg.bnr_cfg)
-		memcpy(&par->regs.bnr, &new->regs.bnr, sizeof(new->regs.bnr));
+		memcpy(&params->regs.bnr, &new->regs.bnr, sizeof(new->regs.bnr));
 	if (new->features_cfg.vignetting_ctrl_cfg)
-		memcpy(&par->regs.vignetting_ctrl, &new->regs.vignetting_ctrl,
+		memcpy(&params->regs.vignetting_ctrl, &new->regs.vignetting_ctrl,
 				sizeof(new->regs.vignetting_ctrl));
 	if (new->features_cfg.ctemp_cfg)
-		memcpy(&par->regs.ctemp, &new->regs.ctemp, sizeof(new->regs.ctemp));
+		memcpy(&params->regs.ctemp, &new->regs.ctemp, sizeof(new->regs.ctemp));
 	if (new->features_cfg.demosaic_cfg)
-		memcpy(&par->regs.demosaic, &new->regs.demosaic, sizeof(new->regs.demosaic));
+		memcpy(&params->regs.demosaic, &new->regs.demosaic, sizeof(new->regs.demosaic));
 	if (new->features_cfg.rgb2yuv_cfg)
-		memcpy(&par->regs.rgb2yuv, &new->regs.rgb2yuv, sizeof(new->regs.rgb2yuv));
+		memcpy(&params->regs.rgb2yuv, &new->regs.rgb2yuv, sizeof(new->regs.rgb2yuv));
 	if (new->features_cfg.dr_comp_cfg)
-		memcpy(&par->regs.drc, &new->regs.drc, sizeof(new->regs.drc));
+		memcpy(&params->regs.drc, &new->regs.drc, sizeof(new->regs.drc));
 	if (new->features_cfg.nr_cfg)
-		memcpy(&par->regs.nrc, &new->regs.nrc, sizeof(new->regs.nrc));
+		memcpy(&params->regs.nrc, &new->regs.nrc, sizeof(new->regs.nrc));
 	if (new->features_cfg.af_cfg)
-		memcpy(&par->regs.afc, &new->regs.afc, sizeof(new->regs.afc));
+		memcpy(&params->regs.afc, &new->regs.afc, sizeof(new->regs.afc));
 	if (new->features_cfg.ee_cfg)
-		memcpy(&par->regs.eec, &new->regs.eec, sizeof(new->regs.eec));
+		memcpy(&params->regs.eec, &new->regs.eec, sizeof(new->regs.eec));
 	if (new->features_cfg.df_cfg)
-		memcpy(&par->regs.dfc, &new->regs.dfc, sizeof(new->regs.dfc));
+		memcpy(&params->regs.dfc, &new->regs.dfc, sizeof(new->regs.dfc));
 	if (new->features_cfg.convmed_cfg)
-		memcpy(&par->regs.convf, &new->regs.convf, sizeof(new->regs.convf));
+		memcpy(&params->regs.convf, &new->regs.convf, sizeof(new->regs.convf));
 	if (new->features_cfg.cas_cfg)
-		memcpy(&par->regs.cas, &new->regs.cas, sizeof(new->regs.cas));
+		memcpy(&params->regs.cas, &new->regs.cas, sizeof(new->regs.cas));
 	if (new->features_cfg.gcm_cfg)
-		memcpy(&par->regs.gcm, &new->regs.gcm, sizeof(new->regs.gcm));
+		memcpy(&params->regs.gcm, &new->regs.gcm, sizeof(new->regs.gcm));
 	if (new->features_cfg.vignetting_table_cfg)
-		memcpy(&par->mems.vt, &new->mems.vt, sizeof(new->mems.vt));
+		memcpy(&params->mems.vt, &new->mems.vt, sizeof(new->mems.vt));
 	if (new->features_cfg.drc_global_tonemap_cfg)
-		memcpy(&par->mems.gtm, &new->mems.gtm, sizeof(new->mems.gtm));
+		memcpy(&params->mems.gtm, &new->mems.gtm, sizeof(new->mems.gtm));
 	if (new->features_cfg.drc_local_tonemap_cfg)
-		memcpy(&par->mems.ltm, &new->mems.ltm, sizeof(new->mems.ltm));
+		memcpy(&params->mems.ltm, &new->mems.ltm, sizeof(new->mems.ltm));
 
 	return 0;
 }

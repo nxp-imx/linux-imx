@@ -168,6 +168,8 @@
   clk_notifier_unregister
   clk_prepare
   clk_put
+  clk_rate_exclusive_get
+  clk_rate_exclusive_put
   clk_round_rate
   clk_set_parent
   clk_set_rate
@@ -325,6 +327,18 @@
   device_wakeup_enable
   _dev_info
   dev_kfree_skb_any_reason
+  devl_assert_locked
+  devlink_alloc_ns
+  devlink_free
+  devlink_params_register
+  devlink_params_unregister
+  devlink_priv
+  devlink_register
+  devlink_unregister
+  devl_lock
+  devl_param_driverinit_value_get
+  devl_param_driverinit_value_set
+  devl_unlock
   __devm_add_action
   devm_alloc_etherdev_mqs
   __devm_alloc_percpu
@@ -393,6 +407,7 @@
   devm_mipi_dsi_attach
   devm_mipi_dsi_device_register_full
   devm_nvmem_device_get
+  devm_nvmem_device_put
   devm_nvmem_register
   devm_of_clk_add_hw_provider
   devm_of_iomap
@@ -445,6 +460,7 @@
   __devm_spi_alloc_controller
   devm_spi_mem_dirmap_create
   devm_spi_register_controller
+  devm_tegra_memory_controller_get
   devm_thermal_of_zone_register
   devm_usb_get_phy
   devm_usb_get_phy_by_phandle
@@ -453,9 +469,12 @@
   dev_open
   dev_pm_domain_attach_by_id
   dev_pm_domain_attach_by_name
+  dev_pm_domain_attach_list
   dev_pm_domain_detach
+  dev_pm_domain_detach_list
   dev_pm_genpd_add_notifier
   dev_pm_genpd_remove_notifier
+  dev_pm_genpd_set_performance_state
   dev_pm_opp_add_dynamic
   dev_pm_opp_clear_config
   dev_pm_opp_find_freq_ceil
@@ -582,6 +601,7 @@
   dpcm_end_walk_at_be
   dql_completed
   dql_reset
+  drain_workqueue
   driver_create_file
   driver_find_device
   driver_register
@@ -782,6 +802,7 @@
   drm_of_find_possible_crtcs
   drm_of_get_data_lanes_count
   drm_of_get_data_lanes_count_ep
+  drm_of_lvds_get_data_mapping
   drm_of_lvds_get_dual_link_pixel_order
   drm_open
   drm_panel_add
@@ -895,6 +916,8 @@
   free_pages_exact
   free_percpu
   free_percpu_irq
+  freezer_active
+  freezing_slow_path
   fwnode_device_is_available
   fwnode_get_named_child_node
   fwnode_get_next_available_child_node
@@ -1004,6 +1027,8 @@
   hdmi_avi_infoframe_pack
   hdmi_drm_infoframe_init
   hdmi_drm_infoframe_pack
+  hdmi_spd_infoframe_init
+  hdmi_spd_infoframe_pack
   hdmi_vendor_infoframe_pack
   hex_dump_to_buffer
   hrtimer_active
@@ -1505,6 +1530,7 @@
   of_get_child_by_name
   of_get_compatible_child
   of_get_display_timing
+  of_get_drm_panel_display_mode
   of_get_mac_address
   of_get_named_gpio
   of_get_next_available_child
@@ -1578,6 +1604,7 @@
   open_candev
   orderly_poweroff
   orderly_reboot
+  overflowuid
   page_pinner_inited
   __page_pinner_put_page
   page_pool_alloc_pages
@@ -1588,6 +1615,7 @@
   panic_notifier_list
   param_array_ops
   param_get_int
+  param_get_uint
   param_ops_bool
   param_ops_byte
   param_ops_charp
@@ -1597,6 +1625,7 @@
   param_ops_ullong
   param_ops_ulong
   param_ops_ushort
+  param_set_uint_minmax
   pci_alloc_irq_vectors
   pci_ats_supported
   pci_bus_type
@@ -1828,6 +1857,7 @@
   prepare_to_wait_event
   print_hex_dump
   _printk
+  priv_to_devlink
   proc_create_data
   proc_create_seq_private
   proc_create_single_data
@@ -1887,6 +1917,7 @@
   rdev_get_id
   reboot_mode
   refcount_warn_saturate
+  __refrigerator
   regcache_cache_bypass
   regcache_cache_only
   regcache_mark_dirty
@@ -1921,6 +1952,8 @@
   __regmap_init_mmio_clk
   regmap_irq_get_virq
   regmap_multi_reg_write
+  regmap_noinc_read
+  regmap_noinc_write
   regmap_raw_read
   regmap_raw_write
   regmap_read
@@ -1949,6 +1982,7 @@
   regulator_map_voltage_ascend
   regulator_put
   regulator_set_current_limit
+  regulator_set_load
   regulator_set_ramp_delay_regmap
   regulator_set_voltage
   regulator_set_voltage_sel_regmap
@@ -2354,6 +2388,8 @@
   __tasklet_schedule
   tasklet_setup
   tasklet_unlock_wait
+  tegra_mc_probe_device
+  tegra_sku_info
   thermal_cooling_device_unregister
   thermal_of_cooling_device_register
   thermal_zone_device_priv
@@ -2369,6 +2405,7 @@
   timer_delete_sync
   timer_of_init
   TKT340553_SW_WORKAROUND
+  timer_shutdown_sync
   _totalram_pages
   touchscreen_parse_properties
   touchscreen_report_pos
@@ -2549,6 +2586,7 @@
   v4l2_get_link_freq
   v4l2_g_parm_cap
   v4l2_i2c_subdev_init
+  v4l2_i2c_subdev_set_name
   v4l2_m2m_buf_copy_metadata
   v4l2_m2m_buf_queue
   v4l2_m2m_buf_remove
@@ -2690,6 +2728,7 @@
   vring_del_virtqueue
   vring_interrupt
   vring_new_virtqueue
+  vscnprintf
   vsnprintf
   vunmap
   vzalloc

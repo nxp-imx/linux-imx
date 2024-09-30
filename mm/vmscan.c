@@ -1543,6 +1543,7 @@ static enum folio_references folio_check_references(struct folio *folio,
 	int referenced_ptes, referenced_folio;
 	unsigned long vm_flags;
 	int ret = 0;
+	bool trylock_failed = false;
 
 #ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
 	trace_android_vh_page_should_be_protected(folio, sc->nr_scanned,
@@ -1552,9 +1553,13 @@ static enum folio_references folio_check_references(struct folio *folio,
 	if (ret)
 		return ret;
 
+	trace_android_vh_folio_trylock_set(folio);
 	referenced_ptes = folio_referenced(folio, 1, sc->target_mem_cgroup,
 					   &vm_flags);
 	referenced_folio = folio_test_clear_referenced(folio);
+	trace_android_vh_get_folio_trylock_result(folio, &trylock_failed);
+	if (trylock_failed)
+		return FOLIOREF_KEEP;
 
 	/*
 	 * The supposedly reclaimable folio was found to be in a VM_LOCKED vma.
@@ -1750,6 +1755,8 @@ retry:
 		enum folio_references references = FOLIOREF_RECLAIM;
 		bool dirty, writeback;
 		unsigned int nr_pages;
+		bool activate = false;
+		bool keep = false;
 
 		cond_resched();
 
@@ -1783,6 +1790,15 @@ retry:
 		 * folios if the tail of the LRU is all dirty unqueued folios.
 		 */
 		folio_check_dirty_writeback(folio, &dirty, &writeback);
+
+		trace_android_vh_shrink_folio_list(folio, dirty, writeback,
+				&activate, &keep);
+		if (activate)
+			goto activate_locked;
+
+		if (keep)
+			goto keep_locked;
+
 		if (dirty || writeback)
 			stat->nr_dirty += nr_pages;
 
@@ -1927,9 +1943,13 @@ retry:
 					split_folio_to_list(folio, folio_list);
 				if (!add_to_swap(folio)) {
 					int __maybe_unused order = folio_order(folio);
+					bool bypass = false;
 
 					if (!folio_test_large(folio))
 						goto activate_locked_split;
+					trace_android_vh_split_large_folio_bypass(&bypass);
+					if (bypass)
+						goto activate_locked;
 					/* Fallback to swap normal pages */
 					if (split_folio_to_list(folio, folio_list))
 						goto activate_locked;
@@ -1994,6 +2014,8 @@ retry:
 			if (folio_test_large(folio) && list_empty(&folio->_deferred_list))
 				flags |= TTU_SYNC;
 
+			if (!ignore_references)
+				trace_android_vh_folio_trylock_set(folio);
 			try_to_unmap(folio, flags);
 			if (folio_mapped(folio)) {
 				stat->nr_unmap_fail += nr_pages;
@@ -2124,6 +2146,7 @@ retry:
 					 * increment nr_reclaimed here (and
 					 * leave it off the LRU).
 					 */
+					trace_android_vh_folio_trylock_clear(folio);
 					nr_reclaimed += nr_pages;
 					continue;
 				}
@@ -2160,6 +2183,7 @@ free_it:
 		 * Is there need to periodically free_folio_list? It would
 		 * appear not as the counts should be low
 		 */
+		trace_android_vh_folio_trylock_clear(folio);
 		if (unlikely(folio_test_large(folio)))
 			destroy_large_folio(folio);
 		else
@@ -2659,6 +2683,7 @@ static unsigned long shrink_inactive_list(unsigned long nr_to_scan,
 		return 0;
 
 	nr_reclaimed = shrink_folio_list(&folio_list, pgdat, sc, &stat, false);
+	trace_android_vh_handle_trylock_failed_folio(&folio_list);
 
 	spin_lock_irq(&lruvec->lru_lock);
 	move_folios_to_lru(lruvec, &folio_list);
@@ -2797,6 +2822,8 @@ static void shrink_active_list(unsigned long nr_to_scan,
 		trace_android_vh_page_referenced_check_bypass(folio, nr_to_scan, lru, &bypass);
 		if (bypass)
 			goto skip_folio_referenced;
+
+		trace_android_vh_folio_trylock_set(folio);
 		/* Referenced or rmap lock contention: rotate */
 		if (folio_referenced(folio, 0, sc->target_mem_cgroup,
 				     &vm_flags) != 0) {
@@ -2810,11 +2837,13 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			 * so we ignore them here.
 			 */
 			if ((vm_flags & VM_EXEC) && folio_is_file_lru(folio)) {
+				trace_android_vh_folio_trylock_clear(folio);
 				nr_rotated += folio_nr_pages(folio);
 				list_add(&folio->lru, &l_active);
 				continue;
 			}
 		}
+		trace_android_vh_folio_trylock_clear(folio);
 skip_folio_referenced:
 		folio_clear_active(folio);	/* we are de-activating */
 		folio_set_workingset(folio);
@@ -2903,6 +2932,7 @@ unsigned long reclaim_pages(struct list_head *folio_list, bool ignore_references
 
 	return nr_reclaimed;
 }
+EXPORT_SYMBOL_GPL(reclaim_pages);
 
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
@@ -6396,6 +6426,7 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	unsigned long nr_to_reclaim = sc->nr_to_reclaim;
 	bool proportional_reclaim;
 	struct blk_plug plug;
+	bool bypass = false;
 
 	if (lru_gen_enabled() && !root_reclaim(sc)) {
 		lru_gen_shrink_lruvec(lruvec, sc);
@@ -6493,6 +6524,9 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	}
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
+	trace_android_vh_rebalance_anon_lru_bypass(&bypass);
+	if (bypass)
+		return;
 
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
@@ -7198,6 +7232,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.may_unmap = 1,
 		.may_swap = 1,
 	};
+	bool skip_swap = false;
 
 	/*
 	 * scan_control uses s8 fields for order, priority, and reclaim_idx.
@@ -7215,6 +7250,9 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 	if (throttle_direct_reclaim(sc.gfp_mask, zonelist, nodemask))
 		return 1;
 
+	trace_android_vh_tune_scan_control(&skip_swap);
+	if (skip_swap)
+		sc.may_swap = 0;
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	trace_mm_vmscan_direct_reclaim_begin(order, sc.gfp_mask);
 

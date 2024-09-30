@@ -22,12 +22,14 @@
 #include <linux/miscdevice.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/sys_soc.h>
+#include <linux/fs_struct.h>
 
 #include "ele_common.h"
 #include "ele_fw_api.h"
@@ -38,12 +40,19 @@ static uint32_t v2x_fw_state;
 #define SOC_ID_OF_IMX8ULP		0x084D
 #define SOC_ID_OF_IMX93			0x9300
 #define SOC_ID_OF_IMX8DXL		0xE
+#define SOC_ID_OF_IMX8QXP		0x2
+#define SOC_REV_A1			0xA100
+#define SOC_REV_B0			0xB000
+#define SOC_REV_C0			0xC000
 #define SOC_VER_MASK			0xFFFF0000
 #define SOC_ID_MASK			0x0000FFFF
 #define RESERVED_DMA_POOL		BIT(1)
 #define SCU_MEM_CFG			BIT(2)
+#define SCU_SIGNED_MSG_CFG		BIT(3)
 #define IMX_ELE_FW_DIR                 "/lib/firmware/imx/ele/"
 #define SECURE_RAM_BASE_ADDRESS_SCU	(0x20800000u)
+#define V2X_NON_FIPS			0x00000c00
+#define SECO_NON_FIPS			0x00000018
 
 struct imx_info {
 	const uint8_t pdev_name[10];
@@ -69,15 +78,26 @@ struct imx_info {
 	bool v2x_state_check;
 	int (*start_rng)(struct device *dev);
 	bool enable_ele_trng;
-	bool imem_mgmt;
 	uint8_t *fw_name_in_rfs;
+	uint8_t *primary_fw_rfs;
 };
 
 struct imx_info_list {
 	uint8_t num_mu;
 	uint16_t soc_id;
 	uint16_t soc_rev;
+	uint8_t board_type;
 	struct imx_info info[];
+};
+
+#define IMX8DXL_DL1    0x1
+#define IMX8DXL_DL2    0x2
+#define IMX8DXL_DL3    0x4
+
+struct seco_soc_info {
+	u16 soc_id;
+	u16 soc_rev;
+	u8  board_type;
 };
 
 static LIST_HEAD(priv_data_list);
@@ -85,6 +105,7 @@ static LIST_HEAD(priv_data_list);
 static struct imx_info_list imx8ulp_info = {
 	.num_mu = 1,
 	.soc_id = SOC_ID_OF_IMX8ULP,
+	.board_type = 0,
 	.info = {
 			{
 				.pdev_name = {"se-fw2"},
@@ -107,10 +128,10 @@ static struct imx_info_list imx8ulp_info = {
 				.v2x_state_check = false,
 				.start_rng = ele_start_rng,
 				.enable_ele_trng = false,
-				.imem_mgmt = true,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = IMX_ELE_FW_DIR\
 						  "mx8ulpa2ext-ahab-container.img",
+				.primary_fw_rfs = IMX_ELE_FW_DIR"mx8ulpa2-ahab-container.img",
 			},
 	},
 };
@@ -118,6 +139,7 @@ static struct imx_info_list imx8ulp_info = {
 static struct imx_info_list imx93_info = {
 	.num_mu = 1,
 	.soc_id = SOC_ID_OF_IMX93,
+	.board_type = 0,
 	.info = {
 			{
 				.pdev_name = {"se-fw2"},
@@ -140,9 +162,9 @@ static struct imx_info_list imx93_info = {
 				.v2x_state_check = false,
 				.start_rng = ele_start_rng,
 				.enable_ele_trng = true,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 	},
 };
@@ -150,6 +172,7 @@ static struct imx_info_list imx93_info = {
 static const struct imx_info_list imx8dxl_info = {
 	.num_mu = 7,
 	.soc_id = SOC_ID_OF_IMX8DXL,
+	.board_type = 0,
 	.info = {
 			{
 				.pdev_name = {"seco-she"},
@@ -172,9 +195,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"se-fw2"},
@@ -197,9 +220,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-sv0"},
@@ -222,9 +245,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-sv1"},
@@ -247,9 +270,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-she"},
@@ -272,9 +295,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 16,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-sg0"},
@@ -297,9 +320,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-sg1"},
@@ -322,9 +345,9 @@ static const struct imx_info_list imx8dxl_info = {
 				.v2x_state_check = false,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 	},
 };
@@ -332,6 +355,7 @@ static const struct imx_info_list imx8dxl_info = {
 static struct imx_info_list imx95_info = {
 	.num_mu = 4,
 	.soc_id = SOC_ID_OF_IMX95,
+	.board_type = 0,
 	.info = {
 			{
 				.pdev_name = {"se-fw2"},
@@ -354,9 +378,9 @@ static struct imx_info_list imx95_info = {
 				.v2x_state_check = true,
 				.start_rng = ele_start_rng,
 				.enable_ele_trng = true,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-fw0"},
@@ -379,9 +403,9 @@ static struct imx_info_list imx95_info = {
 				.v2x_state_check = true,
 				.start_rng = v2x_start_rng,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 0,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-fw4"},
@@ -404,9 +428,9 @@ static struct imx_info_list imx95_info = {
 				.v2x_state_check = true,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 16,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 			{
 				.pdev_name = {"v2x-fw6"},
@@ -429,9 +453,9 @@ static struct imx_info_list imx95_info = {
 				.v2x_state_check = true,
 				.start_rng = NULL,
 				.enable_ele_trng = false,
-				.imem_mgmt = false,
 				.mu_buff_size = 256,
 				.fw_name_in_rfs = NULL,
+				.primary_fw_rfs = NULL,
 			},
 	}
 };
@@ -442,6 +466,25 @@ static const struct of_device_id se_fw_match[] = {
 	{ .compatible = "fsl,imx95-se-fw", .data = (void *)&imx95_info},
 	{ .compatible = "fsl,imx8dxl-se-fw", .data = (void *)&imx8dxl_info},
 	{},
+};
+
+static const struct soc_device_attribute soc_info_matches[] = {
+	{ .soc_id = "i.MX8DXL",
+	  .revision = "1.1",
+	  .data = &(struct seco_soc_info) {.soc_id = SOC_ID_OF_IMX8DXL, .soc_rev = SOC_REV_A1,}
+	},
+	{ .soc_id = "i.MX8DXL",
+	  .revision = "1.2",
+	  .data = &(struct seco_soc_info) {.soc_id = SOC_ID_OF_IMX8DXL, .soc_rev = SOC_REV_B0,}
+	},
+	{ .soc_id = "i.MX8QXP",
+	  .revision = "1.1",
+	  .data = &(struct seco_soc_info) {.soc_id = SOC_ID_OF_IMX8QXP, .soc_rev = SOC_REV_B0,}
+	},
+	{ .soc_id = "i.MX8QXP",
+	  .revision = "1.2",
+	  .data = &(struct seco_soc_info) {.soc_id = SOC_ID_OF_IMX8QXP, .soc_rev = SOC_REV_C0,}
+	},
 };
 
 /*
@@ -596,36 +639,116 @@ void free_phybuf_mem_pool(struct device *dev,
 	gen_pool_free(mem_pool, (unsigned long)buf, size);
 }
 
-static int imx_fetch_soc_info(struct device *dev,
+static int read_fuse(struct ele_mu_priv *priv, u32 id, u32 *value, u8 mul)
+{
+	struct nvmem_device *nvmem;
+	u32 size_to_read = mul * sizeof(u32);
+	struct device_node *np;
+	int ret = 0;
+
+	np = priv->dev->of_node;
+	if (!of_get_property(np, "nvmem", NULL))
+		return 0;
+
+	nvmem = devm_nvmem_device_get(priv->dev, NULL);
+	if (IS_ERR(nvmem)) {
+		ret = PTR_ERR(nvmem);
+
+		if (ret != -EPROBE_DEFER)
+			dev_err(priv->dev, "Failed to retrieve nvmem node\n");
+
+		return ret;
+	}
+
+	ret = nvmem_device_read(nvmem, id, size_to_read, value);
+	if (ret < 0) {
+		dev_err(priv->dev, "Failed to read fuse %d: %d\n", id, ret);
+		return ret;
+	}
+
+	if (ret != size_to_read) {
+		dev_err(priv->dev, "Read only %d instead of %d\n", ret,
+			size_to_read);
+		return -ENOMEM;
+	}
+
+	dev_dbg(priv->dev, "FUSE value 0x%x 0x%x 0x%x 0x%x\n",
+		value[0], value[1],
+		value[2], value[3]);
+
+	devm_nvmem_device_put(priv->dev, nvmem);
+
+	return 0;
+}
+
+/* function to fetch SoC revision on the SECO platform */
+static int seco_fetch_soc_info(uint16_t *soc_id, uint16_t *soc_rev)
+{
+	const struct soc_device_attribute *imx_soc_match;
+	int err = 0;
+
+	imx_soc_match = soc_device_match(soc_info_matches);
+	if (!soc_id || !soc_rev || !imx_soc_match || !imx_soc_match->data) {
+		err = -EINVAL;
+		goto exit;
+	}
+
+	*soc_id = ((const struct seco_soc_info *)imx_soc_match->data)->soc_id;
+	*soc_rev = ((const struct seco_soc_info *)imx_soc_match->data)->soc_rev;
+exit:
+	return err;
+}
+
+static int imx_fetch_soc_info(struct ele_mu_priv *priv,
 			      struct imx_info *info)
 {
 	struct soc_device_attribute *attr;
 	struct soc_device *sdev = NULL;
-	const struct of_device_id *of_id = of_match_device(se_fw_match, dev);
+	const struct of_device_id *of_id = of_match_device(se_fw_match, priv->dev);
 	struct imx_info_list *info_list;
 	phys_addr_t get_info_addr = 0;
 	u32 *get_info_data = NULL;
 	u8 major_ver, minor_ver;
 	int err = 0;
+	u32 fuse_val[4] = {0xFF};
 
 	info_list = (struct imx_info_list *)of_id->data;
+
+	if (info_list->soc_id == SOC_ID_OF_IMX8DXL) {
+		if (!info_list->board_type) {
+			/* Read the fuse values to check fips compliant */
+			err = read_fuse(priv, 8, (u32 *)&fuse_val, 4);
+			if (err) {
+				dev_err(priv->dev, "Fail to read FIPS fuse\n");
+				return err;
+			}
+
+			if (fuse_val[2] & SECO_NON_FIPS)
+				info_list->board_type = IMX8DXL_DL1;
+			else if (fuse_val[0] & V2X_NON_FIPS)
+				info_list->board_type = IMX8DXL_DL3;
+			else if (!fuse_val[0] && !fuse_val[2])
+				info_list->board_type = IMX8DXL_DL2;
+		}
+		return err;
+	}
 
 	if (info_list->soc_rev)
 		return err;
 
 	if (info->pool_name) {
-		get_info_addr = get_phy_buf_mem_pool(dev,
+		get_info_addr = get_phy_buf_mem_pool(priv->dev,
 						     info->pool_name,
 						     &get_info_data,
 						     DEVICE_GET_INFO_SZ);
 	} else {
-		get_info_data = dmam_alloc_coherent(dev,
+		get_info_data = dmam_alloc_coherent(priv->dev,
 						    DEVICE_GET_INFO_SZ,
 						    &get_info_addr,
 						    GFP_KERNEL);
 	}
 	if (!get_info_addr) {
-		dev_err(dev, "Unable to alloc buffer for device info.\n");
+		dev_err(priv->dev, "Unable to alloc buffer for device info.\n");
 		return -ENOMEM;
 	}
 
@@ -633,7 +756,7 @@ static int imx_fetch_soc_info(struct device *dev,
 	if (!attr)
 		return -ENOMEM;
 
-	err = ele_get_info(dev, get_info_addr, ELE_GET_INFO_READ_SZ);
+	err = ele_get_info(priv->dev, get_info_addr, ELE_GET_INFO_READ_SZ);
 	if (err) {
 		attr->revision = kasprintf(GFP_KERNEL, "A0");
 	} else {
@@ -660,6 +783,8 @@ static int imx_fetch_soc_info(struct device *dev,
 			case SOC_ID_OF_IMX8ULP:
 				attr->soc_id = kasprintf(GFP_KERNEL,
 							 "i.MX8ULP");
+				priv->imem.state = (get_info_data[ELE_IMEM_STATE_WORD]
+							& ELE_IMEM_STATE_MASK) >> 16;
 				break;
 			case SOC_ID_OF_IMX93:
 				attr->soc_id = kasprintf(GFP_KERNEL,
@@ -686,10 +811,10 @@ static int imx_fetch_soc_info(struct device *dev,
 			    | get_info_data[GET_INFO_SL_NUM_LSB_WORD_OFF]);
 
 	if (info->pool_name) {
-		free_phybuf_mem_pool(dev, info->pool_name,
+		free_phybuf_mem_pool(priv->dev, info->pool_name,
 				     get_info_data, DEVICE_GET_INFO_SZ);
 	} else {
-		dmam_free_coherent(dev,
+		dmam_free_coherent(priv->dev,
 				   DEVICE_GET_INFO_SZ,
 				   get_info_data,
 				   get_info_addr);
@@ -880,14 +1005,29 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 		goto exit;
 	}
 
-	/* Wait until the complete message is received on the MU. */
-	err = wait_event_interruptible(dev_ctx->wq, dev_ctx->pending_hdr != 0);
-	if (err) {
-		dev_err(ele_mu_priv->dev,
-			"%s: Err[0x%x]:Interrupted by signal.\n",
+	do {
+		err = wait_event_interruptible(dev_ctx->wq, dev_ctx->pending_hdr != 0);
+		if (err == -ERESTARTSYS) {
+			dev_dbg(dev_ctx->dev,
+				"%s: err[0x%x]:interrupted by CTRL + C.\n",
 				dev_ctx->miscdev.name, err);
-		goto exit;
-	}
+			if (dev_ctx->priv->waiting_rsp_dev) {
+				dev_ctx->priv->waiting_rsp_dev->signal_recvd = true;
+				continue;
+			} else {
+				dev_dbg(dev_ctx->dev,
+					"Command receiver Dev ctx %s, is getting killed.\n",
+					dev_ctx->priv->cmd_receiver_dev->miscdev.name);
+				err = -EINTR;
+				goto exit;
+			}
+		} else if (err) {
+			dev_err(dev_ctx->dev,
+				"%s: err[0x%x]: other than signal interruption.\n",
+				dev_ctx->miscdev.name, err);
+			goto exit;
+		}
+	} while (!dev_ctx->pending_hdr);
 
 	dev_dbg(ele_mu_priv->dev,
 			"%s: %s %s\n",
@@ -965,6 +1105,12 @@ static ssize_t ele_mu_fops_read(struct file *fp, char __user *buf,
 	}
 
 	err = size_to_copy;
+	if (dev_ctx->priv->waiting_rsp_dev &&
+			dev_ctx == dev_ctx->priv->waiting_rsp_dev &&
+			dev_ctx->signal_recvd == true) {
+		dev_ctx->signal_recvd = false;
+		err = -EINTR;
+	}
 
 	/* free memory allocated on the shared buffers. */
 	dev_ctx->secure_mem.pos = 0;
@@ -1080,6 +1226,36 @@ static int ele_mu_ioctl_get_mu_info(struct ele_mu_device_ctx *dev_ctx,
 	}
 
 exit:
+	return err;
+}
+
+static int ele_mu_ioctl_signed_msg_handler(struct file *fp,
+					   struct ele_mu_device_ctx *dev_ctx,
+					   unsigned long arg)
+{
+	struct ele_mu_ioctl_signed_message msg;
+	int err;
+
+	err = copy_from_user(&msg, (u8 *)arg, sizeof(msg));
+	if (err) {
+		dev_err(dev_ctx->priv->dev, "Failed to copy from user: %d\n", err);
+		return -EFAULT;
+	}
+
+	err = imx_scu_signed_msg(fp, msg.message, msg.msg_size, &msg.error_code);
+	if (err) {
+		dev_err(dev_ctx->priv->dev,
+			"Failed to send signed message: %d\n",
+			err);
+		return err;
+	}
+
+	err = copy_to_user((u8 *)arg, &msg, sizeof(msg));
+	if (err) {
+		dev_err(dev_ctx->priv->dev, "Failed to copy to user: %d\n", err);
+		return -EFAULT;
+	}
+
 	return err;
 }
 
@@ -1262,8 +1438,19 @@ static int ele_mu_ioctl_get_soc_info_handler(struct ele_mu_device_ctx *dev_ctx,
 
 	info_list = (struct imx_info_list *)of_id->data;
 
-	soc_info.soc_id = info_list->soc_id;
-	soc_info.soc_rev = info_list->soc_rev;
+	if (info_list->soc_id == SOC_ID_OF_IMX8DXL) {
+		err = seco_fetch_soc_info(&soc_info.soc_id, &soc_info.soc_rev);
+		if (err)
+			dev_err(dev_ctx->priv->dev,
+			"%s: Failed[%d] to fetch SoC Info\n",
+			dev_ctx->miscdev.name, err);
+
+		soc_info.board_type = info_list->board_type;
+	} else {
+		soc_info.soc_id = info_list->soc_id;
+		soc_info.soc_rev = info_list->soc_rev;
+		soc_info.board_type = info_list->board_type;
+	}
 
 	err = (int)copy_to_user((u8 *)arg, (u8 *)(&soc_info), sizeof(soc_info));
 	if (err) {
@@ -1489,6 +1676,10 @@ static long ele_mu_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	case ELE_MU_IOCTL_GET_TIMER:
 		err = ele_mu_ioctl_get_time(dev_ctx, arg);
 		break;
+	case ELE_MU_IOCTL_SIGNED_MESSAGE:
+		if (ele_mu_priv->flags & SCU_SIGNED_MSG_CFG)
+			err = ele_mu_ioctl_signed_msg_handler(fp, dev_ctx, arg);
+		break;
 	default:
 		err = -EINVAL;
 		dev_dbg(ele_mu_priv->dev,
@@ -1695,9 +1886,9 @@ static void se_load_firmware(const struct firmware *fw, void *context)
 {
 	struct ele_mu_priv *priv = context;
 	const struct imx_info *info = priv->info;
-	const char *ele_fw_name = info->fw_name_in_rfs;
-	uint8_t *ele_fw_buf;
 	phys_addr_t ele_fw_phyaddr;
+	u8 *se_fw_buf;
+	int ret;
 
 	if (!fw) {
 		if (priv->fw_fail)
@@ -1709,7 +1900,7 @@ static void se_load_firmware(const struct firmware *fw, void *context)
 
 			/* Load firmware one more time if timeout */
 			request_firmware_nowait(THIS_MODULE,
-					FW_ACTION_UEVENT, info->fw_name_in_rfs,
+					FW_ACTION_UEVENT, priv->se_img_file_to_load,
 					priv->dev, GFP_KERNEL, priv,
 					se_load_firmware);
 			priv->fw_fail++;
@@ -1720,30 +1911,40 @@ static void se_load_firmware(const struct firmware *fw, void *context)
 		return;
 	}
 
-	/* allocate buffer to store the ELE FW */
-	ele_fw_buf = dmam_alloc_coherent(priv->dev, fw->size,
-					 &ele_fw_phyaddr,
-					 GFP_KERNEL);
-	if (!ele_fw_buf) {
-		dev_err(priv->dev, "Failed to alloc ELE fw buffer memory\n");
+	dev_info(priv->dev, "loading firmware %s\n", priv->se_img_file_to_load);
+
+	/* allocate buffer to store the SE FW */
+	se_fw_buf = dma_alloc_coherent(priv->dev, fw->size,
+			&ele_fw_phyaddr, GFP_KERNEL);
+	if (!se_fw_buf)
 		goto exit;
+
+	memcpy(se_fw_buf, fw->data, fw->size);
+	ret = ele_fw_authenticate(priv->dev, ele_fw_phyaddr);
+	if (ret < 0)
+		dev_err(priv->dev,
+			"Error %pe: Authenticate & load SE firmware %s.\n",
+			ERR_PTR(ret),
+			priv->se_img_file_to_load);
+
+	dma_free_coherent(priv->dev,
+			fw->size,
+			se_fw_buf,
+			ele_fw_phyaddr);
+
+	if (priv->imem.state == ELE_IMEM_STATE_BAD &&
+	    priv->se_img_file_to_load == info->primary_fw_rfs) {
+		priv->se_img_file_to_load = info->fw_name_in_rfs;
+		request_firmware_nowait(THIS_MODULE,
+				FW_ACTION_UEVENT, priv->se_img_file_to_load,
+				priv->dev, GFP_KERNEL, priv,
+				se_load_firmware);
 	}
 
-	memcpy(ele_fw_buf, fw->data, fw->size);
-
-	if (ele_fw_authenticate(priv->dev, ele_fw_phyaddr))
-		dev_err(priv->dev,
-			"Failed to authenticate & load ELE firmware %s.\n",
-			ele_fw_name);
-
 exit:
-	dmam_free_coherent(priv->dev,
-			   fw->size,
-			   ele_fw_buf,
-			   ele_fw_phyaddr);
-
 	release_firmware(fw);
 }
+
 
 static int se_fw_probe(struct platform_device *pdev)
 {
@@ -1753,6 +1954,7 @@ static int se_fw_probe(struct platform_device *pdev)
 	struct imx_info *info = NULL;
 	int ret;
 	struct device_node *np;
+	struct imx_info_list *info_list;
 
 	info = get_imx_info((struct imx_info_list *)of_id->data,
 			    pdev->name, strlen(pdev->name) + 1);
@@ -1800,15 +2002,27 @@ static int se_fw_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
+	info_list = (struct imx_info_list *)of_id->data;
+
 	if (info->pre_if_config) {
 		/* start initializing ele fw */
 		ret = info->pre_if_config(dev);
 		if (ret) {
 			dev_err(dev, "Failed to initialize scu config.\n");
 			priv->flags &= (~SCU_MEM_CFG);
+			if ((info_list->soc_id == SOC_ID_OF_IMX8DXL) &&
+			    ((memcmp(info->se_name, "she1", 5)) ||
+			    (memcmp(info->se_name, "hsm1", 5)))) {
+				priv->flags &= (~SCU_SIGNED_MSG_CFG);
+			}
 			goto exit;
 		}
 		priv->flags |= SCU_MEM_CFG;
+		if ((info_list->soc_id == SOC_ID_OF_IMX8DXL) &&
+		    ((memcmp(info->se_name, "she1", 5)) ||
+		    (memcmp(info->se_name, "hsm1", 5)))) {
+			priv->flags |= SCU_SIGNED_MSG_CFG;
+		}
 	}
 
 	/* Initialize the mutex. */
@@ -1873,7 +2087,7 @@ static int se_fw_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = imx_fetch_soc_info(dev, info);
+	ret = imx_fetch_soc_info(priv, info);
 	if (ret) {
 		dev_err(dev,
 			"failed[%d] to register SoC device\n", ret);
@@ -1900,17 +2114,6 @@ static int se_fw_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (info->fw_name_in_rfs) {
-		ret = request_firmware_nowait(THIS_MODULE,
-					      FW_ACTION_UEVENT,
-					      info->fw_name_in_rfs,
-					      dev, GFP_KERNEL, priv,
-					      se_load_firmware);
-		if (ret)
-			dev_warn(dev, "Failed to get firmware [%s].\n",
-				 info->fw_name_in_rfs);
-	}
-
 	/* start ele rng */
 	if (info->start_rng) {
 		ret = info->start_rng(dev);
@@ -1924,8 +2127,9 @@ static int se_fw_probe(struct platform_device *pdev)
 			dev_err(dev, "Failed to init ele-trng\n");
 	}
 
-	if (info->imem_mgmt) {
-		/* allocate buffer where ELE store encrypted IMEM */
+	priv->se_img_file_to_load = info->fw_name_in_rfs;
+	if (info->primary_fw_rfs) {
+		/* allocate buffer where SE store encrypted IMEM */
 		priv->imem.buf = dmam_alloc_coherent(dev, ELE_IMEM_SIZE,
 						     &priv->imem.phyaddr,
 						     GFP_KERNEL);
@@ -1935,6 +2139,20 @@ static int se_fw_probe(struct platform_device *pdev)
 			ret = -ENOMEM;
 			goto exit;
 		}
+		if (priv->imem.state == ELE_IMEM_STATE_BAD)
+			priv->se_img_file_to_load = info->primary_fw_rfs;
+	}
+
+	if (priv->se_img_file_to_load) {
+		ret = request_firmware_nowait(THIS_MODULE,
+					      FW_ACTION_UEVENT,
+					      priv->se_img_file_to_load,
+					      dev, GFP_KERNEL, priv,
+					      se_load_firmware);
+		if (ret)
+			dev_warn(dev, "Failed to get firmware [%s].\n",
+				 priv->se_img_file_to_load);
+		ret = 0;
 	}
 
 	if (info->max_dev_ctx) {
@@ -2001,7 +2219,7 @@ static int se_fw_suspend(struct device *dev)
 	struct ele_mu_priv *priv = dev_get_drvdata(dev);
 	const struct imx_info *info = priv->info;
 
-	if (info && info->imem_mgmt)
+	if (info && info->primary_fw_rfs)
 		priv->imem.size = save_imem(dev);
 
 	return 0;
@@ -2016,7 +2234,7 @@ static int se_fw_resume(struct device *dev)
 	for (i = 0; i < priv->max_dev_ctx; i++)
 		wake_up_interruptible(&priv->ctxs[i]->wq);
 
-	if (info && info->imem_mgmt)
+	if (info && info->primary_fw_rfs)
 		restore_imem(dev, info->pool_name);
 
 	return 0;

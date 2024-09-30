@@ -344,3 +344,51 @@ int imx_scu_mem_access(struct file *fp)
 	return ret;
 }
 EXPORT_SYMBOL(imx_scu_mem_access);
+
+int imx_scu_signed_msg(struct file *fp,
+		       uint8_t *msg,
+		       uint32_t size,
+		       uint32_t *error)
+{
+	struct ele_mu_device_ctx *dev_ctx
+		= container_of(fp->private_data,
+			       struct ele_mu_device_ctx,
+			       miscdev);
+	struct ele_mu_priv *priv = dev_ctx->priv;
+	struct ele_shared_mem *shared_mem = &dev_ctx->non_secure_mem;
+	int err;
+	u64 addr;
+	u32 pos;
+
+	/* Check there is enough space in the shared memory. */
+	if (size >= shared_mem->size - shared_mem->pos) {
+		dev_err(dev_ctx->priv->dev,
+			"Not enough mem: %d left, %d required\n",
+			shared_mem->size - shared_mem->pos, size);
+		return -ENOMEM;
+	}
+
+	/* Allocate space in shared memory. 8 bytes aligned. */
+	pos = shared_mem->pos;
+
+	/* get physical address from the pos */
+	addr = (u64)shared_mem->dma_addr + pos;
+
+	/* copy signed message from user space to this allocated buffer */
+	err = copy_from_user(shared_mem->ptr + pos, msg, size);
+	if (err) {
+		dev_err(dev_ctx->priv->dev,
+			"Failed to signed message from user: %d\n",
+			err);
+		return -EFAULT;
+	}
+
+	*error = imx_sc_seco_sab_msg(priv->ipc_scu, addr);
+	err = *error;
+	if (err) {
+		dev_err(dev_ctx->priv->dev, "Failt to send signed message\n");
+	}
+
+	return err;
+}
+EXPORT_SYMBOL(imx_scu_signed_msg);
