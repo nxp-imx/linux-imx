@@ -59,6 +59,7 @@ config TRUSTY_TEST
 config TRUSTY_VIRTIO
 	tristate "Trusty virtio support"
 	select VIRTIO
+	depends on ARCH_HAS_DMA_OPS
 	default y
 	help
 	  Enable the Trusty virtio driver, which is responsible for management
