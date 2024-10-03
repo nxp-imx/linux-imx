@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (C) 2024 Emcraft Systems
+ * Author(s): Alexander Sanochkin <sasha@emcraft.com>
+ */
+
+ #include "imxrt1050.dtsi"
