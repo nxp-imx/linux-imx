@@ -546,7 +546,7 @@ static const struct dev_pm_ops ft5x0x_ts_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(ft5x0x_ts_suspend, ft5x0x_ts_resume)
 };
 
-static int ft5x0x_ts_remove(struct i2c_client *client)
+static void ft5x0x_ts_remove(struct i2c_client *client)
 {
 	struct ft5x0x_ts_data *ft5x0x_ts;
 	ft5x0x_ts = i2c_get_clientdata(client);
@@ -564,8 +564,6 @@ static int ft5x0x_ts_remove(struct i2c_client *client)
 
 	i2c_set_clientdata(client, NULL);
 	kfree(ft5x0x_ts);
-
-	return 0;
 }
 
 static const struct i2c_device_id ft5x0x_ts_id[] = {
