@@ -32,6 +32,7 @@
 #include <linux/string.h>
 #include <linux/timer.h>
 #include <linux/input/mt.h>
+#include <linux/pinctrl/consumer.h>
 #include "ft5x46_ts.h"
 
 #include <linux/gpio.h>
@@ -329,8 +330,7 @@ static void fts_un_init_gpio_hw(struct ft5x0x_ts_data *ft5x0x_ts)
 	}
 }
 
-static int ft5x0x_ts_probe(struct i2c_client *client,
-			   const struct i2c_device_id *id)
+static int ft5x0x_ts_probe(struct i2c_client *client)
 {
 	/*struct ft5x0x_platform_data *pdata =
 	   (struct ft5x0x_platform_data *)client->dev.platform_data; */

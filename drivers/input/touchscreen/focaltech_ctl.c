@@ -230,7 +230,7 @@ static int ft_rw_iic_drv_myinitdev(struct i2c_client *client)
 	mutex_init(&ft_rw_i2c_dev_tt->ft_rw_i2c_mutex);
 	ft_rw_iic_drv_setup_cdev(ft_rw_i2c_dev_tt, 0);
 
-	fts_class = class_create(THIS_MODULE, "fts_class");
+	fts_class = class_create("fts_class");
 	if (IS_ERR(fts_class)) {
 		dev_err(&client->dev, "%s:failed in creating class.\n",
 			__func__);
