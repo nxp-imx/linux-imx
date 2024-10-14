@@ -263,6 +263,6 @@ TRACE_EVENT(trusty_reclaim_memory_done,
 
 #undef TRACE_INCLUDE_PATH
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../../drivers/trusty
 #define TRACE_INCLUDE_FILE trusty-trace
 #include <trace/define_trace.h>

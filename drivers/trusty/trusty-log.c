@@ -16,6 +16,7 @@
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
 #include <linux/seq_file.h>
+#include <linux/panic_notifier.h>
 #include <asm/page.h>
 #include "trusty-log.h"
 

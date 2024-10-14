@@ -240,6 +240,6 @@ TRACE_EVENT(trusty_ipc_rx,
 
 #undef TRACE_INCLUDE_PATH
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH ../../drivers/trusty
 #define TRACE_INCLUDE_FILE trusty-ipc-trace
 #include <trace/define_trace.h>
