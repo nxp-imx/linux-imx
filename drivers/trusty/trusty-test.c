@@ -371,7 +371,7 @@ static ssize_t trusty_test_run_store(struct device *dev,
 			return count;
 		buf = buf_next;
 		obj_count = trusty_test_get_arg(&buf, 1);
-		repeat_share = trusty_test_get_arg(&buf, 1);
+		repeat_share = trusty_test_get_arg(&buf, 2);
 		repeat_access = trusty_test_get_arg(&buf, 3);
 
 		ret = trusty_test_run(s, DIV_ROUND_UP(size, PAGE_SIZE),
