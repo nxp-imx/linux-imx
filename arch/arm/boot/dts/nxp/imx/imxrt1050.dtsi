@@ -99,8 +99,8 @@
 		};
 
 		anatop: anatop@400d8000 {
-			compatible = "fsl,imxrt-anatop";
-			reg = <0x400d8000 0x4000>;
+			compatible = "fsl,imxrt-anatop", "syscon";
+			reg = <0x400d8000 0x1000>;
 		};
 
 		clks: clock-controller@400fc000 {
@@ -240,6 +240,7 @@
 			reg = <0x400d9000 0x1000>;
 			interrupts = <65>;
 			clocks = <&clks IMXRT1050_CLK_USBPHY1>;
+			fsl,anatop = <&anatop>;
 		};
 
 		usbphy2: usbphy@400da000 {
@@ -247,6 +248,7 @@
 			reg = <0x400da000 0x1000>;
 			interrupts = <66>;
 			clocks = <&clks IMXRT1050_CLK_USBPHY2>;
+			fsl,anatop = <&anatop>;
 		};
 
 		usbotg1: usb@402e0000 {
