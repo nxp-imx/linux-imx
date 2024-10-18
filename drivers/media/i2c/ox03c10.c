@@ -788,7 +788,7 @@ int ox03c10_streaming_start(struct ox03c10 *sensor, bool start)
 		/* Wait a maximum of 1 time frame. Worst case is 33.33ms. */
 		msleep(34);
 	} else {
-		ret |= regmap_write(sensor->rmap, OX03C10_SMIA_R0100, 1);
+		ret = regmap_write(sensor->rmap, OX03C10_SMIA_R0100, 1);
 	}
 
 	sensor->streaming = start;
