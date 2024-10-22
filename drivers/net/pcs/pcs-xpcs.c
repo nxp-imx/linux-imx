@@ -1125,6 +1125,7 @@ static void xpcs_get_state(struct phylink_pcs *pcs,
 	struct dw_xpcs *xpcs = phylink_pcs_to_xpcs(pcs);
 	const struct dw_xpcs_compat *compat;
 	int ret;
+	int stat1;
 
 	compat = xpcs_find_compat(xpcs->desc, state->interface);
 	if (!compat)
@@ -1132,7 +1133,6 @@ static void xpcs_get_state(struct phylink_pcs *pcs,
 
 	switch (compat->an_mode) {
 	case DW_10GBASER: {
-		int stat1;
 
 		stat1 = xpcs_read(xpcs, MDIO_MMD_PCS, MDIO_STAT1);
 		if (stat1 < 0) {
