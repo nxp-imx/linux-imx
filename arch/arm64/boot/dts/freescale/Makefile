@@ -464,6 +464,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
 			  imx93-11x11-evk-mt9m114.dtb \
 			  imx93-11x11-evk-ld.dtb \
 			  imx93-11x11-evk-iw612-otbr.dtb \
+			  imx93-11x11-frdm.dtb \
+			  imx93-11x11-frdm-iw612-otbr.dtb \
 			  imx93-11x11-evk-rpmsg.dtb imx93-11x11-evk-rpmsg-lpv.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-evk.dtb \
