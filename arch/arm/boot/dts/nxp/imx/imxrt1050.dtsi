@@ -98,6 +98,18 @@
 			fsl,mux_mask = <0x7>;
 		};
 
+		snvs: snvs@400d4000 {
+			compatible = "fsl,sec-v4.0-mon", "syscon", "simple-mfd";
+			reg = <0x400d4000 0x2000>;
+
+			snvsrtc: snvs-rtc-lp {
+				compatible = "fsl,sec-v4.0-mon-rtc-lp";
+				regmap = <&snvs>;
+				offset = <0x34>;
+				interrupts = <46>, <47>;
+			};
+		};
+
 		anatop: anatop@400d8000 {
 			compatible = "fsl,imxrt-anatop", "syscon";
 			reg = <0x400d8000 0x1000>;
