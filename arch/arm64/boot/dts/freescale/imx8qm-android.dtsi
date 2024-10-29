@@ -42,6 +42,13 @@
 		compatible = "imx8q,resetctrl";
 		status = "okay";
 	};
+
+	avf {
+		reference {
+			avf {
+			};
+		};
+	};
 };
 
 &cpus {
