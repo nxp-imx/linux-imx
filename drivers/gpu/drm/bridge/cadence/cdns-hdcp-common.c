@@ -764,18 +764,17 @@ static int _cdns_hdcp_enable(struct cdns_mhdp_device *mhdp)
 
 	/* Incase of authentication failures, HDCP spec expects reauth. */
 	/* TBD should this actually try 2.2 n times then 1.4? */
-	for (i = 0; i < tries; i++) {
-		if (mhdp->hdcp.config & HDCP_CONFIG_2_2) {
-			ret = cdns_hdcp_auth(mhdp, HDCP_TX_2);
-			if (ret == 0)
-				return 0;
-			else if (ret == -ECANCELED)
-				return ret;
-			_cdns_hdcp_disable(mhdp);
-		}
-	}
-
 	for (i = 0; i < tries14; i++) {
+		if (i < tries) {
+			if (mhdp->hdcp.config & HDCP_CONFIG_2_2) {
+				ret = cdns_hdcp_auth(mhdp, HDCP_TX_2);
+				if (ret == 0)
+					return 0;
+				else if (ret == -ECANCELED)
+					return ret;
+				_cdns_hdcp_disable(mhdp);
+			}
+		}
 		if (mhdp->hdcp.config & HDCP_CONFIG_1_4) {
 			ret = cdns_hdcp_auth(mhdp, HDCP_TX_1);
 			if (ret == 0)
@@ -784,7 +783,6 @@ static int _cdns_hdcp_enable(struct cdns_mhdp_device *mhdp)
 				return ret;
 			_cdns_hdcp_disable(mhdp);
 		}
-		DRM_DEBUG_KMS("HDCP Auth failure (%d)\n", ret);
 	}
 
 	DRM_ERROR("HDCP authentication failed (%d tries/%d)\n", tries, ret);
