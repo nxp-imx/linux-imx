@@ -38,6 +38,13 @@
 			compatible = "android,trusty-log-v1";
 		};
 	};
+
+	avf {
+		reference {
+			avf {
+			};
+		};
+	};
 };
 
 &{/reserved-memory/linux,cma} {
