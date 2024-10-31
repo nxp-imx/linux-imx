@@ -17,6 +17,9 @@
 
 #include "cdns-mhdp-hdcp.h"
 #include "cdns-hdcp-common.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/of_platform.h>
 
 /* Default will be to use KM unless it has been explicitly */
 #ifndef HDCP_USE_KMKEY
@@ -38,6 +41,11 @@
 #define GENERAL_BUS_SETTINGS_RESP_DPCD_BUS_BIT      0
 #define GENERAL_BUS_SETTINGS_RESP_HDCP_BUS_BIT      1
 #define GENERAL_BUS_SETTINGS_RESP_CAPB_OWNER_BIT    2
+
+#define SMC_ENTITY_HDMI 57
+#define SMC_HDMI_PROBE SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 0)
+#define SMC_HDMI_HDCP_RXCONFIG SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 1)
+#define SMC_HDMI_HDCP_TXCONFIG SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 2)
 
 /* HDCP TX ports working mode (HDCP 2.2 or 1.4) */
 enum {
@@ -741,7 +749,7 @@ static int _cdns_hdcp_disable(struct cdns_mhdp_device *mhdp)
 	DRM_DEBUG_KMS("HDCP is disabled\n");
 
 	mhdp->hdcp.events = 0;
-
+	mhdp->hdcp.hdcp_rxversion = 0xff;
 	return ret;
 }
 
@@ -768,24 +776,32 @@ static int _cdns_hdcp_enable(struct cdns_mhdp_device *mhdp)
 		if (i < tries) {
 			if (mhdp->hdcp.config & HDCP_CONFIG_2_2) {
 				ret = cdns_hdcp_auth(mhdp, HDCP_TX_2);
-				if (ret == 0)
+				if (ret == 0) {
+					mhdp->hdcp.hdcp_rxversion = HDCP_TX_2;
+					if (mhdp->trusty_dev) {
+						trusty_fast_call32(mhdp->trusty_dev, SMC_HDMI_HDCP_RXCONFIG, mhdp->hdcp.hdcp_rxversion, 0, 0);
+					}
 					return 0;
-				else if (ret == -ECANCELED)
+				} else if (ret == -ECANCELED)
 					return ret;
 				_cdns_hdcp_disable(mhdp);
 			}
 		}
 		if (mhdp->hdcp.config & HDCP_CONFIG_1_4) {
 			ret = cdns_hdcp_auth(mhdp, HDCP_TX_1);
-			if (ret == 0)
+			if (ret == 0) {
+				mhdp->hdcp.hdcp_rxversion = HDCP_TX_1;
+				if (mhdp->trusty_dev) {
+					trusty_fast_call32(mhdp->trusty_dev, SMC_HDMI_HDCP_RXCONFIG, mhdp->hdcp.hdcp_rxversion, 0, 0);
+				}
 				return 0;
-			else if (ret == -ECANCELED)
+			} else if (ret == -ECANCELED)
 				return ret;
 			_cdns_hdcp_disable(mhdp);
 		}
 	}
 
-	DRM_ERROR("HDCP authentication failed (%d tries/%d)\n", tries, ret);
+	DRM_ERROR("HDCP authentication failed (%d tries/%d)\n", tries14, ret);
 	return ret;
 }
 
@@ -1095,6 +1111,19 @@ int cdns_hdcp_init(struct cdns_mhdp_device *mhdp, struct device_node *of_node)
 		show_hdcp_supported(mhdp);
 	}
 
+	/* get trusty device for smc*/
+	mhdp->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+	if (mhdp->trusty_dev) {
+		int ret = trusty_fast_call32(mhdp->trusty_dev,SMC_HDMI_PROBE, 0, 0, 0);
+		if (ret < 0) {
+			DRM_INFO("HDCP use normal mode\n");
+			mhdp->trusty_dev = NULL;
+		} else
+			DRM_INFO("HDCP use trusty mode\n");
+	}
+	if (mhdp->trusty_dev)
+		trusty_fast_call32(mhdp->trusty_dev, SMC_HDMI_HDCP_TXCONFIG, mhdp->hdcp.config, 0, 0);
+
 	cdns_hdcp_debugfs_init(mhdp);
 
 #ifdef USE_DEBUG_KEYS  /* reserve for hdcp test key */
@@ -1106,6 +1135,7 @@ int cdns_hdcp_init(struct cdns_mhdp_device *mhdp, struct device_node *of_node)
 #endif
 
 	mhdp->hdcp.state = HDCP_STATE_INACTIVE;
+	mhdp->hdcp.hdcp_rxversion = 0xff;
 
 	mutex_init(&mhdp->hdcp.mutex);
 	INIT_DELAYED_WORK(&mhdp->hdcp.check_work, cdns_hdcp_check_work);

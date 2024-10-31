@@ -750,6 +750,7 @@ struct cdns_mhdp_hdcp {
 	u8 sink_is_repeater;
 	u8 reauth_in_progress;
 	u8 hdcp_version;
+	u8 hdcp_rxversion;
 };
 
 struct cdns_mhdp_device {
@@ -824,6 +825,7 @@ struct cdns_mhdp_device {
 	struct device *codec_dev;
 	enum drm_connector_status last_connector_result;
 	struct cdns_mhdp_hdcp hdcp;
+	struct device *trusty_dev;
 };
 
 u32 cdns_mhdp_bus_read(struct cdns_mhdp_device *mhdp, u32 offset);
