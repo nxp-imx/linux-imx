@@ -741,8 +741,44 @@ static dma_addr_t trusty_virtio_dma_map_page(struct device *dev,
 	return buf->buf_id;
 }
 
+/* The kernel requires this to exist, but doesn't require it do anything */
+static void trusty_virtio_dma_unmap_page(struct device *dev,
+					 dma_addr_t dma_handle,
+					 size_t size,
+					 enum dma_data_direction dir,
+					 unsigned long attrs)
+{
+}
+
+/* The kernel requires this to exist, but doesn't require it do anything */
+static int trusty_virtio_dma_map_sg(struct device *dev,
+				    struct scatterlist *sg, int nents,
+				    enum dma_data_direction dir,
+				    unsigned long attrs)
+{
+	WARN_ON_ONCE(true);
+
+#if (KERNEL_VERSION(5, 15, 0) > LINUX_VERSION_CODE)
+	return 0;
+#else
+	return -EINVAL;
+#endif
+}
+
+/* The kernel requires this to exist, but doesn't require it do anything */
+static void trusty_virtio_dma_unmap_sg(struct device *dev,
+				       struct scatterlist *sg, int nents,
+				       enum dma_data_direction dir,
+				       unsigned long attrs)
+{
+	WARN_ON_ONCE(true);
+}
+
 static const struct dma_map_ops trusty_virtio_dma_map_ops = {
 	.map_page = trusty_virtio_dma_map_page,
+	.unmap_page = trusty_virtio_dma_unmap_page,
+	.map_sg = trusty_virtio_dma_map_sg,
+	.unmap_sg = trusty_virtio_dma_unmap_sg,
 };
 
 static int trusty_virtio_probe(struct platform_device *pdev)
