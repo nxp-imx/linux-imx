@@ -24,4 +24,6 @@ int trusty_get_requested_nice(unsigned int cpu_num, struct trusty_sched_share_st
 int trusty_set_actual_nice(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state,
 		int nice);
 
+bool trusty_is_idle(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state);
+
 #endif /* _TRUSTY_SCHED_SHARE_API_H_ */

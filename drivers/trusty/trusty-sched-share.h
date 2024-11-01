@@ -18,6 +18,7 @@
 /*
  * trusty-shadow-priority valid values
  */
+#define TRUSTY_SHADOW_PRIORITY_IDLE 0
 #define TRUSTY_SHADOW_PRIORITY_LOW 1
 #define TRUSTY_SHADOW_PRIORITY_NORMAL 2
 #define TRUSTY_SHADOW_PRIORITY_HIGH 3

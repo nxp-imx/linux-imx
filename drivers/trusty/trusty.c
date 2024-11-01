@@ -901,6 +901,11 @@ static bool dequeue_nop(struct trusty_state *s, u32 *args)
 	return ret;
 }
 
+int trusty_nop_nice_value(void)
+{
+	return nop_nice_value;
+}
+
 static void locked_nop_work_func(struct trusty_work *tw)
 {
 	int ret;
