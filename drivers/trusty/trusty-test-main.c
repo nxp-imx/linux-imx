@@ -346,9 +346,119 @@ static size_t trusty_test_get_arg(const char **buf, size_t default_val)
 	return ret;
 }
 
+#ifdef CONFIG_ARM64
+static ssize_t trusty_test_fpsimd(struct trusty_test_state *s)
+{
+	struct trusty_test_fpsimd_state {
+		struct user_fpsimd_state old;
+		struct user_fpsimd_state random;
+		struct user_fpsimd_state new[2];
+	} *state;
+	unsigned long flags;
+	int ret;
+
+	/*
+	 * Allocate the test state on the kernel heap because
+	 * it overflows the stack.
+	 */
+	state = kzalloc(sizeof(*state), GFP_KERNEL);
+	if (!state) {
+		ret = -ENOMEM;
+		goto err_alloc;
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(state->random.vregs); i++)
+		state->random.vregs[i] = get_random_u64();
+	/*
+	 * TODO: set FPCR&FPSR to random values, but they need to be masked
+	 * because many of their bits are MBZ
+	 */
+
+	/*
+	 * Disable interrupts so we stay on the current CPU and
+	 * guarantee that nothing else touches the FP registers
+	 */
+	local_irq_save(flags);
+	trusty_fpsimd_save_state(&state->old);
+	trusty_fpsimd_load_state(&state->random);
+
+	ret = trusty_fast_call32(s->trusty_dev, SMC_FC_TEST_CLOBBER_FPSIMD_CLOBBER,
+				 0, 0, 0);
+	if (ret) {
+		dev_err(s->dev, "trusty fp clobber failed: %d\n", ret);
+		ret = -EIO;
+		goto err_call;
+	}
+
+	trusty_fpsimd_save_state(&state->new[0]);
+	trusty_fpsimd_load_state(&state->random);
+
+	/*
+	 * Call into Trusty again so it can check
+	 * that we didn't clobber its registers
+	 */
+	ret = trusty_fast_call32(s->trusty_dev, SMC_FC_TEST_CLOBBER_FPSIMD_CHECK,
+				 1, 0, 0);
+	if (ret) {
+		dev_err(s->dev, "trusty fp check failed: %d\n", ret);
+		ret = -EIO;
+		goto err_call;
+	}
+
+	/* Restore the old state */
+	trusty_fpsimd_save_state(&state->new[1]);
+	trusty_fpsimd_load_state(&state->old);
+	local_irq_restore(flags);
+
+	for (size_t i = 0; i < ARRAY_SIZE(state->new); i++) {
+		for (size_t j = 0; j < ARRAY_SIZE(state->random.vregs); j++) {
+			if (state->new[i].vregs[j] != state->random.vregs[j]) {
+				dev_err(s->dev, "vregs[%zu][%zu] mismatch\n",
+					i, j);
+				ret = -EIO;
+				goto err_check;
+			}
+		}
+		if (state->new[i].fpcr != state->random.fpcr) {
+			dev_err(s->dev, "FPCR[%zu] mismatch: %x != %x\n",
+				i, state->new[i].fpcr, state->random.fpcr);
+			ret = -EIO;
+			goto err_check;
+		}
+		if (state->new[i].fpsr != state->random.fpsr) {
+			dev_err(s->dev, "FPSR[%zu] mismatch: %x != %x\n",
+				i, state->new[i].fpsr, state->random.fpsr);
+			ret = -EIO;
+			goto err_check;
+		}
+	}
+
+	ret = 0;
+
+err_check:
+	if (0) {
+err_call:
+		trusty_fpsimd_load_state(&state->old);
+		local_irq_restore(flags);
+	}
+	kfree(state);
+err_alloc:
+	return ret;
+}
+#else
+static ssize_t trusty_test_fpsimd(struct trusty_test_state *s)
+{
+	/* This test is a no-op on other architectures, e.g., arm */
+	return 0;
+}
+#endif
+
 /*
  * Run tests described by a string in this format:
  * <obj_size>,<obj_count=1>,<repeat_share=1>,<repeat_access=3>
+ *
+ * Run FP tests with this alternative format:
+ * fpsimd:<count>
  */
 static ssize_t trusty_test_run_store(struct device *dev,
 				     struct device_attribute *attr,
@@ -362,6 +472,26 @@ static ssize_t trusty_test_run_store(struct device *dev,
 	size_t repeat_access;
 	int ret;
 	char *buf_next;
+
+	size = str_has_prefix(buf, "fpsimd:");
+	if (size) {
+		ret = kstrtoul(buf + size, 0, &obj_count);
+		if (ret) {
+			dev_err(s->dev, "invalid fpsimd test count: %d\n",
+				ret);
+			return ret;
+		}
+
+		dev_info(s->dev, "running trusty fpsimd tests %zu times...\n",
+			 obj_count);
+		for (size_t i = 0; i < obj_count; i++) {
+			ret = trusty_test_fpsimd(s);
+			if (ret)
+				return ret;
+		}
+
+		return count;
+	}
 
 	while (true) {
 		while (isspace(*buf))
