@@ -18,6 +18,13 @@
 #include <dt-bindings/power/imx8mp-power.h>
 
 #define GPR_REG0		0x0
+#define GPR_REG2		0x8
+#define GPR_REG2_P_PLL		(0xc << 0)
+#define GPR_REG2_M_PLL		(0x320 << 6)
+#define GPR_REG2_S_PLL		(0x4 << 16)
+#define GPR_REG3		0xC
+#define GPR_REG3_PLL_CKE	BIT(17)
+#define GPR_REG3_PLL_RST	BIT(31)
 #define  PCIE_CLOCK_MODULE_EN	BIT(0)
 #define  USB_CLOCK_MODULE_EN	BIT(1)
 #define  PCIE_PHY_APB_RST	BIT(4)
@@ -127,6 +134,13 @@ static void imx8mp_hsio_blk_ctrl_power_on(struct imx8mp_blk_ctrl *bc,
 	case IMX8MP_HSIOBLK_PD_PCIE_PHY:
 		regmap_set_bits(bc->regmap, GPR_REG0,
 				PCIE_PHY_APB_RST | PCIE_PHY_INIT_RST);
+
+		regmap_set_bits(bc->regmap, GPR_REG2,
+				GPR_REG2_P_PLL | GPR_REG2_M_PLL | GPR_REG2_S_PLL);
+
+		regmap_set_bits(bc->regmap, GPR_REG3,
+				GPR_REG3_PLL_CKE | GPR_REG3_PLL_RST);
+
 		break;
 	default:
 		break;
@@ -148,6 +162,12 @@ static void imx8mp_hsio_blk_ctrl_power_off(struct imx8mp_blk_ctrl *bc,
 	case IMX8MP_HSIOBLK_PD_PCIE_PHY:
 		regmap_clear_bits(bc->regmap, GPR_REG0,
 				  PCIE_PHY_APB_RST | PCIE_PHY_INIT_RST);
+
+		regmap_clear_bits(bc->regmap, GPR_REG2,
+				  GPR_REG2_P_PLL | GPR_REG2_M_PLL | GPR_REG2_S_PLL);
+
+		regmap_clear_bits(bc->regmap, GPR_REG3,
+				  GPR_REG3_PLL_CKE | GPR_REG3_PLL_RST);
 		break;
 	default:
 		break;
