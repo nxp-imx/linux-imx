@@ -67,3 +67,25 @@
 	reg = <0 0xa4000000 0 0x100000>;
 	no-map;
 };
+
+&dc0_dpr1_channel1 {
+	trusty;
+};
+&dc0_dpr1_channel2 {
+	trusty;
+};
+&dc0_dpr1_channel3 {
+	trusty;
+};
+&dc0_dpr2_channel1 {
+	trusty;
+};
+&dc0_dpr2_channel2 {
+	trusty;
+};
+&dc0_dpr2_channel3 {
+	trusty;
+};
+&dpu1 {
+	trusty;
+};
