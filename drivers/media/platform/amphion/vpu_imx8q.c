@@ -155,7 +155,7 @@ int vpu_imx8q_get_power_state(struct vpu_core *core)
 
 int vpu_imx8q_on_firmware_loaded(struct vpu_core *core)
 {
-	if (core->id != 0 || core->vpu->res->plat_type != IMX8QM) {
+	if (core->id != 0) {
 		u8 *p;
 
 		p = core->fw.virt;
