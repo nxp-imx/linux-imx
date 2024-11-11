@@ -164,24 +164,22 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu->decoder.function = MEDIA_ENT_F_PROC_VIDEO_DECODER;
 
 	/*check trusty node*/
-	if (vpu->res->plat_type == IMX8QM) {
-		vpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (vpu->trusty_dev) {
-			if (!vpu->trusty_dev->driver || !dev_get_drvdata(vpu->trusty_dev))
-				return -EPROBE_DEFER;
+	vpu->trusty_dev = NULL;
+	vpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+	if (vpu->trusty_dev) {
+		if (!vpu->trusty_dev->driver || !dev_get_drvdata(vpu->trusty_dev))
+			return -EPROBE_DEFER;
 
-			ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
-			if (ret < 0) {
-				dev_err(dev, "trusty dev failed to probe!nr=0x%x error=%d\n", SMC_WV_PROBE, ret);
-				vpu->trusty_dev = NULL;
-			} else {
-				dev_info(dev,"vpu amphion will use trusty mode\n");
-				trusty_dev = vpu->trusty_dev;
-			}
+		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+		if (ret < 0) {
+			dev_err(dev, "trusty dev failed to probe!nr=0x%x error=%d\n", SMC_WV_PROBE, ret);
+			vpu->trusty_dev = NULL;
+		} else {
+			dev_info(dev,"vpu amphion will use trusty mode\n");
+			trusty_dev = vpu->trusty_dev;
 		}
-	} else {
-		vpu->trusty_dev = NULL;
-	}
+	} else
+		dev_info(dev,"vpu amphion will use normal mode\n");
 	/* end */
 
 	ret = vpu_add_func(vpu, &vpu->decoder);
@@ -198,7 +196,7 @@ static int vpu_probe(struct platform_device *pdev)
 
 	of_platform_populate(dev->of_node, NULL, NULL, dev);
 
-	if (vpu->trusty_dev && vpu->res->plat_type == IMX8QM) {
+	if (vpu->trusty_dev) {
 		vctx.message_buffer_sz = PAGE_ALIGN(sizeof(trusty_shared_mem_id_t) + 16);
 		vctx.message_buffer = alloc_pages_exact(vctx.message_buffer_sz, GFP_KERNEL);
 		fastcall_msg = (struct vpu_fastcall_message*)vctx.message_buffer;
@@ -253,7 +251,7 @@ static void vpu_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret;
 
-	if (vpu->trusty_dev && vpu->res->plat_type == IMX8QM) {
+	if (vpu->trusty_dev) {
 		/* unmmap trusty shared memory */
 		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_MMAP_SAHRE_MEMORY, 0, 0, 0);
 		if (ret)
