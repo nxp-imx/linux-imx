@@ -456,7 +456,6 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 
 	if (!ret) {
 		*id = ffa_handle;
-		dev_dbg(s->dev, "%s: done\n", __func__);
 		goto done;
 	}
 
@@ -529,7 +528,6 @@ int trusty_reclaim_memory(struct device *dev, u64 id,
 
 		dma_unmap_sg(dev, sglist, nents, DMA_BIDIRECTIONAL);
 
-		dev_dbg(s->dev, "%s: done\n", __func__);
 		return 0;
 	}
 
@@ -554,8 +552,6 @@ int trusty_reclaim_memory(struct device *dev, u64 id,
 		goto err_ffa_mem_reclaim;
 
 	dma_unmap_sg(dev, sglist, nents, DMA_BIDIRECTIONAL);
-
-	dev_dbg(s->dev, "%s: done\n", __func__);
 
 err_ffa_mem_reclaim:
 	trace_trusty_reclaim_memory_done(id, ret);
