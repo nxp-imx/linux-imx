@@ -296,7 +296,7 @@
 			clocks = <&clks IMXRT1050_CLK_USBOH3>;
 		};
 
-		lpi2c1: lpci2c@403f0000 {
+		lpi2c1: i2c@403f0000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x403f0000 0x4000>;
 			interrupts = <28>;
@@ -307,7 +307,7 @@
 			status = "disabled";
 		};
 
-		lpi2c2: lpci2c@403f4000 {
+		lpi2c2: i2c@403f4000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x403f4000 0x4000>;
 			interrupts = <29>;
@@ -318,7 +318,7 @@
 			status = "disabled";
 		};
 
-		lpi2c3: lpci2c@403f8000 {
+		lpi2c3: i2c@403f8000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x403f8000 0x4000>;
 			interrupts = <30>;
@@ -329,7 +329,7 @@
 			status = "disabled";
 		};
 
-		lpi2c4: lpci2c@403fc000 {
+		lpi2c4: i2c@403fc000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x403fc000 0x4000>;
 			interrupts = <31>;
