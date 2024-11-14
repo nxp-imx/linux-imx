@@ -717,6 +717,7 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 	int dump_ln_len;
 	ssize_t wret;
 	int w_ct;
+	va_list args;
 
 	/* if logging is set to be disabled, return */
 	if (!se_log)
@@ -743,7 +744,6 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		caller_type_str = "MU_RCV";
 		break;
 	default:
-		va_list args;
 
 		is_hex = false;
 		caller_type_str = "SE_DBG";
@@ -1670,7 +1670,7 @@ static long se_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	struct se_if_device_ctx *dev_ctx = fp->private_data;
 	struct se_if_priv *priv = dev_ctx->priv;
-	int err;
+	int err = 0;
 
 	/* Prevent race during change of device context */
 	if (mutex_lock_interruptible(&dev_ctx->fops_lock))
