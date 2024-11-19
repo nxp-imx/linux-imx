@@ -21,6 +21,16 @@ config TRUSTY
 
 if TRUSTY
 
+config TRUSTY_SMC_TRANSPORT
+	tristate
+	default m
+	help
+	  Enable SMC based transport for Trusty. This transport is required for
+	  Trusty API version < TRUSTY_API_VERSION_MEM_OBJ.
+
+	  If you want to use legacy SMC based transport for sending Trusty
+	  messages to secure world, answer Y.
+
 config TRUSTY_IRQ
 	bool "Trusty IRQ support"
 	default y
