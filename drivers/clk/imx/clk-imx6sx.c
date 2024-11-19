@@ -231,7 +231,45 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	hws[IMX6SX_CLK_PLL3_USB_OTG]  = imx_clk_hw_gate("pll3_usb_otg",  "pll3_bypass", base + 0x10, 13);
 	hws[IMX6SX_CLK_PLL4_AUDIO]    = imx_clk_hw_gate("pll4_audio",    "pll4_bypass", base + 0x70, 13);
 	hws[IMX6SX_CLK_PLL5_VIDEO]    = imx_clk_hw_gate("pll5_video",    "pll5_bypass", base + 0xa0, 13);
-	hws[IMX6SX_CLK_PLL6_ENET]     = imx_clk_hw_gate("pll6_enet",     "pll6_bypass", base + 0xe0, 13);
+	/*
+	 * Bit 13 is ENET1_125M_EN, Bit 20 is ENET2_125M_EN
+	 * Bit 19 is ENABLE_125M(PCIE), Bit 21 is ENET_25M_REF_EN(PTP)
+	 *
+	 *
+	 * Father-Son Relationship is wrong.
+	 * Before:
+	 * enet2_ref_125m -> enet2_ref -> pll6_enet -> pll6_bypass
+	 *     bit 20                      bit 13
+	 *
+	 * pcie_ref_125m -> pcie_ref -> pll6_enet -> pll6_bypass
+	 *      bit 19                    bit 13
+	 *
+	 * enet_ptp_25m -> enet_ptp_ref -> pll6_enet -> pll6_bypass
+	 *     bit 21                        bit 13
+	 *
+	 * from here you can see, the bit 13 is father of bit [21,20,19].
+	 * so when you enable/disable enet2 or ptp or pcie, also enable/disable enet1.
+	 * Actually these bits should be independent.
+	 *
+	 * After:
+	 *
+	 * enet2_ref_125m -> enet2_ref -> pll6_enet -> pll6_bypass
+	 *      bit 20                      bit 11
+	 *
+	 *
+	 * pcie_ref_125m -> pcie_ref -> pll6_enet -> pll6_bypass
+	 *      bit 19                    bit 11
+	 *
+	 * enet_ptp_25m -> enet_ptp_ref -> pll6_enet -> pll6_bypass
+	 *     bit 21                        bit 11
+	 *
+	 * enet_ref_125m -> enet_ref -> pll6_enet -> pll6_bypass
+	 *      bit 13                     bit 11
+	 *
+	 * Add IMX6SX_CLK_ENET_REF_125M in imx6sx-clock.h
+	 * modification pll6_enet to bit 11, bit 11 is reserved bit, as father of bit [21,20,19,13].
+	 */
+	clks[IMX6SX_CLK_PLL6_ENET]     = imx_clk_gate("pll6_enet",     "pll6_bypass", base + 0xe0, 11);
 	hws[IMX6SX_CLK_PLL7_USB_HOST] = imx_clk_hw_gate("pll7_usb_host", "pll7_bypass", base + 0x20, 13);
 
 	/*
@@ -266,6 +304,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 			base + 0xe0, 2, 2, 0, clk_enet_ref_table,
 			&imx_ccm_lock);
 	hws[IMX6SX_CLK_ENET2_REF_125M] = imx_clk_hw_gate("enet2_ref_125m", "enet2_ref", base + 0xe0, 20);
+	clks[IMX6SX_CLK_ENET_REF_125M] = imx_clk_gate("enet_ref_125m", "enet_ref", base + 0xe0, 13);
 
 	hws[IMX6SX_CLK_ENET_PTP_REF] = imx_clk_hw_fixed_factor("enet_ptp_ref", "pll6_enet", 1, 20);
 	hws[IMX6SX_CLK_ENET_PTP] = imx_clk_hw_gate("enet_ptp_25m", "enet_ptp_ref", base + 0xe0, 21);
