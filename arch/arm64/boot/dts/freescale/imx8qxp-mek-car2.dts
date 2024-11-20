@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NXP
+ * Copyright 2020,2025 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -160,3 +160,69 @@
 	status = "disabled";
 };
 
+// ISI channel allocation
+//
+// ISI 0 - memory to memory for scaling and colorspace conversion
+// ISI 1 - OV10635 ch 0
+// ISI 2 - OV10635 ch 1
+// ISI 3 - OV10635 ch 2
+// ISI 4 - OV5640 PARALLEL_CSI
+// ISI 5 - OV10635 ch 3
+
+&isi_0 {
+	interface = <5 0 2>; // Memory to memory
+
+	cap_device {
+		status = "disabled"; // No assigned camera
+	};
+};
+
+&isi_1 {
+	status = "okay";
+
+	interface = <2 0 2>; // MIPI-CSI2, MIPI_VC0 to memory - VC as MIPI_VCx
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_2 {
+	status = "okay";
+
+	interface = <2 1 2>; // MIPI-CSI2, MIPI_VC1 to memory - VC as MIPI_VCx
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_3 {
+	status = "okay";
+
+	interface = <2 2 2>; // MIPI-CSI2, MIPI_VC2 to memory - VC as MIPI_VCx
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_4 {
+	status = "okay";
+
+	interface = <6 0 2>; // PARALLEL_CSI
+
+	cap_device {
+		status = "okay";
+	};
+};
+
+&isi_5 {
+	status = "okay";
+
+	interface = <2 3 2>; // MIPI-CSI2, MIPI_VC3 to memory - VC as MIPI_VCx
+
+	cap_device {
+		status = "okay";
+	};
+};
