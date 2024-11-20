@@ -934,6 +934,7 @@ static int udp6_unicast_rcv_skb(struct sock *sk, struct sk_buff *skb,
 	if (inet_get_convert_csum(sk) && uh->check && !IS_UDPLITE(sk))
 		skb_checksum_try_convert(skb, IPPROTO_UDP, ip6_compute_pseudo);
 
+	trace_android_vh_udp6_unicast_rcv_skb(skb, sk);
 	ret = udpv6_queue_rcv_skb(sk, skb);
 
 	/* a return value > 0 means to resubmit the input */
@@ -1478,6 +1479,8 @@ do_udp_sendmsg:
 		fl6->flowlabel = np->flow_label;
 		connected = true;
 	}
+
+	trace_android_vh_udp_v6_connect(sk, sin6);
 
 	if (!fl6->flowi6_oif)
 		fl6->flowi6_oif = READ_ONCE(sk->sk_bound_dev_if);

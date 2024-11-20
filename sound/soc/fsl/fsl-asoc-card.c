@@ -200,6 +200,11 @@ static const unsigned int fsl_asoc_card_cables[] = {
 	EXTCON_JACK_HEADPHONE,
 	EXTCON_NONE,
 };
+
+static const unsigned int line_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
 #endif
 
 static bool fsl_asoc_card_is_ac97(struct fsl_asoc_card_priv *priv)
@@ -722,6 +727,8 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
+	priv->pdev = pdev;
+
 	cpu_np = of_parse_phandle(np, "audio-cpu", 0);
 	/* Give a chance to old DT binding */
 	if (!cpu_np)
@@ -1020,7 +1027,6 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 	}
 
 	/* Initialize sound card */
-	priv->pdev = pdev;
 	priv->card.dev = &pdev->dev;
 	priv->card.owner = THIS_MODULE;
 	ret = snd_soc_of_parse_card_name(&priv->card, "model");
@@ -1165,6 +1171,20 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to register extcon device\n");
 			goto asrc_fail;
 		}
+	}
+
+	if (of_device_is_compatible(np, "fsl,imx-audio-cs42888")) {
+		struct extcon_dev *extcon_dev = devm_extcon_dev_allocate(&pdev->dev, line_cables);
+		if (IS_ERR(extcon_dev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			return 0;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev, extcon_dev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			return 0;
+		}
+		extcon_set_state_sync(extcon_dev, EXTCON_JACK_LINE_OUT, 1);
 	}
 #endif
 asrc_fail:

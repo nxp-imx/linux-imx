@@ -137,6 +137,7 @@ struct ele_mu_priv {
 	u8 success_tag;
 	u8 base_api_ver;
 	u8 fw_api_ver;
+	uint16_t abort_err_code;
 	u32 fw_fail;
 	const void *info;
 

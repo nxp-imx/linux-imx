@@ -46,6 +46,13 @@
 		compatible = "imx95,resetctrl";
 		status = "okay";
 	};
+
+	avf {
+		reference {
+			avf {
+			};
+		};
+	};
 };
 
 &lpuart5 {

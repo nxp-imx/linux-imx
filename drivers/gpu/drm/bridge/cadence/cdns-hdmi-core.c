@@ -171,8 +171,14 @@ static void hdmi_drm_info_set(struct cdns_mhdp_device *mhdp)
 
 	conn_state = mhdp->connector.base.state;
 
-	if (!conn_state->hdr_output_metadata)
+	if (!conn_state->hdr_output_metadata) {
+		/* Disable HDR info frame if it had enabled */
+		if (mhdp->hdmi.hdr_enable) {
+			cdns_mhdp_infoframe_clean(mhdp, 2);
+			mhdp->hdmi.hdr_enable = false;
+		}
 		return;
+	}
 
 	ret = drm_hdmi_infoframe_set_hdr_metadata(&frame, conn_state);
 	if (ret < 0) {
@@ -189,6 +195,8 @@ static void hdmi_drm_info_set(struct cdns_mhdp_device *mhdp)
 	buf[0] = 0;
 	cdns_mhdp_infoframe_set(mhdp, 2, sizeof(buf),
 				buf, HDMI_INFOFRAME_TYPE_DRM);
+
+	mhdp->hdmi.hdr_enable = true;
 }
 
 static void hdmi_spd_info_set(struct cdns_mhdp_device *mhdp)
@@ -701,6 +709,9 @@ static int __cdns_hdmi_probe(struct platform_device *pdev,
 	INIT_DELAYED_WORK(&mhdp->hotplug_work, hotplug_work_func);
 
 	iores = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!iores)
+		return -ENODEV;
+
 	mhdp->regs_base = devm_ioremap(dev, iores->start, resource_size(iores));
 	if (IS_ERR(mhdp->regs_base)) {
 		dev_err(dev, "No regs_base memory\n");
@@ -709,6 +720,9 @@ static int __cdns_hdmi_probe(struct platform_device *pdev,
 
 	/* sec register base */
 	iores = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!iores)
+		return -ENODEV;
+
 	mhdp->regs_sec = devm_ioremap(dev, iores->start, resource_size(iores));
 	if (IS_ERR(mhdp->regs_sec)) {
 		dev_err(dev, "No regs_sec memory\n");

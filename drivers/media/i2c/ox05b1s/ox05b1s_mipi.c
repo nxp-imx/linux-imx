@@ -3,7 +3,7 @@
  * A V4L2 driver for Omnivision OX05B1S RGB-IR camera.
  * Copyright (C) 2024, NXP
  *
- * Inspired from Sony IMX219, Sony imx290 and imx214 camera drivers
+ * Inspired from Sony imx219, imx290, imx214 and imx334 camera drivers
  *
  */
 
@@ -92,7 +92,6 @@ struct ox05b1s {
 	const struct ox05b1s_plat_data *model;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[OX05B1S_SENS_PADS_NUM];
-	struct v4l2_mbus_framefmt format;
 	const struct ox05b1s_mode *mode;
 	struct mutex lock; /* sensor lock */
 	u32 stream_status;
@@ -703,10 +702,6 @@ static int ox05b1s_update_controls(struct ox05b1s *sensor)
 	}
 	__v4l2_ctrl_s_ctrl(sensor->ctrls.exposure, sensor->ctrls.exposure->default_value);
 
-	/* overwrite registers with hdr mode from user */
-	if (sensor->ctrls.hdr_mode)
-		__v4l2_ctrl_s_ctrl(sensor->ctrls.hdr_mode, sensor->ctrls.hdr_mode->default_value);
-
 out:
 	return ret;
 }
@@ -726,8 +721,11 @@ static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 	if (ret)
 		goto out;
 
-	/* update controls that depend on current mode */
-	ret = ox05b1s_update_controls(sensor);
+	/* setup handler will write actual controls into sensor registers */
+	ret =  __v4l2_ctrl_handler_setup(&sensor->ctrls.handler);
+	if (ret)
+		goto out;
+
 out:
 	if (ret < 0)
 		dev_err(dev, "Failed to apply mode %dx%d,bpp=%d\n", sensor->mode->width,
@@ -795,39 +793,28 @@ static int ox05b1s_set_fmt(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
 	struct device *dev = &sensor->i2c_client->dev;
+	struct v4l2_mbus_framefmt *format;
 
-	mutex_lock(&sensor->lock);
 
 	/* if no matching mbus code is found, use the one from the default mode */
 	fmt->format.code = ox05b1s_find_code(sensor->model, fmt->format.code);
 	sensor->mode = ox05b1s_nearest_size(sensor->model->supported_modes,
 					    sensor->model->supported_modes_count, fmt);
+	/* update controls that depend on current mode */
 	ox05b1s_update_controls(sensor);
 
 	fmt->format.width = sensor->mode->width;
 	fmt->format.height = sensor->mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
-	sensor->format = fmt->format;
+
+	format = v4l2_subdev_get_pad_format(sd, state, 0);
+	*format = fmt->format;
+
 	dev_dbg(dev, "Set mode index=%d, %d x %d, code=0x%x\n", sensor->mode->index,
 		fmt->format.width, fmt->format.height, fmt->format.code);
 
-	mutex_unlock(&sensor->lock);
 
 	return ret;
-}
-
-static int ox05b1s_get_fmt(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_state *state,
-			   struct v4l2_subdev_format *fmt)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct ox05b1s *sensor = client_to_ox05b1s(client);
-
-	mutex_lock(&sensor->lock);
-	fmt->format = sensor->format;
-	mutex_unlock(&sensor->lock);
-
-	return 0;
 }
 
 static u8 ox05b1s_code2dt(const u32 code)
@@ -875,20 +862,15 @@ static int ox05b1s_get_selection(struct v4l2_subdev *sd,
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = 0;
 		sel->r.left = 0;
-		mutex_lock(&sensor->lock);
 		sel->r.width = sensor->model->native_width;
 		sel->r.height = sensor->model->native_height;
-		mutex_unlock(&sensor->lock);
 		return 0;
 	case V4L2_SEL_TGT_CROP:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
-		mutex_lock(&sensor->lock);
 		sel->r.top = sensor->model->active_top;
 		sel->r.left = sensor->model->active_left;
 		sel->r.width = sensor->model->active_width;
 		sel->r.height = sensor->model->active_height;
-		mutex_unlock(&sensor->lock);
-
 		return 0;
 	}
 
@@ -902,7 +884,7 @@ static const struct v4l2_subdev_video_ops ox05b1s_subdev_video_ops = {
 static const struct v4l2_subdev_pad_ops ox05b1s_subdev_pad_ops = {
 	.init_cfg		= ox05b1s_init_cfg,
 	.set_fmt		= ox05b1s_set_fmt,
-	.get_fmt		= ox05b1s_get_fmt,
+	.get_fmt		= v4l2_subdev_get_fmt,
 	.get_frame_desc		= ox05b1s_get_frame_desc,
 	.enum_mbus_code		= ox05b1s_enum_mbus_code,
 	.enum_frame_size	= ox05b1s_enum_frame_size,
@@ -1006,6 +988,8 @@ static int ox05b1s_probe(struct i2c_client *client)
 	if (retval)
 		goto probe_out;
 
+	mutex_init(&sensor->lock);
+
 	retval = ox05b1s_init_controls(sensor);
 	if (retval)
 		goto probe_err_entity_cleanup;
@@ -1026,17 +1010,23 @@ static int ox05b1s_probe(struct i2c_client *client)
 		goto probe_err_pm_runtime;
 
 	v4l2_i2c_subdev_set_name(sd, client, sensor->model->name, NULL);
+
+	/* Centrally managed subdev active state */
+	sd->state_lock = &sensor->lock;
+	retval = v4l2_subdev_init_finalize(sd);
+	if (retval < 0) {
+		dev_err(dev, "Subdev init error: %d\n", retval);
+		goto probe_err_pm_runtime;
+	}
+
 	retval = v4l2_async_register_subdev_sensor(sd);
 	if (retval < 0) {
 		dev_err(&client->dev, "Async register failed, ret=%d\n", retval);
-		goto probe_err_pm_runtime;
+		goto probe_err_subdev_cleanup;
 	}
 
 	sensor->mode = &sensor->model->supported_modes[0];
 	ox05b1s_update_controls(sensor);
-	ox05b1s_update_pad_format(sensor, sensor->mode, &sensor->format);
-
-	mutex_init(&sensor->lock);
 
 	pm_runtime_set_autosuspend_delay(dev, 1000);
 	pm_runtime_use_autosuspend(dev);
@@ -1044,6 +1034,8 @@ static int ox05b1s_probe(struct i2c_client *client)
 
 	return 0;
 
+probe_err_subdev_cleanup:
+	v4l2_subdev_cleanup(sd);
 probe_err_pm_runtime:
 	pm_runtime_put_noidle(dev);
 	pm_runtime_disable(dev);
@@ -1067,6 +1059,7 @@ static void ox05b1s_remove(struct i2c_client *client)
 		ox05b1s_runtime_suspend(dev);
 	pm_runtime_set_suspended(dev);
 	v4l2_async_unregister_subdev(sd);
+	v4l2_subdev_cleanup(sd);
 	media_entity_cleanup(&sd->entity);
 	v4l2_ctrl_handler_free(&sensor->ctrls.handler);
 	mutex_destroy(&sensor->lock);

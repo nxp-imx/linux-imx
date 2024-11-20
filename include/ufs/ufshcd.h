@@ -685,6 +685,12 @@ enum ufshcd_android_quirks {
 	 * keys were stored in it.
 	 */
 	UFSHCD_ANDROID_QUIRK_KEYS_IN_PRDT		= 1 << 2,
+
+	/*
+	 * Use 36-bit DMA no matter whether or not the controller reports
+	 * 64-bit addressing support.
+	 */
+	UFSHCD_ANDROID_QUIRK_36BIT_ADDRESS_DMA		= 1 << 3,
 };
 
 enum ufshcd_caps {
@@ -1161,6 +1167,12 @@ struct ufs_hw_queue {
 static inline bool is_mcq_enabled(struct ufs_hba *hba)
 {
 	return hba->mcq_enabled;
+}
+
+static inline unsigned int ufshcd_mcq_opr_offset(struct ufs_hba *hba,
+		enum ufshcd_mcq_opr opr, int idx)
+{
+	return hba->mcq_opr[opr].offset + hba->mcq_opr[opr].stride * idx;
 }
 
 #ifdef CONFIG_SCSI_UFS_VARIABLE_SG_ENTRY_SIZE

@@ -429,6 +429,9 @@ _IMX_IN_TREE_MODULES = [
     "net/sched/sch_mqprio.ko",
     "net/sched/sch_mqprio_lib.ko",
     "net/sched/cls_flower.ko",
+    "drivers/mfd/rohm-bd718x7.ko",
+    "drivers/regulator/rohm-regulator.ko",
+    "drivers/regulator/bd718x7-regulator.ko",
 ]
 
 def define_imx():

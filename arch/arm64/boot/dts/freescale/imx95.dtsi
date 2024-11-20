@@ -661,23 +661,23 @@
 	gpu_opp_table: opp_table {
 		compatible = "operating-points-v2", "operating-points-v2-mali";
 
-		opp-1000000000 {
-			opp-hz = /bits/ 64 <1000000000>;
-			opp-hz-real = /bits/ 64 <1000000000>, /bits/ 64 <133333333>;
+		opp-500000000 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-hz-real = /bits/ 64 <500000000>;
 			opp-microvolt = <920000>;
 		};
 
 		opp-800000000 {
 			opp-hz = /bits/ 64 <800000000>;
-			opp-hz-real = /bits/ 64 <800000000>, /bits/ 64 <133333333>;
-			opp-microvolt = <920000>;
-		};
-		opp-500000000 {
-			opp-hz = /bits/ 64 <500000000>;
-			opp-hz-real = /bits/ 64 <500000000>, /bits/ 64 <133333333>;
+			opp-hz-real = /bits/ 64 <800000000>;
 			opp-microvolt = <920000>;
 		};
 
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-hz-real = /bits/ 64 <1000000000>;
+			opp-microvolt = <920000>;
+		};
 	};
 
 	usbphynop: usbphynop {
@@ -2977,14 +2977,14 @@
 
 		mali: gpu@4d900000 {
 			compatible = "arm,mali-valhall", "nxp,imx95-mali";
-			reg = <0 0x4d900000 0 0x700000>, <0 0x4d810000 0 0x10000>;
+			reg = <0 0x4d900000 0 0x480000>, <0 0x4d810000 0 0x10000>;
 			reg-names = "gpu_base", "gpumix_blk_ctrl";
 			interrupts = <GIC_SPI 288 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 289 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 290 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "gpu", "job", "mmu";
-			clocks = <&scmi_clk IMX95_CLK_GPU>, <&scmi_clk IMX95_CLK_GPUAPB>;
-			clock-names = "gpu", "gpu_apb";
+			clocks = <&scmi_clk IMX95_CLK_GPU>;
+			clock-names = "gpu";
 			power-domains = <&scmi_devpd IMX95_PD_GPU>, <&scmi_perf IMX95_PERF_GPU>;
 			power-domain-names = "gpumix", "gpuperf";
 			operating-points-v2 = <&gpu_opp_table>;

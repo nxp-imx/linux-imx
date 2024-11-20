@@ -1511,6 +1511,7 @@ static const struct v4l2_ctrl_config ap130x_ctrls[] = {
 
 static int ap130x_ctrls_init(struct ap130x_device *ap130x)
 {
+	struct v4l2_fwnode_device_properties props;
 	unsigned int i;
 	int ret;
 
@@ -1523,15 +1524,27 @@ static int ap130x_ctrls_init(struct ap130x_device *ap130x)
 
 	if (ap130x->ctrls.error) {
 		ret = ap130x->ctrls.error;
-		v4l2_ctrl_handler_free(&ap130x->ctrls);
-		return ret;
+		goto free_ctrls;
 	}
+
+	ret = v4l2_fwnode_device_parse(ap130x->dev, &props);
+	if (ret)
+		goto free_ctrls;
+
+	ret = v4l2_ctrl_new_fwnode_properties(&ap130x->ctrls,
+					      &ap130x_ctrl_ops, &props);
+	if (ret)
+		goto free_ctrls;
 
 	/* Use same lock for controls as for everything else. */
 	ap130x->ctrls.lock = &ap130x->lock;
 	ap130x->sd.ctrl_handler = &ap130x->ctrls;
 
 	return 0;
+
+free_ctrls:
+	v4l2_ctrl_handler_free(&ap130x->ctrls);
+	return ret;
 }
 
 static void ap130x_ctrls_cleanup(struct ap130x_device *ap130x)
@@ -2618,11 +2631,6 @@ static int ap130x_config_v4l2(struct ap130x_device *ap130x)
 	sd = &ap130x->sd;
 	sd->dev = ap130x->dev;
 	v4l2_i2c_subdev_init(sd, ap130x->client, &ap130x_subdev_ops);
-
-	strscpy(sd->name, DRIVER_NAME, sizeof(sd->name));
-	strlcat(sd->name, ".", sizeof(sd->name));
-	strlcat(sd->name, dev_name(ap130x->dev), sizeof(sd->name));
-	dev_dbg(ap130x->dev, "name %s\n", sd->name);
 
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 	sd->internal_ops = &ap130x_subdev_internal_ops;

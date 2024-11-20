@@ -272,22 +272,34 @@ static void enetc_psfp_sgcl_show(struct seq_file *s, struct ntmp_sgclt_info *inf
 	seq_puts(s, "\n");
 }
 
-static void enetc_psfp_isc_show(struct seq_file *s, struct ntmp_isct_info *info)
+static void enetc_psfp_isc_show(struct seq_file *s, struct isct_stse_data *stse)
 {
+	struct enetc_si *si = s->private;
+	u32 sg_drop_cnt;
+
+	sg_drop_cnt = le32_to_cpu(stse->sg_drop_count);
+	if (si->errata & ENETC_ERR_SG_DROP_CNT) {
+		u32 tmp;
+
+		sg_drop_cnt >>= 9;
+		tmp = le32_to_cpu(stse->resv3) & 0x1ff;
+		sg_drop_cnt |= (tmp << 23);
+	}
+
 	seq_printf(s, "Receive Count:%u, MSDU Drop Count:%u.\n",
-		   info->rx_count, info->msdu_drop_count);
+		   le32_to_cpu(stse->rx_count), le32_to_cpu(stse->msdu_drop_count));
 	seq_printf(s, "Policer Drop Count:%u, Stream Gating Drop Count:%u.\n",
-		   info->policer_drop_count, info->sg_drop_count);
+		   le32_to_cpu(stse->policer_drop_count), sg_drop_cnt);
 	seq_puts(s, "\n");
 }
 
 static int enetc_psfp_show(struct seq_file *s, void *data)
 {
 	struct ntmp_sgclt_info *sgcl_info;
+	struct isct_stse_data *isct_stse;
 	struct ntmp_isit_info *isi_info;
 	struct ntmp_isft_info *isf_info;
 	struct ntmp_sgit_info *sgi_info;
-	struct ntmp_isct_info *isc_info;
 	struct ntmp_ist_info *is_info;
 	struct ntmp_rpt_info *rp_info;
 	struct enetc_si *si = s->private;
@@ -331,8 +343,8 @@ static int enetc_psfp_show(struct seq_file *s, void *data)
 		goto free_sgcl_info;
 	}
 
-	isc_info = kmalloc(sizeof(*isc_info), GFP_KERNEL);
-	if (!isc_info) {
+	isct_stse = kmalloc(sizeof(*isct_stse), GFP_KERNEL);
+	if (!isct_stse) {
 		err = -ENOMEM;
 		goto free_rp_info;
 	}
@@ -347,7 +359,7 @@ static int enetc_psfp_show(struct seq_file *s, void *data)
 		memset(sgi_info, 0, sizeof(*sgi_info));
 		memset(sgcl_info, 0, sizeof(*sgcl_info));
 		memset(rp_info, 0, sizeof(*rp_info));
-		memset(isc_info, 0, sizeof(*isc_info));
+		memset(isct_stse, 0, sizeof(*isct_stse));
 
 		seq_printf(s, "Show PSFP entry %d information.\n", i++);
 
@@ -404,16 +416,16 @@ static int enetc_psfp_show(struct seq_file *s, void *data)
 
 		if (psfp->isc_eid != NTMP_NULL_ENTRY_ID) {
 			err = ntmp_isct_operate_entry(&si->cbdr, psfp->isc_eid, NTMP_CMD_QUERY,
-						      isc_info);
+						      isct_stse);
 			if (err)
 				goto free_isc_info;
 			seq_printf(s, "Show ingress stream count table entry %u:\n", psfp->isc_eid);
-			enetc_psfp_isc_show(s, isc_info);
+			enetc_psfp_isc_show(s, isct_stse);
 		}
 	}
 
 free_isc_info:
-	kfree(isc_info);
+	kfree(isct_stse);
 free_rp_info:
 	kfree(rp_info);
 free_sgcl_info:

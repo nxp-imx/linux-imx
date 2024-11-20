@@ -42,6 +42,12 @@
   free_fs_struct
   freq_qos_add_notifier
   freq_qos_remove_notifier
+  fsnotify_add_mark
+  fsnotify_alloc_group
+  fsnotify_destroy_mark
+  fsnotify_init_mark
+  fsnotify_put_group
+  fsnotify_put_mark
   fsstack_copy_inode_size
   generic_delete_inode
   __generic_file_fsync
@@ -193,6 +199,7 @@
   __traceiter_android_vh_alloc_oem_binder_struct
   __traceiter_android_vh_alloc_pages_failure_bypass
   __traceiter_android_vh_alloc_pages_reclaim_bypass
+  __traceiter_android_rvh_alloc_workqueue
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_binder_alloc_new_buf_locked
   __traceiter_android_vh_binder_buffer_release
@@ -339,6 +346,7 @@
   __tracepoint_android_vh_alloc_oem_binder_struct
   __tracepoint_android_vh_alloc_pages_failure_bypass
   __tracepoint_android_vh_alloc_pages_reclaim_bypass
+  __tracepoint_android_rvh_alloc_workqueue
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_binder_alloc_new_buf_locked
   __tracepoint_android_vh_binder_buffer_release
@@ -504,6 +512,7 @@
   vfs_rmdir
   vfs_statfs
   vfs_unlink
+  __vmalloc_array
   wait_for_completion_io_timeout
   wait_for_completion_killable_timeout
   wakeup_source_remove
@@ -512,3 +521,13 @@
   xt_register_match
   xt_unregister_match
   zero_pfn
+  crypto_register_scomp
+  crypto_unregister_scomp
+  zstd_get_params
+  zstd_compress_cctx
+  zstd_is_error
+  zstd_decompress_dctx
+  zstd_cctx_workspace_bound
+  zstd_init_cctx
+  zstd_dctx_workspace_bound
+  zstd_init_dctx

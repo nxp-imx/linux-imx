@@ -93,7 +93,6 @@
 	sound-micfil {
 		compatible = "fsl,imx-audio-card";
 		model = "micfil-audio";
-		status = "disabled";
 		pri-dai-link {
 			link-name = "micfil hifi";
 			format = "i2s";
@@ -168,7 +167,6 @@
 
 	ethphy0: ethernet-phy@1 {
 		reg = <1>;
-		eee-broken-1000t;
 		reset-gpios = <&pcal6524 4 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <10000>;
 		reset-deassert-us = <80000>;
@@ -297,7 +295,7 @@
 	assigned-clock-rates = <3932160000>,
 			       <3612672000>, <393216000>,
 			       <361267200>, <49152000>;
-	status = "disabled";
+	status = "okay";
 };
 
 &sai2 {

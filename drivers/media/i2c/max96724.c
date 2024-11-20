@@ -468,6 +468,7 @@ static int max96724_dt_parse_sink_ep(struct max96724_priv *priv, struct device_n
 	struct max96724_source *source;
 	struct device_node *csi_ep;
 	struct of_endpoint csi_of_ep;
+	unsigned int csi_port;
 
 	/* Skip if the corresponding GMSL link is unavailable. */
 	if (!(priv->gmsl_link_mask & BIT(ep->port)))
@@ -477,7 +478,14 @@ static int max96724_dt_parse_sink_ep(struct max96724_priv *priv, struct device_n
 		csi_ep = of_graph_get_remote_endpoint(node);
 		of_graph_parse_endpoint(csi_ep, &csi_of_ep);
 
-		priv->csi2_video_pipe_mask[csi_of_ep.port - MAX96724_SRC_PAD] |= BIT(ep->port);
+		csi_port = csi_of_ep.port - MAX96724_SRC_PAD;
+
+		if (csi_port > 1) {
+			dev_err(dev, "Wrong CSI port, deserializer has only 2 ports.\n");
+			return -EINVAL;
+		}
+
+		priv->csi2_video_pipe_mask[csi_port] |= BIT(ep->port);
 		of_node_put(csi_ep);
 		return 0;
 	}
@@ -526,7 +534,9 @@ static int max96724_parse_dt(struct max96724_priv *priv)
 			continue;
 		}
 
-		max96724_dt_parse_sink_ep(priv, node, &ep);
+		ret = max96724_dt_parse_sink_ep(priv, node, &ep);
+		if (ret)
+			return ret;
 	}
 	of_node_put(node);
 
@@ -1064,8 +1074,8 @@ static int max96724_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_st
 	struct device *dev = &priv->client->dev;
 	struct v4l2_subdev *remote_sd;
 	int ret = 0;
-	u32 remote_pad;
-	u64 sink_streams;
+	u32 remote_pad = 0;
+	u64 sink_streams = 0;
 	u64 sources_mask = streams_mask;
 
 	mutex_lock(&priv->lock);
@@ -1121,10 +1131,10 @@ static int max96724_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_s
 	struct max96724_priv *priv = container_of(sd, struct max96724_priv, sd);
 	struct device *dev = &priv->client->dev;
 	struct v4l2_subdev *remote_sd;
-	u64 sink_streams;
+	u64 sink_streams = 0;
 	u64 sources_mask = streams_mask;
-	u32 remote_pad;
-	int ret;
+	u32 remote_pad = 0;
+	int ret = 0;
 
 	mutex_lock(&priv->lock);
 
@@ -1163,7 +1173,7 @@ static int max96724_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_s
 unlock:
 	mutex_unlock(&priv->lock);
 
-	return 0;
+	return ret;
 }
 
 static int max96724_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
@@ -1188,7 +1198,7 @@ static int max96724_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 
 	for_each_active_route(&state->routing, route) {
 		struct v4l2_mbus_frame_desc_entry *source_entry = NULL;
-		struct v4l2_mbus_frame_desc source_fd;
+		struct v4l2_mbus_frame_desc source_fd = {0};
 
 		if (route->source_pad != pad)
 			continue;
@@ -1256,6 +1266,8 @@ static int max96724_enum_mbus_code(struct v4l2_subdev *sd, struct v4l2_subdev_st
 
 		fmt = v4l2_subdev_state_get_opposite_stream_format(sd_state, code->pad,
 								   code->stream);
+		if (!fmt)
+			return -EINVAL;
 
 		code->code = fmt->code;
 

@@ -204,6 +204,16 @@ void wave6_vpu_pause(struct device *dev, int resume)
 	mutex_unlock(&vpu_dev->pause_lock);
 }
 
+void wave6_vpu_activate(struct vpu_device *dev)
+{
+	dev->active = true;
+}
+
+void wave6_vpu_wait_activated(struct vpu_device *dev)
+{
+	wave6_vpu_check_state(dev);
+}
+
 static int wave6_vpu_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -304,24 +314,9 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (dev->res->flags & WAVE6_IS_DEC) {
-		ret = wave6_vpu_dec_register_device(dev);
-		if (ret) {
-			dev_err(&pdev->dev, "wave6_vpu_dec_register_device fail: %d\n", ret);
-			goto err_v4l2_unregister;
-		}
-	}
-	if (dev->res->flags & WAVE6_IS_ENC) {
-		ret = wave6_vpu_enc_register_device(dev);
-		if (ret) {
-			dev_err(&pdev->dev, "wave6_vpu_enc_register_device fail: %d\n", ret);
-			goto err_dec_unreg;
-		}
-	}
-
 	ret = wave6_vpu_init_m2m_dev(dev);
 	if (ret)
-		goto err_enc_unreg;
+		goto err_v4l2_unregister;
 
 	dev->irq = platform_get_irq(pdev, 0);
 	if (dev->irq < 0) {
@@ -355,10 +350,27 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
+	if (dev->res->flags & WAVE6_IS_DEC) {
+		ret = wave6_vpu_dec_register_device(dev);
+		if (ret) {
+			dev_err(&pdev->dev, "wave6_vpu_dec_register_device fail: %d\n", ret);
+			goto err_temp_vbuf_free;
+		}
+	}
+
+	if (dev->res->flags & WAVE6_IS_ENC) {
+		ret = wave6_vpu_enc_register_device(dev);
+		if (ret) {
+			dev_err(&pdev->dev, "wave6_vpu_enc_register_device fail: %d\n", ret);
+			goto err_dec_unreg;
+		}
+	}
+
 	if (dev->ctrl && wave6_vpu_ctrl_support_follower(dev->ctrl)) {
+		wave6_vpu_activate(dev);
 		ret = pm_runtime_resume_and_get(dev->dev);
 		if (ret)
-			goto err_temp_vbuf_free;
+			goto err_enc_unreg;
 	}
 
 	dev_dbg(&pdev->dev, "Added wave driver with caps %s %s\n",
@@ -367,18 +379,18 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_temp_vbuf_free:
-	wave6_free_dma(&dev->temp_vbuf);
-err_kfifo_free:
-	kfifo_free(&dev->irq_status);
-err_m2m_dev_release:
-	wave6_vpu_release_m2m_dev(dev);
 err_enc_unreg:
 	if (dev->res->flags & WAVE6_IS_ENC)
 		wave6_vpu_enc_unregister_device(dev);
 err_dec_unreg:
 	if (dev->res->flags & WAVE6_IS_DEC)
 		wave6_vpu_dec_unregister_device(dev);
+err_temp_vbuf_free:
+	wave6_free_dma(&dev->temp_vbuf);
+err_kfifo_free:
+	kfifo_free(&dev->irq_status);
+err_m2m_dev_release:
+	wave6_vpu_release_m2m_dev(dev);
 err_v4l2_unregister:
 	v4l2_device_unregister(&dev->v4l2_dev);
 
@@ -389,17 +401,17 @@ static int wave6_vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_device *dev = dev_get_drvdata(&pdev->dev);
 
+	wave6_vpu_enc_unregister_device(dev);
+	wave6_vpu_dec_unregister_device(dev);
+
 	if (dev->ctrl && wave6_vpu_ctrl_support_follower(dev->ctrl)) {
 		if (!pm_runtime_suspended(&pdev->dev))
 			pm_runtime_put_sync(&pdev->dev);
 	}
 	pm_runtime_disable(&pdev->dev);
-	pm_runtime_set_suspended(&pdev->dev);
 
 	wave6_free_dma(&dev->temp_vbuf);
 	wave6_vpu_release_m2m_dev(dev);
-	wave6_vpu_enc_unregister_device(dev);
-	wave6_vpu_dec_unregister_device(dev);
 	v4l2_device_unregister(&dev->v4l2_dev);
 	kfifo_free(&dev->irq_status);
 
@@ -415,7 +427,7 @@ static int wave6_vpu_runtime_suspend(struct device *dev)
 		return -ENODEV;
 
 	dprintk(dev, "runtime suspend\n");
-	if (vpu_dev->ctrl)
+	if (vpu_dev->ctrl && vpu_dev->active)
 		wave6_vpu_ctrl_put_sync(vpu_dev->ctrl, &vpu_dev->entity);
 	if (vpu_dev->num_clks)
 		clk_bulk_disable_unprepare(vpu_dev->num_clks, vpu_dev->clks);
@@ -440,7 +452,7 @@ static int wave6_vpu_runtime_resume(struct device *dev)
 		}
 	}
 
-	if (vpu_dev->ctrl) {
+	if (vpu_dev->ctrl && vpu_dev->active) {
 		ret = wave6_vpu_ctrl_resume_and_get(vpu_dev->ctrl, &vpu_dev->entity);
 		if (ret && vpu_dev->num_clks)
 			clk_bulk_disable_unprepare(vpu_dev->num_clks, vpu_dev->clks);

@@ -258,6 +258,9 @@
   drm_mode_vrefresh
   drm_of_find_panel_or_bridge
   drm_printf
+  drm_rect_rotate
+  drm_rect_rotate_inv
+  drmm_kmalloc
   enable_irq
   eth_type_trans
   _find_first_bit
@@ -1284,6 +1287,7 @@
   can_ethtool_op_get_ts_info_hwts
   can_fd_dlc2len
   can_fd_len2dlc
+  can_free_echo_skb
   can_put_echo_skb
   can_rx_offload_add_manual
   can_rx_offload_del
@@ -1317,6 +1321,7 @@
   timecounter_read
   unregister_candev
   __vmalloc
+  work_busy
 
 # required by mhi.ko
   get_random_u32
@@ -1966,6 +1971,7 @@
   device_find_child
 
 # required by smem.ko
+  hwspin_lock_bust
   hwspin_lock_free
   hwspin_lock_request_specific
   __hwspin_lock_timeout

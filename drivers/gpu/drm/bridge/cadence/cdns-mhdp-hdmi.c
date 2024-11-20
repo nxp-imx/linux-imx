@@ -47,6 +47,14 @@ void cdns_mhdp_infoframe_set(struct cdns_mhdp_device *mhdp,
 	cdns_mhdp_bus_write(F_PKT_ALLOC_WR_EN(1), mhdp, SOURCE_PIF_PKT_ALLOC_WR_EN);
 }
 
+void cdns_mhdp_infoframe_clean(struct cdns_mhdp_device *mhdp, u8 entry_id)
+{
+	u8 buf[32] = {0};
+
+	/* Send empty info frame to stop infoframe */
+	cdns_mhdp_infoframe_set(mhdp, entry_id, sizeof(buf), buf, 0);
+}
+
 int cdns_hdmi_get_edid_block(void *data, u8 *edid,
 			  u32 block, size_t length)
 {

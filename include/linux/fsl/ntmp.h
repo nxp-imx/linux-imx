@@ -104,6 +104,17 @@ union netc_cbd {
 	} ntmp_resp_hdr; /* NTMP Response Message Header Format */
 };
 
+struct isct_stse_data {
+	__le32 rx_count;
+	__le32 resv0;
+	__le32 msdu_drop_count;
+	__le32 resv1;
+	__le32 policer_drop_count;
+	__le32 resv2;
+	__le32 sg_drop_count;
+	__le32 resv3;
+};
+
 #pragma pack()
 
 struct netc_cbdr_regs {
@@ -358,13 +369,6 @@ struct ntmp_sgclt_info {
 	struct ntmp_sgclt_ge ge[NTMP_SGCLT_MAX_GE_NUM];
 };
 
-struct ntmp_isct_info {
-	u32 rx_count;
-	u32 msdu_drop_count;
-	u32 policer_drop_count;
-	u32 sg_drop_count;
-};
-
 struct ipft_pld_data {
 	u8 data;
 	u8 mask;
@@ -466,7 +470,7 @@ int ntmp_sgclt_delete_entry(struct netc_cbdr *cbdr, u32 entry_id);
 int ntmp_sgclt_query_entry(struct netc_cbdr *cbdr, u32 entry_id,
 			   struct ntmp_sgclt_info *info);
 int ntmp_isct_operate_entry(struct netc_cbdr *cbdr, u32 entry_id,
-			    int cmd, struct ntmp_isct_info *info);
+			    int cmd, struct isct_stse_data *stse);
 int ntmp_ipft_add_entry(struct netc_cbdr *cbdr, struct ntmp_ipft_key *key,
 			struct ntmp_ipft_cfg *cfg, u32 *entry_id);
 int ntmp_ipft_query_entry(struct netc_cbdr *cbdr, u32 entry_id,
@@ -650,7 +654,7 @@ static inline int ntmp_sgclt_query_entry(struct netc_cbdr *cbdr, u32 entry_id,
 }
 
 static inline int ntmp_isct_operate_entry(struct netc_cbdr *cbdr, u32 entry_id,
-					  int cmd, struct ntmp_isct_info *info)
+					  int cmd, struct isct_stse_data *stse)
 {
 	return 0;
 }

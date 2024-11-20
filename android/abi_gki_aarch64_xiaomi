@@ -1,5 +1,7 @@
 [abi_symbol_list]
 # commonly used symbols
+  __traceiter_android_rvh_logbuf
+  __tracepoint_android_rvh_logbuf
   __traceiter_android_vh_logbuf
   __tracepoint_android_vh_logbuf
   tracepoint_probe_register
@@ -74,6 +76,14 @@
   __tracepoint_android_vh_anon_vma_name_recog
   __tracepoint_android_vh_restore_mm_flags
   __tracepoint_android_vh_update_vma_flags
+  __traceiter_android_vh_madvise_cold_or_pageout_abort
+  __traceiter_android_vh_compact_finished
+  __tracepoint_android_vh_madvise_cold_or_pageout_abort
+  __tracepoint_android_vh_compact_finished
+  __traceiter_android_vh_customize_thp_pcp_order
+  __tracepoint_android_vh_customize_thp_pcp_order
+  __traceiter_android_vh_customize_thp_gfp_orders
+  __tracepoint_android_vh_customize_thp_gfp_orders
 
 #required by metis.ko module
   __traceiter_android_vh_rwsem_read_wait_start

@@ -240,7 +240,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 				IPA_CONTROL_TIMER_DEFAULT_VALUE_MS * NSEC_PER_MSEC * 3 / 2;
 
 			if (gpu_active_counter > (diff_ns + MARGIN_NS)) {
-				dev_dbg(
+				dev_info(
 					kbdev->dev,
 					"GPU activity takes longer than time interval: %llu ns > %llu ns",
 					(unsigned long long)gpu_active_counter,

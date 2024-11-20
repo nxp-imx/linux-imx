@@ -71,6 +71,7 @@
 #define NETC_TMR_DEFAULT_PRSC		2
 #define NETC_TMR_DEFAULT_ALARM		0xffffffffffffffffULL
 #define NETC_TMR_DEFAULT_FIPER		0xffffffff
+#define NETC_TMR_PRSC_OCK_MAX		0xfffe
 
 /* 1588 timer reference clock source select */
 #define NETC_TMR_CCM_TIMER1		0 /* enet_timer1_clk_root, from CCM */
@@ -155,22 +156,50 @@ static void netc_timer_alarm_write(struct netc_timer *priv,
 	netc_timer_write_reg(priv, NETC_TMR_ALARM_H(index), alarm_h);
 }
 
+static void netc_timer_set_oclk_prsc(struct netc_timer *priv, u32 oclk_prsc)
+{
+	if (oclk_prsc < NETC_TMR_PRSC_OCK_MAX) {
+		if (oclk_prsc % 2 != 0)
+			oclk_prsc++;
+	} else {
+		oclk_prsc = NETC_TMR_PRSC_OCK_MAX;
+	}
+	priv->oclk_prsc = oclk_prsc;
+
+	if (oclk_prsc == netc_timer_read_reg(priv, NETC_TMR_PRSC))
+		return;
+
+	netc_timer_write_reg(priv, NETC_TMR_PRSC, priv->oclk_prsc);
+}
+
 static u32 netc_timer_calculate_fiper_pulse_width(struct netc_timer *priv,
 						  u32 fiper)
 {
+	u32 oclk_prsc = NETC_TMR_DEFAULT_PRSC;
 	u64 pw;
 
 	/* Set the FIPER pulse width to half FIPER interval by default.
 	 * pulse_width = (fiper / 2) / TMR_GCLK_period,
-	 * TMR_GCLK_period = 1000000000ns / TMR_GCLK_freq,
+	 * TMR_GCLK_period = NSEC_PER_SEC / TMR_GCLK_freq,
 	 * TMR_GCLK_freq = (clk_freq / oclk_prsc) MHz,
-	 * so pulse_width = fiper * clk_freq / (2000 * oclk_prsc).
+	 * so pulse_width = fiper * clk_freq / (2 * NSEC_PER_SEC * oclk_prsc).
+	 *
+	 * The oclk_prsc value needs to be an even number, so here we use its
+	 * default value NETC_TMR_DEFAULT_PRSC to calculate the pw. If pw
+	 * exceeds the maximum value, then update the oclk_prsc.
 	 */
-	pw = fiper * priv->clk_freq;
-	pw = div_u64(pw, 2000 * priv->oclk_prsc);
+	pw = (u64)fiper * priv->clk_freq;
+	/* 2 * NSEC_PER_SEC * oclk_prsc = 4000000000UL */
+	pw = div_u64(pw, 4000000000UL);
 
-	/* The FIPER_PW field only has 5 bits */
-	return pw & NETC_TMR_FIPER_PW;
+	/* The FIPER_PW field only has 5 bits, need to update oclk_prsc */
+	if (pw > NETC_TMR_FIPER_PW) {
+		oclk_prsc = div_u64(pw, NETC_TMR_FIPER_PW) * oclk_prsc;
+		pw = NETC_TMR_FIPER_PW;
+	}
+	netc_timer_set_oclk_prsc(priv, oclk_prsc);
+
+	return pw;
 }
 
 static void netc_timer_adjust_period(struct netc_timer *priv, u64 period)
@@ -407,6 +436,13 @@ static int net_timer_enable_perout(struct netc_timer *priv,
 		fiper = div_u64(period_ns, priv->period_int) - 1;
 		fiper = fiper * priv->period_int;
 		fiper_pw = netc_timer_calculate_fiper_pulse_width(priv, fiper);
+		if (fiper_pw == 0) {
+			dev_err(priv->dev, "The setting period is too small!\n");
+			spin_unlock_irqrestore(&priv->lock, flags);
+
+			return -EINVAL;
+		}
+
 		fiper_ctrl &= ~(FIPER_CTRL_DIS(channel) | FIPER_CTRL_PW(channel));
 		fiper_ctrl |= (fiper_pw << 8 * channel) & FIPER_CTRL_PW(channel);
 
@@ -501,6 +537,7 @@ static int netc_timer_init(struct netc_timer *priv)
 	u64 ns;
 
 	priv->caps = netc_timer_ptp_caps;
+	priv->oclk_prsc = NETC_TMR_DEFAULT_PRSC;
 
 	if (of_property_read_u32(node, "fsl,clk-select", &priv->clk_select))
 		priv->clk_select = NETC_TMR_SYSTEM_CLK;
@@ -512,15 +549,6 @@ static int netc_timer_init(struct netc_timer *priv)
 		dev_err(priv->dev, "Wrong clock source %d\n", priv->clk_select);
 
 		return -EINVAL;
-	}
-
-	/* Get the output clock division prescale factor, it must be an even value. */
-	if (of_property_read_u32(node, "fsl,oclk-prsc", &priv->oclk_prsc))
-		priv->oclk_prsc = NETC_TMR_DEFAULT_PRSC;
-	if (priv->oclk_prsc % 2) {
-		dev_warn(priv->dev, "PRSC_OCK should be an even value (PRSC_OCK: %d -> %d)\n",
-			 priv->oclk_prsc, priv->oclk_prsc + 1);
-		priv->oclk_prsc += 1;
 	}
 
 	err = netc_timer_get_clk_config(priv);

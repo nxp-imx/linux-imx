@@ -65,6 +65,7 @@ struct imx_info {
 	uint8_t success_tag;
 	uint8_t base_api_ver;
 	uint8_t fw_api_ver;
+	uint16_t abort_err_code;
 	uint8_t *se_name;
 	uint8_t *mbox_tx_name;
 	uint8_t *mbox_rx_name;
@@ -118,6 +119,7 @@ static struct imx_info_list imx8ulp_info = {
 				.success_tag = 0xd6,
 				.base_api_ver = MESSAGING_VERSION_6,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "hsm1",
 				.mbox_tx_name = "tx",
 				.mbox_rx_name = "rx",
@@ -152,6 +154,7 @@ static struct imx_info_list imx93_info = {
 				.success_tag = 0xd6,
 				.base_api_ver = MESSAGING_VERSION_6,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "hsm1",
 				.mbox_tx_name = "tx",
 				.mbox_rx_name = "rx",
@@ -185,6 +188,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = MESSAGING_VERSION_6,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "she1",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -210,6 +214,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = MESSAGING_VERSION_6,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "hsm1",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -235,6 +240,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = 0x02,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_sv0",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -260,6 +266,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = 0x02,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_sv1",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -285,6 +292,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = 0x02,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_she",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -310,6 +318,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = 0x02,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_sg0",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -335,6 +344,7 @@ static const struct imx_info_list imx8dxl_info = {
 				.success_tag = 0x00,
 				.base_api_ver = 0x02,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_sg1",
 				.mbox_tx_name = "txdb",
 				.mbox_rx_name = "rxdb",
@@ -368,6 +378,7 @@ static struct imx_info_list imx95_info = {
 				.success_tag = 0xd6,
 				.base_api_ver = MESSAGING_VERSION_6,
 				.fw_api_ver = MESSAGING_VERSION_7,
+				.abort_err_code = 0xff29,
 				.se_name = "hsm1",
 				.mbox_tx_name = "tx",
 				.mbox_rx_name = "rx",
@@ -387,12 +398,13 @@ static struct imx_info_list imx95_info = {
 				.socdev = false,
 				.mu_id = 0,
 				.mu_did = 0,
-				.max_dev_ctx = 0,
-				.cmd_tag = 0x17,
-				.rsp_tag = 0xe1,
+				.max_dev_ctx = 1,
+				.cmd_tag = 0x1a,
+				.rsp_tag = 0xe4,
 				.success_tag = 0xd6,
 				.base_api_ver = 0x2,
 				.fw_api_ver = 0x2,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_dbg",
 				.pool_name = NULL,
 				.mbox_tx_name = "tx",
@@ -418,6 +430,7 @@ static struct imx_info_list imx95_info = {
 				.success_tag = 0xd6,
 				.base_api_ver = 0x2,
 				.fw_api_ver = 0x2,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_sv0",
 				.pool_name = NULL,
 				.mbox_tx_name = "tx",
@@ -443,6 +456,7 @@ static struct imx_info_list imx95_info = {
 				.success_tag = 0xd6,
 				.base_api_ver = 0x2,
 				.fw_api_ver = 0x2,
+				.abort_err_code = 0xff29,
 				.se_name = "v2x_she",
 				.pool_name = NULL,
 				.mbox_tx_name = "tx",
@@ -530,12 +544,18 @@ static void ele_mu_rx_callback(struct mbox_client *c, void *msg)
 	bool is_response = false;
 	int msg_size;
 	struct mu_hdr header;
+	const struct imx_info *info = priv->info;
 
 	/* The function can be called with NULL msg */
 	if (!msg) {
 		dev_err(dev, "Message is invalid\n");
 		return;
 	}
+
+	if ((((uint32_t *)msg)[1] & 0xFFFF) == priv->abort_err_code)
+		dev_err(priv->dev,
+			"Rx-Msg(0x%x): Fatal abort received  by %s.\n",
+			((uint32_t *)msg)[0], info->se_name);
 
 	header.tag = ((u8 *)msg)[TAG_OFFSET];
 	header.command = ((u8 *)msg)[CMD_OFFSET];
@@ -2044,6 +2064,7 @@ static int se_fw_probe(struct platform_device *pdev)
 	priv->success_tag = info->success_tag;
 	priv->base_api_ver = info->base_api_ver;
 	priv->fw_api_ver = info->fw_api_ver;
+	priv->abort_err_code = info->abort_err_code;
 
 	ret = ele_mu_request_channel(dev, &priv->tx_chan,
 				     &priv->ele_mb_cl, info->mbox_tx_name);

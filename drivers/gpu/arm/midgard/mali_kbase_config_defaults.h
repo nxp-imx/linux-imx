@@ -232,7 +232,9 @@ enum {
 #elif IS_ENABLED(CONFIG_MALI_IS_FPGA)
 #define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (2500000000ull)
 #else
-#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (1000000000ull)
+
+/*the lower freq of i.MX95 is 500MHz, set it to 5 seconds */
+#define KCPU_FENCE_SIGNAL_TIMEOUT_CYCLES (2500000000ull)
 #endif
 
 /* Timeout for polling the GPU in clock cycles.

@@ -637,7 +637,10 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 {
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
-	int ret;
+	unsigned long lock_flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&xcvr->lock, lock_flags);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -649,7 +652,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 FSL_XCVR_EXT_CTRL_DPTH_RESET(tx));
 		if (ret < 0) {
 			dev_err(dai->dev, "Failed to set DPATH RESET: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		if (tx) {
@@ -661,7 +664,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 						   FSL_XCVR_ISR_CMDC_TX_EN);
 				if (ret < 0) {
 					dev_err(dai->dev, "err updating isr %d\n", ret);
-					return ret;
+					goto release_lock;
 				}
 				fallthrough;
 			case FSL_XCVR_MODE_SPDIF:
@@ -670,7 +673,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 FSL_XCVR_TX_DPTH_CTRL_STRT_DATA_TX);
 				if (ret < 0) {
 					dev_err(dai->dev, "Failed to start DATA_TX: %d\n", ret);
-					return ret;
+					goto release_lock;
 				}
 				break;
 			}
@@ -681,14 +684,14 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 FSL_XCVR_EXT_CTRL_DMA_DIS(tx), 0);
 		if (ret < 0) {
 			dev_err(dai->dev, "Failed to enable DMA: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_IER0,
 					 FSL_XCVR_IRQ_EARC_ALL, FSL_XCVR_IRQ_EARC_ALL);
 		if (ret < 0) {
 			dev_err(dai->dev, "Error while setting IER0: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		/* clear DPATH RESET */
@@ -697,7 +700,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 0);
 		if (ret < 0) {
 			dev_err(dai->dev, "Failed to clear DPATH RESET: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		break;
@@ -710,14 +713,14 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 FSL_XCVR_EXT_CTRL_DMA_DIS(tx));
 		if (ret < 0) {
 			dev_err(dai->dev, "Failed to disable DMA: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_IER0,
 					 FSL_XCVR_IRQ_EARC_ALL, 0);
 		if (ret < 0) {
 			dev_err(dai->dev, "Failed to clear IER0: %d\n", ret);
-			return ret;
+			goto release_lock;
 		}
 
 		if (tx) {
@@ -728,7 +731,7 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 					 FSL_XCVR_TX_DPTH_CTRL_STRT_DATA_TX);
 				if (ret < 0) {
 					dev_err(dai->dev, "Failed to stop DATA_TX: %d\n", ret);
-					return ret;
+					goto release_lock;
 				}
 				if (xcvr->soc_data->spdif_only)
 					break;
@@ -742,17 +745,20 @@ static int fsl_xcvr_trigger(struct snd_pcm_substream *substream, int cmd,
 				if (ret < 0) {
 					dev_err(dai->dev,
 						"Err updating ISR %d\n", ret);
-					return ret;
+					goto release_lock;
 				}
 				break;
 			}
 		}
 		break;
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
+		break;
 	}
 
-	return 0;
+release_lock:
+	spin_unlock_irqrestore(&xcvr->lock, lock_flags);
+	return ret;
 }
 
 static int fsl_xcvr_load_firmware(struct fsl_xcvr *xcvr)
@@ -1185,6 +1191,34 @@ static void edid_work(struct work_struct *work)
 	}
 }
 
+static void reset_rx_work(struct work_struct *work)
+{
+	struct fsl_xcvr *xcvr = container_of(work, struct fsl_xcvr, work_rst);
+	struct device *dev = &xcvr->pdev->dev;
+	unsigned long lock_flags;
+	u32 ext_ctrl;
+
+	dev_dbg(dev, "reset rx path\n");
+	spin_lock_irqsave(&xcvr->lock, lock_flags);
+	regmap_read(xcvr->regmap, FSL_XCVR_EXT_CTRL, &ext_ctrl);
+
+	if (!(ext_ctrl & FSL_XCVR_EXT_CTRL_DMA_RD_DIS)) {
+		regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
+				   FSL_XCVR_EXT_CTRL_DMA_RD_DIS,
+				   FSL_XCVR_EXT_CTRL_DMA_RD_DIS);
+		regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
+				   FSL_XCVR_EXT_CTRL_RX_DPTH_RESET,
+				   FSL_XCVR_EXT_CTRL_RX_DPTH_RESET);
+		regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
+				   FSL_XCVR_EXT_CTRL_DMA_RD_DIS,
+				   0);
+		regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
+				   FSL_XCVR_EXT_CTRL_RX_DPTH_RESET,
+				   0);
+	}
+	spin_unlock_irqrestore(&xcvr->lock, lock_flags);
+}
+
 static irqreturn_t irq0_isr(int irq, void *devid)
 {
 	struct fsl_xcvr *xcvr = (struct fsl_xcvr *)devid;
@@ -1256,6 +1290,29 @@ static irqreturn_t irq0_isr(int irq, void *devid)
 		dev_dbg(dev, "CMDC status update\n");
 		schedule_work(&xcvr->work);
 		isr_clr |= FSL_XCVR_IRQ_CMDC_STATUS_UPD;
+	}
+	if (isr & FSL_XCVR_IRQ_PREAMBLE_MISMATCH) {
+		dev_dbg(dev, "FSL_XCVR_IRQ_PREAMBLE_MISMATCH\n");
+		isr_clr |= FSL_XCVR_IRQ_PREAMBLE_MISMATCH;
+	}
+	if (isr & FSL_XCVR_IRQ_UNEXP_PRE_REC) {
+		dev_dbg(dev, "FSL_XCVR_IRQ_UNEXP_PRE_REC\n");
+		isr_clr |= FSL_XCVR_IRQ_UNEXP_PRE_REC;
+	}
+	if (isr & FSL_XCVR_IRQ_M_W_PRE_MISMATCH) {
+		dev_dbg(dev, "FSL_XCVR_IRQ_M_W_PRE_MISMATCH\n");
+		isr_clr |= FSL_XCVR_IRQ_M_W_PRE_MISMATCH;
+	}
+	if (isr & FSL_XCVR_IRQ_B_PRE_MISMATCH) {
+		dev_dbg(dev, "FSL_XCVR_IRQ_B_PRE_MISMATCH\n");
+		isr_clr |= FSL_XCVR_IRQ_B_PRE_MISMATCH;
+	}
+
+	if (isr & (FSL_XCVR_IRQ_PREAMBLE_MISMATCH |
+		   FSL_XCVR_IRQ_UNEXP_PRE_REC |
+		   FSL_XCVR_IRQ_M_W_PRE_MISMATCH |
+		   FSL_XCVR_IRQ_B_PRE_MISMATCH)) {
+		schedule_work(&xcvr->work_rst);
 	}
 
 	if (isr_clr) {
@@ -1414,6 +1471,8 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 	if (hdmi_np)
 		xcvr->bridge = of_drm_find_bridge(hdmi_np);
 
+	INIT_WORK(&xcvr->work_rst, reset_rx_work);
+	spin_lock_init(&xcvr->lock);
 	return ret;
 }
 
@@ -1421,6 +1480,7 @@ static void fsl_xcvr_remove(struct platform_device *pdev)
 {
 	struct fsl_xcvr *xcvr = dev_get_drvdata(&pdev->dev);
 
+	cancel_work_sync(&xcvr->work_rst);
 	cancel_work_sync(&xcvr->work);
 	sysfs_remove_group(&pdev->dev.kobj, fsl_xcvr_get_attr_grp());
 	pm_runtime_disable(&pdev->dev);

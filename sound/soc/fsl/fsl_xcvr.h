@@ -172,6 +172,10 @@
 					 FSL_XCVR_IRQ_FIFO_UOFL_ERR | \
 					 FSL_XCVR_IRQ_HOST_WAKEUP | \
 					 FSL_XCVR_IRQ_CMDC_STATUS_UPD |\
+					 FSL_XCVR_IRQ_B_PRE_MISMATCH |\
+					 FSL_XCVR_IRQ_M_W_PRE_MISMATCH |\
+					 FSL_XCVR_IRQ_PREAMBLE_MISMATCH |\
+					 FSL_XCVR_IRQ_UNEXP_PRE_REC |\
 					 FSL_XCVR_IRQ_ARC_MODE)
 
 #define FSL_XCVR_ISR_CMDC_TX_EN		BIT(3)
@@ -424,6 +428,8 @@ struct fsl_xcvr {
 	u32 spdif_constr_rates_list[SPDIF_NUM_RATES];
 	struct work_struct work;
 	struct drm_bridge *bridge;
+	struct work_struct work_rst;
+	spinlock_t lock; /* Protect hw_reset and trigger */
 };
 
 const struct attribute_group *fsl_xcvr_get_attr_grp(void);

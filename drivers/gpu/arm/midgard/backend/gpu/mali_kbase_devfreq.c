@@ -22,6 +22,7 @@
 #include <mali_kbase.h>
 #include <tl/mali_kbase_tracepoints.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
+#include <mali_kbase_config_platform.h>
 
 #include <linux/of.h>
 #include <linux/clk.h>
@@ -35,6 +36,7 @@
 #include <linux/pm_domain.h>
 #include "mali_kbase_devfreq.h"
 
+static struct devfreq_simple_ondemand_data ondemand_data;
 /**
  * get_voltage() - Get the voltage value corresponding to the nominal frequency
  *                 used by devfreq.
@@ -121,6 +123,8 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 	unsigned int i;
 	int err;
 	u64 core_mask;
+	struct kbase_clk_rate_trace_op_conf *callbacks =
+		(struct kbase_clk_rate_trace_op_conf *)CLK_RATE_TRACE_OPS;
 
 	nominal_freq = *target_freq;
 
@@ -206,6 +210,14 @@ static int kbase_devfreq_target(struct device *dev, unsigned long *target_freq, 
 		}
 		dev_dbg(dev, "gpu freq set target %lukHz\n", nominal_freq/1000);
 		for (i = 0; i < kbdev->nr_clocks; i++) {
+			struct clk_notifier_data cnd;
+
+			if (callbacks) {
+				cnd.old_rate = kbdev->current_freqs[i];
+				cnd.new_rate = nominal_freq;
+				cnd.clk = kbdev->clocks[i];
+				callbacks->clk_change_notifier(POST_RATE_CHANGE, &cnd);
+			}
 #if IS_ENABLED(CONFIG_REGULATOR)
 			original_freqs[i] = kbdev->current_freqs[i];
 #endif
@@ -624,6 +636,7 @@ static void kbase_devfreq_work_term(struct kbase_device *kbdev)
 int kbase_devfreq_init(struct kbase_device *kbdev)
 {
 	struct devfreq_dev_profile *dp;
+	struct device_node *np = kbdev->dev->of_node;
 	int err;
 	unsigned int i;
 	bool free_devfreq_freq_table = true;
@@ -668,7 +681,13 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	if (err)
 		goto init_core_mask_table_failed;
 
-	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp, "simple_ondemand", NULL);
+	if (of_property_read_u32(np, "upthreshold", &ondemand_data.upthreshold))
+		ondemand_data.upthreshold = 90;
+	if (of_property_read_u32(np, "downdifferential", &ondemand_data.downdifferential))
+		ondemand_data.downdifferential = 5;
+
+	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp, "simple_ondemand",
+			&ondemand_data);
 	if (IS_ERR(kbdev->devfreq)) {
 		err = PTR_ERR(kbdev->devfreq);
 		kbdev->devfreq = NULL;

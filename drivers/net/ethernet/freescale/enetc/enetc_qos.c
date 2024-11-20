@@ -2508,9 +2508,10 @@ static int enetc_psfp_get_stats(struct enetc_ndev_priv *priv,
 static int enetc4_psfp_get_stats(struct enetc_ndev_priv *priv,
 				 struct flow_cls_offload *f)
 {
-	struct ntmp_isct_info counters = {};
+	struct isct_stse_data stse = {0};
 	struct enetc_psfp_node *psfp;
 	struct flow_stats stats = {};
+	u32 sg_drop_cnt;
 	int err;
 
 	psfp = enetc4_get_psfp_node_by_chain_index(priv, f->common.chain_index);
@@ -2518,16 +2519,24 @@ static int enetc4_psfp_get_stats(struct enetc_ndev_priv *priv,
 		return -EINVAL;
 
 	err = ntmp_isct_operate_entry(&priv->si->cbdr, psfp->isc_eid,
-				      NTMP_CMD_QUERY, &counters);
+				      NTMP_CMD_QUERY, &stse);
 	if (err)
 		return -EINVAL;
 
+	sg_drop_cnt = le32_to_cpu(stse.sg_drop_count);
+	/* Workaround for ERR052134 on i.MX95 platform */
+	if (priv->si->errata & ENETC_ERR_SG_DROP_CNT) {
+		u32 tmp;
+
+		sg_drop_cnt >>= 9;
+		tmp = le32_to_cpu(stse.resv3) & 0x1ff;
+		sg_drop_cnt |= (tmp << 23);
+	}
+
 	spin_lock(&priv->psfp_chain.psfp_lock);
-	stats.pkts = counters.rx_count - psfp->stats.pkts;
-	stats.drops = counters.msdu_drop_count +
-		      counters.sg_drop_count +
-		      counters.policer_drop_count -
-		      psfp->stats.drops;
+	stats.pkts = le32_to_cpu(stse.rx_count) - psfp->stats.pkts;
+	stats.drops = le32_to_cpu(stse.msdu_drop_count) + sg_drop_cnt +
+		      le32_to_cpu(stse.policer_drop_count) - psfp->stats.drops;
 	stats.lastused = psfp->stats.lastused;
 	psfp->stats.pkts += stats.pkts;
 	psfp->stats.drops += stats.drops;

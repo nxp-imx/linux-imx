@@ -626,9 +626,6 @@ static int ddr_perf_event_add(struct perf_event *event, int flags)
 	hwc->idx = counter;
 	hwc->state |= PERF_HES_STOPPED;
 
-	if (flags & PERF_EF_START)
-		ddr_perf_event_start(event, flags);
-
 	if (is_imx93(pmu)) {
 		/* read trans, write trans, read beat */
 		imx93_ddr_perf_monitor_config(pmu, cfg, cfg1, cfg2);
@@ -636,6 +633,9 @@ static int ddr_perf_event_add(struct perf_event *event, int flags)
 		/* write beat, read beat2, read beat1, read beat */
 		imx95_ddr_perf_monitor_config(pmu, cfg, cfg1, cfg2);
 	}
+
+	if (flags & PERF_EF_START)
+		ddr_perf_event_start(event, flags);
 
 	return 0;
 }

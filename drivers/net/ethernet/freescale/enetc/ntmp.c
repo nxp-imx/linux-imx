@@ -1651,7 +1651,7 @@ int ntmp_sgit_delete_entry(struct netc_cbdr *cbdr, u32 entry_id)
 EXPORT_SYMBOL_GPL(ntmp_sgit_delete_entry);
 
 int ntmp_isct_operate_entry(struct netc_cbdr *cbdr, u32 entry_id, int cmd,
-			    struct ntmp_isct_info *info)
+			    struct isct_stse_data *stse)
 {
 	struct isct_resp_query *resp;
 	struct isct_req_data *req;
@@ -1665,13 +1665,13 @@ int ntmp_isct_operate_entry(struct netc_cbdr *cbdr, u32 entry_id, int cmd,
 	/* Check the command. */
 	switch (cmd) {
 	case NTMP_CMD_QUERY:
-		if (!info)
+	case NTMP_CMD_QD:
+	case NTMP_CMD_QU:
+		if (!stse)
 			return -EINVAL;
 		fallthrough;
 	case NTMP_CMD_DELETE:
 	case NTMP_CMD_UPDATE:
-	case NTMP_CMD_QD:
-	case NTMP_CMD_QU:
 	case NTMP_CMD_ADD:
 	break;
 	default:
@@ -1712,10 +1712,7 @@ int ntmp_isct_operate_entry(struct netc_cbdr *cbdr, u32 entry_id, int cmd,
 			goto end;
 		}
 
-		info->rx_count = le32_to_cpu(resp->rx_count);
-		info->msdu_drop_count = le32_to_cpu(resp->msdu_drop_count);
-		info->policer_drop_count = le32_to_cpu(resp->policer_drop_count);
-		info->sg_drop_count = le32_to_cpu(resp->sg_drop_count);
+		*stse = resp->stse;
 	}
 
 end:

@@ -130,6 +130,11 @@ static const unsigned int imx_card_cables[] = {
 	EXTCON_JACK_HEADPHONE,
 	EXTCON_NONE,
 };
+
+static const unsigned int line_cables[] = {
+	EXTCON_JACK_LINE_OUT,
+	EXTCON_NONE,
+};
 #endif
 
 static struct imx_akcodec_fs_mul ak4458_fs_mul[] = {
@@ -896,6 +901,20 @@ static int imx_card_probe(struct platform_device *pdev)
 			return 0;
 		}
 		extcon_set_state_sync(imx_card_edev, EXTCON_JACK_HEADPHONE, 1);
+	}
+
+	if (plat_data->type == CODEC_CS42888) {
+		struct extcon_dev *extcon_dev = devm_extcon_dev_allocate(&pdev->dev, line_cables);
+		if (IS_ERR(extcon_dev)) {
+			dev_err(&pdev->dev, "failed to allocate extcon device\n");
+			return 0;
+		}
+		ret = devm_extcon_dev_register(&pdev->dev, extcon_dev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to register extcon device\n");
+			return 0;
+		}
+		extcon_set_state_sync(extcon_dev, EXTCON_JACK_LINE_OUT, 1);
 	}
 #endif
 

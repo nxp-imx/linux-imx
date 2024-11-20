@@ -386,7 +386,7 @@ config MALI_ARBITRATION
 config MALI_TRACE_POWER_GPU_WORK_PERIOD
 	bool "Enable per-application GPU metrics tracepoints"
 	depends on MALI_MIDGARD
-	default n
+	default y
 	help
 	  This option enables per-application GPU metrics tracepoints.
 

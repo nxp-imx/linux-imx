@@ -5,6 +5,17 @@
 
 #include "imx93-11x11-evk.dts"
 
+&lpuart1 {
+        /delete-node/ bluetooth;
+};
+
+&lpuart3 {
+        bluetooth {
+                status="disabled";
+                compatible = "nxp,88w8987-bt";
+        };
+};
+
 &flexcan2 {
 	status = "disabled";
 };

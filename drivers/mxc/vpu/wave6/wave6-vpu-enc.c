@@ -1957,13 +1957,14 @@ static int wave6_vpu_enc_create_instance(struct vpu_instance *inst)
 
 	memset(&open_param, 0, sizeof(struct enc_open_param));
 
+	wave6_vpu_activate(inst->dev);
 	ret = pm_runtime_resume_and_get(inst->dev->dev);
 	if (ret) {
 		dev_err(inst->dev->dev, "runtime_resume failed %d\n", ret);
 		return ret;
 	}
 
-	wave6_vpu_wait_active(inst);
+	wave6_vpu_wait_activated(inst->dev);
 
 	inst->std = wave6_to_vpu_wavestd(inst->dst_fmt.pixelformat);
 	if (inst->std == STD_UNKNOWN) {
@@ -2648,12 +2649,12 @@ int wave6_vpu_enc_register_device(struct vpu_device *dev)
 	vdev_enc->vfl_dir = VFL_DIR_M2M;
 	vdev_enc->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
 	vdev_enc->lock = &dev->dev_lock;
+	video_set_drvdata(vdev_enc, dev);
 
 	ret = video_register_device(vdev_enc, VFL_TYPE_VIDEO, -1);
 	if (ret)
 		return ret;
 
-	video_set_drvdata(vdev_enc, dev);
 
 	return 0;
 }
