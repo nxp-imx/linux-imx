@@ -26,6 +26,11 @@ static void dma_buf_ioc_phy_release(struct device *dev)
 	return;
 }
 
+static void dma_buf_ioc_sync_release(struct device *dev)
+{
+	return;
+}
+
 long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
@@ -50,6 +55,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (!dmabuf || IS_ERR(dmabuf)) {
 			return -EFAULT;
 		}
+
 		memset(&dev, 0, sizeof(dev));
 		mutex_lock(&dev_lock);
 		device_initialize(&dev);
@@ -61,8 +67,11 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		ret = device_add(&dev);
 		if (ret < 0) {
 			put_device(&dev);
+			dma_buf_put(dmabuf);
+			mutex_unlock(&dev_lock);
 			return ret;
 		}
+
 		attachment = dma_buf_attach(dmabuf, &dev);
 		if (!attachment || IS_ERR(attachment)) {
 			device_del(&dev);
@@ -93,6 +102,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		return 0;
 	}
+
 	case DMABUF_GET_HEAP_NAME:{
 		struct dma_buf *dmabuf;
 		struct dmabuf_imx_heap_name data;
@@ -117,6 +127,96 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		return 0;
 	}
+
+	case DMABUF_SYNC: {
+		struct dma_buf *dmabuf = NULL;
+		struct device dev;
+		struct dma_buf_attachment *attachment = NULL;
+		struct sg_table *sgt = NULL;
+		struct dmabuf_imx_sync data;
+		struct iosys_map map;
+		int ret = 0;
+
+		// copy dmabuf_imx_sync from user space to kernel space
+		if (copy_from_user(&data, (void __user *)arg,
+			sizeof(struct dmabuf_imx_sync)))
+			return -EFAULT;
+
+		// get the dmafd from user space.
+		// dma_buf is from dma_buf_get according the dma fd.
+		dmabuf = dma_buf_get(data.dmafd);
+		if (!dmabuf || IS_ERR(dmabuf)) {
+			return -EFAULT;
+		}
+
+		memset(&dev, 0, sizeof(dev));
+
+		mutex_lock(&dev_lock);
+
+		device_initialize(&dev);
+		dev.coherent_dma_mask = DMA_BIT_MASK(64);
+		dev.dma_mask = &dev.coherent_dma_mask;
+		dev.parent = NULL;
+		dev.release = dma_buf_ioc_sync_release;
+		dev_set_name(&dev, "dma_sync");
+		ret = device_add(&dev);
+		if (ret < 0) {
+			put_device(&dev);
+			dma_buf_put(dmabuf);
+			mutex_unlock(&dev_lock);
+			return ret;
+		}
+
+		attachment = dma_buf_attach(dmabuf, &dev);
+		if (!attachment || IS_ERR(attachment)) {
+			dev_err(&dev, "%s: dma_buf_attach failed\n", __func__);
+			ret = -EFAULT;
+			goto finish;
+		}
+
+		sgt = dma_buf_map_attachment_unlocked(attachment, DMA_BIDIRECTIONAL);
+		if (!sgt || IS_ERR(sgt)) {
+			dev_err(&dev, "%s: dma_buf_map_attachment_unlocked failed, sgt %p\n", __func__, sgt);
+			ret = -EFAULT;
+			goto finish;
+		}
+
+		memset(&map, 0, sizeof(map));
+		ret = dma_buf_vmap_unlocked(dmabuf, &map);
+		if (ret) {
+			dev_err(&dev, "%s: dma_buf_vmap_unlocked failed, ret %d\n", __func__, ret);
+			map.vaddr = NULL;
+			ret = -EFAULT;
+			goto finish;
+		}
+
+		dev_dbg(&dev, "%s: attachment %px, sgt %p, vaddr %px\n", __func__, attachment, sgt, map.vaddr);
+
+		// do the sync
+		if (data.operation == FLUSH_CACHE) {
+			ret = dma_buf_end_cpu_access(dmabuf, DMA_TO_DEVICE);
+		}	else {
+			ret = dma_buf_begin_cpu_access(dmabuf, DMA_FROM_DEVICE);
+		}
+
+finish:
+		if (map.vaddr)
+			dma_buf_vunmap_unlocked(dmabuf, &map);
+
+		if (sgt)
+			dma_buf_unmap_attachment_unlocked(attachment, sgt, DMA_BIDIRECTIONAL);
+
+		if (attachment)
+			dma_buf_detach(dmabuf, attachment);
+
+		device_del(&dev);
+		put_device(&dev);
+		dma_buf_put(dmabuf);
+		mutex_unlock(&dev_lock);
+
+		return ret;
+	}
+
 	default:
 		return -ENOTTY;
 	}
