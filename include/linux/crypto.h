@@ -16,7 +16,6 @@
 #include <linux/refcount.h>
 #include <linux/slab.h>
 #include <linux/types.h>
-#include <linux/hw_bound_key.h>
 
 /*
  * Algorithm masks and types.
@@ -424,10 +423,6 @@ struct crypto_tfm {
 	refcount_t refcnt;
 
 	u32 crt_flags;
-
-	unsigned int is_hbk;
-
-	struct hw_bound_key_info hbk_info;
 
 	int node;
 	
