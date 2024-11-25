@@ -265,7 +265,6 @@ config ARCH_MXC
 	select ARM64_ERRATUM_845719 if COMPAT
 	select GPIOLIB
 	select IMX_GPCV2
-	select IMX_GPCV2_PM_DOMAINS
 	select PM
 	select PM_GENERIC_DOMAINS
 	select SOC_BUS

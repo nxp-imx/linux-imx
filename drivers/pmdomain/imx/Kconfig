@@ -2,7 +2,8 @@
 menu "i.MX PM Domains"
 
 config IMX_GPCV2_PM_DOMAINS
-	bool "i.MX GPCv2 PM domains"
+	tristate "i.MX GPCv2 PM domains"
+	default ARCH_MXC
 	depends on ARCH_MXC || (COMPILE_TEST && OF)
 	depends on PM
 	select PM_GENERIC_DOMAINS
