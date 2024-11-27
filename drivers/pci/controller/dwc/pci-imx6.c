@@ -2164,5 +2164,5 @@ static void __exit imx_pcie_exit(void)
 }
 
 device_initcall(imx_pcie_init);
-__exitcall(imx_pcie_exit);
+module_exit(imx_pcie_exit);
 MODULE_LICENSE("GPL v2");
