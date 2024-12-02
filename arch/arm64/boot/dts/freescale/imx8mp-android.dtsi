@@ -61,3 +61,7 @@
 &uart1 {
 	/delete-node/ bluetooth;
 };
+
+&lcdif2 {
+	status = "disabled";
+};
