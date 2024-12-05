@@ -69,6 +69,16 @@ struct trusty_state {
 	struct mutex share_memory_msg_lock; /* protects share_memory_msg */
 };
 
+struct trusty_state *trusty_get_state(struct device *dev)
+{
+	if (WARN_ON(!dev))
+		return NULL;
+	if (WARN_ON(dev->driver != &trusty_driver.driver))
+		return NULL;
+
+	return platform_get_drvdata(to_platform_device(dev));
+}
+
 static inline unsigned long smc(unsigned long r0, unsigned long r1,
 				unsigned long r2, unsigned long r3)
 {
@@ -82,9 +92,9 @@ static inline unsigned long smc(unsigned long r0, unsigned long r1,
 
 s32 trusty_fast_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 
-	if (WARN_ON(!s))
+	if (!s)
 		return SM_ERR_INVALID_PARAMETERS;
 	if (WARN_ON(!SMC_IS_FASTCALL(smcnr)))
 		return SM_ERR_INVALID_PARAMETERS;
@@ -98,9 +108,9 @@ EXPORT_SYMBOL(trusty_fast_call32);
 #ifdef CONFIG_64BIT
 s64 trusty_fast_call64(struct device *dev, u64 smcnr, u64 a0, u64 a1, u64 a2)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 
-	if (WARN_ON(!s))
+	if (!s)
 		return SM_ERR_INVALID_PARAMETERS;
 	if (WARN_ON(!SMC_IS_FASTCALL(smcnr)))
 		return SM_ERR_INVALID_PARAMETERS;
@@ -117,8 +127,12 @@ static unsigned long trusty_std_call_inner(struct device *dev,
 					   unsigned long a0, unsigned long a1,
 					   unsigned long a2)
 {
+	struct trusty_state *s = trusty_get_state(dev);
 	unsigned long ret;
 	int retry = 5;
+
+	if (!s)
+		return SM_ERR_INVALID_PARAMETERS;
 
 	dev_dbg(dev, "%s(0x%lx 0x%lx 0x%lx 0x%lx)\n",
 		__func__, smcnr, a0, a1, a2);
@@ -170,7 +184,10 @@ static unsigned long trusty_std_call_helper(struct device *dev,
 {
 	unsigned long ret;
 	int sleep_time = 1;
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return SM_ERR_INVALID_PARAMETERS;
 
 	while (true) {
 		trusty_local_irq_disable_before_smc();
@@ -242,7 +259,10 @@ static void trusty_std_call_cpu_idle(struct trusty_state *s)
 s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 {
 	int ret;
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return SM_ERR_INVALID_PARAMETERS;
 
 	if (WARN_ON(SMC_IS_FASTCALL(smcnr)))
 		return SM_ERR_INVALID_PARAMETERS;
@@ -294,7 +314,7 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 				 struct scatterlist *sglist, unsigned int nents,
 				 pgprot_t pgprot, u64 tag, bool lend)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 	int ret;
 	struct ns_mem_page_info pg_inf;
 	struct scatterlist *sg;
@@ -313,7 +333,7 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 	u32 cookie_low;
 	u32 cookie_high;
 
-	if (WARN_ON(dev->driver != &trusty_driver.driver))
+	if (!s)
 		return -EINVAL;
 
 	if (WARN_ON(nents < 1))
@@ -496,7 +516,10 @@ int trusty_share_memory_compat(struct device *dev, u64 *id,
 			       pgprot_t pgprot)
 {
 	int ret;
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return -EINVAL;
 
 	ret = trusty_share_memory(dev, id, sglist, nents, pgprot,
 				  TRUSTY_DEFAULT_MEM_OBJ_TAG);
@@ -510,11 +533,11 @@ EXPORT_SYMBOL(trusty_share_memory_compat);
 int trusty_reclaim_memory(struct device *dev, u64 id,
 			  struct scatterlist *sglist, unsigned int nents)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 	int ret = 0;
 	struct smc_ret8 smc_ret;
 
-	if (WARN_ON(dev->driver != &trusty_driver.driver))
+	if (!s)
 		return -EINVAL;
 
 	if (WARN_ON(nents < 1))
@@ -561,7 +584,10 @@ EXPORT_SYMBOL(trusty_reclaim_memory);
 
 int trusty_call_notifier_register(struct device *dev, struct notifier_block *n)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return -EINVAL;
 
 	return atomic_notifier_chain_register(&s->notifier, n);
 }
@@ -570,7 +596,10 @@ EXPORT_SYMBOL(trusty_call_notifier_register);
 int trusty_call_notifier_unregister(struct device *dev,
 				    struct notifier_block *n)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return -EINVAL;
 
 	return atomic_notifier_chain_unregister(&s->notifier, n);
 }
@@ -585,7 +614,10 @@ static int trusty_remove_child(struct device *dev, void *data)
 static ssize_t trusty_version_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return -EINVAL;
 
 	return scnprintf(buf, PAGE_SIZE, "%s\n", s->version_str ?: "unknown");
 }
@@ -600,7 +632,10 @@ ATTRIBUTE_GROUPS(trusty);
 
 const char *trusty_version_str_get(struct device *dev)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return NULL;
 
 	return s->version_str;
 }
@@ -759,7 +794,10 @@ err_get_size:
 
 u32 trusty_get_api_version(struct device *dev)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
+		return 0;
 
 	return s->api_version;
 }
@@ -767,9 +805,11 @@ EXPORT_SYMBOL(trusty_get_api_version);
 
 bool trusty_get_panic_status(struct device *dev)
 {
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
-	if (WARN_ON(dev->driver != &trusty_driver.driver))
+	struct trusty_state *s = trusty_get_state(dev);
+
+	if (!s)
 		return false;
+
 	return s->trusty_panicked;
 }
 EXPORT_SYMBOL(trusty_get_panic_status);
@@ -968,8 +1008,11 @@ void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop)
 {
 	unsigned long flags;
 	struct trusty_work *tw;
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 	int cur_nice;
+
+	if (!s)
+		return;
 
 	trace_trusty_enqueue_nop(nop);
 	preempt_disable();
@@ -1002,8 +1045,10 @@ EXPORT_SYMBOL(trusty_enqueue_nop);
 void trusty_dequeue_nop(struct device *dev, struct trusty_nop *nop)
 {
 	unsigned long flags;
-	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
+	struct trusty_state *s = trusty_get_state(dev);
 
+	if (!s)
+		return;
 	if (WARN_ON(!nop))
 		return;
 
@@ -1209,7 +1254,10 @@ err_allocate_state:
 static void trusty_remove(struct platform_device *pdev)
 {
 	unsigned int cpu;
-	struct trusty_state *s = platform_get_drvdata(pdev);
+	struct trusty_state *s = trusty_get_state(&pdev->dev);
+
+	if (!s)
+		return;
 
 	trusty_unregister_sched_share(s->trusty_sched_share_state);
 
