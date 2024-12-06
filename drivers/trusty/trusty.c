@@ -3,6 +3,7 @@
  * Copyright (C) 2013 Google, Inc.
  */
 
+#include <linux/arm-smccc.h>
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/module.h>
@@ -377,6 +378,11 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 
 	trace_trusty_share_memory(len, nents, lend);
 
+	if (WARN_ON(!s->ffa_tx)) {
+		ret = -EOPNOTSUPP;
+		goto err_ffa_tx;
+	}
+
 	mutex_lock(&s->share_memory_msg_lock);
 
 	mtd->sender_id = s->ffa_local_id;
@@ -481,6 +487,7 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 
 	dev_err(s->dev, "%s: failed %d", __func__, ret);
 
+err_ffa_tx:
 err_encode_page_info:
 	dma_unmap_sg(dev, sglist, nents, DMA_BIDIRECTIONAL);
 done:
@@ -641,15 +648,24 @@ const char *trusty_version_str_get(struct device *dev)
 }
 EXPORT_SYMBOL(trusty_version_str_get);
 
+static bool trusty_ret_is_ffa_not_supported(struct smc_ret8 *ret)
+{
+	/*
+	 * The return code can be returned in X0 or W0. On ARM64, we always
+	 * read the value from X0; calling a 32-bit SMC will put the lower
+	 * 32 bits in that register, and leave the high 32 bits undefined.
+	 * We convert to a 32-bit value explicitly since we're checking for -1.
+	 */
+	return (s32)ret->r0 == SMCCC_RET_NOT_SUPPORTED ||
+	    (ret->r0 == SMC_FC_FFA_ERROR && ret->r2 == FFA_ERROR_NOT_SUPPORTED);
+}
+
 static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 {
 	phys_addr_t tx_paddr;
 	phys_addr_t rx_paddr;
 	int ret;
 	struct smc_ret8 smc_ret;
-
-	if (s->api_version < TRUSTY_API_VERSION_MEM_OBJ)
-		return 0;
 
 	/* Get supported FF-A version and check if it is compatible */
 	smc_ret = trusty_smc8(SMC_FC_FFA_VERSION, FFA_CURRENT_VERSION, 0, 0,
@@ -658,7 +674,7 @@ static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 		dev_err(s->dev,
 			"%s: Unsupported FF-A version 0x%lx, expected 0x%x\n",
 			__func__, smc_ret.r0, FFA_CURRENT_VERSION);
-		ret = -EIO;
+		ret = trusty_ret_is_ffa_not_supported(&smc_ret) ? 0 : -EIO;
 		goto err_version;
 	}
 
@@ -669,7 +685,7 @@ static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 		dev_err(s->dev,
 			"%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_MEM_SHARE) failed 0x%lx 0x%lx 0x%lx\n",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
-		ret = -EIO;
+		ret = trusty_ret_is_ffa_not_supported(&smc_ret) ? 0 : -EIO;
 		goto err_features;
 	}
 
@@ -750,6 +766,10 @@ err_version:
 static void trusty_free_msg_buf(struct trusty_state *s, struct device *dev)
 {
 	struct smc_ret8 smc_ret;
+
+	/* If we got NOT_SUPPORTED earlier, there is nothing to free here */
+	if (!s->ffa_tx)
+		return;
 
 	smc_ret = trusty_smc8(SMC_FC_FFA_RXTX_UNMAP, 0, 0, 0, 0, 0, 0, 0);
 	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
