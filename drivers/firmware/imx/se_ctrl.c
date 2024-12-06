@@ -709,8 +709,8 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 	const u8 *devname = dev_ctx->devname;
 	int fmt_str_idx = strlen(fmt_str);
 	const u8 *caller_type_str;
-	u8 dump_ln[1024] = {'\0'};
-	u8 loc_buf[512] = {'\0'};
+	u8 *dump_ln;
+	u8 *loc_buf;
 	u8 file_name[128] = {'\0'};
 	struct timespec64 log_tm;
 	bool is_hex = true;
@@ -721,6 +721,16 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 	/* if logging is set to be disabled, return */
 	if (!se_log)
 		return 0;
+
+	dump_ln = kmalloc(1024, GFP_KERNEL);
+	if (!dump_ln)
+		return -ENOMEM;
+
+	loc_buf = kmalloc(512, GFP_KERNEL);
+	if (!loc_buf) {
+		kfree(dump_ln);
+		return -ENOMEM;
+	}
 
 	switch (caller_type) {
 	case SE_DUMP_IOCTL_BUFS:
@@ -738,7 +748,7 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		is_hex = false;
 		caller_type_str = "SE_DBG";
 		va_start(args, buf);
-		buf_size = vsprintf(loc_buf, buf, args);
+		buf_size = vsnprintf(loc_buf, 512, buf, args);
 		va_end(args);
 	}
 
@@ -783,6 +793,8 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 
 			wret = PTR_ERR(lg_fl_info->lg_file);
 			lg_fl_info->lg_file = NULL;
+			kfree(dump_ln);
+			kfree(loc_buf);
 			return wret;
 		}
 	}
@@ -817,6 +829,8 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 			wret, dump_ln_len, file_name);
 	}
 
+	kfree(dump_ln);
+	kfree(loc_buf);
 	return 0;
 }
 
