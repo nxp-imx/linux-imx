@@ -2309,6 +2309,42 @@ unlock:
 	return ret;
 }
 
+int __pkvm_host_lazy_pte(u64 pfn, u64 nr_pages, bool enable)
+{
+	u64 size = nr_pages << PAGE_SHIFT;
+	u64 addr = hyp_pfn_to_phys(pfn);
+	u64 end = addr + size;
+	struct memblock_region *reg;
+	struct kvm_mem_range range;
+	int ret;
+
+	/* Reject MMIO regions */
+	reg = find_mem_range(addr, &range);
+	if (!reg)
+		return -EPERM;
+
+	if (!is_in_mem_range(end - 1, &range) ||
+	    is_range_refcounted(addr, nr_pages))
+		return -EPERM;
+
+	host_lock_component();
+
+	ret = ___host_check_page_state_range(addr, size, PKVM_PAGE_OWNED, reg);
+	if (ret)
+		goto unlock;
+
+	if (enable)
+		ret = kvm_pgtable_stage2_get_pages(&host_mmu.pgt, addr, size,
+						   &host_s2_pool);
+	else
+		ret = kvm_pgtable_stage2_put_pages(&host_mmu.pgt, addr, size);
+
+unlock:
+	host_unlock_component();
+
+	return ret;
+}
+
 int hyp_pin_shared_mem(void *from, void *to)
 {
 	u64 cur, start = ALIGN_DOWN((u64)from, PAGE_SIZE);
@@ -2442,7 +2478,8 @@ static int __pkvm_host_use_dma_page(phys_addr_t phys_addr)
 	 * host shared the page.
 	 */
 	if (state & PKVM_PAGE_SHARED_BORROWED || state & PKVM_PAGE_SHARED_OWNED) {
-		ret = __hyp_check_page_state_range(phys_addr, PAGE_SIZE, PKVM_NOPAGE);
+		ret = __hyp_check_page_state_range((u64)hyp_phys_to_virt(phys_addr),
+						   PAGE_SIZE, PKVM_NOPAGE);
 		if (ret)
 			return ret;
 	}

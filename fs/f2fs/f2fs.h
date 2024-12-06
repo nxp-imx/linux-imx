@@ -2174,8 +2174,15 @@ static inline int f2fs_rwsem_is_contended(struct f2fs_rwsem *sem)
 	return rwsem_is_contended(&sem->internal_rwsem);
 }
 
+void _trace_android_rvh_f2fs_down_read(wait_queue_head_t *read_waiters,
+				   struct rw_semaphore *rwsem, bool *skip);
+
 static inline void f2fs_down_read(struct f2fs_rwsem *sem)
 {
+	bool skip = false;
+	_trace_android_rvh_f2fs_down_read(&sem->read_waiters, &sem->internal_rwsem, &skip);
+	if (skip)
+		return;
 #ifdef CONFIG_F2FS_UNFAIR_RWSEM
 	wait_event(sem->read_waiters, down_read_trylock(&sem->internal_rwsem));
 #else
@@ -3406,17 +3413,6 @@ static inline bool f2fs_readonly(struct super_block *sb)
 static inline bool f2fs_cp_error(struct f2fs_sb_info *sbi)
 {
 	return is_set_ckpt_flags(sbi, CP_ERROR_FLAG);
-}
-
-static inline bool is_dot_dotdot(const u8 *name, size_t len)
-{
-	if (len == 1 && name[0] == '.')
-		return true;
-
-	if (len == 2 && name[0] == '.' && name[1] == '.')
-		return true;
-
-	return false;
 }
 
 static inline void *f2fs_kmalloc(struct f2fs_sb_info *sbi,

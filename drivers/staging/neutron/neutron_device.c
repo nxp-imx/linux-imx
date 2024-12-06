@@ -5,6 +5,7 @@
 /****************************************************************************/
 
 #include <linux/dma-mapping.h>
+#include <linux/dma-map-ops.h>
 #include <linux/bitmap.h>
 #include <linux/interrupt.h>
 #include <linux/mutex.h>
@@ -95,8 +96,8 @@ struct rproc *neutron_get_rproc(struct neutron_device *ndev)
 	return ndev->rproc;
 }
 
-int neutron_rproc_elf_load(struct rproc *rproc, const struct firmware *fw,
-			   void *data_ddr, u8 skip_flag)
+static int neutron_rproc_elf_load(struct rproc *rproc, const struct firmware *fw,
+				  void *data_ddr, u8 skip_flag)
 {
 	struct device *dev = &rproc->dev;
 	int i, ret = 0;
@@ -201,20 +202,25 @@ static int neutron_firmw_request(struct neutron_device *ndev, struct neutron_buf
 		return ret;
 	}
 
-	ret = rproc->ops->stop(rproc);
-	if (ret)
-		dev_err(dev, "could not stop neutron\n");
-
 	// remap ddr data address to kernel virt.
 	neu_dbg("data_ddr: 0x%lx,  sz: 0x%x\n", data_ddr, buf->firmware_p->size);
 
-	ret = neutron_rproc_elf_load(rproc, buf->firmware_p, data_ddr, 0);
+	/* Only the ddr data needs to be loaded on prepartion, other data
+	 * will be loaded on demand at runtime.
+	 */
+	ret = neutron_rproc_elf_load(rproc, buf->firmware_p, data_ddr, 2);
 	if (ret) {
 		dev_err(dev, "neutron_elf_load failed\n");
 		return ret;
 	}
 
-	rproc->ops->start(rproc);
+	/* Sync the data for device */
+	ndev->dev->dma_coherent = false;
+	dma_sync_single_for_device(ndev->dev, buf->dma_addr, buf->size, DMA_TO_DEVICE);
+	ndev->dev->dma_coherent = true;
+
+	/* Firmware is changed, it should be reloaded on next job */
+	ndev->firmw_id = 0;
 
 	return ret;
 }
@@ -493,6 +499,43 @@ static long neutron_ioctl(struct file *file,
 
 		break;
 	}
+	case NEUTRON_IOCTL_CACHE_SYNC: {
+		struct neutron_uapi_cache_sync uapi;
+		struct neutron_buffer *buf;
+
+		ret = copy_from_user(&uapi, udata, sizeof(uapi));
+		if (ret)
+			break;
+
+		dev_dbg(ndev->dev,
+			"Ioctl: Sync cache offset:0x%x, size:0x%x, direction %d\n",
+			uapi.offset, uapi.size, uapi.direction);
+
+		buf = neutron_buffer_get_from_fd(uapi.fd);
+		if (!buf || IS_ERR(buf)) {
+			dev_err(ndev->dev, "IOCTL_CACHE_SYNC: Invalid buf. fd: %d\n", uapi.fd);
+			ret = -EINVAL;
+			break;
+		}
+
+		if (uapi.offset + uapi.size > buf->size) {
+			dev_err(ndev->dev,
+				"CACHE_SYNC: Out of range: fd %d, 0x%x + 0x%x > 0x%lx\n",
+				uapi.fd, uapi.offset, uapi.size, buf->size);
+			ret = -EINVAL;
+		}
+
+		ndev->dev->dma_coherent = false;
+		if (uapi.direction)
+			dma_sync_single_for_cpu(ndev->dev, buf->dma_addr + uapi.offset,
+						uapi.size, DMA_FROM_DEVICE);
+		else
+			dma_sync_single_for_device(ndev->dev, buf->dma_addr + uapi.offset,
+						   uapi.size, DMA_TO_DEVICE);
+		ndev->dev->dma_coherent = true;
+
+		break;
+	}
 	case NEUTRON_IOCTL_FIRMWARE_LOAD: {
 		struct neutron_uapi_firmware_load uapi;
 		struct neutron_buffer *buf;
@@ -612,6 +655,7 @@ int neutron_dev_init(struct neutron_device *ndev,
 	}
 
 	dma_set_mask_and_coherent(ndev->dev, DMA_BIT_MASK(32));
+	ndev->dev->dma_coherent = true;
 
 	/* Init power state */
 	ndev->power_state = NEUTRON_POWER_OFF;

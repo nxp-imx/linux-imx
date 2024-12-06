@@ -519,8 +519,7 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 {
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
-	int ret = 0, i, j, k = 0;
-	u64 clk_rate[2];
+	int ret = 0;
 
 	if (xcvr->streams & BIT(substream->stream)) {
 		dev_err(dai->dev, "%sX busy\n", tx ? "T" : "R");
@@ -540,25 +539,12 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 	switch (xcvr->mode) {
 	case FSL_XCVR_MODE_SPDIF:
 	case FSL_XCVR_MODE_ARC:
-		xcvr->spdif_constr_rates = fsl_xcvr_spdif_rates_constr;
-		if (xcvr->soc_data->spdif_only && tx) {
-			xcvr->spdif_constr_rates.list = xcvr->spdif_constr_rates_list;
-			xcvr->spdif_constr_rates.count = 0;
-			for (i = 0; i < SPDIF_NUM_RATES; i++) {
-				clk_rate[0] = clk_get_rate(xcvr->pll8k_clk);
-				clk_rate[1] = clk_get_rate(xcvr->pll11k_clk);
-				for (j = 0; j < 2; j++) {
-					if (clk_rate[j] != 0 &&
-					    do_div(clk_rate[j], fsl_xcvr_spdif_rates[i]) == 0) {
-						xcvr->spdif_constr_rates_list[k++] =
-						fsl_xcvr_spdif_rates[i];
-						xcvr->spdif_constr_rates.count++;
-					}
-				}
-			}
-		}
-		ret = fsl_xcvr_constr(substream, &fsl_xcvr_spdif_channels_constr,
-				      &xcvr->spdif_constr_rates);
+		if (xcvr->soc_data->spdif_only && tx)
+			ret = fsl_xcvr_constr(substream, &fsl_xcvr_spdif_channels_constr,
+					      &xcvr->spdif_constr_rates);
+		else
+			ret = fsl_xcvr_constr(substream, &fsl_xcvr_spdif_channels_constr,
+					      &fsl_xcvr_spdif_rates_constr);
 		break;
 	case FSL_XCVR_MODE_EARC:
 		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_channels_constr,
@@ -1356,6 +1342,8 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 	void __iomem *regs;
 	struct device_node *hdmi_np;
 	int ret, irq;
+	int i, j, k = 0;
+	u64 clk_rate[2];
 
 	xcvr = devm_kzalloc(dev, sizeof(*xcvr), GFP_KERNEL);
 	if (!xcvr)
@@ -1390,6 +1378,24 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 
 	fsl_asoc_get_pll_clocks(dev, &xcvr->pll8k_clk,
 				&xcvr->pll11k_clk);
+
+	xcvr->spdif_constr_rates = fsl_xcvr_spdif_rates_constr;
+	if (xcvr->soc_data->spdif_only) {
+		xcvr->spdif_constr_rates.list = xcvr->spdif_constr_rates_list;
+		xcvr->spdif_constr_rates.count = 0;
+		for (i = 0; i < SPDIF_NUM_RATES; i++) {
+			clk_rate[0] = clk_get_rate(xcvr->pll8k_clk);
+			clk_rate[1] = clk_get_rate(xcvr->pll11k_clk);
+			for (j = 0; j < 2; j++) {
+				if (clk_rate[j] != 0 &&
+				    do_div(clk_rate[j], fsl_xcvr_spdif_rates[i]) == 0) {
+					xcvr->spdif_constr_rates_list[k++] =
+					fsl_xcvr_spdif_rates[i];
+					xcvr->spdif_constr_rates.count++;
+				}
+			}
+		}
+	}
 
 	xcvr->ram_addr = devm_platform_ioremap_resource_byname(pdev, "ram");
 	if (IS_ERR(xcvr->ram_addr))

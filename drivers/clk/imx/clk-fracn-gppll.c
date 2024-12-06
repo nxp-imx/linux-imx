@@ -297,7 +297,8 @@ static int clk_fracn_gppll_prepare(struct clk_hw *hw)
 		return 0;
 
 	if (pll->flags & CLK_FRACN_GPPLL_FRACN)
-		writel_relaxed(readl_relaxed(pll->base + PLL_NUMERATOR), pll->base + PLL_NUMERATOR);
+		writel_relaxed(readl_relaxed(pll->base + PLL_NUMERATOR),
+			       pll->base + PLL_NUMERATOR);
 
 	val |= CLKMUX_BYPASS;
 	writel_relaxed(val, pll->base + PLL_CTRL);

@@ -71,6 +71,7 @@
 #include <linux/io_uring.h>
 #include <linux/audit.h>
 #include <linux/security.h>
+#include <linux/page_size_compat.h>
 #include <asm/shmparam.h>
 
 #define CREATE_TRACE_POINTS
@@ -2549,7 +2550,7 @@ static inline int io_cqring_wait_schedule(struct io_ring_ctx *ctx,
 		return 1;
 	if (unlikely(!llist_empty(&ctx->work_llist)))
 		return 1;
-	if (unlikely(test_thread_flag(TIF_NOTIFY_SIGNAL)))
+	if (unlikely(task_work_pending(current)))
 		return 1;
 	if (unlikely(task_sigpending(current)))
 		return -EINTR;
@@ -2645,9 +2646,9 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 		 * If we got woken because of task_work being processed, run it
 		 * now rather than let the caller do another wait loop.
 		 */
-		io_run_task_work();
 		if (!llist_empty(&ctx->work_llist))
 			io_run_local_work(ctx, nr_wait);
+		io_run_task_work();
 
 		/*
 		 * Non-local task_work will be run on exit to userspace, but
@@ -3490,7 +3491,7 @@ static void *io_uring_validate_mmap_request(struct file *file,
 	}
 
 	page = virt_to_head_page(ptr);
-	if (sz > page_size(page))
+	if (sz > __PAGE_ALIGN(page_size(page)))
 		return ERR_PTR(-EINVAL);
 
 	return ptr;

@@ -370,7 +370,7 @@ static void fsl_edma3_disable_request(struct fsl_edma3_chan *fsl_chan)
 
 	if ((fsl_chan->edma3->drvdata->has_chmux || fsl_chan->edma3->bus_axi) &&
 	    fsl_chan->srcid) {
-		writel(fsl_chan->srcid, fsl_chan->mux_addr);
+		writel(0, fsl_chan->mux_addr);
 	}
 	val &= ~EDMA_CH_CSR_ERQ;
 	writel(val, addr + EDMA_CH_CSR);

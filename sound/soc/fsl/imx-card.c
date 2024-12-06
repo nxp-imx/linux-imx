@@ -28,6 +28,7 @@ enum codec_type {
 	CODEC_AK4497,
 	CODEC_AK5552,
 	CODEC_CS42888,
+	CODEC_CS42448,
 };
 
 /*
@@ -649,6 +650,8 @@ static int imx_card_parse_of(struct imx_card_data *data)
 				plat_data->type = CODEC_AK5552;
 			else if (!strcmp(link->codecs->dai_name, "cs42888"))
 				plat_data->type = CODEC_CS42888;
+			else if (!strcmp(link->codecs->dai_name, "cs42448"))
+				plat_data->type = CODEC_CS42448;
 
 		} else {
 			link->codecs	 = &asoc_dummy_dlc;
@@ -758,6 +761,7 @@ static int imx_card_probe(struct platform_device *pdev)
 
 	data->plat_data = plat_data;
 	data->card.dev = &pdev->dev;
+	data->card.owner = THIS_MODULE;
 
 	dev_set_drvdata(&pdev->dev, &data->card);
 	snd_soc_card_set_drvdata(&data->card, data);
@@ -903,7 +907,7 @@ static int imx_card_probe(struct platform_device *pdev)
 		extcon_set_state_sync(imx_card_edev, EXTCON_JACK_HEADPHONE, 1);
 	}
 
-	if (plat_data->type == CODEC_CS42888) {
+	if (plat_data->type == CODEC_CS42888 || plat_data->type == CODEC_CS42448) {
 		struct extcon_dev *extcon_dev = devm_extcon_dev_allocate(&pdev->dev, line_cables);
 		if (IS_ERR(extcon_dev)) {
 			dev_err(&pdev->dev, "failed to allocate extcon device\n");

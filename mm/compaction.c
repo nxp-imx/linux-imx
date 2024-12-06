@@ -52,7 +52,6 @@ static inline void count_compact_events(enum vm_event_item item, long delta)
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/compaction.h>
 
-#undef CREATE_TRACE_POINTS
 #ifndef __GENKSYMS__
 #include <trace/hooks/mm.h>
 #endif
@@ -1461,6 +1460,7 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn)
 {
 	unsigned long start_pfn, end_pfn;
 	struct page *page;
+	bool bypass = false;
 
 	/* Do not search around if there are enough pages already */
 	if (cc->nr_freepages >= cc->nr_migratepages)
@@ -1476,6 +1476,10 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn)
 
 	page = pageblock_pfn_to_page(start_pfn, end_pfn, cc->zone);
 	if (!page)
+		return;
+
+	trace_android_vh_suitable_migration_target_bypass(page, &bypass);
+	if (bypass)
 		return;
 
 	isolate_freepages_block(cc, &start_pfn, end_pfn, &cc->freepages, 1, false);

@@ -30,7 +30,15 @@ struct dmabuf_imx_heap_name {
 	__u8 name[32];
 };
 
+#define FLUSH_CACHE 0
+#define INVALIDATE_CACHE 1
+struct dmabuf_imx_sync {
+  __u32 dmafd;
+  __u32 operation;
+};
+
 #define DMABUF_GET_PHYS   _IOWR('M', 32, struct dmabuf_imx_phys_data)
 #define DMABUF_GET_HEAP_NAME   _IOWR('M', 33, struct dmabuf_imx_heap_name)
+#define DMABUF_SYNC   _IOWR('M', 34, struct dmabuf_imx_sync)
 
 #endif

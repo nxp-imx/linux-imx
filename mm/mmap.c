@@ -1222,7 +1222,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			unsigned long pgoff, unsigned long *populate,
 			struct list_head *uf)
 {
-	unsigned long old_len;
+	unsigned long file_backed_len = 0;
 	struct mm_struct *mm = current->mm;
 	int pkey = 0;
 
@@ -1252,9 +1252,6 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	len = __COMPAT_PAGE_ALIGN(len, flags);
 	if (!len)
 		return -ENOMEM;
-
-	/* Save the requested len */
-	old_len = len;
 
 	/* offset overflow? */
 	if ((pgoff + (len >> PAGE_SHIFT)) < pgoff)
@@ -1313,7 +1310,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		if (!file_mmap_ok(file, inode, pgoff, len))
 			return -EOVERFLOW;
 
-		len = __filemap_len(inode, pgoff, len, flags);
+		file_backed_len = __filemap_len(inode, pgoff, len, flags);
 
 		flags_mask = LEGACY_MAP_MASK | file->f_op->mmap_supported_flags;
 
@@ -1409,7 +1406,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
 		*populate = len;
 
-	__filemap_fixup(addr, prot, old_len, len);
+	__filemap_fixup(addr, prot, file_backed_len, len);
 
 	return addr;
 }
@@ -3075,8 +3072,12 @@ SYSCALL_DEFINE5(remap_file_pages, unsigned long, start, unsigned long, size,
 		flags |= MAP_LOCKED;
 
 	file = get_file(vma->vm_file);
+	ret = security_mmap_file(vma->vm_file, prot, flags);
+	if (ret)
+		goto out_fput;
 	ret = do_mmap(vma->vm_file, start, size,
 			prot, flags, 0, pgoff, &populate, NULL);
+out_fput:
 	fput(file);
 out:
 	mmap_write_unlock(mm);

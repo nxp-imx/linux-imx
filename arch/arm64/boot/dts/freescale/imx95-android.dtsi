@@ -18,6 +18,9 @@
 				parts = "vbmeta,dtbo,boot,init_boot,system,vendor,vendor_dlkm,product";
 			};
 		};
+		scmi {
+			max-rx-timeout-ms = <5000>;
+		};
 	};
 
 	chosen {

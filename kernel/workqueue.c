@@ -56,6 +56,7 @@
 
 #include "workqueue_internal.h"
 
+#include <trace/hooks/dtask.h>
 #include <trace/hooks/wqlockup.h>
 /* events/workqueue.h uses default TRACE_INCLUDE_PATH */
 #undef TRACE_INCLUDE_PATH
@@ -1154,6 +1155,8 @@ static bool kick_pool(struct worker_pool *pool)
 		}
 	}
 #endif
+	trace_android_vh_wq_wake_idle_worker(p, list_first_entry(&pool->worklist,
+					struct work_struct, entry));
 	wake_up_process(p);
 	return true;
 }
@@ -1799,6 +1802,8 @@ retry:
 
 	/* pwq determined, queue */
 	trace_workqueue_queue_work(req_cpu, pwq, work);
+
+	trace_android_vh_wq_queue_work(work, wq->name, wq->flags, cpu);
 
 	if (WARN_ON(!list_empty(&work->entry)))
 		goto out;
@@ -3210,7 +3215,9 @@ void __flush_workqueue(struct workqueue_struct *wq)
 
 	mutex_unlock(&wq->mutex);
 
+	trace_android_vh_flush_wq_wait_start(wq);
 	wait_for_completion(&this_flusher.done);
+	trace_android_vh_flush_wq_wait_finish(wq);
 
 	/*
 	 * Wake-up-and-cascade phase
@@ -3422,7 +3429,9 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 	lock_map_release(&work->lockdep_map);
 
 	if (start_flush_work(work, &barr, from_cancel)) {
+		trace_android_vh_flush_work_wait_start(work);
 		wait_for_completion(&barr.done);
+		trace_android_vh_flush_work_wait_finish(work);
 		destroy_work_on_stack(&barr.work);
 		return true;
 	} else {

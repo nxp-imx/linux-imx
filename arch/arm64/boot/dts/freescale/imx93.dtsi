@@ -480,9 +480,10 @@
 				#clock-cells = <1>;
 				clocks = <&osc_32k>, <&osc_24m>, <&clk_ext1>;
 				clock-names = "osc_32k", "osc_24m", "clk_ext1";
-				assigned-clocks = <&clk IMX93_CLK_AUDIO_PLL>, <&clk IMX93_CLK_A55>;
-				assigned-clock-parents = <0>, <&clk IMX93_CLK_SYS_PLL_PFD0>;
-				assigned-clock-rates = <393216000>, <500000000>;
+				assigned-clocks = <&clk IMX93_CLK_AUDIO_PLL>, <&clk IMX93_CLK_VIDEO_PLL>,
+						  <&clk IMX93_CLK_A55>;
+				assigned-clock-parents = <0>, <0>, <&clk IMX93_CLK_SYS_PLL_PFD0>;
+				assigned-clock-rates = <393216000>, <594000000>, <500000000>;
 				status = "okay";
 			};
 
@@ -970,7 +971,7 @@
 					     <GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>,
 						 /* XCVR IRQ 1 */
 					     <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&clk IMX93_CLK_BUS_WAKEUP>,
+				clocks = <&clk IMX93_CLK_SPDIF_IPG>,
 					 <&clk IMX93_CLK_SPDIF_GATE>,
 					 <&clk IMX93_CLK_DUMMY>,
 					 <&clk IMX93_CLK_AUD_XCVR_GATE>;

@@ -293,6 +293,7 @@ imx8qm-mek-revd-dsi-rm67199-dtbs := imx8qm-mek-dsi-rm67199.dtb imx8qm-mek-revd.d
 imx8qm-pcieax2pciebx1-revd-dtbs := imx8qm-pcieax2pciebx1.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-root-dtbs := imx8qm-mek-root.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-md-dtbs := imx8qm-mek-md.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-sof-cs42888-dtbs := imx8qm-mek-sof-cs42888.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car-a72-dtbs := imx8qm-mek-car-a72.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car-md-a72-dtbs := imx8qm-mek-car-md-a72.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car-a72-sof-dtbs := imx8qm-mek-car-a72-sof.dtb imx8qm-mek-revd.dtbo
@@ -319,6 +320,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-dsi-rm67199.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-pcieax2pciebx1-revd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-root.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-md.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-sof-cs42888.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-md-a72.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72-sof.dtb
@@ -419,6 +422,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
 			  imx93-11x11-evk-iw612-otbr.dtb \
 			  imx93-11x11-frdm.dtb \
 			  imx93-11x11-frdm-iw612-otbr.dtb \
+			  imx93-11x11-frdm-tianma-wvga-panel.dtb \
+			  imx93-11x11-evk-iw612-otbr.dtb \
 			  imx93-11x11-evk-rpmsg.dtb imx93-11x11-evk-rpmsg-lpv.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-evk.dtb \
