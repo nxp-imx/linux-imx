@@ -327,6 +327,55 @@ static struct vfsmount *fuse_dentry_automount(struct path *path)
 	return mnt;
 }
 
+/*
+ * Get the canonical path. Since we must translate to a path, this must be done
+ * in the context of the userspace daemon, however, the userspace daemon cannot
+ * look up paths on its own. Instead, we handle the lookup as a special case
+ * inside of the write request.
+ */
+static int fuse_dentry_canonical_path(const struct path *path,
+				       struct path *canonical_path)
+{
+	struct inode *inode = d_inode(path->dentry);
+	//struct fuse_conn *fc = get_fuse_conn(inode);
+	struct fuse_mount *fm = get_fuse_mount_super(path->mnt->mnt_sb);
+	FUSE_ARGS(args);
+	char *path_name;
+	int err;
+
+	if (fm->fc->no_dentry_canonical_path)
+		goto out;
+
+	path_name = (char *)get_zeroed_page(GFP_KERNEL);
+	if (!path_name)
+		return -ENOMEM;
+
+	args.opcode = FUSE_CANONICAL_PATH;
+	args.nodeid = get_node_id(inode);
+	args.in_numargs = 0;
+	args.out_numargs = 1;
+	args.out_args[0].size = PATH_MAX;
+	args.out_args[0].value = path_name;
+	args.canonical_path = canonical_path;
+	args.out_argvar = 1;
+
+	err = fuse_simple_request(fm, &args);
+	free_page((unsigned long)path_name);
+	if (err > 0)
+		return 0;
+	if (err < 0 && err != -ENOSYS)
+		return err;
+
+	if (err == -ENOSYS)
+		fm->fc->no_dentry_canonical_path = 1;
+
+out:
+	canonical_path->dentry = path->dentry;
+	canonical_path->mnt = path->mnt;
+	path_get(canonical_path);
+	return 0;
+}
+
 const struct dentry_operations fuse_dentry_operations = {
 	.d_revalidate	= fuse_dentry_revalidate,
 	.d_delete	= fuse_dentry_delete,
@@ -335,6 +384,7 @@ const struct dentry_operations fuse_dentry_operations = {
 	.d_release	= fuse_dentry_release,
 #endif
 	.d_automount	= fuse_dentry_automount,
+	.d_canonical_path = fuse_dentry_canonical_path,
 };
 
 const struct dentry_operations fuse_root_dentry_operations = {

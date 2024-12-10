@@ -7,6 +7,51 @@
 
 #include <asm-generic/module.h>
 
+#ifdef CONFIG_KVM
+struct pkvm_module_section {
+	void *start;
+	void *end;
+};
+
+typedef s32 kvm_nvhe_reloc_t;
+struct pkvm_module_ops;
+
+struct pkvm_el2_sym {
+	char			*name;
+	__le32 			*rela_pos;
+	struct list_head	node;
+};
+
+struct pkvm_el2_module {
+	struct pkvm_module_section text;
+	struct pkvm_module_section bss;
+	struct pkvm_module_section rodata;
+	struct pkvm_module_section data;
+	struct pkvm_module_section event_ids;
+	struct pkvm_module_section sections;
+	void *hyp_va;
+	struct hyp_event *hyp_events;
+	struct hyp_printk_fmt *hyp_printk_fmts;
+	unsigned int nr_hyp_events;
+	unsigned int nr_hyp_printk_fmts;
+	kvm_nvhe_reloc_t *relocs;
+	struct list_head node;
+	struct list_head ext_symbols;
+	unsigned int nr_relocs;
+	int (*init)(const struct pkvm_module_ops *ops);
+};
+
+void kvm_apply_hyp_module_relocations(struct pkvm_el2_module *mod,
+				      kvm_nvhe_reloc_t *begin,
+				      kvm_nvhe_reloc_t *end);
+
+#define ARM64_MODULE_KVM_ARCHDATA					\
+	/* For pKVM hypervisor modules */				\
+	struct pkvm_el2_module	hyp;
+#else
+#define ARM64_MODULE_KVM_ARCHDATA
+#endif
+
 struct mod_plt_sec {
 	int			plt_shndx;
 	int			plt_num_entries;
@@ -19,6 +64,8 @@ struct mod_arch_specific {
 
 	/* for CONFIG_DYNAMIC_FTRACE */
 	struct plt_entry	*ftrace_trampolines;
+
+	ARM64_MODULE_KVM_ARCHDATA
 };
 
 u64 module_emit_plt_entry(struct module *mod, Elf64_Shdr *sechdrs,

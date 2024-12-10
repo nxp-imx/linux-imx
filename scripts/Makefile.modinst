@@ -35,7 +35,7 @@ install-y += $(addprefix $(MODLIB)/, modules.builtin modules.builtin.modinfo)
 
 install-$(CONFIG_BUILTIN_MODULE_RANGES) += $(MODLIB)/modules.builtin.ranges
 
-$(addprefix $(MODLIB)/, modules.builtin modules.builtin.modinfo modules.builtin.ranges): $(MODLIB)/%: % FORCE
+$(addprefix $(MODLIB)/, modules.builtin modules.builtin.modinfo modules.builtin.ranges): $(MODLIB)/%: $(mixed-build-prefix)% FORCE
 	$(call cmd,install)
 
 endif
@@ -60,6 +60,10 @@ suffix-$(CONFIG_MODULE_COMPRESS_ZSTD)	:= .zst
 endif
 
 modules := $(patsubst $(extmod_prefix)%.o, $(dst)/%.ko$(suffix-y), $(modules))
+ifneq ($(KBUILD_EXTMOD),)
+extmod_suffix := $(shell echo "${KBUILD_EXTMOD}" | md5sum | cut -d " " -f 1)
+modules += $(dst)/modules.order.$(extmod_suffix)
+endif
 install-$(CONFIG_MODULES) += $(modules)
 
 __modinst: $(install-y)
@@ -124,6 +128,14 @@ $(dst)/%.ko: $(extmod_prefix)%.ko FORCE
 	$(call cmd,strip)
 	$(call cmd,sign)
 
+ifneq ($(KBUILD_EXTMOD),)
+$(dst)/modules.order.$(extmod_suffix): $(MODORDER) FORCE
+	$(call cmd,install)
+	@sed -e "s:^$(KBUILD_EXTMOD):$(INSTALL_MOD_DIR):g" \
+	     -e 's:^\(.*\)\.o$$:\1.ko:' \
+	     -i $@
+endif
+
 ifdef CONFIG_MODULES
 __modinst: depmod
 
@@ -132,7 +144,7 @@ depmod: $(install-y)
 	$(call cmd,depmod)
 
 quiet_cmd_depmod = DEPMOD  $(MODLIB)
-      cmd_depmod = $(srctree)/scripts/depmod.sh $(KERNELRELEASE)
+      cmd_depmod = $(srctree)/scripts/depmod.sh $(KERNELRELEASE) $(mixed-build-prefix)
 endif
 
 else

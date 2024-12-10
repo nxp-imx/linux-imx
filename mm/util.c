@@ -31,6 +31,10 @@
 #include "internal.h"
 #include "swap.h"
 
+#ifndef __GENSYMS__
+#include <trace/hooks/syscall_check.h>
+#endif
+
 /**
  * kfree_const - conditionally free memory
  * @x: pointer to the memory
@@ -592,6 +596,7 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 		if (populate)
 			mm_populate(ret, populate);
 	}
+	trace_android_vh_check_mmap_file(file, prot, flag, ret);
 	return ret;
 }
 

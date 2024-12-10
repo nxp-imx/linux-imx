@@ -25,6 +25,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/hw_pressure.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/sched.h>
+#include <trace/hooks/topology.h>
+
 static DEFINE_PER_CPU(struct scale_freq_data __rcu *, sft_data);
 static struct cpumask scale_freq_counters_mask;
 static bool scale_freq_invariant;
@@ -149,6 +153,8 @@ void topology_set_freq_scale(const struct cpumask *cpus, unsigned long cur_freq,
 
 	scale = (cur_freq << SCHED_CAPACITY_SHIFT) / max_freq;
 
+	trace_android_vh_arch_set_freq_scale(cpus, cur_freq, max_freq, &scale);
+
 	for_each_cpu(i, cpus)
 		per_cpu(arch_freq_scale, i) = scale;
 }
@@ -162,6 +168,7 @@ void topology_set_cpu_scale(unsigned int cpu, unsigned long capacity)
 }
 
 DEFINE_PER_CPU(unsigned long, hw_pressure);
+EXPORT_PER_CPU_SYMBOL_GPL(hw_pressure);
 
 /**
  * topology_update_hw_pressure() - Update HW pressure for CPUs
@@ -201,8 +208,10 @@ void topology_update_hw_pressure(const struct cpumask *cpus,
 
 	trace_hw_pressure_update(cpu, pressure);
 
-	for_each_cpu(cpu, cpus)
+	for_each_cpu(cpu, cpus) {
 		WRITE_ONCE(per_cpu(hw_pressure, cpu), pressure);
+		trace_android_rvh_update_thermal_stats(cpu);
+	}
 }
 EXPORT_SYMBOL_GPL(topology_update_hw_pressure);
 
@@ -211,8 +220,10 @@ static ssize_t cpu_capacity_show(struct device *dev,
 				 char *buf)
 {
 	struct cpu *cpu = container_of(dev, struct cpu, dev);
+	unsigned long capacity = topology_get_cpu_scale(cpu->dev.id);
 
-	return sysfs_emit(buf, "%lu\n", topology_get_cpu_scale(cpu->dev.id));
+	trace_android_rvh_cpu_capacity_show(&capacity, cpu->dev.id);
+	return sysfs_emit(buf, "%lu\n", capacity);
 }
 
 static void update_topology_flags_workfn(struct work_struct *work);
@@ -254,6 +265,8 @@ static int register_cpu_capacity_sysctl(void)
 subsys_initcall(register_cpu_capacity_sysctl);
 
 static int update_topology;
+bool topology_update_done;
+EXPORT_SYMBOL_GPL(topology_update_done);
 
 int topology_update_cpu_topology(void)
 {
@@ -268,6 +281,8 @@ static void update_topology_flags_workfn(struct work_struct *work)
 {
 	update_topology = 1;
 	rebuild_sched_domains();
+	topology_update_done = true;
+	trace_android_vh_update_topology_flags_workfn(NULL);
 	pr_debug("sched_domain hierarchy rebuilt, flags updated\n");
 	update_topology = 0;
 }

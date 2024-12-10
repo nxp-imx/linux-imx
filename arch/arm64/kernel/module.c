@@ -21,6 +21,8 @@
 
 #include <asm/alternative.h>
 #include <asm/insn.h>
+#include <asm/kvm_hyptrace.h>
+#include <asm/kvm_hypevents_defs.h>
 #include <asm/scs.h>
 #include <asm/sections.h>
 
@@ -457,11 +459,171 @@ static int module_init_ftrace_plt(const Elf_Ehdr *hdr,
 	return 0;
 }
 
+#ifdef CONFIG_KVM
+static const Elf_Shdr *find_symbol_table(const Elf_Ehdr *hdr,
+					 const Elf_Shdr *sechdrs)
+{
+	int idx;
+
+	for (idx = 1; idx < hdr->e_shnum; idx++) {
+		if (sechdrs[idx].sh_type == SHT_SYMTAB)
+			return &sechdrs[idx];
+	}
+
+	return NULL;
+}
+
+static int
+module_init_hyp_imported_sym(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
+			     struct module *mod)
+{
+	struct pkvm_el2_module *hyp_mod = &mod->arch.hyp;
+	struct pkvm_el2_sym *pkvm_sym;
+	const Elf_Shdr *symtab = NULL, *s, *se, *orig;
+	const char *strtab = NULL;
+	const Elf_Rela *rela;
+	const Elf_Sym *sym;
+
+	INIT_LIST_HEAD(&hyp_mod->ext_symbols);
+
+	for (s = sechdrs, se = sechdrs + hdr->e_shnum; s < se; s++) {
+		if (s->sh_type != SHT_RELA)
+			continue;
+
+		/* Imported symbols only used in .hyp.text */
+		orig = &sechdrs[s->sh_info];
+		if ((void *)orig->sh_addr != hyp_mod->text.start)
+			continue;
+
+		for (rela = (Elf_Rela *)((void *)hdr + s->sh_offset);
+		     rela < (Elf_Rela *)((void *)hdr + s->sh_offset + s->sh_size); rela++) {
+			size_t len;
+
+			symtab = symtab ? symtab : find_symbol_table(hdr, sechdrs);
+			if (!symtab)
+				return -ENOEXEC;
+			strtab = (const char *)hdr + sechdrs[symtab->sh_link].sh_offset;
+
+			sym = (Elf_Sym *)((const char *)hdr + symtab->sh_offset) +
+				ELF64_R_SYM(rela->r_info);
+
+			/* Imported symbols are UNDEF */
+			if (sym->st_shndx != SHN_UNDEF)
+				continue;
+
+			if (ELF64_R_TYPE(rela->r_info) != R_AARCH64_CALL26) {
+				pr_warn("Unknown relocation type for imported symbol %s\n",
+					strtab + sym->st_name);
+				return -EINVAL;
+			}
+
+			pkvm_sym = kmalloc(sizeof(*pkvm_sym), GFP_KERNEL);
+			if (!pkvm_sym)
+				return -ENOMEM;
+
+			len = strlen(strtab + sym->st_name);
+			pkvm_sym->name = kmalloc(len, GFP_KERNEL);
+			memcpy(pkvm_sym->name, strtab + sym->st_name, len);
+			pkvm_sym->rela_pos = (void *)orig->sh_addr + rela->r_offset;
+
+			list_add(&pkvm_sym->node, &hyp_mod->ext_symbols);
+		}
+	}
+
+	return 0;
+}
+#endif
+
+static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
+			   struct module *mod)
+{
+#ifdef CONFIG_KVM
+	struct pkvm_el2_module *hyp_mod = &mod->arch.hyp;
+	const Elf_Shdr *s;
+
+	/*
+	 * If the .hyp.text is missing or empty, this is not a hypervisor
+	 * module so ignore the rest of it.
+	 */
+	s = find_section(hdr, sechdrs, ".hyp.text");
+	if (!s || !s->sh_size)
+		return 0;
+
+	hyp_mod->text = (struct pkvm_module_section) {
+		.start	= (void *)s->sh_addr,
+		.end	= (void *)s->sh_addr + s->sh_size,
+	};
+
+	module_init_hyp_imported_sym(hdr, sechdrs, mod);
+
+	s = find_section(hdr, sechdrs, ".hyp.reloc");
+	if (!s)
+		return -ENOEXEC;
+
+	mod->arch.hyp.relocs = (void *)s->sh_addr;
+	mod->arch.hyp.nr_relocs = s->sh_size / sizeof(*mod->arch.hyp.relocs);
+
+	s = find_section(hdr, sechdrs, ".hyp.bss");
+	if (s && s->sh_size) {
+		mod->arch.hyp.bss = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.rodata");
+	if (s && s->sh_size) {
+		mod->arch.hyp.rodata = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.data");
+	if (s && s->sh_size) {
+		mod->arch.hyp.data = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.event_ids");
+	if (s && s->sh_size) {
+		mod->arch.hyp.event_ids = (struct pkvm_module_section) {
+			.start	= (void *)s->sh_addr,
+			.end	= (void *)s->sh_addr + s->sh_size,
+		};
+	}
+
+	s = find_section(hdr, sechdrs, "_hyp_events");
+	if (s && s->sh_size) {
+		if (!mod->arch.hyp.event_ids.start) {
+			WARN(1, "%s: Did you forget define_events.h in the EL2 (hyp) code?",
+			     mod->name);
+		} else {
+			hyp_mod->hyp_events = (void *)s->sh_addr;
+			hyp_mod->nr_hyp_events = s->sh_size /
+				sizeof(*hyp_mod->hyp_events);
+		}
+	}
+
+	s = find_section(hdr, sechdrs, ".hyp.printk_fmts");
+	if (s && s->sh_size) {
+		hyp_mod->hyp_printk_fmts = (void *)s->sh_addr;
+		hyp_mod->nr_hyp_printk_fmts = s->sh_size /
+			sizeof(*hyp_mod->hyp_printk_fmts);
+	}
+#endif
+	return 0;
+}
+
 int module_finalize(const Elf_Ehdr *hdr,
 		    const Elf_Shdr *sechdrs,
 		    struct module *me)
 {
+	int err;
 	const Elf_Shdr *s;
+
 	s = find_section(hdr, sechdrs, ".altinstructions");
 	if (s)
 		apply_alternatives_module((void *)s->sh_addr, s->sh_size);
@@ -472,5 +634,9 @@ int module_finalize(const Elf_Ehdr *hdr,
 			__pi_scs_patch((void *)s->sh_addr, s->sh_size);
 	}
 
-	return module_init_ftrace_plt(hdr, sechdrs, me);
+	err = module_init_ftrace_plt(hdr, sechdrs, me);
+	if (err)
+		return err;
+
+	return module_init_hyp(hdr, sechdrs, me);
 }

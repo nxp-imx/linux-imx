@@ -249,6 +249,9 @@ struct bio {
 
 #ifdef CONFIG_BLK_INLINE_ENCRYPTION
 	struct bio_crypt_ctx	*bi_crypt_context;
+#if IS_ENABLED(CONFIG_DM_DEFAULT_KEY)
+	bool			bi_skip_dm_default_key;
+#endif
 #endif
 
 #if defined(CONFIG_BLK_DEV_INTEGRITY)

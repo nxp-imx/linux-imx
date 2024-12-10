@@ -46,6 +46,7 @@
 #include <linux/rv.h>
 #include <linux/livepatch_sched.h>
 #include <linux/uidgid_types.h>
+#include <linux/android_vendor.h>
 #include <asm/kmap_size.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
@@ -326,6 +327,8 @@ extern int __must_check io_schedule_prepare(void);
 extern void io_schedule_finish(int token);
 extern long io_schedule_timeout(long timeout);
 extern void io_schedule(void);
+extern int select_fallback_rq(int cpu, struct task_struct *p);
+extern struct task_struct *pick_task(struct rq *rq);
 
 /**
  * struct prev_cputime - snapshot of system and user cputime
@@ -1073,6 +1076,10 @@ struct task_struct {
 	u64				stimescaled;
 #endif
 	u64				gtime;
+#ifdef CONFIG_CPU_FREQ_TIMES
+	u64				*time_in_state;
+	unsigned int			max_state;
+#endif
 	struct prev_cputime		prev_cputime;
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 	struct vtime			vtime;
@@ -1185,6 +1192,7 @@ struct task_struct {
 	raw_spinlock_t			pi_lock;
 
 	struct wake_q_node		wake_q;
+	int				wake_q_count;
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task: */
@@ -1560,6 +1568,8 @@ struct task_struct {
 	struct callback_head		mce_kill_me;
 	int				mce_count;
 #endif
+	ANDROID_VENDOR_DATA_ARRAY(1, 6);
+	ANDROID_OEM_DATA_ARRAY(1, 6);
 
 #ifdef CONFIG_KRETPROBES
 	struct llist_head               kretprobe_instances;

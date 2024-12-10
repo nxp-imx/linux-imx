@@ -4,8 +4,12 @@
  */
 
 #include <linux/bsearch.h>
+#include <trace/hooks/sched.h>
 
 DEFINE_MUTEX(sched_domains_mutex);
+#ifdef CONFIG_LOCKDEP
+EXPORT_SYMBOL_GPL(sched_domains_mutex);
+#endif
 
 /* Protected by sched_domains_mutex: */
 static cpumask_var_t sched_domains_tmpmask;
@@ -428,11 +432,12 @@ static bool build_perf_domains(const struct cpumask *cpu_map)
 	struct perf_domain *pd = NULL, *tmp;
 	int cpu = cpumask_first(cpu_map);
 	struct root_domain *rd = cpu_rq(cpu)->rd;
+	bool eas_check = false;
 
 	if (!sysctl_sched_energy_aware)
 		goto free;
-
-	if (!sched_is_eas_possible(cpu_map))
+	trace_android_rvh_build_perf_domains(&eas_check);
+	if (!sched_is_eas_possible(cpu_map) && !eas_check)
 		goto free;
 
 	for_each_cpu(i, cpu_map) {
@@ -2537,6 +2542,7 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 	if (rq && sched_debug_verbose)
 		pr_info("root domain span: %*pbl\n", cpumask_pr_args(cpu_map));
+	trace_android_vh_build_sched_domains(has_asym);
 
 	ret = 0;
 error:

@@ -102,13 +102,13 @@ static struct sg_table *cma_heap_map_dma_buf(struct dma_buf_attachment *attachme
 {
 	struct dma_heap_attachment *a = attachment->priv;
 	struct sg_table *table = &a->table;
-	int attr = 0;
+	int attrs = attachment->dma_map_attrs;
 	int ret;
 
 	if (a->uncached)
-		attr = DMA_ATTR_SKIP_CPU_SYNC;
+		attrs = DMA_ATTR_SKIP_CPU_SYNC;
 
-	ret = dma_map_sgtable(attachment->dev, table, direction, attr);
+	ret = dma_map_sgtable(attachment->dev, table, direction, attrs);
 	if (ret)
 		return ERR_PTR(-ENOMEM);
 	a->mapped = true;
@@ -120,13 +120,13 @@ static void cma_heap_unmap_dma_buf(struct dma_buf_attachment *attachment,
 				   enum dma_data_direction direction)
 {
 	struct dma_heap_attachment *a = attachment->priv;
-	int attr = 0;
+	int attrs = attachment->dma_map_attrs;
 
 	if (a->uncached)
-		attr = DMA_ATTR_SKIP_CPU_SYNC;
+		attrs = DMA_ATTR_SKIP_CPU_SYNC;
 
 	a->mapped = false;
-	dma_unmap_sgtable(attachment->dev, table, direction, attr);
+	dma_unmap_sgtable(attachment->dev, table, direction, attrs);
 }
 
 static int cma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
@@ -501,3 +501,5 @@ static int add_default_cma_heap(void)
 }
 module_init(add_default_cma_heap);
 MODULE_DESCRIPTION("DMA-BUF CMA Heap");
+MODULE_LICENSE("GPL v2");
+MODULE_IMPORT_NS(DMA_BUF);

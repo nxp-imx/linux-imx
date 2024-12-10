@@ -361,8 +361,11 @@ static __init void parse_cmdline(const void *fdt, int chosen)
 	static char const cmdline[] __initconst = CONFIG_CMDLINE;
 	const u8 *prop = get_bootargs_cmdline(fdt, chosen);
 
-	if (IS_ENABLED(CONFIG_CMDLINE_FORCE) || !prop)
+	if (IS_ENABLED(CONFIG_CMDLINE_EXTEND) ||
+	    IS_ENABLED(CONFIG_CMDLINE_FORCE) ||
+	    !prop) {
 		__parse_cmdline(cmdline, true);
+	}
 
 	if (!IS_ENABLED(CONFIG_CMDLINE_FORCE) && prop)
 		__parse_cmdline(prop, true);

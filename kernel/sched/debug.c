@@ -47,9 +47,10 @@ static unsigned long nsec_low(unsigned long long nsec)
 #define SCHED_FEAT(name, enabled)	\
 	#name ,
 
-static const char * const sched_feat_names[] = {
+const char * const sched_feat_names[] = {
 #include "features.h"
 };
+EXPORT_SYMBOL_GPL(sched_feat_names);
 
 #undef SCHED_FEAT
 
@@ -78,6 +79,7 @@ static int sched_feat_show(struct seq_file *m, void *v)
 struct static_key sched_feat_keys[__SCHED_FEAT_NR] = {
 #include "features.h"
 };
+EXPORT_SYMBOL_GPL(sched_feat_keys);
 
 #undef SCHED_FEAT
 
@@ -1040,6 +1042,7 @@ static void sched_debug_header(struct seq_file *m)
 #define PN(x) \
 	SEQ_printf(m, "  .%-40s: %Ld.%06ld\n", #x, SPLIT_NS(x))
 	PN(sysctl_sched_base_slice);
+	P(sysctl_sched_child_runs_first);
 	P(sysctl_sched_features);
 #undef PN
 #undef P

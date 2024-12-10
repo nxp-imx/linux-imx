@@ -150,6 +150,7 @@ struct dentry_operations {
 	struct vfsmount *(*d_automount)(struct path *);
 	int (*d_manage)(const struct path *, bool);
 	struct dentry *(*d_real)(struct dentry *, enum d_real_type type);
+	int (*d_canonical_path)(const struct path *, struct path *);
 } ____cacheline_aligned;
 
 /*
@@ -267,7 +268,7 @@ extern int path_has_submounts(const struct path *);
  * This adds the entry to the hash queues.
  */
 extern void d_rehash(struct dentry *);
- 
+
 extern void d_add(struct dentry *, struct inode *);
 
 /* used for rename() and baskets */

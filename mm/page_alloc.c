@@ -55,10 +55,16 @@
 #include <linux/delayacct.h>
 #include <linux/cacheinfo.h>
 #include <linux/pgalloc_tag.h>
+#include <trace/hooks/vmscan.h>
+#include <trace/hooks/mm.h>
+
 #include <asm/div64.h>
 #include "internal.h"
 #include "shuffle.h"
 #include "page_reporting.h"
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_page_alloc);
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_page_free);
 
 /* Free Page Internal flags: for internal, non-pcp variants of free_pages(). */
 typedef int __bitwise fpi_t;
@@ -1576,6 +1582,7 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 		set_page_pfmemalloc(page);
 	else
 		clear_page_pfmemalloc(page);
+	trace_android_vh_test_clear_look_around_ref(page);
 }
 
 /*
@@ -3321,6 +3328,12 @@ static inline unsigned int gfp_to_alloc_flags_cma(gfp_t gfp_mask,
 						  unsigned int alloc_flags)
 {
 #ifdef CONFIG_CMA
+	bool bypass = false;
+
+	trace_android_vh_calc_alloc_flags(gfp_mask, &alloc_flags, &bypass);
+	if (bypass)
+		return alloc_flags;
+
 	if (gfp_migratetype(gfp_mask) == MIGRATE_MOVABLE)
 		alloc_flags |= ALLOC_CMA;
 #endif
@@ -6409,6 +6422,7 @@ int __alloc_contig_migrate_range(struct compact_control *cc,
 	unsigned int nr_reclaimed;
 	unsigned long pfn = start;
 	unsigned int tries = 0;
+	unsigned int max_tries = 5;
 	int ret = 0;
 	struct migration_target_control mtc = {
 		.nid = zone_to_nid(cc->zone),
@@ -6419,6 +6433,9 @@ int __alloc_contig_migrate_range(struct compact_control *cc,
 	unsigned long total_mapped = 0;
 	unsigned long total_migrated = 0;
 	unsigned long total_reclaimed = 0;
+
+	if (cc->gfp_mask & __GFP_NORETRY)
+		max_tries = 1;
 
 	lru_cache_disable();
 
@@ -6435,7 +6452,7 @@ int __alloc_contig_migrate_range(struct compact_control *cc,
 				break;
 			pfn = cc->migrate_pfn;
 			tries = 0;
-		} else if (++tries == 5) {
+		} else if (++tries == max_tries) {
 			ret = -EBUSY;
 			break;
 		}
@@ -6538,7 +6555,11 @@ int alloc_contig_range_noprof(unsigned long start, unsigned long end,
 		.nr_migratepages = 0,
 		.order = -1,
 		.zone = page_zone(pfn_to_page(start)),
-		.mode = MIGRATE_SYNC,
+		/*
+		 * Use MIGRATE_ASYNC for __GFP_NORETRY requests as it never
+		 * blocks.
+		 */
+		.mode = gfp_mask & __GFP_NORETRY ? MIGRATE_ASYNC : MIGRATE_SYNC,
 		.ignore_skip_hint = true,
 		.no_set_skip_hint = true,
 		.gfp_mask = current_gfp_context(gfp_mask),
@@ -6584,7 +6605,7 @@ int alloc_contig_range_noprof(unsigned long start, unsigned long end,
 	 * -EBUSY is not accidentally used or returned to caller.
 	 */
 	ret = __alloc_contig_migrate_range(&cc, start, end, migratetype);
-	if (ret && ret != -EBUSY)
+	if (ret && (ret != -EBUSY || (gfp_mask & __GFP_NORETRY)))
 		goto done;
 	ret = 0;
 

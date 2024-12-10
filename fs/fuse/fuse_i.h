@@ -315,6 +315,9 @@ struct fuse_args {
 	void (*end)(struct fuse_mount *fm, struct fuse_args *args, int error);
 	/* Used for kvec iter backed by vmalloc address */
 	void *vmap_base;
+
+	/* Path used for completing d_canonical_path */
+	struct path *canonical_path;
 };
 
 struct fuse_args_pages {
@@ -772,6 +775,9 @@ struct fuse_conn {
 
 	/** Is bmap not implemented by fs? */
 	unsigned no_bmap:1;
+
+	/** Is dentry_canonical_path not implemented by fs? */
+	unsigned no_dentry_canonical_path:1;
 
 	/** Is poll not implemented by fs? */
 	unsigned no_poll:1;

@@ -1050,6 +1050,7 @@ void rebuild_sched_domains(void)
 	rebuild_sched_domains_cpuslocked();
 	cpus_read_unlock();
 }
+EXPORT_SYMBOL_GPL(rebuild_sched_domains);
 
 /**
  * cpuset_update_tasks_cpumask - Update the cpumasks of tasks in the cpuset.

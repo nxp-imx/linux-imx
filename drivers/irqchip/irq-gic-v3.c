@@ -21,6 +21,7 @@
 #include <linux/refcount.h>
 #include <linux/slab.h>
 #include <linux/iopoll.h>
+#include <trace/hooks/gic_v3.h>
 
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-common.h>
@@ -1521,6 +1522,9 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	reg = gic_dist_base(d) + offset + (index * 8);
 	val = gic_cpu_to_affinity(cpu);
 
+	trace_android_rvh_gic_v3_set_affinity(d, mask_val, &val, force, gic_dist_base(d),
+					gic_data.redist_regions[0].redist_base,
+					gic_data.redist_stride);
 	gic_write_irouter(val, reg);
 
 	/*

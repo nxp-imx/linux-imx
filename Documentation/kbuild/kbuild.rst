@@ -37,6 +37,11 @@ Additional options to pass when preprocessing. The preprocessing options
 will be used in all cases where kbuild does preprocessing including
 building C files and assembler files.
 
+KCPPFLAGS_COMPAT
+----------------
+Additional options to pass to $(CC_COMPAT) when preprocessing C and assembler
+files.
+
 KAFLAGS
 -------
 Additional options to the assembler (for built-in and modules).
@@ -90,6 +95,17 @@ Additional flags to be passed to $(HOSTCXX) when building host programs.
 HOSTRUSTFLAGS
 -------------
 Additional flags to be passed to $(HOSTRUSTC) when building host programs.
+
+PROCMACROLDFLAGS
+----------------
+Flags to be passed when linking Rust proc macros. Since proc macros are loaded
+by rustc at build time, they must be linked in a way that is compatible with
+the rustc toolchain being used.
+
+For instance, it can be useful when rustc uses a different C library than
+the one the user wants to use for host programs.
+
+If unset, it defaults to the flags passed when linking host programs.
 
 HOSTLDFLAGS
 -----------

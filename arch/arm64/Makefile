@@ -174,7 +174,10 @@ else
 KBUILD_IMAGE	:= $(boot)/vmlinuz.efi
 endif
 
+# Don't compile Image in mixed build with "all" target
+ifndef KBUILD_MIXED_TREE
 all:	$(notdir $(KBUILD_IMAGE))
+endif
 
 image.fit: dtbs
 
@@ -206,6 +209,11 @@ ifeq ($(CONFIG_ARM64_USE_LSE_ATOMICS),y)
   ifneq ($(CONFIG_ARM64_LSE_ATOMICS),y)
 	@echo "warning: LSE atomics not supported by binutils" >&2
   endif
+endif
+
+ifeq ($(CONFIG_KVM),y)
+archscripts:
+	$(Q)$(MAKE) $(build)=arch/arm64/tools gen-hyprel
 endif
 
 ifeq ($(KBUILD_EXTMOD),)

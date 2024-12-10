@@ -53,6 +53,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 static int sysctl_panic_on_oom;
 static int sysctl_oom_kill_allocating_task;
 static int sysctl_oom_dump_tasks = 1;
@@ -422,7 +425,7 @@ static int dump_task(struct task_struct *p, void *arg)
  * State information includes task's pid, uid, tgid, vm size, rss,
  * pgtables_bytes, swapents, oom_score_adj value, and name.
  */
-static void dump_tasks(struct oom_control *oc)
+void dump_tasks(struct oom_control *oc)
 {
 	pr_info("Tasks state (memory values in pages):\n");
 	pr_info("[  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name\n");
@@ -438,6 +441,7 @@ static void dump_tasks(struct oom_control *oc)
 		rcu_read_unlock();
 	}
 }
+EXPORT_SYMBOL_GPL(dump_tasks);
 
 static void dump_oom_victim(struct oom_control *oc, struct task_struct *victim)
 {
@@ -1159,6 +1163,12 @@ bool out_of_memory(struct oom_control *oc)
 	select_bad_process(oc);
 	/* Found nothing?!?! */
 	if (!oc->chosen) {
+		int ret = false;
+
+		trace_android_vh_oom_check_panic(oc, &ret);
+		if (ret)
+			return true;
+
 		dump_header(oc);
 		pr_warn("Out of memory and no killable processes...\n");
 		/*

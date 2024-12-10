@@ -45,6 +45,7 @@ enum scale_freq_source {
 	SCALE_FREQ_SOURCE_CPUFREQ = 0,
 	SCALE_FREQ_SOURCE_ARCH,
 	SCALE_FREQ_SOURCE_CPPC,
+	SCALE_FREQ_SOURCE_VIRT,
 };
 
 struct scale_freq_data {
@@ -97,5 +98,6 @@ void reset_cpu_topology(void);
 int parse_acpi_topology(void);
 void freq_inv_set_max_ratio(int cpu, u64 max_rate);
 #endif
+extern bool topology_update_done;
 
 #endif /* _LINUX_ARCH_TOPOLOGY_H_ */

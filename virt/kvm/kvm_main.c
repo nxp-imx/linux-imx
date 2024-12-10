@@ -2673,6 +2673,28 @@ static bool memslot_is_readonly(const struct kvm_memory_slot *slot)
 	return slot->flags & KVM_MEM_READONLY;
 }
 
+/*
+ * Return the memslot of a @gfn and the R/W attribute if slot is valid, or NULL
+ * if slot is not valid.
+ *
+ * @slot: the kvm_memory_slot which contains @gfn
+ * @gfn: the gfn to be translated
+ * @writable: used to return the read/write attribute of the @slot if the hva
+ * is valid and @writable is not NULL
+ */
+struct kvm_memory_slot *gfn_to_memslot_prot(struct kvm *kvm, gfn_t gfn, bool *writable)
+{
+	struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);
+
+	if (!slot || slot->flags & KVM_MEMSLOT_INVALID)
+		return NULL;
+
+	if (writable)
+		*writable = !memslot_is_readonly(slot);
+
+	return slot;
+}
+
 static unsigned long __gfn_to_hva_many(const struct kvm_memory_slot *slot, gfn_t gfn,
 				       gfn_t *nr_pages, bool write)
 {

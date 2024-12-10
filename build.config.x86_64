@@ -1,0 +1,4 @@
+MAKE_GOALS="
+bzImage
+modules
+"

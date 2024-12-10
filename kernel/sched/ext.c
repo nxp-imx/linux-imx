@@ -1003,6 +1003,7 @@ static struct kobject *scx_root_kobj;
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched_ext.h>
+#undef CREATE_TRACE_POINTS
 
 static void process_ddsp_deferred_locals(struct rq *rq);
 static void scx_bpf_kick_cpu(s32 cpu, u64 flags);

@@ -11,6 +11,7 @@
 #include <linux/array_size.h>
 #include <linux/io.h>
 #include <linux/mem_encrypt.h>
+#include <linux/mem_relinquish.h>
 #include <linux/mm.h>
 #include <linux/pgtable.h>
 
@@ -86,7 +87,7 @@ static int mmio_guard_ioremap_hook(phys_addr_t phys, size_t size,
 	end = phys + PAGE_ALIGN(size);
 
 	while (phys < end) {
-		const int func_id = ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_FUNC_ID;
+		const int func_id = ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID;
 		int err;
 
 		err = arm_smccc_do_one_page(func_id, phys);
@@ -99,20 +100,40 @@ static int mmio_guard_ioremap_hook(phys_addr_t phys, size_t size,
 	return 0;
 }
 
+#ifdef CONFIG_MEMORY_RELINQUISH
+
+static bool mem_relinquish_available;
+
+void page_relinquish(struct page *page)
+{
+	phys_addr_t phys, end;
+	u32 func_id = ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID;
+
+	if (!mem_relinquish_available)
+		return;
+
+	phys = page_to_phys(page);
+	end = phys + PAGE_SIZE;
+
+	while (phys < end) {
+		struct arm_smccc_res res;
+
+		arm_smccc_1_1_invoke(func_id, phys, 0, 0, &res);
+		BUG_ON(res.a0 != SMCCC_RET_SUCCESS);
+
+		phys += pkvm_granule;
+	}
+}
+EXPORT_SYMBOL_GPL(page_relinquish);
+
+#endif
+
 void pkvm_init_hyp_services(void)
 {
-	int i;
 	struct arm_smccc_res res;
-	const u32 funcs[] = {
-		ARM_SMCCC_KVM_FUNC_HYP_MEMINFO,
-		ARM_SMCCC_KVM_FUNC_MEM_SHARE,
-		ARM_SMCCC_KVM_FUNC_MEM_UNSHARE,
-	};
 
-	for (i = 0; i < ARRAY_SIZE(funcs); ++i) {
-		if (!kvm_arm_hyp_service_available(funcs[i]))
-			return;
-	}
+	if (!kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO))
+		return;
 
 	arm_smccc_1_1_invoke(ARM_SMCCC_VENDOR_HYP_KVM_HYP_MEMINFO_FUNC_ID,
 			     0, 0, 0, &res);
@@ -120,8 +141,16 @@ void pkvm_init_hyp_services(void)
 		return;
 
 	pkvm_granule = res.a0;
-	arm64_mem_crypt_ops_register(&pkvm_crypt_ops);
 
-	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MMIO_GUARD))
+	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MEM_SHARE) &&
+	    kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MEM_UNSHARE))
+	    arm64_mem_crypt_ops_register(&pkvm_crypt_ops);
+
+	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MMIO_GUARD_MAP))
 		arm64_ioremap_prot_hook_register(&mmio_guard_ioremap_hook);
+
+#ifdef CONFIG_MEMORY_RELINQUISH
+	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH))
+		mem_relinquish_available = true;
+#endif
 }
