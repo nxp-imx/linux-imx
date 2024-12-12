@@ -2124,6 +2124,7 @@ static void _go_offline(struct tipc_virtio_dev *vds)
 		chan->remote = 0;
 		chan_trigger_event(chan, TIPC_CHANNEL_SHUTDOWN);
 		mutex_unlock(&chan->lock);
+		vds_del_channel(vds, chan);
 		kref_put(&chan->refcount, _free_chan);
 	}
 
@@ -2727,7 +2728,6 @@ static void tipc_virtio_remove(struct virtio_device *vdev)
 
 	mutex_lock(&vds->lock);
 	vds->state = VDS_DEAD;
-	vds->vdev = NULL;
 	mutex_unlock(&vds->lock);
 
 	vdev->config->reset(vdev);
