@@ -1258,6 +1258,17 @@ imx95-19x19-verdin-os08a20-isp-adv7535-dtbs := imx95-19x19-verdin.dtb \
 					      imx95-19x19-verdin-os08a20.dtbo \
 					      imx95-19x19-verdin-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-os08a20-isp-adv7535.dtb
+
+imx95-19x19-evk-os08a20-isp-adv7535-cs42888-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-os08a20.dtbo \
+                        imx95-19x19-evk-adv7535.dtbo imx95-19x19-evk-cs42888.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-os08a20-isp-adv7535-cs42888.dtb
+imx95-19x19-evk-adv7535-rpmsg-dtbs := imx95-19x19-evk-rpmsg.dtb imx95-19x19-evk-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-adv7535-rpmsg.dtb
+imx95-15x15-evk-adv7535-aud-hat-dtbs := imx95-15x15-evk-aud-hat.dtb imx95-15x15-evk-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-adv7535-aud-hat.dtb
+imx95-15x15-evk-adv7535-mqs-dtbs := imx95-15x15-evk-mqs.dtb imx95-15x15-evk-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-adv7535-mqs.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk-iw612.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-md.dtb
 
