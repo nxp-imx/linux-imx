@@ -339,7 +339,12 @@
 						<&A55_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
 						<&A55_1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
 						<&A55_2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
-						<&A55_3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+						<&A55_3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&mali  THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+				map1 {
+					trip = <&cpu_crit0>;
+					cooling-device = <&mali THERMAL_NO_LIMIT 1>;
 				};
 			};
 		};
@@ -398,6 +403,28 @@
 		#phy-cells = <0>;
 		clocks = <&clk_dummy>;
 		clock-names = "main_clk";
+	};
+
+	gpu_opp_table: opp_table {
+		compatible = "operating-points-v2", "operating-points-v2-mali";
+
+		opp-500000000 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-hz-real = /bits/ 64 <500000000>;
+			opp-microvolt = <920000>;
+		};
+
+		opp-800000000 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-hz-real = /bits/ 64 <800000000>;
+			opp-microvolt = <920000>;
+		};
+
+		opp-1000000000 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-hz-real = /bits/ 64 <1000000000>;
+			opp-microvolt = <920000>;
+		};
 	};
 
 	soc {
@@ -1382,6 +1409,35 @@
 			#index-cells = <1>;
 			reg = <0x0 0x4c200200 0x0 0x200>,
 			      <0x0 0x4c010014 0x0 0x4>;
+		};
+
+		mali: gpu@4d900000 {
+			compatible = "arm,mali-valhall", "nxp,imx952-mali";
+			reg = <0 0x4d900000 0 0x480000>;
+			reg-names = "gpu_base";
+			interrupts = <GIC_SPI 288 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 289 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 290 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "gpu", "job", "mmu";
+			clocks = <&scmi_clk IMX952_CLK_CGC_GPU>;
+			clock-names = "gpu";
+			power-domains = <&scmi_devpd IMX952_PD_GPU>, <&scmi_perf IMX952_PERF_GPU>;
+			power-domain-names = "gpumix", "gpuperf";
+			operating-points-v2 = <&gpu_opp_table>;
+			#cooling-cells = <2>;
+			simple_power: power_model@0 {
+			    compatible = "arm,mali-simple-power-model";
+			    static-coefficient = <59073>;
+			    dynamic-coefficient = <1013>;
+			    reference_voltage = <920>;
+			    ts = <20000 2000 (-20) 2>;
+			    thermal-zone = "a55-thermal";
+			};
+
+			ipa_power:power_model@1 {
+			    compatible = "arm,mali-tvax-power-model";
+			    reference_voltage = <920>;
+			};
 		};
 
 		netcmix_blk_ctrl: syscon@4c810000 {
