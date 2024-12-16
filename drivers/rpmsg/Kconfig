@@ -118,4 +118,10 @@ config IMX_RPMSG_TTY
 	  executed by the command "echo <string> > <accordingly node>", thus
 	  remote M core would receive the string.
 
+config IMX_RPMSG_CHRE
+        tristate "IMX RPMSG chre driver -- loadable modules only"
+        default m
+        depends on HAVE_IMX_RPMSG && m
+        help
+          transmission context hub message from A core to the remote M core.
 endmenu
