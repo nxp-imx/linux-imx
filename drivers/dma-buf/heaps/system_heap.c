@@ -567,8 +567,8 @@ static const struct dma_buf_ops secure_heap_buf_ops = {
 
 static struct dma_buf *secure_heap_do_allocate(struct dma_heap *heap,
 					       unsigned long len,
-					       unsigned long fd_flags,
-					       unsigned long heap_flags,
+					       u32 fd_flags,
+					       u64 heap_flags,
 					       bool uncached)
 {
 	struct system_heap_buffer *buffer;
@@ -628,8 +628,8 @@ free_buffer:
 
 static struct dma_buf *secure_heap_allocate(struct dma_heap *heap,
 					    unsigned long len,
-					    unsigned long fd_flags,
-					    unsigned long heap_flags)
+					    u32 fd_flags,
+					    u64 heap_flags)
 {
 	/* Use uncached buffer by default */
 	return secure_heap_do_allocate(heap, len, fd_flags, heap_flags, true);
