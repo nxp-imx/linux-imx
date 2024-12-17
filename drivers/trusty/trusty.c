@@ -433,7 +433,7 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 					      cookie_low, cookie_high,
 					      fragment_len, 0, 0, 0, 0);
 		}
-		if (smc_ret.r0 == SMC_FC_FFA_MEM_FRAG_RX) {
+		if ((u32)smc_ret.r0 == SMC_FC_FFA_MEM_FRAG_RX) {
 			cookie_low = smc_ret.r1;
 			cookie_high = smc_ret.r2;
 			dev_dbg(s->dev, "cookie %x %x", cookie_low,
@@ -449,8 +449,8 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 				ret = -EIO;
 				break;
 			}
-		} else if (smc_ret.r0 == SMC_FC_FFA_SUCCESS) {
-			ffa_handle = smc_ret.r2 | (u64)smc_ret.r3 << 32;
+		} else if ((u32)smc_ret.r0 == SMC_FC_FFA_SUCCESS) {
+			ffa_handle = (u64)(u32)smc_ret.r2 | (u64)(u32)smc_ret.r3 << 32;
 			dev_dbg(s->dev, "%s: fragment_len %zu/%zu, got handle 0x%llx\n",
 				__func__, fragment_len, total_len,
 				ffa_handle);
@@ -566,11 +566,11 @@ int trusty_reclaim_memory(struct device *dev, u64 id,
 
 	smc_ret = trusty_smc8(SMC_FC_FFA_MEM_RECLAIM, (u32)id, id >> 32, 0, 0,
 			      0, 0, 0);
-	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
+	if ((u32)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
 		dev_err(s->dev, "%s: SMC_FC_FFA_MEM_RECLAIM failed 0x%lx 0x%lx 0x%lx",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
-		if (smc_ret.r0 == SMC_FC_FFA_ERROR &&
-		    smc_ret.r2 == FFA_ERROR_DENIED)
+		if ((u32)smc_ret.r0 == SMC_FC_FFA_ERROR &&
+		    (s32)smc_ret.r2 == FFA_ERROR_DENIED)
 			ret = -EBUSY;
 		else
 			ret = -EIO;
@@ -655,9 +655,11 @@ static bool trusty_ret_is_ffa_not_supported(struct smc_ret8 *ret)
 	 * read the value from X0; calling a 32-bit SMC will put the lower
 	 * 32 bits in that register, and leave the high 32 bits undefined.
 	 * We convert to a 32-bit value explicitly since we're checking for -1.
+	 * The same applies to X2/W2 for the FF-A error code.
 	 */
 	return (s32)ret->r0 == SMCCC_RET_NOT_SUPPORTED ||
-	    (ret->r0 == SMC_FC_FFA_ERROR && ret->r2 == FFA_ERROR_NOT_SUPPORTED);
+	    ((u32)ret->r0 == SMC_FC_FFA_ERROR &&
+	     (s32)ret->r2 == FFA_ERROR_NOT_SUPPORTED);
 }
 
 static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
@@ -681,7 +683,7 @@ static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 	/* Check that SMC_FC_FFA_MEM_SHARE is implemented */
 	smc_ret = trusty_smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_MEM_SHARE, 0, 0,
 			      0, 0, 0, 0);
-	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
+	if ((u32)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
 		dev_err(s->dev,
 			"%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_MEM_SHARE) failed 0x%lx 0x%lx 0x%lx\n",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
@@ -696,7 +698,7 @@ static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 	 * TODO: Use FF-A call or device tree to configure this dynamically
 	 */
 	smc_ret = trusty_smc8(SMC_FC_FFA_ID_GET, 0, 0, 0, 0, 0, 0, 0);
-	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
+	if ((u32)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
 		dev_err(s->dev,
 			"%s: SMC_FC_FFA_ID_GET failed 0x%lx 0x%lx 0x%lx\n",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
@@ -739,7 +741,7 @@ static int trusty_init_msg_buf(struct trusty_state *s, struct device *dev)
 
 	smc_ret = trusty_smc8(SMC_FCZ_FFA_RXTX_MAP, tx_paddr, rx_paddr,
 				PAGE_SIZE / FFA_PAGE_SIZE, 0, 0, 0, 0);
-	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
+	if ((u32)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
 		dev_err(s->dev, "%s: SMC_FCZ_FFA_RXTX_MAP failed 0x%lx 0x%lx 0x%lx\n",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
 		ret = -EIO;
@@ -772,7 +774,7 @@ static void trusty_free_msg_buf(struct trusty_state *s, struct device *dev)
 		return;
 
 	smc_ret = trusty_smc8(SMC_FC_FFA_RXTX_UNMAP, 0, 0, 0, 0, 0, 0, 0);
-	if (smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
+	if ((u32)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
 		dev_err(s->dev, "%s: SMC_FC_FFA_RXTX_UNMAP failed 0x%lx 0x%lx 0x%lx\n",
 			__func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
 	} else {
