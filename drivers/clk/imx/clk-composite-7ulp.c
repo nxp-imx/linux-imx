@@ -78,7 +78,7 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 				     int num_parents, bool mux_present,
 				     bool rate_present, bool gate_present,
 				     void __iomem *reg, bool has_swrst,
-				     unsigned long flags)
+				     unsigned long clk_flags)
 {
 	struct clk_hw *mux_hw = NULL, *fd_hw = NULL, *gate_hw = NULL;
 	struct clk_fractional_divider *fd = NULL;
@@ -146,7 +146,7 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 		 * change since the prepare count is zero, but HW actually
 		 * prevent the parent/rate change due to the clock is enabled.
 		 */
-		if (!(flags & CLK_IS_CRITICAL)) {
+		if (!(clk_flags & CLK_IS_CRITICAL)) {
 			val = readl_relaxed(reg);
 			val &= ~(1 << PCG_CGC_SHIFT);
 			writel_relaxed(val, reg);
