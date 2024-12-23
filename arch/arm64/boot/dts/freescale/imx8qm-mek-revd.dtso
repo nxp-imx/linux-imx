@@ -26,7 +26,6 @@
 		model = "wm8962-audio";
 		audio-cpu = <&sai1>;
 		audio-codec = <&wm8962>;
-		hp-det-gpio = <&lsio_gpio0 31 GPIO_ACTIVE_HIGH>;
 		audio-routing =
 			"Headphone Jack", "HPOUTL",
 			"Headphone Jack", "HPOUTR",
