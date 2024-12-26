@@ -253,8 +253,9 @@
 			clocks = <&cgc2 IMX8ULP_CLK_HIFI_DIVCORE>,
 				 <&cgc2 IMX8ULP_CLK_LPAV_BUS_DIV>,
 				 <&cgc2 IMX8ULP_CLK_HIFI_DIVPLAT>,
-				 <&pcc5 IMX8ULP_CLK_MU3_B>;
-			clock-names = "core", "ipg", "ocram", "mu";
+				 <&pcc5 IMX8ULP_CLK_MU3_B>,
+				 <&pcc4 IMX8ULP_CLK_LPUART7>;
+			clock-names = "core", "ipg", "ocram", "mu", "per_clk1";
 			power-domains = <&scmi_devpd IMX8ULP_PD_HIFI4>;
 			firmware-name = "imx/dsp/hifi4.bin";
 			mbox-names = "tx", "rx", "rxdb";
@@ -950,6 +951,9 @@
 				reg = <0x2da70000 0x10000>;
 				#clock-cells = <1>;
 				#reset-cells = <1>;
+				assigned-clocks = <&pcc5 IMX8ULP_CLK_DSI>;
+				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV2>;
+				assigned-clock-rates = <79200000>;
 			};
 
 			sai6: sai@2da90000 {
@@ -1058,9 +1062,6 @@
 					 <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>;
 				clock-names = "core", "rx_esc", "tx_esc", "phy_ref";
 				power-domains = <&scmi_devpd IMX8ULP_PD_MIPI_DSI>;
-				assigned-clocks = <&pcc5 IMX8ULP_CLK_DSI>;
-				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV2>;
-				assigned-clock-rates = <79200000>;
 				interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
 				mux-controls = <&mux 0>;
 				csr = <&avd_sim>;
@@ -1097,8 +1098,9 @@
 			dphy: phy@2db00300 {
 				compatible = "fsl,imx8ulp-mipi-dphy";
 				reg = <0x2db00300 0x100>;
-				clocks = <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>;
-				clock-names = "phy_ref";
+				clocks = <&cgc2 IMX8ULP_CLK_DSI_PHY_REF>,
+					 <&pcc5 IMX8ULP_CLK_DSI>;
+				clock-names = "phy_ref", "rx_esc";
 				#phy-cells = <0>;
 				status = "disabled";
 			};

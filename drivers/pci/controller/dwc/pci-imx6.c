@@ -49,6 +49,8 @@
 #define IMX95_PCIE_SS_RW_REG_0			0xf0
 #define IMX95_PCIE_REF_CLKEN			BIT(23)
 #define IMX95_PCIE_PHY_CR_PARA_SEL		BIT(9)
+#define IMX95_PCIE_SS_RW_REG_1			0xf4
+#define IMX95_PCIE_SYS_AUX_PWR_DET		BIT(31)
 
 #define IMX95_PE0_GEN_CTRL_1			0x1050
 #define IMX95_PCIE_DEVICE_TYPE			GENMASK(3, 0)
@@ -71,6 +73,9 @@
 
 #define IMX95_SID_MASK				GENMASK(5, 0)
 #define IMX95_MAX_LUT				32
+
+#define IMX95_PCIE_RST_CTRL			0x3010
+#define IMX95_PCIE_COLD_RST			BIT(0)
 
 #define to_imx_pcie(x)	dev_get_drvdata((x)->dev)
 
@@ -130,6 +135,7 @@ struct imx_pcie_drvdata {
 	int (*init_phy)(struct imx_pcie *pcie);
 	int (*enable_ref_clk)(struct imx_pcie *pcie, bool enable);
 	int (*core_reset)(struct imx_pcie *pcie, bool assert);
+	void (*post_config)(struct imx_pcie *pcie);
 	const struct dw_pcie_host_ops *ops;
 };
 
@@ -235,6 +241,19 @@ static unsigned int imx_pcie_grp_offset(const struct imx_pcie *imx_pcie)
 
 static int imx95_pcie_init_phy(struct imx_pcie *imx_pcie)
 {
+	/*
+	 * Workaround for ERR051624: The Controller Without Vaux Cannot
+	 * Exit L23 Ready Through Beacon or PERST# De-assertion
+	 *
+	 * When the auxiliary power is not available the controller
+	 * cannot exit from L23 Ready with beacon or PERST# de-assertion
+	 * when main power is not removed.
+	 *
+	 * Workaround: Set SS_RW_REG_1[SYS_AUX_PWR_DET] to 1.
+	 */
+	regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
+			IMX95_PCIE_SYS_AUX_PWR_DET, IMX95_PCIE_PHY_CR_PARA_SEL);
+
 	regmap_update_bits(imx_pcie->iomuxc_gpr,
 			IMX95_PCIE_SS_RW_REG_0,
 			IMX95_PCIE_PHY_CR_PARA_SEL,
@@ -862,6 +881,31 @@ static int imx7d_pcie_core_reset(struct imx_pcie *imx_pcie, bool assert)
 	return 0;
 }
 
+static int imx95_pcie_core_reset(struct imx_pcie *imx_pcie, bool assert)
+{
+	if (assert) {
+		/*
+		 * From i.MX95 PCIe PHY perspective, the COLD reset toggle
+		 * should be complete after power-up by the following sequence.
+		 *                 > 10us(at power-up)
+		 *                 > 10ns(warm reset)
+		 *               |<------------>|
+		 *                ______________
+		 * phy_reset ____/              \________________
+		 *                                   ____________
+		 * ref_clk_en_______________________/
+		 * Toggle COLD reset aligned with this sequence for i.MX95 PCIe.
+		 */
+		regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_RST_CTRL,
+				   IMX95_PCIE_COLD_RST, IMX95_PCIE_COLD_RST);
+		udelay(10);
+		regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_RST_CTRL,
+				   IMX95_PCIE_COLD_RST, 0);
+	}
+
+	return 0;
+}
+
 static void imx_pcie_assert_core_reset(struct imx_pcie *imx_pcie)
 {
 	reset_control_assert(imx_pcie->pciephy_reset);
@@ -1038,6 +1082,29 @@ static void imx_pcie_stop_link(struct dw_pcie *pci)
 	imx_pcie_ltssm_disable(dev);
 }
 
+static void imx95_pcie_post_config(struct imx_pcie *imx_pcie)
+{
+	u32 val;
+	struct dw_pcie *pci = imx_pcie->pci;
+
+	/*
+	 * Workaround for ERR051586: Compliance with 8GT/s Receiver
+	 * Impedance ECN
+	 *
+	 * The default value of GEN3_RELATED_OFF[GEN3_ZRXDC_NONCOMPL] is
+	 * 1 which makes receiver non-compliant with the ZRX-DC
+	 * parameter for 2.5 GT/s when operating at 8 GT/s or higher. It
+	 * causes unnecessary timeout in L1.
+	 *
+	 * Workaround: Program GEN3_RELATED_OFF[GEN3_ZRXDC_NONCOMPL] to 0.
+	 */
+	dw_pcie_dbi_ro_wr_en(pci);
+	val = dw_pcie_readl_dbi(pci, GEN3_RELATED_OFF);
+	val &= ~GEN3_RELATED_OFF_GEN3_ZRXDC_NONCOMPL;
+	dw_pcie_writel_dbi(pci, GEN3_RELATED_OFF, val);
+	dw_pcie_dbi_ro_wr_dis(pci);
+}
+
 static int imx_pcie_host_init(struct dw_pcie_rp *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
@@ -1098,6 +1165,9 @@ static int imx_pcie_host_init(struct dw_pcie_rp *pp)
 	}
 
 	imx_setup_phy_mpll(imx_pcie);
+
+	if (imx_pcie->drvdata->post_config)
+		imx_pcie->drvdata->post_config(imx_pcie);
 
 	return 0;
 
@@ -1932,6 +2002,8 @@ static const struct imx_pcie_drvdata drvdata[] = {
 		.mode_mask[0] = IMX95_PCIE_DEVICE_TYPE,
 		.init_phy = imx95_pcie_init_phy,
 		.enable_ref_clk = imx95_pcie_enable_ref_clk,
+		.core_reset = imx95_pcie_core_reset,
+		.post_config = imx95_pcie_post_config,
 	},
 	[IMX6Q_EP] = {
 		.variant = IMX6Q_EP,

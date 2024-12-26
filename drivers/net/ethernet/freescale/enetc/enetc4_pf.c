@@ -4,7 +4,9 @@
 #include <linux/of_net.h>
 #include <linux/of_platform.h>
 #include <linux/clk.h>
+#include <linux/fsl/enetc_mdio.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/regulator/consumer.h>
 #include <linux/unaligned.h>
 #include <linux/fsl/netc_global.h>
 
@@ -1349,8 +1351,10 @@ static void enetc4_get_psi_hw_features(struct enetc_si *si)
 		si->hw_features |= ENETC_SI_F_QBV;
 
 	val = enetc_port_rd(hw, ENETC4_PMCAPR);
-	if (PMCAPR_GET_FP(val) == PMCAPR_FP_SUPP)
+	if (PMCAPR_GET_FP(val) == PMCAPR_FP_SUPP) {
 		si->hw_features |= ENETC_SI_F_QBU;
+		si->pmac_offset = ENETC4_PMAC_OFFSET;
+	}
 
 	val = enetc_port_rd(hw, ENETC4_IPCAPR);
 	if (val & IPCAPR_ISID)
@@ -1563,11 +1567,41 @@ static int enetc4_sriov_suspend_resume_configure(struct pci_dev *pdev, bool susp
 }
 #endif
 
+static int enetc4_pf_imdio_regulator_enable(struct enetc_pf *pf)
+{
+	struct enetc_mdio_priv *mdio_priv;
+	int err = 0;
+
+	if (!pf->imdio)
+		return -EINVAL;
+	mdio_priv = pf->imdio->priv;
+
+	if (mdio_priv && mdio_priv->regulator)
+		err = regulator_enable(mdio_priv->regulator);
+
+	return err;
+}
+
+static void enetc4_pf_imdio_regulator_disable(struct enetc_pf *pf)
+{
+	struct enetc_mdio_priv *mdio_priv;
+
+	if (!pf->imdio)
+		return;
+	mdio_priv = pf->imdio->priv;
+
+	if (mdio_priv && mdio_priv->regulator)
+		regulator_disable(mdio_priv->regulator);
+}
+
 static void enetc4_pf_power_down(struct enetc_si *si)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
+	struct enetc_pf *pf = enetc_si_priv(si);
 	struct pci_dev *pdev = si->pdev;
 
+	if (pf->pcs)
+		enetc4_pf_imdio_regulator_disable(pf);
 	enetc_free_msix(priv);
 	pci_disable_device(pdev);
 	pcie_flr(pdev);
@@ -1617,8 +1651,18 @@ static int enetc4_pf_power_up(struct pci_dev *pdev, struct device_node *node)
 		goto err_alloc_msix;
 	}
 
+	if (pf->pcs) {
+		err = enetc4_pf_imdio_regulator_enable(pf);
+		if (err) {
+			dev_err(&pdev->dev, "imdio regulator enable failed\n");
+			goto err_imdio_reg_enable;
+		}
+	}
+
 	return 0;
 
+err_imdio_reg_enable:
+	enetc_free_msix(priv);
 err_alloc_msix:
 err_config_si:
 err_init_address:

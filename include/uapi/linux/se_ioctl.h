@@ -6,6 +6,11 @@
 #ifndef SE_IOCTL_H
 #define SE_IOCTL_H
 
+#ifdef __KERNEL__
+#include <linux/time64.h>
+#else
+#include <linux/time_types.h>
+#endif
 #include <linux/types.h>
 #include <linux/time_types.h>
 

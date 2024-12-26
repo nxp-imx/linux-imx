@@ -2,7 +2,7 @@
 /*
  * Copyright 2024 NXP
  *
- * Header file for the ELE Base API(s).
+ * Header file for the V2X Base API(s).
  */
 
 #ifndef V2X_BASE_MSG_H
@@ -10,9 +10,29 @@
 
 #include <linux/types.h>
 
+#define V2X_DBG_MU_MSG_RSP_TAG		0xE1
+
 #define V2X_START_RNG_REQ		0x0E
 #define V2X_START_RNG_REQ_MSG_SZ	0x04
 #define V2X_START_RNG_RSP_MSG_SZ	0x0C
 
+#define V2X_PWR_STATE			0x04
+#define V2X_PWR_STATE_MSG_SZ		0x08
+#define V2X_PWR_STATE_RSP_MSG_SZ	0x08
+
+#define V2X_PWR_OFF_REQ			0x4
+#define V2X_PERM_DENIED_FAIL_IND	0xF329
+#define V2X_INVAL_OPS_FAIL_IND		0xC029
+
+#define V2X_DEBUG_MU_MSG_VERS		0x02
+#define V2X_DEBUG_MU_MSG_CMD_TAG	0x17
+#define V2X_DEBUG_MU_MSG_RSP_TAG	0xE1
+
+#define V2X_DBG_DUMP_REQ		0x02
+#define V2X_DBG_DUMP_MSG_SZ		0x08
+#define V2X_DBG_DUMP_RSP_MSG_SZ		0x5C
+
 int v2x_start_rng(struct se_if_priv *priv);
+int v2x_pwr_state(struct se_if_priv *priv, u16 action);
+int v2x_debug_dump(struct se_if_priv *priv);
 #endif

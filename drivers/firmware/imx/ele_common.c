@@ -3,8 +3,14 @@
  * Copyright 2024 NXP
  */
 
+#include <uapi/linux/se_ioctl.h>
+
 #include "ele_base_msg.h"
 #include "ele_common.h"
+#include "se_msg_sqfl_ctrl.h"
+#include "v2x_base_msg.h"
+
+#define SE_RCV_MSG_TIMEOUT	120000
 
 u32 se_add_msg_crc(u32 *msg, u32 msg_len)
 {
@@ -22,30 +28,51 @@ int ele_msg_rcv(struct se_if_device_ctx *dev_ctx,
 		struct se_clbk_handle *se_clbk_hdl)
 {
 	struct se_if_priv *priv = dev_ctx->priv;
+	bool wait_timeout_enabled = true;
+	unsigned int wait;
 	int err;
 
 	do {
-		/* If callback is executed before entrying to wait state,
-		 * it will immediately come out after entering the wait state,
-		 * but completion_done(&se_clbk_hdl->done), will return false
-		 * after exiting the wait state, with err = 0.
-		 */
-		err = wait_for_completion_interruptible(&se_clbk_hdl->done);
+		if (priv->cmd_receiver_clbk_hdl.dev_ctx == dev_ctx) {
+			/* For NVM-D that are slaves of SE-FW, are waiting indefinitly
+			 * to receive the command from SE-FW.
+			 */
+			wait_timeout_enabled = false;
+
+			/* If callback is executed before entrying to wait state,
+			 * it will immediately come out after entering the wait state,
+			 * but completion_done(&se_clbk_hdl->done), will return false
+			 * after exiting the wait state, with err = 0.
+			 */
+			err = wait_for_completion_interruptible(&se_clbk_hdl->done);
+		} else {
+			/* FW must send the message response to application in a finite
+			 * time.
+			 */
+			wait = msecs_to_jiffies(SE_RCV_MSG_TIMEOUT);
+			err = wait_for_completion_interruptible_timeout(&se_clbk_hdl->done, wait);
+		}
 		if (err == -ERESTARTSYS) {
 			if (priv->waiting_rsp_clbk_hdl.dev_ctx) {
 				priv->waiting_rsp_clbk_hdl.signal_rcvd = true;
 				continue;
 			}
-			dev_err(priv->dev,
-				"%s: Err[0x%x]:Interrupted by signal.\n",
-				se_clbk_hdl->dev_ctx->devname,
-				err);
 			err = -EINTR;
 			break;
 		}
-	} while (err != 0);
+		if (err == 0) {
+			if (wait_timeout_enabled) {
+				err = -ETIMEDOUT;
+				dev_err(priv->dev,
+					"Fatal Error: SE interface: %s%d, hangs indefinitely.\n",
+					get_se_if_name(priv->if_defs->se_if_type),
+					priv->if_defs->se_instance_id);
+			}
+			break;
+		}
+	} while (err < 0);
 
-	if (!err) {
+	if (err >= 0) {
 		se_dump_to_logfl(dev_ctx,
 				 SE_DUMP_MU_RCV_BUFS,
 				 se_clbk_hdl->rx_msg_sz,
@@ -104,6 +131,8 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 	int err;
 	struct se_if_priv *priv = dev_ctx->priv;
 
+	se_qualify_msg_seq_flow(&priv->se_msg_sq_ctl, tx_msg);
+
 	guard(mutex)(&priv->se_if_cmd_lock);
 
 	/* Capture request timer */
@@ -121,6 +150,10 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 	if (priv->waiting_rsp_clbk_hdl.signal_rcvd) {
 		err = -EINTR;
 		priv->waiting_rsp_clbk_hdl.signal_rcvd = false;
+		dev_err(priv->dev,
+			"%s: Err[0x%x]:Interrupted by signal.\n",
+			dev_ctx->devname,
+			err);
 	}
 	priv->waiting_rsp_clbk_hdl.dev_ctx = NULL;
 
@@ -136,7 +169,7 @@ static bool exception_for_size(struct se_if_priv *priv,
 	/* List of API(s) that can be accepte variable length
 	 * response buffer.
 	 */
-	if (header->command == ELE_DEBUG_DUMP_REQ &&
+	if ((header->command == ELE_DEBUG_DUMP_REQ || header->command == V2X_DBG_DUMP_REQ) &&
 		header->ver == priv->if_defs->base_api_ver &&
 		header->size >= 0 &&
 		header->size <= ELE_DEBUG_DUMP_RSP_SZ)
@@ -172,6 +205,12 @@ void se_if_rx_callback(struct mbox_client *mbox_cl, void *msg)
 
 	header = msg;
 	rx_msg_sz = header->size << 2;
+
+	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG &&
+			header->tag == V2X_DBG_MU_MSG_RSP_TAG) {
+		header->tag = priv->if_defs->rsp_tag;
+		header->ver = priv->if_defs->base_api_ver;
+	}
 
 	/* Incoming command: wake up the receiver if any. */
 	if (header->tag == priv->if_defs->cmd_tag) {
@@ -248,7 +287,7 @@ int se_val_rsp_hdr_n_status(struct se_if_priv *priv,
 		return -EINVAL;
 	}
 
-	if (header->size != (sz >> 2)) {
+	if (header->size != (sz >> 2) && !exception_for_size(priv, header)) {
 		dev_err(priv->dev,
 			"MSG[0x%x] Hdr: Cmd size mismatch. (0x%x != 0x%x)",
 			msg_id, header->size, (sz >> 2));
@@ -269,7 +308,7 @@ int se_val_rsp_hdr_n_status(struct se_if_priv *priv,
 
 	status = RES_STATUS(msg->data[0]);
 	if (status != priv->if_defs->success_tag) {
-		dev_err(priv->dev, "Command Id[%d], Response Failure = 0x%x",
+		dev_err(priv->dev, "Command Id[%x], Response Failure = 0x%x",
 			header->command, status);
 		return -EPERM;
 	}

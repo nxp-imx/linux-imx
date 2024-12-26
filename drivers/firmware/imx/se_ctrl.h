@@ -11,6 +11,8 @@
 #include <linux/mailbox_client.h>
 #include <uapi/linux/se_ioctl.h>
 
+#include "se_msg_sqfl_ctrl.h"
+
 #define MAX_FW_LOAD_RETRIES		50
 
 #define RES_STATUS(x)			FIELD_GET(0x000000ff, x)
@@ -128,6 +130,7 @@ struct se_if_priv {
 	 * command is still processing. (response is awaited)
 	 */
 	struct mutex se_if_cmd_lock;
+	struct se_msg_seq_ctrl se_msg_sq_ctl;
 
 	struct mbox_client se_mb_cl;
 	struct mbox_chan *tx_chan, *rx_chan;
@@ -153,6 +156,7 @@ struct se_if_priv {
 #define SE_DUMP_MU_RCV_BUFS	2
 #define SE_DUMP_KDEBUG_BUFS	3
 
+char *get_se_if_name(u8 se_if_id);
 uint32_t get_se_soc_id(struct se_if_priv *priv);
 int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		     u8 caller_type, int buf_size,

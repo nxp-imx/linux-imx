@@ -53,7 +53,6 @@ struct se_fw_img_name {
 
 struct se_fw_load_info {
 	const struct se_fw_img_name *se_fw_img_nm;
-	struct mutex se_fw_load;
 	bool is_fw_loaded;
 	bool handle_susp_resm;
 	struct se_imem_buf imem;
@@ -119,7 +118,7 @@ static struct se_if_node_info_list imx8ulp_info = {
 			.mu_buff_size = 0,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_HSM,
-				.se_instance_id = 1,
+				.se_instance_id = 0,
 				.cmd_tag = 0x17,
 				.rsp_tag = 0xe1,
 				.success_tag = ELE_SUCCESS_IND,
@@ -147,7 +146,7 @@ static struct se_if_node_info_list imx93_info = {
 			.mu_buff_size = 0,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_HSM,
-				.se_instance_id = 1,
+				.se_instance_id = 0,
 				.cmd_tag = 0x17,
 				.rsp_tag = 0xe1,
 				.success_tag = ELE_SUCCESS_IND,
@@ -178,7 +177,7 @@ static struct se_if_node_info_list imx95_info = {
 			.mu_buff_size = 0,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_HSM,
-				.se_instance_id = 1,
+				.se_instance_id = 0,
 				.cmd_tag = 0x17,
 				.rsp_tag = 0xe1,
 				.success_tag = ELE_SUCCESS_IND,
@@ -395,7 +394,7 @@ static const struct of_device_id se_match[] = {
 	{},
 };
 
-static char *get_se_if_name(u8 se_if_id)
+char *get_se_if_name(u8 se_if_id)
 {
 	switch (se_if_id) {
 	case SE_TYPE_ID_DBG: return SE_TYPE_STR_DBG;
@@ -490,14 +489,10 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx)
 	const struct se_if_node_info_list *info_list;
 	struct se_if_priv *priv;
 
-	if (var_se_info.soc_id != soc_id)
-		return NULL;
-
-	switch (var_se_info.soc_id) {
+	switch (soc_id) {
 	case SOC_ID_OF_IMX8ULP:
 		info_list = &imx8ulp_info; break;
 	case SOC_ID_OF_IMX8DXL:
-		info_list = &imx8dxl_info; break;
 	case SOC_ID_OF_IMX8QXP:
 		info_list = &imx8dxl_info; break;
 	case SOC_ID_OF_IMX93:
@@ -629,7 +624,6 @@ static int se_load_firmware(struct se_if_priv *priv)
 	u8 *se_fw_buf;
 	int ret;
 
-	guard(mutex)(&load_fw->se_fw_load);
 	if (load_fw->is_fw_loaded)
 		return 0;
 
@@ -709,8 +703,8 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 	const u8 *devname = dev_ctx->devname;
 	int fmt_str_idx = strlen(fmt_str);
 	const u8 *caller_type_str;
-	u8 *dump_ln;
-	u8 *loc_buf;
+	u8 dump_ln[512] = {'\0'};
+	u8 loc_buf[256] = {'\0'};
 	u8 file_name[128] = {'\0'};
 	struct timespec64 log_tm;
 	bool is_hex = true;
@@ -722,16 +716,6 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 	/* if logging is set to be disabled, return */
 	if (!se_log)
 		return 0;
-
-	dump_ln = kmalloc(1024, GFP_KERNEL);
-	if (!dump_ln)
-		return -ENOMEM;
-
-	loc_buf = kmalloc(512, GFP_KERNEL);
-	if (!loc_buf) {
-		kfree(dump_ln);
-		return -ENOMEM;
-	}
 
 	switch (caller_type) {
 	case SE_DUMP_IOCTL_BUFS:
@@ -748,7 +732,7 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		is_hex = false;
 		caller_type_str = "SE_DBG";
 		va_start(args, buf);
-		buf_size = vsnprintf(loc_buf, 512, buf, args);
+		buf_size = vsprintf(loc_buf, buf, args);
 		va_end(args);
 	}
 
@@ -793,8 +777,6 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 
 			wret = PTR_ERR(lg_fl_info->lg_file);
 			lg_fl_info->lg_file = NULL;
-			kfree(dump_ln);
-			kfree(loc_buf);
 			return wret;
 		}
 	}
@@ -829,8 +811,6 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 			wret, dump_ln_len, file_name);
 	}
 
-	kfree(dump_ln);
-	kfree(loc_buf);
 	return 0;
 }
 
@@ -1213,7 +1193,8 @@ static int se_ioctl_get_mu_info(struct se_if_device_ctx *dev_ctx,
 	if_info.se_if_id = 0;
 	if_info.interrupt_idx = 0;
 	if_info.tz = 0;
-	if (get_se_soc_id(priv) == SOC_ID_OF_IMX8DXL) {
+	if (get_se_soc_id(priv) == SOC_ID_OF_IMX8DXL ||
+		get_se_soc_id(priv) == SOC_ID_OF_IMX8QXP) {
 		if_info.se_if_id = info->se_if_id + 1;
 		if (priv->if_defs->se_if_type > SE_TYPE_ID_SHE)
 			if_info.se_if_id++;
@@ -1670,7 +1651,7 @@ static long se_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	struct se_if_device_ctx *dev_ctx = fp->private_data;
 	struct se_if_priv *priv = dev_ctx->priv;
-	int err = 0;
+	int err = -EINVAL;
 
 	/* Prevent race during change of device context */
 	if (mutex_lock_interruptible(&dev_ctx->fops_lock))
@@ -1713,10 +1694,14 @@ static long se_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	case SE_IOCTL_SHARED_BUF_CFG:
 		if (priv->flags & SCU_MEM_CFG)
 			err = se_ioctl_shared_mem_cfg_handler(fp, dev_ctx, arg);
+		else
+			err = -EPERM;
 		break;
 	case SE_IOCTL_SIGNED_MESSAGE:
 		if (priv->flags & SCU_SIGNED_MSG_CFG)
 			err = se_ioctl_signed_msg_handler(fp, dev_ctx, arg);
+		else
+			err = -EPERM;
 		break;
 	case SE_IOCTL_GET_TIMER:
 		err = se_ioctl_get_time(dev_ctx, arg);
@@ -1915,6 +1900,7 @@ static int se_if_probe(struct platform_device *pdev)
 		priv->mu_mem.dma_addr = (u64)priv->mu_mem.ptr;
 	}
 	mutex_init(&priv->se_if_cmd_lock);
+	mutex_init(&priv->se_msg_sq_ctl.se_msg_sq_lk);
 
 	init_completion(&priv->waiting_rsp_clbk_hdl.done);
 	init_completion(&priv->cmd_receiver_clbk_hdl.done);
@@ -1984,11 +1970,6 @@ static int se_if_probe(struct platform_device *pdev)
 		load_fw->se_fw_img_nm = &info_list->se_fw_img_nm;
 
 		load_fw->is_fw_loaded = false;
-		mutex_init(&load_fw->se_fw_load);
-		ret = se_load_firmware(priv);
-		if (ret)
-			dev_warn(dev, "Failed to load firmware.");
-		ret = 0;
 	}
 
 	/* exposing variable se via sysfs to enable/disable logging */
@@ -2020,9 +2001,12 @@ static int se_suspend(struct device *dev)
 	struct se_fw_load_info *load_fw;
 	int ret = 0;
 
-	if (priv->if_defs->se_if_type >= SE_TYPE_ID_V2X_DBG) {
-		dev_err(dev, "V2X-FW: Suspend/resume not supported.");
-		return -EPERM;
+	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG) {
+		ret = v2x_suspend(priv);
+		if (ret) {
+			dev_err(dev, "Failure V2X-FW suspend[0x%x].", ret);
+			return ret;
+		}
 	}
 	load_fw = get_load_fw_instance(priv);
 
@@ -2040,13 +2024,22 @@ static int se_resume(struct device *dev)
 {
 	struct se_if_priv *priv = dev_get_drvdata(dev);
 	struct se_fw_load_info *load_fw;
+	int ret = 0;
+
+	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG) {
+		ret = v2x_resume(priv);
+		if (ret) {
+			dev_err(dev, "Failure V2X-FW resume[0x%x].", ret);
+			return ret;
+		}
+	}
 
 	load_fw = get_load_fw_instance(priv);
 
 	if (load_fw->handle_susp_resm)
 		se_restore_imem_state(priv, &load_fw->imem);
 
-	return 0;
+	return ret;
 }
 
 static const struct dev_pm_ops se_pm = {

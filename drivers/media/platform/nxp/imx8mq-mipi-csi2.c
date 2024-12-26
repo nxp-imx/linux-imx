@@ -832,13 +832,13 @@ static int imx8mq_mipi_csi_set_fmt(struct v4l2_subdev *sd,
 	if (!csi2_fmt)
 		csi2_fmt = &imx8mq_mipi_csi_formats[0];
 
-	fmt = v4l2_subdev_state_get_format(sd_state, sdformat->pad);
+	fmt = v4l2_subdev_state_get_format(sd_state, sdformat->pad, sdformat->stream);
 
+	if (!fmt)
+		return -EINVAL;
+
+	*fmt = sdformat->format;
 	fmt->code = csi2_fmt->code;
-	fmt->width = sdformat->format.width;
-	fmt->height = sdformat->format.height;
-
-	sdformat->format = *fmt;
 
 	/* Propagate the format from sink to source. */
 	fmt = v4l2_subdev_state_get_opposite_stream_format(sd_state, sdformat->pad,
@@ -861,6 +861,7 @@ static int imx8mq_mipi_csi_get_frame_desc(struct v4l2_subdev *sd, unsigned int p
 	const struct csi2_pix_format *csi2_fmt;
 	struct v4l2_subdev_route *route;
 	int ret;
+
 
 	if (pad != MIPI_CSI2_PAD_SOURCE)
 		return -EINVAL;
@@ -1112,7 +1113,36 @@ static const struct v4l2_subdev_internal_ops imx8mq_mipi_csi_internal_ops = {
  * Media entity operations
  */
 
+static int imx8mq_mipi_csi_link_setup(struct media_entity *entity,
+				      const struct media_pad *local_pad,
+				      const struct media_pad *remote_pad, u32 flags)
+{
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct csi_state *state = mipi_sd_to_csi2_state(sd);
+	struct v4l2_subdev *remote_sd;
+
+	dev_info(state->dev, "link setup %s -> %s", remote_pad->entity->name,
+		local_pad->entity->name);
+
+	/* We only care about the link to the source. */
+	if (!(local_pad->flags & MEDIA_PAD_FL_SINK))
+		return 0;
+
+	remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+
+	if (flags & MEDIA_LNK_FL_ENABLED) {
+		if (state->src_sd)
+			return -EBUSY;
+
+		state->src_sd = remote_sd;
+		state->remote_pad = remote_pad->index;
+	}
+
+	return 0;
+}
+
 static const struct media_entity_operations imx8mq_mipi_csi_entity_ops = {
+	.link_setup	= imx8mq_mipi_csi_link_setup,
 	.link_validate	= v4l2_subdev_link_validate,
 	.get_fwnode_pad = v4l2_subdev_get_fwnode_pad_1_to_1,
 };
@@ -1133,11 +1163,26 @@ static int imx8mq_mipi_csi_notify_bound(struct v4l2_async_notifier *notifier,
 {
 	struct csi_state *state = mipi_notifier_to_csi2_state(notifier);
 	struct media_pad *sink = &state->sd.entity.pads[MIPI_CSI2_PAD_SINK];
+	struct media_pad *pad;
+	int ret;
 
 	state->src_sd = sd;
 
-	return v4l2_create_fwnode_links_to_pad(sd, sink, MEDIA_LNK_FL_ENABLED |
+
+	ret = v4l2_create_fwnode_links_to_pad(sd, sink, MEDIA_LNK_FL_ENABLED |
 					       MEDIA_LNK_FL_IMMUTABLE);
+	if (ret < 0)
+		return ret;
+
+	/* After the link is created, store the remote pad number */
+	pad = media_pad_remote_pad_first(&state->pads[MIPI_CSI2_PAD_SINK]);
+	if (!pad) {
+		dev_err(state->dev, "no remote pad found for sink pad\n");
+		return -EPIPE;
+	}
+	state->remote_pad = pad->index;
+
+	return 0;
 }
 
 static const struct v4l2_async_notifier_operations imx8mq_mipi_csi_notify_ops = {

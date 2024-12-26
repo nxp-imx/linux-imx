@@ -12,6 +12,7 @@
 
 #include "ele_base_msg.h"
 #include "ele_common.h"
+#include "se_msg_sqfl_ctrl.h"
 
 int ele_get_info(struct se_if_priv *priv, struct ele_dev_info *s_info)
 {
@@ -532,6 +533,9 @@ int ele_voltage_change_req(struct se_if_priv *priv, bool start)
 	if (ret)
 		goto exit;
 
+	se_continue_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl,
+					    tx_msg);
+
 	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
 			       tx_msg,
 			       ELE_VOLT_CHANGE_REQ_MSG_SZ,
@@ -567,7 +571,18 @@ exit:
  */
 int imx_se_voltage_change_req(void *se_if_data, bool start)
 {
-	return ele_voltage_change_req((struct se_if_priv *)se_if_data, start);
+	struct se_if_priv *priv = se_if_data;
+	int ret;
+
+	if (start)
+		se_start_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
+
+	ret = ele_voltage_change_req(priv, start);
+
+	if (start == false)
+		se_halt_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(imx_se_voltage_change_req);
 
@@ -617,6 +632,58 @@ int ele_get_v2x_fw_state(struct se_if_priv *priv, uint32_t *state)
 				      true);
 	if (!ret)
 		*state = 0xFF & rx_msg->data[1];
+exit:
+	return ret;
+}
+
+int ele_v2x_fw_authenticate(struct se_if_priv *priv, phys_addr_t addr)
+{
+	struct se_api_msg *tx_msg __free(kfree) = NULL;
+	struct se_api_msg *rx_msg __free(kfree) = NULL;
+	int ret = 0;
+
+	if (!priv) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	tx_msg = kzalloc(ELE_V2X_FW_AUTH_REQ_SZ, GFP_KERNEL);
+	if (!tx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	rx_msg = kzalloc(ELE_V2X_FW_AUTH_RSP_MSG_SZ, GFP_KERNEL);
+	if (!rx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = se_fill_cmd_msg_hdr(priv,
+				  (struct se_msg_hdr *)&tx_msg->header,
+				  ELE_V2X_FW_AUTH_REQ,
+				  ELE_V2X_FW_AUTH_REQ_SZ,
+				  true);
+	if (ret)
+		goto exit;
+
+	tx_msg->data[1] = upper_32_bits(addr);
+	tx_msg->data[0] = lower_32_bits(addr);
+	tx_msg->data[2] = addr;
+
+	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
+			       tx_msg,
+			       ELE_V2X_FW_AUTH_REQ_SZ,
+			       rx_msg,
+			       ELE_V2X_FW_AUTH_RSP_MSG_SZ);
+	if (ret < 0)
+		goto exit;
+
+	ret = se_val_rsp_hdr_n_status(priv,
+				      rx_msg,
+				      ELE_V2X_FW_AUTH_REQ,
+				      ELE_V2X_FW_AUTH_RSP_MSG_SZ,
+				      true);
 exit:
 	return ret;
 }
