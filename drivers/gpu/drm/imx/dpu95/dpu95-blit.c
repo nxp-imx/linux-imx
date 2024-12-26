@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <drm/drm_drv.h>
@@ -208,6 +208,9 @@ failed:
 
 static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *fence, bool stall)
 {
+	struct dpu95_drm_device *dpu_drm =
+		container_of(dpu_be, struct dpu95_drm_device, dpu_be);
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	int i = 0;
 
 	/* Get the available fence index with spin-lock */
@@ -239,7 +242,7 @@ static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *
 	/* Write comctrl interrupt PRESET to command sequencer */
 	dpu95_be_write(dpu_be, 0x14000001, CMDSEQ_HIF);
 	dpu95_be_write(dpu_be, COMCTRL_INTERRUPTPRESET1, CMDSEQ_HIF);
-	dpu95_be_write(dpu_be, 1 << (i + (DPU95_IRQ_COMCTRL_SW0 & 0x1F)), CMDSEQ_HIF);
+	dpu95_be_write(dpu_be, 1 << (i + (dpu->data->comctrl_irq[0] & 0x1F)), CMDSEQ_HIF);
 
 	/*Stall until semaphore released */
 	if (stall) {
@@ -467,8 +470,7 @@ static void dpu95_be_init_units(struct dpu_bliteng *dpu_be)
 
 static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 {
-	int i, virq, sw_irqs[4] = {DPU95_IRQ_COMCTRL_SW0, DPU95_IRQ_COMCTRL_SW1,
-		DPU95_IRQ_COMCTRL_SW2, DPU95_IRQ_COMCTRL_SW3};
+	int i, virq, sw_irqs[4];
 	struct dpu95_drm_device *dpu_drm =
 		container_of(dpu_bliteng, struct dpu95_drm_device, dpu_be);
 	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
@@ -478,6 +480,11 @@ static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 	void __iomem *base;
 	u32 *cmd_list;
 	int ret;
+
+	sw_irqs[0] = dpu->data->comctrl_irq[0];
+	sw_irqs[1] = dpu->data->comctrl_irq[1];
+	sw_irqs[2] = dpu->data->comctrl_irq[2];
+	sw_irqs[3] = dpu->data->comctrl_irq[3];
 
 	cmd_list = kzalloc(sizeof(*cmd_list) * CMDSEQ_FIFO_SPACE_THRESHOLD,
 			GFP_KERNEL);
@@ -726,9 +733,13 @@ const struct drm_ioctl_desc imx_drm_dpu95_ioctls[4] = {
 
 int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 {
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct drm_device *drm = &dpu_drm->base;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
 	int ret;
+
+	if (dpu->data->disable_blit)
+		return 0;
 
 	dpu95_bliteng_set_dev(dpu_bliteng, drm->dev);
 
@@ -747,7 +758,11 @@ int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 
 void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)
 {
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
+
+	if (dpu->data->disable_blit)
+		return;
 
 	dpu95_bliteng_fini(dpu_bliteng);
 
@@ -758,7 +773,11 @@ void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)
 
 int dpu95_bliteng_runtime_suspend(struct dpu95_drm_device *dpu_drm)
 {
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
+
+	if (dpu->data->disable_blit)
+		return 0;
 
 	if (!dpu_bliteng || !dpu_bliteng->ready)
 		return 0;
@@ -774,7 +793,11 @@ int dpu95_bliteng_runtime_suspend(struct dpu95_drm_device *dpu_drm)
 
 int dpu95_bliteng_runtime_resume(struct dpu95_drm_device *dpu_drm)
 {
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
+
+	if (dpu->data->disable_blit)
+		return 0;
 
 	if (!dpu_bliteng || !dpu_bliteng->ready)
 		return 0;

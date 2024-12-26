@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm.h>
@@ -22,7 +23,9 @@
 #include <drm/drm_print.h>
 
 #include "dpu95.h"
+#include "dpu95-data.h"
 #include "dpu95-drv.h"
+#include "dpu952-data.h"
 
 #define DRIVER_NAME	"imx95-dpu"
 
@@ -70,9 +73,17 @@ static void dpu95_unload(struct dpu95_drm_device *dpu_drm)
 static int dpu95_probe(struct platform_device *pdev)
 {
 	struct dpu95_drm_device *dpu_drm;
+	const struct dpu95_data	*dpu_data;
 	struct device *dev = &pdev->dev;
 	struct drm_device *drm;
 	int ret;
+
+	dpu_data = of_device_get_match_data(dev);
+	if (!dpu_data)
+		return -EINVAL;
+
+	if (dpu_data->disable_blit)
+		dpu95_drm_driver.driver_features &= ~DRIVER_RENDER;
 
 	dpu_drm = devm_drm_dev_alloc(dev, &dpu95_drm_driver,
 				     struct dpu95_drm_device, base);
@@ -217,18 +228,19 @@ static const struct dev_pm_ops dpu95_pm_ops = {
 	SYSTEM_SLEEP_PM_OPS(dpu95_suspend, dpu95_resume)
 };
 
-static const struct of_device_id dpu95_dt_ids[] = {
-	{ .compatible = "nxp,imx95-dpu", },
+static const struct of_device_id dpu95_ids[] = {
+	{ .compatible = "nxp,imx95-dpu", .data = &dpu95_data },
+	{ .compatible = "nxp,imx952-dpu", .data = &dpu952_data },
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(of, dpu95_dt_ids);
+MODULE_DEVICE_TABLE(of, dpu95_ids);
 
 static struct platform_driver dpu95_platform_driver = {
 	.probe = dpu95_probe,
 	.remove = dpu95_remove,
 	.driver = {
 		.name = DRIVER_NAME,
-		.of_match_table	= dpu95_dt_ids,
+		.of_match_table	= dpu95_ids,
 		.pm = pm_sleep_ptr(&dpu95_pm_ops),
 	},
 };

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2019,2020,2022,2023,2025 NXP
+ * Copyright 2019,2020,2022,2023,2025,2026 NXP
  */
 
 #ifndef __DPU95_FETCHUNIT_H__
@@ -216,11 +216,10 @@ enum dpu95_rastermode {
 
 #define BURSTBUFFERPROPERTIES(fu)	((fu)->reg_burstbufferproperties)
 
-/* register in blk-ctrl */
-#define PLANE_ASSOCIATION		0x20
-#define  VIDEO_PLANE(n)			BIT(8 + 2 * (n))
-#define  INT_PLANE			BIT(6)
-#define  FRAC_PLANE(n)			BIT(2 * (n))
+/* register PLANE_ASSOCIATION in blk-ctrl */
+#define VIDEO_PLANE(n)			BIT(8 + 2 * (n))
+#define INT_PLANE			BIT(6)
+#define FRAC_PLANE(n)			BIT(2 * (n))
 
 struct dpu95_fetchunit {
 	void __iomem *pec_base;

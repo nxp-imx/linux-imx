@@ -19,11 +19,6 @@
 				 DPU95_FETCHUNIT_CAP_USE_VSCALER9 | \
 				 DPU95_FETCHUNIT_CAP_PACKED_YUV422)
 
-static const enum dpu95_link_id dpu95_fy_link_id[] = {
-	DPU95_LINK_ID_FETCHYUV0, DPU95_LINK_ID_FETCHYUV1,
-	DPU95_LINK_ID_FETCHYUV2, DPU95_LINK_ID_FETCHYUV3,
-};
-
 static const enum dpu95_link_id fy_srcs[4][2] = {
 	{
 		DPU95_LINK_ID_NONE,
@@ -44,11 +39,13 @@ static void dpu95_fy_pec_dynamic_src_sel(struct dpu95_fetchunit *fu,
 					 enum dpu95_link_id src)
 {
 	struct dpu95_soc *dpu = fu->dpu;
+	const struct dpu95_data *data = dpu->data;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(fy_srcs[fu->index]); i++) {
 		if (fy_srcs[fu->index][i] == src) {
-			dpu95_pec_fu_write(fu, PIXENGCFG_DYNAMIC, src);
+			dpu95_pec_fu_write(fu, PIXENGCFG_DYNAMIC,
+					   data->link_id_map[src]);
 			return;
 		}
 	}
@@ -162,13 +159,13 @@ struct dpu95_fetchunit *dpu95_fy_get(struct dpu95_soc *dpu, unsigned int id)
 	struct dpu95_fetchunit *fu;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dpu->fy); i++) {
+	for (i = 0; i < dpu->fy_cnt; i++) {
 		fu = dpu->fy[i];
 		if (fu->id == id)
 			break;
 	}
 
-	if (i == ARRAY_SIZE(dpu->fy))
+	if (i == dpu->fy_cnt)
 		return ERR_PTR(-EINVAL);
 
 	fu->fe = dpu95_fe_get(dpu, id == 3 ? 9 : id);
@@ -198,6 +195,7 @@ int dpu95_fy_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base)
 {
+	const struct dpu95_data *data = dpu->data;
 	struct dpu95_fetchunit *fu;
 
 	fu = devm_kzalloc(dpu->dev, sizeof(*fu), GFP_KERNEL);
@@ -219,7 +217,7 @@ int dpu95_fy_init(struct dpu95_soc *dpu, unsigned int index,
 	fu->index = index;
 	fu->type = type;
 	fu->association_bit = id == 3 ? INT_PLANE : VIDEO_PLANE(id);
-	fu->link_id = dpu95_fy_link_id[index];
+	fu->link_id = data->link_id_fy[index];
 	fu->cap_mask = DPU95_FETCHYUV_CAP_MASK;
 	fu->reg_offset1 = 0x28;
 	fu->reg_offset2 = 0x60;

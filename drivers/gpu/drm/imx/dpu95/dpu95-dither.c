@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <linux/io.h>
@@ -10,10 +10,10 @@
 
 #include "dpu95.h"
 
-#define POLARITYCTRL		0x8
-#define  POLEN			BIT(2)
-#define  POLVS			BIT(1)
-#define  POLHS			BIT(0)
+/* register POLARITYCTRL */
+#define POLEN	BIT(2)
+#define POLVS	BIT(1)
+#define POLHS	BIT(0)
 
 struct dpu95_dither {
 	void __iomem *aux_base;
@@ -21,6 +21,7 @@ struct dpu95_dither {
 	int id;
 	unsigned int index;
 	struct dpu95_soc *dpu;
+	u8 reg_polarityctrl;
 };
 
 static inline u32 dpu95_aux_dt_read(struct dpu95_dither *dt,
@@ -48,32 +49,32 @@ static inline void dpu95_aux_dt_write_mask(struct dpu95_dither *dt,
 
 void dpu95_dt_polhs_active_high(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLHS, POLHS);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLHS, POLHS);
 }
 
 void dpu95_dt_polhs_active_low(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLHS, 0);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLHS, 0);
 }
 
 void dpu95_dt_polvs_active_high(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLVS, POLVS);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLVS, POLVS);
 }
 
 void dpu95_dt_polvs_active_low(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLVS, 0);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLVS, 0);
 }
 
 void dpu95_dt_polen_active_high(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLEN, POLEN);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLEN, POLEN);
 }
 
 void dpu95_dt_polen_active_low(struct dpu95_dither *dt)
 {
-	dpu95_aux_dt_write_mask(dt, POLARITYCTRL, POLEN, 0);
+	dpu95_aux_dt_write_mask(dt, dt->reg_polarityctrl, POLEN, 0);
 }
 
 struct dpu95_dither *dpu95_dt_get(struct dpu95_soc *dpu, int id)
@@ -101,6 +102,7 @@ int dpu95_dt_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long aux_base, unsigned long base)
 {
+	const struct dpu95_data *data = dpu->data;
 	struct dpu95_dither *dt;
 
 	dt = devm_kzalloc(dpu->dev, sizeof(*dt), GFP_KERNEL);
@@ -120,6 +122,7 @@ int dpu95_dt_init(struct dpu95_soc *dpu, unsigned int index,
 	dt->dpu = dpu;
 	dt->id = id;
 	dt->index = index;
+	dt->reg_polarityctrl = data->reg_polarityctrl;
 
 	return 0;
 }

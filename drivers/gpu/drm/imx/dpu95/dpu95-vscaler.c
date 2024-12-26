@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2019,2023,2025 NXP
+ * Copyright 2017-2019,2023,2025,2026 NXP
  */
 
 #include <linux/io.h>
@@ -105,13 +105,14 @@ void dpu95_vs_pec_dynamic_src_sel(struct dpu95_vscaler *vs,
 				  enum dpu95_link_id src)
 {
 	struct dpu95_soc *dpu = vs->dpu;
+	const struct dpu95_data *data = dpu->data;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(src_sels[vs->index]); i++) {
 		if (src_sels[vs->index][i] == src) {
 			dpu95_pec_vs_write_mask(vs, PIXENGCFG_DYNAMIC,
 						PIXENGCFG_DYNAMIC_SRC_SEL_MASK,
-						src);
+						data->link_id_map[src]);
 			return;
 		}
 	}

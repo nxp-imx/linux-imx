@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2020,2022,2023,2025 NXP
+ * Copyright 2017-2020,2022,2023,2025,2026 NXP
  */
 
 #include <linux/kernel.h>
@@ -9,11 +9,6 @@
 
 #include "dpu95.h"
 #include "dpu95-fetchunit.h"
-
-static const enum dpu95_link_id dpu95_fe_link_id[] = {
-	DPU95_LINK_ID_FETCHECO0, DPU95_LINK_ID_FETCHECO1,
-	DPU95_LINK_ID_FETCHECO2, DPU95_LINK_ID_FETCHECO9,
-};
 
 static void
 dpu95_fe_set_src_buf_dimensions(struct dpu95_fetchunit *fu,
@@ -123,13 +118,13 @@ struct dpu95_fetchunit *dpu95_fe_get(struct dpu95_soc *dpu, unsigned int id)
 	struct dpu95_fetchunit *fu;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dpu->fe); i++) {
+	for (i = 0; i < dpu->fe_cnt; i++) {
 		fu = dpu->fe[i];
 		if (fu->id == id)
 			break;
 	}
 
-	if (i == ARRAY_SIZE(dpu->fe))
+	if (i == dpu->fe_cnt)
 		return ERR_PTR(-EINVAL);
 
 	return fu;
@@ -144,6 +139,7 @@ int dpu95_fe_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base)
 {
+	const struct dpu95_data *data = dpu->data;
 	struct dpu95_fetchunit *fu;
 
 	fu = devm_kzalloc(dpu->dev, sizeof(*fu), GFP_KERNEL);
@@ -164,7 +160,7 @@ int dpu95_fe_init(struct dpu95_soc *dpu, unsigned int index,
 	fu->id = id;
 	fu->index = index;
 	fu->type = type;
-	fu->link_id = dpu95_fe_link_id[index];
+	fu->link_id = data->link_id_fe[index];
 	fu->reg_offset1 = 0x10;
 	fu->reg_offset2 = 0x48;
 	fu->reg_burstbuffermanagement = 0x0c;

@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2020,2023,2025 NXP
+ * Copyright 2017-2020,2023,2025,2026 NXP
  */
 
 #ifndef __DRM_DPU95_H__
@@ -77,99 +77,23 @@
 
 struct dpu95_fetchunit;
 
-enum dpu95_irq {
-	DPU95_IRQ_STORE9_SHDLOAD		= 0,
-	DPU95_IRQ_STORE9_FRAMECOMPLETE		= 1,
-	DPU95_IRQ_STORE9_SEQCOMPLETE		= 2,
-	DPU95_IRQ_EXTDST0_SHDLOAD		= 3,
-	DPU95_IRQ_EXTDST0_FRAMECOMPLETE		= 4,
-	DPU95_IRQ_EXTDST0_SEQCOMPLETE		= 5,
-	DPU95_IRQ_EXTDST4_SHDLOAD		= 6,
-	DPU95_IRQ_EXTDST4_FRAMECOMPLETE		= 7,
-	DPU95_IRQ_EXTDST4_SEQCOMPLETE		= 8,
-	DPU95_IRQ_EXTDST1_SHDLOAD		= 9,
-	DPU95_IRQ_EXTDST1_FRAMECOMPLETE		= 10,
-	DPU95_IRQ_EXTDST1_SEQCOMPLETE		= 11,
-	DPU95_IRQ_EXTDST5_SHDLOAD		= 12,
-	DPU95_IRQ_EXTDST5_FRAMECOMPLETE		= 13,
-	DPU95_IRQ_EXTDST5_SEQCOMPLETE		= 14,
-	DPU95_IRQ_DOMAINBLEND0_SHDLOAD		= 15,
-	DPU95_IRQ_DOMAINBLEND0_FRAMECOMPLETE	= 16,
-	DPU95_IRQ_DOMAINBLEND0_SEQCOMPLETE	= 17,
-	DPU95_IRQ_DISENGCFG_SHDLOAD0		= 18,
-	DPU95_IRQ_DISENGCFG_FRAMECOMPLETE0	= 19,
-	DPU95_IRQ_DISENGCFG_SEQCOMPLETE0	= 20,
-	DPU95_IRQ_FRAMEGEN0_INT0		= 21,
-	DPU95_IRQ_FRAMEGEN0_INT1		= 22,
-	DPU95_IRQ_FRAMEGEN0_INT2		= 23,
-	DPU95_IRQ_FRAMEGEN0_INT3		= 24,
-	DPU95_IRQ_SIG0_SHDLOAD			= 25,
-	DPU95_IRQ_SIG0_VALID			= 26,
-	DPU95_IRQ_SIG0_ERROR			= 27,
-	DPU95_IRQ_SIG0_CLUSTER_ERROR		= 28,
-	DPU95_IRQ_SIG0_CLUSTER_MATCH		= 29,
-	DPU95_IRQ_SIG2_SHDLOAD			= 30,
-	DPU95_IRQ_SIG2_VALID			= 31,
-	DPU95_IRQ_SIG2_ERROR			= 32,
-	DPU95_IRQ_SIG2_CLUSTER_ERROR		= 33,
-	DPU95_IRQ_SIG2_CLUSTER_MATCH		= 34,
-	DPU95_IRQ_IDHASH0_SHDLOAD		= 35,
-	DPU95_IRQ_IDHASH0_VALID			= 36,
-	DPU95_IRQ_IDHASH0_WINDOWN_ERROR		= 37,
-	DPU95_IRQ_DOMAINBLEND1_SHDLOAD		= 38,
-	DPU95_IRQ_DOMAINBLEND1_FRAMECOMPLETE	= 39,
-	DPU95_IRQ_DOMAINBLEND1_SEQCOMPLETE	= 40,
-	DPU95_IRQ_DISENGCFG_SHDLOAD1		= 41,
-	DPU95_IRQ_DISENGCFG_FRAMECOMPLETE1	= 42,
-	DPU95_IRQ_DISENGCFG_SEQCOMPLETE1	= 43,
-	DPU95_IRQ_FRAMEGEN1_INT0		= 44,
-	DPU95_IRQ_FRAMEGEN1_INT1		= 45,
-	DPU95_IRQ_FRAMEGEN1_INT2		= 46,
-	DPU95_IRQ_FRAMEGEN1_INT3		= 47,
-	DPU95_IRQ_SIG1_SHDLOAD			= 48,
-	DPU95_IRQ_SIG1_VALID			= 49,
-	DPU95_IRQ_SIG1_ERROR			= 50,
-	DPU95_IRQ_SIG1_CLUSTER_ERROR		= 51,
-	DPU95_IRQ_SIG1_CLUSTER_MATCH		= 52,
-	DPU95_IRQ_CMDSEQ_ERROR			= 53,
-	DPU95_IRQ_COMCTRL_SW0			= 54,
-	DPU95_IRQ_COMCTRL_SW1			= 55,
-	DPU95_IRQ_COMCTRL_SW2			= 56,
-	DPU95_IRQ_COMCTRL_SW3			= 57,
-	DPU95_IRQ_FRAMEGEN0_PRIMSYNC_ON		= 58,
-	DPU95_IRQ_FRAMEGEN0_PRIMSYNC_OFF	= 59,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW0_ON	= 60,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW0_OFF	= 61,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN0_ON	= 62,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN0_OFF	= 63,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD0_RISE	= 64,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD0_FAIL	= 65,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW1_ON	= 66,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW1_OFF	= 67,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN1_ON	= 68,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN1_OFF	= 69,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD1_RISE	= 70,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD1_FAIL	= 71,
-	DPU95_IRQ_FRAMEGEN1_PRIMSYNC_ON		= 72,
-	DPU95_IRQ_FRAMEGEN1_PRIMSYNC_OFF	= 73,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW0_ON	= 74,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW0_OFF	= 75,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN0_ON	= 76,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN0_OFF	= 77,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD0_RISE	= 78,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD0_FAIL	= 79,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW1_ON	= 80,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW1_OFF	= 81,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN1_ON	= 82,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN1_OFF	= 83,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD1_RISE	= 84,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD1_FAIL	= 85,
-	DPU95_IRQ_COUNT				= 86,
-};
-
 enum dpu95_unit_type {
 	DPU95_DISP,
 	DPU95_BLIT,
+};
+
+enum dpu95_unit_name {
+	DPU95_CONSTFRAME,
+	DPU95_DOMAINBLEND,
+	DPU95_DITHER,
+	DPU95_EXTDST,
+	DPU95_FETCHECO,
+	DPU95_FRAMEGEN,
+	DPU95_FETCHLAYER,
+	DPU95_FETCHYUV,
+	DPU95_HSCALER,
+	DPU95_LAYERBLEND,
+	DPU95_VSCALER,
 };
 
 enum dpu95_link_id {
@@ -316,102 +240,10 @@ enum dpu95_pec_clken {
 	CLKEN_FULL = 0x3,
 };
 
-static enum dpu95_irq dpu_comctrl_irq[] = {
-	DPU95_IRQ_COMCTRL_SW0,
-	DPU95_IRQ_COMCTRL_SW1,
-	DPU95_IRQ_COMCTRL_SW2,
-	DPU95_IRQ_COMCTRL_SW3,
-};
-#define DPU95_COMCTRL_IRQ_IRQS		ARRAY_SIZE(dpu_comctrl_irq)
-
-static enum dpu95_irq dpu_display_irq0[] = {
-	DPU95_IRQ_EXTDST0_SHDLOAD,
-	DPU95_IRQ_EXTDST0_FRAMECOMPLETE,
-	DPU95_IRQ_EXTDST0_SEQCOMPLETE,
-	DPU95_IRQ_EXTDST4_SHDLOAD,
-	DPU95_IRQ_EXTDST4_FRAMECOMPLETE,
-	DPU95_IRQ_EXTDST4_SEQCOMPLETE,
-	DPU95_IRQ_DOMAINBLEND0_SHDLOAD,
-	DPU95_IRQ_DOMAINBLEND0_FRAMECOMPLETE,
-	DPU95_IRQ_DOMAINBLEND0_SEQCOMPLETE,
-	DPU95_IRQ_DISENGCFG_SHDLOAD0,
-	DPU95_IRQ_DISENGCFG_FRAMECOMPLETE0,
-	DPU95_IRQ_DISENGCFG_SEQCOMPLETE0,
-	DPU95_IRQ_FRAMEGEN0_INT0,
-	DPU95_IRQ_FRAMEGEN0_INT1,
-	DPU95_IRQ_FRAMEGEN0_INT2,
-	DPU95_IRQ_FRAMEGEN0_INT3,
-	DPU95_IRQ_SIG0_SHDLOAD,
-	DPU95_IRQ_SIG0_VALID,
-	DPU95_IRQ_SIG0_ERROR,
-	DPU95_IRQ_SIG0_CLUSTER_ERROR,
-	DPU95_IRQ_SIG0_CLUSTER_MATCH,
-	DPU95_IRQ_SIG2_SHDLOAD,
-	DPU95_IRQ_SIG2_VALID,
-	DPU95_IRQ_SIG2_ERROR,
-	DPU95_IRQ_SIG2_CLUSTER_ERROR,
-	DPU95_IRQ_SIG2_CLUSTER_MATCH,
-	DPU95_IRQ_IDHASH0_SHDLOAD,
-	DPU95_IRQ_IDHASH0_VALID,
-	DPU95_IRQ_IDHASH0_WINDOWN_ERROR,
-	DPU95_IRQ_FRAMEGEN0_PRIMSYNC_ON,
-	DPU95_IRQ_FRAMEGEN0_PRIMSYNC_OFF,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW0_ON,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW0_OFF,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN0_ON,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN0_OFF,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD0_RISE,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD0_FAIL,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW1_ON,
-	DPU95_IRQ_FRAMEGEN0_OVERFLOW1_OFF,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN1_ON,
-	DPU95_IRQ_FRAMEGEN0_UNDERRUN1_OFF,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD1_RISE,
-	DPU95_IRQ_FRAMEGEN0_THRESHOLD1_FAIL,
-};
-#define DPU95_DISPLAY_IRQ0_IRQS		ARRAY_SIZE(dpu_display_irq0)
-
-static enum dpu95_irq dpu_display_irq2[] = {
-	DPU95_IRQ_EXTDST1_SHDLOAD,
-	DPU95_IRQ_EXTDST1_FRAMECOMPLETE,
-	DPU95_IRQ_EXTDST1_SEQCOMPLETE,
-	DPU95_IRQ_EXTDST5_SHDLOAD,
-	DPU95_IRQ_EXTDST5_FRAMECOMPLETE,
-	DPU95_IRQ_EXTDST5_SEQCOMPLETE,
-	DPU95_IRQ_DOMAINBLEND1_SHDLOAD,
-	DPU95_IRQ_DOMAINBLEND1_FRAMECOMPLETE,
-	DPU95_IRQ_DOMAINBLEND1_SEQCOMPLETE,
-	DPU95_IRQ_DISENGCFG_SHDLOAD1,
-	DPU95_IRQ_DISENGCFG_FRAMECOMPLETE1,
-	DPU95_IRQ_DISENGCFG_SEQCOMPLETE1,
-	DPU95_IRQ_FRAMEGEN1_INT0,
-	DPU95_IRQ_FRAMEGEN1_INT1,
-	DPU95_IRQ_FRAMEGEN1_INT2,
-	DPU95_IRQ_FRAMEGEN1_INT3,
-	DPU95_IRQ_SIG1_SHDLOAD,
-	DPU95_IRQ_SIG1_VALID,
-	DPU95_IRQ_SIG1_ERROR,
-	DPU95_IRQ_SIG1_CLUSTER_ERROR,
-	DPU95_IRQ_SIG1_CLUSTER_MATCH,
-	DPU95_IRQ_FRAMEGEN1_PRIMSYNC_ON,
-	DPU95_IRQ_FRAMEGEN1_PRIMSYNC_OFF,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW0_ON,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW0_OFF,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN0_ON,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN0_OFF,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD0_RISE,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD0_FAIL,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW1_ON,
-	DPU95_IRQ_FRAMEGEN1_OVERFLOW1_OFF,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN1_ON,
-	DPU95_IRQ_FRAMEGEN1_UNDERRUN1_OFF,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD1_RISE,
-	DPU95_IRQ_FRAMEGEN1_THRESHOLD1_FAIL,
-};
-#define DPU95_DISPLAY_IRQ2_IRQS		ARRAY_SIZE(dpu_display_irq2)
-
 struct dpu95_soc {
 	struct device			*dev;
+
+	const struct dpu95_data		*data;
 
 	void __iomem			*comctrl_irq_reg;
 	void __iomem			*dm_mask_reg;
@@ -427,9 +259,9 @@ struct dpu95_soc {
 	struct clk			*clk_ldb;
 	struct clk			*clk_ldb_vco;
 
-	int				comctrl_irq[DPU95_COMCTRL_IRQ_IRQS];
-	int				disp_irq0[DPU95_DISPLAY_IRQ0_IRQS];
-	int				disp_irq2[DPU95_DISPLAY_IRQ2_IRQS];
+	int				*comctrl_irq;
+	int				*disp_irq0;
+	int				*disp_irq2;
 
 	struct irq_domain		*comctrl_irq_domain;
 	struct irq_domain		*disp_irq0_domain;
@@ -439,13 +271,17 @@ struct dpu95_soc {
 	struct dpu95_domainblend	*db[2];
 	struct dpu95_dither		*dt[2];
 	struct dpu95_extdst		*ed[4];
-	struct dpu95_fetchunit		*fe[4];
+	struct dpu95_fetchunit		**fe;
 	struct dpu95_framegen		*fg[2];
-	struct dpu95_fetchunit		*fl[2];
-	struct dpu95_fetchunit		*fy[4];
+	struct dpu95_fetchunit		**fl;
+	struct dpu95_fetchunit		**fy;
 	struct dpu95_hscaler		*hs[2];
-	struct dpu95_layerblend		*lb[6];
+	struct dpu95_layerblend		**lb;
 	struct dpu95_vscaler		*vs[2];
+	int fe_cnt;
+	int fl_cnt;
+	int fy_cnt;
+	int lb_cnt;
 };
 
 struct dpu95_units {
@@ -454,7 +290,7 @@ struct dpu95_units {
 	const unsigned long *ofss;
 	const unsigned long *aux_ofss;	/* PixEngCFG or PixEngPath */
 	const unsigned int cnt;
-	const char *name;
+	enum dpu95_unit_name name;
 
 	/* software initialization */
 	int (*init)(struct dpu95_soc *dpu, unsigned int index,
@@ -464,6 +300,50 @@ struct dpu95_units {
 	/* hardware initialization */
 	void (*hw_init)(struct dpu95_soc *dpu, unsigned int index);
 };
+
+struct dpu95_data {
+	const struct dpu95_units **units;
+	int units_cnt;
+
+	const enum dpu95_link_id *link_id_map;
+	const enum dpu95_link_id *link_id_fy;
+	const enum dpu95_link_id *link_id_fe;
+
+	int irq_cnt;
+	const unsigned long *unused_irq;
+
+	int *comctrl_irq;
+	int comctrl_irq_cnt;
+	int *disp_irq0;
+	int disp_irq0_cnt;
+	int *disp_irq2;
+	int disp_irq2_cnt;
+
+	void (* const *comctrl_irq_handler)(struct irq_desc *desc);
+	void (* const *disp_irq0_handler)(struct irq_desc *desc);
+	void (* const *disp_irq2_handler)(struct irq_desc *desc);
+
+	int dec_frame_complete_irq[2];
+	int dec_seq_complete_irq[2];
+	int dec_shdld_irq[2];
+	int db_shdld_irq[2];
+	int ed_cont_shdld_irq[2];
+
+	u32 irq0_addr;
+	u32 irq2_addr;
+	u8 clock_ctrl;
+	u8 qos_setting;
+	u8 plane_association;
+	u8 reg_polarityctrl;
+	bool vsbp_quirk;
+
+	/* FIXME: drop this when i.MX952 DPU blit engine is supported */
+	bool disable_blit;
+};
+
+void dpu95_comctrl_irq_handle(struct irq_desc *desc, int irq);
+void dpu95_disp_irq0_handle(struct irq_desc *desc, int irq);
+void dpu95_disp_irq2_handle(struct irq_desc *desc, int irq);
 
 int dpu95_map_comctrl_irq(struct dpu95_soc *dpu, int irq);
 int dpu95_map_disp_irq0(struct dpu95_soc *dpu, int irq);
@@ -735,9 +615,12 @@ struct dpu95_fetchunit *dpu95_fu_get_from_list(struct list_head *l);
 void dpu95_fu_add_to_list(struct dpu95_fetchunit *fu, struct list_head *l);
 
 struct dpu95_plane_res {
-	struct dpu95_fetchunit	*fl[2];
-	struct dpu95_fetchunit	*fy[4];
-	struct dpu95_layerblend	*lb[6];
+	struct dpu95_fetchunit	**fl;
+	struct dpu95_fetchunit	**fy;
+	struct dpu95_layerblend	**lb;
+	int fl_cnt;
+	int fy_cnt;
+	int lb_cnt;
 };
 
 /*

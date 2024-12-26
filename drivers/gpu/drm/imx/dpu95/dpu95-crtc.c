@@ -628,6 +628,7 @@ int dpu95_crtc_init(struct dpu95_drm_device *dpu_drm,
 	struct drm_device *drm = &dpu_drm->base;
 	struct drm_crtc *crtc = &dpu_crtc->base;
 	struct dpu95_plane *dpu_primary;
+	const struct dpu95_data	*data;
 	int ret;
 
 	init_completion(&dpu_crtc->dec_seq_complete_done);
@@ -638,19 +639,12 @@ int dpu95_crtc_init(struct dpu95_drm_device *dpu_drm,
 	dpu_crtc->dpu = &dpu_drm->dpu_soc;
 	dpu_crtc->stream_id = stream_id;
 
-	if (stream_id == 0) {
-		dpu_crtc->dpu_dec_frame_complete_irq	= DPU95_IRQ_DISENGCFG_FRAMECOMPLETE0;
-		dpu_crtc->dpu_dec_seq_complete_irq	= DPU95_IRQ_DISENGCFG_SEQCOMPLETE0;
-		dpu_crtc->dpu_dec_shdld_irq		= DPU95_IRQ_DISENGCFG_SHDLOAD0;
-		dpu_crtc->dpu_db_shdld_irq		= DPU95_IRQ_DOMAINBLEND0_SHDLOAD;
-		dpu_crtc->dpu_ed_cont_shdld_irq		= DPU95_IRQ_EXTDST0_SHDLOAD;
-	} else {
-		dpu_crtc->dpu_dec_frame_complete_irq	= DPU95_IRQ_DISENGCFG_FRAMECOMPLETE1;
-		dpu_crtc->dpu_dec_seq_complete_irq	= DPU95_IRQ_DISENGCFG_SEQCOMPLETE1;
-		dpu_crtc->dpu_dec_shdld_irq		= DPU95_IRQ_DISENGCFG_SHDLOAD1;
-		dpu_crtc->dpu_db_shdld_irq		= DPU95_IRQ_DOMAINBLEND1_SHDLOAD;
-		dpu_crtc->dpu_ed_cont_shdld_irq		= DPU95_IRQ_EXTDST1_SHDLOAD;
-	}
+	data = dpu_crtc->dpu->data;
+	dpu_crtc->dpu_dec_frame_complete_irq	= data->dec_frame_complete_irq[stream_id];
+	dpu_crtc->dpu_dec_seq_complete_irq	= data->dec_seq_complete_irq[stream_id];
+	dpu_crtc->dpu_dec_shdld_irq		= data->dec_shdld_irq[stream_id];
+	dpu_crtc->dpu_db_shdld_irq		= data->db_shdld_irq[stream_id];
+	dpu_crtc->dpu_ed_cont_shdld_irq		= data->ed_cont_shdld_irq[stream_id];
 
 	ret = dpu95_crtc_get_resources(dpu_crtc);
 	if (ret) {

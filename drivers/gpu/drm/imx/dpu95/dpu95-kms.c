@@ -15,6 +15,7 @@
 #include <drm/drm_bridge_connector.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_managed.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_simple_kms_helper.h>
 
@@ -136,6 +137,9 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 					  int n, bool use_current_source)
 {
 	const struct dpu95_fetchunit_ops *fu_ops;
+	struct drm_crtc *crtc = &dpu_crtc->base;
+	struct drm_device *drm = crtc->dev;
+	struct dpu95_drm_device *dpu_drm = to_dpu95_drm_device(drm);
 	unsigned int sid = dpu_crtc->stream_id;
 	struct drm_plane_state *plane_state;
 	struct dpu95_plane_state *dpstate;
@@ -259,7 +263,7 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 
 		/* assign stage and blend */
 		if (sid) {
-			j = DPU95_HW_PLANES - (n - i);
+			j = dpu_drm->dpu_hw_plane_cnt - (n - i);
 			blend = res->lb[j];
 			if (i == 0)
 				stage.cf = grp->cf[sid];
@@ -284,6 +288,7 @@ static int dpu95_atomic_assign_plane_source(struct drm_atomic_state *state,
 					    u32 crtc_mask_prone_to_put,
 					    bool prone_to_put)
 {
+	struct dpu95_drm_device *dpu_drm = to_dpu95_drm_device(state->dev);
 	struct drm_plane_state **plane_states;
 	struct drm_crtc_state *crtc_state;
 	struct dpu95_crtc *dpu_crtc;
@@ -304,7 +309,7 @@ static int dpu95_atomic_assign_plane_source(struct drm_atomic_state *state,
 
 		dpu_crtc = to_dpu95_crtc(crtc);
 
-		plane_states = kmalloc_array(DPU95_HW_PLANES,
+		plane_states = kmalloc_array(dpu_drm->dpu_hw_plane_cnt,
 					     sizeof(*plane_states), GFP_KERNEL);
 		if (!plane_states) {
 			ret = -ENOMEM;
@@ -572,6 +577,7 @@ out:
 
 int dpu95_kms_prepare(struct dpu95_drm_device *dpu_drm)
 {
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct drm_device *drm = &dpu_drm->base;
 	struct dpu95_plane *dpu_overlay;
 	struct dpu95_crtc *dpu_crtc;
@@ -600,7 +606,15 @@ int dpu95_kms_prepare(struct dpu95_drm_device *dpu_drm)
 			return ret;
 	}
 
-	for (i = 0; i < DPU95_OVERLAYS; i++) {
+	dpu_drm->dpu_hw_plane_cnt = dpu->fl_cnt + dpu->fy_cnt;
+	dpu_drm->dpu_overlay_cnt = dpu_drm->dpu_hw_plane_cnt - 1;
+	dpu_drm->dpu_overlay = drmm_kcalloc(drm, dpu_drm->dpu_overlay_cnt,
+					    sizeof(struct dpu95_plane),
+					    GFP_KERNEL);
+	if (!dpu_drm->dpu_overlay)
+		return -ENOMEM;
+
+	for (i = 0; i < dpu_drm->dpu_overlay_cnt; i++) {
 		dpu_overlay = &dpu_drm->dpu_overlay[i];
 
 		ret = dpu95_plane_initialize(dpu_drm, dpu_overlay,

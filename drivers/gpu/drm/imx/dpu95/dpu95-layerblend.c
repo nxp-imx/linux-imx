@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2019,2023,2025 NXP
+ * Copyright 2017-2019,2023,2025,2026 NXP
  */
 
 #include <linux/io.h>
@@ -174,13 +174,14 @@ void dpu95_lb_pec_dynamic_sec_sel(struct dpu95_layerblend *lb,
 				  enum dpu95_link_id sec)
 {
 	struct dpu95_soc *dpu = lb->dpu;
+	const struct dpu95_data *data = dpu->data;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(sec_sels); i++) {
 		if (sec_sels[i] == sec) {
 			dpu95_pec_lb_write_mask(lb, PIXENGCFG_DYNAMIC,
 					PIXENGCFG_DYNAMIC_SEC_SEL_MASK,
-					sec << PIXENGCFG_DYNAMIC_SEC_SEL_SHIFT);
+					data->link_id_map[sec] << PIXENGCFG_DYNAMIC_SEC_SEL_SHIFT);
 			return;
 		}
 	}
@@ -261,13 +262,13 @@ struct dpu95_layerblend *dpu95_lb_get(struct dpu95_soc *dpu, unsigned int id)
 	struct dpu95_layerblend *lb;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dpu->lb); i++) {
+	for (i = 0; i < dpu->lb_cnt; i++) {
 		lb = dpu->lb[i];
 		if (lb->id == id)
 			break;
 	}
 
-	if (i == ARRAY_SIZE(dpu->lb))
+	if (i == dpu->lb_cnt)
 		return ERR_PTR(-EINVAL);
 
 	return lb;

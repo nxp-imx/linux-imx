@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2020,2023 NXP
+ * Copyright 2017-2020,2023,2026 NXP
  */
 
 #include <linux/clk.h>
@@ -111,12 +111,11 @@
 #define FGSRCLOCKDIV			0xd0
 #define FGSRl				0xd4
 
-/* registers in blk-ctrl */
-#define CLOCK_CTRL			0x0
-#define  DSIP_CLK_SEL(n)		(0x3 << (2 * (n)))
-#define  CCM				0x0
-#define  DSI_PLL(n)			(0x1 << (2 * (n)))
-#define  LVDS_PLL_7(n)			(0x2 << (2 * (n)))
+/* register CLOCK_CTRL in blk-ctrl */
+#define DSIP_CLK_SEL(n)			(0x3 << (2 * (n)))
+#define CCM				0x0
+#define DSI_PLL(n)			(0x1 << (2 * (n)))
+#define LVDS_PLL_7(n)			(0x2 << (2 * (n)))
 
 struct dpu95_framegen {
 	void __iomem *base;
@@ -168,6 +167,7 @@ void dpu95_fg_cfg_videomode(struct dpu95_framegen *fg,
 			    bool enc_is_dsi)
 {
 	struct dpu95_soc *dpu = fg->dpu;
+	const struct dpu95_data *data = dpu->data;
 	u32 hact, htotal, hsync, hsbp;
 	u32 vact, vtotal, vsync, vsbp;
 	u16 vsync_start, vsync_end;
@@ -179,7 +179,7 @@ void dpu95_fg_cfg_videomode(struct dpu95_framegen *fg,
 	hsync = m->crtc_hsync_end - m->crtc_hsync_start;
 	hsbp = m->crtc_htotal - m->crtc_hsync_start;
 
-	if (enc_is_dsi) {
+	if (data->vsbp_quirk && enc_is_dsi) {
 		/* add one pixel to vfp and reduce one from vbp */
 		vsync_start = m->crtc_vsync_start - 1;
 		vsync_end = m->crtc_vsync_end - 1;
@@ -221,7 +221,8 @@ void dpu95_fg_cfg_videomode(struct dpu95_framegen *fg,
 	if (enc_is_dsi)
 		clk_set_rate(dpu->clk_pix, m->crtc_clock * 1000);
 
-	ret = regmap_update_bits(dpu->regmap, CLOCK_CTRL, DSIP_CLK_SEL(fg->id),
+	ret = regmap_update_bits(dpu->regmap, dpu->data->clock_ctrl,
+				 DSIP_CLK_SEL(fg->id),
 				 enc_is_dsi ? CCM : LVDS_PLL_7(fg->id));
 	if (ret < 0)
 		dev_err(dpu->dev, "FrameGen%d failed to set DSIP_CLK_SEL: %d\n",
