@@ -16,7 +16,8 @@ struct cpudl {
 };
 
 #ifdef CONFIG_SMP
-int  cpudl_find(struct cpudl *cp, struct task_struct *p, struct cpumask *later_mask);
+int  cpudl_find(struct cpudl *cp, struct task_struct *sched_ctx,
+		struct task_struct *exec_ctx, struct cpumask *later_mask);
 void cpudl_set(struct cpudl *cp, int cpu, u64 dl);
 void cpudl_clear(struct cpudl *cp, int cpu);
 int  cpudl_init(struct cpudl *cp);

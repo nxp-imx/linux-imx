@@ -113,13 +113,13 @@ static inline int cpudl_maximum(struct cpudl *cp)
  *
  * Returns: int - CPUs were found
  */
-int cpudl_find(struct cpudl *cp, struct task_struct *p,
+int cpudl_find(struct cpudl *cp, struct task_struct *sched_ctx, struct task_struct *exec_ctx,
 	       struct cpumask *later_mask)
 {
-	const struct sched_dl_entity *dl_se = &p->dl;
+	const struct sched_dl_entity *dl_se = &sched_ctx->dl;
 
 	if (later_mask &&
-	    cpumask_and(later_mask, cp->free_cpus, &p->cpus_mask)) {
+	    cpumask_and(later_mask, cp->free_cpus, &exec_ctx->cpus_mask)) {
 		unsigned long cap, max_cap = 0;
 		int cpu, max_cpu = -1;
 
@@ -128,13 +128,13 @@ int cpudl_find(struct cpudl *cp, struct task_struct *p,
 
 		/* Ensure the capacity of the CPUs fits the task. */
 		for_each_cpu(cpu, later_mask) {
-			if (!dl_task_fits_capacity(p, cpu)) {
+			if (!dl_task_fits_capacity(sched_ctx, cpu)) {
 				cpumask_clear_cpu(cpu, later_mask);
 
 				cap = arch_scale_cpu_capacity(cpu);
 
 				if (cap > max_cap ||
-				    (cpu == task_cpu(p) && cap == max_cap)) {
+				    (cpu == task_cpu(exec_ctx) && cap == max_cap)) {
 					max_cap = cap;
 					max_cpu = cpu;
 				}
@@ -150,7 +150,7 @@ int cpudl_find(struct cpudl *cp, struct task_struct *p,
 
 		WARN_ON(best_cpu != -1 && !cpu_present(best_cpu));
 
-		if (cpumask_test_cpu(best_cpu, &p->cpus_mask) &&
+		if (cpumask_test_cpu(best_cpu, &exec_ctx->cpus_mask) &&
 		    dl_time_before(dl_se->deadline, cp->elements[0].dl)) {
 			if (later_mask)
 				cpumask_set_cpu(best_cpu, later_mask);

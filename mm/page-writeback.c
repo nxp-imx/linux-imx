@@ -39,6 +39,7 @@
 #include <linux/sched/signal.h>
 #include <linux/mm_inline.h>
 #include <trace/events/writeback.h>
+#include <trace/hooks/mm.h>
 
 #include "internal.h"
 
@@ -2083,6 +2084,8 @@ int balance_dirty_pages_ratelimited_flags(struct address_space *mapping,
 
 	if (!(bdi->capabilities & BDI_CAP_WRITEBACK))
 		return ret;
+
+	trace_android_rvh_ctl_dirty_rate(inode);
 
 	if (inode_cgwb_enabled(inode))
 		wb = wb_get_create_current(bdi, GFP_KERNEL);

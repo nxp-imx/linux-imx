@@ -33,3 +33,4 @@ obj-y += fair.o
 obj-y += build_policy.o
 obj-y += build_utility.o
 obj-$(CONFIG_ANDROID_VENDOR_HOOKS) += vendor_hooks.o
+obj-$(CONFIG_SCHED_RT_INVARIANT_TEST) += test_ksched_football.o

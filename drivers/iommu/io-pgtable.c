@@ -99,3 +99,18 @@ void free_io_pgtable_ops(struct io_pgtable_ops *ops)
 	io_pgtable_init_table[iop->fmt]->free(iop);
 }
 EXPORT_SYMBOL_GPL(free_io_pgtable_ops);
+
+int io_pgtable_configure(struct io_pgtable_cfg *cfg)
+{
+	const struct io_pgtable_init_fns *fns;
+
+	if (cfg->fmt >= IO_PGTABLE_NUM_FMTS)
+		return -EINVAL;
+
+	fns = io_pgtable_init_table[cfg->fmt];
+	if (!fns || !fns->configure)
+		return -EOPNOTSUPP;
+
+	return fns->configure(cfg);
+}
+EXPORT_SYMBOL_GPL(io_pgtable_configure);

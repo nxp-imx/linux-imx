@@ -18,9 +18,11 @@ struct cpupri {
 };
 
 #ifdef CONFIG_SMP
-int  cpupri_find(struct cpupri *cp, struct task_struct *p,
+int  cpupri_find(struct cpupri *cp, struct task_struct *sched_ctx,
+		 struct task_struct *exec_ctx,
 		 struct cpumask *lowest_mask);
-int  cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
+int  cpupri_find_fitness(struct cpupri *cp, struct task_struct *sched_ctx,
+			 struct task_struct *exec_ctx,
 			 struct cpumask *lowest_mask,
 			 bool (*fitness_fn)(struct task_struct *p, int cpu));
 void cpupri_set(struct cpupri *cp, int cpu, int pri);

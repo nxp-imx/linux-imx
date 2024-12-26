@@ -528,14 +528,7 @@ void kvm_arch_vcpu_postcreate(struct kvm_vcpu *vcpu)
 
 void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
 {
-	if (is_protected_kvm_enabled()) {
-		atomic64_sub(vcpu->arch.stage2_mc.nr_pages << PAGE_SHIFT,
-			     &vcpu->kvm->stat.protected_hyp_mem);
-		free_hyp_memcache(&vcpu->arch.stage2_mc);
-	} else {
-		kvm_mmu_free_memory_cache(&vcpu->arch.mmu_page_cache);
-	}
-
+	kvm_mmu_free_memory_cache(&vcpu->arch.mmu_page_cache);
 	kvm_timer_vcpu_terminate(vcpu);
 	kvm_pmu_vcpu_destroy(vcpu);
 	kvm_vgic_vcpu_destroy(vcpu);
@@ -2502,9 +2495,15 @@ static int __init kvm_hyp_init_protection(u32 hyp_va_bits)
 	if (ret)
 		return ret;
 
-	ret = do_pkvm_init(hyp_va_bits);
-	if (ret)
+	ret = kvm_iommu_init_driver();
+	if (ret < 0)
 		return ret;
+
+	ret = do_pkvm_init(hyp_va_bits);
+	if (ret) {
+		kvm_iommu_remove_driver();
+		return ret;
+	}
 
 	free_hyp_pgds();
 

@@ -37,6 +37,7 @@ int __hyp_allocator_map(unsigned long start, phys_addr_t phys);
 int __pkvm_map_module_page(u64 pfn, void *va, enum kvm_pgtable_prot prot, bool is_protected);
 void __pkvm_unmap_module_page(u64 pfn, void *va);
 void *__pkvm_alloc_module_va(u64 nr_pages);
+int pkvm_remap_range(void *va, int nr_pages, bool nc);
 #ifdef CONFIG_NVHE_EL2_DEBUG
 void assert_in_mod_range(unsigned long addr);
 #else

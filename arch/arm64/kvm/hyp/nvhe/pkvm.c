@@ -574,51 +574,42 @@ static int pkvm_vcpu_init_sve(struct pkvm_hyp_vcpu *hyp_vcpu, struct kvm_vcpu *h
 	unsigned int sve_max_vl;
 	size_t sve_state_size;
 	void *sve_state;
-	int ret = 0;
 
-	if (!vcpu_has_feature(vcpu, KVM_ARM_VCPU_SVE)) {
-		vcpu_clear_flag(vcpu, GUEST_HAS_SVE);
-		vcpu_clear_flag(vcpu, VCPU_SVE_FINALIZED);
+	if (!vcpu_has_feature(vcpu, KVM_ARM_VCPU_SVE))
 		return 0;
-	}
 
 	/* Limit guest vector length to the maximum supported by the host. */
 	sve_max_vl = min(READ_ONCE(host_vcpu->arch.sve_max_vl), kvm_host_sve_max_vl);
 	sve_state_size = sve_state_size(sve_max_vl);
 	sve_state = kern_hyp_va(READ_ONCE(host_vcpu->arch.sve_state));
 
-	if (!sve_state && !pkvm_hyp_vcpu_is_protected(hyp_vcpu)) {
-		ret = -EINVAL;
-		goto err;
-	}
+	if (!sve_state && !pkvm_hyp_vcpu_is_protected(hyp_vcpu))
+		return -EINVAL;
 
-	if (!sve_state_size || (sve_max_vl > kvm_sve_max_vl)) {
-		ret = -EINVAL;
-		goto err;
-	}
+	if (!sve_state_size || (sve_max_vl > kvm_sve_max_vl))
+		return -EINVAL;
 
 	if (pkvm_hyp_vcpu_is_protected(hyp_vcpu)) {
 		struct pkvm_hyp_vm *hyp_vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 
 		sve_state = hyp_alloc_account(sve_state_size,
 					      hyp_vm->host_kvm);
-		if (!sve_state) {
-			ret = hyp_alloc_errno();
-			goto err;
-		}
+		if (!sve_state)
+			return hyp_alloc_errno();
 	} else {
+		int ret;
+
 		ret = hyp_pin_shared_mem(sve_state, sve_state + sve_state_size);
 		if (ret)
-			goto err;
+			return ret;
 	}
 
 	vcpu->arch.sve_state = sve_state;
 	vcpu->arch.sve_max_vl = sve_max_vl;
+	vcpu_set_flag(vcpu, GUEST_HAS_SVE);
+	vcpu_set_flag(vcpu, VCPU_SVE_FINALIZED);
 
 	return 0;
-err:
-	clear_bit(KVM_ARM_VCPU_SVE, vcpu->kvm->arch.vcpu_features);
-	return ret;
 }
 
 static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,

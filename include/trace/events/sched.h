@@ -793,6 +793,247 @@ TRACE_EVENT(sched_wake_idle_without_ipi,
 	TP_printk("cpu=%d", __entry->cpu)
 );
 
+#ifdef CONFIG_SCHED_PROXY_EXEC
+/**
+ * sched_pe_enqueue_sleeping_task - called when a task is enqueued on wait
+ *				    queue of a sleeping task (mutex owner).
+ * @mutex_owner: pointer to struct task_struct
+ * @blocked:     pointer to struct task_struct
+ */
+TRACE_EVENT(sched_pe_enqueue_sleeping_task,
+
+	TP_PROTO(struct task_struct *mutex_owner, struct task_struct *blocked),
+
+	TP_ARGS(mutex_owner, blocked),
+
+	TP_STRUCT__entry(
+		__array(char,	owner_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	owner_pid			)
+		__field(int,	owner_prio			)
+		__field(int,	owner_cpu			)
+		__array(char,	blocked_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	blocked_pid			)
+		__field(int,	blocked_prio			)
+		__field(int,	blocked_cpu			)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->owner_comm, mutex_owner->comm, TASK_COMM_LEN);
+		__entry->owner_pid	= mutex_owner->pid;
+		__entry->owner_prio	= mutex_owner->prio; /* XXX SCHED_DEADLINE */
+		__entry->owner_cpu	= task_cpu(mutex_owner);
+
+		strscpy(__entry->blocked_comm, blocked->comm, TASK_COMM_LEN);
+		__entry->blocked_pid	= blocked->pid;
+		__entry->blocked_prio	= blocked->prio; /* XXX SCHED_DEADLINE */
+		__entry->blocked_cpu	= task_cpu(blocked);
+	),
+
+	TP_printk("task=%s pid=%d prio=%d cpu=%d blocked_on owner_task=%s owner_pid=%d owner_prio=%d owner_cpu=%d",
+		  __entry->blocked_comm, __entry->blocked_pid,
+		  __entry->blocked_prio, __entry->blocked_cpu,
+		  __entry->owner_comm, __entry->owner_pid,
+		  __entry->owner_prio, __entry->owner_cpu)
+);
+
+/**
+ * sched_pe_activate_blocked_entity - called when a blocked entity is activated
+ *				      when mutex owner wakes
+ * @owner: pointer to struct task_struct
+ * @blocked:     pointer to struct task_struct
+ */
+TRACE_EVENT(sched_pe_activate_blocked_entity,
+
+	TP_PROTO(struct task_struct *owner, struct task_struct *blocked),
+
+	TP_ARGS(owner, blocked),
+
+	TP_STRUCT__entry(
+		__array(char,	owner_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	owner_pid			)
+		__field(int,	owner_prio			)
+		__field(int,	owner_cpu			)
+		__array(char,	blocked_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	blocked_pid			)
+		__field(int,	blocked_prio			)
+		__field(int,	blocked_cpu			)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->owner_comm, owner->comm, TASK_COMM_LEN);
+		__entry->owner_pid	= owner->pid;
+		__entry->owner_prio	= owner->prio; /* XXX SCHED_DEADLINE */
+		__entry->owner_cpu	= task_cpu(owner);
+
+		strscpy(__entry->blocked_comm, blocked->comm, TASK_COMM_LEN);
+		__entry->blocked_pid	= blocked->pid;
+		__entry->blocked_prio	= blocked->prio; /* XXX SCHED_DEADLINE */
+		__entry->blocked_cpu	= task_cpu(blocked);
+	),
+
+	TP_printk("activating task=%s pid=%d prio=%d cpu=%d, blocked_on owner=%s pid=%d prio=%d cpu=%d",
+		  __entry->blocked_comm, __entry->blocked_pid,
+		  __entry->blocked_prio, __entry->blocked_cpu,
+		  __entry->owner_comm, __entry->owner_pid,
+		  __entry->owner_prio, __entry->owner_cpu)
+);
+
+/**
+ * sched_pe_cross_remote_cpu - called when dependency chain crosses remote CPU
+ * @p: pointer to struct task_struct
+ */
+TRACE_EVENT(sched_pe_migration,
+
+	TP_PROTO(struct task_struct *next, struct task_struct *owner),
+
+	TP_ARGS(next, owner),
+
+	TP_STRUCT__entry(
+		__array(char,	next_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	next_pid			)
+		__field(int,	next_prio			)
+		__array(char,	owner_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	owner_pid			)
+		__field(int,	owner_prio			)
+		__field(int,	remote_cpu			)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->next_comm, next->comm, TASK_COMM_LEN);
+		__entry->next_pid	= next->pid;
+		__entry->next_prio	= next->prio; /* XXX SCHED_DEADLINE */
+		strscpy(__entry->owner_comm, owner->comm, TASK_COMM_LEN);
+		__entry->owner_pid	= owner->pid;
+		__entry->owner_prio	= owner->prio; /* XXX SCHED_DEADLINE */
+		__entry->remote_cpu	= task_cpu(owner);
+	),
+
+	TP_printk("next=%s pid=%d prio=%d owner=%s pid=%d prio=%d remote_cpu=%d",
+		  __entry->next_comm, __entry->next_pid, __entry->next_prio,
+		  __entry->owner_comm, __entry->owner_pid, __entry->owner_prio,
+		  __entry->remote_cpu)
+);
+
+/**
+ * sched_pe_task_is_migrating - called when mutex owner is in migrating state
+ * @p: pointer to struct task_struct
+ */
+TRACE_EVENT(sched_pe_owner_is_migrating,
+
+	TP_PROTO(struct task_struct *owner, struct task_struct *waiter),
+
+	TP_ARGS(owner, waiter),
+
+	TP_STRUCT__entry(
+		__array(char,	owner_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	owner_pid			)
+		__field(int,	owner_prio			)
+		__array(char,	waiter_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	waiter_pid			)
+		__field(int,	waiter_prio			)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->owner_comm, owner->comm, TASK_COMM_LEN);
+		__entry->owner_pid	= owner->pid;
+		__entry->owner_prio	= owner->prio; /* XXX SCHED_DEADLINE */
+		strscpy(__entry->waiter_comm, waiter->comm, TASK_COMM_LEN);
+		__entry->waiter_pid	= waiter->pid;
+		__entry->waiter_prio	= waiter->prio; /* XXX SCHED_DEADLINE */
+	),
+
+	TP_printk("owner comm=%s pid=%d prio=%d  waiter comm=%s pid=%d prio=%d",
+		  __entry->owner_comm, __entry->owner_pid, __entry->owner_prio,
+		  __entry->waiter_comm, __entry->waiter_pid, __entry->waiter_prio)
+);
+#endif /* CONFIG_SCHED_PROXY_EXEC */
+
+/**
+ * sched_pe_cross_remote_cpu - called when dependency chain crosses remote CPU
+ * @p: pointer to struct task_struct
+ */
+TRACE_EVENT(sched_pe_return_migration,
+
+	TP_PROTO(struct task_struct *task, int target_cpu),
+
+	TP_ARGS(task, target_cpu),
+
+	TP_STRUCT__entry(
+		__array(char,	comm,	TASK_COMM_LEN	)
+		__field(pid_t,	pid			)
+		__field(int,	prio			)
+		__field(int,	target_cpu		)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->comm, task->comm, TASK_COMM_LEN);
+		__entry->pid	= task->pid;
+		__entry->prio	= task->prio; /* XXX SCHED_DEADLINE */
+		__entry->target_cpu	= target_cpu;
+	),
+
+	TP_printk("task=%s pid=%d prio=%d target_cpu=%d",
+		  __entry->comm, __entry->pid, __entry->prio,
+		  __entry->target_cpu)
+);
+
+
+TRACE_EVENT(sched_start_task_selection,
+
+	TP_PROTO(struct task_struct *prev, int cpu, bool is_blocked),
+
+	TP_ARGS(prev, cpu, is_blocked),
+
+	TP_STRUCT__entry(
+		__array(char,	comm,	TASK_COMM_LEN	)
+		__field(pid_t,	pid			)
+		__field(int,	prio			)
+		__field(bool,	is_blocked		)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->comm, prev->comm, TASK_COMM_LEN);
+		__entry->pid		= prev->pid;
+		__entry->prio		= prev->prio; /* XXX SCHED_DEADLINE */
+		__entry->is_blocked	= is_blocked;
+	),
+
+	TP_printk("prev=%s pid=%d prio=%d is_blocked: %i",
+		  __entry->comm, __entry->pid, __entry->prio, __entry->is_blocked)
+);
+
+TRACE_EVENT(sched_finish_task_selection,
+
+	TP_PROTO(struct task_struct *donor, struct task_struct *next, int cpu),
+
+	TP_ARGS(donor, next, cpu),
+
+	TP_STRUCT__entry(
+		__array(char,	donor_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	donor_pid			)
+		__field(int,	donor_prio			)
+		__array(char,	next_comm,	TASK_COMM_LEN	)
+		__field(pid_t,	next_pid			)
+		__field(int,	next_prio			)
+		__field(int,	cpu				)
+	),
+
+	TP_fast_assign(
+		strscpy(__entry->donor_comm, donor->comm, TASK_COMM_LEN);
+		__entry->donor_pid	= donor->pid;
+		__entry->donor_prio	= donor->prio; /* XXX SCHED_DEADLINE */
+		strscpy(__entry->next_comm, next->comm, TASK_COMM_LEN);
+		__entry->next_pid	= next->pid;
+		__entry->next_prio	= next->prio; /* XXX SCHED_DEADLINE */
+		__entry->cpu = cpu;
+	),
+
+	TP_printk("donor=%s pid=%d prio=%d next=%s pid=%d prio=%d cpu=%d",
+		  __entry->donor_comm, __entry->donor_pid, __entry->donor_prio,
+		  __entry->next_comm, __entry->next_pid, __entry->next_prio,
+		  __entry->cpu)
+);
+
 /*
  * Following tracepoints are not exported in tracefs and provide hooking
  * mechanisms only for testing and debugging purposes.

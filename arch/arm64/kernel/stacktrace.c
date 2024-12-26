@@ -293,6 +293,7 @@ noinline noinstr void arch_bpf_stack_walk(bool (*consume_entry)(void *cookie, u6
 
 	kunwind_stack_walk(arch_bpf_unwind_consume_entry, &data, current, NULL);
 }
+EXPORT_SYMBOL_GPL(arch_stack_walk);
 
 static bool dump_backtrace_entry(void *arg, unsigned long where)
 {

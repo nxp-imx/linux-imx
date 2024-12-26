@@ -548,19 +548,49 @@ int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
 int reclaim_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc,
 		     int nr_pages)
 {
-	void *p;
 	struct hyp_page *page;
+	u8 order;
+	void *p;
 
 	while (nr_pages > 0) {
 		p = hyp_alloc_pages(pool, 0);
 		if (!p)
 			return -ENOMEM;
 		page = hyp_virt_to_page(p);
-		nr_pages -= (1 << page->order);
-		push_hyp_memcache(host_mc, p, hyp_virt_to_phys, page->order);
-		WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1 << page->order));
-		memset(page, 0, sizeof(struct hyp_page));
+		order = page->order;
+		nr_pages -= (1 << order);
+
+		/*
+		 * For a compound page all the tail pages should normally
+		 * have page->order == HYP_NO_ORDER which would need to be
+		 * cleared one by one. But in this instance, the order 0
+		 * allocation above can only return an _external_ compound
+		 * page which is in fact ignored by the buddy logic, and the
+		 * tail pages are never touched.
+		 */
+		page->order = 0;
+		hyp_page_ref_dec(page);
+
+		push_hyp_memcache(host_mc, p, hyp_virt_to_phys, order);
+		WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1 << order));
 	}
 
 	return 0;
+}
+
+/* Remap hyp memory with different cacheability */
+int pkvm_remap_range(void *va, int nr_pages, bool nc)
+{
+	size_t size = nr_pages << PAGE_SHIFT;
+	phys_addr_t phys = hyp_virt_to_phys(va);
+	enum kvm_pgtable_prot prot = PKVM_HOST_MEM_PROT;
+	int ret;
+
+	if (nc)
+		prot |= KVM_PGTABLE_PROT_NORMAL_NC;
+	hyp_spin_lock(&pkvm_pgd_lock);
+	WARN_ON(kvm_pgtable_hyp_unmap(&pkvm_pgtable, (u64)va, size) != size);
+	ret = kvm_pgtable_hyp_map(&pkvm_pgtable, (u64)va, size, phys, prot);
+	hyp_spin_unlock(&pkvm_pgd_lock);
+	return ret;
 }

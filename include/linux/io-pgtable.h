@@ -49,6 +49,7 @@ struct iommu_flush_ops {
 /**
  * struct io_pgtable_cfg - Configuration data for a set of page tables.
  *
+ * @fmt:	       Format used for these page tables
  * @quirks:        A bitmap of hardware quirks that require some special
  *                 action by the low-level page table allocator.
  * @pgsize_bitmap: A bitmap of page sizes supported by this set of page
@@ -62,6 +63,7 @@ struct iommu_flush_ops {
  *                 page table walker.
  */
 struct io_pgtable_cfg {
+	enum io_pgtable_fmt		fmt;
 	/*
 	 * IO_PGTABLE_QUIRK_ARM_NS: (ARM formats) Set NS and NSTABLE bits in
 	 *	stage 1 PTEs, for hardware which insists on validating them
@@ -87,6 +89,8 @@ struct io_pgtable_cfg {
 	 *	attributes set in the TCR for a non-coherent page-table walker.
 	 *
 	 * IO_PGTABLE_QUIRK_ARM_HD: Enables dirty tracking in stage 1 pagetable.
+	 *
+	 * IO_PGTABLE_QUIRK_UNMAP_INVAL: Only invalidate PTE on unmap, don't clear it.
 	 */
 	#define IO_PGTABLE_QUIRK_ARM_NS			BIT(0)
 	#define IO_PGTABLE_QUIRK_NO_PERMS		BIT(1)
@@ -95,6 +99,7 @@ struct io_pgtable_cfg {
 	#define IO_PGTABLE_QUIRK_ARM_TTBR1		BIT(5)
 	#define IO_PGTABLE_QUIRK_ARM_OUTER_WBWA		BIT(6)
 	#define IO_PGTABLE_QUIRK_ARM_HD			BIT(7)
+	#define IO_PGTABLE_QUIRK_UNMAP_INVAL		BIT(8)
 	unsigned long			quirks;
 	unsigned long			pgsize_bitmap;
 	unsigned int			ias;
@@ -179,11 +184,40 @@ struct io_pgtable_cfg {
 };
 
 /**
+ * struct arm_lpae_io_pgtable_walk_data - information from a pgtable walk
+ *
+ * @ptes:     The recorded PTE values from the walk
+ * @level:    The level of the last PTE
+ * @cookie:   Cookie set by caller to identify it
+ *
+ * @level also specifies the last valid index in @ptes
+ */
+struct arm_lpae_io_pgtable_walk_data {
+	u64 ptes[4];
+	int level;
+	void *cookie;
+	void (*visit_post_table)(struct arm_lpae_io_pgtable_walk_data *data,
+				 u64 *ptep, int lvl);
+};
+
+/**
+ * struct io_pgtable_walk_common - common information from a pgtable walk
+ * @visit_leaf: callback for each leaf providing it's physical address and size
+ */
+struct io_pgtable_walk_common {
+	void (*visit_leaf)(phys_addr_t paddr, size_t size,
+			   struct io_pgtable_walk_common *data,
+			   void *wd);
+	void *data; /* pointer to walk data as arm_lpae_io_pgtable_walk_data*/
+};
+
+/**
  * struct io_pgtable_ops - Page table manipulation API for IOMMU drivers.
  *
  * @map_pages:    Map a physically contiguous range of pages of the same size.
  * @unmap_pages:  Unmap a range of virtually contiguous pages of the same size.
  * @iova_to_phys: Translate iova to physical address.
+ * @pgtable_walk: (optional) Perform a page table walk for a given iova and size.
  *
  * These functions map directly onto the iommu_ops member functions with
  * the same names.
@@ -197,6 +231,8 @@ struct io_pgtable_ops {
 			      struct iommu_iotlb_gather *gather);
 	phys_addr_t (*iova_to_phys)(struct io_pgtable_ops *ops,
 				    unsigned long iova);
+	int (*pgtable_walk)(struct io_pgtable_ops *ops, unsigned long iova,
+			    size_t size, struct io_pgtable_walk_common *walker);
 	int (*read_and_clear_dirty)(struct io_pgtable_ops *ops,
 				    unsigned long iova, size_t size,
 				    unsigned long flags,
@@ -226,6 +262,17 @@ struct io_pgtable_ops *alloc_io_pgtable_ops(enum io_pgtable_fmt fmt,
  */
 void free_io_pgtable_ops(struct io_pgtable_ops *ops);
 
+/**
+ * io_pgtable_configure - Create page table config
+ *
+ * @cfg:	The page table configuration.
+ *
+ * Initialize @cfg in the same way as alloc_io_pgtable_ops(), without allocating
+ * anything.
+ *
+ * Not all io_pgtable drivers implement this operation.
+ */
+int io_pgtable_configure(struct io_pgtable_cfg *cfg);
 
 /*
  * Internal structures for page table allocator implementations.
@@ -286,11 +333,13 @@ enum io_pgtable_caps {
  *
  * @alloc: Allocate a set of page tables described by cfg.
  * @free:  Free the page tables associated with iop.
+ * @configure: Create the configuration without allocating anything. Optional.
  * @caps:  Combination of @io_pgtable_caps flags encoding the backend capabilities.
  */
 struct io_pgtable_init_fns {
 	struct io_pgtable *(*alloc)(struct io_pgtable_cfg *cfg, void *cookie);
 	void (*free)(struct io_pgtable *iop);
+	int (*configure)(struct io_pgtable_cfg *cfg);
 	u32 caps;
 };
 

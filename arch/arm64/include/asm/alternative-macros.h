@@ -302,7 +302,7 @@ l_yes:
 
 #include <linux/types.h>
 
-static bool cpus_have_cap(unsigned int num);
+static bool __maybe_unused cpus_have_cap(unsigned int num);
 
 /*
  * Return 'false' for all capabilities listed above, and use the slow path for

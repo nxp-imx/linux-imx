@@ -911,6 +911,18 @@ static inline void iommu_iotlb_gather_add_range(struct iommu_iotlb_gather *gathe
 		gather->end = end;
 }
 
+/*
+ * If the new page is disjoint from the current range or is mapped at
+ * a different granularity, then sync the TLB so that the gather
+ * structure can be rewritten.
+ */
+#define _iommu_iotlb_add_page(domain, gather, iova, size, sync)		\
+	if (((gather)->pgsize && (gather)->pgsize != (size)) ||		\
+	    iommu_iotlb_gather_is_disjoint((gather), (iova), (size)))	\
+		sync((domain), (gather));				\
+	(gather)->pgsize = (size);					\
+	iommu_iotlb_gather_add_range((gather), (iova), (size))
+
 /**
  * iommu_iotlb_gather_add_page - Gather for page-based TLB invalidation
  * @domain: IOMMU domain to be invalidated
@@ -926,17 +938,7 @@ static inline void iommu_iotlb_gather_add_page(struct iommu_domain *domain,
 					       struct iommu_iotlb_gather *gather,
 					       unsigned long iova, size_t size)
 {
-	/*
-	 * If the new page is disjoint from the current range or is mapped at
-	 * a different granularity, then sync the TLB so that the gather
-	 * structure can be rewritten.
-	 */
-	if ((gather->pgsize && gather->pgsize != size) ||
-	    iommu_iotlb_gather_is_disjoint(gather, iova, size))
-		iommu_iotlb_sync(domain, gather);
-
-	gather->pgsize = size;
-	iommu_iotlb_gather_add_range(gather, iova, size);
+	_iommu_iotlb_add_page(domain, gather, iova, size, iommu_iotlb_sync);
 }
 
 static inline bool iommu_iotlb_gather_queued(struct iommu_iotlb_gather *gather)

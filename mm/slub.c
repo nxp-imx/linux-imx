@@ -45,6 +45,7 @@
 
 #include <linux/debugfs.h>
 #include <trace/events/kmem.h>
+#include <trace/hooks/mm.h>
 
 #include "internal.h"
 
@@ -1423,6 +1424,11 @@ static int check_slab(struct kmem_cache *s, struct slab *slab)
 			slab->inuse, slab->objects);
 		return 0;
 	}
+	if (slab->frozen) {
+		slab_err(s, slab, "Slab disabled since SLUB metadata consistency check failed");
+		return 0;
+	}
+
 	/* Slab_pad_check fixes things up after itself */
 	slab_pad_check(s, slab);
 	return 1;
@@ -1603,6 +1609,7 @@ bad:
 		slab_fix(s, "Marking all objects used");
 		slab->inuse = slab->objects;
 		slab->freelist = NULL;
+		slab->frozen = 1; /* mark consistency-failed slab as frozen */
 	}
 	return false;
 }
@@ -2423,6 +2430,8 @@ static inline struct slab *alloc_slab_page(gfp_t flags, int node,
 	if (folio_is_pfmemalloc(folio))
 		slab_set_pfmemalloc(slab);
 
+	trace_android_vh_slab_folio_alloced(order, flags);
+
 	return slab;
 }
 
@@ -2744,7 +2753,8 @@ static void *alloc_single_from_partial(struct kmem_cache *s,
 	slab->inuse++;
 
 	if (!alloc_debug_processing(s, slab, object, orig_size)) {
-		remove_partial(n, slab);
+		if (folio_test_slab(slab_folio(slab)))
+			remove_partial(n, slab);
 		return NULL;
 	}
 
@@ -4212,6 +4222,8 @@ static void *___kmalloc_large_node(size_t size, gfp_t flags, int node)
 		lruvec_stat_mod_folio(folio, NR_SLAB_UNRECLAIMABLE_B,
 				      PAGE_SIZE << order);
 	}
+
+	trace_android_vh_kmalloc_large_alloced(folio, order, flags);
 
 	ptr = kasan_kmalloc_large(ptr, size, flags);
 	/* As ptr might get tagged, call kmemleak hook after KASAN. */

@@ -105,6 +105,17 @@ HYP_EVENT(psci_mem_protect,
 	HE_PRINTK("count=%llu was=%llu", __entry->count, __entry->was)
 );
 
+HYP_EVENT(vcpu_illegal_trap,
+	HE_PROTO(u64 esr),
+	HE_STRUCT(
+		he_field(u64, esr)
+	),
+	HE_ASSIGN(
+		__entry->esr = esr;
+	),
+	HE_PRINTK("esr_el2=%llx", __entry->esr)
+);
+
 #ifdef CONFIG_PROTECTED_NVHE_TESTING
 HYP_EVENT(selftest,
 	  HE_PROTO(void),

@@ -11,7 +11,7 @@
 #include <kunit/visibility.h>
 
 #include "arm-smmu-v3.h"
-#include "../../io-pgtable-arm.h"
+#include <linux/io-pgtable-arm.h>
 
 static DEFINE_MUTEX(sva_lock);
 

@@ -1159,10 +1159,15 @@ struct rq {
 	 */
 	unsigned int		nr_uninterruptible;
 
+#ifdef CONFIG_SCHED_PROXY_EXEC
+	struct task_struct __rcu	*donor;  /* Scheduling context */
+	struct task_struct __rcu	*curr;   /* Execution context */
+#else
 	union {
 		struct task_struct __rcu *donor; /* Scheduler context */
 		struct task_struct __rcu *curr;  /* Execution context */
 	};
+#endif
 	struct sched_dl_entity	*dl_server;
 	struct task_struct	*idle;
 	struct task_struct	*stop;
@@ -1360,10 +1365,17 @@ DECLARE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
 #define raw_rq()		raw_cpu_ptr(&runqueues)
 
+#ifdef CONFIG_SCHED_PROXY_EXEC
+static inline void rq_set_donor(struct rq *rq, struct task_struct *t)
+{
+	rcu_assign_pointer(rq->donor, t);
+}
+#else
 static inline void rq_set_donor(struct rq *rq, struct task_struct *t)
 {
 	/* Do nothing */
 }
+#endif
 
 #ifdef CONFIG_SCHED_CORE
 static inline struct cpumask *sched_group_span(struct sched_group *sg);
@@ -2112,34 +2124,6 @@ static inline const struct cpumask *task_user_cpus(struct task_struct *p)
 
 #endif /* CONFIG_SMP */
 
-#include "stats.h"
-
-#if defined(CONFIG_SCHED_CORE) && defined(CONFIG_SCHEDSTATS)
-
-extern void __sched_core_account_forceidle(struct rq *rq);
-
-static inline void sched_core_account_forceidle(struct rq *rq)
-{
-	if (schedstat_enabled())
-		__sched_core_account_forceidle(rq);
-}
-
-extern void __sched_core_tick(struct rq *rq);
-
-static inline void sched_core_tick(struct rq *rq)
-{
-	if (sched_core_enabled(rq) && schedstat_enabled())
-		__sched_core_tick(rq);
-}
-
-#else /* !(CONFIG_SCHED_CORE && CONFIG_SCHEDSTATS): */
-
-static inline void sched_core_account_forceidle(struct rq *rq) { }
-
-static inline void sched_core_tick(struct rq *rq) { }
-
-#endif /* !(CONFIG_SCHED_CORE && CONFIG_SCHEDSTATS) */
-
 #ifdef CONFIG_CGROUP_SCHED
 
 /*
@@ -2306,6 +2290,14 @@ static inline int task_current(struct rq *rq, struct task_struct *p)
 static inline int task_current_donor(struct rq *rq, struct task_struct *p)
 {
 	return rq->donor == p;
+}
+
+static inline bool task_is_blocked(struct task_struct *p)
+{
+	if (!sched_proxy_exec())
+		return false;
+
+	return !!p->blocked_on && p->blocked_on_state != BO_RUNNABLE;
 }
 
 static inline int task_on_cpu(struct rq *rq, struct task_struct *p)
@@ -2519,7 +2511,7 @@ static inline void put_prev_set_next_task(struct rq *rq,
 					  struct task_struct *prev,
 					  struct task_struct *next)
 {
-	WARN_ON_ONCE(rq->curr != prev);
+	WARN_ON_ONCE(rq->donor != prev);
 
 	__put_prev_set_next_dl_server(rq, prev, next);
 
@@ -3245,6 +3237,34 @@ extern void nohz_run_idle_balance(int cpu);
 static inline void nohz_run_idle_balance(int cpu) { }
 #endif
 
+#include "stats.h"
+
+#if defined(CONFIG_SCHED_CORE) && defined(CONFIG_SCHEDSTATS)
+
+extern void __sched_core_account_forceidle(struct rq *rq);
+
+static inline void sched_core_account_forceidle(struct rq *rq)
+{
+	if (schedstat_enabled())
+		__sched_core_account_forceidle(rq);
+}
+
+extern void __sched_core_tick(struct rq *rq);
+
+static inline void sched_core_tick(struct rq *rq)
+{
+	if (sched_core_enabled(rq) && schedstat_enabled())
+		__sched_core_tick(rq);
+}
+
+#else /* !(CONFIG_SCHED_CORE && CONFIG_SCHEDSTATS): */
+
+static inline void sched_core_account_forceidle(struct rq *rq) { }
+
+static inline void sched_core_tick(struct rq *rq) { }
+
+#endif /* !(CONFIG_SCHED_CORE && CONFIG_SCHEDSTATS) */
+
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 
 struct irqtime {
@@ -3849,7 +3869,7 @@ extern u64 avg_vruntime(struct cfs_rq *cfs_rq);
 extern int entity_eligible(struct cfs_rq *cfs_rq, struct sched_entity *se);
 #ifdef CONFIG_SMP
 static inline
-void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_struct *task)
+void __move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_struct *task)
 {
 	lockdep_assert_rq_held(src_rq);
 	lockdep_assert_rq_held(dst_rq);
@@ -3860,15 +3880,39 @@ void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_s
 }
 
 static inline
-bool task_is_pushable(struct rq *rq, struct task_struct *p, int cpu)
+int __task_is_pushable(struct rq *rq, struct task_struct *p, int cpu)
 {
 	if (!task_on_cpu(rq, p) &&
 	    cpumask_test_cpu(cpu, &p->cpus_mask))
-		return true;
+		return 1;
 
-	return false;
+	return 0;
 }
-#endif
+
+#ifdef CONFIG_SCHED_PROXY_EXEC
+void move_queued_task_locked(struct rq *rq, struct rq *dst_rq, struct task_struct *task);
+int task_is_pushable(struct rq *rq, struct task_struct *p, int cpu);
+struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p);
+#else /* !CONFIG_SCHED_PROXY_EXEC */
+static inline
+void move_queued_task_locked(struct rq *rq, struct rq *dst_rq, struct task_struct *task)
+{
+	__move_queued_task_locked(rq, dst_rq, task);
+}
+
+static inline
+int task_is_pushable(struct rq *rq, struct task_struct *p, int cpu)
+{
+	return __task_is_pushable(rq, p, cpu);
+}
+
+static inline
+struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
+{
+	return p;
+}
+#endif /* CONFIG_SCHED_PROXY_EXEC */
+#endif /* CONFIG_SMP */
 
 #ifdef CONFIG_RT_MUTEXES
 
@@ -3945,15 +3989,6 @@ void sched_enq_and_set_task(struct sched_enq_and_set_ctx *ctx);
 
 #include "ext.h"
 
-#ifdef CONFIG_GKI_DYNAMIC_TASK_STRUCT_SIZE
-static inline void *android_task_vendor_data(struct task_struct *p)
-{
-	if (p == &init_task)
-		return &vendor_data_pad[0];
-
-	return p + 1;
-}
-#endif
 
 #ifdef CONFIG_RT_SOFTIRQ_AWARE_SCHED
 extern bool cpu_busy_with_softirqs(int cpu);

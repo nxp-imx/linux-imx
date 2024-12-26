@@ -294,6 +294,12 @@ ___update_load_avg(struct sched_avg *sa, unsigned long load)
 
 int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_blocked_se(now, se, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &se->avg, 0, 0, 0)) {
 		___update_load_avg(&se->avg, se_weight(se));
 		trace_pelt_se_tp(se);
@@ -306,6 +312,12 @@ EXPORT_SYMBOL_GPL(__update_load_avg_blocked_se);
 
 int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_se(now, cfs_rq, se, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &se->avg, !!se->on_rq, se_runnable(se),
 				cfs_rq->curr == se)) {
 
@@ -320,6 +332,12 @@ int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se
 
 int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_cfs_rq(now, cfs_rq, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &cfs_rq->avg,
 				scale_load_down(cfs_rq->load.weight),
 				cfs_rq->h_nr_running,
@@ -346,6 +364,12 @@ int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 
 int update_rt_rq_load_avg(u64 now, struct rq *rq, int running)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_rt_rq_load_avg_internal(now, rq, running, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &rq->avg_rt,
 				running,
 				running,
