@@ -111,6 +111,19 @@ config TRUSTY_VIRTIO_IPC
 
 	  If you build this as a module, it will be called trusty-ipc.
 
+config TRUSTY_VIRTIO_POLL_VQUEUES
+	bool "Poll the virtio queues periodically"
+	depends on TRUSTY_VIRTIO
+	help
+	  Add an optional timer that polls the virtio queues periodically.
+	  When enabled, this will add a device attribute that configures
+	  the timer period for the polling. The attribute can be set to 0
+	  to disable the timer dynamically.
+
+	  This is needed when there is no signaling mechanism between
+	  Linux and Trusty for virtio, e.g., when using FF-A to talk
+	  between guest VMs and TrustZone without notification support.
+
 config TRUSTY_DMA_BUF_FFA_TAG
 	bool "Availability of trusty_dma_buf_get_ffa_tag"
 	default n

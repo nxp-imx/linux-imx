@@ -10,6 +10,7 @@
 #include <linux/version.h>
 
 #include <linux/dma-map-ops.h>
+#include <linux/hrtimer.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/notifier.h>
@@ -46,6 +47,11 @@ struct trusty_ctx {
 	struct notifier_block	call_notifier;
 	struct list_head	vdev_list;
 	struct mutex		mlock; /* protects vdev_list */
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+	struct mutex		vq_timer_lock;
+	u64			vq_check_period_ms;
+	struct hrtimer		vq_timer;
+#endif
 	struct workqueue_struct	*kick_wq;
 	struct workqueue_struct	*check_wq;
 };
@@ -91,6 +97,23 @@ static void check_all_vqs(struct work_struct *work)
 			if (tvdev->vrings[i].vq)
 				vring_interrupt(0, tvdev->vrings[i].vq);
 	}
+
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+	/*
+	 * There are two ways we can get here: from trusty_call_notify
+	 * or the timer callback; to cover both cases and because
+	 * hrtimer_forward_now needs the timer to not be enqueued, we
+	 * do this the hard way: cancel the timer if it's queued, then
+	 * restart it
+	 */
+	mutex_lock(&tctx->vq_timer_lock);
+	hrtimer_cancel(&tctx->vq_timer);
+	if (tctx->vq_check_period_ms)
+		hrtimer_start(&tctx->vq_timer,
+			      ms_to_ktime(tctx->vq_check_period_ms),
+			      HRTIMER_MODE_REL);
+	mutex_unlock(&tctx->vq_timer_lock);
+#endif
 }
 
 static int trusty_call_notify(struct notifier_block *nb,
@@ -106,6 +129,60 @@ static int trusty_call_notify(struct notifier_block *nb,
 
 	return NOTIFY_OK;
 }
+
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+static enum hrtimer_restart vq_timer_fn(struct hrtimer *timer)
+{
+	struct trusty_ctx *tctx = container_of(timer, struct trusty_ctx,
+					       vq_timer);
+
+	queue_work(tctx->check_wq, &tctx->check_vqs);
+
+	/* The timer callback will start the timer */
+	return HRTIMER_NORESTART;
+}
+
+static ssize_t vq_check_period_ms_show(struct device *dev, struct device_attribute *attr,
+				       char *buf)
+{
+	struct trusty_ctx *tctx = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%llu\n", tctx->vq_check_period_ms);
+}
+
+static ssize_t vq_check_period_ms_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct trusty_ctx *tctx = dev_get_drvdata(dev);
+	u64 value;
+	int rc;
+
+	rc = kstrtou64(buf, 0, &value);
+	if (rc)
+		return -EINVAL;
+
+	mutex_lock(&tctx->vq_timer_lock);
+	hrtimer_cancel(&tctx->vq_timer);
+	tctx->vq_check_period_ms = value;
+	if (tctx->vq_check_period_ms)
+		hrtimer_start(&tctx->vq_timer,
+			      ms_to_ktime(tctx->vq_check_period_ms),
+			      HRTIMER_MODE_REL);
+	mutex_unlock(&tctx->vq_timer_lock);
+
+	return count;
+}
+static DEVICE_ATTR_RW(vq_check_period_ms);
+#endif
+
+static struct attribute *trusty_virtio_attrs[] = {
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+	&dev_attr_vq_check_period_ms.attr,
+#endif
+	NULL,
+};
+ATTRIBUTE_GROUPS(trusty_virtio);
 
 static void kick_vq(struct trusty_ctx *tctx,
 		    struct trusty_vdev *tvdev,
@@ -808,6 +885,11 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 	tctx->call_notifier.notifier_call = trusty_call_notify;
 	mutex_init(&tctx->mlock);
 	INIT_LIST_HEAD(&tctx->vdev_list);
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+	mutex_init(&tctx->vq_timer_lock);
+	hrtimer_init(&tctx->vq_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	tctx->vq_timer.function = vq_timer_fn;
+#endif
 	INIT_WORK(&tctx->check_vqs, check_all_vqs);
 	INIT_WORK(&tctx->kick_vqs, kick_vqs);
 	platform_set_drvdata(pdev, tctx);
@@ -857,6 +939,9 @@ static void trusty_virtio_remove(struct platform_device *pdev)
 	trusty_call_notifier_unregister(tctx->dev->parent,
 					&tctx->call_notifier);
 	cancel_work_sync(&tctx->check_vqs);
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+	hrtimer_cancel(&tctx->vq_timer);
+#endif
 
 	/* remove virtio devices */
 	trusty_virtio_remove_devices(tctx);
@@ -902,6 +987,7 @@ static struct platform_driver trusty_virtio_driver = {
 	.driver = {
 		.name = "trusty-virtio",
 		.of_match_table = trusty_of_match,
+		.dev_groups = trusty_virtio_groups,
 	},
 };
 
