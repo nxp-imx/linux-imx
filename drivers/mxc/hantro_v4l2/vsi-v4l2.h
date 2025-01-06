@@ -262,6 +262,11 @@ struct v4l2_daemon_enc_general_cmd {
 	s32 scaledOutputFormat;
 
 	s32 codecFormat;
+
+	u32 extraFillLeft;
+	u32 extraFillTop;
+	u32 extraFillLRight;
+	u32 extraFillBottom;
 };
 
 struct v4l2_daemon_enc_h26x_cmd {
