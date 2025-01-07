@@ -364,6 +364,7 @@ static ssize_t trusty_test_fpsimd(struct trusty_test_state *s)
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state) {
 		ret = -ENOMEM;
+		dev_err(s->dev, "failed to allocate fpsimd state\n");
 		goto err_alloc;
 	}
 
@@ -484,13 +485,25 @@ static ssize_t trusty_test_run_store(struct device *dev,
 
 		dev_info(s->dev, "running trusty fpsimd tests %zu times...\n",
 			 obj_count);
+		/* Disable preemption so we stay on the same CPU */
+		preempt_disable();
+
+		ret = trusty_std_call32(s->trusty_dev, SMC_SC_NOP,
+					SMC_NC_TEST_CLOBBER_FPSIMD_TIMER,
+					0, 0);
+		if (ret != 1)
+			dev_warn(s->dev, "trusty fpsimd tests failed to start timer: %d\n", ret);
+
 		for (size_t i = 0; i < obj_count; i++) {
 			ret = trusty_test_fpsimd(s);
 			if (ret)
-				return ret;
+				break;
 		}
 
-		return count;
+		preempt_enable();
+		dev_info(s->dev, "trusty fpsimd tests %s (%d)\n",
+			 ret ? "failed" : "passed", ret);
+		return ret ?: count;
 	}
 
 	while (true) {

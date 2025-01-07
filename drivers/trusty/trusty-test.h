@@ -40,6 +40,19 @@
  */
 #define SMC_FC_TEST_CLOBBER_FPSIMD_CHECK SMC_FASTCALL_NR(SMC_ENTITY_TEST, 1)
 
+/**
+ * SMC_NC_TEST_CLOBBER_FPSIMD_TIMER - Trigger the FP/SIMD test timer.
+ *
+ * Return: 1 on success, or one of the libsm errors otherwise.
+ *
+ * Trigger a secure timer that runs periodically a fixed number of
+ * times, then automatically disables itself.
+ *
+ * The timer is not strictly required for the test, so failing to
+ * start or stop the timer is not an error per se.
+ */
+#define SMC_NC_TEST_CLOBBER_FPSIMD_TIMER SMC_STDCALL_NR(SMC_ENTITY_TEST, 0)
+
 #define TRUSTY_STDCALLTEST_API_VERSION 1
 
 void trusty_fpsimd_save_state(struct user_fpsimd_state *fp_regs);
