@@ -166,6 +166,7 @@ struct fsl_edma_chan {
 	u32				real_count;
 	struct platform_device		*pdev;
 	struct device			*pd_dev;
+	struct device_link		*pd_dev_link;
 	u32				srcid;
 	struct clk			*clk;
 	int                             priority;

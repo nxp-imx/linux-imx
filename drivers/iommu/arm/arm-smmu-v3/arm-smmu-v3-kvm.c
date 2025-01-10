@@ -13,9 +13,8 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 
-#include <kvm/arm_smmu_v3.h>
-
 #include "arm-smmu-v3.h"
+#include "pkvm/arm_smmu_v3.h"
 
 extern struct kvm_iommu_ops kvm_nvhe_sym(smmu_ops);
 
@@ -45,6 +44,18 @@ struct kvm_arm_smmu_domain {
 
 #define to_kvm_smmu_domain(_domain) \
 	container_of(_domain, struct kvm_arm_smmu_domain, domain)
+
+#ifdef MODULE
+static unsigned long                   pkvm_module_token;
+
+#define ksym_ref_addr_nvhe(x) \
+	((typeof(kvm_nvhe_sym(x)) *)(pkvm_el2_mod_va(&kvm_nvhe_sym(x), pkvm_module_token)))
+
+int kvm_nvhe_sym(smmu_init_hyp_module)(const struct pkvm_module_ops *ops);
+#else
+#define ksym_ref_addr_nvhe(x) \
+	((typeof(kvm_nvhe_sym(x)) *)(kern_hyp_va(lm_alias(&kvm_nvhe_sym(x)))))
+#endif
 
 static size_t				kvm_arm_smmu_cur;
 static size_t				kvm_arm_smmu_count;
@@ -218,7 +229,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 	 * unique, and it has to be in range of this smmu, which can be
 	 * either 8 or 16 bits.
 	 */
-	ret = ida_alloc_range(&kvm_arm_smmu_domain_ida, 0,
+	ret = ida_alloc_range(&kvm_arm_smmu_domain_ida, KVM_IOMMU_DOMAIN_NR_START,
 			      min(KVM_IOMMU_MAX_DOMAINS, max_domains), GFP_KERNEL);
 	if (ret < 0)
 		return ret;
@@ -925,6 +936,20 @@ static int smmu_put_device(struct device *dev, void *data)
 	return 0;
 }
 
+/*
+ * Drop the PM references of the SMMU taken at probe
+ * after it's guaranteed the hypervisor as initialized the SMMUs.
+ */
+static int kvm_arm_smmu_v3_post_init(void)
+{
+	if (!kvm_arm_smmu_count)
+		return 0;
+
+	WARN_ON(driver_for_each_device(&kvm_arm_smmu_driver.driver, NULL,
+				       NULL, smmu_put_device));
+	return 0;
+}
+
 static int kvm_arm_smmu_v3_init_drv(void)
 {
 	int ret;
@@ -946,6 +971,15 @@ static int kvm_arm_smmu_v3_init_drv(void)
 		goto err_free;
 	}
 
+#ifdef MODULE
+	ret = pkvm_load_el2_module(kvm_nvhe_sym(smmu_init_hyp_module),
+				   &pkvm_module_token);
+
+	if (ret) {
+		pr_err("Failed to load SMMUv3 IOMMU EL2 module: %d\n", ret);
+		return ret;
+	}
+#endif
 	/*
 	 * These variables are stored in the nVHE image, and won't be accessible
 	 * after KVM initialization. Ownership of kvm_arm_smmu_array will be
@@ -954,7 +988,10 @@ static int kvm_arm_smmu_v3_init_drv(void)
 	kvm_hyp_arm_smmu_v3_smmus = kvm_arm_smmu_array;
 	kvm_hyp_arm_smmu_v3_count = kvm_arm_smmu_count;
 
-	return 0;
+	ret = kvm_iommu_init_hyp(ksym_ref_addr_nvhe(smmu_ops));
+	if (ret)
+		return ret;
+	return kvm_arm_smmu_v3_post_init();
 
 err_free:
 	kvm_arm_smmu_array_free();
@@ -976,25 +1013,18 @@ static int kvm_arm_smmu_v3_register(void)
 	if (!is_protected_kvm_enabled())
 		return 0;
 
-	return kvm_iommu_register_driver(&kvm_smmu_v3_ops,
-					kern_hyp_va(lm_alias(&kvm_nvhe_sym(smmu_ops))));
+	return kvm_iommu_register_driver(&kvm_smmu_v3_ops);
 };
 
 /*
- * KVM init hypervisor at device_sync init call,
- * so we drop the PM references of the SMMU taken at probe
- * at the late initcall where it's guaranteed the hypervisor
- * has initialized the SMMUs.
+ * Register must be run before de-privliage before kvm_iommu_init_driver
+ * for module case, it should be loaded using pKVM early loading which
+ * loads it before this point.
+ * For builtin drivers we use core_initcall
  */
-static int kvm_arm_smmu_v3_post_init(void)
-{
-	if (!kvm_arm_smmu_count)
-		return 0;
-
-	WARN_ON(driver_for_each_device(&kvm_arm_smmu_driver.driver, NULL,
-				       NULL, smmu_put_device));
-	return 0;
-}
-
+#ifdef MODULE
+module_init(kvm_arm_smmu_v3_register);
+#else
 core_initcall(kvm_arm_smmu_v3_register);
-late_initcall(kvm_arm_smmu_v3_post_init);
+#endif
+MODULE_LICENSE("GPL v2");

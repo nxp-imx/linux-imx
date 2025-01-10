@@ -180,12 +180,12 @@ bool kvm_host_scmi_handler(struct kvm_cpu_context *host_ctxt)
 	 * it's unlikely with the SMC-based transport, this too requires some
 	 * tightening in the spec.
 	 */
-	if (WARN_ON(__pkvm_host_add_remove_page(scmi_channel.shmem_pfn, true)))
+	if (WARN_ON(__pkvm_host_donate_hyp(scmi_channel.shmem_pfn, 1)))
 		return true;
 
 	__kvm_host_scmi_handler(host_ctxt);
 
-	WARN_ON(__pkvm_host_add_remove_page(scmi_channel.shmem_pfn, false));
+	WARN_ON(__pkvm_hyp_donate_host(scmi_channel.shmem_pfn, 1));
 	return true; /* Handled */
 }
 

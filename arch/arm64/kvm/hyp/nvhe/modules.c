@@ -6,6 +6,8 @@
 #include <asm/kvm_pkvm_module.h>
 #include <asm/kvm_hypevents.h>
 
+#include <nvhe/alloc.h>
+#include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
@@ -13,6 +15,16 @@
 #include <nvhe/spinlock.h>
 #include <nvhe/trace/trace.h>
 #include <nvhe/trap_handler.h>
+
+static void *__pkvm_module_memcpy(void *to, const void *from, size_t count)
+{
+	return memcpy(to, from, count);
+}
+
+static void *__pkvm_module_memset(void *dst, int c, size_t count)
+{
+	return memset(dst, c, count);
+}
 
 static void __kvm_flush_dcache_to_poc(void *addr, size_t size)
 {
@@ -79,11 +91,6 @@ void __pkvm_close_module_registration(void)
 	 */
 }
 
-static int __pkvm_module_host_donate_hyp(u64 pfn, u64 nr_pages)
-{
-	return ___pkvm_host_donate_hyp(pfn, nr_pages, true);
-}
-
 static void tracing_mod_hyp_printk(u8 fmt_id, u64 a, u64 b, u64 c, u64 d)
 {
 #ifdef CONFIG_TRACING
@@ -130,14 +137,15 @@ const struct pkvm_module_ops module_ops = {
 	.register_psci_notifier = __pkvm_register_psci_notifier,
 	.register_hyp_panic_notifier = __pkvm_register_hyp_panic_notifier,
 	.register_unmask_serror = __pkvm_register_unmask_serror,
-	.host_donate_hyp = __pkvm_module_host_donate_hyp,
+	.host_donate_hyp = ___pkvm_host_donate_hyp,
+	.host_donate_hyp_prot = ___pkvm_host_donate_hyp_prot,
 	.hyp_donate_host = __pkvm_hyp_donate_host,
 	.host_share_hyp = __pkvm_host_share_hyp,
 	.host_unshare_hyp = __pkvm_host_unshare_hyp,
 	.pin_shared_mem = hyp_pin_shared_mem,
 	.unpin_shared_mem = hyp_unpin_shared_mem,
-	.memcpy = memcpy,
-	.memset = memset,
+	.memcpy = __pkvm_module_memcpy,
+	.memset = __pkvm_module_memset,
 	.hyp_pa = hyp_virt_to_phys,
 	.hyp_va = hyp_phys_to_virt,
 	.kern_hyp_va = __kern_hyp_va,
@@ -145,6 +153,19 @@ const struct pkvm_module_ops module_ops = {
 	.tracing_reserve_entry = tracing_reserve_entry,
 	.tracing_commit_entry = tracing_commit_entry,
 	.tracing_mod_hyp_printk = tracing_mod_hyp_printk,
+	.hyp_alloc = hyp_alloc,
+	.hyp_alloc_errno = hyp_alloc_errno,
+	.hyp_free = hyp_free,
+	.hyp_alloc_missing_donations = hyp_alloc_missing_donations,
+	.iommu_donate_pages = kvm_iommu_donate_pages,
+	.iommu_reclaim_pages = kvm_iommu_reclaim_pages,
+	.iommu_init_device = kvm_iommu_init_device,
+	.udelay = pkvm_udelay,
+#ifdef CONFIG_LIST_HARDENED
+	.list_add_valid_or_report = __list_add_valid_or_report,
+	.list_del_entry_valid_or_report = __list_del_entry_valid_or_report,
+#endif
+	.iommu_snapshot_host_stage2 = kvm_iommu_snapshot_host_stage2,
 };
 
 int __pkvm_init_module(void *module_init)

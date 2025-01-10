@@ -125,4 +125,18 @@ HYP_EVENT(selftest,
 );
 #endif
 
+HYP_EVENT(iommu_idmap,
+	HE_PROTO(u64 from, u64 to, int prot),
+	HE_STRUCT(
+		he_field(u64, from)
+		he_field(u64, to)
+		he_field(int, prot)
+	),
+	HE_ASSIGN(
+		__entry->from = from;
+		__entry->to = to;
+		__entry->prot = prot;
+	),
+	HE_PRINTK("from=0x%llx to=0x%llx prot=0x%x", __entry->from, __entry->to, __entry->prot)
+);
 #endif /* __ARM64_KVM_HYPEVENTS_H_ */

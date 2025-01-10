@@ -19,6 +19,7 @@
 #include <linux/kvm.h>
 #include <linux/kvm_host.h>
 
+#include <asm/kvm_mmu.h>
 #include <asm/stacktrace/nvhe.h>
 #include <asm/kvm_pkvm_module.h>
 
@@ -146,7 +147,7 @@ static void unwind(struct unwind_state *state,
  */
 static bool kvm_nvhe_dump_backtrace_entry(void *arg, unsigned long where)
 {
-	unsigned long va_mask = GENMASK_ULL(vabits_actual - 1, 0);
+	unsigned long va_mask = GENMASK_ULL(hyp_va_bits - 1, 0);
 	unsigned long hyp_offset = (unsigned long)arg;
 	unsigned long mod_addr = pkvm_el2_mod_kern_va(where & va_mask);
 	unsigned long where_kaslr;

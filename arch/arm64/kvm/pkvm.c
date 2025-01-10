@@ -443,6 +443,12 @@ static int __init finalize_pkvm(void)
 	if (pkvm_load_early_modules())
 		pkvm_firmware_rmem_clear();
 
+	ret = kvm_iommu_init_driver();
+	if (ret) {
+		pr_err("Failed to init KVM IOMMU driver: %d\n", ret);
+		pkvm_firmware_rmem_clear();
+	}
+
 	/*
 	 * Exclude HYP sections from kmemleak so that they don't get peeked
 	 * at, which would end badly once inaccessible.
@@ -455,7 +461,7 @@ static int __init finalize_pkvm(void)
 	ret = pkvm_drop_host_privileges();
 	if (ret) {
 		pr_err("Failed to finalize Hyp protection: %d\n", ret);
-		BUG();
+		kvm_iommu_remove_driver();
 	}
 
 	return 0;
@@ -1043,18 +1049,19 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 		return ret;
 	}
 
+	pkvm_el2_mod_add(mod);
+
 	offset = (size_t)((void *)mod->init - start);
 	ret = kvm_call_hyp_nvhe(__pkvm_init_module, hyp_va + offset);
 	if (ret) {
 		kvm_err("Failed to init EL2 module: %d\n", ret);
+		list_del(&mod->node);
 		pkvm_unmap_module_sections(secs_map, hyp_va, ARRAY_SIZE(secs_map));
 		module_put(this);
 		return ret;
 	}
 
 	hyp_trace_enable_event_early();
-
-	pkvm_el2_mod_add(mod);
 
 	return 0;
 }
@@ -1134,3 +1141,4 @@ int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 
 	return ret;
 }
+EXPORT_SYMBOL(__pkvm_topup_hyp_alloc_mgt_gfp);

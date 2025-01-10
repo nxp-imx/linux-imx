@@ -3,6 +3,7 @@
 #define __ARM64_KVM_NVHE_IOMMU_H__
 
 #include <asm/kvm_host.h>
+#include <asm/kvm_pgtable.h>
 
 #include <kvm/iommu.h>
 
@@ -32,6 +33,10 @@ void kvm_iommu_reclaim_pages(void *p, u8 order);
 #define kvm_iommu_donate_page_nc()	kvm_iommu_donate_pages(0, IOMMU_PAGE_NOCACHE)
 #define kvm_iommu_reclaim_page(p)	kvm_iommu_reclaim_pages(p, 0)
 
+void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
+				 enum kvm_pgtable_prot prot);
+int kvm_iommu_snapshot_host_stage2(struct kvm_hyp_iommu_domain *domain);
+
 struct kvm_iommu_ops {
 	int (*init)(void);
 	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain, int type);
@@ -51,9 +56,11 @@ struct kvm_iommu_ops {
 	void (*iotlb_sync)(struct kvm_hyp_iommu_domain *domain,
 			   struct iommu_iotlb_gather *gather);
 	bool (*dabt_handler)(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
+	void (*host_stage2_idmap)(struct kvm_hyp_iommu_domain *domain,
+				  phys_addr_t start, phys_addr_t end, int prot);
 };
 
-int kvm_iommu_init(void);
+int kvm_iommu_init(struct kvm_iommu_ops *ops);
 
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 
