@@ -918,10 +918,6 @@ static int trusty_probe(struct platform_device *pdev)
 	 */
 	if (!node)
 		node = pdev->dev.parent->of_node;
-	if (!node) {
-		dev_err(&pdev->dev, "of_node required\n");
-		return -EINVAL;
-	}
 
 	tr = dev_get_drvdata(pdev->dev.parent);
 	if (!tr)
@@ -1024,10 +1020,14 @@ static int trusty_probe(struct platform_device *pdev)
 		s->transport->ops->set_sched_share_state(s->transport,
 							 s->trusty_sched_share_state);
 
-	ret = of_platform_populate(node, NULL, NULL, &pdev->dev);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "Failed to add children: %d\n", ret);
-		goto err_add_children;
+	if (node) {
+		ret = of_platform_populate(node, NULL, NULL, &pdev->dev);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to add children: %d\n", ret);
+			goto err_add_children;
+		}
+	} else {
+		dev_warn(&pdev->dev, "of_node not found\n");
 	}
 
 	/* attempt to share; it is optional for compatibility with Trusty

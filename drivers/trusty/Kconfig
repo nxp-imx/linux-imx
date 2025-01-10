@@ -146,6 +146,18 @@ config TRUSTY_CRASH_IS_PANIC
 	 If N, it will contine to run the kernel, but trusty operations will
 	 return errors.
 
+config TRUSTY_POPULATE
+	tristate "Build a module that populates the Trusty devices"
+	default m
+	help
+	  Build a module that will register some platform devices for
+	  some of the other Trusty modules that guests need to use.
+	  This is useful when the device tree does or can not contain
+	  the nodes we need. The devices are populated on module insertion
+	  and persist until trusty-populate.ko is removed.
+
+	  If N, the modules require device tree nodes for probing.
+
 endif # TRUSTY
 
 endmenu

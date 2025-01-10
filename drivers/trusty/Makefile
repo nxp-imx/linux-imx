@@ -21,4 +21,6 @@ trusty-smc-$(CONFIG_ARM64)		+= trusty-smc-arm64.o
 obj-$(CONFIG_TRUSTY_FFA_TRANSPORT)	+= trusty-ffa.o
 trusty-ffa-objs 			+= trusty-ffa-transport.o
 
+obj-$(CONFIG_TRUSTY_POPULATE)		+= trusty-populate.o
+
 ccflags-y			+= -I$(src) -I$(src)/../../include

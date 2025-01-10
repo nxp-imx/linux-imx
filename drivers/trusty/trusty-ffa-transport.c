@@ -339,12 +339,6 @@ static int trusty_ffa_platform_probe(struct platform_device *pdev)
 	char trusty_uuid[UUID_STRING_LEN + 1];
 	struct ffa_partition_info pinfo = { 0 };
 	struct trusty_ffa_state *s;
-	struct device_node *node = pdev->dev.of_node;
-
-	if (!node) {
-		dev_err(&pdev->dev, "of_node required\n");
-		return -EINVAL;
-	}
 
 	dev_ffa = trusty_ffa_find_device();
 	if (IS_ERR(dev_ffa)) {
@@ -395,10 +389,14 @@ static int trusty_ffa_platform_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, &s->transport);
 
-	rc = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
-	if (rc < 0) {
-		dev_err(&pdev->dev, "Failed to add children: %d\n", rc);
-		goto err_add_children;
+	if (pdev->dev.of_node) {
+		rc = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
+		if (rc < 0) {
+			dev_err(&pdev->dev, "Failed to add children: %d\n", rc);
+			goto err_add_children;
+		}
+	} else {
+		dev_warn(&pdev->dev, "of_node not found\n");
 	}
 
 	return 0;
