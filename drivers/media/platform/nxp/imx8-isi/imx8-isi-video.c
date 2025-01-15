@@ -759,12 +759,21 @@ static void mxc_isi_video_free_discard_buffers(struct mxc_isi_video *video)
 static int mxc_isi_video_alloc_discard_buffers(struct mxc_isi_video *video)
 {
 	unsigned int i, j;
+	const struct mxc_isi_plat_data *pdata = video->pipe->isi->pdata;
 
 	/* Allocate memory for each plane. */
 	for (i = 0; i < video->pix.num_planes; i++) {
 		struct mxc_isi_dma_buffer *buf = &video->discard_buffer[i];
-
 		buf->size = PAGE_ALIGN(video->pix.plane_fmt[i].sizeimage);
+
+		if ((pdata->model == MXC_ISI_IMX8MN) || (pdata->model == MXC_ISI_IMX8QM) \
+			|| (pdata->model == MXC_ISI_IMX8QXP) || (pdata->model == MXC_ISI_IMX8MP)) {
+			buf->size *= 2;
+			dev_info(video->pipe->isi->dev,
+				"double the size from %zu to %zu\n",
+				buf->size/2, buf->size);
+		}
+
 		buf->addr = dma_alloc_coherent(video->pipe->isi->dev, buf->size,
 					       &buf->dma, GFP_DMA | GFP_KERNEL);
 		if (!buf->addr) {
