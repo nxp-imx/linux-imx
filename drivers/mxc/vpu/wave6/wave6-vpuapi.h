@@ -1167,6 +1167,7 @@ struct vpu_instance {
 	struct v4l2_pix_format_mplane src_fmt;
 	struct v4l2_pix_format_mplane dst_fmt;
 	struct v4l2_rect crop;
+	struct v4l2_rect codec_rect;
 	enum v4l2_colorspace colorspace;
 	enum v4l2_xfer_func xfer_func;
 	enum v4l2_ycbcr_encoding ycbcr_enc;

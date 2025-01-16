@@ -47,7 +47,7 @@
 #define W6_ENC_PIC_SIZE_STEP            8
 #define W6_ENC_CROP_X_POS_STEP          32
 #define W6_ENC_CROP_Y_POS_STEP          2
-
+#define W6_ENC_CROP_STEP                2
 #define W6_VPU_POLL_TIMEOUT             300000
 #define W6_BOOT_WAIT_TIMEOUT            10000
 
