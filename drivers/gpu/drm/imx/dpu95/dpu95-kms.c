@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2020,2022,2023,2025 NXP
+ * Copyright 2017-2020,2022,2023,2025,2026 NXP
  */
 
 #include <linux/list.h>
-#include <linux/of.h>
-#include <linux/of_graph.h>
 #include <linux/slab.h>
 #include <linux/sort.h>
 
@@ -516,29 +514,24 @@ static int dpu95_kms_init_encoder_per_crtc(struct dpu95_drm_device *dpu_drm,
 {
 	struct drm_device *drm = &dpu_drm->base;
 	struct drm_crtc *crtc = &dpu_crtc->base;
-	struct device_node *ep, *remote;
 	struct drm_connector *connector;
 	struct drm_encoder *encoder;
 	struct drm_bridge *bridge;
-	int ret = 0;
+	int ret;
 
-	ep = of_get_next_child(dpu_crtc->np, NULL);
-	if (!ep) {
-		drm_err(drm, "failed to find CRTC(%pOF) port's endpoint\n",
-			dpu_crtc->np);
-		return -ENODEV;
-	}
-
-	remote = of_graph_get_remote_port_parent(ep);
-	if (!of_device_is_available(remote))
-		goto out;
-
-	bridge = of_drm_find_bridge(remote);
+	bridge = devm_drm_of_get_bridge(drm->dev, drm->dev->of_node,
+					dpu_crtc->stream_id, 0);
 	if (!bridge) {
 		ret = -EPROBE_DEFER;
 		drm_dbg_kms(drm, "failed to find bridge for stream%u: %d\n",
 			    dpu_crtc->stream_id, ret);
 		goto out;
+	} else if (IS_ERR(bridge)) {
+		ret = PTR_ERR(bridge);
+		if (ret == -ENODEV)
+			return 0;
+		else
+			return ret;
 	}
 
 	encoder = &dpu_drm->encoder[dpu_crtc->stream_id];
@@ -574,8 +567,6 @@ static int dpu95_kms_init_encoder_per_crtc(struct dpu95_drm_device *dpu_drm,
 			dpu_crtc->stream_id, ret);
 
 out:
-	of_node_put(remote);
-	of_node_put(ep);
 	return ret;
 }
 
