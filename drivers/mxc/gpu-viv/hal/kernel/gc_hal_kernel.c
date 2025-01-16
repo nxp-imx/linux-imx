@@ -915,6 +915,10 @@ gckKERNEL_Construct(IN gckOS Os, IN gceCORE Core,
     kernel->preemptionMode = gcvFULLY_PREEMPTIBLE_MODE;
 #endif
 
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    gcmkONERROR(gckGPUWORK_Construct(kernel, &kernel->traceGpuWork));
+#endif
+
     gcmkONERROR(gckOS_AtomConstruct(Os, &kernel->atomBroCoreMask));
 
     /* Initially all the cores are brothers. */
@@ -1122,6 +1126,10 @@ gckKERNEL_Destroy(IN gckKERNEL Kernel)
         /* Notify stuck timer to quit. */
         Kernel->monitorTimerStop = gcvTRUE;
     }
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    gcmkVERIFY_OK(gckGPUWORK_Destroy(Kernel->traceGpuWork));
+#endif
 
 #if gcdDVFS
     if (Kernel->dvfs) {
@@ -3880,13 +3888,6 @@ gckKERNEL_AttachProcess(IN gckKERNEL Kernel, IN gctBOOL Attach)
     /* Get current process ID. */
     gcmkONERROR(gckOS_GetProcessID(&processID));
 
-#if gcdENABLE_GPU_WORK_PERIOD_TRACE
-    if (Attach) {
-        /* Get Android Application UID */
-        gcmkONERROR(gckOS_GetApplicationUserID(Kernel->core));
-    }
-#endif
-
     gcmkONERROR(gckKERNEL_AttachProcessEx(Kernel, Attach, processID));
 
     /* Success. */
@@ -3926,11 +3927,24 @@ gckKERNEL_AttachProcessEx(IN gckKERNEL Kernel, IN gctBOOL Attach, IN gctUINT32 P
 {
     gceSTATUS status;
     gctINT32  old;
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    gctUINT32 userID;
+#endif
 
     gcmkHEADER_ARG("Kernel=%p Attach=%d PID=%d", Kernel, Attach, PID);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    /* Get userID by processID. */
+    gcmkONERROR(gckOS_GetUserID(PID, &userID));
+
+    if (Attach)
+        gcmkONERROR(gckGPUWORK_Attach(Kernel->traceGpuWork, userID));
+    else
+        gcmkONERROR(gckGPUWORK_Dettach(Kernel->traceGpuWork, userID));
+#endif
 
     if (Attach) {
         /* Increment the number of clients attached. */

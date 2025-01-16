@@ -76,6 +76,9 @@ typedef struct _gckDB              *gckDB;
 typedef struct _gckDVFS            *gckDVFS;
 typedef struct _gckMMU             *gckMMU;
 typedef struct _gcsDEVICE          *gckDEVICE;
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+typedef struct _gcsGPUWORK         *gckGPUWORK;
+#endif
 
 /******************************************************************************
  ****************************** Alignment Macros ******************************
@@ -815,7 +818,7 @@ gckOS_GetCurrentProcessID(OUT gctUINT32_PTR ProcessID);
 
 #if gcdENABLE_GPU_WORK_PERIOD_TRACE
 gceSTATUS
-gckOS_GetApplicationUserID(IN gctUINT32 CoreID);
+gckOS_GetUserID(IN gctUINT32 PID, OUT gctUINT32_PTR UserID);
 #endif
 
 /*******************************************************************************

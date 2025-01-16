@@ -102,11 +102,6 @@ gctBOOL memTraceFlag = 1;
 #endif
 #endif
 
-#if gcdENABLE_GPU_WORK_PERIOD_TRACE
-#   include "gc_hal_kernel_trace_gpu_work.h"
-#   define ANDROID_FIRST_APPLICATION_UID    10000
-#endif
-
 #define _GC_OBJ_ZONE        gcvZONE_OS
 #define USING_PFN_FOLLOW    0
 
@@ -1192,7 +1187,7 @@ gckOS_UnmapMemory(IN gckOS        Os,
                   IN gctPOINTER   Logical)
 {
     gceSTATUS status = gcvSTATUS_OK;
-    
+
     gcmkHEADER_ARG("Os=%p Physical=0%p Bytes=0x%zx Logical=%p",
                    Os, Physical, Bytes, Logical);
 
@@ -7443,15 +7438,13 @@ gckOS_TraceGpuMemory(IN gckOS Os, IN gctINT32 ProcessID, IN gctINT64 Delta)
 
 #if gcdENABLE_GPU_WORK_PERIOD_TRACE
 gceSTATUS
-gckOS_GetApplicationUserID(gctUINT32 CoreID)
+gckOS_GetUserID(IN gctUINT32 PID, OUT gctUINT32_PTR UserID)
 {
-    gctUINT32 UserID;
+    /* Get User ID. */
+    *UserID = _GetUserID(PID);
 
-    UserID = _GetUserID();
-
-    if (UserID >= ANDROID_FIRST_APPLICATION_UID)
-        trace_gpu_work_period(CoreID, UserID, 100000000, 300000000, 150000000);
-
+    /* Success. */
     return gcvSTATUS_OK;
 }
 #endif
+

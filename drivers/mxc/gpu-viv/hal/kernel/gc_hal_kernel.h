@@ -496,6 +496,10 @@ struct _gckKERNEL {
     gcePREEMPTION_MODE          preemptionMode;
     gctBOOL                     killPreemptThread;
 #endif
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    gckGPUWORK                  traceGpuWork;
+#endif
 };
 
 struct _FrequencyHistory {
@@ -1407,6 +1411,56 @@ typedef struct _gcsDEVICE {
     gctBOOL                     preemptThreadInits[gcvCORE_COUNT];
 #endif
 } gcsDEVICE;
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+/* Record the UID for gpu work period tracing. */
+typedef struct _gcsUID_INFO         *gcsUID_INFO_PTR;
+
+typedef struct _gcsUID_INFO {
+    gctUINT32                   uid;
+    gctUINT32                   reference;
+    gcsUID_INFO_PTR             next;
+} gcsUID_INFO;
+
+typedef struct _gcsGPUWORK{
+    /* Pointer to required objects. */
+    gckKERNEL                   kernel;
+    gckOS                       os;
+
+    gctUINT64                   lastTime;
+
+    /* Current uid info list. */
+    gcsUID_INFO_PTR             uidInfoList;
+    gctSIZE_T                   uidInfoCount;
+    gctPOINTER                  uidInfoListMutex;
+
+    /* List of free uid info structures and its mutex. */
+    gcsUID_INFO_PTR             freeList;
+    gctSIZE_T                   freeCount;
+    gctPOINTER                  freeListMutex;
+
+    /* Gpu work period trace timer. */
+    gctPOINTER                  gpuWorkTimer;
+} gcsGPUWORK;
+
+gceSTATUS
+gckGPUWORK_Construct(gckKERNEL Kernel, gckGPUWORK *GpuWork);
+
+gceSTATUS
+gckGPUWORK_Destroy(gckGPUWORK GpuWork);
+
+gceSTATUS
+gckGPUWORK_Attach(gckGPUWORK GpuWork, gctUINT32 UserID);
+
+gceSTATUS
+gckGPUWORK_Dettach(gckGPUWORK GpuWork, gctUINT32 UserID);
+
+gceSTATUS
+gckGPUWORK_AllocateUidInfo(gckGPUWORK GpuWork, gcsUID_INFO_PTR *UidInfo);
+
+gceSTATUS
+gckGPUWORK_FreeUidInfo(gckGPUWORK GpuWork, gcsUID_INFO_PTR UidInfo);
+#endif /* gcdENABLE_GPU_WORK_PERIOD_TRACE */
 
 /* video memory pool functions. */
 /* Construct a new gckVIDMEM object. */

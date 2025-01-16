@@ -105,6 +105,7 @@ extern "C" {
 #define gcvZONE_POWER         (1 << 14)
 #define gcvZONE_ASYNC_COMMAND (1 << 15)
 #define gcvZONE_ALLOCATOR     (1 << 16)
+#define gcvZONE_TRACEPOINT    (1 << 17)
 
 /* Subzones of HAL User */
 #define gcdZONE_HAL_API     (1 << 4)
