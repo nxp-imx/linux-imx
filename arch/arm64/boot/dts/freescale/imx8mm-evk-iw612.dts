@@ -7,3 +7,7 @@
 &usdhc1 {
 	status = "disabled";
 };
+
+&uart3 {
+    status = "ok";
+};
