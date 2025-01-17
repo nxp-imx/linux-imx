@@ -213,4 +213,21 @@
  */
 #define TRUSTY_FFA_MSG_RUN_NOPCALL	(3)
 
+/**
+ * TRUSTY_FFA_MSG_IS_IDLE - Check if Trusty is idle on the current CPU.
+ *
+ * Return:
+ * * 1 in @r3 if the current CPU is idle
+ * * 0 if Trusty is busy (e.g. was interrupted)
+ * * One of the libsm error codes in case of error
+ *
+ * The non-secure scheduler needs to know if Trusty is idle to determine
+ * whether to give it more CPU cycles when it gets preempted. On Linux,
+ * we use the shadow priority but that requires sharing the sched-share state
+ * between NS and Trusty. %TRUSTY_FFA_MSG_IS_IDLE is a backup direct message
+ * that returns the same information to environments where this structure
+ * is not already shared, e.g., in bootloaders.
+ */
+#define TRUSTY_FFA_MSG_IS_IDLE		(4)
+
 #endif /* __LINUX_TRUSTY_SMCALL_H */
