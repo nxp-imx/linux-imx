@@ -314,14 +314,12 @@ gckKERNEL_DestroyProcessReservedUserMap(IN gckKERNEL Kernel, IN gctUINT32 Pid)
 
     physHandle = (PLINUX_MDL)galDevice->internalPhysical;
     bytes = galDevice->internalSize;
-
     if (bytes) {
         gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
     }
 
     physHandle = (PLINUX_MDL)device->externalPhysical;
     bytes = device->externalSize;
-
     if (bytes) {
         gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
     }
@@ -331,7 +329,6 @@ gckKERNEL_DestroyProcessReservedUserMap(IN gckKERNEL Kernel, IN gctUINT32 Pid)
     for (i = 0; i < gcdSYSTEM_RESERVE_COUNT; i++) {
         physHandle = (PLINUX_MDL)device->contiguousPhysicals[i];
         bytes = device->contiguousSizes[i];
-
         if (bytes) {
             gckOS_UnmapMemoryEx(Kernel->os, physHandle, bytes, Logical, Pid);
         }

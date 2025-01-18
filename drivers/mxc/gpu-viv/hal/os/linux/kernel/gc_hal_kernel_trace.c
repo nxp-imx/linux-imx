@@ -52,7 +52,6 @@
 *
 *****************************************************************************/
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #if gcdENABLE_GPU_WORK_PERIOD_TRACE
