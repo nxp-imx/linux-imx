@@ -2615,9 +2615,7 @@ gckHARDWARE_InitializeHardware(IN gckHARDWARE Hardware)
                                           offset + 0x2C, 0x2));
     }
 
-#if !gcdCAPTURE_ONLY_MODE
     gcmkONERROR(gckHARDWARE_SetMMU(Hardware, Hardware->kernel->mmu));
-#endif
 
     if (Hardware->mcFE) {
         /* Reinitialize MCFE, now MMU is enabled. */

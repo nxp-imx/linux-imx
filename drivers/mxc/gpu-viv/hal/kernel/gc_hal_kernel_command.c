@@ -2324,7 +2324,7 @@ _CommitWaitLinkOnce(IN gckCOMMAND Command,
                              &entryLinkLow, &entryLinkHigh));
 #    else
 #if gcdCAPTURE_ONLY_MODE
-    if (database && database->matchCaptureOnly)
+    if (database && database->matchCaptureOnly) {
         /*
         * Skip link to entryAddress.
         * Instead, we directly link to final wait link position.
@@ -2333,7 +2333,7 @@ _CommitWaitLinkOnce(IN gckCOMMAND Command,
                                     waitLinkAddress, waitLinkBytes,
                                     &Command->waitPos.size,
                                     &entryLinkLow, &entryLinkHigh));
-    else
+    } else {
         /*
          * Generate a LINK from the previous WAIT/LINK command sequence to the
          * entry determined above (either the context or the command buffer).
@@ -2345,7 +2345,7 @@ _CommitWaitLinkOnce(IN gckCOMMAND Command,
                                  entryAddress, entryBytes,
                                  &Command->waitPos.size,
                                  &entryLinkLow, &entryLinkHigh));
-
+    }
 #       else
     /*
      * Generate a LINK from the previous WAIT/LINK command sequence to the
@@ -3329,7 +3329,7 @@ gckCOMMAND_Execute(IN gckCOMMAND Command, IN gctUINT32 RequestedBytes)
     if (processID)
         gckKERNEL_FindDatabase(Command->kernel, processID, gcvFALSE, &database);
 
-    if (database && database->matchCaptureOnly)
+    if (database && database->matchCaptureOnly) {
         /*
          * Skip link to execAddress.
          * Instead, we directly link to final wait link position.
@@ -3339,13 +3339,14 @@ gckCOMMAND_Execute(IN gckCOMMAND Command, IN gctUINT32 RequestedBytes)
                                  waitLinkAddress, waitLinkBytes,
                                  &Command->waitPos.size,
                                  &linkLow, &linkHigh));
-    else
+    } else {
         /* Convert the last WAIT into a LINK. */
         gcmkONERROR(gckWLFE_Link(Command->kernel->hardware,
                              Command->waitPos.logical,
                              execAddress, execBytes,
                              &Command->waitPos.size,
                              &linkLow, &linkHigh));
+    }
 #   else
         /* Convert the last WAIT into a LINK. */
         gcmkONERROR(gckWLFE_Link(Command->kernel->hardware,

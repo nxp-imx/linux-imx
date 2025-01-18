@@ -3757,15 +3757,16 @@ gckVIDMEM_NODE_LockCPU(IN gckKERNEL Kernel, IN gckVIDMEM_NODE NodeObject,
 
         if (FromUser) {
 #if gcdCAPTURE_ONLY_MODE
-            if (database && database->matchCaptureOnly)
+            if (database && database->matchCaptureOnly) {
                 node->VidMem.logical = NodeObject->captureLogical;
-            else
+            } else {
                 /* Map video memory pool to user space. */
                 gcmkONERROR(gckKERNEL_MapVideoMemory(Kernel, gcvTRUE, node->VidMem.pool,
                                                      node->VidMem.physical,
                                                      node->VidMem.offset,
                                                      node->VidMem.bytes,
                                                      &node->VidMem.logical));
+            }
 #else
             /* Map video memory pool to user space. */
             gcmkONERROR(gckKERNEL_MapVideoMemory(Kernel, gcvTRUE, node->VidMem.pool,
@@ -3779,13 +3780,14 @@ gckVIDMEM_NODE_LockCPU(IN gckKERNEL Kernel, IN gckVIDMEM_NODE NodeObject,
             /* Map video memory pool to kernel space. */
             if (!node->VidMem.kvaddr) {
 #if gcdCAPTURE_ONLY_MODE
-                if (database && database->matchCaptureOnly)
+                if (database && database->matchCaptureOnly) {
                     gcmkONERROR(gckOS_Allocate(os, node->VidMem.bytes, &node->VidMem.kvaddr));
-                else
+                } else {
                     gcmkONERROR(gckOS_CreateKernelMapping(os, node->VidMem.parent->physical,
                                                               node->VidMem.offset,
                                                               node->VidMem.bytes,
                                                               &node->VidMem.kvaddr));
+                }
 #else
                 gcmkONERROR(gckOS_CreateKernelMapping(os, node->VidMem.parent->physical,
                                                       node->VidMem.offset,
