@@ -155,19 +155,22 @@ TRACE_EVENT(trusty_share_memory_done,
 );
 
 TRACE_EVENT(trusty_enqueue_nop,
-	TP_PROTO(struct trusty_nop *nop),
-	TP_ARGS(nop),
+	TP_PROTO(struct trusty_nop *nop, int cpu),
+	TP_ARGS(nop, cpu),
 	TP_STRUCT__entry(
 		__field(u32, arg1)
 		__field(u32, arg2)
 		__field(u32, arg3)
+		__field(int, cpu)
 	),
 	TP_fast_assign(
 		__entry->arg1 = nop ? nop->args[0] : 0U;
 		__entry->arg2 = nop ? nop->args[1] : 0U;
 		__entry->arg3 = nop ? nop->args[2] : 0U;
+		__entry->cpu = cpu;
 	),
-	TP_printk("arg1=0x%x, arg2=0x%x, arg3=0x%x", __entry->arg1, __entry->arg2, __entry->arg3)
+	TP_printk("arg1=0x%x, arg2=0x%x, arg3=0x%x, cpu=%d", __entry->arg1, __entry->arg2,
+		__entry->arg3, __entry->cpu)
 );
 
 TRACE_EVENT(trusty_dequeue_nop,

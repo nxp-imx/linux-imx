@@ -133,6 +133,7 @@ static inline void trusty_nop_init(struct trusty_nop *nop,
 	nop->args[2] = arg2;
 }
 
+void trusty_enqueue_nop_on_cpu(struct device *dev, struct trusty_nop *nop, int cpu);
 void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop);
 void trusty_dequeue_nop(struct device *dev, struct trusty_nop *nop);
 int trusty_nop_nice_value(void);
