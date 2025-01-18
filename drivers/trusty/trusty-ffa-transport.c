@@ -323,6 +323,12 @@ struct device *trusty_ffa_find_device(void)
 }
 EXPORT_SYMBOL(trusty_ffa_find_device);
 
+static int trusty_ffa_remove_child(struct device *dev, void *data)
+{
+	platform_device_unregister(to_platform_device(dev));
+	return 0;
+}
+
 static struct ffa_driver trusty_ffa_driver = {
 	.name = "trusty-ffa",
 	.probe = trusty_ffa_probe,
@@ -415,6 +421,8 @@ err_find_ffa_device:
 static void trusty_ffa_platform_remove(struct platform_device *pdev)
 {
 	struct trusty_ffa_state *s = trusty_ffa_get_state(platform_get_drvdata(pdev));
+
+	device_for_each_child(&pdev->dev, NULL, trusty_ffa_remove_child);
 
 	put_device(s->dev);
 }
