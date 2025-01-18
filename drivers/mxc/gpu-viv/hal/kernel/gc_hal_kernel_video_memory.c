@@ -2227,7 +2227,7 @@ gckVIDMEM_Lock(IN gckKERNEL Kernel,
             gcmkFALLTHRU;
         case gcvPOOL_SYSTEM:
 #if gcdCAPTURE_ONLY_MODE
-            gcmkONERROR(gckOS_GetProcessID(&processID));
+            gckOS_GetProcessID(&processID);
 
             if (processID) {
                 gckKERNEL_FindDatabase(Kernel, processID, gcvFALSE, &database);
