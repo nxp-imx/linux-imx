@@ -1240,6 +1240,10 @@ gckEVENT_Submit(IN gckEVENT Event, IN gckEVENT_ATTR EventAttr)
 #if gcdSECURITY
     gctPOINTER         reservedBuffer;
 #endif
+#if gcdCAPTURE_ONLY_MODE
+    gcsDATABASE_PTR database;
+    gctUINT32 processID;
+#endif
 
     gcmkHEADER_ARG("Event=0x%x", Event);
 
@@ -1395,11 +1399,27 @@ gckEVENT_Submit(IN gckEVENT Event, IN gckEVENT_ATTR EventAttr)
                 gcmkONERROR(gckCOMMAND_ExecuteMultiChannel(command, 0, 0, executeBytes));
             }
 
-#if gcdNULL_DRIVER || gcdCAPTURE_ONLY_MODE
+#if gcdNULL_DRIVER
             /* Notify immediately on infinite hardware. */
             gcmkONERROR(gckEVENT_Interrupt(Event, 1 << id));
 
             gcmkONERROR(gckEVENT_Notify(Event, 0, gcvNULL));
+#endif
+#if gcdCAPTURE_ONLY_MODE
+            gcmkONERROR(gckOS_GetProcessID(&processID));
+
+            if (processID) {
+                gckKERNEL_FindDatabase(command->kernel, processID, gcvFALSE, &database);
+
+                if (database && database->matchCaptureOnly) {
+                    if (Event->kernel) {
+                        /* Notify immediately on infinite hardware. */
+                        gcmkONERROR(gckEVENT_Interrupt(Event, 1 << id));
+
+                        gcmkONERROR(gckEVENT_Notify(Event, 0, gcvNULL));
+                    }
+                }
+            }
 #endif
         }
 

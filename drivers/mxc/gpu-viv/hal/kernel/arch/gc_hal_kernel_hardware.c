@@ -7372,6 +7372,10 @@ gckHARDWARE_QueryIdle(IN gckHARDWARE Hardware, OUT gctBOOL_PTR IsIdle)
     gceSTATUS status = gcvSTATUS_OK;
     gctUINT32 idle;
     gctBOOL   isIdle = gcvFALSE;
+#if gcdCAPTURE_ONLY_MODE
+    gcsDATABASE_PTR database = gcvNULL;
+    gctUINT32 processID;
+#endif
 
 #if gcdINTERRUPT_STATISTIC
     gckEVENT eventObj = Hardware->kernel->eventObj;
@@ -7385,8 +7389,16 @@ gckHARDWARE_QueryIdle(IN gckHARDWARE Hardware, OUT gctBOOL_PTR IsIdle)
     gcmkVERIFY_ARGUMENT(IsIdle != gcvNULL);
 
 #if gcdCAPTURE_ONLY_MODE
-    *IsIdle = gcvTRUE;
-    gcmkONERROR(status);
+    gcmkONERROR(gckOS_GetProcessID(&processID));
+
+    if (processID) {
+        gckKERNEL_FindDatabase(Hardware->kernel, processID, gcvFALSE, &database);
+
+        if (database && database->matchCaptureOnly) {
+            *IsIdle = gcvTRUE;
+            gcmkONERROR(status);
+        }
+    }
 #endif
 
     do {
@@ -10356,10 +10368,6 @@ gckHARDWARE_ExecuteFunctions(IN gcsFUNCTION_EXECUTION_PTR Execution)
     gctUINT32   i, timer = 0, delay = 10;
     gctADDRESS  address;
     gckHARDWARE hardware = (gckHARDWARE)Execution->hardware;
-
-#if gcdCAPTURE_ONLY_MODE
-    gcmkONERROR(status);
-#endif
 
 #if gcdDUMP_IN_KERNEL
     gcmkDUMP(hardware->os, "#[function: %s]", Execution->funcName);

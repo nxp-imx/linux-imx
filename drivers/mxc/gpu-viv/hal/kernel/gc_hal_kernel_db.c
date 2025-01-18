@@ -548,6 +548,9 @@ gckKERNEL_CreateProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
     database->mapMemory.totalBytes = 0;
     database->mapMemory.freeCount  = 0;
     database->mapMemory.allocCount = 0;
+#if gcdCAPTURE_ONLY_MODE
+    database->matchCaptureOnly = gcvFALSE;
+#endif
 
     for (i = 0; i < gcmCOUNTOF(database->list); i++)
         database->list[i] = gcvNULL;

@@ -2504,7 +2504,7 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
                 gcmkONERROR(gckMMU_FillFlatMapping(mmu, gpuAddress, physSize, gcvFALSE, gcvFALSE, gcvNULL));
         }
 
-#if !(0 || gcdCAPTURE_ONLY_MODE)
+#if !(0)
         if (!_ReadPageEntry(mmu->mtlbLogical + 0)) {
 #if !gcdENABLE_40BIT_VA
             gctUINT32 mtlbEntry;

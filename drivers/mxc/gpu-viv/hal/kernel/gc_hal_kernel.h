@@ -208,6 +208,9 @@ typedef struct _gcsDATABASE {
 
     gctPOINTER                          handleDatabase;
     gctPOINTER                          handleDatabaseMutex;
+#if gcdCAPTURE_ONLY_MODE
+    gctBOOL                             matchCaptureOnly;
+#endif
 } gcsDATABASE;
 
 typedef struct _gcsFDPRIVATE *gcsFDPRIVATE_PTR;
