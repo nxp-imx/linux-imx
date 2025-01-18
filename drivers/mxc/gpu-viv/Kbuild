@@ -211,7 +211,7 @@ endif
 
 ifeq ($(CONFIG_FTRACE),y)
 ifneq ($(CONFIG_ANDROID),y)
-ccflags-y += -DgcdSYSTRACE=1 -DgcdDEBUG=gcdDEBUG_TRACE
+#ccflags-y += -DgcdSYSTRACE=1 -DgcdDEBUG=gcdDEBUG_TRACE
 endif
 endif
 
