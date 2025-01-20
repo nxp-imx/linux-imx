@@ -43,7 +43,7 @@
 #define W6_MIN_ENC_PIC_WIDTH            256U
 #define W6_MIN_ENC_PIC_HEIGHT           128U
 #define W6_MAX_ENC_PIC_WIDTH            4096U
-#define W6_MAX_ENC_PIC_HEIGHT           2304U
+#define W6_MAX_ENC_PIC_HEIGHT           4096U
 #define W6_ENC_PIC_SIZE_STEP            8
 #define W6_ENC_CROP_X_POS_STEP          32
 #define W6_ENC_CROP_Y_POS_STEP          2
