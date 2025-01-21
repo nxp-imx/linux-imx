@@ -1555,3 +1555,5 @@
 		spi-tx-bus-width = <8>;
 	};
 };
+
+#include "imx943-android.dtsi"
