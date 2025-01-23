@@ -91,8 +91,6 @@ additionalProperties: false
 
 examples:
   - |
-    #include <dt-bindings/clock/fsl,imx95-clock.h>
-    #include <dt-bindings/power/fsl,imx95-power.h>
     bridge@4b0d0000 {
       compatible = "nxp,imx95-pixel-interleaver";
       #address-cells = <1>;
@@ -100,8 +98,8 @@ examples:
       reg = <0x4b0d0000 0x20000>;
       interrupt-parent = <&displaymix_irqsteer>;
       interrupts = <62>;
-      clocks = <&scmi_clk IMX95_CLK_DISPAPB>;
-      power-domains = <&scmi_devpd IMX95_PD_DISPLAY>;
+      clocks = <&scmi_clk 75>;
+      power-domains = <&scmi_devpd 13>;
       nxp,blk-ctrl = <&dispmix_csr>;
 
       channel@0 {
