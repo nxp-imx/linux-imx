@@ -11,19 +11,24 @@ maintainers:
 
 properties:
   compatible:
-    items:
-      - enum:
-          - nxp,imx94-display-csr
-          - nxp,imx94-lvds-csr
-          - nxp,imx95-camera-csr
-          - nxp,imx95-display-csr
-          - nxp,imx95-hsio-blk-ctl
-          - nxp,imx95-lvds-csr
-          - nxp,imx95-netcmix-blk-ctrl
-          - nxp,imx95-vpu-csr
-          - nxp,imx95-hsio-blk-ctl
-          - nxp,imx952-display-csr
-      - const: syscon
+    oneOf:
+      - items:
+          - enum:
+              - nxp,imx94-display-csr
+              - nxp,imx94-lvds-csr
+              - nxp,imx95-camera-csr
+              - nxp,imx95-display-csr
+              - nxp,imx95-hsio-blk-ctl
+              - nxp,imx95-lvds-csr
+              - nxp,imx95-netcmix-blk-ctrl
+              - nxp,imx95-vpu-csr
+              - nxp,imx95-hsio-blk-ctl
+              - nxp,imx952-display-csr
+          - const: syscon
+      - items:
+          - const: nxp,imx952-lvds-csr
+          - const: nxp,imx95-lvds-csr
+          - const: syscon
 
   reg:
     maxItems: 1
