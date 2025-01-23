@@ -1275,6 +1275,9 @@ static int dpu_probe(struct platform_device *pdev)
 	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
 		dpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
 		if (dpu->trusty_dev) {
+			if (!dpu->trusty_dev->driver || !dev_get_drvdata(dpu->trusty_dev))
+				return -EPROBE_DEFER;
+
 			ret = trusty_fast_call32(dpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
 			if (ret) {
 				dpu->trusty_dev = NULL;

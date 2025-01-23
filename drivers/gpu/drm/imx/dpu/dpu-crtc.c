@@ -1489,6 +1489,9 @@ static int dpu_crtc_probe(struct platform_device *pdev)
 	if (sp != NULL) {
 		dpu_crtc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
 		if (dpu_crtc->trusty_dev) {
+			if (!dpu_crtc->trusty_dev->driver || !dev_get_drvdata(dpu_crtc->trusty_dev))
+				return -EPROBE_DEFER;
+
 			ret = trusty_fast_call32(dpu_crtc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
 			if (ret) {
 				dpu_crtc->trusty_dev = NULL;
