@@ -167,6 +167,8 @@ static int vpu_probe(struct platform_device *pdev)
 	/*check trusty node*/
 	sp = of_find_node_by_name(NULL, "trusty");
 	if (sp != NULL) {
+		if(!platform_get_drvdata(of_find_device_by_node(sp)))
+			return -EPROBE_DEFER;
 		struct platform_device *pd;
 		pd = of_find_device_by_node(sp);
 		if (pd != NULL) {
