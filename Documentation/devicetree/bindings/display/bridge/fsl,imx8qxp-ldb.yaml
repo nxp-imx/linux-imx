@@ -43,10 +43,14 @@ description: |
 
 properties:
   compatible:
-    enum:
-      - fsl,imx8qm-ldb
-      - fsl,imx8qxp-ldb
-      - fsl,imx95-ldb
+    oneOf:
+      - enum:
+          - fsl,imx8qm-ldb
+          - fsl,imx8qxp-ldb
+          - fsl,imx95-ldb
+      - items:
+          - const: fsl,imx952-ldb
+          - const: fsl,imx95-ldb
 
   "#address-cells":
     const: 1
