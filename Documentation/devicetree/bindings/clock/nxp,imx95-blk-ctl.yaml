@@ -22,6 +22,7 @@ properties:
           - nxp,imx95-netcmix-blk-ctrl
           - nxp,imx95-vpu-csr
           - nxp,imx95-hsio-blk-ctl
+          - nxp,imx952-display-csr
       - const: syscon
 
   reg:
