@@ -18,11 +18,18 @@ description: |
 
 properties:
   compatible:
-    enum:
-      - fsl,imx8mp-lvds-phy
-      - fsl,imx93-lvds-phy
-      - fsl,imx95-lvds0-phy
-      - fsl,imx95-lvds1-phy
+    oneOf:
+      - enum:
+          - fsl,imx8mp-lvds-phy
+          - fsl,imx93-lvds-phy
+          - fsl,imx95-lvds0-phy
+          - fsl,imx95-lvds1-phy
+      - items:
+          - const: fsl,imx952-lvds0-phy
+          - const: fsl,imx95-lvds0-phy
+      - items:
+          - const: fsl,imx952-lvds1-phy
+          - const: fsl,imx95-lvds1-phy
 
   "#address-cells":
     const: 1
