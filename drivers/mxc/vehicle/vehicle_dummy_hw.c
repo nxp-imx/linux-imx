@@ -464,7 +464,9 @@ static ssize_t temp_left_store(struct device *dev,
 	temp = simple_strtoul(buf, NULL, 10);
 	if (temp != vehicle_dummy->temp_left) {
 		vehicle_dummy->temp_left = temp;
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_LEFT_INDEX, temp, 0);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, VEHICLE_AREA_SEAT_ROW_1_LEFT , temp, 0);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, VEHICLE_AREA_SEAT_ROW_2_LEFT , temp, 0);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, VEHICLE_AREA_SEAT_ROW_2_CENTER, temp, 0);
 	}
 	return size;
 }
@@ -491,7 +493,8 @@ static ssize_t temp_right_store(struct device *dev,
 	temp = simple_strtoul(buf, NULL, 10);
 	if (temp != vehicle_dummy->temp_right) {
 		vehicle_dummy->temp_right = temp;
-		vehicle_hal_set_property(VEHICLE_AC_TEMP, AC_TEMP_RIGHT_INDEX, temp, 0);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, VEHICLE_AREA_SEAT_ROW_1_RIGHT, temp, 0);
+		vehicle_hal_set_property(VEHICLE_AC_TEMP, VEHICLE_AREA_SEAT_ROW_2_RIGHT, temp, 0);
 	}
 	return size;
 }
