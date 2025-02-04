@@ -36,6 +36,11 @@ struct trusty_vdev;
 static bool use_high_wq;
 module_param(use_high_wq, bool, 0660);
 
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+static ulong default_vq_check_period_ms;
+module_param(default_vq_check_period_ms, ulong, 0660);
+#endif
+
 struct trusty_ctx {
 	struct device		*dev;
 	void			*shared_va;
@@ -888,6 +893,7 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
 	mutex_init(&tctx->vq_timer_lock);
 	hrtimer_init(&tctx->vq_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	tctx->vq_check_period_ms = default_vq_check_period_ms;
 	tctx->vq_timer.function = vq_timer_fn;
 #endif
 	INIT_WORK(&tctx->check_vqs, check_all_vqs);
