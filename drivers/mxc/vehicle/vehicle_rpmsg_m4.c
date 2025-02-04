@@ -604,17 +604,28 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 			}
 		}
 
-		if (msg->statetype == VEHICLE_HVAC_POWER_ON){
-			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
-			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
-		}
-		else if (msg->statetype == VEHICLE_AUTO_ON){
+		if ((msg->statetype == VEHICLE_HVAC_POWER_ON) || (msg->statetype == VEHICLE_AUTO_ON)){
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_LEFT ,  msg->statevalue, 0);
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_RIGHT ,  msg->statevalue, 0);
 			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_CENTER ,  msg->statevalue, 0);
+		}
+		else if (msg->statetype == VEHICLE_AC_TEMP){
+			//areaIDs that share the same UI temperature element in current HVAC UI (left side)
+			if ((msg->index == VEHICLE_AREA_SEAT_ROW_1_LEFT) || (msg->index == VEHICLE_AREA_SEAT_ROW_2_LEFT) || (msg->index == VEHICLE_AREA_SEAT_ROW_2_CENTER)){
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_LEFT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_LEFT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_CENTER ,  msg->statevalue, 0);
 			}
+			//areaIDs that share the same UI temperature element in current HVAC UI (right side)
+			else if ((msg->index == VEHICLE_AREA_SEAT_ROW_1_RIGHT) || (msg->index == VEHICLE_AREA_SEAT_ROW_2_RIGHT)){
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_1_RIGHT ,  msg->statevalue, 0);
+			vehicle_hal_set_property(msg->statetype, VEHICLE_AREA_SEAT_ROW_2_RIGHT ,  msg->statevalue, 0);
+			}
+			
+			}
+			
 		else {
 			vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue, 0);
 		}
