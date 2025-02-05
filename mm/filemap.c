@@ -55,6 +55,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 /*
  * FIXME: remove all knowledge of the buffer layer from the core VM
  */
@@ -3015,7 +3018,7 @@ static inline loff_t folio_seek_hole_data(struct xa_state *xas,
 		if (ops->is_partially_uptodate(folio, offset, bsz) ==
 							seek_data)
 			break;
-		start = (start + bsz) & ~(bsz - 1);
+		start = (start + bsz) & ~((u64)bsz - 1);
 		offset += bsz;
 	} while (offset < folio_size(folio));
 unlock:
@@ -4084,6 +4087,7 @@ retry:
 			if (unlikely(status < 0))
 				break;
 		}
+		trace_android_vh_io_statistics(mapping, folio->index, 1, false, false);
 		cond_resched();
 
 		if (unlikely(status == 0)) {

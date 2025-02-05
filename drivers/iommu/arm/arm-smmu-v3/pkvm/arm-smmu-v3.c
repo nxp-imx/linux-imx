@@ -12,6 +12,7 @@
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
+#include <nvhe/rwlock.h>
 #include <nvhe/trap_handler.h>
 
 #include "arm_smmu_v3.h"
@@ -78,17 +79,25 @@ struct hyp_arm_smmu_v3_device *kvm_hyp_arm_smmu_v3_smmus;
 	smmu_wait(_cond);					\
 })
 
+struct domain_iommu_node {
+	struct kvm_hyp_iommu		*iommu;
+	struct list_head		list;
+	unsigned long			ref;
+};
+
 /*
  * SMMUv3 domain:
  * @domain: Pointer to the IOMMU domain.
- * @smmu: SMMU instance for this domain.
+ * @iommu_list: List of SMMU instances for this domain
+ * @list_lock: Protects iommu_list
  * @type: Type of domain (S1, S2)
  * @pgt_lock: Lock for page table
  * @pgtable: io_pgtable instance for this domain
  */
 struct hyp_arm_smmu_v3_domain {
 	struct kvm_hyp_iommu_domain     *domain;
-	struct hyp_arm_smmu_v3_device	*smmu;
+	struct list_head		iommu_list;
+	hyp_rwlock_t			list_lock;
 	u32				type;
 	hyp_spinlock_t			pgt_lock;
 	struct io_pgtable		*pgtable;
@@ -121,12 +130,20 @@ static void smmu_reclaim_pages(u64 phys, size_t size)
 #define Q_WRAP(smmu, reg)	((reg) & (1 << (smmu)->cmdq_log2size))
 #define Q_IDX(smmu, reg)	((reg) & ((1 << (smmu)->cmdq_log2size) - 1))
 
-static bool smmu_cmdq_full(struct hyp_arm_smmu_v3_device *smmu)
+static bool smmu_cmdq_has_space(struct hyp_arm_smmu_v3_device *smmu, u32 n)
 {
-	u64 cons = readl_relaxed(smmu->base + ARM_SMMU_CMDQ_CONS);
+	u64 smmu_cons = readl_relaxed(smmu->base + ARM_SMMU_CMDQ_CONS);
+	u32 space, prod, cons;
 
-	return Q_IDX(smmu, smmu->cmdq_prod) == Q_IDX(smmu, cons) &&
-	       Q_WRAP(smmu, smmu->cmdq_prod) != Q_WRAP(smmu, cons);
+	prod = Q_IDX(smmu, smmu->cmdq_prod);
+	cons = Q_IDX(smmu, smmu_cons);
+
+	if (Q_WRAP(smmu, smmu->cmdq_prod) == Q_WRAP(smmu, smmu_cons))
+		space = (1 << smmu->cmdq_log2size) - (prod - cons);
+	else
+		space = cons - prod;
+
+	return space >= n;
 }
 
 static bool smmu_cmdq_empty(struct hyp_arm_smmu_v3_device *smmu)
@@ -137,22 +154,8 @@ static bool smmu_cmdq_empty(struct hyp_arm_smmu_v3_device *smmu)
 	       Q_WRAP(smmu, smmu->cmdq_prod) == Q_WRAP(smmu, cons);
 }
 
-static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
-			struct arm_smmu_cmdq_ent *ent)
+static int smmu_build_cmd(u64 *cmd, struct arm_smmu_cmdq_ent *ent)
 {
-	int i;
-	int ret;
-	u64 cmd[CMDQ_ENT_DWORDS] = {};
-	int idx = Q_IDX(smmu, smmu->cmdq_prod);
-	u64 *slot = smmu->cmdq_base + idx * CMDQ_ENT_DWORDS;
-
-	if (smmu->iommu.power_is_off)
-		return -EPIPE;
-
-	ret = smmu_wait_event(smmu, !smmu_cmdq_full(smmu));
-	if (ret)
-		return ret;
-
 	cmd[0] |= FIELD_PREP(CMDQ_0_OP, ent->opcode);
 
 	switch (ent->opcode) {
@@ -200,13 +203,44 @@ static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < CMDQ_ENT_DWORDS; i++)
-		slot[i] = cpu_to_le64(cmd[i]);
+	return 0;
+}
 
-	smmu->cmdq_prod++;
+static int smmu_issue_cmds(struct hyp_arm_smmu_v3_device *smmu,
+			   u64 *cmds, int n)
+{
+	int idx = Q_IDX(smmu, smmu->cmdq_prod);
+	u64 *slot = smmu->cmdq_base + idx * CMDQ_ENT_DWORDS;
+	int i;
+	int ret;
+	u32 prod;
+
+	ret = smmu_wait_event(smmu, smmu_cmdq_has_space(smmu, n));
+	if (ret)
+		return ret;
+
+	for (i = 0; i < CMDQ_ENT_DWORDS * n; i++)
+		slot[i] = cpu_to_le64(cmds[i]);
+
+	prod = (Q_WRAP(smmu, smmu->cmdq_prod) | Q_IDX(smmu, smmu->cmdq_prod)) + n;
+	smmu->cmdq_prod = Q_OVF(smmu->cmdq_prod) | Q_WRAP(smmu, prod) | Q_IDX(smmu, prod);
+
 	writel(Q_IDX(smmu, smmu->cmdq_prod) | Q_WRAP(smmu, smmu->cmdq_prod),
 	       smmu->base + ARM_SMMU_CMDQ_PROD);
 	return 0;
+}
+
+static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
+			struct arm_smmu_cmdq_ent *ent)
+{
+	u64 cmd[CMDQ_ENT_DWORDS] = {};
+	int ret;
+
+	ret = smmu_build_cmd(cmd, ent);
+	if (ret)
+		return ret;
+
+	return smmu_issue_cmds(smmu, cmd, 1);
 }
 
 static int smmu_sync_cmd(struct hyp_arm_smmu_v3_device *smmu)
@@ -226,8 +260,12 @@ static int smmu_sync_cmd(struct hyp_arm_smmu_v3_device *smmu)
 static int smmu_send_cmd(struct hyp_arm_smmu_v3_device *smmu,
 			 struct arm_smmu_cmdq_ent *cmd)
 {
-	int ret = smmu_add_cmd(smmu, cmd);
+	int ret;
 
+	if (smmu->iommu.power_is_off)
+		return 0;
+
+	ret = smmu_add_cmd(smmu, cmd);
 	if (ret)
 		return ret;
 
@@ -661,6 +699,8 @@ static int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, int type)
 	if (!smmu_domain)
 		return -ENOMEM;
 
+	INIT_LIST_HEAD(&smmu_domain->iommu_list);
+	hyp_rwlock_init(&smmu_domain->list_lock);
 	/*
 	 * Can't do much without knowing the SMMUv3.
 	 * Page table will be allocated at attach_dev, but can be
@@ -684,10 +724,10 @@ static void smmu_free_domain(struct kvm_hyp_iommu_domain *domain)
 	hyp_free(smmu_domain);
 }
 
-static void smmu_inv_domain(struct hyp_arm_smmu_v3_domain *smmu_domain)
+static void smmu_inv_domain(struct hyp_arm_smmu_v3_device *smmu,
+			    struct hyp_arm_smmu_v3_domain *smmu_domain)
 {
 	struct kvm_hyp_iommu_domain *domain = smmu_domain->domain;
-	struct hyp_arm_smmu_v3_device *smmu = smmu_domain->smmu;
 	struct arm_smmu_cmdq_ent cmd = {};
 
 	if (smmu_domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
@@ -708,11 +748,34 @@ static void smmu_tlb_flush_all(void *cookie)
 {
 	struct kvm_hyp_iommu_domain *domain = cookie;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
-	struct hyp_arm_smmu_v3_device *smmu = smmu_domain->smmu;
+	struct hyp_arm_smmu_v3_device *smmu;
+	struct domain_iommu_node *iommu_node;
 
-	kvm_iommu_lock(&smmu->iommu);
-	smmu_inv_domain(smmu_domain);
-	kvm_iommu_unlock(&smmu->iommu);
+	hyp_read_lock(&smmu_domain->list_lock);
+	list_for_each_entry(iommu_node, &smmu_domain->iommu_list, list) {
+		smmu = to_smmu(iommu_node->iommu);
+		kvm_iommu_lock(&smmu->iommu);
+		smmu_inv_domain(smmu, smmu_domain);
+		kvm_iommu_unlock(&smmu->iommu);
+	}
+	hyp_read_unlock(&smmu_domain->list_lock);
+}
+
+static void smmu_cmdq_batch_add(struct hyp_arm_smmu_v3_device *smmu,
+				struct arm_smmu_cmdq_batch *cmds,
+				struct arm_smmu_cmdq_ent *cmd)
+{
+	int index;
+
+	if (cmds->num == CMDQ_BATCH_ENTRIES) {
+		smmu_issue_cmds(smmu, cmds->cmds, cmds->num);
+		cmds->num = 0;
+	}
+
+	index = cmds->num * CMDQ_ENT_DWORDS;
+	smmu_build_cmd(&cmds->cmds[index], cmd);
+
+	cmds->num++;
 }
 
 static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
@@ -724,6 +787,7 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
 	unsigned long end = iova + size, num_pages = 0, tg = 0;
 	size_t inv_range = granule;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct arm_smmu_cmdq_batch cmds;
 
 	kvm_iommu_lock(&smmu->iommu);
 	if (smmu->iommu.power_is_off)
@@ -753,6 +817,8 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
 			num_pages++;
 	}
 
+	cmds.num = 0;
+
 	while (iova < end) {
 		if (smmu->features & ARM_SMMU_FEAT_RANGE_INV) {
 			/*
@@ -779,11 +845,12 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
 			num_pages -= num << scale;
 		}
 		cmd->tlbi.addr = iova;
-		WARN_ON(smmu_add_cmd(smmu, cmd));
+		smmu_cmdq_batch_add(smmu, &cmds, cmd);
 		BUG_ON(iova + inv_range < iova);
 		iova += inv_range;
 	}
 
+	WARN_ON(smmu_issue_cmds(smmu, cmds.cmds, cmds.num));
 	ret = smmu_sync_cmd(smmu);
 out_ret:
 	kvm_iommu_unlock(&smmu->iommu);
@@ -795,6 +862,8 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 			       bool leaf)
 {
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct hyp_arm_smmu_v3_device *smmu;
+	struct domain_iommu_node *iommu_node;
 	unsigned long end = iova + size;
 	struct arm_smmu_cmdq_ent cmd;
 
@@ -812,8 +881,13 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	 * no overflow possible.
 	 */
 	BUG_ON(end < iova);
-	WARN_ON(smmu_tlb_inv_range_smmu(smmu_domain->smmu, domain,
-					&cmd, iova, size, granule));
+	hyp_read_lock(&smmu_domain->list_lock);
+	list_for_each_entry(iommu_node, &smmu_domain->iommu_list, list) {
+		smmu = to_smmu(iommu_node->iommu);
+		WARN_ON(smmu_tlb_inv_range_smmu(smmu, domain,
+						&cmd, iova, size, granule));
+	}
+	hyp_read_unlock(&smmu_domain->list_lock);
 }
 
 static void smmu_tlb_flush_walk(unsigned long iova, size_t size,
@@ -1044,6 +1118,7 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device *smmu,
 	int ret;
 	struct io_pgtable_cfg cfg;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct arm_lpae_io_pgtable *data;
 
 	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S1) {
 		size_t ias = (smmu->features & ARM_SMMU_FEAT_VAX) ? 52 : 48;
@@ -1072,7 +1147,96 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device *smmu,
 	hyp_spin_lock(&smmu_domain->pgt_lock);
 	smmu_domain->pgtable = kvm_arm_io_pgtable_alloc(&cfg, domain, &ret);
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
+	if (ret)
+		return ret;
+
+	data = io_pgtable_to_data(smmu_domain->pgtable);
+	data->idmapped = (domain->domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID);
 	return ret;
+}
+
+static bool smmu_domain_compat(struct hyp_arm_smmu_v3_device *smmu,
+			       struct hyp_arm_smmu_v3_domain *smmu_domain)
+{
+	struct io_pgtable_cfg *cfg;
+
+	/* Domain is empty. */
+	if (!smmu_domain->pgtable)
+		return true;
+
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2) {
+		if (!(smmu->features & ARM_SMMU_FEAT_TRANS_S2))
+			return false;
+	} else {
+		if (!(smmu->features & ARM_SMMU_FEAT_TRANS_S1))
+			return false;
+	}
+
+	cfg = &smmu_domain->pgtable->cfg;
+
+	/* Best effort. */
+	return  ((smmu->pgsize_bitmap | cfg->pgsize_bitmap) == smmu->pgsize_bitmap);
+}
+
+static bool smmu_existing_in_domain(struct hyp_arm_smmu_v3_device *smmu,
+				    struct hyp_arm_smmu_v3_domain *smmu_domain)
+{
+	struct domain_iommu_node *iommu_node;
+	struct hyp_arm_smmu_v3_device *other;
+
+	hyp_assert_write_lock_held(&smmu_domain->list_lock);
+
+	list_for_each_entry(iommu_node, &smmu_domain->iommu_list, list) {
+		other = to_smmu(iommu_node->iommu);
+		if (other == smmu)
+			return true;
+	}
+
+	return false;
+}
+
+static void smmu_get_ref_domain(struct hyp_arm_smmu_v3_device *smmu,
+				struct hyp_arm_smmu_v3_domain *smmu_domain)
+{
+	struct domain_iommu_node *iommu_node;
+	struct hyp_arm_smmu_v3_device *other;
+
+	hyp_assert_write_lock_held(&smmu_domain->list_lock);
+
+	list_for_each_entry(iommu_node, &smmu_domain->iommu_list, list) {
+		other = to_smmu(iommu_node->iommu);
+		if (other == smmu) {
+			iommu_node->ref++;
+			return;
+		}
+	}
+}
+
+static void smmu_put_ref_domain(struct hyp_arm_smmu_v3_device *smmu,
+				struct hyp_arm_smmu_v3_domain *smmu_domain)
+{
+	struct domain_iommu_node *iommu_node, *temp;
+	struct hyp_arm_smmu_v3_device *other;
+
+	hyp_assert_write_lock_held(&smmu_domain->list_lock);
+
+	list_for_each_entry_safe(iommu_node, temp, &smmu_domain->iommu_list, list) {
+		other = to_smmu(iommu_node->iommu);
+		if (other == smmu) {
+			iommu_node->ref--;
+			if (iommu_node->ref == 0) {
+				/*
+				 * Ensure no stale tlb entries when domain_id
+				 * is re-used for this SMMU.
+				 */
+				smmu_inv_domain(smmu, smmu_domain);
+
+				list_del(&iommu_node->list);
+				hyp_free(iommu_node);
+			}
+			return;
+		}
+	}
 }
 
 static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
@@ -1084,7 +1248,10 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	struct arm_smmu_ste ste = {};
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct domain_iommu_node *iommu_node = NULL;
+	bool init_idmap = false;
 
+	hyp_write_lock(&smmu_domain->list_lock);
 	kvm_iommu_lock(iommu);
 	dst = smmu_get_alloc_ste_ptr(smmu, sid);
 	if (!dst) {
@@ -1092,15 +1259,43 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		goto out_unlock;
 	}
 
-	if (smmu_domain->smmu && (smmu != smmu_domain->smmu)) {
-		ret = -EINVAL;
-		goto out_unlock;
+
+	/*
+	 * BYPASS domains only supported on stage-2 instances, that is over restrictive
+	 * but for now as stage-1 is limited to VA_BITS to match the kernel, it might
+	 * not cover the ia bits, we don't support it.
+	 */
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_BYPASS) {
+		if (smmu->features & ARM_SMMU_FEAT_TRANS_S2) {
+			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
+		} else {
+			ret = -EINVAL;
+			goto out_unlock;
+		}
+	}
+
+	if (!smmu_existing_in_domain(smmu, smmu_domain)) {
+		if (!smmu_domain_compat(smmu, smmu_domain)) {
+			ret = -EBUSY;
+			goto out_unlock;
+		}
+		iommu_node = hyp_alloc(sizeof(struct domain_iommu_node));
+		if (!iommu_node) {
+			ret = -ENOMEM;
+			goto out_unlock;
+		}
+		iommu_node->iommu = iommu;
+		iommu_node->ref = 1;
+	} else {
+		smmu_get_ref_domain(smmu, smmu_domain);
 	}
 
 	if (!smmu_domain->pgtable) {
 		ret = smmu_domain_finalise(smmu, domain);
 		if (ret)
 			goto out_unlock;
+		if (domain->domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
+			init_idmap = true;
 	}
 
 	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2) {
@@ -1118,7 +1313,6 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		ret = smmu_domain_config_s1(smmu, domain, sid, pasid,
 					    pasid_bits, &ste);
 	}
-	smmu_domain->smmu = smmu;
 	/* We don't update STEs for pasid domains. */
 	if (ret || pasid)
 		goto out_unlock;
@@ -1138,7 +1332,17 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	ret = smmu_sync_ste(smmu, sid);
 	WARN_ON(ret);
 out_unlock:
+	if (iommu_node && ret)
+		hyp_free(iommu_node);
+	else if (iommu_node)
+		list_add_tail(&iommu_node->list, &smmu_domain->iommu_list);
+
 	kvm_iommu_unlock(iommu);
+	hyp_write_unlock(&smmu_domain->list_lock);
+
+	if (init_idmap)
+		ret = kvm_iommu_snapshot_host_stage2(domain);
+
 	return ret;
 }
 
@@ -1152,6 +1356,7 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	u32 pasid_bits = 0;
 	u64 *cd_table, *cd;
 
+	hyp_write_lock(&smmu_domain->list_lock);
 	kvm_iommu_lock(iommu);
 	dst = smmu_get_ste_ptr(smmu, sid);
 	if (!dst) {
@@ -1188,6 +1393,8 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 					goto out_unlock;
 				}
 			}
+
+			smmu_free_cd(cd_table, pasid_bits);
 		} else {
 			cd = smmu_get_cd_ptr(cd_table, pasid);
 			cd[0] = 0;
@@ -1209,10 +1416,10 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 
 	ret = smmu_sync_ste(smmu, sid);
 
-	smmu_free_cd(cd_table, pasid_bits);
-
+	smmu_put_ref_domain(smmu, smmu_domain);
 out_unlock:
 	kvm_iommu_unlock(iommu);
+	hyp_write_unlock(&smmu_domain->list_lock);
 	return ret;
 }
 
@@ -1355,6 +1562,104 @@ static bool smmu_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64 ad
 	return false;
 }
 
+int smmu_suspend(struct kvm_hyp_iommu *iommu)
+{
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
+
+	/*
+	 * Disable translation, GBPA is validated at probe to be set, so all translation
+	 * would be aborted when SMMU is disabled.
+	 */
+	if (iommu->power_domain.type == KVM_POWER_DOMAIN_HOST_HVC)
+		return smmu_write_cr0(smmu, 0);
+	return 0;
+}
+
+int smmu_resume(struct kvm_hyp_iommu *iommu)
+{
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
+
+	/*
+	 * Re-enable and clean all caches.
+	 */
+	if (iommu->power_domain.type == KVM_POWER_DOMAIN_HOST_HVC)
+		return smmu_reset_device(smmu);
+	return 0;
+}
+
+/*
+ * Although SMMU can support multiple granules, it must at least support PAGE_SIZE
+ * as the CPU, and for the IDMAP domains, we only use this granule.
+ * As we optimize for memory usage and performance, we try to use block mappings
+ * when possible.
+ */
+static size_t smmu_pgsize_idmap(size_t size, u64 paddr)
+{
+	size_t pgsizes;
+	size_t pgsize_bitmask = 0;
+
+	if (PAGE_SIZE == SZ_4K) {
+		pgsize_bitmask = SZ_4K | SZ_2M | SZ_1G;
+	} else if (PAGE_SIZE == SZ_16K) {
+		pgsize_bitmask = SZ_16K | SZ_32M;
+	} else if (PAGE_SIZE == SZ_64K){
+		pgsize_bitmask = SZ_64K | SZ_512M;
+	}
+
+	/* All page sizes that fit the size */
+	pgsizes = pgsize_bitmask & GENMASK_ULL(__fls(size), 0);
+
+	/* Address must be aligned to page size */
+	if (likely(paddr))
+		pgsizes &= GENMASK_ULL(__ffs(paddr), 0);
+
+	WARN_ON(!pgsizes);
+
+	return BIT(__fls(pgsizes));
+}
+
+static void smmu_host_stage2_idmap(struct kvm_hyp_iommu_domain *domain,
+				   phys_addr_t start, phys_addr_t end, int prot)
+{
+	size_t size = end - start;
+	size_t pgsize, pgcount;
+	size_t mapped, unmapped;
+	int ret;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct io_pgtable *pgtable = smmu_domain->pgtable;
+
+	end = min(end, BIT(pgtable->cfg.oas));
+	if (start >= end)
+		return;
+
+	if (prot) {
+		if (!(prot & IOMMU_MMIO))
+			prot |= IOMMU_CACHE;
+
+		while (size) {
+			mapped = 0;
+			pgsize = smmu_pgsize_idmap(size, start);
+			pgcount = size / pgsize;
+			ret = pgtable->ops.map_pages(&pgtable->ops, start, start,
+						     pgsize, pgcount, prot, 0, &mapped);
+			size -= mapped;
+			start += mapped;
+			if (!mapped || ret)
+				return;
+		}
+	} else {
+		while (size) {
+			pgsize = smmu_pgsize_idmap(size, start);
+			pgcount = size / pgsize;
+			unmapped = pgtable->ops.unmap_pages(&pgtable->ops, start,
+							    pgsize, pgcount, NULL);
+			size -= unmapped;
+			start += unmapped;
+			if (!unmapped)
+				return;
+		}
+	}
+}
 
 #ifdef MODULE
 int smmu_init_hyp_module(const struct pkvm_module_ops *ops)
@@ -1380,4 +1685,7 @@ struct kvm_iommu_ops smmu_ops = {
 	.unmap_pages			= smmu_unmap_pages,
 	.iova_to_phys			= smmu_iova_to_phys,
 	.dabt_handler			= smmu_dabt_handler,
+	.suspend			= smmu_suspend,
+	.resume				= smmu_resume,
+	.host_stage2_idmap		= smmu_host_stage2_idmap,
 };

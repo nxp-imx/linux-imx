@@ -8,6 +8,7 @@
 #include <asm/kvm_mmu.h>
 
 #include <linux/arm-smccc.h>
+#include <linux/moduleparam.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -33,6 +34,7 @@ struct kvm_arm_smmu_master {
 	struct device			*dev;
 	struct xarray			domains;
 	u32				ssid_bits;
+	bool				idmapped; /* Stage-2 is transparently identity mapped*/
 };
 
 struct kvm_arm_smmu_domain {
@@ -61,6 +63,12 @@ static size_t				kvm_arm_smmu_cur;
 static size_t				kvm_arm_smmu_count;
 static struct hyp_arm_smmu_v3_device	*kvm_arm_smmu_array;
 static DEFINE_IDA(kvm_arm_smmu_domain_ida);
+/*
+ * Pre allocated pages that can be used from the EL2 part of the driver from atomic
+ * context, ideally used for page table pages for identity domains.
+ */
+static int atomic_pages;
+module_param(atomic_pages, int, 0);
 
 static int kvm_arm_smmu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 {
@@ -138,6 +146,7 @@ static struct iommu_device *kvm_arm_smmu_probe_device(struct device *dev)
 	device_property_read_u32(dev, "pasid-num-bits", &master->ssid_bits);
 	master->ssid_bits = min(smmu->ssid_bits, master->ssid_bits);
 	xa_init(&master->domains);
+	master->idmapped = device_property_read_bool(dev, "iommu-idmapped");
 	dev_iommu_priv_set(dev, master);
 	if (!device_link_add(dev, smmu->dev,
 			     DL_FLAG_PM_RUNTIME |
@@ -157,10 +166,10 @@ static struct iommu_domain *kvm_arm_smmu_domain_alloc(unsigned type)
 	 * We don't support
 	 * - IOMMU_DOMAIN_DMA_FQ because lazy unmap would clash with memory
 	 *   donation to guests.
-	 * - IOMMU_DOMAIN_IDENTITY: Requires a stage-2 only transparent domain.
 	 */
 	if (type != IOMMU_DOMAIN_DMA &&
-	    type != IOMMU_DOMAIN_UNMANAGED)
+	    type != IOMMU_DOMAIN_UNMANAGED &&
+	    type != IOMMU_DOMAIN_IDENTITY)
 		return ERR_PTR(-EOPNOTSUPP);
 
 	kvm_smmu_domain = kzalloc(sizeof(*kvm_smmu_domain), GFP_KERNEL);
@@ -187,6 +196,18 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 
 	if (kvm_smmu_domain->smmu)
 		return 0;
+
+	kvm_smmu_domain->smmu = smmu;
+
+	if (kvm_smmu_domain->domain.type == IOMMU_DOMAIN_IDENTITY) {
+		kvm_smmu_domain->id = KVM_IOMMU_DOMAIN_IDMAP_ID;
+		/*
+		 * Identity domains doesn't use the DMA API, so no need to
+		 * set the  domain aperture.
+		 */
+		return 0;
+	}
+
 	/* Default to stage-1. */
 	if (smmu->features & ARM_SMMU_FEAT_TRANS_S1) {
 		ias = (smmu->features & ARM_SMMU_FEAT_VAX) ? 52 : 48;
@@ -243,7 +264,6 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 		return ret;
 	}
 
-	kvm_smmu_domain->smmu = smmu;
 	return 0;
 }
 
@@ -253,7 +273,7 @@ static void kvm_arm_smmu_domain_free(struct iommu_domain *domain)
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 
-	if (smmu) {
+	if (smmu && (kvm_smmu_domain->domain.type != IOMMU_DOMAIN_IDENTITY)) {
 		ret = kvm_call_hyp_nvhe(__pkvm_host_iommu_free_domain, kvm_smmu_domain->id);
 		ida_free(&kvm_arm_smmu_domain_ida, kvm_smmu_domain->id);
 	}
@@ -374,6 +394,15 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 	return kvm_arm_smmu_set_dev_pasid(domain, dev, 0);
 }
 
+static int kvm_arm_smmu_def_domain_type(struct device *dev)
+{
+	struct kvm_arm_smmu_master *master = dev_iommu_priv_get(dev);
+
+	if (master->idmapped && atomic_pages)
+		return IOMMU_DOMAIN_IDENTITY;
+	return 0;
+}
+
 static bool kvm_arm_smmu_capable(struct device *dev, enum iommu_cap cap)
 {
 	struct kvm_arm_smmu_master *master = dev_iommu_priv_get(dev);
@@ -456,6 +485,96 @@ static phys_addr_t kvm_arm_smmu_iova_to_phys(struct iommu_domain *domain,
 	return kvm_call_hyp_nvhe(__pkvm_host_iommu_iova_to_phys, kvm_smmu_domain->id, iova);
 }
 
+struct kvm_arm_smmu_map_sg {
+	struct iommu_map_cookie_sg cookie;
+	struct kvm_iommu_sg *sg;
+	unsigned int ptr;
+	unsigned long iova;
+	int prot;
+	gfp_t gfp;
+	unsigned int nents;
+};
+
+static struct iommu_map_cookie_sg *kvm_arm_smmu_alloc_cookie_sg(unsigned long iova,
+								int prot,
+								unsigned int nents,
+								gfp_t gfp)
+{
+	int ret;
+	struct kvm_arm_smmu_map_sg *map_sg = kzalloc(sizeof(*map_sg), gfp);
+
+	if (!map_sg)
+		return NULL;
+
+	map_sg->sg = kvm_iommu_sg_alloc(nents, gfp);
+	if (!map_sg->sg)
+		return NULL;
+	map_sg->iova = iova;
+	map_sg->prot = prot;
+	map_sg->gfp = gfp;
+	map_sg->nents = nents;
+	ret = kvm_iommu_share_hyp_sg(map_sg->sg, nents);
+	if (ret) {
+		kvm_iommu_sg_free(map_sg->sg, nents);
+		kfree(map_sg);
+		return NULL;
+	}
+
+	return &map_sg->cookie;
+}
+
+static int kvm_arm_smmu_add_deferred_map_sg(struct iommu_map_cookie_sg *cookie,
+					    phys_addr_t paddr, size_t pgsize, size_t pgcount)
+{
+	struct kvm_arm_smmu_map_sg *map_sg = container_of(cookie, struct kvm_arm_smmu_map_sg,
+							  cookie);
+	struct kvm_iommu_sg *sg = map_sg->sg;
+
+	sg[map_sg->ptr].phys = paddr;
+	sg[map_sg->ptr].pgsize = pgsize;
+	sg[map_sg->ptr].pgcount = pgcount;
+	map_sg->ptr++;
+	return 0;
+}
+
+static size_t kvm_arm_smmu_consume_deferred_map_sg(struct iommu_map_cookie_sg *cookie)
+{
+	struct kvm_arm_smmu_map_sg *map_sg = container_of(cookie, struct kvm_arm_smmu_map_sg,
+							  cookie);
+	struct kvm_iommu_sg *sg = map_sg->sg;
+	size_t mapped, total_mapped = 0;
+	struct arm_smccc_res res;
+	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(map_sg->cookie.domain);
+
+	do {
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_sg,
+					      kvm_smmu_domain->id,
+					      map_sg->iova, sg, map_sg->ptr, map_sg->prot);
+		mapped = res.a1;
+		map_sg->iova += mapped;
+		total_mapped += mapped;
+		/* Skip mapped */
+		while (mapped) {
+			if (mapped < (sg->pgsize * sg->pgcount)) {
+				sg->phys += mapped;
+				sg->pgcount -= mapped / sg->pgsize;
+				mapped = 0;
+			} else {
+				mapped -= sg->pgsize * sg->pgcount;
+				sg++;
+				map_sg->ptr--;
+			}
+		}
+
+		kvm_arm_smmu_topup_memcache(&res, map_sg->gfp);
+	} while (map_sg->ptr);
+
+	kvm_iommu_unshare_hyp_sg(sg, map_sg->nents);
+	kvm_iommu_sg_free(sg, map_sg->nents);
+	kfree(map_sg);
+	return total_mapped;
+}
+
 static struct iommu_ops kvm_arm_smmu_ops = {
 	.capable		= kvm_arm_smmu_capable,
 	.device_group		= arm_smmu_device_group,
@@ -467,6 +586,7 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 	.pgsize_bitmap		= -1UL,
 	.remove_dev_pasid	= kvm_arm_smmu_remove_dev_pasid,
 	.owner			= THIS_MODULE,
+	.def_domain_type	= kvm_arm_smmu_def_domain_type,
 	.default_domain_ops = &(const struct iommu_domain_ops) {
 		.attach_dev	= kvm_arm_smmu_attach_dev,
 		.free		= kvm_arm_smmu_domain_free,
@@ -474,6 +594,9 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 		.unmap_pages	= kvm_arm_smmu_unmap_pages,
 		.iova_to_phys	= kvm_arm_smmu_iova_to_phys,
 		.set_dev_pasid	= kvm_arm_smmu_set_dev_pasid,
+		.alloc_cookie_sg = kvm_arm_smmu_alloc_cookie_sg,
+		.add_deferred_map_sg = kvm_arm_smmu_add_deferred_map_sg,
+		.consume_deferred_map_sg = kvm_arm_smmu_consume_deferred_map_sg,
 	}
 };
 
@@ -526,6 +649,11 @@ static irqreturn_t kvm_arm_smmu_evt_handler(int irq, void *dev)
 				      DEFAULT_RATELIMIT_BURST);
 	u64 evt[EVTQ_ENT_DWORDS];
 
+	if (pm_runtime_get_if_active(smmu->dev) == 0) {
+		dev_err(smmu->dev, "Unable to handle event interrupt because device not runtime active\n");
+		return IRQ_NONE;
+	}
+
 	do {
 		while (!queue_remove_raw(q, evt)) {
 			u8 id = FIELD_GET(EVTQ_0_ID, evt[0]);
@@ -551,6 +679,7 @@ static irqreturn_t kvm_arm_smmu_evt_handler(int irq, void *dev)
 
 	/* Sync our overflow flag, as we believe we're up to speed */
 	queue_sync_cons_ovf(q);
+	pm_runtime_put(smmu->dev);
 	return IRQ_HANDLED;
 }
 
@@ -559,12 +688,19 @@ static irqreturn_t kvm_arm_smmu_gerror_handler(int irq, void *dev)
 	u32 gerror, gerrorn, active;
 	struct arm_smmu_device *smmu = dev;
 
+	if (pm_runtime_get_if_active(smmu->dev) == 0) {
+		dev_err(smmu->dev, "Unable to handle global error interrupt because device not runtime active\n");
+		return IRQ_NONE;
+	}
+
 	gerror = readl_relaxed(smmu->base + ARM_SMMU_GERROR);
 	gerrorn = readl_relaxed(smmu->base + ARM_SMMU_GERRORN);
 
 	active = gerror ^ gerrorn;
-	if (!(active & GERROR_ERR_MASK))
+	if (!(active & GERROR_ERR_MASK)) {
+		pm_runtime_put(smmu->dev);
 		return IRQ_NONE; /* No errors pending */
+	}
 
 	dev_warn(smmu->dev,
 		 "unexpected global error reported (0x%08x), this could be serious\n",
@@ -598,7 +734,7 @@ static irqreturn_t kvm_arm_smmu_gerror_handler(int irq, void *dev)
 	}
 
 	writel(gerror, smmu->base + ARM_SMMU_GERRORN);
-
+	pm_runtime_put(smmu->dev);
 	return IRQ_HANDLED;
 }
 
@@ -860,6 +996,7 @@ static void kvm_arm_smmu_remove(struct platform_device *pdev)
 	 */
 	arm_smmu_device_disable(smmu);
 	arm_smmu_update_gbpa(smmu, host_smmu->boot_gbpa, GBPA_ABORT);
+	arm_smmu_unregister_iommu(smmu);
 }
 
 static int kvm_arm_smmu_suspend(struct device *dev)
@@ -868,7 +1005,7 @@ static int kvm_arm_smmu_suspend(struct device *dev)
 	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
 
 	if (host_smmu->power_domain.type == KVM_POWER_DOMAIN_HOST_HVC)
-		return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, host_smmu->id, 0);
+		return pkvm_iommu_suspend(dev);
 	return 0;
 }
 
@@ -878,7 +1015,7 @@ static int kvm_arm_smmu_resume(struct device *dev)
 	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
 
 	if (host_smmu->power_domain.type == KVM_POWER_DOMAIN_HOST_HVC)
-		return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, host_smmu->id, 1);
+		return pkvm_iommu_resume(dev);
 	return 0;
 }
 
@@ -936,6 +1073,45 @@ static int smmu_put_device(struct device *dev, void *data)
 	return 0;
 }
 
+static int smmu_alloc_atomic_mc(struct kvm_hyp_memcache *atomic_mc)
+{
+	int ret;
+#ifndef MODULE
+	u64 i;
+	phys_addr_t start, end;
+
+	/*
+	 * Allocate pages to cover mapping with PAGE_SIZE for all memory
+	 * Then allocate extra for 1GB of MMIO.
+	 * Add 10 extra pages as we map the rest with first level blocks
+	 * for PAGE_SIZE = 4KB, that should cover 5TB of address space.
+	 */
+	for_each_mem_range(i, &start, &end) {
+		atomic_pages += __hyp_pgtable_max_pages((end - start) >> PAGE_SHIFT);
+	}
+
+	atomic_pages += __hyp_pgtable_max_pages(SZ_1G >> PAGE_SHIFT) + 10;
+#endif
+
+	/* Module didn't set that parameter. */
+	if (!atomic_pages)
+		return 0;
+
+	/* For PGD*/
+	ret = topup_hyp_memcache(atomic_mc, 1, 3);
+	if (ret)
+		return ret;
+	ret = topup_hyp_memcache(atomic_mc, atomic_pages, 0);
+	if (ret)
+		return ret;
+	pr_info("smmuv3: Allocated %d MiB for atomic usage\n",
+		(atomic_pages << PAGE_SHIFT) / SZ_1M);
+	/* Topup hyp alloc so IOMMU driver can allocate domains. */
+	__pkvm_topup_hyp_alloc(1);
+
+	return ret;
+}
+
 /*
  * Drop the PM references of the SMMU taken at probe
  * after it's guaranteed the hypervisor as initialized the SMMUs.
@@ -953,6 +1129,7 @@ static int kvm_arm_smmu_v3_post_init(void)
 static int kvm_arm_smmu_v3_init_drv(void)
 {
 	int ret;
+	struct kvm_hyp_memcache atomic_mc;
 
 	/*
 	 * Check whether any device owned by the host is behind an SMMU.
@@ -988,9 +1165,22 @@ static int kvm_arm_smmu_v3_init_drv(void)
 	kvm_hyp_arm_smmu_v3_smmus = kvm_arm_smmu_array;
 	kvm_hyp_arm_smmu_v3_count = kvm_arm_smmu_count;
 
-	ret = kvm_iommu_init_hyp(ksym_ref_addr_nvhe(smmu_ops));
+	ret = smmu_alloc_atomic_mc(&atomic_mc);
+	if (ret)
+		goto err_free;
+
+	ret = kvm_iommu_init_hyp(ksym_ref_addr_nvhe(smmu_ops), &atomic_mc);
 	if (ret)
 		return ret;
+
+	/* Preemptively allocate the identity domain. */
+	if (atomic_pages) {
+		ret = kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_alloc_domain,
+					   KVM_IOMMU_DOMAIN_IDMAP_ID,
+					   KVM_IOMMU_DOMAIN_IDMAP_TYPE);
+		if (ret)
+			return ret;
+	}
 	return kvm_arm_smmu_v3_post_init();
 
 err_free:
@@ -1003,9 +1193,18 @@ static void kvm_arm_smmu_v3_remove_drv(void)
 	platform_driver_unregister(&kvm_arm_smmu_driver);
 }
 
+static pkvm_handle_t kvm_arm_smmu_v3_id(struct device *dev)
+{
+	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
+
+	return host_smmu->id;
+}
+
 struct kvm_iommu_driver kvm_smmu_v3_ops = {
 	.init_driver = kvm_arm_smmu_v3_init_drv,
 	.remove_driver = kvm_arm_smmu_v3_remove_drv,
+	.get_iommu_id = kvm_arm_smmu_v3_id,
 };
 
 static int kvm_arm_smmu_v3_register(void)

@@ -18,6 +18,28 @@ DECLARE_HOOK(android_vh_check_folio_look_around_ref,
 DECLARE_HOOK(android_vh_tune_swappiness,
 	TP_PROTO(int *swappiness),
 	TP_ARGS(swappiness));
+DECLARE_HOOK(android_vh_modify_scan_control,
+	TP_PROTO(u64 *ext, unsigned long *nr_to_reclaim,
+	struct mem_cgroup *target_mem_cgroup,
+	bool *file_is_tiny, bool *may_writepage),
+	TP_ARGS(ext, nr_to_reclaim, target_mem_cgroup, file_is_tiny, may_writepage));
+DECLARE_HOOK(android_vh_should_continue_reclaim,
+	TP_PROTO(u64 *ext, unsigned long *nr_to_reclaim,
+	unsigned long *nr_reclaimed, bool *continue_reclaim),
+	TP_ARGS(ext, nr_to_reclaim, nr_reclaimed, continue_reclaim));
+DECLARE_HOOK(android_vh_async_psi_bypass,
+	TP_PROTO(bool *bypass),
+	TP_ARGS(bypass));
+DECLARE_HOOK(android_vh_mglru_should_abort_scan,
+	TP_PROTO(unsigned long nr_reclaimed, unsigned long nr_to_reclaim,
+	unsigned int order, bool *bypass),
+	TP_ARGS(nr_to_reclaim, nr_reclaimed, order, bypass));
+DECLARE_HOOK(android_vh_should_memcg_bypass,
+	TP_PROTO(struct mem_cgroup *memcg, int priority, bool *bypass),
+	TP_ARGS(memcg, priority, bypass));
+DECLARE_HOOK(android_vh_do_shrink_slab,
+	TP_PROTO(struct shrinker *shrinker, long *freeable),
+	TP_ARGS(shrinker, freeable));
 #endif /* _TRACE_HOOK_VMSCAN_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

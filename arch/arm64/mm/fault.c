@@ -26,6 +26,7 @@
 #include <linux/pkeys.h>
 #include <linux/preempt.h>
 #include <linux/hugetlb.h>
+#include <linux/gfp_types.h>
 
 #include <asm/acpi.h>
 #include <asm/bug.h>
@@ -790,6 +791,11 @@ static int do_sea(unsigned long far, unsigned long esr, struct pt_regs *regs)
 {
 	const struct fault_info *inf;
 	unsigned long siaddr;
+	bool can_fixup = false;
+
+	trace_android_vh_try_fixup_sea(far, esr, regs, &can_fixup);
+	if (can_fixup && fixup_exception(regs))
+		return 0;
 
 	inf = esr_to_fault_info(esr);
 
@@ -1001,7 +1007,7 @@ NOKPROBE_SYMBOL(do_debug_exception);
 struct folio *vma_alloc_zeroed_movable_folio(struct vm_area_struct *vma,
 						unsigned long vaddr)
 {
-	gfp_t flags = GFP_HIGHUSER_MOVABLE | __GFP_ZERO;
+	gfp_t flags = GFP_HIGHUSER_MOVABLE | __GFP_ZERO | __GFP_CMA;
 
 	/*
 	 * If the page is mapped with PROT_MTE, initialise the tags at the

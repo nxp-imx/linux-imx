@@ -36,6 +36,11 @@
 #include "internal.h"
 #include "cma.h"
 
+#undef CREATE_TRACE_POINTS
+#ifndef __GENKSYMS__
+#include <trace/hooks/mm.h>
+#endif
+
 struct cma cma_areas[MAX_CMA_AREAS];
 unsigned cma_area_count;
 static DEFINE_MUTEX(cma_mutex);
@@ -452,6 +457,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	if (bitmap_count > bitmap_maxno)
 		return page;
 
+	trace_android_vh_cma_alloc_retry(cma->name, &max_retries);
 	for (;;) {
 		spin_lock_irq(&cma->lock);
 		bitmap_no = bitmap_find_next_zero_area_off(cma->bitmap,
@@ -523,6 +529,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	}
 
 	if (ret && !(gfp & __GFP_NOWARN)) {
+		trace_android_vh_cma_alloc_fail(cma->name, cma->count, count);
 		pr_err_ratelimited("%s: %s: alloc failed, req-size: %lu pages, ret: %d\n",
 				   __func__, cma->name, count, ret);
 		cma_debug_show_areas(cma);

@@ -20,8 +20,6 @@ struct arm_smmu_device;
 
 #define Q_IDX(llq, p)			((p) & ((1 << (llq)->max_n_shift) - 1))
 #define Q_WRP(llq, p)			((p) & (1 << (llq)->max_n_shift))
-#define Q_OVERFLOW_FLAG			(1U << 31)
-#define Q_OVF(p)			((p) & Q_OVERFLOW_FLAG)
 #define Q_ENT(q, p)			((q)->base +			\
 					 Q_IDX(&((q)->llq), p) *	\
 					 (q)->ent_dwords)
@@ -34,13 +32,6 @@ struct arm_smmu_device;
 #endif
 
 #define CMDQ_PROD_OWNED_FLAG		Q_OVERFLOW_FLAG
-
-/*
- * This is used to size the command queue and therefore must be at least
- * BITS_PER_LONG so that the valid_map works correctly (it relies on the
- * total number of queue entries being a multiple of BITS_PER_LONG).
- */
-#define CMDQ_BATCH_ENTRIES		BITS_PER_LONG
 
 /* High-level queue structures */
 #define ARM_SMMU_POLL_TIMEOUT_US	1000000 /* 1s! */
@@ -99,12 +90,6 @@ static inline bool arm_smmu_cmdq_supports_cmd(struct arm_smmu_cmdq *cmdq,
 {
 	return cmdq->supports_cmd ? cmdq->supports_cmd(ent) : true;
 }
-
-struct arm_smmu_cmdq_batch {
-	u64				cmds[CMDQ_BATCH_ENTRIES * CMDQ_ENT_DWORDS];
-	struct arm_smmu_cmdq		*cmdq;
-	int				num;
-};
 
 struct arm_smmu_evtq {
 	struct arm_smmu_queue		q;

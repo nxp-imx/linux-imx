@@ -224,7 +224,7 @@ SECTIONS
 #ifdef CONFIG_TRACING
 	.rodata.hyp_events : {
 		__hyp_events_start = .;
-		*(_hyp_events)
+		*(SORT(_hyp_events.*))
 		__hyp_events_end = .;
 	}
 	.rodata.hyp_printk_fmts : {

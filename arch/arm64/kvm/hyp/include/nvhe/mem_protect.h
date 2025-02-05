@@ -38,7 +38,7 @@ extern unsigned long hyp_nr_cpus;
 int __pkvm_prot_finalize(void);
 int __pkvm_host_share_hyp(u64 pfn);
 int __pkvm_host_unshare_hyp(u64 pfn);
-int __pkvm_host_reclaim_page(struct pkvm_hyp_vm *vm, u64 pfn, u64 ipa);
+int __pkvm_host_reclaim_page(struct pkvm_hyp_vm *vm, u64 pfn, u64 ipa, u8 order);
 int __pkvm_host_donate_hyp(u64 pfn, u64 nr_pages);
 int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio);
 int ___pkvm_host_donate_hyp_prot(u64 pfn, u64 nr_pages,
@@ -47,21 +47,29 @@ int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages, enum kvm_pgtable_prot p
 int __pkvm_hyp_donate_host(u64 pfn, u64 nr_pages);
 int __pkvm_host_share_ffa(u64 pfn, u64 nr_pages);
 int __pkvm_host_unshare_ffa(u64 pfn, u64 nr_pages);
-int __pkvm_host_share_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu,
-			    enum kvm_pgtable_prot prot);
-int __pkvm_host_unshare_guest(u64 gfn, struct pkvm_hyp_vm *hyp_vm);
-int __pkvm_host_donate_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu);
-int __pkvm_host_relax_guest_perms(u64 gfn, enum kvm_pgtable_prot prot, struct pkvm_hyp_vcpu *vcpu);
-int __pkvm_host_wrprotect_guest(u64 gfn, struct pkvm_hyp_vm *hyp_vm);
-int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa);
-int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa);
-int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa);
-int __pkvm_remove_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa);
+int __pkvm_host_share_guest(struct pkvm_hyp_vcpu *vcpu, u64 pfn, u64 gfn,
+			    u64 nr_pages, enum kvm_pgtable_prot prot);
+int __pkvm_host_unshare_guest(struct pkvm_hyp_vm *vm, u64 gfn, u8 order);
+int __pkvm_host_donate_guest(struct pkvm_hyp_vcpu *vcpu, u64 pfn, u64 gfn,
+			     u64 nr_pages);
+int __pkvm_host_relax_guest_perms(u64 gfn, u8 order, enum kvm_pgtable_prot prot,
+				  struct pkvm_hyp_vcpu *vcpu);
+int __pkvm_host_dirty_log_guest(u64 gfn, struct pkvm_hyp_vcpu *vcpu);
+int __pkvm_host_wrprotect_guest(u64 gfn, u8 order, struct pkvm_hyp_vm *hyp_vm);
+int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
+			    u64 nr_pages, u64 *nr_shared);
+int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
+			      u64 nr_pages, u64 *nr_unshared);
+int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
+				u64 nr_pages, u64 *nr_guarded);
 bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu);
 int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 				    u64 ipa, u64 *ppa);
 int __pkvm_host_use_dma(u64 phys_addr, size_t size);
 int __pkvm_host_unuse_dma(u64 phys_addr, size_t size);
+int __pkvm_host_lazy_pte(u64 pfn, u64 nr_pages, bool enable);
+u64 __pkvm_ptdump_get_config(pkvm_handle_t handle, enum pkvm_ptdump_ops op);
+u64 __pkvm_ptdump_walk_range(pkvm_handle_t handle, struct pkvm_ptdump_log_hdr *log_hva);
 
 bool addr_is_memory(phys_addr_t phys);
 int host_stage2_idmap_locked(phys_addr_t addr, u64 size,
@@ -73,7 +81,6 @@ int kvm_host_prepare_stage2(void *pgt_pool_base);
 int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd);
 void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt);
 
-int hyp_register_host_perm_fault_handler(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr));
 int hyp_pin_shared_mem(void *from, void *to);
 void hyp_unpin_shared_mem(void *from, void *to);
 int host_stage2_get_leaf(phys_addr_t phys, kvm_pte_t *ptep, s8 *level);
@@ -87,7 +94,7 @@ int reclaim_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc,
 void destroy_hyp_vm_pgt(struct pkvm_hyp_vm *vm);
 void drain_hyp_pool(struct pkvm_hyp_vm *vm, struct kvm_hyp_memcache *mc);
 
-int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages);
+int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages, bool update_iommu);
 
 void psci_mem_protect_inc(u64 n);
 void psci_mem_protect_dec(u64 n);

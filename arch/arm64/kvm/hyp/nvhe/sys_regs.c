@@ -29,23 +29,21 @@ u64 id_aa64mmfr1_el1_sys_val;
 u64 id_aa64mmfr2_el1_sys_val;
 u64 id_aa64smfr0_el1_sys_val;
 
-struct pvm_feature {
-	int shift;
-	int width;
-	u64 mask;
-	u64 max_supported;
-	bool is_signed;
-	bool (*vcpu_supported)(const struct kvm_vcpu *vcpu);
+struct pvm_ftr_bits {
+	bool		sign;
+	u8		shift;
+	u8		width;
+	u8		max_val;
+	bool (*vm_supported)(const struct kvm *kvm);
 };
 
-#define __MAX_FEAT_FUNC(id, fld, max, func, sign)				\
+#define __MAX_FEAT_FUNC(id, fld, max, func, sgn)				\
 	{									\
+		.sign = sgn,							\
 		.shift = id##_##fld##_SHIFT,					\
 		.width = id##_##fld##_WIDTH,					\
-		.mask = id##_##fld##_MASK,					\
-		.max_supported = id##_##fld##_##max,				\
-		.is_signed = sign,						\
-		.vcpu_supported = func,						\
+		.max_val = id##_##fld##_##max,					\
+		.vm_supported = func,						\
 	}
 
 #define MAX_FEAT_FUNC(id, fld, max, func)					\
@@ -57,19 +55,32 @@ struct pvm_feature {
 #define MAX_FEAT_ENUM(id, fld, max)						\
 	__MAX_FEAT_FUNC(id, fld, max, NULL, false)
 
-#define FEAT_END {	.shift = -1,	}
+#define FEAT_END {	.width = 0,	}
+
+static bool vm_has_ptrauth(const struct kvm *kvm)
+{
+	if (!IS_ENABLED(CONFIG_ARM64_PTR_AUTH))
+		return false;
+
+	return (cpus_have_final_cap(ARM64_HAS_ADDRESS_AUTH) ||
+		cpus_have_final_cap(ARM64_HAS_GENERIC_AUTH)) &&
+		kvm_vcpu_has_feature(kvm, KVM_ARM_VCPU_PTRAUTH_GENERIC);
+}
+
+static bool vm_has_sve(const struct kvm *kvm)
+{
+	return system_supports_sve() && kvm_vcpu_has_feature(kvm, KVM_ARM_VCPU_SVE);
+}
+
 
 /*
- * Definitions for features to be allowed or restricted for guest virtual
- * machines, depending on the mode KVM is running in and on the type of guest
- * that is running.
+ * Definitions for features to be allowed or restricted for protected guests.
  *
- * Each field in the masks represents the highest supported *unsigned* value for
- * the feature, if supported by the system.
+ * Each field in the masks represents the highest supported value for the
+ * feature. If a feature field is not present, it is not supported. Moreover,
+ * these are used to generate the guest's view of the feature registers.
  *
- * If a feature field is not present in either, than it is not supported.
- *
- * The approach taken for protected VMs is to allow features that are:
+ * The approach for protected VMs is to at least support features that are:
  * - Needed by common Linux distributions (e.g., floating point)
  * - Trivial to support, e.g., supporting the feature does not introduce or
  * require tracking of additional state in KVM
@@ -81,18 +92,7 @@ struct pvm_feature {
  * restricted.
  */
 
-
-static bool _vcpu_has_ptrauth(const struct kvm_vcpu *vcpu)
-{
-	return vcpu_has_ptrauth(vcpu);
-}
-
-static bool _vcpu_has_sve(const struct kvm_vcpu *vcpu)
-{
-	return vcpu_has_sve(vcpu);
-}
-
-static const struct pvm_feature pvmid_aa64pfr0[] = {
+static const struct pvm_ftr_bits pvmid_aa64pfr0[] = {
 	MAX_FEAT(ID_AA64PFR0_EL1, EL0, IMP),
 	MAX_FEAT(ID_AA64PFR0_EL1, EL1, IMP),
 	MAX_FEAT(ID_AA64PFR0_EL1, EL2, IMP),
@@ -100,7 +100,7 @@ static const struct pvm_feature pvmid_aa64pfr0[] = {
 	MAX_FEAT(ID_AA64PFR0_EL1, FP, FP16),
 	MAX_FEAT(ID_AA64PFR0_EL1, AdvSIMD, FP16),
 	MAX_FEAT(ID_AA64PFR0_EL1, GIC, IMP),
-	MAX_FEAT_FUNC(ID_AA64PFR0_EL1, SVE, IMP, _vcpu_has_sve),
+	MAX_FEAT_FUNC(ID_AA64PFR0_EL1, SVE, IMP, vm_has_sve),
 	MAX_FEAT(ID_AA64PFR0_EL1, RAS, IMP),
 	MAX_FEAT(ID_AA64PFR0_EL1, DIT, IMP),
 	MAX_FEAT(ID_AA64PFR0_EL1, CSV2, IMP),
@@ -108,7 +108,7 @@ static const struct pvm_feature pvmid_aa64pfr0[] = {
 	FEAT_END
 };
 
-static const struct pvm_feature pvmid_aa64pfr1[] = {
+static const struct pvm_ftr_bits pvmid_aa64pfr1[] = {
 	MAX_FEAT(ID_AA64PFR1_EL1, BT, IMP),
 	MAX_FEAT(ID_AA64PFR1_EL1, SSBS, SSBS2),
 	MAX_FEAT_ENUM(ID_AA64PFR1_EL1, MTE_frac, NI),
@@ -121,7 +121,7 @@ static const struct pvm_feature pvmid_aa64pfr1[] = {
  * - 16-bit ASID
  */
 // TODO: check the tgran
-static const struct pvm_feature pvmid_aa64mmfr0[] = {
+static const struct pvm_ftr_bits pvmid_aa64mmfr0[] = {
 	MAX_FEAT_ENUM(ID_AA64MMFR0_EL1, PARANGE, 40),
 	MAX_FEAT_ENUM(ID_AA64MMFR0_EL1, ASIDBITS, 16),
 	MAX_FEAT(ID_AA64MMFR0_EL1, BIGEND, IMP),
@@ -131,7 +131,7 @@ static const struct pvm_feature pvmid_aa64mmfr0[] = {
 	FEAT_END
 };
 
-static const struct pvm_feature pvmid_aa64mmfr1[] = {
+static const struct pvm_ftr_bits pvmid_aa64mmfr1[] = {
 	MAX_FEAT(ID_AA64MMFR1_EL1, HAFDBS, DBM),
 	MAX_FEAT_ENUM(ID_AA64MMFR1_EL1, VMIDBits, 16),
 	MAX_FEAT(ID_AA64MMFR1_EL1, HPDS, HPDS2),
@@ -142,7 +142,7 @@ static const struct pvm_feature pvmid_aa64mmfr1[] = {
 	FEAT_END
 };
 
-static const struct pvm_feature pvmid_aa64mmfr2[] = {
+static const struct pvm_ftr_bits pvmid_aa64mmfr2[] = {
 	MAX_FEAT(ID_AA64MMFR2_EL1, CnP, IMP),
 	MAX_FEAT(ID_AA64MMFR2_EL1, UAO, IMP),
 	MAX_FEAT(ID_AA64MMFR2_EL1, IESB, IMP),
@@ -155,10 +155,10 @@ static const struct pvm_feature pvmid_aa64mmfr2[] = {
 };
 
 /* Restrict pointer authentication to the basic version. */
-static const struct pvm_feature pvmid_aa64isar1[] = {
+static const struct pvm_ftr_bits pvmid_aa64isar1[] = {
 	MAX_FEAT(ID_AA64ISAR1_EL1, DPB, DPB2),
-	MAX_FEAT_FUNC(ID_AA64ISAR1_EL1, APA, PAuth, _vcpu_has_ptrauth),
-	MAX_FEAT_FUNC(ID_AA64ISAR1_EL1, API, PAuth, _vcpu_has_ptrauth),
+	MAX_FEAT_FUNC(ID_AA64ISAR1_EL1, APA, PAuth, vm_has_ptrauth),
+	MAX_FEAT_FUNC(ID_AA64ISAR1_EL1, API, PAuth, vm_has_ptrauth),
 	MAX_FEAT(ID_AA64ISAR1_EL1, JSCVT, IMP),
 	MAX_FEAT(ID_AA64ISAR1_EL1, FCMA, IMP),
 	MAX_FEAT(ID_AA64ISAR1_EL1, LRCPC, LRCPC3),
@@ -173,24 +173,24 @@ static const struct pvm_feature pvmid_aa64isar1[] = {
 	FEAT_END
 };
 
-static const struct pvm_feature pvmid_aa64isar2[] = {
-	MAX_FEAT_FUNC(ID_AA64ISAR2_EL1, GPA3, IMP, _vcpu_has_ptrauth),
-	MAX_FEAT_FUNC(ID_AA64ISAR2_EL1, APA3, PAuth, _vcpu_has_ptrauth),
+static const struct pvm_ftr_bits pvmid_aa64isar2[] = {
+	MAX_FEAT_FUNC(ID_AA64ISAR2_EL1, GPA3, IMP, vm_has_ptrauth),
+	MAX_FEAT_FUNC(ID_AA64ISAR2_EL1, APA3, PAuth, vm_has_ptrauth),
 	MAX_FEAT(ID_AA64ISAR2_EL1, MOPS, IMP),
 	MAX_FEAT(ID_AA64ISAR2_EL1, ATS1A, IMP),
 	FEAT_END
 };
 
-static const struct pvm_feature pvmid_aa64zfr0[] = {
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SVEver, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, AES, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, BitPerm, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, BF16, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SHA3, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SM4, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, I8MM, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, F32MM, IMP, _vcpu_has_sve),
-	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, F64MM, IMP, _vcpu_has_sve),
+static const struct pvm_ftr_bits pvmid_aa64zfr0[] = {
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SVEver, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, AES, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, BitPerm, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, BF16, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SHA3, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, SM4, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, I8MM, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, F32MM, IMP, vm_has_sve),
+	MAX_FEAT_FUNC(ID_AA64ZFR0_EL1, F64MM, IMP, vm_has_sve),
 	FEAT_END
 };
 
@@ -215,25 +215,25 @@ static const struct pvm_feature pvmid_aa64zfr0[] = {
  */
 static u64 get_restricted_features(const struct kvm_vcpu *vcpu,
 				   u64 sys_reg_val,
-				   const struct pvm_feature restrictions[])
+				   const struct pvm_ftr_bits restrictions[])
 {
 	u64 val = 0UL;
 	int i;
 
-	for (i = 0; restrictions[i].shift != -1; i++) {
-		bool (*vcpu_supported)(const struct kvm_vcpu *) = restrictions[i].vcpu_supported;
-		bool is_signed = restrictions[i].is_signed;
+	for (i = 0; restrictions[i].width != 0; i++) {
+		bool (*vm_supported)(const struct kvm *) = restrictions[i].vm_supported;
+		bool sign = restrictions[i].sign;
 		int shift = restrictions[i].shift;
 		int width = restrictions[i].width;
 		u64 min_signed = (1UL << width) - 1UL;
 		u64 sign_bit = 1UL << (width - 1);
-		u64 mask = restrictions[i].mask;
+		u64 mask = GENMASK_ULL(width + shift - 1, shift);
 		u64 sys_val = (sys_reg_val & mask) >> shift;
-		u64 pvm_max = restrictions[i].max_supported;
+		u64 pvm_max = restrictions[i].max_val;
 
-		if (vcpu_supported && !vcpu_supported(vcpu))
-			val |= (is_signed ? min_signed : 0) << shift;
-		else if (is_signed && (sys_val >= sign_bit || pvm_max >= sign_bit))
+		if (vm_supported && !vm_supported(vcpu->kvm))
+			val |= (sign ? min_signed : 0) << shift;
+		else if (sign && (sys_val >= sign_bit || pvm_max >= sign_bit))
 			val |= max(sys_val, pvm_max) << shift;
 		else
 			val |= min(sys_val, pvm_max) << shift;
@@ -302,9 +302,10 @@ static u64 read_id_reg(const struct kvm_vcpu *vcpu,
 	struct kvm *kvm = vcpu->kvm;
 	u32 reg = reg_to_encoding(r);
 
-	BUG_ON(!test_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags));
+	if (WARN_ON_ONCE(!test_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags)))
+		return 0;
 
-	if (reg >= sys_reg(3, 0, 0, 4, 0) && reg <= sys_reg(3, 0, 0, 7, 7))
+	if (reg >= sys_reg(3, 0, 0, 1, 0) && reg <= sys_reg(3, 0, 0, 7, 7))
 		return kvm->arch.id_regs[IDREG_IDX(reg)];
 
 	return 0;
@@ -614,6 +615,28 @@ static const struct sys_reg_desc_reset pvm_sys_reg_reset_vals[] = {
 };
 
 /*
+ * Initializes feature registers for protected vms.
+ */
+void kvm_init_pvm_id_regs(struct kvm_vcpu *vcpu)
+{
+	struct kvm *kvm = vcpu->kvm;
+	struct kvm_arch *ka = &kvm->arch;
+	u32 r;
+
+	if (test_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags))
+		return;
+
+	/*
+	 * Initialize only AArch64 id registers since AArch32 isn't supported
+	 * for protected VMs.
+	 */
+	for (r = sys_reg(3, 0, 0, 1, 0); r <= sys_reg(3, 0, 0, 7, 7); r += sys_reg(0, 0, 0, 0, 1))
+		ka->id_regs[IDREG_IDX(r)] = pvm_calc_id_reg(vcpu, r);
+
+	set_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags);
+}
+
+/*
  * Sets system registers to reset value
  *
  * This function finds the right entry and sets the registers on the protected
@@ -621,21 +644,6 @@ static const struct sys_reg_desc_reset pvm_sys_reg_reset_vals[] = {
  */
 void kvm_reset_pvm_sys_regs(struct kvm_vcpu *vcpu)
 {
-	/* List of feature registers to reset for protected VMs. */
-	const u32 pvm_feat_id_regs[] = {
-		SYS_ID_AA64PFR0_EL1,
-		SYS_ID_AA64PFR1_EL1,
-		SYS_ID_AA64ISAR0_EL1,
-		SYS_ID_AA64ISAR1_EL1,
-		SYS_ID_AA64ISAR2_EL1,
-		SYS_ID_AA64ZFR0_EL1,
-		SYS_ID_AA64MMFR0_EL1,
-		SYS_ID_AA64MMFR1_EL1,
-		SYS_ID_AA64MMFR2_EL1,
-		SYS_ID_AA64MMFR4_EL1,
-		SYS_ID_AA64DFR0_EL1,
-	};
-	struct kvm *kvm = vcpu->kvm;
 	unsigned long i;
 
 	for (i = 0; i < ARRAY_SIZE(pvm_sys_reg_reset_vals); i++) {
@@ -643,18 +651,6 @@ void kvm_reset_pvm_sys_regs(struct kvm_vcpu *vcpu)
 
 		r->reset(vcpu, r);
 	}
-
-	if (test_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags))
-		return;
-
-	for (i = 0; i < ARRAY_SIZE(pvm_feat_id_regs); i++) {
-		struct kvm_arch *ka = &kvm->arch;
-		u32 reg = pvm_feat_id_regs[i];
-
-		ka->id_regs[IDREG_IDX(reg)] = pvm_calc_id_reg(vcpu, reg);
-	}
-
-	set_bit(KVM_ARCH_FLAG_ID_REGS_INITIALIZED, &kvm->arch.flags);
 }
 
 /*

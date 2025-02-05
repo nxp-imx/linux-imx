@@ -26,6 +26,32 @@ void pkvm_destroy_hyp_vm(struct kvm *kvm);
 bool pkvm_is_hyp_created(struct kvm *kvm);
 void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 
+/*
+ * This functions as an allow-list of protected VM capabilities.
+ * Features not explicitly allowed by this function are denied.
+ */
+static inline bool kvm_pvm_ext_allowed(long ext)
+{
+	switch (ext) {
+	case KVM_CAP_IRQCHIP:
+	case KVM_CAP_ARM_PSCI:
+	case KVM_CAP_ARM_PSCI_0_2:
+	case KVM_CAP_NR_VCPUS:
+	case KVM_CAP_MAX_VCPUS:
+	case KVM_CAP_MAX_VCPU_ID:
+	case KVM_CAP_MSI_DEVID:
+	case KVM_CAP_ARM_VM_IPA_SIZE:
+	case KVM_CAP_ARM_PMU_V3:
+	case KVM_CAP_ARM_SVE:
+	case KVM_CAP_ARM_PTRAUTH_ADDRESS:
+	case KVM_CAP_ARM_PTRAUTH_GENERIC:
+	case KVM_CAP_ARM_PROTECTED_VM:
+		return true;
+	default:
+		return false;
+	}
+}
+
 /* All HAFGRTR_EL2 bits are AMU */
 #define HAFGRTR_AMU	__HAFGRTR_EL2_MASK
 
@@ -413,4 +439,35 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
 	} while (!__ret);						\
 	__ret;								\
 })
+
+enum pkvm_ptdump_ops {
+	PKVM_PTDUMP_GET_LEVEL,
+	PKVM_PTDUMP_GET_RANGE,
+	PKVM_PTDUMP_WALK_RANGE,
+};
+
+struct pkvm_ptdump_log {
+	/* VA_BIT - PAGE_SHIFT + 1 (INVALID_PTDUMP_PFN) */
+	u64	pfn: 41;
+	bool	valid: 1;
+	bool	r: 1;
+	bool	w: 1;
+	char	xn: 2;
+	bool	table: 1;
+	u16	page_state: 2;
+	u16	level: 8;
+} __packed;
+
+#define INVALID_PTDUMP_PFN	(BIT(41) - 1)
+
+struct pkvm_ptdump_log_hdr {
+	/* The next page */
+	u64	pfn_next: 48;
+	/* The write index in the log page */
+	u64	w_index: 16;
+};
+
+int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
+			     int (*call_hyp_nvhe)(u64, u64, u8, void*),
+			     void *args, bool unmap);
 #endif	/* __ARM64_KVM_PKVM_H__ */

@@ -5,6 +5,7 @@
 #include <asm/kvm_host.h>
 #include <asm/kvm_pkvm_module.h>
 #include <asm/kvm_hypevents.h>
+#include <asm/module.h>
 
 #include <nvhe/alloc.h>
 #include <nvhe/iommu.h>
@@ -113,6 +114,98 @@ static void tracing_mod_hyp_printk(u8 fmt_id, u64 a, u64 b, u64 c, u64 d)
 #endif
 }
 
+static int host_stage2_enable_lazy_pte(u64 pfn, u64 nr_pages)
+{
+	return __pkvm_host_lazy_pte(pfn, nr_pages, true);
+}
+
+static int host_stage2_disable_lazy_pte(u64 pfn, u64 nr_pages)
+{
+	return __pkvm_host_lazy_pte(pfn, nr_pages, false);
+}
+
+static int __hyp_smp_processor_id(void)
+{
+	return hyp_smp_processor_id();
+}
+
+#define MAX_MOD_HANDLERS 16
+
+enum mod_handler_type {
+	HOST_FAULT_HANDLER = 0,
+	HOST_SMC_HANDLER,
+	NUM_MOD_HANDLER_TYPES,
+};
+
+static void *mod_handlers[NUM_MOD_HANDLER_TYPES][MAX_MOD_HANDLERS];
+
+static int mod_handler_register(enum mod_handler_type type, void *handler)
+{
+	int i;
+
+	for (i = 0; i < MAX_MOD_HANDLERS; i++) {
+		if (!cmpxchg64_release(&mod_handlers[type][i], handler, NULL))
+			return 0;
+	}
+
+	return -EBUSY;
+}
+
+static void *__get_mod_handler(enum mod_handler_type type, int i)
+{
+	if (WARN_ON(type >= NUM_MOD_HANDLER_TYPES))
+		return NULL;
+
+	if (i >= MAX_MOD_HANDLERS)
+		return NULL;
+
+	i = array_index_nospec(i, MAX_MOD_HANDLERS);
+
+	return smp_load_acquire(&mod_handlers[type][i]);
+}
+
+#define for_each_mod_handler(type, handler, i)					\
+	for ((i) = 0, handler = (typeof(handler))__get_mod_handler(type, 0);	\
+	     handler;								\
+	     handler = (typeof(handler))__get_mod_handler(type, ++(i)))
+
+static int
+__register_host_perm_fault_handler(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr))
+{
+	return mod_handler_register(HOST_FAULT_HANDLER, cb);
+}
+
+static int __register_host_smc_handler(bool (*cb)(struct user_pt_regs *))
+{
+	return mod_handler_register(HOST_SMC_HANDLER, cb);
+}
+
+bool module_handle_host_perm_fault(struct user_pt_regs *regs, u64 esr, u64 addr)
+{
+	int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr);
+	int i;
+
+	for_each_mod_handler(HOST_FAULT_HANDLER, cb, i) {
+		if (!cb(regs, esr, addr))
+			return true;
+	}
+
+	return false;
+}
+
+bool module_handle_host_smc(struct user_pt_regs *regs)
+{
+	bool (*cb)(struct user_pt_regs *regs);
+	int i;
+
+	for_each_mod_handler(HOST_SMC_HANDLER, cb, i) {
+		if (cb(regs))
+			return true;
+	}
+
+	return false;
+}
+
 const struct pkvm_module_ops module_ops = {
 	.create_private_mapping = __pkvm_create_private_mapping,
 	.alloc_module_va = __pkvm_alloc_module_va,
@@ -128,10 +221,12 @@ const struct pkvm_module_ops module_ops = {
 	.flush_dcache_to_poc = __kvm_flush_dcache_to_poc,
 	.update_hcr_el2 = __update_hcr_el2,
 	.update_hfgwtr_el2 = __update_hfgwtr_el2,
-	.register_host_perm_fault_handler = hyp_register_host_perm_fault_handler,
+	.register_host_perm_fault_handler = __register_host_perm_fault_handler,
 	.host_stage2_mod_prot = module_change_host_page_prot,
 	.host_stage2_get_leaf = host_stage2_get_leaf,
-	.register_host_smc_handler = __pkvm_register_host_smc_handler,
+	.host_stage2_enable_lazy_pte = host_stage2_enable_lazy_pte,
+	.host_stage2_disable_lazy_pte = host_stage2_disable_lazy_pte,
+	.register_host_smc_handler = __register_host_smc_handler,
 	.register_default_trap_handler = __pkvm_register_default_trap_handler,
 	.register_illegal_abt_notifier = __pkvm_register_illegal_abt_notifier,
 	.register_psci_notifier = __pkvm_register_psci_notifier,
@@ -149,7 +244,6 @@ const struct pkvm_module_ops module_ops = {
 	.hyp_pa = hyp_virt_to_phys,
 	.hyp_va = hyp_phys_to_virt,
 	.kern_hyp_va = __kern_hyp_va,
-	.register_hyp_event_ids = register_hyp_event_ids,
 	.tracing_reserve_entry = tracing_reserve_entry,
 	.tracing_commit_entry = tracing_commit_entry,
 	.tracing_mod_hyp_printk = tracing_mod_hyp_printk,
@@ -161,16 +255,35 @@ const struct pkvm_module_ops module_ops = {
 	.iommu_reclaim_pages = kvm_iommu_reclaim_pages,
 	.iommu_init_device = kvm_iommu_init_device,
 	.udelay = pkvm_udelay,
+	.iommu_iotlb_gather_add_page = kvm_iommu_iotlb_gather_add_page,
+	.pkvm_host_unuse_dma = __pkvm_host_unuse_dma,
 #ifdef CONFIG_LIST_HARDENED
 	.list_add_valid_or_report = __list_add_valid_or_report,
 	.list_del_entry_valid_or_report = __list_del_entry_valid_or_report,
 #endif
 	.iommu_snapshot_host_stage2 = kvm_iommu_snapshot_host_stage2,
+	.iommu_donate_pages_atomic = kvm_iommu_donate_pages_atomic,
+	.iommu_reclaim_pages_atomic = kvm_iommu_reclaim_pages_atomic,
+	.hyp_smp_processor_id = __hyp_smp_processor_id,
 };
 
-int __pkvm_init_module(void *module_init)
+static void *pkvm_module_hyp_va(struct pkvm_el2_module *mod, void *kern_va)
 {
-	int (*do_module_init)(const struct pkvm_module_ops *ops) = module_init;
+	return kern_va - mod->sections.start + mod->hyp_va;
+}
+
+int __pkvm_init_module(void *host_mod)
+{
+	int (*do_module_init)(const struct pkvm_module_ops *ops);
+	struct pkvm_el2_module *mod = kern_hyp_va(host_mod);
+	void *event_ids;
+
+	event_ids = pkvm_module_hyp_va(mod, mod->event_ids.start);
+
+	if (mod->nr_hyp_events)
+		register_hyp_event_ids(event_ids, mod->nr_hyp_events);
+
+	do_module_init = pkvm_module_hyp_va(mod, (void *)mod->init);
 
 	return do_module_init(&module_ops);
 }

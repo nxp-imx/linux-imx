@@ -40,14 +40,6 @@ static unsigned int *hyp_memblock_nr_ptr = &kvm_nvhe_sym(hyp_memblock_nr);
 phys_addr_t hyp_mem_base;
 phys_addr_t hyp_mem_size;
 
-static int rb_ppage_cmp(const void *key, const struct rb_node *node)
-{
-       struct kvm_pinned_page *p = container_of(node, struct kvm_pinned_page, node);
-       phys_addr_t ipa = (phys_addr_t)key;
-
-       return (ipa < p->ipa) ? -1 : (ipa > p->ipa);
-}
-
 static int cmp_hyp_memblock(const void *p1, const void *p2)
 {
 	const struct memblock_region *r1 = p1;
@@ -241,12 +233,84 @@ err_free_reqs:
 	return ret;
 }
 
+/*
+ * Handle broken down huge pages which have not been reported to the
+ * kvm_pinned_page.
+ */
+int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
+			     int (*call_hyp_nvhe)(u64 pfn, u64 gfn, u8 order, void* args),
+			     void *args, bool unmap)
+{
+	size_t page_size, size = PAGE_SIZE << ppage->order;
+	u64 pfn = page_to_pfn(ppage->page);
+	u8 order = ppage->order;
+	u64 gfn = ppage->ipa >> PAGE_SHIFT;
+
+	/* We already know this huge-page has been broken down in the stage-2 */
+	if (ppage->pins < (1 << order))
+		order = 0;
+
+	while (size) {
+		int err = call_hyp_nvhe(pfn, gfn, order, args);
+
+		switch (err) {
+		/* The stage-2 huge page has been broken down */
+		case -E2BIG:
+			if (order)
+				order = 0;
+			else
+				/* Something is really wrong ... */
+				return -EINVAL;
+			break;
+		/* This has been unmapped already */
+		case -ENOENT:
+			/*
+			 * We are not supposed to lose track of PAGE_SIZE pinned
+			 * page.
+			 */
+			if (!ppage->order)
+				return -EINVAL;
+
+			fallthrough;
+		case 0:
+			page_size = PAGE_SIZE << order;
+			gfn += 1 << order;
+			pfn += 1 << order;
+
+			if (page_size > size)
+				return -EINVAL;
+
+			/* If -ENOENT, the pin was already dropped. */
+			if (unmap && !err)
+				ppage->pins -= 1 << order;
+
+			if (!ppage->pins)
+				return 0;
+
+			size -= page_size;
+			break;
+		default:
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+static int __reclaim_dying_guest_page_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *host_kvm = args;
+
+	return kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
+				 host_kvm->arch.pkvm.handle,
+				 pfn, gfn, order);
+}
+
 static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
 	struct kvm_vcpu *host_vcpu;
-	struct rb_node *node;
 	unsigned long pages = 0;
 	unsigned long idx;
 
@@ -255,20 +319,22 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
-	node = rb_first(&host_kvm->arch.pkvm.pinned_pages);
-	while (node) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
-		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
-					  host_kvm->arch.pkvm.handle,
-					  page_to_pfn(ppage->page),
-					  ppage->ipa));
+	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages, 0, ~(0UL));
+	while (ppage) {
+		struct kvm_pinned_page *next;
+		u16 pins = ppage->pins;
+
+		WARN_ON(pkvm_call_hyp_nvhe_ppage(ppage,
+						 __reclaim_dying_guest_page_call,
+						 host_kvm, true));
 		cond_resched();
 
 		unpin_user_pages_dirty_lock(&ppage->page, 1, ppage->dirty);
-		node = rb_next(node);
-		rb_erase(&ppage->node, &host_kvm->arch.pkvm.pinned_pages);
+		next = kvm_pinned_pages_iter_next(ppage, 0, ~(0UL));
+		kvm_pinned_pages_remove(ppage, &host_kvm->arch.pkvm.pinned_pages);
+		pages += pins;
 		kfree(ppage);
-		pages++;
+		ppage = next;
 	}
 
 	account_locked_vm(mm, pages, false);
@@ -458,6 +524,8 @@ static int __init finalize_pkvm(void)
 	kmemleak_free_part(__hyp_rodata_start, __hyp_rodata_end - __hyp_rodata_start);
 	kmemleak_free_part_phys(hyp_mem_base, hyp_mem_size);
 
+	kvm_s2_ptdump_host_create_debugfs();
+
 	ret = pkvm_drop_host_privileges();
 	if (ret) {
 		pr_err("Failed to finalize Hyp protection: %d\n", ret);
@@ -472,20 +540,26 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 {
 	struct kvm_pinned_page *ppage;
 	struct mm_struct *mm = current->mm;
-	struct rb_node *node;
 
 	write_lock(&host_kvm->mmu_lock);
-	node = rb_find((void *)ipa, &host_kvm->arch.pkvm.pinned_pages,
-		       rb_ppage_cmp);
-	if (node)
-		rb_erase(node, &host_kvm->arch.pkvm.pinned_pages);
+	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages,
+					   ipa, ipa + PAGE_SIZE - 1);
+	if (ppage) {
+		if (ppage->pins)
+			ppage->pins--;
+		else
+			WARN_ON(1);
+
+		if (!ppage->pins)
+			kvm_pinned_pages_remove(ppage,
+						&host_kvm->arch.pkvm.pinned_pages);
+	}
 	write_unlock(&host_kvm->mmu_lock);
 
-	WARN_ON(!node);
-	if (!node)
+	WARN_ON(!ppage);
+	if (!ppage)
 		return;
 
-	ppage = container_of(node, struct kvm_pinned_page, node);
 	account_locked_vm(mm, 1, false);
 	unpin_user_pages_dirty_lock(&ppage->page, 1, true);
 	kfree(ppage);
@@ -941,12 +1015,71 @@ static int pkvm_map_module_sections(struct pkvm_mod_sec_mapping *secs_map,
 
 	return 0;
 }
+
 static int __pkvm_cmp_mod_sec(const void *p1, const void *p2)
 {
 	struct pkvm_mod_sec_mapping const *s1 = p1;
 	struct pkvm_mod_sec_mapping const *s2 = p2;
 
 	return s1->sec->start < s2->sec->start ? -1 : s1->sec->start > s2->sec->start;
+}
+
+static void *pkvm_map_module_struct(struct pkvm_el2_module *mod)
+{
+	void *addr = (void *)__get_free_page(GFP_KERNEL);
+
+	if (!addr)
+		return NULL;
+
+	if (kvm_share_hyp(addr, addr + PAGE_SIZE)) {
+		free_page((unsigned long)addr);
+		return NULL;
+	}
+
+	/*
+	 * pkvm_el2_module being stored in vmalloc we can't guarantee a
+	 * linear map for the hypervisor to rely on. Copy the struct instead.
+	 */
+	memcpy(addr, mod, sizeof(*mod));
+
+	return addr;
+}
+
+static void pkvm_unmap_module_struct(void *addr)
+{
+	kvm_unshare_hyp(addr, addr + PAGE_SIZE);
+	free_page((unsigned long)addr);
+}
+
+static void pkvm_module_kmemleak(struct module *this,
+				 struct pkvm_mod_sec_mapping *sec_map,
+				 int nr_sections)
+{
+	void *start, *end;
+	int i;
+
+	if (!this)
+		return;
+
+	/*
+	 * The module loader already removes read-only sections from kmemleak
+	 * scanned objects. However, few hyp sections are installed into
+	 * MOD_DATA. Skip those sections before they are made inaccessible from
+	 * the host.
+	 */
+
+	start = this->mem[MOD_DATA].base;
+	end = start + this->mem[MOD_DATA].size;
+
+	for (i = 0; i < nr_sections; i++, sec_map++) {
+		if (sec_map->sec->start < start || sec_map->sec->start >= end)
+			continue;
+
+		kmemleak_scan_area(start, sec_map->sec->start - start, GFP_KERNEL);
+		start = sec_map->sec->end;
+	}
+
+	kmemleak_scan_area(start, end - start, GFP_KERNEL);
 }
 
 int __pkvm_load_el2_module(struct module *this, unsigned long *token)
@@ -959,11 +1092,11 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 		{ &mod->event_ids, KVM_PGTABLE_PROT_R },
 		{ &mod->data, KVM_PGTABLE_PROT_R | KVM_PGTABLE_PROT_W },
 	};
-	void *start, *end, *hyp_va;
+	void *start, *end, *hyp_va, *mod_remap;
 	struct arm_smccc_res res;
 	kvm_nvhe_reloc_t *endrel;
 	int ret, i, secs_first;
-	size_t offset, size;
+	size_t size;
 
 	/* The pKVM hyp only allows loading before it is fully initialized */
 	if (!is_protected_kvm_enabled() || is_pkvm_initialized())
@@ -1022,16 +1155,7 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	if (ret)
 		return ret;
 
-	/*
-	 * Sadly we have also to disable kmemleak for EL1 sections: we can't
-	 * reset created scan area and therefore we can't create a finer grain
-	 * scan excluding only EL2 sections.
-	 */
-	if (this) {
-		kmemleak_no_scan(this->mem[MOD_TEXT].base);
-		kmemleak_no_scan(this->mem[MOD_DATA].base);
-		kmemleak_no_scan(this->mem[MOD_RODATA].base);
-	}
+	pkvm_module_kmemleak(this, secs_map, ARRAY_SIZE(secs_map));
 
 	ret = hyp_trace_init_mod_events(mod->hyp_events,
 					mod->event_ids.start,
@@ -1041,18 +1165,25 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	if (ret)
 		kvm_err("Failed to init module events: %d\n", ret);
 
+	mod_remap = pkvm_map_module_struct(mod);
+	if (!mod_remap) {
+		module_put(this);
+		return -ENOMEM;
+	}
+
 	ret = pkvm_map_module_sections(secs_map + secs_first, hyp_va,
 				       ARRAY_SIZE(secs_map) - secs_first);
 	if (ret) {
 		kvm_err("Failed to map EL2 module page: %d\n", ret);
+		pkvm_unmap_module_struct(mod_remap);
 		module_put(this);
 		return ret;
 	}
 
 	pkvm_el2_mod_add(mod);
 
-	offset = (size_t)((void *)mod->init - start);
-	ret = kvm_call_hyp_nvhe(__pkvm_init_module, hyp_va + offset);
+	ret = kvm_call_hyp_nvhe(__pkvm_init_module, mod_remap);
+	pkvm_unmap_module_struct(mod_remap);
 	if (ret) {
 		kvm_err("Failed to init EL2 module: %d\n", ret);
 		list_del(&mod->node);

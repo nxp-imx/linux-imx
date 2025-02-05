@@ -27,18 +27,20 @@ int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops)
 }
 EXPORT_SYMBOL(kvm_iommu_register_driver);
 
-int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops)
+int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
+		       struct kvm_hyp_memcache *atomic_mc)
 {
 	if (!hyp_ops)
 		return -EINVAL;
 
-	return kvm_call_hyp_nvhe(__pkvm_iommu_init, hyp_ops);
+	return kvm_call_hyp_nvhe(__pkvm_iommu_init, hyp_ops,
+				 atomic_mc->head, atomic_mc->nr_pages);
 }
 EXPORT_SYMBOL(kvm_iommu_init_hyp);
 
 int kvm_iommu_init_driver(void)
 {
-	if (!smp_load_acquire(&iommu_driver)) {
+	if (!smp_load_acquire(&iommu_driver) || !iommu_driver->get_iommu_id) {
 		kvm_err("pKVM enabled without an IOMMU driver, do not run confidential workloads in virtual machines\n");
 		return 0;
 	}
@@ -59,3 +61,58 @@ void kvm_iommu_remove_driver(void)
 	if (smp_load_acquire(&iommu_driver))
 		iommu_driver->remove_driver();
 }
+
+static pkvm_handle_t kvm_get_iommu_id(struct device *dev)
+{
+	return iommu_driver->get_iommu_id(dev);
+}
+
+int pkvm_iommu_suspend(struct device *dev)
+{
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 0);
+}
+EXPORT_SYMBOL(pkvm_iommu_suspend);
+
+int pkvm_iommu_resume(struct device *dev)
+{
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 1);
+}
+EXPORT_SYMBOL(pkvm_iommu_resume);
+
+int kvm_iommu_share_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents)
+{
+	size_t nr_pages = PAGE_ALIGN(sizeof(*sg) * nents) >> PAGE_SHIFT;
+	phys_addr_t sg_pfn = virt_to_phys(sg) >> PAGE_SHIFT;
+	int i;
+	int ret;
+
+	for (i = 0 ; i < nr_pages ; ++i) {
+		ret = kvm_call_hyp_nvhe(__pkvm_host_share_hyp, sg_pfn + i);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(kvm_iommu_share_hyp_sg);
+
+int kvm_iommu_unshare_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents)
+{
+	size_t nr_pages = PAGE_ALIGN(sizeof(*sg) * nents) >> PAGE_SHIFT;
+	phys_addr_t sg_pfn = virt_to_phys(sg) >> PAGE_SHIFT;
+	int i;
+	int ret;
+
+	for (i = 0 ; i < nr_pages ; ++i) {
+		ret = kvm_call_hyp_nvhe(__pkvm_host_unshare_hyp, sg_pfn + i);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(kvm_iommu_unshare_hyp_sg);

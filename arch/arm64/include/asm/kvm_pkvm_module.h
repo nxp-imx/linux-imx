@@ -80,11 +80,24 @@ enum pkvm_psci_notification {
  *				CPU will be stuck in an infinite loop. @nr_pages
  *				allows to apply this prot on a range of
  *				contiguous memory.
+ * @host_stage2_enable_lazy_pte:
+ *				Unmap a range of memory from the host stage-2,
+ *				leaving the pages host ownership intact. The
+ *				pages will be remapped lazily (subject to the
+ *				usual ownership checks) in response to a
+ *				faulting access from the host.
+ * @host_stage2_disable_lazy_pte:
+ *				This is the opposite function of
+ *				host_stage2_enable_lazy_pte. Must be called once
+ *				the module is done with the region.
  * @host_stage2_get_leaf:	Query the host's stage2 page-table entry for
  *				the page @phys.
  * @register_host_smc_handler:	@cb is called whenever the host issues an SMC
- *				pKVM couldn't handle. If @cb returns false, the
- *				SMC will be forwarded to EL3.
+ *				pKVM couldn't handle.
+ *				Up-to 16 handlers can be registered. The handler
+ *				order depends on the registration order. If no
+ *				handler return True, the SMC is forwarded to
+ *				EL3.
  * @register_default_trap_handler:
  *				@cb is called whenever EL2 traps EL1 and pKVM
  *				has not handled it. If @cb returns false, the
@@ -141,10 +154,21 @@ enum pkvm_psci_notification {
  * @iommu_init_device:		Initialize common IOMMU fields.
  * @udelay:			Delay in us.
  * @hyp_alloc_missing_donations:
-				Missing donations if allocator returns NULL
+ *				Missing donations if allocator returns NULL
+ * @iommu_iotlb_gather_add_page:
+ *				Add an IOVA range to an iommu_iotlb_gather.
+ * @pkvm_host_unuse_dma:	Decrement the refcount for pages used for DMA,
+ * 				this is typically called from the module after a
+ * 				successful unmap() operation, so the hypervisor
+ * 				can track the page state.
+ * @iommu_snapshot_host_stage2: Snapshot the host stage-2 CPU page table in to an
+ * 				IOMMU domain.
  * @__list_add_valid_or_report: Needed if the code uses linked lists.
  * @__list_del_entry_valid_or_report:
 				Needed if the code uses linked lists.
+ * @iommu_donate_pages_atomic:	Allocate memory from IOMMU identity pool.
+ * @iommu_reclaim_pages_atomic:	Reclaim memory from iommu_donate_pages_atomic()
+ * @hyp_smp_processor_id:	Current CPU id
  */
 struct pkvm_module_ops {
 	int (*create_private_mapping)(phys_addr_t phys, size_t size,
@@ -164,8 +188,10 @@ struct pkvm_module_ops {
 	void (*update_hcr_el2)(unsigned long set_mask, unsigned long clear_mask);
 	void (*update_hfgwtr_el2)(unsigned long set_mask, unsigned long clear_mask);
 	int (*register_host_perm_fault_handler)(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr));
-	int (*host_stage2_mod_prot)(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages);
+	int (*host_stage2_mod_prot)(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages, bool update_iommu);
 	int (*host_stage2_get_leaf)(phys_addr_t phys, kvm_pte_t *ptep, s8 *level);
+	int (*host_stage2_enable_lazy_pte)(u64 addr, u64 nr_pages);
+	int (*host_stage2_disable_lazy_pte)(u64 addr, u64 nr_pages);
 	int (*register_host_smc_handler)(bool (*cb)(struct user_pt_regs *));
 	int (*register_default_trap_handler)(bool (*cb)(struct user_pt_regs *));
 	int (*register_illegal_abt_notifier)(void (*cb)(struct user_pt_regs *));
@@ -184,7 +210,6 @@ struct pkvm_module_ops {
 	phys_addr_t (*hyp_pa)(void *x);
 	void* (*hyp_va)(phys_addr_t phys);
 	unsigned long (*kern_hyp_va)(unsigned long x);
-	int (*register_hyp_event_ids)(unsigned long start, unsigned long end);
 	void* (*tracing_reserve_entry)(unsigned long length);
 	void (*tracing_commit_entry)(void);
 	void (*tracing_mod_hyp_printk)(u8 fmt_id, u64 a, u64 b, u64 c, u64 d);
@@ -207,6 +232,9 @@ struct pkvm_module_ops {
 	typeof(__list_del_entry_valid_or_report) *list_del_entry_valid_or_report;
 #endif
 	int (*iommu_snapshot_host_stage2)(struct kvm_hyp_iommu_domain *domain);
+	void * (*iommu_donate_pages_atomic)(u8 order);
+	void (*iommu_reclaim_pages_atomic)(void *p, u8 order);
+	int (*hyp_smp_processor_id)(void);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);

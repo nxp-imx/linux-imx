@@ -184,6 +184,7 @@ struct scan_control {
 
 	/* for recording the reclaimed slab by now */
 	struct reclaim_state reclaim_state;
+	ANDROID_VENDOR_DATA(1);
 };
 
 #ifdef ARCH_HAS_PREFETCHW
@@ -377,7 +378,14 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 	if (can_reclaim_anon_pages(NULL, zone_to_nid(zone), NULL))
 		nr += zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_ANON) +
 			zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_ANON);
-
+	/*
+	 * If there are no reclaimable file-backed or anonymous pages,
+	 * ensure zones with sufficient free pages are not skipped.
+	 * This prevents zones like DMA32 from being ignored in reclaim
+	 * scenarios where they can still help alleviate memory pressure.
+	 */
+	if (nr == 0)
+		nr = zone_page_state_snapshot(zone, NR_FREE_PAGES);
 	return nr;
 }
 
@@ -2190,6 +2198,7 @@ unsigned long reclaim_pages(struct list_head *folio_list)
 
 	return nr_reclaimed;
 }
+EXPORT_SYMBOL_GPL(reclaim_pages);
 
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
@@ -4361,7 +4370,7 @@ static bool sort_folio(struct lruvec *lruvec, struct folio *folio, struct scan_c
 	return false;
 }
 
-static bool isolate_folio(struct lruvec *lruvec, struct folio *folio, struct scan_control *sc)
+bool isolate_folio(struct lruvec *lruvec, struct folio *folio, struct scan_control *sc)
 {
 	bool success;
 
@@ -4394,6 +4403,7 @@ static bool isolate_folio(struct lruvec *lruvec, struct folio *folio, struct sca
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(isolate_folio);
 
 static int scan_folios(struct lruvec *lruvec, struct scan_control *sc,
 		       int type, int tier, struct list_head *list)
@@ -4645,6 +4655,9 @@ retry:
 		reset_batch_size(walk);
 	}
 
+	__mod_lruvec_state(lruvec, PGDEMOTE_KSWAPD + reclaimer_offset(),
+					stat.nr_demoted);
+
 	item = PGSTEAL_KSWAPD + reclaimer_offset();
 	if (!cgroup_reclaim(sc))
 		__count_vm_events(item, reclaimed);
@@ -4756,16 +4769,19 @@ static bool should_abort_scan(struct lruvec *lruvec, struct scan_control *sc)
 {
 	int i;
 	enum zone_watermarks mark;
+	bool bypass = false;
 
+	trace_android_vh_mglru_should_abort_scan(sc->nr_reclaimed,
+		sc->nr_to_reclaim, sc->order, &bypass);
 	/* don't abort memcg reclaim to ensure fairness */
-	if (!root_reclaim(sc))
+	if (!root_reclaim(sc) && !bypass)
 		return false;
 
 	if (sc->nr_reclaimed >= max(sc->nr_to_reclaim, compact_gap(sc->order)))
 		return true;
 
 	/* check the order to exclude compaction-induced reclaim */
-	if (!current_is_kswapd() || sc->order)
+	if ((!current_is_kswapd() || sc->order) && !bypass)
 		return false;
 
 	mark = sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING ?
@@ -4865,6 +4881,7 @@ static void shrink_many(struct pglist_data *pgdat, struct scan_control *sc)
 	struct lru_gen_folio *lrugen;
 	struct mem_cgroup *memcg;
 	struct hlist_nulls_node *pos;
+	bool bypass = false;
 
 	gen = get_memcg_gen(READ_ONCE(pgdat->memcg_lru.seq));
 	bin = first_bin = get_random_u32_below(MEMCG_NR_BINS);
@@ -4894,6 +4911,10 @@ restart:
 			memcg = NULL;
 			continue;
 		}
+
+		trace_android_vh_should_memcg_bypass(memcg, sc->priority, &bypass);
+		if (bypass)
+			continue;
 
 		rcu_read_unlock();
 
@@ -5824,6 +5845,7 @@ static inline bool should_continue_reclaim(struct pglist_data *pgdat,
 	unsigned long pages_for_compaction;
 	unsigned long inactive_lru_pages;
 	int z;
+	bool continue_reclaim = true;
 
 	/* If not in reclaim/compaction mode, stop */
 	if (!in_reclaim_compaction(sc))
@@ -5856,6 +5878,13 @@ static inline bool should_continue_reclaim(struct pglist_data *pgdat,
 		if (compaction_suitable(zone, sc->order, sc->reclaim_idx))
 			return false;
 	}
+
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	trace_android_vh_should_continue_reclaim(&sc->android_vendor_data1,
+		&sc->nr_to_reclaim, &sc->nr_reclaimed, &continue_reclaim);
+#endif
+	if (!continue_reclaim)
+		return false;
 
 	/*
 	 * If we have not reclaimed enough pages for compaction and the
@@ -6241,6 +6270,22 @@ static void snapshot_refaults(struct mem_cgroup *target_memcg, pg_data_t *pgdat)
 	target_lruvec->refaults[WORKINGSET_FILE] = refaults;
 }
 
+static void modify_scan_control(struct scan_control *sc)
+{
+	bool file_is_tiny = false, may_writepage = true;
+
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	trace_android_vh_modify_scan_control(&sc->android_vendor_data1,
+		&sc->nr_to_reclaim, sc->target_mem_cgroup, &file_is_tiny,
+		&may_writepage);
+#endif
+
+	if (file_is_tiny)
+		sc->file_is_tiny = true;
+	if (!may_writepage)
+		sc->may_writepage = false;
+}
+
 /*
  * This is the main entry point to direct page reclaim.
  *
@@ -6264,6 +6309,8 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 	pg_data_t *last_pgdat;
 	struct zoneref *z;
 	struct zone *zone;
+
+	modify_scan_control(sc);
 retry:
 	delayacct_freepages_start();
 
@@ -6859,9 +6906,12 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int highest_zoneidx)
 		.order = order,
 		.may_unmap = 1,
 	};
+	bool bypass = false;
 
 	set_task_reclaim_state(current, &sc.reclaim_state);
-	psi_memstall_enter(&pflags);
+	trace_android_vh_async_psi_bypass(&bypass);
+	if (!bypass)
+		psi_memstall_enter(&pflags);
 	__fs_reclaim_acquire(_THIS_IP_);
 
 	count_vm_event(PAGEOUTRUN);
@@ -7053,7 +7103,8 @@ out:
 
 	snapshot_refaults(NULL, pgdat);
 	__fs_reclaim_release(_THIS_IP_);
-	psi_memstall_leave(&pflags);
+	if (!bypass)
+		psi_memstall_leave(&pflags);
 	set_task_reclaim_state(current, NULL);
 
 	/*

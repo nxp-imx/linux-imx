@@ -1729,7 +1729,7 @@ static bool run_delalloc_compressed(struct btrfs_inode *inode,
 			 * need full accuracy.  Just account the whole thing
 			 * against the first page.
 			 */
-			wbc_account_cgroup_owner(wbc, &locked_folio->page,
+			wbc_account_cgroup_owner(wbc, locked_folio,
 						 cur_end - start);
 			async_chunk[i].locked_folio = locked_folio;
 			locked_folio = NULL;
@@ -10055,6 +10055,11 @@ static int btrfs_swap_activate(struct swap_info_struct *sis, struct file *file,
 			bsi.start = key.offset;
 			bsi.block_start = physical_block_start;
 			bsi.block_len = len;
+		}
+
+		if (fatal_signal_pending(current)) {
+			ret = -EINTR;
+			goto out;
 		}
 	}
 

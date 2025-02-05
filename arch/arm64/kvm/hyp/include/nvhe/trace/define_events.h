@@ -10,7 +10,7 @@
 #define HYP_EVENT(__name, __proto, __struct, __assign, __printk)	\
 	atomic_t __ro_after_init __name##_enabled = ATOMIC_INIT(0);	\
 	struct hyp_event_id hyp_event_id_##__name			\
-	__section(".hyp.event_ids") = {					\
+	__section(".hyp.event_ids." # __name) = {			\
 		.data = (void *)&__name##_enabled,			\
 	}
 

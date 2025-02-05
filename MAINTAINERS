@@ -4002,6 +4002,7 @@ S:	Supported
 W:	http://www.bluez.org/
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth.git
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git
+F:	Documentation/ABI/stable/sysfs-class-bluetooth
 F:	include/net/bluetooth/
 F:	net/bluetooth/
 
@@ -9473,6 +9474,13 @@ W:	https://linuxtv.org
 T:	git git://linuxtv.org/media.git
 F:	drivers/media/radio/radio-gemtek*
 
+GENDWARFKSYMS
+M:	Sami Tolvanen <samitolvanen@google.com>
+L:	linux-modules@vger.kernel.org
+L:	linux-kbuild@vger.kernel.org
+S:	Maintained
+F:	scripts/gendwarfksyms/
+
 GENERIC ARCHITECTURE TOPOLOGY
 M:	Sudeep Holla <sudeep.holla@arm.com>
 L:	linux-kernel@vger.kernel.org
@@ -9928,6 +9936,18 @@ M:	Davidlohr Bueso <dave@stgolabs.net>
 L:	linux-efi@vger.kernel.org
 S:	Maintained
 F:	block/partitions/efi.*
+
+GUNYAH HYPERVISOR DRIVER
+M:	Elliot Berman <quic_eberman@quicinc.com>
+M:	Prakruthi Deepak Heragu <quic_pheragu@quicinc.com>
+L:	linux-arm-msm@vger.kernel.org
+S:	Supported
+F:	Documentation/devicetree/bindings/firmware/gunyah-hypervisor.yaml
+F:	Documentation/virt/gunyah/
+F:	arch/arm64/gunyah/
+F:	drivers/virt/gunyah/
+F:	include/linux/gunyah*.h
+K:	gunyah
 
 HABANALABS PCI DRIVER
 M:	Ofir Bitton <obitton@habana.ai>
@@ -20238,6 +20258,7 @@ C:	zulip://rust-for-linux.zulipchat.com
 P:	https://rust-for-linux.com/contributing
 T:	git https://github.com/Rust-for-Linux/linux.git rust-next
 F:	Documentation/rust/
+F:	include/trace/events/rust_sample.h
 F:	rust/
 F:	samples/rust/
 F:	scripts/*rust*

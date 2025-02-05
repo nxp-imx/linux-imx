@@ -204,7 +204,7 @@ int adv7533_parse_dt(struct device_node *np, struct adv7511 *adv)
 	of_property_read_u32(np, "adi,dsi-channel", &channel_id);
 	of_property_read_u32(np, "adi,dsi-lanes", &num_lanes);
 
-	if (num_lanes < 1 || num_lanes > 4) {
+	if (num_lanes < 2 || num_lanes > 4) {
 		dev_err(dev, "Invalid dsi-lanes: %d\n", num_lanes);
 		return -EINVAL;
 	}
@@ -220,8 +220,6 @@ int adv7533_parse_dt(struct device_node *np, struct adv7511 *adv)
 	adv->host_node = of_graph_get_remote_node(np, 0, 0);
 	if (!adv->host_node)
 		return -ENODEV;
-
-	of_node_put(adv->host_node);
 
 	adv->use_timing_gen = !of_property_read_bool(np,
 						"adi,disable-timing-generator");

@@ -1025,21 +1025,22 @@ static int stage2_map_walk_table_pre(const struct kvm_pgtable_visit_ctx *ctx,
 	return 0;
 }
 
-static void stage2_map_prefault_idmap(struct kvm_pgtable_pte_ops *pte_ops,
+static void stage2_map_prefault_block(struct kvm_pgtable_pte_ops *pte_ops,
 				      const struct kvm_pgtable_visit_ctx *ctx,
 				      kvm_pte_t *ptep)
 {
 	kvm_pte_t block_pte = ctx->old;
 	u64 pa, granule;
+	bool counted;
 	int i;
-
-	WARN_ON(pte_ops->pte_is_counted_cb(block_pte, ctx->level));
 
 	if (!kvm_pte_valid(block_pte))
 		return;
 
-	pa = ALIGN_DOWN(ctx->addr, kvm_granule_size(ctx->level));
+	pa = kvm_pte_to_phys(block_pte);
 	granule = kvm_granule_size(ctx->level + 1);
+	counted = pte_ops->pte_is_counted_cb(block_pte, ctx->level + 1);
+
 	for (i = 0; i < PTRS_PER_PTE; ++i, ++ptep, pa += granule) {
 		kvm_pte_t pte = kvm_init_valid_leaf_pte(
 			pa, block_pte, ctx->level + 1);
@@ -1052,10 +1053,13 @@ static void stage2_map_prefault_idmap(struct kvm_pgtable_pte_ops *pte_ops,
 		 * presumably re-break the freshly installed block, but that
 		 * should happen very infrequently.
 		 */
-		if ((ctx->level < (KVM_PGTABLE_LAST_LEVEL - 2)) ||
+		if ((ctx->level < (KVM_PGTABLE_LAST_LEVEL - 1)) ||
 				(pa < ctx->addr) || (pa >= ctx->end)) {
 			/* We can write non-atomically: ptep isn't yet live. */
 			*ptep = pte;
+
+			if (counted)
+				ctx->mm_ops->get_page(ptep);
 		}
 	}
 }
@@ -1083,9 +1087,11 @@ static int stage2_map_walk_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	if (!childp)
 		return -ENOMEM;
 
-	if (pgt->flags & KVM_PGTABLE_S2_IDMAP) {
-		stage2_map_prefault_idmap(pte_ops, ctx, childp);
-	}
+	WARN_ON((pgt->flags & KVM_PGTABLE_S2_IDMAP) &&
+		pte_ops->pte_is_counted_cb(ctx->old, ctx->level));
+
+	if (pgt->flags & KVM_PGTABLE_S2_PREFAULT_BLOCK)
+		stage2_map_prefault_block(pte_ops, ctx, childp);
 
 	if (!stage2_try_break_pte(ctx, data->mmu)) {
 		mm_ops->put_page(childp);
@@ -1256,6 +1262,66 @@ int kvm_pgtable_stage2_annotate(struct kvm_pgtable *pgt, u64 addr, u64 size,
 
 	ret = kvm_pgtable_walk(pgt, addr, size, &walker);
 	return ret;
+}
+
+static int stage2_get_pages_walker(const struct kvm_pgtable_visit_ctx *ctx,
+				   enum kvm_pgtable_walk_flags visit)
+{
+	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
+	struct stage2_map_data *data = ctx->arg;
+	int ret;
+
+	ret = stage2_map_walk_leaf(ctx, data);
+	if (ret)
+		return ret;
+
+	if (ctx->level == KVM_PGTABLE_LAST_LEVEL)
+		mm_ops->get_page(ctx->ptep);
+
+	return 0;
+}
+
+int kvm_pgtable_stage2_get_pages(struct kvm_pgtable *pgt, u64 addr, u64 size,
+				 void *mc)
+{
+	struct stage2_map_data map_data = {
+		.phys		= KVM_PHYS_INVALID,
+		.mmu		= pgt->mmu,
+		.memcache	= mc,
+		.force_pte	= true,
+	};
+	struct kvm_pgtable_walker walker = {
+		.cb		= stage2_get_pages_walker,
+		.flags		= KVM_PGTABLE_WALK_LEAF,
+		.arg		= &map_data,
+	};
+
+	return kvm_pgtable_walk(pgt, addr, size, &walker);
+}
+
+static int stage2_put_pages_walker(const struct kvm_pgtable_visit_ctx *ctx,
+				   enum kvm_pgtable_walk_flags visit)
+{
+	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
+
+	/* get_pages has force_pte */
+	if (WARN_ON(ctx->level != KVM_PGTABLE_LAST_LEVEL))
+		return -EINVAL;
+
+	mm_ops->put_page(ctx->ptep);
+
+	return 0;
+}
+
+int kvm_pgtable_stage2_put_pages(struct kvm_pgtable *pgt, u64 addr, u64 size)
+{
+	struct kvm_pgtable_walker walker = {
+		.cb		= stage2_put_pages_walker,
+		.flags		= KVM_PGTABLE_WALK_LEAF,
+		.arg		= pgt->mmu,
+	};
+
+	return kvm_pgtable_walk(pgt, addr, size, &walker);
 }
 
 static int stage2_unmap_walker(const struct kvm_pgtable_visit_ctx *ctx,

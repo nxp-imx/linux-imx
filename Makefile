@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 6
 PATCHLEVEL = 12
-SUBLEVEL = 8
+SUBLEVEL = 11
 EXTRAVERSION =
 NAME = Baby Opossum Posse
 
@@ -372,7 +372,7 @@ else # !mixed-build
 include $(srctree)/scripts/Kbuild.include
 
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
-KERNELRELEASE = $(call read-file, include/config/kernel.release)
+KERNELRELEASE = $(call read-file, $(objtree)/include/config/kernel.release)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
 export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION
 
@@ -740,7 +740,7 @@ endif
 export KBUILD_MODULES KBUILD_BUILTIN
 
 ifdef need-config
-include include/config/auto.conf
+include $(objtree)/include/config/auto.conf
 endif
 
 ifeq ($(KBUILD_EXTMOD),)
@@ -803,17 +803,22 @@ $(KCONFIG_CONFIG):
 else # !may-sync-config
 # External modules and some install targets need include/generated/autoconf.h
 # and include/config/auto.conf but do not care if they are up-to-date.
-# Use auto.conf to trigger the test
-PHONY += include/config/auto.conf
+# Use auto.conf to show the error message
 
-include/config/auto.conf:
-	@test -e include/generated/autoconf.h -a -e $@ || (		\
-	echo >&2;							\
-	echo >&2 "  ERROR: Kernel configuration is invalid.";		\
-	echo >&2 "         include/generated/autoconf.h or $@ are missing.";\
-	echo >&2 "         Run 'make oldconfig && make prepare' on kernel src to fix it.";	\
-	echo >&2 ;							\
-	/bin/false)
+checked-configs := $(addprefix $(objtree)/, include/generated/autoconf.h include/generated/rustc_cfg include/config/auto.conf)
+missing-configs := $(filter-out $(wildcard $(checked-configs)), $(checked-configs))
+
+ifdef missing-configs
+PHONY += $(objtree)/include/config/auto.conf
+
+$(objtree)/include/config/auto.conf:
+	@echo   >&2 '***'
+	@echo   >&2 '***  ERROR: Kernel configuration is invalid. The following files are missing:'
+	@printf >&2 '***    - %s\n' $(missing-configs)
+	@echo   >&2 '***  Run "make oldconfig && make prepare" on kernel source to fix it.'
+	@echo   >&2 '***'
+	@/bin/false
+endif
 
 endif # may-sync-config
 endif # need-config
@@ -1261,7 +1266,8 @@ PHONY += prepare archprepare
 
 archprepare: outputmakefile archheaders archscripts scripts include/config/kernel.release \
 	asm-generic $(version_h) include/generated/utsrelease.h \
-	include/generated/compile.h include/generated/autoconf.h remove-stale-files
+	include/generated/compile.h include/generated/autoconf.h \
+	include/generated/rustc_cfg remove-stale-files
 
 prepare0: archprepare
 	$(Q)$(MAKE) $(build)=scripts/mod

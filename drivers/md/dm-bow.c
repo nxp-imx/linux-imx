@@ -87,6 +87,7 @@ struct bow_context {
 	struct mutex ranges_lock; /* Hold to access this struct and/or ranges */
 	struct rb_root ranges;
 	struct dm_kobject_holder kobj_holder;	/* for sysfs attributes */
+	struct mutex state_lock;
 	atomic_t state; /* One of the enum state values above */
 	u64 trims_total;
 	struct log_sector *log_sector;
@@ -526,6 +527,12 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 		return -EINVAL;
 	}
 
+	/* Block new writes until state change is complete. */
+	mutex_lock(&bc->state_lock);
+
+	/* Flush any already-queued writes before the state change. */
+	flush_workqueue(bc->workqueue);
+
 	mutex_lock(&bc->ranges_lock);
 	original_state = atomic_read(&bc->state);
 	if (state != original_state + 1) {
@@ -561,6 +568,8 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 bad:
 	mutex_unlock(&bc->ranges_lock);
+	mutex_unlock(&bc->state_lock);
+
 	return ret;
 }
 
@@ -612,6 +621,7 @@ static void dm_bow_dtr(struct dm_target *ti)
 		wait_for_completion(dm_get_completion_from_kobject(kobj));
 	}
 
+	mutex_lock(&bc->ranges_lock);
 	while (rb_first(&bc->ranges)) {
 		struct bow_range *br = container_of(rb_first(&bc->ranges),
 					      struct bow_range, node);
@@ -619,6 +629,7 @@ static void dm_bow_dtr(struct dm_target *ti)
 		rb_erase(&br->node, &bc->ranges);
 		kfree(br);
 	}
+	mutex_unlock(&bc->ranges_lock);
 
 	mutex_destroy(&bc->ranges_lock);
 	kfree(bc->log_sector);
@@ -734,6 +745,7 @@ static int dm_bow_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	init_completion(&bc->kobj_holder.completion);
+	mutex_init(&bc->state_lock);
 	mutex_init(&bc->ranges_lock);
 	bc->ranges = RB_ROOT;
 	bc->bufio = dm_bufio_client_create(bc->dev->bdev, bc->block_size, 1, 0,
@@ -1119,6 +1131,8 @@ static int dm_bow_map(struct dm_target *ti, struct bio *bio)
 	int ret = DM_MAPIO_REMAPPED;
 	struct bow_context *bc = ti->private;
 
+	/* Fast path when already committed or when performing a read. */
+
 	if (likely(bc->state.counter == COMMITTED))
 		return remap_unless_illegal_trim(bc, bio);
 
@@ -1127,6 +1141,13 @@ static int dm_bow_map(struct dm_target *ti, struct bio *bio)
 
 	if (bio->bi_iter.bi_size == 0)
 		return remap_unless_illegal_trim(bc, bio);
+
+	/*
+	 * Fall back to the slower path when we may be in TRIM/CHECKPOINT.
+	 * Operations must wait for any pending state changes to complete.
+	 */
+
+	mutex_lock(&bc->state_lock);
 
 	if (atomic_read(&bc->state) != COMMITTED) {
 		enum state state;
@@ -1149,6 +1170,8 @@ static int dm_bow_map(struct dm_target *ti, struct bio *bio)
 		/* else pass-through */
 		mutex_unlock(&bc->ranges_lock);
 	}
+
+	mutex_unlock(&bc->state_lock);
 
 	if (ret == DM_MAPIO_REMAPPED)
 		return remap_unless_illegal_trim(bc, bio);
@@ -1191,6 +1214,7 @@ static void dm_bow_tablestatus(struct dm_target *ti, char *result,
 		return;
 	}
 
+	mutex_lock(&bc->ranges_lock);
 	for (i = rb_first(&bc->ranges); i; i = rb_next(i)) {
 		struct bow_range *br = container_of(i, struct bow_range, node);
 
@@ -1198,11 +1222,11 @@ static void dm_bow_tablestatus(struct dm_target *ti, char *result,
 				    readable_type[br->type],
 				    (unsigned long long)br->sector);
 		if (result >= end)
-			return;
+			goto unlock;
 
 		result += scnprintf(result, end - result, "\n");
 		if (result >= end)
-			return;
+			goto unlock;
 
 		if (br->type == TRIMMED)
 			++trimmed_range_count;
@@ -1224,19 +1248,22 @@ static void dm_bow_tablestatus(struct dm_target *ti, char *result,
 		if (!rb_next(i)) {
 			scnprintf(result, end - result,
 				  "\nERROR: Last range not of type TOP");
-			return;
+			goto unlock;
 		}
 
 		if (br->sector > range_top(br)) {
 			scnprintf(result, end - result,
 				  "\nERROR: sectors out of order");
-			return;
+			goto unlock;
 		}
 	}
 
 	if (trimmed_range_count != trimmed_list_length)
 		scnprintf(result, end - result,
 			  "\nERROR: not all trimmed ranges in trimmed list");
+
+unlock:
+	mutex_unlock(&bc->ranges_lock);
 }
 
 static void dm_bow_status(struct dm_target *ti, status_type_t type,

@@ -85,6 +85,7 @@
 #include <linux/scatterlist.h>
 
 #include <trace/events/tcp.h>
+#include <trace/hooks/net.h>
 
 #ifdef CONFIG_TCP_MD5SIG
 static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
@@ -234,6 +235,8 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	if (usin->sin_family != AF_INET)
 		return -EAFNOSUPPORT;
+
+	trace_android_vh_tcp_v4_connect(sk, uaddr);
 
 	nexthop = daddr = usin->sin_addr.s_addr;
 	inet_opt = rcu_dereference_protected(inet->inet_opt,
@@ -896,7 +899,7 @@ static void tcp_v4_send_reset(const struct sock *sk, struct sk_buff *skb,
 	sock_net_set(ctl_sk, net);
 	if (sk) {
 		ctl_sk->sk_mark = (sk->sk_state == TCP_TIME_WAIT) ?
-				   inet_twsk(sk)->tw_mark : sk->sk_mark;
+				   inet_twsk(sk)->tw_mark : READ_ONCE(sk->sk_mark);
 		ctl_sk->sk_priority = (sk->sk_state == TCP_TIME_WAIT) ?
 				   inet_twsk(sk)->tw_priority : READ_ONCE(sk->sk_priority);
 		transmit_time = tcp_transmit_time(sk);

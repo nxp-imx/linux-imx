@@ -41,7 +41,13 @@ SECTIONS {
 		. = ALIGN(PAGE_SIZE);
 	}
 	.hyp.event_ids : ALIGN(PAGE_SIZE) {
+		/*
+		 * Yet empty, without that *(.hyp.event_ids) input section
+		 * (named after the output section), the location counter
+		 * page-alignment below is ignored.
+		 */
 		*(.hyp.event_ids)
+		*(SORT(.hyp.event_ids.*))
 		*(.hyp.printk_fmt_offset)
 		. = ALIGN(PAGE_SIZE);
 	}
@@ -50,5 +56,6 @@ SECTIONS {
 		. = ALIGN(PAGE_SIZE);
 	}
 	.hyp.reloc : ALIGN(4) {	*(.hyp.reloc) }
+	_hyp_events : { *(SORT(_hyp_events.*)) }
 #endif
 }

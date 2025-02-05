@@ -23,6 +23,7 @@ void **kvm_hyp_iommu_domains;
  * Common pool that can be used by IOMMU driver to allocate pages.
  */
 static struct hyp_pool iommu_host_pool;
+static struct hyp_pool iommu_atomic_pool;
 
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
@@ -71,13 +72,13 @@ struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops = {
 	.reclaimable = kvm_iommu_reclaimable,
 };
 
-void *kvm_iommu_donate_pages(u8 order, int flags)
+static void *__kvm_iommu_donate_pages(struct hyp_pool *pool, u8 order, int flags)
 {
 	void *p;
 	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
 	int ret;
 
-	p = hyp_alloc_pages(&iommu_host_pool, order);
+	p = hyp_alloc_pages(pool, order);
 	if (p) {
 		/*
 		 * If page request is non-cacheable remap it as such
@@ -87,7 +88,7 @@ void *kvm_iommu_donate_pages(u8 order, int flags)
 		if (flags & IOMMU_PAGE_NOCACHE) {
 			ret = pkvm_remap_range(p, 1 << order, true);
 			if (ret) {
-				hyp_put_page(&iommu_host_pool, p);
+				hyp_put_page(pool, p);
 				return NULL;
 			}
 		}
@@ -101,7 +102,7 @@ void *kvm_iommu_donate_pages(u8 order, int flags)
 	return NULL;
 }
 
-void kvm_iommu_reclaim_pages(void *p, u8 order)
+static void __kvm_iommu_reclaim_pages(struct hyp_pool *pool, void *p, u8 order)
 {
 	/*
 	 * Remap all pages to cacheable, as we don't know, may be use a flag
@@ -109,7 +110,27 @@ void kvm_iommu_reclaim_pages(void *p, u8 order)
 	 * as the allocation on free?
 	 */
 	pkvm_remap_range(p, 1 << order, false);
-	hyp_put_page(&iommu_host_pool, p);
+	hyp_put_page(pool, p);
+}
+
+void *kvm_iommu_donate_pages(u8 order, int flags)
+{
+	return __kvm_iommu_donate_pages(&iommu_host_pool, order, flags);
+}
+
+void kvm_iommu_reclaim_pages(void *p, u8 order)
+{
+	__kvm_iommu_reclaim_pages(&iommu_host_pool, p, order);
+}
+
+void *kvm_iommu_donate_pages_atomic(u8 order)
+{
+	return __kvm_iommu_donate_pages(&iommu_atomic_pool, order, 0);
+}
+
+void kvm_iommu_reclaim_pages_atomic(void *p, u8 order)
+{
+	__kvm_iommu_reclaim_pages(&iommu_atomic_pool, p, order);
 }
 
 static struct kvm_hyp_iommu_domain *
@@ -165,7 +186,22 @@ static void domain_put(struct kvm_hyp_iommu_domain *domain)
 	BUG_ON(!atomic_dec_return_release(&domain->refs));
 }
 
-int kvm_iommu_init(struct kvm_iommu_ops *ops)
+static int kvm_iommu_init_atomic_pool(struct kvm_hyp_memcache *atomic_mc)
+{
+	int ret;
+
+	/* atomic_mc is optional. */
+	if (!atomic_mc->head)
+		return 0;
+	ret = hyp_pool_init_empty(&iommu_atomic_pool, 1024 /* order = 10*/);
+	if (ret)
+		return ret;
+
+	return refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
+}
+
+int kvm_iommu_init(struct kvm_iommu_ops *ops,
+		   struct kvm_hyp_memcache *atomic_mc)
 {
 	int ret;
 	u64 domain_root_pfn = __hyp_pa(kvm_hyp_iommu_domains) >> PAGE_SHIFT;
@@ -186,6 +222,10 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops)
 		return ret;
 
 	kvm_iommu_ops = ops;
+
+	ret = kvm_iommu_init_atomic_pool(atomic_mc);
+	if (ret)
+		return ret;
 
 	ret = ops->init();
 	if (ret)
@@ -415,30 +455,91 @@ bool kvm_iommu_host_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64
 	return ret;
 }
 
+size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, unsigned long iova, struct kvm_iommu_sg *sg,
+			unsigned int nent, unsigned int prot)
+{
+	int ret;
+	size_t total_mapped = 0, mapped;
+	struct kvm_hyp_iommu_domain *domain;
+	phys_addr_t phys;
+	size_t size, pgsize, pgcount;
+	unsigned int orig_nent = nent;
+	struct kvm_iommu_sg *orig_sg = sg;
+
+	if (!kvm_iommu_ops || !kvm_iommu_ops->map_pages)
+		return 0;
+
+	if (prot & ~IOMMU_PROT_MASK)
+		return 0;
+
+	domain = handle_to_domain(domain_id);
+	if (!domain || domain_get(domain))
+		return 0;
+
+	ret = hyp_pin_shared_mem(sg, sg + nent);
+	if (ret)
+		goto out_put_domain;
+
+	while (nent--) {
+		phys = sg->phys;
+		pgsize = sg->pgsize;
+		pgcount = sg->pgcount;
+
+		if (__builtin_mul_overflow(pgsize, pgcount, &size) ||
+		    iova + size < iova)
+			goto out_unpin_sg;
+
+		ret = __pkvm_host_use_dma(phys, size);
+		if (ret)
+			goto out_unpin_sg;
+
+		mapped = 0;
+		kvm_iommu_ops->map_pages(domain, iova, phys, pgsize, pgcount, prot, &mapped);
+		total_mapped += mapped;
+		phys += mapped;
+		iova += mapped;
+		/* Might need memory */
+		if (mapped != size) {
+			__pkvm_host_unuse_dma(phys, size - mapped);
+			break;
+		}
+		sg++;
+	}
+
+out_unpin_sg:
+	hyp_unpin_shared_mem(orig_sg, orig_sg + orig_nent);
+out_put_domain:
+	domain_put(domain);
+	return total_mapped;
+}
+
 static int iommu_power_on(struct kvm_power_domain *pd)
 {
 	struct kvm_hyp_iommu *iommu = container_of(pd, struct kvm_hyp_iommu,
 						   power_domain);
+	int ret;
 
-	/*
-	 * We currently assume that the device retains its architectural state
-	 * across power off, hence no save/restore.
-	 */
 	kvm_iommu_lock(iommu);
-	iommu->power_is_off = false;
+	ret = kvm_iommu_ops->resume ? kvm_iommu_ops->resume(iommu) : 0;
+	if (!ret)
+		iommu->power_is_off = false;
 	kvm_iommu_unlock(iommu);
-	return 0;
+	return ret;
 }
 
 static int iommu_power_off(struct kvm_power_domain *pd)
 {
 	struct kvm_hyp_iommu *iommu = container_of(pd, struct kvm_hyp_iommu,
 						   power_domain);
+	int ret;
 
 	kvm_iommu_lock(iommu);
 	iommu->power_is_off = true;
+	ret = kvm_iommu_ops->suspend ? kvm_iommu_ops->suspend(iommu) : 0;
+	if (!ret)
+		iommu->power_is_off = true;
 	kvm_iommu_unlock(iommu);
-	return 0;
+	return ret;
 }
 
 static const struct kvm_power_domain_ops iommu_power_ops = {

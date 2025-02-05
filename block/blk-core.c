@@ -45,6 +45,7 @@
 #include <trace/events/block.h>
 
 #include "blk.h"
+#include "blk-mq-debugfs.h"
 #include "blk-mq-sched.h"
 #include "blk-pm.h"
 #include "blk-cgroup.h"
@@ -59,6 +60,12 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_complete);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_split);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_unplug);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_insert);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_queue);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_getrq);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_issue);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_merge);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_requeue);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_complete);
 
 static DEFINE_IDA(blk_queue_ida);
 
@@ -257,6 +264,7 @@ static void blk_free_queue_rcu(struct rcu_head *rcu_head)
 static void blk_free_queue(struct request_queue *q)
 {
 	blk_free_queue_stats(q->stats);
+	blk_disable_sub_page_limits(&q->limits);
 	if (queue_is_mq(q))
 		blk_mq_release(q);
 
@@ -1272,6 +1280,7 @@ int __init blk_dev_init(void)
 	blk_requestq_cachep = KMEM_CACHE(request_queue, SLAB_PANIC);
 
 	blk_debugfs_root = debugfs_create_dir("block", NULL);
+	blk_mq_debugfs_init();
 
 	return 0;
 }

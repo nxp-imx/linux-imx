@@ -26,6 +26,7 @@
 #include <linux/xarray.h>
 #include <linux/file.h>
 #include <linux/lockdep.h>
+#include <linux/android_vendor.h>
 
 struct module;
 struct request_queue;
@@ -401,6 +402,7 @@ struct queue_limits {
 	unsigned int		dma_pad_mask;
 
 	struct blk_integrity	integrity;
+	bool			sub_page_limits;
 };
 
 typedef int (*report_zones_cb)(struct blk_zone *zone, unsigned int idx,
@@ -593,6 +595,7 @@ struct request_queue {
 	struct mutex		debugfs_mutex;
 
 	bool			mq_sysfs_init_done;
+	ANDROID_OEM_DATA(1);
 };
 
 /* Keep blk_queue_flag_name[] in sync with the definitions below */

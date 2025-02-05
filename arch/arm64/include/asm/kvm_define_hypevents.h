@@ -50,7 +50,7 @@
 #define HYP_EVENT(__name, __proto, __struct, __assign, __printk)	\
 	static char hyp_event_print_fmt_##__name[] = __printk;		\
 	static bool hyp_event_enabled_##__name;				\
-	struct hyp_event __section("_hyp_events") hyp_event_##__name = {\
+	struct hyp_event __section("_hyp_events."#__name) hyp_event_##__name = {\
 		.name		= #__name,				\
 		.enabled	= &hyp_event_enabled_##__name,		\
 		.fields		= hyp_event_fields_##__name,		\

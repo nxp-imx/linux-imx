@@ -81,6 +81,7 @@
 #include <linux/jump_label_ratelimit.h>
 #include <net/busy_poll.h>
 #include <net/mptcp.h>
+#include <trace/hooks/net.h>
 
 int sysctl_tcp_max_orphans __read_mostly = NR_FILE;
 
@@ -3221,6 +3222,8 @@ static bool tcp_ack_update_rtt(struct sock *sk, const int flag,
 	if (seq_rtt_us < 0)
 		return false;
 
+	trace_android_vh_tcp_update_rtt(sk, seq_rtt_us);
+
 	/* ca_rtt_us >= 0 is counting on the invariant that ca_rtt_us is
 	 * always taken together with ACK, SACK, or TS-opts. Any negative
 	 * values will be skipped with the seq_rtt_us < 0 check above.
@@ -3467,6 +3470,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		sack_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->first_sackt);
 		ca_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->last_sackt);
 	}
+	trace_android_vh_tcp_clean_rtx_queue(sk, flag, seq_rtt_us);
 	rtt_update = tcp_ack_update_rtt(sk, flag, seq_rtt_us, sack_rtt_us,
 					ca_rtt_us, sack->rate);
 
@@ -4620,6 +4624,8 @@ void tcp_fin(struct sock *sk)
 		tcp_sack_reset(&tp->rx_opt);
 
 	if (!sock_flag(sk, SOCK_DEAD)) {
+		trace_android_vh_tcp_sock_error(sk);
+
 		sk->sk_state_change(sk);
 
 		/* Do not send POLL_HUP for half duplex close. */
@@ -6226,6 +6232,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 
 			__tcp_ack_snd_check(sk, 0);
 no_ack:
+			trace_android_vh_tcp_rcv_established_fast_path(sk);
 			if (eaten)
 				kfree_skb_partial(skb, fragstolen);
 			tcp_data_ready(sk);
@@ -6265,6 +6272,8 @@ step5:
 
 	tcp_data_snd_check(sk);
 	tcp_ack_snd_check(sk);
+
+	trace_android_vh_tcp_rcv_established_slow_path(sk);
 	return;
 
 csum_error:
@@ -6478,6 +6487,8 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 
 		if (th->rst) {
 			tcp_reset(sk, skb);
+
+			trace_android_vh_tcp_state_change(sk, TCP_STATE_CHANGE_REASON_SYN_RST, 0);
 consume:
 			__kfree_skb(skb);
 			return 0;
@@ -6503,6 +6514,7 @@ consume:
 
 		tcp_ecn_rcv_synack(tp, th);
 
+		trace_android_vh_tcp_rcv_synack(icsk);
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_try_undo_spurious_syn(sk);
 		tcp_ack(sk, skb, FLAG_SLOWPATH);
@@ -7328,6 +7340,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 			if (unlikely(!inet_csk_reqsk_queue_hash_add(sk, req,
 								    req->timeout))) {
 				reqsk_free(req);
+				dst_release(dst);
 				return 0;
 			}
 

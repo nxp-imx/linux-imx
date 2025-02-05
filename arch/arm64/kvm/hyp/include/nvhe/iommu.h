@@ -9,6 +9,10 @@
 
 #include <nvhe/alloc_mgt.h>
 
+/* alloc/free from atomic pool. */
+void *kvm_iommu_donate_pages_atomic(u8 order);
+void kvm_iommu_reclaim_pages_atomic(void *p, u8 order);
+
 /* Hypercall handlers */
 int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, int type);
 int kvm_iommu_free_domain(pkvm_handle_t domain_id);
@@ -23,6 +27,8 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
 			     size_t pgsize, size_t pgcount);
 phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova);
 bool kvm_iommu_host_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
+size_t kvm_iommu_map_sg(pkvm_handle_t domain, unsigned long iova, struct kvm_iommu_sg *sg,
+			unsigned int nent, unsigned int prot);
 
 /* Flags for memory allocation for IOMMU drivers */
 #define IOMMU_PAGE_NOCACHE				BIT(0)
@@ -58,10 +64,20 @@ struct kvm_iommu_ops {
 	bool (*dabt_handler)(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
 	void (*host_stage2_idmap)(struct kvm_hyp_iommu_domain *domain,
 				  phys_addr_t start, phys_addr_t end, int prot);
+	int (*suspend)(struct kvm_hyp_iommu *iommu);
+	int (*resume)(struct kvm_hyp_iommu *iommu);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
 };
 
-int kvm_iommu_init(struct kvm_iommu_ops *ops);
-
+int kvm_iommu_init(struct kvm_iommu_ops *ops,
+		   struct kvm_hyp_memcache *atomic_mc);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 
 void kvm_iommu_iotlb_gather_add_page(struct kvm_hyp_iommu_domain *domain,
