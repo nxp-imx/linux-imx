@@ -23,6 +23,7 @@
 #include <linux/minmax.h>
 #include <linux/overflow.h>
 #include <linux/buildid.h>
+#include <trace/hooks/mm.h>
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -658,6 +659,10 @@ struct mem_size_stats {
 	unsigned long shmem_thp;
 	unsigned long file_thp;
 	unsigned long swap;
+	unsigned long swap_shared;
+	unsigned long writeback;
+	unsigned long same;
+	unsigned long huge;
 	unsigned long shared_hugetlb;
 	unsigned long private_hugetlb;
 	unsigned long ksm;
@@ -820,6 +825,9 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 			} else {
 				mss->swap_pss += (u64)PAGE_SIZE << PSS_SHIFT;
 			}
+			trace_android_vh_smaps_pte_entry(swpent, mapcount,
+					&mss->swap_shared, &mss->writeback,
+					&mss->same, &mss->huge);
 		} else if (is_pfn_swap_entry(swpent)) {
 			if (is_device_private_entry(swpent))
 				present = true;
@@ -1133,6 +1141,8 @@ static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss,
 	SEQ_PUT_DEC(" kB\nLocked:         ",
 					mss->pss_locked >> PSS_SHIFT);
 	seq_puts(m, " kB\n");
+	trace_android_vh_show_smap(m, mss->swap_shared, mss->writeback,
+			mss->same, mss->huge);
 }
 
 static int show_smap(struct seq_file *m, void *v)

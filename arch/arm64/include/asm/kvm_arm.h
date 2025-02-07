@@ -103,6 +103,7 @@
 #define HCR_HOST_VHE_FLAGS (HCR_RW | HCR_TGE | HCR_E2H)
 
 #define HCRX_HOST_FLAGS (HCRX_EL2_MSCEn | HCRX_EL2_TCR2En | HCRX_EL2_EnFPM)
+#define MPAMHCR_HOST_FLAGS	0
 
 /* TCR_EL2 Registers bits */
 #define TCR_EL2_DS		(1UL << 32)
@@ -145,6 +146,9 @@
 #define VTCR_EL2_VS_16BIT	(1 << VTCR_EL2_VS_SHIFT)
 
 #define VTCR_EL2_T0SZ(x)	TCR_T0SZ(x)
+
+/* MPAM2_EL2 for the host to ensure not to trap access to MPAMSM_EL1. */
+#define MPAM2_HOST_FLAGS	MPAM2_EL2_EnMPAMSM
 
 /*
  * We configure the Stage-2 page tables to always restrict the IPA space to be

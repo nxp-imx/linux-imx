@@ -64,6 +64,9 @@ DECLARE_HOOK(android_vh_free_one_page_bypass,
 	TP_PROTO(struct page *page, struct zone *zone, int order, int migratetype,
 		int fpi_flags, bool *bypass),
 	TP_ARGS(page, zone, order, migratetype, fpi_flags, bypass));
+DECLARE_HOOK(android_vh_migration_target_bypass,
+	TP_PROTO(struct page *page, bool *bypass),
+	TP_ARGS(page, bypass));
 
 struct page_vma_mapped_walk;
 DECLARE_HOOK(android_vh_slab_alloc_node,
@@ -78,6 +81,15 @@ DECLARE_HOOK(android_vh_process_madvise_begin,
 DECLARE_HOOK(android_vh_process_madvise_iter,
 	TP_PROTO(struct task_struct *task, int behavior, ssize_t *ret),
 	TP_ARGS(task, behavior, ret));
+DECLARE_HOOK(android_vh_meminfo_cache_adjust,
+	TP_PROTO(unsigned long *cached),
+	TP_ARGS(cached));
+DECLARE_HOOK(android_vh_si_mem_available_adjust,
+	TP_PROTO(unsigned long *available),
+	TP_ARGS(available));
+DECLARE_HOOK(android_vh_si_meminfo_adjust,
+	TP_PROTO(unsigned long *totalram, unsigned long *freeram),
+	TP_ARGS(totalram, freeram));
 DECLARE_HOOK(android_vh_test_clear_look_around_ref,
 	TP_PROTO(struct page *page),
 	TP_ARGS(page));
@@ -88,7 +100,22 @@ DECLARE_HOOK(android_vh_look_around,
 	TP_PROTO(struct page_vma_mapped_walk *pvmw, struct folio *folio,
 		struct vm_area_struct *vma, int *referenced),
 	TP_ARGS(pvmw, folio, vma, referenced));
-
+DECLARE_HOOK(android_vh_meminfo_proc_show,
+	TP_PROTO(struct seq_file *m),
+	TP_ARGS(m));
+DECLARE_HOOK(android_vh_exit_mm,
+	TP_PROTO(struct mm_struct *mm),
+	TP_ARGS(mm));
+DECLARE_HOOK(android_vh_show_mem,
+	TP_PROTO(unsigned int filter, nodemask_t *nodemask),
+	TP_ARGS(filter, nodemask));
+DECLARE_HOOK(android_vh_print_slabinfo_header,
+	TP_PROTO(struct seq_file *m),
+	TP_ARGS(m));
+struct slabinfo;
+DECLARE_HOOK(android_vh_cache_show,
+	TP_PROTO(struct seq_file *m, struct slabinfo *sinfo, struct kmem_cache *s),
+	TP_ARGS(m, sinfo, s));
 DECLARE_HOOK(android_vh_count_workingset_refault,
 	TP_PROTO(struct folio *folio),
 	TP_ARGS(folio));
@@ -130,6 +157,16 @@ DECLARE_RESTRICTED_HOOK(android_rvh_vfree_bypass,
 DECLARE_HOOK(android_vh_cma_alloc_retry,
 	TP_PROTO(char *name, int *retry),
 	TP_ARGS(name, retry));
+DECLARE_HOOK(android_vh_smaps_pte_entry,
+	TP_PROTO(swp_entry_t entry, int mapcount,
+		unsigned long *swap_shared, unsigned long *writeback,
+		unsigned long *same, unsigned long *huge),
+	TP_ARGS(entry, mapcount, swap_shared, writeback, same, huge));
+DECLARE_HOOK(android_vh_show_smap,
+	TP_PROTO(struct seq_file *m,
+		unsigned long swap_shared, unsigned long writeback,
+		unsigned long same, unsigned long huge),
+	TP_ARGS(m, swap_shared, writeback, same, huge));
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */
