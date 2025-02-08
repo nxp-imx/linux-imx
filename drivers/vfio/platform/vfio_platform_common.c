@@ -388,6 +388,11 @@ static ssize_t vfio_platform_read_mmio(struct vfio_platform_region *reg,
 {
 	unsigned int done = 0;
 
+	if (off >= reg->size)
+		return -EINVAL;
+
+	count = min_t(size_t, count, reg->size - off);
+
 	if (!reg->ioaddr) {
 		reg->ioaddr =
 			ioremap(reg->addr, reg->size);
@@ -445,6 +450,10 @@ ssize_t vfio_platform_read(struct vfio_device *core_vdev,
 	unsigned int index = VFIO_PLATFORM_OFFSET_TO_INDEX(*ppos);
 	loff_t off = *ppos & VFIO_PLATFORM_OFFSET_MASK;
 
+	/* Only readable through mmap*/
+	if (core_vdev->protected)
+		return -EINVAL;
+
 	if (index >= vdev->num_regions)
 		return -EINVAL;
 
@@ -466,6 +475,11 @@ static ssize_t vfio_platform_write_mmio(struct vfio_platform_region *reg,
 					loff_t off)
 {
 	unsigned int done = 0;
+
+	if (off >= reg->size)
+		return -EINVAL;
+
+	count = min_t(size_t, count, reg->size - off);
 
 	if (!reg->ioaddr) {
 		reg->ioaddr =
@@ -522,6 +536,10 @@ ssize_t vfio_platform_write(struct vfio_device *core_vdev, const char __user *bu
 		container_of(core_vdev, struct vfio_platform_device, vdev);
 	unsigned int index = VFIO_PLATFORM_OFFSET_TO_INDEX(*ppos);
 	loff_t off = *ppos & VFIO_PLATFORM_OFFSET_MASK;
+
+	/* Only writable through mmap*/
+	if (core_vdev->protected)
+		return -EINVAL;
 
 	if (index >= vdev->num_regions)
 		return -EINVAL;

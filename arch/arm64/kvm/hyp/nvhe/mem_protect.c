@@ -565,6 +565,18 @@ static enum kvm_pgtable_prot default_hyp_prot(phys_addr_t phys)
 	return addr_is_memory(phys) ? PAGE_HYP : PAGE_HYP_DEVICE;
 }
 
+/*
+ * Use NORMAL_NC for guest MMIO, when a guest has:
+ * No FWB: It will combined with stage-1 attrs where device has precedence over normal.
+ * FWB: With MT_S2_FWB_NORMAL_NC encoding, results in device if stage-1 used device attr.
+ *      otherwise NC.
+ */
+static enum kvm_pgtable_prot default_guest_prot(bool is_memory)
+{
+	return is_memory ? KVM_PGTABLE_PROT_RWX :
+		KVM_PGTABLE_PROT_RW | KVM_PGTABLE_PROT_NORMAL_NC;
+}
+
 bool addr_is_memory(phys_addr_t phys)
 {
 	struct kvm_mem_range range;
@@ -1046,6 +1058,18 @@ static int __hyp_check_page_state_range(u64 addr, u64 size,
 	return check_page_state_range(&pkvm_pgtable, addr, size, &d);
 }
 
+int hyp_check_range_owned(u64 phys_addr, u64 size)
+{
+	int ret;
+
+	hyp_lock_component();
+	ret = __hyp_check_page_state_range((u64)hyp_phys_to_virt(phys_addr),
+					   size, PKVM_PAGE_OWNED);
+	hyp_unlock_component();
+
+	return ret;
+}
+
 static enum pkvm_page_state guest_get_page_state(kvm_pte_t pte, u64 addr)
 {
 	enum pkvm_page_state state = 0;
@@ -1385,6 +1409,32 @@ int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio)
 {
 	return ___pkvm_host_donate_hyp_prot(pfn, nr_pages, accept_mmio,
 					    default_hyp_prot(hyp_pfn_to_phys(pfn)));
+}
+
+static int pkvm_hyp_donate_guest(struct pkvm_hyp_vcpu *vcpu, u64 pfn, u64 gfn)
+{
+	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
+	u64 phys = hyp_pfn_to_phys(pfn);
+	u64 ipa = hyp_pfn_to_phys(gfn);
+	u64 hyp_addr = (u64)__hyp_va(phys);
+	size_t size = PAGE_SIZE;
+	enum kvm_pgtable_prot prot;
+	int ret;
+
+	hyp_assert_lock_held(&pkvm_pgd_lock);
+	hyp_assert_lock_held(&vm->pgtable_lock);
+
+	ret = __hyp_check_page_state_range(hyp_addr, size, PKVM_PAGE_OWNED);
+	if (ret)
+		return ret;;
+	ret = __guest_check_page_state_range(vcpu, ipa, size, PKVM_NOPAGE);
+	if (ret)
+		return ret;
+
+	WARN_ON(kvm_pgtable_hyp_unmap(&pkvm_pgtable, hyp_addr, size) != size);
+	prot = pkvm_mkstate(default_guest_prot(addr_is_memory(phys)), PKVM_PAGE_OWNED);
+	return WARN_ON(kvm_pgtable_stage2_map(&vm->pgt, ipa, size, phys, prot,
+					      &vcpu->vcpu.arch.stage2_mc, 0));
 }
 
 int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages, enum kvm_pgtable_prot prot)
@@ -1787,6 +1837,18 @@ static int guest_get_valid_pte(struct pkvm_hyp_vm *vm, u64 *phys, u64 ipa, u8 or
 	return 0;
 }
 
+int __pkvm_guest_get_valid_phys_page(struct pkvm_hyp_vm *vm, u64 *phys, u64 ipa)
+{
+	kvm_pte_t pte;
+	int ret;
+
+	guest_lock_component(vm);
+	ret = guest_get_valid_pte(vm, phys, ipa, 0, &pte);
+	guest_unlock_component(vm);
+
+	return ret;
+}
+
 /*
  * Ideally we would like to use check_unshare()... but this wouldn't let us
  * restrict the unshare range to the actual guest stage-2 mapping.
@@ -2113,6 +2175,49 @@ bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu)
 		ret &= __check_ioguard_page(hyp_vcpu, end);
 	guest_unlock_component(vm);
 
+	return ret;
+}
+
+static int __pkvm_remove_ioguard_page(struct pkvm_hyp_vm *vm, u64 ipa)
+{
+	int ret;
+	kvm_pte_t pte;
+	s8 level;
+
+	hyp_assert_lock_held(&vm->pgtable_lock);
+
+	if (!test_bit(KVM_ARCH_FLAG_MMIO_GUARD, &vm->kvm.arch.flags))
+		return -EINVAL;
+
+	if (!PAGE_ALIGNED(ipa))
+		return -EINVAL;
+
+	ret = kvm_pgtable_get_leaf(&vm->pgt, ipa, &pte, &level);
+	if (ret)
+		return ret;
+
+	if (BIT(ARM64_HW_PGTABLE_LEVEL_SHIFT(level)) == PAGE_SIZE &&
+	    pte == KVM_INVALID_PTE_MMIO_NOTE)
+		return kvm_pgtable_stage2_unmap(&vm->pgt, ipa, PAGE_SIZE);
+
+	return kvm_pte_valid(pte) ? -EEXIST : -EINVAL;
+}
+
+int __pkvm_install_guest_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 pfn, u64 gfn)
+{
+	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+	u64 ipa = gfn << PAGE_SHIFT;
+	int ret;
+
+	hyp_lock_component();
+	guest_lock_component(vm);
+	ret = __pkvm_remove_ioguard_page(vm, ipa);
+	if (ret)
+		goto out_unlock;
+	ret = pkvm_hyp_donate_guest(hyp_vcpu, pfn, gfn);
+out_unlock:
+	guest_unlock_component(vm);
+	hyp_unlock_component();
 	return ret;
 }
 

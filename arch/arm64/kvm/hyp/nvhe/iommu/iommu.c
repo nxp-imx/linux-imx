@@ -10,6 +10,7 @@
 #include <hyp/adjust_pc.h>
 
 #include <kvm/iommu.h>
+#include <kvm/device.h>
 
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
@@ -298,13 +299,26 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	if (!iommu)
 		return -EINVAL;
 
+	/*
+	 * At the moment the IOMMU in EL2 is not aware of guests and pvIOMMU
+	 * doesn't exist yet, so all attaches come from host, this should change soon.
+	 */
+	ret = pkvm_devices_get_context(iommu_id, endpoint_id);
+	if (ret)
+		return ret;
+
 	domain = handle_to_domain(domain_id);
-	if (!domain || domain_get(domain))
-		return -EINVAL;
+	if (!domain || domain_get(domain)) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	ret = kvm_iommu_ops->attach_dev(iommu, domain, endpoint_id, pasid, pasid_bits);
 	if (ret)
 		domain_put(domain);
+
+out_unlock:
+	pkvm_devices_put_context(iommu_id, endpoint_id);
 	return ret;
 }
 
@@ -319,14 +333,25 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	if (!iommu)
 		return -EINVAL;
 
+	/* See kvm_iommu_attach_dev(). */
+	ret = pkvm_devices_get_context(iommu_id, endpoint_id);
+	if (ret)
+		return ret;
+
 	domain = handle_to_domain(domain_id);
-	if (!domain || atomic_read(&domain->refs) <= 1)
-		return -EINVAL;
+	if (!domain || atomic_read(&domain->refs) <= 1) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	ret = kvm_iommu_ops->detach_dev(iommu, domain, endpoint_id, pasid);
 	if (ret)
-		return ret;
+		goto out_unlock;
+
 	domain_put(domain);
+
+out_unlock:
+	pkvm_devices_put_context(iommu_id, endpoint_id);
 	return ret;
 }
 
@@ -511,6 +536,20 @@ out_unpin_sg:
 out_put_domain:
 	domain_put(domain);
 	return total_mapped;
+}
+
+int kvm_iommu_dev_block_dma(pkvm_handle_t iommu_id, u32 endpoint_id, bool host_to_guest)
+{
+	struct kvm_hyp_iommu *iommu;
+
+	if (!kvm_iommu_ops || !kvm_iommu_ops->dev_block_dma)
+		return -ENODEV;
+
+	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -ENOENT;
+
+	return kvm_iommu_ops->dev_block_dma(iommu, endpoint_id, host_to_guest);
 }
 
 static int iommu_power_on(struct kvm_power_domain *pd)

@@ -6,6 +6,7 @@
 
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/iommu.h>
 #include <linux/kmemleak.h>
 #include <linux/kvm_host.h>
 #include <linux/memblock.h>
@@ -14,6 +15,7 @@
 #include <linux/of_address.h>
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/platform_device.h>
 #include <linux/sort.h>
 
 #include <asm/kvm_host.h>
@@ -24,8 +26,12 @@
 #include <asm/patching.h>
 #include <asm/setup.h>
 
+#include <kvm/device.h>
+
 #include "hyp_constants.h"
 #include "hyp_trace.h"
+
+#define PKVM_DEVICE_ASSIGN_COMPAT	"pkvm,device-assignment"
 
 DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
 
@@ -39,6 +45,9 @@ static unsigned int *hyp_memblock_nr_ptr = &kvm_nvhe_sym(hyp_memblock_nr);
 
 phys_addr_t hyp_mem_base;
 phys_addr_t hyp_mem_size;
+
+extern struct pkvm_device *kvm_nvhe_sym(registered_devices);
+extern u32 kvm_nvhe_sym(registered_devices_nr);
 
 static int cmp_hyp_memblock(const void *p1, const void *p2)
 {
@@ -103,11 +112,39 @@ static void __init sort_moveable_regs(void)
 	     NULL);
 }
 
+static int __init register_moveable_fdt_resource(struct device_node *np,
+						 enum pkvm_moveable_reg_type type)
+{
+	struct resource res;
+	u64 start, size;
+	unsigned int j = 0;
+	unsigned int i = kvm_nvhe_sym(pkvm_moveable_regs_nr);
+
+	while(!of_address_to_resource(np, j, &res)) {
+		if (i >= PKVM_NR_MOVEABLE_REGS)
+			return -ENOMEM;
+
+		start = res.start;
+		size = resource_size(&res);
+		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
+			return -EINVAL;
+
+		moveable_regs[i].start = start;
+		moveable_regs[i].size = size;
+		moveable_regs[i].type = type;
+		i++;
+		j++;
+	}
+
+	kvm_nvhe_sym(pkvm_moveable_regs_nr) = i;
+	return 0;
+}
+
 static int __init register_moveable_regions(void)
 {
 	struct memblock_region *reg;
 	struct device_node *np;
-	int i = 0;
+	int i = 0, ret = 0, idx = 0;
 
 	for_each_mem_region(reg) {
 		if (i >= PKVM_NR_MOVEABLE_REGS)
@@ -117,34 +154,33 @@ static int __init register_moveable_regions(void)
 		moveable_regs[i].type = PKVM_MREG_MEMORY;
 		i++;
 	}
+	kvm_nvhe_sym(pkvm_moveable_regs_nr) = i;
 
 	for_each_compatible_node(np, NULL, "pkvm,protected-region") {
-		struct resource res;
-		u64 start, size;
-		int ret;
-
-		if (i >= PKVM_NR_MOVEABLE_REGS)
-			return -ENOMEM;
-
-		ret = of_address_to_resource(np, 0, &res);
+		ret = register_moveable_fdt_resource(np, PKVM_MREG_PROTECTED_RANGE);
 		if (ret)
-			return ret;
-
-		start = res.start;
-		size = resource_size(&res);
-		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
-			return -EINVAL;
-
-		moveable_regs[i].start = start;
-		moveable_regs[i].size = size;
-		moveable_regs[i].type = PKVM_MREG_PROTECTED_RANGE;
-		i++;
+			goto out_fail;
 	}
 
-	kvm_nvhe_sym(pkvm_moveable_regs_nr) = i;
+	for_each_compatible_node(np, NULL, PKVM_DEVICE_ASSIGN_COMPAT) {
+		struct of_phandle_args args;
+
+		while (!of_parse_phandle_with_fixed_args(np, "devices", 1, idx, &args)) {
+			idx++;
+			ret = register_moveable_fdt_resource(args.np, PKVM_MREG_ASSIGN_MMIO);
+			of_node_put(args.np);
+			if (ret)
+				goto out_fail;
+		}
+	}
+
 	sort_moveable_regs();
 
-	return 0;
+	return ret;
+out_fail:
+	of_node_put(np);
+	kvm_nvhe_sym(pkvm_moveable_regs_nr) = 0;
+	return ret;
 }
 
 void __init kvm_hyp_reserve(void)
@@ -413,6 +449,7 @@ static int __pkvm_create_hyp_vm(struct kvm *host_kvm)
 
 	/* Donate memory for the vcpus at hyp and initialize it. */
 	kvm_for_each_vcpu(idx, host_vcpu, host_kvm) {
+		__kvm_calculate_traps(host_vcpu);
 		ret = __pkvm_create_hyp_vcpu(host_kvm, host_vcpu, idx);
 		if (ret)
 			goto destroy_vm;
@@ -470,6 +507,113 @@ int pkvm_init_host_vm(struct kvm *host_kvm, unsigned long type)
 	return 0;
 }
 
+static int pkvm_register_device(struct of_phandle_args *args,
+				struct pkvm_device *dev)
+{
+	struct device_node *np = args->np;
+	struct of_phandle_args iommu_spec;
+	u32 group_id = args->args[0];
+	struct resource res;
+	u64 base, size, iommu_id;
+	unsigned int j = 0;
+
+	/* Parse regs */
+	while (!of_address_to_resource(np, j, &res)) {
+		if (j >= PKVM_DEVICE_MAX_RESOURCE)
+			return -E2BIG;
+
+		base = res.start;
+		size = resource_size(&res);
+		if (!PAGE_ALIGNED(base) || !PAGE_ALIGNED(size))
+			return -EINVAL;
+
+		dev->resources[j].base = base;
+		dev->resources[j].size = size;
+		j++;
+	}
+	dev->nr_resources = j;
+
+	/* Parse iommus */
+	j = 0;
+	while (!of_parse_phandle_with_args(np, "iommus",
+					   "#iommu-cells",
+					   j, &iommu_spec)) {
+		if (iommu_spec.args_count != 1) {
+			kvm_err("[Devices] Unsupported binding for %s, expected <&iommu id>",
+				np->full_name);
+			return -EINVAL;
+		}
+
+		if (j >= PKVM_DEVICE_MAX_RESOURCE) {
+			of_node_put(iommu_spec.np);
+			return -E2BIG;
+		}
+
+		iommu_id = kvm_get_iommu_id_by_of(iommu_spec.np);
+
+		dev->iommus[j].id = iommu_id;
+		dev->iommus[j].endpoint = iommu_spec.args[0];
+		of_node_put(iommu_spec.np);
+		j++;
+	}
+
+	dev->nr_iommus = j;
+	dev->ctxt = NULL;
+	dev->group_id = group_id;
+
+	return 0;
+}
+
+static int pkvm_init_devices(void)
+{
+	struct device_node *np;
+	int idx = 0, ret = 0, dev_cnt = 0;
+	size_t dev_sz;
+	struct pkvm_device *dev_base;
+
+	for_each_compatible_node (np, NULL, PKVM_DEVICE_ASSIGN_COMPAT) {
+		struct of_phandle_args args;
+
+		while (!of_parse_phandle_with_fixed_args(np, "devices", 1, dev_cnt, &args)) {
+			dev_cnt++;
+			of_node_put(args.np);
+		}
+	}
+	kvm_info("Found %d assignable devices", dev_cnt);
+
+	if (!dev_cnt)
+		return 0;
+
+	dev_sz = PAGE_ALIGN(size_mul(sizeof(struct pkvm_device), dev_cnt));
+
+	dev_base = alloc_pages_exact(dev_sz, GFP_KERNEL_ACCOUNT);
+
+	if (!dev_base)
+		return -ENOMEM;
+
+	for_each_compatible_node(np, NULL, PKVM_DEVICE_ASSIGN_COMPAT) {
+		struct of_phandle_args args;
+
+		while (!of_parse_phandle_with_fixed_args(np, "devices", 1, idx, &args)) {
+			ret = pkvm_register_device(&args, &dev_base[idx]);
+			of_node_put(args.np);
+			if (ret) {
+				of_node_put(np);
+				goto out_free;
+			}
+			idx++;
+		}
+	}
+
+	kvm_nvhe_sym(registered_devices_nr) = dev_cnt;
+	kvm_nvhe_sym(registered_devices) = dev_base;
+	return ret;
+
+out_free:
+	free_pages_exact(dev_base, dev_sz);
+	return ret;
+}
+
 static void __init _kvm_host_prot_finalize(void *arg)
 {
 	int *err = arg;
@@ -514,6 +658,16 @@ static int __init finalize_pkvm(void)
 		pr_err("Failed to init KVM IOMMU driver: %d\n", ret);
 		pkvm_firmware_rmem_clear();
 	}
+
+	ret = pkvm_init_devices();
+	if (ret) {
+		pr_err("Failed to init kvm devices %d\n", ret);
+		pkvm_firmware_rmem_clear();
+	}
+
+	ret = kvm_call_hyp_nvhe(__pkvm_devices_init);
+	if (ret)
+		pr_warn("Assignable devices failed to initialize in the hypervisor %d", ret);
 
 	/*
 	 * Exclude HYP sections from kmemleak so that they don't get peeked
@@ -1273,3 +1427,104 @@ int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 	return ret;
 }
 EXPORT_SYMBOL(__pkvm_topup_hyp_alloc_mgt_gfp);
+
+static int __pkvm_donate_resource(struct resource *r)
+{
+	if (!PAGE_ALIGNED(resource_size(r)) || !PAGE_ALIGNED(r->start))
+		return -EINVAL;
+
+	return kvm_call_hyp_nvhe(__pkvm_host_donate_hyp_mmio,
+				 __phys_to_pfn(r->start),
+				 resource_size(r) >> PAGE_SHIFT);
+
+}
+
+static int __pkvm_reclaim_resource(struct resource *r)
+{
+	if (!PAGE_ALIGNED(resource_size(r)) || !PAGE_ALIGNED(r->start))
+		return -EINVAL;
+
+	return kvm_call_hyp_nvhe(__pkvm_host_reclaim_hyp_mmio,
+				 __phys_to_pfn(r->start),
+				 resource_size(r) >> PAGE_SHIFT);
+}
+
+static int __pkvm_arch_assign_device(struct device *dev, void *data)
+{
+	struct platform_device *pdev;
+	struct resource *r;
+	int index = 0;
+	int ret = 0;
+
+	if (!dev_is_platform(dev))
+		return -EOPNOTSUPP;
+
+	pdev = to_platform_device(dev);
+
+	while ((r = platform_get_resource(pdev, IORESOURCE_MEM, index++))) {
+		ret = __pkvm_donate_resource(r);
+		if (ret)
+			break;
+	}
+
+	if (ret) {
+		while (index--) {
+			r = platform_get_resource(pdev, IORESOURCE_MEM, index);
+			__pkvm_reclaim_resource(r);
+		}
+	}
+	return ret;
+}
+
+static int __pkvm_arch_reclaim_device(struct device *dev, void *data)
+{
+	struct platform_device *pdev;
+	struct resource *r;
+	int index = 0;
+
+	pdev = to_platform_device(dev);
+
+	while ((r = platform_get_resource(pdev, IORESOURCE_MEM, index++)))
+		__pkvm_reclaim_resource(r);
+
+	return 0;
+}
+
+int kvm_arch_assign_device(struct device *dev)
+{
+	if (!is_protected_kvm_enabled())
+		return 0;
+
+	return __pkvm_arch_assign_device(dev, NULL);
+}
+
+int kvm_arch_assign_group(struct iommu_group *group)
+{
+	int ret;
+
+	if (!is_protected_kvm_enabled())
+		return 0;
+
+	ret = iommu_group_for_each_dev(group, NULL, __pkvm_arch_assign_device);
+
+	if (ret)
+		iommu_group_for_each_dev(group, NULL, __pkvm_arch_reclaim_device);
+
+	return ret;
+}
+
+void kvm_arch_reclaim_device(struct device *dev)
+{
+	if (!is_protected_kvm_enabled())
+		return;
+
+	__pkvm_arch_reclaim_device(dev, NULL);
+}
+
+void kvm_arch_reclaim_group(struct iommu_group *group)
+{
+	if (!is_protected_kvm_enabled())
+		return;
+
+	iommu_group_for_each_dev(group, NULL, __pkvm_arch_reclaim_device);
+}

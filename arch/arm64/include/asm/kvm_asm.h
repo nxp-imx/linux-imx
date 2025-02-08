@@ -74,6 +74,7 @@ enum __kvm_host_smccc_func {
 	__KVM_HOST_SMCCC_FUNC___pkvm_init_module,
 	__KVM_HOST_SMCCC_FUNC___pkvm_register_hcall,
 	__KVM_HOST_SMCCC_FUNC___pkvm_iommu_init,
+	__KVM_HOST_SMCCC_FUNC___pkvm_devices_init,
 	__KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize,
 
 	/* Hypercalls available after pKVM finalisation */
@@ -119,6 +120,9 @@ enum __kvm_host_smccc_func {
 	__KVM_HOST_SMCCC_FUNC___pkvm_host_hvc_pd,
 	__KVM_HOST_SMCCC_FUNC___pkvm_ptdump,
 	__KVM_HOST_SMCCC_FUNC___pkvm_host_iommu_map_sg,
+	__KVM_HOST_SMCCC_FUNC___pkvm_host_donate_hyp_mmio,
+	__KVM_HOST_SMCCC_FUNC___pkvm_host_reclaim_hyp_mmio,
+	__KVM_HOST_SMCCC_FUNC___pkvm_host_map_guest_mmio,
 
 	/*
 	 * Start of the dynamically registered hypercalls. Start a bit

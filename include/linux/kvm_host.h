@@ -1634,6 +1634,31 @@ static __always_inline bool kvm_arch_has_assigned_device(struct kvm *kvm)
 }
 #endif
 
+#ifdef __KVM_HAVE_ARCH_ASSIGNED_DEVICE_GROUP
+int kvm_arch_assign_device(struct device *dev);
+int kvm_arch_assign_group(struct iommu_group *group);
+void kvm_arch_reclaim_device(struct device *dev);
+void kvm_arch_reclaim_group(struct iommu_group *group);
+#else
+static inline int kvm_arch_assign_device(struct device *dev)
+{
+	return 0;
+}
+
+static inline int kvm_arch_assign_group(struct iommu_group *group)
+{
+	return 0;
+}
+
+static inline void kvm_arch_reclaim_device(struct device *dev)
+{
+}
+
+static inline void kvm_arch_reclaim_group(struct iommu_group *group)
+{
+}
+#endif
+
 static inline struct rcuwait *kvm_arch_vcpu_get_wait(struct kvm_vcpu *vcpu)
 {
 #ifdef __KVM_HAVE_ARCH_WQP

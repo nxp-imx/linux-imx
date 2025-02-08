@@ -9,6 +9,7 @@
 
 #include <kvm/arm_hypercalls.h>
 #include <kvm/arm_psci.h>
+#include <kvm/device.h>
 
 #include <asm/kvm_emulate.h>
 
@@ -930,6 +931,8 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	remove_vm_table_entry(handle);
 	hyp_write_unlock(&vm_table_lock);
 
+	pkvm_devices_teardown(hyp_vm);
+
 	/*
 	 * At this point, the VM has been detached from the VM table and
 	 * has a refcount of 0 so we're free to tear it down without
@@ -1659,6 +1662,8 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 		if (smccc_trng_available)
 			return pkvm_forward_trng(vcpu);
 		break;
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_MMIO_FUNC_ID:
+		return pkvm_device_request_mmio(hyp_vcpu, exit_code);
 	default:
 		return pkvm_handle_psci(hyp_vcpu);
 	}

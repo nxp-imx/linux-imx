@@ -1347,6 +1347,7 @@ int __init populate_nv_trap_config(void);
 bool lock_all_vcpus(struct kvm *kvm);
 void unlock_all_vcpus(struct kvm *kvm);
 
+void __kvm_calculate_traps(struct kvm_vcpu *vcpu);
 void kvm_calculate_traps(struct kvm_vcpu *vcpu);
 
 /* MMIO helpers */
@@ -1668,7 +1669,7 @@ int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 struct kvm_iommu_driver {
 	int (*init_driver)(void);
 	void (*remove_driver)(void);
-	pkvm_handle_t (*get_iommu_id)(struct device *dev);
+	pkvm_handle_t (*get_iommu_id_by_of)(struct device_node *np);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
@@ -1685,6 +1686,7 @@ int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
 		       struct kvm_hyp_memcache *atomic_mc);
 int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
+pkvm_handle_t kvm_get_iommu_id_by_of(struct device_node *np);
 
 int pkvm_iommu_suspend(struct device *dev);
 int pkvm_iommu_resume(struct device *dev);
@@ -1707,5 +1709,7 @@ static inline void kvm_iommu_sg_free(struct kvm_iommu_sg *sg, unsigned int nents
 
 int kvm_iommu_share_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents);
 int kvm_iommu_unshare_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents);
+
+#define __KVM_HAVE_ARCH_ASSIGNED_DEVICE_GROUP
 
 #endif /* __ARM64_KVM_HOST_H__ */
