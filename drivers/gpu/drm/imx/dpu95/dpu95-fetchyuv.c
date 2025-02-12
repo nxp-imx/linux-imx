@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2022,2023,2025 NXP
+ * Copyright 2017-2022,2023,2025,2026 NXP
  */
 
 #include <linux/kernel.h>
@@ -218,7 +218,7 @@ int dpu95_fy_init(struct dpu95_soc *dpu, unsigned int index,
 	fu->id = id;
 	fu->index = index;
 	fu->type = type;
-	fu->association_bit = id == 3 ? INT_PLANE : VIDEO_PLANE(index);
+	fu->association_bit = id == 3 ? INT_PLANE : VIDEO_PLANE(id);
 	fu->link_id = dpu95_fy_link_id[index];
 	fu->cap_mask = DPU95_FETCHYUV_CAP_MASK;
 	fu->reg_offset1 = 0x28;
