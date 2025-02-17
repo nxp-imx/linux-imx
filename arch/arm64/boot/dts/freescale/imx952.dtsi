@@ -428,6 +428,34 @@
 		};
 	};
 
+	disp_mu: disp-mu {
+		compatible = "nxp,imx-disp-mu";
+		mbox-names = "tx", "rx";
+		mboxes = <&dispmix_mu1 0 0>,
+			 <&dispmix_mu1 1 0>;
+		status = "disabled";
+	};
+
+	ld_fw: remoteproc {
+		compatible = "nxp,imx952-cm0p-rproc";
+		firmware-name = "imx9xm0p_ld_fw.bin";
+		clocks = <&dispmix_cm0p_csr IMX952_CLK_CM0P_GATE_SEL>,
+			 <&scmi_clk IMX952_CLK_CGC_DISPOCRAM>,
+			 <&scmi_clk IMX952_CLK_DISPLPSPI>;
+		clock-names = "cm0p", "ocram", "lpspi";
+		assigned-clocks = <&scmi_clk IMX952_CLK_DISPLPSPI>;
+		assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1_DIV2>;
+		assigned-clock-rates = <20000000>;
+		power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		memory-region = <&ocram_d>;
+
+		nxp,cm0p-ctrl = <&dispmix_cm0p_csr>;
+		nxp,ocram-ctrl = <&dispmix_csr>;
+		nxp,ocram-cfg = <&ocram_d_config>;
+
+		status = "disabled";
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -1943,6 +1971,36 @@
 			};
 		};
 
+		dispmix_cm0p_csr: syscon@4b070000 {
+			compatible = "nxp,imx952-display-cm0p-csr", "syscon";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x0 0x4b070000 0x0 0x10000>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		};
+
+		dispmix_mu0: mailbox@4b080000 {
+			compatible = "fsl,imx95-mu-cm0p";
+			reg = <0x0 0x4b080000 0x0 0x10000>;
+			interrupts = <GIC_SPI 408 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
+			#mbox-cells = <2>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			status = "disabled";
+		};
+
+		dispmix_mu1: mailbox@4b090000 {
+			compatible = "fsl,imx95-mu-cm0p";
+			reg = <0x0 0x4b090000 0x0 0x10000>;
+			interrupts = <GIC_SPI 409 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
+			#mbox-cells = <2>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			status = "disabled";
+		};
+
 		display_dsi_csr: syscon@4b0a0000 {
 			compatible = "nxp,imx952-display-dsi-csr", "syscon";
 			reg = <0x0 0x4b0a0000 0x0 0x10000>;
@@ -2150,6 +2208,17 @@
 			#phy-cells = <0>;
 			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
 			status = "disabled";
+		};
+
+		ocram_d_config: syscon@4b0f0000 {
+			compatible = "nxp,imx95-ocram-config", "syscon";
+			reg = <0x0 0x4b0f0000 0x0 0x10000>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		};
+
+		ocram_d: ocram@4b300000 {
+			reg = <0x0 0x4b300000 0x0 0x4000>;
+			no-map;
 		};
 
 		dpu: display-controller@4b400000 {
