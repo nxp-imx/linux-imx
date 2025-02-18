@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #include <linux/completion.h>
@@ -42,9 +42,12 @@
 #define MBOX_RXDB_NAME			"rxdb"
 
 #define IMX_SE_LOG_PATH "/var/lib/se_"
+#define SE_RCV_MSG_DEFAULT_TIMEOUT	5000
+#define SE_RCV_MSG_LONG_TIMEOUT		5000000
 
 static int se_log;
-static struct kobject *se_log_kobj;
+static struct kobject *se_kobj;
+u32 se_rcv_msg_timeout = SE_RCV_MSG_DEFAULT_TIMEOUT;
 
 struct se_fw_img_name {
 	const u8 *prim_fw_nm_in_rfs;
@@ -410,55 +413,96 @@ char *get_se_if_name(u8 se_if_id)
 }
 
 /*
- * Writing the sysfs entry se_log to enable/disable the logging
+ * Writing the sysfs entry for -
+ *
+ * se_log: to enable/disable the SE logging
  * echo 1 > /sys/kernel/se/se_log // enable logging
  * echo 0 > /sys/kernel/se/se_log // disable logging
+ *
+ * se_rcv_msg_timeout: to change the rcv_msg timeout value in jiffies for
+ *                     the operations that take more time.
+ * echo 180000 > /sys/kernel/se/se_rcv_msg_timeout
  */
-static ssize_t se_log_store(struct kobject *kobj,
+static ssize_t se_store(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   const char *buf, size_t count)
 {
-	int ret;
+	int var, ret;
 
-	ret = kstrtoint(buf, 10, &se_log);
+	ret = kstrtoint(buf, 10, &var);
 	if (ret < 0) {
 		pr_err("Failed to convert to int\n");
 		return ret;
 	}
+
+	if (strcmp(attr->attr.name, "se_log") == 0)
+		se_log = var;
+	else
+		se_rcv_msg_timeout = var;
+
 	return count;
 }
 
 /*
- * Reading the sysfs entry to know logging is enabled/disabled
+ * Reading the sysfs entry for -
+ *
+ * se_log: to know SE logging is enabled/disabled
+ *
+ * se_rcv_msg_timeout: to read the current rcv_msg timeout value in jiffies
  */
-static ssize_t se_log_show(struct kobject *kobj,
+static ssize_t se_show(struct kobject *kobj,
 				  struct kobj_attribute *attr,
 				  char *buf)
 {
-	return sysfs_emit(buf, "%d\n", se_log);
+	int var = 0;
+
+	if (strcmp(attr->attr.name, "se_log") == 0)
+		var = se_log;
+	else
+		var = se_rcv_msg_timeout;
+
+	return sysfs_emit(buf, "%d\n", var);
 }
 
 struct kobj_attribute se_log_attr = __ATTR(se_log, 0664,
-					   se_log_show,
-					   se_log_store);
+					   se_show,
+					   se_store);
+
+struct kobj_attribute se_rcv_msg_timeout_attr = __ATTR(se_rcv_msg_timeout,
+						       0664, se_show,
+						       se_store);
 
 /* Exposing the variable se_log via sysfs to enable/disable logging */
 static int  se_sysfs_log(void)
 {
+	int ret = 0;
+
 	/* Create kobject "se" located under /sys/kernel */
-	se_log_kobj = kobject_create_and_add("se", kernel_kobj);
-	if (!se_log_kobj) {
+	se_kobj = kobject_create_and_add("se", kernel_kobj);
+	if (!se_kobj) {
 		pr_warn("kobject creation failed\n");
-		return -ENOMEM;
-	}
-	/* Create file for the se_log attribute */
-	if (sysfs_create_file(se_log_kobj, &se_log_attr.attr)) {
-		pr_err("Failed to create se file\n");
-		kobject_put(se_log_kobj);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out;
 	}
 
-	return 0;
+	/* Create file for the se_log attribute */
+	if (sysfs_create_file(se_kobj, &se_log_attr.attr)) {
+		pr_err("Failed to create se file\n");
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	/* Create file for the se_rcv_msg_timeout attribute */
+	if (sysfs_create_file(se_kobj, &se_rcv_msg_timeout_attr.attr)) {
+		pr_err("Failed to create se_rcv_msg_timeout file\n");
+		ret = -ENOMEM;
+		goto out;
+	}
+
+out:
+	if (ret)
+		kobject_put(se_kobj);
+	return ret;
 }
 
 /*
@@ -665,6 +709,7 @@ static int se_load_firmware(struct se_if_priv *priv)
 				  se_fw_phyaddr);
 
 		release_firmware(fw);
+		fw = NULL;
 
 		if (!ret && load_fw->imem.state == ELE_IMEM_STATE_BAD &&
 				se_img_file_to_load == load_fw->se_fw_img_nm->prim_fw_nm_in_rfs)
@@ -1069,7 +1114,7 @@ static int init_device_context(struct se_if_priv *priv, int ch_id,
 static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 					    u64 arg)
 {
-	struct se_ioctl_cmd_snd_rcv_rsp_info cmd_snd_rcv_rsp_info;
+	struct se_ioctl_cmd_snd_rcv_rsp_info cmd_snd_rcv_rsp_info = {0};
 	struct se_if_priv *priv = dev_ctx->priv;
 	struct se_api_msg *tx_msg __free(kfree) = NULL;
 	struct se_api_msg *rx_msg __free(kfree) = NULL;
@@ -1121,6 +1166,11 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 			goto exit;
 		}
 	}
+
+	se_rcv_msg_timeout =
+		(se_rcv_msg_timeout == SE_RCV_MSG_DEFAULT_TIMEOUT) ? SE_RCV_MSG_LONG_TIMEOUT
+								   : se_rcv_msg_timeout;
+
 	err = ele_msg_send_rcv(dev_ctx,
 			       tx_msg,
 			       cmd_snd_rcv_rsp_info.tx_buf_sz,
@@ -1803,8 +1853,8 @@ static void se_if_probe_cleanup(void *plat_dev)
 	of_reserved_mem_device_release(dev);
 
 	/* Free Kobj created for logging */
-	if (se_log_kobj)
-		kobject_put(se_log_kobj);
+	if (se_kobj)
+		kobject_put(se_kobj);
 
 }
 
@@ -1829,6 +1879,7 @@ static int se_if_probe(struct platform_device *pdev)
 			dev->of_node->name,
 			info_list->num_mu - 1);
 		ret = -EINVAL;
+
 		return ret;
 	}
 
@@ -1975,11 +2026,11 @@ static int se_if_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* exposing variable se via sysfs to enable/disable logging */
-	if (!se_log_kobj) {
+	/* exposing variables se_log and se_rcv_msg_timeout via sysfs */
+	if (!se_kobj) {
 		ret = se_sysfs_log();
 		if (ret)
-			pr_warn("Warn: Creating sysfs entry for se_log: %d\n", ret);
+			pr_warn("Warn: Creating sysfs entry for se_log and  se_rcv_msg_timeout: %d\n", ret);
 	}
 
 	dev_info(dev, "i.MX secure-enclave: %s%d interface to firmware, configured.\n",
@@ -2004,19 +2055,22 @@ static int se_suspend(struct device *dev)
 	struct se_fw_load_info *load_fw;
 	int ret = 0;
 
+	se_rcv_msg_timeout = SE_RCV_MSG_DEFAULT_TIMEOUT;
 	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG) {
 		ret = v2x_suspend(priv);
 		if (ret) {
 			dev_err(dev, "Failure V2X-FW suspend[0x%x].", ret);
-			return ret;
+			goto exit;
 		}
 	}
 	load_fw = get_load_fw_instance(priv);
 
 	if (load_fw->imem_mgmt) {
 		ret = se_save_imem_state(priv, &load_fw->imem);
-		if (ret < 0)
+		if (ret) {
+			dev_err(dev, "Failure saving IMEM state[0x%x]", ret);
 			goto exit;
+		}
 	}
 exit:
 	return ret;
@@ -2030,16 +2084,17 @@ static int se_resume(struct device *dev)
 
 	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG) {
 		ret = v2x_resume(priv);
-		if (ret) {
+		if (ret)
 			dev_err(dev, "Failure V2X-FW resume[0x%x].", ret);
-			return ret;
-		}
 	}
 
 	load_fw = get_load_fw_instance(priv);
 
-	if (load_fw->imem_mgmt)
-		se_restore_imem_state(priv, &load_fw->imem);
+	if (load_fw->imem_mgmt) {
+		ret = se_restore_imem_state(priv, &load_fw->imem);
+		if (ret)
+			dev_err(dev, "Failure restoring IMEM state[0x%x]", ret);
+	}
 
 	return ret;
 }
