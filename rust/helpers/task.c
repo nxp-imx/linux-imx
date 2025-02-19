@@ -55,3 +55,9 @@ pid_t rust_helper_task_tgid_nr_ns(struct task_struct *tsk,
 {
 	return task_tgid_nr_ns(tsk, ns);
 }
+
+unsigned long rust_helper_task_rlimit(const struct task_struct *task,
+				      unsigned int limit)
+{
+	return task_rlimit(task, limit);
+}

@@ -15,15 +15,8 @@
 	GENMASK(KVM_REG_ARM_STD_BMAP_BIT_COUNT - 1, 0)
 #define KVM_ARM_SMCCC_STD_HYP_FEATURES				\
 	GENMASK(KVM_REG_ARM_STD_HYP_BMAP_BIT_COUNT - 1, 0)
-#define KVM_ARM_SMCCC_VENDOR_HYP_FEATURES ({				\
-	unsigned long f;						\
-	f = GENMASK(KVM_REG_ARM_VENDOR_HYP_BMAP_BIT_COUNT - 1, 0);	\
-	if (is_protected_kvm_enabled()) {				\
-		f |= BIT(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO);		\
-		f |= BIT(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH);		\
-	}								\
-	f;								\
-})
+#define KVM_ARM_SMCCC_VENDOR_HYP_FEATURES			\
+	GENMASK(KVM_REG_ARM_VENDOR_HYP_BMAP_BIT_COUNT - 1, 0)
 
 static void kvm_ptp_get_time(struct kvm_vcpu *vcpu, u64 *val)
 {

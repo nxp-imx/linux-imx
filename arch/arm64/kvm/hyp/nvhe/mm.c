@@ -178,7 +178,13 @@ void __pkvm_unmap_module_page(u64 pfn, void *va)
 
 int __hyp_allocator_map(unsigned long va, phys_addr_t phys)
 {
-	return __pkvm_create_mappings(va, PAGE_SIZE, phys, PAGE_HYP);
+	int ret = __pkvm_create_mappings(va, PAGE_SIZE, phys, PAGE_HYP);
+
+	/* Let's not confuse the hyp_alloc callers who will try to top-up pointlessly on -ENOMEM */
+	if (ret == -ENOMEM)
+		ret = -EBUSY;
+
+	return ret;
 }
 
 int pkvm_create_mappings_locked(void *from, void *to, enum kvm_pgtable_prot prot)
@@ -217,12 +223,19 @@ int pkvm_create_mappings(void *from, void *to, enum kvm_pgtable_prot prot)
 	return ret;
 }
 
+unsigned long pkvm_remove_mappings_locked(void *from, void *to)
+{
+	unsigned long size = (unsigned long)to - (unsigned long)from;
+
+	return kvm_pgtable_hyp_unmap(&pkvm_pgtable, (u64)from, size);
+}
+
 void pkvm_remove_mappings(void *from, void *to)
 {
 	unsigned long size = (unsigned long)to - (unsigned long)from;
 
 	hyp_spin_lock(&pkvm_pgd_lock);
-	WARN_ON(kvm_pgtable_hyp_unmap(&pkvm_pgtable, (u64)from, size) != size);
+	WARN_ON(pkvm_remove_mappings_locked(from, to) != size);
 	hyp_spin_unlock(&pkvm_pgd_lock);
 }
 
@@ -598,10 +611,14 @@ phys_addr_t __pkvm_private_range_pa(void *va)
 int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
 {
 	unsigned long order;
+	u64 nr_pages;
 	void *p;
 
 	while (host_mc->nr_pages) {
 		order = FIELD_GET(~PAGE_MASK, host_mc->head);
+		if (check_shl_overflow(1UL, order, &nr_pages))
+			return -EINVAL;
+
 		p = admit_host_page(host_mc, order);
 		if (!p)
 			return -EINVAL;

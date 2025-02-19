@@ -13,6 +13,7 @@ hyp-obj-y += ../vgic-v3-sr.o ../aarch32.o ../vgic-v2-cpuif-proxy.o ../entry.o \
 	 ../fpsimd.o ../hyp-entry.o ../exception.o ../pgtable.o
 hyp-obj-$(CONFIG_LIST_HARDENED) += list_debug.o
 hyp-obj-$(CONFIG_TRACING) += clock.o events.o trace.o
+hyp-obj-$(CONFIG_PROTECTED_NVHE_FTRACE) += ftrace.o
 hyp-obj-$(CONFIG_MODULES) += modules.o
 hyp-obj-y += $(lib-objs)
 
@@ -29,4 +30,10 @@ $(obj)/hyp.lds: $(src)/hyp.lds.S FORCE
 	$(call if_changed_dep,cpp_lds_S)
 
 include $(srctree)/arch/arm64/kvm/hyp/nvhe/Makefile.nvhe
+
+CFLAGS_REMOVE_trace.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_events.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_ftrace.nvhe.o := -fpatchable-function-entry=3
+CFLAGS_REMOVE_setup.nvhe.o := -fpatchable-function-entry=3
+
 obj-y := kvm_nvhe.o

@@ -4,6 +4,7 @@
  */
 
 #include <nvhe/mm.h>
+#include <nvhe/mem_protect.h>
 #include <nvhe/trace/trace.h>
 
 #include <nvhe/trace/define_events.h>
@@ -11,14 +12,81 @@
 extern struct hyp_event_id __hyp_event_ids_start[];
 extern struct hyp_event_id __hyp_event_ids_end[];
 
-#define MAX_EVENT_ID_MOD 128
+#define MAX_MOD_EVENTS 16 /* Max number of modules with events */
 
-static atomic_t num_event_id_mod = ATOMIC_INIT(0);
-static DEFINE_HYP_SPINLOCK(event_id_mod_lock);
+static atomic_t num_hyp_event_mods = ATOMIC_INIT(0);
+static DEFINE_HYP_SPINLOCK(hyp_mod_events_lock);
 static struct {
-	struct hyp_event_id	*start;
-	struct hyp_event_id	*end;
-} event_id_mod[MAX_EVENT_ID_MOD];
+	struct {
+		struct hyp_event_id	*start;
+		struct hyp_event_id	*end;
+	} event_ids;
+	struct {
+		unsigned long		*start;
+		unsigned long		*end;
+		unsigned long		offset_idx;
+		void			*tramp;
+	} funcs;
+} hyp_mod_events[MAX_MOD_EVENTS];
+
+#ifdef CONFIG_PROTECTED_NVHE_FTRACE
+int __pkvm_sync_ftrace(unsigned long host_funcs_pg)
+{
+	unsigned long *funcs_pg = (unsigned long *)kern_hyp_va(host_funcs_pg);
+	int mod, nr_mods = atomic_read(&num_hyp_event_mods);
+	u64 pfn = hyp_virt_to_pfn(funcs_pg);
+	void *func;
+	int ret;
+
+	ret = __pkvm_host_donate_hyp(pfn, 1);
+	if (ret)
+		return ret;
+
+	/* Repurpose this lock to serialize syncs */
+	hyp_spin_lock(&hyp_mod_events_lock);
+
+	/* Look into core */
+	func = hyp_ftrace_find_host_func(*funcs_pg, NULL, NULL, 0);
+	if (func)
+		funcs_pg = hyp_ftrace_sync(funcs_pg, func, NULL, 0, NULL);
+
+	/* Look into modules */
+	for (mod = 0; mod < nr_mods; mod++) {
+		unsigned long *start = hyp_mod_events[mod].funcs.start;
+		unsigned long *end = hyp_mod_events[mod].funcs.end;
+		unsigned long offset_idx = hyp_mod_events[mod].funcs.offset_idx;
+		void *tramp = hyp_mod_events[mod].funcs.tramp;
+
+		if (!funcs_pg)
+			break;
+
+		func = hyp_ftrace_find_host_func(*funcs_pg, start, end,
+						 offset_idx);
+		if (func)
+			funcs_pg = hyp_ftrace_sync(funcs_pg, func, end,
+						  offset_idx, tramp);
+	}
+
+	hyp_spin_unlock(&hyp_mod_events_lock);
+
+	WARN_ON(__pkvm_hyp_donate_host(pfn, 1));
+
+	return funcs_pg ? -EINVAL : 0;
+}
+
+int __pkvm_disable_ftrace(void)
+{
+	int mod, nr_mods = atomic_read(&num_hyp_event_mods);
+
+	hyp_ftrace_disable(NULL, NULL);
+
+	for (mod = 0; mod < nr_mods; mod++)
+		hyp_ftrace_disable(hyp_mod_events[mod].funcs.start,
+				   hyp_mod_events[mod].funcs.end);
+
+	return 0;
+}
+#endif
 
 static void hyp_set_key(atomic_t *key, int val)
 {
@@ -55,42 +123,62 @@ static bool try_set_event(unsigned short id, bool enable)
 
 static bool try_set_mod_event(unsigned short id, bool enable)
 {
-	int i, nr_mod;
+	int i, nr_mods;
 
 	/*
-	 * Order access between num_event_id_mod and event_id_mod.
+	 * Order access between num_hyp_event_mods and hyp_mod_events.
 	 * Paired with register_hyp_event_ids()
 	 */
-	nr_mod = atomic_read_acquire(&num_event_id_mod);
+	nr_mods = atomic_read_acquire(&num_hyp_event_mods);
 
-	for (i = 0; i < nr_mod; i++) {
-		if (__try_set_event(id, enable, event_id_mod[i].start,
-				    event_id_mod[i].end))
+	for (i = 0; i < nr_mods; i++) {
+		if (__try_set_event(id, enable,
+				    hyp_mod_events[i].event_ids.start,
+				    hyp_mod_events[i].event_ids.end))
 			return true;
 	}
 
 	return false;
 }
 
-int register_hyp_event_ids(void *event_ids, size_t nr_events)
+int register_hyp_mod_events(void *event_ids, size_t nr_events,
+			    void *funcs, void *funcs_end,
+			    void *tramp,
+			    size_t hyp_kern_offset)
 {
+	size_t nr_funcs = funcs_end - funcs;
 	int mod, ret = -ENOMEM;
 
-	hyp_spin_lock(&event_id_mod_lock);
+	if (!nr_events && !nr_funcs)
+		return 0;
 
-	mod = atomic_read(&num_event_id_mod);
-	if (mod < MAX_EVENT_ID_MOD) {
-		event_id_mod[mod].start = (struct hyp_event_id *)event_ids;
-		event_id_mod[mod].end = (struct hyp_event_id *)event_ids + nr_events;
+	hyp_spin_lock(&hyp_mod_events_lock);
+
+	mod = atomic_read(&num_hyp_event_mods);
+	if (mod < MAX_MOD_EVENTS) {
+		hyp_mod_events[mod].event_ids.start =
+			(struct hyp_event_id *)event_ids;
+		hyp_mod_events[mod].event_ids.end =
+			(struct hyp_event_id *)event_ids + nr_events;
+		hyp_mod_events[mod].funcs.start = funcs;
+		hyp_mod_events[mod].funcs.end = funcs_end;
+		hyp_mod_events[mod].funcs.tramp = tramp;
+
 		/*
-		 * Order access between num_event_id_mod and event_id_mod.
+		 * Order access between num_hyp_event_mods and hyp_mod_events.
 		 * Paired with try_set_mod_event()
 		 */
-		atomic_set_release(&num_event_id_mod, mod + 1);
+		atomic_set_release(&num_hyp_event_mods, mod + 1);
 		ret = 0;
 	}
 
-	hyp_spin_unlock(&event_id_mod_lock);
+	hyp_spin_unlock(&hyp_mod_events_lock);
+
+	if (!ret) {
+		ret = hyp_ftrace_setup(funcs, funcs_end, hyp_kern_offset, tramp);
+		if (ret >= 0)
+			hyp_mod_events[mod].funcs.offset_idx = ret;
+	}
 
 	return ret;
 }

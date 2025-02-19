@@ -6,6 +6,7 @@
 #include <linux/freezer.h>
 
 #include "futex.h"
+#include <trace/hooks/futex.h>
 
 /*
  * READ this before attempting to hack on futexes!
@@ -159,6 +160,7 @@ int futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 	union futex_key key = FUTEX_KEY_INIT;
 	DEFINE_WAKE_Q(wake_q);
 	int ret;
+	int target_nr;
 
 	if (!bitset)
 		return -EINVAL;
@@ -178,6 +180,7 @@ int futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 
 	spin_lock(&hb->lock);
 
+	trace_android_vh_futex_wake_traverse_plist(&hb->chain, &target_nr, key, bitset);
 	plist_for_each_entry_safe(this, next, &hb->chain, list) {
 		if (futex_match (&this->key, &key)) {
 			if (this->pi_state || this->rt_waiter) {
@@ -189,6 +192,7 @@ int futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 			if (!(this->bitset & bitset))
 				continue;
 
+			trace_android_vh_futex_wake_this(ret, nr_wake, target_nr, this->task);
 			this->wake(&wake_q, this);
 			if (++ret >= nr_wake)
 				break;
@@ -197,6 +201,7 @@ int futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
 
 	spin_unlock(&hb->lock);
 	wake_up_q(&wake_q);
+	trace_android_vh_futex_wake_up_q_finish(nr_wake, target_nr);
 	return ret;
 }
 
@@ -691,6 +696,7 @@ int futex_wait(u32 __user *uaddr, unsigned int flags, u32 val, ktime_t *abs_time
 	struct restart_block *restart;
 	int ret;
 
+	trace_android_vh_futex_wait_start(flags, bitset);
 	to = futex_setup_timer(abs_time, &timeout, flags,
 			       current->timer_slack_ns);
 
@@ -714,6 +720,7 @@ int futex_wait(u32 __user *uaddr, unsigned int flags, u32 val, ktime_t *abs_time
 		return set_restart_fn(restart, futex_wait_restart);
 	}
 
+	trace_android_vh_futex_wait_end(flags, bitset);
 	return ret;
 }
 

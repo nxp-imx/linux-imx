@@ -3,10 +3,13 @@
  * Copyright (C) 2023 Google LLC
  */
 
-#include <linux/tracefs.h>
+#include <linux/glob.h>
 #include <linux/rcupdate.h>
+#include <linux/tracefs.h>
 
 #include <asm/kvm_host.h>
+#include <asm/kvm_mmu.h>
+#include <asm/patching.h>
 #include <asm/setup.h>
 
 #include "hyp_trace.h"
@@ -98,6 +101,399 @@ static const char *hyp_printk_fmt_from_id(u8 fmt_id)
 	return fmt ? fmt->fmt : "Unknown Format";
 }
 
+#ifdef CONFIG_PROTECTED_NVHE_FTRACE
+extern unsigned long __hyp_patchable_function_entries_start[];
+extern unsigned long __hyp_patchable_function_entries_end[];
+extern unsigned long kvm_nvhe_sym(__hyp_text_start_kern);
+
+static int hyp_ftrace_init_lr_ins(unsigned long addr)
+{
+	u32 old, new;
+
+	if (aarch64_insn_read((void *)addr, &old))
+		return -EFAULT;
+
+	if (old != aarch64_insn_gen_nop())
+		return -EINVAL;
+
+	new = aarch64_insn_gen_move_reg(AARCH64_INSN_REG_9,
+					AARCH64_INSN_REG_LR,
+					AARCH64_INSN_VARIANT_64BIT);
+	if (aarch64_insn_patch_text_nosync((void *)addr, new))
+		return -EPERM;
+
+	return 0;
+}
+
+static unsigned long *hyp_ftrace_funcs_pg;
+static char hyp_ftrace_filter_early[128];
+
+static __init int setup_hyp_ftrace_filter_early_early(char *str)
+{
+	strscpy(hyp_ftrace_filter_early, str, sizeof(hyp_ftrace_filter_early));
+
+	return 1;
+}
+__setup("hyp_ftrace_filter=", setup_hyp_ftrace_filter_early_early);
+
+DEFINE_MUTEX(hyp_ftrace_funcs_lock);
+
+/* Instructions are word-aligned, let's repurpose the LSB */
+#define func_enable(func)	((func) | 0x1)
+#define func_disable(func)	((func) & (~BIT(0)))
+#define func_is_enabled(func)	((func) & BIT(0))
+
+/* The last 8-bytes store are a pointer to the next page */
+#define funcs_pg_end(pg) ((typeof(pg))((void *)(pg) + PAGE_SIZE - 8))
+
+#define for_each_funcs_pg(pg) \
+	for (pg = hyp_ftrace_funcs_pg; pg; pg = (typeof(pg))*((unsigned long *)funcs_pg_end(pg)))
+
+#define for_each_func(pg, func) \
+	for (func = pg; (void *)func < funcs_pg_end(pg) && *func; func++)
+
+static int hyp_ftrace_func_add(unsigned long entry, bool enable)
+{
+	static void *funcs_pg_end;
+	static void *entry_addr;
+
+	if (!entry_addr) {
+		entry_addr = hyp_ftrace_funcs_pg;
+		funcs_pg_end = funcs_pg_end(entry_addr);
+	}
+
+	if (entry_addr >= funcs_pg_end) {
+		unsigned long new_func_pg;
+
+		new_func_pg = __get_free_page(GFP_KERNEL);
+		if (!new_func_pg)
+			return -ENOMEM;
+
+		memset((char *)new_func_pg, 0, PAGE_SIZE);
+
+		*(unsigned long *)entry_addr = new_func_pg;
+		entry_addr = (unsigned long *)new_func_pg;
+		funcs_pg_end = funcs_pg_end(entry_addr);
+	}
+
+	*(unsigned long *)entry_addr = enable ? func_enable(entry) : entry;
+	entry_addr += sizeof(entry);
+
+	return 0;
+}
+
+static bool hyp_ftrace_func_match(unsigned long kern_addr, const char *regex)
+{
+	char sym[KSYM_SYMBOL_LEN];
+	char *modname;
+
+	if (!strlen(regex))
+		return true;
+
+	kallsyms_lookup(kern_addr, NULL, NULL, &modname, sym);
+
+	return glob_match(regex, sym);
+}
+
+static int hyp_ftrace_funcs_apply_filter(const char *filter, bool enable)
+{
+	bool match = false;
+	void *func_pg;
+
+	for_each_funcs_pg(func_pg) {
+		unsigned long *func;
+
+		for_each_func(func_pg, func) {
+			if (hyp_ftrace_func_match(func_disable(*func), filter)) {
+				*func = enable ? func_enable(*func): func_disable(*func);
+				match = true;
+			}
+		}
+	}
+
+	return match ? 0 : -EINVAL;
+}
+
+static int hyp_ftrace_filter_show(struct seq_file *m, void *v)
+{
+	void *func_pg;
+
+	for_each_funcs_pg(func_pg) {
+		char sym[KSYM_SYMBOL_LEN];
+		unsigned long *func;
+		char *modname;
+
+		for_each_func(func_pg, func) {
+			if (!func_is_enabled(*func))
+				continue;
+
+			kallsyms_lookup(func_disable(*func), NULL, NULL,
+					&modname, sym);
+			seq_printf(m, "%s\n", sym);
+		}
+	}
+
+	return 0;
+}
+
+static void hyp_ftrace_sync(bool force_enable, bool force_sync)
+{
+	static bool enabled;
+	bool enable;
+	void *func_pg;
+
+	lockdep_assert_held(&hyp_ftrace_funcs_lock);
+
+	enable = *hyp_event_func.enabled || *hyp_event_func_ret.enabled || force_enable;
+	force_sync = force_sync && enable;
+
+	if (!force_sync && enable == enabled)
+		return;
+
+	if (!enable) {
+		kvm_call_hyp_nvhe(__pkvm_disable_ftrace);
+		enabled = false;
+		return;
+	}
+
+	for_each_funcs_pg(func_pg)
+		kvm_call_hyp_nvhe(__pkvm_sync_ftrace, func_pg);
+
+	enabled = true;
+}
+
+static ssize_t
+hyp_ftrace_filter_write(struct file *filp, const char __user *ubuf, size_t cnt,
+			loff_t *ppos)
+{
+	struct seq_file *m = filp->private_data;
+	bool enable = (bool)m->private;
+	char regex[128];
+	int ret;
+
+	if (cnt >= (sizeof(regex) - 1))
+		return -E2BIG;
+
+	ret = strncpy_from_user(regex, ubuf, sizeof(regex));
+	if (ret < 0)
+		return ret;
+
+	regex[cnt - 1] = '\0';
+
+	ret = hyp_ftrace_funcs_apply_filter(regex, enable);
+	if (ret)
+		return ret;
+
+	hyp_ftrace_sync(false, true);
+
+	return cnt;
+}
+
+static int hyp_ftrace_filter_open(struct inode *inode, struct file *file)
+{
+	int ret = single_open(file, hyp_ftrace_filter_show, inode->i_private);
+
+	if (!ret)
+		mutex_lock(&hyp_ftrace_funcs_lock);
+
+	return ret;
+}
+
+static int hyp_ftrace_filter_release(struct inode *inode, struct file *file)
+{
+	mutex_unlock(&hyp_ftrace_funcs_lock);
+
+	return single_release(inode, file);
+}
+
+static const struct file_operations hyp_ftrace_filter_fops = {
+	.open		= hyp_ftrace_filter_open,
+	.read		= seq_read,
+	.write		= hyp_ftrace_filter_write,
+	.llseek		= seq_lseek,
+	.release	= hyp_ftrace_filter_release,
+};
+
+static const struct file_operations hyp_ftrace_notrace_fops = {
+	.open		= hyp_ftrace_filter_open,
+	.write		= hyp_ftrace_filter_write,
+	.release	= hyp_ftrace_filter_release,
+};
+
+#define HYP_FTRACE_SKIP_FUNC (-1ULL)
+
+static void hyp_ftrace_funcs_init(unsigned long *funcs, unsigned long *funcs_end,
+				  unsigned long hyp_kern_offset, bool clear)
+{
+	unsigned long *func;
+	int ret;
+
+	func = funcs;
+	while (func < funcs_end) {
+		unsigned long kern_addr = *func + hyp_kern_offset;
+		char sym[KSYM_SYMBOL_LEN];
+		bool enable;
+
+		if (!*func)
+			break;
+
+		if (clear)
+			goto skip;
+
+		sprint_symbol_no_offset(sym, kern_addr);
+		if (!strncmp(sym, "__kvm_nvhe_$", 12))
+			goto skip;
+
+		ret = hyp_ftrace_init_lr_ins(kern_addr);
+		if (ret) {
+			pr_warn("Failed to patch %ps (%d)\n", (void *)kern_addr, ret);
+			goto skip;
+		}
+
+		enable = hyp_ftrace_func_match(kern_addr, hyp_ftrace_filter_early);
+		if (hyp_ftrace_func_add(kern_addr, enable))
+			goto skip;
+
+		/*
+		 * Tell the hypervisor to enable the function as early as
+		 * possible
+		 */
+		if (enable)
+			*func = func_enable(*func);
+
+		goto next;
+
+skip:
+		*func = HYP_FTRACE_SKIP_FUNC;
+next:
+		func++;
+	}
+}
+
+static void hyp_ftrace_init(void)
+{
+	unsigned long hyp_base;
+
+	hyp_ftrace_funcs_pg = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!hyp_ftrace_funcs_pg)
+		return;
+
+	memset(hyp_ftrace_funcs_pg, 0, PAGE_SIZE);
+
+	hyp_base = (unsigned long)kern_hyp_va(lm_alias((unsigned long)__hyp_text_start));
+
+	hyp_ftrace_funcs_init(__hyp_patchable_function_entries_start,
+			      __hyp_patchable_function_entries_end,
+			      (unsigned long)__hyp_text_start - hyp_base, false);
+
+	/* For the hypervisor to compute its hyp_kern_offset */
+	kvm_nvhe_sym(__hyp_text_start_kern) = (unsigned long)__hyp_text_start;
+}
+
+extern void kvm_nvhe_sym(__hyp_ftrace_tramp)(void);
+
+static int hyp_ftrace_init_mod_tramp(struct pkvm_el2_module *mod)
+{
+	u64 tramp_dst = (u64)kern_hyp_va(lm_alias((unsigned long)kvm_nvhe_sym(__hyp_ftrace_tramp)));
+	enum aarch64_insn_register reg = AARCH64_INSN_REG_16;
+	void *tramp = mod->text.end - 20; /* see module.lds.h */
+	static u32 insns[5];
+	u32 *insn = insns;
+	int shift = 0;
+
+	/*
+	 * adrp is not enough for that massive jump between the private and
+	 * linear, it's not a trampoline we need, it's a space shuttle!
+	 *
+	 * XXX: Relocate .hyp.text into the private range
+	 */
+
+	if (*insn)
+		goto write;
+
+	while (shift < 64) {
+		u64 mask = GENMASK(shift + 15, shift);
+
+		*insn = cpu_to_le32(
+			aarch64_insn_gen_movewide(
+				AARCH64_INSN_REG_16,
+				(tramp_dst & mask) >> shift,
+				shift,
+				AARCH64_INSN_VARIANT_64BIT,
+				shift ? AARCH64_INSN_MOVEWIDE_KEEP : AARCH64_INSN_MOVEWIDE_ZERO));
+		shift += 16;
+		insn++;
+	}
+
+	*insn = cpu_to_le32(aarch64_insn_gen_branch_reg(reg, AARCH64_INSN_BRANCH_NOLINK));
+
+write:
+	return aarch64_insn_copy((void *)tramp, insns, sizeof(insns))
+		? 0 : -EINVAL;
+}
+
+static void hyp_ftrace_init_mod(struct pkvm_el2_module *mod)
+{
+	/* Install a trampoline to reach __hyp_ftrace_tramp */
+	int ret = hyp_ftrace_init_mod_tramp(mod);
+
+	if (ret)
+		pr_warn("Failed to install trampoline for hyp ftrace\n");
+
+	mutex_lock(&hyp_ftrace_funcs_lock);
+
+	hyp_ftrace_funcs_init(mod->patchable_function_entries.start,
+			      mod->patchable_function_entries.end,
+			      mod->sections.start - mod->hyp_va,
+			      ret);
+
+	mutex_unlock(&hyp_ftrace_funcs_lock);
+
+	sync_icache_aliases((unsigned long)mod->text.start,
+			    (unsigned long)mod->text.end);
+}
+
+static int enable_func_hyp_event(struct hyp_event *event, bool enable)
+{
+	unsigned short id = event->id;
+	int ret = 1;
+
+	if (event != &hyp_event_func && event != &hyp_event_func_ret)
+		return 0;
+
+	mutex_lock(&hyp_ftrace_funcs_lock);
+
+	if (enable == *event->enabled)
+		goto handled;
+
+	if (enable)
+		hyp_ftrace_sync(true, false);
+
+	ret = kvm_call_hyp_nvhe(__pkvm_enable_event, id, enable);
+	if (ret) {
+		hyp_ftrace_sync(false, false);
+		goto handled;
+	}
+
+	*event->enabled = enable;
+
+	if (!enable)
+		hyp_ftrace_sync(false, false);
+
+handled:
+	mutex_unlock(&hyp_ftrace_funcs_lock);
+
+	return ret;
+}
+#else
+static void hyp_ftrace_init_mod(struct pkvm_el2_module *mod) { }
+static void hyp_ftrace_init(void) { }
+static int enable_func_hyp_event(struct hyp_event *event, bool enable)
+{
+	return 0;
+}
+#endif
+
 extern struct hyp_event __hyp_events_start[];
 extern struct hyp_event __hyp_events_end[];
 
@@ -109,6 +505,10 @@ static int enable_hyp_event(struct hyp_event *event, bool enable)
 {
 	unsigned short id = event->id;
 	int ret;
+
+	ret = enable_func_hyp_event(event, enable);
+	if (ret)
+		return ret > 0 ? 0 : ret;
 
 	if (enable == *event->enabled)
 		return 0;
@@ -435,6 +835,13 @@ void hyp_trace_init_event_tracefs(struct dentry *parent)
 {
 	int nr_events = nr_entries(__hyp_events_start, __hyp_events_end);
 
+#ifdef CONFIG_PROTECTED_NVHE_FTRACE
+	tracefs_create_file("set_ftrace_filter", 0600, parent, (void *)true,
+			    &hyp_ftrace_filter_fops);
+	tracefs_create_file("set_ftrace_notrace", 0200, parent, (void *)false,
+			    &hyp_ftrace_notrace_fops);
+#endif
+
 	parent = tracefs_create_dir("events", parent);
 	if (!parent) {
 		pr_err("Failed to create tracefs folder for hyp events\n");
@@ -458,6 +865,7 @@ int hyp_trace_init_events(void)
 	int nr_events = nr_entries(__hyp_events_start, __hyp_events_end);
 	int nr_event_ids = nr_entries(__hyp_event_ids_start, __hyp_event_ids_end);
 	int nr_printk_fmts = nr_entries(__hyp_printk_fmts_start, __hyp_printk_fmts_end);
+	int ret;
 
 	/* __hyp_printk event only supports U8_MAX different formats */
 	WARN_ON(nr_printk_fmts > U8_MAX);
@@ -467,16 +875,27 @@ int hyp_trace_init_events(void)
 	if (WARN(nr_events != nr_event_ids, "Too many trace_hyp_printk()!"))
 		return -EINVAL;
 
-	return hyp_event_table_init(__hyp_events_start, __hyp_event_ids_start,
-				    nr_events);
+	ret = hyp_event_table_init(__hyp_events_start, __hyp_event_ids_start,
+				   nr_events);
+	if (ret)
+		return ret;
+
+	hyp_ftrace_init();
+
+	return 0;
 }
 
-int hyp_trace_init_mod_events(struct hyp_event *event,
-			      struct hyp_event_id *event_id, int nr_events,
-			      struct hyp_printk_fmt *fmt, int nr_fmts)
+int hyp_trace_init_mod_events(struct pkvm_el2_module *mod)
 {
+	struct hyp_event_id *event_id = mod->event_ids.start;
+	struct hyp_printk_fmt *fmt = mod->hyp_printk_fmts;
+	struct hyp_event *event = mod->hyp_events;
+	size_t nr_events = mod->nr_hyp_events;
+	size_t nr_fmts = mod->nr_hyp_printk_fmts;
 	u8 *hyp_printk_fmt_offsets;
 	int ret;
+
+	hyp_ftrace_init_mod(mod);
 
 	ret = hyp_event_table_init(event, event_id, nr_events);
 	if (ret)

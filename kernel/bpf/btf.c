@@ -3,6 +3,7 @@
 
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
+#include <uapi/linux/android_fuse.h>
 #include <uapi/linux/bpf_perf_event.h>
 #include <uapi/linux/types.h>
 #include <linux/seq_file.h>
@@ -496,11 +497,6 @@ static bool btf_type_is_modifier(const struct btf_type *t)
 bool btf_type_is_void(const struct btf_type *t)
 {
 	return t == &btf_void;
-}
-
-static bool btf_type_is_fwd(const struct btf_type *t)
-{
-	return BTF_INFO_KIND(t->info) == BTF_KIND_FWD;
 }
 
 static bool btf_type_is_datasec(const struct btf_type *t)

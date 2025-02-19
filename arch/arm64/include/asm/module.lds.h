@@ -30,6 +30,7 @@ SECTIONS {
 #ifdef CONFIG_KVM
 	.hyp.text : ALIGN(PAGE_SIZE) {
 		*(.hyp.text)
+		*(.hyp.text.ftrace_tramp)
 		. = ALIGN(PAGE_SIZE);
 	}
 	.hyp.bss : ALIGN(PAGE_SIZE) {
@@ -49,6 +50,10 @@ SECTIONS {
 		*(.hyp.event_ids)
 		*(SORT(.hyp.event_ids.*))
 		*(.hyp.printk_fmt_offset)
+		. = ALIGN(PAGE_SIZE);
+	}
+	.hyp.patchable_function_entries : ALIGN(PAGE_SIZE) {
+		*(.hyp.patchable_function_entries)
 		. = ALIGN(PAGE_SIZE);
 	}
 	.hyp.data : ALIGN(PAGE_SIZE) {

@@ -7,6 +7,7 @@
  * Sorted alphabetically.
  */
 
+#include "binder.c"
 #include "blk.c"
 #include "bug.c"
 #include "build_assert.c"
@@ -16,6 +17,8 @@
 #include "fs.c"
 #include "jump_label.c"
 #include "kunit.c"
+#include "mm.c"
+#include "mman.c"
 #include "mutex.c"
 #include "page.c"
 #include "rbtree.c"

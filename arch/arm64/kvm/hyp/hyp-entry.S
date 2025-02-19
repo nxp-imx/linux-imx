@@ -262,3 +262,48 @@ SYM_CODE_START(__bp_harden_hyp_vecs)
 1:	.org __bp_harden_hyp_vecs + __BP_HARDEN_HYP_VECS_SZ
 	.org 1b
 SYM_CODE_END(__bp_harden_hyp_vecs)
+
+#if defined(__KVM_NVHE_HYPERVISOR__) && defined(CONFIG_PROTECTED_NVHE_FTRACE)
+SYM_FUNC_START(__hyp_ftrace_tramp)
+	stp	x0,  x1,	[sp, #-16]!
+	stp	x2,  x3, 	[sp, #-16]!
+	stp	x4,  x5, 	[sp, #-16]!
+	stp	x6,  x7, 	[sp, #-16]!
+	stp	x8,  x29,	[sp, #-16]!	// x8, FP
+	stp	x30, xzr,	[sp, #-16]!	// LR, ALIGN(16)
+
+	sub	x0, x30, #AARCH64_INSN_SIZE 	// unsigned long ip
+	mov	x1, x9				// unsigned long parent_ip
+	mov	x2, x10				// unsigned long offset_idx
+	bl	__hyp_ftrace_trace
+	mov	x30, x0				// LR = __hyp_ftrace_trace();
+
+	ldp	x9,  xzr,	[sp], #16
+	ldp	x8,  x29,	[sp], #16
+	ldp	x6,  x7,	[sp], #16
+	ldp	x4,  x5,	[sp], #16
+	ldp	x2,  x3,	[sp], #16
+	ldp	x0,  x1,	[sp], #16
+
+	ret	x9
+SYM_FUNC_END(__hyp_ftrace_tramp)
+
+SYM_FUNC_START(__hyp_ftrace_ret_tramp)
+	stp	x0,  x1,	[sp, #-16]!
+	stp	x2,  x3, 	[sp, #-16]!
+	stp	x4,  x5, 	[sp, #-16]!
+	stp	x6,  x7, 	[sp, #-16]!
+	stp	x8,  x29,	[sp, #-16]!	// x8, FP
+
+	bl	__hyp_ftrace_ret_trace
+	mov	x30,  x0
+
+	ldp	x8,  x29,	[sp], #16	// x8, FP
+	ldp	x6,  x7,	[sp], #16
+	ldp	x4,  x5,	[sp], #16
+	ldp	x2,  x3,	[sp], #16
+	ldp	x0,  x1,	[sp], #16
+
+	ret
+SYM_FUNC_END(__hyp_ftrace_ret_tramp)
+#endif

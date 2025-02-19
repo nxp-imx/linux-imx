@@ -24,6 +24,7 @@ int pkvm_init_host_vm(struct kvm *kvm, unsigned long type);
 int pkvm_create_hyp_vm(struct kvm *kvm);
 void pkvm_destroy_hyp_vm(struct kvm *kvm);
 bool pkvm_is_hyp_created(struct kvm *kvm);
+int pkvm_create_hyp_vcpu(struct kvm_vcpu *vcpu);
 void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 
 /*
@@ -345,11 +346,16 @@ static inline unsigned long __hyp_pgtable_moveable_regs_pages(void)
 	return res;
 }
 
+extern u64 kvm_nvhe_sym(hyp_lm_size_mb);
+
 static inline unsigned long hyp_s1_pgtable_pages(void)
 {
 	unsigned long res;
 
-	res = __hyp_pgtable_moveable_regs_pages();
+	if (!kvm_nvhe_sym(hyp_lm_size_mb))
+		res = __hyp_pgtable_moveable_regs_pages();
+	else
+		res = __hyp_pgtable_max_pages(kvm_nvhe_sym(hyp_lm_size_mb) * SZ_1M / PAGE_SIZE);
 
 	/* Allow 1 GiB for private mappings */
 	res += __hyp_pgtable_max_pages(SZ_1G >> PAGE_SHIFT);
@@ -372,6 +378,12 @@ static inline unsigned long host_s2_pgtable_pages(void)
 
 	return res;
 }
+
+#ifdef CONFIG_PKVM_SELFTESTS
+static inline unsigned long pkvm_selftest_pages(void) { return 32; }
+#else
+static inline unsigned long pkvm_selftest_pages(void) { return 0; }
+#endif
 
 #define KVM_FFA_MBOX_NR_PAGES	1
 
@@ -471,4 +483,35 @@ struct pkvm_ptdump_log_hdr {
 int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
 			     int (*call_hyp_nvhe)(u64, u64, u8, void*),
 			     void *args, bool unmap);
+
+struct pkvm_mapping {
+	struct rb_node node;
+	u64 gfn;
+	u64 pfn;
+	u64 nr_pages;
+	u64 __subtree_last;	/* Internal member for interval tree */
+};
+
+int pkvm_pgtable_stage2_init(struct kvm_pgtable *pgt, struct kvm_s2_mmu *mmu,
+			     struct kvm_pgtable_mm_ops *mm_ops, struct kvm_pgtable_pte_ops *pte_ops);
+void pkvm_pgtable_stage2_destroy(struct kvm_pgtable *pgt);
+int pkvm_pgtable_stage2_map(struct kvm_pgtable *pgt, u64 addr, u64 size, u64 phys,
+			    enum kvm_pgtable_prot prot, void *mc,
+			    enum kvm_pgtable_walk_flags flags);
+int pkvm_pgtable_stage2_unmap(struct kvm_pgtable *pgt, u64 addr, u64 size);
+int pkvm_pgtable_stage2_wrprotect(struct kvm_pgtable *pgt, u64 addr, u64 size);
+int pkvm_pgtable_stage2_flush(struct kvm_pgtable *pgt, u64 addr, u64 size);
+bool pkvm_pgtable_stage2_test_clear_young(struct kvm_pgtable *pgt, u64 addr, u64 size, bool mkold);
+int pkvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr, enum kvm_pgtable_prot prot,
+				    enum kvm_pgtable_walk_flags flags);
+kvm_pte_t pkvm_pgtable_stage2_mkyoung(struct kvm_pgtable *pgt, u64 addr,
+				      enum kvm_pgtable_walk_flags flags);
+int pkvm_pgtable_stage2_split(struct kvm_pgtable *pgt, u64 addr, u64 size,
+			      struct kvm_mmu_memory_cache *mc);
+void pkvm_pgtable_stage2_free_unlinked(struct kvm_pgtable_mm_ops *mm_ops,
+				       struct kvm_pgtable_pte_ops *pte_ops,
+				       void *pgtable, s8 level);
+kvm_pte_t *pkvm_pgtable_stage2_create_unlinked(struct kvm_pgtable *pgt, u64 phys, s8 level,
+					       enum kvm_pgtable_prot prot, void *mc,
+					       bool force_pte);
 #endif	/* __ARM64_KVM_PKVM_H__ */

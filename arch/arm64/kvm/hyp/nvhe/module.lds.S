@@ -35,4 +35,15 @@ SECTIONS {
 		*(HYP_SECTION_NAME(.printk_fmts))
 		__hyp_printk_fmts_end = .;
 	}
+
+	.hyp.patchable_function_entries : {
+		__hyp_section_.hyp.patchable_function_entries = .;
+		*(__patchable_function_entries __patchable_function_entries.*)
+	}
+
+#ifdef CONFIG_PROTECTED_NVHE_FTRACE
+	.hyp.text.ftrace_tramp : {
+		. = . +20;
+	}
+#endif
 }

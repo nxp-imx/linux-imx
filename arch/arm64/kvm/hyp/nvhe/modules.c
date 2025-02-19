@@ -144,7 +144,7 @@ static int mod_handler_register(enum mod_handler_type type, void *handler)
 	int i;
 
 	for (i = 0; i < MAX_MOD_HANDLERS; i++) {
-		if (!cmpxchg64_release(&mod_handlers[type][i], handler, NULL))
+		if (!cmpxchg64_release(&mod_handlers[type][i], NULL, handler))
 			return 0;
 	}
 
@@ -277,12 +277,19 @@ int __pkvm_init_module(void *host_mod)
 {
 	int (*do_module_init)(const struct pkvm_module_ops *ops);
 	struct pkvm_el2_module *mod = kern_hyp_va(host_mod);
-	void *event_ids;
+	void *event_ids, *funcs, *funcs_end, *ftrace_tramp;
+	size_t hyp_kern_offset;
 
 	event_ids = pkvm_module_hyp_va(mod, mod->event_ids.start);
+	funcs = pkvm_module_hyp_va(mod, mod->patchable_function_entries.start);
+	funcs_end = pkvm_module_hyp_va(mod, mod->patchable_function_entries.end);
+	/* see module.lds.h */
+	ftrace_tramp = pkvm_module_hyp_va(mod, mod->text.end) - 20;
 
-	if (mod->nr_hyp_events)
-		register_hyp_event_ids(event_ids, mod->nr_hyp_events);
+	hyp_kern_offset = mod->sections.start - mod->hyp_va;
+
+	register_hyp_mod_events(event_ids, mod->nr_hyp_events,
+				funcs, funcs_end, ftrace_tramp, hyp_kern_offset);
 
 	do_module_init = pkvm_module_hyp_va(mod, (void *)mod->init);
 
