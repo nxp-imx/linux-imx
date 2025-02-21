@@ -127,4 +127,14 @@ config DRM_IMX95_PIXEL_LINK
 	  Choose this to enable display pixel link found in NXP i.MX95
 	  processors.
 
+config DRM_IMX952_MIPI_DSI2
+	tristate "NXP i.MX952 specific extensions for Synopsys DW MIPI DSI2"
+	depends on OF && MFD_SYSCON && COMMON_CLK
+	select DRM_DW_MIPI_DSI2
+	select DRM_KMS_HELPER
+	select MULTIPLEXER
+	help
+	  Choose this to enable Synopsys DesignWare MIPI DSI2 found in NXP
+	  i.MX952 processor.
+
 endif # ARCH_MXC || COMPILE_TEST

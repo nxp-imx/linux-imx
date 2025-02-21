@@ -12,3 +12,4 @@ obj-$(CONFIG_DRM_IMX95_LDB) += imx95-ldb.o
 obj-$(CONFIG_DRM_IMX95_MIPI_DSI) += imx95-mipi-dsi.o
 obj-$(CONFIG_DRM_IMX95_PIXEL_INTERLEAVER) += imx95-pixel-interleaver.o
 obj-$(CONFIG_DRM_IMX95_PIXEL_LINK) += imx95-pixel-link.o
+obj-$(CONFIG_DRM_IMX952_MIPI_DSI2) += imx952-mipi-dsi2.o
