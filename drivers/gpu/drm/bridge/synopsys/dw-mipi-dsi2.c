@@ -384,6 +384,11 @@ static void dw_mipi_dsi2_phy_init(struct dw_mipi_dsi2 *dsi2)
 	const struct dw_mipi_dsi2_phy_ops *phy_ops = dsi2->plat_data->phy_ops;
 	struct dw_mipi_dsi2_phy_iface iface;
 	u32 val = 0;
+	int ret;
+
+	ret = phy_ops->init(dsi2->plat_data->priv_data);
+	if (ret)
+		dev_err(dsi2->dev, "Phy init() failed\n");
 
 	phy_ops->get_interface(dsi2->plat_data->priv_data, &iface);
 	dsi2->ppi_width = iface.ppi_width;
