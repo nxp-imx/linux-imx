@@ -224,7 +224,6 @@ static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? 1 : 0;
 		break;
 	case V4L2_CID_SECUREMODE:
-		dev_info(inst->dev, "vpu driver enter secure mode\n");
 		inst->secure_mode = ctrl->val;
 		break;
 	default:
