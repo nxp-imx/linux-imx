@@ -368,7 +368,7 @@ static int call_s_stream(struct v4l2_subdev *sd, int enable)
 	 * .disable_streams() operation, we can use the enabled_streams field
 	 * to store the subdev streaming state.
 	 */
-	if (WARN_ON(!!sd->enabled_streams == !!enable))
+	if (!!sd->enabled_streams == !!enable)
 		return 0;
 
 	ret = sd->ops->video->s_stream(sd, enable);
