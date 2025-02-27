@@ -20,6 +20,11 @@
 #include "dpu95-drv.h"
 #include "dpu95-blit-registers.h"
 
+enum drm_imx_dpu_version {
+	DRM_IMX_DPU_MDR5 = 0,
+	DRM_IMX_DPU_MDR7 = 1,
+};
+
 static const u32 fetch_unit_addr[3] = {
 	FETCHDECODE9_BASEADDRESS0,
 	FETCHROT9_BASEADDRESS0,
@@ -37,6 +42,7 @@ static const u32 store_unit_addr[3] = {
 
 static struct dpu_bliteng *dpu_blit_eng;
 static int imx_dpu_num;
+static unsigned char dpu_version;
 
 static inline u32 dpu95_be_read(struct dpu_bliteng *dpu_be, unsigned int offset)
 {
@@ -495,6 +501,7 @@ static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 	struct resource *res;
 	unsigned long dpu_base;
 	void __iomem *base;
+	u32 ip_identifier, ip_evolution;
 	u32 *cmd_list;
 	int ret;
 
@@ -520,6 +527,22 @@ static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 	dpu_bliteng->dpu = dpu;
 
 	mutex_init(&dpu_bliteng->mutex);
+
+	ip_identifier = dpu95_be_read(dpu_bliteng, COMCTRL_IPIDENTIFIER);
+	ip_evolution = (ip_identifier & COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_MASK)
+						>> COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_SHIFT;
+
+	switch (ip_evolution) {
+	case DRM_IMX_DPU_MDR5:
+		dpu_version = 1;
+		break;
+	case DRM_IMX_DPU_MDR7:
+		dpu_version = 2;
+		break;
+	default:
+		dev_err(dpu_bliteng->dev, "Unsupported DPU version\n");
+		return -EINVAL;
+	}
 
 	/* Init the uints used by blit engine */
 	dpu95_be_init_units(dpu_bliteng);
@@ -677,8 +700,11 @@ static int imx_drm_dpu95_get_param_ioctl(struct drm_device *drm_dev, void *data,
 	int ret, fd = -1;
 
 	switch (*param) {
-	case (DRM_IMX_MAX_DPUS):
+	case DRM_IMX_MAX_DPUS:
 		ret = imx_dpu_num;
+		break;
+	case DRM_IMX_DPU_VERSION:
+		ret = dpu_version;
 		break;
 	case DRM_IMX_GET_FENCE:
 		dpu95_be_get(dpu_blit_eng);

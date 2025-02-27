@@ -9,6 +9,8 @@
 
 /* Registers defination */
 #define COMCTRL_IPIDENTIFIER                       ((uint32_t)(0))
+#define COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_MASK 0x7000U
+#define COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_SHIFT 12U
 
 /* Register for interrupts in Common Control domain */
 #define COMCTRL_INTERRUPTENABLE0                    ((uint32_t)(0x1008))
