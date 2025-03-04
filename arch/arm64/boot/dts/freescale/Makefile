@@ -261,14 +261,12 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qm-mek-car2-no-product.dtb \
 			  imx8qm-mek-car.dtb \
 			  imx8qm-mek-car2.dtb \
-			  imx8qm-mek-car-md.dtb \
 			  imx8qm-mek-car2-md.dtb \
 			  imx8qm-mek-domu-car.dtb \
 			  imx8qm-mek-car2-domu.dtb \
 			  imx8qm-mek-car2-a72.dtb \
 			  imx8qm-mek-car2-md-a72.dtb \
 			  imx8qm-mek-car-a72.dtb \
-			  imx8qm-mek-car-md-a72.dtb \
 			  imx8qm-mek-car2-a72-sof.dtb \
 			  imx8qm-mek-car-a72-sof.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb \
@@ -295,7 +293,6 @@ imx8qm-mek-revd-root-dtbs := imx8qm-mek-root.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-md-dtbs := imx8qm-mek-md.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-sof-cs42888-dtbs := imx8qm-mek-sof-cs42888.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car-a72-dtbs := imx8qm-mek-car-a72.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car-md-a72-dtbs := imx8qm-mek-car-md-a72.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car-a72-sof-dtbs := imx8qm-mek-car-a72-sof.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car2-a72-dtbs := imx8qm-mek-car2-a72.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-car2-md-a72-dtbs := imx8qm-mek-car2-md-a72.dtb imx8qm-mek-revd.dtbo
@@ -323,7 +320,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-md.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-sof-cs42888.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-md-a72.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72-sof.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-a72.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-md-a72.dtb

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NXP
+ * Copyright 2020, 2025 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,38 +13,6 @@
  */
 
 #include "imx8qm-mek-car2.dts"
-
-&i2c0_mipi0 {
-	status = "okay";
-};
-
-&mipi0_dphy {
-	status = "okay";
-};
-
-&mipi0_dsi_host {
-	status = "okay";
-};
-
-&adv_bridge0 {
-	status = "okay";
-};
-
-&i2c0_mipi1 {
-	status = "okay";
-};
-
-&mipi1_dphy {
-	status = "okay";
-};
-
-&mipi1_dsi_host {
-	status = "okay";
-};
-
-&adv_bridge1 {
-	status = "okay";
-};
 
 / {
 	sound-hdmi-tx {
