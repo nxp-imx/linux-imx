@@ -43,7 +43,6 @@ static void asrc_output_dma_callback(void *data)
 	complete(&pair->complete[OUT]);
 }
 
-#if IS_ENABLED(CONFIG_SND_COMPRESS_ACCEL)
 /**
  *asrc_read_last_fifo: read all the remaining data from FIFO
  *@pair: Structure pointer of fsl_asrc_pair
@@ -285,7 +284,6 @@ static int asrc_m2m_device_run(struct fsl_asrc_pair *pair, struct snd_compr_task
 end:
 	return ret;
 }
-#endif
 
 static int fsl_asrc_m2m_comp_open(struct snd_compr_stream *stream)
 {
@@ -453,7 +451,6 @@ static const struct dma_buf_ops fsl_asrc_m2m_dma_buf_ops = {
 	.release = fsl_asrc_m2m_release,
 };
 
-#if IS_ENABLED(CONFIG_SND_COMPRESS_ACCEL)
 static int fsl_asrc_m2m_comp_task_create(struct snd_compr_stream *stream,
 					 struct snd_compr_task_runtime *task)
 {
@@ -564,7 +561,6 @@ static int fsl_asrc_m2m_comp_task_free(struct snd_compr_stream *stream,
 
 	return 0;
 }
-#endif
 
 static int fsl_asrc_m2m_get_caps(struct snd_compr_stream *cstream,
 				 struct snd_compr_caps *caps)
@@ -626,12 +622,10 @@ static struct snd_compr_ops fsl_asrc_m2m_compr_ops = {
 	.set_params = fsl_asrc_m2m_comp_set_params,
 	.get_caps = fsl_asrc_m2m_get_caps,
 	.get_codec_caps = fsl_asrc_m2m_get_codec_caps,
-#if IS_ENABLED(CONFIG_SND_COMPRESS_ACCEL)
 	.task_create = fsl_asrc_m2m_comp_task_create,
 	.task_start = fsl_asrc_m2m_comp_task_start,
 	.task_stop = fsl_asrc_m2m_comp_task_stop,
 	.task_free = fsl_asrc_m2m_comp_task_free,
-#endif
 };
 
 int fsl_asrc_m2m_suspend(struct fsl_asrc *asrc)
