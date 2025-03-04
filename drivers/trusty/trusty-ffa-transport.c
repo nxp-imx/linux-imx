@@ -303,22 +303,17 @@ static int trusty_ffa_dev_match(struct device *dev, const void *uuid)
 struct device *trusty_ffa_find_device(void)
 {
 	struct device *ffa_dev;
-	const struct bus_type *ffa_bus = symbol_get(ffa_bus_type);
-
-	if (!ffa_bus)
-		return ERR_PTR(-ENOENT);
 
 	/* currently only one trusty instance is probed */
-	ffa_dev = bus_find_device(ffa_bus, NULL, &trusty_ffa_device_id[0].uuid,
+	ffa_dev = bus_find_device(&ffa_bus_type, NULL, &trusty_ffa_device_id[0].uuid,
 				  trusty_ffa_dev_match);
 
 	if (ffa_dev) {
-		if (bus_find_device(ffa_bus, ffa_dev, &trusty_ffa_device_id[0].uuid,
+		if (bus_find_device(&ffa_bus_type, ffa_dev, &trusty_ffa_device_id[0].uuid,
 				    trusty_ffa_dev_match))
 			dev_warn(ffa_dev, "multiple Trusty instances found, not supported yet");
 	}
 
-	symbol_put(ffa_bus_type);
 	return ffa_dev ?: ERR_PTR(-ENODEV);
 }
 EXPORT_SYMBOL(trusty_ffa_find_device);
