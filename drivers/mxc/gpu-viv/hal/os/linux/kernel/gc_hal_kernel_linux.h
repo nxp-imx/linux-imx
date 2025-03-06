@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2023 Vivante Corporation
+*    Copyright (c) 2014 - 2024 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2023 Vivante Corporation
+*    Copyright (C) 2014 - 2024 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -354,16 +354,25 @@ _GetProcessID(void)
 }
 
 #if gcdENABLE_GPU_WORK_PERIOD_TRACE
-static inline gctINT
-_GetUserID(void)
+static inline gctUINT32
+_GetUserID(IN gctUINT32 Pid)
 {
+    struct task_struct *task;
+    gctUINT32 uid = -1;
+
+    task = FIND_TASK_BY_PID(Pid);
+
+    if (task) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-    return from_kuid_munged(current_user_ns(), current_uid());
+        uid = from_kuid_munged(current_user_ns(), task_uid(task));
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-    return current_uid();
+        uid = task_uid(task);
 #else
-    return current->uid;
+        uid = task->uid;
 #endif
+    }
+
+    return uid;
 }
 #endif
 

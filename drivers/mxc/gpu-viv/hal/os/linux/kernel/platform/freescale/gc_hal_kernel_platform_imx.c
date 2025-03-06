@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2023 Vivante Corporation
+*    Copyright (c) 2014 - 2024 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2023 Vivante Corporation
+*    Copyright (C) 2014 - 2024 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -322,7 +322,7 @@ static int gpufreq_cooling_handle_event_change(unsigned long event)
             printk("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
             break;
         case 1:
-        gcmkFALLTHRU;
+            gcmkFALLTHRU;
         case 2:
             FscaleVal = minFscale;
             printk("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
@@ -370,7 +370,6 @@ static int gpufreq_get_cur_state(struct thermal_cooling_device *cdev,
                                  unsigned long *state)
 {
     struct gpufreq_cooling_device *gpufreq_device = cdev->devdata;
-
     *state = gpufreq_device->state;
 
     return 0;
@@ -408,11 +407,11 @@ static struct thermal_cooling_device *device_gpu_cooling_register(struct device_
 {
     struct thermal_cooling_device *cdev;
     struct gpufreq_cooling_device *gpufreq_dev = NULL;
-    char dev_name[THERMAL_NAME_LENGTH];
+    char *name;
     int ret = 0;
 
     gpufreq_dev = kzalloc(sizeof(struct gpufreq_cooling_device),
-                                 GFP_KERNEL);
+                                  GFP_KERNEL);
     if (!gpufreq_dev)
         return ERR_PTR(-ENOMEM);
 
@@ -422,12 +421,18 @@ static struct thermal_cooling_device *device_gpu_cooling_register(struct device_
         return ERR_PTR(-EINVAL);
     }
 
-    snprintf(dev_name, sizeof(dev_name), "thermal-gpufreq-%d",
-              gpufreq_dev->id);
+    name = kasprintf(GFP_KERNEL, "thermal-gpufreq-%d", gpufreq_dev->id);
+    if (!name) {
+        release_idr(&gpufreq_idr, gpufreq_dev->id);
+        kfree(gpufreq_dev);
+        return ERR_PTR(-ENOMEM);
+    }
 
     gpufreq_dev->max_state = states;
-    cdev = thermal_of_cooling_device_register(np, dev_name, gpufreq_dev,
-                                         &gpufreq_cooling_ops);
+    cdev = thermal_of_cooling_device_register(np, name, gpufreq_dev,
+                                              &gpufreq_cooling_ops);
+    kfree(name);
+
     if (!cdev) {
         release_idr(&gpufreq_idr, gpufreq_dev->id);
         kfree(gpufreq_dev);
@@ -724,8 +729,9 @@ static int init_gpu_opp_table(struct device *dev)
     priv->imx_gpu_govern.num_modes = 0;
 
     prop = of_find_property(dev->of_node, "operating-points", NULL);
-    if (!prop)
+    if (!prop) {
         return 0;
+    }
 
     if (!prop->value) {
         dev_err(dev, "operating-points invalid. Frequency scaling will not work\n");
@@ -865,10 +871,16 @@ static int mxc_gpu_sub_probe(struct platform_device *pdev)
     return component_add(&pdev->dev, &mxc_gpu_sub_ops);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+static void mxc_gpu_sub_remove(struct platform_device *pdev)
+#else
 static int mxc_gpu_sub_remove(struct platform_device *pdev)
+#endif
 {
     component_del(&pdev->dev, &mxc_gpu_sub_ops);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
     return 0;
+#endif
 }
 
 struct platform_driver mxc_gpu_sub_driver =
@@ -1240,7 +1252,7 @@ static int patch_param(struct platform_device *pdev,
 
     if (res && !args->baseAddress && !args->physSize) {
         args->baseAddress = res->start;
-        args->physSize = res->end - res->start + 1;
+        args->physSize = res->end > res->start ? res->end - res->start + 1 : 0;
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
@@ -1500,7 +1512,6 @@ static inline int get_power(struct device *pdev)
         return ret;
 
 #if gcdENABLE_FSCALE_VAL_ADJUST && defined(CONFIG_DEVFREQ_THERMAL)
-
     ret = driver_create_file(pdev->driver, &driver_attr_gpu3DMinClock);
 
     if (ret)
@@ -1524,7 +1535,6 @@ static inline int get_power(struct device *pdev)
         }
     }
     gcdENABLE_GPU_THERMAL = 1;
-
 #endif
 
 #if defined(CONFIG_PM_OPP)
@@ -1627,6 +1637,7 @@ static inline void put_power(struct device *pdev)
 
 #if gcdENABLE_FSCALE_VAL_ADJUST && defined(CONFIG_DEVFREQ_THERMAL)
     gcdENABLE_GPU_THERMAL = 0;
+
     if (gpu_cooling_device)
         device_gpu_cooling_unregister(gpu_cooling_device);
 
@@ -1649,6 +1660,7 @@ static inline void put_power_ls(void)
 {
 #if gcdENABLE_FSCALE_VAL_ADJUST && defined(CONFIG_DEVFREQ_THERMAL)
     gcdENABLE_GPU_THERMAL = 0;
+
     if (gpu_cooling_device)
         device_gpu_cooling_unregister(gpu_cooling_device);
 
@@ -1826,7 +1838,7 @@ int set_clock(int gpu, int enable)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 #ifdef CONFIG_PM
-#if defined(CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if defined (CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 static int gpu_runtime_suspend(struct device *dev)
 {
     release_bus_freq(BUS_FREQ_HIGH);
@@ -1839,7 +1851,6 @@ static int gpu_runtime_resume(struct device *dev)
     return 0;
 }
 #endif
-
 static struct dev_pm_ops gpu_pm_ops;
 #endif
 #endif
@@ -1858,12 +1869,11 @@ static int adjust_platform_driver(struct platform_driver *driver)
     memcpy(&gpu_pm_ops, driver->driver.pm, sizeof(struct dev_pm_ops));
 
     /* Add runtime PM callback. */
-#if defined(CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-    gpu_pm_ops.runtime_suspend = gpu_runtime_suspend;
-    gpu_pm_ops.runtime_resume = gpu_runtime_resume;
-    gpu_pm_ops.runtime_idle = NULL;
+#if defined (CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+        gpu_pm_ops.runtime_suspend = gpu_runtime_suspend;
+        gpu_pm_ops.runtime_resume = gpu_runtime_resume;
+        gpu_pm_ops.runtime_idle = NULL;
 #endif
-
     /* Replace callbacks. */
     driver->driver.pm = &gpu_pm_ops;
 #endif

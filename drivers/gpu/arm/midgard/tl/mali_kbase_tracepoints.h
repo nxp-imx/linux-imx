@@ -404,7 +404,7 @@ void __kbase_tlstream_tl_kbase_new_device(
 	u32 kbase_device_sb_entry_count,
 	u32 kbase_device_has_cross_stream_sync,
 	u32 kbase_device_supports_gpu_sleep,
-	u32 kbase_device_has_vd54d34dbb40917c8cea48cca407a8789413be0db
+	u32 kbase_device_has_neural_engine
 );
 
 void __kbase_tlstream_tl_kbase_gpucmdqueue_kick(
@@ -423,6 +423,12 @@ void __kbase_tlstream_tl_kbase_device_program_csg(
 );
 
 void __kbase_tlstream_tl_kbase_device_deprogram_csg(
+	struct kbase_tlstream *stream,
+	u32 kbase_device_id,
+	u32 kbase_device_csg_slot_index
+);
+
+void __kbase_tlstream_tl_kbase_device_protm_enter_csg(
 	struct kbase_tlstream *stream,
 	u32 kbase_device_id,
 	u32 kbase_device_csg_slot_index
@@ -454,17 +460,6 @@ void __kbase_tlstream_tl_kbase_new_ctx(
 );
 
 void __kbase_tlstream_tl_kbase_del_ctx(
-	struct kbase_tlstream *stream,
-	u32 kernel_ctx_id
-);
-
-void __kbase_tlstream_tl_kbase_ctx_assign_as(
-	struct kbase_tlstream *stream,
-	u32 kernel_ctx_id,
-	u32 kbase_device_as_index
-);
-
-void __kbase_tlstream_tl_kbase_ctx_unassign_as(
 	struct kbase_tlstream *stream,
 	u32 kernel_ctx_id
 );
@@ -747,29 +742,22 @@ void __kbase_tlstream_tl_kbase_kcpuqueue_execute_group_suspend_end(
 	u32 execute_error
 );
 
-void __kbase_tlstream_tl_kbase_csffw_fw_reloading(
+void __kbase_tlstream_tl_kbase_device_l2_core_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 );
 
-void __kbase_tlstream_tl_kbase_csffw_fw_enabling(
+void __kbase_tlstream_tl_kbase_device_mcu_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 );
 
-void __kbase_tlstream_tl_kbase_csffw_fw_request_sleep(
+void __kbase_tlstream_tl_kbase_device_shader_core_state(
 	struct kbase_tlstream *stream,
-	u64 csffw_cycle
-);
-
-void __kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(
-	struct kbase_tlstream *stream,
-	u64 csffw_cycle
-);
-
-void __kbase_tlstream_tl_kbase_csffw_fw_request_halt(
-	struct kbase_tlstream *stream,
-	u64 csffw_cycle
+	u32 kbase_device_id,
+	u64 new_state
 );
 
 void __kbase_tlstream_tl_kbase_csffw_fw_disabling(
@@ -2026,7 +2014,7 @@ struct kbase_tlstream;
  * @kbase_device_sb_entry_count: The number of entries each scoreboard set in the physical hardware has available
  * @kbase_device_has_cross_stream_sync: Whether cross-stream synchronization is supported
  * @kbase_device_supports_gpu_sleep: Whether GPU sleep is supported
- * @kbase_device_has_vd54d34dbb40917c8cea48cca407a8789413be0db: Whether v34932631451e2dea4ed0fab0025a0d2767d5e427 is supported
+ * @kbase_device_has_neural_engine: Whether neural engine is supported
  */
 #if MALI_USE_CSF
 #define KBASE_TLSTREAM_TL_KBASE_NEW_DEVICE(	\
@@ -2038,7 +2026,7 @@ struct kbase_tlstream;
 	kbase_device_sb_entry_count,	\
 	kbase_device_has_cross_stream_sync,	\
 	kbase_device_supports_gpu_sleep,	\
-	kbase_device_has_vd54d34dbb40917c8cea48cca407a8789413be0db	\
+	kbase_device_has_neural_engine	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
@@ -2052,7 +2040,7 @@ struct kbase_tlstream;
 				kbase_device_sb_entry_count,	\
 				kbase_device_has_cross_stream_sync,	\
 				kbase_device_supports_gpu_sleep,	\
-				kbase_device_has_vd54d34dbb40917c8cea48cca407a8789413be0db	\
+				kbase_device_has_neural_engine	\
 				);	\
 	} while (0)
 #else
@@ -2065,7 +2053,7 @@ struct kbase_tlstream;
 	kbase_device_sb_entry_count,	\
 	kbase_device_has_cross_stream_sync,	\
 	kbase_device_supports_gpu_sleep,	\
-	kbase_device_has_vd54d34dbb40917c8cea48cca407a8789413be0db	\
+	kbase_device_has_neural_engine	\
 	)	\
 	do { } while (0)
 #endif /* MALI_USE_CSF */
@@ -2168,6 +2156,37 @@ struct kbase_tlstream;
 	} while (0)
 #else
 #define KBASE_TLSTREAM_TL_KBASE_DEVICE_DEPROGRAM_CSG(	\
+	kbdev,	\
+	kbase_device_id,	\
+	kbase_device_csg_slot_index	\
+	)	\
+	do { } while (0)
+#endif /* MALI_USE_CSF */
+
+/**
+ * KBASE_TLSTREAM_TL_KBASE_DEVICE_PROTM_ENTER_CSG - CSG slot is entering protected mode
+ *
+ * @kbdev: Kbase device
+ * @kbase_device_id: The ID of the physical hardware
+ * @kbase_device_csg_slot_index: The index of the slot in the scheduler whose CSG has entered PMODE
+ */
+#if MALI_USE_CSF
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_PROTM_ENTER_CSG(	\
+	kbdev,	\
+	kbase_device_id,	\
+	kbase_device_csg_slot_index	\
+	)	\
+	do {	\
+		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_device_protm_enter_csg(	\
+				__TL_DISPATCH_STREAM(kbdev, obj),	\
+				kbase_device_id,	\
+				kbase_device_csg_slot_index	\
+				);	\
+	} while (0)
+#else
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_PROTM_ENTER_CSG(	\
 	kbdev,	\
 	kbase_device_id,	\
 	kbase_device_csg_slot_index	\
@@ -2324,64 +2343,6 @@ struct kbase_tlstream;
 	} while (0)
 #else
 #define KBASE_TLSTREAM_TL_KBASE_DEL_CTX(	\
-	kbdev,	\
-	kernel_ctx_id	\
-	)	\
-	do { } while (0)
-#endif /* MALI_USE_CSF */
-
-/**
- * KBASE_TLSTREAM_TL_KBASE_CTX_ASSIGN_AS - Address Space is assigned to a KBase context
- *
- * @kbdev: Kbase device
- * @kernel_ctx_id: Unique ID for the KBase Context
- * @kbase_device_as_index: The index of the device address space being assigned
- */
-#if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CTX_ASSIGN_AS(	\
-	kbdev,	\
-	kernel_ctx_id,	\
-	kbase_device_as_index	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_ctx_assign_as(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				kernel_ctx_id,	\
-				kbase_device_as_index	\
-				);	\
-	} while (0)
-#else
-#define KBASE_TLSTREAM_TL_KBASE_CTX_ASSIGN_AS(	\
-	kbdev,	\
-	kernel_ctx_id,	\
-	kbase_device_as_index	\
-	)	\
-	do { } while (0)
-#endif /* MALI_USE_CSF */
-
-/**
- * KBASE_TLSTREAM_TL_KBASE_CTX_UNASSIGN_AS - Address Space is unassigned from a KBase context
- *
- * @kbdev: Kbase device
- * @kernel_ctx_id: Unique ID for the KBase Context
- */
-#if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CTX_UNASSIGN_AS(	\
-	kbdev,	\
-	kernel_ctx_id	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_ctx_unassign_as(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				kernel_ctx_id	\
-				);	\
-	} while (0)
-#else
-#define KBASE_TLSTREAM_TL_KBASE_CTX_UNASSIGN_AS(	\
 	kbdev,	\
 	kernel_ctx_id	\
 	)	\
@@ -3823,136 +3784,94 @@ struct kbase_tlstream;
 #endif /* MALI_USE_CSF */
 
 /**
- * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING - CSF FW is being reloaded
+ * KBASE_TLSTREAM_TL_KBASE_DEVICE_L2_CORE_STATE - KBase device updates L2 Core state
  *
  * @kbdev: Kbase device
- * @csffw_cycle: Cycle number of a CSFFW event
+ * @kbase_device_id: The ID of the physical hardware
+ * @new_state: New state
  */
 #if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_L2_CORE_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_csffw_fw_reloading(	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_device_l2_core_state(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				csffw_cycle	\
+				kbase_device_id,	\
+				new_state	\
 				);	\
 	} while (0)
 #else
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_RELOADING(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_L2_CORE_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do { } while (0)
 #endif /* MALI_USE_CSF */
 
 /**
- * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING - CSF FW is being enabled
+ * KBASE_TLSTREAM_TL_KBASE_DEVICE_MCU_STATE - KBase device updates MCU state
  *
  * @kbdev: Kbase device
- * @csffw_cycle: Cycle number of a CSFFW event
+ * @kbase_device_id: The ID of the physical hardware
+ * @new_state: New state
  */
 #if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_MCU_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_csffw_fw_enabling(	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_device_mcu_state(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				csffw_cycle	\
+				kbase_device_id,	\
+				new_state	\
 				);	\
 	} while (0)
 #else
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_ENABLING(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_MCU_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do { } while (0)
 #endif /* MALI_USE_CSF */
 
 /**
- * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP - CSF FW sleep is requested
+ * KBASE_TLSTREAM_TL_KBASE_DEVICE_SHADER_CORE_STATE - KBase device updates Shader Core state
  *
  * @kbdev: Kbase device
- * @csffw_cycle: Cycle number of a CSFFW event
+ * @kbase_device_id: The ID of the physical hardware
+ * @new_state: New state
  */
 #if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_SHADER_CORE_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_csffw_fw_request_sleep(	\
+		if (enabled & BASE_TLSTREAM_ENABLE_CSF_TRACEPOINTS)	\
+			__kbase_tlstream_tl_kbase_device_shader_core_state(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				csffw_cycle	\
+				kbase_device_id,	\
+				new_state	\
 				);	\
 	} while (0)
 #else
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_SLEEP(	\
+#define KBASE_TLSTREAM_TL_KBASE_DEVICE_SHADER_CORE_STATE(	\
 	kbdev,	\
-	csffw_cycle	\
-	)	\
-	do { } while (0)
-#endif /* MALI_USE_CSF */
-
-/**
- * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP - CSF FW wake up is requested
- *
- * @kbdev: Kbase device
- * @csffw_cycle: Cycle number of a CSFFW event
- */
-#if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(	\
-	kbdev,	\
-	csffw_cycle	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_csffw_fw_request_wakeup(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				csffw_cycle	\
-				);	\
-	} while (0)
-#else
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_WAKEUP(	\
-	kbdev,	\
-	csffw_cycle	\
-	)	\
-	do { } while (0)
-#endif /* MALI_USE_CSF */
-
-/**
- * KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT - CSF FW halt is requested
- *
- * @kbdev: Kbase device
- * @csffw_cycle: Cycle number of a CSFFW event
- */
-#if MALI_USE_CSF
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT(	\
-	kbdev,	\
-	csffw_cycle	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_CSFFW_TRACEPOINTS)	\
-			__kbase_tlstream_tl_kbase_csffw_fw_request_halt(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				csffw_cycle	\
-				);	\
-	} while (0)
-#else
-#define KBASE_TLSTREAM_TL_KBASE_CSFFW_FW_REQUEST_HALT(	\
-	kbdev,	\
-	csffw_cycle	\
+	kbase_device_id,	\
+	new_state	\
 	)	\
 	do { } while (0)
 #endif /* MALI_USE_CSF */

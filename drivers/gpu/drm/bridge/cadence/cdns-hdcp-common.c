@@ -44,7 +44,7 @@
 #define SMC_HDMI_PROBE SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 0)
 #define SMC_HDMI_HDCP_RXCONFIG SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 1)
 #define SMC_HDMI_HDCP_TXCONFIG SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 2)
-
+#define SMC_HDMI_HDCP_CHECK_KSV SMC_FASTCALL_NR(SMC_ENTITY_HDMI, 3)
 /* HDCP TX ports working mode (HDCP 2.2 or 1.4) */
 enum {
 	HDCP_TX_2,		/* lock only with HDCP2 */
@@ -324,6 +324,24 @@ inline void cdns_hdcp_swap_list(u8 *list_in, u8 *list_out, int num_ids)
 				 &list_out[i * HDCP_RECEIVER_ID_SIZE_BYTES]);
 }
 
+static int trusty_check_ksvs_revoked(struct device *trusty_dev, u8 *ksvs,
+					u32 ksv_count)
+{
+	int ret = 0, i;
+	u32 ksv_part1, ksv_part2;
+
+
+	for  (i = 0; i < ksv_count; i++) {
+		memcpy(&ksv_part1, &ksvs[i * DRM_HDCP_KSV_LEN], sizeof(ksv_part1));
+		ksv_part2 = *(ksvs + (i + 1) * DRM_HDCP_KSV_LEN -1);
+		ret = trusty_fast_call32(trusty_dev,
+					 SMC_HDMI_HDCP_CHECK_KSV, ksv_part1, ksv_part2, 0);
+		if (ret)
+			return ret;
+	}
+	return ret;
+}
+
 static int cdns_hdcp_check_receviers(struct cdns_mhdp_device *mhdp)
 {
 	u8 ret_events;
@@ -418,10 +436,18 @@ static int cdns_hdcp_check_receviers(struct cdns_mhdp_device *mhdp)
 			   &hdcp_rec_id_temp[0][0], hdcp_num_rec);
 
 	/* Check Receiver ID's against revocation list in SRM */
-	if (drm_hdcp_check_ksvs_revoked(mhdp->drm_dev, (u8 *)hdcp_rec_id_temp, hdcp_num_rec)) {
-		mhdp->hdcp.state = HDCP_STATE_AUTH_FAILED;
-		DRM_ERROR("INFO: Receiver check fails\n");
-		return -1;
+	if (mhdp->trusty_dev) {
+		if (trusty_check_ksvs_revoked(mhdp->trusty_dev, (u8 *)hdcp_rec_id_temp, hdcp_num_rec)) {
+			mhdp->hdcp.state = HDCP_STATE_AUTH_FAILED;
+			DRM_ERROR("INFO: Receiver check fails\n");
+			return -1;
+		}
+	} else {
+		if (drm_hdcp_check_ksvs_revoked(mhdp->drm_dev, (u8 *)hdcp_rec_id_temp, hdcp_num_rec)) {
+			mhdp->hdcp.state = HDCP_STATE_AUTH_FAILED;
+			DRM_ERROR("INFO: Receiver check fails\n");
+			return -1;
+		}
 	}
 
 	ret = cdns_mhdp_hdcp_tx_respond_receiver_id_valid(mhdp, 1);

@@ -88,6 +88,9 @@ static const struct vpu_format wave6_vpu_dec_fmt_list[2][6] = {
 	}
 };
 
+static int wave6_vpu_dec_seek_header(struct vpu_instance *inst);
+static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst);
+
 static enum wave_std wave6_to_vpu_codstd(unsigned int v4l2_pix_fmt)
 {
 	switch (v4l2_pix_fmt) {
@@ -741,6 +744,7 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 		vb2_set_plane_payload(&dst_buf->vb2_buf, 2, 0);
 	}
 
+	dprintk(inst->dev->dev, "[%d] last buffer\n", inst->id);
 	dst_buf->flags |= V4L2_BUF_FLAG_LAST;
 	dst_buf->field = V4L2_FIELD_NONE;
 	v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_DONE);
@@ -1257,10 +1261,46 @@ static int wave6_vpu_dec_s_selection(struct file *file, void *fh, struct v4l2_se
 	return 0;
 }
 
+static void wave6_vpu_reset_dst_buffers(struct vpu_instance *inst)
+{
+	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	struct vb2_v4l2_buffer *dst_buf;
+	struct vpu_buffer *vpu_buf;
+
+	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
+		dst_buf = &v4l2_m2m_buf->vb;
+		vpu_buf = wave6_to_vpu_buf(dst_buf);
+
+		vpu_buf->consumed = false;
+		vpu_buf->used = false;
+		vpu_buf->error = false;
+	}
+}
+
+static int wave6_vpu_dec_start_cmd(struct vpu_instance *inst)
+{
+	struct vb2_queue *q = v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx);
+	int ret = 0;
+
+	dprintk(inst->dev->dev, "[%d] start cmd\n", inst->id);
+
+	if (v4l2_m2m_has_stopped(inst->v4l2_fh.m2m_ctx)) {
+		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
+		wave6_vpu_dec_flush_instance(inst);
+		wave6_vpu_reset_dst_buffers(inst);
+	}
+	vb2_clear_last_buffer_dequeued(q);
+	if (inst->state == VPU_INST_STATE_INIT_SEQ)
+		ret = wave6_vpu_dec_prepare_fb(inst);
+
+
+	return ret;
+}
+
 static int wave6_vpu_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *dc)
 {
 	struct vpu_instance *inst = wave6_to_vpu_inst(fh);
-	int ret;
+	int ret = 0;
 
 	dev_dbg(inst->dev->dev, "%s: cmd %d\n", __func__, dc->cmd);
 
@@ -1275,12 +1315,14 @@ static int wave6_vpu_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_de
 		v4l2_m2m_try_schedule(inst->v4l2_fh.m2m_ctx);
 		break;
 	case V4L2_DEC_CMD_START:
+		ret = wave6_vpu_dec_start_cmd(inst);
+		v4l2_m2m_try_schedule(inst->v4l2_fh.m2m_ctx);
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }
 
 static const struct v4l2_ioctl_ops wave6_vpu_dec_ioctl_ops = {

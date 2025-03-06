@@ -546,18 +546,75 @@ static int vsi_enc_set_selection(struct file *file, void *prv, struct v4l2_selec
 		return -EINVAL;
 	if (s->target != V4L2_SEL_TGT_CROP)
 		return -EINVAL;
-	ret = vsiv4l2_verifycrop(s);
-	if (!ret) {
-		if (mutex_lock_interruptible(&ctx->ctxlock))
-			return -EBUSY;
-		pcfg->encparams.general.horOffsetSrc = s->r.left;
-		pcfg->encparams.general.verOffsetSrc = s->r.top;
-		pcfg->encparams.general.width = s->r.width;
-		pcfg->encparams.general.height = s->r.height;
-		vsi_enc_valid_crop(ctx);
-		set_bit(CTX_FLAG_CONFIGUPDATE_BIT, &ctx->flag);
-		mutex_unlock(&ctx->ctxlock);
+
+	if (ctx->mediacfg.outfmt_fourcc == V4L2_PIX_FMT_H264 ||
+	    ctx->mediacfg.outfmt_fourcc == V4L2_PIX_FMT_HEVC) {
+		struct v4l2_selection sel_for_codec;
+
+		if (!(s->flags & (V4L2_SEL_FLAG_GE | V4L2_SEL_FLAG_LE)))
+			s->flags |= V4L2_SEL_FLAG_LE;
+
+		if (s->flags & V4L2_SEL_FLAG_GE) {
+			s->r.left = round_up(s->r.left, 2);
+			s->r.top = round_up(s->r.top, 2);
+			s->r.width = round_up(s->r.width, 2);
+			s->r.height = round_up(s->r.height, 2);
+		}
+		if (s->flags & V4L2_SEL_FLAG_LE) {
+			s->r.left = round_down(s->r.left, 2);
+			s->r.top = round_down(s->r.top, 2);
+			s->r.width = round_down(s->r.width, 2);
+			s->r.height = round_down(s->r.height, 2);
+		}
+		sel_for_codec = *s;
+		sel_for_codec.flags = V4L2_SEL_FLAG_GE;
+		ret = vsiv4l2_verifycrop(&sel_for_codec);
+		if (!ret) {
+			if (mutex_lock_interruptible(&ctx->ctxlock))
+				return -EBUSY;
+			pcfg->encparams.general.horOffsetSrc = sel_for_codec.r.left;
+			pcfg->encparams.general.verOffsetSrc = sel_for_codec.r.top;
+			pcfg->encparams.general.width = sel_for_codec.r.width;
+			pcfg->encparams.general.height = sel_for_codec.r.height;
+			vsi_enc_valid_crop(ctx);
+			pcfg->encparams.general.extraFillLeft = s->r.left - sel_for_codec.r.left;
+			pcfg->encparams.general.extraFillTop = s->r.top - sel_for_codec.r.top;
+			pcfg->encparams.general.extraFillLRight = pcfg->encparams.general.width -
+								  s->r.width -
+								  pcfg->encparams.general.extraFillLeft;
+			pcfg->encparams.general.extraFillBottom = pcfg->encparams.general.height -
+								  s->r.height -
+								  pcfg->encparams.general.extraFillTop;
+			set_bit(CTX_FLAG_CONFIGUPDATE_BIT, &ctx->flag);
+
+			mutex_unlock(&ctx->ctxlock);
+		}
+	} else {
+		u32 orig_width;
+		u32 orig_height;
+
+		orig_width = s->r.width;
+		orig_height = s->r.height;
+
+		ret = vsiv4l2_verifycrop(s);
+		if (!ret) {
+			if (mutex_lock_interruptible(&ctx->ctxlock))
+				return -EBUSY;
+			pcfg->encparams.general.horOffsetSrc = s->r.left;
+			pcfg->encparams.general.verOffsetSrc = s->r.top;
+			pcfg->encparams.general.width = s->r.width;
+			pcfg->encparams.general.height = s->r.height;
+			vsi_enc_valid_crop(ctx);
+			pcfg->encparams.general.extraFillLRight = pcfg->encparams.general.width -
+								  orig_width;
+			pcfg->encparams.general.extraFillBottom = pcfg->encparams.general.height -
+								  orig_height;
+			set_bit(CTX_FLAG_CONFIGUPDATE_BIT, &ctx->flag);
+
+			mutex_unlock(&ctx->ctxlock);
+		}
 	}
+
 	v4l2_klog(LOGLVL_CONFIG, "%llx:%s:%d,%d,%d,%d",
 		ctx->ctxid, __func__, s->r.left, s->r.top, s->r.width, s->r.height);
 

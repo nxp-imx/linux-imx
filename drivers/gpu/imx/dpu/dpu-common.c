@@ -1277,6 +1277,8 @@ static int dpu_probe(struct platform_device *pdev)
 		sp = of_find_node_by_name(NULL, "trusty");
 		if (sp != NULL) {
 			pd = of_find_device_by_node(sp);
+			if (!platform_get_drvdata(of_find_device_by_node(sp)))
+				return -EPROBE_DEFER;
 			if (pd != NULL) {
 				dpu->trusty_dev = &(pd->dev);
 				ret = trusty_fast_call32(dpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);

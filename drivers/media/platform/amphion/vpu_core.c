@@ -59,7 +59,7 @@ static int vpu_core_load_firmware(struct vpu_core *core)
 	int ret = 0;
 	struct arm_smccc_res res;
 
-	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->res->plat_type != IMX8QM || core->vpu->trusty_dev == NULL) {
+	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->trusty_dev == NULL) {
 		if (!core->fw.virt) {
 			dev_err(core->dev, "firmware buffer is not ready\n");
 			return -EINVAL;
@@ -81,7 +81,7 @@ static int vpu_core_load_firmware(struct vpu_core *core)
 		goto exit;
 	}
 
-	if (core->vpu->trusty_dev && (core->type == VPU_CORE_TYPE_DEC) && (core->vpu->res->plat_type == IMX8QM)) {
+	if (core->vpu->trusty_dev && (core->type == VPU_CORE_TYPE_DEC)) {
 		if (vpu_parition > 0) {
 			arm_smccc_smc(IMX_SIP_CONFIGURE_MEM_FOR_VPU, vpu_parition, 0, 0, 0, 0, 0, 0, &res);
 			if (res.a0)
@@ -405,13 +405,11 @@ struct vpu_core *vpu_request_core(struct vpu_dev *vpu, enum vpu_core_type type)
 	mutex_lock(&core->lock);
 	pm_runtime_resume_and_get(core->dev);
 
-	if (core->vpu->res->plat_type == IMX8QM) {
-		if (core->request_count == 0) {
-			if (core->vpu->trusty_dev && (type == VPU_CORE_TYPE_DEC)) {
-				vpu_parition = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 1, 0, 0);
-				if (vpu_parition < 0)
-					dev_err(core->dev, "decoder power on failed\n");
-			}
+	if (core->request_count == 0) {
+		if (core->vpu->trusty_dev && (type == VPU_CORE_TYPE_DEC)) {
+			vpu_parition = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 1, 0, 0);
+			if (vpu_parition < 0)
+				dev_err(core->dev, "decoder power on failed\n");
 		}
 	}
 
@@ -446,17 +444,15 @@ void vpu_release_core(struct vpu_core *core)
 	mutex_lock(&core->lock);
 	/* move resource to os part*/
 	if (core->request_count)
-		core->request_count--;
-	if (core->vpu->res->plat_type == IMX8QM) {
-		if (!core->request_count) {
-			if (core->vpu->trusty_dev && core->type == VPU_CORE_TYPE_DEC) {
-				while(!trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_GET_STATE, 0, 0, 0)) {
-					fsleep(5);
-				}
-				ret = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 0, 0, 0);
-				if (ret)
-					dev_err(core->dev, "decoder power on failed\n");
+	core->request_count--;
+	if (!core->request_count) {
+		if (core->vpu->trusty_dev && core->type == VPU_CORE_TYPE_DEC) {
+			while(!trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_GET_STATE, 0, 0, 0)) {
+				fsleep(5);
 			}
+			ret = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 0, 0, 0);
+			if (ret)
+				dev_err(core->dev, "decoder power on failed\n");
 		}
 	}
 
@@ -640,8 +636,10 @@ static int vpu_core_parse_dt(struct vpu_core *core, struct device_node *np)
 		return -EINVAL;
 	}
 
-	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->res->plat_type != IMX8QM || core->vpu->trusty_dev == NULL)
+	if (core->type != VPU_CORE_TYPE_DEC || core->vpu->trusty_dev == NULL) {
 		core->fw.virt = memremap(core->fw.phys, core->fw.length, MEMREMAP_WC);
+	}
+
 	core->rpc.virt = memremap(core->rpc.phys, core->rpc.length, MEMREMAP_WC);
 	memset(core->rpc.virt, 0, core->rpc.length);
 

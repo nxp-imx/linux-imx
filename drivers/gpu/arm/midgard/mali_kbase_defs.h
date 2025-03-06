@@ -136,7 +136,7 @@
  * This is dependent on support for of_property_read_u64_array() in the
  * kernel.
  */
-#define BASE_MAX_NR_CLOCKS_REGULATORS (2)
+#define BASE_MAX_NR_CLOCKS_REGULATORS (4)
 
 /* Forward declarations */
 struct kbase_context;
@@ -144,6 +144,7 @@ struct kbase_device;
 struct kbase_as;
 struct kbase_mmu_setup;
 struct kbase_kinstr_jm;
+struct kbase_io;
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 /**
@@ -302,7 +303,9 @@ struct kbase_fault {
  *                           this is a back-reference to the context, otherwise
  *                           it is NULL.
  * @scratch_mem:             Scratch memory used for MMU operations, which are
- *                           serialized by the @mmu_lock.
+ *                           serialized by the mmu_lock.
+ * @scratch_mem.free_pgds.pgds: Array of pointers to PGDs to free.
+ * @scratch_mem.free_pgds.head_index: Index of first free element in the PGDs array.
  * @pgd_pages_list:          List head to link all 16K/64K pages allocated for the PGDs of mmut.
  *                           These pages will be used to allocate 4KB PGD pages for
  *                           the GPU page table.
@@ -319,27 +322,23 @@ struct kbase_mmu_table {
 	u8 group_id;
 	struct kbase_context *kctx;
 	union {
-		/**
-		 * @teardown_pages: Scratch memory used for backup copies of whole
-		 *                  PGD pages when tearing down levels upon
-		 *                  termination of the MMU table.
+		/* Scratch memory used for backup copies of whole
+		 * PGD pages when tearing down levels upon
+		 * termination of the MMU table.
 		 */
 		struct {
 			/**
 			 * @levels: Array of PGD pages, large enough to copy one PGD
-			 *          for each level of the MMU table.
+			 * for each level of the MMU table.
 			 */
 			u64 levels[MIDGARD_MMU_BOTTOMLEVEL][GPU_PAGE_SIZE / sizeof(u64)];
 		} teardown_pages;
-		/**
-		 * @free_pgds: Scratch memory used for insertion, update and teardown
-		 *             operations to store a temporary list of PGDs to be freed
-		 *             at the end of the operation.
+		/* Scratch memory used for insertion, update and teardown
+		 * operations to store a temporary list of PGDs to be freed
+		 * at the end of the operation.
 		 */
 		struct {
-			/** @pgds: Array of pointers to PGDs to free. */
 			phys_addr_t pgds[MAX_FREE_PGDS];
-			/** @head_index: Index of first free element in the PGDs array. */
 			size_t head_index;
 		} free_pgds;
 	} scratch_mem;
@@ -742,6 +741,8 @@ struct kbase_mem_migrate {
  *                         issues present in the GPU.
  * @hw_quirks_gpu:         Configuration to be used for the Job Manager or CSF/MCU
  *                         subsystems as per the HW issues present in the GPU.
+ * @hw_quirks_ne:          Configuration to be used for the Neural Engine as per
+ *                         the HW issues present in the GPU.
  * @entry:                 Links the device instance to the global list of GPU
  *                         devices. The list would have as many entries as there
  *                         are GPU device instances.
@@ -801,6 +802,9 @@ struct kbase_mem_migrate {
  * @serving_mmu_irq:       function to execute work items queued when model mimics
  *                         the raising of MMU irq, mimics the interrupt handler
  *                         processing MMU interrupts.
+ * @serving_irqaw_irq:     function to execute work items queued when model mimics
+ *                         the raising of IRQAW irq, mimics the interrupt handler
+ *                         processing IRQAW interrupts.
  * @reg_op_lock:           lock used by model to serialize the handling of register
  *                         accesses made by the driver.
  * @pm:                    Per device object for storing data for power management
@@ -1019,9 +1023,6 @@ struct kbase_mem_migrate {
  *                          related state.
  * @serialize_jobs:         Currently used mode for serialization of jobs, both
  *                          intra & inter slots serialization is supported.
- * @backup_serialize_jobs:  Copy of the original value of @serialize_jobs taken
- *                          when GWT is enabled. Used to restore the original value
- *                          on disabling of GWT.
  * @js_ctx_scheduling_mode: Context scheduling mode currently being used by
  *                          Job Scheduler
  * @l2_size_override:       Used to set L2 cache size via device tree blob
@@ -1070,12 +1071,16 @@ struct kbase_mem_migrate {
  * @pcm_prioritized_process_nb: Notifier block for the Priority Control Manager
  *                              driver, this is used to be informed of the
  *                              changes in the list of prioritized processes.
+ * @io:                     kbase IO object for the GPU device.
  */
 struct kbase_device {
 	u32 hw_quirks_sc;
 	u32 hw_quirks_tiler;
 	u32 hw_quirks_mmu;
 	u32 hw_quirks_gpu;
+#if MALI_USE_CSF
+	u32 hw_quirks_ne;
+#endif
 
 	struct list_head entry;
 	struct device *dev;
@@ -1116,6 +1121,7 @@ struct kbase_device {
 	atomic_t serving_job_irq;
 	atomic_t serving_gpu_irq;
 	atomic_t serving_mmu_irq;
+	atomic_t serving_irqaw_irq;
 	spinlock_t reg_op_lock;
 #endif /* !IS_ENABLED(CONFIG_MALI_REAL_HW) */
 	struct kbase_pm_device_data pm;
@@ -1334,10 +1340,6 @@ struct kbase_device {
 	/* See KBASE_SERIALIZE_* for details */
 	u8 serialize_jobs;
 
-#ifdef CONFIG_MALI_CINSTR_GWT
-	u8 backup_serialize_jobs;
-#endif /* CONFIG_MALI_CINSTR_GWT */
-
 #endif /* MALI_USE_CSF */
 
 	struct rb_root process_root;
@@ -1368,9 +1370,7 @@ struct kbase_device {
 	atomic_t live_fence_metadata;
 #endif
 	struct kmem_cache *va_region_slab;
-#if GPU_PAGES_PER_CPU_PAGE > 1
 	struct kmem_cache *page_metadata_slab;
-#endif
 
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	/**
@@ -1383,6 +1383,8 @@ struct kbase_device {
 #endif
 
 	struct notifier_block pcm_prioritized_process_nb;
+
+	struct kbase_io *io;
 	struct dev_pm_domain_list  *pd_list;
 	struct device *dev_gpuperf;
 };
@@ -1717,12 +1719,6 @@ struct kbase_sub_alloc {
  *                        device to powered on so as to dump the CPU/GPU timestamps.
  * @waiting_soft_jobs_lock: Lock to protect @waiting_soft_jobs list from concurrent
  *                        accesses.
- * @dma_fence:            Object containing list head for the list of dma-buf fence
- *                        waiting atoms and the waitqueue to process the work item
- *                        queued for the atoms blocked on the signaling of dma-buf
- *                        fences.
- * @dma_fence.waiting_resource: list head for the list of dma-buf fence
- * @dma_fence.wq:         waitqueue to process the work item queued
  * @as_nr:                id of the address space being used for the scheduled in
  *                        context. This is effectively part of the Run Pool, because
  *                        it only has a valid setting (!=KBASEP_AS_NR_INVALID) whilst
@@ -1786,7 +1782,6 @@ struct kbase_sub_alloc {
  *                        context, across all slots.
  * @slots_pullable:       Bitmask of slots, indicating the slots for which the
  *                        context has pullable atoms in the runnable tree.
- * @work:                 Work structure used for deferred ASID assignment.
  * @completed_jobs:       List containing completed atoms for which base_jd_event is
  *                        to be posted.
  * @work_count:           Number of work items, corresponding to atoms, currently
@@ -1857,12 +1852,6 @@ struct kbase_sub_alloc {
  *                        kbase_context belongs to.
  * @kprcs_link:           List link for the list of kbase context maintained
  *                        under kbase_process.
- * @gwt_enabled:          Indicates if tracking of GPU writes is enabled, protected by
- *                        kbase_context.reg_lock.
- * @gwt_was_enabled:      Simple sticky bit flag to know if GWT was ever enabled.
- * @gwt_current_list:     A list of addresses for which GPU has generated write faults,
- *                        after the last snapshot of it was sent to userspace.
- * @gwt_snapshot_list:    Snapshot of the @gwt_current_list for sending to user space.
  * @priority:             Indicates the context priority. Used along with @atoms_count
  *                        for context scheduling, protected by hwaccess_lock.
  * @atoms_count:          Number of GPU atoms currently in use, per priority
@@ -2005,13 +1994,6 @@ struct kbase_context {
 	struct kbase_process *kprcs;
 	struct list_head kprcs_link;
 
-#ifdef CONFIG_MALI_CINSTR_GWT
-	bool gwt_enabled;
-	bool gwt_was_enabled;
-	struct list_head gwt_current_list;
-	struct list_head gwt_snapshot_list;
-#endif
-
 	base_context_create_flags create_flags;
 
 #if !MALI_USE_CSF
@@ -2037,27 +2019,6 @@ struct kbase_context {
 
 	char comm[TASK_COMM_LEN];
 };
-
-#ifdef CONFIG_MALI_CINSTR_GWT
-/**
- * struct kbasep_gwt_list_element - Structure used to collect GPU
- *                                  write faults.
- * @link:                           List head for adding write faults.
- * @region:                         Details of the region where we have the
- *                                  faulting page address.
- * @page_addr:                      Page address where GPU write fault occurred.
- * @num_pages:                      The number of pages modified.
- *
- * Using this structure all GPU write faults are stored in a list.
- */
-struct kbasep_gwt_list_element {
-	struct list_head link;
-	struct kbase_va_region *region;
-	u64 page_addr;
-	u64 num_pages;
-};
-
-#endif
 
 /**
  * struct kbase_ctx_ext_res_meta - Structure which binds an external resource

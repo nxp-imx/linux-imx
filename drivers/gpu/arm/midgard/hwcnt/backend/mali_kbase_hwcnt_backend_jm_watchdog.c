@@ -28,14 +28,6 @@
 #include <hwcnt/backend/mali_kbase_hwcnt_backend_jm_watchdog.h>
 #include <hwcnt/mali_kbase_hwcnt_watchdog_if.h>
 
-#if IS_ENABLED(CONFIG_MALI_IS_FPGA) && !IS_ENABLED(CONFIG_MALI_NO_MALI)
-/* Backend watch dog timer interval in milliseconds: 18 seconds. */
-static const u32 hwcnt_backend_watchdog_timer_interval_ms = 18000;
-#else
-/* Backend watch dog timer interval in milliseconds: 1 second. */
-static const u32 hwcnt_backend_watchdog_timer_interval_ms = 1000;
-#endif /* IS_FPGA && !NO_MALI */
-
 /*
  * IDLE_BUFFER_EMPTY -> USER_DUMPING_BUFFER_EMPTY     on dump_request.
  * IDLE_BUFFER_EMPTY -> TIMER_DUMPING                 after
@@ -136,10 +128,12 @@ enum wd_init_state {
  *                       hardware counter in case no reads are requested within
  *                       a certain time, used to avoid hardware counter's buffer
  *                       saturation.
+ * @watchdog_timer_interval_ms: Interval in milliseconds between hwcnt samples.
  */
 struct kbase_hwcnt_backend_jm_watchdog_info {
 	struct kbase_hwcnt_backend_interface *jm_backend_iface;
 	struct kbase_hwcnt_watchdog_interface *dump_watchdog_iface;
+	u32 watchdog_timer_interval_ms;
 };
 
 /**
@@ -211,12 +205,11 @@ static void kbasep_hwcnt_backend_jm_watchdog_timer_callback(void *backend)
 
 	spin_unlock_irqrestore(&wd_backend->locked.watchdog_lock, flags);
 
-	if (wd_backend->info->jm_backend_iface->dump_request(wd_backend->jm_backend,
-							     &wd_backend->wd_dump_timestamp) ||
+	if (wd_backend->info->jm_backend_iface->dump_request(wd_backend->jm_backend) ||
 	    wd_backend->info->jm_backend_iface->dump_wait(wd_backend->jm_backend) ||
 	    wd_backend->info->jm_backend_iface->dump_get(
 		    wd_backend->jm_backend, &wd_backend->wd_dump_buffer, &wd_backend->wd_enable_map,
-		    wd_accumulate)) {
+		    wd_accumulate, &wd_backend->wd_dump_timestamp)) {
 		spin_lock_irqsave(&wd_backend->locked.watchdog_lock, flags);
 		WARN_ON(wd_backend->locked.state != HWCNT_JM_WD_TIMER_DUMPING &&
 			wd_backend->locked.state != HWCNT_JM_WD_TIMER_DUMPING_USER_CLEAR &&
@@ -260,7 +253,8 @@ static void kbasep_hwcnt_backend_jm_watchdog_timer_callback(void *backend)
 
 static struct kbase_hwcnt_backend_jm_watchdog_info *
 kbasep_hwcnt_backend_jm_watchdog_info_create(struct kbase_hwcnt_backend_interface *backend_iface,
-					     struct kbase_hwcnt_watchdog_interface *watchdog_iface)
+					     struct kbase_hwcnt_watchdog_interface *watchdog_iface,
+					     u32 watchdog_timer_interval_ms)
 {
 	struct kbase_hwcnt_backend_jm_watchdog_info *const info =
 		kmalloc(sizeof(*info), GFP_KERNEL);
@@ -269,7 +263,9 @@ kbasep_hwcnt_backend_jm_watchdog_info_create(struct kbase_hwcnt_backend_interfac
 		return NULL;
 
 	*info = (struct kbase_hwcnt_backend_jm_watchdog_info){
-		.jm_backend_iface = backend_iface, .dump_watchdog_iface = watchdog_iface
+		.jm_backend_iface = backend_iface,
+		.dump_watchdog_iface = watchdog_iface,
+		.watchdog_timer_interval_ms = watchdog_timer_interval_ms
 	};
 
 	return info;
@@ -368,7 +364,7 @@ static int kbasep_hwcnt_backend_jm_watchdog_init(const struct kbase_hwcnt_backen
 
 	*wd_backend = (struct kbase_hwcnt_backend_jm_watchdog){
 		.info = wd_info,
-		.timeout_ms = hwcnt_backend_watchdog_timer_interval_ms,
+		.timeout_ms = wd_info->watchdog_timer_interval_ms,
 		.locked = { .state = HWCNT_JM_WD_IDLE_BUFFER_EMPTY, .is_enabled = false }
 	};
 
@@ -597,15 +593,14 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_clear(struct kbase_hwcnt_backen
 }
 
 /* Job manager watchdog backend, implementation of dump_request */
-static int kbasep_hwcnt_backend_jm_watchdog_dump_request(struct kbase_hwcnt_backend *backend,
-							 u64 *dump_time_ns)
+static int kbasep_hwcnt_backend_jm_watchdog_dump_request(struct kbase_hwcnt_backend *backend)
 {
 	bool call_dump_request = false;
 	int errcode = 0;
 	unsigned long flags;
 	struct kbase_hwcnt_backend_jm_watchdog *const wd_backend = (void *)backend;
 
-	if (WARN_ON(!backend) || WARN_ON(!dump_time_ns))
+	if (WARN_ON(!backend))
 		return -EINVAL;
 
 	spin_lock_irqsave(&wd_backend->locked.watchdog_lock, flags);
@@ -628,8 +623,6 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_request(struct kbase_hwcnt_back
 		call_dump_request = true;
 		break;
 	case HWCNT_JM_WD_TIMER_DUMPING:
-		/* Retrieve timing information from previous dump_request */
-		*dump_time_ns = wd_backend->wd_dump_timestamp;
 		/* On the next client call (dump_wait) the thread will have to wait for the
 		 * callback to finish the dumping.
 		 * We set up a wait queue to synchronize with the callback.
@@ -644,8 +637,7 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_request(struct kbase_hwcnt_back
 	spin_unlock_irqrestore(&wd_backend->locked.watchdog_lock, flags);
 
 	if (call_dump_request) {
-		errcode = wd_backend->info->jm_backend_iface->dump_request(wd_backend->jm_backend,
-									   dump_time_ns);
+		errcode = wd_backend->info->jm_backend_iface->dump_request(wd_backend->jm_backend);
 		if (!errcode) {
 			/*resetting the timer. Calling modify on a disabled timer enables it*/
 			wd_backend->info->dump_watchdog_iface->modify(
@@ -713,14 +705,15 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_wait(struct kbase_hwcnt_backend
 /* Job manager watchdog backend, implementation of dump_get */
 static int kbasep_hwcnt_backend_jm_watchdog_dump_get(
 	struct kbase_hwcnt_backend *backend, struct kbase_hwcnt_dump_buffer *dump_buffer,
-	const struct kbase_hwcnt_enable_map *enable_map, bool accumulate)
+	const struct kbase_hwcnt_enable_map *enable_map, bool accumulate, u64 *dump_time_ns)
 {
 	bool call_dump_get = false;
 	struct kbase_hwcnt_backend_jm_watchdog *const wd_backend = (void *)backend;
 	unsigned long flags;
 	int errcode = 0;
 
-	if (WARN_ON(!backend) || WARN_ON(!dump_buffer) || WARN_ON(!enable_map))
+	if (WARN_ON(!backend) || WARN_ON(!dump_buffer) || WARN_ON(!enable_map) ||
+	    WARN_ON(!dump_time_ns))
 		return -EINVAL;
 
 	/* The resultant contents of the dump buffer are only well defined if a prior
@@ -742,6 +735,8 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_get(
 
 		/*use state to indicate the the buffer is now empty*/
 		wd_backend->locked.state = HWCNT_JM_WD_IDLE_BUFFER_EMPTY;
+		/* Retrieve timing information from previous dump_request */
+		*dump_time_ns = wd_backend->wd_dump_timestamp;
 		break;
 	case HWCNT_JM_WD_USER_DUMPING_BUFFER_FULL:
 		/*accumulate or copy watchdog data to user buffer first so that dump_get can set
@@ -773,7 +768,7 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_get(
 		 *accumulate flag
 		 */
 		errcode = wd_backend->info->jm_backend_iface->dump_get(
-			wd_backend->jm_backend, dump_buffer, enable_map, accumulate);
+			wd_backend->jm_backend, dump_buffer, enable_map, accumulate, dump_time_ns);
 
 		spin_lock_irqsave(&wd_backend->locked.watchdog_lock, flags);
 
@@ -796,14 +791,16 @@ static int kbasep_hwcnt_backend_jm_watchdog_dump_get(
 
 int kbase_hwcnt_backend_jm_watchdog_create(struct kbase_hwcnt_backend_interface *backend_iface,
 					   struct kbase_hwcnt_watchdog_interface *watchdog_iface,
-					   struct kbase_hwcnt_backend_interface *out_iface)
+					   struct kbase_hwcnt_backend_interface *out_iface,
+					   u32 watchdog_timer_interval_ms)
 {
 	struct kbase_hwcnt_backend_jm_watchdog_info *info = NULL;
 
 	if (WARN_ON(!backend_iface) || WARN_ON(!watchdog_iface) || WARN_ON(!out_iface))
 		return -EINVAL;
 
-	info = kbasep_hwcnt_backend_jm_watchdog_info_create(backend_iface, watchdog_iface);
+	info = kbasep_hwcnt_backend_jm_watchdog_info_create(backend_iface, watchdog_iface,
+							    watchdog_timer_interval_ms);
 	if (!info)
 		return -ENOMEM;
 

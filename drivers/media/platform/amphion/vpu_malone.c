@@ -1096,7 +1096,7 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 		wptr = stream_buffer->phys;
 	size = ALIGN(wptr, 4) - wptr;
 	if (size) {
-		if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+		if (inst->secure_mode)
 			vpu_helper_secure_memset_stream_buffer(stream_buffer, &wptr, 0, size, inst);
 		else
 			vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
@@ -1104,7 +1104,7 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 	total_size += size;
 
 	size = sizeof(ps->data);
-	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode) {
+	if (inst->secure_mode) {
 		memset(hdr, 0, hdr_size);
 		memcpy(hdr, ps->data, size);
 		ret = vpu_helper_secure_copy_to_stream_buffer(stream_buffer, &wptr, size, hdr_size, hdr, inst, NULL);
@@ -1117,7 +1117,7 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 	total_size += size;
 
 	size = padding_size - sizeof(ps->data);
-	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+	if (inst->secure_mode)
 		vpu_helper_secure_memset_stream_buffer(stream_buffer, &wptr, 0, size, inst);
 	else
 		vpu_helper_memset_stream_buffer(stream_buffer, &wptr, 0, size);
@@ -1598,7 +1598,7 @@ static int vpu_malone_input_frame_data(struct vpu_malone_str_buffer __iomem *str
 	size += ret;
 	wptr = scode.wptr;
 
-	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+	if (inst->secure_mode)
 		ret = vpu_helper_secure_copy_to_stream_buffer(&inst->stream_buffer,
 						       &wptr,
 						       vb2_get_plane_payload(vb, 0),
@@ -1637,7 +1637,7 @@ static int vpu_malone_input_stream_data(struct vpu_malone_str_buffer __iomem *st
 	u32 wptr = vpu_malone_readl(&str_buf->wptr);
 	int ret = 0;
 
-	if (inst->vpu->res->plat_type == IMX8QM && inst->secure_mode)
+	if (inst->secure_mode)
 		ret = vpu_helper_secure_copy_to_stream_buffer(&inst->stream_buffer,
 							      &wptr,
 							      vb2_get_plane_payload(vb, 0),

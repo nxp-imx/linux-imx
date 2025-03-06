@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2023 Vivante Corporation
+*    Copyright (c) 2014 - 2024 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2023 Vivante Corporation
+*    Copyright (C) 2014 - 2024 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1144,7 +1144,9 @@ static int __devinit viv_dev_probe(struct platform_device *pdev)
     return ret;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+static void viv_dev_remove(struct platform_device *pdev)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int viv_dev_remove(struct platform_device *pdev)
 #else
 static int __devexit viv_dev_remove(struct platform_device *pdev)
@@ -1172,7 +1174,9 @@ static int __devexit viv_dev_remove(struct platform_device *pdev)
     }
 
     gcmkFOOTER_NO();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
     return 0;
+#endif
 }
 
 static void viv_dev_shutdown(struct platform_device *pdev)

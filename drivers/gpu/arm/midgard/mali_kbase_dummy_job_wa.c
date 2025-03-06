@@ -26,6 +26,7 @@
 #include <mali_kbase.h>
 #include <device/mali_kbase_device.h>
 #include <mali_kbase_dummy_job_wa.h>
+#include <mali_kbase_mem_flags.h>
 
 #include <linux/firmware.h>
 #include <linux/delay.h>
@@ -215,7 +216,7 @@ static DEVICE_ATTR_RO(dummy_job_wa_info);
 
 static bool wa_blob_load_needed(struct kbase_device *kbdev)
 {
-	if (of_machine_is_compatible("arm,juno"))
+	if (kbdev->gpu_props.impl_tech >= THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_FPGA)
 		return false;
 
 	if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TTRX_3485))
@@ -333,7 +334,7 @@ int kbase_dummy_job_wa_load(struct kbase_device *kbdev)
 			goto bad_fw;
 		}
 		nr_pages = PFN_UP(blob->size);
-		flags = blob->map_flags | BASE_MEM_FLAG_MAP_FIXED;
+		flags = blob->map_flags | BASEP_MEM_FLAG_MAP_FIXED;
 
 		va_region = kbase_mem_alloc(kctx, nr_pages, nr_pages, 0, &flags, &gpu_va,
 					    mmu_sync_info);

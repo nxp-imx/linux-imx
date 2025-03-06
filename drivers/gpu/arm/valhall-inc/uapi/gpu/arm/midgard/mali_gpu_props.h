@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -96,6 +96,8 @@ struct gpu_props_user_data {
 		__u32 coherency_mode;
 		__u32 thread_tls_alloc;
 		__u64 gpu_features;
+		__u64 base_present;
+		__u64 neural_present;
 	} raw_props;
 	struct {
 		__u32 num_groups;

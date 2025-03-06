@@ -51,12 +51,12 @@ void kbase_create_timeline_objects(struct kbase_device *kbdev)
 		__kbase_tlstream_tl_lifelink_as_gpu(summary, &kbdev->as[as_nr], kbdev);
 
 	/* Trace the creation of a new kbase device and set its properties. */
-	__kbase_tlstream_tl_kbase_new_device(
-		summary, kbdev->id, kbdev->gpu_props.num_cores, kbdev->csf.global_iface.group_num,
-		(u32)kbdev->nr_hw_address_spaces, num_sb_entries,
-		kbdev->gpu_props.gpu_features.cross_stream_sync, supports_gpu_sleep,
-		0
-	);
+	__kbase_tlstream_tl_kbase_new_device(summary, kbdev->id, kbdev->gpu_props.num_cores,
+					     kbdev->csf.global_iface.group_num,
+					     (u32)kbdev->nr_hw_address_spaces, num_sb_entries,
+					     kbdev->gpu_props.gpu_features.cross_stream_sync,
+					     supports_gpu_sleep,
+					     kbdev->gpu_props.gpu_features.neural_engine);
 
 	/* Lock the context list, to ensure no changes to the list are made
 	 * while we're summarizing the contexts and their contents.
@@ -119,10 +119,6 @@ void kbase_create_timeline_objects(struct kbase_device *kbdev)
 
 		/* Also trace with the legacy AOM tracepoint for dumping */
 		__kbase_tlstream_tl_new_ctx(body, kctx, kctx->id, (u32)(kctx->tgid));
-
-		/* Trace the currently assigned address space */
-		if (kctx->as_nr != KBASEP_AS_NR_INVALID)
-			__kbase_tlstream_tl_kbase_ctx_assign_as(body, kctx->id, (u32)kctx->as_nr);
 
 		/* Trace all KCPU queues in the context into the body stream.
 		 * As we acquired the KCPU lock after resetting the body stream,

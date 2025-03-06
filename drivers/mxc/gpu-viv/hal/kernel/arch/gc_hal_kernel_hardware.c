@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2023 Vivante Corporation
+*    Copyright (c) 2014 - 2024 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2023 Vivante Corporation
+*    Copyright (C) 2014 - 2024 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -2615,9 +2615,7 @@ gckHARDWARE_InitializeHardware(IN gckHARDWARE Hardware)
                                           offset + 0x2C, 0x2));
     }
 
-#if !gcdCAPTURE_ONLY_MODE
     gcmkONERROR(gckHARDWARE_SetMMU(Hardware, Hardware->kernel->mmu));
-#endif
 
     if (Hardware->mcFE) {
         /* Reinitialize MCFE, now MMU is enabled. */
@@ -7372,6 +7370,10 @@ gckHARDWARE_QueryIdle(IN gckHARDWARE Hardware, OUT gctBOOL_PTR IsIdle)
     gceSTATUS status = gcvSTATUS_OK;
     gctUINT32 idle;
     gctBOOL   isIdle = gcvFALSE;
+#if gcdCAPTURE_ONLY_MODE
+    gcsDATABASE_PTR database = gcvNULL;
+    gctUINT32 processID;
+#endif
 
 #if gcdINTERRUPT_STATISTIC
     gckEVENT eventObj = Hardware->kernel->eventObj;
@@ -7385,8 +7387,16 @@ gckHARDWARE_QueryIdle(IN gckHARDWARE Hardware, OUT gctBOOL_PTR IsIdle)
     gcmkVERIFY_ARGUMENT(IsIdle != gcvNULL);
 
 #if gcdCAPTURE_ONLY_MODE
-    *IsIdle = gcvTRUE;
-    gcmkONERROR(status);
+    gcmkONERROR(gckOS_GetProcessID(&processID));
+
+    if (processID) {
+        gckKERNEL_FindDatabase(Hardware->kernel, processID, gcvFALSE, &database);
+
+        if (database && database->matchCaptureOnly) {
+            *IsIdle = gcvTRUE;
+            gcmkONERROR(status);
+        }
+    }
 #endif
 
     do {
@@ -10356,10 +10366,6 @@ gckHARDWARE_ExecuteFunctions(IN gcsFUNCTION_EXECUTION_PTR Execution)
     gctUINT32   i, timer = 0, delay = 10;
     gctADDRESS  address;
     gckHARDWARE hardware = (gckHARDWARE)Execution->hardware;
-
-#if gcdCAPTURE_ONLY_MODE
-    gcmkONERROR(status);
-#endif
 
 #if gcdDUMP_IN_KERNEL
     gcmkDUMP(hardware->os, "#[function: %s]", Execution->funcName);

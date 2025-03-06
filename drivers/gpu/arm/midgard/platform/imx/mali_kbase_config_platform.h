@@ -50,8 +50,10 @@ extern struct kbase_platform_funcs_conf platform_funcs;
 
 struct imx_platform_ctx {
 	struct kbase_device *kbdev;
+//#ifdef IMX_GPU_BLK_CTRL
 	void __iomem *reg_blk_ctrl;
 	int init_blk_ctrl;
+//#endif
 	void __iomem *reg_tcm;
 	int dumpStarted;
 };

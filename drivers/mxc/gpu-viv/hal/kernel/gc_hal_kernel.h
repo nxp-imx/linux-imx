@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2023 Vivante Corporation
+*    Copyright (c) 2014 - 2024 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2023 Vivante Corporation
+*    Copyright (C) 2014 - 2024 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -208,6 +208,9 @@ typedef struct _gcsDATABASE {
 
     gctPOINTER                          handleDatabase;
     gctPOINTER                          handleDatabaseMutex;
+#if gcdCAPTURE_ONLY_MODE
+    gctBOOL                             matchCaptureOnly;
+#endif
 } gcsDATABASE;
 
 typedef struct _gcsFDPRIVATE *gcsFDPRIVATE_PTR;
@@ -492,6 +495,10 @@ struct _gckKERNEL {
     gctSEMAPHORE                preemptSema;
     gcePREEMPTION_MODE          preemptionMode;
     gctBOOL                     killPreemptThread;
+#endif
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+    gckGPUWORK                  traceGpuWork;
 #endif
 };
 
@@ -1404,6 +1411,56 @@ typedef struct _gcsDEVICE {
     gctBOOL                     preemptThreadInits[gcvCORE_COUNT];
 #endif
 } gcsDEVICE;
+
+#if gcdENABLE_GPU_WORK_PERIOD_TRACE
+/* Record the UID for gpu work period tracing. */
+typedef struct _gcsUID_INFO         *gcsUID_INFO_PTR;
+
+typedef struct _gcsUID_INFO {
+    gctUINT32                   uid;
+    gctUINT32                   reference;
+    gcsUID_INFO_PTR             next;
+} gcsUID_INFO;
+
+typedef struct _gcsGPUWORK{
+    /* Pointer to required objects. */
+    gckKERNEL                   kernel;
+    gckOS                       os;
+
+    gctUINT64                   lastTime;
+
+    /* Current uid info list. */
+    gcsUID_INFO_PTR             uidInfoList;
+    gctSIZE_T                   uidInfoCount;
+    gctPOINTER                  uidInfoListMutex;
+
+    /* List of free uid info structures and its mutex. */
+    gcsUID_INFO_PTR             freeList;
+    gctSIZE_T                   freeCount;
+    gctPOINTER                  freeListMutex;
+
+    /* Gpu work period trace timer. */
+    gctPOINTER                  gpuWorkTimer;
+} gcsGPUWORK;
+
+gceSTATUS
+gckGPUWORK_Construct(gckKERNEL Kernel, gckGPUWORK *GpuWork);
+
+gceSTATUS
+gckGPUWORK_Destroy(gckGPUWORK GpuWork);
+
+gceSTATUS
+gckGPUWORK_Attach(gckGPUWORK GpuWork, gctUINT32 UserID);
+
+gceSTATUS
+gckGPUWORK_Dettach(gckGPUWORK GpuWork, gctUINT32 UserID);
+
+gceSTATUS
+gckGPUWORK_AllocateUidInfo(gckGPUWORK GpuWork, gcsUID_INFO_PTR *UidInfo);
+
+gceSTATUS
+gckGPUWORK_FreeUidInfo(gckGPUWORK GpuWork, gcsUID_INFO_PTR UidInfo);
+#endif /* gcdENABLE_GPU_WORK_PERIOD_TRACE */
 
 /* video memory pool functions. */
 /* Construct a new gckVIDMEM object. */

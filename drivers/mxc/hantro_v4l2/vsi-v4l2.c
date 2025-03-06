@@ -830,8 +830,8 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 					info->ts_disp_first = ktime_get_raw();
 				info->ts_disp_last = ktime_get_raw();
 				info->display_frame_num++;
+				vbuf->sequence = ctx->cap_sequence++;
 			}
-			vbuf->sequence = ctx->cap_sequence++;
 			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 		} else {
 			v4l2_klog(LOGLVL_WARNING, "dstbuf %d is not active\n", outbufidx);

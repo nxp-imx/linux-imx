@@ -299,7 +299,7 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 			f->stepwise.min_width = 144;
 			f->stepwise.max_width = 4096;
 			f->stepwise.min_height = 144;
-			f->stepwise.max_height = 2304;
+			f->stepwise.max_height = 4096;
 			break;
 		case V4L2_PIX_FMT_H264:
 		case V4L2_PIX_FMT_VP8:
@@ -318,7 +318,7 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 			f->stepwise.min_width = 48;
 			f->stepwise.max_width = 1920;
 			f->stepwise.min_height = 48;
-			f->stepwise.max_height = 1088;
+			f->stepwise.max_height = 1920;
 			break;
 		case V4L2_PIX_FMT_JPEG:
 			f->stepwise.min_width = 48;
@@ -330,7 +330,7 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 			f->stepwise.min_width = 48;
 			f->stepwise.max_width = 1920;
 			f->stepwise.min_height = 48;
-			f->stepwise.max_height = 1088;
+			f->stepwise.max_height = 1920;
 			break;
 		}
 	} else {
@@ -340,7 +340,7 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 			f->stepwise.min_width = 144;
 			f->stepwise.max_width = 1920;
 			f->stepwise.min_height = 144;
-			f->stepwise.max_height = 1088;
+			f->stepwise.max_height = 1920;
 			break;
 		case V4L2_PIX_FMT_H264:
 		case V4L2_PIX_FMT_VP8:
@@ -353,7 +353,7 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 			f->stepwise.min_width = 144;
 			f->stepwise.max_width = 1920;
 			f->stepwise.min_height = 144;
-			f->stepwise.max_height = 1088;
+			f->stepwise.max_height = 1920;
 			break;
 		}
 	}

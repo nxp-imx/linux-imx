@@ -88,8 +88,8 @@
 		#size-cells = <2>;
 		ranges;
 
-		decoder_boot: decoder-boot@84000000 {
-			reg = <0 0x84000000 0 0x2000000>;
+		decoder_boot: decoder-boot@96000000 {
+			reg = <0 0x96000000 0 0x2000000>;
 			no-map;
 		};
 
@@ -98,8 +98,8 @@
 			no-map;
 		};
 
-		decoder_rpc: decoder-rpc@92000000 {
-			reg = <0 0x92000000 0 0x100000>;
+		decoder_rpc: decoder-rpc@a4000000 {
+			reg = <0 0xa4000000 0 0x100000>;
 			no-map;
 		};
 

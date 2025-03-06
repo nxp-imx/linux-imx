@@ -61,13 +61,29 @@ struct kbase_jd_atom;
  *
  * They specify which type of core should be acted on.
  */
-
+#if MALI_USE_CSF
+enum kbase_pm_core_type {
+	KBASE_PM_CORE_L2 = HOST_POWER_ENUM(L2_PRESENT),
+	KBASE_PM_CORE_SHADER = HOST_POWER_ENUM(SHADER_PRESENT),
+	KBASE_PM_CORE_TILER = HOST_POWER_ENUM(TILER_PRESENT),
+	KBASE_PM_CORE_STACK = HOST_POWER_ENUM(STACK_PRESENT),
+	/**
+	 * @KBASE_PM_CORE_NEURAL: Neural engine
+	 */
+	KBASE_PM_CORE_NEURAL = HOST_POWER_ENUM(NEURAL_PRESENT),
+	/**
+	 * @KBASE_PM_CORE_BASE: Shader core base domain
+	 */
+	KBASE_PM_CORE_BASE = HOST_POWER_ENUM(BASE_PRESENT)
+};
+#else
 enum kbase_pm_core_type {
 	KBASE_PM_CORE_L2 = GPU_CONTROL_ENUM(L2_PRESENT),
 	KBASE_PM_CORE_SHADER = GPU_CONTROL_ENUM(SHADER_PRESENT),
 	KBASE_PM_CORE_TILER = GPU_CONTROL_ENUM(TILER_PRESENT),
 	KBASE_PM_CORE_STACK = GPU_CONTROL_ENUM(STACK_PRESENT)
 };
+#endif
 
 /*
  * enum kbase_l2_core_state - The states used for the L2 cache & tiler power
@@ -155,14 +171,26 @@ enum kbase_pm_runtime_suspend_abort_reason {
  *           with 2 (2x256ns).
  */
 struct kbasep_pm_metrics {
-	u32 time_busy;
-	u32 time_idle;
+	u64 time_busy;
+	u64 time_idle;
 #if MALI_USE_CSF
-	u32 time_in_protm;
+	u64 time_in_protm;
+	u64 shader_frag_time_busy;
+	u64 shader_compute_time_busy;
+	u64 tiler_time_busy;
+
 #else
 	u32 busy_cl[2];
 	u32 busy_gl;
 #endif
+};
+
+enum kbase_pm_metrics_counter_type {
+	KBASE_PM_METRICS_CNT_GPU = 0,
+	KBASE_PM_METRICS_CNT_SHADER_FRAG,
+	KBASE_PM_METRICS_CNT_SHADER_COMPUTE,
+	KBASE_PM_METRICS_CNT_TILER,
+	KBASE_PM_METRICS_CNT_COUNT
 };
 
 /**
@@ -270,11 +298,6 @@ union kbase_pm_policy_data {
  * @gpu_in_desired_state_wait: Wait queue set when the GPU is in the desired
  *                             state according to the L2 and shader power state
  *                             machines
- * @gpu_powered:       Set to true when the GPU is powered and register
- *                     accesses are possible, false otherwise. Access to this
- *                     variable should be protected by: both the hwaccess_lock
- *                     spinlock and the pm.lock mutex for writes; or at least
- *                     one of either lock for reads.
  * @gpu_ready:         Indicates whether the GPU is in a state in which it is
  *                     safe to perform PM changes. When false, the PM state
  *                     machine needs to wait before making changes to the GPU
@@ -354,13 +377,12 @@ union kbase_pm_policy_data {
  *                   progress that will eventually achieve this state (assuming
  *                   that the policy doesn't change its mind in the mean time).
  * @mcu_desired: True if the micro-control unit should be powered on by the MCU state
- *               machine. Updated as per the value of @mcu_poweron_required.
- * @mcu_poweron_required: Boolean flag updated mainly by the CSF Scheduler code,
- *                        before updating the PM active count, to indicate to the
- *                        PM code that micro-control unit needs to be powered up/down.
+ *               machine.
  * @policy_change_clamp_state_to_off: Signaling the backend is in PM policy
  *                change transition, needs the mcu/L2 to be brought back to the
  *                off state and remain in that state until the flag is cleared.
+ * @waiting_for_mmu_fault_handling: Flag set just before the wait for pending MMU faults
+ *                                  is done inside @gpu_poweroff_wait_wq.
  * @csf_pm_sched_flags: CSF Dynamic PM control flags in accordance to the
  *                current active PM policy. This field is updated whenever a
  *                new policy is activated.
@@ -445,6 +467,7 @@ union kbase_pm_policy_data {
  *                         work function, kbase_pm_gpu_clock_control_worker.
  * @gpu_clock_control_work: work item to set GPU clock during L2 power cycle
  *                          using gpu_clock_control
+ * @reset_in_progress: Set if reset is ongoing, otherwise set to 0
  *
  * This structure contains data for the power management framework. There is one
  * instance of this structure per device in the system.
@@ -466,7 +489,6 @@ struct kbase_pm_backend_data {
 
 	wait_queue_head_t gpu_in_desired_state_wait;
 
-	bool gpu_powered;
 	bool gpu_ready;
 
 	u64 pm_shaders_core_mask;
@@ -509,8 +531,8 @@ struct kbase_pm_backend_data {
 	u64 shaders_desired_mask;
 #if MALI_USE_CSF
 	bool mcu_desired;
-	bool mcu_poweron_required;
 	bool policy_change_clamp_state_to_off;
+	bool waiting_for_mmu_fault_handling;
 	unsigned int csf_pm_sched_flags;
 	struct mutex policy_change_lock;
 	struct workqueue_struct *core_idle_wq;
@@ -526,6 +548,16 @@ struct kbase_pm_backend_data {
 	enum kbase_pm_runtime_suspend_abort_reason runtime_suspend_abort_reason;
 #endif
 
+	/**
+	 * @has_host_pwr_iface: GPU supports the host power control interface.
+	 */
+	bool has_host_pwr_iface;
+	/**
+	 * @pwr_cntl_delegated: Flag indicating that control for PM domains (Tiler,
+	 *                      Shading engine and Neural engine) has been delegated
+	 *                      to the MCU firmware.
+	 */
+	bool pwr_cntl_delegated;
 	bool l2_force_off_after_mcu_halt;
 #endif
 	bool l2_desired;
@@ -551,6 +583,8 @@ struct kbase_pm_backend_data {
 	bool gpu_clock_slow_down_desired;
 	bool gpu_clock_slowed_down;
 	struct work_struct gpu_clock_control_work;
+
+	atomic_t reset_in_progress;
 };
 
 #if MALI_USE_CSF

@@ -52,7 +52,6 @@
 *
 *****************************************************************************/
 
-
 #if !defined(__gc_hal_kernel_trace_gpu_work_h_) || defined(TRACE_HEADER_MULTI_READ)
 #define __gc_hal_kernel_trace_gpu_work_h_
 

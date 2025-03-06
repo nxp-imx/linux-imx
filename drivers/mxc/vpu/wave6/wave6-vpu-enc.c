@@ -547,6 +547,26 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	}
 }
 
+static void wave6_update_crop_info(struct vpu_instance *inst,
+                  u32 left, u32 top, u32 width, u32 height)
+{
+   u32 enc_pic_width, enc_pic_height;
+
+   inst->crop.left = left;
+   inst->crop.top = top;
+   inst->crop.width = width;
+   inst->crop.height = height;
+
+   inst->codec_rect.left = round_down(left, W6_ENC_CROP_X_POS_STEP);
+   inst->codec_rect.top = round_down(top, W6_ENC_CROP_Y_POS_STEP);
+
+   enc_pic_width = width + left - inst->codec_rect.left;
+   inst->codec_rect.width = round_up(enc_pic_width, W6_ENC_PIC_SIZE_STEP);
+
+   enc_pic_height = height + top - inst->codec_rect.top;
+   inst->codec_rect.height = round_up(enc_pic_height, W6_ENC_PIC_SIZE_STEP);
+}
+
 static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 				     enum aux_buffer_type type,
 				     int num)
@@ -559,8 +579,8 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 
 	memset(buf, 0, sizeof(buf));
 
-	size_info.width = inst->dst_fmt.width;
-	size_info.height = inst->dst_fmt.height;
+	size_info.width = inst->codec_rect.width;
+	size_info.height = inst->codec_rect.height;
 	size_info.type = type;
 	size_info.mirror_direction = inst->enc_ctrls.mirror_direction;
 	size_info.rotation_angle = inst->enc_ctrls.rot_angle;
@@ -608,12 +628,12 @@ static void wave6_update_frame_buf_addr(struct vpu_instance *inst,
 	if (!fmt_info)
 		return;
 
-	offset = inst->crop.top * stride + inst->crop.left * fmt_info->bpp[0];
+	offset = inst->codec_rect.top * stride + inst->codec_rect.left * fmt_info->bpp[0];
 	frame_buf->buf_y += offset;
 
 	stride = DIV_ROUND_UP(stride, fmt_info->bpp[0]) * fmt_info->bpp[1];
-	offset = inst->crop.top * stride / fmt_info->vdiv / fmt_info->hdiv
-			+ inst->crop.left * fmt_info->bpp[1] / fmt_info->hdiv;
+	offset = inst->codec_rect.top * stride / fmt_info->vdiv / fmt_info->hdiv
+			+ inst->codec_rect.left * fmt_info->bpp[1] / fmt_info->hdiv;
 	frame_buf->buf_cb += offset;
 	frame_buf->buf_cr += offset;
 }
@@ -1142,10 +1162,7 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 	inst->xfer_func = pix_mp->xfer_func;
 
 	wave6_update_pix_fmt(&inst->dst_fmt, pix_mp->width, pix_mp->height);
-	inst->crop.left = 0;
-	inst->crop.top = 0;
-	inst->crop.width = inst->dst_fmt.width;
-	inst->crop.height = inst->dst_fmt.height;
+	wave6_update_crop_info(inst, 0, 0, pix_mp->width, pix_mp->height);
 
 	return 0;
 }
@@ -1220,16 +1237,16 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 		s->flags |= V4L2_SEL_FLAG_LE;
 
 	if (s->flags & V4L2_SEL_FLAG_GE) {
-		s->r.left = round_up(s->r.left, W6_ENC_CROP_X_POS_STEP);
-		s->r.top = round_up(s->r.top, W6_ENC_CROP_Y_POS_STEP);
-		s->r.width = round_up(s->r.width, W6_ENC_PIC_SIZE_STEP);
-		s->r.height = round_up(s->r.height, W6_ENC_PIC_SIZE_STEP);
+       s->r.left = round_up(s->r.left, W6_ENC_CROP_STEP);
+       s->r.top = round_up(s->r.top, W6_ENC_CROP_STEP);
+       s->r.width = round_up(s->r.width, W6_ENC_CROP_STEP);
+       s->r.height = round_up(s->r.height, W6_ENC_CROP_STEP);
 	}
 	if (s->flags & V4L2_SEL_FLAG_LE) {
-		s->r.left = round_down(s->r.left, W6_ENC_CROP_X_POS_STEP);
-		s->r.top = round_down(s->r.top, W6_ENC_CROP_Y_POS_STEP);
-		s->r.width = round_down(s->r.width, W6_ENC_PIC_SIZE_STEP);
-		s->r.height = round_down(s->r.height, W6_ENC_PIC_SIZE_STEP);
+       s->r.left = round_down(s->r.left, W6_ENC_CROP_STEP);
+       s->r.top = round_down(s->r.top, W6_ENC_CROP_STEP);
+       s->r.width = round_down(s->r.width, W6_ENC_CROP_STEP);
+       s->r.height = round_down(s->r.height, W6_ENC_CROP_STEP);
 	}
 
 	max_crop_w = inst->src_fmt.width - s->r.left;
@@ -1245,8 +1262,8 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 	s->r.width = clamp(s->r.width, W6_MIN_ENC_PIC_WIDTH, max_crop_w);
 	s->r.height = clamp(s->r.height, W6_MIN_ENC_PIC_HEIGHT, max_crop_h);
 
-	inst->crop = s->r;
 	wave6_update_pix_fmt(&inst->dst_fmt, s->r.width, s->r.height);
+	wave6_update_crop_info(inst, s->r.left, s->r.top, s->r.width, s->r.height);
 
 	dev_dbg(inst->dev->dev, "V4L2_SEL_TGT_CROP %dx%dx%dx%d\n",
 		s->r.left, s->r.top, s->r.width, s->r.height);
@@ -1888,8 +1905,8 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 	open_param->inst_buffer.temp_base = inst->dev->temp_vbuf.daddr;
 	open_param->inst_buffer.temp_size = inst->dev->temp_vbuf.size;
 	open_param->inst_buffer.ar_base = inst->ar_vbuf.daddr;
-	open_param->pic_width = inst->dst_fmt.width;
-	open_param->pic_height = inst->dst_fmt.height;
+	open_param->pic_width = inst->codec_rect.width;
+	open_param->pic_height = inst->codec_rect.height;
 
 	output->custom_map_endian = VPU_USER_DATA_ENDIAN;
 	output->gop_preset_idx = PRESET_IDX_IPP_SINGLE;
@@ -1935,6 +1952,12 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 	output->color.transfer_characteristics = to_transfer_characteristics(inst->colorspace,
 									     inst->xfer_func);
 	output->color.matrix_coefficients = to_matrix_coeffs(inst->colorspace, inst->ycbcr_enc);
+    output->conf_win.left = inst->crop.left - inst->codec_rect.left;
+    output->conf_win.top = inst->crop.top - inst->codec_rect.top;
+    output->conf_win.right = inst->codec_rect.width
+                   - inst->crop.width - output->conf_win.left;
+    output->conf_win.bottom = inst->codec_rect.height
+                   - inst->crop.height - output->conf_win.top;
 
 	switch (inst->std) {
 	case W_AVC_ENC:
@@ -2064,8 +2087,8 @@ static int wave6_vpu_enc_prepare_fb(struct vpu_instance *inst)
 	fb_num = p_enc_info->initial_info.min_frame_buffer_count;
 	mv_num = p_enc_info->initial_info.req_mv_buffer_count;
 
-	fb_stride = ALIGN(inst->dst_fmt.width, 32);
-	fb_height = ALIGN(inst->dst_fmt.height, 32);
+	fb_stride = ALIGN(inst->codec_rect.width, 32);
+	fb_height = ALIGN(inst->codec_rect.height, 32);
 
 	for (i = 0; i < fb_num; i++) {
 		struct frame_buffer *frame = &inst->frame_buf[i];
@@ -2579,10 +2602,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_handler_setup(v4l2_ctrl_hdl);
 
 	wave6_set_default_format(&inst->src_fmt, &inst->dst_fmt);
-	inst->crop.left = 0;
-	inst->crop.top = 0;
-	inst->crop.width = inst->dst_fmt.width;
-	inst->crop.height = inst->dst_fmt.height;
+	wave6_update_crop_info(inst, 0, 0, inst->dst_fmt.width, inst->dst_fmt.height);
 	inst->colorspace = V4L2_COLORSPACE_DEFAULT;
 	inst->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	inst->quantization = V4L2_QUANTIZATION_DEFAULT;
