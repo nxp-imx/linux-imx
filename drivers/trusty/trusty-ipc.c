@@ -1683,6 +1683,7 @@ static long filp_send_ioctl(struct file *filp,
 		default:
 			dev_err(dev, "Unknown transfer type: 0x%x\n",
 				shm[shm_idx].transfer);
+			ret = -EINVAL;
 			goto shm_share_failed;
 		}
 		ret = dn_share_fd(dn, shm[shm_idx].fd, shm[shm_idx].transfer,
