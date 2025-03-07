@@ -49,6 +49,11 @@
 			};
 		};
 	};
+	chre {
+		compatible = "nxp,imx-chre-rpmsg";
+		status = "okay";
+	};
+
 };
 
 &{/reserved-memory/linux,cma} {

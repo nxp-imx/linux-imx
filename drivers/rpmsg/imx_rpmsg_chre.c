@@ -30,6 +30,9 @@
 #include "rpmsg_char.h"
 #include "rpmsg_internal.h"
 #include <linux/imx_rpmsg.h>
+#include <linux/platform_device.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
 
 #define RPMSG_DEV_MAX	(MINORMASK + 1)
 #define CHRE_CATEGORY (0x0CU)
@@ -39,8 +42,6 @@
 #define CHRE_RPMSG_RESPONSE         0x1
 #define CHRE_RPMSG_NOTIFICATION     0x2
 #define CHRE_RPMSG_PAYLOAD_BUFSIZE  256
-
-static dev_t rpmsg_major;
 
 static DEFINE_IDA(rpmsg_ept_ida);
 static DEFINE_IDA(rpmsg_minor_ida);
@@ -52,7 +53,10 @@ const char chre_ack_message[10] = "CHRE";
 struct host_to_chre_msg {
 	struct imx_rpmsg_head header;
 	uint8_t reserved;
-	uint8_t data[CHRE_RPMSG_PAYLOAD_BUFSIZE];
+	union {
+		uint8_t data[CHRE_RPMSG_PAYLOAD_BUFSIZE];
+		u8 powerState;
+	};
 } __attribute__ ((__packed__));
 
 typedef enum
@@ -67,6 +71,13 @@ struct chre_message_head {
 	u8 cmd;
 	u16 messagelen;
 } __attribute__ ((__packed__));
+
+struct platform_rpmsg_data {
+	struct cdev cdev;
+	struct platform_device *pdev;
+	const char *rpmsg_devname;
+	struct rpmsg_eptdev* eptdev;
+};
 
 /**
  * struct rpmsg_eptdev - endpoint device context
@@ -429,7 +440,7 @@ static struct rpmsg_eptdev *rpmsg_chre_eptdev_alloc(struct rpmsg_device *rpdev,
 	return eptdev;
 }
 
-static int rpmsg_chre_eptdev_add(struct rpmsg_eptdev *eptdev, struct rpmsg_channel_info chinfo)
+static int rpmsg_chre_eptdev_add(struct rpmsg_eptdev *eptdev, struct rpmsg_channel_info chinfo, dev_t rpmsg_major)
 {
 	struct device *dev = &eptdev->dev;
 	int ret;
@@ -467,11 +478,52 @@ free_eptdev:
 	return ret;
 }
 
+static int chre_send_power_state(struct device *dev, unsigned char state)
+{
+	int ret;
+	struct host_to_chre_msg msg = {};
+	struct platform_device* pdev = to_platform_device(dev);
+	struct platform_rpmsg_data* pdata = platform_get_drvdata(pdev);
+
+	msg.powerState = state;
+	msg.header.cate = CHRE_CATEGORY;
+	msg.header.major = IMX_RMPSG_MAJOR;
+	msg.header.minor = IMX_RMPSG_MINOR;
+	msg.header.type = CHRE_RPMSG_REQUEST;
+	msg.header.cmd = CHRE_POWERMODE;
+
+	if (mutex_lock_interruptible(&pdata->eptdev->ept_lock)) {
+		return -ERESTARTSYS;
+	}
+
+	ret = rpmsg_sendto(pdata->eptdev->ept, &msg, sizeof(struct host_to_chre_msg), pdata->eptdev->chinfo.dst);
+	mutex_unlock(&pdata->eptdev->ept_lock);
+	return ret < 0 ? ret : 0;
+}
+
 static int rpmsg_chre_probe(struct rpmsg_device *rpdev)
 {
 	struct rpmsg_channel_info chinfo;
 	struct rpmsg_eptdev *eptdev;
 	struct device *dev = &rpdev->dev;
+	struct platform_rpmsg_data *pdata;
+	struct platform_device *pdev;
+	struct device_node *sp;
+
+	// loop all of platform device, find the device match to rpmsg device
+	sp = of_find_node_by_name(NULL, "chre");
+	if (sp != NULL) {
+		pdev = of_find_device_by_node(sp);
+		if (pdev != NULL) {
+			pdata = platform_get_drvdata(pdev);
+		} else {
+			printk("chre device not found\n");
+			return -1;
+		}
+	} else {
+		printk("chre node not found\n");
+		return -1;
+	}
 
 	memcpy(chinfo.name, rpdev->id.name, RPMSG_NAME_SIZE);
 	chinfo.src = rpdev->src;
@@ -480,6 +532,7 @@ static int rpmsg_chre_probe(struct rpmsg_device *rpdev)
 	eptdev = rpmsg_chre_eptdev_alloc(rpdev, dev);
 	if (IS_ERR(eptdev))
 		return PTR_ERR(eptdev);
+	pdata->eptdev = eptdev;
 
 	/* Set the default_ept to the rpmsg device endpoint */
 	eptdev->default_ept = rpdev->ept;
@@ -490,7 +543,7 @@ static int rpmsg_chre_probe(struct rpmsg_device *rpdev)
 	 */
 	eptdev->default_ept->priv = eptdev;
 
-	return rpmsg_chre_eptdev_add(eptdev, chinfo);
+	return rpmsg_chre_eptdev_add(eptdev, chinfo, pdata->cdev.dev);
 }
 
 static void rpmsg_chre_remove(struct rpmsg_device *rpdev)
@@ -515,11 +568,20 @@ static struct rpmsg_driver rpmsg_chre_driver = {
 	.drv.name = "rpmsg_chredev",
 };
 
-static int rpmsg_chre_init(void)
+static int platform_rpmsg_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct platform_rpmsg_data *data;
 
-	ret = alloc_chrdev_region(&rpmsg_major, 0, RPMSG_DEV_MAX, "rpmsg_chre");
+	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	platform_set_drvdata(pdev, data);
+	data->pdev = pdev;
+	data->rpmsg_devname = "rpmsg-chre";
+
+	ret = alloc_chrdev_region(&data->cdev.dev, 0, RPMSG_DEV_MAX, "rpmsg_chre");
 	if (ret < 0) {
 		pr_err("failed to allocate char dev region\n");
 		return ret;
@@ -534,18 +596,56 @@ static int rpmsg_chre_init(void)
 	return 0;
 
 free_region:
-	unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
+	unregister_chrdev_region(data->cdev.dev, RPMSG_DEV_MAX);
 
 	return ret;
 }
-postcore_initcall(rpmsg_chre_init);
 
-static void rpmsg_chrdev_exit(void)
+static void platform_rpmsg_remove(struct platform_device *pdev)
 {
+	struct platform_rpmsg_data *pdata = platform_get_drvdata(pdev);
+	// unregiste rpmsg chre driver
 	unregister_rpmsg_driver(&rpmsg_chre_driver);
-	unregister_chrdev_region(rpmsg_major, RPMSG_DEV_MAX);
+	// unregiste rpmsg char dev
+	unregister_chrdev_region(pdata->cdev.dev, RPMSG_DEV_MAX);
 }
-module_exit(rpmsg_chrdev_exit);
+
+static int imx_chre_suspend(struct device *dev)
+{
+	int ret;
+	ret = chre_send_power_state(dev, false);
+	return ret;
+}
+
+static int imx_chre_resume(struct device *dev)
+{
+	int ret;
+	ret = chre_send_power_state(dev, true);
+	return ret;
+}
+
+static const struct dev_pm_ops imx_chre_pm_ops = {
+	.suspend = imx_chre_suspend,
+	.resume = imx_chre_resume,
+};
+
+static const struct of_device_id imx_chre_rpmsg_id[] = {
+	{ .compatible = "nxp,imx-chre-rpmsg", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, imx_chre_rpmsg_id);
+
+static struct platform_driver platform_chre_rpmsg_driver = {
+	.driver = {
+		.name = "imx-chre",
+		.pm = &imx_chre_pm_ops,
+		.of_match_table = imx_chre_rpmsg_id,
+		.owner = THIS_MODULE,
+	},
+	.probe = platform_rpmsg_probe,
+	.remove = platform_rpmsg_remove,
+};
+module_platform_driver(platform_chre_rpmsg_driver);
 
 MODULE_ALIAS("rpmsg:rpmsg_chre");
 MODULE_LICENSE("GPL v2");
