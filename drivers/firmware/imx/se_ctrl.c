@@ -729,6 +729,7 @@ exit:
 #define NANO_SEC_PRN_LEN	9
 #define SEC_PRN_LEN		5
 
+#ifndef CONFIG_IMX_GKI_FIX
 int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		     u8 caller_type, int buf_size,
 		     const char *buf, ...)
@@ -848,6 +849,7 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 
 	return 0;
 }
+#endif
 
 static int init_se_shared_mem(struct se_if_device_ctx *dev_ctx)
 {
@@ -1643,10 +1645,11 @@ static int se_if_fops_open(struct inode *nd, struct file *fp)
 			err);
 		goto exit;
 	}
+#ifndef CONFIG_IMX_GKI_FIX
 	se_dump_to_logfl(dev_ctx,
 			 SE_DUMP_KDEBUG_BUFS, 0,
 			 "IOCTL: %s", __func__);
-
+#endif
 	fp->private_data = dev_ctx;
 
 exit:
@@ -1677,9 +1680,11 @@ static int se_if_fops_close(struct inode *nd, struct file *fp)
 	list_del(&dev_ctx->link);
 
 	mutex_unlock(&dev_ctx->fops_lock);
+#ifndef CONFIG_IMX_GKI_FIX
 	se_dump_to_logfl(dev_ctx,
 			 SE_DUMP_KDEBUG_BUFS, 0,
 			 "IOCTL: %s", __func__);
+#endif
 	kfree(dev_ctx->devname);
 	kfree(dev_ctx);
 
@@ -1711,9 +1716,11 @@ static long se_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 			}
 			priv->cmd_receiver_clbk_hdl.rx_msg_sz = MAX_NVM_MSG_LEN;
 			priv->cmd_receiver_clbk_hdl.dev_ctx = dev_ctx;
+#ifndef CONFIG_IMX_GKI_FIX
 			se_dump_to_logfl(dev_ctx,
 					SE_DUMP_KDEBUG_BUFS, 0,
 					"IOCTL: %s", "SE_IOCTL_ENABLE_CMD_RCV");
+#endif
 			err = 0;
 		} else {
 			err = -EBUSY;
