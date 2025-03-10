@@ -293,6 +293,7 @@ static int coda_vpu_enc_start_encode(struct vpu_instance *inst)
 	if (dst_vbuf)
 		dst_vbuf->consumed = true;
 
+	inst->ts_start = ktime_get_raw();
 	ret = coda_vpuapi_enc_start_one_frame(inst, &pic_param, &fail_res);
 	if (ret) {
 		dev_err(inst->vpu_dev->dev, "[%d] %s: fail %d\n", inst->id, __func__, ret);
@@ -341,6 +342,10 @@ static void coda_vpu_enc_handle_encoded_frame(struct vpu_instance *inst,
 		dev_err(inst->vpu_dev->dev, "[%d] encoder can't find dst buffer\n", inst->id);
 		return;
 	}
+
+	inst->ts_finish = ktime_get_raw();
+	inst->total_sw_time += (inst->ts_finish - inst->ts_start);
+	inst->processed_buf_num++;
 
 	v4l2_m2m_buf_copy_metadata(src_buf, dst_buf, true);
 	v4l2_m2m_buf_done(src_buf, state);
@@ -1259,6 +1264,15 @@ static void coda_vpu_enc_stop_streaming(struct vb2_queue *q)
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		inst->queued_src_buf_num = 0;
 		v4l2_m2m_set_src_buffered(inst->v4l2_fh.m2m_ctx, false);
+
+		if (inst->processed_buf_num) {
+			u64 temp = inst->processed_buf_num * NSEC_PER_SEC;
+			u64 fps = DIV_ROUND_CLOSEST(temp, inst->total_sw_time);
+
+			dev_info(inst->vpu_dev->dev, "[%d] fps sw: %lld\n", inst->id, fps);
+		}
+		inst->processed_buf_num = 0;
+		inst->total_sw_time = 0;
 	} else {
 		inst->eos = false;
 		inst->queued_dst_buf_num = 0;

@@ -477,6 +477,11 @@ struct vpu_instance {
 	u32 queued_src_buf_num;
 	u32 queued_dst_buf_num;
 	bool eos;
+
+	ktime_t ts_start;
+	ktime_t ts_finish;
+	u64 total_sw_time;
+	u32 processed_buf_num;
 };
 
 struct vpu_device {
