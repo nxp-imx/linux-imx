@@ -49,6 +49,9 @@ DECLARE_HOOK(android_vh_use_vm_swappiness,
 DECLARE_HOOK(android_vh_tune_scan_control,
 	TP_PROTO(bool *skip_swap),
 	TP_ARGS(skip_swap));
+DECLARE_HOOK(android_vh_page_referenced_check_bypass,
+	TP_PROTO(struct folio *folio, unsigned long nr_to_scan, int lru, bool *bypass),
+	TP_ARGS(folio, nr_to_scan, lru, bypass));
 #endif /* _TRACE_HOOK_VMSCAN_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

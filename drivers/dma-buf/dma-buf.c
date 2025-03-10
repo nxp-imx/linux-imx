@@ -34,8 +34,11 @@
 #include "dma-buf-sysfs-stats.h"
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-static DEFINE_MUTEX(debugfs_list_mutex);
-static LIST_HEAD(debugfs_list);
+DEFINE_MUTEX(debugfs_list_mutex);
+EXPORT_SYMBOL_NS_GPL(debugfs_list_mutex, DMA_BUF);
+
+LIST_HEAD(debugfs_list);
+EXPORT_SYMBOL_NS_GPL(debugfs_list, DMA_BUF);
 
 static void __dma_buf_debugfs_list_add(struct dma_buf *dmabuf)
 {

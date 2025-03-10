@@ -277,8 +277,8 @@ DECLARE_RESTRICTED_HOOK(android_rvh_after_enqueue_task,
 	TP_ARGS(rq, p, flags), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_after_dequeue_task,
-	TP_PROTO(struct rq *rq, struct task_struct *p, int flags),
-	TP_ARGS(rq, p, flags), 1);
+	TP_PROTO(struct rq *rq, struct task_struct *p, int flags, bool *dequeue_task_result),
+	TP_ARGS(rq, p, flags, dequeue_task_result), 1);
 
 struct cfs_rq;
 struct sched_entity;
@@ -404,6 +404,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_load_avg_cfs_rq,
 DECLARE_RESTRICTED_HOOK(android_rvh_update_rt_rq_load_avg_internal,
 	TP_PROTO(u64 now, struct rq *rq, int running, int *ret),
 	TP_ARGS(now, rq, running, ret), 1);
+
+DECLARE_HOOK(android_vh_account_task_time,
+	TP_PROTO(struct task_struct *p, struct rq *rq, int user_tick),
+	TP_ARGS(p, rq, user_tick));
 
 DECLARE_HOOK(android_vh_map_util_freq,
 	TP_PROTO(unsigned long util, unsigned long freq,

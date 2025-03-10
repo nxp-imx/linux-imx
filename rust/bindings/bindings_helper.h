@@ -23,6 +23,7 @@
 #include <linux/mdio.h>
 #include <linux/miscdevice.h>
 #include <linux/mman.h>
+#include <linux/memfd.h>
 #include <linux/phy.h>
 #include <linux/pid_namespace.h>
 #include <linux/poll.h>

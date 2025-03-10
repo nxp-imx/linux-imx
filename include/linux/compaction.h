@@ -101,6 +101,7 @@ bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
 extern void __meminit kcompactd_run(int nid);
 extern void __meminit kcompactd_stop(int nid);
 extern void wakeup_kcompactd(pg_data_t *pgdat, int order, int highest_zoneidx);
+extern void compact_node_async(int nid);
 
 #else
 static inline void reset_isolation_suitable(pg_data_t *pgdat)

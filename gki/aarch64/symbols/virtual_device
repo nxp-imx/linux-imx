@@ -93,7 +93,6 @@
   __dma_sync_single_for_device
   dma_unmap_sg_attrs
   do_trace_netlink_extack
-  down_write
   drm_add_modes_noedid
   drm_atomic_get_crtc_state
   drm_atomic_helper_check
@@ -122,6 +121,10 @@
   drm_dev_put
   drm_dev_register
   drm_dev_unregister
+  drm_edid_connector_add_modes
+  drm_edid_connector_update
+  drm_edid_free
+  drm_edid_read_custom
   __drm_err
   drm_format_info_block_height
   drm_format_info_block_width
@@ -136,6 +139,7 @@
   drm_gem_vm_open
   drm_helper_probe_single_connector_modes
   drm_ioctl
+  drm_kms_helper_hotplug_event
   drmm_kmalloc
   drmm_mode_config_init
   drm_mode_config_reset
@@ -144,7 +148,6 @@
   drm_poll
   drm_read
   drm_release
-  drm_set_preferred_mode
   drm_vblank_init
   ether_setup
   eth_mac_addr
@@ -224,8 +227,10 @@
   __kmalloc_noprof
   kmemdup_noprof
   kstrndup
+  kstrtobool
   kstrtobool_from_user
   kstrtoint
+  kstrtouint
   kthread_create_on_node
   kthread_park
   kthread_should_stop
@@ -453,7 +458,6 @@
   unregister_netdevice_queue
   unregister_pernet_device
   unregister_virtio_driver
-  up_write
   usb_add_hcd
   usb_alloc_urb
   usb_anchor_urb
@@ -512,6 +516,7 @@
   virtqueue_notify
   vmalloc_noprof
   vmalloc_to_page
+  __vma_start_write
   vm_get_page_prot
   vzalloc_noprof
   wait_for_completion_timeout
@@ -977,9 +982,7 @@
   input_mt_report_slot_state
   input_mt_sync_frame
   input_set_capability
-  kstrtobool
   kstrtou8
-  kstrtouint
   ps2_begin_command
   ps2_command
   ps2_drain
@@ -1137,7 +1140,7 @@
   drm_atomic_helper_damage_merged
   drm_atomic_helper_dirtyfb
   drm_atomic_helper_plane_destroy_state
-  drm_atomic_helper_plane_duplicate_state
+  __drm_atomic_helper_plane_duplicate_state
   drm_atomic_helper_plane_reset
   drm_connector_attach_edid_property
   drm_connector_cleanup
@@ -1151,10 +1154,6 @@
   drm_dev_exit
   drm_dev_get
   drm_dev_unplug
-  drm_edid_connector_add_modes
-  drm_edid_connector_update
-  drm_edid_free
-  drm_edid_read_custom
   drm_event_reserve_init
   drm_framebuffer_init
   drm_gem_dmabuf_mmap
@@ -1185,7 +1184,6 @@
   drm_gem_unmap_dma_buf
   drm_helper_hpd_irq_event
   drm_helper_mode_fill_fb_struct
-  drm_kms_helper_hotplug_event
   drmm_kfree
   drm_mm_init
   drm_mm_insert_node_in_range
@@ -1197,6 +1195,7 @@
   __drm_printfn_seq_file
   __drm_puts_seq_file
   drm_send_event
+  drm_set_preferred_mode
   drm_simple_encoder_init
   drm_syncobj_add_point
   drm_syncobj_find
@@ -1300,6 +1299,8 @@
   netif_tx_unlock
   nr_cpu_ids
   __num_online_cpus
+  page_pinner_inited
+  __page_pinner_put_page
   sched_clock
   skb_coalesce_rx_frag
   __skb_flow_dissect
@@ -1368,6 +1369,10 @@
   topology_set_scale_freq_source
 
 # required by vkms.ko
+  configfs_register_subsystem
+  configfs_unregister_subsystem
+  config_group_init
+  config_group_init_type_name
   __devm_drm_dev_alloc
   devres_open_group
   devres_release_group
@@ -1389,6 +1394,7 @@
   drm_crtc_vblank_crtc
   drm_crtc_vblank_put
   drm_debugfs_add_files
+  drm_format_info_bpp
   __drm_gem_destroy_shadow_plane_state
   __drm_gem_duplicate_shadow_plane_state
   drm_gem_fb_vmap
@@ -1406,16 +1412,20 @@
   drm_mode_object_put
   __drmm_workqueue_release
   drmm_writeback_connector_init
+  drm_plane_create_color_properties
   drm_plane_create_rotation_property
   drm_rect_rotate_inv
   drm_writeback_queue_job
   drm_writeback_signal_completion
+  kfree_const
+  krealloc_noprof
+  kstrdup_const
+  __xa_alloc
+  xa_destroy
+  xa_erase
+  xa_find
+  xa_find_after
 
 # preserved by --additions-only
-  drm_calc_timestamping_constants
-  drm_encoder_cleanup
-  drm_encoder_init
-  drmm_crtc_init_with_planes
-  drm_rect_rotate
-  drm_rotation_simplify
-  drm_writeback_connector_init
+  down_write
+  up_write
