@@ -1457,8 +1457,11 @@ static int enetc_get_ts_info(struct net_device *ndev,
 					SOF_TIMESTAMPING_TX_SOFTWARE;
 
 		info->tx_types = (1 << HWTSTAMP_TX_OFF) |
-				 (1 << HWTSTAMP_TX_ON) |
-				 (1 << HWTSTAMP_TX_ONESTEP_SYNC);
+				 (1 << HWTSTAMP_TX_ON);
+
+		if (enetc_si_is_pf(priv->si))
+			info->tx_types |= (1 << HWTSTAMP_TX_ONESTEP_SYNC);
+
 		info->rx_filters = (1 << HWTSTAMP_FILTER_NONE) |
 				   (1 << HWTSTAMP_FILTER_ALL);
 	} else {

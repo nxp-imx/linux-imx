@@ -16,6 +16,12 @@ struct folio_batch;
 DECLARE_RESTRICTED_HOOK(android_rvh_shmem_get_folio,
 			TP_PROTO(struct shmem_inode_info *info, struct folio **folio, int order),
 			TP_ARGS(info, folio, order), 3);
+DECLARE_HOOK(android_vh_shmem_mod_shmem,
+	TP_PROTO(struct address_space *mapping, long nr_pages),
+	TP_ARGS(mapping, nr_pages));
+DECLARE_HOOK(android_vh_shmem_mod_swapped,
+	TP_PROTO(struct address_space *mapping, long nr_pages),
+	TP_ARGS(mapping, nr_pages));
 DECLARE_RESTRICTED_HOOK(android_rvh_try_alloc_pages_gfp,
 			TP_PROTO(struct page **page, unsigned int order,
 				gfp_t gfp, enum zone_type highest_zoneidx),
@@ -114,6 +120,9 @@ DECLARE_HOOK(android_vh_si_mem_available_adjust,
 DECLARE_HOOK(android_vh_si_meminfo_adjust,
 	TP_PROTO(unsigned long *totalram, unsigned long *freeram),
 	TP_ARGS(totalram, freeram));
+DECLARE_HOOK(android_vh_si_meminfo_adjust_shmem,
+	TP_PROTO(unsigned long *sharedram),
+	TP_ARGS(sharedram));
 DECLARE_HOOK(android_vh_test_clear_look_around_ref,
 	TP_PROTO(struct page *page),
 	TP_ARGS(page));

@@ -211,6 +211,7 @@ static void filemap_unaccount_folio(struct address_space *mapping,
 	__lruvec_stat_mod_folio(folio, NR_FILE_PAGES, -nr);
 	if (folio_test_swapbacked(folio)) {
 		__lruvec_stat_mod_folio(folio, NR_SHMEM, -nr);
+		trace_android_vh_shmem_mod_shmem(folio->mapping, -nr);
 		if (folio_test_pmd_mappable(folio))
 			__lruvec_stat_mod_folio(folio, NR_SHMEM_THPS, -nr);
 	} else if (folio_test_pmd_mappable(folio)) {
@@ -3286,8 +3287,8 @@ static vm_fault_t filemap_fault_recheck_pte_none(struct vm_fault *vmf)
 	if (!(vmf->flags & FAULT_FLAG_ORIG_PTE_VALID))
 		return 0;
 
-	ptep = pte_offset_map_nolock(vma->vm_mm, vmf->pmd, vmf->address,
-				     &vmf->ptl);
+	ptep = pte_offset_map_ro_nolock(vma->vm_mm, vmf->pmd, vmf->address,
+					&vmf->ptl);
 	if (unlikely(!ptep))
 		return VM_FAULT_NOPAGE;
 

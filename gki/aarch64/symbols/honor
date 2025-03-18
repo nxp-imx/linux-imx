@@ -1,4 +1,52 @@
 [abi_symbol_list]
+  arch_vma_name
+  anon_vma_name
+  walk_page_range
+  vm_normal_page
+  pmd_clear_bad
+  __pmd_trans_huge_lock
+  __pte_offset_map_lock
   __traceiter_android_vh_add_lazyfree_bypass
   __tracepoint_android_vh_add_lazyfree_bypass
+  netdev_get_name
+  tcp_send_active_reset
+  __traceiter_android_vh_tcp_write_timeout_estab_retrans
+  __tracepoint_android_vh_tcp_write_timeout_estab_retrans
+  __traceiter_android_vh_inet_csk_clone_lock
+  __tracepoint_android_vh_inet_csk_clone_lock
+  __traceiter_android_vh_tcp_connect
+  __tracepoint_android_vh_tcp_connect
+  __traceiter_android_vh_tcp_clean_rtx_queue
+  __tracepoint_android_vh_tcp_clean_rtx_queue
+  __traceiter_android_vh_tcp_rcv_synack
+  __tracepoint_android_vh_tcp_rcv_synack
+  __traceiter_android_vh_udp_unicast_rcv_skb
+  __tracepoint_android_vh_udp_unicast_rcv_skb
+  __traceiter_android_vh_udp6_unicast_rcv_skb
+  __tracepoint_android_vh_udp6_unicast_rcv_skb
+  __traceiter_android_vh_tcp_rcv_established_fast_path
+  __tracepoint_android_vh_tcp_rcv_established_fast_path
+  __traceiter_android_vh_tcp_rcv_established_slow_path
+  __tracepoint_android_vh_tcp_rcv_established_slow_path
+  __traceiter_android_vh_tcp_rcv_rtt_update
+  __tracepoint_android_vh_tcp_rcv_rtt_update
+  wb_wakeup
+  redirty_tail_locked
+  bdi_list
+  __traceiter_android_vh_inode_io_list_del
+  __tracepoint_android_vh_inode_io_list_del
+  __traceiter_android_vh_redirty_tail_locked
+  __tracepoint_android_vh_redirty_tail_locked
+  __traceiter_android_vh_queue_io
+  __tracepoint_android_vh_queue_io
+  __traceiter_android_vh_mark_inode_dirty
+  __tracepoint_android_vh_mark_inode_dirty
+  __traceiter_android_vh_wb_dirty_limits
+  __tracepoint_android_vh_wb_dirty_limits
+  __traceiter_android_vh_vfs_fsync_range
+  __tracepoint_android_vh_vfs_fsync_range
+  __traceiter_android_rvh_do_fcntl
+  __tracepoint_android_rvh_do_fcntl
+  __traceiter_android_vh_evict
+  __tracepoint_android_vh_evict
 
