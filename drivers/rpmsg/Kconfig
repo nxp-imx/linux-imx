@@ -121,7 +121,7 @@ config IMX_RPMSG_TTY
 config IMX_RPMSG_CHRE
         tristate "IMX RPMSG chre driver -- loadable modules only"
         default m
-        depends on HAVE_IMX_RPMSG && m
+        depends on ARCH_MXC && RPMSG_CHAR
         help
           transmission context hub message from A core to the remote M core.
 endmenu

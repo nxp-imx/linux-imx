@@ -427,6 +427,7 @@ _IMX_IN_TREE_MODULES = [
     "drivers/media/platform/nxp/imx7-media-csi.ko",
     "drivers/media/platform/nxp/imx-parallel-csi.ko",
     "drivers/media/platform/nxp/imx8mq-mipi-csi2.ko",
+    "drivers/rpmsg/imx_rpmsg_chre.ko",
 ]
 
 def define_imx():
