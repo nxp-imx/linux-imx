@@ -203,6 +203,7 @@ struct dw_mipi_dsi2 {
 	u32 lanes;
 	u32 format;
 	unsigned long mode_flags;
+	int ppi_width;
 
 	struct drm_display_mode mode;
 	const struct dw_mipi_dsi2_plat_data *plat_data;
@@ -326,11 +327,11 @@ static void dw_mipi_dsi2_phy_ratio_cfg(struct dw_mipi_dsi2 *dsi2)
 	u64 tmp;
 
 	/*
-	 * in DPHY mode, the phy_hstx_clk is exactly 1/16 the Lane high-speed
-	 * data rate; In CPHY mode, the phy_hstx_clk is exactly 1/7 the trio
-	 * high speed symbol rate.
+	 * in DPHY mode, the phy_hstx_clk is exactly 1/ppi_width the Lane
+	 * high-speed data rate; In CPHY mode, the phy_hstx_clk is exactly 1/7
+	 * the trio high speed symbol rate.
 	 */
-	phy_hsclk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, 16);
+	phy_hsclk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, dsi2->ppi_width);
 
 	/* IPI_RATIO_MAN_CFG = PHY_HSTX_CLK / IPI_CLK */
 	pixel_clk = mode->crtc_clock * MSEC_PER_SEC;
@@ -370,6 +371,7 @@ static void dw_mipi_dsi2_phy_init(struct dw_mipi_dsi2 *dsi2)
 	u32 val = 0;
 
 	phy_ops->get_interface(dsi2->plat_data->priv_data, &iface);
+	dsi2->ppi_width = iface.ppi_width;
 
 	switch (iface.ppi_width) {
 	case 8:
@@ -477,7 +479,7 @@ static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 
 	pixel_clk = mode->crtc_clock * MSEC_PER_SEC;
 
-	phy_hs_clk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, 16);
+	phy_hs_clk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, dsi2->ppi_width);
 
 	tmp = hsa * phy_hs_clk;
 	hsa_time = DIV_ROUND_CLOSEST_ULL(tmp << 16, pixel_clk);
