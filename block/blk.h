@@ -13,11 +13,12 @@
 
 struct elevator_type;
 
+#define	BLK_MIN_SEGMENT_SIZE	4096
+
 /* Max future timer expiry for timeouts */
 #define BLK_MAX_TIMEOUT		(5 * HZ)
 
 extern struct dentry *blk_debugfs_root;
-DECLARE_STATIC_KEY_FALSE(blk_sub_page_limits);
 
 struct blk_flush_queue {
 	spinlock_t		mq_flush_lock;
@@ -44,13 +45,7 @@ bool __blk_freeze_queue_start(struct request_queue *q,
 int __bio_queue_enter(struct request_queue *q, struct bio *bio);
 void submit_bio_noacct_nocheck(struct bio *bio);
 void bio_await_chain(struct bio *bio);
-static inline bool blk_queue_sub_page_limits(const struct queue_limits *lim)
-{
-	return static_branch_unlikely(&blk_sub_page_limits) &&
-		lim->sub_page_limits;
-}
-int blk_sub_page_limit_queues_get(void *data, u64 *val);
-void blk_disable_sub_page_limits(struct queue_limits *q);
+
 static inline bool blk_try_enter_queue(struct request_queue *q, bool pm)
 {
 	rcu_read_lock();
@@ -103,23 +98,6 @@ static inline void blk_wait_io(struct completion *done)
 struct bio_vec *bvec_alloc(mempool_t *pool, unsigned short *nr_vecs,
 		gfp_t gfp_mask);
 void bvec_free(mempool_t *pool, struct bio_vec *bv, unsigned short nr_vecs);
-/* Number of DMA segments required to transfer @bytes data. */
-static inline unsigned int blk_segments(const struct queue_limits *limits,
-					unsigned int bytes)
-{
-	if (!blk_queue_sub_page_limits(limits))
-		return 1;
-
-	{
-		const unsigned int mss = limits->max_segment_size;
-
-		if (bytes <= mss)
-			return 1;
-		if (is_power_of_2(mss))
-			return round_up(bytes, mss) >> ilog2(mss);
-		return (bytes + mss - 1) / mss;
-	}
-}
 
 bool bvec_try_merge_hw_page(struct request_queue *q, struct bio_vec *bv,
 		struct page *page, unsigned len, unsigned offset,
@@ -370,18 +348,23 @@ struct bio *bio_split_rw(struct bio *bio, const struct queue_limits *lim,
 struct bio *bio_split_zone_append(struct bio *bio,
 		const struct queue_limits *lim, unsigned *nr_segs);
 
+/*
+ * All drivers must accept single-segments bios that are smaller than PAGE_SIZE.
+ *
+ * This is a quick and dirty check that relies on the fact that bi_io_vec[0] is
+ * always valid if a bio has data.  The check might lead to occasional false
+ * positives when bios are cloned, but compared to the performance impact of
+ * cloned bios themselves the loop below doesn't matter anyway.
+ */
 static inline bool bio_may_need_split(struct bio *bio,
 		const struct queue_limits *lim)
 {
-	/*
-	 * Check whether bio splitting should be performed. This check may
-	 * trigger the bio splitting code even if splitting is not necessary.
-	 */
-	if (blk_queue_sub_page_limits(lim) && bio->bi_io_vec &&
-	    bio->bi_io_vec->bv_len > lim->max_segment_size)
+	if (lim->chunk_sectors)
 		return true;
-	return lim->chunk_sectors || bio->bi_vcnt != 1 ||
-		bio->bi_io_vec->bv_len + bio->bi_io_vec->bv_offset > PAGE_SIZE;
+	if (bio->bi_vcnt != 1)
+		return true;
+	return bio->bi_io_vec->bv_len + bio->bi_io_vec->bv_offset >
+		lim->min_segment_size;
 }
 
 /**
@@ -405,10 +388,6 @@ static inline struct bio *__bio_split_to_limits(struct bio *bio,
 	case REQ_OP_WRITE:
 		if (bio_may_need_split(bio, lim))
 			return bio_split_rw(bio, lim, nr_segs);
-		else if (bio->bi_vcnt == 1) {
-			*nr_segs = blk_segments(lim, bio->bi_io_vec[0].bv_len);
-			return bio;
-		}
 		*nr_segs = 1;
 		return bio;
 	case REQ_OP_ZONE_APPEND:
@@ -593,14 +572,6 @@ void bdev_set_nr_sectors(struct block_device *bdev, sector_t sectors);
 
 struct gendisk *__alloc_disk_node(struct request_queue *q, int node_id,
 		struct lock_class_key *lkclass);
-
-int bio_add_hw_page(struct request_queue *q, struct bio *bio,
-		struct page *page, unsigned int len, unsigned int offset,
-		unsigned int max_sectors, bool *same_page);
-
-int bio_add_hw_folio(struct request_queue *q, struct bio *bio,
-		struct folio *folio, size_t len, size_t offset,
-		unsigned int max_sectors, bool *same_page);
 
 /*
  * Clean up a page appropriately, where the page may be pinned, may have a

@@ -7196,34 +7196,6 @@ const struct binder_debugfs_entry binder_debugfs_entries[] = {
 	{} /* terminator */
 };
 
-bool binder_use_rust;
-EXPORT_SYMBOL_GPL(binder_use_rust);
-
-static int binder_impl_param_set(const char *buffer, const struct kernel_param *kp)
-{
-	if (!strcmp(buffer, "rust"))
-		binder_use_rust = true;
-	else if (!strcmp(buffer, "c"))
-		binder_use_rust = false;
-	else
-		return -EINVAL;
-
-	return 0;
-}
-
-static int binder_impl_param_get(char *buffer, const struct kernel_param *kp)
-{
-	/* The buffer is 4k bytes, so this will not overflow. */
-	return sprintf(buffer, "%s\n", binder_use_rust ? "rust" : "c");
-}
-
-static const struct kernel_param_ops binder_impl_param_ops = {
-	.set = binder_impl_param_set,
-	.get = binder_impl_param_get,
-};
-
-module_param_cb(impl, &binder_impl_param_ops, NULL, 0444);
-
 static int __init init_binder_device(const char *name)
 {
 	int ret;
@@ -7261,9 +7233,6 @@ static int __init binder_init(void)
 	struct hlist_node *tmp;
 	char *device_names = NULL;
 	const struct binder_debugfs_entry *db_entry;
-
-	if (binder_use_rust)
-		return 0;
 
 	ret = binder_alloc_shrinker_init();
 	if (ret)
@@ -7327,6 +7296,92 @@ err_alloc_device_names_failed:
 }
 
 device_initcall(binder_init);
+
+#define BINDER_USE_C 0
+#define BINDER_USE_RUST 1
+#define BINDER_USE_RUST_LOADED 2
+int binder_use_rust;
+EXPORT_SYMBOL_GPL(binder_use_rust);
+
+static DEFINE_MUTEX(binder_use_rust_lock);
+
+/*
+ * Called by Rust Binder to unload the C Binder driver.
+ */
+int unload_binder(void)
+{
+	int ret = 0;
+
+	if (!IS_ENABLED(CONFIG_ANDROID_BINDERFS))
+		return -EINVAL;
+
+	mutex_lock(&binder_use_rust_lock);
+	if (binder_use_rust == BINDER_USE_RUST)
+		binder_use_rust = BINDER_USE_RUST_LOADED;
+	else
+		ret = -EINVAL;
+	mutex_unlock(&binder_use_rust_lock);
+
+	if (!ret) {
+		unload_binderfs();
+		debugfs_remove_recursive(binder_debugfs_dir_entry_root);
+		binder_alloc_shrinker_exit();
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(unload_binder);
+
+int on_binderfs_mount(void)
+{
+	int ret = 0;
+
+	mutex_lock(&binder_use_rust_lock);
+	if (binder_use_rust == BINDER_USE_RUST) {
+		/*
+		 * C binder was mounted before loading the Rust Binder module.
+		 * In this case, we fall back to using C Binder even though
+		 * Rust Binder was requested.
+		 */
+		pr_warn("Using C Binder even though binder.impl=rust is set.\n");
+		binder_use_rust = BINDER_USE_C;
+	}
+
+	if (binder_use_rust == BINDER_USE_RUST_LOADED) {
+		/*
+		 * Rust Binder is requested *and* has already started unloading
+		 * C Binder. Fail the attempt to mount C Binder.
+		 */
+		ret = -EINVAL;
+	}
+	mutex_unlock(&binder_use_rust_lock);
+	return ret;
+}
+
+static int binder_impl_param_set(const char *buffer, const struct kernel_param *kp)
+{
+	if (!strcmp(buffer, "rust"))
+		binder_use_rust = true;
+	else if (!strcmp(buffer, "c"))
+		binder_use_rust = false;
+	else
+		return -EINVAL;
+
+	return 0;
+}
+
+static int binder_impl_param_get(char *buffer, const struct kernel_param *kp)
+{
+	/* The buffer is 4k bytes, so this will not overflow. */
+	return sprintf(buffer, "%s\n", binder_use_rust ? "rust" : "c");
+}
+
+static const struct kernel_param_ops binder_impl_param_ops = {
+	.set = binder_impl_param_set,
+	.get = binder_impl_param_get,
+};
+
+module_param_cb(impl, &binder_impl_param_ops, NULL, 0444);
 
 #define CREATE_TRACE_POINTS
 #include "binder_trace.h"

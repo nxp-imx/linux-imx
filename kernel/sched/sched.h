@@ -469,10 +469,8 @@ struct task_group {
 	struct rt_bandwidth	rt_bandwidth;
 #endif
 
-#ifdef CONFIG_EXT_GROUP_SCHED
 	u32			scx_flags;	/* SCX_TG_* */
 	u32			scx_weight;
-#endif
 
 	struct rcu_head		rcu;
 	struct list_head	list;
@@ -755,7 +753,6 @@ struct cfs_rq {
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 };
 
-#ifdef CONFIG_SCHED_CLASS_EXT
 /* scx_rq->flags, protected by the rq lock */
 enum scx_rq_flags {
 	/*
@@ -792,7 +789,6 @@ struct scx_rq {
 	struct irq_work		deferred_irq_work;
 	struct irq_work		kick_cpus_irq_work;
 };
-#endif /* CONFIG_SCHED_CLASS_EXT */
 
 static inline int rt_bandwidth_enabled(void)
 {
@@ -1152,9 +1148,7 @@ struct rq {
 	struct cfs_rq		cfs;
 	struct rt_rq		rt;
 	struct dl_rq		dl;
-#ifdef CONFIG_SCHED_CLASS_EXT
 	struct scx_rq		scx;
-#endif
 
 	struct sched_dl_entity	fair_server;
 

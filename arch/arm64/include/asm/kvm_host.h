@@ -271,7 +271,10 @@ struct kvm_smccc_features {
 };
 
 struct kvm_pinned_page {
-	struct rb_node		node;
+	union {
+		struct rb_node	 	node;
+		struct list_head 	list_node;
+	};
 	struct page		*page;
 	u64			ipa;
 	u64			__subtree_last;
@@ -747,7 +750,46 @@ struct kvm_hyp_req {
 	};
 };
 
-#define KVM_HYP_REQ_MAX (PAGE_SIZE / sizeof(struct kvm_hyp_req))
+#define KVM_HYP_REQ_MAX ((PAGE_SIZE >> 4) / sizeof(struct kvm_hyp_req))
+
+/*
+ * Hypervisor version of kvm_pinned_page. Typically stored in per-vCPU hyp_req
+ * page. Packed to allow the biggest possible sglist. 40-bits PFN being the
+ * biggest PA_BITS value (52) - minimum PAGE_SHIFT (12).
+ */
+struct kvm_hyp_pinned_page {
+	u64	pfn : 40;
+	u64	gfn : 40;
+	u8	order;
+} __packed;
+
+/*
+ * Get the kvm_hyp_pinned_page after @ppage for the array found in the shared page kvm_hyp_req.
+ * Also check the entry when @valid is set (useful to read the array).
+ */
+static inline struct kvm_hyp_pinned_page *
+next_kvm_hyp_pinned_page(struct kvm_hyp_req *page, struct kvm_hyp_pinned_page *ppage, bool valid)
+{
+	void *start = (void *)(page + KVM_HYP_REQ_MAX);
+	void *end = (void *)page + PAGE_SIZE;
+
+	if (WARN_ON(!PAGE_ALIGNED(page)))
+		return NULL;
+
+	if (!ppage)
+		ppage = (struct kvm_hyp_pinned_page *)start;
+	else
+		ppage++;
+
+	if (((void *)ppage + sizeof(*ppage)) >= end)
+		return NULL;
+
+	if (valid && (ppage->order == 0xFF))
+		return NULL;
+
+	return ppage;
+}
+
 /*
  * De-serialize request from SMCCC return.
  * See hyp-main.c for serialization.

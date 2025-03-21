@@ -695,8 +695,6 @@ struct xhci_virt_ep {
 	int			next_frame_id;
 	/* Use new Isoch TRB layout needed for extended TBC support */
 	bool			use_extended_tbc;
-	/* set if this endpoint is controlled via sideband access*/
-	struct xhci_sideband	*sideband;
 };
 
 enum xhci_overhead_type {
@@ -759,8 +757,6 @@ struct xhci_virt_device {
 	u16				current_mel;
 	/* Used for the debugfs interfaces. */
 	void				*debugfs_private;
-	/* set if this endpoint is controlled via sideband access*/
-	struct xhci_sideband	*sideband;
 };
 
 /*
@@ -1836,12 +1832,9 @@ void xhci_free_container_ctx(struct xhci_hcd *xhci,
 		struct xhci_container_ctx *ctx);
 struct xhci_interrupter *
 xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
-				  u32 imod_interval, unsigned int intr_num);
+				  u32 imod_interval);
 void xhci_remove_secondary_interrupter(struct usb_hcd
 				       *hcd, struct xhci_interrupter *ir);
-void xhci_skip_sec_intr_events(struct xhci_hcd *xhci,
-			       struct xhci_ring *ring,
-			       struct xhci_interrupter *ir);
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);
@@ -1881,7 +1874,6 @@ int xhci_alloc_tt_info(struct xhci_hcd *xhci,
 		struct usb_tt *tt, gfp_t mem_flags);
 int xhci_set_interrupter_moderation(struct xhci_interrupter *ir,
 				    u32 imod_interval);
-int xhci_disable_interrupter(struct xhci_interrupter *ir);
 
 /* xHCI ring, segment, TRB, and TD functions */
 dma_addr_t xhci_trb_virt_to_dma(struct xhci_segment *seg, union xhci_trb *trb);
@@ -1928,9 +1920,6 @@ unsigned int count_trbs(u64 addr, u64 len);
 void xhci_process_cancelled_tds(struct xhci_virt_ep *ep);
 int xhci_stop_endpoint_sync(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 			    int suspend, gfp_t gfp_flags);
-void xhci_update_erst_dequeue(struct xhci_hcd *xhci,
-			      struct xhci_interrupter *ir,
-			      bool clear_ehb);
 
 /* xHCI roothub code */
 void xhci_set_link_state(struct xhci_hcd *xhci, struct xhci_port *port,

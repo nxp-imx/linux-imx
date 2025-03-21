@@ -2774,6 +2774,10 @@
 			This option only applies when booting with
 			kvm-arm.mode=protected.
 
+	kvm-arm.protected_prefault=
+			[KVM,ARM] Minimum order for each protected VM fault.
+			This range from 0 (default) to 9.
+
 	kvm-arm.vgic_v3_group0_trap=
 			[KVM,ARM,EARLY] Trap guest accesses to GICv3 group-0
 			system registers

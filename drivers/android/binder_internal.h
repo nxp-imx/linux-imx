@@ -17,6 +17,14 @@
 #include "binder_alloc.h"
 #include "dbitmap.h"
 
+extern int binder_use_rust;
+#ifdef CONFIG_ANDROID_BINDERFS
+void unload_binderfs(void);
+int on_binderfs_mount(void);
+#else
+static inline void unload_binderfs(void) {}
+#endif
+
 struct binder_context {
 	struct binder_node *binder_context_mgr_node;
 	struct mutex context_mgr_node_lock;

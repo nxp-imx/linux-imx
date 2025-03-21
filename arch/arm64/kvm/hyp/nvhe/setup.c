@@ -77,6 +77,10 @@ static int divide_memory_pool(void *virt, unsigned long size)
 	if (!ffa_proxy_pages)
 		return -ENOMEM;
 
+	hyp_ppages = hyp_early_alloc_contig(1);
+	if (!hyp_ppages)
+		return -ENOMEM;
+
 	return 0;
 }
 

@@ -15,6 +15,7 @@ use crate::{
 
 /// Calls the security modules to determine if the given task can become the manager of a binder
 /// context.
+#[inline]
 pub fn binder_set_context_mgr(mgr: &Credential) -> Result {
     // SAFETY: `mrg.0` is valid because the shared reference guarantees a nonzero refcount.
     to_result(unsafe { bindings::security_binder_set_context_mgr(mgr.as_ptr()) })
@@ -22,6 +23,7 @@ pub fn binder_set_context_mgr(mgr: &Credential) -> Result {
 
 /// Calls the security modules to determine if binder transactions are allowed from task `from` to
 /// task `to`.
+#[inline]
 pub fn binder_transaction(from: &Credential, to: &Credential) -> Result {
     // SAFETY: `from` and `to` are valid because the shared references guarantee nonzero refcounts.
     to_result(unsafe { bindings::security_binder_transaction(from.as_ptr(), to.as_ptr()) })
@@ -29,6 +31,7 @@ pub fn binder_transaction(from: &Credential, to: &Credential) -> Result {
 
 /// Calls the security modules to determine if task `from` is allowed to send binder objects
 /// (owned by itself or other processes) to task `to` through a binder transaction.
+#[inline]
 pub fn binder_transfer_binder(from: &Credential, to: &Credential) -> Result {
     // SAFETY: `from` and `to` are valid because the shared references guarantee nonzero refcounts.
     to_result(unsafe { bindings::security_binder_transfer_binder(from.as_ptr(), to.as_ptr()) })
@@ -36,6 +39,7 @@ pub fn binder_transfer_binder(from: &Credential, to: &Credential) -> Result {
 
 /// Calls the security modules to determine if task `from` is allowed to send the given file to
 /// task `to` (which would get its own file descriptor) through a binder transaction.
+#[inline]
 pub fn binder_transfer_file(from: &Credential, to: &Credential, file: &File) -> Result {
     // SAFETY: `from`, `to` and `file` are valid because the shared references guarantee nonzero
     // refcounts.
@@ -58,6 +62,7 @@ pub struct SecurityCtx {
 
 impl SecurityCtx {
     /// Get the security context given its id.
+    #[inline]
     pub fn from_secid(secid: u32) -> Result<Self> {
         let mut secdata = core::ptr::null_mut();
         let mut seclen = 0u32;
@@ -72,16 +77,19 @@ impl SecurityCtx {
     }
 
     /// Returns whether the security context is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.seclen == 0
     }
 
     /// Returns the length of this security context.
+    #[inline]
     pub fn len(&self) -> usize {
         self.seclen
     }
 
     /// Returns the bytes for this security context.
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         let ptr = self.secdata;
         if ptr.is_null() {
@@ -98,6 +106,7 @@ impl SecurityCtx {
 }
 
 impl Drop for SecurityCtx {
+    #[inline]
     fn drop(&mut self) {
         // SAFETY: By the invariant of `Self`, this frees a pointer that came from a successful
         // call to `security_secid_to_secctx` and has not yet been destroyed by

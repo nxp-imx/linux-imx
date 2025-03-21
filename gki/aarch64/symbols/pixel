@@ -1436,7 +1436,6 @@
   mctrl_gpio_get_outputs
   mctrl_gpio_init
   mctrl_gpio_set
-  mem_alloc_profiling_key
   __memcat_p
   memchr
   memcmp
@@ -1792,6 +1791,8 @@
   pin_user_pages_fast
   pin_user_pages_remote
   pktgen_xfrm_outer_mode_output
+  pkvm_iommu_resume
+  pkvm_iommu_suspend
   __pkvm_load_el2_module
   platform_bus_type
   platform_device_add

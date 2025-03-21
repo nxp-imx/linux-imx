@@ -3004,15 +3004,6 @@
   snd_soc_unregister_card
   snd_soc_unregister_component
   snd_timer_interrupt
-  snd_usb_autoresume
-  snd_usb_autosuspend
-  snd_usb_endpoint_prepare
-  snd_usb_hw_free
-  snd_usb_hw_params
-  snd_usb_lock_shutdown
-  snd_usb_register_platform_ops
-  snd_usb_unlock_shutdown
-  snd_usb_unregister_platform_ops
   snprintf
   soc_device_register
   soc_device_unregister
@@ -3239,6 +3230,7 @@
   __traceiter_android_rvh_after_dequeue_task
   __traceiter_android_rvh_after_enqueue_task
   __traceiter_android_rvh_before_do_sched_yield
+  __traceiter_android_rvh_bitmap_find_best_next_area
   __traceiter_android_rvh_build_perf_domains
   __traceiter_android_rvh_can_migrate_task
   __traceiter_android_rvh_check_preempt_tick
@@ -3356,6 +3348,7 @@
   __tracepoint_android_rvh_after_dequeue_task
   __tracepoint_android_rvh_after_enqueue_task
   __tracepoint_android_rvh_before_do_sched_yield
+  __tracepoint_android_rvh_bitmap_find_best_next_area
   __tracepoint_android_rvh_build_perf_domains
   __tracepoint_android_rvh_can_migrate_task
   __tracepoint_android_rvh_check_preempt_tick

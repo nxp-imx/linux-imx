@@ -949,8 +949,11 @@ static bool bvec_try_merge_page(struct bio_vec *bv, struct page *page,
 
 /*
  * Try to merge a page into a segment, while obeying the hardware segment
- * size limit.  This is not for normal read/write bios, but for passthrough
- * or Zone Append operations that we can't split.
+ * size limit.
+ *
+ * This is kept around for the integrity metadata, which is still tries
+ * to build the initial bio to the hardware limit and doesn't have proper
+ * helpers to split.  Hopefully this will go away soon.
  */
 bool bvec_try_merge_hw_page(struct request_queue *q, struct bio_vec *bv,
 		struct page *page, unsigned len, unsigned offset,
@@ -966,144 +969,6 @@ bool bvec_try_merge_hw_page(struct request_queue *q, struct bio_vec *bv,
 		return false;
 	return bvec_try_merge_page(bv, page, len, offset, same_page);
 }
-
-/**
- * bio_add_hw_page - attempt to add a page to a bio with hw constraints
- * @q: the target queue
- * @bio: destination bio
- * @page: page to add
- * @len: vec entry length
- * @offset: vec entry offset
- * @max_sectors: maximum number of sectors that can be added
- * @same_page: return if the segment has been merged inside the same page
- *
- * Add a page to a bio while respecting the hardware max_sectors, max_segment
- * and gap limitations.
- */
-int bio_add_hw_page(struct request_queue *q, struct bio *bio,
-		struct page *page, unsigned int len, unsigned int offset,
-		unsigned int max_sectors, bool *same_page)
-{
-	unsigned int max_size = max_sectors << SECTOR_SHIFT;
-	unsigned int mss;
-
-	if (WARN_ON_ONCE(bio_flagged(bio, BIO_CLONED)))
-		return 0;
-	/* Sub page segment limit should not interfere while adding the hw page
-	 * to the bio. Such bio page will be split into the segments later in
-	 * blk_rq_append_bio().
-	 */
-	mss = max(PAGE_SIZE, queue_max_segment_size(q));
-	len = min3(len, max_size, mss);
-	if (len > max_size - bio->bi_iter.bi_size)
-		return 0;
-
-	if (bio->bi_vcnt > 0) {
-		struct bio_vec *bv = &bio->bi_io_vec[bio->bi_vcnt - 1];
-
-		if (bvec_try_merge_hw_page(q, bv, page, len, offset,
-				same_page)) {
-			bio->bi_iter.bi_size += len;
-			return len;
-		}
-
-		if (bio->bi_vcnt >=
-		    min(bio->bi_max_vecs, queue_max_segments(q)))
-			return 0;
-
-		/*
-		 * If the queue doesn't support SG gaps and adding this segment
-		 * would create a gap, disallow it.
-		 */
-		if (bvec_gap_to_prev(&q->limits, bv, offset))
-			return 0;
-	}
-
-	bvec_set_page(&bio->bi_io_vec[bio->bi_vcnt], page, len, offset);
-	bio->bi_vcnt++;
-	bio->bi_iter.bi_size += len;
-	return len;
-}
-
-/**
- * bio_add_hw_folio - attempt to add a folio to a bio with hw constraints
- * @q: the target queue
- * @bio: destination bio
- * @folio: folio to add
- * @len: vec entry length
- * @offset: vec entry offset in the folio
- * @max_sectors: maximum number of sectors that can be added
- * @same_page: return if the segment has been merged inside the same folio
- *
- * Add a folio to a bio while respecting the hardware max_sectors, max_segment
- * and gap limitations.
- */
-int bio_add_hw_folio(struct request_queue *q, struct bio *bio,
-		struct folio *folio, size_t len, size_t offset,
-		unsigned int max_sectors, bool *same_page)
-{
-	if (len > UINT_MAX || offset > UINT_MAX)
-		return 0;
-	return bio_add_hw_page(q, bio, folio_page(folio, 0), len, offset,
-			       max_sectors, same_page);
-}
-
-/**
- * bio_add_pc_page	- attempt to add page to passthrough bio
- * @q: the target queue
- * @bio: destination bio
- * @page: page to add
- * @len: vec entry length
- * @offset: vec entry offset
- *
- * Attempt to add a page to the bio_vec maplist. This can fail for a
- * number of reasons, such as the bio being full or target block device
- * limitations. The target block device must allow bio's up to PAGE_SIZE,
- * so it is always possible to add a single page to an empty bio.
- *
- * This should only be used by passthrough bios.
- */
-int bio_add_pc_page(struct request_queue *q, struct bio *bio,
-		struct page *page, unsigned int len, unsigned int offset)
-{
-	bool same_page = false;
-	return bio_add_hw_page(q, bio, page, len, offset,
-			queue_max_hw_sectors(q), &same_page);
-}
-EXPORT_SYMBOL(bio_add_pc_page);
-
-/**
- * bio_add_zone_append_page - attempt to add page to zone-append bio
- * @bio: destination bio
- * @page: page to add
- * @len: vec entry length
- * @offset: vec entry offset
- *
- * Attempt to add a page to the bio_vec maplist of a bio that will be submitted
- * for a zone-append request. This can fail for a number of reasons, such as the
- * bio being full or the target block device is not a zoned block device or
- * other limitations of the target block device. The target block device must
- * allow bio's up to PAGE_SIZE, so it is always possible to add a single page
- * to an empty bio.
- *
- * Returns: number of bytes added to the bio, or 0 in case of a failure.
- */
-int bio_add_zone_append_page(struct bio *bio, struct page *page,
-			     unsigned int len, unsigned int offset)
-{
-	struct request_queue *q = bdev_get_queue(bio->bi_bdev);
-	bool same_page = false;
-
-	if (WARN_ON_ONCE(bio_op(bio) != REQ_OP_ZONE_APPEND))
-		return 0;
-
-	if (WARN_ON_ONCE(!bdev_is_zoned(bio->bi_bdev)))
-		return 0;
-
-	return bio_add_hw_page(q, bio, page, len, offset,
-			       queue_max_zone_append_sectors(q), &same_page);
-}
-EXPORT_SYMBOL_GPL(bio_add_zone_append_page);
 
 /**
  * __bio_add_page - add page(s) to a bio in a new segment
@@ -1214,21 +1079,12 @@ EXPORT_SYMBOL_GPL(__bio_release_pages);
 
 void bio_iov_bvec_set(struct bio *bio, struct iov_iter *iter)
 {
-	size_t size = iov_iter_count(iter);
-
 	WARN_ON_ONCE(bio->bi_max_vecs);
-
-	if (bio_op(bio) == REQ_OP_ZONE_APPEND) {
-		struct request_queue *q = bdev_get_queue(bio->bi_bdev);
-		size_t max_sectors = queue_max_zone_append_sectors(q);
-
-		size = min(size, max_sectors << SECTOR_SHIFT);
-	}
 
 	bio->bi_vcnt = iter->nr_segs;
 	bio->bi_io_vec = (struct bio_vec *)iter->bvec;
 	bio->bi_iter.bi_bvec_done = iter->iov_offset;
-	bio->bi_iter.bi_size = size;
+	bio->bi_iter.bi_size = iov_iter_count(iter);
 	bio_set_flag(bio, BIO_CLONED);
 }
 
@@ -1250,20 +1106,6 @@ static int bio_iov_add_folio(struct bio *bio, struct folio *folio, size_t len,
 		return 0;
 	}
 	bio_add_folio_nofail(bio, folio, len, offset);
-	return 0;
-}
-
-static int bio_iov_add_zone_append_folio(struct bio *bio, struct folio *folio,
-					 size_t len, size_t offset)
-{
-	struct request_queue *q = bdev_get_queue(bio->bi_bdev);
-	bool same_page = false;
-
-	if (bio_add_hw_folio(q, bio, folio, len, offset,
-			queue_max_zone_append_sectors(q), &same_page) != len)
-		return -EINVAL;
-	if (same_page && bio_flagged(bio, BIO_PAGE_PINNED))
-		unpin_user_folio(folio, 1);
 	return 0;
 }
 
@@ -1373,14 +1215,7 @@ static int __bio_iov_iter_get_pages(struct bio *bio, struct iov_iter *iter)
 			len = get_contig_folio_len(&num_pages, pages, i,
 						   folio, left, offset);
 
-		if (bio_op(bio) == REQ_OP_ZONE_APPEND) {
-			ret = bio_iov_add_zone_append_folio(bio, folio, len,
-					folio_offset);
-			if (ret)
-				break;
-		} else
-			bio_iov_add_folio(bio, folio, len, folio_offset);
-
+		bio_iov_add_folio(bio, folio, len, folio_offset);
 		offset = 0;
 	}
 
