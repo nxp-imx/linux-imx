@@ -12,6 +12,7 @@
 #include <linux/trusty/smcall.h>
 #include <linux/arm_ffa.h>
 #include <linux/trusty/trusty.h>
+#include <linux/version.h>
 
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
@@ -299,7 +300,13 @@ err_ffa_version:
 	return ret;
 }
 
-static void trusty_ffa_remove(struct ffa_device *ffa_dev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_ffa_remove(struct ffa_device *ffa_dev)
 {
 	struct trusty_ffa_state *s = ffa_dev_get_drvdata(ffa_dev);
 
@@ -309,6 +316,9 @@ static void trusty_ffa_remove(struct ffa_device *ffa_dev)
 	 */
 	memzero_explicit(s, sizeof(struct trusty_ffa_state));
 	kfree(s);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct ffa_device_id trusty_ffa_device_id[] = {
@@ -478,7 +488,7 @@ MODULE_DEVICE_TABLE(trusty_ffa, trusty_ffa_of_match);
 
 static struct platform_driver trusty_ffa_platform_driver = {
 	.probe = trusty_ffa_platform_probe,
-	.remove_new = trusty_ffa_platform_remove,
+	.remove = trusty_ffa_platform_remove,
 	.driver	= {
 		.name = "trusty-ffa",
 		.of_match_table = trusty_ffa_of_match,

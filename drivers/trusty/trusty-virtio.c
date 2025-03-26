@@ -936,7 +936,13 @@ err_create_check_wq:
 	return ret;
 }
 
-static void trusty_virtio_remove(struct platform_device *pdev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_virtio_remove(struct platform_device *pdev)
 {
 	struct trusty_ctx *tctx = platform_get_drvdata(pdev);
 	int ret;
@@ -976,6 +982,9 @@ static void trusty_virtio_remove(struct platform_device *pdev)
 
 	/* free context */
 	kfree(tctx);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct of_device_id trusty_of_match[] = {
@@ -989,7 +998,7 @@ MODULE_DEVICE_TABLE(of, trusty_of_match);
 
 static struct platform_driver trusty_virtio_driver = {
 	.probe = trusty_virtio_probe,
-	.remove_new = trusty_virtio_remove,
+	.remove = trusty_virtio_remove,
 	.driver = {
 		.name = "trusty-virtio",
 		.of_match_table = trusty_of_match,

@@ -921,12 +921,21 @@ static int trusty_log_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static void trusty_log_remove(struct platform_device *pdev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_log_remove(struct platform_device *pdev)
 {
 	struct trusty_log_state *s = platform_get_drvdata(pdev);
 
 	trusty_log_sfile_unregister(s);
 	kref_put(&s->refcount, trusty_log_cleanup);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static void trusty_log_cleanup(struct kref *ref)
@@ -975,7 +984,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_test_of_match);
 
 static struct platform_driver trusty_log_driver = {
 	.probe = trusty_log_probe,
-	.remove_new = trusty_log_remove,
+	.remove = trusty_log_remove,
 	.driver = {
 		.name = "trusty-log",
 		.of_match_table = trusty_test_of_match,

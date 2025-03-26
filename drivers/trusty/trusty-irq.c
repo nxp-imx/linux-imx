@@ -16,6 +16,7 @@
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/sm_err.h>
 #include <linux/trusty/trusty.h>
+#include <linux/version.h>
 
 #include "trusty-irq.h"
 #include "trusty-irq-trace.h"
@@ -566,7 +567,13 @@ err_alloc_is:
 	return ret;
 }
 
-static void trusty_irq_remove(struct platform_device *pdev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_irq_remove(struct platform_device *pdev)
 {
 	int ret;
 	unsigned long irq_flags;
@@ -587,6 +594,9 @@ static void trusty_irq_remove(struct platform_device *pdev)
 					&is->trusty_call_notifier);
 	free_percpu(is->percpu_irqs);
 	kfree(is);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct of_device_id trusty_test_of_match[] = {
@@ -598,7 +608,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_test_of_match);
 
 static struct platform_driver trusty_irq_driver = {
 	.probe = trusty_irq_probe,
-	.remove_new = trusty_irq_remove,
+	.remove = trusty_irq_remove,
 	.driver	= {
 		.name = "trusty-irq",
 		.of_match_table = trusty_test_of_match,

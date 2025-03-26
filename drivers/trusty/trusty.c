@@ -15,6 +15,7 @@
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/sm_err.h>
 #include <linux/trusty/trusty.h>
+#include <linux/version.h>
 
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
@@ -1078,7 +1079,14 @@ err_allocate_state:
 	return ret;
 }
 
-static void trusty_remove(struct platform_device *pdev)
+
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_remove(struct platform_device *pdev)
 {
 	unsigned int cpu;
 	struct trusty_state *s = trusty_get_state(&pdev->dev);
@@ -1105,6 +1113,9 @@ static void trusty_remove(struct platform_device *pdev)
 	s->dev->dma_parms = NULL;
 	kfree(s->version_str);
 	kfree(s);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct of_device_id trusty_of_match[] = {
@@ -1116,7 +1127,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_of_match);
 
 static struct platform_driver trusty_driver = {
 	.probe = trusty_probe,
-	.remove_new = trusty_remove,
+	.remove = trusty_remove,
 	.driver	= {
 		.name = "trusty-core",
 		.of_match_table = trusty_of_match,

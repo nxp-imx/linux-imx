@@ -11,6 +11,7 @@
 #include <linux/trusty/arm_ffa.h>
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
+#include <linux/version.h>
 
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
@@ -491,7 +492,13 @@ err_ffa_link:
 	return ret;
 }
 
-static void trusty_smc_remove(struct platform_device *pdev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_smc_remove(struct platform_device *pdev)
 {
 	struct trusty_smc_state *s = trusty_smc_get_state(platform_get_drvdata(pdev));
 	struct platform_device *core_pdev = to_platform_device(s->core_dev);
@@ -500,6 +507,9 @@ static void trusty_smc_remove(struct platform_device *pdev)
 	trusty_free_msg_buf(s);
 	mutex_destroy(&s->share_memory_msg_lock);
 	kfree(s);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct of_device_id trusty_smc_of_match[] = {
@@ -511,7 +521,7 @@ MODULE_DEVICE_TABLE(trusty_smc, trusty_smc_of_match);
 
 static struct platform_driver trusty_smc_driver = {
 	.probe = trusty_smc_probe,
-	.remove_new = trusty_smc_remove,
+	.remove = trusty_smc_remove,
 	.driver	= {
 		.name = "trusty-smc",
 		.of_match_table = trusty_smc_of_match,

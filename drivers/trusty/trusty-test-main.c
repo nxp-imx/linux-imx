@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/vmalloc.h>
 
 #include "trusty-test.h"
@@ -554,11 +555,20 @@ static int trusty_test_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static void trusty_test_remove(struct platform_device *pdev)
+static
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+int
+#else
+void
+#endif
+trusty_test_remove(struct platform_device *pdev)
 {
 	struct trusty_log_state *s = platform_get_drvdata(pdev);
 
 	kfree(s);
+#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+	return 0;
+#endif
 }
 
 static const struct of_device_id trusty_test_of_match[] = {
@@ -570,7 +580,7 @@ MODULE_DEVICE_TABLE(trusty, trusty_test_of_match);
 
 static struct platform_driver trusty_test_driver = {
 	.probe = trusty_test_probe,
-	.remove_new = trusty_test_remove,
+	.remove = trusty_test_remove,
 	.driver = {
 		.name = "trusty-test",
 		.of_match_table = trusty_test_of_match,
