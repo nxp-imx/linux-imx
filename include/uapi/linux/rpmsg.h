@@ -53,4 +53,9 @@ struct rpmsg_endpoint_info {
  */
 #define RPMSG_SET_INCOMING_FLOWCONTROL _IOR(0xb5, 0x6, int)
 
+/**
+ ** Get the chre state of the remote rpmsg char device.
+ **/
+#define RPMSG_CHRE_GET_STATE _IOR(0xb5, 0x7, int)
+
 #endif
