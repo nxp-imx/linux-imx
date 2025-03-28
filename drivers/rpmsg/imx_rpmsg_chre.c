@@ -65,6 +65,7 @@ typedef enum
 	CHRE_MESSAGE_FINISH,
 	CHRE_ACK,
 	CHRE_POWERMODE, // TODO
+	CHRE_STATE,
 } chre_cmd_t;
 
 struct chre_message_head {
@@ -78,6 +79,14 @@ struct platform_rpmsg_data {
 	const char *rpmsg_devname;
 	struct rpmsg_eptdev* eptdev;
 };
+
+enum ChreState {
+	SCP_CHRE_UNINIT = 0,
+	SCP_CHRE_STOP = 1,
+	SCP_CHRE_START = 2,
+};
+
+enum ChreState chre_state = SCP_CHRE_UNINIT;
 
 /**
  * struct rpmsg_eptdev - endpoint device context
@@ -108,6 +117,7 @@ struct rpmsg_eptdev {
 	struct rpmsg_endpoint *default_ept;
 
 	spinlock_t queue_lock;
+	spinlock_t chre_state_lock;
 	struct sk_buff_head queue;
 	wait_queue_head_t readq;
 
@@ -162,6 +172,10 @@ static int rpmsg_chre_ept_cb(struct rpmsg_device *rpdev, void *buf, int len,
 		} else {
 			dev_err(dev, "chre communicate with host failed\n");
 		}
+	} else if (header->cmd == CHRE_STATE) {
+                spin_lock(&eptdev->chre_state_lock);
+		memcpy(&chre_state, buf + sizeof(struct chre_message_head), sizeof(u32));
+		spin_unlock(&eptdev->chre_state_lock);
 	} else {
 		dev_err(dev, "command from chre is invalid\n");
 	}
@@ -388,7 +402,24 @@ static __poll_t rpmsg_eptdev_poll(struct file *filp, poll_table *wait)
 static long rpmsg_eptdev_ioctl(struct file *fp, unsigned int cmd,
 			       unsigned long arg)
 {
-	return 0;
+	struct rpmsg_eptdev *eptdev = fp->private_data;
+	struct device *dev = &eptdev->dev;
+	long ret = 0;
+
+	enum ChreState cur_state;
+	switch (cmd) {
+		case RPMSG_CHRE_GET_STATE:
+			spin_lock(&eptdev->chre_state_lock);
+			cur_state = chre_state;
+			spin_unlock(&eptdev->chre_state_lock);
+			break;
+		default:
+			dev_err(dev, "ioctl command invalid\n");
+			return -1;
+	}
+
+	ret = put_user(cur_state, (int __user *)arg);
+	return ret;
 }
 
 static const struct file_operations rpmsg_eptdev_fops = {
@@ -426,6 +457,7 @@ static struct rpmsg_eptdev *rpmsg_chre_eptdev_alloc(struct rpmsg_device *rpdev,
 
 	mutex_init(&eptdev->ept_lock);
 	spin_lock_init(&eptdev->queue_lock);
+	spin_lock_init(&eptdev->chre_state_lock);
 	skb_queue_head_init(&eptdev->queue);
 	init_waitqueue_head(&eptdev->readq);
 
