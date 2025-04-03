@@ -6,10 +6,9 @@
 
 use crate::{alloc::AllocError, str::CStr};
 
-use core::alloc::LayoutError;
+use alloc::alloc::LayoutError;
 
 use core::fmt;
-use core::num::NonZeroI32;
 use core::num::TryFromIntError;
 use core::str::Utf8Error;
 
@@ -21,11 +20,7 @@ pub mod code {
             $(
             #[doc = $doc]
             )*
-            pub const $err: super::Error =
-                match super::Error::try_from_errno(-(crate::bindings::$err as i32)) {
-                    Some(err) => err,
-                    None => panic!("Invalid errno in `declare_err!`"),
-                };
+            pub const $err: super::Error = super::Error(-(crate::bindings::$err as i32));
         };
     }
 
@@ -93,18 +88,18 @@ pub mod code {
 ///
 /// The value is a valid `errno` (i.e. `>= -MAX_ERRNO && < 0`).
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Error(NonZeroI32);
+pub struct Error(core::ffi::c_int);
 
 impl Error {
     /// Creates an [`Error`] from a kernel error code.
     ///
     /// It is a bug to pass an out-of-range `errno`. `EINVAL` would
     /// be returned in such a case.
-    pub fn from_errno(errno: crate::ffi::c_int) -> Error {
+    pub fn from_errno(errno: core::ffi::c_int) -> Error {
         if errno < -(bindings::MAX_ERRNO as i32) || errno >= 0 {
             // TODO: Make it a `WARN_ONCE` once available.
             crate::pr_warn!(
-                "attempted to create `Error` with out of range `errno`: {}\n",
+                "attempted to create `Error` with out of range `errno`: {}",
                 errno
             );
             return code::EINVAL;
@@ -112,20 +107,7 @@ impl Error {
 
         // INVARIANT: The check above ensures the type invariant
         // will hold.
-        // SAFETY: `errno` is checked above to be in a valid range.
-        unsafe { Error::from_errno_unchecked(errno) }
-    }
-
-    /// Creates an [`Error`] from a kernel error code.
-    ///
-    /// Returns [`None`] if `errno` is out-of-range.
-    const fn try_from_errno(errno: crate::ffi::c_int) -> Option<Error> {
-        if errno < -(bindings::MAX_ERRNO as i32) || errno >= 0 {
-            return None;
-        }
-
-        // SAFETY: `errno` is checked above to be in a valid range.
-        Some(unsafe { Error::from_errno_unchecked(errno) })
+        Error(errno)
     }
 
     /// Creates an [`Error`] from a kernel error code.
@@ -133,35 +115,37 @@ impl Error {
     /// # Safety
     ///
     /// `errno` must be within error code range (i.e. `>= -MAX_ERRNO && < 0`).
-    const unsafe fn from_errno_unchecked(errno: crate::ffi::c_int) -> Error {
+    unsafe fn from_errno_unchecked(errno: core::ffi::c_int) -> Error {
         // INVARIANT: The contract ensures the type invariant
         // will hold.
-        // SAFETY: The caller guarantees `errno` is non-zero.
-        Error(unsafe { NonZeroI32::new_unchecked(errno) })
+        Error(errno)
     }
 
     /// Returns the kernel error code.
-    pub fn to_errno(self) -> crate::ffi::c_int {
-        self.0.get()
+    pub fn to_errno(self) -> core::ffi::c_int {
+        self.0
     }
 
     #[cfg(CONFIG_BLOCK)]
     pub(crate) fn to_blk_status(self) -> bindings::blk_status_t {
         // SAFETY: `self.0` is a valid error due to its invariant.
-        unsafe { bindings::errno_to_blk_status(self.0.get()) }
+        unsafe { bindings::errno_to_blk_status(self.0) }
     }
 
     /// Returns the error encoded as a pointer.
     pub fn to_ptr<T>(self) -> *mut T {
+        #[cfg_attr(target_pointer_width = "32", allow(clippy::useless_conversion))]
         // SAFETY: `self.0` is a valid error due to its invariant.
-        unsafe { bindings::ERR_PTR(self.0.get() as _) as *mut _ }
+        unsafe {
+            bindings::ERR_PTR(self.0.into()) as *mut _
+        }
     }
 
     /// Returns a string representing the error, if one exists.
-    #[cfg(not(any(test, testlib)))]
+    #[cfg(not(testlib))]
     pub fn name(&self) -> Option<&'static CStr> {
         // SAFETY: Just an FFI call, there are no extra safety requirements.
-        let ptr = unsafe { bindings::errname(-self.0.get()) };
+        let ptr = unsafe { bindings::errname(-self.0) };
         if ptr.is_null() {
             None
         } else {
@@ -175,7 +159,7 @@ impl Error {
     /// When `testlib` is configured, this always returns `None` to avoid the dependency on a
     /// kernel function so that tests that use this (e.g., by calling [`Result::unwrap`]) can still
     /// run in userspace.
-    #[cfg(any(test, testlib))]
+    #[cfg(testlib)]
     pub fn name(&self) -> Option<&'static CStr> {
         None
     }
@@ -186,11 +170,9 @@ impl fmt::Debug for Error {
         match self.name() {
             // Print out number if no name can be found.
             None => f.debug_tuple("Error").field(&-self.0).finish(),
+            // SAFETY: These strings are ASCII-only.
             Some(name) => f
-                .debug_tuple(
-                    // SAFETY: These strings are ASCII-only.
-                    unsafe { core::str::from_utf8_unchecked(name) },
-                )
+                .debug_tuple(unsafe { core::str::from_utf8_unchecked(name) })
                 .finish(),
         }
     }
@@ -256,7 +238,7 @@ pub type Result<T = (), E = Error> = core::result::Result<T, E>;
 
 /// Converts an integer as returned by a C kernel function to an error if it's negative, and
 /// `Ok(())` otherwise.
-pub fn to_result(err: crate::ffi::c_int) -> Result {
+pub fn to_result(err: core::ffi::c_int) -> Result {
     if err < 0 {
         Err(Error::from_errno(err))
     } else {
@@ -279,21 +261,19 @@ pub fn to_result(err: crate::ffi::c_int) -> Result {
 /// fn devm_platform_ioremap_resource(
 ///     pdev: &mut PlatformDevice,
 ///     index: u32,
-/// ) -> Result<*mut kernel::ffi::c_void> {
+/// ) -> Result<*mut core::ffi::c_void> {
 ///     // SAFETY: `pdev` points to a valid platform device. There are no safety requirements
 ///     // on `index`.
 ///     from_err_ptr(unsafe { bindings::devm_platform_ioremap_resource(pdev.to_ptr(), index) })
 /// }
 /// ```
 pub fn from_err_ptr<T>(ptr: *mut T) -> Result<*mut T> {
-    // CAST: Casting a pointer to `*const crate::ffi::c_void` is always valid.
-    let const_ptr: *const crate::ffi::c_void = ptr.cast();
+    // CAST: Casting a pointer to `*const core::ffi::c_void` is always valid.
+    let const_ptr: *const core::ffi::c_void = ptr.cast();
     // SAFETY: The FFI function does not deref the pointer.
     if unsafe { bindings::IS_ERR(const_ptr) } {
         // SAFETY: The FFI function does not deref the pointer.
         let err = unsafe { bindings::PTR_ERR(const_ptr) };
-
-        #[allow(clippy::unnecessary_cast)]
         // CAST: If `IS_ERR()` returns `true`,
         // then `PTR_ERR()` is guaranteed to return a
         // negative value greater-or-equal to `-bindings::MAX_ERRNO`,
@@ -303,7 +283,8 @@ pub fn from_err_ptr<T>(ptr: *mut T) -> Result<*mut T> {
         //
         // SAFETY: `IS_ERR()` ensures `err` is a
         // negative value greater-or-equal to `-bindings::MAX_ERRNO`.
-        return Err(unsafe { Error::from_errno_unchecked(err as crate::ffi::c_int) });
+        #[allow(clippy::unnecessary_cast)]
+        return Err(unsafe { Error::from_errno_unchecked(err as core::ffi::c_int) });
     }
     Ok(ptr)
 }
@@ -323,7 +304,7 @@ pub fn from_err_ptr<T>(ptr: *mut T) -> Result<*mut T> {
 /// # use kernel::bindings;
 /// unsafe extern "C" fn probe_callback(
 ///     pdev: *mut bindings::platform_device,
-/// ) -> kernel::ffi::c_int {
+/// ) -> core::ffi::c_int {
 ///     from_result(|| {
 ///         let ptr = devm_alloc(pdev)?;
 ///         bindings::platform_set_drvdata(pdev, ptr);

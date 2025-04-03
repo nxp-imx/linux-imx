@@ -2,7 +2,8 @@
 
 //! String representations.
 
-use crate::alloc::{flags::*, AllocError, KVec};
+use crate::alloc::{flags::*, vec_ext::VecExt, AllocError};
+use alloc::vec::Vec;
 use core::fmt::{self, Write};
 use core::ops::{self, Deref, DerefMut, Index};
 
@@ -161,10 +162,10 @@ impl CStr {
     /// Returns the length of this string with `NUL`.
     #[inline]
     pub const fn len_with_nul(&self) -> usize {
+        // SAFETY: This is one of the invariant of `CStr`.
+        // We add a `unreachable_unchecked` here to hint the optimizer that
+        // the value returned from this function is non-zero.
         if self.0.is_empty() {
-            // SAFETY: This is one of the invariant of `CStr`.
-            // We add a `unreachable_unchecked` here to hint the optimizer that
-            // the value returned from this function is non-zero.
             unsafe { core::hint::unreachable_unchecked() };
         }
         self.0.len()
@@ -184,7 +185,7 @@ impl CStr {
     /// last at least `'a`. When `CStr` is alive, the memory pointed by `ptr`
     /// must not be mutated.
     #[inline]
-    pub unsafe fn from_char_ptr<'a>(ptr: *const crate::ffi::c_char) -> &'a Self {
+    pub unsafe fn from_char_ptr<'a>(ptr: *const core::ffi::c_char) -> &'a Self {
         // SAFETY: The safety precondition guarantees `ptr` is a valid pointer
         // to a `NUL`-terminated C string.
         let len = unsafe { bindings::strlen(ptr) } + 1;
@@ -247,7 +248,7 @@ impl CStr {
 
     /// Returns a C pointer to the string.
     #[inline]
-    pub const fn as_char_ptr(&self) -> *const crate::ffi::c_char {
+    pub const fn as_char_ptr(&self) -> *const core::ffi::c_char {
         self.0.as_ptr() as _
     }
 
@@ -300,7 +301,6 @@ impl CStr {
     /// ```
     #[inline]
     pub unsafe fn as_str_unchecked(&self) -> &str {
-        // SAFETY: TODO.
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
@@ -524,28 +524,7 @@ macro_rules! c_str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct String(CString);
-
-    impl String {
-        fn from_fmt(args: fmt::Arguments<'_>) -> Self {
-            String(CString::try_from_fmt(args).unwrap())
-        }
-    }
-
-    impl Deref for String {
-        type Target = str;
-
-        fn deref(&self) -> &str {
-            self.0.to_str().unwrap()
-        }
-    }
-
-    macro_rules! format {
-        ($($f:tt)*) => ({
-            &*String::from_fmt(kernel::fmt!($($f)*))
-        })
-    }
+    use alloc::format;
 
     const ALL_ASCII_CHARS: &'static str =
         "\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0a\\x0b\\x0c\\x0d\\x0e\\x0f\
@@ -811,7 +790,7 @@ impl fmt::Write for Formatter {
 /// assert_eq!(s.is_ok(), false);
 /// ```
 pub struct CString {
-    buf: KVec<u8>,
+    buf: Vec<u8>,
 }
 
 impl CString {
@@ -824,7 +803,7 @@ impl CString {
         let size = f.bytes_written();
 
         // Allocate a vector with the required number of bytes, and write to it.
-        let mut buf = KVec::with_capacity(size, GFP_KERNEL)?;
+        let mut buf = <Vec<_> as VecExt<_>>::with_capacity(size, GFP_KERNEL)?;
         // SAFETY: The buffer stored in `buf` is at least of size `size` and is valid for writes.
         let mut f = unsafe { Formatter::from_buffer(buf.as_mut_ptr(), size) };
         f.write_fmt(args)?;
@@ -871,9 +850,10 @@ impl<'a> TryFrom<&'a CStr> for CString {
     type Error = AllocError;
 
     fn try_from(cstr: &'a CStr) -> Result<CString, AllocError> {
-        let mut buf = KVec::new();
+        let mut buf = Vec::new();
 
-        buf.extend_from_slice(cstr.as_bytes_with_nul(), GFP_KERNEL)?;
+        <Vec<_> as VecExt<_>>::extend_from_slice(&mut buf, cstr.as_bytes_with_nul(), GFP_KERNEL)
+            .map_err(|_| AllocError)?;
 
         // INVARIANT: The `CStr` and `CString` types have the same invariants for
         // the string data, and we copied it over without changes.

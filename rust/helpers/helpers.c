@@ -29,6 +29,5 @@
 #include "spinlock.c"
 #include "task.c"
 #include "uaccess.c"
-#include "vmalloc.c"
 #include "wait.c"
 #include "workqueue.c"

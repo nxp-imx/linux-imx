@@ -8,10 +8,11 @@ use crate::{
     alloc::Flags,
     bindings,
     error::Result,
-    ffi::c_void,
     prelude::*,
     types::{AsBytes, FromBytes},
 };
+use alloc::vec::Vec;
+use core::ffi::{c_ulong, c_void};
 use core::mem::{size_of, MaybeUninit};
 
 /// The type used for userspace addresses.
@@ -45,14 +46,15 @@ pub type UserPtr = usize;
 /// every byte in the region.
 ///
 /// ```no_run
-/// use kernel::ffi::c_void;
+/// use alloc::vec::Vec;
+/// use core::ffi::c_void;
 /// use kernel::error::Result;
 /// use kernel::uaccess::{UserPtr, UserSlice};
 ///
 /// fn bytes_add_one(uptr: UserPtr, len: usize) -> Result<()> {
 ///     let (read, mut write) = UserSlice::new(uptr, len).reader_writer();
 ///
-///     let mut buf = KVec::new();
+///     let mut buf = Vec::new();
 ///     read.read_all(&mut buf, GFP_KERNEL)?;
 ///
 ///     for b in &mut buf {
@@ -67,7 +69,8 @@ pub type UserPtr = usize;
 /// Example illustrating a TOCTOU (time-of-check to time-of-use) bug.
 ///
 /// ```no_run
-/// use kernel::ffi::c_void;
+/// use alloc::vec::Vec;
+/// use core::ffi::c_void;
 /// use kernel::error::{code::EINVAL, Result};
 /// use kernel::uaccess::{UserPtr, UserSlice};
 ///
@@ -75,21 +78,21 @@ pub type UserPtr = usize;
 /// fn is_valid(uptr: UserPtr, len: usize) -> Result<bool> {
 ///     let read = UserSlice::new(uptr, len).reader();
 ///
-///     let mut buf = KVec::new();
+///     let mut buf = Vec::new();
 ///     read.read_all(&mut buf, GFP_KERNEL)?;
 ///
 ///     todo!()
 /// }
 ///
 /// /// Returns the bytes behind this user pointer if they are valid.
-/// fn get_bytes_if_valid(uptr: UserPtr, len: usize) -> Result<KVec<u8>> {
+/// fn get_bytes_if_valid(uptr: UserPtr, len: usize) -> Result<Vec<u8>> {
 ///     if !is_valid(uptr, len)? {
 ///         return Err(EINVAL);
 ///     }
 ///
 ///     let read = UserSlice::new(uptr, len).reader();
 ///
-///     let mut buf = KVec::new();
+///     let mut buf = Vec::new();
 ///     read.read_all(&mut buf, GFP_KERNEL)?;
 ///
 ///     // THIS IS A BUG! The bytes could have changed since we checked them.
@@ -127,7 +130,7 @@ impl UserSlice {
     /// Reads the entirety of the user slice, appending it to the end of the provided buffer.
     ///
     /// Fails with [`EFAULT`] if the read happens on a bad address.
-    pub fn read_all(self, buf: &mut KVec<u8>, flags: Flags) -> Result {
+    pub fn read_all(self, buf: &mut Vec<u8>, flags: Flags) -> Result {
         self.reader().read_all(buf, flags)
     }
 
@@ -224,9 +227,13 @@ impl UserSliceReader {
         if len > self.length {
             return Err(EFAULT);
         }
-        // SAFETY: `out_ptr` points into a mutable slice of length `len`, so we may write
+        let Ok(len_ulong) = c_ulong::try_from(len) else {
+            return Err(EFAULT);
+        };
+        // SAFETY: `out_ptr` points into a mutable slice of length `len_ulong`, so we may write
         // that many bytes to it.
-        let res = unsafe { bindings::copy_from_user(out_ptr, self.ptr as *const c_void, len) };
+        let res =
+            unsafe { bindings::copy_from_user(out_ptr, self.ptr as *const c_void, len_ulong) };
         if res != 0 {
             return Err(EFAULT);
         }
@@ -255,6 +262,9 @@ impl UserSliceReader {
         if len > self.length {
             return Err(EFAULT);
         }
+        let Ok(len_ulong) = c_ulong::try_from(len) else {
+            return Err(EFAULT);
+        };
         let mut out: MaybeUninit<T> = MaybeUninit::uninit();
         // SAFETY: The local variable `out` is valid for writing `size_of::<T>()` bytes.
         //
@@ -265,7 +275,7 @@ impl UserSliceReader {
             bindings::_copy_from_user(
                 out.as_mut_ptr().cast::<c_void>(),
                 self.ptr as *const c_void,
-                len,
+                len_ulong,
             )
         };
         if res != 0 {
@@ -281,9 +291,9 @@ impl UserSliceReader {
     /// Reads the entirety of the user slice, appending it to the end of the provided buffer.
     ///
     /// Fails with [`EFAULT`] if the read happens on a bad address.
-    pub fn read_all(mut self, buf: &mut KVec<u8>, flags: Flags) -> Result {
+    pub fn read_all(mut self, buf: &mut Vec<u8>, flags: Flags) -> Result {
         let len = self.length;
-        buf.reserve(len, flags)?;
+        VecExt::<u8>::reserve(buf, len, flags)?;
 
         // The call to `try_reserve` was successful, so the spare capacity is at least `len` bytes
         // long.
@@ -328,9 +338,12 @@ impl UserSliceWriter {
         if len > self.length {
             return Err(EFAULT);
         }
-        // SAFETY: `data_ptr` points into an immutable slice of length `len`, so we may read
+        let Ok(len_ulong) = c_ulong::try_from(len) else {
+            return Err(EFAULT);
+        };
+        // SAFETY: `data_ptr` points into an immutable slice of length `len_ulong`, so we may read
         // that many bytes from it.
-        let res = unsafe { bindings::copy_to_user(self.ptr as *mut c_void, data_ptr, len) };
+        let res = unsafe { bindings::copy_to_user(self.ptr as *mut c_void, data_ptr, len_ulong) };
         if res != 0 {
             return Err(EFAULT);
         }
@@ -349,6 +362,9 @@ impl UserSliceWriter {
         if len > self.length {
             return Err(EFAULT);
         }
+        let Ok(len_ulong) = c_ulong::try_from(len) else {
+            return Err(EFAULT);
+        };
         // SAFETY: The reference points to a value of type `T`, so it is valid for reading
         // `size_of::<T>()` bytes.
         //
@@ -359,7 +375,7 @@ impl UserSliceWriter {
             bindings::_copy_to_user(
                 self.ptr as *mut c_void,
                 (value as *const T).cast::<c_void>(),
-                len,
+                len_ulong,
             )
         };
         if res != 0 {

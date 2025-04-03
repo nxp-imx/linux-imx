@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Rust standard library vendored code.
-//!
 //! The contents of this file come from the Rust standard library, hosted in
 //! the <https://github.com/rust-lang/rust> repository, licensed under
 //! "Apache-2.0 OR MIT" and adapted for kernel use. For copyright details,
@@ -16,7 +14,7 @@
 ///
 /// ```rust
 /// let a = 2;
-/// # #[expect(clippy::disallowed_macros)]
+/// # #[allow(clippy::dbg_macro)]
 /// let b = dbg!(a * 2) + 1;
 /// //      ^-- prints: [src/main.rs:2] a * 2 = 4
 /// assert_eq!(b, 5);
@@ -54,7 +52,7 @@
 /// With a method call:
 ///
 /// ```rust
-/// # #[expect(clippy::disallowed_macros)]
+/// # #[allow(clippy::dbg_macro)]
 /// fn foo(n: usize) {
 ///     if dbg!(n.checked_sub(4)).is_some() {
 ///         // ...
@@ -73,7 +71,7 @@
 /// Naive factorial implementation:
 ///
 /// ```rust
-/// # #[expect(clippy::disallowed_macros)]
+/// # #[allow(clippy::dbg_macro)]
 /// # {
 /// fn factorial(n: u32) -> u32 {
 ///     if dbg!(n <= 1) {
@@ -120,7 +118,7 @@
 /// a tuple (and return it, too):
 ///
 /// ```
-/// # #![expect(clippy::disallowed_macros)]
+/// # #[allow(clippy::dbg_macro)]
 /// assert_eq!(dbg!(1usize, 2u32), (1, 2));
 /// ```
 ///
@@ -129,7 +127,7 @@
 /// invocations. You can use a 1-tuple directly if you need one:
 ///
 /// ```
-/// # #[expect(clippy::disallowed_macros)]
+/// # #[allow(clippy::dbg_macro)]
 /// # {
 /// assert_eq!(1, dbg!(1u32,)); // trailing comma ignored
 /// assert_eq!((1,), dbg!((1u32,))); // 1-tuple

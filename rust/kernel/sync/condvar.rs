@@ -7,7 +7,6 @@
 
 use super::{lock::Backend, lock::Guard, LockClassKey};
 use crate::{
-    ffi::{c_int, c_long},
     init::PinInit,
     pin_init,
     str::CStr,
@@ -17,6 +16,7 @@ use crate::{
     time::Jiffies,
     types::Opaque,
 };
+use core::ffi::{c_int, c_long};
 use core::marker::PhantomPinned;
 use core::ptr;
 use macros::pin_data;
@@ -72,8 +72,8 @@ pub use new_condvar;
 /// }
 ///
 /// /// Allocates a new boxed `Example`.
-/// fn new_example() -> Result<Pin<KBox<Example>>> {
-///     KBox::pin_init(pin_init!(Example {
+/// fn new_example() -> Result<Pin<Box<Example>>> {
+///     Box::pin_init(pin_init!(Example {
 ///         value <- new_mutex!(0),
 ///         value_changed <- new_condvar!(),
 ///     }), GFP_KERNEL)
@@ -95,6 +95,7 @@ pub struct CondVar {
 }
 
 // SAFETY: `CondVar` only uses a `struct wait_queue_head`, which is safe to use on any thread.
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for CondVar {}
 
 // SAFETY: `CondVar` only uses a `struct wait_queue_head`, which is safe to use on multiple threads
