@@ -745,6 +745,7 @@ static int imx_rproc_prepare(struct rproc *rproc)
 		}
 
 		dev_info(priv->dev, "lmm(%d) powered on\n", priv->lmid);
+		break;
 	default:
 		break;
 	};
