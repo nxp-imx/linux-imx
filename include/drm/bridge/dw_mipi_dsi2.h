@@ -29,6 +29,14 @@ enum dw_mipi_dsi2_phy_type {
 	DW_MIPI_DSI2_CPHY,
 };
 
+enum dw_mipi_dsi2_ipi_mapping {
+	DW_MIPI_DSI2_IPI_MAPPING_IPI,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG1,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG2,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG3,
+	DW_MIPI_DSI2_IPI_MAPPING_NONE,
+};
+
 struct dw_mipi_dsi2_phy_iface {
 	int ppi_width;
 	enum dw_mipi_dsi2_phy_type phy_type;
@@ -63,6 +71,11 @@ struct dw_mipi_dsi2_host_ops {
 struct dw_mipi_dsi2_plat_data {
 	struct regmap *regmap;
 	unsigned int max_data_lanes;
+	unsigned int ipi_lanes;
+	unsigned int ipi_fifo_depth;
+	enum dw_mipi_dsi2_ipi_mapping ipi_mapping;
+	unsigned int cri_cmd_wr_pld_fifo_depth;
+	unsigned int cri_cmd_rd_pld_fifo_depth;
 
 	enum drm_mode_status (*mode_valid)(void *priv_data,
 					   const struct drm_display_mode *mode,

@@ -112,6 +112,9 @@
 #define DSI2_CRI_TX_PLD			0x02c4
 #define DSI2_CRI_RX_HDR			0x02c8
 #define DSI2_CRI_RX_PLD			0x02cc
+#define DSI2_CRI_FIFO_DEPTH_CFG		0x02e0
+#define CMD_WR_PLD_FIFO_DEPTH_VALUE(x)	FIELD_PREP(GENMASK(15, 0), x)
+#define CMD_RD_PLD_FIFO_DEPTH_VALUE(x)	FIELD_PREP(GENMASK(31, 16), x)
 
 #define DSI2_IPI_COLOR_MAN_CFG		0x0300
 #define IPI_DEPTH(x)			FIELD_PREP(GENMASK(7, 4), x)
@@ -140,6 +143,12 @@
 #define VID_VFP_LINES(x)		FIELD_PREP(GENMASK(9, 0), x)
 #define DSI2_IPI_PIX_PKT_CFG		0x0344
 #define MAX_PIX_PKT(x)			FIELD_PREP(GENMASK(15, 0), x)
+#define LANES_MAN_CFG			0x034c
+#define IPI_LANES(x)			FIELD_PREP(GENMASK(1, 0), x)
+#define FIFO_DEPTH_CFG			0x03c0
+#define IPI_FIFO_DEPTH_VALUE(x)		FIELD_PREP(GENMASK(15, 0), x)
+#define IPI_MAPPING_CFG			0x03c4
+#define IPI_MAPPING(x)			FIELD_PREP(GENMASK(1, 0), x)
 
 #define DSI2_INT_ST_PHY			0x0400
 #define DSI2_INT_MASK_PHY		0x0404
@@ -181,6 +190,12 @@ enum ppi_width {
 	PPI_WIDTH_8_BITS,
 	PPI_WIDTH_16_BITS,
 	PPI_WIDTH_32_BITS,
+};
+
+enum ipi_lanes {
+	IPI_LANES_N_4,
+	IPI_LANES_N_1,
+	IPI_LANES_N_2,
 };
 
 struct cmd_header {
@@ -412,6 +427,21 @@ static void dw_mipi_dsi2_tx_option_set(struct dw_mipi_dsi2 *dsi2)
 	regmap_write(dsi2->regmap, DSI2_DSI_VCID_CFG, TX_VCID(dsi2->channel));
 }
 
+static void dw_mipi_dsi2_cri_set(struct dw_mipi_dsi2 *dsi2)
+{
+	const struct dw_mipi_dsi2_plat_data *pdata = dsi2->plat_data;
+	u32 val;
+
+	if (pdata->cri_cmd_wr_pld_fifo_depth == 0 &&
+	    pdata->cri_cmd_rd_pld_fifo_depth == 0)
+		return;
+
+	val = CMD_WR_PLD_FIFO_DEPTH_VALUE(pdata->cri_cmd_wr_pld_fifo_depth) |
+	      CMD_RD_PLD_FIFO_DEPTH_VALUE(pdata->cri_cmd_rd_pld_fifo_depth);
+
+	regmap_write(dsi2->regmap, DSI2_CRI_FIFO_DEPTH_CFG, val);
+}
+
 static void dw_mipi_dsi2_ipi_color_coding_cfg(struct dw_mipi_dsi2 *dsi2)
 {
 	u32 val, color_depth;
@@ -453,6 +483,7 @@ static void dw_mipi_dsi2_vertical_timing_config(struct dw_mipi_dsi2 *dsi2,
 
 static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 {
+	const struct dw_mipi_dsi2_plat_data *pdata = dsi2->plat_data;
 	struct drm_display_mode *mode = &dsi2->mode;
 	u32 hline, hsa, hbp, hact;
 	u64 hline_time, hsa_time, hbp_time, hact_time, tmp;
@@ -498,6 +529,26 @@ static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 	regmap_write(dsi2->regmap, DSI2_IPI_VID_HLINE_MAN_CFG, VID_HLINE_TIME(hline_time));
 
 	dw_mipi_dsi2_vertical_timing_config(dsi2, mode);
+
+	switch (pdata->ipi_lanes) {
+	case 1:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_1));
+		break;
+	case 2:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_2));
+		break;
+	case 4:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_4));
+		break;
+	}
+
+	if (pdata->ipi_fifo_depth)
+		regmap_write(dsi2->regmap, FIFO_DEPTH_CFG,
+			     IPI_FIFO_DEPTH_VALUE(pdata->ipi_fifo_depth));
+
+	if (pdata->ipi_mapping != DW_MIPI_DSI2_IPI_MAPPING_NONE)
+		regmap_write(dsi2->regmap, IPI_MAPPING_CFG,
+			     IPI_MAPPING(pdata->ipi_mapping));
 }
 
 static void
@@ -807,6 +858,7 @@ static void dw_mipi_dsi2_mode_set(struct dw_mipi_dsi2 *dsi2,
 		phy_ops->power_on(dsi2->plat_data->priv_data);
 
 	dw_mipi_dsi2_tx_option_set(dsi2);
+	dw_mipi_dsi2_cri_set(dsi2);
 
 	/*
 	 * initial deskew calibration is send after phy_power_on,
