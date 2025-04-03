@@ -65,6 +65,8 @@
 #define NETC_TMR_ETTS1_H		0x00e4
 #define NETC_TMR_ETTS2_L		0x00e8
 #define NETC_TMR_ETTS2_H		0x00ec
+#define NETC_TMR_CUR_TIME_L		0x00f0
+#define NETC_TMR_CUR_TIME_H		0x00f4
 #define NETC_TMR_PARAM			0x00f8
 
 #define NETC_TMR_REGS_BAR		0
@@ -127,6 +129,37 @@ static u64 netc_timer_cnt_read(struct netc_timer *priv)
 
 	return ns;
 }
+
+static u64 netc_timer_cur_time_read(struct netc_timer *priv)
+{
+	u32 time_h, time_l;
+	u64 ns;
+
+	time_l = netc_timer_rd(priv, NETC_TMR_CUR_TIME_L);
+	time_h = netc_timer_rd(priv, NETC_TMR_CUR_TIME_H);
+	ns = (u64)time_h << 32 | time_l;
+
+	return ns;
+}
+
+u64 netc_timer_get_current_time(struct pci_dev *timer_dev)
+{
+	struct netc_timer *priv;
+	u64 cur_time;
+
+	if (!timer_dev)
+		return 0;
+
+	priv = pci_get_drvdata(timer_dev);
+	if (!priv)
+		return 0;
+
+	guard(spinlock_irqsave)(&priv->lock);
+	cur_time = netc_timer_cur_time_read(priv);
+
+	return cur_time;
+}
+EXPORT_SYMBOL_GPL(netc_timer_get_current_time);
 
 static void netc_timer_cnt_write(struct netc_timer *priv, u64 ns)
 {
@@ -282,7 +315,7 @@ static int netc_timer_gettimex64(struct ptp_clock_info *ptp, struct timespec64 *
 
 	scoped_guard(spinlock_irqsave, &priv->lock) {
 		ptp_read_system_prets(sts);
-		ns = netc_timer_cnt_read(priv);
+		ns = netc_timer_cur_time_read(priv);
 		ptp_read_system_postts(sts);
 	}
 
@@ -392,7 +425,7 @@ static int net_timer_enable_perout(struct netc_timer *priv,
 		 * counting. Only TMR_ALARM1 supports this mode.
 		 */
 		alarm = timespec64_to_ns(&stime);
-		cur_time = netc_timer_cnt_read(priv);
+		cur_time = netc_timer_cur_time_read(priv);
 		if (cur_time >= alarm) {
 			dev_err(priv->dev, "Start time must greater than current time!\n");
 
@@ -489,14 +522,12 @@ cal_clk_period:
 	return 0;
 }
 
-int netc_timer_get_phc_index(int domain, unsigned int bus, unsigned int devfn)
+int netc_timer_get_phc_index(struct pci_dev *timer_pdev)
 {
-	struct pci_dev *timer_pdev;
 	struct netc_timer *priv;
 
-	timer_pdev = pci_get_domain_bus_and_slot(domain, bus, devfn);
 	if (!timer_pdev)
-		return -EINVAL;
+		return -ENODEV;
 
 	priv = pci_get_drvdata(timer_pdev);
 	if (!priv)

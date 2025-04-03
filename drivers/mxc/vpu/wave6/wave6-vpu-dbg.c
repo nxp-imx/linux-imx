@@ -207,7 +207,7 @@ int wave6_vpu_create_dbgfs_file(struct vpu_instance *inst)
 {
 	char name[64];
 
-	if (!inst || !inst->dev || !inst->dev->debugfs)
+	if (!inst || !inst->dev || IS_ERR_OR_NULL(inst->dev->debugfs))
 		return -EINVAL;
 
 	scnprintf(name, sizeof(name), "instance.%d", inst->id);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /* Copyright 2023 NXP */
 #include <linux/module.h>
+#include <linux/of_mdio.h>
 #include <linux/of_net.h>
 #include <linux/of_platform.h>
 #include <linux/clk.h>
@@ -173,6 +174,29 @@ static void enetc4_allocate_si_rings(struct enetc_pf *pf)
 	}
 }
 
+static void enetc4_pf_set_si_vlan_promisc(struct enetc_hw *hw, int si, bool en)
+{
+	u32 val = enetc_port_rd(hw, ENETC4_PSIPVMR);
+
+	if (en)
+		val |= BIT(si);
+	else
+		val &= ~BIT(si);
+
+	enetc_port_wr(hw, ENETC4_PSIPVMR, val);
+}
+
+static void enetc4_set_default_si_vlan_promisc(struct enetc_pf *pf)
+{
+	struct enetc_hw *hw = &pf->si->hw;
+	int num_si = pf->caps.num_vsi + 1;
+	int i;
+
+	/* enforce VLAN promiscuous mode for all SIs */
+	for (i = 0; i < num_si; i++)
+		enetc4_pf_set_si_vlan_promisc(hw, i, true);
+}
+
 static void enetc4_port_si_configure(struct enetc_pf *pf)
 {
 	struct enetc_hw *hw = &pf->si->hw;
@@ -183,9 +207,7 @@ static void enetc4_port_si_configure(struct enetc_pf *pf)
 	enetc_port_wr(hw, ENETC4_PSIVLANFMR, PSIVLANFMR_VS);
 
 	/* enforce VLAN promisc mode for all SIs */
-	pf->vlan_promisc_simap = ENETC_VLAN_PROMISC_MAP_ALL;
-	if (pf->hw_ops->set_si_vlan_promisc)
-		pf->hw_ops->set_si_vlan_promisc(hw, pf->vlan_promisc_simap);
+	enetc4_set_default_si_vlan_promisc(pf);
 
 	/* Disable SI MAC multicast & unicast promiscuous */
 	enetc_port_wr(hw, ENETC4_PSIPMMR, 0);
@@ -220,6 +242,20 @@ static void enetc4_set_isit_key_construct_rule(struct enetc_hw *hw)
 	enetc_port_wr(hw, ENETC4_PISIDCR, val);
 }
 
+static void enetc4_enable_all_si(struct enetc_pf *pf)
+{
+	struct enetc_hw *hw = &pf->si->hw;
+	int num_si = pf->caps.num_vsi + 1;
+	u32 si_bitmap = 0;
+	int i;
+
+	/* Master enable for all SIs */
+	for (i = 0; i < num_si; i++)
+		si_bitmap |= PMR_SI_EN(i);
+
+	enetc_port_wr(hw, ENETC4_PMR, si_bitmap);
+}
+
 static void enetc4_configure_port(struct enetc_pf *pf)
 {
 	struct enetc_hw *hw = &pf->si->hw;
@@ -233,7 +269,7 @@ static void enetc4_configure_port(struct enetc_pf *pf)
 	enetc4_set_isit_key_construct_rule(hw);
 
 	/* Master enable for all SIs */
-	enetc_port_wr(hw, ENETC4_PMR, PMR_SI0_EN | PMR_SI1_EN | PMR_SI2_EN);
+	enetc4_enable_all_si(pf);
 
 	/* Enable port transmit/receive */
 	enetc_port_wr(hw, ENETC4_POR, 0);
@@ -402,6 +438,9 @@ static void enetc4_mac_config(struct enetc_pf *pf, unsigned int mode,
 	struct enetc_ndev_priv *priv = netdev_priv(pf->si->ndev);
 	struct enetc_si *si = pf->si;
 	u32 val;
+
+	if (si->hw_features & ENETC_SI_F_PPM)
+		return;
 
 	val = enetc_port_mac_rd(si, ENETC4_PM_IF_MODE(0));
 	val &= ~(PM_IF_MODE_IFMODE | PM_IF_MODE_ENA);
@@ -796,15 +835,6 @@ static void enetc4_pf_set_si_anti_spoofing(struct enetc_hw *hw, int si, bool en)
 
 	val = (val & ~PSICFGR0_ANTI_SPOOFING) | (en ? PSICFGR0_ANTI_SPOOFING : 0);
 	enetc_port_wr(hw, ENETC4_PSICFGR0(si), val);
-}
-
-static void enetc4_pf_set_si_vlan_promisc(struct enetc_hw *hw, char si_map)
-{
-	u32 val = enetc_port_rd(hw, ENETC4_PSIPVMR);
-
-	val = u32_replace_bits(val, ENETC_PSIPVMR_SET_VP(si_map),
-			       ENETC_VLAN_PROMISC_MAP_ALL);
-	enetc_port_wr(hw, ENETC4_PSIPVMR, val);
 }
 
 static void enetc4_pf_set_si_mac_promisc(struct enetc_hw *hw, int si, int type, bool en)
@@ -1359,6 +1389,10 @@ static void enetc4_get_psi_hw_features(struct enetc_si *si)
 	val = enetc_port_rd(hw, ENETC4_IPCAPR);
 	if (val & IPCAPR_ISID)
 		si->hw_features |= ENETC_SI_F_PSFP;
+
+	val = enetc_port_rd(hw, ENETC4_PCAPR);
+	if (val & PCAPR_LINK_TYPE)
+		si->hw_features |= ENETC_SI_F_PPM;
 }
 
 static int enetc4_pf_struct_init(struct enetc_si *si)
@@ -1415,6 +1449,58 @@ static void enetc4_pf_struct_deinit(struct enetc_pf *pf)
 	kfree(pf->vf_state);
 }
 
+static bool enetc_is_emdio_consumer(const struct device_node *np)
+{
+	struct device_node *phy_node, *mdio_node;
+
+	/* If the node does not have phy-handle property, then the PF
+	 * does not connect to a PHY, so it is not the EMDIO consumer.
+	 */
+	phy_node = of_parse_phandle(np, "phy-handle", 0);
+	if (!phy_node)
+		return false;
+
+	of_node_put(phy_node);
+
+	/* If the node has phy-handle property and it contains a mdio
+	 * child node, then the PF is not the EMDIO consumer.
+	 */
+	mdio_node = of_get_child_by_name(np, "mdio");
+	if (mdio_node) {
+		of_node_put(mdio_node);
+		return false;
+	}
+
+	return true;
+}
+
+static int enetc_add_emdio_consumer(struct pci_dev *pdev)
+{
+	struct device_node *node = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
+	struct device_node *phy_node;
+	struct phy_device *phydev;
+	struct device_link *link;
+
+	if (!node || !enetc_is_emdio_consumer(node))
+		return 0;
+
+	phy_node = of_parse_phandle(node, "phy-handle", 0);
+	phydev = of_phy_find_device(phy_node);
+	of_node_put(phy_node);
+	if (!phydev)
+		return -EPROBE_DEFER;
+
+	link = device_link_add(dev, phydev->mdio.bus->parent,
+			       DL_FLAG_PM_RUNTIME |
+			       DL_FLAG_AUTOREMOVE_SUPPLIER);
+	put_device(&phydev->mdio.dev);
+	if (!link)
+		return -EINVAL;
+
+	return 0;
+}
+
 static int enetc4_pf_probe(struct pci_dev *pdev,
 			   const struct pci_device_id *ent)
 {
@@ -1427,7 +1513,7 @@ static int enetc4_pf_probe(struct pci_dev *pdev,
 	if (enetc_pf_is_owned_by_mcore(pdev))
 		return 0;
 
-	err = netc_check_emdio_state();
+	err = enetc_add_emdio_consumer(pdev);
 	if (err)
 		return err;
 
@@ -1471,16 +1557,8 @@ static int enetc4_pf_probe(struct pci_dev *pdev,
 
 	enetc_create_debugfs(si);
 
-	err = netc_emdio_consumer_register(dev);
-	if (err) {
-		dev_err(dev, "Failed to add EMDIO consumer\n");
-		goto err_add_emdio_consumer;
-	}
-
 	return 0;
 
-err_add_emdio_consumer:
-	enetc_remove_debugfs(si);
 err_netdev_create:
 	enetc4_pf_deinit(pf);
 err_pf_init:
@@ -1522,6 +1600,7 @@ static void enetc4_pf_remove(struct pci_dev *pdev)
 static const struct pci_device_id enetc4_pf_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_NXP2, PCI_DEVICE_ID_NXP2_ENETC_PF) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_NXP2, ENETC_PF_VIRTUAL_DEVID) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_NXP2, NXP_ENETC_PPM_DEV_ID) },
 	{ 0, } /* End of table. */
 };
 MODULE_DEVICE_TABLE(pci, enetc4_pf_id_table);
@@ -1603,6 +1682,7 @@ static void enetc4_pf_power_down(struct enetc_si *si)
 	if (pf->pcs)
 		enetc4_pf_imdio_regulator_disable(pf);
 	enetc_free_msix(priv);
+	enetc_free_cbdr(si);
 	pci_disable_device(pdev);
 	pcie_flr(pdev);
 }
@@ -1691,13 +1771,11 @@ static int __maybe_unused enetc4_pf_suspend(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct enetc_ndev_priv *priv;
 	struct enetc_si *si;
-	struct enetc_pf *pf;
 
 	if (enetc_pf_is_owned_by_mcore(pdev))
 		return 0;
 
 	si = pci_get_drvdata(pdev);
-	pf = enetc_si_priv(si);
 	priv = netdev_priv(si->ndev);
 
 	if (!netif_running(si->ndev)) {
@@ -1739,14 +1817,12 @@ static int __maybe_unused enetc4_pf_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct enetc_ndev_priv *priv;
 	struct enetc_si *si;
-	struct enetc_pf *pf;
 	int err;
 
 	if (enetc_pf_is_owned_by_mcore(pdev))
 		return 0;
 
 	si = pci_get_drvdata(pdev);
-	pf = enetc_si_priv(si);
 	priv = netdev_priv(si->ndev);
 	if (!netif_running(si->ndev)) {
 		rtnl_lock();

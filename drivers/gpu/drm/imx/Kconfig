@@ -114,6 +114,7 @@ config DRM_IMX_RPMSG
 	  Choose this to enable low power display on i.MX8ULP platform. APD can
 	  share display to RTD without reinit display related resources.
 
+source "drivers/gpu/drm/imx/dcif/Kconfig"
 source "drivers/gpu/drm/imx/dcnano/Kconfig"
 source "drivers/gpu/drm/imx/dpu/Kconfig"
 source "drivers/gpu/drm/imx/dpu95/Kconfig"

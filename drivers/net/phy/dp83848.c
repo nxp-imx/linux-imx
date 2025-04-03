@@ -16,6 +16,7 @@
 /* Registers */
 #define DP83848_MICR			0x11 /* MII Interrupt Control Register */
 #define DP83848_MISR			0x12 /* MII Interrupt Status Register */
+#define DP83848_RBR			0x17 /* RMII and Bypass Register */
 
 /* MICR Register Fields */
 #define DP83848_MICR_INT_OE		BIT(0) /* Interrupt Output Enable */
@@ -30,6 +31,11 @@
 #define DP83848_MISR_LINK_INT_EN	BIT(5) /* Link status */
 #define DP83848_MISR_ED_INT_EN		BIT(6) /* Energy detect */
 #define DP83848_MISR_LQM_INT_EN		BIT(7) /* Link Quality Monitor */
+
+/* MISR Register Fields */
+#define DP83848_RMII_REV1_0		BIT(4)  /* Reduced MII Revision 1.0 */
+#define DP83848_RMII_MODE		BIT(5)  /* Reduced MII Mode */
+#define DP83848_DIS_TX_OPT		BIT(13) /* Disable RMII TX Latency Optimization */
 
 #define DP83848_INT_EN_MASK		\
 	(DP83848_MISR_ANC_INT_EN |	\
@@ -123,6 +129,21 @@ static int dp83848_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int dp83848c_config_init(struct phy_device *phydev)
+{
+	int rbr, ret = 0;
+
+	if (phydev->interface == PHY_INTERFACE_MODE_RMII) {
+		rbr = phy_read(phydev, DP83848_MISR);
+		if (rbr & DP83848_RMII_MODE)
+			return 0;
+		rbr |= DP83848_RMII_MODE;
+		ret = phy_write(phydev, DP83848_RBR, rbr);
+	}
+
+	return ret;
+}
+
 static struct mdio_device_id __maybe_unused dp83848_tbl[] = {
 	{ TI_DP83848C_PHY_ID, 0xfffffff0 },
 	{ NS_DP83848C_PHY_ID, 0xfffffff0 },
@@ -153,7 +174,7 @@ MODULE_DEVICE_TABLE(mdio, dp83848_tbl);
 
 static struct phy_driver dp83848_driver[] = {
 	DP83848_PHY_DRIVER(TI_DP83848C_PHY_ID, "TI DP83848C 10/100 Mbps PHY",
-			   NULL),
+			   dp83848c_config_init),
 	DP83848_PHY_DRIVER(NS_DP83848C_PHY_ID, "NS DP83848C 10/100 Mbps PHY",
 			   NULL),
 	DP83848_PHY_DRIVER(TI_DP83620_PHY_ID, "TI DP83620 10/100 Mbps PHY",

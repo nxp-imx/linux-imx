@@ -33,12 +33,15 @@ static void enetc_pf_set_primary_mac_addr(struct enetc_hw *hw, int si,
 	__raw_writew(lower, hw->port + ENETC_PSIPMAR1(si));
 }
 
-static void enetc_set_vlan_promisc(struct enetc_hw *hw, char si_map)
+static void enetc_set_si_vlan_promisc(struct enetc_hw *hw, int si, bool en)
 {
 	u32 val = enetc_port_rd(hw, ENETC_PSIPVMR);
 
-	val = u32_replace_bits(val, ENETC_PSIPVMR_SET_VP(si_map),
-			       ENETC_VLAN_PROMISC_MAP_ALL);
+	if (en)
+		val |= BIT(si);
+	else
+		val &= ~BIT(si);
+
 	enetc_port_wr(hw, ENETC_PSIPVMR, val);
 }
 
@@ -383,7 +386,7 @@ static const struct enetc_pf_hw_ops enetc_pf_hw_ops = {
 	.set_si_primary_mac = enetc_pf_set_primary_mac_addr,
 	.get_si_primary_mac = enetc_pf_get_primary_mac_addr,
 	.set_si_based_vlan = enetc_set_isol_vlan,
-	.set_si_vlan_promisc = enetc_set_vlan_promisc,
+	.set_si_vlan_promisc = enetc_set_si_vlan_promisc,
 	.set_si_mac_promisc = enetc_pf_set_si_mac_promisc,
 	.set_si_mac_hash_filter = enetc_set_mac_ht_flt,
 	.set_si_vlan_hash_filter = enetc_set_vlan_ht_filter,
@@ -446,6 +449,7 @@ static void enetc_configure_port(struct enetc_pf *pf)
 {
 	u8 hash_key[ENETC_RSSHASH_KEY_SIZE];
 	struct enetc_hw *hw = &pf->si->hw;
+	u32 val;
 
 	enetc_configure_port_mac(pf->si);
 
@@ -459,9 +463,9 @@ static void enetc_configure_port(struct enetc_pf *pf)
 	enetc_port_assign_rfs_entries(pf->si);
 
 	/* enforce VLAN promisc mode for all SIs */
-	pf->vlan_promisc_simap = ENETC_VLAN_PROMISC_MAP_ALL;
-	if (pf->hw_ops->set_si_vlan_promisc)
-		pf->hw_ops->set_si_vlan_promisc(hw, pf->vlan_promisc_simap);
+	val = enetc_port_rd(hw, ENETC_PSIPVMR);
+	val |= ENETC_VLAN_PROMISC_MAP_ALL;
+	enetc_port_wr(hw, ENETC_PSIPVMR, val);
 
 	enetc_port_wr(hw, ENETC_PSIPMR, 0);
 

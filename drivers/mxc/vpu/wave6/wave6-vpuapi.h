@@ -44,31 +44,31 @@ enum vpu_instance_state {
 #define WAVE6_MAX_FBS 31
 
 #define WAVE6_DEC_HEVC_MVCOL_BUF_SIZE(_w, _h) \
-	((ALIGN(_w, 256) / 16) * (ALIGN(_h, 64) / 16) * 1 * 16)
+	((ALIGN((_w), 256) / 16) * (ALIGN((_h), 64) / 16) * 1 * 16)
 #define WAVE6_DEC_AVC_MVCOL_BUF_SIZE(_w, _h) \
-	((ALIGN(_w, 64) / 16) * (ALIGN(_h, 16) / 16) * 5 * 16)
+	((ALIGN((_w), 64) / 16) * (ALIGN((_h), 16) / 16) * 5 * 16)
 #define WAVE6_DEC_VP9_MVCOL_BUF_SIZE_1(_w, _h) \
-	((ALIGN(_w, 64) / 64) * ((ALIGN(_h, 64) / 64) * 32 * 16))
+	((ALIGN((_w), 64) / 64) * ((ALIGN((_h), 64) / 64) * 32 * 16))
 #define WAVE6_DEC_VP9_MVCOL_BUF_SIZE_2(_w, _h) \
-	((ALIGN(_w, 256) / 256) * ((ALIGN(_h, 64) / 64) * 16 * 16))
-#define WAVE6_DEC_AV1_MVCOL_BUF_SIZE_1(_w, _h) \
-	(((ALIGN(_w, 64) / 64 * 16 * 16) + (ALIGN(_w, 256) / 64 * 8 * 16)) * (ALIGN(_h, 64) / 64))
+	((ALIGN((_w), 256) / 256) * ((ALIGN((_h), 64) / 64) * 16 * 16))
+#define WAVE6_DEC_AV1_MVCOL_BUF_SIZE_1(_w64, _w256, _h) \
+	((((_w64) / 64 * 16 * 16) + ((_w256) / 64 * 8 * 16)) * (ALIGN((_h), 64) / 64))
 #define WAVE6_DEC_AV1_MVCOL_BUF_SIZE_2(_w, _h) \
-	((ALIGN(_w, 128) / 64) * (ALIGN(_h, 128) / 64) * 4 * 128 + 656 * 16)
+	((ALIGN((_w), 128) / 64) * (ALIGN((_h), 128) / 64) * 4 * 128 + 656 * 16)
 #define WAVE6_AV1_DEFAULT_CDF_BUF_SIZE (48 * 1024)
 #define WAVE6_VP9_SEGMAP_BUF_SIZE(_w, _h) \
-	((ALIGN(_w, 64) / 64) * (ALIGN(_h, 64) / 64) * 64)
+	((ALIGN((_w), 64) / 64) * (ALIGN((_h), 64) / 64) * 64)
 #define WAVE6_FBC_LUMA_TABLE_SIZE(_w, _h) \
-	(ALIGN(_w, 256) * ALIGN(_h, 64) / 32)
+	(ALIGN((_w), 256) * ALIGN((_h), 64) / 32)
 #define WAVE6_FBC_CHROMA_TABLE_SIZE(_w, _h) \
-	(ALIGN((_w / 2), 256) * ALIGN(_h, 64) / 32)
+	(ALIGN(((_w) / 2), 256) * ALIGN((_h), 64) / 32)
 #define WAVE6_ENC_AV1_MVCOL_BUF_SIZE (12 * 1024)
 #define WAVE6_ENC_AVC_MVCOL_BUF_SIZE(_w, _h) \
-	((ALIGN(_w, 512) / 512) * (ALIGN(_h, 16) / 16) * 16)
+	((ALIGN((_w), 512) / 512) * (ALIGN((_h), 16) / 16) * 16)
 #define WAVE6_ENC_HEVC_MVCOL_BUF_SIZE(_w, _h) \
-	((ALIGN(_w, 64) / 64) * (ALIGN(_h, 64) / 64) * 128)
+	((ALIGN((_w), 64) / 64) * (ALIGN((_h), 64) / 64) * 128)
 #define WAVE6_ENC_SUBSAMPLED_SIZE(_w, _h) \
-	(ALIGN((_w / 4), 16) * ALIGN((_h / 4), 32))
+	(ALIGN(((_w) / 4), 16) * ALIGN(((_h) / 4), 32))
 
 /*
  * common struct and definition
@@ -158,15 +158,28 @@ enum DEC_PIC_OPTION {
 #define H264_PROFILE_HP 4
 #define H264_PROFILE_HIGH10 5
 
+#define H264_VUI_SAR_IDC_EXTENDED 255
+
 /* decoding_refresh_type */
 #define DEC_REFRESH_TYPE_NON_IRAP 0
 #define DEC_REFRESH_TYPE_IDR 2
 
+#define DEFAULT_TEMP_LAYER_CNT 1
+#define DEFAULT_RC_INITIAL_LEVEL 8
+#define DEFAULT_RC_INITIAL_QP -1
+#define DEFAULT_PIC_RC_MAX_DQP 3
+#define DEFAULT_EN_ADAPTIVE_ROUND 1
+#define DEFAULT_Q_ROUND_INTER 85
+#define DEFAULT_Q_ROUND_INTRA 171
+#define DEFAULT_EN_INTRA_TRANS_SKIP 1
+#define DEFAULT_EN_ME_CENTER 1
+#define DEFAULT_INTRA_4X4 3
+#define DEFAULT_EN_AUTO_LEVEL_ADJUSTING 1
 #define DEFAULT_NUM_TICKS_POC_DIFF 100
-#define H264_VUI_SAR_IDC_EXTENDED 255
-
-#define ENC_RC_UPDATE_SPEED_CBR 64
-#define ENC_RC_UPDATE_SPEED_VBR 16
+#define DEFAULT_RC_UPDATE_SPEED_CBR 64
+#define DEFAULT_RC_UPDATE_SPEED_VBR 16
+#define DEFAULT_VUI_VIDEO_SIGNAL_TYPE_PRESENT_FLAG 1
+#define DEFAULT_VUI_COLOR_DESCRIPTION_PRESENT_FLAG 1
 
 /**
  * \brief parameters of DEC_SET_SEQ_CHANGE_MASK
@@ -177,6 +190,7 @@ enum DEC_PIC_OPTION {
 #define SEQ_CHANGE_INTER_RES_CHANGE BIT(17) /* VP9 */
 #define SEQ_CHANGE_ENABLE_BITDEPTH BIT(18)
 #define SEQ_CHANGE_ENABLE_DPB_COUNT BIT(19)
+#define SEQ_CHANGE_ENABLE_VIDEO_SIGNAL BIT(23) /* colorspace */
 
 #define SEQ_CHANGE_ENABLE_ALL_VP9 (SEQ_CHANGE_ENABLE_PROFILE | \
 		SEQ_CHANGE_ENABLE_SIZE | \
@@ -187,7 +201,8 @@ enum DEC_PIC_OPTION {
 #define SEQ_CHANGE_ENABLE_ALL_HEVC (SEQ_CHANGE_ENABLE_PROFILE | \
 		SEQ_CHANGE_ENABLE_SIZE | \
 		SEQ_CHANGE_ENABLE_BITDEPTH | \
-		SEQ_CHANGE_ENABLE_DPB_COUNT)
+		SEQ_CHANGE_ENABLE_DPB_COUNT | \
+		SEQ_CHANGE_ENABLE_VIDEO_SIGNAL)
 
 #define SEQ_CHANGE_ENABLE_ALL_AVS2 (SEQ_CHANGE_ENABLE_PROFILE | \
 		SEQ_CHANGE_ENABLE_SIZE | \
@@ -196,7 +211,8 @@ enum DEC_PIC_OPTION {
 
 #define SEQ_CHANGE_ENABLE_ALL_AVC (SEQ_CHANGE_ENABLE_SIZE | \
 		SEQ_CHANGE_ENABLE_BITDEPTH | \
-		SEQ_CHANGE_ENABLE_DPB_COUNT)
+		SEQ_CHANGE_ENABLE_DPB_COUNT | \
+		SEQ_CHANGE_ENABLE_VIDEO_SIGNAL)
 
 #define SEQ_CHANGE_ENABLE_ALL_AV1 (SEQ_CHANGE_ENABLE_PROFILE | \
 		SEQ_CHANGE_CHROMA_FORMAT_IDC | \
@@ -211,9 +227,6 @@ enum DEC_PIC_OPTION {
 #define RECON_IDX_FLAG_ENC_DELAY -2
 #define RECON_IDX_FLAG_HEADER_ONLY -3
 #define RECON_IDX_FLAG_CHANGE_PARAM -4
-
-#define DEC_USERDATA_FLAG_VUI 2
-#define DEC_USERDATA_FLAG_RECOVERY_POINT 9
 
 enum codec_command {
 	ENABLE_ROTATION,
@@ -399,9 +412,6 @@ enum tiled_map_type {
 	COMPRESSED_FRAME_MAP = 17, /* compressed frame map type*/
 };
 
-#define DECODE_ALL_TEMPORAL_LAYERS 0
-#define DECODE_ALL_SPATIAL_LAYERS 0
-
 enum temporal_id_mode {
 	TEMPORAL_ID_MODE_ABSOLUTE,
 	TEMPORAL_ID_MODE_RELATIVE,
@@ -422,13 +432,6 @@ enum intra_refresh_mode {
 	INTRA_REFRESH_NONE = 0,
 	INTRA_REFRESH_ROW = 1,
 	INTRA_REFRESH_COLUMN = 2,
-};
-
-enum dec_update_fb_state {
-	UPDATE_FB_STATE_ALLOC_FBC = BIT(0),
-	UPDATE_FB_STATE_ALLOC_MV = BIT(1),
-	UPDATE_FB_STATE_ALLOC_DISP = BIT(2),
-	UPDATE_FB_STATE_SEQ_CHANGE = BIT(3),
 };
 
 struct vpu_attr {
@@ -516,14 +519,18 @@ struct instance_buffer {
 
 struct report_cycle {
 	u32 host_cmd_s; /* Start Tick of DEC_PIC/ENC_PIC host command for the picture */
-	u32 host_cmd_e; /* End tick of DEC_PIC/ENC_PIC host command for the picture (until host get the result for the picture) */
+	/* End tick of DEC_PIC/ENC_PIC host command for the picture
+	 * (until host get the result for the picture)
+	 */
+	u32 host_cmd_e;
 	u32 proc_s; /* Start tick of processing hw block for the picture */
 	u32 proc_e; /* End tick of processing hw block for the picture */
 	u32 vpu_s; /* Start tick of decoding/encoding for the picture */
 	u32 vpu_e; /* End tick of decoding/encoding for the picture */
 	u32 frame_cycle; /* The total cycle of host command for the picture */
 	u32 proc_cycle; /* The total cycle of processing for the picture */
-	u32 vpu_cycle; /* The total cycle of decoding/encoding for the picture except processing cycle */
+	/* The total cycle of decoding/encoding for the picture except processing cycle */
+	u32 vpu_cycle;
 };
 
 /*
@@ -645,28 +652,6 @@ struct dec_output_info {
 	u32 decoding_success: 1;
 };
 
-struct dec_update_fb_info {
-	enum dec_update_fb_state state;
-	struct dec_initial_info sequence;
-	/**
-	 * this variable reports that sequence has been changed while H.264/AVC stream decoding.
-	 * if it is 1, HOST application can get the new sequence information by calling
-	 * vpu_dec_get_initial_info() or wave6_vpu_dec_issue_seq_init().
-	 *
-	 * for H.265/HEVC decoder, each bit has a different meaning as follows.
-	 *
-	 * sequence_changed[5] : it indicates that the profile_idc has been changed.
-	 * sequence_changed[16] : it indicates that the resolution has been changed.
-	 * sequence_changed[19] : it indicates that the required number of frame buffer has
-	 * been changed.
-	 */
-	u32 sequence_changed;
-	int fbc_index;
-	int mv_index;
-	u32 release_disp_frame_num: 5;
-	dma_addr_t release_disp_frame_addr[WAVE6_MAX_FBS];
-};
-
 /*
  * encode struct and definition
  */
@@ -750,10 +735,8 @@ struct enc_wave_param {
 	u32 bg_th_diff;
 	u32 bg_th_mean_diff;
 	int bg_delta_qp;
-	u32 intra_trans_skip;
 	u32 intra_refresh_mode;
 	u32 intra_refresh_arg;
-	u32 me_center;
 	int beta_offset_div2;
 	int tc_offset_div2;
 	u32 lf_sharpness;
@@ -801,10 +784,13 @@ struct enc_wave_param {
 	struct sar_info sar;
 	u32 max_intra_pic_bit;
 	u32 max_inter_pic_bit;
+	u32 intra_4x4;
 
 	/* flags */
 	u32 en_constrained_intra_pred: 1;
 	u32 en_long_term: 1;
+	u32 en_intra_trans_skip: 1;
+	u32 en_me_center: 1;
 	u32 en_rate_control: 1;
 	u32 en_transform8x8: 1;
 	u32 en_hvs_qp: 1;
@@ -827,6 +813,8 @@ struct enc_wave_param {
 	u32 en_report_mv_histo: 1;
 	u32 dis_coef_clear: 1;
 	u32 en_cu_level_rate_control: 1;
+	u32 en_vbv_overflow_drop_frame: 1;
+	u32 en_auto_level_adjusting: 1;
 };
 
 struct enc_open_param {
@@ -840,7 +828,6 @@ struct enc_open_param {
 	enum packed_format_num packed_format; /* <<vpuapi_h_packed_format_num>> */
 	enum frame_buffer_format src_format;
 	enum frame_buffer_format output_format;
-	bool enable_pts; /* an enable flag to report PTS(presentation timestamp) */
 	bool enable_non_ref_fbc_write;
 	bool enc_hrd_rbsp_in_vps; /* it encodes the HRD syntax rbsp into VPS. */
 	u32 hrd_rbsp_data_size; /* the bit size of the HRD rbsp data */
@@ -855,7 +842,6 @@ struct enc_open_param {
 struct enc_change_param {
 	u32 enable;
 	u32 enc_bit_rate;
-	u32 max_bit_rate;
 };
 
 struct enc_initial_info {
@@ -898,7 +884,7 @@ struct enc_param {
 	unsigned int skip_picture: 1;
 	dma_addr_t pic_stream_buffer_addr;
 	int pic_stream_buffer_size;
-	int force_pic_qp_enable; /* flag used to force picture quantization parameter */
+	bool force_pic_qp_enable; /* flag used to force picture quantization parameter */
 	int force_pic_qp_i;
 	int force_pic_qp_p;
 	int force_pic_qp_b;
@@ -909,13 +895,11 @@ struct enc_param {
 	struct enc_code_opt code_option;
 	u32 use_cur_src_as_longterm_pic;
 	u32 use_longterm_ref;
-	u64 pts; /* the presentation timestamp (PTS) of input source */
 	struct wave_custom_map_opt custom_map_opt;
 	u32 update_last_2bit;
 	u32 last_2bit_data;
 	struct enc_csc_param csc;
 	struct timestamp_info timestamp;
-	u32 intra_4x4;
 	struct enc_sei_nal_info sei_nal;
 };
 
@@ -961,7 +945,6 @@ struct enc_output_info {
 	int enc_pic_cnt; /* the encoded picture number */
 	int error_reason; /* the error reason of the currently encoded picture */
 	int warn_info; /* the warning information of the currently encoded picture */
-	u64 pts;
 	u32 pic_distortion_low;
 	u32 pic_distortion_high;
 	u32 non_ref_pic_flag: 1;
@@ -1018,7 +1001,6 @@ struct dec_info {
 	int stride;
 	bool initial_info_obtained;
 	struct sec_axi_info sec_axi_info;
-	u32 user_data_enable;
 	struct dec_output_info dec_out_info[WAVE6_MAX_FBS];
 	bool thumbnail_mode;
 	int seq_change_mask;
@@ -1044,8 +1026,6 @@ struct enc_info {
 	struct vpu_buf vb_fbc_c_tbl[WAVE6_MAX_FBS]; /* FBC chroma table buffer */
 	struct vpu_buf vb_sub_sam_buf[WAVE6_MAX_FBS]; /* sub-sampled buffer for ME */
 	struct vpu_buf vb_def_cdf;
-	u64 cur_pts; /* current timestamp in 90_k_hz */
-	u64 pts_map[32]; /* PTS mapped with source frame index */
 	u32 cycle_per_tick;
 	u32 width;
 	u32 height;
@@ -1059,6 +1039,8 @@ struct h264_enc_controls {
 	u32 min_qp;
 	u32 max_qp;
 	u32 i_frame_qp;
+	u32 p_frame_qp;
+	u32 b_frame_qp;
 	u32 loop_filter_mode;
 	u32 loop_filter_beta;
 	u32 loop_filter_alpha;
@@ -1080,6 +1062,8 @@ struct hevc_enc_controls {
 	u32 min_qp;
 	u32 max_qp;
 	u32 i_frame_qp;
+	u32 p_frame_qp;
+	u32 b_frame_qp;
 	u32 loop_filter_mode;
 	u32 lf_beta_offset_div2;
 	u32 lf_tc_offset_div2;
@@ -1105,6 +1089,7 @@ struct enc_controls {
 	struct h264_enc_controls h264;
 	struct hevc_enc_controls hevc;
 	u32 force_key_frame;
+	u32 frame_skip_mode;
 };
 
 struct vpu_device {
@@ -1135,7 +1120,7 @@ struct vpu_device {
 	struct wave6_vpu_entity entity;
 	bool active;
 	int pause_request;
-	struct mutex pause_lock;
+	struct mutex pause_lock; /* the lock for the pause/resume m2m job. */
 	const struct wave6_match_data *res;
 	struct dentry *debugfs;
 	struct device *trusty_dev;
@@ -1172,6 +1157,9 @@ struct vpu_instance {
 	enum v4l2_xfer_func xfer_func;
 	enum v4l2_ycbcr_encoding ycbcr_enc;
 	enum v4l2_quantization quantization;
+	u32 fb_num;
+	u32 mv_num;
+	u32 src_change;
 
 	enum vpu_instance_state state;
 	enum vpu_instance_state state_in_seek;
@@ -1208,10 +1196,6 @@ struct vpu_instance {
 	struct dec_scaler_info scaler_info;
 	bool error_recovery;
 
-	struct workqueue_struct *workqueue;
-	u64 total_frames;
-	u64 total_frame_cycle;
-
 	struct vpu_performance_info performance;
 
 	struct dentry *debugfs;
@@ -1221,6 +1205,7 @@ void wave6_vdi_writel(struct vpu_device *vpu_device, unsigned int addr, unsigned
 unsigned int wave6_vdi_readl(struct vpu_device *vpu_dev, unsigned int addr);
 int wave6_allocate_secure_dma_memory(struct vpu_device *vpu_dev, struct vpu_buf *vb);
 void wave6_free_secure_dma_memory(struct vpu_device *vpu_dev, struct vpu_buf *vb);
+unsigned int wave6_vdi_convert_endian(unsigned int endian);
 
 int wave6_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *pop);
 int wave6_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res);
@@ -1233,10 +1218,6 @@ int wave6_vpu_dec_register_aux_buffer(struct vpu_instance *inst, struct aux_buff
 int wave6_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of_dec_fbs,
 					   int stride, int height, int map_type);
 int wave6_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct frame_buffer fb);
-int wave6_vpu_dec_update_frame_buffer(struct vpu_instance *inst, struct frame_buffer *fb,
-				      int mv_index);
-int wave6_vpu_dec_get_update_frame_buffer_info(struct vpu_instance *inst,
-					       struct dec_update_fb_info *info);
 int wave6_vpu_dec_start_one_frame(struct vpu_instance *inst, struct dec_param *param,
 				  u32 *res_fail);
 int wave6_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info);

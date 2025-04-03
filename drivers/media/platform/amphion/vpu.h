@@ -316,6 +316,7 @@ struct vpu_inst {
 	u8 xfer_func;
 	u32 sequence;
 	u32 extra_size;
+	u32 changes;
 
 	u32 flows[16];
 	u32 flow_idx;

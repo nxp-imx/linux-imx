@@ -5,6 +5,8 @@
  */
 #include <linux/fsl/netc_lib.h>
 
+#include "ntmp_private.h"
+
 int netc_kstrtouint(const char __user *buffer, size_t count,
 		    loff_t *ppos, u32 *val)
 {
@@ -64,6 +66,7 @@ int netc_show_isit_entry(struct ntmp_priv *priv, struct seq_file *s,
 {
 	struct ntmp_isit_entry *isit_entry __free(kfree);
 	struct isit_keye_data *keye;
+	u32 key_aux;
 	int i, err;
 
 	isit_entry = kzalloc(sizeof(*isit_entry), GFP_KERNEL);
@@ -77,13 +80,15 @@ int netc_show_isit_entry(struct ntmp_priv *priv, struct seq_file *s,
 	}
 
 	keye = &isit_entry->keye;
+	key_aux = le32_to_cpu(keye->key_aux);
 	seq_printf(s, "Show ingress stream identification table entry 0x%x\n",
 		   entry_id);
-	seq_printf(s, "Key type: %u, Source Port ID: %u, IS_EID: %u\n",
-		   keye->key_type, keye->src_port_id,
+	seq_printf(s, "Key type: %lu, Source Port ID: %lu, IS_EID: %u\n",
+		   FIELD_GET(ISIT_KEY_TYPE, key_aux),
+		   FIELD_GET(ISIT_SRC_PORT_ID, key_aux),
 		   le32_to_cpu(isit_entry->is_eid));
 	seq_puts(s, "Keys: ");
-	for (i = 0; i < NTMP_ISIT_FRAME_KEY_LEN; i++)
+	for (i = 0; i < ISIT_FRAME_KEY_LEN; i++)
 		seq_printf(s, "%02x", keye->frame_key[i]);
 	seq_puts(s, "\n\n");
 
@@ -95,8 +100,8 @@ int netc_show_ist_entry(struct ntmp_priv *priv, struct seq_file *s,
 			u32 entry_id)
 {
 	struct ist_cfge_data *cfge __free(kfree);
-	union ist_switch_cfg switch_cfg;
-	u32 bitmap_evmeid;
+	u32 bitmap_evmeid, cfg;
+	u16 switch_cfg;
 	int err;
 
 	cfge = kzalloc(sizeof(*cfge), GFP_KERNEL);
@@ -109,34 +114,55 @@ int netc_show_ist_entry(struct ntmp_priv *priv, struct seq_file *s,
 		return err;
 	}
 
-	switch_cfg.val = le16_to_cpu(cfge->switch_cfg);
+	switch_cfg = le16_to_cpu(cfge->switch_cfg);
 	bitmap_evmeid = le32_to_cpu(cfge->bitmap_evmeid);
+	cfg = le32_to_cpu(cfge->cfg);
 	seq_printf(s, "Show ingress stream table entry 0x%x\n", entry_id);
 	seq_printf(s, "Stream Filtering: %s, Report Receive Timestamp: %s\n",
-		   is_en(cfge->sfe), is_en(cfge->rrt));
-	seq_printf(s, "OIPV: %s, IPV: %u, ODR: %s, DR: %u\n", is_en(cfge->oipv),
-		   cfge->ipv, is_en(cfge->odr), cfge->dr);
-	seq_printf(s, "IMIRE: %s, TIMECAPE: %s, SPPD: %u, ISQGA: %u\n",
-		   is_en(cfge->imire), is_en(cfge->timecape), cfge->sppd,
-		   cfge->isqga);
-	seq_printf(s, "ORP: %s, OSGI: %s, SDU type:%u\n", is_en(cfge->orp),
-		   is_en(cfge->osgi), cfge->v1.sdu_type);
-	seq_printf(s, "Host Reason: %u, Forwarding Action: %u\n", cfge->hr,
-		   cfge->v1.fa);
-	seq_printf(s, "OSDFA: %s, SDFA: %u, MSDU:%u\n", is_en(cfge->v1.osdfa),
-		   cfge->v1.sdfa, le16_to_cpu(cfge->msdu));
-	seq_printf(s, "IFME_LEN_CHANGE: 0x%x, Egress Port: %u\n",
-		   switch_cfg.ifme_len_change, switch_cfg.eport);
-	seq_printf(s, "Override ET_EID: %u, CTD: %u\n",
-		   switch_cfg.oeteid, switch_cfg.ctd);
+		   is_en(cfg & IST_SFE), is_en(cfg & IST_RRT));
+	seq_printf(s, "OIPV: %s, IPV: %lu, ODR: %s, DR: %lu\n",
+		   is_en(cfg & IST_OIPV), FIELD_GET(IST_IPV, cfg),
+		   is_en(cfg & IST_ODR), FIELD_GET(IST_DR, cfg));
+	seq_printf(s, "IMIRE: %s, TIMECAPE: %s, SPPD: %s, ISQGA: %lu\n",
+		   is_en(cfg & IST_IMIRE), is_en(cfg & IST_TIMERCAPE),
+		   is_en(cfg & IST_SPPD), FIELD_GET(IST_ISQGA, cfg));
+	seq_printf(s, "ORP: %s, OSGI: %s, Host Reason:%lu\n",
+		   is_en(cfg & IST_ORP), is_en(cfg & IST_OSGI),
+		   FIELD_GET(IST_HR, cfg));
+
+	switch (priv->cbdrs.tbl.ist_ver) {
+	case NTMP_TBL_VER0:
+		seq_printf(s, "Forwarding Action: %lu, SDU type:%lu\n",
+			   FIELD_GET(IST_V0_FA, cfg),
+			   FIELD_GET(IST_V0_SDU_TYPE, cfg));
+		break;
+	case NTMP_TBL_VER1:
+		seq_printf(s, "Forwarding Action: %lu, SDU type:%lu\n",
+			   FIELD_GET(IST_V1_FA, cfg),
+			   FIELD_GET(IST_V1_SDU_TYPE, cfg));
+		seq_printf(s, "SDFA: %lu, OSDFA: %s\n",
+			   FIELD_GET(IST_SDFA, cfg), is_en(cfg & IST_OSDFA));
+		break;
+	default:
+		break;
+	}
+
+	seq_printf(s, "MSDU :%u\n", le16_to_cpu(cfge->msdu));
+	seq_printf(s, "IFME_LEN_CHANGE: 0x%lx, Egress Port: %lu\n",
+		   FIELD_GET(IST_IFME_LEN_CHANGE, switch_cfg),
+		   FIELD_GET(IST_EPORT, switch_cfg));
+	seq_printf(s, "Override ET_EID: %lu, CTD: %lu\n",
+		   FIELD_GET(IST_OETEID, switch_cfg),
+		   FIELD_GET(IST_CTD, switch_cfg));
 	seq_printf(s, "ISQG_EID: 0x%x, RP_EID: 0x%x\n", le32_to_cpu(cfge->isqg_eid),
 		   le32_to_cpu(cfge->rp_eid));
 	seq_printf(s, "SGI_EID: 0x%x, IFM_EID: 0x%x\n", le32_to_cpu(cfge->sgi_eid),
 		   le32_to_cpu(cfge->ifm_eid));
 	seq_printf(s, "ET_EID: 0x%x, ISC_EID: 0x%x\n", le32_to_cpu(cfge->et_eid),
 		   le32_to_cpu(cfge->isc_eid));
-	seq_printf(s, "Egress Port bitmap: 0x%x, Event Monitor Event ID: %u\n",
-		   bitmap_evmeid & 0xffffff, (bitmap_evmeid >> 24) & 0xf);
+	seq_printf(s, "Egress Port bitmap: 0x%lx, Event Monitor Event ID: %lu\n",
+		   bitmap_evmeid & IST_EGRESS_PORT_BITMAP,
+		   FIELD_GET(IST_EVMEID, bitmap_evmeid));
 	seq_puts(s, "\n");
 
 	return 0;
@@ -149,6 +175,7 @@ int netc_show_isft_entry(struct ntmp_priv *priv, struct seq_file *s,
 	struct ntmp_isft_entry *isft_entry __free(kfree);
 	struct isft_cfge_data *cfge;
 	struct isft_keye_data *keye;
+	u16 cfg;
 	int err;
 
 	isft_entry = kzalloc(sizeof(*isft_entry), GFP_KERNEL);
@@ -163,16 +190,19 @@ int netc_show_isft_entry(struct ntmp_priv *priv, struct seq_file *s,
 		return err;
 	}
 
+	cfg = le16_to_cpu(cfge->cfg);
 	seq_printf(s, "Show ingress stream filter table entry 0x%x\n", entry_id);
 	seq_printf(s, "IS_EID: 0x%x, PCP: %u\n",
 		   le32_to_cpu(keye->is_eid), keye->pcp);
-	seq_printf(s, "OIPV: %s, IPV: %u, ODR: %s, DR: %u\n", is_en(cfge->oipv),
-		   cfge->ipv, is_en(cfge->odr), cfge->dr);
-	seq_printf(s, "IMIRE: %s, TIMECAPE:%s, OSGI: %s, CTD: %u\n",
-		   is_en(cfge->imire), is_en(cfge->timecape), is_en(cfge->osgi),
-		   cfge->ctd);
-	seq_printf(s, "ORP: %s, SDU type: %u, MSDU: %u\n", is_en(cfge->orp),
-		   cfge->sdu_type, le16_to_cpu(cfge->msdu));
+	seq_printf(s, "OIPV: %s, IPV: %lu, ODR: %s, DR: %lu\n",
+		   is_en(cfg & ISFT_OIPV), FIELD_GET(ISFT_IPV, cfg),
+		   is_en(cfg & ISFT_ODR), FIELD_GET(ISFT_DR, cfg));
+	seq_printf(s, "IMIRE: %s, TIMECAPE:%s, OSGI: %s, CTD: %s\n",
+		   is_en(cfg & ISFT_IMIRE), is_en(cfg & ISFT_TIMECAPE),
+		   is_en(cfg & ISFT_OSGI), is_yes(cfg & ISFT_CTD));
+	seq_printf(s, "ORP: %s, SDU type: %lu, MSDU: %u\n",
+		   is_en(cfg & ISFT_ORP), FIELD_GET(ISFT_SDU_TYPE, cfg),
+		   le16_to_cpu(cfge->msdu));
 	seq_printf(s, "RP_EID: 0x%x, SGI_EID: 0x%x, ISC_EID: 0x%x\n",
 		   le32_to_cpu(cfge->rp_eid), le32_to_cpu(cfge->sgi_eid),
 		   le32_to_cpu(cfge->isc_eid));
@@ -213,12 +243,18 @@ int netc_show_sgit_entry(struct ntmp_priv *priv, struct seq_file *s,
 	seq_printf(s, "OPER_BASE_TIME: %llu, OPER_CYCLE_TIME_EXT: %u\n",
 		   le64_to_cpu(sgise->oper_base_time),
 		   le32_to_cpu(sgise->oper_cycle_time_ext));
-	seq_printf(s, "OEX: %u, IRX: %u, state: %u\n", sgise->oex, sgise->irx,
-		   sgise->state);
-	seq_printf(s, "OEXEN: %s, IRXEN: %s, SDU type:%u\n", is_en(cfge->oexen),
-		   is_en(cfge->irxen), cfge->sdu_type);
-	seq_printf(s, "OIPV: %s, IPV: %u, GST: %u, CTD: %u\n", is_en(icfge->oipv),
-		   icfge->ipv, icfge->gst, icfge->ctd);
+	seq_printf(s, "OEX: %lu, IRX: %lu, state: %lu\n", sgise->info & SGIT_OEX,
+		   FIELD_GET(SGIT_IRX, sgise->info),
+		   FIELD_GET(SGIT_STATE, sgise->info));
+	seq_printf(s, "OEXEN: %s, IRXEN: %s, SDU type:%lu\n",
+		   is_en(cfge->cfg & SGIT_OEXEN),
+		   is_en(cfge->cfg & SGIT_IRXEN),
+		   FIELD_GET(SGIT_SDU_TYPE, cfge->cfg));
+	seq_printf(s, "OIPV: %s, IPV: %lu, GST: %s, CTD: %s\n",
+		   is_en(icfge->icfg & SGIT_OIPV),
+		   FIELD_GET(SGIT_IPV, icfge->icfg),
+		   icfge->icfg & SGIT_GST ? "open" : "closed",
+		   is_yes(icfge->icfg & SGIT_CTD));
 	seq_printf(s, "ADMIN_SGCL_EID: 0x%x, ADMIN_BASE_TIME: %llu\n",
 		   le32_to_cpu(acfge->admin_sgcl_eid),
 		   le64_to_cpu(acfge->admin_base_time));
@@ -237,12 +273,11 @@ int netc_show_sgclt_entry(struct ntmp_priv *priv, struct seq_file *s,
 	u32 sgclt_data_size, sgclt_cfge_size;
 	struct sgclt_cfge_data *cfge;
 	int i, err;
-	u32 iom;
 
 	sgclt_cfge_size = struct_size_t(struct sgclt_cfge_data, ge,
-					NTMP_SGCLT_MAX_GE_NUM);
+					SGCLT_MAX_GE_NUM);
 	sgclt_data_size = struct_size(sgclt_entry, cfge.ge,
-				      NTMP_SGCLT_MAX_GE_NUM);
+				      SGCLT_MAX_GE_NUM);
 	sgclt_entry = kzalloc(sgclt_data_size, GFP_KERNEL);
 	if (!sgclt_entry)
 		return -ENOMEM;
@@ -259,19 +294,24 @@ int netc_show_sgclt_entry(struct ntmp_priv *priv, struct seq_file *s,
 	seq_printf(s, "REF_COUNT: %u, CYCLE_TIME: %u, LIST_LENGTH: %u\n",
 		   sgclt_entry->ref_count, le32_to_cpu(cfge->cycle_time),
 		   cfge->list_length);
-	seq_printf(s, "EXT_OIPV: %s, EXT_IPV: %u, EXT_CTD: %u, EXT_GTST: %u\n",
-		   is_en(cfge->ext_oipv), cfge->ext_ipv, cfge->ext_ctd, cfge->ext_gtst);
+	seq_printf(s, "EXT_OIPV: %s, EXT_IPV: %lu, EXT_CTD: %s, EXT_GTST: %s\n",
+		   is_en(cfge->ext_cfg & SGCLT_EXT_OIPV),
+		   FIELD_GET(SGCLT_EXT_IPV, cfge->ext_cfg),
+		   is_yes(cfge->ext_cfg & SGCLT_EXT_CTD),
+		   cfge->ext_cfg & SGCLT_EXT_GTST ? "open" : "closed");
 
 	for (i = 0; i < cfge->list_length + 1; i++) {
-		iom = (u32)cfge->ge[i].iom[2] << 16;
-		iom |= (u32)cfge->ge[i].iom[1] << 8;
-		iom |= (u32)cfge->ge[i].iom[0];
-		seq_printf(s, "Gate Entry: %d, Time Interval: %u, IOMEN: %s, IOM: %u\n",
-			   i, le32_to_cpu(cfge->ge[i].interval),
-			   is_en(cfge->ge[i].iomen), iom);
-		seq_printf(s, "OIPV: %s, IPV: %u, CTD: %u, GTST: %u\n",
-			   is_en(cfge->ge[i].oipv), cfge->ge[i].ipv,
-			   cfge->ge[i].ctd, cfge->ge[i].gtst);
+		u32 cfg = le32_to_cpu(cfge->ge[i].cfg);
+
+		seq_printf(s, "Gate Entry: %d, Time Interval: %u\n",
+			   i, le32_to_cpu(cfge->ge[i].interval));
+		seq_printf(s, "IOMEN: %s, IOM: %lu\n",
+			   is_en(cfg & SGCLT_IOMEN),
+			   FIELD_GET(SGCLT_IOM, cfg));
+		seq_printf(s, "OIPV: %s, IPV: %lu, CTD: %s, GTST: %s\n",
+			   is_en(cfg & SGCLT_OIPV), FIELD_GET(SGCLT_IPV, cfg),
+			   is_yes(cfg & SGCLT_CTD),
+			   cfg & SGCLT_GTST ? "open" : "closed");
 	}
 	seq_puts(s, "\n");
 
@@ -326,6 +366,7 @@ int netc_show_rpt_entry(struct ntmp_priv *priv, struct seq_file *s,
 	struct rpt_cfge_data *cfge;
 	struct rpt_stse_data *stse;
 	u32 bcf_bcs, bef_bes;
+	u16 cfg;
 	int err;
 
 	rpt_entry = kzalloc(sizeof(*rpt_entry), GFP_KERNEL);
@@ -342,6 +383,7 @@ int netc_show_rpt_entry(struct ntmp_priv *priv, struct seq_file *s,
 	stse = &rpt_entry->stse;
 	bcf_bcs = le32_to_cpu(stse->bcf_bcs);
 	bef_bes = le32_to_cpu(stse->bef_bes);
+	cfg = le16_to_cpu(cfge->cfg);
 	seq_printf(s, "Show rate policer table entry 0x%x\n", entry_id);
 	seq_printf(s, "BYTE_COUNT: %llu, DROP_FRAMES: %u\n",
 		   le64_to_cpu(stse->byte_count), le32_to_cpu(stse->drop_frames));
@@ -356,15 +398,21 @@ int netc_show_rpt_entry(struct ntmp_priv *priv, struct seq_file *s,
 		   le32_to_cpu(stse->remark_red_frames));
 	seq_printf(s, "LTS: 0x%x, BCI: %u, BEI: %u\n", le32_to_cpu(stse->lts),
 		   le32_to_cpu(stse->bci), le32_to_cpu(stse->bei));
-	seq_printf(s, "BCS: %u, BCF: 0x%x\n", bcf_bcs >> 31, bcf_bcs & 0x7fffffff);
-	seq_printf(s, "BEF: %u, BEI: 0x%x\n", bef_bes >> 31, bef_bes & 0x7fffffff);
+	seq_printf(s, "BCS: %lu, BCF: 0x%lx\n", FIELD_GET(RPT_BCS, bcf_bcs),
+		   FIELD_GET(RPT_BCF, bcf_bcs));
+	seq_printf(s, "BEF: %lu, BEI: 0x%lx\n", FIELD_GET(RPT_BES, bef_bes),
+		   FIELD_GET(RPT_BEF, bef_bes));
 	seq_printf(s, "CIR: %u, CBS: %u, EIR: %u, EBS: %u\n",
 		   le32_to_cpu(cfge->cir), le32_to_cpu(cfge->cbs),
 		   le32_to_cpu(cfge->eir), le32_to_cpu(cfge->ebs));
-	seq_printf(s, "MREN: %s, DOY: %s, CM: %u, CF: %u\n",
-		   is_en(cfge->mren), is_en(cfge->doy), cfge->cm, cfge->cf);
-	seq_printf(s, "NDOR: %s, SDU type:%u, FEN: %s, MR: %u\n", is_en(cfge->ndor),
-		   cfge->sdu_type, is_en(rpt_entry->fee.fen), rpt_entry->pse.mr);
+	seq_printf(s, "MREN: %s, DOY: %s, CM: %s, CF: %lu\n",
+		   is_en(cfg & RPT_MREN), is_en(cfg & RPT_DOY),
+		   cfg & RPT_DOY ? "aware" : "blind",
+		   FIELD_GET(RPT_CF, cfg));
+	seq_printf(s, "NDOR: %s, SDU type:%lu, FEN: %s, MR: %u\n",
+		   is_en(cfg & RPT_NDOR), FIELD_GET(RPT_SDU_TYPE, cfg),
+		   is_en(rpt_entry->fee.fen & RPT_FEN),
+		   rpt_entry->pse.mr);
 	seq_puts(s, "\n");
 
 	return 0;
@@ -375,12 +423,11 @@ int netc_show_ipft_entry(struct ntmp_priv *priv, struct seq_file *s,
 			 u32 entry_id)
 {
 	struct ntmp_ipft_entry *ipft_entry __free(kfree);
-	union ipft_src_port src_port;
 	struct ipft_keye_data *keye;
 	struct ipft_cfge_data *cfge;
-	u16 dscp, dscp_mask;
+	u16 dscp, src_port;
 	int i, err;
-	u8 rpr;
+	u32 cfg;
 
 	ipft_entry = kzalloc(sizeof(*ipft_entry), GFP_KERNEL);
 	if (!ipft_entry)
@@ -393,22 +440,25 @@ int netc_show_ipft_entry(struct ntmp_priv *priv, struct seq_file *s,
 	keye = &ipft_entry->keye;
 	cfge = &ipft_entry->cfge;
 
-	dscp = le16_to_cpu(keye->dscp) & NTMP_IPFT_DSCP;
-	dscp_mask = (le16_to_cpu(keye->dscp) & NTMP_IPFT_DSCP_MASK) >> 6;
-	rpr = cfge->rpr_l;
-	rpr |= cfge->rpr_h << 1;
+	cfg = le32_to_cpu(cfge->cfg);
+	dscp = le16_to_cpu(keye->dscp);
 
 	seq_printf(s, "Show ingress port filter table entry:%u\n", entry_id);
 
 	/* KEYE_DATA */
 	seq_printf(s, "Precedence:%u, Frame attribute flags:0x%04x, mask:0x%04x\n",
 		   keye->precedence, keye->frm_attr_flags, keye->frm_attr_flags_mask);
-	seq_printf(s, "DSCP:0x%x, mask:0x%x\n", dscp, dscp_mask);
+	seq_printf(s, "DSCP:0x%lx, mask:0x%lx\n", FIELD_GET(IPFT_DSCP, dscp),
+		   FIELD_GET(IPFT_DSCP_MASK, dscp));
 
 	if (priv->dev_type == NETC_DEV_SWITCH) {
-		src_port.val = le16_to_cpu(keye->src_port);
+		u8 port_id, port_mask;
+
+		src_port = le16_to_cpu(keye->src_port);
+		port_id = FIELD_GET(IPFT_SRC_PORT, src_port);
+		port_mask = FIELD_GET(IPFT_SRC_PORT_MASK, src_port);
 		seq_printf(s, "Switch Source Port ID:%d, mask:0x%02x\n",
-			   src_port.id, src_port.mask);
+			   port_id, port_mask);
 	}
 
 	seq_printf(s, "Outer VLAN TCI:0x%04x, mask:0x%04x\n",
@@ -439,7 +489,7 @@ int netc_show_ipft_entry(struct ntmp_priv *priv, struct seq_file *s,
 		   ntohs(keye->l4_src_port), ntohs(keye->l4_src_port_mask));
 	seq_printf(s, "L4 Destination Port:%x, mask:0x%04x\n",
 		   ntohs(keye->l4_dst_port), ntohs(keye->l4_dst_port_mask));
-	for (i = 0; i < NTMP_IPFT_MAX_PLD_LEN; i = i + 6) {
+	for (i = 0; i < IPFT_MAX_PLD_LEN; i = i + 6) {
 		seq_printf(s, "Payload %d~%d: %02x %02x %02x %02x %02x %02x\n",
 			   i, i + 5, keye->byte[i].data, keye->byte[i + 1].data,
 			   keye->byte[i + 2].data, keye->byte[i + 3].data,
@@ -454,23 +504,32 @@ int netc_show_ipft_entry(struct ntmp_priv *priv, struct seq_file *s,
 	seq_printf(s, "Match Count:%llu\n", le64_to_cpu(ipft_entry->match_count));
 
 	/* CFGE_DATA */
-	seq_printf(s, "Override internal Priority %s:%u\n", is_en(cfge->oipv),
-		   cfge->ipv);
-	seq_printf(s, "Override Drop Resilience %s:%u\n", is_en(cfge->odr),
-		   cfge->dr);
-	seq_printf(s, "Filter Forwarding Action:%u\n", cfge->fltfa);
-	seq_printf(s, "Wake-on-LAN Trigger %s\n", is_en(cfge->wolte));
-	seq_printf(s, "Filter Action:%u\n", cfge->flta);
-	seq_printf(s, "Relative Precedent Resolution:%u\n", rpr);
-	seq_printf(s, "Target For Selected Filter Action:0x%x\n",
+	seq_printf(s, "Override internal Priority %s: %lu\n",
+		   is_en(cfg & IPFT_OIPV), FIELD_GET(IPFT_IPV, cfg));
+	seq_printf(s, "Override Drop Resilience %s: %lu\n",
+		   is_en(IPFT_ODR & cfg), FIELD_GET(IPFT_DR, cfg));
+	seq_printf(s, "Filter Forwarding Action: %lu\n",
+		   FIELD_GET(IPFT_FLTFA, cfg));
+	seq_printf(s, "Filter Action: %lu\n", FIELD_GET(IPFT_FLTA, cfg));
+	seq_printf(s, "Relative Precedent Resolution: %lu\n",
+		   FIELD_GET(IPFT_RPR, cfg));
+	seq_printf(s, "Target For Selected Filter Action: 0x%x\n",
 		   le32_to_cpu(cfge->flta_tgt));
 
 	if (priv->dev_type == NETC_DEV_SWITCH) {
-		seq_printf(s, "Ingress Mirroring %s, Cut through disable: %d\n",
-			   is_en(cfge->imire), cfge->ctd);
-		seq_printf(s, "Host Reason: %d, Timestamp Capture %s\n",
-			   cfge->hr, is_en(cfge->timecape));
-		seq_printf(s, "Report Receive Timestamp: %s\n", is_yes(cfge->rrt));
+		seq_printf(s, "Ingress Mirroring %s, Cut through disable: %s\n",
+			   is_en(cfg & IPFT_IMIRE), is_yes(cfg & IPFT_CTD));
+		seq_printf(s, "Host Reason: %lu, Timestamp Capture %s\n",
+			   FIELD_GET(IPFT_HR, cfg), is_en(cfg & IPFT_TIMECAPE));
+		seq_printf(s, "Report Receive Timestamp: %s\n",
+			   is_yes(cfg & IPFT_RRT));
+		seq_printf(s, "Event monitor event ID: %lu\n",
+			   FIELD_GET(IPFT_EVMEID, cfg));
+	} else {
+		seq_printf(s, "Wake-on-LAN Trigger %s\n",
+			   is_en(cfg & IPFT_WOLTE));
+		seq_printf(s, "Bypass L2 Filtering: %s\n",
+			   is_yes(cfg & IPFT_BL2F));
 	}
 
 	seq_puts(s, "\n");
@@ -532,3 +591,25 @@ int netc_show_tgst_entry(struct ntmp_priv *priv, struct seq_file *s,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(netc_show_tgst_entry);
+
+void netc_show_ipft_flower(struct seq_file *s, struct netc_flower_rule *rule)
+{
+	struct ntmp_ipft_entry *ipft_entry = rule->key_tbl->ipft_entry;
+	struct ntmp_ist_entry *ist_entry = rule->key_tbl->ist_entry;
+	u32 ipft_cfg = le32_to_cpu(ipft_entry->cfge.cfg);
+	u32 rpt_eid = NTMP_NULL_ENTRY_ID;
+
+	seq_printf(s, "IPFT entry ID:0x%x\n", ipft_entry->entry_id);
+	if (ist_entry) {
+		seq_printf(s, "IST entry ID: 0x%x\n", ist_entry->entry_id);
+		seq_printf(s, "ISCT entry ID: 0x%x\n", ist_entry->cfge.isc_eid);
+		rpt_eid = le32_to_cpu(ist_entry->cfge.rp_eid);
+	}
+
+	if (FIELD_GET(IPFT_FLTA, ipft_cfg) == IPFT_FLTA_RP)
+		rpt_eid = le32_to_cpu(ipft_entry->cfge.flta_tgt);
+
+	if (rpt_eid != NTMP_NULL_ENTRY_ID)
+		seq_printf(s, "RPT entry ID: 0x%x\n", rpt_eid);
+}
+EXPORT_SYMBOL_GPL(netc_show_ipft_flower);

@@ -123,7 +123,7 @@ properties:
             - description: See native 'aux' clock for details
               enum: [ pcie_aux ]
             - description: See native 'ref' clock for details.
-              enum: [ gio ]
+              enum: [ gio, ext-ref ]
             - description: See nativs 'phy_reg' clock for details
               enum: [ pcie_apb_phy, pclk ]
 

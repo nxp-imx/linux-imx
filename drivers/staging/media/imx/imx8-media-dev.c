@@ -299,6 +299,8 @@ static void mxc_md_unregister_all(struct mxc_md *mxc_md)
 
 static int mxc_md_create_links(struct mxc_md *mxc_md)
 {
+	struct device_node *csi_ep, *remote_ep;
+	struct of_endpoint endpoint;
 	struct media_entity *source, *sink;
 	struct mxc_isi_info *mxc_isi;
 	struct mxc_sensor_info *sensor;
@@ -519,7 +521,31 @@ static int mxc_md_create_links(struct mxc_md *mxc_md)
 
 			source = &sensor->sd->entity;
 			sink = find_entity_by_name(mxc_md, mipi_csi2->sd_name);
-			source_pad = 0;
+			csi_ep = of_graph_get_next_endpoint(mipi_csi2->node, NULL);
+			if (!csi_ep) {
+				v4l2_err(&mxc_md->v4l2_dev,
+					 "Failed to get CSI endpoint\n");
+				return -ENODEV;
+			}
+
+			remote_ep = of_graph_get_remote_endpoint(csi_ep);
+			of_node_put(csi_ep);
+			if (!remote_ep) {
+				v4l2_err(&mxc_md->v4l2_dev,
+					 "Failed to get CSI remote endpoint\n");
+				return -ENODEV;
+			}
+
+			memset(&endpoint, 0x0, sizeof(struct of_endpoint));
+			ret = of_graph_parse_endpoint(remote_ep, &endpoint);
+			of_node_put(remote_ep);
+			if (ret < 0) {
+				v4l2_err(&mxc_md->v4l2_dev,
+					 "Failed to parse remote endpoint\n");
+				return ret;
+			}
+
+			source_pad = endpoint.port;
 			sink_pad = source_pad;
 
 			mipi_vc = (mipi_csi2->vchannel) ? 4 : 1;

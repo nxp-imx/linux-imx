@@ -23,13 +23,15 @@ struct vpu_buffer {
 	bool used;
 	bool error;
 	bool force_key_frame;
-
+	bool force_frame_qp;
+	u32 force_i_frame_qp;
+	u32 force_p_frame_qp;
+	u32 force_b_frame_qp;
 	ktime_t ts_input;
 	ktime_t ts_start;
 	ktime_t ts_finish;
 	ktime_t ts_output;
 	u64 hw_time;
-
 	u32 average_qp;
 };
 
@@ -70,6 +72,11 @@ static inline bool wave6_vpu_both_queues_are_streaming(struct vpu_instance *inst
 	return vb2_is_streaming(vq_cap) && vb2_is_streaming(vq_out);
 }
 
+u32 wave6_vpu_get_consumed_fb_num(struct vpu_instance *inst);
+u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst);
+void wave6_vpu_pause(struct device *dev, int resume);
+void wave6_vpu_activate(struct vpu_device *dev);
+void wave6_vpu_wait_activated(struct vpu_device *dev);
 void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  unsigned int width,
 			  unsigned int height);
@@ -77,6 +84,7 @@ struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 						  dma_addr_t addr);
 dma_addr_t wave6_get_dma_addr(struct vb2_v4l2_buffer *buf,
 			      unsigned int plane_no);
+enum wave_std wave6_to_wave_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt);
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout);
 int  wave6_vpu_dec_register_device(struct vpu_device *dev);
 void wave6_vpu_dec_unregister_device(struct vpu_device *dev);
@@ -91,9 +99,5 @@ int wave6_vpu_subscribe_event(struct v4l2_fh *fh,
 			      const struct v4l2_event_subscription *sub);
 void wave6_vpu_return_buffers(struct vpu_instance *inst,
 			      unsigned int type, enum vb2_buffer_state state);
-u32 wave6_vpu_get_consumed_fb_num(struct vpu_instance *inst);
-u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst);
-void wave6_vpu_pause(struct device *dev, int resume);
-void wave6_vpu_activate(struct vpu_device *dev);
-void wave6_vpu_wait_activated(struct vpu_device *dev);
+
 #endif

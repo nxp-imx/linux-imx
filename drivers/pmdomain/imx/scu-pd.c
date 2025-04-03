@@ -326,22 +326,10 @@ to_imx_sc_pd(struct generic_pm_domain *genpd)
 static int imx_pm_domains_suspend(void)
 {
 	struct arm_smccc_res res;
-	u32 offset;
-	int i;
-
-	for (i = 0; i < wu_num; i++) {
-		offset = GICD_ISENABLER + ((wu[i] + 32) / 32) * 4;
-		if (BIT(wu[i] % 32) & readl_relaxed(gic_dist_base + offset)) {
-			arm_smccc_smc(IMX_SIP_WAKEUP_SRC,
-				      IMX_SIP_WAKEUP_SRC_IRQSTEER,
-				      0, 0, 0, 0, 0, 0, &res);
-			return 0;
-		}
-	}
 
 	arm_smccc_smc(IMX_SIP_WAKEUP_SRC,
-		      IMX_SIP_WAKEUP_SRC_SCU,
-		      0, 0, 0, 0, 0, 0, &res);
+			  IMX_SIP_WAKEUP_SRC_IRQSTEER,
+			  0, 0, 0, 0, 0, 0, &res);
 
 	return 0;
 }
@@ -354,12 +342,6 @@ static void imx_sc_pd_enable_irqsteer_wakeup(struct device_node *np)
 {
 	struct device_node *gic_node;
 	unsigned int i;
-
-	wu_num = of_property_count_u32_elems(np, "wakeup-irq");
-	if (wu_num <= 0) {
-		pr_warn("no irqsteer wakeup source supported!\n");
-		return;
-	}
 
 	gic_node = of_find_compatible_node(NULL, NULL, "arm,gic-v3");
 	WARN_ON(!gic_node);

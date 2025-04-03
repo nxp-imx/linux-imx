@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  *
  * Header file for the EdgeLock Enclave Base API(s).
  */
@@ -49,6 +49,8 @@ struct dev_addn_info {
 	uint8_t  csal_state;
 	uint8_t  imem_state;
 	uint8_t  reserved2;
+	uint8_t  oem_pqc_srkh[DEV_GETINFO_OEM_SRKH_SZ];
+	uint8_t  reserved3[32];
 };
 
 struct ele_dev_info {
@@ -56,14 +58,13 @@ struct ele_dev_info {
 	struct dev_addn_info d_addn_info;
 };
 
-#define ELE_GET_INFO_BUFF_SZ		(sizeof(struct ele_dev_info) \
-						+ ELE_DEV_INFO_EXTRA_SZ)
+#define ELE_GET_INFO_BUFF_SZ		sizeof(struct ele_dev_info)
 
 #define GET_SERIAL_NUM_FROM_UID(x, uid_word_sz) \
 	(((u64)(((u32 *)(x))[(uid_word_sz) - 1]) << 32) | ((u32 *)(x))[0])
 
 #define ELE_MAX_DBG_DMP_PKT		30
-#define ELE_NON_DUMP_BUFFER_SZ		2
+#define ELE_NON_DUMP_BUFFER_SZ		3
 #define ELE_DEBUG_DUMP_REQ		0x21
 #define ELE_DEBUG_DUMP_REQ_SZ		0x4
 #define ELE_DEBUG_DUMP_RSP_SZ		0x5c

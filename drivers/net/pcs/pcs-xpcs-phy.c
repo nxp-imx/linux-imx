@@ -24,7 +24,11 @@
 #define MAC_ADAPTER_LOCK_RAM	0x210
 #define MAC_ADAPTER_LOCK_EVENT	0x214
 
-#define MAC_ADAPTER_LOCK_LOCK	BIT(7)
+#define MAC_ADAPTER_LOCK_LOCK_OWNER_MASK	GENMASK(3, 0)
+#define MAC_ADAPTER_LOCK_LOCK_OWNER_SHIFT	0
+#define MAC_ADAPTER_LOCK_LOCK			BIT(7)
+#define MAC_ADAPTER_LOCK_LOCK_WHOAMI_MASK	GENMASK(15, 12)
+#define MAC_ADAPTER_LOCK_LOCK_WHOAMI_SHIFT	12
 
 /* PMA */
 #define PMA_RX_LSTS					0x10040
@@ -62,6 +66,8 @@
 #define PMA_MP_16G_25G_TX_MISC_CTRL0			0x1007C
 #define PMA_TX_MISC_CTRL0_TX0_MISC_MASK		GENMASK(7, 0)
 #define PMA_TX_MISC_CTRL0_TX0_MISC(x)		((x) & GENMASK(7, 0))
+#define PMA_MP_12G_16G_25G_TX_STS			0x10080
+#define PMA_TX_STS_TX_ACK_0			BIT(0)
 #define PMA_MP_12G_16G_25G_RX_GENCTRL0			0x100A0
 #define PMA_RX_GENCTRL0_RX_DT_EN_0		BIT(8)
 #define PMA_MP_12G_16G_25G_RX_GENCTRL1			0x100A2
@@ -107,6 +113,8 @@
 #define PMA_MP_12G_16G_25G_DFE_TAP_CTRL0		0x100BC
 #define PMA_DFE_TAP_CTRL0_DFE_TAP1_0_MASK	GENMASK(7, 0)
 #define PMA_DFE_TAP_CTRL0_DFE_TAP1_0(x)		((x) & GENMASK(7, 0))
+#define PMA_MP_12G_16G_25G_RX_STS			0x100C0
+#define PMA_RX_STS_RX_ACK_0				BIT(0)
 #define PMA_MP_16G_RX_CDR_CTRL1				0x100C8
 #define PMA_RX_CDR_CTRL1_VCO_TEMP_COMP_EN_0	BIT(0)
 #define PMA_RX_CDR_CTRL1_VCO_STEP_CTRL_0	BIT(4)
@@ -131,6 +139,7 @@
 #define PMA_MP_12G_16G_MPLLA_CTRL0			0x100E2
 #define PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER_MASK	GENMASK(7, 0)
 #define PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER(x)	((x) & GENMASK(7, 0))
+#define PMA_MPLLA_CTRL0_MPLLA_CAL_DISABLE	BIT(15)
 #define PMA_MP_16G_MPLLA_CTRL1				0x100E4
 #define PMA_MPLLA_CTRL1_MPLLA_SSC_EN		BIT(0)
 #define PMA_MPLLA_CTRL1_MPLLA_SSC_CLK_SEL	BIT(4)
@@ -145,9 +154,29 @@
 #define PMA_MPLLA_CTRL2_MPLLA_DIV16P5_CLK_EN	BIT(10)
 #define PMA_MPLLA_CTRL2_MPLLA_TX_CLK_DIV_MASK	GENMASK(12, 11)
 #define PMA_MPLLA_CTRL2_MPLLA_TX_CLK_DIV(x)	(((x) << 11) & GENMASK(12, 11))
+#define PMA_MP_12G_16G_MPLLB_CTRL0			0x100E8
+#define PMA_MPLLB_CTRL0_MPLLB_MULTIPLIER_MASK	GENMASK(7, 0)
+#define PMA_MPLLB_CTRL0_MPLLB_MULTIPLIER(x)	((x) & GENMASK(7, 0))
+#define PMA_MPLLB_CTRL0_MPLLB_CAL_DISABLE	BIT(15)
+#define PMA_MP_12G_16G_MPLLB_CTRL1			0x100EA
+#define PMA_MPLLB_CTRL1_MPLLB_SSC_EN		BIT(0)
+#define PMA_MPLLB_CTRL1_MPLLB_SSC_CLK_SEL	BIT(4)
+#define PMA_MPLLB_CTRL1_MPLLB_FRACN_CTRL_MASK	GENMASK(15, 5)
+#define PMA_MPLLB_CTRL1_MPLLB_FRACN_CTRL(x)	(((x) << 5) & GENMASK(15, 5))
+#define PMA_MP_12G_16G_MPLLB_CTRL2			0x100EC
+#define PMA_MPLLB_CTRL2_MPLLB_DIV_MULT_MASK	GENMASK(6, 0)
+#define PMA_MPLLB_CTRL2_MPLLB_DIV_MULT(x)	((x) & GENMASK(6, 0))
+#define PMA_MPLLB_CTRL2_MPLLB_DIV_CLK_EN	BIT(7)
+#define PMA_MPLLB_CTRL2_MPLLB_DIV8_CLK_EN	BIT(8)
+#define PMA_MPLLB_CTRL2_MPLLB_DIV10_CLK_EN	BIT(9)
+#define PMA_MPLLB_CTRL2_MPLLB_TX_CLK_DIV_MASK	GENMASK(12, 11)
+#define PMA_MPLLB_CTRL2_MPLLB_TX_CLK_DIV(x)	(((x) << 11) & GENMASK(12, 11))
 #define PMA_MP_16G_MPLLA_CTRL3				0x100EE
 #define PMA_MPLLA_CTRL3_MPLLA_BANDWIDTH_MASK	GENMASK(15, 0)
 #define PMA_MPLLA_CTRL3_MPLLA_BANDWIDTH(x)	((x) & GENMASK(15, 0))
+#define PMA_MP_16G_MPLLB_CTRL3				0x100F0
+#define PMA_MPLL_CTRL3_MPLLB_BANDWIDTH_MASK	GENMASK(15, 0)
+#define PMA_MPLL_CTRL3_MPLLB_BANDWIDTH(x)	((x) & GENMASK(15, 0))
 #define PMA_MP_16G_MPLLA_CTRL4				0x100F2
 #define PMA_MPLLA_CTRL4_MPLLA_SSC_FRQ_CNT_INT_MASK GENMASK(11, 0)
 #define PMA_MPLLA_CTRL4_MPLLA_SSC_FRQ_CNT_INT(x) ((x) & GENMASK(11, 0))
@@ -155,6 +184,13 @@
 #define PMA_MPLLA_CTRL5_MPLLA_SSC_FRQ_CNT_PK_MASK GENMASK(7, 0)
 #define PMA_MPLLA_CTRL5_MPLLA_SSC_FRQ_CNT_PK(x)	((x) & GENMASK(7, 0))
 #define PMA_MPLLA_CTRL5_MPLLA_SSC_SPD_EN	BIT(8)
+#define PMA_MP_16G_MPLLB_CTRL4				0x100F6
+#define PMA_MPLLB_CTRL4_MPLLB_SSC_FRQ_CNT_INT_MASK GENMASK(11, 0)
+#define PMA_MPLLB_CTRL4_MPLLB_SSC_FRQ_CNT_INT(x) ((x) & GENMASK(11, 0))
+#define PMA_MP_16G_MPLLB_CTRL5				0x100F8
+#define PMA_MPLLB_CTRL5_MPLLB_SSC_FRQ_CNT_PK_MASK GENMASK(7, 0)
+#define PMA_MPLLB_CTRL5_MPLLB_SSC_FRQ_CNT_PK(x)	((x) & GENMASK(7, 0))
+#define PMA_MPLLB_CTRL5_MPLLB_SSC_SPD_EN	BIT(8)
 #define PMA_MP_12G_16G_25G_MISC_CTRL0			0x10120
 #define PMA_MISC_CTRL0_RX_VREF_CTRL_MASK	GENMASK(12, 8)
 #define PMA_MISC_CTRL0_RX_VREF_CTRL(x)		(((x) << 8) & GENMASK(12, 8))
@@ -163,6 +199,7 @@
 #define PMA_REF_CLK_CTRL_REF_RANGE_MASK		GENMASK(5, 3)
 #define PMA_REF_CLK_CTRL_REF_RANGE(x)		(((x) << 3) & GENMASK(5, 3))
 #define PMA_REF_CLK_CTRL_REF_MPLLA_DIV2		BIT(6)
+#define PMA_REF_CLK_CTRL_REF_MPLLB_DIV2		BIT(7)
 #define PMA_MP_12G_16G_25G_VCO_CAL_LD0			0x10124
 #define PMA_VCO_CAL_LD0_VCO_LD_VAL_0_MASK	GENMASK(12, 0)
 #define PMA_VCO_CAL_LD0_VCO_LD_VAL_0(x)		((x) & GENMASK(12, 0))
@@ -202,8 +239,13 @@
 #define MII_CTRL_SS6				BIT(6)
 #define MII_CTRL_AN_ENABLE			BIT(12)
 #define MII_CTRL_SS13				BIT(13)
+#define MII_CTRL_RST				BIT(15)
+#define MII_STS						0x2
+#define MII_STS_LINK_STS			BIT(2)
 #define MII_DIG_CTRL1					0x10000
+#define MII_DIG_CTRL1_EN_2_5G_MODE		BIT(2)
 #define MII_DIG_CTRL1_CL37_TMR_OVR_RIDE		BIT(3)
+#define MII_DIG_CTRL1_VR_RST			BIT(15)
 #define MII_AN_CTRL					0x10002
 #define MII_AN_CTRL_MII_AN_INTR_EN		BIT(0)
 #define MII_AN_CTRL_TX_CONFIG			BIT(3)
@@ -218,6 +260,21 @@
 #define IDCODE_HI						0x4
 #define GLOBAL_CTRL_EX_0					0x114
 #define GLOBAL_CTRL_EX_0_PHY_SRAM_BYPASS		BIT(0)
+#define GLOBAL_CTRL_EX_0_XPCS0_SEL			BIT(4)
+#define GLOBAL_CTRL_EX_0_XPCS1_SEL			BIT(5)
+#define GLOBAL_CTRL_EX_0_MPLLA_SEL			BIT(6)
+#define GLOBAL_CTRL_EX_0_MPLLB_SEL			BIT(7)
+#define GLOBAL_CTRL_EX_0_PHY_SUP_MISC_MASK		GENMASK(15, 8)
+#define GLOBAL_CTRL_EX_0_PHY_SUP_MISC(x)		(((x) << 8) & GENMASK(15, 8))
+#define GLOBAL_CTRL_EX_4					0x124
+#define GLOBAL_CTRL_EX_4_PHY_PCS_PWR_STABLE		BIT(8)
+#define GLOBAL_CTRL_EX_4_PHY_PMA_PWR_STABLE		BIT(14)
+#define MPLLA_CTRL_EX_0						0xac
+#define MPLLA_CTRL_EX_0_MPLLA_CFG_DRIVER_MASK		GENMASK(11, 8)
+#define MPLLA_CTRL_EX_0_MPLLA_CFG_DRIVER		(((x) << 8) & GENMASK(11, 8))
+#define MPLLB_CTRL_EX_0						0xac
+#define MPLLB_CTRL_EX_0_MPLLB_CFG_DRIVER_MASK		GENMASK(11, 8)
+#define MPLLB_CTRL_EX_0_MPLLB_CFG_DRIVER		(((x) << 8) & GENMASK(11, 8))
 #define L0_RX_VCO_OVRD_OUT_0					0x20c
 #define L0_RX_VCO_OVRD_OUT_0_RX_ANA_CDR_FREQ_TUNE_MASK	GENMASK(12, 3)
 #define L0_RX_VCO_OVRD_OUT_0_RX_ANA_CDR_FREQ_TUNE(x)	(((x) << 3) & GENMASK(12, 3))
@@ -233,6 +290,16 @@ static int xpcs_phy_read_pma(struct dw_xpcs *xpcs, u32 reg)
 static int xpcs_phy_write_pma(struct dw_xpcs *xpcs, int reg, u16 val)
 {
 	return xpcs_write(xpcs, MDIO_MMD_PMAPMD, XPCS_PHY_REG(reg), val);
+}
+
+static int xpcs_read_mii(struct dw_xpcs *xpcs, u32 reg)
+{
+	return xpcs_read(xpcs, MDIO_MMD_VEND2, XPCS_PHY_REG(reg));
+}
+
+static int xpcs_write_mii(struct dw_xpcs *xpcs, int reg, u16 val)
+{
+	return xpcs_write(xpcs, MDIO_MMD_VEND2, XPCS_PHY_REG(reg), val);
 }
 
 void xpcs_phy_reset(struct dw_xpcs *xpcs)
@@ -375,7 +442,7 @@ timeout:
 	return -ETIMEDOUT;
 }
 
-void xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
+static void mx95_xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
 {
 	u16 val;
 	unsigned long orig_jiffies;
@@ -417,6 +484,1126 @@ void xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
 
 timeout:
 	return;
+}
+
+static int mx94_xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
+{
+	unsigned long orig_jiffies;
+	u8 whoami, owner;
+	u16 val;
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_PHY));
+	whoami = (val & MAC_ADAPTER_LOCK_LOCK_WHOAMI_MASK) >> MAC_ADAPTER_LOCK_LOCK_WHOAMI_SHIFT;
+	owner = (val & MAC_ADAPTER_LOCK_LOCK_OWNER_MASK) >> MAC_ADAPTER_LOCK_LOCK_OWNER_SHIFT;
+	if (whoami != owner) {
+		orig_jiffies = jiffies;
+		do {
+			val = xpcs_phy_read(xpcs, XPCS_PHY_MAC_ADAPTER,
+					    XPCS_PHY_REG(MAC_ADAPTER_LOCK_PHY));
+			if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+				dev_err(&xpcs->phydev->dev, "Polling lock timeout, line: %d\n",
+					__LINE__);
+				goto timeout;
+			}
+			schedule();
+		} while (val & MAC_ADAPTER_LOCK_LOCK);
+	} else {
+		return 0;
+	}
+
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_PHY),
+		       MAC_ADAPTER_LOCK_LOCK);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_MPLLA),
+		       MAC_ADAPTER_LOCK_LOCK);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_MPLLB),
+		       MAC_ADAPTER_LOCK_LOCK);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_ROM),
+		       MAC_ADAPTER_LOCK_LOCK);
+
+	return 0;
+
+timeout:
+
+	return -ETIMEDOUT;
+}
+
+static int xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
+{
+	int ret = 0;
+
+	switch (xpcs->info.pma) {
+	case NXP_MX95_XPCS_ID:
+		mx95_xpcs_phy_reg_lock(xpcs);
+		break;
+	case NXP_MX94_XPCS_ID:
+		ret = mx94_xpcs_phy_reg_lock(xpcs);
+		break;
+	default:
+		dev_err(&xpcs->phydev->dev, "Unknown PMA ID: %d\n", xpcs->info.pma);
+		ret = -ENODEV;
+	}
+
+	return ret;
+}
+
+static int mx94_xpcs_phy_reg_unlock(struct dw_xpcs *xpcs)
+{
+	u8 whoami, owner;
+	u16 val;
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_PHY));
+	whoami = (val & MAC_ADAPTER_LOCK_LOCK_WHOAMI_MASK) >> MAC_ADAPTER_LOCK_LOCK_WHOAMI_SHIFT;
+	owner = (val & MAC_ADAPTER_LOCK_LOCK_OWNER_MASK) >> MAC_ADAPTER_LOCK_LOCK_OWNER_SHIFT;
+	if (whoami != owner) {
+		dev_err(&xpcs->phydev->dev, "PHY is locked by: %d, cannot unlock!\n", owner);
+		return -EBUSY;
+	}
+
+	mdelay(10);
+
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_PHY), 0);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_MPLLA), 0);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_MPLLB), 0);
+	xpcs_phy_write(xpcs, XPCS_PHY_MAC_ADAPTER, XPCS_PHY_REG(MAC_ADAPTER_LOCK_ROM), 0);
+
+	return 0;
+}
+
+static int xpcs_phy_reg_unlock(struct dw_xpcs *xpcs)
+{
+	int ret = 0;
+
+	switch (xpcs->info.pma) {
+	case NXP_MX95_XPCS_ID:
+		break;
+	case NXP_MX94_XPCS_ID:
+		ret = mx94_xpcs_phy_reg_unlock(xpcs);
+		break;
+	default:
+		dev_err(&xpcs->phydev->dev, "Unknown PMA ID: %d\n",
+			xpcs->info.pma);
+		ret = -ENODEV;
+	}
+
+	return ret;
+}
+
+static int imx94_xpcs_phy_common_init_seq_1(struct dw_xpcs *xpcs, bool is_2p5g)
+{
+	unsigned long orig_jiffies;
+	u16 val;
+
+	if (is_2p5g) {
+		val = xpcs_phy_read(xpcs, XPCS_PHY_MPLLA, XPCS_PHY_REG(MPLLA_CTRL_EX_0));
+		val = u16_replace_bits(val, xpcs->portid, MPLLA_CTRL_EX_0_MPLLA_CFG_DRIVER_MASK);
+		xpcs_phy_write(xpcs, XPCS_PHY_MPLLA, XPCS_PHY_REG(MPLLA_CTRL_EX_0), val);
+	} else {
+		val = xpcs_phy_read(xpcs, XPCS_PHY_MPLLB, XPCS_PHY_REG(MPLLB_CTRL_EX_0));
+		val = u16_replace_bits(val, xpcs->portid, MPLLB_CTRL_EX_0_MPLLB_CFG_DRIVER_MASK);
+		xpcs_phy_write(xpcs, XPCS_PHY_MPLLB, XPCS_PHY_REG(MPLLB_CTRL_EX_0), val);
+	}
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_4));
+	val |= GLOBAL_CTRL_EX_4_PHY_PCS_PWR_STABLE | GLOBAL_CTRL_EX_4_PHY_PMA_PWR_STABLE;
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_4), val);
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
+	if (xpcs->portid == 0)
+		val = is_2p5g ? (val & ~GLOBAL_CTRL_EX_0_MPLLB_SEL) :
+				(val | GLOBAL_CTRL_EX_0_MPLLB_SEL);
+	else
+		val = is_2p5g ? (val & ~GLOBAL_CTRL_EX_0_MPLLA_SEL) :
+				(val | GLOBAL_CTRL_EX_0_MPLLA_SEL);
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0), val);
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
+	val |= xpcs->portid ? GLOBAL_CTRL_EX_0_XPCS1_SEL : GLOBAL_CTRL_EX_0_XPCS0_SEL;
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0), val);
+
+	mdelay(1);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_SRAM);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (!(val & PMA_SRAM_INIT_DN));
+
+	mdelay(1);
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
+	val |= GLOBAL_CTRL_EX_0_PHY_SRAM_BYPASS;
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0), val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PCS_CTRL1);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PCS_CTRL1_RESET);
+
+	val = xpcs_read_mii(xpcs, MII_CTRL);
+	val = is_2p5g ? (val & ~MII_CTRL_AN_ENABLE) : (val | MII_CTRL_AN_ENABLE);
+	xpcs_write_mii(xpcs, MII_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0);
+	val |= PMA_TX_GENCTRL0_TX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val |= PMA_RX_GENCTRL1_RX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	mdelay(1);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0);
+	val &= ~PMA_TX_GENCTRL0_TX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val &= ~PMA_RX_GENCTRL1_RX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_STS_TX_ACK_0);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x3, PMA_POWER_STATE_CTRL_TX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL);
+	val &= ~PMA_MPLL_CMN_CTRL_MPLL_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0);
+	val &= ~PMA_TX_GENCTRL0_TX_DT_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_STS_RX_ACK_0);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL0);
+	val &= ~PMA_RX_GENCTRL0_RX_DT_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x1, PMA_RX_POWER_STATE_CTRL_RX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x3, PMA_RX_POWER_STATE_CTRL_RX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val |= PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val |= PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_GENCTRL2_TX_REQ_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_GENCTRL2_RX_REQ_0);
+
+	mdelay(1);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val &= ~PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val &= ~PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_STS_TX_ACK_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_STS_RX_ACK_0);
+
+	return 0;
+
+timeout:
+
+	return -ETIMEDOUT;
+}
+
+static int imx94_xpcs_phy_mpll_configuration_xaui_kx4(struct dw_xpcs *xpcs)
+{
+	unsigned long orig_jiffies;
+	u16 val;
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_REF_CLK_CTRL);
+	val &= ~PMA_REF_CLK_CTRL_REF_CLK_DIV2;
+	val = u16_replace_bits(val, 0x6, PMA_REF_CLK_CTRL_REF_RANGE_MASK);
+	val |= PMA_REF_CLK_CTRL_REF_MPLLA_DIV2;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_REF_CLK_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL2);
+	val = u16_replace_bits(val, 0xA, PMA_MPLLA_CTRL2_MPLLA_DIV_MULT_MASK);
+	val |= PMA_MPLLA_CTRL2_MPLLA_DIV_CLK_EN;
+	val &= ~PMA_MPLLA_CTRL2_MPLLA_DIV8_CLK_EN;
+	val |= PMA_MPLLA_CTRL2_MPLLA_DIV10_CLK_EN;
+	val &= ~PMA_MPLLA_CTRL2_MPLLA_DIV16P5_CLK_EN;
+	val = u16_replace_bits(val, 0x0, PMA_MPLLA_CTRL2_MPLLA_TX_CLK_DIV_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL2, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL1, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL5, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL4, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL5, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL1, 0x0);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL0);
+	val = u16_replace_bits(val, 0x28, PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val = u16_replace_bits(val, 0x5, PMA_TX_GENCTRL1_VBOOST_LVL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL3, 0xA017);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MISC_CTRL0);
+	val = u16_replace_bits(val, 0x11, PMA_MISC_CTRL0_RX_VREF_CTRL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MISC_CTRL0, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_MISC_CTRL2, 0x1);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_VCO_CAL_REF0, PMA_VCO_CAL_REF0_VCO_REF_LD_0(0x22));
+
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_VCO_CAL_LD0, PMA_VCO_CAL_LD0_VCO_LD_VAL_0(0x550));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_PPM_CTRL0, PMA_RX_PPM_CTRL0_RX0_CDR_PPM_MAX(0x12));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_TX_MISC_CTRL0, PMA_TX_MISC_CTRL0_TX0_MISC(0x0));
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_TX_MISC_CTRL0, PMA_TX_MISC_CTRL0_TX0_MISC(0x0));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x2, PMA_TX_RATE_CTRL_TX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL);
+	val &= ~PMA_MPLL_CMN_CTRL_MPLLB_SEL_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_TX_GENCTRL2_TX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val |= PMA_TX_GENCTRL1_VBOOST_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_BOOST_CTRL);
+	val = u16_replace_bits(val, 0xF, PMA_TX_BOOST_CTRL_TX0_IBOOST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_BOOST_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL0_TX_EQ_PRE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1);
+	val = u16_replace_bits(val, 0x20, PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x20, PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x2, PMA_RX_RATE_CTRL_RX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x10, PMA_RX_EQ_CTRL0_CTLE_BOOST_0_MASK);
+	val = u16_replace_bits(val, 0x0, PMA_RX_EQ_CTRL0_CTLE_POLE_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3);
+	val = u16_replace_bits(val, 0x2, PMA_RX_GENCTRL3_LOS_TRSHLD_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val &= ~PMA_RX_CDR_CTRL1_VCO_TEMP_COMP_EN_0;
+	val |= PMA_RX_CDR_CTRL1_VCO_STEP_CTRL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0, PMA_RX_MISC_CTRL0_RX0_MISC(0x17));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_RX_GENCTRL2_RX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val &= ~PMA_RX_GENCTRL1_RX_DIV16P5_CLK_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_CDR_CTRL);
+	val &= ~PMA_RX_CDR_CTRL_CDR_SSC_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_CDR_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3);
+	val &= ~PMA_RX_GENCTRL3_LOS_LFPS_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4);
+	val |= PMA_RX_GENCTRL4_RX_DFE_BYP_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_ATTN_CTRL);
+	val = u16_replace_bits(val, 0x0, PMA_RX_ATTN_CTRL_RX0_EQ_ATT_LVL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_ATTN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x4, PMA_RX_EQ_CTRL0_VGA2_GAIN_0_MASK);
+	val = u16_replace_bits(val, 0x4, PMA_RX_EQ_CTRL0_VGA1_GAIN_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_DFE_TAP_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_DFE_TAP_CTRL0_DFE_TAP1_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_DFE_TAP_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val = u16_replace_bits(val, 0x2, PMA_RX_CDR_CTRL1_VCO_FRQBAND_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val |= PMA_RX_GENCTRL1_RX_TERM_ACDC_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_RX_IQ_CTRL0_RX0_DELTA_IQ_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val &= ~PMA_RX_EQ_CTRL5_RX_ADPT_SEL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val = u16_replace_bits(val, 0x0, PMA_RX_EQ_CTRL5_RX0_ADPT_MODE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, PCS_CTRL2);
+	val = u16_replace_bits(val, 0x1, PCS_CTRL2_PCS_TYPE_SEL_MASK);
+	xpcs_write_mii(xpcs, PCS_CTRL2, val);
+
+	val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+	val |= MII_DIG_CTRL1_EN_2_5G_MODE;
+	xpcs_write_mii(xpcs, MII_DIG_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, MII_CTRL);
+	val &= ~MII_CTRL_SS13;
+	val |= MII_CTRL_SS6;
+	xpcs_write_mii(xpcs, MII_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL0);
+	val = u16_replace_bits(val, 0x28, PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL0, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLA_CTRL3, 0xA017);
+
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_VCO_CAL_LD0, PMA_VCO_CAL_LD0_VCO_LD_VAL_0(0x550));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_VCO_CAL_REF0, PMA_VCO_CAL_REF0_VCO_REF_LD_0(0x22));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_EQ_CTRL4);
+	val &= ~PMA_RX_EQ_CTRL4_CONT_ADAPT_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_EQ_CTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x2, PMA_TX_RATE_CTRL_TX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x2, PMA_RX_RATE_CTRL_RX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_TX_GENCTRL2_TX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_RX_GENCTRL2_RX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL2);
+	val &= ~PMA_MPLLA_CTRL2_MPLLA_DIV8_CLK_EN;
+	val |= PMA_MPLLA_CTRL2_MPLLA_DIV10_CLK_EN;
+	val &= ~PMA_MPLLA_CTRL2_MPLLA_DIV16P5_CLK_EN;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLA_CTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val |= PMA_TX_GENCTRL1_VBOOST_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x10, PMA_RX_EQ_CTRL0_CTLE_BOOST_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val &= ~PMA_RX_CDR_CTRL1_VCO_TEMP_COMP_EN_0;
+	val |= PMA_RX_CDR_CTRL1_VCO_STEP_CTRL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0);
+	val = u16_replace_bits(val, 0x17, PMA_RX_MISC_CTRL0_RX0_MISC_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4);
+	val |= PMA_RX_GENCTRL4_RX_DFE_BYP_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val = u16_replace_bits(val, 0x2, PMA_RX_CDR_CTRL1_VCO_FRQBAND_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_RX_IQ_CTRL0_RX0_DELTA_IQ_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val = u16_replace_bits(val, 0x0, PMA_RX_EQ_CTRL5_RX0_ADPT_MODE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+	val |= MII_DIG_CTRL1_VR_RST;
+	xpcs_write_mii(xpcs, MII_DIG_CTRL1, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_SRAM);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (!(val & PMA_SRAM_INIT_DN));
+
+	mdelay(1);
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
+	val |= GLOBAL_CTRL_EX_0_PHY_SRAM_BYPASS;
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0), val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & MII_DIG_CTRL1_VR_RST);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val |= PMA_TX_GENCTRL1_TX_CLK_RDY_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL0_TX_EQ_PRE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x20, PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1);
+	val = u16_replace_bits(val, 0x20, PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PCS_DEBUG_CTRL);
+	val &= ~PCS_DEBUG_CTRL_SUPRESS_LOS_DET;
+	val &= ~PCS_DEBUG_CTRL_RX_DT_EN_CTL;
+	xpcs_write_mii(xpcs, PCS_DEBUG_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, MII_LINK_TIMER_CTRL);
+	val = u16_replace_bits(val, 0x07A1, MII_LINK_TIMER_CTRL_CL37_LINK_TIME_MASK);
+	xpcs_write_mii(xpcs, MII_LINK_TIMER_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+	val |= MII_DIG_CTRL1_CL37_TMR_OVR_RIDE;
+	xpcs_write_mii(xpcs, MII_DIG_CTRL1, val);
+
+	return 0;
+
+timeout:
+
+	return -ETIMEDOUT;
+}
+
+static int imx94_xpcs_phy_mpll_configuration_sgmii(struct dw_xpcs *xpcs)
+{
+	unsigned long orig_jiffies;
+	u16 val;
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_REF_CLK_CTRL);
+	val &= ~PMA_REF_CLK_CTRL_REF_CLK_DIV2;
+	val = u16_replace_bits(val, 0x6, PMA_REF_CLK_CTRL_REF_RANGE_MASK);
+	val |= PMA_REF_CLK_CTRL_REF_MPLLA_DIV2 | PMA_REF_CLK_CTRL_REF_MPLLB_DIV2;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_REF_CLK_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0);
+	val &= ~PMA_MPLLB_CTRL0_MPLLB_CAL_DISABLE;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL2);
+	val = u16_replace_bits(val, 0x1e, PMA_MPLLB_CTRL2_MPLLB_DIV_MULT_MASK);
+	val |= PMA_MPLLB_CTRL2_MPLLB_DIV_CLK_EN;
+	val &= ~PMA_MPLLB_CTRL2_MPLLB_DIV8_CLK_EN;
+	val |= PMA_MPLLB_CTRL2_MPLLB_DIV10_CLK_EN;
+	val = u16_replace_bits(val, 0x0, PMA_MPLLB_CTRL2_MPLLB_TX_CLK_DIV_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL2, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL1, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLB_CTRL5, 0x0);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLB_CTRL4, 0x0);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0);
+	val = u16_replace_bits(val, 0x30, PMA_MPLLB_CTRL0_MPLLB_MULTIPLIER_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val = u16_replace_bits(val, 0x5, PMA_TX_GENCTRL1_VBOOST_LVL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLB_CTRL3, 0xA017);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MISC_CTRL0);
+	val = u16_replace_bits(val, 0x11, PMA_MISC_CTRL0_RX_VREF_CTRL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MISC_CTRL0, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_MISC_CTRL2, 0x1);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_VCO_CAL_REF0, PMA_VCO_CAL_REF0_VCO_REF_LD_0(0x2a));
+
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_VCO_CAL_LD0, PMA_VCO_CAL_LD0_VCO_LD_VAL_0(0x540));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_PPM_CTRL0, PMA_RX_PPM_CTRL0_RX0_CDR_PPM_MAX(0x12));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_TX_MISC_CTRL0, PMA_TX_MISC_CTRL0_TX0_MISC(0x0));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x6, PMA_TX_RATE_CTRL_TX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL);
+	val |= PMA_MPLL_CMN_CTRL_MPLLB_SEL_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_TX_GENCTRL2_TX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val |= PMA_TX_GENCTRL1_VBOOST_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_BOOST_CTRL);
+	val = u16_replace_bits(val, 0xF, PMA_TX_BOOST_CTRL_TX0_IBOOST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_BOOST_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL0_TX_EQ_PRE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x28, PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x3, PMA_RX_RATE_CTRL_RX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x12, PMA_RX_EQ_CTRL0_CTLE_BOOST_0_MASK);
+	val = u16_replace_bits(val, 0x0, PMA_RX_EQ_CTRL0_CTLE_POLE_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3);
+	val = u16_replace_bits(val, 0x1, PMA_RX_GENCTRL3_LOS_TRSHLD_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val |= PMA_RX_CDR_CTRL1_VCO_TEMP_COMP_EN_0;
+	val |= PMA_RX_CDR_CTRL1_VCO_STEP_CTRL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0, PMA_RX_MISC_CTRL0_RX0_MISC(0x16));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_RX_GENCTRL2_RX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val &= ~PMA_RX_GENCTRL1_RX_DIV16P5_CLK_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_CDR_CTRL);
+	val &= ~PMA_RX_CDR_CTRL_CDR_SSC_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_CDR_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3);
+	val &= ~PMA_RX_GENCTRL3_LOS_LFPS_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL3, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4);
+	val |= PMA_RX_GENCTRL4_RX_DFE_BYP_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_ATTN_CTRL);
+	val = u16_replace_bits(val, 0x0, PMA_RX_ATTN_CTRL_RX0_EQ_ATT_LVL_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_ATTN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x4, PMA_RX_EQ_CTRL0_VGA2_GAIN_0_MASK);
+	val = u16_replace_bits(val, 0x4, PMA_RX_EQ_CTRL0_VGA1_GAIN_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_DFE_TAP_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_DFE_TAP_CTRL0_DFE_TAP1_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_DFE_TAP_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val = u16_replace_bits(val, 0x1, PMA_RX_CDR_CTRL1_VCO_FRQBAND_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val |= PMA_RX_GENCTRL1_RX_TERM_ACDC_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_RX_IQ_CTRL0_RX0_DELTA_IQ_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val &= ~PMA_RX_EQ_CTRL5_RX_ADPT_SEL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val = u16_replace_bits(val, 0x3, PMA_RX_EQ_CTRL5_RX0_ADPT_MODE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, PCS_CTRL2);
+	val = u16_replace_bits(val, 0x1, PCS_CTRL2_PCS_TYPE_SEL_MASK);
+	xpcs_write_mii(xpcs, PCS_CTRL2, val);
+
+	val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+	val &= ~MII_DIG_CTRL1_EN_2_5G_MODE;
+	xpcs_write_mii(xpcs, MII_DIG_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, MII_CTRL);
+	val &= ~MII_CTRL_SS13;
+	val |= MII_CTRL_SS6;
+	xpcs_write_mii(xpcs, MII_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0);
+	val = u16_replace_bits(val, 0x30, PMA_MPLLB_CTRL0_MPLLB_MULTIPLIER_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL0, val);
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_MPLLB_CTRL3, 0xA017);
+
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_VCO_CAL_LD0, PMA_VCO_CAL_LD0_VCO_LD_VAL_0(0x540));
+
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_VCO_CAL_REF0, PMA_VCO_CAL_REF0_VCO_REF_LD_0(0x2a));
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_EQ_CTRL4);
+	val &= ~PMA_RX_EQ_CTRL4_CONT_ADAPT_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_EQ_CTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x6, PMA_TX_RATE_CTRL_TX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL);
+	val = u16_replace_bits(val, 0x3, PMA_RX_RATE_CTRL_RX0_RATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_RATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_TX_GENCTRL2_TX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val = u16_replace_bits(val, 0x1, PMA_RX_GENCTRL2_RX0_WIDTH_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL2);
+	val &= ~PMA_MPLLB_CTRL2_MPLLB_DIV8_CLK_EN;
+	val |= PMA_MPLLB_CTRL2_MPLLB_DIV10_CLK_EN;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_MPLLB_CTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val &= ~PMA_TX_GENCTRL1_VBOOST_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x6, PMA_RX_EQ_CTRL0_CTLE_BOOST_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val |= PMA_RX_CDR_CTRL1_VCO_TEMP_COMP_EN_0;
+	val |= PMA_RX_CDR_CTRL1_VCO_STEP_CTRL_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0);
+	val = u16_replace_bits(val, 0x16, PMA_RX_MISC_CTRL0_RX0_MISC_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_MISC_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4);
+	val |= PMA_RX_GENCTRL4_RX_DFE_BYP_0;
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_GENCTRL4, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1);
+	val = u16_replace_bits(val, 0x1, PMA_RX_CDR_CTRL1_VCO_FRQBAND_0_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_RX_CDR_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_RX_IQ_CTRL0_RX0_DELTA_IQ_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_IQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5);
+	val = u16_replace_bits(val, 0x0, PMA_RX_EQ_CTRL5_RX0_ADPT_MODE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_16G_25G_RX_EQ_CTRL5, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val &= ~PMA_TX_GENCTRL1_TX_CLK_RDY_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+	val |= MII_DIG_CTRL1_VR_RST;
+	xpcs_write_mii(xpcs, MII_DIG_CTRL1, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_SRAM);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (!(val & PMA_SRAM_INIT_DN));
+
+	mdelay(1);
+
+	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
+	val |= GLOBAL_CTRL_EX_0_PHY_SRAM_BYPASS;
+	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0), val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, MII_DIG_CTRL1);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & MII_DIG_CTRL1_VR_RST);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1);
+	val |= PMA_TX_GENCTRL1_TX_CLK_RDY_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL0_TX_EQ_PRE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0);
+	val = u16_replace_bits(val, 0x14, PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1);
+	val = u16_replace_bits(val, 0x0, PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_EQ_CTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PCS_DEBUG_CTRL);
+	val &= ~PCS_DEBUG_CTRL_SUPRESS_LOS_DET;
+	val &= ~PCS_DEBUG_CTRL_RX_DT_EN_CTL;
+	xpcs_write_mii(xpcs, PCS_DEBUG_CTRL, val);
+
+	return 0;
+
+timeout:
+
+	return -ETIMEDOUT;
+}
+
+static int imx94_xpcs_phy_common_init_seq_2(struct dw_xpcs *xpcs)
+{
+	unsigned long orig_jiffies;
+	u16 val;
+
+	val = xpcs_read_mii(xpcs, PCS_DEBUG_CTRL);
+	val |= PCS_DEBUG_CTRL_TX_PMBL_CTL;
+	xpcs_write_mii(xpcs, PCS_DEBUG_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x2, PMA_POWER_STATE_CTRL_TX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL);
+	val |= PMA_MPLL_CMN_CTRL_MPLL_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL, val);
+
+	mdelay(1);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val |= PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val |= PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_GENCTRL2_RX_REQ_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_GENCTRL2_TX_REQ_0);
+
+	mdelay(1);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val &= ~PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val &= ~PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_STS_TX_ACK_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_STS_RX_ACK_0);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x0, PMA_POWER_STATE_CTRL_TX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0);
+	val &= ~PMA_TX_GENCTRL0_TX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL);
+	val &= ~PMA_POWER_STATE_CTRL_TX_DISABLE_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL);
+	val |= PMA_MPLL_CMN_CTRL_MPLL_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_MPLL_CMN_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1);
+	val &= ~PMA_RX_GENCTRL1_RX_RST_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL1, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL);
+	val &= ~PMA_RX_POWER_STATE_CTRL_RX_DISABLE_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL);
+	val = u16_replace_bits(val, 0x0, PMA_RX_POWER_STATE_CTRL_RX0_PSTATE_MASK);
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_POWER_STATE_CTRL, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0);
+	val |= PMA_TX_GENCTRL0_TX_DT_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_TX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL0);
+	val |= PMA_RX_GENCTRL0_RX_DT_EN_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_25G_RX_GENCTRL0, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val |= PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val |= PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_GENCTRL2_RX_REQ_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_GENCTRL2_TX_REQ_0);
+
+	mdelay(1);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2);
+	val &= ~PMA_TX_GENCTRL2_TX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_TX_GENCTRL2, val);
+
+	val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2);
+	val &= ~PMA_RX_GENCTRL2_RX_REQ_0;
+	xpcs_write_mii(xpcs, PMA_MP_12G_16G_RX_GENCTRL2, val);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_TX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_TX_STS_TX_ACK_0);
+
+	orig_jiffies = jiffies;
+	do {
+		val = xpcs_read_mii(xpcs, PMA_MP_12G_16G_25G_RX_STS);
+		if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(500))) {
+			dev_err(&xpcs->phydev->dev, "Polling timeout, line: %d\n", __LINE__);
+			goto timeout;
+		}
+		schedule();
+	} while (val & PMA_RX_STS_RX_ACK_0);
+
+	return 0;
+
+timeout:
+
+	return -ETIMEDOUT;
+}
+
+static int imx94_xpcs_phy_sgmii_config(struct dw_xpcs *xpcs, bool is_2p5g)
+{
+	int ret;
+
+	ret = xpcs_phy_reg_lock(xpcs);
+	if (ret)
+		return ret;
+
+	ret = imx94_xpcs_phy_common_init_seq_1(xpcs, is_2p5g);
+	if (ret)
+		return ret;
+
+	if (is_2p5g)
+		ret = imx94_xpcs_phy_mpll_configuration_xaui_kx4(xpcs);
+	else
+		ret = imx94_xpcs_phy_mpll_configuration_sgmii(xpcs);
+	if (ret)
+		return ret;
+
+	ret = imx94_xpcs_phy_common_init_seq_2(xpcs);
+	if (ret)
+		return ret;
+
+	ret = xpcs_phy_reg_unlock(xpcs);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int imx94_xpcs_phy_sgmii_2p5g_config(struct dw_xpcs *xpcs)
+{
+	return imx94_xpcs_phy_sgmii_config(xpcs, true);
+}
+
+int imx94_xpcs_phy_sgmii_1g_config(struct dw_xpcs *xpcs)
+{
+	return imx94_xpcs_phy_sgmii_config(xpcs, false);
 }
 
 int xpcs_phy_usxgmii_pma_config(struct dw_xpcs *xpcs)
@@ -951,5 +2138,5 @@ u32 xpcs_phy_get_id(struct dw_xpcs *xpcs)
 
 int xpcs_phy_check_id(u32 id)
 {
-	return id == NXP_MX95_XPCS_ID;
+	return id == NXP_MX94_XPCS_ID || id == NXP_MX95_XPCS_ID;
 }

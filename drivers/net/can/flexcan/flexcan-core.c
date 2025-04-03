@@ -2264,6 +2264,7 @@ static int __maybe_unused flexcan_suspend(struct device *device)
 				return err;
 
 			flexcan_chip_interrupts_disable(dev);
+			flexcan_transceiver_disable(priv);
 
 			err = pinctrl_pm_select_sleep_state(device);
 			if (err)
@@ -2294,6 +2295,9 @@ static int __maybe_unused flexcan_resume(struct device *device)
 				return err;
 		} else {
 			err = pinctrl_pm_select_default_state(device);
+			if (err)
+				return err;
+			err = flexcan_transceiver_enable(priv);
 			if (err)
 				return err;
 

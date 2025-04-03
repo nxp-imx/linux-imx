@@ -362,6 +362,9 @@ static int enetc_txr_show(struct seq_file *s, void *data)
 		val = enetc_txbdr_rd(hw, i, ENETC_TBMR);
 		seq_printf(s, "TX BDR mode:0x%x\n", val);
 
+		if (!netif_running(si->ndev))
+			continue;
+
 		for (j = 0; j < txr->bd_count; j++) {
 			txbd = ENETC_TXBD(*txr, j);
 			enetc_txr_bd_show(s, txbd, j);
@@ -409,6 +412,9 @@ static int enetc_rxr_show(struct seq_file *s, void *data)
 		seq_printf(s, "HW PIR:%u\n", val);
 		val = enetc_rxbdr_rd(hw, i, ENETC_RBMR);
 		seq_printf(s, "RX BDR mode:0x%x\n", val);
+
+		if (!netif_running(si->ndev))
+			continue;
 
 		for (j = 0; j < rxr->bd_count; j++) {
 			rxbd = &((union enetc_rx_bd *)rxr->bd_base)[j];

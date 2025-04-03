@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx943-evk.dts"
+
+/ {
+	sound-micfil {
+		status = "disabled";
+	};
+
+	sound-wm8962 {
+		status = "disabled";
+	};
+
+	sound-mqs {
+		compatible = "fsl,imx-audio-mqs";
+		model = "mqs-audio";
+		audio-cpu = <&sai1>;
+		audio-codec = <&mqs1>;
+	};
+};
+
+&pcal6416_i2c3_u171 {
+
+	mqs-mic-sel-hog {
+		gpio-hog;
+		gpios = <11 GPIO_ACTIVE_HIGH>;
+		output-high;
+		/delete-property/ output-low;
+	};
+};
+
+&sai1 {
+	assigned-clocks = <&scmi_clk IMX94_CLK_AUDIOPLL1_VCO>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL2_VCO>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL1>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL2>,
+			<&scmi_clk IMX94_CLK_SAI1>;
+	assigned-clock-parents = <0>, <0>, <0>, <0>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL1>;
+	assigned-clock-rates = <3932160000>,
+			<3612672000>, <393216000>,
+			<361267200>, <24576000>;
+	fsl,sai-mclk-direction-output;
+	status = "okay";
+};
+
+&mqs1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mqs1>;
+	assigned-clocks = <&scmi_clk IMX94_CLK_AUDIOPLL1_VCO>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL2_VCO>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL1>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL2>,
+			<&scmi_clk IMX94_CLK_SAI1>;
+	assigned-clock-parents = <0>, <0>, <0>, <0>,
+			<&scmi_clk IMX94_CLK_AUDIOPLL1>;
+	assigned-clock-rates = <3932160000>,
+			<3612672000>, <393216000>,
+			<361267200>, <24576000>;
+	clocks = <&scmi_clk IMX94_CLK_SAI1>;
+	clock-names = "mclk";
+	status = "okay";
+};
+
+&micfil {
+	status = "disabled";
+};

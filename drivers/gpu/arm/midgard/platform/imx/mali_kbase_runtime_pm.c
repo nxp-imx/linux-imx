@@ -146,8 +146,10 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	/* Power down the GPU immediately */
 	disable_gpu_power_control(kbdev);
 
-	pm_runtime_mark_last_busy(kbdev->dev);
-	pm_runtime_put_autosuspend(kbdev->dev);
+	if (pm_runtime_enabled(kbdev->dev)) {
+		pm_runtime_mark_last_busy(kbdev->dev);
+		pm_runtime_put_autosuspend(kbdev->dev);
+	}
 
 #ifdef IMX_GPU_BLK_CTRL
 	ictx->init_blk_ctrl = 0;

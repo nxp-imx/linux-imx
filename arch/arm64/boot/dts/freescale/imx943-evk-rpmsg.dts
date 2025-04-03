@@ -1,0 +1,373 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx943-evk.dts"
+
+/delete-node/ &lpi2c3;
+
+/ {
+	aliases {
+		i2c2 = &i2c_rpbus_1;
+	};
+
+	reserved-memory {
+		m7_reserved: m7@80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+
+		micfil_reserved: micfil-rpmsg@81000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x81000000 0 0x100000>;
+			no-map;
+		};
+
+		audio_reserved: audio-rpmsg@c0000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xc0000000 0 0x10000000>;
+			no-map;
+		};
+	};
+
+	sound-wm8962 {
+		status = "disabled";
+	};
+
+	sound-micfil {
+		status = "disabled";
+	};
+
+	sound-bt-sco {
+		status = "disabled";
+	};
+
+	rpmsg_audio: rpmsg-audio {
+		compatible = "fsl,imx95-rpmsg-audio";
+		model = "wm8962-audio";
+		fsl,rpmsg-channel-name = "rpmsg-audio-channel";
+		fsl,enable-lpa;
+		fsl,rpmsg-out;
+		fsl,rpmsg-in;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sai1>;
+		assigned-clocks = <&scmi_clk IMX94_CLK_AUDIOPLL1_VCO>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL2_VCO>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL1>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL2>,
+				  <&scmi_clk IMX94_CLK_SAI1>;
+		assigned-clock-parents = <0>, <0>, <0>, <0>,
+					 <&scmi_clk IMX94_CLK_AUDIOPLL1>;
+		assigned-clock-rates = <3932160000>, <3612672000>,
+				       <393216000>, <361267200>,
+				       <12288000>;
+		clocks = <&scmi_clk IMX94_CLK_BUSAON>,
+			 <&scmi_clk IMX94_CLK_SAI1>,
+			 <&scmi_clk IMX94_CLK_BUSAON>,
+			 <&scmi_clk IMX94_CLK_AUDIOPLL1>,
+			 <&scmi_clk IMX94_CLK_AUDIOPLL2>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
+		audio-codec = <&wm8962>;
+		memory-region = <&audio_reserved>;
+		audio-routing =
+			"IN1R", "MICBIAS",
+			"IN3R", "MICBIAS";
+		ignore-suspend-widgets =
+			"HPOUTL", "HPOUTR", "Playback",
+			"Capture", "IN1R", "IN3R";
+		status = "okay";
+	};
+
+	rpmsg_micfil: rpmsg-micfil {
+		compatible = "fsl,imx95-rpmsg-audio";
+		model = "micfil-audio";
+		fsl,rpmsg-channel-name = "rpmsg-micfil-channel";
+		fsl,enable-lpa;
+		fsl,rpmsg-in;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_pdm>;
+		assigned-clocks = <&scmi_clk IMX94_CLK_AUDIOPLL1_VCO>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL2_VCO>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL1>,
+				  <&scmi_clk IMX94_CLK_AUDIOPLL2>,
+				  <&scmi_clk IMX94_CLK_PDM>;
+		assigned-clock-parents = <0>, <0>, <0>, <0>,
+					<&scmi_clk IMX94_CLK_AUDIOPLL1>;
+		assigned-clock-rates = <3932160000>, <3612672000>,
+				       <393216000>, <361267200>,
+				       <49152000>;
+		clocks = <&scmi_clk IMX94_CLK_BUSAON>,
+			 <&scmi_clk IMX94_CLK_PDM>,
+			 <&scmi_clk IMX94_CLK_BUSAON>,
+			 <&scmi_clk IMX94_CLK_AUDIOPLL1>,
+			 <&scmi_clk IMX94_CLK_AUDIOPLL2>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
+		memory-region = <&micfil_reserved>;
+		status = "okay";
+	};
+
+	i2c_rpbus_1: i2c-rpbus-1 {
+		compatible = "fsl,i2c-rpbus-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+	};
+};
+
+&i2c_rpbus_1 {
+
+	pca9670_i2c3: gpio@23 {
+		compatible = "nxp,pca9670";
+		reg = <0x23>;
+		#gpio-cells = <2>;
+		gpio-controller;
+
+		/* PCIE clock FANOUT buffer U12 VOE1/2/3/4 port on */
+		pcie-p1-on-hog {
+			gpio-hog;
+			gpios = <1 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		pcie-p2-on-hog {
+			gpio-hog;
+			gpios = <2 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		pcie-p3-on-hog {
+			gpio-hog;
+			gpios = <3 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		pcie-p4-on-hog {
+			gpio-hog;
+			gpios = <4 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+	};
+
+	ptn5110: tcpc@50 {
+		compatible = "nxp,ptn5110", "tcpci";
+		reg = <0x50>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_typec>;
+
+		typec_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "dual";
+			data-role = "dual";
+			try-power-role = "sink";
+			source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+			sink-pdos = <PDO_FIXED(5000, 0, PDO_FIXED_USB_COMM)>;
+			op-sink-microwatt = <0>;
+			self-powered;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					typec_con_hs: endpoint {
+						remote-endpoint = <&usb3_data_hs>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					typec_con_ss: endpoint {
+						remote-endpoint = <&usb3_data_ss>;
+					};
+				};
+			};
+		};
+	};
+
+	pca9548_i2c3: i2c-mux@77 {
+		compatible = "nxp,pca9548";
+		reg = <0x77>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		i2c@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		i2c@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		i2c@2 {
+			reg = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		i2c@3 {
+			reg = <3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lvds-to-hdmi-bridge@4c {
+				compatible = "ite,it6263";
+				reg = <0x4c>;
+				reset-gpios = <&pcal6416_i2c3_u171 8 GPIO_ACTIVE_HIGH>;
+
+				port {
+					it6263_in: endpoint {
+						remote-endpoint = <&lvds_out>;
+					};
+				};
+			};
+		};
+
+		i2c@4 {
+			reg = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wm8962: codec@1a {
+				compatible = "wlf,wm8962";
+				reg = <0x1a>;
+				DCVDD-supply = <&reg_audio_pwr>;
+				DBVDD-supply = <&reg_audio_pwr>;
+				AVDD-supply = <&reg_audio_pwr>;
+				CPVDD-supply = <&reg_audio_pwr>;
+				MICVDD-supply = <&reg_audio_pwr>;
+				PLLVDD-supply = <&reg_audio_pwr>;
+				SPKVDD1-supply = <&reg_audio_pwr>;
+				SPKVDD2-supply = <&reg_audio_pwr>;
+				gpio-cfg = <
+					0x0000 /* 0:Default */
+					0x0000 /* 1:Default */
+					0x0000 /* 2:FN_DMICCLK */
+					0x0000 /* 3:Default */
+					0x0000 /* 4:FN_DMICCDAT */
+					0x0000 /* 5:Default */
+				>;
+			};
+
+			ptn5150: tcpc@3d {
+				compatible = "nxp,ptn5150";
+				reg = <0x3d>;
+				interrupt-parent = <&pcal6408_i2c3_u172>;
+				interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+				status = "disabled";
+			};
+		};
+
+		i2c@5 {
+			reg = <5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcal6416_i2c3_u46: gpio@20 {
+				compatible = "nxp,pcal6416";
+				reg = <0x20>;
+				#gpio-cells = <2>;
+				gpio-controller;
+
+			};
+
+			pcal6416_i2c3_u171: gpio@21 {
+				compatible = "nxp,pcal6416";
+				reg = <0x21>;
+				#gpio-cells = <2>;
+				gpio-controller;
+
+				mqs-mic-sel-hog {
+					gpio-hog;
+					gpios = <11 GPIO_ACTIVE_HIGH>;
+					output-low;
+				};
+
+				audio-pwren-hog {
+					gpio-hog;
+					gpios = <12 GPIO_ACTIVE_HIGH>;
+					output-high;
+				};
+			};
+		};
+
+		i2c@6 {
+			reg = <6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcal6416_i2c3_u48: gpio@20 {
+				compatible = "nxp,pcal6416";
+				reg = <0x20>;
+				#interrupt-cells = <2>;
+				interrupt-controller;
+				interrupt-parent = <&gpio3>;
+				interrupts = <13 IRQ_TYPE_LEVEL_LOW>;
+				#gpio-cells = <2>;
+				gpio-controller;
+				pinctrl-0 = <&pinctrl_ioexpander_int>;
+				pinctrl-names = "default";
+			};
+		};
+
+		i2c@7 {
+			reg = <7>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcal6408_i2c3_u172: gpio@20 {
+				compatible = "nxp,pcal6408";
+				reg = <0x20>;
+				#interrupt-cells = <2>;
+				interrupt-controller;
+				interrupt-parent = <&gpio3>;
+				/* shared int pin with u48 */
+				interrupts = <13 IRQ_TYPE_LEVEL_LOW>;
+				#gpio-cells = <2>;
+				gpio-controller;
+			};
+		};
+	};
+};
+
+&edma1{
+	status = "disabled";
+};
+
+&lpi2c1 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpuart1 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpuart2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&micfil {
+	status = "disabled";
+};
+
+&sai1 {
+	status = "disabled";
+};

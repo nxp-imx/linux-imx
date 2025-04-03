@@ -26,6 +26,8 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
 #include <linux/regmap.h>
 
 #define REG_VENDOR_ID(n)	(0x00 + (n))	/* n: 0/1 */
@@ -1083,6 +1085,7 @@ of_reconfig:
 
 	if (remote_node) {
 		int num_endpoints = 0;
+		struct platform_device *pdev;
 
 		/*
 		 * Remote node should have two endpoints (input and output: us)
@@ -1095,6 +1098,22 @@ of_reconfig:
 			num_endpoints++;
 
 		if (num_endpoints > 2) {
+			of_node_put(remote_node);
+			return ret;
+		}
+
+		/*
+		 * If the remote_node is an actual platform device, turning the node status to
+		 * 'disabled' will actually call device_del() which, in turn, will attempt to
+		 * purge all the supplier-consumer device links. However, in this case, since the
+		 * LDB driver is a supplier to IT6263, the device link is in DL_STATE_CONSUMER_PROBE
+		 * and we get a warning. If the remote node is not a supplier (channel@0,
+		 * lvds-channel@0, etc.) then there are no issues. So, only continue disabling the
+		 * nodes that are not resource suppliers for it6263.
+		 */
+		pdev = of_find_device_by_node(remote_node);
+		if (pdev) {
+			platform_device_put(pdev);
 			of_node_put(remote_node);
 			return ret;
 		}

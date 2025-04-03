@@ -158,7 +158,7 @@ static const struct drm_encoder_helper_funcs imx93_ldb_encoder_helper_funcs = {
 };
 
 static const struct of_device_id imx93_ldb_dt_ids[] = {
-	{ .compatible = "fsl,imx93-ldb", },
+	{ .compatible = "fsl,imx93-ldb-nxp", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, imx93_ldb_dt_ids);

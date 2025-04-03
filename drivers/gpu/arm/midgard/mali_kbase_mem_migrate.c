@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -158,9 +158,8 @@ static void kbase_free_pages_worker(struct work_struct *work)
 			__ClearPageMovable(p);
 			page_md->status = PAGE_MOVABLE_CLEAR(page_md->status);
 		}
-		unlock_page(p);
-
 		kbase_free_page_metadata(kbdev, p, &group_id);
+		unlock_page(p);
 		kbdev->mgm_dev->ops.mgm_free_page(kbdev->mgm_dev, group_id, p, 0);
 	}
 }

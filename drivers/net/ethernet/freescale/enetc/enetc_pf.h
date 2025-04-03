@@ -39,7 +39,7 @@ struct enetc_pf_hw_ops {
 	void (*set_si_based_vlan)(struct enetc_hw *hw, int si, u16 vlan, u8 qos);
 	void (*get_si_based_vlan)(struct enetc_hw *hw, int si, u32 *vlan, u32 *qos);
 	void (*set_si_anti_spoofing)(struct enetc_hw *hw, int si, bool en);
-	void (*set_si_vlan_promisc)(struct enetc_hw *hw, char si_map);
+	void (*set_si_vlan_promisc)(struct enetc_hw *hw, int si, bool en);
 	void (*set_si_mac_promisc)(struct enetc_hw *hw, int si, int type, bool en);
 	void (*set_si_mac_hash_filter)(struct enetc_hw *hw, int si, int type, u64 hash);
 	void (*set_si_vlan_hash_filter)(struct enetc_hw *hw, int si, u64 hash);
@@ -81,8 +81,6 @@ struct enetc_pf {
 
 	struct enetc_msg_swbd rxmsg[ENETC_MAX_NUM_VFS];
 	bool vf_link_status_notify[ENETC_MAX_NUM_VFS];
-
-	char vlan_promisc_simap; /* bitmap of SIs in VLAN promisc mode */
 
 	struct mii_bus *mdio; /* saved for cleanup */
 	struct mii_bus *imdio;

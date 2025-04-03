@@ -272,29 +272,6 @@ int vsi_dec_capture_on(struct vsi_v4l2_ctx *ctx)
 	return ret;
 }
 
-static int vsi_dec_capture_off(struct vsi_v4l2_ctx *ctx)
-{
-	int ret;
-	struct vb2_queue *q = &ctx->output_que;
-
-	if (!vb2_is_streaming(q))
-		return 0;
-
-	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE, NULL);
-	if (ret < 0)
-		return -EFAULT;
-
-	mutex_unlock(&ctx->ctxlock);
-	if (wait_event_interruptible(ctx->capoffdone_queue, vsi_checkctx_capoffdone(ctx) != 0))
-		v4l2_klog(LOGLVL_WARNING, "%llx wait capture streamoff done timeout\n", ctx->ctxid);
-	if (mutex_lock_interruptible(&ctx->ctxlock))
-		return -EBUSY;
-	ctx->buffed_capnum = 0;
-	ctx->buffed_cropcapnum = 0;
-	return_all_buffers(q, VB2_BUF_STATE_ERROR, 1);
-	return vb2_streamoff(q, q->type);
-}
-
 static int vsi_dec_streamon(struct file *filp, void *priv, enum v4l2_buf_type type)
 {
 	int ret = 0;
@@ -337,22 +314,33 @@ static int vsi_dec_checkctx_srcbuf(struct vsi_v4l2_ctx *ctx)
 void vsi_dec_update_reso(struct vsi_v4l2_ctx *ctx)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	int change = 0;
 
 	ctx->reschanged_need_notify = true;
 	pcfg->decparams.dec_info.dec_info = pcfg->decparams_bkup.dec_info.dec_info;
-	pcfg->decparams.dec_info.io_buffer.srcwidth = pcfg->decparams_bkup.io_buffer.srcwidth;
-	pcfg->decparams.dec_info.io_buffer.srcheight = pcfg->decparams_bkup.io_buffer.srcheight;
-	pcfg->decparams.dec_info.io_buffer.output_width = pcfg->decparams_bkup.io_buffer.output_width;
-	pcfg->decparams.dec_info.io_buffer.output_height = pcfg->decparams_bkup.io_buffer.output_height;
-	pcfg->decparams.dec_info.io_buffer.output_wstride = pcfg->decparams_bkup.io_buffer.output_wstride;
+	VSI_TEST_SET(pcfg->decparams.dec_info.io_buffer.srcwidth,
+		     pcfg->decparams_bkup.io_buffer.srcwidth, change);
+	VSI_TEST_SET(pcfg->decparams.dec_info.io_buffer.srcheight,
+		     pcfg->decparams_bkup.io_buffer.srcheight, change);
+	VSI_TEST_SET(pcfg->decparams.dec_info.io_buffer.output_width,
+		     pcfg->decparams_bkup.io_buffer.output_width, change);
+	VSI_TEST_SET(pcfg->decparams.dec_info.io_buffer.output_height,
+		     pcfg->decparams_bkup.io_buffer.output_height, change);
+	pcfg->decparams.dec_info.io_buffer.output_wstride =
+		pcfg->decparams_bkup.io_buffer.output_wstride;
 	pcfg->bytesperline = pcfg->decparams_bkup.io_buffer.output_wstride;
-	pcfg->orig_dpbsize = pcfg->sizeimagedst_bkup;
-	pcfg->src_pixeldepth = pcfg->decparams_bkup.dec_info.dec_info.bit_depth;
-	pcfg->minbuf_4output = pcfg->minbuf_4capture = pcfg->minbuf_4output_bkup;
+	VSI_TEST_SET(pcfg->orig_dpbsize, pcfg->sizeimagedst_bkup, change);
+	VSI_TEST_SET(pcfg->src_pixeldepth,
+		     pcfg->decparams_bkup.dec_info.dec_info.bit_depth, change);
+	VSI_TEST_SET(pcfg->minbuf_4output, pcfg->minbuf_4output_bkup, change);
+	VSI_TEST_SET(pcfg->minbuf_4capture, pcfg->minbuf_4output_bkup, change);
 	pcfg->sizeimagedst[0] = pcfg->sizeimagedst_bkup;
 	pcfg->sizeimagedst[1] = 0;
 	pcfg->sizeimagedst[2] = 0;
 	pcfg->sizeimagedst[3] = 0;
+
+	if (change)
+		ctx->src_change |= V4L2_EVENT_SRC_CH_RESOLUTION;
 }
 
 static void vsi_dec_return_queued_buffers(struct vb2_queue *q)
@@ -678,7 +666,9 @@ static int vsi_dec_handlestop_unspec(struct vsi_v4l2_ctx *ctx)
 
 static int vsi_dec_start_cmd(struct vsi_v4l2_ctx *ctx)
 {
+	struct vb2_queue *q = &ctx->output_que;
 	int ret = 0;
+	int i;
 
 	if (ctx->status == DEC_STATUS_STOPPED) {
 		ctx->status = DEC_STATUS_DECODING;
@@ -686,19 +676,34 @@ static int vsi_dec_start_cmd(struct vsi_v4l2_ctx *ctx)
 		if (ret < 0)
 			return ret;
 	}
-	if (ctx->reschange_notified) {
-		if (vb2_is_streaming(&ctx->output_que)) {
-			ret = vsi_dec_capture_off(ctx);
-			if (ret < 0) {
-				v4l2_klog(LOGLVL_ERROR,
-					  "ctx[%lld] capture off in start cmd fail\n",
-					  ctx->ctxid & 0xffff);
+	if (!ctx->reschange_notified)
+		return ret;
+	if (!vb2_is_streaming(q))
+		return ret;
+
+	v4l2_klog(LOGLVL_WARNING, "start cmd for source change flow\n");
+
+	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE, NULL);
+	if (ret < 0)
+		return -EFAULT;
+	mutex_unlock(&ctx->ctxlock);
+	if (wait_event_interruptible(ctx->capoffdone_queue, vsi_checkctx_capoffdone(ctx) != 0))
+		v4l2_klog(LOGLVL_WARNING, "%llx wait capture streamoff done timeout\n", ctx->ctxid);
+	if (mutex_lock_interruptible(&ctx->ctxlock))
+		return -EBUSY;
+
+	vb2_clear_last_buffer_dequeued(&ctx->output_que);
+
+	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMON_CAPTURE, NULL);
+	if (ret < 0)
+		return ret;
+
+	for (i = 0; i < vb2_get_num_buffers(q); ++i) {
+		if (q->bufs[i]->state == VB2_BUF_STATE_ACTIVE) {
+			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_BUF_RDY, q->bufs[i]);
+			if (ret < 0)
 				return ret;
-			}
-			ctx->need_capture_on = true;
 		}
-		if (ctx->need_capture_on)
-			ret = vsi_dec_capture_on(ctx);
 	}
 
 	return ret;

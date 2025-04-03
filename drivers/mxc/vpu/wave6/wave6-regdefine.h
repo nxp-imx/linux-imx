@@ -22,7 +22,6 @@ enum W6_VPU_COMMAND {
 	W6_ENC_SET_PARAM    = 0x0200,
 	W6_DEC_SET_DISP_BUF = 0x0400,
 	W6_INIT_WORK_BUF    = 0x1000,
-	W6_GET_VPU_INFO     = 0x4000,
 	W6_QUERY            = 0x4000,
 	W6_UPDATE_BS        = 0x8000,
 };
@@ -37,7 +36,6 @@ enum W6_QUERY_OPT {
 	W6_QUERY_SET_WRITE_PROT = 1,
 	W6_QUERY_GET_RESULT = 2,
 	W6_QUERY_GET_FW_STATUS = 3,
-	W6_QUERY_GET_UPDATE_FB_STATUS = 4,
 	W6_QUERY_GET_FLUSH_CMD_INFO = 10,
 };
 
@@ -280,20 +278,6 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_SET_FB_FBC_CR_OFFSET15             (W6_REG_BASE + 0x56C)
 
 /************************************************************************/
-/* DECODER - SET_FB (UPDATE_FB)                                         */
-/************************************************************************/
-#define W6_CMD_DEC_UPDATE_FB_COMMON_PIC_INFO          (W6_REG_BASE + 0x300)
-#define W6_CMD_DEC_UPDATE_FB_PIC_SIZE                 (W6_REG_BASE + 0x304)
-#define W6_CMD_DEC_UPDATE_FB_FBC_Y                    (W6_REG_BASE + 0x310)
-#define W6_CMD_DEC_UPDATE_FB_FBC_C                    (W6_REG_BASE + 0x314)
-#define W6_CMD_DEC_UPDATE_FB_FBC_Y_OFFSET             (W6_REG_BASE + 0x318)
-#define W6_CMD_DEC_UPDATE_FB_FBC_C_OFFSET             (W6_REG_BASE + 0x31C)
-#define W6_CMD_DEC_UPDATE_FB_MV_COL                   (W6_REG_BASE + 0x320)
-#define W6_CMD_DEC_UPDATE_FB_INDICES                  (W6_REG_BASE + 0x4A0)
-#define W6_CMD_DEC_UPDATE_FB_FBC_CR                   (W6_REG_BASE + 0x4F0)
-#define W6_CMD_DEC_UPDATE_FB_FBC_CR_OFFSET            (W6_REG_BASE + 0x4F4)
-
-/************************************************************************/
 /* DECODER - SET_DISP                                                   */
 /************************************************************************/
 #define W6_CMD_DEC_SET_DISP_OPTION                    (W6_REG_BASE + 0x204)
@@ -307,27 +291,6 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_SET_DISP_SCL_PIC_SIZE              (W6_REG_BASE + 0x31C)
 
 /************************************************************************/
-/* DECODER - GET_UPDATE_FB_STATUS                                       */
-/************************************************************************/
-#define W6_RET_DEC_UPDATE_FB_SEQ_PARAM                (W6_REG_BASE + 0x300)
-#define W6_RET_DEC_UPDATE_FB_COLOR_SAMPLE_INFO        (W6_REG_BASE + 0x304)
-#define W6_RET_DEC_UPDATE_FB_ASPECT_RATIO             (W6_REG_BASE + 0x308)
-#define W6_RET_DEC_UPDATE_FB_BIT_RATE                 (W6_REG_BASE + 0x30C)
-#define W6_RET_DEC_UPDATE_FB_FRAME_RATE_NR            (W6_REG_BASE + 0x310)
-#define W6_RET_DEC_UPDATE_FB_FRAME_RATE_DR            (W6_REG_BASE + 0x314)
-#define W6_RET_DEC_UPDATE_FB_NUM_REQUIRED_FBC_FB      (W6_REG_BASE + 0x318)
-#define W6_RET_DEC_UPDATE_FB_NUM_REORDER_DELAY        (W6_REG_BASE + 0x31C)
-#define W6_RET_DEC_UPDATE_FB_PIC_SIZE                 (W6_REG_BASE + 0x324)
-#define W6_RET_DEC_UPDATE_FB_CROP_TOP_BOTTOM          (W6_REG_BASE + 0x328)
-#define W6_RET_DEC_UPDATE_FB_CROP_LEFT_RIGHT          (W6_REG_BASE + 0x32C)
-#define W6_RET_DEC_UPDATE_FB_NUM_REQUIRED_COL_BUF     (W6_REG_BASE + 0x330)
-#define W6_RET_DEC_UPDATE_FB_NOTIFICATION             (W6_REG_BASE + 0x334)
-#define W6_RET_DEC_UPDATE_FB_OPT                      (W6_REG_BASE + 0x338)
-#define W6_RET_DEC_UPDATE_FB_RELEASE_LINEAR_NUM       (W6_REG_BASE + 0x33C)
-#define W6_RET_DEC_UPDATE_FB_RELEASE_LINEAR_ADDR_0    (W6_REG_BASE + 0x340)
-#define W6_RET_DEC_UPDATE_FB_RELEASE_LINEAR_ADDR_30   (W6_REG_BASE + 0x3B8)
-
-/************************************************************************/
 /* DECODER - DEC_PIC                                                    */
 /************************************************************************/
 #define W6_CMD_DEC_PIC_OPTION                         (W6_REG_BASE + 0x204)
@@ -336,7 +299,6 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_PIC_BS_OPTION                      (W6_REG_BASE + 0x308)
 #define W6_CMD_DEC_PIC_USE_SEC_AXI                    (W6_REG_BASE + 0x30C)
 #define W6_CMD_DEC_PIC_SEQ_CHANGE_ENABLE_FLAG         (W6_REG_BASE + 0x310)
-#define W6_CMD_DEC_PIC_USERDATA_MASK                  (W6_REG_BASE + 0x314)
 #define W6_CMD_DEC_PIC_TEMPORAL_ID_PLUS1              (W6_REG_BASE + 0x318)
 #define W6_CMD_DEC_PIC_TIMESTAMP                      (W6_REG_BASE + 0x32C)
 

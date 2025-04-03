@@ -67,4 +67,3 @@
 
 #endif /* __gc_hal_version_h_ */
 
-

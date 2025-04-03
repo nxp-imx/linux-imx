@@ -81,6 +81,18 @@ struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 	return dst_buf;
 }
 
+enum wave_std wave6_to_wave_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt)
+{
+	enum wave_std std = STD_UNKNOWN;
+
+	if (v4l2_pix_fmt == V4L2_PIX_FMT_H264)
+		std = (type == VPU_INST_TYPE_DEC) ? W_AVC_DEC : W_AVC_ENC;
+	else if (v4l2_pix_fmt == V4L2_PIX_FMT_HEVC)
+		std = (type == VPU_INST_TYPE_DEC) ? W_HEVC_DEC : W_HEVC_ENC;
+
+	return std;
+}
+
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
 {
 	int ret;

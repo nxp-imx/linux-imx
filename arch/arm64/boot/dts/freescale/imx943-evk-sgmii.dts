@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx943-evk.dts"
+
+/delete-node/ &ethphy0;
+/delete-node/ &ethphy1;
+
+&netc_emdio {
+	ethphy0: ethernet-phy@f {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0xf>;
+		reset-gpios = <&pcal6416_i2c3_u171 5 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <10000>;
+		reset-deassert-us = <80000>;
+	};
+
+	ethphy1: ethernet-phy@10 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0x10>;
+		reset-gpios = <&pcal6416_i2c3_u171 6 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <10000>;
+		reset-deassert-us = <80000>;
+	};
+};
+
+&netc_switch_port0 {
+	managed = "in-band-status";
+	phy-mode = "sgmii";
+};
+
+&netc_switch_port1 {
+	managed = "in-band-status";
+	phy-mode = "sgmii";
+};
+
+&scmi_iomuxc {
+	pinctrl_switch: switchgrp {
+		fsl,pins = <
+			IMX94_PAD_ETH2_TXD3__NETC_PINMUX_ETH2_TXD3		0x57e
+			IMX94_PAD_ETH2_TXD2__NETC_PINMUX_ETH2_TXD2		0x57e
+			IMX94_PAD_ETH2_TXD1__NETC_PINMUX_ETH2_TXD1		0x57e
+			IMX94_PAD_ETH2_TXD0__NETC_PINMUX_ETH2_TXD0		0x57e
+			IMX94_PAD_ETH2_TX_CTL__NETC_PINMUX_ETH2_TX_CTL		0x57e
+			IMX94_PAD_ETH2_TX_CLK__NETC_PINMUX_ETH2_TX_CLK		0x5fe
+			IMX94_PAD_ETH2_RX_CTL__NETC_PINMUX_ETH2_RX_CTL		0x57e
+			IMX94_PAD_ETH2_RX_CLK__NETC_PINMUX_ETH2_RX_CLK		0x5fe
+			IMX94_PAD_ETH2_RXD0__NETC_PINMUX_ETH2_RXD0		0x57e
+			IMX94_PAD_ETH2_RXD1__NETC_PINMUX_ETH2_RXD1		0x57e
+			IMX94_PAD_ETH2_RXD2__NETC_PINMUX_ETH2_RXD2		0x57e
+			IMX94_PAD_ETH2_RXD3__NETC_PINMUX_ETH2_RXD3		0x57e
+		>;
+	};
+};

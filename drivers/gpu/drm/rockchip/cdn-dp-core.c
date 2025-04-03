@@ -964,7 +964,10 @@ static void cdn_dp_pd_event_work(struct work_struct *work)
 {
 	struct cdn_dp_device *dp = container_of(work, struct cdn_dp_device,
 						event_work);
+	struct drm_connector *connector = &dp->mhdp.connector.base;
+	enum drm_connector_status old_status;
 	struct device *dev = dp->mhdp.dev;
+
 	int ret;
 
 	mutex_lock(&dp->lock);
@@ -1025,7 +1028,7 @@ static void cdn_dp_pd_event_work(struct work_struct *work)
 
 out:
 	mutex_unlock(&dp->lock);
-	drm_connector_helper_hpd_irq_event(&dp->connector);
+	drm_connector_helper_hpd_irq_event(connector);
 }
 
 static int cdn_dp_pd_event(struct notifier_block *nb,

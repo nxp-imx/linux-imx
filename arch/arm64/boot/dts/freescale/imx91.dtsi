@@ -1353,7 +1353,7 @@
 			interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clk IMX91_CLK_USB_CONTROLLER_GATE>,
 				 <&clk IMX91_CLK_HSIO_32K_GATE>;
-			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
+			clock-names = "usb_ctrl_root", "usb_wakeup";
 			assigned-clocks = <&clk IMX91_CLK_HSIO>;
 			assigned-clock-parents = <&clk IMX91_CLK_SYS_PLL_PFD1_DIV2>;
 			assigned-clock-rates = <133000000>;
@@ -1374,7 +1374,7 @@
 			interrupts = <GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clk IMX91_CLK_USB_CONTROLLER_GATE>,
 				 <&clk IMX91_CLK_HSIO_32K_GATE>;
-			clock-names = "usb_ctrl_root_clk", "usb_wakeup_clk";
+			clock-names = "usb_ctrl_root", "usb_wakeup";
 			assigned-clocks = <&clk IMX91_CLK_HSIO>;
 			assigned-clock-parents = <&clk IMX91_CLK_SYS_PLL_PFD1_DIV2>;
 			assigned-clock-rates = <133000000>;

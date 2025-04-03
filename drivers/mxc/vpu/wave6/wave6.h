@@ -8,13 +8,19 @@
 #ifndef __WAVE6_FUNCTION_H__
 #define __WAVE6_FUNCTION_H__
 
-#define BSOPTION_ENABLE_EXPLICIT_END        BIT(0)
+#define BSOPTION_ENABLE_EXPLICIT_END	BIT(0)
+#define NON_VCL_PARAM_ENCODE_VUI	BIT(1)
 
-#define WTL_RIGHT_JUSTIFIED          0
-#define WTL_LEFT_JUSTIFIED           1
-#define WTL_PIXEL_8BIT               0
-#define WTL_PIXEL_16BIT              1
-#define WTL_PIXEL_32BIT              2
+#define DECODE_ALL_TEMPORAL_LAYERS	0
+#define DECODE_ALL_SPATIAL_LAYERS	0
+
+#define WTL_RIGHT_JUSTIFIED	0
+#define WTL_LEFT_JUSTIFIED	1
+#define WTL_PIXEL_8BIT		0
+#define WTL_PIXEL_16BIT		1
+#define WTL_PIXEL_32BIT		2
+
+#define MAX_CSC_COEFF_NUM	4
 
 bool wave6_vpu_is_init(struct vpu_device *vpu_dev);
 
@@ -35,11 +41,6 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 					uint32_t count);
 
 int wave6_vpu_dec_register_display_buffer(struct vpu_instance *inst, struct frame_buffer fb);
-
-int wave6_vpu_dec_update_fb(struct vpu_instance *inst, struct frame_buffer *fb, int mv_index);
-
-int wave6_vpu_dec_get_update_fb_info(struct vpu_instance *inst,
-				     struct dec_update_fb_info *info);
 
 int wave6_vpu_dec_init_seq(struct vpu_instance *inst);
 

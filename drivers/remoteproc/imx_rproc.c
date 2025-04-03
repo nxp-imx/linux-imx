@@ -10,6 +10,7 @@
 #include <linux/err.h>
 #include <linux/firmware.h>
 #include <linux/firmware/imx/sci.h>
+#include <linux/firmware/imx/sm.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/mailbox_client.h>
@@ -23,6 +24,7 @@
 #include <linux/reboot.h>
 #include <linux/regmap.h>
 #include <linux/remoteproc.h>
+#include <linux/scmi_imx_protocol.h>
 #include <linux/workqueue.h>
 
 #include "remoteproc_elf_helpers.h"
@@ -98,6 +100,11 @@ struct imx_rproc_mem {
 static int imx_rproc_xtr_mbox_init(struct rproc *rproc, bool tx_block);
 static void imx_rproc_free_mbox(struct rproc *rproc);
 
+/* Logical Machine Operation */
+#define IMX_RPROC_FLAGS_SM_LMM_OP	BIT(0)
+/* No permission to handle the Logical Machine of remote cores */
+#define IMX_RPROC_FLAGS_SM_LMM_EACCES	BIT(1)
+
 struct imx_rproc {
 	struct device			*dev;
 	struct regmap			*regmap;
@@ -121,6 +128,45 @@ struct imx_rproc {
 	u32				core_index;
 	struct dev_pm_domain_list	*pd_list;
 	u32				startup_delay;
+	/* For i.MX System Manager based systems */
+	u32				cpuid;
+	u32				lmid;
+	u32				flags;
+};
+
+static const struct imx_rproc_att imx_rproc_att_imx94_m7[] = {
+	/* dev addr , sys addr  , size	    , flags */
+	/* TCM CODE NON-SECURE */
+	{ 0x00000000, 0x203C0000, 0x00040000, ATT_OWN | ATT_IOMEM | ATT_CORE(1) },
+	/* TCM SYS NON-SECURE*/
+	{ 0x20000000, 0x20400000, 0x00040000, ATT_OWN | ATT_IOMEM | ATT_CORE(1) },
+
+	/* TCM CODE NON-SECURE */
+	{ 0x00000000, 0x202C0000, 0x00040000, ATT_OWN | ATT_IOMEM | ATT_CORE(7) },
+	/* TCM SYS NON-SECURE*/
+	{ 0x20000000, 0x20300000, 0x00040000, ATT_OWN | ATT_IOMEM | ATT_CORE(7) },
+
+	/* DDR */
+	{ 0x80000000, 0x80000000, 0x50000000, 0 },
+};
+
+static const struct imx_rproc_att imx_rproc_att_imx94_m33s[] = {
+	/* dev addr , sys addr  , size	    , flags */
+	/* TCM CODE NON-SECURE */
+	{ 0x0FFC0000, 0x209C0000, 0x00040000, ATT_OWN | ATT_IOMEM },
+	/* TCM CODE SECURE */
+	{ 0x1FFC0000, 0x209C0000, 0x00040000, ATT_OWN | ATT_IOMEM },
+
+	/* TCM SYS NON-SECURE */
+	{ 0x20000000, 0x20A00000, 0x00040000, ATT_OWN | ATT_IOMEM },
+	/* TCM SYS NON-SECURE */
+	{ 0x30000000, 0x20A00000, 0x00040000, ATT_OWN | ATT_IOMEM },
+
+	/* M33S OCRAM */
+	{ 0x20800000, 0x20800000, 0x180000, ATT_OWN | ATT_IOMEM },
+
+	/* DDR */
+	{ 0x80000000, 0x80000000, 0x50000000, 0 },
 };
 
 static const struct imx_rproc_att imx_rproc_att_imx95_m7[] = {
@@ -384,8 +430,21 @@ static const struct imx_rproc_dcfg imx_rproc_cfg_imx93 = {
 static const struct imx_rproc_dcfg imx_rproc_cfg_imx95_m7 = {
 	.att		= imx_rproc_att_imx95_m7,
 	.att_size	= ARRAY_SIZE(imx_rproc_att_imx95_m7),
+	.method		= IMX_RPROC_SM,
+};
+
+static const struct imx_rproc_dcfg imx_rproc_cfg_imx94_m7 = {
+	.att		= imx_rproc_att_imx94_m7,
+	.att_size	= ARRAY_SIZE(imx_rproc_att_imx94_m7),
 	.method		= IMX_RPROC_SMC,
 };
+
+static const struct imx_rproc_dcfg imx_rproc_cfg_imx94_m33s = {
+	.att		= imx_rproc_att_imx94_m33s,
+	.att_size	= ARRAY_SIZE(imx_rproc_att_imx94_m33s),
+	.method		= IMX_RPROC_SMC,
+};
+
 
 static int imx_rproc_start(struct rproc *rproc)
 {
@@ -415,11 +474,37 @@ static int imx_rproc_start(struct rproc *rproc)
 		if (ret)
 			dev_err(dev, "Failed to enable audio clk!\n");
 		arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_START, rproc->bootaddr,
-			      0, 0, 0, 0, 0, &res);
+			      priv->core_index, 0, 0, 0, 0, &res);
 		ret = res.a0;
 		break;
 	case IMX_RPROC_SCU_API:
 		ret = imx_sc_pm_cpu_start(priv->ipc_handle, priv->rsrc_id, true, priv->entry);
+		break;
+	case IMX_RPROC_SM:
+		if (priv->flags & IMX_RPROC_FLAGS_SM_LMM_EACCES)
+			return -EACCES;
+
+		if (!(priv->flags & IMX_RPROC_FLAGS_SM_LMM_OP)) {
+			ret = scmi_imx_cpu_reset_vector_set(priv->cpuid, rproc->bootaddr, true,
+							    false, false);
+			if (ret) {
+				dev_err(dev, "Failed to set reset vector cpuid(%u): %d\n",
+					priv->cpuid, ret);
+			}
+
+			ret = scmi_imx_cpu_start(priv->cpuid);
+		} else {
+			ret = scmi_imx_lmm_reset_vector_set(priv->lmid, priv->cpuid,
+							    rproc->bootaddr);
+			if (ret) {
+				dev_err(dev, "Failed to set reset vector lmid(%u), cpuid(%u): %d\n",
+					priv->lmid, priv->cpuid, ret);
+			}
+
+			ret = scmi_imx_lmm_boot(priv->lmid);
+			if (ret)
+				dev_err(dev, "Failed to boot lmm(%d): %d\n", ret, priv->lmid);
+			}
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -458,7 +543,8 @@ static int imx_rproc_stop(struct rproc *rproc)
 					 dcfg->src_stop);
 		break;
 	case IMX_RPROC_SMC:
-		arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STOP, 0, 0, 0, 0, 0, 0, &res);
+		arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STOP, rproc->bootaddr,
+			      priv->core_index, 0, 0, 0, 0, &res);
 		ret = res.a0;
 		if (res.a1)
 			dev_info(dev, "Not in wfi, force stopped\n");
@@ -467,12 +553,20 @@ static int imx_rproc_stop(struct rproc *rproc)
 	case IMX_RPROC_SCU_API:
 		ret = imx_sc_pm_cpu_start(priv->ipc_handle, priv->rsrc_id, false, priv->entry);
 		break;
+	case IMX_RPROC_SM:
+		if (priv->flags & IMX_RPROC_FLAGS_SM_LMM_EACCES)
+			ret = -EACCES;
+		else if (priv->flags & IMX_RPROC_FLAGS_SM_LMM_OP)
+			ret = scmi_imx_lmm_shutdown(priv->lmid, 0);
+		else
+			ret = scmi_imx_cpu_stop(priv->cpuid);
+		break;
 	default:
 		return -EOPNOTSUPP;
 	}
 
 	if (ret)
-		dev_err(dev, "Failed to stop remote core\n");
+		dev_err(dev, "Failed to stop remote core, ret=%d\n", ret);
 	else
 		imx_rproc_free_mbox(rproc);
 
@@ -581,9 +675,11 @@ static int imx_rproc_prepare(struct rproc *rproc)
 {
 	struct imx_rproc *priv = rproc->priv;
 	struct device_node *np = priv->dev->of_node;
+	const struct imx_rproc_dcfg *dcfg = priv->dcfg;
 	struct of_phandle_iterator it;
 	struct rproc_mem_entry *mem;
 	struct reserved_mem *rmem;
+	int ret;
 	u32 da;
 
 	/* Register associated reserved memory regions */
@@ -623,6 +719,35 @@ static int imx_rproc_prepare(struct rproc *rproc)
 
 		rproc_add_carveout(rproc, mem);
 	}
+
+	switch (dcfg->method) {
+	case IMX_RPROC_SM:
+		if (!(priv->flags & IMX_RPROC_FLAGS_SM_LMM_OP))
+			break;
+		/* Power on the Logical Machine to make sure TCM is available.
+		 * Also serve as permission check, if in different Logical
+		 * Machine, and Linux has no permission to handle the Logical
+		 * Machine, set IMX_RPROC_FLAGS_SM_LMM_EACCES.
+		 */
+		ret = scmi_imx_lmm_power_on(priv->lmid);
+		if (ret == -EACCES) {
+			dev_info(priv->dev, "lmm(%d) not under Linux Control\n", priv->lmid);
+			priv->flags |= IMX_RPROC_FLAGS_SM_LMM_EACCES;
+			/*
+			 * If remote cores boots up, continue the rpmsg channel setup,
+			 * else linux have no permission, so return -EACCES.
+			 */
+			if (priv->rproc->state != RPROC_DETACHED)
+				return -EACCES;
+		} else if (ret) {
+			dev_err(priv->dev, "Failed to power on lmm(%d): %d\n", ret, priv->lmid);
+			return ret;
+		}
+
+		dev_info(priv->dev, "lmm(%d) powered on\n", priv->lmid);
+	default:
+		break;
+	};
 
 	return  0;
 }
@@ -720,8 +845,10 @@ static u64 imx_rproc_get_boot_addr(struct rproc *rproc, const struct firmware *f
 	u16 shstrndx = elf_hdr_get_e_shstrndx(class, ehdr);
 	u64 sh_addr;
 
-	if (!of_device_is_compatible(dev->of_node, "fsl,imx93-cm33")
-	    && !of_device_is_compatible(dev->of_node, "fsl,imx95-cm7"))
+	if (!of_device_is_compatible(dev->of_node, "fsl,imx93-cm33") &&
+	    !of_device_is_compatible(dev->of_node, "fsl,imx95-cm7") &&
+	    !of_device_is_compatible(dev->of_node, "fsl,imx94-cm7") &&
+	    !of_device_is_compatible(dev->of_node, "fsl,imx94-cm33s"))
 		return rproc_elf_get_boot_addr(rproc, fw);
 
 	/* First, get the section header according to the elf class */
@@ -981,18 +1108,63 @@ static int imx_rproc_detect_mode(struct imx_rproc *priv)
 	struct regmap_config config = { .name = "imx-rproc" };
 	const struct imx_rproc_dcfg *dcfg = priv->dcfg;
 	struct device *dev = priv->dev;
+	struct scmi_imx_lmm_info info;
 	struct regmap *regmap;
 	struct arm_smccc_res res;
+	bool started = false;
 	int ret;
 	u32 val;
 	u8 pt;
 
 	switch (dcfg->method) {
+	case IMX_RPROC_SM:
+		/* Get current Linux Logical Machine ID */
+		ret = scmi_imx_lmm_info(LMM_ID_DISCOVER, &info);
+		if (ret) {
+			dev_err(dev, "Failed to get current LMM ID err: %d\n", ret);
+			return ret;
+		}
+
+		ret = of_property_read_u32(dev->of_node, "fsl,cpu-id", &priv->cpuid);
+		if (ret) {
+			dev_err(dev, "No fsl,cpu-id property\n");
+			return ret;
+		}
+
+		ret = of_property_read_u32(dev->of_node, "fsl,lmm-id", &priv->lmid);
+		if (ret) {
+			dev_info(dev, "No fsl,lmm-id property\n");
+			return ret;
+		}
+
+		/*
+		 * Check whether remote processor is in same Logical Machine as Linux.
+		 * If no, need use Logical Machine API to manage remote processor, and
+		 * set IMX_RPROC_FLAGS_SM_LMM_OP.
+		 * If yes, use CPU protocol API to manage remote processor.
+		 */
+		if (priv->lmid != info.lmid) {
+			priv->flags |= IMX_RPROC_FLAGS_SM_LMM_OP;
+			dev_info(dev, "Using LMM Protocol OPS\n");
+		} else {
+			dev_info(dev, "Using CPU Protocol OPS\n");
+		}
+
+		scmi_imx_cpu_started(priv->cpuid, &started);
+		if (started)
+			priv->rproc->state = RPROC_DETACHED;
+
+		return 0;
 	case IMX_RPROC_NONE:
 		priv->rproc->state = RPROC_DETACHED;
 		return 0;
 	case IMX_RPROC_SMC:
-		arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STARTED, 0, 0, 0, 0, 0, 0, &res);
+		ret = of_property_read_u32(dev->of_node, "fsl,core-index", &priv->core_index);
+		if (ret)
+			arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STARTED, 0, 0, 0, 0, 0, 0, &res);
+		else
+			arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STARTED, 0,
+				      priv->core_index, 0, 0, 0, 0, &res);
 		if (res.a0)
 			priv->rproc->state = RPROC_DETACHED;
 		return 0;
@@ -1277,6 +1449,8 @@ static const struct of_device_id imx_rproc_of_match[] = {
 	{ .compatible = "fsl,imx8ulp-cm33", .data = &imx_rproc_cfg_imx8ulp },
 	{ .compatible = "fsl,imx93-cm33", .data = &imx_rproc_cfg_imx93 },
 	{ .compatible = "fsl,imx95-cm7", .data = &imx_rproc_cfg_imx95_m7 },
+	{ .compatible = "fsl,imx94-cm7", .data = &imx_rproc_cfg_imx94_m7 },
+	{ .compatible = "fsl,imx94-cm33s", .data = &imx_rproc_cfg_imx94_m33s },
 	{},
 };
 MODULE_DEVICE_TABLE(of, imx_rproc_of_match);

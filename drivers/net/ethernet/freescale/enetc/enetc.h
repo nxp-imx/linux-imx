@@ -53,6 +53,15 @@ struct enetc_tx_swbd {
 	u8 qbv_en:1;
 };
 
+struct enetc_skb_cb {
+	u8 flag;
+	bool udp;
+	u16 correction_off;
+	u16 origin_tstamp_off;
+};
+
+#define ENETC_SKB_CB(skb) ((struct enetc_skb_cb *)((skb)->cb))
+
 struct enetc_lso_t {
 	bool	ipv6;
 	bool	tcp;
@@ -247,6 +256,7 @@ enum enetc_errata {
 #define ENETC_SI_F_QBU  BIT(2)
 #define ENETC_SI_F_LSO	BIT(3)
 #define ENETC_SI_F_RSC	BIT(4)
+#define ENETC_SI_F_PPM	BIT(5) /* Pseduo MAC */
 
 enum enetc_mac_addr_type {UC, MC, MADDR_TYPE};
 

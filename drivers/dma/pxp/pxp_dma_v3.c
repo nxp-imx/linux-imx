@@ -87,6 +87,15 @@ void __iomem *pinctrl_base;
 #define PXP_2D_INPUT_STORE1	15
 #define PXP_2D_NUM		16
 
+/* define the pxp 2d input/output nodes mask */
+#define BM_PXP_2D_PS		BIT(PXP_2D_PS)
+#define BM_PXP_2D_AS		BIT(PXP_2D_AS)
+#define BM_PXP_2D_INPUT_FETCH0	BIT(PXP_2D_INPUT_FETCH0)
+#define BM_PXP_2D_INPUT_FETCH1	BIT(PXP_2D_INPUT_FETCH1)
+#define BM_PXP_2D_OUT		BIT(PXP_2D_OUT)
+#define BM_PXP_2D_INPUT_STORE0	BIT(PXP_2D_INPUT_STORE0)
+#define BM_PXP_2D_INPUT_STORE1	BIT(PXP_2D_INPUT_STORE1)
+
 #define PXP_2D_ALPHA0_S0_S1	0xaa
 #define PXP_2D_ALPHA1_S0_S1	0xbb
 
@@ -263,6 +272,17 @@ struct pxp_op_info{
 	uint32_t lut_status_2;
 };
 
+struct pxp_format_info {
+	u32	format;
+	u32	nodes;
+	u32	fmt_ctrl[PXP_2D_NUM];
+	u8	bpp;
+	enum {
+		PXP_ENC_RGB,
+		PXP_ENC_YUV,
+	} encoding;
+};
+
 struct pxp_pixmap {
 	uint8_t channel_id;
 	uint8_t bpp;
@@ -323,8 +343,6 @@ struct pxps {
 	struct task_struct *dispatch;
 	wait_queue_head_t thread_waitq;
 	struct completion complete;
-
-	struct regmap *gpr;
 };
 
 #define to_pxp_dma(d) container_of(d, struct pxp_dma, dma)
@@ -971,7 +989,15 @@ enum pxp_devtype {
 	PXP_V3P,	/* minor changes over V3, use WFE_B to replace WFE_A */
 	PXP_V3_8ULP,	/* PXP V3 version for iMX8ULP */
 	PXP_V3_IMX93,	/* PXP V3 version for iMX93 */
+	PXP_V4,		/* PXP V4 version for iMX94 */
 };
+
+#define BM_PXP_V3		BIT(PXP_V3)
+#define BM_PXP_V3P		BIT(PXP_V3P)
+#define BM_PXP_V3_8ULP		BIT(PXP_V3_8ULP)
+#define BM_PXP_V3_IMX93		BIT(PXP_V3_IMX93)
+#define BM_PXP_V4		BIT(PXP_V4)
+#define BM_PXP_V3X	(BM_PXP_V3 | BM_PXP_V3P | BM_PXP_V3_8ULP)
 
 #define pxp_is_v3(pxp) ((pxp->devdata->version == PXP_V3) || \
 			(pxp->devdata->version == PXP_V3_8ULP))
@@ -988,6 +1014,343 @@ struct pxp_devdata {
 	void (*pxp_restart)(struct pxps *pxp);
 	unsigned int version;
 	bool input_fetch_arbit_en;
+	const struct pxp_format_info *info;
+	u32 info_size;
+};
+
+static const struct pxp_format_info common_formats[] = {
+	/* RGB */
+	{
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_XRGB32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_RGB555,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB555,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB555,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB555,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_RGB444,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB444,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB444,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB444,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_RGB565,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB565,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB565,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB565,
+		},
+		.encoding	= PXP_ENC_RGB,
+	},
+	/* YUV */
+	{
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_YUV444,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__YUV1P444,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__YUV1P444,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_UYVY,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__UYVY1P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__UYVY1P422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_VYUY,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__VYUY1P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__VYUY1P422,
+		},
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_UYVY,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__UYVY1P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__UYVY1P422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_YUYV,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__UYVY1P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__UYVY1P422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_YVYU,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__VYUY1P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__VYUY1P422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 8,
+		.format		= PXP_PIX_FMT_GREY,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__Y8,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__Y8,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 4,
+		.format		= PXP_PIX_FMT_GY04,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__Y4,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__Y4,
+		},
+		.encoding = PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_NV12,
+		.fmt_ctrl	= {
+			[PXP_2D_PS] = BV_PXP_PS_CTRL_FORMAT__YUV2P420,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__YUV2P420,
+		},
+		.encoding = PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_NV21,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__YVU2P420,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__YVU2P420,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_NV16,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__YUV2P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__YUV2P422,
+		},
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_NV61,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__YVU2P422,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__YVU2P422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_YUV422P,
+		.fmt_ctrl	= {
+			[PXP_2D_PS] = BV_PXP_PS_CTRL_FORMAT__YUV422,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_YUV420P,
+		.fmt_ctrl	= {
+			[PXP_2D_PS] = BV_PXP_PS_CTRL_FORMAT__YUV420,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_YVU420P,
+		.fmt_ctrl	= {
+			[PXP_2D_PS] = BV_PXP_PS_CTRL_FORMAT__YUV420,
+		},
+		.encoding	= PXP_ENC_YUV,
+	}, {
+		.nodes		= BM_PXP_2D_PS,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_VUY444,
+		.fmt_ctrl	= {
+			[PXP_2D_PS] = BV_PXP_PS_CTRL_FORMAT__YUV1P444,
+		},
+		.encoding	= PXP_ENC_YUV,
+	},
+	{ /* Sentinel */ }
+};
+
+static const struct pxp_format_info legacy_formats[] = {
+	/* RGB */
+	{
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_ARGB32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_AS,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_RGBA32,
+		.fmt_ctrl	= {
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGBA8888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_ARGB555,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB555,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ARGB1555,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ARGB1555,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_ARGB444,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB444,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ARGB4444,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ARGB4444,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_OUT,
+		.bpp		= 24,
+		.format		= PXP_PIX_FMT_RGB24,
+		.fmt_ctrl	= {
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB888P,
+		},
+		.encoding	= PXP_ENC_RGB,
+	},
+	{ /* Sentinel */ }
+};
+
+static const struct pxp_format_info imx94_formats[] = {
+	{
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_ARGB32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__ARGB8888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ARGB8888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ARGB8888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_RGBA32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGBA8888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGBA8888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGBA8888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_ABGR32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__ABGR8888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ABGR8888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ABGR8888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_BGRA32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__BGRA8888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__BGRA8888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__BGRA8888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 24,
+		.format		= PXP_PIX_FMT_RGB24,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__RGB888P,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__RGB888P,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__RGB888P,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 32,
+		.format		= PXP_PIX_FMT_XBGR32,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__BGR888,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__BGR888,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__BGR888,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 24,
+		.format		= PXP_PIX_FMT_BGR24,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__BGR888P,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__BGR888P,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__BGR888P,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_ARGB555,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__ARGB1555,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ARGB1555,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ARGB1555,
+		},
+		.encoding	= PXP_ENC_RGB,
+	}, {
+		.nodes		= BM_PXP_2D_PS | BM_PXP_2D_AS | BM_PXP_2D_OUT,
+		.bpp		= 16,
+		.format		= PXP_PIX_FMT_ARGB444,
+		.fmt_ctrl	= {
+			[PXP_2D_PS]  = BV_PXP_PS_CTRL_FORMAT__ARGB4444,
+			[PXP_2D_AS]  = BV_PXP_AS_CTRL_FORMAT__ARGB4444,
+			[PXP_2D_OUT] = BV_PXP_OUT_CTRL_FORMAT__ARGB4444,
+		},
+		.encoding	= PXP_ENC_RGB,
+	},
+	{ /* Sentinel */ }
 };
 
 static const struct pxp_devdata pxp_devdata[] = {
@@ -1002,6 +1365,8 @@ static const struct pxp_devdata pxp_devdata[] = {
 		.pxp_restart = NULL,
 		.version = PXP_V3,
 		.input_fetch_arbit_en = false,
+		.info = legacy_formats,
+		.info_size = ARRAY_SIZE(legacy_formats),
 	},
 	[PXP_V3P] = {
 		.pxp_wfe_a_configure = pxp_wfe_a_configure_v3p,
@@ -1014,6 +1379,8 @@ static const struct pxp_devdata pxp_devdata[] = {
 		.pxp_restart = NULL,
 		.version = PXP_V3P,
 		.input_fetch_arbit_en = false,
+		.info = legacy_formats,
+		.info_size = ARRAY_SIZE(legacy_formats),
 	},
 	[PXP_V3_8ULP] = {
 		.pxp_wfe_a_configure = pxp_wfe_a_configure,
@@ -1026,6 +1393,8 @@ static const struct pxp_devdata pxp_devdata[] = {
 		.pxp_restart = pxp_software_restart,
 		.version = PXP_V3_8ULP,
 		.input_fetch_arbit_en = false,
+		.info = legacy_formats,
+		.info_size = ARRAY_SIZE(legacy_formats),
 	},
 	[PXP_V3_IMX93] = {
 		.pxp_wfe_a_configure = NULL,
@@ -1042,75 +1411,186 @@ static const struct pxp_devdata pxp_devdata[] = {
 		 * enable arbitration when use two PXP input fetch channels
 		 */
 		.input_fetch_arbit_en = true,
+		.info = legacy_formats,
+		.info_size = ARRAY_SIZE(legacy_formats),
+	},
+	[PXP_V4] = {
+		.pxp_wfe_a_configure = NULL,
+		.pxp_wfe_a_process = NULL,
+		.pxp_lut_status_set = NULL,
+		.pxp_lut_status_clr = NULL,
+		.pxp_lut_cleanup_multiple = NULL,
+		.pxp_dithering_configure = NULL,
+		.pxp_data_path_config = NULL,
+		.pxp_restart = imx93_pxp_software_restart,
+		.version = PXP_V4,
+		/*
+		 * Due to iMX93 only connect one AXI bus to PXP, so need to
+		 * enable arbitration when use two PXP input fetch channels
+		 */
+		.input_fetch_arbit_en = true,
+		.info = imx94_formats,
+		.info_size = ARRAY_SIZE(imx94_formats),
 	},
 };
+
+static const struct pxp_format_info *
+pxp_format_by_fourcc(struct pxps *pxp, u32 fourcc, u32 node)
+{
+	const struct pxp_devdata *data = pxp->devdata;
+	unsigned int i;
+
+	/* Search platform related format list first */
+	for (i = 0; i < data->info_size; i++) {
+		const struct pxp_format_info *fmt = &data->info[i];
+
+		if (fmt->format == fourcc && fmt->nodes & BIT(node))
+			return fmt;
+	}
+
+	/* Search common formats list */
+	for (i = 0; i < ARRAY_SIZE(common_formats); i++) {
+		const struct pxp_format_info *fmt = &common_formats[i];
+
+		if (fmt->format == fourcc && fmt->nodes & BIT(node))
+			return fmt;
+	}
+
+	return NULL;
+}
 
 /*
  * PXP common functions
  */
 static void dump_pxp_reg(struct pxps *pxp)
 {
-	struct pxp_register {
+	static struct pxp_register {
 		u32 offset;
 		const char * const name;
-		bool opt;
+		u32 mask;
 	} regs[] = {
-		{ 0x00, "HW_PXP_CTRL", false },
-		{ 0x10, "HW_PXP_STAT", false },
-		{ 0x20, "HW_PXP_OUT_CTRL", false },
-		{ 0x30, "HW_PXP_OUT_BUF", false },
-		{ 0x40, "HW_PXP_OUT_BUF2", false },
-		{ 0x50, "HW_PXP_OUT_PITCH", false },
-		{ 0x60, "HW_PXP_OUT_LRC", false },
-		{ 0x70, "HW_PXP_OUT_PS_ULC", false },
-		{ 0x80, "HW_PXP_OUT_PS_LRC", false },
-		{ 0x90, "HW_PXP_OUT_AS_ULC", false },
-		{ 0xa0, "HW_PXP_OUT_AS_LRC", false },
-		{ 0xb0, "HW_PXP_PS_CTRL", false },
-		{ 0xc0, "HW_PXP_PS_BUF", false },
-		{ 0xd0, "HW_PXP_PS_UBUF", false },
-		{ 0xe0, "HW_PXP_PS_VBUF", false },
-		{ 0xf0, "HW_PXP_PS_PITCH", false },
-		{ 0x100, "HW_PXP_PS_BACKGROUND_0", false },
-		{ 0x110, "HW_PXP_PS_SCALE", false },
-		{ 0x120, "HW_PXP_PS_OFFSET", false },
-		{ 0x130, "HW_PXP_PS_CLRKEYLOW_0", false },
-		{ 0x140, "HW_PXP_PS_CLRKEYHIGH_0", false },
-		{ 0x150, "HW_PXP_AS_CTRL", false },
-		{ 0x160, "HW_PXP_AS_BUF", false },
-		{ 0x170, "HW_PXP_AS_PITCH", false },
-		{ 0x180, "HW_PXP_AS_CLRKEYLOW_0", false },
-		{ 0x190, "HW_PXP_AS_CLRKEYHIGH_0", false },
-		{ 0x1A0, "HW_PXP_CSC1_COEF0", false },
-		{ 0x1B0, "HW_PXP_CSC1_COEF1", false },
-		{ 0x1C0, "HW_PXP_CSC1_COEF2", false },
-		{ 0x1D0, "HW_PXP_CSC2_CTRL", false },
-		{ 0x1E0, "HW_PXP_CSC2_COEF0", false },
-		{ 0x1F0, "HW_PXP_CSC2_COEF1", false },
-		{ 0x200, "HW_PXP_CSC2_COEF2", false },
-		{ 0x210, "HW_PXP_CSC2_COEF3", false },
-		{ 0x220, "HW_PXP_CSC2_COEF4", false },
-		{ 0x230, "HW_PXP_CSC2_COEF5", false },
-		{ 0x240, "HW_PXP_LUT_CTRL", true },
-		{ 0x250, "HW_PXP_LUT_ADDR", true },
-		{ 0x260, "HW_PXP_LUT_DATA", true },
-		{ 0x270, "HW_PXP_LUT_EXTMEM", true },
-		{ 0x280, "HW_PXP_CFA", true },
-		{ 0x290, "HW_PXP_ALPHA_A_CTRL", false },
-		{ 0x2a0, "HW_PXP_ALPHA_B_CTRL", false },
-		{ 0x320, "HW_PXP_POWER_REG0", false },
-		{ 0x400, "HW_PXP_NEXT", false },
-		{ 0x410, "HW_PXP_DEBUGCTRL", false },
-		{ 0x420, "HW_PXP_DEBUG", false },
-		{ 0x430, "HW_PXP_VERSION", false },
+		{ 0x00, "HW_PXP_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x10, "HW_PXP_STAT", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x20, "HW_PXP_OUT_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x30, "HW_PXP_OUT_BUF", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x40, "HW_PXP_OUT_BUF2", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x50, "HW_PXP_OUT_PITCH", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x60, "HW_PXP_OUT_LRC", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x70, "HW_PXP_OUT_PS_ULC", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x80, "HW_PXP_OUT_PS_LRC", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x90, "HW_PXP_OUT_AS_ULC", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xa0, "HW_PXP_OUT_AS_LRC", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xb0, "HW_PXP_PS_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xc0, "HW_PXP_PS_BUF", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xd0, "HW_PXP_PS_UBUF", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xe0, "HW_PXP_PS_VBUF", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0xf0, "HW_PXP_PS_PITCH", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x100, "HW_PXP_PS_BACKGROUND_0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x110, "HW_PXP_PS_SCALE", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x120, "HW_PXP_PS_OFFSET", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x130, "HW_PXP_PS_CLRKEYLOW_0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x140, "HW_PXP_PS_CLRKEYHIGH_0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x150, "HW_PXP_AS_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x160, "HW_PXP_AS_BUF", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x170, "HW_PXP_AS_PITCH", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x180, "HW_PXP_AS_CLRKEYLOW_0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x190, "HW_PXP_AS_CLRKEYHIGH_0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1A0, "HW_PXP_CSC1_COEF0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1B0, "HW_PXP_CSC1_COEF1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1C0, "HW_PXP_CSC1_COEF2", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1D0, "HW_PXP_CSC2_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1E0, "HW_PXP_CSC2_COEF0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x1F0, "HW_PXP_CSC2_COEF1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x200, "HW_PXP_CSC2_COEF2", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x210, "HW_PXP_CSC2_COEF3", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x220, "HW_PXP_CSC2_COEF4", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x230, "HW_PXP_CSC2_COEF5", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x240, "HW_PXP_LUT_CTRL", BM_PXP_V3X },
+		{ 0x250, "HW_PXP_LUT_ADDR", BM_PXP_V3X },
+		{ 0x260, "HW_PXP_LUT_DATA", BM_PXP_V3X },
+		{ 0x270, "HW_PXP_LUT_EXTMEM", BM_PXP_V3X },
+		{ 0x280, "HW_PXP_CFA", BM_PXP_V3X },
+		{ 0x290, "HW_PXP_ALPHA_A_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2a0, "HW_PXP_ALPHA_B_CTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2b0, "HW_PXP_ALPHA_B_CTRL_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2c0, "HW_PXP_PS_BACKGROUND_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2d0, "HW_PXP_PS_CLRKEYLOW_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2e0, "HW_PXP_PS_CLRKEYHIGH_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x2f0, "HW_PXP_AS_CLRKEYLOW_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x300, "HW_PXP_AS_CLRKEYHIGH_1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x310, "HW_PXP_CTRL2", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x320, "HW_PXP_POWER_REG0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x330, "HW_PXP_POWER_REG1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x340, "HW_PXP_DATA_PATH_CTRL0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x390, "HW_PXP_IRQ_MASK", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x3a0, "HW_PXP_IRQ", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x400, "HW_PXP_NEXT", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x410, "HW_PXP_DEBUGCTRL", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x420, "HW_PXP_DEBUG", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x430, "HW_PXP_VERSION", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x450, "HW_PXP_INPUT_FETCH_CTRL_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x460, "HW_PXP_INPUT_FETCH_CTRL_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x470, "HW_PXP_INPUT_FETCH_STATUS_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x480, "HW_PXP_INPUT_FETCH_STATUS_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x490, "HW_PXP_INPUT_FETCH_ACTIVE_SIZE_ULC_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4a0, "HW_PXP_INPUT_FETCH_ACTIVE_SIZE_LRC_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4b0, "HW_PXP_INPUT_FETCH_ACTIVE_SIZE_ULC_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4c0, "HW_PXP_INPUT_FETCH_ACTIVE_SIZE_LRC_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4d0, "HW_PXP_INPUT_FETCH_SIZE_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4e0, "HW_PXP_INPUT_FETCH_SIZE_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x4f0, "HW_PXP_INPUT_FETCH_BACKGROUND_COLOR_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x500, "HW_PXP_INPUT_FETCH_BACKGROUND_COLOR_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x510, "HW_PXP_INPUT_FETCH_PITCH", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x520, "HW_PXP_INPUT_FETCH_SHIFT_CTRL_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x530, "HW_PXP_INPUT_FETCH_SHIFT_CTRL_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x540, "HW_PXP_INPUT_FETCH_SHIFT_OFFSET_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x550, "HW_PXP_INPUT_FETCH_SHIFT_OFFSET_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x560, "HW_PXP_INPUT_FETCH_SHIFT_WIDTH_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x570, "HW_PXP_INPUT_FETCH_SHIFT_WIDTH_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x580, "HW_PXP_INPUT_FETCH_ADDR_0_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x590, "HW_PXP_INPUT_FETCH_ADDR_1_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5a0, "HW_PXP_INPUT_FETCH_ADDR_0_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5b0, "HW_PXP_INPUT_FETCH_ADDR_1_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5c0, "HW_PXP_INPUT_STORE_CTRL_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5d0, "HW_PXP_INPUT_STORE_CTRL_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5e0, "HW_PXP_INPUT_STORE_STATUS_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x5f0, "HW_PXP_INPUT_STORE_STATUS_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x600, "HW_PXP_INPUT_STORE_SIZE_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x610, "HW_PXP_INPUT_STORE_SIZE_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x620, "HW_PXP_INPUT_STORE_PITCH", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x690, "HW_PXP_INPUT_STORE_ADDR_0_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x6a0, "HW_PXP_INPUT_STORE_ADDR_1_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x6c0, "HW_PXP_INPUT_STORE_ADDR_0_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x6d0, "HW_PXP_INPUT_STORE_ADDR_1_CH1", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x700, "HW_PXP_INPUT_STORE_D_MASK1_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x710, "HW_PXP_INPUT_STORE_D_MASK1_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x720, "HW_PXP_INPUT_STORE_D_MASK2_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x730, "HW_PXP_INPUT_STORE_D_MASK2_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x740, "HW_PXP_INPUT_STORE_D_MASK3_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x750, "HW_PXP_INPUT_STORE_D_MASK3_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x760, "HW_PXP_INPUT_STORE_D_MASK4_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x770, "HW_PXP_INPUT_STORE_D_MASK4_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x780, "HW_PXP_INPUT_STORE_D_MASK5_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x790, "HW_PXP_INPUT_STORE_D_MASK5_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x7a0, "HW_PXP_INPUT_STORE_D_MASK6_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x7b0, "HW_PXP_INPUT_STORE_D_MASK6_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x7c0, "HW_PXP_INPUT_STORE_D_MASK7_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x7e0, "HW_PXP_INPUT_STORE_D_MASK7_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x7f0, "HW_PXP_INPUT_STORE_D_SHIFT_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x800, "HW_PXP_INPUT_STORE_D_SHIFT_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x810, "HW_PXP_INPUT_STORE_F_SHIFT_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x820, "HW_PXP_INPUT_STORE_F_SHIFT_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x830, "HW_PXP_INPUT_STORE_F_MASK_L_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x840, "HW_PXP_INPUT_STORE_F_MASK_H_CH0", BM_PXP_V3X | BM_PXP_V3_IMX93 | BM_PXP_V4 },
+		{ 0x3000, "HW_PXP_PS_LRC", BM_PXP_V4 },
+		{ 0x3010, "HW_PXP_AS_BACKGROUND", BM_PXP_V4 },
 	};
 	u32 val;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(regs); i++) {
 		if (pxp->devdata &&
-		    pxp->devdata->version == PXP_V3_IMX93 &&
-		    regs[i].opt)
+		    !(BIT(pxp->devdata->version) & regs[i].mask))
 			continue;
 
 		val = __raw_readl(pxp->base + regs[i].offset);
@@ -1220,73 +1700,17 @@ static u32 get_bpp_from_fmt(u32 pix_fmt)
 	return bpp;
 }
 
-static uint32_t pxp_parse_ps_fmt(uint32_t format)
+static uint32_t pxp_parse_ps_fmt(struct pxps *pxp, uint32_t format)
 {
-	uint32_t fmt_ctrl;
+	const struct pxp_format_info *fmt;
 
-	switch (format) {
-	case PXP_PIX_FMT_XRGB32:
-	case PXP_PIX_FMT_ARGB32:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB888;
-		break;
-	case PXP_PIX_FMT_RGB565:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB565;
-		break;
-	case PXP_PIX_FMT_RGB555:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB555;
-		break;
-	case PXP_PIX_FMT_YUV420P:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV420;
-		break;
-	case PXP_PIX_FMT_YVU420P:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV420;
-		break;
-	case PXP_PIX_FMT_GREY:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__Y8;
-		break;
-	case PXP_PIX_FMT_GY04:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__Y4;
-		break;
-	case PXP_PIX_FMT_VUY444:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV1P444;
-		break;
-	case PXP_PIX_FMT_YUV422P:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV422;
-		break;
-	case PXP_PIX_FMT_UYVY:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__UYVY1P422;
-		break;
-	case PXP_PIX_FMT_YUYV:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__UYVY1P422;
-		break;
-	case PXP_PIX_FMT_VYUY:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__VYUY1P422;
-		break;
-	case PXP_PIX_FMT_YVYU:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__VYUY1P422;
-		break;
-	case PXP_PIX_FMT_NV12:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV2P420;
-		break;
-	case PXP_PIX_FMT_NV21:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YVU2P420;
-		break;
-	case PXP_PIX_FMT_NV16:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV2P422;
-		break;
-	case PXP_PIX_FMT_NV61:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YVU2P422;
-		break;
-	case PXP_PIX_FMT_RGBA32:
-	case PXP_PIX_FMT_RGBX32:
-		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGBA888;
-		break;
-	default:
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_PS);
+	if (!fmt) {
 		pr_debug("PS doesn't support this format\n");
-		fmt_ctrl = 0;
+		return 0;
 	}
 
-	return fmt_ctrl;
+	return fmt->fmt_ctrl[PXP_2D_PS];
 }
 
 static void pxp_set_colorkey(struct pxps *pxp)
@@ -1332,102 +1756,30 @@ static void imx93_pxp_software_restart(struct pxps *pxp)
 	/* config mediamix for PXP, keep default so far */
 }
 
-static uint32_t pxp_parse_as_fmt(uint32_t format)
+static uint32_t pxp_parse_as_fmt(struct pxps *pxp, uint32_t format)
 {
-	uint32_t fmt_ctrl;
+	const struct pxp_format_info *fmt;
 
-	switch (format) {
-	case PXP_PIX_FMT_BGRA32:
-	case PXP_PIX_FMT_ARGB32:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__ARGB8888;
-		break;
-	case PXP_PIX_FMT_RGBA32:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGBA8888;
-		break;
-	case PXP_PIX_FMT_XRGB32:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGB888;
-		break;
-	case PXP_PIX_FMT_ARGB555:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__ARGB1555;
-		break;
-	case PXP_PIX_FMT_ARGB444:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__ARGB4444;
-		break;
-	case PXP_PIX_FMT_RGBA555:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGBA5551;
-		break;
-	case PXP_PIX_FMT_RGBA444:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGBA4444;
-		break;
-	case PXP_PIX_FMT_RGB555:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGB555;
-		break;
-	case PXP_PIX_FMT_RGB444:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGB444;
-		break;
-	case PXP_PIX_FMT_RGB565:
-		fmt_ctrl = BV_PXP_AS_CTRL_FORMAT__RGB565;
-		break;
-	default:
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_AS);
+	if (!fmt) {
 		pr_debug("AS doesn't support this format\n");
-		fmt_ctrl = 0xf;
-		break;
+		return 0xf;
 	}
 
-	return fmt_ctrl;
+	return fmt->fmt_ctrl[PXP_2D_AS];
 }
 
-static uint32_t pxp_parse_out_fmt(uint32_t format)
+static uint32_t pxp_parse_out_fmt(struct pxps *pxp, uint32_t format)
 {
-	uint32_t fmt_ctrl;
+	const struct pxp_format_info *fmt;
 
-	switch (format) {
-	case PXP_PIX_FMT_BGRA32:
-	case PXP_PIX_FMT_ARGB32:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__ARGB8888;
-		break;
-	case PXP_PIX_FMT_XRGB32:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB888;
-		break;
-	case PXP_PIX_FMT_RGB24:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB888P;
-		break;
-	case PXP_PIX_FMT_RGB565:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB565;
-		break;
-	case PXP_PIX_FMT_RGB555:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB555;
-		break;
-	case PXP_PIX_FMT_GREY:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y8;
-		break;
-	case PXP_PIX_FMT_GY04:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y4;
-		break;
-	case PXP_PIX_FMT_UYVY:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__UYVY1P422;
-		break;
-	case PXP_PIX_FMT_VYUY:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__VYUY1P422;
-		break;
-	case PXP_PIX_FMT_NV12:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P420;
-		break;
-	case PXP_PIX_FMT_NV21:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YVU2P420;
-		break;
-	case PXP_PIX_FMT_NV16:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P422;
-		break;
-	case PXP_PIX_FMT_NV61:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YVU2P422;
-		break;
-	default:
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_OUT);
+	if (!fmt) {
 		pr_debug("OUT doesn't support this format\n");
-		fmt_ctrl = 0;
+		return 0;
 	}
 
-	return fmt_ctrl;
+	return fmt->fmt_ctrl[PXP_2D_OUT];
 }
 
 static void set_mux(struct mux_config *path_ctrl)
@@ -1551,9 +1903,11 @@ static uint32_t get_mux_val(struct mux_config *muxes,
 	}
 }
 
-static uint32_t pxp_store_ctrl_config(struct pxp_pixmap *out, uint8_t mode,
+static uint32_t pxp_store_ctrl_config(struct pxps *pxp,
+				      struct pxp_pixmap *out, uint8_t mode,
 				      uint8_t fill_en, uint8_t combine_2ch)
 {
+	const struct pxp_devdata *data = pxp->devdata;
 	struct store_ctrl ctrl;
 	uint8_t output_active_bpp;
 
@@ -1576,9 +1930,15 @@ static uint32_t pxp_store_ctrl_config(struct pxp_pixmap *out, uint8_t mode,
 	if (out && (out->rotate || out->flip))
 		ctrl.block_en = 1;
 
+	if (data->version < PXP_V4) {
+		ctrl.block_16 = 1;
+		ctrl.wr_num_bytes = 3;
+	} else {
+		ctrl.block_32 = 1;
+		ctrl.wr_num_bytes = 4;
+	}
+
 	ctrl.ch_en = 1;
-	ctrl.block_16 = 1;
-	ctrl.wr_num_bytes = 3;
 
 	return *(uint32_t *)&ctrl;
 }
@@ -1753,9 +2113,11 @@ static uint32_t pxp_store_shift_ctrl_config(struct pxp_pixmap *out,
 	return *(uint32_t *)&shift_ctrl;
 }
 
-static uint32_t pxp_fetch_ctrl_config(struct pxp_pixmap *in,
+static uint32_t pxp_fetch_ctrl_config(struct pxps *pxp,
+				      struct pxp_pixmap *in,
 				      uint8_t mode)
 {
+	const struct pxp_devdata *data = pxp->devdata;
 	struct fetch_ctrl ctrl;
 
 	memset((void*)&ctrl, 0x0, sizeof(ctrl));
@@ -1773,9 +2135,15 @@ static uint32_t pxp_fetch_ctrl_config(struct pxp_pixmap *in,
 	if (in->rotate || in->flip)
 		ctrl.block_en = 1;
 
-	ctrl.block_16 = 1;
+	if (data->version < PXP_V4) {
+		ctrl.block_16 = 1;
+		ctrl.rd_num_bytes = 3;
+	} else {
+		ctrl.block_32 = 1;
+		ctrl.rd_num_bytes = 4;
+	}
+
 	ctrl.ch_en = 1;
-	ctrl.rd_num_bytes = 3;
 
 	return *(uint32_t *)&ctrl;
 }
@@ -1915,7 +2283,9 @@ static int pxp_start(struct pxps *pxp)
 		__raw_writel(BF_PXP_INPUT_FETCH_CTRL_CH0_ARBIT_EN(1),
 			     pxp->base + HW_PXP_INPUT_FETCH_CTRL_CH0_SET);
 
-	val = (BM_PXP_CTRL_ENABLE | BM_PXP_CTRL_BLOCK_SIZE);
+	val = BM_PXP_CTRL_ENABLE;
+	val |= (pxp->devdata->version < PXP_V4) ? BM_PXP_CTRL_BLOCK_SIZE :
+						  BM_PXP_CTRL_BLOCK_SIZE_32x32;
 
 	if (pxp->devdata &&
 	    pxp_is_v3(pxp) &&
@@ -1936,91 +2306,31 @@ static int pxp_start(struct pxps *pxp)
 	return 0;
 }
 
-static bool fmt_ps_support(uint32_t format)
+static bool fmt_ps_support(struct pxps *pxp, uint32_t format)
 {
-	switch (format) {
-	case PXP_PIX_FMT_XRGB32:
-	case PXP_PIX_FMT_ARGB32:
-	case PXP_PIX_FMT_RGB555:
-	case PXP_PIX_FMT_XRGB555:
-	case PXP_PIX_FMT_ARGB555:
-	case PXP_PIX_FMT_RGB444:
-	case PXP_PIX_FMT_XRGB444:
-	case PXP_PIX_FMT_ARGB444:
-	case PXP_PIX_FMT_RGB565:
-	case PXP_PIX_FMT_YUV444:
-	case PXP_PIX_FMT_UYVY:
-	case PXP_PIX_FMT_VUY444:
-	/* need word byte swap */
-	case PXP_PIX_FMT_YUYV:
-	case PXP_PIX_FMT_VYUY:
-	/* need word byte swap */
-	case PXP_PIX_FMT_YVYU:
-	case PXP_PIX_FMT_GREY:
-	case PXP_PIX_FMT_GY04:
-	case PXP_PIX_FMT_NV16:
-	case PXP_PIX_FMT_NV12:
-	case PXP_PIX_FMT_NV61:
-	case PXP_PIX_FMT_NV21:
-	case PXP_PIX_FMT_YUV422P:
-	case PXP_PIX_FMT_YUV420P:
-	case PXP_PIX_FMT_YVU420P:
-	case PXP_PIX_FMT_RGBA32:
-	case PXP_PIX_FMT_RGBX32:
-	case PXP_PIX_FMT_RGBA555:
-	case PXP_PIX_FMT_RGBA444:
-		return true;
-	default:
-		return false;
-	}
+	const struct pxp_format_info *fmt;
+
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_PS);
+
+	return fmt ? true : false;
 }
 
-static bool fmt_as_support(uint32_t format)
+static bool fmt_as_support(struct pxps *pxp, uint32_t format)
 {
-	switch (format) {
-	case PXP_PIX_FMT_ARGB32:
-	case PXP_PIX_FMT_RGBA32:
-	case PXP_PIX_FMT_XRGB32:
-	case PXP_PIX_FMT_BGRA32:
-	case PXP_PIX_FMT_ARGB555:
-	case PXP_PIX_FMT_ARGB444:
-	case PXP_PIX_FMT_RGBA555:
-	case PXP_PIX_FMT_RGBA444:
-	case PXP_PIX_FMT_RGB555:
-	case PXP_PIX_FMT_RGB444:
-	case PXP_PIX_FMT_RGB565:
-		return true;
-	default:
-		return false;
-	}
+	const struct pxp_format_info *fmt;
+
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_AS);
+
+	return fmt ? true : false;
 }
 
-static bool fmt_out_support(uint32_t format)
+static bool fmt_out_support(struct pxps *pxp, uint32_t format)
 {
-	switch (format) {
-	case PXP_PIX_FMT_ARGB32:
-	case PXP_PIX_FMT_ABGR32:
-	case PXP_PIX_FMT_XRGB32:
-	case PXP_PIX_FMT_BGRA32:
-	case PXP_PIX_FMT_RGB24:
-	case PXP_PIX_FMT_ARGB555:
-	case PXP_PIX_FMT_ARGB444:
-	case PXP_PIX_FMT_RGB555:
-	case PXP_PIX_FMT_RGB444:
-	case PXP_PIX_FMT_RGB565:
-	case PXP_PIX_FMT_YUV444:
-	case PXP_PIX_FMT_UYVY:
-	case PXP_PIX_FMT_VYUY:
-	case PXP_PIX_FMT_GREY:
-	case PXP_PIX_FMT_GY04:
-	case PXP_PIX_FMT_NV16:
-	case PXP_PIX_FMT_NV12:
-	case PXP_PIX_FMT_NV61:
-	case PXP_PIX_FMT_NV21:
-		return true;
-	default:
-		return false;
-	}
+	const struct pxp_format_info *fmt;
+
+	fmt = pxp_format_by_fourcc(pxp, format, PXP_2D_OUT);
+
+	return fmt ? true : false;
 }
 
 /* common means 'ARGB32/XRGB32/YUV444' */
@@ -2097,7 +2407,8 @@ static uint8_t fmt_store_from_common(uint32_t out)
 	}
 }
 
-static void filter_possible_inputs(struct pxp_pixmap *input,
+static void filter_possible_inputs(struct pxps *pxp,
+				   struct pxp_pixmap *input,
 				   size_t *possible)
 {
 	uint8_t clear = 0xff;
@@ -2110,11 +2421,11 @@ static void filter_possible_inputs(struct pxp_pixmap *input,
 
 		switch (position) {
 		case PXP_2D_PS:
-			if (!fmt_ps_support(input->format))
+			if (!fmt_ps_support(pxp, input->format))
 				clear = PXP_2D_PS;
 			break;
 		case PXP_2D_AS:
-			if (!fmt_as_support(input->format))
+			if (!fmt_as_support(pxp, input->format))
 				clear = PXP_2D_AS;
 			break;
 		case PXP_2D_INPUT_FETCH0:
@@ -2143,7 +2454,8 @@ static void filter_possible_inputs(struct pxp_pixmap *input,
 	} while (1);
 }
 
-static void filter_possible_outputs(struct pxp_pixmap *output,
+static void filter_possible_outputs(struct pxps *pxp,
+				    struct pxp_pixmap *output,
 				    size_t *possible)
 {
 	uint8_t clear = 0xff;
@@ -2156,7 +2468,7 @@ static void filter_possible_outputs(struct pxp_pixmap *output,
 
 		switch (position) {
 		case PXP_2D_OUT:
-			if (!fmt_out_support(output->format))
+			if (!fmt_out_support(pxp, output->format))
 				clear = PXP_2D_OUT;
 			break;
 		case PXP_2D_INPUT_STORE0:
@@ -2471,16 +2783,19 @@ static uint32_t ps_calc_scaling(struct pxp_pixmap *input,
 	return *(uint32_t *)&scale;
 }
 
-static int pxp_ps_config(struct pxp_pixmap *input,
+static int pxp_ps_config(struct pxps *pxp,
+			 struct pxp_pixmap *input,
 			 struct pxp_pixmap *output)
 {
 	uint32_t offset, U, V;
 	struct ps_ctrl ctrl;
+	struct ps_lrc lrc;
 	struct coordinate out_ps_ulc, out_ps_lrc;
 
 	memset((void*)&ctrl, 0x0, sizeof(ctrl));
+	memset((void *)&lrc, 0x0, sizeof(lrc));
 
-	ctrl.format = pxp_parse_ps_fmt(input->format);
+	ctrl.format = pxp_parse_ps_fmt(pxp, input->format);
 
 	switch (output->rotate) {
 	case 0:
@@ -2511,6 +2826,12 @@ static int pxp_ps_config(struct pxp_pixmap *input,
 		pr_err("PxP only support rotate 0 90 180 270\n");
 		return -EINVAL;
 		break;
+	}
+
+	if (pxp->devdata->version == PXP_V4) {
+		lrc.width = input->width - 1;
+		lrc.height = input->height - 1;
+		pxp_writel(*(uint32_t *)&lrc, HW_PXP_PS_LRC);
 	}
 
 	if ((input->format == PXP_PIX_FMT_YUYV) ||
@@ -2592,7 +2913,8 @@ static int pxp_ps_config(struct pxp_pixmap *input,
 	return 0;
 }
 
-static int pxp_as_config(struct pxp_pixmap *input,
+static int pxp_as_config(struct pxps *pxp,
+			 struct pxp_pixmap *input,
 			 struct pxp_pixmap *output)
 {
 	uint32_t offset;
@@ -2601,7 +2923,7 @@ static int pxp_as_config(struct pxp_pixmap *input,
 
 	memset((void*)&ctrl, 0x0, sizeof(ctrl));
 
-	ctrl.format = pxp_parse_as_fmt(input->format);
+	ctrl.format = pxp_parse_as_fmt(pxp, input->format);
 
 	if (alpha_blending_version == PXP_ALPHA_BLENDING_V1) {
 		if (input->format == PXP_PIX_FMT_BGRA32) {
@@ -2665,7 +2987,8 @@ static uint32_t pxp_fetch_size_config(struct pxp_pixmap *input)
 	return *(uint32_t *)&total_size;
 }
 
-static int pxp_fetch_config(struct pxp_pixmap *input,
+static int pxp_fetch_config(struct pxps *pxp,
+			    struct pxp_pixmap *input,
 			    uint32_t fetch_index)
 {
 	uint8_t  shift_bypass = 1, expand_en = 0;
@@ -2677,7 +3000,7 @@ static int pxp_fetch_config(struct pxp_pixmap *input,
 	struct fetch_shift_width shift_width;
 
 	memset((unsigned int *)&shift_width, 0x0, sizeof(shift_width));
-	fetch_ctrl = pxp_fetch_ctrl_config(input, FETCH_MODE_NORMAL);
+	fetch_ctrl = pxp_fetch_ctrl_config(pxp, input, FETCH_MODE_NORMAL);
 	size_ulc = pxp_fetch_active_size_ulc(input);
 	size_lrc = pxp_fetch_active_size_lrc(input);
 	total_size = pxp_fetch_size_config(input);
@@ -2846,7 +3169,7 @@ static int pxp_csc2_config(struct pxp_pixmap *output)
 	return 0;
 }
 
-static int pxp_out_config(struct pxp_pixmap *output)
+static int pxp_out_config(struct pxps *pxp, struct pxp_pixmap *output)
 {
 	uint32_t offset, UV;
 	struct out_ctrl ctrl;
@@ -2854,7 +3177,7 @@ static int pxp_out_config(struct pxp_pixmap *output)
 
 	memset((void*)&ctrl, 0x0, sizeof(ctrl));
 
-	ctrl.format = pxp_parse_out_fmt(output->format);
+	ctrl.format = pxp_parse_out_fmt(pxp, output->format);
 	offset = output->crop.y * output->pitch +
 		 output->crop.x * (output->bpp >> 3);
 
@@ -2896,7 +3219,8 @@ static int pxp_out_config(struct pxp_pixmap *output)
 	return 0;
 }
 
-static int pxp_store_config(struct pxp_pixmap *output,
+static int pxp_store_config(struct pxps *pxp,
+			    struct pxp_pixmap *output,
 			    struct pxp_op_info *op)
 {
 	uint8_t combine_2ch, flags;
@@ -2907,7 +3231,7 @@ static int pxp_store_config(struct pxp_pixmap *output,
 
 	memset((void*)d_mask, 0x0, sizeof(*d_mask) * 8);
 	combine_2ch = (output->bpp == 64) ? 1 : 0;
-	store_ctrl  = pxp_store_ctrl_config(output, STORE_MODE_NORMAL,
+	store_ctrl  = pxp_store_ctrl_config(pxp, output, STORE_MODE_NORMAL,
 					    op->fill_en, combine_2ch);
 	store_size  = pxp_store_size_config(output);
 	store_pitch = pxp_store_pitch_config(output, NULL);
@@ -3164,7 +3488,8 @@ static void pxp_lut_config(struct pxp_op_info *op)
 	pxp->lut_state = lut_op;
 }
 
-static int pxp_2d_task_config(struct pxp_pixmap *input,
+static int pxp_2d_task_config(struct pxps *pxp,
+			      struct pxp_pixmap *input,
 			      struct pxp_pixmap *output,
 			      struct pxp_op_info *op,
 			      size_t nodes_used)
@@ -3179,14 +3504,14 @@ static int pxp_2d_task_config(struct pxp_pixmap *input,
 
 		switch (position) {
 		case PXP_2D_PS:
-			pxp_ps_config(input, output);
+			pxp_ps_config(pxp, input, output);
 			break;
 		case PXP_2D_AS:
-			pxp_as_config(input, output);
+			pxp_as_config(pxp, input, output);
 			break;
 		case PXP_2D_INPUT_FETCH0:
 		case PXP_2D_INPUT_FETCH1:
-			pxp_fetch_config(input, position);
+			pxp_fetch_config(pxp, input, position);
 			break;
 		case PXP_2D_CSC1:
 			pxp_csc1_config(input, true);
@@ -3211,11 +3536,11 @@ static int pxp_2d_task_config(struct pxp_pixmap *input,
 			pxp_rotation0_config(input);
 			break;
 		case PXP_2D_OUT:
-			pxp_out_config(output);
+			pxp_out_config(pxp, output);
 			break;
 		case PXP_2D_INPUT_STORE0:
 		case PXP_2D_INPUT_STORE1:
-			pxp_store_config(output, op);
+			pxp_store_config(pxp, output, op);
 			break;
 		default:
 			break;
@@ -3362,7 +3687,7 @@ reparse:
 			return -EINVAL;
 
 		nodes_used = 1 << PXP_2D_INPUT_STORE0;
-		pxp_2d_task_config(NULL, output, op, nodes_used);
+		pxp_2d_task_config(pxp, NULL, output, op, nodes_used);
 		break;
 	case 1:
 		/* No Composite */
@@ -3405,8 +3730,8 @@ reparse:
 							      OUT_NEED_SHIFT;
 		}
 
-		filter_possible_inputs(input, &possible_inputs);
-		filter_possible_outputs(output, &possible_outputs);
+		filter_possible_inputs(pxp, input, &possible_inputs);
+		filter_possible_outputs(pxp, output, &possible_outputs);
 
 		if (!possible_inputs || !possible_outputs) {
 			dev_err(&pxp->pdev->dev, "unsupport 2d operation\n");
@@ -3468,10 +3793,20 @@ reparse:
 			goto reparse;
 		}
 
-		if (nodes_used & (1 << PXP_2D_PS))
+		/*
+		 * Skip workaround to support RGB with alpha for PS
+		 * engine since RGB formats with alpha component are
+		 * supported by PXP version 4.
+		 */
+		if (nodes_used & (1 << PXP_2D_PS) && pxp->devdata->version < PXP_V4)
 			pxp_config_alpha(input);
 
-		if (nodes_used & (1 << PXP_2D_AS)) {
+		/*
+		 * Skip workaround when only As engine is used for RGB format with
+		 * alpha component since new RGB formats with alpha component are
+		 * supported by PXP version 4.
+		 */
+		if (nodes_used & (1 << PXP_2D_AS) && pxp->devdata->version < PXP_V4) {
 			/* Need to select mux3 port 0 when use AS engine */
 			path_ctrl0.mux3_sel = 0;
 			pxp_as_alpha_config(input);
@@ -3480,7 +3815,7 @@ reparse:
 		pxp_2d_calc_mux(nodes_in_path, &path_ctrl0);
 		pr_debug("%s: path_ctrl0 = 0x%x\n",
 			 __func__, *(uint32_t *)&path_ctrl0);
-		pxp_2d_task_config(input, output, op, nodes_used);
+		pxp_2d_task_config(pxp, input, output, op, nodes_used);
 
 		if (is_yuv(input->format) && is_yuv(output->format)) {
 			val = readl(pxp_reg_base + HW_PXP_CSC1_COEF0);
@@ -3527,13 +3862,13 @@ reparse:
 			input_s1->flags |= IN_NEED_CSC;
 		}
 
-		filter_possible_inputs(input_s0, &possible_inputs_s0);
-		filter_possible_inputs(input_s1, &possible_inputs_s1);
+		filter_possible_inputs(pxp, input_s0, &possible_inputs_s0);
+		filter_possible_inputs(pxp, input_s1, &possible_inputs_s1);
 
 		if (!possible_inputs_s0 || !possible_inputs_s1)
 			return -EINVAL;
 
-		filter_possible_outputs(output, &possible_outputs);
+		filter_possible_outputs(pxp, output, &possible_outputs);
 		if (!possible_outputs)
 			return -EINVAL;
 
@@ -3674,8 +4009,8 @@ config:
 			set_bit(PXP_2D_ROTATION0, (unsigned long *)&nodes_used_s0);
 		}
 
-		pxp_2d_task_config(input_s0, output, op, nodes_used_s0);
-		pxp_2d_task_config(input_s1, output, op, nodes_used_s1);
+		pxp_2d_task_config(pxp, input_s0, output, op, nodes_used_s0);
+		pxp_2d_task_config(pxp, input_s1, output, op, nodes_used_s1);
 		break;
 	default:
 		break;
@@ -7750,6 +8085,9 @@ static struct platform_device_id imx_pxpdma_devtype[] = {
 		.name = "imx93-pxp-dma",
 		.driver_data = PXP_V3_IMX93,
 	}, {
+		.name = "imx94-pxp-dma",
+		.driver_data = PXP_V4,
+	}, {
 		/* sentinel */
 	}
 };
@@ -7760,6 +8098,7 @@ static const struct of_device_id imx_pxpdma_dt_ids[] = {
 	{ .compatible = "fsl,imx6ull-pxp-dma", .data = &imx_pxpdma_devtype[1], },
 	{ .compatible = "fsl,imx8ulp-pxp-dma", .data = &imx_pxpdma_devtype[2], },
 	{ .compatible = "fsl,imx93-pxp-dma", .data = &imx_pxpdma_devtype[3], },
+	{ .compatible = "fsl,imx94-pxp-dma", .data = &imx_pxpdma_devtype[4], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_pxpdma_dt_ids);
@@ -8178,10 +8517,6 @@ static int pxp_probe(struct platform_device *pdev)
 		err = -EINVAL;
 		goto exit;
 	}
-
-	pxp->gpr = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "pxp-gpr");
-	if (IS_ERR(pxp->gpr))
-		pxp->gpr = NULL;
 
 	pxp_clk_enable(pxp);
 	pxp_soft_reset(pxp);

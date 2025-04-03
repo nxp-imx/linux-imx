@@ -60,6 +60,9 @@ static int enetc4_setup_cbdr(struct enetc_si *si)
 	if (!cbdrs->ring)
 		return -ENOMEM;
 
+	enetc_wr(hw, ENETC4_SICCAR,
+		 ENETC_SICAR_RD_COHERENT | ENETC_SICAR_WR_COHERENT);
+
 	regs.pir = hw->reg + ENETC_SICBDRPIR;
 	regs.cir = hw->reg + ENETC_SICBDRCIR;
 	regs.mr = hw->reg + ENETC_SICBDRMR;

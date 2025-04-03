@@ -3560,6 +3560,7 @@ static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct v
 	get_file(vma->vm_file);
 	/* Also adjust the vm_pgoff */
 	vma->vm_pgoff = queue->db_file_offset;
+	kctx->csf.user_io.vma = vma;
 
 	return 0;
 

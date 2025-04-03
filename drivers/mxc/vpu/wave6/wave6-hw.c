@@ -11,8 +11,7 @@
 #include "wave6.h"
 #include "wave6-regdefine.h"
 #include "wave6-av1-cdf-table.h"
-
-#define MAX_CSC_COEFF_NUM      4
+#include "wave6-trace.h"
 
 static void wave6_print_reg_err(struct vpu_device *vpu_dev, u32 reg_fail_reason)
 {
@@ -88,7 +87,7 @@ static int wave6_wait_vpu_busy(struct vpu_device *vpu_dev, unsigned int addr)
 	u32 data;
 
 	return read_poll_timeout(wave6_vdi_readl, data, data == 0,
-				 0, W6_VPU_POLL_TIMEOUT, false, vpu_dev, addr);
+				 W6_VPU_POLL_DELAY_US, W6_VPU_POLL_TIMEOUT, false, vpu_dev, addr);
 }
 
 void wave6_enable_interrupt(struct vpu_device *vpu_dev)
@@ -113,7 +112,7 @@ static void wave6_load_av1_cdf_table(struct vpu_buf *vb)
 	u32 tbl_size = AV1_MAX_CDF_WORDS * AV1_CDF_WORDS_SIZE * 2;
 
 	tbl_data = def_cdf_tbl;
-	wave6_write_dma(vb, 0, (u8 *)def_cdf_tbl, tbl_size, VDI_128BIT_LITTLE_ENDIAN);
+	wave6_write_dma(vb, 0, (u8 *)def_cdf_tbl, tbl_size);
 }
 
 void wave6_vpu_check_state(struct vpu_device *vpu_dev)
@@ -127,7 +126,7 @@ void wave6_vpu_check_state(struct vpu_device *vpu_dev)
 		u32 val;
 		int ret;
 
-		ret = read_poll_timeout(vpu_read_reg, val, val != 0, 0,
+		ret = read_poll_timeout(vpu_read_reg, val, val != 0, W6_VPU_POLL_DELAY_US,
 					W6_VPU_POLL_TIMEOUT, false,
 					vpu_dev, W6_VCPU_CUR_PC);
 		if (!ret)
@@ -181,6 +180,8 @@ static void wave6_send_command(struct vpu_device *vpu_dev, u32 id, u32 std, u32 
 
 		vpu_write_reg(vpu_dev, W6_VPU_HOST_INT_REQ, 1);
 	}
+
+	trace_send_command(vpu_dev, id, std, cmd);
 }
 
 static int wave6_send_query(struct vpu_device *vpu_dev, u32 id, u32 std,
@@ -218,23 +219,9 @@ int wave6_vpu_get_version(struct vpu_device *vpu_dev, uint32_t *version_info,
 
 	attr->support_command_queue = vpu_read_reg(vpu_dev, W6_RET_CQ_FLAG);
 
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(vpu_dev, 0, 0, W6_QUERY_GET_VPU_INFO);
-		if (ret)
-			return ret;
-	} else {
-		wave6_send_command(vpu_dev, 0, 0, W6_GET_VPU_INFO);
-		ret = wave6_wait_vpu_busy(vpu_dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_err(vpu_dev->dev, "%s: timeout\n", __func__);
-			return ret;
-		}
-
-		if (!vpu_read_reg(vpu_dev, W6_RET_SUCCESS)) {
-			dev_err(vpu_dev->dev, "%s: failed\n", __func__);
-			return -EIO;
-		}
-	}
+	ret = wave6_send_query(vpu_dev, 0, 0, W6_QUERY_GET_VPU_INFO);
+	if (ret)
+		return ret;
 
 	reg_val = vpu_read_reg(vpu_dev, W6_RET_PRODUCT_NAME);
 	str = (u8 *)&reg_val;
@@ -295,15 +282,12 @@ int wave6_vpu_build_up_dec_param(struct vpu_instance *inst,
 				 struct dec_open_param *param)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 reg_val;
 	int ret;
 
 	p_dec_info->cycle_per_tick = 256;
 	p_dec_info->sec_axi_info.use_ip_enable = 1;
 	p_dec_info->sec_axi_info.use_lf_row_enable = 1;
-	p_dec_info->user_data_enable = BIT(DEC_USERDATA_FLAG_VUI) |
-				       BIT(DEC_USERDATA_FLAG_RECOVERY_POINT);
 	switch (inst->std) {
 	case W_HEVC_DEC:
 		p_dec_info->seq_change_mask = SEQ_CHANGE_ENABLE_ALL_HEVC;
@@ -324,14 +308,14 @@ int wave6_vpu_build_up_dec_param(struct vpu_instance *inst,
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_TEMP_BASE, param->inst_buffer.temp_base);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_TEMP_SIZE, param->inst_buffer.temp_size);
 
-	reg_val = wave6_convert_endian(param->stream_endian);
+	reg_val = wave6_vdi_convert_endian(param->stream_endian);
 	reg_val = (~reg_val & VDI_128BIT_ENDIAN_MASK);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_BS_PARAM, reg_val);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_ADDR_EXT, param->ext_addr_vcpu);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_DISP_MODE, param->disp_mode);
 
-	reg_val = (attr->support_command_queue) ? (COMMAND_QUEUE_DEPTH << 8) : 0;
-	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_CORE_INFO, reg_val | (1 << 4) | (1 << 0));
+	reg_val = (COMMAND_QUEUE_DEPTH << 8) | (1 << 4) | (1 << 0);
+	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_CORE_INFO, reg_val);
 
 	reg_val = (param->is_secure_inst << 8) | (param->inst_priority);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_CREATE_INST_PRIORITY, reg_val);
@@ -360,7 +344,6 @@ int wave6_vpu_build_up_dec_param(struct vpu_instance *inst,
 int wave6_vpu_dec_init_seq(struct vpu_instance *inst)
 {
 	struct dec_info *p_dec_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 cmd_option = INIT_SEQ_NORMAL, bs_option;
 	int ret;
 
@@ -394,22 +377,18 @@ int wave6_vpu_dec_init_seq(struct vpu_instance *inst)
 	vpu_write_reg(inst->dev, W6_CMD_DEC_INIT_SEQ_BS_OPTION, bs_option);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_INIT_SEQ_OPTION, cmd_option);
 
-	vpu_write_reg(inst->dev, W6_CMD_DEC_INIT_USERDATA_MASK, p_dec_info->user_data_enable);
-
 	wave6_send_command(inst->dev, inst->id, inst->std, W6_INIT_SEQ);
-	if (attr->support_command_queue) {
-		ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_err(inst->dev->dev, "%s: timeout\n", __func__);
-			return ret;
-		}
+	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
+	if (ret) {
+		dev_err(inst->dev->dev, "%s: timeout\n", __func__);
+		return ret;
+	}
 
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
+	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
+		u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
 
-			wave6_print_reg_err(inst->dev, reason_code);
-			return -EIO;
-		}
+		wave6_print_reg_err(inst->dev, reason_code);
+		return -EIO;
 	}
 
 	return 0;
@@ -490,91 +469,19 @@ static void wave6_get_dec_seq_result(struct vpu_instance *inst, struct dec_initi
 	}
 }
 
-static void wave6_update_dec_seq_result(struct vpu_instance *inst, struct dec_initial_info *info)
-{
-	u32 reg_val;
-	u32 profile_compatibility_flag;
-	u32 left, right, top, bottom;
-
-	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_PIC_SIZE);
-	info->pic_width = ((reg_val >> 16) & 0xffff);
-	info->pic_height = (reg_val & 0xffff);
-	info->min_frame_buffer_count = vpu_read_reg(inst->dev,
-						    W6_RET_DEC_UPDATE_FB_NUM_REQUIRED_FBC_FB);
-	info->frame_buf_delay = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_NUM_REORDER_DELAY);
-	info->req_mv_buffer_count = vpu_read_reg(inst->dev,
-						 W6_RET_DEC_UPDATE_FB_NUM_REQUIRED_COL_BUF);
-
-	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_CROP_LEFT_RIGHT);
-	left = (reg_val >> 16) & 0xffff;
-	right = reg_val & 0xffff;
-	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_CROP_TOP_BOTTOM);
-	top = (reg_val >> 16) & 0xffff;
-	bottom = reg_val & 0xffff;
-
-	info->pic_crop_rect.left = left;
-	info->pic_crop_rect.right = info->pic_width - right;
-	info->pic_crop_rect.top = top;
-	info->pic_crop_rect.bottom = info->pic_height - bottom;
-
-	info->f_rate_numerator = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_FRAME_RATE_NR);
-	info->f_rate_denominator = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_FRAME_RATE_DR);
-
-	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_COLOR_SAMPLE_INFO);
-	info->luma_bitdepth = (reg_val >> 0) & 0x0f;
-	info->chroma_bitdepth = (reg_val >> 4) & 0x0f;
-	info->chroma_format_idc = (reg_val >> 8) & 0x0f;
-	info->aspect_rate_info = (reg_val >> 16) & 0xff;
-	info->is_ext_sar = (info->aspect_rate_info == H264_VUI_SAR_IDC_EXTENDED ? true : false);
-	if (info->is_ext_sar)
-		info->aspect_rate_info = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_ASPECT_RATIO);
-	info->bit_rate = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_BIT_RATE);
-
-	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_SEQ_PARAM);
-	info->level = reg_val & 0xff;
-	profile_compatibility_flag = (reg_val >> 12) & 0xff;
-	info->profile = (reg_val >> 24) & 0x1f;
-	info->tier = (reg_val >> 29) & 0x01;
-
-	if (inst->std == W_HEVC_DEC) {
-		if (!info->profile) {
-			if ((profile_compatibility_flag & 0x06) == 0x06)
-				info->profile = HEVC_PROFILE_MAIN;
-			else if ((profile_compatibility_flag & 0x04) == 0x04)
-				info->profile = HEVC_PROFILE_MAIN10;
-			else if ((profile_compatibility_flag & 0x08) == 0x08)
-				info->profile = HEVC_PROFILE_STILLPICTURE;
-			else
-				info->profile = HEVC_PROFILE_MAIN;
-		}
-	} else if (inst->std == W_AVC_DEC) {
-		info->profile = (reg_val >> 24) & 0x7f;
-	}
-}
-
 int wave6_vpu_dec_get_seq_info(struct vpu_instance *inst, struct dec_initial_info *info)
 {
-	struct vpu_attr *attr = &inst->dev->attr;
 	int ret = 0;
 
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
-		if (ret)
-			return ret;
+	ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
+	if (ret)
+		return ret;
 
-		if (vpu_read_reg(inst->dev, W6_RET_DEC_DECODING_SUCCESS) != 1) {
-			info->err_reason = vpu_read_reg(inst->dev, W6_RET_DEC_ERR_INFO);
-			ret = -EIO;
-		} else {
-			info->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
-		}
+	if (vpu_read_reg(inst->dev, W6_RET_DEC_DECODING_SUCCESS) != 1) {
+		info->err_reason = vpu_read_reg(inst->dev, W6_RET_DEC_ERR_INFO);
+		ret = -EIO;
 	} else {
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			info->err_reason = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-
-			wave6_print_reg_err(inst->dev, info->err_reason);
-			return -EIO;
-		}
+		info->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
 	}
 
 	wave6_get_dec_seq_result(inst, info);
@@ -586,7 +493,6 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 					struct frame_buffer *fb_arr,
 					enum tiled_map_type map_type, u32 count)
 {
-	struct vpu_attr *attr = &inst->dev->attr;
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	size_t fbc_remain, mv_remain, fbc_idx = 0, mv_idx = 0;
 	size_t i, k, group_num, mv_count;
@@ -595,19 +501,19 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 	u32 endian;
 	int ret;
 
-	mv_count = p_dec_info->initial_info.req_mv_buffer_count;
+	mv_count = inst->mv_num;
 
 	if (inst->std == W_AV1_DEC) {
 		if (!p_dec_info->vb_def_cdf.daddr)
 			return -EINVAL;
 
 		wave6_load_av1_cdf_table(&p_dec_info->vb_def_cdf);
-		if (!p_dec_info->vb_pre_ent.daddr && attr->support_command_queue)
+		if (!p_dec_info->vb_pre_ent.daddr)
 			return -EINVAL;
 	} else if (inst->std == W_VP9_DEC) {
 		if (!p_dec_info->vb_seg_map.daddr)
 			return -EINVAL;
-		if (!p_dec_info->vb_pre_ent.daddr && attr->support_command_queue)
+		if (!p_dec_info->vb_pre_ent.daddr)
 			return -EINVAL;
 	}
 
@@ -622,7 +528,7 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 			return -EINVAL;
 	}
 
-	endian = wave6_convert_endian(p_dec_info->open_param.frame_endian);
+	endian = wave6_vdi_convert_endian(p_dec_info->open_param.frame_endian);
 
 	reg_val = (p_dec_info->initial_info.pic_width << 16) |
 		  (p_dec_info->initial_info.pic_height);
@@ -717,7 +623,7 @@ int wave6_vpu_dec_register_display_buffer(struct vpu_instance *inst, struct fram
 	cbcr_interleave = inst->cbcr_interleave;
 	nv21 = inst->nv21;
 
-	endian = wave6_convert_endian(p_dec_info->open_param.frame_endian);
+	endian = wave6_vdi_convert_endian(p_dec_info->open_param.frame_endian);
 
 	switch (p_dec_info->wtl_format) {
 	case FORMAT_420:
@@ -835,181 +741,10 @@ int wave6_vpu_dec_register_display_buffer(struct vpu_instance *inst, struct fram
 	return 0;
 }
 
-int wave6_vpu_dec_update_fb(struct vpu_instance *inst, struct frame_buffer *fb, int mv_index)
-{
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	int ret;
-	int fbc_index = -1;
-	u32 addr_fbc_y = 0, addr_fbc_c = 0, addr_fbc_cr = 0;
-	u32 addr_fbc_y_tbl = 0, addr_fbc_c_tbl = 0, addr_fbc_cr_tbl = 0;
-	u32 addr_mv_col = 0;
-	u32 reg_val;
-
-	if (fb && fb->index >= 0 && fb->index < WAVE6_MAX_FBS) {
-		fbc_index = fb->index;
-		addr_fbc_y = fb->buf_y;
-		addr_fbc_c = fb->buf_cb;
-		addr_fbc_cr = fb->buf_cr;
-		addr_fbc_y_tbl = p_dec_info->vb_fbc_y_tbl[fbc_index].daddr;
-		addr_fbc_c_tbl = p_dec_info->vb_fbc_c_tbl[fbc_index].daddr;
-		addr_fbc_cr_tbl = p_dec_info->vb_fbc_c_tbl[fbc_index].daddr +
-					(p_dec_info->vb_fbc_c_tbl[fbc_index].size >> 1);
-	}
-	if (mv_index >= 0 && mv_index < WAVE6_MAX_FBS)
-		addr_mv_col = p_dec_info->vb_mv[mv_index].daddr;
-
-	reg_val = (p_dec_info->initial_info.chroma_format_idc << 25) |
-		  (p_dec_info->initial_info.luma_bitdepth << 21) |
-		  (p_dec_info->initial_info.chroma_bitdepth << 17);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_COMMON_PIC_INFO, reg_val);
-	reg_val = (p_dec_info->initial_info.pic_width << 16) |
-		  (p_dec_info->initial_info.pic_height);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_PIC_SIZE, reg_val);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_Y, addr_fbc_y);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_C, addr_fbc_c);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_CR, addr_fbc_cr);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_Y_OFFSET, addr_fbc_y_tbl);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_C_OFFSET, addr_fbc_c_tbl);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_FBC_CR_OFFSET, addr_fbc_cr_tbl);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_MV_COL, addr_mv_col);
-	reg_val = ((mv_index & 0xff) << 8) | ((fbc_index & 0xff) << 0);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_UPDATE_FB_INDICES, reg_val);
-	vpu_write_reg(inst->dev, W6_CMD_DEC_SET_FB_OPTION, 1);
-
-	wave6_send_command(inst->dev, inst->id, inst->std, W6_SET_FB);
-	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-	if (ret) {
-		dev_err(inst->dev->dev, "%s: timeout\n", __func__);
-		return ret;
-	}
-
-	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS))
-		return -EIO;
-
-	return 0;
-}
-
-int wave6_vpu_dec_get_update_fb_info(struct vpu_instance *inst,
-				     struct dec_update_fb_info *info)
-{
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	struct vpu_attr *attr = &inst->dev->attr;
-	bool new_sequence, alloc_disp;
-	u32 val, index;
-	int ret;
-
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(inst->dev, inst->id, inst->std,
-				       W6_QUERY_GET_UPDATE_FB_STATUS);
-		if (ret)
-			return ret;
-
-		val = vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_OPT);
-
-		new_sequence = ((val >> 13) & 0x01);
-		if (new_sequence) {
-			info->state |= UPDATE_FB_STATE_SEQ_CHANGE;
-			info->sequence_changed = vpu_read_reg(inst->dev,
-							      W6_RET_DEC_UPDATE_FB_NOTIFICATION);
-
-			wave6_update_dec_seq_result(inst, &p_dec_info->initial_info);
-
-			p_dec_info->initial_info.sequence_no++;
-		}
-
-		alloc_disp = ((val >> 12) & 0x01);
-		if (alloc_disp)
-			info->state |= UPDATE_FB_STATE_ALLOC_DISP;
-
-		index = ((val >> 6) & 0x3f);
-		if (index < WAVE6_MAX_FBS) {
-			info->state |= UPDATE_FB_STATE_ALLOC_MV;
-			info->mv_index = index;
-		} else {
-			info->mv_index = -1;
-		}
-
-		index = (val & 0x3f);
-		if (index < WAVE6_MAX_FBS) {
-			info->state |= UPDATE_FB_STATE_ALLOC_FBC;
-			info->fbc_index = index;
-		} else {
-			info->fbc_index = -1;
-		}
-
-		info->release_disp_frame_num =
-			vpu_read_reg(inst->dev, W6_RET_DEC_UPDATE_FB_RELEASE_LINEAR_NUM);
-		for (index = 0; index < WAVE6_MAX_FBS; index++) {
-			struct frame_buffer fb;
-			dma_addr_t addr = vpu_read_reg(inst->dev,
-						       W6_RET_DEC_UPDATE_FB_RELEASE_LINEAR_ADDR_0 +
-						       index * 4);
-
-			fb = wave6_dec_get_display_buffer(inst, addr, true);
-			info->release_disp_frame_addr[index] = fb.buf_y;
-		}
-	} else {
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS))
-			return -EIO;
-
-		val = vpu_read_reg(inst->dev, W6_RET_DEC_FB_UPDATE_REQ_INFO);
-
-		new_sequence = vpu_read_reg(inst->dev, W6_RET_DEC_NOTIFICATION);
-		if (new_sequence) {
-			info->state |= UPDATE_FB_STATE_SEQ_CHANGE;
-			info->sequence_changed = new_sequence;
-
-			wave6_get_dec_seq_result(inst, &p_dec_info->initial_info);
-
-			p_dec_info->initial_info.sequence_no++;
-		}
-
-		alloc_disp = ((val >> 12) & 0x01);
-		if (alloc_disp)
-			info->state |= UPDATE_FB_STATE_ALLOC_DISP;
-
-		index = ((val >> 6) & 0x3f);
-		if (index < WAVE6_MAX_FBS) {
-			info->state |= UPDATE_FB_STATE_ALLOC_MV;
-			info->mv_index = index;
-		} else {
-			info->mv_index = -1;
-		}
-
-		index = (val & 0x3f);
-		if (index < WAVE6_MAX_FBS) {
-			info->state |= UPDATE_FB_STATE_ALLOC_FBC;
-			info->fbc_index = index;
-		} else {
-			info->fbc_index = -1;
-		}
-
-		val = vpu_read_reg(inst->dev, W6_RET_DEC_RELEASE_IDC);
-		for (index = 0; index < WAVE6_MAX_FBS; index++) {
-			struct frame_buffer fb;
-			dma_addr_t addr;
-
-			if (!(val & (1 << index)))
-				continue;
-
-			addr = vpu_read_reg(inst->dev, W6_RET_DEC_DISP_LINEAR_ADDR_0 + index * 4);
-			fb = wave6_dec_get_display_buffer(inst, addr, true);
-			info->release_disp_frame_addr[info->release_disp_frame_num] = fb.buf_y;
-			info->release_disp_frame_num++;
-		}
-	}
-
-	memcpy((void *)&info->sequence, (void *)&p_dec_info->initial_info,
-	       sizeof(struct dec_initial_info));
-
-	return 0;
-}
-
 int wave6_vpu_decode(struct vpu_instance *inst, struct dec_param *option, u32 *fail_res)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	struct dec_open_param *p_open_param = &p_dec_info->open_param;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 mode_option = DEC_PIC_NORMAL, bs_option, reg_val;
 	int ret;
 
@@ -1052,8 +787,6 @@ int wave6_vpu_decode(struct vpu_instance *inst, struct dec_param *option, u32 *f
 		  (p_dec_info->sec_axi_info.use_lf_row_enable << 0);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_PIC_USE_SEC_AXI, reg_val);
 
-	vpu_write_reg(inst->dev, W6_CMD_DEC_PIC_USERDATA_MASK, p_dec_info->user_data_enable);
-
 	reg_val = (option->disable_film_grain << 6) |
 		  (option->cra_as_bla_flag << 5) |
 		  (mode_option);
@@ -1071,18 +804,16 @@ int wave6_vpu_decode(struct vpu_instance *inst, struct dec_param *option, u32 *f
 	vpu_write_reg(inst->dev, W6_CMD_DEC_PIC_TIMESTAMP, reg_val);
 
 	wave6_send_command(inst->dev, inst->id, inst->std, W6_DEC_PIC);
-	if (attr->support_command_queue) {
-		ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_err(inst->dev->dev, "%s: timeout\n", __func__);
-			return ret;
-		}
+	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
+	if (ret) {
+		dev_err(inst->dev->dev, "%s: timeout\n", __func__);
+		return ret;
+	}
 
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			*fail_res = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-			wave6_print_reg_err(inst->dev, *fail_res);
-			return -EIO;
-		}
+	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
+		*fail_res = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
+		wave6_print_reg_err(inst->dev, *fail_res);
+		return -EIO;
 	}
 
 	return 0;
@@ -1091,33 +822,21 @@ int wave6_vpu_decode(struct vpu_instance *inst, struct dec_param *option, u32 *f
 int wave6_vpu_dec_get_result(struct vpu_instance *inst, struct dec_output_info *result)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 reg_val, nal_unit_type, i;
 	int decoded_index = -1, display_index = -1;
 	int ret;
 
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
-		if (ret)
-			return ret;
+	ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
+	if (ret)
+		return ret;
 
-		result->decoding_success = vpu_read_reg(inst->dev, W6_RET_DEC_DECODING_SUCCESS);
-		if (!result->decoding_success)
-			result->error_reason = vpu_read_reg(inst->dev, W6_RET_DEC_ERR_INFO);
-		else
-			result->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
-	} else {
-		result->decoding_success = vpu_read_reg(inst->dev, W6_RET_SUCCESS);
-		if (!result->decoding_success) {
-			result->error_reason = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-
-			wave6_print_reg_err(inst->dev, result->error_reason);
-			return -EIO;
-		}
-	}
+	result->decoding_success = vpu_read_reg(inst->dev, W6_RET_DEC_DECODING_SUCCESS);
+	if (!result->decoding_success)
+		result->error_reason = vpu_read_reg(inst->dev, W6_RET_DEC_ERR_INFO);
+	else
+		result->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
 
 	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_PIC_TYPE);
-
 	nal_unit_type = (reg_val & 0x3f0) >> 4;
 	result->nal_type = nal_unit_type;
 
@@ -1196,7 +915,7 @@ int wave6_vpu_dec_get_result(struct vpu_instance *inst, struct dec_output_info *
 	for (i = 0; i < WAVE6_MAX_FBS; i++) {
 		if (reg_val & (1 << i)) {
 			dma_addr_t addr = vpu_read_reg(inst->dev,
-						       W6_RET_DEC_DISP_LINEAR_ADDR_0 + i * 4);
+						W6_RET_DEC_DISP_LINEAR_ADDR_0 + i * 4);
 
 			result->disp_frame_addr[result->disp_frame_num] = addr;
 			result->disp_frame_num++;
@@ -1208,7 +927,7 @@ int wave6_vpu_dec_get_result(struct vpu_instance *inst, struct dec_output_info *
 		if (reg_val & (1 << i)) {
 			struct frame_buffer fb;
 			dma_addr_t addr = vpu_read_reg(inst->dev,
-						       W6_RET_DEC_DISP_LINEAR_ADDR_0 + i * 4);
+						W6_RET_DEC_DISP_LINEAR_ADDR_0 + i * 4);
 
 			fb = wave6_dec_get_display_buffer(inst, addr, true);
 			result->release_disp_frame_addr[result->release_disp_frame_num] = fb.buf_y;
@@ -1500,7 +1219,6 @@ int wave6_vpu_build_up_enc_param(struct device *dev, struct vpu_instance *inst,
 				 struct enc_open_param *param)
 {
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 reg_val;
 	int ret;
 
@@ -1515,14 +1233,14 @@ int wave6_vpu_build_up_enc_param(struct device *dev, struct vpu_instance *inst,
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_TEMP_SIZE, param->inst_buffer.temp_size);
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_AR_TABLE_BASE, param->inst_buffer.ar_base);
 
-	reg_val = wave6_convert_endian(param->stream_endian);
+	reg_val = wave6_vdi_convert_endian(param->stream_endian);
 	reg_val = (~reg_val & VDI_128BIT_ENDIAN_MASK);
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_BS_PARAM, reg_val);
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_SRC_OPT, 0);
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_ADDR_EXT, param->ext_addr_vcpu);
 
-	reg_val = (attr->support_command_queue) ? (COMMAND_QUEUE_DEPTH << 8) : 0;
-	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_CORE_INFO, reg_val | (1 << 4) | (1 << 0));
+	reg_val = (COMMAND_QUEUE_DEPTH << 8) | (1 << 4) | (1 << 0);
+	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_CORE_INFO, reg_val);
 
 	reg_val = (param->is_secure_inst << 8) | (param->inst_priority);
 	vpu_write_reg(inst->dev, W6_CMD_ENC_CREATE_INST_PRIORITY, reg_val);
@@ -1669,7 +1387,7 @@ static void wave6_gen_set_param_reg_common(struct enc_info *p_enc_info, enum wav
 	unsigned int i, endian;
 	u32 rot_mir_mode = 0;
 
-	endian = wave6_convert_endian(p_param->custom_map_endian);
+	endian = wave6_vdi_convert_endian(p_param->custom_map_endian);
 	endian = (~endian & VDI_128BIT_ENDIAN_MASK);
 
 	if (p_enc_info->rotation_enable) {
@@ -1720,6 +1438,7 @@ static void wave6_gen_set_param_reg_common(struct enc_info *p_enc_info, enum wav
 			((p_param->rc_initial_qp & 0x3f) << 14) |
 			(p_param->rc_mode << 13) |
 			(p_param->pic_rc_max_dqp << 7) |
+			(p_param->en_vbv_overflow_drop_frame << 3) |
 			(p_param->en_cu_level_rate_control << 1) |
 			(p_param->en_rate_control << 0);
 	reg->hvs_param = (p_param->max_delta_qp << 12) |
@@ -1791,8 +1510,9 @@ static void wave6_gen_set_param_reg_hevc(struct enc_info *p_enc_info,
 
 	reg->sps_param = (p_param->en_scaling_list << 31) |
 			 (p_param->en_still_picture << 30) |
+			 (p_param->en_auto_level_adjusting << 28) |
 			 (p_param->en_strong_intra_smoothing << 27) |
-			 (p_param->intra_trans_skip << 25) |
+			 (p_param->en_intra_trans_skip << 25) |
 			 (p_param->en_sao << 24) |
 			 (p_param->en_temporal_mvp << 23) |
 			 (p_param->en_long_term << 21) |
@@ -1813,7 +1533,7 @@ static void wave6_gen_set_param_reg_hevc(struct enc_info *p_enc_info,
 			   (p_param->qp << 3) |
 			   (p_param->decoding_refresh_type << 0);
 	reg->rdo_param = (p_param->en_custom_lambda << 22) |
-			 (p_param->me_center << 21) |
+			 (p_param->en_me_center << 21) |
 			 (p_param->en_qp_map << 20) |
 			 (p_param->en_mode_map << 19) |
 			 (p_param->en_q_round_offset << 17) |
@@ -1826,6 +1546,7 @@ static void wave6_gen_set_param_reg_hevc(struct enc_info *p_enc_info,
 			     ((p_param->lambda_dqp_intra & 0x3F) << 8);
 	reg->non_vcl_param = (p_open_param->hrd_rbsp_data_size << 18) |
 			     (p_open_param->enc_hrd_rbsp_in_vps << 2) |
+			     (NON_VCL_PARAM_ENCODE_VUI) |
 			     (p_open_param->enc_aud << 0);
 	reg->hrd_rbsp_addr = p_open_param->hrd_rbsp_data_addr;
 }
@@ -1837,6 +1558,7 @@ static void wave6_gen_set_param_reg_avc(struct enc_info *p_enc_info,
 	struct enc_wave_param *p_param = &p_open_param->wave_param;
 
 	reg->sps_param = (p_param->en_scaling_list << 31) |
+			 (p_param->en_auto_level_adjusting << 28) |
 			 (p_param->en_long_term << 21) |
 			 (p_enc_info->color_format << 19) |
 			 (p_param->internal_bit_depth << 14) |
@@ -1856,7 +1578,7 @@ static void wave6_gen_set_param_reg_avc(struct enc_info *p_enc_info,
 			   (p_param->intra_period << 6) |
 			   (p_param->qp << 0);
 	reg->rdo_param = (p_param->en_custom_lambda << 22) |
-			 (p_param->me_center << 21) |
+			 (p_param->en_me_center << 21) |
 			 (p_param->en_qp_map << 20) |
 			 (p_param->en_mode_map << 19) |
 			 (p_param->en_q_round_offset << 17) |
@@ -1869,6 +1591,7 @@ static void wave6_gen_set_param_reg_avc(struct enc_info *p_enc_info,
 			     ((p_param->lambda_dqp_intra & 0x3F) << 8);
 	reg->non_vcl_param = (p_open_param->hrd_rbsp_data_size << 18) |
 			     (p_open_param->enc_hrd_rbsp_in_vps << 2) |
+			     (NON_VCL_PARAM_ENCODE_VUI) |
 			     (p_open_param->enc_aud << 0);
 	reg->hrd_rbsp_addr = p_open_param->hrd_rbsp_data_addr;
 }
@@ -1880,7 +1603,7 @@ static void wave6_gen_set_param_reg_av1(struct enc_info *p_enc_info,
 	struct enc_wave_param *p_param = &p_open_param->wave_param;
 
 	reg->sps_param = (p_param->en_scaling_list << 31) |
-			 (p_param->intra_trans_skip << 25) |
+			 (p_param->en_intra_trans_skip << 25) |
 			 (p_param->en_wiener << 24) |
 			 (p_param->en_cdef << 23) |
 			 (p_param->en_long_term << 21) |
@@ -1893,7 +1616,7 @@ static void wave6_gen_set_param_reg_av1(struct enc_info *p_enc_info,
 			   (p_param->forced_idr_header << 9) |
 			   (p_param->qp << 3);
 	reg->rdo_param = (p_param->en_custom_lambda << 22) |
-			 (p_param->me_center << 21) |
+			 (p_param->en_me_center << 21) |
 			 (p_param->en_qp_map << 20) |
 			 (p_param->en_mode_map << 19) |
 			 (p_param->en_q_round_offset << 17) |
@@ -1924,7 +1647,6 @@ static void wave6_gen_change_param_reg_common(struct vpu_instance *inst,
 int wave6_vpu_enc_init_seq(struct vpu_instance *inst)
 {
 	struct enc_cmd_set_param_reg reg;
-	struct vpu_attr *attr = &inst->dev->attr;
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 	u32 i;
 	int ret;
@@ -1995,19 +1717,17 @@ int wave6_vpu_enc_init_seq(struct vpu_instance *inst)
 	vpu_write_reg(inst->dev, W6_CMD_ENC_SET_PARAM_SAR_EXTENDED, reg.sar_extended);
 
 	wave6_send_command(inst->dev, inst->id, inst->std, W6_ENC_SET_PARAM);
-	if (attr->support_command_queue) {
-		ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_err(inst->dev->dev, "%s: timeout\n", __func__);
-			return ret;
-		}
+	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
+	if (ret) {
+		dev_err(inst->dev->dev, "%s: timeout\n", __func__);
+		return ret;
+	}
 
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
+	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
+		u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
 
-			wave6_print_reg_err(inst->dev, reason_code);
-			return -EIO;
-		}
+		wave6_print_reg_err(inst->dev, reason_code);
+		return -EIO;
 	}
 
 	return 0;
@@ -2015,27 +1735,17 @@ int wave6_vpu_enc_init_seq(struct vpu_instance *inst)
 
 int wave6_vpu_enc_get_seq_info(struct vpu_instance *inst, struct enc_initial_info *info)
 {
-	struct vpu_attr *attr = &inst->dev->attr;
 	int ret = 0;
 
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
-		if (ret)
-			return ret;
+	ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
+	if (ret)
+		return ret;
 
-		if (vpu_read_reg(inst->dev, W6_RET_ENC_ENCODING_SUCCESS) != 1) {
-			info->err_reason = vpu_read_reg(inst->dev, W6_RET_ENC_ERR_INFO);
-			ret = -EIO;
-		} else {
-			info->warn_info = vpu_read_reg(inst->dev, W6_RET_ENC_WARN_INFO);
-		}
+	if (vpu_read_reg(inst->dev, W6_RET_ENC_ENCODING_SUCCESS) != 1) {
+		info->err_reason = vpu_read_reg(inst->dev, W6_RET_ENC_ERR_INFO);
+		ret = -EIO;
 	} else {
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			info->err_reason = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-
-			wave6_print_reg_err(inst->dev, info->err_reason);
-			return -EIO;
-		}
+		info->warn_info = vpu_read_reg(inst->dev, W6_RET_ENC_WARN_INFO);
 	}
 
 	info->min_frame_buffer_count = vpu_read_reg(inst->dev, W6_RET_ENC_NUM_REQUIRED_FBC_FB);
@@ -2050,7 +1760,6 @@ int wave6_vpu_enc_change_seq(struct vpu_instance *inst)
 {
 	struct enc_cmd_change_param_reg reg;
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct vpu_attr attr = inst->dev->attr;
 	int ret = 0;
 
 	memset(&reg, 0, sizeof(struct enc_cmd_change_param_reg));
@@ -2065,19 +1774,17 @@ int wave6_vpu_enc_change_seq(struct vpu_instance *inst)
 	vpu_write_reg(inst->dev, W6_CMD_ENC_SET_PARAM_RC_TARGET_RATE, reg.rc_target_rate);
 
 	wave6_send_command(inst->dev, inst->id, inst->std, W6_ENC_SET_PARAM);
-	if (attr.support_command_queue) {
-		ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_warn(inst->dev->dev, "enc set param timed out\n");
-			return ret;
-		}
+	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
+	if (ret) {
+		dev_warn(inst->dev->dev, "enc set param timed out\n");
+		return ret;
+	}
 
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
+	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
+		u32 reason_code = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
 
-			wave6_print_reg_err(inst->dev, reason_code);
-			return -EIO;
-		}
+		wave6_print_reg_err(inst->dev, reason_code);
+		return -EIO;
 	}
 
 	return 0;
@@ -2280,7 +1987,7 @@ static bool is_format_conv(enum frame_buffer_format in_fmt,
 		    out_fmt != FORMAT_420_P10_16BIT_LSB &&
 		    out_fmt != FORMAT_420_P10_32BIT_MSB &&
 		    out_fmt != FORMAT_420_P10_32BIT_LSB)
-			return TRUE;
+			return true;
 	} else if (in_fmt == FORMAT_422 ||
 		   in_fmt == FORMAT_422_P10_16BIT_MSB ||
 		   in_fmt == FORMAT_422_P10_16BIT_LSB ||
@@ -2291,7 +1998,7 @@ static bool is_format_conv(enum frame_buffer_format in_fmt,
 		    out_fmt != FORMAT_422_P10_16BIT_LSB &&
 		    out_fmt != FORMAT_422_P10_32BIT_MSB &&
 		    out_fmt != FORMAT_422_P10_32BIT_LSB)
-			return TRUE;
+			return true;
 	} else if (in_fmt == FORMAT_444 ||
 		   in_fmt == FORMAT_444_P10_16BIT_MSB ||
 		   in_fmt == FORMAT_444_P10_16BIT_LSB ||
@@ -2302,10 +2009,10 @@ static bool is_format_conv(enum frame_buffer_format in_fmt,
 		    out_fmt != FORMAT_444_P10_16BIT_LSB &&
 		    out_fmt != FORMAT_444_P10_32BIT_MSB &&
 		    out_fmt != FORMAT_444_P10_32BIT_LSB)
-			return TRUE;
+			return true;
 	}
 
-	return FALSE;
+	return false;
 }
 
 static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interleave, bool nv21,
@@ -2325,7 +2032,7 @@ static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interle
 	bool is_24bit = false;
 	bool format_conv;
 
-	endian = wave6_convert_endian(open.source_endian);
+	endian = wave6_vdi_convert_endian(open.source_endian);
 	endian = (~endian & VDI_128BIT_ENDIAN_MASK);
 	format_conv = is_format_conv(open.src_format, open.output_format);
 
@@ -2581,7 +2288,7 @@ static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interle
 				   (opt->code_option.encode_vcl << 1) |
 				   (opt->code_option.implicit_header_encode << 0);
 	}
-	reg->pic_param = (opt->intra_4x4 << 27) |
+	reg->pic_param = (param.intra_4x4 << 28) |
 			 (opt->force_pic_type << 21) |
 			 (opt->force_pic_type_enable << 20) |
 			 (opt->force_pic_qp_b << 14) |
@@ -2619,7 +2326,6 @@ int wave6_vpu_encode(struct vpu_instance *inst, struct enc_param *option, u32 *f
 {
 	struct enc_cmd_enc_pic_reg reg;
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	int ret;
 
 	memset(&reg, 0, sizeof(struct enc_cmd_enc_pic_reg));
@@ -2657,18 +2363,16 @@ int wave6_vpu_encode(struct vpu_instance *inst, struct enc_param *option, u32 *f
 	vpu_write_reg(inst->dev, W6_CMD_ENC_PIC_CSC_COEFF_3, reg.csc_coeff[3]);
 
 	wave6_send_command(inst->dev, inst->id, inst->std, W6_ENC_PIC);
-	if (attr->support_command_queue) {
-		ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
-		if (ret) {
-			dev_err(inst->dev->dev, "%s: timeout\n", __func__);
-			return -ETIMEDOUT;
-		}
+	ret = wave6_wait_vpu_busy(inst->dev, W6_VPU_BUSY_STATUS);
+	if (ret) {
+		dev_err(inst->dev->dev, "%s: timeout\n", __func__);
+		return -ETIMEDOUT;
+	}
 
-		if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
-			*fail_res = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-			wave6_print_reg_err(inst->dev, *fail_res);
-			return -EIO;
-		}
+	if (!vpu_read_reg(inst->dev, W6_RET_SUCCESS)) {
+		*fail_res = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
+		wave6_print_reg_err(inst->dev, *fail_res);
+		return -EIO;
 	}
 
 	return 0;
@@ -2677,29 +2381,18 @@ int wave6_vpu_encode(struct vpu_instance *inst, struct enc_param *option, u32 *f
 int wave6_vpu_enc_get_result(struct vpu_instance *inst, struct enc_output_info *result)
 {
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct vpu_attr *attr = &inst->dev->attr;
 	u32 reg_val;
 	int ret;
 
-	if (attr->support_command_queue) {
-		ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
-		if (ret)
-			return ret;
+	ret = wave6_send_query(inst->dev, inst->id, inst->std, W6_QUERY_GET_RESULT);
+	if (ret)
+		return ret;
 
-		result->encoding_success = vpu_read_reg(inst->dev, W6_RET_ENC_ENCODING_SUCCESS);
-		if (!result->encoding_success)
-			result->error_reason = vpu_read_reg(inst->dev, W6_RET_ENC_ERR_INFO);
-		else
-			result->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
-	} else {
-		result->encoding_success = vpu_read_reg(inst->dev, W6_RET_SUCCESS);
-		if (!result->encoding_success) {
-			result->error_reason = vpu_read_reg(inst->dev, W6_RET_FAIL_REASON);
-
-			wave6_print_reg_err(inst->dev, result->error_reason);
-			return -EIO;
-		}
-	}
+	result->encoding_success = vpu_read_reg(inst->dev, W6_RET_ENC_ENCODING_SUCCESS);
+	if (!result->encoding_success)
+		result->error_reason = vpu_read_reg(inst->dev, W6_RET_ENC_ERR_INFO);
+	else
+		result->warn_info = vpu_read_reg(inst->dev, W6_RET_DEC_WARN_INFO);
 
 	result->enc_pic_cnt = vpu_read_reg(inst->dev, W6_RET_ENC_PIC_NUM);
 	reg_val = vpu_read_reg(inst->dev, W6_RET_ENC_PIC_TYPE);
@@ -2868,8 +2561,7 @@ static int wave6_vpu_enc_check_gop_param(struct vpu_instance *inst, struct enc_w
 			for (i = 0; i < p_param->gop_param.custom_gop_size; i++) {
 				if (p_param->gop_param.pic_param[i].temporal_id > 0) {
 					dev_err(dev, "std: %d, pic_param[%d].temporal_id: %d\n",
-						inst->std,
-						i,
+						inst->std, i,
 						p_param->gop_param.pic_param[i].temporal_id);
 					return -EINVAL;
 				}
@@ -3143,12 +2835,12 @@ static int wave6_vpu_enc_check_conf_win_size_param(struct vpu_instance *inst,
 		return -EINVAL;
 	}
 	if ((conf_win.right + conf_win.left) > width) {
-		dev_err(dev, "conf_win left: %d, right: %d, width: %d\n",
+		dev_err(dev, "conf_win.left: %d, conf_win.right: %d, width: %d\n",
 			conf_win.left, conf_win.right, width);
 		return -EINVAL;
 	}
 	if ((conf_win.bottom + conf_win.top) > height) {
-		dev_err(dev, "conf_win top: %d, bottom: %d, height: %d\n",
+		dev_err(dev, "conf_win.top: %d, conf_win.bottom: %d, height: %d\n",
 			conf_win.top, conf_win.bottom, height);
 		return -EINVAL;
 	}
@@ -3267,10 +2959,7 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 		dev_err(dev, "failed wave6_vpu_enc_check_gop_param()\n");
 		return -EINVAL;
 	}
-	if (wave6_vpu_enc_check_tile_slice_param(inst,
-						 pop->pic_width,
-						 pop->pic_height,
-						 p_param)) {
+	if (wave6_vpu_enc_check_tile_slice_param(inst, pop->pic_width, pop->pic_height, p_param)) {
 		dev_err(dev, "failed wave6_vpu_enc_check_tile_slice_param()\n");
 		return -EINVAL;
 	}
@@ -3286,9 +2975,7 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 		dev_err(dev, "failed wave6_vpu_enc_check_custom_param()\n");
 		return -EINVAL;
 	}
-	if (wave6_vpu_enc_check_conf_win_size_param(inst,
-						    pop->pic_width,
-						    pop->pic_height,
+	if (wave6_vpu_enc_check_conf_win_size_param(inst, pop->pic_width, pop->pic_height,
 						    p_param->conf_win)) {
 		dev_err(dev, "failed wave6_vpu_enc_check_conf_win_size_param()\n");
 		return -EINVAL;
@@ -3321,6 +3008,11 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 	}
 	if (p_param->en_cu_level_rate_control != 1 && p_param->en_cu_level_rate_control != 0) {
 		dev_err(dev, "en_cu_level_rate_control: %d\n", p_param->en_cu_level_rate_control);
+		return -EINVAL;
+	}
+	if (p_param->en_vbv_overflow_drop_frame != 1 && p_param->en_vbv_overflow_drop_frame != 0) {
+		dev_err(dev, "en_vbv_overflow_drop_frame: %d\n",
+			p_param->en_vbv_overflow_drop_frame);
 		return -EINVAL;
 	}
 	if (p_param->en_hvs_qp != 1 && p_param->en_hvs_qp != 0) {
@@ -3369,8 +3061,8 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 		dev_err(dev, "bg_delta_qp: %d\n", p_param->bg_delta_qp);
 		return -EINVAL;
 	}
-	if (p_param->me_center > 1) {
-		dev_err(dev, "me_center: %d\n", p_param->me_center);
+	if (p_param->en_me_center != 1 && p_param->en_me_center != 0) {
+		dev_err(dev, "en_me_center: %d\n", p_param->en_me_center);
 		return -EINVAL;
 	}
 	if (p_param->en_dbk != 1 && p_param->en_dbk != 0) {
@@ -3469,8 +3161,8 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 				p_param->en_constrained_intra_pred);
 			return -EINVAL;
 		}
-		if (p_param->intra_trans_skip != 1 && p_param->intra_trans_skip != 0) {
-			dev_err(dev, "intra_trans_skip: %d\n", p_param->intra_trans_skip);
+		if (p_param->en_intra_trans_skip != 1 && p_param->en_intra_trans_skip != 0) {
+			dev_err(dev, "en_intra_trans_skip: %d\n", p_param->en_intra_trans_skip);
 			return -EINVAL;
 		}
 		if (p_param->en_temporal_mvp != 1 && p_param->en_temporal_mvp != 0) {
@@ -3547,6 +3239,12 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 			dev_err(dev, "en_still_picture: %d\n", p_param->en_still_picture);
 			return -EINVAL;
 		}
+		if (p_param->en_auto_level_adjusting != 1 &&
+		    p_param->en_auto_level_adjusting != 0) {
+			dev_err(dev, "en_auto_level_adjusting: %d\n",
+				p_param->en_auto_level_adjusting);
+			return -EINVAL;
+		}
 		if (p_param->tier > 1) {
 			dev_err(dev, "tier: %d\n", p_param->tier);
 			return -EINVAL;
@@ -3569,6 +3267,10 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 		if (p_param->color.chroma_sample_position != 0) {
 			dev_err(dev, "chroma_sample_position: %d\n",
 				p_param->color.chroma_sample_position);
+			return -EINVAL;
+		}
+		if (p_param->intra_4x4 > 3 || p_param->intra_4x4 == 1) {
+			dev_err(dev, "intra_4x4: %d\n", p_param->intra_4x4);
 			return -EINVAL;
 		}
 	} else if (inst->std == W_AVC_ENC) {
@@ -3597,8 +3299,8 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 				p_param->en_constrained_intra_pred);
 			return -EINVAL;
 		}
-		if (p_param->intra_trans_skip != 0) {
-			dev_err(dev, "intra_trans_skip: %d\n", p_param->intra_trans_skip);
+		if (p_param->en_intra_trans_skip != 0) {
+			dev_err(dev, "en_intra_trans_skip: %d\n", p_param->en_intra_trans_skip);
 			return -EINVAL;
 		}
 		if (p_param->en_temporal_mvp != 0) {
@@ -3675,6 +3377,12 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 			dev_err(dev, "en_still_picture: %d\n", p_param->en_still_picture);
 			return -EINVAL;
 		}
+		if (p_param->en_auto_level_adjusting != 1 &&
+		    p_param->en_auto_level_adjusting != 0) {
+			dev_err(dev, "en_auto_level_adjusting: %d\n",
+				p_param->en_auto_level_adjusting);
+			return -EINVAL;
+		}
 		if (p_param->tier != 0) {
 			dev_err(dev, "tier: %d\n", p_param->tier);
 			return -EINVAL;
@@ -3701,6 +3409,10 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 				p_param->color.chroma_sample_position);
 			return -EINVAL;
 		}
+		if (p_param->intra_4x4 != 0) {
+			dev_err(dev, "intra_4x4: %d\n", p_param->intra_4x4);
+			return -EINVAL;
+		}
 	} else if (inst->std == W_AV1_ENC) {
 		if (p_param->idr_period != 0) {
 			dev_err(dev, "idr_period: %d\n", p_param->idr_period);
@@ -3716,8 +3428,8 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 				p_param->en_constrained_intra_pred);
 			return -EINVAL;
 		}
-		if (p_param->intra_trans_skip != 1 && p_param->intra_trans_skip != 0) {
-			dev_err(dev, "intra_trans_skip: %d\n", p_param->intra_trans_skip);
+		if (p_param->en_intra_trans_skip != 1 && p_param->en_intra_trans_skip != 0) {
+			dev_err(dev, "en_intra_trans_skip: %d\n", p_param->en_intra_trans_skip);
 			return -EINVAL;
 		}
 		if (p_param->en_temporal_mvp != 0) {
@@ -3793,6 +3505,11 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 			dev_err(dev, "en_still_picture: %d\n", p_param->en_still_picture);
 			return -EINVAL;
 		}
+		if (p_param->en_auto_level_adjusting != 0) {
+			dev_err(dev, "en_auto_level_adjusting: %d\n",
+				p_param->en_auto_level_adjusting);
+			return -EINVAL;
+		}
 		if (p_param->tier != 0) {
 			dev_err(dev, "tier: %d\n", p_param->tier);
 			return -EINVAL;
@@ -3809,6 +3526,10 @@ int wave6_vpu_enc_check_open_param(struct vpu_instance *inst, struct enc_open_pa
 		if (p_param->color.chroma_sample_position > 3) {
 			dev_err(dev, "chroma_sample_position: %d\n",
 				p_param->color.chroma_sample_position);
+			return -EINVAL;
+		}
+		if (p_param->intra_4x4 > 3 || p_param->intra_4x4 == 1) {
+			dev_err(dev, "intra_4x4: %d\n", p_param->intra_4x4);
 			return -EINVAL;
 		}
 	}

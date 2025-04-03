@@ -1271,7 +1271,6 @@
 				clocks = <&clk IMX93_CLK_MEDIA_APB>,
 					 <&clk IMX93_CLK_MEDIA_AXI>;
 				clock-names = "pxp_ipg", "pxp_axi";
-				pxp-gpr = <&media_blk_ctrl>;
 				power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_PXP>;
 				status = "disabled";
 			};
@@ -1595,7 +1594,7 @@
 	ldb: ldb-display-controller {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,imx93-ldb";
+		compatible = "fsl,imx93-ldb-nxp";
 		clocks = <&clk IMX93_CLK_LVDS_GATE>;
 		clock-names = "ldb";
 		assigned-clocks = <&clk IMX93_CLK_MEDIA_LDB>;

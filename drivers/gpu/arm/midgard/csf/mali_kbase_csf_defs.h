@@ -928,6 +928,17 @@ struct kbase_csf_event {
 };
 
 /**
+ * struct kbase_csf_user_io_context - Object containing members to manage the mapping
+ *                                     of USER io page for a context.
+ *
+ * @vma:                Pointer to the VMA corresponding to the virtual mapping
+ *                      of the USER io page.
+ */
+struct kbase_csf_user_io_context {
+	struct vm_area_struct *vma;
+};
+
+/**
  * struct kbase_csf_user_reg_context - Object containing members to manage the mapping
  *                                     of USER Register page for a context.
  *
@@ -986,6 +997,7 @@ struct kbase_csf_user_reg_context {
  * @cpu_queue:        CPU queue information. Only be available when DEBUG_FS
  *                    is enabled.
  * @user_reg:         Collective information to support mapping to USER Register page.
+ * @user_io:          Collective information to support mapping to USER IO page.
  * @pending_sync_update: Indicates that kbase_csf_scheduler_kthread() should
  *                       handle SYNC_UPDATE event for this context. This would
  *                       be set to false when the work is done. This is used
@@ -1006,6 +1018,7 @@ struct kbase_csf_context {
 	struct kbase_csf_scheduler_context sched;
 	struct kbase_csf_cpu_queue_context cpu_queue;
 	struct kbase_csf_user_reg_context user_reg;
+	struct kbase_csf_user_io_context user_io;
 	atomic_t pending_sync_update;
 };
 

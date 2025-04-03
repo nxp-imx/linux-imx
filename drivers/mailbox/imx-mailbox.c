@@ -111,6 +111,7 @@ enum imx_mu_type {
 	IMX_MU_V2 = BIT(1),
 	IMX_MU_V2_S4 = BIT(15),
 	IMX_MU_V2_IRQ = BIT(16),
+	IMX_MU_IMX94_ELE = BIT(17),
 	IMX_MU_V2_V2X = BIT(18),
 };
 
@@ -1039,6 +1040,29 @@ static const struct imx_mu_dcfg imx_mu_cfg_imx93_s4 = {
 	.xCR	= {0x8, 0x110, 0x114, 0x120, 0x128},
 };
 
+static const struct imx_mu_dcfg imx_mu_cfg_imx94_ele = {
+	.tx	= imx_mu_specific_tx,
+	.rx	= imx_mu_specific_rx,
+	.init	= imx_mu_init_specific,
+	.type	= IMX_MU_V2 | IMX_MU_V2_S4 | IMX_MU_IMX94_ELE,
+	.xTR	= 0x200,
+	.xRR	= 0x280,
+	.xSR	= {0xC, 0x118, 0x124, 0x12C},
+	.xCR	= {0x8, 0x110, 0x114, 0x120, 0x128},
+};
+
+static const struct imx_mu_dcfg imx_mu_cfg_imx94_v2x = {
+	.tx     = imx_mu_specific_tx,
+	.rx     = imx_mu_specific_rx,
+	.init   = imx_mu_init_specific,
+	.type   = IMX_MU_V2 | IMX_MU_V2_S4 | IMX_MU_V2_V2X,
+	.xTR    = 0x200,
+	.xRR    = 0x280,
+	.xSR    = {0xC, 0x118, 0x124, 0x12C},
+	.xCR    = {0x8, 0x110, 0x114, 0x120, 0x128},
+	.xBUF   = 0x8000,
+};
+
 static const struct imx_mu_dcfg imx_mu_cfg_imx95_v2x = {
 	.tx     = imx_mu_specific_tx,
 	.rx     = imx_mu_specific_rx,
@@ -1080,6 +1104,8 @@ static const struct of_device_id imx_mu_dt_ids[] = {
 	{ .compatible = "fsl,imx8ulp-mu", .data = &imx_mu_cfg_imx8ulp },
 	{ .compatible = "fsl,imx8ulp-mu-s4", .data = &imx_mu_cfg_imx8ulp_s4 },
 	{ .compatible = "fsl,imx93-mu-s4", .data = &imx_mu_cfg_imx93_s4 },
+	{ .compatible = "fsl,imx94-mu-ele", .data = &imx_mu_cfg_imx94_ele },
+	{ .compatible = "fsl,imx94-mu-v2x", .data = &imx_mu_cfg_imx94_v2x },
 	{ .compatible = "fsl,imx95-mu", .data = &imx_mu_cfg_imx8ulp },
 	{ .compatible = "fsl,imx95-mu-ele", .data = &imx_mu_cfg_imx8ulp_s4 },
 	{ .compatible = "fsl,imx95-mu-v2x", .data = &imx_mu_cfg_imx95_v2x },

@@ -106,9 +106,10 @@ struct store_ctrl {
 	uint32_t store_memory_en	: 1;
 	uint32_t pack_in_sel		: 1;
 	uint32_t fill_data_en		: 1;
-	uint32_t rsvd2			: 4;
-	uint32_t wr_num_bytes		: 2;
-	uint32_t rsvd1			: 6;
+	uint32_t block_32		: 1;
+	uint32_t rsvd2			: 3;
+	uint32_t wr_num_bytes		: 3;
+	uint32_t rsvd1			: 5;
 	uint32_t combine_2channel	: 1;
 	uint32_t rsvd0			: 6;
 	uint32_t arbit_en		: 1;
@@ -203,14 +204,15 @@ struct fetch_ctrl {
 	uint32_t handshake_en		: 1;
 	uint32_t bypass_pixel_en	: 1;
 	uint32_t high_byte		: 1;
-	uint32_t rsvd4			: 3;
+	uint32_t block_32		: 1;
+	uint32_t rsvd4			: 2;
 	uint32_t hflip			: 1;
 	uint32_t vflip			: 1;
 	uint32_t rsvd3			: 1;
 	uint32_t rotation_angle		: 2;
 	uint32_t rsvd2			: 2;
-	uint32_t rd_num_bytes		: 2;
-	uint32_t rsvd1			: 6;
+	uint32_t rd_num_bytes		: 3;
+	uint32_t rsvd1			: 5;
 	uint32_t handshake_scan_line_num : 2;
 	uint32_t rsvd0			: 5;
 	uint32_t arbit_en		: 1;
@@ -262,5 +264,12 @@ struct fetch_shift_width {
 	uint32_t width2			: 4;
 	uint32_t width3			: 4;
 	uint32_t rsvd0			: 16;
+};
+
+struct ps_lrc {
+	uint32_t height			: 14;
+	uint32_t rsvd0			: 2;
+	uint32_t width			: 14;
+	uint32_t rsvd1			: 2;
 };
 #endif

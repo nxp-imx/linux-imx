@@ -250,6 +250,127 @@ static struct se_if_node_info_list imx95_info = {
 	},
 };
 
+static struct se_if_node_info_list imx94_info = {
+	.num_mu = 6,
+	.soc_id = SOC_ID_OF_IMX94,
+	.soc_register = false,
+	.se_fetch_soc_info = ele_fetch_soc_info,
+	.se_fw_img_nm = {
+		.prim_fw_nm_in_rfs = NULL,
+		.seco_fw_nm_in_rfs = NULL,
+	},
+	.info = {
+			{
+			.se_if_id = 0,
+			.mu_buff_size = 0,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_HSM,
+				.se_instance_id = 0,
+				.cmd_tag = 0x17,
+				.rsp_tag = 0xe1,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_6,
+				.fw_api_ver = MESSAGING_VERSION_7,
+			},
+			.reserved_dma_ranges = true,
+			.start_rng = ele_start_rng,
+			.init_trng = ele_trng_init,
+			.se_if_early_init = NULL,
+			.se_if_late_init = v2x_late_init, // add ele_init_fw
+			},
+			{
+			.se_if_id = 1,
+			.mu_buff_size = 64,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_DBG,
+				.se_instance_id = 0,
+				.cmd_tag = 0x17,
+				.rsp_tag = 0xe1,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = v2x_start_rng,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
+			.se_if_id = 2,
+			.mu_buff_size = 256,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SHE,
+				.se_instance_id = 0,
+				.cmd_tag = 0x1a,
+				.rsp_tag = 0xe4,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
+			.se_if_id = 3,
+			.mu_buff_size = 64,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SV,
+				.se_instance_id = 0,
+				.cmd_tag = 0x18,
+				.rsp_tag = 0xe2,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
+			.se_if_id = 4,
+			.mu_buff_size = 16,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SG,
+				.se_instance_id = 0,
+				.cmd_tag = 0x1d,
+				.rsp_tag = 0xe7,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
+			.se_if_id = 5,
+			.mu_buff_size = 16,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SG,
+				.se_instance_id = 1,
+				.cmd_tag = 0x1e,
+				.rsp_tag = 0xe8,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+	},
+};
+
 static struct se_if_node_info_list imx8dxl_info = {
 	.num_mu = 7,
 	.soc_id = SOC_ID_OF_IMX8DXL,
@@ -394,6 +515,7 @@ static const struct of_device_id se_match[] = {
 	{ .compatible = "fsl,imx93-se", .data = (void *)&imx93_info},
 	{ .compatible = "fsl,imx95-se", .data = (void *)&imx95_info},
 	{ .compatible = "fsl,imx8dxl-se", .data = (void *)&imx8dxl_info},
+	{ .compatible = "fsl,imx94-se", .data = (void *)&imx94_info},
 	{},
 };
 
@@ -543,6 +665,8 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx)
 		info_list = &imx93_info; break;
 	case SOC_ID_OF_IMX95:
 		info_list = &imx95_info; break;
+	case SOC_ID_OF_IMX94:
+		info_list = &imx94_info; break;
 	default:
 		return NULL;
 	}
@@ -1178,6 +1302,7 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 			       cmd_snd_rcv_rsp_info.tx_buf_sz,
 			       rx_msg,
 			       cmd_snd_rcv_rsp_info.rx_buf_sz);
+
 	if (err < 0)
 		goto exit;
 
@@ -2070,6 +2195,7 @@ static int se_suspend(struct device *dev)
 			goto exit;
 		}
 	}
+
 	load_fw = get_load_fw_instance(priv);
 
 	if (load_fw->imem_mgmt) {

@@ -15,6 +15,9 @@
 
 enum netc_flower_type {
 	FLOWER_TYPE_PSFP,
+	FLOWER_TYPE_TRAP,
+	FLOWER_TYPE_REDIRECT,
+	FLOWER_TYPE_POLICE,
 };
 
 enum netc_key_tbl_type {
@@ -94,6 +97,15 @@ int netc_psfp_flower_stat(struct ntmp_priv *priv, struct netc_flower_rule *rule,
 			  u64 *byte_cnt, u64 *pkt_cnt, u64 *drop_cnt);
 int netc_setup_taprio(struct ntmp_priv *priv, u32 entry_id,
 		      struct tc_taprio_qopt_offload *f);
+int netc_ipft_keye_construct(struct flow_rule *rule, int port_id,
+			     u16 prio, struct ipft_keye_data *keye,
+			     struct netlink_ext_ack *extack);
+int netc_setup_police(struct ntmp_priv *priv, int port_id,
+		      struct flow_cls_offload *f);
+void netc_delete_police_flower_rule(struct ntmp_priv *priv,
+				    struct netc_flower_rule *rule);
+int netc_police_flower_stat(struct ntmp_priv *priv, struct netc_flower_rule *rule,
+			    u64 *pkt_cnt);
 
 /* debugfs API */
 int netc_kstrtouint(const char __user *buffer, size_t count, loff_t *ppos, u32 *val);
@@ -107,6 +119,7 @@ int netc_show_isct_entry(struct ntmp_priv *priv, struct seq_file *s, u32 entry_i
 int netc_show_rpt_entry(struct ntmp_priv *priv, struct seq_file *s, u32 entry_id);
 int netc_show_ipft_entry(struct ntmp_priv *priv, struct seq_file *s, u32 entry_id);
 int netc_show_tgst_entry(struct ntmp_priv *priv, struct seq_file *s, u32 entry_id);
+void netc_show_ipft_flower(struct seq_file *s, struct netc_flower_rule *rule);
 #else
 static inline int netc_kstrtouint(const char __user *buffer, size_t count,
 				  loff_t *ppos, u32 *val)
@@ -177,6 +190,31 @@ static inline int netc_setup_taprio(struct ntmp_priv *priv, u32 entry_id,
 	return 0;
 }
 
+static inline int netc_ipft_keye_construct(struct flow_rule *rule, int port_id,
+					   u16 prio, struct ipft_keye_data *keye,
+					   struct netlink_ext_ack *extack)
+{
+	return 0;
+}
+
+static inline int netc_setup_police(struct ntmp_priv *priv, int port_id,
+				    struct flow_cls_offload *f)
+{
+	return 0;
+}
+
+static inline void netc_delete_police_flower_rule(struct ntmp_priv *priv,
+						  struct netc_flower_rule *rule)
+{
+}
+
+static inline int netc_police_flower_stat(struct ntmp_priv *priv,
+					  struct netc_flower_rule *rule,
+					  u64 *pkt_cnt)
+{
+	return 0;
+}
+
 static inline void netc_show_psfp_flower(struct seq_file *s,
 					 struct netc_flower_rule *rule)
 {
@@ -234,6 +272,11 @@ static inline int netc_show_tgst_entry(struct ntmp_priv *priv,
 				       struct seq_file *s, u32 entry_id)
 {
 	return 0;
+}
+
+static inline void netc_show_ipft_flower(struct seq_file *s,
+					 struct netc_flower_rule *rule)
+{
 }
 
 #endif

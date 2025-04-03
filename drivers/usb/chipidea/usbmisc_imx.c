@@ -145,6 +145,7 @@
 
 #define BLKCTL_USB_WAKEUP_CTRL		0x0
 #define BLKCTL_OTG_WAKE_ENABLE		BIT(31)
+#define BLKCTL_OTG_VBUS_SOURCE_SESSVALID	BIT(4)
 #define BLKCTL_OTG_ID_WAKEUP_EN		BIT(2)
 #define BLKCTL_OTG_VBUS_WAKEUP_EN	BIT(1)
 #define BLKCTL_OTG_DPDM_WAKEUP_EN	BIT(0)
@@ -1042,6 +1043,8 @@ static u32 usbmisc_blkctl_wakeup_setting(struct imx_usbmisc_data *data)
 	if (data->ext_vbus || data->available_role == USB_DR_MODE_HOST)
 		wakeup_setting &= ~BLKCTL_OTG_VBUS_WAKEUP_EN;
 
+	/* Selet session valid as VBUS wakeup source */
+	wakeup_setting |= BLKCTL_OTG_VBUS_SOURCE_SESSVALID;
 
 	return wakeup_setting;
 }

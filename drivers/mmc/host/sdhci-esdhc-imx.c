@@ -368,6 +368,7 @@ static struct esdhc_soc_data usdhc_imx8mq_data = {
 
 static struct esdhc_soc_data usdhc_s32v234_data = {
 	.flags = ESDHC_FLAG_USDHC,
+	.quirks = SDHCI_QUIRK_NO_LED,
 };
 
 struct pltfm_imx_data {

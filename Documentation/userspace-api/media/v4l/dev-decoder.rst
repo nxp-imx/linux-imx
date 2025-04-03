@@ -784,8 +784,8 @@ before the sequence started. Last of the buffers will have the
 must check if there is any pending event and:
 
 * if a ``V4L2_EVENT_SOURCE_CHANGE`` event with ``changes`` set to
-  ``V4L2_EVENT_SRC_CH_RESOLUTION`` is pending, the `Dynamic Resolution
-  Change` sequence needs to be followed,
+  ``V4L2_EVENT_SRC_CH_RESOLUTION`` or ``V4L2_EVENT_SRC_CH_COLORSPACE`` is pending,
+  the `Dynamic Resolution Change` sequence needs to be followed,
 
 * if a ``V4L2_EVENT_EOS`` event is pending, the `End of Stream` sequence needs
   to be followed.
@@ -932,19 +932,28 @@ reflected by corresponding queries):
 
 * the minimum number of buffers needed for decoding,
 
-* bit-depth of the bitstream has been changed.
+* bit-depth of the bitstream has been changed,
+
+* colorspace of the bitstream has been changed.
 
 Whenever that happens, the decoder must proceed as follows:
 
 1.  After encountering a resolution change in the stream, the decoder sends a
     ``V4L2_EVENT_SOURCE_CHANGE`` event with ``changes`` set to
-    ``V4L2_EVENT_SRC_CH_RESOLUTION``.
+    ``V4L2_EVENT_SRC_CH_RESOLUTION``, or a colorspace change in the stream, the
+    decoder sends a ``V4L2_EVENT_SOURCE_CHANGE`` event with ``changes`` set to
+    ``V4L2_EVENT_SRC_CH_COLORSPACE``.
 
     .. important::
 
        Any client query issued after the decoder queues the event will return
        values applying to the stream after the resolution change, including
        queue formats, selection rectangles and controls.
+
+.. note::
+        A ``V4L2_EVENT_SOURCE_CHANGE`` event with ``changes`` set to
+        ``V4L2_EVENT_SRC_CH_RESOLUTION`` will affect the allocation, but
+        ``V4L2_EVENT_SRC_CH_COLORSPACE`` won't.
 
 2.  The decoder will then process and decode all remaining buffers from before
     the resolution change point.

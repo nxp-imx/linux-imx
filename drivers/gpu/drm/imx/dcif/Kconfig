@@ -1,0 +1,11 @@
+config DRM_IMX_DCIF
+	tristate "DRM support for NXP i.MX943 DCIF"
+	select DRM_KMS_HELPER
+	select VIDEOMODE_HELPERS
+	select DRM_GEM_DMA_HELPER
+	select DRM_DISPLAY_HELPER
+	select DRM_BRIDGE_CONNECTOR
+	depends on DRM && OF && ARCH_MXC
+	depends on COMMON_CLK
+	help
+	  enable NXP i.MX943 Display Control Interface(DCIF) support

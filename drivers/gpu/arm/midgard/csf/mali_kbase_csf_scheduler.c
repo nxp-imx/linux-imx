@@ -6812,7 +6812,6 @@ event_wait_add_failed:
 
 void kbase_csf_scheduler_context_term(struct kbase_context *kctx)
 {
-	kbase_ctx_sched_remove_ctx(kctx);
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
 	gpu_metrics_ctx_term(kctx);
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */

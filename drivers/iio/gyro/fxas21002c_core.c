@@ -745,11 +745,6 @@ static irqreturn_t fxas21002c_trigger_handler(int irq, void *p)
 
 	ret = fxas21002c_pm_put(data);
 	if (ret < 0)
-		goto out_unlock;
-
-	ret = regmap_bulk_read(data->regmap, FXAS21002C_REG_OUT_X_MSB,
-			       data->buffer, CHANNEL_SCAN_MAX * sizeof(s16));
-	if (ret < 0)
 		goto out_pm_put;
 
 	iio_push_to_buffers_with_timestamp(indio_dev, data->buffer,

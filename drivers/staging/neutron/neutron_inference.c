@@ -109,8 +109,13 @@ static int neutron_inference_run(struct neutron_inference *inf)
 	// reload only when firmware was changed
 	if (ndev->firmw_id  != inf->args.firmw_id) {
 		mutex_lock(&ndev->mutex);
+		ret = neutron_firmw_reload(ndev, inf->buf);
+		if (ret) {
+			inf->status = NEUTRON_UAPI_STATUS_ERROR;
+			mutex_unlock(&ndev->mutex);
+			goto inf_stop_early;
+		}
 		ndev->firmw_id = inf->args.firmw_id;
-		neutron_firmw_reload(ndev, inf->buf);
 		mutex_unlock(&ndev->mutex);
 		dev_dbg(ndev->dev, "Inference firmw_reload: %x\n", inf->args.firmw_id);
 	}

@@ -131,6 +131,20 @@ void kbase_ctx_sched_release_ctx(struct kbase_context *kctx);
 void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx);
 
 /**
+ * kbase_ctx_sched_remove_ctx_nolock - Unassign previously assigned address space
+ * @kctx: The context to be removed
+ *
+ * The following lock must be held by the caller:
+ * kbase_device::mmu_hw_mutex
+ * kbase_device::hwaccess_lock
+ *
+ * This function should be called when a context is being destroyed. The
+ * context must no longer have any reference. If it has been assigned an
+ * address space before then the AS will be unprogrammed.
+ */
+void kbase_ctx_sched_remove_ctx_nolock(struct kbase_context *kctx);
+
+/**
  * kbase_ctx_sched_restore_all_as - Reprogram all address spaces
  * @kbdev: The device for which address spaces to be reprogrammed
  *

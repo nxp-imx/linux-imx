@@ -100,13 +100,12 @@ int ele_msg_send(struct se_if_device_ctx *dev_ctx,
 	 * carried in the message.
 	 */
 	if (header->size << 2 != tx_msg_sz) {
-		err = -EINVAL;
 		dev_err(priv->dev,
 			"%s: User buf hdr: 0x%x, sz mismatced with input-sz (%d != %d).",
 			dev_ctx->devname,
 			*(u32 *)header,
 			header->size << 2, tx_msg_sz);
-		goto exit;
+		return -EINVAL;
 	}
 
 	err = mbox_send_message(priv->tx_chan, tx_msg);
@@ -121,7 +120,6 @@ int ele_msg_send(struct se_if_device_ctx *dev_ctx,
 	se_dump_to_logfl(dev_ctx, SE_DUMP_MU_SND_BUFS, tx_msg_sz, tx_msg);
 #endif
 
-exit:
 	return err;
 }
 

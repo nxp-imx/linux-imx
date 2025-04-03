@@ -498,11 +498,14 @@ int vsi_v4l2_send_reschange(struct vsi_v4l2_ctx *ctx)
 	vsi_v4l2_update_decfmt(ctx);
 
 	memset((void *)&event, 0, sizeof(struct v4l2_event));
-	event.type = V4L2_EVENT_SOURCE_CHANGE,
-	event.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
+	event.type = V4L2_EVENT_SOURCE_CHANGE;
+	event.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (ctx->src_change == V4L2_EVENT_SRC_CH_COLORSPACE)
+		event.u.src_change.changes = V4L2_EVENT_SRC_CH_COLORSPACE;
 	v4l2_event_queue_fh(&ctx->fh, &event);
 	ctx->reschanged_need_notify = false;
 	ctx->reschange_notified = true;
+	ctx->src_change = 0;
 
 	if (ctx->need_capture_on) {
 		int ret;
@@ -548,6 +551,9 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 		pcfg->decparams_bkup.io_buffer.output_wstride = pmsg->params.dec_params.io_buffer.output_wstride;
 		pcfg->minbuf_4output_bkup = pmsg->params.dec_params.dec_info.dec_info.needed_dpb_nums;
 		pcfg->sizeimagedst_bkup = pmsg->params.dec_params.io_buffer.OutBufSize;
+		if (vsi_dec_updatevui(&pmsg->params.dec_params.dec_info.dec_info,
+				      &pcfg->decparams.dec_info.dec_info))
+			ctx->src_change |= V4L2_EVENT_SRC_CH_COLORSPACE;
 		set_bit(CTX_FLAG_SRCCHANGED_BIT, &ctx->flag);
 		if ((ctx->status == DEC_STATUS_DECODING || ctx->status == DEC_STATUS_DRAINING)
 			&& !list_empty(&ctx->output_que.done_list)) {
@@ -556,8 +562,6 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 			vsi_dec_update_reso(ctx);
 			vsi_v4l2_send_reschange(ctx);
 		}
-		if (pmsg->params.dec_params.dec_info.dec_info.colour_description_present_flag)
-			vsi_dec_updatevui(&pmsg->params.dec_params.dec_info.dec_info, &pcfg->decparams.dec_info.dec_info);
 		mutex_unlock(&ctx->ctxlock);
 	}
 	put_ctx(ctx);
@@ -831,8 +835,8 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 					info->ts_disp_first = ktime_get_raw();
 				info->ts_disp_last = ktime_get_raw();
 				info->display_frame_num++;
+				vbuf->sequence = ctx->cap_sequence++;
 			}
-			vbuf->sequence = ctx->cap_sequence++;
 			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 		} else {
 			v4l2_klog(LOGLVL_WARNING, "dstbuf %d is not active\n", outbufidx);

@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx91-11x11-evk.dts"
+
+/ {
+	sound-bt-sco {
+		status = "disabled";
+	};
+};
+
+&lpuart5 {
+	status = "disabled";
+};
+
+&pcal6524 {
+	m2-usb2-sel-hog {
+		gpio-hog;
+		gpios = <23 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+};
+
+&ptn5110_2 {
+	status = "disabled";
+};
+
+&sai1 {
+	status = "disabled";
+};
+
+&usbotg2 {
+	dr_mode = "host";
+	vbus-supply = <&reg_usdhc3_vmmc>;
+};
+
+&usdhc3 {
+	status = "disabled";
+};

@@ -37,6 +37,19 @@
 #define PCS_PROT_SFI			BIT(4)
 #define PCS_PROT_10G_SXGMII		BIT(6)
 
+#define IMX94_MISC_SOC_CONTROL		0x0
+#define  SEL_XPCS_1			BIT(1)
+#define   IMX94_XPCS_PORT_0		0x0
+#define   IMX94_XPCS_PORT_1		0x1
+
+#define IMX94_EXT_PIN_CONTROL		0x10
+#define  MAC2_MAC3_SEL			BIT(1)
+
+#define IMX94_CFG_LINK_PCS_PROT(a)	(0x14 + (a) * 4)
+#define IMX94_NETC_LINK_CFG(a)		(0x4c + (a) * 4)
+#define  NETC_LINK_CFG_MII_PROT		GENMASK(3, 0)
+#define  NETC_LINK_CFG_IO_VAR		GENMASK(19, 16)
+
 /* NETC privileged register block register */
 #define PRB_NETCRR			0x100
 #define  NETCRR_SR			BIT(0)
@@ -49,6 +62,7 @@
 /* NETC integrated endpoint register block register */
 #define IERB_EMDIOFAUXR			0x344
 #define IERB_T0FAUXR			0x444
+#define IERB_ETBCR(a)			(0x300c + 0x100 * (a))
 #define IERB_EFAUXR(a)			(0x3044 + 0x100 * (a))
 #define IERB_VFAUXR(a)			(0x4004 + 0x40 * (a))
 #define FAUXR_LDID			GENMASK(3, 0)
@@ -59,15 +73,28 @@
 #define IMX95_ENETC2_BUS_DEVFN		0x80
 #define IMX95_LINK_NUM			3
 
+#define IMX94_ENETC3_BUS_DEVFN		0x0
+#define IMX94_TIMER0_BUS_DEVFN		0x1
+#define IMX94_SWITCH_BUS_DEVFN		0x2
+#define IMX94_ENETC0_BUS_DEVFN		0x100
+#define IMX94_TIMER1_BUS_DEVFN		0x101
+#define IMX94_ENETC1_BUS_DEVFN		0x140
+#define IMX94_ENETC2_BUS_DEVFN		0x180
+#define IMX94_TIMER2_BUS_DEVFN		0x181
+#define IMX94_ENETC0_LINK		3
+#define IMX94_ENETC1_LINK		4
+#define IMX94_ENETC2_LINK		5
+#define IMX94_ENETC0_OFFSET		0
+#define IMX94_ENETC1_OFFSET		1
+#define IMX94_ENETC2_OFFSET		2
+#define IMX94_SWITCH_PORT2		2
+#define IMX94_SWITCH_CPU_PORT		3
+#define IMX94_TIMER0_ID			0
+#define IMX94_TIMER1_ID			1
+#define IMX94_TIMER2_ID			2
+
 /* Flags for different platforms */
 #define NETC_HAS_NETCMIX		BIT(0)
-
-struct netc_devinfo {
-	u32 flags;
-	int num_link; /* Internal links are not included */
-	int (*netcmix_init)(struct platform_device *pdev);
-	int (*ierb_init)(struct platform_device *pdev);
-};
 
 struct netc_blk_ctrl {
 	void __iomem *prb;
@@ -79,8 +106,14 @@ struct netc_blk_ctrl {
 	atomic_t wakeonlan_count;
 	struct platform_device *pdev;
 	struct dentry *debugfs_root;
+};
 
-	struct device *emdio;
+struct netc_devinfo {
+	u32 flags;
+	int num_link; /* Internal links are not included */
+	int (*netcmix_init)(struct platform_device *pdev);
+	int (*ierb_init)(struct platform_device *pdev);
+	void (*xpcs_port_init)(struct netc_blk_ctrl *priv, int port);
 };
 
 static struct netc_blk_ctrl *netc_bc;
@@ -202,6 +235,146 @@ err_out:
 	return err;
 }
 
+static int imx94_enetc_get_link_num(struct device_node *np)
+{
+	int bus_devfn;
+
+	bus_devfn = netc_of_pci_get_bus_devfn(np);
+	if (bus_devfn < 0)
+		return -EINVAL;
+
+	/* Parse ENETC link number */
+	switch (bus_devfn) {
+	case IMX94_ENETC0_BUS_DEVFN:
+		return IMX94_ENETC0_LINK;
+	case IMX94_ENETC1_BUS_DEVFN:
+		return IMX94_ENETC1_LINK;
+	case IMX94_ENETC2_BUS_DEVFN:
+		return IMX94_ENETC2_LINK;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int imx94_link_config(struct netc_blk_ctrl *priv,
+			     struct device_node *np, int link_id)
+{
+	phy_interface_t interface;
+	int mii_proto, err;
+	u32 val;
+
+	err = of_get_phy_mode(np, &interface);
+	if (err)
+		return err;
+
+	mii_proto = netc_get_link_mii_protocol(interface);
+	if (mii_proto < 0)
+		return -EINVAL;
+
+	val = mii_proto & NETC_LINK_CFG_MII_PROT;
+	if (mii_proto == MII_PROT_SERIAL) {
+		int pcs_proto = PCS_PROT_1G_SGMII;
+
+		if (pcs_proto == PHY_INTERFACE_MODE_2500BASEX)
+			pcs_proto = PCS_PROT_2500M_SGMII;
+
+		netc_reg_write(priv->netcmix, IMX94_CFG_LINK_PCS_PROT(link_id),
+			       pcs_proto);
+		val = u32_replace_bits(val, IO_VAR_16FF_16G_SERDES,
+				       NETC_LINK_CFG_IO_VAR);
+	}
+
+	netc_reg_write(priv->netcmix, IMX94_NETC_LINK_CFG(link_id), val);
+
+	if (link_id == IMX94_ENETC0_LINK) {
+		val = netc_reg_read(priv->netcmix, IMX94_EXT_PIN_CONTROL);
+		val |= MAC2_MAC3_SEL;
+		netc_reg_write(priv->netcmix, IMX94_EXT_PIN_CONTROL, val);
+	}
+
+	return 0;
+}
+
+static int imx94_enetc_link_config(struct netc_blk_ctrl *priv,
+				   struct device_node *np, bool *enetc0_en)
+{
+	int link_id;
+
+	link_id = imx94_enetc_get_link_num(np);
+	if (link_id < 0)
+		return -EINVAL;
+
+	if (link_id == IMX94_ENETC0_LINK)
+		*enetc0_en = true;
+
+	return imx94_link_config(priv, np, link_id);
+}
+
+static int imx94_switch_link_config(struct netc_blk_ctrl *priv,
+				    struct device_node *np, bool *swp2_en)
+{
+	struct device_node *ports;
+	int port_id, err = 0;
+
+	ports = of_get_child_by_name(np, "ports");
+	if (!ports)
+		ports = of_get_child_by_name(np, "ethernet-ports");
+	if (!ports)
+		return -ENODEV;
+
+	for_each_available_child_of_node_scoped(ports, child) {
+		if (of_property_read_u32(child, "reg", &port_id) < 0) {
+			err = -ENODEV;
+			goto end;
+		}
+
+		if (port_id == IMX94_SWITCH_CPU_PORT)
+			continue;
+
+		if (port_id == IMX94_SWITCH_PORT2)
+			*swp2_en = true;
+
+		err = imx94_link_config(priv, child, port_id);
+		if (err)
+			goto end;
+	}
+
+end:
+	of_node_put(ports);
+
+	return err;
+}
+
+static int imx94_netcmix_init(struct platform_device *pdev)
+{
+	struct netc_blk_ctrl *priv = platform_get_drvdata(pdev);
+	struct device_node *np = pdev->dev.of_node;
+	bool enetc0_en = false, swp2_en = false;
+	int err;
+
+	for_each_available_child_of_node_scoped(np, child) {
+		for_each_available_child_of_node_scoped(child, gchild) {
+			if (of_device_is_compatible(gchild, "pci1131,e101")) {
+				err = imx94_enetc_link_config(priv, gchild, &enetc0_en);
+				if (err)
+					return err;
+			} else if (of_device_is_compatible(gchild, "pci1131,eef2")) {
+				err = imx94_switch_link_config(priv, gchild, &swp2_en);
+				if (err)
+					return err;
+			}
+		}
+	}
+
+	if (enetc0_en && swp2_en) {
+		dev_err(&pdev->dev, "Cannot enable swp2 and enetc0 at the same time\n");
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static bool netc_ierb_is_locked(struct netc_blk_ctrl *priv)
 {
 	return !!(netc_reg_read(priv->prb, PRB_NETCRR) & NETCRR_LOCK);
@@ -257,6 +430,99 @@ static int imx95_ierb_init(struct platform_device *pdev)
 	return 0;
 }
 
+static int imx94_enetc_get_enetc_offset(struct device_node *np)
+{
+	int bus_devfn;
+
+	bus_devfn = netc_of_pci_get_bus_devfn(np);
+	if (bus_devfn < 0)
+		return -EINVAL;
+
+	/* Parse ENETC offset */
+	switch (bus_devfn) {
+	case IMX94_ENETC0_BUS_DEVFN:
+		return IMX94_ENETC0_OFFSET;
+	case IMX94_ENETC1_BUS_DEVFN:
+		return IMX94_ENETC1_OFFSET;
+	case IMX94_ENETC2_BUS_DEVFN:
+		return IMX94_ENETC2_OFFSET;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int imx94_enetc_get_timer_id(struct device_node *np)
+{
+	int bus_devfn;
+
+	bus_devfn = netc_of_pci_get_bus_devfn(np);
+	if (bus_devfn < 0)
+		return -EINVAL;
+
+	/* Parse ENETC PTP timer ID */
+	switch (bus_devfn) {
+	case IMX94_TIMER0_BUS_DEVFN:
+		return IMX94_TIMER0_ID;
+	case IMX94_TIMER1_BUS_DEVFN:
+		return IMX94_TIMER1_ID;
+	case IMX94_TIMER2_BUS_DEVFN:
+		return IMX94_TIMER2_ID;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int imx94_enetc_update_tid(struct netc_blk_ctrl *priv, struct device_node *pf_np)
+{
+	struct device_node *timer_np;
+	int offset, tid;
+
+	offset = imx94_enetc_get_enetc_offset(pf_np);
+	if (offset < 0) {
+		dev_err(&priv->pdev->dev, "Find unknown PF node.\n");
+		return offset;
+	}
+
+	timer_np = of_parse_phandle(pf_np, "nxp,ptp-timer", 0);
+	if (!timer_np) {
+		/*
+		 * If nxp,ptp-timer is not set, the first timer of the bus
+		 * where enetc is located will be used as the default timer.
+		 */
+		tid = IMX94_TIMER1_ID;
+		goto update_reg;
+	}
+
+	tid = imx94_enetc_get_timer_id(timer_np);
+	of_node_put(timer_np);
+	if (tid < 0) {
+		dev_err(&priv->pdev->dev, "Incorrect bus/devfn of ptp-timer.\n");
+		return tid;
+	}
+
+update_reg:
+	netc_reg_write(priv->ierb, IERB_ETBCR(offset), tid);
+
+	return 0;
+}
+
+static int imx94_ierb_init(struct platform_device *pdev)
+{
+	struct netc_blk_ctrl *priv = platform_get_drvdata(pdev);
+	struct device_node *blk_np = pdev->dev.of_node;
+	int ret = 0;
+
+	if (!blk_np)
+		return -ENODEV;
+
+	for_each_available_child_of_node_scoped(blk_np, bus_np)
+		for_each_available_child_of_node_scoped(bus_np, pf_np)
+			if (of_device_is_compatible(pf_np, "pci1131,e101"))
+				ret = imx94_enetc_update_tid(priv, pf_np);
+
+	return ret;
+}
+
 static int netc_ierb_init(struct platform_device *pdev)
 {
 	struct netc_blk_ctrl *priv = platform_get_drvdata(pdev);
@@ -288,36 +554,31 @@ static int netc_ierb_init(struct platform_device *pdev)
 	return 0;
 }
 
-void netc_emdio_supplier_register(struct device *emdio)
+static void imx94_netc_xpcs_port_init(struct netc_blk_ctrl *priv, int port)
 {
-	netc_bc->emdio = emdio;
-}
-EXPORT_SYMBOL_GPL(netc_emdio_supplier_register);
+	u32 val;
 
-int netc_check_emdio_state(void)
+	val = netc_reg_read(priv->netcmix, IMX94_MISC_SOC_CONTROL);
+	if (port == IMX94_XPCS_PORT_1)
+		val |= SEL_XPCS_1;
+	else
+		val &= ~SEL_XPCS_1;
+	netc_reg_write(priv->netcmix, IMX94_MISC_SOC_CONTROL, val);
+}
+
+void netc_xpcs_port_init(int port)
 {
-	if (!netc_bc->emdio)
-		return -EPROBE_DEFER;
+	struct netc_blk_ctrl *priv = netc_bc;
+	const struct netc_devinfo *devinfo;
 
-	if (IS_ERR(netc_bc->emdio))
-		return PTR_ERR(netc_bc->emdio);
+	if (!priv)
+		return;
+	devinfo = priv->devinfo;
 
-	return 0;
+	if (devinfo->xpcs_port_init)
+		devinfo->xpcs_port_init(priv, port);
 }
-EXPORT_SYMBOL_GPL(netc_check_emdio_state);
-
-int netc_emdio_consumer_register(struct device *consumer)
-{
-	struct device_link *link;
-
-	link = device_link_add(consumer, netc_bc->emdio, DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_AUTOREMOVE_SUPPLIER);
-	if (!link)
-		return -EINVAL;
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(netc_emdio_consumer_register);
+EXPORT_SYMBOL_GPL(netc_xpcs_port_init);
 
 void netc_ierb_enable_wakeonlan(void)
 {
@@ -424,8 +685,16 @@ static const struct netc_devinfo imx95_devinfo = {
 	.ierb_init = imx95_ierb_init,
 };
 
+static const struct netc_devinfo imx94_devinfo = {
+	.flags = NETC_HAS_NETCMIX,
+	.netcmix_init = imx94_netcmix_init,
+	.ierb_init = imx94_ierb_init,
+	.xpcs_port_init = imx94_netc_xpcs_port_init,
+};
+
 static const struct of_device_id netc_blk_ctrl_match[] = {
 	{ .compatible = "nxp,imx95-netc-blk-ctrl", .data = &imx95_devinfo },
+	{ .compatible = "nxp,imx94-netc-blk-ctrl", .data = &imx94_devinfo },
 	{},
 };
 MODULE_DEVICE_TABLE(of, netc_blk_ctrl_match);
@@ -439,11 +708,6 @@ static int netc_blk_ctrl_probe(struct platform_device *pdev)
 	struct netc_blk_ctrl *priv;
 	void __iomem *regs;
 	int err;
-
-	if (!node || !of_device_is_available(node)) {
-		dev_info(dev, "Device is disabled, skipping\n");
-		return -ENODEV;
-	}
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -617,10 +881,10 @@ static struct platform_driver netc_blk_ctrl_driver = {
 	.driver = {
 		.name = "nxp-netc-blk-ctrl",
 		.of_match_table = netc_blk_ctrl_match,
+		.pm = pm_ptr(&netc_blk_ctrl_pm_ops),
 	},
 	.probe = netc_blk_ctrl_probe,
 	.remove = netc_blk_ctrl_remove,
-	.driver.pm = &netc_blk_ctrl_pm_ops,
 };
 
 module_platform_driver(netc_blk_ctrl_driver);

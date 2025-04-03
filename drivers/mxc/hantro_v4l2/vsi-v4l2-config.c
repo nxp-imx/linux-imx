@@ -92,20 +92,20 @@ static s32 leveltbl_hevc[][3] = {
 	{VCENC_HEVC_LEVEL_6_2,	V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2,  240000000},
 };
 static s32 leveltbl_h264[][3] = {
-	{VCENC_H264_LEVEL_1,	V4L2_MPEG_VIDEO_H264_LEVEL_1_0, 175000},
-	{VCENC_H264_LEVEL_1_b,	V4L2_MPEG_VIDEO_H264_LEVEL_1B,   350000},
-	{VCENC_H264_LEVEL_1_1,	V4L2_MPEG_VIDEO_H264_LEVEL_1_1,  500000},
-	{VCENC_H264_LEVEL_1_2,	V4L2_MPEG_VIDEO_H264_LEVEL_1_2,  1000000},
-	{VCENC_H264_LEVEL_1_3,	V4L2_MPEG_VIDEO_H264_LEVEL_1_3,  2000000},
+	{VCENC_H264_LEVEL_1,	V4L2_MPEG_VIDEO_H264_LEVEL_1_0,  175000},	//64000
+	{VCENC_H264_LEVEL_1_b,	V4L2_MPEG_VIDEO_H264_LEVEL_1B,   350000},	//128000
+	{VCENC_H264_LEVEL_1_1,	V4L2_MPEG_VIDEO_H264_LEVEL_1_1,  500000},	//192000
+	{VCENC_H264_LEVEL_1_2,	V4L2_MPEG_VIDEO_H264_LEVEL_1_2,  1000000},	//384000
+	{VCENC_H264_LEVEL_1_3,	V4L2_MPEG_VIDEO_H264_LEVEL_1_3,  2000000},	//768000
 	{VCENC_H264_LEVEL_2,	V4L2_MPEG_VIDEO_H264_LEVEL_2_0,  2000000},
 	{VCENC_H264_LEVEL_2_1,	V4L2_MPEG_VIDEO_H264_LEVEL_2_1,  4000000},
 	{VCENC_H264_LEVEL_2_2,	V4L2_MPEG_VIDEO_H264_LEVEL_2_2,  4000000},
 	{VCENC_H264_LEVEL_3,	V4L2_MPEG_VIDEO_H264_LEVEL_3_0,  10000000},
 	{VCENC_H264_LEVEL_3_1,	V4L2_MPEG_VIDEO_H264_LEVEL_3_1,  14000000},
 	{VCENC_H264_LEVEL_3_2,	V4L2_MPEG_VIDEO_H264_LEVEL_3_2,  20000000},
-	{VCENC_H264_LEVEL_4,	V4L2_MPEG_VIDEO_H264_LEVEL_4_0,  25000000},
-	{VCENC_H264_LEVEL_4_1,	V4L2_MPEG_VIDEO_H264_LEVEL_4_1,  62500000},
-	{VCENC_H264_LEVEL_4_2,	V4L2_MPEG_VIDEO_H264_LEVEL_4_2,  62500000},
+	{VCENC_H264_LEVEL_4,	V4L2_MPEG_VIDEO_H264_LEVEL_4_0,  25000000},	//20000000
+	{VCENC_H264_LEVEL_4_1,	V4L2_MPEG_VIDEO_H264_LEVEL_4_1,  62500000},	//50000000
+	{VCENC_H264_LEVEL_4_2,	V4L2_MPEG_VIDEO_H264_LEVEL_4_2,  62500000},	//50000000
 	{VCENC_H264_LEVEL_5,	V4L2_MPEG_VIDEO_H264_LEVEL_5_0,  135000000},
 	{VCENC_H264_LEVEL_5_1,	V4L2_MPEG_VIDEO_H264_LEVEL_5_1,  240000000},
 	{VCENC_H264_LEVEL_5_2,	V4L2_MPEG_VIDEO_H264_LEVEL_5_2,  240000000},
@@ -280,14 +280,21 @@ void vsi_dec_getvui(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 		  pix->ycbcr_enc, pix->quantization);
 }
 
-void vsi_dec_updatevui(struct v4l2_daemon_dec_info *src, struct v4l2_daemon_dec_info *dst)
+int vsi_dec_updatevui(struct v4l2_daemon_dec_info *src, struct v4l2_daemon_dec_info *dst)
 {
+	int vui_change = 0;
+
 	v4l2_klog(LOGLVL_CONFIG, "%s:%d:%d:%d", __func__,
 		src->colour_primaries, src->transfer_characteristics, src->matrix_coefficients);
-	dst->colour_description_present_flag = 1;
-	dst->colour_primaries = src->colour_primaries;
-	dst->transfer_characteristics = src->transfer_characteristics;
-	dst->matrix_coefficients = src->matrix_coefficients;
+
+	VSI_TEST_SET(dst->colour_description_present_flag,
+		     src->colour_description_present_flag, vui_change);
+	VSI_TEST_SET(dst->colour_primaries, src->colour_primaries, vui_change);
+	VSI_TEST_SET(dst->transfer_characteristics, src->transfer_characteristics, vui_change);
+	VSI_TEST_SET(dst->matrix_coefficients, src->matrix_coefficients, vui_change);
+	VSI_TEST_SET(dst->video_range, src->video_range, vui_change);
+
+	return vui_change;
 }
 
 static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
@@ -394,6 +401,43 @@ int vsi_get_Level(struct vsi_v4l2_ctx *ctx, int mediatype, int dir, int level)
 		return (mediatype == 0 ? V4L2_MPEG_VIDEO_H264_LEVEL_1_0 :
 			V4L2_MPEG_VIDEO_HEVC_LEVEL_1);
 	return -EINVAL;
+}
+
+u32 vsi_get_bitrate(struct vsi_v4l2_ctx *ctx, u32 bitrate)
+{
+	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
+	struct v4l2_ctrl_config cfg;
+	int (*table)[3];
+	int max_level;
+	int i, size;
+
+	if (!isencoder(ctx))
+		return bitrate;
+
+	switch (pcfg->outfmt_fourcc) {
+	case V4L2_PIX_FMT_H264:
+		cfg.id = V4L2_CID_MPEG_VIDEO_H264_LEVEL;
+		table = leveltbl_h264;
+		size = ARRAY_SIZE(leveltbl_h264);
+		break;
+	case V4L2_PIX_FMT_HEVC:
+		cfg.id = V4L2_CID_MPEG_VIDEO_HEVC_LEVEL;
+		table = leveltbl_hevc;
+		size = ARRAY_SIZE(leveltbl_hevc);
+		break;
+	default:
+		return bitrate;
+	}
+	vsi_v4l2_update_ctrlcfg(&cfg);
+	max_level = cfg.max;
+
+	for (i = 0; i < size; i++) {
+		if (table[i][1] >= max_level)
+			return min_t(u32, bitrate, table[i][2]);
+		if (table[i][2] >= bitrate)
+			break;
+	}
+	return bitrate;
 }
 
 static struct vsi_video_fmt vsi_raw_fmt[] = {
@@ -1092,6 +1136,9 @@ struct vsi_video_fmt *vsi_enum_dec_format(int idx, int braw, struct vsi_v4l2_ctx
 				if ((outfmt == VSI_V4L2_DECOUT_DTRC ||
 					outfmt == VSI_V4L2_DECOUT_RFC) &&
 					ctx->mediacfg.decparams.dec_info.dec_info.bit_depth != 8)
+					continue;
+				if (inputformat != V4L2_DAEMON_CODEC_DEC_JPEG &&
+				    isJpegOnlyFmt(outfmt))
 					continue;
 			}
 			k++;
@@ -2249,6 +2296,12 @@ void vsi_v4l2_update_ctrlcfg(struct v4l2_ctrl_config *cfg)
 			cfg->max = V4L2_MPEG_VIDEO_HEVC_LEVEL_5_2;
 		else
 			cfg->max = V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1;
+		break;
+	case V4L2_CID_MPEG_VIDEO_BITRATE:
+		if (vsi_v4l2_hwconfig.enc_isH1)
+			cfg->max = 60000000;
+		else
+			cfg->max = 240000000;
 		break;
 	default:
 		break;

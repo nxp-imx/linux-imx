@@ -8,6 +8,8 @@
  */
 #include <linux/bitops.h>
 
+#define NXP_ENETC_PPM_DEV_ID		0xe110
+
 /**********************Station interface registers************************/
 #define ENETC4_SIBCAR		0x40
 #define ENETC4_SIMCAR		0x44
@@ -59,9 +61,7 @@
 #define  ECAPR2_NUM_RX_BDR	GENMASK(25, 16)
 
 #define ENETC4_PMR		0x10
-#define  PMR_SI0_EN		BIT(16)
-#define  PMR_SI1_EN		BIT(17)
-#define  PMR_SI2_EN		BIT(18)
+#define  PMR_SI_EN(a)		BIT((16 + (a)))
 
 /* Port Pause ON/OFF threshold register */
 #define ENETC4_PPAUONTR		0x108
@@ -227,7 +227,7 @@
 #define  PCAPR_TGS		BIT(28)
 #define  PCAPR_CBS		BIT(29)
 #define  PCAPR_NUM_TC		GENMASK(15, 12)
-#define  PCAPR_LINK_TYPE		BIT(4)
+#define  PCAPR_LINK_TYPE	BIT(4)
 
 #define ENETC4_PMCAPR		0x4004
 #define  PMCAPR_HD		BIT(8)
@@ -559,3 +559,28 @@
 
 /* Port external MDIO Base address, use to access off-chip PHY */
 #define ENETC4_EMDIO_BASE		0x5c00
+
+/**********************ENETC Pseudo MAC port registers************************/
+/* Port pseudo MAC receive octets counter (64-bit) */
+#define ENETC4_PPMROCR			0x5080
+
+/* Port pseudo MAC receive unicast frame counter register (64-bit) */
+#define ENETC4_PPMRUFCR			0x5088
+
+/* Port pseudo MAC receive multicast frame counter register (64-bit) */
+#define ENETC4_PPMRMFCR			0x5090
+
+/* Port pseudo MAC receive broadcast frame counter register (64-bit) */
+#define ENETC4_PPMRBFCR			0x5098
+
+/* Port pseudo MAC transmit octets counter (64-bit) */
+#define ENETC4_PPMTOCR			0x50c0
+
+/* Port pseudo MAC transmit unicast frame counter register (64-bit) */
+#define ENETC4_PPMTUFCR			0x50c8
+
+/* Port pseudo MAC transmit multicast frame counter register (64-bit) */
+#define ENETC4_PPMTMFCR			0x50d0
+
+/* Port pseudo MAC transmit broadcast frame counter register (64-bit) */
+#define ENETC4_PPMTBFCR			0x50d8

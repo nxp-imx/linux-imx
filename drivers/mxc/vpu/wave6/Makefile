@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 # Makefile for WAVE6 driver
 
+ccflags-y += -I$(src)
 wave6-objs += wave6-vpu.o \
 	wave6-vdi.o \
 	wave6-vpuapi.o \

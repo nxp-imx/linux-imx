@@ -206,6 +206,19 @@ void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
+	kbase_ctx_sched_remove_ctx_nolock(kctx);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	mutex_unlock(&kbdev->mmu_hw_mutex);
+}
+
+void kbase_ctx_sched_remove_ctx_nolock(struct kbase_context *kctx)
+{
+	struct kbase_device *const kbdev = kctx->kbdev;
+
+	lockdep_assert_held(&kbdev->mmu_hw_mutex);
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
 	WARN_ON(atomic_read(&kctx->refcount) != 0);
 
 	if ((kctx->as_nr >= 0) && (kctx->as_nr < BASE_MAX_NR_AS)) {
@@ -215,9 +228,6 @@ void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 		kbdev->as_to_kctx[kctx->as_nr] = NULL;
 		kctx->as_nr = KBASEP_AS_NR_INVALID;
 	}
-
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	mutex_unlock(&kbdev->mmu_hw_mutex);
 }
 
 void kbase_ctx_sched_restore_all_as(struct kbase_device *kbdev)

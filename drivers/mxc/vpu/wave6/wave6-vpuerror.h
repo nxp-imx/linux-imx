@@ -34,6 +34,7 @@
 #define WAVE6_SYSERR_WATCHDOG_TIMEOUT                                  0x00020000
 #define WAVE6_SYSERR_NOT_SUPPORT                                       0x00100000
 #define WAVE6_SYSERR_TEMP_SEC_BUF_OVERFLOW                             0x00200000
+#define WAVE6_SYSERR_NOT_SUPPORT_PROFILE                               0x00400000
 #define WAVE6_SYSERR_TIMEOUT_CODEC_FW                                  0x40000000
 #define WAVE6_SYSERR_FATAL_VPU_HANGUP                                  0xf0000000
 

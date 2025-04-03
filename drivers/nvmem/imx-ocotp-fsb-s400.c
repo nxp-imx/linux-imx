@@ -29,6 +29,7 @@ enum soc_type {
 	IMX8ULP,
 	IMX93,
 	IMX95,
+	IMX94,
 };
 
 struct bank_2_reg {
@@ -118,7 +119,7 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 	u32 *buf;
 	int err, i;
 
-	num_bytes = round_up(2048, 4);
+	num_bytes = round_up(fuse->config.size, 4);
 	buf = kzalloc(num_bytes, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
@@ -251,6 +252,31 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 
 		fuse->pfn = offset >> 12 & 0xf;
 		offset = offset & 0xfff;
+	} else if (fuse->hw->soc == IMX94) {
+		buf[0] = readl_relaxed(regs + 0 * 4) & 0xffff;
+		buf[7] = readl_relaxed(regs + 7 * 4) & 0xffff;
+		buf[9] = readl_relaxed(regs + 9 * 4) & 0xffff;
+		buf[10] = readl_relaxed(regs + 10 * 4) & 0xffff;
+		buf[11] = readl_relaxed(regs + 11 * 4) & 0xffff;
+		for (i = 12; i < 36; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+		buf[36] = readl_relaxed(regs + 36 * 4) & 0xffff;
+		buf[37] = readl_relaxed(regs + 37 * 4) & 0xffff;
+		for (i = 38; i < 52; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+
+		read_words_via_s400_api(&buf[59], 59, 1, fuse->se_data);
+
+		buf[525] = readl_relaxed(regs + 525 * 4) & 0xffff;
+		buf[526] = readl_relaxed(regs + 526 * 4) & 0xffff;
+		for (i = 528; i < 535; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+		for (i = 536; i < 816; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+		err = 0;
+
+		fuse->pfn = offset >> 12 & 0xf;
+		offset = offset & 0xfff;
 	}
 
 	memcpy(val, (u8 *)(buf) + offset, bytes);
@@ -284,6 +310,8 @@ static int fsb_s400_fuse_post_process(void *priv, const char *id, int index,
 		    fuse->hw->pf_mac_offset_list) {
 			if (fuse->pfn >= sizeof(fuse->hw->pf_mac_offset_list))
 				return -EINVAL;
+			if (is_zero_ether_addr(buf))
+				return 0;
 			eth_addr_add(buf,
 				     fuse->hw->pf_mac_offset_list[fuse->pfn]);
 		}
@@ -344,6 +372,8 @@ static int imx_fsb_s400_fuse_probe(struct platform_device *pdev)
 	fuse->config.id = NVMEM_DEVID_AUTO;
 	fuse->config.owner = THIS_MODULE;
 	fuse->config.size = 2048; /* 64 Banks */
+	if (of_device_is_compatible(pdev->dev.of_node, "fsl,imx94-ocotp"))
+		fuse->config.size = 3296; /* 103 Banks */
 	fuse->config.add_legacy_fixed_of_cells = true;
 	fuse->config.reg_read = fsb_s400_fuse_read;
 	if ((of_device_is_compatible(pdev->dev.of_node, "fsl,imx93-ocotp")) ||
@@ -386,7 +416,35 @@ static int imx_fsb_s400_fuse_probe(struct platform_device *pdev)
 	return 0;
 }
 
+/*
+ * i.MX95 uses the following mac address offset list:
+ * | No. | Mac address user  |
+ * |-----|-------------------|
+ * | 0   | enetc mac pf0     |
+ * | 1   | enetc mac vf0     |
+ * | 2   | enetc mac vf1     |
+ * | 3   | enetc mac pf1     |
+ * | 4   | enetc mac vf2     |
+ * | 5   | enetc mac vf3     |
+ * | 6   | enetc mac pf2     |
+ * | 7   | enetc mac vf4     |
+ * | 8   | enetc mac vf5     |
+ */
 static const u8 imx95_pf_mac_offset_list[] = { 0, 3, 6 };
+
+/*
+ * i.MX94 uses the following mac address offset list:
+ * | No.    | Module      | Mac address user             |
+ * |--------|-------------|------------------------------|
+ * | 0 ~ 1  | ethercat    | port0/port1                  |
+ * | 2      | netc switch | internal enetc3 mac OR swp0  |
+ * | 3 ~ 6  |             | enetc3 vf1~3 AND swp1        |
+ * | 7      | enetc mac   | enetc0 pf                    |
+ * | 8      |             | enetc1 pf                    |
+ * | 9      |             | enetc2 pf                    |
+ * | 10     | netc switch | swp2                         |
+ */
+static const u8 imx94_pf_mac_offset_list[] = { 2, 7, 8, 9 };
 
 static const struct imx_fsb_s400_hw imx8ulp_fsb_s400_hw = {
 	.soc = IMX8ULP,
@@ -442,10 +500,21 @@ static const struct imx_fsb_s400_hw imx95_fsb_s400_hw = {
 	.se_soc_id = SOC_ID_OF_IMX95,
 };
 
+static const struct imx_fsb_s400_hw imx94_fsb_s400_hw = {
+	.soc = IMX94,
+	.fsb_otp_shadow = 0x8000,
+	.oscca_fuse_read = false,
+	.reverse_mac_address = false,
+	.increase_mac_address = true,
+	.pf_mac_offset_list = imx94_pf_mac_offset_list,
+	.se_soc_id = SOC_ID_OF_IMX94,
+};
+
 static const struct of_device_id imx_fsb_s400_fuse_match[] = {
 	{ .compatible = "fsl,imx8ulp-ocotp", .data = &imx8ulp_fsb_s400_hw, },
 	{ .compatible = "fsl,imx93-ocotp", .data = &imx93_fsb_s400_hw, },
 	{ .compatible = "fsl,imx95-ocotp", .data = &imx95_fsb_s400_hw, },
+	{ .compatible = "fsl,imx94-ocotp", .data = &imx94_fsb_s400_hw, },
 	{},
 };
 

@@ -9,12 +9,8 @@ use crate::{
     mm::MmWithUser,
     types::{NotThreadSafe, Opaque},
 };
-use core::{
-    cmp::{Eq, PartialEq},
-    ffi::{c_int, c_long, c_uint},
-    ops::Deref,
-    ptr,
-};
+use crate::ffi::{c_int, c_long, c_uint};
+use core::{marker::PhantomData, ops::Deref, ptr};
 
 /// A sentinel value used for infinite timeouts.
 pub const MAX_SCHEDULE_TIMEOUT: c_long = c_long::MAX;

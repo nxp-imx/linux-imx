@@ -333,14 +333,14 @@ static void vdec_attach_frame_store(struct vpu_inst *inst, struct vb2_buffer *vb
 		}
 	}
 
-	new_slots = vzalloc(sizeof(*vdec->slots) * vdec->slot_count * 2);
+	new_slots = krealloc_array(vdec->slots, vdec->slot_count * 2,
+				   sizeof(*vdec->slots),
+				   GFP_KERNEL | __GFP_ZERO);
 	if (!new_slots) {
 		vpu_set_buffer_state(vbuf, VPU_BUF_STATE_ERROR);
 		return;
 	}
 
-	memcpy(new_slots, vdec->slots, sizeof(*vdec->slots) * vdec->slot_count);
-	vfree(vdec->slots);
 	vdec->slots = new_slots;
 	vdec->slot_count *= 2;
 
@@ -372,12 +372,16 @@ static void vdec_handle_resolution_change(struct vpu_inst *inst)
 	if (!vdec->source_change)
 		return;
 
+	if (inst->changes) {
+		vpu_notify_source_change(inst);
+		inst->changes = 0;
+	}
+
 	q = v4l2_m2m_get_dst_vq(inst->fh.m2m_ctx);
 	if (!list_empty(&q->done_list))
 		return;
 
 	vdec->source_change--;
-	vpu_notify_source_change(inst);
 	vpu_set_last_buffer_dequeued(inst, false);
 }
 
@@ -731,6 +735,7 @@ static int vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd
 	switch (cmd->cmd) {
 	case V4L2_DEC_CMD_START:
 		vdec_cmd_start(inst);
+		vb2_clear_last_buffer_dequeued(v4l2_m2m_get_dst_vq(inst->fh.m2m_ctx));
 		break;
 	case V4L2_DEC_CMD_STOP:
 		vdec_cmd_stop(inst);
@@ -956,10 +961,11 @@ static void vdec_stop_done(struct vpu_inst *inst)
 	vpu_inst_unlock(inst);
 }
 
-static bool vdec_check_source_change(struct vpu_inst *inst)
+static bool vdec_check_source_change(struct vpu_inst *inst, struct vpu_dec_codec_info *hdr)
 {
 	struct vdec_t *vdec = inst->priv;
 	const struct vpu_format *sibling;
+	u32 changes = 0;
 
 	if (!inst->fh.m2m_ctx)
 		return false;
@@ -968,29 +974,41 @@ static bool vdec_check_source_change(struct vpu_inst *inst)
 		return false;
 
 	sibling = vpu_helper_find_sibling(inst, inst->cap_format.type, inst->cap_format.pixfmt);
-	if (sibling && vdec->codec_info.pixfmt == sibling->pixfmt)
-		vdec->codec_info.pixfmt = inst->cap_format.pixfmt;
+	if (sibling && hdr->pixfmt == sibling->pixfmt)
+		hdr->pixfmt = inst->cap_format.pixfmt;
 
 	if (!vb2_is_streaming(v4l2_m2m_get_dst_vq(inst->fh.m2m_ctx)))
-		return true;
-	if (inst->cap_format.pixfmt != vdec->codec_info.pixfmt)
-		return true;
-	if (inst->cap_format.width != vdec->codec_info.decoded_width)
-		return true;
-	if (inst->cap_format.height != vdec->codec_info.decoded_height)
-		return true;
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->cap_format.pixfmt != hdr->pixfmt)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->cap_format.width != hdr->decoded_width)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->cap_format.height != hdr->decoded_height)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
 	if (vpu_get_num_buffers(inst, inst->cap_format.type) < inst->min_buffer_cap)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->crop.left != hdr->offset_x)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->crop.top != hdr->offset_y)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->crop.width != hdr->width)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (inst->crop.height != hdr->height)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+	if (!hdr->progressive)
+		changes |= V4L2_EVENT_SRC_CH_RESOLUTION;
+
+	if (vdec->seq_hdr_found &&
+	    (hdr->color_primaries != vdec->codec_info.color_primaries ||
+	     hdr->transfer_chars != vdec->codec_info.transfer_chars ||
+	     hdr->matrix_coeffs != vdec->codec_info.matrix_coeffs ||
+	     hdr->full_range != vdec->codec_info.full_range))
+		changes |= V4L2_EVENT_SRC_CH_COLORSPACE;
+
+	if (changes) {
+		inst->changes |= changes;
 		return true;
-	if (inst->crop.left != vdec->codec_info.offset_x)
-		return true;
-	if (inst->crop.top != vdec->codec_info.offset_y)
-		return true;
-	if (inst->crop.width != vdec->codec_info.width)
-		return true;
-	if (inst->crop.height != vdec->codec_info.height)
-		return true;
-	if (!vdec->codec_info.progressive)
-		return true;
+	}
 
 	return false;
 }
@@ -1312,20 +1330,25 @@ static void vdec_event_seq_hdr(struct vpu_inst *inst, struct vpu_dec_codec_info 
 	struct vdec_t *vdec = inst->priv;
 
 	vpu_inst_lock(inst);
-	memcpy(&vdec->codec_info, hdr, sizeof(vdec->codec_info));
 
-	vpu_trace(inst->dev, "[%d] %d x %d, crop : (%d, %d) %d x %d, %d, %d\n",
+	vpu_trace(inst->dev,
+		  "[%d] %d x %d, crop : (%d, %d) %d x %d, %d, %d, colorspace: %d, %d, %d, %d\n",
 		  inst->id,
-		  vdec->codec_info.decoded_width,
-		  vdec->codec_info.decoded_height,
-		  vdec->codec_info.offset_x,
-		  vdec->codec_info.offset_y,
-		  vdec->codec_info.width,
-		  vdec->codec_info.height,
+		  hdr->decoded_width,
+		  hdr->decoded_height,
+		  hdr->offset_x,
+		  hdr->offset_y,
+		  hdr->width,
+		  hdr->height,
 		  hdr->num_ref_frms,
-		  hdr->num_dpb_frms);
+		  hdr->num_dpb_frms,
+		  hdr->color_primaries,
+		  hdr->transfer_chars,
+		  hdr->matrix_coeffs,
+		  hdr->full_range);
 	inst->min_buffer_cap = hdr->num_ref_frms + hdr->num_dpb_frms;
-	vdec->is_source_changed = vdec_check_source_change(inst);
+	vdec->is_source_changed = vdec_check_source_change(inst, hdr);
+	memcpy(&vdec->codec_info, hdr, sizeof(vdec->codec_info));
 	vdec_init_fmt(inst);
 	vdec_init_crop(inst);
 	vdec_init_mbi(inst);
@@ -1353,7 +1376,12 @@ static void vdec_event_resolution_change(struct vpu_inst *inst)
 {
 	struct vdec_t *vdec = inst->priv;
 
-	vpu_trace(inst->dev, "[%d]\n", inst->id);
+	vpu_trace(inst->dev, "[%d] input : %d, decoded : %d, display : %d, sequence : %d\n",
+		  inst->id,
+		  vdec->params.frame_count,
+		  vdec->decoded_frame_count,
+		  vdec->display_frame_count,
+		  vdec->sequence);
 	vpu_inst_lock(inst);
 	vdec->seq_tag = vdec->codec_info.tag;
 	vdec_clear_fs(&vdec->mbi);
@@ -1626,7 +1654,7 @@ static void vdec_cleanup(struct vpu_inst *inst)
 
 	vdec = inst->priv;
 	if (vdec) {
-		vfree(vdec->slots);
+		kfree(vdec->slots);
 		vdec->slots = NULL;
 		vdec->slot_count = 0;
 	}
@@ -1954,7 +1982,9 @@ static int vdec_open(struct file *file)
 		return -ENOMEM;
 	}
 
-	vdec->slots = vzalloc(sizeof(*vdec->slots) * VDEC_SLOT_CNT_DFT);
+	vdec->slots = kmalloc_array(VDEC_SLOT_CNT_DFT,
+				    sizeof(*vdec->slots),
+				    GFP_KERNEL | __GFP_ZERO);
 	if (!vdec->slots) {
 		vfree(vdec);
 		vfree(inst);

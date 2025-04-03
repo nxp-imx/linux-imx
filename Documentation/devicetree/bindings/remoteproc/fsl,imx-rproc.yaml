@@ -29,6 +29,8 @@ properties:
       - fsl,imx8ulp-cm33
       - fsl,imx93-cm33
       - fsl,imx95-cm7
+      - fsl,imx94-cm7
+      - fsl,imx94-cm33s
 
   clocks:
     maxItems: 1

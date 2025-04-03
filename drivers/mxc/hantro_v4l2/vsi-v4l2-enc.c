@@ -846,6 +846,12 @@ static void vsi_enc_buf_queue(struct vb2_buffer *vb)
 		list_add_tail(&vsibuf->list, &ctx->input_list);
 		ctx->performance.input_buf_num++;
 	}
+	if (test_bit(CTX_FLAG_CONFIGUPDATE_BIT, &ctx->flag)) {
+		u32 bitrate = ctx->mediacfg.encparams.general.bitPerSecond;
+
+		ctx->mediacfg.encparams.general.bitPerSecond = vsi_get_bitrate(ctx, bitrate);
+	}
+
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_BUF_RDY, vb);
 }
 
@@ -1200,7 +1206,7 @@ static struct v4l2_ctrl_config vsi_v4l2_encctrl_defs[] = {
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE,
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.min = 10000,
-		.max = 288000000,
+		.max = 240000000,			//update in vsi_v4l2_update_ctrlcfg()
 		.step = 1,
 		.def = 2097152,
 	},
@@ -1236,14 +1242,14 @@ static struct v4l2_ctrl_config vsi_v4l2_encctrl_defs[] = {
 		.id = V4L2_CID_MPEG_VIDEO_H264_LEVEL,
 		.type = V4L2_CTRL_TYPE_MENU,
 		.min = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
-		.max = V4L2_MPEG_VIDEO_H264_LEVEL_5_2,
+		.max = V4L2_MPEG_VIDEO_H264_LEVEL_5_2,	//update in vsi_v4l2_update_ctrlcfg()
 		.def = V4L2_MPEG_VIDEO_H264_LEVEL_5_0,
 	},
 	{
 		.id = V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
 		.type = V4L2_CTRL_TYPE_MENU,
 		.min = V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
-		.max = V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1,
+		.max = V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1,	//update in vsi_v4l2_update_ctrlcfg()
 		.def = V4L2_MPEG_VIDEO_HEVC_LEVEL_5,
 	},
 	{

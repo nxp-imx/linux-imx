@@ -1423,6 +1423,8 @@ err_i2c_unregister_edid:
 	i2c_unregister_device(adv7511->i2c_edid);
 uninit_regulators:
 	adv7511_uninit_regulators(adv7511);
+err_of_node_put:
+	of_node_put(adv7511->host_node);
 	if (ret == -EPROBE_DEFER)
 		return ret;
 
@@ -1461,8 +1463,6 @@ uninit_regulators:
 #else
 	of_node_set_flag(endpoint, OF_DETACHED);
 #endif
-err_of_node_put:
-	of_node_put(adv7511->host_node);
 
 	return ret;
 }

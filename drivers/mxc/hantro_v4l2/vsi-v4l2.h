@@ -46,6 +46,15 @@
 #define VSI_V4L2_MAX_ROI_REGIONS_H1		2
 #define VSI_V4L2_MAX_IPCM_REGIONS			2
 
+#define VSI_TEST_SET(tgt, newval, change)		\
+	do { \
+		typeof(newval) _newval = (newval); \
+		if ((tgt) != (_newval)) { \
+			(tgt) = (_newval); \
+			(change) = 1; \
+		} \
+	} while (0)
+
 /******************	communication with v4l2 driver. ***********/
 
 struct vsi_v4l2_dev_info {

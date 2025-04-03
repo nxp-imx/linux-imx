@@ -236,8 +236,10 @@ int neutron_firmw_reload(struct neutron_device *ndev, struct neutron_buffer *buf
 	}
 
 	ret = rproc->ops->stop(rproc);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "could not stop neutron\n");
+		return ret;
+	}
 
 	ret = neutron_rproc_elf_load(rproc, buf->firmware_p, data_ddr, 0x1);
 	if (ret)

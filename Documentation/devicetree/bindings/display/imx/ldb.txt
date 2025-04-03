@@ -11,7 +11,7 @@ Required properties:
  - #size-cells : should be <0>
  - compatible : should be "fsl,imx53-ldb" or "fsl,imx6q-ldb" or
                 "fsl,imx8qm-ldb" or "fsl,imx8qxp-ldb" or "fsl,imx8mp-ldb" or
-                "fsl,imx93-ldb".
+                "fsl,imx93-ldb-nxp".
                 All LDB versions are similar.
                 i.MX6q/dl has an additional multiplexer in the front to select
                 any of the two or four IPU display interfaces as input for each

@@ -27,10 +27,8 @@ struct wave6_vpu_entity {
 	bool booted;
 };
 
-int wave6_convert_endian(unsigned int endian);
-void wave6_swap_endian(u8 *data, int len, int endian);
 int wave6_alloc_dma(struct device *dev, struct vpu_buf *vb);
-int wave6_write_dma(struct vpu_buf *vb, size_t offset, u8 *data, int len, int endian);
+int wave6_write_dma(struct vpu_buf *vb, size_t offset, u8 *data, int len);
 void wave6_free_dma(struct vpu_buf *vb);
 int wave6_vpu_ctrl_resume_and_get(struct device *dev, struct wave6_vpu_entity *entity);
 void wave6_vpu_ctrl_put_sync(struct device *dev, struct wave6_vpu_entity *entity);

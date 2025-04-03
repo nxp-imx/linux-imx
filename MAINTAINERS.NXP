@@ -969,6 +969,7 @@ F: drivers/soc/fsl/rcpm.c
 
 pxp
 M: G.n. Zhou <guoniu.zhou@nxp.com>
+F: Documentation/devicetree/bindings/dma/fsl,imx-pxp-dma.yaml
 F: drivers/dma/pxp/
 F: drivers/media/platform/mxc/output/mxc_pxp_v4l2.c
 F: drivers/media/platform/mxc/output/mxc_pxp_v4l2.h

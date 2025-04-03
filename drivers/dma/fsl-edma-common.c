@@ -761,6 +761,8 @@ struct dma_async_tx_descriptor *fsl_edma_prep_memcpy(struct dma_chan *chan,
 {
 	struct fsl_edma_chan *fsl_chan = to_fsl_edma_chan(chan);
 	struct fsl_edma_desc *fsl_desc;
+	u32 bus_width = fsl_chan->edma->dma_coherent ?
+			DMA_SLAVE_BUSWIDTH_64_BYTES : DMA_SLAVE_BUSWIDTH_32_BYTES;
 
 	fsl_desc = fsl_edma_alloc_desc(fsl_chan, 1);
 	if (!fsl_desc)
@@ -773,8 +775,8 @@ struct dma_async_tx_descriptor *fsl_edma_prep_memcpy(struct dma_chan *chan,
 
 	/* To match with copy_align and max_seg_size so 1 tcd is enough */
 	fsl_edma_fill_tcd(fsl_chan, fsl_desc->tcd[0].vtcd, dma_src, dma_dst,
-			fsl_edma_get_tcd_attr(DMA_SLAVE_BUSWIDTH_32_BYTES),
-			32, len, 0, 1, 1, 32, 0, true, true, false);
+			  fsl_edma_get_tcd_attr(bus_width), bus_width, len,
+			  0, 1, 1, bus_width, 0, true, true, false);
 
 	return vchan_tx_prep(&fsl_chan->vchan, &fsl_desc->vdesc, flags);
 }
@@ -824,6 +826,12 @@ int fsl_edma_alloc_chan_resources(struct dma_chan *chan)
 
 	if (fsl_edma_drvflags(fsl_chan) & FSL_EDMA_DRV_HAS_PD)
 		pm_runtime_get_sync(fsl_chan->pd_dev);
+
+	/* Configuring the write-allocate, read-allocate, cacheable and bufferable
+	 * can improve data transmission performance.
+	 */
+	if (fsl_chan->edma->dma_coherent)
+		edma_writel_chreg(fsl_chan, EDMA_CH_MATTR_RCACHE | EDMA_CH_MATTR_WCACHE, ch_mattr);
 
 	fsl_chan->tcd_pool = dma_pool_create("tcd_pool", chan->device->dev,
 				fsl_edma_drvflags(fsl_chan) & FSL_EDMA_DRV_TCD64 ?

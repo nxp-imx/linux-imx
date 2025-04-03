@@ -398,8 +398,16 @@
 				reg = <0x19>;
 			};
 
+			scmi_lmm: protocol@80 {
+				reg = <0x80>;
+			};
+
 			scmi_bbm: protocol@81 {
 				reg = <0x81>;
+			};
+
+			scmi_cpu: protocol@82 {
+				reg = <0x82>;
 			};
 
 			scmi_misc: protocol@84 {
@@ -2633,7 +2641,7 @@
 				     <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&scmi_clk IMX95_CLK_HSIO>,
 				 <&scmi_clk IMX95_CLK_32K>;
-			clock-names = "usb1_ctrl_root_clk", "usb_wakeup_clk";
+			clock-names = "usb_ctrl_root", "usb_wakeup";
 			power-domains = <&scmi_devpd IMX95_PD_HSIO_TOP>;
 			phys = <&usbphynop>;
 			fsl,usbmisc = <&usbmisc 0>;
@@ -2669,6 +2677,7 @@
 			#size-cells = <2>;
 			device_type = "pci";
 			linux,pci-domain = <0>;
+			/* Dev id(BIT[7:6)] 0x00,stream id(BIT[5:0]) 0x10~0x17 for pci0 */
 			msi-map = <0x0 &its 0x10 0x1>,
 				  <0x100 &its 0x11 0x7>;
 			msi-map-mask = <0x1ff>; /* Suppose only 1 physic device connect */
@@ -2746,6 +2755,10 @@
 			#size-cells = <2>;
 			device_type = "pci";
 			linux,pci-domain = <1>;
+			/* Dev id(BIT[7:6)] 0x10,stream id(BIT[5:0]) 0x18~0x1F for pci1 */
+			msi-map = <0x0 &its 0x98 0x1>,
+				  <0x100 &its 0x99 0x7>;
+			msi-map-mask = <0x1ff>; /* Suppose only 1 physic device connect */
 			bus-range = <0x00 0xff>;
 			num-lanes = <1>;
 			num-viewport = <8>;
