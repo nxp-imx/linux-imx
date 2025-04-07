@@ -21,6 +21,57 @@ struct gunyah_vm;
 int __must_check gunyah_vm_get(struct gunyah_vm *ghvm);
 void gunyah_vm_put(struct gunyah_vm *ghvm);
 
+/**
+ * struct gunyah_auth_vm_mgr_ops - Auth VM Mgr helper ops
+ * auth_vm_mgr driver will add the specific ops to setup the VM before
+ * the VM starts
+ * @pre_alloc_vmid: QTVMs have predetermined vmids. This callback can be
+ *              used by the auth vm mgr to request RM to assign the
+ *              same vmid for the VM. (Optional)
+ * @pre_vm_configure: Fill in the arguments of VM_CONFIGURE RM call. Most of
+ *                    the auth vm mgrs would need this, as different AUTH has
+ *                    a different layout of image or metadata or dtb offsets.
+ * @vm_authenticate: Callback to make an RM call if it is a qtvm. (Optional)
+ * @pre_vm_init: Callback before RM sets up all the objects/resources
+ *               needed by the VM. For ex, this would be when you can
+ *               choose to setup if you want demand paged VM or not. (Optional)
+ * @pre_vm_start: Callback for any setup before VM start where client
+ *                drivers can share/lend memory. (Optional)
+ * @pre_vm_reset: Callback for any cleanup before VM reset. All resources
+ *                tracked by RM will be cleaned at this stage (Optional)
+ * @post_vm_reset: Callback for any cleanup after VM reset (Optional)
+ * @start_fail: Needed when roll back is needed before auth_mgr can
+ *           clean up at a later stage.
+ **/
+struct gunyah_auth_vm_mgr_ops {
+	u16 (*pre_alloc_vmid)(struct gunyah_vm *ghvm);
+	int (*pre_vm_configure)(struct gunyah_vm *ghvm);
+	int (*vm_authenticate)(struct gunyah_vm *ghvm);
+	int (*pre_vm_init)(struct gunyah_vm *ghvm);
+	int (*pre_vm_start)(struct gunyah_vm *ghvm);
+	int (*pre_vm_reset)(struct gunyah_vm *ghvm);
+	int (*post_vm_reset)(struct gunyah_vm *ghvm);
+	void (*vm_start_fail)(struct gunyah_vm *ghvm);
+};
+
+/**
+ * struct gunyah_auth_vm - Represents an authentication type handler
+ * @type: value from &enum gunyah_auth_type
+ * @name: friendly name for debug purposes
+ * @mod: owner of the auth type
+ * @vm_attach: attach ops/private_data with the VM.
+ * @vm_detach: detach ops/private_data with the VM.
+ */
+struct gunyah_auth_vm_mgr {
+	u32 type;
+	const char *name;
+	struct module *mod;
+	long (*vm_attach)(struct gunyah_vm *ghvm, struct gunyah_auth_desc *d);
+	void (*vm_detach)(struct gunyah_vm *ghvm);
+};
+int gunyah_auth_vm_mgr_register(struct gunyah_auth_vm_mgr *auth_vm);
+void gunyah_auth_vm_mgr_unregister(struct gunyah_auth_vm_mgr *auth_vm);
+
 struct gunyah_vm_function_instance;
 /**
  * struct gunyah_vm_function - Represents a function type
@@ -363,6 +414,18 @@ enum gunyah_api_feature {
 
 bool arch_is_gunyah_guest(void);
 
+enum gunyah_info_owner {
+	/* clang-format off */
+	GUNYAH_INFO_OWNER_INVALID	= 0,
+	GUNYAH_INFO_OWNER_HYP		= 1,
+	GUNYAH_INFO_OWNER_ROOTVM	= 2,
+	GUNYAH_INFO_OWNER_RM		= 3,
+	GUNYAH_INFO_OWNER_QCRM		= 16,
+	/* clang-format on */
+};
+
+void *gunyah_get_info(u16 owner, u16 id, size_t *size);
+
 #define GUNYAH_API_V1 1
 
 /* Other bits reserved for future use and will be zero */
@@ -479,5 +542,13 @@ enum {
 enum gunyah_error
 gunyah_hypercall_vcpu_run(u64 capid, unsigned long *resume_data,
 			  struct gunyah_hypercall_vcpu_run_resp *resp);
+
+#define GUNYAH_ADDRSPC_MODIFY_FLAG_UNLOCK_BIT		0
+#define GUNYAH_ADDRSPC_MODIFY_FLAG_SANITIZE_BIT		1
+enum gunyah_error
+gunyah_hypercall_addrspc_modify_pages(u64 capid, u64 addr, u64 size, u64 flags);
+
+enum gunyah_error
+gunyah_hypercall_addrspace_find_info_area(unsigned long *ipa, unsigned long *size);
 
 #endif

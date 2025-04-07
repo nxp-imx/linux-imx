@@ -34,11 +34,28 @@
 #include "dma-buf-sysfs-stats.h"
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-DEFINE_MUTEX(debugfs_list_mutex);
-EXPORT_SYMBOL_NS_GPL(debugfs_list_mutex, DMA_BUF);
+static DEFINE_MUTEX(debugfs_list_mutex);
+static LIST_HEAD(debugfs_list);
 
-LIST_HEAD(debugfs_list);
-EXPORT_SYMBOL_NS_GPL(debugfs_list, DMA_BUF);
+int get_dmabuf_debugfs_data(int (*fn)(const struct dma_buf *, void *),
+			void *private)
+{
+	int ret;
+	struct dma_buf *dmabuf;
+
+	mutex_lock(&debugfs_list_mutex);
+
+	list_for_each_entry(dmabuf, &debugfs_list, list_node) {
+		ret = fn(dmabuf, private);
+		if (ret)
+			break;
+	}
+
+	mutex_unlock(&debugfs_list_mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_NS_GPL(get_dmabuf_debugfs_data, DMA_BUF);
 
 static void __dma_buf_debugfs_list_add(struct dma_buf *dmabuf)
 {
@@ -57,6 +74,13 @@ static void __dma_buf_debugfs_list_del(struct dma_buf *dmabuf)
 	mutex_unlock(&debugfs_list_mutex);
 }
 #else
+int get_dmabuf_debugfs_data(int (*fn)(const struct dma_buf *, void *),
+			void *private)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL_NS_GPL(get_dmabuf_debugfs_data, DMA_BUF);
+
 static void __dma_buf_debugfs_list_add(struct dma_buf *dmabuf)
 {
 }

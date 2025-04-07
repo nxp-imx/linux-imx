@@ -313,6 +313,7 @@ struct kmem_cache {
 #endif
 
 	struct kmem_cache_node *node[MAX_NUMNODES];
+	ANDROID_OEM_DATA(1);
 };
 
 #if defined(CONFIG_SYSFS) && !defined(CONFIG_SLUB_TINY)

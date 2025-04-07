@@ -944,6 +944,7 @@
   flow_rule_match_basic
   flow_rule_match_eth_addrs
   flow_rule_match_ipv4_addrs
+  flow_rule_match_ipv6_addrs
   flow_rule_match_ports
   flow_rule_match_vlan
   flush_delayed_work

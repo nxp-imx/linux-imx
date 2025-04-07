@@ -1,5 +1,6 @@
 [abi_symbol_list]
   address_space_init_once
+  alarm_start
   bio_add_page
   bio_associate_blkg
   bio_put
@@ -11,6 +12,7 @@
   blk_start_plug
   __break_lease
   cgroup_add_legacy_cftypes
+  clk_hw_init_rate_request
   config_item_init_type_name
   console_printk
   contpte_ptep_test_and_clear_young
@@ -26,6 +28,7 @@
   device_remove_bin_file
   devres_destroy
   dev_get_by_index_rcu
+  devm_led_classdev_unregister
   dget_parent
   d_invalidate
   down_write_killable
@@ -50,6 +53,21 @@
   generic_delete_inode
   __generic_file_fsync
   get_wchan
+  gether_cleanup
+  gether_connect
+  gether_disconnect
+  gether_get_dev_addr
+  gether_get_host_addr
+  gether_get_host_addr_u8
+  gether_get_ifname
+  gether_get_qmult
+  gether_register_netdev
+  gether_set_dev_addr
+  gether_set_gadget
+  gether_set_host_addr
+  gether_set_ifname
+  gether_set_qmult
+  gether_setup_name_default
   gnet_stats_add_queue
   gnet_stats_copy_basic
   gnet_stats_copy_queue
@@ -75,6 +93,7 @@
   is_dma_buf_file
   iterate_dir
   jiffies_64_to_clock_t
+  jiffies64_to_nsecs
   kick_process
   ktime_get_coarse_real_ts64
   ktime_get_real_ts64
@@ -114,6 +133,7 @@
   of_css
   override_creds
   path_get
+  param_get_ulong
   pfifo_qdisc_ops
   pm_get_active_wakeup_sources
   platform_device_add
@@ -121,6 +141,7 @@
   platform_device_put
   platform_driver_unregister
   prepare_creds
+  prepare_kernel_cred
   prepare_to_wait_exclusive
   proc_symlink
   psched_ratecfg_precompute
@@ -134,8 +155,10 @@
   qdisc_watchdog_cancel
   qdisc_watchdog_init
   qdisc_watchdog_schedule_range_ns
+  __qdisc_calculate_pkt_len
   radix_tree_lookup_slot
   radix_tree_replace_slot
+  _raw_read_trylock
   _raw_write_trylock
   reciprocal_value
   register_tcf_proto_ops
@@ -181,14 +204,19 @@
   tcp_reno_undo_cwnd
   touch_atime
   __traceiter_android_vh_account_task_time
+  __traceiter_android_rvh_check_preempt_wakeup_fair
   __traceiter_android_rvh_post_init_entity_util_avg
+  __traceiter_android_rvh_place_entity
   __traceiter_android_rvh_set_cpus_allowed_comm
+  __traceiter_android_rvh_try_to_wake_up_success
   __traceiter_android_vh_adjust_alloc_flags
   __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alloc_pages_reclaim_bypass
   __traceiter_android_vh_alloc_pages_failure_bypass
   __traceiter_android_vh_alloc_oem_binder_struct
+  __traceiter_android_vh_alter_futex_plist_add
   __traceiter_android_vh_binder_buffer_release
+  __traceiter_android_vh_binder_check_special_work
   __traceiter_android_vh_binder_free_proc
   __traceiter_android_vh_binder_has_proc_work_ilocked
   __traceiter_android_vh_binder_has_special_work_ilocked
@@ -206,6 +234,8 @@
   __traceiter_android_vh_binder_trans
   __traceiter_android_vh_binder_transaction_received
   __traceiter_android_vh_binder_wait_for_work
+  __traceiter_android_vh_cpufreq_fast_switch
+  __traceiter_android_vh_exit_check
   __traceiter_android_vh_task_should_scx
   __traceiter_android_vh_scx_ops_consider_migration
   __traceiter_android_vh_scx_fix_prev_slice
@@ -219,6 +249,7 @@
   __traceiter_android_vh_cpu_cgroup_css_alloc_early
   __traceiter_android_vh_cpu_cgroup_css_free
   __traceiter_android_vh_cpufreq_acct_update_power
+  __traceiter_android_vh_customize_alloc_gfp
   __traceiter_android_vh_do_futex
   __traceiter_android_vh_do_send_sig_info
   __traceiter_android_vh_do_shrink_slab
@@ -270,6 +301,7 @@
   __traceiter_android_vh_save_track_hash
   __traceiter_android_vh_sched_move_task
   __traceiter_android_vh_sched_setaffinity_early
+  __traceiter_android_vh_tick_nohz_idle_stop_tick
   __traceiter_android_vh_should_alloc_pages_retry
   __traceiter_android_vh_show_stack_hash
   __traceiter_android_vh_shrink_slab_bypass
@@ -294,6 +326,7 @@
   __traceiter_netif_rx
   __traceiter_mm_vmscan_kswapd_wake
   __traceiter_sched_stat_blocked
+  __traceiter_sched_stat_iowait
   __traceiter_sched_stat_runtime
   __traceiter_sched_stat_sleep
   __traceiter_sched_stat_wait
@@ -302,14 +335,19 @@
   __traceiter_android_vh_binder_alloc_new_buf_locked
   __traceiter_android_vh_copy_process
   __tracepoint_android_vh_account_task_time
+  __tracepoint_android_rvh_check_preempt_wakeup_fair
+  __tracepoint_android_rvh_place_entity
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_set_cpus_allowed_comm
+  __tracepoint_android_rvh_try_to_wake_up_success
   __tracepoint_android_vh_adjust_alloc_flags
   __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alloc_pages_reclaim_bypass
   __tracepoint_android_vh_alloc_pages_failure_bypass
   __tracepoint_android_vh_alloc_oem_binder_struct
+  __tracepoint_android_vh_alter_futex_plist_add
   __tracepoint_android_vh_binder_buffer_release
+  __tracepoint_android_vh_binder_check_special_work
   __tracepoint_android_vh_binder_free_proc
   __tracepoint_android_vh_binder_has_proc_work_ilocked
   __tracepoint_android_vh_binder_has_special_work_ilocked
@@ -327,6 +365,8 @@
   __tracepoint_android_vh_binder_trans
   __tracepoint_android_vh_binder_transaction_received
   __tracepoint_android_vh_binder_wait_for_work
+  __tracepoint_android_vh_cpufreq_fast_switch
+  __tracepoint_android_vh_exit_check
   __tracepoint_android_vh_task_should_scx
   __tracepoint_android_vh_scx_ops_consider_migration
   __tracepoint_android_vh_scx_fix_prev_slice
@@ -340,6 +380,7 @@
   __tracepoint_android_vh_cpu_cgroup_css_alloc_early
   __tracepoint_android_vh_cpu_cgroup_css_free
   __tracepoint_android_vh_cpufreq_acct_update_power
+  __tracepoint_android_vh_customize_alloc_gfp
   __tracepoint_android_vh_do_futex
   __tracepoint_android_vh_do_send_sig_info
   __tracepoint_android_vh_do_shrink_slab
@@ -391,6 +432,7 @@
   __tracepoint_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_sched_move_task
   __tracepoint_android_vh_sched_setaffinity_early
+  __tracepoint_android_vh_tick_nohz_idle_stop_tick
   __tracepoint_android_vh_should_alloc_pages_retry
   __tracepoint_android_vh_show_stack_hash
   __tracepoint_android_vh_shrink_slab_bypass
@@ -415,6 +457,7 @@
   __tracepoint_netif_rx
   __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_sched_stat_blocked
+  __tracepoint_sched_stat_iowait
   __tracepoint_sched_stat_runtime
   __tracepoint_sched_stat_sleep
   __tracepoint_sched_stat_wait

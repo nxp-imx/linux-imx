@@ -629,8 +629,8 @@ struct dma_buf_export_info {
 };
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-extern struct list_head debugfs_list;
-extern struct mutex debugfs_list_mutex;
+int get_dmabuf_debugfs_data(int (*fn)(const struct dma_buf *, void *),
+			void *private);
 #endif
 
 /**

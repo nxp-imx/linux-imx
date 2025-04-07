@@ -29,7 +29,165 @@
 
 #define BOOT_CONTEXT_REG_MASK	GUNYAH_VM_BOOT_CONTEXT_REG(0xff, 0xff)
 
+#define GUNYAH_EVENT_CREATE_VM 0
+#define GUNYAH_EVENT_DESTROY_VM 1
+
 static DEFINE_XARRAY(gunyah_vm_functions);
+static DEFINE_XARRAY(gunyah_auth_vm_mgr);
+
+static inline int gunyah_vm_fill_boot_context(struct gunyah_vm *ghvm)
+{
+	unsigned long reg_set, reg_index, id;
+	void *entry;
+	int ret;
+
+	xa_for_each(&ghvm->boot_context, id, entry) {
+		reg_set = (id >> GUNYAH_VM_BOOT_CONTEXT_REG_SHIFT) & 0xff;
+		reg_index = id & 0xff;
+		ret = gunyah_rm_vm_set_boot_context(ghvm->rm, ghvm->vmid,
+						reg_set, reg_index,
+						*(u64 *)entry);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+int gunyah_auth_vm_mgr_register(struct gunyah_auth_vm_mgr *auth_vm)
+{
+	if (!auth_vm->vm_attach || !auth_vm->vm_detach)
+		return -EINVAL;
+
+	return xa_err(xa_store(&gunyah_auth_vm_mgr, auth_vm->type, auth_vm, GFP_KERNEL));
+}
+EXPORT_SYMBOL_GPL(gunyah_auth_vm_mgr_register);
+
+void gunyah_auth_vm_mgr_unregister(struct gunyah_auth_vm_mgr *auth_vm)
+{
+	/* Expecting unregister to only come when unloading a module */
+	WARN_ON(auth_vm->mod && module_refcount(auth_vm->mod));
+	xa_erase(&gunyah_auth_vm_mgr, auth_vm->type);
+}
+EXPORT_SYMBOL_GPL(gunyah_auth_vm_mgr_unregister);
+
+static struct gunyah_auth_vm_mgr *gunyah_get_auth_vm_mgr(u32 auth_type)
+{
+	struct gunyah_auth_vm_mgr *auth_vm;
+
+	auth_vm = xa_load(&gunyah_auth_vm_mgr, auth_type);
+	if (!auth_vm || !try_module_get(auth_vm->mod))
+		auth_vm = ERR_PTR(-ENOENT);
+
+	return auth_vm;
+}
+
+static void gunyah_put_auth_vm_mgr(struct gunyah_vm *ghvm)
+{
+	struct gunyah_auth_vm_mgr *auth_vm;
+
+	auth_vm = xa_load(&gunyah_auth_vm_mgr, ghvm->auth);
+	if (!auth_vm)
+		return;
+
+	auth_vm->vm_detach(ghvm);
+	module_put(auth_vm->mod);
+}
+
+static long gunyah_vm_set_auth_type(struct gunyah_vm *ghvm,
+				struct gunyah_auth_desc *auth_desc)
+{
+	struct gunyah_auth_vm_mgr *auth_vm;
+
+	auth_vm = gunyah_get_auth_vm_mgr(auth_desc->type);
+	if (IS_ERR(auth_vm))
+		return PTR_ERR(auth_vm);
+
+	/* The auth mgr should be populating the auth_vm_mgr_ops*/
+	return auth_vm->vm_attach(ghvm, auth_desc);
+}
+
+static int gunyah_generic_pre_vm_configure(struct gunyah_vm *ghvm)
+{
+	/*
+	 * VMs use dtb mem parcel as the config image parcel as they
+	 * don't have any explicit auth image/metadata
+	 */
+
+	ghvm->config_image.parcel.start = gunyah_gpa_to_gfn(ghvm->dtb.config.guest_phys_addr);
+	ghvm->config_image.parcel.pages = gunyah_gpa_to_gfn(ghvm->dtb.config.size);
+
+	ghvm->config_image.image_offset = 0;
+	ghvm->config_image.image_size = 0;
+	ghvm->config_image.dtb_offset = ghvm->dtb.config.guest_phys_addr -
+				gunyah_gfn_to_gpa(ghvm->config_image.parcel.start);
+	ghvm->config_image.dtb_size = ghvm->dtb.config.size;
+	return 0;
+}
+
+static int gunyah_generic_pre_vm_init(struct gunyah_vm *ghvm)
+{
+	int ret;
+
+	ret = gunyah_setup_demand_paging(ghvm, 0, ULONG_MAX);
+	if (ret) {
+		dev_warn(ghvm->parent,
+			"Failed to set up demand paging: %d\n", ret);
+		return ret;
+	}
+
+	ret = gunyah_rm_vm_set_address_layout(
+		ghvm->rm, ghvm->vmid, GUNYAH_RM_RANGE_ID_IMAGE,
+		gunyah_gfn_to_gpa(ghvm->config_image.parcel.start),
+		gunyah_gfn_to_gpa(ghvm->config_image.parcel.pages));
+	if (ret) {
+		dev_warn(ghvm->parent,
+			"Failed to set location of the config image mem parcel: %d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static int gunyah_generic_pre_vm_start(struct gunyah_vm *ghvm)
+{
+	int ret;
+
+	ret = gunyah_vm_parcel_to_paged(ghvm, &ghvm->config_image.parcel.parcel,
+				ghvm->config_image.parcel.start,
+				ghvm->config_image.parcel.pages);
+	if (ret)
+		return ret;
+
+	if (ghvm->auth != GUNYAH_RM_VM_AUTH_NONE)
+		return ret;
+
+	ret = gunyah_vm_fill_boot_context(ghvm);
+	if (ret) {
+		dev_warn(ghvm->parent, "Failed to setup boot context: %d\n",
+			 ret);
+		return ret;
+	}
+	return ret;
+}
+
+void gunyah_generic_vm_start_fail(struct gunyah_vm *ghvm)
+{
+	/**
+	 * need to rollback parcel_to_paged because RM is still
+	 * tracking the parcel
+	 */
+	gunyah_vm_mm_erase_range(ghvm,
+		ghvm->config_image.parcel.start,
+		ghvm->config_image.parcel.pages);
+}
+
+static struct gunyah_auth_vm_mgr_ops generic_vm_ops = {
+	.pre_vm_configure = gunyah_generic_pre_vm_configure,
+	.pre_vm_init = gunyah_generic_pre_vm_init,
+	.pre_vm_start = gunyah_generic_pre_vm_start,
+	.vm_start_fail = gunyah_generic_vm_start_fail,
+};
 
 static void gunyah_vm_put_function(struct gunyah_vm_function *fn)
 {
@@ -469,6 +627,27 @@ static int gunyah_vm_rm_notification(struct notifier_block *nb,
 	}
 }
 
+static void gunyah_uevent_notify_change(unsigned int type, struct gunyah_vm *ghvm)
+{
+	struct kobj_uevent_env *env;
+
+	env = kzalloc(sizeof(*env), GFP_KERNEL_ACCOUNT);
+	if (!env)
+		return;
+
+	if (type == GUNYAH_EVENT_CREATE_VM)
+		add_uevent_var(env, "EVENT=create");
+	else if (type == GUNYAH_EVENT_DESTROY_VM) {
+		add_uevent_var(env, "EVENT=destroy");
+		add_uevent_var(env, "vm_exit=%d", ghvm->exit_info.type);
+	}
+
+	add_uevent_var(env, "vm_id=%hu", ghvm->vmid);
+	env->envp[env->envp_idx++] = NULL;
+	kobject_uevent_env(&ghvm->parent->kobj, KOBJ_CHANGE, env->envp);
+	kfree(env);
+}
+
 static void gunyah_vm_stop(struct gunyah_vm *ghvm)
 {
 	int ret;
@@ -544,6 +723,9 @@ static __must_check struct gunyah_vm *gunyah_vm_alloc(struct gunyah_rm *rm)
 	setup_extent_ticket(ghvm, &ghvm->guest_shared_extent_ticket,
 			    GUNYAH_VM_MEM_EXTENT_GUEST_SHARED_LABEL);
 
+	ghvm->auth = GUNYAH_RM_VM_AUTH_NONE;
+	ghvm->auth_vm_mgr_ops = &generic_vm_ops;
+
 	return ghvm;
 }
 
@@ -606,71 +788,12 @@ out:
 	return ret;
 }
 
-static inline int gunyah_vm_fill_boot_context(struct gunyah_vm *ghvm)
-{
-	unsigned long reg_set, reg_index, id;
-	void *entry;
-	int ret;
-
-	xa_for_each(&ghvm->boot_context, id, entry) {
-		reg_set = (id >> GUNYAH_VM_BOOT_CONTEXT_REG_SHIFT) & 0xff;
-		reg_index = id & 0xff;
-		ret = gunyah_rm_vm_set_boot_context(ghvm->rm, ghvm->vmid,
-						    reg_set, reg_index,
-						    *(u64 *)entry);
-		if (ret)
-			return ret;
-	}
-
-	return 0;
-}
-
-int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm)
-{
-	struct gunyah_rm_mem_entry *entries;
-	struct gunyah_vm_gup_binding *b;
-	unsigned long index = 0;
-	u32 count = 0, i;
-	int ret = 0;
-
-	down_read(&ghvm->bindings_lock);
-	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX)
-		if (b->share_type == VM_MEM_LEND &&
-			(b->guest_phys_addr != ghvm->fw.config.guest_phys_addr))
-			count++;
-
-	if (!count)
-		goto out;
-
-	entries = kcalloc(count, sizeof(*entries), GFP_KERNEL);
-	if (!entries) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	index = i = 0;
-	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
-		if (b->share_type != VM_MEM_LEND ||
-			(b->guest_phys_addr == ghvm->fw.config.guest_phys_addr))
-			continue;
-		entries[i].phys_addr = cpu_to_le64(b->guest_phys_addr);
-		entries[i].size = cpu_to_le64(b->size);
-		if (++i == count)
-			break;
-	}
-
-	ret = gunyah_rm_vm_set_demand_paging(ghvm->rm, ghvm->vmid, i, entries);
-	kfree(entries);
-out:
-	up_read(&ghvm->bindings_lock);
-	return ret;
-}
-
 static int gunyah_vm_start(struct gunyah_vm *ghvm)
 {
 	struct gunyah_rm_hyp_resources *resources;
 	struct gunyah_resource *ghrsc;
 	int ret, i, n;
+	u16 vmid = 0;
 
 	down_write(&ghvm->status_lock);
 	if (ghvm->vm_status != GUNYAH_RM_VM_STATUS_NO_STATE) {
@@ -683,74 +806,74 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 	if (ret)
 		goto err;
 
-	ret = gunyah_rm_alloc_vmid(ghvm->rm, 0);
+	ret = gunyah_vm_pre_alloc_vmid(ghvm);
+	if (ret)
+		vmid = ret;
+
+	ret = gunyah_rm_alloc_vmid(ghvm->rm, vmid);
 	if (ret < 0) {
 		gunyah_rm_notifier_unregister(ghvm->rm, &ghvm->nb);
 		goto err;
 	}
-	ghvm->vmid = ret;
-	ghvm->vm_status = GUNYAH_RM_VM_STATUS_LOAD;
+	ghvm->vmid = vmid ? vmid : ret;
+	gunyah_uevent_notify_change(GUNYAH_EVENT_CREATE_VM, ghvm);
 
-	ghvm->dtb.parcel_start = ghvm->dtb.config.guest_phys_addr >> PAGE_SHIFT;
-	ghvm->dtb.parcel_pages = ghvm->dtb.config.size >> PAGE_SHIFT;
-	ret = gunyah_gup_share_parcel(ghvm, &ghvm->dtb.parcel,
-					&ghvm->dtb.parcel_start,
-					&ghvm->dtb.parcel_pages);
-	if (ret) {
-		dev_warn(ghvm->parent,
-			 "Failed to allocate parcel for DTB: %d\n", ret);
+	ret = gunyah_vm_pre_vm_configure(ghvm);
+	if (ret)
 		goto err;
-	}
 
-	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
-		ghvm->fw.parcel_start = ghvm->fw.config.guest_phys_addr >> PAGE_SHIFT;
-		ghvm->fw.parcel_pages = ghvm->fw.config.size >> PAGE_SHIFT;
-		ret = gunyah_gup_share_parcel(ghvm, &ghvm->fw.parcel,
-				&ghvm->fw.parcel_start,
-				&ghvm->fw.parcel_pages);
+	if (ghvm->fw.config.size > 0) {
+		ghvm->fw.parcel.start = gunyah_gpa_to_gfn(ghvm->fw.config.guest_phys_addr);
+		ghvm->fw.parcel.pages = gunyah_gpa_to_gfn(ghvm->fw.config.size);
+		ret = gunyah_share_parcel(ghvm, &ghvm->fw.parcel,
+				&ghvm->fw.parcel.start,
+				&ghvm->fw.parcel.pages);
 		if (ret) {
 			dev_warn(ghvm->parent,
-					"Failed to allocate parcel for FW: %d\n", ret);
+				"Failed to share parcel for the fw: %d\n", ret);
 			goto err;
 		}
 	}
+
+	ghvm->vm_status = GUNYAH_RM_VM_STATUS_LOAD;
+
+	ret = gunyah_share_parcel(ghvm, &ghvm->config_image.parcel,
+					&ghvm->config_image.parcel.start,
+					&ghvm->config_image.parcel.pages);
+	if (ret) {
+		dev_warn(ghvm->parent,
+			 "Failed to allocate parcel for the config image: %d\n", ret);
+		goto err;
+	}
+
 	ret = gunyah_rm_vm_configure(ghvm->rm, ghvm->vmid, ghvm->auth,
-				     ghvm->dtb.parcel.mem_handle, 0, 0,
-				     ghvm->dtb.config.guest_phys_addr -
-					     (ghvm->dtb.parcel_start
-					      << PAGE_SHIFT),
-				     ghvm->dtb.config.size);
+				     ghvm->config_image.parcel.parcel.mem_handle,
+				     ghvm->config_image.image_offset,
+				     ghvm->config_image.image_size,
+				     ghvm->config_image.dtb_offset,
+				     ghvm->config_image.dtb_size);
 	if (ret) {
 		dev_warn(ghvm->parent, "Failed to configure VM: %d\n", ret);
 		goto err;
 	}
 
-	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
-		ret = gunyah_rm_vm_set_firmware_mem(ghvm->rm, ghvm->vmid, &ghvm->fw.parcel,
-				ghvm->fw.config.guest_phys_addr - (ghvm->fw.parcel_start << PAGE_SHIFT),
-				ghvm->fw.config.size);
+	ret = gunyah_vm_authenticate(ghvm);
+	if (ret)
+		goto err;
+
+	if (ghvm->fw.config.size > 0) {
+		ret = gunyah_rm_vm_set_firmware_mem(ghvm->rm, ghvm->vmid, &ghvm->fw.parcel.parcel,
+			ghvm->fw.config.guest_phys_addr - (ghvm->fw.parcel.start << PAGE_SHIFT),
+			ghvm->fw.config.size);
 		if (ret) {
-			pr_warn("Failed to configure pVM firmware\n");
+			pr_warn("Failed to configure firmware\n");
 			goto err;
 		}
 	}
 
-	ret = gunyah_gup_setup_demand_paging(ghvm);
-	if (ret) {
-		dev_warn(ghvm->parent,
-			 "Failed to set up gmem demand paging: %d\n", ret);
+	ret = gunyah_vm_pre_vm_init(ghvm);
+	if (ret)
 		goto err;
-	}
-
-	ret = gunyah_rm_vm_set_address_layout(
-		ghvm->rm, ghvm->vmid, GUNYAH_RM_RANGE_ID_IMAGE,
-		ghvm->dtb.parcel_start << PAGE_SHIFT,
-		ghvm->dtb.parcel_pages << PAGE_SHIFT);
-	if (ret) {
-		dev_warn(ghvm->parent,
-			 "Failed to set location of DTB mem parcel: %d\n", ret);
-		goto err;
-	}
 
 	ret = gunyah_rm_vm_init(ghvm->rm, ghvm->vmid);
 	if (ret) {
@@ -759,15 +882,6 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 		goto err;
 	}
 	ghvm->vm_status = GUNYAH_RM_VM_STATUS_READY;
-
-	if (ghvm->auth != GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
-		ret = gunyah_vm_fill_boot_context(ghvm);
-		if (ret) {
-			dev_warn(ghvm->parent, "Failed to setup boot context: %d\n",
-				 ret);
-			goto err;
-		}
-	}
 
 	ret = gunyah_rm_get_hyp_resources(ghvm->rm, ghvm->vmid, &resources);
 	if (ret) {
@@ -788,20 +902,12 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 		gunyah_vm_add_resource(ghvm, ghrsc);
 	}
 
-	ret = gunyah_vm_parcel_to_paged(ghvm, &ghvm->dtb.parcel,
-					ghvm->dtb.parcel_start,
-					ghvm->dtb.parcel_pages);
+	ret = gunyah_vm_pre_vm_start(ghvm);
 	if (ret)
 		goto err;
 
 	ret = gunyah_rm_vm_start(ghvm->rm, ghvm->vmid);
 	if (ret) {
-		/**
-		 * need to rollback parcel_to_paged because RM is still
-		 * tracking the parcel
-		 */
-		gunyah_vm_mm_erase_range(ghvm, ghvm->dtb.parcel_start,
-					 ghvm->dtb.parcel_pages);
 		dev_warn(ghvm->parent, "Failed to start VM: %d\n", ret);
 		goto err;
 	}
@@ -811,6 +917,7 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 	return ret;
 err:
 	/* gunyah_vm_free will handle releasing resources and reclaiming memory */
+	gunyah_vm_start_fail(ghvm);
 	up_write(&ghvm->status_lock);
 	return ret;
 }
@@ -873,11 +980,14 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 			return -EFAULT;
 
 		if (overflows_type(fw_config.guest_phys_addr + fw_config.size,
-				   u64))
+							u64))
 			return -EOVERFLOW;
 
 		ghvm->fw.config = fw_config;
-		ghvm->auth = GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM;
+		/* Set new auth type only if type was not set until now */
+		if (ghvm->auth == GUNYAH_RM_VM_AUTH_NONE)
+			ghvm->auth = GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM;
+
 		r = 0;
 		break;
 	}
@@ -923,6 +1033,35 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 		r = gunyah_vm_binding_alloc(ghvm, &region, lend);
 		break;
 	}
+	case GH_VM_RECLAIM_REGION: {
+		struct gunyah_address_range range;
+
+		/* only allow owner task to remove memory */
+		if (ghvm->mm_s != current->mm)
+			return -EPERM;
+		if (copy_from_user(&range, argp, sizeof(range)))
+			return -EFAULT;
+		if (!PAGE_ALIGNED(range.size) || !PAGE_ALIGNED(range.guest_phys_addr))
+			return -EINVAL;
+
+		r = gunyah_vm_reclaim_range(ghvm,
+					    gunyah_gpa_to_gfn(range.guest_phys_addr),
+					    gunyah_gpa_to_gfn(range.size) - 1);
+		break;
+	}
+	case GH_VM_ANDROID_MAP_CMA_MEM: {
+		struct gunyah_map_cma_mem_args cma_mem;
+
+		/* only allow owner task to add memory */
+		if (ghvm->mm_s != current->mm)
+			return -EPERM;
+
+		if (copy_from_user(&cma_mem, argp, sizeof(cma_mem)))
+			return -EFAULT;
+
+		r = gunyah_vm_binding_cma_alloc(ghvm, &cma_mem);
+		break;
+	}
 	case GUNYAH_VM_SET_BOOT_CONTEXT: {
 		struct gunyah_vm_boot_context boot_ctx;
 
@@ -930,6 +1069,14 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 			return -EFAULT;
 
 		return gunyah_vm_set_boot_context(ghvm, &boot_ctx);
+	}
+	case GH_VM_ANDROID_SET_AUTH_TYPE: {
+		struct gunyah_auth_desc auth_desc;
+
+		if (copy_from_user(&auth_desc, argp, sizeof(auth_desc)))
+			return -EFAULT;
+
+		return gunyah_vm_set_auth_type(ghvm, &auth_desc);
 	}
 	default:
 		r = -ENOTTY;
@@ -945,51 +1092,10 @@ int __must_check gunyah_vm_get(struct gunyah_vm *ghvm)
 }
 EXPORT_SYMBOL_GPL(gunyah_vm_get);
 
-int gunyah_gup_reclaim_parcel(struct gunyah_vm *ghvm,
-			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
-			       u64 nr)
-{
-	struct gunyah_rm_mem_entry *entry;
-	struct folio *folio;
-	pgoff_t i;
-	int ret;
-
-	if (parcel->mem_handle != GUNYAH_MEM_HANDLE_INVAL) {
-		ret = gunyah_rm_mem_reclaim(ghvm->rm, parcel);
-		if (ret) {
-			dev_err(ghvm->parent, "Failed to reclaim parcel: %d\n",
-				ret);
-			/* We can't reclaim the pages -- hold onto the pages
-			 * forever because we don't know what state the memory
-			 * is in
-			 */
-			return ret;
-		}
-		parcel->mem_handle = GUNYAH_MEM_HANDLE_INVAL;
-
-		for (i = 0; i < parcel->n_mem_entries; i++) {
-			entry = &parcel->mem_entries[i];
-
-			folio = pfn_folio(PHYS_PFN(le64_to_cpu(entry->phys_addr)));
-
-			if (folio_test_private(folio))
-				gunyah_folio_host_reclaim(folio);
-
-			unpin_user_page(folio_page(folio, 0));
-			account_locked_vm(ghvm->mm_s, 1, false);
-		}
-
-		kfree(parcel->mem_entries);
-		kfree(parcel->acl_entries);
-	}
-
-	return 0;
-}
-
 static void _gunyah_vm_put(struct kref *kref)
 {
 	struct gunyah_vm *ghvm = container_of(kref, struct gunyah_vm, kref);
-	struct gunyah_vm_gup_binding *b;
+	struct gunyah_vm_binding *b;
 	unsigned long index = 0;
 	void *entry;
 	int ret;
@@ -1001,27 +1107,7 @@ static void _gunyah_vm_put(struct kref *kref)
 	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_RUNNING)
 		gunyah_vm_stop(ghvm);
 
-	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_LOAD ||
-	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_READY ||
-	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_INIT_FAILED) {
-		ret = gunyah_gup_reclaim_parcel(ghvm, &ghvm->dtb.parcel,
-						 ghvm->dtb.parcel_start,
-						 ghvm->dtb.parcel_pages);
-		if (ret)
-			dev_err(ghvm->parent,
-				"Failed to reclaim DTB parcel: %d\n", ret);
-	}
-
 	gunyah_vm_remove_functions(ghvm);
-
-	down_write(&ghvm->bindings_lock);
-	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
-		mtree_erase(&ghvm->bindings, gunyah_gpa_to_gfn(b->guest_phys_addr));
-		kfree(b);
-	}
-	up_write(&ghvm->bindings_lock);
-	WARN_ON(!mtree_empty(&ghvm->bindings));
-	mtree_destroy(&ghvm->bindings);
 
 	/**
 	 * If this fails, we're going to lose the memory for good and is
@@ -1030,6 +1116,8 @@ static void _gunyah_vm_put(struct kref *kref)
 	 * running and RM will let us reclaim all the memory.
 	 */
 	WARN_ON(gunyah_vm_reclaim_range(ghvm, 0, U64_MAX));
+	WARN_ON(!mtree_empty(&ghvm->mm));
+	mtree_destroy(&ghvm->mm);
 
 	/* clang-format off */
 	gunyah_vm_remove_resource_ticket(ghvm, &ghvm->addrspace_ticket);
@@ -1038,6 +1126,10 @@ static void _gunyah_vm_put(struct kref *kref)
 	gunyah_vm_remove_resource_ticket(ghvm, &ghvm->guest_shared_extent_ticket);
 	gunyah_vm_remove_resource_ticket(ghvm, &ghvm->guest_private_extent_ticket);
 	/* clang-format on */
+
+	ret = gunyah_vm_pre_vm_reset(ghvm);
+	if (ret)
+		dev_err(ghvm->parent, "Failed pre reset the vm: %d\n", ret);
 
 	gunyah_vm_clean_resources(ghvm);
 
@@ -1050,21 +1142,24 @@ static void _gunyah_vm_put(struct kref *kref)
 			wait_event(ghvm->vm_status_wait,
 				   ghvm->vm_status == GUNYAH_RM_VM_STATUS_RESET);
 		else
-			dev_err(ghvm->parent, "Failed to reset the vm: %d\n",ret);
+			dev_err(ghvm->parent, "Failed to reset the vm: %d\n", ret);
+
+		ret = gunyah_vm_post_vm_reset(ghvm);
+		if (ret)
+			dev_err(ghvm->parent, "Failed post reset the vm: %d\n", ret);
 		/* clang-format on */
 	}
 
-	WARN_ON(!mtree_empty(&ghvm->mm));
-	mtree_destroy(&ghvm->mm);
-
-	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
-		ret = gunyah_gup_reclaim_parcel(ghvm, &ghvm->fw.parcel,
-				ghvm->fw.parcel_start,
-				ghvm->fw.parcel_pages);
-		if (ret)
-			dev_err(ghvm->parent,
-					"Failed to reclaim firmware parcel: %d\n", ret);
+	WARN_ON(gunyah_reclaim_parcels(ghvm, 0, ULONG_MAX));
+	down_write(&ghvm->bindings_lock);
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
+		mtree_erase(&ghvm->bindings, gunyah_gpa_to_gfn(b->guest_phys_addr));
+		kfree(b);
 	}
+	up_write(&ghvm->bindings_lock);
+	WARN_ON(!mtree_empty(&ghvm->bindings));
+	mtree_destroy(&ghvm->bindings);
+	gunyah_uevent_notify_change(GUNYAH_EVENT_DESTROY_VM, ghvm);
 
 	if (ghvm->vm_status > GUNYAH_RM_VM_STATUS_NO_STATE) {
 		gunyah_rm_notifier_unregister(ghvm->rm, &ghvm->nb);
@@ -1078,6 +1173,7 @@ static void _gunyah_vm_put(struct kref *kref)
 	xa_for_each(&ghvm->boot_context, index, entry)
 		kfree(entry);
 
+	gunyah_put_auth_vm_mgr(ghvm);
 	xa_destroy(&ghvm->boot_context);
 	gunyah_rm_put(ghvm->rm);
 	mmdrop(ghvm->mm_s);

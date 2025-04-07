@@ -16,6 +16,7 @@
 #include "vm_mgr.h"
 
 #include <uapi/linux/gunyah.h>
+#include <trace/hooks/gunyah.h>
 
 #define MAX_VCPU_NAME 20 /* gh-vcpu:strlen(U32::MAX)+NUL */
 
@@ -97,7 +98,7 @@ static bool gunyah_handle_page_fault(
 	bool write = !!vcpu_run_resp->state_data[1];
 	int ret = 0;
 
-	ret = gunyah_gup_demand_page(vcpu->ghvm, addr, write);
+	ret = gunyah_demand_page(vcpu->ghvm, addr, write);
 	if (!ret || ret == -EAGAIN)
 		return true;
 
@@ -120,7 +121,7 @@ gunyah_handle_mmio(struct gunyah_vcpu *vcpu, unsigned long resume_data[3],
 	if (WARN_ON(len > sizeof(u64)))
 		len = sizeof(u64);
 
-	ret = gunyah_gup_demand_page(vcpu->ghvm, addr,
+	ret = gunyah_demand_page(vcpu->ghvm, addr,
 					vcpu->vcpu_run->mmio.is_write);
 	if (!ret || ret == -EAGAIN) {
 		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_RETRY;
@@ -259,6 +260,7 @@ static int gunyah_vcpu_run(struct gunyah_vcpu *vcpu)
 	unsigned long resume_data[3] = { 0 };
 	enum gunyah_error gunyah_error;
 	int ret = 0;
+	u32 vcpu_id;
 
 	if (!vcpu->f)
 		return -ENODEV;
@@ -271,6 +273,7 @@ static int gunyah_vcpu_run(struct gunyah_vcpu *vcpu)
 		goto out;
 	}
 
+	vcpu_id = vcpu->ticket.label;
 	switch (vcpu->state) {
 	case GUNYAH_VCPU_RUN_STATE_UNKNOWN:
 		if (vcpu->ghvm->vm_status != GUNYAH_RM_VM_STATUS_RUNNING) {
@@ -308,10 +311,15 @@ static int gunyah_vcpu_run(struct gunyah_vcpu *vcpu)
 			goto out;
 		}
 
+		trace_android_rvh_gh_before_vcpu_run(vcpu->ghvm->vmid, vcpu_id);
 		gh_guest_accounting_enter();
 		gunyah_error = gunyah_hypercall_vcpu_run(
 			vcpu->rsc->capid, resume_data, &vcpu_run_resp);
 		gh_guest_accounting_exit();
+		trace_android_rvh_gh_after_vcpu_run(vcpu->ghvm->vmid,
+			vcpu_id, gunyah_error,
+			(const struct gunyah_hypercall_vcpu_run_resp *)&vcpu_run_resp);
+
 		if (gunyah_error == GUNYAH_ERROR_OK) {
 			memset(resume_data, 0, sizeof(resume_data));
 			switch (vcpu_run_resp.state) {

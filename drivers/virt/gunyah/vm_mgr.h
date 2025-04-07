@@ -7,6 +7,7 @@
 #define _GUNYAH_VM_MGR_PRIV_H
 
 #include <linux/device.h>
+#include <linux/file.h>
 #include <linux/kref.h>
 #include <linux/maple_tree.h>
 #include <linux/mutex.h>
@@ -20,17 +21,27 @@
 
 #include "rsc_mgr.h"
 
-enum gunyah_vm_mem_share_type {
-	VM_MEM_SHARE,
-	VM_MEM_LEND,
+struct gunyah_vm_parcel {
+	u64 start, pages;
+	struct gunyah_rm_mem_parcel parcel;
 };
 
-struct gunyah_vm_gup_binding {
-	enum gunyah_vm_mem_share_type share_type;
+struct gunyah_vm_binding {
+	enum { VM_MEM_USER, VM_MEM_CMA } mem_type;
+	union {
+		u64 userspace_addr;
+		struct {
+			struct file *file;
+			u32 fd;
+			u64 offset;
+		} cma;
+	};
+	struct gunyah_vm_parcel *vm_parcel;
+	enum { VM_MEM_SHARE, VM_MEM_LEND } share_type;
 	u64 guest_phys_addr;
-	u64 userspace_addr;
 	u64 size;
 	u32 flags;
+	u32 label;
 };
 
 static inline u64 gunyah_gpa_to_gfn(u64 gpa)
@@ -132,15 +143,18 @@ struct gunyah_vm {
 
 	struct device *parent;
 	enum gunyah_rm_vm_auth_mechanism auth;
+	void *auth_vm_mgr_data;
+	struct gunyah_auth_vm_mgr_ops *auth_vm_mgr_ops;
+	struct {
+		u64 image_offset, image_size, dtb_offset, dtb_size;
+		struct gunyah_vm_parcel parcel;
+	} config_image;
 	struct {
 		struct gunyah_vm_dtb_config config;
-		u64 parcel_start, parcel_pages;
-		struct gunyah_rm_mem_parcel parcel;
 	} dtb;
 	struct {
 		struct gunyah_vm_firmware_config config;
-		u64 parcel_start, parcel_pages;
-		struct gunyah_rm_mem_parcel parcel;
+		struct gunyah_vm_parcel parcel;
 	} fw;
 	struct xarray boot_context;
 };
@@ -210,20 +224,124 @@ int gunyah_vm_parcel_to_paged(struct gunyah_vm *ghvm,
 			      struct gunyah_rm_mem_parcel *parcel, u64 gfn,
 			      u64 nr);
 void gunyah_vm_mm_erase_range(struct gunyah_vm *ghvm, u64 gfn, u64 nr);
-int gunyah_vm_reclaim_parcel(struct gunyah_vm *ghvm,
-			     struct gunyah_rm_mem_parcel *parcel, u64 gfn);
 int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 			    u64 gfn, bool share, bool write);
 int gunyah_vm_reclaim_folio(struct gunyah_vm *ghvm, u64 gfn, struct folio *folio);
 int gunyah_vm_reclaim_range(struct gunyah_vm *ghvm, u64 gfn, u64 nr);
-
 int gunyah_vm_binding_alloc(struct gunyah_vm *ghvm,
 			    struct gunyah_userspace_memory_region *region,
 			    bool lend);
-int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm);
-int gunyah_gup_share_parcel(struct gunyah_vm *ghvm,
-			      struct gunyah_rm_mem_parcel *parcel,
+int gunyah_share_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_vm_parcel *parcel,
 			      u64 *gfn, u64 *nr);
-int gunyah_gup_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write);
+int gunyah_share_range_as_parcels(struct gunyah_vm *ghvm, u64 start_addr,
+				  u64 end_addr,
+				  struct gunyah_vm_parcel **parcels);
+int gunyah_reclaim_parcels(struct gunyah_vm *ghvm,
+				u64 start_gfn, u64 end_gfn);
+int gunyah_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write);
+int gunyah_setup_demand_paging(struct gunyah_vm *ghvm, u64 start_gfn,
+				u64 end_gfn);
+#ifdef CONFIG_DMA_CMA
+int gunyah_cma_mem_init(void);
+void gunyah_cma_mem_exit(void);
+int gunyah_vm_binding_cma_alloc(struct gunyah_vm *ghvm,
+			    struct gunyah_map_cma_mem_args *cma_map);
+int gunyah_cma_share_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_vm_parcel *parcel,
+			      struct gunyah_vm_binding *b,
+				  u64 *gfn, u64 *nr);
+int gunyah_cma_reclaim_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_vm_parcel *parcel,
+			      struct gunyah_vm_binding *b);
+#else
+static inline int gunyah_cma_mem_init(void)
+{
+	return -EOPNOTSUPP;
+}
+static inline void gunyah_cma_mem_exit(void)
+{
+}
+static inline int gunyah_vm_binding_cma_alloc(struct gunyah_vm *ghvm,
+			    struct gunyah_map_cma_mem_args *cma_map)
+{
+	return -ENOSYS;
+}
+static inline int gunyah_cma_share_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_vm_parcel *parcel,
+			      struct gunyah_vm_binding *b,
+				  u64 *gfn, u64 *nr)
+{
+	return -EINVAL;
+}
+static inline int gunyah_cma_reclaim_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_vm_parcel *parcel,
+			      struct gunyah_vm_binding *b)
+{
+	return -EINVAL;
+}
+#endif
 
+/* Auth VM Manager ops */
+static inline u16 gunyah_vm_pre_alloc_vmid(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->pre_alloc_vmid)
+		return ghvm->auth_vm_mgr_ops->pre_alloc_vmid(ghvm);
+
+	return 0;
+}
+
+static inline int gunyah_vm_pre_vm_configure(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->pre_vm_configure)
+		return ghvm->auth_vm_mgr_ops->pre_vm_configure(ghvm);
+	else
+		return -EINVAL;
+}
+
+static inline int gunyah_vm_authenticate(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->vm_authenticate)
+		return ghvm->auth_vm_mgr_ops->vm_authenticate(ghvm);
+
+	return 0;
+}
+
+static inline int gunyah_vm_pre_vm_init(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->pre_vm_init)
+		return ghvm->auth_vm_mgr_ops->pre_vm_init(ghvm);
+
+	return 0;
+}
+
+static inline int gunyah_vm_pre_vm_start(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->pre_vm_start)
+		return ghvm->auth_vm_mgr_ops->pre_vm_start(ghvm);
+
+	return 0;
+}
+
+static inline void gunyah_vm_start_fail(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->vm_start_fail)
+		return ghvm->auth_vm_mgr_ops->vm_start_fail(ghvm);
+}
+
+static inline int gunyah_vm_pre_vm_reset(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->pre_vm_reset)
+		return ghvm->auth_vm_mgr_ops->pre_vm_reset(ghvm);
+
+	return 0;
+}
+
+static inline int gunyah_vm_post_vm_reset(struct gunyah_vm *ghvm)
+{
+	if (ghvm->auth_vm_mgr_ops->post_vm_reset)
+		return ghvm->auth_vm_mgr_ops->post_vm_reset(ghvm);
+
+	return 0;
+}
 #endif
