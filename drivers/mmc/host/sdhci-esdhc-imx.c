@@ -34,7 +34,6 @@
 #define ESDHC_SYS_CTRL_RESET_TUNING	(1 << 28)
 #define ESDHC_SYS_CTRL_RST_FIFO		(1 << 22)
 #define ESDHC_SYS_CTRL_DTOCV_MASK	0x0f
-#define ESDHC_SYS_CTRL_DTOCV_SHIFT	16
 #define	ESDHC_CTRL_D3CD			0x08
 #define ESDHC_BURST_LEN_EN_INCR		(1 << 27)
 /* VENDOR SPEC register */
@@ -1485,15 +1484,12 @@ static unsigned int esdhc_get_max_timeout_count(struct sdhci_host *host)
 
 static void esdhc_set_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 {
-	bool too_big = false;
-	u8 count = sdhci_calc_timeout(host, cmd, &too_big);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
 
-	/*
-	 * usdhc SDHCI_TIMEOUT_CONTROL register bit[7] used to control
-	 * hardware reset pin of the card. Write 0 to bit[7] will reset
-	 * the card. Only write bit[0] ~ bit[3] here.
-	 */
-	esdhc_clrset_le(host, ESDHC_SYS_CTRL_DTOCV_MASK, count,
+	/* use maximum timeout counter */
+	esdhc_clrset_le(host, ESDHC_SYS_CTRL_DTOCV_MASK,
+			esdhc_is_usdhc(imx_data) ? 0xF : 0xE,
 			SDHCI_TIMEOUT_CONTROL);
 }
 
@@ -1946,8 +1942,6 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		 * to distinguish the card type.
 		 */
 		host->mmc_host_ops.init_card = usdhc_init_card;
-
-		host->max_timeout_count = 0xF;
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)
