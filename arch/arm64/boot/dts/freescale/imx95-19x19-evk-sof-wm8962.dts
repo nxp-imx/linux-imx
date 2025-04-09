@@ -44,9 +44,7 @@
 	dsp: cm7-dsp@80000000 {
 		compatible = "fsl,imx95-cm7-dsp";
 
-		reg = <0x0 0x80000000 0x0 0x400000>,
-		      <0x0 0x86000000 0x0 0x3000>;
-		reg-names = "dram", "mailbox";
+		reg = <0x0 0x80000000 0x0 0x6100000>;
 
 		memory-region = <&adma_res>;
 

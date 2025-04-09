@@ -1334,6 +1334,30 @@ static const struct spi_controller_mem_caps nxp_fspi_mem_caps_quirks = {
 	.dtr = false,
 };
 
+static void nxp_fspi_cleanup(void *data)
+{
+	struct nxp_fspi *f = data;
+	int ret;
+
+	/* enable clock first since there is reigster access */
+	ret = pm_runtime_get_sync(f->dev);
+	if (ret < 0)
+		dev_err(f->dev, "Failed to enable clock %d\n", __LINE__);
+
+	/* disable the hardware */
+	fspi_writel(f, FSPI_MCR0_MDIS, f->iobase + FSPI_MCR0);
+
+	pm_runtime_disable(f->dev);
+	pm_runtime_put_noidle(f->dev);
+
+	nxp_fspi_clk_disable_unprep(f);
+
+	mutex_destroy(&f->lock);
+
+	if (f->ahb_addr)
+		iounmap(f->ahb_addr);
+}
+
 static int nxp_fspi_probe(struct platform_device *pdev)
 {
 	struct spi_controller *ctlr;
@@ -1449,9 +1473,13 @@ static int nxp_fspi_probe(struct platform_device *pdev)
 
 	ctlr->dev.of_node = np;
 
+	ret = devm_add_action_or_reset(dev, nxp_fspi_cleanup, f);
+	if (ret)
+		return ret;
+
 	ret = devm_spi_register_controller(&pdev->dev, ctlr);
 	if (ret)
-		goto err_destroy_mutex;
+		return ret;
 
 	pm_runtime_mark_last_busy(f->dev);
 	pm_runtime_put_autosuspend(f->dev);
@@ -1461,9 +1489,6 @@ static int nxp_fspi_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_destroy_mutex:
-	mutex_destroy(&f->lock);
-
 err_disable_clk:
 	pm_runtime_disable(dev);
 
@@ -1472,30 +1497,6 @@ err_put_ctrl:
 
 	dev_err(dev, "NXP FSPI probe failed\n");
 	return ret;
-}
-
-static void nxp_fspi_remove(struct platform_device *pdev)
-{
-	struct nxp_fspi *f = platform_get_drvdata(pdev);
-	int ret;
-
-	/* enable clock first since there is reigster access */
-	ret = pm_runtime_get_sync(&pdev->dev);
-	if (ret < 0)
-		dev_err(f->dev, "Failed to enable clock %d\n", __LINE__);
-
-	/* disable the hardware */
-	fspi_writel(f, FSPI_MCR0_MDIS, f->iobase + FSPI_MCR0);
-
-	pm_runtime_disable(&pdev->dev);
-	pm_runtime_put_noidle(&pdev->dev);
-
-	nxp_fspi_clk_disable_unprep(f);
-
-	mutex_destroy(&f->lock);
-
-	if (f->ahb_addr)
-		iounmap(f->ahb_addr);
 }
 
 #ifdef CONFIG_PM
@@ -1601,7 +1602,6 @@ static struct platform_driver nxp_fspi_driver = {
 		.pm =   &nxp_fspi_pm_ops,
 	},
 	.probe          = nxp_fspi_probe,
-	.remove_new	= nxp_fspi_remove,
 };
 module_platform_driver(nxp_fspi_driver);
 

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright 2023 NXP
  */
 
 #ifndef __DW_HDMI_H__

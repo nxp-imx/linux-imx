@@ -695,7 +695,7 @@ static void mxc_isi_video_frame_write_done(struct mxc_isi_pipe *pipe,
 	}
 
 	mxc_isi_channel_set_outbuf(pipe, next_buf->dma_addrs, buf_id);
-	mxc_isi_channel_set_max_size(pipe, &next_buf->v4l2_buf, pdata->buf_max_size);
+	mxc_isi_channel_set_max_size(pipe, &video->pix, pdata->buf_max_size);
 	next_buf->id = buf_id;
 
 	/*
@@ -895,7 +895,7 @@ static void mxc_isi_video_queue_first_buffers(struct mxc_isi_video *video)
 		buf = list_first_entry(list, struct mxc_isi_buffer, list);
 
 		mxc_isi_channel_set_outbuf(video->pipe, buf->dma_addrs, buf_id);
-		mxc_isi_channel_set_max_size(video->pipe, &buf->v4l2_buf, pdata->buf_max_size);
+		mxc_isi_channel_set_max_size(video->pipe, &video->pix, pdata->buf_max_size);
 		buf->id = buf_id;
 		list_move_tail(&buf->list, &video->out_active);
 	}

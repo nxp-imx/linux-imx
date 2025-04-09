@@ -1272,6 +1272,14 @@ static unsigned int phylink_pcs_neg_mode(unsigned int mode,
 {
 	unsigned int neg_mode;
 
+	if (phylink_autoneg_c73(mode)) {
+		if (linkmode_test_bit(ETHTOOL_LINK_MODE_Autoneg_BIT,
+				      advertising))
+			return PHYLINK_PCS_NEG_C73_ENABLED;
+
+		return PHYLINK_PCS_NEG_C73_DISABLED;
+	}
+
 	switch (interface) {
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:

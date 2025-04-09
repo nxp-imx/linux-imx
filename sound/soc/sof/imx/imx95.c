@@ -27,7 +27,8 @@
 
 #define IMX95_M7_LM_ID 0x1
 
-#define MBOX_DSPBOX_OFFSET 0x1000
+#define MBOX_WINDOW_OFFSET 0x6000000
+#define MBOX_DSPBOX_OFFSET (MBOX_WINDOW_OFFSET + 0x1000)
 
 struct imx95_priv {
 	struct platform_device *ipc_dev;
@@ -73,35 +74,21 @@ static int imx95_probe(struct snd_sof_dev *sdev)
 
 	sdev->pdata->hw_pdata = priv;
 
-	/* map DRAM */
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dram");
+	/* map SRAM */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return dev_err_probe(&pdev->dev, -EINVAL,
-				     "failed to fetch DRAM region\n");
+				     "failed to fetch SRAM region\n");
 
-	sdev->bar[SOF_FW_BLK_TYPE_DRAM] = devm_ioremap(&pdev->dev, res->start,
+	sdev->bar[SOF_FW_BLK_TYPE_SRAM] = devm_ioremap(&pdev->dev, res->start,
 						       resource_size(res));
-	if (IS_ERR(sdev->bar[SOF_FW_BLK_TYPE_DRAM]))
-		return dev_err_probe(&pdev->dev,
-				     PTR_ERR(sdev->bar[SOF_FW_BLK_TYPE_DRAM]),
-				     "failed to map DRAM region\n");
-
-	sdev->mmio_bar = SOF_FW_BLK_TYPE_DRAM;
-	priv->bootaddr = res->start;
-
-	/* map mailbox region */
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mailbox");
-	if (!res) {
-		return dev_err_probe(&pdev->dev, -EINVAL,
-				     "failed to fetch MAILBOX region\n");
-	}
-	sdev->bar[SOF_FW_BLK_TYPE_SRAM] = devm_ioremap_wc(&pdev->dev, res->start,
-							  resource_size(res));
-
 	if (IS_ERR(sdev->bar[SOF_FW_BLK_TYPE_SRAM]))
 		return dev_err_probe(&pdev->dev,
 				     PTR_ERR(sdev->bar[SOF_FW_BLK_TYPE_SRAM]),
-				     "failed to map mailbox region\n");
+				     "failed to map SRAM region\n");
+
+	sdev->mmio_bar = SOF_FW_BLK_TYPE_SRAM;
+	priv->bootaddr = res->start;
 
 	sdev->mailbox_bar = SOF_FW_BLK_TYPE_SRAM;
 	sdev->dsp_box.offset = MBOX_DSPBOX_OFFSET;
@@ -223,10 +210,7 @@ static int imx95_get_bar_index(struct snd_sof_dev *sdev, u32 type)
 
 static int imx95_get_window_offset(struct snd_sof_dev *sdev, u32 id)
 {
-	/* no offset for window regions - they are already relative to
-	 * MAILBOX memory region described in DTS
-	 */
-	return 0;
+	return MBOX_WINDOW_OFFSET;
 }
 
 static int imx95_set_power_state(struct snd_sof_dev *sdev,

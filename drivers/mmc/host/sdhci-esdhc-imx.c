@@ -34,6 +34,7 @@
 #define ESDHC_SYS_CTRL_RESET_TUNING	(1 << 28)
 #define ESDHC_SYS_CTRL_RST_FIFO		(1 << 22)
 #define ESDHC_SYS_CTRL_DTOCV_MASK	0x0f
+#define ESDHC_SYS_CTRL_DTOCV_SHIFT	16
 #define	ESDHC_CTRL_D3CD			0x08
 #define ESDHC_BURST_LEN_EN_INCR		(1 << 27)
 /* VENDOR SPEC register */
@@ -83,8 +84,10 @@
 #define  ESDHC_TUNE_CTRL_STEP		1
 #define  ESDHC_TUNE_CTRL_MIN		0
 #define  ESDHC_TUNE_CTRL_MAX		((1 << 7) - 1)
+#define ESDHC_TUNE_CTRL_STATUS_TAP_SEL_MASK		0x7fff0000
 #define ESDHC_TUNE_CTRL_STATUS_TAP_SEL_PRE_MASK		0x7f000000
 #define ESDHC_TUNE_CTRL_STATUS_TAP_SEL_PRE_SHIFT	24
+#define ESDHC_TUNE_CTRL_STATUS_TAP_SEL_POST_SHIFT	16
 #define ESDHC_TUNE_CTRL_STATUS_DLY_CELL_SET_PRE_SHIFT	8
 #define ESDHC_TUNE_CTRL_STATUS_DLY_CELL_SET_OUT_SHIFT	4
 #define ESDHC_TUNE_CTRL_STATUS_DLY_CELL_SET_POST_SHIFT	0
@@ -278,7 +281,7 @@ static const struct esdhc_soc_data usdhc_imx6q_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sl_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_ERR004536
 			| ESDHC_FLAG_HS200
 			| ESDHC_FLAG_BROKEN_AUTO_CMD23
@@ -286,7 +289,7 @@ static const struct esdhc_soc_data usdhc_imx6sl_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sll_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -294,7 +297,7 @@ static const struct esdhc_soc_data usdhc_imx6sll_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sx_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
 			| ESDHC_FLAG_BROKEN_AUTO_CMD23
@@ -302,7 +305,7 @@ static const struct esdhc_soc_data usdhc_imx6sx_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6ull_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_ERR010450
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -310,7 +313,7 @@ static const struct esdhc_soc_data usdhc_imx6ull_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx7d_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -327,7 +330,7 @@ static struct esdhc_soc_data usdhc_s32g2_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx7ulp_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_PMQOS | ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
@@ -340,7 +343,7 @@ static struct esdhc_soc_data usdhc_imxrt1050_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8qxp_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -349,7 +352,7 @@ static struct esdhc_soc_data usdhc_imx8qxp_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8mm_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
@@ -357,7 +360,7 @@ static struct esdhc_soc_data usdhc_imx8mm_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8mq_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_PMQOS
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -1243,7 +1246,7 @@ static int esdhc_executing_tuning(struct sdhci_host *host, u32 opcode)
 {
 	int min, max, avg, ret;
 	int win_length, target_min, target_max, target_win_length;
-	u32 clk_tune_ctrl_status;
+	u32 clk_tune_ctrl_status, temp;
 
 	min = ESDHC_TUNE_CTRL_MIN;
 	max = ESDHC_TUNE_CTRL_MIN;
@@ -1298,6 +1301,13 @@ static int esdhc_executing_tuning(struct sdhci_host *host, u32 opcode)
 				ESDHC_AUTO_TUNING_WINDOW <<
 					ESDHC_TUNE_CTRL_STATUS_DLY_CELL_SET_POST_SHIFT;
 	writel(clk_tune_ctrl_status, host->ioaddr + ESDHC_TUNE_CTRL_STATUS);
+	ret = readl_poll_timeout(host->ioaddr + ESDHC_TUNE_CTRL_STATUS, temp,
+				 clk_tune_ctrl_status ==
+				 (temp & ESDHC_TUNE_CTRL_STATUS_TAP_SEL_MASK) >>
+				  ESDHC_TUNE_CTRL_STATUS_TAP_SEL_POST_SHIFT, 1, 10);
+	if (ret == -ETIMEDOUT)
+		dev_warn(mmc_dev(host->mmc),
+			 "clock tuning control status not set in 10us\n");
 
 	ret = mmc_send_tuning(host->mmc, opcode, NULL);
 	esdhc_post_tuning(host);
@@ -1475,12 +1485,15 @@ static unsigned int esdhc_get_max_timeout_count(struct sdhci_host *host)
 
 static void esdhc_set_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 {
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
+	bool too_big = false;
+	u8 count = sdhci_calc_timeout(host, cmd, &too_big);
 
-	/* use maximum timeout counter */
-	esdhc_clrset_le(host, ESDHC_SYS_CTRL_DTOCV_MASK,
-			esdhc_is_usdhc(imx_data) ? 0xF : 0xE,
+	/*
+	 * usdhc SDHCI_TIMEOUT_CONTROL register bit[7] used to control
+	 * hardware reset pin of the card. Write 0 to bit[7] will reset
+	 * the card. Only write bit[0] ~ bit[3] here.
+	 */
+	esdhc_clrset_le(host, ESDHC_SYS_CTRL_DTOCV_MASK, count,
 			SDHCI_TIMEOUT_CONTROL);
 }
 
@@ -1933,6 +1946,8 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		 * to distinguish the card type.
 		 */
 		host->mmc_host_ops.init_card = usdhc_init_card;
+
+		host->max_timeout_count = 0xF;
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)

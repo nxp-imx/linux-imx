@@ -12,6 +12,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -28,6 +29,16 @@
 #define MINOR_COUNT         (64) /* Allocate minor versions */
 
 /****************************************************************************/
+
+static int suspend_delay = NEUTRON_AUTOSUSPEND_DELAY;
+
+module_param(suspend_delay, int, 0644);
+MODULE_PARM_DESC(suspend_delay, "Set idle time in millisecond to enter sleep, default is 1000 (ms)");
+
+static int power_mode = POWER_MODE_AUTO;
+
+module_param(power_mode, int, 0644);
+MODULE_PARM_DESC(power_mode, "Power consumption strategy mode, 0:auto balance mode; 1:best performance mode; 2:low power mode");
 
 static struct class *neutron_class;
 static dev_t devt;
@@ -66,9 +77,16 @@ static int neutron_pdev_probe(struct platform_device *pdev)
 		goto err_free_dev;
 	}
 
+	ndev->power_mode = power_mode;
+	ndev->suspend_delay = suspend_delay;
+
+	/* Uppdate auto suspend delay time for performance mode */
+	if (power_mode == POWER_MODE_PERF)
+		ndev->suspend_delay +=  100 * MSEC_PER_SEC;
+
 	pm_runtime_enable(&pdev->dev);
 
-	pm_runtime_set_autosuspend_delay(&pdev->dev, NEUTRON_AUTOSUSPEND_DELAY);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, ndev->suspend_delay);
 	pm_runtime_use_autosuspend(&pdev->dev);
 
 	ret = pm_runtime_resume_and_get(&pdev->dev);
@@ -77,17 +95,27 @@ static int neutron_pdev_probe(struct platform_device *pdev)
 		goto err_put_pm;
 	}
 
+	if (of_reserved_mem_device_init(&pdev->dev)) {
+		dev_dbg(&pdev->dev, "doesn't have specific DMA pool.\n");
+		ndev->flags &= (~SPECIFIC_DMA_POOL);
+	} else {
+		ndev->flags |= SPECIFIC_DMA_POOL;
+	}
+
 	/* Initialize device */
 	ret = neutron_dev_init(ndev, &pdev->dev, irq, neutron_class,
 			       MKDEV(MAJOR(devt), minor));
 	if (ret)
-		goto err_put_pm;
+		goto of_release_mem;
 
 	pm_runtime_put_autosuspend(&pdev->dev);
 	set_bit(minor, minors);
 
 	return 0;
 
+of_release_mem:
+	if (ndev->flags & SPECIFIC_DMA_POOL)
+		of_reserved_mem_device_release(&pdev->dev);
 err_put_pm:
 	pm_runtime_disable(&pdev->dev);
 err_free_dev:
@@ -100,9 +128,13 @@ static void neutron_pdev_remove(struct platform_device *pdev)
 {
 	struct neutron_device *ndev = platform_get_drvdata(pdev);
 
+	pm_runtime_get_noresume(ndev->dev);
 	neutron_rproc_shutdown(ndev);
+	if (ndev->flags & SPECIFIC_DMA_POOL)
+		of_reserved_mem_device_release(&pdev->dev);
 	clear_bit(MINOR(ndev->devt), minors);
 	neutron_dev_deinit(ndev);
+	pm_runtime_put_noidle(ndev->dev);
 	pm_runtime_disable(ndev->dev);
 }
 
@@ -139,15 +171,6 @@ static int neutron_runtime_resume(struct device *dev)
 #ifdef CONFIG_PM_SLEEP
 static int neutron_suspend(struct device *dev)
 {
-	struct neutron_device *ndev = dev_get_drvdata(dev);
-
-	pm_runtime_resume_and_get(dev);
-
-	if (ndev->power_state == NEUTRON_POWER_ON)
-		neutron_rproc_shutdown(ndev);
-
-	pm_runtime_put_sync(dev);
-
 	pm_runtime_force_suspend(dev);
 
 	return 0;
@@ -155,18 +178,11 @@ static int neutron_suspend(struct device *dev)
 
 static int neutron_resume(struct device *dev)
 {
-	struct neutron_device *ndev = dev_get_drvdata(dev);
 	int ret;
 
 	ret = pm_runtime_force_resume(dev);
 	if (ret)
 		pr_err("neutron: failed to resume\n");
-
-	/* Start the neutron core only when it is ON state before sleeping */
-	pm_runtime_resume_and_get(dev);
-	if (ndev->power_state == NEUTRON_POWER_ON)
-		neutron_rproc_boot(ndev, NULL);
-	pm_runtime_put_sync(dev);
 
 	return 0;
 }
@@ -239,7 +255,7 @@ static void __exit neutron_exit(void)
 	class_destroy(neutron_class);
 }
 
-module_init(neutron_init)
+late_initcall(neutron_init) /* After neutron rproc */
 module_exit(neutron_exit)
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("i.MX Neutron NPU Driver");

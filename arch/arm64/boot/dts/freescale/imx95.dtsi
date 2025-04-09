@@ -3106,6 +3106,7 @@
 				 <&scmi_clk IMX95_CLK_NPUAPB>;
 			clock-names = "npu", "npu_apb";
 			power-domains = <&scmi_devpd IMX95_PD_NPU>;
+			iommus = <&smmu 0xd>;
 		};
 	};
 

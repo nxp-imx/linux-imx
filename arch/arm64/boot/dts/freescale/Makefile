@@ -658,6 +658,9 @@ imx95-15x15-evk-ox03c10-isp-adv7535-dtbs := imx95-15x15-evk-adv7535.dtb \
 					    imx95-15x15-evk-ox03c10.dtbo \
 					    imx95-19x19-evk-neoisp.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-ox03c10-isp-adv7535.dtb
+imx95-15x15-evk-neutron-dtbs := imx95-15x15-evk.dtb imx95-19x19-evk-neutron.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-neutron.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-sof-wm8962.dtb
 
 imx95-19x19-evk-pcie1-ep-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-pcie1-ep.dtbo
@@ -778,6 +781,9 @@ imx95-19x19-evk-ox05b1s-isp-lvds-dual-dtbs := imx95-19x19-evk-neoisp.dtb imx95-1
 							  imx95-19x19-evk-ox05b1s-combo.dtbo \
 							  imx95-19x19-evk-it6263-lvds-dual.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-ox05b1s-isp-lvds-dual.dtb
+
+imx95-19x19-evk-neutron-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-neutron.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-neutron.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin.dtb
 DTC_FLAGS_imx95-19x19-verdin-rpmsg := -@

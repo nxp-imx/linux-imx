@@ -526,9 +526,11 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 {
 	struct flow_rule *cls_rule = flow_cls_offload_flow_rule(f);
 	struct ntmp_isct_entry *isct_entry __free(kfree) = NULL;
+	struct netc_police_tbl *police_tbl __free(kfree) = NULL;
 	struct ntmp_rpt_entry *rpt_entry __free(kfree) = NULL;
 	struct netc_flower_rule *rule __free(kfree) = NULL;
 	struct netlink_ext_ack *extack = f->common.extack;
+	struct netc_police_tbl *reused_police_tbl = NULL;
 	struct ipft_keye_data *ipft_keye __free(kfree);
 	struct flow_action_entry *redirect_act = NULL;
 	struct flow_action_entry *police_act = NULL;
@@ -544,7 +546,6 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 	struct dsa_port *to_dp;
 	int redirect_port = -1;
 	u64 actions = 0;
-	u16 msdu = 0;
 	int i, err;
 
 	guard(mutex)(&ntmp->flower_lock);
@@ -612,14 +613,18 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 
 	if (police_act) {
 		err = netc_police_entry_validate(ntmp, &cls_rule->action,
-						 police_act, extack);
+						 police_act, &reused_police_tbl,
+						 extack);
 		if (err)
 			return err;
 
-		msdu = police_act->police.mtu;
+		if (!reused_police_tbl) {
+			police_tbl = kzalloc(sizeof(*police_tbl), GFP_KERNEL);
+			if (!police_tbl) {
+				err = -ENOMEM;
+				goto clear_rpt_eid_bit;
+			}
 
-		if (police_act->police.rate_bytes_ps ||
-		    police_act->police.burst) {
 			rpt_entry = kzalloc(sizeof(*rpt_entry), GFP_KERNEL);
 			if (!rpt_entry) {
 				err = -ENOMEM;
@@ -627,6 +632,8 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 			}
 
 			netc_rpt_entry_config(police_act, rpt_entry);
+			police_tbl->rpt_eid = police_act->hw_index;
+			refcount_set(&police_tbl->refcount, 1);
 		}
 	}
 
@@ -655,20 +662,21 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 
 		isct_entry->entry_id = isct_eid;
 		ist_entry->cfge.isc_eid = cpu_to_le32(isct_eid);
-		ist_entry->cfge.msdu = cpu_to_le16(msdu);
 
-		if (rpt_entry) {
+		if (police_act) {
 			u32 ist_cfg = le32_to_cpu(ist_entry->cfge.cfg) | IST_ORP;
+			u16 msdu = police_act->police.mtu;
 
+			ist_entry->cfge.msdu = cpu_to_le16(msdu);
 			ist_entry->cfge.cfg = cpu_to_le32(ist_cfg);
-			ist_entry->cfge.rp_eid = cpu_to_le32(rpt_entry->entry_id);
+			ist_entry->cfge.rp_eid = cpu_to_le32(police_act->hw_index);
 		}
-	} else if (rpt_entry) {
+	} else if (police_act) {
 		u32 ipft_cfg = le32_to_cpu(ipft_entry->cfge.cfg);
 
 		ipft_cfg = u32_replace_bits(ipft_cfg, IPFT_FLTA_RP, IPFT_FLTA);
 		ipft_entry->cfge.cfg = cpu_to_le32(ipft_cfg);
-		ipft_entry->cfge.flta_tgt = cpu_to_le32(rpt_entry->entry_id);
+		ipft_entry->cfge.flta_tgt = cpu_to_le32(police_act->hw_index);
 	}
 
 	err = netc_set_trap_redirect_tables(ntmp, ipft_entry, ist_entry,
@@ -691,7 +699,7 @@ clear_isct_eid_bit:
 free_key_tbl:
 	netc_free_flower_key_tbl(ntmp, key_tbl);
 clear_rpt_eid_bit:
-	if (police_act)
+	if (police_act && !reused_police_tbl)
 		ntmp_clear_eid_bitmap(ntmp->rpt_eid_bitmap,
 				      police_act->hw_index);
 
@@ -747,11 +755,11 @@ int netc_port_flow_cls_replace(struct netc_port *port,
 static void netc_delete_trap_redirect_flower_rule(struct ntmp_priv *ntmp,
 						  struct netc_flower_rule *rule)
 {
+	struct netc_police_tbl *police_tbl = rule->police_tbl;
 	struct netc_flower_key_tbl *key_tbl = rule->key_tbl;
 	struct netc_cbdrs *cbdrs = &ntmp->cbdrs;
 	struct ntmp_ipft_entry *ipft_entry;
 	struct ntmp_ist_entry *ist_entry;
-	u32 rpt_eid = NTMP_NULL_ENTRY_ID;
 	u32 isct_eid;
 
 	ipft_entry = key_tbl->ipft_entry;
@@ -768,20 +776,9 @@ static void netc_delete_trap_redirect_flower_rule(struct ntmp_priv *ntmp,
 						NTMP_CMD_DELETE, NULL);
 			ntmp_clear_eid_bitmap(ntmp->isct_eid_bitmap, isct_eid);
 		}
-
-		rpt_eid = le32_to_cpu(ist_entry->cfge.rp_eid);
-	} else {
-		u32 ipft_cfg = le32_to_cpu(ipft_entry->cfge.cfg);
-
-		if (FIELD_GET(IPFT_FLTA, ipft_cfg) == IPFT_FLTA_RP)
-			rpt_eid = le32_to_cpu(ipft_entry->cfge.flta_tgt);
 	}
 
-	if (rpt_eid != NTMP_NULL_ENTRY_ID) {
-		ntmp_rpt_delete_entry(cbdrs, rpt_eid);
-		ntmp_clear_eid_bitmap(ntmp->rpt_eid_bitmap, rpt_eid);
-	}
-
+	netc_free_flower_police_tbl(ntmp, police_tbl);
 	netc_free_flower_key_tbl(ntmp, key_tbl);
 
 	hlist_del(&rule->node);

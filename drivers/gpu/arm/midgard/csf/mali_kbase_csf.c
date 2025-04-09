@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -2488,27 +2488,33 @@ static void handle_progress_timer_events(struct kbase_device *const kbdev, unsig
 	u32 max_csg_slots = kbdev->csf.global_iface.group_num;
 	u32 csg_nr;
 	struct kbase_queue_group *group = NULL;
+	bool aw_removed;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	if (likely(bitmap_empty(slot_mask, BASEP_QUEUE_GROUP_MAX)))
 		return;
 
-	/* Log each timeout and Update timestamp of compute progress timeout */
-	for_each_set_bit(csg_nr, slot_mask, max_csg_slots) {
-		group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
-		group->progress_timer_state = kbase_csf_fw_io_group_read(&kbdev->csf.fw_io, csg_nr,
-									 CSG_PROGRESS_TIMER_STATE);
+	aw_removed = kbase_io_is_aw_removed(kbdev);
 
-		dev_info(
-			kbdev->dev,
-			"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u with state %x",
-			kbase_backend_get_cycle_cnt(kbdev), group->handle, group->kctx->tgid,
-			group->kctx->id, csg_nr, group->progress_timer_state);
+	if (!aw_removed)
+		/* Log each timeout and Update timestamp of compute progress timeout */
+		for_each_set_bit(csg_nr, slot_mask, max_csg_slots) {
+			group = kbdev->csf.scheduler.csg_slots[csg_nr].resident_group;
+			group->progress_timer_state = kbase_csf_fw_io_group_read(
+				&kbdev->csf.fw_io, csg_nr, CSG_PROGRESS_TIMER_STATE);
 
-		if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
-		    CSG_PROGRESS_TIMER_STATE_COMPUTE)
-			kbdev->csf.compute_progress_timeout_cc = kbase_backend_get_cycle_cnt(kbdev);
-	}
+			dev_info(
+				kbdev->dev,
+				"[%llu] Iterator PROGRESS_TIMER timeout notification received for group %u of ctx %d_%d on slot %u with state %x",
+				kbase_backend_get_cycle_cnt(kbdev), group->handle,
+				group->kctx->tgid, group->kctx->id, csg_nr,
+				group->progress_timer_state);
+
+			if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
+			    CSG_PROGRESS_TIMER_STATE_COMPUTE)
+				kbdev->csf.compute_progress_timeout_cc =
+					kbase_backend_get_cycle_cnt(kbdev);
+		}
 
 	/* Ignore fragment timeout if it is following a compute timeout.
 	 * Otherwise, terminate the command stream group.
@@ -2519,8 +2525,8 @@ static void handle_progress_timer_events(struct kbase_device *const kbdev, unsig
 		/* Check if it is a fragment timeout right after another compute timeout.
 		 * In such case, kill compute CSG and give fragment CSG a second chance
 		 */
-		if (CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
-		    CSG_PROGRESS_TIMER_STATE_FRAGMENT) {
+		if (!aw_removed && CSG_PROGRESS_TIMER_STATE_GET(group->progress_timer_state) ==
+					   CSG_PROGRESS_TIMER_STATE_FRAGMENT) {
 			u64 cycle_counter = kbase_backend_get_cycle_cnt(kbdev);
 			u64 compute_progress_timeout_cc = kbdev->csf.compute_progress_timeout_cc;
 
@@ -3054,7 +3060,27 @@ static int process_cs_interrupts(struct kbase_queue_group *const group, u32 grou
 				kbase_csf_fw_io_close(fw_io, fw_io_flags);
 			}
 
-			/* PROTM_PEND and TILER_OOM can be safely ignored
+			/* PROTM_PEND request should be handled if the group
+			 * is assigned a CSG slot in the future. We set
+			 * protm_pending_bitmap here in case we skip saving
+			 * the CS slots' state due to the group becoming active
+			 * shortly after the suspension request is made.
+			 */
+			if ((cs_req & CS_REQ_PROTM_PEND_MASK) ^ (cs_ack & CS_ACK_PROTM_PEND_MASK)) {
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_PROTM_PEND, group,
+							   queue, cs_req ^ cs_ack);
+
+				dev_dbg(kbdev->dev,
+					"Protected mode entry request for queue on csi %d bound to group-%d on slot %d",
+					queue->csi_index, group->handle, group->csg_nr);
+
+				bitmap_set(group->protm_pending_bitmap, i, 1);
+				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_PROTM_PEND_SET, group, queue,
+							   group->protm_pending_bitmap[0]);
+				protm_pend = true;
+			}
+
+			/* TILER_OOM can be safely ignored
 			 * because they will be raised again if the group
 			 * is assigned a CSG slot in future.
 			 */
@@ -3074,20 +3100,6 @@ static int process_cs_interrupts(struct kbase_queue_group *const group, u32 grou
 							   queue, cs_req ^ cs_ack);
 
 				kbase_csf_handle_pending_oom_interrupt(queue, group_id);
-			}
-
-			if ((cs_req & CS_REQ_PROTM_PEND_MASK) ^ (cs_ack & CS_ACK_PROTM_PEND_MASK)) {
-				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_INTERRUPT_PROTM_PEND, group,
-							   queue, cs_req ^ cs_ack);
-
-				dev_dbg(kbdev->dev,
-					"Protected mode entry request for queue on csi %d bound to group-%d on slot %d",
-					queue->csi_index, group->handle, group->csg_nr);
-
-				bitmap_set(group->protm_pending_bitmap, i, 1);
-				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_PROTM_PEND_SET, group, queue,
-							   group->protm_pending_bitmap[0]);
-				protm_pend = true;
 			}
 		}
 	}
@@ -3806,7 +3818,7 @@ void kbase_csf_doorbell_mapping_term(struct kbase_device *kbdev)
 		 * module unload path, so the page can be left uncleared before returning it
 		 * back to kbdev memory pool.
 		 */
-		kbase_mem_pool_free(&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], page, false);
+		kbase_mem_pool_free(&kbdev->fw_mem_pools.small, page, false);
 
 		fput(kbdev->csf.db_filp);
 	}
@@ -3822,8 +3834,7 @@ int kbase_csf_doorbell_mapping_init(struct kbase_device *kbdev)
 	if (IS_ERR(filp))
 		return PTR_ERR(filp);
 
-	ret = kbase_mem_pool_alloc_pages(&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], 1, &phys,
-					 false, NULL);
+	ret = kbase_mem_pool_alloc_pages(&kbdev->fw_mem_pools.small, 1, &phys, false, NULL);
 
 	if (ret <= 0) {
 		fput(filp);
@@ -3870,7 +3881,7 @@ void kbase_csf_free_dummy_user_reg_page(struct kbase_device *kbdev)
 		 * path, so the page can be left uncleared before returning it back to kbdev
 		 * memory pool.
 		 */
-		kbase_mem_pool_free(&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], page, false);
+		kbase_mem_pool_free(&kbdev->fw_mem_pools.small, page, false);
 		fput(kbdev->csf.user_reg.filp);
 	}
 }
@@ -3890,8 +3901,7 @@ int kbase_csf_setup_dummy_user_reg_page(struct kbase_device *kbdev)
 		return PTR_ERR(filp);
 	}
 
-	if (kbase_mem_pool_alloc_pages(&kbdev->mem_pools.small[KBASE_MEM_GROUP_CSF_FW], 1, &phys,
-				       false, NULL) <= 0) {
+	if (kbase_mem_pool_alloc_pages(&kbdev->fw_mem_pools.small, 1, &phys, false, NULL) <= 0) {
 		fput(filp);
 		return -ENOMEM;
 	}

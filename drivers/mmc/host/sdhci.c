@@ -962,8 +962,8 @@ static void sdhci_calc_sw_timeout(struct sdhci_host *host,
 		host->data_timeout += MMC_CMD_TRANSFER_TIME;
 }
 
-static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd,
-			     bool *too_big)
+u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd,
+		      bool *too_big)
 {
 	u8 count;
 	struct mmc_data *data;
@@ -1019,6 +1019,7 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd,
 
 	return count;
 }
+EXPORT_SYMBOL_GPL(sdhci_calc_timeout);
 
 static void sdhci_set_transfer_irqs(struct sdhci_host *host)
 {

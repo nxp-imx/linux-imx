@@ -1955,7 +1955,6 @@ static void lynx_28g_get_pcvt_addr(struct phy *phy,
 		break;
 	case PHY_PCVT_ETHERNET_ANLT:
 		WARN_ON(lynx_anlt_read(lane, lane_mode, CR(1), &cr1));
-		dev_info(&phy->dev, "ANLT%dCR1 = 0x%x\n", lane->id, cr1);
 		pcvt->addr.mdio = LYNX_28G_MDEV_PORT_X(cr1);
 		break;
 	default:

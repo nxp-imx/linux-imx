@@ -302,11 +302,16 @@ static void vsi_enum_decfsize(struct v4l2_frmsizeenum *f, u32 pixel_format)
 	if (vsi_v4l2_hwconfig.max_dec_resolution > 1920) {
 		switch (pixel_format) {
 		case V4L2_PIX_FMT_HEVC:
-		case V4L2_PIX_FMT_VP9:
 			f->stepwise.min_width = 144;
 			f->stepwise.max_width = 4096;
 			f->stepwise.min_height = 144;
 			f->stepwise.max_height = 4096;
+			break;
+		case V4L2_PIX_FMT_VP9:
+			f->stepwise.min_width = 144;
+			f->stepwise.max_width = 4096;
+			f->stepwise.min_height = 144;
+			f->stepwise.max_height = 2304;
 			break;
 		case V4L2_PIX_FMT_H264:
 		case V4L2_PIX_FMT_VP8:

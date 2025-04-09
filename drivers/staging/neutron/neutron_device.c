@@ -21,6 +21,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/firmware.h>
 #include <linux/elf.h>
+#include <linux/platform_device.h>
 
 #include "uapi/neutron.h"
 #include "neutron_buffer.h"
@@ -73,6 +74,8 @@ static struct rproc *neutron_get_rproc(struct neutron_device *ndev)
 {
 	phandle rproc_phandle;
 	struct rproc *rproc;
+	struct platform_device *pdev;
+	struct resource *res;
 
 	if (!ndev || !ndev->dev)
 		return NULL;
@@ -89,7 +92,11 @@ static struct rproc *neutron_get_rproc(struct neutron_device *ndev)
 			dev_err(ndev->dev, "could not get rproc handle\n");
 			return NULL;
 		}
-		ndev->rproc = rproc;
+
+		/* Get the RESETCTRL register from remoteproc device */
+		pdev = to_platform_device((struct device *)(&(*rproc->dev.parent)));
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		ndev->reg_reset = devm_ioremap(ndev->dev, res->start, resource_size(res));
 
 		return rproc;
 	}
@@ -271,12 +278,37 @@ void neutron_memory_sync(struct neutron_device *ndev, dma_addr_t addr,
 	ndev->dev->dma_coherent = true;
 }
 
+/* Clock gating via RESETCTRL register */
+void neutron_clk_disable(struct neutron_device *ndev)
+{
+	u32 val;
+
+	/* Disable clocks for risc-v core, TCM and Compute block. */
+	val = readl(ndev->reg_reset);
+	if (val & ZENV_CLK_ON) {
+		val &= ~(TCM_CLK_ON | COMPUTE_CLK_ON | ZENV_CLK_ON);
+		writel(val, ndev->reg_reset);
+	}
+}
+
+/* Clock ungating */
+void neutron_clk_enable(struct neutron_device *ndev)
+{
+	u32 val;
+
+	/* Enable clocks for risc-v core, TCM and Compute block. */
+	val = readl(ndev->reg_reset);
+	if (!(val & ZENV_CLK_ON)) {
+		val |= (TCM_CLK_ON | COMPUTE_CLK_ON |  ZENV_CLK_ON);
+		writel(val, ndev->reg_reset);
+	}
+}
+
 int neutron_rproc_boot(struct neutron_device *ndev, const char *fw_name)
 {
-	struct rproc *rproc;
+	struct rproc *rproc = ndev->rproc;
 	int ret = 0;
 
-	rproc = neutron_get_rproc(ndev);
 	if (IS_ERR(rproc))
 		return -ENODEV;
 
@@ -294,6 +326,12 @@ int neutron_rproc_boot(struct neutron_device *ndev, const char *fw_name)
 		/* Continue and assume boot neutron manually */
 		if (!wait_until_neutron_ready(ndev, 100))
 			dev_err(ndev->dev, "failed: neutron is not ready, timeout\n");
+
+		if (ndev->power_mode >= POWER_MODE_LOW)
+			neutron_clk_disable(ndev);
+
+		/* Firmware is changed */
+		ndev->firmw_id = 0;
 	}
 	/* Update power state */
 	if (ndev->power_state == NEUTRON_POWER_OFF)
@@ -304,13 +342,10 @@ int neutron_rproc_boot(struct neutron_device *ndev, const char *fw_name)
 
 int neutron_rproc_shutdown(struct neutron_device *ndev)
 {
-	struct rproc *rproc;
-
-	rproc = neutron_get_rproc(ndev);
-	if (IS_ERR(rproc))
+	if (IS_ERR(ndev->rproc))
 		return -ENODEV;
 
-	return rproc_shutdown(rproc);
+	return rproc_shutdown(ndev->rproc);
 }
 
 static void neutron_rproc_put(struct neutron_device *ndev)
@@ -360,7 +395,6 @@ static int neutron_open(struct inode *inode,
 {
 	struct neutron_device *ndev =
 		container_of(inode->i_cdev, struct neutron_device, cdev);
-	struct rproc *rproc;
 	int head, ret = 0;
 	bool is_iomem = true;
 
@@ -374,7 +408,9 @@ static int neutron_open(struct inode *inode,
 		return ret;
 	}
 
-	rproc = ndev->rproc;
+	if (!ndev->rproc)
+		return -ENODEV;
+
 	head = readl(ndev->reg_base + HEAD);
 
 	file->private_data = ndev;
@@ -382,7 +418,7 @@ static int neutron_open(struct inode *inode,
 
 	/* 0x44000 is the LOG buffer address for neutron */
 	if (!ndev->logger.start_addr)
-		ndev->logger.start_addr = rproc_da_to_va(rproc, 0x44000, 0x1000, &is_iomem);
+		ndev->logger.start_addr = rproc_da_to_va(ndev->rproc, 0x44000, 0x1000, &is_iomem);
 
 	if (!ndev->logger.end_addr)
 		ndev->logger.end_addr = ndev->logger.start_addr + NEUTRON_LOG_SIZE;
@@ -391,19 +427,9 @@ static int neutron_open(struct inode *inode,
 	ndev->logger.last_to_console  = ndev->logger.start_addr + head;
 
 	pm_runtime_mark_last_busy(ndev->dev);
-
-	return nonseekable_open(inode, file);
-}
-
-static int neutron_release(struct inode *inode, struct file *file)
-{
-	struct neutron_device *ndev =
-		container_of(inode->i_cdev, struct neutron_device, cdev);
-
-	pm_runtime_mark_last_busy(ndev->dev);
 	pm_runtime_put_autosuspend(ndev->dev);
 
-	return 0;
+	return nonseekable_open(inode, file);
 }
 
 /* function to read neutron log */
@@ -603,7 +629,6 @@ static long neutron_ioctl(struct file *file,
 static const struct file_operations ndev_fops = {
 	.owner		= THIS_MODULE,
 	.open		= &neutron_open,
-	.release	= &neutron_release,
 	.read		= &neutron_read,
 	.unlocked_ioctl	= &neutron_ioctl,
 #ifdef CONFIG_COMPAT
@@ -696,6 +721,8 @@ int neutron_dev_init(struct neutron_device *ndev,
 		goto del_cdev;
 	}
 
+	ndev->rproc = neutron_get_rproc(ndev);
+
 	dev_info(ndev->dev,
 		 "created neutron device, name=%s\n", dev_name(sysdev));
 
@@ -719,7 +746,6 @@ destroy_mutex:
 void neutron_dev_deinit(struct neutron_device *ndev)
 {
 	neutron_queue_destroy(ndev->queue);
-	clk_bulk_disable_unprepare(ndev->num_clks, ndev->clks);
 	neutron_mbox_destroy(ndev->mbox);
 	neutron_rproc_put(ndev);
 	mutex_destroy(&ndev->mutex);

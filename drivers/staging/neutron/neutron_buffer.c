@@ -42,8 +42,8 @@ static void neutron_buffer_destroy(struct kref *kref)
 	if (buf->firmware_p)
 		release_firmware(buf->firmware_p);
 
-	dma_free_coherent(buf->ndev->dev, buf->size, buf->cpu_addr,
-			  buf->dma_addr);
+	dma_free_attrs(buf->ndev->dev, buf->size, buf->cpu_addr,
+		       buf->dma_addr, DMA_ATTR_FORCE_CONTIGUOUS);
 	devm_kfree(buf->ndev->dev, buf);
 }
 
@@ -69,8 +69,8 @@ static int neutron_buffer_mmap(struct file *file,
 	dev_dbg(buf->ndev->dev, "Buffer mmap. file=0x%pS, buf=0x%pS\n",
 		file, buf);
 
-	ret = dma_mmap_coherent(buf->ndev->dev, vma, buf->cpu_addr,
-				buf->dma_addr, buf->size);
+	ret = dma_mmap_attrs(buf->ndev->dev, vma, buf->cpu_addr,
+			     buf->dma_addr, buf->size, DMA_ATTR_FORCE_CONTIGUOUS);
 
 	return ret;
 }
@@ -92,8 +92,8 @@ int neutron_buffer_create(struct neutron_device *ndev,
 	buf->size = size;
 	kref_init(&buf->kref);
 
-	buf->cpu_addr = dma_alloc_coherent(buf->ndev->dev, size,
-					   &buf->dma_addr, GFP_KERNEL);
+	buf->cpu_addr = dma_alloc_attrs(buf->ndev->dev, size,
+					&buf->dma_addr, GFP_KERNEL, DMA_ATTR_FORCE_CONTIGUOUS);
 	if (!buf->cpu_addr)
 		goto free_buf;
 
@@ -113,8 +113,8 @@ int neutron_buffer_create(struct neutron_device *ndev,
 	return ret;
 
 free_dma:
-	dma_free_coherent(buf->ndev->dev, buf->size, buf->cpu_addr,
-			  buf->dma_addr);
+	dma_free_attrs(buf->ndev->dev, buf->size, buf->cpu_addr,
+		       buf->dma_addr, DMA_ATTR_FORCE_CONTIGUOUS);
 
 free_buf:
 	devm_kfree(buf->ndev->dev, buf);

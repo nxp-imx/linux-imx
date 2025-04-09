@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+
+&{/reserved-memory} {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	neutron_mem: neutron_memory@100000000 {
+		compatible = "shared-dma-pool";
+		reusable;
+		reg = <0x1 0x00000000 0x1 0x00000000>;
+	};
+};
+
+&neutron {
+	memory-region = <&neutron_mem>;
+};

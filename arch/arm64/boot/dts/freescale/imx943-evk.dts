@@ -46,6 +46,9 @@
 				<&cm70_vdev1vring0>, <&cm70_vdev1vring1>, <&cm70_rsc_table>;
 		fsl,startup-delay-ms = <50>;
 		fsl,core-index = <0x1>;
+		/* cpuid and lmmid must align with SM firmware */
+		fsl,cpu-id = <1>;
+		fsl,lmm-id = <2>;
 		status = "okay";
 	};
 
@@ -59,6 +62,9 @@
 				<&cm71_vdev1vring0>, <&cm71_vdev1vring1>, <&cm71_rsc_table>;
 		fsl,startup-delay-ms = <50>;
 		fsl,core-index = <0x7>;
+		/* cpuid and lmmid must align with SM firmware */
+		fsl,cpu-id = <7>;
+		fsl,lmm-id = <3>;
 		status = "okay";
 	};
 
@@ -71,7 +77,9 @@
 		memory-region = <&cm33s_vdevbuffer>, <&cm33s_vdev0vring0>, <&cm33s_vdev0vring1>,
 				<&cm33s_vdev1vring0>, <&cm33s_vdev1vring1>, <&cm33s_rsc_table>;
 		fsl,startup-delay-ms = <50>;
-		fsl,core-index = <0x8>;
+		/* cpuid and lmmid must align with SM firmware */
+		fsl,cpu-id = <8>;
+		fsl,lmm-id = <1>;
 		status = "okay";
 	};
 

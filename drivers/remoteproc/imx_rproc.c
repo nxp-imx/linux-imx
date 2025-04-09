@@ -436,13 +436,13 @@ static const struct imx_rproc_dcfg imx_rproc_cfg_imx95_m7 = {
 static const struct imx_rproc_dcfg imx_rproc_cfg_imx94_m7 = {
 	.att		= imx_rproc_att_imx94_m7,
 	.att_size	= ARRAY_SIZE(imx_rproc_att_imx94_m7),
-	.method		= IMX_RPROC_SMC,
+	.method		= IMX_RPROC_SM,
 };
 
 static const struct imx_rproc_dcfg imx_rproc_cfg_imx94_m33s = {
 	.att		= imx_rproc_att_imx94_m33s,
 	.att_size	= ARRAY_SIZE(imx_rproc_att_imx94_m33s),
-	.method		= IMX_RPROC_SMC,
+	.method		= IMX_RPROC_SM,
 };
 
 
@@ -1131,6 +1131,8 @@ static int imx_rproc_detect_mode(struct imx_rproc *priv)
 			dev_err(dev, "No fsl,cpu-id property\n");
 			return ret;
 		}
+
+		priv->core_index = priv->cpuid;
 
 		ret = of_property_read_u32(dev->of_node, "fsl,lmm-id", &priv->lmid);
 		if (ret) {

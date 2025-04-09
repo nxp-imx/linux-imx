@@ -5,7 +5,9 @@
  * Copyright (C) 2013-2015 Mentor Graphics Inc.
  * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2010, Guennadi Liakhovetski <g.liakhovetski@gmx.de>
+ * Copyright 2025 NXP
  */
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -123,6 +125,7 @@ struct dw_hdmi_i2c {
 	u8			stat;
 
 	u8			slave_reg;
+	u8			segment_ptr;
 	bool			is_regaddr;
 	bool			is_segment;
 };
@@ -376,13 +379,18 @@ static int dw_hdmi_i2c_read(struct dw_hdmi *hdmi,
 	while (length--) {
 		reinit_completion(&i2c->cmp);
 
-		hdmi_writeb(hdmi, i2c->slave_reg++, HDMI_I2CM_ADDRESS);
-		if (i2c->is_segment)
+		if (i2c->is_segment)	{
+			hdmi_writeb(hdmi, 0x50, HDMI_I2CM_SLAVE);
+			hdmi_writeb(hdmi, i2c->slave_reg++, HDMI_I2CM_ADDRESS);
+			hdmi_writeb(hdmi, 0x30, HDMI_I2CM_SEGADDR);
+			hdmi_writeb(hdmi, i2c->segment_ptr, HDMI_I2CM_SEGPTR);
 			hdmi_writeb(hdmi, HDMI_I2CM_OPERATION_READ_EXT,
 				    HDMI_I2CM_OPERATION);
-		else
+		} else {
+			hdmi_writeb(hdmi, i2c->slave_reg++, HDMI_I2CM_ADDRESS);
 			hdmi_writeb(hdmi, HDMI_I2CM_OPERATION_READ,
 				    HDMI_I2CM_OPERATION);
+		}
 
 		ret = dw_hdmi_i2c_wait(hdmi);
 		if (ret)
@@ -466,19 +474,26 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 
 	/* Set segment pointer for I2C extended read mode operation */
 	i2c->is_segment = false;
+	i2c->segment_ptr = 0;
 
 	for (i = 0; i < num; i++) {
 		dev_dbg(hdmi->dev, "xfer: num: %d/%d, len: %d, flags: %#x\n",
 			i + 1, num, msgs[i].len, msgs[i].flags);
 		if (msgs[i].addr == DDC_SEGMENT_ADDR && msgs[i].len == 1) {
 			i2c->is_segment = true;
-			hdmi_writeb(hdmi, DDC_SEGMENT_ADDR, HDMI_I2CM_SEGADDR);
-			hdmi_writeb(hdmi, *msgs[i].buf, HDMI_I2CM_SEGPTR);
+			i2c->is_regaddr = true;
+			i2c->slave_reg = *msgs[1].buf;
+			i2c->segment_ptr =  *msgs[i].buf;
+			dev_dbg(hdmi->dev, "segment: addr 0x%02x seg 0x%02x len: %d\n",
+				msgs[i].addr, *msgs[i].buf, msgs[i].len);
 		} else {
 			if (msgs[i].flags & I2C_M_RD)
 				ret = dw_hdmi_i2c_read(hdmi, msgs[i].buf,
 						       msgs[i].len);
-			else
+			else if (!i2c->is_segment)
+				/* skip the segment write as the extended read
+				 * transaction handles this step
+				 */
 				ret = dw_hdmi_i2c_write(hdmi, msgs[i].buf,
 							msgs[i].len);
 		}

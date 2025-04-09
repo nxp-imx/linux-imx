@@ -133,7 +133,7 @@ static const struct formatter_pix_format formats[] = {
 		.code = MEDIA_BUS_FMT_RGB565_1X16,
 		.data_type = MIPI_CSI2_DT_RGB565,
 	}, {
-		.code = MEDIA_BUS_FMT_BGR888_1X24,
+		.code = MEDIA_BUS_FMT_RGB888_1X24,
 		.data_type = MIPI_CSI2_DT_RGB888,
 	},
 	/* RAW (Bayer and greyscale) formats. */

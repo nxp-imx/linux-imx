@@ -987,20 +987,15 @@ int ntmp_isit_add_or_update_entry(struct netc_cbdrs *cbdrs, bool add,
 	dma_addr_t dma;
 	void *tmp;
 	int err;
+	u8 qa;
 
 	data_size = add ? sizeof(*resp) : sizeof(*req);
 	tmp = ntmp_alloc_data_mem(dev, data_size, &dma, (void **)&req);
 	if (!tmp)
 		return -ENOMEM;
 
-	if (!add)
-		ntmp_fill_crd(&req->crd, cbdrs->tbl.isit_ver, 0,
-			      NTMP_GEN_UA_CFGEU);
-	else
-		/* Query ENTRY_ID only */
-		ntmp_fill_crd(&req->crd, cbdrs->tbl.isit_ver,
-			      NTMP_GEN_UA_CFGEU, 0);
-
+	qa = add ? NTMP_QA_ENTRY_ID : 0;
+	ntmp_fill_crd(&req->crd, cbdrs->tbl.isit_ver, qa, NTMP_GEN_UA_CFGEU);
 	req->ak.keye = entry->keye;
 	req->is_eid = entry->is_eid;
 

@@ -15,10 +15,9 @@
 	};
 
 	sound-mqs {
-		compatible = "fsl,imx-audio-mqs";
-		model = "mqs-audio";
-		audio-cpu = <&sai1>;
-		audio-codec = <&mqs1>;
+		compatible = "audio-graph-card2";
+		links = <&sai1_port1>;
+		label = "mqs-audio";
 	};
 };
 
@@ -33,6 +32,11 @@
 };
 
 &sai1 {
+	clocks = <&scmi_clk IMX94_CLK_BUSAON>, <&dummy>,
+		 <&scmi_clk IMX94_CLK_SAI1>, <&dummy>,
+		 <&dummy>, <&scmi_clk IMX94_CLK_AUDIOPLL1>,
+		 <&scmi_clk IMX94_CLK_AUDIOPLL2>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
 	assigned-clocks = <&scmi_clk IMX94_CLK_AUDIOPLL1_VCO>,
 			<&scmi_clk IMX94_CLK_AUDIOPLL2_VCO>,
 			<&scmi_clk IMX94_CLK_AUDIOPLL1>,
@@ -45,6 +49,24 @@
 			<361267200>, <24576000>;
 	fsl,sai-mclk-direction-output;
 	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sai1_port1: port@1 {
+			reg = <1>;
+			dai-format = "left_j";
+			bitclock-master;
+			frame-master;
+			playback-only;
+			mclk-fs = <256>;
+
+			sai1_endpoint1: endpoint {
+				remote-endpoint = <&mqs1_endpoint>;
+			};
+		};
+	};
 };
 
 &mqs1 {
@@ -62,7 +84,17 @@
 			<361267200>, <24576000>;
 	clocks = <&scmi_clk IMX94_CLK_SAI1>;
 	clock-names = "mclk";
+	#sound-dai-cells = <0>;
 	status = "okay";
+
+	mqs1_port: port {
+		dai-format = "left_j";
+		playback-only;
+
+		mqs1_endpoint: endpoint {
+			remote-endpoint = <&sai1_endpoint1>;
+		};
+	};
 };
 
 &micfil {

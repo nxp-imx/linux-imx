@@ -25,6 +25,17 @@ enum netc_key_tbl_type {
 	FLOWER_KEY_TBL_IPFT,
 };
 
+struct netc_gate_tbl {
+	u32 sgit_eid;
+	u32 sgclt_eid;
+	refcount_t refcount;
+};
+
+struct netc_police_tbl {
+	u32 rpt_eid;
+	refcount_t refcount;
+};
+
 struct netc_flower_key_tbl {
 	enum netc_key_tbl_type tbl_type;
 	union {
@@ -41,8 +52,8 @@ struct netc_flower_rule {
 	enum netc_flower_type flower_type;
 	struct netc_flower_key_tbl *key_tbl;
 	struct ntmp_isft_entry *isft_entry;
-	/* Valid if flower_type is FLOWER_TYPE_PSFP */
-	u32 sgclt_eid;
+	struct netc_gate_tbl *gate_tbl;
+	struct netc_police_tbl *police_tbl;
 	u64 lastused; /* Last used time, jiffies */
 	struct hlist_node node;
 };
@@ -83,9 +94,12 @@ void netc_init_ist_entry_eids(struct ntmp_priv *priv,
 			      struct ntmp_ist_entry *ist_entry);
 void netc_free_flower_key_tbl(struct ntmp_priv *priv,
 			      struct netc_flower_key_tbl *key_tbl);
+void netc_free_flower_police_tbl(struct ntmp_priv *priv,
+				 struct netc_police_tbl *police_tbl);
 int netc_police_entry_validate(struct ntmp_priv *priv,
 			       const struct flow_action *action,
 			       const struct flow_action_entry *police_entry,
+			       struct netc_police_tbl **police_tbl,
 			       struct netlink_ext_ack *extack);
 void netc_rpt_entry_config(struct flow_action_entry *police_entry,
 			   struct ntmp_rpt_entry *rpt_entry);
@@ -151,9 +165,15 @@ static inline void netc_free_flower_key_tbl(struct ntmp_priv *priv,
 {
 }
 
+static inline void netc_free_flower_police_tbl(struct ntmp_priv *priv,
+					       struct netc_police_tbl *police_tbl)
+{
+}
+
 static inline int netc_police_entry_validate(struct ntmp_priv *priv,
 					    const struct flow_action *action,
 					    const struct flow_action_entry *police_entry,
+					    struct netc_police_tbl **police_tbl,
 					    struct netlink_ext_ack *extack)
 {
 	return 0;

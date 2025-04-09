@@ -737,8 +737,8 @@ static bool lynx_check_tx_hw_restrictions(struct phy *phy, s32 ratio_post1q,
 
 	/* 5. ratio_post1q[4:0] >= ratio_preq[3:0] */
 	if (ratio_post1q < ratio_preq) {
-		dev_dbg(dev, "RATIO_POST1Q(%d) would exceed RATIO_PREQ(%d)\n",
-			ratio_post1q, ratio_preq);
+		dev_dbg(dev, "RATIO_PREQ(%d) would exceed RATIO_POST1Q(%d)\n",
+			ratio_preq, ratio_post1q);
 		return false;
 	}
 

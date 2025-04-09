@@ -1026,12 +1026,12 @@
 
 &sai6 {
 	assigned-clocks = <&acm IMX_ADMA_ACM_SAI6_MCLK_SEL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
 			<&sai6_lpcg 0>;
-	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
-	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	assigned-clock-parents = <&aud_pll_div0_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "disabled";
@@ -1043,12 +1043,12 @@
 };
 &sai7 {
 	assigned-clocks = <&acm IMX_ADMA_ACM_SAI7_MCLK_SEL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
 			<&sai7_lpcg 0>;
-	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
-	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	assigned-clock-parents = <&aud_pll_div0_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "disabled";
@@ -1082,12 +1082,12 @@
 
 &sai6 {
 	assigned-clocks = <&acm IMX_ADMA_ACM_SAI6_MCLK_SEL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
 			<&sai6_lpcg 0>;
-	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
-	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	assigned-clock-parents = <&aud_pll_div0_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "disabled";
@@ -1095,12 +1095,12 @@
 
 &sai7 {
 	assigned-clocks = <&acm IMX_ADMA_ACM_SAI7_MCLK_SEL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_PLL>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_SLV_BUS>,
-			<&clk IMX_SC_R_AUDIO_PLL_1 IMX_SC_PM_CLK_MST_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
+			<&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
 			<&sai7_lpcg 0>;
-	assigned-clock-parents = <&aud_pll_div1_lpcg 0>;
-	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
+	assigned-clock-parents = <&aud_pll_div0_lpcg 0>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "disabled";

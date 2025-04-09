@@ -15,6 +15,7 @@
 #include <linux/list.h>
 #include <linux/hrtimer.h>
 #include <linux/delay.h>
+#include <linux/pm_runtime.h>
 
 #include "neutron_inference.h"
 #include "neutron_buffer.h"
@@ -101,6 +102,9 @@ static int neutron_inference_run(struct neutron_inference *inf)
 		return 0;
 
 	ndev = inf->ndev;
+
+	if (ndev->power_mode >= POWER_MODE_LOW)
+		neutron_clk_enable(ndev);
 
 	/* Sync the input data for device before running inference job */
 	neutron_memory_sync(ndev, inf->buf->dma_addr + inf->args.input_offset,
@@ -305,7 +309,13 @@ static void inference_done_callback(struct work_struct *work)
 	next_inf = inference_dequeue(ndev->queue, inf);
 	neutron_inference_put(inf);
 
-	neutron_inference_run(next_inf);
+	if (next_inf)
+		neutron_inference_run(next_inf);
+	/* In low power mode, if there are no new inferences
+	 * the clock should be gated.
+	 */
+	else if (ndev->power_mode >= POWER_MODE_LOW)
+		neutron_clk_disable(ndev);
 }
 
 static void neutron_inference_kref_destroy(struct kref *kref)
@@ -343,6 +353,9 @@ static int neutron_inference_release(struct inode *inode,
 	dev_dbg(inf->ndev->dev,
 		"Inference release. file=0x%pK, inf=0x%pK",
 		file, inf);
+
+	pm_runtime_mark_last_busy(inf->ndev->dev);
+	pm_runtime_put_autosuspend(inf->ndev->dev);
 
 	neutron_inference_put(inf);
 
@@ -440,6 +453,7 @@ int neutron_inference_create(struct neutron_device *ndev, enum neutron_cmd_type 
 
 	inf->buf = neutron_buffer_get_from_fd(inf->args.buf_id);
 
+	pm_runtime_resume_and_get(ndev->dev);
 	inference_inqueue(ndev->queue, inf);
 
 	/* Store pointer to file structure */

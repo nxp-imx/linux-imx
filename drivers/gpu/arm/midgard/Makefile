@@ -39,7 +39,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
         CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD ?= y
         CONFIG_MALI_GATOR_SUPPORT ?= y
-        CONFIG_MALI_ARBITRATION ?= n
         CONFIG_MALI_KUTF_PTM_TESTS ?= n
 
 
@@ -143,7 +142,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         endif
     else
         # Prevent misuse when CONFIG_MALI_MIDGARD=n
-        CONFIG_MALI_ARBITRATION = n
         CONFIG_MALI_KUTF = n
         CONFIG_MALI_KUTF_IRQ_TEST = n
         CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
@@ -155,7 +153,6 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
         CONFIG_MALI_MIDGARD \
         CONFIG_MALI_CSF_SUPPORT \
         CONFIG_MALI_GATOR_SUPPORT \
-        CONFIG_MALI_ARBITRATION \
         CONFIG_MALI_KUTF_PTM_TESTS \
         CONFIG_MALI_REAL_HW \
         CONFIG_MALI_DEVFREQ \
@@ -222,6 +219,11 @@ ifeq ($(MALI_KCONFIG_EXT_PREFIX),)
     EXTRA_CFLAGS += -DCONFIG_MALI_NO_MALI_DEFAULT_GPU='\"$(CONFIG_MALI_NO_MALI_DEFAULT_GPU)\"'
 endif
 
+ifeq ($(CONFIG_MALI_MIDGARD),m)
+MALI_BUILD_TM =\"$(shell date +"%H:%M:%S %Y/%m/%d")\"
+EXTRA_CFLAGS += -DMALI_BUILD_BY=\"$(shell whoami)\"
+EXTRA_CFLAGS += -DMALI_BUILD_TM="${MALI_BUILD_TM}"
+endif
 #
 # KBUILD_EXTRA_SYMBOLS to prevent warnings about unknown functions
 #

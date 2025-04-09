@@ -140,10 +140,11 @@ for details.
 		   set and the setting coresponding to the SYSC_ALLOC register.
 - propagate-bits: Used to write to L2_CONFIG.PBHA_HWU. This bitset establishes which
 		   PBHA bits are propagated on the AXI bus.
-- mma-wa-id: Sets the PBHA ID to be used for the PBHA override based MMA violation workaround.
-	     The read and write allocation override bits for the PBHA are set to NONCACHEABLE
-	     and the driver encodes the PBHA ID in the PTEs where this workaround is to be applied.
-	     Valid values are from 1 to 15.
+- mma-wa-id: Sets a GPU MMU PBHA value to be used as NONCACHEABLE. GPU Page Table Entries
+	     (PTEs) with this PBHA value set will have uncached transactions from the GPU.
+	     Valid values are from 1 to 15. See mgm_update_gpu_pte() in
+	     include/linux/memory_group_manager.h for the interface to configure the PTEs. Only
+	     supported by arch 14.8.x and later GPUs.
 
 
 Example for a Mali GPU with 1 clock and 1 regulator:
