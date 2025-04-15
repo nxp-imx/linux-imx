@@ -78,7 +78,7 @@ struct dw_dphy_drv_data {
 	const struct dw_dphy_reg *regs;
 	const struct dw_dphy_config_ops *cfg_ops;
 	u32 regs_size;
-	u32 max_lanes;
+	u32 max_lanes[2];
 	u32 max_data_rate; /* Mbps */
 };
 
@@ -90,6 +90,7 @@ struct dw_dphy {
 	struct clk *cfg_clk;
 
 	u32 reg_off;
+	u32 id;
 
 	const struct dw_dphy_drv_data *drv_data;
 	struct phy_configure_opts_mipi_dphy config;
@@ -390,7 +391,7 @@ static int dw_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
 	u64 data_rate_mbps;
 	int ret;
 
-	if (config->lanes > drv_data->max_lanes) {
+	if (config->lanes > drv_data->max_lanes[priv->id]) {
 		dev_err(dev, "The number of lanes has exceeded the maximum value\n");
 		return -EINVAL;
 	}
@@ -478,7 +479,7 @@ static const struct dw_dphy_drv_data imx93_dphy_drvdata = {
 	.regs = imx93_dphy_regs,
 	.regs_size = ARRAY_SIZE(imx93_dphy_regs),
 	.cfg_ops = &imx93_dphy_cfg_ops,
-	.max_lanes = 2,
+	.max_lanes = { 2 },
 	.max_data_rate = 1500,
 };
 
@@ -532,7 +533,7 @@ static const struct dw_dphy_drv_data imx95_dphy_drvdata = {
 	.regs = imx95_dphy_regs,
 	.regs_size = ARRAY_SIZE(imx95_dphy_regs),
 	.cfg_ops = &imx95_dphy_cfg_ops,
-	.max_lanes = 4,
+	.max_lanes = { 4 },
 	.max_data_rate = 2500,
 };
 
@@ -648,7 +649,7 @@ static const struct dw_dphy_drv_data imx95_combo_drvdata = {
 	.regs = imx95_combo_regs,
 	.regs_size = ARRAY_SIZE(imx95_combo_regs),
 	.cfg_ops = &imx95_combo_cfg_ops,
-	.max_lanes = 4,
+	.max_lanes = { 4 },
 	.max_data_rate = 2500,
 };
 
@@ -679,6 +680,9 @@ static int dw_dphy_probe(struct platform_device *pdev)
 
 	priv->dev = dev;
 	priv->drv_data = of_device_get_match_data(dev);
+
+	ret = of_alias_get_id(np, "dphy");
+	priv->id = ret < 0 ? 0 : ret;
 
 	priv->dphy_regmap = syscon_node_to_regmap(dev->parent->of_node);
 	if (IS_ERR(priv->dphy_regmap)) {
