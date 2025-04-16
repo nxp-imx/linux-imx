@@ -88,3 +88,40 @@
 	/delete-property/ reg;
 	/delete-property/ reg-names;
 };
+
+&lpspi0 {
+    fsl,spi-num-chipselects = <1>;
+    pinctrl-names = "default";
+    assigned-clock-rates = <60000000>;
+    pinctrl-0 = <&pinctrl_lpspi0 &pinctrl_lpspi0_cs>;
+    cs-gpios = <&lsio_gpio1 8 GPIO_ACTIVE_LOW>;
+    status = "okay";
+    xen,passthrough;
+
+    spidev0: spi@0 {
+        reg = <0>;
+        compatible = "rohm,dh2228fv";
+        spi-max-frequency = <10000000>;
+    };
+};
+
+&lsio_gpio1 {
+    xen,passthrough;
+};
+
+&iomuxc {
+	pinctrl_lpspi0: lpspi0grp {
+		fsl,pins = <
+			SC_P_SPI0_SCK_ADMA_SPI0_SCK		0x6000040
+			SC_P_SPI0_SDO_ADMA_SPI0_SDO		0x6000040
+			SC_P_SPI0_SDI_ADMA_SPI0_SDI		0x6000040
+		>;
+	};
+
+	pinctrl_lpspi0_cs: lpspi0cs {
+		fsl,pins = <
+			SC_P_SPI0_CS0_LSIO_GPIO1_IO08	0x21
+		>;
+	};
+};
+
