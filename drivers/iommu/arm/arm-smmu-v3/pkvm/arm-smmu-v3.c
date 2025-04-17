@@ -900,7 +900,7 @@ static void smmu_unmap_visit_leaf(phys_addr_t addr, size_t size,
 	/* Might be a cleared table. */
 	if (!pte)
 		return;
-	WARN_ON(__pkvm_host_unuse_dma(addr, size));
+	WARN_ON(iommu_pkvm_unuse_dma(addr, size));
 	*ptep = 0;
 }
 
@@ -908,25 +908,8 @@ static void smmu_tlb_flush_walk(unsigned long iova, size_t size,
 				size_t granule, void *cookie)
 {
 	struct kvm_hyp_iommu_domain *domain = cookie;
-	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
-	struct io_pgtable *pgtable = smmu_domain->pgtable;
-	struct arm_lpae_io_pgtable *data = io_pgtable_to_data(pgtable);
-	struct arm_lpae_io_pgtable_walk_data wd = {
-		.cookie = data,
-	};
-	struct io_pgtable_walk_common walk_data = {
-		.visit_leaf = smmu_unmap_visit_leaf,
-		.data = &wd,
-	};
 
 	smmu_tlb_inv_range(domain, iova, size, granule, false);
-
-	/* idmapped domains doesn't elevate refcounts. */
-	if (data->idmapped)
-		return;
-
-	/* We need to walk the table to make sure all leafs un-tracked. */
-	pgtable->ops.pgtable_walk(&pgtable->ops, iova, size, &walk_data);
 }
 
 static void smmu_tlb_add_page(struct iommu_iotlb_gather *gather,
@@ -939,10 +922,16 @@ static void smmu_tlb_add_page(struct iommu_iotlb_gather *gather,
 		smmu_tlb_inv_range(cookie, iova, granule, granule, true);
 }
 
+static void smmu_free_leaf(unsigned long phys, size_t granule, void *cookie)
+{
+	WARN_ON(iommu_pkvm_unuse_dma(phys, granule));
+}
+
 static const struct iommu_flush_ops smmu_tlb_ops = {
 	.tlb_flush_all	= smmu_tlb_flush_all,
 	.tlb_flush_walk = smmu_tlb_flush_walk,
 	.tlb_add_page	= smmu_tlb_add_page,
+	.free_leaf	= smmu_free_leaf,
 };
 
 static void smmu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
@@ -1231,6 +1220,31 @@ static void smmu_put_ref_domain(struct hyp_arm_smmu_v3_device *smmu,
 	}
 }
 
+static int smmu_fix_up_domains(struct hyp_arm_smmu_v3_device *smmu,
+			       struct hyp_arm_smmu_v3_domain *smmu_domain)
+{
+	/*
+	 * BYPASS domains only supported on stage-2 instances, that is over restrictive
+	 * but for now as stage-1 is limited to VA_BITS to match the kernel, it might
+	 * not cover the ia bits, we don't support it.
+	 */
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_BYPASS) {
+		if (smmu->features & ARM_SMMU_FEAT_TRANS_S2)
+			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
+		else
+			return -EINVAL;
+	} else if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_ANY) {
+		/* Any domain defaults to S1 as we don't know if the guest needs pasid. */
+		if (smmu->features & ARM_SMMU_FEAT_TRANS_S1) {
+			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S1;
+		} else {
+			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
+		}
+	}
+
+	return 0;
+}
+
 static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			   u32 sid, u32 pasid, u32 pasid_bits)
 {
@@ -1251,20 +1265,10 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		goto out_unlock;
 	}
 
-
-	/*
-	 * BYPASS domains only supported on stage-2 instances, that is over restrictive
-	 * but for now as stage-1 is limited to VA_BITS to match the kernel, it might
-	 * not cover the ia bits, we don't support it.
-	 */
-	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_BYPASS) {
-		if (smmu->features & ARM_SMMU_FEAT_TRANS_S2) {
-			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
-		} else {
-			ret = -EINVAL;
-			goto out_unlock;
-		}
-	}
+	/* Map domain type to an SMMUv3 stage. */
+	ret = smmu_fix_up_domains(smmu, smmu_domain);
+	if (ret)
+		goto out_unlock;
 
 	if (!smmu_existing_in_domain(smmu, smmu_domain)) {
 		if (!smmu_domain_compat(smmu, smmu_domain)) {
@@ -1542,6 +1546,16 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_device *smmu,
 	return true;
 }
 
+static int smmu_id_to_token(pkvm_handle_t smmu_id, u64 *out_token)
+{
+	if (smmu_id >= kvm_hyp_arm_smmu_v3_count)
+		return -EINVAL;
+
+	smmu_id = array_index_nospec(smmu_id, kvm_hyp_arm_smmu_v3_count);
+	*out_token = kvm_hyp_arm_smmu_v3_smmus[smmu_id].mmio_addr;
+	return 0;
+}
+
 static int smmu_dev_block_dma(struct kvm_hyp_iommu *iommu, u32 sid, bool is_host2guest)
 {
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
@@ -1560,8 +1574,28 @@ static int smmu_dev_block_dma(struct kvm_hyp_iommu *iommu, u32 sid, bool is_host
 	 * and the device might be translating, so we have to actually block
 	 * the device and clean the STE/CD.
 	 */
-	if (dst->data[0])
-		ret = -EINVAL;
+	if (dst->data[0]) {
+		if (is_host2guest) {
+			ret = -EINVAL;
+		} else {
+			int i = 0;
+			u32 cfg = FIELD_GET(STRTAB_STE_0_CFG, dst->data[0]);
+
+			if (cfg == STRTAB_STE_0_CFG_S1_TRANS) {
+				size_t nr_entries, cd_sz;
+				u64 cd_table;
+
+				cd_table = (dst->data[0] & STRTAB_STE_0_S1CTXPTR_MASK);
+				nr_entries = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX, dst->data[0]);
+				cd_sz = (1 << nr_entries) * (CTXDESC_CD_DWORDS << 3);
+				kvm_iommu_reclaim_pages(hyp_phys_to_virt(cd_table), get_order(cd_sz));
+			}
+			/* zap zippity zop. */
+			for (i = 0; i < STRTAB_STE_DWORDS; i++)
+				dst->data[i] = 0;
+			ret = smmu_sync_ste(smmu, sid);
+		}
+	}
 
 	kvm_iommu_unlock(iommu);
 	return ret;
@@ -1706,4 +1740,5 @@ struct kvm_iommu_ops smmu_ops = {
 	.resume				= smmu_resume,
 	.host_stage2_idmap		= smmu_host_stage2_idmap,
 	.dev_block_dma			= smmu_dev_block_dma,
+	.get_iommu_token_by_id		= smmu_id_to_token,
 };

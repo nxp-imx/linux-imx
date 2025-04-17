@@ -24,6 +24,7 @@
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
+#include <nvhe/pviommu-host.h>
 #include <nvhe/trace/trace.h>
 #include <nvhe/trap_handler.h>
 
@@ -1473,6 +1474,13 @@ static void handle___pkvm_reclaim_dying_guest_page(struct kvm_cpu_context *host_
 		__pkvm_reclaim_dying_guest_page(handle, pfn, gfn, order);
 }
 
+static void handle___pkvm_reclaim_dying_guest_ffa_resources(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(pkvm_handle_t, handle, host_ctxt, 1);
+
+	cpu_reg(host_ctxt, 1) = __pkvm_reclaim_dying_guest_ffa_resources(handle);
+}
+
 static void handle___pkvm_create_private_mapping(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(phys_addr_t, phys, host_ctxt, 1);
@@ -1874,6 +1882,30 @@ out:
 	cpu_reg(host_ctxt, 1) = ret;
 }
 
+static void handle___pkvm_pviommu_attach(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(struct kvm *, host_kvm, host_ctxt, 1);
+	DECLARE_REG(int, pviommu, host_ctxt, 2);
+
+	cpu_reg(host_ctxt, 1) = pkvm_pviommu_attach(host_kvm, pviommu);
+}
+
+static void handle___pkvm_pviommu_add_vsid(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(struct kvm *, host_kvm, host_ctxt, 1);
+	DECLARE_REG(pkvm_handle_t, pviommu, host_ctxt, 2);
+	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 3);
+	DECLARE_REG(pkvm_handle_t, sid, host_ctxt, 4);
+	DECLARE_REG(pkvm_handle_t, vsid, host_ctxt, 5);
+
+	cpu_reg(host_ctxt, 1) = pkvm_pviommu_add_vsid(host_kvm, pviommu, iommu, sid, vsid);
+}
+
+static void handle___pkvm_host_get_ffa_version(struct kvm_cpu_context *host_ctxt)
+{
+	cpu_reg(host_ctxt, 1) = ffa_get_hypervisor_version();
+}
+
 typedef void (*hcall_t)(struct kvm_cpu_context *);
 
 #define HANDLE_FUNC(x)	[__KVM_HOST_SMCCC_FUNC_##x] = (hcall_t)handle_##x
@@ -1922,6 +1954,7 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_start_teardown_vm),
 	HANDLE_FUNC(__pkvm_finalize_teardown_vm),
 	HANDLE_FUNC(__pkvm_reclaim_dying_guest_page),
+	HANDLE_FUNC(__pkvm_reclaim_dying_guest_ffa_resources),
 	HANDLE_FUNC(__pkvm_vcpu_load),
 	HANDLE_FUNC(__pkvm_vcpu_put),
 	HANDLE_FUNC(__pkvm_vcpu_sync_state),
@@ -1952,6 +1985,9 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_host_donate_hyp_mmio),
 	HANDLE_FUNC(__pkvm_host_reclaim_hyp_mmio),
 	HANDLE_FUNC(__pkvm_host_map_guest_mmio),
+	HANDLE_FUNC(__pkvm_pviommu_attach),
+	HANDLE_FUNC(__pkvm_pviommu_add_vsid),
+	HANDLE_FUNC(__pkvm_host_get_ffa_version),
 };
 
 static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)

@@ -259,3 +259,13 @@ exit to the host.
 |                     | (uint64) | R1 | Token used to represent the page which      |
 |                     |          |    | can be used to verify it.                   |
 +---------------------+----------+----+---------------------------------------------+
+
+``ARM_SMCCC_KVM_FUNC_DEV_REQ_DMA``
+--------------------------------------
+
+See pviommu.rst
+
+``ARM_SMCCC_VENDOR_HYP_KVM_PVIOMMU_OP_FUNC_ID``
+--------------------------------------
+
+See pviommu.rst

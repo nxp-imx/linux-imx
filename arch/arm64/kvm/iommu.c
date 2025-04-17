@@ -125,3 +125,41 @@ int kvm_iommu_unshare_hyp_sg(struct kvm_iommu_sg *sg, unsigned int nents)
 	return 0;
 }
 EXPORT_SYMBOL(kvm_iommu_unshare_hyp_sg);
+
+int kvm_iommu_device_num_ids(struct device *dev)
+{
+	if (iommu_driver->get_device_iommu_num_ids)
+		return iommu_driver->get_device_iommu_num_ids(dev);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(kvm_iommu_device_num_ids);
+
+int kvm_iommu_device_id(struct device *dev, u32 idx,
+			pkvm_handle_t *out_iommu, u32 *out_sid)
+{
+	if (iommu_driver->get_device_iommu_id)
+		return iommu_driver->get_device_iommu_id(dev, idx, out_iommu, out_sid);
+	return -ENODEV;
+}
+EXPORT_SYMBOL_GPL(kvm_iommu_device_id);
+
+int kvm_iommu_guest_alloc_mc(struct kvm_hyp_memcache *mc, u32 pgsize, u32 nr_pages)
+{
+	u8 order = get_order(pgsize);
+
+	/* Driver might have dedicated allocator especially if it needs large pages. */
+	if (iommu_driver && iommu_driver->guest_alloc && iommu_driver->guest_free)
+		return __topup_hyp_memcache(mc, nr_pages, iommu_driver->guest_alloc,
+					    kvm_host_pa, 0, order);
+
+	return topup_hyp_memcache(mc, nr_pages, order);
+}
+
+void kvm_iommu_guest_free_mc(struct kvm_hyp_memcache *mc)
+{
+	if (iommu_driver && iommu_driver->guest_alloc && iommu_driver->guest_free)
+		__free_hyp_memcache(mc, iommu_driver->guest_free,
+				    kvm_host_va, 0);
+	else
+		free_hyp_memcache(mc);
+}

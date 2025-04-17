@@ -158,7 +158,7 @@ enum pkvm_psci_notification {
  *				Missing donations if allocator returns NULL
  * @iommu_iotlb_gather_add_page:
  *				Add an IOVA range to an iommu_iotlb_gather.
- * @pkvm_host_unuse_dma:	Decrement the refcount for pages used for DMA,
+ * @pkvm_unuse_dma:		Decrement the refcount for pages used for DMA,
  * 				this is typically called from the module after a
  * 				successful unmap() operation, so the hypervisor
  * 				can track the page state.
@@ -240,7 +240,7 @@ struct pkvm_module_ops {
 					    struct iommu_iotlb_gather *gather,
 					    unsigned long iova,
 					    size_t size);
-	int (*pkvm_host_unuse_dma)(phys_addr_t phys_addr, size_t size);
+	int (*pkvm_unuse_dma)(phys_addr_t phys_addr, size_t size);
 #ifdef CONFIG_LIST_HARDENED
 	/* These 2 functions change calling convention based on CONFIG_DEBUG_LIST. */
 	typeof(__list_add_valid_or_report) *list_add_valid_or_report;

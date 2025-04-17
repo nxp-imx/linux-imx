@@ -366,23 +366,35 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
 	struct kvm_vcpu *host_vcpu;
-	unsigned long pages = 0;
+	unsigned long nr_busy;
+	unsigned long pages;
 	unsigned long idx;
+	int ret;
 
 	if (!pkvm_is_hyp_created(host_kvm))
 		goto out_free;
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
+retry:
+	pages = 0;
+	nr_busy = 0;
 	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages, 0, ~(0UL));
 	while (ppage) {
 		struct kvm_pinned_page *next;
 		u16 pins = ppage->pins;
 
-		WARN_ON(pkvm_call_hyp_nvhe_ppage(ppage,
+		ret = pkvm_call_hyp_nvhe_ppage(ppage,
 						 __reclaim_dying_guest_page_call,
-						 host_kvm, true));
+						 host_kvm, true);
 		cond_resched();
+		if (ret == -EBUSY) {
+			nr_busy++;
+			next = kvm_pinned_pages_iter_next(ppage, 0, ~(0UL));
+			ppage = next;
+			continue;
+		}
+		WARN_ON(ret);
 
 		unpin_user_pages_dirty_lock(&ppage->page, 1, true);
 		next = kvm_pinned_pages_iter_next(ppage, 0, ~(0UL));
@@ -394,6 +406,16 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 	account_locked_vm(mm, pages, false);
 
+	if (nr_busy) {
+		do {
+			ret = kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_ffa_resources,
+						host_kvm->arch.pkvm.handle);
+			WARN_ON(ret && ret != -EAGAIN);
+			cond_resched();
+		} while (ret == -EAGAIN);
+		goto retry;
+	}
+
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
 
 out_free:
@@ -402,6 +424,8 @@ out_free:
 	atomic64_sub(host_kvm->arch.pkvm.stage2_teardown_mc.nr_pages << PAGE_SHIFT,
 		     &host_kvm->stat.protected_hyp_mem);
 	free_hyp_memcache(&host_kvm->arch.pkvm.stage2_teardown_mc);
+
+	kvm_iommu_guest_free_mc(&host_kvm->arch.pkvm.teardown_iommu_mc);
 
 	kvm_for_each_vcpu(idx, host_vcpu, host_kvm) {
 		struct kvm_hyp_req *hyp_reqs = host_vcpu->arch.hyp_reqs;
@@ -412,6 +436,8 @@ out_free:
 		kvm_unshare_hyp(hyp_reqs, hyp_reqs + 1);
 		host_vcpu->arch.hyp_reqs = NULL;
 		free_page((unsigned long)hyp_reqs);
+
+		kvm_iommu_guest_free_mc(&host_vcpu->arch.iommu_mc);
 	}
 }
 
@@ -774,6 +800,10 @@ static int __init pkvm_firmware_rmem_clear(void)
 	kvm_info("Clearing pKVM firmware memory\n");
 	size = pvmfw_size;
 	addr = memremap(pvmfw_base, size, MEMREMAP_WB);
+
+	pvmfw_size = kvm_nvhe_sym(pvmfw_size) = 0;
+	pvmfw_base = kvm_nvhe_sym(pvmfw_base) = 0;
+
 	if (!addr)
 		return -EINVAL;
 
@@ -802,14 +832,59 @@ out_unlock:
 	return ret;
 }
 
+static u32 pkvm_get_ffa_version(void)
+{
+	static u32 ffa_version;
+	u32 ret;
+
+	ret = READ_ONCE(ffa_version);
+	if (ret)
+		return ret;
+
+	ret = kvm_call_hyp_nvhe(__pkvm_host_get_ffa_version);
+	WRITE_ONCE(ffa_version, ret);
+	return ret;
+
+}
+
 static int pkvm_vm_ioctl_info(struct kvm *kvm,
 			      struct kvm_protected_vm_info __user *info)
 {
 	struct kvm_protected_vm_info kinfo = {
 		.firmware_size = pvmfw_size,
+		.ffa_version = pkvm_get_ffa_version(),
 	};
 
 	return copy_to_user(info, &kinfo, sizeof(kinfo)) ? -EFAULT : 0;
+}
+
+static int pkvm_vm_ioctl_ffa_support(struct kvm *kvm, u32 enable)
+{
+	int ret = 0;
+	u32 ffa_version;
+
+	/* Restrict userspace from having an IPC channel over FF-A with secure */
+	if (!capable(CAP_IPC_OWNER))
+		return -EPERM;
+
+	/*
+	 * If the host hasn't negotiated a version don't enable the
+	 * FF-A capability.
+	 */
+	ffa_version = pkvm_get_ffa_version();
+	if (!ffa_version)
+		return -EINVAL;
+
+	mutex_lock(&kvm->arch.config_lock);
+	if (kvm->arch.pkvm.handle) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
+
+	kvm->arch.pkvm.ffa_support = enable;
+out_unlock:
+	mutex_unlock(&kvm->arch.config_lock);
+	return ret;
 }
 
 int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
@@ -825,6 +900,8 @@ int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
 		return pkvm_vm_ioctl_set_fw_ipa(kvm, cap->args[0]);
 	case KVM_CAP_ARM_PROTECTED_VM_FLAGS_INFO:
 		return pkvm_vm_ioctl_info(kvm, (void __force __user *)cap->args[0]);
+	case KVM_CAP_ARM_PROTECTED_VM_FLAGS_SET_FFA:
+		return pkvm_vm_ioctl_ffa_support(kvm, cap->args[0]);
 	default:
 		return -EINVAL;
 	}

@@ -1609,8 +1609,9 @@ static inline void gic_cpu_pm_init(void) { }
 #ifdef CONFIG_PM
 static int gic_v3_suspend(void)
 {
-	trace_android_vh_gic_v3_suspend(&gic_data);
-	return 0;
+	int ret = 0;
+	trace_android_vh_gic_v3_suspend(&gic_data, &ret);
+	return ret;
 }
 
 static struct syscore_ops gic_syscore_ops = {

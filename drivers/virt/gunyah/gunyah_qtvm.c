@@ -78,19 +78,21 @@ static int gunyah_qtvm_pre_vm_configure(struct gunyah_vm *ghvm)
 	ghvm->config_image.image_offset = 0;
 	ghvm->config_image.image_size = PAS_VM_METADATA_SZ;
 
-	ghvm->config_image.dtb_offset = ghvm->dtb.config.guest_phys_addr -
+	if (ghvm->dtb.config.size > 0) {
+		ghvm->config_image.dtb_offset = ghvm->dtb.config.guest_phys_addr -
 					gunyah_gfn_to_gpa(ghvm->config_image.parcel.start);
-	ghvm->config_image.dtb_size = ghvm->dtb.config.size;
+		ghvm->config_image.dtb_size = ghvm->dtb.config.size;
 
-	if ((ghvm->dtb.config.guest_phys_addr + ghvm->config_image.dtb_size) >
-	    (gunyah_gfn_to_gpa(ghvm->config_image.parcel.start) +
+		if ((ghvm->dtb.config.guest_phys_addr + ghvm->config_image.dtb_size) >
+		    (gunyah_gfn_to_gpa(ghvm->config_image.parcel.start) +
 			gunyah_gfn_to_gpa(ghvm->config_image.parcel.pages))) {
-		/*
-		 * DTB is out of the config image bounds.
-		 * This is should not happen!
-		 */
-		dev_err(ghvm->parent, "DTB is outside the image parcel\n");
-		return -EINVAL;
+			/*
+			 * DTB is out of the config image bounds.
+			 * This is should not happen!
+			 */
+			dev_err(ghvm->parent, "DTB is outside the image parcel\n");
+			return -EINVAL;
+		}
 	}
 
 	/*

@@ -14,6 +14,8 @@
 
 /* Used in alloc_domain type argument. */
 #define KVM_IOMMU_DOMAIN_IDMAP_TYPE		0
+/* Typically used for guests, as they don't know IOMMU topology. */
+#define KVM_IOMMU_DOMAIN_ANY_TYPE		1
 
 #define KVM_IOMMU_DOMAIN_NR_START		(KVM_IOMMU_DOMAIN_IDMAP_ID + 1)
 
@@ -21,6 +23,7 @@ struct kvm_hyp_iommu_domain {
 	atomic_t		refs;
 	pkvm_handle_t		domain_id;
 	void			*priv;
+	void			*vm;
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 };

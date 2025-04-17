@@ -17,6 +17,8 @@ struct binder_proc;
 struct binder_work;
 struct binder_buffer;
 struct binder_transaction_data;
+struct binder_transaction_log;
+
 DECLARE_HOOK(android_vh_binder_transaction_init,
 	TP_PROTO(struct binder_transaction *t),
 	TP_ARGS(t));
@@ -112,6 +114,29 @@ DECLARE_HOOK(android_vh_binder_thread_read,
 	TP_PROTO(struct list_head **list, struct binder_proc *proc,
 		struct binder_thread *thread),
 	TP_ARGS(list, proc, thread));
+DECLARE_HOOK(android_vh_binder_transaction_record,
+	TP_PROTO(struct binder_transaction_data *tr,
+		struct binder_transaction *t,
+		struct binder_transaction *in_reply_to),
+	TP_ARGS(tr, t, in_reply_to));
+DECLARE_HOOK(android_vh_binder_data_preset,
+	TP_PROTO(struct hlist_head *binder_procs,
+		struct mutex *binder_procs_lock,
+		struct binder_transaction_log *binder_transaction_log,
+		struct binder_transaction_log *binder_transaction_log_failed,
+		size_t size),
+	TP_ARGS(binder_procs,
+		binder_procs_lock, binder_transaction_log,
+		binder_transaction_log_failed, size));
+DECLARE_RESTRICTED_HOOK(android_rvh_init_binder_logs,
+	TP_PROTO(struct super_block *sb),
+	TP_ARGS(sb), 1);
+DECLARE_HOOK(android_vh_binder_new_ref,
+	TP_PROTO(struct binder_proc *proc, uint32_t ref_desc, int node_debug_id),
+	TP_ARGS(proc, ref_desc, node_debug_id));
+DECLARE_HOOK(android_vh_binder_del_ref,
+	TP_PROTO(struct binder_proc *proc, uint32_t ref_desc),
+	TP_ARGS(proc, ref_desc));
 #endif /* _TRACE_HOOK_BINDER_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

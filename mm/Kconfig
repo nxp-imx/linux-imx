@@ -984,6 +984,27 @@ config CMA_AREAS
 
 	  If unsure, leave the default value "8" in UMA and "20" in NUMA.
 
+config GCMA
+        bool "GCMA (Guaranteed Contiguous Memory Allocator)"
+        depends on CLEANCACHE
+	help
+	  This enables the clean-cache backed CMA (Contiguous Memory Allocator)
+	  It reserves a region of memory and allows only clean file-backed pages
+	  to be allocated from it. This way, the kernel can use the memory for
+	  pagecache and when a subsystem requests for contiguous area, the
+	  allocated pages are discarded right away to serve the contiguous
+	  request. It guarantees the allocation to always succeed and to be
+	  deterministic.
+
+	  If unsure, say "n".
+
+config GCMA_SYSFS
+	bool "GCMA information through sysfs interface"
+	depends on GCMA && SYSFS
+	help
+	  This option exposes some sysfs attributes to get information
+	  from GCMA.
+
 config MEM_SOFT_DIRTY
 	bool "Track memory changes"
 	depends on CHECKPOINT_RESTORE && HAVE_ARCH_SOFT_DIRTY && PROC_FS

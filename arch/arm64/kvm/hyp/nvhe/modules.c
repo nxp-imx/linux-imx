@@ -256,7 +256,7 @@ const struct pkvm_module_ops module_ops = {
 	.iommu_init_device = kvm_iommu_init_device,
 	.udelay = pkvm_udelay,
 	.iommu_iotlb_gather_add_page = kvm_iommu_iotlb_gather_add_page,
-	.pkvm_host_unuse_dma = __pkvm_host_unuse_dma,
+	.pkvm_unuse_dma = iommu_pkvm_unuse_dma,
 #ifdef CONFIG_LIST_HARDENED
 	.list_add_valid_or_report = __list_add_valid_or_report,
 	.list_del_entry_valid_or_report = __list_del_entry_valid_or_report,

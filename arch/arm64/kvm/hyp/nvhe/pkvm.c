@@ -12,12 +12,16 @@
 #include <kvm/device.h>
 
 #include <asm/kvm_emulate.h>
+#include <hyp/adjust_pc.h>
 
 #include <nvhe/alloc.h>
+#include <nvhe/ffa.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/memory.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
+#include <nvhe/pviommu.h>
+#include <nvhe/pviommu-host.h>
 #include <nvhe/rwlock.h>
 #include <nvhe/trap_handler.h>
 
@@ -36,6 +40,9 @@ unsigned int kvm_host_sve_max_vl;
  * protected KVM is enabled, but for both protected and non-protected VMs.
  */
 static DEFINE_PER_CPU(struct pkvm_hyp_vcpu *, loaded_hyp_vcpu);
+
+static LIST_HEAD(running_vms);
+struct ffa_mem_transfer *find_transfer_by_handle(u64 ffa_handle, struct kvm_ffa_buffers *buf);
 
 static void pkvm_vcpu_reset_hcr(struct kvm_vcpu *vcpu)
 {
@@ -367,8 +374,22 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 gfn, u8 o
 	if (ret)
 		goto unlock;
 
-	drain_hyp_pool(hyp_vm, &hyp_vm->host_kvm->arch.pkvm.stage2_teardown_mc);
+	drain_hyp_pool(&hyp_vm->pool, &hyp_vm->host_kvm->arch.pkvm.stage2_teardown_mc);
 unlock:
+	hyp_read_unlock(&vm_table_lock);
+
+	return ret;
+}
+
+int __pkvm_reclaim_dying_guest_ffa_resources(pkvm_handle_t handle)
+{
+	struct pkvm_hyp_vm *hyp_vm;
+	int ret = -EINVAL;
+
+	hyp_read_lock(&vm_table_lock);
+	hyp_vm = get_vm_by_handle(handle);
+	if (hyp_vm && hyp_vm->is_dying)
+		ret = kvm_dying_guest_reclaim_ffa_resources(hyp_vm);
 	hyp_read_unlock(&vm_table_lock);
 
 	return ret;
@@ -589,10 +610,12 @@ static void init_pkvm_hyp_vm(struct kvm *host_kvm, struct pkvm_hyp_vm *hyp_vm,
 		pvmfw_load_addr = READ_ONCE(host_kvm->arch.pkvm.pvmfw_load_addr);
 	hyp_vm->kvm.arch.pkvm.pvmfw_load_addr = pvmfw_load_addr;
 
+	hyp_vm->kvm.arch.pkvm.ffa_support = READ_ONCE(host_kvm->arch.pkvm.ffa_support);
 	hyp_vm->kvm.arch.mmu.last_vcpu_ran = (int __percpu *)last_ran;
 	memset(last_ran, -1, pkvm_get_last_ran_size());
 	pkvm_init_features_from_host(hyp_vm, host_kvm);
 	hyp_spin_lock_init(&hyp_vm->vcpus_lock);
+	INIT_LIST_HEAD(&hyp_vm->ffa_buf.xfer_list);
 }
 
 static int pkvm_vcpu_init_sve(struct pkvm_hyp_vcpu *hyp_vcpu, struct kvm_vcpu *host_vcpu)
@@ -741,6 +764,7 @@ static pkvm_handle_t insert_vm_table_entry(struct kvm *host_kvm,
 	mmu->pgt = &hyp_vm->pgt;
 
 	vm_table[idx] = hyp_vm;
+	list_add(&hyp_vm->vm_list, &running_vms);
 	return hyp_vm->kvm.arch.pkvm.handle;
 }
 
@@ -749,8 +773,12 @@ static pkvm_handle_t insert_vm_table_entry(struct kvm *host_kvm,
  */
 static void remove_vm_table_entry(pkvm_handle_t handle)
 {
+	struct pkvm_hyp_vm *hyp_vm;
+
 	hyp_assert_write_lock_held(&vm_table_lock);
+	hyp_vm = vm_table[vm_handle_to_idx(handle)];
 	vm_table[vm_handle_to_idx(handle)] = NULL;
+	list_del(&hyp_vm->vm_list);
 }
 
 static size_t pkvm_get_hyp_vm_size(unsigned int nr_vcpus)
@@ -821,6 +849,11 @@ int __pkvm_init_vm(struct kvm *host_kvm, unsigned long pgd_hva)
 	ret = kvm_guest_prepare_stage2(hyp_vm, pgd);
 	if (ret)
 		goto err_remove_vm_table_entry;
+
+	ret = pkvm_pviommu_finalise(hyp_vm);
+	if (ret)
+		goto err_remove_vm_table_entry;
+
 	hyp_write_unlock(&vm_table_lock);
 
 	return hyp_vm->kvm.arch.pkvm.handle;
@@ -837,6 +870,22 @@ err_free_vm:
 err_unpin_kvm:
 	hyp_unpin_shared_mem(host_kvm, host_kvm + 1);
 	return ret;
+}
+
+struct ffa_mem_transfer *__pkvm_get_vm_ffa_transfer(u16 handle)
+{
+	struct pkvm_hyp_vm *vm;
+	struct ffa_mem_transfer *transfer = NULL;
+
+	hyp_read_lock(&vm_table_lock);
+	list_for_each_entry(vm, &running_vms, vm_list) {
+		transfer = find_transfer_by_handle(handle, &vm->ffa_buf);
+		if (transfer)
+			goto unlock;
+	}
+unlock:
+	hyp_read_unlock(&vm_table_lock);
+	return transfer;
 }
 
 /*
@@ -954,7 +1003,22 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	remove_vm_table_entry(handle);
 	hyp_write_unlock(&vm_table_lock);
 
+	/* A well-behaved host will have reclaimed all FF-A resources already */
+	do {
+		err = kvm_dying_guest_reclaim_ffa_resources(hyp_vm);
+	} while (err == -EAGAIN);
+	WARN_ON(err);
+
 	pkvm_devices_teardown(hyp_vm);
+
+	pkvm_pviommu_teardown(hyp_vm);
+
+	/*
+	 * At this point all page tables are destroyed and should be pushed to the pool
+	 * the only place that might still have memory is the mc, which would be drained
+	 * from host as it hasn't been donated yet.
+	 */
+	drain_hyp_pool(&hyp_vm->iommu_pool, &host_kvm->arch.pkvm.teardown_iommu_mc);
 
 	/*
 	 * At this point, the VM has been detached from the VM table and
@@ -964,7 +1028,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 
 	mc = &host_kvm->arch.pkvm.stage2_teardown_mc;
 	destroy_hyp_vm_pgt(hyp_vm);
-	drain_hyp_pool(hyp_vm, mc);
+	drain_hyp_pool(&hyp_vm->pool, mc);
 	unpin_host_vcpus(hyp_vm->vcpus, hyp_vm->kvm.created_vcpus);
 
 	/* Push the metadata pages to the teardown memcache */
@@ -1041,7 +1105,7 @@ void pkvm_poison_pvmfw_pages(void)
 	phys_addr_t addr = pvmfw_base;
 
 	while (npages--) {
-		hyp_poison_page(addr);
+		hyp_poison_page(addr, PAGE_SIZE);
 		addr += PAGE_SIZE;
 	}
 }
@@ -1381,8 +1445,7 @@ static bool pkvm_handle_psci(struct pkvm_hyp_vcpu *hyp_vcpu)
 	return pvm_psci_not_supported(hyp_vcpu);
 }
 
-static int pkvm_handle_empty_memcache(struct pkvm_hyp_vcpu *hyp_vcpu,
-				      u64 *exit_code)
+int pkvm_handle_empty_memcache(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 {
 	struct kvm_hyp_req *req;
 
@@ -1648,7 +1711,7 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 	switch (fn) {
 	case ARM_SMCCC_VERSION_FUNC_ID:
 		/* Nothing to be handled by the host. Go back to the guest. */
-		val[0] = ARM_SMCCC_VERSION_1_1;
+		val[0] = ARM_SMCCC_VERSION_1_2;
 		break;
 	case ARM_SMCCC_VENDOR_HYP_CALL_UID_FUNC_ID:
 		val[0] = ARM_SMCCC_VENDOR_HYP_UID_KVM_REG_0;
@@ -1693,12 +1756,30 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 		if (smccc_trng_available)
 			return pkvm_forward_trng(vcpu);
 		break;
+	case ARM_SMCCC_VENDOR_HYP_KVM_PVIOMMU_OP_FUNC_ID:
+		return kvm_handle_pviommu_hvc(vcpu, exit_code);
 	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_MMIO_FUNC_ID:
 		return pkvm_device_request_mmio(hyp_vcpu, exit_code);
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_DMA_FUNC_ID:
+		return pkvm_device_request_dma(hyp_vcpu, exit_code);
 	default:
-		return pkvm_handle_psci(hyp_vcpu);
+		if (is_ffa_call(fn))
+			return kvm_guest_ffa_handler(hyp_vcpu, exit_code);
+		else
+			return pkvm_handle_psci(hyp_vcpu);
 	}
 
 	smccc_set_retval(vcpu, val[0], val[1], val[2], val[3]);
 	return true;
+}
+
+u32 hyp_vcpu_to_ffa_handle(struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	pkvm_handle_t vm_handle;
+
+	if (!hyp_vcpu)
+		return HOST_FFA_ID;
+
+	vm_handle = hyp_vcpu->vcpu.kvm->arch.pkvm.handle;
+	return vm_handle_to_idx(vm_handle) + 1;
 }

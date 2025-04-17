@@ -8,6 +8,7 @@
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
+#include <nvhe/pviommu-host.h>
 
 #include <kvm/arm_hypercalls.h>
 #include <kvm/device.h>
@@ -267,29 +268,6 @@ out_ret:
 	return ret;
 }
 
-static int pkvm_get_device_pa(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa, u64 *pa, u64 *exit_code)
-{
-	struct kvm_hyp_req *req;
-	int ret;
-	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
-
-	ret = __pkvm_guest_get_valid_phys_page(vm, pa, ipa);
-	if (ret == -ENOENT) {
-		/* Page not mapped, create a request*/
-		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MAP);
-		if (!req)
-			return -ENOMEM;
-
-		req->map.guest_ipa = ipa;
-		req->map.size = PAGE_SIZE;
-		*exit_code = ARM_EXCEPTION_HYP_REQ;
-		/* Repeat next time. */
-		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
-	}
-
-	return ret;
-}
-
 bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 {
 	int i, j, ret;
@@ -297,16 +275,26 @@ bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 	u64 ipa = smccc_get_arg1(vcpu);
 	u64 token;
+	s8 level;
 
 	/* arg2 and arg3 reserved for future use. */
 	if (smccc_get_arg2(vcpu) || smccc_get_arg3(vcpu) || !PAGE_ALIGNED(ipa))
 		goto out_inval;
 
-	ret = pkvm_get_device_pa(hyp_vcpu, ipa, &token, exit_code);
-	if (ret == -ENOENT)
+	ret = pkvm_get_guest_pa_request(hyp_vcpu, ipa, PAGE_SIZE,
+					&token, &level);
+	if (ret == -ENOENT) {
+		/* Repeat next time. */
+		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
+		*exit_code = ARM_EXCEPTION_HYP_REQ;
 		return false;
-	else if (ret)
+	}
+	else if (ret) {
 		goto out_inval;
+	}
+
+	/* It's expected the address is mapped as page for MMIO */
+	WARN_ON(level != KVM_PGTABLE_LAST_LEVEL);
 
 	hyp_spin_lock(&device_spinlock);
 	for (i = 0 ; i < registered_devices_nr ; ++i) {
@@ -382,7 +370,7 @@ static struct pkvm_device *pkvm_get_device_by_iommu(u64 id, u32 endpoint_id)
 	return NULL;
 }
 
-int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id)
+int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id, struct pkvm_hyp_vm *vm)
 {
 	struct pkvm_device *dev = pkvm_get_device_by_iommu(iommu_id, endpoint_id);
 	int ret = 0;
@@ -391,7 +379,7 @@ int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id)
 		return 0;
 
 	hyp_spin_lock(&device_spinlock);
-	if (dev->ctxt)
+	if (dev->ctxt != vm)
 		ret = -EPERM;
 	else
 		hyp_refcount_inc(dev->refcount);
@@ -407,9 +395,7 @@ void pkvm_devices_put_context(u64 iommu_id, u32 endpoint_id)
 		return;
 
 	hyp_spin_lock(&device_spinlock);
-	BUG_ON(dev->ctxt);
 	hyp_refcount_dec(dev->refcount);
-
 	hyp_spin_unlock(&device_spinlock);
 }
 
@@ -433,4 +419,57 @@ int pkvm_device_register_reset(u64 phys, void *cookie,
 	hyp_spin_unlock(&device_spinlock);
 
 	return ret;
+}
+
+bool pkvm_device_request_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
+{
+	int ret;
+	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
+	u64 pviommu = smccc_get_arg1(vcpu);
+	u64 vsid = smccc_get_arg2(vcpu);
+	u64 token1, token2;
+	struct pviommu_route route;
+	struct pkvm_device *dev;
+
+	if (smccc_get_arg3(vcpu) || smccc_get_arg4(vcpu) || smccc_get_arg5(vcpu) ||
+	    smccc_get_arg6(vcpu))
+		goto out_ret;
+
+	ret = pkvm_pviommu_get_route(vm, pviommu, vsid, &route);
+	if (ret)
+		goto out_ret;
+	token2 = route.sid;
+	/*
+	 * route.iommu is the host-hyp iommu ID that has no meaning for guest.
+	 * It needs to be converted to IOMMU token as in the firmware(usually
+	 * base MMIO address).
+	 */
+	ret = kvm_iommu_id_to_token(route.iommu, &token1);
+	if (ret)
+		goto out_ret;
+
+	dev = pkvm_get_device_by_iommu(route.iommu, route.sid);
+	if (!dev)
+		goto out_ret;
+
+	hyp_spin_lock(&device_spinlock);
+	if (dev->ctxt == NULL) {
+		/*
+		 * First time device is assigned to guest, make sure it's resources
+		 * have been donated.
+		 */
+		ret = __pkvm_group_assign(dev->group_id, vm);
+	} else if (dev->ctxt != vm) {
+		ret = -EPERM;
+	}
+	hyp_spin_unlock(&device_spinlock);
+	if (ret)
+		goto out_ret;
+
+	smccc_set_retval(vcpu, SMCCC_RET_SUCCESS, token1, token2, 0);
+	return true;
+out_ret:
+	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
+	return true;
 }

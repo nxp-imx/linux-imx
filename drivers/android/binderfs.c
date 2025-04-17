@@ -31,7 +31,7 @@
 #include <linux/xarray.h>
 #include <uapi/linux/android/binder.h>
 #include <uapi/linux/android/binderfs.h>
-
+#include <trace/hooks/binder.h>
 #include "binder_internal.h"
 
 #define FIRST_INODE 1
@@ -649,6 +649,7 @@ static int init_binder_logs(struct super_block *sb)
 		ret = PTR_ERR(proc_log_dir);
 		goto out;
 	}
+	trace_android_rvh_init_binder_logs(sb);
 	info = sb->s_fs_info;
 	info->proc_log_dir = proc_log_dir;
 

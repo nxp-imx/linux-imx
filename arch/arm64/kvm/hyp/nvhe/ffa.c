@@ -28,8 +28,10 @@
 
 #include <linux/arm_ffa.h>
 #include <asm/kvm_pkvm.h>
+#include <kvm/arm_hypercalls.h>
 
 #include <nvhe/arm-smccc.h>
+#include <nvhe/alloc.h>
 #include <nvhe/ffa.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/memory.h>
@@ -37,11 +39,7 @@
 #include <nvhe/trap_handler.h>
 #include <nvhe/spinlock.h>
 
-/*
- * "ID value 0 must be returned at the Non-secure physical FF-A instance"
- * We share this ID with the host.
- */
-#define HOST_FFA_ID	0
+#define VM_FFA_SUPPORTED(vcpu)		((vcpu)->kvm->arch.pkvm.ffa_support)
 
 /*
  * A buffer to hold the maximum descriptor size we can see from the host,
@@ -54,6 +52,12 @@ struct kvm_ffa_descriptor_buffer {
 };
 
 static struct kvm_ffa_descriptor_buffer ffa_desc_buf;
+
+struct ffa_translation {
+	struct list_head node;
+	u64 ipa;
+	phys_addr_t pa;
+};
 
 /*
  * Note that we don't currently lock these buffers explicitly, instead
@@ -105,14 +109,6 @@ static void ffa_set_retval(struct kvm_cpu_context *ctxt,
 	cpu_reg(ctxt, 1) = res->a1;
 	cpu_reg(ctxt, 2) = res->a2;
 	cpu_reg(ctxt, 3) = res->a3;
-}
-
-static bool is_ffa_call(u64 func_id)
-{
-	return ARM_SMCCC_IS_FAST_CALL(func_id) &&
-	       ARM_SMCCC_OWNER_NUM(func_id) == ARM_SMCCC_OWNER_STANDARD &&
-	       ARM_SMCCC_FUNC_NUM(func_id) >= FFA_MIN_FUNC_NUM &&
-	       ARM_SMCCC_FUNC_NUM(func_id) <= FFA_MAX_FUNC_NUM;
 }
 
 static int ffa_map_hyp_buffers(u64 ffa_page_count)
@@ -274,6 +270,64 @@ err_unmap:
 	goto out_unlock;
 }
 
+static int do_ffa_rxtx_guest_map(struct kvm_cpu_context *ctxt, struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	DECLARE_REG(phys_addr_t, tx, ctxt, 1);
+	DECLARE_REG(phys_addr_t, rx, ctxt, 2);
+	DECLARE_REG(u32, npages, ctxt, 3);
+	int ret = 0;
+	u64 rx_va, tx_va;
+	struct kvm_ffa_buffers *ffa_buf;
+	struct kvm_hyp_req *req;
+
+	if (npages != (KVM_FFA_MBOX_NR_PAGES * PAGE_SIZE) / FFA_PAGE_SIZE)
+		return -EINVAL;
+
+	if (!PAGE_ALIGNED(tx) || !PAGE_ALIGNED(rx))
+		return -EINVAL;
+
+	ret = __pkvm_guest_share_hyp_page(hyp_vcpu, tx, &tx_va);
+	if (ret)
+		goto out_err;
+
+	ret = __pkvm_guest_share_hyp_page(hyp_vcpu, rx, &rx_va);
+	if (ret)
+		goto out_err_with_tx;
+
+	hyp_spin_lock(&kvm_ffa_hyp_lock);
+	ffa_buf = ffa_get_buffers(hyp_vcpu);
+	if (ffa_buf->tx) {
+		ret = -EACCES;
+		goto out_unlock;
+	}
+
+	ffa_buf->tx = (void *)tx_va;
+	ffa_buf->rx = (void *)rx_va;
+	ffa_buf->tx_ipa = tx;
+	ffa_buf->rx_ipa = rx;
+out_unlock:
+	hyp_spin_unlock(&kvm_ffa_hyp_lock);
+	return ret;
+out_err_with_tx:
+	WARN_ON(__pkvm_guest_unshare_hyp_page(hyp_vcpu, tx));
+out_err:
+	if (ret == -EFAULT) {
+		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MAP);
+		if (!req || !pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MAP))
+			return -ENOSPC;
+
+		req->map.guest_ipa = tx;
+		req->map.size = PAGE_SIZE;
+
+		req++;
+
+		req->map.guest_ipa = rx;
+		req->map.size = PAGE_SIZE;
+	}
+
+	return ret;
+}
+
 static void do_ffa_rxtx_unmap(struct arm_smccc_res *res,
 			      struct kvm_cpu_context *ctxt,
 			      struct pkvm_hyp_vcpu *hyp_vcpu)
@@ -282,7 +336,7 @@ static void do_ffa_rxtx_unmap(struct arm_smccc_res *res,
 	int ret = 0;
 	struct kvm_ffa_buffers *ffa_buf;
 
-	if (id != HOST_FFA_ID) {
+	if (hyp_vcpu_to_ffa_handle(hyp_vcpu) != id) {
 		ret = FFA_RET_INVALID_PARAMETERS;
 		goto out;
 	}
@@ -294,19 +348,21 @@ static void do_ffa_rxtx_unmap(struct arm_smccc_res *res,
 		goto out_unlock;
 	}
 
-	hyp_unpin_shared_mem(ffa_buf->tx, ffa_buf->tx + 1);
-	WARN_ON(__pkvm_host_unshare_hyp(hyp_virt_to_pfn(ffa_buf->tx)));
-	ffa_buf->tx = NULL;
+	if (!hyp_vcpu) {
+		hyp_unpin_shared_mem(ffa_buf->tx, ffa_buf->tx + 1);
+		WARN_ON(__pkvm_host_unshare_hyp(hyp_virt_to_pfn(ffa_buf->tx)));
 
-	hyp_unpin_shared_mem(ffa_buf->rx, ffa_buf->rx + 1);
-	WARN_ON(__pkvm_host_unshare_hyp(hyp_virt_to_pfn(ffa_buf->rx)));
+		hyp_unpin_shared_mem(ffa_buf->rx, ffa_buf->rx + 1);
+		WARN_ON(__pkvm_host_unshare_hyp(hyp_virt_to_pfn(ffa_buf->rx)));
+
+		ffa_unmap_hyp_buffers();
+	} else {
+		WARN_ON(__pkvm_guest_unshare_hyp_page(hyp_vcpu, ffa_buf->tx_ipa));
+		WARN_ON(__pkvm_guest_unshare_hyp_page(hyp_vcpu, ffa_buf->rx_ipa));
+	}
+
 	ffa_buf->rx = NULL;
-
-	hyp_unpin_shared_mem(host_buffers.rx, host_buffers.rx + 1);
-	WARN_ON(__pkvm_host_unshare_hyp(hyp_virt_to_pfn(host_buffers.rx)));
-	host_buffers.rx = NULL;
-
-	ffa_unmap_hyp_buffers();
+	ffa_buf->tx = NULL;
 
 out_unlock:
 	hyp_spin_unlock(&kvm_ffa_hyp_lock);
@@ -354,6 +410,83 @@ static u32 __ffa_host_unshare_ranges(struct ffa_mem_region_addr_range *ranges,
 	return i;
 }
 
+static int ffa_store_translation(struct ffa_mem_transfer *transfer, u64 ipa, phys_addr_t pa)
+{
+	struct ffa_translation *tr;
+
+	tr = hyp_alloc(sizeof(struct ffa_translation));
+	if (!tr)
+		return -ENOMEM;
+
+	tr->ipa = ipa;
+	tr->pa = pa;
+	list_add(&tr->node, &transfer->translations);
+
+	return 0;
+}
+
+static void ffa_guest_unshare_ranges(struct pkvm_hyp_vcpu *vcpu,
+				     struct ffa_mem_transfer *transfer)
+{
+	struct ffa_translation *translation, *tmp;
+
+	list_for_each_entry_safe(translation, tmp, &transfer->translations, node) {
+		WARN_ON(__pkvm_guest_unshare_ffa_page(vcpu, translation->ipa));
+		list_del(&translation->node);
+		hyp_free(translation);
+	}
+}
+
+static int ffa_guest_share_ranges(struct ffa_mem_region_addr_range *ranges,
+				  u32 nranges, struct pkvm_hyp_vcpu *vcpu,
+				  struct ffa_composite_mem_region *out_region,
+				  size_t reg_len,
+				  struct ffa_mem_transfer *transfer)
+{
+	struct ffa_mem_region_addr_range *range;
+	struct ffa_mem_region_addr_range *buf = out_region->constituents;
+	int i, j, ret;
+	u32 mem_region_idx = 0;
+	u64 ipa, pa;
+
+	for (i = 0; i < nranges; i++) {
+		range = &ranges[i];
+		for (j = 0; j < range->pg_cnt; j++) {
+			if (mem_region_idx * sizeof(struct ffa_mem_region_addr_range) >= reg_len) {
+				ret = -EINVAL;
+				goto unshare;
+			}
+
+			ipa = range->address + PAGE_SIZE * j;
+			ret = __pkvm_guest_share_ffa_page(vcpu, ipa, &pa);
+			if (ret)
+				goto unshare;
+
+			ret = ffa_store_translation(transfer, ipa, pa);
+			if (ret) {
+				WARN_ON(__pkvm_guest_unshare_ffa_page(vcpu, ipa));
+				goto unshare;
+			}
+
+			buf[mem_region_idx].address = pa;
+			buf[mem_region_idx].pg_cnt = 1;
+
+			if (mem_region_idx + 1 < mem_region_idx) {
+				ret = -EINVAL;
+				goto unshare;
+			}
+
+			mem_region_idx++;
+		}
+	}
+
+	out_region->addr_range_cnt = mem_region_idx;
+	return 0;
+unshare:
+	ffa_guest_unshare_ranges(vcpu, transfer);
+	return ret;
+}
+
 static int ffa_host_share_ranges(struct ffa_mem_region_addr_range *ranges,
 				 u32 nranges)
 {
@@ -362,7 +495,7 @@ static int ffa_host_share_ranges(struct ffa_mem_region_addr_range *ranges,
 
 	if (nshared != nranges) {
 		WARN_ON(__ffa_host_unshare_ranges(ranges, nshared) != nshared);
-		ret = FFA_RET_DENIED;
+		ret = -EACCES;
 	}
 
 	return ret;
@@ -376,7 +509,7 @@ static int ffa_host_unshare_ranges(struct ffa_mem_region_addr_range *ranges,
 
 	if (nunshared != nranges) {
 		WARN_ON(__ffa_host_share_ranges(ranges, nunshared) != nunshared);
-		ret = FFA_RET_DENIED;
+		ret = -EACCES;
 	}
 
 	return ret;
@@ -443,43 +576,74 @@ out:
 	return;
 }
 
-static void __do_ffa_mem_xfer(const u64 func_id,
-			      struct arm_smccc_res *res,
-			      struct kvm_cpu_context *ctxt,
-			      struct pkvm_hyp_vcpu *hyp_vcpu)
+static bool is_page_count_valid(struct ffa_composite_mem_region *reg,
+				u32 nranges)
+{
+	u32 i, pg_cnt = 0, new_pg_cnt;
+
+	for (i = 0; i < nranges; i++) {
+		new_pg_cnt = pg_cnt + reg->constituents[i].pg_cnt;
+		if (new_pg_cnt < pg_cnt)
+			return false;
+
+		pg_cnt = new_pg_cnt;
+	}
+
+	return pg_cnt == reg->total_pg_cnt;
+}
+
+static int __do_ffa_mem_xfer(const u64 func_id,
+			     struct arm_smccc_res *res,
+			     struct kvm_cpu_context *ctxt,
+			     struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	DECLARE_REG(u32, len, ctxt, 1);
 	DECLARE_REG(u32, fraglen, ctxt, 2);
 	DECLARE_REG(u64, addr_mbz, ctxt, 3);
 	DECLARE_REG(u32, npages_mbz, ctxt, 4);
 	struct ffa_mem_region_attributes *ep_mem_access;
-	struct ffa_composite_mem_region *reg;
+	struct ffa_composite_mem_region *reg, *temp_reg;
 	struct ffa_mem_region *buf;
 	struct kvm_ffa_buffers *ffa_buf;
 	u32 offset, nr_ranges;
 	int ret = 0;
+	struct ffa_mem_transfer *transfer = NULL;
 
 	if (addr_mbz || npages_mbz || fraglen > len ||
 	    fraglen > KVM_FFA_MBOX_NR_PAGES * PAGE_SIZE) {
-		ret = FFA_RET_INVALID_PARAMETERS;
-		goto out;
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
+		return 0;
 	}
 
 	if (fraglen < sizeof(struct ffa_mem_region) +
 		      sizeof(struct ffa_mem_region_attributes)) {
-		ret = FFA_RET_INVALID_PARAMETERS;
-		goto out;
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
+		return 0;
+	}
+
+	if (hyp_vcpu) {
+		/* Reject the fragmentation API for the guest */
+		if (len != fraglen) {
+			ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
+			return 0;
+		}
+
+		transfer = hyp_alloc(sizeof(struct ffa_mem_transfer));
+		if (!transfer)
+			return -ENOMEM;
+
+		INIT_LIST_HEAD(&transfer->translations);
 	}
 
 	hyp_spin_lock(&kvm_ffa_hyp_lock);
 	ffa_buf = ffa_get_buffers(hyp_vcpu);
 	if (!ffa_buf->tx) {
-		ret = FFA_RET_INVALID_PARAMETERS;
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
 		goto out_unlock;
 	}
 
 	if (len > ffa_desc_buf.len) {
-		ret = FFA_RET_NO_MEMORY;
+		ffa_to_smccc_error(res, FFA_RET_NO_MEMORY);
 		goto out_unlock;
 	}
 
@@ -489,25 +653,58 @@ static void __do_ffa_mem_xfer(const u64 func_id,
 	ep_mem_access = (void *)buf +
 			ffa_mem_desc_offset(buf, 0, hyp_ffa_version);
 	offset = ep_mem_access->composite_off;
-	if (!offset || buf->ep_count != 1 || buf->sender_id != HOST_FFA_ID) {
-		ret = FFA_RET_INVALID_PARAMETERS;
+	if (!offset || buf->ep_count != 1 || buf->sender_id != hyp_vcpu_to_ffa_handle(hyp_vcpu)) {
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
 		goto out_unlock;
 	}
 
 	if (fraglen < offset + sizeof(struct ffa_composite_mem_region)) {
-		ret = FFA_RET_INVALID_PARAMETERS;
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
 		goto out_unlock;
 	}
 
 	reg = (void *)buf + offset;
 	nr_ranges = ((void *)buf + fraglen) - (void *)reg->constituents;
 	if (nr_ranges % sizeof(reg->constituents[0])) {
-		ret = FFA_RET_INVALID_PARAMETERS;
+		ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
 		goto out_unlock;
 	}
 
 	nr_ranges /= sizeof(reg->constituents[0]);
-	ret = ffa_host_share_ranges(reg->constituents, nr_ranges);
+	if (hyp_vcpu) {
+		if (!is_page_count_valid(reg, nr_ranges)) {
+			ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
+			goto out_unlock;
+		}
+
+		size_t translated_sz = reg->total_pg_cnt * sizeof(struct ffa_mem_region_addr_range)
+			+ offset;
+		if (translated_sz > PAGE_SIZE) {
+			ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
+			goto out_unlock;
+		}
+
+		memcpy(ffa_desc_buf.buf, buf, offset);
+		temp_reg = ffa_desc_buf.buf + offset;
+		ret = ffa_guest_share_ranges(reg->constituents, nr_ranges, hyp_vcpu,
+					     temp_reg, ffa_desc_buf.len - offset,
+					     transfer);
+		if (!ret) {
+			/* Re-adjust the size of the transfer after painting with PAs */
+			if (temp_reg->addr_range_cnt > reg->addr_range_cnt) {
+				u32 extra_sz = (temp_reg->addr_range_cnt - reg->addr_range_cnt) *
+					sizeof(struct ffa_mem_region_addr_range);
+				fraglen += extra_sz;
+				len += extra_sz;
+
+				nr_ranges = reg->addr_range_cnt = temp_reg->addr_range_cnt;
+			}
+
+			memcpy(reg->constituents, temp_reg->constituents,
+			       temp_reg->addr_range_cnt * sizeof(struct ffa_mem_region_addr_range));
+		}
+	} else
+		ret = ffa_host_share_ranges(reg->constituents, nr_ranges);
 	if (ret)
 		goto out_unlock;
 
@@ -522,24 +719,43 @@ static void __do_ffa_mem_xfer(const u64 func_id,
 		goto err_unshare;
 	}
 
+	if (hyp_vcpu && transfer) {
+		transfer->ffa_handle = PACK_HANDLE(res->a2, res->a3);
+		list_add(&transfer->node, &ffa_buf->xfer_list);
+	}
+
+	hyp_spin_unlock(&kvm_ffa_hyp_lock);
+	return 0;
 out_unlock:
 	hyp_spin_unlock(&kvm_ffa_hyp_lock);
-out:
+	if (transfer)
+		hyp_free(transfer);
 	if (ret)
-		ffa_to_smccc_res(res, ret);
-	return;
-
+		ffa_to_smccc_res(res, linux_errno_to_ffa(ret));
+	return ret;
 err_unshare:
-	WARN_ON(ffa_host_unshare_ranges(reg->constituents, nr_ranges));
+	if (hyp_vcpu)
+		ffa_guest_unshare_ranges(hyp_vcpu, transfer);
+	else
+		WARN_ON(ffa_host_unshare_ranges(reg->constituents, nr_ranges));
 	goto out_unlock;
 }
 
-#define do_ffa_mem_xfer(fid, res, ctxt, hyp_vcpu)				\
-	do {							\
+#define do_ffa_mem_xfer(fid, res, ctxt, hyp_vcpu)	({\
 		BUILD_BUG_ON((fid) != FFA_FN64_MEM_SHARE &&	\
 			     (fid) != FFA_FN64_MEM_LEND);	\
-		__do_ffa_mem_xfer((fid), (res), (ctxt), (hyp_vcpu));	\
-	} while (0);
+		__do_ffa_mem_xfer((fid), (res), (ctxt), (hyp_vcpu));\
+	})
+
+struct ffa_mem_transfer *find_transfer_by_handle(u64 ffa_handle, struct kvm_ffa_buffers *buf)
+{
+	struct ffa_mem_transfer *transfer;
+
+	list_for_each_entry(transfer, &buf->xfer_list, node)
+		if (transfer->ffa_handle == ffa_handle)
+			return transfer;
+	return NULL;
+}
 
 static void do_ffa_mem_reclaim(struct arm_smccc_res *res,
 			       struct kvm_cpu_context *ctxt,
@@ -554,14 +770,30 @@ static void do_ffa_mem_reclaim(struct arm_smccc_res *res,
 	struct ffa_mem_region *buf;
 	int ret = 0;
 	u64 handle;
+	struct ffa_mem_transfer *transfer = NULL;
+	struct kvm_ffa_buffers *ffa_buf;
 
 	handle = PACK_HANDLE(handle_lo, handle_hi);
 
 	hyp_spin_lock(&kvm_ffa_hyp_lock);
+	ffa_buf = ffa_get_buffers(hyp_vcpu);
+	if (hyp_vcpu) {
+		transfer = find_transfer_by_handle(handle, ffa_buf);
+		if (!transfer) {
+			ret = FFA_RET_INVALID_PARAMETERS;
+			goto out_unlock;
+		}
+
+		goto out_reclaim;
+	} else {
+		transfer = __pkvm_get_vm_ffa_transfer(handle);
+
+		/* Prevent the host from replicating a transfer handle used by the guest */
+		WARN_ON(transfer);
+	}
 
 	buf = hyp_buffers.tx;
 	*buf = (struct ffa_mem_region) {
-		.sender_id	= HOST_FFA_ID,
 		.handle		= handle,
 	};
 
@@ -610,14 +842,24 @@ static void do_ffa_mem_reclaim(struct arm_smccc_res *res,
 		ffa_rx_release(res);
 	}
 
+out_reclaim:
 	ffa_mem_reclaim(res, handle_lo, handle_hi, flags);
 	if (res->a0 != FFA_SUCCESS)
 		goto out_unlock;
 
-	reg = (void *)buf + offset;
 	/* If the SPMD was happy, then we should be too. */
-	WARN_ON(ffa_host_unshare_ranges(reg->constituents,
-					reg->addr_range_cnt));
+	if (hyp_vcpu)
+		ffa_guest_unshare_ranges(hyp_vcpu, transfer);
+	else {
+		reg = (void *)buf + offset;
+		WARN_ON(ffa_host_unshare_ranges(reg->constituents,
+						reg->addr_range_cnt));
+	}
+
+	if (transfer) {
+		list_del(&transfer->node);
+		hyp_free(transfer);
+	}
 out_unlock:
 	hyp_spin_unlock(&kvm_ffa_hyp_lock);
 
@@ -682,6 +924,33 @@ static bool do_ffa_features(struct arm_smccc_res *res,
 out_handled:
 	ffa_to_smccc_res_prop(res, ret, prop);
 	return true;
+}
+
+static void do_ffa_guest_features(struct arm_smccc_res *res, struct kvm_cpu_context *ctxt)
+{
+	DECLARE_REG(u32, id, ctxt, 1);
+
+	switch (id) {
+	case FFA_MEM_SHARE:
+	case FFA_FN64_MEM_SHARE:
+	case FFA_MEM_LEND:
+	case FFA_FN64_MEM_LEND:
+		res->a0 = FFA_RET_SUCCESS;
+		break;
+	case FFA_RXTX_MAP:
+		res->a0 = FFA_RET_SUCCESS;
+		if (PAGE_SIZE == SZ_4K)
+			res->a2 = FFA_FEAT_RXTX_MIN_SZ_4K;
+		else if (PAGE_SIZE == SZ_64K)
+			res->a2 = FFA_FEAT_RXTX_MIN_SZ_64K;
+		else if (PAGE_SIZE == SZ_16K)
+			res->a2 = FFA_FEAT_RXTX_MIN_SZ_16K;
+		else
+			res->a2 = 3;
+		break;
+	default:
+		ffa_to_smccc_error(res, FFA_RET_NOT_SUPPORTED);
+	}
 }
 
 static int hyp_ffa_post_init(void)
@@ -751,13 +1020,31 @@ static void do_ffa_version(struct arm_smccc_res *res,
 		hyp_ffa_version = ffa_req_version;
 	}
 
-	if (hyp_ffa_post_init())
+	if (hyp_ffa_post_init()) {
 		res->a0 = FFA_RET_NOT_SUPPORTED;
-	else {
-		has_version_negotiated = true;
+	} else {
+		smp_store_release(&has_version_negotiated, true);
 		res->a0 = hyp_ffa_version;
 	}
 unlock:
+	hyp_spin_unlock(&version_lock);
+}
+
+static void do_ffa_guest_version(struct arm_smccc_res *res, struct kvm_cpu_context *ctxt,
+				 struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	DECLARE_REG(u32, ffa_req_version, ctxt, 1);
+
+	if (FFA_MAJOR_VERSION(ffa_req_version) != 1) {
+		res->a0 = FFA_RET_NOT_SUPPORTED;
+		return;
+	}
+
+	hyp_spin_lock(&version_lock);
+	if (has_version_negotiated)
+		res->a0 = hyp_ffa_version;
+	else
+		res->a0 = FFA_RET_NOT_SUPPORTED;
 	hyp_spin_unlock(&version_lock);
 }
 
@@ -813,6 +1100,29 @@ out_unlock:
 	hyp_spin_unlock(&kvm_ffa_hyp_lock);
 }
 
+static void do_ffa_direct_msg(struct arm_smccc_res *res,
+			      struct kvm_cpu_context *ctxt,
+			      u64 vm_handle)
+{
+	DECLARE_REG(u32, func_id, ctxt, 0);
+	DECLARE_REG(u32, endp, ctxt, 1);
+	DECLARE_REG(u32, msg_flags, ctxt, 2);
+	DECLARE_REG(u32, w3, ctxt, 3);
+	DECLARE_REG(u32, w4, ctxt, 4);
+	DECLARE_REG(u32, w5, ctxt, 5);
+	DECLARE_REG(u32, w6, ctxt, 6);
+	DECLARE_REG(u32, w7, ctxt, 7);
+
+	if (FIELD_GET(FFA_SRC_ENDPOINT_MASK, endp) != vm_handle) {
+		ffa_to_smccc_res(res, FFA_RET_INVALID_PARAMETERS);
+		return;
+	}
+
+	arm_smccc_1_1_smc(func_id, endp, msg_flags, w3,
+			  w4, w5, w6, w7,
+			  res);
+}
+
 bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 {
 	struct arm_smccc_res res;
@@ -833,7 +1143,8 @@ bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 	if (!is_ffa_call(func_id))
 		return false;
 
-	if (!has_version_negotiated && func_id != FFA_VERSION) {
+	if (func_id != FFA_VERSION &&
+	    !smp_load_acquire(&has_version_negotiated)) {
 		ffa_to_smccc_error(&res, FFA_RET_INVALID_PARAMETERS);
 		goto out_handled;
 	}
@@ -870,6 +1181,18 @@ bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 	case FFA_PARTITION_INFO_GET:
 		do_ffa_part_get(&res, host_ctxt, NULL);
 		goto out_handled;
+	case FFA_RX_RELEASE:
+		hyp_spin_lock(&kvm_ffa_hyp_lock);
+		ffa_rx_release(&res);
+		hyp_spin_unlock(&kvm_ffa_hyp_lock);
+		goto out_handled;
+	case FFA_ID_GET:
+		ffa_to_smccc_res_prop(&res, FFA_RET_SUCCESS, HOST_FFA_ID);
+		goto out_handled;
+	case FFA_MSG_SEND_DIRECT_REQ:
+	case FFA_FN64_MSG_SEND_DIRECT_REQ:
+		do_ffa_direct_msg(&res, host_ctxt, HOST_FFA_ID);
+		goto out_handled;
 	}
 
 	if (ffa_call_supported(func_id))
@@ -879,6 +1202,179 @@ bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 out_handled:
 	ffa_set_retval(host_ctxt, &res);
 	return true;
+}
+
+bool kvm_guest_ffa_handler(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
+{
+	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
+	struct kvm_cpu_context *ctxt = &vcpu->arch.ctxt;
+	struct arm_smccc_res res;
+	int ret, hyp_alloc_ret;
+	struct kvm_hyp_req *req;
+
+	DECLARE_REG(u64, func_id, ctxt, 0);
+
+	if (!is_ffa_call(func_id)) {
+		smccc_set_retval(vcpu, SMCCC_RET_NOT_SUPPORTED, 0, 0, 0);
+		return true;
+	}
+
+	if (!VM_FFA_SUPPORTED(vcpu)) {
+		ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
+		ffa_set_retval(ctxt, &res);
+		return true;
+	}
+
+	switch (func_id) {
+	case FFA_FEATURES:
+		do_ffa_guest_features(&res, ctxt);
+		goto out_guest;
+	case FFA_VERSION:
+		do_ffa_guest_version(&res, ctxt, hyp_vcpu);
+		goto out_guest;
+	case FFA_FN64_RXTX_MAP:
+		ret = do_ffa_rxtx_guest_map(ctxt, hyp_vcpu);
+		break;
+	case FFA_RXTX_UNMAP:
+		do_ffa_rxtx_unmap(&res, ctxt, hyp_vcpu);
+		goto out_guest;
+	case FFA_MEM_RECLAIM:
+		do_ffa_mem_reclaim(&res, ctxt, hyp_vcpu);
+		goto out_guest;
+	case FFA_MEM_SHARE:
+	case FFA_FN64_MEM_SHARE:
+		ret = do_ffa_mem_xfer(FFA_FN64_MEM_SHARE, &res, ctxt, hyp_vcpu);
+		if (!ret)
+			goto out_guest;
+		break;
+	case FFA_MEM_LEND:
+	case FFA_FN64_MEM_LEND:
+		ret = do_ffa_mem_xfer(FFA_FN64_MEM_LEND, &res, ctxt, hyp_vcpu);
+		if (!ret)
+			goto out_guest;
+		break;
+	case FFA_ID_GET:
+		ffa_to_smccc_res_prop(&res, FFA_RET_SUCCESS, hyp_vcpu_to_ffa_handle(hyp_vcpu));
+		goto out_guest;
+	case FFA_PARTITION_INFO_GET:
+		do_ffa_part_get(&res, ctxt, hyp_vcpu);
+		goto out_guest;
+	case FFA_RX_RELEASE:
+		hyp_spin_lock(&kvm_ffa_hyp_lock);
+		ffa_rx_release(&res);
+		hyp_spin_unlock(&kvm_ffa_hyp_lock);
+		goto out_guest;
+	case FFA_MSG_SEND_DIRECT_REQ:
+	case FFA_FN64_MSG_SEND_DIRECT_REQ:
+		do_ffa_direct_msg(&res, ctxt, hyp_vcpu_to_ffa_handle(hyp_vcpu));
+		goto out_guest;
+	default:
+		ret = -EOPNOTSUPP;
+		break;
+	}
+
+	if (ret == -EFAULT || ret == -ENOMEM) {
+		hyp_alloc_ret = hyp_alloc_errno();
+		if (hyp_alloc_ret == -ENOMEM) {
+			req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM);
+			if (!req)
+				goto out_guest_with_ret;
+
+			req->mem.dest = REQ_MEM_DEST_HYP_ALLOC;
+			req->mem.nr_pages = hyp_alloc_missing_donations();
+		} else if (hyp_alloc_ret) {
+			/* Nothing the host can do for us, let the HVC fail */
+			ret = hyp_alloc_ret;
+			goto out_guest_with_ret;
+		}
+
+		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM);
+		if (!req)
+			goto out_guest_with_ret;
+
+		req->mem.dest = REQ_MEM_DEST_VCPU_MEMCACHE;
+		req->mem.nr_pages = kvm_mmu_cache_min_pages(&hyp_vcpu->vcpu.kvm->arch.mmu);
+
+		/* Go back to the host and replay the last guest instruction */
+		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
+		*exit_code = ARM_EXCEPTION_HYP_REQ;
+		return false;
+	}
+
+out_guest_with_ret:
+	ffa_to_smccc_res(&res, linux_errno_to_ffa(ret));
+out_guest:
+	ffa_set_retval(ctxt, &res);
+	return true;
+}
+
+static void kvm_guest_try_reclaim_transfer(struct ffa_mem_transfer *transfer,
+					   struct pkvm_hyp_vm *vm)
+{
+	struct ffa_translation *translation, *tmp;
+	struct arm_smccc_res res;
+
+	ffa_mem_reclaim(&res, HANDLE_LOW(transfer->ffa_handle),
+			HANDLE_HIGH(transfer->ffa_handle), 0);
+	if (res.a0 != FFA_SUCCESS)
+		return;
+
+	list_for_each_entry_safe(translation, tmp, &transfer->translations, node) {
+		WARN_ON(__pkvm_guest_unshare_ffa_page(vm->vcpus[0], translation->ipa));
+		list_del(&translation->node);
+		hyp_free(translation);
+	}
+
+	list_del(&transfer->node);
+	hyp_free(transfer);
+}
+
+int kvm_dying_guest_reclaim_ffa_resources(struct pkvm_hyp_vm *vm)
+{
+	struct kvm_ffa_buffers *ffa_buf = &vm->ffa_buf;
+	struct ffa_mem_transfer *transfer;
+	int ret = 0;
+
+	if (!vm->kvm.arch.pkvm.ffa_support)
+		return 0;
+
+	hyp_spin_lock(&kvm_ffa_hyp_lock);
+	if (!ffa_buf->tx && !ffa_buf->rx)
+		goto unlock;
+
+	if (list_empty(&ffa_buf->xfer_list)) {
+		/* XXX - needs an explicit rxtx unmap call ? */
+		if (ffa_buf->tx) {
+			WARN_ON(__pkvm_guest_unshare_hyp_page(vm->vcpus[0], ffa_buf->tx_ipa));
+			ffa_buf->tx = NULL;
+		}
+		if (ffa_buf->rx) {
+			WARN_ON(__pkvm_guest_unshare_hyp_page(vm->vcpus[0], ffa_buf->rx_ipa));
+			ffa_buf->rx = NULL;
+		}
+		goto unlock;
+	}
+
+	transfer = list_first_entry(&ffa_buf->xfer_list, typeof(*transfer), node);
+	kvm_guest_try_reclaim_transfer(transfer, vm);
+	ret = -EAGAIN;
+
+unlock:
+	hyp_spin_unlock(&kvm_ffa_hyp_lock);
+
+	return ret;
+}
+
+u32 ffa_get_hypervisor_version(void)
+{
+	u32 version = 0;
+
+	hyp_spin_lock(&version_lock);
+	if (has_version_negotiated)
+		version = hyp_ffa_version;
+	hyp_spin_unlock(&version_lock);
+
+	return version;
 }
 
 int hyp_ffa_init(void *pages)
@@ -931,5 +1427,7 @@ int hyp_ffa_init(void *pages)
 	};
 
 	version_lock = __HYP_SPIN_LOCK_UNLOCKED;
+	INIT_LIST_HEAD(&host_buffers.xfer_list);
+
 	return 0;
 }

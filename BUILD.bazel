@@ -4,7 +4,6 @@
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@kernel_toolchain_info//:dict.bzl", "BRANCH")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
@@ -175,19 +174,23 @@ filegroup(
     name = "aarch64_additional_kmi_symbol_lists",
     srcs = [
         # keep sorted
+        "gki/aarch64/symbols/allwinner",
         "gki/aarch64/symbols/amlogic",
         "gki/aarch64/symbols/db845c",
+        "gki/aarch64/symbols/desktop",
         "gki/aarch64/symbols/exynos",
         "gki/aarch64/symbols/exynosauto",
         "gki/aarch64/symbols/fips140",
         "gki/aarch64/symbols/galaxy",
         "gki/aarch64/symbols/honor",
         "gki/aarch64/symbols/imx",
+        "gki/aarch64/symbols/mtk",
         "gki/aarch64/symbols/mtktv",
         "gki/aarch64/symbols/oplus",
         "gki/aarch64/symbols/pixel",
         "gki/aarch64/symbols/qcom",
         "gki/aarch64/symbols/trusty",
+        "gki/aarch64/symbols/type_visibility",
         "gki/aarch64/symbols/unisoc",
         "gki/aarch64/symbols/virtual_device",
         "gki/aarch64/symbols/vivo",
@@ -327,7 +330,7 @@ common_kernel(
     additional_kmi_symbol_lists = [":aarch64_additional_kmi_symbol_lists"],
     arch = "arm64",
     build_gki_artifacts = True,
-    clang_autofdo_profile = "//toolchain/pgo-profiles/kernel:aarch64/" + BRANCH + "/kernel.afdo",
+    clang_autofdo_profile = ":gki/aarch64/afdo/kernel.afdo",
     ddk_headers_archive = ":kernel_aarch64_ddk_headers_archive",
     ddk_module_headers = [":all_headers_aarch64"],
     defconfig = "arch/arm64/configs/gki_defconfig",
@@ -1383,6 +1386,7 @@ kernel_build(
     makefile = ":Makefile",
     module_outs = ["crypto/fips140.ko"],
     post_defconfig_fragments = ["arch/arm64/configs/fips140_gki.fragment"],
+    strip_modules = True,
 )
 
 kernel_abi(
@@ -1627,6 +1631,8 @@ ddk_headers(
     name = "all_headers_allowlist_aarch64",
     hdrs = [
         "drivers/extcon/extcon.h",
+        "drivers/pci/controller/dwc/pcie-designware.h",
+        "drivers/pci/pci.h",
         "drivers/thermal/thermal_core.h",
         "drivers/thermal/thermal_debugfs.h",
         "drivers/thermal/thermal_netlink.h",
@@ -1645,6 +1651,8 @@ ddk_headers(
         "arch/arm64/include",
         "arch/arm64/include/uapi",
         "drivers/extcon",
+        "drivers/pci",
+        "drivers/pci/controller/dwc",
         "drivers/thermal",
         "drivers/usb",
         "sound/usb",
@@ -1735,6 +1743,7 @@ ddk_headers(
     hdrs = [
         "drivers/devfreq/governor.h",
         "drivers/pinctrl/core.h",
+        "drivers/ufs/core/ufshcd-priv.h",
         "drivers/ufs/host/ufshcd-pltfrm.h",
         "drivers/usb/dwc3/core.h",
         "drivers/usb/dwc3/debug.h",
@@ -1760,6 +1769,7 @@ ddk_headers(
         ".",
         "drivers/devfreq",
         "drivers/pinctrl",
+        "drivers/ufs/core",
         "drivers/ufs/host",
         "drivers/usb/dwc3",
         "drivers/usb/gadget",
