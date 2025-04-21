@@ -716,7 +716,8 @@
 	phy-mode = "10gbase-r";
 	serdes-supply = <&reg_serdes_en>;
 	managed = "in-band-status";
-	status = "okay";
+	//status = "okay";
+	status = "disabled";
 };
 
 &netc_timer {
@@ -726,7 +727,7 @@
 &netc_emdio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_emdio>;
-	phy-supply = <&reg_aqr_en>;
+	//phy-supply = <&reg_aqr_en>;
 	status = "okay";
 
 	ethphy0: ethernet-phy@1 {
