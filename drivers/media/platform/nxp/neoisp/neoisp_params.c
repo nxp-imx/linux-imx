@@ -2,7 +2,7 @@
 /*
  * NEOISP module parameters definition and default values
  *
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2025 NXP
  */
 
 #include "neoisp.h"
@@ -16,11 +16,7 @@ struct neoisp_mod_params_s mod_params = {
 	},
 	.conf = {
 		.img_conf_cam0_ibpp0 = 2,
-		.img_conf_cam0_inalign0 = 1,
-		.img_conf_cam0_lpalign0 = 0,
 		.img_conf_cam0_ibpp1 = 2,
-		.img_conf_cam0_inalign1 = 1,
-		.img_conf_cam0_lpalign1 = 0,
 		.img0_in_ls_cam0_ls = 0,
 		.img1_in_ls_cam0_ls = 0,
 		.skip_ctrl0_preskip = 0,
@@ -47,11 +43,7 @@ module_param_named(test_disable_stats, mod_params.test.disable_stats, uint, 0600
 module_param_named(test_enable_debugfs, mod_params.test.enable_debugfs, uint, 0600);
 
 module_param_named(img_conf_cam0_ibpp0, mod_params.conf.img_conf_cam0_ibpp0, uint, 0600);
-module_param_named(img_conf_cam0_inalign0, mod_params.conf.img_conf_cam0_inalign0, uint, 0600);
-module_param_named(img_conf_cam0_lpalign0, mod_params.conf.img_conf_cam0_lpalign0, uint, 0600);
 module_param_named(img_conf_cam0_ibpp1, mod_params.conf.img_conf_cam0_ibpp1, uint, 0600);
-module_param_named(img_conf_cam0_inalign1, mod_params.conf.img_conf_cam0_inalign1, uint, 0600);
-module_param_named(img_conf_cam0_lpalign1, mod_params.conf.img_conf_cam0_lpalign1, uint, 0600);
 module_param_named(img0_in_ls_cam0_ls, mod_params.conf.img0_in_ls_cam0_ls, uint, 0600);
 module_param_named(img1_in_ls_cam0_ls, mod_params.conf.img1_in_ls_cam0_ls, uint, 0600);
 module_param_named(skip_ctrl0_preskip, mod_params.conf.skip_ctrl0_preskip, uint, 0600);

@@ -1,17 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2019-2024 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2019-2020, 2024-2025 NXP
  */
+
 #include <dt-bindings/firmware/imx/rsrc.h>
 #include <linux/firmware/imx/sci.h>
 #include <linux/freezer.h>
 #include <linux/irq.h>
 #include <linux/kthread.h>
+#include <media/mipi-csi2.h>
 
 #include "cdns-hdmirx-phy.h"
 #include "cdns-mhdp-hdmirx.h"
@@ -20,6 +17,8 @@
 #define HDMIRX_MAX_WIDTH		3840
 #define HDMIRX_MIN_HEIGHT		480
 #define HDMIRX_MAX_HEIGHT		2160
+#define HDMIRX_DEF_PIX_WIDTH		1920
+#define HDMIRX_DEF_PIX_HEIGHT		1080
 /* V4L2_DV_BT_CEA_640X480P59_94 */
 #define HDMIRX_MIN_PIXELCLOCK	24000000
 /* V4L2_DV_BT_CEA_3840X2160P30 */
@@ -37,11 +36,18 @@ static ssize_t HDCPRX_request_reauthentication_show(struct device *dev,
 			struct device_attribute *attr, char *buf);
 
 static ssize_t HDCPRX_enable_store(struct device *dev,
-			struct device_attribute *attr, const char *buf, size_t count);
+			struct device_attribute *attr, const char *buf,
+				   size_t count);
 
 static struct device_attribute HDCPRX_status = __ATTR_RO(HDCPRX_status);
 static struct device_attribute HDCPRX_request_reauthentication = __ATTR_RO(HDCPRX_request_reauthentication);
 static struct device_attribute HDCPRX_enable = __ATTR_WO(HDCPRX_enable);
+
+static inline struct cdns_hdmirx_device *sd_to_media_csi2_dev(struct v4l2_subdev *sdev)
+{
+	return container_of(sdev, struct cdns_hdmirx_device, sd);
+}
+
 
 static ssize_t HDCPRX_status_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
@@ -75,7 +81,8 @@ static ssize_t HDCPRX_request_reauthentication_show(struct device *dev,
 		if (!cdns_hdcprx_reauth_req_wait(hdmirx, 2000))
 			size = sprintf(buf, "cdns_hdcprx_reauth_req done\n");
 		else {
-			size = sprintf(buf, "HDCPRX cdns_hdcprx_reauth_req failed.\n");
+			size = sprintf(buf,
+				       "HDCPRX cdns_hdcprx_reauth_req failed.\n");
 			return size;
 		}
 	} else
@@ -108,7 +115,8 @@ static ssize_t HDCPRX_enable_store(struct device *dev,
 		dev_dbg(&hdmirx->pdev->dev, "%s disable hdcp\n", __func__);
 		hdmirx->allow_hdcp = false;
 	} else
-		dev_dbg(&hdmirx->pdev->dev, "%s invalid hdcp command\n", __func__);
+		dev_dbg(&hdmirx->pdev->dev, "%s invalid hdcp command\n",
+			__func__);
 
     return count;
 }
@@ -119,21 +127,22 @@ static int hdmi_sysfs_init(struct device *dev)
 
 	retval = device_create_file(dev, &HDCPRX_status);
 	if (retval) {
-		printk(KERN_ERR "Unable to create hdmirx status sysfs\n");
+		dev_err(dev, "Unable to create hdmirx status sysfs\n");
 		device_remove_file(dev, &HDCPRX_status);
 		return retval;
 	}
 
 	retval = device_create_file(dev, &HDCPRX_enable);
 	if (retval) {
-		printk(KERN_ERR "Unable to create hdmirx enable sysfs\n");
+		dev_err(dev, "Unable to create hdmirx enable sysfs\n");
 		device_remove_file(dev, &HDCPRX_enable);
 		return retval;
 	}
 
 	retval = device_create_file(dev, &HDCPRX_request_reauthentication);
 	if (retval) {
-		printk(KERN_ERR "Unable to create HDCPRX_request_reauthentication sysfs\n");
+		dev_err(dev,
+			"Unable to create HDCPRX_request_reauthentication sysfs\n");
 		device_remove_file(dev, &HDCPRX_request_reauthentication);
 		return retval;
 	}
@@ -217,7 +226,8 @@ int cdns_hdmirx_frame_timing(struct cdns_hdmirx_device *hdmirx)
 		}
 	} else if (vic > 109) {
 		dev_err(&hdmirx->pdev->dev,
-				"Unsupported mode vic=%d, hdmi_vic=%d\n", vic, hdmi_vic);
+			"Unsupported mode vic=%d, hdmi_vic=%d\n",
+			vic, hdmi_vic);
 		return -EINVAL;
 	}
 
@@ -292,54 +302,81 @@ static int hdmirx_clock_init(struct cdns_hdmirx_device *hdmirx)
 static int hdmirx_clock_enable(struct cdns_hdmirx_device *hdmirx)
 {
 	struct device *dev = &hdmirx->pdev->dev;
-	int ret;
+	int ret = 0;
 
 	dev_dbg(dev, "%s\n", __func__);
 	ret = clk_prepare_enable(hdmirx->ref_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre ref_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_ref_clk;
 	}
 
 	ret = clk_prepare_enable(hdmirx->pxl_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre pxl_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_pxl_clk;
 	}
 
 	ret = clk_prepare_enable(hdmirx->i2s_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre i2s_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_i2s_clk;
 	}
 
 	ret = clk_prepare_enable(hdmirx->spdif_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre spdif_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_spdif_clk;
 	}
+
 	ret = clk_prepare_enable(hdmirx->lpcg_enc_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre enc_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_lpcg_enc_clk;
 	}
+
 	ret = clk_prepare_enable(hdmirx->lpcg_sclk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre sclk error %d\n", __func__, ret);
-		return ret;
+		goto err_lpcg_sclk;
 	}
+
 	ret = clk_prepare_enable(hdmirx->lpcg_pclk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre pclk error %d\n", __func__, ret);
-		return ret;
+		goto err_lpcg_pclk;
 	}
+
 	ret = clk_prepare_enable(hdmirx->lpcg_pxl_link_clk);
 	if (ret < 0) {
 		dev_err(dev, "%s, pre pxl_link_clk error %d\n", __func__, ret);
-		return ret;
+		goto err_lpcg_pxl_link_clk;
 	}
+	return ret;
 
-	return 0;
+err_lpcg_pxl_link_clk:
+	clk_disable_unprepare(hdmirx->lpcg_pclk);
+
+err_lpcg_pclk:
+	clk_disable_unprepare(hdmirx->lpcg_sclk);
+
+err_lpcg_sclk:
+	clk_disable_unprepare(hdmirx->lpcg_enc_clk);
+
+err_lpcg_enc_clk:
+	clk_disable_unprepare(hdmirx->spdif_clk);
+
+err_spdif_clk:
+	clk_disable_unprepare(hdmirx->i2s_clk);
+
+err_i2s_clk:
+	clk_disable_unprepare(hdmirx->pxl_clk);
+
+err_pxl_clk:
+	clk_disable_unprepare(hdmirx->ref_clk);
+
+err_ref_clk:
+	return ret;
 }
 
 static void hdmirx_clock_disable(struct cdns_hdmirx_device *hdmirx)
@@ -386,8 +423,10 @@ static void hdmirx_pixel_link_encoder(struct cdns_hdmirx_device *hdmirx)
 	writel(val, hdmirx->regs_sec);
 }
 
-/* -----------------------------------------------------------------------------
+/*
  * v4l2_subdev_video_ops
+ *
+ * Can we remove this function ?
  */
 static int hdmirx_set_frame_interval(struct v4l2_subdev *sd,
 			struct v4l2_subdev_state *state,
@@ -465,15 +504,49 @@ static const struct v4l2_subdev_video_ops cdns_video_ops_hdmi = {
 	.s_stream = hdmirx_s_stream,
 };
 
-/* -----------------------------------------------------------------------------
+/*
  * Media Operations
  */
+static inline struct cdns_hdmirx_device *sd_to_cdns_hdmirx_dev(struct v4l2_subdev *sdev)
+{
+	return container_of(sdev, struct cdns_hdmirx_device, sd);
+}
+
+/* hdmi rx subdev media entity operations */
+static int media_hdmirx_link_setup(struct media_entity *entity,
+				const struct media_pad *local_pad,
+				const struct media_pad *remote_pad, u32 flags)
+{
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct cdns_hdmirx_device *hdmirxdev = sd_to_cdns_hdmirx_dev(sd);
+	struct v4l2_subdev *remote_sd;
+
+	/* We only care about the link to the source. */
+	if (!(local_pad->flags & MEDIA_PAD_FL_SINK))
+		return 0;
+
+	remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+
+	if (flags & MEDIA_LNK_FL_ENABLED) {
+		if (hdmirxdev->src_sd)
+			return -EBUSY;
+
+		hdmirxdev->src_sd = remote_sd;
+		hdmirxdev->remote_pad = remote_pad->index;
+	} else {
+		hdmirxdev->src_sd = NULL;
+	}
+
+	return 0;
+}
 
 static const struct media_entity_operations hdmi_media_ops = {
+	.link_setup = media_hdmirx_link_setup,
 	.link_validate = v4l2_subdev_link_validate,
+	.get_fwnode_pad = v4l2_subdev_get_fwnode_pad_1_to_1,
 };
 
-/* -----------------------------------------------------------------------------
+/*
  * v4l2_subdev_pad_ops
  */
 static int hdmirx_enum_framesizes(struct v4l2_subdev *sd,
@@ -497,24 +570,27 @@ static int hdmirx_enum_framesizes(struct v4l2_subdev *sd,
 	fse->max_height = fse->min_height;
 	return 0;
 }
+
 static int hdmirx_enum_frame_interval(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_state *state,
 				   struct v4l2_subdev_frame_interval_enum *fie)
 {
 	struct cdns_hdmirx_device *hdmirx = cdns_sd_to_hdmi(sd);
+	struct device *dev = &hdmirx->pdev->dev;
 
 	if (fie->index > 8)
 		return -EINVAL;
 
 	if (fie->width == 0 || fie->height == 0 ||
 	    fie->code == 0) {
-		pr_warn("Please assign pixel format, width and height.\n");
+		dev_warn(dev,
+			 "Please assign pixel format, width and height.\n");
 		return -EINVAL;
 	}
 
 	fie->interval.numerator = 1;
 
-	 /* TODO Reserved to extension */
+	/* TODO Reserved to extension */
 	fie->interval.denominator = hdmirx->timings->fps;
 	return 0;
 }
@@ -653,6 +729,21 @@ static int hdmirx_dv_timings_cap(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int hdmirx_init_state(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *sd_state)
+{
+	return 0;
+}
+
+static int hdmirx_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	return 0;
+}
+
+static const struct v4l2_subdev_internal_ops hdmirx_sd_internal_ops = {
+	.open = hdmirx_open,
+};
+
 static const struct v4l2_subdev_pad_ops cdns_pad_ops_hdmi = {
 	.enum_mbus_code = hdmirx_enum_mbus_code,
 	.enum_frame_size = hdmirx_enum_framesizes,
@@ -666,6 +757,10 @@ static const struct v4l2_subdev_pad_ops cdns_pad_ops_hdmi = {
 	.set_frame_interval =	hdmirx_set_frame_interval,
 };
 
+static const struct v4l2_subdev_internal_ops hdmirx_internal_ops = {
+	.init_state = hdmirx_init_state,
+};
+
 static int hdmirx_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct cdns_hdmirx_device *hdmirx = cdns_sd_to_hdmi(sd);
@@ -675,11 +770,12 @@ static int hdmirx_s_power(struct v4l2_subdev *sd, int on)
 
 	return 0;
 }
+
 static struct v4l2_subdev_core_ops cdns_core_ops_hdmi = {
 	.s_power = hdmirx_s_power,
 };
 
-/* -----------------------------------------------------------------------------
+/*
  * v4l2_subdev_ops
  */
 static const struct v4l2_subdev_ops cdns_ops_hdmi = {
@@ -691,19 +787,19 @@ static const struct v4l2_subdev_ops cdns_ops_hdmi = {
 void imx8qm_hdmi_phy_reset(struct cdns_hdmirx_device *hdmirx, u8 reset)
 {
 	struct imx_sc_ipc *handle;
+	struct device *dev = &hdmirx->pdev->dev;
 	int ret;
-
-	dev_dbg(&hdmirx->pdev->dev, "%s\n", __func__);
 
 	ret = imx_scu_get_handle(&handle);
 	if (ret) {
-		DRM_ERROR("Failed to get scu ipc handle (%d)\n", ret);
+		dev_err(dev, "Failed to get scu ipc handle (%d)\n", ret);
 		return;
 	}
 	/* set the pixel link mode and pixel type */
-	ret = imx_sc_misc_set_control(handle, IMX_SC_R_HDMI_RX, IMX_SC_C_PHY_RESET, reset);
+	ret = imx_sc_misc_set_control(handle, IMX_SC_R_HDMI_RX,
+				      IMX_SC_C_PHY_RESET, reset);
 	if (ret)
-		DRM_ERROR("SC_R_HDMI PHY reset failed %d!\n", ret);
+		dev_err(dev, "SC_R_HDMI PHY reset failed %d!\n", ret);
 }
 
 #ifdef CONFIG_MHDP_HDMIRX_CEC
@@ -757,7 +853,7 @@ static void alive(struct cdns_hdmirx_device *hdmirx)
 		dev_err(&hdmirx->pdev->dev, "NO HDMI RX FW running\n");
 		dev_err(&hdmirx->pdev->dev, "Checking debug registers...\n");
 		dump_debug_regs(hdmirx);
-		/* BUG(); */
+
 	}
 }
 
@@ -790,7 +886,8 @@ static int tmdsmon_fn(void *data)
 
 		if (hdmirx->tmdsmon_state != 1) {
 			if (hdmirx->tmdsmon_state == 2)
-				dev_dbg(&hdmirx->pdev->dev, "= stopping tmdsmon thread\n");
+				dev_dbg(&hdmirx->pdev->dev,
+					"= stopping tmdsmon thread\n");
 			hdmirx->tmdsmon_state = 0;
 			startup_attempts = 0;
 			avi_fail_cnt = 0;
@@ -811,7 +908,8 @@ static int tmdsmon_fn(void *data)
 				bad_tmds_cnt++;
 				if (bad_tmds_cnt > 50) {
 					bad_tmds_cnt = 0;
-					dev_dbg(&hdmirx->pdev->dev, "Re-initialising PHY as no valid clock from source");
+					dev_dbg(&hdmirx->pdev->dev,
+						"Re-initialising PHY as no valid clock from source");
 					cdns_hdmirx_phyinit(hdmirx);
 					continue;
 				}
@@ -821,7 +919,8 @@ static int tmdsmon_fn(void *data)
 
 		if (tmds < 0) {
 			if (hdmirx->initialized)
-				dev_info(&hdmirx->pdev->dev, "Lost TMDS clock\n\n");
+				dev_info(&hdmirx->pdev->dev,
+					 "Lost TMDS clock\n\n");
 			hdmirx->cable_plugin = false;
 			hdmirx->initialized = false;
 			hdmirx->tmds_clk = -1;
@@ -834,12 +933,14 @@ static int tmdsmon_fn(void *data)
 		tmds_measure_cnt++;
 		if (tmds_measure_cnt == 500) {
 			tmds_measure_cnt = 0;
-			dev_info(&hdmirx->pdev->dev, "Measured TMDS is %d\n\n", tmds);
+			dev_info(&hdmirx->pdev->dev,
+				 "Measured TMDS is %d\n\n", tmds);
 		}
 
 		if (tmds > (hdmirx->tmds_clk + 50) ||
 		    tmds < (hdmirx->tmds_clk - 50)) {
-			dev_info(&hdmirx->pdev->dev, "TMDS change detect: %d -> %d\n\n",
+			dev_info(&hdmirx->pdev->dev,
+				 "TMDS change detect: %d -> %d\n\n",
 				hdmirx->tmds_clk, tmds);
 			change = true;
 		} else if ((tmds > 0) && (hdmirx->initialized)) {
@@ -867,12 +968,16 @@ static int tmdsmon_fn(void *data)
 					key_arrived = status.flags & 1;
 					hdcp_ver = (status.flags >> 1) & 0x3,
 
-					val = cdns_hdmirx_reg_read(hdmirx, PKT_ERR_CNT_HEADER);
+					val = cdns_hdmirx_reg_read(hdmirx,
+								   PKT_ERR_CNT_HEADER);
 					/* Already authenticated */
 					if (key_arrived) {
 						if (val & 0xff) {
-							dev_dbg(&hdmirx->pdev->dev, "Got PKT_ERR_CNT_HEADER 0x%08X\n", val);
-							dev_info(&hdmirx->pdev->dev, "Requesting HDCP re-authentication\n");
+							dev_dbg(&hdmirx->pdev->dev,
+								"Got PKT_ERR_CNT_HEADER 0x%08X\n",
+								val);
+							dev_info(&hdmirx->pdev->dev,
+								 "Requesting HDCP re-authentication\n");
 							cdns_hdcprx_reauth_req_wait(hdmirx, 2000);
 						}
 					} else if (hdcp_ver > 0)
@@ -888,8 +993,11 @@ static int tmdsmon_fn(void *data)
 					if (avi_fail_cnt >= 3) {
 						uint32_t events;
 
-						dev_info(&hdmirx->pdev->dev, "Failed to get AVI infoframe after %d attempts\n", avi_fail_cnt);
-						dev_dbg(&hdmirx->pdev->dev, "Triggering re-init via HPD\n");
+						dev_info(&hdmirx->pdev->dev,
+							 "Failed to get AVI infoframe after %d attempts\n",
+							 avi_fail_cnt);
+						dev_dbg(&hdmirx->pdev->dev,
+							"Triggering re-init via HPD\n");
 						events = cdns_hdmirx_bus_read(hdmirx, SW_EVENTS1);
 						cdns_hdmirx_hotplug_trigger(hdmirx);
 						cdns_hdmirx_wait_edid_read(hdmirx);
@@ -899,12 +1007,14 @@ static int tmdsmon_fn(void *data)
 				} else {
 					avi_fail_cnt = 0;
 					if (avi_change == 1) {
-						dev_info(&hdmirx->pdev->dev, "\nAVI change detect\n\n");
+						dev_info(&hdmirx->pdev->dev,
+							 "\nAVI change detect\n\n");
 						change = true;
 						if (hdmirx->vic_code == 0) {
 							int vnd_change = cdns_hdmirx_get_vendor_infoframe(hdmirx, 250);
 							if (vnd_change == 1) {
-								dev_info(&hdmirx->pdev->dev, "\nVendor info change detect\n\n");
+								dev_info(&hdmirx->pdev->dev,
+									 "\nVendor info change detect\n\n");
 								cdns_hdmirx_frame_timing(hdmirx);
 							}
 						}
@@ -938,10 +1048,14 @@ static int tmdsmon_fn(void *data)
 				cdns_hdmirx_general_unloadhdcprx(hdmirx);
 
 			cdns_hdmirx_maincontrol(hdmirx, VIDEO_MODE_CHANGE);
-			dev_dbg(&hdmirx->pdev->dev, "%s(): called MainControl(0) with VIDEO_MODE_CHANGE\n",  __func__);
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s(): called MainControl(0) with VIDEO_MODE_CHANGE\n",
+				 __func__);
 
 			cdns_hdmirx_maincontrol(hdmirx, 1);
-			dev_dbg(&hdmirx->pdev->dev, "%s(): called MainControl(1)\n", __func__);
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s(): called MainControl(1)\n",
+				__func__);
 
 			if (hdmirx->allow_hdcp && !hdmirx->hdcp_fw_loaded) {
 				cdns_hdmirx_general_loadhdcprx(hdmirx);
@@ -949,11 +1063,15 @@ static int tmdsmon_fn(void *data)
 			}
 			hdmirx->hdcp_fw_loaded = hdmirx->allow_hdcp;
 
-			dev_dbg(&hdmirx->pdev->dev, "= TMDS Mon calling cdns_hdmirx_startup after seeing TMDS of %d\n", tmds);
+			dev_dbg(&hdmirx->pdev->dev,
+				"= TMDS Mon calling cdns_hdmirx_startup after seeing TMDS of %d\n",
+				tmds);
 			if (cdns_hdmirx_startup(hdmirx) < 0) {
 				hdmirx->tmds_clk = -1;
 				if (startup_attempts > 1) {
-					dev_dbg(&hdmirx->pdev->dev, "= TMDS Mon re-initialising PHY due to %d failed startup attempts\n", startup_attempts);
+					dev_dbg(&hdmirx->pdev->dev,
+						"= TMDS Mon re-initialising PHY due to %d failed startup attempts\n",
+						startup_attempts);
 					cdns_hdmirx_phyinit(hdmirx);
 					startup_attempts = 0;
 				} else
@@ -1004,12 +1122,14 @@ static int tmdsmon_init(struct cdns_hdmirx_device *hdmirx)
 	static const char name[] = "tmdsmon_th";
 
 	if (hdmirx->tmdsmon_th) {
-		dev_dbg(&hdmirx->pdev->dev, "Resuming thread for monitoring TMDS changes\n");
+		dev_dbg(&hdmirx->pdev->dev,
+			"Resuming thread for monitoring TMDS changes\n");
 		hdmirx->tmdsmon_state = 1;
 		return 0;
 	}
 
-	dev_dbg(&hdmirx->pdev->dev, "Creating thread for monitoring TMDS changes\n");
+	dev_dbg(&hdmirx->pdev->dev,
+		"Creating thread for monitoring TMDS changes\n");
 
 	hdmirx->tmdsmon_th = kthread_create(tmdsmon_fn, hdmirx, name);
 	if (!IS_ERR(hdmirx->tmdsmon_th)) {
@@ -1038,14 +1158,16 @@ int cdns_hdmirx_wait_edid_read(struct cdns_hdmirx_device *hdmirx)
 	uint32_t events;
 
 	ktime_t timeout = ktime_timeout_ms(2000);
-	dev_info(&hdmirx->pdev->dev, "hdmirx_wait_edid_read wait for EDID to be read\n");
+	dev_info(&hdmirx->pdev->dev,
+		 "hdmirx_wait_edid_read wait for EDID to be read\n");
 	do {
 		events = cdns_hdmirx_bus_read(hdmirx, SW_EVENTS1);
 		if (ktime_after(ktime_get(), timeout))
 			goto timeout_err;
 		msleep(1);
 	} while ((events & 0x1) == 0);
-	dev_dbg(&hdmirx->pdev->dev, "hdmirx_wait_edid_read detected, now wait for status to be 0");
+	dev_dbg(&hdmirx->pdev->dev,
+		"hdmirx_wait_edid_read detected, now wait for status to be 0");
 
 	timeout = ktime_timeout_ms(500);
 	do {
@@ -1055,11 +1177,14 @@ int cdns_hdmirx_wait_edid_read(struct cdns_hdmirx_device *hdmirx)
 			goto timeout_err;
 	} while ((events & 0x1) == 1);
 
-	dev_dbg(&hdmirx->pdev->dev, "hdmirx_wait_edid_read Finished successfully, final status 0x%08X\n", events);
+	dev_dbg(&hdmirx->pdev->dev,
+		"hdmirx_wait_edid_read Finished successfully, final status 0x%08X\n",
+		events);
 	return 0;
 
 timeout_err:
-	dev_dbg(&hdmirx->pdev->dev, "hdmirx_wait_edid_read timed out waiting for EDID to be read\n");
+	dev_dbg(&hdmirx->pdev->dev,
+		"hdmirx_wait_edid_read timed out waiting for EDID to be read\n");
 	return -1;
 }
 
@@ -1083,9 +1208,11 @@ static void hpd5v_work_func(struct work_struct *work)
 	if (hpd == 1) {
 		dev_info(&hdmirx->pdev->dev, "HDMI RX Cable Plug In\n");
 
-		dev_dbg(&hdmirx->pdev->dev, "hpd5v_work_func calling cdns_hdmirx_phyinit\n");
+		dev_dbg(&hdmirx->pdev->dev,
+			"%s calling cdns_hdmirx_phyinit\n", __func__);
 		if (cdns_hdmirx_phyinit(hdmirx))
-			dev_err(&hdmirx->pdev->dev, "Failed to init PHY, try replugging.\n");
+			dev_err(&hdmirx->pdev->dev,
+				"Failed to init PHY, try replugging.\n");
 		if (hdmirx->allow_hdcp) {
 			cdns_hdmirx_general_loadhdcprx(hdmirx);
 			cdns_hdcprx_enable(hdmirx);
@@ -1123,7 +1250,8 @@ static void hpd5v_work_func(struct work_struct *work)
 		hdmirx->cable_plugin = false;
 
 		cdns_hdmirx_maincontrol(hdmirx, 0);
-		dev_dbg(&hdmirx->pdev->dev, "%s(): called MainControl_blocking(0x0)\n", __func__);
+		dev_dbg(&hdmirx->pdev->dev,
+			"%s(): called MainControl_blocking(0x0)\n", __func__);
 		imx8qm_hdmi_phy_reset(hdmirx, 0);
 		cdns_hdmirx_general_assertphyreset(hdmirx);
 
@@ -1149,13 +1277,15 @@ static irqreturn_t hdp5v_irq_thread(int irq, void *data)
 
 static void print_fw_ver(struct cdns_hdmirx_device *hdmirx)
 {
+	struct device *dev = &hdmirx->pdev->dev;
 	u8 r1, r2, r3, r4;
 
 	r1 = cdns_hdmirx_bus_read(hdmirx, VER_LIB_L_ADDR);
 	r2 = cdns_hdmirx_bus_read(hdmirx, VER_LIB_H_ADDR);
 	r3 = cdns_hdmirx_bus_read(hdmirx, VER_L);
 	r4 = cdns_hdmirx_bus_read(hdmirx, VER_H);
-    printk("HDMI RX FIRMWARE VERSION: %d, LIB VERSION: %d\n", (r4 << 8) | r3, (r2 << 8) | r1);
+	dev_info(dev, "HDMI RX FIRMWARE VERSION: %d, LIB VERSION: %d\n",
+		 (r4 << 8) | r3, (r2 << 8) | r1);
 }
 
 static int hdmirx_probe(struct platform_device *pdev)
@@ -1178,9 +1308,11 @@ static int hdmirx_probe(struct platform_device *pdev)
 	/* register map */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res) {
-		hdmirx->regs_base = devm_ioremap(dev, res->start, resource_size(res));
+		hdmirx->regs_base = devm_ioremap(dev, res->start,
+						 resource_size(res));
 		if (IS_ERR(hdmirx->regs_base)) {
-			dev_err(dev, "Failed to get HDMI RX CTRL base register\n");
+			dev_err(dev,
+				"Failed to get HDMI RX CTRL base register\n");
 			return -EINVAL;
 		}
 	} else
@@ -1188,9 +1320,11 @@ static int hdmirx_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res) {
-		hdmirx->regs_sec = devm_ioremap(dev, res->start, resource_size(res));
+		hdmirx->regs_sec = devm_ioremap(dev, res->start,
+						resource_size(res));
 		if (IS_ERR(hdmirx->regs_sec)) {
-			dev_err(dev, "Failed to get HDMI RX CRS base register\n");
+			dev_err(dev,
+				"Failed to get HDMI RX CRS base register\n");
 			return -EINVAL;
 		}
 	} else
@@ -1209,33 +1343,34 @@ static int hdmirx_probe(struct platform_device *pdev)
 	v4l2_subdev_init(&hdmirx->sd, &cdns_ops_hdmi);
 	/* sd.dev may use by match_of */
 	hdmirx->sd.dev = dev;
+	hdmirx->sd.internal_ops = &hdmirx_internal_ops;
 
 	/* the owner is the same as the i2c_client's driver owner */
 	hdmirx->sd.owner = THIS_MODULE;
 	hdmirx->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	hdmirx->sd.entity.function = MEDIA_ENT_F_IO_DTV;
-
-	/* This allows to retrieve the platform device id by the host driver */
-	v4l2_set_subdevdata(&hdmirx->sd, pdev);
 
 	/* initialize name */
-	snprintf(hdmirx->sd.name, sizeof(hdmirx->sd.name), "%s", HDMIRX_SUBDEV_NAME);
+	snprintf(hdmirx->sd.name, sizeof(hdmirx->sd.name), "%s",
+		 HDMIRX_SUBDEV_NAME);
 
-	hdmirx->pads[MXC_HDMI_RX_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
-	hdmirx->pads[MXC_HDMI_RX_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
-
+	hdmirx->pad.flags = MEDIA_PAD_FL_SOURCE;
 	hdmirx->sd.entity.ops = &hdmi_media_ops;
-	ret = media_entity_pads_init(&hdmirx->sd.entity,
-				     MXC_HDMI_RX_PADS_NUM, hdmirx->pads);
+	hdmirx->sd.entity.function = MEDIA_ENT_F_IO_DTV;
+	ret = media_entity_pads_init(&hdmirx->sd.entity, 1, &hdmirx->pad);
 	if (ret)
 		return ret;
 
+	ret = v4l2_subdev_init_finalize(&hdmirx->sd);
+	if (ret < 0)
+		return ret;
+
+	v4l2_set_subdevdata(&hdmirx->sd, hdmirx->pdev);
 	platform_set_drvdata(pdev, hdmirx);
+
 	ret = v4l2_async_register_subdev(&hdmirx->sd);
 	if (ret < 0) {
-		dev_err(dev,
-					"%s--Async register failed, ret=%d\n", __func__, ret);
 		media_entity_cleanup(&hdmirx->sd.entity);
+		return ret;
 	}
 
 	hdmirx->is_cec = of_property_read_bool(pdev->dev.of_node, "fsl,cec");
@@ -1286,7 +1421,8 @@ static int hdmirx_probe(struct platform_device *pdev)
 		irq_set_status_flags(hdmirx->irq[HPD5V_IRQ_IN], IRQ_NOAUTOEN);
 		ret = devm_request_threaded_irq(dev, hdmirx->irq[HPD5V_IRQ_IN],
 						NULL, hdp5v_irq_thread,
-						IRQF_ONESHOT, dev_name(dev), hdmirx);
+						IRQF_ONESHOT, dev_name(dev),
+						hdmirx);
 		if (ret) {
 			dev_err(&pdev->dev, "can't claim irq %d\n",
 							hdmirx->irq[HPD5V_IRQ_IN]);
@@ -1297,7 +1433,9 @@ static int hdmirx_probe(struct platform_device *pdev)
 			cdns_hdmirx_sethpd(hdmirx, 0);
 			hdmirx->cable_plugin = false;
 			cdns_hdmirx_maincontrol(hdmirx, 0);
-			dev_dbg(&hdmirx->pdev->dev, "%s(): called MainControl_blocking(0x0)\n", __func__);
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s(): called MainControl_blocking(0x0)\n",
+				__func__);
 			imx8qm_hdmi_phy_reset(hdmirx, 0);
 			cdns_hdmirx_general_assertphyreset(hdmirx);
 			enable_irq(hdmirx->irq[HPD5V_IRQ_IN]);
@@ -1315,9 +1453,11 @@ static int hdmirx_probe(struct platform_device *pdev)
 			goto failed;
 		}
 		if (hpd == 1) {
-			dev_dbg(&hdmirx->pdev->dev, "hdmirx_probe calling cdns_hdmirx_phyinit\n");
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s calling cdns_hdmirx_phyinit\n", __func__);
 			if (cdns_hdmirx_phyinit(hdmirx))
-				dev_err(&hdmirx->pdev->dev, "Failed to init PHY, try replugging.\n");
+				dev_err(&hdmirx->pdev->dev,
+					"Failed to init PHY, try replugging.\n");
 			if (hdmirx->allow_hdcp) {
 				cdns_hdmirx_general_loadhdcprx(hdmirx);
 				cdns_hdcprx_enable(hdmirx);

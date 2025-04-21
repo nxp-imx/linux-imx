@@ -350,7 +350,6 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_WSA884X
 	imply SND_SOC_ZL38060
 	imply SND_SOC_RPMSG_WM8960
-	imply SND_SOC_RPMSG_WM8960_I2C
 	imply SND_SOC_RPMSG_AK4497
 	help
 	  Normally ASoC codec drivers are only built if a machine driver which
@@ -2480,10 +2479,6 @@ config SND_SOC_ZL38060
 
 config SND_SOC_RPMSG_WM8960
 	tristate "RPMSG WM8960 Platform Driver"
-	select SND_SOC_RPMSG_WM8960_I2C
-
-config SND_SOC_RPMSG_WM8960_I2C
-	tristate "RPMSG WM8960 I2C Driver"
 
 config SND_SOC_RPMSG_PCM512X
 	tristate "RPMSG PCM512X Platform Driver"

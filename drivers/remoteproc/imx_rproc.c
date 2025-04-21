@@ -811,13 +811,20 @@ static int imx_rproc_detach(struct rproc *rproc)
 static struct resource_table *imx_rproc_get_loaded_rsc_table(struct rproc *rproc, size_t *table_sz)
 {
 	struct imx_rproc *priv = rproc->priv;
+	struct resource_table *table = priv->rsc_table;
 
 	/* The resource table has already been mapped in imx_rproc_addr_init */
-	if (!priv->rsc_table)
+	if (!table)
 		return NULL;
 
+	if ((table->ver != 1) || (table->reserved[0] != 0) || (table->reserved[1] != 0)) {
+		dev_err(priv->dev, "unexpected resource table content, ignore\n");
+		*table_sz = 0;
+		return NULL;
+	}
+
 	*table_sz = SZ_1K;
-	return (struct resource_table *)priv->rsc_table;
+	return table;
 }
 
 static struct resource_table *

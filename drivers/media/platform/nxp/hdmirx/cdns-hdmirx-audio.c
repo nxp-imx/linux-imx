@@ -1,11 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2020 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2020, 2024-2025 NXP
  */
 
 #include <linux/clk.h>
@@ -33,30 +28,30 @@ static int get_audio_infoframe(struct cdns_hdmirx_device *hdmirx, unsigned int *
 	if (ret == 0)
 		*chan = (buffer[HDMI_INFOFRAME_HEADER_SIZE+1] & 0x07) + 1;
 
-	pr_info("AUDIOIF: ch:%d\n", *chan);
+	dev_dbg(&hdmirx->pdev->dev, "AUDIOIF: ch:%d\n", *chan);
 
 	return ret;
 }
 
 static u32 TMDS_rate_table[7] = {
-25200, 27000, 54000, 74250, 148500, 297000, 594000,
+	25200, 27000, 54000, 74250, 148500, 297000, 594000,
 };
 
 static u32 N_table_32k[8] = {
-/*25200, 27000, 54000, 74250, 148500, 297000, 594000,*/
-4096, 4096, 4096, 4096, 4096, 3072, 3072, 4096,
+	4096, 4096, 4096, 4096, 4096, 3072, 3072, 4096,
 };
 
 static u32 N_table_44k[8] = {
-6272, 6272, 6272, 6272, 6272, 4704, 9408, 6272,
+	6272, 6272, 6272, 6272, 6272, 4704, 9408, 6272,
 };
 
 static u32 N_table_48k[8] = {
-6144, 6144, 6144, 6144, 6144, 5120, 6144, 6144,
+	6144, 6144, 6144, 6144, 6144, 5120, 6144, 6144,
 };
 
-static int select_rate(u32 pclk, u32 N)
+static int select_rate(struct cdns_hdmirx_device *hdmirx, u32 pclk, u32 N)
 {
+	struct device *dev = &hdmirx->pdev->dev;
 	int i = 0;
 	int rate = 0;
 
@@ -66,7 +61,7 @@ static int select_rate(u32 pclk, u32 N)
 	}
 
 	if (i == 7)
-		DRM_WARN("pclkc %d is not supported!\n", pclk);
+		dev_warn(dev, "pclkc %d is not supported!\n", pclk);
 
 	if (N_table_32k[i] == N)
 		rate = 32000;
@@ -100,20 +95,22 @@ static int hdmirx_audio(struct cdns_hdmirx_device *hdmirx)
 	int status;
 	int ret;
 
-	if (hdmirx->initialized != true)
+	if (!hdmirx->initialized)
 		return -EINVAL;
 
 	ret = get_audio_infoframe(hdmirx, &chan, 100);
 	if (ret)
 		return ret;
 
-	status = cdns_hdmirx_audioautoconfig(hdmirx, chan, chan/2, 0, 32, 32);
+	status = cdns_hdmirx_audioautoconfig(hdmirx, chan, chan / 2, 0, 32, 32);
 	if (status)
 		return -EINVAL;
 
 	regread = cdns_hdmirx_bus_read(hdmirx, AIF_ACR_N_ST);
 
-	rate = select_rate(hdmirx->timings->timings.bt.pixelclock/1000, regread);
+	rate = select_rate(hdmirx,
+			   hdmirx->timings->timings.bt.pixelclock / 1000,
+			   regread);
 
 	hdmirx->channels = chan;
 	hdmirx->sample_rate = rate;
@@ -139,11 +136,10 @@ static void hdmirx_audio_shutdown(struct device *dev, void *data)
 static int hdmirx_audio_startup(struct device *dev, void *data)
 {
 	struct cdns_hdmirx_device *hdmirx = dev_get_drvdata(dev);
-	int ret;
 
 	pm_runtime_get_sync(dev);
-	ret = hdmirx_audio(hdmirx);
-	return ret;
+
+	return hdmirx_audio(hdmirx);
 }
 
 static int hdmirx_audio_get_eld(struct device *dev, void *data, uint8_t *buf, size_t len)
@@ -153,8 +149,8 @@ static int hdmirx_audio_get_eld(struct device *dev, void *data, uint8_t *buf, si
 	if (len < 8)
 		return -EINVAL;
 
-	memcpy(buf, &hdmirx->sample_rate, 4);
-	memcpy(buf + 4, &hdmirx->channels, 4);
+	memcpy(buf, &hdmirx->sample_rate, sizeof(hdmirx->sample_rate));
+	memcpy(buf + 4, &hdmirx->channels, sizeof(hdmirx->channels));
 
 	return 0;
 }
@@ -181,5 +177,5 @@ void cdns_hdmirx_register_audio_driver(struct device *dev)
 	if (IS_ERR(pdev))
 		return;
 
-	dev_err(dev, "%s driver bound to HDMI\n", HDMI_CODEC_DRV_NAME);
+	dev_info(dev, "%s driver bound to HDMI\n", HDMI_CODEC_DRV_NAME);
 }

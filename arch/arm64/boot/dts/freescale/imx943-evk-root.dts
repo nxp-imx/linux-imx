@@ -25,14 +25,6 @@
 	};
 };
 
-&pcie0 {
-	linux,pci-domain = <2>;
-};
-
-&pcie1 {
-	linux,pci-domain = <3>;
-};
-
 &usdhc1 {
 	status = "disabled";
 };

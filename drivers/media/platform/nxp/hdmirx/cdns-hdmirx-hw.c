@@ -1,21 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2018-2020 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2018-2020, 2024-2025 NXP
  */
 
 #include "cdns-mhdp-hdmirx.h"
 #include "cdns-hdmirx-phy.h"
 
+#include <linux/unaligned.h>
 #include <linux/firmware.h>
 #include <linux/ktime.h>
-#include <linux/unaligned.h>
 
-u8 block0[128] = {
+static u8 block0[128] = {
 	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
 	0x3B, 0x10, 0x01, 0x00, 0x9B, 0x5F, 0x02, 0x00,
 	0x19, 0x1C, 0x01, 0x03, 0x81, 0x3C, 0x22, 0x78,
@@ -34,7 +29,7 @@ u8 block0[128] = {
 	0x38, 0x51, 0x4D, 0x0A, 0x20, 0x20, 0x01, 0x8E,
 };
 
-u8 block1[128] = {
+static u8 block1[128] = {
 
 	0x02, 0x03, 0x21, 0x71, 0x46, 0x91, 0x04, 0x03,
 	0x13, 0x1F, 0x10, 0x23, 0x09, 0x07, 0x07, 0x6D,
@@ -54,7 +49,7 @@ u8 block1[128] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96,
 };
 
-struct S_HDMI_SCDC_SET_MSG scdcexampledata = {
+static struct S_HDMI_SCDC_SET_MSG scdcexampledata = {
 	.sink_ver = 1,
 	.manufacturer_oui_1 = 0x1,
 	.manufacturer_oui_2 = 0x2,
@@ -84,7 +79,8 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 
 	timeout = ktime_timeout_ms(timeout_ms);
 
-	/* Packet type to wait for so we don't get anything unexpected
+	/*
+	 * Packet type to wait for so we don't get anything unexpected
 	 * while we are invalidating packets.
 	 * We only use one infoframe check location, but we keep TYPE1
 	 * to mop up some strange behaviour of some sources with 0x00
@@ -128,6 +124,7 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 			goto exit;
 		}
 	} while (!(reg & (1 << 16)));
+
 	/* Check cleared */
 	reg = cdns_hdmirx_bus_read(hdmirx, PKT_INT_STATUS);
 	if (reg > 0) {
@@ -135,7 +132,8 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 		goto exit;
 	}
 
-	/* Double check what we told controller to write,
+	/*
+	 * Double check what we told controller to write,
 	 * this should be reflecting what we
 	 * wrote above and not the memory data yet...
 	*/
@@ -145,9 +143,12 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 			dev_dbg(&hdmirx->pdev->dev, "Readback reg check for infoframe invalidation failed, got 0x%08X on word %d\n", reg, i);
 	}
 
-	/* Now do a readback check just to make sure the writes happened properly, this uses
-	 * the same process as above except we have RDN_WR set to 0 to indicate read*/
+	/*
+	 * Now do a readback check just to make sure the writes happened properly, this uses
+	 * the same process as above except we have RDN_WR set to 0 to indicate read
+	 */
 	cdns_hdmirx_bus_write(F_PACKET_RDN_WR(0x0) | F_PACKET_NUM(0x1), hdmirx, PKT_INFO_CTRL);
+
 	/* Wait for indication of process completion */
 	do {
 		reg = cdns_hdmirx_bus_read(hdmirx, PKT_INT_STATUS);
@@ -163,6 +164,7 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 		if (reg != 0xdeaddead)
 			dev_dbg(&hdmirx->pdev->dev, "Readback mem check for infoframe invalidation failed, got 0x%08X on word %d\n", reg, i);
 	}
+
 	/* Check cleared */
 	reg = cdns_hdmirx_bus_read(hdmirx, PKT_INT_STATUS);
 	if (reg > 0) {
@@ -220,9 +222,11 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 		dev_dbg(&hdmirx->pdev->dev, "Infoframe poll size exceeds maximum range\n");
 		goto exit;
 	}
+
 	/* Veryfy checksum */
 	for (cs = 0, i = 0; i < 5 + buf[2]; ++i)
 		cs += buf[i];
+
 	if (cs) {
 		dev_dbg(&hdmirx->pdev->dev, "Infoframe poll checksum check failed\n");
 		goto exit;
@@ -233,6 +237,7 @@ int infoframe_poll(struct cdns_hdmirx_device *hdmirx, u8 type, u8 *buf, u16 time
 exit:
 	/* Disable and clear interrupts */
 	cdns_hdmirx_bus_write(~0x00000, hdmirx, PKT_INT_MASK);
+
 	/* Disable detection of Infoframes */
 	cdns_hdmirx_bus_write(F_INFO_TYPE1(0x00) | F_INFO_TYPE2(0x00), hdmirx, PKT_INFO_TYPE_CFG1);
 	reg = cdns_hdmirx_bus_read(hdmirx, PKT_INT_STATUS);
@@ -342,9 +347,9 @@ int cdns_hdmirx_get_vendor_infoframe(struct cdns_hdmirx_device *hdmirx, u16 time
 		dev_info(&hdmirx->pdev->dev, "HDMI 2.0 Vendor Specific Infoframe\n");
 	else
 		dev_err(&hdmirx->pdev->dev,
-			"Error Vendro Infoframe IEEE OUI=0x%6X\n", ieee_oui);
+			"Error Vendor Infoframe IEEE OUI=0x%6X\n", ieee_oui);
 
-	/* Extened resoluction format */
+	/* Extended resolution format */
 	if ((buf[8] >> 5 & 0x07) == 1) {
 		hdmirx->hdmi_vic = buf[9];
 		dev_info(&hdmirx->pdev->dev, "hdmi_vic=%d\n", hdmirx->hdmi_vic);
@@ -372,7 +377,8 @@ static void get_color_depth(struct cdns_hdmirx_device *hdmirx, int clk_ratio)
 		case CLK_RATIO_5_8:
 		case CLK_RATIO_3_4:
 		default:
-			pr_err("YUV422 Not supported clk ration\n");
+			dev_err(&hdmirx->pdev->dev,
+				"YUV422 Not supported clk ration\n");
 		}
 		break;
 	case PIXEL_ENCODING_YUV420:
@@ -393,10 +399,11 @@ static void get_color_depth(struct cdns_hdmirx_device *hdmirx, int clk_ratio)
 		case CLK_RATIO_3_2:
 		case CLK_RATIO_2_1:
 		default:
-			pr_err("YUV420 Not supported clk ration\n");
+			dev_err(&hdmirx->pdev->dev,
+				"YUV420 Not supported clk ration\n");
 		}
 		break;
-	default:		/* RGB/YUV444 */
+	default:	/* RGB/YUV444 */
 		switch (clk_ratio) {
 		case CLK_RATIO_1_1:
 			hdmirx->color_depth = 8;
@@ -414,7 +421,8 @@ static void get_color_depth(struct cdns_hdmirx_device *hdmirx, int clk_ratio)
 		case CLK_RATIO_5_8:
 		case CLK_RATIO_3_4:
 		default:
-			pr_err("RGB/YUV444 Not supported clk ration\n");
+			dev_err(&hdmirx->pdev->dev,
+				"RGB/YUV444 Not supported clk ration\n");
 		}
 	}
 
@@ -461,6 +469,7 @@ static void hdmirx_edid_set(struct cdns_hdmirx_device *hdmirx)
 {
 	/* Set EDID - block 0 */
 	cdns_hdmirx_set_edid(hdmirx, 0, 0, &block0[0]);
+
 	/* Set EDID - block 1 */
 	cdns_hdmirx_set_edid(hdmirx, 0, 1, &block1[0]);
 	dev_dbg(&hdmirx->pdev->dev, "EDID block 0/1 set complete.\n");
@@ -519,7 +528,7 @@ static int hdmirx_firmware_load(struct cdns_hdmirx_device *hdmirx)
 					      hdmirx,
 					      hdmirx_firmware_load_cont);
 		if (ret < 0) {
-			DRM_ERROR("failed to load firmware\n");
+			dev_err(&hdmirx->pdev->dev, "failed to load firmware\n");
 			return -ENOENT;
 		}
 	} else {
@@ -530,7 +539,7 @@ static int hdmirx_firmware_load(struct cdns_hdmirx_device *hdmirx)
 		hdmirx_firmware_write_section(hdmirx, dram, FW_DRAM_SIZE, ADDR_DMEM);
 	}
 
-	DRM_INFO("Started RX firmware!\n");
+	dev_info(&hdmirx->pdev->dev, "Started RX firmware!\n");
 
 	return 0;
 }
@@ -549,8 +558,8 @@ int cdns_hdmirx_init(struct cdns_hdmirx_device *hdmirx)
 
 	/* Check if the firmware is running */
 	ret = cdns_hdmirx_check_alive(hdmirx);
-	if (ret == false) {
-		pr_err("NO HDMI RX FW running\n");
+	if (!ret) {
+		dev_err(&hdmirx->pdev->dev, "NO HDMI RX FW running\n");
 		return -ENXIO;
 	}
 
@@ -577,8 +586,10 @@ int cdns_hdmirx_init(struct cdns_hdmirx_device *hdmirx)
 void cdns_hdmirx_hotplug_trigger(struct cdns_hdmirx_device *hdmirx)
 {
 	dev_dbg(&hdmirx->pdev->dev, "%s Triggering a 200ms HPD event\n", __func__);
+
 	/* Clear HPD */
 	cdns_hdmirx_sethpd(hdmirx, 0);
+
 	/* provide minimum low pulse length (100ms) */
 	msleep(200);
 	cdns_hdmirx_sethpd(hdmirx, 1);
@@ -645,19 +656,21 @@ int cdns_hdmirx_phyinit(struct cdns_hdmirx_device *hdmirx)
 
 	set_slicer_tune_val(hdmirx, hdmirx->slicer_tune_val);
 
-	/* First check to see if PHY is in reset, if so we need to
+	/*
+	 * First check to see if PHY is in reset, if so we need to
 	 * do pma_config then arc_config, this is always going to be
-	 * the case for now... */
+	 * the case for now...
+	 */
 	if (phy_in_reset(hdmirx)) {
 		/* Configure the PHY */
-		dev_info(&hdmirx->pdev->dev, "Doing initial PHY configuration\n");
+		dev_dbg(&hdmirx->pdev->dev, "Doing initial PHY configuration\n");
 		pma_config(hdmirx);
-		dev_info(&hdmirx->pdev->dev, "Releasing PHY reset\n");
+		dev_dbg(&hdmirx->pdev->dev, "Releasing PHY reset\n");
 		imx8qm_hdmi_phy_reset(hdmirx, 1);
-		dev_info(&hdmirx->pdev->dev, "Waiting for pma_cmn_ready\n");
+		dev_dbg(&hdmirx->pdev->dev, "Waiting for pma_cmn_ready\n");
 		if (pma_cmn_ready(hdmirx) < 0) {
 			dev_err(&hdmirx->pdev->dev, "pma_cmn_ready failed\n");
-			dev_info(&hdmirx->pdev->dev, "Setting PHY reset\n");
+			dev_dbg(&hdmirx->pdev->dev, "Setting PHY reset\n");
 			imx8qm_hdmi_phy_reset(hdmirx, 0);
 			return -1;
 		}
@@ -666,7 +679,8 @@ int cdns_hdmirx_phyinit(struct cdns_hdmirx_device *hdmirx)
 		arc_config(hdmirx);
 		get_rescal_code(hdmirx);
 
-		/* Don't care about this initial status read,
+		/*
+		 * Don't care about this initial status read,
 		 * just clearing it out first before triggering HPD...
 		 */
 		{
@@ -706,8 +720,9 @@ static int hdmirx_config(struct cdns_hdmirx_device *hdmirx)
 	if (pma_rx_clk_signal_detect(hdmirx)) {
 		dev_err(&hdmirx->pdev->dev, "Common rx_clk signal detect failed\n");
 		return -1;
-	} else
+	} else {
 		dev_dbg(&hdmirx->pdev->dev, "pma_rx_clk_signal detected\n");
+	}
 
 	/* Get TMDS_Bit_Clock_Ratio and Scrambling setting */
 	cdns_hdmirx_get_scdc_slave(hdmirx, scdcData);
@@ -728,7 +743,8 @@ static int hdmirx_config(struct cdns_hdmirx_device *hdmirx)
 	dev_info(&hdmirx->pdev->dev, "Detect TMDS clock freq: %d kHz\n",
 		 hdmirx->tmds_clk);
 
-	/* Start from TMDS/pixel clock ratio of 1:1.
+	/*
+	 * Start from TMDS/pixel clock ratio of 1:1.
 	 * It affects only pixel clock frequency as the character/data clocks
 	 * are generated based on a measured TMDS clock.
 	 * This guarantees that the TMDS characters are correctly decoded in
@@ -801,14 +817,16 @@ static int hdmirx_config(struct cdns_hdmirx_device *hdmirx)
 	hdmirx->vic_code = 0;
 	hdmirx->pixel_encoding = PIXEL_ENCODING_RGB;
 
-	/* The PHY got programmed with the assumed TMDS/pixel clock ratio of 1:1.
+	/*
+	 * The PHY got programmed with the assumed TMDS/pixel clock ratio of 1:1.
 	 * Implement the link training procedure to find out the real clock ratio:
 	 * 1. Wait for AVI InfoFrame packet
 	 * 2. Get the VIC code and pixel encoding from the packet
 	 * 3. Evaluate the TMDS/pixel clock ratio based on the vic_table.c
 	 * 4. Compare the programmed clock ratio with evaluated one
 	 * 5. If mismatch found - reprogram the PHY
-	 * 6. Enable the video data path in the controller */
+	 * 6. Enable the video data path in the controller
+	 */
 
 	if (hdmirx->allow_hdcp) {
 		struct hdcprx_status status;
@@ -817,24 +835,28 @@ static int hdmirx_config(struct cdns_hdmirx_device *hdmirx)
 		/* First check to see what was the HDCP status */
 		cdns_hdcprx_get_status(hdmirx, &status);
 
-		/* Now do a quick check to see if we can receive an AVI Infoframe.
-		   If so then all good can skip re-authentication, otherwise if
-		   there had been some HDCP activity then try to authenticate..
-		*/
+		/*
+		 * Now do a quick check to see if we can receive an AVI
+		 * Infoframe. If so then all good can skip re-authentication,
+		 * otherwise if there had been some HDCP activity then try to
+		 * authenticate.
+		 */
 		ret = cdns_hdmirx_get_avi_infoframe(hdmirx, 200);
 
-		/* It is difficult to avoid a race condition here as we don't know
-		   when authentication completed vs the above stage 2 call which is
-		   needed to activate parts of the firmware and init some FIFOs in
-		   the controller so we will just wait for any authentication to
-		   complete then request a re-authentication
-		*/
+		/*
+		 * It is difficult to avoid a race condition here as we don't
+		 * know when authentication completed vs the above stage 2 call
+		 * which is needed to activate parts of the firmware and init
+		 * some FIFOs in the controller so we will just wait for any
+		 * authentication to complete then request a re-authentication
+		 */
 		hdcp_ver = (status.flags >> 1) & 0x3;
 		if ((ret < 0) && (hdcp_ver > 0)) {	/* Possibly authenticating */
 			cdns_hdcprx_wait_auth_complete(hdmirx, 2000);
 			dev_dbg(&hdmirx->pdev->dev, "Requesting HDCP re-authentication\n");
 			cdns_hdcprx_reauth_req_wait(hdmirx, 2000);
 		}
+
 		/* Clear out any logged errors by reading */
 		cdns_hdmirx_reg_read(hdmirx, PKT_ERR_CNT_HEADER);
 	}
@@ -845,6 +867,7 @@ static int hdmirx_config(struct cdns_hdmirx_device *hdmirx)
 
 	/* We also want to check what the decoder status was in case above failed... */
 	val = cdns_hdmirx_reg_read(hdmirx, TMDS_DEC_ST);
+
 	/* Read to get proper value */
 	val = cdns_hdmirx_reg_read(hdmirx, TMDS_DEC_ST);
 	dev_dbg(&hdmirx->pdev->dev, "Got TMDS_DEC_ST: 0x%08X\n", val);

@@ -337,7 +337,7 @@ static int gpufreq_cooling_handle_event_change(unsigned long event)
         gckHARDWARE_SetFscaleValue(device->kernels[core++]->hardware, FscaleVal, FscaleVal);
     }
 
-    return NOTIFY_OK;
+    return 0;
 }
 
 static int gpufreq_set_cur_state(struct thermal_cooling_device *cdev,

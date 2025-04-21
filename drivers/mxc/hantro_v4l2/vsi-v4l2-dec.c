@@ -329,7 +329,7 @@ void vsi_dec_update_reso(struct vsi_v4l2_ctx *ctx)
 	pcfg->decparams.dec_info.io_buffer.output_wstride =
 		pcfg->decparams_bkup.io_buffer.output_wstride;
 	pcfg->bytesperline = pcfg->decparams_bkup.io_buffer.output_wstride;
-	VSI_TEST_SET(pcfg->orig_dpbsize, pcfg->sizeimagedst_bkup, change);
+	pcfg->orig_dpbsize = pcfg->sizeimagedst_bkup;
 	VSI_TEST_SET(pcfg->src_pixeldepth,
 		     pcfg->decparams_bkup.dec_info.dec_info.bit_depth, change);
 	VSI_TEST_SET(pcfg->minbuf_4output, pcfg->minbuf_4output_bkup, change);

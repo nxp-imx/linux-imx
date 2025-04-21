@@ -3,9 +3,13 @@
  * Copyright 2025 NXP
  */
 
-#include "imx943-evk.dts"
+/dts-v1/;
+/plugin/;
 
-/ {
+#include <dt-bindings/gpio/gpio.h>
+#include "imx94-pinfunc.h"
+
+&{/} {
 	reg_usdhc3_vmmc: regulator-usdhc3 {
 		compatible = "regulator-fixed";
 		regulator-name = "WLAN_EN";

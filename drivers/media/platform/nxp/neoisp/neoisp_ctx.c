@@ -2,7 +2,7 @@
 /*
  * NEOISP context registers/memory setting helpers
  *
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2025 NXP
  * Author: Aymen Sghaier (aymen.sghaier@nxp.com)
  */
 
@@ -36,6 +36,7 @@
  */
 struct neoisp_meta_params_s neoisp_default_params = {
 	.features_cfg = {
+		.pipe_conf_cfg = 1,
 		.head_color_cfg = 1,
 		.hdr_decompress_input0_cfg = 1,
 		.hdr_decompress_input1_cfg = 1,
@@ -64,12 +65,36 @@ struct neoisp_meta_params_s neoisp_default_params = {
 		.drc_local_tonemap_cfg = 1,
 	},
 	.regs = {
+	.pipe_conf = {
+		.img_conf_inalign0 = 1,
+		.img_conf_lpalign0 = 1,
+		.img_conf_inalign1 = 1,
+		.img_conf_lpalign1 = 1,
+	},
 	.head_color = {
 		.ctrl_hoffset = 0,
 		.ctrl_voffset = 0,
 	},
-	.decompress_input0 = { .ctrl_enable = 1	},
-	.decompress_input1 = { .ctrl_enable = 0 },
+	.decompress_input0 = {
+		.ctrl_enable = 1,
+		.knee_point1 = 0,
+		.knee_point2 = 0,
+		.knee_point3 = 0,
+		.knee_point4 = 0,
+		.knee_offset4 = 0,
+		.knee_ratio4 = 1 << 5,
+		.knee_npoint4 = 0,
+	},
+	.decompress_input1 = {
+		.ctrl_enable = 0,
+		.knee_point1 = 0,
+		.knee_point2 = 0,
+		.knee_point3 = 0,
+		.knee_point4 = 0,
+		.knee_offset4 = 0,
+		.knee_ratio4 = 1 << 5,
+		.knee_npoint4 = 0,
+	},
 	.obwb[0] = {
 		.ctrl_obpp = 3,
 		.r_ctrl_gain = 1 << 8,
@@ -251,6 +276,23 @@ static inline void ctx_blk_write(uint32_t field, __u32 *ptr, __u32 *dest)
 		return;
 	}
 	memcpy(&dest[woffset], ptr, wcount * sizeof(__u32));
+}
+
+static void neoisp_update_img_conf(struct neoisp_reg_params_s *p, struct neoisp_dev_s *neoispd)
+{
+	__u32 mask;
+
+	mask = NEO_PIPE_CONF_IMG_CONF_CAM0_INALIGN0
+		| NEO_PIPE_CONF_IMG_CONF_CAM0_LPALIGN0
+		| NEO_PIPE_CONF_IMG_CONF_CAM0_INALIGN1
+		| NEO_PIPE_CONF_IMG_CONF_CAM0_LPALIGN1;
+
+	regmap_field_update_bits_base(neoispd->regs.fields[NEO_PIPE_CONF_IMG_CONF_CAM0_IDX], mask,
+			NEO_PIPE_CONF_IMG_CONF_CAM0_INALIGN0_SET(p->pipe_conf.img_conf_inalign0)
+			| NEO_PIPE_CONF_IMG_CONF_CAM0_LPALIGN0_SET(p->pipe_conf.img_conf_lpalign0)
+			| NEO_PIPE_CONF_IMG_CONF_CAM0_INALIGN1_SET(p->pipe_conf.img_conf_inalign1)
+			| NEO_PIPE_CONF_IMG_CONF_CAM0_LPALIGN1_SET(p->pipe_conf.img_conf_lpalign1),
+			NULL, false, false);
 }
 
 static void neoisp_set_head_color(struct neoisp_reg_params_s *p, struct neoisp_dev_s *neoispd)
@@ -1071,6 +1113,8 @@ int neoisp_set_params(struct neoisp_dev_s *neoispd, struct neoisp_meta_params_s 
 	__u32 *mem = (__u32 *)neoispd->mmio_tcm;
 
 	/* update selected blocks wrt feature config flag */
+	if (force || p->features_cfg.pipe_conf_cfg)
+		neoisp_update_img_conf(&p->regs, neoispd);
 	if (force || p->features_cfg.head_color_cfg)
 		neoisp_set_head_color(&p->regs, neoispd);
 	if (force || p->features_cfg.hdr_decompress_input0_cfg)
@@ -1151,6 +1195,9 @@ int neoisp_update_ctx(struct neoisp_dev_s *neoispd, __u32 ctx_id)
 	new = (struct neoisp_meta_params_s *)vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
 
 	/* update selected blocks wrt feature config flag */
+	if (new->features_cfg.pipe_conf_cfg)
+		memcpy(&params->regs.pipe_conf, &new->regs.pipe_conf,
+				sizeof(new->regs.pipe_conf));
 	if (new->features_cfg.head_color_cfg)
 		memcpy(&params->regs.head_color, &new->regs.head_color,
 				sizeof(new->regs.head_color));

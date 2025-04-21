@@ -3,6 +3,7 @@
  * i.MX8 ISI - Input crossbar switch
  *
  * Copyright (c) 2022 Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+ * Copyright 2024-2025 NXP
  */
 
 #include <linux/device.h>
@@ -396,6 +397,9 @@ static int mxc_isi_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 			goto out_unlock;
 		}
 
+		/* Don't call get_frame_desc if the remote_sd is not a CSI bridge */
+		if (remote_sd->entity.function == MEDIA_ENT_F_IO_DTV)
+			continue;
 		ret = v4l2_subdev_call(remote_sd, pad, get_frame_desc,
 				       remote_pad->index, &source_fd);
 		if (ret < 0) {

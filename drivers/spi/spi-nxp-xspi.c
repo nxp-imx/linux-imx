@@ -1024,7 +1024,7 @@ static int nxp_xspi_adjust_op_size(struct spi_mem *mem, struct spi_mem_op *op)
 			op->data.nbytes = xspi->devtype_data->txfifo;
 	} else {
 		/* Limit data bytes to RX FIFO in case of IP read only */
-		if (needs_ip_only(xspi))
+		if (needs_ip_only(xspi) && (op->data.nbytes > xspi->devtype_data->rxfifo))
 			op->data.nbytes = xspi->devtype_data->rxfifo;
 
 		/* need to handle the OCTAL DTR read with odd address case */

@@ -79,7 +79,5 @@ config IMX8_MEDIA_DEVICE
 	  This media device is a virtual device which used to manage
 	  all modules in image subsystem of imx8qxp/qm platform.
 
-source "drivers/staging/media/imx/hdmirx/Kconfig"
-
 endmenu
 endif  #VIDEO_IMX_CAPTURE

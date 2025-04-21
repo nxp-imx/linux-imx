@@ -5,20 +5,23 @@
 
 #include "imx8ulp-9x9-evk.dts"
 / {
-    reserved-memory {
-        lpa_reserved: lpa_reserved@c0000000 {
-            compatible = "shared-dma-pool";
-            no-map;
-            reg = <0 0xc0000000 0 0x10000000>;
-        };
-    };
+	reserved-memory {
+		lpa_reserved: lpa_reserved@c0000000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xc0000000 0 0x10000000>;
+		};
+	};
 };
 
 &audio_reserved {
-    status = "disabled";
+	status = "disabled";
 };
 
 &rpmsg_audio {
-    memory-region = <&lpa_reserved>;
-    fsl,enable-lpa;
+	memory-region = <&lpa_reserved>;
+	fsl,enable-lpa;
+	ignore-suspend-widgets =
+		"HP_L", "HP_R", "Playback",
+		"Capture", "MICB", "LINPUT1";
 };

@@ -2,16 +2,21 @@
 //
 // Copyright 2017-2019 NXP
 
+#include <linux/arm-smccc.h>
 #include <linux/interrupt.h>
 #include <linux/clockchips.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/sys_soc.h>
 #include <linux/slab.h>
 
 #include "timer-of.h"
 
 #define CMP_OFFSET	0x10000
 #define RD_OFFSET	0x20000
+
+#define IMX_SIP_GET_SOC_INFO	0xc2000006
+#define SOC_REV_MAJOR(x)	((((x) >> 28) & 0xF) - 0x9)
 
 #define CNTCV_LO	0x8
 #define CNTCV_HI	0xc
@@ -26,7 +31,7 @@
 
 #define SYS_CTR_CLK_DIV		0x3
 
-#define SYS_CTR_IMX95		BIT(0)
+#define SYS_CTR_IMX95_QUIRK	BIT(0)
 
 struct sysctr_private {
 	u32 cmpcr;
@@ -35,9 +40,9 @@ struct sysctr_private {
 	u32 flag;
 };
 
-static inline bool sysctr_is_imx95(struct sysctr_private *priv)
+static inline bool sysctr_is_imx95_quirk(struct sysctr_private *priv)
 {
-	return priv->flag & SYS_CTR_IMX95 ? true : false;
+	return priv->flag & SYS_CTR_IMX95_QUIRK ? true : false;
 }
 
 static void sysctr_timer_read_write(void __iomem *addr, u32 mask, u32 val, int count)
@@ -65,7 +70,7 @@ static void sysctr_timer_enable(struct clock_event_device *evt, bool enable)
 	val = enable ? priv->cmpcr | SYS_CTR_EN : priv->cmpcr;
 	writel(val, base + CMPCR);
 
-	if (!sysctr_is_imx95(priv))
+	if (!sysctr_is_imx95_quirk(priv))
 		return;
 
 	sysctr_timer_read_write(base + CMPCR, val, val, 1000);
@@ -118,12 +123,12 @@ static int sysctr_set_next_event(unsigned long delta,
 	writel_relaxed(cmp_hi, base + CMPCV_HI);
 	writel_relaxed(cmp_lo, base + CMPCV_LO);
 
-	if (sysctr_is_imx95(priv))
+	if (sysctr_is_imx95_quirk(priv))
 		disable_irq_nosync(evt->irq);
 
 	sysctr_timer_enable(evt, true);
 
-	if (!sysctr_is_imx95(priv))
+	if (!sysctr_is_imx95_quirk(priv))
 		return 0;
 
 	sysctr_timer_read_write(base + CMPCV_HI, GENMASK(31, 0), cmp_hi, 1000);
@@ -230,6 +235,7 @@ static int sysctr_timer_init(struct device_node *np)
 static int __init sysctr_timer_imx95_init(struct device_node *np)
 {
 	struct sysctr_private *priv;
+	struct arm_smccc_res res;
 	int ret;
 
 	ret = __sysctr_timer_init(np);
@@ -239,7 +245,9 @@ static int __init sysctr_timer_imx95_init(struct device_node *np)
 	priv = to_sysctr.private_data;
 	priv->lo_off = CNTCV_LO_IMX95;
 	priv->hi_off = CNTCV_HI_IMX95;
-	priv->flag = SYS_CTR_IMX95;
+	arm_smccc_smc(IMX_SIP_GET_SOC_INFO, 0, 0, 0, 0, 0, 0, 0, &res);
+	if ((res.a0 != SMCCC_RET_SUCCESS) || (SOC_REV_MAJOR(res.a1) == 1))
+		priv->flag = SYS_CTR_IMX95_QUIRK;
 
 	clockevents_config_and_register(&to_sysctr.clkevt,
 					timer_of_rate(&to_sysctr),

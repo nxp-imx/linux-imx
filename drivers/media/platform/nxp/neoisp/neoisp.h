@@ -234,11 +234,7 @@ struct neoisp_dev_s {
 
 struct neoisp_mparam_conf_s {
 	__u32 img_conf_cam0_ibpp0;
-	__u32 img_conf_cam0_inalign0;
-	__u32 img_conf_cam0_lpalign0;
 	__u32 img_conf_cam0_ibpp1;
-	__u32 img_conf_cam0_inalign1;
-	__u32 img_conf_cam0_lpalign1;
 	__u32 img0_in_ls_cam0_ls;
 	__u32 img1_in_ls_cam0_ls;
 	__u32 skip_ctrl0_preskip;

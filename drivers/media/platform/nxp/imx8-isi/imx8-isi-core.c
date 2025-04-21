@@ -256,7 +256,7 @@ static const struct mxc_isi_ier_reg mxc_imx8_isi_ier_v1 = {
 	.panic_v_buf_en = {.offset = 24, .mask = 0x1000000 },
 };
 
-/* For i.MX8MP ISI IER version */
+/* For i.MX8QXP C0 and i.MX8MP ISI IER version */
 static const struct mxc_isi_ier_reg mxc_imx8_isi_ier_v2 = {
 	.oflw_y_buf_en = { .offset = 18, .mask = 0x40000  },
 	.oflw_u_buf_en = { .offset = 20, .mask = 0x100000 },
@@ -287,10 +287,11 @@ static const struct clk_bulk_data mxc_imx8qm_clks[] = {
 
 static const struct clk_bulk_data mxc_imx8qxp_clks[] = {
 	{ .id = "per0" },
+	{ .id = "per1" },
+	{ .id = "per2" },
+	{ .id = "per3" },
 	{ .id = "per4" },
 	{ .id = "per5" },
-	{ .id = "per6" },
-	{ .id = "per7" },
 };
 
 static const struct clk_bulk_data mxc_imx8mn_clks[] = {
@@ -409,9 +410,9 @@ static const struct mxc_isi_plat_data mxc_imx8qm_data = {
 static const struct mxc_isi_plat_data mxc_imx8qxp_data = {
 	.model			= MXC_ISI_IMX8QXP,
 	.num_ports		= 5,
-	.num_channels		= 5,
+	.num_channels		= 6,
 	.reg_offset		= 0x10000,
-	.ier_reg		= &mxc_imx8_isi_ier_v1,
+	.ier_reg		= &mxc_imx8_isi_ier_v2,
 	.set_thd		= &mxc_imx8_isi_thd_v1,
 	.clks			= mxc_imx8qxp_clks,
 	.num_clks		= ARRAY_SIZE(mxc_imx8qxp_clks),

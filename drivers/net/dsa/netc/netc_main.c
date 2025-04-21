@@ -1835,26 +1835,25 @@ static int netc_port_mdb_del(struct dsa_switch *ds, int port_id,
 
 static bool netc_user_ports_all_standalone(struct netc_switch *priv)
 {
-	struct netc_port *port;
-	int i;
+	struct dsa_switch *ds = priv->ds;
+	struct dsa_port *dp;
 
-	for (i = 0; i < priv->num_ports; i++) {
-		port = priv->ports[i];
-		if (dsa_port_is_user(port->dp) && port->bridge)
+	dsa_switch_for_each_user_port(dp, ds)
+		if (dsa_port_bridge_dev_get(dp))
 			return false;
-	}
 
 	return true;
 }
 
 static bool netc_user_ports_vlan_aware(struct netc_switch *priv)
 {
+	struct dsa_switch *ds = priv->ds;
 	struct netc_port *port;
-	int i;
+	struct dsa_port *dp;
 
-	for (i = 0; i < priv->num_ports; i++) {
-		port = priv->ports[i];
-		if (dsa_port_is_user(port->dp) && port->vlan_aware)
+	dsa_switch_for_each_user_port(dp, ds) {
+		port = NETC_PORT(priv, dp->index);
+		if (port->vlan_aware)
 			return true;
 	}
 
@@ -1863,17 +1862,18 @@ static bool netc_user_ports_vlan_aware(struct netc_switch *priv)
 
 static void netc_cpu_port_set_vlan_filtering(struct netc_switch *priv)
 {
+	struct dsa_switch *ds = priv->ds;
 	struct netc_port *port;
+	struct dsa_port *dp;
 	bool vlan_aware;
 	u16 pvid;
 	u32 val;
-	int i;
 
 	vlan_aware = netc_user_ports_vlan_aware(priv);
 
-	for (i = 0; i < priv->num_ports; i++) {
-		port = priv->ports[i];
-		if (dsa_port_is_cpu(port->dp)) {
+	dsa_switch_for_each_available_port(dp, ds) {
+		port = NETC_PORT(priv, dp->index);
+		if (dsa_port_is_cpu(dp)) {
 			if (netc_user_ports_all_standalone(priv)) {
 				pvid = NETC_STANDALONE_PVID;
 				port->pvid = NETC_STANDALONE_PVID;

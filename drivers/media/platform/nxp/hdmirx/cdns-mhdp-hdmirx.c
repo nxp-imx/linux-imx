@@ -1,41 +1,37 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2020 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2020, 2024-2025 NXP
  */
 
-#include <drm/bridge/cdns-mhdp.h>
 #include <linux/unaligned.h>
+#include <drm/bridge/cdns-mhdp.h>
 #include "cdns-mhdp-hdmirx.h"
 
 #define MAILBOX_RETRY_US		1000
 #define MAILBOX_TIMEOUT_US		5000000
 
-#define hdmirx_readx_poll_timeout(op, addr, offset, val, cond, sleep_us, timeout_us)	\
-({ \
-	u64 __timeout_us = (timeout_us); \
-	unsigned long __sleep_us = (sleep_us); \
-	ktime_t __timeout = ktime_add_us(ktime_get(), __timeout_us); \
-	might_sleep_if((__sleep_us) != 0); \
-	for (;;) { \
-		(val) = op(addr, offset); \
-		if (cond) \
-			break; \
-		if (__timeout_us && \
-		    ktime_compare(ktime_get(), __timeout) > 0) { \
-			(val) = op(addr, offset); \
-			break; \
-		} \
-		if (__sleep_us) \
-			usleep_range((__sleep_us >> 2) + 1, __sleep_us); \
-	} \
-	(cond) ? 0 : -ETIMEDOUT; \
-})
+static int hdmirx_readx_poll_timeout(struct cdns_hdmirx_device *hdmirx, u32 offset)
+{
+	int ret;
+	u64 __timeout_us = MAILBOX_TIMEOUT_US;
+	unsigned long __sleep_us = MAILBOX_RETRY_US;
+	ktime_t __timeout = ktime_add_us(ktime_get(), __timeout_us);
 
+	might_sleep_if(__sleep_us != 0);
+
+	for (;;) {
+		ret = cdns_hdmirx_bus_read(hdmirx, offset);
+		if (!ret)
+			break;
+		if (__timeout_us && ktime_compare(ktime_get(), __timeout) > 0) {
+			ret = cdns_hdmirx_bus_read(hdmirx, offset);
+			break;
+		}
+		if (__sleep_us)
+			usleep_range((__sleep_us >> 2) + 1, __sleep_us);
+	}
+	return (!ret ? 0 : -ETIMEDOUT);
+}
 
 u32 cdns_hdmirx_bus_read(struct cdns_hdmirx_device *hdmirx, u32 offset)
 {
@@ -55,7 +51,8 @@ u32 cdns_hdmirx_bus_read(struct cdns_hdmirx_device *hdmirx, u32 offset)
 	return val;
 }
 
-void cdns_hdmirx_bus_write(u32 val, struct cdns_hdmirx_device *hdmirx, u32 offset)
+void cdns_hdmirx_bus_write(u32 val, struct cdns_hdmirx_device *hdmirx,
+			   u32 offset)
 {
 	mutex_lock(&hdmirx->iolock);
 
@@ -89,11 +86,9 @@ bool cdns_hdmirx_check_alive(struct cdns_hdmirx_device *hdmirx)
 
 static int hdmirx_mailbox_read(struct cdns_hdmirx_device *hdmirx)
 {
-	int val, ret;
+	int ret;
 
-	ret = hdmirx_readx_poll_timeout(cdns_hdmirx_bus_read, hdmirx, MAILBOX_EMPTY_ADDR,
-				 val, !val, MAILBOX_RETRY_US,
-				 MAILBOX_TIMEOUT_US);
+	ret = hdmirx_readx_poll_timeout(hdmirx, MAILBOX_EMPTY_ADDR);
 	if (ret < 0)
 		return ret;
 
@@ -102,11 +97,9 @@ static int hdmirx_mailbox_read(struct cdns_hdmirx_device *hdmirx)
 
 static int hdmirx_mailbox_write(struct cdns_hdmirx_device *hdmirx, u8 val)
 {
-	int ret, full;
+	int ret;
 
-	ret = hdmirx_readx_poll_timeout(cdns_hdmirx_bus_read, hdmirx, MAILBOX_FULL_ADDR,
-				 full, !full, MAILBOX_RETRY_US,
-				 MAILBOX_TIMEOUT_US);
+	ret = hdmirx_readx_poll_timeout(hdmirx, MAILBOX_FULL_ADDR);
 	if (ret < 0)
 		return ret;
 
@@ -116,7 +109,7 @@ static int hdmirx_mailbox_write(struct cdns_hdmirx_device *hdmirx, u8 val)
 }
 
 int cdns_hdmirx_mailbox_validate_receive(struct cdns_hdmirx_device *hdmirx,
-					      u8 module_id, u8 opcode, u16 req_size)
+					 u8 module_id, u8 opcode, u16 req_size)
 {
 	u32 mbox_size, i;
 	u8 header[4];
@@ -150,7 +143,7 @@ int cdns_hdmirx_mailbox_validate_receive(struct cdns_hdmirx_device *hdmirx,
 }
 
 int cdns_hdmirx_mailbox_read_receive(struct cdns_hdmirx_device *hdmirx,
-					  u8 *buff, u16 buff_size)
+				     u8 *buff, u16 buff_size)
 {
 	u32 i;
 	int ret;
@@ -167,7 +160,7 @@ int cdns_hdmirx_mailbox_read_receive(struct cdns_hdmirx_device *hdmirx,
 }
 
 int cdns_hdmirx_mailbox_send(struct cdns_hdmirx_device *hdmirx, u8 module_id,
-				  u8 opcode, u16 size, u8 *message)
+			     u8 opcode, u16 size, u8 *message)
 {
 	u8 header[4];
 	int ret, i;
@@ -246,8 +239,8 @@ int cdns_hdmirx_reg_write(struct cdns_hdmirx_device *hdmirx, u32 addr, u32 val)
 				      GENERAL_WRITE_REGISTER, sizeof(msg), msg);
 }
 
-int cdns_hdmirx_set_edid(struct cdns_hdmirx_device *hdmirx,
-						u8 segment,	u8 extension, u8 *edid)
+int cdns_hdmirx_set_edid(struct cdns_hdmirx_device *hdmirx, u8 segment,
+			 u8 extension, u8 *edid)
 {
 	struct hdmirx_edid_set_msg msg;
 
@@ -255,29 +248,33 @@ int cdns_hdmirx_set_edid(struct cdns_hdmirx_device *hdmirx,
 	msg.extension = extension;
 	memcpy(msg.edid, edid, 128);
 	return cdns_hdmirx_mailbox_send(hdmirx, MB_MODULE_ID_HDMI_RX,
-			HDMI_RX_SET_EDID, sizeof(struct hdmirx_edid_set_msg), (u8 *)&msg);
+					HDMI_RX_SET_EDID,
+					sizeof(struct hdmirx_edid_set_msg),
+					(u8 *)&msg);
 }
 
 int cdns_hdmirx_set_scdc_slave(struct cdns_hdmirx_device *hdmirx,
-							struct S_HDMI_SCDC_SET_MSG *scdcdata)
+			       struct S_HDMI_SCDC_SET_MSG *scdcdata)
 {
 	return cdns_hdmirx_mailbox_send(hdmirx, MB_MODULE_ID_HDMI_RX,
-			HDMI_RX_SCDC_SET, sizeof(struct S_HDMI_SCDC_SET_MSG), (u8 *)scdcdata);
+					HDMI_RX_SCDC_SET,
+					sizeof(struct S_HDMI_SCDC_SET_MSG),
+					(u8 *)scdcdata);
 }
 
 int cdns_hdmirx_get_scdc_slave(struct cdns_hdmirx_device *hdmirx,
-					     struct S_HDMI_SCDC_GET_MSG *scdcdata)
+			       struct S_HDMI_SCDC_GET_MSG *scdcdata)
 {
 	int len, ret;
 
 	ret = cdns_hdmirx_mailbox_send(hdmirx, MB_MODULE_ID_HDMI_RX,
-				     HDMI_RX_SCDC_GET, 0, NULL);
+				       HDMI_RX_SCDC_GET, 0, NULL);
 	if (ret)
 		goto err_scdc_get;
 
 	len = sizeof(struct S_HDMI_SCDC_GET_MSG);
 	ret = cdns_hdmirx_mailbox_validate_receive(hdmirx, MB_MODULE_ID_HDMI_RX,
-						 HDMI_RX_SCDC_GET, len);
+						   HDMI_RX_SCDC_GET, len);
 	if (ret)
 		goto err_scdc_get;
 
@@ -297,13 +294,12 @@ int cdns_hdmirx_sethpd(struct cdns_hdmirx_device *hdmirx, u8 hpd)
 			HDMI_RX_SET_HPD, sizeof(hpd), &hpd);
 }
 
-int cdns_hdmirx_audioautoconfig(
-						struct cdns_hdmirx_device *hdmirx,
-						u8 max_ch_num,
-						u8 i2s_ports_num,
-						u8 dis_port3,
-						u8 enc_sample_width,
-						u8 i2s_sample_width)
+int cdns_hdmirx_audioautoconfig(struct cdns_hdmirx_device *hdmirx,
+				u8 max_ch_num,
+				u8 i2s_ports_num,
+				u8 dis_port3,
+				u8 enc_sample_width,
+				u8 i2s_sample_width)
 {
 	u32 regread;
 	u8 num_of_pairs_of_channels_per_port = max_ch_num / (i2s_ports_num * 2);
@@ -312,8 +308,11 @@ int cdns_hdmirx_audioautoconfig(
 	u8 i2s_port3_dis = (dis_port3 != 0 && i2s_ports_num == 4) ? 1 : 0;
 	u8 times = 0;
 
-	/* Valid values: 1/2/4. */
-	/* 3 ports can be emulated with 'i2s_ports_num = 4' and 'dis_port3 = 1'. */
+	/*
+	 * Valid values: 1/2/4.
+	 * 3 ports can be emulated with 'i2s_ports_num = 4' and
+	 * 'dis_port3 = 1'.
+	 */
 	if (i2s_ports_num == 0 || i2s_ports_num == 3 || i2s_ports_num > 4)
 		return -1;
 
@@ -363,19 +362,22 @@ int cdns_hdmirx_audioautoconfig(
 	cdns_hdmirx_bus_write(F_ACR_SW_RESET(1), hdmirx, ACR_CFG);
 
 	/* Configuring audio FIFO */
-	cdns_hdmirx_bus_write(
-				F_CFG_FIFO_SW_RST(0) | F_CFG_INDEX_SYNC_EN(1) |
-				F_CFG_FIFO_DIR(1) |   F_CFG_DIS_PORT3(i2s_port3_dis),
-				hdmirx, FIFO_CNTL_ADDR);
+	cdns_hdmirx_bus_write(F_CFG_FIFO_SW_RST(0) | F_CFG_INDEX_SYNC_EN(1) |
+			      F_CFG_FIFO_DIR(1) |
+			      F_CFG_DIS_PORT3(i2s_port3_dis),
+			      hdmirx, FIFO_CNTL_ADDR);
 
 	/* Configuring audio parameters */
-	cdns_hdmirx_bus_write(
-				F_ENC_LOW_INDEX_MSB(0) | F_SINK_AUDIO_CH_NUM(max_ch_num - 1) |
-				F_ENC_SAMPLE_JUST(0x0) | F_ENC_SMPL_WIDTH(enc_size_code) |
-				F_I2S_ENC_WL_SIZE(i2s_size_code) | F_CNTL_SMPL_ONLY_EN(1) |
-				F_CNTL_TYPE_OVRD(0x0) | F_CNTL_TYPE_OVRD_EN(0) |
-				F_I2S_ENC_PORT_EN((1 << i2s_ports_num) - 1) | F_WS_POLARITY(0),
-				hdmirx, AUDIO_SINK_CNFG);
+	cdns_hdmirx_bus_write(F_ENC_LOW_INDEX_MSB(0) |
+			      F_SINK_AUDIO_CH_NUM(max_ch_num - 1) |
+			      F_ENC_SAMPLE_JUST(0x0) |
+			      F_ENC_SMPL_WIDTH(enc_size_code) |
+			      F_I2S_ENC_WL_SIZE(i2s_size_code) |
+			      F_CNTL_SMPL_ONLY_EN(1) |
+			      F_CNTL_TYPE_OVRD(0x0) | F_CNTL_TYPE_OVRD_EN(0) |
+			      F_I2S_ENC_PORT_EN((1 << i2s_ports_num) - 1) |
+			      F_WS_POLARITY(0),
+			      hdmirx, AUDIO_SINK_CNFG);
 
 	/* Waiting for N value... */
 	do {
@@ -395,7 +397,7 @@ int cdns_hdmirx_audioautoconfig(
 	 * The ACR has to be enabled (reset released) to register that event.
 	 */
 	cdns_hdmirx_bus_write(F_ACR_N_OFFSET(regread * (num_of_pairs_of_channels_per_port - 1)),
-				hdmirx, AIF_ACR_N_OFST_CFG);
+			      hdmirx, AIF_ACR_N_OFST_CFG);
 
 	/* Enable sample decoder */
 	cdns_hdmirx_bus_write(F_PKT2SMPL_EN(1), hdmirx, PKT2SMPL_CNTL);
@@ -423,7 +425,8 @@ int cdns_hdmirx_maincontrol(struct cdns_hdmirx_device *hdmirx, u8 mode)
 		goto err_main_ctrl;
 
 	ret = cdns_hdmirx_mailbox_validate_receive(hdmirx, MB_MODULE_ID_GENERAL,
-							GENERAL_MAIN_CONTROL, sizeof(status));
+						   GENERAL_MAIN_CONTROL,
+						   sizeof(status));
 	if (ret)
 		goto err_main_ctrl;
 
@@ -467,13 +470,15 @@ int cdns_hdmirx_read_hpd(struct cdns_hdmirx_device *hdmirx)
 	u8 status;
 	int ret;
 
-	ret = cdns_hdmirx_mailbox_send(hdmirx, MB_MODULE_ID_GENERAL, GENERAL_GET_HPD_STATE,
-				  0, NULL);
+	ret = cdns_hdmirx_mailbox_send(hdmirx, MB_MODULE_ID_GENERAL,
+				       GENERAL_GET_HPD_STATE,
+				       0, NULL);
 	if (ret)
 		goto err_get_hpd;
 
 	ret = cdns_hdmirx_mailbox_validate_receive(hdmirx, MB_MODULE_ID_GENERAL,
-							GENERAL_GET_HPD_STATE, sizeof(status));
+						   GENERAL_GET_HPD_STATE,
+						   sizeof(status));
 	if (ret)
 		goto err_get_hpd;
 
@@ -484,6 +489,6 @@ int cdns_hdmirx_read_hpd(struct cdns_hdmirx_device *hdmirx)
 	return status;
 
 err_get_hpd:
-	DRM_ERROR("read hpd  failed: %d\n", ret);
+	dev_err(&hdmirx->pdev->dev, "read hpd  failed: %d\n", ret);
 	return ret;
 }

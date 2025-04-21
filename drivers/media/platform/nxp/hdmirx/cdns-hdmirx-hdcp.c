@@ -1,12 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2020 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2020, 2024-2025 NXP
  */
+
 #include "cdns-mhdp-hdmirx.h"
 
 static int hdcprx_setconfig(struct cdns_hdmirx_device *hdmirx,
@@ -61,7 +57,7 @@ static int hdcprx_notsync(struct cdns_hdmirx_device *hdmirx)
 
 void cdns_hdcprx_enable(struct cdns_hdmirx_device *hdmirx)
 {
-    int ret;
+	int ret;
 	int version = HDCPRX_VERSION_BOTH;
 	struct hdcprx_config config = { 0 };
 
@@ -125,13 +121,13 @@ int cdns_hdcprx_wait_auth_complete(struct cdns_hdmirx_device *hdmirx, u16 timeou
 			return -1;
 		}
 		key_arrived = status.flags & 0x1;
-		msleep(10);
+		fsleep(10);
 	} while (key_arrived == 0);
 
-    /* Clear out error register */
+	/* Clear out error register */
 	cdns_hdmirx_reg_read(hdmirx, PKT_ERR_CNT_HEADER);
 
-    return 0;
+	return 0;
 }
 
 static int hdmirx_hdcp_print_status(struct cdns_hdmirx_device *hdmirx)
@@ -141,16 +137,20 @@ static int hdmirx_hdcp_print_status(struct cdns_hdmirx_device *hdmirx)
 
 	ret = cdns_hdcprx_get_status(hdmirx, &status);
 	if (!ret) {
-	    dev_info(&hdmirx->pdev->dev, "HCDP key_arrived 0x%02x\n", status.flags & 1);
-	    dev_info(&hdmirx->pdev->dev, "HCDP hdcp_ver    0x%02x\n", (status.flags >> 1) & 0x3);
-	    dev_info(&hdmirx->pdev->dev, "HCDP error       0x%02x\n", (status.flags >> 4) & 0xF);
-	    dev_info(&hdmirx->pdev->dev, "HCDP aksv[] 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n",
-		    status.aksv[0],
-		    status.aksv[1],
-		    status.aksv[2],
-		    status.aksv[3],
-		    status.aksv[4]);
-	    dev_info(&hdmirx->pdev->dev, "HCDP ainfo      0x%02x\n", status.ainfo);
+		dev_info(&hdmirx->pdev->dev, "HCDP key_arrived 0x%02x\n",
+			 status.flags & 1);
+		dev_info(&hdmirx->pdev->dev, "HCDP hdcp_ver    0x%02x\n",
+			 (status.flags >> 1) & 0x3);
+		dev_info(&hdmirx->pdev->dev, "HCDP error       0x%02x\n",
+			 (status.flags >> 4) & 0xF);
+		dev_info(&hdmirx->pdev->dev,
+			 "HCDP aksv[] 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n",
+			 status.aksv[0],
+			 status.aksv[1],
+			 status.aksv[2],
+			 status.aksv[3],
+			 status.aksv[4]);
+		dev_info(&hdmirx->pdev->dev, "HCDP ainfo      0x%02x\n", status.ainfo);
 	}
 
 	return ret;
@@ -163,12 +163,13 @@ int cdns_hdcprx_reauth_req_wait(struct cdns_hdmirx_device *hdmirx, u16 timeout_m
 
 	ret = hdcprx_notsync(hdmirx);
 	if (ret) {
-		dev_info(&hdmirx->pdev->dev, "%s(), could not request reauthentication for the HDCP\n", __func__);
+		dev_info(&hdmirx->pdev->dev, "Could not request reauthentication for the HDCP");
 		return ret;
-	} else
-		dev_info(&hdmirx->pdev->dev, "%s(), requested HDCP re-authentication\n", __func__);
-	cdns_hdcprx_wait_auth_complete(hdmirx, timeout_ms);
-	ret = hdmirx_hdcp_print_status(hdmirx);
+	} else {
+		dev_info(&hdmirx->pdev->dev, "Requested HDCP re-authentication");
+	}
 
-    return ret;
+	cdns_hdcprx_wait_auth_complete(hdmirx, timeout_ms);
+
+	return hdmirx_hdcp_print_status(hdmirx);
 }

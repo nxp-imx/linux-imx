@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2020 NXP
+ * Copyright 2020, 2024-2025 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,54 +31,56 @@
 
 #include <uapi/linux/v4l2-dv-timings.h>
 #include <drm/bridge/cdns-mhdp.h>
-#include "../imx8-common.h"
+
+/* HDMI PADS */
+#define HDMI_RX_OF_NODE_NAME	"hdmi_rx"
 
 #define HDMIRX_DRIVER_NAME        "mxc-hdmi-rx"
 #define HDMIRX_SUBDEV_NAME        HDMIRX_DRIVER_NAME
 
 /* HDMIRX Subsystem CSR */
 #define CSR_PIXEL_LINK_ENC_CTL		0x00
-#define PL_ENC_CTL_PXL_VAL          15
-#define PL_ENC_CTL_PXL_VPP          14
-#define PL_ENC_CTL_PXL_HPP          13
-#define PL_ENC_CTL_PXL_VCP          12
-#define PL_ENC_CTL_PXL_HCP          11
-#define PL_ENC_CTL_PXL_ADD          9
-#define PL_ENC_CTL_PXL_EXT          7
-#define PL_ENC_CTL_PXL_EN           6
-#define PL_ENC_CTL_PXL_ITC          4
-#define PL_ENC_CTL_PXL_ODD_EVEN     3
-#define PL_ENC_CTL_PXL_TYP          1
-#define PL_ENC_CTL_PXL_YUV          0
+#define PL_ENC_CTL_PXL_VAL		15
+#define PL_ENC_CTL_PXL_VPP		14
+#define PL_ENC_CTL_PXL_HPP		13
+#define PL_ENC_CTL_PXL_VCP		12
+#define PL_ENC_CTL_PXL_HCP		11
+#define PL_ENC_CTL_PXL_ADD		9
+#define PL_ENC_CTL_PXL_EXT		7
+#define PL_ENC_CTL_PXL_EN		6
+#define PL_ENC_CTL_PXL_ITC		4
+#define PL_ENC_CTL_PXL_ODD_EVEN		3
+#define PL_ENC_CTL_PXL_TYP		1
+#define PL_ENC_CTL_PXL_YUV		0
 
 #define CSR_HDP_RX_CTRL_CTRL0		0x04
 #define CSR_HDP_RX_CTRL_CTRL1		0x08
 
 /* Module ID Code */
-#define MB_MODULE_ID_HDMI_RX        0x04
-#define MB_MODULE_ID_HDCP_RX        0x08
+#define MB_MODULE_ID_HDMI_RX		0x04
+#define MB_MODULE_ID_HDCP_RX		0x08
 #define MB_MODULE_ID_HDCP_GENERAL	0x09
 
 /* HDMI RX opcode */
-#define HDMI_RX_SET_EDID			0x00
-#define HDMI_RX_SCDC_SET			0x01
-#define HDMI_RX_SCDC_GET			0x02
-#define HDMI_RX_SET_HPD				0x04
+#define HDMI_RX_SET_EDID		0x00
+#define HDMI_RX_SCDC_SET		0x01
+#define HDMI_RX_SCDC_GET		0x02
+#define HDMI_RX_SET_HPD			0x04
 
-#define HDMI_RX_READ_EVENTS			0x03
-#define HDMI_RX_DEBUG_ECHO			0xAA
-#define HDMI_RX_TEST				0xBB
+#define HDMI_RX_READ_EVENTS		0x03
+#define HDMI_RX_DEBUG_ECHO		0xAA
+#define HDMI_RX_TEST			0xBB
 
 /* HDCP RX opcode */
-#define HDCP_RX_SET_CONFIG			0x04
-#define HDCP_RX_GET_STATUS			0x05
-#define HDCP_RX_NOT_SYNC			0x06
+#define HDCP_RX_SET_CONFIG		0x04
+#define HDCP_RX_GET_STATUS		0x05
+#define HDCP_RX_NOT_SYNC		0x06
 
 /* Sink VIF */
-#define VIDEO_UNPACK_CTRL			0x1804
+#define VIDEO_UNPACK_CTRL		0x1804
 #define F_CD_ENABLE(x) (((x) & ((1 << 1) - 1)) << 1)
 
-#define VANLYZ_CTRL					0x1810
+#define VANLYZ_CTRL			0x1810
 #define F_VANLYZ_START(x) (((x) & ((1 << 1) - 1)) << 0)
 #define F_VANLYZ_RESET(x) (((x) & ((1 << 1) - 1)) << 1)
 #define F_VANLYZ_FRAMES_CHECK_EN(x) (((x) & ((1 << 1) - 1)) << 2)
@@ -200,7 +203,7 @@
 
 #define ktime_timeout_ms(ms_) ktime_add(ktime_get(), ms_to_ktime(ms_))
 
-/**
+/*
  * HDCP config.
  *
  * @field activate [in] Activate HDCP module.
@@ -242,7 +245,7 @@ enum {
 	PIXEL_ENCODING_YUV420 = 3,
 };
 
-/**
+/*
  * HDCP Receiver Status.
  *
  * @field key_arrived [out] TODO: what key?
@@ -305,11 +308,13 @@ struct cdns_hdmirx_device {
 	struct v4l2_subdev sd;
 	struct mutex			lock;
 	wait_queue_head_t		irq_queue;
-	struct media_pad pads[MXC_HDMI_RX_PADS_NUM];
+	struct media_pad pad;
 
 	struct platform_device		*pdev;
 	struct v4l2_device			*v4l2_dev;
-	struct v4l2_async_connection asd;
+	struct v4l2_subdev *src_sd;
+	u16 remote_pad;
+
 	struct v4l2_ctrl_handler ctrl_hdl;
 	struct v4l2_mbus_framefmt format;
 	struct v4l2_fract aspect_ratio;
@@ -331,16 +336,16 @@ struct cdns_hdmirx_device {
 	void __iomem		*regs_sec;
 
 	u32 flags;
-    struct S_HDMI_SCDC_GET_MSG          scdcData;
+	struct S_HDMI_SCDC_GET_MSG          scdcData;
 	int bus_type;
 
 	struct cdns_hdmirx_dev_video_standards *timings;
-    u8 vic_code;
+	u8 vic_code;
 	u8 hdmi_vic;
-    u8 pixel_encoding;
+	u8 pixel_encoding;
 	u8 color_depth;
 	bool cable_plugin;
-
+	u32 pixelcode;
 	u8 is_cec;
 	bool cec_running;
 	struct cdns_mhdp_cec  cec;
@@ -366,6 +371,7 @@ struct cdns_hdmirx_device {
 	u8 rescal_val;
 	u8 slicer_tune_val;
 	u8 running;
+	int enable_count;
 
 	const struct firmware *fw;
 	const char *firmware_name;
@@ -425,12 +431,11 @@ void cdns_hdcprx_disable(struct cdns_hdmirx_device *hdmirx);
 int cdns_hdcprx_wait_auth_complete(struct cdns_hdmirx_device *hdmirx, u16 timeout_ms);
 
 /* HDMIRX Audio */
-int cdns_hdmirx_audioautoconfig(
-						struct cdns_hdmirx_device *hdmirx,
-						u8 max_ch_num,
-						u8 i2s_ports_num,
-						u8 dis_port3,
-						u8 enc_sample_width,
-						u8 i2s_sample_width);
+int cdns_hdmirx_audioautoconfig(struct cdns_hdmirx_device *hdmirx,
+				u8 max_ch_num,
+				u8 i2s_ports_num,
+				u8 dis_port3,
+				u8 enc_sample_width,
+				u8 i2s_sample_width);
 void cdns_hdmirx_register_audio_driver(struct device *dev);
 #endif

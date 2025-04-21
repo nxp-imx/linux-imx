@@ -3724,14 +3724,27 @@ reparse:
 
 		if (input->flags) {
 			/* only ps has scaling function */
-			if ((input->flags & IN_NEED_SCALE) == IN_NEED_SCALE)
+			if ((input->flags & IN_NEED_SCALE) == IN_NEED_SCALE) {
 				possible_inputs = 1 << PXP_2D_PS;
+				possible_outputs = 1 << PXP_2D_OUT;
+			}
 			output->flags |= (output->bpp < 32) ? OUT_NEED_SHRINK :
 							      OUT_NEED_SHIFT;
 		}
 
 		filter_possible_inputs(pxp, input, &possible_inputs);
 		filter_possible_outputs(pxp, output, &possible_outputs);
+
+		/*
+		 * For only store engine used cases, PS/AS can't be
+		 * used since PXP doesn't support.
+		 */
+		if ((possible_outputs & (1 << PXP_2D_INPUT_STORE0)) &&
+		    !(possible_outputs & (1 << PXP_2D_OUT))) {
+			clear_bit(PXP_2D_PS, (unsigned long *)&possible_inputs);
+			clear_bit(PXP_2D_AS, (unsigned long *)&possible_inputs);
+		}
+
 
 		if (!possible_inputs || !possible_outputs) {
 			dev_err(&pxp->pdev->dev, "unsupport 2d operation\n");
@@ -3857,9 +3870,13 @@ reparse:
 			/* need do yuv -> rgb conversion by csc1 */
 			possible_inputs_s0 = 1 << PXP_2D_PS;
 			input_s0->flags |= IN_NEED_CSC;
+			clear_bit(PXP_2D_INPUT_STORE0,
+				  (unsigned long *)&possible_outputs);
 		} else if (is_yuv(input_s1->format)) {
 			possible_inputs_s1 = 1 << PXP_2D_PS;
 			input_s1->flags |= IN_NEED_CSC;
+			clear_bit(PXP_2D_INPUT_STORE0,
+				  (unsigned long *)&possible_outputs);
 		}
 
 		filter_possible_inputs(pxp, input_s0, &possible_inputs_s0);
@@ -3869,6 +3886,16 @@ reparse:
 			return -EINVAL;
 
 		filter_possible_outputs(pxp, output, &possible_outputs);
+		/*
+		 * For only store engine used cases, PS/AS can't be
+		 * used since PXP doesn't support.
+		 */
+		if ((possible_outputs & (1 << PXP_2D_INPUT_STORE0)) &&
+		    !(possible_outputs & (1 << PXP_2D_OUT))) {
+			clear_bit(PXP_2D_PS, (unsigned long *)&possible_inputs_s0);
+			clear_bit(PXP_2D_AS, (unsigned long *)&possible_inputs_s1);
+		}
+
 		if (!possible_outputs)
 			return -EINVAL;
 

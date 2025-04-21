@@ -74,10 +74,6 @@
 #define IMX_SIP_WAKEUP_SRC_SCU          0x1
 #define IMX_SIP_WAKEUP_SRC_IRQSTEER     0x2
 
-static u32 wu[IMX_WU_MAX_IRQS];
-static int wu_num;
-static void __iomem *gic_dist_base;
-
 /* SCU Power Mode Protocol definition */
 struct imx_sc_msg_req_set_resource_power_mode {
 	struct imx_sc_rpc_msg hdr;
@@ -338,23 +334,6 @@ struct syscore_ops imx_pm_domains_syscore_ops = {
 	.suspend = imx_pm_domains_suspend,
 };
 
-static void imx_sc_pd_enable_irqsteer_wakeup(struct device_node *np)
-{
-	struct device_node *gic_node;
-	unsigned int i;
-
-	gic_node = of_find_compatible_node(NULL, NULL, "arm,gic-v3");
-	WARN_ON(!gic_node);
-
-	gic_dist_base = of_iomap(gic_node, 0);
-	WARN_ON(!gic_dist_base);
-
-	for (i = 0; i < wu_num; i++)
-		WARN_ON(of_property_read_u32_index(np, "wakeup-irq", i, &wu[i]));
-
-	register_syscore_ops(&imx_pm_domains_syscore_ops);
-}
-
 static void imx_sc_pd_get_console_rsrc(void)
 {
 	struct of_phandle_args specs;
@@ -597,7 +576,7 @@ static int imx_sc_pd_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	imx_sc_pd_get_console_rsrc();
-	imx_sc_pd_enable_irqsteer_wakeup(pdev->dev.of_node);
+	register_syscore_ops(&imx_pm_domains_syscore_ops);
 
 	return imx_scu_init_pm_domains(&pdev->dev, pd_soc);
 }

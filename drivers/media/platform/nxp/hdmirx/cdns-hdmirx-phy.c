@@ -1,12 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2020 NXP
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
+ * Copyright 2020, 2024-2025 NXP
  */
+
 #include <linux/ktime.h>
 #include "cdns-hdmirx-phy.h"
 
@@ -36,39 +32,40 @@ static void set_field_value(reg_field_t *reg_field, u32 value)
 	u32 trunc_val;
 	length = (reg_field->msb - reg_field->lsb + 1);
 
-    max_value = (1 << length) - 1;
-    if (value > max_value) {
+	max_value = (1 << length) - 1;
+	if (value > max_value) {
 		trunc_val = value;
 		trunc_val &= (1 << length) - 1;
-		pr_err("set_field_value() Error! Specified value (0x%0X)\
-				exceeds field capacity - it will by truncated to\
-				0x%0X (%0d-bit field - max value: %0d dec)\n",
-				value, trunc_val, length, max_value);
+		pr_err("%s() Error! Specified value (0x%0X) exceeds field capacity - it will by truncated to 0x%0X (%0d-bit field - max value: %0d dec)\n",
+			__func__, value, trunc_val, length, max_value);
 	} else
 		reg_field->value = value;
 }
 
 static int set_reg_value(reg_field_t reg_field)
 {
-    return reg_field.value << reg_field.lsb;
+	return reg_field.value << reg_field.lsb;
 }
 
-static int cdns_hdmirx_phy_reg_write(struct cdns_hdmirx_device *hdmirx, u32 addr, u32 val)
+static int cdns_hdmirx_phy_reg_write(struct cdns_hdmirx_device *hdmirx,
+				     u32 addr, u32 val)
 {
-    return cdns_hdmirx_reg_write(hdmirx, ADDR_PHY_AFE + (addr << 2), val);
+	return cdns_hdmirx_reg_write(hdmirx, ADDR_PHY_AFE + (addr << 2), val);
 }
 
 static int cdns_hdmirx_phy_reg_read(struct cdns_hdmirx_device *hdmirx, u32 addr)
 {
-    return cdns_hdmirx_reg_read(hdmirx, ADDR_PHY_AFE + (addr << 2));
+	return cdns_hdmirx_reg_read(hdmirx, ADDR_PHY_AFE + (addr << 2));
 }
 
-static inline void write16(struct cdns_hdmirx_device *hdmirx, u32 addr, u16 val)
+static inline void write16(struct cdns_hdmirx_device *hdmirx,
+			   u32 addr, u16 val)
 {
 	cdns_hdmirx_phy_reg_write(hdmirx, addr, val);
 }
 
-static inline void multi_write16(struct cdns_hdmirx_device *hdmirx, u32 addr, u16 val)
+static inline void multi_write16(struct cdns_hdmirx_device *hdmirx,
+				 u32 addr, u16 val)
 {
 	u16 addr_tmp = addr;
 
@@ -191,10 +188,12 @@ void pre_data_rate_change(struct cdns_hdmirx_device *hdmirx)
 	/* Turn off frequency measurement: */
 	write16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR, 0x0000);
 
-	/* Request A3 power hdmirx */
-	/* Can only really do this if PHY already in A0 hdmirx, all other
-	   times are meaningless and can cause issues if PLL not running...
-	*/
+	/*
+	 * Request A3 power hdmirx
+	 *
+	 * Can only really do this if PHY already in A0 hdmirx, all other
+	 * times are meaningless and can cause issues if PLL not running...
+	 */
 	reg_val = read16(hdmirx, PHY_MODE_CTL_ADDR);
 	if ((reg_val & 0x00F0) == 0x0010) {
 		ret_val = pma_power_state_chng(hdmirx, 0x8);
@@ -202,16 +201,21 @@ void pre_data_rate_change(struct cdns_hdmirx_device *hdmirx)
 		write16(hdmirx, PHY_MODE_CTL_ADDR, reg_val & 0xEF00);
 		do {
 			if (ktime_after(ktime_get(), timeout)) {
-				dev_dbg(&hdmirx->pdev->dev, "Timed out PHY_PMA_CMN_CTRL2_ADDR: 0x%04X\n", reg_val);
-				dev_dbg(&hdmirx->pdev->dev, "Setting PHY reset\n");
+				dev_dbg(&hdmirx->pdev->dev,
+					"Timed out PHY_PMA_CMN_CTRL2_ADDR: 0x%04X\n",
+					reg_val);
+				dev_dbg(&hdmirx->pdev->dev,
+					"Setting PHY reset\n");
 				imx8qm_hdmi_phy_reset(hdmirx, 0);
 				break;
 			}
 			reg_val = read16(hdmirx, PHY_PMA_CMN_CTRL2_ADDR);
 		} while ((reg_val & 0x0004) == 0x0000);
-	} else
-		dev_dbg(&hdmirx->pdev->dev, "Skipping A3 power change since PHY_MODE_CTL: 0x%04X\n", reg_val);
-
+	} else {
+		dev_dbg(&hdmirx->pdev->dev,
+			"Skipping A3 power change since PHY_MODE_CTL: 0x%04X\n",
+			reg_val);
+	}
 
 	/* Clear power hdmirx and set transceiver resets active */
 	write16(hdmirx, PHY_MODE_CTL_ADDR, 0x0000);
@@ -282,36 +286,50 @@ static int pma_rx_clk_freq_detect(struct cdns_hdmirx_device *hdmirx)
 	/* Turn off measurement in case not already off... */
 	write16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR, 0x0000);
 
-	/* Start by triggering a frequency measurement timeout to
-	   check that at is somewhat working..
-	   We will reset this back to PMA_REF_CLK_TMR_VALUE_DEF later..*/
+	/*
+	 * Start by triggering a frequency measurement timeout to
+	 * check that at is somewhat working..
+	 * We will reset this back to PMA_REF_CLK_TMR_VALUE_DEF later..
+	 */
 	write16(hdmirx, CMN_CMSMT_REF_CLK_TMR_VALUE_ADDR, 0x0001);
 
 	/* Start frequency detection: */
 	write16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR, 0x8000);
 	udelay(5);
+
 	/* Should be done by now */
 	if (!(read16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR) & (1 << 14))) {
-		dev_err(&hdmirx->pdev->dev, "%s() freq detect -> initial timeout check failed\n", __func__);
+		dev_err(&hdmirx->pdev->dev,
+			"%s() freq detect -> initial timeout check failed\n",
+			__func__);
 		goto meas_error;
 	}
+
 	/* Check that measured value is 0 */
 	reg_val = read16(hdmirx, CMN_CMSMT_TEST_CLK_CNT_VALUE_ADDR);
 	if (reg_val != 0) {
-		dev_err(&hdmirx->pdev->dev, "%s() freq detect -> initial check expected 0 got 0x%04X\n", __func__, reg_val);
+		dev_err(&hdmirx->pdev->dev,
+			"%s() freq detect -> initial check expected 0 got 0x%04X\n",
+			 __func__, reg_val);
 		goto meas_error;
 	}
+
 	/* Turn off measurement */
 	write16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR, 0x0000);
 	udelay(5);
+
 	/* Zero check of status */
 	reg_val = read16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR);
 	if (reg_val != 0) {
-		dev_err(&hdmirx->pdev->dev, "%s() freq detect -> initial check ctrl expected 0 got 0x%04X\n", __func__, reg_val);
+		dev_err(&hdmirx->pdev->dev,
+			"%s() freq detect -> initial check ctrl expected 0 got 0x%04X\n",
+			__func__, reg_val);
 		goto meas_error;
 	}
+
 	/* Reset count value back to default */
-	write16(hdmirx, CMN_CMSMT_REF_CLK_TMR_VALUE_ADDR, PMA_REF_CLK_TMR_VALUE_DEF);
+	write16(hdmirx, CMN_CMSMT_REF_CLK_TMR_VALUE_ADDR,
+		PMA_REF_CLK_TMR_VALUE_DEF);
 
 	/* Check if signal actually exists before starting measurement...*/
 	if (!pma_rx_clk_sig_detected(hdmirx))
@@ -324,11 +342,14 @@ static int pma_rx_clk_freq_detect(struct cdns_hdmirx_device *hdmirx)
 	/* Wait for pma_rx_clk_freq_detect_done */
 	while (!(read16(hdmirx, CMN_CMSMT_CLK_FREQ_MSMT_CTRL_ADDR) & (1 << 14))) {
 		if (ktime_after(ktime_get(), timeout)) {
-			dev_err(&hdmirx->pdev->dev, "%s() freq detect -> timeout\n", __func__);
+			dev_err(&hdmirx->pdev->dev,
+				"%s() freq detect -> timeout\n", __func__);
 			goto meas_error;
 		}
 		if (!pma_rx_clk_sig_detected(hdmirx)) {
-			dev_err(&hdmirx->pdev->dev, "%s() freq detect -> signal lost during measurement\n", __func__);
+			dev_err(&hdmirx->pdev->dev,
+				"%s() freq detect -> signal lost during measurement\n",
+				__func__);
 			goto meas_error;
 		}
 	}
@@ -362,7 +383,8 @@ int cdns_hdmirx_get_stable_tmds(struct cdns_hdmirx_device *hdmirx)
 		int val;
 
 		if (hdmirx->tmdsmon_state == 2) {
-			dev_dbg(&hdmirx->pdev->dev, "TMDS Monitor cleanup in progress...\n");
+			dev_dbg(&hdmirx->pdev->dev,
+				"TMDS Monitor cleanup in progress...\n");
 			return -1;
 		}
 
@@ -375,13 +397,19 @@ int cdns_hdmirx_get_stable_tmds(struct cdns_hdmirx_device *hdmirx)
 		}
 
 		if (i == TMDS_STABLE_DETECT_COUNT_THRESHOLD) {
-			dev_dbg(&hdmirx->pdev->dev, "DONE MEASURING TMDS, got %d\n", tmds);
-			if (((tmds < PMA_RX_CLK_FREQ_DETECT_MIN_THRESH) && (tmds >= 0)) ||
+			dev_dbg(&hdmirx->pdev->dev,
+				"DONE MEASURING TMDS, got %d\n", tmds);
+			if (((tmds < PMA_RX_CLK_FREQ_DETECT_MIN_THRESH) &&
+			     (tmds >= 0)) ||
 			     (tmds > PMA_RX_CLK_FREQ_DETECT_MAX_THRESH)) {
-				dev_dbg(&hdmirx->pdev->dev, "hdmirx_get_stable_tmds() measured value not valid %d, will try again after 100ms\n", tmds);
+				dev_dbg(&hdmirx->pdev->dev,
+					"%s() measured value not valid %d, will try again after 100ms\n",
+					__func__, tmds);
 				i = 0;
 				tmds = 0;
-				mdelay(100);	/* Give source some settling time */
+
+				/* Give source some settling time */
+				mdelay(100);
 			} else
 				return tmds; /* Can be -1 */
 		}
@@ -398,7 +426,8 @@ int get_rescal_code(struct cdns_hdmirx_device *hdmirx)
 {
 	u16 reg_val;
 	reg_val = read16(hdmirx, 0xD0);
-	dev_dbg(&hdmirx->pdev->dev, "Done with CMN_RXCAL_CTRL: 0x%04X\n", reg_val);
+	dev_dbg(&hdmirx->pdev->dev, "Done with CMN_RXCAL_CTRL: 0x%04X\n",
+		reg_val);
 	return (reg_val & 0xFF);
 }
 
@@ -421,7 +450,8 @@ int set_slicer_tune_val(struct cdns_hdmirx_device *hdmirx, u8 tune_val)
 	return 0;
 }
 
-int set_sigdet_refcnt_adj(struct cdns_hdmirx_device *hdmirx, u32 sigdet_refcnt_adj)
+int set_sigdet_refcnt_adj(struct cdns_hdmirx_device *hdmirx,
+			  u32 sigdet_refcnt_adj)
 {
 	u32 temp_val;
 	temp_val = sigdet_refcnt_adj;
@@ -448,13 +478,16 @@ int pma_power_state_chng(struct cdns_hdmirx_device *hdmirx, u8 power_state)
 	/* Get current power state: */
 	/* PHY_MODE_CTL */
 	reg_val = read16(hdmirx, PHY_MODE_CTL_ADDR);
-	dev_dbg(&hdmirx->pdev->dev, "pma_power_state_chng() PHY_MODE_CTL: 0x%04X\n", reg_val);
+	dev_dbg(&hdmirx->pdev->dev,
+		"%s() PHY_MODE_CTL: 0x%04X\n", __func__, reg_val);
 
 	reg_val &= 0xFFF0;
 	reg_val |= set_reg_value(xcvr_power_state_req);
 
 	write16(hdmirx, PHY_MODE_CTL_ADDR, reg_val);
-	dev_dbg(&hdmirx->pdev->dev, "pma_power_state_chng() Requested power mode 0x%02X\n", power_state);
+	dev_dbg(&hdmirx->pdev->dev,
+		"%s() Requested power mode 0x%02X\n", __func__,
+		power_state);
 
 	/* Wait for power mode acknowledged: */
 	/* PHY_MODE_CTL */
@@ -464,12 +497,16 @@ int pma_power_state_chng(struct cdns_hdmirx_device *hdmirx, u8 power_state)
 		reg_val = read16(hdmirx, PHY_MODE_CTL_ADDR);
 		if ((reg_val & 0x00F0) == set_reg_value(xcvr_power_state_ack)) {
 			write16(hdmirx, PHY_MODE_CTL_ADDR, reg_val & 0xFFF0);
-			dev_dbg(&hdmirx->pdev->dev, "pma_power_state_chng() Done with PHY_MODE_CTL: 0x%04X\n", reg_val);
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s() Done with PHY_MODE_CTL: 0x%04X\n", __func__,
+				reg_val);
 			return 0;
 		}
 	} while (ktime_before(ktime_get(), timeout));
 
-	dev_warn(&hdmirx->pdev->dev, "pma_power_state_chng() Timed out with PHY_MODE_CTL: 0x%04X\n", reg_val);
+	dev_warn(&hdmirx->pdev->dev,
+		 "%s() Timed out with PHY_MODE_CTL: 0x%04X\n", __func__,
+		 reg_val);
 	write16(hdmirx, PHY_MODE_CTL_ADDR, reg_val & 0xFFF0);
 	return -1;
 }
@@ -829,7 +866,9 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 				break;
 			}
 		} else {
-			dev_err(&hdmirx->pdev->dev, "TMDS clock frequency (%d KHz) is out of range\n", rx_clk_freq);
+			dev_err(&hdmirx->pdev->dev,
+				"TMDS clock frequency (%d KHz) is out of range\n",
+				rx_clk_freq);
 			return -1;
 		}
 
@@ -893,8 +932,9 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 				break;
 			}
 		} else {
-			dev_err(&hdmirx->pdev->dev, "pma_pll_config() *E: TMDS clock frequency (%d kHz) is out of range\n",
-			     rx_clk_freq);
+			dev_err(&hdmirx->pdev->dev,
+				"%s() *E: TMDS clock frequency (%d kHz) is out of range\n",
+				__func__, rx_clk_freq);
 			return -1;
 		}
 	}
@@ -902,9 +942,10 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 	vco_freq_khz =
 	    (2048 * (u64) rx_clk_freq * (1 << cmn_pll_clk_osr.value) * tmds_bit_clk_ratio) / 2047;
 
-	dev_info(&hdmirx->pdev->dev, "VCO frequency (refclk: %d kHz, TMDS clk: %d kHz, OSR: %0d, tmds_bit_clk_ratio: %d) equals %llu kHz\n",
-	     REFCLK_FREQ_KHZ, rx_clk_freq, 1 << cmn_pll_clk_osr.value,
-	     tmds_bit_clk_ratio, vco_freq_khz);
+	dev_info(&hdmirx->pdev->dev,
+		 "VCO frequency (refclk: %d kHz, TMDS clk: %d kHz, OSR: %0d, tmds_bit_clk_ratio: %d) equals %llu kHz\n",
+		 REFCLK_FREQ_KHZ, rx_clk_freq, 1 << cmn_pll_clk_osr.value,
+		 tmds_bit_clk_ratio, vco_freq_khz);
 
 	if (inside_f(vco_freq_khz, 3000000, 3400000 - 1000)) {
 		set_field_value(&vco_ring_select, 0x0);
@@ -995,7 +1036,9 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 		set_field_value(&cmnda_pll0_const_pmos_cntrl, 0x04);
 		set_field_value(&cmnda_pll0_ptat_ndac_cntrl, 0x0D);
 	} else {
-		dev_err(&hdmirx->pdev->dev, "%s VCO frequency (%llu KHz) is out of range\n", __func__, vco_freq_khz);
+		dev_err(&hdmirx->pdev->dev,
+			"%s VCO frequency (%llu KHz) is out of range\n",
+			__func__, vco_freq_khz);
 		return -1;
 	}
 
@@ -1025,9 +1068,9 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 	set_field_value(&iso_pma_cmn_pll0_clk_datart0_div, 0x2);
 	set_field_value(&iso_pma_cmn_pll0_clk_en, 0x1);
 
-	/*******************************************************
-	* Register setting
-	********************************************************/
+	/*
+	 * Register setting
+	 */
 
 	/* CMN_DIAG_PLL0_INCLK_CTRL */
 	reg_val = set_reg_value(cmnda_pll0_ip_div);
@@ -1146,7 +1189,8 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 	reg_val |= set_reg_value(iso_pma_cmn_pll0_clk_en);
 	write16(hdmirx, PHY_PMA_CMN_CTRL2_ADDR, reg_val);
 
-	dev_dbg(&hdmirx->pdev->dev, "pma_pll_config() Disable Rx Eq Training\n");
+	dev_dbg(&hdmirx->pdev->dev,
+		"%s() Disable Rx Eq Training\n", __func__);
 	for (i = 0; i < 3; i++) {
 		reg_val =
 		    read16(hdmirx, PHY_PMA_XCVR_CTRL_ADDR | (i << 6));
@@ -1157,10 +1201,13 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 	/* Get current power state: */
 	/* PHY_MODE_CTL */
 	reg_val = read16(hdmirx, PHY_MODE_CTL_ADDR);
-	dev_dbg(&hdmirx->pdev->dev, "pma_pll_config() PHY_MODE_CTL: 0x%04X\n", reg_val);
+	dev_dbg(&hdmirx->pdev->dev,
+		"%s() PHY_MODE_CTL: 0x%04X\n", __func__, reg_val);
 
 	reg_val &= 0x00F0;
-	dev_dbg(&hdmirx->pdev->dev, "pma_pll_config() Current power state: 0x%02X\n", (reg_val >> 4));
+	dev_dbg(&hdmirx->pdev->dev,
+		"%s() Current power state: 0x%02X\n", __func__,
+		(reg_val >> 4));
 
 	/* Deassert link reset: */
 	/* PHY_MODE_CTL */
@@ -1178,8 +1225,12 @@ int pma_pll_config(struct cdns_hdmirx_device *hdmirx,
 			goto timeout_err;
 
 		for (i = 0; i < 3; i++) {
-			reg_val &= read16(hdmirx, PHY_PMA_XCVR_CTRL_ADDR | (i << 6)) & (1 << 13);
-			dev_dbg(&hdmirx->pdev->dev, "pma_pll_config() xcvr_psm_ready(%0d): 0x%0X\n", i, reg_val >> 13);
+			reg_val &= read16(hdmirx,
+					  PHY_PMA_XCVR_CTRL_ADDR |
+					  (i << 6)) & (1 << 13);
+			dev_dbg(&hdmirx->pdev->dev,
+				"%s() xcvr_psm_ready(%0d): 0x%0X\n", __func__,
+				i, reg_val >> 13);
 		}
 	} while (!reg_val && loop < 20);
 
@@ -1212,26 +1263,26 @@ u32 clk_ratio_detect(struct cdns_hdmirx_device *hdmirx,
 				u32 tmds_bit_clk_ratio)
 {
 	u32 clk_ratio_detected = CLK_RATIO_1_1;
-
 	u64 tmds_freq_nominal_1_1, tmds_freq_nominal_1_1_min,
-	    tmds_freq_nominal_1_1_max;
+		tmds_freq_nominal_1_1_max;
 	u64 tmds_freq_nominal_5_4, tmds_freq_nominal_5_4_min,
-	    tmds_freq_nominal_5_4_max;
+		tmds_freq_nominal_5_4_max;
 	u64 tmds_freq_nominal_3_2, tmds_freq_nominal_3_2_min,
-	    tmds_freq_nominal_3_2_max;
+		tmds_freq_nominal_3_2_max;
 	u64 tmds_freq_nominal_2_1, tmds_freq_nominal_2_1_min,
-	    tmds_freq_nominal_2_1_max;
+		tmds_freq_nominal_2_1_max;
 	u64 tmds_freq_nominal_1_2, tmds_freq_nominal_1_2_min,
-	    tmds_freq_nominal_1_2_max;
+		tmds_freq_nominal_1_2_max;
 	u64 tmds_freq_nominal_5_8, tmds_freq_nominal_5_8_min,
-	    tmds_freq_nominal_5_8_max;
+		tmds_freq_nominal_5_8_max;
 	u64 tmds_freq_nominal_3_4, tmds_freq_nominal_3_4_min,
-	    tmds_freq_nominal_3_4_max;
+		tmds_freq_nominal_3_4_max;
 	u64 min, max;
 
 	/* Check the TMDS/pixel clock ratio. */
-	dev_info(&hdmirx->pdev->dev, "VIC %0d, pixel encoding: %0d, TMDS bit clock ratio: %0d and TMDS clk %d KHz\n",
-	     vic, pixel_encoding, tmds_bit_clk_ratio, rx_clk_freq);
+	dev_info(&hdmirx->pdev->dev,
+		 "VIC %0d, pixel encoding: %0d, TMDS bit clock ratio: %0d and TMDS clk %d KHz\n",
+		 vic, pixel_encoding, tmds_bit_clk_ratio, rx_clk_freq);
 
 	tmds_freq_nominal_1_1 = pxl_clk_freq;
 
@@ -1260,40 +1311,54 @@ u32 clk_ratio_detect(struct cdns_hdmirx_device *hdmirx,
 		tmds_freq_nominal_3_2 = 0;
 		tmds_freq_nominal_2_1 = 0;
 		break;
-	default:		/* RGB/YUV444 */
+	default:	/* RGB/YUV444 */
 		tmds_freq_nominal_1_2 = 0;
 		tmds_freq_nominal_5_8 = 0;
 		tmds_freq_nominal_3_4 = 0;
 	}
 
 	tmds_freq_nominal_1_1_min =
-	    min * tmds_freq_nominal_1_1 * 10 * 1 / (tmds_bit_clk_ratio * 1000 * 1);
+		min * tmds_freq_nominal_1_1 * 10 * 1 /
+		(tmds_bit_clk_ratio * 1000 * 1);
 	tmds_freq_nominal_1_1_max =
-	    max * tmds_freq_nominal_1_1 * 10 * 1 / (tmds_bit_clk_ratio * 1000 * 1);
+		max * tmds_freq_nominal_1_1 * 10 * 1 /
+		(tmds_bit_clk_ratio * 1000 * 1);
 	tmds_freq_nominal_5_4_min =
-	    min * tmds_freq_nominal_5_4 * 10 * 5 / (tmds_bit_clk_ratio * 1000 * 4);
+		min * tmds_freq_nominal_5_4 * 10 * 5 /
+		(tmds_bit_clk_ratio * 1000 * 4);
 	tmds_freq_nominal_5_4_max =
-	    max * tmds_freq_nominal_5_4 * 10 * 5 / (tmds_bit_clk_ratio * 1000 * 4);
+		max * tmds_freq_nominal_5_4 * 10 * 5 /
+		(tmds_bit_clk_ratio * 1000 * 4);
 	tmds_freq_nominal_3_2_min =
-	    min * tmds_freq_nominal_3_2 * 10 * 3 / (tmds_bit_clk_ratio * 1000 * 2);
+		min * tmds_freq_nominal_3_2 * 10 * 3 /
+		(tmds_bit_clk_ratio * 1000 * 2);
 	tmds_freq_nominal_3_2_max =
-	    max * tmds_freq_nominal_3_2 * 10 * 3 / (tmds_bit_clk_ratio * 1000 * 2);
+		max * tmds_freq_nominal_3_2 * 10 * 3 /
+		(tmds_bit_clk_ratio * 1000 * 2);
 	tmds_freq_nominal_2_1_min =
-	    min * tmds_freq_nominal_2_1 * 10 * 2 / (tmds_bit_clk_ratio * 1000 * 1);
+		min * tmds_freq_nominal_2_1 * 10 * 2 /
+		(tmds_bit_clk_ratio * 1000 * 1);
 	tmds_freq_nominal_2_1_max =
-	    max * tmds_freq_nominal_2_1 * 10 * 2 / (tmds_bit_clk_ratio * 1000 * 1);
+		max * tmds_freq_nominal_2_1 * 10 * 2 /
+		(tmds_bit_clk_ratio * 1000 * 1);
 	tmds_freq_nominal_1_2_min =
-	    min * tmds_freq_nominal_1_2 * 10 * 1 / (tmds_bit_clk_ratio * 1000 * 2);
+		min * tmds_freq_nominal_1_2 * 10 * 1 /
+		(tmds_bit_clk_ratio * 1000 * 2);
 	tmds_freq_nominal_1_2_max =
-	    max * tmds_freq_nominal_1_2 * 10 * 1 / (tmds_bit_clk_ratio * 1000 * 2);
+		max * tmds_freq_nominal_1_2 * 10 * 1 /
+		(tmds_bit_clk_ratio * 1000 * 2);
 	tmds_freq_nominal_5_8_min =
-	    min * tmds_freq_nominal_5_8 * 10 * 5 / (tmds_bit_clk_ratio * 1000 * 8);
+		min * tmds_freq_nominal_5_8 * 10 * 5 /
+		(tmds_bit_clk_ratio * 1000 * 8);
 	tmds_freq_nominal_5_8_max =
-	    max * tmds_freq_nominal_5_8 * 10 * 5 / (tmds_bit_clk_ratio * 1000 * 8);
+		max * tmds_freq_nominal_5_8 * 10 * 5 /
+		(tmds_bit_clk_ratio * 1000 * 8);
 	tmds_freq_nominal_3_4_min =
-	    min * tmds_freq_nominal_3_4 * 10 * 3 / (tmds_bit_clk_ratio * 1000 * 4);
+		min * tmds_freq_nominal_3_4 * 10 * 3 /
+		(tmds_bit_clk_ratio * 1000 * 4);
 	tmds_freq_nominal_3_4_max =
-	    max * tmds_freq_nominal_3_4 * 10 * 3 / (tmds_bit_clk_ratio * 1000 * 4);
+		max * tmds_freq_nominal_3_4 * 10 * 3 /
+		(tmds_bit_clk_ratio * 1000 * 4);
 
 	if (rx_clk_freq > tmds_freq_nominal_1_1_min
 	    && rx_clk_freq < tmds_freq_nominal_1_1_max)
@@ -1317,10 +1382,14 @@ u32 clk_ratio_detect(struct cdns_hdmirx_device *hdmirx,
 		   && rx_clk_freq < tmds_freq_nominal_3_4_max)
 		clk_ratio_detected = CLK_RATIO_3_4;
 	else {
-		dev_err(&hdmirx->pdev->dev, "Unable to detected TMDS/pixel clock ratio - using default\n");
-		dev_err(&hdmirx->pdev->dev, "VIC: %02d and TMDS clock of %d KHz\n", vic, rx_clk_freq);
+		dev_err(&hdmirx->pdev->dev,
+			"Unable to detected TMDS/pixel clock ratio - using default\n");
+		dev_err(&hdmirx->pdev->dev,
+			"VIC: %02d and TMDS clock of %d KHz\n",
+			vic, rx_clk_freq);
 	}
-	dev_dbg(&hdmirx->pdev->dev, "Detected TMDS/pixel clock ratio of %d\n", clk_ratio_detected);
+	dev_dbg(&hdmirx->pdev->dev,
+		"Detected TMDS/pixel clock ratio of %d\n", clk_ratio_detected);
 
 	return clk_ratio_detected;
 }

@@ -1,0 +1,15 @@
+config VIDEO_MHDP_HDMIRX
+	tristate "Cadence MHDP HDMIRX Controller"
+	help
+	  Driver for the Cadence HDMI receiver interface. This device
+	  is found in the i.MX8QM SoCs. Select this config to enable
+	  the HDMI RX capture driver.
+
+
+config VIDEO_MHDP_HDMIRX_CEC
+	tristate "Cadence MHDP HDMIRX CEC"
+	select DRM_CDNS_HDMI_CEC
+	help
+	  Driver for the Cadence HDMI receiver CEC protocol. This device
+	  is found in the i.MX8QM SoCs. Select this config to enable
+	  the HDMI RX CEC driver.

@@ -3,9 +3,13 @@
  * Copyright 2025 NXP
  */
 
-#include "imx943-evk.dts"
+#include <dt-bindings/gpio/gpio.h>
+#include "imx94-clock.h"
 
-/ {
+/dts-v1/;
+/plugin/;
+
+&{/} {
 	sound-micfil {
 		status = "disabled";
 	};
@@ -21,13 +25,22 @@
 	};
 };
 
+/*
+ * mqs-mic-sel-hog have property 'output-low', dt overlay don't support
+ * /delete-property/. Both 'output-low' and 'output-high' will be exist
+ * under hog nodes if overlay file set 'output-high'. Workaround is
+ * disable the hog and create new hog with 'output-high'.
+ */
 &pcal6416_i2c3_u171 {
 
 	mqs-mic-sel-hog {
+		status = "disabled";
+	};
+
+	mqs-mic-sel-mqs-hog {
 		gpio-hog;
 		gpios = <11 GPIO_ACTIVE_HIGH>;
 		output-high;
-		/delete-property/ output-low;
 	};
 };
 

@@ -3,7 +3,7 @@
  * NXP NEOISP userspace API
  * Reference i.MX95 Applications Processor Reference Manual
  *
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2025 NXP
  */
 
 #ifndef UAPI_NXP_NEOISP_H
@@ -29,6 +29,7 @@ enum neoisp_version_e {
  *   - 0: do not update feature
  */
 struct neoisp_feat_ctrl_s {
+	__u32 pipe_conf_cfg : 1;
 	__u32 head_color_cfg : 1;
 	__u32 hdr_decompress_input0_cfg : 1;
 	__u32 hdr_decompress_input1_cfg : 1;
@@ -58,7 +59,17 @@ struct neoisp_feat_ctrl_s {
 };
 
 /**
- * HDR Decompression (hdr_decompress)
+ * Pipeline Configuration (pipe_conf)
+ */
+struct neoisp_pipe_conf_cfg_s {
+	__u8 img_conf_inalign0;
+	__u8 img_conf_lpalign0;
+	__u8 img_conf_inalign1;
+	__u8 img_conf_lpalign1;
+};
+
+/**
+ * Head Color (hc)
  */
 struct neoisp_head_color_cfg_s {
 	__u8 ctrl_hoffset;
@@ -482,6 +493,9 @@ struct neoisp_gcm_cfg_s {
  * ISP uapi params structure
  */
 struct neoisp_reg_params_s {
+	/* Control */
+	struct neoisp_pipe_conf_cfg_s pipe_conf;
+
 	/* Pipeline 1 */
 	struct neoisp_head_color_cfg_s head_color;
 	struct neoisp_hdr_decompress0_cfg_s decompress_input0;

@@ -123,6 +123,8 @@ static void mxc_isi_m2m_device_run(void *priv)
 {
 	struct mxc_isi_m2m_ctx *ctx = priv;
 	struct mxc_isi_m2m *m2m = ctx->m2m;
+	const struct mxc_isi_plat_data *pdata = m2m->isi->pdata;
+	const struct v4l2_pix_format_mplane *cap_pix = &ctx->queues.cap.format;
 	struct vb2_v4l2_buffer *src_vbuf, *dst_vbuf;
 	struct mxc_isi_m2m_buffer *src_buf, *dst_buf;
 
@@ -175,6 +177,7 @@ static void mxc_isi_m2m_device_run(void *priv)
 	mxc_isi_channel_set_inbuf(m2m->pipe, src_buf->dma_addrs[0]);
 	mxc_isi_channel_set_outbuf(m2m->pipe, dst_buf->dma_addrs, MXC_ISI_BUF1);
 	mxc_isi_channel_set_outbuf(m2m->pipe, dst_buf->dma_addrs, MXC_ISI_BUF2);
+	mxc_isi_channel_set_max_size(m2m->pipe, cap_pix, pdata->buf_max_size);
 
 	mxc_isi_channel_enable(m2m->pipe);
 

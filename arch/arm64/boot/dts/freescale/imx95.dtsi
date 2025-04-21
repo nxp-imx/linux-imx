@@ -1295,6 +1295,7 @@
 				bus-width = <8>;
 				fsl,tuning-start-tap = <1>;
 				fsl,tuning-step= <2>;
+				iommus = <&smmu 0x1>;
 				status = "disabled";
 			};
 
@@ -1312,6 +1313,7 @@
 				bus-width = <4>;
 				fsl,tuning-start-tap = <1>;
 				fsl,tuning-step= <2>;
+				iommus = <&smmu 0x2>;
 				status = "disabled";
 			};
 
@@ -1329,6 +1331,7 @@
 				bus-width = <4>;
 				fsl,tuning-start-tap = <1>;
 				fsl,tuning-step= <2>;
+				iommus = <&smmu 0x3>;
 				status = "disabled";
 			};
 		};
@@ -1683,6 +1686,20 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <2>;
+		};
+
+		v2x_mu7: mailbox@47330000 {
+			compatible = "fsl,imx95-mu-v2x";
+			reg = <0x0 0x47330000 0x0 0x10000>;
+			interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <2>;
+		};
+
+		v2x_mu8: mailbox@47340000 {
+			compatible = "fsl,imx95-mu-v2x";
+			reg = <0x0 0x47340000 0x0 0x10000>;
+			interrupts = <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <2>;
 		};
 
@@ -2874,7 +2891,7 @@
 				     <GIC_SPI 289 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 290 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "gpu", "job", "mmu";
-			clocks = <&scmi_clk IMX95_CLK_GPU>;
+			clocks = <&scmi_clk IMX95_CLK_GPU_CGC>;
 			clock-names = "gpu";
 			power-domains = <&scmi_devpd IMX95_PD_GPU>, <&scmi_perf IMX95_PERF_GPU>;
 			power-domain-names = "gpumix", "gpuperf";
@@ -3115,26 +3132,38 @@
 	};
 
 	ele_if0: secure-enclave-0 {
-		 compatible = "fsl,imx95-se";
-		 mbox-names = "tx", "rx";
-		 mboxes = <&elemu3 0 0>, <&elemu3 1 0>;
-	 };
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&elemu3 0 0>, <&elemu3 1 0>;
+	};
 
 	v2x_dbg: secure-enclave-1 {
-		 compatible = "fsl,imx95-se";
-		 mbox-names = "tx", "rx";
-		 mboxes = <&v2x_mu 0 0>, <&v2x_mu 1 0>;
-	 };
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu 0 0>, <&v2x_mu 1 0>;
+	};
 
 	v2x_sv0: secure-enclave-2 {
-		 compatible = "fsl,imx95-se";
-		 mbox-names = "tx", "rx";
-		 mboxes = <&v2x_mu4 0 0>, <&v2x_mu4 1 0>;
-	 };
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu4 0 0>, <&v2x_mu4 1 0>;
+	};
 
 	v2x_she: secure-enclave-3 {
-		 compatible = "fsl,imx95-se";
-		 mbox-names = "tx", "rx";
-		 mboxes = <&v2x_mu6 0 0>, <&v2x_mu6 1 0>;
-	 };
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu6 0 0>, <&v2x_mu6 1 0>;
+	};
+
+	v2x_sg0: secure-enclave-4 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu7 0 0>, <&v2x_mu7 1 0>;
+	};
+
+	v2x_sg1: secure-enclave-5 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu8 0 0>, <&v2x_mu8 1 0>;
+	};
 };

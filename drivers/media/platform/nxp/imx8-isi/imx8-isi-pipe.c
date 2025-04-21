@@ -5,7 +5,7 @@
  * ISI is a Image Sensor Interface of i.MX8QXP/QM platform, which
  * used to process image from camera sensor to memory or DC
  *
- * Copyright (c) 2019 NXP Semiconductor
+ * Copyright 2019, 2024-2025 NXP
  */
 
 #include <linux/device.h>
@@ -288,6 +288,12 @@ static int mxc_isi_get_vc(struct mxc_isi_pipe *pipe)
 			entry = &source_fd.entry[i];
 			break;
 		}
+	}
+
+	if (source_fd.num_entries == 0) {
+		/* If there is no source fd entries we assume virtual channel is 0 */
+		pipe->vc = 0;
+		return 0;
 	}
 
 	if (!entry) {
