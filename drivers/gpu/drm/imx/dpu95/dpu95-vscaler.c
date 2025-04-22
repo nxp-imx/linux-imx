@@ -31,6 +31,9 @@ struct dpu95_vscaler {
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
 	const struct dpu95_vscaler_ops *ops;
+
+	unsigned int reg_offset;
+	unsigned int reg_aux_offset;
 };
 
 static const enum dpu95_link_id dpu95_vs_link_id[] = {
@@ -55,13 +58,21 @@ static const enum dpu95_link_id src_sels[2][7] = {
 static inline u32 dpu95_pec_vs_read(struct dpu95_vscaler *vs,
 				    unsigned int offset)
 {
-	return readl(vs->pec_base + offset);
+	if (vs->dpu->trusty_dev) {
+		return trusty_fast_call32(vs->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, vs->reg_aux_offset, offset, 0);
+	} else {
+		return readl(vs->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_vs_write(struct dpu95_vscaler *vs,
 				      unsigned int offset, u32 value)
 {
-	writel(value, vs->pec_base + offset);
+	if (vs->dpu->trusty_dev) {
+		trusty_fast_call32(vs->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, vs->reg_aux_offset, offset, value);
+	} else {
+		writel(value, vs->pec_base + offset);
+	}
 }
 
 static inline void dpu95_pec_vs_write_mask(struct dpu95_vscaler *vs,
@@ -77,13 +88,22 @@ static inline void dpu95_pec_vs_write_mask(struct dpu95_vscaler *vs,
 
 static inline u32 dpu95_vs_read(struct dpu95_vscaler *vs, unsigned int offset)
 {
-	return readl(vs->base + offset);
+	if (vs->dpu->trusty_dev) {
+		return trusty_fast_call32(vs->dpu->trusty_dev, SMC_IMX_DPU_REG_GET, vs->reg_offset, offset, 0);
+	} else {
+		return readl(vs->base + offset);
+	}
 }
 
 static inline void dpu95_vs_write(struct dpu95_vscaler *vs,
 				  unsigned int offset, u32 value)
 {
-	writel(value, vs->base + offset);
+	if (vs->dpu->trusty_dev) {
+		trusty_fast_call32(vs->dpu->trusty_dev, SMC_IMX_DPU_REG_SET, vs->reg_offset, offset, value);
+	} else {
+		writel(value, vs->base + offset);
+	}
+
 }
 
 static inline void dpu95_vs_write_mask(struct dpu95_vscaler *vs,
@@ -293,6 +313,9 @@ int dpu95_vs_init(struct dpu95_soc *dpu, unsigned int index,
 	vs = devm_kzalloc(dpu->dev, sizeof(*vs), GFP_KERNEL);
 	if (!vs)
 		return -ENOMEM;
+
+	vs->reg_offset = base - dpu_base;
+	vs->reg_aux_offset = pec_base - dpu_base;
 
 	dpu->vs[index] = vs;
 
