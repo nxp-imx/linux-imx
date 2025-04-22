@@ -679,7 +679,8 @@ struct dpu95_vscaler *dpu95_vs_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_vs_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_vs_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base);
 
 struct dpu95_fetchunit_ops {
 	void (*set_pec_dynamic_src_sel)(struct dpu95_fetchunit *fu,
