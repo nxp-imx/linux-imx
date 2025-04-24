@@ -1135,6 +1135,8 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct ip_options_data opt_copy;
 	int uc_index;
 
+	trace_android_rvh_udp_sendmsg(sk, msg, len);
+
 	if (len > 0xFFFF)
 		return -EMSGSIZE;
 
@@ -1579,6 +1581,8 @@ int __udp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb)
 	spinlock_t *busy = NULL;
 	int size, rcvbuf;
 
+	trace_android_vh_udp_enqueue_schedule_skb(sk, skb);
+
 	/* Immediately drop when the receive queue is full.
 	 * Always allow at least one packet.
 	 */
@@ -1957,6 +1961,8 @@ try_again:
 	err = copied;
 	if (flags & MSG_TRUNC)
 		err = ulen;
+
+	trace_android_rvh_udp_recvmsg(sk, msg, len, flags, addr_len);
 
 	skb_consume_udp(sk, skb, peeking ? -err : err);
 	return err;

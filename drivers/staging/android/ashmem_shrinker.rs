@@ -7,13 +7,15 @@
 //!
 //! C header: [`include/linux/shrinker.h`](srctree/include/linux/shrinker.h)
 
-use kernel::{alloc::AllocError, bindings, c_str, str::CStr, types::ForeignOwnable};
-
-use core::{
+use kernel::{
+    alloc::AllocError,
+    bindings, c_str,
     ffi::{c_int, c_long, c_ulong, c_void},
-    marker::PhantomData,
-    ptr::NonNull,
+    str::CStr,
+    types::ForeignOwnable,
 };
+
+use core::{marker::PhantomData, ptr::NonNull};
 
 const SHRINK_STOP: c_ulong = bindings::SHRINK_STOP as c_ulong;
 const SHRINK_EMPTY: c_ulong = bindings::SHRINK_EMPTY as c_ulong;

@@ -93,6 +93,43 @@ DECLARE_HOOK(android_vh_dc_receive,
 	TP_PROTO(struct sk_buff *skb, int *flag), TP_ARGS(skb, flag));
 DECLARE_HOOK(android_vh_tcp_rcv_rtt_update,
 	TP_PROTO(struct tcp_sock *tp, u32 sample, int win_dep), TP_ARGS(tp, sample, win_dep));
+struct msghdr;
+DECLARE_RESTRICTED_HOOK(android_rvh_tcp_sendmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len),
+	TP_ARGS(sk, msg, len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_tcp_recvmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len),
+	TP_ARGS(sk, msg, len, flags, addr_len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_udp_sendmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len),
+	TP_ARGS(sk, msg, len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_udp_recvmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len),
+	TP_ARGS(sk, msg, len, flags, addr_len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_udpv6_sendmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len),
+	TP_ARGS(sk, msg, len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_udpv6_recvmsg,
+	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len),
+	TP_ARGS(sk, msg, len, flags, addr_len), 1);
+struct sk_buff;
+DECLARE_RESTRICTED_HOOK(android_rvh_tcp_select_window,
+	TP_PROTO(struct sock *sk, u32 *new_win), TP_ARGS(sk, new_win), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_inet_sock_create,
+	TP_PROTO(struct sock *sk), TP_ARGS(sk), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_inet_sock_release,
+	TP_PROTO(struct sock *sk), TP_ARGS(sk), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_bpf_skb_load_bytes,
+	TP_PROTO(const struct sk_buff *skb, u32 offset, void *to, u32 len,
+		int *handled, int *err),
+	TP_ARGS(skb, offset, to, len, handled, err), 1);
+DECLARE_HOOK(android_vh_tcp_rtt_estimator,
+	TP_PROTO(struct sock *sk, long mrtt_us), TP_ARGS(sk, mrtt_us));
+DECLARE_HOOK(android_vh_udp_enqueue_schedule_skb,
+	TP_PROTO(struct sock *sk, struct sk_buff *skb), TP_ARGS(sk, skb));
+DECLARE_HOOK(android_vh_build_skb_around,
+	TP_PROTO(struct sk_buff *skb), TP_ARGS(skb));
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_NET_VH_H */

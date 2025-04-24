@@ -11,7 +11,6 @@
 //! memory units when under memory pressure.
 
 use core::{
-    ffi::c_int,
     pin::Pin,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
@@ -19,6 +18,7 @@ use kernel::{
     bindings::{self, ASHMEM_GET_PIN_STATUS, ASHMEM_PIN, ASHMEM_UNPIN},
     c_str,
     error::Result,
+    ffi::c_int,
     fs::{File, LocalFile},
     ioctl::_IOC_SIZE,
     miscdevice::{loff_t, IovIter, Kiocb, MiscDevice, MiscDeviceOptions, MiscDeviceRegistration},
@@ -284,17 +284,16 @@ impl MiscDevice for Ashmem {
 }
 
 impl Ashmem {
-    fn set_name(&self, mut reader: UserSliceReader) -> Result<isize> {
+    fn set_name(&self, reader: UserSliceReader) -> Result<isize> {
         let mut local_name = [0u8; ASHMEM_NAME_LEN];
-        reader.read_slice(&mut local_name)?;
+        let mut len = reader.strncpy_from_user(&mut local_name)?;
 
-        // Find the zero terminator. If the zero terminator is missing, the string is truncated to
-        // `ASHMEM_NAME_LEN-1` so that `get_name` can return it and has enough space to add a zero
-        // terminator.
-        let len = local_name
-            .iter()
-            .position(|&c| c == 0)
-            .unwrap_or(local_name.len() - 1);
+        // If the zero terminator is missing, the string is truncated to `ASHMEM_NAME_LEN-1` so
+        // that `get_name` can return it and has enough space to add a zero terminator.
+        if len == ASHMEM_NAME_LEN {
+            len -= 1;
+            local_name[len] = 0;
+        }
 
         let mut v = KVec::with_capacity(len, GFP_KERNEL)?;
         v.extend_from_slice(&local_name[..len], GFP_KERNEL)?;
@@ -313,13 +312,13 @@ impl Ashmem {
         let name = asma.name.as_deref().unwrap_or(b"dev/ashmem");
         let len = name.len();
         let len_with_nul = len + 1;
-        if local_name.len() <= len_with_nul {
+        if local_name.len() < len_with_nul {
             // This shouldn't happen in practice since `set_name` will refuse to store a string
             // that is too long.
             return Err(EINVAL);
         }
         local_name[..len].copy_from_slice(name);
-        local_name[len_with_nul] = 0;
+        local_name[len] = 0;
         drop(asma);
 
         writer.write_slice(&local_name[..len_with_nul])?;
@@ -521,17 +520,17 @@ unsafe extern "C" fn ashmem_memfd_ioctl(file: *mut bindings::file, cmd: u32, arg
 
 fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> {
     use kernel::bindings::{F_ADD_SEALS, F_GET_SEALS, F_SEAL_FUTURE_WRITE, F_SEAL_WRITE};
-    const WRITE_SEALS_MASK: u64 = (F_SEAL_WRITE | F_SEAL_FUTURE_WRITE) as u64;
+    const WRITE_SEALS_MASK: usize = (F_SEAL_WRITE | F_SEAL_FUTURE_WRITE) as usize;
 
     /// # Safety
     /// The file must be a memfd file.
-    unsafe fn get_seals(file: &File) -> Result<u64> {
+    unsafe fn get_seals(file: &File) -> Result<usize> {
         // SAFETY: This is a memfd file.
-        let seals: i64 = unsafe { bindings::memfd_fcntl(file.as_ptr(), F_GET_SEALS, 0) };
+        let seals: isize = unsafe { bindings::memfd_fcntl(file.as_ptr(), F_GET_SEALS, 0) };
         if seals < 0 {
             return Err(Error::from_errno(seals as i32));
         }
-        Ok(seals as u64)
+        Ok(seals as usize)
     }
 
     let size = _IOC_SIZE(cmd);

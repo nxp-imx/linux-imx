@@ -7,6 +7,7 @@
 use kernel::{
     bindings,
     error::{from_err_ptr, to_result, Result},
+    ffi::{c_int, c_ulong},
     fs::file::{File, LocalFile},
     miscdevice::{loff_t, IovIter},
     mm::virt::{vm_flags_t, VmAreaNew},
@@ -17,7 +18,6 @@ use kernel::{
 
 use core::{
     cell::UnsafeCell,
-    ffi::{c_int, c_ulong},
     ptr::{addr_of_mut, NonNull},
 };
 

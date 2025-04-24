@@ -29,6 +29,7 @@
   __alloc_pages_noprof
   __alloc_skb
   alloc_skb_with_frags
+  alloc_swapdev_block
   alloc_workqueue
   alt_cb_patch_nops
   amba_bustype
@@ -630,11 +631,14 @@
   devm_of_icc_get
   devm_of_iomap
   devm_of_led_get
+  devm_of_phy_get
+  devm_of_phy_optional_get
   __devm_of_phy_provider_register
   devm_of_platform_populate
   devm_pci_alloc_host_bridge
   devm_phy_create
   devm_phy_get
+  devm_phy_optional_get
   devm_phy_package_join
   devm_pinctrl_get
   devm_pinctrl_put
@@ -1020,6 +1024,7 @@
   drm_panel_remove
   drm_plane_cleanup
   drm_plane_create_rotation_property
+  drm_plane_from_index
   drm_poll
   drm_prime_gem_destroy
   drm_prime_pages_to_sg
@@ -1281,6 +1286,7 @@
   gro_cells_destroy
   gro_cells_init
   gro_cells_receive
+  gunyah_get_info
   gunyah_qtvm_register_notifier
   gunyah_qtvm_unregister_notifier
   gunyah_rm_call
@@ -2286,6 +2292,10 @@
   phy_init
   phy_init_eee
   phy_init_hw
+  phy_pm_runtime_get
+  phy_pm_runtime_get_sync
+  phy_pm_runtime_put
+  phy_pm_runtime_put_sync
   phylink_connect_phy
   phylink_create
   phylink_destroy
@@ -2980,6 +2990,7 @@
   smp_call_function
   smp_call_function_single
   smp_call_function_single_async
+  snapshot_get_image_size
   snd_info_create_card_entry
   snd_info_create_module_entry
   snd_info_free_entry
@@ -3039,7 +3050,9 @@
   snd_usb_hw_free
   snd_usb_hw_params
   snd_usb_lock_shutdown
+  snd_usb_register_platform_ops
   snd_usb_unlock_shutdown
+  snd_usb_unregister_platform_ops
   snprintf
   soc_device_register
   soc_device_unregister
@@ -3357,6 +3370,8 @@
   __traceiter_android_vh_ftrace_oops_exit
   __traceiter_android_vh_ftrace_size_check
   __traceiter_android_vh_gic_v3_suspend
+  __traceiter_android_vh_hibernated_do_mem_alloc
+  __traceiter_android_vh_hibernate_save_cmp_len
   __traceiter_android_vh_init_aes_encrypt
   __traceiter_android_vh_ipi_stop
   __traceiter_android_vh_jiffies_update
@@ -3372,6 +3387,7 @@
   __traceiter_android_vh_skip_swap_map_write
   __traceiter_android_vh_thermal_pm_notify_suspend
   __traceiter_android_vh_timer_calc_index
+  __traceiter_android_vh_try_fixup_sea
   __traceiter_android_vh_ufs_check_int_errors
   __traceiter_android_vh_ufs_compl_command
   __traceiter_android_vh_ufs_send_command
@@ -3488,6 +3504,8 @@
   __tracepoint_android_vh_ftrace_oops_exit
   __tracepoint_android_vh_ftrace_size_check
   __tracepoint_android_vh_gic_v3_suspend
+  __tracepoint_android_vh_hibernated_do_mem_alloc
+  __tracepoint_android_vh_hibernate_save_cmp_len
   __tracepoint_android_vh_init_aes_encrypt
   __tracepoint_android_vh_ipi_stop
   __tracepoint_android_vh_jiffies_update
@@ -3503,6 +3521,7 @@
   __tracepoint_android_vh_skip_swap_map_write
   __tracepoint_android_vh_thermal_pm_notify_suspend
   __tracepoint_android_vh_timer_calc_index
+  __tracepoint_android_vh_try_fixup_sea
   __tracepoint_android_vh_ufs_check_int_errors
   __tracepoint_android_vh_ufs_compl_command
   __tracepoint_android_vh_ufs_send_command

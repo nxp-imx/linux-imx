@@ -12,6 +12,7 @@ use crate::{
     bindings,
     device::Device,
     error::{to_result, Error, Result, VTABLE_DEFAULT_ERROR},
+    ffi::{c_int, c_long, c_uint, c_ulong, c_void},
     fs::{File, LocalFile},
     mm::virt::VmAreaNew,
     prelude::*,
@@ -20,7 +21,6 @@ use crate::{
     types::{AsBytes, ForeignOwnable, Opaque},
 };
 use core::{
-    ffi::{c_int, c_long, c_uint, c_ulong, c_void},
     marker::PhantomData,
     mem::MaybeUninit,
     pin::Pin,

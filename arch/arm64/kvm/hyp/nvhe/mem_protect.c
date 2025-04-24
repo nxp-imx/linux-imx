@@ -2769,7 +2769,7 @@ int pkvm_get_guest_pa_request(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
 		return -EPERM;
 
 	*out_pa = kvm_pte_to_phys(pte);
-	*out_pa |= (ipa & kvm_granule_size(*out_level) - 1) & PAGE_MASK;
+	*out_pa |= ipa & (kvm_granule_size(*out_level) - 1) & PAGE_MASK;
 	return 0;
 }
 

@@ -7,6 +7,7 @@
 
 use super::{lock::Backend, lock::Guard, LockClassKey};
 use crate::{
+    ffi::{c_int, c_long},
     init::PinInit,
     pin_init,
     str::CStr,
@@ -16,7 +17,6 @@ use crate::{
     time::Jiffies,
     types::Opaque,
 };
-use core::ffi::{c_int, c_long};
 use core::marker::PhantomPinned;
 use core::ptr;
 use macros::pin_data;

@@ -1470,6 +1470,9 @@ static int kvm_vcpu_init_check_features(struct kvm_vcpu *vcpu,
 	if (features & ~system_supported_vcpu_features())
 		return -EINVAL;
 
+	if (vcpu_is_protected(vcpu) && (features & ~pvm_supported_vcpu_features()))
+		return -EINVAL;
+
 	/*
 	 * For now make sure that both address/generic pointer authentication
 	 * features are requested by the userspace together.
@@ -1719,6 +1722,10 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 
 		r = -ENOEXEC;
 		if (unlikely(!kvm_vcpu_initialized(vcpu)))
+			break;
+
+		r = -EPERM;
+		if (unlikely(vcpu_is_protected(vcpu) && vcpu_get_flag(vcpu, VCPU_PKVM_FINALIZED)))
 			break;
 
 		r = -EFAULT;

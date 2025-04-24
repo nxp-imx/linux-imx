@@ -56,7 +56,7 @@ pub fn binder_transfer_file(from: &Credential, to: &Credential, file: &File) -> 
 /// successful call to `security_secid_to_secctx`, that has not yet been destroyed by calling
 /// `security_release_secctx`.
 pub struct SecurityCtx {
-    secdata: *mut core::ffi::c_char,
+    secdata: *mut crate::ffi::c_char,
     seclen: usize,
 }
 

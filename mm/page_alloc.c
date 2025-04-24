@@ -3925,6 +3925,7 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 	if (!mutex_trylock(&oom_lock)) {
 		*did_some_progress = 1;
 		schedule_timeout_uninterruptible(1);
+		trace_android_vh_mm_may_oom_exit(&oc, *did_some_progress);
 		return NULL;
 	}
 
@@ -3987,6 +3988,7 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 	}
 out:
 	mutex_unlock(&oom_lock);
+	trace_android_vh_mm_may_oom_exit(&oc, *did_some_progress);
 	return page;
 }
 
@@ -4275,11 +4277,13 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
+	int retry_times = 0;
 	struct page *page = NULL;
 	unsigned long pflags;
 	bool drained = false;
 	bool skip_pcp_drain = false;
 
+	trace_android_vh_mm_direct_reclaim_enter(order);
 	psi_memstall_enter(&pflags);
 	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);
 	if (unlikely(!(*did_some_progress)))
@@ -4300,11 +4304,12 @@ retry:
 		if (!skip_pcp_drain)
 			drain_all_pages(NULL);
 		drained = true;
+		++retry_times;
 		goto retry;
 	}
 out:
 	psi_memstall_leave(&pflags);
-
+	trace_android_vh_mm_direct_reclaim_exit(*did_some_progress, retry_times);
 	return page;
 }
 
@@ -7501,7 +7506,7 @@ static inline bool has_unaccepted_memory(void)
 
 static bool cond_accept_memory(struct zone *zone, unsigned int order)
 {
-	long to_accept;
+	long to_accept, wmark;
 	bool ret = false;
 
 	if (!has_unaccepted_memory())
@@ -7510,8 +7515,18 @@ static bool cond_accept_memory(struct zone *zone, unsigned int order)
 	if (list_empty(&zone->unaccepted_pages))
 		return false;
 
+	wmark = promo_wmark_pages(zone);
+
+	/*
+	 * Watermarks have not been initialized yet.
+	 *
+	 * Accepting one MAX_ORDER page to ensure progress.
+	 */
+	if (!wmark)
+		return try_to_accept_memory_one(zone);
+
 	/* How much to accept to get to promo watermark? */
-	to_accept = promo_wmark_pages(zone) -
+	to_accept = wmark -
 		    (zone_page_state(zone, NR_FREE_PAGES) -
 		    __zone_watermark_unusable_free(zone, order, 0) -
 		    zone_page_state(zone, NR_UNACCEPTED));
