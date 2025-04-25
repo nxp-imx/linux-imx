@@ -877,6 +877,19 @@ static const struct dma_map_ops trusty_virtio_dma_map_ops = {
 	.unmap_sg = trusty_virtio_dma_unmap_sg,
 };
 
+#if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
+#if (KERNEL_VERSION(6, 13, 0) > LINUX_VERSION_CODE)
+static void hrtimer_setup(struct hrtimer *timer, enum hrtimer_restart (*function)(struct hrtimer *),
+			  clockid_t clock_id, enum hrtimer_mode mode)
+{
+	BUG_ON(!function);
+
+	hrtimer_init(timer, clock_id, mode);
+	timer->function = function;
+}
+#endif
+#endif
+
 static int trusty_virtio_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -892,9 +905,8 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&tctx->vdev_list);
 #if IS_ENABLED(CONFIG_TRUSTY_VIRTIO_POLL_VQUEUES)
 	mutex_init(&tctx->vq_timer_lock);
-	hrtimer_init(&tctx->vq_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hrtimer_setup(&tctx->vq_timer, vq_timer_fn, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	tctx->vq_check_period_ms = default_vq_check_period_ms;
-	tctx->vq_timer.function = vq_timer_fn;
 #endif
 	INIT_WORK(&tctx->check_vqs, check_all_vqs);
 	INIT_WORK(&tctx->kick_vqs, kick_vqs);
