@@ -241,10 +241,14 @@ static int fsb_s400_fuse_read(void *priv, unsigned int offset, void *val,
 		buf[318] = readl_relaxed(regs + 318 * 4) & 0xffff;
 		for (i = 320; i < 327; i++)
 			buf[i] = readl_relaxed(regs + i * 4);
-		for (i = 328; i < 512; i++)
+		for (i = 328; i < 392; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+		for (i = 448; i < 591; i++)
+			buf[i] = readl_relaxed(regs + i * 4);
+		buf[591] = readl_relaxed(regs + 591 * 4) & 0xffff;
+		for (i = 592; i < 608; i++)
 			buf[i] = readl_relaxed(regs + i * 4);
 
-		read_words_via_s400_api(&buf[63], 63, 1, fuse->se_data);
 		read_words_via_s400_api(&buf[128], 128, 16, fuse->se_data);
 		read_words_via_s400_api(&buf[188], 188, 1, fuse->se_data);
 
@@ -382,6 +386,9 @@ static int imx_fsb_s400_fuse_probe(struct platform_device *pdev)
 	fuse->config.priv = fuse;
 	mutex_init(&fuse->lock);
 	fuse->hw = of_device_get_match_data(&pdev->dev);
+
+	if (of_device_is_compatible(pdev->dev.of_node, "fsl,imx95-ocotp"))
+		fuse->config.size = 2440; /* 610 words */
 
 	if (fuse->hw->reverse_mac_address || fuse->hw->increase_mac_address)
 		fuse->config.fixup_dt_cell_info = &imx_fsb_s400_fuse_fixup_cell_info;

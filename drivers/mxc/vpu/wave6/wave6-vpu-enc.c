@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
 /*
- * Wave6 series multi-standard codec IP - encoder interface
+ * Wave6 series multi-standard codec IP - v4l2 stateful encoder interface
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
+
 #include <linux/pm_runtime.h>
-#include <linux/swiotlb.h>
 #include "wave6-vpu.h"
 #include "wave6-vpu-dbg.h"
 #include "wave6-trace.h"
@@ -245,13 +245,13 @@ static const struct vpu_format *wave6_find_vpu_fmt_by_idx(unsigned int idx,
 	return &wave6_vpu_enc_fmt_list[type][idx];
 }
 
-static u32 wave6_cpb_size_msec(u32 cpb_size_kb, u32 bit_rate)
+static u32 wave6_cpb_size_msec(u32 cpb_size_kb, u32 bitrate)
 {
 	u64 cpb_size_bit;
 	u64 cpb_size_msec;
 
 	cpb_size_bit = (u64)cpb_size_kb * 1000 * BITS_PER_BYTE;
-	cpb_size_msec = (cpb_size_bit * 1000) / bit_rate;
+	cpb_size_msec = (cpb_size_bit * 1000) / bitrate;
 
 	if (cpb_size_msec < 10 || cpb_size_msec > 100000)
 		cpb_size_msec = 10000;
@@ -270,7 +270,6 @@ static void wave6_vpu_enc_release_fb(struct vpu_instance *inst)
 		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
 		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][i]);
 		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_SUB_SAMPLE][i]);
-		wave6_free_dma(&inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
 	}
 }
 
@@ -360,9 +359,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	    inst->ycbcr_enc == V4L2_YCBCR_ENC_601) {
 		if (inst->quantization == V4L2_QUANTIZATION_FULL_RANGE) {
 			/*
-			 * Y  =  0.299(R)    0.587(G)    0.114(B)
-			 * Cb = -0.16874(R) -0.33126(G)  0.5(B)
-			 * Cr =  0.5(R)     -0.41869(G) -0.08131(B)
+			 * Y   0.299(R)    0.587(G)    0.114(B)
+			 * Cb -0.16874(R) -0.33126(G)  0.5(B)
+			 * Cr  0.5(R)     -0.41869(G) -0.08131(B)
 			 */
 			pic_param->csc.coef_ry = 0x099;
 			pic_param->csc.coef_gy = 0x12d;
@@ -378,9 +377,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 			pic_param->csc.offset_cr = (is_10bit) ? 0x200 : 0x80;
 		} else {
 			/*
-			 * Y  =  0.258(R)   0.504(G)   0.098(B)
-			 * Cb = -0.1484(R) -0.2891(G)  0.4375(B)
-			 * Cr =  0.4375(R) -0.3672(G) -0.0703(B)
+			 * Y   0.258(R)   0.504(G)   0.098(B)
+			 * Cb -0.1484(R) -0.2891(G)  0.4375(B)
+			 * Cr  0.4375(R) -0.3672(G) -0.0703(B)
 			 */
 			pic_param->csc.coef_ry = 0x084;
 			pic_param->csc.coef_gy = 0x102;
@@ -398,9 +397,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	} else if (inst->ycbcr_enc == V4L2_YCBCR_ENC_709) {
 		if (inst->quantization == V4L2_QUANTIZATION_FULL_RANGE) {
 			/*
-			 * Y  =  0.2126(R)   0.7152(G)   0.0722(B)
-			 * Cb = -0.11457(R) -0.38543(G)  0.5(B)
-			 * Cr =  0.5(R)     -0.45415(G) -0.04585(B)
+			 * Y   0.2126(R)   0.7152(G)   0.0722(B)
+			 * Cb -0.11457(R) -0.38543(G)  0.5(B)
+			 * Cr  0.5(R)     -0.45415(G) -0.04585(B)
 			 */
 			pic_param->csc.coef_ry = 0x06d;
 			pic_param->csc.coef_gy = 0x16e;
@@ -431,9 +430,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	} else if (inst->ycbcr_enc == V4L2_YCBCR_ENC_BT2020) {
 		if (inst->quantization == V4L2_QUANTIZATION_FULL_RANGE) {
 			/*
-			 * Y  =  0.2627(R)   0.678(G)    0.0593(B)
-			 * Cb = -0.13963(R) -0.36037(G)  0.5(B)
-			 * Cr =  0.5(R)     -0.45979(G) -0.04021(B)
+			 * Y   0.2627(R)   0.678(G)    0.0593(B)
+			 * Cb -0.13963(R) -0.36037(G)  0.5(B)
+			 * Cr  0.5(R)     -0.45979(G) -0.04021(B)
 			 */
 			pic_param->csc.coef_ry = 0x087;
 			pic_param->csc.coef_gy = 0x15b;
@@ -464,9 +463,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	} else if (inst->ycbcr_enc == V4L2_YCBCR_ENC_SMPTE240M) {
 		if (inst->quantization == V4L2_QUANTIZATION_FULL_RANGE) {
 			/*
-			 * Y  =  0.2122(R)  0.7013(G)  0.0865(B)
-			 * Cb = -0.1161(R) -0.3839(G)  0.5(B)
-			 * Cr =  0.5(R)    -0.4451(G) -0.0549(B)
+			 * Y   0.2122(R)  0.7013(G)  0.0865(B)
+			 * Cb -0.1161(R) -0.3839(G)  0.5(B)
+			 * Cr  0.5(R)    -0.4451(G) -0.0549(B)
 			 */
 			pic_param->csc.coef_ry = 0x06d;
 			pic_param->csc.coef_gy = 0x167;
@@ -497,9 +496,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	} else if (inst->ycbcr_enc == V4L2_YCBCR_ENC_XV601) {
 		if (inst->quantization == V4L2_QUANTIZATION_LIM_RANGE) {
 			/*
-			 * Y  =  0.2558(R)  0.5021(G)  0.0975(B)
-			 * Cb = -0.1476(R) -0.2899(G)  0.4375(B)
-			 * Cr =  0.4375(R) -0.3664(G) -0.0711(B)
+			 * Y   0.2558(R)  0.5021(G)  0.0975(B)
+			 * Cb -0.1476(R) -0.2899(G)  0.4375(B)
+			 * Cr  0.4375(R) -0.3664(G) -0.0711(B)
 			 */
 			pic_param->csc.coef_ry = 0x083;
 			pic_param->csc.coef_gy = 0x101;
@@ -517,9 +516,9 @@ static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param
 	} else if (inst->ycbcr_enc == V4L2_YCBCR_ENC_XV709) {
 		if (inst->quantization == V4L2_QUANTIZATION_LIM_RANGE) {
 			/*
-			 * Y  =  0.1819(R)  0.6118(G)  0.0618(B)
-			 * Cb = -0.1003(R) -0.3372(G)  0.4375(B)
-			 * Cr =  0.4375(R) -0.3974(G) -0.0401(B)
+			 * Y   0.1819(R)  0.6118(G)  0.0618(B)
+			 * Cb -0.1003(R) -0.3372(G)  0.4375(B)
+			 * Cr  0.4375(R) -0.3974(G) -0.0401(B)
 			 */
 			pic_param->csc.coef_ry = 0x05d;
 			pic_param->csc.coef_gy = 0x139;
@@ -628,49 +627,48 @@ static void wave6_update_frame_buf_addr(struct vpu_instance *inst,
 	frame_buf->buf_cr += offset;
 }
 
-static void wave6_enc_update_seq_param(struct vpu_instance *inst)
+static int wave6_update_seq_param(struct vpu_instance *inst)
 {
-	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct enc_change_param *p_change_param = &p_enc_info->change_param;
-	struct enc_wave_param *p_param = &p_enc_info->open_param.wave_param;
+	struct enc_initial_info initial_info;
+	bool changed = false;
+	int ret;
 
-	memset(p_change_param, 0, sizeof(struct enc_change_param));
-
-	/*do we need check bitrate is out of maxmbs*/
-	if (p_param->enc_bit_rate != inst->enc_ctrls.bitrate) {
-		p_change_param->enable |= ENABLE_SET_RC_TARGET_RATE;
-		p_change_param->enc_bit_rate = inst->enc_ctrls.bitrate;
-		p_param->enc_bit_rate = inst->enc_ctrls.bitrate;
+	ret = wave6_vpu_enc_issue_seq_change(inst, &changed);
+	if (ret) {
+		dev_err(inst->dev->dev, "seq change fail %d\n", ret);
+		return ret;
 	}
+
+	if (!changed)
+		return 0;
+
+	if (wave6_vpu_wait_interrupt(inst, W6_VPU_TIMEOUT) < 0) {
+		dev_err(inst->dev->dev, "seq change timeout\n");
+		return ret;
+	}
+
+	wave6_vpu_enc_complete_seq_init(inst, &initial_info);
+	if (ret) {
+		dev_err(inst->dev->dev, "seq change error\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 {
-	int ret = -EINVAL;
+	int ret;
 	struct vb2_v4l2_buffer *src_buf = NULL;
 	struct vb2_v4l2_buffer *dst_buf = NULL;
 	struct vpu_buffer *src_vbuf = NULL;
 	struct vpu_buffer *dst_vbuf = NULL;
 	struct frame_buffer frame_buf;
 	struct enc_param pic_param;
-	struct enc_initial_info initial_info;
-	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 	u32 stride = inst->src_fmt.plane_fmt[0].bytesperline;
 	u32 luma_size = (stride * inst->src_fmt.height);
 	u32 chroma_size;
 	u32 fail_res;
-
-	wave6_enc_update_seq_param(inst);
-	if (p_enc_info->change_param.enable) {
-		pr_info("start encode:dynamic change param\n");
-		wave6_vpu_enc_update_seq(inst);
-		if (wave6_vpu_wait_interrupt(inst, W6_VPU_TIMEOUT) < 0) {
-			dev_err(inst->dev->dev, "failed to call wave6_vpu_wait_interrupt()\n");
-			goto exit;
-		}
-		pr_info("start encode:set dynamic change param successfully\n");
-		wave6_vpu_enc_complete_seq_update(inst, &initial_info);
-	}
 
 	memset(&pic_param, 0, sizeof(struct enc_param));
 	memset(&frame_buf, 0, sizeof(struct frame_buffer));
@@ -683,6 +681,10 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 		chroma_size = ((stride) * (inst->src_fmt.height / 2));
 	else
 		chroma_size = 0;
+
+	ret = wave6_update_seq_param(inst);
+	if (ret)
+		goto exit;
 
 	src_buf = wave6_get_valid_src_buf(inst);
 	dst_buf = wave6_get_valid_dst_buf(inst);
@@ -698,7 +700,7 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 	if (!src_buf) {
 		dev_dbg(inst->dev->dev, "no valid src buf\n");
 		if (inst->state == VPU_INST_STATE_STOP)
-			pic_param.src_end_flag = 1;
+			pic_param.src_end = true;
 		else
 			goto exit;
 	} else {
@@ -719,11 +721,9 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 		for (int i = 0; i < inst->src_fmt.num_planes; i++) {
 			dma_addr_t daddr = vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, i);
 
-			if (swiotlb_find_pool(inst->dev->dev, daddr)) {
-				dma_sync_single_for_device(inst->dev->dev, daddr,
-							   inst->src_fmt.plane_fmt[i].sizeimage,
-							   DMA_BIDIRECTIONAL);
-			}
+			dma_sync_single_for_device(inst->dev->dev, daddr,
+						   inst->src_fmt.plane_fmt[i].sizeimage,
+						   DMA_BIDIRECTIONAL);
 		}
 		wave6_update_frame_buf_addr(inst, &frame_buf);
 		frame_buf.stride = stride;
@@ -743,7 +743,6 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 	}
 
 	pic_param.source_frame = &frame_buf;
-	pic_param.code_option.implicit_header_encode = 1;
 	wave6_set_csc(inst, &pic_param);
 
 	if (src_vbuf)
@@ -817,7 +816,7 @@ static void wave6_handle_encoded_frame(struct vpu_instance *inst,
 	dst_vpu_buf->ts_input = vpu_buf->ts_input;
 	dst_vpu_buf->ts_start = vpu_buf->ts_start;
 	dst_vpu_buf->ts_finish = ktime_get_raw();
-	dst_vpu_buf->hw_time = wave6_cycle_to_ns(inst->dev, info->cycle.frame_cycle);
+	dst_vpu_buf->hw_time = wave6_vpu_cycle_to_ns(inst->dev, info->cycle.frame_cycle);
 	dst_vpu_buf->ts_output = ktime_get_raw();
 	wave6_vpu_handle_performance(inst, dst_vpu_buf);
 
@@ -840,9 +839,8 @@ static void wave6_handle_encoded_frame(struct vpu_instance *inst,
 		inst->error_recovery = true;
 		inst->error_buf_num++;
 	}
-	if (swiotlb_find_pool(inst->dev->dev, info->bitstream_buffer))
-		dma_sync_single_for_cpu(inst->dev->dev, info->bitstream_buffer,
-					info->bitstream_size, DMA_BIDIRECTIONAL);
+	dma_sync_single_for_cpu(inst->dev->dev, info->bitstream_buffer,
+				info->bitstream_size, DMA_BIDIRECTIONAL);
 	v4l2_m2m_buf_done(dst_buf, state);
 	inst->processed_buf_num++;
 }
@@ -870,14 +868,12 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 	v4l2_m2m_set_src_buffered(inst->v4l2_fh.m2m_ctx, false);
 }
 
-static void wave6_vpu_enc_finish_encode(struct vpu_instance *inst, int irq_status)
+static void wave6_vpu_enc_finish_encode(struct vpu_instance *inst, bool error)
 {
 	int ret;
-	struct enc_output_info info = { 0 };
+	struct enc_output_info info;
 
-	if (irq_status & BIT(INT_WAVE6_BSBUF_FULL)) {
-		dev_err(inst->dev->dev, "Unexpected irq 0x%x\n", irq_status);
-
+	if (error) {
 		vb2_queue_error(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx));
 		vb2_queue_error(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx));
 
@@ -1006,10 +1002,10 @@ static int wave6_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_form
 	if (ret)
 		return ret;
 
-	inst->std = wave6_to_wave_std(inst->type, pix_mp->pixelformat);
+	inst->std = wave6_to_codec_std(inst->type, pix_mp->pixelformat);
 	if (inst->std == STD_UNKNOWN) {
 		dev_err(inst->dev->dev, "unsupported pixelformat: %.4s\n",
-			(char *)&inst->dst_fmt.pixelformat);
+			(char *)&pix_mp->pixelformat);
 		return -EINVAL;
 	}
 
@@ -1260,7 +1256,7 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 	max_crop_w = inst->src_fmt.width - s->r.left;
 	max_crop_h = inst->src_fmt.height - s->r.top;
 
-	if (s->r.width == 0 || s->r.height == 0)
+	if (!s->r.width || !s->r.height)
 		return 0;
 	if (max_crop_w < W6_MIN_ENC_PIC_WIDTH)
 		return 0;
@@ -1656,7 +1652,7 @@ static u32 to_matrix_coeffs(enum v4l2_colorspace colorspace,
 	}
 }
 
-static void wave6_set_enc_h264_param(struct enc_wave_param *output,
+static void wave6_set_enc_h264_param(struct enc_codec_param *output,
 				     struct h264_enc_controls *ctrls)
 {
 	switch (ctrls->profile) {
@@ -1771,7 +1767,7 @@ static void wave6_set_enc_h264_param(struct enc_wave_param *output,
 	output->en_auto_level_adjusting = DEFAULT_EN_AUTO_LEVEL_ADJUSTING;
 }
 
-static void wave6_set_enc_hevc_param(struct enc_wave_param *output,
+static void wave6_set_enc_hevc_param(struct enc_codec_param *output,
 				     struct hevc_enc_controls *ctrls)
 {
 	switch (ctrls->profile) {
@@ -1871,7 +1867,7 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 				     struct vpu_instance *inst)
 {
 	struct enc_controls *ctrls = &inst->enc_ctrls;
-	struct enc_wave_param *output = &open_param->wave_param;
+	struct enc_codec_param *output = &open_param->codec_param;
 	u32 ctu_size = (inst->std == W_AVC_ENC) ? 16 : 64;
 	u32 num_ctu_row = ALIGN(inst->src_fmt.height, ctu_size) / ctu_size;
 
@@ -1939,7 +1935,7 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 	output->en_cu_level_rate_control = ctrls->mb_rc_enable;
 	output->max_intra_pic_bit = inst->dst_fmt.plane_fmt[0].sizeimage * 8;
 	output->max_inter_pic_bit = inst->dst_fmt.plane_fmt[0].sizeimage * 8;
-	output->enc_bit_rate = ctrls->bitrate;
+	output->bitrate = ctrls->bitrate;
 	output->cpb_size = wave6_cpb_size_msec(ctrls->h264.cpb_size, ctrls->bitrate);
 	output->slice_mode = ctrls->slice_mode;
 	output->slice_arg = ctrls->slice_max_mb;
@@ -1961,9 +1957,9 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 		output->sar.idc = H264_VUI_SAR_IDC_EXTENDED;
 	output->sar.width = ctrls->h264.vui_ext_sar_width;
 	output->sar.height = ctrls->h264.vui_ext_sar_height;
-	output->color.video_signal_type_present_flag = DEFAULT_VUI_VIDEO_SIGNAL_TYPE_PRESENT_FLAG;
+	output->color.video_signal_type_present = DEFAULT_VUI_VIDEO_SIGNAL_TYPE_PRESENT_FLAG;
 	output->color.color_range = to_video_full_range_flag(inst->quantization);
-	output->color.color_description_present_flag = DEFAULT_VUI_COLOR_DESCRIPTION_PRESENT_FLAG;
+	output->color.color_description_present = DEFAULT_VUI_COLOR_DESCRIPTION_PRESENT_FLAG;
 	output->color.color_primaries = to_colour_primaries(inst->colorspace);
 	output->color.transfer_characteristics = to_transfer_characteristics(inst->colorspace,
 									     inst->xfer_func);
@@ -1981,8 +1977,6 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 		break;
 	case W_HEVC_ENC:
 		wave6_set_enc_hevc_param(output, &ctrls->hevc);
-		break;
-	case W_AV1_ENC:
 		break;
 	default:
 		break;
@@ -2086,25 +2080,28 @@ static int wave6_vpu_enc_prepare_fb(struct vpu_instance *inst)
 {
 	int ret;
 	unsigned int i;
-	unsigned int fb_num = 0;
-	unsigned int mv_num = 0;
-	unsigned int fb_stride = 0;
-	unsigned int fb_height = 0;
+	unsigned int fb_num;
+	unsigned int mv_num;
+	unsigned int fb_stride;
+	unsigned int fb_height;
+	unsigned int luma_size;
+	unsigned int chroma_size;
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 
 	fb_num = p_enc_info->initial_info.min_frame_buffer_count;
 	mv_num = p_enc_info->initial_info.req_mv_buffer_count;
 
-	fb_stride = ALIGN(inst->codec_rect.width, 32);
-	fb_height = ALIGN(inst->codec_rect.height, 32);
+	fb_stride = ALIGN(inst->codec_rect.width, W6_FBC_BUF_ALIGNMENT);
+	fb_height = ALIGN(inst->codec_rect.height, W6_FBC_BUF_ALIGNMENT);
+
+	luma_size = fb_stride * fb_height;
+	chroma_size = ALIGN(fb_stride / 2, W6_FBC_BUF_ALIGNMENT) * fb_height;
 
 	for (i = 0; i < fb_num; i++) {
 		struct frame_buffer *frame = &inst->frame_buf[i];
 		struct vpu_buf *vframe = &inst->frame_vbuf[i];
-		unsigned int l_size = fb_stride * fb_height;
-		unsigned int ch_size = ALIGN(fb_stride / 2, 32) * fb_height;
 
-		vframe->size = l_size + ch_size;
+		vframe->size = luma_size + chroma_size;
 		ret = wave6_alloc_dma(inst->dev->dev, vframe);
 		if (ret) {
 			dev_err(inst->dev->dev, "alloc FBC buffer fail : %zu\n",
@@ -2113,7 +2110,7 @@ static int wave6_vpu_enc_prepare_fb(struct vpu_instance *inst)
 		}
 
 		frame->buf_y = vframe->daddr;
-		frame->buf_cb = vframe->daddr + l_size;
+		frame->buf_cb = vframe->daddr + luma_size;
 		frame->buf_cr = (dma_addr_t)-1;
 		frame->stride = fb_stride;
 		frame->height = fb_height;
@@ -2135,12 +2132,6 @@ static int wave6_vpu_enc_prepare_fb(struct vpu_instance *inst)
 	ret = wave6_allocate_aux_buffer(inst, AUX_BUF_SUB_SAMPLE, fb_num);
 	if (ret)
 		goto error;
-
-	if (inst->std == W_AV1_ENC) {
-		ret = wave6_allocate_aux_buffer(inst, AUX_BUF_DEF_CDF, 1);
-		if (ret)
-			goto error;
-	}
 
 	ret = wave6_vpu_enc_register_frame_buffer_ex(inst, fb_num, fb_stride,
 						     fb_height,
@@ -2495,7 +2486,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEVC_REFRESH_TYPE,
 			       V4L2_MPEG_VIDEO_HEVC_REFRESH_IDR,
-			       (1 << V4L2_MPEG_VIDEO_HEVC_REFRESH_CRA),
+			       BIT(V4L2_MPEG_VIDEO_HEVC_REFRESH_CRA),
 			       V4L2_MPEG_VIDEO_HEVC_REFRESH_IDR);
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			  V4L2_CID_MPEG_VIDEO_HEVC_REFRESH_PERIOD,
@@ -2588,7 +2579,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 			       V4L2_MPEG_VIDEO_BITRATE_MODE_CBR);
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			  V4L2_CID_MPEG_VIDEO_BITRATE,
-			  1, 1500000000, 1, 2097152);
+			  1, 240000000, 1, 2097152);
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			  V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE,
 			  0, 1, 1, 1);
@@ -2614,7 +2605,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE,
 			       V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC,
-			       (1 << V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM),
+			       BIT(V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_RANDOM),
 			       V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD_TYPE_CYCLIC);
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			  V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD,
@@ -2622,7 +2613,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_FRAME_SKIP_MODE,
 			       V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_BUF_LIMIT,
-			       (1 << V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_LEVEL_LIMIT),
+			       BIT(V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_LEVEL_LIMIT),
 			       V4L2_MPEG_VIDEO_FRAME_SKIP_MODE_DISABLED);
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			  V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 1, 32, 1, 1);

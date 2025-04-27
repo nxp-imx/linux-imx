@@ -5,6 +5,7 @@
 
 /dts-v1/;
 
+#include <dt-bindings/i3c/i3c.h>
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/phy/phy-imx8-pcie.h>
 #include <dt-bindings/pwm/pwm.h>
@@ -319,6 +320,20 @@
 	status = "okay";
 };
 
+&i3c2 {
+	i2c-scl-hz = <400000>;
+	pinctrl-0 = <&pinctrl_i3c2>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	pca9570: gpio@24 {
+		compatible = "nxp,pca9570";
+		reg = <0x24 0 (I2C_FILTER)>;
+		#gpio-cells = <2>;
+		gpio-controller;
+	};
+};
+
 &flexcan2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_flexcan2>;
@@ -525,6 +540,14 @@
 		  <0x60 &its 0x66 0x1>, //ENETC1 VF1
 		  <0x80 &its 0x64 0x1>, //ENETC2 PF
 		  <0xc0 &its 0x67 0x1>; //NETC Timer
+	iommu-map = <0x0 &smmu 0x20 0x1>,
+		    <0x10 &smmu 0x21 0x1>,
+		    <0x20 &smmu 0x22 0x1>,
+		    <0x40 &smmu 0x23 0x1>,
+		    <0x50 &smmu 0x25 0x1>,
+		    <0x60 &smmu 0x26 0x1>,
+		    <0x80 &smmu 0x24 0x1>,
+		    <0xc0 &smmu 0x27 0x1>;
 };
 
 &enetc_port0 {
@@ -749,6 +772,13 @@
 	pinctrl_hp: hpgrp {
 		fsl,pins = <
 			IMX95_PAD_GPIO_IO21__GPIO2_IO_BIT21		0x31e
+		>;
+	};
+
+	pinctrl_i3c2: i3c2grp {
+		fsl,pins = <
+			IMX95_PAD_ENET1_MDC__I3C2_SCL			0x4000019e
+			IMX95_PAD_ENET1_MDIO__I3C2_SDA			0x4000019e
 		>;
 	};
 
@@ -1004,12 +1034,12 @@
 
 	pinctrl_usdhc2_200mhz: usdhc2-200mhzgrp {
 		fsl,pins = <
-			IMX95_PAD_SD2_CLK__USDHC2_CLK				0x15fe
-			IMX95_PAD_SD2_CMD__USDHC2_CMD				0x13fe
-			IMX95_PAD_SD2_DATA0__USDHC2_DATA0			0x13fe
-			IMX95_PAD_SD2_DATA1__USDHC2_DATA1			0x13fe
-			IMX95_PAD_SD2_DATA2__USDHC2_DATA2			0x13fe
-			IMX95_PAD_SD2_DATA3__USDHC2_DATA3			0x13fe
+			IMX95_PAD_SD2_CLK__USDHC2_CLK				0x158e
+			IMX95_PAD_SD2_CMD__USDHC2_CMD				0x138e
+			IMX95_PAD_SD2_DATA0__USDHC2_DATA0			0x138e
+			IMX95_PAD_SD2_DATA1__USDHC2_DATA1			0x138e
+			IMX95_PAD_SD2_DATA2__USDHC2_DATA2			0x138e
+			IMX95_PAD_SD2_DATA3__USDHC2_DATA3			0x138e
 			IMX95_PAD_SD2_VSELECT__USDHC2_VSELECT			0x51e
 		>;
 	};

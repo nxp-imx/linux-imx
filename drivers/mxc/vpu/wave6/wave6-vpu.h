@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
 /*
- * Wave6 series multi-standard codec IP - basic types
+ * Wave6 series multi-standard codec IP - wave6 codec driver
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
-#ifndef __VPU_DRV_H__
-#define __VPU_DRV_H__
+
+#ifndef __WAVE6_VPU_H__
+#define __WAVE6_VPU_H__
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-ioctl.h>
@@ -13,7 +14,6 @@
 #include <media/v4l2-fh.h>
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
-#include <media/videobuf2-vmalloc.h>
 #include "wave6-vpuconfig.h"
 #include "wave6-vpuapi.h"
 
@@ -36,8 +36,8 @@ struct vpu_buffer {
 };
 
 enum vpu_fmt_type {
-	VPU_FMT_TYPE_CODEC = 0,
-	VPU_FMT_TYPE_RAW   = 1
+	VPU_FMT_TYPE_CODEC	= 0,
+	VPU_FMT_TYPE_RAW	= 1
 };
 
 struct vpu_format {
@@ -84,7 +84,10 @@ struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 						  dma_addr_t addr);
 dma_addr_t wave6_get_dma_addr(struct vb2_v4l2_buffer *buf,
 			      unsigned int plane_no);
-enum wave_std wave6_to_wave_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt);
+enum codec_std wave6_to_codec_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt);
+const char *wave6_vpu_instance_state_name(u32 state);
+void wave6_vpu_set_instance_state(struct vpu_instance *inst, u32 state);
+u64 wave6_vpu_cycle_to_ns(struct vpu_device *vpu_dev, u64 cycle);
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout);
 int  wave6_vpu_dec_register_device(struct vpu_device *dev);
 void wave6_vpu_dec_unregister_device(struct vpu_device *dev);
@@ -100,4 +103,4 @@ int wave6_vpu_subscribe_event(struct v4l2_fh *fh,
 void wave6_vpu_return_buffers(struct vpu_instance *inst,
 			      unsigned int type, enum vb2_buffer_state state);
 
-#endif
+#endif /* __WAVE6_VPU_H__ */

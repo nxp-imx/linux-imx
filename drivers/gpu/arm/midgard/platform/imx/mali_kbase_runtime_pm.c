@@ -2,7 +2,7 @@
 /*
  *
  * COPYRIGHT 2015-2023 ARM Limited. All rights reserved.
- * COPYRIGHT 2023 - 2025 NXP
+ * COPYRIGHT 2023 - 2024 NXP
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -156,57 +156,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #endif
 }
 
-static void pm_callback_runtime_gpu_active(struct kbase_device *kbdev)
-{
-	unsigned long flags;
-	int error;
-
-	lockdep_assert_held(&kbdev->pm.lock);
-
-#ifdef CONFIG_MALI_DEBUG
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	WARN_ON(!kbase_io_is_gpu_powered(kbdev));
-	WARN_ON(!kbdev->pm.active_count);
-	WARN_ON(kbdev->pm.runtime_active);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#else
-	CSTD_UNUSED(flags);
-#endif
-
-	/* Call the async version here, otherwise there could be
-	 * a deadlock if the runtime suspend operation is ongoing.
-	 * Caller would have taken the kbdev->pm.lock and/or the
-	 * scheduler lock, and the runtime suspend callback function
-	 * will also try to acquire the same lock(s).
-	 */
-	error = pm_runtime_get(kbdev->dev);
-	dev_dbg(kbdev->dev, "pm_runtime_get returned %d", error);
-
-	kbdev->pm.runtime_active = true;
-}
-static void pm_callback_runtime_gpu_idle(struct kbase_device *kbdev)
-{
-	unsigned long flags;
-
-	lockdep_assert_held(&kbdev->pm.lock);
-
-#ifdef CONFIG_MALI_DEBUG
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	WARN_ON(!kbase_io_is_gpu_powered(kbdev));
-	WARN_ON(kbdev->pm.backend.l2_state != KBASE_L2_OFF);
-	WARN_ON(kbdev->pm.active_count);
-	WARN_ON(!kbdev->pm.runtime_active);
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-#else
-	CSTD_UNUSED(flags);
-#endif
-
-	if (pm_runtime_enabled(kbdev->dev)) {
-		pm_runtime_mark_last_busy(kbdev->dev);
-		pm_runtime_put_autosuspend(kbdev->dev);
-	}
-	kbdev->pm.runtime_active = false;
-}
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
 {
 	int ret = 0;
@@ -298,6 +247,4 @@ struct kbase_pm_callback_conf pm_callbacks = {
 	.power_runtime_term_callback = kbase_device_runtime_disable,
 	.power_runtime_on_callback = pm_callback_runtime_on,
 	.power_runtime_off_callback = pm_callback_runtime_off,
-	.power_runtime_gpu_idle_callback = pm_callback_runtime_gpu_idle,
-	.power_runtime_gpu_active_callback = pm_callback_runtime_gpu_active,
 };

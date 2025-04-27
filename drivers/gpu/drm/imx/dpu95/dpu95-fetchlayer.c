@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2020,2022,2023 NXP
+ * Copyright 2017-2020,2022,2023,2025 NXP
  */
 
 #include <linux/kernel.h>
@@ -25,8 +25,7 @@ static void dpu95_fl_shdldreq_sticky(struct dpu95_fetchunit *fu, u8 layer_mask)
 
 static void dpu95_fl_set_src_buf_dimensions(struct dpu95_fetchunit *fu,
 					    unsigned int w, unsigned int h,
-					    const struct drm_format_info *unused1,
-					    bool unused2)
+					    const struct drm_format_info *unused)
 {
 	dpu95_fu_write(fu, SOURCEBUFFERDIMENSION(fu),
 		       LINEWIDTH(w) | LINECOUNT(h));
@@ -35,8 +34,7 @@ static void dpu95_fl_set_src_buf_dimensions(struct dpu95_fetchunit *fu,
 static void dpu95_fl_set_fmt(struct dpu95_fetchunit *fu,
 			     const struct drm_format_info *format,
 			     enum drm_color_encoding color_encoding,
-			     enum drm_color_range color_range,
-			     bool unused)
+			     enum drm_color_range color_range)
 {
 	u32 bits = 0, shifts = 0;
 
@@ -54,7 +52,7 @@ static void dpu95_fl_set_fmt(struct dpu95_fetchunit *fu,
 
 static void
 dpu95_fl_set_framedimensions(struct dpu95_fetchunit *fu, unsigned int w,
-			     unsigned int h, bool unused)
+			     unsigned int h)
 {
 	dpu95_fu_write(fu, FRAMEDIMENSIONS(fu), FRAMEWIDTH(w) | FRAMEHEIGHT(h));
 }

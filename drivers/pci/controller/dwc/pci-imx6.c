@@ -52,6 +52,8 @@
 #define IMX95_PCIE_REF_CLKEN			BIT(23)
 #define IMX95_PCIE_PHY_CR_PARA_SEL		BIT(9)
 #define IMX95_PCIE_SS_RW_REG_1			0xf4
+#define IMX95_PCIE_CLKREQ_OVERRIDE_EN		BIT(8)
+#define IMX95_PCIE_CLKREQ_OVERRIDE_VAL		BIT(9)
 #define IMX95_PCIE_SYS_AUX_PWR_DET		BIT(31)
 
 #define IMX95_PE0_GEN_CTRL_1			0x1050
@@ -153,6 +155,7 @@ struct imx_pcie {
 	int			host_wake_irq;
 	bool			link_is_up;
 	bool			enable_ext_refclk;
+	bool			supports_clkreq;
 	struct clk_bulk_data	*clks;
 	int			num_clks;
 	struct regmap		*iomuxc_gpr;
@@ -283,6 +286,14 @@ static int imx95_pcie_init_phy(struct imx_pcie *imx_pcie)
 				   IMX95_PCIE_REF_CLKEN);
 	}
 
+	/* Force CLKREQ# low by override */
+	if (imx_pcie->supports_clkreq == false)
+		regmap_update_bits(imx_pcie->iomuxc_gpr,
+				   IMX95_PCIE_SS_RW_REG_1,
+				   IMX95_PCIE_CLKREQ_OVERRIDE_EN |
+				   IMX95_PCIE_CLKREQ_OVERRIDE_VAL,
+				   IMX95_PCIE_CLKREQ_OVERRIDE_EN |
+				   IMX95_PCIE_CLKREQ_OVERRIDE_VAL);
 	return 0;
 }
 
@@ -785,19 +796,6 @@ static int imx7d_pcie_enable_ref_clk(struct imx_pcie *imx_pcie, bool enable)
 	regmap_update_bits(imx_pcie->iomuxc_gpr, IOMUXC_GPR12,
 			   IMX7D_GPR12_PCIE_PHY_REFCLK_SEL,
 			   enable ? 0 : IMX7D_GPR12_PCIE_PHY_REFCLK_SEL);
-	return 0;
-}
-
-static int imx95_pcie_enable_ref_clk(struct imx_pcie *imx_pcie, bool enable)
-{
-	u32 val;
-
-	val = dw_pcie_find_ext_capability(imx_pcie->pci, PCI_EXT_CAP_ID_L1SS);
-	if (enable)
-		dw_pcie_writel_dbi(imx_pcie->pci, val + PCI_L1SS_CTL1, BIT(1));
-	else
-		dw_pcie_writel_dbi(imx_pcie->pci, val + PCI_L1SS_CTL1, 0);
-
 	return 0;
 }
 
@@ -1822,6 +1820,18 @@ static int imx_pcie_probe(struct platform_device *pdev)
 	pci->max_link_speed = 1;
 	of_property_read_u32(node, "fsl,max-link-speed", &pci->max_link_speed);
 
+	/*
+	 * CLKREQ# signal is an open drain, active low signal that is
+	 * driven by the add-in card to requtest reference clock refer
+	 * to Chapter 2.10 CLKREQ# Signal of PCI Express Card
+	 * Electromechanical Specification Rev 6.0.
+	 * If it's present in the device node of board, that means the
+	 * CLKREQ# signal had been driven low by add-in card.
+	 * Otherwise, CLKREQ# signal would be overridden to active low
+	 * by system.
+	 */
+	imx_pcie->supports_clkreq =
+		of_property_read_bool(node, "supports-clkreq");
 	imx_pcie->vpcie = devm_regulator_get_optional(&pdev->dev, "vpcie");
 	if (IS_ERR(imx_pcie->vpcie)) {
 		if (PTR_ERR(imx_pcie->vpcie) != -ENODEV)
@@ -2020,7 +2030,6 @@ static const struct imx_pcie_drvdata drvdata[] = {
 		.mode_off[0]  = IMX95_PE0_GEN_CTRL_1,
 		.mode_mask[0] = IMX95_PCIE_DEVICE_TYPE,
 		.init_phy = imx95_pcie_init_phy,
-		.enable_ref_clk = imx95_pcie_enable_ref_clk,
 		.core_reset = imx95_pcie_core_reset,
 		.post_config = imx95_pcie_post_config,
 	},

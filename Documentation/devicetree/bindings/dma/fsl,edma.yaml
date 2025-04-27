@@ -83,6 +83,11 @@ properties:
       eDMA are implemented in big endian mode, otherwise in little mode.
     type: boolean
 
+  dma-coherent: true
+
+  iommus:
+    maxItems: 1
+
 required:
   - "#dma-cells"
   - compatible

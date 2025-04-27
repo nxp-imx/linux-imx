@@ -808,8 +808,7 @@ int ele_debug_dump(struct se_if_priv *priv)
 				  rx_msg->data[13], rx_msg->data[14],
 				  rx_msg->data[15], rx_msg->data[16],
 				  rx_msg->data[17], rx_msg->data[18],
-				  rx_msg->data[19], rx_msg->data[20],
-				  rx_msg->data[21], rx_msg->data[22]);
+				  rx_msg->data[19], rx_msg->data[20]);
 
 			dev_err(priv->dev, "%s", dump_data);
 		} else {
@@ -818,6 +817,61 @@ int ele_debug_dump(struct se_if_priv *priv)
 		}
 		msg_ex_cnt++;
 	} while (keep_logging);
+
+exit:
+	return ret;
+}
+
+int ele_get_fw_version(struct se_if_priv *priv, u32 *fw_ver_word,
+		       u32 *commit_sha1)
+{
+	struct se_api_msg *tx_msg __free(kfree) = NULL;
+	struct se_api_msg *rx_msg __free(kfree) = NULL;
+	int ret = 0;
+
+	if (!priv) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	tx_msg = kzalloc(ELE_GET_FW_VERSION_REQ_SZ, GFP_KERNEL);
+	if (!tx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	rx_msg = kzalloc(ELE_GET_FW_VERSION_RSP_SZ, GFP_KERNEL);
+	if (!rx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = se_fill_cmd_msg_hdr(priv,
+				  (struct se_msg_hdr *)&tx_msg->header,
+				  ELE_GET_FW_VERSION_REQ,
+				  ELE_GET_FW_VERSION_REQ_SZ,
+				  true);
+	if (ret)
+		goto exit;
+
+	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
+			       tx_msg,
+			       ELE_GET_FW_VERSION_REQ_SZ,
+			       rx_msg,
+			       ELE_GET_FW_VERSION_RSP_SZ);
+	if (ret < 0)
+		goto exit;
+
+	ret = se_val_rsp_hdr_n_status(priv,
+				      rx_msg,
+				      ELE_GET_FW_VERSION_REQ,
+				      ELE_GET_FW_VERSION_RSP_SZ,
+				      true);
+	if (ret)
+		goto exit;
+
+	*fw_ver_word = rx_msg->data[1];
+	*commit_sha1 = rx_msg->data[2];
 
 exit:
 	return ret;

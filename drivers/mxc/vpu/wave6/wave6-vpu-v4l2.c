@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
 /*
- * Wave6 series multi-standard codec IP - v4l2 interface
+ * Wave6 series multi-standard codec IP - v4l2 driver helper interface
  *
- * Copyright (C) 2022 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
 
+#include <linux/clk.h>
+#include <linux/math64.h>
 #include "wave6-vpu.h"
 #include "wave6-vpu-dbg.h"
-#include <linux/math64.h>
+#include "wave6-trace.h"
 
 void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  unsigned int width,
@@ -35,7 +37,7 @@ void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 	stride_y = width * fmt_info->bpp[0];
 	if (pix_mp->plane_fmt[0].bytesperline <= W6_MAX_PIC_STRIDE)
 		stride_y = max(stride_y, pix_mp->plane_fmt[0].bytesperline);
-	stride_y = round_up(stride_y, 32);
+	stride_y = round_up(stride_y, W6_PIC_STRIDE_ALIGNMENT);
 	pix_mp->plane_fmt[0].bytesperline = stride_y;
 	pix_mp->plane_fmt[0].sizeimage = stride_y * height;
 
@@ -81,9 +83,9 @@ struct vb2_v4l2_buffer *wave6_get_dst_buf_by_addr(struct vpu_instance *inst,
 	return dst_buf;
 }
 
-enum wave_std wave6_to_wave_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt)
+enum codec_std wave6_to_codec_std(enum vpu_instance_type type, unsigned int v4l2_pix_fmt)
 {
-	enum wave_std std = STD_UNKNOWN;
+	enum codec_std std = STD_UNKNOWN;
 
 	if (v4l2_pix_fmt == V4L2_PIX_FMT_H264)
 		std = (type == VPU_INST_TYPE_DEC) ? W_AVC_DEC : W_AVC_ENC;
@@ -91,6 +93,41 @@ enum wave_std wave6_to_wave_std(enum vpu_instance_type type, unsigned int v4l2_p
 		std = (type == VPU_INST_TYPE_DEC) ? W_HEVC_DEC : W_HEVC_ENC;
 
 	return std;
+}
+
+const char *wave6_vpu_instance_state_name(u32 state)
+{
+	switch (state) {
+	case VPU_INST_STATE_NONE: return "none";
+	case VPU_INST_STATE_OPEN: return "open";
+	case VPU_INST_STATE_INIT_SEQ: return "init_seq";
+	case VPU_INST_STATE_PIC_RUN: return "pic_run";
+	case VPU_INST_STATE_SEEK: return "seek";
+	case VPU_INST_STATE_STOP: return "stop";
+	}
+	return "unknown";
+}
+
+void wave6_vpu_set_instance_state(struct vpu_instance *inst, u32 state)
+{
+	trace_set_state(inst, state);
+
+	dprintk(inst->dev->dev, "[%d] %s -> %s\n",
+		inst->id,
+		wave6_vpu_instance_state_name(inst->state),
+		wave6_vpu_instance_state_name(state));
+
+	inst->state = state;
+	if (state == VPU_INST_STATE_PIC_RUN && !inst->performance.ts_first)
+		inst->performance.ts_first = ktime_get_raw();
+}
+
+u64 wave6_vpu_cycle_to_ns(struct vpu_device *vpu_dev, u64 cycle)
+{
+	if (!vpu_dev || !vpu_dev->clk_vpu || !clk_get_rate(vpu_dev->clk_vpu))
+		return 0;
+
+	return (cycle * NSEC_PER_SEC) / clk_get_rate(vpu_dev->clk_vpu);
 }
 
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
@@ -205,7 +242,6 @@ static int wave6_vpu_job_ready(void *priv)
 	dev_dbg(inst->dev->dev, "[%d]%s: state %d\n",
 		inst->id, __func__, inst->state);
 
-	/*decoder parse sequence header*/
 	if (inst->type == VPU_INST_TYPE_DEC && inst->state == VPU_INST_STATE_OPEN)
 		return 1;
 	if (inst->state < VPU_INST_STATE_PIC_RUN)

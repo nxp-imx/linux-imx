@@ -84,6 +84,10 @@ struct ele_dev_info {
 #define ELE_IMEM_EXPORT			0x1
 #define ELE_IMEM_IMPORT			0x2
 
+#define ELE_FW_GET_FWAUTH_REQ			0x02
+#define ELE_FW_AUTH_REQ_SZ		0x10
+#define ELE_FW_AUTH_RSP_MSG_SZ		0x08
+
 #define ELE_FW_AUTH_REQ			0x02
 #define ELE_FW_AUTH_REQ_SZ		0x10
 #define ELE_FW_AUTH_RSP_MSG_SZ		0x08
@@ -116,6 +120,10 @@ struct ele_dev_info {
 #define ELE_V2X_FW_AUTH_REQ_SZ		0x10
 #define ELE_V2X_FW_AUTH_RSP_MSG_SZ	0x08
 
+#define ELE_GET_FW_VERSION_REQ		0x9d
+#define ELE_GET_FW_VERSION_REQ_SZ	0x04
+#define ELE_GET_FW_VERSION_RSP_SZ	0x10
+
 int ele_get_info(struct se_if_priv *priv, struct ele_dev_info *s_info);
 int ele_fetch_soc_info(struct se_if_priv *priv, void *data);
 int ele_ping(struct se_if_priv *priv);
@@ -132,4 +140,6 @@ int read_common_fuse(struct se_if_priv *priv,
 int ele_get_v2x_fw_state(struct se_if_priv *priv, uint32_t *state);
 int ele_v2x_fw_authenticate(struct se_if_priv *priv, phys_addr_t addr);
 int ele_debug_dump(struct se_if_priv *priv);
+int ele_get_fw_version(struct se_if_priv *priv, u32 *fw_ver_word,
+		       u32 *commit_sha1);
 #endif

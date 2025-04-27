@@ -324,8 +324,8 @@
 				interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <3>;
 				#size-cells = <0>;
-				clocks = <&scmi_clk IMX94_CLK_I3C2SLOW>,
-					 <&scmi_clk IMX94_CLK_BUSWAKEUP>,
+				clocks = <&scmi_clk IMX94_CLK_BUSWAKEUP>,
+					 <&scmi_clk IMX94_CLK_I3C2SLOW>,
 					 <&dummy>;
 				clock-names = "pclk", "fast_clk", "slow_clk";
 				status = "disabled";
@@ -1075,8 +1075,8 @@
 				interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <3>;
 				#size-cells = <0>;
-				clocks = <&scmi_clk IMX94_CLK_I3C1SLOW>,
-					 <&scmi_clk IMX94_CLK_BUSAON>,
+				clocks = <&scmi_clk IMX94_CLK_BUSAON>,
+					 <&scmi_clk IMX94_CLK_I3C1SLOW>,
 					 <&dummy>;
 				clock-names = "pclk", "fast_clk", "slow_clk";
 				status = "disabled";

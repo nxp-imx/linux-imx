@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2018-2021,2023 NXP
+ * Copyright 2018-2021,2023,2025 NXP
  */
 
 #include <linux/kernel.h>
@@ -260,6 +260,11 @@ static void dpu95_fu_disable_src_buf(struct dpu95_fetchunit *fu)
 		dpu95_hs_mode(fu->hs, SCALER_NEUTRAL);
 	}
 
+	if (fu->vs) {
+		dpu95_vs_pec_clken(fu->vs, CLKEN_DISABLE);
+		dpu95_vs_mode(fu->vs, SCALER_NEUTRAL);
+	}
+
 	if (fu->lb) {
 		dpu95_lb_pec_clken(fu->lb, CLKEN_DISABLE);
 		dpu95_lb_mode(fu->lb, LB_NEUTRAL);
@@ -276,6 +281,11 @@ static struct dpu95_fetchunit *dpu95_fu_get_fetcheco(struct dpu95_fetchunit *fu)
 static struct dpu95_hscaler *dpu95_fu_get_hscaler(struct dpu95_fetchunit *fu)
 {
 	return fu->hs;
+}
+
+static struct dpu95_vscaler *dpu95_fu_get_vscaler(struct dpu95_fetchunit *fu)
+{
+	return fu->vs;
 }
 
 static void
@@ -374,6 +384,7 @@ const struct dpu95_fetchunit_ops dpu95_fu_common_ops = {
 	.disable_src_buf	= dpu95_fu_disable_src_buf,
 	.get_fetcheco		= dpu95_fu_get_fetcheco,
 	.get_hscaler		= dpu95_fu_get_hscaler,
+	.get_vscaler		= dpu95_fu_get_vscaler,
 	.set_layerblend		= dpu95_fu_set_layerblend,
 	.is_available		= dpu95_fu_is_available,
 	.set_available		= dpu95_fu_set_available,

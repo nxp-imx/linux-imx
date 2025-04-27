@@ -2,7 +2,7 @@
 /*
  * Wave6 series multi-standard codec IP - debug interface
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
 
 #ifndef __WAVE6_VPU_DBG_H__
@@ -19,4 +19,4 @@ unsigned int wave6_vpu_debug(void);
 int wave6_vpu_create_dbgfs_file(struct vpu_instance *inst);
 void wave6_vpu_remove_dbgfs_file(struct vpu_instance *inst);
 
-#endif
+#endif /* __WAVE6_VPU_DBG_H__ */

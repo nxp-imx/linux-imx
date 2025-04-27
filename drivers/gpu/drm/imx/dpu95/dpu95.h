@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2020,2023 NXP
+ * Copyright 2017-2020,2023,2025 NXP
  */
 
 #ifndef __DRM_DPU95_H__
@@ -18,6 +18,7 @@
 #include <drm/drm_color_mgmt.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modes.h>
+#include <drm/drm_plane.h>
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
 
@@ -60,7 +61,7 @@
 #define CLKEN_MASK			(0x3 << 24)
 #define CLKEN(n)			((n) << CLKEN_MASK_SHIFT)
 
-/* Hscaler register fields */
+/* H/Vscaler register fields */
 #define SCALE_FACTOR_MASK		0xfffff
 #define SCALE_FACTOR(n)			((n) & 0xfffff)
 #define PHASE_OFFSET_MASK		0x1fffff
@@ -77,8 +78,10 @@
 #define DPU95_FRAMEGEN_MAX_CLOCK		300000	/* in KHz */
 
 #define DPU95_FETCHUNIT_CAP_USE_FETCHECO	BIT(0)
-#define DPU95_FETCHUNIT_CAP_USE_SCALER		BIT(1)
-#define DPU95_FETCHUNIT_CAP_PACKED_YUV422	BIT(2)
+#define DPU95_FETCHUNIT_CAP_USE_HSCALER		BIT(1)
+#define DPU95_FETCHUNIT_CAP_USE_VSCALER4	BIT(2)
+#define DPU95_FETCHUNIT_CAP_USE_VSCALER9	BIT(3)
+#define DPU95_FETCHUNIT_CAP_PACKED_YUV422	BIT(4)
 
 struct dpu95_fetchunit;
 
@@ -186,6 +189,7 @@ enum dpu95_link_id {
 	DPU95_LINK_ID_EXTDST5		= 0x05,
 	DPU95_LINK_ID_FETCHECO9		= 0x07,
 	DPU95_LINK_ID_HSCALER9		= 0x08,
+	DPU95_LINK_ID_VSCALER9		= 0x09,
 	DPU95_LINK_ID_FILTER9		= 0x0a,
 	DPU95_LINK_ID_CONSTFRAME0	= 0x0c,
 	DPU95_LINK_ID_CONSTFRAME4	= 0x0d,
@@ -208,6 +212,7 @@ enum dpu95_link_id {
 	DPU95_LINK_ID_FETCHECO2		= 0x22,
 	DPU95_LINK_ID_MATRIX4		= 0x23,
 	DPU95_LINK_ID_HSCALER4		= 0x24,
+	DPU95_LINK_ID_VSCALER4		= 0x25,
 };
 
 enum dpu95_db_modecontrol {
@@ -448,6 +453,7 @@ struct dpu95_soc {
 	struct dpu95_fetchunit		*fy[4];
 	struct dpu95_hscaler		*hs[2];
 	struct dpu95_layerblend		*lb[6];
+	struct dpu95_vscaler            *vs[2];
 
 	struct device *trusty_dev;
 };
@@ -612,7 +618,7 @@ void dpu95_hs_setup1(struct dpu95_hscaler *hs,
 void dpu95_hs_setup2(struct dpu95_hscaler *hs, u32 phase_offset);
 void dpu95_hs_output_size(struct dpu95_hscaler *hs, u32 line_num);
 void dpu95_hs_filter_mode(struct dpu95_hscaler *hs,
-			  enum dpu95_scaler_filter_mode m);
+			  enum drm_scaling_filter filter);
 void dpu95_hs_scale_mode(struct dpu95_hscaler *hs,
 			 enum dpu95_scaler_scale_mode m);
 void dpu95_hs_mode(struct dpu95_hscaler *hs, enum dpu95_scaler_mode m);
@@ -642,6 +648,39 @@ int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
 
+/* Vertical Scaler Unit */
+struct dpu95_vscaler;
+
+struct dpu95_vscaler_ops {
+	bool (*is_enabled)(struct dpu95_vscaler *vs);
+	void (*set_stream_id)(struct dpu95_vscaler *hs, unsigned int stream_id);
+	unsigned int (*get_stream_id)(struct dpu95_vscaler *hs);
+	void (*set_no_stream_id)(struct dpu95_vscaler *hs);
+	bool (*has_stream_id)(struct dpu95_vscaler *hs);
+};
+
+const struct dpu95_vscaler_ops *dpu95_vs_get_ops(struct dpu95_vscaler *vs);
+
+enum dpu95_link_id dpu95_vs_get_link_id(struct dpu95_vscaler *vs);
+void dpu95_vs_pec_dynamic_src_sel(struct dpu95_vscaler *vs,
+				  enum dpu95_link_id src);
+void dpu95_vs_pec_clken(struct dpu95_vscaler *vs, enum dpu95_pec_clken clken);
+void dpu95_vs_setup1(struct dpu95_vscaler *vs,
+		     unsigned int src_w, unsigned int dst_w);
+void dpu95_vs_setup2(struct dpu95_vscaler *vs);
+void dpu95_vs_output_size(struct dpu95_vscaler *vs, u32 line_num);
+void dpu95_vs_filter_mode(struct dpu95_vscaler *vs,
+			  enum drm_scaling_filter filter);
+void dpu95_vs_scale_mode(struct dpu95_vscaler *vs,
+			 enum dpu95_scaler_scale_mode m);
+void dpu95_vs_mode(struct dpu95_vscaler *vs, enum dpu95_scaler_mode m);
+unsigned int dpu95_vs_get_id(struct dpu95_vscaler *vs);
+struct dpu95_vscaler *dpu95_vs_get(struct dpu95_soc *dpu, unsigned int id);
+void dpu95_vs_hw_init(struct dpu95_soc *dpu, unsigned int index);
+int dpu95_vs_init(struct dpu95_soc *dpu, unsigned int index,
+		  unsigned int id, enum dpu95_unit_type type,
+		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
+
 struct dpu95_fetchunit_ops {
 	void (*set_pec_dynamic_src_sel)(struct dpu95_fetchunit *fu,
 					enum dpu95_link_id src);
@@ -667,14 +706,12 @@ struct dpu95_fetchunit_ops {
 
 	void (*set_src_buf_dimensions)(struct dpu95_fetchunit *fu,
 				       unsigned int w, unsigned int h,
-				       const struct drm_format_info *format,
-				       bool deinterlace);
+				       const struct drm_format_info *format);
 
 	void (*set_fmt)(struct dpu95_fetchunit *fu,
 			const struct drm_format_info *format,
 			enum drm_color_encoding color_encoding,
-			enum drm_color_range color_range,
-			bool deinterlace);
+			enum drm_color_range color_range);
 
 	void (*set_pixel_blend_mode)(struct dpu95_fetchunit *fu,
 				     unsigned int pixel_blend_mode, u16 alpha,
@@ -684,11 +721,11 @@ struct dpu95_fetchunit_ops {
 	void (*disable_src_buf)(struct dpu95_fetchunit *fu);
 
 	void (*set_framedimensions)(struct dpu95_fetchunit *fu,
-				    unsigned int w, unsigned int h,
-				    bool deinterlace);
+				    unsigned int w, unsigned int h);
 
 	struct dpu95_fetchunit *(*get_fetcheco)(struct dpu95_fetchunit *fu);
 	struct dpu95_hscaler *(*get_hscaler)(struct dpu95_fetchunit *fu);
+	struct dpu95_vscaler *(*get_vscaler)(struct dpu95_fetchunit *fu);
 
 	void (*set_layerblend)(struct dpu95_fetchunit *fu,
 			       struct dpu95_layerblend *lb);
@@ -724,7 +761,9 @@ struct dpu95_plane_grp {
 	struct dpu95_constframe	*cf[2];
 	struct dpu95_extdst	*ed[2];
 	struct dpu95_hscaler	*hs;
+	struct dpu95_vscaler	*vs;
 	bool			hs_used;
+	bool			vs_used;
 };
 
 #endif /* __DRM_DPU95_H__ */

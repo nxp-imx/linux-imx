@@ -66,12 +66,6 @@ int v2x_late_init(struct se_if_priv *priv)
 	int ret = 0;
 
 	if (priv->if_defs->se_if_type == SE_TYPE_ID_HSM) {
-		ret = ele_init_fw(priv);
-		if (ret) {
-			dev_err(priv->dev, "ELE INIT FW failed.");
-			ret = -EPERM;
-			goto exit;
-		}
 		if (ele_get_v2x_fw_state(priv, &v2x_fw_state)) {
 			dev_warn(priv->dev, "Failed to fetch the v2x-fw-state via ELE.");
 			v2x_fw_state = V2X_FW_STATE_UNKNOWN;
@@ -86,7 +80,7 @@ int v2x_late_init(struct se_if_priv *priv)
 			v2x_fw_state = V2X_FW_STATE_UNKNOWN;
 		}
 	}
-exit:
+
 	return ret;
 }
 
@@ -128,26 +122,7 @@ int v2x_resume(struct se_if_priv *priv)
 	if (!is_v2x_fw_running(v2x_fw_state)) {
 		/* TODO : Calculate retry count in more predictable manner */
 		v2x_state_fetch_count = V2X_STATE_FETCH_MAX_RETRIES;
-		ret = ele_v2x_fw_authenticate(ele_priv, V2X_FW_IMG_DDR_ADDR);
-		if (ret) {
-			dev_err(priv->dev,
-				"failure: v2x fw loading [0x%x].", ret);
-			return 0;
-		}
-		do {
-			v2x_state_fetch_count--;
-			ret = ele_get_v2x_fw_state(ele_priv, &v2x_fw_state);
-			if (ret)
-				dev_warn(priv->dev, "Failed to fetch the v2x-fw-state via ELE.");
-		} while (!is_v2x_fw_running(v2x_fw_state) && v2x_state_fetch_count);
 
-		if (!v2x_state_fetch_count) {
-			dev_err(priv->dev, "V2X FW Resume Failed.\n");
-		} else {
-			ret = v2x_start_rng(priv);
-			if (ret)
-				dev_warn(priv->dev, "Failed to restart v2x-rng.");
-		}
 		do {
 			v2x_state_fetch_count--;
 			ret = ele_get_v2x_fw_state(ele_priv, &v2x_fw_state);

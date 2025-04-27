@@ -2,109 +2,116 @@
 /*
  * Wave6 series multi-standard codec IP - wave6 register definitions
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
 
-#ifndef __WAVE6_REGISTER_DEFINE_H__
-#define __WAVE6_REGISTER_DEFINE_H__
+#ifndef __WAVE6_REGDEFINE_H__
+#define __WAVE6_REGDEFINE_H__
 
-enum W6_VPU_COMMAND {
-	W6_INIT_VPU         = 0x0001,
-	W6_WAKEUP_VPU       = 0x0002,
-	W6_SLEEP_VPU        = 0x0004,
-	W6_CREATE_INSTANCE  = 0x0008,
-	W6_FLUSH_INSTANCE   = 0x0010,
-	W6_DESTROY_INSTANCE = 0x0020,
-	W6_INIT_SEQ         = 0x0040,
-	W6_SET_FB           = 0x0080,
-	W6_DEC_PIC          = 0x0100,
-	W6_ENC_PIC          = 0x0100,
-	W6_ENC_SET_PARAM    = 0x0200,
-	W6_DEC_SET_DISP_BUF = 0x0400,
-	W6_INIT_WORK_BUF    = 0x1000,
-	W6_QUERY            = 0x4000,
-	W6_UPDATE_BS        = 0x8000,
+enum wave6_command {
+	W6_CMD_INIT_VPU		= 0x0001,
+	W6_CMD_WAKEUP_VPU	= 0x0002,
+	W6_CMD_SLEEP_VPU	= 0x0004,
+	W6_CMD_CREATE_INSTANCE	= 0x0008,
+	W6_CMD_FLUSH_INSTANCE	= 0x0010,
+	W6_CMD_DESTROY_INSTANCE	= 0x0020,
+	W6_CMD_INIT_SEQ		= 0x0040,
+	W6_CMD_SET_FB		= 0x0080,
+	W6_CMD_DEC_PIC		= 0x0100,
+	W6_CMD_ENC_PIC		= 0x0100,
+	W6_CMD_ENC_SET_PARAM	= 0x0200,
+	W6_CMD_DEC_SET_DISP	= 0x0400,
+	W6_CMD_INIT_WORK_BUF	= 0x1000,
+	W6_CMD_QUERY		= 0x4000,
 };
 
-enum W6_SET_PARAM_OPT {
-	W6_SET_PARAM_OPT_COMMON       = 0,
-	W6_SET_PARAM_OPT_CHANGE_PARAM = 1,
+enum wave6_init_seq_option {
+	W6_INIT_SEQ_OPT_NORMAL		= 1,
+	W6_INIT_SEQ_OPT_W_THUMBNAIL	= 17,
 };
 
-enum W6_QUERY_OPT {
-	W6_QUERY_GET_VPU_INFO = 0,
-	W6_QUERY_SET_WRITE_PROT = 1,
-	W6_QUERY_GET_RESULT = 2,
-	W6_QUERY_GET_FW_STATUS = 3,
-	W6_QUERY_GET_FLUSH_CMD_INFO = 10,
+enum wave6_set_param_option {
+	W6_SET_PARAM_OPT_COMMON		= 0,
+	W6_SET_PARAM_OPT_CHANGE_PARAM	= 1,
 };
 
-#define W6_REG_BASE     0x00000000
-#define W6_CMD_REG_BASE 0x00000200
-#define W6_CMD_REG_END  0x00000600
+enum wave6_dec_pic_option {
+	W6_DEC_PIC_OPT_NORMAL		= 0,
+	W6_DEC_PIC_OPT_W_THUMBNAIL	= 16,
+	W6_DEC_PIC_OPT_SKIP_NON_IRAP	= 17,
+	W6_DEC_PIC_OPT_SKIP_NON_REF_PIC	= 19,
+};
 
-/************************************************************************/
-/* VPU HOST REGISTER                                                    */
-/************************************************************************/
-#define W6_VPU_REG_GLOBAL_WR                         (W6_REG_BASE + 0x0000)
-#define W6_VCPU_CUR_PC                               (W6_REG_BASE + 0x0004)
-#define W6_VCPU_CUR_LR                               (W6_REG_BASE + 0x0008)
-#define W6_VPU_VINT_REASON_CLR                       (W6_REG_BASE + 0x0034)
-#define W6_VPU_HOST_INT_REQ                          (W6_REG_BASE + 0x0038)
-#define W6_VPU_VINT_CLEAR                            (W6_REG_BASE + 0x003C)
-#define W6_VPU_HINT_CLEAR                            (W6_REG_BASE + 0x0040)
-#define W6_VPU_VPU_INT_STS                           (W6_REG_BASE + 0x0044)
-#define W6_VPU_VINT_ENABLE                           (W6_REG_BASE + 0x0048)
-#define W6_VPU_VINT_REASON                           (W6_REG_BASE + 0x004C)
-#define W6_VPU_REMAP_CTRL_GB                         (W6_REG_BASE + 0x0060)
-#define W6_VPU_REMAP_VADDR_GB                        (W6_REG_BASE + 0x0064)
-#define W6_VPU_REMAP_PADDR_GB                        (W6_REG_BASE + 0x0068)
-#define W6_VPU_REMAP_CORE_START_GB                   (W6_REG_BASE + 0x006C)
-#define W6_VPU_BUSY_STATUS                           (W6_REG_BASE + 0x0070)
-#define W6_VPU_HALT_STATUS                           (W6_REG_BASE + 0x0074)
-#define W6_VPU_VCPU_STATUS                           (W6_REG_BASE + 0x0078)
-#define W6_VPU_RET_PRODUCT_VERSION                   (W6_REG_BASE + 0x0094)
-#define W6_RET_VCPU_CONFIG1                          (W6_REG_BASE + 0x009C)
+enum wave6_enc_pic_option {
+	W6_ENC_PIC_OPT_HEADER_IMPLICIT	= 1,
+	W6_ENC_PIC_OPT_VCL		= 2,
+};
 
-#define W6_VPU_DBG_SW_UART_STATUS                    (W6_REG_BASE + 0x00f0)
-#define W6_VPU_DBG_SW_UART_TX                        (W6_REG_BASE + 0x00f4)
+enum wave6_query_option {
+	W6_QUERY_OPT_GET_VPU_INFO	= 0,
+	W6_QUERY_OPT_GET_RESULT		= 2,
+	W6_QUERY_OPT_GET_FLUSH_CMD_INFO	= 10,
+};
 
-#define W6_VPU_PDBG_CTRL                             (W6_REG_BASE + 0x0600)
-#define W6_VPU_PDBG_IDX_REG                          (W6_REG_BASE + 0x0604)
-#define W6_VPU_PDBG_WDATA_REG                        (W6_REG_BASE + 0x0608)
-#define W6_VPU_PDBG_RDATA_REG                        (W6_REG_BASE + 0x060C)
-#define W6_VPU_PDBG_STEP_MASK                        (W6_REG_BASE + 0x0610)
+enum wave6_interrupt_bit {
+	W6_INT_BIT_INIT_VPU		= 0,
+	W6_INT_BIT_WAKEUP_VPU		= 1,
+	W6_INT_BIT_SLEEP_VPU		= 2,
+	W6_INT_BIT_CREATE_INSTANCE	= 3,
+	W6_INT_BIT_FLUSH_INSTANCE	= 4,
+	W6_INT_BIT_DESTROY_INSTANCE	= 5,
+	W6_INT_BIT_INIT_SEQ		= 6,
+	W6_INT_BIT_SET_FB		= 7,
+	W6_INT_BIT_DEC_PIC		= 8,
+	W6_INT_BIT_ENC_PIC		= 8,
+	W6_INT_BIT_ENC_SET_PARAM	= 9,
+	W6_INT_BIT_SET_DISP		= 10,
+	W6_INT_BIT_REQ_WORK_BUF		= 12,
+	W6_INT_BIT_BSBUF_ERROR		= 15,
+};
 
-/************************************************************************/
-/* DECODER/ENCODER COMMON                                               */
-/************************************************************************/
+enum wave6_param_change_enable_bit {
+	W6_PARAM_CHANGE_ENABLE_BIT_RC_TARGET_RATE = 10
+};
+
+#define W6_REG_BASE	0x00000000
+#define W6_CMD_REG_BASE	0x00000200
+#define W6_CMD_REG_END	0x00000600
+
+#define W6_VPU_VCPU_CUR_PC                            (W6_REG_BASE + 0x0004)
+#define W6_VPU_VINT_REASON_CLR                        (W6_REG_BASE + 0x0034)
+#define W6_VPU_HOST_INT_REQ                           (W6_REG_BASE + 0x0038)
+#define W6_VPU_VINT_CLEAR                             (W6_REG_BASE + 0x003C)
+#define W6_VPU_VPU_INT_STS                            (W6_REG_BASE + 0x0044)
+#define W6_VPU_VINT_ENABLE                            (W6_REG_BASE + 0x0048)
+#define W6_VPU_VINT_REASON                            (W6_REG_BASE + 0x004C)
+#define W6_VPU_REMAP_CTRL_GB                          (W6_REG_BASE + 0x0060)
+#define W6_VPU_REMAP_VADDR_GB                         (W6_REG_BASE + 0x0064)
+#define W6_VPU_REMAP_PADDR_GB                         (W6_REG_BASE + 0x0068)
+#define W6_VPU_REMAP_CORE_START_GB                    (W6_REG_BASE + 0x006C)
+#define W6_VPU_BUSY_STATUS                            (W6_REG_BASE + 0x0070)
+#define W6_VPU_RET_PRODUCT_VERSION                    (W6_REG_BASE + 0x0094)
+
+/* COMMON */
 #define W6_COMMAND_GB                                 (W6_REG_BASE + 0x104)
 #define W6_COMMAND                                    (W6_REG_BASE + 0x200)
 #define W6_QUERY_OPTION                               (W6_REG_BASE + 0x204)
-#define W6_RET_SUCCESS                                (W6_REG_BASE + 0x208)
-#define W6_RET_FAIL_REASON                            (W6_REG_BASE + 0x20C)
 #define W6_CMD_INSTANCE_INFO                          (W6_REG_BASE + 0x210)
-#define W6_CMD_QUEUE_FULL_IDC                         (W6_REG_BASE + 0x214)
-#define W6_CMD_QUEUE_EMPTY_IDC                        (W6_REG_BASE + 0x218)
-#define W6_CMD_DONE_INST                              (W6_REG_BASE + 0x21C)
 #define W6_CMD_INIT_VPU_SEC_AXI_BASE_CORE0            (W6_REG_BASE + 0x364)
 #define W6_CMD_INIT_VPU_SEC_AXI_SIZE_CORE0            (W6_REG_BASE + 0x368)
+#define W6_CMD_SET_CTRL_WORK_BUF_ADDR                 (W6_REG_BASE + 0x5F0)
+#define W6_CMD_SET_CTRL_WORK_BUF_SIZE                 (W6_REG_BASE + 0x5F4)
+#define W6_RET_SUCCESS                                (W6_REG_BASE + 0x208)
+#define W6_RET_FAIL_REASON                            (W6_REG_BASE + 0x20C)
 #define W6_RET_INSTANCE_ID                            (W6_REG_BASE + 0x220)
-#define W6_RET_CMD_CQ_IN_TICK                         (W6_REG_BASE + 0x23C)
-#define W6_RET_CMD_FW_RUN_TICK                        (W6_REG_BASE + 0x240)
-#define W6_RET_CMD_HW_RUN_TICK                        (W6_REG_BASE + 0x244)
-#define W6_RET_CMD_HW_DONE_TICK                       (W6_REG_BASE + 0x248)
-#define W6_RET_CMD_FW_DONE_TICK                       (W6_REG_BASE + 0x24C)
-#define W6_RET_CMD_RQ_OUT_TICK                        (W6_REG_BASE + 0x250)
-#define W6_RET_CMD_FW_PRE_RUN_TICK                    (W6_REG_BASE + 0x254)
-#define W6_RET_CMD_HW_PRE_RUN_TICK                    (W6_REG_BASE + 0x258)
-#define W6_RET_CMD_HW_PRE_DONE_TICK                   (W6_REG_BASE + 0x25C)
-#define W6_RET_CMD_FW_PRE_DONE_TICK                   (W6_REG_BASE + 0x260)
-#define W6_RET_CQ_FLAG                                (W6_REG_BASE + 0x5FC)
+#define W6_RET_CQ_IN_TICK                             (W6_REG_BASE + 0x23C)
+#define W6_RET_FW_RUN_TICK                            (W6_REG_BASE + 0x240)
+#define W6_RET_HW_RUN_TICK                            (W6_REG_BASE + 0x244)
+#define W6_RET_HW_DONE_TICK                           (W6_REG_BASE + 0x248)
+#define W6_RET_FW_DONE_TICK                           (W6_REG_BASE + 0x24C)
+#define W6_RET_RQ_OUT_TICK                            (W6_REG_BASE + 0x250)
 
-/************************************************************************/
-/* COMMON - GET_VPU_INFO                                                */
-/************************************************************************/
+/* COMMON - QUERY : GET_VPU_INFO */
 #define W6_RET_FW_VERSION                             (W6_REG_BASE + 0x300)
 #define W6_RET_PRODUCT_NAME                           (W6_REG_BASE + 0x304)
 #define W6_RET_PRODUCT_VERSION                        (W6_REG_BASE + 0x308)
@@ -117,9 +124,7 @@ enum W6_QUERY_OPT {
 #define W6_RET_FW_API_VERSION                         (W6_REG_BASE + 0x32C)
 #define W6_RET_SHA_ID                                 (W6_REG_BASE + 0x330)
 
-/************************************************************************/
-/* DECODER - CREATE_INSTANCE                                            */
-/************************************************************************/
+/* DECODER - CREATE_INSTANCE */
 #define W6_CMD_DEC_CREATE_INST_BS_PARAM               (W6_REG_BASE + 0x310)
 #define W6_CMD_DEC_CREATE_INST_ADDR_EXT               (W6_REG_BASE + 0x318)
 #define W6_CMD_DEC_CREATE_INST_DISP_MODE              (W6_REG_BASE + 0x31C)
@@ -129,18 +134,13 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_CREATE_INST_TEMP_SIZE              (W6_REG_BASE + 0x34C)
 #define W6_CMD_DEC_CREATE_INST_TIMEOUT_CYCLE_COUNT    (W6_REG_BASE + 0x3A8)
 
-/************************************************************************/
-/* DECODER - INIT_SEQ                                                   */
-/************************************************************************/
+/* DECODER - INIT_SEQ */
 #define W6_CMD_DEC_INIT_SEQ_OPTION                    (W6_REG_BASE + 0x204)
 #define W6_CMD_DEC_INIT_SEQ_BS_RD_PTR                 (W6_REG_BASE + 0x300)
 #define W6_CMD_DEC_INIT_SEQ_BS_WR_PTR                 (W6_REG_BASE + 0x304)
 #define W6_CMD_DEC_INIT_SEQ_BS_OPTION                 (W6_REG_BASE + 0x308)
-#define W6_CMD_DEC_INIT_USERDATA_MASK                 (W6_REG_BASE + 0x314)
 
-/************************************************************************/
-/* DECODER - SET_FB                                                     */
-/************************************************************************/
+/* DECODER - SET_FB */
 #define W6_CMD_DEC_SET_FB_OPTION                      (W6_REG_BASE + 0x204)
 #define W6_CMD_DEC_SET_FB_COMMON_PIC_INFO             (W6_REG_BASE + 0x300)
 #define W6_CMD_DEC_SET_FB_PIC_SIZE                    (W6_REG_BASE + 0x304)
@@ -277,9 +277,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_SET_FB_FBC_CR15                    (W6_REG_BASE + 0x568)
 #define W6_CMD_DEC_SET_FB_FBC_CR_OFFSET15             (W6_REG_BASE + 0x56C)
 
-/************************************************************************/
-/* DECODER - SET_DISP                                                   */
-/************************************************************************/
+/* DECODER - SET_DISP */
 #define W6_CMD_DEC_SET_DISP_OPTION                    (W6_REG_BASE + 0x204)
 #define W6_CMD_DEC_SET_DISP_COMMON_PIC_INFO           (W6_REG_BASE + 0x300)
 #define W6_CMD_DEC_SET_DISP_PIC_SIZE                  (W6_REG_BASE + 0x304)
@@ -290,9 +288,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_SET_DISP_SCL_PARAM                 (W6_REG_BASE + 0x318)
 #define W6_CMD_DEC_SET_DISP_SCL_PIC_SIZE              (W6_REG_BASE + 0x31C)
 
-/************************************************************************/
-/* DECODER - DEC_PIC                                                    */
-/************************************************************************/
+/* DECODER - DEC_PIC */
 #define W6_CMD_DEC_PIC_OPTION                         (W6_REG_BASE + 0x204)
 #define W6_CMD_DEC_PIC_BS_RD_PTR                      (W6_REG_BASE + 0x300)
 #define W6_CMD_DEC_PIC_BS_WR_PTR                      (W6_REG_BASE + 0x304)
@@ -302,9 +298,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_DEC_PIC_TEMPORAL_ID_PLUS1              (W6_REG_BASE + 0x318)
 #define W6_CMD_DEC_PIC_TIMESTAMP                      (W6_REG_BASE + 0x32C)
 
-/************************************************************************/
-/* DECODER - GET_RESULT                                                 */
-/************************************************************************/
+/* DECODER - QUERY : GET_RESULT */
 #define W6_RET_DEC_BS_RD_PTR                          (W6_REG_BASE + 0x30C)
 #define W6_RET_DEC_SEQ_PARAM                          (W6_REG_BASE + 0x310)
 #define W6_RET_DEC_COLOR_SAMPLE_INFO                  (W6_REG_BASE + 0x314)
@@ -314,7 +308,7 @@ enum W6_QUERY_OPT {
 #define W6_RET_DEC_FRAME_RATE_DR                      (W6_REG_BASE + 0x324)
 #define W6_RET_DEC_NUM_REQUIRED_FBC_FB                (W6_REG_BASE + 0x328)
 #define W6_RET_DEC_NUM_REORDER_DELAY                  (W6_REG_BASE + 0x32C)
-#define W6_RET_DEC_FB_UPDATE_REQ_INFO                 (W6_REG_BASE + 0x330)
+#define W6_RET_DEC_SEQ_CHANGE_INFO                    (W6_REG_BASE + 0x330)
 #define W6_RET_DEC_NOTIFICATION                       (W6_REG_BASE + 0x334)
 #define W6_RET_DEC_PIC_SIZE                           (W6_REG_BASE + 0x33C)
 #define W6_RET_DEC_CROP_TOP_BOTTOM                    (W6_REG_BASE + 0x340)
@@ -324,11 +318,9 @@ enum W6_QUERY_OPT {
 #define W6_RET_DEC_PIC_TYPE                           (W6_REG_BASE + 0x350)
 #define W6_RET_DEC_PIC_POC                            (W6_REG_BASE + 0x354)
 #define W6_RET_DEC_RECOVERY_POINT                     (W6_REG_BASE + 0x358)
-#define W6_RET_DEC_DEBUG_INDEX                        (W6_REG_BASE + 0x35C)
 #define W6_RET_DEC_DECODED_ADDR                       (W6_REG_BASE + 0x360)
 #define W6_RET_DEC_DISPLAY_ADDR                       (W6_REG_BASE + 0x364)
 #define W6_RET_DEC_ERR_CTB_NUM                        (W6_REG_BASE + 0x370)
-#define W6_RET_DEC_PIC_PARAM                          (W6_REG_BASE + 0x3A4)
 #define W6_RET_DEC_DISPLAY_FLAG                       (W6_REG_BASE + 0x3A8)
 #define W6_RET_DEC_RELEASE_IDC                        (W6_REG_BASE + 0x3AC)
 #define W6_RET_DEC_DISP_IDC                           (W6_REG_BASE + 0x3B0)
@@ -344,18 +336,14 @@ enum W6_QUERY_OPT {
 #define W6_RET_DEC_DISP_LINEAR_ADDR_30                (W6_REG_BASE + 0x460)
 #define W6_RET_DEC_COLOR_CONFIG                       (W6_REG_BASE + 0x57C)
 
-/************************************************************************/
-/* DECODER - QUERY : GET_FLUSH_CMD_INFO                                 */
-/************************************************************************/
+/* DECODER - QUERY : GET_FLUSH_CMD_INFO */
 #define W6_RET_DEC_FLUSH_CMD_DISP_ADDR_0              (W6_REG_BASE + 0x300)
 #define W6_RET_DEC_FLUSH_CMD_DISP_ADDR_1E             (W6_REG_BASE + 0x378)
 #define W6_RET_DEC_FLUSH_CMD_BUF_STATE_UNUSED_IDC     (W6_REG_BASE + 0x57C)
 #define W6_RET_DEC_FLUSH_CMD_BUF_STATE_USED_IDC       (W6_REG_BASE + 0x580)
 #define W6_RET_DEC_FLUSH_CMD_BUF_STATE_USING_IDC      (W6_REG_BASE + 0x584)
 
-/************************************************************************/
-/* ENCODER - CREATE_INSTANCE                                            */
-/************************************************************************/
+/* ENCODER - CREATE_INSTANCE */
 #define W6_CMD_ENC_CREATE_INST_BS_PARAM               (W6_REG_BASE + 0x310)
 #define W6_CMD_ENC_CREATE_INST_SRC_OPT                (W6_REG_BASE + 0x314)
 #define W6_CMD_ENC_CREATE_INST_ADDR_EXT               (W6_REG_BASE + 0x318)
@@ -366,9 +354,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_ENC_CREATE_INST_AR_TABLE_BASE          (W6_REG_BASE + 0x358)
 #define W6_CMD_ENC_CREATE_INST_TIMEOUT_CYCLE_COUNT    (W6_REG_BASE + 0x3A8)
 
-/************************************************************************/
-/* ENCODER - SET_PARAM                                                  */
-/************************************************************************/
+/* ENCODER - SET_PARAM */
 #define W6_CMD_ENC_SET_PARAM_OPTION                   (W6_REG_BASE + 0x204)
 #define W6_CMD_ENC_SET_PARAM_ENABLE                   (W6_REG_BASE + 0x300)
 #define W6_CMD_ENC_SET_PARAM_SRC_SIZE                 (W6_REG_BASE + 0x304)
@@ -475,9 +461,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_ENC_SET_PARAM_SAR_PARAM                (W6_REG_BASE + 0x4FC)
 #define W6_CMD_ENC_SET_PARAM_SAR_EXTENDED             (W6_REG_BASE + 0x500)
 
-/************************************************************************/
-/* ENCODER - SET_FB                                                     */
-/************************************************************************/
+/* ENCODER - SET_FB */
 #define W6_CMD_ENC_SET_FB_OPTION                      (W6_REG_BASE + 0x204)
 #define W6_CMD_ENC_SET_FB_PIC_INFO                    (W6_REG_BASE + 0x300)
 #define W6_CMD_ENC_SET_FB_PIC_SIZE                    (W6_REG_BASE + 0x304)
@@ -613,9 +597,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_ENC_SET_FB_FBC_CR15                    (W6_REG_BASE + 0x568)
 #define W6_CMD_ENC_SET_FB_FBC_CR_OFFSET15             (W6_REG_BASE + 0x56C)
 
-/************************************************************************/
-/* ENCODER - ENC_PIC                                                    */
-/************************************************************************/
+/* ENCODER - ENC_PIC */
 #define W6_CMD_ENC_PIC_BS_START                       (W6_REG_BASE + 0x300)
 #define W6_CMD_ENC_PIC_BS_SIZE                        (W6_REG_BASE + 0x304)
 #define W6_CMD_ENC_PIC_BS_OPTION                      (W6_REG_BASE + 0x308)
@@ -645,15 +627,7 @@ enum W6_QUERY_OPT {
 #define W6_CMD_ENC_PIC_CSC_COEFF_3                    (W6_REG_BASE + 0x380)
 #define W6_CMD_ENC_PIC_TIMESTAMP                      (W6_REG_BASE + 0x3F8)
 
-/************************************************************************/
-/* ENCODER - UPDATE_BS                                                  */
-/************************************************************************/
-#define W6_CMD_ENC_UPDATE_BS_BS_START                 (W6_REG_BASE + 0x300)
-#define W6_CMD_ENC_UPDATE_BS_BS_SIZE                  (W6_REG_BASE + 0x304)
-
-/************************************************************************/
-/* ENCODER - GET_RESULT                                                 */
-/************************************************************************/
+/* ENCODER - QUERY : GET_RESULT */
 #define W6_RET_ENC_RD_PTR                             (W6_REG_BASE + 0x300)
 #define W6_RET_ENC_WR_PTR                             (W6_REG_BASE + 0x304)
 #define W6_RET_ENC_NUM_REQUIRED_FBC_FB                (W6_REG_BASE + 0x308)
@@ -673,7 +647,6 @@ enum W6_QUERY_OPT {
 #define W6_RET_ENC_USED_SRC_IDX                       (W6_REG_BASE + 0x340)
 #define W6_RET_ENC_PIC_NUM                            (W6_REG_BASE + 0x344)
 #define W6_RET_ENC_VCL_NUT                            (W6_REG_BASE + 0x348)
-#define W6_RET_ENC_PIC_AVG_VAR                        (W6_REG_BASE + 0x34C)
 #define W6_RET_ENC_PIC_DIST_LOW                       (W6_REG_BASE + 0x350)
 #define W6_RET_ENC_PIC_DIST_HIGH                      (W6_REG_BASE + 0x354)
 #define W6_RET_ENC_PIC_MAX_LATENCY_PICTURES           (W6_REG_BASE + 0x358)
@@ -700,10 +673,4 @@ enum W6_QUERY_OPT {
 #define W6_RET_ENC_TIMESTAMP                          (W6_REG_BASE + 0x400)
 #define W6_RET_ENC_NUM_REQUIRED_COL_BUF               (W6_REG_BASE + 0x404)
 
-/************************************************************************/
-/* COMMON - CTRL BUFFER                                                 */
-/************************************************************************/
-#define W6_CMD_SET_CTRL_WORK_BUF_ADDR                 (W6_REG_BASE + 0x5F0)
-#define W6_CMD_SET_CTRL_WORK_BUF_SIZE                 (W6_REG_BASE + 0x5F4)
-
-#endif /* __WAVE6_REGISTER_DEFINE_H__ */
+#endif /* __WAVE6_REGDEFINE_H__ */

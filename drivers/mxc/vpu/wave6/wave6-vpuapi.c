@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
 /*
- * Wave6 series multi-standard codec IP - helper functions
+ * Wave6 series multi-standard codec IP - wave6 helper interface
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
 
 #include <linux/bug.h>
 #include "wave6-vpuapi.h"
 #include "wave6-regdefine.h"
-#include "wave6.h"
+#include "wave6-hw.h"
 #include "wave6-vpu-dbg.h"
 #include "wave6-trace.h"
 
@@ -16,16 +16,7 @@ static int wave6_check_dec_open_param(struct vpu_instance *inst, struct dec_open
 {
 	struct vpu_attr *attr = &inst->dev->attr;
 
-	if (param->bitstream_mode == BS_MODE_INTERRUPT)
-		return -EINVAL;
-
-	if (!(BIT(param->bitstream_mode) & attr->support_bitstream_mode))
-		return -EINVAL;
-
-	if (!(BIT(param->frame_endian) & attr->support_endian_mask))
-		return -EINVAL;
-
-	if (!(BIT(param->stream_endian) & attr->support_endian_mask))
+	if (param->bs_mode != attr->support_bitstream_mode)
 		return -EINVAL;
 
 	return 0;
@@ -160,14 +151,8 @@ int wave6_vpu_dec_get_aux_buffer_size(struct vpu_instance *inst,
 		case W_HEVC_DEC:
 			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(width, height);
 			break;
-		case W_VP9_DEC:
-			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(ALIGN(width, 64), ALIGN(height, 64));
-			break;
 		case W_AVC_DEC:
 			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(width, height);
-			break;
-		case W_AV1_DEC:
-			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(ALIGN(width, 16), ALIGN(height, 8));
 			break;
 		default:
 			return -EINVAL;
@@ -185,14 +170,8 @@ int wave6_vpu_dec_get_aux_buffer_size(struct vpu_instance *inst,
 		case W_HEVC_DEC:
 			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(width, height);
 			break;
-		case W_VP9_DEC:
-			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(ALIGN(width, 64), ALIGN(height, 64));
-			break;
 		case W_AVC_DEC:
 			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(width, height);
-			break;
-		case W_AV1_DEC:
-			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(ALIGN(width, 16), ALIGN(height, 8));
 			break;
 		default:
 			return -EINVAL;
@@ -204,42 +183,8 @@ int wave6_vpu_dec_get_aux_buffer_size(struct vpu_instance *inst,
 		case W_HEVC_DEC:
 			buf_size = WAVE6_DEC_HEVC_MVCOL_BUF_SIZE(width, height);
 			break;
-		case W_VP9_DEC:
-			buf_size = WAVE6_DEC_VP9_MVCOL_BUF_SIZE_1(width, height) +
-				WAVE6_DEC_VP9_MVCOL_BUF_SIZE_2(width, height);
-			break;
 		case W_AVC_DEC:
 			buf_size = WAVE6_DEC_AVC_MVCOL_BUF_SIZE(width, height);
-			break;
-		case W_AV1_DEC:
-			buf_size = WAVE6_DEC_AV1_MVCOL_BUF_SIZE_1(ALIGN(width, 64),
-								  ALIGN(width, 256), height) +
-				WAVE6_DEC_AV1_MVCOL_BUF_SIZE_2(width, height);
-			break;
-		default:
-			return -EINVAL;
-		}
-		buf_size = ALIGN(buf_size, 16);
-	} else if (info.type == AUX_BUF_DEF_CDF) {
-		if (inst->std == W_AV1_DEC)
-			buf_size = WAVE6_AV1_DEFAULT_CDF_BUF_SIZE;
-		else
-			return -EINVAL;
-	} else if (info.type == AUX_BUF_SEG_MAP) {
-		if (inst->std != W_VP9_DEC)
-			return -EINVAL;
-
-		buf_size = WAVE6_VP9_SEGMAP_BUF_SIZE(width, height) * (COMMAND_QUEUE_DEPTH + 3);
-	} else if (info.type == AUX_BUF_PRE_ENT) {
-		switch (inst->std) {
-		case W_VP9_DEC:
-			buf_size = WAVE6_DEC_VP9_MVCOL_BUF_SIZE_1(width, height) +
-				WAVE6_DEC_VP9_MVCOL_BUF_SIZE_2(width, height);
-			break;
-		case W_AV1_DEC:
-			buf_size = WAVE6_DEC_AV1_MVCOL_BUF_SIZE_1(ALIGN(width, 64),
-								  ALIGN(width, 256), height) +
-				WAVE6_DEC_AV1_MVCOL_BUF_SIZE_2(width, height);
 			break;
 		default:
 			return -EINVAL;
@@ -302,27 +247,6 @@ int wave6_vpu_dec_register_aux_buffer(struct vpu_instance *inst,
 			p_dec_info->vb_mv[aux_bufs[i].index].size = aux_bufs[i].size;
 		}
 		break;
-	case AUX_BUF_DEF_CDF:
-		if (expected_size > aux_bufs[0].size)
-			return -EINVAL;
-
-		p_dec_info->vb_def_cdf.daddr = aux_bufs[0].addr;
-		p_dec_info->vb_def_cdf.size = aux_bufs[0].size;
-		break;
-	case AUX_BUF_SEG_MAP:
-		if (expected_size > aux_bufs[0].size)
-			return -EINVAL;
-
-		p_dec_info->vb_seg_map.daddr = aux_bufs[0].addr;
-		p_dec_info->vb_seg_map.size = aux_bufs[0].size;
-		break;
-	case AUX_BUF_PRE_ENT:
-		if (expected_size > aux_bufs[0].size)
-			return -EINVAL;
-
-		p_dec_info->vb_pre_ent.daddr = aux_bufs[0].addr;
-		p_dec_info->vb_pre_ent.size = aux_bufs[0].size;
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -348,7 +272,7 @@ int wave6_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst,
 	if (!p_dec_info->initial_info_obtained)
 		return -EINVAL;
 
-	if (stride < p_dec_info->initial_info.pic_width || (stride % 8 != 0) ||
+	if (stride < p_dec_info->initial_info.pic_width || (stride % 8) ||
 	    height < p_dec_info->initial_info.pic_height)
 		return -EINVAL;
 
@@ -387,13 +311,12 @@ int wave6_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct f
 	return ret;
 }
 
-int wave6_vpu_dec_get_bitstream_buffer(struct vpu_instance *inst, dma_addr_t *prd_ptr,
-				       dma_addr_t *pwr_ptr, uint32_t *size)
+int wave6_vpu_dec_get_bitstream_buffer(struct vpu_instance *inst, dma_addr_t *p_rd_ptr,
+				       dma_addr_t *p_wr_ptr)
 {
 	struct dec_info *p_dec_info;
 	dma_addr_t rd_ptr;
 	dma_addr_t wr_ptr;
-	int room = 0;
 	struct vpu_device *vpu_dev = inst->dev;
 	int ret;
 
@@ -402,17 +325,16 @@ int wave6_vpu_dec_get_bitstream_buffer(struct vpu_instance *inst, dma_addr_t *pr
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
 		return ret;
+
 	rd_ptr = wave6_vpu_dec_get_rd_ptr(inst);
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	wr_ptr = p_dec_info->stream_wr_ptr;
 
-	if (prd_ptr)
-		*prd_ptr = rd_ptr;
-	if (pwr_ptr)
-		*pwr_ptr = wr_ptr;
-	if (size)
-		*size = room;
+	if (p_rd_ptr)
+		*p_rd_ptr = rd_ptr;
+	if (p_wr_ptr)
+		*p_wr_ptr = wr_ptr;
 
 	return 0;
 }
@@ -445,7 +367,9 @@ int wave6_vpu_dec_update_bitstream_buffer(struct vpu_instance *inst, int size)
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
 		return ret;
-	ret = wave6_vpu_dec_set_bitstream_flag(inst, (size == 0));
+
+	wave6_vpu_dec_set_bitstream_end(inst, (size == 0));
+
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
@@ -457,7 +381,7 @@ int wave6_vpu_dec_start_one_frame(struct vpu_instance *inst, struct dec_param *p
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
 
-	if (p_dec_info->stride == 0) // this means frame buffers have not been registered.
+	if (!p_dec_info->stride)
 		return -EINVAL;
 
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
@@ -530,9 +454,6 @@ int wave6_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 	p_dec_info = &inst->codec_info->dec_info;
 
 	switch (cmd) {
-	case ENABLE_DEC_THUMBNAIL_MODE:
-		p_dec_info->thumbnail_mode = 1;
-		break;
 	case DEC_RESET_FRAMEBUF_INFO: {
 		int i;
 
@@ -561,24 +482,6 @@ int wave6_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 			else
 				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][i]);
 			memset(&p_dec_info->vb_fbc_c_tbl[i], 0, sizeof(struct vpu_buf));
-
-			if (inst->secure_mode)
-				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
-			else
-				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_DEF_CDF][i]);
-			memset(&p_dec_info->vb_def_cdf, 0, sizeof(struct vpu_buf));
-
-			if (inst->secure_mode)
-				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_SEG_MAP][i]);
-			else
-				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_SEG_MAP][i]);
-			memset(&p_dec_info->vb_seg_map, 0, sizeof(struct vpu_buf));
-
-			if (inst->secure_mode)
-				wave6_free_secure_dma_memory(inst->dev, &inst->aux_vbuf[AUX_BUF_PRE_ENT][i]);
-			else
-				wave6_free_dma(&inst->aux_vbuf[AUX_BUF_PRE_ENT][i]);
-			memset(&p_dec_info->vb_pre_ent, 0, sizeof(struct vpu_buf));
 		}
 		break;
 	}
@@ -658,8 +561,8 @@ int wave6_vpu_enc_close(struct vpu_instance *inst, u32 *fail_res)
 {
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
-	*fail_res = 0;
 
+	*fail_res = 0;
 	if (!inst->codec_info)
 		return -EINVAL;
 
@@ -694,22 +597,22 @@ int wave6_vpu_enc_get_aux_buffer_size(struct vpu_instance *inst,
 	int width, height, buf_size, twice;
 
 	if (inst->std == W_AVC_ENC) {
-		width  = ALIGN(info.width, 16);
+		width = ALIGN(info.width, 16);
 		height = ALIGN(info.height, 16);
 		if (info.rotation_angle == 90 || info.rotation_angle == 270) {
-			width  = ALIGN(info.height, 16);
+			width = ALIGN(info.height, 16);
 			height = ALIGN(info.width, 16);
 		}
 	} else {
-		width  = ALIGN(info.width, 8);
+		width = ALIGN(info.width, 8);
 		height = ALIGN(info.height, 8);
-		if ((info.rotation_angle != 0 || info.mirror_direction != 0) &&
+		if ((info.rotation_angle || info.mirror_direction) &&
 		    !(info.rotation_angle == 180 && info.mirror_direction == MIRDIR_HOR_VER)) {
-			width  = ALIGN(info.width, 32);
+			width = ALIGN(info.width, 32);
 			height = ALIGN(info.height, 32);
 		}
 		if (info.rotation_angle == 90 || info.rotation_angle == 270) {
-			width  = ALIGN(info.height, 32);
+			width = ALIGN(info.height, 32);
 			height = ALIGN(info.width, 32);
 		}
 	}
@@ -720,9 +623,6 @@ int wave6_vpu_enc_get_aux_buffer_size(struct vpu_instance *inst,
 			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(width, height);
 			break;
 		case W_AVC_ENC:
-			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(width, height);
-			break;
-		case W_AV1_ENC:
 			buf_size = WAVE6_FBC_LUMA_TABLE_SIZE(width, height);
 			break;
 		default:
@@ -755,9 +655,6 @@ int wave6_vpu_enc_get_aux_buffer_size(struct vpu_instance *inst,
 		case W_AVC_ENC:
 			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(width, height);
 			break;
-		case W_AV1_ENC:
-			buf_size = WAVE6_FBC_CHROMA_TABLE_SIZE(width, height);
-			break;
 		default:
 			return -EINVAL;
 		}
@@ -770,22 +667,13 @@ int wave6_vpu_enc_get_aux_buffer_size(struct vpu_instance *inst,
 		case W_AVC_ENC:
 			buf_size = WAVE6_ENC_AVC_MVCOL_BUF_SIZE(width, height);
 			break;
-		case W_AV1_ENC:
-			buf_size = WAVE6_ENC_AV1_MVCOL_BUF_SIZE;
-			break;
 		default:
 			return -EINVAL;
 		}
-	} else if (info.type == AUX_BUF_DEF_CDF) {
-		if (inst->std == W_AV1_ENC)
-			buf_size = WAVE6_AV1_DEFAULT_CDF_BUF_SIZE;
-		else
-			return -EINVAL;
 	} else if (info.type == AUX_BUF_SUB_SAMPLE) {
 		switch (inst->std) {
 		case W_HEVC_ENC:
 		case W_AVC_ENC:
-		case W_AV1_ENC:
 			buf_size = WAVE6_ENC_SUBSAMPLED_SIZE(width, height);
 			break;
 		default:
@@ -850,13 +738,6 @@ int wave6_vpu_enc_register_aux_buffer(struct vpu_instance *inst,
 			p_enc_info->vb_mv[aux_bufs[i].index].size = aux_bufs[i].size;
 		}
 		break;
-	case AUX_BUF_DEF_CDF:
-		if (expected_size > aux_bufs[0].size)
-			return -EINVAL;
-
-		p_enc_info->vb_def_cdf.daddr = aux_bufs[0].addr;
-		p_enc_info->vb_def_cdf.size = aux_bufs[0].size;
-		break;
 	case AUX_BUF_SUB_SAMPLE:
 		for (i = 0; i < info.num; i++) {
 			if (expected_size > aux_bufs[i].size)
@@ -889,10 +770,10 @@ int wave6_vpu_enc_register_frame_buffer_ex(struct vpu_instance *inst, int num, u
 	if (num < p_enc_info->initial_info.min_frame_buffer_count)
 		return -EINVAL;
 
-	if (stride == 0 || stride % 8 != 0)
+	if (!stride || stride % 8)
 		return -EINVAL;
 
-	if (height <= 0)
+	if (height < 0)
 		return -EINVAL;
 
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
@@ -920,7 +801,7 @@ static int wave6_check_enc_param(struct vpu_instance *inst, struct enc_param *pa
 	if (!param->skip_picture && !param->source_frame)
 		return -EINVAL;
 
-	if (p_enc_info->open_param.wave_param.enc_bit_rate == 0 && inst->std == W_HEVC_ENC) {
+	if (!p_enc_info->open_param.codec_param.bitrate && inst->std == W_HEVC_ENC) {
 		if (param->force_pic_qp_enable) {
 			if (param->force_pic_qp_i < 0 || param->force_pic_qp_i > 63)
 				return -EINVAL;
@@ -931,11 +812,11 @@ static int wave6_check_enc_param(struct vpu_instance *inst, struct enc_param *pa
 			if (param->force_pic_qp_b < 0 || param->force_pic_qp_b > 63)
 				return -EINVAL;
 		}
-		if ((param->pic_stream_buffer_addr % 16 || param->pic_stream_buffer_size == 0))
+		if ((param->pic_stream_buffer_addr % 16 || !param->pic_stream_buffer_size))
 			return -EINVAL;
 	}
 
-	if ((param->pic_stream_buffer_addr % 8 || param->pic_stream_buffer_size == 0))
+	if ((param->pic_stream_buffer_addr % 8 || !param->pic_stream_buffer_size))
 		return -EINVAL;
 
 	if (p_enc_info->open_param.src_format == FORMAT_RGB_32BIT_PACKED ||
@@ -944,23 +825,23 @@ static int wave6_check_enc_param(struct vpu_instance *inst, struct enc_param *pa
 		is_rgb_format = true;
 
 	if (is_rgb_format) {
-		if (param->csc.coef_ry < -512 || param->csc.coef_ry > 511)
+		if (param->csc.coef_ry > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gy < -512 || param->csc.coef_gy > 511)
+		if (param->csc.coef_gy > 1023)
 			return -EINVAL;
-		if (param->csc.coef_by < -512 || param->csc.coef_by > 511)
+		if (param->csc.coef_by > 1023)
 			return -EINVAL;
-		if (param->csc.coef_rcb < -512 || param->csc.coef_rcb > 511)
+		if (param->csc.coef_rcb > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gcb < -512 || param->csc.coef_gcb > 511)
+		if (param->csc.coef_gcb > 1023)
 			return -EINVAL;
-		if (param->csc.coef_bcb < -512 || param->csc.coef_bcb > 511)
+		if (param->csc.coef_bcb > 1023)
 			return -EINVAL;
-		if (param->csc.coef_rcr < -512 || param->csc.coef_rcr > 511)
+		if (param->csc.coef_rcr > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gcr < -512 || param->csc.coef_gcr > 511)
+		if (param->csc.coef_gcr > 1023)
 			return -EINVAL;
-		if (param->csc.coef_bcr < -512 || param->csc.coef_bcr > 511)
+		if (param->csc.coef_bcr > 1023)
 			return -EINVAL;
 		if (param->csc.offset_y > 1023)
 			return -EINVAL;
@@ -981,7 +862,7 @@ int wave6_vpu_enc_start_one_frame(struct vpu_instance *inst, struct enc_param *p
 
 	*fail_res = 0;
 
-	if (p_enc_info->stride == 0) // this means frame buffers have not been registered.
+	if (!p_enc_info->stride)
 		return -EINVAL;
 
 	ret = wave6_check_enc_param(inst, param);
@@ -1082,7 +963,7 @@ int wave6_vpu_enc_issue_seq_init(struct vpu_instance *inst)
 	return ret;
 }
 
-int wave6_vpu_enc_update_seq(struct vpu_instance *inst)
+int wave6_vpu_enc_issue_seq_change(struct vpu_instance *inst, bool *changed)
 {
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
@@ -1091,7 +972,7 @@ int wave6_vpu_enc_update_seq(struct vpu_instance *inst)
 	if (ret)
 		return ret;
 
-	ret = wave6_vpu_enc_change_seq(inst);
+	ret = wave6_vpu_enc_change_seq(inst, changed);
 
 	mutex_unlock(&vpu_dev->hw_lock);
 
@@ -1118,62 +999,12 @@ int wave6_vpu_enc_complete_seq_init(struct vpu_instance *inst, struct enc_initia
 		return ret;
 	}
 
-	p_enc_info->initial_info_obtained = true;
-	p_enc_info->initial_info = *info;
-
-	mutex_unlock(&vpu_dev->hw_lock);
-
-	return 0;
-}
-
-int wave6_vpu_enc_complete_seq_update(struct vpu_instance *inst, struct enc_initial_info *info)
-{
-	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-	int ret;
-	struct vpu_device *vpu_dev = inst->dev;
-
-	if (!info)
-		return -EINVAL;
-
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-
-	ret = wave6_vpu_enc_get_seq_info(inst, info);
-	if (ret) {
-		p_enc_info->initial_info_obtained = false;
-		mutex_unlock(&vpu_dev->hw_lock);
-		return ret;
+	if (!p_enc_info->initial_info_obtained) {
+		p_enc_info->initial_info_obtained = true;
+		p_enc_info->initial_info = *info;
 	}
 
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	return 0;
-}
-
-const char *wave6_vpu_instance_state_name(u32 state)
-{
-	switch (state) {
-	case VPU_INST_STATE_NONE: return "none";
-	case VPU_INST_STATE_OPEN: return "open";
-	case VPU_INST_STATE_INIT_SEQ: return "init_seq";
-	case VPU_INST_STATE_PIC_RUN: return "pic_run";
-	case VPU_INST_STATE_SEEK: return "seek";
-	case VPU_INST_STATE_STOP: return "stop";
-	}
-	return "unknown";
-}
-
-void wave6_vpu_set_instance_state(struct vpu_instance *inst, u32 state)
-{
-	trace_set_state(inst, state);
-
-	dprintk(inst->dev->dev, "[%d] %s -> %s\n",
-		inst->id,
-		wave6_vpu_instance_state_name(inst->state),
-		wave6_vpu_instance_state_name(state));
-
-	inst->state = state;
-	if (state == VPU_INST_STATE_PIC_RUN && !inst->performance.ts_first)
-		inst->performance.ts_first = ktime_get_raw();
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
 /*
- * Wave6 series multi-standard codec IP - low level access functions
+ * Wave6 series multi-standard codec IP - debug interface
  *
- * Copyright (C) 2021 CHIPS&MEDIA INC
+ * Copyright (C) 2025 CHIPS&MEDIA INC
  */
 
 #include <linux/types.h>
@@ -159,7 +159,7 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 			return 0;
 	} else {
 		struct enc_info *p_enc_info = &inst->codec_info->enc_info;
-		struct enc_wave_param *param = &p_enc_info->open_param.wave_param;
+		struct enc_codec_param *param = &p_enc_info->open_param.codec_param;
 
 		num = scnprintf(str, sizeof(str), "profile %d, level %d, tier %d\n",
 				param->profile, param->level, param->tier);
@@ -174,7 +174,7 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 		num = scnprintf(str, sizeof(str), "rc %d, mode %d, bitrate %d\n",
 				param->en_rate_control,
 				param->rc_mode,
-				param->enc_bit_rate);
+				param->bitrate);
 		if (seq_write(s, str, num))
 			return 0;
 

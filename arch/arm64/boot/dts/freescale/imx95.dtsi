@@ -828,7 +828,8 @@
 					     <GIC_SPI 250 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&scmi_clk IMX95_CLK_BUSWAKEUP>;
 				clock-names = "dma";
-				status = "disabled";
+				dma-coherent;
+				iommus = <&smmu 0x0>;
 			};
 
 			mu7: mailbox@42430000 {
@@ -878,6 +879,19 @@
 				reg = <0x42510000 0x1000>;
 				clocks = <&scmi_clk IMX95_CLK_TPM6>;
 				#pwm-cells = <3>;
+				status = "disabled";
+			};
+
+			i3c2: i3c@42520000 {
+				compatible = "silvaco,i3c-master-v1";
+				reg = <0x42520000 0x10000>;
+				interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
+				#address-cells = <3>;
+				#size-cells = <0>;
+				clocks = <&scmi_clk IMX95_CLK_BUSWAKEUP>,
+					 <&scmi_clk IMX95_CLK_I3C2SLOW>,
+					 <&dummy>;
+				clock-names = "pclk", "fast_clk", "slow_clk";
 				status = "disabled";
 			};
 
@@ -1476,6 +1490,19 @@
 				reg = <0x44320000 0x1000>;
 				clocks = <&scmi_clk IMX95_CLK_TPM2>;
 				#pwm-cells = <3>;
+				status = "disabled";
+			};
+
+			i3c1: i3c@44330000 {
+				compatible = "silvaco,i3c-master-v1";
+				reg = <0x44330000 0x10000>;
+				interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
+				#address-cells = <3>;
+				#size-cells = <0>;
+				clocks = <&scmi_clk IMX95_CLK_BUSAON>,
+					 <&scmi_clk IMX95_CLK_I3C1SLOW>,
+					 <&dummy>;
+				clock-names = "pclk", "fast_clk", "slow_clk";
 				status = "disabled";
 			};
 
@@ -2645,8 +2672,6 @@
 				phy-names = "usb2-phy", "usb3-phy";
 				snps,gfladj-refclk-lpm-sel-quirk;
 				snps,parkmode-disable-ss-quirk;
-				snps,tx-max-burst = /bits/ 8 <4>;
-				snps,tx-thr-num-pkt = /bits/ 8 <1>;
 				iommus = <&smmu 0xe>;
 			};
 		};
@@ -3035,6 +3060,14 @@
 					  <0x90 &its 0x65 0x1>, //ENETC2 VF0
 					  <0xa0 &its 0x66 0x1>, //ENETC2 VF1
 					  <0xc0 &its 0x67 0x1>; //NETC Timer
+				iommu-map = <0x0 &smmu 0x20 0x1>,
+					    <0x10 &smmu 0x21 0x1>,
+					    <0x20 &smmu 0x22 0x1>,
+					    <0x40 &smmu 0x23 0x1>,
+					    <0x80 &smmu 0x24 0x1>,
+					    <0x90 &smmu 0x25 0x1>,
+					    <0xa0 &smmu 0x26 0x1>,
+					    <0xc0 &smmu 0x27 0x1>;
 					 /* ENETC0~2 and Timer BAR0 - non-prefetchable memory */
 				ranges = <0x82000000 0x0 0x4cc00000  0x0 0x4cc00000  0x0 0xe0000
 					 /* Timer BAR2 - prefetchable memory */

@@ -1,4 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
+/*
+ * Wave6 series multi-standard codec IP - wave6 driver tracer
+ *
+ * Copyright (C) 2025 CHIPS&MEDIA INC
+ */
+
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM wave6
 
@@ -214,13 +220,13 @@ TRACE_EVENT(dec_done,
 	TP_fast_assign(
 		__assign_str(name);
 		__entry->id = inst->id;
-		__entry->dec_flag = info->frame_decoded_flag;
+		__entry->dec_flag = info->frame_decoded;
 		__entry->dec_poc = info->decoded_poc;
-		__entry->disp_flag = info->frame_display_flag;
+		__entry->disp_flag = info->frame_display;
 		__entry->disp_cnt = info->disp_frame_num;
 		__entry->rel_cnt = info->release_disp_frame_num;
-		__entry->src_ch = info->notification_flag & DEC_NOTI_FLAG_SEQ_CHANGE;
-		__entry->eos = info->stream_end_flag;
+		__entry->src_ch = info->notification_flags & DEC_NOTI_FLAG_SEQ_CHANGE;
+		__entry->eos = info->stream_end;
 		__entry->error = info->error_reason;
 		__entry->warn = info->warn_info;
 	),
@@ -262,7 +268,7 @@ TRACE_EVENT(enc_pic,
 		__entry->size_strm = param->pic_stream_buffer_size;
 		__entry->force_type_enable = param->force_pic_type_enable;
 		__entry->force_type = param->force_pic_type;
-		__entry->end_flag = param->src_end_flag;
+		__entry->end_flag = param->src_end;
 	),
 	TP_printk("%s: inst[%d] src[%2d] %8x %8x %8x (%d); dst %8x(%d); force type %d(%d), end %d",
 		  __get_str(name), __entry->id, __entry->srcidx,

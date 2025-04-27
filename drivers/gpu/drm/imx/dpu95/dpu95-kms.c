@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2020,2022,2023 NXP
+ * Copyright 2017-2020,2022,2023,2025 NXP
  */
 
 #include <linux/list.h>
@@ -99,6 +99,39 @@ static int dpu95_plane_alloc_hscaler(struct drm_plane *plane,
 	return 0;
 }
 
+static int dpu95_plane_alloc_vscaler(struct drm_plane *plane,
+				     struct dpu95_fetchunit *fu,
+				     unsigned int stream_id)
+{
+	struct dpu95_plane *dplane = to_dpu95_plane(plane);
+	const struct dpu95_fetchunit_ops *fu_ops;
+	const struct dpu95_vscaler_ops *vs_ops;
+	struct dpu95_vscaler *vs;
+
+	if (dplane->grp->vs_used) {
+		dpu95_plane_dbg(plane, "failed to alloc VScaler on stream%u\n",
+				stream_id);
+		return -EINVAL;
+	}
+
+	fu_ops = dpu95_fu_get_ops(fu);
+	vs = fu_ops->get_vscaler(fu);
+	vs_ops = dpu95_vs_get_ops(vs);
+
+	/* avoid VScaler hot migration */
+	if (vs_ops->has_stream_id(vs) &&
+	    vs_ops->get_stream_id(vs) != stream_id) {
+		dpu95_plane_dbg(plane,
+				"failed to hot migrate VScaler to stream%u\n",
+				stream_id);
+		return -EINVAL;
+	}
+
+	dplane->grp->vs_used = true;
+
+	return 0;
+}
+
 static int
 dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 					  struct drm_plane_state **plane_states,
@@ -109,7 +142,7 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 	struct drm_plane_state *plane_state;
 	struct dpu95_plane_state *dpstate;
 	struct dpu95_layerblend *blend;
-	u32 src_w, dst_w;
+	u32 src_w, src_h, dst_w, dst_h;
 	union dpu95_plane_stage stage;
 	struct dpu95_plane_grp *grp;
 	struct dpu95_plane_res *res;
@@ -122,6 +155,7 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 	bool found_fu;
 	bool need_fe;
 	bool need_hs;
+	bool need_vs;
 	u32 cap_mask;
 	int i, j;
 	int ret;
@@ -137,13 +171,16 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 		res = &grp->res;
 
 		src_w = plane_state->src_w >> 16;
+		src_h = plane_state->src_h >> 16;
 		dst_w = plane_state->crtc_w;
+		dst_h = plane_state->crtc_h;
 
 		fb_is_packed_yuv422 =
 				drm_format_info_is_yuv_packed(fb->format) &&
 				drm_format_info_is_yuv_sampling_422(fb->format);
 		need_fe = fb->format->num_planes > 1;
 		need_hs = src_w != dst_w;
+		need_vs = (src_h != dst_h);
 
 		/*
 		 * If modeset is not allowed, use the current source for
@@ -156,6 +193,8 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 
 			if (need_hs)
 				grp->hs_used = true;
+			if (need_vs)
+				grp->vs_used = true;
 			continue;
 		}
 
@@ -163,7 +202,9 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 		if (need_fe)
 			cap_mask |= DPU95_FETCHUNIT_CAP_USE_FETCHECO;
 		if (need_hs)
-			cap_mask |= DPU95_FETCHUNIT_CAP_USE_SCALER;
+			cap_mask |= DPU95_FETCHUNIT_CAP_USE_HSCALER;
+		if (need_vs)
+			cap_mask |= DPU95_FETCHUNIT_CAP_USE_VSCALER4;
 		if (fb_is_packed_yuv422)
 			cap_mask |= DPU95_FETCHUNIT_CAP_PACKED_YUV422;
 
@@ -189,6 +230,12 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 
 			if (need_hs) {
 				ret = dpu95_plane_alloc_hscaler(plane, fu, sid);
+				if (ret)
+					return ret;
+			}
+
+			if (need_vs) {
+				ret = dpu95_plane_alloc_vscaler(plane, fu, sid);
 				if (ret)
 					return ret;
 			}
@@ -403,6 +450,7 @@ static int dpu95_drm_atomic_check(struct drm_device *dev,
 	}
 
 	plane_grp->hs_used = false;
+	plane_grp->vs_used = false;
 
 	ret = drm_atomic_normalize_zpos(dev, state);
 	if (ret) {

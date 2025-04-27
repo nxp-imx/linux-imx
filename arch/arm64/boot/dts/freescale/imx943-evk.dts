@@ -424,6 +424,13 @@
 	status = "okay";
 };
 
+&i3c2 {
+	i2c-scl-hz = <400000>;
+	pinctrl-0 = <&pinctrl_i3c2>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &ldb {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -1170,6 +1177,13 @@
 		fsl,pins = <
 			IMX94_PAD_GPIO_IO36__CAN4_TX		0x39e
 			IMX94_PAD_GPIO_IO37__CAN4_RX		0x39e
+		>;
+	};
+
+	pinctrl_i3c2: i3c2grp {
+		fsl,pins = <
+			IMX94_PAD_GPIO_IO01__I3C2_SCL			0x400001fe
+			IMX94_PAD_GPIO_IO02__I3C2_SDA			0x400001fe
 		>;
 	};
 

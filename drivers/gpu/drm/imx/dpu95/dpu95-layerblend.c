@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2019,2023 NXP
+ * Copyright 2017-2019,2023,2025 NXP
  */
 
 #include <linux/io.h>
@@ -100,6 +100,7 @@ static const enum dpu95_link_id sec_sels[] = {
 	DPU95_LINK_ID_FETCHYUV2,
 	DPU95_LINK_ID_FETCHYUV3,
 	DPU95_LINK_ID_HSCALER4,
+	DPU95_LINK_ID_VSCALER4,
 	DPU95_LINK_ID_MATRIX4,
 };
 

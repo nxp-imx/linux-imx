@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 /*
@@ -20,6 +20,8 @@
  *       correct RXER pin.
  *    e) Since the ENET IO pins of i.MX95 is using 1.8V voltage, please make
  *       sure that J17 jumper is shorted to 1-2 pins.
+ *    f) Move R1214 to R1215 of i.MX95 EVK base board to use the correct RMII
+ *       REF CLK pin.
  */
 
 #include "imx95-19x19-evk.dts"
@@ -28,10 +30,6 @@
 	aliases {
 		ethernet2 = &enetc_port1;
 	};
-};
-
-&enetc_port0 {
-	status = "disabled";
 };
 
 &enetc_port1 {
@@ -49,7 +47,7 @@
 	assigned-clock-parents = <&scmi_clk IMX95_CLK_SYSPLL1_PFD2>,
 				 <&scmi_clk IMX95_CLK_SYSPLL1_PFD0>,
 				 <&scmi_clk IMX95_CLK_ENETREF>;
-	assigned-clock-rates = <666666666>, <50000000>, <0>;
+	assigned-clock-rates = <666666666>, <250000000>, <0>;
 };
 
 &netc_emdio {
@@ -63,7 +61,6 @@
 	pinctrl_enetc1: enetc1grp {
 		fsl,pins = <
 			IMX95_PAD_ENET2_TD2__NETCMIX_TOP_ETH1_RMII_REF50_CLK	0x4000057e
-			IMX95_PAD_ENET2_TXC__CCMSRCGPCMIX_TOP_ENET_CLK_ROOT	0x4000057e
 			IMX95_PAD_ENET1_MDC__NETCMIX_TOP_NETC_MDC		0x57e
 			IMX95_PAD_ENET1_MDIO__NETCMIX_TOP_NETC_MDIO		0x97e
 			IMX95_PAD_ENET2_RD0__NETCMIX_TOP_ETH1_RMII_RXD0		0x57e

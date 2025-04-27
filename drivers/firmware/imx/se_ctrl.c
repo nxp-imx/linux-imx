@@ -80,7 +80,7 @@ struct se_if_node_info_list {
 	const u16 soc_id;
 	bool soc_register;
 	int (*se_fetch_soc_info)(struct se_if_priv *priv, void *data);
-	const struct se_fw_img_name se_fw_img_nm;
+	const struct se_fw_img_name se_fw_img_nm[2];
 	const struct se_if_node_info info[];
 };
 
@@ -88,6 +88,8 @@ struct se_var_info {
 	uint8_t board_type;
 	u16 soc_id;
 	u16 soc_rev;
+	u32 fw_vers_word;
+	u32 commit_sha1;
 	struct se_fw_load_info load_fw;
 };
 
@@ -108,11 +110,11 @@ static struct se_if_node_info_list imx8ulp_info = {
 	.soc_id = SOC_ID_OF_IMX8ULP,
 	.soc_register = true,
 	.se_fetch_soc_info = ele_fetch_soc_info,
-	.se_fw_img_nm = {
-		.prim_fw_nm_in_rfs = IMX_ELE_FW_DIR
-			"mx8ulpa2-ahab-container.img",
-		.seco_fw_nm_in_rfs = IMX_ELE_FW_DIR
-			"mx8ulpa2ext-ahab-container.img",
+	.se_fw_img_nm[0] = {
+			.prim_fw_nm_in_rfs = IMX_ELE_FW_DIR
+				"mx8ulpa2-ahab-container.img",
+			.seco_fw_nm_in_rfs = IMX_ELE_FW_DIR
+				"mx8ulpa2ext-ahab-container.img",
 	},
 	.info = {
 			{
@@ -139,10 +141,6 @@ static struct se_if_node_info_list imx93_info = {
 	.soc_id = SOC_ID_OF_IMX93,
 	.soc_register = false,
 	.se_fetch_soc_info = ele_fetch_soc_info,
-	.se_fw_img_nm = {
-		.prim_fw_nm_in_rfs = NULL,
-		.seco_fw_nm_in_rfs = NULL,
-	},
 	.info = {
 			{
 			.se_if_id = 0,
@@ -170,9 +168,13 @@ static struct se_if_node_info_list imx95_info = {
 	.soc_id = SOC_ID_OF_IMX95,
 	.soc_register = false,
 	.se_fetch_soc_info = ele_fetch_soc_info,
-	.se_fw_img_nm = {
-		.prim_fw_nm_in_rfs = NULL,
-		.seco_fw_nm_in_rfs = NULL,
+	.se_fw_img_nm[0] = {
+			.seco_fw_nm_in_rfs = IMX_ELE_FW_DIR
+				"mx95a0runtime-ahab-container.img",
+	},
+	.se_fw_img_nm[1] = {
+			.seco_fw_nm_in_rfs = IMX_ELE_FW_DIR
+				"mx95b0runtime-ahab-container.img",
 	},
 	.info = {
 			{
@@ -291,9 +293,9 @@ static struct se_if_node_info_list imx94_info = {
 	.soc_id = SOC_ID_OF_IMX94,
 	.soc_register = false,
 	.se_fetch_soc_info = ele_fetch_soc_info,
-	.se_fw_img_nm = {
-		.prim_fw_nm_in_rfs = NULL,
-		.seco_fw_nm_in_rfs = NULL,
+	.se_fw_img_nm[0] = {
+			.seco_fw_nm_in_rfs = IMX_ELE_FW_DIR
+				"mx943a0runtime-ahab-container.img",
 	},
 	.info = {
 			{
@@ -412,10 +414,6 @@ static struct se_if_node_info_list imx8dxl_info = {
 	.soc_id = SOC_ID_OF_IMX8DXL,
 	.soc_register = false,
 	.se_fetch_soc_info = seco_fetch_soc_info,
-	.se_fw_img_nm = {
-		.prim_fw_nm_in_rfs = NULL,
-		.seco_fw_nm_in_rfs = NULL,
-	},
 	.info = {
 			{
 			.se_if_id = 0,
@@ -663,6 +661,20 @@ out:
 	return ret;
 }
 
+static bool runtime_fw_status(struct se_if_priv *priv)
+{
+	/*
+	 * Initializing to false as not sure if
+	 * the run-time FW status can be fetched for the SoC.
+	 */
+	bool fw_prsnt_n_running = false;
+
+	if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 || get_se_soc_id(priv) == SOC_ID_OF_IMX94)
+		fw_prsnt_n_running =
+			(var_se_info.fw_vers_word & 0x1000000) ? true : false;
+
+	return fw_prsnt_n_running;
+}
 /*
  * get_se_soc_id() - to fetch the soc_id of the platform
  *
@@ -726,6 +738,9 @@ EXPORT_SYMBOL_GPL(imx_get_se_data_info);
 
 static struct se_fw_load_info *get_load_fw_instance(struct se_if_priv *priv)
 {
+	if (priv->if_defs->se_if_type != SE_TYPE_ID_HSM)
+		return NULL;
+
 	return &var_se_info.load_fw;
 }
 
@@ -746,6 +761,11 @@ static int se_soc_info(struct se_if_priv *priv)
 	if (var_se_info.soc_rev)
 		return err;
 
+	err = ele_get_fw_version(priv, &var_se_info.fw_vers_word,
+				 &var_se_info.commit_sha1);
+	if (err)
+		dev_err(priv->dev, "Failed to fetch FW version");
+
 	if (info_list->se_fetch_soc_info) {
 		err = info_list->se_fetch_soc_info(priv, &data);
 		if (err < 0) {
@@ -764,7 +784,8 @@ static int se_soc_info(struct se_if_priv *priv)
 			var_se_info.board_type = 0;
 			var_se_info.soc_id = info_list->soc_id;
 			var_se_info.soc_rev = s_info->d_info.soc_rev;
-			load_fw->imem.state = s_info->d_addn_info.imem_state;
+			if (load_fw)
+				load_fw->imem.state = s_info->d_addn_info.imem_state;
 		}
 	} else {
 		dev_err(priv->dev, "Failed to fetch SoC revision.");
@@ -830,10 +851,11 @@ static int se_load_firmware(struct se_if_priv *priv)
 	u8 *se_fw_buf;
 	int ret;
 
-	if (load_fw->is_fw_loaded)
+	if (!load_fw || load_fw->is_fw_loaded)
 		return 0;
 
 	se_img_file_to_load = load_fw->se_fw_img_nm->seco_fw_nm_in_rfs;
+
 	if (load_fw->imem.state == ELE_IMEM_STATE_BAD &&
 			load_fw->se_fw_img_nm->prim_fw_nm_in_rfs)
 		se_img_file_to_load = load_fw->se_fw_img_nm->prim_fw_nm_in_rfs;
@@ -879,9 +901,24 @@ static int se_load_firmware(struct se_if_priv *priv)
 
 	} while (se_img_file_to_load);
 
-	if (!ret)
+	ret = ele_get_fw_version(priv, &var_se_info.fw_vers_word,
+				 &var_se_info.commit_sha1);
+	if (ret)
+		dev_err(priv->dev, "Failed to fetch FW version");
+
+	if (!ret) {
 		load_fw->is_fw_loaded = true;
 
+		/* ELE INIT FW not to be sent for SoC: i.MX8ULP and i.MX8DXL. */
+		if (get_se_soc_id(priv) != SOC_ID_OF_IMX8ULP &&
+		    get_se_soc_id(priv) != SOC_ID_OF_IMX8DXL) {
+			ret = ele_init_fw(priv);
+			if (ret) {
+				dev_err(priv->dev, "ELE INIT FW failed.");
+				ret = -EPERM;
+			}
+		}
+	}
 exit:
 	return ret;
 }
@@ -1320,7 +1357,8 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 	}
 
 	if (tx_msg->header.ver == priv->if_defs->fw_api_ver &&
-		!get_load_fw_instance(priv)->is_fw_loaded) {
+	    get_load_fw_instance(priv) &&
+	    !get_load_fw_instance(priv)->is_fw_loaded) {
 		err = se_load_firmware(priv);
 		if (err) {
 			dev_err(priv->dev, "Could not send the message as FW is not loaded.");
@@ -2026,6 +2064,25 @@ static void se_if_probe_cleanup(void *plat_dev)
 
 }
 
+static int get_se_fw_img_nm_idx(const struct se_fw_img_name *se_fw_img_nm)
+{
+	char *rev_str;
+	int i = 0;
+
+	rev_str = kasprintf(GFP_KERNEL, "%x", FIELD_GET(DEV_GETINFO_MAJ_VER_MASK,
+							var_se_info.soc_rev));
+
+	for (; i < 2; i++) {
+		if (se_fw_img_nm[i].seco_fw_nm_in_rfs &&
+		    strstr(se_fw_img_nm[i].seco_fw_nm_in_rfs, rev_str))
+			break;
+	}
+	if (i == 2)
+		i = 0;
+
+	return i;
+}
+
 static int se_if_probe(struct platform_device *pdev)
 {
 	const struct se_if_node_info_list *info_list;
@@ -2173,24 +2230,29 @@ static int se_if_probe(struct platform_device *pdev)
 	}
 
 	/* By default, there is no pending FW to be loaded.*/
-	if (info_list->se_fw_img_nm.prim_fw_nm_in_rfs ||
-			info_list->se_fw_img_nm.seco_fw_nm_in_rfs) {
+	if (info_list->se_fw_img_nm[0].seco_fw_nm_in_rfs) {
 		load_fw = get_load_fw_instance(priv);
-		load_fw->se_fw_img_nm = &info_list->se_fw_img_nm;
-		load_fw->is_fw_loaded = false;
 
-		if (info_list->se_fw_img_nm.prim_fw_nm_in_rfs) {
-			/* allocate buffer where SE store encrypted IMEM */
-			load_fw->imem.buf = dmam_alloc_coherent(priv->dev, ELE_IMEM_SIZE,
-								&load_fw->imem.phyaddr,
-								GFP_KERNEL);
-			if (!load_fw->imem.buf) {
-				dev_err(priv->dev,
-					"dmam-alloc-failed: To store encr-IMEM.\n");
-				ret = -ENOMEM;
-				goto exit;
+		if (load_fw) {
+			load_fw->se_fw_img_nm
+				= &info_list->se_fw_img_nm[get_se_fw_img_nm_idx(
+							   info_list->se_fw_img_nm)];
+			load_fw->is_fw_loaded = runtime_fw_status(priv);
+
+			if (load_fw->se_fw_img_nm->prim_fw_nm_in_rfs) {
+				/* allocate buffer where SE store encrypted IMEM */
+				load_fw->imem.buf = dmam_alloc_coherent(priv->dev,
+									ELE_IMEM_SIZE,
+									&load_fw->imem.phyaddr,
+									GFP_KERNEL);
+				if (!load_fw->imem.buf) {
+					dev_err(priv->dev,
+						"dmam-alloc-failed: To store encr-IMEM.\n");
+					ret = -ENOMEM;
+					goto exit;
+				}
+				load_fw->imem_mgmt = true;
 			}
-			load_fw->imem_mgmt = true;
 		}
 	}
 
@@ -2234,7 +2296,7 @@ static int se_suspend(struct device *dev)
 
 	load_fw = get_load_fw_instance(priv);
 
-	if (load_fw->imem_mgmt) {
+	if (load_fw && load_fw->imem_mgmt) {
 		ret = se_save_imem_state(priv, &load_fw->imem);
 		if (ret) {
 			dev_err(dev, "Failure saving IMEM state[0x%x]", ret);
@@ -2259,7 +2321,7 @@ static int se_resume(struct device *dev)
 
 	load_fw = get_load_fw_instance(priv);
 
-	if (load_fw->imem_mgmt) {
+	if (load_fw && load_fw->imem_mgmt) {
 		ret = se_restore_imem_state(priv, &load_fw->imem);
 		if (ret)
 			dev_err(dev, "Failure restoring IMEM state[0x%x]", ret);

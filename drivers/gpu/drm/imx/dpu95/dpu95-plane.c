@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2020,2022,2023 NXP
+ * Copyright 2017-2020,2022,2023,2025 NXP
  */
 
 #include <drm/drm_atomic.h>
@@ -72,6 +72,7 @@ static void dpu95_plane_reset(struct drm_plane *plane)
 	plane->state->zpos = dpu95_plane_get_default_zpos(plane->type);
 	plane->state->color_encoding = DRM_COLOR_YCBCR_BT709;
 	plane->state->color_range = DRM_COLOR_YCBCR_LIMITED_RANGE;
+	plane->state->scaling_filter = DRM_SCALING_FILTER_DEFAULT;
 }
 
 static struct drm_plane_state *
@@ -164,19 +165,6 @@ static int dpu95_plane_check_no_off_screen(struct drm_plane_state *state,
 	return 0;
 }
 
-static int dpu95_plane_check_no_vscaling(struct drm_plane_state *state)
-{
-	u32 src_h = drm_rect_height(&state->src) >> 16;
-	u32 dst_h = drm_rect_height(&state->dst);
-
-	if (src_h != dst_h) {
-		dpu95_plane_dbg(state->plane, "no vertical scaling\n");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static int dpu95_plane_check_no_deinterlacing(struct drm_plane_state *state)
 {
 	if (state->fb->flags & DRM_MODE_FB_INTERLACED) {
@@ -204,7 +192,8 @@ static int dpu95_plane_check_max_source_resolution(struct drm_plane_state *state
 		}
 	} else {
 		/* with scaling */
-		if (src_w > DPU95_PLANE_MAX_PIX_CNT_WITH_SCALER) {
+		if (src_w > DPU95_PLANE_MAX_PIX_CNT_WITH_SCALER ||
+		    src_h > DPU95_PLANE_MAX_PIX_CNT_WITH_SCALER) {
 			dpu95_plane_dbg(state->plane,
 					"invalid source resolution with scale\n");
 			return -EINVAL;
@@ -385,10 +374,6 @@ static int dpu95_plane_atomic_check(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
-	ret = dpu95_plane_check_no_vscaling(new_plane_state);
-	if (ret)
-		return ret;
-
 	ret = dpu95_plane_check_no_deinterlacing(new_plane_state);
 	if (ret)
 		return ret;
@@ -434,8 +419,9 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 	dma_addr_t baseaddr, uv_baseaddr;
 	enum dpu95_link_id fu_link;
 	enum dpu95_link_id lb_src_link, stage_link;
-	unsigned int src_w, src_h, dst_w;
-	bool need_fetcheco = false, need_hscaler = false;
+	enum dpu95_link_id vs_link;
+	unsigned int src_w, src_h, dst_w, dst_h;
+	bool need_fetcheco = false, need_hscaler = false, need_vscaler = false;
 
 	/*
 	 * Do nothing since the plane is disabled by
@@ -451,12 +437,16 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 	src_w = drm_rect_width(&new_state->src) >> 16;
 	src_h = drm_rect_height(&new_state->src) >> 16;
 	dst_w = drm_rect_width(&new_state->dst);
+	dst_h = drm_rect_height(&new_state->dst);
 
 	if (fb->format->num_planes > 1)
 		need_fetcheco = true;
 
 	if (src_w != dst_w)
 		need_hscaler = true;
+
+	if (src_h != dst_h)
+		need_vscaler = true;
 
 	baseaddr = drm_plane_state_to_baseaddr(new_state);
 	if (need_fetcheco)
@@ -470,13 +460,13 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 	fu_ops->set_numbuffers(fu, 16);
 	fu_ops->set_burstlength(fu, 16);
 	fu_ops->set_src_stride(fu, fb->pitches[0]);
-	fu_ops->set_src_buf_dimensions(fu, src_w, src_h, fb->format, false);
+	fu_ops->set_src_buf_dimensions(fu, src_w, src_h, fb->format);
 	fu_ops->set_fmt(fu, fb->format, new_state->color_encoding,
-			new_state->color_range, false);
+			new_state->color_range);
 	fu_ops->set_pixel_blend_mode(fu, new_state->pixel_blend_mode,
 				     new_state->alpha, fb->format->has_alpha);
 	fu_ops->enable_src_buf(fu);
-	fu_ops->set_framedimensions(fu, src_w, src_h, false);
+	fu_ops->set_framedimensions(fu, src_w, src_h);
 	fu_ops->set_baseaddress(fu, baseaddr);
 	fu_ops->set_stream_id(fu, dpu_crtc->stream_id);
 
@@ -497,10 +487,10 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 		fe_ops->set_burstlength(fu, 16);
 		fe_ops->set_src_stride(fe, fb->pitches[1]);
 		fe_ops->set_fmt(fe, fb->format, new_state->color_encoding,
-				new_state->color_range, false);
+				new_state->color_range);
 		fe_ops->set_src_buf_dimensions(fe, src_w, src_h,
-					       fb->format, false);
-		fe_ops->set_framedimensions(fe, src_w, src_h, false);
+					       fb->format);
+		fe_ops->set_framedimensions(fe, src_w, src_h);
 		fe_ops->set_baseaddress(fe, uv_baseaddr);
 		fe_ops->enable_src_buf(fe);
 
@@ -510,15 +500,39 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 			fu_ops->set_pec_dynamic_src_sel(fu, DPU95_LINK_ID_NONE);
 	}
 
+	/* VScaler comes first */
+	if (need_vscaler) {
+		struct dpu95_vscaler *vs = fu_ops->get_vscaler(fu);
+		const struct dpu95_vscaler_ops *vs_ops;
+
+		dpu95_vs_pec_dynamic_src_sel(vs, fu_link);
+		dpu95_vs_pec_clken(vs, CLKEN_AUTOMATIC);
+		dpu95_vs_setup1(vs, src_h, new_state->crtc_h);
+		dpu95_vs_setup2(vs);
+		dpu95_vs_output_size(vs, dst_h);
+		dpu95_vs_filter_mode(vs, new_state->scaling_filter);
+		dpu95_vs_scale_mode(vs, SCALER_UPSCALE);
+		dpu95_vs_mode(vs, SCALER_ACTIVE);
+
+		vs_ops = dpu95_vs_get_ops(vs);
+		vs_ops->set_stream_id(vs, dpu_crtc->stream_id);
+
+		vs_link = dpu95_vs_get_link_id(vs);
+		lb_src_link = vs_link;
+
+		dpu95_plane_dbg(plane, "uses VScaler%u\n", dpu95_vs_get_id(vs));
+	}
+
+	/* and then, HScaler */
 	if (need_hscaler) {
 		struct dpu95_hscaler *hs = fu_ops->get_hscaler(fu);
 		const struct dpu95_hscaler_ops *hs_ops;
 
-		dpu95_hs_pec_dynamic_src_sel(hs, fu_link);
+		dpu95_hs_pec_dynamic_src_sel(hs, need_vscaler ? vs_link : fu_link);
 		dpu95_hs_pec_clken(hs, CLKEN_AUTOMATIC);
 		dpu95_hs_setup1(hs, src_w, dst_w);
 		dpu95_hs_output_size(hs, dst_w);
-		dpu95_hs_filter_mode(hs, SCALER_LINEAR);
+		dpu95_hs_filter_mode(hs, new_state->scaling_filter);
 		dpu95_hs_scale_mode(hs, SCALER_UPSCALE);
 		dpu95_hs_mode(hs, SCALER_ACTIVE);
 
@@ -595,11 +609,17 @@ int dpu95_plane_initialize(struct dpu95_drm_device *dpu_drm,
 	if (ret)
 		return ret;
 
-	return drm_plane_create_color_properties(plane,
+	ret = drm_plane_create_color_properties(plane,
 					BIT(DRM_COLOR_YCBCR_BT601) |
 					BIT(DRM_COLOR_YCBCR_BT709),
 					BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
 					BIT(DRM_COLOR_YCBCR_FULL_RANGE),
 					DRM_COLOR_YCBCR_BT709,
 					DRM_COLOR_YCBCR_LIMITED_RANGE);
+	if (ret)
+		return ret;
+
+	return drm_plane_create_scaling_filter_property(plane,
+					BIT(DRM_SCALING_FILTER_DEFAULT) |
+					BIT(DRM_SCALING_FILTER_NEAREST_NEIGHBOR));
 }

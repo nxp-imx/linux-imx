@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2022,2023 NXP
+ * Copyright 2017-2022,2023,2025 NXP
  */
 
 #include <linux/kernel.h>
@@ -14,7 +14,9 @@
 #define PIXENGCFG_DYNAMIC	0x8
 
 #define DPU95_FETCHYUV_CAP_MASK	(DPU95_FETCHUNIT_CAP_USE_FETCHECO | \
-				 DPU95_FETCHUNIT_CAP_USE_SCALER |   \
+				 DPU95_FETCHUNIT_CAP_USE_HSCALER | \
+				 DPU95_FETCHUNIT_CAP_USE_VSCALER4 | \
+				 DPU95_FETCHUNIT_CAP_USE_VSCALER9 | \
 				 DPU95_FETCHUNIT_CAP_PACKED_YUV422)
 
 static const enum dpu95_link_id dpu95_fy_link_id[] = {
@@ -57,12 +59,8 @@ static void dpu95_fy_pec_dynamic_src_sel(struct dpu95_fetchunit *fu,
 static void
 dpu95_fy_set_src_buf_dimensions(struct dpu95_fetchunit *fu,
 				unsigned int w, unsigned int h,
-				const struct drm_format_info *unused,
-				bool deinterlace)
+				const struct drm_format_info *unused)
 {
-	if (deinterlace)
-		h /= 2;
-
 	dpu95_fu_write(fu, SOURCEBUFFERDIMENSION(fu),
 		       LINEWIDTH(w) | LINECOUNT(h));
 }
@@ -70,8 +68,7 @@ dpu95_fy_set_src_buf_dimensions(struct dpu95_fetchunit *fu,
 static void dpu95_fy_set_fmt(struct dpu95_fetchunit *fu,
 			     const struct drm_format_info *format,
 			     enum drm_color_encoding color_encoding,
-			     enum drm_color_range color_range,
-			     bool deinterlace)
+			     enum drm_color_range color_range)
 {
 	u32 val, bits = 0, shifts = 0;
 	bool is_planar_yuv = false, is_rastermode_yuv422 = false;
@@ -88,8 +85,6 @@ static void dpu95_fy_set_fmt(struct dpu95_fetchunit *fu,
 		break;
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
-		if (deinterlace)
-			is_yuv422upsamplingmode_interpolate = true;
 		is_planar_yuv = true;
 		is_rastermode_yuv422 = true;
 		is_inputselect_compact = true;
@@ -148,12 +143,8 @@ static void dpu95_fy_set_fmt(struct dpu95_fetchunit *fu,
 }
 
 static void dpu95_fy_set_framedimensions(struct dpu95_fetchunit *fu,
-					 unsigned int w, unsigned int h,
-					 bool deinterlace)
+					 unsigned int w, unsigned int h)
 {
-	if (deinterlace)
-		h /= 2;
-
 	dpu95_fu_write(fu, FRAMEDIMENSIONS(fu), FRAMEWIDTH(w) | FRAMEHEIGHT(h));
 }
 
@@ -187,6 +178,10 @@ struct dpu95_fetchunit *dpu95_fy_get(struct dpu95_soc *dpu, unsigned int id)
 	fu->hs = dpu95_hs_get(dpu, fu->type == DPU95_DISP ? 4 : 9);
 	if (IS_ERR(fu->hs))
 		return ERR_CAST(fu->hs);
+
+	fu->vs = dpu95_vs_get(dpu, fu->type == DPU95_DISP ? 4 : 9);
+	if (IS_ERR(fu->vs))
+		return ERR_CAST(fu->vs);
 
 	return fu;
 }
