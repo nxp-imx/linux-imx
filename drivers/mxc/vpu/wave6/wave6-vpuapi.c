@@ -825,29 +825,29 @@ static int wave6_check_enc_param(struct vpu_instance *inst, struct enc_param *pa
 		is_rgb_format = true;
 
 	if (is_rgb_format) {
-		if (param->csc.coef_ry > 1023)
+		if (param->csc.coef_ry + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gy > 1023)
+		if (param->csc.coef_gy + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_by > 1023)
+		if (param->csc.coef_by + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_rcb > 1023)
+		if (param->csc.coef_rcb + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gcb > 1023)
+		if (param->csc.coef_gcb + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_bcb > 1023)
+		if (param->csc.coef_bcb + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_rcr > 1023)
+		if (param->csc.coef_rcr + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_gcr > 1023)
+		if (param->csc.coef_gcr + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.coef_bcr > 1023)
+		if (param->csc.coef_bcr + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.offset_y > 1023)
+		if (param->csc.offset_y + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.offset_cb > 1023)
+		if (param->csc.offset_cb + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.offset_cr > 1023)
+		if (param->csc.offset_cr + 512 > 1023)
 			return -EINVAL;
 	}
 
