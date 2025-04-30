@@ -843,11 +843,11 @@ static int wave6_check_enc_param(struct vpu_instance *inst, struct enc_param *pa
 			return -EINVAL;
 		if (param->csc.coef_bcr + 512 > 1023)
 			return -EINVAL;
-		if (param->csc.offset_y + 512 > 1023)
+		if (param->csc.offset_y > 1023)
 			return -EINVAL;
-		if (param->csc.offset_cb + 512 > 1023)
+		if (param->csc.offset_cb > 1023)
 			return -EINVAL;
-		if (param->csc.offset_cr + 512 > 1023)
+		if (param->csc.offset_cr > 1023)
 			return -EINVAL;
 	}
 
