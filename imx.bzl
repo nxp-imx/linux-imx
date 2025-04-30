@@ -140,7 +140,6 @@ _IMX_IN_TREE_MODULES = [
     "sound/soc/fsl/snd-soc-fsl-asoc-card.ko",
     "sound/soc/fsl/imx-pcm-rpmsg.ko",
     "sound/soc/sof/snd-sof-of.ko",
-    "sound/soc/codecs/snd-soc-rpmsg-wm8960-i2c.ko",
     "drivers/gpio/gpio-pca953x.ko",
     "drivers/gpio/gpio-vf610.ko",
     "drivers/gpu/imx/lcdif/imx8mm-lcdif-core.ko",
@@ -301,7 +300,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/gpu/drm/imx/display-imx-rpmsg.ko",
     "drivers/cpufreq/cpufreq-dt-platdev.ko",
     "drivers/iio/accel/fxls8962af-i2c.ko",
-    "drivers/staging/media/imx/hdmirx/cdns_mhdp_hdmirx.ko",
     "drivers/leds/leds-pca995x.ko",
     "drivers/i2c/muxes/i2c-mux-gpio.ko",
     "drivers/iio/accel/fxls8962af-core.ko",
@@ -406,7 +404,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/regulator/rohm-regulator.ko",
     "drivers/regulator/bd718x7-regulator.ko",
     "drivers/net/ethernet/freescale/enetc/nxp-netc-blk-ctrl.ko",
-    "drivers/pmdomain/arm/scmi_pm_domain.ko",
     "drivers/net/phy/qcom/at803x.ko",
     "drivers/reset/reset-gpio.ko",
     "drivers/dma/fsl-edma.ko",
@@ -428,6 +425,11 @@ _IMX_IN_TREE_MODULES = [
     "drivers/media/platform/nxp/imx-parallel-csi.ko",
     "drivers/media/platform/nxp/imx8mq-mipi-csi2.ko",
     "drivers/rpmsg/imx_rpmsg_chre.ko",
+    "drivers/firmware/arm_scmi/vendors/imx/imx-sm-lmm.ko",
+    "drivers/media/platform/nxp/hdmirx/cdns_mhdp_hdmirx.ko",
+    "drivers/firmware/imx/sm-lmm.ko",
+    "drivers/firmware/imx/sm-cpu.ko",
+    "drivers/firmware/arm_scmi/vendors/imx/imx-sm-cpu.ko",
 ]
 
 def define_imx():
