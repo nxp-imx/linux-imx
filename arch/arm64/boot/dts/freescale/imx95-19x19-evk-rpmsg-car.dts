@@ -5,11 +5,13 @@
 
 #include "imx95-19x19-evk.dts"
 
+/delete-node/ &lpi2c3;
 /delete-node/ &lpi2c4;
 
 / {
 	aliases {
-		i2c3 = &i2c_rpbus_1;
+		i2c2 = &lpi2c3;
+		i2c3 = &i2c_rpbus_4;
 	};
 
 	reserved-memory {
@@ -19,7 +21,34 @@
 		};
 	};
 
-	i2c_rpbus_1: i2c-rpbus-1 {
+	lpi2c3: i2c-rpbus-3 {
+		compatible = "fsl,i2c-rpbus-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		i2c3_gpio_expander_20: i2c3-gpio-expander@20 {
+			compatible = "nxp,pcal6408";
+			#gpio-cells = <2>;
+			gpio-controller;
+			reg = <0x20>;
+			vcc-supply = <&reg_3p3v>;
+		};
+
+		pca9632: pca9632@62 {
+			compatible = "nxp,pca9632";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x62>;
+
+			led_baclklight: led@0 {
+				label = "backlight";
+				reg = <0>;
+				linux,default-trigger = "none";
+			};
+		};
+	};
+	i2c_rpbus_4: i2c-rpbus-4 {
 		compatible = "fsl,i2c-rpbus-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
