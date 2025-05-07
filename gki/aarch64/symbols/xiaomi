@@ -76,8 +76,25 @@
   blk_mq_unquiesce_tagset
 
 #required by stability
+  sock_from_file
   __traceiter_android_vh_cma_alloc_fail
   __tracepoint_android_vh_cma_alloc_fail
+  __traceiter_android_vh_warn_alloc_show_mem_bypass
+  __tracepoint_android_vh_warn_alloc_show_mem_bypass
+  __traceiter_android_vh_meminfo_proc_show
+  __tracepoint_android_vh_meminfo_proc_show
+  __traceiter_android_vh_slab_alloc_node
+  __tracepoint_android_vh_slab_alloc_node
+  __traceiter_android_vh_wq_lockup_pool
+  __tracepoint_android_vh_wq_lockup_pool
+  __traceiter_android_vh_alloc_pages_slowpath_start
+  __tracepoint_android_vh_alloc_pages_slowpath_start
+  __traceiter_android_vh_alloc_pages_slowpath_end
+  __tracepoint_android_vh_alloc_pages_slowpath_end
+  __traceiter_android_vh_alloc_pages_entry
+  __tracepoint_android_vh_alloc_pages_entry
+  __traceiter_android_vh_sysrq_crash
+  __tracepoint_android_vh_sysrq_crash
 
 #required by metis.ko module
   __traceiter_android_vh_rwsem_read_wait_start
@@ -370,6 +387,8 @@ reclaim_pages
 # required by launch_boost driver
 __traceiter_android_vh_filemap_read
 __tracepoint_android_vh_filemap_read
+__traceiter_android_vh_filemap_map_pages
+__tracepoint_android_vh_filemap_map_pages
 
 #required by xiaomi network protocol
 __percpu_counter_init_many
@@ -403,4 +422,14 @@ reuseport_add_sock
 reuseport_alloc
 reuseport_detach_sock
 reuseport_select_sock
+
+#required by mi_mempool.ko
+__traceiter_android_vh_mmput
+__tracepoint_android_vh_mmput
+__traceiter_android_vh_madvise_cold_pageout_skip
+__tracepoint_android_vh_madvise_cold_pageout_skip
+
+#required by speed_ui.ko
+__tracepoint_android_rvh_update_cpus_allowed
+__traceiter_android_rvh_update_cpus_allowed
 

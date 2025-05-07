@@ -149,7 +149,7 @@ static bool s10_altera_pcie_link_up(struct altera_pcie *pcie)
  * Altera PCIe port uses BAR0 of RC's configuration space as the translation
  * from PCI bus to native BUS.  Entire DDR region is mapped into PCIe space
  * using these registers, so it can be reached by DMA from EP devices.
- * This BAR0 will also access to MSI vector when receiving MSI/MSIX interrupt
+ * This BAR0 will also access to MSI vector when receiving MSI/MSI-X interrupt
  * from EP devices, eventually trigger interrupt to GIC.  The BAR0 of bridge
  * should be hidden during enumeration to avoid the sizing and resource
  * allocation by PCIe core.
@@ -815,10 +815,10 @@ static void altera_pcie_remove(struct platform_device *pdev)
 }
 
 static struct platform_driver altera_pcie_driver = {
-	.probe		= altera_pcie_probe,
-	.remove_new	= altera_pcie_remove,
+	.probe = altera_pcie_probe,
+	.remove = altera_pcie_remove,
 	.driver = {
-		.name	= "altera-pcie",
+		.name = "altera-pcie",
 		.of_match_table = altera_pcie_of_match,
 	},
 };

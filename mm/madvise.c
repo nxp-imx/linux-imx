@@ -353,10 +353,12 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 	LIST_HEAD(folio_list);
 	bool pageout_anon_only_filter;
 	unsigned int batch_count = 0;
+	bool abort_madvise = false;
 	int nr;
 	int ret = 0;
 
-	if (fatal_signal_pending(current))
+	trace_android_vh_madvise_cold_or_pageout_abort(vma, &abort_madvise);
+	if (fatal_signal_pending(current) || abort_madvise)
 		return -EINTR;
 
 	trace_android_vh_madvise_pageout_bypass(mm, pageout, &ret);
@@ -447,6 +449,7 @@ restart:
 	flush_tlb_batched_pending(mm);
 	arch_enter_lazy_mmu_mode();
 	for (; addr < end; pte += nr, addr += nr * PAGE_SIZE) {
+		bool need_skip = false;
 		nr = 1;
 		ptent = ptep_get(pte);
 
@@ -468,6 +471,12 @@ restart:
 
 		folio = vm_normal_folio(vma, addr, ptent);
 		if (!folio || folio_is_zone_device(folio))
+			continue;
+
+		trace_android_vh_madvise_cold_pageout_skip(vma, folio, pageout,
+			&need_skip);
+
+		if (need_skip)
 			continue;
 
 		/*

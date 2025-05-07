@@ -201,6 +201,12 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_misfit_status,
 	TP_PROTO(struct task_struct *p, struct rq *rq, bool *need_update),
 	TP_ARGS(p, rq, need_update), 1);
 
+struct cpuset;
+DECLARE_RESTRICTED_HOOK(android_rvh_update_cpus_allowed,
+	TP_PROTO(struct task_struct *p, struct cpuset *cs,
+		 const struct cpumask *new_mask, int *ret),
+	TP_ARGS(p, cs, new_mask, ret), 1);
+
 DECLARE_RESTRICTED_HOOK(android_rvh_sched_fork_init,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p), 1);
@@ -476,6 +482,9 @@ DECLARE_RESTRICTED_HOOK(android_rvh_dequeue_entity_delayed,
 DECLARE_HOOK(android_vh_tick_nohz_idle_stop_tick,
 	TP_PROTO(void *unused),
 	TP_ARGS(unused));
+DECLARE_HOOK(android_vh_mmput,
+	TP_PROTO(struct mm_struct *mm),
+	TP_ARGS(mm));
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */

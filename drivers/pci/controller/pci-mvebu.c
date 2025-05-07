@@ -1422,7 +1422,7 @@ static void mvebu_pcie_powerdown(struct mvebu_pcie_port *port)
 }
 
 /*
- * devm_of_pci_get_host_bridge_resources() only sets up translateable resources,
+ * devm_of_pci_get_host_bridge_resources() only sets up translatable resources,
  * so we need extra resource setup parsing our special DT properties encoding
  * the MEM and IO apertures.
  */
@@ -1727,7 +1727,7 @@ static struct platform_driver mvebu_pcie_driver = {
 		.pm = &mvebu_pcie_pm_ops,
 	},
 	.probe = mvebu_pcie_probe,
-	.remove_new = mvebu_pcie_remove,
+	.remove = mvebu_pcie_remove,
 };
 module_platform_driver(mvebu_pcie_driver);
 

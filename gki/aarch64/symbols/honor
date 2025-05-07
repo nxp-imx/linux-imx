@@ -60,6 +60,18 @@
   __tracepoint_android_rvh_do_el1_bti
   __traceiter_android_rvh_panic_unhandled
   __tracepoint_android_rvh_panic_unhandled
+  __traceiter_android_vh_mutex_init
+  __tracepoint_android_vh_mutex_init
+  __traceiter_android_vh_rwsem_write_finished
+  __tracepoint_android_vh_rwsem_write_finished
+  __traceiter_rpm_idle
+  __tracepoint_rpm_idle
+  __traceiter_rpm_resume
+  __tracepoint_rpm_resume
+  __traceiter_rpm_return_int
+  __tracepoint_rpm_return_int
+  __traceiter_rpm_suspend
+  __tracepoint_rpm_suspend
   __traceiter_android_vh_binder_transaction_record
   __tracepoint_android_vh_binder_transaction_record
   __traceiter_android_vh_binder_data_preset
@@ -138,6 +150,10 @@
   __tracepoint_android_vh_cache_show
   __traceiter_android_rvh_dma_buf_stats_teardown
   __tracepoint_android_rvh_dma_buf_stats_teardown
+  __traceiter_android_vh_dma_buf_attr_show_start
+  __tracepoint_android_vh_dma_buf_attr_show_start
+  __traceiter_android_vh_dma_buf_attr_show_end
+  __tracepoint_android_vh_dma_buf_attr_show_end
   __traceiter_android_vh_process_madvise_begin
   __tracepoint_android_vh_process_madvise_begin
   __traceiter_android_vh_process_madvise_iter
@@ -160,6 +176,16 @@
   __tracepoint_android_vh_unreserve_highatomic_bypass
   __traceiter_android_vh_rmqueue_bulk_bypass
   __tracepoint_android_vh_rmqueue_bulk_bypass
+  __traceiter_android_vh_ogki_check_vip_status
+  __tracepoint_android_vh_ogki_check_vip_status
+  __traceiter_android_rvh_ogki_task_util
+  __tracepoint_android_rvh_ogki_task_util
+  __traceiter_android_rvh_ogki_uclamp_task_util
+  __tracepoint_android_rvh_ogki_uclamp_task_util
+  __traceiter_android_rvh_ogki_get_task_tags
+  __tracepoint_android_rvh_ogki_get_task_tags
+  __traceiter_android_rvh_ogki_get_task_rsum
+  __tracepoint_android_rvh_ogki_get_task_rsum
   __traceiter_android_vh_should_memcg_bypass
   __tracepoint_android_vh_should_memcg_bypass
   __traceiter_android_vh_rmqueue_smallest_bypass
@@ -176,6 +202,10 @@
   __tracepoint_android_vh_pagetypeinfo_show
   __traceiter_android_vh_drain_all_pages_bypass
   __tracepoint_android_vh_drain_all_pages_bypass
+  __traceiter_android_vh_madvise_cold_or_pageout_abort
+  __traceiter_android_vh_compact_finished
+  __tracepoint_android_vh_madvise_cold_or_pageout_abort
+  __tracepoint_android_vh_compact_finished
   netdev_get_name
   tcp_send_active_reset
   __traceiter_android_vh_tcp_write_timeout_estab_retrans
