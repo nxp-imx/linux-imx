@@ -9,7 +9,7 @@
 
 / {
 	aliases {
-		i2c3 = &i2c_rpbus_1;
+		i2c3 = &i2c_rpbus_4;
 	};
 
 	reserved-memory {
@@ -107,7 +107,7 @@
 		status = "okay";
 	};
 
-	i2c_rpbus_1: i2c-rpbus-1 {
+	i2c_rpbus_4: i2c-rpbus-4 {
 		compatible = "fsl,i2c-rpbus-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
