@@ -11,8 +11,6 @@
 #include <linux/netdevice.h>
 #include <linux/skbuff.h> /* skb_shared_info */
 
-#include <net/page_pool/types.h>
-
 /**
  * DOC: XDP RX-queue information
  *
@@ -167,102 +165,15 @@ out:
 	return len;
 }
 
-void xdp_return_frag(netmem_ref netmem, const struct xdp_buff *xdp);
-
-/**
- * __xdp_buff_add_frag - attach frag to &xdp_buff
- * @xdp: XDP buffer to attach the frag to
- * @netmem: network memory containing the frag
- * @offset: offset at which the frag starts
- * @size: size of the frag
- * @truesize: total memory size occupied by the frag
- * @try_coalesce: whether to try coalescing the frags (not valid for XSk)
- *
- * Attach frag to the XDP buffer. If it currently has no frags attached,
- * initialize the related fields, otherwise check that the frag number
- * didn't reach the limit of ``MAX_SKB_FRAGS``. If possible, try coalescing
- * the frag with the previous one.
- * The function doesn't check/update the pfmemalloc bit. Please use the
- * non-underscored wrapper in drivers.
- *
- * Return: true on success, false if there's no space for the frag in
- * the shared info struct.
- */
-static inline bool __xdp_buff_add_frag(struct xdp_buff *xdp, netmem_ref netmem,
-				       u32 offset, u32 size, u32 truesize,
-				       bool try_coalesce)
-{
-	struct skb_shared_info *sinfo = xdp_get_shared_info_from_buff(xdp);
-	skb_frag_t *prev;
-	u32 nr_frags;
-
-	if (!xdp_buff_has_frags(xdp)) {
-		xdp_buff_set_frags_flag(xdp);
-
-		nr_frags = 0;
-		sinfo->xdp_frags_size = 0;
-		sinfo->xdp_frags_truesize = 0;
-
-		goto fill;
-	}
-
-	nr_frags = sinfo->nr_frags;
-	prev = &sinfo->frags[nr_frags - 1];
-
-	if (try_coalesce && netmem == skb_frag_netmem(prev) &&
-	    offset == skb_frag_off(prev) + skb_frag_size(prev)) {
-		skb_frag_size_add(prev, size);
-		/* Guaranteed to only decrement the refcount */
-		xdp_return_frag(netmem, xdp);
-	} else if (unlikely(nr_frags == MAX_SKB_FRAGS)) {
-		return false;
-	} else {
-fill:
-		__skb_fill_netmem_desc_noacc(sinfo, nr_frags++, netmem,
-					     offset, size);
-	}
-
-	sinfo->nr_frags = nr_frags;
-	sinfo->xdp_frags_size += size;
-	sinfo->xdp_frags_truesize += truesize;
-
-	return true;
-}
-
-/**
- * xdp_buff_add_frag - attach frag to &xdp_buff
- * @xdp: XDP buffer to attach the frag to
- * @netmem: network memory containing the frag
- * @offset: offset at which the frag starts
- * @size: size of the frag
- * @truesize: total memory size occupied by the frag
- *
- * Version of __xdp_buff_add_frag() which takes care of the pfmemalloc bit.
- *
- * Return: true on success, false if there's no space for the frag in
- * the shared info struct.
- */
-static inline bool xdp_buff_add_frag(struct xdp_buff *xdp, netmem_ref netmem,
-				     u32 offset, u32 size, u32 truesize)
-{
-	if (!__xdp_buff_add_frag(xdp, netmem, offset, size, truesize, true))
-		return false;
-
-	if (unlikely(netmem_is_pfmemalloc(netmem)))
-		xdp_buff_set_frag_pfmemalloc(xdp);
-
-	return true;
-}
-
 struct xdp_frame {
 	void *data;
-	u32 len;
-	u32 headroom;
+	u16 len;
+	u16 headroom;
 	u32 metasize; /* uses lower 8-bits */
 	/* Lifetime of xdp_rxq_info is limited to NAPI/enqueue time,
-	 * while mem_type is valid on remote CPU.
+	 * while mem info is valid on remote CPU.
 	 */
-	enum xdp_mem_type mem_type:32;
+	struct xdp_mem_info mem;
 	struct net_device *dev_rx; /* used by cpumap */
 	u32 frame_sz;
 	u32 flags; /* supported values defined in xdp_buff_flags */
@@ -282,12 +193,14 @@ xdp_frame_is_frag_pfmemalloc(const struct xdp_frame *frame)
 #define XDP_BULK_QUEUE_SIZE	16
 struct xdp_frame_bulk {
 	int count;
+	void *xa;
 	netmem_ref q[XDP_BULK_QUEUE_SIZE];
 };
 
 static __always_inline void xdp_frame_bulk_init(struct xdp_frame_bulk *bq)
 {
-	bq->count = 0;
+	/* bq->count will be zero'ed when bq->xa gets updated */
+	bq->xa = NULL;
 }
 
 static inline struct skb_shared_info *
@@ -317,14 +230,7 @@ xdp_update_skb_shared_info(struct sk_buff *skb, u8 nr_frags,
 			   unsigned int size, unsigned int truesize,
 			   bool pfmemalloc)
 {
-	struct skb_shared_info *sinfo = skb_shinfo(skb);
-
-	sinfo->nr_frags = nr_frags;
-	/*
-	 * ``destructor_arg`` is unionized with ``xdp_frags_{,true}size``,
-	 * reset it after that these fields aren't used anymore.
-	 */
-	sinfo->destructor_arg = NULL;
+	skb_shinfo(skb)->nr_frags = nr_frags;
 
 	skb->len += size;
 	skb->data_len += size;
@@ -336,7 +242,6 @@ xdp_update_skb_shared_info(struct sk_buff *skb, u8 nr_frags,
 void xdp_warn(const char *msg, const char *func, const int line);
 #define XDP_WARN(msg) xdp_warn(msg, __func__, __LINE__)
 
-struct sk_buff *xdp_build_skb_from_buff(const struct xdp_buff *xdp);
 struct xdp_frame *xdp_convert_zc_to_xdp_frame(struct xdp_buff *xdp);
 struct sk_buff *__xdp_build_skb_from_frame(struct xdp_frame *xdpf,
 					   struct sk_buff *skb,
@@ -401,28 +306,20 @@ struct xdp_frame *xdp_convert_buff_to_frame(struct xdp_buff *xdp)
 	if (unlikely(xdp_update_frame_from_buff(xdp, xdp_frame) < 0))
 		return NULL;
 
-	/* rxq only valid until napi_schedule ends, convert to xdp_mem_type */
-	xdp_frame->mem_type = xdp->rxq->mem.type;
+	/* rxq only valid until napi_schedule ends, convert to xdp_mem_info */
+	xdp_frame->mem = xdp->rxq->mem;
 
 	return xdp_frame;
 }
 
-void __xdp_return(netmem_ref netmem, enum xdp_mem_type mem_type,
-		  bool napi_direct, struct xdp_buff *xdp);
+void __xdp_return(void *data, struct xdp_mem_info *mem, bool napi_direct,
+		  struct xdp_buff *xdp);
 void xdp_return_frame(struct xdp_frame *xdpf);
 void xdp_return_frame_rx_napi(struct xdp_frame *xdpf);
 void xdp_return_buff(struct xdp_buff *xdp);
+void xdp_flush_frame_bulk(struct xdp_frame_bulk *bq);
 void xdp_return_frame_bulk(struct xdp_frame *xdpf,
 			   struct xdp_frame_bulk *bq);
-
-static inline void xdp_flush_frame_bulk(struct xdp_frame_bulk *bq)
-{
-	if (unlikely(!bq->count))
-		return;
-
-	page_pool_put_netmem_bulk(bq->q, bq->count);
-	bq->count = 0;
-}
 
 static __always_inline unsigned int
 xdp_get_frame_len(const struct xdp_frame *xdpf)
