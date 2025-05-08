@@ -1850,7 +1850,7 @@ gckKERNEL_SecurityDumpMMUException(IN gckKERNEL Kernel);
 gceSTATUS
 gckKERNEL_ReadMMUException(IN gckKERNEL     Kernel,
                            IN gctUINT32_PTR MMUStatus,
-                           IN gctUINT32_PTR MMUException);
+                           IN gctADDRESS    *MMUException);
 
 gceSTATUS
 gckKERNEL_HandleMMUException(IN gckKERNEL      Kernel,

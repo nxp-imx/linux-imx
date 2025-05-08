@@ -87,7 +87,12 @@
 #define ENABLE_CMD_MODE			BIT(0)
 
 #define DSI_VID_MODE_CFG		0x38
-#define ENABLE_LOW_POWER		(0x3f << 8)
+#define ENABLE_LOW_POWER_HFP		(0x20 << 8)
+#define ENABLE_LOW_POWER_HBP		(0x10 << 8)
+#define ENABLE_LOW_POWER_VACT		(0x8 << 8)
+#define ENABLE_LOW_POWER_VFP		(0x4 << 8)
+#define ENABLE_LOW_POWER_VBP		(0x2 << 8)
+#define ENABLE_LOW_POWER_VSA		(0x1 << 8)
 #define ENABLE_LOW_POWER_MASK		(0x3f << 8)
 #define VID_MODE_TYPE_NON_BURST_SYNC_PULSES	0x0
 #define VID_MODE_TYPE_NON_BURST_SYNC_EVENTS	0x1
@@ -626,14 +631,21 @@ static void dw_mipi_dsi_video_mode_config(struct dw_mipi_dsi *dsi)
 	 * enabling low power is panel-dependent, we should use the
 	 * panel configuration here...
 	 */
-	val = ENABLE_LOW_POWER;
+	val = ENABLE_LOW_POWER_VACT | ENABLE_LOW_POWER_VFP | ENABLE_LOW_POWER_VSA |
+	      ENABLE_LOW_POWER_VBP;
 
 	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST)
-		val |= VID_MODE_TYPE_BURST;
-	else if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE)
-		val |= VID_MODE_TYPE_NON_BURST_SYNC_PULSES;
-	else
+		val |= VID_MODE_TYPE_BURST | ENABLE_LOW_POWER_HFP | ENABLE_LOW_POWER_HBP;
+	else if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+		val |= VID_MODE_TYPE_NON_BURST_SYNC_PULSES | ENABLE_LOW_POWER_HFP |
+		       ENABLE_LOW_POWER_HBP;
+	} else {
 		val |= VID_MODE_TYPE_NON_BURST_SYNC_EVENTS;
+		if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_NO_HFP)
+			val |= ENABLE_LOW_POWER_HFP;
+		if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_NO_HBP)
+			val |= ENABLE_LOW_POWER_HBP;
+	}
 
 #ifdef CONFIG_DEBUG_FS
 	if (dsi->vpg_defs.vpg) {
@@ -847,6 +859,24 @@ static void dw_mipi_dsi_line_timer_config(struct dw_mipi_dsi *dsi,
 
 	lbcc = dw_mipi_dsi_get_hcomponent_lbcc(dsi, mode, hsa);
 	dsi_write(dsi, DSI_VID_HSA_TIME, lbcc);
+
+	/*
+	 * This timing fixup allows the HFP to go into low power mode for
+	 * 720p60. There is a line size mismatch between DPI and MIPI
+	 * domain for four lanes using 24 bits per pixel. Forcing the HFP
+	 * into low power mode allows the line timer to be reset, thus
+	 * preserving the DPI timing. Without this adjustment, the MIPI
+	 * domain timing drifts from the DPI domain corrupting the video.
+	 * Most other MIPI controllers have workarounds for this mode's
+	 * behavior.
+	 */
+	if (mode->htotal == 1650 && mode->vtotal == 750 &&
+	    dsi->lanes == 4 && dsi->format == MIPI_DSI_FMT_RGB888 &&
+	    (dsi->mode_flags & MIPI_DSI_MODE_VIDEO_NO_HFP) &&
+	    !(dsi->mode_flags & MIPI_DSI_MODE_VIDEO_NO_HBP) &&
+	    !(dsi->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) &&
+	    !(dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST))
+		hbp = hbp - min(32, hbp);
 
 	lbcc = dw_mipi_dsi_get_hcomponent_lbcc(dsi, mode, hbp);
 	dsi_write(dsi, DSI_VID_HBP_TIME, lbcc);

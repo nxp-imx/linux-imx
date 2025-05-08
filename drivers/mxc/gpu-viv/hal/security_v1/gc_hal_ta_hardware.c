@@ -496,7 +496,6 @@ gctaHARDWARE_SetMMU(
     gcsMMU_TABLE_ARRAY_ENTRY *entry;
     gcsHARDWARE_FUNCTION *function = &Hardware->functions[0];
     gctUINT32 delay = 1;
-    gctUINT32 timer = 0;
     gctUINT32 idle;
     gctPHYS_ADDR_T mtlbPhysical;
     gctPHYS_ADDR_T secureSafeAddress;
@@ -589,7 +588,6 @@ gctaHARDWARE_SetMMU(
             0x00004,
             &idle);
 
-        timer += delay;
         delay *= 2;
     } while (!(((((gctUINT32) (idle)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ));
 

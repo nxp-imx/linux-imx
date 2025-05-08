@@ -530,6 +530,62 @@ static int mxc_isi_pipe_enum_mbus_code(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static inline bool is_chan_bypass(const struct v4l2_mbus_framefmt *sink_fmt,
+				  const struct v4l2_mbus_framefmt *src_fmt,
+				  const struct mxc_isi_bus_format_info *sink_info,
+				  const struct mxc_isi_bus_format_info *src_info)
+{
+	return sink_fmt->width == src_fmt->width &&
+	       sink_fmt->height == src_fmt->height &&
+	       sink_info->encoding == src_info->encoding;
+
+}
+
+static void update_pads_format(struct mxc_isi_pipe *pipe,
+			       struct v4l2_subdev_state *state,
+			       struct v4l2_subdev_format *fmt)
+{
+	struct v4l2_mbus_framefmt *mf = &fmt->format;
+	const struct mxc_isi_bus_format_info *sink_info;
+	const struct mxc_isi_bus_format_info *src_info;
+	struct v4l2_mbus_framefmt *sink_fmt;
+	struct v4l2_mbus_framefmt *src_fmt;
+	struct v4l2_rect *rect;
+	unsigned int max_width;
+	bool bypass;
+
+	sink_fmt = mxc_isi_pipe_get_pad_format(pipe, state, MXC_ISI_PIPE_PAD_SINK);
+	src_fmt = mxc_isi_pipe_get_pad_format(pipe, state, MXC_ISI_PIPE_PAD_SOURCE);
+
+	sink_info = mxc_isi_bus_format_by_code(sink_fmt->code, MXC_ISI_PIPE_PAD_SINK);
+	src_info = mxc_isi_bus_format_by_code(src_fmt->code, MXC_ISI_PIPE_PAD_SOURCE);
+
+	bypass = is_chan_bypass(sink_fmt, src_fmt, sink_info, src_info);
+	pipe->bypass = bypass;
+
+	/*
+	 * Limit the max line length if there's no adjacent pipe to
+	 * chain with and not bypass ISI channel.
+	 */
+	max_width = (!bypass && pipe->id == pipe->isi->pdata->num_channels - 1)
+		  ? MXC_ISI_MAX_WIDTH_UNCHAINED
+		  : MXC_ISI_MAX_WIDTH_CHAINED;
+
+	sink_fmt->width = clamp(sink_fmt->width, MXC_ISI_MIN_WIDTH, max_width);
+
+	/*
+	 * Need to update pad format since its value may out of bound.
+	 */
+	rect = mxc_isi_pipe_get_pad_compose(pipe, state, MXC_ISI_PIPE_PAD_SINK);
+	rect->width = sink_fmt->width;
+
+	src_fmt->width = clamp(src_fmt->width, MXC_ISI_MIN_WIDTH, max_width);
+	rect = mxc_isi_pipe_get_pad_crop(pipe, state, MXC_ISI_PIPE_PAD_SOURCE);
+	rect->width = src_fmt->width;
+
+	*mf = *mxc_isi_pipe_get_pad_format(pipe, state, fmt->pad);
+}
+
 static int mxc_isi_pipe_set_fmt(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *state,
 				struct v4l2_subdev_format *fmt)
@@ -544,8 +600,6 @@ static int mxc_isi_pipe_set_fmt(struct v4l2_subdev *sd,
 		return -EBUSY;
 
 	if (fmt->pad == MXC_ISI_PIPE_PAD_SINK) {
-		unsigned int max_width;
-
 		info = mxc_isi_bus_format_by_code(mf->code,
 						  MXC_ISI_PIPE_PAD_SINK);
 		if (!info)
@@ -553,15 +607,15 @@ static int mxc_isi_pipe_set_fmt(struct v4l2_subdev *sd,
 							  MXC_ISI_PIPE_PAD_SINK);
 
 		/*
-		 * Limit the max line length if there's no adjacent pipe to
-		 * chain with.
+		 * Source and sink pad media bus format are always equal
+		 * when user set sink pad format since the sink pad bus
+		 * format will be propagated to the source pad, so the
+		 * maximum width for ISI channel is 4K. No adjacent line
+		 * buffer is needed.
 		 */
-		max_width = pipe->id == pipe->isi->pdata->num_channels - 1
-			  ? MXC_ISI_MAX_WIDTH_UNCHAINED
-			  : MXC_ISI_MAX_WIDTH_CHAINED;
-
 		mf->code = info->mbus_code;
-		mf->width = clamp(mf->width, MXC_ISI_MIN_WIDTH, max_width);
+		mf->width = clamp(mf->width, MXC_ISI_MIN_WIDTH,
+				  MXC_ISI_MAX_WIDTH_CHAINED);
 		mf->height = clamp(mf->height, MXC_ISI_MIN_HEIGHT,
 				   MXC_ISI_MAX_HEIGHT);
 
@@ -618,6 +672,8 @@ static int mxc_isi_pipe_set_fmt(struct v4l2_subdev *sd,
 
 	format = mxc_isi_pipe_get_pad_format(pipe, state, fmt->pad);
 	*format = *mf;
+
+	update_pads_format(pipe, state, fmt);
 
 	dev_dbg(pipe->isi->dev, "pad%u: code: 0x%04x, %ux%u",
 		fmt->pad, mf->code, mf->width, mf->height);
@@ -873,6 +929,9 @@ int mxc_isi_pipe_init(struct mxc_isi_dev *isi, unsigned int id)
 	if (ret < 0)
 		goto error;
 
+	/* ISI channel is bypassed by default */
+	pipe->bypass = true;
+
 	/* Register IRQ handler. */
 	mxc_isi_channel_irq_clear(pipe);
 
@@ -909,36 +968,22 @@ void mxc_isi_pipe_cleanup(struct mxc_isi_pipe *pipe)
 int mxc_isi_pipe_acquire(struct mxc_isi_pipe *pipe,
 			 mxc_isi_pipe_irq_t irq_handler)
 {
-	const struct mxc_isi_bus_format_info *sink_info;
-	const struct mxc_isi_bus_format_info *src_info;
 	struct v4l2_mbus_framefmt *sink_fmt;
-	const struct v4l2_mbus_framefmt *src_fmt;
 	struct v4l2_subdev *sd = &pipe->sd;
 	struct v4l2_subdev_state *state;
-	bool bypass;
 	int ret;
 
 	state = v4l2_subdev_lock_and_get_active_state(sd);
 	sink_fmt = v4l2_subdev_state_get_format(state, MXC_ISI_PIPE_PAD_SINK);
-	src_fmt = v4l2_subdev_state_get_format(state, MXC_ISI_PIPE_PAD_SOURCE);
 	v4l2_subdev_unlock_state(state);
 
-	sink_info = mxc_isi_bus_format_by_code(sink_fmt->code,
-					       MXC_ISI_PIPE_PAD_SINK);
-	src_info = mxc_isi_bus_format_by_code(src_fmt->code,
-					      MXC_ISI_PIPE_PAD_SOURCE);
-
-	bypass = sink_fmt->width == src_fmt->width &&
-		 sink_fmt->height == src_fmt->height &&
-		 sink_info->encoding == src_info->encoding;
-
-	ret = mxc_isi_channel_acquire(pipe, irq_handler, bypass);
+	ret = mxc_isi_channel_acquire(pipe, irq_handler, pipe->bypass);
 	if (ret)
 		return ret;
 
 	/* Chain the channel if needed for wide resolutions. */
-	if (sink_fmt->width > MXC_ISI_MAX_WIDTH_UNCHAINED) {
-		ret = mxc_isi_channel_chain(pipe, bypass);
+	if (sink_fmt->width > MXC_ISI_MAX_WIDTH_UNCHAINED && !pipe->bypass) {
+		ret = mxc_isi_channel_chain(pipe, false);
 		if (ret)
 			mxc_isi_channel_release(pipe);
 	}

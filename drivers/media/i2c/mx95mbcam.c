@@ -99,10 +99,13 @@ static int mx95mbcam_s_stream(struct v4l2_subdev *sd, int enable)
 static int mx95mbcam_enum_mbus_code(struct v4l2_subdev *sd, struct v4l2_subdev_state *sd_state,
 				    struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct mx95mbcam_priv *priv = container_of(sd, struct mx95mbcam_priv, sd);
+
 	if (code->pad || code->index > 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_SBGGR16_1X16;
+	code->code = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SGRBG16_1X16 :
+						MEDIA_BUS_FMT_SBGGR16_1X16;
 
 	return 0;
 }
@@ -124,17 +127,66 @@ static int mx95mbcam_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int mx95mbcam_get_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *sd_state,
+static int mx95mbcam_set_fmt(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *state,
 			     struct v4l2_subdev_format *format)
 {
-	struct v4l2_mbus_framefmt *mf = &format->format;
+	struct v4l2_mbus_framefmt *fmt = &format->format;
+	struct mx95mbcam_priv *priv = container_of(sd, struct mx95mbcam_priv, sd);
+	struct ox03c10 *sensor = priv->sensor;
+	struct v4l2_mbus_framefmt *framefmt;
+	const struct ox03c10_mode *mode;
+	u16 hblank, vblank;
 
 	if (format->pad)
 		return -EINVAL;
 
-	mf->width		= OX03C10_PIXEL_ARRAY_WIDTH;
-	mf->height		= OX03C10_PIXEL_ARRAY_HEIGHT;
-	mf->code		= MEDIA_BUS_FMT_SBGGR16_1X16;
+	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
+		framefmt = v4l2_subdev_state_get_format(state, format->pad);
+		*framefmt = *fmt;
+		return 0;
+	}
+
+	mode = ox03c10_find_closest_mode(sensor, format->format.width,
+					 format->format.height);
+
+	hblank = mode->hts - mode->width;
+	__v4l2_ctrl_modify_range(sensor->hblank, hblank, hblank, 1, hblank);
+	__v4l2_ctrl_s_ctrl(sensor->hblank, hblank);
+
+	vblank = mode->vts - mode->height;
+	__v4l2_ctrl_modify_range(sensor->vblank, vblank, vblank, 1, vblank);
+	__v4l2_ctrl_s_ctrl(sensor->vblank, vblank);
+
+	ox03c10_set_mode(sensor, mode);
+
+	fmt->code = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SGRBG16_1X16 :
+					       MEDIA_BUS_FMT_SBGGR16_1X16;
+	fmt->width = mode->width;
+	fmt->height = mode->height;
+	fmt->colorspace = V4L2_COLORSPACE_RAW;
+	fmt->ycbcr_enc = V4L2_YCBCR_ENC_601;
+	fmt->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(V4L2_COLORSPACE_RAW);
+	fmt->field = V4L2_FIELD_NONE;
+
+	return 0;
+}
+
+static int mx95mbcam_get_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *sd_state,
+			     struct v4l2_subdev_format *format)
+{
+	struct mx95mbcam_priv *priv = container_of(sd, struct mx95mbcam_priv, sd);
+	struct v4l2_mbus_framefmt *mf = &format->format;
+	const struct ox03c10_mode *cur_mode = priv->sensor->cur_mode;
+
+	if (format->pad)
+		return -EINVAL;
+
+	mf->width		= cur_mode->width;
+	mf->height		= cur_mode->height;
+	mf->code		= priv->sensor->vflip->val ? MEDIA_BUS_FMT_SGRBG16_1X16 :
+							     MEDIA_BUS_FMT_SBGGR16_1X16;
 	mf->colorspace		= V4L2_COLORSPACE_RAW;
 	mf->field		= V4L2_FIELD_NONE;
 	mf->ycbcr_enc		= V4L2_YCBCR_ENC_601;
@@ -156,6 +208,7 @@ static int mx95mbcam_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 	state = v4l2_subdev_lock_and_get_active_state(sd);
 
 	format.pad = 0;
+	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	mx95mbcam_get_fmt(sd, state, &format);
 
 	fd->entry[0].pixelcode = format.format.code;
@@ -170,7 +223,15 @@ static int mx95mbcam_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 static int mx95mbcam_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
 				   struct v4l2_subdev_selection *sel)
 {
+	struct mx95mbcam_priv *priv = container_of(sd, struct mx95mbcam_priv, sd);
+	const struct ox03c10_mode *mode = priv->sensor->cur_mode;
+
 	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		sel->r = mode->crop;
+
+		return 0;
+
 	case V4L2_SEL_TGT_NATIVE_SIZE:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = 0;
@@ -180,7 +241,6 @@ static int mx95mbcam_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_st
 
 		return 0;
 
-	case V4L2_SEL_TGT_CROP:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 		sel->r.top = OX03C10_PIXEL_ARRAY_TOP;
 		sel->r.left = OX03C10_PIXEL_ARRAY_LEFT;
@@ -201,7 +261,7 @@ static const struct v4l2_subdev_pad_ops mx95mbcam_subdev_pad_ops = {
 	.enum_mbus_code		= mx95mbcam_enum_mbus_code,
 	.enum_frame_size	= mx95mbcam_enum_frame_size,
 	.get_fmt		= mx95mbcam_get_fmt,
-	.set_fmt		= mx95mbcam_get_fmt,
+	.set_fmt		= mx95mbcam_set_fmt,
 	.get_frame_desc		= mx95mbcam_get_frame_desc,
 	.get_selection		= mx95mbcam_get_selection,
 };

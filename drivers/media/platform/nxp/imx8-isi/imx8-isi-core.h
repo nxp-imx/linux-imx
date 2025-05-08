@@ -266,6 +266,7 @@ struct mxc_isi_pipe {
 	u8				acquired_res;
 	u8				chained_res;
 	bool				chained;
+	bool				bypass;
 
 	/* Virtual channel ID for the ISI channel */
 	u8				vc;

@@ -500,7 +500,7 @@ mxc_isi_format_try(struct mxc_isi_pipe *pipe, struct v4l2_pix_format_mplane *pix
 	unsigned int max_width;
 	unsigned int i;
 
-	max_width = pipe->id == pipe->isi->pdata->num_channels - 1
+	max_width = (!pipe->bypass && pipe->id == pipe->isi->pdata->num_channels - 1)
 		  ? MXC_ISI_MAX_WIDTH_UNCHAINED
 		  : MXC_ISI_MAX_WIDTH_CHAINED;
 
@@ -1345,6 +1345,7 @@ static int mxc_isi_video_enum_framesizes(struct file *file, void *priv,
 					 struct v4l2_frmsizeenum *fsize)
 {
 	struct mxc_isi_video *video = video_drvdata(file);
+	const struct mxc_isi_pipe *pipe = video->pipe;
 	const struct mxc_isi_format_info *info;
 	unsigned int max_width;
 	unsigned int h_align;
@@ -1360,7 +1361,7 @@ static int mxc_isi_video_enum_framesizes(struct file *file, void *priv,
 	h_align = max_t(unsigned int, info->hsub, 1);
 	v_align = max_t(unsigned int, info->vsub, 1);
 
-	max_width = video->pipe->id == video->pipe->isi->pdata->num_channels - 1
+	max_width = (!pipe->bypass && pipe->id == pipe->isi->pdata->num_channels - 1)
 		  ? MXC_ISI_MAX_WIDTH_UNCHAINED
 		  : MXC_ISI_MAX_WIDTH_CHAINED;
 

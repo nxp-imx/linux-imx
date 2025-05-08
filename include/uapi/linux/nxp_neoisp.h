@@ -14,10 +14,12 @@
 /**
  * enum neoisp_version - NXP NEO ISP variants
  *
- * @NEO_ISP_V1: first version used in imx95
+ * @NEO_ISP_V1: First version of ISP
+ * @NEO_ISP_V2: Second version of ISP
  */
 enum neoisp_version_e {
 	NEO_ISP_V1 = 1,
+	NEO_ISP_V2 = 2,
 	NEO_ISP_VFUTURE,
 };
 

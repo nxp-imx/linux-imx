@@ -18,7 +18,8 @@ description: |-
 properties:
   compatible:
     enum:
-      - nxp,neosip
+      - nxp,imx95-a0-neoisp
+      - nxp,imx95-b0-neoisp
 
   reg:
     maxItems: 2
@@ -59,7 +60,7 @@ examples:
     #include <dt-bindings/interrupt-controller/arm-gic.h>
     #include <dt-bindings/power/fsl,imx95-power.h>
     neosip0: isp@4ae00000 {
-        compatible = "nxp,imx95-a0-neoisp";
+        compatible = "nxp,imx95-b0-neoisp";
         #address-cells = <2>;
         #size-cells = <2>;
         reg = <0x0 0x4ae00000 0x0 0x8000>, <0x0 0x4afe0000 0x0 0x10000>;

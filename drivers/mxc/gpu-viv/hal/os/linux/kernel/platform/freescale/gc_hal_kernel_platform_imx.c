@@ -765,17 +765,15 @@ static int init_gpu_opp_table(struct device *dev)
     val = prop->value;
 
     for (p = 0, i = priv->imx_gpu_govern.current_mode; nr > 0 && i < GOVERN_COUNT; nr -= 4) {
-        unsigned long core_freq, core_volt, shader_freq, shader_volt;
+        unsigned long core_freq, core_volt, shader_freq;
 
         core_freq = be32_to_cpup(val++) * 1000;
         core_volt = be32_to_cpup(val++);
 
         if (nr == 2) {
             shader_freq = core_freq;
-            shader_volt = core_volt;
         } else {
             shader_freq = be32_to_cpup(val++) * 1000;
-            shader_volt = be32_to_cpup(val++);
         }
 
         /* We only register core_clk frequency */

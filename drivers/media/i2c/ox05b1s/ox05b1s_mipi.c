@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * A V4L2 driver for Omnivision OX05B1S RGB-IR camera.
- * Copyright (C) 2024, NXP
+ * 
+ * Copyright 2024-2025 NXP
  *
  * Inspired from Sony imx219, imx290, imx214 and imx334 camera drivers
  *
@@ -15,8 +16,18 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
 
-#define OX05B1S_SENS_PAD_SOURCE	0
-#define OX05B1S_SENS_PADS_NUM	1
+enum ox05b1s_pad_ids {
+	OX05B1S_PAD_SRC,
+	OX05B1S_PAD_IMGL, /* long exposure image internal pad */
+	OX05B1S_PAD_IMGS, /* short exposure image internal pad */
+	OX05B1S_PAD_NUM
+};
+
+enum ox05b1s_stream_ids {
+	OX05B1S_STREAM_IMGL, /* long exposure image stream */
+	OX05B1S_STREAM_IMGS, /* short exposure image stream */
+	OX05B1S_STREAM_NUM
+};
 
 #define client_to_ox05b1s(client)\
 	container_of(i2c_get_clientdata(client), struct ox05b1s, subdev)
@@ -91,11 +102,12 @@ struct ox05b1s {
 	struct clk *sensor_clk;
 	const struct ox05b1s_plat_data *model;
 	struct v4l2_subdev subdev;
-	struct media_pad pads[OX05B1S_SENS_PADS_NUM];
+	struct media_pad pads[OX05B1S_PAD_NUM];
 	const struct ox05b1s_mode *mode;
 	struct mutex lock; /* sensor lock */
 	u32 stream_status;
 	struct ox05b1s_ctrls ctrls;
+	u64 enabled_source_streams;
 };
 
 static struct ox05b1s_mode os08a20_supported_modes[] = {
@@ -136,9 +148,9 @@ static struct ox05b1s_mode os08a20_supported_modes[] = {
 		.height		= 2160,
 		.code		= MEDIA_BUS_FMT_SBGGR12_1X12,
 		.bpp		= 12,
-		.vts		= 0x8f0,
-		.hts		= 0x814,
-		.exp		= 0x8f0 - 8,
+		.vts		= 0x90a,
+		.hts		= 0x818,
+		.exp		= 0x90a - 8,
 		.h_bin		= false,
 		.fps		= 30,
 		.reg_data	= os08a20_init_setting_4k,
@@ -280,11 +292,11 @@ static int ox05b1s_update_bits(struct ox05b1s *sensor, u16 reg, unsigned int mas
 
 #define OX05B1S_MAX_REG_BULK 16
 static int ox05b1s_write_reg_array(struct ox05b1s *sensor,
-				   struct ox05b1s_reg *reg_array,
+				   const struct ox05b1s_reg *reg_array,
 				   u32 size)
 {
 	struct device *dev = &sensor->i2c_client->dev;
-	struct ox05b1s_reg *table = reg_array;
+	const struct ox05b1s_reg *table = reg_array;
 	u8 vals[OX05B1S_MAX_REG_BULK];
 	int i, j;
 	int ret;
@@ -359,6 +371,61 @@ static int os08a20_set_hdr_mode(struct ox05b1s *sensor, u32 hdr_mode)
 		return os08a20_disable_staggered_hdr(sensor);
 	case 1:
 		return os08a20_enable_staggered_hdr(sensor);
+	default:
+		return -EINVAL;
+	}
+}
+
+static const char * const ox05b1s_hdr_modes[] = {
+	"NO context switch",	/* single exposure */
+	"Context switch, 2 exposures/VCs", /* context switch 2 exposures/VCs, for RGB and IR */
+};
+
+/* ctx0 for long exposure (IR) on VC0, ctx1 for short exposure (RGB) on VC1 */
+static const struct ox05b1s_reg ovx5b_init_setting_ctx_switch_en[] = {
+	{0x320a, 0x01}, /* frames stay in group0 */
+	{0x320b, 0x01}, /* frames stay in group1 */
+
+	{0x3208, 0x00}, /* group0 start */
+	{0x3501, 0x01}, /* exposure */
+	{0x3502, 0x00}, /* exposure */
+	{0x4813, 0x00}, /* mipi vc0 */
+	{0x3208, 0x10}, /* group0 end */
+
+	{0x3208, 0x01}, /* group1 start */
+	{0x3501, 0x00}, /* exposure */
+	{0x3502, 0x80}, /* exposure */
+	{0x4813, 0x01}, /* mipi vc1 */
+	{0x3208, 0x11}, /* group1 end */
+
+	{0x3211, 0x30}, /* context switch en */
+	{0x3208, 0xa0}, /* repeat launch */
+};
+
+static int ox05b1s_enable_context_switching(struct ox05b1s *sensor)
+{
+	return ox05b1s_write_reg_array(sensor, ovx5b_init_setting_ctx_switch_en,
+				       ARRAY_SIZE(ovx5b_init_setting_ctx_switch_en));
+}
+
+static int ox05b1s_disable_context_switching(struct ox05b1s *sensor)
+{
+	int ret;
+
+	ret = ox05b1s_write_reg(sensor, 0x3211, 0x61);
+	ret |= ox05b1s_write_reg(sensor, 0x320a, 0x0);
+	ret |= ox05b1s_write_reg(sensor, 0x320b, 0x0);
+
+	return ret ? -EIO : 0;
+}
+
+static int ox05b1s_set_hdr_mode(struct ox05b1s *sensor, u32 hdr_mode)
+{
+	switch (hdr_mode) {
+	case 0:
+		return ox05b1s_disable_context_switching(sensor);
+	case 1:
+		return ox05b1s_enable_context_switching(sensor);
 	default:
 		return -EINVAL;
 	}
@@ -573,10 +640,12 @@ static int ox05b1s_s_stream(struct v4l2_subdev *sd, int enable)
 	return 0;
 }
 
-static void ox05b1s_update_pad_format(struct ox05b1s *sensor,
-				      const struct ox05b1s_mode *mode,
+static void ox05b1s_update_pad_format(const struct ox05b1s_mode *mode,
 				      struct v4l2_mbus_framefmt *fmt)
 {
+	if (!fmt)
+		return;
+
 	fmt->code = mode->code;
 	fmt->width = mode->width;
 	fmt->height = mode->height;
@@ -586,16 +655,76 @@ static void ox05b1s_update_pad_format(struct ox05b1s *sensor,
 	fmt->xfer_func = V4L2_XFER_FUNC_NONE;
 }
 
+static int ox05b1s_propagate_fmt(struct v4l2_subdev_state *state,
+				 const struct ox05b1s_mode *mode)
+{
+	struct v4l2_mbus_framefmt *format;
+
+	/* Initialize all the formats according to indicated mode */
+	format = v4l2_subdev_state_get_format(state, OX05B1S_PAD_SRC,
+					      OX05B1S_STREAM_IMGL);
+	ox05b1s_update_pad_format(mode, format);
+
+	format = v4l2_subdev_state_get_format(state, OX05B1S_PAD_IMGL, 0);
+	ox05b1s_update_pad_format(mode, format);
+
+	format = v4l2_subdev_state_get_format(state, OX05B1S_PAD_SRC,
+					      OX05B1S_STREAM_IMGS);
+	ox05b1s_update_pad_format(mode, format);
+
+	format = v4l2_subdev_state_get_format(state, OX05B1S_PAD_IMGS, 0);
+	ox05b1s_update_pad_format(mode, format);
+
+	return 0;
+}
+
 static int ox05b1s_init_state(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_state *state)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
-	struct v4l2_mbus_framefmt *format;
+	struct v4l2_subdev_route routes[OX05B1S_STREAM_NUM];
+	struct v4l2_subdev_krouting routing = { };
+	u32 default_mode_index = sensor->model->default_mode_index;
+	const struct ox05b1s_mode *default_mode;
+	int i;
+	int ret;
 
-	/* Initialize the format. */
-	format = v4l2_subdev_state_get_format(state, 0);
-	ox05b1s_update_pad_format(sensor, &sensor->model->supported_modes[0], format);
+	/* initialize routes from all internal sink pads to the source pad */
+	for (i = 0; i < OX05B1S_STREAM_NUM; i++) {
+		routes[i].source_pad = 0;
+		routes[i].source_stream = i;
+		routes[i].sink_pad = OX05B1S_PAD_IMGL + i;
+		routes[i].sink_stream = 0;
+		routes[i].flags = 0;
+	}
+
+	/* keep all routes inactive by default, except IMGL */
+	routes[OX05B1S_STREAM_IMGL].flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE;
+
+	routing.num_routes = OX05B1S_STREAM_NUM;
+	routing.routes = routes;
+
+	ret = v4l2_subdev_set_routing(sd, state, &routing);
+	if (ret)
+		return ret;
+
+	/* Initialize all the formats according to default mode */
+	default_mode = &sensor->model->supported_modes[default_mode_index];
+	return ox05b1s_propagate_fmt(state, default_mode);
+}
+
+static int ox05b1s_enum_mbus_code_default(struct v4l2_subdev *sd,
+					  struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	u32 default_mode_index = sensor->model->default_mode_index;
+
+	if (code->index > 0)
+		return -EINVAL;
+
+	code->code = sensor->model->supported_modes[default_mode_index].code;
 
 	return 0;
 }
@@ -607,10 +736,34 @@ static int ox05b1s_enum_mbus_code(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
 
+	/* for internal pads, return the default code */
+	if (code->pad != OX05B1S_PAD_SRC)
+		return ox05b1s_enum_mbus_code_default(sd, code);
+
 	if (code->index >= sensor->model->supported_codes_count)
 		return -EINVAL;
 
 	code->code = sensor->model->supported_codes[code->index].code;
+
+	return 0;
+}
+
+static int ox05b1s_enum_frame_size_default(struct v4l2_subdev *sd,
+					   struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	u32 default_mode_index = sensor->model->default_mode_index;
+	const struct ox05b1s_mode *default_mode;
+
+	if (fse->index > 0)
+		return -EINVAL;
+
+	default_mode = &sensor->model->supported_modes[default_mode_index];
+	fse->min_width = default_mode->width;
+	fse->max_width = fse->min_width;
+	fse->min_height = default_mode->height;
+	fse->max_height = fse->min_height;
 
 	return 0;
 }
@@ -624,9 +777,11 @@ static int ox05b1s_enum_frame_size(struct v4l2_subdev *sd,
 	const struct ox05b1s_sizes *frame_sizes = NULL;
 	int i;
 
-	if (fse->pad != 0)
-		return -EINVAL;
+	/* for internal pads, return the default size */
+	if (fse->pad != OX05B1S_PAD_SRC)
+		return ox05b1s_enum_frame_size_default(sd, fse);
 
+	/* image streams */
 	for (i = 0; i < sensor->model->supported_codes_count; i++) {
 		if (sensor->model->supported_codes[i].code == fse->code) {
 			frame_sizes = &sensor->model->supported_codes[i];
@@ -789,12 +944,16 @@ static int ox05b1s_set_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_subdev_state *state,
 			   struct v4l2_subdev_format *fmt)
 {
-	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
 	struct device *dev = &sensor->i2c_client->dev;
-	struct v4l2_mbus_framefmt *format;
 
+	/*
+	 * The driver is mode-based, the format can be set on the source pad
+	 * only, and only for the long exposure stream.
+	 */
+	if (fmt->pad != OX05B1S_PAD_SRC || fmt->stream != OX05B1S_STREAM_IMGL)
+		return v4l2_subdev_get_fmt(sd, state, fmt);
 
 	/* if no matching mbus code is found, use the one from the default mode */
 	fmt->format.code = ox05b1s_find_code(sensor->model, fmt->format.code);
@@ -807,14 +966,12 @@ static int ox05b1s_set_fmt(struct v4l2_subdev *sd,
 	fmt->format.height = sensor->mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
 
-	format = v4l2_subdev_state_get_format(state,0);
-	*format = fmt->format;
+	dev_dbg(dev, "Set mode index=%d, %d x %d, code=0x%x, on pad %d stream %d\n",
+		sensor->mode->index, fmt->format.width, fmt->format.height,
+		fmt->format.code, fmt->pad, fmt->stream);
 
-	dev_dbg(dev, "Set mode index=%d, %d x %d, code=0x%x\n", sensor->mode->index,
-		fmt->format.width, fmt->format.height, fmt->format.code);
-
-
-	return ret;
+	/* propagate the format on the sensor */
+	return ox05b1s_propagate_fmt(state, sensor->mode);
 }
 
 static u8 ox05b1s_code2dt(const u32 code)
@@ -833,19 +990,32 @@ static u8 ox05b1s_code2dt(const u32 code)
 static int ox05b1s_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 				  struct v4l2_mbus_frame_desc *fd)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	struct v4l2_subdev_route *route;
+	struct v4l2_subdev_state *state;
+	const struct v4l2_mbus_framefmt *fmt;
 
 	fd->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
-	fd->num_entries = 1;
 
-	/* get sensor current code*/
-	mutex_lock(&sensor->lock);
-	fd->entry[0].pixelcode = sensor->mode->code;
-	mutex_unlock(&sensor->lock);
-
-	fd->entry[0].bus.csi2.vc = 0;
-	fd->entry[0].bus.csi2.dt = ox05b1s_code2dt(fd->entry[0].pixelcode);
+	state = v4l2_subdev_lock_and_get_active_state(sd);
+	for_each_active_route(&state->routing, route) {
+		fd->entry[fd->num_entries].stream = route->source_stream;
+		fmt = v4l2_subdev_state_get_format(state, OX05B1S_PAD_SRC,
+						   route->source_stream);
+		fd->entry[fd->num_entries].pixelcode = fmt->code;
+		fd->entry[fd->num_entries].bus.csi2.dt = ox05b1s_code2dt(fmt->code);
+		switch (route->source_stream) {
+		case OX05B1S_STREAM_IMGL:
+			fd->entry[fd->num_entries].bus.csi2.vc = 0; break;
+		case OX05B1S_STREAM_IMGS:
+			fd->entry[fd->num_entries].bus.csi2.vc = 1; break;
+		}
+		dev_dbg(sd->dev, "%s using VC=%d and DT=%x for stream %d\n",
+			__func__, fd->entry[fd->num_entries].bus.csi2.vc,
+			fd->entry[fd->num_entries].bus.csi2.dt,
+			route->source_stream);
+		fd->num_entries++;
+	}
+	v4l2_subdev_unlock_state(state);
 
 	return 0;
 }
@@ -877,6 +1047,81 @@ static int ox05b1s_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static int ox05b1s_set_routing(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
+			       enum v4l2_subdev_format_whence which,
+			       struct v4l2_subdev_krouting *routing)
+{
+	int ret;
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	struct v4l2_subdev_route *route;
+	struct v4l2_ctrl *hdr_ctrl = sensor->ctrls.hdr_mode;
+
+	if (which == V4L2_SUBDEV_FORMAT_ACTIVE && media_entity_is_streaming(&sd->entity))
+		return -EBUSY;
+
+	ret = v4l2_subdev_routing_validate(sd, routing, V4L2_SUBDEV_ROUTING_ONLY_1_TO_1);
+	if (ret)
+		return ret;
+
+	ret = v4l2_subdev_set_routing(sd, state, routing);
+	if (ret)
+		return ret;
+
+	/* Initialize all the formats according to default mode */
+	ret = ox05b1s_propagate_fmt(state, &sensor->model->supported_modes[0]);
+	if (ret)
+		return ret;
+
+	/* if the short exposure stream route is active, activate hdr mode */
+	hdr_ctrl->cur.val = 0; /* reset hdr mode from previous routing */
+	for_each_active_route(&state->routing, route) {
+		if (route->source_stream == OX05B1S_STREAM_IMGS) {
+			hdr_ctrl->cur.val = 1;
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static int ox05b1s_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
+				  u32 src_pad, u64 streams_mask)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	struct device *dev = &sensor->i2c_client->dev;
+	int ret;
+
+	dev_dbg(dev, "Enable streams with mask %llx\n", streams_mask);
+	if (!sensor->enabled_source_streams) {
+		/* if the sensor is not streaming already... */
+		ret = ox05b1s_s_stream(sd, 1);
+		if (ret)
+			return ret;
+	}
+	sensor->enabled_source_streams |= streams_mask;
+
+	return 0;
+}
+
+static int ox05b1s_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
+				   u32 src_pad, u64 streams_mask)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	struct device *dev = &sensor->i2c_client->dev;
+	int ret = 0;
+
+	dev_dbg(dev, "Disable streams with mask %llx\n", streams_mask);
+	sensor->enabled_source_streams &= ~streams_mask;
+	/* stop the sensor when there is no more stream enabled */
+	if (!sensor->enabled_source_streams)
+		ret = ox05b1s_s_stream(sd, 0);
+
+	return ret;
+}
+
 static const struct v4l2_subdev_video_ops ox05b1s_subdev_video_ops = {
 	.s_stream = ox05b1s_s_stream,
 };
@@ -888,6 +1133,9 @@ static const struct v4l2_subdev_pad_ops ox05b1s_subdev_pad_ops = {
 	.enum_mbus_code		= ox05b1s_enum_mbus_code,
 	.enum_frame_size	= ox05b1s_enum_frame_size,
 	.get_selection		= ox05b1s_get_selection,
+	.set_routing		= ox05b1s_set_routing,
+	.enable_streams		= ox05b1s_enable_streams,
+	.disable_streams	= ox05b1s_disable_streams,
 };
 
 static const struct v4l2_subdev_ops ox05b1s_subdev_ops = {
@@ -983,14 +1231,18 @@ static int ox05b1s_probe(struct i2c_client *client)
 	sd = &sensor->subdev;
 	v4l2_i2c_subdev_init(sd, client, &ox05b1s_subdev_ops);
 	sd->internal_ops = &ox05b1s_internal_ops;
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_STREAMS;
 	sd->dev = &client->dev;
 	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
-	sensor->pads[OX05B1S_SENS_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
-	retval = media_entity_pads_init(&sd->entity, OX05B1S_SENS_PADS_NUM,
+	sensor->pads[OX05B1S_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
+	sensor->pads[OX05B1S_PAD_IMGL].flags = MEDIA_PAD_FL_SINK | MEDIA_PAD_FL_INTERNAL;
+	sensor->pads[OX05B1S_PAD_IMGS].flags = MEDIA_PAD_FL_SINK | MEDIA_PAD_FL_INTERNAL;
+	retval = media_entity_pads_init(&sd->entity, OX05B1S_PAD_NUM,
 					sensor->pads);
-	if (retval)
+	if (retval) {
+		dev_err(dev, "Failed to init pads\n");
 		goto probe_out;
+	}
 
 	mutex_init(&sensor->lock);
 
@@ -1091,7 +1343,6 @@ static const struct ox05b1s_plat_data os08a20_data = {
 	.hdr_modes		= os08a20_hdr_modes,
 	.hdr_modes_count	= ARRAY_SIZE(os08a20_hdr_modes),
 	.set_hdr_mode		= os08a20_set_hdr_mode,
-
 };
 
 static const struct ox05b1s_plat_data ox05b1s_data = {
@@ -1108,9 +1359,9 @@ static const struct ox05b1s_plat_data ox05b1s_data = {
 	.default_mode_index	= 0,
 	.supported_codes	= ox05b1s_supported_codes,
 	.supported_codes_count	= ARRAY_SIZE(ox05b1s_supported_codes),
-	.hdr_modes		= NULL,
-	.hdr_modes_count	= 0,
-	.set_hdr_mode		= NULL,
+	.hdr_modes		= ox05b1s_hdr_modes,
+	.hdr_modes_count	= ARRAY_SIZE(ox05b1s_hdr_modes),
+	.set_hdr_mode		= ox05b1s_set_hdr_mode,
 };
 
 static const struct i2c_device_id ox05b1s_id[] = {

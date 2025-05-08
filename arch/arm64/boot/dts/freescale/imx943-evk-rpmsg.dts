@@ -6,6 +6,7 @@
 #include "imx943-evk.dts"
 
 /delete-node/ &lpi2c3;
+/delete-node/ &thermal_zones;
 
 / {
 	aliases {

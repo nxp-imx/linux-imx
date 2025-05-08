@@ -2490,6 +2490,11 @@ static void netc_mac_link_up(struct phylink_config *config,
 	netc_port_set_rx_pause(port, rx_pause);
 	netc_port_enable_mac_path(port, true);
 	netc_port_update_mm_link_state(port, true);
+
+	if (phy && port->tx_lpi_enabled) {
+		if (phy_init_eee(phy, false) >= 0)
+			netc_port_set_tx_lpi(port, true);
+	}
 }
 
 static void netc_mac_link_down(struct phylink_config *config, unsigned int mode,
@@ -2503,6 +2508,7 @@ static void netc_mac_link_down(struct phylink_config *config, unsigned int mode,
 	netc_port_update_mm_link_state(port, false);
 	netc_port_enable_mac_path(port, false);
 	netc_port_remove_dynamic_entries(port);
+	netc_port_set_tx_lpi(port, false);
 }
 
 static const struct phylink_mac_ops netc_phylink_mac_ops = {
@@ -2551,6 +2557,8 @@ static const struct dsa_switch_ops netc_switch_ops = {
 	.get_rmon_stats			= netc_port_get_rmon_stats,
 	.get_eth_ctrl_stats		= netc_port_get_eth_ctrl_stats,
 	.get_eth_mac_stats		= netc_port_get_eth_mac_stats,
+	.get_mac_eee			= netc_port_get_mac_eee,
+	.set_mac_eee			= netc_port_set_mac_eee,
 	.resume				= netc_resume,
 	.suspend			= netc_suspend,
 };

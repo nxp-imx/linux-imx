@@ -2,7 +2,7 @@
 /*
  * NEOISP context definition
  *
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2025 NXP
  */
 
 #ifndef NEOISP_CTX_H
@@ -32,9 +32,18 @@
 #define ISP_WSZ(x) (((x) << ISP_WSZ_POS) & ISP_WSZ_MASK)
 
 enum isp_block_map_e {
-	NEO_VIGNETTING_TABLE_MAP = ISP_OFF(0x1000 / sizeof(__u32)) | ISP_WSZ(3072 / sizeof(__u16)),
-	NEO_DRC_GLOBAL_TONEMAP_MAP = ISP_OFF(0x4000 / sizeof(__u32)) | ISP_WSZ(416 / sizeof(__u16)),
-	NEO_DRC_LOCAL_TONEMAP_MAP = ISP_OFF(0x4400 / sizeof(__u32)) | ISP_WSZ(1024 / sizeof(__u32)),
+	NEO_VIGNETTING_TABLE_MAP_V1 = ISP_OFF(0x1000 / sizeof(__u32)) |
+				      ISP_WSZ(3072 / sizeof(__u16)),
+	NEO_DRC_GLOBAL_TONEMAP_MAP_V1 = ISP_OFF(0x4000 / sizeof(__u32)) |
+					ISP_WSZ(416 / sizeof(__u16)),
+	NEO_DRC_LOCAL_TONEMAP_MAP_V1 = ISP_OFF(0x4400 / sizeof(__u32)) |
+				       ISP_WSZ(1024 / sizeof(__u32)),
+	NEO_VIGNETTING_TABLE_MAP_V2 = ISP_OFF(0x2E00 / sizeof(__u32)) |
+				      ISP_WSZ(3072 / sizeof(__u16)),
+	NEO_DRC_GLOBAL_TONEMAP_MAP_V2 = ISP_OFF(0x4600 / sizeof(__u32)) |
+					ISP_WSZ(416 / sizeof(__u16)),
+	NEO_DRC_LOCAL_TONEMAP_MAP_V2 = ISP_OFF(0x4A00 / sizeof(__u32)) |
+				       ISP_WSZ(1024 / sizeof(__u32)),
 
 	NEO_CTEMP_REG_STATS_MAP =  ISP_OFF(0x6000 / sizeof(__u32)) | ISP_WSZ(59),
 	NEO_DRC_REG_STATS_MAP = ISP_OFF(0x60ec / sizeof(__u32)) | ISP_WSZ(2),
@@ -50,9 +59,40 @@ enum isp_block_map_e {
 	NEO_CTEMP_PIX_CNT_MAP = ISP_OFF(0x300 / sizeof(__u32)) | ISP_WSZ(64),
 	NEO_RGBIR_HIST_MAP = ISP_OFF(0x400 / sizeof(__u32)) | ISP_WSZ(256),
 	NEO_HIST_STAT_MAP = ISP_OFF(0x800 / sizeof(__u32)) | ISP_WSZ(512),
-	NEO_DRC_LOCAL_SUM_MAP = ISP_OFF(0x4800 / sizeof(__u32)) | ISP_WSZ(1024),
-	NEO_DRC_GLOBAL_HIST_ROI0_MAP = ISP_OFF(0x5800 / sizeof(__u32)) | ISP_WSZ(416),
-	NEO_DRC_GLOBAL_HIST_ROI1_MAP = ISP_OFF(0x5F00 / sizeof(__u32)) | ISP_WSZ(416),
+
+	NEO_DRC_LOCAL_SUM_MAP_V1 = ISP_OFF(0x4800 / sizeof(__u32)) | ISP_WSZ(1024),
+	NEO_DRC_GLOBAL_HIST_ROI0_MAP_V1 = ISP_OFF(0x5800 / sizeof(__u32)) | ISP_WSZ(416),
+	NEO_DRC_GLOBAL_HIST_ROI1_MAP_V1 = ISP_OFF(0x5F00 / sizeof(__u32)) | ISP_WSZ(416),
+	NEO_DRC_LOCAL_SUM_MAP_V2 = ISP_OFF(0x1E00 / sizeof(__u32)) | ISP_WSZ(1024),
+	NEO_DRC_GLOBAL_HIST_ROI0_MAP_V2 = ISP_OFF(0x1000 / sizeof(__u32)) | ISP_WSZ(416),
+	NEO_DRC_GLOBAL_HIST_ROI1_MAP_V2 = ISP_OFF(0x1700 / sizeof(__u32)) | ISP_WSZ(416),
+};
+
+struct isp_block_map_s {
+	__u32 vignetting_table;
+	__u32 drc_global_tonemap;
+	__u32 drc_global_hist_roi0;
+	__u32 drc_global_hist_roi1;
+	__u32 drc_local_tonemap;
+	__u32 drc_local_sum;
+};
+
+static const struct isp_block_map_s active_block_map[] = {
+	[NEO_ISP_V1] = {
+		.vignetting_table = NEO_VIGNETTING_TABLE_MAP_V1,
+		.drc_global_tonemap = NEO_DRC_GLOBAL_TONEMAP_MAP_V1,
+		.drc_global_hist_roi0 = NEO_DRC_GLOBAL_HIST_ROI0_MAP_V1,
+		.drc_global_hist_roi1 = NEO_DRC_GLOBAL_HIST_ROI1_MAP_V1,
+		.drc_local_tonemap = NEO_DRC_LOCAL_TONEMAP_MAP_V1,
+		.drc_local_sum = NEO_DRC_LOCAL_SUM_MAP_V1,
+	}, [NEO_ISP_V2] = {
+		.vignetting_table = NEO_VIGNETTING_TABLE_MAP_V2,
+		.drc_global_tonemap = NEO_DRC_GLOBAL_TONEMAP_MAP_V2,
+		.drc_global_hist_roi0 = NEO_DRC_GLOBAL_HIST_ROI0_MAP_V2,
+		.drc_global_hist_roi1 = NEO_DRC_GLOBAL_HIST_ROI1_MAP_V2,
+		.drc_local_tonemap = NEO_DRC_LOCAL_TONEMAP_MAP_V2,
+		.drc_local_sum = NEO_DRC_LOCAL_SUM_MAP_V2,
+	},
 };
 
 /*

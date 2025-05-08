@@ -2,7 +2,7 @@
 /*
  * NEOISP debugfs definition
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  * Author: Alexi Birlinger (alexi.birlinger@nxp.com)
  *
  */
@@ -51,19 +51,25 @@ static inline int neoisp_dump_memory(struct seq_file *m, enum isp_block_map_e ma
 
 static int neoisp_dump_vignetting_show(struct seq_file *m, void *private)
 {
-	return neoisp_dump_memory(m, NEO_VIGNETTING_TABLE_MAP, sizeof(__u16));
+	struct neoisp_dev_s *neoispd = m->private;
+
+	return neoisp_dump_memory(m, neoispd->info->mems->vignetting_table, sizeof(__u16));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_vignetting);
 
 static int neoisp_dump_drc_global_show(struct seq_file *m, void *private)
 {
-	return neoisp_dump_memory(m, NEO_DRC_GLOBAL_TONEMAP_MAP, sizeof(__u16));
+	struct neoisp_dev_s *neoispd = m->private;
+
+	return neoisp_dump_memory(m, neoispd->info->mems->drc_global_tonemap, sizeof(__u16));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_drc_global);
 
 static int neoisp_dump_drc_local_show(struct seq_file *m, void *private)
 {
-	return neoisp_dump_memory(m, NEO_DRC_LOCAL_TONEMAP_MAP, sizeof(__u8));
+	struct neoisp_dev_s *neoispd = m->private;
+
+	return neoisp_dump_memory(m, neoispd->info->mems->drc_local_tonemap, sizeof(__u8));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_drc_local);
 

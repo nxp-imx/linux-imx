@@ -39,7 +39,7 @@ static int neoisp_regfield_alloc(struct device *dev, struct neoisp_dev_s *neoisp
 	struct reg_field default_regf = REG_FIELD(0, 0, 31);
 
 	for (idx = 0; idx < NEOISP_FIELD_COUNT; idx++) {
-		default_regf.reg = neoisp_fields_a[idx];
+		default_regf.reg = neoispd->info->regs[idx];
 		neoispd->regs.fields[idx] =
 			devm_regmap_field_alloc(dev, neoispd->regmap, default_regf);
 		if (IS_ERR(neoispd->regs.fields[idx]))
@@ -957,6 +957,8 @@ static int neoisp_prepare_node_streaming(struct neoisp_node_s *node)
 	 * Check if this is input0 node to preload default params
 	 */
 	if (node->id == NEOISP_INPUT0_NODE) {
+		if (neoispd->info->gain_adjust)
+			neoispd->info->gain_adjust(&params->regs, node->neoisp_format->bit_depth);
 		neoisp_update_head_color(&params->regs, pixfmt);
 		neoisp_update_monochrome(&params->regs, pixfmt);
 	}
@@ -1633,15 +1635,15 @@ static void neoisp_get_stats(struct neoisp_dev_s *neoispd, struct neoisp_buffer_
 	memcpy(&dest->mems.hist, &src[offset], size);
 
 	/* get drc local sum stats from memory */
-	neoisp_get_offsize(NEO_DRC_LOCAL_SUM_MAP, &offset, &size);
+	neoisp_get_offsize(neoispd->info->mems->drc_local_sum, &offset, &size);
 	memcpy(&dest->mems.drc.drc_local_sum, &src[offset], size);
 
 	/* get drc hist roi0 stats from memory */
-	neoisp_get_offsize(NEO_DRC_GLOBAL_HIST_ROI0_MAP, &offset, &size);
+	neoisp_get_offsize(neoispd->info->mems->drc_global_hist_roi0, &offset, &size);
 	memcpy(&dest->mems.drc.drc_global_hist_roi0, &src[offset], size);
 
 	/* get drc hist roi1 stats from memory */
-	neoisp_get_offsize(NEO_DRC_GLOBAL_HIST_ROI1_MAP, &offset, &size);
+	neoisp_get_offsize(neoispd->info->mems->drc_global_hist_roi1, &offset, &size);
 	memcpy(&dest->mems.drc.drc_global_hist_roi1, &src[offset], size);
 }
 
@@ -1937,7 +1939,7 @@ err_unregister_queue:
 	return ret;
 }
 
-static int neoisp_init_group(struct neoisp_dev_s *neoispd, struct neoisp_info_s *info, __u32 id)
+static int neoisp_init_group(struct neoisp_dev_s *neoispd, __u32 id)
 {
 	struct neoisp_node_group_s *node_group = &neoispd->node_group[id];
 	struct v4l2_device *v4l2_dev;
@@ -1955,7 +1957,7 @@ static int neoisp_init_group(struct neoisp_dev_s *neoispd, struct neoisp_info_s 
 	/* Register v4l2_device and media_device */
 	mdev = &node_group->mdev;
 	mdev->dev = &neoispd->pdev->dev;
-	mdev->hw_revision = info->neoisp_hw_ver;
+	mdev->hw_revision = neoispd->info->neoisp_hw_ver;
 	strscpy(mdev->model, NEOISP_NAME, sizeof(mdev->model));
 	snprintf(mdev->bus_info, sizeof(mdev->bus_info),
 			"platform:%s", dev_name(&neoispd->pdev->dev));
@@ -2088,14 +2090,14 @@ static int neoisp_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct neoisp_dev_s *neoisp_dev;
-	struct neoisp_info_s *info;
 	int num_groups, ret, irq;
 
 	neoisp_dev = devm_kzalloc(dev, sizeof(*neoisp_dev), GFP_KERNEL);
 	if (!neoisp_dev)
 		return -ENOMEM;
 	neoisp_dev->pdev = pdev;
-	info = (struct neoisp_info_s *)of_device_get_match_data(dev);
+	platform_set_drvdata(pdev, neoisp_dev);
+	neoisp_dev->info = (struct neoisp_info_s *)of_device_get_match_data(dev);
 
 	ret = devm_clk_bulk_get_all(dev, &neoisp_dev->clks);
 	if (ret < 0) {
@@ -2135,8 +2137,6 @@ static int neoisp_probe(struct platform_device *pdev)
 	if (irq < 0)
 		return irq;
 
-	platform_set_drvdata(pdev, neoisp_dev);
-
 	pm_runtime_set_autosuspend_delay(&pdev->dev, NEOISP_SUSPEND_TIMEOUT_MS);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
@@ -2158,7 +2158,7 @@ static int neoisp_probe(struct platform_device *pdev)
 	 * device
 	 */
 	for (num_groups = 0; num_groups < NEOISP_NODE_GROUPS_COUNT; num_groups++) {
-		ret = neoisp_init_group(neoisp_dev, info, num_groups);
+		ret = neoisp_init_group(neoisp_dev, num_groups);
 		if (ret)
 			goto disable_nodes_err;
 	}
@@ -2268,12 +2268,38 @@ static const struct dev_pm_ops neoisp_pm = {
 	SET_RUNTIME_PM_OPS(neoisp_runtime_suspend, neoisp_runtime_resume, NULL)
 };
 
+/*
+ * The gain adjustment should be done for v2 only, as the 12-bit format is managed in a specific
+ * way. Both versions use LPALIGN0/1 bit field to select LSB or MSB alignment. However, LPALIGN0/1
+ * is disabled for 12-bit operations in v2 and data is always aligned in the following manner:
+ * d[15] -> d[4]
+ *
+ * In this sense, a gain is applied to the HDR Decompression block to align the data on d[19] for
+ * input0 as other formats are defined. As the working BPP of input1 is 16-bit depth, the data is
+ * already MSB-aligned and do not need an extra gain.
+ */
+static void neoisp_gain_adjust_v2(struct neoisp_reg_params_s *regp, __u32 ibpp)
+{
+	if (ibpp == 12)
+		regp->decompress_input0.knee_ratio4 = 16 << NEOISP_HDR_SHIFT_RADIX;
+}
+
 static const struct neoisp_info_s neoisp_v1_data = {
 	.neoisp_hw_ver = NEO_ISP_V1,
+	.regs = neoisp_fields_a_v1,
+	.mems = &active_block_map[NEO_ISP_V1],
+};
+
+static const struct neoisp_info_s neoisp_v2_data = {
+	.neoisp_hw_ver = NEO_ISP_V2,
+	.regs = neoisp_fields_a_v2,
+	.mems = &active_block_map[NEO_ISP_V2],
+	.gain_adjust = neoisp_gain_adjust_v2,
 };
 
 static const struct of_device_id neoisp_dt_ids[] = {
 	{ .compatible = "nxp,imx95-a0-neoisp", .data = &neoisp_v1_data },
+	{ .compatible = "nxp,imx95-b0-neoisp", .data = &neoisp_v2_data },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, neoisp_dt_ids);

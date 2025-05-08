@@ -40,10 +40,13 @@ static int ox03c10_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_state *state,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct ox03c10_priv *priv = to_ox03c10_priv(sd);
+
 	if (code->pad != 0 || code->index > 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_SBGGR16_1X16;
+	code->code = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SBGGR16_1X16 :
+						MEDIA_BUS_FMT_SBGGR16_1X16;
 	return 0;
 }
 
@@ -70,6 +73,8 @@ static int ox03c10_enum_frame_size(struct v4l2_subdev *sd,
 static int ox03c10_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 				  struct v4l2_mbus_frame_desc *fd)
 {
+	struct ox03c10_priv *priv = to_ox03c10_priv(sd);
+
 	if (pad != 0 || !fd)
 		return -EINVAL;
 
@@ -77,7 +82,8 @@ static int ox03c10_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 
 	fd->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
 	fd->entry[0].flags = 0;
-	fd->entry[0].pixelcode = MEDIA_BUS_FMT_SBGGR16_1X16;
+	fd->entry[0].pixelcode = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SBGGR16_1X16 :
+							    MEDIA_BUS_FMT_SBGGR16_1X16;
 	fd->entry[0].bus.csi2.vc = 0;
 	fd->entry[0].bus.csi2.dt = MIPI_CSI2_DT_RAW16;
 	fd->num_entries = 1;
@@ -89,7 +95,15 @@ static int ox03c10_get_selection(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *state,
 				 struct v4l2_subdev_selection *sel)
 {
+	struct ox03c10_priv *priv = to_ox03c10_priv(sd);
+	const struct ox03c10_mode *mode = priv->sensor->cur_mode;
+
 	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		sel->r = mode->crop;
+
+		return 0;
+
 	case V4L2_SEL_TGT_NATIVE_SIZE:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = 0;
@@ -99,7 +113,6 @@ static int ox03c10_get_selection(struct v4l2_subdev *sd,
 
 		return 0;
 
-	case V4L2_SEL_TGT_CROP:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 		sel->r.top = OX03C10_PIXEL_ARRAY_TOP;
 		sel->r.left = OX03C10_PIXEL_ARRAY_LEFT;
@@ -112,17 +125,69 @@ static int ox03c10_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static int ox03c10_set_fmt(struct v4l2_subdev *sd,
+			   struct v4l2_subdev_state *state,
+			   struct v4l2_subdev_format *format)
+{
+	struct v4l2_mbus_framefmt *fmt = &format->format;
+	struct ox03c10_priv *priv = to_ox03c10_priv(sd);
+	struct ox03c10 *sensor = priv->sensor;
+	struct v4l2_mbus_framefmt *framefmt;
+	const struct ox03c10_mode *mode;
+	u16 hblank, vblank;
+
+	if (format->pad)
+		return -EINVAL;
+
+	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
+		framefmt = v4l2_subdev_state_get_format(state, format->pad);
+		*framefmt = *fmt;
+		return 0;
+	}
+
+	mode = ox03c10_find_closest_mode(sensor, format->format.width,
+					 format->format.height);
+
+	hblank = mode->hts - mode->width;
+	__v4l2_ctrl_modify_range(sensor->hblank, hblank, hblank, 1, hblank);
+	__v4l2_ctrl_s_ctrl(sensor->hblank, hblank);
+
+	vblank = mode->vts - mode->height;
+	__v4l2_ctrl_modify_range(sensor->vblank, vblank, vblank, 1, vblank);
+	__v4l2_ctrl_s_ctrl(sensor->vblank, vblank);
+
+	ox03c10_set_mode(sensor, mode);
+
+	fmt->code = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SGRBG16_1X16 :
+					       MEDIA_BUS_FMT_SBGGR16_1X16;
+	fmt->width = mode->width;
+	fmt->height = mode->height;
+	fmt->colorspace = V4L2_COLORSPACE_RAW;
+	fmt->ycbcr_enc = V4L2_YCBCR_ENC_601;
+	fmt->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(V4L2_COLORSPACE_RAW);
+	fmt->field = V4L2_FIELD_NONE;
+
+	return 0;
+}
+
 static int ox03c10_get_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_subdev_state *state,
 			   struct v4l2_subdev_format *fmt)
 {
 	struct ox03c10_priv *priv = to_ox03c10_priv(sd);
 	const struct v4l2_mbus_framefmt *format = &priv->formats;
+	const struct ox03c10_mode *cur_mode = priv->sensor->cur_mode;
 
 	if (fmt->pad)
 		return -EINVAL;
 
 	fmt->format = *format;
+	fmt->format.width = cur_mode->width;
+	fmt->format.height = cur_mode->height;
+	fmt->format.code = priv->sensor->vflip->val ? MEDIA_BUS_FMT_SGRBG16_1X16 :
+						      MEDIA_BUS_FMT_SBGGR16_1X16;
+
 	return 0;
 }
 
@@ -132,7 +197,7 @@ static const struct v4l2_subdev_pad_ops ox03c10_subdev_pad_ops = {
 	.get_frame_desc = ox03c10_get_frame_desc,
 	.get_selection = ox03c10_get_selection,
 	.get_fmt = ox03c10_get_fmt,
-	.set_fmt = ox03c10_get_fmt,
+	.set_fmt = ox03c10_set_fmt,
 };
 
 static int ox03c10_s_stream(struct v4l2_subdev *sd, int enable)

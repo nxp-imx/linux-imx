@@ -9253,9 +9253,10 @@ gceSTATUS
 gckHARDWARE_HandleFault(IN gckHARDWARE Hardware)
 {
     gceSTATUS status = gcvSTATUS_NOT_SUPPORTED;
-    gctUINT32 mmu, mmuStatus, address = 0, i = 0;
+    gctUINT32 mmu, mmuStatus, reg, i = 0;
     gctUINT32 mmuStatusRegAddress;
     gctUINT32 mmuExceptionAddress;
+    gctADDRESS address = 0;
 
     gcmkHEADER_ARG("Hardware=%p", Hardware);
 
@@ -9286,7 +9287,9 @@ gckHARDWARE_HandleFault(IN gckHARDWARE Hardware)
                 continue;
 
             gcmkVERIFY_OK(gckOS_ReadRegisterEx(Hardware->os, Hardware->kernel,
-                                               mmuExceptionAddress + i * 4, &address));
+                                               mmuExceptionAddress + i * 4, &reg));
+
+            address = reg;
 
             break;
         }
@@ -9299,19 +9302,21 @@ gckHARDWARE_HandleFault(IN gckHARDWARE Hardware)
         gctSIZE_T      offset          = 0;
         gctPHYS_ADDR_T physicalAddress = 0;
         gceAREA_TYPE   areaType;
+#if !gcdENABLE_TRUST_APPLICATION
         gctUINT32      pageMask;
+#endif
         gcePAGE_TYPE   pageType;
 
         gctUINT32_PTR  entry;
 
         gckMMU_GetAreaType(Hardware->kernel->mmu, address, &areaType);
 
-        pageMask = (areaType == gcvAREA_TYPE_4K) ? gcdMMU_PAGE_4K_MASK : gcdMMU_PAGE_1M_MASK;
         pageType = (areaType == gcvAREA_TYPE_4K) ? gcvPAGE_TYPE_4K : gcvPAGE_TYPE_1M;
 
 #if gcdENABLE_TRUST_APPLICATION
         address &= ~gcdMMU_PAGE_4K_MASK;
 #else
+        pageMask = (areaType == gcvAREA_TYPE_4K) ? gcdMMU_PAGE_4K_MASK : gcdMMU_PAGE_1M_MASK;
         address &= ~pageMask;
 #endif
 

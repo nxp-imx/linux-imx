@@ -71,7 +71,7 @@ config IMX_SEC_ENCLAVE
 	    allowing to configure shared memory, send and receive messages.
 
 config IMX_ELE_TRNG
-	tristate "i.MX ELE True Random Number Generator"
+	bool "i.MX ELE True Random Number Generator"
 	depends on IMX_SEC_ENCLAVE
 	default y
 	select CRYPTO_RNG

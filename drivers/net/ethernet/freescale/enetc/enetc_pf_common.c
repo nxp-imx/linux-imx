@@ -343,6 +343,7 @@ void enetc_pf_netdev_setup(struct enetc_si *si, struct net_device *ndev,
 	ndev->netdev_ops = ndev_ops;
 	enetc_set_ethtool_ops(ndev);
 	ndev->watchdog_timeo = 5 * HZ;
+	ndev->max_mtu = ENETC_MAX_MTU;
 
 	ndev->hw_features = NETIF_F_SG | NETIF_F_RXCSUM |
 			    NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX |
@@ -369,17 +370,20 @@ void enetc_pf_netdev_setup(struct enetc_si *si, struct net_device *ndev,
 	ndev->priv_flags |= IFF_UNICAST_FLT;
 	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
 			     NETDEV_XDP_ACT_NDO_XMIT | NETDEV_XDP_ACT_RX_SG |
-			     NETDEV_XDP_ACT_NDO_XMIT_SG;
+			     NETDEV_XDP_ACT_NDO_XMIT_SG |
+			     NETDEV_XDP_ACT_XSK_ZEROCOPY;
 
 	if (is_enetc_rev1(si)) {
-		ndev->max_mtu = ENETC_MAX_MTU;
 		priv->max_frags_bd = ENETC_MAX_SKB_FRAGS;
 	} else {
-		ndev->max_mtu = ENETC4_MAX_MTU;
 		priv->max_frags_bd = ENETC4_MAX_SKB_FRAGS;
 		priv->active_offloads |= ENETC_F_CHECKSUM;
 		priv->shared_tx_rings = true;
 	}
+
+	ndev->xdp_zc_max_segs = priv->max_frags_bd;
+	ndev->xdp_metadata_ops = &enetc_xdp_metadata_ops;
+	ndev->xsk_tx_metadata_ops = &enetc_xsk_tx_metadata_ops;
 
 	if (si->hw_features & ENETC_SI_F_RSC)
 		ndev->hw_features |= NETIF_F_LRO;
@@ -1707,10 +1711,16 @@ int enetc_sriov_configure(struct pci_dev *pdev, int num_vfs)
 	int err;
 
 	if (enetc_pf_is_owned_by_mcore(pdev)) {
-		err = pci_sriov_configure_simple(pdev, num_vfs);
+		if (!num_vfs) {
+			pci_disable_sriov(pdev);
+
+			return 0;
+		}
+
+		err = pci_enable_sriov(pdev, num_vfs);
 		if (err < 0)
 			dev_err(&pdev->dev,
-				"pci_sriov_configure_simple err %d\n", err);
+				"pci_enable_sriov err %d\n", err);
 
 		return err;
 	}

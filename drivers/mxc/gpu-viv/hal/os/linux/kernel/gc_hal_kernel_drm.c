@@ -183,7 +183,6 @@ void viv_gem_free_object(struct drm_gem_object *gem_obj)
 
 static int viv_ioctl_gem_create(struct drm_device *drm, void *data, struct drm_file *file)
 {
-    int                        ret     = 0;
     struct drm_viv_gem_create *args    = (struct drm_viv_gem_create *)data;
     struct drm_gem_object     *gem_obj = gcvNULL;
     struct viv_gem_object     *viv_obj = gcvNULL;
@@ -238,7 +237,7 @@ static int viv_ioctl_gem_create(struct drm_device *drm, void *data, struct drm_f
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
     gem_obj->funcs = &viv_gem_object_funcs;
 #    endif
-    ret = drm_gem_handle_create(file, gem_obj, &args->handle);
+    drm_gem_handle_create(file, gem_obj, &args->handle);
 
     viv_obj              = container_of(gem_obj, struct viv_gem_object, base);
     viv_obj->node_handle = iface.u.AllocateLinearVideoMemory.node;

@@ -232,7 +232,7 @@ OnError:
 
 gceSTATUS
 gckKERNEL_ReadMMUException(IN gckKERNEL Kernel, IN gctUINT32_PTR MMUStatus,
-                           IN gctUINT32_PTR MMUException)
+                           IN gctADDRESS *MMUException)
 {
     gceSTATUS       status;
     gcsTA_INTERFACE iface;

@@ -534,7 +534,7 @@ static int mxc_isi_m2m_streamon(struct file *file, void *fh,
 	 * Allocate resources for the channel, counting how many users require
 	 * buffer chaining.
 	 */
-	if (!ctx->chained && out_pix->width > MXC_ISI_MAX_WIDTH_UNCHAINED) {
+	if (!ctx->chained && out_pix->width > MXC_ISI_MAX_WIDTH_UNCHAINED && !bypass) {
 		ret = mxc_isi_channel_chain(m2m->pipe, bypass);
 		if (ret)
 			goto deinit;

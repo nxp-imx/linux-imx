@@ -1093,19 +1093,28 @@ static void neoisp_set_autofocus(struct neoisp_reg_params_s *p, struct neoisp_de
 			NEO_AUTOFOCUS_FIL1_SHIFT_CAM0_SHIFT_SET(p->afc.fil1_shift_shift));
 }
 
-static void neoisp_set_mem_vignetting_table(struct neoisp_mem_params_s *p, __u32 *dest)
+static void neoisp_set_mem_vignetting_table(struct neoisp_mem_params_s *p,
+					    __u32 *dest,
+					    struct neoisp_dev_s *neoispd)
 {
-	ctx_blk_write(NEO_VIGNETTING_TABLE_MAP, (__u32 *)p->vt.vignetting_table, dest);
+	ctx_blk_write(neoispd->info->mems->vignetting_table,
+		      (__u32 *)p->vt.vignetting_table, dest);
 }
 
-static void neoisp_set_mem_global_tonemap(struct neoisp_mem_params_s *p, __u32 *dest)
+static void neoisp_set_mem_global_tonemap(struct neoisp_mem_params_s *p,
+					  __u32 *dest,
+					  struct neoisp_dev_s *neoispd)
 {
-	ctx_blk_write(NEO_DRC_GLOBAL_TONEMAP_MAP, (__u32 *)p->gtm.drc_global_tonemap, dest);
+	ctx_blk_write(neoispd->info->mems->drc_global_tonemap,
+		      (__u32 *)p->gtm.drc_global_tonemap, dest);
 }
 
-static void neoisp_set_mem_local_tonemap(struct neoisp_mem_params_s *p, __u32 *dest)
+static void neoisp_set_mem_local_tonemap(struct neoisp_mem_params_s *p,
+					 __u32 *dest,
+					 struct neoisp_dev_s *neoispd)
 {
-	ctx_blk_write(NEO_DRC_LOCAL_TONEMAP_MAP, (__u32 *)p->ltm.drc_local_tonemap, dest);
+	ctx_blk_write(neoispd->info->mems->drc_local_tonemap,
+		      (__u32 *)p->ltm.drc_local_tonemap, dest);
 }
 
 int neoisp_set_params(struct neoisp_dev_s *neoispd, struct neoisp_meta_params_s *p, bool force)
@@ -1162,11 +1171,11 @@ int neoisp_set_params(struct neoisp_dev_s *neoispd, struct neoisp_meta_params_s 
 	if (force || p->features_cfg.gcm_cfg)
 		neoisp_set_gcm(&p->regs, neoispd);
 	if (force || p->features_cfg.vignetting_table_cfg)
-		neoisp_set_mem_vignetting_table(&p->mems, mem);
+		neoisp_set_mem_vignetting_table(&p->mems, mem, neoispd);
 	if (force || p->features_cfg.drc_global_tonemap_cfg)
-		neoisp_set_mem_global_tonemap(&p->mems, mem);
+		neoisp_set_mem_global_tonemap(&p->mems, mem, neoispd);
 	if (force || p->features_cfg.drc_local_tonemap_cfg)
-		neoisp_set_mem_local_tonemap(&p->mems, mem);
+		neoisp_set_mem_local_tonemap(&p->mems, mem, neoispd);
 
 	return 0;
 }

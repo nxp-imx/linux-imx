@@ -45,6 +45,7 @@ static const struct netc_switch_info imx94_info = {
 	.cpu_port_num = 1,
 	.usr_port_num = 3,
 	.tmr_devfn = 1,
+	.sysclk_freq = NETC_SYSCLK_333M,
 	.phylink_get_caps = imx94_switch_phylink_get_caps,
 };
 

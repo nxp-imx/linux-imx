@@ -3666,7 +3666,6 @@ gckCOMMAND_Stall(IN gckCOMMAND Command, IN gctBOOL FromPower)
     gckEVENT    eventObject;
     gceSTATUS   status;
     gctSIGNAL   signal = gcvNULL;
-    gctUINT     timer  = 0;
     gcsEVENT_ATTR eventAttr;
 
     gcmkHEADER_ARG("Command=%p", Command);
@@ -3722,9 +3721,6 @@ gckCOMMAND_Stall(IN gckCOMMAND Command, IN gctBOOL FromPower)
 
             gcmkVERIFY_OK(gckOS_MemoryBarrier(os, gcvNULL));
 #endif
-
-            /* Advance timer. */
-            timer += gcdGPU_ADVANCETIMER;
         } else if (status == gcvSTATUS_INTERRUPTED) {
             gcmkONERROR(gcvSTATUS_INTERRUPTED);
         }

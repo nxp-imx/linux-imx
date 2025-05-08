@@ -23,13 +23,6 @@
 #define ENETC_MAX_MTU		(ENETC_MAC_MAXFRM_SIZE - \
 				(ETH_FCS_LEN + ETH_HLEN + VLAN_HLEN))
 
-/* i.MX95 supports jumbo frame, but it is recommended to set the max frame
- * size to 2000 bytes.
- */
-#define ENETC4_MAC_MAXFRM_SIZE	2000
-#define ENETC4_MAX_MTU		(ENETC4_MAC_MAXFRM_SIZE - \
-				(ETH_FCS_LEN + ETH_HLEN + VLAN_HLEN))
-
 #define ENETC_CBD_DATA_MEM_ALIGN 64
 
 #define ENETC_INT_NAME_MAX	(IFNAMSIZ + 8)
@@ -38,18 +31,21 @@ struct enetc_tx_swbd {
 	union {
 		struct sk_buff *skb;
 		struct xdp_frame *xdp_frame;
+		struct xdp_buff *xsk_buff;
 	};
 	dma_addr_t dma;
 	struct page *page;	/* valid only if is_xdp_tx */
 	u16 page_offset;	/* valid only if is_xdp_tx */
 	u16 len;
 	enum dma_data_direction dir;
+	struct xsk_tx_metadata_compl xsk_meta;
 	u8 is_dma_page:1;
 	u8 check_wb:1;
 	u8 do_twostep_tstamp:1;
 	u8 is_eof:1;
 	u8 is_xdp_tx:1;
 	u8 is_xdp_redirect:1;
+	u8 is_xsk:1;
 	u8 qbv_en:1;
 };
 
@@ -87,6 +83,7 @@ struct enetc_lso_t {
 struct enetc_rx_swbd {
 	dma_addr_t dma;
 	struct page *page;
+	struct xdp_buff *xsk_buff;
 	u16 page_offset;
 	enum dma_data_direction dir;
 	u16 len;
@@ -102,28 +99,31 @@ struct enetc_rx_swbd {
 #define ENETC_TX_STOP_THRESHOLD	(MAX_SKB_FRAGS + 3)
 
 struct enetc_ring_stats {
-	unsigned int packets;
-	unsigned int bytes;
-	unsigned int rx_alloc_errs;
-	unsigned int xdp_drops;
-	unsigned int xdp_tx;
-	unsigned int xdp_tx_drops;
-	unsigned int xdp_redirect;
-	unsigned int xdp_redirect_failures;
-	unsigned int recycles;
-	unsigned int recycle_failures;
-	unsigned int win_drop;
+	unsigned long packets;
+	unsigned long bytes;
+	unsigned long rx_alloc_errs;
+	unsigned long xdp_drops;
+	unsigned long xdp_tx;
+	unsigned long xdp_tx_drops;
+	unsigned long xdp_redirect;
+	unsigned long xdp_redirect_failures;
+	unsigned long recycles;
+	unsigned long recycle_failures;
+	unsigned long win_drop;
 };
 
 struct enetc_xdp_data {
 	struct xdp_rxq_info rxq;
 	struct bpf_prog *prog;
+	struct xsk_buff_pool *xsk_pool;
+	struct xdp_buff **xsk_batch;
 	int xdp_tx_in_flight;
 };
 
 #define ENETC_RX_RING_DEFAULT_SIZE	2048
 #define ENETC_TX_RING_DEFAULT_SIZE	2048
 #define ENETC_DEFAULT_TX_WORK		(ENETC_TX_RING_DEFAULT_SIZE / 2)
+#define ENETC_XSK_TX_BUDGET		256
 
 struct enetc_bdr_resource {
 	/* Input arguments saved for teardown */
@@ -185,20 +185,25 @@ static inline void enetc_bdr_idx_inc(struct enetc_bdr *bdr, int *i)
 		*i = 0;
 }
 
+/* enetc_num_bd() retrieves the BD count between a given ring start and
+ * end index.
+ */
+static inline int enetc_num_bd(struct enetc_bdr *ring, int first, int last)
+{
+	if (first < last)
+		return last - first;
+
+	return ring->bd_count + last - first;
+}
+
 static inline int enetc_bd_unused(struct enetc_bdr *bdr)
 {
-	if (bdr->next_to_clean > bdr->next_to_use)
-		return bdr->next_to_clean - bdr->next_to_use - 1;
-
-	return bdr->bd_count + bdr->next_to_clean - bdr->next_to_use - 1;
+	return enetc_num_bd(bdr, bdr->next_to_use, bdr->next_to_clean) - 1;
 }
 
 static inline int enetc_swbd_unused(struct enetc_bdr *bdr)
 {
-	if (bdr->next_to_clean > bdr->next_to_alloc)
-		return bdr->next_to_clean - bdr->next_to_alloc - 1;
-
-	return bdr->bd_count + bdr->next_to_clean - bdr->next_to_alloc - 1;
+	return enetc_num_bd(bdr, bdr->next_to_alloc, bdr->next_to_clean) - 1;
 }
 
 /* Control BD ring */
@@ -520,6 +525,8 @@ struct enetc_ndev_priv {
 
 /* PTP driver exports */
 extern int enetc_phc_index;
+extern const struct xdp_metadata_ops enetc_xdp_metadata_ops;
+extern const struct xsk_tx_metadata_ops enetc_xsk_tx_metadata_ops;
 
 /* SI common */
 u32 enetc_port_mac_rd(struct enetc_si *si, u32 reg);
@@ -549,6 +556,7 @@ void enetc_reset_tc_mqprio(struct net_device *ndev);
 int enetc_setup_bpf(struct net_device *ndev, struct netdev_bpf *bpf);
 int enetc_xdp_xmit(struct net_device *ndev, int num_frames,
 		   struct xdp_frame **frames, u32 flags);
+int enetc_xsk_wakeup(struct net_device *ndev, u32 queue, u32 flags);
 void enetc_change_preemptible_tcs(struct enetc_ndev_priv *priv,
 				  u8 preemptible_tcs);
 void enetc_reset_mac_addr_filter(struct enetc_mac_filter *filter);

@@ -6795,15 +6795,12 @@ gckOS_WaitNativeFence(IN gckOS     Os,
                       IN gctINT    FenceFD,
                       IN gctUINT32 Timeout)
 {
-    struct viv_sync_timeline *timeline;
     gceSTATUS                 status = gcvSTATUS_OK;
     unsigned int              i;
     unsigned long             timeout;
     unsigned int              numFences;
     struct dma_fence         *fence;
     struct dma_fence        **fences;
-
-    timeline = (struct viv_sync_timeline *)Timeline;
 
     fence = sync_file_get_fence(FenceFD);
 

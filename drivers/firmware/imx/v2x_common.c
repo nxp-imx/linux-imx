@@ -122,7 +122,12 @@ int v2x_resume(struct se_if_priv *priv)
 	if (!is_v2x_fw_running(v2x_fw_state)) {
 		/* TODO : Calculate retry count in more predictable manner */
 		v2x_state_fetch_count = V2X_STATE_FETCH_MAX_RETRIES;
-
+		ret = ele_v2x_fw_authenticate(ele_priv, V2X_FW_IMG_DDR_ADDR);
+		if (ret) {
+			dev_err(priv->dev,
+				"failure: v2x fw loading [0x%x].", ret);
+			return 0;
+		}
 		do {
 			v2x_state_fetch_count--;
 			ret = ele_get_v2x_fw_state(ele_priv, &v2x_fw_state);

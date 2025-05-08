@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: ((GPL-2.0+ WITH Linux-syscall-note) OR BSD-3-Clause) */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #ifndef _OX03C10_H_
@@ -83,6 +83,7 @@ struct ox03c10_pwl_ctrl {
 struct ox03c10_otp_correction {
 	__u32 val1; /* [23:16] = reg(0x7057), [15:8] = reg(0x7058), [7:0] = reg(0x7059) */
 	__u32 val2; /* [23:16] = reg(0x705B), [15:8] = reg(0x705C), [7:0] = reg(0x705D) */
+	__u32 val3; /* [23:16] = reg(0x705F), [15:8] = reg(0x7060), [7:0] = reg(0x7061) */
 } __attribute__ ((__packed__));
 
 #endif

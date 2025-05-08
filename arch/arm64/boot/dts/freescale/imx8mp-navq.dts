@@ -643,12 +643,12 @@
 };
 
 &usb3_phy1 {
-	fsl,phy-tx-vref-tune = <6>;
-	fsl,phy-tx-rise-tune = <0>;
-	fsl,phy-tx-preemp-amp-tune = <3>;
-	fsl,phy-comp-dis-tune = <7>;
-	fsl,pcs-tx-deemph-3p5db = <0x21>;
-	fsl,phy-pcs-tx-swing-full = <0x7f>;
+	fsl,phy-tx-vref-tune-percent = <106>;
+	fsl,phy-tx-rise-tune-percent = <103>;
+	fsl,phy-tx-preemp-amp-tune-microamp = <1800>;
+	fsl,phy-comp-dis-tune-percent = <115>;
+	fsl,phy-pcs-tx-deemph-3p5db-attenuation-db = <33>;
+	fsl,phy-pcs-tx-swing-full-percent = <100>;
 	status = "okay";
 };
 

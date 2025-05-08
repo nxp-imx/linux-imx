@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0-only OR MIT)
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #include <dt-bindings/clock/nxp,imx95-clock.h>
@@ -1892,7 +1892,7 @@
 		};
 
 		neoisp0: isp@4ae00000 {
-			compatible = "nxp,imx95-a0-neoisp";
+			compatible = "nxp,imx95-b0-neoisp";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			reg = <0x0 0x4ae00000 0x0 0x8000>,

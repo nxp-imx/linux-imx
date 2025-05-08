@@ -225,21 +225,6 @@ static bool __xpcs_linkmode_supported(const struct dw_xpcs_compat *compat,
 #define xpcs_linkmode_supported(compat, mode) \
 	__xpcs_linkmode_supported(compat, ETHTOOL_LINK_MODE_ ## mode ## _BIT)
 
-int xpcs_phy_read(struct dw_xpcs *xpcs, int dev, u32 reg)
-{
-	struct mii_bus *bus = xpcs->phydev->bus;
-	int addr = xpcs->phydev->addr;
-
-	return mdiobus_c45_read(bus, addr, dev, reg);
-}
-
-int xpcs_phy_write(struct dw_xpcs *xpcs, int dev, u32 reg, u16 val)
-{
-	struct mii_bus *bus = xpcs->phydev->bus;
-	int addr = xpcs->phydev->addr;
-
-	return mdiobus_c45_write(bus, addr, dev, reg, val);
-}
 
 int xpcs_read(struct dw_xpcs *xpcs, int dev, u32 reg)
 {
@@ -874,6 +859,18 @@ static int xpcs_config_2500basex(struct dw_xpcs *xpcs)
 	return xpcs_write(xpcs, MDIO_MMD_VEND2, DW_VR_MII_MMD_CTRL, ret);
 }
 
+static int xpcs_config_10gbaser(struct dw_xpcs *xpcs)
+{
+	int ret;
+
+	ret = xpcs_modify_changed(xpcs, MDIO_MMD_VEND2, DW_VR_MII_DIG_CTRL1,
+				  DW_VR_MII_DIG_CTRL1_MAC_AUTO_SW, 0);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 int xpcs_do_config(struct dw_xpcs *xpcs, phy_interface_t interface,
 		   const unsigned long *advertising, unsigned int neg_mode)
 {
@@ -892,6 +889,9 @@ int xpcs_do_config(struct dw_xpcs *xpcs, phy_interface_t interface,
 
 	switch (compat->an_mode) {
 	case DW_10GBASER:
+		ret = xpcs_config_10gbaser(xpcs);
+		if (ret)
+			return ret;
 		break;
 	case DW_AN_C73:
 		if (neg_mode == PHYLINK_PCS_NEG_INBAND_ENABLED) {
@@ -1411,7 +1411,21 @@ static const struct dw_xpcs_compat nxp_mx95_xpcs_compat[DW_XPCS_INTERFACE_MAX] =
 		.interface = xpcs_10gbaser_interfaces,
 		.num_interfaces = ARRAY_SIZE(xpcs_10gbaser_interfaces),
 		.an_mode = DW_10GBASER,
-		.pma_config = xpcs_phy_usxgmii_pma_config,
+		.pma_config = imx95_xpcs_phy_xfi_config,
+	},
+	[DW_XPCS_2500BASEX] = {
+		.supported = xpcs_2500basex_features,
+		.interface = xpcs_2500basex_interfaces,
+		.num_interfaces = ARRAY_SIZE(xpcs_2500basex_interfaces),
+		.an_mode = DW_2500BASEX,
+		.pma_config = imx95_xpcs_phy_sgmii_2p5g_config,
+	},
+	[DW_XPCS_SGMII] = {
+		.supported = xpcs_sgmii_features,
+		.interface = xpcs_sgmii_interfaces,
+		.num_interfaces = ARRAY_SIZE(xpcs_sgmii_interfaces),
+		.an_mode = DW_AN_C37_SGMII,
+		.pma_config = imx95_xpcs_phy_sgmii_1g_config,
 	},
 };
 

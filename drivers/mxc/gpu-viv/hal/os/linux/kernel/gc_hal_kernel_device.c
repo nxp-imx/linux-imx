@@ -1129,7 +1129,7 @@ static int
 set_clk(const char *buf)
 {
     gckHARDWARE  hardware;
-    gctINT       n, j, k;
+    gctINT       n, k;
     gctBOOL      isSpace = gcvFALSE;
     char         data[20];
     gckGALDEVICE gal_device = galDevice;
@@ -1140,7 +1140,7 @@ set_clk(const char *buf)
         return -ENXIO;
 
     memset(data, 0, 20);
-    n = 0; j = 0; k = 0;
+    n = 0; k = 0;
 
     while (gcvTRUE) {
         if ((buf[k] >= '0') && (buf[k] <= '9')) {

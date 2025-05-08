@@ -244,6 +244,10 @@
 #define NETC_PM_PAUSE_TRHESH(a)		(0x1064 + (a) * 0x400)
 #define  PAUSE_TRHESH_QTH		GENMASK(15, 0)
 
+#define NETC_PM_LPWAKE_TIMER(a)		(0x10b8 + (a) * 0x400)
+#define NETC_PM_SLEEP_TIMER(a)		(0x10bc + (a) * 0x400)
+#define  PM_SLEEP_TIMER_SLEEP		GENMASK(23, 0)
+
 #define NETC_PM_SINGLE_STEP(a)		(0x10c0 + (a) * 0x400)
 #define  PM_SINGLE_STEP_CH		BIT(6)
 #define  PM_SINGLE_STEP_OFFSET		GENMASK(15, 7)
