@@ -46,7 +46,7 @@
 	status = "disabled";
 };
 
-&lpuart5 {
+&lpuart6 {
        /delete-node/ bluetooth;
 };
 
