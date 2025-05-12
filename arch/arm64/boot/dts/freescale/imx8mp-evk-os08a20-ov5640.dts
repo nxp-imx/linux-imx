@@ -34,7 +34,6 @@
 };
 
 &ov5640_1 {
-	pinctrl-0 = <&pinctrl_csi_mclk>;
 	powerdown-gpios = <&gpio2 11 GPIO_ACTIVE_HIGH>;
 	csi_id = <1>;
 

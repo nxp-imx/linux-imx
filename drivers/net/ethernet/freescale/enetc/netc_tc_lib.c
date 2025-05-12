@@ -1127,6 +1127,20 @@ int netc_setup_taprio(struct ntmp_priv *priv, u32 entry_id,
 	for (i = 0; i < f->num_entries; i++) {
 		struct tc_taprio_sched_entry *temp_entry = &f->entries[i];
 
+		switch (temp_entry->command) {
+		case TC_TAPRIO_CMD_SET_GATES:
+			cfge->ge[i].hr_cb = HR_CB_SET_GATES;
+			break;
+		case TC_TAPRIO_CMD_SET_AND_HOLD:
+			cfge->ge[i].hr_cb = HR_CB_SET_AND_HOLD;
+			break;
+		case TC_TAPRIO_CMD_SET_AND_RELEASE:
+			cfge->ge[i].hr_cb = HR_CB_SET_AND_RELEASE;
+			break;
+		default:
+			return -EOPNOTSUPP;
+		}
+
 		cfge->ge[i].tc_state = temp_entry->gate_mask;
 		cfge->ge[i].interval = cpu_to_le32(temp_entry->interval);
 	}

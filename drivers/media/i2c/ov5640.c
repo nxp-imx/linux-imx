@@ -630,7 +630,7 @@ static const struct reg_value ov5640_init_setting[] = {
 	{0x583b, 0x28, 0, 0}, {0x583c, 0x42, 0, 0}, {0x583d, 0xce, 0, 0},
 	{0x5025, 0x00, 0, 0}, {0x3a0f, 0x30, 0, 0}, {0x3a10, 0x28, 0, 0},
 	{0x3a1b, 0x30, 0, 0}, {0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0},
-	{0x3a1f, 0x14, 0, 0}, {0x3c00, 0x04, 0, 300},
+	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3c00, 0x04, 0, 300},
 };
 
 static const struct reg_value ov5640_setting_low_res[] = {
@@ -1863,14 +1863,8 @@ static int ov5640_set_stream_mipi(struct ov5640_dev *sensor, bool on)
 	if (ret)
 		return ret;
 
-	ret = ov5640_write_reg(sensor, OV5640_REG_FRAME_CTRL01,
-			       on ? 0x00 : 0x0f);
-	if (ret)
-		return ret;
-
-	return ov5640_write_reg(sensor, OV5640_REG_SYS_CTRL0, on ?
-				OV5640_REG_SYS_CTRL0_SW_PWUP :
-				OV5640_REG_SYS_CTRL0_SW_PWDN);
+	return ov5640_write_reg(sensor, OV5640_REG_FRAME_CTRL01,
+				on ? 0x00 : 0x0f);
 }
 
 static int ov5640_get_sysclk(struct ov5640_dev *sensor)

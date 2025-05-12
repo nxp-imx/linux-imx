@@ -94,6 +94,9 @@ struct tgst_ge {
 	u8 resv0;
 	u8 hr_cb;
 #define TGST_HR_CB		GENMASK(3, 0)
+#define  HR_CB_SET_GATES	0
+#define  HR_CB_SET_AND_HOLD	1
+#define  HR_CB_SET_AND_RELEASE	2
 	u8 resv1;
 };
 

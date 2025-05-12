@@ -289,7 +289,7 @@ static struct se_if_node_info_list imx95_info = {
 };
 
 static struct se_if_node_info_list imx94_info = {
-	.num_mu = 6,
+	.num_mu = 7,
 	.soc_id = SOC_ID_OF_IMX94,
 	.soc_register = false,
 	.se_fetch_soc_info = ele_fetch_soc_info,
@@ -356,6 +356,24 @@ static struct se_if_node_info_list imx94_info = {
 			.se_if_id = 3,
 			.mu_buff_size = 64,
 			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SHE,
+				.se_instance_id = 1,
+				.cmd_tag = 0x1a,
+				.rsp_tag = 0xe4,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
+			.se_if_id = 4,
+			.mu_buff_size = 64,
+			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SV,
 				.se_instance_id = 0,
 				.cmd_tag = 0x18,
@@ -371,7 +389,7 @@ static struct se_if_node_info_list imx94_info = {
 			.se_if_late_init = NULL,
 			},
 			{
-			.se_if_id = 4,
+			.se_if_id = 5,
 			.mu_buff_size = 16,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SG,
@@ -389,7 +407,7 @@ static struct se_if_node_info_list imx94_info = {
 			.se_if_late_init = NULL,
 			},
 			{
-			.se_if_id = 5,
+			.se_if_id = 6,
 			.mu_buff_size = 16,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SG,

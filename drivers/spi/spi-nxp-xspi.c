@@ -320,6 +320,7 @@
 	(opr)) << (((idx) % 2) * OPRND_SHIFT))
 
 #define NXP_XSPI_MIN_IOMAP	SZ_4M
+#define NXP_XSPI_MAX_CHIPSELECT		2
 #define POLL_TOUT		5000
 
 /* Access flash memory using IP bus only */
@@ -1291,7 +1292,7 @@ static int nxp_xspi_probe(struct platform_device *pdev)
 		return ret;
 
 	ctlr->bus_num = -1;
-	ctlr->num_chipselect = 1;
+	ctlr->num_chipselect = NXP_XSPI_MAX_CHIPSELECT;
 	ctlr->mem_ops = &nxp_xspi_mem_ops;
 	ctlr->mem_caps = &nxp_xspi_mem_caps;
 	ctlr->dev.of_node = dev->of_node;

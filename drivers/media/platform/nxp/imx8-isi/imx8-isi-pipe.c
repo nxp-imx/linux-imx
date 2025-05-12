@@ -550,7 +550,7 @@ static void update_pads_format(struct mxc_isi_pipe *pipe,
 	const struct mxc_isi_bus_format_info *src_info;
 	struct v4l2_mbus_framefmt *sink_fmt;
 	struct v4l2_mbus_framefmt *src_fmt;
-	struct v4l2_rect *rect;
+	struct v4l2_rect *comp, *crop;
 	unsigned int max_width;
 	bool bypass;
 
@@ -576,12 +576,12 @@ static void update_pads_format(struct mxc_isi_pipe *pipe,
 	/*
 	 * Need to update pad format since its value may out of bound.
 	 */
-	rect = mxc_isi_pipe_get_pad_compose(pipe, state, MXC_ISI_PIPE_PAD_SINK);
-	rect->width = sink_fmt->width;
+	comp = mxc_isi_pipe_get_pad_compose(pipe, state, MXC_ISI_PIPE_PAD_SINK);
+	comp->width = clamp(comp->width, MXC_ISI_MIN_WIDTH, sink_fmt->width);
 
-	src_fmt->width = clamp(src_fmt->width, MXC_ISI_MIN_WIDTH, max_width);
-	rect = mxc_isi_pipe_get_pad_crop(pipe, state, MXC_ISI_PIPE_PAD_SOURCE);
-	rect->width = src_fmt->width;
+	crop = mxc_isi_pipe_get_pad_crop(pipe, state, MXC_ISI_PIPE_PAD_SOURCE);
+	crop->width = clamp(crop->width, MXC_ISI_MIN_WIDTH, comp->width);
+	src_fmt->width = crop->width;
 
 	*mf = *mxc_isi_pipe_get_pad_format(pipe, state, fmt->pad);
 }
