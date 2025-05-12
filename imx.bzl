@@ -430,6 +430,7 @@ _IMX_IN_TREE_MODULES = [
     "drivers/firmware/imx/sm-lmm.ko",
     "drivers/firmware/imx/sm-cpu.ko",
     "drivers/firmware/arm_scmi/vendors/imx/imx-sm-cpu.ko",
+    "sound/soc/generic/snd-soc-audio-graph-card2.ko",
 ]
 
 def define_imx():
