@@ -5,13 +5,11 @@
 
 #include "imx95-19x19-verdin.dts"
 
-/delete-node/ &lpi2c3;
 /delete-node/ &lpi2c4;
 
 / {
 	aliases {
-		i2c2 = &lpi2c3;
-		i2c3 = &i2c_rpbus_4;
+		i2c3 = &i2c_rpbus_1;
 	};
 
 	reserved-memory {
@@ -109,14 +107,7 @@
 		status = "okay";
 	};
 
-	lpi2c3: i2c-rpbus-3 {
-		compatible = "fsl,i2c-rpbus-v2";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		status = "okay";
-	};
-
-	i2c_rpbus_4: i2c-rpbus-4 {
+	i2c_rpbus_1: i2c-rpbus-1 {
 		compatible = "fsl,i2c-rpbus-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -168,6 +159,11 @@
 };
 
 &lpi2c2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c3 {
 	/delete-property/ dmas;
 	/delete-property/ dma-names;
 };
