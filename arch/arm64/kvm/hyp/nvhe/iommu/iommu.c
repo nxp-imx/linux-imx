@@ -178,7 +178,7 @@ void *kvm_iommu_donate_pages_atomic(u8 order)
 
 void kvm_iommu_reclaim_pages_atomic(void *p, u8 order)
 {
-	__kvm_iommu_reclaim_pages(&iommu_atomic_pool, p, order);
+	hyp_put_page(&iommu_atomic_pool, p);
 }
 
 static struct kvm_hyp_iommu_domain *
@@ -274,7 +274,7 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops,
 	    !ops->alloc_domain ||
 	    !ops->free_domain ||
 	    !ops->get_iommu_by_id)
-		return 0;
+		return -ENODEV;
 
 	ret = hyp_pool_init_empty(&iommu_host_pool, 64);
 	if (ret)

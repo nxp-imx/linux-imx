@@ -374,6 +374,17 @@
   filp_close
   bio_init
   __bio_add_page
+  lruvec_page_state
+  bio_crypt_set_ctx
+  submit_bio_wait
+  alloc_pages_bulk_noprof
+  __xa_cmpxchg
+  blk_crypto_evict_key
+  lookup_user_key
+  blk_crypto_init_key
+  filp_open_block
+  blk_crypto_start_using_key
+  cgroup_rm_cftypes
 
 #required by mem_reclaim_ctl.ko
 __traceiter_android_vh_page_should_be_protected
@@ -428,6 +439,12 @@ __traceiter_android_vh_mmput
 __tracepoint_android_vh_mmput
 __traceiter_android_vh_madvise_cold_pageout_skip
 __tracepoint_android_vh_madvise_cold_pageout_skip
+
+# required by pte preread
+read_swap_cache_async
+unuse_swap_pte
+__pte_offset_map
+vfs_fadvise
 
 #required by speed_ui.ko
 __tracepoint_android_rvh_update_cpus_allowed
