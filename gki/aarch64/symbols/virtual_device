@@ -250,6 +250,7 @@
   log_post_write_mmio
   log_read_mmio
   log_write_mmio
+  mem_alloc_profiling_key
   memcpy
   memmove
   memset
@@ -305,6 +306,8 @@
   page_pool_alloc_frag
   page_pool_destroy
   page_pool_put_unrefed_netmem
+  page_shift_compat_enabled
+  page_shift_compat
   param_array_ops
   param_ops_bool
   param_ops_charp

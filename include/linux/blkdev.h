@@ -27,6 +27,7 @@
 #include <linux/file.h>
 #include <linux/lockdep.h>
 #include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
 struct module;
 struct request_queue;
@@ -121,6 +122,9 @@ struct blk_integrity {
 	unsigned char				pi_offset;
 	unsigned char				interval_exp;
 	unsigned char				tag_size;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 typedef unsigned int __bitwise blk_mode_t;
@@ -219,6 +223,11 @@ struct gendisk {
 	 * devices that do not have multiple independent access ranges.
 	 */
 	struct blk_independent_access_ranges *ia_ranges;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 
 	ANDROID_OEM_DATA(1);
 };
@@ -406,6 +415,8 @@ struct queue_limits {
 	unsigned int		dma_pad_mask;
 
 	struct blk_integrity	integrity;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 typedef int (*report_zones_cb)(struct blk_zone *zone, unsigned int idx,
@@ -578,6 +589,12 @@ struct request_queue {
 #ifdef CONFIG_LOCKDEP
 	struct task_struct	*mq_freeze_owner;
 	int			mq_freeze_owner_depth;
+	/*
+	 * Records disk & queue state in current context, used in unfreeze
+	 * queue
+	 */
+	bool			mq_freeze_disk_dead;
+	bool			mq_freeze_queue_dying;
 #endif
 	wait_queue_head_t	mq_freeze_wq;
 	/*
@@ -598,6 +615,11 @@ struct request_queue {
 	struct mutex		debugfs_mutex;
 
 	bool			mq_sysfs_init_done;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 	ANDROID_OEM_DATA(1);
 };
 
@@ -701,9 +723,13 @@ static inline bool blk_zone_plug_bio(struct bio *bio, unsigned int nr_segs)
 
 static inline unsigned int disk_zone_no(struct gendisk *disk, sector_t sector)
 {
+	const sector_t zone_sectors = disk->queue->limits.chunk_sectors;
+
 	if (!blk_queue_is_zoned(disk->queue))
 		return 0;
-	return sector >> ilog2(disk->queue->limits.chunk_sectors);
+	if (is_power_of_2(zone_sectors))
+		return sector >> ilog2(zone_sectors);
+	return div64_u64(sector, zone_sectors);
 }
 
 static inline unsigned int bdev_nr_zones(struct block_device *bdev)
@@ -940,6 +966,8 @@ queue_limits_start_update(struct request_queue *q)
 	mutex_lock(&q->limits_lock);
 	return q->limits;
 }
+int queue_limits_commit_update_frozen(struct request_queue *q,
+		struct queue_limits *lim);
 int queue_limits_commit_update(struct request_queue *q,
 		struct queue_limits *lim);
 int queue_limits_set(struct request_queue *q, struct queue_limits *lim);
@@ -1001,6 +1029,11 @@ extern void blk_put_queue(struct request_queue *);
 void blk_mark_disk_dead(struct gendisk *disk);
 
 #ifdef CONFIG_BLOCK
+struct rq_list {
+	struct request *head;
+	struct request *tail;
+};
+
 /*
  * blk_plug permits building a queue of related requests by holding the I/O
  * fragments for a short period. This allows merging of sequential requests
@@ -1013,10 +1046,10 @@ void blk_mark_disk_dead(struct gendisk *disk);
  * blk_flush_plug() is called.
  */
 struct blk_plug {
-	struct request *mq_list; /* blk-mq requests */
+	struct rq_list mq_list; /* blk-mq requests */
 
 	/* if ios_left is > 1, we can batch tag/rq allocations */
-	struct request *cached_rq;
+	struct rq_list cached_rqs;
 	u64 cur_ktime;
 	unsigned short nr_ios;
 
@@ -1375,7 +1408,17 @@ static inline sector_t bdev_zone_sectors(struct block_device *bdev)
 static inline sector_t bdev_offset_from_zone_start(struct block_device *bdev,
 						   sector_t sector)
 {
-	return sector & (bdev_zone_sectors(bdev) - 1);
+	sector_t zone_sectors = bdev_zone_sectors(bdev);
+	u64 remainder = 0;
+
+	if (!bdev_is_zoned(bdev))
+		return 0;
+
+	if (is_power_of_2(zone_sectors))
+		return sector & (zone_sectors - 1);
+
+	div64_u64_rem(sector, zone_sectors, &remainder);
+	return remainder;
 }
 
 static inline sector_t bio_offset_from_zone_start(struct bio *bio)
@@ -1516,6 +1559,9 @@ struct block_device_operations {
 	 * driver.
 	 */
 	int (*alternative_gpt_sector)(struct gendisk *disk, sector_t *sector);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 #ifdef CONFIG_COMPAT
@@ -1546,6 +1592,13 @@ void bdev_end_io_acct(struct block_device *bdev, enum req_op op,
 unsigned long bio_start_io_acct(struct bio *bio);
 void bio_end_io_acct_remapped(struct bio *bio, unsigned long start_time,
 		struct block_device *orig_bdev);
+
+/* Check whether @sector is a multiple of the zone size. */
+static inline bool bdev_is_zone_aligned(struct block_device *bdev,
+					sector_t sector)
+{
+	return bdev_is_zone_start(bdev, sector);
+}
 
 /**
  * bio_end_io_acct - end I/O accounting for bio based drivers
@@ -1665,7 +1718,7 @@ int bdev_thaw(struct block_device *bdev);
 void bdev_fput(struct file *bdev_file);
 
 struct io_comp_batch {
-	struct request *req_list;
+	struct rq_list req_list;
 	bool need_ts;
 	void (*complete)(struct io_comp_batch *);
 };

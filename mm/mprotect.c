@@ -17,6 +17,8 @@
 #include <linux/highmem.h>
 #include <linux/security.h>
 #include <linux/mempolicy.h>
+#include <linux/page_size_compat.h>
+#include <linux/pgsize_migration.h>
 #include <linux/personality.h>
 #include <linux/syscalls.h>
 #include <linux/swap.h>
@@ -236,9 +238,11 @@ static long change_pte_range(struct mmu_gather *tlb,
 			} else if (is_pte_marker_entry(entry)) {
 				/*
 				 * Ignore error swap entries unconditionally,
-				 * because any access should sigbus anyway.
+				 * because any access should sigbus/sigsegv
+				 * anyway.
 				 */
-				if (is_poisoned_swp_entry(entry))
+				if (is_poisoned_swp_entry(entry) ||
+				    is_guard_swp_entry(entry))
 					continue;
 				/*
 				 * If this is uffd-wp pte marker and we'd like
@@ -724,11 +728,11 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 	if (grows == (PROT_GROWSDOWN|PROT_GROWSUP)) /* can't be both */
 		return -EINVAL;
 
-	if (start & ~PAGE_MASK)
+	if (!__PAGE_ALIGNED(start))
 		return -EINVAL;
 	if (!len)
 		return 0;
-	len = PAGE_ALIGN(len);
+	len = __PAGE_ALIGN(len);
 	end = start + len;
 	if (end <= start)
 		return -ENOMEM;

@@ -24,6 +24,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mman.h>
 #include <linux/memfd.h>
+#include <linux/page_size_compat.h>
 #include <linux/phy.h>
 #include <linux/pid_namespace.h>
 #include <linux/poll.h>
@@ -56,4 +57,10 @@ const blk_features_t RUST_CONST_HELPER_BLK_FEAT_ROTATIONAL = BLK_FEAT_ROTATIONAL
 #include "../../drivers/staging/android/ashmem.h"
 const size_t RUST_CONST_HELPER_ASHMEM_NAME_PREFIX_LEN = ASHMEM_NAME_PREFIX_LEN;
 const size_t RUST_CONST_HELPER_ASHMEM_FULL_NAME_LEN = ASHMEM_FULL_NAME_LEN;
+#endif
+
+#if IS_ENABLED(CONFIG_ANDROID_BINDER_IPC_RUST)
+#include "../../drivers/android/binder/rust_binder.h"
+#include "../../drivers/android/binder/rust_binder_hooks.h"
+#include "../../drivers/android/binder/rust_binder_events.h"
 #endif

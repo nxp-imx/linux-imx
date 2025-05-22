@@ -88,7 +88,9 @@ struct kvm_hyp_memcache {
 	phys_addr_t head;
 	unsigned long nr_pages;
 	unsigned long flags;
-	struct pkvm_mapping *mapping; /* only used from EL1 */
+	void *mapping; /* struct pkvm_mapping *, only used from EL1 */
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 static inline void push_hyp_memcache(struct kvm_hyp_memcache *mc,
@@ -299,6 +301,7 @@ struct kvm_protected_vm {
 	gpa_t pvmfw_load_addr;
 	bool enabled;
 	u32 ffa_support;
+	bool smc_forwarded;
 };
 
 struct kvm_mpidr_data {

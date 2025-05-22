@@ -5,6 +5,7 @@
 #ifndef __ASSEMBLY__
 #ifndef __GENERATING_BOUNDS_H
 
+#include <linux/android_kabi.h>
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/list_nulls.h>
@@ -23,6 +24,7 @@
 #include <linux/page-flags.h>
 #include <linux/local_lock.h>
 #include <linux/zswap.h>
+#include <linux/android_kabi.h>
 #include <asm/page.h>
 
 /* Free memory management - zoned buddy allocator.  */
@@ -481,6 +483,8 @@ struct lru_gen_folio {
 	/* per-node lru_gen_folio list for global reclaim */
 	struct hlist_nulls_node list;
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 	ANDROID_OEM_DATA_ARRAY(1, 6);
 };
 
@@ -506,6 +510,8 @@ struct lru_gen_mm_state {
 	unsigned long *filters[NR_BLOOM_FILTERS];
 	/* the mm stats for debugging */
 	unsigned long stats[NR_HIST_GENS][NR_MM_STATS];
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct lru_gen_mm_walk {
@@ -523,6 +529,8 @@ struct lru_gen_mm_walk {
 	int batched;
 	int swappiness;
 	bool force_scan;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -662,6 +670,8 @@ struct lruvec {
 	struct pglist_data *pgdat;
 #endif
 	struct zswap_lruvec_state zswap_lruvec_state;
+
+	ANDROID_BACKPORT_RESERVE(1);
 };
 
 /* Isolate for asynchronous migration */
@@ -1463,6 +1473,10 @@ typedef struct pglist_data {
 #ifdef CONFIG_MEMORY_FAILURE
 	struct memory_failure_stats mf_stats;
 #endif
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_BACKPORT_RESERVE(1);
+	ANDROID_OEM_DATA(1);
 } pg_data_t;
 
 #define node_present_pages(nid)	(NODE_DATA(nid)->node_present_pages)

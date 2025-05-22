@@ -10,6 +10,7 @@
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/pgsize_migration.h>
 #include <linux/mempolicy.h>
 #include <linux/rmap.h>
 #include <linux/swap.h>
@@ -17,6 +18,7 @@
 #include <linux/swapops.h>
 #include <linux/mmu_notifier.h>
 #include <linux/page_idle.h>
+#include <linux/page_size_compat.h>
 #include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
 #include <linux/pkeys.h>
@@ -342,7 +344,10 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 	}
 
 	start = vma->vm_start;
-	end = vma->vm_end;
+	end = VMA_PAD_START(vma);
+
+	__fold_filemap_fixup_entry(&((struct proc_maps_private *)m->private)->iter, &end);
+
 	show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
 
 	get_vma_name(vma, &path, &name, &name_fmt);
@@ -361,7 +366,13 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 
 static int show_map(struct seq_file *m, void *v)
 {
-	show_map_vma(m, v);
+	struct vm_area_struct *vma = v;
+
+	if (vma_pages(vma))
+		show_map_vma(m, vma);
+
+	show_map_pad_vma(vma, m, show_map_vma, false);
+
 	return 0;
 }
 
@@ -996,15 +1007,21 @@ static void show_smap_vma_flags(struct seq_file *m, struct vm_area_struct *vma)
 		[ilog2(VM_SEALED)] = "sl",
 #endif
 	};
+	unsigned long pad_pages = vma_pad_pages(vma);
 	size_t i;
 
 	seq_puts(m, "VmFlags: ");
 	for (i = 0; i < BITS_PER_LONG; i++) {
 		if (!mnemonics[i][0])
 			continue;
+		if ((1UL << i) & VM_PAD_MASK)
+			continue;
 		if (vma->vm_flags & (1UL << i))
 			seq_printf(m, "%s ", mnemonics[i]);
 	}
+	if (pad_pages)
+		seq_printf(m, "pad=%lukB", pad_pages << (PAGE_SHIFT - 10));
+
 	seq_putc(m, '\n');
 }
 
@@ -1066,9 +1083,10 @@ static void smap_gather_stats(struct vm_area_struct *vma,
 		struct mem_size_stats *mss, unsigned long start)
 {
 	const struct mm_walk_ops *ops = &smaps_walk_ops;
+	unsigned long end = VMA_PAD_START(vma);
 
 	/* Invalid start */
-	if (start >= vma->vm_end)
+	if (start >= end)
 		return;
 
 	if (vma->vm_file && shmem_mapping(vma->vm_file->f_mapping)) {
@@ -1085,7 +1103,15 @@ static void smap_gather_stats(struct vm_area_struct *vma,
 		unsigned long shmem_swapped = shmem_swap_usage(vma);
 
 		if (!start && (!shmem_swapped || (vma->vm_flags & VM_SHARED) ||
-					!(vma->vm_flags & VM_WRITE))) {
+					!(vma->vm_flags & VM_WRITE)) &&
+					/*
+					 * Only if we don't have padding can we use the fast path
+					 * shmem_inode_info->swapped for shmem_swapped.
+					 *
+					 * Else we'll walk the page table to calculate
+					 * shmem_swapped, (excluding the padding region).
+					 */
+					end == vma->vm_end) {
 			mss->swap += shmem_swapped;
 		} else {
 			ops = &smaps_shmem_walk_ops;
@@ -1094,9 +1120,9 @@ static void smap_gather_stats(struct vm_area_struct *vma,
 
 	/* mmap_lock is held in m_start */
 	if (!start)
-		walk_page_vma(vma, ops, mss);
+		walk_page_range(vma->vm_mm, vma->vm_start, end, ops, mss);
 	else
-		walk_page_range(vma->vm_mm, start, vma->vm_end, ops, mss);
+		walk_page_range(vma->vm_mm, start, end, ops, mss);
 }
 
 #define SEQ_PUT_DEC(str, val) \
@@ -1150,11 +1176,14 @@ static int show_smap(struct seq_file *m, void *v)
 	struct vm_area_struct *vma = v;
 	struct mem_size_stats mss = {};
 
+	if (!vma_pages(vma))
+		goto show_pad;
+
 	smap_gather_stats(vma, &mss, 0);
 
 	show_map_vma(m, vma);
 
-	SEQ_PUT_DEC("Size:           ", vma->vm_end - vma->vm_start);
+	SEQ_PUT_DEC("Size:           ", VMA_PAD_START(vma) - vma->vm_start);
 	SEQ_PUT_DEC(" kB\nKernelPageSize: ", vma_kernel_pagesize(vma));
 	SEQ_PUT_DEC(" kB\nMMUPageSize:    ", vma_mmu_pagesize(vma));
 	seq_puts(m, " kB\n");
@@ -1168,6 +1197,9 @@ static int show_smap(struct seq_file *m, void *v)
 	if (arch_pkeys_enabled())
 		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
 	show_smap_vma_flags(m, vma);
+
+show_pad:
+	show_map_pad_vma(vma, m, show_smap, true);
 
 	return 0;
 }
@@ -1642,6 +1674,7 @@ struct pagemapread {
 #define PM_SOFT_DIRTY		BIT_ULL(55)
 #define PM_MMAP_EXCLUSIVE	BIT_ULL(56)
 #define PM_UFFD_WP		BIT_ULL(57)
+#define PM_GUARD_REGION		BIT_ULL(58)
 #define PM_FILE			BIT_ULL(61)
 #define PM_SWAP			BIT_ULL(62)
 #define PM_PRESENT		BIT_ULL(63)
@@ -1742,6 +1775,8 @@ static pagemap_entry_t pte_to_pagemap_entry(struct pagemapread *pm,
 			page = pfn_swap_entry_to_page(entry);
 		if (pte_marker_entry_uffd_wp(entry))
 			flags |= PM_UFFD_WP;
+		if (is_guard_swp_entry(entry))
+			flags |=  PM_GUARD_REGION;
 	}
 
 	if (page) {
@@ -1929,6 +1964,30 @@ static const struct mm_walk_ops pagemap_ops = {
 	.walk_lock	= PGWALK_RDLOCK,
 };
 
+static inline void __collapse_pagemap_result(pagemap_entry_t *src_vec,
+					     pagemap_entry_t *res_vec,
+					     unsigned int entries,
+					     unsigned int nr_subpages)
+{
+	unsigned int i;
+
+	if (nr_subpages == 1)
+		return;
+
+	for (i = 0; i < entries; i++) {
+		/*
+		 * Zero the PFN since there is no guarantee that the PFNs are contiguous.
+		 * Zero the flags - applicable flags are derived from the sub-entries,
+		 *                  inapplicable flags are kept zeroed.
+		 */
+		if (i % nr_subpages == 0)
+			res_vec[i / nr_subpages] = make_pme(0, 0);
+
+		res_vec[i / nr_subpages].pme
+			|= src_vec[i].pme & (PM_SOFT_DIRTY|PM_MMAP_EXCLUSIVE|PM_FILE|PM_PRESENT);
+	}
+}
+
 /*
  * /proc/pid/pagemap - an array mapping virtual pages to pfns
  *
@@ -1941,7 +2000,8 @@ static const struct mm_walk_ops pagemap_ops = {
  * Bit  55    pte is soft-dirty (see Documentation/admin-guide/mm/soft-dirty.rst)
  * Bit  56    page exclusively mapped
  * Bit  57    pte is uffd-wp write-protected
- * Bits 58-60 zero
+ * Bit  58    pte is a guard region
+ * Bits 59-60 zero
  * Bit  61    page is file-page or shared-anon
  * Bit  62    page swapped
  * Bit  63    page present
@@ -1966,6 +2026,8 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 	unsigned long start_vaddr;
 	unsigned long end_vaddr;
 	int ret = 0, copied = 0;
+	unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;
+	pagemap_entry_t *res = NULL;
 
 	if (!mm || !mmget_not_zero(mm))
 		goto out;
@@ -1987,6 +2049,21 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 	ret = -ENOMEM;
 	if (!pm.buffer)
 		goto out_mm;
+
+	if (unlikely(nr_subpages > 1)) {
+		/*
+		 * Userspace thinks the pages are large than the actually are, adjust the count to
+		 * compensate.
+		 */
+		count *= nr_subpages;
+
+		res = kcalloc(pm.len / nr_subpages, PM_ENTRY_BYTES, GFP_KERNEL);
+		if (!res) {
+			ret = -ENOMEM;
+			goto out_free;
+		}
+	} else
+		res = pm.buffer;
 
 	src = *ppos;
 	svpfn = src / PM_ENTRY_BYTES;
@@ -2030,19 +2107,33 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 		start_vaddr = end;
 
 		len = min(count, PM_ENTRY_BYTES * pm.pos);
-		if (copy_to_user(buf, pm.buffer, len)) {
+
+		__collapse_pagemap_result(pm.buffer, res, len / PM_ENTRY_BYTES, nr_subpages);
+
+		if (copy_to_user(buf, res, len / nr_subpages)) {
 			ret = -EFAULT;
 			goto out_free;
 		}
+
+		/*
+		 * If emulating the page size, clear the old results, to avoid
+		 * corrupting the next __collapse_pagemap_result()
+		 */
+		if (unlikely(nr_subpages > 1))
+			memset(res, 0, len / nr_subpages);
+
 		copied += len;
-		buf += len;
+		buf += len / nr_subpages;
 		count -= len;
 	}
 	*ppos += copied;
 	if (!ret || ret == PM_END_OF_BUFFER)
-		ret = copied;
+		ret = copied / nr_subpages;
 
 out_free:
+	/* Avoid double free, as res = pm.buffer if nr_subpages == 1 */
+	if (unlikely(nr_subpages > 1))
+		kfree(res);
 	kfree(pm.buffer);
 out_mm:
 	mmput(mm);
@@ -2833,14 +2924,38 @@ static long do_pagemap_cmd(struct file *file, unsigned int cmd,
 	}
 }
 
+loff_t __pagemap_lseek(struct file *file, loff_t offset, int orig)
+{
+	unsigned long nr_subpages = __PAGE_SIZE / PAGE_SIZE;
+	loff_t ret;
+
+	/*
+	 * Userspace thinks the pages are larger than they actually are, so adjust the
+	 * offset to compensate.
+	 */
+	offset *= nr_subpages;
+
+	ret = mem_lseek(file, offset, orig);  /* borrow this */
+	if (ret < 0)
+		return offset;
+
+	/* Re-adjust the offset to reflect the larger userspace page size. */
+	return ret / nr_subpages;
+}
+
 const struct file_operations proc_pagemap_operations = {
-	.llseek		= mem_lseek, /* borrow this */
+	.llseek		= __pagemap_lseek,
 	.read		= pagemap_read,
 	.open		= pagemap_open,
 	.release	= pagemap_release,
 	.unlocked_ioctl = do_pagemap_cmd,
 	.compat_ioctl	= do_pagemap_cmd,
 };
+
+bool __is_emulated_pagemap_file(struct file *file)
+{
+	return __PAGE_SIZE != PAGE_SIZE && file->f_op == &proc_pagemap_operations;
+}
 #endif /* CONFIG_PROC_PAGE_MONITOR */
 
 #ifdef CONFIG_NUMA

@@ -20,6 +20,11 @@ enum pkvm_psci_notification {
 	PKVM_PSCI_CPU_ENTRY,
 };
 
+struct pkvm_sglist_page {
+	u64	pfn : 40;
+	u8	order;
+} __packed;
+
 /**
  * struct pkvm_module_ops - pKVM modules callbacks
  * @create_private_mapping:	Map a memory region into the hypervisor private
@@ -107,6 +112,10 @@ enum pkvm_psci_notification {
  *				order depends on the registration order. If no
  *				handler return True, the SMC is forwarded to
  *				EL3.
+ * @register_guest_smc_handler: @cb is called when guest identified by the
+ *				pkvm_handle issues an SMC that pKVM couldn't
+ *				handle. If @cb returns false, then unsupported
+ *				operation error is returned back to the guest.
  * @register_default_trap_handler:
  *				@cb is called whenever EL2 traps EL1 and pKVM
  *				has not handled it. If @cb returns false, the
@@ -132,6 +141,9 @@ enum pkvm_psci_notification {
  *				full control is given to the hypervisor.
  * @host_donate_hyp_prot:	As host_donate_hyp_prot, but this variant sets
  *				the prot of the hyp.
+ * @host_donate_sglist_hyp:	Similar to host_donate_hyp but take an array of PFNs
+ *				(kvm_sglist_page) as an argument. This intends to
+ *				batch IOMMU updates.
  * @hyp_donate_host:		The page @pfn whom control has previously been
  *				given to the hypervisor (@host_donate_hyp) is
  *				given back to the host.
@@ -218,6 +230,9 @@ struct pkvm_module_ops {
 	int (*host_stage2_enable_lazy_pte)(u64 addr, u64 nr_pages);
 	int (*host_stage2_disable_lazy_pte)(u64 addr, u64 nr_pages);
 	int (*register_host_smc_handler)(bool (*cb)(struct user_pt_regs *));
+	int (*register_guest_smc_handler)(bool (*cb)(struct arm_smccc_1_2_regs *regs,
+						     struct arm_smccc_1_2_regs *res,
+						     pkvm_handle_t handle));
 	int (*register_default_trap_handler)(bool (*cb)(struct user_pt_regs *));
 	int (*register_illegal_abt_notifier)(void (*cb)(struct user_pt_regs *));
 	int (*register_psci_notifier)(void (*cb)(enum pkvm_psci_notification, struct user_pt_regs *));
@@ -225,6 +240,7 @@ struct pkvm_module_ops {
 	int (*register_unmask_serror)(bool (*unmask)(void), void (*mask)(void));
 	int (*host_donate_hyp)(u64 pfn, u64 nr_pages, bool accept_mmio);
 	int (*host_donate_hyp_prot)(u64 pfn, u64 nr_pages, bool accept_mmio, enum kvm_pgtable_prot prot);
+	int (*host_donate_sglist_hyp)(struct pkvm_sglist_page *sglist, size_t nr_pages);
 	int (*hyp_donate_host)(u64 pfn, u64 nr_pages);
 	int (*host_share_hyp)(u64 pfn);
 	int (*host_unshare_hyp)(u64 pfn);

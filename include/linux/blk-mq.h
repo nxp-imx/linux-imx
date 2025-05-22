@@ -9,6 +9,7 @@
 #include <linux/prefetch.h>
 #include <linux/srcu.h>
 #include <linux/rw_hint.h>
+#include <linux/android_kabi.h>
 
 struct blk_mq_tags;
 struct blk_flush_queue;
@@ -209,6 +210,7 @@ struct request {
 	rq_end_io_fn *end_io;
 	void *end_io_data;
 
+	ANDROID_KABI_RESERVE(1);
 	ANDROID_OEM_DATA(1);
 };
 
@@ -232,61 +234,60 @@ static inline unsigned short req_get_ioprio(struct request *req)
 #define rq_dma_dir(rq) \
 	(op_is_write(req_op(rq)) ? DMA_TO_DEVICE : DMA_FROM_DEVICE)
 
-#define rq_list_add(listptr, rq)	do {		\
-	(rq)->rq_next = *(listptr);			\
-	*(listptr) = rq;				\
-} while (0)
-
-#define rq_list_add_tail(lastpptr, rq)	do {		\
-	(rq)->rq_next = NULL;				\
-	**(lastpptr) = rq;				\
-	*(lastpptr) = &rq->rq_next;			\
-} while (0)
-
-#define rq_list_pop(listptr)				\
-({							\
-	struct request *__req = NULL;			\
-	if ((listptr) && *(listptr))	{		\
-		__req = *(listptr);			\
-		*(listptr) = __req->rq_next;		\
-	}						\
-	__req;						\
-})
-
-#define rq_list_peek(listptr)				\
-({							\
-	struct request *__req = NULL;			\
-	if ((listptr) && *(listptr))			\
-		__req = *(listptr);			\
-	__req;						\
-})
-
-#define rq_list_for_each(listptr, pos)			\
-	for (pos = rq_list_peek((listptr)); pos; pos = rq_list_next(pos))
-
-#define rq_list_for_each_safe(listptr, pos, nxt)			\
-	for (pos = rq_list_peek((listptr)), nxt = rq_list_next(pos);	\
-		pos; pos = nxt, nxt = pos ? rq_list_next(pos) : NULL)
-
-#define rq_list_next(rq)	(rq)->rq_next
-#define rq_list_empty(list)	((list) == (struct request *) NULL)
-
-/**
- * rq_list_move() - move a struct request from one list to another
- * @src: The source list @rq is currently in
- * @dst: The destination list that @rq will be appended to
- * @rq: The request to move
- * @prev: The request preceding @rq in @src (NULL if @rq is the head)
- */
-static inline void rq_list_move(struct request **src, struct request **dst,
-				struct request *rq, struct request *prev)
+static inline int rq_list_empty(const struct rq_list *rl)
 {
-	if (prev)
-		prev->rq_next = rq->rq_next;
-	else
-		*src = rq->rq_next;
-	rq_list_add(dst, rq);
+	return rl->head == NULL;
 }
+
+static inline void rq_list_init(struct rq_list *rl)
+{
+	rl->head = NULL;
+	rl->tail = NULL;
+}
+
+static inline void rq_list_add_tail(struct rq_list *rl, struct request *rq)
+{
+	rq->rq_next = NULL;
+	if (rl->tail)
+		rl->tail->rq_next = rq;
+	else
+		rl->head = rq;
+	rl->tail = rq;
+}
+
+static inline void rq_list_add_head(struct rq_list *rl, struct request *rq)
+{
+	rq->rq_next = rl->head;
+	rl->head = rq;
+	if (!rl->tail)
+		rl->tail = rq;
+}
+
+static inline struct request *rq_list_pop(struct rq_list *rl)
+{
+	struct request *rq = rl->head;
+
+	if (rq) {
+		rl->head = rl->head->rq_next;
+		if (!rl->head)
+			rl->tail = NULL;
+		rq->rq_next = NULL;
+	}
+
+	return rq;
+}
+
+static inline struct request *rq_list_peek(struct rq_list *rl)
+{
+	return rl->head;
+}
+
+#define rq_list_for_each(rl, pos)					\
+	for (pos = rq_list_peek((rl)); (pos); pos = pos->rq_next)
+
+#define rq_list_for_each_safe(rl, pos, nxt)				\
+	for (pos = rq_list_peek((rl)), nxt = pos->rq_next;		\
+		pos; pos = nxt, nxt = pos ? pos->rq_next : NULL)
 
 /**
  * enum blk_eh_timer_return - How the timeout handler should proceed
@@ -452,6 +453,8 @@ struct blk_mq_hw_ctx {
 	 * q->unused_hctx_list.
 	 */
 	struct list_head	hctx_list;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -538,6 +541,8 @@ struct blk_mq_tag_set {
 	struct mutex		tag_list_lock;
 	struct list_head	tag_list;
 	struct srcu_struct	*srcu;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -579,7 +584,7 @@ struct blk_mq_ops {
 	 * empty the @rqlist completely, then the rest will be queued
 	 * individually by the block layer upon return.
 	 */
-	void (*queue_rqs)(struct request **rqlist);
+	void (*queue_rqs)(struct rq_list *rqlist);
 
 	/**
 	 * @get_budget: Reserve budget before queue request, once .queue_rq is
@@ -668,6 +673,8 @@ struct blk_mq_ops {
 	 */
 	void (*show_rq)(struct seq_file *m, struct request *rq);
 #endif
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /* Keep hctx_flag_name[] in sync with the definitions below */
@@ -913,7 +920,7 @@ static inline bool blk_mq_add_to_batch(struct request *req,
 	else if (iob->complete != complete)
 		return false;
 	iob->need_ts |= blk_mq_need_time_stamp(req);
-	rq_list_add(&iob->req_list, req);
+	rq_list_add_tail(&iob->req_list, req);
 	return true;
 }
 

@@ -23,6 +23,8 @@
   kblockd_mod_delayed_work_on
   kern_path
   __lock_buffer
+  mempool_kfree
+  mempool_kmalloc
   mipi_dsi_dcs_write
   __neigh_create
   netdev_is_rx_handler_busy
@@ -103,6 +105,8 @@
   __traceiter_android_vh_do_send_sig_info
   __traceiter_android_vh_clear_rwsem_reader_owned
   __traceiter_android_vh_clear_rwsem_writer_owned
+  __traceiter_android_vh_do_async_mmap_readahead
+  __traceiter_android_vh_do_group_exit
   __traceiter_android_vh_do_new_mount_fc
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_f2fs_file_open
@@ -122,6 +126,8 @@
   __traceiter_android_vh_mutex_unlock_slowpath_before_wakeq
   __traceiter_android_vh_mutex_wait_finish
   __traceiter_android_vh_mutex_wait_start
+  __traceiter_android_vh_oom_swapmem_gather_finish
+  __traceiter_android_vh_oom_swapmem_gather_init
   __traceiter_android_vh_record_rwsem_reader_owned
   __traceiter_android_vh_record_rwsem_writer_owned
   __traceiter_android_vh_rwsem_init
@@ -137,6 +143,9 @@
   __traceiter_android_vh_shrink_node_memcgs_bypass
   __traceiter_android_vh_sk_alloc
   __traceiter_android_vh_sk_free
+  __traceiter_android_vh_swapmem_gather_add_bypass
+  __traceiter_android_vh_swapmem_gather_finish
+  __traceiter_android_vh_swapmem_gather_init
   __traceiter_android_vh_percpu_rwsem_down_read
   __traceiter_android_vh_percpu_rwsem_up_write
   __traceiter_android_vh_sync_txn_recvd
@@ -186,6 +195,8 @@
   __tracepoint_android_vh_do_send_sig_info
   __tracepoint_android_vh_clear_rwsem_reader_owned
   __tracepoint_android_vh_clear_rwsem_writer_owned
+  __tracepoint_android_vh_do_async_mmap_readahead
+  __tracepoint_android_vh_do_group_exit
   __tracepoint_android_vh_do_new_mount_fc
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_f2fs_file_open
@@ -205,6 +216,8 @@
   __tracepoint_android_vh_mutex_unlock_slowpath_before_wakeq
   __tracepoint_android_vh_mutex_wait_finish
   __tracepoint_android_vh_mutex_wait_start
+  __tracepoint_android_vh_oom_swapmem_gather_finish
+  __tracepoint_android_vh_oom_swapmem_gather_init
   __tracepoint_android_vh_record_rwsem_reader_owned
   __tracepoint_android_vh_record_rwsem_writer_owned
   __tracepoint_android_vh_rwsem_init
@@ -220,6 +233,9 @@
   __tracepoint_android_vh_shrink_node_memcgs_bypass
   __tracepoint_android_vh_sk_alloc
   __tracepoint_android_vh_sk_free
+  __tracepoint_android_vh_swapmem_gather_add_bypass
+  __tracepoint_android_vh_swapmem_gather_finish
+  __tracepoint_android_vh_swapmem_gather_init
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_tcp_rtt_estimator
   __tracepoint_android_vh_udp_enqueue_schedule_skb
