@@ -645,12 +645,27 @@ imx95-19x19-evk-car-adv7535-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-adv7535.dtb
 
+imx95-19x19-evk-car-it6263-lvds0-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
+				    imx95-19x19-evk-neoisp.dtbo \
+				    imx95-19x19-evk-ox03c10.dtbo \
+				    imx95-19x19-evk-it6263-lvds0.dtbo \
+				    imx95-19x19-evk-cs42888.dtbo \
+				    imx95-19x19-evk-car.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-it6263-lvds0.dtb
+
 imx95-19x19-evk-car-adv7535-ap1302-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-ap1302.dtbo \
 				    imx95-19x19-evk-adv7535.dtbo \
 				    imx95-19x19-evk-cs42888.dtbo \
 				    imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-adv7535-ap1302.dtb
+
+imx95-19x19-evk-car-it6263-lvds0-ap1302-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
+				    imx95-19x19-evk-ap1302.dtbo \
+				    imx95-19x19-evk-it6263-lvds0.dtbo \
+				    imx95-19x19-evk-cs42888.dtbo \
+				    imx95-19x19-evk-car.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-it6263-lvds0-ap1302.dtb
 
 imx95-19x19-evk-car-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 						 imx95-19x19-evk-neoisp.dtbo \
