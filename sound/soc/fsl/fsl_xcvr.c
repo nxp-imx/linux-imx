@@ -1502,8 +1502,10 @@ static __maybe_unused int fsl_xcvr_runtime_suspend(struct device *dev)
 		ret = regmap_update_bits(xcvr->regmap, FSL_XCVR_EXT_CTRL,
 					FSL_XCVR_EXT_CTRL_CORE_RESET,
 					FSL_XCVR_EXT_CTRL_CORE_RESET);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "Failed to assert M0+ core: %d\n", ret);
+			return ret;
+		}
 	}
 
 	regcache_cache_only(xcvr->regmap, true);
