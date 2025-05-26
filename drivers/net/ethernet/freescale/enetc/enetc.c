@@ -2858,7 +2858,7 @@ enetc_get_xdp_rx_hash_type(union enetc_rx_bd *rxbd)
 		return hash_type;
 
 	l4 = FIELD_GET(ENETC_RXBD_PS_L4, parse_summary);
-	if (l4 > ENETC_L4_TYPE_NUM || enetc_l4t[l4] == ENETC_L4T_OTHER)
+	if (l4 >= ENETC_L4_TYPE_NUM || enetc_l4t[l4] == ENETC_L4T_OTHER)
 		return hash_type;
 
 	hash_type |= XDP_RSS_L4;
