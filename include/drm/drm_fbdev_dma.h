@@ -7,7 +7,7 @@ struct drm_device;
 struct drm_fb_helper;
 struct drm_fb_helper_surface_size;
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
+#if defined(CONFIG_DRM_FBDEV_EMULATION) || IS_MODULE(CONFIG_DRM_FBDEV_HELPER)
 int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 				     struct drm_fb_helper_surface_size *sizes);
 

@@ -36,13 +36,17 @@
 int fb_get_options(const char *name, char **option)
 {
 	const char *options = NULL;
-	bool is_of = false;
-	bool enabled;
+	bool enabled = true;
 
+#if IS_MODULE(CONFIG_FB_CORE)
+	options = video_get_options(name);
+#else
+	bool is_of = false;
 	if (name)
 		is_of = strncmp(name, "offb", 4);
 
 	enabled = __video_get_options(name, &options, is_of);
+#endif
 
 	if (options) {
 		if (!strncmp(options, "off", 3))

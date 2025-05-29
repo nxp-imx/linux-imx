@@ -6,7 +6,7 @@
 struct drm_device;
 struct drm_format_info;
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
+#if defined(CONFIG_DRM_FBDEV_EMULATION) || IS_MODULE(CONFIG_DRM_FBDEV_HELPER)
 int drm_fbdev_client_setup(struct drm_device *dev, const struct drm_format_info *format);
 #else
 static inline int drm_fbdev_client_setup(struct drm_device *dev,

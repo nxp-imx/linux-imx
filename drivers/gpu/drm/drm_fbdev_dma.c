@@ -50,8 +50,10 @@ static void drm_fbdev_dma_fb_destroy(struct fb_info *info)
 	if (!fb_helper->dev)
 		return;
 
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (info->fbdefio)
 		fb_deferred_io_cleanup(info);
+#endif
 	drm_fb_helper_fini(fb_helper);
 
 	drm_client_buffer_vunmap(fb_helper->buffer);
@@ -72,6 +74,7 @@ static const struct fb_ops drm_fbdev_dma_fb_ops = {
 	.fb_destroy = drm_fbdev_dma_fb_destroy,
 };
 
+#ifdef CONFIG_FB_DEFERRED_IO
 FB_GEN_DEFAULT_DEFERRED_DMAMEM_OPS(drm_fbdev_dma,
 				   drm_fb_helper_damage_range,
 				   drm_fb_helper_damage_area);
@@ -98,6 +101,7 @@ static const struct fb_ops drm_fbdev_dma_deferred_fb_ops = {
 	.fb_mmap = drm_fbdev_dma_deferred_fb_mmap,
 	.fb_destroy = drm_fbdev_dma_fb_destroy,
 };
+#endif
 
 /*
  * struct drm_fb_helper
@@ -142,7 +146,9 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 {
 	struct drm_client_dev *client = &fb_helper->client;
 	struct drm_device *dev = fb_helper->dev;
+#ifdef CONFIG_FB_DEFERRED_IO
 	bool use_deferred_io = false;
+#endif
 	struct drm_client_buffer *buffer;
 	struct drm_gem_dma_object *dma_obj;
 	struct drm_framebuffer *fb;
@@ -171,8 +177,10 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 	 * install deferred I/O if we have a framebuffer that requires
 	 * it.
 	 */
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (fb->funcs->dirty)
 		use_deferred_io = true;
+#endif
 
 	ret = drm_client_buffer_vmap(buffer, &map);
 	if (ret) {
@@ -194,9 +202,11 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 
 	drm_fb_helper_fill_info(info, fb_helper, sizes);
 
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (use_deferred_io)
 		info->fbops = &drm_fbdev_dma_deferred_fb_ops;
 	else
+#endif
 		info->fbops = &drm_fbdev_dma_fb_ops;
 
 	/* screen */
@@ -211,6 +221,7 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 	}
 	info->fix.smem_len = info->screen_size;
 
+#ifdef CONFIG_FB_DEFERRED_IO
 	/*
 	 * Only set up deferred I/O if the screen buffer supports
 	 * it. If this disagrees with the previous test for ->dirty,
@@ -233,11 +244,14 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 		if (ret)
 			goto err_drm_fb_helper_release_info;
 	}
+#endif
 
 	return 0;
 
+#ifdef CONFIG_FB_DEFERRED_IO
 err_drm_fb_helper_release_info:
 	drm_fb_helper_release_info(fb_helper);
+#endif
 err_drm_client_buffer_vunmap:
 	fb_helper->fb = NULL;
 	fb_helper->buffer = NULL;

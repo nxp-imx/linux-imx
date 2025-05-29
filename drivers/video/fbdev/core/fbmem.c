@@ -445,8 +445,14 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 		fb_notifier_call_chain(FB_EVENT_FB_REGISTERED, &event);
 	}
 #endif
+#if !defined(CONFIG_FRAMEBUFFER_CONSOLE) && defined(CONFIG_LOGO)
+	if (fb_prepare_logo(fb_info, FB_ROTATE_UR) > 0)
+		fb_show_logo(fb_info, FB_ROTATE_UR);
 
+	return 0;
+#else
 	return fbcon_fb_registered(fb_info);
+#endif
 }
 
 static void unbind_console(struct fb_info *fb_info)
