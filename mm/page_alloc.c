@@ -617,6 +617,9 @@ static inline unsigned int order_to_pindex(int migratetype, int order)
 		VM_BUG_ON(order != HPAGE_PMD_ORDER);
 
 		movable = migratetype == MIGRATE_MOVABLE;
+#ifdef CONFIG_CMA
+		movable |= migratetype == MIGRATE_CMA;
+#endif
 
 		return NR_LOWORDER_PCP_LISTS + movable;
 	}
@@ -5115,7 +5118,7 @@ EXPORT_SYMBOL_GPL(alloc_pages_bulk_noprof);
 struct page *__alloc_pages_noprof(gfp_t gfp, unsigned int order,
 				      int preferred_nid, nodemask_t *nodemask)
 {
-	struct page *page;
+	struct page *page = NULL;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_gfp; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = { };

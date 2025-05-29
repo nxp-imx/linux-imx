@@ -90,6 +90,13 @@ struct symsearch {
 	enum mod_license license;
 };
 
+#if defined(CONFIG_MODULE_SIG_PROTECT) || defined(CONFIG_TRIM_UNUSED_KSYMS)
+static int cmp_string(const void *a, const void *b)
+{
+	return strcmp((const char *)a, *(const char **)b);
+}
+#endif
+
 /*
  * Bounds of module memory, for speeding up __module_address.
  * Protected by module_mutex.
@@ -1141,6 +1148,15 @@ static bool inherit_taint(struct module *mod, struct module *owner, const char *
 	return true;
 }
 
+#ifdef CONFIG_TRIM_UNUSED_KSYMS
+static bool is_permitted_symbol_import(const char *name)
+{
+	return bsearch(name, permitted_symbol_imports,
+		       permitted_symbol_imports_count,
+		       sizeof(const char *), cmp_string) != NULL;
+}
+#endif
+
 /* Resolve a symbol for this module.  I.e. if we find one, record usage. */
 static const struct kernel_symbol *resolve_symbol(struct module *mod,
 						  const struct load_info *info,
@@ -1192,7 +1208,6 @@ static const struct kernel_symbol *resolve_symbol(struct module *mod,
 	 *    to protect symbols exported by signed GKI modules.
 	 */
 	if (!mod->sig_ok &&
-	    !gki_is_module_unprotected_symbol(name) &&
 	    fsa.owner && fsa.owner->sig_ok) {
 		fsa.sym = ERR_PTR(-EACCES);
 		goto getname;
@@ -1375,6 +1390,15 @@ fail:
 }
 EXPORT_SYMBOL_GPL(__symbol_get);
 
+#ifdef CONFIG_MODULE_SIG_PROTECT
+static bool is_protected_symbol_export(const char *name)
+{
+	return bsearch(name, protected_symbol_exports,
+		       protected_symbol_exports_count,
+		       sizeof(const char *), cmp_string) != NULL;
+}
+#endif
+
 /*
  * Ensure that an exported symbol [global namespace] does not already exist
  * in the kernel or in some other module's exported symbol table.
@@ -1399,14 +1423,6 @@ static int verify_exported_symbols(struct module *mod)
 				.name	= kernel_symbol_name(s),
 				.gplok	= true,
 			};
-
-			if (!mod->sig_ok && gki_is_module_protected_export(
-						kernel_symbol_name(s))) {
-				pr_err("%s: exports protected symbol %s\n",
-				       mod->name, kernel_symbol_name(s));
-				return -EACCES;
-			}
-
 			if (find_symbol(&fsa)) {
 				pr_err("%s: exports duplicate symbol %s"
 				       " (owned by %s)\n",
@@ -1414,6 +1430,13 @@ static int verify_exported_symbols(struct module *mod)
 				       module_name(fsa.owner));
 				return -ENOEXEC;
 			}
+#ifdef CONFIG_MODULE_SIG_PROTECT
+			if (!mod->sig_ok && is_protected_symbol_export(kernel_symbol_name(s))) {
+				pr_err("%s: exports protected symbol %s\n",
+				       mod->name, kernel_symbol_name(s));
+				return -EACCES;
+			}
+#endif
 		}
 	}
 	return 0;

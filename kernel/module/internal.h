@@ -422,15 +422,17 @@ static inline int same_magic(const char *amagic, const char *bmagic, bool has_cr
 #endif /* CONFIG_MODVERSIONS */
 
 #ifdef CONFIG_MODULE_SIG_PROTECT
-extern bool gki_is_module_unprotected_symbol(const char *name);
-extern bool gki_is_module_protected_export(const char *name);
+extern const char *const protected_symbol_exports[];
+extern size_t protected_symbol_exports_count;
 #else
-static inline bool gki_is_module_unprotected_symbol(const char *name)
-{
-	return true;
-}
-static inline bool gki_is_module_protected_export(const char *name)
-{
-	return false;
-}
-#endif /* CONFIG_MODULE_SIG_PROTECT */
+#define protected_symbol_exports NULL
+#define protected_symbol_exports_count 0UL
+#endif
+
+#ifdef CONFIG_TRIM_UNUSED_KSYMS
+extern const char *const permitted_symbol_imports[];
+extern size_t permitted_symbol_imports_count;
+#else
+#define permitted_symbol_imports NULL
+#define permitted_symbol_imports_count 0UL
+#endif
