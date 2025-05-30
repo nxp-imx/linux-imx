@@ -168,6 +168,15 @@ static void dcif_set_formats(struct dcif_dev *dcif,
 	case MEDIA_BUS_FMT_RGB888_1X24:
 		reg |= DCIF_DPI_CTRL_DATA_PATTERN(PATTERN_RGB888);
 		break;
+	case MEDIA_BUS_FMT_RBG888_1X24:
+		reg |= DCIF_DPI_CTRL_DATA_PATTERN(PATTERN_RBG888);
+		break;
+	case MEDIA_BUS_FMT_BGR888_1X24:
+		reg |= DCIF_DPI_CTRL_DATA_PATTERN(PATTERN_BGR888);
+		break;
+	case MEDIA_BUS_FMT_GBR888_1X24:
+		reg |= DCIF_DPI_CTRL_DATA_PATTERN(PATTERN_GBR888);
+		break;
 	default:
 		dev_err(drm->dev, "Unknown media bus format 0x%x\n", bus_format);
 		break;
@@ -306,30 +315,25 @@ static void dcif_enable_plane_panic(struct dcif_dev *dcif)
 	      DCIF_PANIC_THRES_HIGH(2 * PANIC0_THRES_MAX / 3) |
 	      DCIF_PANIC_THRES_REQ_EN;
 	regmap_write(dcif->regmap, DCIF_PANIC_THRES(0), reg);
+	regmap_write(dcif->regmap, DCIF_PANIC_THRES(1), reg);
 
-	/*
-	 * Enable FIFO Panic, this does not generate interrupt, but
-	 * boosts NoC priority based on FIFO Panic watermarks.
-	 */
-	regmap_read(dcif->regmap, DCIF_IE1(0), &reg);
-	reg |= DCIF_INT1_FIFO_PANIC0;
-	regmap_write(dcif->regmap, DCIF_IE1(0), reg);
-	regmap_write(dcif->regmap, DCIF_IE1(1), reg);
-	regmap_write(dcif->regmap, DCIF_IE1(2), reg);
+	/* Enable FIFO Panic interrupts on both layers. */
+	regmap_read(dcif->regmap, DCIF_IE1(dcif->cpu_domain), &reg);
+	reg |= DCIF_INT1_FIFO_PANIC0 | DCIF_INT1_FIFO_PANIC1;
+	regmap_write(dcif->regmap, DCIF_IE1(dcif->cpu_domain), reg);
 }
 
 static void dcif_disable_plane_panic(struct dcif_dev *dcif)
 {
 	u32 reg;
 
-	/* Disable FIFO Panic NoC priority booster. */
-	regmap_read(dcif->regmap, DCIF_IE1(0), &reg);
-	reg &= ~DCIF_INT1_FIFO_PANIC0;
-	regmap_write(dcif->regmap, DCIF_IE1(0), reg);
-	regmap_write(dcif->regmap, DCIF_IE1(1), reg);
-	regmap_write(dcif->regmap, DCIF_IE1(2), reg);
+	/* Disable FIFO Panic interrupts. */
+	regmap_read(dcif->regmap, DCIF_IE1(dcif->cpu_domain), &reg);
+	reg &= ~DCIF_INT1_FIFO_PANIC0 | DCIF_INT1_FIFO_PANIC1;
+	regmap_write(dcif->regmap, DCIF_IE1(dcif->cpu_domain), reg);
 
 	regmap_clear_bits(dcif->regmap, DCIF_PANIC_THRES(0), DCIF_PANIC_THRES_REQ_EN);
+	regmap_clear_bits(dcif->regmap, DCIF_PANIC_THRES(1), DCIF_PANIC_THRES_REQ_EN);
 }
 
 static void dcif_enable_controller(struct dcif_dev *dcif)
@@ -450,6 +454,51 @@ static void dcif_crtc_queue_state_event(struct drm_crtc *crtc)
 	spin_unlock_irq(&crtc->dev->event_lock);
 }
 
+static struct drm_bridge *dcif_crtc_get_bridge(struct drm_crtc *crtc,
+					       struct drm_crtc_state *crtc_state)
+{
+	struct drm_connector_state *conn_state;
+	struct drm_encoder *encoder;
+	struct drm_connector *conn;
+	struct drm_bridge *bridge;
+	int i;
+
+	for_each_new_connector_in_state(crtc_state->state, conn, conn_state, i) {
+		if (crtc != conn_state->crtc)
+			continue;
+
+		encoder = conn_state->best_encoder;
+
+		bridge = drm_bridge_chain_get_first_bridge(encoder);
+		if (bridge)
+			return bridge;
+	}
+
+	return NULL;
+}
+
+static void dcif_crtc_query_output_bus_format(struct drm_crtc *crtc,
+					      struct drm_crtc_state *crtc_state)
+{
+	struct dcif_crtc_state *dcif_state = to_dcif_crtc_state(crtc_state);
+	struct drm_bridge_state *bridge_state;
+	struct drm_bridge *bridge;
+
+	dcif_state->bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+	dcif_state->bus_flags = 0;
+
+	bridge = dcif_crtc_get_bridge(crtc, crtc_state);
+	if (!bridge)
+		return;
+
+	bridge_state = drm_atomic_get_new_bridge_state(crtc_state->state, bridge);
+	if (!bridge_state)
+		return;
+
+	dcif_state->bus_format = bridge_state->input_bus_cfg.format;
+	dcif_state->bus_flags = bridge_state->input_bus_cfg.flags;
+}
+
 static int dcif_crtc_atomic_check(struct drm_crtc *crtc,
 				  struct drm_atomic_state *state)
 {
@@ -460,6 +509,8 @@ static int dcif_crtc_atomic_check(struct drm_crtc *crtc,
 
 	if (crtc_state->active && !enable_primary)
 		return -EINVAL;
+
+	dcif_crtc_query_output_bus_format(crtc, crtc_state);
 
 	if (crtc_state->active_changed && crtc_state->active) {
 		/*
@@ -616,10 +667,12 @@ irqreturn_t dcif_irq_handler(int irq, void *data)
 	struct dcif_dev *dcif = to_dcif_dev(drm);
 	int domain = dcif->cpu_domain;
 	unsigned long flags;
-	u32 stat, crc;
+	u32 stat0, stat1, crc;
 
-	regmap_read(dcif->regmap, DCIF_IS0(domain), &stat);
-	if (stat & DCIF_INT0_VS_BLANK) {
+	regmap_read(dcif->regmap, DCIF_IS0(domain), &stat0);
+	regmap_read(dcif->regmap, DCIF_IS1(domain), &stat1);
+
+	if (stat0 & DCIF_INT0_VS_BLANK) {
 		drm_crtc_handle_vblank(&dcif->crtc);
 
 		spin_lock_irqsave(&drm->event_lock, flags);
@@ -634,12 +687,20 @@ irqreturn_t dcif_irq_handler(int irq, void *data)
 			dev_dbg(drm->dev, "crc=0x%x\n",  crc);
 		}
 		spin_unlock_irqrestore(&drm->event_lock, flags);
-	} else {
-		dev_info(drm->dev, "irq stat=0x%x\n", stat);
+	}
+
+	if (stat1 & (DCIF_INT1_FIFO_PANIC0 | DCIF_INT1_FIFO_PANIC1)) {
+		u32 panic = stat1 & (DCIF_INT1_FIFO_PANIC0 | DCIF_INT1_FIFO_PANIC1);
+
+		dev_dbg_ratelimited(drm->dev, "FIFO panic on %s\n",
+				    panic == (DCIF_INT1_FIFO_PANIC0 | DCIF_INT1_FIFO_PANIC1) ?
+				    "layers 0 & 1" : panic == DCIF_INT1_FIFO_PANIC0 ? "layer 0" :
+				    "layer 1");
 	}
 
 	/* W1C */
-	regmap_write(dcif->regmap, DCIF_IS0(domain), stat);
+	regmap_write(dcif->regmap, DCIF_IS0(domain), stat0);
+	regmap_write(dcif->regmap, DCIF_IS1(domain), stat1);
 
 	return IRQ_HANDLED;
 }

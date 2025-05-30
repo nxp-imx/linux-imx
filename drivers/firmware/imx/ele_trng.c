@@ -2,7 +2,7 @@
 /*
  * ELE Random Number Generator Driver NXP's Platforms
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #include "ele_trng.h"
@@ -13,28 +13,33 @@ struct ele_trng {
 	struct se_if_priv *priv;
 };
 
+static struct ele_trng trng;
+
 int ele_trng_init(struct se_if_priv *priv)
 {
-	struct ele_trng *trng;
 	int ret;
 
-	trng = devm_kzalloc(priv->dev, sizeof(*trng), GFP_KERNEL);
-	if (!trng)
-		return -ENOMEM;
-
-	trng->priv        = priv;
-	trng->rng.name    = "ele-trng";
-	trng->rng.read    = ele_get_hwrng;
-	trng->rng.priv    = (unsigned long)trng;
-	trng->rng.quality = 1024;
+	trng.priv        = priv;
+	trng.rng.name    = "ele-trng";
+	trng.rng.read    = ele_get_hwrng;
+	trng.rng.priv    = (unsigned long)&trng;
+	trng.rng.quality = 1024;
 
 	dev_dbg(priv->dev, "registering ele-trng\n");
 
-	ret = devm_hwrng_register(priv->dev, &trng->rng);
+	ret = hwrng_register(&trng.rng);
 	if (ret)
 		return ret;
 
 	dev_info(priv->dev, "Successfully registered ele-trng\n");
+	return 0;
+}
+
+int ele_trng_exit(struct se_if_priv *priv)
+{
+	hwrng_unregister(&trng.rng);
+
+	dev_info(priv->dev, "Successfully unregistered ele-trng\n");
 	return 0;
 }
 

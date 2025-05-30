@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 
@@ -12,10 +12,12 @@
 #if IS_ENABLED(CONFIG_IMX_ELE_TRNG)
 
 int ele_trng_init(struct se_if_priv *priv);
+int ele_trng_exit(struct se_if_priv *priv);
 
 #else
 
 #define ele_trng_init NULL
+inline int ele_trng_exit(struct se_if_priv *priv) {return 0;};
 
 #endif
 

@@ -1546,6 +1546,14 @@ static int se_ioctl_setup_iobuf_handler(struct se_if_device_ctx *dev_ctx,
 		dev_err(dev_ctx->priv->dev,
 			"%s: Not enough space in shared memory\n",
 			dev_ctx->devname);
+		if (io.flags & SE_IO_BUF_FLAGS_RESET_ON_ERROR) {
+			if (shared_mem->pos)
+				memset_io(shared_mem->ptr, 0, shared_mem->pos);
+			else
+				memset(shared_mem->ptr, 0, shared_mem->pos);
+
+			shared_mem->pos = 0;
+		}
 		err = -ENOMEM;
 		goto exit;
 	}
@@ -2301,6 +2309,7 @@ static int se_suspend(struct device *dev)
 {
 	struct se_if_priv *priv = dev_get_drvdata(dev);
 	struct se_fw_load_info *load_fw;
+	struct se_if_node_info *info;
 	int ret = 0;
 
 	se_rcv_msg_timeout = SE_RCV_MSG_DEFAULT_TIMEOUT;
@@ -2311,6 +2320,11 @@ static int se_suspend(struct device *dev)
 			goto exit;
 		}
 	}
+
+	info = container_of(priv->if_defs, typeof(*info), if_defs);
+
+	if (info->init_trng)
+		ele_trng_exit(priv);
 
 	load_fw = get_load_fw_instance(priv);
 
@@ -2329,12 +2343,21 @@ static int se_resume(struct device *dev)
 {
 	struct se_if_priv *priv = dev_get_drvdata(dev);
 	struct se_fw_load_info *load_fw;
+	struct se_if_node_info *info;
 	int ret = 0;
 
 	if (priv->if_defs->se_if_type == SE_TYPE_ID_V2X_DBG) {
 		ret = v2x_resume(priv);
 		if (ret)
 			dev_err(dev, "Failure V2X-FW resume[0x%x].", ret);
+	}
+
+	info = container_of(priv->if_defs, typeof(*info), if_defs);
+
+	if (info->init_trng) {
+		ret = info->init_trng(priv);
+		if (ret)
+			dev_err(dev, "Failed[0x%x] to init trng.\n", ret);
 	}
 
 	load_fw = get_load_fw_instance(priv);

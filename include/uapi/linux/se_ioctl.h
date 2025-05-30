@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause*/
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #ifndef SE_IOCTL_H
@@ -93,6 +93,7 @@ struct se_time_frame {
 #define SE_IO_BUF_FLAGS_USE_SHORT_ADDR	(0x04u)
 #define SE_IO_BUF_FLAGS_USE_MU_BUF	(0x08u)
 #define SE_IO_BUF_FLAGS_IS_IN_OUT	(0x10u)
+#define SE_IO_BUF_FLAGS_RESET_ON_ERROR	(0x20u)
 
 /* IOCTLS */
 #define SE_IOCTL			0x0A /* like MISC_MAJOR. */
