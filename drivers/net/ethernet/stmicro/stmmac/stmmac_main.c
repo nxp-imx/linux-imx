@@ -7914,11 +7914,13 @@ int stmmac_suspend(struct device *dev)
 	if (!ndev || !netif_running(ndev))
 		return 0;
 
-	mutex_lock(&priv->lock);
-
-	netif_device_detach(ndev);
-
 	stmmac_disable_all_queues(priv);
+
+	netif_tx_lock_bh(ndev);
+	netif_device_detach(ndev);
+	netif_tx_unlock_bh(ndev);
+
+	mutex_lock(&priv->lock);
 
 	for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++)
 		hrtimer_cancel(&priv->dma_conf.tx_queue[chan].txtimer);
@@ -8069,13 +8071,16 @@ int stmmac_resume(struct device *dev)
 
 	stmmac_restore_hw_vlan_rx_fltr(priv, ndev, priv->hw);
 
-	stmmac_enable_all_queues(priv);
 	stmmac_enable_all_dma_irq(priv);
 
 	mutex_unlock(&priv->lock);
 	rtnl_unlock();
 
+	netif_tx_lock_bh(ndev);
 	netif_device_attach(ndev);
+	netif_tx_unlock_bh(ndev);
+
+	stmmac_enable_all_queues(priv);
 
 	return 0;
 }
