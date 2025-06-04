@@ -282,7 +282,7 @@ static const struct esdhc_soc_data usdhc_imx6q_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sl_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_ERR004536
 			| ESDHC_FLAG_HS200
 			| ESDHC_FLAG_BROKEN_AUTO_CMD23
@@ -290,7 +290,7 @@ static const struct esdhc_soc_data usdhc_imx6sl_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sll_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -298,7 +298,7 @@ static const struct esdhc_soc_data usdhc_imx6sll_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6sx_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
 			| ESDHC_FLAG_BROKEN_AUTO_CMD23
@@ -306,7 +306,7 @@ static const struct esdhc_soc_data usdhc_imx6sx_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx6ull_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_ERR010450
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -314,7 +314,7 @@ static const struct esdhc_soc_data usdhc_imx6ull_data = {
 };
 
 static const struct esdhc_soc_data usdhc_imx7d_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -331,7 +331,7 @@ static struct esdhc_soc_data usdhc_s32g2_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx7ulp_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_PMQOS | ESDHC_FLAG_HS400
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
@@ -344,7 +344,7 @@ static struct esdhc_soc_data usdhc_imxrt1050_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8qxp_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE
@@ -353,7 +353,7 @@ static struct esdhc_soc_data usdhc_imx8qxp_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8mm_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
 			| ESDHC_FLAG_STATE_LOST_IN_LPMODE,
@@ -361,7 +361,7 @@ static struct esdhc_soc_data usdhc_imx8mm_data = {
 };
 
 static struct esdhc_soc_data usdhc_imx8mq_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
 			| ESDHC_FLAG_PMQOS
