@@ -75,6 +75,12 @@
 #define DPU95_FETCHUNIT_CAP_USE_VSCALER9	BIT(3)
 #define DPU95_FETCHUNIT_CAP_PACKED_YUV422	BIT(4)
 
+/* register DISPLAY QOS_SETTING in blk-ctrl */
+#define DISPLAY_PANIC_QOS_MASK		0x70
+#define DISPLAY_PANIC_QOS(n)		(((n) & 0x7) << 4)
+#define DISPLAY_ARQOS_MASK		0x7
+#define DISPLAY_ARQOS(n)		((n) & 0x7)
+
 struct dpu95_fetchunit;
 
 enum dpu95_unit_type {
@@ -333,6 +339,7 @@ struct dpu95_data {
 	u32 irq2_addr;
 	u8 clock_ctrl;
 	u8 qos_setting;
+	int (* const set_qos)(struct dpu95_soc *dpu);
 	u8 plane_association;
 	u8 reg_polarityctrl;
 	bool vsbp_quirk;
@@ -353,8 +360,6 @@ int dpu95_map_disp_irq2(struct dpu95_soc *dpu, int irq);
 void dpu95_irq_hw_init(struct dpu95_soc *dpu);
 
 void dpu95_submodules_hw_init(struct dpu95_soc *dpu);
-
-int dpu95_set_qos(struct dpu95_soc *dpu);
 
 void dpu95_enable_display_pipeline_sync(struct dpu95_soc *dpu);
 void dpu95_disable_display_pipeline_sync(struct dpu95_soc *dpu);

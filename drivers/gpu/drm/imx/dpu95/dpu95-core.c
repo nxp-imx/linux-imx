@@ -19,16 +19,9 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/regmap.h>
 
 #include "dpu95.h"
 #include "dpu95-drv.h"
-
-/* register QOS_SETTING in blk-ctrl */
-#define DISPLAY_PANIC_QOS_MASK		0x70
-#define DISPLAY_PANIC_QOS(n)		(((n) & 0x7) << 4)
-#define DISPLAY_ARQOS_MASK		0x7
-#define DISPLAY_ARQOS(n)		((n) & 0x7)
 
 static const char * const dpu95_unit_names[] = {
 	"ConstFrame",
@@ -580,21 +573,6 @@ void dpu95_submodules_hw_init(struct dpu95_soc *dpu)
 		for (j = 0; j < us->cnt; j++)
 			us->hw_init(dpu, j);
 	}
-}
-
-int dpu95_set_qos(struct dpu95_soc *dpu)
-{
-	int ret;
-
-	ret = regmap_update_bits(dpu->regmap, dpu->data->qos_setting,
-				 DISPLAY_PANIC_QOS_MASK | DISPLAY_ARQOS_MASK,
-				 DISPLAY_PANIC_QOS(0x3) | DISPLAY_ARQOS(0x3));
-	if (ret < 0) {
-		dev_err(dpu->dev, "failed to set QoS: %d\n", ret);
-		return ret;
-	}
-
-	return 0;
 }
 
 static int dpu95_submodules_init(struct dpu95_soc *dpu, unsigned long dpu_base)

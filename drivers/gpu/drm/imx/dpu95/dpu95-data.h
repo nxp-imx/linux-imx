@@ -7,6 +7,7 @@
 #define __DRM_DPU95_DATA_H__
 
 #include "dpu95.h"
+#include <linux/regmap.h>
 
 /* Constant Frame */
 static const unsigned int dpu95_cf_ids[] = {0, 1, 4, 5};
@@ -525,6 +526,21 @@ static void dpu95_db1_shdload_irq_handler(struct irq_desc *desc)
 	dpu95_disp_irq2_handle(desc, DPU95_IRQ_DOMAINBLEND1_SHDLOAD);
 }
 
+static int dpu95_set_qos(struct dpu95_soc *dpu)
+{
+	int ret;
+
+	ret = regmap_update_bits(dpu->regmap, dpu->data->qos_setting,
+				DISPLAY_PANIC_QOS_MASK | DISPLAY_ARQOS_MASK,
+				DISPLAY_PANIC_QOS(0x3) | DISPLAY_ARQOS(0x3));
+	if (ret < 0) {
+		dev_err(dpu->dev, "failed to set QoS: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static void (* const dpu95_comctrl_irq_handler[DPU95_IRQ_CNT])(struct irq_desc *desc) = {
 	[DPU95_IRQ_COMCTRL_SW0]              = dpu95_comctrl_sw0_irq_handler,
 	[DPU95_IRQ_COMCTRL_SW1]              = dpu95_comctrl_sw1_irq_handler,
@@ -596,6 +612,7 @@ static const struct dpu95_data dpu95_data = {
 	.irq2_addr = 0x3a1000,
 	.clock_ctrl = 0x00,
 	.qos_setting = 0x1c,
+	.set_qos = dpu95_set_qos,
 	.plane_association = 0x20,
 	.reg_polarityctrl = 0x08,
 	.vsbp_quirk = true,

@@ -177,7 +177,7 @@ static int dpu95_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	ret = dpu95_set_qos(dpu);
+	ret = dpu->data->set_qos(dpu);
 	if (ret) {
 		clk_disable_unprepare(dpu->clk_ocram);
 		clk_disable_unprepare(dpu->clk_apb);
