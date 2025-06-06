@@ -785,18 +785,24 @@ const struct drm_ioctl_desc imx_drm_dpu95_ioctls[4] = {
 int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 {
 	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
-	struct drm_device *drm = &dpu_drm->base;
+	struct drm_device *drm_dev = &dpu_drm->base;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
 	int ret;
 
 	if (dpu->data->disable_blit)
 		return 0;
 
-	dpu95_bliteng_set_dev(dpu_bliteng, drm->dev);
+	dpu95_bliteng_set_dev(dpu_bliteng, drm_dev->dev);
+
+	ret = pm_runtime_resume_and_get(dpu_bliteng->dev);
+	if (ret < 0) {
+		drm_err(drm_dev, "failed to get device RPM: %d\n", ret);
+		return ret;
+	}
 
 	ret = dpu95_bliteng_init(dpu_bliteng);
 	if (ret)
-		return ret;
+		goto out;
 
 	dpu_blit_eng = dpu_bliteng;
 
@@ -804,7 +810,9 @@ int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 
 	dpu_bliteng->ready = true;
 
-	return 0;
+out:
+	pm_runtime_put_autosuspend(dpu_bliteng->dev);
+	return ret;
 }
 
 void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)
