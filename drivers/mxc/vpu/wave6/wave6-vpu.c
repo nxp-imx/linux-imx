@@ -363,7 +363,7 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 			goto err_temp_vbuf_free;
 		}
 	}
-	if (dev->res->codec_types & WAVE6_IS_ENC) {
+	if ((dev->res->codec_types & WAVE6_IS_ENC) && (dev->trusty_dev == NULL)) {
 		ret = wave6_vpu_enc_register_device(dev);
 		if (ret) {
 			dev_err(&pdev->dev, "wave6_vpu_enc_register_device fail: %d\n", ret);
@@ -385,7 +385,7 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	return 0;
 
 err_enc_unreg:
-	if (dev->res->codec_types & WAVE6_IS_ENC)
+	if ((dev->res->codec_types & WAVE6_IS_ENC) && (dev->trusty_dev == NULL))
 		wave6_vpu_enc_unregister_device(dev);
 err_dec_unreg:
 	if (dev->res->codec_types & WAVE6_IS_DEC)
