@@ -13,7 +13,7 @@ static struct platform_device *core_pdev;
 static struct platform_device *virtio_pdev;
 static struct platform_device *test_pdev;
 
-int __init trusty_populate_init(void)
+static int __init trusty_populate_init(void)
 {
 	int ret;
 
@@ -83,7 +83,7 @@ err_register_ffa_device:
 	return ret;
 }
 
-void trusty_populate_exit(void)
+static void trusty_populate_exit(void)
 {
 	platform_device_unregister(test_pdev);
 	platform_device_unregister(virtio_pdev);

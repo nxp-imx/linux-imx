@@ -528,12 +528,12 @@ static struct platform_driver trusty_smc_driver = {
 	},
 };
 
-int __init trusty_smc_init(void)
+static int __init trusty_smc_init(void)
 {
 	return platform_driver_register(&trusty_smc_driver);
 }
 
-void trusty_smc_exit(void)
+static void trusty_smc_exit(void)
 {
 	platform_driver_unregister(&trusty_smc_driver);
 }

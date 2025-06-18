@@ -495,7 +495,7 @@ static struct platform_driver trusty_ffa_platform_driver = {
 	},
 };
 
-int __init trusty_ffa_init(void)
+static int __init trusty_ffa_init(void)
 {
 	int rc;
 
@@ -518,7 +518,7 @@ err_register_ffa:
 	return rc;
 }
 
-void trusty_ffa_exit(void)
+static void trusty_ffa_exit(void)
 {
 	if (!IS_REACHABLE(CONFIG_ARM_FFA_TRANSPORT))
 		return;

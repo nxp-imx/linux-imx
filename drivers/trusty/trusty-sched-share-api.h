@@ -21,7 +21,7 @@ void trusty_unregister_sched_share(struct trusty_sched_share_state *sched_share_
 void trusty_free_sched_share(struct trusty_sched_share_state *sched_share_state);
 
 int trusty_get_requested_nice(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state);
-int trusty_set_actual_nice(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state,
+void trusty_set_actual_nice(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state,
 		int nice);
 
 bool trusty_is_idle(unsigned int cpu_num, struct trusty_sched_share_state *tcpu_state);

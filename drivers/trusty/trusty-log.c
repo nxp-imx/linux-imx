@@ -680,8 +680,8 @@ static int trusty_log_sfile_dev_release(struct inode *inode,
 	return 0;
 }
 
-ssize_t trusty_log_sfile_dev_read(struct file *filp, char __user *buf,
-				  size_t size, loff_t *ppos)
+static ssize_t trusty_log_sfile_dev_read(struct file *filp, char __user *buf,
+					 size_t size, loff_t *ppos)
 {
 	struct seq_file *sfile;
 	struct trusty_log_sfile *lb;

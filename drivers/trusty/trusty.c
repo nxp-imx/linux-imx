@@ -65,7 +65,7 @@ struct trusty_state {
 	struct trusty_sched_share_state *trusty_sched_share_state;
 };
 
-struct trusty_state *trusty_get_state(struct device *dev)
+static struct trusty_state *trusty_get_state(struct device *dev)
 {
 	if (WARN_ON(!dev))
 		return NULL;
