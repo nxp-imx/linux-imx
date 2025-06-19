@@ -19,6 +19,7 @@ static const char *programname;
 static const char *filename;
 static const char *logoname = "linux_logo";
 static const char *outputname;
+static const char *attribute = "__initconst ";
 static FILE *out;
 
 
@@ -238,14 +239,14 @@ static void write_header(void)
 	fprintf(out, " *  Linux logo %s\n", logoname);
 	fputs(" */\n\n", out);
 	fputs("#include <linux/linux_logo.h>\n\n", out);
-	fprintf(out, "static const unsigned char %s_data[] __initconst = {\n",
-		logoname);
+	fprintf(out, "static const unsigned char %s_data[] %s= {\n",
+		logoname, attribute);
 }
 
 static void write_footer(void)
 {
 	fputs("\n};\n\n", out);
-	fprintf(out, "const struct linux_logo %s __initconst = {\n", logoname);
+	fprintf(out, "const struct linux_logo %s %s= {\n", logoname, attribute);
 	fprintf(out, "\t.type\t\t= %s,\n", logo_types[logo_type]);
 	fprintf(out, "\t.width\t\t= %u,\n", logo_width);
 	fprintf(out, "\t.height\t\t= %u,\n", logo_height);
@@ -375,8 +376,8 @@ static void write_logo_clut224(void)
 	fputs("\n};\n\n", out);
 
 	/* write logo clut */
-	fprintf(out, "static const unsigned char %s_clut[] __initconst = {\n",
-		logoname);
+	fprintf(out, "static const unsigned char %s_clut[] %s= {\n",
+		logoname, attribute);
 	write_hex_cnt = 0;
 	for (i = 0; i < logo_clutsize; i++) {
 		write_hex(logo_clut[i].red);
@@ -430,6 +431,7 @@ static void usage(void)
 	"	-h		  : display this usage information\n"
 	"	-n <name>   : specify logo name (default: linux_logo)\n"
 	"	-o <output> : output to file <output> instead of stdout\n"
+	"	-a <attribute> : specify location attribute for the logo data array\n"
 	"	-t <type>   : specify logo type, one of\n"
 	"					  mono	: monochrome black/white\n"
 	"					  vga16   : 16 colors VGA text palette\n"
@@ -446,7 +448,7 @@ int main(int argc, char *argv[])
 
 	opterr = 0;
 	while (1) {
-		opt = getopt(argc, argv, "hn:o:t:");
+		opt = getopt(argc, argv, "hn:o:a:t:");
 		if (opt == -1)
 			break;
 
@@ -461,6 +463,10 @@ int main(int argc, char *argv[])
 
 		case 'o':
 			outputname = optarg;
+			break;
+
+		case 'a':
+			attribute = optarg;
 			break;
 
 		case 't':

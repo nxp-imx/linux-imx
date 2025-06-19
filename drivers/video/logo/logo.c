@@ -29,6 +29,7 @@ MODULE_PARM_DESC(nologo, "Disables startup logo");
 
 static bool logos_freed;
 
+#if IS_BUILTIN(CONFIG_FB_CORE)
 static int __init fb_logo_late_init(void)
 {
 	logos_freed = true;
@@ -36,6 +37,7 @@ static int __init fb_logo_late_init(void)
 }
 
 late_initcall_sync(fb_logo_late_init);
+#endif
 
 /* logo's are marked __initdata. Use __ref to tell
  * modpost that it is intended that this function uses data
@@ -104,3 +106,8 @@ const struct linux_logo * __ref fb_find_logo(int depth)
 	return logo;
 }
 EXPORT_SYMBOL_GPL(fb_find_logo);
+
+#if IS_MODULE(CONFIG_FB_CORE)
+MODULE_DESCRIPTION("Linux logo data and interface");
+MODULE_LICENSE("GPL");
+#endif
