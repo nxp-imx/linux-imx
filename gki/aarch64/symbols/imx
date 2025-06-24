@@ -3217,3 +3217,7 @@
   xsk_tx_peek_release_desc_batch
   xsk_tx_release
   xsk_uses_need_wakeup
+  media_entity_get_fwnode_pad
+  v4l2_ctrl_type_op_equal
+  v4l2_ctrl_type_op_init
+  v4l2_ctrl_type_op_validate
