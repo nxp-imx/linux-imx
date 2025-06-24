@@ -2988,3 +2988,7 @@
   xsk_tx_release
   xsk_uses_need_wakeup
   zap_vma_ptes
+  media_entity_get_fwnode_pad
+  v4l2_ctrl_type_op_equal
+  v4l2_ctrl_type_op_init
+  v4l2_ctrl_type_op_validate
