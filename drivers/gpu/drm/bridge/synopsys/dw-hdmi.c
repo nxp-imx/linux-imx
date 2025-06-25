@@ -207,9 +207,6 @@ struct dw_hdmi {
 	hdmi_codec_plugged_cb plugged_cb;
 	struct device *codec_dev;
 	enum drm_connector_status last_connector_result;
-
-	struct timer_list   timer;
-	struct work_struct work;
 };
 
 #define HDMI_IH_PHY_STAT0_RX_SENSE \
@@ -3107,34 +3104,6 @@ void dw_hdmi_setup_rx_sense(struct dw_hdmi *hdmi, bool hpd, bool rx_sense)
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_setup_rx_sense);
 
-static void dw_hdmi_work(struct work_struct *work)
-{
-	struct dw_hdmi *hdmi = container_of(work, struct dw_hdmi, work);
-	const struct drm_edid *drm_edid;
-	u8 phy_stat;
-
-	drm_edid = dw_hdmi_edid_read(hdmi, &hdmi->connector);
-	if (!drm_edid) {
-		mutex_lock(&hdmi->cec_notifier_mutex);
-		cec_notifier_phys_addr_invalidate(hdmi->cec_notifier);
-		mutex_unlock(&hdmi->cec_notifier_mutex);
-	} else {
-		phy_stat = hdmi_readb(hdmi, HDMI_PHY_STAT0);
-		if (phy_stat & HDMI_PHY_HPD)
-			del_timer(&hdmi->timer);
-		else
-			mod_timer(&hdmi->timer,
-				  jiffies + msecs_to_jiffies(500));
-	}
-}
-
-static void dw_hdmi_timer_callback(struct timer_list *t)
-{
-	struct dw_hdmi *hdmi = from_timer(hdmi, t, timer);
-
-	schedule_work(&hdmi->work);
-}
-
 static irqreturn_t dw_hdmi_irq(int irq, void *dev_id)
 {
 	struct dw_hdmi *hdmi = dev_id;
@@ -3174,7 +3143,9 @@ static irqreturn_t dw_hdmi_irq(int irq, void *dev_id)
 				       phy_stat & HDMI_PHY_RX_SENSE);
 
 		if ((phy_stat & (HDMI_PHY_RX_SENSE | HDMI_PHY_HPD)) == 0) {
-			schedule_work(&hdmi->work);
+			mutex_lock(&hdmi->cec_notifier_mutex);
+			cec_notifier_phys_addr_invalidate(hdmi->cec_notifier);
+			mutex_unlock(&hdmi->cec_notifier_mutex);
 		}
 
 		if (phy_stat & HDMI_PHY_HPD)
@@ -3651,9 +3622,6 @@ fail:
 
 	drm_bridge_add(&hdmi->bridge);
 
-	timer_setup(&hdmi->timer, dw_hdmi_timer_callback, 0);
-	INIT_WORK(&hdmi->work, dw_hdmi_work);
-
 	return hdmi;
 
 err_res:
@@ -3666,9 +3634,6 @@ EXPORT_SYMBOL_GPL(dw_hdmi_probe);
 void dw_hdmi_remove(struct dw_hdmi *hdmi)
 {
 	drm_bridge_remove(&hdmi->bridge);
-
-	cancel_work_sync(&hdmi->work);
-	del_timer(&hdmi->timer);
 
 	if (hdmi->audio && !IS_ERR(hdmi->audio))
 		platform_device_unregister(hdmi->audio);

@@ -187,9 +187,11 @@ static int dpu95_plane_check_no_zero_res(struct drm_plane_state *state)
 static int dpu95_plane_check_no_off_screen(struct drm_plane_state *state,
 					   struct drm_crtc_state *crtc_state)
 {
-	if (state->dst.x1 < 0 || state->dst.y1 < 0 ||
-	    state->dst.x2 > crtc_state->adjusted_mode.hdisplay ||
-	    state->dst.y2 > crtc_state->adjusted_mode.vdisplay) {
+	struct drm_rect dest = drm_plane_state_dest(state);
+
+	if (dest.x1 < 0 || dest.y1 < 0 ||
+	    dest.x2 > crtc_state->adjusted_mode.hdisplay ||
+	    dest.y2 > crtc_state->adjusted_mode.vdisplay) {
 		dpu95_plane_dbg(state->plane, "no off screen\n");
 		return -EINVAL;
 	}

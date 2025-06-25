@@ -240,6 +240,7 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
 										 plane);
 	struct dpu_plane_state *dpstate = to_dpu_plane_state(new_plane_state);
+	struct drm_rect dest = drm_plane_state_dest(new_plane_state);
 	struct dpu_plane_res *res = &dplane->grp->res;
 	struct drm_crtc_state *crtc_state;
 	struct drm_framebuffer *fb = new_plane_state->fb;
@@ -316,9 +317,9 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	}
 
 	/* no off screen */
-	if (new_plane_state->dst.x1 < 0 || new_plane_state->dst.y1 < 0 ||
-	    (new_plane_state->dst.x2 > crtc_state->adjusted_mode.hdisplay) ||
-	    (new_plane_state->dst.y2 > crtc_state->adjusted_mode.vdisplay)) {
+	if (dest.x1 < 0 || dest.y1 < 0 ||
+	    dest.x2 > crtc_state->adjusted_mode.hdisplay ||
+	    dest.y2 > crtc_state->adjusted_mode.vdisplay) {
 		DRM_DEBUG_KMS("[PLANE:%d:%s] no off screen\n",
 				plane->base.id, plane->name);
 		return -EINVAL;

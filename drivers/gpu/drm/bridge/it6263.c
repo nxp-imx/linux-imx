@@ -594,12 +594,13 @@ it6263_read_edid(void *data, u8 *buf, unsigned int block, size_t len)
 	return 0;
 }
 
-static const struct drm_edid *it6263_get_edid(struct it6263 *it6263)
+static const struct drm_edid *
+it6263_get_edid(struct it6263 *it6263, struct drm_connector *connector)
 {
 	const struct drm_edid *drm_edid;
 	const struct edid *edid;
 
-	drm_edid = drm_edid_read_custom(&it6263->connector, it6263_read_edid, it6263);
+	drm_edid = drm_edid_read_custom(connector, it6263_read_edid, it6263);
 	if (!drm_edid) {
 		dev_warn(&it6263->hdmi_i2c->dev, "Failed to read EDID\n");
 		return NULL;
@@ -640,7 +641,7 @@ static int it6263_connector_get_modes(struct drm_connector *connector)
 	int num = 0;
 	int ret;
 
-	drm_edid = it6263_get_edid(it6263);
+	drm_edid = it6263_get_edid(it6263, connector);
 	if (!drm_edid)
 		return 0;
 
@@ -871,7 +872,7 @@ it6263_bridge_edid_read(struct drm_bridge *bridge,
 {
 	struct it6263 *it6263 = bridge_to_it6263(bridge);
 
-	return it6263_get_edid(it6263);
+	return it6263_get_edid(it6263, connector);
 }
 
 static enum drm_mode_status
