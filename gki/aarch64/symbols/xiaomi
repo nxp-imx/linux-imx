@@ -8,6 +8,12 @@
   #required by perf_helper.ko
   __traceiter_android_rvh_dequeue_entity_delayed
   __tracepoint_android_rvh_dequeue_entity_delayed
+  __traceiter_f2fs_submit_folio_write
+  __tracepoint_f2fs_submit_folio_write
+  __traceiter_android_vh_fuse_request_send
+  __tracepoint_android_vh_fuse_request_send
+  __traceiter_android_vh_fuse_request_end
+  __tracepoint_android_vh_fuse_request_end
 
 # commonly used symbols
   __traceiter_android_vh_logbuf
@@ -107,6 +113,7 @@
   __traceiter_android_vh_rwsem_write_wait_start
   __traceiter_android_vh_mutex_wait_start
   __traceiter_android_vh_alter_mutex_list_add
+  __traceiter_android_rvh_cpuset_fork
   __traceiter_android_vh_sched_setaffinity_early
   __traceiter_android_rvh_set_cpus_allowed_comm
   __traceiter_android_rvh_dequeue_task
@@ -114,10 +121,18 @@
   __tracepoint_android_vh_rwsem_write_wait_start
   __tracepoint_android_vh_mutex_wait_start
   __tracepoint_android_vh_alter_mutex_list_add
+  __tracepoint_android_rvh_cpuset_fork
   __tracepoint_android_vh_sched_setaffinity_early
   __tracepoint_android_rvh_set_cpus_allowed_comm
   __tracepoint_android_rvh_dequeue_task
+  cpuset_cpus_allowed
   cpufreq_update_policy
+  cgroup_threadgroup_rwsem
+
+#required by millet.ko
+  __traceiter_android_rvh_refrigerator
+  __tracepoint_android_rvh_refrigerator
+  freezer_cgrp_subsys
 
 # required by trace_hook.ko
   android_rvh_probe_register
