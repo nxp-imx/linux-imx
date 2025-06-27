@@ -200,6 +200,6 @@
 	/delete-property/ dma-names;
 };
 
-&usb2 {
-	/delete-property/ iommus;
+&pcie1 {
+	status = "disabled";
 };
