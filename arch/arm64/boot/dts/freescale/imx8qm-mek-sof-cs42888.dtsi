@@ -2,6 +2,8 @@
 // Copyright NXP 2020, 2022, 2025
 
 / {
+	compatible = "fsl,imx8qm-mek-bb";
+
 	reserved-memory {
 		/delete-node/ dsp_reserved;
 		/delete-node/ dsp_reserved_heap;
@@ -23,12 +25,13 @@
 	};
 
 	sof-audio-cs42888 {
-		compatible = "simple-audio-card";
+		compatible = "audio-graph-card2";
 		label = "imx-cs42888";
-		simple-audio-card,widgets =
+		links = <&cpu>;
+		widgets =
 			"Line", "Line Out Jack",
 			"Line", "Line In Jack";
-		simple-audio-card,routing =
+		routing =
 			"Line Out Jack", "AOUT1L",
 			"Line Out Jack", "AOUT1R",
 			"Line Out Jack", "AOUT2L",
@@ -42,56 +45,47 @@
 			"AIN2L", "Line In Jack",
 			"AIN2R", "Line In Jack";
 		status = "okay";
-		simple-audio-card,dai-link {
-			format = "i2s";
-			cpu {
-				sound-dai = <&dsp 0>;
-			};
-			codec {
-				sound-dai = <&cs42888>;
-			};
-		};
 	};
 };
 
 &edma0{
-        compatible = "fsl,imx8qm-edma";
-	reg =  <0x591f0000 0x10000>,
-		<0x59280000 0x10000>, /* spdif0 rx */
-		<0x59290000 0x10000>, /* spdif0 tx */
-		<0x592A0000 0x10000>, /* spdif1 rx */
-		<0x592B0000 0x10000>, /* spdif1 tx */
-		<0x592c0000 0x10000>, /* sai0 rx */
-		<0x592d0000 0x10000>, /* sai0 tx */
-		<0x592e0000 0x10000>, /* sai1 rx */
-		<0x592f0000 0x10000>, /* sai1 tx */
-		<0x59300000 0x10000>, /* sai2 rx */
-		<0x59310000 0x10000>, /* sai3 rx */
-		<0x59320000 0x10000>, /* sai4 rx */
-		<0x59330000 0x10000>; /* sai5 tx */
-      	shared-interrupt;
-        dma-channels = <12>;
-	interrupts = <GIC_SPI 457 IRQ_TYPE_LEVEL_HIGH>, /* spdif0 */
+	reg =  <0x591f0000 0x190000>;
+	dma-channels = <24>;
+	dma-channel-mask = <0x5f0cff>;
+	interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 457 IRQ_TYPE_LEVEL_HIGH>, /* spdif0 */
 			<GIC_SPI 459 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 461 IRQ_TYPE_LEVEL_HIGH>, /* spdif1 */
-			<GIC_SPI 463 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>, /* sai0 */
 			<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
 			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 319 IRQ_TYPE_LEVEL_HIGH>, /* sai2 */
-			<GIC_SPI 324 IRQ_TYPE_LEVEL_HIGH>, /* sai3 */
-			<GIC_SPI 326 IRQ_TYPE_LEVEL_HIGH>, /* sai4 */
-			<GIC_SPI 328 IRQ_TYPE_LEVEL_HIGH>, /* sai5 */
-			<GIC_SPI 369 IRQ_TYPE_LEVEL_HIGH>; /* err */
-	interrupt-names = "edma2-chan8-rx", "edma2-chan9-tx", /* spdif0 */
-			"edma2-chan10-rx", "edma2-chan11-tx", /* spdif1 */
-			"edma2-chan12-rx", "edma2-chan13-tx", /* sai0 */
-			"edma2-chan14-rx", "edma2-chan15-tx", /* sai1 */
-			"edma2-chan16-rx", "edma2-chan17-tx", /* sai2, dai3 */
-			"edma2-chan18-rx", "edma2-chan19-tx", /* sai4, sai5 */
-			"edma2-err";
-	power-domains = <&pd IMX_SC_R_DMA_2_CH8>,
+			<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>, /* 21 gpt5 */
+			<GIC_SPI 0   IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>, /* 23 gpt7 */
+			<GIC_SPI 369 IRQ_TYPE_LEVEL_HIGH>;
+	power-domains = <&pd IMX_SC_R_DMA_2_CH0>,
+			<&pd IMX_SC_R_DMA_2_CH1>,
+			<&pd IMX_SC_R_DMA_2_CH2>,
+			<&pd IMX_SC_R_DMA_2_CH3>,
+			<&pd IMX_SC_R_DMA_2_CH4>,
+			<&pd IMX_SC_R_DMA_2_CH5>,
+			<&pd IMX_SC_R_DMA_2_CH6>,
+			<&pd IMX_SC_R_DMA_2_CH7>,
+			<&pd IMX_SC_R_DMA_2_CH8>,
 			<&pd IMX_SC_R_DMA_2_CH9>,
 			<&pd IMX_SC_R_DMA_2_CH10>,
 			<&pd IMX_SC_R_DMA_2_CH11>,
@@ -102,14 +96,11 @@
 			<&pd IMX_SC_R_DMA_2_CH16>,
 			<&pd IMX_SC_R_DMA_2_CH17>,
 			<&pd IMX_SC_R_DMA_2_CH18>,
-			<&pd IMX_SC_R_DMA_2_CH19>;
-	power-domain-names = "edma2-chan8", "edma2-chan9",
-			     "edma2-chan10", "edma2-chan11",
-			     "edma2-chan12", "edma2-chan13",
-			     "edma2-chan14", "edma2-chan15",
-			     "edma2-chan16", "edma2-chan17",
-			     "edma2-chan18", "edma2-chan19";
-       status = "okay";
+			<&pd IMX_SC_R_DMA_2_CH19>,
+			<&pd IMX_SC_R_DMA_2_CH20>,
+			<&pd IMX_SC_R_DMA_2_CH21>,
+			<&pd IMX_SC_R_DMA_2_CH22>,
+			<&pd IMX_SC_R_DMA_2_CH23>;
 };
 
 &dsp {
@@ -141,7 +132,8 @@
 		<&pd IMX_SC_R_AUDIO_CLK_0>,
 		<&pd IMX_SC_R_AUDIO_CLK_1>,
 		<&pd IMX_SC_R_AUDIO_PLL_0>,
-		<&pd IMX_SC_R_AUDIO_PLL_1>;
+		<&pd IMX_SC_R_AUDIO_PLL_1>,
+		<&pd IMX_SC_R_MU_2A>;
 
 	mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
 	mboxes = <&lsio_mu13 2 0>,
@@ -152,9 +144,15 @@
 	/delete-property/ firmware-name;
 
 	tplg-name = "sof-imx8-cs42888.tplg";
-	machine-drv-name = "asoc-simple-card";
-
+	machine-drv-name = "asoc-audio-graph-card2";
 	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu: port@0 { reg = <0>; cpu_ep: endpoint { remote-endpoint = <&codec_ep>; }; };
+	};
 };
 
 &amix {
@@ -170,11 +168,12 @@
 };
 
 &cs42888 {
-	#sound-dai-cells = <0>;
 	assigned-clocks = <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_PLL>,
 			  <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_SLV_BUS>,
 			  <&clk IMX_SC_R_AUDIO_PLL_0 IMX_SC_PM_CLK_MST_BUS>,
 			  <&mclkout0_lpcg 0>;
 	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <12288000>;
 	status = "okay";
+
+	port { codec_ep: endpoint { remote-endpoint = <&cpu_ep>; }; };
 };
