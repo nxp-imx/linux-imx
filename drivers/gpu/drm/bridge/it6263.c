@@ -1094,6 +1094,12 @@ static int it6263_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, it6263);
 
+#if defined(CONFIG_DRM_FBDEV_EMULATION) && defined(CONFIG_LOGO)
+	/* Waiting some time after init, so it6263_bridge_detect() can get correct
+	 * status. It will help to show Linux logo(penguins) normally.
+	 */
+	usleep_range(55000, 56000);
+#endif
 	return ret;
 
 unregister_lvds_i2c:
