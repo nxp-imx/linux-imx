@@ -303,19 +303,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb \
 			  imx8qm-mek-cockpit-a53.dtb imx8qm-mek-cockpit-a72.dtb \
 			  imx8qm-mek-dsi-serdes-rpmsg.dtb \
 			  imx8qm-mek-dsi-serdes.dtb imx8qm-mek-dsi-serdes-dual-display-rpmsg.dtb \
-			  imx8qm-mek-dsi-serdes-dual-display.dtb \
-			  imx8qm-mek-car-no-product.dtb \
-			  imx8qm-mek-car2-no-product.dtb \
-			  imx8qm-mek-car.dtb \
-			  imx8qm-mek-car2.dtb \
-			  imx8qm-mek-car2-md.dtb \
-			  imx8qm-mek-domu-car.dtb \
-			  imx8qm-mek-car2-domu.dtb \
-			  imx8qm-mek-car2-a72.dtb \
-			  imx8qm-mek-car2-md-a72.dtb \
-			  imx8qm-mek-car-a72.dtb \
-			  imx8qm-mek-car2-a72-sof.dtb \
-			  imx8qm-mek-car-a72-sof.dtb
+			  imx8qm-mek-dsi-serdes-dual-display.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb \
 			  imx8qm-mek-root.dtb imx8qm-mek-inmate.dtb
 
@@ -339,6 +327,30 @@ imx8qm-mek-max9286-dual-dtbs := imx8qm-mek.dtb imx8qm-mek-max9286-csi0.dtbo imx8
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-max9286-dual.dtb
 imx8qm-mek-hdmi-rx-dtbs := imx8qm-mek-hdmi.dtb imx8qm-mek-hdmi-rx.dtbo
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-hdmi-rx.dtb
+imx8qm-mek-car-no-product-max9286-csi0-dtbs := imx8qm-mek-car-no-product.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car-no-product-max9286-csi0.dtb
+imx8qm-mek-car2-no-product-max9286-csi0-dtbs := imx8qm-mek-car2-no-product.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-no-product-max9286-csi0.dtb
+imx8qm-mek-car-max9286-csi0-dtbs := imx8qm-mek-car.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car-max9286-csi0.dtb
+imx8qm-mek-car2-max9286-csi0-dtbs := imx8qm-mek-car2.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-max9286-csi0.dtb
+imx8qm-mek-car2-md-max9286-csi0-dtbs := imx8qm-mek-car2-md.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-md-max9286-csi0.dtb
+imx8qm-mek-domu-car-max9286-csi0-dtbs := imx8qm-mek-domu-car.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-domu-car-max9286-csi0.dtb
+imx8qm-mek-car2-domu-max9286-csi0-dtbs := imx8qm-mek-car2-domu.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-domu-max9286-csi0.dtb
+imx8qm-mek-car2-a72-max9286-csi0-dtbs := imx8qm-mek-car2-a72.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-a72-max9286-csi0.dtb
+imx8qm-mek-car2-md-a72-max9286-csi0-dtbs := imx8qm-mek-car2-md-a72.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-md-a72-max9286-csi0.dtb
+imx8qm-mek-car-a72-max9286-csi0-dtbs := imx8qm-mek-car-a72.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car-a72-max9286-csi0.dtb
+imx8qm-mek-car2-a72-sof-max9286-csi0-dtbs := imx8qm-mek-car2-a72-sof.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car2-a72-sof-max9286-csi0.dtb
+imx8qm-mek-car-a72-sof-max9286-csi0-dtbs := imx8qm-mek-car-a72-sof.dtb imx8qm-mek-max9286-csi0.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-car-a72-sof-max9286-csi0.dtb
 
 imx8qm-mek-revd-dtbs := imx8qm-mek.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-rpmsg-dtbs := imx8qm-mek-rpmsg.dtb imx8qm-mek-revd.dtbo
@@ -366,11 +378,11 @@ imx8qm-mek-revd-dsi-rm67199-dtbs := imx8qm-mek-dsi-rm67199.dtb imx8qm-mek-revd.d
 imx8qm-mek-revd-root-dtbs := imx8qm-mek-root.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-sof-cs42888-dtbs := imx8qm-mek-sof-cs42888.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-md-dtbs := imx8qm-mek-md.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car-a72-dtbs := imx8qm-mek-car-a72.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car-a72-sof-dtbs := imx8qm-mek-car-a72-sof.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car2-a72-dtbs := imx8qm-mek-car2-a72.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car2-md-a72-dtbs := imx8qm-mek-car2-md-a72.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-car2-a72-sof-dtbs := imx8qm-mek-car2-a72-sof.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-car-a72-max9286-csi0-dtbs := imx8qm-mek-car-a72-max9286-csi0.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-car-a72-sof-max9286-csi0-dtbs := imx8qm-mek-car-a72-sof-max9286-csi0.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-car2-a72-max9286-csi0-dtbs := imx8qm-mek-car2-a72-max9286-csi0.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-car2-md-a72-max9286-csi0-dtbs := imx8qm-mek-car2-md-a72-max9286-csi0.dtb imx8qm-mek-revd.dtbo
+imx8qm-mek-revd-car2-a72-sof-max9286-csi0-dtbs := imx8qm-mek-car2-a72-sof-max9286-csi0.dtb imx8qm-mek-revd.dtbo
 
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-rpmsg.dtb
@@ -398,11 +410,11 @@ dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-revd-ov5640-dual.dtb
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-revd-max9286-csi0.dtb
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-revd-max9286-csi1.dtb
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-revd-max9286-dual.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72-sof.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-a72.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-md-a72.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-a72-sof.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72-max9286-csi0.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car-a72-sof-max9286-csi0.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-a72-max9286-csi0.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-md-a72-max9286-csi0.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-car2-a72-sof-max9286-csi0.dtb
 #dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 #dtb-$(CONFIG_ARCH_MXC) += imx8qxp-colibri-aster.dtb
 #dtb-$(CONFIG_ARCH_MXC) += imx8qxp-colibri-eval-v3.dtb
@@ -467,13 +479,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb \
 			  imx8qxp-lpddr4-val.dtb imx8qxp-lpddr4-val-mqs.dtb imx8qxp-ddr3l-val.dtb \
 			  imx8qxp-lpddr4-val-lpspi.dtb imx8qxp-lpddr4-val-lpspi-slave.dtb \
 			  imx8qxp-lpddr4-val-spdif.dtb imx8qxp-lpddr4-val-gpmi-nand.dtb imx8dxp-lpddr4-val.dtb \
-			  imx8qxp-17x17-val.dtb imx8dx-lpddr4-val.dtb imx8dx-17x17-val.dtb \
-			  imx8qxp-mek-car-no-product.dtb \
-			  imx8qxp-mek-car2-no-product.dtb \
-			  imx8qxp-mek-car.dtb \
-			  imx8qxp-mek-car2.dtb \
-			  imx8qxp-mek-car-sof.dtb \
-			  imx8qxp-mek-car2-sof.dtb
+			  imx8qxp-17x17-val.dtb imx8dx-lpddr4-val.dtb imx8dx-17x17-val.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb \
 			  imx8qxp-mek-inmate.dtb
 
@@ -493,6 +499,18 @@ imx8qxp-mek-max9286-dtbs := imx8qxp-mek.dtb imx8qxp-mek-max9286.dtbo
 dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-max9286.dtb
 imx8qxp-mek-max9286-rpmsg-dtbs := imx8qxp-mek-rpmsg.dtb imx8qxp-mek-max9286.dtbo
 dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-max9286-rpmsg.dtb
+imx8qxp-mek-car-no-product-max9286-dtbs := imx8qxp-mek-car-no-product.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car-no-product-max9286.dtb
+imx8qxp-mek-car2-no-product-max9286-dtbs := imx8qxp-mek-car2-no-product.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car2-no-product-max9286.dtb
+imx8qxp-mek-car-max9286-dtbs := imx8qxp-mek-car.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car-max9286.dtb
+imx8qxp-mek-car2-max9286-dtbs := imx8qxp-mek-car2.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car2-max9286.dtb
+imx8qxp-mek-car-sof-max9286-dtbs := imx8qxp-mek-car-sof.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car-sof-max9286.dtb
+imx8qxp-mek-car2-sof-max9286-dtbs := imx8qxp-mek-car2-sof.dtb imx8qxp-mek-max9286.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8qxp-mek-car2-sof-max9286.dtb
 
 imx8qm-mek-ov5640-rpmsg-dtbs := imx8qm-mek-rpmsg.dtb $(imx8qm-mek-ov5640-csi0-dtbs)
 dtb-${CONFIG_ARCH_MXC} += imx8qm-mek-ov5640-rpmsg.dtb
