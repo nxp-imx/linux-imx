@@ -39,6 +39,8 @@ load(
 )
 load(":imx.bzl", "define_imx")
 define_imx()
+load(":imx_ddk.bzl", "define_imx_ddk")
+define_imx_ddk()
 
 package(
     default_visibility = [

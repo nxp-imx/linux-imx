@@ -1,0 +1,5 @@
+CONFIG_CFG80211=m
+CONFIG_MAC80211=m
+
+# Disable module signing during build
+# CONFIG_MODULE_SIG_ALL is not set
