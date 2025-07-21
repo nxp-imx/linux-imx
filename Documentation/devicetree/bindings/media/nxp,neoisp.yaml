@@ -21,6 +21,7 @@ properties:
       - nxp,imx95-a0-neoisp
       - nxp,imx95-a1-neoisp
       - nxp,imx95-b0-neoisp
+      - nxp,imx952-neoisp
 
   reg:
     maxItems: 2
