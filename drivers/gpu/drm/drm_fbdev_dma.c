@@ -245,8 +245,9 @@ static int drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(struct drm_fb_helper *
 	struct fb_info *info = fb_helper->info;
 	size_t screen_size = buffer->gem->size;
 	void *screen_buffer;
+#ifdef CONFIG_FB_DEFERRED_IO
 	int ret;
-
+#endif
 	/*
 	 * Deferred I/O requires struct page for framebuffer memory,
 	 * which is not guaranteed for all DMA ranges. We thus create
@@ -269,16 +270,17 @@ static int drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(struct drm_fb_helper *
 	fb_helper->fbdefio.deferred_io = drm_fb_helper_deferred_io;
 
 	info->fbdefio = &fb_helper->fbdefio;
-#endif
 	ret = fb_deferred_io_init(info);
 	if (ret)
 		goto err_vfree;
-
+#endif
 	return 0;
 
+#ifdef CONFIG_FB_DEFERRED_IO
 err_vfree:
 	vfree(screen_buffer);
 	return ret;
+#endif
 }
 
 int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
@@ -330,9 +332,10 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 		ret = drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(fb_helper, sizes);
 	else
 		ret = drm_fbdev_dma_driver_fbdev_probe_tail(fb_helper, sizes);
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (ret)
 		goto err_drm_fb_helper_release_info;
-
+#endif
 	return 0;
 
 #ifdef CONFIG_FB_DEFERRED_IO
