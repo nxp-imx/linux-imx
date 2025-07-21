@@ -250,17 +250,17 @@ static unsigned int imx_pcie_grp_offset(const struct imx_pcie *imx_pcie)
 static int imx95_pcie_init_phy(struct imx_pcie *imx_pcie)
 {
 	/*
-	 * Workaround for ERR051624: The Controller Without Vaux Cannot
-	 * Exit L23 Ready Through Beacon or PERST# De-assertion
+	 * ERR051624: The Controller Without Vaux Cannot Exit L23 Ready
+	 * Through Beacon or PERST# De-assertion
 	 *
-	 * When the auxiliary power is not available the controller
+	 * When the auxiliary power is not available, the controller
 	 * cannot exit from L23 Ready with beacon or PERST# de-assertion
 	 * when main power is not removed.
 	 *
 	 * Workaround: Set SS_RW_REG_1[SYS_AUX_PWR_DET] to 1.
 	 */
-	regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
-			IMX95_PCIE_SYS_AUX_PWR_DET, IMX95_PCIE_SYS_AUX_PWR_DET);
+	regmap_set_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
+			IMX95_PCIE_SYS_AUX_PWR_DET);
 
 	regmap_update_bits(imx_pcie->iomuxc_gpr,
 			IMX95_PCIE_SS_RW_REG_0,

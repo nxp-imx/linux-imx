@@ -277,7 +277,7 @@ impl ProcessInner {
 
     /// Finds a delivered death notification with the given cookie, removes it from the thread's
     /// delivered list, and returns it.
-    fn pull_delivered_death(&mut self, cookie: usize) -> Option<DArc<NodeDeath>> {
+    fn pull_delivered_death(&mut self, cookie: u64) -> Option<DArc<NodeDeath>> {
         let mut cursor = self.delivered_deaths.cursor_front();
         while let Some(next) = cursor.peek_next() {
             if next.cookie == cookie {
@@ -511,9 +511,13 @@ impl Process {
         Ok(process)
     }
 
+    pub(crate) fn pid_in_current_ns(&self) -> kernel::task::Pid {
+        self.task.tgid_nr_ns(None)
+    }
+
     #[inline(never)]
     pub(crate) fn debug_print_stats(&self, m: &SeqFile, ctx: &Context) -> Result<()> {
-        seq_print!(m, "proc {}\n", self.task.pid_in_current_ns());
+        seq_print!(m, "proc {}\n", self.pid_in_current_ns());
         seq_print!(m, "context {}\n", &*ctx.name);
 
         let inner = self.inner.lock();
@@ -561,7 +565,7 @@ impl Process {
 
     #[inline(never)]
     pub(crate) fn debug_print(&self, m: &SeqFile, ctx: &Context, print_all: bool) -> Result<()> {
-        seq_print!(m, "proc {}\n", self.task.pid_in_current_ns());
+        seq_print!(m, "proc {}\n", self.pid_in_current_ns());
         seq_print!(m, "context {}\n", &*ctx.name);
 
         let mut all_threads = KVec::new();
@@ -926,6 +930,8 @@ impl Process {
                 refs.by_handle.remove(&handle);
                 refs.by_node.remove(&id);
             }
+        } else {
+            pr_warn!("{}: no such ref {handle}\n", kernel::current!().pid());
         }
         Ok(())
     }
@@ -1063,7 +1069,7 @@ impl Process {
         }
     }
 
-    fn create_mapping(&self, vma: &mm::virt::VmAreaNew) -> Result {
+    fn create_mapping(&self, vma: &mm::virt::VmaNew) -> Result {
         use kernel::page::PAGE_SIZE;
         let size = usize::min(vma.end() - vma.start(), bindings::SZ_4M as usize);
         let mapping = Mapping::new(vma.start(), size);
@@ -1170,11 +1176,7 @@ impl Process {
         thread: &Thread,
     ) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
-
-        // TODO: First two should result in error, but not the others.
-
-        // TODO: Do we care about the context manager dying?
+        let cookie: u64 = reader.read()?;
 
         // Queue BR_ERROR if we can't allocate memory for the death notification.
         let death = UniqueArc::new_uninit(GFP_KERNEL).map_err(|err| {
@@ -1182,10 +1184,14 @@ impl Process {
             err
         })?;
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
         // Nothing to do if there is already a death notification request for this handle.
         if info.death().is_some() {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION death notification already set\n");
             return Ok(());
         }
 
@@ -1218,15 +1224,22 @@ impl Process {
 
     pub(crate) fn clear_death(&self, reader: &mut UserSliceReader, thread: &Thread) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
+        let cookie: u64 = reader.read()?;
 
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
-        let death = info.death().take().ok_or(EINVAL)?;
+        let Some(death) = info.death().take() else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification not active\n");
+            return Ok(());
+        };
         if death.cookie != cookie {
             *info.death() = Some(death);
-            return Err(EINVAL);
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification cookie mismatch\n");
+            return Ok(());
         }
 
         // Update state and determine if we need to queue a work item. We only need to do it when
@@ -1240,7 +1253,7 @@ impl Process {
         Ok(())
     }
 
-    pub(crate) fn dead_binder_done(&self, cookie: usize, thread: &Thread) {
+    pub(crate) fn dead_binder_done(&self, cookie: u64, thread: &Thread) {
         if let Some(death) = self.inner.lock().pull_delivered_death(cookie) {
             death.set_notification_done(thread);
         }
@@ -1297,6 +1310,13 @@ impl Process {
             work.into_arc().cancel();
         }
 
+        // Take all threads and release them.
+        let threads = take(&mut self.inner.lock().threads);
+        for thread in threads.values() {
+            thread.release();
+        }
+        drop(threads);
+
         // Free any resources kept alive by allocated buffers.
         let omapping = self.inner.lock().mapping.take();
         if let Some(mut mapping) = omapping {
@@ -1338,18 +1358,8 @@ impl Process {
         }
         drop(freeze_listeners);
 
-        // Do similar dance for the state lock.
-        let mut inner = self.inner.lock();
-        let threads = take(&mut inner.threads);
-        let nodes = take(&mut inner.nodes);
-        drop(inner);
-
-        // Release all threads.
-        for thread in threads.values() {
-            thread.release();
-        }
-
         // Deliver death notifications.
+        let nodes = take(&mut self.inner.lock().nodes);
         for node in nodes.values() {
             loop {
                 let death = {
@@ -1550,11 +1560,13 @@ impl Process {
     }
 
     pub(crate) fn release(this: Arc<Process>, _file: &File) {
+        let binderfs_file;
         let should_schedule;
         {
             let mut inner = this.inner.lock();
             should_schedule = inner.defer_work == 0;
             inner.defer_work |= PROC_DEFER_RELEASE;
+            binderfs_file = inner.binderfs_file.take();
         }
 
         if should_schedule {
@@ -1562,6 +1574,8 @@ impl Process {
             // scheduled for execution.
             let _ = workqueue::system().enqueue(this);
         }
+
+        drop(binderfs_file);
     }
 
     pub(crate) fn flush(this: ArcBorrow<'_, Process>) -> Result {
@@ -1612,7 +1626,7 @@ impl Process {
     pub(crate) fn mmap(
         this: ArcBorrow<'_, Process>,
         _file: &File,
-        vma: &mm::virt::VmAreaNew,
+        vma: &mm::virt::VmaNew,
     ) -> Result {
         // We don't allow mmap to be used in a different process.
         if !core::ptr::eq(kernel::current!().group_leader(), &*this.task) {
@@ -1633,7 +1647,7 @@ impl Process {
     pub(crate) fn poll(
         this: ArcBorrow<'_, Process>,
         file: &File,
-        table: &mut PollTable,
+        table: PollTable<'_>,
     ) -> Result<u32> {
         let thread = this.get_current_thread()?;
         let (from_proc, mut mask) = thread.poll(file, table);

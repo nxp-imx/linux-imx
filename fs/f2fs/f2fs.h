@@ -1715,6 +1715,10 @@ struct f2fs_sb_info {
 
 	/* threshold for gc trials on pinned files */
 	unsigned short gc_pin_file_threshold;
+
+	/* free sections reserved for pinned file */
+	ANDROID_KABI_IGNORE(0, unsigned int reserved_pin_section);
+
 	struct f2fs_rwsem pin_sem;
 
 	/* maximum # of trials to find a victim segment for SSR and GC */

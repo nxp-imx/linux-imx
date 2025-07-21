@@ -256,7 +256,7 @@ static int imx_mu_generic_tx(struct imx_mu_priv *priv,
 			     priv->dcfg->xCR[IMX_MU_GCR]);
 		ret = -ETIMEDOUT;
 		count = 0;
-		while (ret) {
+		while (ret && (count < 10)) {
 			ret =
 			readl_poll_timeout(priv->base + priv->dcfg->xCR[IMX_MU_GCR], val,
 					   !(val & IMX_MU_xCR_GIRn(priv->dcfg->type, cp->idx)),

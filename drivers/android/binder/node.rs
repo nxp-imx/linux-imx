@@ -723,7 +723,7 @@ impl Node {
         if len == inner.freeze_list.len() {
             pr_warn!(
                 "Could not remove freeze listener for {}\n",
-                p.task.pid_in_current_ns()
+                p.pid_in_current_ns()
             );
         }
         if inner.freeze_list.is_empty() {
@@ -890,6 +890,13 @@ impl NodeRef {
             }
             *count += 1;
         } else {
+            if *count == 0 {
+                pr_warn!(
+                    "pid {} performed invalid decrement on ref\n",
+                    kernel::current!().pid()
+                );
+                return false;
+            }
             *count -= 1;
             if *count == 0 {
                 self.node.update_refcount(false, *node_count, strong);
@@ -952,7 +959,7 @@ struct NodeDeathInner {
 pub(crate) struct NodeDeath {
     node: DArc<Node>,
     process: Arc<Process>,
-    pub(crate) cookie: usize,
+    pub(crate) cookie: u64,
     #[pin]
     links_track: AtomicTracker<0>,
     /// Used by the owner `Node` to store a list of registered death notifications.
@@ -981,7 +988,7 @@ impl NodeDeath {
     pub(crate) fn new(
         node: DArc<Node>,
         process: Arc<Process>,
-        cookie: usize,
+        cookie: u64,
     ) -> impl PinInit<DTRWrap<Self>> {
         DTRWrap::new(pin_init!(
             Self {

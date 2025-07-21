@@ -8,7 +8,8 @@ use crate::{
     bindings,
     ffi::{c_int, c_long, c_uint},
     mm::MmWithUser,
-    types::{NotThreadSafe, Opaque},
+    pid_namespace::PidNamespace,
+    types::{ARef, NotThreadSafe, Opaque},
 };
 use core::{
     cmp::{Eq, PartialEq},
@@ -238,11 +239,32 @@ impl Task {
         unsafe { bindings::signal_pending(self.as_ptr()) != 0 }
     }
 
-    /// Returns the given task's pid in the current pid namespace.
-    pub fn pid_in_current_ns(&self) -> Pid {
-        // SAFETY: It's valid to pass a null pointer as the namespace (defaults to current
-        // namespace). The task pointer is also valid.
-        unsafe { bindings::task_tgid_nr_ns(self.as_ptr(), ptr::null_mut()) }
+    /// Returns task's pid namespace with elevated reference count
+    pub fn get_pid_ns(&self) -> Option<ARef<PidNamespace>> {
+        // SAFETY: By the type invariant, we know that `self.0` is valid.
+        let ptr = unsafe { bindings::task_get_pid_ns(self.0.get()) };
+        if ptr.is_null() {
+            None
+        } else {
+            // SAFETY: `ptr` is valid by the safety requirements of this function. And we own a
+            // reference count via `task_get_pid_ns()`.
+            // CAST: `Self` is a `repr(transparent)` wrapper around `bindings::pid_namespace`.
+            Some(unsafe { ARef::from_raw(ptr::NonNull::new_unchecked(ptr.cast::<PidNamespace>())) })
+        }
+    }
+
+    /// Returns the given task's pid in the provided pid namespace.
+    #[doc(alias = "task_tgid_nr_ns")]
+    pub fn tgid_nr_ns(&self, pidns: Option<&PidNamespace>) -> Pid {
+        let pidns = match pidns {
+            Some(pidns) => pidns.as_ptr(),
+            None => core::ptr::null_mut(),
+        };
+        // SAFETY: By the type invariant, we know that `self.0` is valid. We received a valid
+        // PidNamespace that we can use as a pointer or we received an empty PidNamespace and
+        // thus pass a null pointer. The underlying C function is safe to be used with NULL
+        // pointers.
+        unsafe { bindings::task_tgid_nr_ns(self.0.get(), pidns) }
     }
 
     /// Wakes up the task.
@@ -346,6 +368,38 @@ impl CurrentTask {
         // In either case, it's not possible to read `current->mm` and keep using it after the
         // scope is ended with `kthread_unuse_mm()`.
         Some(unsafe { MmWithUser::from_raw(mm) })
+    }
+
+    /// Access the pid namespace of the current task.
+    ///
+    /// This function does not touch the refcount of the namespace or use RCU protection.
+    ///
+    /// To access the pid namespace of another task, see [`Task::get_pid_ns`].
+    #[doc(alias = "task_active_pid_ns")]
+    #[inline]
+    pub fn active_pid_ns(&self) -> Option<&PidNamespace> {
+        // SAFETY: It is safe to call `task_active_pid_ns` without RCU protection when calling it
+        // on the current task.
+        let active_ns = unsafe { bindings::task_active_pid_ns(self.as_ptr()) };
+
+        if active_ns.is_null() {
+            return None;
+        }
+
+        // The lifetime of `PidNamespace` is bound to `Task` and `struct pid`.
+        //
+        // The `PidNamespace` of a `Task` doesn't ever change once the `Task` is alive.
+        //
+        // From system call context retrieving the `PidNamespace` for the current task is always
+        // safe and requires neither RCU locking nor a reference count to be held. Retrieving the
+        // `PidNamespace` after `release_task()` for current will return `NULL` but no codepath
+        // like that is exposed to Rust.
+        //
+        // SAFETY: If `current`'s pid ns is non-null, then it references a valid pid ns.
+        // Furthermore, the returned `&PidNamespace` borrows from this `CurrentTask`, so it cannot
+        // escape the scope in which the current pointer was obtained, e.g. it cannot live past a
+        // `release_task()` call.
+        Some(unsafe { PidNamespace::from_ptr(active_ns) })
     }
 }
 

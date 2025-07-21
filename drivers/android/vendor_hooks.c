@@ -74,6 +74,9 @@
 #include <trace/hooks/fuse.h>
 #include <trace/hooks/ogki_honor.h>
 #include <trace/hooks/suspend.h>
+#include <trace/hooks/user.h>
+#include <trace/hooks/gzvm.h>
+#include <trace/hooks/usb.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -458,6 +461,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_map_pages);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_try_alloc_pages_gfp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_cache_readahead_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_cache_readahead_end);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_cache_ra_order_bypass);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_fault_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_fault_end);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dma_heap_buffer_alloc_start);
@@ -572,3 +576,11 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_charge);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_filemap_add_folio);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_shrink_node);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cpuset_fork);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_alloc_uid);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_free_user);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gzvm_vcpu_exit_reason);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gzvm_handle_demand_page_pre);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gzvm_handle_demand_page_post);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gzvm_destroy_vm_post_process);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_usb_dev_suspend);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_usb_dev_resume);

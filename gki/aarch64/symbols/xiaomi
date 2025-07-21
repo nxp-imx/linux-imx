@@ -31,6 +31,10 @@
   __traceiter_android_vh_do_shrink_slab
   __traceiter_android_vh_shrink_slab_bypass
 
+# required by health_report module
+  __tracepoint_android_vh_health_report
+  __traceiter_android_vh_health_report
+
 # required by mi_mem_engine.ko
   __traceiter_android_vh_tune_swappiness
   __tracepoint_android_vh_tune_swappiness
@@ -89,6 +93,7 @@
 
 #required by stability
   sock_from_file
+  get_dmabuf_debugfs_data
   __traceiter_android_vh_cma_alloc_fail
   __tracepoint_android_vh_cma_alloc_fail
   __traceiter_android_vh_warn_alloc_show_mem_bypass
@@ -107,6 +112,8 @@
   __tracepoint_android_vh_alloc_pages_entry
   __traceiter_android_vh_sysrq_crash
   __tracepoint_android_vh_sysrq_crash
+  __traceiter_android_rvh_schedule_bug
+  __tracepoint_android_rvh_schedule_bug
 
 #required by metis.ko module
   __traceiter_android_vh_rwsem_read_wait_start
@@ -142,8 +149,13 @@
 
 #required by mi_sched.ko
   __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_free_user
+  __traceiter_android_vh_alloc_uid
   __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_free_user
+  __tracepoint_android_vh_alloc_uid
   free_uid
+  find_user
 
 #required by mi_freqwdg.ko
   __traceiter_android_vh_freq_qos_remove_request
@@ -169,6 +181,10 @@
   blk_mq_sched_mark_restart_hctx
   blk_mq_sched_try_insert_merge
   elv_rqhash_add
+
+# required by mi_damon.ko
+  folio_deactivate
+  folio_mark_accessed
 
 #required by cifs.ko
   add_swap_extent
@@ -380,6 +396,20 @@
   __traceiter_android_vh_psi_group
   __tracepoint_android_vh_psi_event
   __tracepoint_android_vh_psi_group
+
+#required by io_monitor.ko
+  __tracepoint_f2fs_gc_begin
+  __tracepoint_f2fs_gc_end
+  __tracepoint_f2fs_write_checkpoint
+  __tracepoint_f2fs_sync_file_enter
+  __tracepoint_f2fs_sync_file_exit
+  __tracepoint_ufshcd_command
+  __traceiter_f2fs_gc_begin
+  __traceiter_f2fs_gc_end
+  __traceiter_f2fs_write_checkpoint
+  __traceiter_f2fs_sync_file_enter
+  __traceiter_f2fs_sync_file_exit
+  __traceiter_ufshcd_command
 
 #required by zram.ko module
   __blk_alloc_disk

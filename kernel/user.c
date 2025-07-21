@@ -21,6 +21,19 @@
 #include <linux/binfmts.h>
 #include <linux/proc_ns.h>
 
+#include <trace/hooks/user.h>
+#include <linux/android_kabi.h>
+
+ANDROID_KABI_DECLONLY(address_space);
+ANDROID_KABI_DECLONLY(cred);
+ANDROID_KABI_DECLONLY(dentry);
+ANDROID_KABI_DECLONLY(file);
+ANDROID_KABI_DECLONLY(io_context);
+ANDROID_KABI_DECLONLY(module);
+ANDROID_KABI_DECLONLY(pid);
+ANDROID_KABI_DECLONLY(sighand_struct);
+ANDROID_KABI_DECLONLY(signal_struct);
+
 #if IS_ENABLED(CONFIG_BINFMT_MISC)
 struct binfmt_misc init_binfmt_misc = {
 	.entries = LIST_HEAD_INIT(init_binfmt_misc.entries),
@@ -165,6 +178,7 @@ static void user_epoll_free(struct user_struct *up)
 static void free_user(struct user_struct *up, unsigned long flags)
 	__releases(&uidhash_lock)
 {
+	trace_android_vh_free_user(up);
 	uid_hash_remove(up);
 	spin_unlock_irqrestore(&uidhash_lock, flags);
 	user_epoll_free(up);
@@ -187,6 +201,7 @@ struct user_struct *find_user(kuid_t uid)
 	spin_unlock_irqrestore(&uidhash_lock, flags);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(find_user);
 
 void free_uid(struct user_struct *up)
 {
@@ -216,6 +231,7 @@ struct user_struct *alloc_uid(kuid_t uid)
 
 		new->uid = uid;
 		refcount_set(&new->__count, 1);
+		trace_android_vh_alloc_uid(new);
 		if (user_epoll_alloc(new)) {
 			kmem_cache_free(uid_cachep, new);
 			return NULL;
