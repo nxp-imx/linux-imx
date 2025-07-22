@@ -109,6 +109,10 @@
 
 };
 
+&dmic {
+	num-channels = <8>;
+};
+
 &sai3 {
 	status = "disabled";
 };

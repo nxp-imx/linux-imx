@@ -670,8 +670,8 @@ struct ntmp_priv {
 	unsigned long *sgit_eid_bitmap;
 	unsigned long *isct_eid_bitmap;
 	unsigned long *sgclt_word_bitmap;
-	unsigned long *ett_eid_bitmap;
-	unsigned long *ect_eid_bitmap;
+	unsigned long *ett_gid_bitmap;
+	unsigned long *ect_gid_bitmap;
 	u32 ett_bitmap_size;
 	u32 ect_bitmap_size;
 

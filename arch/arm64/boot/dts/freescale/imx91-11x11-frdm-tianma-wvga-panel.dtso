@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx91-11x11-frdm-tianma-wvga-panel-common.dtsi"
+
+/* pin conflicts */
+&flexcan2 {
+	status = "disabled";
+};
+
+/* pin conflicts */
+&lpspi3 {
+	status = "disabled";
+};

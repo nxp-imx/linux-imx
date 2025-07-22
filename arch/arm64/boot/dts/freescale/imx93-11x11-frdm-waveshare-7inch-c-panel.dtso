@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	panel {
+		compatible = "waveshare,7.0inch-c-panel", "panel-dpi";
+		power-supply = <&reg_vdd_5p0v>;
+
+		port {
+			panel_to_waveshare: endpoint {
+				remote-endpoint = <&waveshare_to_panel>;
+			};
+		};
+
+		panel-timing {
+			clock-frequency = <50000000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hfront-porch = <100>;
+			hback-porch = <100>;
+			hsync-len = <100>;
+			vback-porch = <10>;
+			vfront-porch = <10>;
+			vsync-len = <10>;
+
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <1>;
+			pixelclk-active = <1>;
+		};
+	};
+};
+
+&dphy {
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+
+			dsi_to_waveshare: endpoint {
+				remote-endpoint = <&waveshare_to_dsi>;
+			};
+		};
+	};
+};
+
+&lcdif {
+	assigned-clock-rates = <400000000>, <50000000>, <400000000>, <133333333>;
+};
+
+&ldb {
+	status = "disabled";
+};
+
+&ldb_phy {
+	status = "disabled";
+};
+
+&lpi2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bridge@45 {
+		compatible = "waveshare,dsi2dpi";
+		reg = <0x45>;
+		power-supply = <&reg_vdd_5p0v>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				waveshare_to_dsi: endpoint {
+					data-lanes = <1 2>;
+					remote-endpoint = <&dsi_to_waveshare>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				waveshare_to_panel: endpoint {
+					remote-endpoint = <&panel_to_waveshare>;
+				};
+			};
+		};
+	};
+
+	touchscreen@14 {
+		compatible = "goodix,gt911";
+		reg = <0x14>;
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
+};
+
+&lvds_bridge {
+	status = "disabled";
+};

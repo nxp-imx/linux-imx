@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	panel {
+		compatible = "waveshare,7.0inch-c-panel", "panel-dpi";
+		power-supply = <&reg_vdd_5p0v>;
+
+		port {
+			panel_to_waveshare: endpoint {
+				remote-endpoint = <&waveshare_to_panel>;
+			};
+		};
+
+		panel-timing {
+			clock-frequency = <50000000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hfront-porch = <100>;
+			hback-porch = <100>;
+			hsync-len = <100>;
+			vback-porch = <10>;
+			vfront-porch = <10>;
+			vsync-len = <10>;
+
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <1>;
+			pixelclk-active = <1>;
+		};
+	};
+};
+
+&i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bridge@45 {
+		compatible = "waveshare,dsi2dpi";
+		reg = <0x45>;
+		power-supply = <&reg_vdd_5p0v>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				waveshare_from_dsim: endpoint {
+					data-lanes = <1 2>;
+					remote-endpoint = <&dsim_to_waveshare>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				waveshare_to_panel: endpoint {
+					remote-endpoint = <&panel_to_waveshare>;
+				};
+			};
+		};
+	};
+
+	touchscreen@14 {
+		compatible = "goodix,gt911";
+		reg = <0x14>;
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
+};
+
+&lcdif1 {
+	status = "okay";
+};
+
+&media_blk_ctrl {
+	/* currently it is not possible to let IMX8MP_VIDEO_PLL1
+	 * configure automatically, so we need to set it manually
+	 */
+	assigned-clock-rates = <500000000>, <200000000>, <0>, <0>, <400000000>;
+};
+
+&mipi_dsi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@1 {
+		reg = <1>;
+
+		dsim_to_waveshare: endpoint {
+			remote-endpoint = <&waveshare_from_dsim>;
+			attach-bridge;
+		};
+	};
+};

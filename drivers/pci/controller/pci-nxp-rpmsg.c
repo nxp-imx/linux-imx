@@ -62,6 +62,7 @@
 #include <linux/rpmsg.h>
 
 #include "../pci.h"
+#include "pci-host-common.h"
 
 #define NXP_RPMSG_TIMEOUT			500 /* unit: ms */
 

@@ -234,7 +234,7 @@ static int enetc_msg_vf_flush_mac_filter(struct net_device *ndev, int type)
 	return err;
 }
 
-static int enetc_msg_vf_set_mac_exact_filter(struct net_device *ndev, int type)
+static int enetc_msg_vf_set_uc_exact_filter(struct net_device *ndev)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
 	struct enetc_msg_mac_exact_filter *msg;
@@ -248,13 +248,7 @@ static int enetc_msg_vf_set_mac_exact_filter(struct net_device *ndev, int type)
 	enetc_get_si_primary_mac(&priv->si->hw, si_mac);
 
 	netif_addr_lock_bh(ndev);
-	if (type & ENETC_MAC_FILTER_TYPE_UC)
-		mac_cnt += netdev_uc_count(ndev);
-
-	if (type & ENETC_MAC_FILTER_TYPE_MC)
-		mac_cnt += netdev_mc_count(ndev);
-
-	msg_size = struct_size(msg, mac, mac_cnt);
+	msg_size = struct_size(msg, mac, netdev_uc_count(ndev));
 	if (msg_size > ENETC_1KB_SIZE) {
 		netif_addr_unlock_bh(ndev);
 		return -EOPNOTSUPP;
@@ -268,28 +262,19 @@ static int enetc_msg_vf_set_mac_exact_filter(struct net_device *ndev, int type)
 		return -ENOMEM;
 	}
 
-	mac_cnt = 0;
 	msg = (struct enetc_msg_mac_exact_filter *)msg_swbd.vaddr;
+	netdev_for_each_uc_addr(ha, ndev) {
+		if (!is_valid_ether_addr(ha->addr) ||
+		    ether_addr_equal(ha->addr, si_mac))
+			continue;
 
-	if (type & ENETC_MAC_FILTER_TYPE_UC) {
-		netdev_for_each_uc_addr(ha, ndev) {
-			if (!is_valid_ether_addr(ha->addr) ||
-			    ether_addr_equal(ha->addr, si_mac))
-				continue;
-
-			ether_addr_copy(msg->mac[mac_cnt++].addr, ha->addr);
-		}
+		ether_addr_copy(msg->mac[mac_cnt++].addr, ha->addr);
 	}
 
-	if (type & ENETC_MAC_FILTER_TYPE_MC) {
-		netdev_for_each_mc_addr(ha, ndev) {
-			if (!is_multicast_ether_addr(ha->addr))
-				continue;
-
-			ether_addr_copy(msg->mac[mac_cnt++].addr, ha->addr);
-		}
-	}
 	netif_addr_unlock_bh(ndev);
+
+	if (!mac_cnt)
+		return 0;
 
 	msg->mac_cnt = mac_cnt;
 	enetc_msg_vf_fill_common_header(&msg_swbd, ENETC_MSG_CLASS_ID_MAC_FILTER,
@@ -378,13 +363,19 @@ static int enetc_msg_vf_set_mac_hash_filter(struct net_device *ndev,
 
 static void enetc_vf_set_mac_filter(struct net_device *ndev, int type)
 {
-	if (!(type & ENETC_MAC_FILTER_TYPE_ALL))
-		return;
+	int mac_type = 0;
 
-	enetc_msg_vf_flush_mac_filter(ndev, type);
-	if (enetc_msg_vf_set_mac_exact_filter(ndev, type))
-		/* Fallback to use MAC hash filter */
-		enetc_msg_vf_set_mac_hash_filter(ndev, type, false);
+	if (type & ENETC_MAC_FILTER_TYPE_UC) {
+		enetc_msg_vf_flush_mac_filter(ndev, ENETC_MAC_FILTER_TYPE_UC);
+		if (enetc_msg_vf_set_uc_exact_filter(ndev))
+			mac_type |= ENETC_MAC_FILTER_TYPE_UC;
+	}
+
+	if (type & ENETC_MAC_FILTER_TYPE_MC)
+		mac_type |= ENETC_MAC_FILTER_TYPE_MC;
+
+	if (mac_type)
+		enetc_msg_vf_set_mac_hash_filter(ndev, mac_type, false);
 }
 
 static void enetc_vf_do_set_rx_mode(struct work_struct *work)
@@ -393,6 +384,7 @@ static void enetc_vf_do_set_rx_mode(struct work_struct *work)
 	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
 	struct net_device *ndev = si->ndev;
 
+	rtnl_lock();
 	if (ndev->flags & IFF_PROMISC) {
 		enetc_msg_vf_set_mac_promisc(priv, ENETC_MAC_FILTER_TYPE_ALL, true);
 	} else if (ndev->flags & IFF_ALLMULTI) {
@@ -403,6 +395,7 @@ static void enetc_vf_do_set_rx_mode(struct work_struct *work)
 		enetc_msg_vf_set_mac_promisc(priv, ENETC_MAC_FILTER_TYPE_ALL, false);
 		enetc_vf_set_mac_filter(ndev, ENETC_MAC_FILTER_TYPE_ALL);
 	}
+	rtnl_unlock();
 }
 
 static void enetc_vf_set_rx_mode(struct net_device *ndev)

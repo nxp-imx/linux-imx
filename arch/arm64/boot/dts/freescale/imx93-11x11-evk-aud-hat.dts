@@ -140,6 +140,10 @@
 
 };
 
+&dmic {
+	num-channels = <8>;
+};
+
 &sai3 {
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";

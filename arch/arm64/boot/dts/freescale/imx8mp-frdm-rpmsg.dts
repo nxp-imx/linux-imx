@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+/dts-v1/;
+
+#include "imx8mp-frdm.dts"
+
+/ {
+	aliases {
+		i2c0 = &i2c1;
+		i2c1 = &i2c2;
+		i2c2 = &i2c_rpbus_3;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		m4_reserved: m4@80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+
+		vdev0vring0: vdev0vring0@55000000 {
+			reg = <0 0x55000000 0 0x8000>;
+			no-map;
+		};
+
+		vdev0vring1: vdev0vring1@55008000 {
+			reg = <0 0x55008000 0 0x8000>;
+			no-map;
+		};
+
+		vdevbuffer: vdevbuffer@55400000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x55400000 0 0x100000>;
+			no-map;
+		};
+
+		rsc_table: rsc-table@550ff000 {
+			reg = <0 0x550ff000 0 0x1000>;
+			no-map;
+		};
+
+		audio_reserved: audio@81000000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0x81000000 0 0x10000000>;
+		};
+
+		micfil_reserved: mic_rpmsg@91000000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0x91000000 0 0x100000>;
+		};
+	};
+
+	sound-wm8962 {
+		/delete-property/ audio-codec;
+		status = "disabled";
+	};
+
+	sound-micfil {
+		status = "disabled";
+	};
+
+	rpmsg_audio: rpmsg_audio {
+		compatible = "fsl,imx8mp-rpmsg-audio";
+		model = "wm8962-audio";
+		fsl,rpmsg-channel-name = "rpmsg-audio-channel";
+		fsl,enable-lpa;
+		fsl,rpmsg-out;
+		fsl,rpmsg-in;
+		assigned-clocks = <&clk IMX8MP_CLK_SAI3>;
+		assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
+		assigned-clock-rates = <12288000>;
+		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SAI3_IPG>,
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SAI3_MCLK1>,
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>,
+			 <&clk IMX8MP_AUDIO_PLL1_OUT>,
+			 <&clk IMX8MP_AUDIO_PLL2_OUT>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
+		audio-codec = <&wm8962>;
+		memory-region = <&audio_reserved>;
+		power-domains = <&audiomix_pd>;
+		audio-routing =
+			"IN1R", "MICBIAS",
+			"IN3R", "MICBIAS";
+		ignore-suspend-widgets =
+			"HPOUTL", "HPOUTR", "Playback",
+			"Capture", "IN1R", "IN3R";
+	};
+
+	rpmsg_micfil: rpmsg_micfil {
+		compatible = "fsl,imx8mp-rpmsg-audio";
+		model = "micfil-audio";
+		fsl,rpmsg-channel-name = "rpmsg-micfil-channel";
+		fsl,enable-lpa;
+		fsl,rpmsg-in;
+		assigned-clocks = <&clk IMX8MP_CLK_PDM>;
+		assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
+		assigned-clock-rates = <196608000>;
+		clocks = <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_PDM_IPG>,
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_PDM_SEL>,
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>,
+			 <&clk IMX8MP_AUDIO_PLL1_OUT>,
+			 <&clk IMX8MP_AUDIO_PLL2_OUT>;
+		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
+		memory-region = <&micfil_reserved>;
+		power-domains = <&audiomix_pd>;
+	};
+
+	imx8mp-cm7 {
+		compatible = "fsl,imx8mn-cm7";
+		rsc-da = <0x55000000>;
+		clocks = <&clk IMX8MP_CLK_M7_DIV>,
+			 <&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_AUDPLL_ROOT>;
+		clock-names = "core", "audio";
+		mbox-names = "tx", "rx", "rxdb";
+		mboxes = <&mu 0 1
+			  &mu 1 1
+			  &mu 3 1>;
+		memory-region = <&vdevbuffer>, <&vdev0vring0>, <&vdev0vring1>, <&rsc_table>,
+			<&m4_reserved>;
+		fsl,startup-delay-ms = <500>;
+	};
+};
+
+/*
+ * ATTENTION: M7 may use IPs like below
+ * ECSPI0/ECSPI2, FLEXCAN, GPIO1/GPIO5, GPT1, I2C3, I2S3, UART4,
+ * PWM4, SDMA1/SDMA2
+ */
+&ecspi2 {
+	status = "disabled";
+};
+
+&flexcan1 {
+	status = "disabled";
+};
+
+&flexspi {
+	status = "disabled";
+};
+
+/delete-node/ &i2c3;
+
+&i2c_rpbus_3 {
+	compatible = "fsl,i2c-rpbus";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	wm8962: codec@1a {
+		compatible = "wlf,wm8962";
+		reg = <0x1a>;
+		DCVDD-supply = <&reg_audio_pwr>;
+		DBVDD-supply = <&reg_audio_pwr>;
+		AVDD-supply = <&reg_audio_pwr>;
+		CPVDD-supply = <&reg_audio_pwr>;
+		MICVDD-supply = <&reg_audio_pwr>;
+		PLLVDD-supply = <&reg_audio_pwr>;
+		SPKVDD1-supply = <&reg_audio_pwr>;
+		SPKVDD2-supply = <&reg_audio_pwr>;
+		gpio-cfg = <
+			0x0000 /* 0:Default */
+			0x0000 /* 1:Default */
+			0x0000 /* 2:FN_DMICCLK */
+			0x0000 /* 3:Default */
+			0x0000 /* 4:FN_DMICCDAT */
+			0x0000 /* 5:Default */
+		>;
+	};
+};
+
+&micfil {
+	status = "disabled";
+};
+
+&pwm4 {
+	status = "disabled";
+};
+
+&sai3 {
+	status = "disabled";
+};
+
+&sdma3 {
+	status = "disabled";
+};
+
+&uart3 {
+	status = "disabled";
+};
+
+&uart4 {
+	status = "disabled";
+};

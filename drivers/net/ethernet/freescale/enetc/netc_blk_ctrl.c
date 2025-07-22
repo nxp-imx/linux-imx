@@ -2,7 +2,7 @@
 /*
  * NXP NETC Blocks Control Driver
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 #include <linux/clk.h>
 #include <linux/debugfs.h>
@@ -63,6 +63,8 @@
 #define IERB_EMDIOFAUXR			0x344
 #define IERB_T0FAUXR			0x444
 #define IERB_ETBCR(a)			(0x300c + 0x100 * (a))
+#define IERB_LBCR(a)			(0x1010 + 0x40 * (a))
+#define IERB_MDIO_PHYAD_PRTAD(addr)	(((addr) & 0x1f) << 8)
 #define IERB_EFAUXR(a)			(0x3044 + 0x100 * (a))
 #define IERB_VFAUXR(a)			(0x4004 + 0x40 * (a))
 #define FAUXR_LDID			GENMASK(3, 0)
@@ -400,6 +402,59 @@ static int netc_unlock_ierb_with_warm_reset(struct netc_blk_ctrl *priv)
 				 1000, 100000, true, priv->prb, PRB_NETCRR);
 }
 
+static int imx95_ierb_mdio_link_configure(struct platform_device *pdev)
+{
+	struct netc_blk_ctrl *priv = platform_get_drvdata(pdev);
+	struct device_node *np = pdev->dev.of_node;
+	struct device_node *phy_node;
+	int bus_devfn, ret;
+	u32 addr;
+
+	/* Update the port EMDIO PHY address through parsing phy properties.
+	 * This is needed when using the port EMDIO but it's harmless when using
+	 * the central EMDIO. So apply it on all cases.
+	 */
+	for_each_child_of_node_scoped(np, child) {
+		for_each_child_of_node_scoped(child, gchild) {
+			if (!of_device_is_compatible(gchild, "fsl,imx95-enetc"))
+				continue;
+
+			bus_devfn = netc_of_pci_get_bus_devfn(gchild);
+			if (bus_devfn < 0)
+				return -EINVAL;
+
+			phy_node = of_parse_phandle(gchild, "phy-handle", 0);
+			if (!phy_node)
+				continue;
+
+			ret = of_property_read_u32(phy_node, "reg", &addr);
+			of_node_put(phy_node);
+
+			if (ret)
+				return -EINVAL;
+
+			switch (bus_devfn) {
+			case IMX95_ENETC0_BUS_DEVFN:
+				netc_reg_write(priv->ierb, IERB_LBCR(0),
+					       IERB_MDIO_PHYAD_PRTAD(addr));
+				break;
+			case IMX95_ENETC1_BUS_DEVFN:
+				netc_reg_write(priv->ierb, IERB_LBCR(1),
+					       IERB_MDIO_PHYAD_PRTAD(addr));
+				break;
+			case IMX95_ENETC2_BUS_DEVFN:
+				netc_reg_write(priv->ierb, IERB_LBCR(2),
+					       IERB_MDIO_PHYAD_PRTAD(addr));
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int imx95_ierb_init(struct platform_device *pdev)
 {
 	struct netc_blk_ctrl *priv = platform_get_drvdata(pdev);
@@ -427,7 +482,7 @@ static int imx95_ierb_init(struct platform_device *pdev)
 	/* NETC TIMER */
 	netc_reg_write(priv->ierb, IERB_T0FAUXR, 7);
 
-	return 0;
+	return imx95_ierb_mdio_link_configure(pdev);
 }
 
 static int imx94_enetc_get_enetc_offset(struct device_node *np)

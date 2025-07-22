@@ -39,7 +39,7 @@
 	};
 
 	reset_ctrl {
-		compatible = "imx95,resetctrl";
+		compatible = "nxp,imx95-resetctrl";
 		status = "okay";
 	};
 

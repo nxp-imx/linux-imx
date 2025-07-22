@@ -6302,11 +6302,6 @@
 				 may still be vulnerable to syscall attacks.
 			off    - Disable the mitigation.
 
-	spectre_bse	[ARM64,EARLY] Enable mitigations for Spectre-BSE (branch
-			status eviction) on vulnerable CPUs. Mitigations are disabled
-			by default due to the difficulty of exploitation and the cost
-			of mitigation.
-
 	spectre_v2=	[X86,EARLY] Control mitigation of Spectre variant 2
 			(indirect branch speculation) vulnerability.
 			The default operation protects the kernel from

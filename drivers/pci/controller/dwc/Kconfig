@@ -78,6 +78,7 @@ config PCI_IMX6_HOST
 	depends on ARCH_MXC || COMPILE_TEST
 	depends on PCI_MSI
 	select PCIE_DW_HOST
+	select PCI_HOST_COMMON
 	select PCI_IMX6
 	help
 	  Enables support for the PCIe controller in the i.MX SoCs to
@@ -275,6 +276,7 @@ config PCIE_QCOM
 	select PCIE_DW_HOST
 	select CRC8
 	select PCIE_QCOM_COMMON
+	select PCI_HOST_COMMON
 	help
 	  Say Y here to enable PCIe controller support on Qualcomm SoCs. The
 	  PCIe controller uses the DesignWare core plus Qualcomm-specific

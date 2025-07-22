@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx93-pinfunc.h"
+#include <dt-bindings/gpio/gpio.h>
+
+&{/} {
+	clk_dummy: clock-dummy {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <27000000>;
+		clock-output-names = "clk_dummy";
+	};
+};
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	/delete-node/ap1302_mipi@3c;
+
+	ov5640_mipi: ov5640_mipi@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi_pwdn>;
+		clocks = <&clk_dummy>;
+		clock-names = "xclk";
+		reset-gpios = <&pcal6524 22 GPIO_ACTIVE_LOW>;
+		powerdown-gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+
+		port {
+			ov5640_mipi_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+			};
+		};
+	};
+};
+
+&mipi_csi {
+	status = "okay";
+
+	ports {
+		/delete-node/port@0;
+
+		port@0{
+			mipi_csi0_ep: endpoint {
+				remote-endpoint = <&ov5640_mipi_ep>;
+				cfg-clk-range = <28>;
+				hs-clk-range = <0x7>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl_csi_pwdn: csi_pwdn_grp{
+		fsl,pins = <
+			MX93_PAD_CCM_CLKO3__GPIO4_IO28	0x31e
+		>;
+	};
+};

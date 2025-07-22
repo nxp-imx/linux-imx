@@ -104,7 +104,6 @@
 		regulator-name = "reg_pcieb";
 		gpio = <&pca6416_1 13 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-always-on;
 	};
 
 	m2_uart1_sel: fixedregulator-101 {

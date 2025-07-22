@@ -582,7 +582,6 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *np;
 	void __iomem *anatop_base, *ccm_base;
-	const char *opmode;
 	int err;
 
 	check_m4_enabled();
@@ -888,16 +887,6 @@ static int imx8mp_clocks_probe(struct platform_device *pdev)
 					     hws[IMX8MP_CLK_A53_DIV]->clk);
 
 	imx_check_clk_hws(hws, IMX8MP_CLK_END);
-
-	imx8mp_clocks_apply_constraints(imx8mp_clock_common_constraints);
-
-	err = of_property_read_string(np, "fsl,operating-mode", &opmode);
-	if (!err) {
-		if (!strcmp(opmode, "nominal"))
-			imx8mp_clocks_apply_constraints(imx8mp_clock_nominal_constraints);
-		else if (!strcmp(opmode, "overdrive"))
-			imx8mp_clocks_apply_constraints(imx8mp_clock_overdrive_constraints);
-	}
 
 	err = of_clk_add_hw_provider(np, of_clk_hw_onecell_get, clk_hw_data);
 	if (err < 0) {

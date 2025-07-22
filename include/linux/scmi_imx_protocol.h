@@ -51,13 +51,62 @@ struct scmi_imx_misc_ctrl_notify_report {
 	unsigned int		flags;
 };
 
+#define MISC_MAX_BUILDDATE	16
+#define MISC_MAX_BUILDTIME	16
+#define MISC_MAX_CFGNAME	16
+#define MISC_MAX_SINAME		16
+#define MISC_MAX_BRDNAME	16
+
+struct scmi_imx_misc_system_info {
+	u32 buildnum;
+	u32 buildcommit;
+	u8 date[MISC_MAX_BUILDDATE];
+	u8 time[MISC_MAX_BUILDTIME];
+	u32 msel;
+	u8 cfgname[MISC_MAX_CFGNAME];
+	/* silicon */
+	u32 deviceid;
+	u32 sirev;
+	u32 partnum;
+	u8 siname[MISC_MAX_SINAME];
+	u32 brd_attributes;
+	u8 brdname[MISC_MAX_BRDNAME];
+};
+
+struct scmi_imx_misc_sys_sleep_rec {
+	u32 sleepentryusec;
+	u32 sleepexitusec;
+	u32 sleepcnt;
+	u32 wakesource;
+	u32 mixpwrstat;
+	u32 mempwrstat;
+	u32 pllpwrstat;
+	u32 syssleepmode;
+	u32 syssleepflags;
+};
+
+struct scmi_imx_misc_syslog {
+	struct scmi_imx_misc_sys_sleep_rec syssleeprecord;
+	uint32_t deverrlog;
+};
+
 struct scmi_imx_misc_proto_ops {
+	int (*misc_board_info)(const struct scmi_protocol_handle *ph,
+			       struct scmi_imx_misc_system_info *info);
+	int (*misc_cfg_info)(const struct scmi_protocol_handle *ph,
+			     struct scmi_imx_misc_system_info *info);
 	int (*misc_ctrl_set)(const struct scmi_protocol_handle *ph, u32 id,
 			     u32 num, u32 *val);
 	int (*misc_ctrl_get)(const struct scmi_protocol_handle *ph, u32 id,
 			     u32 *num, u32 *val);
 	int (*misc_ctrl_req_notify)(const struct scmi_protocol_handle *ph,
 				    u32 ctrl_id, u32 evt_id, u32 flags);
+	int (*misc_discover_build_info)(const struct scmi_protocol_handle *ph,
+					struct scmi_imx_misc_system_info *info);
+	int (*misc_silicon_info)(const struct scmi_protocol_handle *ph,
+				 struct scmi_imx_misc_system_info *info);
+	int (*misc_syslog)(const struct scmi_protocol_handle *ph, u16 size,
+			  void *array);
 };
 
 #define	LMM_ID_DISCOVER	0xFFFFFFFFU

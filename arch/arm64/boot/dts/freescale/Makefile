@@ -256,6 +256,16 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-sof-wm8962.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-rpmsg-lpv.dtb
 
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm-ap1302-dual.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm-8mic-revE.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm-boe-wuxga-lvds0-panel.dtb imx8mp-frdm-boe-wuxga-lvds1-panel.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm-os08a20.dtb imx8mp-frdm-os08a20-dual.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-frdm-rpmsg.dtb
+
+imx8mp-frdm-waveshare-7inch-c-panel-dtbs := imx8mp-frdm.dtb imx8mp-frdm-waveshare-7inch-c-panel.dtbo
+dtb-${CONFIG_ARCH_MXC} += imx8mp-frdm-waveshare-7inch-c-panel.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb imx8mq-evk-rpmsg.dtb imx8mq-evk-pcie1-m2.dtb imx8mq-evk-usd-wifi.dtb \
 			  imx8mq-evk-usdhc2-m2.dtb imx8mq-evk-usdhc2-m2-gki.dtb
@@ -278,7 +288,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mq-zii-ultra-rmb3.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-zii-ultra-zest.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-ddr3l-val.dtb imx8mq-ddr4-val.dtb imx8mq-ddr4-val-gpmi-nand.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-pcie-ep.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8mq-wevk.dtb
 
 #dtb-$(CONFIG_ARCH_MXC) += imx8qm-apalis-eval.dtb
 #dtb-$(CONFIG_ARCH_MXC) += imx8qm-apalis-ixora-v1.1.dtb
@@ -500,6 +509,19 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
 			  imx93-11x11-evk-rpmsg.dtb imx93-11x11-evk-rpmsg-lpv.dtb \
 			  imx93-11x11-evk-8mic-reve.dtb
 
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-frdm.dtb imx93-11x11-frdm-8mic-reve.dtb \
+			  imx93-11x11-frdm-aud-hat.dtb imx93-11x11-frdm-ld.dtb \
+			  imx93-11x11-frdm-mt9m114.dtb imx93-11x11-frdm-lpuart.dtb
+
+imx93-11x11-frdm-ov5640-dtbs := imx93-11x11-frdm.dtb imx93-11x11-frdm-ov5640.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-frdm-ov5640.dtb
+
+imx93-11x11-frdm-tianma-wvga-panel-dtbs := imx93-11x11-frdm.dtb imx93-11x11-frdm-tianma-wvga-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-frdm-tianma-wvga-panel.dtb
+
+imx93-11x11-frdm-waveshare-7inch-c-panel-dtbs := imx93-11x11-frdm.dtb imx93-11x11-frdm-waveshare-7inch-c-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-frdm-waveshare-7inch-c-panel.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-evk.dtb \
 			  imx91-11x11-evk-flexspi-m2.dtb imx91-11x11-evk-flexspi-nand-m2.dtb \
 			  imx91-11x11-evk-lpuart.dtb \
@@ -511,6 +533,15 @@ dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-evk.dtb \
 			  imx91-11x11-evk-i3c.dtb \
 			  imx91-11x11-evk-usbwifi.dtb \
 			  imx91-11x11-evk-8mic-reve.dtb
+
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s.dtb \
+			  imx91-11x11-frdm-imx91s-aud-hat.dtb \
+			  imx91-11x11-frdm-imx91s-8mic-revE.dtb \
+			  imx91-11x11-frdm-imx91s-ld.dtb \
+			  imx91-11x11-frdm-imx91s-mt9m114.dtb
+
+imx91-11x11-frdm-imx91s-tianma-wvga-panel-dtbs := imx91-11x11-frdm-imx91s.dtb imx91-11x11-frdm-imx91s-tianma-wvga-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-tianma-wvga-panel.dtb
 
 imx93-11x11-evk-pmic-pf0900-dtbs := imx93-11x11-evk.dtb imx93-11x11-evk-pmic-pf0900.dtbo
 imx93-11x11-evk-pmic-pf0900-root-dtbs := imx93-11x11-evk-root.dtb imx93-11x11-evk-pmic-pf0900.dtbo
@@ -543,6 +574,14 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-mt9m114.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-ld.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-rpmsg-lpv.dtb
+
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm.dtb \
+			  imx91-11x11-frdm-mt9m114.dtb \
+			  imx91-11x11-frdm-aud-hat.dtb \
+			  imx91-11x11-frdm-8mic-reve.dtb
+
+imx91-11x11-frdm-tianma-wvga-panel-dtbs := imx91-11x11-frdm.dtb imx91-11x11-frdm-tianma-wvga-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-tianma-wvga-panel.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx93-9x9-qsb.dtb \
 			  imx93-9x9-qsb-can1.dtb \
@@ -577,6 +616,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx943-evk-rpmsg.dtb
 
 imx943-evk-pcie1-ep-dtbs := imx943-evk.dtb imx943-evk-pcie1-ep.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-pcie1-ep.dtb
+
+imx943-evk-crrm-dtbs := imx943-evk.dtb imx943-evk-crrm.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx943-evk-crrm.dtb
 
 imx943-evk-sdwifi-dtbs := imx943-evk.dtb imx943-evk-sdwifi.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi.dtb
@@ -780,11 +822,12 @@ imx95-19x19-evk-dual-os08a20-isp-it6263-lvds0-dtbs := imx95-19x19-evk-neoisp.dtb
 						      imx95-19x19-evk-it6263-lvds0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-dual-os08a20-isp-it6263-lvds0.dtb
 
-imx95-19x19-evk-os08a20-isp-lvds-dual-dtbs := imx95-19x19-evk-neoisp.dtb \
+imx95-19x19-evk-os08a20-isp-lvds-two-disp-dtbs := imx95-19x19-evk-neoisp.dtb \
 							  imx95-19x19-evk-os08a20.dtbo \
 							  imx95-19x19-evk-os08a20-combo.dtbo \
-							  imx95-19x19-evk-it6263-lvds-dual.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-os08a20-isp-lvds-dual.dtb
+							  imx95-19x19-evk-it6263-lvds0.dtbo \
+							  imx95-19x19-evk-it6263-lvds1.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-os08a20-isp-lvds-two-disp.dtb
 
 imx95-19x19-evk-ox03c10-isp-it6263-lvds0-dtbs := imx95-19x19-evk-neoisp.dtb imx95-19x19-evk-ox03c10.dtbo \
                         imx95-19x19-evk-it6263-lvds0.dtbo
@@ -794,10 +837,11 @@ imx95-19x19-evk-ox05b1s-isp-it6263-lvds0-dtbs := imx95-19x19-evk-neoisp.dtb imx9
 						 imx95-19x19-evk-it6263-lvds0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-ox05b1s-isp-it6263-lvds0.dtb
 
-imx95-19x19-evk-ox05b1s-isp-lvds-dual-dtbs := imx95-19x19-evk-neoisp.dtb imx95-19x19-evk-ox05b1s.dtbo \
+imx95-19x19-evk-ox05b1s-isp-lvds-two-disp-dtbs := imx95-19x19-evk-neoisp.dtb imx95-19x19-evk-ox05b1s.dtbo \
 							  imx95-19x19-evk-ox05b1s-combo.dtbo \
-							  imx95-19x19-evk-it6263-lvds-dual.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-ox05b1s-isp-lvds-dual.dtb
+							  imx95-19x19-evk-it6263-lvds0.dtbo \
+							  imx95-19x19-evk-it6263-lvds1.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-ox05b1s-isp-lvds-two-disp.dtb
 
 imx95-19x19-evk-neutron-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-neutron.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-neutron.dtb

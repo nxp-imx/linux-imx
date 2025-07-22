@@ -216,7 +216,7 @@ struct netc_fdb_entry {
 struct netc_vlan_entry {
 	u16 vid;
 	u32 entry_id;
-	u32 ect_base_eid;
+	u32 ect_gid;
 	u32 untagged_port_bitmap;
 	struct vft_cfge_data cfge;
 	struct hlist_node node;
@@ -319,6 +319,30 @@ static inline void netc_remove_debugfs(struct netc_switch *priv)
 static inline bool is_netc_pseudo_port(struct netc_port *port)
 {
 	return port->caps.pseudo_link;
+}
+
+static inline void netc_add_fdb_entry(struct netc_switch *priv,
+				      struct netc_fdb_entry *entry)
+{
+	hlist_add_head(&entry->node, &priv->fdb_list);
+}
+
+static inline void netc_del_fdb_entry(struct netc_fdb_entry *entry)
+{
+	hlist_del(&entry->node);
+	kfree(entry);
+}
+
+static inline void netc_add_vlan_entry(struct netc_switch *priv,
+				       struct netc_vlan_entry *entry)
+{
+	hlist_add_head(&entry->node, &priv->vlan_list);
+}
+
+static inline void netc_del_vlan_entry(struct netc_vlan_entry *entry)
+{
+	hlist_del(&entry->node);
+	kfree(entry);
 }
 
 #endif

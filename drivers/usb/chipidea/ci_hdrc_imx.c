@@ -581,6 +581,7 @@ err_clk:
 err_wakeup_clk:
 	imx_disable_unprepare_clks(dev);
 qos_remove_request:
+	release_bus_freq(BUS_FREQ_HIGH);
 	if (pdata.flags & CI_HDRC_PMQOS)
 		cpu_latency_qos_remove_request(&data->pm_qos_req);
 	data->ci_pdev = NULL;

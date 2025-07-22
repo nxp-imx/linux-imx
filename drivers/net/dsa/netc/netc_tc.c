@@ -512,7 +512,7 @@ delete_ist_entry:
 		ntmp_ist_delete_entry(cbdrs, ist_entry->entry_id);
 delete_isct_entry:
 	if (isct_entry)
-		ntmp_isct_operate_entry(cbdrs, ist_entry->entry_id,
+		ntmp_isct_operate_entry(cbdrs, isct_entry->entry_id,
 					NTMP_CMD_DELETE, NULL);
 delete_rpt_entry:
 	if (rpt_entry)
@@ -688,6 +688,15 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 
 	rule->lastused = jiffies;
 	rule->key_tbl = key_tbl;
+
+	if (police_act) {
+		if (reused_police_tbl) {
+			rule->police_tbl = reused_police_tbl;
+			refcount_inc(&reused_police_tbl->refcount);
+		} else {
+			rule->police_tbl = no_free_ptr(police_tbl);
+		}
+	}
 
 	hlist_add_head(&no_free_ptr(rule)->node, &ntmp->flower_list);
 

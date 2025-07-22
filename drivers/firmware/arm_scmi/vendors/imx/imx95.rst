@@ -842,6 +842,26 @@ protocol_id: 0x84
 |uint32 syslog[N]    |Log data array, N is defined in bits[11:0] of numLogflags|
 +--------------------+---------------------------------------------------------+
 
+MISC_BOARD_INFO
+~~~~~~~~~~~~~~~
+
+message_id: 0xE
+protocol_id: 0x84
+
++--------------------+---------------------------------------------------------+
+|Return values                                                                 |
++--------------------+---------------------------------------------------------+
+|Name                |Description                                              |
++--------------------+---------------------------------------------------------+
+|int32 status        |SUCCESS: config name return                              |
+|                    |NOT_SUPPORTED: name not available                        |
++--------------------+---------------------------------------------------------+
+|uint32 attributes   |Board specific attributes                                |
++--------------------+---------------------------------------------------------+
+|uint8 boardname[16] |Board name. Null terminated ASCII string of up           |
+|                    |to 16 bytes in length                                    |
++--------------------+---------------------------------------------------------+
+
 NEGOTIATE_PROTOCOL_VERSION
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

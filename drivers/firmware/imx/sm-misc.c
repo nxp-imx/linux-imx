@@ -9,6 +9,7 @@
 #include <linux/platform_device.h>
 #include <linux/scmi_protocol.h>
 #include <linux/scmi_imx_protocol.h>
+#include <linux/slab.h>
 
 static const struct scmi_imx_misc_proto_ops *imx_misc_ctrl_ops;
 static struct scmi_protocol_handle *ph;
@@ -43,6 +44,100 @@ static int scmi_imx_misc_ctrl_notifier(struct notifier_block *nb,
 	 */
 	return 0;
 }
+
+static ssize_t syslog_show(struct device *device, struct device_attribute *attr,
+			   char *buf)
+{
+	struct scmi_imx_misc_sys_sleep_rec *rec;
+	struct scmi_imx_misc_syslog *syslog;
+	int ret;
+	size_t len = 0;
+
+	if (!ph)
+		return 0;
+
+	syslog = kmalloc(sizeof(*syslog), GFP_KERNEL);
+	if (!syslog)
+		return -ENOMEM;
+
+	ret = imx_misc_ctrl_ops->misc_syslog(ph, sizeof(*syslog), syslog);
+	if (ret) {
+		kfree(syslog);
+		return ret;
+	}
+
+	rec = &syslog->syssleeprecord;
+
+	len += sysfs_emit_at(buf, len, "Wake Vector = %u\n", rec->wakesource);
+	len += sysfs_emit_at(buf, len, "Sys sleep mode = %u\n", rec->syssleepmode);
+	len += sysfs_emit_at(buf, len, "Sys sleep flags = 0x%08x\n", rec->syssleepflags);
+	len += sysfs_emit_at(buf, len, "MIX power status = 0x%08x\n", rec->mixpwrstat);
+	len += sysfs_emit_at(buf, len, "MEM power status = 0x%08x\n", rec->mempwrstat);
+	len += sysfs_emit_at(buf, len, "PLL power status = 0x%08x\n", rec->pllpwrstat);
+	len += sysfs_emit_at(buf, len, "Sleep latency = %u\n", rec->sleepentryusec);
+	len += sysfs_emit_at(buf, len, "Wake latency = %u\n", rec->sleepexitusec);
+	len += sysfs_emit_at(buf, len, "Sleep count = %u\n", rec->sleepcnt);
+
+	kfree(syslog);
+
+	return len;
+}
+
+static DEVICE_ATTR_RO(syslog);
+
+static ssize_t system_info_show(struct device *device, struct device_attribute *attr,
+				char *buf)
+{
+	struct scmi_imx_misc_system_info *info;
+	int len = 0;
+	int ret;
+
+	if (!ph)
+		return 0;
+
+	info = kmalloc(sizeof(*info), GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
+
+	ret = imx_misc_ctrl_ops->misc_discover_build_info(ph, info);
+	if (ret)
+		goto err;
+
+	ret = imx_misc_ctrl_ops->misc_cfg_info(ph, info);
+	if (ret)
+		goto err;
+
+	ret = imx_misc_ctrl_ops->misc_silicon_info(ph, info);
+	if (ret)
+		goto err;
+
+	ret = imx_misc_ctrl_ops->misc_board_info(ph, info);
+	if (ret)
+		goto err;
+
+	len += sysfs_emit_at(buf, len, "SM Version    = Build %u, Commit 08%x\n",
+			     info->buildnum, info->buildcommit);
+	len += sysfs_emit_at(buf, len, "SM Config     = %s, mSel=%u\n",
+			     info->cfgname, info->msel);
+	len += sysfs_emit_at(buf, len, "Silicon       = %s\n", info->siname);
+	len += sysfs_emit_at(buf, len, "Board         = %s, attr=0x%08x\n",
+			     info->brdname, info->brd_attributes);
+
+	ret = len;
+err:
+	kfree(info);
+	return ret;
+}
+
+static DEVICE_ATTR_RO(system_info);
+
+static struct attribute *sm_misc_attrs[] = {
+	&dev_attr_syslog.attr,
+	&dev_attr_system_info.attr,
+	NULL,
+};
+
+ATTRIBUTE_GROUPS(sm_misc);
 
 static int scmi_imx_misc_ctrl_probe(struct scmi_device *sdev)
 {
@@ -108,6 +203,9 @@ static const struct scmi_device_id scmi_id_table[] = {
 MODULE_DEVICE_TABLE(scmi, scmi_id_table);
 
 static struct scmi_driver scmi_imx_misc_ctrl_driver = {
+	.driver = {
+		.dev_groups = sm_misc_groups,
+	},
 	.name = "scmi-imx-misc-ctrl",
 	.probe = scmi_imx_misc_ctrl_probe,
 	.id_table = scmi_id_table,

@@ -130,6 +130,10 @@
 
 };
 
+&dmic {
+	num-channels = <8>;
+};
+
 &reg_exp_3v3 {
 	regulator-always-on;
 };

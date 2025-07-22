@@ -122,14 +122,6 @@ static int enetc_rx_mode_show(struct seq_file *s, void *data)
 	seq_printf(s, "Unicast Promisc:0x%lx. Multicast Promisc:0x%lx\n",
 		   val & PSIPMMR_SI_MAC_UP, (val & PSIPMMR_SI_MAC_MP) >> 16);
 
-	/* Use MAC hash filter */
-	if (!pf->num_mac_fe) {
-		for (i = 0; i < pf->num_vfs + 1; i++)
-			enetc_show_si_mac_hash_filter(s, hw, i);
-
-		return 0;
-	}
-
 	seq_printf(s, "The total number of entries in MAC filter table is %d\n",
 		   pf->num_mac_fe);
 	/* Use MAC exact match table */
@@ -144,8 +136,10 @@ static int enetc_rx_mode_show(struct seq_file *s, void *data)
 			   keye->mac_addr, le16_to_cpu(maft_data.cfge.si_bitmap));
 	}
 
-	for (i = 0; i < pf->num_vfs; i++)
-		enetc_show_si_mac_hash_filter(s, hw, i + 1);
+	seq_puts(s, "\n");
+
+	for (i = 0; i < pf->num_vfs + 1; i++)
+		enetc_show_si_mac_hash_filter(s, hw, i);
 
 	return 0;
 }

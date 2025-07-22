@@ -55,12 +55,17 @@ static int enetc_setup_mac_address(struct device_node *np, struct enetc_pf *pf,
 				   int si)
 {
 	struct device *dev = &pf->si->pdev->dev;
+	struct net_device *ndev = pf->si->ndev;
 	struct enetc_hw *hw = &pf->si->hw;
 	u8 mac_addr[ETH_ALEN] = { 0 };
 	int err;
 
+	/* (0) try to get the MAC address from netdev */
+	if (ndev && ndev->dev_addr && is_valid_ether_addr(ndev->dev_addr))
+		memcpy(mac_addr, ndev->dev_addr, ETH_ALEN);
+
 	/* (1) try to get the MAC address from the device tree */
-	if (np) {
+	if (is_zero_ether_addr(mac_addr) && np) {
 		err = of_get_mac_address(np, mac_addr);
 		if (err == -EPROBE_DEFER)
 			return err;
@@ -729,33 +734,46 @@ static void enetc_mac_list_del_matched_entries(struct enetc_pf *pf, u16 si_bit,
 	}
 }
 
+static bool enetc_mac_list_is_available(struct enetc_pf *pf,
+					struct enetc_mac_entry *mac,
+					int mac_cnt)
+{
+	int max_num_mfe = pf->caps.mac_filter_num;
+	struct enetc_mac_list_entry *entry;
+	int cur_num_mfe = pf->num_mac_fe;
+	int i, new_mac_cnt = 0;
+
+	if (mac_cnt > max_num_mfe)
+		return false;
+
+	/* Check MAC filter table whether has enough available entries */
+	for (i = 0; i < mac_cnt; i++) {
+		entry = enetc_mac_list_lookup_entry(pf, mac[i].addr);
+		if (!entry)
+			new_mac_cnt++;
+	}
+
+	if ((cur_num_mfe + new_mac_cnt) > max_num_mfe)
+		return false;
+
+	return true;
+}
+
 int enetc_pf_set_mac_exact_filter(struct enetc_pf *pf, int si_id,
 				  struct enetc_mac_entry *mac,
 				  int mac_cnt)
 {
-	int mf_max_num = pf->caps.mac_filter_num;
 	struct enetc_mac_list_entry *entry;
 	struct maft_entry_data data = {0};
 	struct enetc_si *si = pf->si;
-	int i = 0, used_cnt = 0;
 	u16 si_bit = BIT(si_id);
-	int mf_num;
+	int i, mf_num;
 
 	guard(mutex)(&pf->mac_list_lock);
 
 	/* Check MAC filter table whether has enough available entries */
-	hlist_for_each_entry(entry, &pf->mac_list, node) {
-		for (i = 0; i < mac_cnt; i++) {
-			if (ether_addr_equal(entry->mfe.mac, mac[i].addr)) {
-				used_cnt++;
-
-				if (mf_max_num - used_cnt < mac_cnt)
-					return -ENOSPC;
-
-				break;
-			}
-		}
-	}
+	if (!enetc_mac_list_is_available(pf, mac, mac_cnt))
+		return -ENOSPC;
 
 	mf_num = pf->num_mac_fe;
 	/* Update mac_list */
@@ -803,6 +821,11 @@ static u16 enetc_msg_pf_add_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 
 	if (is_enetc_rev1(si)) {
 		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
+		return pf_msg.code;
+	}
+
+	if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
+		pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
 		return pf_msg.code;
 	}
 

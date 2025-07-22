@@ -128,6 +128,8 @@
 							compatible = "ite,it6263";
 							reg = <0x4c>;
 
+							de-ssc-enable;
+
 							ports {
 								#address-cells = <1>;
 								#size-cells = <0>;
