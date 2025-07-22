@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Common library for PCI host controller drivers
+ * Generic PCI host driver common code
  *
  * Copyright (C) 2014 ARM Limited
  *
@@ -12,12 +12,8 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_pci.h>
-#include <linux/pci.h>
 #include <linux/pci-ecam.h>
 #include <linux/platform_device.h>
-
-#include "../pci.h"
-#include "pci-host-common.h"
 
 static void gen_pci_unmap_cfg(void *ptr)
 {
@@ -98,61 +94,5 @@ void pci_host_common_remove(struct platform_device *pdev)
 }
 EXPORT_SYMBOL_GPL(pci_host_common_remove);
 
-#if IS_ENABLED(CONFIG_PCIEAER)
-static pci_ers_result_t pci_host_reset_root_port(struct pci_dev *dev)
-{
-	int ret;
-
-	ret = pci_bus_error_reset(dev);
-	if (ret) {
-		pci_err(dev, "Failed to reset root port: %d\n", ret);
-		return PCI_ERS_RESULT_DISCONNECT;
-	}
-
-	pci_info(dev, "Root port has been reset\n");
-
-	return PCI_ERS_RESULT_RECOVERED;
-}
-
-static void pci_host_reset_root_ports(struct pci_host_bridge *host)
-{
-	struct pci_bus *bus = host->bus;
-	struct pci_dev *dev;
-
-	for_each_pci_bridge(dev, bus) {
-		if (!pci_is_root_bus(bus))
-			continue;
-
-		pcie_do_recovery(dev, pci_channel_io_frozen,
-				 pci_host_reset_root_port);
-	}
-}
-#else
-static void pci_host_reset_root_ports(struct pci_host_bridge *host)
-{
-	struct pci_bus *bus = host->bus;
-	struct pci_dev *dev;
-	int ret;
-
-	for_each_pci_bridge(dev, bus) {
-		if (!pci_is_root_bus(bus))
-			continue;
-
-		ret = pci_bus_error_reset(dev);
-		if (ret)
-			pci_err(dev, "Failed to reset root port: %d\n", ret);
-		else
-			pci_info(dev, "Root port has been reset\n");
-	}
-}
-#endif
-
-void pci_host_handle_link_down(struct pci_host_bridge *bridge)
-{
-	dev_info(&bridge->dev, "Recovering root ports due to Link Down\n");
-	pci_host_reset_root_ports(bridge);
-}
-EXPORT_SYMBOL_GPL(pci_host_handle_link_down);
-
-MODULE_DESCRIPTION("Common library for PCI host controller drivers");
+MODULE_DESCRIPTION("Generic PCI host common driver");
 MODULE_LICENSE("GPL v2");
