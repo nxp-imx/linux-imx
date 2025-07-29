@@ -1424,3 +1424,5 @@
 		status = "okay";
 	};
 };
+
+#include "imx8mp-android.dtsi"
