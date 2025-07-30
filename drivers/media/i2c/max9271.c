@@ -66,9 +66,12 @@ static int max9271_pclk_detect(struct max9271_device *dev)
 
 	for (i = 0; i < 100; i++) {
 		ret = max9271_read(dev, 0x15);
-		if (ret < 0)
+		if (ret < 0) {
+			if (i < 20)
+				continue;
+			else
 			return ret;
-
+		}
 		if (ret & MAX9271_PCLKDET)
 			return 0;
 

@@ -715,6 +715,11 @@ static int max9286_notify_bound(struct v4l2_async_notifier *notifier,
 	if (priv->bound_sources != priv->source_mask)
 		return 0;
 
+#if 0
+/*
+ * Don't increase reverse channel amplitude. This workarounds the
+ * init of device after reboot command.
+ */
 	/*
 	 * All enabled sources have probed and enabled their reverse control
 	 * channels:
@@ -726,6 +731,7 @@ static int max9286_notify_bound(struct v4l2_async_notifier *notifier,
 	 *   stable.
 	 */
 	max9286_reverse_channel_setup(priv, MAX9286_REV_AMP_HIGH);
+#endif
 	max9286_check_config_link(priv, priv->source_mask);
 	max9286_configure_i2c(priv, false);
 
@@ -857,7 +863,15 @@ static int max9286_enable_cams(struct max9286_priv *priv, struct v4l2_subdev_sta
 			ret = v4l2_subdev_enable_streams(remote_sd, remote_pad, 0x1);
 		else
 			ret = v4l2_subdev_disable_streams(remote_sd, remote_pad, 0x1);
-		if (ret) {
+		switch (ret) {
+		case EALREADY:
+			dev_warn(dev, "failed to %s streams 0x%llx on '%s':%u: %d\n",
+				(enable) ? "enable" : "disable",
+				sink_streams, remote_sd->name, remote_pad, ret);
+			break;
+		case 0: // Success
+			break;
+		default:
 			dev_err(dev, "failed to %s streams 0x%llx on '%s':%u: %d\n",
 				(enable) ? "enable" : "disable",
 				sink_streams, remote_sd->name, remote_pad, ret);

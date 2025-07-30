@@ -365,6 +365,9 @@ static int __ov10635_write(struct rdacm20_device *dev, u16 reg, u8 val)
 	return ret < 0 ? ret : 0;
 }
 
+#if 0 
+/* Unused when I2C address is set via max9271.*/
+
 static int ov10635_write(struct rdacm20_device *dev, u16 reg, u8 val)
 {
 	int ret;
@@ -376,6 +379,7 @@ static int ov10635_write(struct rdacm20_device *dev, u16 reg, u8 val)
 
 	return ret;
 }
+#endif
 
 static int ov10635_set_regs(struct rdacm20_device *dev,
 			    const struct ov10635_reg *regs,
@@ -531,14 +535,28 @@ static int rdacm20_initialize(struct rdacm20_device *dev)
 			dev->serializer.client->addr = dev->addrs[0];
 			ret = max9271_verify_id(&dev->serializer);
 			if (!ret) {
-				dev->sensor->addr = dev->addrs[1];
 				dev_info(dev->dev, "Identified already initialized RDACM20 camera module");
-				return 0;
-			}
-		}
-		return ret;
-	}
+				ret = max9271_set_serial_link(&dev->serializer, false);
+				if (ret) {
+					dev_info(dev->dev, "max9271_set_serial_link failed.");
+					return ret;
+				}
+				ret = max9271_configure_i2c(&dev->serializer,
+				    MAX9271_I2CSLVSH_469NS_234NS |
+				    MAX9271_I2CSLVTO_1024US |
+				    MAX9271_I2CMSTBT_105KBPS);
 
+				if (ret) {
+					dev_info(dev->dev, "Failed max9271_configure_i2c.");
+					return ret;
+				}
+			} else {
+				return ret;
+			}
+		} else {
+			return ret;
+		}
+	}
 	ret = max9271_set_address(&dev->serializer, dev->addrs[0]);
 	if (ret < 0)
 		return ret;
@@ -571,6 +589,16 @@ static int rdacm20_initialize(struct rdacm20_device *dev)
 		return ret;
 	usleep_range(100, 500);
 
+	/* Add unique alias I2C address for the sensor. */
+	ret = max9271_set_translation(&dev->serializer, dev->addrs[1], OV10635_I2C_ADDRESS);
+	if (ret < 0) {
+		dev_err(dev->dev,
+			"OV10635 I2C address change failed (%d)\n", ret);
+		return ret;
+	}
+	dev->sensor->addr = dev->addrs[1];
+	usleep_range(3500, 5000);
+
 again:
 	ret = ov10635_read16(dev, OV10635_PID);
 	if (ret < 0) {
@@ -591,18 +619,6 @@ again:
 		return -ENXIO;
 	}
 
-	/* Change the sensor I2C address. */
-	ret = ov10635_write(dev, OV10635_SC_CMMN_SCCB_ID,
-			    (dev->addrs[1] << 1) |
-			    OV10635_SC_CMMN_SCCB_ID_SELECT);
-	if (ret < 0) {
-		dev_err(dev->dev,
-			"OV10635 I2C address change failed (%d)\n", ret);
-		return ret;
-	}
-	dev->sensor->addr = dev->addrs[1];
-	usleep_range(3500, 5000);
-
 	/* Program the 0V10635 initial configuration. */
 	ret = ov10635_set_regs(dev, ov10635_regs_wizard,
 			       ARRAY_SIZE(ov10635_regs_wizard));
@@ -611,6 +627,11 @@ again:
 
 	dev_info(dev->dev, "Identified RDACM20 camera module\n");
 
+#if 0
+/*
+ * Don't increase reverse channel amplitude. This workarounds the
+ * init of device after reboot command.
+ */
 	/*
 	 * Set reverse channel high threshold to increase noise immunity.
 	 *
@@ -624,6 +645,8 @@ again:
 	 * collisions on the I2C bus.
 	 */
 	return max9271_set_high_threshold(&dev->serializer, true);
+#endif
+	return 0;
 }
 
 static int rdacm20_probe(struct i2c_client *client)
