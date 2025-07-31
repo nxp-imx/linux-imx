@@ -33,8 +33,6 @@ struct vpu_buffer {
 	ktime_t ts_output;
 	u64 hw_time;
 	u32 average_qp;
-
-	struct vpu_buf custom_qp_map;
 };
 
 enum vpu_fmt_type {

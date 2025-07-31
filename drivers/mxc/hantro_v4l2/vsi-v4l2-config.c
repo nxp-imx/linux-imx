@@ -1585,50 +1585,6 @@ int vsiv4l2_enc_getalign(u32 srcfmt, u32 dstfmt, int width)
 	return bytesperline;
 }
 
-int vsi_enc_set_roi_info(struct vsi_v4l2_ctx *ctx)
-{
-	struct vsi_v4l2_dev_info *dev_info = vsiv4l2_get_hwinfo();
-	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
-	struct vsi_v4l2_roi_info roi;
-
-	memset(&roi, 0, sizeof(roi));
-
-	roi.width = pcfg->encparams.general.width;
-	roi.height = pcfg->encparams.general.height;
-	roi.block_unit_type = 2;
-	roi.block.width = 16;
-	roi.block.height = 16;
-	roi.ctb_size = 16;
-
-	if (pcfg->outfmt_fourcc == V4L2_PIX_FMT_HEVC)
-		roi.ctb_size = 64;
-
-	if (memcmp(&roi, &ctx->roi, sizeof(roi))) {
-		/*reset ROI configuration*/
-		if (dev_info->enc_isH1) {
-			struct v4l2_enc_roi_params *proi = &ctx->mediacfg.roiinfo;
-			int i;
-
-			for (i = 0; i < VSI_V4L2_MAX_ROI_REGIONS_H1; i++) {
-				proi->roi_params[i].enable = 0;
-				proi->roi_params[i].rect.left = 0;
-				proi->roi_params[i].rect.top = 0;
-				proi->roi_params[i].rect.width = 0;
-				proi->roi_params[i].rect.height = 0;
-				proi->roi_params[i].qp_delta = 0;
-			}
-			proi->num_roi_regions = 0;
-			set_bit(CTX_FLAG_RECTROIUPDATE, &ctx->flag);
-		} else {
-			if (ctx->custom_qp_map.vaddr)
-				memset(ctx->custom_qp_map.vaddr, 0, ctx->custom_qp_map.size);
-		}
-	}
-
-	memcpy(&ctx->roi, &roi, sizeof(roi));
-	return 0;
-}
-
 static int vsiv4l2_setfmt_enc(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 {
 	struct vsi_v4l2_mediacfg *pcfg = &ctx->mediacfg;
@@ -1681,8 +1637,6 @@ static int vsiv4l2_setfmt_enc(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt)
 	pcfg->ycbcr_enc = pixmp->ycbcr_enc;
 	enc_setvui(fmt, &pcfg->encparams);
 
-	vsi_enc_set_roi_info(ctx);
-
 	v4l2_klog(LOGLVL_CONFIG, "%s type:%d, planes:%d, res:%dx%d, bytesperline:%d, sizeimage:%d,%d,%d\n",
 		__func__, fmt->type, pixmp->num_planes, pixmp->width,
 		pixmp->height, pixmp->plane_fmt[0].bytesperline,
@@ -1734,16 +1688,9 @@ void vsi_convertROI(struct vsi_v4l2_ctx *ctx)
 
 	if (vsi_v4l2_hwconfig.encformat == 0)
 		return;
-
-	if (!vsi_v4l2_hwconfig.enc_isH1)
-		return;
-
-	num = VSI_V4L2_MAX_ROI_REGIONS_H1;
+	num = (vsi_v4l2_hwconfig.enc_isH1 ? VSI_V4L2_MAX_ROI_REGIONS_H1 : VSI_V4L2_MAX_ROI_REGIONS);
 	if (proi->num_roi_regions < num)
 		num = proi->num_roi_regions;
-
-	if (ctx->roi_mode != V4L2_MPEG_VIDEO_ROI_MODE_RECT_DELTA_QP)
-		num = 0;
 
 	for (i = 0; i < num; i++) {
 		penccfg->roiAreaEnable[i] = proi->roi_params[i].enable;
@@ -1754,13 +1701,9 @@ void vsi_convertROI(struct vsi_v4l2_ctx *ctx)
 	}
 	/*disable left ones*/
 	for (; i < VSI_V4L2_MAX_ROI_REGIONS; i++) {
-		penccfg->roiAreaEnable[i] =
-		penccfg->roiAreaTop[i] =
-		penccfg->roiAreaLeft[i] =
-		penccfg->roiAreaBottom[i] =
-		penccfg->roiAreaRight[i] = 0;
+		penccfg->roiAreaEnable[i] = penccfg->roiAreaTop[i] = penccfg->roiAreaLeft[i] =
+			penccfg->roiAreaBottom[i] = penccfg->roiAreaRight[i] = 0;
 	}
-
 }
 
 void vsi_convertIPCM(struct vsi_v4l2_ctx *ctx)

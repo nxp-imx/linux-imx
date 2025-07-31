@@ -68,48 +68,6 @@ static struct device *vsidaemondev;
 static struct mutex vsi_ctx_array_lock;		//it only protect ctx between release from app and msg from daemon
 static u64 ctx_seqid;
 
-int vsi_alloc_dma(struct device *dev, struct vpu_buf *vb)
-{
-	void *vaddr;
-	dma_addr_t daddr;
-
-	if (!vb || !vb->size)
-		return -EINVAL;
-
-	vaddr = dma_alloc_coherent(dev, vb->size, &daddr, GFP_KERNEL);
-	if (!vaddr)
-		return -ENOMEM;
-
-	if (vb->recorder) {
-		if (vb->label)
-			imx_mur_long_new_and_add(vb->recorder, vb->size, vb->label);
-		else
-			imx_mur_long_add(vb->recorder, vb->size);
-	}
-
-	vb->vaddr = vaddr;
-	vb->daddr = daddr;
-	vb->dev = dev;
-
-	return 0;
-}
-
-void vsi_free_dma(struct vpu_buf *vb)
-{
-	if (!vb || !vb->size || !vb->vaddr)
-		return;
-
-	if (vb->recorder) {
-		if (vb->label)
-			imx_mur_long_sub_and_del(vb->recorder, vb->size);
-		else
-			imx_mur_long_sub(vb->recorder, vb->size);
-	}
-
-	dma_free_coherent(vb->dev, vb->size, vb->vaddr, vb->daddr);
-	memset(vb, 0, sizeof(*vb));
-}
-
 static ssize_t BandWidth_show(struct device *kdev,
 				     struct device_attribute *attr, char *buf)
 {
@@ -339,8 +297,6 @@ static void release_ctx(struct vsi_v4l2_ctx *ctx, int notifydaemon, struct file 
 		v4l2_fh_del(&ctx->fh, filp);
 		v4l2_fh_exit(&ctx->fh);
 	}
-	vsi_free_dma(&ctx->custom_qp_map);
-	vsi_free_dma(&ctx->zero_qp_map);
 	mutex_unlock(&ctx->ctxlock);
 
 	put_ctx(ctx);

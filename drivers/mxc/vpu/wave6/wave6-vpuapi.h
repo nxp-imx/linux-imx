@@ -685,15 +685,6 @@ struct enc_csc_param {
 	u32 offset_cr;
 };
 
-union wave6_enc_custom_map_option {
-	struct {
-		u32 custom_roi_map_enable:1;
-		u32 use_ctu_force_mode:1;
-		u32 reserved:30;
-	} field;
-	u32 data;
-};
-
 struct enc_param {
 	struct frame_buffer *source_frame;
 	bool skip_picture;
@@ -710,8 +701,6 @@ struct enc_param {
 	u32 bitrate;
 	struct enc_csc_param csc;
 	u64 timestamp;
-	union wave6_enc_custom_map_option custom_map_opt;
-	dma_addr_t custom_map_addr;
 };
 
 struct enc_report_fme_sum {
@@ -924,18 +913,6 @@ struct vpu_performance_info {
 	u64 total_hw_time;
 };
 
-struct vpu_roi_map_info {
-	struct v4l2_area ctu;		/*ctu size in pixels*/
-	u32 num_ctu_col;
-	u32 num_ctu_row;
-	u32 num_ctu;
-
-	struct v4l2_area group;		/*group size in ctu*/
-	u32 num_group_col;
-	u32 num_group_row;
-	u32 custom_map_size;
-};
-
 struct vpu_instance {
 	struct list_head list;
 	struct v4l2_fh v4l2_fh;
@@ -992,10 +969,6 @@ struct vpu_instance {
 	struct vpu_performance_info performance;
 
 	struct dentry *debugfs;
-
-	int roi_mode;
-	struct vpu_buf custom_qp_map;
-	struct vpu_roi_map_info roi_info;
 
 	struct imx_mur_node *recorder;
 };

@@ -49,8 +49,6 @@
 #define VSI_DEFAULT_WIDTH		320
 #define VSI_DEFAULT_HEIGHT		240
 
-#define VSI_MAX_CUSTOM_MAP_UNITS         (8192 * 1080 / 64)
-
 #if KERNEL_VERSION(5, 5, 0) > LINUX_VERSION_CODE
 #define VSI_DEVTYPE	VFL_TYPE_GRABBER
 #else
@@ -175,15 +173,6 @@ enum CTX_STATUS {
 	DEC_STATUS_ENDSTREAM,
 };
 
-struct vpu_buf {
-	size_t size;
-	dma_addr_t daddr;
-	void *vaddr;
-	struct device *dev;
-	struct imx_mur_node *recorder;
-	const char *label;
-};
-
 struct vsi_video_fmt {
 	char *name;
 	u32 fourcc;	//V4L2 video format defines
@@ -271,7 +260,6 @@ struct vsi_vpu_buf {
 	struct vb2_v4l2_buffer vb;
 	struct list_head list;
 	u32 average_qp;
-	struct vpu_buf custom_qp_map;
 };
 
 struct vsi_queued_buf {
@@ -307,7 +295,6 @@ enum {
 	CTX_FLAG_ENC_FLUSHBUF,				// if any src buf comes from last OUTPUT off or INIT
 	CTX_FLAG_CAPTUREOFFDONE,			// daemon finish handling capoff
 	CTX_FLAG_OUTPUTOFFDONE,				// daemon finish handling outputoff
-	CTX_FLAG_RECTROIUPDATE,				// daemon finish handling outputoff
 	CTX_FLAG_SARUPDATE,				// SAR is updated
 };
 
@@ -328,14 +315,6 @@ struct vsi_vpu_performance_info {
 	u64 input_buf_num;
 	u64 processed_buf_num;
 	u64 display_frame_num;
-};
-
-struct vsi_v4l2_roi_info {
-	u32 width;
-	u32 height;
-	struct v4l2_rect block;
-	u16 block_unit_type;
-	u16 ctb_size;
 };
 
 struct vsi_v4l2_ctx {
@@ -396,11 +375,6 @@ struct vsi_v4l2_ctx {
 	struct vsi_vpu_performance_info performance;
 	struct dentry *debugfs;
 
-	int roi_mode;
-	struct vsi_v4l2_roi_info roi;
-	struct vpu_buf custom_qp_map;
-	struct vpu_buf zero_qp_map;
-
 	struct imx_mur_node *recorder;
 	struct imx_mur_node *recorder_ctrlsw;
 };
@@ -458,7 +432,6 @@ int vsiv4l2_enc_getalign(u32 srcfmt, u32 dstfmt, int width);
 void vsiv4l2_initcfg(struct vsi_v4l2_ctx *ctx);
 int vsi_get_Level(struct vsi_v4l2_ctx *ctx, int mediatype, int dir, int level);
 u32 vsi_get_bitrate(struct vsi_v4l2_ctx *ctx, u32 bitrate);
-int vsi_enc_set_roi_info(struct vsi_v4l2_ctx *ctx);
 int vsiv4l2_verifyfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt, int try_only);
 int vsiv4l2_setfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt);
 int vsiv4l2_getfmt(struct vsi_v4l2_ctx *ctx, struct v4l2_format *fmt);
@@ -491,8 +464,6 @@ void vsi_v4l2_reset_performance(struct vsi_v4l2_ctx *ctx);
 bool vsi_v4l2_ctrl_is_applicable(struct vsi_v4l2_ctx *ctx, u32 ctrl_id);
 void vsi_update_sar(struct vsi_v4l2_ctx *ctx);
 void vsi_update_slice_size(struct vsi_v4l2_ctx *ctx);
-int vsi_alloc_dma(struct device *dev, struct vpu_buf *vb);
-void vsi_free_dma(struct vpu_buf *vb);
 int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg);
 
 static inline int isencoder(struct vsi_v4l2_ctx *ctx)
