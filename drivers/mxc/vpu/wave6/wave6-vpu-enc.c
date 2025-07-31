@@ -891,11 +891,6 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 			pic_param.force_pic_type = ENC_FORCE_PIC_TYPE_IDR;
 			inst->error_recovery = false;
 		}
-		if (inst->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP &&
-		    src_vbuf->custom_qp_map.daddr) {
-			pic_param.custom_map_opt.field.custom_roi_map_enable = 1;
-			pic_param.custom_map_addr = src_vbuf->custom_qp_map.daddr;
-		}
 		if (src_vbuf->force_frame_qp) {
 			pic_param.force_pic_qp_enable = true;
 			pic_param.force_pic_qp_i = src_vbuf->force_i_frame_qp;
@@ -1151,88 +1146,6 @@ static int wave6_vpu_enc_try_fmt_cap(struct file *file, void *fh, struct v4l2_fo
 	return 0;
 }
 
-static void wave6_vpu_enc_get_roi_info(enum codec_std std, u32 width, u32 height,
-				       struct vpu_roi_map_info *info)
-{
-	struct vpu_roi_map_info roi;
-	u32 grp_width, grp_height;
-
-	if (std == W_AVC_ENC) {
-		roi.ctu.width = 16;
-		roi.ctu.height = 16;
-		roi.group.width = 1;
-		roi.group.height = 1;
-	} else {
-		roi.ctu.width = 32;
-		roi.ctu.height = 32;
-		roi.group.width = 2;
-		roi.group.height = 2;
-	}
-	roi.num_ctu_col = DIV_ROUND_UP(width, roi.ctu.width);
-	roi.num_ctu_row = DIV_ROUND_UP(height, roi.ctu.height);
-	roi.num_ctu = roi.num_ctu_col * roi.num_ctu_row;
-
-	grp_width = roi.ctu.width * roi.group.width;
-	grp_height = roi.ctu.height * roi.group.height;
-	roi.num_group_col = DIV_ROUND_UP(ALIGN(width, W6_ENC_CTU_WIDTH_ALIGNMENT), grp_width);
-	roi.num_group_row = DIV_ROUND_UP(height, grp_height);
-	roi.custom_map_size = roi.num_group_col * roi.num_group_row;
-	roi.custom_map_size *= (roi.group.width * roi.group.height);
-
-	if (info)
-		*info = roi;
-}
-
-static u32 wave6_vpu_enc_get_internal_ctu_count(enum codec_std std, u32 width, u32 height)
-{
-	struct vpu_roi_map_info roi = { 0 };
-
-	wave6_vpu_enc_get_roi_info(std, width, height, &roi);
-	return roi.custom_map_size;
-}
-
-static void wave6_vpu_enc_set_roi_info(struct vpu_instance *inst)
-{
-	struct vpu_roi_map_info roi = { 0 };
-	struct v4l2_ctrl *ctrl;
-
-	wave6_vpu_enc_get_roi_info(inst->std,
-				   inst->codec_rect.width,
-				   inst->codec_rect.height,
-				   &roi);
-	if (memcmp((void *)&roi, (void *)&inst->roi_info, sizeof(roi))) {
-		memcpy(&inst->roi_info, &roi, sizeof(roi));
-		memset(inst->custom_qp_map.vaddr, 0, inst->custom_qp_map.size);
-	}
-
-	ctrl = v4l2_ctrl_find(&inst->v4l2_ctrl_hdl, V4L2_CID_MPEG_VIDEO_ROI_BLOCK_SIZE);
-	if (ctrl)
-		v4l2_ctrl_s_ctrl_area(ctrl, (void *)&roi.ctu);
-}
-
-static void wave6_vpu_enc_set_roi_map(struct vpu_instance *inst, s32 *user_map, u32 count)
-{
-	unsigned char *map = (unsigned char *)inst->custom_qp_map.vaddr;
-	struct vpu_roi_map_info *roi = &inst->roi_info;
-	struct v4l2_area *group = &roi->group;
-	int i, j, index, sub_index;
-	char item;
-
-	if (count != roi->num_ctu)
-		return;
-
-	for (i = 0; i < roi->num_ctu_row; i++) {
-		for (j = 0; j < roi->num_ctu_col; j++) {
-			/*ctu index in group*/
-			sub_index = group->width * (i % group->height) + (j % group->width);
-			/*group index*/
-			index = roi->num_group_col * (i / group->height) + (j / group->width);
-			item = (char)(*(user_map +  i * roi->num_ctu_col + j));
-			*(map + index * group->width * group->height + sub_index) = item & 0x3f;
-		}
-	}
-}
-
 static int wave6_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct vpu_instance *inst = wave6_to_vpu_inst(fh);
@@ -1264,8 +1177,6 @@ static int wave6_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_form
 		inst->dst_fmt.plane_fmt[i].bytesperline = pix_mp->plane_fmt[i].bytesperline;
 		inst->dst_fmt.plane_fmt[i].sizeimage = pix_mp->plane_fmt[i].sizeimage;
 	}
-
-	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 }
@@ -1395,7 +1306,6 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 
 	wave6_update_pix_fmt(&inst->dst_fmt, pix_mp->width, pix_mp->height);
 	wave6_update_crop_info(inst, 0, 0, pix_mp->width, pix_mp->height);
-	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 }
@@ -1497,7 +1407,6 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 
 	wave6_update_pix_fmt(&inst->dst_fmt, s->r.width, s->r.height);
 	wave6_update_crop_info(inst, s->r.left, s->r.top, s->r.width, s->r.height);
-	wave6_vpu_enc_set_roi_info(inst);
 
 	dev_dbg(inst->dev->dev, "V4L2_SEL_TGT_CROP %dx%dx%dx%d\n",
 		s->r.left, s->r.top, s->r.width, s->r.height);
@@ -1780,12 +1689,6 @@ static int wave6_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE:
 		p->h264.cpb_size = ctrl->val;
 		break;
-	case V4L2_CID_MPEG_VIDEO_ROI_MODE:
-		inst->roi_mode = ctrl->val;
-		break;
-	case V4L2_CID_MPEG_VIDEO_ROI_MAP_DELTA_QP:
-		wave6_vpu_enc_set_roi_map(inst, ctrl->p_new.p, ctrl->new_elems);
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -1795,21 +1698,6 @@ static int wave6_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops wave6_vpu_enc_ctrl_ops = {
 	.s_ctrl = wave6_vpu_enc_s_ctrl,
-};
-
-static const struct v4l2_ctrl_config wave6_vpu_enc_ctrl_roi_map = {
-	.ops = &wave6_vpu_enc_ctrl_ops,
-	.id = V4L2_CID_MPEG_VIDEO_ROI_MAP_DELTA_QP,
-	.def = 0,
-	.min = -51,
-	.max = 51,
-	.step = 1,
-	.dims = { W6_MAX_CUSTOM_MAP_UNITS },
-};
-
-static const struct v4l2_ctrl_config wave6_vpu_enc_ctrl_roi_block_size = {
-	.id = V4L2_CID_MPEG_VIDEO_ROI_BLOCK_SIZE,
-	.type = V4L2_CTRL_TYPE_AREA,
 };
 
 static u32 to_video_full_range_flag(enum v4l2_quantization quantization)
@@ -2204,7 +2092,6 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 					- inst->crop.width - output->conf_win.left;
 	output->conf_win.bottom = inst->codec_rect.height
 					- inst->crop.height - output->conf_win.top;
-	output->en_qp_map = 1;
 
 	switch (inst->std) {
 	case W_AVC_ENC:
@@ -2428,18 +2315,6 @@ static int wave6_vpu_enc_queue_setup(struct vb2_queue *q, unsigned int *num_buff
 	return 0;
 }
 
-static int wave6_vpu_enc_custom_map_init(struct vpu_instance *inst, struct vpu_buffer *vpu_buf)
-{
-	vpu_buf->custom_qp_map.size = inst->roi_info.custom_map_size;
-	if (wave6_alloc_dma(inst->dev->dev, &vpu_buf->custom_qp_map) < 0) {
-		dev_err(inst->dev->dev, "alloc custom qp map size %zu failed\n",
-			vpu_buf->custom_qp_map.size);
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
 static void wave6_vpu_enc_buf_queue(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
@@ -2468,14 +2343,6 @@ static void wave6_vpu_enc_buf_queue(struct vb2_buffer *vb)
 				vpu_buf->force_b_frame_qp = inst->enc_ctrls.hevc.b_frame_qp;
 			}
 		}
-		if (inst->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP) {
-			if (!vpu_buf->custom_qp_map.vaddr)
-				wave6_vpu_enc_custom_map_init(inst, vpu_buf);
-			if (vpu_buf->custom_qp_map.vaddr)
-				memcpy(vpu_buf->custom_qp_map.vaddr,
-				       inst->custom_qp_map.vaddr,
-				       vpu_buf->custom_qp_map.size);
-		}
 	} else {
 		inst->queued_dst_buf_num++;
 	}
@@ -2498,15 +2365,6 @@ static void wave6_vpu_enc_buf_finish(struct vb2_buffer *vb)
 	ctrl = v4l2_ctrl_find(inst->v4l2_fh.ctrl_handler, V4L2_CID_MPEG_VIDEO_AVERAGE_QP);
 	if (ctrl)
 		v4l2_ctrl_s_ctrl(ctrl, vpu_buf->average_qp);
-}
-
-static void wave6_vpu_enc_buf_cleanup(struct vb2_buffer *vb)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct vpu_buffer *vpu_buf = wave6_to_vpu_buf(vbuf);
-
-	if (V4L2_TYPE_IS_OUTPUT(vb->type))
-		wave6_free_dma(&vpu_buf->custom_qp_map);
 }
 
 static int wave6_vpu_enc_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -2620,7 +2478,6 @@ static const struct vb2_ops wave6_vpu_enc_vb2_ops = {
 	.wait_finish = vb2_ops_wait_finish,
 	.buf_queue = wave6_vpu_enc_buf_queue,
 	.buf_finish = wave6_vpu_enc_buf_finish,
-	.buf_cleanup = wave6_vpu_enc_buf_cleanup,
 	.start_streaming = wave6_vpu_enc_start_streaming,
 	.stop_streaming = wave6_vpu_enc_stop_streaming,
 };
@@ -2887,15 +2744,6 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, NULL,
 			  V4L2_CID_MPEG_VIDEO_AVERAGE_QP, 0, 51, 1, 0);
 
-	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
-			       V4L2_CID_MPEG_VIDEO_ROI_MODE,
-			       V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP,
-			       ~(BIT(V4L2_MPEG_VIDEO_ROI_MODE_NONE) |
-				 BIT(V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP)),
-			       V4L2_MPEG_VIDEO_ROI_MODE_NONE);
-	v4l2_ctrl_new_custom(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_roi_map, NULL);
-	v4l2_ctrl_new_custom(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_roi_block_size, NULL);
-
 	if (v4l2_ctrl_hdl->error) {
 		ret = -ENODEV;
 		goto err_m2m_release;
@@ -2911,17 +2759,6 @@ static int wave6_vpu_open_enc(struct file *filp)
 	inst->quantization = V4L2_QUANTIZATION_DEFAULT;
 	inst->xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	inst->frame_rate = 30;
-
-	inst->custom_qp_map.size = wave6_vpu_enc_get_internal_ctu_count(W_AVC_ENC,
-									W6_MAX_ENC_PIC_WIDTH,
-									W6_MAX_ENC_PIC_HEIGHT);
-	if (wave6_alloc_dma(inst->dev->dev, &inst->custom_qp_map) < 0) {
-		dev_err(inst->dev->dev, "alloc custom qp map size %zu failed\n",
-			inst->custom_qp_map.size);
-		return -ENOMEM;
-	}
-
-	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 
@@ -2947,7 +2784,6 @@ static int wave6_vpu_enc_release(struct file *filp)
 	}
 	mutex_unlock(&inst->dev->dev_lock);
 
-	wave6_free_dma(&inst->custom_qp_map);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	v4l2_fh_del(&inst->v4l2_fh);
 	v4l2_fh_exit(&inst->v4l2_fh);
