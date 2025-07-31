@@ -429,8 +429,6 @@ int wave6_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 	if (ret)
 		return ret;
 
-	memset(info, 0, sizeof(*info));
-
 	ret = wave6_vpu_dec_get_result(inst, info);
 	if (ret) {
 		info->rd_ptr = p_dec_info->stream_rd_ptr;
@@ -891,8 +889,6 @@ int wave6_vpu_enc_get_output_info(struct vpu_instance *inst, struct enc_output_i
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
 		return ret;
-
-	memset(info, 0, sizeof(*info));
 
 	ret = wave6_vpu_enc_get_result(inst, info);
 	if (ret)

@@ -8,11 +8,20 @@
 #define ENETC_MSG_EXT_BODY_LEN(l)	((l) / ENETC_MSG_ALIGN - 1)
 #define ENETC_MSG_SIZE(l)		(((l) + 1) * ENETC_MSG_ALIGN)
 
+#define ENETC_MSG_CODE_SUCCESS			0x100
+#define ENETC_MSG_CODE_PERMISSION_DENY		0x200
+#define ENETC_MSG_CODE_NOT_SUPPORT		0x300
+#define ENETC_MSG_CODE_BUSY			0x400
+#define ENETC_MSG_CODE_CRC_ERROR		0x500
+#define ENETC_MSG_CODE(id, code)		(((id) & 0xff) << 8 | \
+						 ((code) & 0xf) << 4)
+
 /* Common Class ID for PSI-TO-VSI and VSI-TO-PSI messages */
 #define ENETC_MSG_CLASS_ID_MAC_FILTER		0x20
 #define ENETC_MSG_CLASS_ID_VLAN_FILTER		0x21
 #define ENETC_MSG_CLASS_ID_LINK_STATUS		0x80
 #define ENETC_MSG_CLASS_ID_LINK_SPEED		0x81
+#define ENETC_MSG_CLASS_ID_IP_REVISION		0xf0
 
 /* Class ID for PSI-TO-VSI messages */
 #define ENETC_MSG_CLASS_ID_CMD_SUCCESS		0x1
@@ -40,6 +49,9 @@
 /* Class-specific notification codes for link status */
 #define ENETC_PF_NC_LINK_STATUS_UP			0x0
 #define ENETC_PF_NC_LINK_STATUS_DOWN			0x1
+
+/* Class-specific error return codes for IP revision */
+#define ENETC_PF_RC_IP_REVISION_INVALID		0xff
 
 #define ENETC_MAC_FILTER_TYPE_UC	BIT(0)
 #define ENETC_MAC_FILTER_TYPE_MC	BIT(1)
@@ -106,17 +118,28 @@ enum enetc_msg_link_speed_val {
 	ENETC_MSG_SPEED_100G,
 };
 
+enum enetc_msg_ip_revision_cmd_id {
+	ENETC_MSG_GET_IP_MN = 1,
+};
+
 struct enetc_msg_swbd {
 	void *vaddr;
 	dma_addr_t dma;
 	int size;
+	u8 class_code; /* save return code from PSI for 'get' messages */
 };
 
 /* The format of PSI-TO-VSI message, only a 16-bits code */
 union enetc_pf_msg {
 	struct {
-		u8 cookie:4;
-		u8 class_code:4;
+		union {
+			struct {
+				u8 cookie:4;
+				u8 class_code:4;
+			};
+			/* some messages class_code is 8-bit without cookie */
+			u8 class_code_u8;
+		};
 		u8 class_id;
 	};
 	u16 code;
@@ -206,13 +229,6 @@ struct enetc_msg_vlan_hash_filter {
 	u32 hash_tbl[];
 };
 
-/* message format of class_id 0x21, cmd_id: 0x3, flush VLAN address
- * filter table entries
- */
-struct enetc_msg_vlan_filter_flush {
-	struct enetc_msg_header hdr;
-};
-
 /* message format of class_id 0x21, cmd_id: 0x4, set VLAN promiscuous mode */
 struct enetc_msg_vlan_promsic_mode {
 	struct enetc_msg_header hdr;
@@ -221,21 +237,24 @@ struct enetc_msg_vlan_promsic_mode {
 	u8 resv:6;
 };
 
-/* message format of class_id 0x80, cmd_id 0x0~0x2
+/* The generic message format applies to the following messages:
+ * Get IP revision message, class_id: 0xf0
+ * cmd_id 1: get IP minor revision
+ *
+ * message format of class_id: 0x80
  * cmd_id 0x0: get the current link status
  * cmd_id 0x1: register to link status change notification
  * cmd_id 0x2: unregister from link status change notification
- */
-struct enetc_msg_link_status {
-	struct enetc_msg_header hdr;
-};
-
-/* message format of class_id 0x80, cmd_id 0x0~0x2
+ *
+ * Link speed message, class_id: 0x81
  * cmd_id 0x0: get the current link speed
  * cmd_id 0x1: register to link speed change notification
  * cmd_id 0x2: unregister from link speed change notification
+ *
+ * VLAN address filter table message, class_id 0x21
+ * cmd_id 0x3: Flush VLAN address filter table entries
  */
-struct enetc_msg_link_speed {
+struct enetc_msg_generic {
 	struct enetc_msg_header hdr;
 };
 

@@ -344,6 +344,8 @@ typedef union _gcuFLOAT_UINT32 {
 /* Do not be moved */
 #define gcvALLOC_FLAG_NO_EVICT              0x00000400
 
+/* Allocate from user space. */
+#define gcvALLOC_FLAG_FROM_USER             0x00000800
 /* Import DMABUF. */
 #define gcvALLOC_FLAG_DMABUF                0x00001000
 /* Import USERMEMORY. */

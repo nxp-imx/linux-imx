@@ -779,11 +779,6 @@ static int se_soc_info(struct se_if_priv *priv)
 	if (var_se_info.soc_rev)
 		return err;
 
-	err = ele_get_fw_version(priv, &var_se_info.fw_vers_word,
-				 &var_se_info.commit_sha1);
-	if (err)
-		dev_err(priv->dev, "Failed to fetch FW version");
-
 	if (info_list->se_fetch_soc_info) {
 		err = info_list->se_fetch_soc_info(priv, &data);
 		if (err < 0) {
@@ -797,6 +792,11 @@ static int se_soc_info(struct se_if_priv *priv)
 			var_se_info.soc_id = soc_data->soc_id;
 			var_se_info.soc_rev = soc_data->soc_rev;
 		} else {
+			err = ele_get_fw_version(priv, &var_se_info.fw_vers_word,
+						 &var_se_info.commit_sha1);
+			if (err)
+				dev_err(priv->dev, "Failed to fetch FW version");
+
 			s_info = (void *)data;
 
 			var_se_info.board_type = 0;

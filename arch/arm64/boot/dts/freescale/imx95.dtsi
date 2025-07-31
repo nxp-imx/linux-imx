@@ -3076,6 +3076,9 @@
 					 0x82000000 0x0 0x4cd20000  0x0 0x4cd20000  0x0 0x60000
 					 /* ENETC0~2: VF0-1 BAR2 - prefetchable memory */
 					 0xc2000000 0x0 0x4cd80000  0x0 0x4cd80000  0x0 0x60000>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0 0 0 7>;
+				interrupt-map = <0000 0 0 1 &gic 0 0 GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>;
 
 				enetc_port0: ethernet@0,0 {
 					compatible = "fsl,imx95-enetc";
@@ -3112,9 +3115,8 @@
 				};
 
 				rcec@1,0 {
-					compatible = "pci1131,e001";
 					reg = <0x000800 0 0 0 0>;
-					interrupts = <GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>;
+					interrupts = <1>;
 				};
 			};
 
@@ -3130,6 +3132,9 @@
 					 /* EMDIO BAR2 - prefetchable memory */
 					 0xc2000000 0x0 0x4cd10000  0x0 0x4cd10000  0x0 0x10000>;
 				power-domains = <&scmi_devpd IMX95_PD_NETC>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0 0 0 7>;
+				interrupt-map = <0000 0 0 1 &gic 0 0 GIC_SPI 305 IRQ_TYPE_LEVEL_HIGH>;
 
 				netc_emdio: mdio@0,0 {
 					compatible = "fsl,imx95-netc-emdio";
@@ -3137,6 +3142,11 @@
 					#address-cells = <1>;
 					#size-cells = <0>;
 					status = "disabled";
+				};
+
+				rcec@1,0 {
+					reg = <0x010800 0 0 0 0>;
+					interrupts = <1>;
 				};
 			};
 		};

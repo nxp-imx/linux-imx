@@ -665,6 +665,16 @@ static int neutron_dev_clk_get(struct neutron_device *ndev)
 	return ret;
 }
 
+void neutron_irq_enable(struct neutron_device *ndev)
+{
+	u32 val;
+
+	/* Setup irq register */
+	val = readl(ndev->reg_base + INTENA);
+	val |= (SHUTDOWN_IRQ_ENABLE | INFERENCE_DONE_IRQ_ENABLE);
+	writel(val, ndev->reg_base + INTENA);
+}
+
 int neutron_dev_init(struct neutron_device *ndev,
 		     struct device *dev, int irq,
 		    struct class *class, dev_t devt)

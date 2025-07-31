@@ -4634,10 +4634,11 @@ gckHARDWARE_FlushMMU(IN gckHARDWARE Hardware,
  32) ? ~0U : (~(~0U << ((1 ? 4:0) - (0 ? 4:0) + 1))))))) << (0 ? 4:0))) | (((gctUINT32) (0x01 & ((gctUINT32) ((((1 ? 4:0) - (0 ? 4:0) + 1) ==
  32) ? ~0U : (~(~0U << ((1 ? 4:0) - (0 ? 4:0) + 1))))))) << (0 ? 4:0)));
 
-            if (Hardware->stallFEPrefetch)
+            if (Hardware->stallFEPrefetch) {
                 stall |= ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 29:28) - (0 ? 29:28) + 1) ==
  32) ? ~0U : (~(~0U << ((1 ? 29:28) - (0 ? 29:28) + 1))))))) << (0 ? 29:28))) | (((gctUINT32) (0x3 & ((gctUINT32) ((((1 ? 29:28) - (0 ? 29:28) + 1) ==
  32) ? ~0U : (~(~0U << ((1 ? 29:28) - (0 ? 29:28) + 1))))))) << (0 ? 29:28)));
+            }
 
             if (bltEngine)
                 stall |= ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 12:8) - (0 ? 12:8) + 1) ==
@@ -7080,11 +7081,26 @@ gckHARDWARE_EnablePowerManagement(IN gckHARDWARE Hardware, IN gctBOOL Enable)
 gceSTATUS
 gckHARDWARE_SetGpuProfiler(IN gckHARDWARE Hardware, IN gctBOOL GpuProfiler)
 {
+    gctBOOL powerManagement = gcvFALSE;
+    gceSTATUS status;
+    gctBOOL commitEntered = gcvFALSE;
     gcmkHEADER_ARG("Hardware=%p", Hardware);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
+    gcmkONERROR(gckHARDWARE_QueryPowerManagement(Hardware, &powerManagement));
+
+    if (powerManagement)
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(Hardware, gcvFALSE));
+
+    gcmkONERROR(gckCOMMAND_EnterCommit(Hardware->kernel->command, gcvFALSE));
+    commitEntered = gcvTRUE;
+
+    gcmkONERROR(gckHARDWARE_SetPowerState(Hardware, gcvPOWER_ON_AUTO));
+
+    gcmkONERROR(gckCOMMAND_ExitCommit(Hardware->kernel->command, gcvFALSE));
+    commitEntered = gcvFALSE;
     if (GpuProfiler == gcvTRUE) {
         gctUINT32 data = 0;
 
@@ -7121,6 +7137,8 @@ gckHARDWARE_SetGpuProfiler(IN gckHARDWARE Hardware, IN gctBOOL GpuProfiler)
                                             data));
     }
 
+    if (powerManagement)
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(Hardware, gcvTRUE));
     if (GpuProfiler == gcvTRUE)
         Hardware->waitCount = 200 * 100;
     else
@@ -7129,6 +7147,12 @@ gckHARDWARE_SetGpuProfiler(IN gckHARDWARE Hardware, IN gctBOOL GpuProfiler)
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
+
+OnError:
+    if (commitEntered)
+       gcmkONERROR(gckCOMMAND_ExitCommit(Hardware->kernel->command, gcvFALSE));
+
+    return status;
 }
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
@@ -7655,6 +7679,8 @@ gckHARDWARE_UpdateContextProfile(IN gckHARDWARE Hardware)
     gctUINT32    temp;
     gckCOMMAND   command       = Hardware->kernel->command;
     gctBOOL      mutexAcquired = gcvFALSE;
+    gctBOOL      powerManagement = gcvFALSE;
+    gctBOOL      commitEntered = gcvFALSE;
 
     gcmkHEADER_ARG("Hardware=0x%x", Hardware);
 
@@ -7666,6 +7692,20 @@ gckHARDWARE_UpdateContextProfile(IN gckHARDWARE Hardware)
                                    command->mutexContextSeq,
                                    gcvINFINITE));
     mutexAcquired = gcvTRUE;
+
+    /* keep gpu power on when switch mmu by software */
+    gcmkONERROR(gckHARDWARE_QueryPowerManagement(Hardware, &powerManagement));
+
+    if (powerManagement)
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(Hardware, gcvFALSE));
+
+    gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
+    commitEntered = gcvTRUE;
+
+    gcmkONERROR(gckHARDWARE_SetPowerState(Hardware, gcvPOWER_ON_AUTO));
+
+    gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
+    commitEntered = gcvFALSE;
 
     chipModel    = Hardware->identity.chipModel;
     chipRevision = Hardware->identity.chipRevision;
@@ -8673,6 +8713,10 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->kernel, 0x00478,   (((
     gcmkUPDATE_PROFILE_DATA_PART2(l2_axi1_total_latency);
     gcmkUPDATE_PROFILE_DATA_PART2(l2_axi1_total_request_count);
 
+    /* enable power management */
+    if (powerManagement)
+        gcmkONERROR(gckHARDWARE_EnablePowerManagement(Hardware, gcvTRUE));
+
     gcmkVERIFY_OK(gckOS_ReleaseMutex(command->os, command->mutexContextSeq));
 
     /* Success. */
@@ -8682,6 +8726,9 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->kernel, 0x00478,   (((
 OnError:
     if (mutexAcquired)
         gckOS_ReleaseMutex(command->os, command->mutexContextSeq);
+
+    if (commitEntered)
+        gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
 
     /* Return the status. */
     gcmkFOOTER();
@@ -8882,6 +8929,7 @@ _ResetGPU(IN gckHARDWARE Hardware, IN gckOS Os)
 
             mmuEnabled = (((((gctUINT32) (regMmuCtrl)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) );
         }
+
 
         if (mmuEnabled) {
             /* Not reset properly, reset again. */
@@ -9586,7 +9634,8 @@ gckHARDWARE_DumpGPUState(IN gckHARDWARE Hardware)
     gcmkHEADER_ARG("Hardware=%p", Hardware);
 
     gcmkPRINT_N(12,
-                "GPU[%d](ChipModel=0x%x ChipRevision=0x%x):\n",
+                "HwType[%d]GPU[%d](ChipModel=0x%x ChipRevision=0x%x):\n",
+                Hardware->type,
                 Hardware->core,
                 Hardware->identity.chipModel,
                 Hardware->identity.chipRevision);
@@ -9777,7 +9826,7 @@ gckHARDWARE_DumpGPUState(IN gckHARDWARE Hardware)
                                             (1 << 16) - 1));
     }
 
-    for (i = 0; i < gcmCOUNTOF(_dbgRegs); i += 1)
+    for (i = 0; i < gcmCOUNTOF(_dbgRegs) && 0; i += 1)
         gcmkONERROR(_DumpDebugRegisters(os, Hardware->kernel, &_dbgRegs[i]));
 
     /* Record control. */

@@ -67,6 +67,12 @@
 #define NEUTRON_POWER_OFF    0
 #define NEUTRON_POWER_ON     1
 #define SPECIFIC_DMA_POOL      BIT(0)
+#define NEUTRON_USE_IRQ_MODE   BIT(1)
+
+// IRQ
+#define INFERENCE_DONE_IRQ_ENABLE   BIT(1)
+#define MBOX_IRQ_ENABLE             BIT(2)
+#define SHUTDOWN_IRQ_ENABLE         BIT(7)
 
 #define ZENV_CLK_ON         (0x1 << 0)
 #define COMPUTE_CLK_ON      (0xF << 4)
@@ -144,6 +150,7 @@ void neutron_memory_sync(struct neutron_device *ndev, dma_addr_t addr,
 			 size_t size, enum dma_data_direction dir);
 void neutron_clk_enable(struct neutron_device *ndev);
 void neutron_clk_disable(struct neutron_device *ndev);
+void neutron_irq_enable(struct neutron_device *ndev);
 
 #endif /* NEUTRON_DEVICE_H */
 

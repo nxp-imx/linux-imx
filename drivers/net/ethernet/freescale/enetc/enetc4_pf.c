@@ -1070,7 +1070,7 @@ static int enetc4_init_ntmp_priv(struct enetc_si *si)
 
 	ntmp->dev_type = NETC_DEV_ENETC;
 
-	if (si->revision == NETC_REVISION_4_1)
+	if (si->revision == ENETC_REV_4_1)
 		ntmp->errata = NTMP_ERR052134;
 
 	err = enetc_init_cbdr(si);

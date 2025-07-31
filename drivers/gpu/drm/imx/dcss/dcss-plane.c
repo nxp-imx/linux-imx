@@ -519,7 +519,7 @@ static bool dcss_plane_needs_setup(struct drm_plane_state *state,
 	       state->scaling_filter != old_state->scaling_filter;
 }
 
-static void dcss_plane_setup_hdr10_pipes(struct drm_plane *plane)
+static void dcss_plane_setup_hdr10_pipes(struct drm_plane *plane, u32 format)
 {
 	struct dcss_dev *dcss = plane->dev->dev_private;
 	struct dcss_plane *dcss_plane = to_dcss_plane(plane);
@@ -530,7 +530,7 @@ static void dcss_plane_setup_hdr10_pipes(struct drm_plane *plane)
 				      &ipipe_cfg, &opipe_cfg);
 
 	dcss_hdr10_setup(dcss->hdr10, dcss_plane->ch_num,
-			 &ipipe_cfg, &opipe_cfg);
+			 &ipipe_cfg, &opipe_cfg, format);
 }
 
 static void dcss_plane_atomic_update(struct drm_plane *plane,
@@ -610,7 +610,7 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 			  dst_w, dst_h,
 			  drm_mode_vrefresh(&crtc_state->mode));
 
-	dcss_plane_setup_hdr10_pipes(plane);
+	dcss_plane_setup_hdr10_pipes(plane, fb->format->format);
 
 	dcss_dtg_plane_pos_set(dcss->dtg, dcss_plane->ch_num,
 			       dst.x1, dst.y1, dst_w, dst_h);

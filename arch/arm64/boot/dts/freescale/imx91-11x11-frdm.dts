@@ -14,7 +14,7 @@
 
 / {
 	model = "FRDM-IMX91";
-	compatible = "fsl,imx91-11x11-frdm", "fsl,imx91";
+	compatible = "fsl,frdm-imx91", "fsl,imx91";
 
 	chosen {
 		stdout-path = &lpuart1;

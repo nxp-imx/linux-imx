@@ -673,6 +673,8 @@ static int vpu_m2m_queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_q
 	src_vq->mem_ops = &vb2_dma_contig_memops;
 	if (inst->type == VPU_CORE_TYPE_DEC && inst->use_stream_buffer)
 		src_vq->mem_ops = &vb2_vmalloc_memops;
+	else
+		src_vq->allow_cache_hints = 1;
 	src_vq->drv_priv = inst;
 	src_vq->buf_struct_size = sizeof(struct vpu_vb2_buffer);
 	src_vq->min_queued_buffers = 1;
@@ -690,6 +692,8 @@ static int vpu_m2m_queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_q
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
 	if (inst->type == VPU_CORE_TYPE_ENC && inst->use_stream_buffer)
 		dst_vq->mem_ops = &vb2_vmalloc_memops;
+	else
+		dst_vq->allow_cache_hints = 1;
 	dst_vq->drv_priv = inst;
 	dst_vq->buf_struct_size = sizeof(struct vpu_vb2_buffer);
 	dst_vq->min_queued_buffers = 1;

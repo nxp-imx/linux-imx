@@ -40,6 +40,11 @@ static int power_mode = POWER_MODE_AUTO;
 module_param(power_mode, int, 0644);
 MODULE_PARM_DESC(power_mode, "Power consumption strategy mode, 0:auto balance mode; 1:best performance mode; 2:low power mode");
 
+static bool use_irq = true;
+
+module_param(use_irq, bool, 0644);
+MODULE_PARM_DESC(use_irq, "Enable IRQ mode for the inference job, set it to 0 for polling mode.");
+
 static struct class *neutron_class;
 static dev_t devt;
 static DECLARE_BITMAP(minors, MINOR_COUNT);
@@ -83,6 +88,11 @@ static int neutron_pdev_probe(struct platform_device *pdev)
 	/* Uppdate auto suspend delay time for performance mode */
 	if (power_mode == POWER_MODE_PERF)
 		ndev->suspend_delay +=  100 * MSEC_PER_SEC;
+
+	if (use_irq)
+		ndev->flags |= NEUTRON_USE_IRQ_MODE;
+	else
+		ndev->flags &= (~NEUTRON_USE_IRQ_MODE);
 
 	pm_runtime_enable(&pdev->dev);
 
@@ -163,6 +173,10 @@ static int neutron_runtime_resume(struct device *dev)
 	/* Start the neutron core only when it is ON state before suspend */
 	if (ndev->power_state == NEUTRON_POWER_ON)
 		neutron_rproc_boot(ndev, NULL);
+
+	/* Re-enable the IRQ after the system resumes from suspend */
+	if (ndev->flags & NEUTRON_USE_IRQ_MODE)
+		neutron_irq_enable(ndev);
 
 	return 0;
 }

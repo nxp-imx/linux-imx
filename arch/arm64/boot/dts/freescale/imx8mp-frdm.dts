@@ -11,7 +11,7 @@
 
 / {
 	model = "NXP FRDM-IMX8MPLUS";
-	compatible = "fsl,imx8mp-frdm", "fsl,imx8mp";
+	compatible = "fsl,frdm-imx8mp", "fsl,imx8mp";
 
 	chosen {
 		stdout-path = &uart2;

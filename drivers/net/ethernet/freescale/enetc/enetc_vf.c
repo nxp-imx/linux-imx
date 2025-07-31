@@ -89,6 +89,12 @@ static int enetc_msg_vsi_send(struct enetc_si *si, struct enetc_msg_swbd *msg)
 
 			err = -EINVAL;
 			break;
+		case ENETC_MSG_CLASS_ID_IP_REVISION:
+			if (pf_msg.class_code_u8 == ENETC_PF_RC_IP_REVISION_INVALID)
+				err = -EINVAL;
+			else
+				msg->class_code = pf_msg.class_code_u8;
+			break;
 		default:
 			err = -EIO;
 		}
@@ -103,12 +109,11 @@ static int enetc_msg_vsi_send(struct enetc_si *si, struct enetc_msg_swbd *msg)
 static int enetc_msg_vf_register_link_status_notify(struct enetc_si *si, bool notify)
 {
 	struct device *dev = &si->pdev->dev;
-	struct enetc_msg_link_status *msg;
 	struct enetc_msg_swbd msg_swbd;
 	u8 cmd_id;
 	int err;
 
-	msg_swbd.size = ALIGN(sizeof(*msg), ENETC_MSG_ALIGN);
+	msg_swbd.size = ALIGN(sizeof(struct enetc_msg_generic), ENETC_MSG_ALIGN);
 	msg_swbd.vaddr = dma_alloc_coherent(dev, msg_swbd.size,
 					    &msg_swbd.dma, GFP_KERNEL);
 	if (!msg_swbd.vaddr)
@@ -545,6 +550,51 @@ static int enetc_vf_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 	}
 }
 
+static u8 enetc_msg_vsi_get_ip_minor_revision(struct enetc_si *si)
+{
+	struct device *dev = &si->pdev->dev;
+	struct enetc_msg_swbd msg_swbd;
+	int err;
+
+	msg_swbd.size = ALIGN(sizeof(struct enetc_msg_generic), ENETC_MSG_ALIGN);
+	msg_swbd.vaddr = dma_alloc_coherent(dev, msg_swbd.size, &msg_swbd.dma,
+					    GFP_KERNEL);
+	if (!msg_swbd.vaddr)
+		return ENETC_PF_RC_IP_REVISION_INVALID;
+
+	enetc_msg_vf_fill_common_header(&msg_swbd, ENETC_MSG_CLASS_ID_IP_REVISION,
+					ENETC_MSG_GET_IP_MN, 0, 0);
+
+	err = enetc_msg_vsi_send(si, &msg_swbd);
+	dma_free_coherent(dev, msg_swbd.size, msg_swbd.vaddr, msg_swbd.dma);
+
+	return err ? ENETC_PF_RC_IP_REVISION_INVALID : msg_swbd.class_code;
+}
+
+static void enetc_vf_get_revision(struct enetc_si *si)
+{
+	u8 ip_mj = si->pdev->revision;
+	u8 ip_mn;
+
+	if (is_enetc_rev1(si)) {
+		si->revision = ENETC_REV_1_0;
+
+		return;
+	}
+
+	ip_mn = enetc_msg_vsi_get_ip_minor_revision(si);
+	if (ip_mn != ENETC_PF_RC_IP_REVISION_INVALID) {
+		si->revision = (u16)ip_mj << 8 | ip_mn;
+
+		return;
+	}
+
+	si->revision = ENETC_REV_4_1;
+	dev_warn(&si->pdev->dev,
+		 "Failed to get IP revision, use compatible revision: 0x%04x\n",
+		 si->revision);
+}
+
 /* Probing/ Init */
 static const struct net_device_ops enetc_ndev_ops = {
 	.ndo_open		= enetc_open,
@@ -740,6 +790,7 @@ static int enetc_vf_probe(struct pci_dev *pdev,
 		return dev_err_probe(&pdev->dev, err, "PCI probing failed\n");
 
 	si = pci_get_drvdata(pdev);
+	enetc_vf_get_revision(si);
 	INIT_WORK(&si->rx_mode_task, enetc_vf_do_set_rx_mode);
 	snprintf(wq_name, sizeof(wq_name), "enetc-%s", pci_name(pdev));
 	si->workqueue = create_singlethread_workqueue(wq_name);

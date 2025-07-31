@@ -1209,11 +1209,6 @@ static void scheduler_wakeup(struct kbase_device *kbdev, bool kick)
 	if ((scheduler->state != SCHED_SUSPENDED) && (scheduler->state != SCHED_SLEEPING))
 		return;
 
-	if (atomic_cmpxchg(&scheduler->pending_runtime_suspend_work, true, false) == true) {
-		kbdev->pm.runtime_suspend_result = -EBUSY;
-		wake_up_all(&kbdev->csf.event_wait);
-	}
-
 	if (scheduler->state == SCHED_SUSPENDED) {
 		dev_dbg(kbdev->dev, "Re-activating the Scheduler after suspend");
 		ret = scheduler_pm_active_handle_suspend(

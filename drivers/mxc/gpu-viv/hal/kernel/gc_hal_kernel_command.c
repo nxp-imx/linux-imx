@@ -1334,7 +1334,7 @@ gckCOMMAND_Destroy(IN gckCOMMAND Command)
 
             gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(Command->kernel,
                                                 Command->queues[i].videoMem,
-                                                0, gcvNULL));
+                                                Command->kernel->mmu, gcvNULL));
 
             gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(Command->kernel, Command->queues[i].videoMem));
 
@@ -2146,7 +2146,6 @@ _CommitWaitLinkOnce(IN gckCOMMAND Command,
                                  commandBufferSize - offset,
                                  &linkBytes, &commandLinkLow, &commandLinkHigh));
 
-
 #if gcdCAPTURE_ONLY_MODE
         if (database) {
             if (database->matchCaptureOnly) {
@@ -2239,7 +2238,6 @@ _CommitWaitLinkOnce(IN gckCOMMAND Command,
      */
     gcmkONERROR(gckWLFE_WaitLink(hardware, waitLinkLogical, waitLinkAddress, offset,
                                  &waitLinkBytes, &waitOffset, &waitSize));
-
     if (Command->newQueue) {
         gcmkONERROR(gckVIDMEM_NODE_CleanCache(Command->kernel, Command->videoMem,
                                               0, Command->logical, exitBytes));
@@ -2980,6 +2978,9 @@ gckCOMMAND_Commit(IN gckCOMMAND Command, IN gcsHAL_SUBCOMMIT *SubCommit,
     gcsPATCH_LIST_VARIABLE   patchListVar  = { 0, 0 };
     gctBOOL                  commitEntered = gcvFALSE;
     gctBOOL                  switchSecurityMode = gcvFALSE;
+    gckMMU                   mmu           = gcvNULL;
+    gckVIDMEM_NODE           testNode = gcvNULL;
+    gctBOOL                  powerManagement = 0;
 
     gcmkHEADER_ARG("Command=%p SubCommit=%p delta=%p context=%llu pid=%u",
                    Command, SubCommit, delta, SubCommit->context, ProcessId);
@@ -3017,6 +3018,20 @@ gckCOMMAND_Commit(IN gckCOMMAND Command, IN gcsHAL_SUBCOMMIT *SubCommit,
         gcmkONERROR(_ValidCommandBuffer(Command, ProcessId, cmdLoc));
 #endif
 
+        gcmkONERROR(gckKERNEL_GetCurrentMMU(Command->kernel, gcvTRUE, 0, &mmu));
+
+        if (Command->kernel->hardware->type == gcvHARDWARE_VIP) {
+            /* keep npu power on when switch mmu by software */
+            gcmkONERROR(gckHARDWARE_QueryPowerManagement(Command->kernel->hardware, &powerManagement));
+
+            if (powerManagement)
+                gcmkONERROR(gckHARDWARE_EnablePowerManagement(Command->kernel->hardware, gcvFALSE));
+        }
+
+        if (Command->kernel->processPageTable && Command->currContext != context) {
+            gcmkONERROR(gckKERNEL_SwitchMMU(Command->kernel, Shared, mmu));
+        }
+
 #if gcdCONTEXT_SWITCH_FORCE_USC_RESET
         if (Command->kernel->hardware->supportUscReset
             && Command->currPid && Command->currPid != ProcessId
@@ -3035,6 +3050,10 @@ gckCOMMAND_Commit(IN gckCOMMAND Command, IN gcsHAL_SUBCOMMIT *SubCommit,
         commitEntered = gcvTRUE;
 
         gcmkVERIFY_OK(_HandlePatchList(Command, cmdLoc, &patchListVar));
+
+        /* check command address is avaliable for npu ip. */
+        if (Command->kernel->hardware->type == gcvHARDWARE_VIP)
+            gcmkONERROR(gckVIDMEM_NODE_Find(Command->kernel, cmdLoc->address, &testNode, gcvNULL));
 
         if (Command->feType == gcvHW_FE_WAIT_LINK) {
             /* Commit command buffers. */
@@ -3059,6 +3078,12 @@ gckCOMMAND_Commit(IN gckCOMMAND Command, IN gcsHAL_SUBCOMMIT *SubCommit,
             gcmkONERROR(status);
 
         Command->currPid = ProcessId;
+
+        if (Command->kernel->hardware->type == gcvHARDWARE_VIP) {
+            /* enable power management */
+            if (powerManagement)
+                gcmkONERROR(gckHARDWARE_EnablePowerManagement(Command->kernel->hardware, gcvTRUE));
+        }
 
         /* Release the command queue. */
         gcmkONERROR(gckCOMMAND_ExitCommit(Command, gcvFALSE));
@@ -3269,7 +3294,6 @@ gckCOMMAND_Execute(IN gckCOMMAND Command, IN gctUINT32 RequestedBytes)
 #endif
 
     gcmkHEADER_ARG("Command=%p RequestedBytes=0x%x", Command, RequestedBytes);
-
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
 
@@ -3282,7 +3306,6 @@ gckCOMMAND_Execute(IN gckCOMMAND Command, IN gctUINT32 RequestedBytes)
     /* Compute the location if WAIT/LINK command sequence. */
     waitLinkLogical = (gctUINT8_PTR)Command->logical + waitLinkOffset;
     waitLinkAddress = Command->address + waitLinkOffset;
-
     /* Append WAIT/LINK in command queue. */
     gcmkONERROR(gckWLFE_WaitLink(Command->kernel->hardware,
                                  waitLinkLogical, waitLinkAddress,
@@ -3356,7 +3379,6 @@ gckCOMMAND_Execute(IN gckCOMMAND Command, IN gctUINT32 RequestedBytes)
                              &linkLow, &linkHigh));
 #   endif
 #endif
-
     gcmkONERROR(gckVIDMEM_NODE_CleanCache(Command->kernel,
                                           Command->waitPos.videoMem,
                                           Command->waitPos.offset,

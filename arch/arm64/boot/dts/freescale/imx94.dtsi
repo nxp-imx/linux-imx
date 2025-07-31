@@ -1309,12 +1309,11 @@
 		};
 
 		v2x_mu2: mailbox@47320000 {
-			compatible = "fsl,imx94-mu-v2x";
+			compatible = "fsl,imx94-mu-v2x-fce";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 384 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
-			status = "disabled";
 		};
 
 		v2x_mu3: mailbox@47330000 {

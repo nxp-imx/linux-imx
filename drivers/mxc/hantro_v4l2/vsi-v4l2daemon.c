@@ -338,11 +338,25 @@ static u32 format_bufinfo_enc(struct vsi_v4l2_ctx *ctx, struct vsi_v4l2_msg *pms
 	u32 planeno, size;
 	struct v4l2_daemon_enc_buffers *encbufinfo;
 	dma_addr_t  busaddr[4] = { 0 };
+	struct vsi_vpu_buf *vpu_buf = vb_to_vsibuf(buf);
+	struct vsi_v4l2_dev_info *dev_info = vsiv4l2_get_hwinfo();
 
-	vsi_convertROI(ctx);
 	vsi_convertIPCM(ctx);
-	if (binputqueue(buf->type) && ctx->srcvbufflag[buf->index] & FORCE_IDR)
-		*update |= UPDATE_INFO;
+
+	if (binputqueue(buf->type)) {
+		if (ctx->srcvbufflag[buf->index] & FORCE_IDR)
+			*update |= UPDATE_INFO;
+
+		if (ctx->srcvbufflag[buf->index] & RECT_ROI_UPDATE) {
+			vsi_convertROI(ctx);
+			ctx->srcvbufflag[buf->index] &= ~RECT_ROI_UPDATE;
+			*update |= UPDATE_INFO;
+		}
+
+		if (ctx->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP)
+			*update |= UPDATE_INFO;
+	}
+
 	if (*update & UPDATE_INFO) {
 		size = sizeof(struct v4l2_daemon_enc_params);
 		memcpy((void *)&pmsg->params.enc_params, (void *)&ctx->mediacfg.encparams, sizeof(ctx->mediacfg.encparams));
@@ -393,6 +407,15 @@ static u32 format_bufinfo_enc(struct vsi_v4l2_ctx *ctx, struct vsi_v4l2_msg *pms
 			ctx->srcvbufflag[buf->index] &= ~FORCE_IDR;
 		} else
 			pmsg->params.enc_params.specific.enc_h26x_cmd.force_idr = 0;
+
+		if (!dev_info->enc_isH1) {
+			pmsg->params.enc_params.specific.enc_h26x_cmd.roiMapDeltaQpBlockUnit = ctx->roi.block_unit_type;
+			pmsg->params.enc_params.specific.enc_h26x_cmd.roiMapDeltaQpEnable = 1;
+			if (ctx->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP)
+				pmsg->params.enc_params.specific.enc_h26x_cmd.roiMapDeltaQpBuf = vpu_buf->custom_qp_map.daddr;
+			else
+				pmsg->params.enc_params.specific.enc_h26x_cmd.roiMapDeltaQpBuf = ctx->zero_qp_map.daddr;
+		}
 	} else {
 		encbufinfo->busLumaOrig = encbufinfo->busLuma = 0;
 		encbufinfo->busChromaUOrig = encbufinfo->busChromaU = 0;

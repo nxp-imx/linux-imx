@@ -584,6 +584,7 @@ _DmaAlloctorInit(IN gckOS           Os,
      */
     allocator->capability = gcvALLOC_FLAG_CONTIGUOUS
                           | gcvALLOC_FLAG_DMABUF_EXPORTABLE
+                          | gcvALLOC_FLAG_FROM_USER
 #if (defined(CONFIG_ZONE_DMA32) || defined(CONFIG_ZONE_DMA)) &&   \
     LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
                           | gcvALLOC_FLAG_4GB_ADDR

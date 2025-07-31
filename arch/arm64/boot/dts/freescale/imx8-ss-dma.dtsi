@@ -376,7 +376,7 @@ dma_subsys: bus@5a000000 {
 		#clock-cells = <1>;
 		clocks = <&clk IMX_SC_R_LCD_0_PWM_0 IMX_SC_PM_CLK_PER>,
 			 <&dma_ipg_clk>;
-		clock-indices = <IMX_LPCG_CLK_0>, <IMX_LPCG_CLK_4>;
+		bit-offset = <0 16>;
 		clock-output-names = "adma_pwm_lpcg_clk",
 				     "adma_pwm_lpcg_ipg_clk";
 		power-domains = <&pd IMX_SC_R_LCD_0_PWM_0>;

@@ -363,7 +363,8 @@ bool dcss_hdr10_pipe_cfg_is_supported(struct dcss_hdr10 *hdr10,
 				      struct dcss_hdr10_pipe_cfg *opipe_cfg);
 void dcss_hdr10_setup(struct dcss_hdr10 *hdr10, int ch_num,
 		      struct dcss_hdr10_pipe_cfg *ipipe_cfg,
-		      struct dcss_hdr10_pipe_cfg *opipe_cfg);
+		      struct dcss_hdr10_pipe_cfg *opipe_cfg,
+		      u32 format);
 
 /* enums common to both WRSCL and RDSRC */
 enum dcss_wrscl_rdsrc_psize {

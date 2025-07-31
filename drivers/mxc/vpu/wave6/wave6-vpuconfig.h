@@ -49,6 +49,9 @@
 #define W6_ENC_CROP_X_POS_STEP          32
 #define W6_ENC_CROP_Y_POS_STEP          2
 #define W6_ENC_CROP_STEP                2
+#define W6_MAX_CUSTOM_MAP_UNITS         \
+		(DIV_ROUND_UP(W6_MAX_ENC_PIC_WIDTH, 16) * DIV_ROUND_UP(W6_MAX_ENC_PIC_HEIGHT, 16))
+#define W6_ENC_CTU_WIDTH_ALIGNMENT      512
 
 #define W6_VPU_POLL_DELAY_US            10
 #define W6_VPU_POLL_TIMEOUT             300000

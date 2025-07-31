@@ -2318,6 +2318,8 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
 
     gcmkONERROR(gckOS_QueryOption(os, "mmu", &mmuEnabled));
 
+    mmu->flatMapping = Kernel->flatMapping;
+
     mmu->flatMappingMode = gcdFLAT_MAPPING_MODE;
 
     if (hardware->mmuVersion == 0) {
@@ -2467,41 +2469,43 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
         /* Invalid all the entries. */
         gcmkONERROR(gckOS_ZeroMemory(pointer, mmu->mtlbSize));
 
-        gcmkONERROR(gckOS_QueryOption(mmu->os, "physBase", &physBase));
+        if (mmu->flatMapping) {
+            gcmkONERROR(gckOS_QueryOption(mmu->os, "physBase", &physBase));
 
-        gcmkONERROR(gckOS_QueryOption(mmu->os, "physSize", &data));
+            gcmkONERROR(gckOS_QueryOption(mmu->os, "physSize", &data));
 
-        physSize = (gctSIZE_T)data;
+            physSize = (gctSIZE_T)data;
 
-        if (physSize) {
+            if (physSize) {
 #ifdef MSDX
-            gctUINT64 wddmMode = 0;
+                gctUINT64 wddmMode = 0;
 #endif
-            gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os, physBase, &gpuPhysical));
+                gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os, physBase, &gpuPhysical));
 
 #if gcdENABLE_40BIT_VA
-            gpuAddress = (gctADDRESS)gpuPhysical;
+                gpuAddress = (gctADDRESS)gpuPhysical;
 #else
-            gcmkSAFECASTPHYSADDRT(gpuAddress, gpuPhysical);
+                gcmkSAFECASTPHYSADDRT(gpuAddress, gpuPhysical);
 #endif
 
-            if (gpuAddress < mmu->reserveRangeSize) {
+                if (gpuAddress < mmu->reserveRangeSize) {
 
-                if (gpuAddress + physSize <= mmu->reserveRangeSize)
-                    gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+                    if (gpuAddress + physSize <= mmu->reserveRangeSize)
+                        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
 
-                gcmkPRINT("Galcore warning: pre-flat mapping base address can't be lower than 0x1000000, adjust it to 0x1000000. ");
+                    gcmkPRINT("Galcore warning: pre-flat mapping base address can't be lower than 0x1000000, adjust it to 0x1000000. ");
 
-                physSize = (gctUINT32)gpuAddress + physSize - mmu->reserveRangeSize;
+                    physSize = (gctUINT32)gpuAddress + physSize - mmu->reserveRangeSize;
 
-                gpuAddress = (gctADDRESS)mmu->reserveRangeSize;
-            }
+                    gpuAddress = (gctADDRESS)mmu->reserveRangeSize;
+                }
 
 #ifdef MSDX
-            if ((gcvSTATUS_OK != gckOS_QueryOption(mmu->os, "wddmMode", &wddmMode)) || !wddmMode)
+                if ((gcvSTATUS_OK != gckOS_QueryOption(mmu->os, "wddmMode", &wddmMode)) || !wddmMode)
 #endif
-                /* Setup user specified flat mapping. */
-                gcmkONERROR(gckMMU_FillFlatMapping(mmu, gpuAddress, physSize, gcvFALSE, gcvFALSE, gcvNULL));
+                    /* Setup user specified flat mapping. */
+                    gcmkONERROR(gckMMU_FillFlatMapping(mmu, gpuAddress, physSize, gcvFALSE, gcvFALSE, gcvNULL));
+            }
         }
 
 #if !(0)
@@ -2558,40 +2562,43 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
 
         gcmkONERROR(gckMMU_SetupSRAM(mmu, mmu->hardware, Kernel->device));
 
-        for (i = 0; i < gcdSYSTEM_RESERVE_COUNT; i++) {
-            if (i) {
-                contiguousSize = device->contiguousSizes[i];
+        if (mmu->flatMapping) {
+            for (i = 0; i < gcdSYSTEM_RESERVE_COUNT; i++) {
+                if (i) {
+                    contiguousSize = device->contiguousSizes[i];
 
-                if (contiguousSize)
-                    gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os,
+                    if (contiguousSize)
+                        gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os,
                                                                device->contiguousBases[i],
                                                                &gpuContiguousBase));
-            } else {
+                } else {
 #if gcdENABLE_40BIT_VA
-                if (contiguousBase > gcd4G_SIZE - gcd4G_VA_FM_SIZE)
-                    contiguousBaseAddress = gcd4G_SIZE - gcd4G_VA_FM_SIZE;
+                    if (contiguousBase > gcd4G_SIZE - gcd4G_VA_FM_SIZE)
+                        contiguousBaseAddress = gcd4G_SIZE - gcd4G_VA_FM_SIZE;
 #endif
-            }
+                }
 
 #if !gcdCAPTURE_ONLY_MODE
-            if (contiguousSize && gpuContiguousBase != gcvINVALID_PHYSICAL_ADDRESS) {
-                /* Setup flat mapping for reserved memory (VIDMEM). */
-                gcmkONERROR(gckMMU_FillFlatMapping(mmu, gpuContiguousBase, contiguousSize,
+                if (contiguousSize && gpuContiguousBase != gcvINVALID_PHYSICAL_ADDRESS) {
+                    /* Setup flat mapping for reserved memory (VIDMEM). */
+                    gcmkONERROR(gckMMU_FillFlatMapping(mmu, gpuContiguousBase, contiguousSize,
                                                    gcvFALSE, gcvTRUE, &contiguousBaseAddress));
 
-                if (mmuEnabled)
-                    mmu->contiguousBaseAddresses[i] = contiguousBaseAddress;
-                else
-                    gcmkSAFECASTPHYSADDRT(mmu->contiguousBaseAddresses[i], gpuContiguousBase);
+                    if (mmuEnabled)
+                        mmu->contiguousBaseAddresses[i] = contiguousBaseAddress;
+                    else
+                        gcmkSAFECASTPHYSADDRT(mmu->contiguousBaseAddresses[i], gpuContiguousBase);
 
-                if (device->showMemInfo)
-                    gcmkPRINT("[Galcore]: system reserved pool%d CPU physical=0x%llx GPU physical=0x%llx virtual=0x%llx size=0x%llx",
+                    if (device->showMemInfo)
+                        gcmkPRINT("[Galcore]: system reserved pool%d CPU physical=0x%llx GPU physical=0x%llx virtual=0x%llx size=0x%llx",
                               i, contiguousBase, gpuContiguousBase, mmu->contiguousBaseAddresses[i], (gctUINT64)contiguousSize);
-            }
+                }
 #endif
+            }
         }
 
-        if (Kernel->device->externalSize && gpuExternalBase != gcvINVALID_PHYSICAL_ADDRESS) {
+        if (mmu->flatMapping && Kernel->device->externalSize &&
+            gpuExternalBase != gcvINVALID_PHYSICAL_ADDRESS) {
             gctADDRESS externalBaseAddress = 0;
 
             /* Setup flat mapping for external memory. */
@@ -2606,7 +2613,7 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
                            device->id, device->externalBase, gpuExternalBase, externalBaseAddress, device->externalSize);
         }
 
-        if (Kernel->device->exclusiveSize) {
+        if (mmu->flatMapping && Kernel->device->exclusiveSize) {
             gctUINT64  gpuExclusiveBase;
             gctADDRESS exclusiveBaseAddress = 0;
 
@@ -2668,6 +2675,12 @@ _Construct(IN gckKERNEL Kernel, IN gctSIZE_T MmuSize, OUT gckMMU *Mmu)
     gcmkONERROR(gckQUEUE_Allocate(os, &mmu->recentFreedAddresses, 16));
 
     mmu->sRAMMapped = gcvFALSE;
+
+    if (Kernel->processPageTable) {
+        gcsLIST_Init(&mmu->nodeList);
+
+        gcmkONERROR(gckOS_CreateMutex(mmu->os, &mmu->nodeListMutex));
+    }
 
     /* Return the gckMMU object pointer. */
     *Mmu = mmu;
@@ -2797,6 +2810,11 @@ _Destroy(IN gckMMU Mmu)
 
     /* Delete the page table mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, Mmu->pageTableMutex));
+
+    if (Mmu->nodeListMutex && kernel->processPageTable) {
+        gcmkVERIFY_OK(gckOS_DeleteMutex(Mmu->os, Mmu->nodeListMutex));
+        Mmu->nodeListMutex = gcvNULL;
+    }
 
     if (Mmu->safePageLogical != gcvNULL)
         gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(kernel, Mmu->safePageVideoMem));
@@ -3087,7 +3105,6 @@ _AllocatePages(IN gckMMU Mmu, IN gctSIZE_T PageCount, IN gceVIDMEM_TYPE Type,
                           gcdMMU_STLB_4K_SHIFT;
         gctUINT32 masterOffset = index / num + area->mappingStart;
         gctUINT32 slaveOffset  = index % num;
-
         address = ((gctADDRESS)masterOffset << gcdMMU_MTLB_SHIFT) | (slaveOffset << shift);
     }
 
@@ -3350,6 +3367,7 @@ gckMMU_Flush(IN gckMMU Mmu, IN gceVIDMEM_TYPE Type)
     gctUINT32       mask;
     gctINT          i;
     gcsLISTHEAD_PTR hardwareHead;
+    gckMMU mmu;
 
     if (Type == gcvVIDMEM_TYPE_VERTEX_BUFFER ||
         Type == gcvVIDMEM_TYPE_INDEX_BUFFER ||
@@ -3364,10 +3382,15 @@ gckMMU_Flush(IN gckMMU Mmu, IN gceVIDMEM_TYPE Type)
     for (i = 0; i < gcvENGINE_GPU_ENGINE_COUNT; i++)
         gcmkVERIFY_OK(gckOS_AtomSetMask(hardware->pageTableDirty[i], mask));
 
-    gcmkLIST_FOR_EACH(hardwareHead, &Mmu->hardwareList) {
+    if (hardware->kernel->processPageTable)
+        mmu = hardware->kernel->mmu;
+    else
+        mmu = Mmu;
+
+    gcmkLIST_FOR_EACH(hardwareHead, &mmu->hardwareList) {
         hardware = gcmCONTAINEROF(hardwareHead, struct _gckHARDWARE, mmuHead);
 
-        if (hardware != Mmu->hardware) {
+        if (hardware != mmu->hardware) {
             for (i = 0; i < gcvENGINE_GPU_ENGINE_COUNT; i++) {
                 gcmkVERIFY_OK(gckOS_AtomSetMask(hardware->pageTableDirty[i],
                                                 mask));
@@ -3754,7 +3777,6 @@ gckMMU_FillFlatMapping(IN gckMMU Mmu, IN gctUINT64 PhysBase,
     Mmu->gpuPhysicalRanges[Mmu->gpuPhysicalRangeCount].flag   = mapFlag;
     Mmu->gpuPhysicalRanges[Mmu->gpuPhysicalRangeCount].vStart = baseAddress;
     Mmu->gpuPhysicalRangeCount++;
-
     gcmkASSERT(Mmu->gpuPhysicalRangeCount <= gcdMAX_FLAT_MAPPING_COUNT);
 
     return gcvSTATUS_OK;
@@ -4031,5 +4053,390 @@ gckMMU_GetAreaType(IN gckMMU Mmu, IN gctADDRESS Address,
     }
 
 OnError:
+    return status;
+}
+
+#define TT 0
+gceSTATUS
+gckMMU_SwitchMtlb(gckMMU dstMMU, gckMMU srcMMU)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+#if gcdDEBUG_MMU_SWITCH && TT
+    gctUINT32 i;
+    gctUINT32 mtlbIndex = 127;
+    gctUINT32 mtlbEntry;
+    gctPOINTER logical;
+#endif
+
+    gcmkHEADER();
+
+#if gcdDEBUG_MMU_SWITCH && TT
+    for (i = 0; i < dstMMU->mtlbSize / 4; i++) {
+        gcmkPRINT("[Galcore}: dstMMU=%p mtlb%d=0x%x before switch.\n",
+                  dstMMU, i, *((gctUINT32 *)(dstMMU->mtlbLogical + i)));
+        gcmkPRINT("[Galcore]: srcMMU=%p mtlb%d=0x%x before switch.\n",
+                  srcMMU, i, *((gctUINT32 *)(srcMMU->mtlbLogical + i)));
+    }
+#endif
+    gcmkONERROR(gckOS_MemCopy(dstMMU->mtlbLogical, srcMMU->mtlbLogical, srcMMU->mtlbSize));
+    gckVIDMEM_NODE_CleanCache(dstMMU->hardware->kernel, dstMMU->mtlbVideoMem, 0, dstMMU->mtlbLogical, dstMMU->mtlbSize);
+    gcmkONERROR(gckOS_MemoryBarrier(dstMMU->os, dstMMU->mtlbLogical));
+
+    gcmkVERIFY_OK(gckMMU_Flush(dstMMU, gcvVIDMEM_TYPE_COMMAND));
+
+#if gcdDEBUG_MMU_SWITCH && TT
+    for (i = 0; i < dstMMU->mtlbSize / 4; i++) {
+        gcmkPRINT("[Galcore]: dstMMU=%p mtlb%d=0x%x after switch.\n",
+                  dstMMU, i, *((gctUINT32 *)(dstMMU->mtlbLogical + i)));
+        gcmkPRINT("[Galcore]: srcMMU=%p mtlb%d=0x%x after switch.\n",
+                  srcMMU, i, *((gctUINT32 *)(srcMMU->mtlbLogical + i)));
+    }
+
+    mtlbEntry = *((gctUINT32 *)(dstMMU->mtlbLogical + mtlbIndex)) & ~0x1F;
+    gckOS_MapPhysical(dstMMU->os, mtlbEntry, 0x4000, &logical);
+
+    i = 0;
+    gcmkPRINT("core %d dst mmu=%p mtlbEntry %d=%x stlb%d=0x%x after switch.\n",
+              dstMMU->hardware->core, dstMMU, mtlbIndex, mtlbEntry, i, *((gctUINT32 *)logical + i));
+
+    mtlbEntry = *((gctUINT32 *)(srcMMU->mtlbLogical + mtlbIndex)) & ~0x1F;
+    gckOS_MapPhysical(srcMMU->os, mtlbEntry, 0x4000, &logical);
+
+    gcmkPRINT("core %d dst mmu=%p mtlbEntry %d=%x stlb%d=0x%x after switch.\n",
+              srcMMU->hardware->core, srcMMU, mtlbIndex, mtlbEntry, i, *((gctUINT32 *)logical + i));
+#endif
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+static gceSTATUS
+_CopyUsedDynamicArea(IN gckKERNEL Kernel, IN gcsADDRESS_AREA_PTR Area,
+                   OUT gcsADDRESS_AREA_PTR AreaCopy)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gctUINT32 index;
+    gctUINT32 total = (gctUINT32)Area->stlbSize / 4;
+
+    gcmkONERROR(gckOS_Allocate(Kernel->os, Area->stlbSize, (gctPOINTER *)&AreaCopy->stlbLogical));
+
+    for (index = total - 1; index; index--) {
+#if gcdUSE_MMU_EXCEPTION
+        if (Area->stlbLogical[index] == 0x2) {
+#else
+        if (!Area->stlbLogical[index]) {
+#endif
+            Area->usedIndex = index + 1;
+            break;
+        }
+    }
+
+    if (!Area->usedIndex || Area->usedIndex >= total)
+        gcmkONERROR(gcvSTATUS_NOT_FOUND);
+
+    gcmkONERROR(gckOS_MemCopy(AreaCopy->stlbLogical + Area->usedIndex,
+                              Area->stlbLogical + Area->usedIndex,
+                              (Area->stlbSize - Area->usedIndex * 4)));
+OnError:
+    return status;
+}
+
+gceSTATUS
+gckMMU_DestroyMmuCopy(IN gckMMU Mmu)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+
+    if (!Mmu)
+        return gcvSTATUS_INVALID_ARGUMENT;
+
+#if gcdENABLE_40BIT_VA
+    if (Mmu->dynamicLowArea4K.stlbLogical)
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicLowArea4K.stlbLogical));
+
+#if gcdENABLE_GPU_1M_PAGE
+    if (Mmu->dynamicLowArea1M.stlbLogical)
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicLowArea1M.stlbLogical));
+#endif
+#endif
+
+#if gcdENABLE_GPU_1M_PAGE
+    if (Mmu->dynamicArea1M.stlbLogical)
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea1M.stlbLogical));
+#endif
+
+    if (Mmu->dynamicArea4K.stlbLogical)
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea4K.stlbLogical));
+
+    gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu));
+
+    return status;
+}
+
+gceSTATUS
+gckMMU_ConstructMmuCopy(IN gckKERNEL Kernel, OUT gckMMU *MmuCopy)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gckMMU mmu = Kernel->mmu;
+    gckMMU mmuCopy = gcvNULL;
+    gcsADDRESS_AREA_PTR area, areaCopy;
+    gctPOINTER pointer = gcvNULL;
+
+    if (!mmu)
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+
+    /* Allocate memory for the gckMMU object. */
+    gcmkONERROR(gckOS_Allocate(Kernel->os, sizeof(struct _gckMMU), &pointer));
+
+    gckOS_ZeroMemory(pointer, sizeof(struct _gckMMU));
+
+    mmuCopy = (gckMMU)pointer;
+    mmuCopy->os = Kernel->os;
+
+#if gcdENABLE_40BIT_VA
+    area = &mmu->dynamicLowArea4K;
+    areaCopy = &mmuCopy->dynamicLowArea4K;
+
+    gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
+#if gcdENABLE_GPU_1M_PAGE
+    area = &mmu->dynamicLowArea1M;
+    areaCopy = &mmuCopy->dynamicLowArea1M;
+
+    gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
+#endif
+#endif
+
+#if gcdENABLE_GPU_1M_PAGE
+    area = &mmu->dynamicArea1M;
+    areaCopy = &mmuCopy->dynamicArea1M;
+
+    gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
+#endif
+
+    area = &mmu->dynamicArea4K;
+    areaCopy = &mmuCopy->dynamicArea4K;
+
+    gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
+
+    if (MmuCopy)
+        *MmuCopy = mmuCopy;
+
+OnError:
+    return status;
+}
+
+gceSTATUS
+gckMMU_CopyDynamicAreas(IN gckKERNEL Kernel, IN gckMMU dstMMU)
+{
+    gckMMU mmu = Kernel->mmu;
+    gckMMU mmuCopy = Kernel->mmuCopy;
+    gcsADDRESS_AREA_PTR dstArea, areaCopy, area;
+    gceSTATUS status = gcvSTATUS_OK;
+    if (!mmu || !mmuCopy || !dstMMU)
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+
+#if gcdENABLE_40BIT_VA
+    dstArea = &dstMMU->dynamicLowArea4K;
+    areaCopy = &mmuCopy->dynamicLowArea4K;
+    area = &mmu->dynamicLowArea4K;
+
+    gcmkASSERT(dstArea->stlbSize - area->usedIndex * 4 > 0);
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->mapLogical,
+                              area->mapLogical,
+                              dstArea->stlbSize));
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
+                              areaCopy->stlbLogical + area->usedIndex,
+                              (dstArea->stlbSize - area->usedIndex * 4)));
+gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+#if gcdENABLE_GPU_1M_PAGE
+    dstArea = &dstMMU->dynamicLowArea1M;
+    areaCopy = &mmuCopy->dynamicLowArea1M;
+    area = &mmu->dynamicLowArea1M;
+
+    gcmkASSERT(dstArea->stlbSize - area->usedIndex * 4 > 0);
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->mapLogical,
+                              area->mapLogical,
+                              dstArea->stlbSize));
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
+                              areaCopy->stlbLogical + area->usedIndex,
+                              (dstArea->stlbSize - area->usedIndex * 4)));
+gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+#endif
+#endif
+
+#if gcdENABLE_GPU_1M_PAGE
+    dstArea = &dstMMU->dynamicArea1M;
+    areaCopy = &mmuCopy->dynamicArea1M;
+    area = &mmu->dynamicArea1M;
+
+    gcmkASSERT(dstArea->stlbSize - area->usedIndex * 4 > 0);
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->mapLogical,
+                              area->mapLogical,
+                              dstArea->stlbSize));
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
+                              areaCopy->stlbLogical + area->usedIndex,
+                              (dstArea->stlbSize - area->usedIndex * 4)));
+    gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+#endif
+
+    dstArea = &dstMMU->dynamicArea4K;
+    areaCopy = &mmuCopy->dynamicArea4K;
+    area = &mmu->dynamicArea4K;
+
+    gcmkASSERT(dstArea->stlbSize - area->usedIndex * 4 > 0);
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->mapLogical,
+                              area->mapLogical,
+                              dstArea->stlbSize));
+
+    gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
+                              areaCopy->stlbLogical + area->usedIndex,
+                              (dstArea->stlbSize - area->usedIndex * 4)));
+gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+
+OnError:
+    return status;
+}
+
+gceSTATUS
+gckMMU_DestroyProcessMMU(IN gckMMU Mmu)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gckKERNEL kernel;
+
+    gcmkHEADER_ARG("Mmu=%p", Mmu);
+
+    gcmkVERIFY_ARGUMENT(Mmu != gcvNULL);
+
+    kernel = Mmu->hardware->kernel;
+
+    if (Mmu->descIndex) {
+        gckDEVICE device = kernel->device;
+        gctUINT i;
+
+        gcmkVERIFY_OK(gckOS_AcquireMutex(kernel->os, kernel->mmuDescMutex, gcvINFINITE));
+
+        for (i = 0; i < device->coreNum; i++) {
+            if (device->kernels[i])
+                device->kernels[i]->mmuDescMap[Mmu->descIndex] = 0;
+        }
+
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(kernel->os, kernel->mmuDescMutex));
+    }
+
+    gcmkVERIFY_OK(gckMMU_Destroy(Mmu));
+
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckMMU_ConstructProcessMMU(IN gckKERNEL Kernel, OUT gctUINT32 ProcessID, gckMMU *Mmu)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gckMMU mmu = gcvNULL;
+    gctUINT64 dynamicMap;
+    gcmkHEADER_ARG("ProcessID=%d", ProcessID);
+
+    /* Construct the gckMMU object. */
+    gcmkONERROR(gckMMU_Construct(Kernel, gcdMMU_SIZE, &mmu));
+    status = gckOS_QueryOption(Kernel->os, "mmuDynamicMap", &dynamicMap);
+    if (dynamicMap && Kernel->hardware->mmuVersion &&
+        !mmu->dynamicAreaSetuped) {
+        gcmkONERROR(gckMMU_SetupDynamicSpace(mmu));
+        mmu->dynamicAreaSetuped = gcvTRUE;
+    }
+
+    if (Kernel->hardware->mmuVersion > 0) {
+        /* Flush MTLB table. */
+        gcmkONERROR(gckVIDMEM_NODE_CleanCache(Kernel,
+                                              mmu->mtlbVideoMem,
+                                              0,
+                                              mmu->mtlbLogical,
+                                              mmu->mtlbSize));
+    }
+
+    if (!Kernel->flatMapping)
+            gcmkONERROR(gckMMU_CopyDynamicAreas(Kernel, mmu));
+
+
+    //gcmkONERROR(_GetNextDescId(Kernel, &mmu->descIndex));
+
+    mmu->pid = ProcessID;
+
+    *Mmu = mmu;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckMMU_AttachNode(IN gckMMU Mmu, IN gcuVIDMEM_NODE_PTR Node)
+{
+    gcuVIDMEM_NODE_PTR node = gcvNULL;
+    gctPOINTER pointer = gcvNULL;
+    gceSTATUS status = gcvSTATUS_OK;
+    gctUINT index;
+
+    gcmkHEADER_ARG("Mmu=%p Node=%p", Mmu, Node);
+
+    if (!Mmu)
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+
+    gcmkONERROR(gckOS_Allocate(Mmu->os, gcmSIZEOF(gcuVIDMEM_NODE), &pointer));
+
+    gcmkVERIFY_OK(gckOS_ZeroMemory(pointer, gcmSIZEOF(gcuVIDMEM_NODE)));
+
+    node = pointer;
+
+    node->VidMem.id = Node->VidMem.id;
+    index = 0;
+    node->VidMem.lockeds[index]++;
+    node->VidMem.addresses[index] = Node->VidMem.addresses[index];
+    node->VidMem.pageTables[index] = Node->VidMem.pageTables[index];
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Mmu->os,
+                                     Mmu->nodeListMutex,
+                                     gcvINFINITE));
+
+    gcsLIST_Add(&node->VidMem.lockLink, &Mmu->nodeList);
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Mmu->os, Mmu->nodeListMutex));
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckMMU_DetachNode(IN gckMMU Mmu, IN gcuVIDMEM_NODE_PTR Node)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+
+    gcmkHEADER_ARG("Mmu=%p Node=%p", Mmu, Node);
+
+    if (!Mmu || !Node)
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Mmu->os,
+                                     Mmu->nodeListMutex,
+                                     gcvINFINITE));
+
+    gcsLIST_Del(&Node->VidMem.lockLink);
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Mmu->os, Mmu->nodeListMutex));
+
+    gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Node));
+
+OnError:
+    gcmkFOOTER();
     return status;
 }

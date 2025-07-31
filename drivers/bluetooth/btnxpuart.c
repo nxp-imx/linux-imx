@@ -370,17 +370,26 @@ static u8 crc8_table[CRC8_TABLE_SIZE];
 
 static struct sk_buff *nxp_drv_send_cmd(struct hci_dev *hdev, u16 opcode,
 					u32 plen,
-					void *param)
+					void *param,
+					bool resp)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
 	struct ps_data *psdata = &nxpdev->psdata;
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 
 	/* set flag to prevent nxp_enqueue from parsing values from this command and
 	 * calling hci_cmd_sync_queue() again.
 	 */
 	psdata->driver_sent_cmd = true;
-	skb = __hci_cmd_sync(hdev, opcode, plen, param, HCI_CMD_TIMEOUT);
+	if (resp) {
+		skb = __hci_cmd_sync(hdev, opcode, plen, param, HCI_CMD_TIMEOUT);
+	} else {
+		__hci_cmd_send(hdev, opcode, plen, param);
+		/* Allow command to be sent before tx_work is cancelled
+		 * by btnxpuart_flush()
+		 */
+		msleep(20);
+	}
 	psdata->driver_sent_cmd = false;
 
 	return skb;
@@ -600,7 +609,8 @@ static int send_ps_cmd(struct hci_dev *hdev, void *data)
 		pcmd.ps_cmd = BT_PS_DISABLE;
 	pcmd.c2h_ps_interval = __cpu_to_le16(psdata->c2h_ps_interval);
 
-	skb = nxp_drv_send_cmd(hdev, HCI_NXP_AUTO_SLEEP_MODE, sizeof(pcmd), &pcmd);
+	skb = nxp_drv_send_cmd(hdev, HCI_NXP_AUTO_SLEEP_MODE, sizeof(pcmd),
+			       &pcmd, true);
 	if (IS_ERR(skb)) {
 		bt_dev_err(hdev, "Setting Power Save mode failed (%ld)", PTR_ERR(skb));
 		return PTR_ERR(skb);
@@ -649,7 +659,8 @@ static int send_wakeup_method_cmd(struct hci_dev *hdev, void *data)
 		break;
 	}
 
-	skb = nxp_drv_send_cmd(hdev, HCI_NXP_WAKEUP_METHOD, sizeof(pcmd), &pcmd);
+	skb = nxp_drv_send_cmd(hdev, HCI_NXP_WAKEUP_METHOD, sizeof(pcmd),
+			       &pcmd, true);
 	if (IS_ERR(skb)) {
 		bt_dev_err(hdev, "Setting wake-up method failed (%ld)", PTR_ERR(skb));
 		return PTR_ERR(skb);
@@ -1275,7 +1286,8 @@ static int nxp_set_baudrate_cmd(struct hci_dev *hdev, void *data)
 	if (!psdata)
 		return 0;
 
-	skb = nxp_drv_send_cmd(hdev, HCI_NXP_SET_OPER_SPEED, 4, (u8 *)&new_baudrate);
+	skb = nxp_drv_send_cmd(hdev, HCI_NXP_SET_OPER_SPEED, 4,
+			       (u8 *)&new_baudrate, true);
 	if (IS_ERR(skb)) {
 		bt_dev_err(hdev, "Setting baudrate failed (%ld)", PTR_ERR(skb));
 		return PTR_ERR(skb);
@@ -1333,7 +1345,7 @@ static void nxp_coredump(struct hci_dev *hdev)
 	struct sk_buff *skb;
 	u8 pcmd = 2;
 
-	skb = nxp_drv_send_cmd(hdev, HCI_NXP_TRIGGER_DUMP, 1, &pcmd);
+	skb = nxp_drv_send_cmd(hdev, HCI_NXP_TRIGGER_DUMP, 1, &pcmd, true);
 	if (IS_ERR(skb))
 		bt_dev_err(hdev, "Failed to trigger FW Dump. (%ld)", PTR_ERR(skb));
 	else
@@ -1375,7 +1387,6 @@ static int nxp_process_fw_dump(struct hci_dev *hdev, struct sk_buff *skb)
 
 	if (buf_len == 0) {
 		bt_dev_warn(hdev, "==== FW dump complete ===");
-		clear_bit(BTNXPUART_FW_DUMP_IN_PROGRESS, &nxpdev->tx_state);
 		hci_devcd_complete(hdev);
 		nxp_set_ind_reset(hdev, NULL);
 	}
@@ -1429,6 +1440,10 @@ static int nxp_set_bdaddr(struct hci_dev *hdev, const bdaddr_t *bdaddr)
 static int nxp_setup(struct hci_dev *hdev)
 {
 	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
+	struct serdev_device *serdev = nxpdev->serdev;
+	char device_string[30];
+	char event_string[50];
+	char *envp[] = {device_string, event_string, NULL};
 	int err = 0;
 
 	if (nxp_check_boot_sign(nxpdev)) {
@@ -1440,6 +1455,12 @@ static int nxp_setup(struct hci_dev *hdev)
 		bt_dev_info(hdev, "FW already running.");
 		clear_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
 	}
+
+	snprintf(device_string, 30, "BTNXPUART_DEV=%s", dev_name(&serdev->dev));
+	snprintf(event_string, 50, "BTNXPUART_STATE=FW_READY");
+	bt_dev_dbg(hdev, "==== Send uevent: %s:%s ===", device_string,
+		   event_string);
+	kobject_uevent_env(&serdev->dev.kobj, KOBJ_CHANGE, envp);
 
 	serdev_device_set_baudrate(nxpdev->serdev, nxpdev->fw_init_baudrate);
 	nxpdev->current_baudrate = nxpdev->fw_init_baudrate;
@@ -1489,7 +1510,13 @@ static int nxp_shutdown(struct hci_dev *hdev)
 	u8 pcmd = 0;
 
 	if (ind_reset_in_progress(nxpdev)) {
-		skb = nxp_drv_send_cmd(hdev, HCI_NXP_IND_RESET, 1, &pcmd);
+		if (test_and_clear_bit(BTNXPUART_FW_DUMP_IN_PROGRESS,
+				       &nxpdev->tx_state))
+			skb = nxp_drv_send_cmd(hdev, HCI_NXP_IND_RESET, 1,
+					       &pcmd, false);
+		else
+			skb = nxp_drv_send_cmd(hdev, HCI_NXP_IND_RESET, 1,
+					       &pcmd, true);
 		serdev_device_set_flow_control(nxpdev->serdev, false);
 		set_bit(BTNXPUART_FW_DOWNLOADING, &nxpdev->tx_state);
 		/* HCI_NXP_IND_RESET command may not returns any response */
@@ -1755,6 +1782,35 @@ static const struct serdev_device_ops btnxpuart_client_ops = {
 	.write_wakeup = btnxpuart_write_wakeup,
 };
 
+static void nxp_coredump_notify(struct hci_dev *hdev, int state)
+{
+	struct btnxpuart_dev *nxpdev = hci_get_drvdata(hdev);
+	struct serdev_device *serdev = nxpdev->serdev;
+	char device_string[30];
+	char event_string[50];
+	char *envp[] = {device_string, event_string, NULL};
+
+	snprintf(device_string, 30, "BTNXPUART_DEV=%s", dev_name(&serdev->dev));
+	switch (state) {
+	case HCI_DEVCOREDUMP_ACTIVE:
+		snprintf(event_string, 50, "BTNXPUART_STATE=FW_DUMP_ACTIVE");
+		break;
+	case HCI_DEVCOREDUMP_DONE:
+		snprintf(event_string, 50, "BTNXPUART_STATE=FW_DUMP_DONE");
+		break;
+	case HCI_DEVCOREDUMP_TIMEOUT:
+		snprintf(event_string, 50, "BTNXPUART_STATE=FW_DUMP_TIMEOUT");
+		break;
+	default:
+		snprintf(event_string, 50, "BTNXPUART_STATE=FW_DUMP_STATE_%d",
+			 state);
+		break;
+	}
+	bt_dev_dbg(hdev, "==== Send uevent: %s:%s ===", device_string,
+		   event_string);
+	kobject_uevent_env(&serdev->dev.kobj, KOBJ_CHANGE, envp);
+}
+
 static int nxp_serdev_probe(struct serdev_device *serdev)
 {
 	struct hci_dev *hdev;
@@ -1851,7 +1907,8 @@ static int nxp_serdev_probe(struct serdev_device *serdev)
 	if (ps_setup(hdev))
 		goto probe_fail;
 
-	hci_devcd_register(hdev, nxp_coredump, nxp_coredump_hdr, NULL);
+	hci_devcd_register(hdev, nxp_coredump, nxp_coredump_hdr,
+			   nxp_coredump_notify);
 
 	return 0;
 

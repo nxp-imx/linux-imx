@@ -397,6 +397,9 @@ enum enetc_bdr_type {TX, RX};
 #define ENETC_GLOBAL_BASE	0x20000
 #define ENETC_G_EIPBRR0		0x0bf8
 #define  EIPBRR0_REVISION	GENMASK(15, 0)
+#define  ENETC_REV_1_0		0x0100
+#define  ENETC_REV_4_1		0x0401
+#define  ENETC_REV_4_3		0x0403
 #define ENETC_G_EIPBRR1		0x0bfc
 #define ENETC_G_EPFBLPR(n)	(0xd00 + 4 * (n))
 #define ENETC_G_EPFBLPR1_XGMII	0x80000000

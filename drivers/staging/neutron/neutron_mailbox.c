@@ -14,10 +14,6 @@
 
 #define DRIVER_NAME	"imx-neutron-mailbox"
 
-#define INFERENCE_DONE_IRQ_ENABLE	BIT(1)
-#define MBOX_IRQ_ENABLE			BIT(2)
-#define SHUTDOWN_IRQ_ENABLE		BIT(7)
-
 #define MAX_SEND_MSG_ARGC		4
 #define MAX_RECV_MSG_ARGC		2
 #define SEND_MSG_ARG(n)			(MBOX3 + (((n) + 1) << 2))
@@ -208,6 +204,8 @@ static irqreturn_t mbox_irq_handler(int irq, void *data)
 
 	/* Clear irq */
 	writel(val, mbox->base + INTCLR);
+	/* Clear status via W1C */
+	writel(appstatus, mbox->base + APPSTATUS);
 	/* Enable irq again */
 	writel(val, mbox->base + INTENA);
 

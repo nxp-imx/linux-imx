@@ -13,7 +13,7 @@
 #define VPU_ENC_DEV_NAME "C&M Wave6 VPU encoder"
 #define VPU_ENC_DRV_NAME "wave6-enc"
 
-static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
+static const struct vpu_format wave6_vpu_enc_fmt_list[2][28] = {
 	[VPU_FMT_TYPE_CODEC] = {
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_HEVC,
@@ -40,6 +40,9 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV12,
@@ -48,6 +51,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV21,
@@ -56,6 +63,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
+			.nv21 = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_YUV422P,
@@ -64,6 +76,9 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV16,
@@ -72,6 +87,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV61,
@@ -80,6 +99,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
+			.nv21 = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_YUYV,
@@ -88,6 +112,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_YUYV,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.packed_format = PACKED_YUYV,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_YUV24,
@@ -96,6 +124,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_YUV444_24BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV24,
@@ -104,6 +136,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_YUV444_24BIT,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV42,
@@ -112,6 +148,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_YUV444_24BIT,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
+			.nv21 = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_YUV420M,
@@ -120,6 +161,9 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 3,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV12M,
@@ -128,6 +172,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 2,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV21M,
@@ -136,6 +184,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 2,
+			.is_yuv = 1,
+			.src_format = FORMAT_420,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
+			.nv21 = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_YUV422M,
@@ -144,6 +197,9 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 3,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV16M,
@@ -152,6 +208,10 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 2,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_NV61M,
@@ -160,14 +220,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 2,
-		},
-		{
-			.v4l2_pix_fmt = V4L2_PIX_FMT_RGB24,
-			.max_width = W6_MAX_ENC_PIC_WIDTH,
-			.min_width = W6_MIN_ENC_PIC_WIDTH,
-			.max_height = W6_MAX_ENC_PIC_HEIGHT,
-			.min_height = W6_MIN_ENC_PIC_HEIGHT,
-			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_422,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.cbcr_interleave = 1,
+			.nv21 = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_P010,
@@ -176,6 +233,37 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_yuv = 1,
+			.src_format = FORMAT_420_P10_16BIT_MSB,
+			.source_endian = VDI_128BIT_LE_BYTE_SWAP,
+			.cbcr_interleave = 1,
+			.is_10bit = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_RGB24,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_24BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_RGB,
+			.cbcr_interleave = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_BGR24,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_24BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_BGR,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_ARGB32,
@@ -184,6 +272,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_ARGB,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_XRGB32,
@@ -192,6 +285,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_ARGB,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_RGBA32,
@@ -200,6 +298,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_RGBA,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_RGBX32,
@@ -208,6 +311,63 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_RGBA,
+			.cbcr_interleave = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_XBGR32,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_BGRA,
+			.cbcr_interleave = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_ABGR32,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_BGRA,
+			.cbcr_interleave = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_BGRX32,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_ABGR,
+			.cbcr_interleave = 1,
+		},
+		{
+			.v4l2_pix_fmt = V4L2_PIX_FMT_BGRA32,
+			.max_width = W6_MAX_ENC_PIC_WIDTH,
+			.min_width = W6_MIN_ENC_PIC_WIDTH,
+			.max_height = W6_MAX_ENC_PIC_HEIGHT,
+			.min_height = W6_MIN_ENC_PIC_HEIGHT,
+			.num_planes = 1,
+			.is_rgb = 1,
+			.src_format = FORMAT_RGB_32BIT_PACKED,
+			.source_endian = VPU_SOURCE_ENDIAN,
+			.csc_order = CSC_ORDER_ABGR,
+			.cbcr_interleave = 1,
 		},
 		{
 			.v4l2_pix_fmt = V4L2_PIX_FMT_ARGB2101010,
@@ -216,6 +376,11 @@ static const struct vpu_format wave6_vpu_enc_fmt_list[2][23] = {
 			.max_height = W6_MAX_ENC_PIC_HEIGHT,
 			.min_height = W6_MIN_ENC_PIC_HEIGHT,
 			.num_planes = 1,
+			.is_rgb = 1,
+			.is_10bit = 1,
+			.src_format = FORMAT_RGB_P10_32BIT_PACKED,
+			.source_endian = VDI_128BIT_LE_WORD_BYTE_SWAP,
+			.cbcr_interleave = 1,
 		},
 	}
 };
@@ -338,22 +503,15 @@ static struct vb2_v4l2_buffer *wave6_get_valid_dst_buf(struct vpu_instance *inst
 
 static void wave6_set_csc(struct vpu_instance *inst, struct enc_param *pic_param)
 {
+	const struct vpu_format *vpu_fmt;
 	bool is_10bit = false;
 
-	if (!(inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGB24) &&
-	    !(inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB32) &&
-	    !(inst->src_fmt.pixelformat == V4L2_PIX_FMT_XRGB32) &&
-	    !(inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBA32) &&
-	    !(inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBX32) &&
-	    !(inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB2101010))
+	vpu_fmt = wave6_find_vpu_fmt(inst->src_fmt.pixelformat, VPU_FMT_TYPE_RAW);
+	if (!vpu_fmt || !vpu_fmt->is_rgb)
 		return;
 
-	if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB2101010)
-		is_10bit = true;
-
-	if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBA32 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBX32)
-		pic_param->csc.format_order = 8;
+	is_10bit = vpu_fmt->is_10bit;
+	pic_param->csc.format_order = vpu_fmt->csc_order;
 
 	if (inst->ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT ||
 	    inst->ycbcr_enc == V4L2_YCBCR_ENC_601) {
@@ -720,10 +878,10 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 		}
 		for (int i = 0; i < inst->src_fmt.num_planes; i++) {
 			dma_addr_t daddr = vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, i);
+			size_t sizeimage = inst->src_fmt.plane_fmt[i].sizeimage;
 
-			dma_sync_single_for_device(inst->dev->dev, daddr,
-						   inst->src_fmt.plane_fmt[i].sizeimage,
-						   DMA_BIDIRECTIONAL);
+			wave6_vpu_force_dma_sync_single_for_device(inst->dev, daddr,
+								   sizeimage, DMA_BIDIRECTIONAL);
 		}
 		wave6_update_frame_buf_addr(inst, &frame_buf);
 		frame_buf.stride = stride;
@@ -732,6 +890,11 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 			pic_param.force_pic_type_enable = true;
 			pic_param.force_pic_type = ENC_FORCE_PIC_TYPE_IDR;
 			inst->error_recovery = false;
+		}
+		if (inst->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP &&
+		    src_vbuf->custom_qp_map.daddr) {
+			pic_param.custom_map_opt.field.custom_roi_map_enable = 1;
+			pic_param.custom_map_addr = src_vbuf->custom_qp_map.daddr;
 		}
 		if (src_vbuf->force_frame_qp) {
 			pic_param.force_pic_qp_enable = true;
@@ -839,8 +1002,8 @@ static void wave6_handle_encoded_frame(struct vpu_instance *inst,
 		inst->error_recovery = true;
 		inst->error_buf_num++;
 	}
-	dma_sync_single_for_cpu(inst->dev->dev, info->bitstream_buffer,
-				info->bitstream_size, DMA_BIDIRECTIONAL);
+	wave6_vpu_force_dma_sync_single_for_cpu(inst->dev, info->bitstream_buffer,
+						info->bitstream_size, DMA_BIDIRECTIONAL);
 	v4l2_m2m_buf_done(dst_buf, state);
 	inst->processed_buf_num++;
 }
@@ -883,10 +1046,10 @@ static void wave6_vpu_enc_finish_encode(struct vpu_instance *inst, bool error)
 		goto finish_encode;
 	}
 
+	memset(&info, 0, sizeof(info));
 	ret = wave6_vpu_enc_get_output_info(inst, &info);
 	if (ret) {
-		dev_err(inst->dev->dev, "vpu_enc_get_output_info fail %d  reason: %d | info : %d\n",
-			ret, info.error_reason, info.warn_info);
+		dev_err(inst->dev->dev, "vpu_enc_get_output_info fail %d\n", ret);
 		goto finish_encode;
 	}
 
@@ -988,6 +1151,88 @@ static int wave6_vpu_enc_try_fmt_cap(struct file *file, void *fh, struct v4l2_fo
 	return 0;
 }
 
+static void wave6_vpu_enc_get_roi_info(enum codec_std std, u32 width, u32 height,
+				       struct vpu_roi_map_info *info)
+{
+	struct vpu_roi_map_info roi;
+	u32 grp_width, grp_height;
+
+	if (std == W_AVC_ENC) {
+		roi.ctu.width = 16;
+		roi.ctu.height = 16;
+		roi.group.width = 1;
+		roi.group.height = 1;
+	} else {
+		roi.ctu.width = 32;
+		roi.ctu.height = 32;
+		roi.group.width = 2;
+		roi.group.height = 2;
+	}
+	roi.num_ctu_col = DIV_ROUND_UP(width, roi.ctu.width);
+	roi.num_ctu_row = DIV_ROUND_UP(height, roi.ctu.height);
+	roi.num_ctu = roi.num_ctu_col * roi.num_ctu_row;
+
+	grp_width = roi.ctu.width * roi.group.width;
+	grp_height = roi.ctu.height * roi.group.height;
+	roi.num_group_col = DIV_ROUND_UP(ALIGN(width, W6_ENC_CTU_WIDTH_ALIGNMENT), grp_width);
+	roi.num_group_row = DIV_ROUND_UP(height, grp_height);
+	roi.custom_map_size = roi.num_group_col * roi.num_group_row;
+	roi.custom_map_size *= (roi.group.width * roi.group.height);
+
+	if (info)
+		*info = roi;
+}
+
+static u32 wave6_vpu_enc_get_internal_ctu_count(enum codec_std std, u32 width, u32 height)
+{
+	struct vpu_roi_map_info roi = { 0 };
+
+	wave6_vpu_enc_get_roi_info(std, width, height, &roi);
+	return roi.custom_map_size;
+}
+
+static void wave6_vpu_enc_set_roi_info(struct vpu_instance *inst)
+{
+	struct vpu_roi_map_info roi = { 0 };
+	struct v4l2_ctrl *ctrl;
+
+	wave6_vpu_enc_get_roi_info(inst->std,
+				   inst->codec_rect.width,
+				   inst->codec_rect.height,
+				   &roi);
+	if (memcmp((void *)&roi, (void *)&inst->roi_info, sizeof(roi))) {
+		memcpy(&inst->roi_info, &roi, sizeof(roi));
+		memset(inst->custom_qp_map.vaddr, 0, inst->custom_qp_map.size);
+	}
+
+	ctrl = v4l2_ctrl_find(&inst->v4l2_ctrl_hdl, V4L2_CID_MPEG_VIDEO_ROI_BLOCK_SIZE);
+	if (ctrl)
+		v4l2_ctrl_s_ctrl_area(ctrl, (void *)&roi.ctu);
+}
+
+static void wave6_vpu_enc_set_roi_map(struct vpu_instance *inst, s32 *user_map, u32 count)
+{
+	unsigned char *map = (unsigned char *)inst->custom_qp_map.vaddr;
+	struct vpu_roi_map_info *roi = &inst->roi_info;
+	struct v4l2_area *group = &roi->group;
+	int i, j, index, sub_index;
+	char item;
+
+	if (count != roi->num_ctu)
+		return;
+
+	for (i = 0; i < roi->num_ctu_row; i++) {
+		for (j = 0; j < roi->num_ctu_col; j++) {
+			/*ctu index in group*/
+			sub_index = group->width * (i % group->height) + (j % group->width);
+			/*group index*/
+			index = roi->num_group_col * (i / group->height) + (j / group->width);
+			item = (char)(*(user_map +  i * roi->num_ctu_col + j));
+			*(map + index * group->width * group->height + sub_index) = item & 0x3f;
+		}
+	}
+}
+
 static int wave6_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct vpu_instance *inst = wave6_to_vpu_inst(fh);
@@ -1019,6 +1264,8 @@ static int wave6_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_form
 		inst->dst_fmt.plane_fmt[i].bytesperline = pix_mp->plane_fmt[i].bytesperline;
 		inst->dst_fmt.plane_fmt[i].sizeimage = pix_mp->plane_fmt[i].sizeimage;
 	}
+
+	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 }
@@ -1112,6 +1359,7 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 {
 	struct vpu_instance *inst = wave6_to_vpu_inst(fh);
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	const struct vpu_format *vpu_fmt;
 	int i, ret;
 
 	dev_dbg(inst->dev->dev, "%s: 4cc %d w %d h %d plane %d colorspace %d\n",
@@ -1121,6 +1369,10 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 	ret = wave6_vpu_enc_try_fmt_out(file, fh, f);
 	if (ret)
 		return ret;
+
+	vpu_fmt = wave6_find_vpu_fmt(pix_mp->pixelformat, VPU_FMT_TYPE_RAW);
+	if (!vpu_fmt)
+		return -EINVAL;
 
 	inst->src_fmt.width = pix_mp->width;
 	inst->src_fmt.height = pix_mp->height;
@@ -1133,32 +1385,8 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 		inst->src_fmt.plane_fmt[i].sizeimage = pix_mp->plane_fmt[i].sizeimage;
 	}
 
-	if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV12 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV16 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV24 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV12M ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV16M ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGB24 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV24 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_P010 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB32 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_XRGB32 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBA32 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBX32 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB2101010) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = false;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV21 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV61 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV42 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV21M ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV61M) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = true;
-	} else {
-		inst->cbcr_interleave = false;
-		inst->nv21 = false;
-	}
+	inst->cbcr_interleave = vpu_fmt->cbcr_interleave;
+	inst->nv21 = vpu_fmt->nv21;
 
 	inst->colorspace = pix_mp->colorspace;
 	inst->ycbcr_enc = pix_mp->ycbcr_enc;
@@ -1167,6 +1395,7 @@ static int wave6_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 
 	wave6_update_pix_fmt(&inst->dst_fmt, pix_mp->width, pix_mp->height);
 	wave6_update_crop_info(inst, 0, 0, pix_mp->width, pix_mp->height);
+	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 }
@@ -1268,6 +1497,7 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 
 	wave6_update_pix_fmt(&inst->dst_fmt, s->r.width, s->r.height);
 	wave6_update_crop_info(inst, s->r.left, s->r.top, s->r.width, s->r.height);
+	wave6_vpu_enc_set_roi_info(inst);
 
 	dev_dbg(inst->dev->dev, "V4L2_SEL_TGT_CROP %dx%dx%dx%d\n",
 		s->r.left, s->r.top, s->r.width, s->r.height);
@@ -1550,6 +1780,12 @@ static int wave6_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE:
 		p->h264.cpb_size = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_VIDEO_ROI_MODE:
+		inst->roi_mode = ctrl->val;
+		break;
+	case V4L2_CID_MPEG_VIDEO_ROI_MAP_DELTA_QP:
+		wave6_vpu_enc_set_roi_map(inst, ctrl->p_new.p, ctrl->new_elems);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1559,6 +1795,21 @@ static int wave6_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops wave6_vpu_enc_ctrl_ops = {
 	.s_ctrl = wave6_vpu_enc_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config wave6_vpu_enc_ctrl_roi_map = {
+	.ops = &wave6_vpu_enc_ctrl_ops,
+	.id = V4L2_CID_MPEG_VIDEO_ROI_MAP_DELTA_QP,
+	.def = 0,
+	.min = -51,
+	.max = 51,
+	.step = 1,
+	.dims = { W6_MAX_CUSTOM_MAP_UNITS },
+};
+
+static const struct v4l2_ctrl_config wave6_vpu_enc_ctrl_roi_block_size = {
+	.id = V4L2_CID_MPEG_VIDEO_ROI_BLOCK_SIZE,
+	.type = V4L2_CTRL_TYPE_AREA,
 };
 
 static u32 to_video_full_range_flag(enum v4l2_quantization quantization)
@@ -1775,6 +2026,11 @@ static void wave6_set_enc_hevc_param(struct enc_codec_param *output,
 		output->profile = HEVC_PROFILE_MAIN;
 		output->internal_bit_depth = 8;
 		break;
+	case V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_STILL_PICTURE:
+		output->profile = HEVC_PROFILE_STILLPICTURE;
+		output->internal_bit_depth = 8;
+		output->en_still_picture = true;
+		break;
 	default:
 		break;
 	}
@@ -1851,6 +2107,12 @@ static void wave6_set_enc_hevc_param(struct enc_codec_param *output,
 		output->intra_period = output->idr_period;
 		output->idr_period = 0;
 	}
+	if (output->profile == HEVC_PROFILE_STILLPICTURE) {
+		output->gop_preset_idx = PRESET_IDX_ALL_I;
+		output->decoding_refresh_type = DEC_REFRESH_TYPE_IDR;
+		output->intra_period = 0;
+		output->idr_period = 0;
+	}
 	output->beta_offset_div2 = ctrls->lf_beta_offset_div2;
 	output->tc_offset_div2 = ctrls->lf_tc_offset_div2;
 	output->en_constrained_intra_pred = ctrls->const_intra_pred;
@@ -1870,44 +2132,16 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 	struct enc_codec_param *output = &open_param->codec_param;
 	u32 ctu_size = (inst->std == W_AVC_ENC) ? 16 : 64;
 	u32 num_ctu_row = ALIGN(inst->src_fmt.height, ctu_size) / ctu_size;
+	const struct vpu_format *vpu_fmt;
 
-	open_param->source_endian = VPU_SOURCE_ENDIAN;
-	if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV420 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV12 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV21 ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV420M ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV12M ||
-	    inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV21M) {
-		open_param->src_format = FORMAT_420;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV422P ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV16 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV61 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV422M ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV16M ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV61M) {
-		open_param->src_format = FORMAT_422;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV24 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_NV42) {
-		open_param->src_format = FORMAT_YUV444_24BIT;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUV24) {
-		open_param->src_format = FORMAT_YUV444_24BIT_PACKED;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_YUYV) {
-		open_param->src_format = FORMAT_YUYV;
-		open_param->packed_format = PACKED_YUYV;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGB24) {
-		open_param->src_format = FORMAT_RGB_24BIT_PACKED;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_P010) {
-		open_param->src_format = FORMAT_420_P10_16BIT_MSB;
-		open_param->source_endian = VDI_128BIT_LE_BYTE_SWAP;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB32 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_XRGB32 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBA32 ||
-		   inst->src_fmt.pixelformat == V4L2_PIX_FMT_RGBX32) {
-		open_param->src_format = FORMAT_RGB_32BIT_PACKED;
-	} else if (inst->src_fmt.pixelformat == V4L2_PIX_FMT_ARGB2101010) {
-		open_param->src_format = FORMAT_RGB_P10_32BIT_PACKED;
-		open_param->source_endian = VDI_128BIT_LE_WORD_BYTE_SWAP;
-	}
+	vpu_fmt = wave6_find_vpu_fmt(inst->src_fmt.pixelformat, VPU_FMT_TYPE_RAW);
+	if (!vpu_fmt)
+		return;
+
+	open_param->src_format = vpu_fmt->src_format;
+	open_param->source_endian = vpu_fmt->source_endian;
+	open_param->packed_format = vpu_fmt->packed_format;
+
 	open_param->line_buf_int_en = true;
 	open_param->stream_endian = VPU_STREAM_ENDIAN;
 	open_param->inst_buffer.temp_base = inst->dev->temp_vbuf.daddr;
@@ -1970,6 +2204,7 @@ static void wave6_set_enc_open_param(struct enc_open_param *open_param,
 					- inst->crop.width - output->conf_win.left;
 	output->conf_win.bottom = inst->codec_rect.height
 					- inst->crop.height - output->conf_win.top;
+	output->en_qp_map = 1;
 
 	switch (inst->std) {
 	case W_AVC_ENC:
@@ -2193,6 +2428,18 @@ static int wave6_vpu_enc_queue_setup(struct vb2_queue *q, unsigned int *num_buff
 	return 0;
 }
 
+static int wave6_vpu_enc_custom_map_init(struct vpu_instance *inst, struct vpu_buffer *vpu_buf)
+{
+	vpu_buf->custom_qp_map.size = inst->roi_info.custom_map_size;
+	if (wave6_alloc_dma(inst->dev->dev, &vpu_buf->custom_qp_map) < 0) {
+		dev_err(inst->dev->dev, "alloc custom qp map size %zu failed\n",
+			vpu_buf->custom_qp_map.size);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 static void wave6_vpu_enc_buf_queue(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
@@ -2221,6 +2468,14 @@ static void wave6_vpu_enc_buf_queue(struct vb2_buffer *vb)
 				vpu_buf->force_b_frame_qp = inst->enc_ctrls.hevc.b_frame_qp;
 			}
 		}
+		if (inst->roi_mode == V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP) {
+			if (!vpu_buf->custom_qp_map.vaddr)
+				wave6_vpu_enc_custom_map_init(inst, vpu_buf);
+			if (vpu_buf->custom_qp_map.vaddr)
+				memcpy(vpu_buf->custom_qp_map.vaddr,
+				       inst->custom_qp_map.vaddr,
+				       vpu_buf->custom_qp_map.size);
+		}
 	} else {
 		inst->queued_dst_buf_num++;
 	}
@@ -2243,6 +2498,15 @@ static void wave6_vpu_enc_buf_finish(struct vb2_buffer *vb)
 	ctrl = v4l2_ctrl_find(inst->v4l2_fh.ctrl_handler, V4L2_CID_MPEG_VIDEO_AVERAGE_QP);
 	if (ctrl)
 		v4l2_ctrl_s_ctrl(ctrl, vpu_buf->average_qp);
+}
+
+static void wave6_vpu_enc_buf_cleanup(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct vpu_buffer *vpu_buf = wave6_to_vpu_buf(vbuf);
+
+	if (V4L2_TYPE_IS_OUTPUT(vb->type))
+		wave6_free_dma(&vpu_buf->custom_qp_map);
 }
 
 static int wave6_vpu_enc_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -2356,6 +2620,7 @@ static const struct vb2_ops wave6_vpu_enc_vb2_ops = {
 	.wait_finish = vb2_ops_wait_finish,
 	.buf_queue = wave6_vpu_enc_buf_queue,
 	.buf_finish = wave6_vpu_enc_buf_finish,
+	.buf_cleanup = wave6_vpu_enc_buf_cleanup,
 	.start_streaming = wave6_vpu_enc_start_streaming,
 	.stop_streaming = wave6_vpu_enc_stop_streaming,
 };
@@ -2393,6 +2658,7 @@ static int wave6_vpu_enc_queue_init(void *priv, struct vb2_queue *src_vq, struct
 	src_vq->ops = &wave6_vpu_enc_vb2_ops;
 	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	src_vq->buf_struct_size = sizeof(struct vpu_buffer);
+	src_vq->allow_cache_hints = 1;
 	src_vq->drv_priv = inst;
 	src_vq->lock = &inst->dev->dev_lock;
 	src_vq->dev = inst->dev->v4l2_dev.dev;
@@ -2406,6 +2672,7 @@ static int wave6_vpu_enc_queue_init(void *priv, struct vb2_queue *src_vq, struct
 	dst_vq->ops = &wave6_vpu_enc_vb2_ops;
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	dst_vq->buf_struct_size = sizeof(struct vpu_buffer);
+	dst_vq->allow_cache_hints = 1;
 	dst_vq->drv_priv = inst;
 	dst_vq->lock = &inst->dev->dev_lock;
 	dst_vq->dev = inst->dev->v4l2_dev.dev;
@@ -2452,7 +2719,7 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_handler_init(v4l2_ctrl_hdl, 50);
 	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
-			       V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN, 0,
+			       V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_STILL_PICTURE, 0,
 			       V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN);
 	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
@@ -2620,6 +2887,15 @@ static int wave6_vpu_open_enc(struct file *filp)
 	v4l2_ctrl_new_std(v4l2_ctrl_hdl, NULL,
 			  V4L2_CID_MPEG_VIDEO_AVERAGE_QP, 0, 51, 1, 0);
 
+	v4l2_ctrl_new_std_menu(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_ops,
+			       V4L2_CID_MPEG_VIDEO_ROI_MODE,
+			       V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP,
+			       ~(BIT(V4L2_MPEG_VIDEO_ROI_MODE_NONE) |
+				 BIT(V4L2_MPEG_VIDEO_ROI_MODE_MAP_DELTA_QP)),
+			       V4L2_MPEG_VIDEO_ROI_MODE_NONE);
+	v4l2_ctrl_new_custom(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_roi_map, NULL);
+	v4l2_ctrl_new_custom(v4l2_ctrl_hdl, &wave6_vpu_enc_ctrl_roi_block_size, NULL);
+
 	if (v4l2_ctrl_hdl->error) {
 		ret = -ENODEV;
 		goto err_m2m_release;
@@ -2635,6 +2911,17 @@ static int wave6_vpu_open_enc(struct file *filp)
 	inst->quantization = V4L2_QUANTIZATION_DEFAULT;
 	inst->xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	inst->frame_rate = 30;
+
+	inst->custom_qp_map.size = wave6_vpu_enc_get_internal_ctu_count(W_AVC_ENC,
+									W6_MAX_ENC_PIC_WIDTH,
+									W6_MAX_ENC_PIC_HEIGHT);
+	if (wave6_alloc_dma(inst->dev->dev, &inst->custom_qp_map) < 0) {
+		dev_err(inst->dev->dev, "alloc custom qp map size %zu failed\n",
+			inst->custom_qp_map.size);
+		return -ENOMEM;
+	}
+
+	wave6_vpu_enc_set_roi_info(inst);
 
 	return 0;
 
@@ -2660,6 +2947,7 @@ static int wave6_vpu_enc_release(struct file *filp)
 	}
 	mutex_unlock(&inst->dev->dev_lock);
 
+	wave6_free_dma(&inst->custom_qp_map);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	v4l2_fh_del(&inst->v4l2_fh);
 	v4l2_fh_exit(&inst->v4l2_fh);

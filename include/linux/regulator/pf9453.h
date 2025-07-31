@@ -93,7 +93,6 @@ enum {
 #define LDO_ENMODE_ONREQ_STBY_DPSTBY	0x03
 
 /* PF9453_REG_BUCK1_CTRL bits */
-#define BUCK1_LPMODE			0x30
 #define BUCK1_AD			0x08
 #define BUCK1_FPWM			0x04
 #define BUCK1_ENMODE_MASK		0x03
@@ -104,19 +103,16 @@ enum {
 #define BUCK2_RAMP_12P5MV		0x1
 #define BUCK2_RAMP_6P25MV		0x2
 #define BUCK2_RAMP_3P125MV		0x3
-#define BUCK2_LPMODE			0x30
 #define BUCK2_AD			0x08
 #define BUCK2_FPWM			0x04
 #define BUCK2_ENMODE_MASK		0x03
 
 /* PF9453_REG_BUCK3_CTRL bits */
-#define BUCK3_LPMODE			0x30
 #define BUCK3_AD			0x08
 #define BUCK3_FPWM			0x04
 #define BUCK3_ENMODE_MASK		0x03
 
 /* PF9453_REG_BUCK4_CTRL bits */
-#define BUCK4_LPMODE                    0x30
 #define BUCK4_AD			0x08
 #define BUCK4_FPWM			0x04
 #define BUCK4_ENMODE_MASK		0x03
@@ -164,12 +160,5 @@ enum {
 #define WDOG_B_CFG_NONE			0x00
 #define WDOG_B_CFG_WARM			0x40
 #define WDOG_B_CFG_COLD			0x80
-
-/* PF9453_REG_CONFIG2 bits */
-#define I2C_LT_MASK			0x03
-#define I2C_LT_FORCE_DISABLE		0x00
-#define I2C_LT_ON_STANDBY_RUN		0x01
-#define I2C_LT_ON_RUN			0x02
-#define I2C_LT_FORCE_ENABLE		0x03
 
 #endif /* __LINUX_REG_PF9453_H__ */

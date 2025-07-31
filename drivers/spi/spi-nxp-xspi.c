@@ -355,7 +355,6 @@ struct nxp_xspi {
 	struct mutex lock;
 	int selected;
 #define XSPI_DTR_PROTO		(1 << 0)
-#define XSPI_DTR_ODD_ADDR	(1 << 1)
 	int flags;
 	unsigned long support_max_rate; /* the max clock rate xspi output to device */
 };
@@ -434,14 +433,6 @@ static bool nxp_xspi_supports_op(struct spi_mem *mem,
 	if (op->addr.nbytes > 4)
 		return false;
 
-	/*
-	 * If requested address value is greater than controller assigned
-	 * memory mapped space, return error as it didn't fit in the range
-	 * of assigned address space.
-	 */
-	if (op->addr.val >= xspi->memmap_phy_size)
-		return false;
-
 	/* Max 32 dummy clock cycles supported */
 	if (op->dummy.buswidth &&
 	    (op->dummy.nbytes * 8 / op->dummy.buswidth > 64))
@@ -451,12 +442,8 @@ static bool nxp_xspi_supports_op(struct spi_mem *mem,
 	    op->data.nbytes > xspi->devtype_data->rxfifo)
 		return false;
 
-	if (needs_ip_only(xspi) && op->data.dir == SPI_MEM_DATA_OUT &&
-	    op->data.nbytes > xspi->devtype_data->txfifo)
-		return false;
-
-	if (!needs_ip_only(xspi) && op->data.dir == SPI_MEM_DATA_OUT &&
-	    op->data.nbytes > xspi->devtype_data->ahb_buf_size)
+	if (op->data.dir == SPI_MEM_DATA_OUT &&
+			op->data.nbytes > xspi->devtype_data->txfifo)
 		return false;
 
 	return spi_mem_default_supports_op(mem, op);
@@ -585,7 +572,8 @@ static void nxp_xspi_disable_ddr(struct nxp_xspi *xspi)
 	reg &= ~XSPI_FLSHCR_TDH_MASK;
 	xspi_writel(xspi, reg, base + XSPI_FLSHCR);
 
-	reg = XSPI_SMPR_DLLFSMPFA(7);
+	/* Select sampling at inverted clock */
+	reg = XSPI_SMPR_DLLFSMPFA(0) | XSPI_SMPR_FSPHS;
 	xspi_writel(xspi, reg, base + XSPI_SMPR);
 
 	/* enable module */
@@ -645,7 +633,7 @@ static void nxp_xspi_dll_bypass(struct nxp_xspi *xspi)
 	reg = XSPI_DLLCRA_SLV_EN;
 	xspi_writel(xspi, reg, base + XSPI_DLLCRA);
 
-	reg = XSPI_DLLCRA_FREQEN | XSPI_DLLCRA_SLV_DLY_COARSE(7) |
+	reg = XSPI_DLLCRA_FREQEN | XSPI_DLLCRA_SLV_DLY_COARSE(0) |
 		XSPI_DLLCRA_SLV_EN | XSPI_DLLCRA_SLV_DLL_BYPASS;
 	xspi_writel(xspi, reg, base + XSPI_DLLCRA);
 
@@ -717,6 +705,9 @@ static void nxp_xspi_select_mem(struct nxp_xspi *xspi, struct spi_device *spi,
 				const struct spi_mem_op *op)
 {
 	unsigned long rate = spi->max_speed_hz;
+	unsigned long root_clk_rate;
+	uint64_t cs0_top_address;
+	uint64_t cs1_top_address;
 	int ret;
 
 	/*
@@ -730,18 +721,31 @@ static void nxp_xspi_select_mem(struct nxp_xspi *xspi, struct spi_device *spi,
 	/* STR proto use default rate, DTR double the rate */
 	if (!op->cmd.dtr) {
 		nxp_xspi_disable_ddr(xspi);
-		rate = min(xspi->support_max_rate, spi->max_speed_hz);
 		xspi->flags &= ~XSPI_DTR_PROTO;
 	} else {
 		nxp_xspi_enable_ddr(xspi);
-		rate = min(xspi->support_max_rate, spi->max_speed_hz);
-		rate *= 2;
 		xspi->flags |= XSPI_DTR_PROTO;
 	}
+	rate = min(xspi->support_max_rate, spi->max_speed_hz);
+	/*
+	 * There is two dividers between xspi_clk_root(from SoC CCM) and xspi_sfif.
+	 * xspi_clk_root ---->divider1 ----> ipg_clk_2xsfif
+	 *                              |
+	 *                              |
+	 *                              |---> divider2 ---> ipg_clk_sfif
+	 * divider1 is controlled by SOCCR, SOCCR default value is 0.
+	 * divider2 fix to divide 2.
+	 * when SOCCR = 0:
+	 *        ipg_clk_2xsfif = xspi_clk_root
+	 *        ipg_clk_sfif = ipg_clk_2xsfif / 2 = xspi_clk_root / 2
+	 * ipg_clk_2xsfif is used for DTR mode.
+	 * xspi_sck(output to device) is defined based on xspi_sfif clock.
+	 */
+	root_clk_rate = rate * 2;
 
 	nxp_xspi_clk_disable_unprep(xspi);
 
-	ret = clk_set_rate(xspi->clk, rate);
+	ret = clk_set_rate(xspi->clk, root_clk_rate);
 	if (ret)
 		return;
 
@@ -750,6 +754,16 @@ static void nxp_xspi_select_mem(struct nxp_xspi *xspi, struct spi_device *spi,
 		return;
 
 	xspi->selected = spi_get_chipselect(spi, 0);
+
+	if (xspi->selected) {		/* CS1 select */
+		cs0_top_address = xspi->memmap_phy;
+		cs1_top_address = SZ_4G - 1;
+	} else {			/* CS0 select */
+		cs0_top_address = SZ_4G - 1;
+		cs1_top_address = SZ_4G - 1;
+	}
+	xspi_writel(xspi, cs0_top_address, xspi->iobase + XSPI_SFA1AD);
+	xspi_writel(xspi, cs1_top_address, xspi->iobase + XSPI_SFA2AD);
 
 	if (!op->cmd.dtr || rate < 60000000)
 		nxp_xspi_dll_bypass(xspi);
@@ -824,12 +838,7 @@ static void nxp_xspi_read_rxfifo(struct nxp_xspi *xspi,
 	u32 watermark, watermark_bytes, reg;
 	void __iomem *base = xspi->iobase;
 	u8 *buf = (u8 *) op->data.buf.in;
-	int i, ret, len, cnt = 0;
-	u8 tmp[4];
-
-	if (xspi->flags & XSPI_DTR_ODD_ADDR)
-		dev_dbg(xspi->dev, "%s: op->data.nbytes = %d from addr %llx\n",
-			__func__, op->data.nbytes, op->addr.val);
+	int i, ret, len;
 
 	/* config the rx watermark half of the 64 memory-mapped RX data buffer RBDRn
 	 * refer to the RBCT config in nxp_xspi_do_op()
@@ -837,31 +846,7 @@ static void nxp_xspi_read_rxfifo(struct nxp_xspi *xspi,
 	watermark = 32;
 	watermark_bytes = watermark * 4;
 
-	/* DTR with ODD address need read one more byte */
-	len = (xspi->flags & XSPI_DTR_ODD_ADDR) ? op->data.nbytes + 1 : op->data.nbytes;
-
-	/* handle the DTR with ODD address case */
-	if (xspi->flags & XSPI_DTR_ODD_ADDR) {
-		/* For data with ODD address, length no more than 8 bytes */
-		ret = xspi_readl_poll_tout(xspi, base + XSPI_SR, XSPI_SR_BUSY,
-						0, POLL_TOUT, false);
-		/*
-		 * DTR read always start from 2bytes alignment address,
-		 * if read from an odd address A, it actually read from
-		 * address A-1, need to discard the first byte here
-		 */
-		*(u32 *)(tmp) = xspi_readl(xspi, base + XSPI_RBDR0);
-		cnt = min(len, 4);
-		/* discard the first byte */
-		memcpy(buf, tmp + 1, cnt - 1);
-		len -= cnt;
-		buf = op->data.buf.in + cnt - 1;
-
-		dev_dbg(xspi->dev, "DTR with ODD addr, read %d bytes, left %d bytes\n",
-				cnt - 1, len);
-
-		xspi->flags &= ~XSPI_DTR_ODD_ADDR;
-	}
+	len = op->data.nbytes;
 
 	while (len >= watermark_bytes) {
 		/* Make sure the RX FIFO contains valid data before read */
@@ -883,7 +868,7 @@ static void nxp_xspi_read_rxfifo(struct nxp_xspi *xspi,
 	/* wait for the total data transfer finished */
 	ret = xspi_readl_poll_tout(xspi, base + XSPI_SR, XSPI_SR_BUSY,
 					0, POLL_TOUT, false);
-	i = cnt;
+	i = 0;
 	while (len >= 4) {
 		*(u32 *)(buf) = xspi_readl(xspi, base + XSPI_RBDR0 + i);
 		i += 4;
@@ -941,18 +926,7 @@ static int nxp_xspi_do_op(struct nxp_xspi *xspi, const struct spi_mem_op *op)
 	xspi_writel(xspi, op->addr.val + xspi->memmap_phy, base + XSPI_SFP_TG_SFAR);
 
 	/* cofnig the data size and lut id, trigger the transfer */
-
-	/*
-	 * OCTAL DTR read always start from 2bytes alignment address,
-	 * if read from an odd address A, it actually read from
-	 * address A-1, need to read one more byte to get all
-	 * data needed.
-	 */
-	if (xspi->flags & XSPI_DTR_ODD_ADDR)
-		reg = XSPI_SFP_TG_IPCR_SEQID(XSPI_SEQID_LUT) |
-			XSPI_SFP_TG_IPCR_IDATSZ(op->data.nbytes + 1);
-	else
-		reg = XSPI_SFP_TG_IPCR_SEQID(XSPI_SEQID_LUT) |
+	reg = XSPI_SFP_TG_IPCR_SEQID(XSPI_SEQID_LUT) |
 			XSPI_SFP_TG_IPCR_IDATSZ(op->data.nbytes);
 
 	xspi_writel(xspi, reg, base + XSPI_SFP_TG_IPCR);
@@ -995,8 +969,15 @@ static int nxp_xspi_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 
 	nxp_xspi_prepare_lut(xspi, op);
 
-	if ((op->data.dir == SPI_MEM_DATA_IN) && op->data.nbytes >= 8 &&
-						!needs_ip_only(xspi))
+	/*
+	 * for read:
+	 *     the address in AHB mapped range will use AHB read.
+	 *     the address out of AHB maped range will use IP read.
+	 * for write:
+	 *     all use IP write.
+	 */
+	if ((op->data.dir == SPI_MEM_DATA_IN) && !needs_ip_only(xspi)
+		&& ((op->addr.val + op->data.nbytes) <= xspi->memmap_phy_size))
 		err = nxp_xspi_ahb_read(xspi, op);
 	else
 		err = nxp_xspi_do_op(xspi, op);
@@ -1028,13 +1009,10 @@ static int nxp_xspi_adjust_op_size(struct spi_mem *mem, struct spi_mem_op *op)
 		if (needs_ip_only(xspi) && (op->data.nbytes > xspi->devtype_data->rxfifo))
 			op->data.nbytes = xspi->devtype_data->rxfifo;
 
-		/* need to handle the OCTAL DTR read with odd address case */
-		if ((op->addr.val & 1) && op->cmd.dtr && op->addr.dtr &&
-				op->dummy.dtr && op->data.dtr) {
-			xspi->flags |= XSPI_DTR_ODD_ADDR;
-			/* limit the data length < 8, will switch to IP read mode */
-			op->data.nbytes = min(op->data.nbytes, 8 - (op->addr.val % 8));
-		}
+		/* address in AHB mapped range prefer to use AHB read. */
+		if (!needs_ip_only(xspi) && (op->addr.val < xspi->memmap_phy_size)
+			&& ((op->addr.val + op->data.nbytes) > xspi->memmap_phy_size))
+			op->data.nbytes = xspi->memmap_phy_size - op->addr.val;
 	}
 
 	return 0;
@@ -1073,7 +1051,6 @@ static void nxp_xspi_config_ahb_buffer(struct nxp_xspi *xspi)
 static int nxp_xspi_default_setup(struct nxp_xspi *xspi)
 {
 	void __iomem *base = xspi->iobase;
-	uint64_t top_address;
 	u32 reg;
 
 	/* Bypass SFP check, clear MGC_GVLD, MGC_GVLDMDAD, MGC_GVLDFRAD */
@@ -1139,10 +1116,6 @@ static int nxp_xspi_default_setup(struct nxp_xspi *xspi)
 
 	reg = XSPI_FLSHCR_TCSH(3) | XSPI_FLSHCR_TCSS(3);
 	xspi_writel(xspi, reg, base + XSPI_FLSHCR);
-
-	top_address = xspi->memmap_phy + xspi->memmap_phy_size;
-	xspi_writel(xspi, top_address, base + XSPI_SFA1AD);
-	xspi_writel(xspi, top_address, base + XSPI_SFA2AD);
 
 	/* enable module */
 	reg = xspi_readl(xspi, base + XSPI_MCR);

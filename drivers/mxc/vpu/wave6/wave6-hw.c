@@ -2103,6 +2103,8 @@ static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interle
 	reg->csc_coeff[3] = ((opt->csc.offset_y & 0x3FF) << 20) |
 			    ((opt->csc.offset_cb & 0x3FF) << 10) |
 			    (opt->csc.offset_cr & 0x3FF);
+	reg->custom_map_param = opt->custom_map_opt.data;
+	reg->custom_map_addr = opt->custom_map_addr;
 }
 
 int wave6_vpu_encode(struct vpu_instance *inst, struct enc_param *option, u32 *fail_res)
