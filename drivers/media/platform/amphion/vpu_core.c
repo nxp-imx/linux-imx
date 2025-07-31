@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2020-2021 NXP
+ * Copyright 2020-2021,2025 NXP
  */
 
 #include <linux/init.h>
@@ -408,8 +408,12 @@ struct vpu_core *vpu_request_core(struct vpu_dev *vpu, enum vpu_core_type type)
 	if (core->request_count == 0) {
 		if (core->vpu->trusty_dev && (type == VPU_CORE_TYPE_DEC)) {
 			vpu_parition = trusty_fast_call32(core->vpu->trusty_dev, SMC_WV_POWER_SET, 1, 0, 0);
-			if (vpu_parition < 0)
+			if (vpu_parition < 0) {
 				dev_err(core->dev, "decoder power on failed\n");
+				mutex_unlock(&core->lock);
+				core = NULL;
+				goto exit;
+			}
 		}
 	}
 
