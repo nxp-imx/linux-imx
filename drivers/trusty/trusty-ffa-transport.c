@@ -270,6 +270,7 @@ static int trusty_ffa_probe(struct ffa_device *ffa_dev)
 	s->dev = &ffa_dev->dev;
 	s->transport.magic = TRUSTY_TRANSPORT_MAGIC;
 	s->transport.ops = &trusty_ffa_transport_ops;
+	s->transport.split_nopcalls = 1;
 
 	ffa_dev_set_drvdata(ffa_dev, s);
 

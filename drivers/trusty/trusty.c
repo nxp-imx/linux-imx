@@ -620,14 +620,24 @@ static bool dequeue_nop(struct trusty_state *s, u32 *args)
 			queue_emptied = true;
 
 		ret = true;
+
+		/*
+		 * For transports with split nopcalls, this
+		 * code path isn't guaranteed to give Trusty cycles
+		 * so don't clear the signaled flag here. This
+		 * ensures that we will get a NULL call later,
+		 * e.g. on FF-A where we need to invoke FFA_RUN.
+		 */
+		if (!s->transport->split_nopcalls)
+			tw->signaled = false;
 	} else {
 		args[0] = 0;
 		args[1] = 0;
 		args[2] = 0;
 
 		ret = tw->signaled;
+		tw->signaled = false;
 	}
-	tw->signaled = false;
 	spin_unlock_irqrestore(&s->nop_lock, flags);
 
 	/* don't log when false as it is preempt case which can be very noisy */

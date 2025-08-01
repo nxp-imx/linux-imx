@@ -34,6 +34,15 @@ struct trusty_transport_ops {
 struct trusty_transport {
 	u64 magic;
 	const struct trusty_transport_ops *ops;
+
+	/*
+	 * Whether the NOP calls with arguments are invoked
+	 * separately from the no-arguments calls that give
+	 * Trusty cycles (like on the FF-A) transport.
+	 * Set to 0 for transports where every SMC_SC_NOP
+	 * always give Trusty scheduler cycles.
+	 */
+	unsigned split_nopcalls:1;
 };
 
 #endif /* _TRUSTY_TRANSPORT_H */
