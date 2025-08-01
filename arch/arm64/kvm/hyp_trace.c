@@ -758,6 +758,7 @@ hyp_trace_raw_read(struct file *file, char __user *ubuf,
 	struct ht_iterator *iter = (struct ht_iterator *)file->private_data;
 	size_t size;
 	int ret;
+	void *page_data;
 
 	if (iter->copy_leftover)
 		goto read;
@@ -786,7 +787,9 @@ read:
 	if (size > cnt)
 		size = cnt;
 
-	ret = copy_to_user(ubuf, iter->spare + PAGE_SIZE - size, size);
+	page_data = ring_buffer_read_page_data(
+		(struct buffer_data_read_page *)iter->spare);
+	ret = copy_to_user(ubuf, page_data + PAGE_SIZE - size, size);
 	if (ret == size)
 		return -EFAULT;
 
@@ -855,13 +858,10 @@ static int hyp_trace_open(struct inode *inode, struct file *file)
 {
 	int cpu = (s64)inode->i_private;
 
-	if (file->f_mode & FMODE_WRITE) {
+	if (file->f_mode & FMODE_WRITE)
 		hyp_trace_reset(cpu);
 
-		return 0;
-	}
-
-	return -EPERM;
+	return 0;
 }
 
 static ssize_t hyp_trace_write(struct file *filp, const char __user *ubuf,
@@ -1039,9 +1039,9 @@ int hyp_trace_init_tracefs(void)
 				    (void *)cpu, &hyp_trace_pipe_fops);
 
 		tracefs_create_file("trace_pipe_raw", TRACEFS_MODE_READ, per_cpu_dir,
-				    (void *)cpu, &hyp_trace_pipe_fops);
+				    (void *)cpu, &hyp_trace_raw_fops);
 
-		tracefs_create_file("trace", TRACEFS_MODE_READ, per_cpu_dir,
+		tracefs_create_file("trace", TRACEFS_MODE_WRITE, per_cpu_dir,
 				    (void *)cpu, &hyp_trace_fops);
 	}
 
