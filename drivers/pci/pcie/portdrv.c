@@ -176,17 +176,10 @@ static int pcie_port_enable_irq_vec(struct pci_dev *dev, int *irqs, int mask)
  */
 static int pcie_init_service_irqs(struct pci_dev *dev, int *irqs, int mask)
 {
-	struct pci_host_bridge *host_bridge = pci_find_host_bridge(dev->bus);
 	int ret, i;
 
 	for (i = 0; i < PCIE_PORT_DEVICE_MAXSERVICES; i++)
 		irqs[i] = -1;
-
-	if (host_bridge->get_service_irqs) {
-		ret = host_bridge->get_service_irqs(host_bridge, irqs, mask);
-		if (ret > 0)
-			return 0;
-	}
 
 	/*
 	 * If we support PME but can't use MSI/MSI-X for it, we have to

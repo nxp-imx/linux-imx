@@ -13,13 +13,11 @@
 #include <linux/irqdomain.h>
 #include <linux/msi.h>
 #include <linux/of_address.h>
-#include <linux/of_irq.h>
 #include <linux/of_pci.h>
 #include <linux/pci_regs.h>
 #include <linux/platform_device.h>
 
 #include "../../pci.h"
-#include "../../pcie/portdrv.h"
 #include "pcie-designware.h"
 
 static struct pci_ops dw_pcie_ops;
@@ -421,35 +419,6 @@ static void dw_pcie_host_request_msg_tlp_res(struct dw_pcie_rp *pp)
 	}
 }
 
-static int dw_pcie_get_service_irqs(struct pci_host_bridge *bridge,
-				    int *irqs, int mask)
-{
-	struct device *dev = bridge->dev.parent;
-	struct device_node *np = dev->of_node;
-	int ret, count = 0;
-
-	if (!np)
-		return 0;
-
-	if (mask & PCIE_PORT_SERVICE_AER) {
-		ret = of_irq_get_byname(np, "aer");
-		if (ret > 0) {
-			irqs[PCIE_PORT_SERVICE_AER_SHIFT] = ret;
-			count++;
-		}
-	}
-
-	if (mask & PCIE_PORT_SERVICE_PME) {
-		ret = of_irq_get_byname(np, "pme");
-		if (ret > 0) {
-			irqs[PCIE_PORT_SERVICE_PME_SHIFT] = ret;
-			count++;
-		}
-	}
-
-	return count;
-}
-
 int dw_pcie_host_init(struct dw_pcie_rp *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
@@ -485,7 +454,6 @@ int dw_pcie_host_init(struct dw_pcie_rp *pp)
 		return -ENOMEM;
 
 	pp->bridge = bridge;
-	pp->bridge->get_service_irqs = dw_pcie_get_service_irqs;
 
 	/* Get the I/O range from DT */
 	win = resource_list_first_type(&bridge->windows, IORESOURCE_IO);
