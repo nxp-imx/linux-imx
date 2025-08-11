@@ -183,7 +183,7 @@ static int netc_port_add_l2_l4_ptp_filter(struct netc_port *port)
 	return err;
 }
 
-static int netc_port_set_ptp_filter(struct netc_port *port, int ptp_filter)
+int netc_port_set_ptp_filter(struct netc_port *port, int ptp_filter)
 {
 	int err;
 
@@ -239,7 +239,7 @@ int netc_port_hwtstamp_set(struct dsa_switch *ds, int port_id,
 		port->offloads |= NETC_FLAG_TX_ONESTEP_SYNC;
 		break;
 	case HWTSTAMP_TX_OFF:
-		port->offloads &= !(NETC_FLAG_TX_TSTAMP |
+		port->offloads &= ~(NETC_FLAG_TX_TSTAMP |
 				    NETC_FLAG_TX_ONESTEP_SYNC);
 		break;
 	default:

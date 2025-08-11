@@ -362,6 +362,34 @@
 				  "LVDS panel backlight enable",
 				  "LVDS panel backlight power enable",
 				  "LVDS to HDMI converter IT6263 reset";
+
+		/* When low, select lpspi; When high, select gpio. */
+		lpspi-gpio-sel-hog {
+			gpio-hog;
+			gpios = <2 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		/* When low, select lpuart3; When high, select gpio. */
+		lpuart-gpio-sel-hog {
+			gpio-hog;
+			gpios = <3 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		/* When low, select CAN; When high, select gpio. */
+		can-gpio-sel-hog {
+			gpio-hog;
+			gpios = <4 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
+
+		/* When low, select pwm; When high, select gpio. */
+		pwm-gpio-sel-hog {
+			gpio-hog;
+			gpios = <5 GPIO_ACTIVE_HIGH>;
+			output-low;
+		};
 	};
 
 	pcal6408_b: gpio@20 {

@@ -85,6 +85,11 @@
 			interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
 		};
 	};
+
+	sound-micfil {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
+	};
 };
 
 &micfil {

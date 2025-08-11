@@ -132,6 +132,8 @@
 	sound-micfil {
 		compatible = "fsl,imx-audio-card";
 		model = "micfil-audio";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
 		pri-dai-link {
 			link-name = "micfil hifi";
 			format = "i2s";

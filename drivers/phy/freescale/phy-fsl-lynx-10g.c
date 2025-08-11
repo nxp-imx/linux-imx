@@ -26,7 +26,12 @@
 #define PCCR9_QXGMIIa_CFG		BIT(0)
 
 #define PCCRB				0x22c
+/* XFIa_CFG is the generic value to enable the protocol converter (0b001),
+ * not to be confused with XFIA_CFG_LS1046A (0b010), which is specific to
+ * XFI protocol converter A, routed to SerDes1 lane C.
+ */
 #define PCCRB_XFIa_CFG			BIT(0)
+#define PCCRB_XFIA_CFG_LS1046A		BIT(1)
 #define PCCRB_SXGMIIa_CFG		BIT(0)
 
 #define SGMII_CFG(id)			(28 - (id) * 4)
@@ -512,6 +517,7 @@ struct lynx_info {
 		        struct lynx_pccr *pccr);
 	int (*get_pcvt_offset)(int lane, enum lynx_lane_mode mode);
 	bool (*lane_supports_mode)(int lane, enum lynx_lane_mode mode);
+	int (*pccr_override)(int lane, enum lynx_lane_mode mode, u32 *val);
 	int num_lanes;
 	bool has_hardcoded_usxgmii;
 	int index;
@@ -680,6 +686,22 @@ static const struct lynx_info lynx_info_ls1028a = {
 	.index = 1,
 };
 
+/* LS1046A PCCRB[XFIA_CFG] is special in that lane C needs a special value to
+ * work in 10G mode, not the standard PCCRB_XFIa_CFG
+ */
+static int ls1046a_serdes1_pccr_override(int lane, enum lynx_lane_mode mode,
+					 u32 *val)
+{
+	if ((mode == LANE_MODE_10GBASER || mode == LANE_MODE_10GBASEKR) &&
+	    lane == 2) {
+		*val = PCCRB_XFIA_CFG_LS1046A;
+		return 0;
+	}
+
+	/* No other override */
+	return -EOPNOTSUPP;
+}
+
 static int ls1046a_serdes1_get_pccr(enum lynx_lane_mode lane_mode, int lane,
 				    struct lynx_pccr *pccr)
 {
@@ -768,6 +790,7 @@ static bool ls1046a_serdes1_lane_supports_mode(int lane,
 }
 
 static const struct lynx_info lynx_info_ls1046a_serdes1 = {
+	.pccr_override = ls1046a_serdes1_pccr_override,
 	.get_pccr = ls1046a_serdes1_get_pccr,
 	.get_pcvt_offset = ls1046a_serdes1_get_pcvt_offset,
 	.lane_supports_mode = ls1046a_serdes1_lane_supports_mode,
@@ -1153,6 +1176,61 @@ static int lynx_pccr_write(struct lynx_10g_lane *lane,
 
 	dev_dbg(&lane->phy->dev, "PCCR@0x%x: 0x%x -> 0x%x\n",
 		pccr.offset, old, tmp);
+
+	return 0;
+}
+
+static int lynx_10g_lane_pccr_val(struct lynx_10g_lane *lane,
+				  enum lynx_lane_mode mode,
+				  u32 *val)
+{
+	struct lynx_10g_priv *priv = lane->priv;
+	int err;
+
+	if (lane->default_pccr[mode]) {
+		*val = lane->default_pccr[mode];
+		return 0;
+	}
+
+	if (priv->info->pccr_override) {
+		err = priv->info->pccr_override(lane->id, mode, val);
+		/* -EOPNOTSUPP means the function is implemented, but there is
+		 * no override for this lane or this lane mode. Let the code
+		 * fall back to the normal calculation, but treat other error
+		 * codes as critical.
+		 */
+		if (err == 0 || err != -EOPNOTSUPP)
+			return err;
+	}
+
+	/* Normal PCCR value calculation */
+	*val = 0;
+
+	switch (mode) {
+	case LANE_MODE_1000BASEKX:
+		*val |= PCCR8_SGMIIa_KX;
+		fallthrough;
+	case LANE_MODE_1000BASEX_SGMII:
+	case LANE_MODE_2500BASEX:
+		*val |= PCCR8_SGMIIa_CFG;
+		break;
+	case LANE_MODE_QSGMII:
+		*val |= PCCR9_QSGMIIa_CFG;
+		break;
+	case LANE_MODE_10G_QXGMII:
+		*val |= PCCR9_QXGMIIa_CFG;
+		break;
+	case LANE_MODE_10GBASER:
+	case LANE_MODE_10GBASEKR:
+		*val |= PCCRB_XFIa_CFG;
+		break;
+	case LANE_MODE_USXGMII:
+		*val |= PCCRB_SXGMIIa_CFG;
+		break;
+	default:
+		/* Should be unreachable due to lynx_lane_supports_mode() */
+		return -EOPNOTSUPP;
+	}
 
 	return 0;
 }
@@ -1642,40 +1720,10 @@ static int lynx_10g_lane_enable_pcvt(struct lynx_10g_lane *lane,
 		err = 0;
 	}
 
-	if (lane->default_pccr[mode]) {
-		err = lynx_pccr_write(lane, mode, lane->default_pccr[mode]);
-		goto out;
-	}
+	err = lynx_10g_lane_pccr_val(lane, mode, &val);
+	if (err == 0)
+		err = lynx_pccr_write(lane, mode, val);
 
-	val = 0;
-
-	switch (mode) {
-	case LANE_MODE_1000BASEKX:
-		val |= PCCR8_SGMIIa_KX;
-		fallthrough;
-	case LANE_MODE_1000BASEX_SGMII:
-	case LANE_MODE_2500BASEX:
-		val |= PCCR8_SGMIIa_CFG;
-		break;
-	case LANE_MODE_QSGMII:
-		val |= PCCR9_QSGMIIa_CFG;
-		break;
-	case LANE_MODE_10G_QXGMII:
-		val |= PCCR9_QXGMIIa_CFG;
-		break;
-	case LANE_MODE_10GBASER:
-	case LANE_MODE_10GBASEKR:
-		val |= PCCRB_XFIa_CFG;
-		break;
-	case LANE_MODE_USXGMII:
-		val |= PCCRB_SXGMIIa_CFG;
-		break;
-	default:
-		err = 0;
-		goto out;
-	}
-
-	err = lynx_pccr_write(lane, mode, val);
 out:
 	spin_unlock(&priv->pccr_lock);
 

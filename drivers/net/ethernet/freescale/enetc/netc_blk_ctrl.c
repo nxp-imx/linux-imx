@@ -45,7 +45,6 @@
 #define IMX94_EXT_PIN_CONTROL		0x10
 #define  MAC2_MAC3_SEL			BIT(1)
 
-#define IMX94_CFG_LINK_PCS_PROT(a)	(0x14 + (a) * 4)
 #define IMX94_NETC_LINK_CFG(a)		(0x4c + (a) * 4)
 #define  NETC_LINK_CFG_MII_PROT		GENMASK(3, 0)
 #define  NETC_LINK_CFG_IO_VAR		GENMASK(19, 16)
@@ -274,17 +273,9 @@ static int imx94_link_config(struct netc_blk_ctrl *priv,
 		return -EINVAL;
 
 	val = mii_proto & NETC_LINK_CFG_MII_PROT;
-	if (mii_proto == MII_PROT_SERIAL) {
-		int pcs_proto = PCS_PROT_1G_SGMII;
-
-		if (pcs_proto == PHY_INTERFACE_MODE_2500BASEX)
-			pcs_proto = PCS_PROT_2500M_SGMII;
-
-		netc_reg_write(priv->netcmix, IMX94_CFG_LINK_PCS_PROT(link_id),
-			       pcs_proto);
+	if (mii_proto == MII_PROT_SERIAL)
 		val = u32_replace_bits(val, IO_VAR_16FF_16G_SERDES,
 				       NETC_LINK_CFG_IO_VAR);
-	}
 
 	netc_reg_write(priv->netcmix, IMX94_NETC_LINK_CFG(link_id), val);
 

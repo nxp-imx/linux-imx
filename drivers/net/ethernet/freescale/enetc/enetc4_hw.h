@@ -255,6 +255,8 @@
 
 /* Port operational register */
 #define ENETC4_POR		0x4100
+#define  POR_TXDIS		BIT(0)
+#define  POR_RXDIS		BIT(1)
 
 /* Port status register */
 #define ENETC4_PSR		0x4104

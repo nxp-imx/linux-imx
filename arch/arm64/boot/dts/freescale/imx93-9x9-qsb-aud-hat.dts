@@ -143,6 +143,10 @@
 		};
 	};
 
+	sound-micfil {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
+	};
 };
 
 &dmic {

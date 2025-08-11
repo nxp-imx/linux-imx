@@ -84,9 +84,12 @@ static uint32_t GetMacAddrHashCode(uint64_t ethAddr)
 
 static void SetupSgmiiInternalPhy(t_Memac *p_Memac, uint8_t phyAddr)
 {
+    bool autoneg_disabled = false;
     uint16_t    tmpReg16;
     e_EnetMode  enetMode;
-    bool autoneg_disabled = p_Memac->enetMode == e_ENET_MODE_SGMII_2500;
+
+    if (p_Memac->fixed || p_Memac->enetMode == e_ENET_MODE_SGMII_2500)
+        autoneg_disabled = true;
 
      /* In case the higher MACs are used (i.e. the MACs that should support 10G),
         speed=10000 is provided for SGMII ports. Temporary modify enet mode
@@ -1156,6 +1159,7 @@ t_Handle MEMAC_Config(t_FmMacParams *p_FmMacParam)
     p_Memac->f_Exception    = p_FmMacParam->f_Exception;
     p_Memac->f_Event        = p_FmMacParam->f_Event;
     p_Memac->h_App          = p_FmMacParam->h_App;
+    p_Memac->fixed          = p_FmMacParam->fixed;
 
     return p_Memac;
 }

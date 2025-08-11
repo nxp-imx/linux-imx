@@ -141,7 +141,7 @@ netc_find_flower_gate_table(struct ntmp_priv *priv, u32 index)
 		if (!gate_tbl)
 			continue;
 
-		if (gate_tbl->sgit_eid == index)
+		if (gate_tbl->sgit_entry->entry_id == index)
 			return gate_tbl;
 	}
 
@@ -197,7 +197,7 @@ netc_find_flower_police_table(struct ntmp_priv *priv, u32 index)
 		if (!police_tbl)
 			continue;
 
-		if (police_tbl->rpt_eid == index)
+		if (police_tbl->rpt_entry->entry_id == index)
 			return police_tbl;
 	}
 
@@ -349,15 +349,13 @@ static void netc_psfp_gate_entry_config(struct ntmp_priv *priv,
 					struct ntmp_sgit_entry *sgit_entry,
 					struct ntmp_sgclt_entry *sgclt_entry)
 {
-	u32 cycle_time, cycle_time_ext, num_gates;
+	u32 cycle_time_ext = gate_entry->gate.cycletimeext;
+	u32 num_gates = gate_entry->gate.num_entries;
+	u32 cycle_time = gate_entry->gate.cycletime;
 	u64 base_time = gate_entry->gate.basetime;
 	u8 sgit_cfg, sgit_icfg = SGIT_GST;
 	u8 sgclt_extcfg = SGCLT_EXT_GTST;
 	int i;
-
-	num_gates = gate_entry->gate.num_entries;
-	cycle_time = gate_entry->gate.cycletime;
-	cycle_time_ext = gate_entry->gate.cycletimeext;
 
 	if (gate_entry->gate.prio >= 0) {
 		sgit_icfg |= FIELD_PREP(SGIT_IPV, gate_entry->gate.prio);
@@ -365,8 +363,7 @@ static void netc_psfp_gate_entry_config(struct ntmp_priv *priv,
 	}
 
 	if (priv->adjust_base_time)
-		base_time = priv->adjust_base_time(priv, base_time,
-						   gate_entry->gate.cycletime);
+		base_time = priv->adjust_base_time(priv, base_time, cycle_time);
 
 	sgit_cfg = FIELD_PREP(SGIT_SDU_TYPE, SDU_TYPE_MPDU);
 	sgit_entry->acfge.admin_base_time = cpu_to_le64(base_time);
@@ -816,8 +813,6 @@ int netc_setup_psfp(struct ntmp_priv *priv, int port_id,
 		}
 
 		netc_rpt_entry_config(police_entry, rpt_entry);
-		police_tbl->rpt_eid = police_entry->hw_index;
-		refcount_set(&police_tbl->refcount, 1);
 	}
 
 	sgit_eid = gate_entry->hw_index;
@@ -856,9 +851,6 @@ int netc_setup_psfp(struct ntmp_priv *priv, int port_id,
 	}
 
 	sgclt_entry->entry_id = sgclt_eid;
-	gate_tbl->sgclt_eid = sgclt_eid;
-	gate_tbl->sgit_eid = sgit_eid;
-	refcount_set(&gate_tbl->refcount, 1);
 	netc_psfp_gate_entry_config(priv, gate_entry, sgit_entry, sgclt_entry);
 
 config_isct:
@@ -932,6 +924,7 @@ config_isct:
 
 	rule->lastused = jiffies;
 	rule->isft_entry = no_free_ptr(isft_entry);
+	rule->isct_eid = isct_eid;
 
 	if (reused_key_tbl) {
 		rule->key_tbl = reused_key_tbl;
@@ -944,6 +937,9 @@ config_isct:
 		rule->gate_tbl = reused_gate_tbl;
 		refcount_inc(&reused_gate_tbl->refcount);
 	} else {
+		gate_tbl->sgit_entry = no_free_ptr(sgit_entry);
+		gate_tbl->sgclt_entry = no_free_ptr(sgclt_entry);
+		refcount_set(&gate_tbl->refcount, 1);
 		rule->gate_tbl = no_free_ptr(gate_tbl);
 	}
 
@@ -951,6 +947,8 @@ config_isct:
 		rule->police_tbl = reused_police_tbl;
 		refcount_inc(&reused_police_tbl->refcount);
 	} else if (police_tbl) {
+		police_tbl->rpt_entry = no_free_ptr(rpt_entry);
+		refcount_set(&police_tbl->refcount, 1);
 		rule->police_tbl = no_free_ptr(police_tbl);
 	}
 
@@ -992,9 +990,12 @@ void netc_free_flower_police_tbl(struct ntmp_priv *priv,
 		return;
 
 	if (refcount_dec_and_test(&police_tbl->refcount)) {
-		ntmp_rpt_delete_entry(cbdrs, police_tbl->rpt_eid);
+		struct ntmp_rpt_entry *rpt_entry = police_tbl->rpt_entry;
+
+		ntmp_rpt_delete_entry(cbdrs, rpt_entry->entry_id);
 		ntmp_clear_eid_bitmap(priv->rpt_eid_bitmap,
-				      police_tbl->rpt_eid);
+				      rpt_entry->entry_id);
+		kfree(rpt_entry);
 		kfree(police_tbl);
 	}
 }
@@ -1009,29 +1010,27 @@ void netc_delete_psfp_flower_rule(struct ntmp_priv *priv,
 	struct netc_cbdrs *cbdrs = &priv->cbdrs;
 	struct ntmp_isit_entry *isit_entry;
 	struct ntmp_ist_entry *ist_entry;
-	u32 isct_eid;
 
 	if (refcount_dec_and_test(&key_tbl->refcount)) {
 		isit_entry = key_tbl->isit_entry;
 		ist_entry = key_tbl->ist_entry;
 		ntmp_isit_delete_entry(cbdrs, isit_entry->entry_id);
 		ntmp_ist_delete_entry(cbdrs, ist_entry->entry_id);
-
-		isct_eid = le32_to_cpu(ist_entry->cfge.isc_eid);
 		netc_free_flower_key_tbl(priv, key_tbl);
 	}
 
 	if (isft_entry) {
-		isct_eid = le32_to_cpu(isft_entry->cfge.isc_eid);
 		ntmp_isft_delete_entry(cbdrs, isft_entry->entry_id);
 		kfree(isft_entry);
 	}
 
-	ntmp_isct_operate_entry(cbdrs, isct_eid, NTMP_CMD_DELETE, NULL);
-	ntmp_clear_eid_bitmap(priv->isct_eid_bitmap, isct_eid);
+	ntmp_isct_operate_entry(cbdrs, rule->isct_eid, NTMP_CMD_DELETE, NULL);
+	ntmp_clear_eid_bitmap(priv->isct_eid_bitmap, rule->isct_eid);
 
 	if (gate_tbl && refcount_dec_and_test(&gate_tbl->refcount)) {
-		netc_delete_sgit_entry(priv, gate_tbl->sgit_eid);
+		netc_delete_sgit_entry(priv, gate_tbl->sgit_entry->entry_id);
+		kfree(gate_tbl->sgit_entry);
+		kfree(gate_tbl->sgclt_entry);
 		kfree(gate_tbl);
 	}
 
@@ -1365,6 +1364,7 @@ int netc_setup_police(struct ntmp_priv *priv, int port_id,
 	rule->port_id = port_id;
 	rule->cookie = cookie;
 	rule->flower_type = FLOWER_TYPE_POLICE;
+	rule->isct_eid = NTMP_NULL_ENTRY_ID;
 
 	flow_action_for_each(i, action_entry, &cls_rule->action)
 		if (action_entry->id == FLOW_ACTION_POLICE)
@@ -1410,8 +1410,6 @@ int netc_setup_police(struct ntmp_priv *priv, int port_id,
 			goto clear_rpt_eid_bit;
 		}
 
-		police_tbl->rpt_eid = police_act->hw_index;
-		refcount_set(&police_tbl->refcount, 1);
 		netc_rpt_entry_config(police_act, rpt_entry);
 	}
 
@@ -1436,6 +1434,8 @@ int netc_setup_police(struct ntmp_priv *priv, int port_id,
 		rule->police_tbl = reused_police_tbl;
 		refcount_inc(&reused_police_tbl->refcount);
 	} else if (police_tbl) {
+		police_tbl->rpt_entry = no_free_ptr(rpt_entry);
+		refcount_set(&police_tbl->refcount, 1);
 		rule->police_tbl = no_free_ptr(police_tbl);
 	}
 
@@ -1492,3 +1492,308 @@ int netc_police_flower_stat(struct ntmp_priv *priv,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(netc_police_flower_stat);
+
+static int netc_restore_gate_table(struct ntmp_priv *priv,
+				   struct netc_gate_tbl *gate_tbl)
+{
+	struct ntmp_sgclt_entry *sgclt_entry = gate_tbl->sgclt_entry;
+	struct ntmp_sgit_entry *sgit_entry = gate_tbl->sgit_entry;
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+	u32 cycle_time;
+	u64 base_time;
+	int err;
+
+	if (gate_tbl->restored)
+		return 0;
+
+	err = ntmp_sgclt_add_entry(cbdrs, sgclt_entry);
+	if (err)
+		return err;
+
+	if (priv->adjust_base_time) {
+		cycle_time = le32_to_cpu(sgclt_entry->cfge.cycle_time);
+		base_time = le64_to_cpu(sgit_entry->acfge.admin_base_time);
+		base_time = priv->adjust_base_time(priv, base_time, cycle_time);
+		sgit_entry->acfge.admin_base_time = cpu_to_le64(base_time);
+	}
+
+	err = ntmp_sgit_add_or_update_entry(cbdrs, sgit_entry);
+	if (err)
+		goto del_sgit_entry;
+
+	gate_tbl->restored = true;
+
+	return 0;
+
+del_sgit_entry:
+	ntmp_sgclt_delete_entry(cbdrs, sgclt_entry->entry_id);
+
+	return err;
+}
+
+static void netc_remove_gate_table(struct ntmp_priv *priv,
+				   struct netc_gate_tbl *gate_tbl)
+{
+	struct ntmp_sgclt_entry *sgclt_entry = gate_tbl->sgclt_entry;
+	struct ntmp_sgit_entry *sgit_entry = gate_tbl->sgit_entry;
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+	struct ntmp_sgit_entry null_entry = {};
+
+	null_entry.acfge.admin_sgcl_eid = cpu_to_le32(NTMP_NULL_ENTRY_ID);
+	null_entry.entry_id = sgit_entry->entry_id;
+	ntmp_sgit_add_or_update_entry(cbdrs, &null_entry);
+	ntmp_sgit_delete_entry(cbdrs, sgit_entry->entry_id);
+	ntmp_sgclt_delete_entry(cbdrs, sgclt_entry->entry_id);
+	gate_tbl->restored = false;
+}
+
+static int netc_restore_police_table(struct ntmp_priv *priv,
+				     struct netc_police_tbl *police_tbl)
+{
+	struct ntmp_rpt_entry *rpt_entry = police_tbl->rpt_entry;
+	int err;
+
+	if (police_tbl->restored)
+		return 0;
+
+	err = ntmp_rpt_add_or_update_entry(&priv->cbdrs, rpt_entry);
+	if (err)
+		return err;
+
+	police_tbl->restored = true;
+
+	return 0;
+}
+
+static void netc_remove_police_table(struct ntmp_priv *priv,
+				     struct netc_police_tbl *police_tbl)
+{
+	struct ntmp_rpt_entry *rpt_entry = police_tbl->rpt_entry;
+
+	ntmp_rpt_delete_entry(&priv->cbdrs, rpt_entry->entry_id);
+	police_tbl->restored = false;
+}
+
+static int netc_restore_key_table(struct ntmp_priv *priv,
+				  struct netc_flower_key_tbl *key_tbl)
+{
+	struct ntmp_ist_entry *ist_entry = key_tbl->ist_entry;
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+	struct ntmp_ipft_entry *ipft_entry;
+	int err;
+
+	if (key_tbl->restored)
+		return 0;
+
+	if (ist_entry) {
+		err = ntmp_ist_add_or_update_entry(cbdrs, ist_entry);
+		if (err)
+			return err;
+	}
+
+	switch (key_tbl->tbl_type) {
+	case FLOWER_KEY_TBL_ISIT:
+		err = ntmp_isit_add_or_update_entry(cbdrs, true,
+						    key_tbl->isit_entry);
+		if (err)
+			goto del_ist_entry;
+		break;
+	case FLOWER_KEY_TBL_IPFT:
+		ipft_entry = key_tbl->ipft_entry;
+		err = ntmp_ipft_add_entry(cbdrs, &ipft_entry->entry_id,
+					  ipft_entry);
+		if (err)
+			goto del_ist_entry;
+		break;
+	}
+
+	key_tbl->restored = true;
+
+	return 0;
+
+del_ist_entry:
+	if (ist_entry)
+		ntmp_ist_delete_entry(&priv->cbdrs, ist_entry->entry_id);
+
+	return err;
+}
+
+static void netc_remove_key_table(struct ntmp_priv *priv,
+				  struct netc_flower_key_tbl *key_tbl)
+{
+	struct ntmp_ist_entry *ist_entry = key_tbl->ist_entry;
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+
+	switch (key_tbl->tbl_type) {
+	case FLOWER_KEY_TBL_ISIT:
+		ntmp_isit_delete_entry(cbdrs, key_tbl->isit_entry->entry_id);
+		break;
+	case FLOWER_KEY_TBL_IPFT:
+		ntmp_ipft_delete_entry(cbdrs, key_tbl->ipft_entry->entry_id);
+		break;
+	}
+
+	if (ist_entry)
+		ntmp_ist_delete_entry(&priv->cbdrs, ist_entry->entry_id);
+
+	key_tbl->restored = false;
+}
+
+static int netc_restore_flower_tables(struct ntmp_priv *priv,
+				      struct netc_flower_rule *rule)
+{
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+	int err;
+
+	if (rule->isct_eid != NTMP_NULL_ENTRY_ID) {
+		err = ntmp_isct_operate_entry(cbdrs, rule->isct_eid,
+					      NTMP_CMD_ADD, NULL);
+		if (err)
+			return err;
+	}
+
+	if (rule->gate_tbl) {
+		err = netc_restore_gate_table(priv, rule->gate_tbl);
+		if (err)
+			goto del_isct_entry;
+	}
+
+	if (rule->police_tbl) {
+		err = netc_restore_police_table(priv, rule->police_tbl);
+		if (err)
+			goto del_gate_table;
+	}
+
+	if (rule->isft_entry) {
+		err = ntmp_isft_add_or_update_entry(cbdrs, true,
+						    rule->isft_entry);
+		if (err)
+			goto del_police_table;
+	}
+
+	err = netc_restore_key_table(priv, rule->key_tbl);
+	if (err)
+		goto del_isft_entry;
+
+	return 0;
+
+del_isft_entry:
+	if (rule->isft_entry)
+		ntmp_isft_delete_entry(cbdrs, rule->isft_entry->entry_id);
+del_police_table:
+	if (rule->police_tbl)
+		netc_remove_police_table(priv, rule->police_tbl);
+del_gate_table:
+	if (rule->gate_tbl)
+		netc_remove_gate_table(priv, rule->gate_tbl);
+del_isct_entry:
+	if (rule->isct_eid != NTMP_NULL_ENTRY_ID)
+		ntmp_isct_operate_entry(cbdrs, rule->isct_eid,
+					NTMP_CMD_DELETE, NULL);
+
+	return err;
+}
+
+static void netc_remove_flower_tables(struct ntmp_priv *priv,
+				      struct netc_flower_rule *rule)
+{
+	struct ntmp_isft_entry *isft_entry = rule->isft_entry;
+	struct netc_cbdrs *cbdrs = &priv->cbdrs;
+
+	netc_remove_key_table(priv, rule->key_tbl);
+
+	if (isft_entry)
+		ntmp_isft_delete_entry(cbdrs, isft_entry->entry_id);
+
+	if (rule->police_tbl)
+		netc_remove_police_table(priv, rule->police_tbl);
+
+	if (rule->gate_tbl)
+		netc_remove_gate_table(priv, rule->gate_tbl);
+
+	if (rule->isct_eid != NTMP_NULL_ENTRY_ID)
+		ntmp_isct_operate_entry(cbdrs, rule->isct_eid,
+					NTMP_CMD_DELETE, NULL);
+}
+
+static void netc_free_flower_rule(struct ntmp_priv *priv,
+				  struct netc_flower_rule *rule)
+{
+	struct netc_police_tbl *police_tbl = rule->police_tbl;
+	struct netc_flower_key_tbl *key_tbl = rule->key_tbl;
+	struct netc_gate_tbl *gate_tbl = rule->gate_tbl;
+
+	if (refcount_dec_and_test(&key_tbl->refcount))
+		netc_free_flower_key_tbl(priv, key_tbl);
+
+	kfree(rule->isft_entry);
+
+	if (gate_tbl && refcount_dec_and_test(&gate_tbl->refcount)) {
+		kfree(gate_tbl->sgit_entry);
+		kfree(gate_tbl->sgclt_entry);
+		kfree(gate_tbl);
+	}
+
+	if (police_tbl && refcount_dec_and_test(&police_tbl->refcount)) {
+		kfree(police_tbl->rpt_entry);
+		kfree(police_tbl);
+	}
+
+	hlist_del(&rule->node);
+	kfree(rule);
+}
+
+int netc_restore_flower_list_config(struct ntmp_priv *priv)
+{
+	struct netc_flower_rule *rule, *iterator;
+	struct hlist_node *tmp;
+	int err;
+
+	mutex_lock(&priv->flower_lock);
+
+	hlist_for_each_entry(rule, &priv->flower_list, node) {
+		err = netc_restore_flower_tables(priv, rule);
+		if (err)
+			goto del_flower_tables;
+	}
+
+	mutex_unlock(&priv->flower_lock);
+
+	return 0;
+
+del_flower_tables:
+	hlist_for_each_entry(iterator, &priv->flower_list, node) {
+		if (iterator == rule)
+			break;
+
+		netc_remove_flower_tables(priv, iterator);
+	}
+
+	hlist_for_each_entry_safe(iterator, tmp, &priv->flower_list, node)
+		netc_free_flower_rule(priv, iterator);
+
+	mutex_unlock(&priv->flower_lock);
+
+	return err;
+}
+EXPORT_SYMBOL_GPL(netc_restore_flower_list_config);
+
+void netc_clear_flower_table_restored_flag(struct ntmp_priv *priv)
+{
+	struct netc_flower_rule *rule;
+
+	mutex_lock(&priv->flower_lock);
+
+	hlist_for_each_entry(rule, &priv->flower_list, node) {
+		rule->key_tbl->restored = false;
+
+		if (rule->gate_tbl)
+			rule->gate_tbl->restored = false;
+
+		if (rule->police_tbl)
+			rule->police_tbl->restored = false;
+	}
+
+	mutex_unlock(&priv->flower_lock);
+}
+EXPORT_SYMBOL_GPL(netc_clear_flower_table_restored_flag);

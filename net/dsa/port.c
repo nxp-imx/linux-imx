@@ -1914,6 +1914,44 @@ void dsa_shared_port_link_unregister_of(struct dsa_port *dp)
 	}
 }
 
+static void dsa_shared_port_suspend(struct dsa_port *dp)
+{
+	if (!dp->pl)
+		return;
+
+	rtnl_lock();
+	phylink_stop(dp->pl);
+	rtnl_unlock();
+}
+
+static void dsa_shared_port_resume(struct dsa_port *dp)
+{
+	if (!dp->pl)
+		return;
+
+	rtnl_lock();
+	phylink_start(dp->pl);
+	rtnl_unlock();
+}
+
+void dsa_port_suspend(struct dsa_port *dp)
+{
+	if (dsa_port_is_dsa(dp) || dsa_port_is_cpu(dp))
+		return dsa_shared_port_suspend(dp);
+
+	if (dp->user)
+		dsa_user_suspend(dp->user);
+}
+
+void dsa_port_resume(struct dsa_port *dp)
+{
+	if (dsa_port_is_dsa(dp) || dsa_port_is_cpu(dp))
+		return dsa_shared_port_resume(dp);
+
+	if (dp->user)
+		dsa_user_resume(dp->user);
+}
+
 int dsa_port_hsr_join(struct dsa_port *dp, struct net_device *hsr,
 		      struct netlink_ext_ack *extack)
 {

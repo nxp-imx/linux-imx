@@ -790,11 +790,24 @@ F: drivers/mtd/nand/raw/gpmi-nand/
 F: include/linux/fsl_ifc.h
 
 net/phy
-M: Wei Fang <wei.fang@nxp.com>
-R: Clark Wang <xiaoning.wang@nxp.com>
-R: Florin Chiculita <florinlaurentiu.chiculita@nxp.com>
+M: Clark Wang <xiaoning.wang@nxp.com>
+M: Ioana Ciornei <ioana.ciornei@nxp.com>
+M: Vladimir Oltean <vladimir.oltean@nxp.com>
+R: Wei Fang <wei.fang@nxp.com>
+F: Documentation/devicetree/bindings/phy/inphi,in112525.yaml
+F: Documentation/devicetree/bindings/phy/ti,ds125df111.yaml
+F: drivers/net/pcs/
 F: drivers/net/phy/
+F: drivers/phy/inphi/
+F: drivers/phy/freescale/phy-fsl-lynx-*.c
+F: drivers/phy/freescale/phy-fsl-lynx-xgkr-algorithm.h
+F: drivers/phy/ti/phy-ds125df111.c
+F: drivers/soc/fsl/guts.c
+F: include/linux/fsl/guts.h
+F: include/linux/mii.h
 F: include/linux/phy.h
+F: include/linux/phy/phy-ethernet.h
+F: include/linux/phy/phy-fsl-lynx.h
 
 net/tsn
 M: Xiaoliang Yang <xiaoliang.yang_1@nxp.com>

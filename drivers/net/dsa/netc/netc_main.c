@@ -29,12 +29,11 @@ static struct netc_fdb_entry *netc_lookup_fdb_entry(struct netc_switch *priv,
 	return NULL;
 }
 
-static void netc_destroy_fdb_list(struct netc_switch *priv)
+void netc_destroy_fdb_list(struct netc_switch *priv)
 {
 	struct netc_fdb_entry *entry;
 	struct hlist_node *tmp;
 
-	guard(mutex)(&priv->fdbt_lock);
 	hlist_for_each_entry_safe(entry, tmp, &priv->fdb_list, node)
 		netc_del_fdb_entry(entry);
 }
@@ -51,12 +50,11 @@ static struct netc_vlan_entry *netc_lookup_vlan_entry(struct netc_switch *priv,
 	return NULL;
 }
 
-static void netc_destroy_vlan_list(struct netc_switch *priv)
+void netc_destroy_vlan_list(struct netc_switch *priv)
 {
 	struct netc_vlan_entry *entry;
 	struct hlist_node *tmp;
 
-	guard(mutex)(&priv->vft_lock);
 	hlist_for_each_entry_safe(entry, tmp, &priv->vlan_list, node)
 		netc_del_vlan_entry(entry);
 }
@@ -126,7 +124,7 @@ void netc_mac_port_wr(struct netc_port *port, u32 reg, u32 val)
 		netc_port_wr(port, reg + NETC_PMAC_OFFSET, val);
 }
 
-static u32 netc_mac_port_rd(struct netc_port *port, u32 reg)
+u32 netc_mac_port_rd(struct netc_port *port, u32 reg)
 {
 	if (is_netc_pseudo_port(port))
 		return 0;
@@ -741,6 +739,13 @@ static void netc_switch_isit_key_config(struct netc_switch *priv)
 	netc_base_wr(regs, NETC_ISIDKCCR0(1), val);
 }
 
+void netc_switch_fixed_config(struct netc_switch *priv)
+{
+	netc_switch_dos_default_config(priv);
+	netc_switch_vfht_default_config(priv);
+	netc_switch_isit_key_config(priv);
+}
+
 static void netc_port_set_max_frame_size(struct netc_port *port,
 					 u32 max_frame_size)
 {
@@ -787,17 +792,10 @@ static void netc_port_set_mlo(struct netc_port *port, int mlo)
 		netc_port_wr(port, NETC_BPCR, val);
 }
 
-static void netc_port_default_config(struct netc_port *port)
+void netc_port_fixed_config(struct netc_port *port)
 {
 	u32 pqnt = 0xffff, qth = 0xffff / 2;
 	u32 val;
-
-	/* Default VLAN unware */
-	val = netc_port_rd(port, NETC_BPDVR);
-	if (!(val & BPDVR_RXVAM)) {
-		val |= BPDVR_RXVAM;
-		netc_port_wr(port, NETC_BPDVR, val);
-	}
 
 	/* Default IPV and DR setting */
 	val = netc_port_rd(port, NETC_PQOSMR);
@@ -830,13 +828,28 @@ static void netc_port_default_config(struct netc_port *port)
 		 * if a pause condition still exists.
 		 */
 		netc_port_wr(port, NETC_PM_PAUSE_TRHESH(0), qth);
+	}
+}
+
+static void netc_port_default_config(struct netc_port *port)
+{
+	u32 val;
+
+	netc_port_fixed_config(port);
+
+	/* Default VLAN unware */
+	val = netc_port_rd(port, NETC_BPDVR);
+	if (!(val & BPDVR_RXVAM)) {
+		val |= BPDVR_RXVAM;
+		netc_port_wr(port, NETC_BPDVR, val);
+	}
+
+	if (dsa_port_is_user(port->dp)) {
 		netc_port_set_mlo(port, MLO_DISABLE);
 	} else {
-		val = netc_port_rd(port, NETC_BPCR);
-		val |= BPCR_SRCPRND;
+		val = netc_port_rd(port, NETC_BPCR) | BPCR_SRCPRND;
+		val = u32_replace_bits(val, MLO_HW, BPCR_MLO);
 		netc_port_wr(port, NETC_BPCR, val);
-
-		netc_port_set_mlo(port, MLO_HW);
 	}
 
 	netc_port_set_max_frame_size(port, NETC_MAX_FRAME_LEN);
@@ -892,9 +905,7 @@ static int netc_setup(struct dsa_switch *ds)
 	INIT_DELAYED_WORK(&priv->fdbt_clean, netc_clean_fdbt_aging_entries);
 	mutex_init(&priv->bpt_lock);
 
-	netc_switch_dos_default_config(priv);
-	netc_switch_vfht_default_config(priv);
-	netc_switch_isit_key_config(priv);
+	netc_switch_fixed_config(priv);
 
 	/* default setting for ports */
 	for (i = 0; i < priv->num_ports; i++) {
@@ -929,6 +940,14 @@ static void netc_destroy_all_lists(struct netc_switch *priv)
 	mutex_destroy(&priv->vft_lock);
 }
 
+static void netc_free_ports_taprio(struct netc_switch *priv)
+{
+	int i;
+
+	for (i = 0; i < priv->num_ports; i++)
+		netc_port_free_taprio(priv->ports[i]);
+}
+
 static void netc_teardown(struct dsa_switch *ds)
 {
 	struct netc_switch *priv = ds->priv;
@@ -937,6 +956,7 @@ static void netc_teardown(struct dsa_switch *ds)
 	netc_destroy_all_lists(priv);
 	netc_deinit_ntmp_priv(priv);
 	netc_remove_all_ports_internal_mdiobus(ds);
+	netc_free_ports_taprio(priv);
 }
 
 static bool netc_switch_is_emdio_consumer(struct device_node *ports)
@@ -1099,15 +1119,71 @@ static void netc_switch_get_ip_revision(struct netc_switch *priv)
 	priv->revision = val & IPBRR0_IP_REV;
 }
 
+static int netc_add_or_update_ett_entry(struct netc_switch *priv, bool add,
+					bool untagged, u32 ett_eid, u32 ect_eid)
+{
+	struct netc_cbdrs *cbdrs = &priv->ntmp.cbdrs;
+	struct ett_cfge_data ett_cfge = {};
+	u32 vuda_sqta = FMTEID_VUDA_SQTA;
+	u16 efm_cfg = 0;
+
+	if (ect_eid != NTMP_NULL_ENTRY_ID) {
+		/* Increase egress frame counter */
+		efm_cfg |= FIELD_PREP(ETT_ECA, ETT_ECA_INC);
+		ett_cfge.ec_eid = cpu_to_le32(ect_eid);
+	}
+
+	/* If egress rule is VLAN untagged */
+	if (untagged) {
+		/* delete outer VLAN tag */
+		vuda_sqta |= FIELD_PREP(FMTEID_VUDA, FMTEID_VUDA_DEL_OTAG);
+		/* length change: twos-complement notation */
+		efm_cfg |= FIELD_PREP(ETT_EFM_LEN_CHANGE, ETT_FRM_LEN_DEL_VLAN);
+	}
+
+	ett_cfge.efm_eid = cpu_to_le32(vuda_sqta);
+	ett_cfge.efm_cfg = cpu_to_le16(efm_cfg);
+
+	return ntmp_ett_add_or_update_entry(cbdrs, ett_eid, add, &ett_cfge);
+}
+
+int netc_add_ett_group_entries(struct netc_switch *priv,
+			       u32 untagged_port_bitmap,
+			       u32 ett_base_eid,
+			       u32 ect_base_eid)
+{
+	struct netc_cbdrs *cbdrs = &priv->ntmp.cbdrs;
+	u32 ett_eid = ett_base_eid;
+	int i, err;
+
+	for (i = 0; i < priv->num_ports; i++, ett_eid++) {
+		bool untagged = !!(untagged_port_bitmap & BIT(i));
+		u32 ect_eid = NTMP_NULL_ENTRY_ID;
+
+		if (ect_base_eid != NTMP_NULL_ENTRY_ID)
+			ect_eid = ect_base_eid + i;
+
+		err = netc_add_or_update_ett_entry(priv, true, untagged,
+						   ett_eid, ect_eid);
+		if (err)
+			goto clear_ett_entries;
+	}
+
+	return 0;
+
+clear_ett_entries:
+	for (i--, ett_eid--; i >= 0; i--, ett_eid--)
+		ntmp_ett_delete_entry(cbdrs, ett_eid);
+
+	return err;
+}
+
 static int netc_switch_add_vlan_egress_rule(struct netc_switch *priv,
 					    struct netc_vlan_entry *entry)
 {
 	struct netc_cbdrs *cbdrs = &priv->ntmp.cbdrs;
-	struct ett_cfge_data ett_cfge = {};
 	u32 ect_eid = NTMP_NULL_ENTRY_ID;
-	u32 ett_eid, vuda_sqta;
-	u32 ett_gid, ect_gid;
-	u16 efm_cfg;
+	u32 ett_eid, ett_gid, ect_gid;
 	int i, err;
 
 	/* step1: find available ect entries and update these entries */
@@ -1131,53 +1207,24 @@ static int netc_switch_add_vlan_egress_rule(struct netc_switch *priv,
 	if (ett_gid == NTMP_NULL_ENTRY_ID) {
 		dev_err(priv->dev, "No free ETT entries found\n");
 		err = -ENOSPC;
-		goto clear_ect_eid;
+		goto clear_ect_gid;
 	}
 
 	ett_eid = ett_gid * priv->num_ports;
-	for (i = 0; i < priv->num_ports; i++, ett_eid++) {
-		/* Specify the FMT entry ID format */
-		vuda_sqta = FMTEID_VUDA_SQTA;
-		efm_cfg = 0;
+	err = netc_add_ett_group_entries(priv, entry->untagged_port_bitmap,
+					 ett_eid, ect_eid);
+	if (err)
+		goto clear_ett_gid;
 
-		if (ect_eid != NTMP_NULL_ENTRY_ID) {
-			/* Increase egress frame counter */
-			efm_cfg |= FIELD_PREP(ETT_ECA, ETT_ECA_INC);
-			ett_cfge.ec_eid = cpu_to_le32(ect_eid);
-			ect_eid++;
-		}
-
-		/* If egress rule is VLAN untagged */
-		if (entry->untagged_port_bitmap & BIT(i)) {
-			/* delete outer VLAN tag */
-			vuda_sqta |= FIELD_PREP(FMTEID_VUDA,
-						FMTEID_VUDA_DEL_OTAG);
-			/* length change: twos-complement notation */
-			efm_cfg |= FIELD_PREP(ETT_EFM_LEN_CHANGE,
-					      ETT_FRM_LEN_DEL_VLAN);
-		}
-
-		ett_cfge.efm_eid = cpu_to_le32(vuda_sqta);
-		ett_cfge.efm_cfg = cpu_to_le16(efm_cfg);
-
-		/* Add an ETT entry */
-		err = ntmp_ett_add_or_update_entry(cbdrs, ett_eid, true, &ett_cfge);
-		if (err)
-			goto clear_ett_entries;
-	}
-
-	ett_eid = ett_gid * priv->num_ports;
 	entry->cfge.et_eid = cpu_to_le32(ett_eid);
 	entry->ect_gid = ect_gid;
 
 	return 0;
 
-clear_ett_entries:
+clear_ett_gid:
 	ntmp_clear_eid_bitmap(priv->ntmp.ett_gid_bitmap, ett_gid);
-	for (i--, ett_eid--; i >= 0; i--, ett_eid--)
-		ntmp_ett_delete_entry(cbdrs, ett_eid);
 
-clear_ect_eid:
+clear_ect_gid:
 	/* ECT is a static index table, no need to delete the entries */
 	if (ect_gid != NTMP_NULL_ENTRY_ID)
 		ntmp_clear_eid_bitmap(priv->ntmp.ect_gid_bitmap, ect_gid);
@@ -1185,8 +1232,8 @@ clear_ect_eid:
 	return err;
 }
 
-static void netc_switch_delete_vlan_egress_rule(struct netc_switch *priv,
-						struct netc_vlan_entry *entry)
+void netc_switch_delete_vlan_egress_rule(struct netc_switch *priv,
+					 struct netc_vlan_entry *entry)
 {
 	u32 ett_eid, ett_eid_bit;
 	int i;
@@ -1212,13 +1259,12 @@ static void netc_switch_delete_vlan_egress_rule(struct netc_switch *priv,
 static int netc_port_update_vlan_egress_rule(struct netc_port *port,
 					     struct netc_vlan_entry *entry)
 {
+	bool untagged = !!(entry->untagged_port_bitmap & BIT(port->index));
+	u32 ett_eid = le32_to_cpu(entry->cfge.et_eid);
 	struct netc_switch *priv = port->switch_priv;
 	struct netc_cbdrs *cbdrs = &priv->ntmp.cbdrs;
-	struct ett_cfge_data ett_cfge = {};
-	u32 ett_eid, ect_eid, vuda_sqta;
-	u16 efm_cfg = 0;
+	u32 ect_eid = NTMP_NULL_ENTRY_ID;
 
-	ett_eid = le32_to_cpu(entry->cfge.et_eid);
 	if (ett_eid == NTMP_NULL_ENTRY_ID)
 		return 0;
 
@@ -1227,26 +1273,10 @@ static int netc_port_update_vlan_egress_rule(struct netc_port *port,
 		ect_eid = entry->ect_gid * priv->num_ports;
 		ect_eid += port->index;
 		ntmp_ect_update_entry(cbdrs, ect_eid);
-
-		efm_cfg |= FIELD_PREP(ETT_ECA, ETT_ECA_INC);
-		ett_cfge.ec_eid = cpu_to_le32(ect_eid);
 	}
 
-	/* Specify the FMT entry ID format */
-	vuda_sqta = FMTEID_VUDA_SQTA;
-	/* If egress rule is VLAN untagged */
-	if (entry->untagged_port_bitmap & BIT(port->index)) {
-		/* delete outer VLAN tag */
-		vuda_sqta |= FIELD_PREP(FMTEID_VUDA, FMTEID_VUDA_DEL_OTAG);
-		/* length change: twos-complement notation */
-		efm_cfg |= FIELD_PREP(ETT_EFM_LEN_CHANGE, ETT_FRM_LEN_DEL_VLAN);
-	}
-
-	ett_cfge.efm_cfg = cpu_to_le16(efm_cfg);
-	ett_cfge.efm_eid = cpu_to_le32(vuda_sqta);
-
-	/* Add an ETT entry */
-	return ntmp_ett_add_or_update_entry(cbdrs, ett_eid, false, &ett_cfge);
+	return netc_add_or_update_ett_entry(priv, false, untagged,
+					    ett_eid, ect_eid);
 }
 
 static int netc_port_add_vlan_entry(struct netc_port *port, u16 vid,
@@ -1562,14 +1592,6 @@ static int netc_port_del_bcast_fdb_entry(struct netc_port *port, u16 vid)
 	return netc_port_del_fdb_entry(port, bcast, vid);
 }
 
-static struct net_device *netc_port_get_net_device(struct netc_port *port)
-{
-	if (dsa_port_is_cpu(port->dp))
-		return port->dp->conduit;
-	else
-		return port->dp->user;
-}
-
 static int netc_port_enable(struct dsa_switch *ds, int port_id,
 			    struct phy_device *phy)
 {
@@ -1616,6 +1638,8 @@ static int netc_port_enable(struct dsa_switch *ds, int port_id,
 		goto del_unaware_vlan_entry;
 	}
 
+	port->enabled = true;
+
 	return 0;
 
 del_unaware_vlan_entry:
@@ -1642,6 +1666,7 @@ static void netc_port_disable(struct dsa_switch *ds, int port_id)
 	}
 
 	netc_port_del_vlan_entry(port, NETC_STANDALONE_PVID);
+	port->enabled = false;
 }
 
 static void netc_port_stp_state_set(struct dsa_switch *ds, int port_id, u8 state)
@@ -2066,100 +2091,6 @@ static int netc_port_cls_flower_stats(struct dsa_switch *ds, int port_id,
 		return -EOPNOTSUPP;
 
 	return netc_port_flow_cls_stats(port, cls);
-}
-
-static int netc_suspend(struct dsa_switch *ds)
-{
-	struct netc_switch *priv = NETC_PRIV(ds);
-	struct pci_dev *pdev = priv->pdev;
-	int port_id;
-
-	cancel_delayed_work_sync(&priv->fdbt_clean);
-
-	for (port_id = 0; port_id < ds->num_ports; port_id++) {
-		struct netc_port *port = NETC_PORT(priv, port_id);
-		struct net_device *ndev;
-
-		if (!port->dp)
-			continue;
-
-		ndev = netc_port_get_net_device(port);
-		if (netif_running(ndev))
-			netc_port_disable(ds, port_id);
-	}
-
-	netc_destroy_fdb_list(priv);
-	netc_destroy_vlan_list(priv);
-	netc_deinit_ntmp_priv(priv);
-	pci_disable_device(pdev);
-
-	return 0;
-}
-
-static int netc_resume(struct dsa_switch *ds)
-{
-	struct netc_switch *priv = NETC_PRIV(ds);
-	struct pci_dev *pdev = priv->pdev;
-	struct device *dev = &pdev->dev;
-	struct netc_port *cpu_port;
-	int port_id, err;
-
-	pcie_flr(pdev);
-	err = pci_enable_device_mem(pdev);
-	if (err)
-		return dev_err_probe(dev, err, "Failed to enable device\n");
-
-	pci_set_master(pdev);
-
-	err = netc_init_ntmp_priv(priv);
-	if (err)
-		return err;
-
-	netc_switch_dos_default_config(priv);
-	netc_switch_vfht_default_config(priv);
-	netc_switch_isit_key_config(priv);
-
-	err = netc_switch_bpt_default_config(priv);
-	if (err)
-		goto deinit_ntmp_priv;
-
-	cpu_port = NETC_PORT(priv, ds->num_ports - 1);
-	for (port_id = 0; port_id < ds->num_ports; port_id++) {
-		struct netc_port *port = NETC_PORT(priv, port_id);
-		struct net_device *ndev;
-		u16 pvid;
-
-		if (!port->dp)
-			continue;
-
-		netc_port_default_config(port);
-		ndev = netc_port_get_net_device(port);
-		if (netif_running(ndev)) {
-			err = netc_port_enable(ds, port_id, NULL);
-			if (err)
-				goto deinit_ntmp_priv;
-
-			if (port->bridge)
-				pvid = port->vlan_aware ? NETC_CPU_PORT_PVID :
-				       NETC_VLAN_UNAWARE_PVID;
-			else
-				pvid = NETC_STANDALONE_PVID;
-
-			err = netc_port_set_fdb_entry(cpu_port, ndev->dev_addr,
-						      pvid);
-			if (err)
-				goto deinit_ntmp_priv;
-		}
-	}
-
-	schedule_delayed_work(&priv->fdbt_clean, priv->fdbt_acteu_interval);
-
-	return 0;
-
-deinit_ntmp_priv:
-	netc_deinit_ntmp_priv(priv);
-
-	return err;
 }
 
 static void netc_phylink_get_caps(struct dsa_switch *ds, int port_id,

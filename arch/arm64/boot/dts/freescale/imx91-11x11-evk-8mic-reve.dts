@@ -116,6 +116,11 @@
 		regulator-always-on;
 	};
 
+	sound-micfil {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
+	};
+
 	sound-wm8962 {
 		status = "disabled";
 	};

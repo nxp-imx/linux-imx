@@ -117,6 +117,11 @@
 		};
 	};
 
+	sound-micfil {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
+	};
+
 	sound-xcvr {
 		compatible = "fsl,imx-audio-card";
 		model = "imx-audio-xcvr";
@@ -132,15 +137,13 @@
 &pcal6524 {
 	/* When low, select can; When high, select gpio. */
 	can-gpio-sel-hog {
-		gpio-hog;
-		gpios = <4 GPIO_ACTIVE_HIGH>;
+		/delete-property/ output-low;
 		output-high;
 	};
 
 	/* When low, select pwm; When high, select gpio. */
 	pwm-gpio-sel-hog {
-		gpio-hog;
-		gpios = <5 GPIO_ACTIVE_LOW>;
+		/delete-property/ output-low;
 		output-high;
 	};
 };

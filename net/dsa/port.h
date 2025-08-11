@@ -103,6 +103,8 @@ int dsa_port_phylink_create(struct dsa_port *dp);
 void dsa_port_phylink_destroy(struct dsa_port *dp);
 int dsa_shared_port_link_register_of(struct dsa_port *dp);
 void dsa_shared_port_link_unregister_of(struct dsa_port *dp);
+void dsa_port_suspend(struct dsa_port *dp);
+void dsa_port_resume(struct dsa_port *dp);
 int dsa_port_hsr_join(struct dsa_port *dp, struct net_device *hsr,
 		      struct netlink_ext_ack *extack);
 void dsa_port_hsr_leave(struct dsa_port *dp, struct net_device *hsr);

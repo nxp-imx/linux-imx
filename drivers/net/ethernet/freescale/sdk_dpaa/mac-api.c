@@ -139,6 +139,7 @@ static int __cold memac_init(struct mac_device *mac_dev)
 	param.f_Exception	= mac_exception;
 	param.f_Event		= mac_exception;
 	param.h_App		= mac_dev;
+	param.fixed		= !!mac_dev->fixed_link;
 
 	priv->fm_mac = fm_mac_config(&param);
 	if (unlikely(priv->fm_mac == NULL)) {

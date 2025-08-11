@@ -1652,25 +1652,14 @@ out:
 EXPORT_SYMBOL_GPL(dsa_switch_shutdown);
 
 #ifdef CONFIG_PM_SLEEP
-static bool dsa_port_is_initialized(const struct dsa_port *dp)
-{
-	return dp->type == DSA_PORT_TYPE_USER && dp->user;
-}
-
 int dsa_switch_suspend(struct dsa_switch *ds)
 {
 	struct dsa_port *dp;
 	int ret = 0;
 
-	/* Suspend user network devices */
-	dsa_switch_for_each_port(dp, ds) {
-		if (!dsa_port_is_initialized(dp))
-			continue;
-
-		ret = dsa_user_suspend(dp->user);
-		if (ret)
-			return ret;
-	}
+	/* Suspend user and shared ports */
+	dsa_switch_for_each_available_port(dp, ds)
+		dsa_port_suspend(dp);
 
 	if (ds->ops->suspend)
 		ret = ds->ops->suspend(ds);
@@ -1690,15 +1679,9 @@ int dsa_switch_resume(struct dsa_switch *ds)
 	if (ret)
 		return ret;
 
-	/* Resume user network devices */
-	dsa_switch_for_each_port(dp, ds) {
-		if (!dsa_port_is_initialized(dp))
-			continue;
-
-		ret = dsa_user_resume(dp->user);
-		if (ret)
-			return ret;
-	}
+	/* Resume user and shared ports */
+	dsa_switch_for_each_available_port(dp, ds)
+		dsa_port_resume(dp);
 
 	return 0;
 }

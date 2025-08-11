@@ -270,9 +270,6 @@ static void enetc4_configure_port(struct enetc_pf *pf)
 
 	/* Master enable for all SIs */
 	enetc4_enable_all_si(pf);
-
-	/* Enable port transmit/receive */
-	enetc_port_wr(hw, ENETC4_POR, 0);
 }
 
 static int enetc4_pf_set_uc_exact_filter(struct enetc_pf *pf)
@@ -646,8 +643,11 @@ static void enetc4_set_tx_pause(struct enetc_pf *pf, int num_rxbdr, bool tx_paus
 
 static void enetc4_enable_mac(struct enetc_pf *pf, bool en)
 {
+	struct enetc_hw *hw = &pf->si->hw;
 	struct enetc_si *si = pf->si;
 	u32 val;
+
+	enetc_port_wr(hw, ENETC4_POR, en ? 0 : POR_TXDIS | POR_RXDIS);
 
 	val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
 	val &= ~(PM_CMD_CFG_TX_EN | PM_CMD_CFG_RX_EN);

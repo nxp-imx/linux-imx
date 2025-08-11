@@ -248,6 +248,7 @@ typedef struct t_FmMacParams {
     t_FmMacExceptionCallback    *f_Exception;       /**< Exception Callback Routine         */
     t_Handle                    h_App;              /**< A handle to an application layer object; This handle will
                                                          be passed by the driver upon calling the above callbacks */
+    bool                        fixed;              /**< Specifies whether MAC has a fixed-link */
 } t_FmMacParams;
 
 
