@@ -39,6 +39,17 @@
 		clock-output-names = "ldb_pll_div7";
 	};
 
+	mqs1: mqs1 {
+		compatible = "fsl,imx95-aonmix-mqs";
+		status = "disabled";
+	};
+
+	mqs2: mqs2 {
+		compatible = "fsl,imx95-netcmix-mqs";
+		gpr = <&netcmix_blk_ctrl>;
+		status = "disabled";
+	};
+
 	clk_osc_24m: clock-osc-24m {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
