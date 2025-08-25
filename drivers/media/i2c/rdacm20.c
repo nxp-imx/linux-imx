@@ -27,7 +27,7 @@
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
-
+#include "rdacm.h"
 #include "max9271.h"
 
 #define OV10635_I2C_ADDRESS		0x30
@@ -60,10 +60,13 @@
  */
 #define OV10635_PIXEL_RATE		(44000000)
 
-static const struct ov10635_reg {
+struct ov10635_reg {
 	u16	reg;
 	u8	val;
-} ov10635_regs_wizard[] = {
+};
+
+static const struct ov10635_reg ov10635_regs_wizard[] = {
+	{ 0x0100, 0x01 },
 	{ 0x301b, 0xff }, { 0x301c, 0xff }, { 0x301a, 0xff }, { 0x3011, 0x42 },
 	{ 0x6900, 0x0c }, { 0x6901, 0x19 }, { 0x3503, 0x10 }, { 0x3025, 0x03 },
 	{ 0x3003, 0x16 }, { 0x3004, 0x30 }, { 0x3005, 0x40 }, { 0x3006, 0x91 },
@@ -308,18 +311,19 @@ static const struct ov10635_reg {
 	{ 0x3832, (0x0d + 2 * 0x20 + 0x15 + 38) >> 8 },
 	{ 0x3833, (0x0d + 2 * 0x20 + 0x15 + 38) & 0xff },
 	{ 0x3834, OV10635_VTS >> 8 }, { 0x3835, OV10635_VTS & 0xff },
-	{ 0x302e, 0x01 },
+	{ 0x302e, 0x01 }, { 0x302e, 0x01 }
 };
 
 struct rdacm20_device {
-	struct device			*dev;
+	struct device				*dev;
 	struct max9271_device		serializer;
-	struct i2c_client		*sensor;
-	struct v4l2_subdev		sd;
-	struct media_pad		pad;
+	struct i2c_client			*sensor;
+	struct v4l2_subdev			sd;
+	struct media_pad			pad;
 	struct v4l2_ctrl_handler	ctrls;
-	u32				addrs[2];
+	u32					addrs[2];
 	bool				no_poc;
+	bool				initialised;
 };
 
 static inline struct rdacm20_device *sd_to_rdacm20(struct v4l2_subdev *sd)
@@ -360,30 +364,19 @@ static int __ov10635_write(struct rdacm20_device *dev, u16 reg, u8 val)
 	int ret;
 
 	dev_dbg(dev->dev, "%s(0x%04x, 0x%02x)\n", __func__, reg, val);
-
-	ret = i2c_master_send(dev->sensor, buf, 3);
-	return ret < 0 ? ret : 0;
+	for (unsigned retry = 10; retry > 0; --retry) {
+		ret = i2c_master_send(dev->sensor, buf, 3);
+		if (ret >= 0)
+			return 0;
+		else
+			dev_info(dev->dev, "retry %s(0x%04x, 0x%02x)\n", __func__, reg, val);
+	}
+	return (ret < 0) ? ret : 0;
 }
-
-#if 0 
-/* Unused when I2C address is set via max9271.*/
-
-static int ov10635_write(struct rdacm20_device *dev, u16 reg, u8 val)
-{
-	int ret;
-
-	ret = __ov10635_write(dev, reg, val);
-	if (ret < 0)
-		dev_err(dev->dev, "%s: register 0x%04x write failed (%d)\n",
-			__func__, reg, ret);
-
-	return ret;
-}
-#endif
 
 static int ov10635_set_regs(struct rdacm20_device *dev,
-			    const struct ov10635_reg *regs,
-			    unsigned int nr_regs)
+			const struct ov10635_reg *regs,
+			unsigned int nr_regs)
 {
 	unsigned int i;
 	int ret;
@@ -391,9 +384,8 @@ static int ov10635_set_regs(struct rdacm20_device *dev,
 	for (i = 0; i < nr_regs; i++) {
 		ret = __ov10635_write(dev, regs[i].reg, regs[i].val);
 		if (ret) {
-			dev_err(dev->dev,
-				"%s: register %u (0x%04x) write failed (%d)\n",
-				__func__, i, regs[i].reg, ret);
+			dev_err(dev->dev, "%s: register %u (0x%04x) write failed (%d)\n",
+					__func__, i, regs[i].reg, ret);
 			return ret;
 		}
 	}
@@ -403,9 +395,7 @@ static int ov10635_set_regs(struct rdacm20_device *dev,
 
 static int rdacm20_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct rdacm20_device *dev = sd_to_rdacm20(sd);
-
-	return max9271_set_serial_link(&dev->serializer, enable);
+	return 0;
 }
 
 static int rdacm20_enum_mbus_code(struct v4l2_subdev *sd,
@@ -479,34 +469,23 @@ static int rdacm20_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 	return 0;
 }
 
-static const struct v4l2_subdev_video_ops rdacm20_video_ops = {
-	.s_stream	= rdacm20_s_stream,
-};
-
-static const struct v4l2_subdev_pad_ops rdacm20_subdev_pad_ops = {
-	.enum_mbus_code		= rdacm20_enum_mbus_code,
-	.get_fmt		= rdacm20_get_fmt,
-	.set_fmt		= rdacm20_get_fmt,
-	.enum_frame_size	= rdacm20_enum_frame_size,
-	.get_frame_desc		= rdacm20_get_frame_desc,
-};
-
-static const struct v4l2_subdev_ops rdacm20_subdev_ops = {
-	.video		= &rdacm20_video_ops,
-	.pad		= &rdacm20_subdev_pad_ops,
-};
-
-static int rdacm20_initialize(struct rdacm20_device *dev)
+static int rdacm20_init_serial_link(struct rdacm20_device *dev)
 {
-	unsigned int retry = 3;
-	int ret;
-
+	int ret, ret2;
 	max9271_wake_up(&dev->serializer);
 
 	/* Serial link disabled during config as it needs a valid pixel clock. */
 	ret = max9271_set_serial_link(&dev->serializer, false);
-	if (ret)
-		return ret;
+	/* We don't know why the command failed. MAX9271 could have received it though. */
+	ret2 = max9271_set_high_threshold(&dev->serializer, true);
+
+	msleep(2);
+	return ret ? ret : ret2;
+}
+
+static int rdacm20_initialize(struct rdacm20_device *dev)
+{
+	int ret;
 
 	/*
 	 * Ensure that we have a good link configuration before attempting to
@@ -515,7 +494,7 @@ static int rdacm20_initialize(struct rdacm20_device *dev)
 	ret = max9271_configure_i2c(&dev->serializer,
 				    MAX9271_I2CSLVSH_469NS_234NS |
 				    MAX9271_I2CSLVTO_1024US |
-				    MAX9271_I2CMSTBT_105KBPS);
+				    MAX9271_I2CMSTBT_339KBPS);
 	if (ret)
 		return ret;
 
@@ -529,25 +508,27 @@ static int rdacm20_initialize(struct rdacm20_device *dev)
 		 */
 		if (dev->no_poc) {
 			/*
-			 * Since we failed identifying the serializer on default address, try
-			 * looking for it on the programmed address.
-			 */
+				* Since we failed identifying the serializer on default address, try
+				* looking for it on the programmed address.
+				*/
 			dev->serializer.client->addr = dev->addrs[0];
 			ret = max9271_verify_id(&dev->serializer);
 			if (!ret) {
 				dev_info(dev->dev, "Identified already initialized RDACM20 camera module");
 				ret = max9271_set_serial_link(&dev->serializer, false);
 				if (ret) {
-					dev_info(dev->dev, "max9271_set_serial_link failed.");
-					return ret;
+					dev_warn(dev->dev, "max9271_set_serial_link failed.");
+					/* This might not be fatal. Program walks here for
+					 * already configured device.
+					 */
+					usleep_range(5000, 8000);
 				}
 				ret = max9271_configure_i2c(&dev->serializer,
-				    MAX9271_I2CSLVSH_469NS_234NS |
-				    MAX9271_I2CSLVTO_1024US |
-				    MAX9271_I2CMSTBT_105KBPS);
-
+					MAX9271_I2CSLVSH_469NS_234NS |
+					MAX9271_I2CSLVTO_1024US |
+					MAX9271_I2CMSTBT_339KBPS);
 				if (ret) {
-					dev_info(dev->dev, "Failed max9271_configure_i2c.");
+					dev_warn(dev->dev, "Failed max9271_configure_i2c.");
 					return ret;
 				}
 			} else {
@@ -556,98 +537,157 @@ static int rdacm20_initialize(struct rdacm20_device *dev)
 		} else {
 			return ret;
 		}
+	} else {
+		ret = max9271_set_address(&dev->serializer, dev->addrs[0]);
+		if (ret < 0) {
+			dev_err(dev->dev, "MAX9271 I2C address change failed (%d)\n", ret);
+			return ret;
+		}
+		dev->serializer.client->addr = dev->addrs[0];
 	}
-	ret = max9271_set_address(&dev->serializer, dev->addrs[0]);
-	if (ret < 0)
-		return ret;
-	dev->serializer.client->addr = dev->addrs[0];
-
-	/*
-	 * Hold OV10635 in reset during max9271 configuration. The reset signal
-	 * has to be asserted for at least 200 microseconds.
-	 */
-	ret = max9271_enable_gpios(&dev->serializer, MAX9271_GPIO1OUT);
-	if (ret)
-		return ret;
-
-	ret = max9271_clear_gpios(&dev->serializer, MAX9271_GPIO1OUT);
-	if (ret)
-		return ret;
-	usleep_range(200, 500);
-
-	ret = max9271_configure_gmsl_link(&dev->serializer);
-	if (ret)
-		return ret;
-
-	/*
-	 * Release ov10635 from reset and initialize it. The image sensor
-	 * requires at least 2048 XVCLK cycles (85 micro-seconds at 24MHz)
-	 * before being available. Stay safe and wait up to 500 micro-seconds.
-	 */
-	ret = max9271_set_gpios(&dev->serializer, MAX9271_GPIO1OUT);
-	if (ret)
-		return ret;
-	usleep_range(100, 500);
 
 	/* Add unique alias I2C address for the sensor. */
 	ret = max9271_set_translation(&dev->serializer, dev->addrs[1], OV10635_I2C_ADDRESS);
 	if (ret < 0) {
-		dev_err(dev->dev,
-			"OV10635 I2C address change failed (%d)\n", ret);
+		dev_err(dev->dev, "OV10635 I2C address change failed (%d)\n", ret);
 		return ret;
 	}
 	dev->sensor->addr = dev->addrs[1];
-	usleep_range(3500, 5000);
+	if (!dev->no_poc) {
+		/*
+		* Hold OV10635 in reset during max9271 configuration. The reset signal
+		* has to be asserted for at least 200 microseconds.
+		*/
+		ret = max9271_enable_gpios(&dev->serializer, MAX9271_GPIO1OUT);
+		if (ret)
+			return ret;
 
-again:
-	ret = ov10635_read16(dev, OV10635_PID);
-	if (ret < 0) {
-		if (retry--)
-			goto again;
-
-		dev_err(dev->dev, "OV10635 ID read failed (%d)\n",
-			ret);
-		return -ENXIO;
+		ret = max9271_clear_gpios(&dev->serializer, MAX9271_GPIO1OUT);
+		if (ret)
+			return ret;
 	}
-
-	if (ret != OV10635_VERSION) {
-		if (retry--)
-			goto again;
-
-		dev_err(dev->dev, "OV10635 ID mismatch (0x%04x)\n",
-			ret);
-		return -ENXIO;
-	}
-
-	/* Program the 0V10635 initial configuration. */
-	ret = ov10635_set_regs(dev, ov10635_regs_wizard,
-			       ARRAY_SIZE(ov10635_regs_wizard));
-	if (ret)
+	ret = __ov10635_write(dev, OV10635_SOFTWARE_RESET, 0x1);
+	if (ret) {
+		dev_err(dev->dev, "Failed OV10635_SOFTWARE_RESET\n");
 		return ret;
+	}
+	msleep(1);
+	
+	ret = max9271_configure_gmsl_link(&dev->serializer);
+	if (ret) {
+		dev_err(dev->dev, "Failed max9271_configure_gmsl_link\n");
+		return ret;
+	}
+	msleep(100);
+	ret = max9271_configure_i2c(&dev->serializer,
+		MAX9271_I2CSLVSH_469NS_234NS |
+		MAX9271_I2CSLVTO_1024US |
+		MAX9271_I2CMSTBT_339KBPS);
 
+	if (!dev->no_poc) {
+		/*
+		* Release ov10635 from reset and initialize it. The image sensor
+		* requires at least 2048 XVCLK cycles (85 micro-seconds at 24MHz)
+		* before being available. Stay safe and wait up to 500 micro-seconds.
+		*/
+		ret = max9271_set_gpios(&dev->serializer, MAX9271_GPIO1OUT);
+		if (ret)
+			return ret;
+		usleep_range(100, 500);
+	}
 	dev_info(dev->dev, "Identified RDACM20 camera module\n");
-
-#if 0
-/*
- * Don't increase reverse channel amplitude. This workarounds the
- * init of device after reboot command.
- */
-	/*
-	 * Set reverse channel high threshold to increase noise immunity.
-	 *
-	 * This should be compensated by increasing the reverse channel
-	 * amplitude on the remote deserializer side.
-	 *
-	 * TODO Inspect the embedded MCU programming sequence to make sure
-	 * there are no conflicts with the configuration applied here.
-	 *
-	 * TODO Clarify the embedded MCU startup delay to avoid write
-	 * collisions on the I2C bus.
-	 */
-	return max9271_set_high_threshold(&dev->serializer, true);
-#endif
+	msleep(5);
 	return 0;
 }
+
+static long rdacm20_command(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct rdacm20_device *dev = sd_to_rdacm20(sd);
+	unsigned ret = -EINVAL;
+
+	switch (cmd) {
+		case RDACM_CORE_CMD_INIT_HIGH_AMPL:
+			if (dev->initialised)
+				return EALREADY;
+			dev->serializer.client->addr = MAX9271_DEFAULT_ADDR;
+			ret = rdacm20_init_serial_link(dev);
+			if (ret) {
+				dev_err(dev->dev, "Failed to rdacm20_init_serial_link (%d). Retrying.\n", ret);
+				dev->serializer.client->addr = dev->addrs[0];
+				ret = rdacm20_init_serial_link(dev);
+			}
+			if (ret == 0)
+				dev->initialised = true;
+			break;
+
+		case RDACM_CORE_CMD_INIT_SERIALIZER:
+			dev->serializer.client->addr = MAX9271_DEFAULT_ADDR;
+			ret = rdacm20_initialize(dev);
+			break;
+
+		case RDACM_CORE_CMD_INIT_CAMERA:
+			for (unsigned retry = 3; retry > 0; --retry) {
+				ret = ov10635_read16(dev, OV10635_PID);
+				if (ret < 0) {
+					dev_warn(dev->dev, "OV10635 ID read failed (%d)\n", ret);
+					ret = -ENXIO;
+					continue;
+				}
+				if (ret != OV10635_VERSION) {
+					dev_warn(dev->dev, "OV10635 ID mismatch (0x%04x)\n", ret);
+					ret = -ENXIO;
+					continue;
+				} else {
+					ret = 0;
+				}
+				break;
+			}
+			if (ret !=0) {
+				dev_err(dev->dev, "Failed id cam(%d)\n", ret);
+				return ret;
+			}
+
+			ret = ov10635_set_regs(dev, ov10635_regs_wizard,
+						ARRAY_SIZE(ov10635_regs_wizard));
+			if (ret !=0)
+				dev_err(dev->dev, "ov10635_regs_wizard failed (%d)\n", ret);
+			break;
+
+		case RDACM_CORE_CMD_S_STREAM:
+			/* MAX9271: Enable Serial Links and Disable Configuration Link */
+			ret = max9271_set_serial_link(&dev->serializer, true);
+			/* Wait for more than 2 frame time */
+			msleep(10);
+			break;
+
+		default:
+			dev_warn(dev->dev, "CMD_default\n");
+	}
+	return ret;
+}
+
+static const struct v4l2_subdev_core_ops rdacm20_core_ops = {
+	.command		= &rdacm20_command,
+};
+
+static const struct v4l2_subdev_video_ops rdacm20_video_ops = {
+	.s_stream	= rdacm20_s_stream,
+};
+
+static const struct v4l2_subdev_pad_ops rdacm20_subdev_pad_ops = {
+	.enum_mbus_code		= rdacm20_enum_mbus_code,
+	.get_fmt			= rdacm20_get_fmt,
+	.set_fmt			= rdacm20_get_fmt,
+	.enum_frame_size	= rdacm20_enum_frame_size,
+	.get_frame_desc		= rdacm20_get_frame_desc,
+};
+
+static const struct v4l2_subdev_ops rdacm20_subdev_ops = {
+	.core		= &rdacm20_core_ops,
+	.video		= &rdacm20_video_ops,
+	.pad		= &rdacm20_subdev_pad_ops,
+};
+
 
 static int rdacm20_probe(struct i2c_client *client)
 {
@@ -676,11 +716,7 @@ static int rdacm20_probe(struct i2c_client *client)
 	}
 
 	dev->no_poc = of_property_read_bool(client->dev.of_node, "imi,no-poc");
-
-	/* Initialize the hardware. */
-	ret = rdacm20_initialize(dev);
-	if (ret < 0)
-		goto error;
+	dev->initialised = false;
 
 	/* Initialize and register the subdevice. */
 	v4l2_i2c_subdev_init(&dev->sd, client, &rdacm20_subdev_ops);

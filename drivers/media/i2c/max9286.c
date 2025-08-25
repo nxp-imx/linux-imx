@@ -28,6 +28,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
+#include "rdacm.h"
 
 /* Register 0x00 */
 #define MAX9286_MSTLINKSEL_AUTO		(7 << 5)
@@ -321,7 +322,6 @@ static int max9286_write(struct max9286_priv *priv, u8 reg, u8 val)
 static void max9286_i2c_mux_configure(struct max9286_priv *priv, u8 conf)
 {
 	max9286_write(priv, 0x0a, conf);
-
 	/*
 	 * We must sleep after any change to the forward or reverse channel
 	 * configuration.
@@ -404,7 +404,7 @@ error:
 static void max9286_configure_i2c(struct max9286_priv *priv, bool localack)
 {
 	u8 config = MAX9286_I2CSLVSH_469NS_234NS | MAX9286_I2CSLVTO_1024US |
-		    priv->i2c_mstbt;
+				priv->i2c_mstbt;
 
 	if (localack)
 		config |= MAX9286_I2CLOCACK;
@@ -487,9 +487,8 @@ static int max9286_check_video_links(struct max9286_priv *priv, u64 streams_mask
 	for (i = 0; i < 10; i++) {
 		ret = max9286_read(priv, 0x27);
 		if (ret < 0)
-			return -EIO;
-
-		if (ret & MAX9286_LOCKED)
+			dev_err(&priv->client->dev, "max9286_read [0x27] failed\n");
+		else if (ret & MAX9286_LOCKED)
 			break;
 
 		usleep_range(350, 450);
@@ -511,7 +510,7 @@ static int max9286_check_video_links(struct max9286_priv *priv, u64 streams_mask
  * Returns 0 for success, -EIO for errors.
  */
 static int max9286_check_config_link(struct max9286_priv *priv,
-				     unsigned int source_mask)
+				     unsigned int source_mask, unsigned int retries)
 {
 	unsigned int conflink_mask = (source_mask & 0x0f) << 4;
 	unsigned int i;
@@ -522,7 +521,7 @@ static int max9286_check_config_link(struct max9286_priv *priv,
 	 * The delay is not characterized in the chip manual: wait up
 	 * to 5 milliseconds.
 	 */
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < retries; i++) {
 		ret = max9286_read(priv, 0x49);
 		if (ret < 0)
 			return -EIO;
@@ -715,27 +714,68 @@ static int max9286_notify_bound(struct v4l2_async_notifier *notifier,
 	if (priv->bound_sources != priv->source_mask)
 		return 0;
 
-#if 0
-/*
- * Don't increase reverse channel amplitude. This workarounds the
- * init of device after reboot command.
- */
-	/*
-	 * All enabled sources have probed and enabled their reverse control
-	 * channels:
-	 *
-	 * - Increase the reverse channel amplitude to compensate for the
-	 *   remote ends high threshold
-	 * - Verify all configuration links are properly detected
-	 * - Disable auto-ack as communication on the control channel are now
-	 *   stable.
-	 */
+	/* Increase the reverse channel amplitude and remote ends high threshold. */
+	source = NULL;
+	for_each_source(priv, source) {
+		ret = v4l2_subdev_call(source->sd, core, command,
+					RDACM_CORE_CMD_INIT_HIGH_AMPL, NULL);
+		if ((ret != 0) && (ret != EALREADY)) {
+			dev_err(&priv->client->dev,
+				"Unable to RDACM_CORE_CMD_INIT_HIGH_AMPL at Low ampl [%s -> %s:%ld]\n",
+				source->sd->name, priv->sd.name, to_index(priv, source));
+		}
+	}
 	max9286_reverse_channel_setup(priv, MAX9286_REV_AMP_HIGH);
-#endif
-	max9286_check_config_link(priv, priv->source_mask);
-	max9286_configure_i2c(priv, false);
 
-	return max9286_set_pixelrate(priv);
+	/* Configure communication links of the serializers. */
+	source = NULL;
+	for_each_source(priv, source) {
+		ret = v4l2_subdev_call(source->sd, core, command,
+					RDACM_CORE_CMD_INIT_SERIALIZER, NULL);
+		if ((ret != 0) && (ret != EALREADY)) {
+			dev_err(&priv->client->dev,
+				"Unable to RDACM_CORE_CMD_INIT_SERIALIZER at high ampl [%s -> %s:%ld]\n",
+				source->sd->name, priv->sd.name, to_index(priv, source));
+			return ret;
+		}
+	}
+	/* Unique I2C addresses have been configured. */
+	max9286_i2c_mux_open(priv);
+	/* Verify all configuration links are properly detected. */
+	max9286_check_config_link(priv, priv->source_mask, 10);
+	/* Disable auto-ack. */
+	max9286_configure_i2c(priv, false);
+	max9286_set_pixelrate(priv);
+
+	/* Load OV10635 firmware. */
+	source = NULL;
+	for_each_source(priv, source) {
+		ret = v4l2_subdev_call(source->sd, core, command,
+				RDACM_CORE_CMD_INIT_CAMERA, NULL);
+		if ((ret != 0) && (ret != EALREADY)) {
+			dev_err(&priv->client->dev,
+				"Unable to RDACM_CORE_CMD_INIT_CAMERA [%s -> %s:%ld]\n",
+				source->sd->name, priv->sd.name, to_index(priv, source));
+			return ret;
+		}
+	}
+
+	/* Enable auto-ack. */
+	max9286_configure_i2c(priv, true);
+
+	/* Start camera stream. */
+	source = NULL;
+	for_each_source(priv, source) {
+		ret = v4l2_subdev_call(source->sd, core, command,
+				RDACM_CORE_CMD_S_STREAM, NULL);
+		if ((ret != 0) && (ret != EALREADY)) {
+			dev_err(&priv->client->dev,
+				"Unable to RDACM_CORE_CMD_S_STREAM %s -> %s:%ld\n",
+				source->sd->name, priv->sd.name, to_index(priv, source));
+			return ret;
+		}
+	}
+	return 0;
 }
 
 static void max9286_notify_unbind(struct v4l2_async_notifier *notifier,
@@ -869,7 +909,7 @@ static int max9286_enable_cams(struct max9286_priv *priv, struct v4l2_subdev_sta
 				(enable) ? "enable" : "disable",
 				sink_streams, remote_sd->name, remote_pad, ret);
 			break;
-		case 0: // Success
+		case 0 /* Success */ :
 			break;
 		default:
 			dev_err(dev, "failed to %s streams 0x%llx on '%s':%u: %d\n",
@@ -925,6 +965,8 @@ static int max9286_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_sta
 		if (ret < 0)
 			goto unlock;
 
+		/* Wait for more than 2 frame time */
+		msleep(200);
 		ret = max9286_check_video_links(priv, priv->route_mask);
 		if (ret < 0)
 			goto unlock;
@@ -968,6 +1010,7 @@ static int max9286_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_sta
 			max9286_write(priv, 0x15, MAX9286_CSI_IMAGE_TYP | MAX9286_VCTYPE |
 				      MAX9286_CSIOUTEN | MAX9286_EN_CCBSYB_CLK_STR |
 				      MAX9286_EN_GPI_CCBSYB);
+			msleep(10);
 		}
 	}
 
@@ -1402,7 +1445,7 @@ static int max9286_setup(struct max9286_priv *priv)
 	max9286_write(priv, 0x69, (0xf & ~priv->route_mask));
 
 	max9286_set_video_format(priv, &max9286_default_format);
-
+	/* FRAMESYNC is taken from the slowest link. */
 	cfg = max9286_read(priv, 0x1c);
 	if (cfg < 0)
 		return cfg;

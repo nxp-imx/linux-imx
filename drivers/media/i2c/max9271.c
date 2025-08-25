@@ -85,11 +85,6 @@ static int max9271_pclk_detect(struct max9271_device *dev)
 
 void max9271_wake_up(struct max9271_device *dev)
 {
-	/*
-	 * Use the chip default address as this function has to be called
-	 * before any other one.
-	 */
-	dev->client->addr = MAX9271_DEFAULT_ADDR;
 	i2c_smbus_read_byte(dev->client);
 	usleep_range(5000, 8000);
 }
@@ -153,15 +148,11 @@ int max9271_set_high_threshold(struct max9271_device *dev, bool enable)
 {
 	int ret;
 
-	ret = max9271_read(dev, 0x08);
-	if (ret < 0)
-		return ret;
-
 	/*
 	 * Enable or disable reverse channel high threshold to increase
 	 * immunity to power supply noise.
 	 */
-	ret = max9271_write(dev, 0x08, enable ? ret | BIT(0) : ret & ~BIT(0));
+	ret = max9271_write(dev, 0x08, enable ? 1 : 0);
 	if (ret < 0)
 		return ret;
 
@@ -198,8 +189,7 @@ int max9271_configure_gmsl_link(struct max9271_device *dev)
 	 */
 	ret = max9271_write(dev, 0x02,
 			    MAX9271_SPREAD_SPECT_4 | MAX9271_R02_RES |
-			    MAX9271_PCLK_AUTODETECT |
-			    MAX9271_SERIAL_AUTODETECT);
+				MAX9271_PCLK_AUTODETECT | MAX9271_SERIAL_AUTODETECT);
 	if (ret < 0)
 		return ret;
 
