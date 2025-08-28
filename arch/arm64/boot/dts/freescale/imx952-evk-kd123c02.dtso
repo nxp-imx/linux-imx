@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx95-clock.h"
+
+&{/} {
+	backlight: backlight {
+		compatible = "gpio-backlight";
+		gpios = <&gpio_pi4io 4 GPIO_ACTIVE_HIGH>;
+	};
+
+	panel-lvds {
+		compatible = "kingdisplay,kd123c02-60ns-a002", "panel-lvds";
+		width-mm = <292>;
+		height-mm = <110>;
+		backlight = <&backlight>;
+		data-mapping = "vesa-24";
+		power-supply = <&reg_b_lcm_3v3>;
+		enable-gpios = <&gpio_pi4io 2 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio_pi4io 1 GPIO_ACTIVE_HIGH>;
+
+		panel-timing {
+			clock-frequency = <91600000>;
+			hactive = <1920>;
+			vactive = <720>;
+			hfront-porch = <52>;
+			hback-porch = <32>;
+			hsync-len = <24>;
+			vfront-porch = <8>;
+			vback-porch = <21>;
+			vsync-len = <3>;
+		};
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				dual-lvds-odd-pixels;
+
+				panel_in_odd: endpoint {
+					remote-endpoint = <&lvds0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				dual-lvds-even-pixels;
+
+				panel_in_even: endpoint {
+					remote-endpoint = <&lvds1_out>;
+				};
+			};
+		};
+	};
+
+	reg_b_lcm_3v3: regulator-b-lcm-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "B_LCM_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio_pi4io 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&display_pixel_link {
+	status = "okay";
+};
+
+&ldb {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	assigned-clocks = <&scmi_clk IMX95_CLK_LDBPLL_VCO>,
+			  <&scmi_clk IMX95_CLK_LDBPLL>;
+	assigned-clock-rates = <3206000000>, <641200000>;
+	status = "okay";
+
+	channel@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0>;
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds0_out: endpoint {
+				remote-endpoint = <&panel_in_odd>;
+			};
+		};
+	};
+
+	channel@1 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <1>;
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds1_out: endpoint {
+				remote-endpoint = <&panel_in_even>;
+			};
+		};
+	};
+};
+
+&ldb0_phy {
+	status = "okay";
+};
+
+&ldb1_phy {
+	status = "okay";
+};
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	gpio_pi4io: gpio@43 {
+		compatible = "diodes,pi4io";
+		reg = <0x43>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		reset-gpios = <&adp5585 6 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&pixel_interleaver {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel@0 {
+		reg = <0>;
+		status = "okay";
+	};
+};
+
+&dispmix_mu1 {
+	status = "okay";
+};
+
+&disp_mu {
+	status = "okay";
+};
+
+&ld_fw {
+	status = "okay";
+};
+
+&dpu {
+	nxp,ldfw-rproc = <&ld_fw>;
+};
