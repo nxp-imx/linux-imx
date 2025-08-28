@@ -1253,6 +1253,17 @@ config GPIO_PCF857X
 	  This driver provides an in-kernel interface to those GPIOs using
 	  platform-neutral GPIO calls.
 
+config GPIO_PI4IOE5V6408
+	tristate "PI4IOE5V6408 I2C GPIO expander"
+	select REGMAP_I2C
+	select GPIOLIB_IRQCHIP
+	help
+	  Say yes here to enable the GPIO driver for PI4IOE5V6408 chip.
+	  It is an 8-BIT I2C IO expander
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called gpio-pi4ioe5v6408.
+
 config GPIO_TPIC2810
 	tristate "TPIC2810 8-Bit I2C GPO expander"
 	help
