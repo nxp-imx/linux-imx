@@ -287,6 +287,7 @@ enum sof_tokens {
 	SOF_ACPI2S_TOKENS,
 	SOF_MICFIL_TOKENS,
 	SOF_ACP_SDW_TOKENS,
+	SOF_DAI_VIRTUAL_TOKENS,
 
 	/* this should be the last */
 	SOF_TOKEN_COUNT,
