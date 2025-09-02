@@ -291,7 +291,7 @@ config EDAC_MPC85XX
 
 config EDAC_LAYERSCAPE
 	tristate "Freescale Layerscape DDR"
-	depends on ARCH_LAYERSCAPE || SOC_LS1021A
+	depends on ARCH_LAYERSCAPE || SOC_LS1021A || SOC_IMX9
 	help
 	  Support for error detection and correction on Freescale memory
 	  controllers on Layerscape SoCs.
