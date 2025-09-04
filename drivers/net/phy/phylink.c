@@ -1981,8 +1981,7 @@ EXPORT_SYMBOL_GPL(phylink_destroy);
 bool phylink_expects_phy(struct phylink *pl)
 {
 	if (pl->cfg_link_an_mode == MLO_AN_FIXED ||
-	    phylink_pcs_handles_an(pl->link_config.interface,
-				   pl->cfg_link_an_mode))
+	    phylink_pcs_handles_an(pl->link_interface, pl->cfg_link_an_mode))
 		return false;
 	return true;
 }

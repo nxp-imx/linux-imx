@@ -93,6 +93,7 @@ impl Shrinker {
         unsafe {
             ptr::addr_of_mut!((*shrinker).count_objects).write(Some(rust_shrink_count));
             ptr::addr_of_mut!((*shrinker).scan_objects).write(Some(rust_shrink_scan));
+            ptr::addr_of_mut!((*shrinker).private_data).write(self.list_lru.get().cast());
         }
 
         // SAFETY: The new shrinker has been fully initialized, so we can register it.
@@ -281,7 +282,7 @@ impl ShrinkablePageRange {
     }
 
     /// Register a vma with this page range. Returns the size of the region.
-    pub(crate) fn register_with_vma(&self, vma: &virt::VmAreaNew) -> Result<usize> {
+    pub(crate) fn register_with_vma(&self, vma: &virt::VmaNew) -> Result<usize> {
         let num_bytes = usize::min(vma.end() - vma.start(), bindings::SZ_4M as usize);
         let num_pages = num_bytes >> PAGE_SHIFT;
 
@@ -655,11 +656,10 @@ unsafe extern "C" fn rust_shrink_count(
     shrink: *mut bindings::shrinker,
     _sc: *mut bindings::shrink_control,
 ) -> c_ulong {
-    // SAFETY: This method is only used with the `Shrinker` type, and the cast is valid since
-    // `shrinker` is the first field of a #[repr(C)] struct.
-    let shrinker = unsafe { &*shrink.cast::<Shrinker>() };
+    // SAFETY: We can access our own private data.
+    let list_lru = unsafe { (*shrink).private_data.cast::<bindings::list_lru>() };
     // SAFETY: Accessing the lru list is okay. Just an FFI call.
-    unsafe { bindings::list_lru_count(shrinker.list_lru.get()) }
+    unsafe { bindings::list_lru_count(list_lru) }
 }
 
 #[no_mangle]
@@ -667,9 +667,8 @@ unsafe extern "C" fn rust_shrink_scan(
     shrink: *mut bindings::shrinker,
     sc: *mut bindings::shrink_control,
 ) -> c_ulong {
-    // SAFETY: This method is only used with the `Shrinker` type, and the cast is valid since
-    // `shrinker` is the first field of a #[repr(C)] struct.
-    let shrinker = unsafe { &*shrink.cast::<Shrinker>() };
+    // SAFETY: We can access our own private data.
+    let list_lru = unsafe { (*shrink).private_data.cast::<bindings::list_lru>() };
     // SAFETY: Caller guarantees that it is safe to read this field.
     let nr_to_scan = unsafe { (*sc).nr_to_scan };
     // SAFETY: Accessing the lru list is okay. Just an FFI call.
@@ -684,7 +683,7 @@ unsafe extern "C" fn rust_shrink_scan(
         }
 
         bindings::list_lru_walk(
-            shrinker.list_lru.get(),
+            list_lru,
             Some(rust_shrink_free_page_wrap),
             ptr::null_mut(),
             nr_to_scan,

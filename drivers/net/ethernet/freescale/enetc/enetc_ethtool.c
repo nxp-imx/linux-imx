@@ -1673,10 +1673,10 @@ static struct pci_dev *enetc4_get_default_timer_pdev(struct enetc_si *si)
 	domain = pci_domain_nr(si->pdev->bus);
 	bus_number = si->pdev->bus->number;
 	switch (si->revision) {
-	case NETC_REVISION_4_1:
+	case ENETC_REV_4_1:
 		devfn = PCI_DEVFN(24, 0);
 		break;
-	case NETC_REVISION_4_3:
+	case ENETC_REV_4_3:
 		devfn = PCI_DEVFN(0, 1);
 		break;
 	default:

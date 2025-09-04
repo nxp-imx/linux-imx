@@ -169,6 +169,9 @@ typedef struct _gcsMODULE_PARAMETERS {
 
     /* GPU timeout for operation. */
     gctUINT                 gpuTimeout;
+
+    /*Control of switching mmu by software on npu core */
+    gctBOOL                 mmuSwSwitch;
 } gcsMODULE_PARAMETERS;
 
 typedef struct _gcsDMA_TRANS_INFO {

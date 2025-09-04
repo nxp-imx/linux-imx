@@ -382,14 +382,6 @@ static int buck_set_dvs(const struct regulator_desc *desc,
 		}
 	}
 
-	if (ret == 0) {
-		struct pf9453_regulator_desc *regulator = container_of(desc,
-					struct pf9453_regulator_desc, desc);
-
-		/* Enable DVS control through PMIC_STBY_REQ for this BUCK */
-		ret = pf9453_pmic_write(pf9453, regulator->desc.enable_reg,
-					 BUCK2_LPMODE, BUCK2_LPMODE);
-	}
 	return ret;
 }
 

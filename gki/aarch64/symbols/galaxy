@@ -11,6 +11,9 @@
   file_write_and_wait_range
   fixed_size_llseek
   free_hpage
+  gcma_alloc_range
+  gcma_free_range
+  gcma_stat_get
   generic_file_read_iter
   generic_perform_write
   get_pfnblock_flags_mask
@@ -28,6 +31,7 @@
   proc_set_size
   pstore_register
   pstore_unregister
+  register_gcma_area
   scsi_device_quiesce
   scsi_device_resume
   swp_swapcount
@@ -49,7 +53,11 @@
   __traceiter_android_vh_filemap_map_pages
   __traceiter_android_vh_filemap_read
   __traceiter_android_vh_free_pages_ok_bypass
+  __traceiter_android_vh_free_page_bypass
+  __traceiter_android_vh_free_folio_bypass
   __traceiter_android_vh_free_pages_prepare_bypass
+  __traceiter_android_vh_gcma_cc_allow_nonworkingset
+  __traceiter_android_vh_gcma_cc_store_page_bypass
   __traceiter_android_vh_is_fpsimd_save
   __traceiter_android_vh_logbuf
   __traceiter_android_vh_logbuf_pr_cont
@@ -67,6 +75,8 @@
   __traceiter_android_vh_show_smap
   __traceiter_android_vh_smaps_pte_entry
   __traceiter_android_vh_split_large_folio_bypass
+  __traceiter_android_vh_try_to_freeze_todo
+  __traceiter_android_vh_try_to_freeze_todo_unfrozen
   __traceiter_android_vh_tune_scan_control
   __traceiter_android_vh_use_vm_swappiness
   __traceiter_android_vh_warn_alloc_tune_ratelimit
@@ -93,7 +103,11 @@
   __tracepoint_android_vh_filemap_map_pages
   __tracepoint_android_vh_filemap_read
   __tracepoint_android_vh_free_pages_ok_bypass
+  __tracepoint_android_vh_free_page_bypass
+  __tracepoint_android_vh_free_folio_bypass
   __tracepoint_android_vh_free_pages_prepare_bypass
+  __tracepoint_android_vh_gcma_cc_allow_nonworkingset
+  __tracepoint_android_vh_gcma_cc_store_page_bypass
   __tracepoint_android_vh_is_fpsimd_save
   __tracepoint_android_vh_logbuf
   __tracepoint_android_vh_logbuf_pr_cont
@@ -112,6 +126,8 @@
   __tracepoint_android_vh_smaps_pte_entry
   __tracepoint_android_vh_split_large_folio_bypass
   __tracepoint_android_vh_tune_scan_control
+  __tracepoint_android_vh_try_to_freeze_todo
+  __tracepoint_android_vh_try_to_freeze_todo_unfrozen
   __tracepoint_android_vh_use_vm_swappiness
   __tracepoint_android_vh_warn_alloc_tune_ratelimit
   __tracepoint_android_vh_warn_alloc_show_mem_bypass

@@ -1449,8 +1449,10 @@ static int nxp_c45_mdo_get_tx_sa_stats(struct macsec_context *ctx)
 	struct nxp_c45_phy *priv = phydev->priv;
 	struct macsec_tx_sa_stats *stats;
 	struct nxp_c45_secy *phy_secy;
+	struct macsec_tx_sa *tx_sa;
 	u8 an = ctx->sa.assoc_num;
 	struct nxp_c45_sa *sa;
+	pn_t npn;
 
 	phy_secy = nxp_c45_find_secy(&priv->macsec->secy_list, ctx->secy->sci);
 	if (IS_ERR(phy_secy))
@@ -1463,6 +1465,12 @@ static int nxp_c45_mdo_get_tx_sa_stats(struct macsec_context *ctx)
 	stats = ctx->stats.tx_sa_stats;
 	nxp_c45_select_secy(phydev, phy_secy->secy_id);
 	nxp_c45_tx_sa_read_stats(phydev, sa, stats);
+
+	tx_sa = sa->sa;
+	nxp_c45_macsec_read(phydev, sa->regs->npn, &npn.lower);
+	spin_lock_bh(&tx_sa->lock);
+	tx_sa->next_pn_halves.lower = npn.lower;
+	spin_unlock_bh(&tx_sa->lock);
 
 	return 0;
 }
@@ -1528,8 +1536,10 @@ static int nxp_c45_mdo_get_rx_sa_stats(struct macsec_context *ctx)
 	struct nxp_c45_phy *priv = phydev->priv;
 	struct macsec_rx_sa_stats *stats;
 	struct nxp_c45_secy *phy_secy;
+	struct macsec_rx_sa *rx_sa;
 	u8 an = ctx->sa.assoc_num;
 	struct nxp_c45_sa *sa;
+	pn_t npn;
 
 	phy_secy = nxp_c45_find_secy(&priv->macsec->secy_list, ctx->secy->sci);
 	if (IS_ERR(phy_secy))
@@ -1547,6 +1557,12 @@ static int nxp_c45_mdo_get_rx_sa_stats(struct macsec_context *ctx)
 			    &stats->InPktsNotUsingSA);
 	nxp_c45_macsec_read(phydev, MACSEC_RXAN0IPUSS + an * 4,
 			    &stats->InPktsUnusedSA);
+
+	rx_sa = sa->sa;
+	nxp_c45_macsec_read(phydev, sa->regs->npn, &npn.lower);
+	spin_lock_bh(&rx_sa->lock);
+	rx_sa->next_pn_halves.lower = npn.lower;
+	spin_unlock_bh(&rx_sa->lock);
 
 	return 0;
 }

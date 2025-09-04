@@ -282,6 +282,8 @@ struct _gckOS {
     int                         dumpTarget;
     char                        dumpFileName[256];
     gcsDEBUGFS_DIR              dumpDebugfsDir;
+
+    atomic_t                   nodeID;
 };
 
 typedef struct _gcsSIGNAL *gcsSIGNAL_PTR;

@@ -38,6 +38,7 @@ void netc_show_psfp_flower(struct seq_file *s, struct netc_flower_rule *rule)
 	struct ntmp_isit_entry *isit_entry = rule->key_tbl->isit_entry;
 	struct ntmp_ist_entry *ist_entry = rule->key_tbl->ist_entry;
 	struct ntmp_isft_entry *isft_entry = rule->isft_entry;
+	struct netc_gate_tbl *gate_tbl = rule->gate_tbl;
 	u32 rpt_eid, isct_eid;
 
 	seq_printf(s, "ISIT entry ID:0x%x\n", isit_entry->entry_id);
@@ -55,9 +56,11 @@ void netc_show_psfp_flower(struct seq_file *s, struct netc_flower_rule *rule)
 	seq_printf(s, "RPT entry ID: 0x%x\n", rpt_eid);
 	seq_printf(s, "ISCT entry ID: 0x%x\n", isct_eid);
 
-	if (rule->gate_tbl) {
-		seq_printf(s, "SGIT entry ID: 0x%x\n", rule->gate_tbl->sgit_eid);
-		seq_printf(s, "SGCLT entry ID: 0x%x\n", rule->gate_tbl->sgclt_eid);
+	if (gate_tbl) {
+		seq_printf(s, "SGIT entry ID: 0x%x\n",
+			   gate_tbl->sgit_entry->entry_id);
+		seq_printf(s, "SGCLT entry ID: 0x%x\n",
+			   gate_tbl->sgclt_entry->entry_id);
 	}
 }
 EXPORT_SYMBOL_GPL(netc_show_psfp_flower);

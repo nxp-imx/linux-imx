@@ -340,6 +340,7 @@ struct it6263 {
 	struct gpio_desc *reset_gpio;
 	bool is_hdmi;
 	bool split_mode;
+	bool de_ssc_enable;
 };
 
 struct it6263_minimode {
@@ -405,7 +406,8 @@ static void it6263_reset(struct it6263 *it6263)
 static void it6263_lvds_reset(struct it6263 *it6263)
 {
 	/* AFE PLL reset */
-	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x0);
+	lvds_update_bits(it6263, LVDS_REG_PLL,
+			 it6263->de_ssc_enable ? 0x07 : 0x1, 0x0);
 	usleep_range(1000, 2000);
 	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x1);
 
@@ -416,6 +418,13 @@ static void it6263_lvds_reset(struct it6263 *it6263)
 	lvds_update_bits(it6263, LVDS_REG_SW_RST, SOFT_PCLK_DM_RST, 0x0);
 
 	usleep_range(1000, 2000);
+
+	if (!it6263->de_ssc_enable)
+		return;
+
+	lvds_update_bits(it6263, 0x2c, BIT(6), BIT(6));
+	usleep_range(1000, 2000);
+	lvds_update_bits(it6263, 0x2c, BIT(6), 0);
 }
 
 static void it6263_lvds_set_interface(struct it6263 *it6263)
@@ -449,11 +458,23 @@ static void it6263_lvds_set_afe(struct it6263 *it6263)
 	lvds_update_bits(it6263, LVDS_REG_PLL, 0x07, 0);
 }
 
+static void it6263_lvds_de_ssc_enable(struct it6263 *it6263)
+{
+	if (!it6263->de_ssc_enable)
+		return;
+
+	lvds_update_bits(it6263, LVDS_REG_PLL, 0x07, 0x07);
+	lvds_update_bits(it6263, 0x2c, BIT(6), BIT(6));
+	usleep_range(1000, 2000);
+	lvds_update_bits(it6263, 0x2c, BIT(6), 0);
+}
+
 static void it6263_lvds_config(struct it6263 *it6263)
 {
 	it6263_lvds_reset(it6263);
 	it6263_lvds_set_interface(it6263);
 	it6263_lvds_set_afe(it6263);
+	it6263_lvds_de_ssc_enable(it6263);
 }
 
 static void it6263_hdmi_config(struct it6263 *it6263)
@@ -1030,6 +1051,8 @@ static int it6263_probe(struct i2c_client *client)
 		goto unregister_lvds_i2c;
 	}
 
+	it6263->de_ssc_enable = of_property_read_bool(np, "de-ssc-enable");
+
 	it6263_reset(it6263);
 
 	ret = regmap_write(it6263->hdmi_regmap, HDMI_REG_SW_RST, HDMI_RST_ALL);
@@ -1069,6 +1092,12 @@ static int it6263_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, it6263);
 
+#if defined(CONFIG_DRM_FBDEV_EMULATION) && defined(CONFIG_LOGO)
+	/* Waiting some time after init, so it6263_bridge_detect() can get correct
+	 * status. It will help to show Linux logo(penguins) normally.
+	 */
+	usleep_range(45000, 46000);
+#endif
 	return ret;
 
 unregister_lvds_i2c:

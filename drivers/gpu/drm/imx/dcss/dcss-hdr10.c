@@ -373,9 +373,35 @@ bool dcss_hdr10_pipe_cfg_is_supported(struct dcss_hdr10 *hdr10,
 	return !!dcss_hdr10_get_pipe_cfg(hdr10, desc);
 }
 
+static void dcss_hdr10_swap_u_and_v(struct dcss_hdr10_ch *ch, const u32 *csca)
+{
+	/*
+	 * In order to swap U and V, in CSCA, we just need to swap:
+	 * H10 <-> H20
+	 * H11 <-> H21
+	 * H12 <-> H22
+	 */
+
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H20 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H10);
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H10 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H20);
+
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H21 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H11);
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H11 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H21);
+
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H22 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H12);
+	dcss_hdr10_write(ch, csca[DCSS_HDR10_CSC_H12 / sizeof(u32)],
+			 DCSS_HDR10_CSCA_BASE + DCSS_HDR10_CSC_H22);
+}
+
 void dcss_hdr10_setup(struct dcss_hdr10 *hdr10, int ch_num,
 		      struct dcss_hdr10_pipe_cfg *ipipe_cfg,
-		      struct dcss_hdr10_pipe_cfg *opipe_cfg)
+		      struct dcss_hdr10_pipe_cfg *opipe_cfg,
+		      u32 format)
 {
 	const u16 *ilut, *olut;
 	const u32 *csca, *cscb, *csco;
@@ -388,6 +414,13 @@ void dcss_hdr10_setup(struct dcss_hdr10 *hdr10, int ch_num,
 		return;
 
 	dcss_hdr10_write_pipe_tbls(&hdr10->ch[ch_num], ilut, csca, cscb);
+
+	/*
+	 * For YVYU only, we need to swap U and V in CSCA as swapping U&V in DPR or scaler does not
+	 * work due to HW limitation.
+	 */
+	if (format == DRM_FORMAT_YVYU)
+		dcss_hdr10_swap_u_and_v(&hdr10->ch[ch_num], csca);
 
 	hdr10->ch[ch_num].old_cfg_desc = desc;
 

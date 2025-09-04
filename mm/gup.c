@@ -472,6 +472,17 @@ void unpin_folios(struct folio **folios, unsigned long nfolios)
 EXPORT_SYMBOL_GPL(unpin_folios);
 
 /*
+ * trace_android_vh_mm_customize_longterm_pinnable is called in include/linux/mm.h
+ * by including include/trace/hooks/mm.h, which will result to build-err.
+ * So we create func: _trace_android_vh_mm_customize_longterm_pinnable.
+ */
+void _trace_android_vh_mm_customize_longterm_pinnable(struct folio *folio,
+		bool *is_longterm_pinnable)
+{
+	trace_android_vh_mm_customize_longterm_pinnable(folio, is_longterm_pinnable);
+}
+
+/*
  * Set the MMF_HAS_PINNED if not set yet; after set it'll be there for the mm's
  * lifecycle.  Avoid setting the bit unless necessary, or it might cause write
  * cache bouncing on large SMP machines for concurrent pinned gups.
@@ -2213,8 +2224,8 @@ size_t fault_in_safe_writeable(const char __user *uaddr, size_t size)
 	} while (start != end);
 	mmap_read_unlock(mm);
 
-	if (size > (unsigned long)uaddr - start)
-		return size - ((unsigned long)uaddr - start);
+	if (size > start - (unsigned long)uaddr)
+		return size - (start - (unsigned long)uaddr);
 	return 0;
 }
 EXPORT_SYMBOL(fault_in_safe_writeable);
@@ -2326,13 +2337,13 @@ static void pofs_unpin(struct pages_or_folios *pofs)
 /*
  * Returns the number of collected folios. Return value is always >= 0.
  */
-static void collect_longterm_unpinnable_folios(
+static unsigned long collect_longterm_unpinnable_folios(
 		struct list_head *movable_folio_list,
 		struct pages_or_folios *pofs)
 {
+	unsigned long i, collected = 0;
 	struct folio *prev_folio = NULL;
 	bool drain_allow = true;
-	unsigned long i;
 
 	for (i = 0; i < pofs->nr_entries; i++) {
 		struct folio *folio = pofs_get_folio(pofs, i);
@@ -2343,6 +2354,8 @@ static void collect_longterm_unpinnable_folios(
 
 		if (folio_is_longterm_pinnable(folio))
 			continue;
+
+		collected++;
 
 		if (folio_is_device_coherent(folio))
 			continue;
@@ -2365,6 +2378,8 @@ static void collect_longterm_unpinnable_folios(
 				    NR_ISOLATED_ANON + folio_is_file_lru(folio),
 				    folio_nr_pages(folio));
 	}
+
+	return collected;
 }
 
 /*
@@ -2441,9 +2456,11 @@ static long
 check_and_migrate_movable_pages_or_folios(struct pages_or_folios *pofs)
 {
 	LIST_HEAD(movable_folio_list);
+	unsigned long collected;
 
-	collect_longterm_unpinnable_folios(&movable_folio_list, pofs);
-	if (list_empty(&movable_folio_list))
+	collected = collect_longterm_unpinnable_folios(&movable_folio_list,
+						       pofs);
+	if (!collected)
 		return 0;
 
 	return migrate_longterm_unpinnable_folios(&movable_folio_list, pofs);

@@ -205,26 +205,39 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 	if (!kbase_is_page_migration_enabled())
 		return -EINVAL;
 
+	spin_lock(&page_md->migrate_lock);
+
 	if (WARN_ONCE(PAGE_STATUS_GET(page_md->status) != PT_MAPPED,
-		      "Page metadata status %d does match expected value %d", page_md->status,
-		      PT_MAPPED))
-		return -EINVAL;
+		      "Page metadata status %d doesn't match expected value %d",
+		      PAGE_STATUS_GET(page_md->status), PT_MAPPED)) {
+		ret = -EINVAL;
+		goto early_exit;
+	}
 
 	kctx = page_md->data.pt_mapped.mmut->kctx;
 	kbdev = kctx->kbdev;
-
 	old_dma_addr = page_md->dma_addr;
 
-	/* Create a new dma map for the new page */
-	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(kbdev->dev, new_dma_addr))
-		return -ENOMEM;
+	spin_unlock(&page_md->migrate_lock);
 
 	/* Lock context to protect access to the page in physical allocation.
 	 * This blocks the CPU page fault handler from remapping pages.
 	 * Only MCU's mmut is device wide, i.e. no corresponding kctx.
 	 */
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
+
+	/* Defer the migration action if deferral condition exists */
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto unlock;
+	}
+
+	/* Create a new dma map for the new page */
+	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
+	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
 
 	ret = kbase_mmu_migrate_pgd_page(as_tagged(page_to_phys(old_page)),
 					 as_tagged(page_to_phys(new_page)), old_dma_addr,
@@ -238,11 +251,15 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
 		__SetPageMovable(new_page, &movable_ops);
+		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
+		spin_unlock(&page_md->migrate_lock);
 #else
 		if (kbdev->mem_migrate.inode->i_mapping) {
 			__SetPageMovable(new_page, kbdev->mem_migrate.inode->i_mapping);
+			spin_lock(&page_md->migrate_lock);
 			page_md->status = PAGE_MOVABLE_SET(page_md->status);
+			spin_unlock(&page_md->migrate_lock);
 		}
 #endif
 		SetPagePrivate(new_page);
@@ -250,9 +267,14 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 	} else
 		dma_unmap_page(kbdev->dev, new_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
 
+unlock:
 	/* Page fault handler for CPU mapping unblocked. */
 	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
+	return ret;
+
+early_exit:
+	spin_unlock(&page_md->migrate_lock);
 	return ret;
 }
 
@@ -278,36 +300,54 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	struct kbase_context *kctx;
 	struct kbase_device *kbdev;
 	dma_addr_t old_dma_addr, new_dma_addr;
+	u64 vpfn;
 	int ret;
 
 	if (!kbase_is_page_migration_enabled())
 		return -EINVAL;
 
+	spin_lock(&page_md->migrate_lock);
+
+	if (PAGE_STATUS_GET(page_md->status) == FREE_ISOLATED_IN_PROGRESS) {
+		ret = -EAGAIN;
+		goto early_exit;
+	}
+
 	if (WARN_ONCE(PAGE_STATUS_GET(page_md->status) != ALLOCATED_MAPPED,
-		      "Page metadata status %d does match expected value %d", page_md->status,
-		      ALLOCATED_MAPPED))
-		return -EINVAL;
+		      "Page metadata status %d doesn't match expected value %d",
+		      PAGE_STATUS_GET(page_md->status), ALLOCATED_MAPPED)) {
+		ret = -EINVAL;
+		goto early_exit;
+	}
 
 	kctx = page_md->data.mapped.mmut->kctx;
 	kbdev = kctx->kbdev;
-
 	old_dma_addr = page_md->dma_addr;
+	vpfn = page_md->data.mapped.vpfn;
 
-	/* Create a new dma map for the new page */
-	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(kbdev->dev, new_dma_addr))
-		return -ENOMEM;
+	spin_unlock(&page_md->migrate_lock);
 
 	/* Lock context to protect access to array of pages in physical allocation.
 	 * This blocks the CPU page fault handler from remapping pages.
 	 */
 	kbase_gpu_vm_lock_with_pmode_sync(kctx);
 
+	/* Defer the migration action if deferral condition exists */
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto unlock;
+	}
+
+	/* Create a new dma map for the new page */
+	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
+	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+
 	/* Unmap the old physical range. */
 	unmap_mapping_range(kctx->filp->f_inode->i_mapping,
-			    (loff_t)(page_md->data.mapped.vpfn / GPU_PAGES_PER_CPU_PAGE)
-				    << PAGE_SHIFT,
-			    PAGE_SIZE, 1);
+			    (loff_t)(vpfn / GPU_PAGES_PER_CPU_PAGE) << PAGE_SHIFT, PAGE_SIZE, 1);
 
 	ret = kbase_mmu_migrate_data_page(as_tagged(page_to_phys(old_page)),
 					  as_tagged(page_to_phys(new_page)), old_dma_addr,
@@ -327,21 +367,38 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 		/* Set PG_movable to the new page. */
 #if (KERNEL_VERSION(6, 0, 0) <= LINUX_VERSION_CODE)
 		__SetPageMovable(new_page, &movable_ops);
+		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_MOVABLE_SET(page_md->status);
+		spin_unlock(&page_md->migrate_lock);
 #else
 		if (kbdev->mem_migrate.inode->i_mapping) {
 			__SetPageMovable(new_page, kbdev->mem_migrate.inode->i_mapping);
+			spin_lock(&page_md->migrate_lock);
 			page_md->status = PAGE_MOVABLE_SET(page_md->status);
+			spin_unlock(&page_md->migrate_lock);
 		}
 #endif
 	} else
 		dma_unmap_page(kbdev->dev, new_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
 
+unlock:
 	/* Page fault handler for CPU mapping unblocked. */
 	kbase_gpu_vm_unlock_with_pmode_sync(kctx);
 
 	return ret;
+
+early_exit:
+	spin_unlock(&page_md->migrate_lock);
+	return ret;
 }
+
+#if MALI_UNIT_TEST
+int kbase_migrate_page_allocated_mapped(struct page *old_page, struct page *new_page)
+{
+	return kbasep_migrate_page_allocated_mapped(old_page, new_page);
+}
+KBASE_EXPORT_TEST_API(kbase_migrate_page_allocated_mapped);
+#endif
 
 /**
  * kbase_page_isolate - Isolate a page for migration.
@@ -359,6 +416,7 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 	bool status_mem_pool = false;
 	struct kbase_mem_pool *mem_pool = NULL;
 	struct kbase_page_metadata *page_md = kbase_page_private(p);
+	struct kbase_mmu_table *mmut = NULL;
 
 	if (!kbase_is_page_migration_enabled())
 		return false;
@@ -387,15 +445,29 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 		atomic_inc(&mem_pool->isolation_in_progress_cnt);
 		break;
 	case ALLOCATED_MAPPED:
-		/* Mark the page into isolated state, but only if it has no
-		 * kernel CPU mappings
-		 */
-		if (page_md->vmap_count == 0)
+		mmut = page_md->data.mapped.mmut;
+
+		/* kctx can be NULL for a device-level (mcu) mapping */
+		if (!mmut->kctx) {
+			spin_unlock(&page_md->migrate_lock);
+			return false;
+		}
+
+		if (page_md->vmap_count == 0 &&
+		    !kbase_mem_is_pmode_deferral_required(mmut->kctx->kbdev))
 			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 		break;
 	case PT_MAPPED:
-		/* Mark the page into isolated state. */
-		page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
+		mmut = page_md->data.pt_mapped.mmut;
+
+		/* kctx can be NULL for a device-level (mcu) mapping */
+		if (!mmut->kctx) {
+			spin_unlock(&page_md->migrate_lock);
+			return false;
+		}
+
+		if (!kbase_mem_is_pmode_deferral_required(mmut->kctx->kbdev))
+			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 		break;
 	case SPILL_IN_PROGRESS:
 	case ALLOCATE_IN_PROGRESS:
@@ -418,7 +490,7 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 
 	spin_unlock(&page_md->migrate_lock);
 
-	/* If the page is still in the memory pool: try to remove it. This will fail
+	/* If the page is still in the memory pool try to remove it. This will fail
 	 * if pool lock is taken which could mean page no longer exists in pool.
 	 */
 	if (status_mem_pool) {
@@ -429,8 +501,11 @@ static bool kbase_page_isolate(struct page *p, isolate_mode_t mode)
 		}
 
 		spin_lock(&page_md->migrate_lock);
-		/* Check status again to ensure page has not been removed from memory pool. */
-		if (PAGE_STATUS_GET(page_md->status) == MEM_POOL) {
+		/* Check status again to ensure page has not been removed from memory pool,
+		 * together with the condition that no pmode deferral needed.
+		 */
+		if (PAGE_STATUS_GET(page_md->status) == MEM_POOL &&
+		    !kbase_mem_is_pmode_deferral_required(page_md->data.mem_pool.kbdev)) {
 			page_md->status = PAGE_ISOLATE_SET(page_md->status, 1);
 			list_del_init(&p->lru);
 			mem_pool->cur_size--;

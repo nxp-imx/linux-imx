@@ -2,7 +2,7 @@
 /*
  * i.MX SoC reset code for platforms with system manager
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #include <linux/delay.h>
@@ -65,7 +65,7 @@ static int imx_restart_handler(struct notifier_block *this,
 		board_reset = true;
 	} else
 		board_reset = !strncmp(cmd, BOARD_RESET_MESSAGE,
-			            sizeof(BOARD_RESET_MESSAGE));
+				       sizeof(BOARD_RESET_MESSAGE));
 
 	if (board_reset)
 		reset_type = PSCI_RESET2_SYSTEM_BOARD_RESET;
@@ -78,7 +78,6 @@ static int imx_restart_handler(struct notifier_block *this,
 
 	return NOTIFY_DONE;
 }
-
 
 static struct notifier_block imx_restart_nb = {
 	.notifier_call = imx_restart_handler,
@@ -109,8 +108,8 @@ static int imx_reboot_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id imx_reboot_of_match[] = {
-	{ .compatible = "imx95,resetctrl" },
-	{ .compatible = "imx8q,resetctrl" },
+	{ .compatible = "nxp,imx95-resetctrl" },
+	{ .compatible = "nxp,imx8q-resetctrl" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, imx_reboot_of_match);
@@ -126,4 +125,4 @@ module_platform_driver(imx_reboot_driver);
 
 MODULE_AUTHOR("Ji Luo <ji.luo@nxp.com>");
 MODULE_DESCRIPTION("NXP Reset Driver for Platforms with System Manager");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");

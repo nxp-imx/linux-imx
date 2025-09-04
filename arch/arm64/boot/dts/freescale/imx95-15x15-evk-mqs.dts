@@ -61,7 +61,7 @@
 			bitclock-master;
 			frame-master;
 			playback-only;
-			mclk-fs = <256>;
+			mclk-fs = <512>;
 
 			sai1_endpoint1: endpoint {
 				remote-endpoint = <&mqs1_endpoint>;

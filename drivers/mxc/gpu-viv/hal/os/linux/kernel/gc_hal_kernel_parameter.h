@@ -476,4 +476,8 @@ static uint type = 0;
 module_param(type, uint, 0664);
 MODULE_PARM_DESC(type, "0 - Char Driver (Default), 1 - Misc Driver");
 
+static uint mmuSwSwitch = 0;
+module_param(mmuSwSwitch, uint, 0644);
+MODULE_PARM_DESC(mmuSwSwitch, "Control of switching mmu by software on npu core");
+
 #endif /* _GC_HAL_KERNEL_PARAMETER_H_ */

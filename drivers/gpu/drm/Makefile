@@ -105,7 +105,11 @@ obj-$(CONFIG_DRM_GPUVM) += drm_gpuvm.o
 obj-$(CONFIG_DRM_BUDDY) += drm_buddy.o
 
 drm_dma_helper-y := drm_gem_dma_helper.o
+ifeq ($(CONFIG_DRM_FBDEV_HELPER),m)
+drm_dma_helper-y += drm_fbdev_dma.o
+else
 drm_dma_helper-$(CONFIG_DRM_FBDEV_EMULATION) += drm_fbdev_dma.o
+endif
 drm_dma_helper-$(CONFIG_DRM_KMS_HELPER) += drm_fb_dma_helper.o
 obj-$(CONFIG_DRM_GEM_DMA_HELPER) += drm_dma_helper.o
 
@@ -147,9 +151,16 @@ drm_kms_helper-y := \
 drm_kms_helper-$(CONFIG_DRM_CLIENT_SETUP) += \
 	drm_client_setup.o
 drm_kms_helper-$(CONFIG_DRM_PANEL_BRIDGE) += bridge/panel.o
+ifeq ($(CONFIG_DRM_FBDEV_HELPER),m)
+drm_fbdev_helper-y += \
+        drm_fbdev_client.o \
+        drm_fb_helper.o
+obj-$(CONFIG_DRM_FBDEV_HELPER) += drm_fbdev_helper.o
+else
 drm_kms_helper-$(CONFIG_DRM_FBDEV_EMULATION) += \
 	drm_fbdev_client.o \
 	drm_fb_helper.o
+endif
 obj-$(CONFIG_DRM_KMS_HELPER) += drm_kms_helper.o
 
 #

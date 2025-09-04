@@ -1,0 +1,140 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx8mp-frdm.dts"
+
+/ {
+    reg_dvdd_1v2_1: regulator-dvdd_1 {
+		compatible = "regulator-fixed";
+		regulator-name = "DVDD_1V2";
+		gpio = <&adp5585_isp_1 7 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		enable-active-high;
+	};
+
+	reg_hmisc_vddio_1: regulator-hmisc-vddio_1 {
+		compatible = "regulator-fixed";
+		regulator-name = "HMISC_VDDIO_1V8";
+		gpio = <&adp5585_isp_1 10 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+	};
+
+	reg_vddio_1v8_1: regulator-vddo_1 {
+		compatible = "regulator-fixed";
+		regulator-name = "VDDIO_1V8";
+		gpio = <&adp5585_isp_1 6 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		startup-delay-us = <4000>;
+		enable-active-high;
+	};
+
+	reg_avdd_2v8_1: regulator-avdd_1 {
+		compatible = "regulator-fixed";
+		regulator-name = "AVDD_2V8";
+		gpio = <&adp5585_isp_1 8 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		enable-active-high;
+	};
+};
+
+&i2c3 {
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c3>;
+	status = "okay";
+
+	adp5585_isp_1: io-expander-isp@34 {
+		compatible = "adi,adp5585-01", "adi,adp5585";
+		reg = <0x34>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		#pwm-cells = <3>;
+	};
+
+	ap1302_1: ap1302_mipi_1@3c {
+		compatible = "onnn,ap1302";
+		reg = <0x3c>;
+		clocks = <&clk IMX8MP_CLK_24M>;
+		reset-gpios   = <&pca6416_a 1 GPIO_ACTIVE_LOW>;
+		isp_en-gpios  = <&adp5585_isp_1 2 GPIO_ACTIVE_HIGH>;
+		orientation = <2>;
+		rotation = <0>;
+		DVDD-supply   = <&reg_dvdd_1v2_1>;
+		VDDIO_HMISC-supply  = <&reg_hmisc_vddio_1>;
+		VDDIO_SMISC-supply   = <&reg_hmisc_vddio_1>;
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+			};
+
+			port@1 {
+				reg = <1>;
+			};
+
+			port@2 {
+				reg = <2>;
+				isp_out_1: endpoint {
+					remote-endpoint = <&mipi_csi1_ep>;
+					data-lanes = <1 2 3 4>;
+					clock-lanes = <0>;
+				};
+			};
+		};
+
+		sensors {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			onnn,model = "onnn,ar0144";
+
+			sensor@0 {
+				reg = <0>;
+
+				vdd-supply = <&reg_dvdd_1v2_1>;
+				vddio-supply = <&reg_vddio_1v8_1>;
+				vaa-supply = <&reg_avdd_2v8_1>;
+			};
+		};
+	};
+};
+
+&isi_1 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+
+	m2m_device {
+		status = "okay";
+	};
+};
+
+&mipi_csi_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@1 {
+		reg = <1>;
+		mipi_csi1_ep: endpoint {
+			remote-endpoint = <&isp_out_1>;
+			data-lanes = <4>;
+			csis-hs-settle = <13>;
+			csis-clk-settle = <2>;
+			csis-wclk;
+		};
+	};
+};

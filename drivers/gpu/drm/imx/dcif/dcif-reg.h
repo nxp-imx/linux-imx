@@ -259,11 +259,11 @@
 
 /* CSC_COEF4_L0 - Color Space Conversion Coefficient Register 4 For Layer 0 */
 #define DCIF_CSC_COEF4_L0_C3(x)			REG_PUT((x), 10, 0)
-#define DCIF_CSC_COEF4_L0_D1(x)			REG_PUT((x), 8, 0)
+#define DCIF_CSC_COEF4_L0_D1(x)			REG_PUT((x), 24, 16)
 
 /* CSC_COEF5_L0 - Color Space Conversion Coefficient Register 5 For Layer 0 */
 #define DCIF_CSC_COEF5_L0_D2(x)			REG_PUT((x), 8, 0)
-#define DCIF_CSC_COEF5_L0_D3(x)			REG_PUT((x), 26, 16)
+#define DCIF_CSC_COEF5_L0_D3(x)			REG_PUT((x), 24, 16)
 
 /* CTRLDESC0_L1 - Control Descriptor Register 0 for Layer 1 */
 #define DCIF_CTRLDESC0_L1_AB_MODE_MASK		GENMASK(1, 0)

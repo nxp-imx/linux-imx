@@ -2,11 +2,45 @@
 
 #include <linux/fb.h>
 #include <linux/linux_logo.h>
+#include <video/cmdline.h>
 
 #include "fb_internal.h"
 
 bool fb_center_logo __read_mostly;
 int fb_logo_count __read_mostly = -1;
+
+#if !defined(CONFIG_FRAMEBUFFER_CONSOLE)
+static int fb_logo_setup(void)
+{
+	char *cmdline, *options;
+	const char *input = video_get_options("fb0");
+	if (!input || !*input)
+		return 1;
+
+	cmdline = kstrdup(input, GFP_KERNEL);
+	if (!cmdline)
+		return 1;
+
+	while ((options = strsep(&cmdline, ",")) != NULL) {
+		if (!strncmp(options, "logo-pos=", 9)) {
+			options += 9;
+			if (!strcmp(options, "center"))
+				fb_center_logo = true;
+			continue;
+		}
+
+		if (!strncmp(options, "logo-count=", 11)) {
+			options += 11;
+			if (*options)
+				fb_logo_count = simple_strtol(options, &options, 0);
+			continue;
+		}
+	}
+
+	kfree(cmdline);
+	return 1;
+}
+#endif
 
 static inline unsigned int safe_shift(unsigned int d, int n)
 {
@@ -284,8 +318,7 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 	struct fb_image image;
 
 	/* Return if the frame buffer is not mapped or suspended */
-	if (logo == NULL || info->state != FBINFO_STATE_RUNNING ||
-	    info->fbops->owner)
+	if (logo == NULL || info->state != FBINFO_STATE_RUNNING)
 		return 0;
 
 	image.depth = 8;
@@ -421,10 +454,12 @@ int fb_prepare_logo(struct fb_info *info, int rotate)
 	unsigned int yres;
 	int height;
 
+#if !defined(CONFIG_FRAMEBUFFER_CONSOLE)
+	fb_logo_setup();
+#endif
 	memset(&fb_logo, 0, sizeof(struct logo_data));
 
-	if (info->flags & FBINFO_MISC_TILEBLITTING ||
-	    info->fbops->owner || !fb_logo_count)
+	if (info->flags & FBINFO_MISC_TILEBLITTING || !fb_logo_count)
 		return 0;
 
 	if (info->fix.visual == FB_VISUAL_DIRECTCOLOR) {

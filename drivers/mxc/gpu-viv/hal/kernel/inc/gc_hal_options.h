@@ -203,7 +203,7 @@
  *       When set to 1, will dump hw command buffer when GPU/VIP hang.
  */
 #ifndef gcdDUMP_HW_SUBCOMMAND
-#    define gcdDUMP_HW_SUBCOMMAND           1
+#    define gcdDUMP_HW_SUBCOMMAND           0
 #endif
 
 /*
@@ -761,7 +761,7 @@
  */
 #ifndef gcdENABLE_GPU_1M_PAGE
 #if !gcdSECURITY && defined(LINUX)
-#ifdef EMULATOR
+#if defined(EMULATOR)
 #            define gcdENABLE_GPU_1M_PAGE           0
 #        else
 #            define gcdENABLE_GPU_1M_PAGE           0

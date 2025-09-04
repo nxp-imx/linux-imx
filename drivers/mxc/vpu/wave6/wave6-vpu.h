@@ -47,6 +47,17 @@ struct vpu_format {
 	unsigned int max_height;
 	unsigned int min_height;
 	unsigned int num_planes;
+
+	enum frame_buffer_format src_format;
+	enum endian_mode source_endian;
+	enum packed_format_num packed_format;
+	unsigned int csc_order;
+
+	u32 is_yuv : 1;
+	u32 is_rgb : 1;
+	u32 is_10bit : 1;
+	u32 cbcr_interleave : 1;
+	u32 nv21 : 1;
 };
 
 static inline struct vpu_instance *wave6_to_vpu_inst(struct v4l2_fh *vfh)
@@ -77,6 +88,14 @@ u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst);
 void wave6_vpu_pause(struct device *dev, int resume);
 void wave6_vpu_activate(struct vpu_device *dev);
 void wave6_vpu_wait_activated(struct vpu_device *dev);
+void wave6_vpu_force_dma_sync_single_for_device(struct vpu_device *dev,
+						dma_addr_t addr,
+						size_t size,
+						enum dma_data_direction dir);
+void wave6_vpu_force_dma_sync_single_for_cpu(struct vpu_device *dev,
+					     dma_addr_t addr,
+					     size_t size,
+					     enum dma_data_direction dir);
 void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  unsigned int width,
 			  unsigned int height);

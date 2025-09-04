@@ -7,7 +7,7 @@
 
 #include <dt-bindings/firmware/imx/rsrc.h>
 
-/ {
+&{/} {
 	sound-hdmi-rx {
 		compatible = "fsl,imx-audio-hdmi";
 		model = "imx-audio-hdmi-rx";

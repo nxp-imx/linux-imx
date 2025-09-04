@@ -1082,6 +1082,7 @@ properties:
               - beacon,imx8mp-beacon-kit  # i.MX8MP Beacon Development Kit
               - dmo,imx8mp-data-modul-edm-sbc # i.MX8MP eDM SBC
               - emcraft,imx8mp-navqp      # i.MX8MP Emcraft Systems NavQ+ Kit
+              - fsl,frdm-imx8mp           # FRDM-IMX8MP Board
               - fsl,imx8mp-evk            # i.MX8MP EVK Board
               - fsl,imx8mp-evk-revb4      # i.MX8MP EVK Rev B4 Board
               - fsl,imx8mp-navq           # i.MX8MP NAVQ+ Board
@@ -1306,6 +1307,7 @@ properties:
       - description: i.MX93 based Boards
         items:
           - enum:
+              - fsl,frdm-imx93            # FRDM-IMX93 Board
               - fsl,imx93-9x9-qsb         # i.MX93 9x9 QSB Board
               - fsl,imx93-11x11-evk       # i.MX93 11x11 EVK Board
               - fsl,imx93-14x14-evk       # i.MX93 14x14 EVK Board
@@ -1326,6 +1328,7 @@ properties:
       - description: i.MX95 based Boards
         items:
           - enum:
+              - fsl,frdm-imx95            # FRDM-IMX95 Board
               - fsl,imx95-15x15-evk       # i.MX95 15x15 EVK Board
               - fsl,imx95-19x19-evk       # i.MX95 19x19 EVK Board
           - const: fsl,imx95

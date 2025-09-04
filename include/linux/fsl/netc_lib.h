@@ -26,13 +26,19 @@ enum netc_key_tbl_type {
 };
 
 struct netc_gate_tbl {
-	u32 sgit_eid;
-	u32 sgclt_eid;
+	struct ntmp_sgit_entry *sgit_entry;
+	struct ntmp_sgclt_entry *sgclt_entry;
+	/* This flag is cleared when NETC suspends and it is
+	 * powered off, and it will be set when NETC resumes
+	 * and the table entries are restored.
+	 */
+	bool restored;
 	refcount_t refcount;
 };
 
 struct netc_police_tbl {
-	u32 rpt_eid;
+	struct ntmp_rpt_entry *rpt_entry;
+	bool restored;
 	refcount_t refcount;
 };
 
@@ -43,11 +49,13 @@ struct netc_flower_key_tbl {
 		struct ntmp_ipft_entry *ipft_entry;
 	};
 	struct ntmp_ist_entry *ist_entry;
+	bool restored;
 	refcount_t refcount;
 };
 
 struct netc_flower_rule {
 	u32 port_id;
+	u32 isct_eid;
 	unsigned long cookie;
 	enum netc_flower_type flower_type;
 	struct netc_flower_key_tbl *key_tbl;
@@ -120,6 +128,8 @@ void netc_delete_police_flower_rule(struct ntmp_priv *priv,
 				    struct netc_flower_rule *rule);
 int netc_police_flower_stat(struct ntmp_priv *priv, struct netc_flower_rule *rule,
 			    u64 *pkt_cnt);
+int netc_restore_flower_list_config(struct ntmp_priv *priv);
+void netc_clear_flower_table_restored_flag(struct ntmp_priv *priv);
 
 /* debugfs API */
 int netc_kstrtouint(const char __user *buffer, size_t count, loff_t *ppos, u32 *val);
@@ -233,6 +243,15 @@ static inline int netc_police_flower_stat(struct ntmp_priv *priv,
 					  u64 *pkt_cnt)
 {
 	return 0;
+}
+
+static inline int netc_restore_flower_list_config(struct ntmp_priv *priv)
+{
+	return 0;
+}
+
+static inline void netc_clear_flower_table_restored_flag(struct ntmp_priv *priv)
+{
 }
 
 static inline void netc_show_psfp_flower(struct seq_file *s,

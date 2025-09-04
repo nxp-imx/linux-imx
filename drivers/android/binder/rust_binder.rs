@@ -283,9 +283,9 @@ impl DeliverToRead for DeliverCode {
     }
 }
 
-const fn ptr_align(value: usize) -> usize {
+fn ptr_align(value: usize) -> Option<usize> {
     let size = core::mem::size_of::<usize>() - 1;
-    (value + size) & !size
+    Some(value.checked_add(size)? & !size)
 }
 
 // SAFETY: We call register in `init`.
@@ -455,7 +455,7 @@ unsafe extern "C" fn rust_binder_mmap(
     // SAFETY: We previously set `private_data` in `rust_binder_open`.
     let f = unsafe { Arc::<Process>::borrow((*file).private_data) };
     // SAFETY: The caller ensures that the vma is valid.
-    let area = unsafe { kernel::mm::virt::VmAreaNew::from_raw(vma) };
+    let area = unsafe { kernel::mm::virt::VmaNew::from_raw(vma) };
     // SAFETY: The caller ensures that the file is valid.
     match Process::mmap(f, unsafe { File::from_raw_file(file) }, area) {
         Ok(()) => 0,
@@ -472,7 +472,7 @@ unsafe extern "C" fn rust_binder_poll(
     // SAFETY: The caller ensures that the file is valid.
     let fileref = unsafe { File::from_raw_file(file) };
     // SAFETY: The caller ensures that the `PollTable` is valid.
-    match Process::poll(f, fileref, unsafe { PollTable::from_ptr(wait) }) {
+    match Process::poll(f, fileref, unsafe { PollTable::from_raw(wait) }) {
         Ok(v) => v,
         Err(_) => bindings::POLLERR,
     }

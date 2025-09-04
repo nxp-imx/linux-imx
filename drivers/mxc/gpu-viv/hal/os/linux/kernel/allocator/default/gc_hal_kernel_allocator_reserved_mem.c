@@ -527,6 +527,7 @@ _ReservedMemoryAllocatorInit(IN gckOS           Os,
                           | gcvALLOC_FLAG_CPU_ACCESS
                           | gcvALLOC_FLAG_DMABUF_EXPORTABLE
                           | gcvALLOC_FLAG_NON_CPU_ACCESS
+                          | gcvALLOC_FLAG_FROM_USER
 #if gcdENABLE_VIDEO_MEMORY_MIRROR
                           | gcvALLOC_FLAG_WITH_MIRROR
 #endif

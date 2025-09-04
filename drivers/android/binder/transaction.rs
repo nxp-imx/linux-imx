@@ -122,7 +122,7 @@ impl Transaction {
             debug_id,
             target_node: Some(target_node),
             from_parent,
-            sender_euid: from.process.cred.euid(),
+            sender_euid: from.process.task.euid(),
             from: from.clone(),
             to,
             code: trd.code,
@@ -423,13 +423,13 @@ impl DeliverToRead for Transaction {
         tr.data.ptr.buffer = self.data_address as _;
         tr.offsets_size = self.offsets_size as _;
         if tr.offsets_size > 0 {
-            tr.data.ptr.offsets = (self.data_address + ptr_align(self.data_size)) as _;
+            tr.data.ptr.offsets = (self.data_address + ptr_align(self.data_size).unwrap()) as _;
         }
         tr.sender_euid = self.sender_euid.into_uid_in_current_ns();
         tr.sender_pid = 0;
         if self.target_node.is_some() && self.flags & TF_ONE_WAY == 0 {
             // Not a reply and not one-way.
-            tr.sender_pid = self.from.process.task.pid_in_current_ns();
+            tr.sender_pid = self.from.process.pid_in_current_ns();
         }
         let code = if self.target_node.is_none() {
             BR_REPLY

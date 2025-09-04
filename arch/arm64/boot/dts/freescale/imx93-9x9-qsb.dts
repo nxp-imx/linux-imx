@@ -20,6 +20,12 @@
 		stdout-path = &lpuart1;
 	};
 
+	dmic: dmic {
+		compatible = "dmic-codec";
+		#sound-dai-cells = <0>;
+		num-channels = <4>;
+	};
+
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -183,6 +189,9 @@
 			format = "i2s";
 			cpu {
 				sound-dai = <&micfil>;
+			};
+			codec {
+				sound-dai = <&dmic>;
 			};
 		};
 	};

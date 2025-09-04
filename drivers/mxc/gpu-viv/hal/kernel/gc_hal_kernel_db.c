@@ -186,6 +186,12 @@ gckKERNEL_DeinitDatabase(IN gckKERNEL Kernel, IN gcsDATABASE_PTR Database)
 
     if (Database) {
         Database->deleted = gcvFALSE;
+        if (Kernel->processPageTable) {
+            gctUINT32 j = 0;
+            for (j = 0; j < gcvHARDWARE_NUM_TYPES; j++) {
+                Database->mmu[j] = gcvNULL;
+            }
+        }
 
         /* Destroy handle db. */
         if (Database->refs) {
@@ -481,7 +487,7 @@ gckKERNEL_CreateProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
     gctPOINTER      pointer  = gcvNULL;
     gctBOOL         acquired = gcvFALSE;
     gctSIZE_T       slot;
-    gctUINT32       i;
+    gctUINT32       i, j;
 
     gcmkHEADER_ARG("Kernel=%p ProcessID=%d", Kernel, ProcessID);
 
@@ -569,6 +575,16 @@ gckKERNEL_CreateProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
         database->vidMemPool[i].totalBytes = 0;
         database->vidMemPool[i].freeCount  = 0;
         database->vidMemPool[i].allocCount = 0;
+    }
+
+    for (j = 0; j < gcvCORE_3D_MAX; j++) {
+        if (!Kernel->device->kernels[j])
+            continue;
+        /* Only Construct process mmu for NPU */
+        if (Kernel->device->kernels[j]->hardware->type == gcvHARDWARE_VIP && Kernel->device->kernels[j]->processPageTable)
+            gcmkONERROR(gckMMU_ConstructProcessMMU(Kernel->device->kernels[j],
+                                                   ProcessID,
+                                                   &database->mmu[Kernel->device->kernels[j]->hardware->type]));
     }
 
     gcmkASSERT(database->refs == gcvNULL);
@@ -990,6 +1006,141 @@ OnError:
 }
 
 /*******************************************************************************
+ **  gckKERNEL_FindProcessMMU
+ **
+ **  Find the mmu page table from a process database.
+ **
+ **  INPUT:
+ **
+ **      gckKERNEL Kernel
+ **          Pointer to a gckKERNEL object.
+ **
+ **      gctUINT32 ProcessID
+ **          Process ID used to identify the database.
+ **
+ **  OUTPUT:
+ **
+ **      gckMMU *Mmu
+ */
+gceSTATUS
+gckKERNEL_FindProcessMMU(IN gckKERNEL Kernel, IN gctUINT32 ProcessID, OUT gckMMU *Mmu)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gcsDATABASE_PTR database;
+
+    gcmkHEADER_ARG("Kernel=%p ProcessID=%d", Kernel, ProcessID);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
+    gcmkVERIFY_ARGUMENT(Mmu != gcvNULL);
+
+    /* Find the database. */
+    gcmkONERROR(gckKERNEL_FindDatabase(Kernel, ProcessID, gcvFALSE, &database));
+
+    *Mmu = database->mmu[Kernel->hardware->type];
+OnError:
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_GetCurrentMMU(IN gckKERNEL Kernel, IN gctBOOL FromUser, IN gctUINT32 ProcessID,
+                       OUT gckMMU *Mmu)
+{
+    gceSTATUS status = gcvSTATUS_OK;
+
+    gcmkHEADER_ARG("Kernel=%p", Kernel);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
+
+    /* Only NPU support per process mmu */
+    if (Kernel->processPageTable && FromUser &&
+        Kernel->hardware->type == gcvHARDWARE_VIP) {
+        gctUINT32 processID = ProcessID;
+
+        /* If ProcessID is not passed. */
+        if (!processID)
+            gcmkONERROR(gckOS_GetProcessID(&processID));
+
+        gcmkONERROR(gckKERNEL_FindProcessMMU(Kernel, processID, Mmu));
+
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
+    }
+
+    *Mmu = Kernel->mmu;
+
+OnError:
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_RemoveDatabaseFromList(IN gckKERNEL Kernel, IN gcsDATABASE_PTR Database, IN gctUINT32 ProcessID)
+{
+    gcsDATABASE_PTR db = gcvNULL;
+    gcsDATABASE_PTR previous = gcvNULL;
+    gcsDATABASE_PTR database = Database;
+    gctBOOL acquired = gcvFALSE;
+    gceSTATUS status = gcvSTATUS_OK;
+    gctSIZE_T slot;
+
+    gcmkHEADER_ARG("Kernel=%p Database=%d", Kernel, Database);
+
+    /* Compute the hash for the database. */
+    slot = ProcessID % gcmCOUNTOF(Kernel->db->db);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    /* Walk the hash list. */
+    for (db = Kernel->db->db[slot]; db != gcvNULL; db = db->next) {
+        if (db->processID == ProcessID)
+            break;
+
+        previous = db;
+    }
+
+    if (db != database || !db->deleted) {
+        gcmkFATAL("%s(%d): DB of Process=0x%x corrupted after found in deletion\n",
+                  __FUNCTION__, __LINE__, ProcessID);
+        gcmkONERROR(gcvSTATUS_NOT_FOUND);
+    }
+
+    /* Remove the database from the hash list. */
+    if (previous)
+        previous->next = database->next;
+    else
+        Kernel->db->db[slot] = database->next;
+
+    /* Deinit current database. */
+    gcmkVERIFY_OK(gckKERNEL_DeinitDatabase(Kernel, database));
+
+    if (Kernel->db->lastDatabase) {
+        /* Insert last database to the free list. */
+        Kernel->db->lastDatabase->next = Kernel->db->freeDatabase;
+        Kernel->db->freeDatabase = Kernel->db->lastDatabase;
+    }
+
+    /* Update last database to current one. */
+    Kernel->db->lastDatabase = database;
+
+OnError:
+    if (acquired) {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
+
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
+
+/*******************************************************************************
  **  gckKERNEL_DestroyProcessDB
  **
  **  Destroy a process database.  If the database contains any records, the data
@@ -1013,9 +1164,7 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
 {
     gceSTATUS       status   = gcvSTATUS_OK;
     gckKERNEL       kernel   = Kernel;
-    gcsDATABASE_PTR previous = gcvNULL;
     gcsDATABASE_PTR database = gcvNULL;
-    gcsDATABASE_PTR db       = gcvNULL;
     gctBOOL         acquired = gcvFALSE;
     gctSIZE_T       slot;
     gctUINT32       i;
@@ -1096,6 +1245,7 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
             gckVIDMEM_NODE nodeObject;
             gctPHYS_ADDR   physical;
             gctUINT32      handle;
+            gckMMU         mmu = gcvNULL;
 
             /* Next record. */
             next = record->next;
@@ -1155,15 +1305,17 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
                 gcmkVERIFY_OK(gckVIDMEM_NODE_UnlockCPU(record->kernel, nodeObject,
                                                        ProcessID, gcvTRUE, gcvFALSE));
 
+                gcmkVERIFY_OK(gckKERNEL_GetCurrentMMU(record->kernel, gcvTRUE, ProcessID, &mmu));
+
                 /* Unlock what we still locked */
                 status = gckVIDMEM_NODE_Unlock(record->kernel, nodeObject,
-                                               ProcessID, &asynchronous);
+                                               mmu, &asynchronous);
 
 #if gcdENABLE_VG
                 if (record->kernel->core == gcvCORE_VG) {
                     if (gcmIS_SUCCESS(status) && gcvTRUE == asynchronous) {
                         status = gckVIDMEM_NODE_Unlock(record->kernel, nodeObject,
-                                                       ProcessID, gcvNULL);
+                                                       mmu, gcvNULL);
                     }
 
                     /* Deref handle. */
@@ -1176,10 +1328,10 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
                     /* Deref handle. */
                     gcmkVERIFY_OK(gckVIDMEM_HANDLE_Dereference(record->kernel, ProcessID, handle));
 
-                    if (gcmIS_SUCCESS(status) && gcvTRUE == asynchronous) {
+                    if (gcmIS_SUCCESS(status) && gcvTRUE == asynchronous && !record->kernel->processPageTable) {
                         /* Schedule unlock: will unlock and deref node later. */
                         status = gckEVENT_Unlock(record->kernel->eventObj,
-                                                 gcvKERNEL_PIXEL, nodeObject);
+                                                 gcvKERNEL_PIXEL, mmu, nodeObject);
                     } else {
                         /* Deref node */
                         gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(record->kernel, nodeObject));
@@ -1289,42 +1441,27 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
 
     gcmkONERROR(gckKERNEL_DestroyProcessReservedUserMap(Kernel, ProcessID));
 
-    /* Acquire the database mutex. */
-    gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
+    /* Destroy process MMU if it has,
+     * for nxp tree, only npu core has process MMU.
+     * Also, we only call gckKERNEL_DestroyProcessDB once, so find and destroy npu process MMU here. */
+    for (i = 0; i < gcvCORE_3D_MAX; i++) {
+        kernel = Kernel->device->kernels[i];
+        if (!kernel)
+            continue;
+        if (kernel->processPageTable && database->mmu[kernel->hardware->type]) {
+            gcsEVENT_INTERFACE iface = {0};
 
-    /* Walk the hash list. */
-    for (db = Kernel->db->db[slot]; db != gcvNULL; db = db->next) {
-        if (db->processID == ProcessID)
-            break;
+            iface.command = gcvHAL_DESTROY_MMU;
+            iface.u.DestroyMmu.mmu = gcmPTR_TO_UINT64(database->mmu[kernel->hardware->type]);
+            iface.u.DestroyMmu.pid = ProcessID;
+            iface.u.DestroyMmu.database = gcmPTR_TO_UINT64(database);
 
-        previous = db;
+            gcmkONERROR(gckEVENT_AddList(kernel->eventObj, &iface,
+                                         gcvKERNEL_PIXEL, gcvFALSE, gcvTRUE));
+        }
     }
 
-    if (db != database || !db->deleted) {
-        gcmkFATAL("%s(%d): DB of Process=0x%x corrupted after found in deletion\n",
-                  __FUNCTION__, __LINE__, ProcessID);
-        gcmkONERROR(gcvSTATUS_NOT_FOUND);
-    }
-
-    /* Remove the database from the hash list. */
-    if (previous)
-        previous->next = database->next;
-    else
-        Kernel->db->db[slot] = database->next;
-
-    /* Deinit current database. */
-    gcmkVERIFY_OK(gckKERNEL_DeinitDatabase(Kernel, database));
-
-    if (Kernel->db->lastDatabase) {
-        /* Insert last database to the free list. */
-        Kernel->db->lastDatabase->next = Kernel->db->freeDatabase;
-        Kernel->db->freeDatabase       = Kernel->db->lastDatabase;
-    }
-
-    /* Update last database to current one. */
-    Kernel->db->lastDatabase = database;
-
+    gcmkONERROR(gckKERNEL_RemoveDatabaseFromList(Kernel, database, ProcessID));
 OnError:
 OnExit:
     if (acquired) {

@@ -171,4 +171,14 @@ config UIO_IVSHMEM
 	help
 	  Userspace I/O driver for the inter-VM shared memory PCI device
 	  as provided by QEMU and the Jailhouse hypervisor.
+
+config UIO_V2X_FCE
+	tristate "i.MX V2X Fast Crypto Engine UIO support"
+	default y
+	help
+	  Selecting this will allow V2X FCE UIO support for
+	  Userspace drivers
+
+	  To compile this as a module, choose M here: the module
+	  will be called uio_v2x_fce.
 endif

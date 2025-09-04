@@ -940,7 +940,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 		spin_lock_irqsave(&n->list_lock, flags);
 		list_for_each_entry(slab, &n->partial, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;
@@ -950,7 +952,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 #ifdef CONFIG_SLUB_DEBUG
 		list_for_each_entry(slab, &n->full, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;
@@ -2005,6 +2009,11 @@ static inline void handle_failed_objexts_alloc(unsigned long obj_exts,
 #define OBJCGS_CLEAR_MASK	(__GFP_DMA | __GFP_RECLAIMABLE | \
 				__GFP_ACCOUNT | __GFP_NOFAIL)
 
+static inline void init_slab_obj_exts(struct slab *slab)
+{
+	slab->obj_exts = 0;
+}
+
 int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 		        gfp_t gfp, bool new_slab)
 {
@@ -2076,19 +2085,11 @@ static noinline void free_slab_obj_exts(struct slab *slab)
 	slab->obj_exts = 0;
 }
 
-static inline bool need_slab_obj_ext(void)
-{
-	if (mem_alloc_profiling_enabled())
-		return true;
-
-	/*
-	 * CONFIG_MEMCG creates vector of obj_cgroup objects conditionally
-	 * inside memcg_slab_post_alloc_hook. No other users for now.
-	 */
-	return false;
-}
-
 #else /* CONFIG_SLAB_OBJ_EXT */
+
+static inline void init_slab_obj_exts(struct slab *slab)
+{
+}
 
 static int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 			       gfp_t gfp, bool new_slab)
@@ -2098,11 +2099,6 @@ static int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 
 static inline void free_slab_obj_exts(struct slab *slab)
 {
-}
-
-static inline bool need_slab_obj_ext(void)
-{
-	return false;
 }
 
 #endif /* CONFIG_SLAB_OBJ_EXT */
@@ -2152,7 +2148,7 @@ __alloc_tagging_slab_alloc_hook(struct kmem_cache *s, void *object, gfp_t flags)
 static inline void
 alloc_tagging_slab_alloc_hook(struct kmem_cache *s, void *object, gfp_t flags)
 {
-	if (need_slab_obj_ext())
+	if (mem_alloc_profiling_enabled())
 		__alloc_tagging_slab_alloc_hook(s, object, flags);
 }
 
@@ -2628,8 +2624,12 @@ static __always_inline void account_slab(struct slab *slab, int order,
 static __always_inline void unaccount_slab(struct slab *slab, int order,
 					   struct kmem_cache *s)
 {
-	if (memcg_kmem_online() || need_slab_obj_ext())
-		free_slab_obj_exts(slab);
+	/*
+	 * The slab object extensions should now be freed regardless of
+	 * whether mem_alloc_profiling_enabled() or not because profiling
+	 * might have been disabled after slab->obj_exts got allocated.
+	 */
+	free_slab_obj_exts(slab);
 
 	mod_node_page_state(slab_pgdat(slab), cache_vmstat_idx(s),
 			    -(PAGE_SIZE << order));
@@ -2673,6 +2673,7 @@ static struct slab *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	slab->objects = oo_objects(oo);
 	slab->inuse = 0;
 	slab->frozen = 0;
+	init_slab_obj_exts(slab);
 
 	account_slab(slab, oo_order(oo), s, flags);
 
@@ -4664,6 +4665,8 @@ void slab_free(struct kmem_cache *s, struct slab *slab, void *object,
 
 	if (likely(slab_free_hook(s, object, slab_want_init_on_free(s), false)))
 		do_slab_free(s, slab, object, object, 1, addr);
+
+	trace_android_vh_slab_free(addr, s);
 }
 
 #ifdef CONFIG_MEMCG

@@ -1564,6 +1564,7 @@ static int v4l2_enc_open(struct file *filp)
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->memory = VB2_MEMORY_UNKNOWN;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	q->allow_cache_hints = 1;
 	INIT_LIST_HEAD(&ctx->input_list);
 	ret = vb2_queue_init(q);
 	/*q->buf_ops = &v4l2_buf_ops is set here*/
@@ -1581,6 +1582,7 @@ static int v4l2_enc_open(struct file *filp)
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->memory = VB2_MEMORY_UNKNOWN;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	q->allow_cache_hints = 1;
 	INIT_LIST_HEAD(&ctx->output_list);
 	ret = vb2_queue_init(q);
 	if (ret) {

@@ -144,7 +144,7 @@ _AllocateVideoMemory(IN gckKERNEL Kernel, IN gceVIDMEM_TYPE Type, IN gctUINT32 A
 OnError:
     if (bufferNode) {
         if (bufferAddress)
-            gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(Kernel, bufferNode, 0, gcvNULL));
+            gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(Kernel, bufferNode, Kernel->mmu, gcvNULL));
 
         if (bufferLogical)
             gcmkVERIFY_OK(gckVIDMEM_NODE_UnlockCPU(Kernel, bufferNode, 0, gcvFALSE, gcvFALSE));
@@ -163,7 +163,7 @@ _FreeVideoMemory(IN gckKERNEL Kernel, IN gckVIDMEM_NODE Node)
     if (!Node)
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
 
-    gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(Kernel, Node, 0, gcvNULL));
+    gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(Kernel, Node, Kernel->mmu, gcvNULL));
 
     gcmkVERIFY_OK(gckVIDMEM_NODE_UnlockCPU(Kernel, Node, 0, gcvFALSE, gcvFALSE));
 

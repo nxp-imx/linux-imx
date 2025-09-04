@@ -449,6 +449,9 @@
 	arm64.nomops	[ARM64] Unconditionally disable Memory Copy and Memory
 			Set instructions support
 
+	arm64.nompam	[ARM64] Unconditionally disable Memory Partitioning And
+			Monitoring support
+
 	arm64.nomte	[ARM64] Unconditionally disable Memory Tagging Extension
 			support
 
@@ -1538,6 +1541,10 @@
 			Format: { "fix" }
 			Permit 'security.evm' to be updated regardless of
 			current integrity status.
+	export_pmu_events
+			[KNL,ARM64] Sets the PMU export bit (PMCR_EL0.X), which enables
+			the exporting of events over an IMPLEMENTATION DEFINED PMU event
+			export bus to another device.
 
 	early_page_ext [KNL,EARLY] Enforces page_ext initialization to earlier
 			stages so cover more early boot allocations.
@@ -2156,6 +2163,23 @@
 			ahash performance varies for different chunk sizes on
 			different crypto accelerators. This option can be used
 			to achieve best performance for particular HW.
+
+	indirect_target_selection= [X86,Intel] Mitigation control for Indirect
+			Target Selection(ITS) bug in Intel CPUs. Updated
+			microcode is also required for a fix in IBPB.
+
+			on:     Enable mitigation (default).
+			off:    Disable mitigation.
+			force:	Force the ITS bug and deploy default
+				mitigation.
+			vmexit: Only deploy mitigation if CPU is affected by
+				guest/host isolation part of ITS.
+			stuff:	Deploy RSB-fill mitigation when retpoline is
+				also deployed. Otherwise, deploy the default
+				mitigation.
+
+			For details see:
+			Documentation/admin-guide/hw-vuln/indirect-target-selection.rst
 
 	init=		[KNL]
 			Format: <full_path>
@@ -3054,6 +3078,8 @@
 			* max_sec_lba48: Set or clear transfer size limit to
 			  65535 sectors.
 
+			* external: Mark port as external (hotplug-capable).
+
 			* [no]lpm: Enable or disable link power management.
 
 			* [no]setxfer: Indicate if transfer speed mode setting
@@ -3534,6 +3560,7 @@
 				expose users to several CPU vulnerabilities.
 				Equivalent to: if nokaslr then kpti=0 [ARM64]
 					       gather_data_sampling=off [X86]
+					       indirect_target_selection=off [X86]
 					       kvm.nx_huge_pages=off [X86]
 					       l1tf=off [X86]
 					       mds=off [X86]
@@ -4731,6 +4758,11 @@
 			all PCIe root ports use INTx for all services).
 
 	pcmv=		[HW,PCMCIA] BadgePAD 4
+
+	pcp_thp_order=	[MM]
+			Specify the order of the pcp used by THP.
+			The specified value must be no greater than HPAGE_PMD_ORDER
+			(default) and greater than 3 (PAGE_ALLOC_COSTLY_ORDER).
 
 	pd_ignore_unused
 			[PM]
@@ -6275,11 +6307,6 @@
 				 may still be vulnerable to syscall attacks.
 			off    - Disable the mitigation.
 
-	spectre_bse	[ARM64,EARLY] Enable mitigations for Spectre-BSE (branch
-			status eviction) on vulnerable CPUs. Mitigations are disabled
-			by default due to the difficulty of exploitation and the cost
-			of mitigation.
-
 	spectre_v2=	[X86,EARLY] Control mitigation of Spectre variant 2
 			(indirect branch speculation) vulnerability.
 			The default operation protects the kernel from
@@ -6300,6 +6327,8 @@
 
 			Selecting 'on' will also enable the mitigation
 			against user space to user space task attacks.
+			Selecting specific mitigation does not force enable
+			user mitigations.
 
 			Selecting 'off' will disable both the kernel and
 			the user space protections.
@@ -7029,6 +7058,19 @@
 			blob key is all zeros. This is helpful for situations where
 			having this key zero'ed is acceptable. E.g. in testing
 			scenarios.
+
+	tsa=		[X86] Control mitigation for Transient Scheduler
+			Attacks on AMD CPUs. Search the following in your
+			favourite search engine for more details:
+
+			"Technical guidance for mitigating transient scheduler
+			attacks".
+
+			off		- disable the mitigation
+			on		- enable the mitigation (default)
+			user		- mitigate only user/kernel transitions
+			vm		- mitigate only guest/host transitions
+
 
 	tsc=		Disable clocksource stability checks for TSC.
 			Format: <string>

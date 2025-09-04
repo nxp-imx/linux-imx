@@ -1094,7 +1094,10 @@ static int mipi_csis_s_power(struct v4l2_subdev *mipi_sd, int on)
 		return -EINVAL;
 	}
 
-	return v4l2_subdev_call(sen_sd, core, s_power, on);
+	if (sen_sd->ops->core->s_power)
+		return v4l2_subdev_call(sen_sd, core, s_power, on);
+	else
+		return 0;
 }
 
 static int mipi_csis_s_stream(struct v4l2_subdev *mipi_sd, int enable)

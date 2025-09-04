@@ -670,8 +670,8 @@ struct ntmp_priv {
 	unsigned long *sgit_eid_bitmap;
 	unsigned long *isct_eid_bitmap;
 	unsigned long *sgclt_word_bitmap;
-	unsigned long *ett_eid_bitmap;
-	unsigned long *ect_eid_bitmap;
+	unsigned long *ett_gid_bitmap;
+	unsigned long *ect_gid_bitmap;
 	u32 ett_bitmap_size;
 	u32 ect_bitmap_size;
 
@@ -773,6 +773,7 @@ struct sbpt_query_data {
 };
 
 #if IS_ENABLED(CONFIG_NXP_NETC_LIB)
+void netc_enable_cbdr(struct netc_cbdr *cbdr);
 int netc_setup_cbdr(struct device *dev, int cbd_num, struct netc_cbdr_regs *regs,
 		    struct netc_cbdr *cbdr);
 void netc_teardown_cbdr(struct device *dev, struct netc_cbdr *cbdr);
@@ -863,6 +864,10 @@ int ntmp_fmdt_update_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 int ntmp_fmdt_query_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 			  u8 *data_buff, u32 data_len);
 #else
+static inline void netc_enable_cbdr(struct netc_cbdr *cbdr)
+{
+}
+
 static inline int netc_setup_cbdr(struct device *dev, int cbd_num,
 				  struct netc_cbdr_regs *regs,
 				  struct netc_cbdr *cbdr)

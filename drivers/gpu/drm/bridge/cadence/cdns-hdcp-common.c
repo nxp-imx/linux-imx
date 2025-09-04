@@ -1007,6 +1007,17 @@ ssize_t HDCPTX_Status_store(struct device *dev,
 	return -1;
 }
 
+static ssize_t HDCPTX_Curversion_show(struct device *dev,
+                                  struct device_attribute *attr, char *buf);
+static struct device_attribute HDCPTX_Curversion = __ATTR_RO(HDCPTX_Curversion);
+
+ssize_t HDCPTX_Curversion_show(struct device *dev,
+                           struct device_attribute *attr, char *buf)
+{
+	struct cdns_mhdp_device *mhdp = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", mhdp->hdcp.hdcp_rxversion);
+}
+
 void cnds_hdcp_create_device_files(struct cdns_mhdp_device *mhdp)
 {
 
@@ -1024,6 +1035,11 @@ void cnds_hdcp_create_device_files(struct cdns_mhdp_device *mhdp)
 		DRM_ERROR(KERN_ERR "Unable to create HDCPTX_Status sysfs\n");
 		device_remove_file(mhdp->dev, &HDCPTX_Status);
 	}
+
+	if (device_create_file(mhdp->dev, &HDCPTX_Curversion)) {
+		DRM_ERROR(KERN_ERR "Unable to create HDCPTX_Curversion sysfs\n");
+		device_remove_file(mhdp->dev, &HDCPTX_Curversion);
+	}
 }
 EXPORT_SYMBOL(cnds_hdcp_create_device_files);
 
@@ -1032,6 +1048,7 @@ void cnds_hdcp_remove_device_files(struct cdns_mhdp_device *mhdp)
 	device_remove_file(mhdp->dev, &HDCPTX_Status);
 	device_remove_file(mhdp->dev, &HDCPTX_Version);
 	device_remove_file(mhdp->dev, &HDCPTX_do_reauth);
+	device_remove_file(mhdp->dev, &HDCPTX_Curversion);
 }
 EXPORT_SYMBOL(cnds_hdcp_remove_device_files);
 

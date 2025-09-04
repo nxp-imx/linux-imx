@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -489,6 +489,9 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	else if (*flags & BASE_MEM_FIXED)
 		atomic64_inc(&kctx->num_fixed_allocs);
 
+	KBASE_TLSTREAM_REGION_ALLOC(kctx->kbdev, kctx->id, *gpu_va, va_pages * PAGE_SIZE,
+				    commit_pages, extension, *flags);
+
 	return reg;
 
 no_mmap:
@@ -827,6 +830,9 @@ void kbase_mem_evictable_make(struct kbase_mem_phy_alloc *gpu_alloc)
 {
 	struct kbase_context *kctx = gpu_alloc->imported.native.kctx;
 
+	KBASE_TLSTREAM_REGION_EVICTABLE_MAKE(kctx->kbdev, kctx->id,
+					     gpu_alloc->reg->start_pfn << PAGE_SHIFT,
+					     gpu_alloc->reg->nr_pages * PAGE_SIZE);
 	lockdep_assert_held(&kctx->reg_lock);
 
 	/* Memory is in the process of transitioning to the shrinker, and
@@ -906,6 +912,10 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
 			 */
 			if (kbase_is_page_migration_enabled())
 				kbase_set_phy_alloc_page_status(kctx, gpu_alloc, ALLOCATED_MAPPED);
+
+			KBASE_TLSTREAM_REGION_EVICTABLE_UNMAKE(
+				kctx->kbdev, kctx->id, gpu_alloc->reg->start_pfn << PAGE_SHIFT,
+				gpu_alloc->reg->nr_pages * PAGE_SIZE);
 		}
 	}
 
@@ -2215,6 +2225,10 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	}
 
 	old_pages = kbase_reg_current_backed_size(reg);
+
+	KBASE_TLSTREAM_REGION_COMMIT(kctx->kbdev, kctx->id, gpu_addr, reg->nr_pages * PAGE_SIZE,
+				     old_pages, new_pages);
+
 	if (new_pages > old_pages) {
 		delta = new_pages - old_pages;
 
@@ -2318,6 +2332,8 @@ int kbase_mem_shrink(struct kbase_context *const kctx, struct kbase_va_region *c
 			kbase_free_phy_pages_helper(reg->gpu_alloc, delta);
 	}
 
+	KBASE_TLSTREAM_REGION_SHRINK(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
+				     reg->nr_pages * PAGE_SIZE, old_pages, new_pages);
 	return err;
 }
 
@@ -3437,13 +3453,19 @@ static vm_fault_t kbase_csf_user_io_pages_vm_fault(struct vm_fault *vmf)
 		output_cpu_addr = input_cpu_addr + PAGE_SIZE;
 
 		if (mali_kbase_supports_csg_cs_user_page_allocation(queue->kctx->api_version)) {
-			if (!queue->group) {
-				ret = VM_FAULT_SIGBUS;
-				goto exit;
+			if (likely(queue->group)) {
+				input_page_pfn = PFN_DOWN(as_phys_addr_t(queue->group->phys[0]));
+				output_page_pfn = PFN_DOWN(as_phys_addr_t(queue->group->phys[1]));
+			} else {
+				/* This could happen if userspace tries to access this memory
+				 * after the group has already been terminated due to a fault.
+				 * Re-map to the dummy page to render the access harmless.
+				 */
+				input_page_pfn =
+					PFN_DOWN(as_phys_addr_t(kbdev->csf.user_reg.dummy_page));
+				output_page_pfn =
+					PFN_DOWN(as_phys_addr_t(kbdev->csf.user_reg.dummy_page));
 			}
-
-			input_page_pfn = PFN_DOWN(as_phys_addr_t(queue->group->phys[0]));
-			output_page_pfn = PFN_DOWN(as_phys_addr_t(queue->group->phys[1]));
 		} else {
 			input_page_pfn = PFN_DOWN(as_phys_addr_t(queue->phys[0]));
 			output_page_pfn = PFN_DOWN(as_phys_addr_t(queue->phys[1]));
@@ -3538,7 +3560,6 @@ static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct v
 	get_file(vma->vm_file);
 	/* Also adjust the vm_pgoff */
 	vma->vm_pgoff = queue->db_file_offset;
-	kctx->csf.user_io.vma = vma;
 
 	return 0;
 

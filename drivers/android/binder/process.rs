@@ -27,7 +27,8 @@ use kernel::{
     seq_print,
     sync::poll::PollTable,
     sync::{
-        lock::Guard, Arc, ArcBorrow, CondVar, CondVarTimeoutResult, Mutex, SpinLock, UniqueArc,
+        lock::{spinlock::SpinLockBackend, Guard},
+        Arc, ArcBorrow, CondVar, CondVarTimeoutResult, Mutex, SpinLock, UniqueArc,
     },
     task::Task,
     types::{ARef, Either},
@@ -49,6 +50,10 @@ use crate::{
     thread::{PushWorkRes, Thread},
     BinderfsProcFile, DArc, DLArc, DTRWrap, DeliverToRead,
 };
+
+#[path = "freeze.rs"]
+mod freeze;
+use self::freeze::{FreezeCookie, FreezeListener};
 
 struct Mapping {
     address: usize,
@@ -272,7 +277,7 @@ impl ProcessInner {
 
     /// Finds a delivered death notification with the given cookie, removes it from the thread's
     /// delivered list, and returns it.
-    fn pull_delivered_death(&mut self, cookie: usize) -> Option<DArc<NodeDeath>> {
+    fn pull_delivered_death(&mut self, cookie: u64) -> Option<DArc<NodeDeath>> {
         let mut cursor = self.delivered_deaths.cursor_front();
         while let Some(next) = cursor.peek_next() {
             if next.cookie == cookie {
@@ -315,6 +320,8 @@ pub(crate) struct NodeRefInfo {
     /// The refcount that this process owns to the node.
     node_ref: ListArcField<NodeRef, { Self::LIST_PROC }>,
     death: ListArcField<Option<DArc<NodeDeath>>, { Self::LIST_PROC }>,
+    /// Cookie of the active freeze listener for this node.
+    freeze: ListArcField<Option<FreezeCookie>, { Self::LIST_PROC }>,
     /// Used to store this `NodeRefInfo` in the node's `refs` list.
     #[pin]
     links: ListLinks<{ Self::LIST_NODE }>,
@@ -335,6 +342,7 @@ impl NodeRefInfo {
             debug_id: super::next_debug_id(),
             node_ref: ListArcField::new(node_ref),
             death: ListArcField::new(None),
+            freeze: ListArcField::new(None),
             links <- ListLinks::new(),
             handle,
             process,
@@ -343,6 +351,7 @@ impl NodeRefInfo {
 
     kernel::list::define_list_arc_field_getter! {
         pub(crate) fn death(&mut self<{Self::LIST_PROC}>) -> &mut Option<DArc<NodeDeath>> { death }
+        pub(crate) fn freeze(&mut self<{Self::LIST_PROC}>) -> &mut Option<FreezeCookie> { freeze }
         pub(crate) fn node_ref(&mut self<{Self::LIST_PROC}>) -> &mut NodeRef { node_ref }
         pub(crate) fn node_ref2(&self<{Self::LIST_PROC}>) -> &NodeRef { node_ref }
     }
@@ -372,6 +381,11 @@ struct ProcessNodeRefs {
     /// Used to look up nodes without knowing their local 32-bit id. The usize is the address of
     /// the underlying `Node` struct as returned by `Node::global_id`.
     by_node: RBTree<usize, u32>,
+    /// Used to look up a `FreezeListener` by cookie.
+    ///
+    /// There might be multiple freeze listeners for the same node, but at most one of them is
+    /// active.
+    freeze_listeners: RBTree<FreezeCookie, FreezeListener>,
 }
 
 impl ProcessNodeRefs {
@@ -379,6 +393,7 @@ impl ProcessNodeRefs {
         Self {
             by_handle: RBTree::new(),
             by_node: RBTree::new(),
+            freeze_listeners: RBTree::new(),
         }
     }
 }
@@ -496,9 +511,13 @@ impl Process {
         Ok(process)
     }
 
+    pub(crate) fn pid_in_current_ns(&self) -> kernel::task::Pid {
+        self.task.tgid_nr_ns(None)
+    }
+
     #[inline(never)]
     pub(crate) fn debug_print_stats(&self, m: &SeqFile, ctx: &Context) -> Result<()> {
-        seq_print!(m, "proc {}\n", self.task.pid_in_current_ns());
+        seq_print!(m, "proc {}\n", self.pid_in_current_ns());
         seq_print!(m, "context {}\n", &*ctx.name);
 
         let inner = self.inner.lock();
@@ -546,7 +565,7 @@ impl Process {
 
     #[inline(never)]
     pub(crate) fn debug_print(&self, m: &SeqFile, ctx: &Context, print_all: bool) -> Result<()> {
-        seq_print!(m, "proc {}\n", self.task.pid_in_current_ns());
+        seq_print!(m, "proc {}\n", self.pid_in_current_ns());
         seq_print!(m, "context {}\n", &*ctx.name);
 
         let mut all_threads = KVec::new();
@@ -911,6 +930,8 @@ impl Process {
                 refs.by_handle.remove(&handle);
                 refs.by_node.remove(&id);
             }
+        } else {
+            pr_warn!("{}: no such ref {handle}\n", self.pid_in_current_ns());
         }
         Ok(())
     }
@@ -1048,7 +1069,7 @@ impl Process {
         }
     }
 
-    fn create_mapping(&self, vma: &mm::virt::VmAreaNew) -> Result {
+    fn create_mapping(&self, vma: &mm::virt::VmaNew) -> Result {
         use kernel::page::PAGE_SIZE;
         let size = usize::min(vma.end() - vma.start(), bindings::SZ_4M as usize);
         let mapping = Mapping::new(vma.start(), size);
@@ -1126,11 +1147,10 @@ impl Process {
             return Err(EPERM);
         }
 
-        let node_ref = self
-            .get_node_from_handle(out.handle, true)
-            .or(Err(EINVAL))?;
-        // Get the counts from the node.
         {
+            let mut node_refs = self.node_refs.lock();
+            let node_info = node_refs.by_handle.get_mut(&out.handle).ok_or(ENOENT)?;
+            let node_ref = node_info.node_ref();
             let owner_inner = node_ref.node.owner.inner.lock();
             node_ref.node.populate_counts(&mut out, &owner_inner);
         }
@@ -1156,11 +1176,7 @@ impl Process {
         thread: &Thread,
     ) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
-
-        // TODO: First two should result in error, but not the others.
-
-        // TODO: Do we care about the context manager dying?
+        let cookie: u64 = reader.read()?;
 
         // Queue BR_ERROR if we can't allocate memory for the death notification.
         let death = UniqueArc::new_uninit(GFP_KERNEL).map_err(|err| {
@@ -1168,10 +1184,14 @@ impl Process {
             err
         })?;
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
         // Nothing to do if there is already a death notification request for this handle.
         if info.death().is_some() {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION death notification already set\n");
             return Ok(());
         }
 
@@ -1204,15 +1224,22 @@ impl Process {
 
     pub(crate) fn clear_death(&self, reader: &mut UserSliceReader, thread: &Thread) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
+        let cookie: u64 = reader.read()?;
 
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
-        let death = info.death().take().ok_or(EINVAL)?;
+        let Some(death) = info.death().take() else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification not active\n");
+            return Ok(());
+        };
         if death.cookie != cookie {
             *info.death() = Some(death);
-            return Err(EINVAL);
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification cookie mismatch\n");
+            return Ok(());
         }
 
         // Update state and determine if we need to queue a work item. We only need to do it when
@@ -1226,9 +1253,21 @@ impl Process {
         Ok(())
     }
 
-    pub(crate) fn dead_binder_done(&self, cookie: usize, thread: &Thread) {
+    pub(crate) fn dead_binder_done(&self, cookie: u64, thread: &Thread) {
         if let Some(death) = self.inner.lock().pull_delivered_death(cookie) {
             death.set_notification_done(thread);
+        }
+    }
+
+    /// Locks the spinlock and move the `nodes` rbtree out.
+    ///
+    /// This allows you to iterate through `nodes` while also allowing you to give other parts of
+    /// the codebase exclusive access to `ProcessInner`.
+    pub(crate) fn lock_with_nodes(&self) -> WithNodes<'_> {
+        let mut inner = self.inner.lock();
+        WithNodes {
+            nodes: take(&mut inner.nodes),
+            inner,
         }
     }
 
@@ -1260,12 +1299,10 @@ impl Process {
 
         // Move oneway_todo into the process todolist.
         {
-            let mut inner = self.inner.lock();
-            let nodes = take(&mut inner.nodes);
-            for node in nodes.values() {
-                node.release(&mut inner);
+            let mut inner = self.lock_with_nodes();
+            for node in inner.nodes.values() {
+                node.release(&mut inner.inner);
             }
-            inner.nodes = nodes;
         }
 
         // Cancel all pending work items.
@@ -1273,29 +1310,9 @@ impl Process {
             work.into_arc().cancel();
         }
 
-        // Free any resources kept alive by allocated buffers.
-        let omapping = self.inner.lock().mapping.take();
-        if let Some(mut mapping) = omapping {
-            let address = mapping.address;
-            mapping
-                .alloc
-                .take_for_each(|offset, size, debug_id, odata| {
-                    let ptr = offset + address;
-                    let mut alloc =
-                        Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
-                    if let Some(data) = odata {
-                        alloc.set_info(data);
-                    }
-                    drop(alloc)
-                });
-        }
-
         // Drop all references. We do this dance with `swap` to avoid destroying the references
         // while holding the lock.
-        let mut refs = self.node_refs.lock();
-        let mut node_refs = take(&mut refs.by_handle);
-        drop(refs);
-        for info in node_refs.values_mut() {
+        for info in self.node_refs.lock().by_handle.values_mut() {
             // SAFETY: We are removing the `NodeRefInfo` from the right node.
             unsafe { info.node_ref2().node.remove_node_info(&info) };
 
@@ -1307,7 +1324,11 @@ impl Process {
             };
             death.set_cleared(false);
         }
-        drop(node_refs);
+        let freeze_listeners = take(&mut self.node_refs.lock().freeze_listeners);
+        for listener in freeze_listeners.values() {
+            listener.on_process_exit(&self);
+        }
+        drop(freeze_listeners);
 
         // Do similar dance for the state lock.
         let mut inner = self.inner.lock();
@@ -1334,6 +1355,27 @@ impl Process {
                 death.set_dead();
             }
         }
+
+        // Free any resources kept alive by allocated buffers.
+        let omapping = self.inner.lock().mapping.take();
+        if let Some(mut mapping) = omapping {
+            let address = mapping.address;
+            mapping
+                .alloc
+                .take_for_each(|offset, size, debug_id, odata| {
+                    let ptr = offset + address;
+                    pr_warn!(
+                        "{}: removing orphan mapping {offset}:{size}\n",
+                        self.pid_in_current_ns()
+                    );
+                    let mut alloc =
+                        Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
+                    if let Some(data) = odata {
+                        alloc.set_info(data);
+                    }
+                    drop(alloc)
+                });
+        }
     }
 
     pub(crate) fn drop_outstanding_txn(&self) {
@@ -1354,10 +1396,13 @@ impl Process {
 
     pub(crate) fn ioctl_freeze(&self, info: &BinderFreezeInfo) -> Result {
         if info.enable == 0 {
+            let msgs = self.prepare_freeze_messages()?;
             let mut inner = self.inner.lock();
             inner.sync_recv = false;
             inner.async_recv = false;
             inner.is_frozen = false;
+            drop(inner);
+            msgs.send_messages();
             return Ok(());
         }
 
@@ -1395,7 +1440,17 @@ impl Process {
             inner.is_frozen = false;
             Err(EAGAIN)
         } else {
-            Ok(())
+            drop(inner);
+            match self.prepare_freeze_messages() {
+                Ok(batch) => {
+                    batch.send_messages();
+                    Ok(())
+                }
+                Err(kernel::alloc::AllocError) => {
+                    self.inner.lock().is_frozen = false;
+                    Err(ENOMEM)
+                }
+            }
         }
     }
 }
@@ -1508,11 +1563,13 @@ impl Process {
     }
 
     pub(crate) fn release(this: Arc<Process>, _file: &File) {
+        let binderfs_file;
         let should_schedule;
         {
             let mut inner = this.inner.lock();
             should_schedule = inner.defer_work == 0;
             inner.defer_work |= PROC_DEFER_RELEASE;
+            binderfs_file = inner.binderfs_file.take();
         }
 
         if should_schedule {
@@ -1520,6 +1577,8 @@ impl Process {
             // scheduled for execution.
             let _ = workqueue::system().enqueue(this);
         }
+
+        drop(binderfs_file);
     }
 
     pub(crate) fn flush(this: ArcBorrow<'_, Process>) -> Result {
@@ -1570,7 +1629,7 @@ impl Process {
     pub(crate) fn mmap(
         this: ArcBorrow<'_, Process>,
         _file: &File,
-        vma: &mm::virt::VmAreaNew,
+        vma: &mm::virt::VmaNew,
     ) -> Result {
         // We don't allow mmap to be used in a different process.
         if !core::ptr::eq(kernel::current!().group_leader(), &*this.task) {
@@ -1591,7 +1650,7 @@ impl Process {
     pub(crate) fn poll(
         this: ArcBorrow<'_, Process>,
         file: &File,
-        table: &mut PollTable,
+        table: PollTable<'_>,
     ) -> Result<u32> {
         let thread = this.get_current_thread()?;
         let (from_proc, mut mask) = thread.poll(file, table);
@@ -1610,10 +1669,7 @@ pub(crate) struct Registration<'a> {
 }
 
 impl<'a> Registration<'a> {
-    fn new(
-        thread: &'a Arc<Thread>,
-        guard: &mut Guard<'_, ProcessInner, kernel::sync::lock::spinlock::SpinLockBackend>,
-    ) -> Self {
+    fn new(thread: &'a Arc<Thread>, guard: &mut Guard<'_, ProcessInner, SpinLockBackend>) -> Self {
         assert!(core::ptr::eq(&thread.process.inner, guard.lock_ref()));
         // INVARIANT: We are pushing this thread to the right `ready_threads` list.
         if let Ok(list_arc) = ListArc::try_from_arc(thread.clone()) {
@@ -1635,5 +1691,19 @@ impl Drop for Registration<'_> {
         // the `ready_threads` list of its parent process. Therefore, the thread is either in that
         // list, or in no list.
         unsafe { inner.ready_threads.remove(self.thread) };
+    }
+}
+
+pub(crate) struct WithNodes<'a> {
+    pub(crate) inner: Guard<'a, ProcessInner, SpinLockBackend>,
+    pub(crate) nodes: RBTree<u64, DArc<Node>>,
+}
+
+impl Drop for WithNodes<'_> {
+    fn drop(&mut self) {
+        core::mem::swap(&mut self.nodes, &mut self.inner.nodes);
+        if self.nodes.iter().next().is_some() {
+            pr_err!("nodes array was modified while using lock_with_nodes\n");
+        }
     }
 }

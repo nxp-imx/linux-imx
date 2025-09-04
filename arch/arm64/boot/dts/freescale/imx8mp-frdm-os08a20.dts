@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx8mp-frdm.dts"
+
+&i2c2 {
+	/delete-node/ap1302_mipi_0@3c;
+
+	os08a20_0: os08a20_mipi@36 {
+		compatible = "ovti,os08a20_mipi";
+		reg = <0x36>;
+		pinctrl-names = "default";
+		clocks = <&clk_dummy>;
+		clock-names = "csi_mclk";
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		status = "okay";
+
+		port {
+			os08a20_mipi_0_ep: endpoint {
+				data-lanes = <1 2 3 4>;
+				clock-lanes = <0>;
+				max-pixel-frequency = /bits/ 64 <500000000>;
+				remote-endpoint = <&mipi_csi0_ep>;
+			};
+		};
+
+	};
+};
+
+&isi_0 {
+	cap_device {
+		status = "disabled";
+	};
+};
+
+&isp_0 {
+	status = "okay";
+};
+
+&dewarp {
+	status = "okay";
+};
+
+&mipi_csi_0 {
+	status = "okay";
+
+	port {
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&os08a20_mipi_0_ep>;
+			data-lanes = <4>;
+			csis-hs-settle = <16>;
+		};
+	};
+};

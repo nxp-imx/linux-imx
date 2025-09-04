@@ -82,6 +82,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/tlb.h>
 #include <trace/events/migrate.h>
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
@@ -1957,6 +1959,7 @@ walk_done:
 	}
 
 	mmu_notifier_invalidate_range_end(&range);
+	trace_android_vh_try_to_unmap_one(folio, vma, address, arg, ret);
 
 	return ret;
 }
@@ -2303,6 +2306,7 @@ static bool try_to_migrate_one(struct folio *folio, struct vm_area_struct *vma,
 				set_pte_at(mm, address, pvmw.pte, swp_pte);
 			trace_set_migration_pte(address, pte_val(swp_pte),
 						folio_order(folio));
+			trace_android_vh_mm_migrate_one_page(subpage, vma->vm_flags);
 			/*
 			 * No need to invalidate here it will synchronize on
 			 * against the special swap migration pte.
@@ -2494,7 +2498,7 @@ static bool folio_make_device_exclusive(struct folio *folio,
 	 * Restrict to anonymous folios for now to avoid potential writeback
 	 * issues.
 	 */
-	if (!folio_test_anon(folio))
+	if (!folio_test_anon(folio) || folio_test_hugetlb(folio))
 		return false;
 
 	rmap_walk(folio, &rwc);

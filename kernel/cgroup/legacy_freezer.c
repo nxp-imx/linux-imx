@@ -188,13 +188,12 @@ static void freezer_attach(struct cgroup_taskset *tset)
 		if (!(freezer->state & CGROUP_FREEZING)) {
 			__thaw_task(task);
 		} else {
-			freeze_task(task);
-
 			/* clear FROZEN and propagate upwards */
 			while (freezer && (freezer->state & CGROUP_FROZEN)) {
 				freezer->state &= ~CGROUP_FROZEN;
 				freezer = parent_freezer(freezer);
 			}
+			freeze_task(task);
 		}
 	}
 
@@ -484,3 +483,4 @@ struct cgroup_subsys freezer_cgrp_subsys = {
 	.fork		= freezer_fork,
 	.legacy_cftypes	= files,
 };
+EXPORT_SYMBOL_GPL(freezer_cgrp_subsys);

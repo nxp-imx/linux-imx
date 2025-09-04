@@ -91,10 +91,11 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
 /*
  * Minimal preemption granularity for CPU-bound tasks:
  *
- * (default: 0.75 msec * (1 + ilog(ncpus)), units: nanoseconds)
+ * (default: 0.70 msec * (1 + ilog(ncpus)), units: nanoseconds)
  */
-unsigned int sysctl_sched_base_slice			= 750000ULL;
-static unsigned int normalized_sysctl_sched_base_slice	= 750000ULL;
+unsigned int sysctl_sched_base_slice			= 700000ULL;
+EXPORT_SYMBOL_GPL(sysctl_sched_base_slice);
+static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
 
 /*
  * After fork, child runs first. If set to 0 (default) then
@@ -1191,7 +1192,7 @@ static void update_tg_load_avg(struct cfs_rq *cfs_rq)
 }
 #endif /* CONFIG_SMP */
 
-static s64 update_curr_se(struct rq *rq, struct sched_entity *se)
+static s64 update_se(struct rq *rq, struct sched_entity *se)
 {
 	u64 now = rq_clock_task(rq);
 	s64 delta_exec;
@@ -1202,6 +1203,7 @@ static s64 update_curr_se(struct rq *rq, struct sched_entity *se)
 
 	se->exec_start = now;
 	if (entity_is_task(se)) {
+		struct task_struct *donor = task_of(se);
 		struct task_struct *running = rq->curr;
 		/*
 		 * If se is a task, we account the time against the running
@@ -1209,8 +1211,14 @@ static s64 update_curr_se(struct rq *rq, struct sched_entity *se)
 		 */
 		running->se.exec_start = now;
 		running->se.sum_exec_runtime += delta_exec;
+
+		trace_sched_stat_runtime(running, delta_exec);
+		account_group_exec_runtime(running, delta_exec);
+
+		/* cgroup time is always accounted against the donor */
+		cgroup_account_cputime(donor, delta_exec);
 	} else {
-		/* If not task, account the time against se */
+		/* If not task, account the time against donor se  */
 		se->sum_exec_runtime += delta_exec;
 	}
 
@@ -1223,13 +1231,6 @@ static s64 update_curr_se(struct rq *rq, struct sched_entity *se)
 	}
 
 	return delta_exec;
-}
-
-static inline void update_curr_task(struct task_struct *p, s64 delta_exec)
-{
-	trace_sched_stat_runtime(p, delta_exec);
-	account_group_exec_runtime(p, delta_exec);
-	cgroup_account_cputime(p, delta_exec);
 }
 
 static inline bool did_preempt_short(struct cfs_rq *cfs_rq, struct sched_entity *curr)
@@ -1269,14 +1270,7 @@ static inline bool do_preempt_short(struct cfs_rq *cfs_rq,
  */
 s64 update_curr_common(struct rq *rq)
 {
-	struct task_struct *donor = rq->donor;
-	s64 delta_exec;
-
-	delta_exec = update_curr_se(rq, &donor->se);
-	if (likely(delta_exec > 0))
-		update_curr_task(donor, delta_exec);
-
-	return delta_exec;
+	return update_se(rq, &rq->donor->se);
 }
 
 /*
@@ -1284,6 +1278,12 @@ s64 update_curr_common(struct rq *rq)
  */
 static void update_curr(struct cfs_rq *cfs_rq)
 {
+	/*
+	 * Note: cfs_rq->curr corresponds to the task picked to
+	 * run (ie: rq->donor.se) which due to proxy-exec may
+	 * not necessarily be the actual task running
+	 * (rq->curr.se). This is easy to confuse!
+	 */
 	struct sched_entity *curr = cfs_rq->curr;
 	struct rq *rq = rq_of(cfs_rq);
 	s64 delta_exec;
@@ -1292,7 +1292,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	if (unlikely(!curr))
 		return;
 
-	delta_exec = update_curr_se(rq, curr);
+	delta_exec = update_se(rq, curr);
 	if (unlikely(delta_exec <= 0))
 		return;
 
@@ -1301,10 +1301,6 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	update_min_vruntime(cfs_rq);
 
 	if (entity_is_task(curr)) {
-		struct task_struct *p = task_of(curr);
-
-		update_curr_task(p, delta_exec);
-
 		/*
 		 * If the fair_server is active, we need to account for the
 		 * fair_server time whether or not the task is running on
@@ -5171,7 +5167,12 @@ static inline int util_fits_cpu(unsigned long util,
 {
 	unsigned long capacity = capacity_of(cpu);
 	unsigned long capacity_orig;
-	bool fits, uclamp_max_fits;
+	bool fits, uclamp_max_fits, done = false;
+
+	trace_android_rvh_util_fits_cpu(util, uclamp_min, uclamp_max, cpu, &fits, &done);
+
+	if (done)
+		return fits;
 
 	/*
 	 * Check if the real util fits without any uclamp boost/cap applied.
@@ -7135,6 +7136,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	int task_new = !(flags & ENQUEUE_WAKEUP);
 	int rq_h_nr_running = rq->cfs.h_nr_running;
 	u64 slice = 0;
+	int should_iowait_boost;
 
 	/*
 	 * The code below (indirectly) updates schedutil which looks at
@@ -7155,7 +7157,9 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	 * utilization updates, so do it here explicitly with the IOWAIT flag
 	 * passed.
 	 */
-	if (p->in_iowait)
+	should_iowait_boost = p->in_iowait;
+	trace_android_rvh_set_iowait(p, rq, &should_iowait_boost);
+	if (should_iowait_boost)
 		cpufreq_update_util(rq, SCHED_CPUFREQ_IOWAIT);
 
 	if (task_new)
@@ -7283,9 +7287,6 @@ static int dequeue_entities(struct rq *rq, struct sched_entity *se, int flags)
 		idle_h_nr_running = task_has_idle_policy(p);
 		if (!task_sleep && !task_delayed)
 			h_nr_delayed = !!se->sched_delayed;
-	} else {
-		cfs_rq = group_cfs_rq(se);
-		slice = cfs_rq_min_slice(cfs_rq);
 	}
 
 	for_each_sched_entity(se) {
@@ -7295,6 +7296,7 @@ static int dequeue_entities(struct rq *rq, struct sched_entity *se, int flags)
 			if (p && &p->se == se)
 				return -1;
 
+			slice = cfs_rq_min_slice(cfs_rq);
 			break;
 		}
 
@@ -8959,6 +8961,7 @@ static void set_cpus_allowed_fair(struct task_struct *p, struct affinity_context
 static int
 balance_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
+	trace_android_rvh_balance_fair(rq, prev, rf);
 	if (sched_fair_runnable(rq))
 		return 1;
 
@@ -9118,12 +9121,15 @@ struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
 	struct sched_entity *se;
-	struct task_struct *p;
+	struct task_struct *p = NULL;
 	int new_tasks;
 
 again:
-	p = pick_task_fair(rq);
-	trace_android_rvh_replace_next_task_fair(rq, &p, prev);
+	trace_android_rvh_before_pick_task_fair(rq, &p, prev, rf);
+	if (!p) {
+		p = pick_task_fair(rq);
+		trace_android_rvh_replace_next_task_fair(rq, &p, prev);
+	}
 
 	if (!p)
 		goto idle;

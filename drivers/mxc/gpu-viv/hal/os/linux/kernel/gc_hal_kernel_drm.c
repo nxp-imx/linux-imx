@@ -215,6 +215,8 @@ static int viv_ioctl_gem_create(struct drm_device *drm, void *data, struct drm_f
     if (args->flags & DRM_VIV_GEM_CMA_LIMIT)
         flags |= gcvALLOC_FLAG_CMA_LIMIT;
 
+    flags |= gcvALLOC_FLAG_FROM_USER;
+
     gckOS_ZeroMemory(&iface, sizeof(iface));
     iface.command      = gcvHAL_ALLOCATE_LINEAR_VIDEO_MEMORY;
     iface.hardwareType = device->defaultHwType;
@@ -755,6 +757,7 @@ static int viv_drm_open(struct drm_device *drm, struct drm_file *file)
                 gcmkONERROR(gckKERNEL_AttachProcessEx(device->kernels[i], gcvTRUE, pid));
         }
     }
+
     file->driver_priv = gcmINT2PTR(pid);
 
 OnError:
@@ -824,7 +827,9 @@ static struct drm_driver viv_drm_driver = {
     .fops               = &viv_drm_fops,
     .name               = "vivante",
     .desc               = "vivante DRM",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
     .date               = "20170808",
+#    endif
     .major              = 1,
     .minor              = 0,
 };

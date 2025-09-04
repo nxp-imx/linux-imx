@@ -48,6 +48,18 @@ static int kbasep_dvfs_utilization_debugfs_show(struct seq_file *file, void *dat
 		   kbdev->pm.backend.metrics.values.shader_compute_time_busy,
 		   kbdev->pm.backend.metrics.values.tiler_time_busy);
 
+	seq_printf(file, "mcu_busy_time: %llu idvs_busy_time: %llu ceu_busy_time: %llu lsu_busy_time: %llu\n",
+		   kbdev->pm.backend.metrics.values.mcu_time_busy,
+		   kbdev->pm.backend.metrics.values.idvs_time_busy,
+		   kbdev->pm.backend.metrics.values.ceu_time_busy,
+		   kbdev->pm.backend.metrics.values.lsu_time_busy);
+
+	seq_printf(file, "l2_ext_read_busy_time: %llu l2_ext_write_busy_time: %llu shader_starving_busy_time: %llu\n",
+		   kbdev->pm.backend.metrics.values.l2_ext_read_time_busy,
+		   kbdev->pm.backend.metrics.values.l2_ext_write_time_busy,
+		   kbdev->pm.backend.metrics.values.shader_starving_time_busy);
+
+
 	return 0;
 }
 

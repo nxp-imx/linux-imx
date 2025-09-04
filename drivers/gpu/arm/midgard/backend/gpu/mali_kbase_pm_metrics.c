@@ -92,6 +92,82 @@ static enum hrtimer_restart dvfs_callback(struct hrtimer *timer)
 }
 #endif /* CONFIG_MALI_MIDGARD_DVFS */
 
+static void kbase_pm_hardware_unit_metrics_init(struct kbase_ipa_control_perf_counter  *perf_counter)
+{
+	perf_counter[KBASE_PM_METRICS_CNT_MCU].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_MCU].gpu_norm = true;
+
+	/* We need the MCU_ACTIVE counter, which is in the CSHW group */
+	perf_counter[KBASE_PM_METRICS_CNT_MCU].type = KBASE_IPA_CORE_TYPE_CSHW;
+
+	/* We need the CPU_ACTIVE counter */
+	perf_counter[KBASE_PM_METRICS_CNT_MCU].idx = MCU_ACTIVE_CNT_IDX;
+
+	perf_counter[KBASE_PM_METRICS_CNT_IDVS].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_IDVS].gpu_norm = true;
+
+	/* We need the IDVS_ACTIVE counter, which is in the CSHW group */
+	perf_counter[KBASE_PM_METRICS_CNT_IDVS].type = KBASE_IPA_CORE_TYPE_CSHW;
+
+	/* We need the IDVS_ACTIVE counter */
+	perf_counter[KBASE_PM_METRICS_CNT_IDVS].idx = IDVS_ACTIVE_CNT_IDX;
+
+	perf_counter[KBASE_PM_METRICS_CNT_CEU].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_CEU].gpu_norm = true;
+
+	/* We need the CEU_ACTIVE counter, which is in the CSHW group */
+	perf_counter[KBASE_PM_METRICS_CNT_CEU].type = KBASE_IPA_CORE_TYPE_CSHW;
+
+	/* We need the CEU_ACTIVE counter */
+	perf_counter[KBASE_PM_METRICS_CNT_CEU].idx = CEU_ACTIVE_CNT_IDX;
+
+	perf_counter[KBASE_PM_METRICS_CNT_LSU].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_LSU].gpu_norm = true;
+
+	/* We need the LSU_ACTIVE counter, which is in the CSHW group */
+	perf_counter[KBASE_PM_METRICS_CNT_LSU].type = KBASE_IPA_CORE_TYPE_CSHW;
+
+	/* We need the LSU_ACTIVE counter */
+	perf_counter[KBASE_PM_METRICS_CNT_LSU].idx = LSU_ACTIVE_CNT_IDX;
+
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_READ].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_READ].gpu_norm = true;
+
+	/* We need the L2  external memory read counter, which is in the CSHW group */
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_READ].type = KBASE_IPA_CORE_TYPE_MEMSYS;
+
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_READ].idx = MEM_L2_EXT_READ_CNT_IDX;
+
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_WRITE].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_WRITE].gpu_norm = true;
+
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_WRITE].type = KBASE_IPA_CORE_TYPE_MEMSYS;
+
+	perf_counter[KBASE_PM_METRICS_CNT_MEM_EXT_WRITE].idx = MEM_L2_EXT_WRITE_CNT_IDX ;
+
+	perf_counter[KBASE_PM_METRICS_CNT_SHADER_STARVING].scaling_factor = GPU_ACTIVE_SCALING_FACTOR;
+
+	/* Normalize values by GPU frequency */
+	perf_counter[KBASE_PM_METRICS_CNT_SHADER_STARVING].gpu_norm = true;
+
+	/* We need the SHADER_ACTIVE counter, which is in the Shader core group */
+	perf_counter[KBASE_PM_METRICS_CNT_SHADER_STARVING].type = KBASE_IPA_CORE_TYPE_SHADER;
+
+	/* We need the SHADER_ACTIVE counter */
+	perf_counter[KBASE_PM_METRICS_CNT_SHADER_STARVING].idx = SHADER_STARVING_CNT_IDX;
+
+}
 int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 {
 	struct kbase_ipa_control_perf_counter perf_counter[KBASE_PM_METRICS_CNT_COUNT];
@@ -151,6 +227,7 @@ int kbasep_pm_metrics_init(struct kbase_device *kbdev)
 
 	perf_counter[KBASE_PM_METRICS_CNT_TILER].idx = TILER_ACTIVE_CNT_IDX;
 
+	kbase_pm_hardware_unit_metrics_init(&perf_counter[0]);
 	err = kbase_ipa_control_register(kbdev, &perf_counter[KBASE_PM_METRICS_CNT_GPU],
 						NUM_PERF_COUNTERS,
 						&kbdev->pm.backend.metrics.ipa_control_client);
@@ -198,6 +275,23 @@ KBASE_EXPORT_TEST_API(kbasep_pm_metrics_term);
  * function
  */
 #if defined(CONFIG_MALI_DEVFREQ) || defined(CONFIG_MALI_MIDGARD_DVFS)
+static void kbase_pm_get_dvfs_hardware_unit_utilisation_calc(struct kbase_device *kbdev, u64 *gpu_active_counter)
+{
+	kbdev->pm.backend.metrics.values.mcu_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_MCU];
+	kbdev->pm.backend.metrics.values.idvs_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_IDVS];
+	kbdev->pm.backend.metrics.values.ceu_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_CEU];
+	kbdev->pm.backend.metrics.values.lsu_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_LSU];
+	kbdev->pm.backend.metrics.values.l2_ext_read_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_MEM_EXT_READ];
+	kbdev->pm.backend.metrics.values.l2_ext_write_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_MEM_EXT_WRITE];
+	kbdev->pm.backend.metrics.values.shader_starving_time_busy +=
+		gpu_active_counter[KBASE_PM_METRICS_CNT_SHADER_STARVING];
+}
 static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 {
 	int err;
@@ -301,7 +395,7 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 			gpu_active_counter[KBASE_PM_METRICS_CNT_TILER];
 		kbdev->pm.backend.metrics.values.time_idle +=
 			ns_time - gpu_active_counter[KBASE_PM_METRICS_CNT_GPU];
-
+		kbase_pm_get_dvfs_hardware_unit_utilisation_calc(kbdev, &gpu_active_counter[0]);
 		/* Also make time in protected mode available explicitly,
 		 * so users of this data have this info, too.
 		 */
@@ -313,6 +407,17 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 #endif /* defined(CONFIG_MALI_DEVFREQ) || defined(CONFIG_MALI_MIDGARD_DVFS) */
 
 #if defined(CONFIG_MALI_DEVFREQ) || defined(CONFIG_MALI_MIDGARD_DVFS)
+static void kbase_pm_get_dvfs_hardware_unit_metrics(struct kbasep_pm_metrics *last,
+			       struct kbasep_pm_metrics *cur, struct kbasep_pm_metrics *diff)
+{
+	diff->mcu_time_busy = cur->mcu_time_busy - last->mcu_time_busy;
+	diff->idvs_time_busy = cur->idvs_time_busy - last->idvs_time_busy;
+	diff->ceu_time_busy = cur->ceu_time_busy - last->ceu_time_busy;
+	diff->lsu_time_busy = cur->lsu_time_busy - last->lsu_time_busy;
+	diff->l2_ext_read_time_busy = cur->l2_ext_read_time_busy - last->l2_ext_read_time_busy;
+	diff->l2_ext_write_time_busy = cur->l2_ext_write_time_busy - last->l2_ext_write_time_busy;
+	diff->shader_starving_time_busy = cur->shader_starving_time_busy - last->shader_starving_time_busy;
+}
 void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metrics *last,
 			       struct kbasep_pm_metrics *diff)
 {
@@ -331,6 +436,7 @@ void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev, struct kbasep_pm_metr
 	diff->shader_compute_time_busy = cur->shader_compute_time_busy -
 						last->shader_compute_time_busy;
 	diff->tiler_time_busy = cur->tiler_time_busy - last->tiler_time_busy;
+	kbase_pm_get_dvfs_hardware_unit_metrics(last, cur, diff);
 
 
 	*last = *cur;

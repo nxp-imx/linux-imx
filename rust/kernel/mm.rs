@@ -10,6 +10,7 @@
 //! control what happens when userspace reads or writes to that region of memory.
 //!
 //! C header: [`include/linux/mm.h`](srctree/include/linux/mm.h)
+#![cfg(CONFIG_MMU)]
 
 use crate::{
     bindings,
@@ -18,7 +19,7 @@ use crate::{
 use core::{ops::Deref, ptr::NonNull};
 
 pub mod virt;
-use virt::VmAreaRef;
+use virt::VmaRef;
 
 /// A wrapper for the kernel's `struct mm_struct`.
 ///
@@ -131,11 +132,13 @@ unsafe impl Sync for MmWithUserAsync {}
 
 // SAFETY: By the type invariants, this type is always refcounted.
 unsafe impl AlwaysRefCounted for MmWithUserAsync {
+    #[inline]
     fn inc_ref(&self) {
         // SAFETY: The pointer is valid since self is a reference.
         unsafe { bindings::mmget(self.as_raw()) };
     }
 
+    #[inline]
     unsafe fn dec_ref(obj: NonNull<Self>) {
         // SAFETY: The caller is giving up their refcount.
         unsafe { bindings::mmput_async(obj.cast().as_ptr()) };
@@ -222,12 +225,12 @@ impl MmWithUser {
         {
             // SAFETY: Calling `bindings::lock_vma_under_rcu` is always okay given an mm where
             // `mm_users` is non-zero.
-            let vma = unsafe { bindings::lock_vma_under_rcu(self.as_raw(), vma_addr as _) };
+            let vma = unsafe { bindings::lock_vma_under_rcu(self.as_raw(), vma_addr) };
             if !vma.is_null() {
                 return Some(VmaReadGuard {
                     // SAFETY: If `lock_vma_under_rcu` returns a non-null ptr, then it points at a
                     // valid vma. The vma is stable for as long as the vma read lock is held.
-                    vma: unsafe { VmAreaRef::from_raw(vma) },
+                    vma: unsafe { VmaRef::from_raw(vma) },
                     _nts: NotThreadSafe,
                 });
             }
@@ -285,18 +288,20 @@ pub struct MmapReadGuard<'a> {
 impl<'a> MmapReadGuard<'a> {
     /// Look up a vma at the given address.
     #[inline]
-    pub fn vma_lookup(&self, vma_addr: usize) -> Option<&virt::VmAreaRef> {
-        // SAFETY: We hold a reference to the mm, so the pointer must be valid. Any value is okay
-        // for `vma_addr`.
-        let vma = unsafe { bindings::vma_lookup(self.mm.as_raw(), vma_addr as _) };
+    pub fn vma_lookup(&self, vma_addr: usize) -> Option<&virt::VmaRef> {
+        // SAFETY: By the type invariants we hold the mmap read guard, so we can safely call this
+        // method. Any value is okay for `vma_addr`.
+        let vma = unsafe { bindings::vma_lookup(self.mm.as_raw(), vma_addr) };
 
         if vma.is_null() {
             None
         } else {
-            // SAFETY: We just checked that a vma was found, so the pointer is valid. Furthermore,
-            // the returned area will borrow from this read lock guard, so it can only be used
-            // while the mmap read lock is still held.
-            unsafe { Some(virt::VmAreaRef::from_raw(vma)) }
+            // SAFETY: We just checked that a vma was found, so the pointer references a valid vma.
+            //
+            // Furthermore, the returned vma is still under the protection of the read lock guard
+            // and can be used while the mmap read lock is still held. That the vma is not used
+            // after the MmapReadGuard gets dropped is enforced by the borrow-checker.
+            unsafe { Some(virt::VmaRef::from_raw(vma)) }
         }
     }
 }
@@ -315,17 +320,17 @@ impl Drop for MmapReadGuard<'_> {
 ///
 /// This `VmaReadGuard` guard owns the vma read lock.
 pub struct VmaReadGuard<'a> {
-    vma: &'a VmAreaRef,
+    vma: &'a VmaRef,
     // `vma_end_read` must be called on the same thread as where the lock was taken
     _nts: NotThreadSafe,
 }
 
-// Make all `VmAreaRef` methods available on `VmaReadGuard`.
+// Make all `VmaRef` methods available on `VmaReadGuard`.
 impl Deref for VmaReadGuard<'_> {
-    type Target = VmAreaRef;
+    type Target = VmaRef;
 
     #[inline]
-    fn deref(&self) -> &VmAreaRef {
+    fn deref(&self) -> &VmaRef {
         self.vma
     }
 }

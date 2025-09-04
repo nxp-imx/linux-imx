@@ -1163,6 +1163,17 @@ static unsigned int __init add_to_rb(struct printk_ringbuffer *rb,
 
 static char setup_text_buf[PRINTKRB_RECORD_MAX] __initdata;
 
+static void print_log_buf_usage_stats(void)
+{
+	unsigned int descs_count = log_buf_len >> PRB_AVGBITS;
+	size_t meta_data_size;
+
+	meta_data_size = descs_count * (sizeof(struct prb_desc) + sizeof(struct printk_info));
+
+	pr_info("log buffer data + meta data: %u + %zu = %zu bytes\n",
+		log_buf_len, meta_data_size, log_buf_len + meta_data_size);
+}
+
 void __init setup_log_buf(int early)
 {
 	struct printk_info *new_infos;
@@ -1192,20 +1203,25 @@ void __init setup_log_buf(int early)
 	if (!early && !new_log_buf_len)
 		log_buf_add_cpu();
 
-	if (!new_log_buf_len)
+	if (!new_log_buf_len) {
+		/* Show the memory stats only once. */
+		if (!early)
+			goto out;
+
 		return;
+	}
 
 	new_descs_count = new_log_buf_len >> PRB_AVGBITS;
 	if (new_descs_count == 0) {
 		pr_err("new_log_buf_len: %lu too small\n", new_log_buf_len);
-		return;
+		goto out;
 	}
 
 	new_log_buf = memblock_alloc(new_log_buf_len, LOG_ALIGN);
 	if (unlikely(!new_log_buf)) {
 		pr_err("log_buf_len: %lu text bytes not available\n",
 		       new_log_buf_len);
-		return;
+		goto out;
 	}
 
 	new_descs_size = new_descs_count * sizeof(struct prb_desc);
@@ -1268,7 +1284,7 @@ void __init setup_log_buf(int early)
 		       prb_next_seq(&printk_rb_static) - seq);
 	}
 
-	pr_info("log_buf_len: %u bytes\n", log_buf_len);
+	print_log_buf_usage_stats();
 	pr_info("early log buf free: %u(%u%%)\n",
 		free, (free * 100) / __LOG_BUF_LEN);
 	return;
@@ -1277,6 +1293,8 @@ err_free_descs:
 	memblock_free(new_descs, new_descs_size);
 err_free_log_buf:
 	memblock_free(new_log_buf, new_log_buf_len);
+out:
+	print_log_buf_usage_stats();
 }
 
 static bool __read_mostly ignore_loglevel;
@@ -2472,7 +2490,6 @@ asmlinkage __visible int _printk(const char *fmt, ...)
 }
 EXPORT_SYMBOL(_printk);
 
-static bool pr_flush(int timeout_ms, bool reset_on_progress);
 static bool __pr_flush(struct console *con, int timeout_ms, bool reset_on_progress);
 
 #else /* CONFIG_PRINTK */
@@ -2485,7 +2502,6 @@ static bool __pr_flush(struct console *con, int timeout_ms, bool reset_on_progre
 
 static u64 syslog_seq;
 
-static bool pr_flush(int timeout_ms, bool reset_on_progress) { return true; }
 static bool __pr_flush(struct console *con, int timeout_ms, bool reset_on_progress) { return true; }
 
 #endif /* CONFIG_PRINTK */
@@ -3354,7 +3370,12 @@ void console_unblank(void)
 	 */
 	cookie = console_srcu_read_lock();
 	for_each_console_srcu(c) {
-		if ((console_srcu_read_flags(c) & CON_ENABLED) && c->unblank) {
+		short flags = console_srcu_read_flags(c);
+
+		if (flags & CON_SUSPENDED)
+			continue;
+
+		if ((flags & CON_ENABLED) && c->unblank) {
 			found_unblank = true;
 			break;
 		}
@@ -3391,7 +3412,12 @@ void console_unblank(void)
 
 	cookie = console_srcu_read_lock();
 	for_each_console_srcu(c) {
-		if ((console_srcu_read_flags(c) & CON_ENABLED) && c->unblank)
+		short flags = console_srcu_read_flags(c);
+
+		if (flags & CON_SUSPENDED)
+			continue;
+
+		if ((flags & CON_ENABLED) && c->unblank)
 			c->unblank();
 	}
 	console_srcu_read_unlock(cookie);
@@ -4478,7 +4504,7 @@ static bool __pr_flush(struct console *con, int timeout_ms, bool reset_on_progre
  * Context: Process context. May sleep while acquiring console lock.
  * Return: true if all usable printers are caught up.
  */
-static bool pr_flush(int timeout_ms, bool reset_on_progress)
+bool pr_flush(int timeout_ms, bool reset_on_progress)
 {
 	return __pr_flush(NULL, timeout_ms, reset_on_progress);
 }

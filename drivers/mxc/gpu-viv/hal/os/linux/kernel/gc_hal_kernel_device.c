@@ -2335,6 +2335,7 @@ gckGALDEVICE_Construct(IN gcsPLATFORM                *Platform,
         device->physBase    = Args->baseAddress;
         device->physSize    = Args->physSize;
 
+        device->mmuSwSwitch = Args->mmuSwSwitch;
         /* Loop all the cores in one deivce. */
         for (i = 0; i < device->configCoreCount; i++) {
             /* Get arguments from global core index. */
@@ -3071,6 +3072,9 @@ gckGALDEVICE_Start(IN gckGALDEVICE Device)
             if (device->kernels[i] == gcvNULL)
                 continue;
 
+            if (device->kernels[i]->processPageTable && (!device->kernels[i]->flatMapping))
+                gcmkONERROR(gckMMU_ConstructMmuCopy(device->kernels[i], &device->kernels[i]->mmuCopy));
+
             /* Setup the ISR routine. */
             gcmkONERROR(_SetupIsr(device, i));
 
@@ -3156,6 +3160,10 @@ gckGALDEVICE_Stop(gckGALDEVICE Device)
                                                           gcvPOWER_OFF));
                 }
             }
+
+            if (device->kernels[i]->processPageTable && (!device->kernels[i]->flatMapping))
+                gcmkONERROR(gckMMU_DestroyMmuCopy(device->kernels[i]->mmuCopy));
+
 
             /* Stop the ISR routine. */
             gcmkONERROR(_ReleaseIsr(device, i));

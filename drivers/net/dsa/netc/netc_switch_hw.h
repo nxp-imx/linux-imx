@@ -108,8 +108,6 @@
 #define  PCR_PSPEED			GENMASK(29, 16)
 #define   PSPEED_SET_VAL(s)		FIELD_PREP(PCR_PSPEED, ((s) / 10 - 1))
 
-#define NETC_PMAR0			0x0020
-#define NETC_PMAR1			0x0024
 #define NETC_PQOSMR			0x0054
 #define  PQOSMR_VS			BIT(0)
 #define  PQOSMR_VE			BIT(1)

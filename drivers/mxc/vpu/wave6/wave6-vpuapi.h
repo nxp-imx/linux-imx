@@ -148,6 +148,28 @@ enum chroma_format {
 	YUV444,
 };
 
+enum csc_packed_rgba_order {
+	CSC_ORDER_RGB  = 0,
+	CSC_ORDER_RBG  = 1,
+	CSC_ORDER_GRB  = 2,
+	CSC_ORDER_GBR  = 3,
+	CSC_ORDER_BGR  = 4,
+	CSC_ORDER_BRG  = 5,
+
+	CSC_ORDER_ARGB = 0,
+	CSC_ORDER_ARBG = 1,
+	CSC_ORDER_AGRB = 2,
+	CSC_ORDER_AGBR = 3,
+	CSC_ORDER_ABGR = 4,
+	CSC_ORDER_ABRG = 5,
+	CSC_ORDER_RGBA = 8,
+	CSC_ORDER_RBGA = 9,
+	CSC_ORDER_GRBA = 10,
+	CSC_ORDER_GBRA = 11,
+	CSC_ORDER_BGRA = 12,
+	CSC_ORDER_BRGA = 13,
+};
+
 enum frame_buffer_format {
 	FORMAT_ERR = -1,
 
@@ -883,6 +905,8 @@ struct vpu_device {
 	const struct wave6_match_data *res;
 	struct dentry *debugfs;
 	struct device *trusty_dev;
+
+	bool force_dma_sync;
 };
 
 struct vpu_instance;

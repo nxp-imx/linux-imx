@@ -163,12 +163,12 @@ struct imx_pcie {
 	u32			controller_id;
 	struct reset_control	*pciephy_reset;
 	struct reset_control	*apps_reset;
+	u32			link_status;
 	u32			tx_deemph_gen1;
 	u32			tx_deemph_gen2_3p5db;
 	u32			tx_deemph_gen2_6db;
 	u32			tx_swing_full;
 	u32			tx_swing_low;
-	struct regulator	*vpcie;
 	struct regulator	*vph;
 	void __iomem		*phy_base;
 
@@ -250,17 +250,17 @@ static unsigned int imx_pcie_grp_offset(const struct imx_pcie *imx_pcie)
 static int imx95_pcie_init_phy(struct imx_pcie *imx_pcie)
 {
 	/*
-	 * Workaround for ERR051624: The Controller Without Vaux Cannot
-	 * Exit L23 Ready Through Beacon or PERST# De-assertion
+	 * ERR051624: The Controller Without Vaux Cannot Exit L23 Ready
+	 * Through Beacon or PERST# De-assertion
 	 *
-	 * When the auxiliary power is not available the controller
+	 * When the auxiliary power is not available, the controller
 	 * cannot exit from L23 Ready with beacon or PERST# de-assertion
 	 * when main power is not removed.
 	 *
 	 * Workaround: Set SS_RW_REG_1[SYS_AUX_PWR_DET] to 1.
 	 */
-	regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
-			IMX95_PCIE_SYS_AUX_PWR_DET, IMX95_PCIE_SYS_AUX_PWR_DET);
+	regmap_set_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
+			IMX95_PCIE_SYS_AUX_PWR_DET);
 
 	regmap_update_bits(imx_pcie->iomuxc_gpr,
 			IMX95_PCIE_SS_RW_REG_0,
@@ -1155,15 +1155,6 @@ static int imx_pcie_host_init(struct dw_pcie_rp *pp)
 	struct imx_pcie *imx_pcie = to_imx_pcie(pci);
 	int ret;
 
-	if (imx_pcie->vpcie) {
-		ret = regulator_enable(imx_pcie->vpcie);
-		if (ret) {
-			dev_err(dev, "failed to enable vpcie regulator: %d\n",
-				ret);
-			return ret;
-		}
-	}
-
 	imx_pcie_assert_core_reset(imx_pcie);
 
 	if (imx_pcie->drvdata->init_phy)
@@ -1174,7 +1165,7 @@ static int imx_pcie_host_init(struct dw_pcie_rp *pp)
 	ret = imx_pcie_clk_enable(imx_pcie);
 	if (ret) {
 		dev_err(dev, "unable to enable pcie clocks: %d\n", ret);
-		goto err_reg_disable;
+		return ret;
 	}
 
 	if (imx_pcie->phy) {
@@ -1218,9 +1209,6 @@ err_phy_exit:
 	phy_exit(imx_pcie->phy);
 err_clk_disable:
 	imx_pcie_clk_disable(imx_pcie);
-err_reg_disable:
-	if (imx_pcie->vpcie)
-		regulator_disable(imx_pcie->vpcie);
 	return ret;
 }
 
@@ -1235,9 +1223,6 @@ static void imx_pcie_host_exit(struct dw_pcie_rp *pp)
 		phy_exit(imx_pcie->phy);
 	}
 	imx_pcie_clk_disable(imx_pcie);
-
-	if (imx_pcie->vpcie)
-		regulator_disable(imx_pcie->vpcie);
 }
 
 static u64 imx_pcie_cpu_addr_fixup(struct dw_pcie *pcie, u64 cpu_addr)
@@ -1338,12 +1323,24 @@ static const struct pci_epc_features imx6q_pcie_epc_features = {
 	.align = SZ_64K,
 };
 
+static const struct pci_epc_features imx8mq_pcie_epc_features = {
+	.linkup_notifier = false,
+	.msi_capable = true,
+	.msix_capable = false,
+	.bar[BAR_1] = { .type = BAR_RESERVED, },
+	.bar[BAR_3] = { .type = BAR_RESERVED, },
+	.bar[BAR_5] = { .type = BAR_RESERVED, },
+	.align = SZ_64K,
+};
+
 static const struct pci_epc_features imx8m_pcie_epc_features = {
 	.linkup_notifier = false,
 	.msi_capable = true,
 	.msix_capable = false,
 	.bar[BAR_1] = { .type = BAR_RESERVED, },
 	.bar[BAR_3] = { .type = BAR_RESERVED, },
+	.bar[BAR_4] = { .type = BAR_FIXED, .fixed_size = SZ_256, },
+	.bar[BAR_5] = { .type = BAR_RESERVED, },
 	.align = SZ_64K,
 };
 
@@ -1399,6 +1396,10 @@ static int imx_add_pcie_ep(struct imx_pcie *imx_pcie,
 	struct device *dev = pci->dev;
 
 	imx_pcie_host_init(pp);
+
+	/* Make sure that PCIe LTSSM is cleared */
+	imx_pcie_ltssm_disable(dev);
+
 	ep = &pci->ep;
 	ep->ops = &pcie_ep_ops;
 
@@ -1424,9 +1425,6 @@ static int imx_add_pcie_ep(struct imx_pcie *imx_pcie,
 	}
 
 	pci_epc_init_notify(ep->epc);
-
-	/* Start LTSSM. */
-	imx_pcie_ltssm_enable(dev);
 
 	return 0;
 }
@@ -1832,12 +1830,9 @@ static int imx_pcie_probe(struct platform_device *pdev)
 	 */
 	imx_pcie->supports_clkreq =
 		of_property_read_bool(node, "supports-clkreq");
-	imx_pcie->vpcie = devm_regulator_get_optional(&pdev->dev, "vpcie");
-	if (IS_ERR(imx_pcie->vpcie)) {
-		if (PTR_ERR(imx_pcie->vpcie) != -ENODEV)
-			return PTR_ERR(imx_pcie->vpcie);
-		imx_pcie->vpcie = NULL;
-	}
+	ret = devm_regulator_get_enable_optional(&pdev->dev, "vpcie");
+	if (ret < 0 && ret != -ENODEV)
+		return dev_err_probe(dev, ret, "failed to enable vpcie");
 
 	imx_pcie->vph = devm_regulator_get_optional(&pdev->dev, "vph");
 	if (IS_ERR(imx_pcie->vph)) {
@@ -2100,7 +2095,7 @@ static const struct imx_pcie_drvdata drvdata[] = {
 		.mode_mask[0] = IMX6Q_GPR12_DEVICE_TYPE,
 		.mode_off[1] = IOMUXC_GPR12,
 		.mode_mask[1] = IMX8MQ_GPR12_PCIE2_CTRL_DEVICE_TYPE,
-		.epc_features = &imx8m_pcie_epc_features,
+		.epc_features = &imx8mq_pcie_epc_features,
 		.init_phy = imx8mq_pcie_init_phy,
 		.enable_ref_clk = imx8mm_pcie_enable_ref_clk,
 	},

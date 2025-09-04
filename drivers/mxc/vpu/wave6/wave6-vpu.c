@@ -14,6 +14,10 @@
 #include <linux/pm_runtime.h>
 #include <linux/of_platform.h>
 #include <linux/debugfs.h>
+#include <linux/swiotlb.h>
+#ifdef CONFIG_XEN
+#include <xen/swiotlb-xen.h>
+#endif
 #include "wave6-vpu.h"
 #include "wave6-regdefine.h"
 #include "wave6-vpuconfig.h"
@@ -222,6 +226,35 @@ void wave6_vpu_wait_activated(struct vpu_device *dev)
 	wave6_vpu_check_state(dev);
 }
 
+static bool wave6_vpu_need_force_dma_sync(struct vpu_device *dev, dma_addr_t addr)
+{
+	if (!dev->force_dma_sync)
+		return false;
+#ifndef MODULE
+	if (!swiotlb_find_pool(dev->dev, addr))
+		return false;
+#endif
+	return true;
+}
+
+void wave6_vpu_force_dma_sync_single_for_device(struct vpu_device *dev,
+						dma_addr_t addr,
+						size_t size,
+						enum dma_data_direction dir)
+{
+	if (wave6_vpu_need_force_dma_sync(dev, addr))
+		dma_sync_single_for_device(dev->dev, addr, size, dir);
+}
+
+void wave6_vpu_force_dma_sync_single_for_cpu(struct vpu_device *dev,
+					     dma_addr_t addr,
+					     size_t size,
+					     enum dma_data_direction dir)
+{
+	if (wave6_vpu_need_force_dma_sync(dev, addr))
+		dma_sync_single_for_cpu(dev->dev, addr, size, dir);
+}
+
 static int wave6_vpu_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -363,7 +396,7 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 			goto err_temp_vbuf_free;
 		}
 	}
-	if (dev->res->codec_types & WAVE6_IS_ENC) {
+	if ((dev->res->codec_types & WAVE6_IS_ENC) && (dev->trusty_dev == NULL)) {
 		ret = wave6_vpu_enc_register_device(dev);
 		if (ret) {
 			dev_err(&pdev->dev, "wave6_vpu_enc_register_device fail: %d\n", ret);
@@ -378,6 +411,13 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 			goto err_enc_unreg;
 	}
 
+#ifdef CONFIG_XEN
+	if (xen_swiotlb_detect())
+		dev->force_dma_sync = true;
+	else
+		dev->force_dma_sync = false;
+#endif
+
 	dev_dbg(&pdev->dev, "Added wave6 driver with caps %s %s\n",
 		dev->res->codec_types & WAVE6_IS_ENC ? "'ENCODE'" : "",
 		dev->res->codec_types & WAVE6_IS_DEC ? "'DECODE'" : "");
@@ -385,7 +425,7 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	return 0;
 
 err_enc_unreg:
-	if (dev->res->codec_types & WAVE6_IS_ENC)
+	if ((dev->res->codec_types & WAVE6_IS_ENC) && (dev->trusty_dev == NULL))
 		wave6_vpu_enc_unregister_device(dev);
 err_dec_unreg:
 	if (dev->res->codec_types & WAVE6_IS_DEC)

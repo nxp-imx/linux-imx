@@ -453,6 +453,7 @@ typedef struct _gcsHAL_UNLOCK_VIDEO_MEMORY {
 #endif
 
     IN gceLOCK_VIDEO_MEMORY_OP  op;
+    IN gctUINT64                mmu;
 } gcsHAL_UNLOCK_VIDEO_MEMORY;
 
 /* gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY: */
@@ -1074,6 +1075,8 @@ typedef struct _gcsHAL_GET_VIDEO_MEMORY_FD {
 typedef struct _gcsHAL_DESTROY_MMU {
     /* Mmu object. */
     IN gctUINT64                mmu;
+    IN gctUINT64                database;
+    IN gctUINT32                pid;
 } gcsHAL_DESTROY_MMU;
 
 /* gcvHAL_WAIT_FENCE. */

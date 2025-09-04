@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx8mp-frdm.dts"
+
+/ {
+	panel-lvds0 {
+		compatible = "boe,ev121wxm-n10-1850";
+		backlight = <&backlight_lvds0>;
+		power-supply = <&reg_lvds_vcc>;
+
+		port {
+			panel_lvds_in: endpoint {
+				remote-endpoint = <&lvds_out>;
+			};
+		};
+	};
+
+	backlight_lvds0: backlight-lvds0 {
+		compatible = "pwm-backlight";
+		enable-gpios = <&pca6416_a 8 GPIO_ACTIVE_HIGH>;
+		pwms = <&pwm3 0 100000 0>;
+		power-supply = <&reg_vdd_12v>;
+		brightness-levels = <0 100>;
+		num-interpolated-steps = <100>;
+		default-brightness-level = <80>;
+	};
+};
+
+&i2c2 {
+	touchscreen@2a {
+		compatible = "eeti,exc80h60";
+		reg = <0x2a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds_ctp_int_0>;
+		interrupt-parent = <&gpio4>;
+		interrupts = <28 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&pca6416_a 5 GPIO_ACTIVE_HIGH>;
+		touchscreen-size-y = <4096>;
+		touchscreen-size-x = <4096>;
+	};
+};
+
+&lcdif2 {
+	status = "okay";
+};
+
+&ldb {
+	status = "okay";
+
+	lvds-channel@0 {
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds_out: endpoint {
+				remote-endpoint = <&panel_lvds_in>;
+			};
+		};
+	};
+};
+
+&ldb_phy {
+	status = "okay";
+};
+
+&iomuxc {
+	pinctrl_lvds_ctp_int_0: lvds_ctp_int_grp_0 {
+		fsl,pins = <
+			MX8MP_IOMUXC_SAI3_RXFS__GPIO4_IO28		  0x31e
+		>;
+	};
+};

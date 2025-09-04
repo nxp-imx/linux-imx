@@ -495,6 +495,7 @@ _SubmitTimerFunction(gctPOINTER Data)
     eventAttr.broadcast = gcvTRUE;
 
     gcmkVERIFY_OK(gckEVENT_Submit(event, &eventAttr));
+
 }
 
 /******************************************************************************
@@ -999,6 +1000,11 @@ gckEVENT_AddListEx(IN gckEVENT Event, IN gcsEVENT_INTERFACE_PTR Interface,
     else
         gcmkONERROR(gckOS_GetProcessID(&record->processID));
 
+    if (Interface->command == gcvHAL_UNLOCK_VIDEO_MEMORY && Interface->u.UnlockVideoMemory.mmu)
+        record->mmu = (gckMMU)gcmUINT64_TO_PTR(Interface->u.UnlockVideoMemory.mmu);
+    else
+        gcmkONERROR(gckKERNEL_GetCurrentMMU(Event->kernel, !FromKernel, record->processID, &record->mmu));
+
     if (FromKernel == gcvFALSE) {
         gcmkONERROR(__RemoveRecordFromProcessDB(Event, record));
 
@@ -1106,10 +1112,10 @@ gckEVENT_AddList(IN gckEVENT Event, IN gcsEVENT_INTERFACE_PTR Interface,
  **      Nothing.
  */
 gceSTATUS
-gckEVENT_Unlock(IN gckEVENT Event, IN gceKERNEL_WHERE FromWhere, IN gctPOINTER Node)
+gckEVENT_Unlock(IN gckEVENT Event, IN gceKERNEL_WHERE FromWhere, gckMMU Mmu, IN gctPOINTER Node)
 {
     gceSTATUS        status;
-    gcsEVENT_INTERFACE iface;
+    gcsEVENT_INTERFACE iface = {0};
 
     gcmkHEADER_ARG("Event=0x%x FromWhere=%d Node=0x%x",
                    Event, FromWhere, Node);
@@ -1119,9 +1125,10 @@ gckEVENT_Unlock(IN gckEVENT Event, IN gceKERNEL_WHERE FromWhere, IN gctPOINTER N
     gcmkVERIFY_ARGUMENT(Node != gcvNULL);
 
     /* Mark the event as an unlock. */
-    iface.command                           = gcvHAL_UNLOCK_VIDEO_MEMORY;
-    iface.u.UnlockVideoMemory.node          = gcmPTR_TO_UINT64(Node);
+    iface.command = gcvHAL_UNLOCK_VIDEO_MEMORY;
+    iface.u.UnlockVideoMemory.node = gcmPTR_TO_UINT64(Node);
     iface.u.UnlockVideoMemory.asynchroneous = 0;
+    iface.u.UnlockVideoMemory.mmu = gcmPTR_TO_UINT64(Mmu);
 
     /* Append it to the queue. */
     gcmkONERROR(gckEVENT_AddList(Event, &iface, FromWhere, gcvFALSE, gcvTRUE));
@@ -1719,6 +1726,7 @@ gckEVENT_Notify(IN gckEVENT Event, IN gctUINT32 IDs,
     gctSIGNAL       signal;
     gctUINT         pending  = 0;
     gceEVENT_FAULT  fault    = gcvEVENT_NO_FAULT;
+    gckMMU mmu = gcvNULL;
 
 #if gcmIS_DEBUG(gcdDEBUG_TRACE)
     gctINT eventNumber = 0;
@@ -1942,9 +1950,17 @@ gckEVENT_Notify(IN gckEVENT Event, IN gctUINT32 IDs,
 
                 nodeObject = gcmUINT64_TO_PTR(record->info.u.UnlockVideoMemory.node);
 
+                if (record->processID) {
+                    status = gckKERNEL_GetCurrentMMU(Event->kernel, gcvTRUE, record->processID, &record->mmu);
+                    if (gcmIS_ERROR(status))
+                        record->mmu = gcvNULL;
+               }
+
+               if (record->mmu) {
                 /* Unlock, sync'ed. */
                 gcmkERR_BREAK(gckVIDMEM_NODE_Unlock(Event->kernel, nodeObject,
-                                                    record->processID, gcvNULL));
+                                                    record->mmu, gcvNULL));
+               }
 
                 /* Deref node. */
                 gcmkERR_BREAK(gckVIDMEM_NODE_DereferenceEx(Event->kernel, nodeObject, record->processID));
@@ -2017,6 +2033,12 @@ gckEVENT_Notify(IN gckEVENT Event, IN gctUINT32 IDs,
             case gcvHAL_COMMIT_DONE:
                 break;
 
+            case gcvHAL_DESTROY_MMU:
+                mmu = gcmUINT64_TO_PTR(record->info.u.DestroyMmu.mmu);
+                if (mmu)
+                    gcmkERR_BREAK(gckMMU_DestroyProcessMMU(mmu));
+
+                break;
             default:
                 /* Invalid argument. */
                 gcmkTRACE_ZONE_N(gcvLEVEL_ERROR, gcvZONE_EVENT, gcmSIZEOF(record->info.command),

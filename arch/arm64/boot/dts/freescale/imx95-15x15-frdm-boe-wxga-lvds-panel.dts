@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx95-15x15-frdm.dts"
+
+/ {
+	backlight: backlight {
+		compatible = "led-backlight";
+		leds = <&led_backlight1>;
+		brightness-levels = <0 4 8 16 32 64 128 255>;
+		default-brightness-level = <6>;
+	};
+
+	panel-lvds {
+		compatible = "boe,ev121wxm-n10-1850";
+		backlight = <&backlight>;
+		power-supply = <&reg_vcc_12v>;
+		enable-gpios = <&pcal6524 21 GPIO_ACTIVE_HIGH>;
+
+		port {
+			panel_lvds_in: endpoint {
+				remote-endpoint = <&lvds0_out>;
+			};
+		};
+	};
+
+	reg_vcc_12v: regulator-vcc-12v {
+		compatible = "regulator-fixed";
+		regulator-name = "VCC_12V";
+		regulator-min-microvolt = <12000000>;
+		regulator-max-microvolt = <12000000>;
+		gpio = <&pcal6524 22 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&display_pixel_link {
+	status = "okay";
+};
+
+&ldb {
+	assigned-clock-rates = <2982000000>, <497000000>;
+
+	channel@0 {
+		status = "okay";
+
+		port@1 {
+			lvds0_out: endpoint {
+				remote-endpoint = <&panel_lvds_in>;
+			};
+		};
+	};
+
+	channel@1 {
+		status = "disabled";
+	};
+};
+
+&ldb0_phy {
+	status = "okay";
+};
+
+&ldb1_phy {
+	status = "disabled";
+};
+
+&lpi2c3 {
+	touchscreen@2a {
+		compatible = "eeti,exc80h60";
+		reg = <0x2a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds_ctp_int_0>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&pcal6524 20 GPIO_ACTIVE_HIGH>;
+		touchscreen-size-y = <4096>;
+		touchscreen-size-x = <4096>;
+	};
+};
+
+&pixel_interleaver {
+	channel@0 {
+		status = "okay";
+	};
+
+	channel@1 {
+		status = "disabled";
+	};
+};
+
+&scmi_iomuxc {
+	pinctrl_lvds_ctp_int_0: lvds_ctp_int_grp_0 {
+		fsl,pins = <
+			IMX95_PAD_XSPI1_DATA1__GPIO5_IO_BIT1    0x31e
+		>;
+	};
+};

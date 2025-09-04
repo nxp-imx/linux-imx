@@ -151,12 +151,20 @@
 		};
 	};
 
+	sound-micfil {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_swpdm_mute_irq>;
+	};
 };
 
 &adp5585 {
 	exp-sel-hog {
 		status = "disabled";
 	};
+};
+
+&dmic {
+	num-channels = <8>;
 };
 
 &sai3 {
@@ -182,6 +190,14 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pdm2>;
 	status = "okay";
+};
+
+&gpio2 {
+	pushbutton-gpios {
+		gpio-hog;
+		gpios = <27 GPIO_ACTIVE_LOW>;
+		input;
+	};
 };
 
 &lpi2c4 {

@@ -1385,7 +1385,7 @@ _TaskUnlockVideoMemory(gckVGCOMMAND Command, gcsBLOCK_TASK_ENTRY_PTR TaskHeader)
         /* Unlock video memory. */
         gcmkERR_BREAK(gckVIDMEM_NODE_Unlock(Command->kernel->kernel,
                                             (gckVIDMEM_NODE)gcmUINT64_TO_PTR(task->node),
-                                            processID, gcvNULL));
+                                            gcvNULL, gcvNULL));
 
         gcmkERR_BREAK(gckVIDMEM_NODE_Dereference(Command->kernel->kernel,
                                                  gcmUINT64_TO_PTR(task->node)));

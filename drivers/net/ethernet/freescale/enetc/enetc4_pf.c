@@ -270,12 +270,9 @@ static void enetc4_configure_port(struct enetc_pf *pf)
 
 	/* Master enable for all SIs */
 	enetc4_enable_all_si(pf);
-
-	/* Enable port transmit/receive */
-	enetc_port_wr(hw, ENETC4_POR, 0);
 }
 
-static int enetc4_pf_set_mac_exact_filter(struct enetc_pf *pf, int type)
+static int enetc4_pf_set_uc_exact_filter(struct enetc_pf *pf)
 {
 	struct enetc_mac_entry *mac_tbl __free(kfree);
 	int mf_max_num = pf->caps.mac_filter_num;
@@ -291,38 +288,26 @@ static int enetc4_pf_set_mac_exact_filter(struct enetc_pf *pf, int type)
 	enetc_get_si_primary_mac(&pf->si->hw, si_mac);
 
 	netif_addr_lock_bh(ndev);
-	if (type & ENETC_MAC_FILTER_TYPE_UC) {
-		netdev_for_each_uc_addr(ha, ndev) {
-			if (!is_valid_ether_addr(ha->addr) ||
-			    ether_addr_equal(ha->addr, si_mac))
-				continue;
 
-			if (mac_cnt >= mf_max_num)
-				goto err_nospace_out;
+	netdev_for_each_uc_addr(ha, ndev) {
+		if (!is_valid_ether_addr(ha->addr) ||
+		    ether_addr_equal(ha->addr, si_mac))
+			continue;
 
-			ether_addr_copy(mac_tbl[mac_cnt++].addr, ha->addr);
+		if (mac_cnt >= mf_max_num) {
+			netif_addr_unlock_bh(ndev);
+			return -ENOSPC;
 		}
+
+		ether_addr_copy(mac_tbl[mac_cnt++].addr, ha->addr);
 	}
 
-	if (type & ENETC_MAC_FILTER_TYPE_MC) {
-		netdev_for_each_mc_addr(ha, ndev) {
-			if (!is_multicast_ether_addr(ha->addr))
-				continue;
-
-			if (mac_cnt >= mf_max_num)
-				goto err_nospace_out;
-
-			ether_addr_copy(mac_tbl[mac_cnt++].addr, ha->addr);
-		}
-	}
 	netif_addr_unlock_bh(ndev);
+
+	if (!mac_cnt)
+		return 0;
 
 	return enetc_pf_set_mac_exact_filter(pf, 0, mac_tbl, mac_cnt);
-
-err_nospace_out:
-	netif_addr_unlock_bh(ndev);
-
-	return -ENOSPC;
 }
 
 static void enetc4_pf_set_mac_hash_filter(struct enetc_pf *pf, int type)
@@ -358,12 +343,21 @@ static void enetc4_pf_set_mac_hash_filter(struct enetc_pf *pf, int type)
 
 static void enetc4_pf_set_mac_filter(struct enetc_pf *pf, int type)
 {
-	if (!(type & ENETC_MAC_FILTER_TYPE_ALL))
-		return;
+	int mac_type = 0;
 
-	if (enetc4_pf_set_mac_exact_filter(pf, type))
-		/* Fallback to use MAC hash filter */
-		enetc4_pf_set_mac_hash_filter(pf, type);
+	if (type & ENETC_MAC_FILTER_TYPE_UC) {
+		enetc_pf_flush_mac_exact_filter(pf, 0, ENETC_MAC_FILTER_TYPE_UC);
+		pf->hw_ops->set_si_mac_hash_filter(&pf->si->hw, 0, UC, 0);
+		if (enetc4_pf_set_uc_exact_filter(pf))
+			/* Fallback to use MAC hash filter */
+			mac_type |= ENETC_MAC_FILTER_TYPE_UC;
+	}
+
+	if (type & ENETC_MAC_FILTER_TYPE_MC)
+		mac_type |= ENETC_MAC_FILTER_TYPE_MC;
+
+	if (mac_type)
+		enetc4_pf_set_mac_hash_filter(pf, mac_type);
 }
 
 static void enetc4_pf_do_set_rx_mode(struct work_struct *work)
@@ -382,6 +376,7 @@ static void enetc4_pf_do_set_rx_mode(struct work_struct *work)
 	    !pf->hw_ops->set_si_mac_promisc)
 		return;
 
+	rtnl_lock();
 	if (ndev->flags & IFF_PROMISC) {
 		uc_promisc = true;
 		mc_promisc = true;
@@ -395,12 +390,8 @@ static void enetc4_pf_do_set_rx_mode(struct work_struct *work)
 	pf->hw_ops->set_si_mac_promisc(hw, 0, UC, uc_promisc);
 	pf->hw_ops->set_si_mac_promisc(hw, 0, MC, mc_promisc);
 
-	/* Clear MAC filter */
-	enetc_pf_flush_mac_exact_filter(pf, 0, ENETC_MAC_FILTER_TYPE_ALL);
-	pf->hw_ops->set_si_mac_hash_filter(hw, 0, UC, 0);
-	pf->hw_ops->set_si_mac_hash_filter(hw, 0, MC, 0);
-
 	enetc4_pf_set_mac_filter(pf, type);
+	rtnl_unlock();
 }
 
 static void enetc4_pf_set_rx_mode(struct net_device *ndev)
@@ -652,8 +643,11 @@ static void enetc4_set_tx_pause(struct enetc_pf *pf, int num_rxbdr, bool tx_paus
 
 static void enetc4_enable_mac(struct enetc_pf *pf, bool en)
 {
+	struct enetc_hw *hw = &pf->si->hw;
 	struct enetc_si *si = pf->si;
 	u32 val;
+
+	enetc_port_wr(hw, ENETC4_POR, en ? 0 : POR_TXDIS | POR_RXDIS);
 
 	val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
 	val &= ~(PM_CMD_CFG_TX_EN | PM_CMD_CFG_RX_EN);
@@ -1076,7 +1070,7 @@ static int enetc4_init_ntmp_priv(struct enetc_si *si)
 
 	ntmp->dev_type = NETC_DEV_ENETC;
 
-	if (si->revision == NETC_REVISION_4_1)
+	if (si->revision == ENETC_REV_4_1)
 		ntmp->errata = NTMP_ERR052134;
 
 	err = enetc_init_cbdr(si);

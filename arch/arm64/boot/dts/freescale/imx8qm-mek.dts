@@ -160,7 +160,6 @@
 		regulator-max-microvolt = <3300000>;
 		gpio = <&lsio_gpio1 13 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-always-on;
 	};
 
 	reg_usb_otg1_vbus: regulator-usbotg1-vbus {

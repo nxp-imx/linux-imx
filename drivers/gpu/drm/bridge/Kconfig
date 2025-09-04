@@ -472,4 +472,15 @@ config DRM_ITE_IT6161
 	help
 	  ITE IT6161 bridge chip driver.
 
+config DRM_WAVESHARE_BRIDGE
+	tristate "Waveshare DSI bridge"
+	depends on OF
+	select DRM_PANEL_BRIDGE
+	select DRM_KMS_HELPER
+	select DRM_MIPI_DSI
+	select REGMAP_I2C
+	help
+	  Driver for waveshare DSI to DPI bridge board.
+	  Please say Y if you have such hardware
+
 endmenu

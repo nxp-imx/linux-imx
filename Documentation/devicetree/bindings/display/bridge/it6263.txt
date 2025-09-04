@@ -11,6 +11,10 @@ Optional properties:
 	- split-mode: boolean. if this exists, split mode is enabled,
 	  otherwise, single mode is enabled.
 	- reset-gpios: OF device-tree gpio specification for SYSRSTN pin.
+	- de-ssc-enable: boolean. If this exists, De-SSC (De-Spread spectrum
+	  clocking) is enabled and will compensate for any LVDS signals that
+	  have spread spectrum enabled. Otherwise, some HDMI monitors may
+	  reject the signal.
 
 [1]: Documentation/devicetree/bindings/media/video-interfaces.txt
 

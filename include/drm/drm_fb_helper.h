@@ -230,7 +230,7 @@ drm_fb_helper_from_client(struct drm_client_dev *client)
 	.fb_debug_leave = drm_fb_helper_debug_leave, \
 	.fb_ioctl	= drm_fb_helper_ioctl
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
+#if defined(CONFIG_DRM_FBDEV_EMULATION) || IS_MODULE(CONFIG_DRM_FBDEV_HELPER)
 void drm_fb_helper_prepare(struct drm_device *dev, struct drm_fb_helper *helper,
 			   unsigned int preferred_bpp,
 			   const struct drm_fb_helper_funcs *funcs);
@@ -259,8 +259,6 @@ void drm_fb_helper_damage_area(struct fb_info *info, u32 x, u32 y, u32 width, u3
 void drm_fb_helper_deferred_io(struct fb_info *info, struct list_head *pagereflist);
 
 void drm_fb_helper_set_suspend(struct drm_fb_helper *fb_helper, bool suspend);
-void drm_fb_helper_set_suspend_unlocked(struct drm_fb_helper *fb_helper,
-					bool suspend);
 
 int drm_fb_helper_setcmap(struct fb_cmap *cmap, struct fb_info *info);
 
@@ -371,11 +369,6 @@ static inline void drm_fb_helper_set_suspend(struct drm_fb_helper *fb_helper,
 {
 }
 
-static inline void
-drm_fb_helper_set_suspend_unlocked(struct drm_fb_helper *fb_helper, bool suspend)
-{
-}
-
 static inline int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 {
 	return 0;
@@ -399,6 +392,16 @@ static inline int drm_fb_helper_debug_leave(struct fb_info *info)
 static inline void drm_fb_helper_lastclose(struct drm_device *dev)
 {
 }
+#endif
+
+#if !defined(CONFIG_DRM_FBDEV_EMULATION)
+static inline void
+drm_fb_helper_set_suspend_unlocked(struct drm_fb_helper *fb_helper, bool suspend)
+{
+}
+#else
+void drm_fb_helper_set_suspend_unlocked(struct drm_fb_helper *fb_helper,
+					bool suspend);
 #endif
 
 #endif

@@ -1225,9 +1225,9 @@ static int cros_typec_probe(struct platform_device *pdev)
 	typec->dev = dev;
 
 	typec->ec = dev_get_drvdata(pdev->dev.parent);
-	if (!typec->ec) {
-		dev_err(dev, "couldn't find parent EC device\n");
-		return -ENODEV;
+	if (!typec->ec || !typec->ec->ec) {
+		dev_warn(dev, "couldn't find parent EC device\n");
+		return -EPROBE_DEFER;
 	}
 
 	platform_set_drvdata(pdev, typec);

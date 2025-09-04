@@ -757,7 +757,7 @@ static void memcg1_charge_statistics(struct mem_cgroup *memcg, int nr_pages);
  * This function doesn't do "charge" to new cgroup and doesn't do "uncharge"
  * from old cgroup.
  */
-static int mem_cgroup_move_account(struct folio *folio,
+int mem_cgroup_move_account(struct folio *folio,
 				   bool compound,
 				   struct mem_cgroup *from,
 				   struct mem_cgroup *to)
@@ -866,6 +866,7 @@ static int mem_cgroup_move_account(struct folio *folio,
 out:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(mem_cgroup_move_account);
 
 /**
  * get_mctgt_type - get target type of moving charge
@@ -1560,6 +1561,17 @@ void memcg1_swapout(struct folio *folio, struct mem_cgroup *memcg)
 	preempt_enable_nested();
 	memcg1_check_events(memcg, folio_nid(folio));
 }
+
+void memcg1_charge_batch(struct mem_cgroup *memcg, unsigned long nr_memory, int nid)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	memcg1_charge_statistics(memcg, nr_memory);
+	memcg1_check_events(memcg, nid);
+	local_irq_restore(flags);
+}
+EXPORT_SYMBOL_GPL(memcg1_charge_batch);
 
 void memcg1_uncharge_batch(struct mem_cgroup *memcg, unsigned long pgpgout,
 			   unsigned long nr_memory, int nid)

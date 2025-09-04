@@ -171,6 +171,9 @@ filegroup(
             # cscope files
             "cscope.*",
             "ncscope.*",
+
+            # ABI and symbol list files
+            "gki/**",
         ],
     ),
     visibility = ["//visibility:public"],
@@ -182,6 +185,7 @@ filegroup(
         # keep sorted
         "gki/aarch64/symbols/allwinner",
         "gki/aarch64/symbols/amlogic",
+        "gki/aarch64/symbols/asr",
         "gki/aarch64/symbols/bcmstb",
         "gki/aarch64/symbols/db845c",
         "gki/aarch64/symbols/desktop",
@@ -191,10 +195,12 @@ filegroup(
         "gki/aarch64/symbols/galaxy",
         "gki/aarch64/symbols/honor",
         "gki/aarch64/symbols/imx",
+        "gki/aarch64/symbols/lenovo",
         "gki/aarch64/symbols/mtk",
         "gki/aarch64/symbols/mtktv",
         "gki/aarch64/symbols/oplus",
         "gki/aarch64/symbols/pixel",
+        "gki/aarch64/symbols/pixel_watch",
         "gki/aarch64/symbols/qcom",
         "gki/aarch64/symbols/rtkstb",
         "gki/aarch64/symbols/rtktv",
@@ -1617,11 +1623,15 @@ ddk_headers(
     hdrs = [
         "arch/arm64/kvm/hyp/include/module/nvhe/define_events.h",
         "arch/arm64/kvm/hyp/include/module/nvhe/trace.h",
+        "arch/arm64/kvm/hyp/include/nvhe/iommu.h",
+        "arch/arm64/kvm/hyp/include/nvhe/spinlock.h",
+        "arch/arm64/kvm/hyp/include/nvhe/trap_handler.h",
     ],
     includes = [
         # LINT.IfChange(pkvm_includes)
         "arch/arm64/kvm/hyp/include/module",
         # LINT.ThenChange(/arch/arm64/kvm/hyp/nvhe/Makefile.module:includes)
+        "arch/arm64/kvm/hyp/include",
     ],
     visibility = ["//visibility:private"],
 )
@@ -1651,6 +1661,7 @@ ddk_headers(
 ddk_headers(
     name = "all_headers_allowlist_aarch64",
     hdrs = [
+        "drivers/dma/dmaengine.h",
         "drivers/extcon/extcon.h",
         "drivers/pci/controller/dwc/pcie-designware.h",
         "drivers/pci/pci.h",
@@ -1676,6 +1687,7 @@ ddk_headers(
     linux_includes = [
         "arch/arm64/include",
         "arch/arm64/include/uapi",
+        "drivers/dma",
         "drivers/extcon",
         "drivers/pci",
         "drivers/pci/controller/dwc",

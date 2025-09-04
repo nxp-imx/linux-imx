@@ -294,6 +294,14 @@ disable_time_gating:
 	return err;
 }
 
+void netc_port_free_taprio(struct netc_port *port)
+{
+	if (port->taprio) {
+		taprio_offload_free(port->taprio);
+		port->taprio = NULL;
+	}
+}
+
 static int netc_tc_taprio_replace(struct netc_switch *priv, int port_id,
 				  struct tc_taprio_qopt_offload *taprio)
 {
@@ -311,10 +319,13 @@ static int netc_tc_taprio_replace(struct netc_switch *priv, int port_id,
 	if (err)
 		netc_port_reset_mqprio(port);
 
+	netc_port_free_taprio(port);
+	port->taprio = taprio_offload_get(taprio);
+
 	return err;
 }
 
-static int netc_port_reset_taprio(struct netc_port *port)
+int netc_port_reset_taprio(struct netc_port *port)
 {
 	/* Remove both operational and administrative gate control list from
 	 * the corresponding table entry by disabling time gate scheduling on
@@ -341,6 +352,7 @@ static int netc_tc_taprio_destroy(struct netc_switch *priv, int port_id)
 	struct netc_port *port = NETC_PORT(priv, port_id);
 
 	netc_port_reset_taprio(port);
+	netc_port_free_taprio(port);
 	netc_port_reset_mqprio(port);
 
 	return 0;
@@ -512,7 +524,7 @@ delete_ist_entry:
 		ntmp_ist_delete_entry(cbdrs, ist_entry->entry_id);
 delete_isct_entry:
 	if (isct_entry)
-		ntmp_isct_operate_entry(cbdrs, ist_entry->entry_id,
+		ntmp_isct_operate_entry(cbdrs, isct_entry->entry_id,
 					NTMP_CMD_DELETE, NULL);
 delete_rpt_entry:
 	if (rpt_entry)
@@ -632,8 +644,6 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 			}
 
 			netc_rpt_entry_config(police_act, rpt_entry);
-			police_tbl->rpt_eid = police_act->hw_index;
-			refcount_set(&police_tbl->refcount, 1);
 		}
 	}
 
@@ -688,6 +698,18 @@ static int netc_setup_trap_redirect(struct ntmp_priv *ntmp, int port_id,
 
 	rule->lastused = jiffies;
 	rule->key_tbl = key_tbl;
+	rule->isct_eid = isct_eid;
+
+	if (police_act) {
+		if (reused_police_tbl) {
+			rule->police_tbl = reused_police_tbl;
+			refcount_inc(&reused_police_tbl->refcount);
+		} else {
+			police_tbl->rpt_entry = no_free_ptr(rpt_entry);
+			refcount_set(&police_tbl->refcount, 1);
+			rule->police_tbl = no_free_ptr(police_tbl);
+		}
+	}
 
 	hlist_add_head(&no_free_ptr(rule)->node, &ntmp->flower_list);
 
@@ -760,22 +782,19 @@ static void netc_delete_trap_redirect_flower_rule(struct ntmp_priv *ntmp,
 	struct netc_cbdrs *cbdrs = &ntmp->cbdrs;
 	struct ntmp_ipft_entry *ipft_entry;
 	struct ntmp_ist_entry *ist_entry;
-	u32 isct_eid;
 
 	ipft_entry = key_tbl->ipft_entry;
 	ist_entry = key_tbl->ist_entry;
 
 	ntmp_ipft_delete_entry(cbdrs, ipft_entry->entry_id);
 
-	if (ist_entry) {
+	if (ist_entry)
 		ntmp_ist_delete_entry(cbdrs, ist_entry->entry_id);
 
-		isct_eid = le32_to_cpu(ist_entry->cfge.isc_eid);
-		if (isct_eid != NTMP_NULL_ENTRY_ID) {
-			ntmp_isct_operate_entry(cbdrs, isct_eid,
-						NTMP_CMD_DELETE, NULL);
-			ntmp_clear_eid_bitmap(ntmp->isct_eid_bitmap, isct_eid);
-		}
+	if (rule->isct_eid != NTMP_NULL_ENTRY_ID) {
+		ntmp_isct_operate_entry(cbdrs, rule->isct_eid,
+					NTMP_CMD_DELETE, NULL);
+		ntmp_clear_eid_bitmap(ntmp->isct_eid_bitmap, rule->isct_eid);
 	}
 
 	netc_free_flower_police_tbl(ntmp, police_tbl);
@@ -831,17 +850,12 @@ static int netc_trap_redirect_flower_stat(struct ntmp_priv *ntmp,
 					  u64 *drop_cnt)
 {
 	struct ntmp_ipft_entry *ipft_entry = rule->key_tbl->ipft_entry;
-	struct ntmp_ist_entry *ist_entry = rule->key_tbl->ist_entry;
 	struct ntmp_ipft_entry *ipft_query __free(kfree) = NULL;
-	u32 isct_eid = NTMP_NULL_ENTRY_ID;
 	struct isct_stse_data stse = {0};
 	int err;
 
-	if (ist_entry)
-		isct_eid = le32_to_cpu(ist_entry->cfge.isc_eid);
-
-	if (isct_eid != NTMP_NULL_ENTRY_ID) {
-		err = ntmp_isct_operate_entry(&ntmp->cbdrs, isct_eid,
+	if (rule->isct_eid != NTMP_NULL_ENTRY_ID) {
+		err = ntmp_isct_operate_entry(&ntmp->cbdrs, rule->isct_eid,
 					      NTMP_CMD_QU, &stse);
 		if (err)
 			return err;

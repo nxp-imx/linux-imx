@@ -55,12 +55,17 @@ static int enetc_setup_mac_address(struct device_node *np, struct enetc_pf *pf,
 				   int si)
 {
 	struct device *dev = &pf->si->pdev->dev;
+	struct net_device *ndev = pf->si->ndev;
 	struct enetc_hw *hw = &pf->si->hw;
 	u8 mac_addr[ETH_ALEN] = { 0 };
 	int err;
 
+	/* (0) try to get the MAC address from netdev */
+	if (ndev && ndev->dev_addr && is_valid_ether_addr(ndev->dev_addr))
+		memcpy(mac_addr, ndev->dev_addr, ETH_ALEN);
+
 	/* (1) try to get the MAC address from the device tree */
-	if (np) {
+	if (is_zero_ether_addr(mac_addr) && np) {
 		err = of_get_mac_address(np, mac_addr);
 		if (err == -EPROBE_DEFER)
 			return err;
@@ -509,7 +514,7 @@ static int enetc_imdio_create(struct enetc_pf *pf)
 		}
 	} else {
 		switch (pf->si->revision) {
-		case NETC_REVISION_4_1:
+		case ENETC_REV_4_1:
 			xpcs_ver = DW_XPCS_VER_MX95;
 			break;
 		default:
@@ -664,7 +669,6 @@ static u16 enetc_msg_pf_set_vf_primary_mac_addr(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct device *dev = &pf->si->pdev->dev;
 	struct enetc_msg_mac_exact_filter *msg;
-	union enetc_pf_msg pf_msg;
 	char *addr;
 
 	msg = (struct enetc_msg_mac_exact_filter *)msg_swbd->vaddr;
@@ -673,17 +677,14 @@ static u16 enetc_msg_pf_set_vf_primary_mac_addr(struct enetc_pf *pf, int vf_id)
 		dev_warn(dev, "Attempt to override PF set mac addr for VF%d\n",
 			 vf_id);
 		if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
-			pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
-			return pf_msg.code;
+			return ENETC_MSG_CODE_PERMISSION_DENY;
 		}
 	}
 
 	if (enetc_set_si_hw_addr(pf, vf_id + 1, addr))
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-	else
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static struct enetc_mac_list_entry
@@ -729,33 +730,46 @@ static void enetc_mac_list_del_matched_entries(struct enetc_pf *pf, u16 si_bit,
 	}
 }
 
+static bool enetc_mac_list_is_available(struct enetc_pf *pf,
+					struct enetc_mac_entry *mac,
+					int mac_cnt)
+{
+	int max_num_mfe = pf->caps.mac_filter_num;
+	struct enetc_mac_list_entry *entry;
+	int cur_num_mfe = pf->num_mac_fe;
+	int i, new_mac_cnt = 0;
+
+	if (mac_cnt > max_num_mfe)
+		return false;
+
+	/* Check MAC filter table whether has enough available entries */
+	for (i = 0; i < mac_cnt; i++) {
+		entry = enetc_mac_list_lookup_entry(pf, mac[i].addr);
+		if (!entry)
+			new_mac_cnt++;
+	}
+
+	if ((cur_num_mfe + new_mac_cnt) > max_num_mfe)
+		return false;
+
+	return true;
+}
+
 int enetc_pf_set_mac_exact_filter(struct enetc_pf *pf, int si_id,
 				  struct enetc_mac_entry *mac,
 				  int mac_cnt)
 {
-	int mf_max_num = pf->caps.mac_filter_num;
 	struct enetc_mac_list_entry *entry;
 	struct maft_entry_data data = {0};
 	struct enetc_si *si = pf->si;
-	int i = 0, used_cnt = 0;
 	u16 si_bit = BIT(si_id);
-	int mf_num;
+	int i, mf_num;
 
 	guard(mutex)(&pf->mac_list_lock);
 
 	/* Check MAC filter table whether has enough available entries */
-	hlist_for_each_entry(entry, &pf->mac_list, node) {
-		for (i = 0; i < mac_cnt; i++) {
-			if (ether_addr_equal(entry->mfe.mac, mac[i].addr)) {
-				used_cnt++;
-
-				if (mf_max_num - used_cnt < mac_cnt)
-					return -ENOSPC;
-
-				break;
-			}
-		}
-	}
+	if (!enetc_mac_list_is_available(pf, mac, mac_cnt))
+		return -ENOSPC;
 
 	mf_num = pf->num_mac_fe;
 	/* Update mac_list */
@@ -797,14 +811,14 @@ static u16 enetc_msg_pf_add_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_mac_exact_filter *msg;
 	struct enetc_si *si = pf->si;
-	union enetc_pf_msg pf_msg;
 	bool no_resource = false;
 	int err;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
+
+	if (!enetc_pf_is_vf_trusted(pf, vf_id))
+		return ENETC_MSG_CODE_PERMISSION_DENY;
 
 	msg = (struct enetc_msg_mac_exact_filter *)msg_swbd->vaddr;
 	if (msg->mac_cnt > pf->caps.mac_filter_num) {
@@ -818,15 +832,11 @@ static u16 enetc_msg_pf_add_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 		no_resource = true;
 
 no_resource_check:
-	if (no_resource) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_MAC_FILTER;
-		pf_msg.class_code = ENETC_PF_RC_MAC_FILTER_NO_RESOURCE;
-		return pf_msg.code;
-	}
+	if (no_resource)
+		return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_MAC_FILTER,
+				      ENETC_PF_RC_MAC_FILTER_NO_RESOURCE);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static int enetc_msg_validate_delete_macs(struct enetc_pf *pf, u16 si_bit,
@@ -855,13 +865,10 @@ static u16 enetc_msg_pf_del_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 	struct maft_entry_data data = {0};
 	struct enetc_si *si = pf->si;
 	u16 si_bit = BIT(vf_id + 1);
-	union enetc_pf_msg pf_msg;
 	int i, mf_num, err;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	msg = (struct enetc_msg_mac_exact_filter *)msg_swbd->vaddr;
 
@@ -869,11 +876,9 @@ static u16 enetc_msg_pf_del_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 
 	err = enetc_msg_validate_delete_macs(pf, si_bit, msg->mac,
 					     msg->mac_cnt);
-	if (err) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_MAC_FILTER;
-		pf_msg.class_code = ENETC_PF_RC_MAC_FILTER_MAC_NOT_FOUND;
-		return pf_msg.code;
-	}
+	if (err)
+		return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_MAC_FILTER,
+				      ENETC_PF_RC_MAC_FILTER_MAC_NOT_FOUND);
 
 	mf_num = pf->num_mac_fe;
 	enetc_mac_list_del_matched_entries(pf, si_bit, msg->mac,
@@ -890,9 +895,7 @@ static u16 enetc_msg_pf_del_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 		ntmp_maft_add_entry(&si->ntmp.cbdrs, i++, &data);
 	}
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
@@ -901,27 +904,22 @@ static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
 	struct device *dev = &pf->si->pdev->dev;
 	struct enetc_msg_mac_hash_filter *msg;
 	struct enetc_hw *hw = &pf->si->hw;
-	union enetc_pf_msg pf_msg;
 	int si_id = vf_id + 1;
 	u64 hash_tbl;
 
-	if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
-		return pf_msg.code;
-	}
+	if (!enetc_pf_is_vf_trusted(pf, vf_id))
+		return ENETC_MSG_CODE_PERMISSION_DENY;
 
 	if (!pf->hw_ops->set_si_mac_hash_filter) {
 		dev_err(dev, "MAC hash filter is not supported\n");
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 
 	msg = (struct enetc_msg_mac_hash_filter *)msg_swbd->vaddr;
 	/* Currently, hardware only supports 64 bits table size */
 	if (msg->size != ENETC_MAC_HASH_TABLE_SIZE_64) {
 		dev_err(dev, "MAC hash table size exceeds 64 bits\n");
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 
 	if (msg->type == ENETC_MAC_FILTER_TYPE_UC) {
@@ -937,9 +935,7 @@ static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
 		pf->hw_ops->set_si_mac_hash_filter(hw, si_id, MC, hash_tbl);
 	}
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static bool enetc_msg_mac_type_check(int type, const u8 *addr)
@@ -1012,19 +1008,14 @@ static u16 enetc_msg_pf_flush_vf_mac_entries(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_mac_filter_flush *msg;
 	struct enetc_si *si = pf->si;
-	union enetc_pf_msg pf_msg;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	msg = (struct enetc_msg_mac_filter_flush *)msg_swbd->vaddr;
 	enetc_pf_flush_si_mac_filter(pf, vf_id + 1, msg->type);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_pf_set_vf_mac_promisc_mode(struct enetc_pf *pf, int vf_id)
@@ -1032,15 +1023,12 @@ static u16 enetc_msg_pf_set_vf_mac_promisc_mode(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_mac_promsic_mode *msg;
 	struct enetc_hw *hw = &pf->si->hw;
-	union enetc_pf_msg pf_msg;
 	bool promisc_mode = false;
 	int si_id = vf_id + 1;
 	int mac_type;
 
-	if (!pf->hw_ops->set_si_mac_promisc) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (!pf->hw_ops->set_si_mac_promisc)
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	msg = (struct enetc_msg_mac_promsic_mode *)msg_swbd->vaddr;
 	if (msg->type == ENETC_MAC_FILTER_TYPE_UC)
@@ -1051,11 +1039,8 @@ static u16 enetc_msg_pf_set_vf_mac_promisc_mode(struct enetc_pf *pf, int vf_id)
 		mac_type = ENETC_MAC_FILTER_TYPE_ALL;
 
 	if (msg->promisc_mode == ENETC_MAC_PROMISC_MODE_ENABLE) {
-		if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
-			pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
-
-			return pf_msg.code;
-		}
+		if (!enetc_pf_is_vf_trusted(pf, vf_id))
+			return ENETC_MSG_CODE_PERMISSION_DENY;
 
 		promisc_mode = true;
 	}
@@ -1069,16 +1054,12 @@ static u16 enetc_msg_pf_set_vf_mac_promisc_mode(struct enetc_pf *pf, int vf_id)
 	if (mac_type & ENETC_MAC_FILTER_TYPE_MC)
 		pf->hw_ops->set_si_mac_promisc(hw, si_id, MC, promisc_mode);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_handle_mac_filter(struct enetc_msg_header *msg_hdr,
 				       struct enetc_pf *pf, int vf_id)
 {
-	union enetc_pf_msg pf_msg;
-
 	switch (msg_hdr->cmd_id) {
 	case ENETC_MSG_SET_PRIMARY_MAC:
 		return enetc_msg_pf_set_vf_primary_mac_addr(pf, vf_id);
@@ -1093,9 +1074,7 @@ static u16 enetc_msg_handle_mac_filter(struct enetc_msg_header *msg_hdr,
 	case ENETC_MSG_SET_MAC_PROMISC_MODE:
 		return enetc_msg_pf_set_vf_mac_promisc_mode(pf, vf_id);
 	default:
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 }
 
@@ -1222,14 +1201,11 @@ static u16 enetc_msg_pf_add_vf_vlan_entries(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_vlan_exact_filter *msg;
 	struct enetc_si *si = pf->si;
-	union enetc_pf_msg pf_msg;
 	bool no_resource = false;
 	int err;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	msg = (struct enetc_msg_vlan_exact_filter *)msg_swbd->vaddr;
 	if (msg->vlan_cnt > pf->caps.vlan_filter_num) {
@@ -1243,15 +1219,11 @@ static u16 enetc_msg_pf_add_vf_vlan_entries(struct enetc_pf *pf, int vf_id)
 		no_resource = true;
 
 no_resource_check:
-	if (no_resource) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_VLAN_FILTER;
-		pf_msg.class_code = ENETC_PF_RC_VLAN_FILTER_NO_RESOURCE;
-		return pf_msg.code;
-	}
+	if (no_resource)
+		return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_VLAN_FILTER,
+				      ENETC_PF_RC_VLAN_FILTER_NO_RESOURCE);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static int enetc_msg_validate_delete_vlans(struct enetc_pf *pf, u16 si_bit,
@@ -1280,24 +1252,19 @@ static u16 enetc_msg_pf_del_vf_vlan_entries(struct enetc_pf *pf, int vf_id)
 	struct vaft_entry_data data = {0};
 	struct enetc_si *si = pf->si;
 	u16 si_bit = BIT(vf_id + 1);
-	union enetc_pf_msg pf_msg;
 	int i, vf_num, err;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	msg = (struct enetc_msg_vlan_exact_filter *)msg_swbd->vaddr;
 	guard(mutex)(&pf->vlan_list_lock);
 
 	err = enetc_msg_validate_delete_vlans(pf, si_bit, msg->vlan,
 					      msg->vlan_cnt);
-	if (err) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_VLAN_FILTER;
-		pf_msg.class_code = ENETC_PF_RC_VLAN_FILTER_VLAN_NOT_FOUND;
-		return pf_msg.code;
-	}
+	if (err)
+		return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_VLAN_FILTER,
+				      ENETC_PF_RC_VLAN_FILTER_VLAN_NOT_FOUND);
 
 	vf_num = pf->num_vlan_fe;
 	enetc_vlan_list_del_matched_entries(pf, si_bit, msg->vlan,
@@ -1312,9 +1279,7 @@ static u16 enetc_msg_pf_del_vf_vlan_entries(struct enetc_pf *pf, int vf_id)
 		ntmp_vaft_add_entry(&si->ntmp.cbdrs, i++, &data);
 	}
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_pf_set_vf_vlan_hash_filter(struct enetc_pf *pf, int vf_id)
@@ -1323,35 +1288,28 @@ static u16 enetc_msg_pf_set_vf_vlan_hash_filter(struct enetc_pf *pf, int vf_id)
 	struct device *dev = &pf->si->pdev->dev;
 	struct enetc_msg_vlan_hash_filter *msg;
 	struct enetc_hw *hw = &pf->si->hw;
-	union enetc_pf_msg pf_msg;
 	int si_id = vf_id + 1;
 	u64 hash_tbl;
 
-	if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
-		return pf_msg.code;
-	}
+	if (!enetc_pf_is_vf_trusted(pf, vf_id))
+		return ENETC_MSG_CODE_PERMISSION_DENY;
 
 	if (!pf->hw_ops->set_si_vlan_hash_filter) {
 		dev_err(dev, "VLAN hash filter is not supported\n");
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 
 	msg = (struct enetc_msg_vlan_hash_filter *)msg_swbd->vaddr;
 	/* Currently, hardware only supports 64 bits table size */
 	if (msg->size != ENETC_VLAN_HASH_TABLE_SIZE_64) {
 		dev_err(dev, "VLAN hash table size exceeds 64 bits\n");
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 
 	hash_tbl = (u64)(msg->hash_tbl[1]) << 32 | msg->hash_tbl[0];
 	pf->hw_ops->set_si_vlan_hash_filter(hw, si_id, hash_tbl);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static void enetc_pf_flush_vlan_exact_filter(struct enetc_pf *pf, int si_id)
@@ -1402,32 +1360,24 @@ static void enetc_pf_flush_si_vlan_filter(struct enetc_pf *pf, int si_id)
 static u16 enetc_msg_pf_flush_vf_vlan_entries(struct enetc_pf *pf, int vf_id)
 {
 	struct enetc_si *si = pf->si;
-	union enetc_pf_msg pf_msg;
 
-	if (is_enetc_rev1(si)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		return pf_msg.code;
-	}
+	if (is_enetc_rev1(si))
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	enetc_pf_flush_si_vlan_filter(pf, vf_id + 1);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_pf_set_vf_vlan_promisc_mode(struct enetc_pf *pf, int vf_id)
 {
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_vlan_promsic_mode *msg;
-	union enetc_pf_msg pf_msg;
 	bool promisc_mode = false;
 	int si_id = vf_id + 1;
 
-	if (!enetc_pf_is_vf_trusted(pf, vf_id)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_PERMISSION_DENY;
-		return pf_msg.code;
-	}
+	if (!enetc_pf_is_vf_trusted(pf, vf_id))
+		return ENETC_MSG_CODE_PERMISSION_DENY;
 
 	msg = (struct enetc_msg_vlan_promsic_mode *)msg_swbd->vaddr;
 	if (msg->promisc_mode == ENETC_VLAN_PROMISC_MODE_ENABLE)
@@ -1438,16 +1388,12 @@ static u16 enetc_msg_pf_set_vf_vlan_promisc_mode(struct enetc_pf *pf, int vf_id)
 
 	enetc_set_si_vlan_promisc(pf, si_id, promisc_mode);
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-
-	return pf_msg.code;
+	return ENETC_MSG_CODE_SUCCESS;
 }
 
 static u16 enetc_msg_handle_vlan_filter(struct enetc_msg_header *msg_hdr,
 					struct enetc_pf *pf, int vf_id)
 {
-	union enetc_pf_msg pf_msg;
-
 	switch (msg_hdr->cmd_id) {
 	case ENETC_MSG_ADD_EXACT_VLAN_ENTRIES:
 		return enetc_msg_pf_add_vf_vlan_entries(pf, vf_id);
@@ -1460,24 +1406,20 @@ static u16 enetc_msg_handle_vlan_filter(struct enetc_msg_header *msg_hdr,
 	case ENETC_MSG_SET_VLAN_PROMISC_MODE:
 		return enetc_msg_pf_set_vf_vlan_promisc_mode(pf, vf_id);
 	default:
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 }
 
 static u16 enetc_msg_pf_reply_link_status(struct enetc_pf *pf)
 {
 	struct net_device *ndev = pf->si->ndev;
-	union enetc_pf_msg pf_msg;
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
 	if (netif_carrier_ok(ndev))
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_UP;
-	else
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_DOWN;
+		return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_LINK_STATUS,
+				      ENETC_PF_NC_LINK_STATUS_UP);
 
-	return pf_msg.code;
+	return ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_LINK_STATUS,
+			      ENETC_PF_NC_LINK_STATUS_DOWN);
 }
 
 int enetc_pf_send_msg(struct enetc_pf *pf, u32 msg_code, u16 ms_mask)
@@ -1502,20 +1444,19 @@ static void enetc_pf_send_link_status_msg(struct enetc_pf *pf, u16 ms_mask)
 {
 	struct device *dev = &pf->si->pdev->dev;
 	struct net_device *ndev = pf->si->ndev;
-	union enetc_pf_msg pf_msg = { 0 };
 	u32 msg_code;
 	int err;
 
 	if (!ms_mask)
 		return;
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
 	if (netif_carrier_ok(ndev))
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_UP;
+		msg_code = ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_LINK_STATUS,
+					  ENETC_PF_NC_LINK_STATUS_UP);
 	else
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_DOWN;
+		msg_code = ENETC_MSG_CODE(ENETC_MSG_CLASS_ID_LINK_STATUS,
+					  ENETC_PF_NC_LINK_STATUS_DOWN);
 
-	msg_code = pf_msg.code;
 	err = enetc_pf_send_msg(pf, msg_code, ms_mask);
 	if (err)
 		dev_err(dev, "PF notifies link status failed\n");
@@ -1525,16 +1466,12 @@ static u16 enetc_msg_register_link_status_notify(struct enetc_pf *pf, int vf_id,
 						 bool notify)
 {
 	struct enetc_hw *hw = &pf->si->hw;
-	union enetc_pf_msg pf_msg;
-	u32 msg_code, val;
+	u32 val;
 
 	pf->vf_link_status_notify[vf_id] = notify;
 
-	pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_SUCCESS;
-	msg_code = pf_msg.code;
-
 	/* Reply to VF */
-	val = ENETC_SIMSGSR_SET_MC(msg_code);
+	val = ENETC_SIMSGSR_SET_MC(ENETC_MSG_CODE_SUCCESS);
 	val |= ENETC_PSIMSGRR_MR(vf_id); /* w1c */
 	enetc_wr(hw, ENETC_PSIMSGRR, val);
 
@@ -1548,8 +1485,6 @@ static u16 enetc_msg_register_link_status_notify(struct enetc_pf *pf, int vf_id,
 static u16 enetc_msg_handle_link_status(struct enetc_msg_header *msg_hdr,
 					struct enetc_pf *pf, int vf_id)
 {
-	union enetc_pf_msg pf_msg;
-
 	switch (msg_hdr->cmd_id) {
 	case ENETC_MSG_GET_CURRENT_LINK_STATUS:
 		return enetc_msg_pf_reply_link_status(pf);
@@ -1558,25 +1493,22 @@ static u16 enetc_msg_handle_link_status(struct enetc_msg_header *msg_hdr,
 	case ENETC_MSG_UNREGISTER_LINK_CHANGE_NOTIFY:
 		return enetc_msg_register_link_status_notify(pf, vf_id, false);
 	default:
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 }
 
 static u16 enetc_msg_pf_reply_link_speed(struct enetc_pf *pf)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(pf->si->ndev);
-	struct ethtool_link_ksettings link_info = {0};
-	union enetc_pf_msg pf_msg;
+	struct ethtool_link_ksettings link_info = {};
+	union enetc_pf_msg pf_msg = {};
 
 	rtnl_lock();
 	if (!priv->phylink ||
 	    phylink_ethtool_ksettings_get(priv->phylink, &link_info)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
 		rtnl_unlock();
 
-		return pf_msg.code;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 	rtnl_unlock();
 
@@ -1626,15 +1558,27 @@ static u16 enetc_msg_pf_reply_link_speed(struct enetc_pf *pf)
 static u16 enetc_msg_handle_link_speed(struct enetc_msg_header *msg_hdr,
 				       struct enetc_pf *pf, int vf_id)
 {
-	union enetc_pf_msg pf_msg;
-
 	switch (msg_hdr->cmd_id) {
 	case ENETC_MSG_GET_CURRENT_LINK_SPEED:
 		return enetc_msg_pf_reply_link_speed(pf);
 	default:
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
+		return ENETC_MSG_CODE_NOT_SUPPORT;
+	}
+}
+
+static u16 enetc_msg_handle_ip_revision(struct enetc_msg_header *msg_hdr,
+					struct enetc_pf *pf)
+{
+	union enetc_pf_msg pf_msg;
+
+	switch (msg_hdr->cmd_id) {
+	case ENETC_MSG_GET_IP_MN:
+		pf_msg.class_id = ENETC_MSG_CLASS_ID_IP_REVISION;
+		pf_msg.class_code_u8 = pf->si->revision & 0xff;
 
 		return pf_msg.code;
+	default:
+		return ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 }
 
@@ -1660,14 +1604,12 @@ void enetc_msg_handle_rxmsg(struct enetc_pf *pf, int vf_id, u16 *msg_code)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct device *dev = &pf->si->pdev->dev;
 	struct enetc_msg_header *msg_hdr;
-	union enetc_pf_msg pf_msg;
 	u32 msg_size;
 
 	msg_hdr = (struct enetc_msg_header *)msg_swbd->vaddr;
 	msg_size = ENETC_MSG_SIZE(msg_hdr->len);
 	if (!enetc_msg_check_crc16(msg_swbd->vaddr, msg_size)) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CRC_ERROR;
-		*msg_code = pf_msg.code;
+		*msg_code = ENETC_MSG_CODE_CRC_ERROR;
 
 		dev_err(dev, "VSI to PSI Message CRC16 error\n");
 
@@ -1676,8 +1618,7 @@ void enetc_msg_handle_rxmsg(struct enetc_pf *pf, int vf_id, u16 *msg_code)
 
 	/* Currently, we don't support asynchronous action */
 	if (msg_hdr->cookie) {
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		*msg_code = pf_msg.code;
+		*msg_code = ENETC_MSG_CODE_NOT_SUPPORT;
 
 		dev_err(dev, "Cookie field is not supported yet\n");
 
@@ -1697,9 +1638,11 @@ void enetc_msg_handle_rxmsg(struct enetc_pf *pf, int vf_id, u16 *msg_code)
 	case ENETC_MSG_CLASS_ID_LINK_SPEED:
 		*msg_code = enetc_msg_handle_link_speed(msg_hdr, pf, vf_id);
 		break;
+	case ENETC_MSG_CLASS_ID_IP_REVISION:
+		*msg_code = enetc_msg_handle_ip_revision(msg_hdr, pf);
+		break;
 	default:
-		pf_msg.class_id = ENETC_MSG_CLASS_ID_CMD_NOT_SUPPORT;
-		*msg_code = pf_msg.code;
+		*msg_code = ENETC_MSG_CODE_NOT_SUPPORT;
 	}
 }
 
@@ -1718,11 +1661,13 @@ int enetc_sriov_configure(struct pci_dev *pdev, int num_vfs)
 		}
 
 		err = pci_enable_sriov(pdev, num_vfs);
-		if (err < 0)
+		if (err < 0) {
 			dev_err(&pdev->dev,
 				"pci_enable_sriov err %d\n", err);
+			return err;
+		}
 
-		return err;
+		return num_vfs;
 	}
 
 	si = pci_get_drvdata(pdev);

@@ -83,6 +83,7 @@ typedef struct
     uint8_t                     macId;
     uint32_t                    exceptions;
     struct memac_cfg            *p_MemacDriverParam;
+    bool                        fixed;
 } t_Memac;
 
 

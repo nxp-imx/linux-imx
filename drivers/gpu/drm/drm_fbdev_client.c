@@ -139,3 +139,6 @@ err_drm_client_init:
 	return ret;
 }
 EXPORT_SYMBOL(drm_fbdev_client_setup);
+
+MODULE_DESCRIPTION("DRM fbdev emulation helpers");
+MODULE_LICENSE("GPL");

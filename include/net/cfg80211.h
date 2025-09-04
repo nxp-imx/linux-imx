@@ -128,6 +128,8 @@ struct wiphy;
  *	even if it is otherwise disabled.
  * @IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP: Allow using this channel for AP operation
  *	with very low power (VLP), even if otherwise set to NO_IR.
+ * @IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY: Allow activity on a 20 MHz channel,
+ *	even if otherwise set to NO_IR.
  */
 enum ieee80211_channel_flags {
 	IEEE80211_CHAN_DISABLED			= BIT(0),
@@ -156,6 +158,7 @@ enum ieee80211_channel_flags {
 	IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT	= BIT(23),
 	IEEE80211_CHAN_CAN_MONITOR		= BIT(24),
 	IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP	= BIT(25),
+	IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY     = BIT(26),
 };
 
 #define IEEE80211_CHAN_NO_HT40 \
@@ -9765,6 +9768,11 @@ void cfg80211_links_removed(struct net_device *dev, u16 link_mask);
  * struct cfg80211_mlo_reconf_done_data - MLO reconfiguration data
  * @buf: MLO Reconfiguration Response frame (header + body)
  * @len: length of the frame data
+ * @driver_initiated: Indicates whether the add links request is initiated by
+ *	driver. This is set to true when the link reconfiguration request
+ *	initiated by driver due to AP link recommendation requests
+ *	(Ex: BTM (BSS Transition Management) request) handling offloaded to
+ *	driver.
  * @added_links: BIT mask of links successfully added to the association
  * @links: per-link information indexed by link ID
  * @links.bss: the BSS that MLO reconfiguration was requested for, ownership of
@@ -9777,6 +9785,7 @@ void cfg80211_links_removed(struct net_device *dev, u16 link_mask);
 struct cfg80211_mlo_reconf_done_data {
 	const u8 *buf;
 	size_t len;
+	bool driver_initiated;
 	u16 added_links;
 	struct {
 		struct cfg80211_bss *bss;

@@ -10,7 +10,7 @@
 //!
 //! The module has several different Rust types that all correspond to the C type called
 //! `vm_area_struct`. The different structs represent what kind of access you have to the VMA, e.g.
-//! [`VmAreaRef`] is used when you hold the mmap or vma read lock. Using the appropriate struct
+//! [`VmaRef`] is used when you hold the mmap or vma read lock. Using the appropriate struct
 //! ensures that you can't, for example, accidentally call a function that requires holding the
 //! write lock when you only hold the read lock.
 
@@ -32,13 +32,13 @@ use core::ops::Deref;
 ///
 /// The caller must hold the mmap read lock or the vma read lock.
 #[repr(transparent)]
-pub struct VmAreaRef {
+pub struct VmaRef {
     vma: Opaque<bindings::vm_area_struct>,
 }
 
 // Methods you can call when holding the mmap or vma read lock (or stronger). They must be usable
 // no matter what the vma flags are.
-impl VmAreaRef {
+impl VmaRef {
     /// Access a virtual memory area given a raw pointer.
     ///
     /// # Safety
@@ -73,7 +73,7 @@ impl VmAreaRef {
     pub fn flags(&self) -> vm_flags_t {
         // SAFETY: By the type invariants, the caller holds at least the mmap read lock, so this
         // access is not a data race.
-        unsafe { (*self.as_ptr()).__bindgen_anon_2.vm_flags as _ }
+        unsafe { (*self.as_ptr()).__bindgen_anon_2.vm_flags }
     }
 
     /// Returns the (inclusive) start address of the virtual memory area.
@@ -81,7 +81,7 @@ impl VmAreaRef {
     pub fn start(&self) -> usize {
         // SAFETY: By the type invariants, the caller holds at least the mmap read lock, so this
         // access is not a data race.
-        unsafe { (*self.as_ptr()).__bindgen_anon_1.__bindgen_anon_1.vm_start as _ }
+        unsafe { (*self.as_ptr()).__bindgen_anon_1.__bindgen_anon_1.vm_start }
     }
 
     /// Returns the (exclusive) end address of the virtual memory area.
@@ -89,7 +89,7 @@ impl VmAreaRef {
     pub fn end(&self) -> usize {
         // SAFETY: By the type invariants, the caller holds at least the mmap read lock, so this
         // access is not a data race.
-        unsafe { (*self.as_ptr()).__bindgen_anon_1.__bindgen_anon_1.vm_end as _ }
+        unsafe { (*self.as_ptr()).__bindgen_anon_1.__bindgen_anon_1.vm_end }
     }
 
     /// Zap pages in the given page range.
@@ -124,27 +124,22 @@ impl VmAreaRef {
         // sufficient for this method call. This method has no requirements on the vma flags. The
         // address range is checked to be within the vma.
         unsafe {
-            bindings::zap_page_range_single(
-                self.as_ptr(),
-                address as _,
-                size as _,
-                core::ptr::null_mut(),
-            )
+            bindings::zap_page_range_single(self.as_ptr(), address, size, core::ptr::null_mut())
         };
     }
 
-    /// If the [`VM_MIXEDMAP`] flag is set, returns a [`VmAreaMixedMap`] to this VMA, otherwise
+    /// If the [`VM_MIXEDMAP`] flag is set, returns a [`VmaMixedMap`] to this VMA, otherwise
     /// returns `None`.
     ///
     /// This can be used to access methods that require [`VM_MIXEDMAP`] to be set.
     ///
     /// [`VM_MIXEDMAP`]: flags::MIXEDMAP
     #[inline]
-    pub fn as_mixedmap_vma(&self) -> Option<&VmAreaMixedMap> {
+    pub fn as_mixedmap_vma(&self) -> Option<&VmaMixedMap> {
         if self.flags() & flags::MIXEDMAP != 0 {
             // SAFETY: We just checked that `VM_MIXEDMAP` is set. All other requirements are
-            // satisfied by the type invariants of `VmAreaRef`.
-            Some(unsafe { VmAreaMixedMap::from_raw(self.as_ptr()) })
+            // satisfied by the type invariants of `VmaRef`.
+            Some(unsafe { VmaMixedMap::from_raw(self.as_ptr()) })
         } else {
             None
         }
@@ -155,7 +150,7 @@ impl VmAreaRef {
 ///
 /// It represents an area of virtual memory.
 ///
-/// This struct is identical to [`VmAreaRef`] except that it must only be used when the
+/// This struct is identical to [`VmaRef`] except that it must only be used when the
 /// [`VM_MIXEDMAP`] flag is set on the vma.
 ///
 /// # Invariants
@@ -165,21 +160,21 @@ impl VmAreaRef {
 ///
 /// [`VM_MIXEDMAP`]: flags::MIXEDMAP
 #[repr(transparent)]
-pub struct VmAreaMixedMap {
-    vma: VmAreaRef,
+pub struct VmaMixedMap {
+    vma: VmaRef,
 }
 
-// Make all `VmAreaRef` methods available on `VmAreaMixedMap`.
-impl Deref for VmAreaMixedMap {
-    type Target = VmAreaRef;
+// Make all `VmaRef` methods available on `VmaMixedMap`.
+impl Deref for VmaMixedMap {
+    type Target = VmaRef;
 
     #[inline]
-    fn deref(&self) -> &VmAreaRef {
+    fn deref(&self) -> &VmaRef {
         &self.vma
     }
 }
 
-impl VmAreaMixedMap {
+impl VmaMixedMap {
     /// Access a virtual memory area given a raw pointer.
     ///
     /// # Safety
@@ -199,36 +194,36 @@ impl VmAreaMixedMap {
     pub fn vm_insert_page(&self, address: usize, page: &Page) -> Result {
         // SAFETY: By the type invariant of `Self` caller has read access and has verified that
         // `VM_MIXEDMAP` is set. By invariant on `Page` the page has order 0.
-        to_result(unsafe { bindings::vm_insert_page(self.as_ptr(), address as _, page.as_ptr()) })
+        to_result(unsafe { bindings::vm_insert_page(self.as_ptr(), address, page.as_ptr()) })
     }
 }
 
 /// A configuration object for setting up a VMA in an `f_ops->mmap()` hook.
 ///
 /// The `f_ops->mmap()` hook is called when a new VMA is being created, and the hook is able to
-/// configure the VMA in various ways to fit the driver that owns it. Using `VmAreaNew` indicates
-/// that you are allowed to perform operations on the VMA that can only be performed before the VMA
-/// is fully initialized.
+/// configure the VMA in various ways to fit the driver that owns it. Using `VmaNew` indicates that
+/// you are allowed to perform operations on the VMA that can only be performed before the VMA is
+/// fully initialized.
 ///
 /// # Invariants
 ///
 /// For the duration of 'a, the referenced vma must be undergoing initialization in an
 /// `f_ops->mmap()` hook.
-pub struct VmAreaNew {
-    vma: VmAreaRef,
+pub struct VmaNew {
+    vma: VmaRef,
 }
 
-// Make all `VmAreaRef` methods available on `VmAreaNew`.
-impl Deref for VmAreaNew {
-    type Target = VmAreaRef;
+// Make all `VmaRef` methods available on `VmaNew`.
+impl Deref for VmaNew {
+    type Target = VmaRef;
 
     #[inline]
-    fn deref(&self) -> &VmAreaRef {
+    fn deref(&self) -> &VmaRef {
         &self.vma
     }
 }
 
-impl VmAreaNew {
+impl VmaNew {
     /// Access a virtual memory area given a raw pointer.
     ///
     /// # Safety
@@ -252,7 +247,7 @@ impl VmAreaNew {
         flags &= !unset;
 
         // SAFETY: This is not a data race: the vma is undergoing initial setup, so it's not yet
-        // shared. Additionally, `VmAreaNew` is `!Sync`, so it cannot be used to write in parallel.
+        // shared. Additionally, `VmaNew` is `!Sync`, so it cannot be used to write in parallel.
         // The caller promises that this does not set the flags to an invalid value.
         unsafe { (*self.as_ptr()).__bindgen_anon_2.__vm_flags = flags };
     }
@@ -262,13 +257,13 @@ impl VmAreaNew {
     /// This enables the vma to contain both `struct page` and pure PFN pages. Returns a reference
     /// that can be used to call `vm_insert_page` on the vma.
     #[inline]
-    pub fn set_mixedmap(&self) -> &VmAreaMixedMap {
+    pub fn set_mixedmap(&self) -> &VmaMixedMap {
         // SAFETY: We don't yet provide a way to set VM_PFNMAP, so this cannot put the flags in an
         // invalid state.
         unsafe { self.update_flags(flags::MIXEDMAP, 0) };
 
         // SAFETY: We just set `VM_MIXEDMAP` on the vma.
-        unsafe { VmAreaMixedMap::from_raw(self.vma.as_ptr()) }
+        unsafe { VmaMixedMap::from_raw(self.vma.as_ptr()) }
     }
 
     /// Set the `VM_IO` flag on this vma.
@@ -391,7 +386,7 @@ impl VmAreaNew {
 #[doc(inline)]
 pub use bindings::vm_flags_t;
 
-/// All possible flags for [`VmAreaRef`].
+/// All possible flags for [`VmaRef`].
 pub mod flags {
     use super::vm_flags_t;
     use crate::bindings;

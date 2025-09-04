@@ -117,6 +117,8 @@
 							compatible = "ite,it6263";
 							reg = <0x4c>;
 
+							de-ssc-enable;
+
 							port {
 								it6263_in: endpoint {
 									remote-endpoint = <&max96752_lvds_a_out>;

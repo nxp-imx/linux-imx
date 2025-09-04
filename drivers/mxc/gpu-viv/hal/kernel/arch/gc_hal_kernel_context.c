@@ -2786,7 +2786,7 @@ _DestroyContext(IN gckCONTEXT Context)
             /* Free state delta map. */
             if (buffer->logical != gcvNULL) {
                 gckKERNEL kernel = Context->hardware->kernel;
-
+                gckMMU    mmu    = gcvNULL;
 #if gcdCAPTURE_ONLY_MODE
                 gceDATABASE_TYPE dbType;
                 gctUINT32        processID;
@@ -2796,8 +2796,9 @@ _DestroyContext(IN gckCONTEXT Context)
                 gcmkVERIFY_OK(gckVIDMEM_NODE_UnlockCPU(kernel, buffer->videoMem,
                                                        0, gcvFALSE, gcvFALSE));
 
+                gcmkONERROR(gckKERNEL_GetCurrentMMU(kernel, gcvTRUE, 0, &mmu));
                 /* Synchronized unlock. */
-                gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(kernel, buffer->videoMem, 0, gcvNULL));
+                gcmkVERIFY_OK(gckVIDMEM_NODE_Unlock(kernel, buffer->videoMem, mmu, gcvNULL));
 
 #if gcdCAPTURE_ONLY_MODE
                 /* Encode surface type and pool to database type. */
@@ -2842,7 +2843,7 @@ _AllocateContextBuffer(IN gckCONTEXT Context, IN gcsCONTEXT_PTR Buffer)
     gckKERNEL kernel    = Context->hardware->kernel;
     gcePOOL   pool      = gcvPOOL_DEFAULT;
     gctSIZE_T totalSize = Context->totalSize;
-    gctUINT32 allocFlag = 0;
+    gctUINT32 allocFlag =  gcvALLOC_FLAG_FROM_USER;
 
 #if gcdCAPTURE_ONLY_MODE
     gceDATABASE_TYPE dbType;

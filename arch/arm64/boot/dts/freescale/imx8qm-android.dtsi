@@ -41,7 +41,7 @@
 	};
 
 	reset_ctrl {
-		compatible = "imx8q,resetctrl";
+		compatible = "nxp,imx8q-resetctrl";
 		status = "okay";
 	};
 

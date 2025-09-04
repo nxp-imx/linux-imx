@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx943-evk.dts"
+
+/delete-node/ &netc_blk_ctrl;
+/delete-node/ &pinctrl_emdio;
+/delete-node/ &pinctrl_eth3;
+/delete-node/ &pinctrl_eth4;
+/delete-node/ &pinctrl_switch;
+
+/ {
+	aliases {
+		/delete-property/ ethernet0;
+		/delete-property/ ethernet1;
+		/delete-property/ ethernet2;
+	};
+
+	soc {
+		netc_bus0: pcie@88224000 {
+			compatible = "nxp,netc-rpmsg-pci-host-ecam";
+			reg = <0x0 0x88224000 0x0 0x100000>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			linux,pci-domain = <0>;
+			bus-range = <0x0 0x0>;
+			msi-map = <0x00 &its 0x68 0x1>,
+				  <0x40 &its 0x69 0x1>,
+				  <0x80 &its 0x6a 0x1>,
+				  <0xC0 &its 0x6b 0x1>;
+			ranges = <0x02000000 0x0 0x4cd40000  0x0 0x4cd40000  0x0 0x40000
+				  0x02000000 0x0 0x4ce50000  0x0 0x4ce50000  0x0 0x30000
+				  0x42000000 0x0 0x4ce80000  0x0 0x4ce80000  0x0 0x30000>;
+			power-domains = <&scmi_devpd IMX94_PD_NETC>;
+
+			enetc3: ethernet@0,0 {
+				compatible = "pci1131,080b";
+				reg = <0x0 0 0 0 0>;
+			};
+		};
+
+	};
+};
+
+&lpi2c3 {
+	status = "disabled";
+};
+
+&lpi2c6 {
+	status = "disabled";
+};

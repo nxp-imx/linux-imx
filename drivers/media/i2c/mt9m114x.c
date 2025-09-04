@@ -3,7 +3,7 @@
  * mt9m114.c Aptina MT9M114 sensor driver
  *
  * Copyright (c) 2012 Analog Devices Inc.
- * Copyright 2022 NXP
+ * Copyright 2022-2025 NXP
  */
 
 #include <linux/delay.h>
@@ -350,22 +350,22 @@ static const struct mt9m114_reg mt9m114_regs_vga[] = {
 
 static const struct mt9m114_reg mt9m114_regs_wvga[] = {
 	{ MT9M114_LOGICAL_ADDRESS_ACCESS,                0x1000, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_Y_ADDR_START,           0x00F4, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_X_ADDR_START,           0x00F4, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_Y_ADDR_END,             0x02DB, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_X_ADDR_END,             0x041B, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_Y_ADDR_START,           0x0004, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_X_ADDR_START,           0x0004, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_Y_ADDR_END,             0x03CB, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_X_ADDR_END,             0x050B, 2 },
 	{ MT9M114_CAM_SENSOR_CFG_ROW_SPEED,              0x0001, 2 },
 	{ MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MIN,    0x00DB, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MAX,    0x045F, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_FRAME_LENGTH_LINES,     0x0500, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_LINE_LENGTH_PCK,        0x04E2, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_FINE_INTEG_TIME_MAX,    0x05B3, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_FRAME_LENGTH_LINES,     0x03EE, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_LINE_LENGTH_PCK,        0x0636, 2 },
 	{ MT9M114_CAM_SENSOR_CFG_FINE_CORRECTION,        0x0060, 2 },
-	{ MT9M114_CAM_SENSOR_CFG_CPIPE_LAST_ROW,         0x01E3, 2 },
+	{ MT9M114_CAM_SENSOR_CFG_CPIPE_LAST_ROW,         0x03C3, 2 },
 	{ MT9M114_CAM_SENSOR_CFG_REG_0_DATA,             0x0020, 2 },
 	{ MT9M114_CAM_CROP_WINDOW_XOFFSET,               0x0000, 2 },
 	{ MT9M114_CAM_CROP_WINDOW_YOFFSET,               0x0000, 2 },
-	{ MT9M114_CAM_CROP_WINDOW_WIDTH,                 0x0320, 2 },
-	{ MT9M114_CAM_CROP_WINDOW_HEIGHT,                0x01E0, 2 },
+	{ MT9M114_CAM_CROP_WINDOW_WIDTH,                 0x0500, 2 },
+	{ MT9M114_CAM_CROP_WINDOW_HEIGHT,                0x03C0, 2 },
 	{ MT9M114_CAM_CROP_CROPMODE,                     0x03,   1 },
 	{ MT9M114_CAM_OUTPUT_WIDTH,                      0x0320, 2 },
 	{ MT9M114_CAM_OUTPUT_HEIGHT,                     0x01E0, 2 },

@@ -1166,6 +1166,13 @@
 				compatible = "fsl,imx95-flexcan";
 				reg = <0x443a0000 0x10000>;
 				interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&scmi_clk IMX94_CLK_BUSAON>,
+					 <&scmi_clk IMX94_CLK_CAN1>;
+				clock-names = "ipg", "per";
+				assigned-clocks = <&scmi_clk IMX94_CLK_CAN1>;
+				assigned-clock-parents = <&scmi_clk IMX94_CLK_SYSPLL1_PFD1_DIV2>;
+				assigned-clock-rates = <80000000>;
+				fsl,clk-source = /bits/ 8 <0>;
 				status = "disabled";
 			};
 
@@ -1302,12 +1309,11 @@
 		};
 
 		v2x_mu2: mailbox@47320000 {
-			compatible = "fsl,imx94-mu-v2x";
+			compatible = "fsl,imx94-mu-v2x-fce";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 384 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
-			status = "disabled";
 		};
 
 		v2x_mu3: mailbox@47330000 {
@@ -1655,8 +1661,10 @@
 			bus-range = <0x00 0xff>;
 			num-lanes = <1>;
 			num-viewport = <8>;
-			interrupts = <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "msi";
+			interrupts = <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "msi", "pme", "intr";
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 0x7>;
 			interrupt-map = <0 0 0 1 &gic 0 0 GIC_SPI 360 IRQ_TYPE_LEVEL_HIGH>,

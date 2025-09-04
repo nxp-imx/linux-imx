@@ -719,6 +719,7 @@ struct folio *vm_normal_folio_pmd(struct vm_area_struct *vma,
 		return page_folio(page);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(vm_normal_folio_pmd);
 #endif
 
 static void restore_exclusive_pte(struct vm_area_struct *vma,
@@ -2838,11 +2839,11 @@ static int apply_to_pte_range(struct mm_struct *mm, pmd_t *pmd,
 	if (fn) {
 		do {
 			if (create || !pte_none(ptep_get(pte))) {
-				err = fn(pte++, addr, data);
+				err = fn(pte, addr, data);
 				if (err)
 					break;
 			}
-		} while (addr += PAGE_SIZE, addr != end);
+		} while (pte++, addr += PAGE_SIZE, addr != end);
 	}
 	*mask |= PGTBL_PTE_MODIFIED;
 
@@ -3739,6 +3740,8 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		return wp_page_shared(vmf, folio);
 	}
 
+	trace_android_vh_do_wp_page(folio);
+
 	/*
 	 * Private mapping: create an exclusive anonymous page copy if reuse
 	 * is impossible. We might miss VM_WRITE for FOLL_FORCE handling.
@@ -4564,6 +4567,7 @@ check_folio:
 		pte = pte_mksoft_dirty(pte);
 	if (pte_swp_uffd_wp(vmf->orig_pte))
 		pte = pte_mkuffd_wp(pte);
+	trace_android_vh_do_swap_page(folio, &pte, vmf, entry);
 
 	/*
 	 * Same logic as in do_wp_page(); however, optimize for pages that are
@@ -4686,7 +4690,7 @@ static struct folio *alloc_anon_folio(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	unsigned long orders;
-	struct folio *folio;
+	struct folio *folio = NULL;
 	unsigned long addr;
 	pte_t *pte;
 	gfp_t gfp;
@@ -4735,10 +4739,16 @@ static struct folio *alloc_anon_folio(struct vm_fault *vmf)
 
 	/* Try allocating the highest of the remaining orders. */
 	gfp = vma_thp_gfp_mask(vma);
+
+	trace_android_vh_mm_customize_alloc_anon_thp(&gfp, &orders, &order, &folio);
+	if (folio)
+		goto allocated;
+
 	while (orders) {
 		addr = ALIGN_DOWN(vmf->address, PAGE_SIZE << order);
 		folio = vma_alloc_folio(gfp, order, vma, addr, true);
 		if (folio) {
+allocated:
 			if (mem_cgroup_charge(folio, vma->vm_mm, gfp)) {
 				count_mthp_stat(order, MTHP_STAT_ANON_FAULT_FALLBACK_CHARGE);
 				folio_put(folio);
@@ -4828,6 +4838,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 */
 	__folio_mark_uptodate(folio);
 
+	trace_android_vh_do_anonymous_page(vma, folio);
 	entry = mk_pte(&folio->page, vma->vm_page_prot);
 	entry = pte_sw_mkyoung(entry);
 	if (vma->vm_flags & VM_WRITE)
