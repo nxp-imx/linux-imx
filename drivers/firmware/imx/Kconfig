@@ -58,7 +58,7 @@ config IMX_SCMI_MISC_DRV
 
 config IMX_SEC_ENCLAVE
 	tristate "i.MX Embedded Secure Enclave - EdgeLock Enclave Firmware driver."
-	depends on IMX_MBOX && ARCH_MXC && ARM64
+	depends on NVMEM_IMX_OCOTP_SCU && IMX_MBOX && ARCH_MXC && ARM64
 	select FW_LOADER
 	default m if ARCH_MXC
 
