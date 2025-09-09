@@ -11,6 +11,13 @@
 #include <linux/videodev2.h>
 #include "neoisp.h"
 
+/* \todo : Must be in videodev2.h uapi file */
+/* Vendor specific - used for NXP NEOISP sub-system */
+#define V4L2_META_FMT_NEO_ISP_PARAMS v4l2_fourcc('N', 'N', 'I', 'P') /* NXP NEOISP Parameters */
+#define V4L2_META_FMT_NEO_ISP_EXT_PARAMS v4l2_fourcc('N', 'N', 'E', 'P') /* NXP NEOISP Ext Params */
+#define V4L2_META_FMT_NEO_ISP_STATS v4l2_fourcc('N', 'N', 'I', 'S') /* NXP NEOISP Statistics */
+#define V4L2_META_FMT_NEO_ISP_EXT_STATS v4l2_fourcc('N', 'N', 'E', 'S') /* NXP NEOISP Ext Stats */
+
 const struct v4l2_frmsize_stepwise neoisp_frmsize_stepwise = {
 	.min_width = NEOISP_MIN_W,
 	.min_height = NEOISP_MIN_H,
