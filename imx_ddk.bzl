@@ -3420,6 +3420,19 @@ def define_imx_ddk():
         kernel_build = ":imx_ddk_modules",
     )
 
+    ddk_module(
+        name = "pwm-fan",
+        out = "pwm-fan.ko",
+        srcs = ["drivers/hwmon/pwm-fan.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kernel_build = ":imx_ddk_modules",
+        deps = [
+            ":hwmon",
+        ],
+    )
+
     kernel_build(
         name = "imx_ddk_modules",
         srcs = ["//common:kernel_aarch64_sources"],
