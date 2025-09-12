@@ -713,7 +713,7 @@
 							 <&clk IMX8MQ_AUDIO_PLL2>,
 							 <0>,
 						         <0>,
-							 <&clk IMX8MQ_SYS1_PLL_266M>;
+							 <&clk IMX8MQ_SYS1_PLL_133M>;
 			};
 
 			src: reset-controller@30390000 {

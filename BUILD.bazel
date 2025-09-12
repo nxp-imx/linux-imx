@@ -39,6 +39,8 @@ load(
 )
 load(":imx.bzl", "define_imx")
 define_imx()
+load(":imx_ddk.bzl", "define_imx_ddk")
+define_imx_ddk()
 
 package(
     default_visibility = [
@@ -204,6 +206,7 @@ filegroup(
         "gki/aarch64/symbols/qcom",
         "gki/aarch64/symbols/rtkstb",
         "gki/aarch64/symbols/rtktv",
+        "gki/aarch64/symbols/tcl",
         "gki/aarch64/symbols/trusty",
         "gki/aarch64/symbols/tuxera",
         "gki/aarch64/symbols/type_visibility",

@@ -1774,6 +1774,7 @@ static int __maybe_unused enetc4_pf_suspend(struct device *dev)
 	priv = netdev_priv(si->ndev);
 
 	if (!netif_running(si->ndev)) {
+		enetc4_sriov_suspend_resume_configure(pdev, true);
 		rtnl_lock();
 		enetc4_pf_power_down(si);
 		rtnl_unlock();
@@ -1822,7 +1823,11 @@ static int __maybe_unused enetc4_pf_resume(struct device *dev)
 	if (!netif_running(si->ndev)) {
 		rtnl_lock();
 		err = enetc4_pf_power_up(pdev, node);
-		goto err_unlock_rtnl;
+		rtnl_unlock();
+		if (err)
+			return err;
+
+		return enetc4_sriov_suspend_resume_configure(pdev, false);
 	}
 
 	rtnl_lock();

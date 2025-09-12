@@ -510,7 +510,7 @@ static int imx94_xpcs_phy_port_init(struct dw_xpcs *xpcs, bool is_2p5g)
 		val = xpcs_phy_read(xpcs, XPCS_PHY_MPLLB, XPCS_PHY_REG(MPLLB_CTRL_EX_0));
 		val &= ~MPLLB_CTRL_EX_0_MPLLB_CFG_DRIVER_MASK;
 		val |= xpcs->portid << MPLLB_CTRL_EX_0_MPLLB_CFG_DRIVER_SHIFT;
-		xpcs_phy_write(xpcs, XPCS_PHY_MPLLA, XPCS_PHY_REG(MPLLB_CTRL_EX_0), val);
+		xpcs_phy_write(xpcs, XPCS_PHY_MPLLB, XPCS_PHY_REG(MPLLB_CTRL_EX_0), val);
 	}
 
 	xpcs_phy_modify(xpcs, XPCS_PHY_DEV, XPCS_PHY_GLOBAL, GLOBAL_CTRL_EX_4,

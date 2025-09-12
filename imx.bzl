@@ -5,12 +5,8 @@ load(
 )
 
 _IMX_EXT_MODULES = [
-	"//nxp-mwifiex:wlan.imx",
-	"//verisilicon_sw_isp_vvcam/vvcam/v4l2/sensor/camera-proxy-driver:isp.imx.basler.camera",
-	"//verisilicon_sw_isp_vvcam/vvcam/v4l2/dwe:isp.imx.dwe",
-	"//verisilicon_sw_isp_vvcam/vvcam/v4l2/video:isp.imx.video",
-	"//verisilicon_sw_isp_vvcam/vvcam/v4l2/isp:isp.imx.isp",
-	"//verisilicon_sw_isp_vvcam/vvcam/v4l2/sensor/os08a20:isp.imx.os08a20",
+    "//nxp-mwifiex:mwifiex_modules",
+    "//verisilicon_sw_isp_vvcam/vvcam:vvcam_modules",
 ]
 
 _IMX_IN_TREE_MODULES = [
@@ -435,6 +431,13 @@ _IMX_IN_TREE_MODULES = [
     "drivers/media/i2c/ox03c10.ko",
     "drivers/media/i2c/mx95mbcam.ko",
     "drivers/media/i2c/max96717_lib.ko",
+    "drivers/gpu/drm/drm_fbdev_helper.ko",
+    "drivers/video/fbdev/core/syscopyarea.ko",
+    "sound/soc/codecs/snd-soc-dmic.ko",
+    "drivers/video/fbdev/core/fb_sys_fops.ko",
+    "drivers/video/fbdev/core/sysimgblt.ko",
+    "drivers/video/fbdev/core/sysfillrect.ko",
+    "drivers/video/logo/linux_logo.ko",
 ]
 
 def define_imx():
@@ -444,11 +447,16 @@ def define_imx():
         outs = ["vmlinux"],
         module_outs = _IMX_IN_TREE_MODULES,
         kbuild_symtypes="true",
+        makefile = ":Makefile",
         kmi_symbol_list = "//common:gki/aarch64/symbols/imx",
         base_kernel = "//common:kernel_aarch64",
         make_goals = [
           "Image",
           "modules",
+        ],
+        visibility = [
+            "//nxp-mwifiex:__pkg__",
+            "//verisilicon_sw_isp_vvcam/vvcam:__pkg__",
         ],
     )
 

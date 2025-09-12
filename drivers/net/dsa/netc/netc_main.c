@@ -2164,9 +2164,6 @@ static void netc_port_set_speed(struct netc_port *port, int speed)
 {
 	u32 val;
 
-	if (port->speed == speed)
-		return;
-
 	val = netc_port_rd(port, NETC_PCR);
 	val &= ~PCR_PSPEED;
 

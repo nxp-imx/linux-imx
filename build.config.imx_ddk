@@ -1,0 +1,2 @@
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
+MALI_KCONFIG_EXT_PREFIX=../kernel_imx/
