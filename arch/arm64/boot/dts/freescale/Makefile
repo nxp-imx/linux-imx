@@ -842,9 +842,6 @@ imx95-19x19-evk-car-adv7535-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-cs42888.dtbo \
 				    imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-adv7535.dtb
-imx95-19x19-a1-evk-car-adv7535-dtbs := imx95-19x19-evk-car-adv7535.dtb \
-				       imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car-adv7535.dtb
 
 imx95-19x19-evk-car-it6263-lvds0-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-neoisp.dtbo \
@@ -853,9 +850,6 @@ imx95-19x19-evk-car-it6263-lvds0-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-cs42888.dtbo \
 				    imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-it6263-lvds0.dtb
-imx95-19x19-a1-evk-car-it6263-lvds0-dtbs := imx95-19x19-evk-car-it6263-lvds0.dtb \
-					    imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car-it6263-lvds0.dtb
 
 imx95-19x19-evk-car-adv7535-ap1302-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 				    imx95-19x19-evk-ap1302.dtbo \
@@ -879,9 +873,6 @@ imx95-19x19-evk-car-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 						 imx95-19x19-evk-cs42888.dtbo \
 						 imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car-adv7535-it6263-lvds1.dtb
-imx95-19x19-a1-evk-car-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-car-adv7535-it6263-lvds1.dtb \
-						    imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car-adv7535-it6263-lvds1.dtb
 
 imx95-19x19-evk-car-adv7535-it6263-lvds1-ap1302-dtbs := imx95-19x19-evk-rpmsg-car.dtb \
 						 imx95-19x19-evk-ap1302.dtbo \
@@ -897,9 +888,6 @@ imx95-19x19-evk-car2-adv7535-dtbs := imx95-19x19-evk-neoisp.dtb \
 				     imx95-19x19-evk-cs42888.dtbo \
 				     imx95-19x19-evk-car2.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car2-adv7535.dtb
-imx95-19x19-a1-evk-car2-adv7535-dtbs := imx95-19x19-evk-car2-adv7535.dtb \
-					imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car2-adv7535.dtb
 
 imx95-19x19-evk-car2-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-neoisp.dtb \
 						  imx95-19x19-evk-ox03c10.dtbo \
@@ -908,9 +896,6 @@ imx95-19x19-evk-car2-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-neoisp.dtb \
 						  imx95-19x19-evk-cs42888.dtbo \
 						  imx95-19x19-evk-car2.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car2-adv7535-it6263-lvds1.dtb
-imx95-19x19-a1-evk-car2-adv7535-it6263-lvds1-dtbs := imx95-19x19-evk-car2-adv7535-it6263-lvds1.dtb \
-						     imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car2-adv7535-it6263-lvds1.dtb
 
 imx95-19x19-evk-car2-it6263-lvds0-dtbs := imx95-19x19-evk-neoisp.dtb \
 					  imx95-19x19-evk-ox03c10.dtbo \
@@ -918,9 +903,6 @@ imx95-19x19-evk-car2-it6263-lvds0-dtbs := imx95-19x19-evk-neoisp.dtb \
 					  imx95-19x19-evk-cs42888.dtbo \
 					  imx95-19x19-evk-car2.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-car2-it6263-lvds0.dtb
-imx95-19x19-a1-evk-car2-it6263-lvds0-dtbs := imx95-19x19-evk-car2-it6263-lvds0.dtb \
-					     imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-evk-car2-it6263-lvds0.dtb
 
 imx95-19x19-verdin-car-lt8912-dtbs := imx95-19x19-verdin-rpmsg-car.dtb \
 				       imx95-19x19-verdin-ox03c10.dtbo \
@@ -928,9 +910,6 @@ imx95-19x19-verdin-car-lt8912-dtbs := imx95-19x19-verdin-rpmsg-car.dtb \
 				       imx95-19x19-verdin-lt8912.dtbo \
 				       imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-car-lt8912.dtb
-imx95-19x19-a1-verdin-car-lt8912-dtbs := imx95-19x19-verdin-car-lt8912.dtb \
-					   imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-verdin-car-lt8912.dtb
 
 imx95-19x19-verdin-car-lt8912-ap1302-dtbs := imx95-19x19-verdin-rpmsg-car.dtb \
 				       imx95-19x19-verdin-ap1302.dtbo \
@@ -944,9 +923,6 @@ imx95-19x19-verdin-car-adv7535-dtbs := imx95-19x19-verdin-rpmsg-car.dtb \
 					imx95-19x19-verdin-adv7535.dtbo \
 					imx95-19x19-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-car-adv7535.dtb
-imx95-19x19-a1-verdin-car-adv7535-dtbs := imx95-19x19-verdin-car-adv7535.dtb \
-					  imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-verdin-car-adv7535.dtb
 
 imx95-19x19-verdin-car-adv7535-ap1302-dtbs := imx95-19x19-verdin-rpmsg-car.dtb \
 					imx95-19x19-verdin-ap1302.dtbo \
@@ -960,10 +936,6 @@ imx95-19x19-verdin-car2-lt8912-dtbs := imx95-19x19-verdin.dtb \
 				       imx95-19x19-verdin-lt8912.dtbo \
 				       imx95-19x19-evk-car2.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-car2-lt8912.dtb
-imx95-19x19-a1-verdin-car2-lt8912-dtbs := imx95-19x19-verdin-car2-lt8912.dtb \
-					  imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-verdin-car2-lt8912.dtb
-
 
 imx95-19x19-verdin-car2-adv7535-dtbs := imx95-19x19-verdin.dtb \
 					imx95-19x19-verdin-ox03c10.dtbo \
@@ -971,9 +943,6 @@ imx95-19x19-verdin-car2-adv7535-dtbs := imx95-19x19-verdin.dtb \
 					imx95-19x19-verdin-adv7535.dtbo \
 					imx95-19x19-evk-car2.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-verdin-car2-adv7535.dtb
-imx95-19x19-a1-verdin-car2-adv7535-dtbs := imx95-19x19-verdin-car2-adv7535.dtb \
-					  imx95-19x19-a1-evk-neoisp.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-a1-verdin-car2-adv7535.dtb
 
 imx95-19x19-evk-it6263-lvds1-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-it6263-lvds1.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-it6263-lvds1.dtb
