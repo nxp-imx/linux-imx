@@ -2076,11 +2076,6 @@ static void se_if_probe_cleanup(void *plat_dev)
 	 * un-set bit.
 	 */
 	of_reserved_mem_device_release(dev);
-
-	/* Free Kobj created for logging */
-	if (se_kobj)
-		kobject_put(se_kobj);
-
 }
 
 static int get_se_fw_img_nm_idx(const struct se_fw_img_name *se_fw_img_nm)
@@ -2280,6 +2275,8 @@ static int se_if_probe(struct platform_device *pdev)
 		ret = se_sysfs_log();
 		if (ret)
 			pr_warn("Warn: Creating sysfs entry for se_log and  se_rcv_msg_timeout: %d\n", ret);
+	} else {
+		kobject_get(se_kobj);
 	}
 
 	dev_info(dev, "i.MX secure-enclave: %s%d interface to firmware, configured.\n",
@@ -2296,6 +2293,10 @@ exit:
 static void se_if_remove(struct platform_device *pdev)
 {
 	se_if_probe_cleanup(pdev);
+
+	/* Free Kobj created for logging */
+	if (se_kobj)
+		kobject_put(se_kobj);
 }
 
 static int se_suspend(struct device *dev)
