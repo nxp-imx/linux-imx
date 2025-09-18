@@ -1145,5 +1145,18 @@ static struct platform_driver imx8m_blk_ctrl_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
-module_platform_driver(imx8m_blk_ctrl_driver);
+
+static int __init imx8m_blk_ctrl_driver_init(void)
+{
+	return platform_driver_register(&imx8m_blk_ctrl_driver);
+}
+
+static void __exit imx8m_blk_ctrl_driver_exit(void)
+{
+	platform_driver_unregister(&imx8m_blk_ctrl_driver);
+}
+
+device_initcall_sync(imx8m_blk_ctrl_driver_init);
+module_exit(imx8m_blk_ctrl_driver_exit);
+
 MODULE_LICENSE("GPL");
