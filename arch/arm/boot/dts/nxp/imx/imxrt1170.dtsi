@@ -389,7 +389,7 @@
 			status = "disabled";
 		};
 
-		lpi2c1: lpci2c@40104000 {
+		lpi2c1: i2c@40104000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x40104000 0x4000>;
 			interrupts = <32>;
@@ -399,7 +399,7 @@
 			status = "disabled";
 		};
 
-		lpi2c2: lpci2c@40108000 {
+		lpi2c2: i2c@40108000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x40108000 0x4000>;
 			interrupts = <33>;
@@ -409,7 +409,7 @@
 			status = "disabled";
 		};
 
-		lpi2c3: lpci2c@4010c000 {
+		lpi2c3: i2c@4010c000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x4010c000 0x4000>;
 			interrupts = <34>;
@@ -419,7 +419,7 @@
 			status = "disabled";
 		};
 
-		lpi2c4: lpci2c@40110000 {
+		lpi2c4: i2c@40110000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x40110000 0x4000>;
 			interrupts = <35>;
@@ -429,7 +429,7 @@
 			status = "disabled";
 		};
 
-		lpi2c5: lpci2c@40c34000 {
+		lpi2c5: i2c@40c34000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x40c34000 0x4000>;
 			interrupts = <36>;
