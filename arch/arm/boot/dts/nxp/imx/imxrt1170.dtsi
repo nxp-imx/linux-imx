@@ -1,0 +1,517 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+/*
+ * Copyright (C) 2023-2024 Emcraft Systems
+ * Author(s): Vladimir Skvortsov <vskvortsov@emcraft.com>
+ */
+
+#include "../../armv7-m.dtsi"
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/imxrt1170-clock.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	clocks {
+		osc: osc {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <24000000>;
+		};
+
+		rcosc16M: rcosc16M {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <16000000>;
+		};
+
+		osc32k: osc32k {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <32768>;
+		};
+	};
+
+	aliases {
+		gpio0 = &gpio1;
+		gpio1 = &gpio2;
+		gpio2 = &gpio3;
+		gpio3 = &gpio4;
+		gpio4 = &gpio5;
+		gpio5 = &gpio6;
+		gpio6 = &gpio7;
+		gpio7 = &gpio8;
+		gpio8 = &gpio9;
+		gpio9 = &gpio10;
+		gpio10 = &gpio11;
+		gpio11 = &gpio12;
+		gpio12 = &gpio13;
+		mmc0 = &usdhc1;
+		serial0 = &lpuart1;
+		usbphy0 = &usbphy1;
+		usbphy1 = &usbphy2;
+		can0 = &flexcan1;
+		can1 = &flexcan2;
+		can2 = &flexcan3;
+		adc1 = &adc1;
+		adc2 = &adc2;
+	};
+
+	soc {
+		iomuxc: iomuxc@400e8000 {
+			compatible = "fsl,imxrt1170-iomuxc";
+			reg = <0x400e8000 0x4000>;
+			fsl,mux_mask = <0xf>;
+		};
+
+		gpr: iomuxc-gpr@400e4000 {
+			compatible = "fsl,imxrt1170-iomuxc-gpr", "syscon";
+			reg = <0x400e4000 0x4000>;
+		};
+
+		iomuxc_lpsr: iomuxc_lpsr@40c08000 {
+			compatible = "fsl,imxrt1170-lpsr-iomuxc";
+			reg = <0x40c08000 0x4000>;
+			fsl,mux_mask = <0xf>;
+		};
+
+		iomuxc_snvs: iomuxc_snvs@40c94000 {
+			compatible = "fsl,imxrt1170-lpsr-iomuxc";
+			reg = <0x40c94000 0x4000>;
+			fsl,mux_mask = <0x7>;
+		};
+
+		lpuart1: serial@4007c000 {
+			compatible = "fsl,imxrt-lpuart", "fsl,imxrt1050-lpuart";
+			reg = <0x4007c000 0x4000>;
+			interrupts = <20>;
+			clocks = <&clks IMXRT1170_CLK_LPUART1>;
+			clock-names = "ipg";
+			status = "disabled";
+		};
+
+		anatop: anatop@40c84000 {
+			compatible = "fsl,imxrt-anatop";
+			reg = <0x40c84000 0x4000>;
+		};
+
+		clks: ccm@40cc0000 {
+			compatible = "fsl,imxrt1170-ccm";
+			reg = <0x40cc0000 0x4000>;
+			#clock-cells = <1>;
+			clocks = <&osc>, <&rcosc16M>;
+			clock-names = "osc", "rcosc16M";
+		};
+
+		edma0: dma-controller@40080000 {
+			#dma-cells = <2>;
+			compatible = "fsl,imxrt1170-edma";
+			reg = <0x40070000 0x4000>,
+				<0x40074000 0x4000>;
+			dma-channels = <32>;
+			interrupts = <0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>,
+				     <8>, <9>, <10>, <11>, <12>, <13>, <14>, <15>, <16>;
+			clock-names = "dma", "dmamux0";
+			clocks = <&clks IMXRT1170_CLK_EDMA>,
+				 <&clks IMXRT1170_CLK_EDMA>;
+		};
+
+		usdhc1: usdhc@40418000 {
+			compatible = "fsl,imxrt-usdhc", "fsl,imx6sl-usdhc";
+			reg = <0x40418000 0x4000>;
+			interrupts = <133>;
+			clocks = <&clks IMXRT1170_CLK_USDHC1>,
+				 <&clks IMXRT1170_CLK_USDHC1>,
+				 <&clks IMXRT1170_CLK_USDHC1>;
+			clock-names = "ipg", "ahb", "per";
+			bus-width = <4>;
+			fsl,tuning-start-tap = <20>;
+			fsl,tuning-step= <2>;
+			status = "disabled";
+		};
+
+		fec1: ethernet@40424000 {
+			compatible = "fsl,mvf600-fec";
+			reg = <0x40424000 0x4000>;
+			interrupts = <137>;
+
+			fsl,num-tx-queues=<1>;
+			fsl,num-rx-queues=<1>;
+			status = "disabled";
+                };
+
+		gpio1: gpio@4012c000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x4012c000 0x4000>;
+			interrupts = <100>,
+				     <101>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 0 32>;
+		};
+
+		gpio2: gpio@40130000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40130000 0x4000>;
+			interrupts = <102>,
+				<103>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 32 32>;
+		};
+
+		gpio3: gpio@40134000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40134000 0x4000>;
+			interrupts = <104>,
+				<105>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 64 32>;
+		};
+
+		gpio4: gpio@40138000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40138000 0x4000>;
+			interrupts = <106>,
+					<107>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 96 32>;
+		};
+
+		gpio5: gpio@4013c000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x4013c000 0x4000>;
+			interrupts = <108>,
+				<109>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 128 32>;
+		};
+
+		gpio6: gpio@40140000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40140000 0x4000>;
+			interrupts = <61>,
+				<62>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 160 32>;
+		};
+
+		gpio7: gpio@40c5c000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c5c000 0x4000>;
+			interrupts = <99>,
+				<99>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 192 32>;
+		};
+
+		gpio8: gpio@40c60000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c60000 0x4000>;
+			interrupts = <99>,
+				<99>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 224 32>;
+		};
+
+		gpio9: gpio@40c64000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c64000 0x4000>;
+			interrupts = <99>,
+				<99>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 256 32>;
+		};
+
+		gpio10: gpio@40c68000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c68000 0x4000>;
+			interrupts = <99>,
+				<99>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 288 32>;
+		};
+
+		gpio11: gpio@40c6c000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c6c000 0x4000>;
+			interrupts = <99>,
+				<99>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc 0 320 32>;
+		};
+
+		gpio12: gpio@40c70000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40c70000 0x4000>;
+			interrupts = <61>,
+				<62>; // only cm4
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc_lpsr 0 0 32>;
+		};
+
+		gpio13: gpio@40ca0000 {
+			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
+			reg = <0x40ca0000 0x4000>;
+			interrupts = <93>,
+				<93>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&iomuxc_snvs 0 0 32>;
+		};
+
+		gpt1: gpt1@400ec000 {
+			compatible = "fsl,imxrt1170-gpt";
+			reg = <0x400ec000 0x4000>;
+			interrupts = <119>;
+			clocks = <&clks IMXRT1170_CLK_GPT1>;
+			clock-names = "per";
+			status = "disabled";
+		};
+
+		usbotg1: usb1@40430000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx6ul-usb";
+			reg = <0x40430000 0x200>;
+			interrupts = <136>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+			fsl,usbphy = <&usbphy1>;
+			fsl,usbmisc = <&usbmisc1 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc1: usbmisc1@40430200 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x40430200 0x200>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		usbphy1: usbphy1@40434000 {
+			compatible = "fsl,imx7ulp-usbphy", "fsl,imx6ul-usbphy";
+			reg = <0x40434000 0x1000>;
+			interrupts = <90>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+
+		usbotg2: usb2@4042c0000 {
+			compatible = "fsl,imxrt-usb", "fsl,imx6ul-usb";
+			reg = <0x4042c000 0x200>;
+			interrupts = <135>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+			fsl,usbphy = <&usbphy2>;
+			fsl,usbmisc = <&usbmisc2 0>;
+			ahb-burst-config = <0x0>;
+			tx-burst-size-dword = <0x10>;
+			rx-burst-size-dword = <0x10>;
+			status = "disabled";
+		};
+
+		usbmisc2: usbmisc2@4042c200 {
+			#index-cells = <1>;
+			compatible = "fsl,imxrt-usbmisc", "fsl,imx6q-usbmisc";
+			reg = <0x4042c200 0x200>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		usbphy2: usbphy2@40438000 {
+			compatible = "fsl,imx7ulp-usbphy", "fsl,imx6ul-usbphy";
+			reg = <0x40438000 0x1000>;
+			interrupts = <91>;
+			clocks = <&clks IMXRT1170_CLK_USB>;
+		};
+
+		mipi_dsi: mipi_dsi@4080c000 {
+			compatible = "fsl,imxrt1170-mipi-dsi";
+			reg = <0x4080c000 0x1000>;
+			interrupts = <59>;
+			clocks = <&clks IMXRT1170_CLK_MIPI_DSI>, <&clks IMXRT1170_CLK_ROOT_MIPI_ESC>;
+			clock-names = "mipi_dsi_dphy", "mipi_dsi_esc";
+			data-lanes-num = <2>;
+			phy-ref-clkfreq = <24000000>;
+			max-data-rate  = <800000000>;
+			sim = <&gpr>;
+			pgmc-bpc-reg = <0x40c88800 0x800>;
+			status = "disabled";
+		};
+
+		lcdif: lcdif@40804000 {
+			compatible = "fsl,imx28-lcdif";
+			reg = <0x40804000 0x1000>;
+			interrupts = <54>;
+			clocks = <&clks IMXRT1170_CLK_DUMMY>,
+				 <&clks IMXRT1170_CLK_ELCDIF>,
+				 <&clks IMXRT1170_CLK_DUMMY>;
+			clock-names = "axi", "pix", "disp_axi";
+			assigned-clocks = <&clks IMXRT1170_CLK_ROOT_ELCDIF>;
+			assigned-clock-parents = <&clks IMXRT1170_CLK_PLL2>;
+			assigned-clock-rates = <66000000>;
+			status = "disabled";
+		};
+
+		lpi2c1: i2c@40104000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40104000 0x4000>;
+			interrupts = <32>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c2: i2c@40108000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40108000 0x4000>;
+			interrupts = <33>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c3: i2c@4010c000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x4010c000 0x4000>;
+			interrupts = <34>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C3>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c4: i2c@40110000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40110000 0x4000>;
+			interrupts = <35>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c5: i2c@40c34000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40c34000 0x4000>;
+			interrupts = <36>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C5>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpi2c6: lpci2c@40c38000 {
+			compatible = "fsl,imx7ulp-lpi2c";
+			reg = <0x40c38000 0x4000>;
+			interrupts = <37>;
+			clocks = <&clks IMXRT1170_CLK_LPI2C6>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		flexcan1: can@400c4000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexcan2: can@400c8000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexcan3: can@40c3c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		adc1: adc@40050000 {
+			/* TBD */
+                        status = "disabled";
+                };
+
+                adc2: adc@40054000 {
+			/* TBD */
+                        status = "disabled";
+                };
+
+		flexspi1: spi@400cc000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		flexspi2: spi@400d0000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi1: spi@40114000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi2: spi@40118000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi3: spi@4011c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi4: spi@40120000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi5: spi@40c2c000 {
+			/* TBD */
+			status = "disabled";
+		};
+
+		lpspi6: spi@40c30000 {
+			/* TBD */
+			status = "disabled";
+		};
+	};
+};

@@ -252,6 +252,7 @@ struct fsl_edma_drvdata {
 	u32			flags;
 	u32			mux_off;	/* channel mux register offset */
 	u32			mux_skip;	/* how much skip for each channel */
+	u32			mux_slot_mask;
 	int			(*setup_irq)(struct platform_device *pdev,
 					     struct fsl_edma_engine *fsl_edma);
 };

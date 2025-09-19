@@ -41,6 +41,9 @@
 #include <asm/system_misc.h>
 #include <asm/opcodes.h>
 
+#if defined(CONFIG_CPU_V7M)
+#include "traps-v7m.h"
+#endif
 
 static const char *handler[]= {
 	"prefetch abort",
@@ -901,6 +904,9 @@ void __init early_trap_init(void *vectors_base)
 	 * memory area. The address is configurable and so a table in the kernel
 	 * image can be used.
 	 */
+
+	/* Initialize Bus fault and Usage fault exceptions */
+	traps_v7m_init();
 }
 #endif
 

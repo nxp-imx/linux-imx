@@ -683,6 +683,13 @@ static int kszphy_config_reset(struct phy_device *phydev)
 	return 0;
 }
 
+static int kszphy_is_broadcast_address_allowed(struct phy_device *phydev)
+{
+	struct device_node *of_node = phydev->mdio.dev.of_node;
+
+	return of_property_read_bool(of_node, "micrel,kszphy-allow-broadcast-address");
+}
+
 static int kszphy_config_init(struct phy_device *phydev)
 {
 	struct kszphy_priv *priv = phydev->priv;
@@ -693,7 +700,7 @@ static int kszphy_config_init(struct phy_device *phydev)
 
 	type = priv->type;
 
-	if (type && type->has_broadcast_disable)
+	if (type && type->has_broadcast_disable && !kszphy_is_broadcast_address_allowed(phydev))
 		kszphy_broadcast_disable(phydev);
 
 	if (type && type->has_nand_tree_disable)

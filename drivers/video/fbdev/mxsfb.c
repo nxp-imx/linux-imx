@@ -62,6 +62,7 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 #include <linux/uaccess.h>
+#include <linux/of_reserved_mem.h>
 
 #include "mxc/mxc_dispdrv.h"
 
@@ -262,6 +263,7 @@ struct mxsfb_info {
 	int id;
 	struct fb_var_screeninfo var;
 	struct pm_qos_request pm_qos_req;
+	struct reserved_mem *reserved_mem;
 
 	char disp_videomode[NAME_LEN];
 
@@ -1313,11 +1315,20 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	struct device_node *timings_np;
 	struct display_timings *timings = NULL;
 	const char *disp_dev, *disp_videomode;
+	struct device_node *reserved_mem_node;
 	u32 width;
 	int i;
 	int ret = 0;
 
 	host->id = of_alias_get_id(np, "lcdif");
+
+	reserved_mem_node = of_parse_phandle(np, "memory-region", 0);
+	if (reserved_mem_node) {
+		host->reserved_mem = of_reserved_mem_lookup(reserved_mem_node);
+		of_node_put(reserved_mem_node);
+	} else {
+		host->reserved_mem = NULL;
+	}
 
 	display_np = of_parse_phandle(np, "display", 0);
 	if (!display_np) {
@@ -1467,11 +1478,21 @@ static int mxsfb_init_fbinfo(struct mxsfb_info *host)
 
 	fb_info->fix.line_length =
 		fb_info->var.xres * (fb_info->var.bits_per_pixel >> 3);
-	fb_info->fix.smem_len = SZ_32M;
 
-	/* Memory allocation for framebuffer */
-	if (mxsfb_map_videomem(fb_info) < 0)
-		return -ENOMEM;
+	if (host->reserved_mem) {
+		fb_info->screen_base = host->reserved_mem->base;
+		fb_info->screen_size = host->reserved_mem->size;
+		fb_info->fix.smem_start = host->reserved_mem->base;
+		fb_info->fix.smem_len = host->reserved_mem->size;
+		dev_dbg(fb_info->device, "use reserved memory fb @ paddr=0x%08X, size=%d.\n",
+			host->reserved_mem->base, host->reserved_mem->size);
+	} else  {
+		fb_info->fix.smem_len = SZ_32M;
+
+		/* Memory allocation for framebuffer */
+		if (mxsfb_map_videomem(fb_info) < 0)
+			return -ENOMEM;
+	}
 
 	if (mxsfb_restore_mode(host))
 		memset((char *)fb_info->screen_base, 0, fb_info->fix.smem_len);
@@ -1492,6 +1513,7 @@ static int mxsfb_dispdrv_init(struct platform_device *pdev,
 
 	memset(&setting, 0x0, sizeof(setting));
 	setting.fbi = fbi;
+	setting.default_bpp = fbi->var.bits_per_pixel;
 	memcpy(disp_dev, host->disp_dev, strlen(host->disp_dev));
 	disp_dev[strlen(host->disp_dev)] = '\0';
 
@@ -1522,7 +1544,8 @@ static void mxsfb_free_videomem(struct mxsfb_info *host)
 {
 	struct fb_info *fb_info = host->fb_info;
 
-	mxsfb_unmap_videomem(fb_info);
+	if (host->reserved_mem == NULL)
+		mxsfb_unmap_videomem(fb_info);
 }
 
 /*!

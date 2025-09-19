@@ -71,7 +71,7 @@
 
 		edma1: dma-controller@400e8000 {
 			#dma-cells = <2>;
-			compatible = "fsl,imx7ulp-edma";
+			compatible = "fsl,imxrt1050-edma";
 			reg = <0x400e8000 0x4000>,
 				<0x400ec000 0x4000>;
 			dma-channels = <32>;

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2017 NXP.
+ * Copyright 2024 Emcraft Systems.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,9 +89,43 @@ static struct mipi_dsi_match_lcd mipi_dsi_lcd_db[] = {
 	 {mipid_rm68191_get_lcd_videomode, mipid_rm68191_lcd_setup}
 	},
 #endif
+#ifdef CONFIG_FB_MXC_RK_PANEL_RK055AHD091
+	{
+	 "ROCKTECH-RK055AHD091",
+	 {mipid_hx8394_get_lcd_videomode, mipid_hx8394_lcd_setup}
+	},
+#endif
 	{
 	"", {NULL, NULL}
 	}
+};
+
+static const struct mipi_dsi_soc_data imx7ulp_data = {
+	.rst_reg_offset = SIM_SOPT1CFG,
+	.dpi_nrst_mask = DSI_RST_DPI_N,
+	.esc_nrst_mask = DSI_RST_ESC_N,
+	.byte_nrst_mask = DSI_RST_BYTE_N,
+	.pclk_nrst_mask = 0,
+	.pll_en_mask = DSI_PLL_EN,
+	.rx_esc_clk_rate = 80000000,
+	.flags = SOC_HAVE_PLL_EN | SOC_HAVE_DSI_SD,
+};
+
+#define IMXRT1170_PGMC_BPC4_BASE 0x40C88800
+#define PGMC_BPC_POWER_CTRL 0x14
+#define PGMC_BPC_POWER_CTRL_ISO_OFF BIT(11)
+#define PGMC_BPC_POWER_CTRL_PSW_ON BIT(10)
+
+static const struct mipi_dsi_soc_data imxrt1170_data = {
+	.rst_reg_offset = 0xf8, /* GPR62 */
+	.dpi_nrst_mask = BIT(18),
+	.esc_nrst_mask = BIT(19),
+	.byte_nrst_mask = BIT(17),
+	.pclk_nrst_mask = BIT(16),
+	.pll_en_mask = 0,
+	.pgmc_bpc_base = IMXRT1170_PGMC_BPC4_BASE + PGMC_BPC_POWER_CTRL,
+	.rx_esc_clk_rate = 24000000,
+	.flags = SOC_HAVE_PCLK_NRST | SOC_HAVE_MIPI_PHY_POWER_CTRL_IN_PGMC,
 };
 
 enum mipi_dsi_mode {
@@ -388,8 +423,13 @@ static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 	struct mipi_lcd_config *lcd_config = mipi_dsi->lcd_config;
 
 #ifndef CONFIG_FB_IMX64
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1,
-			   MIPI_ISO_DISABLE, MIPI_ISO_DISABLE);
+	if (mipi_dsi->dphy_clk)
+		clk_prepare_enable(mipi_dsi->dphy_clk);
+	if (mipi_dsi->sdata->flags & SOC_HAVE_MIPI_PHY_POWER_CTRL_IN_PGMC)
+		writel(PGMC_BPC_POWER_CTRL_ISO_OFF | PGMC_BPC_POWER_CTRL_PSW_ON, (void *)mipi_dsi->sdata->pgmc_bpc_base);
+	else
+		regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1,
+				   MIPI_ISO_DISABLE, MIPI_ISO_DISABLE);
 #endif
 
 	bpp = fmt_to_bpp(lcd_config->dpi_fmt);
@@ -623,8 +663,8 @@ static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 	writel(0x0, mipi_dsi->mmio_base + DPHY_PD_DPHY);
 
 #ifndef CONFIG_FB_IMX64
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			   DSI_PLL_EN, DSI_PLL_EN);
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->pll_en_mask, mipi_dsi->sdata->pll_en_mask);
 #endif
 
 	return 0;
@@ -703,8 +743,13 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 		hbp_period = mode->left_margin;
 		hsa_period = mode->hsync_len;
 #else
+#ifdef CONFIG_FB_MXC_RK_PANEL_RK055AHD091
+		hfp_period = mode->right_margin * (bpp >> 3) - 12;
+		hbp_period = mode->left_margin * (bpp >> 3) - 10;
+#else
 		hfp_period = mode->right_margin * (bpp >> 3);
 		hbp_period = mode->left_margin * (bpp >> 3);
+#endif
 		hsa_period = mode->hsync_len * (bpp >> 3);
 #endif
 		break;
@@ -828,16 +873,18 @@ static void reset_dsi_domains(struct mipi_dsi_info *mipi_dsi, bool reset)
 	regmap_update_bits(mipi_dsi->regmap, SRC_MIPIPHY_RCR,
 		MIPI_DSI_DPI_RESET_N, (reset ? 0 : MIPI_DSI_DPI_RESET_N));
 #else
+	/* pclk domain */
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->pclk_nrst_mask, (reset ? 0 : mipi_dsi->sdata->pclk_nrst_mask));
 	/* escape domain */
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			DSI_RST_ESC_N, (reset ? 0 : DSI_RST_ESC_N));
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->esc_nrst_mask, (reset ? 0 : mipi_dsi->sdata->esc_nrst_mask));
 	/* byte domain */
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			DSI_RST_BYTE_N, (reset ? 0 : DSI_RST_BYTE_N));
-
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->byte_nrst_mask, (reset ? 0 : mipi_dsi->sdata->byte_nrst_mask));
 	/* dpi domain */
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			DSI_RST_DPI_N, (reset ? 0 : DSI_RST_DPI_N));
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->dpi_nrst_mask, (reset ? 0 : mipi_dsi->sdata->dpi_nrst_mask));
 #endif
 }
 
@@ -856,7 +903,11 @@ static int mipi_dsi_enable(struct mxc_dispdrv_handle *disp,
 #ifdef CONFIG_FB_IMX64
 		reset_dsi_domains(mipi_dsi, 0);
 #else
-		ret = clk_set_rate(mipi_dsi->esc_clk, 80000000);
+		/* pclk domain */
+		regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+				   mipi_dsi->sdata->pclk_nrst_mask, mipi_dsi->sdata->pclk_nrst_mask);
+
+		ret = clk_set_rate(mipi_dsi->esc_clk, mipi_dsi->sdata->rx_esc_clk_rate);
 		if (ret) {
 			dev_err(&mipi_dsi->pdev->dev,
 					"clk enable error: %d!\n", ret);
@@ -882,12 +933,14 @@ static int mipi_dsi_enable(struct mxc_dispdrv_handle *disp,
 #ifndef CONFIG_FB_IMX64
 		reset_dsi_domains(mipi_dsi, 0);
 
-		/* display_en */
-		regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-				   DSI_SD, 0x0);
-		/* normal cm */
-		regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-				   DSI_CM, 0x0);
+		if (mipi_dsi->sdata->flags & SOC_HAVE_DSI_SD) {
+			/* display_en */
+			regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
+					   DSI_SD, 0x0);
+			/* normal cm */
+			regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
+					   DSI_CM, 0x0);
+		}
 #endif
 		msleep(20);
 
@@ -1118,8 +1171,8 @@ static void mipi_dsi_disable(struct mxc_dispdrv_handle *disp,
 	regmap_update_bits(mipi_dsi->regmap, SRC_MIPIPHY_RCR,
 			MIPI_DSI_PCLK_RESET_N, 0x0);
 #else
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			   DSI_PLL_EN, 0x0);
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->pll_en_mask, 0);
 #endif
 }
 
@@ -1252,11 +1305,13 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 	int ret = 0;
 	u32 vmode_index;
 	uint32_t phy_ref_clkfreq;
+	const struct mipi_dsi_soc_data *sdata = of_device_get_match_data(&pdev->dev);
 
 	mipi_dsi = devm_kzalloc(&pdev->dev, sizeof(*mipi_dsi), GFP_KERNEL);
 	if (!mipi_dsi)
 		return -ENOMEM;
 	mipi_dsi->pdev = pdev;
+	mipi_dsi->sdata = sdata;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -1315,7 +1370,13 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 			GPR_MIPI_MUX_SEL, 0x0);
 
 #else
-	mipi_dsi->esc_clk = devm_clk_get(&pdev->dev, "mipi_dsi_clk");
+	mipi_dsi->dphy_clk = devm_clk_get(&pdev->dev, "mipi_dsi_dphy");
+	if (IS_ERR(mipi_dsi->esc_clk)) {
+		dev_err(&pdev->dev, "failed to get esc clk\n");
+		return PTR_ERR(mipi_dsi->esc_clk);
+	}
+
+	mipi_dsi->esc_clk = devm_clk_get(&pdev->dev, "mipi_dsi_esc");
 	if (IS_ERR(mipi_dsi->esc_clk)) {
 		dev_err(&pdev->dev, "failed to get esc clk\n");
 		return PTR_ERR(mipi_dsi->esc_clk);
@@ -1445,13 +1506,14 @@ static void mipi_dsi_shutdown(struct platform_device *pdev)
 	regmap_update_bits(mipi_dsi->regmap, SRC_MIPIPHY_RCR,
 				   MIPI_DSI_PCLK_RESET_N, 0x0);
 #else
-	regmap_update_bits(mipi_dsi->regmap, SIM_SOPT1CFG,
-			   DSI_PLL_EN, 0x0);
+	regmap_update_bits(mipi_dsi->regmap, mipi_dsi->sdata->rst_reg_offset,
+			   mipi_dsi->sdata->pll_en_mask, 0);
 #endif
 }
 
 static const struct of_device_id imx_mipi_dsi_dt_ids[] = {
-	{ .compatible = "fsl,imx7ulp-mipi-dsi", .data = NULL, },
+	{ .compatible = "fsl,imx7ulp-mipi-dsi", .data = &imx7ulp_data, },
+	{ .compatible = "fsl,imxrt1170-mipi-dsi", .data = &imxrt1170_data, },
 	{ .compatible = "fsl,imx8mq-mipi-dsi", .data = NULL, },
 	{ }
 };

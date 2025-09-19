@@ -205,7 +205,10 @@ void fsl_edma_chan_mux(struct fsl_edma_chan *fsl_chan,
 		ch_off += endian_diff[ch_off % 4];
 
 	muxaddr = fsl_chan->edma->muxbase[ch / chans_per_mux];
-	slot = EDMAMUX_CHCFG_SOURCE(slot);
+	if (fsl_chan->edma->drvdata->mux_slot_mask)
+		slot &= fsl_chan->edma->drvdata->mux_slot_mask;
+	else
+		slot = EDMAMUX_CHCFG_SOURCE(slot);
 
 	if (fsl_chan->edma->drvdata->flags & FSL_EDMA_DRV_CONFIG32)
 		mux_configure32(fsl_chan, muxaddr, ch_off, slot, enable);

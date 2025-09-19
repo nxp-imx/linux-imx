@@ -261,6 +261,13 @@ enum imx_pllv3_type {
 	IMX_PLLV3_AV_IMX7,
 };
 
+enum imxrt1170_pll_type {
+	IMXRT1170_PLLARM,
+	IMXRT1170_PLL3,
+	IMXRT1170_PLL2,
+	IMXRT1170_PLL1,
+};
+
 #define MAX_SHARED_CLK_NUMBER		100
 #define SHARED_MEM_MAGIC_NUMBER		0x12345678
 #define MCC_POWER_SHMEM_NUMBER		(6)
@@ -301,6 +308,9 @@ struct clk_hw *imx_clk_hw_pllv3(enum imx_pllv3_type type, const char *name,
 	}
 
 struct clk_hw *imx_clk_hw_pllv4(enum imx_pllv4_type type, const char *name,
+		const char *parent_name, void __iomem *base);
+
+struct clk_hw *imx_clk_hw_pll_rt1170(enum imxrt1170_pll_type type, const char *name,
 		const char *parent_name, void __iomem *base);
 
 struct clk_hw *clk_hw_register_gate2(struct device *dev, const char *name,

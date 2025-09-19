@@ -19,16 +19,29 @@
 #define CCM_DIV_SHIFT	0
 #define CCM_DIV_WIDTH	8
 #define CCM_MUX_SHIFT	8
+#if defined (CONFIG_CLK_IMXRT1170)
+#define CCM_MUX_MASK	7
+#else
 #define CCM_MUX_MASK	3
+#endif
 #define CCM_OFF_SHIFT	24
 #define CCM_BUSY_SHIFT	28
 
 #define STAT_OFFSET	0x4
 #define AUTHEN_OFFSET	0x30
+
+#if defined (CONFIG_CLK_IMXRT1170)
+#define TZ_NS_SHIFT	1
+#define TZ_NS_MASK	BIT(1)
+
+#define WHITE_LIST_SHIFT	8
+
+#else
 #define TZ_NS_SHIFT	9
 #define TZ_NS_MASK	BIT(9)
 
 #define WHITE_LIST_SHIFT	16
+#endif
 
 static int imx93_clk_composite_wait_ready(struct clk_hw *hw, void __iomem *reg)
 {
@@ -198,7 +211,9 @@ struct clk_hw *imx93_clk_composite_flags(const char *name, const char * const *p
 	struct clk_gate *gate = NULL;
 	struct clk_mux *mux = NULL;
 	bool clk_ro = false;
+#if !defined (CONFIG_CLK_IMXRT1170) /* TBD: implement authen settings for IMXRT1170 */
 	u32 authen;
+#endif
 
 	mux = kzalloc(sizeof(*mux), GFP_KERNEL);
 	if (!mux)
@@ -221,9 +236,11 @@ struct clk_hw *imx93_clk_composite_flags(const char *name, const char * const *p
 	div->lock = &imx_ccm_lock;
 	div->flags = CLK_DIVIDER_ROUND_CLOSEST;
 
+#if !defined (CONFIG_CLK_IMXRT1170) /* TBD: implement authen settings for IMXRT1170 */
 	authen = readl(reg + AUTHEN_OFFSET);
 	if (!(authen & TZ_NS_MASK) || !(authen & BIT(WHITE_LIST_SHIFT + domain_id)))
 		clk_ro = true;
+#endif
 
 	if (clk_ro) {
 		hw = clk_hw_register_composite(NULL, name, parent_names, num_parents,

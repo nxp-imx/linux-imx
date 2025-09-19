@@ -1730,6 +1730,13 @@ config KERNEL_MODE_NEON
 	help
 	  Say Y to include support for NEON in kernel mode.
 
+config VFPM
+	bool "ARMv7-M VFP Extension support"
+	depends on CPU_V7M
+	help
+	  Say Y to include support for the ARMv7-M VFP Extension
+	  (single-precision floating point hardware).
+
 endmenu
 
 menu "Power management options"
