@@ -439,7 +439,7 @@
 			status = "disabled";
 		};
 
-		lpi2c6: lpci2c@40c38000 {
+		lpi2c6: i2c@40c38000 {
 			compatible = "fsl,imx7ulp-lpi2c";
 			reg = <0x40c38000 0x4000>;
 			interrupts = <37>;
