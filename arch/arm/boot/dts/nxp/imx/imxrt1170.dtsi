@@ -150,7 +150,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 0 32>;
+			gpio-ranges = <&iomuxc 0 4 32>;
 		};
 
 		gpio2: gpio@40130000 {
@@ -162,7 +162,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 32 32>;
+			gpio-ranges = <&iomuxc 0 36 32>;
 		};
 
 		gpio3: gpio@40134000 {
@@ -174,7 +174,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 64 32>;
+			gpio-ranges = <&iomuxc 0 68 32>;
 		};
 
 		gpio4: gpio@40138000 {
@@ -186,7 +186,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 96 32>;
+			gpio-ranges = <&iomuxc 0 100 32>;
 		};
 
 		gpio5: gpio@4013c000 {
@@ -198,7 +198,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 128 32>;
+			gpio-ranges = <&iomuxc 0 132 17>;
 		};
 
 		gpio6: gpio@40140000 {
@@ -210,7 +210,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 160 32>;
+			gpio-ranges = <&iomuxc_lpsr 0 0 32>;
 		};
 
 		gpio7: gpio@40c5c000 {
@@ -222,7 +222,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 192 32>;
+			gpio-ranges = <&iomuxc 0 4 32>;
 		};
 
 		gpio8: gpio@40c60000 {
@@ -234,7 +234,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 224 32>;
+			gpio-ranges = <&iomuxc 0 36 32>;
 		};
 
 		gpio9: gpio@40c64000 {
@@ -246,7 +246,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 256 32>;
+			gpio-ranges = <&iomuxc 0 68 32>;
 		};
 
 		gpio10: gpio@40c68000 {
@@ -258,7 +258,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 288 32>;
+			gpio-ranges = <&iomuxc 0 100 32>;
 		};
 
 		gpio11: gpio@40c6c000 {
@@ -270,7 +270,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			gpio-ranges = <&iomuxc 0 320 32>;
+			gpio-ranges = <&iomuxc 0 132 17>;
 		};
 
 		gpio12: gpio@40c70000 {
