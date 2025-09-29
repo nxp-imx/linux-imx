@@ -54,7 +54,15 @@ static int sof_nocodec_bes_setup(struct device *dev,
 		links[i].id = i;
 		links[i].no_pcm = 1;
 		links[i].cpus->dai_name = drv[i].name;
-		links[i].platforms->name = dev_name(dev->parent);
+
+		if (!dev->of_node) {
+			links[i].platforms->name = dev_name(dev->parent);
+			links[i].platforms->of_node = NULL;
+		} else {
+			links[i].platforms->of_node = dev->of_node;
+			links[i].platforms->name = NULL;
+		}
+
 		if (drv[i].playback.channels_min)
 			links[i].dpcm_playback = 1;
 		if (drv[i].capture.channels_min)
@@ -75,6 +83,11 @@ static int sof_nocodec_setup(struct device *dev,
 {
 	struct snd_soc_dai_link *links;
 
+	if (!dai_drivers) {
+		dev_err(dev, "ERROR: dai_drivers is NULL\n");
+		return -EINVAL;
+	}
+
 	/* create dummy BE dai_links */
 	links = devm_kcalloc(dev, num_dai_drivers, sizeof(struct snd_soc_dai_link), GFP_KERNEL);
 	if (!links)
@@ -83,29 +96,107 @@ static int sof_nocodec_setup(struct device *dev,
 	return sof_nocodec_bes_setup(dev, dai_drivers, links, num_dai_drivers, &sof_nocodec_card);
 }
 
+static int sof_nocodec_parse_dt_dai_info(struct device *dev,
+					 u32 *num_dai_drivers,
+					 struct snd_soc_dai_driver **dai_drivers)
+{
+	struct device_node *np = dev->of_node;
+	const char *dai_name;
+	int playback_channels, capture_channels;
+	int ret, i;
+
+	ret = of_property_read_u32(np, "sof,num-dai-drivers", num_dai_drivers);
+	if (ret)
+		return ret;
+
+	*dai_drivers = devm_kcalloc(dev, *num_dai_drivers,
+				   sizeof(struct snd_soc_dai_driver), GFP_KERNEL);
+	if (!*dai_drivers)
+		return -ENOMEM;
+
+	for (i = 0; i < *num_dai_drivers; i++) {
+
+		ret = of_property_read_string_index(np, "sof,dai-driver-names", i, &dai_name);
+		if (ret)
+			return ret;
+
+		ret = of_property_read_u32_index(np, "sof,dai-playback-channels", i, &playback_channels);
+		if (ret)
+			playback_channels = 0;
+
+		ret = of_property_read_u32_index(np, "sof,dai-capture-channels", i, &capture_channels);
+		if (ret)
+			capture_channels = 0;
+
+		(*dai_drivers)[i].name = devm_kstrdup(dev, dai_name, GFP_KERNEL);
+		if (!(*dai_drivers)[i].name)
+			return -ENOMEM;
+
+		(*dai_drivers)[i].id = i;
+
+		if (playback_channels > 0) {
+			(*dai_drivers)[i].playback.channels_min = 1;
+			(*dai_drivers)[i].playback.channels_max = 32;
+		}
+
+		if (capture_channels > 0) {
+			(*dai_drivers)[i].capture.channels_min = 1;
+			(*dai_drivers)[i].capture.channels_max = 32;
+		}
+
+	}
+
+	return 0;
+}
+
 static int sof_nocodec_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct snd_soc_card *card = &sof_nocodec_card;
 	struct snd_soc_acpi_mach *mach;
 	int ret;
 
-	card->dev = &pdev->dev;
+	card->dev = dev;
 	card->topology_shortname_created = true;
-	mach = pdev->dev.platform_data;
 
-	ret = sof_nocodec_setup(card->dev, mach->mach_params.num_dai_drivers,
-				mach->mach_params.dai_drivers);
+	if (dev->of_node) {
+		u32 num_dai_drivers = 0;
+		struct snd_soc_dai_driver *dai_drivers = NULL;
+
+		ret = sof_nocodec_parse_dt_dai_info(dev, &num_dai_drivers, &dai_drivers);
+
+		if (ret) {
+			dev_err(dev, "Failed to parse DT info: %d\n", ret);
+			return ret;
+		}
+
+		ret = sof_nocodec_setup(dev, num_dai_drivers, dai_drivers);
+	} else {
+		mach = dev->platform_data;
+
+		ret = sof_nocodec_setup(dev,
+					mach->mach_params.num_dai_drivers,
+					mach->mach_params.dai_drivers);
+	}
+
 	if (ret < 0)
 		return ret;
 
-	return devm_snd_soc_register_card(&pdev->dev, card);
+	return devm_snd_soc_register_card(dev, card);
 }
+
+static const struct of_device_id sof_nocodec_of_match[] = {
+	{ .compatible = "sof-audio-nocodec", },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, sof_nocodec_of_match);
 
 static struct platform_driver sof_nocodec_audio = {
 	.probe = sof_nocodec_probe,
 	.driver = {
 		.name = "sof-nocodec",
 		.pm = &snd_soc_pm_ops,
+		.of_match_table = sof_nocodec_of_match,
 	},
 };
 module_platform_driver(sof_nocodec_audio)
