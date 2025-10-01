@@ -5,7 +5,7 @@
  *
  * Copyright 2019-2020 NXP
  * Copyright 2020 Puresoftware Ltd.
- * Copyright 2023 Emcraft Systems.
+ * Copyright 2023-2025 Emcraft Systems.
  *
  * FlexSPI is a flexsible SPI host controller which supports two SPI
  * channels and up to 4 external devices. Each channel supports
@@ -340,6 +340,9 @@ struct nxp_fspi_devtype_data {
 	unsigned int txfifo;
 	unsigned int ahb_buf_size;
 	unsigned int ahb_buf_num;
+	unsigned int rx_clk_mode0_max_rate;
+	unsigned int rx_clk_mode1_max_rate;
+	unsigned int rx_clk_mode3_max_rate;
 	unsigned int quirks;
 	unsigned int lut_num;
 	bool little_endian;
@@ -350,6 +353,8 @@ static struct nxp_fspi_devtype_data lx2160a_data = {
 	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
 	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 66000000, /* 66 MHz    */
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = FSPI_QUIRK_DISABLE_DTR,
 	.lut_num = 32,
 	.little_endian = true,  /* little-endian    */
@@ -360,6 +365,8 @@ static struct nxp_fspi_devtype_data imx8mm_data = {
 	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
 	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 66000000, /* 66 MHz    */
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = 0,
 	.lut_num = 32,
 	.little_endian = true,  /* little-endian    */
@@ -370,6 +377,8 @@ static struct nxp_fspi_devtype_data imx8qxp_data = {
 	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
 	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 66000000, /* 66 MHz    */
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = 0,
 	.lut_num = 32,
 	.little_endian = true,  /* little-endian    */
@@ -380,6 +389,8 @@ static struct nxp_fspi_devtype_data imx8dxl_data = {
 	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
 	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 66000000, /* 66 MHz    */
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = FSPI_QUIRK_USE_IP_ONLY,
 	.lut_num = 32,
 	.little_endian = true,  /* little-endian    */
@@ -390,6 +401,8 @@ static struct nxp_fspi_devtype_data imx8ulp_data = {
 	.txfifo = SZ_1K,        /* (128 * 64 bits)  */
 	.ahb_buf_size = SZ_2K,  /* (256 * 64 bits)  */
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 66000000, /* 66 MHz    */
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = 0,
 	.lut_num = 16,
 	.little_endian = true,  /* little-endian    */
@@ -400,6 +413,9 @@ static struct nxp_fspi_devtype_data imxrt1050_data = {
 	.txfifo = SZ_128,
 	.ahb_buf_size = SZ_1K,
 	.ahb_buf_num = 4,
+	.rx_clk_mode0_max_rate = 60000000, /* 60 MHz    */
+	.rx_clk_mode1_max_rate = 133000000,/* 133 MHz	*/
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = 0,
 	.lut_num = 16,
 	.little_endian = true,  /* little-endian    */
@@ -410,6 +426,9 @@ static struct nxp_fspi_devtype_data imxrt1170_data = {
 	.txfifo = SZ_256,
 	.ahb_buf_size = SZ_4K,
 	.ahb_buf_num = 8,
+	.rx_clk_mode0_max_rate = 60000000, /* 60 MHz    */
+	.rx_clk_mode1_max_rate = 133000000,/* 133 MHz	*/
+	.rx_clk_mode3_max_rate = 166000000,/* 166 MHz	*/
 	.quirks = 0,
 	.lut_num = 16,
 	.little_endian = true,  /* little-endian    */
@@ -436,6 +455,9 @@ struct nxp_fspi {
 #define FSPI_DTR_MODE		(1 << 3)
 	int flags;
 	unsigned long support_max_rate;	/* the max clock rate fspi output to device */
+#define LOOPBACK_INTERNALLY     0
+#define LOOPBACK_FROM_DQS       1
+	int rx_clk_preferred_mode;
 };
 
 static inline int needs_ip_only(struct nxp_fspi *f)
@@ -725,15 +747,19 @@ static void nxp_fspi_select_rx_sample_clk_source(struct nxp_fspi *f,
 		reg |= FSPI_MCR0_RXCLKSRC(3);
 		fspi_writel(f, reg, f->iobase + FSPI_MCR0);
 		f->flags |= FSPI_RXCLKSRC_3;
-		f->support_max_rate = 166000000;
+		f->support_max_rate = f->devtype_data->rx_clk_mode3_max_rate;
 	} else {
 		reg = fspi_readl(f, f->iobase + FSPI_MCR0);
 		reg &= ~FSPI_MCR0_RXCLKSRC(3);	/* select mode 0 */
+		if (f->rx_clk_preferred_mode == LOOPBACK_FROM_DQS) {
+			reg |= FSPI_MCR0_RXCLKSRC(1);  /* select mode 1 */
+			f->support_max_rate = f->devtype_data->rx_clk_mode1_max_rate;
+		} else {
+			f->support_max_rate = f->devtype_data->rx_clk_mode0_max_rate;
+		}
 		fspi_writel(f, reg, f->iobase + FSPI_MCR0);
 		f->flags &= ~FSPI_RXCLKSRC_3;
-		f->support_max_rate = 66000000;
 	}
-
 }
 
 static void nxp_fspi_dll_calibration(struct nxp_fspi *f)
@@ -870,6 +896,7 @@ static void nxp_fspi_select_mem(struct nxp_fspi *f, struct spi_device *spi,
 	 * If clock rate > 100MHz, then switch from DLL override mode to
 	 * DLL calibration mode.
 	 */
+	serial_root_clk_rate = clk_get_rate(f->clk);
 	if (serial_root_clk_rate > 100000000)
 		nxp_fspi_dll_calibration(f);
 	else
@@ -1486,6 +1513,11 @@ static int nxp_fspi_probe(struct platform_device *pdev)
 	/* check if the controller work in combination or individual mode */
 	f->individual_mode = of_property_read_bool(np,
 						   "nxp,fspi-individual-mode");
+
+	f->rx_clk_preferred_mode = LOOPBACK_INTERNALLY;
+	if (of_property_read_bool(np, "nxp-flexspi,rx-clk-loopback-from-dqs")) {
+		f->rx_clk_preferred_mode = LOOPBACK_FROM_DQS;
+	}
 
 	mutex_init(&f->lock);
 
