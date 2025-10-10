@@ -955,7 +955,6 @@ static int imx95_pcie_core_reset(struct imx_pcie *imx_pcie, bool assert)
 static void imx_pcie_assert_core_reset(struct imx_pcie *imx_pcie)
 {
 	reset_control_assert(imx_pcie->pciephy_reset);
-	reset_control_assert(imx_pcie->apps_reset);
 
 	if (imx_pcie->drvdata->core_reset)
 		imx_pcie->drvdata->core_reset(imx_pcie, true);
@@ -969,7 +968,6 @@ static int imx_pcie_deassert_core_reset(struct imx_pcie *imx_pcie)
 	int ret = 0;
 
 	reset_control_deassert(imx_pcie->pciephy_reset);
-	reset_control_deassert(imx_pcie->apps_reset);
 
 	if (imx_pcie->drvdata->core_reset)
 		ret = imx_pcie->drvdata->core_reset(imx_pcie, false);
@@ -1189,6 +1187,9 @@ static int imx_pcie_host_init(struct dw_pcie_rp *pp)
 			goto err_phy_exit;
 		}
 	}
+
+	/* Make sure that PCIe LTSSM is cleared */
+	imx_pcie_ltssm_disable(dev);
 
 	ret = imx_pcie_deassert_core_reset(imx_pcie);
 	if (ret < 0) {
@@ -2120,6 +2121,12 @@ static const struct imx_pcie_drvdata drvdata[] = {
 		.mode_mask[0] = IMX6Q_GPR12_DEVICE_TYPE,
 		.epc_features = &imx8m_pcie_epc_features,
 		.enable_ref_clk = imx8mm_pcie_enable_ref_clk,
+	},
+	[IMX8Q_EP] = {
+		.variant = IMX8Q_EP,
+		.flags = IMX_PCIE_FLAG_HAS_PHYDRV,
+		.mode = DW_PCIE_EP_TYPE,
+		.epc_features = &imx8q_pcie_epc_features,
 	},
 	[IMX95_EP] = {
 		.variant = IMX95_EP,

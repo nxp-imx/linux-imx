@@ -14,6 +14,7 @@
 #include <trace/hooks/sched.h>
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_select_task_rq_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_select_task_rq_rt);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_select_task_rq_dl);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_select_fallback_rq);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scheduler_tick);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_enqueue_task);
@@ -112,6 +113,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scx_ops_enable_state);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scx_enabled);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scx_set_cpus_allowed);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scx_task_switch_finish);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_switching_to_scx);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_sugov_update);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_rq_clock_pelt);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_load_avg_blocked_se);
@@ -136,3 +138,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_uclamp_validate);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_util_fits_cpu);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_before_pick_task_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_balance_fair);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dump_dl_server);

@@ -8,6 +8,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_zip")
+load("@rules_python//python:defs.bzl", "py_library")
 load(
     "//build/kernel/kleaf:common_kernels.bzl",
     "common_kernel",
@@ -197,7 +198,9 @@ filegroup(
         "gki/aarch64/symbols/galaxy",
         "gki/aarch64/symbols/honor",
         "gki/aarch64/symbols/imx",
+        "gki/aarch64/symbols/kunit",
         "gki/aarch64/symbols/lenovo",
+        "gki/aarch64/symbols/meizu",
         "gki/aarch64/symbols/mtk",
         "gki/aarch64/symbols/mtktv",
         "gki/aarch64/symbols/oplus",
@@ -207,6 +210,7 @@ filegroup(
         "gki/aarch64/symbols/rtkstb",
         "gki/aarch64/symbols/rtktv",
         "gki/aarch64/symbols/tcl",
+        "gki/aarch64/symbols/transsion",
         "gki/aarch64/symbols/trusty",
         "gki/aarch64/symbols/tuxera",
         "gki/aarch64/symbols/type_visibility",
@@ -282,7 +286,7 @@ common_kernel(
     defconfig = "arch/arm64/configs/gki_defconfig",
     extra_dist = [
         ":test_mappings_zip",
-        ":tests_zip_arm64",
+        ":tests_zip_arm64_16k",
     ],
     gki_boot_img_sizes = _GKI_AARCH64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
@@ -332,7 +336,7 @@ common_kernel(
 fail_rule(
     name = "kernel_aarch64_debug",
     message = """\
-Consider building @@//common:kernel_aarch64 with:
+Consider building @//common:kernel_aarch64 with:
     * --notrim to disable trimming, or
     * --debug to enable additional debug options.""",
     visibility = ["//visibility:public"],
@@ -371,7 +375,7 @@ common_kernel(
 fail_rule(
     name = "kernel_x86_64_debug",
     message = """\
-Consider building @@//common:kernel_x86_64 with:
+Consider building @//common:kernel_x86_64 with:
     * --notrim to disable trimming, or
     * --debug to enable additional debug options.""",
     visibility = ["//visibility:public"],
@@ -1528,6 +1532,16 @@ pkg_files(
 )
 
 pkg_files(
+    name = "kunit_modules_arm64_16k",
+    srcs = [
+        ":kernel_aarch64_16k/" + e
+        for e in get_kunit_modules_list("arm64")
+    ],
+    prefix = _KUNIT_DIR + "/arm64",
+    visibility = ["//visibility:private"],
+)
+
+pkg_files(
     name = "kunit_modules_x86_64",
     srcs = [
         ":kernel_x86_64/" + e
@@ -1541,6 +1555,15 @@ pkg_filegroup(
     name = "kunit_tests_arm64_pkg_files",
     srcs = [
         ":kunit_modules_arm64",
+        ":kunit_tests_config_arm64",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "kunit_tests_arm64_16k_pkg_files",
+    srcs = [
+        ":kunit_modules_arm64_16k",
         ":kunit_tests_config_arm64",
     ],
     visibility = ["//visibility:private"],
@@ -1566,11 +1589,29 @@ pkg_install(
 )
 
 pkg_install(
+    name = "kunit_tests_arm64_16k",
+    srcs = [
+        ":kunit_tests_arm64_16k_pkg_files",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
     name = "kunit_tests_x86_64",
     srcs = [
         ":kunit_tests_x86_64_pkg_files",
     ],
     visibility = ["//visibility:private"],
+)
+
+py_library(
+    name = "kunit_parser",
+    srcs = [
+        "tools/testing/kunit/kunit_parser.py",
+        "tools/testing/kunit/kunit_printer.py",
+    ],
+    imports = ["tools/testing/kunit"],
+    visibility = ["//visibility:public"],
 )
 
 # DDK Headers
@@ -1783,6 +1824,9 @@ filegroup(
 ddk_headers(
     name = "all_headers_unsafe",
     hdrs = [
+        "arch/arm64/kvm/hyp/include/nvhe/alloc_mgt.h",
+        "arch/arm64/kvm/hyp/include/nvhe/iommu.h",
+        "arch/arm64/kvm/hyp/include/nvhe/spinlock.h",
         "drivers/devfreq/governor.h",
         "drivers/pinctrl/core.h",
         "drivers/ufs/core/ufshcd-priv.h",
@@ -1809,6 +1853,7 @@ ddk_headers(
     # Unsafe include directories are appended to ccflags-y.
     includes = [
         ".",
+        "arch/arm64/kvm/hyp/include",
         "drivers/devfreq",
         "drivers/pinctrl",
         "drivers/ufs/core",
@@ -3184,6 +3229,16 @@ pkg_zip(
         ":kunit_tests_arm64_pkg_files",
     ],
     out = "arm64/tests.zip",
+    visibility = ["//visibility:public"],
+)
+
+pkg_zip(
+    name = "tests_zip_arm64_16k",
+    srcs = [
+        ":kselftest_tests_arm64_pkg_filegroup",
+        ":kunit_tests_arm64_16k_pkg_files",
+    ],
+    out = "arm64_16k/tests.zip",
     visibility = ["//visibility:public"],
 )
 

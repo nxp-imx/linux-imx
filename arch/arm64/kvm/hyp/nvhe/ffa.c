@@ -121,9 +121,11 @@ static int ffa_host_store_handle(u64 ffa_handle, bool is_lend)
 	if (!static_branch_unlikely(&kvm_ffa_unmap_on_lend))
 		return 0;
 
-	if (spm_free_handle >= spm_handles &&
-	    spm_free_handle < (spm_handles + num_spm_handles)) {
+	if (spm_free_handle) {
+		WARN_ON(spm_free_handle < spm_handles ||
+			spm_free_handle >= (spm_handles + num_spm_handles));
 		free_handle = spm_free_handle;
+		spm_free_handle = NULL;
 	} else {
 		for (i = 0; i < num_spm_handles; i++)
 			if (spm_handles[i].handle == FFA_INVALID_SPM_HANDLE)
@@ -726,7 +728,7 @@ static int ffa_guest_share_ranges(struct ffa_mem_region_addr_range *ranges,
 	struct ffa_mem_region_addr_range *buf = out_region->constituents;
 	int i, j, ret;
 	u32 mem_region_idx = 0;
-	u64 ipa, pa;
+	u64 ipa, pa, offset;
 
 	for (i = 0; i < nranges; i++) {
 		range = &ranges[i];
@@ -736,7 +738,12 @@ static int ffa_guest_share_ranges(struct ffa_mem_region_addr_range *ranges,
 				goto unshare;
 			}
 
-			ipa = range->address + PAGE_SIZE * j;
+			if (check_mul_overflow(j, PAGE_SIZE, &offset) ||
+			    check_add_overflow(range->address, offset, &ipa)) {
+				ret = -EINVAL;
+				goto unshare;
+			}
+
 			ret = __pkvm_guest_share_ffa_page(vcpu, ipa, &pa);
 			if (ret)
 				goto unshare;

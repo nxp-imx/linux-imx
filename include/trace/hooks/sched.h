@@ -18,6 +18,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_select_task_rq_rt,
 	TP_PROTO(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags, int *new_cpu),
 	TP_ARGS(p, prev_cpu, sd_flag, wake_flags, new_cpu), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_select_task_rq_dl,
+	TP_PROTO(struct task_struct *p, int prev_cpu, int sd_flag, int wake_flags, int *new_cpu),
+	TP_ARGS(p, prev_cpu, sd_flag, wake_flags, new_cpu), 1);
+
 DECLARE_RESTRICTED_HOOK(android_rvh_select_fallback_rq,
 	TP_PROTO(int cpu, struct task_struct *p, int *new_cpu),
 	TP_ARGS(cpu, p, new_cpu), 1);
@@ -431,6 +435,10 @@ DECLARE_HOOK(android_vh_scx_task_switch_finish,
 	TP_PROTO(struct task_struct *p, int enable),
 	TP_ARGS(p, enable));
 
+DECLARE_HOOK(android_vh_switching_to_scx,
+	TP_PROTO(struct rq *rq, struct task_struct *p),
+	TP_ARGS(rq, p));
+
 struct sugov_policy;
 DECLARE_RESTRICTED_HOOK(android_rvh_set_sugov_update,
 	TP_PROTO(struct sugov_policy *sg_policy, unsigned int next_freq, bool *should_update),
@@ -530,6 +538,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_util_fits_cpu,
 	TP_PROTO(unsigned long util, unsigned long uclamp_min, unsigned long uclamp_max,
 		 int cpu, bool *fits, bool *done),
 	TP_ARGS(util, uclamp_min, uclamp_max, cpu, fits, done), 1);
+
+struct sched_dl_entity;
+DECLARE_HOOK(android_vh_dump_dl_server,
+	TP_PROTO(struct sched_dl_entity *dl_se, struct task_struct *p),
+	TP_ARGS(dl_se, p));
 
 /* macro versions of hooks are no longer required */
 

@@ -65,6 +65,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/module.h>
+
 /*
  * Mutex protects:
  * 1) List of modules (also safely readable with preempt_disable),
@@ -743,14 +746,16 @@ SYSCALL_DEFINE2(delete_module, const char __user *, name_user,
 	struct module *mod;
 	char name[MODULE_NAME_LEN];
 	char buf[MODULE_FLAGS_BUF_SIZE];
-	int ret, forced = 0;
+	int ret, len, forced = 0;
 
 	if (!capable(CAP_SYS_MODULE) || modules_disabled)
 		return -EPERM;
 
-	if (strncpy_from_user(name, name_user, MODULE_NAME_LEN-1) < 0)
-		return -EFAULT;
-	name[MODULE_NAME_LEN-1] = '\0';
+	len = strncpy_from_user(name, name_user, MODULE_NAME_LEN);
+	if (len == 0 || len == MODULE_NAME_LEN)
+		return -ENOENT;
+	if (len < 0)
+		return len;
 
 	audit_log_kern_module(name);
 
@@ -1296,6 +1301,7 @@ static void module_memory_free(struct module *mod, enum mod_mem_type type)
 
 static void free_mod_mem(struct module *mod)
 {
+	trace_android_vh_free_mod_mem(mod);
 	for_each_mod_mem_type(type) {
 		struct module_memory *mod_mem = &mod->mem[type];
 
@@ -3025,6 +3031,7 @@ static noinline int do_init_module(struct module *mod)
 		pr_warn("%s: module_enable_rodata_ro_after_init() returned %d, "
 			"ro_after_init data might still be writable\n",
 			mod->name, ret);
+	trace_android_vh_set_mod_perm_after_init(mod);
 
 	mod_tree_remove_init(mod);
 	module_arch_freeing_init(mod);
@@ -3200,6 +3207,7 @@ static int complete_formation(struct module *mod, struct load_info *info)
 	err = module_enable_text_rox(mod);
 	if (err)
 		goto out_strict_rwx;
+	trace_android_vh_set_mod_perm_before_init(mod);
 
 	/*
 	 * Mark state as coming so strong_try_module_get() ignores us,

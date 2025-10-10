@@ -7,6 +7,8 @@
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pkvm.h>
 
+#include <linux/cma.h>
+#include <linux/of_reserved_mem.h>
 #include <kvm/iommu.h>
 
 #include <linux/arm-smccc.h>
@@ -21,6 +23,64 @@
 	__res.a1;							\
 })
 
+static phys_addr_t __topup_virt_to_phys(void *virt)
+{
+	return __pa(virt);
+}
+
+static struct page *__kvm_iommu_alloc_from_cma(gfp_t gfp)
+{
+	bool from_spare = (gfp & GFP_ATOMIC) == GFP_ATOMIC;
+	static atomic64_t spare_p;
+	struct page *p = NULL;
+
+again:
+	if (from_spare)
+		return (struct page *)atomic64_cmpxchg(&spare_p, atomic64_read(&spare_p), 0);
+
+	p = kvm_iommu_cma_alloc();
+	if (!p) {
+		from_spare = true;
+		goto again;
+	}
+
+	/*
+	 * Top-up the spare block if necessary. If we failed to update spare_p
+	 * then someone did it already and we can proceed with that page.
+	 */
+	if (!atomic64_read(&spare_p)) {
+		if (!atomic64_cmpxchg(&spare_p, 0, (u64)p))
+			goto again;
+	}
+
+	return p;
+}
+
+static int __kvm_iommu_topup_memcache_from_cma(size_t size, gfp_t gfp, size_t *allocated)
+{
+	*allocated = 0;
+
+	while (*allocated < size) {
+		struct page *p = __kvm_iommu_alloc_from_cma(gfp);
+		struct kvm_hyp_memcache mc;
+
+		if (!p)
+			return -ENOMEM;
+
+		init_hyp_memcache(&mc);
+		push_hyp_memcache(&mc, page_to_virt(p), __topup_virt_to_phys,
+				  PMD_SHIFT - PAGE_SHIFT);
+
+		if (__pkvm_topup_hyp_alloc_mgt_mc(HYP_ALLOC_MGT_IOMMU_ID, &mc)) {
+			kvm_iommu_cma_release(p);
+			return -EINVAL;
+		}
+
+		*allocated += PMD_SIZE;
+	}
+
+	return 0;
+}
 
 static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 {
@@ -39,8 +99,23 @@ static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 	}
 
 	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
+		size_t nr_pages, from_cma = 0;
+		int ret;
+
+		nr_pages = req.mem.nr_pages;
+
+		if (req.mem.sz_alloc < PMD_SIZE) {
+			size_t size = req.mem.sz_alloc * nr_pages;
+
+			ret = __kvm_iommu_topup_memcache_from_cma(size, gfp, &from_cma);
+			if (!ret)
+				return 0;
+
+			nr_pages -= from_cma / req.mem.sz_alloc;
+		}
+
 		return __pkvm_topup_hyp_alloc_mgt_gfp(HYP_ALLOC_MGT_IOMMU_ID,
-						      req.mem.nr_pages,
+						      nr_pages,
 						      req.mem.sz_alloc,
 						      gfp);
 	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
@@ -54,6 +129,10 @@ static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 
 struct kvm_iommu_driver *iommu_driver;
 extern struct kvm_iommu_ops *kvm_nvhe_sym(kvm_iommu_ops);
+
+static struct cma *kvm_iommu_cma;
+extern phys_addr_t kvm_nvhe_sym(cma_base);
+extern size_t kvm_nvhe_sym(cma_size);
 
 int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops)
 {
@@ -79,6 +158,48 @@ int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
 				 atomic_mc->head, atomic_mc->nr_pages);
 }
 EXPORT_SYMBOL(kvm_iommu_init_hyp);
+
+static int __init pkvm_iommu_cma_setup(struct reserved_mem *rmem)
+{
+	int err;
+
+	if (!IS_ALIGNED(rmem->base | rmem->size, PMD_SIZE))
+		kvm_info("pKVM IOMMU reserved memory not PMD-aligned\n");
+
+	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, rmem->name,
+				    &kvm_iommu_cma, false);
+	if (err) {
+		kvm_err("Failed to init pKVM IOMMU reserved memory\n");
+		kvm_iommu_cma = NULL;
+		return err;
+	}
+
+	kvm_nvhe_sym(cma_base) = cma_get_base(kvm_iommu_cma);
+	kvm_nvhe_sym(cma_size) = cma_get_size(kvm_iommu_cma);
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(pkvm_cma, "pkvm,cma", pkvm_iommu_cma_setup);
+
+static const u8 pmd_order = PMD_SHIFT - PAGE_SHIFT;
+
+struct page *kvm_iommu_cma_alloc(void)
+{
+	if (!kvm_iommu_cma)
+		return NULL;
+
+	return cma_alloc(kvm_iommu_cma, (1 << pmd_order), pmd_order, true);
+}
+EXPORT_SYMBOL(kvm_iommu_cma_alloc);
+
+bool kvm_iommu_cma_release(struct page *p)
+{
+	if (!kvm_iommu_cma || !p)
+		return false;
+
+	return cma_release(kvm_iommu_cma, p, 1 << pmd_order);
+}
+EXPORT_SYMBOL(kvm_iommu_cma_release);
 
 int kvm_iommu_init_driver(void)
 {
