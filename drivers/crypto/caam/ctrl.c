@@ -925,8 +925,10 @@ static int caam_probe(struct platform_device *pdev)
 		 * CAAM clocks cannot be controlled from kernel.
 		 * They are automatically turned on by SCU f/w.
 		 */
-		if (ctrlpriv->scu_en)
+		if (ctrlpriv->scu_en) {
+			ctrlpriv->no_page0 = !reg_access;
 			goto iomap_ctrl;
+		}
 
 		/*
 		 * Until Layerscape and i.MX OP-TEE get in sync,

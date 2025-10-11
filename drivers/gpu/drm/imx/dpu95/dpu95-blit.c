@@ -16,9 +16,20 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 
-#include "dpu95-blit-registers.h"
 #include "dpu95.h"
 #include "dpu95-drv.h"
+#include "dpu95-blit-registers.h"
+
+static const u32 fetch_unit_addr[3] = {
+	FETCHDECODE9_BASEADDRESS0,
+	FETCHROT9_BASEADDRESS0,
+	FETCHECO9_BASEADDRESS0
+};
+static const u32 store_unit_addr[3] = {
+	STORE9_BASEADDRESS0,
+	STORE9_BASEADDRESS1,
+	STORE9_BASEADDRESS2
+};
 
 #define STORE9_SEQCOMPLETE_IRQ         2U
 #define STORE9_SEQCOMPLETE_IRQ_MASK    (1U<<STORE9_SEQCOMPLETE_IRQ)
@@ -264,6 +275,80 @@ static int dpu95_be_set_fence(struct dpu_bliteng *dpu_be, int fd)
 	return 0;
 }
 
+static int dpu95_be_fd_to_address(struct drm_device *drm_dev, int fd, unsigned long *phy)
+{
+	int ret = 0;
+	struct dma_buf *dmabuf;
+	struct sg_table *sgt = NULL;
+	struct dma_buf_attachment *attachment = NULL;
+
+	if (fd < 0)
+		return fd;
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR(dmabuf)) {
+		drm_err(drm_dev, "failed to get dmabuf\n");
+		return PTR_ERR(dmabuf);
+	}
+	attachment = dma_buf_attach(dmabuf, drm_dev->dev);
+	if (IS_ERR(attachment)) {
+		ret = PTR_ERR(attachment);
+		drm_err(drm_dev, "failed to attach dmabuf\n");
+		goto err_put;
+	}
+	sgt = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
+	if (IS_ERR(sgt)) {
+		ret = PTR_ERR(sgt);
+		drm_err(drm_dev, "failed to get dmabuf sg_table\n");
+		goto err_detach;
+	}
+	*phy = sg_dma_address(sgt->sgl);
+	dma_buf_unmap_attachment(attachment, sgt, DMA_BIDIRECTIONAL);
+err_detach:
+	dma_buf_detach(dmabuf, attachment);
+err_put:
+	dma_buf_put(dmabuf);
+
+	return ret;
+}
+
+static void dpu95_be_get_plane_addr(struct drm_device *drm_dev,
+	struct drm_imx_dpu_frame_plane_info plane_info,
+	unsigned long *src_plane_addr, unsigned long *dst_plane_addr)
+{
+	int i;
+
+	for (i = 0; i < 3; i++) {
+		dpu95_be_fd_to_address(drm_dev,
+			plane_info.src_plane_fd[i], &src_plane_addr[i]);
+		src_plane_addr[i] += plane_info.src_plane_offset[i];
+		dpu95_be_fd_to_address(drm_dev,
+			plane_info.dst_plane_fd[i], &dst_plane_addr[i]);
+		dst_plane_addr[i] += plane_info.dst_plane_offset[i];
+	}
+}
+
+static void dpu95_be_set_plane_addr(struct dpu_bliteng *dpu_be,
+	unsigned long *src_plane_addr, unsigned long *dst_plane_addr)
+{
+	int i;
+
+	for (i = 0; i < 3; i++) {
+		if (src_plane_addr[i]) {
+			dpu95_be_write(dpu_be, 0x14000002, CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, fetch_unit_addr[i], CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, src_plane_addr[i] & 0xFFFFFFFF, CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, src_plane_addr[i] >> 32, CMDSEQ_HIF);
+		}
+		if (dst_plane_addr[i]) {
+			dpu95_be_write(dpu_be, 0x14000002, CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, store_unit_addr[i], CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, dst_plane_addr[i] & 0xFFFFFFFF, CMDSEQ_HIF);
+			dpu95_be_write(dpu_be, dst_plane_addr[i] >> 32, CMDSEQ_HIF);
+		}
+	}
+}
+
 static int dpu95_be_blit(struct dpu_bliteng *dpu_be,
 	u32 *cmdlist, u32 cmdnum)
 {
@@ -469,8 +554,9 @@ static int imx_drm_dpu95_set_cmdlist_ioctl(struct drm_device *drm_dev, void *dat
 	u32 cmd_nr, *cmd, *cmd_list;
 	void *user_data;
 	s32 id = 0;
-	struct drm_imx_dpu_frame_info frame_info;
-	int ret;
+	struct drm_imx_dpu_frame_plane_info plane_info;
+	int ret, use_dma_fd;
+	unsigned long src_plane_addr[3] = {0}, dst_plane_addr[3] = {0};
 
 	req = data;
 	user_data = (void *)(unsigned long)req->user_data;
@@ -478,14 +564,23 @@ static int imx_drm_dpu95_set_cmdlist_ioctl(struct drm_device *drm_dev, void *dat
 		sizeof(id))) {
 		return -EFAULT;
 	}
-
 	if (id != 0)
 		return -EINVAL;
 
 	user_data += sizeof(id);
-	if (copy_from_user(&frame_info, (void __user *)user_data,
-		sizeof(frame_info))) {
+	if (copy_from_user(&use_dma_fd, (void __user *)user_data,
+		sizeof(use_dma_fd))) {
 		return -EFAULT;
+	}
+	if (use_dma_fd) {
+		user_data += sizeof(use_dma_fd);
+		if (copy_from_user(&plane_info, (void __user *)user_data,
+			sizeof(plane_info))) {
+			return -EFAULT;
+		}
+
+		dpu95_be_get_plane_addr(drm_dev, plane_info,
+			src_plane_addr, dst_plane_addr);
 	}
 
 	ret = pm_runtime_resume_and_get(dpu_blit_eng->dev);
@@ -505,6 +600,10 @@ static int imx_drm_dpu95_set_cmdlist_ioctl(struct drm_device *drm_dev, void *dat
 		goto err;
 	}
 
+	if (use_dma_fd) {
+		dpu95_be_set_plane_addr(dpu_blit_eng,
+			src_plane_addr, dst_plane_addr);
+	}
 	ret = dpu95_be_blit(dpu_blit_eng, cmd_list, cmd_nr);
 
 err:

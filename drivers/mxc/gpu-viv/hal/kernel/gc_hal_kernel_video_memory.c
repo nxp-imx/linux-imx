@@ -4518,11 +4518,47 @@ _dmabuf_kunmap(struct dma_buf *dmabuf, unsigned long offset, void *ptr)
 }
 #    endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+static int _dmabuf_vmap(struct dma_buf *dmabuf, struct iosys_map *map)
+{
+    gckVIDMEM_NODE nodeObject = dmabuf->priv;
+    gcuVIDMEM_NODE_PTR node = nodeObject->node;
+    gckVIDMEM memory = node->VidMem.parent;
+    gctINT8_PTR kvaddr = gcvNULL;
+    gctBOOL ioMemory = gcvFALSE;
+
+    if (memory && memory->object.type == gcvOBJ_VIDMEM)
+        ioMemory = gcvTRUE;
+
+    if (!gcmIS_SUCCESS(gckVIDMEM_NODE_LockCPU(nodeObject->kernel,
+                                              nodeObject, gcvFALSE, gcvFALSE,
+                                              (gctPOINTER *)&kvaddr))) {
+        return -EFAULT;
+    }
+
+    if (ioMemory)
+        iosys_map_set_vaddr_iomem(map, kvaddr);
+    else
+        iosys_map_set_vaddr(map, kvaddr);
+
+    return 0;
+}
+
+static void _dmabuf_vunmap(struct dma_buf *dmabuf, struct iosys_map *map)
+{
+    iosys_map_clear(map);
+}
+#endif
+
 static struct dma_buf_ops _dmabuf_ops = {
     .map_dma_buf   = _dmabuf_map,
     .unmap_dma_buf = _dmabuf_unmap,
     .mmap          = _dmabuf_mmap,
     .release       = _dmabuf_release,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+    .vmap          = _dmabuf_vmap,
+    .vunmap        = _dmabuf_vunmap,
+# endif
 #if LINUX_VERSION_CODE > KERNEL_VERSION(5, 5, 7)
 #    elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     .map           = _dmabuf_kmap,

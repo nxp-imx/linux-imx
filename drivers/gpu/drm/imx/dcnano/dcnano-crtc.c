@@ -360,10 +360,23 @@ dcnano_crtc_get_scanout_position(struct drm_crtc *crtc,
 	else
 		*hpos = x - (htotal - 1); /* inside vblank - negative */
 
-	if (y < vdisplay)
+	if (y < vdisplay) {
 		*vpos = y + 1; /* active scanout area - positive */
-	else
+
+		/*
+		 * If vpos happens to be the last line of active scanout area,
+		 * enforce vpos to be the first line of vblank region. This is
+		 * needed because vblank core only supports calculating vblank
+		 * timestamp for the case where vblank IRQ is fired off at the
+		 * end of vblank region, while DCNANO fires it off at the end
+		 * of active display region. This prevents vblank core from
+		 * generating backward vblank timestamp.
+		 */
+		if (*vpos == vdisplay)
+			*vpos -= vtotal - 1;
+	} else {
 		*vpos = y - (vtotal - 1); /* inside vblank - negative */
+	}
 
 	reliable = true;
 

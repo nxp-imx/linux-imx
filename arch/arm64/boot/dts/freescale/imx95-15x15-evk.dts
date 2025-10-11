@@ -46,6 +46,7 @@
 		compatible = "pwm-fan";
 		cooling-min-state = <0>;
 		cooling-max-state = <3>;
+		fan-supply = <&reg_vcc_12v>;
 		#cooling-cells = <2>;
 		pwms = <&tpm6 0 4000000 PWM_POLARITY_INVERTED>;
 		cooling-levels = <64 128 192 255>;
@@ -71,6 +72,11 @@
 
 		vpu_boot: vpu_boot@a0000000 {
 			reg = <0 0xa0000000 0 0x100000>;
+			no-map;
+		};
+
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
 			no-map;
 		};
 
@@ -251,6 +257,10 @@
 			"IN1R", "AMIC";
 	};
 
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
+	};
 	sound-micfil {
 		compatible = "fsl,imx-audio-card";
 		model = "micfil-audio";
@@ -1166,6 +1176,9 @@
 			       <3612672000>, <393216000>,
 			       <361267200>, <49152000>;
 	status = "okay";
+};
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };
 
 &xcvr {

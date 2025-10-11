@@ -1011,7 +1011,7 @@ static int viv_dev_probe(struct platform_device *pdev)
 static int __devinit viv_dev_probe(struct platform_device *pdev)
 #endif
 {
-    int  ret = -ENODEV;
+    int  ret = -EPROBE_DEFER;
     bool getPowerFlag = gcvFALSE;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
     static u64 dma_mask = DMA_BIT_MASK(40);

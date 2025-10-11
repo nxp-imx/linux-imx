@@ -4756,10 +4756,10 @@ static int dpaa2_eth_connect_mac(struct dpaa2_eth_priv *priv)
 	if (IS_ERR(dpmac_dev))
 		return 0;
 
-        if (dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type) {
-                err = 0;
-                goto out_put_device;
-        }
+	if (dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type) {
+		err = 0;
+		goto out_put_device;
+	}
 
 #if IS_ENABLED(CONFIG_MACSEC)
 	dpaa2_eth_macsec_init(priv);

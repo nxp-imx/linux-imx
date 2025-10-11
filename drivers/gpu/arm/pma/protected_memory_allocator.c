@@ -2,6 +2,7 @@
 /*
  *
  * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * COPYRIGHT 2024 - 2025 NXP
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -304,7 +305,7 @@ simple_pma_alloc_page(struct protected_memory_allocator_device *pma_dev, unsigne
 
 					large_granularity_alloc(epma_dev, start_idx, order, pma);
 
-					epma_dev->num_free_pages -= 1 << order;
+					epma_dev->num_free_pages -= 1ULL << order;
 					spin_unlock(&epma_dev->rmem_lock);
 					return pma;
 				}
@@ -541,7 +542,6 @@ out_err:
 	return;
 #endif
 }
-#endif
 
 static const struct of_device_id protected_memory_allocator_dt_ids[] = {
 	{ .compatible = "arm,protected-memory-allocator" },

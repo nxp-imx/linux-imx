@@ -1654,10 +1654,10 @@ static int dpaa2_switch_port_connect_mac(struct ethsw_port_priv *port_priv)
 	if (IS_ERR(dpmac_dev))
 		return 0;
 
-        if (dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type) {
-                err = 0;
-                goto out_put_device;
-        }
+	if (dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type) {
+		err = 0;
+		goto out_put_device;
+	}
 
 	dpaa2_mac_driver_detach(dpmac_dev);
 

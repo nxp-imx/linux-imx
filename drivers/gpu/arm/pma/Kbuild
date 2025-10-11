@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2012, 2020-2021, 2024 ARM Limited. All rights reserved.
+# COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+# COPYRIGHT 2025 NXP
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -18,10 +19,6 @@
 #
 #
 
-ifeq ($(MALI_CSF_SUPPORT),n)
-    $(error [GPUBUILD-2005] Only CSF builds are supported on this branch)
-endif
-
-obj-$(CONFIG_MALI_MIDGARD) += midgard/
-obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += pma/
-obj-$(CONFIG_MALI_MEMORY_GROUP_MANAGER) += mgm/
+obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += protected_memory_allocator.o
+ccflags-y += \
+    -I$(src)/../valhall-inc

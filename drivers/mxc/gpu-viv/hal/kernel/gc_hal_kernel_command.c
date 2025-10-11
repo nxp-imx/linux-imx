@@ -3028,8 +3028,10 @@ gckCOMMAND_Commit(IN gckCOMMAND Command, IN gcsHAL_SUBCOMMIT *SubCommit,
                 gcmkONERROR(gckHARDWARE_EnablePowerManagement(Command->kernel->hardware, gcvFALSE));
         }
 
-        if (Command->kernel->processPageTable && Command->currContext != context) {
+        if ((Command->kernel->processPageTable && Command->currContext != context) ||
+             Command->kernel->mmu->needRestore) {
             gcmkONERROR(gckKERNEL_SwitchMMU(Command->kernel, Shared, mmu));
+            Command->kernel->mmu->needRestore = gcvFALSE;
         }
 
 #if gcdCONTEXT_SWITCH_FORCE_USC_RESET

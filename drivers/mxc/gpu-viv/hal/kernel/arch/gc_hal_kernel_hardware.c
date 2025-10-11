@@ -6054,6 +6054,11 @@ _PmInitializeGPU(IN gckHARDWARE Hardware, IN gckCOMMAND Command)
 {
     gceSTATUS status;
 
+    if (Hardware->kernel->processPageTable && !Hardware->kernel->flatMapping) {
+        gcmkONERROR(gckMMU_SwitchMtlb(Hardware->kernel->mmu, Hardware->kernel->mmuCopy));
+        Hardware->kernel->mmu->needRestore = gcvTRUE;
+    }
+
     /* Initialize hardware. */
     gcmkONERROR(gckHARDWARE_InitializeHardware(Hardware));
 

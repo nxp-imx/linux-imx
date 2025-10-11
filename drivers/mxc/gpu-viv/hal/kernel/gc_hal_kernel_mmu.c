@@ -4165,6 +4165,9 @@ gckMMU_DestroyMmuCopy(IN gckMMU Mmu)
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea1M.stlbLogical));
 #endif
 
+    if (Mmu->mtlbVideoMem)
+        gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(Mmu->hardware->kernel, Mmu->mtlbVideoMem));
+
     if (Mmu->dynamicArea4K.stlbLogical)
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea4K.stlbLogical));
 
@@ -4212,6 +4215,21 @@ gckMMU_ConstructMmuCopy(IN gckKERNEL Kernel, OUT gckMMU *MmuCopy)
 
     gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
 #endif
+
+    if (Kernel->hardware->mmuVersion > 0) {
+        mmuCopy->pool = _GetPageTablePool(mmuCopy->os);
+        mmuCopy->mtlbSize = mmu->mtlbSize;
+        gcmkONERROR(gckKERNEL_AllocateVideoMemory(Kernel, 1024, gcvVIDMEM_TYPE_COMMAND,
+                                                          gcvALLOC_FLAG_CONTIGUOUS | gcvALLOC_FLAG_4K_PAGES,
+                                                          &mmuCopy->mtlbSize, &mmuCopy->pool, &mmuCopy->mtlbVideoMem));
+
+        gcmkONERROR(gckVIDMEM_NODE_LockCPU(Kernel, mmuCopy->mtlbVideoMem,
+                                           gcvFALSE, gcvFALSE, &pointer));
+        mmuCopy->mtlbLogical = pointer;
+
+        gcmkONERROR(gckOS_ZeroMemory(mmuCopy->mtlbLogical, mmuCopy->mtlbSize));
+        gcmkONERROR(gckOS_MemCopy(mmuCopy->mtlbLogical, mmu->mtlbLogical, mmu->mtlbSize));
+    }
 
     area = &mmu->dynamicArea4K;
     areaCopy = &mmuCopy->dynamicArea4K;

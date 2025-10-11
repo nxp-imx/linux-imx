@@ -685,8 +685,6 @@ static int ox05b1s_init_state(struct v4l2_subdev *sd,
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
 	struct v4l2_subdev_route routes[OX05B1S_STREAM_NUM];
 	struct v4l2_subdev_krouting routing = { };
-	u32 default_mode_index = sensor->model->default_mode_index;
-	const struct ox05b1s_mode *default_mode;
 	int i;
 	int ret;
 
@@ -709,9 +707,8 @@ static int ox05b1s_init_state(struct v4l2_subdev *sd,
 	if (ret)
 		return ret;
 
-	/* Initialize all the formats according to default mode */
-	default_mode = &sensor->model->supported_modes[default_mode_index];
-	return ox05b1s_propagate_fmt(state, default_mode);
+	/* Initialize all the formats according to current mode */
+	return ox05b1s_propagate_fmt(state, sensor->mode);
 }
 
 static int ox05b1s_enum_mbus_code_default(struct v4l2_subdev *sd,
@@ -1068,8 +1065,8 @@ static int ox05b1s_set_routing(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 	if (ret)
 		return ret;
 
-	/* Initialize all the formats according to default mode */
-	ret = ox05b1s_propagate_fmt(state, &sensor->model->supported_modes[0]);
+	/* Initialize all the formats according to current mode */
+	ret = ox05b1s_propagate_fmt(state, sensor->mode);
 	if (ret)
 		return ret;
 
@@ -1267,6 +1264,9 @@ static int ox05b1s_probe(struct i2c_client *client)
 
 	v4l2_i2c_subdev_set_name(sd, client, sensor->model->name, NULL);
 
+	sensor->mode = &sensor->model->supported_modes[0];
+	ox05b1s_update_controls(sensor);
+
 	/* Centrally managed subdev active state */
 	sd->state_lock = &sensor->lock;
 	retval = v4l2_subdev_init_finalize(sd);
@@ -1280,9 +1280,6 @@ static int ox05b1s_probe(struct i2c_client *client)
 		dev_err(&client->dev, "Async register failed, ret=%d\n", retval);
 		goto probe_err_subdev_cleanup;
 	}
-
-	sensor->mode = &sensor->model->supported_modes[0];
-	ox05b1s_update_controls(sensor);
 
 	pm_runtime_set_autosuspend_delay(dev, 1000);
 	pm_runtime_use_autosuspend(dev);

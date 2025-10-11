@@ -1,5 +1,5 @@
 /*
- * Copyright 2017,2022-2023 NXP
+ * Copyright 2017,2022-2023,2025 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -38,6 +38,13 @@ struct drm_imx_dpu_frame_info {
 	__u64   modifier;
 	__u64	baddr;
 	__u64	uv_addr;
+};
+
+struct drm_imx_dpu_frame_plane_info {
+	int   src_plane_fd[3];
+	__u32 src_plane_offset[3];
+	int   dst_plane_fd[3];
+	__u32 dst_plane_offset[3];
 };
 
 #define DRM_IMX_DPU_SET_CMDLIST                 0x00
