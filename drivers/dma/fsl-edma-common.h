@@ -8,6 +8,7 @@
 
 #include <linux/dma-direction.h>
 #include <linux/platform_device.h>
+#include <linux/pm_qos.h>
 #include "virt-dma.h"
 
 #define EDMA_CR_EDBG		BIT(1)
@@ -45,11 +46,18 @@
 
 #define EDMA_CH_MATTR_RCACHE		GENMASK(3, 0)
 #define EDMA_CH_MATTR_WCACHE		GENMASK(7, 4)
+#define EDMA_CH_MATTR_RDOMAINS(x)       (((x) & GENMASK(1, 0)) << 8)
+#define EDMA_CH_MATTR_WDOMAINS(x)       (((x) & GENMASK(1, 0)) << 10)
 
 #define EDMA_V3_TCD_NBYTES_MLOFF_NBYTES(x) ((x) & GENMASK(9, 0))
 #define EDMA_V3_TCD_NBYTES_MLOFF(x)        (x << 10)
 #define EDMA_V3_TCD_NBYTES_DMLOE           (1 << 30)
 #define EDMA_V3_TCD_NBYTES_SMLOE           (1 << 31)
+
+#define EDMA_DEFAULT_BURST_SIZE         0x1
+#define EDMA_ACP_ADDR_FLAG              BIT_ULL(36)
+#define EDMA_ACP_ALIGNMENT              0x10
+#define EDMA_ACP_ALIGNMENT_MASK         (EDMA_ACP_ALIGNMENT - 1)
 
 #define EDMAMUX_CHCFG_DIS		0x0
 #define EDMAMUX_CHCFG_ENBL		0x80
@@ -196,6 +204,7 @@ struct fsl_edma_chan {
 	bool				is_remote;
 	bool				is_multi_fifo;
 	u32				chn_real_count;
+	struct pm_qos_request		req;
 };
 
 struct fsl_edma_desc {
@@ -233,6 +242,7 @@ struct fsl_edma3_reg_save {
 #define FSL_EDMA_DRV_TCD64		BIT(15)
 /* All channel ERR IRQ share one IRQ line */
 #define FSL_EDMA_DRV_ERRIRQ_SHARE       BIT(16)
+#define FSL_EDMA_DRV_SEL_ACP            BIT(17)
 
 #define FSL_EDMA_DRV_EDMA3	(FSL_EDMA_DRV_SPLIT_REG |	\
 				 FSL_EDMA_DRV_BUS_8BYTE |	\

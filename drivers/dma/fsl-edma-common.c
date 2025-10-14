@@ -611,24 +611,70 @@ err:
 	return NULL;
 }
 
+/**
+ * fsl_edma_is_acp - Check if channel uses ACP path
+ * @fsl_chan: eDMA channel
+ *
+ * Returns true if the channel is configured to use the ACP (Accelerator
+ * Coherency Port) path for cache-coherent transfers.
+ */
+static inline bool fsl_edma_is_acp(struct fsl_edma_chan *fsl_chan)
+{
+	return fsl_edma_drvflags(fsl_chan) & FSL_EDMA_DRV_SEL_ACP;
+}
+
 static dma_addr_t fsl_edma_convert_addr(struct fsl_edma_chan *fsl_chan, dma_addr_t addr)
 {
-	return addr;
+	return fsl_edma_is_acp(fsl_chan) ? addr | EDMA_ACP_ADDR_FLAG : addr;
 }
 
 static bool fsl_edma_addr_check(struct fsl_edma_chan *fsl_chan, dma_addr_t dma_addr)
 {
-	return true;
+	if (!fsl_edma_is_acp(fsl_chan))
+		return true;
+
+	if (IS_ALIGNED(dma_addr, EDMA_ACP_ALIGNMENT))
+		return true;
+
+	return false;
 }
 
 static bool fsl_edma_len_check(struct fsl_edma_chan *fsl_chan, size_t len)
 {
-	return true;
+	if (!fsl_edma_is_acp(fsl_chan))
+		return true;
+
+	return !(len & EDMA_ACP_ALIGNMENT_MASK);
 }
 
 static int fsl_edma_get_nbytes(struct fsl_edma_chan *fsl_chan, int dir)
 {
 	int nbytes;
+
+	if (fsl_edma_is_acp(fsl_chan)) {
+		if (dir == DMA_MEM_TO_DEV) {
+			if (!fsl_chan->cfg.src_addr_width)
+				fsl_chan->cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_16_BYTES;
+
+			if (!fsl_chan->cfg.src_maxburst)
+				fsl_chan->cfg.src_maxburst = EDMA_DEFAULT_BURST_SIZE;
+
+			nbytes = fsl_chan->cfg.src_addr_width * fsl_chan->cfg.src_maxburst;
+			if (!fsl_edma_len_check(fsl_chan, nbytes))
+				nbytes = -EINVAL;
+		} else {
+			if (!fsl_chan->cfg.dst_addr_width)
+				fsl_chan->cfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_16_BYTES;
+
+			if (!fsl_chan->cfg.dst_maxburst)
+				fsl_chan->cfg.dst_maxburst = EDMA_DEFAULT_BURST_SIZE;
+
+			nbytes = fsl_chan->cfg.dst_addr_width * fsl_chan->cfg.dst_maxburst;
+			if (!fsl_edma_len_check(fsl_chan, nbytes))
+				nbytes = -EINVAL;
+		}
+		return nbytes;
+	}
 
 	if (dir == DMA_MEM_TO_DEV) {
 		if (!fsl_chan->cfg.src_addr_width)
@@ -644,6 +690,21 @@ static int fsl_edma_get_nbytes(struct fsl_edma_chan *fsl_chan, int dir)
 
 static short int fsl_edma_get_offset(struct fsl_edma_chan *fsl_chan, int dir)
 {
+	if (fsl_edma_is_acp(fsl_chan)) {
+		if (dir == DMA_MEM_TO_DEV) {
+			if (!fsl_chan->cfg.src_addr_width)
+				return DMA_SLAVE_BUSWIDTH_16_BYTES;
+			else if (fsl_edma_len_check(fsl_chan, fsl_chan->cfg.src_addr_width))
+				return fsl_chan->cfg.src_addr_width;
+		} else if (dir == DMA_DEV_TO_MEM) {
+			if (!fsl_chan->cfg.dst_addr_width)
+				return DMA_SLAVE_BUSWIDTH_16_BYTES;
+			else if (fsl_edma_len_check(fsl_chan, fsl_chan->cfg.dst_addr_width))
+				return fsl_chan->cfg.dst_addr_width;
+		} else
+			return -EINVAL;
+	}
+
 	if (dir == DMA_MEM_TO_DEV)
 		return fsl_chan->cfg.dst_addr_width;
 	else if (dir == DMA_DEV_TO_MEM)
@@ -919,6 +980,14 @@ struct dma_async_tx_descriptor *fsl_edma_prep_memcpy(struct dma_chan *chan,
 		dst_bus_width = DMA_SLAVE_BUSWIDTH_64_BYTES;
 	}
 
+	if (!fsl_edma_len_check(fsl_chan, src_bus_width) ||
+	    !fsl_edma_len_check(fsl_chan, dst_bus_width)) {
+		dev_err(fsl_chan->vchan.chan.device->dev,
+			"Bus width (src = %u, dst = %u) is not 16-byte aligned\n",
+			src_bus_width, dst_bus_width);
+		return NULL;
+	}
+
 	fsl_desc = fsl_edma_alloc_desc(fsl_chan, 1);
 	if (!fsl_desc)
 		return NULL;
@@ -989,8 +1058,11 @@ int fsl_edma_alloc_chan_resources(struct dma_chan *chan)
 	/* Configuring the write-allocate, read-allocate, cacheable and bufferable
 	 * can improve data transmission performance.
 	 */
-	if (fsl_chan->edma->dma_coherent)
-		edma_writel_chreg(fsl_chan, EDMA_CH_MATTR_RCACHE | EDMA_CH_MATTR_WCACHE, ch_mattr);
+	if (fsl_chan->edma->dma_coherent) {
+		edma_writel_chreg(fsl_chan, EDMA_CH_MATTR_RCACHE | EDMA_CH_MATTR_WCACHE |
+				  EDMA_CH_MATTR_RDOMAINS(2) | EDMA_CH_MATTR_WDOMAINS(2), ch_mattr);
+		cpu_latency_qos_add_request(&fsl_chan->req, 0);
+	}
 
 	fsl_chan->tcd_pool = dma_pool_create("tcd_pool", chan->device->dev,
 				fsl_edma_drvflags(fsl_chan) & FSL_EDMA_DRV_TCD64 ?
@@ -1056,6 +1128,9 @@ void fsl_edma_free_chan_resources(struct dma_chan *chan)
 
 	if (fsl_edma_drvflags(fsl_chan) & FSL_EDMA_DRV_HAS_PD)
 		pm_runtime_put_sync_suspend(fsl_chan->pd_dev);
+
+	if (fsl_chan->edma->dma_coherent)
+		cpu_latency_qos_remove_request(&fsl_chan->req);
 }
 
 void fsl_edma_cleanup_vchan(struct dma_device *dmadev)

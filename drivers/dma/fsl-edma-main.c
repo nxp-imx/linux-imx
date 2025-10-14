@@ -641,6 +641,16 @@ static struct fsl_edma_drvdata imx95_data5 = {
 	.setup_irq = fsl_edma3_irq_init,
 };
 
+static struct fsl_edma_drvdata imx952_data5 = {
+	.flags = FSL_EDMA_DRV_HAS_CHMUX | FSL_EDMA_DRV_HAS_DMACLK | FSL_EDMA_DRV_EDMA4 |
+		 FSL_EDMA_DRV_TCD64 | FSL_EDMA_DRV_ERRIRQ_SHARE | FSL_EDMA_DRV_SEL_ACP,
+	.chreg_space_sz = 0x8000,
+	.chreg_off = 0x10000,
+	.mux_off = 0x200,
+	.mux_skip = sizeof(u32),
+	.setup_irq = fsl_edma3_irq_init,
+};
+
 static const struct fsl_edma_drvdata s32g2_data = {
 	.dmamuxs = DMAMUX_NR,
 	.chreg_space_sz = EDMA_TCD,
@@ -658,6 +668,7 @@ static const struct of_device_id fsl_edma_dt_ids[] = {
 	{ .compatible = "fsl,imx93-edma3", .data = &imx93_data3},
 	{ .compatible = "fsl,imx93-edma4", .data = &imx93_data4},
 	{ .compatible = "fsl,imx95-edma5", .data = &imx95_data5},
+	{ .compatible = "fsl,imx952-acp-edma5", .data = &imx952_data5},
 	{ .compatible = "nxp,s32g2-edma", .data = &s32g2_data},
 	{ /* sentinel */ }
 };
