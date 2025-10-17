@@ -68,6 +68,7 @@ struct panthor_model {
 
 static const struct panthor_model gpu_models[] = {
 	GPU_MODEL(g610, 10, 7),
+	GPU_MODEL(g310, 10, 4),
 	{},
 };
 

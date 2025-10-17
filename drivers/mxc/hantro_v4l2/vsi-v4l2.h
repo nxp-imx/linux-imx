@@ -141,6 +141,8 @@ enum v4l2_daemon_cmd_id {
 	V4L2_DAEMON_VIDIOC_WARNONOPTION,
 	V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE,
 	V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE,
+	V4L2_DAEMON_VIDIOC_LINEAR_ALLOC,
+	V4L2_DAEMON_VIDIOC_LINEAR_FREE,
 	V4L2_DAEMON_VIDIOC_TOTAL_AMOUNT,
 };
 
@@ -279,7 +281,9 @@ struct v4l2_daemon_enc_general_cmd {
 };
 
 struct v4l2_daemon_enc_h26x_cmd {
-	s32 valid;//0:invalid, 1:valid.
+	u32 sample_aspect_ratio_width : 16;
+	u32 sample_aspect_ratio_height : 16;
+
 	s32 byteStream;      //byteStream
 
 	s32 enableCabac;      /* [0,1] H.264 entropy coding mode, 0 for CAVLC, 1 for CABAC */
@@ -645,6 +649,7 @@ struct vsi_v4l2_msg {
 	union {
 		struct v4l2_daemon_enc_params enc_params;
 		struct v4l2_daemon_dec_params dec_params;
+		u32 linear_size;
 	} params;
 };
 

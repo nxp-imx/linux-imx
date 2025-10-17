@@ -152,6 +152,7 @@ static void panthor_device_free_page(struct drm_device *ddev, void *data)
 int panthor_device_init(struct panthor_device *ptdev)
 {
 	u32 *dummy_page_virt;
+	struct dev_pm_domain_list  *pd_list = NULL;
 	struct resource *res;
 	struct page *p;
 	int ret;
@@ -199,6 +200,12 @@ int panthor_device_init(struct panthor_device *ptdev)
 	ret = panthor_clk_init(ptdev);
 	if (ret)
 		return ret;
+
+	ret = devm_pm_domain_attach_list(ptdev->base.dev, NULL, &pd_list);
+	if (ret < 0) {
+		drm_err(&ptdev->base, "attach power domains failed, ret=%d", ret);
+		return ret;
+	}
 
 	ret = panthor_devfreq_init(ptdev);
 	if (ret)

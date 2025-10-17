@@ -25,6 +25,8 @@ struct vpu_buf {
 	void *vaddr;
 	struct device *dev;
 	struct dma_buf* secure_dma_buf;
+	struct imx_mur_node *recorder;
+	const char *label;
 };
 
 struct vpu_dma_buf {

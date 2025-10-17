@@ -4,6 +4,7 @@ comment "Wave6 drivers"
 
 config MXC_VIDEO_WAVE6_CTRL
 	tristate "WAVE6 VPU Ctrl"
+	select MXC_MUR
 	help
 	  Wave6 VPU Ctrl is to handle the global region.
 	  It help load the firmware and boot the vcpu,

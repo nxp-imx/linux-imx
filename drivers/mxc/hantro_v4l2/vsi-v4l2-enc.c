@@ -855,11 +855,6 @@ static void vsi_enc_buf_queue(struct vb2_buffer *vb)
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_BUF_RDY, vb);
 }
 
-static int vsi_enc_buf_init(struct vb2_buffer *vb)
-{
-	return 0;
-}
-
 static int vsi_enc_buf_prepare(struct vb2_buffer *vb)
 {
 	/*any valid init operation on buffer vb*/
@@ -912,6 +907,7 @@ static void vsi_enc_buf_finish(struct vb2_buffer *vb)
 
 static void vsi_enc_buf_cleanup(struct vb2_buffer *vb)
 {
+	vsiv4l2_buf_cleanup(vb);
 }
 
 static void vsi_enc_buf_wait_finish(struct vb2_queue *vq)
@@ -928,7 +924,7 @@ static struct vb2_ops vsi_enc_qops = {
 	.queue_setup = vsi_enc_queue_setup,
 	.wait_prepare = vsi_enc_buf_wait_prepare,	/*these two are just mutex protection for done_que*/
 	.wait_finish = vsi_enc_buf_wait_finish,
-	.buf_init = vsi_enc_buf_init,
+	.buf_init = vsiv4l2_buf_init,
 	.buf_prepare = vsi_enc_buf_prepare,
 	.buf_finish = vsi_enc_buf_finish,
 	.buf_cleanup = vsi_enc_buf_cleanup,
@@ -1071,6 +1067,15 @@ static int vsi_v4l2_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_MPEG_VIDEO_REPEAT_SEQ_HEADER:
 		ctx->mediacfg.encparams.specific.enc_h26x_cmd.idrHdr = ctrl->val;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE:
+		fallthrough;
+	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC:
+		fallthrough;
+	case V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_WIDTH:
+		fallthrough;
+	case V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_HEIGHT:
+		set_bit(CTX_FLAG_SARUPDATE, &ctx->flag);
 		break;
 	default:
 		return 0;
@@ -1516,7 +1521,19 @@ static int vsi_setup_enc_ctrls(struct v4l2_ctrl_handler *handler)
 		}
 	}
 
+	v4l2_ctrl_new_std(handler, &vsi_encctrl_ops, V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE,
+			  0, 1, 1, 0);
+	v4l2_ctrl_new_std_menu(handler, &vsi_encctrl_ops, V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC,
+			       V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_EXTENDED, 0,
+			       V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_UNSPECIFIED);
+	v4l2_ctrl_new_std(handler, &vsi_encctrl_ops, V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_WIDTH,
+			  0, 0xFFFF, 1, 0);
+	v4l2_ctrl_new_std(handler, &vsi_encctrl_ops, V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_HEIGHT,
+			  0, 0xFFFF, 1, 0);
+
 	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_MPEG_VIDEO_AVERAGE_QP, 0, 127, 1, 0);
+
+	imx_mur_new_v4l2_ctrl(handler, ctx->recorder);
 
 	v4l2_ctrl_handler_setup(handler);
 	return handler->error;
@@ -1589,6 +1606,9 @@ static int v4l2_enc_open(struct file *filp)
 		vb2_queue_release(&ctx->input_que);
 		goto err_enc_dec_exit;
 	}
+	ctx->recorder = imx_mur_create_node(dev->recorder, "encoder instance");
+	if (ctx->recorder)
+		ctx->recorder_ctrlsw = imx_mur_create_node(ctx->recorder, "ctrlsw");
 	vsiv4l2_initcfg(ctx);
 	vsi_setup_enc_ctrls(&ctx->ctrlhdl);
 	vfh = (struct v4l2_fh *)filp->private_data;
@@ -1601,7 +1621,6 @@ static int v4l2_enc_open(struct file *filp)
 	vsi_v4l2_create_dbgfs_file(ctx);
 
 	return 0;
-
 err_enc_dec_exit:
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);

@@ -212,6 +212,11 @@ static int vpu_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
+	num = scnprintf(str, sizeof(str),
+			"memory usage = %ld\n", imx_mur_long_read(inst->recorder));
+	if (seq_write(s, str, num))
+		return 0;
+
 	num = scnprintf(str, sizeof(str), "flow :\n");
 	if (seq_write(s, str, num))
 		return 0;

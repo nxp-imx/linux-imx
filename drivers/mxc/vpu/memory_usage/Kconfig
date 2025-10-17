@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "IMX VPU memory usage recorder driver"
+
+config MXC_MUR
+	tristate "IMX VPU memory usage recorder driver"
+	depends on VIDEO_DEV
+	help
+	  IMX VPU memory usage recorder is to count
+	  and show the detailed memory usage of VPU
+	  device and instances.
+	  To compile this driver as a module choose m here.

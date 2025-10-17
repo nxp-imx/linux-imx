@@ -2527,7 +2527,7 @@ static void netc_switch_remove(struct pci_dev *pdev)
 	netc_switch_pci_destroy(pdev);
 }
 
-static int __maybe_unused netc_switch_suspend(struct device *dev)
+static int netc_switch_suspend(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct netc_switch *priv;
@@ -2537,7 +2537,7 @@ static int __maybe_unused netc_switch_suspend(struct device *dev)
 	return dsa_switch_suspend(priv->ds);
 }
 
-static int __maybe_unused netc_switch_resume(struct device *dev)
+static int netc_switch_resume(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct netc_switch *priv;
@@ -2553,8 +2553,8 @@ static const struct pci_device_id netc_switch_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, netc_switch_ids);
 
-static SIMPLE_DEV_PM_OPS(netc_switch_pm_ops, netc_switch_suspend,
-			 netc_switch_resume);
+static DEFINE_SIMPLE_DEV_PM_OPS(netc_switch_pm_ops, netc_switch_suspend,
+				netc_switch_resume);
 
 static struct pci_driver netc_switch_driver = {
 	.name		= KBUILD_MODNAME,

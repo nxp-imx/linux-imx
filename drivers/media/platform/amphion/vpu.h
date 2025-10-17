@@ -12,10 +12,10 @@
 #include <linux/mailbox_client.h>
 #include <linux/mailbox_controller.h>
 #include <linux/kfifo.h>
+#include <linux/imx_memory_usage.h>
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
 #include <linux/trusty/trusty_ipc.h>
-
 
 #define VPU_TIMEOUT_WAKEUP	msecs_to_jiffies(200)
 #define VPU_TIMEOUT		msecs_to_jiffies(1000)
@@ -84,6 +84,8 @@ struct vpu_buffer {
 	u32 length;
 	u32 bytesused;
 	struct device *dev;
+	struct imx_mur_node *recorder;
+	const char *label;
 };
 
 struct vpu_func {
@@ -123,6 +125,7 @@ struct vpu_dev {
 	struct mutex memset_lock;
 	struct mutex hdr_lock;
 
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_format {
@@ -326,6 +329,8 @@ struct vpu_inst {
 	struct dentry *debugfs;
 	int stream_buffer_fd;
 	struct dma_buf* secure_stream_dma_buf;
+
+	struct imx_mur_node *recorder;
 
 	void *priv;
 };

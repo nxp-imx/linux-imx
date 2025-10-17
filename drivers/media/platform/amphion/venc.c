@@ -683,6 +683,8 @@ static int venc_ctrl_init(struct vpu_inst *inst)
 	v4l2_ctrl_new_std(&inst->ctrl_handler, NULL,
 			  V4L2_CID_MPEG_VIDEO_AVERAGE_QP, 0, 51, 1, 0);
 
+	imx_mur_new_v4l2_ctrl(&inst->ctrl_handler, inst->recorder);
+
 	if (inst->ctrl_handler.error) {
 		ret = inst->ctrl_handler.error;
 		v4l2_ctrl_handler_free(&inst->ctrl_handler);
@@ -934,6 +936,8 @@ static int venc_start_session(struct vpu_inst *inst, u32 type)
 	stream_buffer_size = vpu_iface_get_stream_buffer_size(inst->core);
 	if (stream_buffer_size > 0) {
 		inst->stream_buffer.length = max_t(u32, stream_buffer_size, venc->cpb_size * 3);
+		inst->stream_buffer.recorder = inst->recorder;
+		inst->stream_buffer.label = "ring-buf";
 		ret = vpu_alloc_dma(inst->core, &inst->stream_buffer);
 		if (ret)
 			goto error;
@@ -1032,6 +1036,8 @@ static void venc_request_mem_resource(struct vpu_inst *inst,
 
 	for (i = 0; i < enc_frame_num; i++) {
 		venc->enc[i].length = enc_frame_size;
+		venc->enc[i].recorder = inst->recorder;
+		venc->enc[i].label = "enc";
 		ret = vpu_alloc_dma(inst->core, &venc->enc[i]);
 		if (ret) {
 			venc_cleanup_mem_resource(inst);
@@ -1040,6 +1046,8 @@ static void venc_request_mem_resource(struct vpu_inst *inst,
 	}
 	for (i = 0; i < ref_frame_num; i++) {
 		venc->ref[i].length = ref_frame_size;
+		venc->ref[i].recorder = inst->recorder;
+		venc->ref[i].label = "ref";
 		ret = vpu_alloc_dma(inst->core, &venc->ref[i]);
 		if (ret) {
 			venc_cleanup_mem_resource(inst);

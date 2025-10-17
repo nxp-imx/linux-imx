@@ -1441,6 +1441,7 @@ static void panthor_remove(struct platform_device *pdev)
 
 static const struct of_device_id dt_match[] = {
 	{ .compatible = "rockchip,rk3588-mali" },
+	{ .compatible = "nxp,imx95-mali" },
 	{ .compatible = "arm,mali-valhall-csf" },
 	{}
 };

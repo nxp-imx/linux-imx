@@ -16,7 +16,11 @@
 	ox05b1s: ox05b1s@36 {
 		compatible = "ovti,ox05b1s";
 		reg = <0x36>;
+		clocks = <&dummy>;
 		reset-gpios = <&gpio3 27 GPIO_ACTIVE_LOW>;
+		avdd-supply = <&reg_dummy>;
+		dovdd-supply = <&reg_dummy>;
+		dvdd-supply = <&reg_dummy>;
 		orientation = <2>;
 		rotation = <0>;
 		status = "okay";

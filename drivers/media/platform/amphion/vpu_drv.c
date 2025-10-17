@@ -200,6 +200,7 @@ static int vpu_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_vpu_media;
 	vpu->debugfs = debugfs_create_dir("amphion_vpu", NULL);
+	vpu->recorder = imx_mur_create_node(NULL, "amphion-vpu");
 
 	of_platform_populate(dev->of_node, NULL, NULL, dev);
 
@@ -298,6 +299,7 @@ static void vpu_remove(struct platform_device *pdev)
 	media_device_cleanup(&vpu->mdev);
 	v4l2_device_unregister(&vpu->v4l2_dev);
 	mutex_destroy(&vpu->lock);
+	imx_mur_destroy_node(vpu->recorder);
 	mutex_destroy(&vpu->copy_lock);
 	mutex_destroy(&vpu->memset_lock);
 	mutex_destroy(&vpu->hdr_lock);

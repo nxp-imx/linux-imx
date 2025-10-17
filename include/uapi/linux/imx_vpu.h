@@ -30,6 +30,8 @@
 #define V4L2_CID_SECUREMODE		(V4L2_CID_USER_IMX_BASE + 7)
 #define V4L2_CID_SC_ENABLE		(V4L2_CID_USER_IMX_BASE + 8)
 
+#define V4L2_CID_IMX_G_MEMORY_USAGE	(V4L2_CID_USER_IMX_BASE + 9)
+
 #define V4L2_MAX_ROI_REGIONS		8
 struct v4l2_enc_roi_param {
 	struct v4l2_rect rect;

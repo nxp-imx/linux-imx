@@ -64,9 +64,7 @@ static struct frame_buffer wave6_dec_get_display_buffer(struct vpu_instance *ins
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	int i;
-	struct frame_buffer fb;
-
-	memset(&fb, 0, sizeof(struct frame_buffer));
+	struct frame_buffer fb = { 0 };
 
 	for (i = 0; i < WAVE6_MAX_FBS; i++) {
 		if (p_dec_info->disp_buf[i].buf_y == addr) {
@@ -457,26 +455,36 @@ int wave6_vpu_dec_get_seq_info(struct vpu_instance *inst, struct dec_initial_inf
 
 int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 					struct frame_buffer *fb_arr,
-					enum tiled_map_type map_type, u32 count)
+					enum tiled_map_type map_type, u32 offset, u32 count)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	size_t fbc_remain, mv_remain, fbc_idx = 0, mv_idx = 0;
+	size_t fbc_num, fbc_remain, mv_remain, fbc_idx = offset, mv_idx = offset;
 	size_t i, k, group_num, mv_count;
 	dma_addr_t fbc_cr_tbl_addr;
 	u32 reg_val;
 	u32 endian;
 	int ret;
 
+	fbc_num = p_dec_info->initial_info.min_frame_buffer_count;
 	mv_count = p_dec_info->initial_info.req_mv_buffer_count;
 
+	trace_set_fb(inst, offset, count, fbc_num, mv_count);
+
+	fbc_remain = count;
+	mv_remain = mv_count - offset;
+	if (count + offset < fbc_num) {
+		if (mv_remain > count)
+			mv_remain = count;
+	}
+
 	for (i = 0; i < count; i++) {
-		if (!p_dec_info->vb_fbc_y_tbl[i].daddr)
+		if (!p_dec_info->vb_fbc_y_tbl[i + offset].daddr)
 			return -EINVAL;
-		if (!p_dec_info->vb_fbc_c_tbl[i].daddr)
+		if (!p_dec_info->vb_fbc_c_tbl[i + offset].daddr)
 			return -EINVAL;
 	}
-	for (i = 0; i < mv_count; i++) {
-		if (!p_dec_info->vb_mv[i].daddr)
+	for (i = 0; i < mv_remain; i++) {
+		if (!p_dec_info->vb_mv[i + offset].daddr)
 			return -EINVAL;
 	}
 
@@ -493,18 +501,16 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 	vpu_write_reg(inst->dev, W6_CMD_DEC_SET_FB_SEGMAP, 0);
 	vpu_write_reg(inst->dev, W6_CMD_DEC_SET_FB_MV_COL_PRE_ENT, 0);
 
-	fbc_remain = count;
-	mv_remain = mv_count;
-	group_num = (count > mv_count) ? ((ALIGN(count, 16) / 16) - 1) :
-					 ((ALIGN(mv_count, 16) / 16) - 1);
+	group_num = (count >= mv_remain) ? ((ALIGN(count, 16) / 16) - 1) :
+					 ((ALIGN(mv_remain, 16) / 16) - 1);
 	for (i = 0; i <= group_num; i++) {
-		bool first_group = (i == 0) ? true : false;
+		bool first_group = ((offset == 0) && (i == 0)) ? true : false;
 		bool last_group = (i == group_num) ? true : false;
 		u32 set_fbc_num = (fbc_remain >= 16) ? 16 : fbc_remain;
 		u32 set_mv_num = (mv_remain >= 16) ? 16 : mv_remain;
-		u32 fbc_start_no = i * 16;
+		u32 fbc_start_no = i * 16 + offset;
 		u32 fbc_end_no = fbc_start_no + set_fbc_num - 1;
-		u32 mv_start_no = i * 16;
+		u32 mv_start_no = i * 16 + offset;
 		u32 mv_end_no = mv_start_no + set_mv_num - 1;
 
 		reg_val = (p_dec_info->open_param.enable_non_ref_fbc_write << 26) |
@@ -1468,12 +1474,10 @@ static void wave6_gen_change_param_reg_common(struct vpu_instance *inst,
 
 int wave6_vpu_enc_init_seq(struct vpu_instance *inst)
 {
-	struct enc_cmd_set_param_reg reg;
+	struct enc_cmd_set_param_reg reg = { 0 };
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 	u32 i;
 	int ret;
-
-	memset(&reg, 0, sizeof(struct enc_cmd_set_param_reg));
 
 	if (!wave6_update_enc_info(p_enc_info))
 		return -EINVAL;
@@ -1578,11 +1582,9 @@ int wave6_vpu_enc_get_seq_info(struct vpu_instance *inst, struct enc_initial_inf
 
 int wave6_vpu_enc_change_seq(struct vpu_instance *inst, bool *changed)
 {
-	struct enc_cmd_change_param_reg reg;
+	struct enc_cmd_change_param_reg reg = { 0 };
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 	int ret;
-
-	memset(&reg, 0, sizeof(struct enc_cmd_change_param_reg));
 
 	wave6_gen_change_param_reg_common(inst, p_enc_info, &reg);
 
@@ -2107,11 +2109,9 @@ static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interle
 
 int wave6_vpu_encode(struct vpu_instance *inst, struct enc_param *option, u32 *fail_res)
 {
-	struct enc_cmd_enc_pic_reg reg;
+	struct enc_cmd_enc_pic_reg reg = { 0 };
 	struct enc_info *p_enc_info = &inst->codec_info->enc_info;
 	int ret;
-
-	memset(&reg, 0, sizeof(struct enc_cmd_enc_pic_reg));
 
 	wave6_gen_enc_pic_reg(p_enc_info, inst->cbcr_interleave,
 			      inst->nv21, option, &reg);

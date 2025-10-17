@@ -1278,17 +1278,15 @@ static int ptp_netc_resume_noirq(struct device *dev)
 	return err;
 }
 
-static const struct dev_pm_ops __maybe_unused ptp_netc_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(ptp_netc_suspend_noirq,
-				      ptp_netc_resume_noirq)
-};
+static DEFINE_NOIRQ_DEV_PM_OPS(ptp_netc_pm_ops, ptp_netc_suspend_noirq,
+			       ptp_netc_resume_noirq);
 
 static struct pci_driver netc_timer_driver = {
 	.name = KBUILD_MODNAME,
 	.id_table = netc_timer_id_table,
 	.probe = netc_timer_probe,
 	.remove = netc_timer_remove,
-	.driver.pm = &ptp_netc_pm_ops,
+	.driver.pm = pm_ptr(&ptp_netc_pm_ops),
 };
 module_pci_driver(netc_timer_driver);
 

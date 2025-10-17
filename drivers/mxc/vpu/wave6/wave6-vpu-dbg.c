@@ -37,9 +37,8 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
-	num = scnprintf(str, sizeof(str), "state = %s, pause request %d\n",
-			wave6_vpu_instance_state_name(inst->state),
-			inst->dev->pause_request);
+	num = scnprintf(str, sizeof(str), "state = %s\n",
+			wave6_vpu_instance_state_name(inst->state));
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -78,6 +77,15 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 			v4l2_m2m_num_dst_bufs_ready(inst->v4l2_fh.m2m_ctx),
 			wave6_vpu_get_consumed_fb_num(inst),
 			wave6_vpu_get_used_fb_num(inst));
+	if (seq_write(s, str, num))
+		return 0;
+
+	num = scnprintf(str, sizeof(str),
+			"fbc(required/acquired/registered/used) : %d, %d, %d, %d\n",
+			inst->fbc_buf_required,
+			inst->fbc_buf_acquired,
+			inst->fbc_buf_registered,
+			inst->fbc_buf_used);
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -135,11 +143,13 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 		return 0;
 
 	num = scnprintf(str, sizeof(str),
-			"latency(ms) first: %llu.%06llu, max %llu.%06llu\n",
+			"latency(ms) first: %llu.%06llu, max %llu.%06llu, setup %llu.%06llu\n",
 			perf->latency_first / NSEC_PER_MSEC,
 			perf->latency_first % NSEC_PER_MSEC,
 			perf->latency_max / NSEC_PER_MSEC,
-			perf->latency_max % NSEC_PER_MSEC);
+			perf->latency_max % NSEC_PER_MSEC,
+			(perf->ts_first - perf->ts_start) / NSEC_PER_MSEC,
+			(perf->ts_first - perf->ts_start) % NSEC_PER_MSEC);
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -149,6 +159,11 @@ static int wave6_vpu_dbg_instance(struct seq_file *s, void *data)
 			perf->min_process_time % NSEC_PER_MSEC,
 			perf->max_process_time / NSEC_PER_MSEC,
 			perf->max_process_time % NSEC_PER_MSEC);
+	if (seq_write(s, str, num))
+		return 0;
+
+	num = scnprintf(str, sizeof(str), "memory usage : %lu\n",
+			imx_mur_long_read(inst->recorder));
 	if (seq_write(s, str, num))
 		return 0;
 

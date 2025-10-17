@@ -435,7 +435,8 @@
 &i3c2 {
 	i2c-scl-hz = <400000>;
 	pinctrl-0 = <&pinctrl_i3c2>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&pinctrl_i3c2_sleep>;
+	pinctrl-names = "default", "sleep";
 	status = "okay";
 };
 
@@ -1243,6 +1244,13 @@
 		fsl,pins = <
 			IMX94_PAD_GPIO_IO01__I3C2_SCL			0x400001fe
 			IMX94_PAD_GPIO_IO02__I3C2_SDA			0x400001fe
+		>;
+	};
+
+	pinctrl_i3c2_sleep: i3c2sleepgrp {
+		fsl,pins = <
+			IMX94_PAD_GPIO_IO01__GPIO2_IO1			0x31e
+			IMX94_PAD_GPIO_IO02__GPIO2_IO2			0x31e
 		>;
 	};
 

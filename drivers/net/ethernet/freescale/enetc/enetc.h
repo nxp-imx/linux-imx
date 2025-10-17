@@ -533,6 +533,7 @@ u32 enetc_port_mac_rd(struct enetc_si *si, u32 reg);
 void enetc_port_mac_wr(struct enetc_si *si, u32 reg, u32 val);
 int enetc_pci_probe(struct pci_dev *pdev, const char *name, int sizeof_priv);
 void enetc_pci_remove(struct pci_dev *pdev);
+int enetc_alloc_msix_vectors(struct enetc_ndev_priv *priv);
 int enetc_alloc_msix(struct enetc_ndev_priv *priv);
 void enetc_free_msix(struct enetc_ndev_priv *priv);
 void enetc_get_si_caps(struct enetc_si *si);
@@ -574,6 +575,7 @@ void enetc_eee_mode_set(struct net_device *dev, bool enable);
 /* control buffer descriptor ring (CBDR) */
 int enetc_init_cbdr(struct enetc_si *si);
 void enetc_free_cbdr(struct enetc_si *si);
+void enetc4_enable_cbdr(struct enetc_si *si);
 int enetc_set_mac_flt_entry(struct enetc_si *si, int index,
 			    char *mac_addr, int si_map);
 int enetc_clear_mac_flt_entry(struct enetc_si *si, int index);

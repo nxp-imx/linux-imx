@@ -2,6 +2,7 @@
 # Makefile for the VPU drivers.
 #
 
+obj-y += memory_usage/
 obj-y += wave6/
 
 obj-$(CONFIG_MXC_VPU)                  += mxc_vpu.o

@@ -25,7 +25,7 @@
 #include "vpu_imx8q.h"
 #include "vpu_malone.h"
 
-static bool frame_flush_mode;
+static bool frame_flush_mode = true;
 module_param(frame_flush_mode, bool, 0644);
 
 #define CMD_SIZE			25600

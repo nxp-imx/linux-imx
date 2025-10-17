@@ -16,7 +16,11 @@
 	os08a20: os08a20_mipi@36 {
 		compatible = "ovti,os08a20";
 		reg = <0x36>;
+		clocks = <&dummy>;
 		reset-gpios = <&pcal6524 19 GPIO_ACTIVE_LOW>;
+		avdd-supply = <&reg_dummy>;
+		dovdd-supply = <&reg_dummy>;
+		dvdd-supply = <&reg_dummy>;
 		orientation = <2>;
 		rotation = <0>;
 		status = "okay";

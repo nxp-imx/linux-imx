@@ -278,6 +278,11 @@
 		};
 	};
 
+	reg_dummy: reg_dummy {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_dummy";
+	};
+
 	dummy: clock-dummy {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;

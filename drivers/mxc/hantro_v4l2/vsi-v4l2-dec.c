@@ -706,6 +706,8 @@ static int vsi_dec_start_cmd(struct vsi_v4l2_ctx *ctx)
 		}
 	}
 
+	ctx->reschange_notified = false;
+
 	return ret;
 }
 
@@ -848,11 +850,6 @@ static void vsi_dec_buf_queue(struct vb2_buffer *vb)
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_BUF_RDY, vb);
 }
 
-static int vsi_dec_buf_init(struct vb2_buffer *vb)
-{
-	return 0;
-}
-
 static int vsi_dec_buf_prepare(struct vb2_buffer *vb)
 {
 	return 0;
@@ -888,10 +885,6 @@ static void vsi_dec_buf_finish(struct vb2_buffer *vb)
 {
 }
 
-static void vsi_dec_buf_cleanup(struct vb2_buffer *vb)
-{
-}
-
 static void vsi_dec_buf_wait_finish(struct vb2_queue *vq)
 {
 	vb2_ops_wait_finish(vq);
@@ -906,10 +899,10 @@ static struct vb2_ops vsi_dec_qops = {
 	.queue_setup = vsi_dec_queue_setup,
 	.wait_prepare = vsi_dec_buf_wait_prepare,	/*these two are just mutex protection for done_que*/
 	.wait_finish = vsi_dec_buf_wait_finish,
-	.buf_init = vsi_dec_buf_init,
+	.buf_init = vsiv4l2_buf_init,
 	.buf_prepare = vsi_dec_buf_prepare,
 	.buf_finish = vsi_dec_buf_finish,
-	.buf_cleanup = vsi_dec_buf_cleanup,
+	.buf_cleanup = vsiv4l2_buf_cleanup,
 	.start_streaming = vsi_dec_start_streaming,
 	.stop_streaming = vsi_dec_stop_streaming,
 	.buf_queue = vsi_dec_buf_queue,
@@ -1149,6 +1142,8 @@ static int vsi_dec_setup_ctrls(struct v4l2_ctrl_handler *handler)
 		}
 	}
 
+	imx_mur_new_v4l2_ctrl(handler, ctx->recorder);
+
 	v4l2_ctrl_handler_setup(handler);
 	return handler->error;
 }
@@ -1220,6 +1215,9 @@ static int v4l2_dec_open(struct file *filp)
 		goto err_enc_dec_exit;
 	}
 	q->quirk_poll_must_check_waiting_for_buffers = false;
+	ctx->recorder = imx_mur_create_node(dev->recorder, "decoder instance");
+	if (ctx->recorder)
+		ctx->recorder_ctrlsw = imx_mur_create_node(ctx->recorder, "ctrlsw");
 	vsiv4l2_initcfg(ctx);
 	vsi_dec_setup_ctrls(&ctx->ctrlhdl);
 	vfh = (struct v4l2_fh *)filp->private_data;

@@ -118,8 +118,6 @@ void wave6_vpu_set_instance_state(struct vpu_instance *inst, u32 state)
 		wave6_vpu_instance_state_name(state));
 
 	inst->state = state;
-	if (state == VPU_INST_STATE_PIC_RUN && !inst->performance.ts_first)
-		inst->performance.ts_first = ktime_get_raw();
 }
 
 u64 wave6_vpu_cycle_to_ns(struct vpu_device *vpu_dev, u64 cycle)
@@ -128,6 +126,33 @@ u64 wave6_vpu_cycle_to_ns(struct vpu_device *vpu_dev, u64 cycle)
 		return 0;
 
 	return (cycle * NSEC_PER_SEC) / clk_get_rate(vpu_dev->clk_vpu);
+}
+
+int wave6_vpu_buf_init(struct vb2_buffer *vb)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
+	int i;
+
+	if (vb->memory != VB2_MEMORY_MMAP)
+		return 0;
+
+	for (i = 0; i < vb->num_planes; i++)
+		imx_mur_long_new_and_add(inst->recorder, vb->planes[i].length,
+					 V4L2_TYPE_IS_OUTPUT(vb->type) ? "output" : "capture");
+
+	return 0;
+}
+
+void wave6_vpu_buf_cleanup(struct vb2_buffer *vb)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
+	int i;
+
+	if (vb->memory != VB2_MEMORY_MMAP)
+		return;
+
+	for (i = 0; i < vb->num_planes; i++)
+		imx_mur_long_sub_and_del(inst->recorder, vb->planes[i].length);
 }
 
 int wave6_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
@@ -223,6 +248,12 @@ static bool wave6_vpu_check_fb_available(struct vpu_instance *inst)
 	struct vb2_v4l2_buffer *vb2_v4l2_buf;
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
 	struct vpu_buffer *vpu_buf;
+
+	if (inst->type == VPU_INST_TYPE_DEC) {
+		if (inst->fbc_buf_registered < inst->fbc_buf_required &&
+		    inst->fbc_buf_acquired <= inst->fbc_buf_used)
+			return false;
+	}
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		vb2_v4l2_buf = &v4l2_m2m_buf->vb;

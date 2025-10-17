@@ -918,10 +918,8 @@ disable_ipg_clk:
 	return err;
 }
 
-static const struct dev_pm_ops __maybe_unused netc_blk_ctrl_pm_ops = {
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(netc_blk_ctrl_suspend_noirq,
-				      netc_blk_ctrl_resume_noirq)
-};
+static DEFINE_NOIRQ_DEV_PM_OPS(netc_blk_ctrl_pm_ops, netc_blk_ctrl_suspend_noirq,
+			       netc_blk_ctrl_resume_noirq);
 
 static struct platform_driver netc_blk_ctrl_driver = {
 	.driver = {
