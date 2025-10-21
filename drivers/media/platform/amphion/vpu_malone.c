@@ -1101,7 +1101,7 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 	int ret;
 
 	struct vpu_inst* inst = container_of(stream_buffer, struct vpu_inst, stream_buffer);
-	mutex_lock(&inst->vpu->hdr_lock);
+	guard(mutex)(&inst->vpu->hdr_lock);
 
 	ps = get_padding_scode(scode_type, pixelformat);
 	if (!ps) {
@@ -1145,8 +1145,6 @@ static int vpu_malone_add_padding_scode(struct vpu_buffer *stream_buffer,
 	total_size += size;
 
 	vpu_malone_update_wptr(str_buf, wptr);
-
-	mutex_unlock(&inst->vpu->hdr_lock);
 	return total_size;
 }
 
