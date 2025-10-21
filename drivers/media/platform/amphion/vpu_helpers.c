@@ -79,7 +79,6 @@ const struct vpu_format *vpu_helper_find_sibling(struct vpu_inst *inst, u32 type
 		return NULL;
 
 	return sibling;
-	mutex_lock(&inst->vpu->hdr_lock);
 }
 
 bool vpu_helper_match_format(struct vpu_inst *inst, u32 type, u32 fmta, u32 fmtb)
