@@ -61,6 +61,7 @@ def define_imx_ddk():
             "drivers/ptp/Kconfig",
             "drivers/gpu/arm/midgard/Kconfig",
             "drivers/gpu/arm/midgard/platform/Kconfig",
+            "drivers/media/i2c/ox05b1s/Kconfig",
         ],
     )
 
@@ -1648,6 +1649,9 @@ def define_imx_ddk():
         kconfig = "imx_kconfigs",
         defconfig = "imx_module.fragment",
         kernel_build = ":imx_ddk_modules",
+        deps = [
+            ":memory_usage",
+        ],
     )
 
     ddk_module(
@@ -2819,6 +2823,7 @@ def define_imx_ddk():
         kernel_build = ":imx_ddk_modules",
         deps = [
             "trusty-core",
+            "memory_usage",
         ],
     )
 
@@ -2845,6 +2850,7 @@ def define_imx_ddk():
         deps = [
             "wave6-vpu-ctrl",
             "trusty-core",
+            "memory_usage",
         ],
     )
 
@@ -2855,7 +2861,12 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
+        kconfig = "imx_evk_95_kconfigs",
+        defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
+        deps = [
+            "v4l2-cci",
+        ],
     )
 
     ddk_module(
@@ -3431,6 +3442,28 @@ def define_imx_ddk():
         deps = [
             ":hwmon",
         ],
+    )
+
+    ddk_module(
+        name = "memory_usage",
+        out = "memory_usage.ko",
+        srcs = ["drivers/mxc/vpu/memory_usage/memory_usage.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kernel_build = ":imx_ddk_modules",
+    )
+
+    ddk_module(
+        name = "v4l2-cci",
+        out = "v4l2-cci.ko",
+        srcs = ["drivers/media/v4l2-core/v4l2-cci.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kconfig = "imx_evk_95_kconfigs",
+        defconfig = "imx_evk_95_module.fragment",
+        kernel_build = ":imx_ddk_modules",
     )
 
     kernel_build(
@@ -4014,6 +4047,7 @@ def define_imx_ddk():
             ":snd-soc-imx-card",
             ":hantrodec_845s",
             ":hx280enc",
+            ":memory_usage",
             ":vsiv4l2",
             ":rtc-snvs",
             ":qcom-phy-lib",
@@ -4081,6 +4115,7 @@ def define_imx_ddk():
         "snd-soc-imx-card.ko",
         "hantrodec_845s.ko",
         "hx280enc.ko",
+        "memory_usage.ko",
         "vsiv4l2.ko",
         "rtc-snvs.ko",
         "qcom-phy-lib.ko",
@@ -4211,8 +4246,10 @@ def define_imx_ddk():
             ":leds-gpio",
             ":leds-pca995x",
             ":leds-pca963x",
+            ":memory_usage",
             ":wave6-vpu-ctrl",
             ":wave6",
+            ":v4l2-cci",
             ":ox05b1s_mipi",
             ":v4l2-jpeg",
             ":mxc-jpeg-encdec",
@@ -4262,6 +4299,7 @@ def define_imx_ddk():
             ":imx_neutron_rproc",
             ":neutron",
             ":mali_kbase",
+            ":pwm-fan",
         ],
     )
 
@@ -4296,8 +4334,10 @@ def define_imx_ddk():
         "leds-gpio.ko",
         "leds-pca995x.ko",
         "leds-pca963x.ko",
+        "memory_usage.ko",
         "wave6-vpu-ctrl.ko",
         "wave6.ko",
+        "v4l2-cci.ko",
         "ox05b1s_mipi.ko",
         "v4l2-jpeg.ko",
         "mxc-jpeg-encdec.ko",
@@ -4347,6 +4387,7 @@ def define_imx_ddk():
         "imx_neutron_rproc.ko",
         "neutron.ko",
         "mali_kbase.ko",
+        "pwm-fan.ko",
     ]
 
     write_file(
