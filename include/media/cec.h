@@ -229,8 +229,6 @@ struct cec_adap_ops {
  * @cec_dir:		debugfs cec directory
  * @sequence:		transmit sequence counter
  * @input_phys:		remote control input_phys name
- * @eom_delay:		custom delay (us) before sending a reply
- *                      to CEC_MSG_FEATURE_ABORT
  *
  * This structure represents a cec adapter.
  */
@@ -298,7 +296,6 @@ struct cec_adapter {
 	u32 sequence;
 
 	char input_phys[40];
-	u32 eom_delay;
 };
 
 static inline int cec_get_device(struct cec_adapter *adap)
