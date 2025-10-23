@@ -1792,6 +1792,7 @@
 						     "hdmi-tx", "hdmi-tx-phy",
 						     "hdcp", "hrv";
 				#power-domain-cells = <1>;
+				#reset-cells = <1>;
 			};
 
 			irqsteer_hdmi: interrupt-controller@32fc2000 {
@@ -1812,6 +1813,8 @@
 				reg = <0x32fc4000 0x1000>;
 				clocks = <&clk IMX8MP_CLK_HDMI_APB>;
 				power-domains = <&hdmi_blk_ctrl IMX8MP_HDMIBLK_PD_PVI>;
+				resets = <&hdmi_blk_ctrl IMX8MP_HDMIBLK_RESET_PAI>;
+				reset-names = "pai_rst";
 				status = "disabled";
 			};
 

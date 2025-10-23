@@ -47,13 +47,9 @@
 	assigned-clock-rates = <0>, <3000000000>, <500000000>;
 };
 
-&lpi2c6 {
+&lpi2c4 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <100000>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_lpi2c6>;
-	status = "okay";
 
 	touchscreen@14 {
 		compatible = "goodix,gt911";

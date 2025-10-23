@@ -307,8 +307,8 @@ static int enetc_ipft_show(struct seq_file *s, void *data)
 	seq_printf(s, "Number of words in-use: %u\n", val);
 
 	priv = netdev_priv(si->ndev);
-	for (i = 0; i < priv->max_ipf_entries; i++) {
-		if (priv->cls_rules[i].used) {
+	for (i = 0; i < priv->max_ipf_entries + si->num_fs_entries; i++) {
+		if (priv->cls_rules[i].used && !priv->cls_rules[i].is_rfs) {
 			err = netc_show_ipft_entry(&si->ntmp, s,
 						   priv->cls_rules[i].entry_id);
 			if (err)
@@ -319,6 +319,92 @@ static int enetc_ipft_show(struct seq_file *s, void *data)
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(enetc_ipft);
+
+static int enetc_show_rfst_entry(struct ntmp_priv *priv, struct seq_file *s,
+				 u32 entry_id)
+{
+	struct rfst_entry_data *rfst_entry __free(kfree);
+	struct rfst_keye_data *keye;
+	struct rfst_cfge_data *cfge;
+	int err;
+	u32 cfg;
+
+	rfst_entry = kzalloc(sizeof(*rfst_entry), GFP_KERNEL);
+	if (!rfst_entry)
+		return -ENOMEM;
+
+	err = ntmp_rfst_query_entry(&priv->cbdrs, entry_id, rfst_entry);
+	if (err)
+		return err;
+
+	keye = &rfst_entry->keye;
+	cfge = &rfst_entry->cfge;
+	cfg = le32_to_cpu(cfge->cfg);
+
+	seq_printf(s, "Show RFS table entry:%u\n", entry_id);
+
+	/* KEYE_DATA */
+	seq_printf(s, "IP Source Address:%08x:%08x:%08x:%08x\n",
+		   ntohl(keye->source_ip_addr[0]),
+		   ntohl(keye->source_ip_addr[1]),
+		   ntohl(keye->source_ip_addr[2]),
+		   ntohl(keye->source_ip_addr[3]));
+	seq_printf(s, "IP Source Address mask:%08x:%08x:%08x:%08x\n",
+		   ntohl(keye->source_ip_addr_mask[0]),
+		   ntohl(keye->source_ip_addr_mask[1]),
+		   ntohl(keye->source_ip_addr_mask[2]),
+		   ntohl(keye->source_ip_addr_mask[3]));
+	seq_printf(s, "IP Destination Address:%08x:%08x:%08x:%08x\n",
+		   ntohl(keye->dest_ip_addr[0]), ntohl(keye->dest_ip_addr[1]),
+		   ntohl(keye->dest_ip_addr[2]), ntohl(keye->dest_ip_addr[3]));
+	seq_printf(s, "IP Destination Address mask:%08x:%08x:%08x:%08x\n",
+		   ntohl(keye->dest_ip_addr_mask[0]),
+		   ntohl(keye->dest_ip_addr_mask[1]),
+		   ntohl(keye->dest_ip_addr_mask[2]),
+		   ntohl(keye->dest_ip_addr_mask[3]));
+	seq_printf(s, "L4 Source Port:%u, mask:0x%04x\n",
+		   ntohs(keye->l4_source_port),
+		   ntohs(keye->l4_source_port_mask));
+	seq_printf(s, "L4 Destination Port:%u, mask:0x%04x\n",
+		   ntohs(keye->l4_dest_port), ntohs(keye->l4_dest_port_mask));
+	seq_printf(s, "L3/L4 Protocols:0x%04x\n", keye->l3_l4_protocol);
+
+	/* STSE_DATA */
+	seq_printf(s, "Match Count: %llu\n",
+		   le64_to_cpu(rfst_entry->matched_frames));
+
+	/* CFGE_DATA */
+	seq_printf(s, "Result: %lu\n", FIELD_GET(RFST_RESULT, cfg));
+	seq_printf(s, "Mode: %lu\n", FIELD_GET(RFST_MODE, cfg));
+
+	seq_puts(s, "\n");
+
+	return err;
+}
+
+static int enetc_rfst_show(struct seq_file *s, void *data)
+{
+	struct enetc_si *si = s->private;
+	struct enetc_ndev_priv *priv;
+	int i, err;
+	u32 val;
+
+	val = enetc_port_rd(&si->hw, ENETC4_PRFSMR);
+	seq_printf(s, "RFS is %s\n", is_en(val & PRFSMR_RFSE));
+
+	priv = netdev_priv(si->ndev);
+	for (i = 0; i < priv->max_ipf_entries + si->num_fs_entries; i++) {
+		if (priv->cls_rules[i].is_rfs && priv->cls_rules[i].used) {
+			err = enetc_show_rfst_entry(&si->ntmp, s,
+						    priv->cls_rules[i].entry_id);
+			if (err)
+				return err;
+		}
+	}
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(enetc_rfst);
 
 static void enetc_txr_bd_show(struct seq_file *s, union enetc_tx_bd *txbd, int index)
 {
@@ -441,6 +527,7 @@ void enetc_create_debugfs(struct enetc_si *si)
 		debugfs_create_file("sgclt_entry", 0600, root, si, &enetc_sgclt_entry_fops);
 		debugfs_create_file("isct_entry", 0600, root, si, &enetc_isct_entry_fops);
 		debugfs_create_file("rpt_entry", 0600, root, si, &enetc_rpt_entry_fops);
+		debugfs_create_file("rfst_entry", 0444, root, si, &enetc_rfst_fops);
 		debugfs_create_file("flower_list", 0444, root, si, &enetc_flower_list_fops);
 		debugfs_create_file("enetc_ipft", 0444, root, si, &enetc_ipft_fops);
 	}

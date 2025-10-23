@@ -179,13 +179,17 @@ static void enetc_unmap_tx_buff(struct enetc_bdr *tx_ring,
 	 * we have is_dma_page_set, those come from skb_frag_dma_map. We need
 	 * to match the DMA mapping length, so we need to differentiate those.
 	 */
-	if (tx_swbd->is_dma_page)
-		dma_unmap_page(tx_ring->dev, tx_swbd->dma,
-			       tx_swbd->is_xdp_tx ? PAGE_SIZE : tx_swbd->len,
-			       tx_swbd->dir);
-	else
+	if (tx_swbd->is_dma_page) {
+		struct enetc_ndev_priv *priv = netdev_priv(tx_ring->ndev);
+
+		dma_unmap_page(tx_ring->dev, tx_swbd->dma, tx_swbd->is_xdp_tx ?
+			       ENETC_PAGE_SIZE(priv->page_order) :
+			       tx_swbd->len, tx_swbd->dir);
+	} else {
 		dma_unmap_single(tx_ring->dev, tx_swbd->dma,
 				 tx_swbd->len, tx_swbd->dir);
+	}
+
 	tx_swbd->dma = 0;
 }
 
@@ -1263,7 +1267,7 @@ static void enetc_recycle_xdp_tx_buff(struct enetc_bdr *tx_ring,
 		/* sync for use by the device */
 		dma_sync_single_range_for_device(rx_ring->dev, rx_swbd.dma,
 						 rx_swbd.page_offset,
-						 ENETC_RXB_DMA_SIZE_XDP,
+						 ENETC_RXB_DMA_SIZE_XDP(rx_ring->page_order),
 						 rx_swbd.dir);
 
 		rx_ring->stats.recycles++;
@@ -1273,9 +1277,10 @@ static void enetc_recycle_xdp_tx_buff(struct enetc_bdr *tx_ring,
 		 */
 		rx_ring->stats.recycle_failures++;
 
-		dma_unmap_page(rx_ring->dev, rx_swbd.dma, PAGE_SIZE,
+		dma_unmap_page(rx_ring->dev, rx_swbd.dma,
+			       ENETC_PAGE_SIZE(rx_ring->page_order),
 			       rx_swbd.dir);
-		__free_page(rx_swbd.page);
+		__free_pages(rx_swbd.page, rx_ring->page_order);
 	}
 
 	rx_ring->xdp.xdp_tx_in_flight--;
@@ -1455,19 +1460,21 @@ static bool enetc_new_page(struct enetc_bdr *rx_ring,
 			   struct enetc_rx_swbd *rx_swbd)
 {
 	bool xdp = !!(rx_ring->xdp.prog);
+	int order = rx_ring->page_order;
 	struct page *page;
 	dma_addr_t addr;
 
-	page = dev_alloc_page();
+	page = dev_alloc_pages(order);
 	if (unlikely(!page))
 		return false;
 
 	/* For XDP_TX, we forgo dma_unmap -> dma_map */
 	rx_swbd->dir = xdp ? DMA_BIDIRECTIONAL : DMA_FROM_DEVICE;
 
-	addr = dma_map_page(rx_ring->dev, page, 0, PAGE_SIZE, rx_swbd->dir);
+	addr = dma_map_page(rx_ring->dev, page, 0, ENETC_PAGE_SIZE(order),
+			    rx_swbd->dir);
 	if (unlikely(dma_mapping_error(rx_ring->dev, addr))) {
-		__free_page(page);
+		__free_pages(page, order);
 
 		return false;
 	}
@@ -1620,7 +1627,10 @@ static struct enetc_rx_swbd *enetc_get_rx_buff(struct enetc_bdr *rx_ring,
 static void enetc_put_rx_buff(struct enetc_bdr *rx_ring,
 			      struct enetc_rx_swbd *rx_swbd)
 {
-	size_t buffer_size = ENETC_RXB_TRUESIZE - rx_ring->buffer_offset;
+	size_t buffer_size;
+
+	buffer_size = ENETC_RXB_TRUESIZE(rx_ring->page_order) -
+		      rx_ring->buffer_offset;
 
 	enetc_reuse_page(rx_ring, rx_swbd);
 
@@ -1635,14 +1645,16 @@ static void enetc_put_rx_buff(struct enetc_bdr *rx_ring,
 static void enetc_flip_rx_buff(struct enetc_bdr *rx_ring,
 			       struct enetc_rx_swbd *rx_swbd)
 {
+	int order = rx_ring->page_order;
+
 	if (likely(enetc_page_reusable(rx_swbd->page))) {
-		rx_swbd->page_offset ^= ENETC_RXB_TRUESIZE;
+		rx_swbd->page_offset ^= ENETC_RXB_TRUESIZE(order);
 		page_ref_inc(rx_swbd->page);
 
 		enetc_put_rx_buff(rx_ring, rx_swbd);
 	} else {
-		dma_unmap_page(rx_ring->dev, rx_swbd->dma, PAGE_SIZE,
-			       rx_swbd->dir);
+		dma_unmap_page(rx_ring->dev, rx_swbd->dma,
+			       ENETC_PAGE_SIZE(order), rx_swbd->dir);
 		rx_swbd->page = NULL;
 	}
 }
@@ -1655,7 +1667,8 @@ static struct sk_buff *enetc_map_rx_buff_to_skb(struct enetc_bdr *rx_ring,
 	void *ba;
 
 	ba = page_address(rx_swbd->page) + rx_swbd->page_offset;
-	skb = build_skb(ba - rx_ring->buffer_offset, ENETC_RXB_TRUESIZE);
+	skb = build_skb(ba - rx_ring->buffer_offset,
+			ENETC_RXB_TRUESIZE(rx_ring->page_order));
 	if (unlikely(!skb)) {
 		rx_ring->stats.rx_alloc_errs++;
 		return NULL;
@@ -1675,7 +1688,8 @@ static void enetc_add_rx_buff_to_skb(struct enetc_bdr *rx_ring, int i,
 	struct enetc_rx_swbd *rx_swbd = enetc_get_rx_buff(rx_ring, i, size);
 
 	skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags, rx_swbd->page,
-			rx_swbd->page_offset, size, ENETC_RXB_TRUESIZE);
+			rx_swbd->page_offset, size,
+			ENETC_RXB_TRUESIZE(rx_ring->page_order));
 
 	enetc_flip_rx_buff(rx_ring, rx_swbd);
 }
@@ -1803,8 +1817,8 @@ static int enetc_clean_rx_ring(struct enetc_bdr *rx_ring,
 						      &rxbd, &i, &cleaned_cnt))
 			continue;
 
-		skb = enetc_build_skb(rx_ring, bd_status, &rxbd, &i,
-				      &cleaned_cnt, ENETC_RXB_DMA_SIZE);
+		skb = enetc_build_skb(rx_ring, bd_status, &rxbd, &i, &cleaned_cnt,
+				      ENETC_RXB_DMA_SIZE(rx_ring->page_order));
 		if (!skb)
 			break;
 
@@ -2059,7 +2073,8 @@ static void enetc_build_xdp_buff(struct enetc_bdr *rx_ring, u32 bd_status,
 {
 	u16 size = le16_to_cpu((*rxbd)->r.buf_len);
 
-	xdp_init_buff(xdp_buff, ENETC_RXB_TRUESIZE, &rx_ring->xdp.rxq);
+	xdp_init_buff(xdp_buff, ENETC_RXB_TRUESIZE(rx_ring->page_order),
+		      &rx_ring->xdp.rxq);
 
 	enetc_map_rx_buff_to_xdp(rx_ring, *i, xdp_buff, size);
 	(*cleaned_cnt)++;
@@ -2068,7 +2083,7 @@ static void enetc_build_xdp_buff(struct enetc_bdr *rx_ring, u32 bd_status,
 	/* not last BD in frame? */
 	while (!(bd_status & ENETC_RXBD_LSTATUS_F)) {
 		bd_status = le32_to_cpu((*rxbd)->r.lstatus);
-		size = ENETC_RXB_DMA_SIZE_XDP;
+		size = ENETC_RXB_DMA_SIZE_XDP(rx_ring->page_order);
 
 		if (bd_status & ENETC_RXBD_LSTATUS_F) {
 			dma_rmb();
@@ -2211,7 +2226,7 @@ static int enetc_clean_rx_ring_xdp(struct enetc_bdr *rx_ring,
 
 			skb = enetc_build_skb(rx_ring, bd_status, &rxbd,
 					      &i, &cleaned_cnt,
-					      ENETC_RXB_DMA_SIZE_XDP);
+					      ENETC_RXB_DMA_SIZE_XDP(rx_ring->page_order));
 			if (unlikely(!skb))
 				goto out;
 
@@ -3292,9 +3307,10 @@ static void enetc_free_rx_ring(struct enetc_bdr *rx_ring)
 		if (!rx_swbd->page)
 			continue;
 
-		dma_unmap_page(rx_ring->dev, rx_swbd->dma, PAGE_SIZE,
+		dma_unmap_page(rx_ring->dev, rx_swbd->dma,
+			       ENETC_PAGE_SIZE(rx_ring->page_order),
 			       rx_swbd->dir);
-		__free_page(rx_swbd->page);
+		__free_pages(rx_swbd->page, rx_ring->page_order);
 		rx_swbd->page = NULL;
 	}
 }
@@ -3494,12 +3510,23 @@ static void enetc_setup_txbdr(struct enetc_hw *hw, struct enetc_bdr *tx_ring)
 	tx_ring->idr = hw->reg + ENETC_SITXIDR;
 }
 
+static u32 enetc_get_max_rsc_size(int page_order)
+{
+	u32 rx_buf_len = ENETC_RXB_DMA_SIZE(page_order);
+	u32 buff_cnt = ENETC_RBRSCR_SIZE / rx_buf_len;
+
+	if (buff_cnt > (MAX_SKB_FRAGS + 1))
+		return (MAX_SKB_FRAGS + 1) * rx_buf_len;
+
+	return buff_cnt * rx_buf_len;
+}
+
 static void enetc_setup_rxbdr(struct enetc_hw *hw, struct enetc_bdr *rx_ring,
 			      bool extended)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(rx_ring->ndev);
-	int idx = rx_ring->index;
-	u32 rbmr = 0;
+	int idx = rx_ring->index, order = rx_ring->page_order;
+	u32 rbmr = 0, rbrscr = 0;
 
 	enetc_rxbdr_wr(hw, idx, ENETC_RBBAR0,
 		       lower_32_bits(rx_ring->bd_dma_base));
@@ -3512,9 +3539,11 @@ static void enetc_setup_rxbdr(struct enetc_hw *hw, struct enetc_bdr *rx_ring,
 		       ENETC_RTBLENR_LEN(rx_ring->bd_count));
 
 	if (rx_ring->xdp.prog)
-		enetc_rxbdr_wr(hw, idx, ENETC_RBBSR, ENETC_RXB_DMA_SIZE_XDP);
+		enetc_rxbdr_wr(hw, idx, ENETC_RBBSR,
+			       ENETC_RXB_DMA_SIZE_XDP(order));
 	else
-		enetc_rxbdr_wr(hw, idx, ENETC_RBBSR, ENETC_RXB_DMA_SIZE);
+		enetc_rxbdr_wr(hw, idx, ENETC_RBBSR,
+			       ENETC_RXB_DMA_SIZE(order));
 
 	/* Also prepare the consumer index in case page allocation never
 	 * succeeds. In that case, hardware will never advance producer index
@@ -3550,10 +3579,9 @@ static void enetc_setup_rxbdr(struct enetc_hw *hw, struct enetc_bdr *rx_ring,
 	enetc_rxbdr_wr(hw, idx, ENETC_RBMR, rbmr);
 
 	if (rx_ring->ext_en && priv->active_offloads & ENETC_F_RSC)
-		enetc_rxbdr_wr(hw, idx, ENETC_RBRSCR, ENETC_RBRSCR_EN |
-			       ENETC_RBRSCR_SIZE(ENETC_RS_MAX_BYTES));
-	else
-		enetc_rxbdr_wr(hw, idx, ENETC_RBRSCR, 0x0);
+		rbrscr = ENETC_RBRSCR_EN | enetc_get_max_rsc_size(order);
+
+	enetc_rxbdr_wr(hw, idx, ENETC_RBRSCR, rbrscr);
 }
 
 static void enetc_setup_bdrs(struct enetc_ndev_priv *priv, bool extended)
@@ -4015,9 +4043,9 @@ int enetc_close(struct net_device *ndev)
 }
 EXPORT_SYMBOL_GPL(enetc_close);
 
-static int enetc_reconfigure(struct enetc_ndev_priv *priv, bool extended,
-			     int (*cb)(struct enetc_ndev_priv *priv, void *ctx),
-			     void *ctx)
+int enetc_reconfigure(struct enetc_ndev_priv *priv, bool extended,
+		      int (*cb)(struct enetc_ndev_priv *priv, void *ctx),
+		      void *ctx)
 {
 	struct enetc_bdr_resource *tx_res, *rx_res;
 	int err;
@@ -4613,6 +4641,20 @@ void enetc_set_features(struct net_device *ndev, netdev_features_t features)
 }
 EXPORT_SYMBOL_GPL(enetc_set_features);
 
+int enetc_restore_hw_config(struct enetc_si *si)
+{
+	struct net_device *ndev = si->ndev;
+
+	if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX)
+		enetc_enable_rxvlan(ndev, true);
+
+	if (ndev->features & NETIF_F_HW_VLAN_CTAG_TX)
+		enetc_enable_txvlan(ndev, true);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(enetc_restore_hw_config);
+
 static int enetc_hwtstamp_set(struct net_device *ndev, struct ifreq *ifr)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
@@ -4731,10 +4773,11 @@ static int enetc_bdr_init(struct enetc_ndev_priv *priv, int i, int v_tx_rings)
 	bdr->dev = priv->dev;
 	bdr->bd_count = priv->rx_bd_count;
 	bdr->buffer_offset = ENETC_RXB_PAD;
+	bdr->page_order = priv->page_order;
 	priv->rx_ring[i] = bdr;
 
 	err = __xdp_rxq_info_reg(&bdr->xdp.rxq, priv->ndev, i, 0,
-				 ENETC_RXB_DMA_SIZE_XDP);
+				 ENETC_RXB_DMA_SIZE_XDP(bdr->page_order));
 	if (err)
 		return err;
 

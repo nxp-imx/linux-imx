@@ -158,7 +158,7 @@ static struct se_if_node_info_list imx93_info = {
 			.start_rng = ele_start_rng,
 			.init_trng = ele_trng_init,
 			.se_if_early_init = NULL,
-			.se_if_late_init = ele_init_fw,
+			.se_if_late_init = ele_late_init,
 			},
 	},
 };

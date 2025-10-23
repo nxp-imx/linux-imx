@@ -1155,6 +1155,9 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_TEST_PATTERN_BLUE:	return "Blue Pixel Value";
 	case V4L2_CID_TEST_PATTERN_GREENB:	return "Green (Blue) Pixel Value";
 	case V4L2_CID_NOTIFY_GAINS:		return "Notify Gains";
+	case V4L2_CID_EXPOSURE_MULTI:		return "Exposure, Multiple Captures";
+	case V4L2_CID_AGAIN_MULTI:		return "Analog Gain, Multiple Captures";
+	case V4L2_CID_DGAIN_MULTI:		return "Digital Gain, Multiple Captures";
 
 	/* Image processing controls */
 	/* Keep the order of the 'case's the same as in v4l2-controls.h! */
@@ -1606,6 +1609,11 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 		break;
 	case V4L2_CID_COLORIMETRY_HDR10_MASTERING_DISPLAY:
 		*type = V4L2_CTRL_TYPE_HDR10_MASTERING_DISPLAY;
+		break;
+	case V4L2_CID_EXPOSURE_MULTI:
+	case V4L2_CID_AGAIN_MULTI:
+	case V4L2_CID_DGAIN_MULTI:
+		*type = V4L2_CTRL_TYPE_U32;
 		break;
 	default:
 		*type = V4L2_CTRL_TYPE_INTEGER;

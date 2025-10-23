@@ -3,10 +3,13 @@
  * Copyright 2024-2025 NXP
  */
 
+#include <linux/firmware/imx/se_api.h>
 #include <uapi/linux/se_ioctl.h>
 
 #include "ele_base_msg.h"
+#include "ele_bbsm.h"
 #include "ele_common.h"
+#include "ele_fw_api.h"
 #include "se_msg_sqfl_ctrl.h"
 #include "v2x_base_msg.h"
 
@@ -316,6 +319,30 @@ int se_val_rsp_hdr_n_status(struct se_if_priv *priv,
 	}
 
 	return 0;
+}
+
+int ele_late_init(struct se_if_priv *priv)
+{
+	int ret = 0;
+
+	if (get_se_soc_id(priv) == SOC_ID_OF_IMX93) {
+		/* Register BBSM Tamper IRQ handlers */
+		ret = ele_bbsm_irq_register(priv);
+		if (ret) {
+			dev_err(priv->dev, "Failed to register Tamper IRQ handlers");
+			return ret;
+		}
+
+		/* Check if any tamper event has been reported */
+		if (ele_bbsm_get_tamper_status(priv))
+			dev_err(priv->dev, "BBSM Tamper event has been reported.");
+	}
+
+	/* Initialize ELE HSM services */
+	if (ele_init_fw(priv))
+		dev_err(priv->dev, "Failed to initialize ELE HSM services.");
+
+	return ret;
 }
 
 int se_save_imem_state(struct se_if_priv *priv, struct se_imem_buf *imem)

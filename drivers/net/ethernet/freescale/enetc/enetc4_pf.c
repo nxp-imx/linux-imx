@@ -755,10 +755,13 @@ static const struct phylink_mac_ops enetc_pl_mac_ops = {
 static int enetc4_alloc_cls_rules(struct enetc_ndev_priv *priv)
 {
 	struct enetc_pf *pf = enetc_si_priv(priv->si);
+	struct enetc_si *si = priv->si;
+	int cls_num;
 
 	/* Each ingress port filter entry occupies 2 words at least. */
 	priv->max_ipf_entries = pf->caps.ipf_words_num / 2;
-	priv->cls_rules = kcalloc(priv->max_ipf_entries, sizeof(*priv->cls_rules),
+	cls_num = priv->max_ipf_entries + si->num_fs_entries;
+	priv->cls_rules = kcalloc(cls_num, sizeof(*priv->cls_rules),
 				  GFP_KERNEL);
 	if (!priv->cls_rules)
 		return -ENOMEM;
@@ -943,6 +946,10 @@ static void enetc4_get_ntmp_caps(struct enetc_si *si)
 	/* Get the max number of words of SGCL table */
 	reg = enetc_port_rd(hw, ENETC4_SGCLITCAPR);
 	caps->sgclt_num_words = reg & SGCLITCAPR_NUM_WORDS;
+
+	/* Get the max number of entries of RFST */
+	reg = enetc_rd(hw, ENETC_SIRFSCAPR);
+	caps->rfst_num_entries = ENETC_SIRFSCAPR_GET_NUM_RFS(reg);
 }
 
 static u64 enetc4_get_current_time(struct enetc_si *si)
@@ -1019,7 +1026,16 @@ static int enetc4_ntmp_bitmap_init(struct ntmp_priv *ntmp)
 	if (!ntmp->rpt_eid_bitmap)
 		goto free_isct_bitmap;
 
+	ntmp->rfst_eid_bitmap = bitmap_zalloc(ntmp->caps.rfst_num_entries,
+					      GFP_KERNEL);
+	if (!ntmp->rfst_eid_bitmap)
+		goto free_rpt_bitmap;
+
 	return 0;
+
+free_rpt_bitmap:
+	bitmap_free(ntmp->rpt_eid_bitmap);
+	ntmp->rpt_eid_bitmap = NULL;
 
 free_isct_bitmap:
 	bitmap_free(ntmp->isct_eid_bitmap);
@@ -1056,6 +1072,9 @@ static void enetc4_ntmp_bitmap_free(struct ntmp_priv *ntmp)
 
 	bitmap_free(ntmp->ist_eid_bitmap);
 	ntmp->ist_eid_bitmap = NULL;
+
+	bitmap_free(ntmp->rfst_eid_bitmap);
+	ntmp->rfst_eid_bitmap = NULL;
 }
 
 static int enetc4_init_ntmp_priv(struct enetc_si *si)
@@ -1596,6 +1615,38 @@ static const struct pci_device_id enetc4_pf_id_table[] = {
 MODULE_DEVICE_TABLE(pci, enetc4_pf_id_table);
 
 #ifdef CONFIG_PCI_IOV
+static int enetc4_enable_sriov(struct pci_dev *pdev, int num_vfs)
+{
+	u16 ctrl = PCI_SRIOV_CTRL_VFE | PCI_SRIOV_CTRL_MSE;
+	int pos;
+
+	if (!num_vfs)
+		return 0;
+
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_SRIOV);
+	if (!pos)
+		return -ENODEV;
+
+	pci_write_config_word(pdev, pos + PCI_SRIOV_NUM_VF, num_vfs);
+	pci_write_config_word(pdev, pos + PCI_SRIOV_CTRL, ctrl);
+
+	return 0;
+}
+
+static int enetc4_disable_sriov(struct pci_dev *pdev)
+{
+	int pos;
+
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_SRIOV);
+	if (!pos)
+		return -ENODEV;
+
+	pci_write_config_word(pdev, pos + PCI_SRIOV_CTRL, 0);
+	pci_write_config_word(pdev, pos + PCI_SRIOV_NUM_VF, 0);
+
+	return 0;
+}
+
 static void enetc4_sriov_suspend(struct pci_dev *pdev)
 {
 	struct enetc_si *si = pci_get_drvdata(pdev);
@@ -1604,7 +1655,7 @@ static void enetc4_sriov_suspend(struct pci_dev *pdev)
 	if (pf->num_vfs == 0)
 		return;
 
-	pci_disable_sriov(pdev);
+	enetc4_disable_sriov(pdev);
 	enetc_msg_psi_free(pf);
 }
 
@@ -1623,9 +1674,10 @@ static int enetc4_sriov_resume(struct pci_dev *pdev)
 		return err;
 	}
 
-	err = pci_enable_sriov(pdev, pf->num_vfs);
+	err = enetc4_enable_sriov(pdev, pf->num_vfs);
 	if (err) {
-		dev_err(&pdev->dev, "pci_enable_sriov err %d\n", err);
+		dev_err(&pdev->dev, "Failed to enable SRIOV, err:%pe\n",
+			ERR_PTR(err));
 		enetc_msg_psi_free(pf);
 
 		return err;
@@ -1730,6 +1782,17 @@ static int enetc4_pf_power_up(struct pci_dev *pdev, struct device_node *node)
 			dev_err(&pdev->dev, "imdio regulator enable failed\n");
 			return err;
 		}
+	}
+
+	/* TODO: save the tables before power down */
+	if (priv->cls_rules) {
+		size_t count = (size_t)priv->max_ipf_entries +
+			       (size_t)priv->si->num_fs_entries;
+		if (count)
+			memset(priv->cls_rules, 0,
+			       count * sizeof(*priv->cls_rules));
+		bitmap_zero(si->ntmp.rfst_eid_bitmap,
+			    si->ntmp.caps.rfst_num_entries);
 	}
 
 	return 0;

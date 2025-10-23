@@ -120,7 +120,7 @@ struct loger_t {
 #endif
 
 #define WAVE6_MAX_INST_NUMBER		32
-#define WAVE6_PRE_INST_NUMBER		4
+#define WAVE6_PRE_INST_NUMBER		WAVE6_MAX_INST_NUMBER
 
 struct vpu_ctrl {
 	struct device *dev;
@@ -526,9 +526,6 @@ int wave6_vpu_ctrl_require_buffer(struct device *dev, struct wave6_vpu_entity *e
 exit:
 	entity->write_reg(entity->dev, W6_CMD_SET_CTRL_WORK_BUF_SIZE, 0);
 	pm_runtime_put_sync(ctrl->dev);
-	dprintk(dev, "require work buffer, ret = %d\n", ret);
-	if (ctrl->required_buffer_count >= ctrl->acquired_buffer_count)
-		wave6_vpu_ctrl_acquire_work_buffer(ctrl);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(wave6_vpu_ctrl_require_buffer);

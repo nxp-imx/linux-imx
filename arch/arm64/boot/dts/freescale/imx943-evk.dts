@@ -943,6 +943,7 @@
 	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_aux", "ext-ref";
 	reset-gpio = <&pcal6416_i2c3_u46 3 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_pcie0>;
+	supports-clkreq;
 	status = "okay";
 };
 

@@ -655,6 +655,7 @@
 	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_aux", "ext-ref";
 	reset-gpio = <&pcal6524 23 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_pcie0>;
+	supports-clkreq;
 	status = "okay";
 };
 
@@ -669,6 +670,7 @@
 	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_aux", "ext-ref";
 	reset-gpio = <&pcal6524 3 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_pcie1>;
+	supports-clkreq;
 	status = "okay";
 };
 

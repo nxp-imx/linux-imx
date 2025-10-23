@@ -5,6 +5,7 @@
  * Copyright 2016 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  */
 
+#include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -551,6 +552,13 @@ int cec_thread_func(void *_adap)
 			attempts = 2;
 		else
 			attempts = 4;
+
+		if (adap->eom_delay && data->msg.msg[1] == CEC_MSG_FEATURE_ABORT &&
+			data->msg.msg[2] == CEC_MSG_ABORT) {
+			/* A hack to handle CECT 9.4-2 */
+			signal_free_time = CEC_SIGNAL_FREE_TIME_RETRY;
+			fsleep(adap->eom_delay);
+		}
 
 		/* Set the suggested signal free time */
 		if (data->attempts) {

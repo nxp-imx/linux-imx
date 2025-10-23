@@ -45,6 +45,7 @@
 	/delete-node/ sound-wm8962;
 	/delete-node/ pca9632;
 	/delete-node/ i2c3_gpio_expander_20;
+	/delete-node/ pwm-fan;
 
 	sound-wm8904 {
 		compatible = "fsl,imx-audio-wm8904";
@@ -239,6 +240,22 @@
 &lpuart5 {
 	bluetooth {
 		fw-init-baudrate = <115200>;
+	};
+};
+
+&thermal_zones {
+	a55-thermal {
+		trips {
+			/delete-node/ trip2;
+			/delete-node/ trip3;
+			/delete-node/ trip4;
+		};
+
+		cooling-maps {
+			/delete-node/ map1;
+			/delete-node/ map2;
+			/delete-node/ map3;
+		};
 	};
 };
 

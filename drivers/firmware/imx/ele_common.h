@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 
@@ -46,6 +46,7 @@ static inline int se_fill_cmd_msg_hdr(struct se_if_priv *priv,
 	return 0;
 }
 
+int ele_late_init(struct se_if_priv *priv);
 int se_save_imem_state(struct se_if_priv *priv, struct se_imem_buf *imem);
 int se_restore_imem_state(struct se_if_priv *priv, struct se_imem_buf *imem);
 

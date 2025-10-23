@@ -912,6 +912,7 @@ struct vpu_device {
 struct vpu_instance;
 
 struct vpu_instance_ops {
+	int (*prepare_process)(struct vpu_instance *inst);
 	int (*start_process)(struct vpu_instance *inst);
 	void (*finish_process)(struct vpu_instance *inst, bool error);
 };

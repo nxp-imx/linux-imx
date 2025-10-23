@@ -170,7 +170,8 @@ static struct netc_cbdr *netc_select_cbdr(struct netc_cbdrs *cbdrs)
 	return &cbdrs->ring[cpu % cbdrs->cbdr_num];
 }
 
-static int netc_xmit_ntmp_cmd(struct netc_cbdrs *cbdrs, union netc_cbd *cbd)
+static int netc_xmit_ntmp_cmd_common(struct netc_cbdrs *cbdrs,
+				     union netc_cbd *cbd, bool is_v1)
 {
 	union netc_cbd *ring_cbd;
 	struct netc_cbdr *cbdr;
@@ -202,8 +203,8 @@ static int netc_xmit_ntmp_cmd(struct netc_cbdrs *cbdrs, union netc_cbd *cbd)
 	dma_wmb();
 	netc_write(cbdr->regs.pir, i);
 
-	err = read_poll_timeout_atomic(netc_read, val, val == i,
-				       10, NETC_CBDR_TIMEOUT, true,
+	err = read_poll_timeout_atomic(netc_read, val, val == i, 10,
+				       NETC_CBDR_TIMEOUT, true,
 				       cbdr->regs.cir);
 	if (unlikely(err)) {
 		err = -EBUSY;
@@ -212,12 +213,15 @@ static int netc_xmit_ntmp_cmd(struct netc_cbdrs *cbdrs, union netc_cbd *cbd)
 
 	dma_rmb();
 	/* Get the writeback Command BD, because the caller may need
-	 * to check some other fileds of the response header.
+	 * to check some other fields of the response header.
 	 */
 	*cbd = *ring_cbd;
 
 	/* Check the writeback error status */
-	status = le16_to_cpu(cbd->resp_hdr.error_rr) & NTMP_RESP_ERROR;
+	if (is_v1)
+		status = cbd->req_v1.status_flags & NTMP_V1_RESP_STATUS;
+	else
+		status = le16_to_cpu(cbd->resp_hdr.error_rr) & NTMP_RESP_ERROR;
 	if (unlikely(status)) {
 		dev_err(cbdrs->dma_dev, "Command BD error: 0x%04x\n", status);
 		err = -EIO;
@@ -230,6 +234,11 @@ err_unlock:
 	spin_unlock_bh(&cbdr->ring_lock);
 
 	return err;
+}
+
+static int netc_xmit_ntmp_cmd(struct netc_cbdrs *cbdrs, union netc_cbd *cbd)
+{
+	return netc_xmit_ntmp_cmd_common(cbdrs, cbd, false);
 }
 
 static void *ntmp_alloc_data_mem(struct device *dev, int size,
@@ -254,6 +263,74 @@ static void ntmp_free_data_mem(struct device *dev, int size,
 {
 	dma_free_coherent(dev, size + NTMP_DATA_ADDR_ALIGN, data, dma);
 }
+
+/* NTMP V1.0 functions */
+static int netc_xmit_ntmp_v1_cmd(struct netc_cbdrs *cbdrs, union netc_cbd *cbdv1)
+{
+	return netc_xmit_ntmp_cmd_common(cbdrs, cbdv1, true);
+}
+
+static inline void *ntmp_v1_cbd_alloc_data_mem(struct device *dma_dev,
+					       union netc_cbd *cbd, int size,
+					       dma_addr_t *dma,
+					       void **data_align)
+{
+	dma_addr_t dma_align;
+	void *data;
+
+	data = ntmp_alloc_data_mem(dma_dev, size, dma, data_align);
+	if (!data)
+		return NULL;
+
+	dma_align = ALIGN(*dma, NTMP_DATA_ADDR_ALIGN);
+
+	cbd->req_v1.addr = cpu_to_le64(dma_align);
+	cbd->req_v1.length = cpu_to_le16(size);
+
+	return data;
+}
+
+int ntmp_v1_rfst_set_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
+			   struct rfse_set_buff *rfse)
+{
+	struct device *dev = cbdrs->dma_dev;
+	union netc_cbd cbd = { .req_v1.cmd = 0 };
+	void *tmp, *tmp_align;
+	dma_addr_t dma;
+	int err;
+
+	/* fill up the "set" descriptor */
+	cbd.req_v1.cmd = 0;
+	cbd.req_v1.cls = 4;
+	cbd.req_v1.index = cpu_to_le16(entry_id);
+	cbd.req_v1.opt[3] = cpu_to_le32(0); /* SI */
+
+	tmp = ntmp_v1_cbd_alloc_data_mem(dev, &cbd, sizeof(*rfse), &dma,
+					 &tmp_align);
+	if (!tmp)
+		return -ENOMEM;
+
+	memcpy(tmp_align, rfse, sizeof(*rfse));
+
+	err = netc_xmit_ntmp_v1_cmd(cbdrs, &cbd);
+	if (err)
+		dev_err(dev, "Set table (id: %d) entry failed: %d!",
+			NTMP_RFST_ID, err);
+
+	ntmp_free_data_mem(dev, sizeof(*rfse), tmp, dma);
+
+	return err;
+}
+EXPORT_SYMBOL_GPL(ntmp_v1_rfst_set_entry);
+
+int ntmp_v1_rfst_delete_entry(struct netc_cbdrs *cbdrs, u32 entry_id)
+{
+	struct rfse_set_buff rfse = { };
+
+	return ntmp_v1_rfst_set_entry(cbdrs, entry_id, &rfse);
+}
+EXPORT_SYMBOL_GPL(ntmp_v1_rfst_delete_entry);
+/* NTMP V1.0 functions end */
 
 static void ntmp_fill_request_headr(union netc_cbd *cbd, dma_addr_t dma,
 				    int len, int table_id, int cmd,

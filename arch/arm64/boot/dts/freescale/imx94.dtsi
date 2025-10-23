@@ -1378,7 +1378,7 @@
 			#size-cells = <1>;
 
 			wdog3: wdog@49220000 {
-				compatible = "fsl,imx93-wdt";
+				compatible = "fsl,imx94-wdt";
 				reg = <0x49220000 0x10000>;
 				interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&scmi_clk IMX94_CLK_BUSWAKEUP>;
@@ -1386,6 +1386,14 @@
 				fsl,ext-reset-output;
 				status = "disabled";
 			};
+		};
+
+		hsio_usb_blk_ctl: syscon@4c010000 {
+			compatible = "nxp,imx95-hsio-usb-blk-ctl", "syscon";
+			reg = <0x0 0x4c010000 0x0 0x1>;
+			#clock-cells = <1>;
+			clocks = <&dummy>;
+			power-domains = <&scmi_devpd IMX94_PD_HSIO_TOP>;
 		};
 
 		usb3: usb@4c010010 {

@@ -89,3 +89,43 @@ const struct mxc_gasket_ops mxc_imx93_gasket_ops = {
 	.enable = mxc_imx93_gasket_enable,
 	.disable = mxc_imx93_gasket_disable,
 };
+
+/* -----------------------------------------------------------------------------
+ * i.MX95 gasket
+ */
+#define ISI_QOS						0x10
+#define ISI_PANIC_QOS					0x14
+
+static void mxc_imx95_set_qos(struct mxc_isi_dev *isi, unsigned int qos)
+{
+	/* Config QoS */
+	regmap_write(isi->gasket, ISI_QOS, qos);
+
+	/* Config Panic QoS */
+	regmap_write(isi->gasket, ISI_PANIC_QOS, qos);
+}
+
+static void mxc_imx95_clear_qos(struct mxc_isi_dev *isi)
+{
+	regmap_write(isi->gasket, ISI_QOS, 0x0);
+	regmap_write(isi->gasket, ISI_PANIC_QOS, 0x0);
+}
+
+static void mxc_imx95_gasket_enable(struct mxc_isi_dev *isi,
+				    const struct v4l2_mbus_frame_desc *fd,
+				    const struct v4l2_mbus_framefmt *fmt,
+				    const unsigned int port)
+{
+	mxc_imx95_set_qos(isi, 0x3);
+}
+
+static void mxc_imx95_gasket_disable(struct mxc_isi_dev *isi,
+				     unsigned int port)
+{
+	mxc_imx95_clear_qos(isi);
+}
+
+const struct mxc_gasket_ops mxc_imx95_gasket_ops = {
+	.enable = mxc_imx95_gasket_enable,
+	.disable = mxc_imx95_gasket_disable,
+};

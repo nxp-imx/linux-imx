@@ -273,7 +273,7 @@ static int wave6_vpu_job_ready(void *priv)
 	dev_dbg(inst->dev->dev, "[%d]%s: state %d\n",
 		inst->id, __func__, inst->state);
 
-	if (inst->type == VPU_INST_TYPE_DEC && inst->state == VPU_INST_STATE_OPEN)
+	if (inst->state == VPU_INST_STATE_OPEN)
 		return 1;
 	if (inst->state < VPU_INST_STATE_PIC_RUN)
 		return 0;
@@ -322,6 +322,13 @@ static void wave6_vpu_device_run(void *priv)
 
 	dev_dbg(inst->dev->dev, "[%d]%s: state %d\n",
 		inst->id, __func__, inst->state);
+
+	if (inst->state < VPU_INST_STATE_PIC_RUN && inst->ops->prepare_process) {
+		ret = inst->ops->prepare_process(inst);
+
+		v4l2_m2m_job_finish(inst->dev->m2m_dev, inst->v4l2_fh.m2m_ctx);
+		return;
+	}
 
 	ret = inst->ops->start_process(inst);
 	if (!ret)

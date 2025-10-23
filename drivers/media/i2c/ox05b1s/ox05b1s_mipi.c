@@ -17,6 +17,14 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
+#include <uapi/linux/ox05b1s.h>
+
+#include "ox05b1s.h"
+
+#define OX05B1S_CHIP_ID 0x580542
+#define OS08A20_CHIP_ID 0x530841
+#define OX05B1S_EXP_RATIO 16
+#define OX05B1S_VS_EXP_MAX 0x20
 
 enum ox05b1s_pad_ids {
 	OX05B1S_PAD_SRC,
@@ -34,12 +42,26 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_SW_STB		CCI_REG8(0x0100)
 #define OX05B1S_REG_SW_RST		CCI_REG8(0x0103)
 #define OX05B1S_REG_CHIP_ID		CCI_REG24(0x300a)
-#define OX05B1S_REG_TIMING_HTS		CCI_REG16(0x380c)
-#define OX05B1S_REG_TIMING_VTS		CCI_REG16(0x380e)
-#define OX05B1S_REG_EXPOSURE		CCI_REG16(0x3501)
-#define OX05B1S_REG_GAIN		CCI_REG16(0x3508)
+#define OX05B1S_REG_GH			CCI_REG8(0x3208)
+#define OX05B1S_GH_START		0x0
+#define OX05B1S_GH_END			0x10
+#define OX05B1S_GH_REPEAT		0xA0
+#define OX05B1S_GH_0			0x0
+#define OX05B1S_GH_1			0x1
+#define OX05B1S_REG_EXP			CCI_REG24(0x3500)
+#define OX05B1S_REG_AGAIN		CCI_REG16(0x3508)
+#define OX05B1S_REG_DGAIN		CCI_REG24(0x350a)
 #define OX05B1S_REG_X_OUTPUT_SIZE	CCI_REG16(0x3808)
 #define OX05B1S_REG_Y_OUTPUT_SIZE	CCI_REG16(0x380a)
+#define OX05B1S_REG_TIMING_HTS		CCI_REG16(0x380c)
+#define OX05B1S_REG_TIMING_VTS		CCI_REG16(0x380e)
+#define OX05B1S_REG_MIPI_CTRL_13	CCI_REG8(0x4813)
+
+#define OS08A20_REG_EXP_LONG		CCI_REG16(0x3501)
+#define OS08A20_REG_EXP_SHORT		CCI_REG16(0x3511)
+#define OS08A20_REG_DGAIN		CCI_REG16(0x350a)
+#define OS08A20_REG_AGAIN_SHORT		CCI_REG16(0x350c)
+#define OS08A20_REG_DGAIN_SHORT		CCI_REG16(0x350e)
 
 #define client_to_ox05b1s(client)\
 	container_of(i2c_get_clientdata(client), struct ox05b1s, subdev)
@@ -73,15 +95,14 @@ struct ox05b1s_ctrls {
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *vblank;
-	struct v4l2_ctrl *gain;
+	struct v4l2_ctrl *again;
+	struct v4l2_ctrl *dgain;
 	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *again_multi;
+	struct v4l2_ctrl *dgain_multi;
+	struct v4l2_ctrl *exposure_multi;
 	struct v4l2_ctrl *hdr_mode;
 };
-
-#include "os08a20_regs_1080p.h"
-#include "os08a20_regs_4k.h"
-#include "os08a20_regs_4k_hdr.h"
-#include "ox05b1s_regs_5mp.h"
 
 struct ox05b1s_mode {
 	u32 index;
@@ -94,8 +115,7 @@ struct ox05b1s_mode {
 	u32 exp; /* max exposure */
 	bool h_bin; /* horizontal binning */
 	s64 pixel_rate;
-	const struct cci_reg_sequence *reg_data;
-	u32 reg_data_count;
+	const struct ox05b1s_reglist *reg_data;
 };
 
 /* regulator supplies */
@@ -138,8 +158,7 @@ static const struct ox05b1s_mode os08a20_supported_modes[] = {
 		.exp		= 0x4a4 - 8,
 		.h_bin		= true,
 		.pixel_rate	= OS08A20_PIXEL_RATE_144M,
-		.reg_data	= os08a20_init_setting_1080p,
-		.reg_data_count	= ARRAY_SIZE(os08a20_init_setting_1080p),
+		.reg_data	= os08a20_reglist_1080p_10b,
 	},
 	{
 		/* 4k BGGR10, no hdr, 30fps */
@@ -153,8 +172,7 @@ static const struct ox05b1s_mode os08a20_supported_modes[] = {
 		.exp		= 0x90a - 8,
 		.h_bin		= false,
 		.pixel_rate	= OS08A20_PIXEL_RATE_288M,
-		.reg_data	= os08a20_init_setting_4k_hdr,
-		.reg_data_count	= ARRAY_SIZE(os08a20_init_setting_4k_hdr),
+		.reg_data	= os08a20_reglist_4k_10b,
 	},
 	{
 		/* 4k BGGR12, no hdr, 30fps */
@@ -168,9 +186,9 @@ static const struct ox05b1s_mode os08a20_supported_modes[] = {
 		.exp		= 0x90a - 8,
 		.h_bin		= false,
 		.pixel_rate	= OS08A20_PIXEL_RATE_288M,
-		.reg_data	= os08a20_init_setting_4k,
-		.reg_data_count	= ARRAY_SIZE(os08a20_init_setting_4k),
-	}, {
+		.reg_data	= os08a20_reglist_4k_12b,
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -180,10 +198,12 @@ static const struct v4l2_area os08a20_sbggr10_sizes[] = {
 	{
 		.width = 1920,
 		.height = 1080,
-	}, {
+	},
+	{
 		.width = 3840,
 		.height = 2160,
-	}, {
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -192,7 +212,8 @@ static const struct v4l2_area os08a20_sbggr12_sizes[] = {
 	{
 		.width = 3840,
 		.height = 2160,
-	}, {
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -205,7 +226,8 @@ static const struct ox05b1s_sizes os08a20_supported_codes[] = {
 	{
 		.code = MEDIA_BUS_FMT_SBGGR12_1X12,
 		.sizes = os08a20_sbggr12_sizes,
-	}, {
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -224,9 +246,9 @@ static const struct ox05b1s_mode ox05b1s_supported_modes[] = {
 		.exp		= 0x850 - 8,
 		.h_bin		= false,
 		.pixel_rate	= OX05B1S_PIXEL_RATE_48M,
-		.reg_data	= ovx5b_init_setting_2592x1944,
-		.reg_data_count	= ARRAY_SIZE(ovx5b_init_setting_2592x1944),
-	}, {
+		.reg_data	= ox05b1s_reglist_2592x1944,
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -236,7 +258,8 @@ static const struct v4l2_area ox05b1s_sgrbg10_sizes[] = {
 	{
 		.width = 2592,
 		.height = 1944,
-	}, {
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -245,7 +268,8 @@ static const struct ox05b1s_sizes ox05b1s_supported_codes[] = {
 	{
 		.code = MEDIA_BUS_FMT_SGRBG10_1X10,
 		.sizes = ox05b1s_sgrbg10_sizes,
-	}, {
+	},
+	{
 		/* sentinel */
 	}
 };
@@ -320,7 +344,7 @@ static const char * const os08a20_hdr_modes[] = {
 static const struct cci_reg_sequence os08a20_init_setting_hdr_en[] = {
 	{CCI_REG8(0x3661), BIT(0)}, /* CORE1[0] STG_HDR_ALIGN_EN */
 	{CCI_REG8(0x3821), BIT(5)}, /* FORMAT2[5] STG_HDR_EN */
-	{CCI_REG8(0x4813), BIT(3)}, /* MIPI_CTRL_13[3] */
+	{OX05B1S_REG_MIPI_CTRL_13, BIT(3)},
 	{CCI_REG8(0x486e), BIT(2)}, /* MIPI_CTRL_6E[2] MIPI_VC_ENABLE */
 };
 
@@ -374,20 +398,20 @@ static const struct cci_reg_sequence ovx5b_init_setting_ctx_switch_en[] = {
 	{CCI_REG8(0x320a), 0x01}, /* frames stay in group0 */
 	{CCI_REG8(0x320b), 0x01}, /* frames stay in group1 */
 
-	{CCI_REG8(0x3208), 0x00}, /* group0 start */
+	{OX05B1S_REG_GH, OX05B1S_GH_START | OX05B1S_GH_0},
 	{CCI_REG8(0x3501), 0x01}, /* exposure */
 	{CCI_REG8(0x3502), 0x00}, /* exposure */
-	{CCI_REG8(0x4813), 0x00}, /* mipi vc0 */
-	{CCI_REG8(0x3208), 0x10}, /* group0 end */
+	{OX05B1S_REG_MIPI_CTRL_13, 0x00}, /* mipi vc0 */
+	{OX05B1S_REG_GH, OX05B1S_GH_END | OX05B1S_GH_0},
 
-	{CCI_REG8(0x3208), 0x01}, /* group1 start */
+	{OX05B1S_REG_GH, OX05B1S_GH_START | OX05B1S_GH_1},
 	{CCI_REG8(0x3501), 0x00}, /* exposure */
 	{CCI_REG8(0x3502), 0x80}, /* exposure */
-	{CCI_REG8(0x4813), 0x01}, /* mipi vc1 */
-	{CCI_REG8(0x3208), 0x11}, /* group1 end */
+	{OX05B1S_REG_MIPI_CTRL_13, 0x01}, /* mipi vc1 */
+	{OX05B1S_REG_GH, OX05B1S_GH_END | OX05B1S_GH_1},
 
 	{CCI_REG8(0x3211), 0x30}, /* context switch en */
-	{CCI_REG8(0x3208), 0xa0}, /* repeat launch */
+	{OX05B1S_REG_GH, OX05B1S_GH_REPEAT}, /* repeat launch */
 };
 
 static const struct cci_reg_sequence ovx5b_init_setting_ctx_switch_dis[] = {
@@ -424,6 +448,243 @@ static int ox05b1s_set_hdr_mode(struct ox05b1s *sensor, u32 hdr_mode)
 	}
 }
 
+static int ox05b1s_gh_start(struct ox05b1s *sensor, u8 group)
+{
+	struct regmap *regmap = sensor->regmap;
+
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		return cci_write(regmap, OX05B1S_REG_GH,
+				 OX05B1S_GH_START | group, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_gh_end(struct ox05b1s *sensor, u8 group)
+{
+	struct regmap *regmap = sensor->regmap;
+	int ret;
+
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		 /* MIPI VC = group */
+		cci_write(regmap, OX05B1S_REG_MIPI_CTRL_13, group, &ret);
+		/* group hold end */
+		cci_write(regmap, OX05B1S_REG_GH, OX05B1S_GH_END | group,
+			  &ret);
+		return ret;
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_repeat_launch(struct ox05b1s *sensor)
+{
+	struct regmap *regmap = sensor->regmap;
+
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		return cci_write(regmap, OX05B1S_REG_GH, OX05B1S_GH_REPEAT, NULL);
+	default:
+		return 0;
+	}
+}
+
+static void ox05b1s_validate_exposures(struct ox05b1s *sensor,
+				       u32 *long_exp, u32 *short_exp)
+{
+	/* 4k 12 bit mode hangs with short exposures higher than this */
+	if (*short_exp > OX05B1S_VS_EXP_MAX)
+		*short_exp = OX05B1S_VS_EXP_MAX;
+
+	/* Datasheet mentions T_long + T_short < frame_length(VTS) - 4 */
+	if (*long_exp + *short_exp >= sensor->mode->vts - 4)
+		*long_exp = sensor->mode->vts - 4 - *short_exp - 1;
+}
+
+static int ox05b1s_set_exp_long(struct ox05b1s *sensor, u32 exp)
+{
+	struct regmap *regmap = sensor->regmap;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 0x3501 = long_expo[15:8], 0x3502 = long_expo[7:0] */
+		return cci_write(regmap, OS08A20_REG_EXP_LONG, exp, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x3500 = expo[23:16], 0x3501 = expo[15:8], 0x3502 = expo[7:0] */
+		/* in context switch mode this needs to be in the long context */
+		return cci_write(regmap, OX05B1S_REG_EXP, exp, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_set_exp_short(struct ox05b1s *sensor, u32 exp)
+{
+	struct regmap *regmap = sensor->regmap;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* os08a20 0x3511 = short_expo[15:8], 0x3512 = short_expo[7:0] */
+		return cci_write(regmap, OS08A20_REG_EXP_SHORT, exp, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x3500 = expo[23:16], 0x3501 = expo[15:8], 0x3502 = expo[7:0] */
+		/* in context switch mode this needs to be in the short context */
+		return cci_write(regmap, OX05B1S_REG_EXP, exp, NULL);
+	default:
+		return 0;
+	}
+}
+
+static void ox05b1s_set_exp_multi(struct ox05b1s *sensor,
+				  struct v4l2_ctrl *ctrl)
+{
+	u32 *exp0 = &ctrl->p_new.p_u32[OX05B1S_EXP0];
+	u32 *exp1 = &ctrl->p_new.p_u32[OX05B1S_EXP1];
+
+	ox05b1s_validate_exposures(sensor, exp0, exp1);
+
+	sensor->ctrls.exposure->val = *exp0;
+}
+
+static void ox05b1s_set_again_multi(struct ox05b1s *sensor,
+				    struct v4l2_ctrl *ctrl)
+{
+	u32 *again0 = &ctrl->p_new.p_u32[OX05B1S_EXP0];
+
+	/* TODO validate gains */
+
+	sensor->ctrls.again->val = *again0;
+}
+
+static void ox05b1s_set_dgain_multi(struct ox05b1s *sensor,
+				    struct v4l2_ctrl *ctrl)
+{
+	u32 *dgain0 = &ctrl->p_new.p_u32[OX05B1S_EXP0];
+
+	/* TODO validate gains */
+
+	sensor->ctrls.dgain->val = *dgain0;
+}
+
+static int ox05b1s_set_again_long(struct ox05b1s *sensor, u32 again)
+{
+	struct regmap *regmap = sensor->regmap;
+	u16 reg_val;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 0x3508[5:0] = gain[13:8], 0x3509[7:0] = gain[7:0] */
+		reg_val = ((again >> 8) & 0xff) << 8;
+		reg_val |= again & 0xff;
+		return cci_write(regmap, OX05B1S_REG_AGAIN, reg_val, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x3508[3:0] = gain[7:4], 0x3509[7:4] = gain[3:0] */
+		/* in context switch mode this needs to be in the long context */
+		reg_val = ((again >> 4) & 0x0f) << 8;
+		reg_val |= (again << 4) & 0xf0;
+		return cci_write(regmap, OX05B1S_REG_AGAIN, reg_val, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_set_again_short(struct ox05b1s *sensor, u32 again)
+{
+	struct regmap *regmap = sensor->regmap;
+	u16 reg_val;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 0x350c[7:0] = short_gain[13:8], 0x350d[7:0] = short_gain[7:0] */
+		reg_val = ((again >> 8) & 0xff) << 8;
+		reg_val |= again & 0xff;
+		return cci_write(regmap, OS08A20_REG_AGAIN_SHORT, reg_val, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x3508[3:0] = real_gain[7:4], 0x3509[7:4] = real_gain[3:0] */
+		/* in context switch mode this needs to be in the short context */
+		reg_val = ((again >> 4) & 0x0f) << 8;
+		reg_val |= (again << 4) & 0xf0;
+		return cci_write(regmap, OX05B1S_REG_AGAIN, reg_val, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_set_dgain_long(struct ox05b1s *sensor, u32 dgain)
+{
+	struct regmap *regmap = sensor->regmap;
+	u32 reg_val;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 0x350a = gain[13:8], 0x350b = gain[7:0] */
+		reg_val = ((dgain >> 8) & 0xff) << 8;
+		reg_val |= dgain & 0xff;
+		return cci_write(regmap, OS08A20_REG_DGAIN, reg_val, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x350a[3:0] = gain[13:10], 0x350b[7:0] = gain[9:2], 0x350c[7:6] = gain[1:0] */
+		/* in context switch mode this needs to be in the long context */
+		reg_val = ((dgain >> 10) & 0x0f) << 16;
+		reg_val |= ((dgain >> 2) & 0xff) << 8;
+		reg_val |= dgain & 0x03;
+		return cci_write(regmap, OX05B1S_REG_DGAIN, reg_val, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_set_dgain_short(struct ox05b1s *sensor, u32 dgain)
+{
+	struct regmap *regmap = sensor->regmap;
+	u32 reg_val;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 0x350e = gain[13:8], 0x350f = gain[7:0] */
+		reg_val = ((dgain >> 8) & 0xff) << 8;
+		reg_val |= dgain & 0xff;
+		return cci_write(regmap, OS08A20_REG_DGAIN_SHORT, reg_val, NULL);
+	case OX05B1S_CHIP_ID:
+		/* 0x350a[3:0] = gain[13:10], 0x350b[7:0] = gain[9:2], 0x350c[7:6] = gain[1:0] */
+		/* in context switch mode this needs to be in the short context */
+		reg_val = ((dgain >> 10) & 0x0f) << 16;
+		reg_val |= ((dgain >> 2) & 0xff) << 8;
+		reg_val |= dgain & 0x03;
+		return cci_write(regmap, OX05B1S_REG_DGAIN, reg_val, NULL);
+	default:
+		return 0;
+	}
+}
+
+static int ox05b1s_set_exp_gains(struct ox05b1s *sensor)
+{
+	int ret;
+	u32 exp0_again = sensor->ctrls.again_multi->p_new.p_u32[OX05B1S_EXP0];
+	u32 exp1_again = sensor->ctrls.again_multi->p_new.p_u32[OX05B1S_EXP1];
+	u32 exp0_dgain = sensor->ctrls.dgain_multi->p_new.p_u32[OX05B1S_EXP0];
+	u32 exp1_dgain = sensor->ctrls.dgain_multi->p_new.p_u32[OX05B1S_EXP1];
+	u32 exp0_exp = sensor->ctrls.exposure_multi->p_new.p_u32[OX05B1S_EXP0];
+	u32 exp1_exp = sensor->ctrls.exposure_multi->p_new.p_u32[OX05B1S_EXP1];
+
+	ret = ox05b1s_gh_start(sensor, 0);
+	ret |= ox05b1s_set_exp_long(sensor, exp0_exp);
+	ret |= ox05b1s_set_again_long(sensor, exp0_again);
+	ret |= ox05b1s_set_dgain_long(sensor, exp0_dgain);
+	ret |= ox05b1s_gh_end(sensor, 0);
+
+	ret |= ox05b1s_gh_start(sensor, 1);
+	ret |= ox05b1s_set_exp_short(sensor, exp1_exp);
+	ret |= ox05b1s_set_again_short(sensor, exp1_again);
+	ret |= ox05b1s_set_dgain_short(sensor, exp1_dgain);
+	ret |= ox05b1s_gh_end(sensor, 1);
+
+	ret |= ox05b1s_repeat_launch(sensor);
+
+	return ret ? -EIO : 0;
+}
+
 static inline struct v4l2_subdev *ctrl_to_sd(struct v4l2_ctrl *ctrl)
 {
 	return &container_of(ctrl->handler, struct ox05b1s,
@@ -435,6 +696,7 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
+	struct v4l2_ctrl *hdr_ctrl = sensor->ctrls.hdr_mode;
 	u32 w = sensor->mode->width;
 	u32 h = sensor->mode->height;
 	int ret = 0;
@@ -460,13 +722,54 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 		/* Read-only, but we adjust it based on mode. */
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
-		ret = cci_write(sensor->regmap, OX05B1S_REG_GAIN,
-				ctrl->val, NULL);
+		ret = ox05b1s_set_again_long(sensor, ctrl->val);
+		if (hdr_ctrl->cur.val)
+			ret |= ox05b1s_set_again_short(sensor, ctrl->val);
+		ret = ret ? -EIO : 0;
+		break;
+	case V4L2_CID_DIGITAL_GAIN:
+		ret = ox05b1s_set_dgain_long(sensor, ctrl->val);
+		if (hdr_ctrl->cur.val)
+			ret |= ox05b1s_set_dgain_short(sensor, ctrl->val);
+		ret = ret ? -EIO : 0;
 		break;
 	case V4L2_CID_EXPOSURE:
-		ret = cci_write(sensor->regmap, OX05B1S_REG_EXPOSURE,
-				ctrl->val, NULL);
+	{
+		u32 long_exp = ctrl->val;
+		u32 short_exp = ctrl->val / OX05B1S_EXP_RATIO;
+
+		if (!hdr_ctrl->cur.val)
+			short_exp = 0;
+		ox05b1s_validate_exposures(sensor, &long_exp, &short_exp);
+		ctrl->val = long_exp;
+		ret = ox05b1s_set_exp_long(sensor, long_exp);
+		if (hdr_ctrl->cur.val)
+			ret |= ox05b1s_set_exp_short(sensor, short_exp);
+		ret = ret ? -EIO : 0;
 		break;
+	}
+	case V4L2_CID_EXPOSURE_MULTI:
+		/* control available only for HDR mode */
+		if (!hdr_ctrl->cur.val)
+			break;
+		ox05b1s_set_exp_multi(sensor, ctrl);
+		ret = ox05b1s_set_exp_gains(sensor);
+		break;
+	case V4L2_CID_AGAIN_MULTI:
+		/* control available only for HDR mode */
+		if (!hdr_ctrl->cur.val)
+			break;
+		ox05b1s_set_again_multi(sensor, ctrl);
+		ret = ox05b1s_set_exp_gains(sensor);
+		break;
+	case V4L2_CID_DGAIN_MULTI:
+		/* control available only for HDR mode */
+		if (!hdr_ctrl->cur.val)
+			break;
+		ox05b1s_set_dgain_multi(sensor, ctrl);
+		ret = ox05b1s_set_exp_gains(sensor);
+		break;
+
 	case V4L2_CID_HDR_SENSOR_MODE:
 		if (sensor->model->set_hdr_mode)
 			ret = sensor->model->set_hdr_mode(sensor, ctrl->val);
@@ -498,6 +801,42 @@ static const s64 ox05b1s_csi2_link_freqs[] = {
 /* Link freq for default mode: 1080p RAW10, 4 data lanes 800 Mbps/lane. */
 #define OX05B1S_DEFAULT_LINK_FREQ	0
 
+static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_exp = {
+	.ops		= &ox05b1s_ctrl_ops,
+	.id		= V4L2_CID_EXPOSURE_MULTI,
+	.name		= "Exposures for multiple captures",
+	.type		= V4L2_CTRL_TYPE_U32,
+	.min		= 0x1,
+	.max		= OX05B1S_EXP_MAX,
+	.step		= 1,
+	.def		= 0x40,
+	.dims		= { OX05B1S_NUM_EXP },
+};
+
+static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_again = {
+	.ops		= &ox05b1s_ctrl_ops,
+	.id		= V4L2_CID_AGAIN_MULTI,
+	.name		= "Analog gains for multiple captures",
+	.type		= V4L2_CTRL_TYPE_U32,
+	.min		= 0x0,
+	.max		= OX05B1S_AGAIN_MAX,
+	.step		= 1,
+	.def		= 0x100,
+	.dims		= { OX05B1S_NUM_EXP },
+};
+
+static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_dgain = {
+	.ops		= &ox05b1s_ctrl_ops,
+	.id		= V4L2_CID_DGAIN_MULTI,
+	.name		= "Digital gains for multiple captures",
+	.type		= V4L2_CTRL_TYPE_U32,
+	.min		= 0x0,
+	.max		= OX05B1S_DGAIN_MAX,
+	.step		= 1,
+	.def		= 0x400,
+	.dims		= { OX05B1S_NUM_EXP },
+};
+
 static int ox05b1s_init_controls(struct ox05b1s *sensor)
 {
 	const struct v4l2_ctrl_ops *ops = &ox05b1s_ctrl_ops;
@@ -507,7 +846,7 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	struct v4l2_fwnode_device_properties props;
 	int ret;
 
-	v4l2_ctrl_handler_init(hdl, 7);
+	v4l2_ctrl_handler_init(hdl, 11);
 
 	/* we can use our own mutex for the ctrl lock */
 	hdl->lock = &sensor->lock;
@@ -532,8 +871,15 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_EXPOSURE,
 					    0, 0, 1, 0);
 
-	ctrls->gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
-					0, 0xFFFF, 1, 0x80);
+	ctrls->again = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
+					 0, 0xFFFF, 1, 0x80);
+
+	ctrls->dgain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_DIGITAL_GAIN,
+					 0, 0xFFFF, 1, 0x400);
+
+	ctrls->exposure_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_exp, NULL);
+	ctrls->again_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_again, NULL);
+	ctrls->dgain_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_dgain, NULL);
 
 	if (sensor->model->hdr_modes)
 		ctrls->hdr_mode = v4l2_ctrl_new_std_menu_items(hdl, ops, V4L2_CID_HDR_SENSOR_MODE,
@@ -776,8 +1122,9 @@ static int ox05b1s_update_controls(struct ox05b1s *sensor)
 	u32 vts = sensor->mode->vts;
 	u32 vblank = vts - sensor->mode->height;
 	u64 pixel_rate = sensor->mode->pixel_rate;
-	u32 min_exp = 8;
+	u32 min_exp = 1;
 	u32 max_exp = vts - 8;
+	u32 new_values[2];
 
 	ret = __v4l2_ctrl_modify_range(sensor->ctrls.pixel_rate, pixel_rate,
 				       pixel_rate, 1, pixel_rate);
@@ -822,6 +1169,12 @@ static int ox05b1s_update_controls(struct ox05b1s *sensor)
 	__v4l2_ctrl_s_ctrl(sensor->ctrls.exposure,
 			   sensor->ctrls.exposure->default_value);
 
+	/* update control values for exposure_multi to be in sync with exposure */
+	new_values[0] = sensor->ctrls.exposure->default_value;
+	new_values[1] = new_values[0];
+	__v4l2_ctrl_s_ctrl_compound(sensor->ctrls.exposure_multi,
+				    V4L2_CTRL_TYPE_U32, new_values);
+
 out:
 	return ret;
 }
@@ -830,16 +1183,21 @@ out:
 static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 {
 	struct device *dev = &sensor->i2c_client->dev;
-	const struct cci_reg_sequence *reg_data = NULL;
+	const struct ox05b1s_reglist *reg_data = sensor->mode->reg_data;
 	u32 w = sensor->mode->width;
 	u32 h = sensor->mode->height;
 	int ret;
 
 	cci_write(sensor->regmap, OX05B1S_REG_SW_RST, 0x01, &ret);
 
-	reg_data = sensor->mode->reg_data;
-	cci_multi_reg_write(sensor->regmap, reg_data,
-				  sensor->mode->reg_data_count, &ret);
+	while (reg_data->regs) {
+		cci_multi_reg_write(sensor->regmap, reg_data->regs,
+				    reg_data->count, &ret);
+		if (ret)
+			goto out;
+
+		reg_data++;
+	}
 
 	cci_write(sensor->regmap, OX05B1S_REG_X_OUTPUT_SIZE, w, &ret);
 	cci_write(sensor->regmap, OX05B1S_REG_Y_OUTPUT_SIZE, h, &ret);
@@ -1156,10 +1514,10 @@ static int ox05b1s_read_chip_id(struct ox05b1s *sensor)
 	}
 
 	switch (chip_id) {
-	case 0x530841:
+	case OS08A20_CHIP_ID:
 		camera_name = "os08a20";
 		break;
-	case 0x580542:
+	case OX05B1S_CHIP_ID:
 		camera_name = "ox05b1s";
 		break;
 	default:

@@ -14,6 +14,7 @@
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
+#include <linux/reset-controller.h>
 #include <linux/mfd/syscon.h>
 #include <soc/imx/gpcv2.h>
 
@@ -44,6 +45,8 @@ struct imx8mp_blk_ctrl {
 	struct regmap *noc_regmap;
 	struct imx8mp_blk_ctrl_domain *domains;
 	struct genpd_onecell_data onecell_data;
+	struct reset_controller_dev rcdev;
+	const struct imx8mp_blk_ctrl_data *bc_data;
 	void (*power_off) (struct imx8mp_blk_ctrl *bc, struct imx8mp_blk_ctrl_domain *domain);
 	void (*power_on) (struct imx8mp_blk_ctrl *bc, struct imx8mp_blk_ctrl_domain *domain);
 };
@@ -83,6 +86,12 @@ struct imx8mp_blk_ctrl_domain {
 	int id;
 };
 
+struct imx8mp_blk_ctrl_reset_map {
+	unsigned int offset;
+	unsigned int mask;
+	bool active_low;
+};
+
 struct imx8mp_blk_ctrl_data {
 	int max_reg;
 	int (*probe) (struct imx8mp_blk_ctrl *bc);
@@ -91,6 +100,8 @@ struct imx8mp_blk_ctrl_data {
 	void (*power_on) (struct imx8mp_blk_ctrl *bc, struct imx8mp_blk_ctrl_domain *domain);
 	const struct imx8mp_blk_ctrl_domain_data *domains;
 	int num_domains;
+	const struct imx8mp_blk_ctrl_reset_map *reset_map;
+	int num_resets;
 };
 
 static inline struct imx8mp_blk_ctrl_domain *
@@ -399,7 +410,6 @@ static void imx8mp_hdmi_blk_ctrl_power_on(struct imx8mp_blk_ctrl *bc,
 		fallthrough;
 	case IMX8MP_HDMIBLK_PD_PAI:
 		regmap_set_bits(bc->regmap, HDMI_RTX_CLK_CTL1, BIT(17));
-		regmap_set_bits(bc->regmap, HDMI_RTX_RESET_CTL0, BIT(18));
 		break;
 	case IMX8MP_HDMIBLK_PD_TRNG:
 		regmap_set_bits(bc->regmap, HDMI_RTX_CLK_CTL1, BIT(27) | BIT(30));
@@ -599,6 +609,49 @@ static const struct imx8mp_blk_ctrl_domain_data imx8mp_hdmi_domain_data[] = {
 	},
 };
 
+static int imx8mp_blk_reset_update(struct reset_controller_dev *rcdev,
+				   unsigned long id, bool assert)
+{
+	struct imx8mp_blk_ctrl *bc = container_of(rcdev, struct imx8mp_blk_ctrl, rcdev);
+	unsigned int mask, offset, active_low;
+
+	mask = bc->bc_data->reset_map[id].mask;
+	offset = bc->bc_data->reset_map[id].offset;
+	active_low = bc->bc_data->reset_map[id].active_low;
+
+	if (active_low ^ assert)
+		regmap_set_bits(bc->regmap, offset, mask);
+	else
+		regmap_clear_bits(bc->regmap, offset, mask);
+
+	return 0;
+}
+
+static int imx8mp_blk_ctrl_reset_assert(struct reset_controller_dev *rcdev,
+					unsigned long id)
+{
+	return imx8mp_blk_reset_update(rcdev, id, true);
+}
+
+static int imx8mp_blk_ctrl_reset_deassert(struct reset_controller_dev *rcdev,
+					  unsigned long id)
+{
+	return imx8mp_blk_reset_update(rcdev, id, false);
+}
+
+static const struct reset_control_ops imx8mp_blk_ctrl_reset_ops = {
+	.assert   = imx8mp_blk_ctrl_reset_assert,
+	.deassert = imx8mp_blk_ctrl_reset_deassert,
+};
+
+static const struct imx8mp_blk_ctrl_reset_map imx8mp_hdmi_reset_map[] = {
+	[IMX8MP_HDMIBLK_RESET_PAI] = {
+		.offset = HDMI_RTX_RESET_CTL0,
+		.mask   = BIT(18),
+		.active_low = true,
+	},
+};
+
 static const struct imx8mp_blk_ctrl_data imx8mp_hdmi_blk_ctl_dev_data = {
 	.max_reg = 0x23c,
 	.power_on = imx8mp_hdmi_blk_ctrl_power_on,
@@ -606,6 +659,8 @@ static const struct imx8mp_blk_ctrl_data imx8mp_hdmi_blk_ctl_dev_data = {
 	.power_notifier_fn = imx8mp_hdmi_power_notifier,
 	.domains = imx8mp_hdmi_domain_data,
 	.num_domains = ARRAY_SIZE(imx8mp_hdmi_domain_data),
+	.reset_map = imx8mp_hdmi_reset_map,
+	.num_resets = ARRAY_SIZE(imx8mp_hdmi_reset_map)
 };
 
 static int imx8mp_blk_ctrl_power_on(struct generic_pm_domain *genpd)
@@ -703,6 +758,7 @@ static int imx8mp_blk_ctrl_probe(struct platform_device *pdev)
 
 	bc_data = of_device_get_match_data(dev);
 	num_domains = bc_data->num_domains;
+	bc->bc_data = bc_data;
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
@@ -827,6 +883,19 @@ static int imx8mp_blk_ctrl_probe(struct platform_device *pdev)
 	}
 
 	dev_set_drvdata(dev, bc);
+
+	if (bc_data->num_resets) {
+		bc->rcdev.owner = THIS_MODULE;
+		bc->rcdev.ops = &imx8mp_blk_ctrl_reset_ops;
+		bc->rcdev.of_node = pdev->dev.of_node;
+		bc->rcdev.nr_resets = bc_data->num_resets;
+		bc->rcdev.of_reset_n_cells = 1;
+		bc->rcdev.dev = dev;
+
+		ret = devm_reset_controller_register(dev, &bc->rcdev);
+		if (ret)
+			goto cleanup_provider;
+	}
 
 	return 0;
 

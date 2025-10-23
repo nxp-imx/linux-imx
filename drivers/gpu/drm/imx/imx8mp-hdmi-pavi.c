@@ -44,6 +44,8 @@ static struct imx8mp_hdmi_pavi *gpavi;
 /* PAI APIs  */
 void imx8mp_hdmi_pai_enable(int channel, int width, int rate, int non_pcm)
 {
+	reset_control_deassert(gpavi->reset_pai);
+
 	/* PAI set */
 	writel((0x3030000 | ((channel-1) << 8)),
 			gpavi->base + HTX_PAI_CTRL_EXT);
@@ -65,6 +67,8 @@ void imx8mp_hdmi_pai_disable(void)
 {
 	/* stop PAI */
 	writel(0, gpavi->base + HTX_PAI_CTRL);
+
+	reset_control_assert(gpavi->reset_pai);
 }
 EXPORT_SYMBOL(imx8mp_hdmi_pai_disable);
 
@@ -133,6 +137,12 @@ static int imx8mp_hdmi_pavi_probe(struct platform_device *pdev)
 	pavi->clk_apb = devm_clk_get(dev, NULL);
 	if (IS_ERR(pavi->clk_apb)) {
 		dev_err(dev, "No pai clock get\n");
+		return -EPROBE_DEFER;
+	}
+
+	pavi->reset_pai = devm_reset_control_get_optional(dev, "pai_rst");
+	if (IS_ERR(pavi->reset_pai)) {
+		dev_err(pavi->dev, "No PAI reset\n");
 		return -EPROBE_DEFER;
 	}
 

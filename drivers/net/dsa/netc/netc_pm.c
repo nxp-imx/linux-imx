@@ -29,6 +29,8 @@ static void netc_port_save_config_to_db(struct netc_port *port)
 	}
 
 	db->mmcsr = netc_port_rd(port, NETC_MAC_MERGE_MMCSR);
+	db->pbpmcr0 = netc_port_rd(port, NETC_PBPMCR0);
+	db->pbpmcr1 = netc_port_rd(port, NETC_PBPMCR1);
 	db->ptp_filter = port->ptp_filter;
 	port->ptp_filter = HWTSTAMP_FILTER_NONE;
 }
@@ -51,6 +53,8 @@ static int netc_port_restore_config_from_db(struct netc_port *port)
 
 	netc_port_wr(port, NETC_PTGSCR, db->ptgscr);
 	netc_port_wr(port, NETC_MAC_MERGE_MMCSR, db->mmcsr);
+	netc_port_wr(port, NETC_PBPMCR0, db->pbpmcr0);
+	netc_port_wr(port, NETC_PBPMCR1, db->pbpmcr1);
 
 	return netc_port_set_ptp_filter(port, db->ptp_filter);
 }
@@ -59,15 +63,11 @@ static void netc_restore_bpt_entries(struct netc_switch *priv)
 {
 	int i;
 
-	mutex_lock(&priv->bpt_lock);
-
 	for (i = 0; i < priv->caps.num_bp; i++) {
 		struct bpt_cfge_data *cfge = &priv->bpt_list[i];
 
 		ntmp_bpt_update_entry(&priv->ntmp.cbdrs, i, cfge);
 	}
-
-	mutex_unlock(&priv->bpt_lock);
 }
 
 static int netc_restore_vlan_egress_rule(struct netc_switch *priv,

@@ -88,6 +88,12 @@ static irqreturn_t wave6_vpu_irq(int irq, void *dev_id)
 
 		trace_irq(dev, irq_status);
 
+		if (irq_status & BIT(W6_INT_BIT_REQ_WORK_BUF)) {
+			if (dev->ctrl)
+				wave6_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
+			return IRQ_HANDLED;
+		}
+
 		kfifo_in(&dev->irq_status, &irq_status, sizeof(int));
 
 		return IRQ_WAKE_THREAD;
@@ -108,14 +114,6 @@ static irqreturn_t wave6_vpu_irq_thread(int irq, void *dev_id)
 		ret = kfifo_out(&dev->irq_status, &irq_status, sizeof(int));
 		if (!ret)
 			break;
-
-		if (irq_status & BIT(W6_INT_BIT_REQ_WORK_BUF)) {
-			if (!dev->ctrl)
-				continue;
-			/*firmware requires buffer*/
-			wave6_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
-			continue;
-		}
 
 		if ((irq_status & BIT(W6_INT_BIT_INIT_SEQ)) ||
 		    (irq_status & BIT(W6_INT_BIT_ENC_SET_PARAM))) {

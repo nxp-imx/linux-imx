@@ -234,6 +234,48 @@ static void dw_hdmi_cec_del(void *data)
 	cec_delete_adapter(cec->adap);
 }
 
+static ssize_t eom_delay_show(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	u32 eom_delay;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct dw_hdmi_cec *cec = platform_get_drvdata(pdev);
+	struct cec_adapter *adap = cec->adap;
+
+	mutex_lock(&adap->lock);
+	eom_delay = adap->eom_delay;
+	mutex_unlock(&adap->lock);
+
+	return sprintf(buf, "%u\n", eom_delay);
+}
+
+static ssize_t eom_delay_store(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct dw_hdmi_cec *cec = platform_get_drvdata(pdev);
+	struct cec_adapter *adap = cec->adap;
+	int ret;
+	long eom_delay;
+
+	ret = kstrtol(buf, 0, &eom_delay);
+	if (ret)
+		return ret;
+	if (eom_delay > INT_MAX || eom_delay < 0)
+		return -EINVAL;
+
+	mutex_lock(&adap->lock);
+	adap->eom_delay = eom_delay;
+	mutex_unlock(&adap->lock);
+	dev_info(dev, "Set EOM delay to %ld\n", eom_delay);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(eom_delay);
+
+
 static int dw_hdmi_cec_probe(struct platform_device *pdev)
 {
 	struct dw_hdmi_cec_data *data = dev_get_platdata(&pdev->dev);
@@ -295,6 +337,14 @@ static int dw_hdmi_cec_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	/* Set default value for eom_delay, user can adjust in Factory HDMI page */
+	cec->adap->eom_delay = 9000;
+	ret = device_create_file(&pdev->dev, &dev_attr_eom_delay);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to create sysfs file for eom_delay\n");
+		return ret;
+	}
+
 	/*
 	 * CEC documentation says we must not call cec_delete_adapter
 	 * after a successful call to cec_register_adapter().
@@ -310,6 +360,7 @@ static void dw_hdmi_cec_remove(struct platform_device *pdev)
 
 	cec_notifier_cec_adap_unregister(cec->notify, cec->adap);
 	cec_unregister_adapter(cec->adap);
+	device_remove_file(&pdev->dev, &dev_attr_eom_delay);
 }
 
 static int __maybe_unused dw_hdmi_cec_resume(struct device *dev)

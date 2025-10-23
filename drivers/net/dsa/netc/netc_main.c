@@ -794,7 +794,8 @@ static void netc_port_set_mlo(struct netc_port *port, int mlo)
 
 void netc_port_fixed_config(struct netc_port *port)
 {
-	u32 pqnt = 0xffff, qth = 0xffff / 2;
+	u32 pqnt = 0xffff;
+	u32 qth = 0xff00;
 	u32 val;
 
 	/* Default IPV and DR setting */
@@ -811,10 +812,6 @@ void netc_port_fixed_config(struct netc_port *port)
 	val = netc_port_rd(port, NETC_PISIDCR);
 	val |= PISIDCR_KC0EN | PISIDCR_KC1EN;
 	netc_port_wr(port, NETC_PISIDCR, val);
-
-	/* Default buffer pool mapping */
-	netc_port_wr(port, NETC_PBPMCR0, NETC_DEFULT_BUFF_POOL_MAP0);
-	netc_port_wr(port, NETC_PBPMCR1, NETC_DEFULT_BUFF_POOL_MAP1);
 
 	if (dsa_port_is_user(port->dp)) {
 		/* Enable ingress port filter table lookup */
@@ -859,23 +856,14 @@ static void netc_port_default_config(struct netc_port *port)
 static int netc_switch_bpt_default_config(struct netc_switch *priv)
 {
 	struct bpt_cfge_data *cfge;
-	int i;
 
 	priv->bpt_list = devm_kcalloc(priv->dev, priv->caps.num_bp,
 				      sizeof(*cfge), GFP_KERNEL);
 	if (!priv->bpt_list)
 		return -ENOMEM;
 
-	guard(mutex)(&priv->bpt_lock);
-	for (i = 0; i < priv->caps.num_bp; i++) {
-		cfge = &priv->bpt_list[i];
-		/* FC enabled using only buffer pool FC state */
-		cfge->fccfg_sbpen = FIELD_PREP(BPT_FC_CFG, BPT_FC_CFG_EN_BPFC);
-		cfge->fc_on_thresh = cpu_to_le16(NETC_PORT_FC_ON_THRESH);
-		cfge->fc_off_thresh = cpu_to_le16(NETC_PORT_FC_OFF_THRESH);
-
-		ntmp_bpt_update_entry(&priv->ntmp.cbdrs, i, cfge);
-	}
+	if (priv->info->bpt_init)
+		priv->info->bpt_init(priv);
 
 	return 0;
 }
@@ -903,7 +891,6 @@ static int netc_setup(struct dsa_switch *ds)
 	priv->fdbt_acteu_interval = NETC_FDBT_CLEAN_INTERVAL;
 	priv->fdbt_aging_act_cnt = NETC_FDBT_AGING_ACT_CNT;
 	INIT_DELAYED_WORK(&priv->fdbt_clean, netc_clean_fdbt_aging_entries);
-	mutex_init(&priv->bpt_lock);
 
 	netc_switch_fixed_config(priv);
 
@@ -2262,19 +2249,9 @@ static void netc_port_set_hd_flow_control(struct netc_port *port,
 void netc_port_set_tx_pause(struct netc_port *port, bool tx_pause)
 {
 	struct netc_switch *priv = port->switch_priv;
-	struct bpt_cfge_data *cfge;
-	int i;
 
-	guard(mutex)(&priv->bpt_lock);
-	for (i = 0; i < priv->caps.num_bp; i++) {
-		cfge = &priv->bpt_list[i];
-		if (tx_pause)
-			cfge->fc_ports |= cpu_to_le32(BIT(port->index));
-		else
-			cfge->fc_ports &= cpu_to_le32(~BIT(port->index));
-
-		ntmp_bpt_update_entry(&priv->ntmp.cbdrs, i, cfge);
-	}
+	if (priv->info->port_tx_pause_config)
+		priv->info->port_tx_pause_config(port, tx_pause);
 }
 
 static void netc_port_set_rx_pause(struct netc_port *port, bool rx_pause)

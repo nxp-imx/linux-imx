@@ -9,6 +9,7 @@
 #define _IMX8MP_HDMI_AV_CTL_H_
 
 #include <linux/clk.h>
+#include <linux/reset.h>
 #include <drm/drm_modes.h>
 
 struct imx8mp_hdmi_pavi {
@@ -18,6 +19,7 @@ struct imx8mp_hdmi_pavi {
 	atomic_t rpm_suspended;
 
 	struct clk *clk_apb;
+	struct reset_control *reset_pai;
 };
 
 void imx8mp_hdmi_pai_enable(int channel, int width, int rate, int non_pcm);

@@ -26,6 +26,14 @@ properties:
       - fsl,imx93-se-fw
       - fsl,imx8dxl-se-fw
 
+  interrupts:
+    description:
+      Interrupts entries for ELE secure and non-secure GIC interrupts, to handle
+      tamper events.
+    items:
+      - description: ELE secure interrupt
+      - description: ELE non-secure interrupt
+
   mboxes:
     description:
       All MU channels must be within the same MU instance. Cross instances are
@@ -58,6 +66,7 @@ properties:
 
 required:
   - compatible
+  - interrupts
   - mboxes
   - mbox-names
   - fsl,mu-id
@@ -68,6 +77,15 @@ examples:
   - |
     ele_fw: se-fw {
       compatible = "fsl,imx8ulp-se-fw";
+      mbox-names = "tx", "rx";
+      mboxes = <&s4muap 0 0>, <&s4muap 1 0>;
+      fsl,mu-id = <2>;
+    };
+  - |
+    ele_fw: se-fw {
+      compatible = "fsl,imx93-se-fw";
+      interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,
+                   <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
       mbox-names = "tx", "rx";
       mboxes = <&s4muap 0 0>, <&s4muap 1 0>;
       fsl,mu-id = <2>;
