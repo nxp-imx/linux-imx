@@ -419,10 +419,11 @@ int vpu_helper_secure_memset_stream_buffer(struct vpu_buffer *stream_buffer,
 		return -EINVAL;
 
 	if (offset + size <= end) {
-		memset_wrapper(inst, virt + (offset - start),  (offset - start), val, size);
+		memset_wrapper(inst, virt + (offset - start),  inst->stream_buffer.phys - SECURE_MEMORY_BASE + (offset - start), val, size);
 	} else {
-		memset_wrapper(inst, virt + (offset - start),  (offset - start), val, end - offset);
-		memset_wrapper(inst, virt, 0, val, size + offset - end);
+
+		memset_wrapper(inst, virt + (offset - start), inst->stream_buffer.phys - SECURE_MEMORY_BASE + (offset - start), val, end - offset);
+		memset_wrapper(inst, virt, inst->stream_buffer.phys - SECURE_MEMORY_BASE, val, size + offset - end);
 	}
 
 	offset += size;
