@@ -40,8 +40,12 @@ load(
 )
 load(":imx.bzl", "define_imx")
 define_imx()
-load(":imx_ddk.bzl", "define_imx_ddk")
-define_imx_ddk()
+load(":imx_ddk_modules.bzl", "define_imx_ddk_modules")
+define_imx_ddk_modules()
+load(":imx_ddk_evk_8mm.bzl", "define_imx_ddk_evk_8mm_images")
+define_imx_ddk_evk_8mm_images()
+load(":imx_ddk_evk_95.bzl", "define_imx_ddk_evk_95_images")
+define_imx_ddk_evk_95_images()
 
 package(
     default_visibility = [
