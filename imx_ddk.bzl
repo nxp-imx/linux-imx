@@ -1646,6 +1646,9 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
+        includes = [
+            "drivers/mxc/hantro_v4l2",
+        ],
         kconfig = "imx_kconfigs",
         defconfig = "imx_module.fragment",
         kernel_build = ":imx_ddk_modules",
@@ -1984,6 +1987,7 @@ def define_imx_ddk():
             "drivers/firmware/imx/v2x_common.c",
             "drivers/firmware/imx/seco_init.c",
             "drivers/firmware/imx/ele_trng.c",
+            "drivers/firmware/imx/ele_bbsm.c",
         ],
         hdrs = [
             ":imx_common_headers",
@@ -2855,9 +2859,12 @@ def define_imx_ddk():
     )
 
     ddk_module(
-        name = "ox05b1s_mipi",
-        out = "ox05b1s_mipi.ko",
-        srcs = ["drivers/media/i2c/ox05b1s/ox05b1s_mipi.c"],
+        name = "ox05b1s",
+        out = "ox05b1s.ko",
+        srcs = [
+            "drivers/media/i2c/ox05b1s/ox05b1s_mipi.c",
+            "drivers/media/i2c/ox05b1s/ox05b1s_modes.c",
+	],
         hdrs = [
             ":imx_common_headers",
         ],
@@ -4250,7 +4257,7 @@ def define_imx_ddk():
             ":wave6-vpu-ctrl",
             ":wave6",
             ":v4l2-cci",
-            ":ox05b1s_mipi",
+            ":ox05b1s",
             ":v4l2-jpeg",
             ":mxc-jpeg-encdec",
             ":neoisp",
@@ -4338,7 +4345,7 @@ def define_imx_ddk():
         "wave6-vpu-ctrl.ko",
         "wave6.ko",
         "v4l2-cci.ko",
-        "ox05b1s_mipi.ko",
+        "ox05b1s.ko",
         "v4l2-jpeg.ko",
         "mxc-jpeg-encdec.ko",
         "neoisp.ko",
