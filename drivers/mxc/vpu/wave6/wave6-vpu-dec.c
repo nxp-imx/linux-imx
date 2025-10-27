@@ -776,7 +776,7 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 	if (!dst_buf) {
 		dst_buf = v4l2_m2m_dst_buf_remove(inst->v4l2_fh.m2m_ctx);
 		if (!dst_buf) {
-			inst->next_buf_last = true;
+			inst->v4l2_fh.m2m_ctx->next_buf_last = true;
 			return;
 		}
 	}
@@ -793,9 +793,8 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 	}
 
 	dprintk(inst->dev->dev, "[%d] last buffer\n", inst->id);
-	dst_buf->flags |= V4L2_BUF_FLAG_LAST;
 	dst_buf->field = V4L2_FIELD_NONE;
-	v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_DONE);
+	v4l2_m2m_last_buffer_done(inst->v4l2_fh.m2m_ctx, dst_buf);
 
 	if (inst->state != VPU_INST_STATE_INIT_SEQ) {
 		dprintk(inst->dev->dev, "[%d] eos\n", inst->id);
@@ -894,7 +893,6 @@ static void wave6_vpu_dec_handle_decoding_warn_error(struct vpu_instance *inst,
 static void wave6_vpu_dec_finish_decode(struct vpu_instance *inst, bool error)
 {
 	struct dec_output_info info = { 0 };
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	int ret;
 
 	ret = wave6_vpu_dec_get_output_info(inst, &info);
@@ -914,8 +912,6 @@ static void wave6_vpu_dec_finish_decode(struct vpu_instance *inst, bool error)
 
 	if (info.notification_flags & DEC_NOTI_FLAG_SEQ_CHANGE) {
 		struct dec_initial_info initial_info = {0};
-
-		v4l2_m2m_mark_stopped(m2m_ctx);
 
 		if (info.frame_display)
 			wave6_handle_display_frames(inst, &info);
@@ -1750,12 +1746,10 @@ static void wave6_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 		vb2_plane_size(&vbuf->vb2_buf, 1), vb2_plane_size(&vbuf->vb2_buf, 2));
 
 	inst->queued_dst_buf_num++;
-	if (inst->next_buf_last) {
+	if (inst->v4l2_fh.m2m_ctx->next_buf_last)
 		wave6_handle_last_frame(inst, vbuf);
-		inst->next_buf_last = false;
-	} else {
+	else
 		v4l2_m2m_buf_queue(inst->v4l2_fh.m2m_ctx, vbuf);
-	}
 }
 
 static void wave6_vpu_dec_buf_queue(struct vb2_buffer *vb)
@@ -1779,6 +1773,8 @@ static int wave6_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 	int ret = 0;
 
 	trace_start_streaming(inst, q->type);
+
+	v4l2_m2m_update_start_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		fmt = &inst->src_fmt;
@@ -1814,7 +1810,6 @@ exit:
 static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 
 	trace_stop_streaming(inst, q->type);
 
@@ -1824,6 +1819,8 @@ static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 
 	if (inst->state == VPU_INST_STATE_NONE)
 		goto exit;
+
+	v4l2_m2m_update_stop_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		wave6_vpu_reset_performance(inst);
@@ -1835,9 +1832,6 @@ static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 		wave6_vpu_set_instance_state(inst, VPU_INST_STATE_SEEK);
 		inst->sequence = 0;
 	} else {
-		if (v4l2_m2m_has_stopped(m2m_ctx))
-			v4l2_m2m_clear_state(m2m_ctx);
-
 		inst->eos = false;
 		inst->queued_dst_buf_num = 0;
 		inst->sequence = 0;

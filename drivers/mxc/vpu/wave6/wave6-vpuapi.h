@@ -967,7 +967,6 @@ struct vpu_instance {
 	u32 error_buf_num;
 	u32 sequence;
 	bool reuse_fb;
-	bool next_buf_last;
 	bool cbcr_interleave;
 	bool nv21;
 	bool eos;
