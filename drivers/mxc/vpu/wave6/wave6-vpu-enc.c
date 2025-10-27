@@ -858,7 +858,7 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 	pic_param.pic_stream_buffer_size = vb2_plane_size(&dst_buf->vb2_buf, 0);
 	if (!src_buf) {
 		dev_dbg(inst->dev->dev, "no valid src buf\n");
-		if (inst->state == VPU_INST_STATE_STOP)
+		if (inst->v4l2_fh.m2m_ctx->is_draining)
 			pic_param.src_end = true;
 		else
 			goto exit;
@@ -1018,11 +1018,8 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 
 	vb2_set_plane_payload(&dst_buf->vb2_buf, 0, 0);
 	dst_buf->field = V4L2_FIELD_NONE;
-	dst_buf->flags |= V4L2_BUF_FLAG_LAST;
 	v4l2_m2m_dst_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx, dst_buf);
-	v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_DONE);
-
-	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_PIC_RUN);
+	v4l2_m2m_last_buffer_done(inst->v4l2_fh.m2m_ctx, dst_buf);
 
 	dprintk(inst->dev->dev, "[%d] eos\n", inst->id);
 	inst->eos = true;
@@ -1420,6 +1417,7 @@ static int wave6_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_se
 static int wave6_vpu_enc_encoder_cmd(struct file *file, void *fh, struct v4l2_encoder_cmd *ec)
 {
 	struct vpu_instance *inst = wave6_to_vpu_inst(fh);
+	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	int ret;
 
 	dev_dbg(inst->dev->dev, "%s: cmd %d\n", __func__, ec->cmd);
@@ -1433,9 +1431,14 @@ static int wave6_vpu_enc_encoder_cmd(struct file *file, void *fh, struct v4l2_en
 
 	switch (ec->cmd) {
 	case V4L2_ENC_CMD_STOP:
-		wave6_vpu_set_instance_state(inst, VPU_INST_STATE_STOP);
-		v4l2_m2m_set_src_buffered(inst->v4l2_fh.m2m_ctx, true);
-		v4l2_m2m_try_schedule(inst->v4l2_fh.m2m_ctx);
+		if (m2m_ctx->is_draining)
+			return -EBUSY;
+		if (v4l2_m2m_has_stopped(m2m_ctx))
+			return 0;
+		m2m_ctx->is_draining = true;
+		m2m_ctx->last_src_buf = v4l2_m2m_last_src_buf(m2m_ctx);
+		v4l2_m2m_set_src_buffered(m2m_ctx, true);
+		v4l2_m2m_try_schedule(m2m_ctx);
 		break;
 	case V4L2_ENC_CMD_START:
 		break;
@@ -2346,6 +2349,11 @@ static void wave6_vpu_enc_buf_queue(struct vb2_buffer *vb)
 		vb2_plane_size(&vbuf->vb2_buf, 1), vb2_plane_size(&vbuf->vb2_buf, 2));
 
 	if (V4L2_TYPE_IS_OUTPUT(vb->type)) {
+		if (inst->v4l2_fh.m2m_ctx->is_draining) {
+			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+			return;
+		}
+
 		vbuf->sequence = inst->queued_src_buf_num++;
 
 		vpu_buf->ts_input = ktime_get_raw();
@@ -2395,6 +2403,8 @@ static int wave6_vpu_enc_start_streaming(struct vb2_queue *q, unsigned int count
 	int ret = 0;
 
 	trace_start_streaming(inst, q->type);
+
+	v4l2_m2m_update_start_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		fmt = &inst->src_fmt;
@@ -2450,6 +2460,8 @@ static void wave6_vpu_enc_stop_streaming(struct vb2_queue *q)
 	cancel_work_sync(&inst->fb_work);
 	if (wave6_vpu_both_queues_are_streaming(inst))
 		wave6_vpu_set_instance_state(inst, VPU_INST_STATE_STOP);
+
+	v4l2_m2m_update_stop_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		wave6_vpu_reset_performance(inst);
