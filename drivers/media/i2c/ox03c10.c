@@ -801,6 +801,15 @@ static int ox03c10_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VFLIP:
 		return ox03c10_vflip_enable(sensor, ctrl->val);
 
+	case V4L2_CID_VBLANK:
+	case V4L2_CID_HBLANK:
+		/*
+		 * We don't do anything for VBLANK and HBLANK controls because,
+		 * currently, we only support 2 modes, 1920x1280 and 1920x1080,
+		 * which have fixed timing parameters.
+		 */
+		return 0;
+
 	default:
 		return -EINVAL;
 	}

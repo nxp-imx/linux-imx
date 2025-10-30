@@ -1388,14 +1388,6 @@
 			};
 		};
 
-		hsio_usb_blk_ctl: syscon@4c010000 {
-			compatible = "nxp,imx95-hsio-usb-blk-ctl", "syscon";
-			reg = <0x0 0x4c010000 0x0 0x1>;
-			#clock-cells = <1>;
-			clocks = <&dummy>;
-			power-domains = <&scmi_devpd IMX94_PD_HSIO_TOP>;
-		};
-
 		usb3: usb@4c010010 {
 			compatible = "fsl,imx95-dwc3", "fsl,imx8mp-dwc3";
 			reg = <0x0 0x4c010010 0x0 0x04>,

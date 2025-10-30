@@ -132,30 +132,14 @@
 		enable-active-low;
 	};
 
-	reg_ext_pwr_en: regulator-1p8v {
-		compatible = "regulator-fixed";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_reg_ext_pwr>;
-		regulator-name = "ext_pwr_en";
-		gpio = <&gpio5 9 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
-	};
-
-	reg_ext_1v8: regulator-ext-1v8 {
-		compatible = "regulator-fixed";
-		regulator-max-microvolt = <1800000>;
-		regulator-min-microvolt = <1800000>;
-		regulator-name = "VCCEXT_1V8";
-		vin-supply = <&reg_ext_pwr_en>;
-	};
-
 	reg_ext_3v3: regulator-ext-3v3 {
 		compatible = "regulator-fixed";
 		regulator-max-microvolt = <3300000>;
 		regulator-min-microvolt = <3300000>;
 		regulator-name = "VCCEXT_3V3";
-		vin-supply = <&reg_ext_pwr_en>;
+		gpio = <&pcal6524 13 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
 	};
 
 	reg_ext_5v: regulator-ext-5v {
@@ -163,15 +147,9 @@
 		regulator-max-microvolt = <5000000>;
 		regulator-min-microvolt = <5000000>;
 		regulator-name = "VCCEXT_5V";
-		vin-supply = <&reg_ext_pwr_en>;
-	};
-
-	reg_ext_12v: regulator-ext-12v {
-		compatible = "regulator-fixed";
-		regulator-name = "VCCEXT_12V";
-		regulator-min-microvolt = <12000000>;
-		regulator-max-microvolt = <12000000>;
-		vin-supply = <&reg_ext_pwr_en>;
+		gpio = <&pcal6524 12 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
 	};
 
 	reg_usdhc2_vmmc: regulator-usdhc2 {
@@ -231,7 +209,7 @@
 		regulator-name = "M.2-power-ekey";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio5 11 GPIO_ACTIVE_HIGH>;
+		gpio = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
 
@@ -242,7 +220,7 @@
 		regulator-name = "M.2-power-mkey";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio5 10 GPIO_ACTIVE_HIGH>;
+		gpio = <&pcal6524 14 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-always-on;
 	};

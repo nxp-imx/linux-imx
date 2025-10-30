@@ -1250,21 +1250,15 @@ static const struct ox05b1s_mode *ox05b1s_nearest_size(const struct ox05b1s_mode
 static u32 ox05b1s_find_code(const struct ox05b1s_plat_data *model, u32 code)
 {
 	const struct ox05b1s_sizes *supported_codes = model->supported_codes;
-	u32 found_code = 0;
 
 	while (supported_codes->code) {
-		if (supported_codes->code == code) {
-			found_code = code;
-			break;
-		}
-
+		if (supported_codes->code == code)
+			return code;
 		supported_codes++;
 	}
 
-	if (!supported_codes->code) /* code not in supported_codes[] */
-		found_code = supported_codes[model->default_mode_index].code;
-
-	return found_code;
+	/* code not in supported_codes[] */
+	return model->supported_codes[model->default_mode_index].code;
 }
 
 static int ox05b1s_set_fmt(struct v4l2_subdev *sd,

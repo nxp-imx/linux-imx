@@ -409,17 +409,3 @@
 	};
 
 };
-
-&usb3_dwc3 {
-	clocks = <&scmi_clk IMX94_CLK_HSIO>, <&scmi_clk IMX94_CLK_HSIOPLL>,
-		 <&scmi_clk IMX94_CLK_32K>;
-	assigned-clocks = <&scmi_clk IMX94_CLK_HSIOPLL>;
-	assigned-clock-rates = <100000000>;
-};
-
-&usb3_phy {
-	clocks = <&scmi_clk IMX94_CLK_HSIO>, <&scmi_clk IMX94_CLK_HSIOPLL>;
-	clock-names = "phy", "alt";
-	assigned-clocks = <&hsio_usb_blk_ctl 0>;
-	assigned-clock-parents = <&scmi_clk IMX94_CLK_HSIOPLL>;
-};

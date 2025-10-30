@@ -1570,10 +1570,11 @@ static int imx_pcie_resume_noirq(struct device *dev)
 	} else {
 		ret = dw_pcie_resume_noirq(imx_pcie->pci);
 		/*
-		 * PLL lock might be failed on i.MX95 randomly in corner case,
-		 * re-initialized it to workaround this issue.
+		 * PLL lock might be failed on i.MX95 and i.MX94 randomly in
+		 * corner case, re-initialized it to workaround this issue.
 		 */
-		if (imx_pcie->pll_locked == false) {
+		if ((imx_pcie->drvdata->variant == IMX95) &&
+		    (imx_pcie->pll_locked == false)) {
 			imx_pcie->pci->suspended = true;
 			ret = dw_pcie_resume_noirq(imx_pcie->pci);
 		}
