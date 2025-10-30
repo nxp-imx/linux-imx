@@ -10,6 +10,7 @@
 #include <media/v4l2-cci.h>
 #include "ox05b1s.h"
 
+#define OS08A20_REG_PLL_CTRL_05		CCI_REG8(0x0305)
 #define OS08A20_REG_PLL_CTRL_25		CCI_REG8(0x0325)
 #define OS08A20_REG_MIPI_BIT_10_12	CCI_REG8(0x031e)
 /* Analog Control Registers 0x3600-0x3637 */
@@ -62,12 +63,14 @@ static const struct cci_reg_sequence os08a20_init_setting_12bit[] = {
 
 /* OS08A20 3840 x 2160 @30fps BGGR10 */
 static const struct cci_reg_sequence os08a20_init_setting_4k_10b[] = {
+	{OS08A20_REG_PLL_CTRL_05, 0x3c},
 	{OS08A20_REG_FORMAT2, 0x04}, /* mirror */
 	{OS08A20_REG_PCLK_PERIOD, 0x10},
 };
 
 /* OS08A20 3840 x 2160 @30fps BGGR12 */
 static const struct cci_reg_sequence os08a20_init_setting_4k_12b[] = {
+	{OS08A20_REG_PLL_CTRL_05, 0x3c},
 	{OS08A20_REG_PLL_CTRL_25, 0x47},
 	{OS08A20_REG_FORMAT2, 0x04}, /* mirror */
 	{OS08A20_REG_PCLK_PERIOD, 0x10},
@@ -75,6 +78,7 @@ static const struct cci_reg_sequence os08a20_init_setting_4k_12b[] = {
 
 /* OS08A20 1920 x 1080 @60fps BGGR10 */
 static const struct cci_reg_sequence os08a20_init_setting_1080p_10b[] = {
+	{OS08A20_REG_PLL_CTRL_05, 0x2d},
 	{OS08A20_REG_PLL_CTRL_25, 0x45},
 	{OS08A20_REG_X_ODD_INC, 0x03},
 	{OS08A20_REG_Y_ODD_INC, 0x03},
