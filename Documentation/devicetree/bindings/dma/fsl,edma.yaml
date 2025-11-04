@@ -26,6 +26,7 @@ properties:
           - fsl,imx93-edma3
           - fsl,imx93-edma4
           - fsl,imx95-edma5
+          - fsl,imx952-acp-edma5
           - nxp,s32g2-edma
       - items:
           - enum:
