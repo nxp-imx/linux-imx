@@ -163,8 +163,10 @@ static int __init register_moveable_fdt_resource(struct device_node *np,
 
 		start = res.start;
 		size = resource_size(&res);
-		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
+		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size)) {
+			kvm_err("Not %lu page aligned node: %s\n", PAGE_SIZE, np->full_name);
 			return -EINVAL;
+		}
 
 		moveable_regs[i].start = start;
 		moveable_regs[i].size = size;
@@ -1220,38 +1222,51 @@ static bool within_pkvm_module_section(struct pkvm_module_section *section,
 }
 
 static int pkvm_reloc_imported_symbol(struct pkvm_el2_module *importer,
+				      struct pkvm_el2_module *exporter,
 				      struct pkvm_el2_sym *sym,
-				      unsigned long hyp_dst)
+				      unsigned long sym_addr)
 {
-	s64 val, val_max = (s64)(~(BIT(25) - 1)) << 2;
 	u32 insn = le32_to_cpu(*sym->rela_pos);
-	unsigned long hyp_src;
-	u64 imm;
+	unsigned long hyp_orig, hyp_dst;
+	u64 imm, offset;
 
 	if (!within_pkvm_module_section(&importer->text,
-					(unsigned long)sym->rela_pos))
+					(unsigned long)sym->rela_pos)) {
+		pr_warn("pKVM symbol %s not part of %s .text section\n",
+			sym->name,
+			pkvm_el2_mod_to_module(importer)->name);
 		return -EINVAL;
+	}
 
-	hyp_src = (unsigned long)importer->hyp_va +
-		((void *)sym->rela_pos - importer->text.start);
+	if (!within_pkvm_module_section(&exporter->text, sym_addr)) {
+		pr_warn("pKVM symbol %s not part of %s .text section\n",
+			sym->name,
+			pkvm_el2_mod_to_module(exporter)->name);
+		return -EINVAL;
+	}
+
+	hyp_dst = __pkvm_el2_mod_va(exporter, (void *)sym_addr);
+	hyp_orig = __pkvm_el2_mod_va(importer, (void *)sym->rela_pos);
 
 	/*
-	 * Module hyp VAs are allocated going upward. Source MUST have a
-	 * lower address than the destination
+	 * Module hyp VAs are allocated going upward. The exporter being loaded
+	 * before the importer, the destination address MUST be lower than the
+	 * origin.
 	 */
-	if (WARN_ON(hyp_src < hyp_dst))
+	if (WARN_ON(hyp_dst > hyp_orig))
 		return -EINVAL;
 
-	val = hyp_dst - hyp_src;
-	if (val < val_max) {
+	offset = hyp_orig - hyp_dst;
+
+	/* imm26 is 2's complement and equals to offset / 4 */
+	offset >>= 2;
+	if (offset > BIT(25)) {
 		pr_warn("Exported symbol %s is too far for the relocation in module %s\n",
 			sym->name, pkvm_el2_mod_to_module(importer)->name);
 		return -ERANGE;
 	}
 
-	/* offset encoded as imm26 * 4 */
-	imm = (val >> 2) & (BIT(26) - 1);
-
+	imm = -offset;
 	insn = aarch64_insn_encode_immediate(AARCH64_INSN_IMM_26, insn, imm);
 
 	return aarch64_insn_patch_text_nosync((void *)sym->rela_pos, insn);
@@ -1259,30 +1274,22 @@ static int pkvm_reloc_imported_symbol(struct pkvm_el2_module *importer,
 
 static int pkvm_reloc_imported_symbols(struct pkvm_el2_module *importer)
 {
-	unsigned long addr, offset, hyp_addr;
-	struct pkvm_el2_module *exporter;
 	struct pkvm_el2_sym *sym;
 
 	list_for_each_entry(sym, &importer->ext_symbols, node) {
+		struct pkvm_el2_module *exporter;
+		unsigned long addr;
+		int ret;
+
 		exporter = pkvm_el2_mod_lookup_symbol(sym->name, &addr);
 		if (!exporter) {
-			pr_warn("pKVM symbol %s not exported by any module\n",
-				sym->name);
+			pr_warn("pKVM symbol %s not exported by any module\n", sym->name);
 			return -EINVAL;
 		}
 
-		if (!within_pkvm_module_section(&exporter->text, addr)) {
-			pr_warn("pKVM symbol %s not part of %s .text section\n",
-				sym->name,
-				pkvm_el2_mod_to_module(exporter)->name);
-			return -EINVAL;
-		}
-
-		/* hyp addr in the exporter */
-		offset = addr - (unsigned long)exporter->text.start;
-		hyp_addr = (unsigned long)exporter->hyp_va + offset;
-
-		pkvm_reloc_imported_symbol(importer, sym, hyp_addr);
+		ret = pkvm_reloc_imported_symbol(importer, exporter, sym, addr);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
@@ -1486,15 +1493,13 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	if (token)
 		*token = (unsigned long)hyp_va;
 
-	mod->sections.start = start;
-	mod->sections.end = end;
-
-	endrel = (void *)mod->relocs + mod->nr_relocs * sizeof(*endrel);
-	kvm_apply_hyp_module_relocations(mod, mod->relocs, endrel);
-
+	/* Relies on kvm_apply_hyp_module_relocations() sync_icache_aliases */
 	ret = pkvm_reloc_imported_symbols(mod);
 	if (ret)
 		return ret;
+
+	endrel = (void *)mod->relocs + mod->nr_relocs * sizeof(*endrel);
+	kvm_apply_hyp_module_relocations(mod, mod->relocs, endrel);
 
 	pkvm_module_kmemleak(this, secs_map, ARRAY_SIZE(secs_map));
 

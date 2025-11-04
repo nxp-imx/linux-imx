@@ -785,6 +785,7 @@ static int ffa_guest_share_ranges(struct ffa_mem_region_addr_range *ranges,
 	int i, j, ret;
 	u32 mem_region_idx = 0;
 	u64 ipa, pa, offset;
+	struct kvm_hyp_req *req;
 
 	for (i = 0; i < nranges; i++) {
 		range = &ranges[i];
@@ -801,6 +802,19 @@ static int ffa_guest_share_ranges(struct ffa_mem_region_addr_range *ranges,
 			}
 
 			ret = __pkvm_guest_share_ffa_page(vcpu, ipa, &pa);
+			if (ret == -EFAULT) {
+				req = pkvm_hyp_req_reserve(vcpu, KVM_HYP_REQ_TYPE_MAP);
+				if (!req) {
+					ret = -ENOSPC;
+					goto unshare;
+				}
+
+				req->map.guest_ipa = ipa;
+				req->map.size = PAGE_SIZE;
+				goto unshare;
+			}
+
+			/* Any other uncaught error ? abort */
 			if (ret)
 				goto unshare;
 
@@ -1512,10 +1526,20 @@ static void do_ffa_guest_version(struct arm_smccc_1_2_regs *res,
 	}
 
 	hyp_spin_lock(&version_lock);
-	if (has_version_negotiated)
-		res->a0 = hyp_ffa_version;
-	else
+
+	if (!has_version_negotiated) {
 		res->a0 = FFA_RET_NOT_SUPPORTED;
+		goto unlock;
+	}
+
+	/* No backwards compatibility for you, please update your guest drivers*/
+	if (FFA_MINOR_VERSION(ffa_req_version) < FFA_MINOR_VERSION(hyp_ffa_version)) {
+		res->a0 = FFA_RET_NOT_SUPPORTED;
+		goto unlock;
+	}
+
+	res->a0 = hyp_ffa_version;
+unlock:
 	hyp_spin_unlock(&version_lock);
 }
 
@@ -1702,14 +1726,8 @@ bool kvm_guest_ffa_handler(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 
 	DECLARE_REG(u64, func_id, ctxt, 0);
 
-	if (!is_ffa_call(func_id)) {
+	if (!is_ffa_call(func_id) || !VM_FFA_SUPPORTED(vcpu)) {
 		smccc_set_retval(vcpu, SMCCC_RET_NOT_SUPPORTED, 0, 0, 0);
-		return true;
-	}
-
-	if (!VM_FFA_SUPPORTED(vcpu)) {
-		ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
-		ffa_set_retval(ctxt, &res);
 		return true;
 	}
 
@@ -1887,7 +1905,7 @@ int hyp_ffa_init(void *pages)
 
 	arm_smccc_1_2_smc(&(struct arm_smccc_1_2_regs) {
 		.a0 = FFA_VERSION,
-		.a1 = FFA_VERSION_1_1,
+		.a1 = FFA_VERSION_1_2,
 	}, &res);
 	if (res.a0 == FFA_RET_NOT_SUPPORTED)
 		return 0;
@@ -1908,10 +1926,10 @@ int hyp_ffa_init(void *pages)
 	if (FFA_MAJOR_VERSION(res.a0) != 1)
 		return -EOPNOTSUPP;
 
-	if (FFA_MINOR_VERSION(res.a0) < FFA_MINOR_VERSION(FFA_VERSION_1_1))
+	if (FFA_MINOR_VERSION(res.a0) < FFA_MINOR_VERSION(FFA_VERSION_1_2))
 		hyp_ffa_version = res.a0;
 	else
-		hyp_ffa_version = FFA_VERSION_1_1;
+		hyp_ffa_version = FFA_VERSION_1_2;
 
 	tx = pages;
 	pages += KVM_FFA_MBOX_NR_PAGES * PAGE_SIZE;

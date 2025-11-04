@@ -8554,8 +8554,6 @@ static int ufs_get_device_desc(struct ufs_hba *hba)
 				DEVICE_DESC_PARAM_EXT_UFS_FEATURE_SUP) &
 				UFS_DEV_HID_SUPPORT;
 
-	sysfs_update_group(&hba->dev->kobj, &ufs_sysfs_hid_group);
-
 	model_index = desc_buf[DEVICE_DESC_PARAM_PRDCT_NAME];
 
 	err = ufshcd_read_string_desc(hba, model_index,
@@ -9195,6 +9193,10 @@ static void ufshcd_async_scan(void *data, async_cookie_t cookie)
 	/* Initialize hba, detect and initialize UFS device */
 	ret = ufshcd_probe_hba(hba, true);
 	up(&hba->host_sem);
+
+	ufs_sysfs_add_nodes(hba->dev);
+	trace_android_vh_ufs_update_sysfs(hba);
+
 	if (ret)
 		goto out;
 
@@ -10900,8 +10902,6 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	ufshcd_set_ufs_dev_active(hba);
 
 	async_schedule(ufshcd_async_scan, hba);
-	ufs_sysfs_add_nodes(dev);
-	trace_android_vh_ufs_update_sysfs(hba);
 
 	device_enable_async_suspend(dev);
 	ufshcd_pm_qos_init(hba);
