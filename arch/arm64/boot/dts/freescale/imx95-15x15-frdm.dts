@@ -1151,3 +1151,5 @@
 			       <361267200>, <49152000>;
 	status = "okay";
 };
+
+#include "imx95-android.dtsi"
