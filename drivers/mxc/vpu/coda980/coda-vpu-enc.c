@@ -479,7 +479,7 @@ static int coda_vpu_enc_enum_fmt_cap(struct file *file, void *fh, struct v4l2_fm
 
 static int coda_vpu_enc_try_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	const struct v4l2_frmsize_stepwise *frmsize;
 	const struct vpu_format *vpu_fmt;
@@ -516,7 +516,7 @@ static int coda_vpu_enc_try_fmt_cap(struct file *file, void *fh, struct v4l2_for
 
 static int coda_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	int i, ret;
 
@@ -551,7 +551,7 @@ static int coda_vpu_enc_s_fmt_cap(struct file *file, void *fh, struct v4l2_forma
 
 static int coda_vpu_enc_g_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	int i;
 
@@ -576,7 +576,7 @@ static int coda_vpu_enc_g_fmt_cap(struct file *file, void *fh, struct v4l2_forma
 
 static int coda_vpu_enc_enum_fmt_out(struct file *file, void *fh, struct v4l2_fmtdesc *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	const struct vpu_format *vpu_fmt;
 
 	dev_dbg(inst->vpu_dev->dev, "%s: index %d\n", __func__, f->index);
@@ -593,7 +593,7 @@ static int coda_vpu_enc_enum_fmt_out(struct file *file, void *fh, struct v4l2_fm
 
 static int coda_vpu_enc_try_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	const struct v4l2_frmsize_stepwise *frmsize;
 	const struct vpu_format *vpu_fmt;
@@ -626,7 +626,7 @@ static int coda_vpu_enc_try_fmt_out(struct file *file, void *fh, struct v4l2_for
 
 static int coda_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	const struct vpu_format *vpu_fmt;
 	const struct v4l2_format_info *info;
@@ -685,7 +685,7 @@ static int coda_vpu_enc_s_fmt_out(struct file *file, void *fh, struct v4l2_forma
 
 static int coda_vpu_enc_g_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	int i;
 
@@ -710,7 +710,7 @@ static int coda_vpu_enc_g_fmt_out(struct file *file, void *fh, struct v4l2_forma
 
 static int coda_vpu_enc_g_selection(struct file *file, void *fh, struct v4l2_selection *s)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 
 	if (!V4L2_TYPE_IS_OUTPUT(s->type))
 		return -EINVAL;
@@ -739,7 +739,7 @@ static int coda_vpu_enc_g_selection(struct file *file, void *fh, struct v4l2_sel
 
 static int coda_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_selection *s)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	const struct vpu_format *vpu_fmt;
 	u32 max_crop_w, max_crop_h;
 
@@ -795,7 +795,7 @@ static int coda_vpu_enc_s_selection(struct file *file, void *fh, struct v4l2_sel
 
 static int coda_vpu_enc_encoder_cmd(struct file *file, void *fh, struct v4l2_encoder_cmd *ec)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 	int ret;
 
 	dev_dbg(inst->vpu_dev->dev, "[%d] %s: cmd %d\n", inst->id, __func__, ec->cmd);
@@ -824,7 +824,7 @@ static int coda_vpu_enc_encoder_cmd(struct file *file, void *fh, struct v4l2_enc
 
 static int coda_vpu_enc_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 
 	dev_dbg(inst->vpu_dev->dev, "%s: type %d\n", __func__, a->type);
 
@@ -845,7 +845,7 @@ static int coda_vpu_enc_g_parm(struct file *file, void *fh, struct v4l2_streampa
 
 static int coda_vpu_enc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(fh);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(file));
 
 	dev_dbg(inst->vpu_dev->dev, "%s: type %d\n", __func__, a->type);
 
@@ -1567,7 +1567,6 @@ static int coda_vpu_enc_open(struct file *filp)
 	inst->ops = &coda_vpu_enc_inst_ops;
 
 	v4l2_fh_init(&inst->v4l2_fh, vdev);
-	filp->private_data = &inst->v4l2_fh;
 	v4l2_fh_add(&inst->v4l2_fh, filp);
 
 	inst->v4l2_fh.m2m_ctx =
@@ -1734,7 +1733,7 @@ free_inst:
 
 static int coda_vpu_enc_release(struct file *filp)
 {
-	struct vpu_instance *inst = coda_to_vpu_inst(filp->private_data);
+	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(filp));
 
 	dev_dbg(inst->vpu_dev->dev, "[%d] release %d\n", inst->id, inst->state);
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
