@@ -122,3 +122,4 @@ obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83112B)	+= himax_hx83112b.o
 obj-$(CONFIG_TOUCHSCREEN_FTS) += focaltech_ts.o
 focaltech_ts-y := focaltech_core.o
 focaltech_ts-y += focaltech_i2c.o
+obj-$(CONFIG_TOUCHSCREEN_FT5X46)	+= focaltech_ctl.o ft5x46_ts.o
