@@ -734,6 +734,7 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ret ? -EIO : 0;
 		break;
 	case V4L2_CID_EXPOSURE:
+	{
 		u32 long_exp = ctrl->val;
 		u32 short_exp = ctrl->val / OX05B1S_EXP_RATIO;
 
@@ -746,6 +747,7 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 			ret |= ox05b1s_set_exp_short(sensor, short_exp);
 		ret = ret ? -EIO : 0;
 		break;
+	}
 	case V4L2_CID_EXPOSURE_MULTI:
 		/* control available only for HDR mode */
 		if (!hdr_ctrl->cur.val)
