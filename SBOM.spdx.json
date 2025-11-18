@@ -2,13 +2,13 @@
   "SPDXID": "SPDXRef-DOCUMENT",
   "spdxVersion": "SPDX-2.3",
   "creationInfo": {
-    "created": "2025-09-04T05:53:47Z",
+    "created": "2025-11-18T07:23:31Z",
     "creators": [
       "Organization: NXP"
     ],
     "licenseListVersion": "3.20"
   },
-  "name": "linux-imx-android-16.0.0_1.0.0",
+  "name": "linux-imx-android-16.0.0_1.2.0",
   "dataLicense": "CC0-1.0",
   "hasExtractedLicensingInfos": [
     {
@@ -17,26 +17,14 @@
       "name": "GNU General Public License v2.0 with Linux Syscall Note"
     }
   ],
-  "documentNamespace": "https://nxp.com/spdx/091daa08-a814-4082-b9bc-2b67b889d3df",
+  "documentNamespace": "https://nxp.com/spdx/a09ed6df-89d6-4177-b6b8-e001b2f8e8bd",
   "packages": [
     {
-      "SPDXID": "SPDXRef-package-091daa08-a814-4082-b9bc-2b67b889d3df",
-      "name": "linux-imx",
-      "versionInfo": "android-16.0.0_1.0.0",
-      "licenseConcluded": "(LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788)",
-      "licenseDeclared": "(LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788)",
-      "downloadLocation": "https://github.com/nxp-imx/linux-imx",
-      "originator": "Organization: NXP",
-      "supplier": "NOASSERTION",
-      "externalRefs": [],
-      "filesAnalyzed": false
-    },
-    {
-      "SPDXID": "SPDXRef-package-ab2934a8-9a66-4824-8534-acbbc5bbb9f8",
+      "SPDXID": "SPDXRef-package-5994faae-e487-4e49-8a8e-2450bab3b419",
       "name": "Linux Kernel",
-      "versionInfo": "6.12.38",
-      "licenseConcluded": "GPL-2.0-only",
-      "licenseDeclared": "GPL-2.0-only",
+      "versionInfo": "v6.12.52",
+      "licenseConcluded": "LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788",
+      "licenseDeclared": "LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788",
       "homepage": "http://git.kernel.org/pub/scm/linux/kernel/git/longterm/linux-2.6.34.y.git",
       "downloadLocation": "NOASSERTION",
       "originator": "Organization: Linux Kernel",
@@ -44,43 +32,50 @@
       "externalRefs": [
         {
           "referenceCategory": "SECURITY",
-          "referenceLocator": "cpe:2.3:a:debian_package:libcpupower1:6.12.38:1\\~bpo12\\+1:*:*:*:*:*:*",
+          "referenceLocator": "cpe:2.3:a:linux:linux_kernel:6.12.52:*:*:*:*:*:*:*",
           "referenceType": "cpe23Type"
         },
         {
           "referenceCategory": "SECURITY",
-          "referenceLocator": "cpe:2.3:a:debian_package:intel-sdsi:6.12.38:1:*:*:*:*:*:*",
+          "referenceLocator": "cpe:2.3:o:linux:kernel:6.12.52:*:*:*:*:*:*:*",
           "referenceType": "cpe23Type"
         },
         {
           "referenceCategory": "SECURITY",
-          "referenceLocator": "cpe:2.3:a:debian_package:linux-bpf-dev:6.12.38:1:*:*:*:*:*:*",
+          "referenceLocator": "cpe:2.3:o:linux:linux_kernel:6.12.52:*:*:*:*:*:*:*",
           "referenceType": "cpe23Type"
         },
         {
           "referenceCategory": "SECURITY",
-          "referenceLocator": "cpe:2.3:a:debian_package:libcpupower1:6.12.38:1:*:*:*:*:*:*",
-          "referenceType": "cpe23Type"
-        },
-        {
-          "referenceCategory": "SECURITY",
-          "referenceLocator": "cpe:2.3:a:debian_package:intel-sdsi:6.12.38:1\\~bpo12\\+1:*:*:*:*:*:*",
+          "referenceLocator": "cpe:2.3:a:linux:kernel:6.12.52:*:*:*:*:*:*:*",
           "referenceType": "cpe23Type"
         }
       ],
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-package-a09ed6df-89d6-4177-b6b8-e001b2f8e8bd",
+      "name": "linux-imx",
+      "versionInfo": "android-16.0.0_1.2.0",
+      "licenseConcluded": "(LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788)",
+      "licenseDeclared": "(LicenseRef-d1ff3cc0-134d-4339-9a4d-8a0edc9d2788)",
+      "downloadLocation": "https://github.com/nxp-imx/linux-imx",
+      "originator": "Organization: NXP",
+      "supplier": "NOASSERTION",
+      "externalRefs": [],
       "filesAnalyzed": false
     }
   ],
   "relationships": [
     {
-      "spdxElementId": "SPDXRef-DOCUMENT",
-      "relationshipType": "DESCRIBES",
-      "relatedSpdxElement": "SPDXRef-package-091daa08-a814-4082-b9bc-2b67b889d3df"
+      "spdxElementId": "SPDXRef-package-a09ed6df-89d6-4177-b6b8-e001b2f8e8bd",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-package-5994faae-e487-4e49-8a8e-2450bab3b419"
     },
     {
-      "spdxElementId": "SPDXRef-package-091daa08-a814-4082-b9bc-2b67b889d3df",
-      "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-package-ab2934a8-9a66-4824-8534-acbbc5bbb9f8"
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-package-a09ed6df-89d6-4177-b6b8-e001b2f8e8bd"
     }
   ]
 }
