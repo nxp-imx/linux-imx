@@ -15,6 +15,7 @@
 #include <linux/scmi_protocol.h>
 #include <linux/scmi_imx_protocol.h>
 
+#include "../../common.h"
 #include "../../protocols.h"
 #include "../../notify.h"
 
@@ -205,7 +206,7 @@ static int scmi_imx_cpu_protocol_attributes_get(const struct scmi_protocol_handl
 	ret = ph->xops->do_xfer(ph, t);
 	if (!ret) {
 		info->nr_cpu = SCMI_IMX_CPU_PROTO_ATTR_NUM_CPUS(attr->attributes);
-		dev_info(ph->dev, "i.MX SM CPU: %d cpus\n",
+		dev_info(ph->dev, "i.MX SM MAX CPU: %d cpus\n",
 			 info->nr_cpu);
 	}
 
@@ -231,7 +232,10 @@ static int scmi_imx_cpu_attributes_get(const struct scmi_protocol_handle *ph,
 		out = t->rx.buf;
 		dev_info(ph->dev, "i.MX CPU: name: %s\n", out->name);
 	} else {
-		dev_err(ph->dev, "i.MX cpu: Failed to get info of cpu(%u)\n", cpuid);
+		dev_err(ph->dev, "i.MX cpu: CPU unavailable cpu(%u)\n", cpuid);
+		/* CPU is disabled in fuses */
+		if (ret == -ENOENT)
+			ret = 0;
 	}
 
 	ph->xops->xfer_put(ph, t);

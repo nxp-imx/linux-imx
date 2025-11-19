@@ -306,10 +306,12 @@ static void dwc3_imx8mp_remove(struct platform_device *pdev)
 {
 	struct dwc3_imx8mp *dwc3_imx = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
+	struct device *dwc3_dev = &dwc3_imx->dwc3->dev;
 
 	put_device(&dwc3_imx->dwc3->dev);
 
 	pm_runtime_get_sync(dev);
+	dwc3_dev->platform_data = NULL;
 	of_platform_depopulate(dev);
 	device_remove_software_node(dev);
 

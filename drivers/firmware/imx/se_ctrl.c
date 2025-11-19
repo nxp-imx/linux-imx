@@ -2099,12 +2099,12 @@ static void se_if_probe_cleanup(void *plat_dev)
 		}
 	}
 
-	if (priv->lg_fl_info.lg_file &&
-		filp_close(priv->lg_fl_info.lg_file, NULL)) {
+	if (priv->lg_fl_info.lg_file) {
 		wret = filp_close(priv->lg_fl_info.lg_file, NULL);
 		if (wret)
 			pr_err("Error %pe closing log file.\n",
 				ERR_PTR(wret));
+		priv->lg_fl_info.lg_file = NULL;
 	}
 
 	__list_del_entry(&priv->priv_data);
@@ -2115,9 +2115,12 @@ static void se_if_probe_cleanup(void *plat_dev)
 	of_reserved_mem_device_release(dev);
 
 	/* Free Kobj created for logging */
-	if (se_kobj)
+	if (se_kobj) {
+		sysfs_remove_file(se_kobj, &se_log_attr.attr);
+		sysfs_remove_file(se_kobj, &se_rcv_msg_timeout_attr.attr);
 		kobject_put(se_kobj);
-
+		se_kobj = NULL;
+	}
 }
 
 static int se_if_probe(struct platform_device *pdev)
@@ -2309,7 +2312,17 @@ exit:
 
 static void se_if_remove(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
+	struct se_if_priv *priv;
+	struct se_if_node_info *info;
+
+	priv = dev_get_drvdata(dev);
+	info = container_of(priv->if_defs, typeof(*info), if_defs);
+
 	se_if_probe_cleanup(pdev);
+
+	if (info->init_trng)
+		ele_trng_exit(priv);
 }
 
 static int se_suspend(struct device *dev)

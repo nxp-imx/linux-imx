@@ -77,7 +77,7 @@
 		clock-output-names = "osc_24m";
 	};
 
-	pci@fd700000 {
+	pci@ff700000 {
 		compatible = "pci-host-ecam-generic";
 		device_type = "pci";
 		bus-range = <0 0>;
@@ -89,7 +89,7 @@
 				<0 0 0 2 &gic GIC_SPI 228 IRQ_TYPE_EDGE_RISING>,
 				<0 0 0 3 &gic GIC_SPI 229 IRQ_TYPE_EDGE_RISING>,
 				<0 0 0 4 &gic GIC_SPI 230 IRQ_TYPE_EDGE_RISING>;
-		reg = <0x0 0xfd700000 0x0 0x100000>;
+		reg = <0x0 0xff700000 0x0 0x100000>;
 		ranges = <0x02000000 0x00 0x10000000 0x0 0x10000000 0x00 0x10000>;
 	};
 
