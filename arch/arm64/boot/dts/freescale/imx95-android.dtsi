@@ -42,3 +42,8 @@
 &{/reserved-memory/linux,cma} {
        status = "disabled";
 };
+
+&mali_protected {
+	reg = <1 0x00000000 0 0x6400000>;
+	no-map;
+};

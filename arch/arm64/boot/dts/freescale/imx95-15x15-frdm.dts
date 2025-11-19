@@ -76,6 +76,11 @@
 			no-map;
 		};
 
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
 		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
@@ -265,6 +270,12 @@
 		links = <&sai1_port1>;
 		label = "mqs-audio";
 	};
+
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
+	};
+
 };
 
 &adc1 {
@@ -1091,6 +1102,10 @@
 	reset-gpio = <&gpio5 13 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_m2_mkey_pwr>;
 	status = "okay";
+};
+
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };
 
 &vpuctrl {
