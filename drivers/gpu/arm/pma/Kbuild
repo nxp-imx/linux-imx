@@ -19,6 +19,7 @@
 #
 #
 
-obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += protected_memory_allocator.o
+obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += protected_memory_allocator.o \
+                                                 protected_heap.o
 ccflags-y += \
     -I$(src)/../valhall-inc
