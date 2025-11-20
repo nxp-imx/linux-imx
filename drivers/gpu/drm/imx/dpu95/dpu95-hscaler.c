@@ -332,6 +332,7 @@ int dpu95_hs_init(struct dpu95_soc *dpu, unsigned int index,
 	hs->index = index;
 	hs->link_id = dpu95_hs_link_id[index];
 	hs->ops = &dpu95_hs_ops;
+	hs->stream_id = DPU95_HSCALER_NO_STREAM_ID;
 
 	return 0;
 }
