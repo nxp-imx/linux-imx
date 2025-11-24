@@ -1207,7 +1207,7 @@ static int coda_vpu_enc_start_streaming(struct vb2_queue *q, unsigned int count)
 		fmt->pixelformat >> 8,
 		fmt->pixelformat >> 16,
 		fmt->pixelformat >> 24,
-		fmt->width, fmt->height, q->num_buffers);
+		fmt->width, fmt->height, vb2_get_num_buffers(q));
 
 	if (!vb2_is_streaming(vq_peer))
 		return 0;
@@ -1568,7 +1568,7 @@ static int coda_vpu_enc_open(struct file *filp)
 
 	v4l2_fh_init(&inst->v4l2_fh, vdev);
 	filp->private_data = &inst->v4l2_fh;
-	v4l2_fh_add(&inst->v4l2_fh);
+	v4l2_fh_add(&inst->v4l2_fh, filp);
 
 	inst->v4l2_fh.m2m_ctx =
 		v4l2_m2m_ctx_init(vpu->m2m_dev, inst, coda_vpu_enc_queue_init);
@@ -1722,7 +1722,7 @@ static int coda_vpu_enc_open(struct file *filp)
 
 cleanup_inst:
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
-	v4l2_fh_del(&inst->v4l2_fh);
+	v4l2_fh_del(&inst->v4l2_fh, filp);
 	v4l2_fh_exit(&inst->v4l2_fh);
 err_m2m_release:
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
@@ -1749,7 +1749,7 @@ static int coda_vpu_enc_release(struct file *filp)
 
 	ida_free(&inst->vpu_dev->inst_ida, inst->id);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
-	v4l2_fh_del(&inst->v4l2_fh);
+	v4l2_fh_del(&inst->v4l2_fh, filp);
 	v4l2_fh_exit(&inst->v4l2_fh);
 	kfree(inst);
 

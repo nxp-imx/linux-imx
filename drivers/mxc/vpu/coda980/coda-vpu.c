@@ -318,7 +318,7 @@ err_dma_unmap:
 	return ret;
 }
 
-static int coda_vpu_remove(struct platform_device *pdev)
+static void coda_vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_device *vpu = dev_get_drvdata(&pdev->dev);
 
@@ -345,8 +345,6 @@ static int coda_vpu_remove(struct platform_device *pdev)
 	mutex_destroy(&vpu->hw_lock);
 	mutex_destroy(&vpu->dev_lock);
 	ida_destroy(&vpu->inst_ida);
-
-	return 0;
 }
 
 static int __maybe_unused coda_vpu_runtime_suspend(struct device *dev)
