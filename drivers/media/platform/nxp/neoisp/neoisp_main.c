@@ -1884,7 +1884,7 @@ static struct neoisp_context_ops_s neoisp_context_ops[] = {
 	},
 };
 
-static const struct neoisp_info_s neoisp_v1_data = {
+static const struct neoisp_info_s neoisp_imx95_v1_data = {
 	.hw_ver = NEOISP_HW_V1,
 	.capabilities = NEO_CAP_ALIGNMENT_MSB,
 	.api_ver_min = NEOISP_LEGACY_META_BUFFER,
@@ -1893,7 +1893,7 @@ static const struct neoisp_info_s neoisp_v1_data = {
 	.mems = &active_block_map[NEOISP_HW_V1],
 };
 
-static const struct neoisp_info_s neoisp_v2_data = {
+static const struct neoisp_info_s neoisp_imx95_v2_data = {
 	.hw_ver = NEOISP_HW_V2,
 	.capabilities = NEO_CAP_ALIGNMENT_MSB,
 	.api_ver_min = NEOISP_LEGACY_META_BUFFER,
@@ -1902,10 +1902,20 @@ static const struct neoisp_info_s neoisp_v2_data = {
 	.mems = &active_block_map[NEOISP_HW_V2],
 };
 
+static const struct neoisp_info_s neoisp_imx952_data = {
+	.hw_ver = NEOISP_HW_V2,
+	.capabilities = 0,
+	.api_ver_min = NEOISP_LEGACY_META_BUFFER,
+	.api_ver_max = NEOISP_EXT_META_BUFFER_V1,
+	.context_ops = &neoisp_context_ops[NEOISP_HW_V2],
+	.mems = &active_block_map[NEOISP_HW_V2],
+};
+
 static const struct of_device_id neoisp_dt_ids[] = {
-	{ .compatible = "nxp,imx95-a0-neoisp", .data = &neoisp_v1_data },
-	{ .compatible = "nxp,imx95-a1-neoisp", .data = &neoisp_v1_data },
-	{ .compatible = "nxp,imx95-b0-neoisp", .data = &neoisp_v2_data },
+	{ .compatible = "nxp,imx95-a0-neoisp", .data = &neoisp_imx95_v1_data },
+	{ .compatible = "nxp,imx95-a1-neoisp", .data = &neoisp_imx95_v1_data },
+	{ .compatible = "nxp,imx95-b0-neoisp", .data = &neoisp_imx95_v2_data },
+	{ .compatible = "nxp,imx952-neoisp", .data = &neoisp_imx952_data },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, neoisp_dt_ids);
