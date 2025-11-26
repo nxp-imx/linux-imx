@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+&linux_cma {
+	compatible = "shared-dma-pool";
+	reusable;
+	size = <0 0x3c000000>;
+	alloc-ranges = <0 0x80000000 0 0x70000000>;
+	linux,cma-default;
+};
+
+/*
+&netc_bus0 {
+	linux,pci-domain = <2>;
+};
+
+&netc_bus1 {
+	linux,pci-domain = <3>;
+};
+*/
+
+&usdhc1 {
+	status = "disabled";
+};
+
+&usdhc2 {
+	status = "okay";
+};
