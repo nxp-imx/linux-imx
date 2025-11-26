@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2019, 2025 NXP
  *	Dong Aisheng <aisheng.dong@nxp.com>
  */
 
@@ -1048,6 +1048,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pcieb>;
 	reset-gpio = <&lsio_gpio5 0 GPIO_ACTIVE_LOW>;
+	host-wake-gpio = <&lsio_gpio4 31 GPIO_ACTIVE_LOW>;
 	phys = <&hsio_phy 1 PHY_TYPE_PCIE 1>;
 	phy-names = "pcie-phy";
 	status = "disabled";
