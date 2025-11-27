@@ -205,6 +205,7 @@ int enetc4_pf_to_port(struct enetc_si *si)
 	switch (si->revision) {
 	case ENETC_REV_4_1:
 	case ENETC_REV_4_3:
+	case ENETC_REV_4_6:
 		return enetc4_devfn_to_port(si->pdev);
 	default:
 		return -1;
