@@ -141,6 +141,16 @@
 			status = "disabled";
                 };
 
+		fec_1g: ethernet@40420000 {
+			compatible = "fsl,imxrt-1g-fec";
+			reg = <0x40420000 0x4000>;
+			interrupts = <139>, <140>, <141>;
+
+			fsl,num-tx-queues=<1>;
+			fsl,num-rx-queues=<1>;
+			status = "disabled";
+                };
+
 		gpio1: gpio@4012c000 {
 			compatible = "fsl,imxrt-gpio", "fsl,imx35-gpio";
 			reg = <0x4012c000 0x4000>;
