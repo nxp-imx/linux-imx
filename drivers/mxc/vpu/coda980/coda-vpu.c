@@ -381,9 +381,34 @@ static int __maybe_unused coda_vpu_runtime_resume(struct device *dev)
 	return ret;
 }
 
+static int __maybe_unused coda_vpu_suspend(struct device *dev)
+{
+	struct vpu_device *vpu = dev_get_drvdata(dev);
+	int ret;
+
+	v4l2_m2m_suspend(vpu->m2m_dev);
+	ret = pm_runtime_force_suspend(dev);
+	if (ret < 0)
+		v4l2_m2m_resume(vpu->m2m_dev);
+	return ret;
+}
+
+static int __maybe_unused coda_vpu_resume(struct device *dev)
+{
+	struct vpu_device *vpu = dev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret < 0)
+		return ret;
+
+	v4l2_m2m_resume(vpu->m2m_dev);
+	return 0;
+}
+
 static const struct dev_pm_ops coda_vpu_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(coda_vpu_suspend,
+				coda_vpu_resume)
 	SET_RUNTIME_PM_OPS(coda_vpu_runtime_suspend,
 			   coda_vpu_runtime_resume, NULL)
 };
