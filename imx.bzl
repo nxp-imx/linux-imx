@@ -441,6 +441,8 @@ _IMX_IN_TREE_MODULES = [
     "drivers/mxc/vpu/memory_usage/memory_usage.ko",
     "drivers/media/v4l2-core/v4l2-cci.ko",
     "drivers/hwmon/pwm-fan.ko",
+    "drivers/gpu/arm/pma/protected_memory_allocator.ko",
+    "drivers/gpu/arm/pma/protected_heap.ko",
 ]
 
 def define_imx():
