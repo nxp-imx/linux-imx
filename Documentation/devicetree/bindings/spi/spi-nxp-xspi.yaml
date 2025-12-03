@@ -13,6 +13,9 @@ maintainers:
 properties:
   compatible:
     oneOf:
+      - items:
+          - const: nxp,imx952-xspi
+          - const: nxp,imx94-xspi
       - enum:
           - nxp,imx94-xspi
 
