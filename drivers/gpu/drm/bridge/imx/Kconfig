@@ -1,5 +1,8 @@
 if ARCH_MXC || COMPILE_TEST
 
+config DRM_IMX_LDB_HELPER
+	tristate
+
 config DRM_IMX8MP_DW_HDMI_BRIDGE
 	tristate "Freescale i.MX8MP HDMI-TX bridge support"
 	depends on OF
