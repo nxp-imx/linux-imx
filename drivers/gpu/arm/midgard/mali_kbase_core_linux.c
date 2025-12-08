@@ -4587,24 +4587,26 @@ static int kbase_device_runtime_suspend(struct device *dev)
 	dev_dbg(dev, "Callback %s\n", __func__);
 	KBASE_KTRACE_ADD(kbdev, PM_RUNTIME_SUSPEND_CALLBACK, NULL, 0);
 
-	if (kbase_pm_is_active(kbdev)) {
-		dev_dbg(kbdev->dev, "Ignoring RT suspend callback as the device is still active");
-		return -EBUSY;
-	}
-
 	if (likely(kbdev->csf.scheduler.kthread_running)) {
 		atomic_set(&kbdev->csf.scheduler.pending_runtime_suspend_work, true);
+		if (kbase_pm_is_active(kbdev)) {
+			atomic_set(&kbdev->csf.scheduler.pending_runtime_suspend_work, false);
+			dev_dbg(kbdev->dev,
+				"Ignoring RT suspend callback as the device is still active");
+			return -EBUSY;
+		}
 		kbase_csf_scheduler_wait_for_kthread_pending_work(
 			kbdev, &kbdev->csf.scheduler.pending_runtime_suspend_work);
 
 		if (kbdev->pm.runtime_suspend_result)
 			return kbdev->pm.runtime_suspend_result;
-	} else {
+	} else if (!kbase_pm_is_active(kbdev)) {
 		int const ret = kbase_pm_handle_runtime_suspend(kbdev);
 
 		if (ret)
 			return ret;
-	}
+	} else
+		return -EBUSY;
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
