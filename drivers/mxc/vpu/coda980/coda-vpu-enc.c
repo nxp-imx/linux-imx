@@ -1119,17 +1119,6 @@ static int coda_vpu_enc_initialize_instance(struct vpu_instance *inst)
 		return ret;
 	}
 
-	if (coda_vpu_wait_interrupt(inst, CODA_VPU_TIMEOUT) < 0) {
-		dev_err(inst->vpu_dev->dev, "seq init timeout\n");
-		return ret;
-	}
-
-	ret = coda_vpuapi_enc_complete_seq_init(inst);
-	if (ret) {
-		dev_err(inst->vpu_dev->dev, "seq init error\n");
-		return ret;
-	}
-
 	coda_vpu_set_instance_state(inst, VPU_INST_STATE_INIT_SEQ);
 
 	return 0;

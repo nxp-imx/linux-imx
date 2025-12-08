@@ -516,7 +516,6 @@ int coda_vpuapi_get_version_info(struct device *dev, u32 *version, u32 *revision
 int coda_vpuapi_enc_open(struct vpu_instance *inst, struct coda_enc_open_param *open_param);
 int coda_vpuapi_enc_close(struct vpu_instance *inst, u32 *fail_res);
 int coda_vpuapi_enc_issue_seq_init(struct vpu_instance *inst);
-int coda_vpuapi_enc_complete_seq_init(struct vpu_instance *inst);
 int coda_vpuapi_enc_register_frame_buffer(struct vpu_instance *inst, unsigned int num,
 					  unsigned int stride, int height,
 					  enum coda_tiled_map_type map_type);

@@ -7,6 +7,7 @@
 
 #include "coda-vpuapi.h"
 #include "coda-hw.h"
+#include "coda-helper.h"
 
 static int coda_vpuapi_initialize_vpu(struct device *dev, u8 *code, size_t size)
 {
@@ -161,28 +162,16 @@ int coda_vpuapi_enc_issue_seq_init(struct vpu_instance *inst)
 	struct vpu_device *vpu = inst->vpu_dev;
 	int ret;
 
-	ret = mutex_lock_interruptible(&vpu->hw_lock);
-	if (ret)
-		return ret;
-
+	guard(mutex)(&vpu->hw_lock);
 	ret = coda_hw_enc_init_seq(inst);
 
-	mutex_unlock(&vpu->hw_lock);
-	return ret;
-}
-
-int coda_vpuapi_enc_complete_seq_init(struct vpu_instance *inst)
-{
-	struct vpu_device *vpu = inst->vpu_dev;
-	int ret;
-
-	ret = mutex_lock_interruptible(&vpu->hw_lock);
-	if (ret)
+	if (coda_vpu_wait_interrupt(inst, CODA_VPU_TIMEOUT) < 0) {
+		dev_err(inst->vpu_dev->dev, "seq init timeout\n");
+		ret = -ETIMEDOUT;
 		return ret;
+	}
 
 	ret = coda_hw_enc_get_seq_info(inst);
-
-	mutex_unlock(&vpu->hw_lock);
 	return ret;
 }
 
