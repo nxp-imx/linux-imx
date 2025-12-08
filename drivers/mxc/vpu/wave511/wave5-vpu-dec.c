@@ -228,6 +228,105 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 	}
 }
 
+static enum v4l2_quantization to_v4l2_quantization(bool video_full_range_flag)
+{
+	if (video_full_range_flag)
+		return V4L2_QUANTIZATION_FULL_RANGE;
+	else
+		return V4L2_QUANTIZATION_LIM_RANGE;
+}
+
+static enum v4l2_colorspace to_v4l2_colorspace(u8 colour_primaries)
+{
+	switch (colour_primaries) {
+	case 1:
+		return V4L2_COLORSPACE_REC709;
+	case 4:
+		return V4L2_COLORSPACE_470_SYSTEM_M;
+	case 5:
+		return V4L2_COLORSPACE_470_SYSTEM_BG;
+	case 6:
+		return V4L2_COLORSPACE_SMPTE170M;
+	case 7:
+		return V4L2_COLORSPACE_SMPTE240M;
+	case 9:
+		return V4L2_COLORSPACE_BT2020;
+	case 11:
+		return V4L2_COLORSPACE_DCI_P3;
+	default:
+		return V4L2_COLORSPACE_DEFAULT;
+	}
+}
+
+static enum v4l2_xfer_func to_v4l2_xfer_func(u8 transfer_characteristics)
+{
+	switch (transfer_characteristics) {
+	case 1:
+		return V4L2_XFER_FUNC_709;
+	case 6:
+		return V4L2_XFER_FUNC_709;
+	case 7:
+		return V4L2_XFER_FUNC_SMPTE240M;
+	case 8:
+		return V4L2_XFER_FUNC_NONE;
+	case 13:
+		return V4L2_XFER_FUNC_SRGB;
+	case 14:
+		return V4L2_XFER_FUNC_709;
+	case 16:
+		return V4L2_XFER_FUNC_SMPTE2084;
+	default:
+		return V4L2_XFER_FUNC_DEFAULT;
+	}
+}
+
+static enum v4l2_ycbcr_encoding to_v4l2_ycbcr_encoding(u8 matrix_coeffs)
+{
+	switch (matrix_coeffs) {
+	case 1:
+		return V4L2_YCBCR_ENC_709;
+	case 5:
+		return V4L2_YCBCR_ENC_601;
+	case 6:
+		return V4L2_YCBCR_ENC_601;
+	case 7:
+		return V4L2_YCBCR_ENC_SMPTE240M;
+	case 9:
+		return V4L2_YCBCR_ENC_BT2020;
+	case 10:
+		return V4L2_YCBCR_ENC_BT2020_CONST_LUM;
+	default:
+		return V4L2_YCBCR_ENC_DEFAULT;
+	}
+}
+
+static void wave5_update_color_info(struct vpu_instance *inst,
+				    struct dec_initial_info *initial_info)
+{
+	struct color_param *color = &initial_info->color;
+
+	if (!color->video_signal_type_present)
+		goto set_default_all;
+
+	inst->quantization = to_v4l2_quantization(color->color_range);
+
+	if (!color->color_description_present)
+		goto set_default_color;
+
+	inst->colorspace = to_v4l2_colorspace(color->color_primaries);
+	inst->xfer_func = to_v4l2_xfer_func(color->transfer_characteristics);
+	inst->ycbcr_enc = to_v4l2_ycbcr_encoding(color->matrix_coefficients);
+
+	return;
+
+set_default_all:
+	inst->quantization = V4L2_QUANTIZATION_DEFAULT;
+set_default_color:
+	inst->colorspace = V4L2_COLORSPACE_DEFAULT;
+	inst->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+	inst->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+}
+
 static int start_decode(struct vpu_instance *inst, u32 *fail_res)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
@@ -340,6 +439,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst)
 		inst->conf_win.height = initial_info->pic_height -
 			initial_info->pic_crop_rect.top - initial_info->pic_crop_rect.bottom;
 
+		wave5_update_color_info(inst, initial_info);
 		vpu_fmt = wave5_find_vpu_fmt(inst->src_fmt.pixelformat,
 					     dec_fmt_list[VPU_FMT_TYPE_CODEC]);
 		if (!vpu_fmt)
@@ -765,6 +865,7 @@ static int wave5_vpu_dec_try_fmt_out(struct file *file, void *fh, struct v4l2_fo
 static int wave5_vpu_dec_s_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct vpu_instance *inst = wave5_to_vpu_inst(file_to_v4l2_fh(file));
+	struct v4l2_pix_format_mplane in_pix_mp = f->fmt.pix_mp;
 	const struct vpu_format *vpu_fmt;
 	int i, ret;
 
@@ -776,6 +877,11 @@ static int wave5_vpu_dec_s_fmt_out(struct file *file, void *fh, struct v4l2_form
 	ret = wave5_vpu_dec_try_fmt_out(file, fh, f);
 	if (ret)
 		return ret;
+
+	f->fmt.pix_mp.colorspace = in_pix_mp.colorspace;
+	f->fmt.pix_mp.ycbcr_enc = in_pix_mp.ycbcr_enc;
+	f->fmt.pix_mp.quantization = in_pix_mp.quantization;
+	f->fmt.pix_mp.xfer_func = in_pix_mp.xfer_func;
 
 	inst->std = wave5_to_vpu_std(f->fmt.pix_mp.pixelformat, inst->type);
 	if (inst->std == STD_UNKNOWN) {

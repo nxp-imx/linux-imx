@@ -578,6 +578,16 @@ static void wave5_get_dec_seq_result(struct vpu_instance *inst, struct dec_initi
 		info->profile = FIELD_GET(SEQ_PARAM_PROFILE_MASK, reg_val);
 	}
 
+	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_VUI_INFO);
+	if (reg_val) {
+		info->color.video_signal_type_present = (reg_val >> 26) & 0x1;
+		info->color.color_range = (reg_val >> 25) & 0x1;
+		info->color.color_description_present = (reg_val >> 24) & 0x1;
+		info->color.color_primaries = (reg_val >> 16) & 0xFF;
+		info->color.transfer_characteristics = (reg_val >> 8) & 0xFF;
+		info->color.matrix_coefficients = reg_val & 0xFF;
+	}
+
 	if (inst->dev->product_code != WAVE515_CODE) {
 		info->vlc_buf_size = vpu_read_reg(inst->dev, W5_RET_VLC_BUF_SIZE);
 		info->param_buf_size = vpu_read_reg(inst->dev, W5_RET_PARAM_BUF_SIZE);

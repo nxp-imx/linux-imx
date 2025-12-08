@@ -265,6 +265,15 @@ struct vpu_rect {
 	unsigned int bottom; /* vertical pixel offset from bottom edge */
 };
 
+struct color_param {
+	bool video_signal_type_present;
+	bool color_range;
+	bool color_description_present;
+	u8 matrix_coefficients;
+	u8 transfer_characteristics;
+	u8 color_primaries;
+};
+
 /*
  * decode struct and definition
  */
@@ -297,6 +306,7 @@ struct dec_initial_info {
 	u32 sequence_no;
 	u32 vlc_buf_size;
 	u32 param_buf_size;
+	struct color_param color;
 };
 
 struct dec_output_info {

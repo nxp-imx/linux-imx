@@ -434,6 +434,7 @@ enum query_opt {
  * reg_val & 0x1 => intrabc tool enable
  * (reg_val >> 1) & 0x1 => screen content tools enable
  */
+#define W5_RET_DEC_VUI_INFO                 (W5_REG_BASE + 0x01A4)
 #define W5_RET_DEC_HOST_CMD_TICK            (W5_REG_BASE + 0x01B8)
 #define W5_RET_DEC_SEEK_START_TICK          (W5_REG_BASE + 0x01BC)
 #define W5_RET_DEC_SEEK_END_TICK            (W5_REG_BASE + 0x01C0)
