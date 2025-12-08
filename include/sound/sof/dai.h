@@ -90,7 +90,29 @@ enum sof_ipc_dai_type {
 	SOF_DAI_AMD_HS_VIRTUAL,		/**< AMD ACP HS VIRTUAL */
 	SOF_DAI_IMX_MICFIL,		/** < i.MX MICFIL PDM */
 	SOF_DAI_AMD_SDW,		/**< AMD ACP SDW */
+	SOF_DAI_VIRTUAL,		/**< Virtual DAI for testing/debugging */
 };
+
+/* VIRTUAL DAI Configuration Request - SOF_IPC_DAI_VIRTUAL_CONFIG */
+struct sof_ipc_dai_virtual_params {
+	struct sof_ipc_hdr hdr;
+
+	/* MCLK */
+	uint16_t reserved1;
+	uint16_t mclk_id;
+	uint32_t mclk_direction;
+
+	uint32_t mclk_rate;	/* MCLK frequency in Hz */
+	uint32_t fsync_rate;	/* FSYNC frequency in Hz */
+	uint32_t bclk_rate;	/* BCLK frequency in Hz */
+
+	/* TDM */
+	uint32_t tdm_slots;
+	uint32_t rx_slots;
+	uint32_t tx_slots;
+	uint16_t tdm_slot_width;
+	uint16_t reserved2;	/* alignment */
+} __packed;
 
 /* general purpose DAI configuration */
 struct sof_ipc_dai_config {
@@ -121,6 +143,7 @@ struct sof_ipc_dai_config {
 		struct sof_ipc_dai_mtk_afe_params afe;
 		struct sof_ipc_dai_micfil_params micfil;
 		struct sof_ipc_dai_acp_sdw_params acp_sdw;
+		struct sof_ipc_dai_virtual_params virtual_dai;
 	};
 } __packed;
 

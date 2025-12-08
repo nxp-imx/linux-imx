@@ -230,6 +230,12 @@ static const struct sof_topology_token sai_tokens[] = {
 		offsetof(struct sof_ipc_dai_sai_params, mclk_id)},
 };
 
+/* DAI VIRTUAL */
+static const struct sof_topology_token dai_virtual_tokens[] = {
+	{SOF_TKN_DAI_VIRTUAL_MCLK_ID, SND_SOC_TPLG_TUPLE_TYPE_SHORT, get_token_u16,
+		offsetof(struct sof_ipc_dai_virtual_params, mclk_id)},
+};
+
 /*
  * DMIC PDM Tokens
  * SOF_TKN_INTEL_DMIC_PDM_CTRL_ID should be the first token
@@ -348,6 +354,7 @@ static const struct sof_token_info ipc3_token_list[SOF_TOKEN_COUNT] = {
 	[SOF_MICFIL_TOKENS] = {"MICFIL PDM tokens",
 		micfil_pdm_tokens, ARRAY_SIZE(micfil_pdm_tokens)},
 	[SOF_ACP_SDW_TOKENS]   = {"ACP_SDW tokens", acp_sdw_tokens, ARRAY_SIZE(acp_sdw_tokens)},
+	[SOF_DAI_VIRTUAL_TOKENS] = {"DAI VIRTUAL tokens", dai_virtual_tokens, ARRAY_SIZE(dai_virtual_tokens)},
 };
 
 /**
@@ -1164,6 +1171,39 @@ static int sof_link_esai_load(struct snd_soc_component *scomp, struct snd_sof_da
 	return 0;
 }
 
+static int sof_link_virtual_dai_load(struct snd_soc_component *scomp, struct snd_sof_dai_link *slink,
+				struct sof_ipc_dai_config *config, struct snd_sof_dai *dai)
+{
+	struct snd_soc_tplg_hw_config *hw_config = slink->hw_configs;
+	struct sof_dai_private_data *private = dai->private;
+	u32 size = sizeof(*config);
+	int ret;
+
+	/* init IPC */
+	memset(&config->virtual_dai, 0, sizeof(config->virtual_dai));
+	config->hdr.size = size;
+
+	/* set format */
+	sof_dai_set_format(hw_config, config);
+
+	ret = sof_update_ipc_object(scomp, &config->virtual_dai, SOF_DAI_VIRTUAL_TOKENS,
+				    slink->tuples, slink->num_tuples, size, 1);
+	if (ret < 0)
+		return ret;
+
+	dev_info(scomp->dev,
+		 "tplg: config VIRTUAL_DAI%d fmt 0x%x\n",
+		 config->dai_index, config->format);
+
+	dai->number_configs = 1;
+	dai->current_config = 0;
+	private->dai_config = kmemdup(config, size, GFP_KERNEL);
+	if (!private->dai_config)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int sof_link_micfil_load(struct snd_soc_component *scomp, struct snd_sof_dai_link *slink,
 				struct sof_ipc_dai_config *config, struct snd_sof_dai *dai)
 {
@@ -1660,6 +1700,9 @@ static int sof_ipc3_widget_setup_comp_dai(struct snd_sof_widget *swidget)
 			break;
 		case SOF_DAI_IMX_ESAI:
 			ret = sof_link_esai_load(scomp, slink, config, dai);
+			break;
+		case SOF_DAI_VIRTUAL:
+			ret = sof_link_virtual_dai_load(scomp, slink, config, dai);
 			break;
 		case SOF_DAI_IMX_MICFIL:
 			ret = sof_link_micfil_load(scomp, slink, config, dai);

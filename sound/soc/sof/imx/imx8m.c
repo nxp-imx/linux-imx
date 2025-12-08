@@ -284,6 +284,13 @@ static int imx8m_get_bar_index(struct snd_sof_dev *sdev, u32 type)
 
 static struct snd_soc_dai_driver imx8m_dai[] = {
 {
+	.name = "virtual_dai",
+	.playback = {
+		.channels_min = 1,
+		.channels_max = 32,
+	},
+},
+{
 	.name = "sai1",
 	.playback = {
 		.channels_min = 1,

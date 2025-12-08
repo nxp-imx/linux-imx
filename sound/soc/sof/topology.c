@@ -298,6 +298,7 @@ static const struct sof_dai_types sof_dais[] = {
 	{"ACPHS_VIRTUAL", SOF_DAI_AMD_HS_VIRTUAL},
 	{"MICFIL", SOF_DAI_IMX_MICFIL},
 	{"ACP_SDW", SOF_DAI_AMD_SDW},
+	{"DAI_VIRTUAL", SOF_DAI_VIRTUAL},
 
 };
 
@@ -1957,6 +1958,10 @@ static int sof_link_load(struct snd_soc_component *scomp, int index, struct snd_
 	case SOF_DAI_IMX_ESAI:
 		token_id = SOF_ESAI_TOKENS;
 		num_tuples += token_list[SOF_ESAI_TOKENS].count;
+		break;
+	case SOF_DAI_VIRTUAL:
+		token_id = SOF_DAI_VIRTUAL_TOKENS;
+		num_tuples += token_list[SOF_DAI_VIRTUAL_TOKENS].count;
 		break;
 	case SOF_DAI_MEDIATEK_AFE:
 		token_id = SOF_AFE_TOKENS;
