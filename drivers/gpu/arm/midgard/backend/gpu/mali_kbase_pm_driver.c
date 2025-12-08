@@ -3151,6 +3151,13 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, bool is_resume)
 		return;
 	}
 
+	/* Cancel any pending run-time suspend work item since on certain
+	 * platforms, such work items might prevent the GPU from being powered
+	 * on. A RT suspend callback invoked after this point would otherwise
+	 * immediately indicate busy.
+	 */
+	kbase_pm_cancel_pending_runtime_suspend(kbdev);
+
 	kbdev->poweroff_pending = false;
 
 	KBASE_KTRACE_ADD(kbdev, PM_GPU_ON, NULL, 0u);
