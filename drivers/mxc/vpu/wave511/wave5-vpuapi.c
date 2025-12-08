@@ -262,19 +262,19 @@ void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
 
 	if (inst->dst_fmt.num_planes == 1) {
 		buf_size = vb2_plane_size(vb, 0);
-		buf_addr_y = vb2_dma_contig_plane_dma_addr(vb, 0);
+		buf_addr_y = wave5_get_plane_dma_addr(vb, 0);
 		buf_addr_cb = buf_addr_y + luma_size;
 		buf_addr_cr = buf_addr_cb + chroma_size;
 	} else if (inst->dst_fmt.num_planes == 2) {
 		buf_size = vb2_plane_size(vb, 0) + vb2_plane_size(vb, 1);
-		buf_addr_y = vb2_dma_contig_plane_dma_addr(vb, 0);
-		buf_addr_cb = vb2_dma_contig_plane_dma_addr(vb, 1);
+		buf_addr_y = wave5_get_plane_dma_addr(vb, 0);
+		buf_addr_cb = wave5_get_plane_dma_addr(vb, 1);
 		buf_addr_cr = buf_addr_cb + chroma_size;
 	} else if (inst->dst_fmt.num_planes == 3) {
 		buf_size = vb2_plane_size(vb, 0) + vb2_plane_size(vb, 1) + vb2_plane_size(vb, 2);
-		buf_addr_y = vb2_dma_contig_plane_dma_addr(vb, 0);
-		buf_addr_cb = vb2_dma_contig_plane_dma_addr(vb, 1);
-		buf_addr_cr = vb2_dma_contig_plane_dma_addr(vb, 2);
+		buf_addr_y = wave5_get_plane_dma_addr(vb, 0);
+		buf_addr_cb = wave5_get_plane_dma_addr(vb, 1);
+		buf_addr_cr = wave5_get_plane_dma_addr(vb, 2);
 	}
 
 	frame->buf_y = buf_addr_y;

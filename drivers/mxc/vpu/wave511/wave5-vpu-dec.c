@@ -177,7 +177,7 @@ static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr
 
 	v4l2_m2m_for_each_src_buf_safe(m2m_ctx, buf, n) {
 		struct vb2_v4l2_buffer *src_buf = &buf->vb;
-		size_t src_size = vb2_get_plane_payload(&src_buf->vb2_buf, 0);
+		size_t src_size = wave5_get_plane_payload(&src_buf->vb2_buf, 0);
 		struct vpu_src_buffer *vpu_buf = wave5_to_vpu_src_buf(src_buf);
 
 		if (src_size > consumed_bytes)
@@ -591,7 +591,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 
 		dev_dbg(inst->dev->dev, "%s: frame_cycle %8lu (payload %lu)\n",
 			__func__, dec_info.frame_cycle,
-			vb2_get_plane_payload(&disp_buf->vb2_buf, 0));
+			wave5_get_plane_payload(&disp_buf->vb2_buf, 0));
 	}
 
 	if (dec_info.index_frame_display == DISPLAY_IDX_FLAG_SEQ_END ||
@@ -1332,7 +1332,7 @@ static int fill_ringbuffer(struct vpu_instance *inst)
 		struct vb2_v4l2_buffer *vbuf = &buf->vb;
 		struct vpu_src_buffer *vpu_buf = wave5_to_vpu_src_buf(vbuf);
 		struct vpu_buf *ring_buffer = &inst->bitstream_vbuf;
-		size_t src_size = vb2_get_plane_payload(&vbuf->vb2_buf, 0);
+		size_t src_size = wave5_get_plane_payload(&vbuf->vb2_buf, 0);
 		void *src_buf = vb2_plane_vaddr(&vbuf->vb2_buf, 0);
 		dma_addr_t rd_ptr = 0;
 		dma_addr_t wr_ptr = 0;
@@ -1412,6 +1412,21 @@ static int wave5_vpu_dec_buf_init(struct vb2_buffer *vb)
 		vpu_buf->display = false;
 	}
 
+	return 0;
+}
+
+static int wave5_vpu_dec_buf_prepare(struct vb2_buffer *vb)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
+	int i;
+
+	for (i = 0; i < vb->num_planes; i++) {
+		if (!IS_ALIGNED(wave5_get_plane_dma_addr(vb, i), W5_DEC_ADDR_ALIGNMENT)) {
+			dev_err(inst->dev->dev,
+				"plane[%d] address is not %d aligned\n", i, W5_DEC_ADDR_ALIGNMENT);
+			return -EINVAL;
+		}
+	}
 	return 0;
 }
 
@@ -1666,6 +1681,7 @@ static const struct vb2_ops wave5_vpu_dec_vb2_ops = {
 	.wait_prepare = vb2_ops_wait_prepare,
 	.wait_finish = vb2_ops_wait_finish,
 	.buf_init = wave5_vpu_dec_buf_init,
+	.buf_prepare = wave5_vpu_dec_buf_prepare,
 	.buf_queue = wave5_vpu_dec_buf_queue,
 	.start_streaming = wave5_vpu_dec_start_streaming,
 	.stop_streaming = wave5_vpu_dec_stop_streaming,

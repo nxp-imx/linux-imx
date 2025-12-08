@@ -43,6 +43,7 @@
 #define W5_DEC_CODEC_STEP_HEIGHT        1U
 #define W5_DEC_RAW_STEP_WIDTH           32U
 #define W5_DEC_RAW_STEP_HEIGHT          16U
+#define W5_DEC_ADDR_ALIGNMENT		16	//128-bit alignment
 
 #define W5_MAX_PIC_STRIDE               (W5_MAX_DEC_PIC_WIDTH * 4)
 #define W5_PIC_STRIDE_ALIGNMENT         32U

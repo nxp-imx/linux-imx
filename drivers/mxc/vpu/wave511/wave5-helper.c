@@ -408,3 +408,17 @@ void wave5_vpu_reset_performace(struct vpu_instance *inst)
 exit:
 	memset(&inst->performance, 0, sizeof(inst->performance));
 }
+
+dma_addr_t wave5_get_plane_dma_addr(struct vb2_buffer *buf, unsigned int plane_no)
+{
+	if (plane_no >= buf->num_planes)
+		return 0;
+	return vb2_dma_contig_plane_dma_addr(buf, plane_no) + buf->planes[plane_no].data_offset;
+}
+
+unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane_no)
+{
+	if (plane_no >= buf->num_planes)
+		return 0;
+	return vb2_get_plane_payload(buf, plane_no) - buf->planes[plane_no].data_offset;
+}

@@ -39,4 +39,6 @@ struct vb2_v4l2_buffer *wave5_vpu_get_linera_buffer(struct vpu_instance *inst,
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst);
 void wave5_vpu_handle_performance(struct vpu_instance *inst, struct vpu_dst_buffer *vpu_buf);
 void wave5_vpu_reset_performace(struct vpu_instance *inst);
+dma_addr_t wave5_get_plane_dma_addr(struct vb2_buffer *buf, unsigned int plane_no);
+unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane_no);
 #endif
