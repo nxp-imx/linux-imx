@@ -202,56 +202,29 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 {
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
 	struct vpu_dst_buffer *vpu_buf;
+	struct frame_buffer frame = {0};
 	int ret;
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
 
 		if (!vpu_buf->registered) {
-			if (inst->linear_frame_index >= WAVE5_MAX_FBS) {
-				dev_err(inst->dev->dev,
-					"Too many capture buffer(%d), only support %d\n",
-					v4l2_m2m_buf->vb.vb2_buf.index, WAVE5_MAX_FBS);
-				continue;
-			}
-
-			vpu_buf->frame_buffer_index = inst->linear_frame_index;
-			ret = wave5_vpu_dec_register_frame_buffer(inst, &v4l2_m2m_buf->vb.vb2_buf);
+			wave5_vpu_dec_fill_linera_frame(inst, &frame, &v4l2_m2m_buf->vb.vb2_buf);
+			ret = wave5_vpu_dec_register_display_buffer_ex(inst, &frame);
 			if (ret) {
 				dev_err(inst->dev->dev, "Fail to register capture buffer %d\n",
 					v4l2_m2m_buf->vb.vb2_buf.index);
 				continue;
 			}
 			vpu_buf->registered = true;
-			inst->linear_frame_index++;
-		}
-		if (vpu_buf->update) {
-			ret = wave5_vpu_dec_update_frame_buffer(inst, &v4l2_m2m_buf->vb.vb2_buf);
-			if (ret) {
-				dev_err(inst->dev->dev, "Fail to update capture buffer %d\n",
-					v4l2_m2m_buf->vb.vb2_buf.index);
-				continue;
-			}
-			vpu_buf->update = false;
-		}
-		if (vpu_buf->display) {
+		} else if (vpu_buf->display) {
 			vpu_buf->display = false;
-			ret = wave5_vpu_dec_clr_disp_flag(inst, vpu_buf->frame_buffer_index);
+			ret = wave5_vpu_dec_clr_disp_flag(inst, v4l2_m2m_buf->vb.vb2_buf.index);
 			if (ret)
 				dev_err(inst->dev->dev,
 					"Clearing the display flag of buffer index: %u, fail: %d\n",
-					vpu_buf->frame_buffer_index, ret);
+					v4l2_m2m_buf->vb.vb2_buf.index, ret);
 		}
-	}
-
-	if (inst->linear_frame_index && !inst->fbc_buf_registered) {
-		ret = wave5_vpu_dec_register_frame_buffer_ex(inst, inst->fbc_buf_count,
-							     inst->frame_buf[0].stride,
-							     inst->dst_fmt.height);
-		if (ret)
-			dev_err(inst->dev->dev, "vpu_dec_register_frame_buffer_ex fail: %d", ret);
-		else
-			inst->fbc_buf_registered = inst->fbc_buf_count;
 	}
 }
 
@@ -526,8 +499,6 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 		spin_lock_irqsave(&inst->state_spinlock, flags);
 		if (!v4l2_m2m_has_stopped(m2m_ctx)) {
 			if (dec_info.sequence_changed) {
-				inst->linear_frame_index = 0;
-				inst->fbc_buf_registered = 0;
 				inst->dynamic_source_change = true;
 				handle_dynamic_resolution_change(inst);
 			} else {
@@ -1194,11 +1165,17 @@ static int wave5_prepare_fb(struct vpu_instance *inst)
 		frame->update_fb_info = true;
 	}
 	/* In case the count has reduced, clean up leftover framebuffer memory */
-	for (i = non_linear_num; i < MAX_REG_FRAME; i++) {
+	for (i = non_linear_num; i < WAVE5_MAX_FBS; i++) {
 		ret = wave5_vpu_dec_reset_framebuffer(inst, i);
 		if (ret)
 			break;
 	}
+
+	ret = wave5_vpu_dec_register_frame_buffer_ex(inst, inst->fbc_buf_count,
+						     inst->frame_buf[0].stride,
+						     inst->dst_fmt.height);
+	if (ret)
+		dev_err(inst->dev->dev, "vpu_dec_register_frame_buffer_ex fail: %d", ret);
 
 	return 0;
 }
@@ -1320,12 +1297,14 @@ static int fill_ringbuffer(struct vpu_instance *inst)
 static int wave5_vpu_dec_buf_init(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
 
-	if (!vpu_buf->registered)
-		vpu_buf->frame_buffer_index = -1;
-	else
-		vpu_buf->update = true;
+	if (V4L2_TYPE_IS_CAPTURE(vb->type)) {
+		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
+
+		vpu_buf->registered = false;
+		vpu_buf->decoded = false;
+		vpu_buf->display = false;
+	}
 
 	return 0;
 }
@@ -1732,6 +1711,7 @@ static void wave5_vpu_dec_device_run(void *priv)
 		 */
 		wave5_vpu_dec_give_command(inst, DEC_GET_QUEUE_STATUS, &q_status);
 
+		wave5_handle_dst_buffer(inst);
 		/*
 		 * The sequence must be analyzed first to calculate the proper
 		 * size of the auxiliary buffers.

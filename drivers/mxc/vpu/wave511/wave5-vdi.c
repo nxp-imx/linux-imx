@@ -119,7 +119,7 @@ int wave5_vdi_allocate_array(struct device *dev, struct vpu_buf *array, unsigned
 		array[i] = vb_buf;
 	}
 
-	for (i = count; i < MAX_REG_FRAME; i++)
+	for (i = count; i < WAVE5_MAX_FBS; i++)
 		wave5_vdi_free_dma_memory(&array[i]);
 
 	return 0;

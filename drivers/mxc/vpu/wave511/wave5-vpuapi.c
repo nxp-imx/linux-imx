@@ -136,7 +136,7 @@ static int reset_auxiliary_buffers(struct vpu_instance *inst, unsigned int index
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 
-	if (index >= MAX_REG_FRAME)
+	if (index >= WAVE5_MAX_FBS)
 		return 1;
 
 	if (p_dec_info->vb_mv[index].size == 0 && p_dec_info->vb_fbc_y_tbl[index].size == 0 &&
@@ -182,7 +182,7 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 
 	dev_dbg(inst->dev->dev, "%s: dec_finish_seq complete\n", __func__);
 
-	for (i = 0 ; i < MAX_REG_FRAME; i++) {
+	for (i = 0 ; i < WAVE5_MAX_FBS; i++) {
 		ret = reset_auxiliary_buffers(inst, i);
 		if (ret) {
 			ret = 0;
@@ -238,8 +238,8 @@ int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initia
 	return ret;
 }
 
-static void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
-					    struct frame_buffer *frame, struct vb2_buffer *vb)
+void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
+				     struct frame_buffer *frame, struct vb2_buffer *vb)
 {
 	dma_addr_t buf_addr_y = 0;
 	dma_addr_t buf_addr_cb = 0;
@@ -284,62 +284,8 @@ static void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
 	frame->width = inst->src_fmt.width;
 	frame->stride = fb_stride;
 	frame->map_type = LINEAR_FRAME_MAP;
+	frame->index = vb->index;
 	frame->update_fb_info = true;
-}
-
-static int wave5_vpu_dec_set_frame_buffer(struct vpu_instance *inst,
-					  struct vb2_buffer *vb, int flag_update)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
-	struct vpu_device *vpu_dev = inst->dev;
-	struct frame_buffer *frame;
-	int ret;
-
-	if (vpu_buf->frame_buffer_index >= WAVE5_MAX_FBS)
-		return -EINVAL;
-
-	frame = &inst->frame_buf[inst->fbc_buf_count + vpu_buf->frame_buffer_index];
-
-	wave5_vpu_dec_fill_linera_frame(inst, frame, vb);
-	dev_dbg(inst->dev->dev, "%s linear[%d] vb2 index = %d %pad, %pad, %pad\n",
-		flag_update ? "Update" : "Registe",
-		vpu_buf->frame_buffer_index, vb->index,
-		&frame->buf_y, &frame->buf_cb, &frame->buf_cr);
-
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-	ret = wave5_vpu_dec_register_framebuffer(inst, frame, LINEAR_FRAME_MAP, 1,
-						 vpu_buf->frame_buffer_index, flag_update);
-	mutex_unlock(&vpu_dev->hw_lock);
-
-	if (ret) {
-		dev_err(inst->dev->dev, "%s linera frame %d fail, %d\n",
-			flag_update ? "Update" : "Registe", vpu_buf->frame_buffer_index, ret);
-		return ret;
-	}
-
-	return 0;
-}
-
-int wave5_vpu_dec_register_frame_buffer(struct vpu_instance *inst, struct vb2_buffer *vb)
-{
-	struct dec_info *p_dec_info;
-	int ret;
-
-	ret = wave5_vpu_dec_set_frame_buffer(inst, vb, 0);
-	if (ret)
-		return ret;
-
-	p_dec_info = &inst->codec_info->dec_info;
-	p_dec_info->num_of_display_fbs++;
-	return 0;
-}
-
-int wave5_vpu_dec_update_frame_buffer(struct vpu_instance *inst, struct vb2_buffer *vb)
-{
-	return wave5_vpu_dec_set_frame_buffer(inst, vb, 1);
 }
 
 int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of_decoding_fbs,
@@ -371,6 +317,34 @@ int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of
 	fb = inst->frame_buf;
 	ret = wave5_vpu_dec_register_framebuffer(inst, &fb[0], COMPRESSED_FRAME_MAP,
 						 p_dec_info->num_of_decoding_fbs, 0, 0);
+
+	mutex_unlock(&vpu_dev->hw_lock);
+
+	return ret;
+}
+
+int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct frame_buffer *frame)
+{
+	struct dec_info *p_dec_info;
+	int ret;
+	struct vpu_device *vpu_dev = inst->dev;
+
+	if (!frame || frame->index >= WAVE5_MAX_FBS)
+		return -EINVAL;
+
+	p_dec_info = &inst->codec_info->dec_info;
+
+	if (!p_dec_info->initial_info_obtained)
+		return -EINVAL;
+
+	dev_dbg(inst->dev->dev, "register linear[%d] %pad, %pad, %pad\n",
+		frame->index, &frame->buf_y, &frame->buf_cb, &frame->buf_cr);
+
+	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
+	if (ret)
+		return ret;
+
+	ret = wave5_vpu_dec_register_displaybuffer(inst, frame);
 
 	mutex_unlock(&vpu_dev->hw_lock);
 
@@ -519,7 +493,6 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 	struct dec_info *p_dec_info;
 	int ret;
 	struct vpu_rect rect_info;
-	u32 val;
 	u32 decoded_index;
 	u32 disp_idx;
 	u32 max_dec_index;
@@ -547,7 +520,6 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 	decoded_index = info->index_frame_decoded;
 
 	/* calculate display frame region */
-	val = 0;
 	rect_info.left = 0;
 	rect_info.right = 0;
 	rect_info.top = 0;
@@ -594,14 +566,12 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 	p_dec_info->stream_rd_ptr = wave5_dec_get_rd_ptr(inst);
 	p_dec_info->frame_display_flag = vpu_read_reg(vpu_dev, W5_RET_DEC_DISP_IDC);
 
-	val = p_dec_info->num_of_decoding_fbs; //fb_offset
-
 	max_dec_index = (p_dec_info->num_of_decoding_fbs > p_dec_info->num_of_display_fbs) ?
 		p_dec_info->num_of_decoding_fbs : p_dec_info->num_of_display_fbs;
 
 	if (info->index_frame_display >= 0 &&
 	    info->index_frame_display < (int)max_dec_index)
-		info->disp_frame = inst->frame_buf[val + info->index_frame_display];
+		info->disp_frame = p_dec_info->disp_buf[info->index_frame_display];
 
 	info->rd_ptr = p_dec_info->stream_rd_ptr;
 	info->wr_ptr = p_dec_info->stream_wr_ptr;
@@ -664,7 +634,7 @@ int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index)
 
 int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int index)
 {
-	if (index >= MAX_REG_FRAME)
+	if (index >= WAVE5_MAX_FBS)
 		return -EINVAL;
 
 	if (inst->frame_vbuf[index].size == 0)
@@ -691,17 +661,21 @@ int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 	case DEC_RESET_FRAMEBUF_INFO: {
 		int i;
 
-		for (i = 0; i < MAX_REG_FRAME; i++) {
+		for (i = 0; i < WAVE5_MAX_FBS; i++) {
 			ret = wave5_vpu_dec_reset_framebuffer(inst, i);
 			if (ret)
 				break;
 		}
 
-		for (i = 0; i < MAX_REG_FRAME; i++) {
+		for (i = 0; i < WAVE5_MAX_FBS; i++) {
 			ret = reset_auxiliary_buffers(inst, i);
 			if (ret)
 				break;
 		}
+
+		p_dec_info->num_of_display_fbs = 0;
+		for (i = 0; i < WAVE5_MAX_FBS; i++)
+			memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
 
 		wave5_vdi_free_dma_memory(&p_dec_info->vb_task);
 		break;

@@ -22,7 +22,6 @@
 
 struct vpu_src_buffer {
 	struct v4l2_m2m_buffer	v4l2_m2m_buf;
-	struct list_head	list;
 	bool			consumed;
 	ktime_t			ts_input;
 	ktime_t			ts_start;
@@ -33,8 +32,6 @@ struct vpu_dst_buffer {
 	bool			display;
 	bool			decoded;
 	bool			registered;
-	bool			update;
-	int			frame_buffer_index;
 	ktime_t			ts_input;
 	ktime_t			ts_start;
 	ktime_t			ts_finish;

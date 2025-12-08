@@ -75,6 +75,9 @@ int wave5_vpu_dec_register_framebuffer(struct vpu_instance *inst,
 				       unsigned int count,
 				       u32 index_offset, bool flag_update);
 
+int wave5_vpu_dec_register_displaybuffer(struct vpu_instance *inst,
+					 struct frame_buffer *fb_arr);
+
 int wave5_vpu_dec_init_seq(struct vpu_instance *inst);
 
 int wave5_vpu_dec_get_seq_info(struct vpu_instance *inst, struct dec_initial_info *info);

@@ -831,6 +831,103 @@ free_mv_buffers:
 	return ret;
 }
 
+int wave5_vpu_dec_register_displaybuffer(struct vpu_instance *inst,
+					 struct frame_buffer *fb_arr)
+{
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+	struct dec_initial_info *init_info = &p_dec_info->initial_info;
+	int ret;
+	u32 reg_val;
+	bool justified = WTL_RIGHT_JUSTIFIED;
+	u32 format_no = WTL_PIXEL_8BIT;
+	u32 color_format = 0;
+	u32 pixel_order = 1;
+	u32 bwb_flag = 1;
+	u32 scaler_flag = inst->scaler_info.enable;
+	bool update_fb = p_dec_info->disp_buf[fb_arr->index].update_fb_info;
+
+	reg_val = (init_info->pic_width << 16) | (init_info->pic_height);
+	if (inst->scaler_info.enable)
+		reg_val = (inst->scaler_info.width << 16) | (inst->scaler_info.height);
+	vpu_write_reg(inst->dev, W5_PIC_SIZE, reg_val);
+
+	if (inst->output_format == FORMAT_422 ||
+	    inst->output_format == FORMAT_422_P10_16BIT_MSB ||
+	    inst->output_format == FORMAT_422_P10_16BIT_LSB ||
+	    inst->output_format == FORMAT_422_P10_32BIT_MSB ||
+	    inst->output_format == FORMAT_422_P10_32BIT_LSB)
+		color_format = 1;
+
+	switch (inst->output_format) {
+	case FORMAT_420_P10_16BIT_MSB:
+	case FORMAT_422_P10_16BIT_MSB:
+		justified = WTL_RIGHT_JUSTIFIED;
+		format_no = WTL_PIXEL_16BIT;
+		break;
+	case FORMAT_420_P10_16BIT_LSB:
+	case FORMAT_422_P10_16BIT_LSB:
+		justified = WTL_LEFT_JUSTIFIED;
+		format_no = WTL_PIXEL_16BIT;
+		break;
+	case FORMAT_420_P10_32BIT_MSB:
+	case FORMAT_422_P10_32BIT_MSB:
+		justified = WTL_RIGHT_JUSTIFIED;
+		format_no = WTL_PIXEL_32BIT;
+		break;
+	case FORMAT_420_P10_32BIT_LSB:
+	case FORMAT_422_P10_32BIT_LSB:
+		justified = WTL_LEFT_JUSTIFIED;
+		format_no = WTL_PIXEL_32BIT;
+		break;
+	default:
+		break;
+	}
+
+	if (update_fb)
+		reg_val = fb_arr->stride << 16;
+	else
+		reg_val = (scaler_flag << 29) |
+			  (bwb_flag << 28) |
+			  (pixel_order << 23) |
+			  (justified << 22) |
+			  (format_no << 20) |
+			  (color_format << 19) |
+			  (inst->nv21 << 17) |
+			  (inst->cbcr_interleave << 16) |
+			  (fb_arr->stride);
+	vpu_write_reg(inst->dev, W5_COMMON_PIC_INFO, reg_val);
+
+	reg_val = (1 << 4) | ((!fb_arr->index && !update_fb) << 3) | update_fb;
+	vpu_write_reg(inst->dev, W5_SFB_OPTION, reg_val);
+
+	if (update_fb)
+		reg_val = (0xFF << 16) | (fb_arr->index << 8) | 0xFF;
+	else
+		reg_val = (fb_arr->index << 8) | fb_arr->index;
+	vpu_write_reg(inst->dev, W5_SET_FB_NUM, reg_val);
+
+	vpu_write_reg(inst->dev, W5_ADDR_LUMA_BASE0, fb_arr->buf_y);
+	vpu_write_reg(inst->dev, W5_ADDR_CB_BASE0, fb_arr->buf_cb);
+	vpu_write_reg(inst->dev, W5_ADDR_CR_BASE0, fb_arr->buf_cr);
+	vpu_write_reg(inst->dev, W5_ADDR_FBC_C_OFFSET0, 0);
+	vpu_write_reg(inst->dev, W5_ADDR_MV_COL0, 0);
+	vpu_write_reg(inst->dev, W5_ADDR_FBC_Y_BASE, 0);
+	vpu_write_reg(inst->dev, W5_ADDR_FBC_C_BASE, 0);
+	vpu_write_reg(inst->dev, W5_ADDR_FBC_Y_OFFSET, 0);
+	vpu_write_reg(inst->dev, W5_ADDR_FBC_C_OFFSET, 0);
+
+	ret = send_firmware_command(inst, W5_SET_FB, true, NULL, NULL);
+	if (ret)
+		return ret;
+
+	if (!update_fb)
+		p_dec_info->num_of_display_fbs++;
+
+	p_dec_info->disp_buf[fb_arr->index] = *fb_arr;
+
+	return 0;
+}
+
 static u32 wave5_vpu_dec_validate_sec_axi(struct vpu_instance *inst)
 {
 	u32 bitdepth = inst->codec_info->dec_info.initial_info.luma_bitdepth;

@@ -301,9 +301,7 @@ struct vb2_v4l2_buffer *wave5_vpu_get_linera_buffer(struct vpu_instance *inst,
 	struct vb2_v4l2_buffer *vbuf = NULL;
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-
-		if (vpu_buf->frame_buffer_index == index) {
+		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
 			vbuf = &v4l2_m2m_buf->vb;
 			break;
 		}
@@ -318,14 +316,17 @@ struct vb2_v4l2_buffer *wave5_vpu_get_linera_buffer(struct vpu_instance *inst,
 
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst)
 {
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	int unregisted_cnt = 0;
 	int available_cnt = 0;
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
 
 		if (!vpu_buf->registered) {
-			if (inst->linear_frame_index < WAVE5_MAX_FBS)
+			unregisted_cnt++;
+			if (p_dec_info->num_of_display_fbs + unregisted_cnt <= WAVE5_MAX_FBS)
 				available_cnt++;
 		} else if (!vpu_buf->decoded) {
 			available_cnt++;

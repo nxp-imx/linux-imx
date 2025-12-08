@@ -248,15 +248,13 @@ struct frame_buffer {
 	dma_addr_t buf_y;
 	dma_addr_t buf_cb;
 	dma_addr_t buf_cr;
-	unsigned int buf_y_size;
-	unsigned int buf_cb_size;
-	unsigned int buf_cr_size;
 	enum tiled_map_type map_type;
 	unsigned int stride; /* horizontal stride for the given frame buffer */
 	unsigned int width; /* width of the given frame buffer */
 	unsigned int height; /* height of the given frame buffer */
 	size_t size; /* size of the given frame buffer */
 	unsigned int sequence_no;
+	unsigned int index;
 	bool update_fb_info;
 };
 
@@ -393,9 +391,10 @@ struct dec_info {
 	dma_addr_t stream_buf_start_addr;
 	dma_addr_t stream_buf_end_addr;
 	u32 stream_buf_size;
-	struct vpu_buf vb_mv[MAX_REG_FRAME];
-	struct vpu_buf vb_fbc_y_tbl[MAX_REG_FRAME];
-	struct vpu_buf vb_fbc_c_tbl[MAX_REG_FRAME];
+	struct vpu_buf vb_mv[WAVE5_MAX_FBS];
+	struct vpu_buf vb_fbc_y_tbl[WAVE5_MAX_FBS];
+	struct vpu_buf vb_fbc_c_tbl[WAVE5_MAX_FBS];
+	struct frame_buffer disp_buf[WAVE5_MAX_FBS];
 	unsigned int num_of_decoding_fbs: 7;
 	unsigned int num_of_display_fbs: 7;
 	unsigned int stride;
@@ -496,10 +495,9 @@ struct vpu_instance {
 	union {
 		struct dec_info dec_info;
 	} *codec_info;
-	struct frame_buffer frame_buf[MAX_REG_FRAME];
-	struct vpu_buf frame_vbuf[MAX_REG_FRAME];
+	struct frame_buffer frame_buf[WAVE5_MAX_FBS];
+	struct vpu_buf frame_vbuf[WAVE5_MAX_FBS];
 	u32 fbc_buf_count;
-	u32 fbc_buf_registered;
 	u32 dsp_buf_count;
 	u32 queued_src_buf_num;
 	u32 queued_dst_buf_num;
@@ -523,8 +521,6 @@ struct vpu_instance {
 	atomic_t queued_dec_cmd;
 	struct work_struct cq_work;
 
-	u32 linear_frame_index;
-
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
 	struct vpu_performance_info performance;
@@ -539,10 +535,12 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res);
 int wave5_vpu_dec_issue_seq_init(struct vpu_instance *inst);
 int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initial_info *info);
-int wave5_vpu_dec_register_frame_buffer(struct vpu_instance *inst, struct vb2_buffer *vb);
-int wave5_vpu_dec_update_frame_buffer(struct vpu_instance *inst, struct vb2_buffer *vb);
+void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
+				     struct frame_buffer *frame, struct vb2_buffer *vb);
 int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of_decoding_fbs,
 					   int stride, int height);
+int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst,
+					     struct frame_buffer *frame);
 int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail);
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info);
 int wave5_vpu_dec_set_rd_ptr(struct vpu_instance *inst, dma_addr_t addr, int update_wr_ptr);
