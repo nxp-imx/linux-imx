@@ -1580,19 +1580,19 @@ static int spi_imx_dma_transfer(struct spi_imx_data *spi_imx,
 
 		spi_imx->devtype_data->trigger(spi_imx);
 
-		if (wait_for_completion_interruptible(&spi_imx->dma_tx_completion) ||
+		if (wait_for_completion_interruptible(&spi_imx->dma_rx_completion) ||
 			spi_imx->target_aborted) {
 			dev_dbg(spi_imx->dev,
-				"I/O Error in DMA TX interrupted\n");
+				"I/O Error in DMA RX interrupted\n");
 			dmaengine_terminate_all(controller->dma_tx);
 			dmaengine_terminate_all(controller->dma_rx);
 			return -EINTR;
 		}
 
-		if (wait_for_completion_interruptible(&spi_imx->dma_rx_completion) ||
+		if (wait_for_completion_interruptible(&spi_imx->dma_tx_completion) ||
 			spi_imx->target_aborted) {
 			dev_dbg(spi_imx->dev,
-				"I/O Error in DMA RX interrupted\n");
+				"I/O Error in DMA TX interrupted\n");
 			dmaengine_terminate_all(controller->dma_tx);
 			dmaengine_terminate_all(controller->dma_rx);
 			return -EINTR;
@@ -1834,7 +1834,18 @@ static int spi_imx_target_abort(struct spi_controller *controller)
 	struct spi_imx_data *spi_imx = spi_controller_get_devdata(controller);
 
 	spi_imx->target_aborted = true;
-	complete(&spi_imx->xfer_done);
+
+	if (spi_imx->target_mode && spi_imx->usedma) {
+		if (!completion_done(&spi_imx->dma_rx_completion))
+			complete(&spi_imx->dma_rx_completion);
+		dmaengine_terminate_sync(controller->dma_rx);
+
+		if (!completion_done(&spi_imx->dma_tx_completion))
+			complete(&spi_imx->dma_tx_completion);
+		dmaengine_terminate_sync(controller->dma_tx);
+	} else {
+		complete(&spi_imx->xfer_done);
+	}
 
 	return 0;
 }
