@@ -288,7 +288,7 @@ struct mxc_isi_m2m {
 struct mxc_isi_dev {
 	struct device			*dev;
 
-	const struct mxc_isi_plat_data	*pdata;
+	struct mxc_isi_plat_data	*pdata;
 
 	void __iomem			*regs;
 	struct clk_bulk_data		*clks;
