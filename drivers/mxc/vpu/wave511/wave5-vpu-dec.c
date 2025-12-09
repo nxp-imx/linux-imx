@@ -631,10 +631,8 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 
 exit:
 	scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
-		if (atomic_read(&inst->queued_dec_cmd) > atomic_read(&inst->feed_frame_cnt)) {
+		if (atomic_read(&inst->queued_dec_cmd) > atomic_read(&inst->feed_frame_cnt))
 			atomic_dec_if_positive(&inst->queued_dec_cmd);
-			wave5_vpu_cq_pop(inst->dev);
-		}
 	}
 
 	dev_dbg(inst->dev->dev, "%s: finishing job.\n", __func__);
@@ -1671,28 +1669,6 @@ static bool wave5_is_draining_or_eos(struct vpu_instance *inst)
 	return m2m_ctx->is_draining || inst->eos;
 }
 
-static void wave5_vpu_dec_cq_work(struct work_struct *work)
-{
-	struct vpu_instance *inst;
-	bool is_full = false;
-
-	if (!work)
-		return;
-	inst = container_of(work, struct vpu_instance, cq_work);
-
-	read_poll_timeout(wave5_vpu_cq_is_full, is_full,
-			  (!is_full || inst->state == VPU_INST_STATE_STOP),
-			  10, VPU_DEC_TIMEOUT_US, false, inst->dev);
-
-	if (inst->state == VPU_INST_STATE_STOP && inst->dynamic_source_change)
-		dev_dbg(inst->dev->dev, "Finish in source change\n");
-	else if (is_full)
-		dev_dbg(inst->dev->dev, "wait CQ timeout\n");
-	else
-		dev_dbg(inst->dev->dev, "CQ is ready\n");
-	v4l2_m2m_job_finish(inst->v4l2_m2m_dev, inst->v4l2_fh.m2m_ctx);
-}
-
 static void wave5_vpu_dec_device_run(void *priv)
 {
 	struct vpu_instance *inst = priv;
@@ -1717,10 +1693,7 @@ static void wave5_vpu_dec_device_run(void *priv)
 			dev_warn(inst->dev->dev, "ring buffer is empty\n");
 			break;
 		}
-		if (wave5_vpu_cq_push(inst->dev) < 0)
-			break;
 		ret = initialize_sequence(inst);
-		wave5_vpu_cq_pop(inst->dev);
 		if (ret) {
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
 				if (wave5_is_draining_or_eos(inst) &&
@@ -1779,21 +1752,12 @@ static void wave5_vpu_dec_device_run(void *priv)
 		wave5_handle_dst_buffer(inst);
 		if (inst->dynamic_source_change && atomic_read(&inst->queued_dec_cmd))
 			break;
-		if (wave5_vpu_cq_push(inst->dev) < 0)
-			break;
 		ret = start_decode(inst, &fail_res);
 		if (ret) {
 			dev_err(inst->dev->dev,
 				"Frame decoding on m2m context (%p), fail: %d (result: %d)\n",
 				m2m_ctx, ret, fail_res);
-			wave5_vpu_cq_pop(inst->dev);
 			break;
-		}
-		if (wave5_vpu_cq_is_full(inst->dev)) {
-			dev_dbg(inst->dev->dev, "CQ is full, check later\n");
-			/*finish job when CQ is ready*/
-			queue_work(inst->dev->workqueue, &inst->cq_work);
-			return;
 		}
 		/* Return so that we leave this job active */
 		dev_dbg(inst->dev->dev, "%s: leave with active job", __func__);
@@ -1861,6 +1825,8 @@ static int wave5_vpu_dec_job_ready(void *priv)
 		ret = 1;
 		break;
 	case VPU_INST_STATE_PIC_RUN:
+		if (atomic_read(&inst->queued_dec_cmd) >= wave5_vpu_cq_depth(inst->dev))
+			break;
 		if (wave5_vpu_check_input(inst) &&
 		    wave5_vpu_check_fb_available(inst))
 			ret = 1;
@@ -1908,7 +1874,6 @@ static int wave5_vpu_open_dec(struct file *filp)
 	atomic_set(&inst->feed_frame_cnt, 0);
 	atomic_set(&inst->queued_dec_cmd, 0);
 	INIT_LIST_HEAD(&inst->list);
-	INIT_WORK(&inst->cq_work, wave5_vpu_dec_cq_work);
 
 	inst->v4l2_m2m_dev = inst->dev->v4l2_m2m_dec_dev;
 	inst->v4l2_fh.m2m_ctx =

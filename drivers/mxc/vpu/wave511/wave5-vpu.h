@@ -76,9 +76,6 @@ int wave5_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout);
 int  wave5_vpu_dec_register_device(struct vpu_device *dev);
 void wave5_vpu_dec_unregister_device(struct vpu_device *dev);
 
-bool wave5_vpu_cq_is_full(struct vpu_device *vpu_dev);
 u32 wave5_vpu_cq_depth(struct vpu_device *vpu_dev);
-int wave5_vpu_cq_push(struct vpu_device *vpu_dev);
-void wave5_vpu_cq_pop(struct vpu_device *vpu_dev);
 
 #endif

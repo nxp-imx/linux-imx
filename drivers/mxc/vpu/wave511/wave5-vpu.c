@@ -195,49 +195,33 @@ u32 wave5_vpu_cq_depth(struct vpu_device *vpu_dev)
 		return WAVE521_COMMAND_QUEUE_DEPTH;
 }
 
-static int wave5_vpu_cq_wait_empty(struct vpu_device *vpu_dev)
+static bool wave5_vpu_cq_is_empty(struct vpu_device *vpu_dev)
 {
-	const unsigned long timeout = wave5_vpu_cq_depth(vpu_dev) * VPU_DEC_TIMEOUT_US;
-	int count;
+	struct vpu_instance *inst;
+
+	scoped_guard(spinlock, &vpu_dev->inst_lock) {
+		list_for_each_entry(inst, &vpu_dev->instances, list) {
+			if (atomic_read(&inst->queued_dec_cmd))
+				return false;
+		}
+	}
+
+	return true;
+}
+
+static int wave5_vpu_cq_wait_empty(struct vpu_device *dev)
+{
+	const unsigned long timeout = wave5_vpu_cq_depth(dev) * VPU_DEC_TIMEOUT_US;
+	bool empty;
 	int ret;
 
-	ret = read_poll_timeout(atomic_read, count, count == 0, 10,
-				timeout, false, &vpu_dev->cq_count);
+	ret = read_poll_timeout(wave5_vpu_cq_is_empty, empty, empty, 10, timeout, false, dev);
 	if (ret) {
-		dev_err(vpu_dev->dev, "wait CQ empty timeout\n");
+		dev_err(dev->dev, "wait CQ empty timeout\n");
 		return ret;
 	}
 
 	return 0;
-}
-
-bool wave5_vpu_cq_is_full(struct vpu_device *vpu_dev)
-{
-	return atomic_read(&vpu_dev->cq_count) >= wave5_vpu_cq_depth(vpu_dev) ? true : false;
-}
-
-static int wave5_vpu_cq_wait(struct vpu_device *vpu_dev)
-{
-	bool is_full;
-
-	return read_poll_timeout(wave5_vpu_cq_is_full, is_full, !is_full, 10,
-				 VPU_DEC_TIMEOUT_US, false, vpu_dev);
-}
-
-int wave5_vpu_cq_push(struct vpu_device *vpu_dev)
-{
-	if (wave5_vpu_cq_wait(vpu_dev)) {
-		dev_err(vpu_dev->dev, "wait cq timeout\n");
-		return -ENOSPC;
-	}
-
-	atomic_inc_return(&vpu_dev->cq_count);
-	return 0;
-}
-
-void wave5_vpu_cq_pop(struct vpu_device *vpu_dev)
-{
-	atomic_dec_if_positive(&vpu_dev->cq_count);
 }
 
 void wave5_vpu_pause(struct device *dev, int resume)
@@ -321,7 +305,6 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	mutex_init(&dev->hw_lock);
 	spin_lock_init(&dev->inst_lock);
 	mutex_init(&dev->pause_lock);
-	atomic_set(&dev->cq_count, 0);
 	dev_set_drvdata(&pdev->dev, dev);
 	dev->dev = &pdev->dev;
 
@@ -382,16 +365,10 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dev->instances);
 	pm_runtime_enable(&pdev->dev);
 
-	dev->workqueue = alloc_ordered_workqueue("wave5-vpu", WQ_MEM_RECLAIM);
-	if (!dev->workqueue) {
-		dev_err(&pdev->dev, "alloc wave6 workqueue fail\n");
-		goto err_temp_vbuf_free;
-	}
-
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
 	if (ret) {
 		dev_err(&pdev->dev, "v4l2_device_register, fail: %d\n", ret);
-		goto err_workqueue_destroy;
+		goto err_temp_vbuf_free;
 	}
 
 	if (match_data->flags & WAVE5_IS_DEC) {
@@ -418,11 +395,6 @@ err_dec_unreg:
 		wave5_vpu_dec_unregister_device(dev);
 err_v4l2_unregister:
 	v4l2_device_unregister(&dev->v4l2_dev);
-err_workqueue_destroy:
-	if (dev->workqueue) {
-		destroy_workqueue(dev->workqueue);
-		dev->workqueue = NULL;
-	}
 err_temp_vbuf_free:
 	wave5_vdi_free_dma_memory(&dev->temp_vbuf);
 err_reset_assert:
@@ -435,10 +407,6 @@ static void wave5_vpu_remove(struct platform_device *pdev)
 {
 	struct vpu_device *dev = dev_get_drvdata(&pdev->dev);
 
-	if (dev->workqueue) {
-		destroy_workqueue(dev->workqueue);
-		dev->workqueue = NULL;
-	}
 	if (dev->ctrl && wave5_vpu_ctrl_support_follower(dev->ctrl)) {
 		if (!pm_runtime_suspended(&pdev->dev))
 			pm_runtime_put_sync(&pdev->dev);

@@ -456,9 +456,6 @@ struct vpu_device {
 	int vpu_poll_interval;
 	int num_clks;
 	struct reset_control *resets;
-	struct workqueue_struct *workqueue;
-
-	atomic_t cq_count;
 };
 
 struct vpu_instance;
@@ -525,7 +522,6 @@ struct vpu_instance {
 	u32 sram_size;
 	atomic_t feed_frame_cnt;
 	atomic_t queued_dec_cmd;
-	struct work_struct cq_work;
 
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
