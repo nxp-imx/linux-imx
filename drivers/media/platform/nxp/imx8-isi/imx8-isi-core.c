@@ -22,6 +22,7 @@
 #include <media/v4l2-async.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mc.h>
+#include <linux/sys_soc.h>
 
 #include "imx8-isi-core.h"
 
@@ -417,7 +418,7 @@ static const struct mxc_isi_plat_data mxc_imx8qxp_data = {
 	.set_thd		= &mxc_imx8_isi_thd_v1,
 	.clks			= mxc_imx8qxp_clks,
 	.num_clks		= ARRAY_SIZE(mxc_imx8qxp_clks),
-	.buf_active_reverse	= true,
+	.buf_active_reverse	= false,
 	.has_36bit_dma		= false,
 };
 
@@ -530,6 +531,27 @@ static int mxc_isi_clk_get(struct mxc_isi_dev *isi)
 	return 0;
 }
 
+static const struct soc_device_attribute imx8_soc[] = {
+	{
+		.soc_id   = "i.MX8QXP",
+		.revision = "1.0",
+	}, {
+		.soc_id   = "i.MX8QXP",
+		.revision = "1.1",
+	}, {
+		.soc_id   = "i.MX8QXP",
+		.revision = "1.2",
+	}, {
+		.soc_id   = "i.MX8QM",
+		.revision = "1.0",
+	}, {
+		.soc_id   = "i.MX8QM",
+		.revision = "1.1",
+	}, {
+		/* sentinel */
+	},
+};
+
 static int mxc_isi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -537,6 +559,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	unsigned int dma_size;
 	unsigned int i;
 	int ret = 0;
+	const struct soc_device_attribute *match = NULL;
 
 	isi = devm_kzalloc(dev, sizeof(*isi), GFP_KERNEL);
 	if (!isi)
@@ -546,6 +569,16 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, isi);
 
 	isi->pdata = of_device_get_match_data(dev);
+
+	match = soc_device_match(imx8_soc);
+	if (match) {
+		dev_info(dev, "%s: soc %s, revision %s\n", __func__, match->soc_id, match->revision);
+		/* Chip C0 */
+		if ((!strcmp(match->soc_id, "i.MX8QXP") || !strcmp(match->soc_id, "i.MX8QM")) &&
+				(strcmp(match->revision, "1.1") > 0)) {
+			isi->pdata->buf_active_reverse = true;
+		}
+	}
 
 	isi->pipes = kcalloc(isi->pdata->num_channels, sizeof(isi->pipes[0]),
 			     GFP_KERNEL);
