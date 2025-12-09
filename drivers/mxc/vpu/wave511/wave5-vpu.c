@@ -55,6 +55,9 @@ static struct vpu_instance *wave5_vpu_get_instance(struct vpu_device *dev, u32 m
 {
 	struct vpu_instance *inst = NULL;
 
+	if (!mask)
+		return NULL;
+
 	scoped_guard(spinlock, &dev->inst_lock) {
 		list_for_each_entry(inst, &dev->instances, list) {
 			if (mask & BIT(inst->id))
@@ -76,8 +79,6 @@ static void wave5_vpu_handle_irq(void *dev_id)
 	irq_reason = wave5_vdi_read_register(dev, W5_VPU_VINT_REASON);
 	seq_done = wave5_vdi_read_register(dev, W5_RET_SEQ_DONE_INSTANCE_INFO);
 	cmd_done = wave5_vdi_read_register(dev, W5_RET_QUEUE_CMD_DONE_INST);
-	wave5_vdi_write_register(dev, W5_VPU_VINT_REASON_CLR, irq_reason);
-	wave5_vdi_write_register(dev, W5_VPU_VINT_CLEAR, 0x1);
 
 	dev_dbg(dev->dev, "wave5 irq 0x%x, done = 0x%x, 0x%x\n", irq_reason, seq_done, cmd_done);
 
@@ -89,36 +90,35 @@ static void wave5_vpu_handle_irq(void *dev_id)
 
 		if (irq_reason & BIT(INT_WAVE5_INIT_SEQ)) {
 			if (dev->product_code == WAVE515_CODE) {
-				if (cmd_done & mask) {
+				inst = wave5_vpu_get_instance(dev, mask & cmd_done);
+				if (inst) {
 					cmd_done &= ~mask;
 					wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST,
 								 cmd_done);
-					inst = wave5_vpu_get_instance(dev, mask);
-					if (inst)
-						complete(&inst->irq_done);
+					complete(&inst->irq_done);
 				}
 			} else {
-				if (seq_done & mask) {
+				inst = wave5_vpu_get_instance(dev, mask & seq_done);
+				if (inst) {
 					seq_done &= ~mask;
 					wave5_vdi_write_register(dev, W5_RET_SEQ_DONE_INSTANCE_INFO,
 								 seq_done);
-					inst = wave5_vpu_get_instance(dev, mask);
-					if (inst)
-						complete(&inst->irq_done);
+					complete(&inst->irq_done);
 				}
 			}
 		}
 		if (irq_reason & BIT(INT_WAVE5_DEC_PIC)) {
-			if (cmd_done & mask) {
+			inst = wave5_vpu_get_instance(dev, mask & cmd_done);
+			if (inst) {
 				cmd_done &= ~mask;
-				wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST,
-							 cmd_done);
-				inst = wave5_vpu_get_instance(dev, mask);
-				if (inst)
-					inst->ops->finish_process(inst);
+				wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST, cmd_done);
+				inst->ops->finish_process(inst);
 			}
 		}
 	}
+
+	wave5_vdi_write_register(dev, W5_VPU_VINT_REASON_CLR, irq_reason);
+	wave5_vdi_write_register(dev, W5_VPU_VINT_CLEAR, 0x1);
 	wave5_vpu_clear_interrupt(dev, irq_reason);
 }
 
