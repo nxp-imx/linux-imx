@@ -117,10 +117,7 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	buffer_size = open_param->bitstream_buffer_size;
 	p_dec_info->stream_wr_ptr = buffer_addr;
 	p_dec_info->stream_rd_ptr = buffer_addr;
-	p_dec_info->stream_buf_start_addr = buffer_addr;
-	p_dec_info->pic_start_addr = buffer_addr;
 	p_dec_info->stream_buf_size = buffer_size;
-	p_dec_info->stream_buf_end_addr = buffer_addr + buffer_size;
 	p_dec_info->reorder_enable = open_param->reorder_enable;
 	p_dec_info->temp_id_select_mode = TEMPORAL_ID_MODE_ABSOLUTE;
 	p_dec_info->target_temp_id = DECODE_ALL_TEMPORAL_LAYERS;
@@ -351,86 +348,6 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct f
 	return ret;
 }
 
-int wave5_vpu_dec_get_bitstream_buffer(struct vpu_instance *inst, dma_addr_t *prd_ptr,
-				       dma_addr_t *pwr_ptr, size_t *size)
-{
-	struct dec_info *p_dec_info;
-	dma_addr_t rd_ptr;
-	dma_addr_t wr_ptr;
-	int room;
-	struct vpu_device *vpu_dev = inst->dev;
-	int ret;
-
-	p_dec_info = &inst->codec_info->dec_info;
-
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-	rd_ptr = wave5_dec_get_rd_ptr(inst);
-	mutex_unlock(&vpu_dev->hw_lock);
-
-	wr_ptr = p_dec_info->stream_wr_ptr;
-
-	if (wr_ptr < rd_ptr)
-		room = rd_ptr - wr_ptr;
-	else
-		room = (p_dec_info->stream_buf_end_addr - wr_ptr) +
-			(rd_ptr - p_dec_info->stream_buf_start_addr);
-	room--;
-
-	if (prd_ptr)
-		*prd_ptr = rd_ptr;
-	if (pwr_ptr)
-		*pwr_ptr = wr_ptr;
-	if (size)
-		*size = room;
-
-	return 0;
-}
-
-int wave5_vpu_dec_update_bitstream_buffer(struct vpu_instance *inst, size_t size)
-{
-	struct dec_info *p_dec_info;
-	dma_addr_t wr_ptr;
-	dma_addr_t rd_ptr;
-	int ret;
-	struct vpu_device *vpu_dev = inst->dev;
-
-	if (!inst->codec_info)
-		return -EINVAL;
-
-	p_dec_info = &inst->codec_info->dec_info;
-	wr_ptr = p_dec_info->stream_wr_ptr;
-	rd_ptr = p_dec_info->stream_rd_ptr;
-
-	if (size > 0) {
-		if (wr_ptr < rd_ptr && rd_ptr <= wr_ptr + size)
-			return -EINVAL;
-
-		wr_ptr += size;
-
-		if (wr_ptr > p_dec_info->stream_buf_end_addr) {
-			u32 room = wr_ptr - p_dec_info->stream_buf_end_addr;
-
-			wr_ptr = p_dec_info->stream_buf_start_addr;
-			wr_ptr += room;
-		} else if (wr_ptr == p_dec_info->stream_buf_end_addr) {
-			wr_ptr = p_dec_info->stream_buf_start_addr;
-		}
-
-		p_dec_info->stream_wr_ptr = wr_ptr;
-		p_dec_info->stream_rd_ptr = rd_ptr;
-	}
-
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-	ret = wave5_vpu_dec_set_bitstream_flag(inst, (size == 0));
-	mutex_unlock(&vpu_dev->hw_lock);
-
-	return ret;
-}
-
 int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
@@ -451,41 +368,14 @@ int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 	return ret;
 }
 
-int wave5_vpu_dec_set_rd_ptr(struct vpu_instance *inst, dma_addr_t addr, int update_wr_ptr)
+void wave5_vpu_dec_reset_bitstream(struct vpu_instance *inst)
 {
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	int ret;
-	struct vpu_device *vpu_dev = inst->dev;
+	struct dec_info *p_dec_info;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-
-	ret = wave5_dec_set_rd_ptr(inst, addr);
-
-	p_dec_info->stream_rd_ptr = addr;
-	if (update_wr_ptr)
-		p_dec_info->stream_wr_ptr = addr;
-
-	mutex_unlock(&vpu_dev->hw_lock);
-
-	return ret;
-}
-
-dma_addr_t wave5_vpu_dec_get_rd_ptr(struct vpu_instance *inst)
-{
-	int ret;
-	dma_addr_t rd_ptr;
-
-	ret = mutex_lock_interruptible(&inst->dev->hw_lock);
-	if (ret)
-		return ret;
-
-	rd_ptr = wave5_dec_get_rd_ptr(inst);
-
-	mutex_unlock(&inst->dev->hw_lock);
-
-	return rd_ptr;
+	p_dec_info = &inst->codec_info->dec_info;
+	p_dec_info->pic_start_addr = 0;
+	p_dec_info->stream_rd_ptr = 0;
+	p_dec_info->stream_wr_ptr = 0;
 }
 
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info)

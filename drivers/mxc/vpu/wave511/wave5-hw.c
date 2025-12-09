@@ -430,8 +430,8 @@ int wave5_vpu_build_up_dec_param(struct vpu_instance *inst,
 
 	vpu_write_reg(inst->dev, W5_CMD_ADDR_TEMP_BASE, vpu_dev->temp_vbuf.daddr);
 	vpu_write_reg(inst->dev, W5_CMD_TEMP_SIZE, vpu_dev->temp_vbuf.size);
-	vpu_write_reg(inst->dev, W5_CMD_DEC_BS_START_ADDR, p_dec_info->stream_buf_start_addr);
-	vpu_write_reg(inst->dev, W5_CMD_DEC_BS_SIZE, p_dec_info->stream_buf_size);
+	vpu_write_reg(inst->dev, W5_CMD_DEC_BS_START_ADDR, 0);
+	vpu_write_reg(inst->dev, W5_CMD_DEC_BS_SIZE, 0);
 	vpu_write_reg(inst->dev, W5_CMD_ERR_CONCEAL, 0);
 	vpu_write_reg(inst->dev, W5_CMD_USER_DEFINED_ID, 0);
 
@@ -483,7 +483,7 @@ int wave5_vpu_hw_flush_instance(struct vpu_instance *inst)
 
 static u32 get_bitstream_options(struct dec_info *info)
 {
-	u32 bs_option = BSOPTION_ENABLE_EXPLICIT_END;
+	u32 bs_option = BSOPTION_ENABLE_EXPLICIT_END | BSOPTION_RD_PTR_VALID_FLAG;
 
 	if (info->stream_endflag)
 		bs_option |= BSOPTION_HIGHLIGHT_STREAM_END;
@@ -1003,7 +1003,7 @@ int wave5_vpu_decode(struct vpu_instance *inst, u32 *fail_res)
 	dev_dbg(inst->dev->dev, "DEC_PIC, rd_ptr %pad, wr_ptr %pad\n",
 		&p_dec_info->pic_start_addr, &p_dec_info->stream_wr_ptr);
 	if (p_dec_info->pic_start_addr == p_dec_info->stream_wr_ptr)
-		wave5_vpu_dec_set_bitstream_flag(inst, true);
+		p_dec_info->stream_endflag = true;
 	vpu_write_reg(inst->dev, W5_BS_RD_PTR, p_dec_info->pic_start_addr);
 	vpu_write_reg(inst->dev, W5_BS_WR_PTR, p_dec_info->stream_wr_ptr);
 
@@ -1237,17 +1237,6 @@ int wave5_vpu_dec_finish_seq(struct vpu_instance *inst, u32 *fail_res)
 	return send_firmware_command(inst, W5_DESTROY_INSTANCE, true, NULL, fail_res);
 }
 
-int wave5_vpu_dec_set_bitstream_flag(struct vpu_instance *inst, bool eos)
-{
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-
-	p_dec_info->stream_endflag = eos ? 1 : 0;
-	vpu_write_reg(inst->dev, W5_BS_OPTION, get_bitstream_options(p_dec_info));
-	vpu_write_reg(inst->dev, W5_BS_WR_PTR, p_dec_info->stream_wr_ptr);
-
-	return send_firmware_command(inst, W5_UPDATE_BS, true, NULL, NULL);
-}
-
 int wave5_dec_clr_disp_flag(struct vpu_instance *inst, unsigned int index)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
@@ -1279,13 +1268,13 @@ int wave5_dec_set_disp_flag(struct vpu_instance *inst, unsigned int index)
 	return 0;
 }
 
-int wave5_vpu_clear_interrupt(struct vpu_instance *inst, u32 flags)
+int wave5_vpu_clear_interrupt(struct vpu_device *dev, u32 flags)
 {
 	u32 interrupt_reason;
 
-	interrupt_reason = vpu_read_reg(inst->dev, W5_VPU_VINT_REASON_USR);
+	interrupt_reason = vpu_read_reg(dev, W5_VPU_VINT_REASON_USR);
 	interrupt_reason &= ~flags;
-	vpu_write_reg(inst->dev, W5_VPU_VINT_REASON_USR, interrupt_reason);
+	vpu_write_reg(dev, W5_VPU_VINT_REASON_USR, interrupt_reason);
 
 	return 0;
 }
@@ -1299,15 +1288,4 @@ dma_addr_t wave5_dec_get_rd_ptr(struct vpu_instance *inst)
 		return inst->codec_info->dec_info.stream_rd_ptr;
 
 	return vpu_read_reg(inst->dev, W5_RET_QUERY_DEC_BS_RD_PTR);
-}
-
-int wave5_dec_set_rd_ptr(struct vpu_instance *inst, dma_addr_t addr)
-{
-	int ret;
-
-	vpu_write_reg(inst->dev, W5_RET_QUERY_DEC_SET_BS_RD_PTR, addr);
-
-	ret = wave5_send_query(inst->dev, inst, SET_BS_RD_PTR);
-
-	return ret;
 }

@@ -66,8 +66,6 @@ int wave5_vpu_reset(struct device *dev, enum sw_reset_mode reset_mode);
 
 int wave5_vpu_build_up_dec_param(struct vpu_instance *inst, struct dec_open_param *param);
 
-int wave5_vpu_dec_set_bitstream_flag(struct vpu_instance *inst, bool eos);
-
 int wave5_vpu_hw_flush_instance(struct vpu_instance *inst);
 
 int wave5_vpu_dec_register_framebuffer(struct vpu_instance *inst,
@@ -92,10 +90,8 @@ int wave5_dec_clr_disp_flag(struct vpu_instance *inst, unsigned int index);
 
 int wave5_dec_set_disp_flag(struct vpu_instance *inst, unsigned int index);
 
-int wave5_vpu_clear_interrupt(struct vpu_instance *inst, u32 flags);
+int wave5_vpu_clear_interrupt(struct vpu_device *dev, u32 flags);
 
 dma_addr_t wave5_dec_get_rd_ptr(struct vpu_instance *inst);
-
-int wave5_dec_set_rd_ptr(struct vpu_instance *inst, dma_addr_t addr);
 
 #endif /* __WAVE5_FUNCTION_H__ */

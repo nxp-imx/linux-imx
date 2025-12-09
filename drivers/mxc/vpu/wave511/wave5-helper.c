@@ -102,17 +102,13 @@ void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp)
 	for (i = 0; i < inst->fbc_buf_count; i++)
 		wave5_vpu_dec_reset_framebuffer(inst, i);
 
-	wave5_vdi_free_dma_memory(&inst->bitstream_vbuf);
-
-	if (!pm_runtime_suspended(inst->dev->dev))
-		pm_runtime_put_sync(inst->dev->dev);
-
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	if (inst->v4l2_fh.vdev) {
 		v4l2_fh_del(&inst->v4l2_fh, filp);
 		v4l2_fh_exit(&inst->v4l2_fh);
 	}
-	list_del_init(&inst->list);
+	scoped_guard(spinlock, &inst->dev->inst_lock)
+		list_del_init(&inst->list);
 	kfree(inst->codec_info);
 	kfree(inst);
 }
@@ -139,6 +135,8 @@ int wave5_vpu_release_device(struct file *filp,
 			dev_err(inst->dev->dev, "%s close, fail: %d\n", name, ret);
 			return ret;
 		}
+		if (!pm_runtime_suspended(inst->dev->dev))
+			pm_runtime_put_sync(inst->dev->dev);
 	}
 
 	wave5_cleanup_instance(inst, filp);
@@ -300,6 +298,8 @@ struct vb2_v4l2_buffer *wave5_vpu_get_linera_buffer(struct vpu_instance *inst,
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
 	struct vb2_v4l2_buffer *vbuf = NULL;
 
+	lockdep_assert_held(&inst->state_spinlock);
+
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
 			vbuf = &v4l2_m2m_buf->vb;
@@ -320,6 +320,8 @@ bool wave5_vpu_check_fb_available(struct vpu_instance *inst)
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
 	int unregisted_cnt = 0;
 	int available_cnt = 0;
+
+	lockdep_assert_held(&inst->state_spinlock);
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);

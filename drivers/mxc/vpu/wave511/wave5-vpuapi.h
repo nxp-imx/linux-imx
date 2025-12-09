@@ -398,8 +398,6 @@ struct dec_info {
 	dma_addr_t stream_wr_ptr;
 	dma_addr_t stream_rd_ptr;
 	u32 frame_display_flag;
-	dma_addr_t stream_buf_start_addr;
-	dma_addr_t stream_buf_end_addr;
 	u32 stream_buf_size;
 	struct vpu_buf vb_mv[WAVE5_MAX_FBS];
 	struct vpu_buf vb_fbc_y_tbl[WAVE5_MAX_FBS];
@@ -434,6 +432,7 @@ struct vpu_device {
 	struct v4l2_device v4l2_dev;
 	struct v4l2_m2m_dev *v4l2_m2m_dec_dev;
 	struct list_head instances;
+	spinlock_t inst_lock; /* lock instance list */
 	struct video_device *video_dev_dec;
 	struct mutex dev_lock; /* lock for the src, dst v4l2 queues */
 	struct mutex hw_lock; /* lock hw configurations */
@@ -521,9 +520,6 @@ struct vpu_instance {
 	bool nv21;
 	bool eos;
 	bool dynamic_source_change;
-	struct vpu_buf bitstream_vbuf;
-	dma_addr_t last_rd_ptr;
-	size_t remaining_consumed_bytes;
 	bool needs_reallocation;
 	struct dec_scaler_info scaler_info;
 	u32 sram_size;
@@ -553,13 +549,9 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst,
 					     struct frame_buffer *frame);
 int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail);
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info);
-int wave5_vpu_dec_set_rd_ptr(struct vpu_instance *inst, dma_addr_t addr, int update_wr_ptr);
-dma_addr_t wave5_vpu_dec_get_rd_ptr(struct vpu_instance *inst);
+void wave5_vpu_dec_reset_bitstream(struct vpu_instance *inst);
 int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int index);
 int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd, void *parameter);
-int wave5_vpu_dec_get_bitstream_buffer(struct vpu_instance *inst, dma_addr_t *prd_ptr,
-				       dma_addr_t *pwr_ptr, size_t *size);
-int wave5_vpu_dec_update_bitstream_buffer(struct vpu_instance *inst, size_t size);
 int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);
 int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index);
 
