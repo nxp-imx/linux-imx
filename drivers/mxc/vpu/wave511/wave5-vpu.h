@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - basic types
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 #ifndef __VPU_DRV_H__
 #define __VPU_DRV_H__
@@ -28,7 +28,7 @@ struct vpu_src_buffer {
 };
 
 struct vpu_dst_buffer {
-	struct v4l2_m2m_buffer v4l2_m2m_buf;
+	struct v4l2_m2m_buffer	v4l2_m2m_buf;
 	bool			display;
 	bool			decoded;
 	bool			registered;

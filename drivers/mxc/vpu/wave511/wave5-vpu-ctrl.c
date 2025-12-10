@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - vpu control device
  *
- * Copyright (C) 2024 CHIPS&MEDIA INC
+ * Copyright (C) 2024-2026 CHIPS&MEDIA INC
  */
 
 #include <linux/kernel.h>
@@ -33,6 +33,15 @@
 
 static unsigned int debug;
 module_param(debug, uint, 0644);
+
+#define call_read_reg(entity, args...)					\
+	((entity)->read_reg ? (entity)->read_reg((entity)->dev, ##args) : 0)
+
+#define call_void_op(entity, op, args...)				\
+	do {								\
+		if ((entity)->op)					\
+			(entity)->op((entity)->dev, ##args);		\
+	} while (0)
 
 #define dprintk(dev, fmt, arg...)					\
 	do {								\
@@ -70,7 +79,7 @@ struct vpu_ctrl_resource {
 #define W5_NXP_SW_UART_LOGER                         (W5_REG_BASE + 0x00f0)
 #define TRACEBUF_SIZE                                SZ_64K
 
-static unsigned int enable_fwlog = 1;
+static unsigned int enable_fwlog;
 module_param(enable_fwlog, uint, 0644);
 
 struct loger_t {
@@ -151,12 +160,12 @@ static void wave5_vpu_ctrl_free_loger(struct vpu_ctrl *ctrl)
 static void wave5_vpu_ctrl_start_loger(struct vpu_ctrl *ctrl, struct wave5_vpu_entity *entity)
 {
 	if (enable_fwlog)
-		entity->write_reg(entity->dev, W5_NXP_SW_UART_LOGER, (u32)ctrl->loger_buf.daddr);
+		call_void_op(entity, write_reg, W5_NXP_SW_UART_LOGER, (u32)ctrl->loger_buf.daddr);
 }
 
 static void wave5_vpu_ctrl_stop_loger(struct vpu_ctrl *ctrl, struct wave5_vpu_entity *entity)
 {
-	entity->write_reg(entity->dev, W5_NXP_SW_UART_LOGER, 0);
+	call_void_op(entity, write_reg, W5_NXP_SW_UART_LOGER, 0);
 }
 
 static int wave5_vpu_loger_show(struct seq_file *s, void *data)
@@ -372,6 +381,9 @@ static int wave5_vpu_ctrl_wait_busy(struct wave5_vpu_entity *entity, unsigned in
 {
 	u32 val;
 
+	if (!entity || !entity->read_reg)
+		return -EINVAL;
+
 	return read_poll_timeout(entity->read_reg, val, val == 0,
 				 10, VPU_BUSY_CHECK_TIMEOUT, false,
 				 entity->dev, addr);
@@ -379,10 +391,13 @@ static int wave5_vpu_ctrl_wait_busy(struct wave5_vpu_entity *entity, unsigned in
 
 static int wave5_vpu_ctrl_check_result(struct wave5_vpu_entity *entity)
 {
-	if (entity->read_reg(entity->dev, W5_RET_SUCCESS))
+	if (!entity)
+		return -EINVAL;
+
+	if (call_read_reg(entity, W5_RET_SUCCESS))
 		return 0;
 
-	return entity->read_reg(entity->dev, W5_RET_FAIL_REASON);
+	return call_read_reg(entity, W5_RET_FAIL_REASON);
 }
 
 static u32 wave5_vpu_ctrl_get_code_buf_size(struct vpu_ctrl *ctrl)
@@ -417,21 +432,20 @@ static int wave5_vpu_ctrl_init_vpu(struct vpu_ctrl *ctrl)
 
 	dprintk(ctrl->dev, "cold boot vpu\n");
 
+	if (!ctrl->current_entity)
+		return -EINVAL;
+
 	wave5_vpu_ctrl_remap_code_buffer(ctrl);
 
-	entity->write_reg(entity->dev, W5_VPU_BUSY_STATUS, 1);
-	entity->write_reg(entity->dev, W5_VPU_PO_CONF, 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_ADDR_CODE_BASE, ctrl->boot_mem.daddr);
-	entity->write_reg(entity->dev, W5_CMD_INIT_CODE_SIZE, WAVE521_MAX_CODE_BUF_SIZE);
-	entity->write_reg(entity->dev, W5_CMD_INIT_PARAM, (WAVE5_UPPER_PROC_AXI_ID << 4) | 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_HW_OPTION, 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_SEC_AXI_ADDR, ctrl->sram_buf.daddr);
-	entity->write_reg(entity->dev, W5_CMD_INIT_SEC_AXI_SIZE, ctrl->sram_buf.size);
-	// TODO setting fio reg ?
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_PROC_EXT_ADDR, 0);
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_AXI_PARAM, 0);
-	//entity->write_reg(entity->dev, W5_SEC_AXI_PARAM, 0);
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_PROG_AXI_ID, 0);
+	call_void_op(entity, write_reg, W5_VPU_BUSY_STATUS, 1);
+	call_void_op(entity, write_reg, W5_VPU_PO_CONF, 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_ADDR_CODE_BASE, ctrl->boot_mem.daddr);
+	call_void_op(entity, write_reg, W5_CMD_INIT_CODE_SIZE, WAVE521_MAX_CODE_BUF_SIZE);
+	call_void_op(entity, write_reg, W5_CMD_INIT_PARAM, (WAVE5_UPPER_PROC_AXI_ID << 4) | 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_HW_OPTION, 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_SEC_AXI_ADDR, ctrl->sram_buf.daddr);
+	call_void_op(entity, write_reg, W5_CMD_INIT_SEC_AXI_SIZE, ctrl->sram_buf.size);
+
 	wave5_vpu_ctrl_writel(ctrl->dev, W5_COMMAND_GB, W5_INIT_VPU);
 	wave5_vpu_ctrl_writel(ctrl->dev, W5_VPU_REMAP_CORE_START_GB, 1);
 
@@ -456,7 +470,7 @@ static void wave5_vpu_ctrl_on_boot(struct wave5_vpu_entity *entity)
 		return;
 
 	if (!entity->booted) {
-		entity->on_boot(entity->dev);
+		call_void_op(entity, on_boot);
 		entity->booted = true;
 	}
 }
@@ -468,9 +482,9 @@ static void wave5_vpu_ctrl_clear_firmware_buffers(struct vpu_ctrl *ctrl,
 
 	dprintk(ctrl->dev, "clear firmware work buffers\n");
 
-	entity->write_reg(entity->dev, W5_VPU_BUSY_STATUS, 1);
-	entity->write_reg(entity->dev, W5_COMMAND, W5_INIT_WORK_BUF);
-	entity->write_reg(entity->dev, W5_VPU_HOST_INT_REQ, 1);
+	call_void_op(entity, write_reg, W5_VPU_BUSY_STATUS, 1);
+	call_void_op(entity, write_reg, W5_COMMAND, W5_INIT_WORK_BUF);
+	call_void_op(entity, write_reg, W5_VPU_HOST_INT_REQ, 1);
 
 	ret = wave5_vpu_ctrl_wait_busy(entity, W5_VPU_BUSY_STATUS);
 	if (ret) {
@@ -495,7 +509,7 @@ int wave5_vpu_ctrl_require_buffer(struct device *dev, struct wave5_vpu_entity *e
 	if (!ctrl || !entity)
 		return -EINVAL;
 
-	size = entity->read_reg(entity->dev, W5_CMD_SET_CTRL_WORK_BUF_SIZE);
+	size = call_read_reg(entity, W5_CMD_SET_CTRL_WORK_BUF_SIZE);
 	if (!size)
 		return 0;
 
@@ -511,9 +525,9 @@ int wave5_vpu_ctrl_require_buffer(struct device *dev, struct wave5_vpu_entity *e
 	}
 
 	list_add_tail(&pbuf->list, &ctrl->buffers);
-	entity->write_reg(entity->dev, W5_CMD_SET_CTRL_WORK_BUF_ADDR, pbuf->buf.daddr);
+	call_void_op(entity, write_reg, W5_CMD_SET_CTRL_WORK_BUF_ADDR, pbuf->buf.daddr);
 exit:
-	entity->write_reg(entity->dev, W5_CMD_SET_CTRL_WORK_BUF_SIZE, 0);
+	call_void_op(entity, write_reg, W5_CMD_SET_CTRL_WORK_BUF_SIZE, 0);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_require_buffer);
@@ -574,6 +588,12 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 	u32 product_code;
 	int ret;
 
+	if (!ctrl->current_entity) {
+		dev_err(ctrl->dev, "No vpu core.\n");
+		release_firmware(fw);
+		return;
+	}
+
 	ret = pm_runtime_resume_and_get(ctrl->dev);
 	if (ret) {
 		dev_err(ctrl->dev, "pm runtime resume fail, ret = %d\n", ret);
@@ -591,6 +611,12 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 		goto exit;
 	}
 
+	if (!ctrl->boot_mem.vaddr || !ctrl->boot_mem.daddr || !ctrl->boot_mem.size) {
+		dev_err(ctrl->dev, "No boot memory.\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	if (fw->size + WAVE5_EXTRA_CODE_BUF_SIZE > wave5_vpu_ctrl_get_code_buf_size(ctrl)) {
 		dev_err(ctrl->dev, "firmware size (%ld > %zd) is too big\n",
 			fw->size, ctrl->boot_mem.size);
@@ -598,7 +624,7 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 		goto exit;
 	}
 
-	product_code = entity->read_reg(entity->dev, W5_VPU_RET_PRODUCT_VERSION);
+	product_code = call_read_reg(entity, W5_VPU_RET_PRODUCT_VERSION);
 	if (!PRODUCT_CODE_W_SERIES(product_code)) {
 		dev_err(ctrl->dev, "unknown product id : %08x\n", product_code);
 		ret = -EINVAL;
@@ -636,9 +662,9 @@ static int wave5_vpu_ctrl_sleep(struct vpu_ctrl *ctrl, struct wave5_vpu_entity *
 
 	dprintk(ctrl->dev, "sleep firmware\n");
 
-	entity->write_reg(entity->dev, W5_VPU_BUSY_STATUS, 1);
-	entity->write_reg(entity->dev, W5_COMMAND, W5_SLEEP_VPU);
-	entity->write_reg(entity->dev, W5_VPU_HOST_INT_REQ, 1);
+	call_void_op(entity, write_reg, W5_VPU_BUSY_STATUS, 1);
+	call_void_op(entity, write_reg, W5_COMMAND, W5_SLEEP_VPU);
+	call_void_op(entity, write_reg, W5_VPU_HOST_INT_REQ, 1);
 
 	ret = wave5_vpu_ctrl_wait_busy(entity, W5_VPU_BUSY_STATUS);
 	if (ret) {
@@ -667,19 +693,15 @@ static int wave5_vpu_ctrl_wakeup(struct vpu_ctrl *ctrl, struct wave5_vpu_entity 
 
 	wave5_vpu_ctrl_remap_code_buffer(ctrl);
 
-	entity->write_reg(entity->dev, W5_VPU_BUSY_STATUS, 1);
-	entity->write_reg(entity->dev, W5_VPU_PO_CONF, 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_ADDR_CODE_BASE, ctrl->boot_mem.daddr);
-	entity->write_reg(entity->dev, W5_CMD_INIT_CODE_SIZE, WAVE521_MAX_CODE_BUF_SIZE);
-	entity->write_reg(entity->dev, W5_CMD_INIT_PARAM, (WAVE5_UPPER_PROC_AXI_ID << 4) | 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_HW_OPTION, 0);
-	entity->write_reg(entity->dev, W5_CMD_INIT_SEC_AXI_ADDR, ctrl->sram_buf.daddr);
-	entity->write_reg(entity->dev, W5_CMD_INIT_SEC_AXI_SIZE, ctrl->sram_buf.size);
-	// TODO setting fio reg ?
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_PROC_EXT_ADDR, 0);
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_AXI_PARAM, 0);
-	//entity->write_reg(entity->dev, W5_SEC_AXI_PARAM, 0);
-	//entity->fio_write_reg(entity->dev, W5_BACKBONE_PROG_AXI_ID, 0);
+	call_void_op(entity, write_reg, W5_VPU_BUSY_STATUS, 1);
+	call_void_op(entity, write_reg, W5_VPU_PO_CONF, 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_ADDR_CODE_BASE, ctrl->boot_mem.daddr);
+	call_void_op(entity, write_reg, W5_CMD_INIT_CODE_SIZE, WAVE521_MAX_CODE_BUF_SIZE);
+	call_void_op(entity, write_reg, W5_CMD_INIT_PARAM, (WAVE5_UPPER_PROC_AXI_ID << 4) | 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_HW_OPTION, 0);
+	call_void_op(entity, write_reg, W5_CMD_INIT_SEC_AXI_ADDR, ctrl->sram_buf.daddr);
+	call_void_op(entity, write_reg, W5_CMD_INIT_SEC_AXI_SIZE, ctrl->sram_buf.size);
+
 	wave5_vpu_ctrl_writel(ctrl->dev, W5_COMMAND_GB, W5_WAKEUP_VPU);
 	wave5_vpu_ctrl_writel(ctrl->dev, W5_VPU_REMAP_CORE_START_GB, 1);
 
@@ -707,7 +729,7 @@ static int wave5_vpu_ctrl_try_boot(struct vpu_ctrl *ctrl, struct wave5_vpu_entit
 	if (ctrl->state != WAVE5_VPU_STATE_OFF && ctrl->state != WAVE5_VPU_STATE_SLEEP)
 		return 0;
 
-	if (entity->read_reg(entity->dev, W5_VCPU_CUR_PC)) {
+	if (call_read_reg(entity, W5_VCPU_CUR_PC)) {
 		dprintk(ctrl->dev, "try boot directly as firmware is running\n");
 		wave5_vpu_ctrl_boot_done(ctrl, ctrl->state == WAVE5_VPU_STATE_SLEEP);
 		return 0;
@@ -798,7 +820,7 @@ void wave5_vpu_ctrl_put_sync(struct device *dev, struct wave5_vpu_entity *entity
 {
 	struct vpu_ctrl *ctrl = dev_get_drvdata(dev);
 
-	if (!ctrl)
+	if (!ctrl || !entity || !entity->read_reg)
 		return;
 
 	if (entity == ctrl->current_entity)
@@ -811,7 +833,7 @@ void wave5_vpu_ctrl_put_sync(struct device *dev, struct wave5_vpu_entity *entity
 
 	list_del_init(&entity->list);
 	if (list_empty(&ctrl->entities)) {
-		if (!entity->read_reg(entity->dev, W5_VCPU_CUR_PC))
+		if (!call_read_reg(entity, W5_VCPU_CUR_PC))
 			wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
 		else
 			wave5_vpu_ctrl_sleep(ctrl, entity);

@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - helper definitions
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #ifndef VPUAPI_H_INCLUDED
@@ -95,8 +95,6 @@ enum wave_std {
 #define BUFFER_MARGIN				4096
 
 #define MAX_FIRMWARE_CALL_RETRY			10
-
-//#define VDI_LITTLE_ENDIAN	0x0 // TODO replace
 
 /*
  * Parameters of DEC_SET_SEQ_CHANGE_MASK
@@ -234,6 +232,7 @@ struct vpu_attr {
 	char product_name[8]; /* product name in ascii code */
 	u32 product_version;
 	u32 fw_version;
+	u32 fw_api_version;
 	u32 customer_id;
 	u32 support_decoders; /* bitmask */
 	u32 support_backbone: 1;
@@ -394,11 +393,9 @@ struct dec_info {
 	struct dec_open_param open_param;
 	struct dec_initial_info initial_info;
 	struct dec_initial_info new_seq_info; /* temporal new sequence information */
-	dma_addr_t pic_start_addr;
 	dma_addr_t stream_wr_ptr;
 	dma_addr_t stream_rd_ptr;
 	u32 frame_display_flag;
-	u32 stream_buf_size;
 	struct vpu_buf vb_mv[WAVE5_MAX_FBS];
 	struct vpu_buf vb_fbc_y_tbl[WAVE5_MAX_FBS];
 	struct vpu_buf vb_fbc_c_tbl[WAVE5_MAX_FBS];
@@ -437,6 +434,7 @@ struct vpu_device {
 	struct mutex dev_lock; /* lock for the src, dst v4l2 queues */
 	struct mutex hw_lock; /* lock hw configurations */
 	int irq;
+	const struct wave5_match_data *res;
 	enum product_id product;
 	struct vpu_attr attr;
 	struct vpu_buf common_mem;
@@ -504,7 +502,7 @@ struct vpu_instance {
 	struct frame_buffer frame_buf[WAVE5_MAX_FBS];
 	struct vpu_buf frame_vbuf[WAVE5_MAX_FBS];
 	u32 fbc_buf_count;
-	u32 dsp_buf_count;
+	u32 disp_buf_count;
 	u32 queued_src_buf_num;
 	u32 queued_dst_buf_num;
 	struct v4l2_rect conf_win;
@@ -523,6 +521,9 @@ struct vpu_instance {
 	atomic_t feed_frame_cnt;
 	atomic_t queued_dec_cmd;
 
+	struct vb2_v4l2_buffer *next_frame;
+	bool retry_flag;
+
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
 	struct vpu_performance_info performance;
@@ -537,7 +538,7 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res);
 int wave5_vpu_dec_issue_seq_init(struct vpu_instance *inst);
 int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initial_info *info);
-void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
+void wave5_vpu_dec_fill_linear_frame(struct vpu_instance *inst,
 				     struct frame_buffer *frame, struct vb2_buffer *vb);
 int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of_decoding_fbs,
 					   int stride, int height);
@@ -545,7 +546,6 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst,
 					     struct frame_buffer *frame);
 int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail);
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info);
-void wave5_vpu_dec_reset_bitstream(struct vpu_instance *inst);
 int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int index);
 int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd, void *parameter);
 int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);

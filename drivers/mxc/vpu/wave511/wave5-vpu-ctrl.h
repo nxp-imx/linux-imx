@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - vpu control interface
  *
- * Copyright (C) 2024 CHIPS&MEDIA INC
+ * Copyright (C) 2024-2026 CHIPS&MEDIA INC
  */
 
 #ifndef __WAVE5_VPU_CTRL_H__

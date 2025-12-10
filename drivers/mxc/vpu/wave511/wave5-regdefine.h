@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - wave5 register definitions
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #ifndef __WAVE5_REGISTER_DEFINE_H__
@@ -345,6 +345,7 @@ enum query_opt {
 #define W5_RET_CONF_TYPE                        (W5_REG_BASE + 0x0138)
 #define W5_RET_PRODUCT_ID                       (W5_REG_BASE + 0x013C)
 #define W5_RET_CUSTOMER_ID                      (W5_REG_BASE + 0x0140)
+#define W5_RET_FW_API_VERSION                   (W5_REG_BASE + 0x0144)
 
 /************************************************************************/
 /* DECODER - QUERY : GET_RESULT                                         */

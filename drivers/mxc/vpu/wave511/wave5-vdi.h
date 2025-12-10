@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - low level access functions
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #ifndef _VDI_H_

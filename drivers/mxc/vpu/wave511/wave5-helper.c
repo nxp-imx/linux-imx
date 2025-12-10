@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - decoder interface
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #include <linux/pm_runtime.h>
@@ -292,26 +292,63 @@ void wave5_return_bufs(struct vb2_queue *q, u32 state)
 	}
 }
 
-struct vb2_v4l2_buffer *wave5_vpu_get_linera_buffer(struct vpu_instance *inst,
-						    int index, int flag_rm)
+struct vb2_v4l2_buffer *wave5_get_decoded_buffer(struct vpu_instance *inst, int index)
 {
 	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	struct vb2_v4l2_buffer *vbuf = NULL;
+	struct vpu_dst_buffer *vpu_buf;
 
 	lockdep_assert_held(&inst->state_spinlock);
 
 	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
 		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
-			vbuf = &v4l2_m2m_buf->vb;
-			break;
+			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
+			vpu_buf->decoded = true;
+			return &v4l2_m2m_buf->vb;
 		}
 	}
 
-	if (!vbuf)
-		return NULL;
-	if (flag_rm)
-		v4l2_m2m_dst_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx, vbuf);
-	return vbuf;
+	return NULL;
+}
+
+struct vb2_v4l2_buffer *wave5_get_reusable_buffer(struct vpu_instance *inst, int index)
+{
+	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	struct vpu_dst_buffer *vpu_buf;
+
+	lockdep_assert_held(&inst->state_spinlock);
+
+	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
+		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
+			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
+			if (vpu_buf->decoded) {
+				vpu_buf->decoded = false;
+				return &v4l2_m2m_buf->vb;
+			}
+			return NULL;
+		}
+	}
+
+	return NULL;
+}
+
+struct vb2_v4l2_buffer *wave5_get_display_buffer(struct vpu_instance *inst, int index)
+{
+	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	struct vpu_dst_buffer *vpu_buf;
+
+	lockdep_assert_held(&inst->state_spinlock);
+
+	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
+		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
+			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
+			vpu_buf->display = true;
+			v4l2_m2m_dst_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx,
+						       &v4l2_m2m_buf->vb);
+			return &v4l2_m2m_buf->vb;
+		}
+	}
+
+	return NULL;
 }
 
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst)
@@ -373,7 +410,7 @@ void wave5_vpu_reset_performace(struct vpu_instance *inst)
 {
 	s64 tmp;
 	s64 fps_act = 0, fps_sw = 0, fps_hw = 0, fps_hw_2 = 0;
-	struct vpu_performance_info *perf = &inst->performance;
+	struct vpu_performance_info *perf;
 
 	if (!inst)
 		return;
@@ -381,6 +418,7 @@ void wave5_vpu_reset_performace(struct vpu_instance *inst)
 	if (!inst->processed_buf_num)
 		goto exit;
 
+	perf = &inst->performance;
 	tmp = MSEC_PER_SEC * inst->displayed_buf_num * 10;
 	fps_act = DIV_ROUND_CLOSEST(tmp * NSEC_PER_MSEC, (perf->ts_last - perf->ts_first));
 	tmp = MSEC_PER_SEC * inst->processed_buf_num * 10;

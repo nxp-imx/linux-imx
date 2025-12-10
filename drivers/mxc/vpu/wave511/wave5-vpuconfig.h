@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - product config definitions
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #ifndef _VPU_CONFIG_H_
@@ -62,6 +62,7 @@
 
 #define WAVE521_COMMAND_QUEUE_DEPTH	(3)
 #define WAVE515_COMMAND_QUEUE_DEPTH	(4)
+#define WAVE5_MAX_VIRT_QUE_DEPTH	(3)
 
 #define W5_REMAP_INDEX0                 0
 #define W5_REMAP_INDEX1                 1

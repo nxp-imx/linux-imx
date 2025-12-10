@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - error values
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #ifndef ERROR_CODE_H_INCLUDED

@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - platform driver
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -27,11 +27,13 @@
 struct wave5_match_data {
 	int flags;
 	const char *fw_name;
+	u32 compatible_fw_api_version;
 };
 
 static const struct wave5_match_data nxp_wave511_data = {
 	.flags = WAVE5_IS_DEC,
 	.fw_name = "cnm/wave511_dec_fw.bin",
+	.compatible_fw_api_version = 0x1000000,
 };
 
 static int vpu_poll_interval = 5;
@@ -80,7 +82,8 @@ static void wave5_vpu_handle_irq(void *dev_id)
 	seq_done = wave5_vdi_read_register(dev, W5_RET_SEQ_DONE_INSTANCE_INFO);
 	cmd_done = wave5_vdi_read_register(dev, W5_RET_QUEUE_CMD_DONE_INST);
 
-	dev_dbg(dev->dev, "wave5 irq 0x%x, done = 0x%x, 0x%x\n", irq_reason, seq_done, cmd_done);
+	dev_dbg(dev->dev, "%s: irq_reason 0x%x, seq_done 0x%x, cmd_done 0x%x\n",
+		__func__, irq_reason, seq_done, cmd_done);
 
 	if (irq_reason & BIT(INT_WAVE5_REQ_WORK_BUF))
 		wave5_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
@@ -116,6 +119,10 @@ static void wave5_vpu_handle_irq(void *dev_id)
 			}
 		}
 	}
+
+	if (cmd_done || seq_done)
+		dev_dbg(dev->dev, "irq 0x%x, remain seq_done 0x%x, cmd_done 0x%x unhandled\n",
+			irq_reason, seq_done, cmd_done);
 
 	wave5_vdi_write_register(dev, W5_VPU_VINT_REASON_CLR, irq_reason);
 	wave5_vdi_write_register(dev, W5_VPU_VINT_CLEAR, 0x1);
@@ -168,6 +175,7 @@ static void wave5_vpu_write_reg(struct device *dev, u32 addr, u32 data)
 static void wave5_vpu_on_boot(struct device *dev)
 {
 	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
+	struct vpu_attr *p_attr = &vpu_dev->attr;
 	unsigned int product_code;
 	unsigned int product_id;
 	u32 revision;
@@ -184,7 +192,21 @@ static void wave5_vpu_on_boot(struct device *dev)
 	}
 
 	if (vpu_dev->product_code != product_code)
-		dev_info(dev, "enum product_id: %08x, fw revision: %u\n", product_id, revision);
+		dev_info(dev, "enum product_id: %08x, fw version: %d.%d.%d(r%u)\n",
+			 product_id,
+			 (p_attr->fw_api_version >> 24) & 0xFF,
+			 (p_attr->fw_api_version >> 16) & 0xFF,
+			 (p_attr->fw_api_version >> 0) & 0xFFFF,
+			 revision);
+
+	if (vpu_dev->res->compatible_fw_api_version > p_attr->fw_api_version)
+		dev_err(dev, "compatible fw version is v%d.%d.%d or higher, but only v%d.%d.%d\n",
+			(vpu_dev->res->compatible_fw_api_version >> 24) & 0xFF,
+			(vpu_dev->res->compatible_fw_api_version >> 16) & 0xFF,
+			(vpu_dev->res->compatible_fw_api_version >> 0) & 0xFFFF,
+			(p_attr->fw_api_version >> 24) & 0xFF,
+			(p_attr->fw_api_version >> 16) & 0xFF,
+			(p_attr->fw_api_version >> 0) & 0xFFFF);
 }
 
 u32 wave5_vpu_cq_depth(struct vpu_device *vpu_dev)
@@ -303,10 +325,11 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 
 	mutex_init(&dev->dev_lock);
 	mutex_init(&dev->hw_lock);
-	spin_lock_init(&dev->inst_lock);
 	mutex_init(&dev->pause_lock);
+	spin_lock_init(&dev->inst_lock);
 	dev_set_drvdata(&pdev->dev, dev);
 	dev->dev = &pdev->dev;
+	dev->res = match_data;
 
 	dev->entity.dev = dev->dev;
 	dev->entity.read_reg = wave5_vpu_read_reg;
@@ -371,7 +394,7 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 		goto err_temp_vbuf_free;
 	}
 
-	if (match_data->flags & WAVE5_IS_DEC) {
+	if (dev->res->flags & WAVE5_IS_DEC) {
 		ret = wave5_vpu_dec_register_device(dev);
 		if (ret) {
 			dev_err(&pdev->dev, "wave5_vpu_dec_register_device, fail: %d\n", ret);
@@ -387,11 +410,11 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	}
 
 	dev_info(&pdev->dev, "Added wave5 driver with caps: %s\n",
-		 (match_data->flags & WAVE5_IS_DEC) ? "'DECODE'" : "");
+		 (dev->res->flags & WAVE5_IS_DEC) ? "'DECODE'" : "");
 	return 0;
 
 err_dec_unreg:
-	if (match_data->flags & WAVE5_IS_DEC)
+	if (dev->res->flags & WAVE5_IS_DEC)
 		wave5_vpu_dec_unregister_device(dev);
 err_v4l2_unregister:
 	v4l2_device_unregister(&dev->v4l2_dev);

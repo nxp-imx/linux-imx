@@ -2,7 +2,7 @@
 /*
  * Wave5 series multi-standard codec IP - helper functions
  *
- * Copyright (C) 2021-2023 CHIPS&MEDIA INC
+ * Copyright (C) 2021-2026 CHIPS&MEDIA INC
  */
 
 #include <linux/bug.h>
@@ -72,6 +72,9 @@ err_out:
 
 static int wave5_check_dec_open_param(struct vpu_instance *inst, struct dec_open_param *param)
 {
+	if (!param->bitstream_buffer)
+		return 0;
+
 	if (param->bitstream_buffer % 8) {
 		dev_err(inst->dev->dev,
 			"Bitstream buffer must be aligned to a multiple of 8\n");
@@ -94,8 +97,6 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	struct dec_info *p_dec_info;
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
-	dma_addr_t buffer_addr;
-	size_t buffer_size;
 
 	ret = wave5_check_dec_open_param(inst, open_param);
 	if (ret)
@@ -113,11 +114,6 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	p_dec_info = &inst->codec_info->dec_info;
 	memcpy(&p_dec_info->open_param, open_param, sizeof(struct dec_open_param));
 
-	buffer_addr = open_param->bitstream_buffer;
-	buffer_size = open_param->bitstream_buffer_size;
-	p_dec_info->stream_wr_ptr = buffer_addr;
-	p_dec_info->stream_rd_ptr = buffer_addr;
-	p_dec_info->stream_buf_size = buffer_size;
 	p_dec_info->reorder_enable = open_param->reorder_enable;
 	p_dec_info->temp_id_select_mode = TEMPORAL_ID_MODE_ABSOLUTE;
 	p_dec_info->target_temp_id = DECODE_ALL_TEMPORAL_LAYERS;
@@ -149,7 +145,7 @@ static int reset_auxiliary_buffers(struct vpu_instance *inst, unsigned int index
 
 int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 {
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+	struct dec_info *p_dec_info;
 	int ret;
 	int retry = 0;
 	struct vpu_device *vpu_dev = inst->dev;
@@ -162,6 +158,8 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
 		return ret;
+
+	p_dec_info = &inst->codec_info->dec_info;
 
 	do {
 		ret = wave5_vpu_dec_finish_seq(inst, fail_res);
@@ -197,12 +195,20 @@ unlock_and_return:
 
 int wave5_vpu_dec_issue_seq_init(struct vpu_instance *inst)
 {
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
+
+	if (!inst->next_frame)
+		return -EINVAL;
 
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
 		return ret;
+
+	p_dec_info->stream_rd_ptr = wave5_get_plane_dma_addr(&inst->next_frame->vb2_buf, 0);
+	p_dec_info->stream_wr_ptr = p_dec_info->stream_rd_ptr +
+				    wave5_get_plane_payload(&inst->next_frame->vb2_buf, 0);
 
 	ret = wave5_vpu_dec_init_seq(inst);
 
@@ -235,7 +241,7 @@ int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initia
 	return ret;
 }
 
-void wave5_vpu_dec_fill_linera_frame(struct vpu_instance *inst,
+void wave5_vpu_dec_fill_linear_frame(struct vpu_instance *inst,
 				     struct frame_buffer *frame, struct vb2_buffer *vb)
 {
 	dma_addr_t buf_addr_y = 0;
@@ -313,7 +319,7 @@ int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of
 
 	fb = inst->frame_buf;
 	ret = wave5_vpu_dec_register_framebuffer(inst, &fb[0], COMPRESSED_FRAME_MAP,
-						 p_dec_info->num_of_decoding_fbs, 0, 0);
+						 p_dec_info->num_of_decoding_fbs);
 
 	mutex_unlock(&vpu_dev->hw_lock);
 
@@ -334,8 +340,8 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct f
 	if (!p_dec_info->initial_info_obtained)
 		return -EINVAL;
 
-	dev_dbg(inst->dev->dev, "register linear[%d] %pad, %pad, %pad\n",
-		frame->index, &frame->buf_y, &frame->buf_cb, &frame->buf_cr);
+	dev_dbg(inst->dev->dev, "[%d] register linear[%d] %pad, %pad, %pad\n",
+		inst->id, frame->index, &frame->buf_y, &frame->buf_cb, &frame->buf_cr);
 
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
@@ -361,21 +367,20 @@ int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 	if (ret)
 		return ret;
 
+	if (inst->next_frame) {
+		p_dec_info->stream_rd_ptr = wave5_get_plane_dma_addr(&inst->next_frame->vb2_buf, 0);
+		p_dec_info->stream_wr_ptr = p_dec_info->stream_rd_ptr +
+					    wave5_get_plane_payload(&inst->next_frame->vb2_buf, 0);
+	} else {
+		p_dec_info->stream_endflag = true;
+		p_dec_info->stream_rd_ptr = p_dec_info->stream_wr_ptr;
+	}
+
 	ret = wave5_vpu_decode(inst, res_fail);
 
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
-}
-
-void wave5_vpu_dec_reset_bitstream(struct vpu_instance *inst)
-{
-	struct dec_info *p_dec_info;
-
-	p_dec_info = &inst->codec_info->dec_info;
-	p_dec_info->pic_start_addr = 0;
-	p_dec_info->stream_rd_ptr = 0;
-	p_dec_info->stream_wr_ptr = 0;
 }
 
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info)
@@ -458,6 +463,7 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 
 	max_dec_index = (p_dec_info->num_of_decoding_fbs > p_dec_info->num_of_display_fbs) ?
 		p_dec_info->num_of_decoding_fbs : p_dec_info->num_of_display_fbs;
+	max_dec_index = MIN(max_dec_index, WAVE5_MAX_FBS);
 
 	if (info->index_frame_display >= 0 &&
 	    info->index_frame_display < (int)max_dec_index)
@@ -492,8 +498,10 @@ int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index)
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
 
-	if (index >= p_dec_info->num_of_display_fbs)
-		return -EINVAL;
+	if (index >= p_dec_info->num_of_display_fbs) {
+		dev_dbg(inst->dev->dev, "[%d] disp buf[%d] is out of range\n", inst->id, index);
+		return 0;
+	}
 
 	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
 	if (ret)
