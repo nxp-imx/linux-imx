@@ -435,12 +435,25 @@ static const struct ocotp_devtype_data imx95_ocotp_data = {
 	},
 };
 
+/*
+ * i.MX952 uses the following mac address offset list:
+ * | No. | Mac address user  |
+ * |-----|-------------------|
+ * | 0   | enetc mac pf0     |
+ * | 1   | enetc mac vf0     |
+ * | 2   | enetc mac pf1     |
+ * | 3   | enetc mac vf1     |
+ */
+static const u8 imx952_pf_mac_offset_list[] = { 0, 2 };
 static const struct ocotp_devtype_data imx952_ocotp_data = {
 	.reg_off = 0x8000,
 	.reg_read = imx_ocotp_reg_read,
 	.reg_write = imx_ocotp_reg_write,
 	.size = 2440, /* 610 words */
 	.num_entry = 12,
+	.fuse_mac_addr_netc = true,
+	.increase_mac_address = true,
+	.pf_mac_offset_list = imx952_pf_mac_offset_list,
 	.se_soc_id = SOC_ID_OF_IMX952,
 	.entry = {
 		{ 0, 1, FUSE_FSB | FUSE_ECC },
