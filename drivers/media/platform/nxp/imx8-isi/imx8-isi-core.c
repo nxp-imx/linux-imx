@@ -409,7 +409,7 @@ static const struct mxc_isi_plat_data mxc_imx8qm_data = {
 	.has_36bit_dma		= false,
 };
 
-static const struct mxc_isi_plat_data mxc_imx8qxp_data = {
+static struct mxc_isi_plat_data mxc_imx8qxp_data = {
 	.model			= MXC_ISI_IMX8QXP,
 	.num_ports		= 5,
 	.num_channels		= 6,
