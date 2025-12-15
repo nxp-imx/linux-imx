@@ -3,6 +3,7 @@ obj-$(CONFIG_PHY_FSL_IMX8MP_LVDS)	+= phy-fsl-imx8mp-lvds.o
 obj-$(CONFIG_PHY_FSL_IMX8MQ_USB)	+= phy-fsl-imx8mq-usb.o
 obj-$(CONFIG_PHY_FSL_IMX9_DPHY_RX)     += phy-fsl-imx9-dphy-rx.o
 obj-$(CONFIG_PHY_FSL_IMX93_MIPI_DPHY)	+= phy-fsl-imx93-mipi-dphy.o
+obj-$(CONFIG_PHY_FSL_IMX952_MIPI_DPHY)	+= phy-fsl-imx952-mipi-dphy.o
 obj-$(CONFIG_PHY_MIXEL_LVDS_PHY)	+= phy-fsl-imx8qm-lvds-phy.o
 obj-$(CONFIG_PHY_MIXEL_MIPI_DPHY)	+= phy-fsl-imx8-mipi-dphy.o
 obj-$(CONFIG_PHY_FSL_IMX8M_PCIE)	+= phy-fsl-imx8m-pcie.o
