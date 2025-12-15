@@ -50,6 +50,8 @@
 
 #include "rcu.h"
 
+EXPORT_TRACEPOINT_SYMBOL_GPL(rcu_stall_warning);
+
 #ifdef MODULE_PARAM_PREFIX
 #undef MODULE_PARAM_PREFIX
 #endif

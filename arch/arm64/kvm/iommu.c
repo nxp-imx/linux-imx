@@ -337,6 +337,15 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 }
 EXPORT_SYMBOL(kvm_iommu_attach_dev);
 
+int kvm_iommu_attach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+				unsigned int endpoint, unsigned int pasid,
+				unsigned long flags, void *s1_desc_hva, size_t s1_desc_size)
+{
+	return kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_attach_dev_nested, iommu_id, domain_id,
+				    endpoint, pasid, flags, s1_desc_hva, s1_desc_size);
+}
+EXPORT_SYMBOL(kvm_iommu_attach_dev_nested);
+
 int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 unsigned int endpoint, unsigned int pasid)
 {
@@ -344,6 +353,29 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 				endpoint, pasid);
 }
 EXPORT_SYMBOL(kvm_iommu_detach_dev);
+
+int kvm_iommu_detach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 unsigned int endpoint, unsigned int pasid)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_detach_dev_nested, iommu_id, domain_id,
+				endpoint, pasid);
+}
+EXPORT_SYMBOL(kvm_iommu_detach_dev_nested);
+
+int kvm_iommu_iotlb_inv_nested_domain(pkvm_handle_t domain_id, unsigned long iova,
+				      size_t size, size_t granule, bool leaf)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_iotlb_inv_nested_domain, domain_id, iova, size,
+				 granule, leaf);
+}
+EXPORT_SYMBOL(kvm_iommu_iotlb_inv_nested_domain);
+
+int kvm_iommu_nested_cfg_sync(pkvm_handle_t iommu_id, void *cmd_desc_hva, size_t cmd_desc_size)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_nested_cfg_sync, iommu_id, cmd_desc_hva,
+				 cmd_desc_size);
+}
+EXPORT_SYMBOL(kvm_iommu_nested_cfg_sync);
 
 int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, int type)
 {

@@ -67,3 +67,25 @@ type 'struct pkvm_module_ops' changed
   member 'union { int(* map_module_pages)(u64, void*, u64, enum kvm_pgtable_prot, bool); struct { u64 __kabi_reserved2; }; union { }; }' was added
   member 'union { int(* unmap_module_pages)(u64, void*, u64); struct { u64 __kabi_reserved3; }; union { }; }' was added
 
+type 'struct usb_request' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { struct usb_ep* ep; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct inet_connection_sock' changed
+  member changed from 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 unused:4; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; } icsk_ack' to 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 dst_quick_ack:1; __u32 unused:3; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; } icsk_ack'
+    type changed from 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 unused:4; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; }' to 'struct { __u8 pending; __u8 quick; __u8 pingpong; __u8 retry; __u32 ato:8; __u32 lrcv_flowlabel:20; __u32 dst_quick_ack:1; __u32 unused:3; unsigned long timeout; __u32 lrcvtime; __u16 last_seg_size; __u16 rcv_mss; }'
+      member '__u32 dst_quick_ack:1' was added
+      member changed from '__u32 unused:4' to '__u32 unused:3'
+        offset changed from 60 to 61
+        bit-field size changed from 4 to 3
+
+type 'struct kvm_iommu_ops' changed
+  member 'u64 __kabi_reserved2' was removed
+  member 'u64 __kabi_reserved3' was removed
+  member 'u64 __kabi_reserved4' was removed
+  member 'u64 __kabi_reserved5' was removed
+  member 'union { int(* attach_dev_nested)(struct kvm_hyp_iommu*, struct kvm_hyp_iommu_domain*, struct kvm_hyp_iommu_domain*, u32, u32, unsigned long, void*, size_t); struct { u64 __kabi_reserved2; }; union { }; }' was added
+  member 'union { int(* detach_dev_nested)(struct kvm_hyp_iommu*, struct kvm_hyp_iommu_domain*, struct kvm_hyp_iommu_domain*, u32, u32); struct { u64 __kabi_reserved3; }; union { }; }' was added
+  member 'union { void(* iotlb_inv_nested_domain)(struct kvm_hyp_iommu_domain*, unsigned long, size_t, size_t, bool); struct { u64 __kabi_reserved4; }; union { }; }' was added
+  member 'union { int(* nested_cfg_sync)(struct kvm_hyp_iommu*, void*, size_t); struct { u64 __kabi_reserved5; }; union { }; }' was added
+

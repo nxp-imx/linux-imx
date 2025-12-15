@@ -64,4 +64,6 @@ source "drivers/virt/geniezone/Kconfig"
 
 source "drivers/virt/gunyah/Kconfig"
 
+source "drivers/virt/halla/Kconfig"
+
 endif

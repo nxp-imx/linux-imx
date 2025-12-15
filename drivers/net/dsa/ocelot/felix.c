@@ -1171,6 +1171,10 @@ static void felix_phylink_get_caps(struct dsa_switch *ds, int port,
 		if (felix->info->port_modes[port] & felix_phy_match_table[intf])
 			__set_bit(intf, config->supported_interfaces);
 	}
+
+	if (ocelot->ports[port]->phy_mode == PHY_INTERFACE_MODE_USXGMII)
+		__set_bit(PHY_INTERFACE_MODE_10G_QXGMII,
+			  config->supported_interfaces);
 }
 
 static void felix_phylink_mac_config(struct phylink_config *config,

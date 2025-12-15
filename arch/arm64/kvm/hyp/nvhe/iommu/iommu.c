@@ -580,6 +580,119 @@ int kvm_iommu_force_free_domain(pkvm_handle_t domain_id, struct pkvm_hyp_vm *vm)
 	return 0;
 }
 
+int kvm_iommu_attach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id, u32 endpoint_id,
+				u32 pasid, unsigned long flags, void *s1_desc_hva,
+				size_t s1_desc_size)
+{
+	int ret;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+	/* For now, we only support nested domains that use identity mapped stage-2 contexts. */
+	struct kvm_hyp_iommu_domain *idmap_domain;
+	void *s1_desc_hyp_va = kern_hyp_va(s1_desc_hva);
+	void *s1_desc_hyp_va_end = s1_desc_hyp_va + s1_desc_size;
+
+	ret = hyp_pin_shared_mem(s1_desc_hyp_va, s1_desc_hyp_va_end);
+	if (ret)
+		return ret;
+
+	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
+	if (!iommu) {
+		ret = -EINVAL;
+		goto out_unpin;
+	}
+
+	idmap_domain = handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID);
+	if (!idmap_domain || domain_get(idmap_domain)) {
+		ret = -EINVAL;
+		goto out_unpin;
+	}
+
+	domain = handle_to_domain(domain_id);
+	if (!domain || domain_get(domain)) {
+		ret = -EINVAL;
+		goto out_idmap_dom_put;
+	}
+
+	ret = kvm_iommu_ops->attach_dev_nested(iommu, domain, idmap_domain, endpoint_id, pasid,
+					       flags, s1_desc_hyp_va, s1_desc_size);
+	if (ret)
+		domain_put(domain);
+out_idmap_dom_put:
+	if (ret)
+		domain_put(idmap_domain);
+out_unpin:
+	hyp_unpin_shared_mem(s1_desc_hyp_va, s1_desc_hyp_va_end);
+	return ret;
+}
+
+int kvm_iommu_detach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id, u32 endpoint_id,
+				u32 pasid)
+{
+	int ret;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+	/* For now, we only support nested domains that use identity mapped stage-2 contexts. */
+	struct kvm_hyp_iommu_domain *idmap_domain;
+
+	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -EINVAL;
+
+	domain = handle_to_domain(domain_id);
+	if (!domain || atomic_read(&domain->refs) <= 1)
+		return -EINVAL;
+
+	idmap_domain = handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID);
+	if (!idmap_domain || atomic_read(&idmap_domain->refs) <= 1)
+		return -EINVAL;
+
+	ret = kvm_iommu_ops->detach_dev_nested(iommu, domain, idmap_domain, endpoint_id, pasid);
+	if (ret)
+		return ret;
+
+	domain_put(idmap_domain);
+	domain_put(domain);
+	return ret;
+}
+
+int kvm_iommu_iotlb_inv_nested_domain(pkvm_handle_t domain_id, unsigned long iova,
+				      size_t size, size_t granule, bool leaf)
+{
+	struct kvm_hyp_iommu_domain *domain;
+
+	domain = handle_to_domain(domain_id);
+	if (!domain || domain_get(domain))
+		return -EINVAL;
+
+	kvm_iommu_ops->iotlb_inv_nested_domain(domain, iova, size, granule, leaf);
+	domain_put(domain);
+	return 0;
+}
+
+int kvm_iommu_nested_cfg_sync(pkvm_handle_t iommu_id, void *cmd_desc_hva, size_t cmd_desc_size)
+{
+	struct kvm_hyp_iommu *iommu;
+	void *cmd_desc_hyp_va = kern_hyp_va(cmd_desc_hva);
+	void *cmd_desc_hyp_va_end = cmd_desc_hyp_va + cmd_desc_size;
+	int ret = hyp_pin_shared_mem(cmd_desc_hyp_va, cmd_desc_hyp_va_end);
+
+	if (ret)
+		return ret;
+
+	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
+	if (!iommu) {
+		ret = -EINVAL;
+		goto out_unpin;
+	}
+
+	ret = kvm_iommu_ops->nested_cfg_sync(iommu, cmd_desc_hyp_va, cmd_desc_size);
+
+out_unpin:
+	hyp_unpin_shared_mem(cmd_desc_hyp_va, cmd_desc_hyp_va_end);
+	return ret;
+}
+
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid, u32 pasid_bits,
 			 unsigned long flags)

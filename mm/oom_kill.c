@@ -59,6 +59,8 @@
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
 
+EXPORT_TRACEPOINT_SYMBOL_GPL(mark_victim);
+
 static int sysctl_panic_on_oom;
 static int sysctl_oom_kill_allocating_task;
 static int sysctl_oom_dump_tasks = 1;
@@ -813,6 +815,7 @@ void exit_oom_victim(void)
 {
 	clear_thread_flag(TIF_MEMDIE);
 
+	trace_android_vh_exit_oom_victim(current);
 	if (!atomic_dec_return(&oom_victims))
 		wake_up_all(&oom_victims_wait);
 }
@@ -857,6 +860,7 @@ bool oom_killer_disable(signed long timeout)
 	ret = wait_event_interruptible_timeout(oom_victims_wait,
 			!atomic_read(&oom_victims), timeout);
 	if (ret <= 0) {
+		trace_android_vh_oom_killer_disable(atomic_read(&oom_victims));
 		oom_killer_enable();
 		return false;
 	}

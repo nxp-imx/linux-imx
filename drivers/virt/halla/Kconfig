@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Exynos HVM solutions
+#
+
+config EXYNOS_HVM
+	tristate "Exynos Halla VM Management driver"
+	depends on ARM64 && EVENTFD
+	help
+	  Exynos Halla VM Management(HVM) module.
+
+	  This module supports the Guest VM to operate on the Halla hypervisor.
+	  In addition, it interacts with the crosvm to manage and operate the
+	  Guest VM.
+
+	  Select M if you want it be built as a module (exynos-hvm.ko).
+
+	  If unsure, say N.

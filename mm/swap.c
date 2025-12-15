@@ -533,10 +533,16 @@ void folio_add_lru(struct folio *folio)
 			folio_test_unevictable(folio), folio);
 	VM_BUG_ON_FOLIO(folio_test_lru(folio), folio);
 
+	trace_android_vh_folio_add_lru(folio);
 	/* see the comment in lru_gen_folio_seq() */
 	if (lru_gen_enabled() && !folio_test_unevictable(folio) &&
-	    lru_gen_in_fault() && !(current->flags & PF_MEMALLOC))
-		folio_set_active(folio);
+	    lru_gen_in_fault() && !(current->flags & PF_MEMALLOC)) {
+		bool bypass = false;
+
+		trace_android_vh_folio_add_lru_folio_activate(folio, &bypass);
+		if (!bypass)
+			folio_set_active(folio);
+	}
 
 	folio_batch_add_and_move(folio, lru_add);
 }

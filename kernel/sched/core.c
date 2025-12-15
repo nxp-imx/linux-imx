@@ -155,6 +155,54 @@ static int __init setup_proxy_exec(char *str)
 	return 1;
 }
 EXPORT_SYMBOL_GPL(__sched_proxy_exec);
+
+static ssize_t sched_proxy_exec_enable_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	return sysfs_emit(buf, "%d\n", sched_proxy_exec());
+}
+
+static ssize_t sched_proxy_exec_enable_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	if (sched_proxy_exec()) {
+		pr_info("sched_proxy_exec: already enabled\n");
+		return count;
+	}
+
+	pr_info("sched_proxy_exec: enabled via sysfs one-way toggle\n");
+	static_branch_enable(&__sched_proxy_exec);
+	return count;
+}
+static struct kobj_attribute sched_proxy_exec_toggle =
+	__ATTR(enable, 0664, sched_proxy_exec_enable_show, sched_proxy_exec_enable_store);
+
+static struct attribute *attrs[] = {
+	&sched_proxy_exec_toggle.attr,
+	NULL,   /* need to NULL terminate the list of attributes */
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static struct kobject *sched_proxy_exec_kobj;
+
+static int __init setup_proxy_exec_toggle(void)
+{
+	int retval;
+
+	sched_proxy_exec_kobj = kobject_create_and_add("sched_proxy_exec", kernel_kobj);
+	if (!sched_proxy_exec_kobj)
+		return -ENOMEM;
+	retval = sysfs_create_group(sched_proxy_exec_kobj, &attr_group);
+	if (retval)
+		kobject_put(sched_proxy_exec_kobj);
+	return 0;
+}
+late_initcall(setup_proxy_exec_toggle);
 #else
 static int __init setup_proxy_exec(char *str)
 {

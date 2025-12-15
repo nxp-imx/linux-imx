@@ -119,7 +119,8 @@ struct inet_connection_sock {
 		#define ATO_BITS 8
 		__u32		  ato:ATO_BITS,	 /* Predicted tick of soft clock	   */
 				  lrcv_flowlabel:20, /* last received ipv6 flowlabel	   */
-				  unused:4;
+				  dst_quick_ack:1, /* cache dst RTAX_QUICKACK		   */
+				  unused:3;
 		unsigned long	  timeout;	 /* Currently scheduled timeout		   */
 		__u32		  lrcvtime;	 /* timestamp of last received data packet */
 		__u16		  last_seg_size; /* Size of last incoming segment	   */
@@ -145,6 +146,18 @@ struct inet_connection_sock {
 	u64			  icsk_ca_priv[104 / sizeof(u64)];
 #define ICSK_CA_PRIV_SIZE	  sizeof_field(struct inet_connection_sock, icsk_ca_priv)
 };
+
+/*
+ * Preserve the original CRC of 'struct inet_connection_sock' before the
+ * bit-field addition introduced by the cherry-pick of commit 15492700ac41
+ * ("tcp: cache RTAX_QUICKACK metric in a hot cache line"). The addition
+ * of icsk_ack->dst_quick_ack KMI-safe as it replaces a currently unused bit
+ * from icsk_ack->unused. The string was obtained by running:
+ *
+ *   $ bazel run --kbuild_symtypes //common:kernel_aarch64_dist
+ */
+ANDROID_KABI_TYPE_STRING("s#inet_connection_sock",
+			 "structure_type inet_connection_sock { member s#inet_sock icsk_inet data_member_location(0) , member s#request_sock_queue icsk_accept_queue data_member_location(1072) , member pointer_type { s#inet_bind_bucket } icsk_bind_hash data_member_location(1152) , member pointer_type { s#inet_bind2_bucket } icsk_bind2_hash data_member_location(1160) , member base_type unsigned long byte_size(8) encoding(7) icsk_timeout data_member_location(1168) , member s#timer_list icsk_retransmit_timer data_member_location(1176) , member s#timer_list icsk_delack_timer data_member_location(1216) , member t#__u32 icsk_rto data_member_location(1256) , member t#__u32 icsk_rto_min data_member_location(1260) , member t#__u32 icsk_delack_max data_member_location(1264) , member t#__u32 icsk_pmtu_cookie data_member_location(1268) , member pointer_type { const_type { s#tcp_congestion_ops } } icsk_ca_ops data_member_location(1272) , member pointer_type { const_type { s#inet_connection_sock_af_ops } } icsk_af_ops data_member_location(1280) , member pointer_type { const_type { s#tcp_ulp_ops } } icsk_ulp_ops data_member_location(1288) , member pointer_type { base_type void } icsk_ulp_data data_member_location(1296) , member pointer_type { subroutine_type ( formal_parameter pointer_type { s#sock } , formal_parameter t#u32 ) -> base_type void } icsk_clean_acked data_member_location(1304) , member pointer_type { subroutine_type ( formal_parameter pointer_type { s#sock } , formal_parameter t#u32 ) -> base_type unsigned int byte_size(4) encoding(7) } icsk_sync_mss data_member_location(1312) , member t#__u8 icsk_ca_state bit_size(5) data_bit_offset(10560) , member t#__u8 icsk_ca_initialized bit_size(1) data_bit_offset(10565) , member t#__u8 icsk_ca_setsockopt bit_size(1) data_bit_offset(10566) , member t#__u8 icsk_ca_dst_locked bit_size(1) data_bit_offset(10567) , member t#__u8 icsk_retransmits data_member_location(1321) , member t#__u8 icsk_pending data_member_location(1322) , member t#__u8 icsk_backoff data_member_location(1323) , member t#__u8 icsk_syn_retries data_member_location(1324) , member t#__u8 icsk_probes_out data_member_location(1325) , member t#__u16 icsk_ext_hdr_len data_member_location(1326) , member structure_type { member t#__u8 pending data_member_location(0) , member t#__u8 quick data_member_location(1) , member t#__u8 pingpong data_member_location(2) , member t#__u8 retry data_member_location(3) , member t#__u32 ato bit_size(8) data_bit_offset(32) , member t#__u32 lrcv_flowlabel bit_size(20) data_bit_offset(40) , member t#__u32 unused bit_size(4) data_bit_offset(60) , member base_type unsigned long byte_size(8) encoding(7) timeout data_member_location(8) , member t#__u32 lrcvtime data_member_location(16) , member t#__u16 last_seg_size data_member_location(20) , member t#__u16 rcv_mss data_member_location(22) } byte_size(24) icsk_ack data_member_location(1328) , member structure_type { member base_type int byte_size(4) encoding(5) search_high data_member_location(0) , member base_type int byte_size(4) encoding(5) search_low data_member_location(4) , member t#u32 probe_size bit_size(31) data_bit_offset(64) , member t#u32 enabled bit_size(1) data_bit_offset(95) , member t#u32 probe_timestamp data_member_location(12) } byte_size(16) icsk_mtup data_member_location(1352) , member t#u32 icsk_probes_tstamp data_member_location(1368) , member t#u32 icsk_user_timeout data_member_location(1372) , member t#u64 data_member_location(1376) , member array_type[13] { t#u64 } icsk_ca_priv data_member_location(1384) } byte_size(1488)");
 
 #define ICSK_TIME_RETRANS	1	/* Retransmit timer */
 #define ICSK_TIME_DACK		2	/* Delayed ack timer */
