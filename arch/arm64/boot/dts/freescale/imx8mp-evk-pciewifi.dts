@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright 2025 NXP
+ */
+
+#include "imx8mp-evk.dts"
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&usdhc1 {
+	status = "disabled";
+	/delete-node/ wifi_wake_host;
+};
