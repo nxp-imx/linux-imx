@@ -381,6 +381,7 @@ static const struct mxc_isi_plat_data mxc_imx952_data = {
 	.has_36bit_dma		= true,
 	.raw32_chan_cfg		= true,
 	.buf_max_size		= true,
+	.raw_out_lsb		= true,
 };
 
 static const struct mxc_isi_plat_data mxc_imx8qm_data = {

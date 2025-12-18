@@ -321,6 +321,7 @@ static void mxc_isi_channel_set_control(struct mxc_isi_pipe *pipe,
 					enum mxc_isi_input_id input,
 					bool bypass)
 {
+	const struct mxc_isi_plat_data *pdata = pipe->isi->pdata;
 	u32 val;
 
 	mutex_lock(&pipe->lock);
@@ -359,6 +360,19 @@ static void mxc_isi_channel_set_control(struct mxc_isi_pipe *pipe,
 		val |= CHNL_CTRL_MIPI_VC_ID(pipe->vc & 0x3);
 		val |= CHNL_CTRL_VC_ID_1((pipe->vc >> 2) & 0x1);
 	}
+
+	/*
+	 * Enable RAW10/12/14 output LSB alignment by default since the
+	 * default value is either 1 or reserved as zero in previous ISI.
+	 */
+	val |= CHNL_CTRL_RAW_OUT_LSB_ALIGN;
+
+	/*
+	 * Aligns the data selection from the pixel link(PL) to MSB to
+	 * avoid data shift issue since the data from PL is MSB.
+	 */
+	if (pdata->raw_out_lsb)
+		val |= CHNL_CTRL_RAW_IN_MSB_ALIGN;
 
 	mxc_isi_write(pipe, CHNL_CTRL, val);
 
@@ -412,10 +426,19 @@ void mxc_isi_channel_set_input_format(struct mxc_isi_pipe *pipe,
 		      CHNL_IN_BUF_PITCH_LINE_PITCH(bpl));
 }
 
+static bool isi_out_raw(u32 format)
+{
+	return format == CHNL_IMG_CTRL_FORMAT_RAW10 ||
+	       format == CHNL_IMG_CTRL_FORMAT_RAW12 ||
+	       format == CHNL_IMG_CTRL_FORMAT_RAW14;
+}
+
 void mxc_isi_channel_set_output_format(struct mxc_isi_pipe *pipe,
 				       const struct mxc_isi_format_info *info,
 				       struct v4l2_pix_format_mplane *format)
 {
+	const struct mxc_isi_plat_data *pdata = pipe->isi->pdata;
+	u32 fmt;
 	u32 val;
 
 	/* set outbuf format */
@@ -423,7 +446,21 @@ void mxc_isi_channel_set_output_format(struct mxc_isi_pipe *pipe,
 
 	val = mxc_isi_read(pipe, CHNL_IMG_CTRL);
 	val &= ~CHNL_IMG_CTRL_FORMAT_MASK;
-	val |= CHNL_IMG_CTRL_FORMAT(info->isi_out_format);
+
+	/*
+	 * Before i.MX952, the ISI shifts the 10/12/14-bit formats left
+	 * by 6, 4 and 2 bits when using CHNL_IMG_CTRL_FORMAT_RAW10/12/14
+	 * respectively, to align the bits to the left and pad with zeros in
+	 * the LSBs. The corresponding V4L2 formats are however right-aligned,
+	 * we have to use CHNL_IMG_CTRL_FORMAT_RAW16 to avoid the left shift.
+	 * After i.MX952, ISI add RAW10/12/14 LSB output alignment, so skip
+	 * the above workaround.
+	 */
+	fmt = !pdata->raw_out_lsb && isi_out_raw(info->isi_out_format) ?
+	      CHNL_IMG_CTRL_FORMAT_RAW16 :
+	      info->isi_out_format;
+
+	val |= CHNL_IMG_CTRL_FORMAT(fmt);
 	mxc_isi_write(pipe, CHNL_IMG_CTRL, val);
 
 	/* line pitch */

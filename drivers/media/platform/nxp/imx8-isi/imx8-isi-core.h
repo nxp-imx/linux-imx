@@ -178,6 +178,7 @@ struct mxc_isi_plat_data {
 	bool has_36bit_dma;
 	bool raw32_chan_cfg;
 	bool buf_max_size;
+	bool raw_out_lsb;
 };
 
 struct mxc_isi_dma_buffer {
