@@ -17,6 +17,9 @@ properties:
           - fsl,imx95-dphy-rx
           - fsl,imx95-combo-rx
 
+  reg:
+    maxItems: 1
+
   "#phy-cells":
     const: 0
 
@@ -48,12 +51,6 @@ properties:
       for the i.MX95 CSI standalone dphy-rx driver.
     maxItems: 1
 
-  fsl,reg-offset:
-    description:
-      Register offset, in hex, in the register map, where the driver can access its
-      relevant registers.
-    maxItems: 1
-
   fsl,dsi:
     description:
       Must be the device tree identifier of the DSI memory map. This is required only
@@ -68,6 +65,19 @@ required:
   - power-domains
 
 additionalProperties: false
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - fsl,imx95-dphy-rx
+              - fsl,imx95-combo-rx
+    then:
+      properties:
+        reg:
+          minItems: 1
 
 examples:
   - |
