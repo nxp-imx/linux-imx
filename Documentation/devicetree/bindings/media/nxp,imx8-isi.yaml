@@ -25,6 +25,7 @@ properties:
       - fsl,imx91-isi
       - fsl,imx93-isi
       - fsl,imx95-isi
+      - fsl,imx952-isi
 
   reg:
     maxItems: 1
@@ -117,7 +118,9 @@ allOf:
       properties:
         compatible:
           contains:
-            const: fsl,imx95-isi
+            enum:
+              - fsl,imx95-isi
+              - fsl,imx952-isi
     then:
       properties:
         interrupts:
