@@ -1148,3 +1148,5 @@
 
 
 };
+
+#include "imx952-android.dtsi"
