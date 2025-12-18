@@ -13,9 +13,9 @@ properties:
   compatible:
     items:
       - enum:
-        - fsl,imx93-mipi-dphy
-        - fsl,imx95-dphy-rx
-        - fsl,imx95-combo-rx
+          - fsl,imx93-mipi-dphy
+          - fsl,imx95-dphy-rx
+          - fsl,imx95-combo-rx
 
   "#phy-cells":
     const: 0
