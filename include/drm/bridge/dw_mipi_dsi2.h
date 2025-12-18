@@ -99,6 +99,8 @@ struct dw_mipi_dsi2_plat_data {
 	void *priv_data;
 };
 
+struct drm_bridge *dw_mipi_dsi2_get_bridge(struct dw_mipi_dsi2 *dsi);
+
 struct dw_mipi_dsi2 *dw_mipi_dsi2_probe(struct platform_device *pdev,
 					const struct dw_mipi_dsi2_plat_data *plat_data);
 void dw_mipi_dsi2_remove(struct dw_mipi_dsi2 *dsi2);

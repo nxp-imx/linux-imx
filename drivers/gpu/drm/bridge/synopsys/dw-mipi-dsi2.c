@@ -965,6 +965,12 @@ static const struct regmap_config dw_mipi_dsi2_regmap_config = {
 	.fast_io = true,
 };
 
+struct drm_bridge *dw_mipi_dsi2_get_bridge(struct dw_mipi_dsi2 *dsi)
+{
+	return &dsi->bridge;
+}
+EXPORT_SYMBOL_GPL(dw_mipi_dsi2_get_bridge);
+
 static struct dw_mipi_dsi2 *
 __dw_mipi_dsi2_probe(struct platform_device *pdev,
 		     const struct dw_mipi_dsi2_plat_data *plat_data)
