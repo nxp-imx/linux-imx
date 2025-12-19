@@ -2096,10 +2096,13 @@
 		combo_phy_csr: syscon@4ad20000 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0x0 0x4ad20000 0x0 0x114>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;
 
-			dphy_rx: dphy-rx {
+			dphy_rx: dphy-rx@0 {
 				compatible = "fsl,imx95-dphy-rx";
+				reg = <0x0 0x10>;
 				clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 				clock-names = "phy_cfg";
 				assigned-clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
@@ -2111,15 +2114,15 @@
 				status = "disabled";
 			};
 
-			combo_rx: combo-rx {
+			combo_rx: combo-rx@100 {
 				compatible = "fsl,imx95-combo-rx";
+				reg = <0x100 0x10>;
 				clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 				clock-names = "phy_cfg";
 				assigned-clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 				assigned-clock-parents = <&scmi_clk IMX95_CLK_24M>;
 				assigned-clock-rate = <24000000>;
 				#phy-cells = <0>;
-				fsl,reg-offset = <0x100>;
 				fsl,csis = <&mipi_csi1>;
 				fsl,dsi = <&mipi_dsi_intf>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
