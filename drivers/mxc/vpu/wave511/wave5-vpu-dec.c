@@ -598,7 +598,6 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			dec_buf->vb2_buf.timestamp = inst->timestamp;
 			inst->processed_buf_num++;
 			inst->ts_last_end = dec_vpu_buf->ts_finish;
-			inst->dynamic_source_change = false;
 		} else {
 			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i",
 				 __func__, dec_info.index_frame_decoded);
@@ -1801,6 +1800,10 @@ static void wave5_vpu_dec_device_run(void *priv)
 				switch_state(inst, VPU_INST_STATE_STOP);
 			vb2_queue_error(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx));
 			vb2_queue_error(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx));
+			break;
+		}
+		if (inst->dynamic_source_change) {
+			inst->dynamic_source_change = false;
 			break;
 		}
 

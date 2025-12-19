@@ -591,3 +591,10 @@ int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 
 	return ret;
 }
+
+bool wave5_vpu_dec_is_cq_done(struct vpu_instance *inst)
+{
+	if (inst->dynamic_source_change)
+		return true;
+	return atomic_read(&inst->queued_dec_cmd) ? false : true;
+}

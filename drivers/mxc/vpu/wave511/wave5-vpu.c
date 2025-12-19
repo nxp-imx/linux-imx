@@ -223,7 +223,7 @@ static bool wave5_vpu_cq_is_empty(struct vpu_device *vpu_dev)
 
 	scoped_guard(spinlock, &vpu_dev->inst_lock) {
 		list_for_each_entry(inst, &vpu_dev->instances, list) {
-			if (atomic_read(&inst->queued_dec_cmd))
+			if (!wave5_vpu_dec_is_cq_done(inst))
 				return false;
 		}
 	}
@@ -244,25 +244,6 @@ static int wave5_vpu_cq_wait_empty(struct vpu_device *dev)
 	}
 
 	return 0;
-}
-
-void wave5_vpu_pause(struct device *dev, int resume)
-{
-	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
-
-	mutex_lock(&vpu_dev->pause_lock);
-	if (resume) {
-		vpu_dev->pause_request--;
-		if (!vpu_dev->pause_request)
-			v4l2_m2m_resume(vpu_dev->v4l2_m2m_dec_dev);
-	} else {
-		if (!vpu_dev->pause_request) {
-			v4l2_m2m_suspend(vpu_dev->v4l2_m2m_dec_dev);
-			wave5_vpu_cq_wait_empty(vpu_dev);
-		}
-		vpu_dev->pause_request++;
-	}
-	mutex_unlock(&vpu_dev->pause_lock);
 }
 
 void wave5_vpu_activate(struct vpu_device *dev)
@@ -325,7 +306,6 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 
 	mutex_init(&dev->dev_lock);
 	mutex_init(&dev->hw_lock);
-	mutex_init(&dev->pause_lock);
 	spin_lock_init(&dev->inst_lock);
 	dev_set_drvdata(&pdev->dev, dev);
 	dev->dev = &pdev->dev;
@@ -335,7 +315,6 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	dev->entity.read_reg = wave5_vpu_read_reg;
 	dev->entity.write_reg = wave5_vpu_write_reg;
 	dev->entity.on_boot = wave5_vpu_on_boot;
-	dev->entity.pause = wave5_vpu_pause;
 
 	dev->resets = devm_reset_control_array_get_optional_exclusive(&pdev->dev);
 	if (IS_ERR(dev->resets)) {
@@ -495,26 +474,29 @@ static int wave5_vpu_runtime_resume(struct device *dev)
 #ifdef CONFIG_PM_SLEEP
 static int wave5_vpu_suspend(struct device *dev)
 {
+	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
 	int ret;
 
-	wave5_vpu_pause(dev, 0);
+	v4l2_m2m_suspend(vpu_dev->v4l2_m2m_dec_dev);
+	wave5_vpu_cq_wait_empty(vpu_dev);
 
 	ret = pm_runtime_force_suspend(dev);
 	if (ret)
-		wave5_vpu_pause(dev, 1);
+		v4l2_m2m_resume(vpu_dev->v4l2_m2m_dec_dev);
 
 	return ret;
 }
 
 static int wave5_vpu_resume(struct device *dev)
 {
+	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
 	int ret;
 
 	ret = pm_runtime_force_resume(dev);
 	if (ret)
 		return ret;
 
-	wave5_vpu_pause(dev, 1);
+	v4l2_m2m_resume(vpu_dev->v4l2_m2m_dec_dev);
 	return 0;
 }
 #endif

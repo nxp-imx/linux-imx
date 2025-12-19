@@ -445,8 +445,6 @@ struct vpu_device {
 	u32 product_code;
 	struct wave5_vpu_entity entity;
 	bool active;
-	int pause_request;
-	struct mutex pause_lock; /* the lock for the pause/resume m2m job. */
 	struct clk_bulk_data *clks;
 	struct hrtimer hrtimer;
 	struct kthread_work work;
@@ -550,5 +548,6 @@ int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int inde
 int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd, void *parameter);
 int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);
 int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index);
+bool wave5_vpu_dec_is_cq_done(struct vpu_instance *inst);
 
 #endif
