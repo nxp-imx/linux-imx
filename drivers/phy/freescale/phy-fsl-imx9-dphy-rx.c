@@ -276,7 +276,6 @@ static int dw_dphy_init(struct phy *phy)
 		priv->dsi_regmap = syscon_regmap_lookup_by_phandle(np, "fsl,dsi");
 		if (IS_ERR(priv->dsi_regmap))
 			priv->dsi_regmap = NULL;
-		of_property_read_u32(np, "fsl,reg-offset", &priv->reg_off);
 	}
 
 	ret = phy_pm_runtime_get_sync(phy);
@@ -669,6 +668,7 @@ static int dw_dphy_probe(struct platform_device *pdev)
 	struct dw_dphy *priv;
 	struct phy *phy;
 	unsigned long cfg_rate;
+	int ret;
 
 	if (!dev->parent || !dev->parent->of_node)
 		return -ENODEV;
@@ -684,6 +684,12 @@ static int dw_dphy_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->dphy_regmap)) {
 		dev_err(dev, "Failed to DPHY regmap\n");
 		return -ENODEV;
+	}
+
+	ret = of_property_read_u32_index(np, "reg", 0, &priv->reg_off);
+	if (ret) {
+		priv->reg_off = 0;
+		dev_dbg(dev, "reg property not specified, using default 0\n");
 	}
 
 	priv->cfg_clk = devm_clk_get(dev, "phy_cfg");
