@@ -213,6 +213,8 @@ struct dw_mipi_dsi2 {
 	struct clk *pclk;
 	struct clk *sys_clk;
 
+	bool device_found;
+
 	unsigned int lane_mbps; /* per lane */
 	u32 channel;
 	u32 lanes;
@@ -586,14 +588,15 @@ static int dw_mipi_dsi2_host_attach(struct mipi_dsi_host *host,
 	dsi2->format = device->format;
 	dsi2->mode_flags = device->mode_flags;
 
-	bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
-	if (IS_ERR(bridge))
-		return PTR_ERR(bridge);
+	if (!dsi2->device_found) {
+		bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
+		if (IS_ERR(bridge))
+			return PTR_ERR(bridge);
 
-	bridge->pre_enable_prev_first = true;
-	dsi2->panel_bridge = bridge;
-
-	drm_bridge_add(&dsi2->bridge);
+		bridge->pre_enable_prev_first = true;
+		dsi2->panel_bridge = bridge;
+		dsi2->device_found = true;
+	}
 
 	if (pdata->host_ops && pdata->host_ops->attach) {
 		ret = pdata->host_ops->attach(pdata->priv_data, device);
@@ -616,8 +619,6 @@ static int dw_mipi_dsi2_host_detach(struct mipi_dsi_host *host,
 		if (ret < 0)
 			return ret;
 	}
-
-	drm_bridge_remove(&dsi2->bridge);
 
 	drm_of_panel_bridge_remove(host->dev->of_node, 1, 0);
 
@@ -938,6 +939,15 @@ static int dw_mipi_dsi2_bridge_attach(struct drm_bridge *bridge,
 	/* Set the encoder type as caller does not know it */
 	encoder->encoder_type = DRM_MODE_ENCODER_DSI;
 
+	if (!dsi2->device_found) {
+		dsi2->panel_bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
+		if (IS_ERR(dsi2->panel_bridge))
+			return PTR_ERR(dsi2->panel_bridge);
+
+		dsi2->panel_bridge->pre_enable_prev_first = true;
+		dsi2->device_found = true;
+	}
+
 	/* Attach the panel-bridge to the dsi bridge */
 	return drm_bridge_attach(encoder, dsi2->panel_bridge, bridge,
 				 flags);
@@ -1049,12 +1059,14 @@ __dw_mipi_dsi2_probe(struct platform_device *pdev,
 
 	dsi2->bridge.driver_private = dsi2;
 	dsi2->bridge.of_node = pdev->dev.of_node;
+	drm_bridge_add(&dsi2->bridge);
 
 	return dsi2;
 }
 
 static void __dw_mipi_dsi2_remove(struct dw_mipi_dsi2 *dsi2)
 {
+	drm_bridge_remove(&dsi2->bridge);
 	mipi_dsi_host_unregister(&dsi2->dsi_host);
 }
 
