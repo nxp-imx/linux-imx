@@ -1176,7 +1176,7 @@ int ox03c10_streaming_start(struct ox03c10 *sensor, bool start)
 
 		/* Wait a maximum of 1 time frame. Worst case is 33.33ms. */
 		msleep(34);
-
+	} else {
 		/*
 		 * OX03C10 messes up the frames if the VS exposure is higher than 4 before streaming
 		 * is started. The following is working around this issue by lowering the VS to 4
@@ -1190,7 +1190,7 @@ int ox03c10_streaming_start(struct ox03c10 *sensor, bool start)
 						    V4L2_CTRL_TYPE_U8,
 						    &new_exposure);
 		}
-	} else {
+
 		ret = regmap_write(sensor->rmap, OX03C10_SMIA_R0100, 1);
 	}
 
