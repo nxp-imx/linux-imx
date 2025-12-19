@@ -332,12 +332,6 @@ static int __trusty_share_memory(struct device *dev, u64 *id,
 		return -EOPNOTSUPP;
 	}
 
-	if (lend && s->api_version < TRUSTY_API_VERSION_MEM_OBJ) {
-		dev_err(s->dev, "%s: old trusty version does not support lending memory objects\n",
-			__func__);
-		return -EOPNOTSUPP;
-	}
-
 	count = dma_map_sg(dev, sglist, nents, DMA_BIDIRECTIONAL);
 	if (count != nents) {
 		dev_err(s->dev, "failed to dma map sg_table\n");
