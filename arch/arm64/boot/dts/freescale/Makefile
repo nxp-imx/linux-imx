@@ -1213,6 +1213,8 @@ imx95-19x19-frdm-pro-waveshare-7inch-c-panel-dtbs := imx95-19x19-frdm-pro.dtb \
 						     imx95-19x19-frdm-pro-waveshare-7inch-c-panel.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-waveshare-7inch-c-panel.dtb
 
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk.dtb
+
 imx8mm-kontron-dl-dtbs			:= imx8mm-kontron-bl.dtb imx8mm-kontron-dl.dtbo
 imx8mm-kontron-bl-lte-dtbs		:= imx8mm-kontron-bl.dtb imx8mm-kontron-bl-lte.dtbo
 
