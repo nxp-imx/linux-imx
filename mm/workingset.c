@@ -16,6 +16,7 @@
 #include <linux/dax.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
+#include <trace/hooks/mm.h>
 #include "internal.h"
 
 /*
@@ -542,6 +543,7 @@ void workingset_refault(struct folio *folio, void *shadow)
 
 	VM_BUG_ON_FOLIO(!folio_test_locked(folio), folio);
 
+	trace_android_vh_count_workingset_refault(folio);
 	if (lru_gen_enabled()) {
 		lru_gen_refault(folio, shadow);
 		return;

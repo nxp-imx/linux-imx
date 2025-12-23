@@ -29,7 +29,6 @@
 #include <linux/cpuset.h>
 #include <linux/mempolicy.h>
 #include <linux/ctype.h>
-#include <linux/stackdepot.h>
 #include <linux/debugobjects.h>
 #include <linux/kallsyms.h>
 #include <linux/kfence.h>
@@ -48,6 +47,9 @@
 #include <linux/kprobes.h>
 #include <linux/debugfs.h>
 #include <trace/events/kmem.h>
+#include <trace/hooks/mm.h>
+
+#include <trace/hooks/mm.h>
 
 #include "internal.h"
 
@@ -331,22 +333,6 @@ static inline bool kmem_cache_has_cpu_partial(struct kmem_cache *s)
 #else
 #define __CMPXCHG_DOUBLE	__SLAB_FLAG_UNUSED
 #endif
-
-/*
- * Tracking user of a slab.
- */
-#define TRACK_ADDRS_COUNT 16
-struct track {
-	unsigned long addr;	/* Called from address */
-#ifdef CONFIG_STACKDEPOT
-	depot_stack_handle_t handle;
-#endif
-	int cpu;		/* Was running on cpu */
-	int pid;		/* Pid context */
-	unsigned long when;	/* When did the operation occur */
-};
-
-enum track_item { TRACK_ALLOC, TRACK_FREE };
 
 #ifdef SLAB_SUPPORTS_SYSFS
 static int sysfs_slab_add(struct kmem_cache *);
@@ -1032,8 +1018,8 @@ static void print_section(char *level, char *text, u8 *addr,
 	metadata_access_disable();
 }
 
-static struct track *get_track(struct kmem_cache *s, void *object,
-	enum track_item alloc)
+struct track *get_track(struct kmem_cache *s, void *object,
+			enum track_item alloc)
 {
 	struct track *p;
 
@@ -1041,6 +1027,52 @@ static struct track *get_track(struct kmem_cache *s, void *object,
 
 	return kasan_reset_tag(p + alloc);
 }
+EXPORT_SYMBOL(get_track);
+
+static inline unsigned long node_nr_slabs(struct kmem_cache_node *n);
+
+unsigned long get_each_kmemcache_object(struct kmem_cache *s,
+		int (*fn)(struct kmem_cache *, void *, void *),
+		void *private)
+{
+	int node;
+	unsigned long ret = 0;
+	struct kmem_cache_node *n;
+
+	for_each_kmem_cache_node(s, node, n) {
+		unsigned long flags;
+		struct slab *slab;
+		void *p;
+
+		if (!node_nr_slabs(n))
+			continue;
+
+		spin_lock_irqsave(&n->list_lock, flags);
+		list_for_each_entry(slab, &n->partial, slab_list) {
+			for_each_object(p, s, slab_address(slab), slab->objects) {
+				ret = fn(s, p, private);
+				if (ret) {
+					spin_unlock_irqrestore(&n->list_lock, flags);
+					return ret;
+				}
+			}
+		}
+#ifdef CONFIG_SLUB_DEBUG
+		list_for_each_entry(slab, &n->full, slab_list) {
+			for_each_object(p, s, slab_address(slab), slab->objects) {
+				ret = fn(s, p, private);
+				if (ret) {
+					spin_unlock_irqrestore(&n->list_lock, flags);
+					return ret;
+				}
+			}
+		}
+#endif
+		spin_unlock_irqrestore(&n->list_lock, flags);
+	}
+	return ret;
+}
+EXPORT_SYMBOL_NS_GPL(get_each_kmemcache_object, "MINIDUMP");
 
 #ifdef CONFIG_STACKDEPOT
 static noinline depot_stack_handle_t set_track_prepare(gfp_t gfp_flags)
@@ -3067,6 +3099,8 @@ static inline struct slab *alloc_slab_page(gfp_t flags, int node,
 	__folio_set_slab(folio);
 	if (folio_is_pfmemalloc(folio))
 		slab_set_pfmemalloc(slab);
+
+	trace_android_vh_slab_folio_alloced(order, flags);
 
 	return slab;
 }
@@ -5599,6 +5633,8 @@ static void *___kmalloc_large_node(size_t size, gfp_t flags, int node)
 		__folio_set_large_kmalloc(folio);
 	}
 
+	trace_android_vh_kmalloc_large_alloced(folio, order, flags);
+
 	ptr = kasan_kmalloc_large(ptr, size, flags);
 	/* As ptr might get tagged, call kmemleak hook after KASAN. */
 	kmemleak_alloc(ptr, size, 1, flags);
@@ -7076,6 +7112,9 @@ static gfp_t kmalloc_gfp_adjust(gfp_t flags, size_t size)
 		flags &= ~__GFP_NOFAIL;
 	}
 
+	if (size > 0)
+		trace_android_vh_adjust_kvmalloc_flags(get_order(size), &flags);
+
 	return flags;
 }
 
@@ -7104,7 +7143,11 @@ void *__kvmalloc_node_noprof(DECL_BUCKET_PARAMS(size, b), unsigned long align,
 			     gfp_t flags, int node)
 {
 	void *ret;
+	bool use_vmalloc = false;
 
+	trace_android_vh_kvmalloc_node_use_vmalloc(size, &flags, &use_vmalloc);
+	if (use_vmalloc)
+		goto use_vmalloc_node;
 	/*
 	 * It doesn't really make sense to fallback to vmalloc for sub page
 	 * requests
@@ -7131,6 +7174,7 @@ void *__kvmalloc_node_noprof(DECL_BUCKET_PARAMS(size, b), unsigned long align,
 	 * about the resulting pointer, and cannot play
 	 * protection games.
 	 */
+use_vmalloc_node:
 	return __vmalloc_node_range_noprof(size, align, VMALLOC_START, VMALLOC_END,
 			flags, PAGE_KERNEL, VM_ALLOW_HUGE_VMAP,
 			node, __builtin_return_address(0));
@@ -10081,4 +10125,6 @@ void get_slabinfo(struct kmem_cache *s, struct slabinfo *sinfo)
 	sinfo->objects_per_slab = oo_objects(s->oo);
 	sinfo->cache_order = oo_order(s->oo);
 }
+EXPORT_SYMBOL_NS_GPL(get_slabinfo, "MINIDUMP");
+
 #endif /* CONFIG_SLUB_DEBUG */

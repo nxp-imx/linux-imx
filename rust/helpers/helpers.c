@@ -34,6 +34,7 @@
 #include "kunit.c"
 #include "maple_tree.c"
 #include "mm.c"
+#include "mman.c"
 #include "mutex.c"
 #include "of.c"
 #include "page.c"

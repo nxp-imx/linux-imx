@@ -100,8 +100,12 @@ long outofrange_freq[NUM_FREQ_OUTOFRANGE] = {
 	 1000 * SHIFTED_PPM,
 };
 
+#ifndef LONG_MAX
 #define LONG_MAX (~0UL>>1)
+#endif
+#ifndef LONG_MIN
 #define LONG_MIN (-LONG_MAX - 1)
+#endif
 
 long invalid_freq[NUM_FREQ_INVALID] = {
 	LONG_MAX,
@@ -260,16 +264,16 @@ int validate_set_offset(void)
 	if (set_offset(-NSEC_PER_SEC - 1, 1))
 		return -1;
 
-	if (set_offset(5 * NSEC_PER_SEC, 1))
+	if (set_offset(5LL * NSEC_PER_SEC, 1))
 		return -1;
 
-	if (set_offset(-5 * NSEC_PER_SEC, 1))
+	if (set_offset(-5LL * NSEC_PER_SEC, 1))
 		return -1;
 
-	if (set_offset(5 * NSEC_PER_SEC + NSEC_PER_SEC / 2, 1))
+	if (set_offset(5LL * NSEC_PER_SEC + NSEC_PER_SEC / 2, 1))
 		return -1;
 
-	if (set_offset(-5 * NSEC_PER_SEC - NSEC_PER_SEC / 2, 1))
+	if (set_offset(-5LL * NSEC_PER_SEC - NSEC_PER_SEC / 2, 1))
 		return -1;
 
 	if (set_offset(USEC_PER_SEC - 1, 0))

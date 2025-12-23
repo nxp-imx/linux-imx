@@ -13,7 +13,7 @@ use crate::{
     device::Device,
     error::{to_result, Error, Result, VTABLE_DEFAULT_ERROR},
     ffi::{c_int, c_long, c_uint, c_ulong},
-    fs::{File, Kiocb},
+    fs::{File, Kiocb, LocalFile},
     iov::{IovIterDest, IovIterSource},
     mm::virt::VmaNew,
     prelude::*,
@@ -21,6 +21,10 @@ use crate::{
     types::{ForeignOwnable, Opaque},
 };
 use core::{marker::PhantomData, mem::MaybeUninit, pin::Pin};
+
+/// The kernel `loff_t` type.
+#[allow(non_camel_case_types)]
+pub type loff_t = bindings::loff_t;
 
 /// Options for creating a misc device.
 #[derive(Copy, Clone)]
@@ -139,6 +143,16 @@ pub trait MiscDevice: Sized {
         _file: &File,
         _vma: &VmaNew,
     ) -> Result {
+        build_error!(VTABLE_DEFAULT_ERROR)
+    }
+
+    /// Seeks this miscdevice.
+    fn llseek(
+        _device: <Self::Ptr as ForeignOwnable>::Borrowed<'_>,
+        _file: &LocalFile,
+        _offset: loff_t,
+        _whence: c_int,
+    ) -> Result<loff_t> {
         build_error!(VTABLE_DEFAULT_ERROR)
     }
 
@@ -326,6 +340,30 @@ impl<T: MiscDevice> MiscdeviceVTable<T> {
     /// # Safety
     ///
     /// `file` must be a valid file that is associated with a `MiscDeviceRegistration<T>`.
+    unsafe extern "C" fn llseek(
+        file: *mut bindings::file,
+        offset: loff_t,
+        whence: c_int,
+    ) -> loff_t {
+        // SAFETY: The release call of a file owns the private data.
+        let private = unsafe { (*file).private_data };
+        // SAFETY: Ioctl calls can borrow the private data of the file.
+        let device = unsafe { <T::Ptr as ForeignOwnable>::borrow(private) };
+        // SAFETY:
+        // * The file is valid for the duration of this call.
+        // * We are inside an fdget_pos region, so there cannot be any active fdget_pos regions on
+        //   other threads.
+        let file = unsafe { LocalFile::from_raw_file(file) };
+
+        match T::llseek(device, file, offset, whence) {
+            Ok(res) => res as loff_t,
+            Err(err) => err.to_errno() as loff_t,
+        }
+    }
+
+    /// # Safety
+    ///
+    /// `file` must be a valid file that is associated with a `MiscDeviceRegistration<T>`.
     unsafe extern "C" fn ioctl(file: *mut bindings::file, cmd: c_uint, arg: c_ulong) -> c_long {
         // SAFETY: The ioctl call of a file can access the private data.
         let private = unsafe { (*file).private_data };
@@ -392,6 +430,11 @@ impl<T: MiscDevice> MiscdeviceVTable<T> {
         open: Some(Self::open),
         release: Some(Self::release),
         mmap: if T::HAS_MMAP { Some(Self::mmap) } else { None },
+        llseek: if T::HAS_LLSEEK {
+            Some(Self::llseek)
+        } else {
+            None
+        },
         read_iter: if T::HAS_READ_ITER {
             Some(Self::read_iter)
         } else {

@@ -1594,6 +1594,7 @@ put_out:
 	percpu_ref_put(&si->users);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(get_swap_device);
 
 static void swap_entries_put_cache(struct swap_info_struct *si,
 				   swp_entry_t entry, int nr)
@@ -1825,6 +1826,7 @@ out:
 	swap_cluster_unlock(ci);
 	return count;
 }
+EXPORT_SYMBOL_GPL(swp_swapcount);
 
 static bool swap_page_trans_huge_swapped(struct swap_info_struct *si,
 					 swp_entry_t entry, int order)
@@ -3686,6 +3688,7 @@ void si_swapinfo(struct sysinfo *val)
 	val->totalswap = total_swap_pages + nr_to_be_unused;
 	spin_unlock(&swap_lock);
 }
+EXPORT_SYMBOL_NS_GPL(si_swapinfo, "MINIDUMP");
 
 /*
  * Verify that nr swap entries are valid and increment their swap map counts.

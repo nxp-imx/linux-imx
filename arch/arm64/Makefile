@@ -195,6 +195,11 @@ install zinstall:
 archprepare:
 	$(Q)$(MAKE) $(build)=arch/arm64/tools kapi
 
+ifeq ($(CONFIG_KVM),y)
+archscripts: scripts_basic
+	$(Q)$(MAKE) $(build)=arch/arm64/tools gen-hyprel
+endif
+
 ifeq ($(KBUILD_EXTMOD),)
 # We need to generate vdso-offsets.h before compiling certain files in kernel/.
 # In order to do that, we should use the archprepare target, but we can't since

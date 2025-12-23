@@ -1,0 +1,33 @@
+[abi_symbol_list]
+#required by xiaomi network protocol
+  __percpu_counter_init_many
+  __sk_dst_check
+  __sk_mem_schedule
+  inet6_bind
+  inet6_getname
+  inet6_register_protosw
+  inet6_release
+  inet6_unregister_protosw
+  inet_accept
+  inet_bind
+  inet_getname
+  inet_recvmsg
+  inet_register_protosw
+  inet_release
+  inet_sendmsg
+  inet_shutdown
+  inet_sk_get_local_port_range
+  inet_sk_set_state
+  inet_sock_destruct
+  inet_unregister_protosw
+  ip6_dst_lookup_flow
+  ip_getsockopt
+  ip_setsockopt
+  ipv6_getsockopt
+  ipv6_setsockopt
+  nr_free_buffer_pages
+  percpu_counter_destroy_many
+  reuseport_add_sock
+  reuseport_alloc
+  reuseport_detach_sock
+  reuseport_select_sock

@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/hardirq.h>
 #include <linux/topology.h>
+#include <trace/hooks/topology.h>
 
 #define define_id_show_func(name, fmt)					\
 static ssize_t name##_show(struct device *dev,				\
@@ -223,7 +224,10 @@ static ssize_t cpu_capacity_show(struct device *dev,
 {
 	struct cpu *cpu = container_of(dev, struct cpu, dev);
 
-	return sysfs_emit(buf, "%lu\n", topology_get_cpu_scale(cpu->dev.id));
+	unsigned long capacity = topology_get_cpu_scale(cpu->dev.id);
+
+	trace_android_rvh_cpu_capacity_show(&capacity, cpu->dev.id);
+	return sysfs_emit(buf, "%lu\n", capacity);
 }
 
 static DEVICE_ATTR_RO(cpu_capacity);

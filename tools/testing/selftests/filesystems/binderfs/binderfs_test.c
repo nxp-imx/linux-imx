@@ -292,6 +292,11 @@ static int write_id_mapping(enum idmap_type type, pid_t pid, const char *buf,
 	return 0;
 }
 
+static bool has_userns(void)
+{
+	return (access("/proc/self/ns/user", F_OK) == 0);
+}
+
 static void change_userns(struct __test_metadata *_metadata, int syncfds[2])
 {
 	int ret;
@@ -379,6 +384,9 @@ static void *binder_version_thread(void *data)
  */
 TEST(binderfs_stress)
 {
+	if (!has_userns())
+		SKIP(return, "%s: user namespace not supported\n", __func__);
+
 	int fds[1000];
 	int syncfds[2];
 	pid_t pid;
@@ -503,6 +511,8 @@ TEST(binderfs_test_privileged)
 
 TEST(binderfs_test_unprivileged)
 {
+	if (!has_userns())
+		SKIP(return, "%s: user namespace not supported\n", __func__);
 	int ret;
 	int syncfds[2];
 	pid_t pid;

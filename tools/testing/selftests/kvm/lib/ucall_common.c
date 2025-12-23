@@ -25,6 +25,23 @@ int ucall_nr_pages_required(uint64_t page_size)
  */
 static struct ucall_header *ucall_pool;
 
+vm_paddr_t get_ucall_pool_gpa(struct kvm_vm *vm)
+{
+	return addr_gva2gpa(vm, (vm_vaddr_t)read_guest_global(vm, ucall_pool));
+}
+
+size_t get_ucall_pool_size(struct kvm_vm *vm)
+{
+	return align_up(sizeof(struct ucall_header), max_t(size_t, vm->page_size, getpagesize()));
+}
+
+vm_paddr_t get_ucall_mmio_gpa(struct kvm_vm *vm)
+{
+	struct userspace_mem_region *slot0 = memslot2region(vm, 0);
+
+	return slot0->region.guest_phys_addr + slot0->region.memory_size;
+}
+
 void ucall_init(struct kvm_vm *vm, vm_paddr_t mmio_gpa)
 {
 	struct ucall_header *hdr;
@@ -32,7 +49,7 @@ void ucall_init(struct kvm_vm *vm, vm_paddr_t mmio_gpa)
 	vm_vaddr_t vaddr;
 	int i;
 
-	vaddr = vm_vaddr_alloc_shared(vm, sizeof(*hdr), KVM_UTIL_MIN_VADDR,
+	vaddr = vm_vaddr_alloc_shared(vm, get_ucall_pool_size(vm), KVM_UTIL_MIN_VADDR,
 				      MEM_REGION_DATA);
 	hdr = (struct ucall_header *)addr_gva2hva(vm, vaddr);
 	memset(hdr, 0, sizeof(*hdr));

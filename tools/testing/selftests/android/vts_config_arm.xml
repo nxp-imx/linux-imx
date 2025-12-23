@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2025 The Android Open Source Project
+SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
+-->
+<!DOCTYPE configuration [
+<!ENTITY ktest_dir "/data/selftests/arm">
+]>
+<configuration description="kselftest">
+    <option name="test-suite-tag" value="kernel-test" />
+    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
+    <target_preparer class="com.android.tradefed.targetprep.StopServicesSetup" />
+
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.KernelTestModuleController" >
+        <option name="arch" value="arm"/>
+    </object>
+
+    <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
+        <option name="cleanup" value="true" />
+        <option name="push-file" key="selftests" value="/data/selftests" />
+        <option name="skip-abi-filtering" value="true" />
+        <option name="post-push" value='chmod -R 755 /data/selftests; find /data/selftests -type f | xargs grep -l -e "bin/sh" -e "bin/bash" | xargs sed -i -e "s?/bin/echo?echo?" -i -e "s?#!/bin/sh?#!/system/bin/sh?" -i -e "s?#!/bin/bash?#!/system/bin/sh?" || echo "There were no files to process"' />
+    </target_preparer>
+
+    <test class="com.android.tradefed.testtype.binary.KernelTargetTest" >
+        <option name="exit-code-skip" value="4" />
+        <option name="skip-binary-check" value="true" />
+        <option name="ktap-result-parser-resolution" value="INDIVIDUAL_LEAVES" />
+        <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="cd &ktest_dir;; ./kselftest_binderfs_binderfs_test" />
+        <option name="test-command-line" key="kselftest_capabilities_test_execve" value="cd &ktest_dir;; ./kselftest_capabilities_test_execve" />
+        <option name="test-command-line" key="kselftest_capabilities_validate_cap" value="cd &ktest_dir;; ./validate_cap 1 1 0 0" />
+        <option name="test-command-line" key="kselftest_futex_futex_requeue_pi_mismatched_ops" value="cd &ktest_dir;; ./futex_requeue_pi_mismatched_ops" />
+        <option name="test-command-line" key="kselftest_futex_futex_requeue_pi_signal_restart" value="cd &ktest_dir;; ./futex_requeue_pi_signal_restart" />
+        <option name="test-command-line" key="kselftest_futex_futex_requeue_pi" value="cd &ktest_dir;; ./futex_requeue_pi" />
+        <option name="test-command-line" key="kselftest_futex_futex_requeue" value="cd &ktest_dir;; ./futex_requeue" />
+        <option name="test-command-line" key="kselftest_futex_futex_wait_private_mapped_file" value="cd &ktest_dir;; ./futex_wait_private_mapped_file" />
+        <option name="test-command-line" key="kselftest_futex_futex_wait_timeout" value="cd &ktest_dir;; ./futex_wait_timeout" />
+        <option name="test-command-line" key="kselftest_futex_futex_wait_uninitialized_heap" value="cd &ktest_dir;; ./futex_wait_uninitialized_heap" />
+        <option name="test-command-line" key="kselftest_futex_futex_wait_wouldblock" value="cd &ktest_dir;; ./futex_wait_wouldblock" />
+        <option name="test-command-line" key="kselftest_futex_futex_wait" value="cd &ktest_dir;; ./futex_wait" />
+        <option name="test-command-line" key="kselftest_kcmp_kcmp_test" value="cd &ktest_dir;; ./kselftest_kcmp_kcmp_test" />
+        <option name="test-command-line" key="kselftest_rtc_rtctest" value="cd &ktest_dir;; ./kselftest_rtc_rtctest" />
+        <option name="test-command-line" key="kselftest_net_tests_socket" value="cd &ktest_dir;; ./kselftest_net_tests_socket" />
+        <option name="test-command-line" key="kselftest_net_tests_psock_tpacket" value="cd &ktest_dir;; ./kselftest_net_tests_psock_tpacket" />
+        <option name="test-command-line" key="kselftest_net_tests_reuseport_dualstack" value="cd &ktest_dir;; ./kselftest_net_tests_reuseport_dualstack" />
+        <option name="test-command-line" key="kselftest_net_tests_reuseaddr_conflict" value="cd &ktest_dir;; ./kselftest_net_tests_reuseaddr_conflict" />
+    </test>
+</configuration>

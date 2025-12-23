@@ -1197,6 +1197,10 @@
 			can be useful when debugging issues that require an SLB
 			miss to occur.
 
+	disable_dma32=	[KNL]
+			Dynamically disable ZONE_DMA32 on kernels compiled with
+			CONFIG_ZONE_DMA32=y.
+
 	disable=	[IPV6]
 			See Documentation/networking/ipv6.rst.
 
@@ -2024,6 +2028,10 @@
 	hvc_iucv_allow=	[S390]	Comma-separated list of z/VM user IDs.
 				If specified, z/VM IUCV HVC accepts connections
 				from listed z/VM user IDs only.
+
+	hvc_dcc.enable=	[ARM,ARM64]	Enable DCC driver at runtime. For GKI,
+				disabled at runtime by default to prevent
+				crashes in devices which do not support DCC.
 
 	hv_nopvspin	[X86,HYPER_V,EARLY]
 			Disables the paravirt spinlock optimizations
@@ -2896,7 +2904,7 @@
 			CONFIG_KUNIT to be set to be fully enabled. The
 			default value can be overridden via
 			KUNIT_DEFAULT_ENABLED.
-			Default is 1 (enabled)
+			Default is 0 (disabled)
 
 	kvm.ignore_msrs=[KVM] Ignore guest accesses to unhandled MSRs.
 			Default is 0 (don't ignore, but inject #GP)
@@ -3001,6 +3009,11 @@
 			max_snp_asid == min_sev_asid-1, will effectively make
 			SEV-ES unusable.
 
+	kvm-arm.hyp_lm_size_mb=
+			[KVM,ARM,EARLY] Maximum amount of contiguous memory mappable in
+			the pKVM hypervisor linear map, in MB. Any attempt to map more
+			memory than this into pKVM stage-1 at run-time may be fatal.
+
 	kvm-arm.mode=
 			[KVM,ARM,EARLY] Select one of KVM/arm64's modes of
 			operation.
@@ -3010,9 +3023,10 @@
 			nvhe: Standard nVHE-based mode, without support for
 			      protected guests.
 
-			protected: Mode with support for guests whose state is
-				   kept private from the host, using VHE or
-				   nVHE depending on HW support.
+			protected: nVHE-based mode with support for guests whose
+				   state is kept private from the host. See
+				   Documentation/virt/kvm/arm/pkvm.rst for more
+				   information about this mode of operation.
 
 			nested: VHE-based mode with support for nested
 				virtualization. Requires at least ARMv8.4
@@ -3025,6 +3039,17 @@
 			command-line.
 			"nested" is experimental and should be used with
 			extreme caution.
+
+	kvm-arm.protected_modules=
+			[KVM,ARM] List of pKVM modules to load before the host
+			is deprevileged.
+
+			This option only applies when booting with
+			kvm-arm.mode=protected.
+
+	kvm-arm.protected_prefault=
+			[KVM,ARM] Minimum order for each protected VM fault.
+			This range from 0 (default) to 9.
 
 	kvm-arm.vgic_v3_group0_trap=
 			[KVM,ARM,EARLY] Trap guest accesses to GICv3 group-0
@@ -3059,6 +3084,10 @@
 			trap: set WFI instruction trap
 
 			notrap: clear WFI instruction trap
+	kvm-arm.hyp_iommu_pages=
+			[KVM, ARM, EARLY]
+			Number of pages allocated for the IOMMU pool from the
+			KVM carveout when running in protected mode.
 
 	kvm_cma_resv_ratio=n [PPC,EARLY]
 			Reserves given percentage from system memory area for
@@ -6031,6 +6060,21 @@
 
 	rcutorture.verbose= [KNL]
 			Enable additional printk() statements.
+
+	rcupdate.rcu_boot_end_delay= [KNL]
+			Minimum time in milliseconds from the start of boot
+			that must elapse before the boot sequence can be marked
+			complete from RCU's perspective, after which RCU's
+			behavior becomes more relaxed. The default value is also
+			configurable via CONFIG_RCU_BOOT_END_DELAY.
+			Userspace can also mark the boot as completed
+			sooner by writing the time in milliseconds, say once
+			userspace considers the system as booted, to:
+			/sys/module/rcupdate/parameters/rcu_boot_end_delay
+			Or even just writing a value of 0 to this sysfs node.
+			The sysfs node can also be used to extend the delay
+			to be larger than the default, assuming the marking
+			of boot complete has not yet occurred.
 
 	rcupdate.rcu_cpu_stall_ftrace_dump= [KNL]
 			Dump ftrace buffer after reporting RCU CPU

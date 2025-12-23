@@ -341,9 +341,11 @@ struct kvm_vm *____vm_create(struct vm_shape shape)
 	}
 
 #ifdef __aarch64__
-	TEST_ASSERT(!vm->type, "ARM doesn't support test-provided types");
 	if (vm->pa_bits != 40)
 		vm->type = KVM_VM_TYPE_ARM_IPA_SIZE(vm->pa_bits);
+
+	if (shape.type == VM_TYPE_PROTECTED)
+		vm->type |= (1U << 31);
 #endif
 
 	vm_open(vm);
@@ -740,6 +742,9 @@ static void vm_vcpu_rm(struct kvm_vm *vm, struct kvm_vcpu *vcpu)
 {
 	int ret;
 
+	if (vcpu->fd < 0)
+		return;
+
 	if (vcpu->dirty_gfns) {
 		kvm_munmap(vcpu->dirty_gfns, vm->dirty_ring_size);
 		vcpu->dirty_gfns = NULL;
@@ -749,6 +754,7 @@ static void vm_vcpu_rm(struct kvm_vm *vm, struct kvm_vcpu *vcpu)
 
 	ret = close(vcpu->fd);
 	TEST_ASSERT(!ret,  __KVM_SYSCALL_ERROR("close()", ret));
+	vcpu->fd = -1;
 
 	kvm_stats_release(&vcpu->stats);
 
@@ -766,11 +772,17 @@ void kvm_vm_release(struct kvm_vm *vmp)
 	list_for_each_entry_safe(vcpu, tmp, &vmp->vcpus, list)
 		vm_vcpu_rm(vmp, vcpu);
 
-	ret = close(vmp->fd);
-	TEST_ASSERT(!ret,  __KVM_SYSCALL_ERROR("close()", ret));
+	if (vmp->fd >= 0) {
+		ret = close(vmp->fd);
+		TEST_ASSERT(!ret,  __KVM_SYSCALL_ERROR("close()", ret));
+		vmp->fd = -1;
+	}
 
-	ret = close(vmp->kvm_fd);
-	TEST_ASSERT(!ret,  __KVM_SYSCALL_ERROR("close()", ret));
+	if (vmp->kvm_fd >= 0) {
+		ret = close(vmp->kvm_fd);
+		TEST_ASSERT(!ret,  __KVM_SYSCALL_ERROR("close()", ret));
+		vmp->kvm_fd = -1;
+	}
 
 	/* Free cached stats metadata and close FD */
 	kvm_stats_release(&vmp->stats);
@@ -1249,7 +1261,8 @@ void vm_mem_region_delete(struct kvm_vm *vm, uint32_t slot)
 	struct userspace_mem_region *region = memslot2region(vm, slot);
 
 	region->region.memory_size = 0;
-	vm_ioctl(vm, KVM_SET_USER_MEMORY_REGION2, &region->region);
+	if (vm->fd >= 0)
+		vm_ioctl(vm, KVM_SET_USER_MEMORY_REGION2, &region->region);
 
 	__vm_mem_region_delete(vm, region);
 }

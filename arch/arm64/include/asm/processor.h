@@ -33,6 +33,7 @@
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/thread_info.h>
+#include <linux/android_vendor.h>
 
 #include <vdso/processor.h>
 
@@ -194,6 +195,7 @@ struct thread_struct {
 	u64			gcs_base;
 	u64			gcs_size;
 #endif
+	ANDROID_VENDOR_DATA(1);
 };
 
 static inline unsigned int thread_get_vl(struct thread_struct *thread,

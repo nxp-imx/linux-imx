@@ -20,6 +20,7 @@
 #include <linux/err.h>
 #include <linux/list.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/string_choices.h>
@@ -28,10 +29,15 @@
 #include <linux/highmem.h>
 #include <linux/io.h>
 #include <linux/kmemleak.h>
+#include <linux/sched.h>
+#include <linux/jiffies.h>
 #include <trace/events/cma.h>
 
 #include "internal.h"
 #include "cma.h"
+
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
 
 struct cma cma_areas[MAX_CMA_AREAS];
 unsigned int cma_area_count;
@@ -51,6 +57,7 @@ const char *cma_get_name(const struct cma *cma)
 {
 	return cma->name;
 }
+EXPORT_SYMBOL_GPL(cma_get_name);
 
 static unsigned long cma_bitmap_aligned_mask(const struct cma *cma,
 					     unsigned int align_order)
@@ -784,6 +791,8 @@ static int cma_range_alloc(struct cma *cma, struct cma_memrange *cmr,
 	unsigned long start, pfn, mask, offset;
 	int ret = -EBUSY;
 	struct page *page = NULL;
+	int num_attempts = 0;
+	int max_retries = 5;
 
 	mask = cma_bitmap_aligned_mask(cma, align);
 	offset = cma_bitmap_aligned_offset(cma, cmr, align);
@@ -793,6 +802,7 @@ static int cma_range_alloc(struct cma *cma, struct cma_memrange *cmr,
 	if (bitmap_count > bitmap_maxno)
 		goto out;
 
+	trace_android_vh_cma_alloc_retry(cma->name, &max_retries);
 	for (start = 0; ; start = bitmap_no + mask + 1) {
 		spin_lock_irq(&cma->lock);
 		/*
@@ -807,8 +817,29 @@ static int cma_range_alloc(struct cma *cma, struct cma_memrange *cmr,
 				bitmap_maxno, start, bitmap_count, mask,
 				offset);
 		if (bitmap_no >= bitmap_maxno) {
-			spin_unlock_irq(&cma->lock);
-			break;
+			if ((num_attempts < max_retries) && (ret == -EBUSY)) {
+				spin_unlock_irq(&cma->lock);
+
+				if (fatal_signal_pending(current) ||
+				    (gfp & __GFP_NORETRY))
+					break;
+
+				/*
+				 * Page may be momentarily pinned by some other
+				 * process which has been scheduled out, e.g.
+				 * in exit path, during unmap call, or process
+				 * fork and so cannot be freed there. Sleep
+				 * for 100ms and retry the allocation.
+				 */
+				start = 0;
+				ret = -ENOMEM;
+				schedule_timeout_killable(msecs_to_jiffies(100));
+				num_attempts++;
+				continue;
+			} else {
+				spin_unlock_irq(&cma->lock);
+				break;
+			}
 		}
 
 		pfn = cmr->base_pfn + (bitmap_no << cma->order_per_bit);
@@ -856,13 +887,17 @@ out:
 	return ret;
 }
 
-static struct page *__cma_alloc(struct cma *cma, unsigned long count,
+struct page *__cma_alloc(struct cma *cma, unsigned long count,
 		       unsigned int align, gfp_t gfp)
 {
 	struct page *page = NULL;
 	int ret = -ENOMEM, r;
 	unsigned long i;
 	const char *name = cma ? cma->name : NULL;
+
+	if (WARN_ON_ONCE((gfp & GFP_KERNEL) == 0 ||
+		(gfp & ~(GFP_KERNEL|__GFP_NOWARN|__GFP_NORETRY)) != 0))
+		return page;
 
 	if (!cma || !cma->count)
 		return page;
@@ -913,6 +948,7 @@ static struct page *__cma_alloc(struct cma *cma, unsigned long count,
 
 	return page;
 }
+EXPORT_SYMBOL_GPL(__cma_alloc);
 
 /**
  * cma_alloc() - allocate pages from contiguous area
@@ -929,6 +965,7 @@ struct page *cma_alloc(struct cma *cma, unsigned long count,
 {
 	return __cma_alloc(cma, count, align, GFP_KERNEL | (no_warn ? __GFP_NOWARN : 0));
 }
+EXPORT_SYMBOL_GPL(cma_alloc);
 
 struct folio *cma_alloc_folio(struct cma *cma, int order, gfp_t gfp)
 {
@@ -1016,6 +1053,7 @@ bool cma_release(struct cma *cma, const struct page *pages,
 
 	return true;
 }
+EXPORT_SYMBOL_GPL(cma_release);
 
 bool cma_free_folio(struct cma *cma, const struct folio *folio)
 {
@@ -1038,6 +1076,7 @@ int cma_for_each_area(int (*it)(struct cma *cma, void *data), void *data)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(cma_for_each_area);
 
 bool cma_intersects(struct cma *cma, unsigned long start, unsigned long end)
 {

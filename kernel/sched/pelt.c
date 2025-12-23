@@ -295,6 +295,12 @@ ___update_load_avg(struct sched_avg *sa, unsigned long load)
 
 int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_blocked_se(now, se, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &se->avg, 0, 0, 0)) {
 		___update_load_avg(&se->avg, se_weight(se));
 		trace_pelt_se_tp(se);
@@ -303,9 +309,16 @@ int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(__update_load_avg_blocked_se);
 
 int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_se(now, cfs_rq, se, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &se->avg, !!se->on_rq, se_runnable(se),
 				cfs_rq->curr == se)) {
 
@@ -320,6 +333,12 @@ int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se
 
 int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_load_avg_cfs_rq(now, cfs_rq, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &cfs_rq->avg,
 				scale_load_down(cfs_rq->load.weight),
 				cfs_rq->h_nr_runnable,
@@ -346,6 +365,12 @@ int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 
 int update_rt_rq_load_avg(u64 now, struct rq *rq, int running)
 {
+	int ret = -1;
+
+	trace_android_rvh_update_rt_rq_load_avg_internal(now, rq, running, &ret);
+	if (ret != -1)
+		return ret;
+
 	if (___update_load_sum(now, &rq->avg_rt,
 				running,
 				running,
@@ -488,3 +513,67 @@ bool update_other_load_avgs(struct rq *rq)
 		update_hw_load_avg(rq_clock_task(rq), rq, hw_pressure) |
 		update_irq_load_avg(rq, 0);
 }
+
+__read_mostly unsigned int sched_pelt_lshift;
+
+#ifdef CONFIG_SYSCTL
+#include <trace/hooks/sched.h>
+static unsigned int sysctl_sched_pelt_multiplier = 1;
+
+static int sched_pelt_multiplier(const struct ctl_table *table, int write, void *buffer,
+			  size_t *lenp, loff_t *ppos)
+{
+	static DEFINE_MUTEX(mutex);
+	unsigned int old;
+	int ret;
+
+	mutex_lock(&mutex);
+	old = sysctl_sched_pelt_multiplier;
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (ret)
+		goto undo;
+	if (!write)
+		goto done;
+
+	trace_android_vh_sched_pelt_multiplier(old, sysctl_sched_pelt_multiplier, &ret);
+	if (ret)
+		goto undo;
+
+	switch (sysctl_sched_pelt_multiplier)  {
+	case 1:
+		fallthrough;
+	case 2:
+		fallthrough;
+	case 4:
+		WRITE_ONCE(sched_pelt_lshift,
+			   sysctl_sched_pelt_multiplier >> 1);
+		goto done;
+	default:
+		ret = -EINVAL;
+	}
+
+undo:
+	sysctl_sched_pelt_multiplier = old;
+done:
+	mutex_unlock(&mutex);
+
+	return ret;
+}
+
+static struct ctl_table sched_pelt_sysctls[] = {
+	{
+		.procname       = "sched_pelt_multiplier",
+		.data           = &sysctl_sched_pelt_multiplier,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = sched_pelt_multiplier,
+	},
+};
+
+static int __init sched_pelt_sysctl_init(void)
+{
+	register_sysctl_init("kernel", sched_pelt_sysctls);
+	return 0;
+}
+late_initcall(sched_pelt_sysctl_init);
+#endif

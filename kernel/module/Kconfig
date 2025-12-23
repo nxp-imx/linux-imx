@@ -248,6 +248,20 @@ config MODULE_SRCVERSION_ALL
 	  the version).  With this option, such a "srcversion" field
 	  will be created for all modules.  If unsure, say N.
 
+config MODULE_SCMVERSION
+	bool "SCM version for modules"
+	depends on LOCALVERSION_AUTO
+	help
+	  This enables the module attribute "scmversion" which can be used
+	  by developers to identify the SCM version of a given module, e.g.
+	  git sha1 or hg sha1. The SCM version can be queried by modinfo or
+	  via the sysfs node: /sys/modules/MODULENAME/scmversion. This is
+	  useful when the kernel or kernel modules are updated separately
+	  since that causes the vermagic of the kernel and the module to
+	  differ.
+
+	  If unsure, say N.
+
 config MODULE_SIG
 	bool "Module signature verification"
 	select MODULE_SIG_FORMAT
@@ -287,6 +301,24 @@ config MODULE_SIG_ALL
 
 comment "Do not forget to sign required modules with scripts/sign-file"
 	depends on MODULE_SIG_FORCE && !MODULE_SIG_ALL
+
+config MODULE_SIG_PROTECT_LIST
+	string "File with signed module names whose exports are to be protected"
+	default ""
+	depends on MODULE_SIG && !MODULE_SIG_FORCE
+	help
+	  Enables symbol export protection support for the listed signed
+	  modules. This option prevents unsigned modules from exporting symbols
+	  which are exported by the listed modules. Any unsigned module which
+	  tries to export such a symbol will fail to load.
+
+	  The value to set here is the path to a text file in the source
+	  directory containing the list of module names, one per line. The path
+	  can be absolute, or relative to the kernel source or obj tree.
+
+config MODULE_SIG_PROTECT
+	def_bool y
+	depends on MODULE_SIG_PROTECT_LIST != ""
 
 choice
 	prompt "Hash algorithm to sign modules"

@@ -78,6 +78,7 @@
 #include <linux/sched/sysctl.h>
 
 #include <trace/events/kmem.h>
+#include <trace/hooks/mm.h>
 
 #include <asm/io.h>
 #include <asm/mmu_context.h>
@@ -181,6 +182,7 @@ void mm_trace_rss_stat(struct mm_struct *mm, int member)
 {
 	trace_rss_stat(mm, member);
 }
+EXPORT_SYMBOL_GPL(mm_trace_rss_stat);
 
 /*
  * Note: this doesn't free the actual pages themselves. That
@@ -754,6 +756,7 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
 	return __vm_normal_page(vma, addr, pte_pfn(pte), pte_special(pte),
 				pte_val(pte), PGTABLE_LEVEL_PTE);
 }
+EXPORT_SYMBOL_GPL(vm_normal_page);
 
 /**
  * vm_normal_folio() - Get the "struct folio" associated with a PTE
@@ -5682,11 +5685,16 @@ static vm_fault_t do_fault_around(struct vm_fault *vmf)
 /* Return true if we should do read fault-around, false otherwise */
 static inline bool should_fault_around(struct vm_fault *vmf)
 {
+	bool should_around = true;
 	/* No ->map_pages?  No way to fault around... */
 	if (!vmf->vma->vm_ops->map_pages)
 		return false;
 
 	if (uffd_disable_fault_around(vmf->vma))
+		return false;
+
+	trace_android_vh_should_fault_around(vmf, &should_around);
+	if (!should_around)
 		return false;
 
 	/* A single page implies no faulting 'around' at all. */

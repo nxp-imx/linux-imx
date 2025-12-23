@@ -228,6 +228,9 @@ extern const struct bus_type ffa_bus_type;
 /* The FF-A 1.0 partition structure lacks the uuid[4] */
 #define FFA_1_0_PARTITON_INFO_SZ	(8)
 
+/* Return the count of partitions deployed in the system */
+#define PARTITION_INFO_GET_RETURN_COUNT_ONLY	BIT(0)
+
 /* FFA transport related */
 struct ffa_partition_info {
 	u16 id;
@@ -240,6 +243,10 @@ struct ffa_partition_info {
 #define FFA_PARTITION_INDIRECT_MSG	BIT(2)
 /* partition can receive notifications */
 #define FFA_PARTITION_NOTIFICATION_RECV	BIT(3)
+/* partition must be informed about each VM that is created by the Hypervisor */
+#define FFA_PARTITION_HYP_CREATE_VM	BIT(6)
+/* partition must be informed about each VM that is destroyed by the Hypervisor */
+#define FFA_PARTITION_HYP_DESTROY_VM	BIT(7)
 /* partition runs in the AArch64 execution state. */
 #define FFA_PARTITION_AARCH64_EXEC	BIT(8)
 /* partition supports receipt of direct request2 */
@@ -249,6 +256,9 @@ struct ffa_partition_info {
 	u32 properties;
 	uuid_t uuid;
 };
+
+#define FFA_VM_CREATION_MSG	(BIT(31) | (BIT(2)))
+#define FFA_VM_DESTRUCTION_MSG  (FFA_VM_CREATION_MSG | BIT(1))
 
 static inline
 bool ffa_partition_check_property(struct ffa_device *dev, u32 property)
@@ -268,6 +278,8 @@ bool ffa_partition_check_property(struct ffa_device *dev, u32 property)
 #define ffa_partition_supports_direct_req2_recv(dev)	\
 	(ffa_partition_check_property(dev, FFA_PARTITION_DIRECT_REQ2_RECV) && \
 	 !dev->mode_32bit)
+
+#define FFA_SRC_ENDPOINT_MASK	GENMASK(31, 16)
 
 /* For use with FFA_MSG_SEND_DIRECT_{REQ,RESP} which pass data via registers */
 struct ffa_send_direct_data {
@@ -511,5 +523,39 @@ struct ffa_ops {
 	const struct ffa_cpu_ops *cpu_ops;
 	const struct ffa_notifier_ops *notifier_ops;
 };
+
+static const int ffa_linux_errmap[] = {
+	/* better than switch case as long as return value is continuous */
+	0,		/* FFA_RET_SUCCESS */
+	-EOPNOTSUPP,	/* FFA_RET_NOT_SUPPORTED */
+	-EINVAL,	/* FFA_RET_INVALID_PARAMETERS */
+	-ENOMEM,	/* FFA_RET_NO_MEMORY */
+	-EBUSY,		/* FFA_RET_BUSY */
+	-EINTR,		/* FFA_RET_INTERRUPTED */
+	-EACCES,	/* FFA_RET_DENIED */
+	-EAGAIN,	/* FFA_RET_RETRY */
+	-ECANCELED,	/* FFA_RET_ABORTED */
+	-ENODATA,	/* FFA_RET_NO_DATA */
+	-EAGAIN,	/* FFA_RET_NOT_READY */
+};
+
+static inline int ffa_to_linux_errno(int errno)
+{
+	int err_idx = -errno;
+
+	if (err_idx >= 0 && err_idx < ARRAY_SIZE(ffa_linux_errmap))
+		return ffa_linux_errmap[err_idx];
+	return -EINVAL;
+}
+
+static inline int linux_errno_to_ffa(int errno)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ffa_linux_errmap); i++)
+		if (ffa_linux_errmap[i] == errno)
+			return -i;
+	return FFA_RET_NOT_SUPPORTED;
+}
 
 #endif /* _LINUX_ARM_FFA_H */

@@ -10,19 +10,34 @@
 #include <asm/kvm_pgtable.h>
 #include <asm/kvm_pkvm.h>
 
+#include <nvhe/alloc.h>
 #include <nvhe/early_alloc.h>
 #include <nvhe/ffa.h>
 #include <nvhe/gfp.h>
+#include <nvhe/iommu.h>
 #include <nvhe/memory.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
+#include <nvhe/serial.h>
+#include <nvhe/trace.h>
 #include <nvhe/trap_handler.h>
 
 unsigned long hyp_nr_cpus;
 
+phys_addr_t pvmfw_base;
+phys_addr_t pvmfw_size;
+/* See kvm_iommu_pages() */
+#ifdef CONFIG_IOMMU_POOL_PAGES
+size_t hyp_kvm_iommu_pages = CONFIG_IOMMU_POOL_PAGES;
+#else
+size_t hyp_kvm_iommu_pages;
+#endif
+
 #define hyp_percpu_size ((unsigned long)__per_cpu_end - \
 			 (unsigned long)__per_cpu_start)
+
+u64 hyp_lm_size_mb;
 
 static void *vmemmap_base;
 static void *vm_table_base;
@@ -32,6 +47,7 @@ static void *selftest_base;
 static void *ffa_proxy_pages;
 static struct kvm_pgtable_mm_ops pkvm_pgtable_mm_ops;
 static struct hyp_pool hpool;
+static void *iommu_base;
 
 static int divide_memory_pool(void *virt, unsigned long size)
 {
@@ -69,6 +85,16 @@ static int divide_memory_pool(void *virt, unsigned long size)
 	if (!ffa_proxy_pages)
 		return -ENOMEM;
 
+	hyp_ppages = hyp_early_alloc_contig(1);
+	if (!hyp_ppages)
+		return -ENOMEM;
+
+	if (hyp_kvm_iommu_pages) {
+		iommu_base = hyp_early_alloc_contig(hyp_kvm_iommu_pages);
+		if (!iommu_base)
+			return -ENOMEM;
+	}
+
 	return 0;
 }
 
@@ -100,6 +126,7 @@ static int recreate_hyp_mappings(phys_addr_t phys, unsigned long size,
 {
 	void *start, *end, *virt = hyp_phys_to_virt(phys);
 	unsigned long pgt_size = hyp_s1_pgtable_pages() << PAGE_SHIFT;
+	enum kvm_pgtable_prot prot;
 	int ret, i;
 
 	/* Recreate the hyp page-table using the early page allocator */
@@ -155,7 +182,27 @@ static int recreate_hyp_mappings(phys_addr_t phys, unsigned long size,
 			return ret;
 	}
 
-	return pkvm_create_host_sve_mappings();
+	ret = pkvm_create_host_sve_mappings();
+	if (ret)
+		return ret;
+
+	/*
+	 * Map the pvmfw section RO in the hypervisor, but transfer the
+	 * ownership from the host to the hypervisor itself to make sure that it
+	 * can't be donated or shared with another entity.
+	 *
+	 * The ownership transition requires matching changes in the host
+	 * stage-2. This will be done later (see finalize_host_mappings()) once
+	 * the hyp_vmemmap is addressable.
+	 */
+	start = hyp_phys_to_virt(pvmfw_base);
+	end = start + pvmfw_size;
+	prot = pkvm_mkstate(PAGE_HYP_RO, PKVM_PAGE_OWNED);
+	ret = pkvm_create_mappings(start, end, prot);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static void update_nvhe_init_params(void)
@@ -252,6 +299,29 @@ static int fix_hyp_pgtable_refcnt_walker(const struct kvm_pgtable_visit_ctx *ctx
 	return 0;
 }
 
+static int pin_table_walker(const struct kvm_pgtable_visit_ctx *ctx,
+			    enum kvm_pgtable_walk_flags visit)
+{
+	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
+	kvm_pte_t pte = *(ctx->ptep);
+
+	if (kvm_pte_valid(pte))
+		mm_ops->get_page(kvm_pte_follow(pte, mm_ops));
+
+	return 0;
+}
+
+static int pin_host_tables(void)
+{
+	struct kvm_pgtable_walker walker = {
+		.cb	= pin_table_walker,
+		.flags	= KVM_PGTABLE_WALK_TABLE_POST,
+		.arg	= &host_mmu.mm_ops,
+	};
+
+	return kvm_pgtable_walk(&host_mmu.pgt, 0, BIT(host_mmu.pgt.ia_bits), &walker);
+}
+
 static int fix_host_ownership(void)
 {
 	struct kvm_pgtable_walker walker = {
@@ -284,6 +354,25 @@ static int fix_hyp_pgtable_refcnt(void)
 				&walker);
 }
 
+static int unmap_protected_regions(void)
+{
+	struct pkvm_moveable_reg *reg;
+	int i, ret;
+
+	for (i = 0; i < pkvm_moveable_regs_nr; i++) {
+		reg = &pkvm_moveable_regs[i];
+		if (reg->type != PKVM_MREG_PROTECTED_RANGE)
+			continue;
+
+		ret = host_stage2_set_owner_locked(reg->start, reg->size,
+						   PKVM_ID_PROTECTED);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 void __noreturn __pkvm_init_finalise(void)
 {
 	struct kvm_cpu_context *host_ctxt = host_data_ptr(host_ctxt);
@@ -312,15 +401,33 @@ void __noreturn __pkvm_init_finalise(void)
 	};
 	pkvm_pgtable.mm_ops = &pkvm_pgtable_mm_ops;
 
-	ret = fix_host_ownership();
-	if (ret)
-		goto out;
-
 	ret = fix_hyp_pgtable_refcnt();
 	if (ret)
 		goto out;
 
 	ret = hyp_create_fixmap();
+	if (ret)
+		goto out;
+
+	hyp_ftrace_setup_core();
+
+	ret = pkvm_timer_init();
+	if (ret)
+		goto out;
+
+	ret = fix_host_ownership();
+	if (ret)
+		goto out;
+
+	ret = unmap_protected_regions();
+	if (ret)
+		goto out;
+
+	ret = pin_host_tables();
+	if (ret)
+		goto out;
+
+	ret = kvm_iommu_init(iommu_base, hyp_kvm_iommu_pages);
 	if (ret)
 		goto out;
 
@@ -362,6 +469,10 @@ int __pkvm_init(phys_addr_t phys, unsigned long size, unsigned long nr_cpus,
 		return ret;
 
 	ret = recreate_hyp_mappings(phys, size, per_cpu_base, hyp_va_bits);
+	if (ret)
+		return ret;
+
+	ret = hyp_alloc_init(SZ_128M);
 	if (ret)
 		return ret;
 

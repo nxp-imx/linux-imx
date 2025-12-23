@@ -1,4 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
+# Backward compatibility
+asflags-y  += $(EXTRA_AFLAGS)
+ccflags-y  += $(EXTRA_CFLAGS)
+cppflags-y += $(EXTRA_CPPFLAGS)
+ldflags-y  += $(EXTRA_LDFLAGS)
 
 # Finds the multi-part object the current object will be linked into.
 # If the object belongs to two or more multi-part objects, list them all.
@@ -360,10 +365,10 @@ quiet_cmd_lzo_with_size = LZO     $@
       cmd_lzo_with_size = { cat $(real-prereqs) | $(KLZOP) -9; $(size_append); } > $@
 
 quiet_cmd_lz4 = LZ4     $@
-      cmd_lz4 = cat $(real-prereqs) | $(LZ4) -l -9 - - > $@
+      cmd_lz4 = cat $(real-prereqs) | $(LZ4) -l -12 --favor-decSpeed - - > $@
 
 quiet_cmd_lz4_with_size = LZ4     $@
-      cmd_lz4_with_size = { cat $(real-prereqs) | $(LZ4) -l -9 - -; \
+      cmd_lz4_with_size = { cat $(real-prereqs) | $(LZ4) -l -12 --favor-decSpeed - -; \
                   $(size_append); } > $@
 
 # U-Boot mkimage

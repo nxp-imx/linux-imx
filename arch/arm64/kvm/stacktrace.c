@@ -21,6 +21,7 @@
 
 #include <asm/kvm_mmu.h>
 #include <asm/stacktrace/nvhe.h>
+#include <asm/kvm_pkvm_module.h>
 
 static struct stack_info stackinfo_get_overflow(void)
 {
@@ -148,10 +149,18 @@ static bool kvm_nvhe_dump_backtrace_entry(void *arg, unsigned long where)
 {
 	unsigned long va_mask = GENMASK_ULL(__hyp_va_bits - 1, 0);
 	unsigned long hyp_offset = (unsigned long)arg;
+	unsigned long mod_addr = pkvm_el2_mod_kern_va(where & va_mask);
+	unsigned long where_kaslr;
 
-	/* Mask tags and convert to kern addr */
-	where = (where & va_mask) + hyp_offset;
-	kvm_err(" [<%016lx>] %pB\n", where, (void *)(where + kaslr_offset()));
+	if (mod_addr) {
+		where_kaslr = where = mod_addr;
+	} else {
+		/* Mask tags and convert to kern addr */
+		where = (where & va_mask) + hyp_offset;
+		where_kaslr = where + kaslr_offset();
+	}
+
+	kvm_err(" [<%016lx>] %pB\n", where, (void *)(where_kaslr));
 
 	return true;
 }
@@ -197,7 +206,7 @@ static void hyp_dump_backtrace(unsigned long hyp_offset)
 	kvm_nvhe_dump_backtrace_end();
 }
 
-#ifdef CONFIG_PROTECTED_NVHE_STACKTRACE
+#ifdef CONFIG_PKVM_STACKTRACE
 DECLARE_KVM_NVHE_PER_CPU(unsigned long [NVHE_STACKTRACE_SIZE/sizeof(long)],
 			 pkvm_stacktrace);
 
@@ -225,12 +234,12 @@ static void pkvm_dump_backtrace(unsigned long hyp_offset)
 		kvm_nvhe_dump_backtrace_entry((void *)hyp_offset, stacktrace[i]);
 	kvm_nvhe_dump_backtrace_end();
 }
-#else	/* !CONFIG_PROTECTED_NVHE_STACKTRACE */
+#else	/* !CONFIG_PKVM_STACKTRACE */
 static void pkvm_dump_backtrace(unsigned long hyp_offset)
 {
-	kvm_err("Cannot dump pKVM nVHE stacktrace: !CONFIG_PROTECTED_NVHE_STACKTRACE\n");
+	kvm_err("Cannot dump pKVM nVHE stacktrace: !CONFIG_PKVM_STACKTRACE\n");
 }
-#endif /* CONFIG_PROTECTED_NVHE_STACKTRACE */
+#endif /* CONFIG_PKVM_STACKTRACE */
 
 /*
  * kvm_nvhe_dump_backtrace - Dump KVM nVHE hypervisor backtrace.

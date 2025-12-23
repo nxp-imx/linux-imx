@@ -208,6 +208,7 @@ void thermal_cdev_update_nocheck(struct thermal_cooling_device *cdev)
 
 	__thermal_cdev_update(cdev);
 }
+EXPORT_SYMBOL_GPL(thermal_cdev_update);
 
 /**
  * thermal_zone_get_slope - return the slope attribute of the thermal zone

@@ -27,6 +27,7 @@
 #include <linux/posix-timers.h>
 #include <linux/context_tracking.h>
 #include <linux/mm.h>
+#include <trace/hooks/sched.h>
 
 #include <asm/irq_regs.h>
 
@@ -228,8 +229,10 @@ static void tick_sched_do_timer(struct tick_sched *ts, ktime_t now)
 	}
 
 	/* Check if jiffies need an update */
-	if (tick_cpu == cpu)
+	if (tick_cpu == cpu) {
 		tick_do_update_jiffies64(now);
+		trace_android_vh_jiffies_update(NULL);
+	}
 
 	/*
 	 * If the jiffies update stalled for too long (timekeeper in stop_machine()
@@ -1368,6 +1371,7 @@ ktime_t tick_nohz_get_sleep_length(ktime_t *delta_next)
 
 	return ktime_sub(next_event, now);
 }
+EXPORT_SYMBOL_GPL(tick_nohz_get_sleep_length);
 
 /**
  * tick_nohz_get_idle_calls_cpu - return the current idle calls counter value
@@ -1384,6 +1388,7 @@ unsigned long tick_nohz_get_idle_calls_cpu(int cpu)
 
 	return ts->idle_calls;
 }
+EXPORT_SYMBOL_GPL(tick_nohz_get_idle_calls_cpu);
 
 static void tick_nohz_account_idle_time(struct tick_sched *ts,
 					ktime_t now)

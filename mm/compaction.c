@@ -63,6 +63,12 @@ static inline bool is_via_compact_memory(int order) { return false; }
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/compaction.h>
+#undef CREATE_TRACE_POINTS
+
+#include <trace/hooks/vmscan.h>
+
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
 
 #define block_start_pfn(pfn, order)	round_down(pfn, 1UL << (order))
 #define block_end_pfn(pfn, order)	ALIGN((pfn) + 1, 1UL << (order))
@@ -1379,6 +1385,8 @@ static bool suitable_migration_source(struct compact_control *cc,
 static bool suitable_migration_target(struct compact_control *cc,
 							struct page *page)
 {
+	bool bypass = false;
+
 	/* If the page is a large free page, then disallow migration */
 	if (PageBuddy(page)) {
 		int order = cc->order > 0 ? cc->order : pageblock_order;
@@ -1391,6 +1399,10 @@ static bool suitable_migration_target(struct compact_control *cc,
 		if (buddy_order_unsafe(page) >= order)
 			return false;
 	}
+
+	trace_android_vh_migration_target_bypass(page, &bypass);
+	if (bypass)
+		return false;
 
 	if (cc->ignore_block_suitable)
 		return true;
@@ -1459,6 +1471,7 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn)
 {
 	unsigned long start_pfn, end_pfn;
 	struct page *page;
+	bool bypass = false;
 
 	/* Do not search around if there are enough pages already */
 	if (cc->nr_freepages >= cc->nr_migratepages)
@@ -1474,6 +1487,10 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn)
 
 	page = pageblock_pfn_to_page(start_pfn, end_pfn, cc->zone);
 	if (!page)
+		return;
+
+	trace_android_vh_migration_target_bypass(page, &bypass);
+	if (bypass)
 		return;
 
 	isolate_freepages_block(cc, &start_pfn, end_pfn, cc->freepages, 1, false);
@@ -2236,6 +2253,7 @@ static enum compact_result __compact_finished(struct compact_control *cc)
 	unsigned int order;
 	const int migratetype = cc->migratetype;
 	int ret;
+	bool abort_compact = false;
 
 	/* Compaction run completes if the migrate and free scanner meet */
 	if (compact_scanners_met(cc)) {
@@ -2336,7 +2354,8 @@ static enum compact_result __compact_finished(struct compact_control *cc)
 	}
 
 out:
-	if (cc->contended || fatal_signal_pending(current))
+	trace_android_vh_compact_finished(&abort_compact);
+	if (cc->contended || fatal_signal_pending(current) || abort_compact)
 		ret = COMPACT_CONTENDED;
 
 	return ret;
@@ -3167,6 +3186,7 @@ static int kcompactd(void *p)
 	pg_data_t *pgdat = (pg_data_t *)p;
 	long default_timeout = msecs_to_jiffies(HPAGE_FRAG_CHECK_INTERVAL_MSEC);
 	long timeout = default_timeout;
+	bool bypass = false;
 
 	current->flags |= PF_KCOMPACTD;
 	set_freezable();
@@ -3188,9 +3208,12 @@ static int kcompactd(void *p)
 			kcompactd_work_requested(pgdat), timeout) &&
 			!pgdat->proactive_compact_trigger) {
 
-			psi_memstall_enter(&pflags);
+			trace_android_vh_async_psi_bypass(&bypass);
+			if (!bypass)
+				psi_memstall_enter(&pflags);
 			kcompactd_do_work(pgdat);
-			psi_memstall_leave(&pflags);
+			if (!bypass)
+				psi_memstall_leave(&pflags);
 			/*
 			 * Reset the timeout value. The defer timeout from
 			 * proactive compaction is lost here but that is fine

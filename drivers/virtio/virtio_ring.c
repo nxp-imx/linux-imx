@@ -3403,5 +3403,15 @@ void virtqueue_map_sync_single_range_for_device(const struct virtqueue *_vq,
 }
 EXPORT_SYMBOL_GPL(virtqueue_map_sync_single_range_for_device);
 
+/*
+ * Prevents use of DMA API for buffers passed via the specified virtqueue.
+ * DMA API may still be used for the vrings themselves.
+ */
+void virtqueue_disable_map_api_for_buffers(struct virtqueue *vq)
+{
+	to_vvq(vq)->use_map_api = false;
+}
+EXPORT_SYMBOL_GPL(virtqueue_disable_map_api_for_buffers);
+
 MODULE_DESCRIPTION("Virtio ring implementation");
 MODULE_LICENSE("GPL");

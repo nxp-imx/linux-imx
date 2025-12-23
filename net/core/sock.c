@@ -141,6 +141,8 @@
 #include <net/bpf_sk_storage.h>
 
 #include <trace/events/sock.h>
+#include <trace/hooks/sched.h>
+#include <trace/hooks/net.h>
 
 #include <net/tcp.h>
 #include <net/busy_poll.h>
@@ -2268,6 +2270,7 @@ static void sk_prot_free(struct proto *prot, struct sock *sk)
 
 	cgroup_sk_free(&sk->sk_cgrp_data);
 	mem_cgroup_sk_free(sk);
+	trace_android_vh_sk_free(sk);
 	security_sk_free(sk);
 
 	sk_owner_put(sk);
@@ -2316,6 +2319,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 		refcount_set(&sk->sk_wmem_alloc, 1);
 
 		mem_cgroup_sk_alloc(sk);
+		trace_android_vh_sk_alloc(sk);
 		cgroup_sk_alloc(&sk->sk_cgrp_data);
 		sock_update_classid(&sk->sk_cgrp_data);
 		sock_update_netprioidx(&sk->sk_cgrp_data);
@@ -3547,9 +3551,19 @@ void sock_def_readable(struct sock *sk)
 
 	rcu_read_lock();
 	wq = rcu_dereference(sk->sk_wq);
-	if (skwq_has_sleeper(wq))
+
+	if (skwq_has_sleeper(wq)) {
+		int done = 0;
+
+		trace_android_vh_do_wake_up_sync(&wq->wait, &done, sk);
+		if (done)
+			goto out;
+
 		wake_up_interruptible_sync_poll(&wq->wait, EPOLLIN | EPOLLPRI |
 						EPOLLRDNORM | EPOLLRDBAND);
+	}
+
+out:
 	sk_wake_async_rcu(sk, SOCK_WAKE_WAITD, POLL_IN);
 	rcu_read_unlock();
 }

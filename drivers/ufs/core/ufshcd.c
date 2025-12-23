@@ -28,6 +28,7 @@
 #include <scsi/scsi_dbg.h>
 #include <scsi/scsi_driver.h>
 #include <scsi/scsi_eh.h>
+#include <ufs/ufs.h>
 #include "ufshcd-priv.h"
 #include <ufs/ufs_quirks.h>
 #include <ufs/unipro.h>
@@ -40,6 +41,9 @@
 
 #define CREATE_TRACE_POINTS
 #include "ufs_trace.h"
+
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/ufshcd.h>
 
 #define UFSHCD_ENABLE_INTRS	(UTP_TRANSFER_REQ_COMPL |\
 				 UTP_TASK_REQ_COMPL |\
@@ -116,6 +120,10 @@ static bool is_mcq_supported(struct ufs_hba *hba)
 
 module_param(use_mcq_mode, bool, 0644);
 MODULE_PARM_DESC(use_mcq_mode, "Control MCQ mode for controllers starting from UFSHCI 4.0. 1 - enable MCQ, 0 - disable MCQ. MCQ is enabled by default");
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(ufshcd_profile_hibern8);
+EXPORT_TRACEPOINT_SYMBOL_GPL(ufshcd_profile_clk_scaling);
+EXPORT_TRACEPOINT_SYMBOL_GPL(ufshcd_profile_clk_gating);
 
 static unsigned int uic_cmd_timeout = UIC_CMD_TIMEOUT_DEFAULT;
 
@@ -437,6 +445,8 @@ static void ufshcd_add_tm_upiu_trace(struct ufs_hba *hba, unsigned int tag,
 {
 	struct utp_task_req_desc *descp = &hba->utmrdl_base_addr[tag];
 
+	trace_android_vh_ufs_send_tm_command(hba, tag, (int)str_t);
+
 	if (!trace_ufshcd_upiu_enabled())
 		return;
 
@@ -457,6 +467,8 @@ static void ufshcd_add_uic_command_trace(struct ufs_hba *hba,
 					 enum ufs_trace_str_t str_t)
 {
 	u32 cmd;
+
+	trace_android_vh_ufs_send_uic_command(hba, ucmd, (int)str_t);
 
 	if (!trace_ufshcd_uic_command_enabled())
 		return;
@@ -2366,6 +2378,7 @@ void ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag,
 		lrbp->issue_time_stamp_local_clock = local_clock();
 		lrbp->compl_time_stamp = ktime_set(0, 0);
 		lrbp->compl_time_stamp_local_clock = 0;
+		trace_android_vh_ufs_send_command(hba, lrbp);
 	}
 	ufshcd_add_command_trace(hba, task_tag, UFS_CMD_SEND);
 	if (lrbp->cmd)
@@ -2595,6 +2608,7 @@ ufshcd_wait_for_uic_cmd(struct ufs_hba *hba, struct uic_command *uic_cmd)
 	hba->active_uic_cmd = NULL;
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
+	trace_android_vh_ufs_wait_for_uic_cmd(hba, uic_cmd, ret);
 	return ret;
 }
 
@@ -2714,12 +2728,22 @@ static int ufshcd_map_sg(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 {
 	struct scsi_cmnd *cmd = lrbp->cmd;
 	int sg_segments = scsi_dma_map(cmd);
+	int err;
 
 	if (sg_segments < 0)
 		return sg_segments;
 
 	ufshcd_sgl_to_prdt(hba, lrbp, sg_segments, scsi_sglist(cmd));
 
+	/*
+	 * TODO(b/160883801): remove this vendor hook in favor of the upstream
+	 * variant op.  This isn't possible yet because the upstream variant op
+	 * doesn't yet make it possible for the host driver to get the keyslot.
+	 */
+	err = 0;
+	trace_android_vh_ufs_fill_prdt(hba, lrbp, sg_segments, &err);
+	if (err)
+		return err;
 	return ufshcd_crypto_fill_prdt(hba, lrbp);
 }
 
@@ -3057,6 +3081,13 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 
 	ufshcd_setup_scsi_cmd(hba, lrbp, cmd, ufshcd_scsi_to_upiu_lun(cmd->device->lun), tag);
 
+	trace_android_vh_ufs_prepare_command(hba, scsi_cmd_to_rq(cmd), lrbp,
+					     &err);
+	if (err) {
+		ufshcd_release(hba);
+		goto out;
+	}
+
 	err = ufshcd_map_sg(hba, lrbp);
 	if (err) {
 		ufshcd_release(hba);
@@ -3204,6 +3235,7 @@ ufshcd_dev_cmd_completion(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 	}
 
 	WARN_ONCE(err > 0, "Incorrect return value %d > 0\n", err);
+	trace_android_vh_ufs_dev_cmd_completion(hba, lrbp, err);
 	return err;
 }
 
@@ -3378,7 +3410,7 @@ static inline void ufshcd_init_query(struct ufs_hba *hba,
  * Return: 0 upon success; > 0 in case the UFS device reported an OCS error;
  * < 0 if another error occurred.
  */
-static int ufshcd_query_flag_retry(struct ufs_hba *hba,
+int ufshcd_query_flag_retry(struct ufs_hba *hba,
 	enum query_opcode opcode, enum flag_idn idn, u8 index, bool *flag_res)
 {
 	int ret;
@@ -3400,6 +3432,7 @@ static int ufshcd_query_flag_retry(struct ufs_hba *hba,
 			__func__, opcode, idn, ret, retries);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ufshcd_query_flag_retry);
 
 /**
  * ufshcd_query_flag() - API function for sending flag query requests
@@ -3468,6 +3501,7 @@ out_unlock:
 	ufshcd_dev_man_unlock(hba);
 	return err;
 }
+EXPORT_SYMBOL_GPL(ufshcd_query_flag);
 
 /**
  * ufshcd_query_attr - API function for sending attribute requests
@@ -3530,6 +3564,7 @@ out_unlock:
 	ufshcd_dev_man_unlock(hba);
 	return err;
 }
+EXPORT_SYMBOL_GPL(ufshcd_query_attr);
 
 /**
  * ufshcd_query_attr_retry() - API function for sending query
@@ -3568,6 +3603,7 @@ int ufshcd_query_attr_retry(struct ufs_hba *hba,
 			__func__, idn, ret, QUERY_REQ_RETRIES);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ufshcd_query_attr_retry);
 
 /*
  * Return: 0 upon success; > 0 in case the UFS device reported an OCS error;
@@ -3667,6 +3703,7 @@ int ufshcd_query_descriptor_retry(struct ufs_hba *hba,
 
 	return err;
 }
+EXPORT_SYMBOL_GPL(ufshcd_query_descriptor_retry);
 
 /**
  * ufshcd_read_desc_param - read the specified descriptor parameter
@@ -3747,6 +3784,7 @@ out:
 		kfree(desc_buf);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ufshcd_read_desc_param);
 
 /**
  * struct uc_string_id - unicode string
@@ -5134,6 +5172,7 @@ link_startup:
 out:
 	if (ret)
 		dev_err(hba->dev, "link startup failed %d\n", ret);
+	trace_android_vh_ufs_link_startup(hba, ret);
 	return ret;
 }
 
@@ -5537,6 +5576,8 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
 	if ((host_byte(result) != DID_OK) &&
 	    (host_byte(result) != DID_REQUEUE) && !hba->silence_err_logs)
 		ufshcd_print_tr(hba, lrbp->task_tag, true);
+
+	trace_android_vh_ufs_transfer_rsp_status(hba, lrbp, cqe, result);
 	return result;
 }
 
@@ -5633,6 +5674,7 @@ void ufshcd_compl_one_cqe(struct ufs_hba *hba, int task_tag,
 		lrbp->compl_time_stamp_local_clock = local_clock();
 	}
 	cmd = lrbp->cmd;
+	trace_android_vh_ufs_compl_command(hba, lrbp);
 	if (cmd) {
 		if (unlikely(ufshcd_should_inform_monitor(hba, lrbp)))
 			ufshcd_update_monitor(hba, lrbp);
@@ -6004,7 +6046,7 @@ static inline int ufshcd_get_bkops_status(struct ufs_hba *hba, u32 *status)
  * to know whether auto bkops is enabled or disabled after this function
  * returns control to it.
  */
-static int ufshcd_bkops_ctrl(struct ufs_hba *hba)
+int ufshcd_bkops_ctrl(struct ufs_hba *hba)
 {
 	enum bkops_status status = hba->urgent_bkops_lvl;
 	u32 curr_status = 0;
@@ -6029,6 +6071,7 @@ static int ufshcd_bkops_ctrl(struct ufs_hba *hba)
 out:
 	return err;
 }
+EXPORT_SYMBOL_GPL(ufshcd_bkops_ctrl);
 
 static inline int ufshcd_get_ee_status(struct ufs_hba *hba, u32 *status)
 {
@@ -6984,6 +7027,8 @@ static irqreturn_t ufshcd_check_errors(struct ufs_hba *hba, u32 intr_status)
 		ufshcd_set_link_broken(hba);
 		queue_eh_work = true;
 	}
+
+	trace_android_vh_ufs_check_int_errors(hba, queue_eh_work);
 
 	if (queue_eh_work) {
 		/*
@@ -9090,6 +9135,7 @@ static int ufshcd_probe_hba(struct ufs_hba *hba, bool init_dev_params)
 	if (hba->ee_usr_mask)
 		ufshcd_write_ee_control(hba);
 	ufshcd_configure_auto_hibern8(hba);
+	trace_android_rvh_ufs_complete_init(hba);
 
 	return 0;
 }
@@ -9143,6 +9189,7 @@ static enum scsi_timeout_action ufshcd_eh_timed_out(struct scsi_cmnd *scmd)
 	dev_info(hba->dev, "%s() finished; outstanding_tasks = %#lx.\n",
 		 __func__, hba->outstanding_tasks);
 
+	trace_android_vh_ufs_eh_timed_out(hba, scmd);
 	return scsi_host_busy(hba->host) ? SCSI_EH_RESET_TIMER : SCSI_EH_DONE;
 }
 
@@ -10891,6 +10938,8 @@ initialized:
 
 	ufs_sysfs_add_nodes(hba->dev);
 	async_schedule(ufshcd_async_scan, hba);
+
+	trace_android_vh_ufs_update_sysfs(hba);
 
 	device_enable_async_suspend(dev);
 	ufshcd_pm_qos_init(hba);

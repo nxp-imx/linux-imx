@@ -1795,9 +1795,7 @@ static inline int xfrm6_tunnel_check_size(struct sk_buff *skb)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_NET_PKTGEN)
 int pktgen_xfrm_outer_mode_output(struct xfrm_state *x, struct sk_buff *skb);
-#endif
 
 void xfrm_local_error(struct sk_buff *skb, int mtu);
 int xfrm4_rcv_encap(struct sk_buff *skb, int nexthdr, __be32 spi,

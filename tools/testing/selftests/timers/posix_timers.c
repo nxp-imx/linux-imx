@@ -671,7 +671,7 @@ static void check_timer_create_exact(void)
 int main(int argc, char **argv)
 {
 	ksft_print_header();
-	ksft_set_plan(19);
+	ksft_set_plan(15);
 
 	ksft_print_msg("Testing posix timers. False negative may happen on CPU execution \n");
 	ksft_print_msg("based timers if other threads run on the CPU...\n");
@@ -695,10 +695,13 @@ int main(int argc, char **argv)
 	check_timer_create(CLOCK_PROCESS_CPUTIME_ID, "CLOCK_PROCESS_CPUTIME_ID");
 	check_timer_distribution();
 
+// TODO: b/369693249 - depends on future patches and pthread_cancel replacement
+#if 0
 	check_sig_ign(0);
 	check_sig_ign(1);
 	check_rearm();
 	check_delete();
+#endif
 	check_sigev_none(CLOCK_MONOTONIC, "CLOCK_MONOTONIC");
 	check_sigev_none(CLOCK_PROCESS_CPUTIME_ID, "CLOCK_PROCESS_CPUTIME_ID");
 	check_gettime(CLOCK_MONOTONIC, "CLOCK_MONOTONIC");

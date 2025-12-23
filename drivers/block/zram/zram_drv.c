@@ -36,6 +36,7 @@
 #include <linux/kernel_read_file.h>
 
 #include "zram_drv.h"
+#include "zram_ioctl.h"
 
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
@@ -112,7 +113,7 @@ static void zram_slot_unlock(struct zram *zram, u32 index)
 	clear_and_wake_up_bit(ZRAM_ENTRY_LOCK, lock);
 }
 
-static inline bool init_done(struct zram *zram)
+bool init_done(struct zram *zram)
 {
 	return zram->disksize;
 }
@@ -238,18 +239,7 @@ struct zram_pp_slot {
 	struct list_head	entry;
 };
 
-/*
- * A post-processing bucket is, essentially, a size class, this defines
- * the range (in bytes) of pp-slots sizes in particular bucket.
- */
-#define PP_BUCKET_SIZE_RANGE	64
-#define NUM_PP_BUCKETS		((PAGE_SIZE / PP_BUCKET_SIZE_RANGE) + 1)
-
-struct zram_pp_ctl {
-	struct list_head	pp_buckets[NUM_PP_BUCKETS];
-};
-
-static struct zram_pp_ctl *init_pp_ctl(void)
+struct zram_pp_ctl *init_pp_ctl(void)
 {
 	struct zram_pp_ctl *ctl;
 	u32 idx;
@@ -260,6 +250,7 @@ static struct zram_pp_ctl *init_pp_ctl(void)
 
 	for (idx = 0; idx < NUM_PP_BUCKETS; idx++)
 		INIT_LIST_HEAD(&ctl->pp_buckets[idx]);
+	ctl->processed_bytes = 0;
 	return ctl;
 }
 
@@ -274,7 +265,7 @@ static void release_pp_slot(struct zram *zram, struct zram_pp_slot *pps)
 	kfree(pps);
 }
 
-static void release_pp_ctl(struct zram *zram, struct zram_pp_ctl *ctl)
+void release_pp_ctl(struct zram *zram, struct zram_pp_ctl *ctl)
 {
 	u32 idx;
 
@@ -643,7 +634,7 @@ static ssize_t backing_dev_store(struct device *dev,
 	if (sz > 0 && file_name[sz - 1] == '\n')
 		file_name[sz - 1] = 0x00;
 
-	backing_dev = filp_open(file_name, O_RDWR | O_LARGEFILE | O_EXCL, 0);
+	backing_dev = filp_open_block(file_name, O_RDWR | O_LARGEFILE | O_EXCL, 0);
 	if (IS_ERR(backing_dev)) {
 		err = PTR_ERR(backing_dev);
 		backing_dev = NULL;
@@ -734,7 +725,7 @@ static void read_from_bdev_async(struct zram *zram, struct page *page,
 	submit_bio(bio);
 }
 
-static int zram_writeback_slots(struct zram *zram, struct zram_pp_ctl *ctl)
+int zram_writeback_slots(struct zram *zram, struct zram_pp_ctl *ctl)
 {
 	unsigned long blk_idx = 0;
 	struct page *page = NULL;
@@ -821,6 +812,7 @@ static int zram_writeback_slots(struct zram *zram, struct zram_pp_ctl *ctl)
 		zram_set_handle(zram, index, blk_idx);
 		blk_idx = 0;
 		atomic64_inc(&zram->stats.pages_stored);
+		ctl->processed_bytes += PAGE_SIZE;
 		spin_lock(&zram->wb_limit_lock);
 		if (zram->wb_limit_enable && zram->bd_wb_limit > 0)
 			zram->bd_wb_limit -=  1UL << (PAGE_SHIFT - 12);
@@ -903,9 +895,9 @@ static int parse_mode(char *val, u32 *mode)
 	return 0;
 }
 
-static int scan_slots_for_writeback(struct zram *zram, u32 mode,
-				    unsigned long lo, unsigned long hi,
-				    struct zram_pp_ctl *ctl)
+int scan_slots_for_writeback(struct zram *zram, u32 mode,
+			     unsigned long lo, unsigned long hi,
+			     struct zram_pp_ctl *ctl)
 {
 	u32 index = lo;
 
@@ -2594,6 +2586,7 @@ static const struct block_device_operations zram_devops = {
 	.open = zram_open,
 	.submit_bio = zram_submit_bio,
 	.swap_slot_free_notify = zram_slot_free_notify,
+	.ioctl = zram_ioctl,
 	.owner = THIS_MODULE
 };
 

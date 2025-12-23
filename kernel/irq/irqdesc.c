@@ -415,9 +415,7 @@ struct irq_desc *irq_to_desc(unsigned int irq)
 {
 	return mtree_load(&sparse_irqs, irq);
 }
-#ifdef CONFIG_KVM_BOOK3S_64_HV_MODULE
 EXPORT_SYMBOL_GPL(irq_to_desc);
-#endif
 
 void irq_lock_sparse(void)
 {
@@ -879,8 +877,7 @@ void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus)
 		chip_bus_sync_unlock(desc);
 }
 
-int irq_set_percpu_devid_partition(unsigned int irq,
-				   const struct cpumask *affinity)
+int irq_set_percpu_devid(unsigned int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
@@ -892,30 +889,9 @@ int irq_set_percpu_devid_partition(unsigned int irq,
 	if (!desc->percpu_enabled)
 		return -ENOMEM;
 
-	desc->percpu_affinity = affinity ? : cpu_possible_mask;
-
 	irq_set_percpu_devid_flags(irq);
 	return 0;
 }
-
-int irq_set_percpu_devid(unsigned int irq)
-{
-	return irq_set_percpu_devid_partition(irq, NULL);
-}
-
-int irq_get_percpu_devid_partition(unsigned int irq, struct cpumask *affinity)
-{
-	struct irq_desc *desc = irq_to_desc(irq);
-
-	if (!desc || !desc->percpu_enabled)
-		return -EINVAL;
-
-	if (affinity)
-		cpumask_copy(affinity, desc->percpu_affinity);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(irq_get_percpu_devid_partition);
 
 void kstat_incr_irq_this_cpu(unsigned int irq)
 {
@@ -937,6 +913,7 @@ unsigned int kstat_irqs_cpu(unsigned int irq, int cpu)
 
 	return desc && desc->kstat_irqs ? per_cpu(desc->kstat_irqs->cnt, cpu) : 0;
 }
+EXPORT_SYMBOL_GPL(kstat_irqs_cpu);
 
 static unsigned int kstat_irqs_desc(struct irq_desc *desc, const struct cpumask *cpumask)
 {
@@ -1020,3 +997,4 @@ void __irq_set_lockdep_class(unsigned int irq, struct lock_class_key *lock_class
 }
 EXPORT_SYMBOL_GPL(__irq_set_lockdep_class);
 #endif
+EXPORT_SYMBOL_GPL(kstat_irqs_usr);

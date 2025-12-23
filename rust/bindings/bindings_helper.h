@@ -62,7 +62,9 @@
 #include <linux/jiffies.h>
 #include <linux/jump_label.h>
 #include <linux/mdio.h>
+#include <linux/memfd.h>
 #include <linux/mm.h>
+#include <linux/mman.h>
 #include <linux/miscdevice.h>
 #include <linux/of_device.h>
 #include <linux/pci.h>
@@ -77,6 +79,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 #include <linux/security.h>
+#include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/task_work.h>
 #include <linux/tracepoint.h>
@@ -84,6 +87,8 @@
 #include <linux/workqueue.h>
 #include <linux/xarray.h>
 #include <trace/events/rust_sample.h>
+#include <uapi/linux/falloc.h>
+#include <uapi/linux/sched/types.h>
 
 #if defined(CONFIG_DRM_PANIC_SCREEN_QR_CODE)
 // Used by `#[export]` in `drivers/gpu/drm/drm_panic_qr.rs`.
@@ -114,4 +119,10 @@ const vm_flags_t RUST_CONST_HELPER_VM_MERGEABLE = VM_MERGEABLE;
 #include "../../drivers/android/binder/rust_binder.h"
 #include "../../drivers/android/binder/rust_binder_events.h"
 #include "../../drivers/android/binder/page_range_helper.h"
+#endif
+
+#ifdef CONFIG_ASHMEM_RUST
+#include "../../drivers/staging/android/ashmem.h"
+const size_t RUST_CONST_HELPER_ASHMEM_NAME_PREFIX_LEN = ASHMEM_NAME_PREFIX_LEN;
+const size_t RUST_CONST_HELPER_ASHMEM_FULL_NAME_LEN = ASHMEM_FULL_NAME_LEN;
 #endif

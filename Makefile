@@ -151,6 +151,24 @@ endif
 
 export KBUILD_EXTMOD
 
+# ANDROID: set up mixed-build support. mixed-build allows device kernel modules
+# to be compiled against a GKI kernel. This approach still uses the headers and
+# Kbuild from device kernel, so care must be taken to ensure that those headers match.
+ifdef KBUILD_MIXED_TREE
+# Need vmlinux.symvers for modpost and System.map for depmod, check whether they exist in KBUILD_MIXED_TREE
+required_mixed_files=vmlinux.symvers System.map
+$(if $(filter-out $(words $(required_mixed_files)), \
+		$(words $(wildcard $(add-prefix $(KBUILD_MIXED_TREE)/,$(required_mixed_files))))),,\
+	$(error KBUILD_MIXED_TREE=$(KBUILD_MIXED_TREE) doesn't contain $(required_mixed_files)))
+endif
+
+mixed-build-prefix = $(if $(KBUILD_MIXED_TREE),$(KBUILD_MIXED_TREE)/)
+export KBUILD_MIXED_TREE
+# This is a hack for kleaf to set mixed-build-prefix within the execution of a make rule, e.g.
+# within __modinst_pre.
+# TODO(b/205893923): Revert this hack once it is properly handled.
+export mixed-build-prefix
+
 ifeq ("$(origin W)", "command line")
   KBUILD_EXTRA_WARN := $(W)
 endif
@@ -793,11 +811,13 @@ drivers-y	:=
 libs-y		:= lib/
 endif # KBUILD_EXTMOD
 
+ifndef KBUILD_MIXED_TREE
 # The all: target is the default when no target is given on the
 # command line.
 # This allow a user to issue only 'make' to build a kernel including modules
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
+endif
 
 CFLAGS_GCOV	:= -fprofile-arcs -ftest-coverage
 ifdef CONFIG_CC_IS_GCC
@@ -1005,7 +1025,13 @@ CC_FLAGS_LTO	:= -flto=thin -fsplit-lto-unit
 else
 CC_FLAGS_LTO	:= -flto
 endif
+
+ifeq ($(SRCARCH),x86)
+# Workaround for compiler / linker bug
 CC_FLAGS_LTO	+= -fvisibility=hidden
+else
+CC_FLAGS_LTO	+= -fvisibility=default
+endif
 
 # Limit inlining across translation units to reduce binary size
 KBUILD_LDFLAGS += -mllvm -import-instr-limit=5
@@ -1218,6 +1244,7 @@ targets += vmlinux.a
 vmlinux.a: $(KBUILD_VMLINUX_OBJS) scripts/head-object-list.txt FORCE
 	$(call if_changed,ar_vmlinux.a)
 
+ifndef KBUILD_MIXED_TREE
 PHONY += vmlinux_o
 vmlinux_o: vmlinux.a $(KBUILD_VMLINUX_LIBS)
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.vmlinux_o
@@ -1240,6 +1267,7 @@ vmlinux: private _LDFLAGS_vmlinux := $(LDFLAGS_vmlinux)
 vmlinux: export LDFLAGS_vmlinux = $(_LDFLAGS_vmlinux)
 vmlinux: vmlinux.o $(KBUILD_LDS) modpost
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.vmlinux
+endif
 
 # The actual objects are generated when descending,
 # make sure no implicit rule kicks in
@@ -1469,7 +1497,9 @@ kselftest-merge:
 # Devicetree files
 
 ifneq ($(wildcard $(srctree)/arch/$(SRCARCH)/boot/dts/),)
-dtstree := arch/$(SRCARCH)/boot/dts
+# ANDROID: allow this to be overridden by the build environment. This allows
+# one to compile a device tree that is located out-of-tree.
+dtstree ?= arch/$(SRCARCH)/boot/dts
 endif
 
 ifneq ($(dtstree),)
@@ -1905,6 +1935,29 @@ __external_modules_error:
 	@false
 endif
 
+# ---------------------------------------------------------------------------
+# Kernel headers from External Modules
+
+#Default location for installed headers
+export INSTALL_HDR_PATH = $(objtree)/usr
+
+quiet_cmd_headers_install = INSTALL $(INSTALL_HDR_PATH)/include
+      cmd_headers_install = \
+	mkdir -p $(INSTALL_HDR_PATH); \
+	rsync -mrl --include='*/' --include='*\.h' --exclude='*' \
+	usr/include $(INSTALL_HDR_PATH);
+
+PHONY += headers_install
+headers_install: headers
+	$(call cmd,headers_install)
+
+hdr-inst := -f $(srctree)/scripts/Makefile.headersinst obj
+
+PHONY += headers
+headers:
+	$(Q)$(MAKE) $(hdr-inst)=include/uapi
+	$(Q)$(MAKE) $(hdr-inst)=arch/$(SRCARCH)/include/uapi
+
 endif # KBUILD_EXTMOD
 
 # ---------------------------------------------------------------------------
@@ -1955,7 +2008,7 @@ KBUILD_MODULES :=
 endif # CONFIG_MODULES
 
 PHONY += modpost
-modpost: $(if $(single-build),, $(if $(KBUILD_BUILTIN), vmlinux.o)) \
+modpost: $(if $(single-build),, $(if $(KBUILD_MIXED_TREE), vmlinux.symvers, $(if $(KBUILD_BUILTIN), vmlinux.o))) \
 	 $(if $(KBUILD_MODULES), modules_check)
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modpost
 
@@ -2007,7 +2060,7 @@ prepare: outputmakefile
 # Error messages still appears in the original language
 PHONY += $(build-dir)
 $(build-dir): prepare
-	$(Q)$(MAKE) $(build)=$@ need-builtin=1 need-modorder=1 $(single-goals)
+	$(Q)$(MAKE) $(build)=$@ $(if $(KBUILD_MIXED_TREE),,need-builtin=1) need-modorder=1 $(single-goals)
 
 clean-dirs := $(addprefix _clean_, $(clean-dirs))
 PHONY += $(clean-dirs) clean
@@ -2016,7 +2069,8 @@ $(clean-dirs):
 
 clean: $(clean-dirs)
 	$(call cmd,rmfiles)
-	@find . $(RCS_FIND_IGNORE) \
+	@find . $(if $(filter-out arch/$(SRCARCH)/boot/dts, $(dtstree)), $(dtstree)) \
+		$(RCS_FIND_IGNORE) \
 		\( -name '*.[aios]' -o -name '*.rsi' -o -name '*.ko' -o -name '.*.cmd' \
 		-o -name '*.ko.*' \
 		-o -name '*.dtb' -o -name '*.dtbo' \
@@ -2071,7 +2125,7 @@ quiet_cmd_gen_compile_commands = GEN     $@
       cmd_gen_compile_commands = $(PYTHON3) $< -a $(AR) -o $@ $(filter-out $<, $(real-prereqs))
 
 compile_commands.json: $(srctree)/scripts/clang-tools/gen_compile_commands.py \
-	$(if $(KBUILD_EXTMOD),, vmlinux.a $(KBUILD_VMLINUX_LIBS)) \
+	$(if $(KBUILD_EXTMOD)$(KBUILD_MIXED_TREE),, vmlinux.a $(KBUILD_VMLINUX_LIBS)) \
 	$(if $(CONFIG_MODULES), modules.order) FORCE
 	$(call if_changed,gen_compile_commands)
 

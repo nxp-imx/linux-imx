@@ -28,6 +28,8 @@
 #include <linux/rcupdate.h>
 #include <linux/time_namespace.h>
 
+#include <trace/hooks/fs.h>
+
 struct timerfd_ctx {
 	union {
 		struct hrtimer tmr;
@@ -396,6 +398,7 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 	int ufd;
 	struct timerfd_ctx *ctx;
 	struct file *file;
+	char file_name_buf[32];
 
 	/* Check the TFD_* constants for consistency.  */
 	BUILD_BUG_ON(TFD_CLOEXEC != O_CLOEXEC);
@@ -438,7 +441,9 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 		return ufd;
 	}
 
-	file = anon_inode_getfile_fmode("[timerfd]", &timerfd_fops, ctx,
+	strscpy(file_name_buf, "[timerfd]", sizeof(file_name_buf));
+	trace_android_vh_timerfd_create(file_name_buf, sizeof(file_name_buf));
+	file = anon_inode_getfile_fmode(file_name_buf, &timerfd_fops, ctx,
 			    O_RDWR | (flags & TFD_SHARED_FCNTL_FLAGS),
 			    FMODE_NOWAIT);
 	if (IS_ERR(file)) {

@@ -142,3 +142,26 @@ config QCOM_IOMMU
 	select ARM_DMA_USE_IOMMU
 	help
 	  Support for IOMMU on certain Qualcomm SoCs.
+
+config ARM_SMMU_V3_PKVM
+	tristate "ARM SMMUv3 support for protected Virtual Machines"
+	depends on KVM && ARM64 && ARM_SMMU_V3
+	help
+	  Enable a SMMUv3 driver in the KVM hypervisor, to protect VMs against
+	  memory accesses from devices owned by the host.
+
+	  Say Y here if you intend to enable KVM in protected mode.
+
+config ARM_SMMU_V3_PKVM_PV
+	tristate "ARM SMMUv3 PV support for protected Virtual Machines"
+	depends on KVM && ARM64
+	help
+	  Enable a SMMUv3 driver in the KVM hypervisor, to protect VMs against
+	  memory accesses from devices owned by the host.
+
+	  This driver use paravirtual interface to expose a single stage PV IOMMU
+	  to the kenrel, as opposed to ARM_SMMU_V3_PKVM which requires nested
+	  translation support and relies on trap and emulate.
+	  Each driver has pros and cons, choose wisely!
+
+	  Say Y here if you intend to enable KVM in protected mode.

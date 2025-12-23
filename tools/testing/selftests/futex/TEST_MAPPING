@@ -1,0 +1,36 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_futex_requeue"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_mismatched_ops"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_signal_restart"
+        },
+        {
+          "include-filter": "kselftest_futex_wait"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_private_mapped_file"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_timeout"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_uninitialized_heap"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_wouldblock"
+        }
+      ]
+    }
+  ]
+}

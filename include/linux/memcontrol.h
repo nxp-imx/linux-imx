@@ -320,6 +320,9 @@ struct mem_cgroup {
 	spinlock_t event_list_lock;
 #endif /* CONFIG_MEMCG_V1 */
 
+	ANDROID_OEM_DATA(1);
+	ANDROID_VENDOR_DATA(1);
+
 	struct mem_cgroup_per_node *nodeinfo[];
 };
 

@@ -444,6 +444,7 @@ noinline noinstr void arch_bpf_stack_walk(bool (*consume_entry)(void *cookie, u6
 
 	kunwind_stack_walk(arch_bpf_unwind_consume_entry, &data, current, NULL);
 }
+EXPORT_SYMBOL_GPL(arch_stack_walk);
 
 static const char *state_source_string(const struct kunwind_state *state)
 {
@@ -493,6 +494,7 @@ void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk,
 
 	put_task_stack(tsk);
 }
+EXPORT_SYMBOL_GPL(dump_backtrace);
 
 void show_stack(struct task_struct *tsk, unsigned long *sp, const char *loglvl)
 {

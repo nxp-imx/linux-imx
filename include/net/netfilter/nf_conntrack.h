@@ -15,6 +15,7 @@
 
 #include <linux/bitops.h>
 #include <linux/compiler.h>
+#include <linux/android_vendor.h>
 
 #include <linux/netfilter/nf_conntrack_common.h>
 #include <linux/netfilter/nf_conntrack_tcp.h>
@@ -118,6 +119,8 @@ struct nf_conn {
 
 	/* Extensions */
 	struct nf_ct_ext *ext;
+
+	ANDROID_OEM_DATA(1);
 
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;

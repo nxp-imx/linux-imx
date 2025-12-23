@@ -53,6 +53,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 static int sysctl_panic_on_oom;
 static int sysctl_oom_kill_allocating_task;
 static int sysctl_oom_dump_tasks = 1;
@@ -422,7 +425,7 @@ static int dump_task(struct task_struct *p, void *arg)
  * State information includes task's pid, uid, tgid, vm size, rss,
  * pgtables_bytes, swapents, oom_score_adj value, and name.
  */
-static void dump_tasks(struct oom_control *oc)
+void dump_tasks(struct oom_control *oc)
 {
 	pr_info("Tasks state (memory values in pages):\n");
 	pr_info("[  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name\n");
@@ -443,6 +446,7 @@ static void dump_tasks(struct oom_control *oc)
 		rcu_read_unlock();
 	}
 }
+EXPORT_SYMBOL_GPL(dump_tasks);
 
 static void dump_oom_victim(struct oom_control *oc, struct task_struct *victim)
 {
@@ -700,6 +704,8 @@ static void wake_oom_reaper(struct timer_list *timer)
 #define OOM_REAPER_DELAY (2*HZ)
 static void queue_oom_reaper(struct task_struct *tsk)
 {
+	bool bypass = false;
+
 	/* mm is already queued? */
 	if (mm_flags_test_and_set(MMF_OOM_REAP_QUEUED, tsk->signal->oom_mm))
 		return;
@@ -707,6 +713,9 @@ static void queue_oom_reaper(struct task_struct *tsk)
 	get_task_struct(tsk);
 	timer_setup(&tsk->oom_reaper_timer, wake_oom_reaper, 0);
 	tsk->oom_reaper_timer.expires = jiffies + OOM_REAPER_DELAY;
+	trace_android_vh_oom_reaper_delay_bypass(tsk, &bypass);
+	if (bypass)
+		tsk->oom_reaper_timer.expires = jiffies;
 	add_timer(&tsk->oom_reaper_timer);
 }
 
@@ -922,6 +931,26 @@ static bool task_will_free_mem(struct task_struct *task)
 	rcu_read_unlock();
 
 	return ret;
+}
+
+/* Adds a killed process to the reaper. @p->mm has to be non NULL. */
+void add_to_oom_reaper(struct task_struct *p)
+{
+	bool thaw = false;
+
+	p = find_lock_task_mm(p);
+	if (!p)
+		return;
+
+	if (task_will_free_mem(p)) {
+		if (!cmpxchg(&p->signal->oom_mm, NULL, p->mm))
+			mmgrab(p->signal->oom_mm);
+		trace_android_vh_thaw_killed_process(&thaw);
+		if (thaw)
+			thaw_process(p);
+		queue_oom_reaper(p);
+	}
+	task_unlock(p);
 }
 
 static void __oom_kill_process(struct task_struct *victim, const char *message)

@@ -385,8 +385,11 @@ static __init void parse_cmdline(const void *fdt, int chosen)
 	static char const cmdline[] __initconst = CONFIG_CMDLINE;
 	const u8 *prop = get_bootargs_cmdline(fdt, chosen);
 
-	if (IS_ENABLED(CONFIG_CMDLINE_FORCE) || !prop)
+	if (IS_ENABLED(CONFIG_CMDLINE_EXTEND) ||
+	    IS_ENABLED(CONFIG_CMDLINE_FORCE) ||
+	    !prop) {
 		__parse_cmdline(cmdline, true);
+	}
 
 	if (!IS_ENABLED(CONFIG_CMDLINE_FORCE) && prop)
 		__parse_cmdline(prop, true);
@@ -410,6 +413,17 @@ void __init init_feature_override(u64 boot_status, const void *fdt,
 	__boot_status = boot_status;
 
 	parse_cmdline(fdt, chosen);
+
+	/*
+	 * ANDROID: Forcefully disable SME at runtime until it is fixed
+	 * upstream (b/393087661). We prefer this to disabling
+	 * CONFIG_ARM64_SME so that the impact of the fixes on KMI is
+	 * minimised.
+	 */
+	id_aa64pfr1_override.mask |= ID_AA64PFR1_EL1_SME;
+	id_aa64pfr1_override.val &= ~ID_AA64PFR1_EL1_SME;
+	id_aa64smfr0_override.mask = GENMASK(63, 0);
+	id_aa64smfr0_override.val = 0;
 
 	for (i = 0; i < ARRAY_SIZE(regs); i++) {
 		reg = prel64_pointer(regs[i].reg);

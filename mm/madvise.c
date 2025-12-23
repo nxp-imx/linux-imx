@@ -32,6 +32,8 @@
 #include <linux/swapops.h>
 #include <linux/shmem_fs.h>
 #include <linux/mmu_notifier.h>
+#include <trace/hooks/mm.h>
+#include <trace/hooks/sys.h>
 
 #include <asm/tlb.h>
 
@@ -114,6 +116,7 @@ struct anon_vma_name *anon_vma_name(struct vm_area_struct *vma)
 
 	return vma->anon_name;
 }
+EXPORT_SYMBOL_GPL(anon_vma_name);
 
 /* mmap_lock should be write-locked */
 static int replace_anon_vma_name(struct vm_area_struct *vma,
@@ -213,6 +216,7 @@ static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
 
 		pte_unmap_unlock(ptep, ptl);
 		ptep = NULL;
+		trace_android_vh_madvise_swapin_walk_pmd_entry(entry);
 
 		folio = read_swap_cache_async(entry, GFP_HIGHUSER_MOVABLE,
 					     vma, addr, &splug);
@@ -368,9 +372,11 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 	LIST_HEAD(folio_list);
 	bool pageout_anon_only_filter;
 	unsigned int batch_count = 0;
+	bool abort_madvise = false;
 	int nr;
 
-	if (fatal_signal_pending(current))
+	trace_android_vh_madvise_cold_or_pageout_abort(vma, &abort_madvise);
+	if (fatal_signal_pending(current) || abort_madvise)
 		return -EINTR;
 
 	pageout_anon_only_filter = pageout && !vma_is_anonymous(vma) &&
@@ -2012,6 +2018,10 @@ static ssize_t vector_madvise(struct mm_struct *mm, struct iov_iter *iter,
 		size_t len_in = iter_iov_len(iter);
 		int error;
 
+		trace_android_vh_process_madvise_iter(mm, behavior, &ret);
+		if (ret < 0)
+			break;
+
 		if (madvise_should_skip(start, len_in, behavior, &error))
 			ret = error;
 		else
@@ -2106,6 +2116,8 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 		goto release_mm;
 	}
 
+	trace_android_vh_process_madvise_begin(task, behavior);
+
 	ret = vector_madvise(mm, &iter, behavior);
 
 release_mm:
@@ -2115,6 +2127,7 @@ release_task:
 free_iov:
 	kfree(iov);
 out:
+	trace_android_vh_process_madvise(behavior, &ret, NULL);
 	return ret;
 }
 
@@ -2175,6 +2188,7 @@ int set_anon_vma_name(unsigned long addr, unsigned long size,
 	struct anon_vma_name *anon_name = NULL;
 	struct mm_struct *mm = current->mm;
 	int error;
+	bool bypass = false;
 
 	if (uname) {
 		char *name, *pch;
@@ -2196,6 +2210,10 @@ int set_anon_vma_name(unsigned long addr, unsigned long size,
 			return -ENOMEM;
 	}
 
+	trace_android_rvh_pr_set_vma_name_bypass(mm, addr, size, anon_name,
+			&error, &bypass);
+	if (bypass)
+		return error;
 	error = madvise_set_anon_name(mm, addr, size, anon_name);
 	anon_vma_name_put(anon_name);
 

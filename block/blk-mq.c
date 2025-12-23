@@ -32,6 +32,7 @@
 #include <linux/sched/isolation.h>
 
 #include <trace/events/block.h>
+#include <trace/hooks/blk.h>
 
 #include <linux/t10-pi.h>
 #include "blk.h"
@@ -3127,6 +3128,8 @@ void blk_mq_submit_bio(struct bio *bio)
 	unsigned int nr_segs;
 	struct request *rq;
 	blk_status_t ret;
+
+	trace_android_vh_check_set_ioprio(bio);
 
 	/*
 	 * If the plug has a cached request for this queue, try to use it.

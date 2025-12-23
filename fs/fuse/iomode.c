@@ -51,13 +51,18 @@ int fuse_file_cached_io_open(struct inode *inode, struct fuse_file *ff)
 	 * Check if inode entered passthrough io mode while waiting for parallel
 	 * dio write completion.
 	 */
+	/* Android's use case requires opening files in both passthrough and non
+	 * passthrough modes */
+#if 0
 	if (fuse_inode_backing(fi)) {
 		clear_bit(FUSE_I_CACHE_IO_MODE, &fi->state);
 		spin_unlock(&fi->lock);
 		return -ETXTBSY;
 	}
+#endif
 
 	WARN_ON(ff->iomode == IOM_UNCACHED);
+	WARN_ON(ff->iomode == IOM_PASSTHROUGH);
 	if (ff->iomode == IOM_NONE) {
 		ff->iomode = IOM_CACHED;
 		if (fi->iocachectr == 0)
@@ -81,7 +86,7 @@ static void fuse_file_cached_io_release(struct fuse_file *ff,
 	spin_unlock(&fi->lock);
 }
 
-/* Start strictly uncached io mode where cache access is not allowed */
+/* Start strictly uncached io mode where cache access is not allowed if not in passthrough mode */
 int fuse_inode_uncached_io_start(struct fuse_inode *fi, struct fuse_backing *fb)
 {
 	struct fuse_backing *oldfb;
@@ -94,11 +99,14 @@ int fuse_inode_uncached_io_start(struct fuse_inode *fi, struct fuse_backing *fb)
 		err = -EBUSY;
 		goto unlock;
 	}
-	if (fi->iocachectr > 0) {
+	if (!fb && fi->iocachectr > 0) {
 		err = -ETXTBSY;
 		goto unlock;
 	}
-	fi->iocachectr--;
+	if (fb)
+		fi->iopassctr++;
+	else
+		fi->iocachectr--;
 
 	/* fuse inode holds a single refcount of backing file */
 	if (fb && !oldfb) {
@@ -125,7 +133,7 @@ static int fuse_file_uncached_io_open(struct inode *inode,
 		return err;
 
 	WARN_ON(ff->iomode != IOM_NONE);
-	ff->iomode = IOM_UNCACHED;
+	ff->iomode = IOM_PASSTHROUGH;
 	return 0;
 }
 
@@ -154,6 +162,30 @@ static void fuse_file_uncached_io_release(struct fuse_file *ff,
 	fuse_inode_uncached_io_end(fi);
 }
 
+static void fuse_inode_passthrough_io_end(struct fuse_inode *fi)
+{
+	struct fuse_backing *oldfb = NULL;
+
+	spin_lock(&fi->lock);
+	WARN_ON(fi->iopassctr == 0);
+	fi->iopassctr--;
+	if (!fi->iopassctr) {
+		oldfb = fuse_inode_backing_set(fi, NULL);
+	}
+	spin_unlock(&fi->lock);
+	if (oldfb)
+		fuse_backing_put(oldfb);
+}
+
+/* Drop uncached_io reference from passthrough open */
+static void fuse_file_passthrough_io_release(struct fuse_file *ff,
+					  struct fuse_inode *fi)
+{
+	WARN_ON(ff->iomode != IOM_PASSTHROUGH);
+	ff->iomode = IOM_NONE;
+	fuse_inode_passthrough_io_end(fi);
+}
+
 /*
  * Open flags that are allowed in combination with FOPEN_PASSTHROUGH.
  * A combination of FOPEN_PASSTHROUGH and FOPEN_DIRECT_IO means that read/write
@@ -163,7 +195,7 @@ static void fuse_file_uncached_io_release(struct fuse_file *ff,
  */
 #define FOPEN_PASSTHROUGH_MASK \
 	(FOPEN_PASSTHROUGH | FOPEN_DIRECT_IO | FOPEN_PARALLEL_DIRECT_WRITES | \
-	 FOPEN_NOFLUSH)
+	 FOPEN_NOFLUSH | FOPEN_KEEP_CACHE)
 
 static int fuse_file_passthrough_open(struct inode *inode, struct file *file)
 {
@@ -197,6 +229,7 @@ int fuse_file_io_open(struct file *file, struct inode *inode)
 {
 	struct fuse_file *ff = file->private_data;
 	struct fuse_inode *fi = get_fuse_inode(inode);
+	struct fuse_conn *fc = get_fuse_conn(inode);
 	int err;
 
 	/*
@@ -211,7 +244,7 @@ int fuse_file_io_open(struct file *file, struct inode *inode)
 	 * which is already open for passthrough.
 	 */
 	err = -EINVAL;
-	if (fuse_inode_backing(fi) && !(ff->open_flags & FOPEN_PASSTHROUGH))
+	if (fuse_inode_backing(fi) && !(ff->open_flags & FOPEN_PASSTHROUGH) && !fc->writeback_cache)
 		goto fail;
 
 	/*
@@ -270,6 +303,9 @@ void fuse_file_io_release(struct fuse_file *ff, struct inode *inode)
 		break;
 	case IOM_CACHED:
 		fuse_file_cached_io_release(ff, fi);
+		break;
+	case IOM_PASSTHROUGH:
+		fuse_file_passthrough_io_release(ff, fi);
 		break;
 	}
 }

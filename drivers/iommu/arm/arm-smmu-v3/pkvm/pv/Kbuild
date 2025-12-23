@@ -1,0 +1,5 @@
+subdir-ccflags-y += -I$(srctree)/arch/arm64/kvm/hyp/include/
+subdir-ccflags-y += -I$(srctree)/drivers/iommu/arm/arm-smmu-v3/pkvm/
+subdir-ccflags-y += -DMODULE
+hyp-obj-y := arm-smmu-v3-pv.o ../../arm-smmu-v3-common-lib.o ../io-pgtable-arm-hyp.o  ../../../../io-pgtable-arm.o ../arm-smmu-v3-lib-hyp.o
+include $(srctree)/arch/arm64/kvm/hyp/nvhe/Makefile.module

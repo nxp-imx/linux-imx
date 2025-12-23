@@ -663,6 +663,7 @@ enum fuse_opcode {
 	FUSE_TMPFILE		= 51,
 	FUSE_STATX		= 52,
 	FUSE_COPY_FILE_RANGE_64	= 53,
+	FUSE_CANONICAL_PATH	= 2016,
 
 	/* CUSE specific operations */
 	CUSE_INIT		= 4096,

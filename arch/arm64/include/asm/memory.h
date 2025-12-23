@@ -141,7 +141,12 @@
 
 #define OVERFLOW_STACK_SIZE	SZ_4K
 
+#if PAGE_SIZE == SZ_4K
+#define NVHE_STACK_SHIFT       (PAGE_SHIFT + 1)
+#else
 #define NVHE_STACK_SHIFT       PAGE_SHIFT
+#endif
+
 #define NVHE_STACK_SIZE        (UL(1) << NVHE_STACK_SHIFT)
 
 /*

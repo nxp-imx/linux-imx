@@ -5,9 +5,13 @@
 
 #include <linux/sched/isolation.h>
 #include <linux/bsearch.h>
+#include <trace/hooks/sched.h>
 #include "sched.h"
 
 DEFINE_MUTEX(sched_domains_mutex);
+#ifdef CONFIG_LOCKDEP
+EXPORT_SYMBOL_GPL(sched_domains_mutex);
+#endif
 void sched_domains_mutex_lock(void)
 {
 	mutex_lock(&sched_domains_mutex);
@@ -215,6 +219,11 @@ static bool sched_is_eas_possible(const struct cpumask *cpu_mask)
 {
 	bool any_asym_capacity = false;
 	int i;
+	bool eas_check = false;
+
+	trace_android_rvh_build_perf_domains(&eas_check);
+	if (eas_check)
+		return true;
 
 	/* EAS is enabled for asymmetric CPU capacity topologies. */
 	for_each_cpu(i, cpu_mask) {
@@ -2620,6 +2629,7 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 	if (rq && sched_debug_verbose)
 		pr_info("root domain span: %*pbl\n", cpumask_pr_args(cpu_map));
+	trace_android_vh_build_sched_domains(has_asym);
 
 	ret = 0;
 error:

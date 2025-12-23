@@ -109,6 +109,7 @@ typedef irqreturn_t (*irq_handler_t)(int, void *);
  * @name:	name of the device
  * @dev_id:	cookie to identify the device
  * @percpu_dev_id:	cookie to identify the device
+ * @affinity:	CPUs this irqaction is allowed to run on
  * @next:	pointer to the next irqaction for shared interrupts
  * @irq:	interrupt number
  * @flags:	flags (see IRQF_* above)
@@ -121,8 +122,11 @@ typedef irqreturn_t (*irq_handler_t)(int, void *);
  */
 struct irqaction {
 	irq_handler_t		handler;
-	void			*dev_id;
-	void __percpu		*percpu_dev_id;
+	union {
+		void		*dev_id;
+		void __percpu	*percpu_dev_id;
+	};
+	const struct cpumask	*affinity;
 	struct irqaction	*next;
 	irq_handler_t		thread_fn;
 	struct task_struct	*thread;
@@ -179,7 +183,7 @@ request_any_context_irq(unsigned int irq, irq_handler_t handler,
 extern int __must_check
 __request_percpu_irq(unsigned int irq, irq_handler_t handler,
 		     unsigned long flags, const char *devname,
-		     void __percpu *percpu_dev_id);
+		     const cpumask_t *affinity, void __percpu *percpu_dev_id);
 
 extern int __must_check
 request_nmi(unsigned int irq, irq_handler_t handler, unsigned long flags,
@@ -190,12 +194,21 @@ request_percpu_irq(unsigned int irq, irq_handler_t handler,
 		   const char *devname, void __percpu *percpu_dev_id)
 {
 	return __request_percpu_irq(irq, handler, 0,
-				    devname, percpu_dev_id);
+				    devname, NULL, percpu_dev_id);
+}
+
+static inline int __must_check
+request_percpu_irq_affinity(unsigned int irq, irq_handler_t handler,
+			    const char *devname, const cpumask_t *affinity,
+			    void __percpu *percpu_dev_id)
+{
+	return __request_percpu_irq(irq, handler, 0,
+				    devname, affinity, percpu_dev_id);
 }
 
 extern int __must_check
-request_percpu_nmi(unsigned int irq, irq_handler_t handler,
-		   const char *devname, void __percpu *dev);
+request_percpu_nmi(unsigned int irq, irq_handler_t handler, const char *name,
+		   const struct cpumask *affinity, void __percpu *dev_id);
 
 extern const void *free_irq(unsigned int, void *);
 extern void free_percpu_irq(unsigned int, void __percpu *);
@@ -526,6 +539,17 @@ DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
 #define set_softirq_pending(x)	(__this_cpu_write(local_softirq_pending_ref, (x)))
 #define or_softirq_pending(x)	(__this_cpu_or(local_softirq_pending_ref, (x)))
 
+/**
+ * __cpu_softirq_pending() - Checks to see if softirq is pending on a cpu
+ *
+ * This helper is inherently racy, as we're accessing per-cpu data w/o locks.
+ * But peeking at the flag can still be useful when deciding where to place a
+ * task.
+ */
+static inline u32 __cpu_softirq_pending(int cpu)
+{
+	return (u32)per_cpu(local_softirq_pending_ref, cpu);
+}
 #endif /* local_softirq_pending */
 
 /* Some architectures might implement lazy enabling/disabling of
@@ -574,6 +598,12 @@ enum
 #define SOFTIRQ_HOTPLUG_SAFE_MASK (BIT(TIMER_SOFTIRQ) | BIT(IRQ_POLL_SOFTIRQ) |\
 				   BIT(HRTIMER_SOFTIRQ) | BIT(RCU_SOFTIRQ))
 
+/* Softirq's where the handling might be long: */
+#define LONG_SOFTIRQ_MASK (BIT(NET_TX_SOFTIRQ)    | \
+			   BIT(NET_RX_SOFTIRQ)    | \
+			   BIT(BLOCK_SOFTIRQ)     | \
+			   BIT(IRQ_POLL_SOFTIRQ)  | \
+			   BIT(TASKLET_SOFTIRQ))
 
 /* map softirq index to softirq name. update 'softirq_to_name' in
  * kernel/softirq.c when adding a new softirq.
@@ -656,6 +686,10 @@ static inline unsigned int local_timers_pending(void)
 }
 
 DECLARE_PER_CPU(struct task_struct *, ksoftirqd);
+
+#ifdef CONFIG_RT_SOFTIRQ_AWARE_SCHED
+DECLARE_PER_CPU(u32, active_softirqs);
+#endif
 
 static inline struct task_struct *this_cpu_ksoftirqd(void)
 {

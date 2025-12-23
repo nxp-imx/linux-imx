@@ -54,6 +54,12 @@
 #include <asm/virt.h>
 
 #include <trace/events/ipi.h>
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/debug.h>
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(ipi_raise);
+EXPORT_TRACEPOINT_SYMBOL_GPL(ipi_entry);
+EXPORT_TRACEPOINT_SYMBOL_GPL(ipi_exit);
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -977,6 +983,7 @@ static void do_handle_IPI(int ipinr)
 			ipi_cpu_crash_stop(cpu, get_irq_regs());
 			unreachable();
 		} else {
+			trace_android_vh_ipi_stop(get_irq_regs());
 			local_cpu_stop(cpu);
 		}
 		break;
@@ -1103,7 +1110,7 @@ static void ipi_setup_sgi(int ipi)
 	irq = ipi_irq_base + ipi;
 
 	if (ipi_should_be_nmi(ipi)) {
-		err = request_percpu_nmi(irq, ipi_handler, "IPI", &irq_stat);
+		err = request_percpu_nmi(irq, ipi_handler, "IPI", NULL, &irq_stat);
 		WARN(err, "Could not request IRQ %d as NMI, err=%d\n", irq, err);
 	} else {
 		err = request_percpu_irq(irq, ipi_handler, "IPI", &irq_stat);
@@ -1318,3 +1325,10 @@ bool cpus_are_stuck_in_kernel(void)
 	return !!cpus_stuck_in_kernel || smp_spin_tables ||
 		is_protected_kvm_enabled();
 }
+
+int nr_ipi_get(void)
+{
+	return nr_ipi;
+}
+EXPORT_SYMBOL_GPL(nr_ipi_get);
+

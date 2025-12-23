@@ -60,6 +60,10 @@ suffix-$(CONFIG_MODULE_COMPRESS_ZSTD)	:= .zst
 endif
 
 modules := $(patsubst %.o, $(dst)/%.ko$(suffix-y), $(modules))
+ifneq ($(KBUILD_EXTMOD),)
+extmod_suffix := $(shell echo "${KBUILD_EXTMOD}" | md5sum | cut -d " " -f 1)
+modules += $(dst)/modules.order.$(extmod_suffix)
+endif
 install-$(CONFIG_MODULES) += $(modules)
 
 __modinst: $(install-y)
@@ -123,6 +127,13 @@ $(dst)/%.ko: %.ko FORCE
 	$(call cmd,install)
 	$(call cmd,strip)
 	$(call cmd,sign)
+
+ifneq ($(KBUILD_EXTMOD),)
+$(dst)/modules.order.$(extmod_suffix): modules.order FORCE
+	$(call cmd,install)
+	@sed -e 's:^\(.*\)\.o$$:$(INSTALL_MOD_DIR)/\1.ko:' \
+	     -i $@
+endif
 
 ifdef CONFIG_MODULES
 __modinst: depmod

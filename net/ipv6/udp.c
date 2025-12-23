@@ -58,6 +58,7 @@
 #include <linux/seq_file.h>
 #include <trace/events/skb.h>
 #include "udp_impl.h"
+#include <trace/hooks/net.h>
 
 static void udpv6_destruct_sock(struct sock *sk)
 {
@@ -1613,6 +1614,8 @@ do_udp_sendmsg:
 		fl6->flowlabel = np->flow_label;
 		connected = true;
 	}
+
+	trace_android_vh_udp_v6_connect(sk, sin6);
 
 	if (!fl6->flowi6_oif)
 		fl6->flowi6_oif = READ_ONCE(sk->sk_bound_dev_if);

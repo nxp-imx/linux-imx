@@ -469,5 +469,6 @@ int arm_vmaster_report_event(struct arm_smmu_vmaster *vmaster, u64 *evt)
 					   IOMMU_VEVENTQ_TYPE_ARM_SMMUV3, &vevt,
 					   sizeof(vevt));
 }
+EXPORT_SYMBOL_GPL(arm_vmaster_report_event);
 
 MODULE_IMPORT_NS("IOMMUFD");

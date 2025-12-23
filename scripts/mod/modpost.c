@@ -41,6 +41,8 @@ static bool basic_modversions;
 static bool extended_modversions;
 /* If we are modposting external module set to 1 */
 static bool external_module;
+#define MODULE_SCMVERSION_SIZE 64
+static char module_scmversion[MODULE_SCMVERSION_SIZE];
 /* Only warn about unresolved symbols */
 static bool warn_unresolved;
 
@@ -60,6 +62,9 @@ static bool extra_warn;
 
 bool target_is_big_endian;
 bool host_is_big_endian;
+
+/* Are symbols protected against being used by unsigned modules? */
+static bool default_symbol_protected_status;
 
 /*
  * Cut off the warnings when there are too many. This typically occurs when
@@ -225,6 +230,7 @@ struct symbol {
 	bool is_func;
 	bool is_gpl_only;	/* exported by EXPORT_SYMBOL_GPL */
 	bool used;		/* there exists a user of this symbol */
+	bool protected;		/* this symbol cannot be used by unsigned modules */
 	char name[];
 };
 
@@ -242,6 +248,12 @@ static struct symbol *alloc_symbol(const char *name)
 	strcpy(s->name, name);
 
 	return s;
+}
+
+static uint8_t get_symbol_flags(const struct symbol *sym)
+{
+	return (sym->is_gpl_only ? KSYM_FLAG_GPL_ONLY : 0) |
+		(sym->protected ? KSYM_FLAG_PROTECTED : 0);
 }
 
 /* For the hash of exported symbols */
@@ -365,6 +377,7 @@ static struct symbol *sym_add_exported(const char *name, struct module *mod,
 	s->namespace = xstrdup(namespace);
 	list_add_tail(&s->list, &mod->exported_symbols);
 	hash_add_symbol(s);
+	s->protected = default_symbol_protected_status;
 
 	return s;
 }
@@ -765,6 +778,7 @@ static void check_section(const char *modname, struct elf_info *elf,
 	const char *sec = sech_name(elf, sechdr);
 
 	if (sechdr->sh_type == SHT_PROGBITS &&
+	    sechdr->sh_size > 0 &&
 	    !(sechdr->sh_flags & SHF_ALLOC) &&
 	    !match(sec, section_white_list)) {
 		warn("%s (%s): unexpected non-allocatable section.\n"
@@ -1780,8 +1794,10 @@ static void handle_white_list_exports(const char *white_list)
 	while ((name = strsep(&p, "\n"))) {
 		struct symbol *sym = find_symbol(name);
 
-		if (sym)
+		if (sym) {
 			sym->used = true;
+			sym->protected = false;
+		}
 	}
 
 	free(buf);
@@ -1845,6 +1861,9 @@ static void add_header(struct buffer *b, struct module *mod)
 	if (!external_module)
 		buf_printf(b, "\nMODULE_INFO(intree, \"Y\");\n");
 
+	if (module_scmversion[0] != '\0')
+		buf_printf(b, "\nMODULE_INFO(scmversion, \"%s\");\n", module_scmversion);
+
 	if (strstarts(mod->name, "drivers/staging"))
 		buf_printf(b, "\nMODULE_INFO(staging, \"Y\");\n");
 
@@ -1862,9 +1881,12 @@ static void add_exported_symbols(struct buffer *buf, struct module *mod)
 		if (trim_unused_exports && !sym->used)
 			continue;
 
-		buf_printf(buf, "KSYMTAB_%s(%s, \"%s\", \"%s\");\n",
+		buf_printf(buf, "KSYMTAB_%s(%s, \"%s\");\n",
 			   sym->is_func ? "FUNC" : "DATA", sym->name,
-			   sym->is_gpl_only ? "_gpl" : "", sym->namespace);
+			   sym->namespace);
+
+		buf_printf(buf, "SYMBOL_FLAGS(%s, 0x%02x);\n",
+			   sym->name, get_symbol_flags(sym));
 	}
 
 	if (!modversions)
@@ -1882,8 +1904,23 @@ static void add_exported_symbols(struct buffer *buf, struct module *mod)
 			     sym->name, mod->name, mod->is_vmlinux ? "" : ".ko",
 			     sym->name);
 
-		buf_printf(buf, "SYMBOL_CRC(%s, 0x%08x, \"%s\");\n",
-			   sym->name, sym->crc, sym->is_gpl_only ? "_gpl" : "");
+		buf_printf(buf, "SYMBOL_CRC(%s, 0x%08x);\n",
+			   sym->name, sym->crc);
+	}
+}
+
+static void add_protected_exports(struct buffer *buf)
+{
+	struct module *mod;
+	struct symbol *sym;
+
+	buf_printf(buf, "\n");
+	list_for_each_entry(mod, &modules, list) {
+		if (mod->protect_exports) {
+			list_for_each_entry(sym, &mod->exported_symbols, list)
+				buf_printf(buf, "PROTECT_EXPORT(%s);\n",
+					   sym->name);
+		}
 	}
 }
 
@@ -2073,6 +2110,7 @@ static void write_vmlinux_export_c_file(struct module *mod)
 		   "#include <linux/export-internal.h>\n");
 
 	add_exported_symbols(&buf, mod);
+	add_protected_exports(&buf);
 
 	buf_printf(&buf,
 		   "#include <linux/module.h>\n"
@@ -2239,6 +2277,25 @@ struct dump_list {
 	const char *file;
 };
 
+static void handle_protected_modules_list(const char *fname)
+{
+	char *buf, *p, *name;
+	struct module *mod;
+
+	buf = read_text_file(fname);
+	p = buf;
+	while ((name = strsep(&p, "\n"))) {
+		list_for_each_entry(mod, &modules, list) {
+			if (strcmp(mod->name, name) == 0) {
+				mod->protect_exports = true;
+				break;
+			}
+		}
+	}
+
+	free(buf);
+}
+
 static void check_host_endian(void)
 {
 	static const union {
@@ -2263,12 +2320,13 @@ int main(int argc, char **argv)
 	struct module *mod;
 	char *missing_namespace_deps = NULL;
 	char *unused_exports_white_list = NULL;
+	char *protected_modules_list = NULL;
 	char *dump_write = NULL, *files_source = NULL;
 	int opt;
 	LIST_HEAD(dump_lists);
 	struct dump_list *dl, *dl2;
 
-	while ((opt = getopt(argc, argv, "ei:MmnT:to:au:WwENd:xb")) != -1) {
+	while ((opt = getopt(argc, argv, "ei:MmnT:to:au:WwENd:xbv:p:")) != -1) {
 		switch (opt) {
 		case 'e':
 			external_module = true;
@@ -2301,6 +2359,7 @@ int main(int argc, char **argv)
 			break;
 		case 'u':
 			unused_exports_white_list = optarg;
+			default_symbol_protected_status = true;
 			break;
 		case 'W':
 			extra_warn = true;
@@ -2322,6 +2381,12 @@ int main(int argc, char **argv)
 			break;
 		case 'x':
 			extended_modversions = true;
+			break;
+		case 'v':
+			strncpy(module_scmversion, optarg, sizeof(module_scmversion) - 1);
+			break;
+		case 'p':
+			protected_modules_list = optarg;
 			break;
 		default:
 			exit(1);
@@ -2354,6 +2419,9 @@ int main(int argc, char **argv)
 
 	if (unused_exports_white_list)
 		handle_white_list_exports(unused_exports_white_list);
+
+	if (protected_modules_list)
+		handle_protected_modules_list(protected_modules_list);
 
 	list_for_each_entry(mod, &modules, list) {
 		if (mod->dump_file)

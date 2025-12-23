@@ -12219,6 +12219,13 @@ S:	Maintained
 F:	Documentation/hwmon/ina233.rst
 F:	drivers/hwmon/pmbus/ina233.c
 
+INCREMENTAL FILE SYSTEM
+M:	Paul Lawrence <paullawrence@google.com>
+L:	linux-unionfs@vger.kernel.org
+S:	Supported
+F:	fs/incfs/
+F:	tools/testing/selftests/filesystems/incfs/
+
 INDEX OF FURTHER KERNEL DOCUMENTATION
 M:	Carlos Bilbao <carlos.bilbao@kernel.org>
 S:	Maintained

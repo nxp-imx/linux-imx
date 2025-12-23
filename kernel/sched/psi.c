@@ -140,6 +140,7 @@
 #include <linux/workqueue.h>
 #include <linux/psi.h>
 #include "sched.h"
+#include <trace/hooks/psi.h>
 
 static int psi_bug __read_mostly;
 
@@ -509,6 +510,8 @@ static void update_triggers(struct psi_group *group, u64 now,
 		if (now < t->last_event_time + t->win.size)
 			continue;
 
+		trace_android_vh_psi_event(t);
+
 		/* Generate an event */
 		if (cmpxchg(&t->event, 0, 1) == 0) {
 			if (t->of)
@@ -520,6 +523,8 @@ static void update_triggers(struct psi_group *group, u64 now,
 		/* Reset threshold breach flag once event got generated */
 		t->pending_event = false;
 	}
+
+	trace_android_vh_psi_group(group);
 }
 
 static u64 update_averages(struct psi_group *group, u64 now)

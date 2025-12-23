@@ -2381,6 +2381,7 @@ phys_addr_t per_cpu_ptr_to_phys(void *addr)
 		return page_to_phys(pcpu_addr_to_page(addr)) +
 		       offset_in_page(addr);
 }
+EXPORT_SYMBOL_GPL(per_cpu_ptr_to_phys);
 
 /**
  * pcpu_alloc_alloc_info - allocate percpu allocation info
@@ -3361,6 +3362,7 @@ unsigned long pcpu_nr_pages(void)
 {
 	return data_race(READ_ONCE(pcpu_nr_populated)) * pcpu_nr_units;
 }
+EXPORT_SYMBOL_NS_GPL(pcpu_nr_pages, "MINIDUMP");
 
 /*
  * Percpu allocator is initialized early during boot when neither slab or

@@ -1679,6 +1679,7 @@ const struct cpumask *system_32bit_el0_cpumask(void)
 
 	return cpu_possible_mask;
 }
+EXPORT_SYMBOL_GPL(system_32bit_el0_cpumask);
 
 const struct cpumask *task_cpu_fallback_mask(struct task_struct *p)
 {

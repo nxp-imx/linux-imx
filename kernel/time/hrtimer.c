@@ -49,6 +49,9 @@
 
 #include "tick-internal.h"
 
+EXPORT_TRACEPOINT_SYMBOL_GPL(hrtimer_expire_entry);
+EXPORT_TRACEPOINT_SYMBOL_GPL(hrtimer_expire_exit);
+
 /*
  * Masks for selecting the soft and hard context timers from
  * cpu_base->active

@@ -41,6 +41,9 @@ __printf(5, 6) void ucall_assert(uint64_t cmd, const char *exp,
 uint64_t get_ucall(struct kvm_vcpu *vcpu, struct ucall *uc);
 void ucall_init(struct kvm_vm *vm, vm_paddr_t mmio_gpa);
 int ucall_nr_pages_required(uint64_t page_size);
+vm_paddr_t get_ucall_pool_gpa(struct kvm_vm *vm);
+size_t get_ucall_pool_size(struct kvm_vm *vm);
+vm_paddr_t get_ucall_mmio_gpa(struct kvm_vm *vm);
 
 /*
  * Perform userspace call without any associated data.  This bare call avoids

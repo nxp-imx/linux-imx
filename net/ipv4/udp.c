@@ -121,6 +121,7 @@
 #include <net/ipv6_stubs.h>
 #endif
 #include <net/rps.h>
+#include <trace/hooks/net.h>
 
 struct udp_table udp_table __read_mostly;
 
@@ -1344,6 +1345,8 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		 */
 		connected = 1;
 	}
+
+	trace_android_vh_udp_v4_connect(sk, daddr, dport, AF_INET);
 
 	ipcm_init_sk(&ipc, inet);
 	ipc.gso_size = READ_ONCE(up->gso_size);

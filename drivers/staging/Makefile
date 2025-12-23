@@ -19,3 +19,5 @@ obj-$(CONFIG_GPIB)	 	+= gpib/
 obj-$(CONFIG_FSL_PPFE)		+= fsl_ppfe/
 obj-$(CONFIG_ETHOSU)		+= ethosu/
 obj-$(CONFIG_NEUTRON)		+= neutron/
+
+obj-$(CONFIG_ASHMEM)		+= android/

@@ -223,7 +223,7 @@ config COMPILE_TEST
 
 config WERROR
 	bool "Compile the kernel with warnings as errors"
-	default COMPILE_TEST
+	default y
 	help
 	  A kernel build should not cause any compiler warnings, and this
 	  enables the '-Werror' (for C) and '-Dwarnings' (for Rust) flags
@@ -1435,6 +1435,16 @@ config SCHED_AUTOGROUP
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
 
+config RT_SOFTIRQ_AWARE_SCHED
+	bool "Improve RT scheduling during long softirq execution"
+	depends on SMP && !PREEMPT_RT
+	default n
+	help
+	  Enable an optimization which tries to avoid placing RT tasks on CPUs
+	  occupied by nonpreemptible tasks, such as a long softirq or CPUs
+	  which may soon block preemptions, such as a CPU running a ksoftirq
+	  thread which handles slow softirqs.
+
 config RELAY
 	bool "Kernel->user space relay support (formerly relayfs)"
 	select IRQ_WORK
@@ -1511,6 +1521,24 @@ config BOOT_CONFIG_EMBED_FILE
 	  Specify a bootconfig file which will be embedded to the kernel.
 	  This bootconfig will be used if there is no initrd or no other
 	  bootconfig in the initrd.
+
+config CMDLINE_LOG_WRAP_IDEAL_LEN
+	int "Length to try to wrap the cmdline when logged at boot"
+	default 1021
+	range 0 1021
+	help
+	  At boot time, the kernel command line is logged to the console.
+	  The log message will start with the prefix "Kernel command line: ".
+	  The log message will attempt to be wrapped (split into multiple log
+	  messages) at spaces based on CMDLINE_LOG_WRAP_IDEAL_LEN characters.
+	  If wrapping happens, each log message will start with the prefix and
+	  all but the last message will end with " \". Messages may exceed the
+	  ideal length if a place to wrap isn't found before the specified
+	  number of characters.
+
+	  A value of 0 disables wrapping, though be warned that the maximum
+	  length of a log message (1021 characters) may cause the cmdline to
+	  be truncated.
 
 config INITRAMFS_PRESERVE_MTIME
 	bool "Preserve cpio archive mtimes in initramfs"
@@ -2198,3 +2226,5 @@ config ARCH_HAS_SYNC_CORE_BEFORE_USERMODE
 # <asm/syscall_wrapper.h>.
 config ARCH_HAS_SYSCALL_WRAPPER
 	def_bool n
+
+source "init/Kconfig.gki"

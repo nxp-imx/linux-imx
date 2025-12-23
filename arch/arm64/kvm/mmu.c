@@ -9,6 +9,7 @@
 #include <linux/kvm_host.h>
 #include <linux/io.h>
 #include <linux/hugetlb.h>
+#include <linux/interval_tree_generic.h>
 #include <linux/sched/signal.h>
 #include <trace/events/kvm.h>
 #include <asm/acpi.h>
@@ -36,6 +37,15 @@ u32 __ro_after_init __hyp_va_bits;
 static unsigned long __ro_after_init io_map_base;
 
 #define KVM_PGT_FN(fn)		(!is_protected_kvm_enabled() ? fn : p ## fn)
+
+static bool stage2_force_pte_cb(u64 addr, u64 end, enum kvm_pgtable_prot prot);
+static bool stage2_pte_is_counted(kvm_pte_t pte, u32 level);
+
+static struct kvm_pgtable_pte_ops kvm_s2_pte_ops = {
+	.force_pte_cb = stage2_force_pte_cb,
+	.pte_is_counted_cb = stage2_pte_is_counted
+
+};
 
 static phys_addr_t __stage2_range_addr_end(phys_addr_t addr, phys_addr_t end,
 					   phys_addr_t size)
@@ -234,7 +244,8 @@ static void stage2_free_unlinked_table_rcu_cb(struct rcu_head *head)
 	void *pgtable = page_to_virt(page);
 	s8 level = page_private(page);
 
-	KVM_PGT_FN(kvm_pgtable_stage2_free_unlinked)(&kvm_s2_mm_ops, pgtable, level);
+	KVM_PGT_FN(kvm_pgtable_stage2_free_unlinked)(&kvm_s2_mm_ops, &kvm_s2_pte_ops,
+						     pgtable, level);
 }
 
 static void stage2_free_unlinked_table(void *addr, s8 level)
@@ -269,16 +280,6 @@ static int kvm_host_page_count(void *addr)
 	return page_count(virt_to_page(addr));
 }
 
-static phys_addr_t kvm_host_pa(void *addr)
-{
-	return __pa(addr);
-}
-
-static void *kvm_host_va(phys_addr_t phys)
-{
-	return __va(phys);
-}
-
 static void clean_dcache_guest_page(void *va, size_t size)
 {
 	__clean_dcache_guest_page(va, size);
@@ -288,6 +289,25 @@ static void invalidate_icache_guest_page(void *va, size_t size)
 {
 	__invalidate_icache_guest_page(va, size);
 }
+
+static u64 __pinned_page_start(struct kvm_pinned_page *ppage)
+{
+	return ppage->ipa;
+}
+
+static u64 __pinned_page_end(struct kvm_pinned_page *ppage)
+{
+	return ppage->ipa + (1 << (ppage->order + PAGE_SHIFT)) - 1;
+}
+
+INTERVAL_TREE_DEFINE(struct kvm_pinned_page, node, u64, __subtree_last,
+		     __pinned_page_start, __pinned_page_end, /* empty */,
+		     kvm_pinned_pages);
+
+#define for_ppage_node_in_range(kvm, start, end, __ppage, __tmp)				\
+	for (__ppage = kvm_pinned_pages_iter_first(&(kvm)->arch.pkvm.pinned_pages, start, end - 1);\
+	     __ppage && ({ __tmp = kvm_pinned_pages_iter_next(__ppage, start, end - 1); 1; });	\
+	     __ppage = __tmp)
 
 /*
  * Unmapping vs dcache management:
@@ -340,6 +360,9 @@ static void __unmap_stage2_range(struct kvm_s2_mmu *mmu, phys_addr_t start, u64 
 void kvm_stage2_unmap_range(struct kvm_s2_mmu *mmu, phys_addr_t start,
 			    u64 size, bool may_block)
 {
+	if (kvm_vm_is_protected(kvm_s2_mmu_to_kvm(mmu)))
+		return;
+
 	__unmap_stage2_range(mmu, start, size, may_block);
 }
 
@@ -858,6 +881,17 @@ static int get_user_mapping_size(struct kvm *kvm, u64 addr)
 	return BIT(ARM64_HW_PGTABLE_LEVEL_SHIFT(level));
 }
 
+static bool stage2_force_pte_cb(u64 addr, u64 end, enum kvm_pgtable_prot prot)
+{
+	return false;
+}
+
+static bool stage2_pte_is_counted(kvm_pte_t pte, u32 level)
+
+{
+	return !!pte;
+}
+
 static struct kvm_pgtable_mm_ops kvm_s2_mm_ops = {
 	.zalloc_page		= stage2_memcache_zalloc_page,
 	.zalloc_pages_exact	= kvm_s2_zalloc_pages_exact,
@@ -877,9 +911,6 @@ static int kvm_init_ipa_range(struct kvm_s2_mmu *mmu, unsigned long type)
 	u32 kvm_ipa_limit = get_kvm_ipa_limit();
 	u64 mmfr0, mmfr1;
 	u32 phys_shift;
-
-	if (type & ~KVM_VM_TYPE_ARM_IPA_SIZE_MASK)
-		return -EINVAL;
 
 	phys_shift = KVM_VM_TYPE_ARM_IPA_SIZE(type);
 	if (is_protected_kvm_enabled()) {
@@ -924,6 +955,8 @@ int kvm_init_stage2_mmu(struct kvm *kvm, struct kvm_s2_mmu *mmu, unsigned long t
 	int cpu, err;
 	struct kvm_pgtable *pgt;
 
+	kvm->arch.pkvm.pinned_pages = RB_ROOT_CACHED;
+
 	/*
 	 * If we already have our page tables in place, and that the
 	 * MMU context is the canonical one, we have a bug somewhere,
@@ -951,7 +984,7 @@ int kvm_init_stage2_mmu(struct kvm *kvm, struct kvm_s2_mmu *mmu, unsigned long t
 		return -ENOMEM;
 
 	mmu->arch = &kvm->arch;
-	err = KVM_PGT_FN(kvm_pgtable_stage2_init)(pgt, mmu, &kvm_s2_mm_ops);
+	err = KVM_PGT_FN(kvm_pgtable_stage2_init)(pgt, mmu, &kvm_s2_mm_ops, &kvm_s2_pte_ops);
 	if (err)
 		goto out_free_pgtable;
 
@@ -1086,26 +1119,34 @@ void kvm_free_stage2_pgd(struct kvm_s2_mmu *mmu)
 	}
 }
 
-static void hyp_mc_free_fn(void *addr, void *mc)
+static void hyp_mc_free_fn(void *addr, void *mc, unsigned long order)
 {
 	struct kvm_hyp_memcache *memcache = mc;
 
 	if (memcache->flags & HYP_MEMCACHE_ACCOUNT_STAGE2)
 		kvm_account_pgtable_pages(addr, -1);
 
-	free_page((unsigned long)addr);
+	free_pages((unsigned long)addr, order);
 }
 
-static void *hyp_mc_alloc_fn(void *mc)
+static void *hyp_mc_alloc_fn(void *mc, unsigned long order)
 {
 	struct kvm_hyp_memcache *memcache = mc;
+	gfp_t gfp_mask;
 	void *addr;
 
-	addr = (void *)__get_free_page(GFP_KERNEL_ACCOUNT);
+	gfp_mask = memcache->flags & HYP_MEMCACHE_ACCOUNT_KMEMCG ?
+			GFP_KERNEL_ACCOUNT : GFP_KERNEL;
+	addr = (void *)__get_free_pages(gfp_mask, order);
 	if (addr && memcache->flags & HYP_MEMCACHE_ACCOUNT_STAGE2)
 		kvm_account_pgtable_pages(addr, 1);
 
 	return addr;
+}
+
+static void *hyp_mc_alloc_gfp_fn(void *flags, unsigned long order)
+{
+	return (void *)__get_free_pages(*(gfp_t *)flags, order);
 }
 
 void free_hyp_memcache(struct kvm_hyp_memcache *mc)
@@ -1117,10 +1158,14 @@ void free_hyp_memcache(struct kvm_hyp_memcache *mc)
 	__free_hyp_memcache(mc, hyp_mc_free_fn, kvm_host_va, mc);
 }
 
-int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages)
+int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
+		       unsigned long order)
 {
 	if (!is_protected_kvm_enabled())
 		return 0;
+
+	if (order > PAGE_SHIFT)
+		return -E2BIG;
 
 	if (!mc->mapping) {
 		mc->mapping = kzalloc(sizeof(struct pkvm_mapping), GFP_KERNEL_ACCOUNT);
@@ -1129,7 +1174,22 @@ int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages)
 	}
 
 	return __topup_hyp_memcache(mc, min_pages, hyp_mc_alloc_fn,
-				    kvm_host_pa, mc);
+				    kvm_host_pa, mc, order);
+}
+
+int topup_hyp_memcache_gfp(struct kvm_hyp_memcache *mc, unsigned long min_pages,
+			   unsigned long order, gfp_t gfp)
+{
+	void *flags = &gfp;
+
+	if (!is_protected_kvm_enabled())
+		return 0;
+
+	if (order > PAGE_SHIFT)
+		return -E2BIG;
+
+	return __topup_hyp_memcache(mc, min_pages, hyp_mc_alloc_gfp_fn,
+				    kvm_host_pa, flags, order);
 }
 
 /**
@@ -1479,15 +1539,66 @@ static bool kvm_vma_is_cacheable(struct vm_area_struct *vma)
 	}
 }
 
+static struct kvm_pinned_page *find_ppage(struct kvm *kvm, u64 ipa)
+{
+	return kvm_pinned_pages_iter_first(&kvm->arch.pkvm.pinned_pages,
+					   ipa, ipa + PAGE_SIZE - 1);
+}
+
+static u16 pkvm_prefault __read_mostly;
+
+static int __init early_pkvm_prefault_cfg(char *buf)
+{
+	int ret = kstrtou16(buf, 10, &pkvm_prefault);
+
+	if (ret)
+		return ret;
+
+	pkvm_prefault = min(pkvm_prefault, 9);
+
+	return 0;
+}
+early_param("kvm-arm.protected_prefault", early_pkvm_prefault_cfg);
+
+static int insert_ppage(struct kvm *kvm, struct kvm_pinned_page *ppage)
+{
+	if (find_ppage(kvm, ppage->ipa))
+		return -EEXIST;
+
+	kvm_pinned_pages_insert(ppage, &kvm->arch.pkvm.pinned_pages);
+
+	return 0;
+}
+
+static long __pkvm_align_memslot(struct kvm *kvm, struct kvm_memory_slot *memslot,
+				 gfn_t gfn, size_t size)
+{
+	gfn_t memslot_end, gfn_end;
+	unsigned long hva;
+	bool writable;
+
+	size = PAGE_ALIGN(size);
+	hva = gfn_to_hva_memslot_prot(memslot, gfn, &writable);
+
+	if (kvm_is_error_hva(hva) || (kvm_vm_is_protected(kvm) && !writable))
+		return -EINVAL;
+
+	memslot_end = memslot->base_gfn + memslot->npages;
+	gfn_end = min(gfn + (size >> PAGE_SHIFT), memslot_end);
+
+	return gfn_end - gfn;
+}
+
 static int prepare_mmu_memcache(struct kvm_vcpu *vcpu, bool topup_memcache,
 				void **memcache)
 {
-	int min_pages;
+	struct kvm_hyp_memcache *hyp_memcache;
+	int min_pages, nr_pages, ret;
 
 	if (!is_protected_kvm_enabled())
 		*memcache = &vcpu->arch.mmu_page_cache;
 	else
-		*memcache = &vcpu->arch.pkvm_memcache;
+		*memcache = hyp_memcache = &vcpu->arch.stage2_mc;
 
 	if (!topup_memcache)
 		return 0;
@@ -1497,7 +1608,15 @@ static int prepare_mmu_memcache(struct kvm_vcpu *vcpu, bool topup_memcache,
 	if (!is_protected_kvm_enabled())
 		return kvm_mmu_topup_memory_cache(*memcache, min_pages);
 
-	return topup_hyp_memcache(*memcache, min_pages);
+	nr_pages = hyp_memcache->nr_pages;
+	ret = topup_hyp_memcache(hyp_memcache, min_pages, 0);
+	if (ret)
+		return ret;
+
+	nr_pages = hyp_memcache->nr_pages - nr_pages;
+	atomic64_add(nr_pages << PAGE_SHIFT, &vcpu->kvm->stat.protected_hyp_mem);
+
+	return 0;
 }
 
 /*
@@ -1595,6 +1714,540 @@ out_unlock:
 		mark_page_dirty_in_slot(kvm, memslot, gfn);
 
 	return ret != -EAGAIN ? ret : 0;
+}
+
+static int __pkvm_pin_user_pages(struct kvm *kvm, struct kvm_memory_slot *memslot,
+				 u64 gfn, u64 nr_pages, struct page ***__pages)
+{
+	unsigned long hva = gfn_to_hva_memslot_prot(memslot, gfn, NULL);
+	unsigned int flags = FOLL_HWPOISON | FOLL_LONGTERM | FOLL_WRITE;
+	struct mm_struct *mm = current->mm;
+	struct page **pages;
+	long ret;
+	int p;
+
+	pages = kmalloc_array(nr_pages, sizeof(*pages), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
+	mmap_read_lock(mm);
+	ret = pin_user_pages(hva, nr_pages, flags, pages);
+	mmap_read_unlock(mm);
+
+	if (ret == -EHWPOISON) {
+		kvm_send_hwpoison_signal(hva, PAGE_SHIFT);
+		goto err_free_pages;
+	} else if (ret == -EFAULT) {
+		/* Will try MMIO map */
+		ret = -EREMOTEIO;
+		goto err_free_pages;
+	} else if (ret < 0) {
+		ret = -EFAULT;
+		goto err_free_pages;
+	} else if (ret != nr_pages) {
+		nr_pages = ret;
+		ret = -EFAULT;
+		goto err_unpin_pages;
+	}
+
+	/*
+	 * We really can't deal with page-cache pages returned by GUP
+	 * because (a) we may trigger writeback of a page for which we
+	 * no longer have access and (b) page_mkclean() won't find the
+	 * stage-2 mapping in the rmap so we can get out-of-whack with
+	 * the filesystem when marking the page dirty during unpinning
+	 * (see cc5095747edf ("ext4: don't BUG if someone dirty pages
+	 * without asking ext4 first")).
+	 *
+	 * Ideally we'd just restrict ourselves to anonymous pages, but
+	 * we also want to allow memfd (i.e. shmem) pages, so check for
+	 * pages backed by swap in the knowledge that the GUP pin will
+	 * prevent try_to_unmap() from succeeding.
+	 */
+	for (p = 0; p < nr_pages; p++) {
+		if (!folio_test_swapbacked(page_folio(pages[p]))) {
+			ret = -EIO;
+			goto err_unpin_pages;
+		}
+	}
+
+	*__pages = pages;
+	return 0;
+
+err_unpin_pages:
+	unpin_user_pages(pages, nr_pages);
+err_free_pages:
+	kfree(pages);
+	return ret;
+}
+
+/*
+ * Create a list of kvm_pinned_page based on the array of pages from
+ * __pkvm_pin_pages in preparation for EL2 mapping.
+ *
+ * On success, this function no unpinning is necessary. On error the entire original pages array
+ * must be unpinned.
+ */
+static int
+__pkvm_pages_to_ppages(struct kvm *kvm, struct kvm_memory_slot *memslot, gfn_t gfn,
+		       long *__nr_pages, struct page **pages, struct list_head *ppages)
+{
+	struct list_head ppage_prealloc = LIST_HEAD_INIT(ppage_prealloc);
+	long nr_ppages = 0, nr_pages = *__nr_pages;
+	struct kvm_pinned_page *ppage, *tmp;
+	int p, ret = 0;
+
+	/* Pre-allocate kvm_pinned_page before acquiring the mmu_lock */
+	for (p = 0; p < nr_pages; p++) {
+		ppage = kmalloc(sizeof(*ppage), GFP_KERNEL_ACCOUNT);
+		if (!ppage) {
+			ret = -ENOMEM;
+			goto err;
+		}
+		list_add(&ppage->list_node, &ppage_prealloc);
+	}
+
+	p = 0;
+	read_lock(&kvm->mmu_lock);
+	while (p < nr_pages) {
+		phys_addr_t ipa = gfn << PAGE_SHIFT;
+		long skip, page_size = PAGE_SIZE;
+		struct page *page = pages[p];
+		u64 pfn;
+
+		ppage = kvm_pinned_pages_iter_first(&kvm->arch.pkvm.pinned_pages,
+						    ipa, ipa + PAGE_SIZE - 1);
+		if (ppage) {
+			unpin_user_pages(&page, 1);
+			goto next;
+		}
+
+		pfn = page_to_pfn(page);
+
+		if (!kvm_pinned_pages_iter_first(&kvm->arch.pkvm.pinned_pages,
+						 ALIGN_DOWN(ipa, PMD_SIZE),
+						 ALIGN(ipa + 1, PMD_SIZE) - 1)) {
+			unsigned long hva = gfn_to_hva_memslot_prot(memslot, gfn, NULL);
+
+			page_size = transparent_hugepage_adjust(kvm, memslot, hva, &pfn, &ipa);
+		}
+
+		/* Pop a ppage from the pre-allocated list */
+		ppage = list_first_entry(&ppage_prealloc, struct kvm_pinned_page, list_node);
+		list_del_init(&ppage->list_node);
+
+		ppage->page = pfn_to_page(pfn);
+		ppage->ipa = ipa;
+		ppage->order = get_order(page_size);
+		list_add_tail(&ppage->list_node, ppages);
+		nr_ppages += 1 << ppage->order;
+
+next:
+		/* Number of pages to skip (covered by a THP) */
+		skip = ppage->order ? ALIGN(gfn + 1, 1 << ppage->order) - gfn - 1 : 0;
+		if (skip) {
+			long nr_pins = min_t(long, skip, nr_pages - p - 1);
+
+			if (nr_pins >= 1)
+				unpin_user_pages(&pages[p + 1], nr_pins);
+		}
+
+		p += skip + 1;
+		gfn += skip + 1;
+	}
+	read_unlock(&kvm->mmu_lock);
+
+	*__nr_pages = nr_ppages;
+
+err:
+	/* Free unused pre-allocated kvm_pinned_page */
+	list_for_each_entry_safe(ppage, tmp, &ppage_prealloc, list_node) {
+		list_del(&ppage->list_node);
+		kfree(ppage);
+	}
+
+	return ret;
+}
+
+static int __pkvm_topup_stage2_memcache(struct kvm_vcpu *vcpu, struct list_head *ppages)
+{
+	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
+	struct kvm_s2_mmu *mmu = &vcpu->kvm->arch.mmu;
+	unsigned long nr_stage2_pages, nr_pages;
+	struct kvm_pinned_page *first, *last;
+	size_t size;
+	int ret;
+
+	last = list_last_entry(ppages, struct kvm_pinned_page, list_node);
+	first = list_first_entry(ppages, struct kvm_pinned_page, list_node);
+	size = ALIGN(last->ipa + (PAGE_SIZE << last->order), PMD_SIZE) -
+	       ALIGN_DOWN(first->ipa, PMD_SIZE);
+
+	/*
+	 * (size n blocks) * (pages to install a stage-2 translation)
+	 *
+	 * Does not take into account possible (but unlikely) discontinuities in
+	 * the ppages list.
+	 */
+	nr_stage2_pages = (size >> PAGE_SHIFT) / PTRS_PER_PTE;
+	nr_stage2_pages *= kvm_mmu_cache_min_pages(mmu);
+
+	nr_pages = hyp_memcache->nr_pages;
+	ret = topup_hyp_memcache(hyp_memcache, nr_stage2_pages, 0);
+	if (ret)
+		return ret;
+
+	nr_pages = hyp_memcache->nr_pages - nr_pages;
+	atomic64_add(nr_pages << PAGE_SHIFT, &vcpu->kvm->stat.protected_hyp_mem);
+
+	return 0;
+}
+
+static int __pkvm_host_donate_guest_sglist(struct kvm_vcpu *vcpu, struct list_head *ppages)
+{
+	struct kvm *kvm = vcpu->kvm;
+	int ret;
+
+	lockdep_assert_held_write(&kvm->mmu_lock);
+
+	do {
+		struct kvm_hyp_pinned_page *hyp_ppage = NULL;
+		struct kvm_pinned_page *tmp, *ppage;
+		int p, nr_ppages = 0;
+
+		list_for_each_entry(ppage, ppages, list_node) {
+			u64 pfn = page_to_pfn(ppage->page);
+			gfn_t gfn = ppage->ipa >> PAGE_SHIFT;
+
+			hyp_ppage = next_kvm_hyp_pinned_page(vcpu->arch.hyp_reqs, hyp_ppage, false);
+			if (!hyp_ppage)
+				break;
+
+			hyp_ppage->pfn = pfn;
+			hyp_ppage->gfn = gfn;
+			hyp_ppage->order = ppage->order;
+			nr_ppages++;
+
+			/* Limit the time spent at EL2 */
+			if (nr_ppages >= (1 << max(pkvm_prefault, 5)))
+				break;
+		}
+
+		if (hyp_ppage) {
+			hyp_ppage = next_kvm_hyp_pinned_page(vcpu->arch.hyp_reqs, hyp_ppage, false);
+			if (hyp_ppage)
+				hyp_ppage->order = ~((u8)0);
+		}
+
+		ret = kvm_call_hyp_nvhe(__pkvm_host_donate_guest_sglist);
+		/* See __pkvm_host_donate_guest() -EPERM comment */
+		if (ret == -EPERM) {
+			ret = 0;
+			break;
+		} else if (ret) {
+			break;
+		}
+
+		p = 0;
+		list_for_each_entry_safe(ppage, tmp, ppages, list_node) {
+			if (p++ >= nr_ppages)
+				break;
+
+			list_del(&ppage->list_node);
+			ppage->node.rb_right = ppage->node.rb_left = NULL;
+			WARN_ON(insert_ppage(kvm, ppage));
+		}
+	} while (!list_empty(ppages));
+
+	return ret;
+}
+
+static int __pkvm_host_donate_guest(struct kvm_vcpu *vcpu, struct list_head *ppages)
+{
+	struct kvm_pinned_page *ppage, *tmp;
+	struct kvm *kvm = vcpu->kvm;
+	int ret = -EINVAL; /* Empty list */
+
+	write_lock(&kvm->mmu_lock);
+
+	if (ppages->next != ppages->prev && kvm_vm_is_protected(kvm)) {
+		ret = __pkvm_host_donate_guest_sglist(vcpu, ppages);
+		goto unlock;
+	}
+
+	list_for_each_entry_safe(ppage, tmp, ppages, list_node) {
+		u64 pfn = page_to_pfn(ppage->page);
+		gfn_t gfn = ppage->ipa >> PAGE_SHIFT;
+
+		ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn, 1 << ppage->order,
+					KVM_PGTABLE_PROT_RWX);
+		/*
+		 * Getting -EPERM at this point implies that the pfn has already been
+		 * mapped. This should only ever happen when two vCPUs faulted on the
+		 * same page, and the current one lost the race to do the mapping...
+		 *
+		 * ...or if we've tried to map a region containing an already mapped
+		 * entry.
+		 */
+		if (ret == -EPERM) {
+			ret = 0;
+			continue;
+		} else if (ret) {
+			break;
+		}
+
+		list_del(&ppage->list_node);
+		ppage->node.rb_right = ppage->node.rb_left = NULL;
+		WARN_ON(insert_ppage(kvm, ppage));
+	}
+
+unlock:
+	write_unlock(&kvm->mmu_lock);
+
+	return ret;
+}
+
+static int pkvm_mem_abort_device(struct kvm_vcpu *vcpu, struct kvm_memory_slot *memslot,
+				 u64 gfn, u64 nr_pages)
+{
+	while (nr_pages--) {
+		bool device, writable;
+		kvm_pfn_t pfn;
+		struct page *tmp;
+
+		pfn = __kvm_faultin_pfn(memslot, gfn,
+					kvm_is_write_fault(vcpu) ? FOLL_WRITE : 0,
+					&writable, &tmp);
+		if (is_error_noslot_pfn(pfn))
+			return -EREMOTEIO;
+
+		device = !pfn_is_map_memory(pfn);
+		if (device) {
+			int ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest_mmio, pfn, gfn);
+			/* Ignore EEXIST as we might have raced with another vCPU. */
+			if (ret && (ret != -EEXIST)) {
+				return ret;
+			}
+		} else {
+			/* Release pin from __kvm_faultin_pfn(). */
+			kvm_release_faultin_page(vcpu->kvm, tmp, true, writable);
+			return -EREMOTEIO;
+		}
+		gfn++;
+	}
+	return 0;
+}
+
+static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t size,
+			  struct kvm_memory_slot *memslot)
+{
+	gfn_t gfn = fault_ipa >> PAGE_SHIFT;
+	struct kvm_pinned_page *ppage, *tmp;
+	struct mm_struct *mm = current->mm;
+	struct kvm *kvm = vcpu->kvm;
+	bool account_dec = false;
+	struct page **pages;
+	LIST_HEAD(ppages);
+	long ret, nr_pages;
+
+	if (WARN_ON(!kvm_vm_is_protected(kvm)))
+		return -EINVAL;
+
+	nr_pages = __pkvm_align_memslot(kvm, memslot, gfn, size);
+	if (nr_pages < 0)
+		return nr_pages;
+
+	ret = __pkvm_pin_user_pages(kvm, memslot, gfn, nr_pages, &pages);
+	if (ret == -EHWPOISON) {
+		return 0;
+	} else if (ret == -EREMOTEIO) {
+		/*
+		 * pKVM relies on pinning the page then getting the pfn from there to map it,
+		 * However, to avoid adding overhead on the hot path with checking pfn first,
+		 * device check is done on the fail path for pin_user_pages, inside -EREMOTEIO
+		 * case, that is possible because the VMA for the device mapping is VM_IO,
+		 * which fails in check_vma_flags() with -EFAULT
+		 */
+		return pkvm_mem_abort_device(vcpu, memslot, gfn, nr_pages);
+	} else if (ret) {
+		return ret;
+	}
+
+	ret = __pkvm_pages_to_ppages(kvm, memslot, gfn, &nr_pages, pages, &ppages);
+	if (ret) {
+		unpin_user_pages(pages, nr_pages);
+		goto free_pages;
+	} else if (list_empty(&ppages)) {
+		ret = 0;
+		goto free_pages;
+	}
+
+	ret = __pkvm_topup_stage2_memcache(vcpu, &ppages);
+	if (ret)
+		goto free_ppages;
+
+	ret = account_locked_vm(mm, nr_pages, true);
+	if (ret)
+		goto free_ppages;
+	account_dec = true;
+
+	ret = __pkvm_host_donate_guest(vcpu, &ppages);
+
+free_ppages:
+	/* Pages left in the list haven't been mapped */
+	list_for_each_entry_safe(ppage, tmp, &ppages, list_node) {
+		list_del(&ppage->list_node);
+		unpin_user_pages(&ppage->page, 1);
+		if (account_dec)
+			account_locked_vm(mm, 1 << ppage->order, false);
+		kfree(ppage);
+	}
+free_pages:
+	kfree(pages);
+	return ret;
+}
+
+int pkvm_mem_abort_range(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t size)
+{
+	phys_addr_t ipa_end = fault_ipa + size - 1;
+	struct kvm_memory_slot *memslot;
+	int idx, err = 0;
+
+	if (!PAGE_ALIGNED(size | fault_ipa))
+		return -EINVAL;
+
+	if (ipa_end >= BIT_ULL(get_kvm_ipa_limit()) ||
+	    ipa_end >= kvm_phys_size(vcpu->arch.hw_mmu) ||
+	    ipa_end <= fault_ipa)
+		return -EINVAL;
+
+	idx = srcu_read_lock(&vcpu->kvm->srcu);
+	memslot = gfn_to_memslot(vcpu->kvm, fault_ipa >> PAGE_SHIFT);
+	err = pkvm_mem_abort(vcpu, fault_ipa, size, memslot);
+	srcu_read_unlock(&vcpu->kvm->srcu, idx);
+
+	return err;
+}
+
+/*
+ * Splitting is only expected on the back of a relinquish guest HVC in the pKVM case, while
+ * pkvm_pgtable_stage2_split() can be called with dirty logging.
+ */
+int __pkvm_pgtable_stage2_split(struct kvm_vcpu *vcpu, phys_addr_t ipa, size_t size)
+{
+	struct list_head ppage_prealloc = LIST_HEAD_INIT(ppage_prealloc);
+	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
+	struct kvm_pinned_page *ppage, *tmp;
+	struct kvm_memory_slot *memslot;
+	struct kvm *kvm = vcpu->kvm;
+	int idx, p, ret, nr_pages;
+	struct page **pages;
+	kvm_pfn_t pfn;
+	gfn_t gfn;
+
+	if (WARN_ON(!kvm_vm_is_protected(kvm)))
+		return -EINVAL;
+
+	if (!IS_ALIGNED(ipa, PMD_SIZE) || size != PMD_SIZE)
+		return -EINVAL;
+
+	nr_pages = hyp_memcache->nr_pages;
+	ret = topup_hyp_memcache(hyp_memcache, 1, 0);
+	if (ret)
+		return ret;
+	nr_pages = hyp_memcache->nr_pages - nr_pages;
+	atomic64_add(nr_pages << PAGE_SHIFT, &vcpu->kvm->stat.protected_hyp_mem);
+
+	/* We already have 1 pin on the Huge Page */
+	nr_pages = (size >> PAGE_SHIFT) - 1;
+	gfn = (ipa >> PAGE_SHIFT) + 1;
+
+	/* Pre-allocate kvm_pinned_page before acquiring the mmu_lock */
+	for (p = 0; p < nr_pages; p++) {
+		ppage = kzalloc(sizeof(*ppage), GFP_KERNEL_ACCOUNT);
+		if (!ppage) {
+			ret = -ENOMEM;
+			goto free_pinned_pages;
+		}
+		list_add(&ppage->list_node, &ppage_prealloc);
+	}
+
+	idx = srcu_read_lock(&vcpu->kvm->srcu);
+	memslot = gfn_to_memslot(vcpu->kvm, gfn);
+	ret = __pkvm_pin_user_pages(kvm, memslot, gfn, nr_pages, &pages);
+	if (ret)
+		goto unlock_srcu;
+
+	write_lock(&kvm->mmu_lock);
+
+	ppage = find_ppage(kvm, ipa);
+	if (!ppage) {
+		ret = -EPERM;
+		goto end;
+	} else if (!ppage->order) {
+		unpin_user_pages(pages, nr_pages);
+		ret = 0;
+		goto end;
+	}
+
+	ret = kvm_call_hyp_nvhe(__pkvm_host_split_guest, ipa >> PAGE_SHIFT, size);
+	if (ret)
+		goto end;
+
+	kvm_pinned_pages_remove(ppage, &kvm->arch.pkvm.pinned_pages);
+	ppage->order = 0;
+	WARN_ON(insert_ppage(kvm, ppage));
+
+	pfn = page_to_pfn(ppage->page) + 1;
+	ipa = ipa + PAGE_SIZE;
+	while (nr_pages--) {
+		/* Pop a ppage from the pre-allocated list */
+		ppage = list_first_entry(&ppage_prealloc, struct kvm_pinned_page, list_node);
+		list_del(&ppage->list_node);
+
+		ppage->page = pfn_to_page(pfn);
+		ppage->ipa = ipa;
+		ppage->order = 0;
+		ppage->node.rb_right = ppage->node.rb_left = NULL;
+		WARN_ON(insert_ppage(kvm, ppage));
+
+		pfn += 1;
+		ipa += PAGE_SIZE;
+	}
+
+end:
+	write_unlock(&kvm->mmu_lock);
+
+	if (ret)
+		unpin_user_pages(pages, nr_pages);
+	kfree(pages);
+
+unlock_srcu:
+	srcu_read_unlock(&vcpu->kvm->srcu, idx);
+
+free_pinned_pages:
+	/* Free unused pre-allocated kvm_pinned_page */
+	list_for_each_entry_safe(ppage, tmp, &ppage_prealloc, list_node) {
+		list_del(&ppage->list_node);
+		kfree(ppage);
+	}
+
+	return ret;
+}
+
+static int pkvm_mem_abort_prefault(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
+				   struct kvm_memory_slot *memslot)
+{
+	phys_addr_t memslot_start = memslot->base_gfn << PAGE_SHIFT;
+	size_t size = (1 << pkvm_prefault) << PAGE_SHIFT;
+
+	fault_ipa = ALIGN_DOWN(fault_ipa, size);
+	if (fault_ipa < memslot_start) {
+		size -= memslot_start - fault_ipa;
+		fault_ipa = memslot_start;
+	}
+
+	return pkvm_mem_abort(vcpu, fault_ipa, size, memslot);
 }
 
 static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
@@ -1959,7 +2612,7 @@ int kvm_handle_guest_abort(struct kvm_vcpu *vcpu)
 
 		/* Falls between the IPA range and the PARange? */
 		if (fault_ipa >= BIT_ULL(VTCR_EL2_IPA(vcpu->arch.hw_mmu->vtcr))) {
-			fault_ipa |= kvm_vcpu_get_hfar(vcpu) & GENMASK(11, 0);
+			fault_ipa |= FAR_TO_FIPA_OFFSET(kvm_vcpu_get_hfar(vcpu));
 
 			return kvm_inject_sea(vcpu, is_iabt, fault_ipa);
 		}
@@ -2059,7 +2712,7 @@ int kvm_handle_guest_abort(struct kvm_vcpu *vcpu)
 		 * faulting VA. This is always 12 bits, irrespective
 		 * of the page size.
 		 */
-		ipa |= kvm_vcpu_get_hfar(vcpu) & GENMASK(11, 0);
+		ipa |= FAR_TO_FIPA_OFFSET(kvm_vcpu_get_hfar(vcpu));
 		ret = io_mem_abort(vcpu, ipa);
 		goto out_unlock;
 	}
@@ -2076,7 +2729,9 @@ int kvm_handle_guest_abort(struct kvm_vcpu *vcpu)
 	VM_WARN_ON_ONCE(kvm_vcpu_trap_is_permission_fault(vcpu) &&
 			!write_fault && !kvm_vcpu_trap_is_exec_fault(vcpu));
 
-	if (kvm_slot_has_gmem(memslot))
+	if (vcpu_is_protected(vcpu))
+		ret = pkvm_mem_abort_prefault(vcpu, fault_ipa, memslot);
+	else if (kvm_slot_has_gmem(memslot))
 		ret = gmem_abort(vcpu, fault_ipa, nested, memslot,
 				 esr_fsc_is_permission_fault(esr));
 	else
@@ -2094,7 +2749,7 @@ out_unlock:
 
 bool kvm_unmap_gfn_range(struct kvm *kvm, struct kvm_gfn_range *range)
 {
-	if (!kvm->arch.mmu.pgt)
+	if (!kvm->arch.mmu.pgt || kvm_vm_is_protected(kvm))
 		return false;
 
 	__unmap_stage2_range(&kvm->arch.mmu, range->start << PAGE_SHIFT,
@@ -2109,7 +2764,7 @@ bool kvm_age_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 {
 	u64 size = (range->end - range->start) << PAGE_SHIFT;
 
-	if (!kvm->arch.mmu.pgt)
+	if (!kvm->arch.mmu.pgt || kvm_vm_is_protected(kvm))
 		return false;
 
 	return KVM_PGT_FN(kvm_pgtable_stage2_test_clear_young)(kvm->arch.mmu.pgt,
@@ -2125,7 +2780,7 @@ bool kvm_test_age_gfn(struct kvm *kvm, struct kvm_gfn_range *range)
 {
 	u64 size = (range->end - range->start) << PAGE_SHIFT;
 
-	if (!kvm->arch.mmu.pgt)
+	if (!kvm->arch.mmu.pgt || kvm_vm_is_protected(kvm))
 		return false;
 
 	return KVM_PGT_FN(kvm_pgtable_stage2_test_clear_young)(kvm->arch.mmu.pgt,
@@ -2302,6 +2957,19 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	hva_t hva, reg_end;
 	int ret = 0;
 
+	if (is_protected_kvm_enabled()) {
+		/* In protected mode, cannot modify memslots once a VM has run. */
+		if ((change == KVM_MR_DELETE || change == KVM_MR_MOVE) &&
+		    pkvm_hyp_vm_is_created(kvm)) {
+			return -EPERM;
+		}
+
+		if (new &&
+		    new->flags & (KVM_MEM_LOG_DIRTY_PAGES | KVM_MEM_READONLY)) {
+			return -EPERM;
+		}
+	}
+
 	if (change != KVM_MR_CREATE && change != KVM_MR_MOVE &&
 			change != KVM_MR_FLAGS_ONLY)
 		return 0;
@@ -2383,6 +3051,10 @@ void kvm_arch_flush_shadow_memslot(struct kvm *kvm,
 {
 	gpa_t gpa = slot->base_gfn << PAGE_SHIFT;
 	phys_addr_t size = slot->npages << PAGE_SHIFT;
+
+	/* Stage-2 is managed by hyp in protected mode. */
+	if (is_protected_kvm_enabled())
+		return;
 
 	write_lock(&kvm->mmu_lock);
 	kvm_stage2_unmap_range(&kvm->arch.mmu, gpa, size, true);

@@ -144,11 +144,8 @@ struct vcpu_reg_list {
 #define for_each_sublist(c, s)		\
 	for ((s) = &(c)->sublists[0]; (s)->regs; ++(s))
 
-#define kvm_for_each_vcpu(vm, i, vcpu)			\
-	for ((i) = 0; (i) <= (vm)->last_vcpu_id; (i)++)	\
-		if (!((vcpu) = vm->vcpus[i]))		\
-			continue;			\
-		else
+#define kvm_for_each_vcpu(vm, vcpu)			\
+	list_for_each_entry((vcpu), &(vm)->vcpus, list)
 
 struct userspace_mem_region *
 memslot2region(struct kvm_vm *vm, uint32_t memslot);
@@ -198,6 +195,7 @@ struct vm_shape {
 kvm_static_assert(sizeof(struct vm_shape) == sizeof(uint64_t));
 
 #define VM_TYPE_DEFAULT			0
+#define VM_TYPE_PROTECTED		1
 
 #define VM_SHAPE(__mode)			\
 ({						\
@@ -965,7 +963,7 @@ void *vcpu_map_dirty_ring(struct kvm_vcpu *vcpu);
  * VM VCPU Args Set
  *
  * Input Args:
- *   vm - Virtual Machine
+ *   vcpu - vCPU
  *   num - number of arguments
  *   ... - arguments, each of type uint64_t
  *
@@ -1145,6 +1143,14 @@ vm_adjust_num_guest_pages(enum vm_guest_mode mode, unsigned int num_guest_pages)
 #define sync_global_from_guest(vm, g) ({			\
 	typeof(g) *_p = addr_gva2hva(vm, (vm_vaddr_t)&(g));	\
 	memcpy(&(g), _p, sizeof(g));				\
+})
+
+#define read_guest_global(vm, g) ({				\
+	typeof(g) *_p = addr_gva2hva(vm, (vm_vaddr_t)&(g));	\
+	typeof(g) _val;						\
+								\
+	memcpy(&(_val), _p, sizeof(g));				\
+	_val;							\
 })
 
 /*

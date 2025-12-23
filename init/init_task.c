@@ -223,8 +223,17 @@ struct task_struct init_task __aligned(L1_CACHE_BYTES) = {
 #ifdef CONFIG_SECCOMP_FILTER
 	.seccomp	= { .filter_count = ATOMIC_INIT(0) },
 #endif
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	.android_vendor_data1 = {0, },
+	.android_oem_data1 = {0, },
+#endif
 };
 EXPORT_SYMBOL(init_task);
+
+#ifdef CONFIG_GKI_DYNAMIC_TASK_STRUCT_SIZE
+u64 vendor_data_pad[CONFIG_GKI_TASK_STRUCT_VENDOR_SIZE_MAX / sizeof(u64)];
+EXPORT_SYMBOL_GPL(vendor_data_pad);
+#endif
 
 /*
  * Initial thread structure. Alignment of this is handled by a special

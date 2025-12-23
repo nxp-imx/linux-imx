@@ -290,7 +290,7 @@ static inline void __deactivate_traps_mpam(void)
 	if (!system_supports_mpam())
 		return;
 
-	write_sysreg_s(0, SYS_MPAM2_EL2);
+	write_sysreg_s(MPAM2_HOST_FLAGS, SYS_MPAM2_EL2);
 
 	if (system_supports_mpam_hcr())
 		write_sysreg_s(MPAMHCR_HOST_FLAGS, SYS_MPAMHCR_EL2);
@@ -316,9 +316,14 @@ static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 		write_sysreg(ARMV8_PMU_USERENR_MASK, pmuserenr_el0);
 		vcpu_set_flag(vcpu, PMUSERENR_ON_CPU);
 	}
+}
 
+static inline void __activate_traps_hcrx(struct kvm_vcpu *vcpu)
+{
 	if (cpus_have_final_cap(ARM64_HAS_HCX)) {
+		struct kvm_cpu_context *hctxt = host_data_ptr(host_ctxt);
 		u64 hcrx = vcpu->arch.hcrx_el2;
+
 		if (is_nested_ctxt(vcpu)) {
 			u64 val = __vcpu_sys_reg(vcpu, HCRX_EL2);
 			hcrx |= val & __HCRX_EL2_MASK;
@@ -328,8 +333,6 @@ static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 		ctxt_sys_reg(hctxt, HCRX_EL2) = read_sysreg_s(SYS_HCRX_EL2);
 		write_sysreg_s(hcrx, SYS_HCRX_EL2);
 	}
-
-	__activate_traps_hfgxtr(vcpu);
 	__activate_traps_mpam(vcpu);
 }
 
@@ -345,8 +348,6 @@ static inline void __deactivate_traps_common(struct kvm_vcpu *vcpu)
 
 	if (cpus_have_final_cap(ARM64_HAS_HCX))
 		write_sysreg_s(ctxt_sys_reg(hctxt, HCRX_EL2), SYS_HCRX_EL2);
-
-	__deactivate_traps_hfgxtr(vcpu);
 	__deactivate_traps_mpam();
 }
 
@@ -354,6 +355,9 @@ static inline void ___activate_traps(struct kvm_vcpu *vcpu, u64 hcr)
 {
 	if (cpus_have_final_cap(ARM64_WORKAROUND_CAVIUM_TX2_219_TVM))
 		hcr |= HCR_TVM;
+
+	if (!system_supports_mte())
+		hcr &= ~(HCR_DCT | HCR_ATA);
 
 	write_sysreg_hcr(hcr);
 

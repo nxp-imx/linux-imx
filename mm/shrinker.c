@@ -5,6 +5,9 @@
 #include <linux/rculist.h>
 #include <trace/events/vmscan.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/vmscan.h>
+
 #include "internal.h"
 
 LIST_HEAD(shrinker_list);
@@ -616,6 +619,11 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid, struct mem_cgroup *memcg,
 {
 	unsigned long ret, freed = 0;
 	struct shrinker *shrinker;
+	bool bypass = false;
+
+	trace_android_vh_shrink_slab_bypass(gfp_mask, nid, memcg, priority, &bypass);
+	if (bypass)
+		return 0;
 
 	/*
 	 * The root memcg might be allocated even though memcg is disabled
@@ -674,6 +682,7 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid, struct mem_cgroup *memcg,
 	cond_resched();
 	return freed;
 }
+EXPORT_SYMBOL_GPL(shrink_slab);
 
 struct shrinker *shrinker_alloc(unsigned int flags, const char *fmt, ...)
 {

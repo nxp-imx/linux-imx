@@ -125,6 +125,8 @@ int virtqueue_reset(struct virtqueue *vq,
 		    void (*recycle)(struct virtqueue *vq, void *buf),
 		    void (*recycle_done)(struct virtqueue *vq));
 
+void virtqueue_disable_map_api_for_buffers(struct virtqueue *vq);
+
 struct virtio_admin_cmd {
 	__le16 opcode;
 	__le16 group_type;

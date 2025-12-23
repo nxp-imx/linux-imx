@@ -120,6 +120,11 @@ config VIRTIO_BALLOON
 
 	 If unsure, say M.
 
+config VIRTIO_BALLOON_HYP_OPS
+	def_bool y
+	depends on VIRTIO_BALLOON
+	depends on ARCH_HAS_VIRTIO_BALLOON_HYP_OPS
+
 config VIRTIO_MEM
 	tristate "Virtio mem driver"
 	depends on X86_64 || ARM64 || RISCV || S390
@@ -172,7 +177,7 @@ config VIRTIO_MMIO_CMDLINE_DEVICES
 	 If unsure, say 'N'.
 
 config VIRTIO_DMA_SHARED_BUFFER
-	tristate
+	tristate "Virtio DMA shared buffer support"
 	depends on DMA_SHARED_BUFFER
 	help
 	 This option adds a flavor of dma buffers that are backed by

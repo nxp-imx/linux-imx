@@ -5,6 +5,7 @@
  */
 
 #include <linux/kvm_host.h>
+#include <linux/overflow.h>
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pgtable.h>
@@ -16,6 +17,7 @@
 #include <nvhe/memory.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
+#include <nvhe/modules.h>
 #include <nvhe/spinlock.h>
 
 struct kvm_pgtable pkvm_pgtable;
@@ -110,6 +112,107 @@ int __pkvm_create_private_mapping(phys_addr_t phys, size_t size,
 	return err;
 }
 
+#ifdef CONFIG_PKVM_STRICT_CHECKS
+static unsigned long mod_range_start = ULONG_MAX;
+static unsigned long mod_range_end;
+static DEFINE_HYP_SPINLOCK(mod_range_lock);
+
+static void update_mod_range(unsigned long addr, size_t size)
+{
+	hyp_spin_lock(&mod_range_lock);
+	mod_range_start = min(mod_range_start, addr);
+	mod_range_end = max(mod_range_end, addr + size);
+	hyp_spin_unlock(&mod_range_lock);
+}
+
+void assert_in_mod_range(unsigned long addr, size_t size)
+{
+	/*
+	 * This is not entirely watertight if there are private range
+	 * allocations between modules being loaded, but in practice that is
+	 * probably going to be allocation initiated by the modules themselves.
+	 */
+	hyp_spin_lock(&mod_range_lock);
+	WARN_ON(addr < mod_range_start || mod_range_end < (addr + size));
+	hyp_spin_unlock(&mod_range_lock);
+}
+#else
+static inline void update_mod_range(unsigned long addr, size_t size) { }
+#endif
+
+void *__pkvm_alloc_module_va(u64 nr_pages)
+{
+	size_t size = nr_pages << PAGE_SHIFT;
+	unsigned long addr = 0;
+
+	if (!pkvm_alloc_private_va_range(size, &addr))
+		update_mod_range(addr, size);
+
+	return (void *)addr;
+}
+
+int __pkvm_map_module_pages(u64 pfn, void *va, u64 nr_pages, enum kvm_pgtable_prot prot,
+			    bool is_protected)
+{
+	phys_addr_t phys = hyp_pfn_to_phys(pfn);
+	unsigned long addr = (unsigned long)va;
+	size_t size;
+	int ret;
+
+	if (check_mul_overflow(nr_pages, PAGE_SIZE, &size))
+		return -EINVAL;
+
+	if (phys >= phys + size || va >= va + size)
+		return -EINVAL;
+
+	if (!PAGE_ALIGNED(va))
+		return -EINVAL;
+
+	assert_in_mod_range(addr, size);
+
+	if (!is_protected) {
+		ret = __pkvm_host_donate_hyp(pfn, nr_pages);
+		if (ret)
+			return ret;
+	}
+
+	ret = __pkvm_create_mappings(addr, size, phys, prot);
+	if (ret && !is_protected)
+		WARN_ON(__pkvm_hyp_donate_host(pfn, nr_pages));
+
+	return ret;
+}
+
+int __pkvm_unmap_module_pages(u64 pfn, void *va, u64 nr_pages)
+{
+	phys_addr_t phys = hyp_pfn_to_phys(pfn);
+	size_t size;
+
+	if (check_mul_overflow(nr_pages, PAGE_SIZE, &size))
+		return -EINVAL;
+
+	if (phys >= phys + size || va >= va + size)
+		return -EINVAL;
+
+	if (!PAGE_ALIGNED(va))
+		return -EINVAL;
+
+	pkvm_remove_mappings(va, va + size);
+
+	return 0;
+}
+
+int __hyp_allocator_map(unsigned long va, phys_addr_t phys)
+{
+	int ret = __pkvm_create_mappings(va, PAGE_SIZE, phys, PAGE_HYP);
+
+	/* Let's not confuse the hyp_alloc callers who will try to top-up pointlessly on -ENOMEM */
+	if (ret == -ENOMEM)
+		ret = -EBUSY;
+
+	return ret;
+}
+
 int pkvm_create_mappings_locked(void *from, void *to, enum kvm_pgtable_prot prot)
 {
 	unsigned long start = (unsigned long)from;
@@ -144,6 +247,22 @@ int pkvm_create_mappings(void *from, void *to, enum kvm_pgtable_prot prot)
 	hyp_spin_unlock(&pkvm_pgd_lock);
 
 	return ret;
+}
+
+unsigned long pkvm_remove_mappings_locked(void *from, void *to)
+{
+	unsigned long size = (unsigned long)to - (unsigned long)from;
+
+	return kvm_pgtable_hyp_unmap(&pkvm_pgtable, (u64)from, size);
+}
+
+void pkvm_remove_mappings(void *from, void *to)
+{
+	unsigned long size = (unsigned long)to - (unsigned long)from;
+
+	hyp_spin_lock(&pkvm_pgd_lock);
+	WARN_ON(pkvm_remove_mappings_locked(from, to) != size);
+	hyp_spin_unlock(&pkvm_pgd_lock);
 }
 
 int hyp_back_vmemmap(phys_addr_t back)
@@ -239,7 +358,7 @@ static void *fixmap_map_slot(struct hyp_fixmap_slot *slot, phys_addr_t phys)
 	WRITE_ONCE(*ptep, pte);
 	dsb(ishst);
 
-	return (void *)slot->addr;
+	return (void *)slot->addr + offset_in_page(phys);
 }
 
 void *hyp_fixmap_map(phys_addr_t phys)
@@ -470,23 +589,30 @@ int pkvm_create_stack(phys_addr_t phys, unsigned long *haddr)
 	return ret;
 }
 
-static void *admit_host_page(void *arg)
+/* Note: The caller has to use a local copy of the arg */
+static void *admit_host_page(void *arg, unsigned long order)
 {
+	phys_addr_t p;
 	struct kvm_hyp_memcache *host_mc = arg;
+	unsigned long mc_order;
 
 	if (!host_mc->nr_pages)
 		return NULL;
 
+	mc_order = FIELD_GET(~PAGE_MASK, host_mc->head);
+	BUG_ON(order != mc_order);
+
+	p = host_mc->head & PAGE_MASK;
 	/*
 	 * The host still owns the pages in its memcache, so we need to go
 	 * through a full host-to-hyp donation cycle to change it. Fortunately,
 	 * __pkvm_host_donate_hyp() takes care of races for us, so if it
 	 * succeeds we're good to go.
 	 */
-	if (__pkvm_host_donate_hyp(hyp_phys_to_pfn(host_mc->head), 1))
+	if (__pkvm_host_donate_hyp(hyp_phys_to_pfn(p), 1 << order))
 		return NULL;
 
-	return pop_hyp_memcache(host_mc, hyp_phys_to_virt);
+	return pop_hyp_memcache(host_mc, hyp_phys_to_virt, &order);
 }
 
 /* Refill our local memcache by popping pages from the one provided by the host. */
@@ -497,8 +623,86 @@ int refill_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 	int ret;
 
 	ret =  __topup_hyp_memcache(mc, min_pages, admit_host_page,
-				    hyp_virt_to_phys, &tmp);
+				    hyp_virt_to_phys, &tmp, 0);
 	*host_mc = tmp;
 
 	return ret;
+}
+
+phys_addr_t __pkvm_private_range_pa(void *va)
+{
+	kvm_pte_t pte;
+	s8 level;
+
+	hyp_spin_lock(&pkvm_pgd_lock);
+	WARN_ON(kvm_pgtable_get_leaf(&pkvm_pgtable, (u64)va, &pte, &level));
+	hyp_spin_unlock(&pkvm_pgd_lock);
+
+	BUG_ON(!kvm_pte_valid(pte));
+
+	return kvm_pte_to_phys(pte) + offset_in_page(va);
+}
+
+/* The host passed a mc, fill a pool with the pages in it. */
+int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
+{
+	unsigned long order;
+	u64 nr_pages;
+	void *p;
+	struct kvm_hyp_memcache tmp = *host_mc;
+
+	while (tmp.nr_pages) {
+		order = FIELD_GET(~PAGE_MASK, tmp.head);
+		if (check_shl_overflow(1UL, order, &nr_pages))
+			return -EINVAL;
+
+		p = admit_host_page(&tmp, order);
+		if (!p)
+			return -EINVAL;
+		*host_mc = tmp;
+
+		hyp_virt_to_page(p)->order = order;
+		hyp_set_page_refcounted(hyp_virt_to_page(p));
+		hyp_put_page(pool, p);
+	}
+
+	return 0;
+}
+
+/*
+ * Remove target pages from the pool and put them in a memcache,
+ * so the host can reclaim them.
+ */
+int reclaim_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc,
+		     int nr_pages)
+{
+	struct hyp_page *page;
+	u8 order;
+	void *p;
+
+	while (nr_pages > 0) {
+		p = hyp_alloc_pages(pool, 0);
+		if (!p)
+			return -ENOMEM;
+		page = hyp_virt_to_page(p);
+
+		order = page->order;
+		nr_pages -= (1 << order);
+
+		/*
+		 * For a compound page all the tail pages should normally
+		 * have page->order == HYP_NO_ORDER which would need to be
+		 * cleared one by one. But in this instance, the order 0
+		 * allocation above can only return an _external_ compound
+		 * page which is in fact ignored by the buddy logic, and the
+		 * tail pages are never touched.
+		 */
+		page->refcount = 0;
+		page->order = 0;
+
+		push_hyp_memcache(host_mc, p, hyp_virt_to_phys, order);
+		WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1 << order));
+	}
+
+	return 0;
 }

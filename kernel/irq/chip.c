@@ -14,6 +14,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
 #include <linux/irqdomain.h>
+#include <linux/wakeup_reason.h>
 
 #include <trace/events/irq.h>
 
@@ -483,8 +484,22 @@ static bool irq_can_handle_pm(struct irq_desc *desc)
 	 * If the interrupt is not in progress and is not an armed
 	 * wakeup interrupt, proceed.
 	 */
-	if (!irqd_has_set(irqd, IRQD_IRQ_INPROGRESS | IRQD_WAKEUP_ARMED))
+	if (!irqd_has_set(irqd, IRQD_IRQ_INPROGRESS | IRQD_WAKEUP_ARMED)) {
+#ifdef CONFIG_PM_SLEEP
+		if (unlikely(desc->no_suspend_depth &&
+			     irqd_is_wakeup_set(&desc->irq_data))) {
+			unsigned int irq = irq_desc_get_irq(desc);
+			const char *name = "(unnamed)";
+
+			if (desc->action && desc->action->name)
+				name = desc->action->name;
+
+			log_abnormal_wakeup_reason("misconfigured IRQ %u %s",
+						   irq, name);
+		}
+#endif
 		return true;
+	}
 
 	/*
 	 * If the interrupt is an armed wakeup source, mark it pending
@@ -897,8 +912,9 @@ void handle_percpu_irq(struct irq_desc *desc)
 void handle_percpu_devid_irq(struct irq_desc *desc)
 {
 	struct irq_chip *chip = irq_desc_get_chip(desc);
-	struct irqaction *action = desc->action;
 	unsigned int irq = irq_desc_get_irq(desc);
+	unsigned int cpu = smp_processor_id();
+	struct irqaction *action;
 	irqreturn_t res;
 
 	/*
@@ -910,12 +926,15 @@ void handle_percpu_devid_irq(struct irq_desc *desc)
 	if (chip->irq_ack)
 		chip->irq_ack(&desc->irq_data);
 
+	for (action = desc->action; action; action = action->next)
+		if (cpumask_test_cpu(cpu, action->affinity))
+			break;
+
 	if (likely(action)) {
 		trace_irq_handler_entry(irq, action);
 		res = action->handler(irq, raw_cpu_ptr(action->percpu_dev_id));
 		trace_irq_handler_exit(irq, action, res);
 	} else {
-		unsigned int cpu = smp_processor_id();
 		bool enabled = cpumask_test_cpu(cpu, desc->percpu_enabled);
 
 		if (enabled)
@@ -924,31 +943,6 @@ void handle_percpu_devid_irq(struct irq_desc *desc)
 		pr_err_once("Spurious%s percpu IRQ%u on CPU%u\n",
 			    enabled ? " and unmasked" : "", irq, cpu);
 	}
-
-	if (chip->irq_eoi)
-		chip->irq_eoi(&desc->irq_data);
-}
-
-/**
- * handle_percpu_devid_fasteoi_nmi - Per CPU local NMI handler with per cpu
- *				     dev ids
- * @desc:	the interrupt description structure for this irq
- *
- * Similar to handle_fasteoi_nmi, but handling the dev_id cookie
- * as a percpu pointer.
- */
-void handle_percpu_devid_fasteoi_nmi(struct irq_desc *desc)
-{
-	struct irq_chip *chip = irq_desc_get_chip(desc);
-	struct irqaction *action = desc->action;
-	unsigned int irq = irq_desc_get_irq(desc);
-	irqreturn_t res;
-
-	__kstat_incr_irqs_this_cpu(desc);
-
-	trace_irq_handler_entry(irq, action);
-	res = action->handler(irq, raw_cpu_ptr(action->percpu_dev_id));
-	trace_irq_handler_exit(irq, action, res);
 
 	if (chip->irq_eoi)
 		chip->irq_eoi(&desc->irq_data);

@@ -10,6 +10,9 @@ ARM
    fw-pseudo-registers
    hyp-abi
    hypercalls
+   pkvm
+   pkvm-iommu
    pvtime
    ptp_kvm
    vcpu-features
+   mmio-guard

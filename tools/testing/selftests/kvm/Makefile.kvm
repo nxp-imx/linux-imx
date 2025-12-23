@@ -295,9 +295,24 @@ LIBKVM_OBJS = $(LIBKVM_C_OBJ) $(LIBKVM_S_OBJ) $(LIBKVM_STRING_OBJ) $(LIBCGROUP_O
 SPLIT_TEST_GEN_PROGS := $(patsubst %, $(OUTPUT)/%, $(SPLIT_TESTS))
 SPLIT_TEST_GEN_OBJ := $(patsubst %, $(OUTPUT)/$(ARCH)/%.o, $(SPLIT_TESTS))
 
+ifeq ($(ARCH),arm64)
+TEST_CUSTOM_PROGS := $(OUTPUT)/arm64/pkvm
+TEST_CUSTOM_OBJS := $(OUTPUT)/arm64/pkvm.o $(OUTPUT)/arm64/pvm-entry.o
+
+$(OUTPUT)/arm64/pkvm.o: arm64/pkvm.c $(GEN_HDRS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c $< -o $@
+
+$(OUTPUT)/arm64/pvm-entry.o: arm64/pvm-entry.S
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -D__ASSEMBLY__ -c $< -o $@
+
+$(TEST_CUSTOM_PROGS): $(TEST_CUSTOM_OBJS) $(LIBKVM_OBJS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH) $(TEST_CUSTOM_OBJS) $(LIBKVM_OBJS) $(LDLIBS) -o $@
+endif
+
 TEST_GEN_OBJ = $(patsubst %, %.o, $(TEST_GEN_PROGS))
 TEST_GEN_OBJ += $(patsubst %, %.o, $(TEST_GEN_PROGS_EXTENDED))
 TEST_DEP_FILES = $(patsubst %.o, %.d, $(TEST_GEN_OBJ))
+TEST_DEP_FILES += $(patsubst %.o, %.d, $(TEST_CUSTOM_OBJS))
 TEST_DEP_FILES += $(patsubst %.o, %.d, $(LIBKVM_OBJS))
 TEST_DEP_FILES += $(patsubst %.o, %.d, $(SPLIT_TEST_GEN_OBJ))
 -include $(TEST_DEP_FILES)
@@ -320,6 +335,8 @@ EXTRA_CLEAN += $(GEN_HDRS) \
 	       $(SPLIT_TEST_GEN_OBJ) \
 	       $(TEST_DEP_FILES) \
 	       $(TEST_GEN_OBJ) \
+	       $(TEST_CUSTOM_OBJS) \
+	       $(TEST_CUSTOM_PROGS) \
 	       cscope.*
 
 $(LIBKVM_C_OBJ): $(OUTPUT)/%.o: %.c $(GEN_HDRS)
@@ -339,6 +356,7 @@ $(SPLIT_TEST_GEN_OBJ): $(GEN_HDRS)
 $(TEST_GEN_PROGS): $(LIBKVM_OBJS)
 $(TEST_GEN_PROGS_EXTENDED): $(LIBKVM_OBJS)
 $(TEST_GEN_OBJ): $(GEN_HDRS)
+all: $(TEST_CUSTOM_PROGS)
 
 cscope: include_paths = $(LINUX_TOOL_INCLUDE) $(LINUX_HDR_PATH) include lib ..
 cscope:

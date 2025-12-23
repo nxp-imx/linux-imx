@@ -7,7 +7,6 @@
 #include <hyp/switch.h>
 #include <hyp/sysreg-sr.h>
 
-#include <linux/arm-smccc.h>
 #include <linux/kvm_host.h>
 #include <linux/types.h>
 #include <linux/jump_label.h>
@@ -21,12 +20,14 @@
 #include <asm/kvm_asm.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_hyp.h>
+#include <asm/kvm_hypevents.h>
 #include <asm/kvm_mmu.h>
 #include <asm/fpsimd.h>
 #include <asm/debug-monitors.h>
 #include <asm/processor.h>
 
 #include <nvhe/mem_protect.h>
+#include <nvhe/modules.h>
 
 /* Non-VHE specific context */
 DEFINE_PER_CPU(struct kvm_host_data, kvm_host_data);
@@ -56,6 +57,8 @@ static void __activate_traps(struct kvm_vcpu *vcpu)
 
 	__activate_traps_common(vcpu);
 	__activate_cptr_traps(vcpu);
+	__activate_traps_hcrx(vcpu);
+	__activate_traps_hfgxtr(vcpu);
 
 	write_sysreg(__this_cpu_read(kvm_hyp_vector), vbar_el2);
 
@@ -100,6 +103,7 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	write_sysreg(*host_data_ptr(host_debug_state.mdcr_el2), mdcr_el2);
 
 	__deactivate_traps_common(vcpu);
+	__deactivate_traps_hfgxtr(vcpu);
 
 	write_sysreg_hcr(this_cpu_ptr(&kvm_init_params)->hcr_el2);
 
@@ -190,8 +194,11 @@ static const exit_handler_fn hyp_exit_handlers[] = {
 
 static const exit_handler_fn pvm_exit_handlers[] = {
 	[0 ... ESR_ELx_EC_MAX]		= NULL,
+	[ESR_ELx_EC_HVC64]		= kvm_handle_pvm_hvc64,
+	[ESR_ELx_EC_SMC64]		= kvm_handle_pvm_smc64,
 	[ESR_ELx_EC_SYS64]		= kvm_handle_pvm_sys64,
-	[ESR_ELx_EC_SVE]		= kvm_handle_pvm_restricted,
+	[ESR_ELx_EC_SVE]		= kvm_hyp_handle_fpsimd,
+	[ESR_ELx_EC_SME]		= kvm_handle_pvm_restricted,
 	[ESR_ELx_EC_FP_ASIMD]		= kvm_hyp_handle_fpsimd,
 	[ESR_ELx_EC_IABT_LOW]		= kvm_hyp_handle_iabt_low,
 	[ESR_ELx_EC_DABT_LOW]		= kvm_hyp_handle_dabt_low,
@@ -205,6 +212,21 @@ static const exit_handler_fn *kvm_get_exit_handler_array(struct kvm_vcpu *vcpu)
 		return pvm_exit_handlers;
 
 	return hyp_exit_handlers;
+}
+
+/*
+ * As we have caught the guest red-handed, decide that it isn't fit for
+ * purpose anymore by making the vcpu invalid. The VMM can try and fix it by
+ * re-initializing the vcpu with KVM_ARM_VCPU_INIT, however, this is likely
+ * not possible for protected VMs.
+ */
+void vcpu_illegal_trap(struct kvm_vcpu *vcpu, u64 *exit_code)
+{
+	trace_vcpu_illegal_trap(kvm_vcpu_get_esr(vcpu));
+
+	vcpu_clear_flag(vcpu, VCPU_INITIALIZED);
+	*exit_code &= BIT(ARM_EXIT_WITH_SERROR_BIT);
+	*exit_code |= ARM_EXCEPTION_IL;
 }
 
 static inline bool fixup_guest_exit(struct kvm_vcpu *vcpu, u64 *exit_code)
@@ -222,18 +244,8 @@ static inline bool fixup_guest_exit(struct kvm_vcpu *vcpu, u64 *exit_code)
 	 * it.  The check below is based on the one in
 	 * kvm_arch_vcpu_ioctl_run().
 	 */
-	if (unlikely(vcpu_is_protected(vcpu) && vcpu_mode_is_32bit(vcpu))) {
-		/*
-		 * As we have caught the guest red-handed, decide that it isn't
-		 * fit for purpose anymore by making the vcpu invalid. The VMM
-		 * can try and fix it by re-initializing the vcpu with
-		 * KVM_ARM_VCPU_INIT, however, this is likely not possible for
-		 * protected VMs.
-		 */
-		vcpu_clear_flag(vcpu, VCPU_INITIALIZED);
-		*exit_code &= BIT(ARM_EXIT_WITH_SERROR_BIT);
-		*exit_code |= ARM_EXCEPTION_IL;
-	}
+	if (unlikely(vcpu_is_protected(vcpu) && vcpu_mode_is_32bit(vcpu)))
+		vcpu_illegal_trap(vcpu, exit_code);
 
 	return __fixup_guest_exit(vcpu, exit_code, handlers);
 }
@@ -308,10 +320,13 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 	__debug_switch_to_guest(vcpu);
 
 	do {
+		trace_hyp_exit();
+
 		/* Jump in the fire! */
 		exit_code = __guest_enter(vcpu);
 
 		/* And we're baaack! */
+		trace_hyp_enter();
 	} while (fixup_guest_exit(vcpu, &exit_code));
 
 	__sysreg_save_state_nvhe(guest_ctxt);
@@ -350,7 +365,15 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 
 	host_ctxt->__hyp_running_vcpu = NULL;
 
+	__pkvm_unmask_serror();
+
 	return exit_code;
+}
+
+static void (*hyp_panic_notifier)(struct user_pt_regs *regs);
+int __pkvm_register_hyp_panic_notifier(void (*cb)(struct user_pt_regs *regs))
+{
+	return cmpxchg(&hyp_panic_notifier, NULL, cb) ? -EBUSY : 0;
 }
 
 asmlinkage void __noreturn hyp_panic(void)
@@ -364,6 +387,9 @@ asmlinkage void __noreturn hyp_panic(void)
 	host_ctxt = host_data_ptr(host_ctxt);
 	vcpu = host_ctxt->__hyp_running_vcpu;
 
+	if (READ_ONCE(hyp_panic_notifier))
+		hyp_panic_notifier(&host_ctxt->regs);
+
 	if (vcpu) {
 		__timer_disable_traps(vcpu);
 		__deactivate_traps(vcpu);
@@ -374,6 +400,8 @@ asmlinkage void __noreturn hyp_panic(void)
 	/* Prepare to dump kvm nvhe hyp stacktrace */
 	kvm_nvhe_prepare_backtrace((unsigned long)__builtin_frame_address(0),
 				   _THIS_IP_);
+
+	__pkvm_panic_tracing();
 
 	__hyp_do_panic(host_ctxt, spsr, elr, par);
 	unreachable();

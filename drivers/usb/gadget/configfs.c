@@ -11,6 +11,7 @@
 #include <linux/usb/webusb.h>
 #include "configfs.h"
 #include "u_os_desc.h"
+#include "android_configfs_uevent.h"
 
 static int check_user_usb_string(const char *name,
 		struct usb_gadget_strings *stringtab_dev)
@@ -286,7 +287,11 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 
 	mutex_lock(&gi->lock);
 
-	if (!strlen(name)) {
+	/*
+	 * ANDROID: Not exactly sure why we need this "none", but worried it
+	 * would break something if removed.
+	 */
+	if (!strlen(name) || strcmp(name, "none") == 0) {
 		ret = unregister_gadget(gi);
 		if (ret)
 			goto err;
@@ -2047,10 +2052,16 @@ static struct config_group *gadgets_make(
 	if (!gi->composite.gadget_driver.function)
 		goto out_free_driver_name;
 
+	if (android_device_create(&gi->cdev.android_opts))
+		goto out_free_driver_name_and_function;
+
 	return &gi->group;
 
 out_free_driver_name:
 	kfree(gi->composite.gadget_driver.driver.name);
+out_free_driver_name_and_function:
+	kfree(gi->composite.gadget_driver.driver.name);
+	kfree(gi->composite.gadget_driver.function);
 err:
 	kfree(gi);
 	return ERR_PTR(-ENOMEM);
@@ -2058,6 +2069,10 @@ err:
 
 static void gadgets_drop(struct config_group *group, struct config_item *item)
 {
+	struct gadget_info *gi;
+
+	gi = container_of(to_config_group(item), struct gadget_info, group);
+	android_device_destroy(&gi->cdev.android_opts);
 	config_item_put(item);
 }
 
@@ -2097,7 +2112,13 @@ static int __init gadget_cfs_init(void)
 
 	config_group_init(&gadget_subsys.su_group);
 
+	ret = android_class_create();
+	if (ret)
+		return ret;
+
 	ret = configfs_register_subsystem(&gadget_subsys);
+	if (ret)
+		android_class_destroy();
 	return ret;
 }
 module_init(gadget_cfs_init);
@@ -2105,5 +2126,6 @@ module_init(gadget_cfs_init);
 static void __exit gadget_cfs_exit(void)
 {
 	configfs_unregister_subsystem(&gadget_subsys);
+	android_class_destroy();
 }
 module_exit(gadget_cfs_exit);

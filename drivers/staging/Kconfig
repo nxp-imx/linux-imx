@@ -60,4 +60,6 @@ source "drivers/staging/ethosu/Kconfig"
 
 source "drivers/staging/neutron/Kconfig"
 
+source "drivers/staging/android/Kconfig"
+
 endif # STAGING

@@ -55,6 +55,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 /*
  * FIXME: remove all knowledge of the buffer layer from the core VM
  */
@@ -124,6 +127,10 @@
  *    ->inode->i_lock		(zap_pte_range->set_page_dirty)
  *    ->private_lock		(zap_pte_range->block_dirty_folio)
  */
+
+/* Export tracepoints that act as a bare tracehook */
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_filemap_delete_from_page_cache);
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_filemap_add_to_page_cache);
 
 static void page_cache_delete(struct address_space *mapping,
 				   struct folio *folio, void *shadow)
@@ -3285,7 +3292,10 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 
 	if (vm_flags & VM_SEQ_READ) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
+		trace_android_vh_page_cache_readahead_start(file, vmf->pgoff,
+				ra->ra_pages, true);
 		page_cache_sync_ra(&ractl, ra->ra_pages);
+		trace_android_vh_page_cache_readahead_end(file, vmf->pgoff);
 		return fpin;
 	}
 
@@ -3336,8 +3346,13 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	}
 
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
+	trace_android_vh_tune_mmap_readaround(ra->ra_pages, vmf->pgoff,
+			&ra->start, &ra->size, &ra->async_size);
 	ractl._index = ra->start;
+	trace_android_vh_page_cache_readahead_start(file, vmf->pgoff,
+			ra->size, true);
 	page_cache_ra_order(&ractl, ra);
+	trace_android_vh_page_cache_readahead_end(file, vmf->pgoff);
 	return fpin;
 }
 
@@ -3373,7 +3388,10 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 
 	if (folio_test_readahead(folio)) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
+		trace_android_vh_page_cache_readahead_start(file, vmf->pgoff,
+				ra->ra_pages, false);
 		page_cache_async_ra(&ractl, folio, ra->ra_pages);
+		trace_android_vh_page_cache_readahead_end(file, vmf->pgoff);
 	}
 	return fpin;
 }
@@ -3578,7 +3596,9 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
+	trace_android_vh_filemap_fault_start(file, vmf->pgoff);
 	error = filemap_read_folio(file, mapping->a_ops->read_folio, folio);
+	trace_android_vh_filemap_fault_end(file, vmf->pgoff);
 	if (fpin)
 		goto out_retry;
 	folio_put(folio);

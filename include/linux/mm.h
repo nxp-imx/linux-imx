@@ -4172,6 +4172,16 @@ unsigned long wp_shared_mapping_range(struct address_space *mapping,
 				      pgoff_t first_index, pgoff_t nr);
 #endif
 
+#ifdef CONFIG_SHMEM
+extern int reclaim_shmem_address_space(struct address_space *mapping);
+#else
+static inline
+int reclaim_shmem_address_space(struct address_space *mapping)
+{
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_ANON_VMA_NAME
 int set_anon_vma_name(unsigned long addr, unsigned long size,
 		      const char __user *uname);
