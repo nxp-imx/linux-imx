@@ -486,7 +486,7 @@ static int adv7511_irq_process(struct adv7511 *adv7511, bool process_hpd)
 	if (process_hpd && irq0 & ADV7511_INT0_HPD && adv7511->bridge.encoder)
 		schedule_work(&adv7511->hpd_work);
 
-	if (irq0 & ADV7511_INT0_EDID_READY || irq1 & ADV7511_INT1_DDC_ERROR) {
+	if (irq0 & ADV7511_INT0_EDID_READY) {
 		adv7511->edid_read = true;
 
 		if (adv7511->i2c_main->irq)
