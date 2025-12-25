@@ -369,5 +369,18 @@
 			/* TBD */
 			status = "disabled";
 		};
+
+		flexspi1: spi@402a8000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "nxp,imxrt1050-fspi";
+			reg = <0x402a8000 0x10000>, <0x60000000 0x20000000>;
+			reg-names = "fspi_base", "fspi_mmap";
+			interrupts = <108>;
+			clocks = <&clks IMXRT1050_CLK_FLEXSPI>,
+				 <&clks IMXRT1050_CLK_FLEXSPI>;
+			clock-names = "fspi", "fspi_en";
+			status = "disabled";
+		};
 	};
 };

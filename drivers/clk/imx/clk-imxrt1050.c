@@ -41,6 +41,7 @@ static const char *const lcdif_sels[] = {
 	"pll2_pfd1_594m", "pll3_pfd1_664_62m", };
 static const char *const semc_alt_sels[] = { "pll2_pfd2_396m", "pll3_pfd1_664_62m", };
 static const char *const semc_sels[] = { "periph_sel", "semc_alt_sel", };
+static const char *const flexspi_sels[] = { "semc_podf", "pll3", "pll2_pfd2_396m", "pll3_pfd0_720m", };
 static const char *const lpi2c_sels[] = { "pll3_60m", "osc", };
 static const char *const lpspi_sels[] = { "pll3_pfd1_664_62m",  "pll3_pfd0_720m", "pll2_sys", "pll2_pfd2_396m" };
 
@@ -174,17 +175,21 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 		semc_alt_sels, ARRAY_SIZE(semc_alt_sels));
 	hws[IMXRT1050_CLK_SEMC_SEL] = imx_clk_hw_mux_flags("semc_sel", ccm_base + 0x14, 6, 1,
 		semc_sels, ARRAY_SIZE(semc_sels), CLK_IS_CRITICAL);
+	hws[IMXRT1050_CLK_FLEXSPI_SEL] = imx_clk_hw_mux("flexspi_sel", ccm_base + 0x1c, 29, 2,
+		flexspi_sels, ARRAY_SIZE(flexspi_sels));
 
 	hws[IMXRT1050_CLK_AHB_PODF] = imx_clk_hw_divider_flags("ahb", "periph_sel", ccm_base + 0x14, 10, 3, CLK_IS_CRITICAL);
 	hws[IMXRT1050_CLK_IPG_PODF] = imx_clk_hw_divider("ipg", "ahb", ccm_base + 0x14, 8, 2);
 	hws[IMXRT1050_CLK_PER_PODF] = imx_clk_hw_divider("per", "per_sel", ccm_base + 0x1C, 0, 5);
 
+	hws[IMXRT1050_CLK_SEMC_PODF] = imx_clk_hw_divider("semc_podf", "semc_sel", ccm_base + 0x14, 16, 3);
 	hws[IMXRT1050_CLK_USDHC1_PODF] = imx_clk_hw_divider("usdhc1_podf", "usdhc1_sel", ccm_base + 0x24, 11, 3);
 	hws[IMXRT1050_CLK_USDHC2_PODF] = imx_clk_hw_divider("usdhc2_podf", "usdhc2_sel", ccm_base + 0x24, 16, 3);
 	hws[IMXRT1050_CLK_LPUART_PODF] = imx_clk_hw_divider("lpuart_podf", "lpuart_sel", ccm_base + 0x24, 0, 6);
 	hws[IMXRT1050_CLK_LPI2C_PODF] = imx_clk_hw_divider("lpi2c_podf", "lpi2c_sel", ccm_base + 0x38, 19, 6);
 	hws[IMXRT1050_CLK_LCDIF_PRED] = imx_clk_hw_divider("lcdif_pred", "lcdif_sel", ccm_base + 0x38, 12, 3);
 	hws[IMXRT1050_CLK_LCDIF_PODF] = imx_clk_hw_divider("lcdif_podf", "lcdif_pred", ccm_base + 0x18, 23, 3);
+	hws[IMXRT1050_CLK_FLEXSPI_PODF] = imx_clk_hw_divider("flexspi_podf", "flexspi_sel", ccm_base + 0x1c, 23, 3);
 
 	add_adc_clocks(ccm_base);
 	add_lpspi_clocks(ccm_base);
@@ -199,6 +204,7 @@ static int imxrt1050_clocks_probe(struct platform_device *pdev)
 	hws[IMXRT1050_CLK_DMA_MUX] = imx_clk_hw_gate("dmamux0", "ipg", ccm_base + 0x7C, 7);
 	hws[IMXRT1050_CLK_ENET] = imx_clk_hw_gate2("enet", "ipg", ccm_base + 0x6c, 10);
 	hws[IMXRT1050_CLK_USBOH3] = imx_clk_hw_gate2("usboh3", "ipg", ccm_base + 0x80, 0);
+	hws[IMXRT1050_CLK_FLEXSPI] = imx_clk_hw_gate2("flexspi", "flexspi_podf", ccm_base + 0x80, 10);
 	hws[IMXRT1050_CLK_LPI2C1] = imx_clk_hw_gate2("lpi2c1", "lpi2c_podf", ccm_base + 0x70, 6);
 	hws[IMXRT1050_CLK_LPI2C2] = imx_clk_hw_gate2("lpi2c2", "lpi2c_podf", ccm_base + 0x70, 8);
 	hws[IMXRT1050_CLK_LPI2C3] = imx_clk_hw_gate2("lpi2c3", "lpi2c_podf", ccm_base + 0x70, 10);
