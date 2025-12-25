@@ -1224,6 +1224,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-pcie-ep.dtb
 imx952-evk-root-dtbs := imx952-evk.dtb imx952-evk-root.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-root.dtb imx952-evk-inmate.dtb
 
+imx952-evk-i3c-dtbs += imx952-evk.dtb imx952-evk-i3c.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-i3c.dtb
+
 imx8mm-kontron-dl-dtbs			:= imx8mm-kontron-bl.dtb imx8mm-kontron-dl.dtbo
 imx8mm-kontron-bl-lte-dtbs		:= imx8mm-kontron-bl.dtb imx8mm-kontron-bl-lte.dtbo
 
