@@ -429,11 +429,12 @@ int coda_hw_sleep_wake(struct vpu_device *vpu, bool sleep)
 	int i;
 	int ret;
 
-	ret = coda_hw_wait_vpu_busy(vpu, BIT_BUSY_FLAG);
-	if (ret)
-		return -ETIMEDOUT;
-
 	if (sleep) {
+		ret = coda_hw_wait_vpu_busy(vpu, BIT_BUSY_FLAG);
+		if (ret) {
+			dev_err(vpu->dev, "fail to wait vpu idle in sleep\n");
+			return -ETIMEDOUT;
+		}
 		for (i = 0; i < 64; i++)
 			vpu->reg_bk[i] = vpu_read_reg(vpu->dev,
 						      (BIT_BASE + 0x100 + (i * 4)));
@@ -449,8 +450,10 @@ int coda_hw_sleep_wake(struct vpu_device *vpu, bool sleep)
 		vpu_write_reg(vpu->dev, BIT_CODE_RUN, 1);
 
 		ret = coda_hw_wait_vpu_busy(vpu, BIT_BUSY_FLAG);
-		if (ret)
+		if (ret) {
+			dev_err(vpu->dev, "fail to load bit code for wake\n");
 			return -ETIMEDOUT;
+		}
 	}
 
 	return 0;
