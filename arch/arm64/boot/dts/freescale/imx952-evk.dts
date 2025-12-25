@@ -158,6 +158,11 @@
 		standby-gpios = <&i2c4_pcal6408 3 GPIO_ACTIVE_LOW>;
 	};
 
+	reg_dummy: reg_dummy {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_dummy";
+	};
+
 	reg_3p3v: regulator-3p3v {
 		compatible = "regulator-fixed";
 		regulator-max-microvolt = <3300000>;
