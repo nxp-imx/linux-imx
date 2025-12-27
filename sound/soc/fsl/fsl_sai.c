@@ -1805,7 +1805,7 @@ static const struct fsl_sai_soc_data fsl_sai_imx952_data = {
 	.pins = 8,
 	.flags = 0,
 	.max_register = FSL_SAI_MCTL,
-	.max_burst = {16, 16},
+	.max_burst = {8, 8},
 };
 
 static const struct of_device_id fsl_sai_ids[] = {
