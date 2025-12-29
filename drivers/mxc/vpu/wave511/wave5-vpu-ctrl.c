@@ -385,7 +385,7 @@ static int wave5_vpu_ctrl_wait_busy(struct wave5_vpu_entity *entity, unsigned in
 		return -EINVAL;
 
 	return read_poll_timeout(entity->read_reg, val, val == 0,
-				 10, VPU_BUSY_CHECK_TIMEOUT, false,
+				 VPU_POLL_CHECK_INTERVAL, VPU_BUSY_CHECK_TIMEOUT, false,
 				 entity->dev, addr);
 }
 

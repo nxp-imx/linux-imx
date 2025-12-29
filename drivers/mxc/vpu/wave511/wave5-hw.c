@@ -122,7 +122,8 @@ static int wave5_wait_fio_readl(struct vpu_device *vpu_dev, u32 addr, u32 val)
 	ctrl = addr & 0xffff;
 	wave5_vdi_write_register(vpu_dev, W5_VPU_FIO_CTRL_ADDR, ctrl);
 	ret = read_poll_timeout(wave5_vdi_read_register, ctrl, ctrl & FIO_CTRL_READY,
-				0, FIO_TIMEOUT, false, vpu_dev, W5_VPU_FIO_CTRL_ADDR);
+				VPU_POLL_CHECK_INTERVAL, FIO_TIMEOUT, false,
+				vpu_dev, W5_VPU_FIO_CTRL_ADDR);
 	if (ret)
 		return ret;
 
@@ -141,8 +142,9 @@ static void wave5_fio_writel(struct vpu_device *vpu_dev, unsigned int addr, unsi
 	ctrl = FIELD_GET(FASTIO_ADDRESS_MASK, addr);
 	ctrl |= FIO_CTRL_WRITE;
 	wave5_vdi_write_register(vpu_dev, W5_VPU_FIO_CTRL_ADDR, ctrl);
-	ret = read_poll_timeout(wave5_vdi_read_register, ctrl, ctrl & FIO_CTRL_READY, 0,
-				FIO_TIMEOUT, false, vpu_dev, W5_VPU_FIO_CTRL_ADDR);
+	ret = read_poll_timeout(wave5_vdi_read_register, ctrl, ctrl & FIO_CTRL_READY,
+				VPU_POLL_CHECK_INTERVAL, FIO_TIMEOUT, false,
+				vpu_dev, W5_VPU_FIO_CTRL_ADDR);
 	if (ret)
 		dev_dbg_ratelimited(vpu_dev->dev, "FIO write timeout: addr=0x%x data=%x\n",
 				    ctrl, data);
@@ -167,7 +169,8 @@ static int wave5_wait_vpu_busy(struct vpu_device *vpu_dev, unsigned int addr)
 	u32 data;
 
 	return read_poll_timeout(wave5_vdi_read_register, data, data == 0,
-				 0, VPU_BUSY_CHECK_TIMEOUT, false, vpu_dev, addr);
+				 VPU_POLL_CHECK_INTERVAL, VPU_BUSY_CHECK_TIMEOUT, false,
+				 vpu_dev, addr);
 }
 
 static int wave5_wait_vcpu_bus_busy(struct vpu_device *vpu_dev, unsigned int addr)
@@ -191,7 +194,7 @@ void wave5_vpu_check_state(struct vpu_device *vpu_dev)
 		u32 val;
 		int ret;
 
-		ret = read_poll_timeout(vpu_read_reg, val, val != 0, 0,
+		ret = read_poll_timeout(vpu_read_reg, val, val != 0, VPU_POLL_CHECK_INTERVAL,
 					VPU_BUSY_CHECK_TIMEOUT, false,
 					vpu_dev, W5_VCPU_CUR_PC);
 		if (!ret && vpu_dev->entity.on_boot)

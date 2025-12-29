@@ -49,6 +49,7 @@
 #define W5_PIC_STRIDE_ALIGNMENT         32U
 
 //  application specific configuration
+#define VPU_POLL_CHECK_INTERVAL		10
 #define VPU_BUSY_CHECK_TIMEOUT		100000
 #define VPU_BOOT_WAIT_TIMEOUT		3000
 #define VPU_DEC_TIMEOUT_MS		300

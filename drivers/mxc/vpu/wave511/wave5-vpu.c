@@ -237,7 +237,8 @@ static int wave5_vpu_cq_wait_empty(struct vpu_device *dev)
 	bool empty;
 	int ret;
 
-	ret = read_poll_timeout(wave5_vpu_cq_is_empty, empty, empty, 10, timeout, false, dev);
+	ret = read_poll_timeout(wave5_vpu_cq_is_empty, empty, empty,
+				VPU_POLL_CHECK_INTERVAL, timeout, false, dev);
 	if (ret) {
 		dev_err(dev->dev, "wait CQ empty timeout\n");
 		return ret;
