@@ -463,7 +463,7 @@ static int coda_vpu_enc_enum_framesizes(struct file *f, void *fh, struct v4l2_fr
 	}
 
 	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	fsize->stepwise = enc_frmsize[VPU_FMT_TYPE_CODEC];
+	fsize->stepwise = *vpu_fmt->v4l2_frmsize;
 
 	return 0;
 }
