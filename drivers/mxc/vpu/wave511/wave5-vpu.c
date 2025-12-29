@@ -132,9 +132,16 @@ static void wave5_vpu_handle_irq(void *dev_id)
 static irqreturn_t wave5_vpu_irq_thread(int irq, void *dev_id)
 {
 	struct vpu_device *dev = dev_id;
+	int ret;
+
+	ret = pm_runtime_resume_and_get(dev->dev);
+	if (ret)
+		return IRQ_NONE;
 
 	if (wave5_vdi_read_register(dev, W5_VPU_VPU_INT_STS))
 		wave5_vpu_handle_irq(dev);
+
+	pm_runtime_put_sync(dev->dev);
 
 	return IRQ_HANDLED;
 }
