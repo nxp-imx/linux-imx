@@ -507,6 +507,7 @@ struct vpu_instance {
 	u32 disp_buf_count;
 	u32 queued_src_buf_num;
 	u32 queued_dst_buf_num;
+	u32 sequence;
 	struct v4l2_rect conf_win;
 	u64 timestamp;
 	ktime_t ts_input;

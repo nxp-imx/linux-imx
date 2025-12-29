@@ -195,6 +195,7 @@ static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr
 		inst->ts_start = max(vpu_buf->ts_start, inst->ts_last_end);
 	} else {
 		inst->skiped_frame_num++;
+		inst->sequence++;
 	}
 
 	atomic_dec_if_positive(&inst->feed_frame_cnt);
@@ -673,6 +674,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 					      inst->dst_fmt.plane_fmt[2].sizeimage);
 		}
 
+		disp_buf->sequence = inst->sequence++;
 		/* TODO implement interlace support */
 		disp_buf->field = V4L2_FIELD_NONE;
 		v4l2_m2m_buf_done(disp_buf, VB2_BUF_STATE_DONE);
@@ -1448,7 +1450,7 @@ static void wave5_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 
-	vbuf->sequence = inst->queued_dst_buf_num++;
+	inst->queued_dst_buf_num++;
 	vpu_buf->decoded = false;
 
 	if (vb2_is_streaming(vb->vb2_queue) && v4l2_m2m_dst_buf_is_last(m2m_ctx)) {
@@ -1571,6 +1573,7 @@ static int streamoff_output(struct vb2_queue *q)
 	inst->processed_buf_num = 0;
 	inst->displayed_buf_num = 0;
 	inst->skiped_frame_num = 0;
+	inst->sequence = 0;
 
 	if (v4l2_m2m_has_stopped(m2m_ctx))
 		send_eos_event(inst);
