@@ -1589,9 +1589,10 @@ _DebugfsCleanup(IN gckGALDEVICE Device)
     }
 #else
     /* TODO. */
-    struct device *dev = (struct device *)Device->devices[0]->dev;
-
-    sysfs_remove_groups(&dev->kobj, Info_groups);
+    if (Device && Device->devices[0] != gcvNULL) {
+        struct device *dev = (struct device *)Device->devices[0]->dev;
+        sysfs_remove_groups(&dev->kobj, Info_groups);
+    }
 #endif
 }
 
@@ -2824,6 +2825,7 @@ gckGALDEVICE_Destroy(gckGALDEVICE gal_device)
 
             gcmkVERIFY_OK(gckDEVICE_Destroy(device->os, device));
 
+            gal_device->devices[devIndex] = gcvNULL;
             device = gcvNULL;
         }
 
