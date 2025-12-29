@@ -158,7 +158,7 @@ static bool wave5_last_src_buffer_consumed(struct v4l2_m2m_ctx *m2m_ctx)
 	return vpu_buf->consumed;
 }
 
-static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr)
+static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr, u32 skip)
 {
 	struct vb2_v4l2_buffer *src_buf;
 	struct vpu_src_buffer *vpu_buf;
@@ -176,23 +176,34 @@ static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr
 		return;
 	}
 
-	start_addr = wave5_get_plane_dma_addr(&src_buf->vb2_buf, 0);
-	wr_ptr = start_addr + wave5_get_plane_payload(&src_buf->vb2_buf, 0);
-	if (rd_ptr < start_addr || rd_ptr > wr_ptr) {
-		dev_dbg(inst->dev->dev, "[%pad, %pad] is not consumed\n", &start_addr, &wr_ptr);
-		return;
+	if (!skip) {
+		start_addr = wave5_get_plane_dma_addr(&src_buf->vb2_buf, 0);
+		wr_ptr = start_addr + wave5_get_plane_payload(&src_buf->vb2_buf, 0);
+		if (rd_ptr < start_addr || rd_ptr > wr_ptr) {
+			dev_dbg(inst->dev->dev, "[%pad, %pad] is not consumed\n",
+				&start_addr, &wr_ptr);
+			return;
+		}
+
+		if (rd_ptr != wr_ptr)
+			dev_dbg(inst->dev->dev,
+				"There is still data left in the source (%ld)\n",
+				(unsigned long)(wr_ptr - rd_ptr));
+
+		inst->timestamp = src_buf->vb2_buf.timestamp;
+		inst->ts_input = vpu_buf->ts_input;
+		inst->ts_start = max(vpu_buf->ts_start, inst->ts_last_end);
+	} else {
+		inst->skiped_frame_num++;
 	}
 
-	if (rd_ptr != wr_ptr)
-		dev_dbg(inst->dev->dev,
-			"There is still data left in the source (%ld)\n",
-			(unsigned long)(wr_ptr - rd_ptr));
-
+	atomic_dec_if_positive(&inst->feed_frame_cnt);
+	inst->processed_buf_num++;
 	v4l2_m2m_src_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx, src_buf);
-	inst->timestamp = src_buf->vb2_buf.timestamp;
-	inst->ts_input = vpu_buf->ts_input;
-	inst->ts_start = max(vpu_buf->ts_start, inst->ts_last_end);
-	v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_DONE);
+	if (skip)
+		v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_ERROR);
+	else
+		v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_DONE);
 }
 
 static struct vpu_dst_buffer *wave5_get_unregistered_dst_buf(struct vpu_instance *inst)
@@ -551,6 +562,16 @@ static u64 wave5_vpu_calc_hw_time(struct vpu_instance *inst, struct dec_output_i
 	return (dec_info->frame_cycle * NSEC_PER_SEC) / rate;
 }
 
+static void wave5_vpu_dec_decoding_error(struct vpu_instance *inst, struct dec_output_info *info)
+{
+	if (info->err_reason)
+		dev_dbg(inst->dev->dev, "[%d] decoding %d error 0x%x\n",
+			inst->id, inst->processed_buf_num, info->err_reason);
+	if (info->warn_info)
+		dev_dbg(inst->dev->dev, "[%d] decoding %d warn 0x%x\n",
+			inst->id, inst->processed_buf_num, info->warn_info);
+}
+
 static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
@@ -570,8 +591,11 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 		goto exit;
 	}
 
+	wave5_vpu_dec_decoding_error(inst, &dec_info);
+
 	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-		wave5_handle_src_buffer(inst, dec_info.rd_ptr);
+		wave5_handle_src_buffer(inst, dec_info.rd_ptr,
+					dec_info.index_frame_decoded == DECODED_IDX_FLAG_SKIP);
 
 	if (!vb2_is_streaming(dst_vq)) {
 		dev_dbg(inst->dev->dev, "%s: capture is not streaming..", __func__);
@@ -582,7 +606,6 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 	 * decoded.
 	 */
 	if (dec_info.index_frame_decoded >= 0) {
-		atomic_dec_if_positive(&inst->feed_frame_cnt);
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 			dec_buf = wave5_get_decoded_buffer(inst,
 							   dec_info.index_frame_decoded);
@@ -596,14 +619,11 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			if (!inst->performance.first_hw_time)
 				inst->performance.first_hw_time = dec_vpu_buf->hw_time;
 			dec_buf->vb2_buf.timestamp = inst->timestamp;
-			inst->processed_buf_num++;
 			inst->ts_last_end = dec_vpu_buf->ts_finish;
 		} else {
 			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i",
 				 __func__, dec_info.index_frame_decoded);
 		}
-	} else if (dec_info.index_frame_decoded == DECODED_IDX_FLAG_SKIP) {
-		atomic_dec_if_positive(&inst->feed_frame_cnt);
 	}
 
 	if (dec_info.frame_display_flag) {
@@ -1532,7 +1552,7 @@ static int streamoff_output(struct vb2_queue *q)
 	int ret;
 
 	while ((buf = v4l2_m2m_src_buf_remove(m2m_ctx))) {
-		dev_err(inst->dev->dev, "%s: (Multiplanar) buf type %4u | index %4u\n",
+		dev_dbg(inst->dev->dev, "%s: (Multiplanar) buf type %4u | index %4u\n",
 			__func__, buf->vb2_buf.type, buf->vb2_buf.index);
 		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 	}
@@ -1546,8 +1566,11 @@ static int streamoff_output(struct vb2_queue *q)
 	atomic_set(&inst->feed_frame_cnt, 0);
 
 	wave5_vpu_reset_performace(inst);
+	inst->queued_src_buf_num = 0;
+	inst->queued_dst_buf_num = 0;
 	inst->processed_buf_num = 0;
 	inst->displayed_buf_num = 0;
+	inst->skiped_frame_num = 0;
 
 	if (v4l2_m2m_has_stopped(m2m_ctx))
 		send_eos_event(inst);
@@ -1697,7 +1720,7 @@ static int initialize_sequence(struct vpu_instance *inst)
 	ret = wave5_vpu_dec_complete_seq_init(inst, &initial_info);
 	if (ret) {
 		dev_err(inst->dev->dev, "[%d] vpu_dec_complete_seq_init, fail: %d, reason: 0x%x\n",
-			inst->id, ret, initial_info.seq_init_err_reason);
+			inst->id, ret, initial_info.err_reason);
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
 			if (inst->next_frame) {
 				v4l2_m2m_src_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx,
@@ -1709,11 +1732,6 @@ static int initialize_sequence(struct vpu_instance *inst)
 
 		return ret;
 	}
-
-	/*
-	 * TODO
-	 * If the buffer only contains codec header, need to done it.
-	 */
 
 	handle_dynamic_resolution_change(inst);
 

@@ -299,7 +299,8 @@ struct dec_initial_info {
 	u32 profile;
 	u32 luma_bitdepth; /* bit-depth of the luma sample */
 	u32 chroma_bitdepth; /* bit-depth of the chroma sample */
-	u32 seq_init_err_reason;
+	u32 err_reason;
+	u32 warn_info;
 	dma_addr_t rd_ptr; /* read pointer of bitstream buffer */
 	dma_addr_t wr_ptr; /* write pointer of bitstream buffer */
 	u32 sequence_no;
@@ -375,6 +376,9 @@ struct dec_output_info {
 	u32 dec_decode_end_tick; /* end tick of decoding slices of the picture */
 
 	u32 sequence_changed;
+
+	u32 err_reason;
+	u32 warn_info;
 };
 
 struct queue_status_info {
@@ -522,6 +526,7 @@ struct vpu_instance {
 	struct vb2_v4l2_buffer *next_frame;
 	bool retry_flag;
 
+	u32 skiped_frame_num;
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
 	struct vpu_performance_info performance;

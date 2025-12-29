@@ -635,8 +635,10 @@ int wave5_vpu_dec_get_seq_info(struct vpu_instance *inst, struct dec_initial_inf
 
 	/* this is not a fatal error, set ret to -EIO but don't return immediately */
 	if (vpu_read_reg(inst->dev, W5_RET_DEC_DECODING_SUCCESS) != 1) {
-		info->seq_init_err_reason = vpu_read_reg(inst->dev, W5_RET_DEC_ERR_INFO);
+		info->err_reason = vpu_read_reg(inst->dev, W5_RET_DEC_ERR_INFO);
 		ret = -EIO;
+	} else {
+		info->warn_info = vpu_read_reg(inst->dev, W5_RET_DEC_WARN_INFO);
 	}
 
 	wave5_get_dec_seq_result(inst, info);
@@ -1067,6 +1069,11 @@ int wave5_vpu_dec_get_result(struct vpu_instance *inst, struct dec_output_info *
 
 	dev_dbg(inst->dev->dev, "%s: dec pic complete (queue %u : %u)\n", __func__,
 		p_dec_info->instance_queue_count, p_dec_info->report_queue_count);
+
+	if (vpu_read_reg(inst->dev, W5_RET_DEC_DECODING_SUCCESS) != 1)
+		result->err_reason = vpu_read_reg(inst->dev, W5_RET_DEC_ERR_INFO);
+	else
+		result->warn_info = vpu_read_reg(inst->dev, W5_RET_DEC_WARN_INFO);
 
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_PIC_TYPE);
 
