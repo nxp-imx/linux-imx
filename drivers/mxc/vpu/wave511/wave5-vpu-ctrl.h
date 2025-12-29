@@ -23,6 +23,7 @@ struct wave5_vpu_entity {
 	u32 (*read_reg)(struct device *dev, u32 addr);
 	void (*write_reg)(struct device *dev, u32 addr, u32 data);
 	void (*on_boot)(struct device *dev);
+	void (*scan_instances)(struct device *dev);
 	bool booted;
 };
 
