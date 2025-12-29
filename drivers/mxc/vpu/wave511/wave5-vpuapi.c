@@ -108,6 +108,11 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 
 	ret = wave5_vpu_build_up_dec_param(inst, open_param);
 
+	if (!ret) {
+		scoped_guard(spinlock, &inst->dev->inst_lock)
+			list_add_tail(&inst->list, &inst->dev->instances);
+	}
+
 	return ret;
 }
 
@@ -162,7 +167,10 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 		}
 	} while (ret != 0);
 
-	dev_dbg(inst->dev->dev, "%s: dec_finish_seq complete\n", __func__);
+	dev_dbg(inst->dev->dev, "[%d] dec_finish_seq complete\n", inst->id);
+
+	scoped_guard(spinlock, &inst->dev->inst_lock)
+		list_del_init(&inst->list);
 
 	for (i = 0 ; i < WAVE5_MAX_FBS; i++) {
 		ret = reset_auxiliary_buffers(inst, i);

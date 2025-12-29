@@ -107,8 +107,6 @@ void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp)
 		v4l2_fh_del(&inst->v4l2_fh, filp);
 		v4l2_fh_exit(&inst->v4l2_fh);
 	}
-	scoped_guard(spinlock, &inst->dev->inst_lock)
-		list_del_init(&inst->list);
 	kfree(inst->codec_info);
 	kfree(inst);
 }

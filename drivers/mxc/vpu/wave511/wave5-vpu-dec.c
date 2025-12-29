@@ -1914,6 +1914,7 @@ static int wave5_vpu_open_dec(struct file *filp)
 	inst->dev = dev;
 	inst->type = VPU_INST_TYPE_DEC;
 	inst->ops = &wave5_vpu_dec_inst_ops;
+	inst->id = -1;
 
 	spin_lock_init(&inst->state_spinlock);
 
@@ -1982,8 +1983,6 @@ static int wave5_vpu_open_dec(struct file *filp)
 			hrtimer_start(&dev->hrtimer,
 				      ns_to_ktime(dev->vpu_poll_interval * NSEC_PER_MSEC),
 				      HRTIMER_MODE_REL_PINNED);
-		scoped_guard(spinlock, &inst->dev->inst_lock)
-			list_add_tail(&inst->list, &dev->instances);
 	}
 
 	return 0;
