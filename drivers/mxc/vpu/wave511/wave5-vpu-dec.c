@@ -1119,13 +1119,15 @@ static int wave5_vpu_dec_stop(struct vpu_instance *inst)
 	if (m2m_ctx->is_draining)
 		return -EBUSY;
 
+	dev_dbg(inst->dev->dev, "drain, has_stopped = %d, dynamic_source_change = %d\n",
+		m2m_ctx->has_stopped, inst->dynamic_source_change);
 	/*
 	 * Used to remember the EOS state after the streamoff/on transition on
 	 * the capture queue.
 	 */
 	inst->eos = true;
 
-	if (m2m_ctx->has_stopped)
+	if (m2m_ctx->has_stopped && !inst->dynamic_source_change)
 		return 0;
 
 	m2m_ctx->last_src_buf = v4l2_m2m_last_src_buf(m2m_ctx);
