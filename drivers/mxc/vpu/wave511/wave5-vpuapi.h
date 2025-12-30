@@ -502,6 +502,8 @@ struct vpu_instance {
 	union {
 		struct dec_info dec_info;
 	} *codec_info;
+	unsigned long disp_buf_mask;
+	unsigned long disp_buf_seek;
 	struct frame_buffer frame_buf[WAVE5_MAX_FBS];
 	struct vpu_buf frame_vbuf[WAVE5_MAX_FBS];
 	u32 fbc_buf_count;
@@ -518,6 +520,7 @@ struct vpu_instance {
 	bool cbcr_interleave;
 	bool nv21;
 	bool eos;
+	bool seek_flag;
 	bool dynamic_source_change;
 	bool needs_reallocation;
 	struct dec_scaler_info scaler_info;
@@ -554,6 +557,7 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst,
 int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail);
 int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_info *info);
 int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int index);
+void wave5_vpu_dec_reset_disp_buf(struct vpu_instance *inst);
 int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd, void *parameter);
 int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);
 int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index);

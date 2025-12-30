@@ -504,6 +504,18 @@ int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int inde
 	return 0;
 }
 
+void wave5_vpu_dec_reset_disp_buf(struct vpu_instance *inst)
+{
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+
+	dev_dbg(inst->dev->dev, "clear disp buf\n");
+
+	p_dec_info->num_of_display_fbs = 0;
+	for (int i = 0; i < WAVE5_MAX_FBS; i++)
+		memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
+	inst->disp_buf_mask = 0;
+}
+
 int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd, void *parameter)
 {
 	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
@@ -531,10 +543,6 @@ int wave5_vpu_dec_give_command(struct vpu_instance *inst, enum codec_command cmd
 			if (ret)
 				break;
 		}
-
-		p_dec_info->num_of_display_fbs = 0;
-		for (i = 0; i < WAVE5_MAX_FBS; i++)
-			memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
 
 		wave5_vdi_free_dma_memory(&p_dec_info->vb_task);
 		break;

@@ -245,10 +245,12 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 		wave5_vpu_dec_fill_linear_frame(inst, &frame, &vpu_buf->v4l2_m2m_buf.vb.vb2_buf);
 		ret = wave5_vpu_dec_register_display_buffer_ex(inst, &frame);
 		if (ret) {
+			vpu_buf->registered = false;
 			dev_err(inst->dev->dev, "Fail to register capture buffer %d\n",
 				vpu_buf->v4l2_m2m_buf.vb.vb2_buf.index);
 			return;
 		}
+		set_bit(frame.index, &inst->disp_buf_mask);
 
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 			vpu_buf = wave5_get_unregistered_dst_buf(inst);
@@ -536,6 +538,8 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst)
 	}
 
 	v4l2_event_queue_fh(fh, &vpu_event_src_ch);
+	if (inst->needs_reallocation)
+		wave5_vpu_dec_reset_disp_buf(inst);
 
 	return 0;
 }
@@ -1439,6 +1443,14 @@ static void wave5_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 		send_eos_event(inst);
 		v4l2_m2m_last_buffer_done(m2m_ctx, vbuf);
 	} else {
+		if (vpu_buf->registered && !test_bit(vb->index, &inst->disp_buf_mask)) {
+			vpu_buf->registered = false;
+			vpu_buf->decoded = false;
+			vpu_buf->display = false;
+		}
+		if (vpu_buf->registered && test_and_clear_bit(vb->index, &inst->disp_buf_seek))
+			vpu_buf->display = true;
+
 		v4l2_m2m_buf_queue(m2m_ctx, vbuf);
 	}
 }
@@ -1464,10 +1476,13 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	int ret = 0;
 
-	dev_dbg(inst->dev->dev, "streamon %s\n",
+	dev_dbg(inst->dev->dev, "[%d] streamon %s\n", inst->id,
 		V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
 
 	v4l2_m2m_update_start_streaming_state(m2m_ctx, q);
+
+	if (V4L2_TYPE_IS_OUTPUT(q->type))
+		inst->seek_flag = false;
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE && inst->state == VPU_INST_STATE_NONE) {
 		struct dec_open_param open_param;
@@ -1505,7 +1520,7 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 		if (ret)
 			goto return_buffers;
 	} else if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		if (inst->state == VPU_INST_STATE_STOP) {
+		if (!inst->seek_flag && inst->dynamic_source_change) {
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 				ret = switch_state(inst, VPU_INST_STATE_INIT_SEQ);
 		}
@@ -1522,6 +1537,32 @@ return_buffers:
 	return ret;
 }
 
+static void wave5_vpu_dec_reset_disp_flag(struct vpu_instance *inst)
+{
+	unsigned long disp_buf_mask = inst->disp_buf_mask;
+	int index;
+
+	dev_dbg(inst->dev->dev, "reset disp flags\n");
+
+	while (disp_buf_mask) {
+		index = __ffs(disp_buf_mask);
+		clear_bit(index, &disp_buf_mask);
+		wave5_vpu_dec_set_disp_flag(inst, index);
+	}
+	inst->disp_buf_seek = inst->disp_buf_mask;
+}
+
+static void wave5_vpu_dec_wait_cq(struct vpu_instance *inst)
+{
+	unsigned long timeout;
+	bool is_done;
+
+	timeout = wave5_vpu_cq_depth(inst->dev) * VPU_DEC_TIMEOUT_US;
+	if (read_poll_timeout(wave5_vpu_dec_is_cq_done, is_done, is_done,
+			      VPU_POLL_CHECK_INTERVAL, timeout, false, inst))
+		dev_warn(inst->dev->dev, "instance[%d] wait CQ timeout\n", inst->id);
+}
+
 static int streamoff_output(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
@@ -1535,8 +1576,12 @@ static int streamoff_output(struct vb2_queue *q)
 	if (ret)
 		return ret;
 
+	wave5_vpu_dec_reset_disp_flag(inst);
+
+	inst->seek_flag = true;
 	inst->next_frame = NULL;
 	v4l2_m2m_set_src_buffered(m2m_ctx, false);
+	atomic_set(&inst->queued_dec_cmd, 0);
 	atomic_set(&inst->feed_frame_cnt, 0);
 
 	wave5_vpu_reset_performace(inst);
@@ -1561,23 +1606,9 @@ static int streamoff_output(struct vb2_queue *q)
 static int streamoff_capture(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
-	int ret = 0;
 
 	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 		wave5_return_bufs(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
-
-	if (inst->needs_reallocation) {
-		wave5_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
-		inst->needs_reallocation = false;
-	}
-
-	if (v4l2_m2m_has_stopped(m2m_ctx)) {
-		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			ret = switch_state(inst, VPU_INST_STATE_INIT_SEQ);
-		if (ret)
-			return ret;
-	}
 
 	inst->v4l2_fh.m2m_ctx->ignore_cap_streaming = false;
 	v4l2_m2m_set_dst_buffered(inst->v4l2_fh.m2m_ctx, false);
@@ -1591,9 +1622,10 @@ static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	bool check_cmd = inst->dynamic_source_change ? false : true;
 
-	dev_dbg(inst->dev->dev, "streamoff %s\n",
+	dev_dbg(inst->dev->dev, "[%d] streamoff %s\n", inst->id,
 		V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
 
+	wave5_vpu_dec_wait_cq(inst);
 	while (check_cmd) {
 		struct queue_status_info q_status;
 		struct dec_output_info dec_output_info;
@@ -1752,6 +1784,10 @@ static void wave5_vpu_dec_device_run(void *priv)
 		break;
 
 	case VPU_INST_STATE_INIT_SEQ:
+		if (inst->needs_reallocation) {
+			wave5_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
+			inst->needs_reallocation = false;
+		}
 		/*
 		 * Do this early, preparing the fb can trigger an IRQ before
 		 * we had a chance to switch, which leads to an invalid state
