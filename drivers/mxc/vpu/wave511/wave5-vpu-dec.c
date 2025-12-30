@@ -134,6 +134,7 @@ static int switch_state(struct vpu_instance *inst, enum vpu_instance_state state
 			goto invalid_state_switch;
 		goto valid_state_switch;
 	case VPU_INST_STATE_STOP:
+	case VPU_INST_STATE_ERROR:
 		goto valid_state_switch;
 	}
 invalid_state_switch:
@@ -145,17 +146,6 @@ valid_state_switch:
 		state_to_str(inst->state), state_to_str(state));
 	inst->state = state;
 	return 0;
-}
-
-static bool wave5_last_src_buffer_consumed(struct v4l2_m2m_ctx *m2m_ctx)
-{
-	struct vpu_src_buffer *vpu_buf;
-
-	if (!m2m_ctx->last_src_buf)
-		return false;
-
-	vpu_buf = wave5_to_vpu_src_buf(m2m_ctx->last_src_buf);
-	return vpu_buf->consumed;
 }
 
 static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr, u32 skip)
@@ -410,7 +400,7 @@ static int start_decode(struct vpu_instance *inst)
 					v4l2_m2m_buf_done(inst->next_frame, VB2_BUF_STATE_ERROR);
 					inst->next_frame = NULL;
 				}
-				switch_state(inst, VPU_INST_STATE_STOP);
+				switch_state(inst, VPU_INST_STATE_ERROR);
 				vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
 				vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
 			} else {
@@ -1744,21 +1734,14 @@ static void wave5_vpu_dec_device_run(void *priv)
 		}
 		ret = initialize_sequence(inst);
 		if (ret) {
-			scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
-				if (wave5_is_draining_or_eos(inst) &&
-				    wave5_last_src_buffer_consumed(m2m_ctx)) {
-					struct vb2_queue *dst_vq = v4l2_m2m_get_dst_vq(m2m_ctx);
-
-					switch_state(inst, VPU_INST_STATE_STOP);
-
-					if (vb2_is_streaming(dst_vq))
-						send_eos_event(inst);
-					else
-						handle_dynamic_resolution_change(inst);
-
-					flag_last_buffer_done(inst);
-				}
-			}
+			vb2_queue_error(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx));
+			vb2_queue_error(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx));
+			/*
+			 * Don't switch state to STOP, as it may confuse
+			 * the drain or dynamic source change case
+			 */
+			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+				switch_state(inst, VPU_INST_STATE_ERROR);
 		} else {
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 				switch_state(inst, VPU_INST_STATE_INIT_SEQ);
@@ -1790,7 +1773,7 @@ static void wave5_vpu_dec_device_run(void *priv)
 		if (ret) {
 			dev_warn(inst->dev->dev, "Framebuffer preparation, fail: %d\n", ret);
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-				switch_state(inst, VPU_INST_STATE_STOP);
+				switch_state(inst, VPU_INST_STATE_ERROR);
 			vb2_queue_error(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx));
 			vb2_queue_error(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx));
 			break;

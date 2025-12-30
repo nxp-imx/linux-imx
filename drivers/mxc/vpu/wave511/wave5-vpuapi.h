@@ -36,7 +36,8 @@ enum vpu_instance_state {
 	VPU_INST_STATE_OPEN = 1,
 	VPU_INST_STATE_INIT_SEQ = 2,
 	VPU_INST_STATE_PIC_RUN = 3,
-	VPU_INST_STATE_STOP = 4
+	VPU_INST_STATE_STOP = 4,
+	VPU_INST_STATE_ERROR = 5
 };
 
 /* Maximum available on hardware. */
