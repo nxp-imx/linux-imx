@@ -10,6 +10,7 @@
 #include "wave5-vpu.h"
 #include "wave5-hw.h"
 #include "wave5-regdefine.h"
+#include "wave5-vpu-dbg.h"
 
 #define FIO_TIMEOUT			10000000
 #define FIO_CTRL_READY			BIT(31)

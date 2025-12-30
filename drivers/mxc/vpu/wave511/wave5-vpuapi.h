@@ -457,6 +457,8 @@ struct vpu_device {
 	int vpu_poll_interval;
 	int num_clks;
 	struct reset_control *resets;
+
+	struct dentry *debugfs;
 };
 
 struct vpu_instance;
@@ -537,6 +539,8 @@ struct vpu_instance {
 	u32 total_dec_cnt;
 	u32 drain_dec_cnt;
 	struct vpu_performance_info performance;
+
+	struct dentry *debugfs;
 };
 
 void wave5_vdi_write_register(struct vpu_device *vpu_dev, u32 addr, u32 data);

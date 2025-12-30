@@ -18,6 +18,7 @@
 #include "wave5-regdefine.h"
 #include "wave5-vpuconfig.h"
 #include "wave5-hw.h"
+#include "wave5-vpu-dbg.h"
 
 #define VPU_PLATFORM_DEVICE_NAME "wave5-vpu"
 #define VPU_CLK_NAME "vcodec"
@@ -438,6 +439,10 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 		if (ret)
 			goto err_dec_unreg;
 	}
+
+	dev->debugfs = debugfs_lookup(WAVE5_VPU_DEBUGFS_DIR, NULL);
+	if (IS_ERR_OR_NULL(dev->debugfs))
+		dev->debugfs = debugfs_create_dir(WAVE5_VPU_DEBUGFS_DIR, NULL);
 
 	dev_info(&pdev->dev, "Added wave5 driver with caps: %s\n",
 		 (dev->res->flags & WAVE5_IS_DEC) ? "'DECODE'" : "");

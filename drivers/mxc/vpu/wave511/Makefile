@@ -5,6 +5,7 @@ wave5-objs := \
 	wave5-vpuapi.o \
 	wave5-helper.o \
 	wave5-vpu-dec.o \
+	wave5-vpu-dbg.o \
 	wave5-hw.o
 
 wave5-ctrl-objs := wave5-vpu-ctrl.o \
