@@ -644,27 +644,6 @@ static void neutron_mbox_rx_callback(struct neutron_device *ndev, void *data)
 		neutron_inference_done(ndev);
 }
 
-static int neutron_dev_clk_get(struct neutron_device *ndev)
-{
-	int ret = -ENODEV;
-
-	if (!ndev || !ndev->dev)
-		return ret;
-
-	ret = devm_clk_bulk_get_all(ndev->dev, &ndev->clks);
-	if (ret < 0) {
-		dev_warn(ndev->dev, "unable to get clocks: %d\n", ret);
-		ret = 0;
-	}
-	ndev->num_clks = ret;
-
-	ret = clk_bulk_prepare_enable(ndev->num_clks, ndev->clks);
-	if (ret)
-		dev_err(ndev->dev, "failed to enable clock\n");
-
-	return ret;
-}
-
 void neutron_irq_enable(struct neutron_device *ndev)
 {
 	u32 val;
@@ -692,14 +671,10 @@ int neutron_dev_init(struct neutron_device *ndev,
 	if (ndev->irq < 0)
 		goto destroy_mutex;
 
-	ret = neutron_dev_clk_get(ndev);
-	if (ret)
-		goto destroy_mutex;
-
 	ndev->mbox = neutron_mbox_create(ndev, irq, neutron_mbox_rx_callback);
 	if (!ndev->mbox) {
 		dev_err(ndev->dev, "Failed to init mailbox\n");
-		goto put_clk;
+		goto destroy_mutex;
 	}
 
 	ndev->queue = neutron_queue_create(ndev);
@@ -744,8 +719,6 @@ destroy_queue:
 	neutron_queue_destroy(ndev->queue);
 destroy_mbox:
 	neutron_mbox_destroy(ndev->mbox);
-put_clk:
-	clk_bulk_disable_unprepare(ndev->num_clks, ndev->clks);
 destroy_mutex:
 	mutex_destroy(&ndev->mutex);
 

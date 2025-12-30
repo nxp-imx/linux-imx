@@ -82,6 +82,12 @@ static int neutron_pdev_probe(struct platform_device *pdev)
 		goto err_free_dev;
 	}
 
+	ndev->num_clks = devm_clk_bulk_get_all(&pdev->dev, &ndev->clks);
+	if (ndev->num_clks < 0) {
+		dev_err(&pdev->dev, "unable to get clocks: %d\n", ndev->num_clks);
+		goto err_free_dev;
+	}
+
 	ndev->power_mode = power_mode;
 	ndev->suspend_delay = suspend_delay;
 
