@@ -95,6 +95,44 @@ void wave5_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 	pix_mp->field = V4L2_FIELD_NONE;
 }
 
+void wave5_update_output_format_info(struct vpu_instance *inst)
+{
+	if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12 ||
+	    inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12M) {
+		inst->cbcr_interleave = true;
+		inst->nv21 = false;
+		inst->output_format = FORMAT_420;
+	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV21 ||
+		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV21M) {
+		inst->cbcr_interleave = true;
+		inst->nv21 = true;
+		inst->output_format = FORMAT_420;
+	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV16 ||
+		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV16M) {
+		inst->cbcr_interleave = true;
+		inst->nv21 = false;
+		inst->output_format = FORMAT_422;
+	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV61 ||
+		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV61M) {
+		inst->cbcr_interleave = true;
+		inst->nv21 = true;
+		inst->output_format = FORMAT_422;
+	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_YUV422P ||
+		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_YUV422M) {
+		inst->cbcr_interleave = false;
+		inst->nv21 = false;
+		inst->output_format = FORMAT_422;
+	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_P010) {
+		inst->cbcr_interleave = true;
+		inst->nv21 = false;
+		inst->output_format = FORMAT_420_P10_16BIT_MSB;
+	} else {
+		inst->cbcr_interleave = false;
+		inst->nv21 = false;
+		inst->output_format = FORMAT_420;
+	}
+}
+
 void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp)
 {
 	int i;

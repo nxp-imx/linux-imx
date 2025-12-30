@@ -519,6 +519,9 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst)
 				     vpu_fmt->v4l2_frmsize,
 				     true);
 
+		if (initial_info->luma_bitdepth == 10)
+			inst->dst_fmt.pixelformat = V4L2_PIX_FMT_P010;
+
 		vpu_fmt = wave5_find_vpu_fmt(inst->dst_fmt.pixelformat,
 					     dec_fmt_list[VPU_FMT_TYPE_RAW]);
 		if (!vpu_fmt)
@@ -530,6 +533,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst)
 				     initial_info->pic_height,
 				     vpu_fmt->v4l2_frmsize,
 				     true);
+		wave5_update_output_format_info(inst);
 	}
 
 	v4l2_event_queue_fh(fh, &vpu_event_src_ch);
@@ -841,40 +845,7 @@ static int wave5_vpu_dec_s_fmt_cap(struct file *file, void *fh, struct v4l2_form
 		inst->dst_fmt.plane_fmt[i].sizeimage = f->fmt.pix_mp.plane_fmt[i].sizeimage;
 	}
 
-	if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12 ||
-	    inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12M) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = false;
-		inst->output_format = FORMAT_420;
-	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV21 ||
-		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV21M) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = true;
-		inst->output_format = FORMAT_420;
-	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV16 ||
-		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV16M) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = false;
-		inst->output_format = FORMAT_422;
-	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV61 ||
-		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_NV61M) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = true;
-		inst->output_format = FORMAT_422;
-	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_YUV422P ||
-		   inst->dst_fmt.pixelformat == V4L2_PIX_FMT_YUV422M) {
-		inst->cbcr_interleave = false;
-		inst->nv21 = false;
-		inst->output_format = FORMAT_422;
-	} else if (inst->dst_fmt.pixelformat == V4L2_PIX_FMT_P010) {
-		inst->cbcr_interleave = true;
-		inst->nv21 = false;
-		inst->output_format = FORMAT_420_P10_16BIT_MSB;
-	} else {
-		inst->cbcr_interleave = false;
-		inst->nv21 = false;
-		inst->output_format = FORMAT_420;
-	}
+	wave5_update_output_format_info(inst);
 
 	return 0;
 }

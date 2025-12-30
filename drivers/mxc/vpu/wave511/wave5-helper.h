@@ -34,6 +34,7 @@ void wave5_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  unsigned int height,
 			  const struct v4l2_frmsize_stepwise *frmsize,
 			  bool new_resolution);
+void wave5_update_output_format_info(struct vpu_instance *inst);
 struct vb2_v4l2_buffer *wave5_get_decoded_buffer(struct vpu_instance *inst, int index);
 struct vb2_v4l2_buffer *wave5_get_reusable_buffer(struct vpu_instance *inst, int index);
 struct vb2_v4l2_buffer *wave5_get_display_buffer(struct vpu_instance *inst, int index);
