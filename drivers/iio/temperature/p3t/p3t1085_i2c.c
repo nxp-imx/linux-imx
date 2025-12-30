@@ -2,7 +2,7 @@
 /*
  * NXP P3T1085 Temperature Sensor Driver
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -37,13 +37,17 @@ static int p3t1085_i2c_probe(struct i2c_client *client)
 }
 
 static const struct of_device_id p3t1085_i2c_of_match[] = {
+	{ .compatible = "nxp,p3t1035", },
 	{ .compatible = "nxp,p3t1085", },
+	{ .compatible = "nxp,p3t2030", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, p3t1085_i2c_of_match);
 
 static const struct i2c_device_id p3t1085_i2c_id_table[] = {
+	{ "p3t1035", P3TX03X_ID },
 	{ "p3t1085", P3T1085_ID },
+	{ "p3t2030", P3TX03X_ID },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, p3t1085_i2c_id_table);

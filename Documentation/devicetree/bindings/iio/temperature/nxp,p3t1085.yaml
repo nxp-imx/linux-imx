@@ -34,7 +34,10 @@ description: |
 
 properties:
   compatible:
-    const: nxp,p3t1085
+    enum:
+      - nxp,p3t1035
+      - nxp,p3t1085
+      - nxp,p3t2030
 
   reg:
     maxItems: 1

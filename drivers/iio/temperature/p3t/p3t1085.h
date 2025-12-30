@@ -2,7 +2,7 @@
 /*
  * NXP P3T1085 Temperature Sensor Driver
  *
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 #ifndef P3T1085_H
 #define P3T1085_H
@@ -19,6 +19,7 @@
 
 enum p3t1085_hw_id {
 	P3T1085_ID,
+	P3TX03X_ID,	/* NXP P3T family: p3t1035, p3t2030 */
 };
 
 struct p3t1085_data {
