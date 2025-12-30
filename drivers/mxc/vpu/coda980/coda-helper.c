@@ -28,7 +28,44 @@ void coda_vpu_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 		pix_mp->plane_fmt[0].sizeimage = clamp_t(u32, pix_mp->plane_fmt[0].sizeimage,
 							 SZ_2K, SZ_256M);
 	} else {
-		v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat, width, height);
+		const struct v4l2_format_info *fmt_info;
+		unsigned int stride_y;
+		int i;
+
+		fmt_info = v4l2_format_info(pix_mp->pixelformat);
+		if (!fmt_info) {
+			pix_mp->plane_fmt[0].bytesperline = 0;
+			if (!pix_mp->plane_fmt[0].sizeimage)
+				pix_mp->plane_fmt[0].sizeimage = width * height;
+			return;
+		}
+		pix_mp->width = width;
+		pix_mp->height = height;
+		pix_mp->num_planes = fmt_info->mem_planes;
+
+		stride_y = width * fmt_info->bpp[0];
+		if (pix_mp->plane_fmt[0].bytesperline <= CODA_ENC_MAX_PIC_WIDTH)
+			stride_y = max(stride_y, pix_mp->plane_fmt[0].bytesperline);
+		else
+			stride_y = round_up(stride_y, 32);
+
+		pix_mp->plane_fmt[0].bytesperline = stride_y;
+		pix_mp->plane_fmt[0].sizeimage = stride_y * height;
+
+		stride_y = DIV_ROUND_UP(stride_y, fmt_info->bpp[0]);
+		for (i = 1; i < fmt_info->comp_planes; i++) {
+			unsigned int stride_c, sizeimage_c;
+
+			stride_c = DIV_ROUND_UP(stride_y, fmt_info->hdiv) * fmt_info->bpp[i];
+			sizeimage_c = stride_c * DIV_ROUND_UP(height, fmt_info->vdiv);
+
+			if (fmt_info->mem_planes == 1) {
+				pix_mp->plane_fmt[0].sizeimage += sizeimage_c;
+			} else {
+				pix_mp->plane_fmt[i].bytesperline = stride_c;
+				pix_mp->plane_fmt[i].sizeimage = sizeimage_c;
+			}
+		}
 	}
 	pix_mp->flags = 0;
 	pix_mp->field = V4L2_FIELD_NONE;
