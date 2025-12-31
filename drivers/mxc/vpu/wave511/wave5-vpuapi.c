@@ -342,6 +342,7 @@ int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 	guard(mutex)(&vpu_dev->hw_lock);
 
 	if (inst->next_frame) {
+		p_dec_info->stream_endflag = false;
 		p_dec_info->stream_rd_ptr = wave5_get_plane_dma_addr(&inst->next_frame->vb2_buf, 0);
 		p_dec_info->stream_wr_ptr = p_dec_info->stream_rd_ptr +
 					    wave5_get_plane_payload(&inst->next_frame->vb2_buf, 0);

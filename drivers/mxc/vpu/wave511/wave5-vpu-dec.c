@@ -130,7 +130,10 @@ static int switch_state(struct vpu_instance *inst, enum vpu_instance_state state
 		v4l2_m2m_set_dst_buffered(inst->v4l2_fh.m2m_ctx, false);
 		goto valid_state_switch;
 	case VPU_INST_STATE_PIC_RUN:
-		if (inst->state != VPU_INST_STATE_INIT_SEQ)
+		/*In trick mode, decoder will switch state from stop to pic run,
+		 * not to init_seq, as it doesn't want to reallocate fb
+		 */
+		if (inst->state != VPU_INST_STATE_INIT_SEQ && inst->state != VPU_INST_STATE_STOP)
 			goto invalid_state_switch;
 		goto valid_state_switch;
 	case VPU_INST_STATE_STOP:
@@ -142,7 +145,7 @@ invalid_state_switch:
 	     state_to_str(inst->state), state_to_str(state));
 	return -EINVAL;
 valid_state_switch:
-	dev_dbg(inst->dev->dev, "Switch state from %s to %s.\n",
+	dev_dbg(inst->dev->dev, "[%d] Switch state from %s to %s.\n", inst->id,
 		state_to_str(inst->state), state_to_str(state));
 	inst->state = state;
 	return 0;
@@ -480,8 +483,8 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst)
 
 	dev_dbg(inst->dev->dev, "%s: rd_ptr %pad", __func__, &initial_info->rd_ptr);
 
-	dev_dbg(inst->dev->dev, "%s: width: %u height: %u profile: %u | minbuffer: %u delay %u\n",
-		__func__, initial_info->pic_width, initial_info->pic_height,
+	dev_dbg(inst->dev->dev, "[%d] width: %u height: %u profile: %u | minbuffer: %u delay %u\n",
+		inst->id, initial_info->pic_width, initial_info->pic_height,
 		initial_info->profile, initial_info->min_frame_buffer_count,
 		initial_info->reorder_delay);
 
@@ -578,6 +581,25 @@ static void wave5_vpu_dec_decoding_error(struct vpu_instance *inst, struct dec_o
 	if (info->warn_info)
 		dev_dbg(inst->dev->dev, "[%d] decoding %d warn 0x%x\n",
 			inst->id, inst->processed_buf_num, info->warn_info);
+}
+
+static bool wave5_vpu_dec_is_eos(struct vpu_instance *inst, struct dec_output_info *info)
+{
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+
+	if (info->index_frame_display != DISPLAY_IDX_FLAG_SEQ_END)
+		return false;
+
+	dev_dbg(inst->dev->dev, "[%d] display idx flag seq end, stream_endflag %d, feed %d\n",
+		inst->id, p_dec_info->stream_endflag, atomic_read(&inst->feed_frame_cnt));
+
+	if (!p_dec_info->stream_endflag)
+		return false;
+
+	if (atomic_read(&inst->feed_frame_cnt))
+		return false;
+
+	return true;
 }
 
 static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
@@ -691,7 +713,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			wave5_get_plane_payload(&disp_buf->vb2_buf, 0));
 	}
 
-	if (dec_info.index_frame_display == DISPLAY_IDX_FLAG_SEQ_END ||
+	if (wave5_vpu_dec_is_eos(inst, &dec_info) ||
 	    dec_info.sequence_changed) {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
 			if (!v4l2_m2m_has_stopped(m2m_ctx)) {
@@ -1519,6 +1541,11 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 			ret = switch_state(inst, VPU_INST_STATE_OPEN);
 		if (ret)
 			goto return_buffers;
+	} else if (V4L2_TYPE_IS_OUTPUT(q->type) && inst->state == VPU_INST_STATE_STOP) {
+		if (!inst->dynamic_source_change) {
+			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+				ret = switch_state(inst, VPU_INST_STATE_PIC_RUN);
+		}
 	} else if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		if (!inst->seek_flag && inst->dynamic_source_change) {
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock)
