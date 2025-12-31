@@ -530,6 +530,8 @@ struct vpu_instance {
 	u32 skiped_frame_num;
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
+	u32 total_dec_cnt;
+	u32 drain_dec_cnt;
 	struct vpu_performance_info performance;
 };
 

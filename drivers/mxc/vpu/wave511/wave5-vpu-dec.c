@@ -198,7 +198,6 @@ static void wave5_handle_src_buffer(struct vpu_instance *inst, dma_addr_t rd_ptr
 		inst->sequence++;
 	}
 
-	atomic_dec_if_positive(&inst->feed_frame_cnt);
 	inst->processed_buf_num++;
 	v4l2_m2m_src_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx, src_buf);
 	if (skip)
@@ -393,9 +392,18 @@ static int start_decode(struct vpu_instance *inst)
 	if (!inst->performance.ts_first)
 		inst->performance.ts_first = ktime_get_raw();
 
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
+		if (inst->next_frame)
+			atomic_inc(&inst->feed_frame_cnt);
+		atomic_inc(&inst->queued_dec_cmd);
+	}
 	ret = wave5_vpu_dec_start_one_frame(inst, &fail_res);
 	if (ret) {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
+			if (inst->next_frame)
+				atomic_dec_if_positive(&inst->feed_frame_cnt);
+			atomic_dec_if_positive(&inst->queued_dec_cmd);
+
 			if (fail_res != WAVE5_SYSERR_QUEUEING_FAIL) {
 				if (inst->next_frame) {
 					v4l2_m2m_src_buf_remove_by_buf(m2m_ctx, inst->next_frame);
@@ -420,8 +428,9 @@ static int start_decode(struct vpu_instance *inst)
 	} else {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
 			if (inst->next_frame)
-				atomic_inc(&inst->feed_frame_cnt);
-			atomic_inc(&inst->queued_dec_cmd);
+				inst->total_dec_cnt++;
+			else
+				inst->drain_dec_cnt++;
 			inst->next_frame = NULL;
 		}
 	}
@@ -715,6 +724,9 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 
 exit:
 	scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
+		if (dec_info.index_frame_decoded >= 0 ||
+		    dec_info.index_frame_decoded == DECODED_IDX_FLAG_SKIP)
+			atomic_dec_if_positive(&inst->feed_frame_cnt);
 		if (atomic_read(&inst->queued_dec_cmd) > atomic_read(&inst->feed_frame_cnt)) {
 			atomic_dec_if_positive(&inst->queued_dec_cmd);
 			inst->retry_flag = false;
@@ -1542,6 +1554,8 @@ static int streamoff_output(struct vb2_queue *q)
 	inst->displayed_buf_num = 0;
 	inst->skiped_frame_num = 0;
 	inst->sequence = 0;
+	inst->total_dec_cnt = 0;
+	inst->drain_dec_cnt = 0;
 
 	if (v4l2_m2m_has_stopped(m2m_ctx))
 		send_eos_event(inst);
