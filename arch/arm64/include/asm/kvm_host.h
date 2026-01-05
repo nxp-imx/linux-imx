@@ -164,11 +164,12 @@ int topup_hyp_memcache_gfp(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 static inline void init_hyp_memcache(struct kvm_hyp_memcache *mc)
 {
 	memset(mc, 0, sizeof(*mc));
+	mc->mapping = ZERO_SIZE_PTR; /* Prevent allocation, solely useful for stage2 memcache */
 }
 
 static inline void init_hyp_stage2_memcache(struct kvm_hyp_memcache *mc)
 {
-	init_hyp_memcache(mc);
+	memset(mc, 0, sizeof(*mc));
 	mc->flags = HYP_MEMCACHE_ACCOUNT_KMEMCG | HYP_MEMCACHE_ACCOUNT_STAGE2;
 }
 
@@ -281,7 +282,6 @@ struct kvm_pinned_page {
 	u64			ipa;
 	u64			__subtree_last;
 	u8			order;
-	u16			pins;
 };
 
 struct kvm_pinned_page
@@ -1705,6 +1705,7 @@ void kvm_set_vm_id_reg(struct kvm *kvm, u32 reg, u64 val);
 #define HYP_ALLOC_MGT_IOMMU_ID		1
 
 unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages);
+int __pkvm_topup_hyp_alloc_mgt_mc(unsigned long id, struct kvm_hyp_memcache *mc);
 int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 				   unsigned long sz_alloc, gfp_t gfp);
 
@@ -1734,6 +1735,9 @@ int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
 int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
 pkvm_handle_t kvm_get_iommu_id_by_of(struct device_node *np);
+
+struct page *kvm_iommu_cma_alloc(void);
+bool kvm_iommu_cma_release(struct page *p);
 
 int pkvm_iommu_suspend(struct device *dev);
 int pkvm_iommu_resume(struct device *dev);
@@ -1780,6 +1784,7 @@ int kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
 			     size_t pgsize, size_t pgcount);
 phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova);
+int kvm_iommu_iotlb_sync_map(pkvm_handle_t domain_id, unsigned long iova, size_t size);
 size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, struct kvm_iommu_sg *sg,
 			unsigned long iova, unsigned int nent,
 			unsigned int prot, gfp_t gfp);

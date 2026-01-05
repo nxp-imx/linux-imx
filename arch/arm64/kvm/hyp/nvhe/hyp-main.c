@@ -1635,15 +1635,20 @@ static void handle___pkvm_map_module_page(struct kvm_cpu_context *host_ctxt)
 	DECLARE_REG(void *, va, host_ctxt, 2);
 	DECLARE_REG(enum kvm_pgtable_prot, prot, host_ctxt, 3);
 
-	cpu_reg(host_ctxt, 1) = (u64)__pkvm_map_module_page(pfn, va, prot, false);
+	cpu_reg(host_ctxt, 1) = (u64)__pkvm_map_module_pages(pfn, va, 1, prot, false);
 }
 
 static void handle___pkvm_unmap_module_page(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(u64, pfn, host_ctxt, 1);
 	DECLARE_REG(void *, va, host_ctxt, 2);
+	int ret;
 
-	__pkvm_unmap_module_page(pfn, va);
+	ret = __pkvm_unmap_module_pages(pfn, va, 1);
+	if (!ret)
+		WARN_ON(__pkvm_hyp_donate_host(pfn, 1));
+
+	cpu_reg(host_ctxt, 1) = ret;
 }
 
 static void handle___pkvm_init_module(struct kvm_cpu_context *host_ctxt)
@@ -1671,6 +1676,8 @@ static void handle___pkvm_hyp_alloc_mgt_refill(struct kvm_cpu_context *host_ctxt
 	};
 
 	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_refill(id, &mc);
+	cpu_reg(host_ctxt, 2) = mc.head;
+	cpu_reg(host_ctxt, 3) = mc.nr_pages;
 }
 
 static void handle___pkvm_hyp_alloc_mgt_reclaimable(struct kvm_cpu_context *host_ctxt)
@@ -1774,6 +1781,17 @@ static void handle___pkvm_host_iommu_iova_to_phys(struct kvm_cpu_context *host_c
 	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
 
 	cpu_reg(host_ctxt, 1) = kvm_iommu_iova_to_phys(domain, iova);
+}
+
+static void handle___pkvm_host_iommu_iotlb_sync_map(struct kvm_cpu_context *host_ctxt)
+{
+	unsigned long ret;
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
+	DECLARE_REG(size_t, size, host_ctxt, 3);
+
+	ret = kvm_iommu_iotlb_sync_map(domain, iova, size);
+	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
 static void handle___pkvm_host_hvc_pd(struct kvm_cpu_context *host_ctxt)
@@ -1979,6 +1997,7 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_host_iommu_map_pages),
 	HANDLE_FUNC(__pkvm_host_iommu_unmap_pages),
 	HANDLE_FUNC(__pkvm_host_iommu_iova_to_phys),
+	HANDLE_FUNC(__pkvm_host_iommu_iotlb_sync_map),
 	HANDLE_FUNC(__pkvm_host_hvc_pd),
 	HANDLE_FUNC(__pkvm_ptdump),
 	HANDLE_FUNC(__pkvm_host_iommu_map_sg),

@@ -400,7 +400,7 @@
 	pcie_ep: pcie_ep@33800000 {
 		compatible = "fsl,imx7d-pcie-ep";
 		reg = <0x33800000 0x4000>, <0x40000000 0x10000000>;
-		reg-names = "regs", "addr_space";
+		reg-names = "dbi", "addr_space";
 		num-lanes = <1>;
 		clocks = <&clks IMX7D_PCIE_CTRL_ROOT_CLK>,
 			 <&clks IMX7D_PLL_ENET_MAIN_100M_CLK>,

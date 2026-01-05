@@ -927,6 +927,7 @@
   drm_property_create_blob
   drm_property_create_range
   drm_property_lookup_blob
+  drm_property_replace_global_blob
   drm_read
   drm_release
   drm_universal_plane_init
@@ -3053,6 +3054,7 @@
   __traceiter_android_vh_rwsem_read_wait_start
   __traceiter_android_vh_rwsem_write_wait_finish
   __traceiter_android_vh_rwsem_write_wait_start
+  __traceiter_android_vh_dump_dl_server
   __traceiter_android_vh_sched_pelt_multiplier
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_setscheduler_uclamp
@@ -3181,6 +3183,7 @@
   __tracepoint_android_vh_rwsem_read_wait_start
   __tracepoint_android_vh_rwsem_write_wait_finish
   __tracepoint_android_vh_rwsem_write_wait_start
+  __tracepoint_android_vh_dump_dl_server
   __tracepoint_android_vh_sched_pelt_multiplier
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_setscheduler_uclamp
@@ -3802,3 +3805,4 @@
   zlib_inflateInit2
   zlib_inflateReset
   zlib_inflate_workspacesize
+  zs_lookup_class_index

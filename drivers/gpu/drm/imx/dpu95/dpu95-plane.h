@@ -46,6 +46,8 @@ struct dpu95_plane_state {
 	struct drm_plane_state	base;
 	union dpu95_plane_stage	stage;
 	struct dpu95_fetchunit	*source;
+	struct dpu95_hscaler	*hs;
+	struct dpu95_vscaler	*vs;
 	struct dpu95_layerblend	*blend;
 	bool			is_top;
 };

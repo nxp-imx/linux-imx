@@ -669,6 +669,10 @@ dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-root.dtb imx943-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-netc-rpmsg.dtb
 
+dtb-$(CONFIG_ARCH_MXC) += imx943-orangebox.dtb
+imx943-orangebox-mic-dtbs := imx943-orangebox.dtb imx943-orangebox-mic.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx943-orangebox-mic.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-flexspi-m2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-mqs.dtb

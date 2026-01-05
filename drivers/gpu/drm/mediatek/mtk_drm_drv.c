@@ -389,11 +389,11 @@ static bool mtk_drm_get_all_drm_priv(struct device *dev)
 
 		drm_dev = device_find_child(&pdev->dev, NULL, mtk_drm_match);
 		if (!drm_dev)
-			continue;
+			goto next_put_device_pdev_dev;
 
 		temp_drm_priv = dev_get_drvdata(drm_dev);
 		if (!temp_drm_priv)
-			continue;
+			goto next_put_device_drm_dev;
 
 		if (temp_drm_priv->data->main_len)
 			all_drm_priv[CRTC_MAIN] = temp_drm_priv;
@@ -404,6 +404,12 @@ static bool mtk_drm_get_all_drm_priv(struct device *dev)
 
 		if (temp_drm_priv->mtk_drm_bound)
 			cnt++;
+
+next_put_device_drm_dev:
+		put_device(drm_dev);
+
+next_put_device_pdev_dev:
+		put_device(&pdev->dev);
 
 		if (cnt == MAX_CRTC) {
 			of_node_put(node);

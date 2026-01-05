@@ -10,6 +10,7 @@ config MXC_HANTRO_V4L2
 	tristate "Support for MXC HANTRO(Video Processing Unit) V4L2 driver"
 	depends on VIDEO_DEV
 	depends on VIDEOBUF2_V4L2 || VIDEOBUF2_V4L2=n
+	select MXC_MUR
 	default y
 	help
 		VPU hantro v4l2 device.

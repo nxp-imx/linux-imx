@@ -112,6 +112,14 @@ void enetc_free_cbdr(struct enetc_si *si)
 }
 EXPORT_SYMBOL_GPL(enetc_free_cbdr);
 
+void enetc4_enable_cbdr(struct enetc_si *si)
+{
+	struct netc_cbdrs *cbdrs = &si->ntmp.cbdrs;
+
+	netc_enable_cbdr(cbdrs->ring);
+}
+EXPORT_SYMBOL_GPL(enetc4_enable_cbdr);
+
 static void enetc_clean_cbdr(struct enetc_cbdr *ring)
 {
 	struct enetc_cbd *dest_cbd;

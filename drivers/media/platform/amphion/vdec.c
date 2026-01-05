@@ -285,6 +285,7 @@ static int vdec_ctrl_init(struct vpu_inst *inst)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 	ctrl = v4l2_ctrl_new_custom(&inst->ctrl_handler, &secure_config, NULL);
+	imx_mur_new_v4l2_ctrl(&inst->ctrl_handler, inst->recorder);
 
 	if (inst->ctrl_handler.error) {
 		ret = inst->ctrl_handler.error;
@@ -1088,6 +1089,8 @@ static int vdec_alloc_fs_buffer(struct vpu_inst *inst, struct vdec_fs_info *fs)
 
 	vpu_free_dma(buffer);
 	buffer->length = fs->size;
+	buffer->recorder = inst->recorder;
+	buffer->label = fs->type == MEM_RES_MBI ? "mbi" : "dcp";
 	return vpu_alloc_dma(inst->core, buffer);
 }
 
@@ -1719,6 +1722,8 @@ static int vdec_start(struct vpu_inst *inst)
 	vpu_trace(inst->dev, "[%d]\n", inst->id);
 	if (!vdec->udata.virt) {
 		vdec->udata.length = 0x1000;
+		vdec->udata.recorder = inst->recorder;
+		vdec->udata.label = "udata";
 		ret = vpu_alloc_dma(inst->core, &vdec->udata);
 		if (ret) {
 			dev_err(inst->dev, "[%d] alloc udata fail\n", inst->id);
@@ -1730,6 +1735,9 @@ static int vdec_start(struct vpu_inst *inst)
 		stream_buffer_size = vpu_iface_get_stream_buffer_size(inst->core);
 		if (stream_buffer_size > 0) {
 			inst->stream_buffer.length = stream_buffer_size;
+			inst->stream_buffer.recorder = inst->recorder;
+			inst->stream_buffer.label = "ring-buf";
+
 			if (inst->secure_mode) {
 				dev_info(inst->dev, "allocate secure ring buffer\n");
 				ret = secure_vpu_alloc_dma(inst);

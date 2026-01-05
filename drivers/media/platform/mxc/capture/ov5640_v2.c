@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2012-2015 Freescale Semiconductor, Inc. All Rights Reserved.
- * Copyright 2019 NXP
+ * Copyright 2019-2025 NXP
  */
 
 /*
@@ -1551,6 +1551,14 @@ error:
 	return ret;
 }
 
+static int ov5640_g_std(struct v4l2_subdev *sd, v4l2_std_id *std)
+{
+	/* This is a camera sensor, not a TV-in device */
+	*std = V4L2_STD_UNKNOWN;
+
+	return 0;
+}
+
 static int ov5640_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_state *sd_state,
 			  struct v4l2_subdev_format *format)
@@ -1732,6 +1740,7 @@ static int init_device(void)
 static struct v4l2_subdev_video_ops ov5640_subdev_video_ops = {
 	.g_parm = ov5640_g_parm,
 	.s_parm = ov5640_s_parm,
+	.g_std = ov5640_g_std,
 };
 
 static const struct v4l2_subdev_pad_ops ov5640_subdev_pad_ops = {

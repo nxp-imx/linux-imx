@@ -226,8 +226,7 @@ static int mixel_dphy_config_from_opts(struct phy *phy,
 	unsigned long ref_clk = clk_get_rate(priv->phy_ref_clk);
 	u32 lp_t, numerator, denominator;
 	unsigned long long tmp;
-	u32 n;
-	int i;
+	int n, i;
 
 	if (dphy_opts->hs_clk_rate > DATA_RATE_MAX_SPEED ||
 	    dphy_opts->hs_clk_rate < DATA_RATE_MIN_SPEED)

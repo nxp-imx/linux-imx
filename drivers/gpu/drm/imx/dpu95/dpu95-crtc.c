@@ -295,27 +295,20 @@ static void dpu95_crtc_atomic_begin(struct drm_crtc *crtc,
 
 		fu_ops->disable_src_buf(fu);
 
+		if (old_dpstate->hs) {
+			dpu95_hs_pec_clken(old_dpstate->hs, CLKEN_DISABLE);
+			dpu95_hs_mode(old_dpstate->hs, SCALER_NEUTRAL);
+		}
+
+		if (old_dpstate->vs) {
+			dpu95_vs_pec_clken(old_dpstate->vs, CLKEN_DISABLE);
+			dpu95_vs_mode(old_dpstate->vs, SCALER_NEUTRAL);
+		}
+
 		if (old_dpstate->is_top)
 			dpu95_ed_pec_src_sel(dpu_crtc->ed_cont,
 					     DPU95_LINK_ID_NONE);
 	}
-}
-
-static void dpu95_crtc_atomic_flush_scalers(struct drm_crtc *crtc)
-{
-	struct dpu95_plane *dplane = to_dpu95_plane(crtc->primary);
-	struct dpu95_hscaler *hs = dplane->grp->hs;
-	struct dpu95_vscaler *vs = dplane->grp->vs;
-	const struct dpu95_hscaler_ops *hs_ops;
-	const struct dpu95_vscaler_ops *vs_ops;
-
-	hs_ops = dpu95_hs_get_ops(hs);
-	if (!hs_ops->is_enabled(hs))
-		hs_ops->set_no_stream_id(hs);
-
-	vs_ops = dpu95_vs_get_ops(vs);
-	if (!vs_ops->is_enabled(vs))
-		vs_ops->set_no_stream_id(vs);
 }
 
 static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
@@ -325,10 +318,14 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc);
 	const struct dpu95_fetchunit_ops *fu_ops;
 	struct drm_plane_state *old_plane_state;
+	const struct dpu95_hscaler_ops *hs_ops;
+	const struct dpu95_vscaler_ops *vs_ops;
 	struct drm_crtc_state *old_crtc_state;
 	struct dpu95_plane_state *old_dpstate;
 	struct drm_atomic_state *old_state;
 	struct dpu95_fetchunit *fu;
+	struct dpu95_hscaler *hs;
+	struct dpu95_vscaler *vs;
 	int i;
 
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
@@ -357,9 +354,21 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 
 		if (!fu_ops->is_enabled(fu))
 			fu_ops->set_no_stream_id(fu);
-	}
 
-	dpu95_crtc_atomic_flush_scalers(crtc);
+		hs = old_dpstate->hs;
+		if (hs) {
+			hs_ops = dpu95_hs_get_ops(hs);
+			if (!hs_ops->is_enabled(hs))
+				hs_ops->set_no_stream_id(hs);
+		}
+
+		vs = old_dpstate->vs;
+		if (vs) {
+			vs_ops = dpu95_vs_get_ops(vs);
+			if (!vs_ops->is_enabled(vs))
+				vs_ops->set_no_stream_id(vs);
+		}
+	}
 
 	if (!need_modeset && crtc->state->active) {
 		/*

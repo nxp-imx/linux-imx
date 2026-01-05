@@ -25,7 +25,17 @@
 
 #ifndef __KERNEL__
 typedef unsigned long dma_addr_t;
+
+#ifndef __cplusplus
+
+#if defined __STDC_VERSION__ && __STDC_VERSION__ > 201710L
+/* bool, true and false are keywords. */
+#else
 #endif
+
+#endif /* !__cplusplus */
+
+#endif /* !__KERNEL__ */
 
 /*  PXP Pixel format definitions */
 /*  Four-character-code (FOURCC) */

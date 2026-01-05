@@ -185,12 +185,11 @@ gckKERNEL_DeinitDatabase(IN gckKERNEL Kernel, IN gcsDATABASE_PTR Database)
     gcmkHEADER_ARG("Kernel=%p Database=%p", Kernel, Database);
 
     if (Database) {
+        gctUINT32 j = 0;
         Database->deleted = gcvFALSE;
-        if (Kernel->processPageTable) {
-            gctUINT32 j = 0;
-            for (j = 0; j < gcvHARDWARE_NUM_TYPES; j++) {
-                Database->mmu[j] = gcvNULL;
-            }
+
+        for (j = 0; j < gcvHARDWARE_NUM_TYPES; j++) {
+            Database->mmu[j] = gcvNULL;
         }
 
         /* Destroy handle db. */
@@ -1450,6 +1449,12 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
             continue;
         if (kernel->processPageTable && database->mmu[kernel->hardware->type]) {
             gcsEVENT_INTERFACE iface = {0};
+            gcsEVENT_ATTR eventAttr;
+
+            eventAttr.wait = gcvTRUE;
+            eventAttr.shared = gcvFALSE;
+            eventAttr.fromPower = gcvFALSE;
+            eventAttr.broadcast = gcvTRUE;
 
             iface.command = gcvHAL_DESTROY_MMU;
             iface.u.DestroyMmu.mmu = gcmPTR_TO_UINT64(database->mmu[kernel->hardware->type]);
@@ -1458,6 +1463,16 @@ gckKERNEL_DestroyProcessDB(IN gckKERNEL Kernel, IN gctUINT32 ProcessID)
 
             gcmkONERROR(gckEVENT_AddList(kernel->eventObj, &iface,
                                          gcvKERNEL_PIXEL, gcvFALSE, gcvTRUE));
+
+            status = gckEVENT_Submit(kernel->eventObj, &eventAttr);
+
+            if (status == gcvSTATUS_INTERRUPTED && kernel->eventObj->submitTimer) {
+                gcmkONERROR(gckOS_StartTimer(kernel->os,
+                                             kernel->eventObj->submitTimer,
+                                             1));
+            } else {
+                gcmkONERROR(status);
+            }
         }
     }
 

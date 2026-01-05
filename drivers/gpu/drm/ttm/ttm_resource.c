@@ -33,10 +33,6 @@
 
 #include <drm/drm_util.h>
 
-#include <linux/android_kabi.h>
-ANDROID_KABI_DECLONLY(dma_buf);
-ANDROID_KABI_DECLONLY(dma_buf_attachment);
-
 /* Detach the cursor from the bulk move list*/
 static void
 ttm_resource_cursor_clear_bulk(struct ttm_resource_cursor *cursor)
@@ -504,6 +500,9 @@ int ttm_resource_manager_evict_all(struct ttm_device *bdev,
 		ret = ttm_bo_evict_first(bdev, man, &ctx);
 		cond_resched();
 	} while (!ret);
+
+	if (ret && ret != -ENOENT)
+		return ret;
 
 	spin_lock(&man->move_lock);
 	fence = dma_fence_get(man->move);

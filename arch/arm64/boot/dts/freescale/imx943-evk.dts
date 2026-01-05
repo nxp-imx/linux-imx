@@ -435,7 +435,8 @@
 &i3c2 {
 	i2c-scl-hz = <400000>;
 	pinctrl-0 = <&pinctrl_i3c2>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&pinctrl_i3c2_sleep>;
+	pinctrl-names = "default", "sleep";
 	status = "okay";
 };
 
@@ -942,6 +943,7 @@
 	clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_aux", "ext-ref";
 	reset-gpio = <&pcal6416_i2c3_u46 3 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_pcie0>;
+	supports-clkreq;
 	status = "okay";
 };
 
@@ -1099,7 +1101,6 @@
 		polling-delay-passive = <250>;
 		polling-delay = <2000>;
 		thermal-sensors = <&scmi_sensor 2>;
-		status = "disabled";
 		trips {
 			pf09_alert: trip0 {
 				temperature = <140000>;
@@ -1119,7 +1120,6 @@
 		polling-delay-passive = <250>;
 		polling-delay = <2000>;
 		thermal-sensors = <&scmi_sensor 3>;
-		status = "disabled";
 		trips {
 			pf5302_alert: trip0 {
 				temperature = <140000>;
@@ -1245,6 +1245,13 @@
 		fsl,pins = <
 			IMX94_PAD_GPIO_IO01__I3C2_SCL			0x400001fe
 			IMX94_PAD_GPIO_IO02__I3C2_SDA			0x400001fe
+		>;
+	};
+
+	pinctrl_i3c2_sleep: i3c2sleepgrp {
+		fsl,pins = <
+			IMX94_PAD_GPIO_IO01__GPIO2_IO1			0x31e
+			IMX94_PAD_GPIO_IO02__GPIO2_IO2			0x31e
 		>;
 	};
 

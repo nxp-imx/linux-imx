@@ -21,3 +21,27 @@
 menu "ARM GPU Configuration"
 source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/Kconfig"
 endmenu
+
+config MALI_MEMORY_GROUP_MANAGER
+        tristate "Build Mali Memory Group Manager module"
+        default n
+        help
+          This option will build the memory group manager module.
+          This is an example implementation for allocation and release of pages
+          for memory pools managed by Mali GPU device drivers.
+
+          Modules:
+            - memory_group_manager.ko
+
+config MALI_PROTECTED_MEMORY_ALLOCATOR
+        tristate "Build Mali Protected Memory Allocator module"
+        depends on MALI_CSF_SUPPORT
+        default n
+        help
+          This option will build the protected memory allocator module.
+          This is an example implementation for allocation and release of pages
+          of secure memory intended to be used by the firmware
+          of Mali GPU device drivers.
+
+          Modules:
+            - protected_memory_allocator.ko

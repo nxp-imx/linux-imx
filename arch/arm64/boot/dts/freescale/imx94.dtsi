@@ -1378,7 +1378,7 @@
 			#size-cells = <1>;
 
 			wdog3: wdog@49220000 {
-				compatible = "fsl,imx93-wdt";
+				compatible = "fsl,imx94-wdt";
 				reg = <0x49220000 0x10000>;
 				interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&scmi_clk IMX94_CLK_BUSWAKEUP>;

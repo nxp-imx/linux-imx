@@ -181,6 +181,12 @@ static int __vpu_alloc_dma(struct device *dev, struct vpu_buffer *buf)
 	if (!buf->virt)
 		return -ENOMEM;
 
+	if (buf->recorder) {
+		if (buf->label)
+			imx_mur_long_new_and_add(buf->recorder, buf->length, buf->label);
+		else
+			imx_mur_long_add(buf->recorder, buf->length);
+	}
 	buf->dev = dev;
 
 	return 0;
@@ -190,6 +196,13 @@ void vpu_free_dma(struct vpu_buffer *buf)
 {
 	if (!buf->virt || !buf->dev)
 		return;
+
+	if (buf->recorder) {
+		if (buf->label)
+			imx_mur_long_sub_and_del(buf->recorder, buf->length);
+		else
+			imx_mur_long_sub(buf->recorder, buf->length);
+	}
 
 	dma_free_coherent(buf->dev, buf->length, buf->virt, buf->phys);
 	buf->virt = NULL;
@@ -617,6 +630,7 @@ static int vpu_core_parse_dt(struct vpu_core *core, struct device_node *np)
 	}
 	core->fw.phys = res.start;
 	core->fw.length = resource_size(&res);
+	imx_mur_long_new_and_add(core->vpu->recorder, core->fw.length, "fw");
 
 	of_node_put(node);
 
@@ -632,6 +646,7 @@ static int vpu_core_parse_dt(struct vpu_core *core, struct device_node *np)
 	}
 	core->rpc.phys = res.start;
 	core->rpc.length = resource_size(&res);
+	imx_mur_long_new_and_add(core->vpu->recorder, core->rpc.length, "rpc");
 
 	if (core->rpc.length < core->res->rpc_size + core->res->fwlog_size) {
 		dev_err(core->dev, "the rpc-region <%pad, 0x%x> is not enough\n",

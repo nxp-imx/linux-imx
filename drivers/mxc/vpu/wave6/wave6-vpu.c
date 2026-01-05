@@ -88,6 +88,12 @@ static irqreturn_t wave6_vpu_irq(int irq, void *dev_id)
 
 		trace_irq(dev, irq_status);
 
+		if (irq_status & BIT(W6_INT_BIT_REQ_WORK_BUF)) {
+			if (dev->ctrl)
+				wave6_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
+			return IRQ_HANDLED;
+		}
+
 		kfifo_in(&dev->irq_status, &irq_status, sizeof(int));
 
 		return IRQ_WAKE_THREAD;
@@ -108,14 +114,6 @@ static irqreturn_t wave6_vpu_irq_thread(int irq, void *dev_id)
 		ret = kfifo_out(&dev->irq_status, &irq_status, sizeof(int));
 		if (!ret)
 			break;
-
-		if (irq_status & BIT(W6_INT_BIT_REQ_WORK_BUF)) {
-			if (!dev->ctrl)
-				continue;
-			/*firmware requires buffer*/
-			wave6_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
-			continue;
-		}
 
 		if ((irq_status & BIT(W6_INT_BIT_INIT_SEQ)) ||
 		    (irq_status & BIT(W6_INT_BIT_ENC_SET_PARAM))) {
@@ -199,23 +197,6 @@ static void wave6_vpu_on_boot(struct device *dev)
 	wave6_vpu_get_clk(vpu_dev);
 }
 
-void wave6_vpu_pause(struct device *dev, int resume)
-{
-	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
-
-	mutex_lock(&vpu_dev->pause_lock);
-	if (resume) {
-		vpu_dev->pause_request--;
-		if (!vpu_dev->pause_request)
-			v4l2_m2m_resume(vpu_dev->m2m_dev);
-	} else {
-		if (!vpu_dev->pause_request)
-			v4l2_m2m_suspend(vpu_dev->m2m_dev);
-		vpu_dev->pause_request++;
-	}
-	mutex_unlock(&vpu_dev->pause_lock);
-}
-
 void wave6_vpu_activate(struct vpu_device *dev)
 {
 	dev->active = true;
@@ -282,9 +263,7 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	if (!dev)
 		return -ENOMEM;
 
-	mutex_init(&dev->dev_lock);
 	mutex_init(&dev->hw_lock);
-	mutex_init(&dev->pause_lock);
 	init_completion(&dev->irq_done);
 	dev_set_drvdata(&pdev->dev, dev);
 	dev->dev = &pdev->dev;
@@ -294,7 +273,6 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	dev->entity.read_reg = wave6_vpu_read_reg;
 	dev->entity.write_reg = wave6_vpu_write_reg;
 	dev->entity.on_boot = wave6_vpu_on_boot;
-	dev->entity.pause = wave6_vpu_pause;
 
 	dev->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(dev->reg_base))
@@ -314,6 +292,9 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 			dev_info(&pdev->dev, "vpu ctrl is not found\n");
 			return -EINVAL;
 		}
+		dev->recorder = wave6_vpu_ctrl_get_recorder(dev->ctrl);
+	} else {
+		dev->recorder = imx_mur_create_node(NULL, dev_name(dev->dev));
 	}
 
 	/* find trusty node */
@@ -376,6 +357,8 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	}
 
 	dev->temp_vbuf.size = ALIGN(WAVE6_TEMPBUF_SIZE, 4096);
+	dev->temp_vbuf.recorder = dev->recorder;
+	dev->temp_vbuf.label = "temp_vbuf";
 	ret = wave6_alloc_dma(dev->dev, &dev->temp_vbuf);
 	if (ret) {
 		dev_err(&pdev->dev, "alloc temp of size %zu failed\n",
@@ -458,6 +441,8 @@ static void wave6_vpu_remove(struct platform_device *pdev)
 	kfifo_free(&dev->irq_status);
 	wave6_vpu_release_m2m_dev(dev);
 	v4l2_device_unregister(&dev->v4l2_dev);
+	if (!dev->ctrl)
+		imx_mur_destroy_node(dev->recorder);
 }
 
 #ifdef CONFIG_PM
@@ -509,20 +494,22 @@ static int wave6_vpu_runtime_resume(struct device *dev)
 #ifdef CONFIG_PM_SLEEP
 static int wave6_vpu_suspend(struct device *dev)
 {
+	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
 	int ret;
 
 	dprintk(dev, "suspend\n");
-	wave6_vpu_pause(dev, 0);
+	v4l2_m2m_suspend(vpu_dev->m2m_dev);
 
 	ret = pm_runtime_force_suspend(dev);
 	if (ret)
-		wave6_vpu_pause(dev, 1);
+		v4l2_m2m_resume(vpu_dev->m2m_dev);
 
 	return ret;
 }
 
 static int wave6_vpu_resume(struct device *dev)
 {
+	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
 	int ret;
 
 	dprintk(dev, "resume\n");
@@ -530,7 +517,7 @@ static int wave6_vpu_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	wave6_vpu_pause(dev, 1);
+	v4l2_m2m_resume(vpu_dev->m2m_dev);
 	return 0;
 }
 #endif

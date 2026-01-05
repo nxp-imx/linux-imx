@@ -33,6 +33,13 @@
 #include "neoisp_regs.h"
 #include "neoisp_ctx.h"
 
+/* \todo : Must be in videodev2.h uapi file */
+/* Vendor specific - used for NXP NEOISP sub-system */
+#define V4L2_META_FMT_NEO_ISP_PARAMS v4l2_fourcc('N', 'N', 'I', 'P') /* NXP NEOISP Parameters */
+#define V4L2_META_FMT_NEO_ISP_EXT_PARAMS v4l2_fourcc('N', 'N', 'E', 'P') /* NXP NEOISP Ext Params */
+#define V4L2_META_FMT_NEO_ISP_STATS v4l2_fourcc('N', 'N', 'I', 'S') /* NXP NEOISP Statistics */
+#define V4L2_META_FMT_NEO_ISP_EXT_STATS v4l2_fourcc('N', 'N', 'E', 'S') /* NXP NEOISP Ext Stats */
+
 static int neoisp_regfield_alloc(struct device *dev, struct neoisp_dev_s *neoispd)
 {
 	int idx = 0;
@@ -361,11 +368,24 @@ static int neoisp_set_packetizer(struct neoisp_dev_s *neoispd)
 {
 	struct neoisp_mparam_packetizer_s *pck = &mod_params.pack;
 	struct neoisp_node_s *nd = &neoispd->queued_job.node_group->node[NEOISP_FRAME_NODE];
-	__u32 pixfmt = nd->format.fmt.pix_mp.pixelformat;
+	__u32 pixfmt;
+	__u8 bpp_enc;
+
+	if (neoisp_node_link_state(nd)) {
+		pixfmt = nd->format.fmt.pix_mp.pixelformat;
+		bpp_enc = nd->neoisp_format->bpp_enc;
+	} else {
+		/* Force dummy buffer configuration to YUYV format */
+		const struct neoisp_fmt_s *neoisp_fmt;
+
+		pixfmt = V4L2_PIX_FMT_YUYV;
+		neoisp_fmt =  neoisp_find_pixel_format_by_node(pixfmt, nd);
+		bpp_enc = neoisp_fmt->bpp_enc;
+	}
 
 	/* set output bits per pixel */
-	pck->ch0_ctrl_cam0_obpp = nd->neoisp_format->bpp_enc;
-	pck->ch12_ctrl_cam0_obpp = nd->neoisp_format->bpp_enc;
+	pck->ch0_ctrl_cam0_obpp = bpp_enc;
+	pck->ch12_ctrl_cam0_obpp = bpp_enc;
 
 	switch (pixfmt) {
 	case V4L2_PIX_FMT_Y10:
@@ -608,20 +628,13 @@ static int neoisp_set_pipe_conf(struct neoisp_dev_s *neoispd)
 	struct neoisp_buffer_s *buf_inp1 = neoispd->queued_job.buf[NEOISP_INPUT1_NODE];
 	struct neoisp_buffer_s *buf_out = neoispd->queued_job.buf[NEOISP_FRAME_NODE];
 	struct neoisp_buffer_s *buf_ir = neoispd->queued_job.buf[NEOISP_IR_NODE];
-	struct neoisp_node_s *nd = &neoispd->queued_job.node_group->node[NEOISP_FRAME_NODE];
+	struct neoisp_node_s *nd = &neoispd->queued_job.node_group->node[NEOISP_INPUT0_NODE];
 	struct neoisp_mparam_conf_s *cfg = &mod_params.conf;
 	__u32 width, height, obpp, ibpp, irbpp, inp0_stride, inp1_stride;
-	__u32 out_pixfmt = nd->format.fmt.pix_mp.pixelformat;
-	dma_addr_t inp0_addr, inp1_addr, out_addr;
+	dma_addr_t inp0_addr, inp1_addr;
 
-	if (!neoisp_node_link_state(nd))
-		/* frame node could be disabled then only ir node is needed */
-		nd = &neoispd->queued_job.node_group->node[NEOISP_IR_NODE];
-
-	width = nd->format.fmt.pix_mp.width;
-	height = nd->format.fmt.pix_mp.height;
-	obpp = (nd->neoisp_format->bit_depth + 7) / 8;
-	nd = &neoispd->queued_job.node_group->node[NEOISP_INPUT0_NODE];
+	width = nd->crop.width;
+	height = nd->crop.height;
 	ibpp = (nd->neoisp_format->bit_depth + 7) / 8;
 	inp0_stride = nd->format.fmt.pix_mp.plane_fmt[0].bytesperline;
 	cfg->img_conf_cam0_ibpp0 = nd->neoisp_format->bpp_enc;
@@ -649,43 +662,47 @@ static int neoisp_set_pipe_conf(struct neoisp_dev_s *neoispd)
 	regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_IMG0_IN_ADDR_CAM0_IDX],
 			NEO_PIPE_CONF_ADDR_SET(inp0_addr));
 	/* Handle hdr inputs */
-	nd = &neoispd->queued_job.node_group->node[NEOISP_INPUT1_NODE];
 	if (neoisp_node_link_state(nd)) {
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_IMG1_IN_ADDR_CAM0_IDX],
 				   NEO_PIPE_CONF_ADDR_SET(inp1_addr));
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_IMG1_IN_LS_CAM0_IDX],
-				   NEO_PIPE_CONF_IMG0_IN_LS_CAM0_LS_SET(inp0_stride));
+				   NEO_PIPE_CONF_IMG1_IN_LS_CAM0_LS_SET(inp1_stride));
 	} else {
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_IMG1_IN_ADDR_CAM0_IDX],
 				   NEO_PIPE_CONF_ADDR_SET(0u));
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_IMG1_IN_LS_CAM0_IDX],
-				   NEO_PIPE_CONF_IMG0_IN_LS_CAM0_LS_SET(0u));
+				   NEO_PIPE_CONF_IMG1_IN_LS_CAM0_LS_SET(0u));
 	}
 
 	nd = &neoispd->queued_job.node_group->node[NEOISP_FRAME_NODE];
 	if (neoisp_node_link_state(nd)) {
+		obpp = (nd->neoisp_format->bit_depth + 7) / 8;
 		/* planar/multiplanar output image addresses */
-		switch (out_pixfmt) {
+		switch (nd->format.fmt.pix_mp.pixelformat) {
 		case V4L2_PIX_FMT_GREY:
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_NV21:
-		case V4L2_PIX_FMT_NV16:
-		case V4L2_PIX_FMT_NV61:
 		case V4L2_PIX_FMT_Y10:
 		case V4L2_PIX_FMT_Y12:
 		case V4L2_PIX_FMT_Y16:
 		case V4L2_PIX_FMT_Y16_BE:
-			if (!FMT_IS_MONOCHROME(out_pixfmt))
-				out_addr = get_addr(buf_out, 1);
-			else
-				out_addr = nd->node_group->any_dma;
-
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_ADDR_CAM0_IDX],
 					NEO_PIPE_CONF_ADDR_SET(get_addr(buf_out, 0)));
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_LS_CAM0_IDX],
 					NEO_PIPE_CONF_OUTCH0_LS_CAM0_LS_SET(obpp * width));
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_ADDR_CAM0_IDX],
-					NEO_PIPE_CONF_ADDR_SET(out_addr));
+					NEO_PIPE_CONF_ADDR_SET(nd->node_group->any_dma));
+			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_LS_CAM0_IDX],
+					NEO_PIPE_CONF_OUTCH1_LS_CAM0_LS_SET(0));
+			break;
+		case V4L2_PIX_FMT_NV12:
+		case V4L2_PIX_FMT_NV21:
+		case V4L2_PIX_FMT_NV16:
+		case V4L2_PIX_FMT_NV61:
+			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_ADDR_CAM0_IDX],
+					NEO_PIPE_CONF_ADDR_SET(get_addr(buf_out, 0)));
+			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_LS_CAM0_IDX],
+					NEO_PIPE_CONF_OUTCH0_LS_CAM0_LS_SET(obpp * width));
+			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_ADDR_CAM0_IDX],
+					NEO_PIPE_CONF_ADDR_SET(get_addr(buf_out, 1)));
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_LS_CAM0_IDX],
 					NEO_PIPE_CONF_OUTCH1_LS_CAM0_LS_SET(obpp * width));
 			break;
@@ -693,7 +710,7 @@ static int neoisp_set_pipe_conf(struct neoisp_dev_s *neoispd)
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_ADDR_CAM0_IDX],
 					NEO_PIPE_CONF_ADDR_SET(0));
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_LS_CAM0_IDX],
-					NEO_PIPE_CONF_OUTCH1_LS_CAM0_LS_SET(0));
+					NEO_PIPE_CONF_OUTCH0_LS_CAM0_LS_SET(0));
 
 			regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_ADDR_CAM0_IDX],
 					NEO_PIPE_CONF_ADDR_SET(get_addr(buf_out, 0)));
@@ -702,13 +719,17 @@ static int neoisp_set_pipe_conf(struct neoisp_dev_s *neoispd)
 			break;
 		}
 	} else {
+		/* Default dummy pixelformat is set to YUYV */
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_ADDR_CAM0_IDX],
 				NEO_PIPE_CONF_ADDR_SET(nd->node_group->any_dma));
-		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_LS_CAM0_IDX], 0u);
+		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH0_LS_CAM0_IDX],
+					NEO_PIPE_CONF_OUTCH0_LS_CAM0_LS_SET(0));
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_ADDR_CAM0_IDX],
 				NEO_PIPE_CONF_ADDR_SET(nd->node_group->any_dma));
-		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_LS_CAM0_IDX], 0u);
+		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTCH1_LS_CAM0_IDX],
+					NEO_PIPE_CONF_OUTCH1_LS_CAM0_LS_SET(0));
 	}
+
 	nd = &neoispd->queued_job.node_group->node[NEOISP_IR_NODE];
 	if (neoisp_node_link_state(nd)) {
 		irbpp = (nd->neoisp_format->bit_depth + 7) / 8;
@@ -718,9 +739,9 @@ static int neoisp_set_pipe_conf(struct neoisp_dev_s *neoispd)
 				NEO_PIPE_CONF_OUTIR_LS_CAM0_LS_SET(width * irbpp));
 	} else {
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTIR_ADDR_CAM0_IDX],
-				NEO_PIPE_CONF_ADDR_SET(neoispd->queued_job.node_group->any_dma));
+				NEO_PIPE_CONF_ADDR_SET(nd->node_group->any_dma));
 		regmap_field_write(neoispd->regs.fields[NEO_PIPE_CONF_OUTIR_LS_CAM0_IDX],
-				NEO_PIPE_CONF_OUTIR_LS_CAM0_LS_SET(width * obpp));
+				NEO_PIPE_CONF_OUTIR_LS_CAM0_LS_SET(0));
 	}
 
 	return 0;
@@ -766,7 +787,6 @@ static int neoisp_prepare_job(struct neoisp_node_group_s *node_group)
 	struct neoisp_node_s *node;
 	unsigned long flags;
 	int i;
-	bool have_frame_or_ir = false;
 
 	lockdep_assert_held(&neoispd->hw_lock);
 
@@ -799,7 +819,6 @@ static int neoisp_prepare_job(struct neoisp_node_group_s *node_group)
 	}
 	node = &node_group->node[NEOISP_FRAME_NODE];
 	if (neoisp_node_link_state(node)) {
-		have_frame_or_ir = true;
 		if ((BIT(NEOISP_FRAME_NODE) & node_group->streaming_map)
 				!= BIT(NEOISP_FRAME_NODE)) {
 			dev_dbg(&neoispd->pdev->dev, "Frame node not ready, nothing to do\n");
@@ -808,7 +827,6 @@ static int neoisp_prepare_job(struct neoisp_node_group_s *node_group)
 	}
 	node = &node_group->node[NEOISP_IR_NODE];
 	if (neoisp_node_link_state(node)) {
-		have_frame_or_ir = true;
 		if ((BIT(NEOISP_IR_NODE) & node_group->streaming_map)
 				!= BIT(NEOISP_IR_NODE)) {
 			dev_dbg(&neoispd->pdev->dev, "IR node not ready, nothing to do\n");
@@ -822,11 +840,6 @@ static int neoisp_prepare_job(struct neoisp_node_group_s *node_group)
 			dev_dbg(&neoispd->pdev->dev, "Stats is not disabled and not ready\n");
 			return -EAGAIN;
 		}
-	}
-	if (!have_frame_or_ir) {
-		/* at least one output is needed frame or ir */
-		dev_dbg(&neoispd->pdev->dev, "Missing capture node: one of {frame, ir}\n");
-		return -EAGAIN;
 	}
 
 	for (i = 0; i < NEOISP_NODES_COUNT; i++) {
@@ -971,6 +984,22 @@ static int neoisp_prepare_node_streaming(struct neoisp_node_s *node)
 		params->regs.decompress_input1.ctrl_enable = 1;
 	}
 
+	/*
+	 * Check output modes (frame, ir, dummy or combination)
+	 */
+	if (!neoisp_node_link_state(&node_group->node[NEOISP_FRAME_NODE]) ||
+			!neoisp_node_link_state(&node_group->node[NEOISP_IR_NODE]) ||
+			FMT_IS_MONOCHROME(pixfmt)) {
+		if (!node_group->any_buf) {
+			struct neoisp_node_s *in0_node = &node_group->node[NEOISP_INPUT0_NODE];
+
+			/* Allocate a single line dummy buffer as line stride is set to 0 */
+			node_group->any_size = in0_node->crop.width * NEOISP_MAX_BPP;
+			node_group->any_buf = dma_alloc_coherent(&neoispd->pdev->dev,
+								 node_group->any_size,
+								 &node_group->any_dma, GFP_KERNEL);
+		}
+	}
 	if (node->id == NEOISP_FRAME_NODE) {
 		struct neoisp_node_s *in0_node = &node_group->node[NEOISP_INPUT0_NODE];
 
@@ -987,27 +1016,6 @@ static int neoisp_prepare_node_streaming(struct neoisp_node_s *node)
 					V4L2_YCBCR_ENC_DEFAULT :
 					node->format.fmt.pix_mp.ycbcr_enc),
 				  node->format.fmt.pix_mp.quantization);
-
-		if (!neoisp_node_link_state(&node_group->node[NEOISP_IR_NODE])
-				|| FMT_IS_MONOCHROME(pixfmt)) {
-			node_group->any_size = node->format.fmt.pix_mp.width
-						 * node->format.fmt.pix_mp.height
-						 * NEOISP_MAX_BPP;
-			node_group->any_buf = dma_alloc_coherent(&neoispd->pdev->dev,
-								 node_group->any_size,
-								 &node_group->any_dma, GFP_KERNEL);
-		}
-	}
-
-	if (node->id == NEOISP_IR_NODE) {
-		if (!neoisp_node_link_state(&node_group->node[NEOISP_FRAME_NODE])) {
-			node_group->any_size = node->format.fmt.pix_mp.width
-						 * node->format.fmt.pix_mp.height
-						 * NEOISP_MAX_BPP;
-			node_group->any_buf = dma_alloc_coherent(&neoispd->pdev->dev,
-								 node_group->any_size,
-								 &node_group->any_dma, GFP_KERNEL);
-		}
 	}
 
 	return 0;

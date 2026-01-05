@@ -113,7 +113,6 @@ static const struct vpu_format wave6_vpu_dec_fmt_list[2][6] = {
 };
 
 static int wave6_vpu_dec_seek_header(struct vpu_instance *inst);
-static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst);
 
 static const struct vpu_format *wave6_find_vpu_fmt(unsigned int v4l2_pix_fmt,
 						   enum vpu_fmt_type type)
@@ -175,6 +174,7 @@ static void wave6_vpu_dec_destroy_instance(struct vpu_instance *inst)
 			ret, fail_res);
 	}
 
+	cancel_work_sync(&inst->fb_work);
 	wave6_vpu_dec_release_fb(inst);
 
 	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_NONE);
@@ -242,15 +242,13 @@ static void wave6_update_pix_fmt_cap(struct v4l2_pix_format_mplane *pix_mp,
 
 static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 				     enum aux_buffer_type type,
-				     int num)
+				     int offset, int num)
 {
 	struct aux_buffer buf[WAVE6_MAX_FBS];
-	struct aux_buffer_info buf_info;
-	struct dec_aux_buffer_size_info size_info;
+	struct aux_buffer_info buf_info = { 0 };
+	struct dec_aux_buffer_size_info size_info = { 0 };
 	unsigned int size;
 	int i, ret;
-
-	memset(buf, 0, sizeof(buf));
 
 	size_info.width = inst->src_fmt.width;
 	size_info.height = inst->src_fmt.height;
@@ -262,34 +260,64 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 		return ret;
 	}
 
-	num = min_t(u32, num, WAVE6_MAX_FBS);
+	num = min_t(u32, num, WAVE6_MAX_FBS - offset);
 	for (i = 0; i < num; i++) {
-		inst->aux_vbuf[type][i].size = size;
+		struct vpu_buf *aux_vbuf = &inst->aux_vbuf[type][i + offset];
+
+		aux_vbuf->size = size;
+		aux_vbuf->recorder = inst->recorder;
+		aux_vbuf->label = wave6_vpu_get_aux_name(type);
 		if (inst->secure_mode) {
-			ret = wave6_allocate_secure_dma_memory(inst->dev, &inst->aux_vbuf[type][i]);
+			ret = wave6_allocate_secure_dma_memory(inst->dev, aux_vbuf);
 		} else
-			ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][i]);
+			ret = wave6_alloc_dma(inst->dev->dev, aux_vbuf);
+
 		if (ret) {
 			dev_err(inst->dev->dev, "%s: Alloc fail (type %d)\n", __func__, type);
 			return ret;
 		}
 
-		buf[i].index = i;
-		buf[i].addr = inst->aux_vbuf[type][i].daddr;
-		buf[i].size = inst->aux_vbuf[type][i].size;
+		buf[i].index = i + offset;
+		buf[i].addr = aux_vbuf->daddr;
+		buf[i].size = size;
 	}
 
 	buf_info.type = type;
+	buf_info.width = size_info.width;
+	buf_info.height = size_info.height;
 	buf_info.num = num;
 	buf_info.buf_array = buf;
 
 	ret = wave6_vpu_dec_register_aux_buffer(inst, buf_info);
 	if (ret) {
-		dev_err(inst->dev->dev, "%s: Register fail (type %d)\n", __func__, type);
+		dev_err(inst->dev->dev, "Register aux fail (type %d, offset %d)\n", type, offset);
 		return ret;
 	}
 
 	return 0;
+}
+
+static void wave6_vpu_dec_handle_fbc(struct vpu_instance *inst)
+{
+	unsigned int fb_stride = ALIGN(inst->src_fmt.width, W6_FBC_BUF_ALIGNMENT);
+	unsigned int fb_height = ALIGN(inst->src_fmt.height, W6_FBC_BUF_ALIGNMENT);
+	int num_of_fbc;
+	int ret;
+
+	num_of_fbc = inst->fbc_buf_acquired - inst->fbc_buf_registered;
+	if (num_of_fbc <= 0)
+		return;
+	ret = wave6_vpu_dec_register_frame_buffer_ex(inst,
+						     inst->fbc_buf_registered,
+						     num_of_fbc,
+						     fb_stride, fb_height,
+						     COMPRESSED_FRAME_MAP);
+	if (ret) {
+		dev_err(inst->dev->dev, "register frame buffer %d, count %d fail %d\n",
+			inst->fbc_buf_registered, num_of_fbc, ret);
+		return;
+	}
+	inst->fbc_buf_registered += num_of_fbc;
 }
 
 static void wave6_vpu_dec_handle_dst_buffer(struct vpu_instance *inst)
@@ -302,8 +330,8 @@ static void wave6_vpu_dec_handle_dst_buffer(struct vpu_instance *inst)
 	u32 fb_stride = inst->dst_fmt.plane_fmt[0].bytesperline;
 	u32 luma_size = fb_stride * inst->dst_fmt.height;
 	u32 chroma_size = (fb_stride / 2) * (inst->dst_fmt.height / 2);
-	struct frame_buffer disp_buffer = {0};
-	struct dec_initial_info initial_info = {0};
+	struct frame_buffer disp_buffer = { 0 };
+	struct dec_initial_info initial_info = { 0 };
 	int consumed_num = wave6_vpu_get_consumed_fb_num(inst);
 	int ret;
 
@@ -545,11 +573,9 @@ static inline bool wave6_vpu_vb_is_headers_only(struct vb2_v4l2_buffer *vbuf)
 
 static int wave6_vpu_dec_start_decode(struct vpu_instance *inst)
 {
-	struct dec_param pic_param;
+	struct dec_param pic_param = { 0 };
 	int ret;
 	u32 fail_res = 0;
-
-	memset(&pic_param, 0, sizeof(struct dec_param));
 
 	wave6_handle_bitstream_buffer(inst);
 	if (inst->state == VPU_INST_STATE_OPEN) {
@@ -561,7 +587,12 @@ static int wave6_vpu_dec_start_decode(struct vpu_instance *inst)
 		return -EAGAIN;
 	}
 
+	if (!inst->performance.ts_first)
+		inst->performance.ts_first = ktime_get_raw();
+
 	wave6_vpu_dec_handle_dst_buffer(inst);
+	if (inst->fbc_buf_registered < inst->fbc_buf_acquired)
+		wave6_vpu_dec_handle_fbc(inst);
 
 	ret = wave6_vpu_dec_start_one_frame(inst, &pic_param, &fail_res);
 	if (ret) {
@@ -629,6 +660,8 @@ static void wave6_handle_decoded_frame(struct vpu_instance *inst,
 	}
 	v4l2_m2m_buf_done(src_buf, state);
 	inst->processed_buf_num++;
+	if (inst->fbc_buf_used < inst->fbc_buf_registered)
+		inst->fbc_buf_used++;
 }
 
 static void wave6_handle_skipped_frame(struct vpu_instance *inst)
@@ -743,7 +776,7 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 	if (!dst_buf) {
 		dst_buf = v4l2_m2m_dst_buf_remove(inst->v4l2_fh.m2m_ctx);
 		if (!dst_buf) {
-			inst->next_buf_last = true;
+			inst->v4l2_fh.m2m_ctx->next_buf_last = true;
 			return;
 		}
 	}
@@ -760,9 +793,8 @@ static void wave6_handle_last_frame(struct vpu_instance *inst,
 	}
 
 	dprintk(inst->dev->dev, "[%d] last buffer\n", inst->id);
-	dst_buf->flags |= V4L2_BUF_FLAG_LAST;
 	dst_buf->field = V4L2_FIELD_NONE;
-	v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_DONE);
+	v4l2_m2m_last_buffer_done(inst->v4l2_fh.m2m_ctx, dst_buf);
 
 	if (inst->state != VPU_INST_STATE_INIT_SEQ) {
 		dprintk(inst->dev->dev, "[%d] eos\n", inst->id);
@@ -813,6 +845,11 @@ static void wave6_vpu_dec_handle_source_change(struct vpu_instance *inst,
 
 	wave6_vpu_dec_retry_one_frame(inst);
 
+	atomic_inc(&inst->fbc_tag);
+	cancel_work_sync(&inst->fb_work);
+	inst->fbc_buf_required = info->min_frame_buffer_count;
+	inst->fbc_buf_registered = 0;
+	inst->fbc_buf_used = 0;
 	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_INIT_SEQ);
 
 	inst->crop.left = info->pic_crop_rect.left;
@@ -833,7 +870,10 @@ static void wave6_vpu_dec_handle_source_change(struct vpu_instance *inst,
 		inst->reuse_fb = true;
 		wave6_event_src_ch_colorsapce(inst);
 	} else {
+		inst->reuse_fb = false;
+		inst->fbc_buf_acquired = 0;
 		wave6_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
+		queue_work(inst->workqueue, &inst->fb_work);
 		wave6_event_src_ch_resolution(inst);
 	}
 }
@@ -852,11 +892,9 @@ static void wave6_vpu_dec_handle_decoding_warn_error(struct vpu_instance *inst,
 
 static void wave6_vpu_dec_finish_decode(struct vpu_instance *inst, bool error)
 {
-	struct dec_output_info info;
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
+	struct dec_output_info info = { 0 };
 	int ret;
 
-	memset(&info, 0, sizeof(info));
 	ret = wave6_vpu_dec_get_output_info(inst, &info);
 	if (ret)
 		goto finish_decode;
@@ -874,8 +912,6 @@ static void wave6_vpu_dec_finish_decode(struct vpu_instance *inst, bool error)
 
 	if (info.notification_flags & DEC_NOTI_FLAG_SEQ_CHANGE) {
 		struct dec_initial_info initial_info = {0};
-
-		v4l2_m2m_mark_stopped(m2m_ctx);
 
 		if (info.frame_display)
 			wave6_handle_display_frames(inst, &info);
@@ -1329,7 +1365,7 @@ static int wave6_vpu_dec_start_cmd(struct vpu_instance *inst)
 
 	vb2_clear_last_buffer_dequeued(q);
 	if (inst->state == VPU_INST_STATE_INIT_SEQ)
-		ret = wave6_vpu_dec_prepare_fb(inst);
+		wave6_vpu_set_instance_state(inst, VPU_INST_STATE_PIC_RUN);
 
 	return ret;
 }
@@ -1456,10 +1492,9 @@ static void wave6_set_dec_openparam(struct dec_open_param *open_param,
 static int wave6_vpu_dec_create_instance(struct vpu_instance *inst)
 {
 	int ret;
-	struct dec_open_param open_param;
+	struct dec_open_param open_param = { 0 };
 
-	memset(&open_param, 0, sizeof(struct dec_open_param));
-
+	inst->performance.ts_start = ktime_get_raw();
 	wave6_vpu_activate(inst->dev);
 	ret = pm_runtime_resume_and_get(inst->dev->dev);
 	if (ret) {
@@ -1487,6 +1522,8 @@ static int wave6_vpu_dec_create_instance(struct vpu_instance *inst)
 
 	dprintk(inst->dev->dev, "[%d] decoder\n", inst->id);
 
+	atomic_set(&inst->fbc_tag, 0);
+
 	wave6_vpu_create_dbgfs_file(inst);
 	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_OPEN);
 	inst->v4l2_fh.m2m_ctx->ignore_cap_streaming = true;
@@ -1503,9 +1540,11 @@ error_pm:
 static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst)
 {
 	int ret;
+	int tag;
 	unsigned int i;
 	unsigned int fb_num;
 	unsigned int mv_num;
+	unsigned int mv_cnt;
 	unsigned int fb_stride;
 	unsigned int fb_height;
 	unsigned int luma_size;
@@ -1522,17 +1561,30 @@ static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst)
 	chroma_size = ALIGN(fb_stride / 2, W6_FBC_BUF_ALIGNMENT) * fb_height;
 
 	if (inst->reuse_fb)
-		goto register_fb;
+		return 0;
 
-	for (i = 0; i < fb_num; i++) {
+	tag = atomic_read(&inst->fbc_tag);
+
+	WARN_ON(inst->fbc_buf_acquired);
+
+	for (i = inst->fbc_buf_acquired; i < inst->fbc_buf_required; i++) {
 		struct frame_buffer *frame = &inst->frame_buf[i];
 		struct vpu_buf *vframe = &inst->frame_vbuf[i];
 
+		/* If the tag is changed, it means that a new source change event
+		 * has been triggered and the previous fbc work needs to be aborted.
+		 */
+		if (tag != atomic_read(&inst->fbc_tag))
+			break;
+
 		vframe->size = luma_size + chroma_size;
+		vframe->recorder = inst->recorder;
+		vframe->label = "fb";
 		if (inst->secure_mode) {
 			ret = wave6_allocate_secure_dma_memory(inst->dev, vframe);
 		} else
 			ret = wave6_alloc_dma(inst->dev->dev, vframe);
+
 		if (ret) {
 			dev_err(inst->dev->dev, "alloc FBC buffer fail : %zu\n",
 				vframe->size);
@@ -1546,37 +1598,40 @@ static int wave6_vpu_dec_prepare_fb(struct vpu_instance *inst)
 		frame->stride = fb_stride;
 		frame->height = fb_height;
 		frame->map_type = COMPRESSED_FRAME_MAP;
+
+		ret = wave6_allocate_aux_buffer(inst, AUX_BUF_FBC_Y_TBL, i, 1);
+		if (ret)
+			goto error;
+
+		ret = wave6_allocate_aux_buffer(inst, AUX_BUF_FBC_C_TBL, i, 1);
+		if (ret)
+			goto error;
+
+		if (i < mv_num) {
+			mv_cnt = 1;
+			if (mv_num > fb_num && i == fb_num - 1)
+				mv_cnt = mv_num - fb_num;
+			ret = wave6_allocate_aux_buffer(inst, AUX_BUF_MV_COL, i, mv_cnt);
+			if (ret)
+				goto error;
+		}
+
+		inst->fbc_buf_acquired++;
+		v4l2_m2m_try_schedule(inst->v4l2_fh.m2m_ctx);
 	}
-
-	ret = wave6_allocate_aux_buffer(inst, AUX_BUF_FBC_Y_TBL, fb_num);
-	if (ret)
-		goto error;
-
-	ret = wave6_allocate_aux_buffer(inst, AUX_BUF_FBC_C_TBL, fb_num);
-	if (ret)
-		goto error;
-
-	ret = wave6_allocate_aux_buffer(inst, AUX_BUF_MV_COL, mv_num);
-	if (ret)
-		goto error;
-
-register_fb:
-	ret = wave6_vpu_dec_register_frame_buffer_ex(inst, fb_num, fb_stride,
-						     fb_height,
-						     COMPRESSED_FRAME_MAP);
-	if (ret) {
-		dev_err(inst->dev->dev, "register frame buffer fail %d\n", ret);
-		goto error;
-	}
-
-	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_PIC_RUN);
-	inst->reuse_fb = false;
 
 	return 0;
 
 error:
 	wave6_vpu_dec_release_fb(inst);
 	return ret;
+}
+
+static void wave6_vpu_dec_fb_work(struct work_struct *work)
+{
+	struct vpu_instance *inst = container_of(work, struct vpu_instance, fb_work);
+
+	wave6_vpu_dec_prepare_fb(inst);
 }
 
 static int wave6_vpu_dec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
@@ -1622,22 +1677,16 @@ static int wave6_vpu_dec_queue_setup(struct vb2_queue *q, unsigned int *num_buff
 		}
 	}
 
-	if (V4L2_TYPE_IS_OUTPUT(q->type) &&
-	    inst->state == VPU_INST_STATE_SEEK) {
-		wave6_vpu_pause(inst->dev->dev, 0);
+	if (V4L2_TYPE_IS_OUTPUT(q->type) && inst->state == VPU_INST_STATE_SEEK)
 		wave6_vpu_dec_destroy_instance(inst);
-		wave6_vpu_pause(inst->dev->dev, 1);
-	}
 
 	return 0;
 }
 
 static int wave6_vpu_dec_seek_header(struct vpu_instance *inst)
 {
-	struct dec_initial_info initial_info;
+	struct dec_initial_info initial_info = { 0 };
 	int ret;
-
-	memset(&initial_info, 0, sizeof(struct dec_initial_info));
 
 	ret = wave6_vpu_dec_issue_seq_init(inst);
 	if (ret) {
@@ -1697,12 +1746,10 @@ static void wave6_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 		vb2_plane_size(&vbuf->vb2_buf, 1), vb2_plane_size(&vbuf->vb2_buf, 2));
 
 	inst->queued_dst_buf_num++;
-	if (inst->next_buf_last) {
+	if (inst->v4l2_fh.m2m_ctx->next_buf_last)
 		wave6_handle_last_frame(inst, vbuf);
-		inst->next_buf_last = false;
-	} else {
+	else
 		v4l2_m2m_buf_queue(inst->v4l2_fh.m2m_ctx, vbuf);
-	}
 }
 
 static void wave6_vpu_dec_buf_queue(struct vb2_buffer *vb)
@@ -1727,7 +1774,7 @@ static int wave6_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 
 	trace_start_streaming(inst, q->type);
 
-	wave6_vpu_pause(inst->dev->dev, 0);
+	v4l2_m2m_update_start_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		fmt = &inst->src_fmt;
@@ -1741,15 +1788,11 @@ static int wave6_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 			wave6_vpu_set_instance_state(inst, inst->state_in_seek);
 	} else {
 		fmt = &inst->dst_fmt;
-		if (inst->state == VPU_INST_STATE_INIT_SEQ) {
-			ret = wave6_vpu_dec_prepare_fb(inst);
-			if (ret)
-				goto exit;
-		}
+		if (inst->state == VPU_INST_STATE_INIT_SEQ)
+			wave6_vpu_set_instance_state(inst, VPU_INST_STATE_PIC_RUN);
 	}
 
 exit:
-	wave6_vpu_pause(inst->dev->dev, 1);
 	if (ret)
 		wave6_vpu_return_buffers(inst, q->type, VB2_BUF_STATE_QUEUED);
 
@@ -1767,7 +1810,6 @@ exit:
 static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 
 	trace_stop_streaming(inst, q->type);
 
@@ -1778,7 +1820,7 @@ static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 	if (inst->state == VPU_INST_STATE_NONE)
 		goto exit;
 
-	wave6_vpu_pause(inst->dev->dev, 0);
+	v4l2_m2m_update_stop_streaming_state(inst->v4l2_fh.m2m_ctx, q);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
 		wave6_vpu_reset_performance(inst);
@@ -1790,16 +1832,11 @@ static void wave6_vpu_dec_stop_streaming(struct vb2_queue *q)
 		wave6_vpu_set_instance_state(inst, VPU_INST_STATE_SEEK);
 		inst->sequence = 0;
 	} else {
-		if (v4l2_m2m_has_stopped(m2m_ctx))
-			v4l2_m2m_clear_state(m2m_ctx);
-
 		inst->eos = false;
 		inst->queued_dst_buf_num = 0;
 		inst->sequence = 0;
 		wave6_vpu_dec_flush_instance(inst);
 	}
-
-	wave6_vpu_pause(inst->dev->dev, 1);
 
 exit:
 	wave6_vpu_return_buffers(inst, q->type, VB2_BUF_STATE_ERROR);
@@ -1808,8 +1845,10 @@ exit:
 static int wave6_vpu_dec_buf_init(struct vb2_buffer *vb)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
-	struct dec_initial_info initial_info = {0};
+	struct dec_initial_info initial_info = { 0 };
 	int i;
+
+	wave6_vpu_buf_init(vb);
 
 	if (V4L2_TYPE_IS_OUTPUT(vb->type))
 		return 0;
@@ -1836,6 +1875,7 @@ static const struct vb2_ops wave6_vpu_dec_vb2_ops = {
 	.start_streaming = wave6_vpu_dec_start_streaming,
 	.stop_streaming = wave6_vpu_dec_stop_streaming,
 	.buf_init = wave6_vpu_dec_buf_init,
+	.buf_cleanup = wave6_vpu_buf_cleanup,
 };
 
 static void wave6_set_default_format(struct v4l2_pix_format_mplane *src_fmt,
@@ -1875,7 +1915,7 @@ static int wave6_vpu_dec_queue_init(void *priv, struct vb2_queue *src_vq, struct
 	src_vq->min_queued_buffers = 1;
 	src_vq->allow_cache_hints = 1;
 	src_vq->drv_priv = inst;
-	src_vq->lock = &inst->dev->dev_lock;
+	src_vq->lock = &inst->queue_lock;
 	src_vq->dev = inst->dev->v4l2_dev.dev;
 	ret = vb2_queue_init(src_vq);
 	if (ret)
@@ -1890,7 +1930,7 @@ static int wave6_vpu_dec_queue_init(void *priv, struct vb2_queue *src_vq, struct
 	dst_vq->min_queued_buffers = 1;
 	dst_vq->allow_cache_hints = 1;
 	dst_vq->drv_priv = inst;
-	dst_vq->lock = &inst->dev->dev_lock;
+	dst_vq->lock = &inst->queue_lock;
 	dst_vq->dev = inst->dev->v4l2_dev.dev;
 	ret = vb2_queue_init(dst_vq);
 	if (ret)
@@ -1918,6 +1958,8 @@ static int wave6_vpu_open_dec(struct file *filp)
 	inst->dev = dev;
 	inst->type = VPU_INST_TYPE_DEC;
 	inst->ops = &wave6_vpu_dec_inst_ops;
+	mutex_init(&inst->queue_lock);
+	inst->recorder = imx_mur_create_node(dev->recorder, "decoder instance");
 
 	v4l2_fh_init(&inst->v4l2_fh, vdev);
 	filp->private_data = &inst->v4l2_fh;
@@ -1955,6 +1997,7 @@ static int wave6_vpu_open_dec(struct file *filp)
 			       V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE);
 
 	v4l2_ctrl_new_custom(&inst->v4l2_ctrl_hdl, &wave6_vpu_secure_mode, NULL);
+	imx_mur_new_v4l2_ctrl(&inst->v4l2_ctrl_hdl, inst->recorder);
 
 	if (inst->v4l2_ctrl_hdl.error) {
 		ret = -ENODEV;
@@ -1970,11 +2013,25 @@ static int wave6_vpu_open_dec(struct file *filp)
 	inst->quantization = V4L2_QUANTIZATION_DEFAULT;
 	inst->xfer_func = V4L2_XFER_FUNC_DEFAULT;
 
+	inst->workqueue = alloc_ordered_workqueue("wave6-decoder", WQ_MEM_RECLAIM);
+	if (!inst->workqueue) {
+		dev_err(inst->dev->dev, "Failed to alloc workqueue\n");
+		ret = -EINVAL;
+		goto err_ctrl_free;
+	}
+	INIT_WORK(&inst->fb_work, wave6_vpu_dec_fb_work);
+
 	return 0;
 
+err_ctrl_free:
+	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 err_m2m_release:
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
 free_inst:
+	v4l2_fh_del(&inst->v4l2_fh);
+	v4l2_fh_exit(&inst->v4l2_fh);
+	imx_mur_destroy_node(inst->recorder);
+	mutex_destroy(&inst->queue_lock);
 	kfree(inst);
 	return ret;
 }
@@ -1984,19 +2041,21 @@ static int wave6_vpu_dec_release(struct file *filp)
 	struct vpu_instance *inst = wave6_to_vpu_inst(filp->private_data);
 
 	dprintk(inst->dev->dev, "[%d] release\n", inst->id);
+	cancel_work_sync(&inst->fb_work);
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
 
-	mutex_lock(&inst->dev->dev_lock);
-	if (inst->state != VPU_INST_STATE_NONE) {
-		wave6_vpu_pause(inst->dev->dev, 0);
+	mutex_lock(&inst->queue_lock);
+	if (inst->state != VPU_INST_STATE_NONE)
 		wave6_vpu_dec_destroy_instance(inst);
-		wave6_vpu_pause(inst->dev->dev, 1);
-	}
-	mutex_unlock(&inst->dev->dev_lock);
+	mutex_unlock(&inst->queue_lock);
 
+	destroy_workqueue(inst->workqueue);
+	imx_mur_release_v4l2_ctrl(inst->recorder);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	v4l2_fh_del(&inst->v4l2_fh);
 	v4l2_fh_exit(&inst->v4l2_fh);
+	imx_mur_destroy_node(inst->recorder);
+	mutex_destroy(&inst->queue_lock);
 	kfree(inst);
 
 	return 0;
@@ -2032,7 +2091,6 @@ int wave6_vpu_dec_register_device(struct vpu_device *dev)
 	vdev_dec->v4l2_dev = &dev->v4l2_dev;
 	vdev_dec->vfl_dir = VFL_DIR_M2M;
 	vdev_dec->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
-	vdev_dec->lock = &dev->dev_lock;
 	video_set_drvdata(vdev_dec, dev);
 
 	ret = video_register_device(vdev_dec, VFL_TYPE_VIDEO, -1);

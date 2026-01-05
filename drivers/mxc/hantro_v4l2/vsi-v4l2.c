@@ -40,6 +40,7 @@
 #include <linux/delay.h>
 #include <linux/version.h>
 #include "vsi-v4l2-priv.h"
+#include "vsi-v4l2-trace.h"
 
 #define DRIVER_NAME	"vsiv4l2"
 
@@ -111,8 +112,9 @@ static int vsi_v4l2_dbg_instance(struct seq_file *s, void *data)
 		return 0;
 
 	num = scnprintf(str, sizeof(str),
-			"status = %d, error = %d, flags = 0x%lx, tgid = %d, pid = %d\n",
-			ctx->status, ctx->error, ctx->flag, ctx->tgid, ctx->pid);
+			"id = %llx, status = %s, error = %d, flags = 0x%lx, tgid = %d, pid = %d\n",
+			ctx->ctxid, vsi_v4l2_status_name(ctx->status),
+			ctx->error, ctx->flag, ctx->tgid, ctx->pid);
 	if (seq_write(s, str, num))
 		return 0;
 
@@ -187,6 +189,10 @@ static int vsi_v4l2_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
+	num = scnprintf(str, sizeof(str), "memory usage %ld\n", imx_mur_long_read(ctx->recorder));
+	if (seq_write(s, str, num))
+		return 0;
+
 	return 0;
 }
 
@@ -250,6 +256,10 @@ static struct vsi_v4l2_ctx *get_ctx(unsigned long ctxid)
 static void put_ctx(struct vsi_v4l2_ctx *ctx)
 {
 	if (atomic_dec_return(&ctx->refcnt) == 0) {
+		trace_vsiv4l2_remove_ctx(ctx, 0);
+		dev_dbg(ctx->dev->dev, "[%llx] release %s instance\n",
+			ctx->ctxid, isencoder(ctx) ? "encoder" : "decoder");
+		imx_mur_destroy_node(ctx->recorder);
 		v4l2_klog(LOGLVL_BRIEF, "free ctx %llx", ctx->ctxid);
 		kfree(ctx);
 	}
@@ -277,6 +287,8 @@ static void release_ctx(struct vsi_v4l2_ctx *ctx, int notifydaemon)
 	return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
 	return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
 	removeallcropinfo(ctx);
+
+	imx_mur_release_v4l2_ctrl(ctx->recorder);
 
 	vb2_queue_release(&ctx->input_que);
 	vb2_queue_release(&ctx->output_que);
@@ -353,6 +365,32 @@ void wakeup_ctxqueues(void)
 	}
 }
 
+const char *vsi_v4l2_status_name(s32 status)
+{
+	switch (status) {
+	case VSI_STATUS_INIT:      return "init";
+	case ENC_STATUS_ENCODING:  return "encoding";
+	case ENC_STATUS_DRAINING:  return "draining";
+	case ENC_STATUS_STOPPED:   return "stopped";
+	case ENC_STATUS_EOS:       return "eos";
+	case DEC_STATUS_DECODING:  return "decoding";
+	case DEC_STATUS_DRAINING:  return "draining";
+	case DEC_STATUS_STOPPED:   return "stopped";
+	case DEC_STATUS_SEEK:      return "seek";
+	case DEC_STATUS_CAPSETUP:  return "capture setup";
+	case DEC_STATUS_ENDSTREAM: return "eos";
+	default: return "undefined";
+	}
+}
+
+void vsi_v4l2_set_ctx_status(struct vsi_v4l2_ctx *ctx, s32 status)
+{
+	dev_dbg(ctx->dev->dev, "[%llx] set status from %s to %s\n",
+		ctx->ctxid, vsi_v4l2_status_name(ctx->status), vsi_v4l2_status_name(status));
+	trace_vsiv4l2_set_status(ctx, status);
+	ctx->status = status;
+}
+
 static void vsi_v4l2_clear_event(struct vsi_v4l2_ctx *ctx)
 {
 	struct v4l2_event event;
@@ -387,7 +425,7 @@ int vsi_v4l2_reset_ctx(struct vsi_v4l2_ctx *ctx)
 		return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
 		return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
 		removeallcropinfo(ctx);
-		ctx->status = VSI_STATUS_INIT;
+		vsi_v4l2_set_ctx_status(ctx, VSI_STATUS_INIT);
 		ctx->reschange_cnt = 0;
 		vsi_set_ctx_error(ctx, 0);
 		if (isdecoder(ctx)) {
@@ -489,6 +527,15 @@ int vsi_v4l2_send_reschange(struct vsi_v4l2_ctx *ctx)
 {
 	struct v4l2_event event;
 
+	trace_vsiv4l2_source_change(&ctx->mediacfg, ctx->ctxid, ctx->src_change);
+	dev_dbg(ctx->dev->dev, "[%llx] source change: %dx%d %d bits, %d dpbs, change 0x%x\n",
+		ctx->ctxid,
+		ctx->mediacfg.decparams.dec_info.io_buffer.srcwidth,
+		ctx->mediacfg.decparams.dec_info.io_buffer.srcheight,
+		ctx->mediacfg.src_pixeldepth,
+		ctx->mediacfg.minbuf_4capture,
+		ctx->src_change);
+
 	if (!ctx->reschanged_need_notify) {
 		if (ctx->need_capture_on)
 			vsi_dec_capture_on(ctx);
@@ -564,6 +611,36 @@ int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg)
 		}
 		mutex_unlock(&ctx->ctxlock);
 	}
+	put_ctx(ctx);
+	return 0;
+}
+
+int vsi_v4l2_handle_linear_alloc(struct vsi_v4l2_msg *pmsg)
+{
+	unsigned long ctxid = pmsg->inst_id;
+	struct vsi_v4l2_ctx *ctx;
+
+	ctx = get_ctx(ctxid);
+	if (!ctx)
+		return -ESRCH;
+
+	imx_mur_long_new_and_add(ctx->recorder_ctrlsw, pmsg->params.linear_size, "linear");
+
+	put_ctx(ctx);
+	return 0;
+}
+
+int vsi_v4l2_handle_linear_free(struct vsi_v4l2_msg *pmsg)
+{
+	unsigned long ctxid = pmsg->inst_id;
+	struct vsi_v4l2_ctx *ctx;
+
+	ctx = get_ctx(ctxid);
+	if (!ctx)
+		return -ESRCH;
+
+	imx_mur_long_sub_and_del(ctx->recorder_ctrlsw, pmsg->params.linear_size);
+
 	put_ctx(ctx);
 	return 0;
 }
@@ -691,7 +768,7 @@ static void vsi_v4l2_dec_handle_last_empty_buffer(struct vsi_v4l2_ctx *ctx)
 		return;
 	if (ctx->status == DEC_STATUS_DRAINING ||
 	    test_bit(CTX_FLAG_PRE_DRAINING_BIT, &ctx->flag)) {
-		ctx->status = DEC_STATUS_ENDSTREAM;
+		vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_ENDSTREAM);
 		set_bit(CTX_FLAG_ENDOFSTRM_BIT, &ctx->flag);
 		clear_bit(CTX_FLAG_PRE_DRAINING_BIT, &ctx->flag);
 	}
@@ -805,6 +882,9 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 				v4l2_klog(LOGLVL_FLOW,  "enc output framed %d size = %d,flag=%lx, timestamp=%lld",
 						outbufidx, vb->planes[0].bytesused, ctx->vbufflag[outbufidx], vb->timestamp);
 				if (vb->planes[0].bytesused == 0 || (pmsg->param_type & LAST_BUFFER_FLAG)) {
+					trace_vsiv4l2_last(ctx, vb->type);
+					dev_dbg(ctx->dev->dev,
+						"[%llx] enc last buffer\n", ctx->ctxid);
 					vbuf->flags |= V4L2_BUF_FLAG_LAST;
 					ctx->vbufflag[outbufidx] |= LAST_BUFFER_FLAG;
 					v4l2_klog(LOGLVL_BRIEF, "%llx encoder got eos buffer", ctx->ctxid);
@@ -820,6 +900,9 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 				ctx->rfc_luma_offset[outbufidx] = pmsg->params.dec_params.io_buffer.rfc_luma_offset;
 				ctx->rfc_chroma_offset[outbufidx] = pmsg->params.dec_params.io_buffer.rfc_chroma_offset;
 				if (bytesused[0] == 0) {
+					trace_vsiv4l2_last(ctx, vb->type);
+					dev_dbg(ctx->dev->dev,
+						"[%llx] dec last buffer\n", ctx->ctxid);
 					vbuf->flags |= V4L2_BUF_FLAG_LAST;
 					v4l2_klog(LOGLVL_BRIEF, "%llx decoder got zero buffer in state %d", ctx->ctxid, ctx->status);
 					vsi_v4l2_dec_handle_last_empty_buffer(ctx);
@@ -964,6 +1047,8 @@ static int v4l2_probe(struct platform_device *pdev)
 	if (devm_device_add_group(&gvsidev->dev, &vsi_v4l2_attr_group))
 		v4l2_klog(LOGLVL_ERROR, "fail to create sysfs API");
 
+	vpu->recorder = imx_mur_create_node(NULL, "vsiv4l2");
+
 	v4l2_klog(LOGLVL_BRIEF, "vpu v4l2: module inserted. Major = %d\n", VSI_DAEMON_DEVMAJOR);
 	return 0;
 
@@ -996,6 +1081,7 @@ static void v4l2_remove(struct platform_device *pdev)
 		}
 	}
 
+	imx_mur_destroy_node(vpu->recorder);
 	debugfs_remove_recursive(vpu->debugfs);
 	vpu->debugfs = NULL;
 	vsi_v4l2_release_dec(vpu->vdec);

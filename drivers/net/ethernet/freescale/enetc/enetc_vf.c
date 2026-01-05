@@ -791,6 +791,15 @@ static int enetc_vf_probe(struct pci_dev *pdev,
 
 	si = pci_get_drvdata(pdev);
 	enetc_vf_get_revision(si);
+
+	si->devlink = device_link_add(&pdev->dev, &pdev->physfn->dev,
+				      DL_FLAG_PM_RUNTIME |
+				      DL_FLAG_STATELESS);
+	if (!si->devlink) {
+		err = -ENOMEM;
+		goto err_devlink_add;
+	}
+
 	INIT_WORK(&si->rx_mode_task, enetc_vf_do_set_rx_mode);
 	snprintf(wq_name, sizeof(wq_name), "enetc-%s", pci_name(pdev));
 	si->workqueue = create_singlethread_workqueue(wq_name);
@@ -865,6 +874,8 @@ err_init_cbdr:
 err_alloc_netdev:
 	destroy_workqueue(si->workqueue);
 err_create_wq:
+	device_link_del(si->devlink);
+err_devlink_add:
 	enetc_pci_remove(pdev);
 
 	return err;
@@ -886,7 +897,7 @@ static void enetc_vf_remove(struct pci_dev *pdev)
 	free_netdev(si->ndev);
 
 	destroy_workqueue(si->workqueue);
-
+	device_link_del(si->devlink);
 	enetc_pci_remove(pdev);
 }
 
@@ -897,11 +908,134 @@ static const struct pci_device_id enetc_vf_id_table[] = {
 };
 MODULE_DEVICE_TABLE(pci, enetc_vf_id_table);
 
+static int enetc_vf_enable_pdev(struct pci_dev *pdev)
+{
+	int err;
+
+	pcie_flr(pdev);
+	err = pci_enable_device_mem(pdev);
+	if (err)
+		return err;
+
+	pci_set_master(pdev);
+
+	return 0;
+}
+
+static int enetc_vf_restore_hw_config(struct enetc_si *si)
+{
+	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
+	struct device *dev = &si->pdev->dev;
+	struct net_device *ndev = si->ndev;
+	int err;
+
+	enetc4_enable_cbdr(si);
+
+	err = enetc_configure_si(priv);
+	if (err)
+		return err;
+
+	if (ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER) {
+		err = enetc_msg_vf_set_vlan_promisc(priv, false);
+		if (err) {
+			dev_err(dev, "Failed to disable VLAN promiscuous mode\n");
+			return err;
+		}
+
+		err = enetc_msg_vf_set_vlan_hash_filter(priv);
+		if (err) {
+			dev_err(dev, "Failed to set VLAN hash filter\n");
+			return err;
+		}
+	}
+
+	return enetc_restore_hw_config(si);
+}
+
+static int enetc_vf_suspend(struct device *dev)
+{
+	struct enetc_si *si = pci_get_drvdata(to_pci_dev(dev));
+
+	if (is_enetc_rev1(si))
+		return 0;
+
+	rtnl_lock();
+
+	if (!netif_running(si->ndev)) {
+		rtnl_unlock();
+		return 0;
+	}
+
+	netif_device_detach(si->ndev);
+	netif_carrier_off(si->ndev);
+	cancel_work(&si->rx_mode_task);
+	enetc_msg_vf_register_link_status_notify(si, false);
+	enetc_vf_free_msg_msix(si);
+	enetc_suspend(si->ndev, false);
+
+	rtnl_unlock();
+
+	pci_free_irq_vectors(si->pdev);
+	pci_disable_device(si->pdev);
+
+	return 0;
+}
+
+static int enetc_vf_resume(struct device *dev)
+{
+	struct enetc_si *si = pci_get_drvdata(to_pci_dev(dev));
+	struct net_device *ndev = si->ndev;
+	int err;
+
+	if (is_enetc_rev1(si))
+		return 0;
+
+	err = enetc_vf_enable_pdev(si->pdev);
+	if (err) {
+		dev_err(dev, "Failed to enable VF\n");
+		return err;
+	}
+
+	err = enetc_alloc_msix_vectors(netdev_priv(si->ndev));
+	if (err) {
+		dev_err(dev, "Failed to alloc MSI-X vectors\n");
+		return err;
+	}
+
+	err = enetc_vf_restore_hw_config(si);
+	if (err)
+		return err;
+
+	rtnl_lock();
+
+	if (!netif_running(ndev))
+		goto unlock_rtnl;
+
+	err = enetc_resume(ndev, false);
+	if (err) {
+		dev_err(dev, "Failed to resume VF\n");
+		goto unlock_rtnl;
+	}
+
+	enetc_vf_register_msg_msix(si);
+	enetc_msg_vf_register_link_status_notify(si, true);
+	netif_device_attach(ndev);
+
+unlock_rtnl:
+	rtnl_unlock();
+
+	return err;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(enetc_vf_pm_ops, enetc_vf_suspend,
+				enetc_vf_resume);
+
 static struct pci_driver enetc_vf_driver = {
 	.name = KBUILD_MODNAME,
 	.id_table = enetc_vf_id_table,
 	.probe = enetc_vf_probe,
 	.remove = enetc_vf_remove,
+	.driver.pm = pm_ptr(&enetc_vf_pm_ops),
 };
 module_pci_driver(enetc_vf_driver);
 

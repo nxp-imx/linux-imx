@@ -13,6 +13,14 @@
 	};
 
 	reserved-memory {
+		linux_cma: linux,cma {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0 0x80000000 0 0x7F000000>;
+			size = <0 0x2e000000>;
+			linux,cma-default;
+			reusable;
+		};
+
 		m7_reserved: m7@80000000 {
 			no-map;
 			reg = <0 0x80000000 0 0x1000000>;

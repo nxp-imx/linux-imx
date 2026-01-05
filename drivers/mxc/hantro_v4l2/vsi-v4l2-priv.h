@@ -25,6 +25,7 @@
 #include <linux/vmalloc.h>
 #include <linux/debugfs.h>
 #include <linux/imx_vpu.h>
+#include <linux/imx_memory_usage.h>
 #include "vsi-v4l2.h"
 
 #define CTX_SEQID_UPLIMT 0x7FFFFFFF
@@ -252,6 +253,7 @@ struct vsi_v4l2_device {
 	struct mutex lock;
 	struct mutex irqlock;
 	struct dentry *debugfs;
+	struct imx_mur_node *recorder;
 };
 
 struct vsi_vpu_buf {
@@ -293,6 +295,7 @@ enum {
 	CTX_FLAG_ENC_FLUSHBUF,				// if any src buf comes from last OUTPUT off or INIT
 	CTX_FLAG_CAPTUREOFFDONE,			// daemon finish handling capoff
 	CTX_FLAG_OUTPUTOFFDONE,				// daemon finish handling outputoff
+	CTX_FLAG_SARUPDATE,				// SAR is updated
 };
 
 /* flag for decoder buffer*/
@@ -371,6 +374,9 @@ struct vsi_v4l2_ctx {
 
 	struct vsi_vpu_performance_info performance;
 	struct dentry *debugfs;
+
+	struct imx_mur_node *recorder;
+	struct imx_mur_node *recorder_ctrlsw;
 };
 
 struct vsi_v4l2_ctrl_applicable {
@@ -386,6 +392,8 @@ void wakeup_ctxqueues(void);
 int vsi_v4l2_reset_ctx(struct vsi_v4l2_ctx *ctx);
 int vsi_v4l2_send_reschange(struct vsi_v4l2_ctx *ctx);
 int vsi_v4l2_notify_reschange(struct vsi_v4l2_msg *pmsg);
+int vsi_v4l2_handle_linear_alloc(struct vsi_v4l2_msg *pmsg);
+int vsi_v4l2_handle_linear_free(struct vsi_v4l2_msg *pmsg);
 int vsi_v4l2_handle_warningmsg(struct vsi_v4l2_msg *pmsg);
 int vsi_v4l2_handle_streamoffdone(struct vsi_v4l2_msg *pmsg);
 int vsi_v4l2_handle_cropchange(struct vsi_v4l2_msg *pmsg);
@@ -435,6 +443,9 @@ int vsiv4l2_buffer_config(
 	unsigned int *nplanes,
 	unsigned int sizes[]
 );
+int vsiv4l2_buf_init(struct vb2_buffer *vb);
+void vsiv4l2_buf_cleanup(struct vb2_buffer *vb);
+
 struct vsi_video_fmt *vsi_find_format(struct vsi_v4l2_ctx *ctx, struct v4l2_format *f);
 struct vsi_video_fmt *vsi_enum_dec_format(int idx, int braw, struct vsi_v4l2_ctx *ctx);
 struct vsi_video_fmt *vsi_enum_encformat(int idx, int braw);
@@ -454,6 +465,8 @@ void vsi_v4l2_update_ctrlcfg(struct v4l2_ctrl_config *cfg);
 void vsi_v4l2_reset_performance(struct vsi_v4l2_ctx *ctx);
 bool vsi_v4l2_ctrl_is_applicable(struct vsi_v4l2_ctx *ctx, u32 ctrl_id);
 int get_fmtprofile(struct vsi_v4l2_mediacfg *pcfg);
+void vsi_update_sar(struct vsi_v4l2_ctx *ctx);
+void vsi_update_slice_size(struct vsi_v4l2_ctx *ctx);
 
 static inline int isencoder(struct vsi_v4l2_ctx *ctx)
 {
@@ -663,6 +676,11 @@ static inline int vsi_checkctx_capoffdone(struct vsi_v4l2_ctx *ctx)
 		return 1;
 	return 0;
 }
+
+const char *vsi_v4l2_cmd_name(u32 id);
+bool vsi_v4l2_is_bufferdone_msg(struct vsi_v4l2_msg *msg);
+const char *vsi_v4l2_status_name(s32 status);
+void vsi_v4l2_set_ctx_status(struct vsi_v4l2_ctx *ctx, s32 status);
 
 #endif	//VSI_V4L2_PRIV_H
 

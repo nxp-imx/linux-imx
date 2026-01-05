@@ -1006,18 +1006,21 @@
 				reg = <0x2daf0000 0x10000>;
 				clocks = <&pcc5 IMX8ULP_CLK_CSI>,
 					 <&pcc5 IMX8ULP_CLK_CSI_CLK_ESC>,
-					 <&pcc5 IMX8ULP_CLK_CSI_CLK_UI>;
-				clock-names = "core", "esc", "ui";
+					 <&pcc5 IMX8ULP_CLK_CSI_CLK_UI>,
+					 <&pcc5 IMX8ULP_CLK_CSI_REGS>;
+				clock-names = "core", "esc", "ui", "pclk";
 				assigned-clocks = <&pcc5 IMX8ULP_CLK_CSI>,
 						  <&pcc5 IMX8ULP_CLK_CSI_CLK_ESC>,
-						  <&pcc5 IMX8ULP_CLK_CSI_CLK_UI>;
+						  <&pcc5 IMX8ULP_CLK_CSI_CLK_UI>,
+						  <&pcc5 IMX8ULP_CLK_CSI_REGS>;
 				assigned-clock-parents = <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV1>,
 							 <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV2>,
 							 <&cgc2 IMX8ULP_CLK_PLL4_PFD1_DIV2>;
 				power-domains = <&scmi_devpd IMX8ULP_PD_MIPI_CSI>;
-				assigned-clock-rates = <105600000>,
-							<79200000>,
-							<79200000>;
+				assigned-clock-rates = <200000000>,
+						       <80000000>,
+						       <100000000>,
+						       <79200000>;
 				resets = <&csr_regs_rst 0>;
 				fsl,mipi-phy-gpr = <&csr_regs 0x0>;
 				status = "disabled";

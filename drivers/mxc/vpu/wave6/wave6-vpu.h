@@ -85,7 +85,6 @@ static inline bool wave6_vpu_both_queues_are_streaming(struct vpu_instance *inst
 
 u32 wave6_vpu_get_consumed_fb_num(struct vpu_instance *inst);
 u32 wave6_vpu_get_used_fb_num(struct vpu_instance *inst);
-void wave6_vpu_pause(struct device *dev, int resume);
 void wave6_vpu_activate(struct vpu_device *dev);
 void wave6_vpu_wait_activated(struct vpu_device *dev);
 void wave6_vpu_force_dma_sync_single_for_device(struct vpu_device *dev,
@@ -121,5 +120,9 @@ int wave6_vpu_subscribe_event(struct v4l2_fh *fh,
 			      const struct v4l2_event_subscription *sub);
 void wave6_vpu_return_buffers(struct vpu_instance *inst,
 			      unsigned int type, enum vb2_buffer_state state);
+int wave6_vpu_buf_init(struct vb2_buffer *vb);
+void wave6_vpu_buf_cleanup(struct vb2_buffer *vb);
+
+int wave6_vpu_new_memory_usage_ctrl(struct vpu_instance *inst);
 
 #endif /* __WAVE6_VPU_H__ */

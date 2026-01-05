@@ -154,6 +154,7 @@ static int __init setup_proxy_exec(char *str)
 	}
 	return 1;
 }
+EXPORT_SYMBOL_GPL(__sched_proxy_exec);
 #else
 static int __init setup_proxy_exec(char *str)
 {
@@ -1367,7 +1368,7 @@ bool sched_can_stop_tick(struct rq *rq)
 	if (scx_enabled() && !scx_can_stop_tick(rq))
 		return false;
 
-	if (rq->cfs.h_nr_running > 1)
+	if (rq->cfs.h_nr_queued > 1)
 		return false;
 
 	/*
@@ -6600,11 +6601,13 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * opportunity to pull in more work from other CPUs.
 	 */
 	if (likely(!sched_class_above(prev->sched_class, &fair_sched_class) &&
-		   rq->nr_running == rq->cfs.h_nr_running)) {
+		   rq->nr_running == rq->cfs.h_nr_queued)) {
 
 		p = pick_next_task_fair(rq, prev, rf);
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
+
+		trace_android_vh_chk_task(&p, rq);
 
 		/* Assume the next prioritized class is idle_sched_class */
 		if (!p) {
@@ -6621,10 +6624,12 @@ restart:
 	for_each_active_class(class) {
 		if (class->pick_next_task) {
 			p = class->pick_next_task(rq, prev);
+			trace_android_vh_chk_task(&p, rq);
 			if (p)
 				return p;
 		} else {
 			p = class->pick_task(rq);
+			trace_android_vh_chk_task(&p, rq);
 			if (p) {
 				put_prev_set_next_task(rq, prev, p);
 				return p;

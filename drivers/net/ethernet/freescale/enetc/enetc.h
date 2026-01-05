@@ -72,13 +72,14 @@ struct enetc_lso_t {
 #define ENETC_LSO_MAX_DATA_LEN		(256 * ENETC_1KB_SIZE)
 
 #define ENETC_RX_MAXFRM_SIZE	ENETC_MAC_MAXFRM_SIZE
-#define ENETC_RXB_TRUESIZE	2048 /* PAGE_SIZE >> 1 */
+#define ENETC_PAGE_SIZE(order)		(PAGE_SIZE << (order))
+#define ENETC_RXB_TRUESIZE(order)	(ENETC_PAGE_SIZE(order) >> 1)
 #define ENETC_RXB_PAD		NET_SKB_PAD /* add extra space if needed */
-#define ENETC_RXB_DMA_SIZE	\
-	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE) - ENETC_RXB_PAD)
-#define ENETC_RXB_DMA_SIZE_XDP	\
-	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE) - XDP_PACKET_HEADROOM)
-#define ENETC_RS_MAX_BYTES	(ENETC_RXB_DMA_SIZE * (MAX_SKB_FRAGS + 1))
+#define ENETC_RXB_DMA_SIZE(order)	\
+	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) - ENETC_RXB_PAD)
+#define ENETC_RXB_DMA_SIZE_XDP(order)	\
+	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) \
+	 - XDP_PACKET_HEADROOM)
 
 struct enetc_rx_swbd {
 	dma_addr_t dma;
@@ -165,6 +166,7 @@ struct enetc_bdr {
 	};
 	void __iomem *idr; /* Interrupt Detect Register pointer */
 
+	int page_order;
 	int buffer_offset;
 	struct enetc_xdp_data xdp;
 
@@ -317,6 +319,7 @@ struct enetc_si {
 	struct enetc_mac_filter mac_filter[MADDR_TYPE];
 	struct mutex msg_lock; /* mailbox message lock */
 	char msg_int_name[ENETC_INT_NAME_MAX];
+	struct device_link *devlink;
 
 	DECLARE_BITMAP(active_vlans, VLAN_N_VID);
 	DECLARE_BITMAP(vlan_ht_filter, ENETC_VLAN_HT_SIZE);
@@ -408,7 +411,8 @@ struct enetc_int_vector {
 struct enetc_cls_rule {
 	struct ethtool_rx_flow_spec fs;
 	u32 entry_id;
-	int used;
+	u32 used:1;
+	u32 is_rfs:1;
 };
 
 #define ENETC_MAX_BDR_INT	6 /* fixed to max # of available cpus */
@@ -517,6 +521,7 @@ struct enetc_ndev_priv {
 	 * and link state updates
 	 */
 	struct mutex		mm_lock;
+	int page_order;
 };
 
 #define ENETC_CBD(R, i)	(&(((struct enetc_cbd *)((R).bd_base))[i]))
@@ -533,6 +538,7 @@ u32 enetc_port_mac_rd(struct enetc_si *si, u32 reg);
 void enetc_port_mac_wr(struct enetc_si *si, u32 reg, u32 val);
 int enetc_pci_probe(struct pci_dev *pdev, const char *name, int sizeof_priv);
 void enetc_pci_remove(struct pci_dev *pdev);
+int enetc_alloc_msix_vectors(struct enetc_ndev_priv *priv);
 int enetc_alloc_msix(struct enetc_ndev_priv *priv);
 void enetc_free_msix(struct enetc_ndev_priv *priv);
 void enetc_get_si_caps(struct enetc_si *si);
@@ -564,6 +570,11 @@ void enetc_add_mac_addr_ht_filter(struct enetc_mac_filter *filter,
 				  const unsigned char *addr);
 int enetc_vid_hash_idx(unsigned int vid);
 void enetc_refresh_vlan_ht_filter(struct enetc_si *si);
+int enetc_restore_hw_config(struct enetc_si *si);
+
+int enetc_reconfigure(struct enetc_ndev_priv *priv, bool extended,
+		      int (*cb)(struct enetc_ndev_priv *priv, void *ctx),
+		      void *ctx);
 
 /* ethtool */
 void enetc_set_ethtool_ops(struct net_device *ndev);
@@ -574,6 +585,7 @@ void enetc_eee_mode_set(struct net_device *dev, bool enable);
 /* control buffer descriptor ring (CBDR) */
 int enetc_init_cbdr(struct enetc_si *si);
 void enetc_free_cbdr(struct enetc_si *si);
+void enetc4_enable_cbdr(struct enetc_si *si);
 int enetc_set_mac_flt_entry(struct enetc_si *si, int index,
 			    char *mac_addr, int si_map);
 int enetc_clear_mac_flt_entry(struct enetc_si *si, int index);

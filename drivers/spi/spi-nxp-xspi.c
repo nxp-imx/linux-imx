@@ -824,6 +824,8 @@ static void nxp_xspi_fill_txfifo(struct nxp_xspi *xspi,
 		reg = xspi_readl(xspi, base + XSPI_FR);
 		WARN_ON(!(reg & XSPI_FR_TBFF));
 		if (i == ALIGN_DOWN(op->data.nbytes, 4)) {
+			/* use 0xff for extra bytes */
+			left = 0xffffffff;
 			/* the last 1 to 3 bytes */
 			memcpy((u8 *)&left, buf + i, op->data.nbytes - i);
 			xspi_writel(xspi, left, base + XSPI_TBDR);
@@ -894,8 +896,9 @@ static int nxp_xspi_do_op(struct nxp_xspi *xspi, const struct spi_mem_op *op)
 {
 	void __iomem *base = xspi->iobase;
 	int watermark, err = 0;
-	u32 reg;
+	u32 reg, len;
 
+	len = op->data.nbytes;
 	if (op->data.nbytes && op->data.dir == SPI_MEM_DATA_OUT) {
 		/* clear the TX FIFO. */
 		reg = xspi_readl(xspi, base + XSPI_MCR);
@@ -904,9 +907,25 @@ static int nxp_xspi_do_op(struct nxp_xspi *xspi, const struct spi_mem_op *op)
 		/* Wait for the CLR_TXF clear */
 		err = xspi_readl_poll_tout(xspi, base + XSPI_MCR,
 					   XSPI_MCR_CLR_TXF, 1, POLL_TOUT, false);
-		watermark = (xspi->devtype_data->txfifo - ALIGN_DOWN(op->data.nbytes, 4)) / 4 + 1;
+		/* cover the no 4bytes alignment data length */
+		watermark = (xspi->devtype_data->txfifo - ALIGN(op->data.nbytes, 4)) / 4 + 1;
 		reg = XSPI_TBCT_WMRK(watermark);
 		xspi_writel(xspi, reg, base + XSPI_TBCT);
+		/*
+		 * According to the RM, for TBDR register, a write transaction on the
+		 * flash memory with data size of less than 32 bits leads to the removal
+		 * of one data entry from the TX buffer. The valid bits are used and the
+		 * rest of the bits are discarded.
+		 * But for data size large than 32 bits, according to test, for no 4bytes
+		 * alignment data, the last 1~3 bytes will lost, because TX buffer use
+		 * 4 bytes entries.
+		 * So here adjust the transfer data length to make it 4bytes alignment.
+		 * then will meet the upper watermark setting, trigger the 4bytes entries
+		 * pop out.
+		 * Will use extra 0xff to append, refer to nxp_xspi_fill_txfifo().
+		 */
+		if (len > 4)
+			len = ALIGN(op->data.nbytes, 4);
 
 	} else if (op->data.nbytes && op->data.dir == SPI_MEM_DATA_IN) {
 		/* invalid RXFIFO first */
@@ -927,7 +946,7 @@ static int nxp_xspi_do_op(struct nxp_xspi *xspi, const struct spi_mem_op *op)
 
 	/* cofnig the data size and lut id, trigger the transfer */
 	reg = XSPI_SFP_TG_IPCR_SEQID(XSPI_SEQID_LUT) |
-			XSPI_SFP_TG_IPCR_IDATSZ(op->data.nbytes);
+			XSPI_SFP_TG_IPCR_IDATSZ(len);
 
 	xspi_writel(xspi, reg, base + XSPI_SFP_TG_IPCR);
 

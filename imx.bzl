@@ -348,7 +348,7 @@ _IMX_IN_TREE_MODULES = [
     "drivers/mfd/max96789-i2c.ko",
     "drivers/firmware/arm_scmi/scmi_power_control.ko",
     "drivers/media/platform/nxp/imx-csi-formatter.ko",
-    "drivers/media/i2c/ox05b1s/ox05b1s_mipi.ko",
+    "drivers/media/i2c/ox05b1s/ox05b1s.ko",
     "drivers/firmware/imx/sm-misc.ko",
     "drivers/remoteproc/imx_neutron_rproc.ko",
     "drivers/mfd/max96752-core.ko",
@@ -438,6 +438,11 @@ _IMX_IN_TREE_MODULES = [
     "drivers/video/fbdev/core/sysimgblt.ko",
     "drivers/video/fbdev/core/sysfillrect.ko",
     "drivers/video/logo/linux_logo.ko",
+    "drivers/mxc/vpu/memory_usage/memory_usage.ko",
+    "drivers/media/v4l2-core/v4l2-cci.ko",
+    "drivers/hwmon/pwm-fan.ko",
+    "drivers/gpu/arm/pma/protected_memory_allocator.ko",
+    "drivers/gpu/arm/pma/protected_heap.ko",
 ]
 
 def define_imx():

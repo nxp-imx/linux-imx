@@ -255,16 +255,6 @@ static void dpu95_fu_disable_src_buf(struct dpu95_fetchunit *fu)
 	if (fu->fe)
 		fu->fe->ops.disable_src_buf(fu->fe);
 
-	if (fu->hs) {
-		dpu95_hs_pec_clken(fu->hs, CLKEN_DISABLE);
-		dpu95_hs_mode(fu->hs, SCALER_NEUTRAL);
-	}
-
-	if (fu->vs) {
-		dpu95_vs_pec_clken(fu->vs, CLKEN_DISABLE);
-		dpu95_vs_mode(fu->vs, SCALER_NEUTRAL);
-	}
-
 	if (fu->lb) {
 		dpu95_lb_pec_clken(fu->lb, CLKEN_DISABLE);
 		dpu95_lb_mode(fu->lb, LB_NEUTRAL);

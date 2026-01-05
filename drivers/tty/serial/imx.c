@@ -237,10 +237,10 @@ struct imx_port {
 	struct hrtimer		trigger_stop_tx;
 
 	struct pm_qos_request   pm_qos_req;
+	unsigned int            rxtl;
 
 	/* Disable uart equest high in powersave module */
 	bool imx8mp_disable_uart_request_high;
-	unsigned int		rxtl;
 };
 
 struct imx_port_ucrs {

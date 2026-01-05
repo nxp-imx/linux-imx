@@ -311,8 +311,10 @@ static void inference_done_callback(struct work_struct *work)
 	wake_up_interruptible(&inf->waitq);
 
 	/* Reset neutron */
+	mutex_lock(&ndev->mutex);
 	if (mbox->ops->send_reset(ndev->mbox))
 		dev_warn(ndev->dev, "failed to reset neutron state\n");
+	mutex_unlock(&ndev->mutex);
 
 	dev_dbg(ndev->dev, "inf %x is done\n", inf->args.tensor_offset);
 

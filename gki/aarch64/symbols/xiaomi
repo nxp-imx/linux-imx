@@ -8,12 +8,12 @@
   #required by perf_helper.ko
   __traceiter_android_rvh_dequeue_entity_delayed
   __tracepoint_android_rvh_dequeue_entity_delayed
-  __traceiter_f2fs_submit_folio_write
-  __tracepoint_f2fs_submit_folio_write
   __traceiter_android_vh_fuse_request_send
   __tracepoint_android_vh_fuse_request_send
   __traceiter_android_vh_fuse_request_end
   __tracepoint_android_vh_fuse_request_end
+  __traceiter_android_vh_throttle_direct_reclaim_bypass
+  __tracepoint_android_vh_throttle_direct_reclaim_bypass
 
 # commonly used symbols
   __traceiter_android_vh_logbuf
@@ -90,6 +90,18 @@
   blk_mq_alloc_queue
   scsi_host_busy
   dev_pm_opp_find_freq_ceil_indexed
+  __traceiter_android_vh_customize_thp_gfp_orders
+  __tracepoint_android_vh_customize_thp_gfp_orders
+  __traceiter_android_vh_customize_pmd_gfp_bypass
+  __tracepoint_android_vh_customize_pmd_gfp_bypass
+  __traceiter_android_vh_thp_vma_allowable_orders
+  __tracepoint_android_vh_thp_vma_allowable_orders
+  __traceiter_cma_alloc_busy_retry
+  __tracepoint_cma_alloc_busy_retry
+  __traceiter_cma_release
+  __tracepoint_cma_release
+  __traceiter_android_vh_dma_buf_release
+  __tracepoint_android_vh_dma_buf_release
 
 #required by stability
   sock_from_file
@@ -154,6 +166,16 @@
 
 # required by dw_wdt.ko
   android_rvh_probe_register
+  __traceiter_android_rvh_fiq_dump
+  __tracepoint_android_rvh_fiq_dump
+
+# required by kmod_protect.ko
+  __traceiter_android_vh_free_mod_mem
+  __traceiter_android_vh_set_mod_perm_after_init
+  __traceiter_android_vh_set_mod_perm_before_init
+  __tracepoint_android_vh_free_mod_mem
+  __tracepoint_android_vh_set_mod_perm_after_init
+  __tracepoint_android_vh_set_mod_perm_before_init
 
 #required by mi_sched.ko
   __traceiter_android_vh_scheduler_tick
@@ -456,6 +478,8 @@ __traceiter_android_vh_filemap_map_pages
 __tracepoint_android_vh_filemap_map_pages
 
 #required by xiaomi network protocol
+__fl6_sock_lookup
+__get_hash_from_flowi6
 __percpu_counter_init_many
 __sk_dst_check
 __sk_mem_schedule
@@ -479,6 +503,7 @@ inet_unregister_protosw
 ip6_dst_lookup_flow
 ip_getsockopt
 ip_setsockopt
+ipv6_flowlabel_exclusive
 ipv6_getsockopt
 ipv6_setsockopt
 nr_free_buffer_pages
@@ -504,3 +529,13 @@ vfs_fadvise
 __tracepoint_android_rvh_update_cpus_allowed
 __traceiter_android_rvh_update_cpus_allowed
 
+# required by mi cap manager
+task_work_add
+
+# required by xr-qi.ko
+__tracepoint_android_vh_futex_wait_queue_start
+__traceiter_android_vh_futex_wait_queue_start
+__traceiter_android_vh_fuse_request_send_ext
+__tracepoint_android_vh_fuse_request_send_ext
+__traceiter_android_vh_fuse_request_end_ext
+__tracepoint_android_vh_fuse_request_end_ext

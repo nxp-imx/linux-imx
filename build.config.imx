@@ -15,7 +15,10 @@ POST_DEFCONFIG_CMDS="update_config"
 function update_config() {
     ${KERNEL_DIR}/scripts/config --file ${OUT_DIR}/.config \
          -e HAVE_IMX_BUSFREQ \
-         -e IMX_SEC_ENCLAVE
+         -e IMX_SEC_ENCLAVE \
+         -m MXC_VIDEO_WAVE6 \
+         -m VIDEO_AMPHION_VPU \
+         -m MXC_HANTRO_845_H1
     rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}
 }
 

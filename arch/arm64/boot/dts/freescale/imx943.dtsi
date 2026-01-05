@@ -381,7 +381,6 @@
 			polling-delay-passive = <250>;
 			polling-delay = <2000>;
 			thermal-sensors = <&scmi_sensor 0>;
-			status = "disabled";
 			trips {
 				ana_alert: trip0 {
 					temperature = <105000>;

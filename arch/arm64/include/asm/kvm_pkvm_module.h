@@ -13,7 +13,7 @@ struct iommu_iotlb_gather;
 struct kvm_hyp_iommu_domain;
 struct pkvm_device;
 
-#ifdef CONFIG_MODULES
+#if defined(CONFIG_MODULES) && defined(CONFIG_KVM)
 enum pkvm_psci_notification {
 	PKVM_PSCI_CPU_SUSPEND,
 	PKVM_PSCI_SYSTEM_SUSPEND,
@@ -24,6 +24,22 @@ struct pkvm_sglist_page {
 	u64	pfn : 40;
 	u8	order;
 } __packed;
+
+/**
+ * struct pkvm_module_trng_ops - pKVM TRNG implementation modules callbacks
+ * @trng_uuid:	  Implementation's UUID advertised on TRNG_GET_UUID call
+ * @trng_rnd64:	  TRNG implementation call for generating entropy for TRNG_RND64
+ *                call. The implementation is required to output specified
+ *                number of bits of entropy. The output array will stored in the
+ *                registers in the following order: x3, x2, x1.
+ */
+struct pkvm_module_trng_ops {
+	const uuid_t *trng_uuid;
+	int (*trng_rnd64)(u64 *entropy, int bits);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+};
 
 /**
  * struct pkvm_module_ops - pKVM modules callbacks
@@ -40,6 +56,13 @@ struct pkvm_sglist_page {
  * @map_module_page:		Used in conjunction with @alloc_module_va. When
  *				@is_protected is not set, the page is also
  *				unmapped from the host stage-2.
+ * @map_module_pages:		Used in conjunction with @alloc_module_va. When
+ *				@is_protected is not set, the page is also
+ *				unmapped from the host stage-2.
+ * @unmap_module_pages:		Unmap pages previously allocated with
+ *				@map_module_pages. Does not restore the host
+ *				stage-2 mapping, use @hyp_donate_host for that
+ *				purpose.
  * @register_serial_driver:	Register a driver for a serial interface. The
  *				framework only needs a single callback
  *				@hyp_putc_cb which is expected to print a single
@@ -206,6 +229,10 @@ struct pkvm_sglist_page {
  *				panic to avoid leaking any information.
  *				Direction of assignment can be deduced from pkvm_device::ctxt
  *				where NULL means host to guest and vice versa.
+ * @register_guest_trng_ops:    Register a ARM SMCCC TRNG alternative implementation
+ *				for pVMs. The @ops.trng_uuid is used to advertise the
+ *				identity of TRNG implementation. @ops.trng_rnd64 is used
+ *				to generate entropy bits to guest.
  */
 struct pkvm_module_ops {
 	int (*create_private_mapping)(phys_addr_t phys, size_t size,
@@ -280,9 +307,11 @@ struct pkvm_module_ops {
 	int (*hyp_smp_processor_id)(void);
 	int (*device_register_reset)(u64 phys, void *cookie,
 				     int (*cb)(void *cookie, bool host_to_guest));
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_USE(1, int (*register_guest_trng_ops)(
+				    const struct pkvm_module_trng_ops *ops));
+	ANDROID_KABI_USE(2, int (*map_module_pages)(u64 pfn, void *va, u64 nr_pages,
+				    enum kvm_pgtable_prot prot, bool is_protected));
+	ANDROID_KABI_USE(3, int (*unmap_module_pages)(u64 pfn, void *va, u64 nr_pages));
 	ANDROID_KABI_RESERVE(4);
 	ANDROID_KABI_RESERVE(5);
 	ANDROID_KABI_RESERVE(6);
@@ -320,6 +349,15 @@ int __pkvm_register_el2_call(unsigned long hfn_hyp_va);
 
 unsigned long pkvm_el2_mod_kern_va(unsigned long addr);
 
+static inline unsigned long __pkvm_el2_mod_va(struct pkvm_el2_module *mod, void *kern_va)
+{
+	unsigned long offset = (unsigned long)(kern_va - mod->sections.start);
+
+	WARN_ON(kern_va < mod->sections.start || kern_va >= mod->sections.end);
+
+	return (unsigned long)mod->hyp_va + offset;
+}
+
 void pkvm_el2_mod_frob_sections(Elf_Ehdr *ehdr, Elf_Shdr *sechdrs, char *secstrings);
 #else
 static inline int __pkvm_load_el2_module(struct module *this,
@@ -337,23 +375,24 @@ static inline unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
 {
 	return 0;
 }
-#endif /* CONFIG_MODULES */
+
+static inline unsigned long __pkvm_el2_mod_va(void *mod, void *kern_va)
+{
+	WARN_ON(1);
+	return 0;
+}
+#endif /* CONFIG_MODULES && KVM */
 
 int pkvm_load_early_modules(void);
 
 #ifdef MODULE
+
+/* TODO: With the introduction of pkvm_el2_module::hyp_va token is redundant */
+
 /*
  * Convert an EL2 module addr from the kernel VA to the hyp VA
  */
-#define pkvm_el2_mod_va(kern_va, token)					\
-({									\
-	unsigned long hyp_mod_kern_va =				\
-		(unsigned long)THIS_MODULE->arch.hyp.sections.start;	\
-	unsigned long offset;						\
-									\
-	offset = (unsigned long)kern_va - hyp_mod_kern_va;		\
-	token + offset;							\
-})
+#define pkvm_el2_mod_va(kern_va, token) __pkvm_el2_mod_va(&THIS_MODULE->arch.hyp, kern_va)
 
 #define pkvm_load_el2_module(init_fn, token)				\
 ({									\
@@ -376,6 +415,17 @@ static inline int pkvm_register_el2_mod_call(dyn_hcall_t hfn,
 		WARN_ON(res.a0 != SMCCC_RET_SUCCESS);			\
 									\
 		res.a1;							\
+	})
+
+#define pkvm_el2_mod_call_smccc(id, ...)				\
+	({								\
+		struct arm_smccc_res res;				\
+									\
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_ID(id),		\
+				  ##__VA_ARGS__, &res);			\
+		WARN_ON(res.a0 != SMCCC_RET_SUCCESS);			\
+									\
+		res;							\
 	})
 #endif
 #endif

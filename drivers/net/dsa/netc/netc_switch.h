@@ -52,15 +52,6 @@
 #define NETC_FDBT_CLEAN_INTERVAL	(3 * HZ)
 #define NETC_FDBT_AGING_ACT_CNT		100
 
-#define NETC_DEFULT_BUFF_POOL_MAP0	0x03020100
-#define NETC_DEFULT_BUFF_POOL_MAP1	0x07060504
-
-/* The FC_ON threshold is about 3 * NETC_MAX_FRAME_LEN
- * The FC_OFF threshold is about 1 * NETC_MAX_FRAME_LEN
- */
-#define NETC_PORT_FC_ON_THRESH		0xb43
-#define NETC_PORT_FC_OFF_THRESH		0x3c3
-
 #define NETC_MM_VERIFY_RETRIES		3
 
 /* Software defined host reason */
@@ -68,12 +59,17 @@
 
 #define NETC_SYSCLK_333M		333333333ULL
 
+struct netc_switch;
+struct netc_port;
+
 struct netc_switch_info {
 	u32 cpu_port_num;
 	u32 usr_port_num;
 	u32 tmr_devfn;
 	u64 sysclk_freq;
 	void (*phylink_get_caps)(int port, struct phylink_config *config);
+	void (*bpt_init)(struct netc_switch *priv);
+	void (*port_tx_pause_config)(struct netc_port *port, bool tx_pause);
 };
 
 struct netc_port_caps {
@@ -111,9 +107,9 @@ struct netc_port_db {
 	u32 ptccbsr2[NETC_TC_NUM];
 	u32 mmcsr;
 	int ptp_filter;
+	u32 pbpmcr0;
+	u32 pbpmcr1;
 };
-
-struct netc_switch;
 
 struct netc_port {
 	struct netc_switch *switch_priv;
@@ -213,7 +209,6 @@ struct netc_switch {
 
 	struct netc_switch_caps caps;
 	struct bpt_cfge_data *bpt_list;
-	struct mutex bpt_lock; /* buffer pool table lock */
 
 	struct netc_switch_dbgfs dbg_params;
 	struct dentry *debugfs_root;

@@ -976,7 +976,6 @@ static int tcpci_probe(struct i2c_client *client)
 	if (IS_ERR(chip->tcpci))
 		return PTR_ERR(chip->tcpci);
 
-	irq_set_status_flags(client->irq, IRQ_DISABLE_UNLAZY);
 	err = devm_request_threaded_irq(&client->dev, client->irq, NULL,
 					_tcpci_irq,
 					IRQF_SHARED | IRQF_ONESHOT,
@@ -1009,32 +1008,35 @@ static void tcpci_remove(struct i2c_client *client)
 		dev_warn(&client->dev, "Failed to disable irqs (%pe)\n", ERR_PTR(err));
 
 	tcpci_unregister_port(chip->tcpci);
-	irq_clear_status_flags(client->irq, IRQ_DISABLE_UNLAZY);
 }
 
 static int __maybe_unused tcpci_suspend(struct device *dev)
 {
 	struct i2c_client *i2c = to_i2c_client(dev);
+	struct tcpci_chip *chip = i2c_get_clientdata(i2c);
+	int ret;
 
 	if (device_may_wakeup(dev))
-		enable_irq_wake(i2c->irq);
+		ret = enable_irq_wake(i2c->irq);
 	else
-		disable_irq(i2c->irq);
+		ret = tcpci_write16(chip->tcpci, TCPC_ALERT_MASK, 0);
 
-	return 0;
+	return ret;
 }
 
 
 static int __maybe_unused tcpci_resume(struct device *dev)
 {
 	struct i2c_client *i2c = to_i2c_client(dev);
+	struct tcpci_chip *chip = i2c_get_clientdata(i2c);
+	int ret;
 
 	if (device_may_wakeup(dev))
-		disable_irq_wake(i2c->irq);
+		ret = disable_irq_wake(i2c->irq);
 	else
-		enable_irq(i2c->irq);
+		ret = tcpci_write16(chip->tcpci, TCPC_ALERT_MASK, chip->tcpci->alert_mask);
 
-	return 0;
+	return ret;
 }
 
 static const struct dev_pm_ops tcpci_pm_ops = {

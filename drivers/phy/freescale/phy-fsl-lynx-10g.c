@@ -535,7 +535,6 @@ struct lynx_10g_priv {
 	bool big_endian;
 	struct lynx_10g_pll pll[NUM_PLL];
 	struct lynx_10g_lane lane[MAX_NUM_LANES];
-	int num_lanes;
 
 	struct delayed_work cdr_check;
 };
@@ -1373,7 +1372,7 @@ static void lynx_10g_cdr_lock_check_work(struct work_struct *work)
 	struct lynx_10g_lane *lane;
 	int i;
 
-	for (i = 0; i < priv->num_lanes; i++) {
+	for (i = 0; i < priv->info->num_lanes; i++) {
 		lane = &priv->lane[i];
 
 		mutex_lock(&lane->phy->mutex);

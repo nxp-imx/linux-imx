@@ -12,6 +12,7 @@ config VIDEO_AMPHION_VPU
 	select V4L2_MEM2MEM_DEV
 	select VIDEOBUF2_DMA_CONTIG
 	select VIDEOBUF2_VMALLOC
+	select MXC_MUR
 	help
 	  Amphion VPU Codec IP contains two parts: Windsor and Malone.
 	  Windsor is encoder that supports H.264, and Malone is decoder

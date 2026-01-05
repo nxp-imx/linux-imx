@@ -4466,15 +4466,32 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 		 (void *)pxp->pxp_conf_state.out_param.paddr);
 }
 
+static void pxp_tx_cancel(struct pxp_tx_desc *desc)
+{
+	struct pxp_tx_desc *child, *_child;
+	dma_async_tx_callback callback;
+	void *callback_param;
+
+	callback = desc->txd.callback;
+	callback_param = desc->txd.callback_param;
+
+	callback(callback_param);
+
+	/* Unsupport operation */
+	list_for_each_entry_safe(child, _child, &desc->tx_list, list) {
+		list_del_init(&child->list);
+		kmem_cache_free(tx_desc_cache, (void *)child);
+	}
+	list_del_init(&desc->list);
+	kmem_cache_free(tx_desc_cache, (void *)desc);
+}
+
 static int pxpdma_dostart_work(struct pxps *pxp)
 {
 	int ret;
 	struct pxp_channel *pxp_chan = NULL;
 	unsigned long flags;
-	dma_async_tx_callback callback;
-	void *callback_param;
 	struct pxp_tx_desc *desc = NULL;
-	struct pxp_tx_desc *child, *_child;
 	struct pxp_config_data *config_data = &pxp->pxp_conf_state;
 	struct pxp_proc_data *proc_data = &config_data->proc_data;
 
@@ -4488,19 +4505,7 @@ static int pxpdma_dostart_work(struct pxps *pxp)
 	/* Configure PxP */
 	ret = pxp_config(pxp, pxp_chan);
 	if (ret) {
-		callback = desc->txd.callback;
-		callback_param = desc->txd.callback_param;
-
-		callback(callback_param);
-
-		/* Unsupport operation */
-		list_for_each_entry_safe(child, _child, &desc->tx_list, list) {
-			list_del_init(&child->list);
-			kmem_cache_free(tx_desc_cache, (void *)child);
-		}
-		list_del_init(&desc->list);
-		kmem_cache_free(tx_desc_cache, (void *)desc);
-
+		pxp_tx_cancel(desc);
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		return -EINVAL;
 	}
@@ -4682,10 +4687,10 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	/* Send histogram status back to caller */
 	desc->hist_status = hist_status;
 
+	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
+
 	if ((desc->txd.flags & DMA_PREP_INTERRUPT) && callback)
 		callback(callback_param);
-
-	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
 
 	list_for_each_entry_safe(child, _child, &desc->tx_list, list) {
 		list_del_init(&child->list);
@@ -8130,7 +8135,7 @@ static const struct of_device_id imx_pxpdma_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, imx_pxpdma_dt_ids);
 
-static int has_pending_task(struct pxps *pxp, struct pxp_channel *task)
+static int has_pending_task(struct pxps *pxp)
 {
 	int found;
 	unsigned long flags;
@@ -8145,7 +8150,7 @@ static int has_pending_task(struct pxps *pxp, struct pxp_channel *task)
 static int pxp_dispatch_thread(void *argv)
 {
 	struct pxps *pxp = (struct pxps *)argv;
-	struct pxp_channel *pending = NULL;
+	struct pxp_tx_desc *desc;
 	unsigned long flags;
 
 	set_freezable();
@@ -8153,7 +8158,7 @@ static int pxp_dispatch_thread(void *argv)
 	while (!kthread_should_stop()) {
 		int ret;
 		ret = wait_event_freezable(pxp->thread_waitq,
-					has_pending_task(pxp, pending) ||
+					has_pending_task(pxp) ||
 					kthread_should_stop());
 		if (ret < 0)
 			continue;
@@ -8173,7 +8178,15 @@ static int pxp_dispatch_thread(void *argv)
 		ret = wait_for_completion_timeout(&pxp->complete, 2 * HZ);
 		if (ret == 0) {
 			printk(KERN_EMERG "%s: task is timeout\n\n", __func__);
-			break;
+
+			pxp_soft_reset(pxp);
+
+			spin_lock_irqsave(&pxp->lock, flags);
+			desc = list_entry(head.next, struct pxp_tx_desc, list);
+			pxp_tx_cancel(desc);
+			pxp->pxp_ongoing = 0;
+			spin_unlock_irqrestore(&pxp->lock, flags);
+			continue;
 		}
 		if (pxp->devdata && pxp->devdata->pxp_lut_cleanup_multiple)
 			pxp->devdata->pxp_lut_cleanup_multiple(pxp, 0, 0);

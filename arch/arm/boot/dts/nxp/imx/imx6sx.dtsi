@@ -1660,7 +1660,7 @@
 		pcie_ep: pcie_ep@8ffc000 {
 			compatible = "fsl,imx6sx-pcie-ep";
 			reg = <0x08ffc000 0x04000>, <0x08000000 0xf00000>;
-			reg-names = "regs", "addr_space";
+			reg-names = "dbi", "addr_space";
 			num-lanes = <1>;
 			clocks = <&clks IMX6SX_CLK_PCIE_AXI>,
 				 <&clks IMX6SX_CLK_LVDS1_OUT>,

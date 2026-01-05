@@ -1323,6 +1323,7 @@ properties:
         items:
           - enum:
               - fsl,imx943-evk          # i.MX943 EVK Board
+              - fsl,imx943-orangebox    # i.MX943 OrangeBox Board
           - const: fsl,imx94
 
       - description: i.MX95 based Boards

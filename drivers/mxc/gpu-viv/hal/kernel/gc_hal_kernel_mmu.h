@@ -359,6 +359,8 @@ struct _gckMMU {
 
     gctUINT32                   descIndex;
     gctUINT32                   pid;
+
+    gctBOOL                     needRestore;
 };
 
 gceSTATUS

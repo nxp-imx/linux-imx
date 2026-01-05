@@ -62,6 +62,18 @@ union netc_cbd {
 #define NTMP_RESP_RR		BIT(15)
 		__le32 resv3[4];
 	} resp_hdr; /* NTMP Response Message Header Format */
+
+	struct {
+		__le64 addr;
+		__le32 opt[4];
+		__le16 index;
+		__le16 length;
+		u8 cmd;
+		u8 cls;
+		u8 _res;
+		u8 status_flags;
+#define NTMP_V1_RESP_STATUS	GENMASK(5, 0)
+	} req_v1; /* NTMP Request Format for version 1.0 */
 };
 
 struct maft_keye_data {
@@ -85,6 +97,25 @@ struct vaft_keye_data {
 struct vaft_cfge_data {
 	__le16 si_bitmap;
 	__le16 resv;
+};
+
+struct rfse_set_buff {
+	__le32 resv0[6];
+	__be32 sip_h[4];
+	__be32 sip_m[4];
+	__be32 dip_h[4];
+	__be32 dip_m[4];
+	__le32 resv1[2];
+	__be16 sport_h;
+	__be16 sport_m;
+	__be16 dport_h;
+	__be16 dport_m;
+	__le32 resv2;
+	u8 proto_h;
+	u8 proto_m;
+	__le16 flags;
+	__le16 result;
+	__le16 mode;
 };
 
 struct rfst_keye_data {
@@ -649,6 +680,7 @@ enum netc_dev_type {
 };
 
 struct ntmp_caps {
+	int rfst_num_entries;
 	int rpt_num_entries;
 	int isct_num_entries;
 	int ist_num_entries;
@@ -665,6 +697,7 @@ struct ntmp_priv {
 
 	struct ntmp_caps caps;
 	/* bitmap of table entry ID */
+	unsigned long *rfst_eid_bitmap;
 	unsigned long *ist_eid_bitmap;
 	unsigned long *rpt_eid_bitmap;
 	unsigned long *sgit_eid_bitmap;
@@ -863,6 +896,10 @@ int ntmp_fmdt_update_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 			   u8 *data, u32 data_len);
 int ntmp_fmdt_query_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 			  u8 *data_buff, u32 data_len);
+/* NTMP V1.0 functions */
+int ntmp_v1_rfst_set_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
+			   struct rfse_set_buff *rfse);
+int ntmp_v1_rfst_delete_entry(struct netc_cbdrs *cbdrs, u32 entry_id);
 #else
 static inline void netc_enable_cbdr(struct netc_cbdr *cbdr)
 {
@@ -1165,6 +1202,18 @@ static inline int ntmp_fmdt_update_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 
 static inline int ntmp_fmdt_query_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
 			  u8 *data_buff, u32 data_len)
+{
+	return 0;
+}
+
+/* NTMP V1.0 functions */
+static inline int ntmp_v1_rfst_set_entry(struct netc_cbdrs *cbdrs, u32 entry_id,
+					 struct rfse_set_buff *rfse)
+{
+	return 0;
+}
+
+static inline int ntmp_v1_rfst_delete_entry(struct netc_cbdrs *cbdrs, u32 entry_id)
 {
 	return 0;
 }

@@ -163,8 +163,10 @@ static int __init register_moveable_fdt_resource(struct device_node *np,
 
 		start = res.start;
 		size = resource_size(&res);
-		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
+		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size)) {
+			kvm_err("Not %lu page aligned node: %s\n", PAGE_SIZE, np->full_name);
 			return -EINVAL;
+		}
 
 		moveable_regs[i].start = start;
 		moveable_regs[i].size = size;
@@ -327,27 +329,21 @@ err_free_reqs:
 }
 
 /*
- * Handle broken down huge pages which have not been reported to the
- * kvm_pinned_page.
+ * Handle split huge pages which have not been reported to the kvm_pinned_page tree.
  */
-int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
-			     int (*call_hyp_nvhe)(u64 pfn, u64 gfn, u8 order, void* args),
-			     void *args, bool unmap)
+static int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
+				    int (*call_hyp_nvhe)(u64 pfn, u64 gfn, u8 order, void *args),
+				    void *args)
 {
 	size_t page_size, size = PAGE_SIZE << ppage->order;
 	u64 pfn = page_to_pfn(ppage->page);
 	u8 order = ppage->order;
 	u64 gfn = ppage->ipa >> PAGE_SHIFT;
 
-	/* We already know this huge-page has been broken down in the stage-2 */
-	if (ppage->pins < (1 << order))
-		order = 0;
-
 	while (size) {
 		int err = call_hyp_nvhe(pfn, gfn, order, args);
 
 		switch (err) {
-		/* The stage-2 huge page has been broken down */
 		case -E2BIG:
 			if (order)
 				order = 0;
@@ -355,16 +351,6 @@ int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
 				/* Something is really wrong ... */
 				return -EINVAL;
 			break;
-		/* This has been unmapped already */
-		case -ENOENT:
-			/*
-			 * We are not supposed to lose track of PAGE_SIZE pinned
-			 * page.
-			 */
-			if (!ppage->order)
-				return -EINVAL;
-
-			fallthrough;
 		case 0:
 			page_size = PAGE_SIZE << order;
 			gfn += 1 << order;
@@ -372,13 +358,6 @@ int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
 
 			if (page_size > size)
 				return -EINVAL;
-
-			/* If -ENOENT, the pin was already dropped. */
-			if (unmap && !err)
-				ppage->pins -= 1 << order;
-
-			if (!ppage->pins)
-				return 0;
 
 			size -= page_size;
 			break;
@@ -466,11 +445,9 @@ retry:
 	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages, 0, ~(0UL));
 	while (ppage) {
 		struct kvm_pinned_page *next;
-		u16 pins = ppage->pins;
 
-		ret = pkvm_call_hyp_nvhe_ppage(ppage,
-						 __reclaim_dying_guest_page_call,
-						 host_kvm, true);
+		ret = pkvm_call_hyp_nvhe_ppage(ppage, __reclaim_dying_guest_page_call,
+					       host_kvm);
 		cond_resched();
 		if (ret == -EBUSY) {
 			nr_busy++;
@@ -483,7 +460,7 @@ retry:
 		unpin_user_pages_dirty_lock(&ppage->page, 1, true);
 		next = kvm_pinned_pages_iter_next(ppage, 0, ~(0UL));
 		kvm_pinned_pages_remove(ppage, &host_kvm->arch.pkvm.pinned_pages);
-		pages += pins;
+		pages += 1 << ppage->order;
 		kfree(ppage);
 		ppage = next;
 	}
@@ -816,25 +793,19 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 {
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
-	u16 pins;
+	u8 order;
 
 	write_lock(&host_kvm->mmu_lock);
 	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages,
 					   ipa, ipa + PAGE_SIZE - 1);
 	if (ppage) {
-		WARN_ON_ONCE(ppage->pins != 1);
-
-		if (ppage->pins)
-			ppage->pins--;
-
-		pins = ppage->pins;
-		if (!pins)
-			kvm_pinned_pages_remove(ppage,
-						&host_kvm->arch.pkvm.pinned_pages);
+		order = ppage->order;
+		if (!order)
+			kvm_pinned_pages_remove(ppage, &host_kvm->arch.pkvm.pinned_pages);
 	}
 	write_unlock(&host_kvm->mmu_lock);
 
-	if (WARN_ON(!ppage) || pins)
+	if (WARN_ON(!ppage || order))
 		return;
 
 	account_locked_vm(mm, 1 << ppage->order, false);
@@ -1246,43 +1217,56 @@ static struct pkvm_el2_module *pkvm_el2_mod_lookup_symbol(const char *name,
 static bool within_pkvm_module_section(struct pkvm_module_section *section,
 				       unsigned long addr)
 {
-	return (addr > (unsigned long)section->start) &&
+	return (addr >= (unsigned long)section->start) &&
 		(addr < (unsigned long)section->end);
 }
 
 static int pkvm_reloc_imported_symbol(struct pkvm_el2_module *importer,
+				      struct pkvm_el2_module *exporter,
 				      struct pkvm_el2_sym *sym,
-				      unsigned long hyp_dst)
+				      unsigned long sym_addr)
 {
-	s64 val, val_max = (s64)(~(BIT(25) - 1)) << 2;
 	u32 insn = le32_to_cpu(*sym->rela_pos);
-	unsigned long hyp_src;
-	u64 imm;
+	unsigned long hyp_orig, hyp_dst;
+	u64 imm, offset;
 
 	if (!within_pkvm_module_section(&importer->text,
-					(unsigned long)sym->rela_pos))
+					(unsigned long)sym->rela_pos)) {
+		pr_warn("pKVM symbol %s not part of %s .text section\n",
+			sym->name,
+			pkvm_el2_mod_to_module(importer)->name);
 		return -EINVAL;
+	}
 
-	hyp_src = (unsigned long)importer->hyp_va +
-		((void *)sym->rela_pos - importer->text.start);
+	if (!within_pkvm_module_section(&exporter->text, sym_addr)) {
+		pr_warn("pKVM symbol %s not part of %s .text section\n",
+			sym->name,
+			pkvm_el2_mod_to_module(exporter)->name);
+		return -EINVAL;
+	}
+
+	hyp_dst = __pkvm_el2_mod_va(exporter, (void *)sym_addr);
+	hyp_orig = __pkvm_el2_mod_va(importer, (void *)sym->rela_pos);
 
 	/*
-	 * Module hyp VAs are allocated going upward. Source MUST have a
-	 * lower address than the destination
+	 * Module hyp VAs are allocated going upward. The exporter being loaded
+	 * before the importer, the destination address MUST be lower than the
+	 * origin.
 	 */
-	if (WARN_ON(hyp_src < hyp_dst))
+	if (WARN_ON(hyp_dst > hyp_orig))
 		return -EINVAL;
 
-	val = hyp_dst - hyp_src;
-	if (val < val_max) {
+	offset = hyp_orig - hyp_dst;
+
+	/* imm26 is 2's complement and equals to offset / 4 */
+	offset >>= 2;
+	if (offset > BIT(25)) {
 		pr_warn("Exported symbol %s is too far for the relocation in module %s\n",
 			sym->name, pkvm_el2_mod_to_module(importer)->name);
 		return -ERANGE;
 	}
 
-	/* offset encoded as imm26 * 4 */
-	imm = (val >> 2) & (BIT(26) - 1);
-
+	imm = -offset;
 	insn = aarch64_insn_encode_immediate(AARCH64_INSN_IMM_26, insn, imm);
 
 	return aarch64_insn_patch_text_nosync((void *)sym->rela_pos, insn);
@@ -1290,30 +1274,22 @@ static int pkvm_reloc_imported_symbol(struct pkvm_el2_module *importer,
 
 static int pkvm_reloc_imported_symbols(struct pkvm_el2_module *importer)
 {
-	unsigned long addr, offset, hyp_addr;
-	struct pkvm_el2_module *exporter;
 	struct pkvm_el2_sym *sym;
 
 	list_for_each_entry(sym, &importer->ext_symbols, node) {
+		struct pkvm_el2_module *exporter;
+		unsigned long addr;
+		int ret;
+
 		exporter = pkvm_el2_mod_lookup_symbol(sym->name, &addr);
 		if (!exporter) {
-			pr_warn("pKVM symbol %s not exported by any module\n",
-				sym->name);
+			pr_warn("pKVM symbol %s not exported by any module\n", sym->name);
 			return -EINVAL;
 		}
 
-		if (!within_pkvm_module_section(&exporter->text, addr)) {
-			pr_warn("pKVM symbol %s not part of %s .text section\n",
-				sym->name,
-				pkvm_el2_mod_to_module(exporter)->name);
-			return -EINVAL;
-		}
-
-		/* hyp addr in the exporter */
-		offset = addr - (unsigned long)exporter->text.start;
-		hyp_addr = (unsigned long)exporter->hyp_va + offset;
-
-		pkvm_reloc_imported_symbol(importer, sym, hyp_addr);
+		ret = pkvm_reloc_imported_symbol(importer, exporter, sym, addr);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
@@ -1517,15 +1493,13 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	if (token)
 		*token = (unsigned long)hyp_va;
 
-	mod->sections.start = start;
-	mod->sections.end = end;
-
-	endrel = (void *)mod->relocs + mod->nr_relocs * sizeof(*endrel);
-	kvm_apply_hyp_module_relocations(mod, mod->relocs, endrel);
-
+	/* Relies on kvm_apply_hyp_module_relocations() sync_icache_aliases */
 	ret = pkvm_reloc_imported_symbols(mod);
 	if (ret)
 		return ret;
+
+	endrel = (void *)mod->relocs + mod->nr_relocs * sizeof(*endrel);
+	kvm_apply_hyp_module_relocations(mod, mod->relocs, endrel);
 
 	pkvm_module_kmemleak(this, secs_map, ARRAY_SIZE(secs_map));
 
@@ -1590,6 +1564,18 @@ void pkvm_el2_mod_frob_sections(Elf_Ehdr *ehdr, Elf_Shdr *sechdrs, char *secstri
 }
 #endif /* CONFIG_MODULES */
 
+int __pkvm_topup_hyp_alloc_mgt_mc(unsigned long id, struct kvm_hyp_memcache *mc)
+{
+	struct arm_smccc_res res;
+
+	res = kvm_call_hyp_nvhe_smccc(__pkvm_hyp_alloc_mgt_refill,
+				      id, mc->head, mc->nr_pages);
+	mc->head = res.a2;
+	mc->nr_pages = res.a3;
+	return res.a1;
+}
+EXPORT_SYMBOL(__pkvm_topup_hyp_alloc_mgt_mc);
+
 int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
 {
 	struct kvm_hyp_memcache mc;
@@ -1601,8 +1587,7 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
 	if (ret)
 		return ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_refill, HYP_ALLOC_MGT_HEAP_ID,
-				mc.head, mc.nr_pages);
+	ret = __pkvm_topup_hyp_alloc_mgt_mc(HYP_ALLOC_MGT_HEAP_ID, &mc);
 	if (ret)
 		free_hyp_memcache(&mc);
 
@@ -1650,10 +1635,12 @@ int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 	if (ret)
 		return ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_refill, id,
-				mc.head, mc.nr_pages);
-	if (ret)
+	ret = __pkvm_topup_hyp_alloc_mgt_mc(id, &mc);
+	if (ret) {
+		kvm_err("Failed topup %ld pages = %ld, size = %ld err = %d, freeing %ld pages\n",
+			id, nr_pages, sz_alloc, ret, mc.nr_pages);
 		free_hyp_memcache(&mc);
+	}
 
 	return ret;
 }

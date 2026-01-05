@@ -91,6 +91,8 @@ dpu95_drm_atomic_plane_duplicate_state(struct drm_plane *plane)
 	state = to_dpu95_plane_state(plane->state);
 	copy->stage = state->stage;
 	copy->source = state->source;
+	copy->hs = state->hs;
+	copy->vs = state->vs;
 	copy->blend = state->blend;
 	copy->is_top = state->is_top;
 
@@ -152,12 +154,44 @@ drm_plane_state_to_uvbaseaddr(struct drm_plane_state *state)
 	       fb->format->cpp[1] * x;
 }
 
+static int dpu95_plane_check_no_zero_res(struct drm_plane_state *state)
+{
+	unsigned int src_w = drm_rect_width(&state->src) >> 16;
+	unsigned int src_h = drm_rect_height(&state->src) >> 16;
+	unsigned int dst_w = drm_rect_width(&state->dst);
+	unsigned int dst_h = drm_rect_height(&state->dst);
+
+	if (src_w == 0) {
+		dpu95_plane_dbg(state->plane, "no zero src width\n");
+		return -EINVAL;
+	}
+
+	if (src_h == 0) {
+		dpu95_plane_dbg(state->plane, "no zero src height\n");
+		return -EINVAL;
+	}
+
+	if (dst_w == 0) {
+		dpu95_plane_dbg(state->plane, "no zero dst width\n");
+		return -EINVAL;
+	}
+
+	if (dst_h == 0) {
+		dpu95_plane_dbg(state->plane, "no zero dst height\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int dpu95_plane_check_no_off_screen(struct drm_plane_state *state,
 					   struct drm_crtc_state *crtc_state)
 {
-	if (state->dst.x1 < 0 || state->dst.y1 < 0 ||
-	    state->dst.x2 > crtc_state->adjusted_mode.hdisplay ||
-	    state->dst.y2 > crtc_state->adjusted_mode.vdisplay) {
+	struct drm_rect dest = drm_plane_state_dest(state);
+
+	if (dest.x1 < 0 || dest.y1 < 0 ||
+	    dest.x2 > crtc_state->adjusted_mode.hdisplay ||
+	    dest.y2 > crtc_state->adjusted_mode.vdisplay) {
 		dpu95_plane_dbg(state->plane, "no off screen\n");
 		return -EINVAL;
 	}
@@ -346,6 +380,8 @@ static int dpu95_plane_atomic_check(struct drm_plane *plane,
 	/* ok to disable */
 	if (!fb) {
 		new_dpstate->source = NULL;
+		new_dpstate->hs = NULL;
+		new_dpstate->vs = NULL;
 		new_dpstate->stage.ptr = NULL;
 		new_dpstate->blend = NULL;
 		return 0;
@@ -369,6 +405,10 @@ static int dpu95_plane_atomic_check(struct drm_plane *plane,
 		dpu95_plane_dbg(plane, "failed to check plane state: %d\n", ret);
 		return ret;
 	}
+
+	ret = dpu95_plane_check_no_zero_res(new_plane_state);
+	if (ret)
+		return ret;
 
 	ret = dpu95_plane_check_no_off_screen(new_plane_state, crtc_state);
 	if (ret)

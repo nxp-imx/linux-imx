@@ -151,6 +151,9 @@ static struct clk *hantro_clk_g2;
 static struct clk *hantro_clk_bus;
 static struct regulator *hantro_regulator;
 
+static int irq_dec_err_count;
+module_param(irq_dec_err_count, int, 0444);
+
 static int hantro_dbg = -1;
 module_param(hantro_dbg, int, 0644);
 MODULE_PARM_DESC(hantro_dbg, "Debug level (0-1)");
@@ -162,6 +165,11 @@ MODULE_PARM_DESC(hantro_dbg, "Debug level (0-1)");
 		} \
 	} while (0)
 
+#define PERROR(dev, fmt, arg...)	          \
+	do {                                      \
+		if (hantro_dbg >= 0)              \
+			dev_err(dev, fmt, ##arg); \
+	} while (0)
 
 static int hantrodec_major; /* dynamic allocation */
 
@@ -1838,6 +1846,23 @@ irqreturn_t hantrodec_isr(int irq, void *dev_id)
 			up(&core_suspend_sem[i]);
 
 			atomic_inc(&irq_rx);
+			if (irq_status_dec & HANTRODEC_DEC_ERROR_MASK) {
+				if (irq_status_dec & HANTRODEC_DEC_BUS_ERROR)
+					PERROR(hantro_dev,
+					       "[%d] bus error\n", atomic_read(&irq_rx));
+				if (irq_status_dec & HANTRODEC_DEC_STRM_BUF_EMPTY)
+					PERROR(hantro_dev,
+					       "[%d] stream buffer empty\n", atomic_read(&irq_rx));
+
+				if (irq_status_dec & HANTRODEC_DEC_ASO_DETECTED)
+					PERROR(hantro_dev,
+					       "[%d] detect ASO\n", atomic_read(&irq_rx));
+
+				if (irq_status_dec & HANTRODEC_DEC_STRM_INPUT_ERR)
+					PERROR(hantro_dev,
+					       "[%d] stream input error\n", atomic_read(&irq_rx));
+				irq_dec_err_count++;
+			}
 
 			dec_irq |= (1 << i);
 

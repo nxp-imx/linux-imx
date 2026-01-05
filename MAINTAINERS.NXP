@@ -740,7 +740,10 @@ M: Xianzhong Li <xianzhong.li@nxp.com>
 M: Jiyu Yang <jiyu.yang@nxp.com>
 L: gpusw-devel@nxp.com
 F: drivers/mxc/gpu-viv/
-F: drivers/gpu/arm/*
+F: drivers/gpu/arm/
+F: drivers/gpu/arm/midgard/
+F: drivers/gpu/arm/mgm/
+F: drivers/gpu/arm/pma/
 F: Documentation/devicetree/bindings/gpu/arm,mali-*
 
 mxc/hdmi

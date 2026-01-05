@@ -46,6 +46,7 @@
 		compatible = "pwm-fan";
 		cooling-min-state = <0>;
 		cooling-max-state = <3>;
+		fan-supply = <&reg_vcc_12v>;
 		#cooling-cells = <2>;
 		pwms = <&tpm6 0 4000000 PWM_POLARITY_INVERTED>;
 		cooling-levels = <64 128 192 255>;
@@ -71,6 +72,11 @@
 
 		vpu_boot: vpu_boot@a0000000 {
 			reg = <0 0xa0000000 0 0x100000>;
+			no-map;
+		};
+
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
 			no-map;
 		};
 
@@ -251,6 +257,10 @@
 			"IN1R", "AMIC";
 	};
 
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
+	};
 	sound-micfil {
 		compatible = "fsl,imx-audio-card";
 		model = "micfil-audio";
@@ -331,7 +341,8 @@
 &i3c2 {
 	i2c-scl-hz = <400000>;
 	pinctrl-0 = <&pinctrl_i3c2>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&pinctrl_i3c2_sleep>;
+	pinctrl-names = "default", "sleep";
 	status = "okay";
 
 	pca9570: gpio@24 {
@@ -795,6 +806,13 @@
 		>;
 	};
 
+	pinctrl_i3c2_sleep: i3c2sleepgrp {
+		fsl,pins = <
+			IMX95_PAD_ENET1_MDC__GPIO4_IO_BIT0		0x31e
+			IMX95_PAD_ENET1_MDIO__GPIO4_IO_BIT1		0x31e
+		>;
+	};
+
 	pinctrl_lpi2c1: lpi2c1grp {
 		fsl,pins = <
 			IMX95_PAD_I2C1_SCL__AONMIX_TOP_LPI2C1_SCL	0x40000b9e
@@ -1103,6 +1121,7 @@
 	fsl,refclk-pad-mode = <IMX8_PCIE_REFCLK_PAD_OUTPUT>;
 	reset-gpio = <&gpio5 13 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_m2_pwr>;
+	supports-clkreq;
 	status = "okay";
 };
 
@@ -1166,6 +1185,9 @@
 			       <3612672000>, <393216000>,
 			       <361267200>, <49152000>;
 	status = "okay";
+};
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };
 
 &xcvr {

@@ -5,17 +5,13 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("//build/kernel/kleaf:kernel.bzl",
     "ddk_headers",
     "ddk_module",
-    "initramfs",
     "kernel_abi",
     "kernel_build",
-    "kernel_module_group",
-    "kernel_modules_install",
-    "vendor_boot_image",
-    "vendor_dlkm_image",
 )
 load(":logo_rules.bzl", "logo_gen")
 
-def define_imx_ddk():
+def define_imx_ddk_modules():
+    # Build kernel module
     #_IMX_COMMON_MODULES is built from the common code. Refer to imx_core.fragment.
     _IMX_COMMON_MODULES = [
         "net/wireless/cfg80211.ko",
@@ -45,26 +41,15 @@ def define_imx_ddk():
             "drivers/firmware/arm_scmi/vendors/imx/Kconfig",
             "drivers/android/Kconfig",
             "drivers/firmware/imx/Kconfig",
-        ],
-    )
-
-    # Group Kconfig files used for module configuration
-    native.filegroup(
-        name = "imx_evk_95_kconfigs",
-        srcs = [
-            "drivers/soc/imx/Kconfig",
-            "arch/arm/mach-imx/Kconfig",
-            "drivers/android/Kconfig",
             "drivers/tty/serial/Kconfig",
             "drivers/gpu/drm/imx/dpu95/Kconfig",
             "drivers/net/ethernet/freescale/enetc/Kconfig",
             "drivers/ptp/Kconfig",
             "drivers/gpu/arm/midgard/Kconfig",
             "drivers/gpu/arm/midgard/platform/Kconfig",
+            "drivers/media/i2c/ox05b1s/Kconfig",
         ],
     )
-
-    # Build kernel module
     ddk_module(
         name = "mxc-clk",
         out = "mxc-clk.ko",
@@ -119,7 +104,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -188,7 +173,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -222,7 +207,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -288,7 +273,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -300,7 +285,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         deps = [
             ":rohm-regulator",
@@ -315,7 +300,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -327,7 +312,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -339,7 +324,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -355,7 +340,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kernel_build = ":imx_ddk_modules",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         deps = [
             ":cqhci",
@@ -608,7 +593,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -633,7 +618,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -649,7 +634,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -661,7 +646,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -673,7 +658,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -685,7 +670,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kconfig = "imx_kconfigs",
         kernel_build = ":imx_ddk_modules",
     )
@@ -698,7 +683,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -710,7 +695,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -722,7 +707,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -734,7 +719,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -746,7 +731,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -761,7 +746,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":fb",
@@ -776,7 +761,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":busfreq-imx8mq",
@@ -796,7 +781,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":drm_fbdev_helper",
@@ -819,7 +804,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -884,7 +869,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         deps = [
             ":imxdrm",
             ":sec-dsim",
@@ -931,7 +916,7 @@ def define_imx_ddk():
             "drivers/usb/chipidea",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":ulpi",
@@ -947,7 +932,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         deps = [
             ":usbmisc_imx",
             ":ci_hdrc",
@@ -963,7 +948,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1001,7 +986,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1013,7 +998,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":trusty-core",
@@ -1028,7 +1013,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":trusty-core",
@@ -1043,7 +1028,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":trusty-core",
@@ -1204,7 +1189,7 @@ def define_imx_ddk():
             "-DHOST=\"$(shell hostname)\"",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":busfreq-imx8mq",
@@ -1289,7 +1274,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1355,7 +1340,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         deps = [
             ":snd-soc-fsl-utils",
             ":imx-pcm-dma",
@@ -1372,7 +1357,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         deps = [
             ":snd-soc-fsl-utils",
             ":imx-pcm-dma",
@@ -1498,7 +1483,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1510,7 +1495,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1522,7 +1507,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":sm-cpu",
@@ -1611,7 +1596,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":trusty-core",
@@ -1645,9 +1630,15 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
+        includes = [
+            "drivers/mxc/hantro_v4l2",
+        ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
+        deps = [
+            ":memory_usage",
+        ],
     )
 
     ddk_module(
@@ -1658,7 +1649,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":trusty-core",
@@ -1684,7 +1675,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         deps = [
             ":qcom-phy-lib",
         ],
@@ -1699,7 +1690,7 @@ def define_imx_ddk():
         ],
         kernel_build = ":imx_ddk_modules",
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
     )
 
     ddk_module(
@@ -1742,7 +1733,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":busfreq-imx8mq",
@@ -1897,7 +1888,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -1953,7 +1944,7 @@ def define_imx_ddk():
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -1980,12 +1971,13 @@ def define_imx_ddk():
             "drivers/firmware/imx/v2x_common.c",
             "drivers/firmware/imx/seco_init.c",
             "drivers/firmware/imx/ele_trng.c",
+            "drivers/firmware/imx/ele_bbsm.c",
         ],
         hdrs = [
             ":imx_common_headers",
         ],
         kconfig = "imx_kconfigs",
-        defconfig = "imx_module.fragment",
+        defconfig = "imx_evk_8mm_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
             ":imx-mailbox",
@@ -2528,7 +2520,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -2559,7 +2551,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -2598,7 +2590,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -2819,6 +2811,7 @@ def define_imx_ddk():
         kernel_build = ":imx_ddk_modules",
         deps = [
             "trusty-core",
+            "memory_usage",
         ],
     )
 
@@ -2845,17 +2838,26 @@ def define_imx_ddk():
         deps = [
             "wave6-vpu-ctrl",
             "trusty-core",
+            "memory_usage",
         ],
     )
 
     ddk_module(
-        name = "ox05b1s_mipi",
-        out = "ox05b1s_mipi.ko",
-        srcs = ["drivers/media/i2c/ox05b1s/ox05b1s_mipi.c"],
+        name = "ox05b1s",
+        out = "ox05b1s.ko",
+        srcs = [
+            "drivers/media/i2c/ox05b1s/ox05b1s_mipi.c",
+            "drivers/media/i2c/ox05b1s/ox05b1s_modes.c",
+	],
         hdrs = [
             ":imx_common_headers",
         ],
+        kconfig = "imx_kconfigs",
+        defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
+        deps = [
+            "v4l2-cci",
+        ],
     )
 
     ddk_module(
@@ -3002,7 +3004,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -3022,7 +3024,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3034,7 +3036,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3046,7 +3048,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -3087,7 +3089,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3105,7 +3107,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3120,7 +3122,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3175,7 +3177,7 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
         deps = [
@@ -3405,7 +3407,7 @@ def define_imx_ddk():
             "-DKBUILD_EXTRA_WARN1",
             "-DKBUILD_EXTRA_WARN2",
         ],
-        kconfig = "imx_evk_95_kconfigs",
+        kconfig = "imx_kconfigs",
         defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
@@ -3417,6 +3419,41 @@ def define_imx_ddk():
         hdrs = [
             ":imx_common_headers",
         ],
+        kernel_build = ":imx_ddk_modules",
+    )
+
+    ddk_module(
+        name = "pwm-fan",
+        out = "pwm-fan.ko",
+        srcs = ["drivers/hwmon/pwm-fan.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kernel_build = ":imx_ddk_modules",
+        deps = [
+            ":hwmon",
+        ],
+    )
+
+    ddk_module(
+        name = "memory_usage",
+        out = "memory_usage.ko",
+        srcs = ["drivers/mxc/vpu/memory_usage/memory_usage.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kernel_build = ":imx_ddk_modules",
+    )
+
+    ddk_module(
+        name = "v4l2-cci",
+        out = "v4l2-cci.ko",
+        srcs = ["drivers/media/v4l2-core/v4l2-cci.c"],
+        hdrs = [
+            ":imx_common_headers",
+        ],
+        kconfig = "imx_kconfigs",
+        defconfig = "imx_evk_95_module.fragment",
         kernel_build = ":imx_ddk_modules",
     )
 
@@ -3453,967 +3490,4 @@ def define_imx_ddk():
         ],
         module_grouping = False,
         kmi_symbol_list_add_only = True,
-    )
-
-    kernel_module_group(
-        name = "imx_evk_8mm_vendor_boot_modules",
-        srcs = [
-            #imx_evk_8mm_vendor_boot_modules
-            ":mxc-clk",
-            ":clk-imx8mm",
-            ":soc-imx8m",
-            ":imx8m-blk-ctrl",
-            ":imx8m_pm_domains",
-            ":gpcv2",
-            ":gpcv2-imx",
-            ":timer-imx-sysctr",
-            ":busfreq-imx8mq",
-            ":pinctrl-imx",
-            ":pinctrl-imx8mm",
-            ":imx-tty",
-            ":imx2_wdt",
-            ":pca9450-regulator",
-            ":gpio-mxc",
-            ":fsl_imx8_ddr_perf",
-            ":rohm-bd718x7",
-            ":rohm-regulator",
-            ":bd718x7-regulator",
-            ":cpufreq-dt",
-            ":imx-cpufreq-dt",
-            ":nvmem-imx-ocotp",
-            ":cqhci",
-            ":sdhci-esdhc-imx",
-            ":i2c-imx",
-            ":i2c-dev",
-            ":spidev",
-            ":spi-bitbang",
-            ":spi-nxp-fspi",
-            ":spi-imx",
-            ":stmp_device",
-            ":mxs-dma",
-            ":pwrseq_simple",
-            ":imx-mailbox",
-            ":system_heap",
-            ":cma_heap",
-            ":dma-buf-imx",
-            ":snvs_pwrkey",
-            ":goodix_ts",
-            ":synaptics_dsx_i2c",
-            ":reset-dispmix",
-            ":reset-imx7",
-            ":linux_logo",
-            ":fb",
-            ":fb_notify",
-            ":cfbcopyarea",
-            ":fb_io_fops",
-            ":fb_sys_fops",
-            ":sysimgblt",
-            ":syscopyarea",
-            ":sysfillrect",
-            ":cfbfillrect",
-            ":cfbimgblt",
-            ":drm_fbdev_helper",
-            ":imx8mm-lcdif-core",
-            ":drm_dma_helper",
-            ":adv7511",
-            ":sec-dsim",
-            ":imxdrm",
-            ":imx8mm-lcdif-crtc",
-            ":panel-raydium-rm67191",
-            ":sec_mipi_dsim-imx",
-            ":usbmisc_imx",
-            ":ulpi",
-            ":ci_hdrc_imx",
-            ":ci_hdrc",
-            ":phy-generic",
-            ":dummy_battery",
-            ":imx-sdma",
-            ":trusty-core",
-            ":trusty-log",
-            ":trusty-ipc",
-            ":trusty-virtio",
-        ],
-    )
-
-    kernel_modules_install(
-        name = "imx_evk_8mm_vendor_boot_modules_install",
-        kernel_build = ":imx_ddk_modules",
-        kernel_modules = [
-            ":imx_evk_8mm_vendor_boot_modules",
-        ],
-    )
-
-    _IMX_EVK_8MM_AARCH64_VENDOR_BOOT_MODULES_LIST = [
-        "mxc-clk.ko",
-        "clk-imx8mm.ko",
-        "soc-imx8m.ko",
-        "imx8m-blk-ctrl.ko",
-        "imx8m_pm_domains.ko",
-        "gpcv2.ko",
-        "gpcv2-imx.ko",
-        "timer-imx-sysctr.ko",
-        "busfreq-imx8mq.ko",
-        "pinctrl-imx.ko",
-        "pinctrl-imx8mm.ko",
-        "imx.ko",
-        "imx2_wdt.ko",
-        "pca9450-regulator.ko",
-        "gpio-mxc.ko",
-        "fsl_imx8_ddr_perf.ko",
-        "rohm-bd718x7.ko",
-        "rohm-regulator.ko",
-        "bd718x7-regulator.ko",
-        "cpufreq-dt.ko",
-        "imx-cpufreq-dt.ko",
-        "nvmem-imx-ocotp.ko",
-        "cqhci.ko",
-        "sdhci-esdhc-imx.ko",
-        "i2c-imx.ko",
-        "i2c-dev.ko",
-        "spidev.ko",
-        "spi-bitbang.ko",
-        "spi-nxp-fspi.ko",
-        "spi-imx.ko",
-        "stmp_device.ko",
-        "mxs-dma.ko",
-        "pwrseq_simple.ko",
-        "imx-mailbox.ko",
-        "system_heap.ko",
-        "cma_heap.ko",
-        "dma-buf-imx.ko",
-        "snvs_pwrkey.ko",
-        "goodix_ts.ko",
-        "synaptics_dsx_i2c.ko",
-        "reset-dispmix.ko",
-        "reset-imx7.ko",
-        "linux_logo.ko",
-        "fb_notify.ko",
-        "fb.ko",
-        "cfbcopyarea.ko",
-        "fb_io_fops.ko",
-        "fb_sys_fops.ko",
-        "sysimgblt.ko",
-        "syscopyarea.ko",
-        "sysfillrect.ko",
-        "cfbfillrect.ko",
-        "cfbimgblt.ko",
-        "drm_fbdev_helper.ko",
-        "imx8mm-lcdif-core.ko",
-        "drm_dma_helper.ko",
-        "adv7511.ko",
-        "sec-dsim.ko",
-        "imxdrm.ko",
-        "imx8mm-lcdif-crtc.ko",
-        "panel-raydium-rm67191.ko",
-        "sec_mipi_dsim-imx.ko",
-        "usbmisc_imx.ko",
-        "ulpi.ko",
-        "ci_hdrc_imx.ko",
-        "ci_hdrc.ko",
-        "phy-generic.ko",
-        "dummy_battery.ko",
-        "imx-sdma.ko",
-        "trusty-core.ko",
-        "trusty-log.ko",
-        "trusty-ipc.ko",
-        "trusty-virtio.ko",
-    ]
-
-    write_file(
-        name = "imx_evk_8mm_aarch64_vendor_boot_modules_list",
-        out = "modules_list.imx_evk_8mm_aarch64",
-        content = _IMX_EVK_8MM_AARCH64_VENDOR_BOOT_MODULES_LIST,
-    )
-
-    write_file(
-        name = "imx_evk_8mm_aarch64_vendor_boot_modules_recovery_list",
-        out = "modules_recovery_list.imx_evk_8mm_aarch64",
-        content = _IMX_EVK_8MM_AARCH64_VENDOR_BOOT_MODULES_LIST,
-    )
-
-    write_file(
-        name = "imx_evk_8mm_aarch64_vendor_dlkm_modules_charger_list",
-        out = "modules_charger_list.imx_evk_8mm_aarch64",
-        content = _IMX_EVK_8MM_AARCH64_VENDOR_BOOT_MODULES_LIST,
-    )
-
-    initramfs(
-        name = "imx_evk_8mm_aarch64_initramfs",
-        kernel_modules_install = ":imx_evk_8mm_vendor_boot_modules_install",
-        modules_charger_list = ":modules_charger_list.imx_evk_8mm_aarch64",
-        modules_list = ":modules_list.imx_evk_8mm_aarch64",
-        modules_recovery_list = ":modules_recovery_list.imx_evk_8mm_aarch64",
-        vendor_boot_name = "vendor_boot",
-        trim_unused_modules = True,
-    )
-
-    vendor_boot_image(
-        name = "imx_evk_8mm_aarch64_vendor_boot_image",
-        outs = [
-            "ramdisk.lz4",
-        ],
-        initramfs = ":imx_evk_8mm_aarch64_initramfs",
-        kernel_build = ":imx_ddk_modules",
-        unpack_ramdisk = True,
-        ramdisk_compression = "lz4",
-        vendor_boot_name = "vendor_boot",
-    )
-
-    kernel_module_group(
-        name = "imx_evk_95_vendor_boot_modules",
-        srcs = [
-            #imx_evk_95_vendor_boot_modules
-            ":hwmon",
-            ":scmi-hwmon",
-            ":imx-sm-lmm",
-            ":imx-sm-cpu",
-            ":imx-sm-bbm",
-            ":imx-sm-misc",
-            ":scmi_power_control",
-            ":arm_smmu_v3",
-            ":clk-scmi",
-            ":mxc-clk",
-            ":clk-imx95-blk-ctl",
-            ":timer-imx-sysctr",
-            ":imx-mailbox",
-            ":rpmsg_ns",
-            ":virtio_rpmsg_bus",
-            ":sm-cpu",
-            ":sm-lmm",
-            ":imx_rproc",
-            ":pinctrl-imx",
-            ":pinctrl-imx-scmi",
-            ":fsl-edma",
-            ":fsl_lpuart_95",
-            ":trusty-core",
-            ":trusty-log",
-            ":trusty-ipc",
-            ":trusty-virtio",
-            ":i2c-imx-lpi2c",
-            ":i2c-dev",
-            ":i2c-rpmsg-imx",
-            ":i2c-mux",
-            ":irq-imx-irqsteer",
-            ":rtc-imx-sm-bbm",
-            ":sm-misc",
-            ":cpufreq-dt",
-            ":imx7ulp_wdt",
-            ":sec_enclave",
-            ":cqhci",
-            ":busfreq-imx8mq",
-            ":sdhci-esdhc-imx",
-            ":nvmem-imx-ocotp",
-            ":nvmem-imx-ocotp-fsb-s400",
-            ":pwrseq_simple",
-            ":pwm-imx-tpm",
-            ":soc-imx9",
-            ":gpio-adp5585",
-            ":gpio-pca953x",
-            ":gpio-vf610",
-            ":led_bl",
-            ":pwm_bl",
-            ":system_heap",
-            ":dsp_heap",
-            ":cma_heap",
-            ":dma-buf-imx",
-            ":maxim_serdes",
-            ":max96752-core",
-            ":max96752-i2c",
-            ":adp5585",
-            ":max96789-core",
-            ":max96789-i2c",
-            ":dummy_battery",
-            ":pwm-adp5585",
-            ":phy-fsl-imx8mq-usb",
-            ":focaltech_ts",
-            ":ilitek_ts_i2c",
-            ":exc3000",
-            ":imx-sm-bbm-key",
-            ":usbmisc_imx",
-            ":ulpi",
-            ":ci_hdrc_imx",
-            ":ci_hdrc",
-            ":phy-generic",
-            ":dwc3-imx8mp",
-            ":gpio-switch",
-            ":mux-core",
-            ":mux-mmio",
-            ":phy-fsl-imx9-dphy-rx",
-            ":phy-fsl-imx8mp-lvds",
-            ":linux_logo",
-            ":fb",
-            ":fb_notify",
-            ":cfbcopyarea",
-            ":fb_io_fops",
-            ":fb_sys_fops",
-            ":sysimgblt",
-            ":syscopyarea",
-            ":sysfillrect",
-            ":cfbfillrect",
-            ":cfbimgblt",
-            ":drm_fbdev_helper",
-            ":drm_dma_helper",
-            ":it6161",
-            ":max96752-lvds",
-            ":display-connector",
-            ":adv7511",
-            ":fsl-imx-ldb",
-            ":max96789-dsi",
-            ":it6263",
-            ":ti-sn65dsi83",
-            ":nwl-dsi",
-            ":lontium-lt8912b",
-            ":lontium-lt9611uxc",
-            ":imx95-pixel-link",
-            ":imx95-pixel-interleaver",
-            ":imx-ldb-helper",
-            ":imx95-ldb",
-            ":dw-mipi-dsi",
-            ":imx95-mipi-dsi",
-            ":imx-lcdif",
-            ":panel-raydium-rm67191",
-            ":panel-nxp-rm67162",
-            ":panel-simple",
-            ":panel-raydium-rm692c9",
-            ":panel-rocktech-hx8394f",
-            ":panel-lvds",
-            ":drm_display_helper",
-            ":imx95-dpu-drm",
-            ":display-imx-rpmsg",
-            ":imx8-isi",
-            ":imx-csi-formatter",
-            ":dwc-mipi-csi2",
-        ],
-    )
-
-    kernel_modules_install(
-        name = "imx_evk_95_vendor_boot_modules_install",
-        kernel_build = ":imx_ddk_modules",
-        kernel_modules = [
-            ":imx_evk_95_vendor_boot_modules",
-        ],
-    )
-
-    _IMX_EVK_95_AARCH64_VENDOR_BOOT_FIRST_STAGE_MODULES_LIST = [
-        "hwmon.ko",
-        "scmi-hwmon.ko",
-        "imx-sm-lmm.ko",
-        "imx-sm-cpu.ko",
-        "imx-sm-bbm.ko",
-        "imx-sm-misc.ko",
-        "scmi_power_control.ko",
-        "arm_smmu_v3.ko",
-        "clk-scmi.ko",
-        "mxc-clk.ko",
-        "clk-imx95-blk-ctl.ko",
-        "timer-imx-sysctr.ko",
-        "imx-mailbox.ko",
-        "rpmsg_ns.ko",
-        "virtio_rpmsg_bus.ko",
-        "sm-cpu.ko",
-        "sm-lmm.ko",
-        "imx_rproc.ko",
-        "pinctrl-imx.ko",
-        "pinctrl-imx-scmi.ko",
-        "fsl-edma.ko",
-        "fsl_lpuart_95.ko",
-        "trusty-core.ko",
-        "trusty-log.ko",
-        "trusty-ipc.ko",
-        "trusty-virtio.ko",
-        "i2c-imx-lpi2c.ko",
-        "i2c-dev.ko",
-        "i2c-rpmsg-imx.ko",
-        "i2c-mux.ko",
-        "irq-imx-irqsteer.ko",
-        "rtc-imx-sm-bbm.ko",
-        "sm-misc.ko",
-        "cpufreq-dt.ko",
-        "imx7ulp_wdt.ko",
-        "sec_enclave.ko",
-        "cqhci.ko",
-        "busfreq-imx8mq.ko",
-        "sdhci-esdhc-imx.ko",
-        "nvmem-imx-ocotp.ko",
-        "nvmem-imx-ocotp-fsb-s400.ko",
-        "pwrseq_simple.ko",
-        "pwm-imx-tpm.ko",
-        "soc-imx9.ko",
-        "gpio-adp5585.ko",
-        "gpio-pca953x.ko",
-        "gpio-vf610.ko",
-    ]
-
-    _IMX_EVK_95_AARCH64_VENDOR_BOOT_RECOVERY_FIRST_STAGE_ADDITION_MODULES_LIST = [
-        "led_bl.ko",
-        "pwm_bl.ko",
-        "system_heap.ko",
-        "dsp_heap.ko",
-        "cma_heap.ko",
-        "dma-buf-imx.ko",
-        "maxim_serdes.ko",
-        "max96752-core.ko",
-        "max96752-i2c.ko",
-        "adp5585.ko",
-        "max96789-core.ko",
-        "max96789-i2c.ko",
-        "dummy_battery.ko",
-        "pwm-adp5585.ko",
-        "phy-fsl-imx8mq-usb.ko",
-        "focaltech_ts.ko",
-        "ilitek_ts_i2c.ko",
-        "exc3000.ko",
-        "imx-sm-bbm-key.ko",
-        "usbmisc_imx.ko",
-        "ulpi.ko",
-        "ci_hdrc_imx.ko",
-        "ci_hdrc.ko",
-        "phy-generic.ko",
-        "dwc3-imx8mp.ko",
-        "gpio-switch.ko",
-        "mux-core.ko",
-        "mux-mmio.ko",
-        "phy-fsl-imx9-dphy-rx.ko",
-        "phy-fsl-imx8mp-lvds.ko",
-        "linux_logo.ko",
-        "fb.ko",
-        "fb_notify.ko",
-        "cfbcopyarea.ko",
-        "fb_io_fops.ko",
-        "fb_sys_fops.ko",
-        "sysimgblt.ko",
-        "syscopyarea.ko",
-        "sysfillrect.ko",
-        "cfbfillrect.ko",
-        "cfbimgblt.ko",
-        "drm_fbdev_helper.ko",
-        "drm_dma_helper.ko",
-        "it6161.ko",
-        "max96752-lvds.ko",
-        "display-connector.ko",
-        "adv7511.ko",
-        "fsl-imx-ldb.ko",
-        "max96789-dsi.ko",
-        "it6263.ko",
-        "ti-sn65dsi83.ko",
-        "nwl-dsi.ko",
-        "lontium-lt8912b.ko",
-        "lontium-lt9611uxc.ko",
-        "imx95-pixel-link.ko",
-        "imx95-pixel-interleaver.ko",
-        "imx-ldb-helper.ko",
-        "imx95-ldb.ko",
-        "dw-mipi-dsi.ko",
-        "imx95-mipi-dsi.ko",
-        "imx-lcdif.ko",
-        "panel-raydium-rm67191.ko",
-        "panel-nxp-rm67162.ko",
-        "panel-simple.ko",
-        "panel-raydium-rm692c9.ko",
-        "panel-rocktech-hx8394f.ko",
-        "panel-lvds.ko",
-        "drm_display_helper.ko",
-        "imx95-dpu-drm.ko",
-        "display-imx-rpmsg.ko",
-        "imx8-isi.ko",
-        "imx-csi-formatter.ko",
-        "dwc-mipi-csi2.ko",
-    ]
-
-    write_file(
-        name = "imx_evk_95_aarch64_vendor_boot_modules_list",
-        out = "modules_list.imx_evk_95_aarch64",
-        content = _IMX_EVK_95_AARCH64_VENDOR_BOOT_FIRST_STAGE_MODULES_LIST,
-    )
-
-    write_file(
-        name = "imx_evk_95_aarch64_vendor_boot_modules_recovery_list",
-        out = "modules_recovery_list.imx_evk_95_aarch64",
-        content = _IMX_EVK_95_AARCH64_VENDOR_BOOT_FIRST_STAGE_MODULES_LIST + _IMX_EVK_95_AARCH64_VENDOR_BOOT_RECOVERY_FIRST_STAGE_ADDITION_MODULES_LIST,
-    )
-
-    write_file(
-        name = "imx_evk_95_aarch64_vendor_dlkm_modules_charger_list",
-        out = "modules_charger_list.imx_evk_95_aarch64",
-        content = _IMX_EVK_95_AARCH64_VENDOR_BOOT_FIRST_STAGE_MODULES_LIST + _IMX_EVK_95_AARCH64_VENDOR_BOOT_RECOVERY_FIRST_STAGE_ADDITION_MODULES_LIST,
-    )
-
-    initramfs(
-        name = "imx_evk_95_aarch64_initramfs",
-        kernel_modules_install = ":imx_evk_95_vendor_boot_modules_install",
-        modules_charger_list = ":modules_charger_list.imx_evk_95_aarch64",
-        modules_list = ":modules_list.imx_evk_95_aarch64",
-        modules_recovery_list = ":modules_recovery_list.imx_evk_95_aarch64",
-        vendor_boot_name = "vendor_boot",
-        trim_unused_modules = True,
-    )
-
-    vendor_boot_image(
-        name = "imx_evk_95_aarch64_vendor_boot_image",
-        outs = [
-            "ramdisk.lz4",
-        ],
-        initramfs = ":imx_evk_95_aarch64_initramfs",
-        kernel_build = ":imx_ddk_modules",
-        unpack_ramdisk = True,
-        ramdisk_compression = "lz4",
-        vendor_boot_name = "vendor_boot",
-    )
-
-    kernel_module_group(
-        name = "imx_evk_8mm_vendor_dlkm_modules",
-        srcs = [
-            #imx_evk_8mm_vendor_dlkm_modules
-            ":galcore",
-            ":imx8mm_thermal",
-            ":imx7-media-csi",
-            ":imx-mipi-csis",
-            ":ov5640",
-            ":leds-gpio",
-            ":leds-pca995x",
-            ":gpio-pca953x",
-            ":imx-pcm-dma",
-            ":snd-soc-fsl-utils",
-            ":snd-soc-fsl-micfil",
-            ":snd-soc-fsl-asrc",
-            ":snd-soc-fsl-easrc",
-            ":snd-soc-fsl-sai",
-            ":snd-soc-fsl-spdif",
-            ":snd-soc-imx-audmux",
-            ":snd-soc-fsl-asoc-card",
-            ":snd-soc-simple-card-utils",
-            ":snd-soc-wm8524",
-            ":snd-soc-ak4458",
-            ":snd-soc-ak5558",
-            ":snd-soc-bt-sco",
-            ":snd-soc-simple-card",
-            ":rpmsg_ns",
-            ":virtio_rpmsg_bus",
-            ":sm-cpu",
-            ":sm-lmm",
-            ":imx_rproc",
-            ":i2c-rpmsg-imx",
-            ":imx-pcm-rpmsg",
-            ":snd-soc-fsl-rpmsg",
-            ":imx-audio-rpmsg",
-            ":snd-soc-rpmsg-ak4497",
-            ":snd-soc-imx-rpmsg",
-            ":snd-soc-imx-card",
-            ":hantrodec_845s",
-            ":hx280enc",
-            ":vsiv4l2",
-            ":rtc-snvs",
-            ":qcom-phy-lib",
-            ":at803x",
-            ":realtek",
-            ":pps_core",
-            ":ptp",
-            ":fec",
-            #mwifiex
-            "//nxp-mwifiex:mlan",
-            "//nxp-mwifiex:moal",
-
-            # vvcam
-            "//verisilicon_sw_isp_vvcam/vvcam:vvcam-dwe",
-            "//verisilicon_sw_isp_vvcam/vvcam:vvcam-isp",
-            "//verisilicon_sw_isp_vvcam/vvcam:vvcam-video",
-            "//verisilicon_sw_isp_vvcam/vvcam:os08a20",
-            "//verisilicon_sw_isp_vvcam/vvcam:basler-camera-driver-vvcam",
-        ],
-    )
-
-    kernel_modules_install(
-        name = "imx_evk_8mm_vendor_dlkm_modules_install",
-        kernel_build = ":imx_ddk_modules",
-        kernel_modules = [
-            ":imx_evk_8mm_vendor_dlkm_modules",
-        ],
-    )
-
-    _IMX_EVK_8MM_AARCH64_VENDOR_DLKM_MODULES_LIST = [
-        "galcore.ko",
-        "imx8mm_thermal.ko",
-        "imx7-media-csi.ko",
-        "imx-mipi-csis.ko",
-        "ov5640.ko",
-        "leds-gpio.ko",
-        "leds-pca995x.ko",
-        "gpio-pca953x.ko",
-        "imx-pcm-dma.ko",
-        "snd-soc-fsl-utils.ko",
-        "snd-soc-fsl-micfil.ko",
-        "snd-soc-fsl-asrc.ko",
-        "snd-soc-fsl-easrc.ko",
-        "snd-soc-fsl-sai.ko",
-        "snd-soc-fsl-spdif.ko",
-        "snd-soc-imx-audmux.ko",
-        "snd-soc-fsl-asoc-card.ko",
-        "snd-soc-simple-card-utils.ko",
-        "snd-soc-wm8524.ko",
-        "snd-soc-ak4458.ko",
-        "snd-soc-ak5558.ko",
-        "snd-soc-bt-sco.ko",
-        "snd-soc-simple-card.ko",
-        "rpmsg_ns.ko",
-        "virtio_rpmsg_bus.ko",
-        "sm-cpu.ko",
-        "sm-lmm.ko",
-        "imx_rproc.ko",
-        "i2c-rpmsg-imx.ko",
-        "imx-pcm-rpmsg.ko",
-        "snd-soc-fsl-rpmsg.ko",
-        "imx-audio-rpmsg.ko",
-        "snd-soc-rpmsg-ak4497.ko",
-        "snd-soc-imx-rpmsg.ko",
-        "snd-soc-imx-card.ko",
-        "hantrodec_845s.ko",
-        "hx280enc.ko",
-        "vsiv4l2.ko",
-        "rtc-snvs.ko",
-        "qcom-phy-lib.ko",
-        "at803x.ko",
-        "realtek.ko",
-        "pps_core.ko",
-        "ptp.ko",
-        "fec.ko",
-        "cfg80211.ko",
-        "mac80211.ko",
-        "mlan.ko",
-        "moal.ko",
-        "vvcam-dwe.ko",
-        "vvcam-isp.ko",
-        "vvcam-video.ko",
-        "os08a20.ko",
-        "basler-camera-driver-vvcam.ko",
-    ]
-
-    write_file(
-        name = "imx_evk_8mm_aarch64_vendor_dlkm_modules_list",
-        out = "modules_list.imx_evk_8mm_aarch64_vendor_dlkm",
-        content = _IMX_EVK_8MM_AARCH64_VENDOR_DLKM_MODULES_LIST,
-    )
-
-    vendor_dlkm_image(
-        name = "imx_evk_8mm_aarch64_vendor_dlkm_image",
-        archive = True,
-        kernel_modules_install = ":imx_evk_8mm_vendor_dlkm_modules_install",
-        modules_list = ":imx_evk_8mm_aarch64_vendor_dlkm_modules_list",
-        fs_type = "erofs",
-    )
-
-    kernel_module_group(
-        name = "imx_evk_95_vendor_dlkm_modules",
-        srcs = [
-            #imx_evk_95_vendor_dlkm_modules
-            ":led_bl",
-            ":pwm_bl",
-            ":system_heap",
-            ":dsp_heap",
-            ":cma_heap",
-            ":dma-buf-imx",
-            ":maxim_serdes",
-            ":max96752-core",
-            ":max96752-i2c",
-            ":adp5585",
-            ":max96789-core",
-            ":max96789-i2c",
-            ":dummy_battery",
-            ":pwm-adp5585",
-            ":phy-fsl-imx8mq-usb",
-            ":focaltech_ts",
-            ":ilitek_ts_i2c",
-            ":exc3000",
-            ":imx-sm-bbm-key",
-            ":usbmisc_imx",
-            ":ulpi",
-            ":ci_hdrc_imx",
-            ":ci_hdrc",
-            ":phy-generic",
-            ":dwc3-imx8mp",
-            ":gpio-switch",
-            ":mux-core",
-            ":mux-mmio",
-            ":phy-fsl-imx9-dphy-rx",
-            ":phy-fsl-imx8mp-lvds",
-            ":linux_logo",
-            ":fb",
-            ":fb_notify",
-            ":cfbcopyarea",
-            ":fb_io_fops",
-            ":fb_sys_fops",
-            ":sysimgblt",
-            ":syscopyarea",
-            ":sysfillrect",
-            ":cfbfillrect",
-            ":cfbimgblt",
-            ":drm_fbdev_helper",
-            ":drm_dma_helper",
-            ":it6161",
-            ":max96752-lvds",
-            ":display-connector",
-            ":adv7511",
-            ":fsl-imx-ldb",
-            ":max96789-dsi",
-            ":it6263",
-            ":ti-sn65dsi83",
-            ":nwl-dsi",
-            ":lontium-lt8912b",
-            ":lontium-lt9611uxc",
-            ":imx95-pixel-link",
-            ":imx95-pixel-interleaver",
-            ":imx-ldb-helper",
-            ":imx95-ldb",
-            ":dw-mipi-dsi",
-            ":imx95-mipi-dsi",
-            ":imx-lcdif",
-            ":panel-raydium-rm67191",
-            ":panel-nxp-rm67162",
-            ":panel-simple",
-            ":panel-raydium-rm692c9",
-            ":panel-rocktech-hx8394f",
-            ":panel-lvds",
-            ":drm_display_helper",
-            ":imx95-dpu-drm",
-            ":display-imx-rpmsg",
-            ":imx8-isi",
-            ":imx-csi-formatter",
-            ":dwc-mipi-csi2",
-            ":ap1302",
-            ":ox03c10",
-            ":max96717_lib",
-            ":mx95mbcam",
-            ":max96724",
-            ":libarc4",
-            ":fsl_imx9_ddr_perf",
-            ":imx93_adc",
-            ":gpio-reset",
-            ":imx-sm-reset",
-            ":pci-imx6",
-            ":spidev",
-            ":spi-bitbang",
-            ":spi-nxp-fspi",
-            ":spi-fsl-lpspi",
-            ":mtd",
-            ":spi-nor",
-            ":leds-gpio",
-            ":leds-pca995x",
-            ":leds-pca963x",
-            ":wave6-vpu-ctrl",
-            ":wave6",
-            ":ox05b1s_mipi",
-            ":v4l2-jpeg",
-            ":mxc-jpeg-encdec",
-            ":neoisp",
-            ":imx-pcm-dma",
-            ":imx-pcm-rpmsg",
-            ":snd-soc-fsl-utils",
-            ":snd-soc-dmic",
-            ":snd-soc-fsl-micfil",
-            ":snd-soc-fsl-mqs",
-            ":snd-soc-fsl-asrc",
-            ":snd-soc-fsl-sai",
-            ":snd-soc-bt-sco",
-            ":snd-soc-simple-card-utils",
-            ":snd-soc-simple-card",
-            ":snd-soc-audio-graph-card2",
-            ":snd-soc-imx-card",
-            ":snd-soc-imx-audmux",
-            ":snd-soc-imx-rpmsg",
-            ":snd-soc-fsl-asoc-card",
-            ":imx-audio-rpmsg",
-            ":snd-soc-fsl-rpmsg",
-            ":snd-soc-ak4458",
-            ":snd-soc-ak5558",
-            ":snd-soc-wm8962",
-            ":snd-soc-wm8904",
-            ":snd-soc-cs42xx8",
-            ":snd-soc-cs42xx8-i2c",
-            ":aquantia",
-            ":pps_core",
-            ":ptp",
-            ":nxp-netc-lib",
-            ":nxp-netc-blk-ctrl",
-            ":ptp_netc",
-            ":ptp-qoriq",
-            ":fsl-enetc-ptp",
-            ":pcs-lynx",
-            ":pcs_xpcs",
-            ":fsl-enetc-mdio",
-            ":fsl-enetc-core",
-            ":crc-itu-t",
-            ":fsl-enetc-vf",
-            ":fsl-enetc4",
-            ":realtek",
-            "//nxp-mwifiex:mlan",
-            "//nxp-mwifiex:moal",
-            ":imx_neutron_rproc",
-            ":neutron",
-            ":mali_kbase",
-        ],
-    )
-
-    kernel_modules_install(
-        name = "imx_evk_95_vendor_dlkm_modules_install",
-        kernel_build = ":imx_ddk_modules",
-        kernel_modules = [
-            ":imx_evk_95_vendor_dlkm_modules",
-        ],
-    )
-
-    _IMX_EVK_95_AARCH64_VENDOR_DLKM_MODULES_LIST = [
-        "ap1302.ko",
-        "ox03c10.ko",
-        "max96717_lib.ko",
-        "mx95mbcam.ko",
-        "max96724.ko",
-        "cfg80211.ko",
-        "libarc4.ko",
-        "mac80211.ko",
-        "fsl_imx9_ddr_perf.ko",
-        "imx93_adc.ko",
-        "gpio-reset.ko",
-        "imx-sm-reset.ko",
-        "pci-imx6.ko",
-        "spidev.ko",
-        "spi-bitbang.ko",
-        "spi-nxp-fspi.ko",
-        "spi-fsl-lpspi.ko",
-        "mtd.ko",
-        "spi-nor.ko",
-        "leds-gpio.ko",
-        "leds-pca995x.ko",
-        "leds-pca963x.ko",
-        "wave6-vpu-ctrl.ko",
-        "wave6.ko",
-        "ox05b1s_mipi.ko",
-        "v4l2-jpeg.ko",
-        "mxc-jpeg-encdec.ko",
-        "neoisp.ko",
-        "imx-pcm-dma.ko",
-        "imx-pcm-rpmsg.ko",
-        "snd-soc-fsl-utils.ko",
-        "snd-soc-dmic.ko",
-        "snd-soc-fsl-micfil.ko",
-        "snd-soc-fsl-mqs.ko",
-        "snd-soc-fsl-asrc.ko",
-        "snd-soc-fsl-sai.ko",
-        "snd-soc-bt-sco.ko",
-        "snd-soc-simple-card-utils.ko",
-        "snd-soc-simple-card.ko",
-        "snd-soc-audio-graph-card2.ko",
-        "snd-soc-imx-card.ko",
-        "snd-soc-imx-audmux.ko",
-        "snd-soc-imx-rpmsg.ko",
-        "snd-soc-fsl-asoc-card.ko",
-        "imx-audio-rpmsg.ko",
-        "snd-soc-fsl-rpmsg.ko",
-        "snd-soc-ak4458.ko",
-        "snd-soc-ak5558.ko",
-        "snd-soc-wm8962.ko",
-        "snd-soc-wm8904.ko",
-        "snd-soc-cs42xx8.ko",
-        "snd-soc-cs42xx8-i2c.ko",
-        "aquantia.ko",
-        "pps_core.ko",
-        "ptp.ko",
-        "nxp-netc-lib.ko",
-        "nxp-netc-blk-ctrl.ko",
-        "ptp_netc.ko",
-        "ptp-qoriq.ko",
-        "fsl-enetc-ptp.ko",
-        "pcs-lynx.ko",
-        "pcs_xpcs.ko",
-        "fsl-enetc-mdio.ko",
-        "fsl-enetc-core.ko",
-        "crc-itu-t.ko",
-        "fsl-enetc-vf.ko",
-        "fsl-enetc4.ko",
-        "realtek.ko",
-        "mlan.ko",
-        "moal.ko",
-        "imx_neutron_rproc.ko",
-        "neutron.ko",
-        "mali_kbase.ko",
-    ]
-
-    write_file(
-        name = "imx_evk_95_aarch64_vendor_dlkm_modules_list",
-        out = "modules_list.imx_evk_95_aarch64_vendor_dlkm",
-        content = _IMX_EVK_95_AARCH64_VENDOR_BOOT_RECOVERY_FIRST_STAGE_ADDITION_MODULES_LIST + _IMX_EVK_95_AARCH64_VENDOR_DLKM_MODULES_LIST,
-    )
-
-    vendor_dlkm_image(
-        name = "imx_evk_95_aarch64_vendor_dlkm_image",
-        archive = True,
-        kernel_modules_install = ":imx_evk_95_vendor_dlkm_modules_install",
-        modules_list = ":imx_evk_95_aarch64_vendor_dlkm_modules_list",
-        fs_type = "erofs",
-    )
-
-    # Package vendor_boot image files
-    pkg_files(
-        name = "imx_evk_8mm_aarch64_vendor_boot_dist_files",
-        srcs = [
-            ":imx_evk_8mm_aarch64_vendor_boot_image",
-        ],
-        strip_prefix = strip_prefix.files_only(),
-        visibility = ["//visibility:private"],
-    )
-
-    # Install vendor_boot image to output directory
-    pkg_install(
-        name = "imx_evk_8mm_aarch64_vendor_boot_dist",
-        srcs = [":imx_evk_8mm_aarch64_vendor_boot_dist_files"],
-        destdir = "out/imx_evk_8mm_aarch64/dist",
-    )
-
-    # Package vendor_dlkm image files
-    pkg_files(
-        name = "imx_evk_8mm_aarch64_vendor_dlkm_dist_files",
-        srcs = [
-            ":imx_evk_8mm_aarch64_vendor_dlkm_image",
-        ],
-        strip_prefix = strip_prefix.files_only(),
-        visibility = ["//visibility:private"],
-    )
-
-    # Install vendor_dlkm image to output directory
-    pkg_install(
-        name = "imx_evk_8mm_aarch64_vendor_dlkm_dist",
-        srcs = [":imx_evk_8mm_aarch64_vendor_dlkm_dist_files"],
-        destdir = "out/imx_evk_8mm_aarch64/dist",
-    )
-
-    # Package vendor_boot image files
-    pkg_files(
-        name = "imx_evk_95_aarch64_vendor_boot_dist_files",
-        srcs = [
-            ":imx_evk_95_aarch64_vendor_boot_image",
-        ],
-        strip_prefix = strip_prefix.files_only(),
-        visibility = ["//visibility:private"],
-    )
-
-    # Install vendor_boot image to output directory
-    pkg_install(
-        name = "imx_evk_95_aarch64_vendor_boot_dist",
-        srcs = [":imx_evk_95_aarch64_vendor_boot_dist_files"],
-        destdir = "out/imx_evk_95_aarch64/dist",
-    )
-
-    # Package vendor_dlkm image files
-    pkg_files(
-        name = "imx_evk_95_aarch64_vendor_dlkm_dist_files",
-        srcs = [
-            ":imx_evk_95_aarch64_vendor_dlkm_image",
-        ],
-        strip_prefix = strip_prefix.files_only(),
-        visibility = ["//visibility:private"],
-    )
-
-    # Install vendor_dlkm image to output directory
-    pkg_install(
-        name = "imx_evk_95_aarch64_vendor_dlkm_dist",
-        srcs = [":imx_evk_95_aarch64_vendor_dlkm_dist_files"],
-        destdir = "out/imx_evk_95_aarch64/dist",
     )

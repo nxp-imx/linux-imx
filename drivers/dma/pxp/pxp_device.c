@@ -2,20 +2,21 @@
 /*
  * Copyright (C) 2010-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
-#include <linux/interrupt.h>
-#include <linux/platform_device.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/uaccess.h>
+#include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
-#include <linux/dma-mapping.h>
-#include <linux/sched.h>
-#include <linux/module.h>
-#include <linux/pxp_device.h>
-#include <linux/atomic.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-mapping.h>
 #include <linux/dma/imx-dma.h>
+#include <linux/fs.h>
+#include <linux/interrupt.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/pxp_device.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #define BUFFER_HASH_ORDER 4
 
@@ -304,8 +305,49 @@ static void pxp_dma_done(void *arg)
 	wake_up(&(irq_info[chan_id].waitq));
 }
 
+static int check_scale_ratio(struct pxp_config_data *pxp_conf)
+{
+	struct pxp_proc_data proc_data;
+	uint32_t yscale;
+	uint32_t decy;
+
+	memcpy(&proc_data, &pxp_conf->proc_data, sizeof(struct pxp_proc_data));
+
+	if (proc_data.rotate == 90 || proc_data.rotate == 270)
+		swap(proc_data.drect.width, proc_data.drect.height);
+
+	decy = proc_data.srect.height / proc_data.drect.height;
+
+	/*
+	 * According to ERR052955, regarding Y-axis scaling, only
+	 * downscaling factors of the form 1/F are supported, where
+	 * F ∈ [1, 2] ∪ {4, 8, 16}. Any factor outside this range is
+	 * considered invalid.
+	 */
+	if (decy > 1) {
+		if (decy >= 2 && decy < 4)
+			decy = 2;
+		else if (decy >= 4 && decy < 8)
+			decy = 4;
+		else if (decy >= 8)
+			decy = 8;
+
+		yscale = proc_data.srect.height * 0x1000 /
+			 (proc_data.drect.height * decy);
+
+		if (yscale != 0x1000 && yscale != 0x2000) {
+			pr_warn("Don't support scale ratio, decy:%d, yscale:0x%x\n",
+				decy, yscale);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int pxp_ioc_config_chan(struct pxp_file *priv, unsigned long arg)
 {
+	struct device_node *node;
 	struct scatterlist *sg;
 	struct pxp_tx_desc *desc;
 	struct dma_async_tx_descriptor *txd;
@@ -349,6 +391,16 @@ static int pxp_ioc_config_chan(struct pxp_file *priv, unsigned long arg)
 	if (!sg) {
 		kfree(pxp_conf);
 		return -ENOMEM;
+	}
+
+	/* Apply errata ERR052955 for i.MX943 PXP */
+	node = chan->device->dev->of_node;
+	if (of_device_is_compatible(node, "fsl,imx94-pxp-dma")) {
+		ret = check_scale_ratio(pxp_conf);
+		if (ret < 0) {
+			kfree(pxp_conf);
+			return -EINVAL;
+		}
 	}
 
 	sg_init_table(sg, sg_len);
@@ -1014,6 +1066,7 @@ err_put:
 			struct pxp_chan_handle chan_handle;
 			int ret, chan_id, handle;
 			struct pxp_chan_obj *obj = NULL;
+			struct pxp_channel *pxp_chan;
 
 			ret = copy_from_user(&chan_handle,
 					     (struct pxp_chan_handle *)arg,
@@ -1026,11 +1079,16 @@ err_put:
 			if (!obj)
 				return -EINVAL;
 			chan_id = obj->chan->chan_id;
+			pxp_chan = to_pxp_channel(obj->chan);
 
-			ret = wait_event_interruptible
+			ret = wait_event_interruptible_timeout
 			    (irq_info[chan_id].waitq,
-			     (atomic_read(&irq_info[chan_id].irq_pending) == 0));
-			if (ret < 0)
+			     ((atomic_read(&irq_info[chan_id].irq_pending) == 0) &&
+			      (pxp_chan->status == PXP_CHANNEL_INITIALIZED)),
+			     2 * HZ);
+			if (ret == 0)
+				return -ETIMEDOUT;
+			else if (ret < 0)
 				return -ERESTARTSYS;
 
 			chan_handle.hist_status = irq_info[chan_id].hist_status;

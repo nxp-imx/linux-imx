@@ -84,6 +84,11 @@
 			no-map;
 		};
 
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
 		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
@@ -343,6 +348,12 @@
 		fsl,startup-delay-ms = <50>;
 		status = "okay";
 	};
+
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
+	};
+
 };
 
 &adc1 {
@@ -639,6 +650,7 @@
 	pinctrl-names = "default";
 	reset-gpio = <&i2c7_pcal6524 5 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_pcie0>;
+	supports-clkreq;
 	status = "okay";
 };
 
@@ -1331,6 +1343,9 @@
 	pinctrl-0 = <&pinctrl_tpm6>;
 	pwm-rst;
 	status = "okay";
+};
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };
 
 &vpuctrl {

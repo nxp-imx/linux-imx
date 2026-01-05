@@ -201,6 +201,31 @@ TRACE_EVENT(source_change,
 		  __entry->colorspace, __entry->xfer_func, __entry->ycbcr_enc)
 );
 
+TRACE_EVENT(set_fb,
+	TP_PROTO(struct vpu_instance *inst, int offset, int count, int fbc_num, int mv_num),
+	TP_ARGS(inst, offset, count, fbc_num, mv_num),
+	TP_STRUCT__entry(
+		__string(name, dev_name(inst->dev->dev))
+		__field(u32, id)
+		__field(u32, offset)
+		__field(u32, count)
+		__field(u32, fbc_num)
+		__field(u32, mv_num)
+	),
+	TP_fast_assign(
+		__assign_str(name);
+		__entry->id = inst->id;
+		__entry->offset = offset;
+		__entry->count = count;
+		__entry->fbc_num = fbc_num;
+		__entry->mv_num = mv_num;
+	),
+	TP_printk("%s: inst[%d] set_fb offset %d, count %d, required %d, %d",
+		  __get_str(name), __entry->id,
+		  __entry->offset, __entry->count,
+		  __entry->fbc_num, __entry->mv_num)
+);
+
 TRACE_EVENT(dec_done,
 	TP_PROTO(struct vpu_instance *inst, struct dec_output_info *info),
 	TP_ARGS(inst, info),

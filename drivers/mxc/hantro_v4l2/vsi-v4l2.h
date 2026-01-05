@@ -110,37 +110,39 @@ enum v4l2_daemon_cmd_id {
 	/*  every command should mark which kind of parameters is valid.
 	 *      For example, V4L2_DAEMON_VIDIOC_BUF_RDY can contains input or output buffers.
 	 *          also it can contains other parameters.  */
-	V4L2_DAEMON_VIDIOC_STREAMON = 0,//for streamon and start
-	V4L2_DAEMON_VIDIOC_BUF_RDY,
-	V4L2_DAEMON_VIDIOC_CMD_STOP, //this is for flush.
-	V4L2_DAEMON_VIDIOC_DESTROY_ENC,	//enc destroy
-	V4L2_DAEMON_VIDIOC_ENC_RESET,	//enc reset, as in spec
+	V4L2_DAEMON_VIDIOC_STREAMON               = 0,//for streamon and start
+	V4L2_DAEMON_VIDIOC_BUF_RDY                = 1,
+	V4L2_DAEMON_VIDIOC_CMD_STOP               = 2, //this is for flush.
+	V4L2_DAEMON_VIDIOC_DESTROY_ENC            = 3,	//enc destroy
+	V4L2_DAEMON_VIDIOC_ENC_RESET              = 4,	//enc reset, as in spec
 	//above are enc cmds
 
-	V4L2_DAEMON_VIDIOC_FAKE,//fake command.
+	V4L2_DAEMON_VIDIOC_FAKE                   = 5,//fake command.
 
 	/*Below is for decoder*/
-	V4L2_DAEMON_VIDIOC_S_EXT_CTRLS,
-	V4L2_DAEMON_VIDIOC_RESET_BITRATE,
-	V4L2_DAEMON_VIDIOC_CHANGE_RES,
-	V4L2_DAEMON_VIDIOC_G_FMT,
-	V4L2_DAEMON_VIDIOC_S_SELECTION,
-	V4L2_DAEMON_VIDIOC_S_FMT,
-	V4L2_DAEMON_VIDIOC_PACKET, // tell daemon a frame is ready.
-	V4L2_DAEMON_VIDIOC_STREAMON_CAPTURE,//for streamon and start
-	V4L2_DAEMON_VIDIOC_STREAMON_OUTPUT,
-	V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE,
-	V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT,
-	V4L2_DAEMON_VIDIOC_CMD_START,
-	V4L2_DAEMON_VIDIOC_FRAME,
-	V4L2_DAEMON_VIDIOC_DESTROY_DEC,
+	V4L2_DAEMON_VIDIOC_S_EXT_CTRLS            = 6,
+	V4L2_DAEMON_VIDIOC_RESET_BITRATE          = 7,
+	V4L2_DAEMON_VIDIOC_CHANGE_RES             = 8,
+	V4L2_DAEMON_VIDIOC_G_FMT                  = 9,
+	V4L2_DAEMON_VIDIOC_S_SELECTION            = 10,
+	V4L2_DAEMON_VIDIOC_S_FMT                  = 11,
+	V4L2_DAEMON_VIDIOC_PACKET                 = 12, // tell daemon a frame is ready.
+	V4L2_DAEMON_VIDIOC_STREAMON_CAPTURE       = 13,//for streamon and start
+	V4L2_DAEMON_VIDIOC_STREAMON_OUTPUT        = 14,
+	V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE      = 15,
+	V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT       = 16,
+	V4L2_DAEMON_VIDIOC_CMD_START              = 17,
+	V4L2_DAEMON_VIDIOC_FRAME                  = 18,
+	V4L2_DAEMON_VIDIOC_DESTROY_DEC            = 19,
 
-	V4L2_DAEMON_VIDIOC_EXIT,		//daemon should exit itself
-	V4L2_DAEMON_VIDIOC_PICCONSUMED,
-	V4L2_DAEMON_VIDIOC_CROPCHANGE,
-	V4L2_DAEMON_VIDIOC_WARNONOPTION,
-	V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE,
-	V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE,
+	V4L2_DAEMON_VIDIOC_EXIT                   = 20,		//daemon should exit itself
+	V4L2_DAEMON_VIDIOC_PICCONSUMED            = 21,
+	V4L2_DAEMON_VIDIOC_CROPCHANGE             = 22,
+	V4L2_DAEMON_VIDIOC_WARNONOPTION           = 23,
+	V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE = 24,
+	V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE  = 25,
+	V4L2_DAEMON_VIDIOC_LINEAR_ALLOC           = 26,
+	V4L2_DAEMON_VIDIOC_LINEAR_FREE            = 27,
 	V4L2_DAEMON_VIDIOC_TOTAL_AMOUNT,
 };
 
@@ -279,7 +281,9 @@ struct v4l2_daemon_enc_general_cmd {
 };
 
 struct v4l2_daemon_enc_h26x_cmd {
-	s32 valid;//0:invalid, 1:valid.
+	u32 sample_aspect_ratio_width : 16;
+	u32 sample_aspect_ratio_height : 16;
+
 	s32 byteStream;      //byteStream
 
 	s32 enableCabac;      /* [0,1] H.264 entropy coding mode, 0 for CAVLC, 1 for CABAC */
@@ -645,6 +649,7 @@ struct vsi_v4l2_msg {
 	union {
 		struct v4l2_daemon_enc_params enc_params;
 		struct v4l2_daemon_dec_params dec_params;
+		u32 linear_size;
 	} params;
 };
 

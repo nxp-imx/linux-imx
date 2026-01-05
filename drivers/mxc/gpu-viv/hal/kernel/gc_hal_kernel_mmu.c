@@ -4165,6 +4165,9 @@ gckMMU_DestroyMmuCopy(IN gckMMU Mmu)
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea1M.stlbLogical));
 #endif
 
+    if (Mmu->mtlbVideoMem)
+        gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(Mmu->hardware->kernel, Mmu->mtlbVideoMem));
+
     if (Mmu->dynamicArea4K.stlbLogical)
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, Mmu->dynamicArea4K.stlbLogical));
 
@@ -4192,6 +4195,7 @@ gckMMU_ConstructMmuCopy(IN gckKERNEL Kernel, OUT gckMMU *MmuCopy)
 
     mmuCopy = (gckMMU)pointer;
     mmuCopy->os = Kernel->os;
+    mmuCopy->hardware = Kernel->hardware;
 
 #if gcdENABLE_40BIT_VA
     area = &mmu->dynamicLowArea4K;
@@ -4212,6 +4216,21 @@ gckMMU_ConstructMmuCopy(IN gckKERNEL Kernel, OUT gckMMU *MmuCopy)
 
     gcmkONERROR(_CopyUsedDynamicArea(Kernel, area, areaCopy));
 #endif
+
+    if (Kernel->hardware->mmuVersion > 0) {
+        mmuCopy->pool = _GetPageTablePool(mmuCopy->os);
+        mmuCopy->mtlbSize = mmu->mtlbSize;
+        gcmkONERROR(gckKERNEL_AllocateVideoMemory(Kernel, 1024, gcvVIDMEM_TYPE_COMMAND,
+                                                          gcvALLOC_FLAG_CONTIGUOUS | gcvALLOC_FLAG_4K_PAGES,
+                                                          &mmuCopy->mtlbSize, &mmuCopy->pool, &mmuCopy->mtlbVideoMem));
+
+        gcmkONERROR(gckVIDMEM_NODE_LockCPU(Kernel, mmuCopy->mtlbVideoMem,
+                                           gcvFALSE, gcvFALSE, &pointer));
+        mmuCopy->mtlbLogical = pointer;
+
+        gcmkONERROR(gckOS_ZeroMemory(mmuCopy->mtlbLogical, mmuCopy->mtlbSize));
+        gcmkONERROR(gckOS_MemCopy(mmuCopy->mtlbLogical, mmu->mtlbLogical, mmu->mtlbSize));
+    }
 
     area = &mmu->dynamicArea4K;
     areaCopy = &mmuCopy->dynamicArea4K;
@@ -4249,7 +4268,7 @@ gckMMU_CopyDynamicAreas(IN gckKERNEL Kernel, IN gckMMU dstMMU)
     gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
                               areaCopy->stlbLogical + area->usedIndex,
                               (dstArea->stlbSize - area->usedIndex * 4)));
-gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+    gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
 #if gcdENABLE_GPU_1M_PAGE
     dstArea = &dstMMU->dynamicLowArea1M;
     areaCopy = &mmuCopy->dynamicLowArea1M;
@@ -4264,7 +4283,7 @@ gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical
     gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
                               areaCopy->stlbLogical + area->usedIndex,
                               (dstArea->stlbSize - area->usedIndex * 4)));
-gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+    gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
 #endif
 #endif
 
@@ -4298,7 +4317,7 @@ gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical
     gcmkONERROR(gckOS_MemCopy(dstArea->stlbLogical + area->usedIndex,
                               areaCopy->stlbLogical + area->usedIndex,
                               (dstArea->stlbSize - area->usedIndex * 4)));
-gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
+    gckVIDMEM_NODE_CleanCache(Kernel, dstArea->stlbVideoMem, 0, dstArea->stlbLogical, dstArea->stlbSize);
 
 OnError:
     return status;
@@ -4365,9 +4384,6 @@ gckMMU_ConstructProcessMMU(IN gckKERNEL Kernel, OUT gctUINT32 ProcessID, gckMMU 
 
     if (!Kernel->flatMapping)
             gcmkONERROR(gckMMU_CopyDynamicAreas(Kernel, mmu));
-
-
-    //gcmkONERROR(_GetNextDescId(Kernel, &mmu->descIndex));
 
     mmu->pid = ProcessID;
 

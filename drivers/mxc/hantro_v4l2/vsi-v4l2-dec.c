@@ -40,6 +40,7 @@
 #include <linux/delay.h>
 #include <linux/version.h>
 #include "vsi-v4l2-priv.h"
+#include "vsi-v4l2-trace.h"
 
 static int vsi_dec_querycap(
 	struct file *file,
@@ -89,7 +90,7 @@ static int vsi_dec_reqbufs(
 		print_queinfo(q);
 		if (p->count == 0 && binputqueue(p->type)) {
 			p->capabilities = V4L2_BUF_CAP_SUPPORTS_MMAP | V4L2_BUF_CAP_SUPPORTS_USERPTR | V4L2_BUF_CAP_SUPPORTS_DMABUF;
-			//ctx->status = VSI_STATUS_INIT;
+			//vsi_v4l2_set_ctx_status(ctx, VSI_STATUS_INIT);
 		}
 	}
 	return ret;
@@ -185,7 +186,7 @@ static int vsi_dec_qbuf(struct file *filp, void *priv, struct v4l2_buffer *buf)
 		ctx->status == DEC_STATUS_DECODING) {
 		if (test_and_clear_bit(CTX_FLAG_PRE_DRAINING_BIT, &ctx->flag)) {
 			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_CMD_STOP, NULL);
-			ctx->status = DEC_STATUS_DRAINING;
+			vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DRAINING);
 		} else
 			ret = 0;
 		mutex_unlock(&ctx->ctxlock);
@@ -214,7 +215,7 @@ static int vsi_dec_dec2drain(struct vsi_v4l2_ctx *ctx)
 	if (ctx->status == DEC_STATUS_DECODING &&
 		test_bit(CTX_FLAG_PRE_DRAINING_BIT, &ctx->flag)) {
 		ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_CMD_STOP, NULL);
-		ctx->status = DEC_STATUS_DRAINING;
+		vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DRAINING);
 	}
 	return ret;
 }
@@ -229,7 +230,7 @@ int vsi_dec_output_on(struct vsi_v4l2_ctx *ctx)
 		return 0;
 
 	v4l2_klog(LOGLVL_FLOW, "%llx:%s start streaming", ctx->ctxid, __func__);
-	ctx->status = DEC_STATUS_DECODING;
+	vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DECODING);
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMON_OUTPUT, NULL);
 	if (ret == 0)
 		vsi_dec_dec2drain(ctx);
@@ -255,7 +256,7 @@ int vsi_dec_capture_on(struct vsi_v4l2_ctx *ctx)
 		return ret;
 
 	if (ctx->status != DEC_STATUS_SEEK && ctx->status != DEC_STATUS_ENDSTREAM)
-		ctx->status = DEC_STATUS_DECODING;
+		vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DECODING);
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMON_CAPTURE, NULL);
 	if (ret == 0)
 		vsi_dec_dec2drain(ctx);
@@ -284,6 +285,9 @@ static int vsi_dec_streamon(struct file *filp, void *priv, enum v4l2_buf_type ty
 
 	if (mutex_lock_interruptible(&ctx->ctxlock))
 		return -EBUSY;
+	trace_vsiv4l2_stream_on(ctx, type);
+	dev_dbg(ctx->dev->dev, "[%llx] dec %s streamon\n",
+		ctx->ctxid, V4L2_TYPE_IS_OUTPUT(type) ? "output" : "capture");
 	v4l2_klog(LOGLVL_BRIEF, "%llx %s:%d in status %d", ctx->ctxid, __func__, type, ctx->status);
 	if (!binputqueue(type)) {
 		vb2_clear_last_buffer_dequeued(&ctx->output_que);
@@ -382,6 +386,11 @@ static int vsi_dec_streamoff(
 
 	if (mutex_lock_interruptible(&ctx->ctxlock))
 		return -EBUSY;
+
+	trace_vsiv4l2_stream_off(ctx, type);
+	dev_dbg(ctx->dev->dev, "[%llx] dec %s streamoff\n",
+		ctx->ctxid, V4L2_TYPE_IS_OUTPUT(type) ? "output" : "capture");
+
 	if (!binputqueue(type)) {
 		vb2_clear_last_buffer_dequeued(q);
 		if (ctx->need_capture_on && vb2_is_streaming(q)) {
@@ -404,12 +413,12 @@ static int vsi_dec_streamoff(
 	if (binputqueue(type)) {
 		if (!ctx->need_output_on)
 			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT, NULL);
-		ctx->status = DEC_STATUS_SEEK;
+		vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_SEEK);
 		ctx->need_output_on = false;
 	} else {
 		ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE, NULL);
 		if (ctx->status != DEC_STATUS_SEEK && ctx->status != DEC_STATUS_ENDSTREAM)
-			ctx->status = DEC_STATUS_STOPPED;
+			vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_STOPPED);
 	}
 	if (ret < 0) {
 		mutex_unlock(&ctx->ctxlock);
@@ -490,7 +499,7 @@ static int vsi_dec_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 		v4l2_klog(LOGLVL_FLOW, "rfc offest update=%x:%x", p->reserved, p->reserved2);
 
 		if (p->bytesused == 0 && (ctx->status == DEC_STATUS_ENDSTREAM || test_bit(CTX_FLAG_ENDOFSTRM_BIT, &ctx->flag))) {
-			ctx->status = DEC_STATUS_ENDSTREAM;
+			vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_ENDSTREAM);
 			clear_bit(CTX_FLAG_ENDOFSTRM_BIT, &ctx->flag);
 			v4l2_klog(LOGLVL_BRIEF, "send eos flag");
 		} else if (test_bit(CTX_FLAG_DELAY_SRCCHANGED_BIT, &ctx->flag) && ctx->buffed_capnum == 0) {
@@ -671,7 +680,7 @@ static int vsi_dec_start_cmd(struct vsi_v4l2_ctx *ctx)
 	int i;
 
 	if (ctx->status == DEC_STATUS_STOPPED) {
-		ctx->status = DEC_STATUS_DECODING;
+		vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DECODING);
 		ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_CMD_START, NULL);
 		if (ret < 0)
 			return ret;
@@ -705,6 +714,8 @@ static int vsi_dec_start_cmd(struct vsi_v4l2_ctx *ctx)
 				return ret;
 		}
 	}
+
+	ctx->reschange_notified = false;
 
 	return ret;
 }
@@ -745,14 +756,18 @@ static int vsi_dec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_
 		return -EBUSY;
 	switch (cmd->cmd) {
 	case V4L2_DEC_CMD_STOP:
+		trace_vsiv4l2_cmd_drain(ctx, 0);
+		dev_dbg(ctx->dev->dev, "[%llx] dec drain\n", ctx->ctxid);
 		set_bit(CTX_FLAG_PRE_DRAINING_BIT, &ctx->flag);
 		if (ctx->status == DEC_STATUS_DECODING) {
 			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_CMD_STOP, NULL);
-			ctx->status = DEC_STATUS_DRAINING;
+			vsi_v4l2_set_ctx_status(ctx, DEC_STATUS_DRAINING);
 		} else
 			ret = vsi_dec_handlestop_unspec(ctx);
 		break;
 	case V4L2_DEC_CMD_START:
+		trace_vsiv4l2_cmd_start(ctx, 0);
+		dev_dbg(ctx->dev->dev, "[%llx] dec start\n", ctx->ctxid);
 		ret = vsi_dec_start_cmd(ctx);
 		break;
 	case V4L2_DEC_CMD_RESET:
@@ -835,6 +850,10 @@ static void vsi_dec_buf_queue(struct vb2_buffer *vb)
 	int ret;
 
 	v4l2_klog(LOGLVL_FLOW, "%s:%d:%d", __func__, vq->type, vb->index);
+	trace_vsiv4l2_buf_queue(ctx, vq->type, vb->index);
+	dev_dbg(ctx->dev->dev, "[%llx] dec %s buf queue %d\n",
+		ctx->ctxid, V4L2_TYPE_IS_OUTPUT(vb->type) ? "output" : "capture", vb->index);
+
 	vsibuf = vb_to_vsibuf(vb);
 	if (!binputqueue(vq->type)) {
 		set_bit(BUF_FLAG_QUEUED, &ctx->vbufflag[vb->index]);
@@ -846,11 +865,6 @@ static void vsi_dec_buf_queue(struct vb2_buffer *vb)
 		ctx->performance.input_buf_num++;
 	}
 	ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_BUF_RDY, vb);
-}
-
-static int vsi_dec_buf_init(struct vb2_buffer *vb)
-{
-	return 0;
 }
 
 static int vsi_dec_buf_prepare(struct vb2_buffer *vb)
@@ -888,10 +902,6 @@ static void vsi_dec_buf_finish(struct vb2_buffer *vb)
 {
 }
 
-static void vsi_dec_buf_cleanup(struct vb2_buffer *vb)
-{
-}
-
 static void vsi_dec_buf_wait_finish(struct vb2_queue *vq)
 {
 	vb2_ops_wait_finish(vq);
@@ -906,10 +916,10 @@ static struct vb2_ops vsi_dec_qops = {
 	.queue_setup = vsi_dec_queue_setup,
 	.wait_prepare = vsi_dec_buf_wait_prepare,	/*these two are just mutex protection for done_que*/
 	.wait_finish = vsi_dec_buf_wait_finish,
-	.buf_init = vsi_dec_buf_init,
+	.buf_init = vsiv4l2_buf_init,
 	.buf_prepare = vsi_dec_buf_prepare,
 	.buf_finish = vsi_dec_buf_finish,
-	.buf_cleanup = vsi_dec_buf_cleanup,
+	.buf_cleanup = vsiv4l2_buf_cleanup,
 	.start_streaming = vsi_dec_start_streaming,
 	.stop_streaming = vsi_dec_stop_streaming,
 	.buf_queue = vsi_dec_buf_queue,
@@ -1149,6 +1159,8 @@ static int vsi_dec_setup_ctrls(struct v4l2_ctrl_handler *handler)
 		}
 	}
 
+	imx_mur_new_v4l2_ctrl(handler, ctx->recorder);
+
 	v4l2_ctrl_handler_setup(handler);
 	return handler->error;
 }
@@ -1181,6 +1193,8 @@ static int v4l2_dec_open(struct file *filp)
 	mutex_init(&ctx->ctxlock);
 	ctx->flag = CTX_FLAG_DEC;
 	set_bit(CTX_FLAG_CONFIGUPDATE_BIT, &ctx->flag);
+	trace_vsiv4l2_create_ctx(ctx, 0);
+	dev_dbg(ctx->dev->dev, "[%llx] create decoder instance\n", ctx->ctxid);
 
 	ctx->frameidx = 0;
 	q = &ctx->input_que;
@@ -1220,13 +1234,16 @@ static int v4l2_dec_open(struct file *filp)
 		goto err_enc_dec_exit;
 	}
 	q->quirk_poll_must_check_waiting_for_buffers = false;
+	ctx->recorder = imx_mur_create_node(dev->recorder, "decoder instance");
+	if (ctx->recorder)
+		ctx->recorder_ctrlsw = imx_mur_create_node(ctx->recorder, "ctrlsw");
 	vsiv4l2_initcfg(ctx);
 	vsi_dec_setup_ctrls(&ctx->ctrlhdl);
 	vfh = (struct v4l2_fh *)filp->private_data;
 	vfh->ctrl_handler = &ctx->ctrlhdl;
 	atomic_set(&ctx->srcframen, 0);
 	atomic_set(&ctx->dstframen, 0);
-	ctx->status = VSI_STATUS_INIT;
+	vsi_v4l2_set_ctx_status(ctx, VSI_STATUS_INIT);
 	ctx->tgid = current->tgid;
 	ctx->pid = current->pid;
 	vsi_v4l2_create_dbgfs_file(ctx);

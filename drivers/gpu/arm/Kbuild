@@ -23,3 +23,5 @@ ifeq ($(MALI_CSF_SUPPORT),n)
 endif
 
 obj-$(CONFIG_MALI_MIDGARD) += midgard/
+obj-$(CONFIG_MALI_PROTECTED_MEMORY_ALLOCATOR) += pma/
+obj-$(CONFIG_MALI_MEMORY_GROUP_MANAGER) += mgm/

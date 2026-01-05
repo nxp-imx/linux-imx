@@ -30,7 +30,11 @@
 
 #ifndef __KERNEL__
 #ifndef __cplusplus
+#if defined __STDC_VERSION__ && __STDC_VERSION__ > 201710L
+/* bool is keyword in C23. */
+#else
 typedef unsigned char bool;
+#endif
 #endif
 #define irqreturn_t int
 #define dma_addr_t int

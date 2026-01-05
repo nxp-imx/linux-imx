@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2011-2016 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * Copyright 2018-2024 NXP
+ * Copyright 2018-2025 NXP
  *
  */
 
@@ -1781,7 +1781,7 @@ static void ov5640_remove(struct i2c_client *client)
 
 	ov5640_power_down(sensor, 1);
 
-	ov5640_regualtor_disable();
+	ov5640_s_power(sd, false);
 }
 
 module_i2c_driver(ov5640_i2c_driver);

@@ -347,7 +347,7 @@ impl InnerThread {
             return Err(EINVAL);
         }
         // Find a new current transaction for this thread.
-        self.current_transaction = transaction.find_from(thread);
+        self.current_transaction = transaction.find_from(thread).cloned();
         Ok(transaction)
     }
 
@@ -492,11 +492,11 @@ impl Thread {
             );
         }
 
-        let mut t_opt = inner.current_transaction.clone();
+        let mut t_opt = inner.current_transaction.as_ref();
         while let Some(t) = t_opt {
             if Arc::ptr_eq(&t.from, self) {
                 t.debug_print_inner(m, "    outgoing transaction ");
-                t_opt = t.from_parent.clone();
+                t_opt = t.from_parent.as_ref();
             } else if Arc::ptr_eq(&t.to, &self.process) {
                 t.debug_print_inner(m, "    incoming transaction ");
                 t_opt = t.find_from(self);
@@ -1234,7 +1234,7 @@ impl Thread {
         transaction: &DArc<Transaction>,
     ) -> bool {
         if let Ok(transaction) = &reply {
-            crate::trace::trace_transaction(true, &transaction);
+            crate::trace::trace_transaction(true, &transaction, Some(&self.task));
 
             transaction.set_outstanding(&mut self.process.inner.lock());
         }
@@ -1653,12 +1653,13 @@ impl Thread {
     pub(crate) fn release(self: &Arc<Self>) {
         self.inner.lock().is_dead = true;
 
+        self.work_condvar.clear();
+        self.unwind_transaction_stack();
+
         // Cancel all pending work items.
         while let Ok(Some(work)) = self.get_work_local(false) {
             work.into_arc().cancel();
         }
-
-        self.unwind_transaction_stack();
     }
 }
 

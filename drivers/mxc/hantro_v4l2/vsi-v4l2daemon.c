@@ -43,6 +43,9 @@
 #include <linux/delay.h>
 #include "vsi-v4l2-priv.h"
 
+#define CREATE_TRACE_POINTS
+#include "vsi-v4l2-trace.h"
+
 #define PIPE_DEVICE_NAME      "vsiv4l2daemon"
 
 #if !defined(CONFIG_ANDROID)
@@ -170,6 +173,7 @@ static int getMsg(struct file *fh, char __user *buf, size_t size)
 		if (offset >= size)
 			break;
 		if (obj) {
+			trace_vsiv4l2_command(obj);
 			if (copy_to_user((void __user *)buf + offset, (void *)obj, sizeof(struct vsi_v4l2_msg_hdr) + obj->size) != 0)
 				break;
 			v4l2_klog(LOGLVL_VERBOSE, "%llx send msg  id = %d", obj->inst_id, obj->cmd_id);
@@ -340,6 +344,11 @@ static u32 format_bufinfo_enc(struct vsi_v4l2_ctx *ctx, struct vsi_v4l2_msg *pms
 	dma_addr_t  busaddr[4] = { 0 };
 
 	vsi_convertROI(ctx);
+	if (test_and_clear_bit(CTX_FLAG_SARUPDATE, &ctx->flag)) {
+		vsi_update_sar(ctx);
+		*update |= UPDATE_INFO;
+	}
+	vsi_update_slice_size(ctx);
 	vsi_convertIPCM(ctx);
 	if (binputqueue(buf->type) && ctx->srcvbufflag[buf->index] & FORCE_IDR)
 		*update |= UPDATE_INFO;
@@ -443,6 +452,50 @@ static void format_bufinfo_dec(struct vsi_v4l2_ctx *ctx, struct vsi_v4l2_msg *pm
 	}
 }
 
+bool vsi_v4l2_is_bufferdone_msg(struct vsi_v4l2_msg *msg)
+{
+	if (msg->cmd_id != V4L2_DAEMON_VIDIOC_BUF_RDY)
+		return false;
+	if (!msg->size)
+		return false;
+	return true;
+}
+
+const char *vsi_v4l2_cmd_name(u32 id)
+{
+	switch (id) {
+	case V4L2_DAEMON_VIDIOC_STREAMON:               return "streamon";
+	case V4L2_DAEMON_VIDIOC_BUF_RDY:                return "buffer ready";
+	case V4L2_DAEMON_VIDIOC_CMD_STOP:               return "stop";
+	case V4L2_DAEMON_VIDIOC_DESTROY_ENC:            return "destroy encoder";
+	case V4L2_DAEMON_VIDIOC_ENC_RESET:              return "reset encoder";
+	case V4L2_DAEMON_VIDIOC_FAKE:                   return "fake";
+	case V4L2_DAEMON_VIDIOC_S_EXT_CTRLS:            return "set ctrls";
+	case V4L2_DAEMON_VIDIOC_RESET_BITRATE:          return "reset bitrate";
+	case V4L2_DAEMON_VIDIOC_CHANGE_RES:             return "resolution change";
+	case V4L2_DAEMON_VIDIOC_G_FMT:                  return "get fmt";
+	case V4L2_DAEMON_VIDIOC_S_SELECTION:            return "set selection";
+	case V4L2_DAEMON_VIDIOC_S_FMT:                  return "set fmt";
+	case V4L2_DAEMON_VIDIOC_PACKET:                 return "packet";
+	case V4L2_DAEMON_VIDIOC_STREAMON_CAPTURE:       return "streamon capture";
+	case V4L2_DAEMON_VIDIOC_STREAMON_OUTPUT:        return "streamon output";
+	case V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE:      return "streamoff capture";
+	case V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT:       return "streamoff output";
+	case V4L2_DAEMON_VIDIOC_CMD_START:              return "start";
+	case V4L2_DAEMON_VIDIOC_FRAME:                  return "frame";
+	case V4L2_DAEMON_VIDIOC_DESTROY_DEC:            return "destroy decoder";
+	case V4L2_DAEMON_VIDIOC_EXIT:                   return "exit";
+	case V4L2_DAEMON_VIDIOC_PICCONSUMED:            return "pic consumed";
+	case V4L2_DAEMON_VIDIOC_CROPCHANGE:             return "crop change";
+	case V4L2_DAEMON_VIDIOC_WARNONOPTION:           return "warning";
+	case V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE: return "streamoff capture done";
+	case V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE:  return "streamoff output done";
+	case V4L2_DAEMON_VIDIOC_LINEAR_ALLOC:           return "alloc linear";
+	case V4L2_DAEMON_VIDIOC_LINEAR_FREE:            return "free linear";
+	default:                                        return "unknown";
+	}
+}
+
 int vsiv4l2_execcmd(struct vsi_v4l2_ctx *ctx, enum v4l2_daemon_cmd_id id, void *args)
 {
 	int ret = 0;
@@ -474,7 +527,7 @@ int vsiv4l2_execcmd(struct vsi_v4l2_ctx *ctx, enum v4l2_daemon_cmd_id id, void *
 		if (ret == 0) {
 			if ((retflag & LAST_BUFFER_FLAG) &&
 				ctx->status == ENC_STATUS_DRAINING)
-				ctx->status = ENC_STATUS_EOS;
+				vsi_v4l2_set_ctx_status(ctx, ENC_STATUS_EOS);
 		}
 		break;
 	case V4L2_DAEMON_VIDIOC_STREAMON:
@@ -669,6 +722,10 @@ static int vsi_handle_daemonmsg(struct vsi_v4l2_msg *pmsg)
 	case V4L2_DAEMON_VIDIOC_STREAMOFF_CAPTURE_DONE:
 	case V4L2_DAEMON_VIDIOC_STREAMOFF_OUTPUT_DONE:
 		return vsi_v4l2_handle_streamoffdone(pmsg);
+	case V4L2_DAEMON_VIDIOC_LINEAR_ALLOC:
+		return vsi_v4l2_handle_linear_alloc(pmsg);
+	case V4L2_DAEMON_VIDIOC_LINEAR_FREE:
+		return vsi_v4l2_handle_linear_free(pmsg);
 	default:
 		return -EINVAL;
 	}
@@ -707,6 +764,7 @@ static ssize_t v4l2_msg_write(struct file *fh, const char __user *buf, size_t si
 			goto error;
 		}
 	}
+	trace_vsiv4l2_message(pmsg);
 	v4l2_klog(LOGLVL_VERBOSE, "get msg  id = %d, flag = %x, seqid = %llx, err = %d",
 		pmsg->cmd_id, pmsg->param_type, pmsg->seq_id, pmsg->error);
 	accubytes += sizeof(struct vsi_v4l2_msg_hdr) + msgsize;
@@ -839,4 +897,3 @@ int vsiv4l2_initdaemon(void)
 
 	return result;
 }
-

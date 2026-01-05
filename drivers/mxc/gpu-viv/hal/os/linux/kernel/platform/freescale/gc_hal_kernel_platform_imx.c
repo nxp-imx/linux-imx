@@ -1000,6 +1000,11 @@ static inline int get_power_imx8_subsystem(struct device *pdev)
         if (!pdev_gpu)
             break;
 
+        if (!pdev_gpu->dev.pm_domain) {
+            of_node_put(core_node);
+            return -1;
+        }
+
         clk_core = clk_get(&pdev_gpu->dev, "core");
 
         if (IS_ERR(clk_core)) {

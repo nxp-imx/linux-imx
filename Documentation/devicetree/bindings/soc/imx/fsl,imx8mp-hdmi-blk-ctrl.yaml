@@ -64,6 +64,9 @@ properties:
       - const: lcdif-hdmi
       - const: hdcp
 
+  '#reset-cells':
+    const: 1
+
 required:
   - compatible
   - reg
