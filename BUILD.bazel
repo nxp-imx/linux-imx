@@ -42,6 +42,8 @@ load(
     "get_kunit_modules_list",
     "get_kunit_modules_superset",
 )
+load(":imx.bzl", "define_imx")
+define_imx()
 
 package(
     default_visibility = [
