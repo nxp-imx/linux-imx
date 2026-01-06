@@ -477,6 +477,11 @@ static struct snd_sof_of_mach sof_imx8mp_machs[] = {
 		.drv_name = "asoc-audio-graph-card2",
 	},
 	{
+		.compatible = "fsl,imx8mp-evk-nocodec",
+		.sof_tplg_filename = "sof-imx8-nocodec.tplg",
+		.drv_name = "sof-nocodec",
+	},
+	{
 		.compatible = "fsl,imx8mp-evk",
 		.sof_tplg_filename = "sof-imx8mp-wm8960.tplg",
 		.drv_name = "asoc-audio-graph-card2",
