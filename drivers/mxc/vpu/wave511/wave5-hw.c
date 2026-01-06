@@ -101,7 +101,7 @@ static void _wave5_print_reg_err(struct vpu_device *vpu_dev, u32 cmd, u32 reg_fa
 		dev_err(dev, "%s: cmd 0x%x double fault: 0x%x\n", func, cmd, reg_fail_reason);
 		break;
 	case WAVE5_SYSERR_VPU_STILL_RUNNING:
-		dev_err(dev, "%s: cmd 0x%x, still running: 0x%x\n", func, cmd, reg_fail_reason);
+		dev_dbg(dev, "%s: cmd 0x%x, still running: 0x%x\n", func, cmd, reg_fail_reason);
 		break;
 	case WAVE5_SYSERR_VLC_BUF_FULL:
 		dev_err(dev, "%s: cmd 0x%x, vlc buf full: 0x%x\n", func, cmd, reg_fail_reason);

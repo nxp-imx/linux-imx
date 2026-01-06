@@ -6,6 +6,7 @@
  */
 
 #include <linux/bug.h>
+#include <linux/delay.h>
 #include "wave5-vpuapi.h"
 #include "wave5-regdefine.h"
 #include "wave5-hw.h"
@@ -21,6 +22,7 @@ int wave5_vpu_flush_instance(struct vpu_instance *inst)
 	int retry = 0;
 
 	guard(mutex)(&inst->dev->hw_lock);
+
 	do {
 		/*
 		 * Repeat the FLUSH command until the firmware reports that the
@@ -34,6 +36,11 @@ int wave5_vpu_flush_instance(struct vpu_instance *inst)
 					inst->type == VPU_INST_TYPE_DEC ? "DECODER" : "", inst->id);
 				return -ETIMEDOUT;
 			}
+			/*
+			 * Wait for the firmware to finish processing the current decoding command,
+			 * especially the virt command.
+			 */
+			fsleep(VPU_RETRY_DELAY_US);
 		} else if (ret < 0) {
 			dev_warn(inst->dev->dev, "Flush of %s instance with id: %d fail: %d\n",
 				 inst->type == VPU_INST_TYPE_DEC ? "DECODER" : "", inst->id,
@@ -166,6 +173,7 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 					"[%d] dec_finish_seq timed out\n", inst->id);
 				return -ETIMEDOUT;
 			}
+			fsleep(VPU_RETRY_DELAY_US);
 		}
 	} while (ret != 0);
 

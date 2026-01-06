@@ -54,6 +54,7 @@
 #define VPU_BOOT_WAIT_TIMEOUT		3000
 #define VPU_DEC_TIMEOUT_MS		300
 #define VPU_DEC_TIMEOUT_US		(VPU_DEC_TIMEOUT_MS * USEC_PER_MSEC)
+#define VPU_RETRY_DELAY_US		1000
 
 /************************************************************************/
 /* VPU COMMON MEMORY                                                    */
