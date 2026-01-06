@@ -117,6 +117,11 @@
 
 };
 
+&adc1 {
+	vref-supply = <&reg_vref_1v8>;
+	status = "okay";
+};
+
 &lpi2c2 {
 	clock-frequency = <400000>;
 	pinctrl-names = "default";
