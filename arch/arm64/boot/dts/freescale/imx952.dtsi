@@ -1271,5 +1271,14 @@
 			reg = <0x0 0x4c200200 0x0 0x200>,
 			      <0x0 0x4c010014 0x0 0x4>;
 		};
+
+		netcmix_blk_ctrl: syscon@4c810000 {
+			compatible = "nxp,imx95-netcmix-blk-ctrl", "syscon";
+			reg = <0x0 0x4c810000 0x0 0x8>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_NETC>;
+			power-domains = <&scmi_devpd IMX952_PD_NETC>;
+		};
+
 	};
 };
