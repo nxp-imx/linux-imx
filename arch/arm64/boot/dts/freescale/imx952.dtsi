@@ -293,6 +293,14 @@
 		method = "smc";
 	};
 
+	sram1: sram@204c0000 {
+		compatible = "mmio-sram";
+		reg = <0x0 0x204c0000 0x0 0x18000>;
+		ranges = <0x0 0x0 0x204c0000 0x18000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>,
