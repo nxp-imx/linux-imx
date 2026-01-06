@@ -1541,7 +1541,8 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 	return ret;
 
 return_buffers:
-	wave5_return_bufs(q, VB2_BUF_STATE_QUEUED);
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+		wave5_return_bufs(q, VB2_BUF_STATE_QUEUED);
 	pm_runtime_put_sync(inst->dev->dev);
 	return ret;
 }
@@ -1550,14 +1551,10 @@ static int streamoff_output(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
-	struct vb2_v4l2_buffer *buf;
 	int ret;
 
-	while ((buf = v4l2_m2m_src_buf_remove(m2m_ctx))) {
-		dev_dbg(inst->dev->dev, "%s: (Multiplanar) buf type %4u | index %4u\n",
-			__func__, buf->vb2_buf.type, buf->vb2_buf.index);
-		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
-	}
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+		wave5_return_bufs(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
 
 	ret = wave5_vpu_flush_instance(inst);
 	if (ret)
@@ -1588,20 +1585,10 @@ static int streamoff_capture(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
-	struct vb2_v4l2_buffer *buf;
 	int ret = 0;
 
-	while ((buf = v4l2_m2m_dst_buf_remove(m2m_ctx))) {
-		u32 plane;
-
-		dev_dbg(inst->dev->dev, "%s: buf type %4u | index %4u\n",
-			__func__, buf->vb2_buf.type, buf->vb2_buf.index);
-
-		for (plane = 0; plane < inst->dst_fmt.num_planes; plane++)
-			vb2_set_plane_payload(&buf->vb2_buf, plane, 0);
-
-		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
-	}
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+		wave5_return_bufs(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
 
 	if (inst->needs_reallocation) {
 		wave5_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);

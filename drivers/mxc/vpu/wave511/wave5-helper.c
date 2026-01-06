@@ -276,6 +276,8 @@ void wave5_return_bufs(struct vb2_queue *q, u32 state)
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	struct vb2_v4l2_buffer *vbuf;
 
+	lockdep_assert_held(&inst->state_spinlock);
+
 	for (;;) {
 		if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 			vbuf = v4l2_m2m_src_buf_remove(m2m_ctx);
