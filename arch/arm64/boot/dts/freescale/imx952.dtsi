@@ -1222,6 +1222,14 @@
 			status = "disabled";
 		};
 
+		hsio_blk_ctl: syscon@4c0100c0 {
+			compatible = "nxp,imx95-hsio-blk-ctl", "syscon";
+			reg = <0x0 0x4c0100c0 0x0 0x1>;
+			#clock-cells = <1>;
+			power-domains = <&scmi_devpd IMX952_PD_HSIO_TOP>;
+			clocks = <&clk_dummy>;
+		};
+
 		usb1: usb@4c100000 {
 			compatible = "fsl,imx95-usb", "fsl,imx7d-usb", "fsl,imx27-usb";
 			reg = <0x0 0x4c100000 0x0 0x200>;
