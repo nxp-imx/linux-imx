@@ -45,6 +45,10 @@ DECLARE_HOOK(android_vh_append_total_power,
 			u64 total_stime, u64 total_power),
 		TP_ARGS(m, uid, total_utime, total_stime, total_power));
 
+DECLARE_HOOK(android_vh_fas_gpu_qos_update_tracer,
+		TP_PROTO(struct freq_qos_request *req, s32 *value),
+		TP_ARGS(req, value));
+
 #endif /* _TRACE_HOOK_POWER_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>
