@@ -839,19 +839,15 @@ static int dprc_probe(struct platform_device *pdev)
 	dprc->trusty_dev = NULL;
 	if (of_find_property(dev->of_node, "trusty", NULL)) {
 		dprc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (dprc->trusty_dev) {
-			if (!dprc->trusty_dev->driver || !dev_get_drvdata(dprc->trusty_dev))
+		if (!dprc->trusty_dev || !dprc->trusty_dev->driver || !dev_get_drvdata(dprc->trusty_dev))
 				return -EPROBE_DEFER;
 
-			ret = trusty_fast_call32(dprc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
-			if (ret) {
-				dprc->trusty_dev = NULL;
-				dev_err(&pdev->dev, "dprc: trusty probe test failed, use Normal mode\n");
-			} else {
-				dev_info(&pdev->dev, "dprc: get trusty_dev node, use Trusty mode.\n");
-			}
+		ret = trusty_fast_call32(dprc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+		if (ret) {
+			dprc->trusty_dev = NULL;
+			dev_err(&pdev->dev, "dprc: trusty probe test failed, use Normal mode\n");
 		} else {
-			dev_err(&pdev->dev, "dprc: failed to find trusty node. Use normal mode.\n");
+			dev_info(&pdev->dev, "dprc: get trusty_dev node, use Trusty mode.\n");
 		}
 	} else {
 		dev_err(&pdev->dev, "dprc: Use normal mode.\n");

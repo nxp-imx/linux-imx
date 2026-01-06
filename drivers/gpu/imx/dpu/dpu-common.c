@@ -1274,19 +1274,15 @@ static int dpu_probe(struct platform_device *pdev)
 	dpu->trusty_dev = NULL;
 	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
 		dpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (dpu->trusty_dev) {
-			if (!dpu->trusty_dev->driver || !dev_get_drvdata(dpu->trusty_dev))
-				return -EPROBE_DEFER;
+		if (!dpu->trusty_dev || !dpu->trusty_dev->driver || !dev_get_drvdata(dpu->trusty_dev))
+			return -EPROBE_DEFER;
 
-			ret = trusty_fast_call32(dpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
-			if (ret) {
-				dpu->trusty_dev = NULL;
-				dev_err(&pdev->dev, "dpu: trusty probe test failed, use Normal mode\n");
-			} else {
-				dev_info(&pdev->dev, "dpu: get trusty_dev node, use Trusty mode.\n");
-			}
+		ret = trusty_fast_call32(dpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+		if (ret) {
+			dpu->trusty_dev = NULL;
+			dev_err(&pdev->dev, "dpu: trusty probe test failed, use Normal mode\n");
 		} else {
-			dev_err(&pdev->dev, "dpu: failed to find trusty node. Use normal mode.\n");
+			dev_info(&pdev->dev, "dpu: get trusty_dev node, use Trusty mode.\n");
 		}
 	}
 

@@ -118,6 +118,7 @@ static int vpu_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct vpu_dev *vpu;
 	int ret;
+	struct device_node *sp = NULL;
 
 	dev_dbg(dev, "probe\n");
 	vpu = devm_kzalloc(dev, sizeof(*vpu), GFP_KERNEL);
@@ -165,9 +166,10 @@ static int vpu_probe(struct platform_device *pdev)
 
 	/*check trusty node*/
 	vpu->trusty_dev = NULL;
-	vpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-	if (vpu->trusty_dev) {
-		if (!vpu->trusty_dev->driver || !dev_get_drvdata(vpu->trusty_dev))
+	sp = of_find_node_by_name(NULL, "trusty");
+	if (sp != NULL) {
+		vpu->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!vpu->trusty_dev || !vpu->trusty_dev->driver || !dev_get_drvdata(vpu->trusty_dev))
 			return -EPROBE_DEFER;
 
 		ret = trusty_fast_call32(vpu->trusty_dev, SMC_WV_PROBE, 0, 0, 0);

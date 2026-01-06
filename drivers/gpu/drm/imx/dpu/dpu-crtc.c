@@ -1488,19 +1488,15 @@ static int dpu_crtc_probe(struct platform_device *pdev)
 	sp = of_find_node_by_name(NULL, "trusty");
 	if (sp != NULL) {
 		dpu_crtc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (dpu_crtc->trusty_dev) {
-			if (!dpu_crtc->trusty_dev->driver || !dev_get_drvdata(dpu_crtc->trusty_dev))
-				return -EPROBE_DEFER;
+		if (!dpu_crtc->trusty_dev || !dpu_crtc->trusty_dev->driver || !dev_get_drvdata(dpu_crtc->trusty_dev))
+			return -EPROBE_DEFER;
 
-			ret = trusty_fast_call32(dpu_crtc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
-			if (ret) {
-				dpu_crtc->trusty_dev = NULL;
-				dev_err(&pdev->dev, "dpu-crtc: trusty probe test failed, use Normal mode\n");
-			} else {
-				dev_info(&pdev->dev, "dpu-crtc: get trusty_dev node, use Trusty mode.\n");
-			}
+		ret = trusty_fast_call32(dpu_crtc->trusty_dev, SMC_WV_PROBE, 0, 0, 0);
+		if (ret) {
+			dpu_crtc->trusty_dev = NULL;
+			dev_err(&pdev->dev, "dpu-crtc: trusty probe test failed, use Normal mode\n");
 		} else {
-			dev_err(&pdev->dev, "dpu-crtc: failed to get trusty_dev node.\n");
+			dev_info(&pdev->dev, "dpu-crtc: get trusty_dev node, use Trusty mode.\n");
 		}
 	} else {
 		dpu_crtc->trusty_dev = NULL;
