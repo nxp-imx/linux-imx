@@ -118,10 +118,25 @@ static int switch_state(struct vpu_instance *inst, enum vpu_instance_state state
 
 	switch (state) {
 	case VPU_INST_STATE_NONE:
-		break;
+		goto valid_state_switch;
 	case VPU_INST_STATE_OPEN:
 		if (inst->state != VPU_INST_STATE_NONE)
 			goto invalid_state_switch;
+		v4l2_m2m_set_dst_buffered(inst->v4l2_fh.m2m_ctx, true);
+		/*
+		 * We use the M2M job queue to ensure synchronization of steps where
+		 * needed, as IOCTLs can occur at anytime and we need to run commands on
+		 * the firmware in a specified order.
+		 * In order to initialize the sequence on the firmware within an M2M
+		 * job, the M2M framework needs to be able to queue jobs before
+		 * the CAPTURE queue has been started, because we need the results of the
+		 * initialization to properly prepare the CAPTURE queue with the correct
+		 * amount of buffers.
+		 * By setting ignore_cap_streaming to true the m2m framework will call
+		 * job_ready as soon as the OUTPUT queue is streaming, instead of
+		 * waiting until both the CAPTURE and OUTPUT queues are streaming.
+		 */
+		inst->v4l2_fh.m2m_ctx->ignore_cap_streaming = true;
 		goto valid_state_switch;
 	case VPU_INST_STATE_INIT_SEQ:
 		if (inst->state != VPU_INST_STATE_OPEN && inst->state != VPU_INST_STATE_STOP)
@@ -1262,6 +1277,25 @@ static const struct v4l2_ioctl_ops wave5_vpu_dec_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
+static void wave5_vpu_dec_reset_instance(struct vpu_instance *inst)
+{
+	u32 fail_res = 0;
+	int ret;
+
+	ret = wave5_vpu_dec_close(inst, &fail_res);
+	if (ret) {
+		dev_err(inst->dev->dev, "[%d] close failed, ret = %d, reason = 0x%x\n",
+			inst->id, ret, fail_res);
+		return;
+	}
+
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+		switch_state(inst, VPU_INST_STATE_NONE);
+
+	if (!pm_runtime_suspended(inst->dev->dev))
+		pm_runtime_put_sync(inst->dev->dev);
+}
+
 static int wave5_vpu_dec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
 				     unsigned int *num_planes, unsigned int sizes[],
 				     struct device *alloc_devs[])
@@ -1286,6 +1320,9 @@ static int wave5_vpu_dec_queue_setup(struct vb2_queue *q, unsigned int *num_buff
 			dev_dbg(inst->dev->dev, "%s: size[%u]: %u\n", __func__, i, sizes[i]);
 		}
 	}
+
+	if (V4L2_TYPE_IS_OUTPUT(q->type) && inst->state >= VPU_INST_STATE_OPEN)
+		wave5_vpu_dec_reset_instance(inst);
 
 	return 0;
 }
@@ -1652,6 +1689,9 @@ static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 	dev_dbg(inst->dev->dev, "[%d] streamoff %s\n", inst->id,
 		V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
 
+	if (inst->state == VPU_INST_STATE_NONE)
+		return;
+
 	wave5_vpu_dec_wait_cq(inst);
 	while (check_cmd) {
 		struct queue_status_info q_status;
@@ -1970,22 +2010,6 @@ static int wave5_vpu_open_dec(struct file *filp)
 		goto cleanup_inst;
 	}
 	m2m_ctx = inst->v4l2_fh.m2m_ctx;
-
-	v4l2_m2m_set_dst_buffered(m2m_ctx, true);
-	/*
-	 * We use the M2M job queue to ensure synchronization of steps where
-	 * needed, as IOCTLs can occur at anytime and we need to run commands on
-	 * the firmware in a specified order.
-	 * In order to initialize the sequence on the firmware within an M2M
-	 * job, the M2M framework needs to be able to queue jobs before
-	 * the CAPTURE queue has been started, because we need the results of the
-	 * initialization to properly prepare the CAPTURE queue with the correct
-	 * amount of buffers.
-	 * By setting ignore_cap_streaming to true the m2m framework will call
-	 * job_ready as soon as the OUTPUT queue is streaming, instead of
-	 * waiting until both the CAPTURE and OUTPUT queues are streaming.
-	 */
-	m2m_ctx->ignore_cap_streaming = true;
 
 	v4l2_ctrl_handler_init(&inst->v4l2_ctrl_hdl, 10);
 	v4l2_ctrl_new_std(&inst->v4l2_ctrl_hdl, NULL,
