@@ -415,8 +415,6 @@ additionalProperties: false
 
 examples:
   - |
-    #include <dt-bindings/clock/fsl,imx95-clock.h>
-    #include <dt-bindings/power/fsl,imx95-power.h>
     display-controller@4b400000 {
       compatible = "nxp,imx95-dpu";
       reg = <0x4b400000 0x400000>;
@@ -529,14 +527,14 @@ examples:
                         "framegen1_underrun1_off",
                         "framegen1_threshold1_rise",
                         "framegen1_threshold1_fail";
-      clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-               <&scmi_clk IMX95_CLK_DISPAPB>,
-               <&scmi_clk IMX95_CLK_DISPAXI>,
-               <&scmi_clk IMX95_CLK_DISPOCRAM>,
+      clocks = <&scmi_clk 80>,
+               <&scmi_clk 75>,
+               <&scmi_clk 76>,
+               <&scmi_clk 78>,
                <&ldb_pll_pixel>,
-               <&scmi_clk IMX95_CLK_LDBPLL_VCO>;
+               <&scmi_clk 37>;
       clock-names = "pix", "apb", "axi", "ocram", "ldb", "ldb_vco";
-      power-domains = <&scmi_devpd IMX95_PD_DISPLAY>;
+      power-domains = <&scmi_devpd 13>;
       nxp,blk-ctrl = <&dispmix_csr>;
 
       ports {
