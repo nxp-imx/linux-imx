@@ -707,6 +707,11 @@ static int imx_drm_dpu95_get_param_ioctl(struct drm_device *drm_dev, void *data,
 		ret = dpu_version;
 		break;
 	case DRM_IMX_GET_FENCE:
+		ret = pm_runtime_resume_and_get(dpu_blit_eng->dev);
+		if (ret < 0) {
+			drm_err(drm_dev, "failed to get device RPM: %d\n", ret);
+			return ret;
+		}
 		dpu95_be_get(dpu_blit_eng);
 
 		if (fd == -1)
@@ -714,6 +719,7 @@ static int imx_drm_dpu95_get_param_ioctl(struct drm_device *drm_dev, void *data,
 
 		dpu95_be_set_fence(dpu_blit_eng, fd);
 		dpu95_be_put(dpu_blit_eng);
+		pm_runtime_put_autosuspend(dpu_blit_eng->dev);
 
 		ret = fd;
 		break;
