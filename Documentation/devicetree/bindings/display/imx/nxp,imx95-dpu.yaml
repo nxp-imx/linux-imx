@@ -17,352 +17,690 @@ description: |
 
 properties:
   compatible:
-    const: nxp,imx95-dpu
+    enum:
+      - nxp,imx95-dpu
+      - nxp,imx952-dpu
 
   reg:
     maxItems: 1
 
   interrupts:
-    items:
-      - description: |
-          store9 shadow load interrupt(blit engine)
-      - description: |
-          store9 frame complete interrupt(blit engine)
-      - description: |
-          store9 sequence complete interrupt(blit engine)
-      - description: |
-          extdst0 shadow load interrupt
-          (display controller, content stream 0)
-      - description: |
-          extdst0 frame complete interrupt
-          (display controller, content stream 0)
-      - description: |
-          extdst0 sequence complete interrupt
-          (display controller, content stream 0)
-      - description: |
-          extdst4 shadow load interrupt
-          (display controller, safety stream 0)
-      - description: |
-          extdst4 frame complete interrupt
-          (display controller, safety stream 0)
-      - description: |
-          extdst4 sequence complete interrupt
-          (display controller, safety stream 0)
-      - description: |
-          extdst1 shadow load interrupt
-          (display controller, content stream 1)
-      - description: |
-          extdst1 frame complete interrupt
-          (display controller, content stream 1)
-      - description: |
-          extdst1 sequence complete interrupt
-          (display controller, content stream 1)
-      - description: |
-          extdst5 shadow load interrupt
-          (display controller, safety stream 1)
-      - description: |
-          extdst5 frame complete interrupt
-          (display controller, safety stream 1)
-      - description: |
-          extdst5 sequence complete interrupt
-          (display controller, safety stream 1)
-      - description: |
-          domainblend0 shadow load interrupt
-          (display controller, display stream 0)
-      - description: |
-          domainblend0 frame complete interrupt
-          (display controller, display stream 0)
-      - description: |
-          domainblend0 sequence complete interrupt
-          (display controller, display stream 0)
-      - description: |
-          disengcfg0 shadow load interrupt
-          (display controller, display stream 0)
-      - description: |
-          disengcfg0 frame complete interrupt
-          (display controller, display stream 0)
-      - description: |
-          disengcfg0 sequence complete interrupt
-          (display controller, display stream 0)
-      - description: |
-          framegen0 programmable interrupt0
-          (display controller, display stream 0)
-      - description: |
-          framegen0 programmable interrupt1
-          (display controller, display stream 0)
-      - description: |
-          framegen0 programmable interrupt2
-          (display controller, display stream 0)
-      - description: |
-          framegen0 programmable interrupt3
-          (display controller, display stream 0)
-      - description: |
-          signature0 shadow load interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature0 measurement valid interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature0 window error condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature0 cluster error condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature0 cluster match condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature2 shadow load interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature2 measurement valid interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature2 window error condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature2 cluster error condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          signature2 cluster match condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          idhash0 shadow load interrupt
-          (display controller, display stream 0)
-      - description: |
-          idhash0 valid interrupt
-          (display controller, display stream 0)
-      - description: |
-          idhash0 window error condition interrupt
-          (display controller, display stream 0)
-      - description: |
-          domainblend1 shadow load interrupt
-          (display controller, display stream 1)
-      - description: |
-          domainblend1 frame complete interrupt
-          (display controller, display stream 1)
-      - description: |
-          domainblend1 sequence complete interrupt
-          (display controller, display stream 1)
-      - description: |
-          disengcfg1 shadow load interrupt
-          (display controller, display stream 1)
-      - description: |
-          disengcfg1 frame complete interrupt
-          (display controller, display stream 1)
-      - description: |
-          disengcfg1 sequence complete interrupt
-          (display controller, display stream 1)
-      - description: |
-          framegen1 programmable interrupt0
-          (display controller, display stream 1)
-      - description: |
-          framegen1 programmable interrupt1
-          (display controller, display stream 1)
-      - description: |
-          framegen1 programmable interrupt2
-          (display controller, display stream 1)
-      - description: |
-          framegen1 programmable interrupt3
-          (display controller, display stream 1)
-      - description: |
-          signature1 shadow load interrupt
-          (display controller, display stream 1)
-      - description: |
-          signature1 measurement valid interrupt
-          (display controller, display stream 1)
-      - description: |
-          signature1 window error condition interrupt
-          (display controller, display stream 1)
-      - description: |
-          signature1 cluster error condition interrupt
-          (display controller, display stream 1)
-      - description: |
-          signature1 cluster match condition interrupt
-          (display controller, display stream 1)
-      - description: |
-          command sequencer error condition interrupt(command sequencer)
-      - description: |
-          common control software interrupt0(common control)
-      - description: |
-          common control software interrupt1(common control)
-      - description: |
-          common control software interrupt2(common control)
-      - description: |
-          common control software interrupt3(common control)
-      - description: |
-          framegen0 primsync_on interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 primsync_off interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 overflow0_on interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 overflow0_off interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 underrun0_on interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 underrun0_off interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 threshold0_rise interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 threshold0_Fall interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 overflow1_on interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 overflow1_off interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 underrun1_on interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 underrun1_off interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 threshold1_rise interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen0 threshold1_Fall interrupt
-          (display controller, display stream0)
-      - description: |
-          framegen1 primsync_on interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 primsync_off interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 overflow0_on interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 overflow0_off interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 underrun0_on interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 underrun0_off interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 threshold0_rise interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 threshold0_Fall interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 overflow1_on interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 overflow1_off interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 underrun1_on interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 underrun1_off interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 threshold1_rise interrupt
-          (display controller, display stream1)
-      - description: |
-          framegen1 threshold1_Fall interrupt
-          (display controller, display stream1)
+    oneOf:
+      - items:
+          - description: |
+              store9 shadow load interrupt(blit engine)
+          - description: |
+              store9 frame complete interrupt(blit engine)
+          - description: |
+              store9 sequence complete interrupt(blit engine)
+          - description: |
+              extdst0 shadow load interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst0 frame complete interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst0 sequence complete interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst4 shadow load interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst4 frame complete interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst4 sequence complete interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst1 shadow load interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst1 frame complete interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst1 sequence complete interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst5 shadow load interrupt
+              (display controller, safety stream 1)
+          - description: |
+              extdst5 frame complete interrupt
+              (display controller, safety stream 1)
+          - description: |
+              extdst5 sequence complete interrupt
+              (display controller, safety stream 1)
+          - description: |
+              domainblend0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              domainblend0 frame complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              domainblend0 sequence complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 frame complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 sequence complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt0
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt1
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt2
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt3
+              (display controller, display stream 0)
+          - description: |
+              signature0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 measurement valid interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 window error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 cluster error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 cluster match condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature2 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature2 measurement valid interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature2 window error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature2 cluster error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature2 cluster match condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 valid interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 window error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              domainblend1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              domainblend1 frame complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              domainblend1 sequence complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 frame complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 sequence complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt0
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt1
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt2
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt3
+              (display controller, display stream 1)
+          - description: |
+              signature1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 measurement valid interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 window error condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 cluster error condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 cluster match condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              command sequencer error condition interrupt(command sequencer)
+          - description: |
+              common control software interrupt0(common control)
+          - description: |
+              common control software interrupt1(common control)
+          - description: |
+              common control software interrupt2(common control)
+          - description: |
+              common control software interrupt3(common control)
+          - description: |
+              framegen0 primsync_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 primsync_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow0_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow0_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun0_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun0_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold0_rise interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold0_Fall interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow1_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow1_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun1_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun1_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold1_rise interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold1_Fall interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen1 primsync_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 primsync_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow0_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow0_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun0_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun0_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold0_rise interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold0_Fall interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow1_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow1_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun1_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun1_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold1_rise interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold1_Fall interrupt
+              (display controller, display stream1)
+      - items:
+          - description: |
+              store9 shadow load interrupt(blit engine)
+          - description: |
+              store9 frame complete interrupt(blit engine)
+          - description: |
+              store9 sequence complete interrupt(blit engine)
+          - description: |
+              extdst0 shadow load interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst0 frame complete interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst0 sequence complete interrupt
+              (display controller, content stream 0)
+          - description: |
+              extdst4 shadow load interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst4 frame complete interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst4 sequence complete interrupt
+              (display controller, safety stream 0)
+          - description: |
+              extdst1 shadow load interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst1 frame complete interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst1 sequence complete interrupt
+              (display controller, content stream 1)
+          - description: |
+              extdst5 shadow load interrupt
+              (display controller, safety stream 1)
+          - description: |
+              extdst5 frame complete interrupt
+              (display controller, safety stream 1)
+          - description: |
+              extdst5 sequence complete interrupt
+              (display controller, safety stream 1)
+          - description: |
+              domainblend0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              domainblend0 frame complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 frame complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              disengcfg0 sequence complete interrupt
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt0
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt1
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt2
+              (display controller, display stream 0)
+          - description: |
+              framegen0 programmable interrupt3
+              (display controller, display stream 0)
+          - description: |
+              signature0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 measurement valid interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 window error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 cluster error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              signature0 cluster match condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 shadow load interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 valid interrupt
+              (display controller, display stream 0)
+          - description: |
+              idhash0 window error condition interrupt
+              (display controller, display stream 0)
+          - description: |
+              local dimming interrupt0
+              (display controller, display stream 0)
+          - description: |
+              local dimming interrupt1
+              (display controller, display stream 0)
+          - description: |
+              local dimming interrupt2
+              (display controller, display stream 0)
+          - description: |
+              domainblend1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              domainblend1 frame complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 frame complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              disengcfg1 sequence complete interrupt
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt0
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt1
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt2
+              (display controller, display stream 1)
+          - description: |
+              framegen1 programmable interrupt3
+              (display controller, display stream 1)
+          - description: |
+              signature1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 measurement valid interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 window error condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 cluster error condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              signature1 cluster match condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              idhash1 shadow load interrupt
+              (display controller, display stream 1)
+          - description: |
+              idhash1 valid interrupt
+              (display controller, display stream 1)
+          - description: |
+              idhash1 window error condition interrupt
+              (display controller, display stream 1)
+          - description: |
+              command sequencer error condition interrupt(command sequencer)
+          - description: |
+              common control software interrupt0(common control)
+          - description: |
+              common control software interrupt1(common control)
+          - description: |
+              common control software interrupt2(common control)
+          - description: |
+              common control software interrupt3(common control)
+          - description: |
+              framegen0 primsync_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 primsync_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow0_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow0_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun0_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun0_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold0_rise interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold0_Fall interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow1_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 overflow1_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun1_on interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 underrun1_off interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold1_rise interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen0 threshold1_Fall interrupt
+              (display controller, display stream0)
+          - description: |
+              framegen1 primsync_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 primsync_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow0_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow0_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun0_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun0_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold0_rise interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold0_Fall interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow1_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 overflow1_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun1_on interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 underrun1_off interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold1_rise interrupt
+              (display controller, display stream1)
+          - description: |
+              framegen1 threshold1_Fall interrupt
+              (display controller, display stream1)
 
   interrupt-names:
-    items:
-      - const: store9_shdload
-      - const: store9_framecomplete
-      - const: store9_seqcomplete
-      - const: extdst0_shdload
-      - const: extdst0_framecomplete
-      - const: extdst0_seqcomplete
-      - const: extdst4_shdload
-      - const: extdst4_framecomplete
-      - const: extdst4_seqcomplete
-      - const: extdst1_shdload
-      - const: extdst1_framecomplete
-      - const: extdst1_seqcomplete
-      - const: extdst5_shdload
-      - const: extdst5_framecomplete
-      - const: extdst5_seqcomplete
-      - const: domainblend0_shdload
-      - const: domainblend0_framecomplete
-      - const: domainblend0_seqcomplete
-      - const: disengcfg_shdload0
-      - const: disengcfg_framecomplete0
-      - const: disengcfg_seqcomplete0
-      - const: framegen0_int0
-      - const: framegen0_int1
-      - const: framegen0_int2
-      - const: framegen0_int3
-      - const: sig0_shdload
-      - const: sig0_valid
-      - const: sig0_error
-      - const: sig0_cluster_error
-      - const: sig0_cluster_match
-      - const: sig2_shdload
-      - const: sig2_valid
-      - const: sig2_error
-      - const: sig2_cluster_error
-      - const: sig2_cluster_match
-      - const: idhash0_shdload
-      - const: idhash0_valid
-      - const: idhash0_window_error
-      - const: domainblend1_shdload
-      - const: domainblend1_framecomplete
-      - const: domainblend1_seqcomplete
-      - const: disengcfg_shdload1
-      - const: disengcfg_framecomplete1
-      - const: disengcfg_seqcomplete1
-      - const: framegen1_int0
-      - const: framegen1_int1
-      - const: framegen1_int2
-      - const: framegen1_int3
-      - const: sig1_shdload
-      - const: sig1_valid
-      - const: sig1_error
-      - const: sig1_cluster_error
-      - const: sig1_cluster_match
-      - const: cmdseq_error
-      - const: comctrl_sw0
-      - const: comctrl_sw1
-      - const: comctrl_sw2
-      - const: comctrl_sw3
-      - const: framegen0_primsync_on
-      - const: framegen0_primsync_off
-      - const: framegen0_overflow0_on
-      - const: framegen0_overflow0_off
-      - const: framegen0_underrun0_on
-      - const: framegen0_underrun0_off
-      - const: framegen0_threshold0_rise
-      - const: framegen0_threshold0_fail
-      - const: framegen0_overflow1_on
-      - const: framegen0_overflow1_off
-      - const: framegen0_underrun1_on
-      - const: framegen0_underrun1_off
-      - const: framegen0_threshold1_rise
-      - const: framegen0_threshold1_fail
-      - const: framegen1_primsync_on
-      - const: framegen1_primsync_off
-      - const: framegen1_overflow0_on
-      - const: framegen1_overflow0_off
-      - const: framegen1_underrun0_on
-      - const: framegen1_underrun0_off
-      - const: framegen1_threshold0_rise
-      - const: framegen1_threshold0_fail
-      - const: framegen1_overflow1_on
-      - const: framegen1_overflow1_off
-      - const: framegen1_underrun1_on
-      - const: framegen1_underrun1_off
-      - const: framegen1_threshold1_rise
-      - const: framegen1_threshold1_fail
+    oneOf:
+      - items:
+          - const: store9_shdload
+          - const: store9_framecomplete
+          - const: store9_seqcomplete
+          - const: extdst0_shdload
+          - const: extdst0_framecomplete
+          - const: extdst0_seqcomplete
+          - const: extdst4_shdload
+          - const: extdst4_framecomplete
+          - const: extdst4_seqcomplete
+          - const: extdst1_shdload
+          - const: extdst1_framecomplete
+          - const: extdst1_seqcomplete
+          - const: extdst5_shdload
+          - const: extdst5_framecomplete
+          - const: extdst5_seqcomplete
+          - const: domainblend0_shdload
+          - const: domainblend0_framecomplete
+          - const: domainblend0_seqcomplete
+          - const: disengcfg_shdload0
+          - const: disengcfg_framecomplete0
+          - const: disengcfg_seqcomplete0
+          - const: framegen0_int0
+          - const: framegen0_int1
+          - const: framegen0_int2
+          - const: framegen0_int3
+          - const: sig0_shdload
+          - const: sig0_valid
+          - const: sig0_error
+          - const: sig0_cluster_error
+          - const: sig0_cluster_match
+          - const: sig2_shdload
+          - const: sig2_valid
+          - const: sig2_error
+          - const: sig2_cluster_error
+          - const: sig2_cluster_match
+          - const: idhash0_shdload
+          - const: idhash0_valid
+          - const: idhash0_window_error
+          - const: domainblend1_shdload
+          - const: domainblend1_framecomplete
+          - const: domainblend1_seqcomplete
+          - const: disengcfg_shdload1
+          - const: disengcfg_framecomplete1
+          - const: disengcfg_seqcomplete1
+          - const: framegen1_int0
+          - const: framegen1_int1
+          - const: framegen1_int2
+          - const: framegen1_int3
+          - const: sig1_shdload
+          - const: sig1_valid
+          - const: sig1_error
+          - const: sig1_cluster_error
+          - const: sig1_cluster_match
+          - const: cmdseq_error
+          - const: comctrl_sw0
+          - const: comctrl_sw1
+          - const: comctrl_sw2
+          - const: comctrl_sw3
+          - const: framegen0_primsync_on
+          - const: framegen0_primsync_off
+          - const: framegen0_overflow0_on
+          - const: framegen0_overflow0_off
+          - const: framegen0_underrun0_on
+          - const: framegen0_underrun0_off
+          - const: framegen0_threshold0_rise
+          - const: framegen0_threshold0_fail
+          - const: framegen0_overflow1_on
+          - const: framegen0_overflow1_off
+          - const: framegen0_underrun1_on
+          - const: framegen0_underrun1_off
+          - const: framegen0_threshold1_rise
+          - const: framegen0_threshold1_fail
+          - const: framegen1_primsync_on
+          - const: framegen1_primsync_off
+          - const: framegen1_overflow0_on
+          - const: framegen1_overflow0_off
+          - const: framegen1_underrun0_on
+          - const: framegen1_underrun0_off
+          - const: framegen1_threshold0_rise
+          - const: framegen1_threshold0_fail
+          - const: framegen1_overflow1_on
+          - const: framegen1_overflow1_off
+          - const: framegen1_underrun1_on
+          - const: framegen1_underrun1_off
+          - const: framegen1_threshold1_rise
+          - const: framegen1_threshold1_fail
+      - items:
+          - const: store9_shdload
+          - const: store9_framecomplete
+          - const: store9_seqcomplete
+          - const: extdst0_shdload
+          - const: extdst0_framecomplete
+          - const: extdst0_seqcomplete
+          - const: extdst4_shdload
+          - const: extdst4_framecomplete
+          - const: extdst4_seqcomplete
+          - const: extdst1_shdload
+          - const: extdst1_framecomplete
+          - const: extdst1_seqcomplete
+          - const: extdst5_shdload
+          - const: extdst5_framecomplete
+          - const: extdst5_seqcomplete
+          - const: domainblend0_shdload
+          - const: domainblend0_framecomplete
+          - const: disengcfg_shdload0
+          - const: disengcfg_framecomplete0
+          - const: disengcfg_seqcomplete0
+          - const: framegen0_int0
+          - const: framegen0_int1
+          - const: framegen0_int2
+          - const: framegen0_int3
+          - const: sig0_shdload
+          - const: sig0_valid
+          - const: sig0_error
+          - const: sig0_cluster_error
+          - const: sig0_cluster_match
+          - const: idhash0_shdload
+          - const: idhash0_valid
+          - const: idhash0_window_error
+          - const: localdimming0_irq0
+          - const: localdimming0_irq1
+          - const: localdimming0_irq2
+          - const: domainblend1_shdload
+          - const: domainblend1_framecomplete
+          - const: disengcfg_shdload1
+          - const: disengcfg_framecomplete1
+          - const: disengcfg_seqcomplete1
+          - const: framegen1_int0
+          - const: framegen1_int1
+          - const: framegen1_int2
+          - const: framegen1_int3
+          - const: sig1_shdload
+          - const: sig1_valid
+          - const: sig1_error
+          - const: sig1_cluster_error
+          - const: sig1_cluster_match
+          - const: idhash1_shdload
+          - const: idhash1_valid
+          - const: idhash1_window_error
+          - const: cmdseq_error
+          - const: comctrl_sw0
+          - const: comctrl_sw1
+          - const: comctrl_sw2
+          - const: comctrl_sw3
+          - const: framegen0_primsync_on
+          - const: framegen0_primsync_off
+          - const: framegen0_overflow0_on
+          - const: framegen0_overflow0_off
+          - const: framegen0_underrun0_on
+          - const: framegen0_underrun0_off
+          - const: framegen0_threshold0_rise
+          - const: framegen0_threshold0_fail
+          - const: framegen0_overflow1_on
+          - const: framegen0_overflow1_off
+          - const: framegen0_underrun1_on
+          - const: framegen0_underrun1_off
+          - const: framegen0_threshold1_rise
+          - const: framegen0_threshold1_fail
+          - const: framegen1_primsync_on
+          - const: framegen1_primsync_off
+          - const: framegen1_overflow0_on
+          - const: framegen1_overflow0_off
+          - const: framegen1_underrun0_on
+          - const: framegen1_underrun0_off
+          - const: framegen1_threshold0_rise
+          - const: framegen1_threshold0_fail
+          - const: framegen1_overflow1_on
+          - const: framegen1_overflow1_off
+          - const: framegen1_underrun1_on
+          - const: framegen1_underrun1_off
+          - const: framegen1_threshold1_rise
+          - const: framegen1_threshold1_fail
 
   clocks:
     maxItems: 6
@@ -410,6 +748,35 @@ required:
   - power-domains
   - nxp,blk-ctrl
   - ports
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: nxp,imx95-dpu
+    then:
+      properties:
+        interrupts:
+          minItems: 86
+          maxItems: 86
+        interrupt-names:
+          minItems: 86
+          maxItems: 86
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: nxp,imx952-dpu
+    then:
+      properties:
+        interrupts:
+          minItems: 85
+          maxItems: 85
+        interrupt-names:
+          minItems: 85
+          maxItems: 85
 
 additionalProperties: false
 
