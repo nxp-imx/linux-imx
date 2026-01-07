@@ -134,7 +134,9 @@ union phy_configure_opts {
 	struct phy_configure_opts_dp		dp;
 	struct phy_configure_opts_lvds		lvds;
 	struct phy_configure_opts_hdmi		hdmi;
+#ifndef CONFIG_IMX_GKI_FIX
 	struct phy_configure_opts_ethernet	ethernet;
+#endif
 };
 
 /**
@@ -198,6 +200,7 @@ struct phy_ops {
 	int	(*connect)(struct phy *phy, int port);
 	int	(*disconnect)(struct phy *phy, int port);
 
+#ifndef CONFIG_IMX_GKI_FIX
 	/**
 	 * @get_status:
 	 *
@@ -211,6 +214,7 @@ struct phy_ops {
 	 */
 	int	(*get_status)(struct phy *phy, enum phy_status_type type,
 			      union phy_status_opts *opts);
+#endif
 	void	(*release)(struct phy *phy);
 	struct module *owner;
 };
