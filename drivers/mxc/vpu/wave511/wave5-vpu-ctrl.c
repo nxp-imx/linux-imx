@@ -597,10 +597,10 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 	ret = pm_runtime_resume_and_get(ctrl->dev);
 	if (ret) {
 		dev_err(ctrl->dev, "pm runtime resume fail, ret = %d\n", ret);
-		mutex_lock(&ctrl->ctrl_lock);
-		wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
-		ctrl->current_entity = NULL;
-		mutex_unlock(&ctrl->ctrl_lock);
+		scoped_guard(mutex, &ctrl->ctrl_lock) {
+			wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
+			ctrl->current_entity = NULL;
+		}
 		release_firmware(fw);
 		return;
 	}
@@ -635,23 +635,23 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 	memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
 
 exit:
-	mutex_lock(&ctrl->ctrl_lock);
-	if (!ret && wave5_vpu_ctrl_find_entity(ctrl, ctrl->current_entity))
-		ret = wave5_vpu_ctrl_init_vpu(ctrl);
-	else
-		ret = -EINVAL;
-	mutex_unlock(&ctrl->ctrl_lock);
+	scoped_guard(mutex, &ctrl->ctrl_lock) {
+		if (!ret && wave5_vpu_ctrl_find_entity(ctrl, ctrl->current_entity))
+			ret = wave5_vpu_ctrl_init_vpu(ctrl);
+		else
+			ret = -EINVAL;
+	}
 
 	pm_runtime_put_sync(ctrl->dev);
 	release_firmware(fw);
 
-	mutex_lock(&ctrl->ctrl_lock);
-	ctrl->current_entity = NULL;
-	if (ret)
-		wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
-	else
-		wave5_vpu_ctrl_boot_done(ctrl, 0);
-	mutex_unlock(&ctrl->ctrl_lock);
+	scoped_guard(mutex, &ctrl->ctrl_lock) {
+		if (ret)
+			wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
+		else
+			wave5_vpu_ctrl_boot_done(ctrl, 0);
+		ctrl->current_entity = NULL;
+	}
 
 	wake_up_interruptible_all(&ctrl->load_fw_wq);
 }
@@ -780,12 +780,11 @@ int wave5_vpu_ctrl_resume_and_get(struct device *dev, struct wave5_vpu_entity *e
 	if (!entity || !entity->dev || !entity->read_reg || !entity->write_reg)
 		return -EINVAL;
 
-	mutex_lock(&ctrl->ctrl_lock);
+	guard(mutex)(&ctrl->ctrl_lock);
 
 	ret = pm_runtime_resume_and_get(ctrl->dev);
 	if (ret) {
 		dev_err(dev, "pm runtime resume fail, ret = %d\n", ret);
-		mutex_unlock(&ctrl->ctrl_lock);
 		return ret;
 	}
 
@@ -810,8 +809,6 @@ int wave5_vpu_ctrl_resume_and_get(struct device *dev, struct wave5_vpu_entity *e
 	if (ret)
 		pm_runtime_put_sync(ctrl->dev);
 
-	mutex_unlock(&ctrl->ctrl_lock);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_resume_and_get);
@@ -826,10 +823,10 @@ void wave5_vpu_ctrl_put_sync(struct device *dev, struct wave5_vpu_entity *entity
 	if (entity == ctrl->current_entity)
 		wave5_vpu_ctrl_wait_done(dev);
 
-	mutex_lock(&ctrl->ctrl_lock);
+	guard(mutex)(&ctrl->ctrl_lock);
 
 	if (!wave5_vpu_ctrl_find_entity(ctrl, entity))
-		goto exit;
+		return;
 
 	list_del_init(&entity->list);
 	if (list_empty(&ctrl->entities)) {
@@ -844,8 +841,6 @@ void wave5_vpu_ctrl_put_sync(struct device *dev, struct wave5_vpu_entity *entity
 #endif
 	if (!pm_runtime_suspended(ctrl->dev))
 		pm_runtime_put_sync(ctrl->dev);
-exit:
-	mutex_unlock(&ctrl->ctrl_lock);
 }
 EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_put_sync);
 
@@ -869,15 +864,13 @@ int wave5_vpu_ctrl_wait_done(struct device *dev)
 						 msecs_to_jiffies(VPU_BOOT_WAIT_TIMEOUT));
 	if (ret == -ERESTARTSYS || ret == 0) {
 		dev_err(ctrl->dev, "fail to wait vcpu boot done,ret %d\n", ret);
-		mutex_lock(&ctrl->ctrl_lock);
-		wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
-		mutex_unlock(&ctrl->ctrl_lock);
+		scoped_guard(mutex, &ctrl->ctrl_lock)
+			wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
 		return -EINVAL;
 	}
 
-	mutex_lock(&ctrl->ctrl_lock);
-	wave5_vpu_ctrl_boot_done(ctrl, 0);
-	mutex_unlock(&ctrl->ctrl_lock);
+	scoped_guard(mutex, &ctrl->ctrl_lock)
+		wave5_vpu_ctrl_boot_done(ctrl, 0);
 
 	return 0;
 }

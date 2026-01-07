@@ -19,30 +19,27 @@ int wave5_vpu_flush_instance(struct vpu_instance *inst)
 	int ret = 0;
 	int retry = 0;
 
-	ret = mutex_lock_interruptible(&inst->dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&inst->dev->hw_lock);
 	do {
 		/*
 		 * Repeat the FLUSH command until the firmware reports that the
 		 * VPU isn't running anymore
 		 */
 		ret = wave5_vpu_hw_flush_instance(inst);
-		if (ret < 0 && ret != -EBUSY) {
+		if (ret == -EBUSY) {
+			if (retry++ >= MAX_FIRMWARE_CALL_RETRY) {
+				dev_err(inst->dev->dev,
+					"Flush of %s instance with id: %d timed out!\n",
+					inst->type == VPU_INST_TYPE_DEC ? "DECODER" : "", inst->id);
+				return -ETIMEDOUT;
+			}
+		} else if (ret < 0) {
 			dev_warn(inst->dev->dev, "Flush of %s instance with id: %d fail: %d\n",
 				 inst->type == VPU_INST_TYPE_DEC ? "DECODER" : "", inst->id,
 				 ret);
-			mutex_unlock(&inst->dev->hw_lock);
 			return ret;
 		}
-		if (ret == -EBUSY && retry++ >= MAX_FIRMWARE_CALL_RETRY) {
-			dev_warn(inst->dev->dev, "Flush of %s instance with id: %d timed out!\n",
-				 inst->type == VPU_INST_TYPE_DEC ? "DECODER" : "", inst->id);
-			mutex_unlock(&inst->dev->hw_lock);
-			return -ETIMEDOUT;
-		}
 	} while (ret != 0);
-	mutex_unlock(&inst->dev->hw_lock);
 
 	return ret;
 }
@@ -52,21 +49,15 @@ int wave5_vpu_get_version_info(struct device *dev, u32 *revision, unsigned int *
 	int ret;
 	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&vpu_dev->hw_lock);
 
-	if (!wave5_vpu_is_init(vpu_dev)) {
-		ret = -EINVAL;
-		goto err_out;
-	}
+	if (!wave5_vpu_is_init(vpu_dev))
+		return -EINVAL;
 
 	if (product_id)
 		*product_id = vpu_dev->product;
 	ret = wave5_vpu_get_version(vpu_dev, revision);
 
-err_out:
-	mutex_unlock(&vpu_dev->hw_lock);
 	return ret;
 }
 
@@ -102,14 +93,10 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	if (ret)
 		return ret;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&vpu_dev->hw_lock);
 
-	if (!wave5_vpu_is_init(vpu_dev)) {
-		mutex_unlock(&vpu_dev->hw_lock);
+	if (!wave5_vpu_is_init(vpu_dev))
 		return -ENODEV;
-	}
 
 	p_dec_info = &inst->codec_info->dec_info;
 	memcpy(&p_dec_info->open_param, open_param, sizeof(struct dec_open_param));
@@ -120,7 +107,6 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	p_dec_info->target_spatial_id = DECODE_ALL_SPATIAL_LAYERS;
 
 	ret = wave5_vpu_build_up_dec_param(inst, open_param);
-	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
 }
@@ -155,23 +141,24 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 	if (!inst->codec_info)
 		return -EINVAL;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&vpu_dev->hw_lock);
 
 	p_dec_info = &inst->codec_info->dec_info;
 
 	do {
 		ret = wave5_vpu_dec_finish_seq(inst, fail_res);
-		if (ret < 0 && *fail_res != WAVE5_SYSERR_VPU_STILL_RUNNING) {
-			dev_warn(inst->dev->dev, "dec_finish_seq timed out\n");
-			goto unlock_and_return;
-		}
+		if (ret < 0) {
+			if (*fail_res != WAVE5_SYSERR_VPU_STILL_RUNNING) {
+				dev_err(inst->dev->dev, "[%d] dec_finish_seq failed, reason 0x%x\n",
+					inst->id, *fail_res);
+				return ret;
+			}
 
-		if (*fail_res == WAVE5_SYSERR_VPU_STILL_RUNNING &&
-		    retry++ >= MAX_FIRMWARE_CALL_RETRY) {
-			ret = -ETIMEDOUT;
-			goto unlock_and_return;
+			if (retry++ >= MAX_FIRMWARE_CALL_RETRY) {
+				dev_err(inst->dev->dev,
+					"[%d] dec_finish_seq timed out\n", inst->id);
+				return -ETIMEDOUT;
+			}
 		}
 	} while (ret != 0);
 
@@ -187,9 +174,6 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 
 	wave5_vdi_free_dma_memory(&p_dec_info->vb_task);
 
-unlock_and_return:
-	mutex_unlock(&vpu_dev->hw_lock);
-
 	return ret;
 }
 
@@ -202,17 +186,13 @@ int wave5_vpu_dec_issue_seq_init(struct vpu_instance *inst)
 	if (!inst->next_frame)
 		return -EINVAL;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&vpu_dev->hw_lock);
 
 	p_dec_info->stream_rd_ptr = wave5_get_plane_dma_addr(&inst->next_frame->vb2_buf, 0);
 	p_dec_info->stream_wr_ptr = p_dec_info->stream_rd_ptr +
 				    wave5_get_plane_payload(&inst->next_frame->vb2_buf, 0);
 
 	ret = wave5_vpu_dec_init_seq(inst);
-
-	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
 }
@@ -223,9 +203,8 @@ int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initia
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+
+	guard(mutex)(&vpu_dev->hw_lock);
 
 	ret = wave5_vpu_dec_get_seq_info(inst, info);
 	if (!ret)
@@ -235,8 +214,6 @@ int wave5_vpu_dec_complete_seq_init(struct vpu_instance *inst, struct dec_initia
 	info->wr_ptr = p_dec_info->stream_wr_ptr;
 
 	p_dec_info->initial_info = *info;
-
-	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
 }
@@ -313,15 +290,11 @@ int wave5_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst, int num_of
 	    height < p_dec_info->initial_info.pic_height)
 		return -EINVAL;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-
-	fb = inst->frame_buf;
-	ret = wave5_vpu_dec_register_framebuffer(inst, &fb[0], COMPRESSED_FRAME_MAP,
-						 p_dec_info->num_of_decoding_fbs);
-
-	mutex_unlock(&vpu_dev->hw_lock);
+	scoped_guard(mutex, &vpu_dev->hw_lock) {
+		fb = inst->frame_buf;
+		ret = wave5_vpu_dec_register_framebuffer(inst, &fb[0], COMPRESSED_FRAME_MAP,
+							 p_dec_info->num_of_decoding_fbs);
+	}
 
 	return ret;
 }
@@ -343,13 +316,8 @@ int wave5_vpu_dec_register_display_buffer_ex(struct vpu_instance *inst, struct f
 	dev_dbg(inst->dev->dev, "[%d] register linear[%d] %pad, %pad, %pad\n",
 		inst->id, frame->index, &frame->buf_y, &frame->buf_cb, &frame->buf_cr);
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-
-	ret = wave5_vpu_dec_register_displaybuffer(inst, frame);
-
-	mutex_unlock(&vpu_dev->hw_lock);
+	scoped_guard(mutex, &vpu_dev->hw_lock)
+		ret = wave5_vpu_dec_register_displaybuffer(inst, frame);
 
 	return ret;
 }
@@ -363,9 +331,7 @@ int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 	if (p_dec_info->stride == 0) /* this means frame buffers have not been registered. */
 		return -EINVAL;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
+	guard(mutex)(&vpu_dev->hw_lock);
 
 	if (inst->next_frame) {
 		p_dec_info->stream_rd_ptr = wave5_get_plane_dma_addr(&inst->next_frame->vb2_buf, 0);
@@ -377,8 +343,6 @@ int wave5_vpu_dec_start_one_frame(struct vpu_instance *inst, u32 *res_fail)
 	}
 
 	ret = wave5_vpu_decode(inst, res_fail);
-
-	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
 }
@@ -399,17 +363,15 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 
 	p_dec_info = &inst->codec_info->dec_info;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-
 	memset(info, 0, sizeof(*info));
+
+	guard(mutex)(&vpu_dev->hw_lock);
 
 	ret = wave5_vpu_dec_get_result(inst, info);
 	if (ret) {
 		info->rd_ptr = p_dec_info->stream_rd_ptr;
 		info->wr_ptr = p_dec_info->stream_wr_ptr;
-		goto err_out;
+		return ret;
 	}
 
 	decoded_index = info->index_frame_decoded;
@@ -486,9 +448,6 @@ int wave5_vpu_dec_get_output_info(struct vpu_instance *inst, struct dec_output_i
 		p_dec_info->initial_info.sequence_no++;
 	}
 
-err_out:
-	mutex_unlock(&vpu_dev->hw_lock);
-
 	return ret;
 }
 
@@ -503,11 +462,8 @@ int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index)
 		return 0;
 	}
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-	ret = wave5_dec_clr_disp_flag(inst, index);
-	mutex_unlock(&vpu_dev->hw_lock);
+	scoped_guard(mutex, &vpu_dev->hw_lock)
+		ret = wave5_dec_clr_disp_flag(inst, index);
 
 	return ret;
 }
@@ -521,11 +477,8 @@ int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index)
 	if (index >= p_dec_info->num_of_display_fbs)
 		return -EINVAL;
 
-	ret = mutex_lock_interruptible(&vpu_dev->hw_lock);
-	if (ret)
-		return ret;
-	ret = wave5_dec_set_disp_flag(inst, index);
-	mutex_unlock(&vpu_dev->hw_lock);
+	scoped_guard(mutex, &vpu_dev->hw_lock)
+		ret = wave5_dec_set_disp_flag(inst, index);
 
 	return ret;
 }

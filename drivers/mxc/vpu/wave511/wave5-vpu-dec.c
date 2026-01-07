@@ -1863,10 +1863,9 @@ static bool wave5_vpu_check_input(struct vpu_instance *inst)
 static int wave5_vpu_dec_job_ready(void *priv)
 {
 	struct vpu_instance *inst = priv;
-	unsigned long flags;
 	int ret = 0;
 
-	spin_lock_irqsave(&inst->state_spinlock, flags);
+	guard(spinlock_irqsave)(&inst->state_spinlock);
 
 	switch (inst->state) {
 	case VPU_INST_STATE_OPEN:
@@ -1883,8 +1882,6 @@ static int wave5_vpu_dec_job_ready(void *priv)
 	default:
 		break;
 	}
-
-	spin_unlock_irqrestore(&inst->state_spinlock, flags);
 
 	return ret;
 }
@@ -1972,18 +1969,14 @@ static int wave5_vpu_open_dec(struct file *filp)
 
 	init_completion(&inst->irq_done);
 
-	ret = mutex_lock_interruptible(&dev->dev_lock);
-	if (ret)
-		goto cleanup_inst;
-
-	if (dev->irq < 0 && !hrtimer_active(&dev->hrtimer) && list_empty(&dev->instances))
-		hrtimer_start(&dev->hrtimer, ns_to_ktime(dev->vpu_poll_interval * NSEC_PER_MSEC),
-			      HRTIMER_MODE_REL_PINNED);
-
-	scoped_guard(spinlock, &inst->dev->inst_lock)
-		list_add_tail(&inst->list, &dev->instances);
-
-	mutex_unlock(&dev->dev_lock);
+	scoped_guard(mutex, &dev->dev_lock) {
+		if (dev->irq < 0 && !hrtimer_active(&dev->hrtimer) && list_empty(&dev->instances))
+			hrtimer_start(&dev->hrtimer,
+				      ns_to_ktime(dev->vpu_poll_interval * NSEC_PER_MSEC),
+				      HRTIMER_MODE_REL_PINNED);
+		scoped_guard(spinlock, &inst->dev->inst_lock)
+			list_add_tail(&inst->list, &dev->instances);
+	}
 
 	return 0;
 

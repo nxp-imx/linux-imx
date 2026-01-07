@@ -141,16 +141,12 @@ int wave5_vpu_release_device(struct file *filp,
 
 	wave5_cleanup_instance(inst, filp);
 	if (dev->irq < 0) {
-		ret = mutex_lock_interruptible(&dev->dev_lock);
-		if (ret)
-			return ret;
-
-		if (list_empty(&dev->instances)) {
-			dev_dbg(dev->dev, "Disabling the hrtimer\n");
-			hrtimer_cancel(&dev->hrtimer);
+		scoped_guard(mutex, &dev->dev_lock) {
+			if (list_empty(&dev->instances)) {
+				dev_dbg(dev->dev, "Disabling the hrtimer\n");
+				hrtimer_cancel(&dev->hrtimer);
+			}
 		}
-
-		mutex_unlock(&dev->dev_lock);
 	}
 
 	return ret;
