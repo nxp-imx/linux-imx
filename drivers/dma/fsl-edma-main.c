@@ -842,7 +842,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_chan->pm_state = RUNNING;
 		fsl_chan->srcid = 0;
 		fsl_chan->dma_dir = DMA_NONE;
-		fsl_chan->vchan.desc_free = fsl_edma_free_desc;
+		fsl_chan->vchan.desc_free = fsl_edma_free_vdesc;
 
 		len = (drvdata->flags & FSL_EDMA_DRV_SPLIT_REG) ?
 				offsetof(struct fsl_edma3_ch_reg, tcd) : 0;

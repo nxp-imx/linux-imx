@@ -495,7 +495,7 @@ void fsl_edma_tx_chan_handler(struct fsl_edma_chan *fsl_chan);
 void fsl_edma_disable_request(struct fsl_edma_chan *fsl_chan);
 void fsl_edma_chan_mux(struct fsl_edma_chan *fsl_chan,
 			unsigned int slot, bool enable);
-void fsl_edma_free_desc(struct virt_dma_desc *vdesc);
+void fsl_edma_free_vdesc(struct virt_dma_desc *vdesc);
 int fsl_edma_terminate_all(struct dma_chan *chan);
 int fsl_edma_pause(struct dma_chan *chan);
 int fsl_edma_resume(struct dma_chan *chan);
