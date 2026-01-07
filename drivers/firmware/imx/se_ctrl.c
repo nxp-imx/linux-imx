@@ -189,7 +189,7 @@ static struct se_if_node_info_list imx95_info = {
 			},
 			{
 			.se_if_id = 1,
-			.mu_buff_size = 0,
+			.mu_buff_size = 64,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_DBG,
 				.se_instance_id = 0,
@@ -207,24 +207,6 @@ static struct se_if_node_info_list imx95_info = {
 			},
 			{
 			.se_if_id = 2,
-			.mu_buff_size = 16,
-			.if_defs = {
-				.se_if_type = SE_TYPE_ID_V2X_SV,
-				.se_instance_id = 0,
-				.cmd_tag = 0x18,
-				.rsp_tag = 0xe2,
-				.success_tag = ELE_SUCCESS_IND,
-				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_2,
-			},
-			.reserved_dma_ranges = false,
-			.start_rng = NULL,
-			.init_trng = NULL,
-			.se_if_early_init = v2x_early_init,
-			.se_if_late_init = NULL,
-			},
-			{
-			.se_if_id = 3,
 			.mu_buff_size = 256,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SHE,
@@ -242,8 +224,26 @@ static struct se_if_node_info_list imx95_info = {
 			.se_if_late_init = NULL,
 			},
 			{
+			.se_if_id = 3,
+			.mu_buff_size = 64,
+			.if_defs = {
+				.se_if_type = SE_TYPE_ID_V2X_SV,
+				.se_instance_id = 0,
+				.cmd_tag = 0x18,
+				.rsp_tag = 0xe2,
+				.success_tag = ELE_SUCCESS_IND,
+				.base_api_ver = MESSAGING_VERSION_2,
+				.fw_api_ver = MESSAGING_VERSION_2,
+			},
+			.reserved_dma_ranges = false,
+			.start_rng = NULL,
+			.init_trng = NULL,
+			.se_if_early_init = v2x_early_init,
+			.se_if_late_init = NULL,
+			},
+			{
 			.se_if_id = 4,
-			.mu_buff_size = 0,
+			.mu_buff_size = 16,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SG,
 				.se_instance_id = 0,
@@ -261,7 +261,7 @@ static struct se_if_node_info_list imx95_info = {
 			},
 			{
 			.se_if_id = 5,
-			.mu_buff_size = 0,
+			.mu_buff_size = 16,
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_SG,
 				.se_instance_id = 1,
@@ -675,7 +675,9 @@ static bool runtime_fw_status(struct se_if_priv *priv)
 	 */
 	bool fw_prsnt_n_running = false;
 
-	if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 || get_se_soc_id(priv) == SOC_ID_OF_IMX94)
+	if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
+	    get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+	    get_se_soc_id(priv) == SOC_ID_OF_IMX952)
 		fw_prsnt_n_running =
 			(var_se_info.fw_vers_word & 0x1000000) ? true : false;
 
@@ -715,6 +717,7 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx)
 	case SOC_ID_OF_IMX93:
 		info_list = &imx93_info; break;
 	case SOC_ID_OF_IMX95:
+	case SOC_ID_OF_IMX952:
 		info_list = &imx95_info; break;
 	case SOC_ID_OF_IMX8DXL:
 	case SOC_ID_OF_IMX8QXP:
@@ -759,6 +762,8 @@ static char *get_soc_id_str(struct se_if_priv *priv)
 		return "mx95";
 	case SOC_ID_OF_IMX94:
 		return "mx943";
+	case SOC_ID_OF_IMX952:
+		return "mx952";
 	default:
 		return "Unknown SoC ID";
 	}
@@ -778,7 +783,8 @@ static void get_fw_nm_in_rfs(struct se_if_priv *priv)
 		var_se_info.load_fw.se_fw_img_nm.prim_fw.is_fw_name_valid = true;
 		var_se_info.load_fw.se_fw_img_nm.secn_fw.is_fw_name_valid = true;
 	} else if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
-		   get_se_soc_id(priv) == SOC_ID_OF_IMX94) {
+		   get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+		   get_se_soc_id(priv) == SOC_ID_OF_IMX952) {
 		sprintf(var_se_info.load_fw.se_fw_img_nm.secn_fw.fw_name,
 			"%s%s%xruntime-ahab-container.img",
 			IMX_ELE_FW_DIR,
