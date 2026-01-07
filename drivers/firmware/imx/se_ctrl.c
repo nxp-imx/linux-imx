@@ -431,7 +431,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe1,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_6,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_6,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -449,7 +449,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe1,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_6,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_6,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -467,7 +467,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe2,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_2,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -485,7 +485,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe3,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_2,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -503,7 +503,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe4,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_2,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -521,7 +521,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe7,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_2,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -539,7 +539,7 @@ static struct se_if_node_info_list imx8dxl_info = {
 				.rsp_tag = 0xe8,
 				.success_tag = SECO_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
-				.fw_api_ver = MESSAGING_VERSION_7,
+				.fw_api_ver = MESSAGING_VERSION_2,
 			},
 			.reserved_dma_ranges = false,
 			.start_rng = NULL,
@@ -1353,6 +1353,17 @@ static int init_device_context(struct se_if_priv *priv, int ch_id,
 	return ret;
 }
 
+static void manage_sess_hdl(struct se_if_device_ctx *dev_ctx, struct se_api_msg *rx_msg)
+{
+	if (rx_msg->header.command == SE_OPEN_SESS_REQ &&
+	    rx_msg->data[0] == dev_ctx->priv->if_defs->success_tag)
+		dev_ctx->sess_hdl = rx_msg->data[1];
+
+	if (rx_msg->header.command == SE_CLOSE_SESS_REQ &&
+	    rx_msg->data[0] == dev_ctx->priv->if_defs->success_tag)
+		dev_ctx->sess_hdl = 0;
+}
+
 static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 					    u64 arg)
 {
@@ -1421,6 +1432,10 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 			       cmd_snd_rcv_rsp_info.rx_buf_sz);
 	if (err < 0)
 		goto exit;
+
+	if (rx_msg->header.command == SE_OPEN_SESS_REQ ||
+	    rx_msg->header.command == SE_CLOSE_SESS_REQ)
+		manage_sess_hdl(dev_ctx, rx_msg);
 
 	dev_dbg(priv->dev,
 		"%s: %s %s\n",
@@ -1913,6 +1928,9 @@ static int se_if_fops_close(struct inode *nd, struct file *fp)
 
 	if (mutex_lock_interruptible(&dev_ctx->fops_lock))
 		return -EBUSY;
+
+	if (dev_ctx->sess_hdl && se_close_session(priv, dev_ctx->sess_hdl))
+		dev_err(priv->dev, "failed to close session.\n");
 
 	/* check if this device was registered as command receiver. */
 	if (priv->cmd_receiver_clbk_hdl.dev_ctx == dev_ctx) {

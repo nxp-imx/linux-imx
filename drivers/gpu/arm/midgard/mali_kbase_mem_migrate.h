@@ -51,7 +51,7 @@ struct page;
 
 #define IS_PAGE_MOVABLE(status) ((bool)(status & PAGE_MOVABLE_MASK))
 
-#if MALI_PAGE_MIGRATE
+#if !defined(MALI_PAGE_MIGRATE) ||  (defined(MALI_PAGE_MIGRATE) && MALI_PAGE_MIGRATE)
 /**
  * kbase_clear_page_movable - Clear the "movable" property from the page
  * @p: Page to clear the "movable" property from.

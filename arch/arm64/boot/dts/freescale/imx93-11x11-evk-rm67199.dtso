@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2022 NXP
+ * Copyright 2026 NXP
  */
 
-#include "imx93-11x11-evk.dts"
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 
 &adv7535 {
 	status = "disabled";
 };
-
-/delete-node/ &dsi_to_adv7535;
-/delete-node/ &adv7535_to_dsi;
 
 &dsi {
 	#address-cells = <1>;
@@ -27,7 +28,6 @@
 					 */
 		width-mm = <68>;
 		height-mm = <121>;
-		status = "okay";
 
 		port {
 			panel_in: endpoint {
@@ -37,6 +37,9 @@
 	};
 
 	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		port@1 {
 			reg = <1>;
 
@@ -52,6 +55,9 @@
 };
 
 &lpi2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	touchscreen@14 {
 		compatible = "goodix,gt1151";
 		reg = <0x14>;

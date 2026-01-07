@@ -1,38 +1,34 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2022 NXP
+ * Copyright 2022-2025 NXP
  */
 
-#include "imx93-11x11-evk.dts"
+#include <dt-bindings/clock/imx93-clock.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/i3c/i3c.h>
 
-/{
-	aliases {
-		/delete-property/ i2c0;
-	};
+#include "imx93-pinfunc.h"
+
+/dts-v1/;
+/plugin/;
+
+&lpi2c1 {
+	status = "disabled";
 };
 
-/delete-node/&lpi2c1;
+&{/} {
+	sound-wm8962 {
+		audio-codec = <&wm8962>;
+	};
+};
 
 &i3c1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i3c1>;
+	#address-cells = <3>;
+	#size-cells = <0>;
 	i2c-scl-hz = <400000>;
 	status = "okay";
-
-	adv7535: hdmi@3d {
-		compatible = "adi,adv7535";
-		reg = <0x3d 0x00 (I2C_FM | I2C_NO_FILTER_LOW_FREQUENCY)>;
-		adi,addr-cec = <0x3b>;
-		adi,dsi-lanes = <4>;
-		status = "okay";
-
-		port {
-			adv7535_to_dsi: endpoint {
-				remote-endpoint = <&dsi_to_adv7535>;
-			};
-		};
-	};
 
 	/* i2c devices */
 	wm8962: codec@1a {
@@ -56,6 +52,25 @@
 			0x0000 /* 5:Default */
 		>;
 	};
+
+	adv7535: hdmi@3d {
+		compatible = "adi,adv7535";
+		reg = <0x3d 0x00 (I2C_FM | I2C_NO_FILTER_LOW_FREQUENCY)>;
+		adi,addr-cec = <0x3b>;
+		adi,dsi-lanes = <4>;
+		status = "okay";
+
+		port {
+			adv7535_to_dsi: endpoint {
+				remote-endpoint = <&dsi_to_adv7535>;
+			};
+		};
+	};
+
+};
+
+&dsi_to_adv7535 {
+	remote-endpoint = <&adv7535_to_dsi>;
 };
 
 &iomuxc {

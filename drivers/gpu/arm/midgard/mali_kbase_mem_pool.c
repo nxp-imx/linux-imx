@@ -115,7 +115,6 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 		} else if (!WARN_ON_ONCE(IS_PAGE_ISOLATED(page_md->status))) {
 			page_md->status = PAGE_STATUS_SET(page_md->status, (u8)MEM_POOL);
 			page_md->data.mem_pool.pool = pool;
-			page_md->data.mem_pool.kbdev = pool->kbdev;
 			list_add(&p->lru, page_list);
 			(*list_size)++;
 		}

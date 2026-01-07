@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2022,2024 NXP
+ * Copyright 2026 NXP
  */
 
-#include "imx93-11x11-evk.dts"
+/dts-v1/;
+/plugin/;
 
-/ {
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx93-pinfunc.h"
+
+&{/} {
 	lvds_panel {
 		compatible = "boe,ev121wxm-n10-1850";
 		backlight = <&backlight_lvds>;
@@ -39,9 +44,13 @@
 };
 
 &ldb {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	status = "okay";
 
 	lvds-channel@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
 		status = "okay";
 
 		port@1 {
@@ -59,6 +68,9 @@
 };
 
 &lpi2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
 	exc80h60: touch@2a {
 		compatible = "eeti,exc80h60";
 		reg = <0x2a>;

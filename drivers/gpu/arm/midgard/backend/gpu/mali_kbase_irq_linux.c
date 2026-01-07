@@ -424,9 +424,8 @@ static int validate_interrupt(struct kbase_device *const kbdev, u32 tag)
 			err = -EINVAL;
 		} else {
 			kbasep_irq_test_data.timeout = 0;
-			hrtimer_init(&kbasep_irq_test_data.timer, CLOCK_MONOTONIC,
-				     HRTIMER_MODE_REL);
-			kbasep_irq_test_data.timer.function = kbasep_test_interrupt_timeout;
+			hrtimer_setup(&kbasep_irq_test_data.timer, kbasep_test_interrupt_timeout,
+				      CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 
 			/* trigger interrupt */
 			kbase_reg_write32(kbdev, mask_offset, 0x1);

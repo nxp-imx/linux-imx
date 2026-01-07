@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #ifndef ELE_FW_API_H
@@ -9,6 +9,11 @@
 #include <linux/hw_random.h>
 
 #define MESSAGING_VERSION_7		0x7
+
+#define SE_OPEN_SESS_REQ            0x10
+#define SE_CLOSE_SESS_REQ           0x11
+#define SE_CLOSE_SESS_REQ_SZ        0x08
+#define SE_CLOSE_SESS_RSP_SZ        0x08
 
 #define ELE_INIT_FW_REQ                 0x17
 #define ELE_INIT_FW_REQ_SZ              0x04
@@ -22,5 +27,6 @@
 int ele_init_fw(struct se_if_priv *priv);
 int ele_get_random(struct se_if_priv *priv, void *data, size_t len);
 int ele_get_hwrng(struct hwrng *rng, void *data, size_t len, bool wait);
+int se_close_session(struct se_if_priv *priv, u32 session_hdl);
 
 #endif /* ELE_FW_API_H */

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  */
 
 #ifndef SE_MU_H
@@ -78,6 +78,7 @@ struct se_if_device_ctx {
 	struct se_if_priv *priv;
 	struct miscdevice *miscdev;
 	const char *devname;
+	u32 sess_hdl;
 
 	struct mutex fops_lock;
 

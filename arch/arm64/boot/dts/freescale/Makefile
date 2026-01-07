@@ -642,18 +642,28 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-14x14-evk.dtb \
 			  imx93-14x14-evk-i3c.dtb imx93-14x14-evk-8mic-reve.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
 			  imx93-11x11-evk-inmate.dtb imx93-11x11-evk-root.dtb imx93-11x11-evk-flexio-i2c.dtb \
-			  imx93-11x11-evk-i2c-spi-slave.dtb \
-			  imx93-11x11-evk-i3c.dtb imx93-11x11-evk-lpuart.dtb \
+			  imx93-11x11-evk-lpuart.dtb \
 			  imx93-11x11-evk-mqs.dtb imx93-11x11-evk-aud-hat.dtb \
-			  imx93-11x11-evk-rm67199.dtb imx93-11x11-evk-boe-wxga-lvds-panel.dtb \
 			  imx93-11x11-evk-flexspi-m2.dtb \
 			  imx93-11x11-evk-mt9m114.dtb \
 			  imx93-11x11-evk-iw612-otbr.dtb \
 			  imx93-11x11-evk-rpmsg.dtb \
 			  imx93-11x11-evk-8mic-reve.dtb
 
+imx93-11x11-evk-boe-wxga-lvds-panel-dtbs := imx93-11x11-evk.dtb imx93-11x11-evk-boe-wxga-lvds-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-boe-wxga-lvds-panel.dtb
+
 imx93-11x11-evk-ld-dtbs := imx93-11x11-evk.dtb imx93-11x11-evk-ld.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-ld.dtb
+
+imx93-11x11-evk-i2c-spi-slave-dtbs := imx93-11x11-evk.dtb imx93-11x11-evk-i2c-spi-slave.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-i2c-spi-slave.dtb
+
+imx93-11x11-evk-i3c-dtbs += imx93-11x11-evk.dtb imx93-11x11-evk-i3c.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-i3c.dtb
+
+imx93-11x11-evk-rm67199-dtbs := imx93-11x11-evk.dtb imx93-11x11-evk-rm67199.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-rm67199.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx93w-evk.dtb \
 			  imx93w-evk-rpmsg.dtb
@@ -662,8 +672,20 @@ imx93w-evk-aud-hat-dtbs := imx93w-evk.dtb imx93w-evk-aud-hat.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-aud-hat.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-inmate.dtb imx93w-evk-root.dtb
 
+imx93w-evk-boe-wxga-lvds-panel-dtbs := imx93w-evk.dtb imx93-11x11-evk-boe-wxga-lvds-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-boe-wxga-lvds-panel.dtb
+
 imx93w-evk-ld-dtbs := imx93w-evk.dtb imx93-11x11-evk-ld.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-ld.dtb
+
+imx93w-evk-i2c-spi-slave-dtbs := imx93w-evk.dtb imx93-11x11-evk-i2c-spi-slave.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-i2c-spi-slave.dtb
+
+imx93w-evk-i3c-dtbs := imx93w-evk.dtb imx93-11x11-evk-i3c.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-i3c.dtb
+
+imx93w-evk-rm67199-dtbs := imx93w-evk.dtb imx93-11x11-evk-rm67199.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx93w-evk-rm67199.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-frdm.dtb imx93-11x11-frdm-8mic-reve.dtb \
 			  imx93-11x11-frdm-aud-hat.dtb imx93-11x11-frdm-ld.dtb \

@@ -151,3 +151,55 @@ exit:
 		dma_free_coherent(priv->dev, len, buf, dst_dma);
 	return ret;
 }
+
+/*
+ * se_close_session() - prepare and send the command to close session
+ */
+int se_close_session(struct se_if_priv *priv, u32 session_hdl)
+{
+	struct se_api_msg *tx_msg __free(kfree) = NULL;
+	struct se_api_msg *rx_msg __free(kfree) = NULL;
+	int ret;
+
+	if (!priv) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	tx_msg = kzalloc(SE_CLOSE_SESS_REQ_SZ, GFP_KERNEL);
+	if (!tx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	rx_msg = kzalloc(SE_CLOSE_SESS_RSP_SZ, GFP_KERNEL);
+	if (!rx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = se_fill_cmd_msg_hdr(priv,
+				  (struct se_msg_hdr *)&tx_msg->header,
+				  SE_CLOSE_SESS_REQ,
+				  SE_CLOSE_SESS_REQ_SZ,
+				  false);
+	if (ret)
+		goto exit;
+
+	tx_msg->data[0] = session_hdl;
+	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
+			       tx_msg,
+			       SE_CLOSE_SESS_REQ_SZ,
+			       rx_msg,
+			       SE_CLOSE_SESS_RSP_SZ);
+	if (ret < 0 && (ret != -EINTR))
+		goto exit;
+
+	ret = se_val_rsp_hdr_n_status(priv,
+				      rx_msg,
+				      SE_CLOSE_SESS_REQ,
+				      SE_CLOSE_SESS_RSP_SZ,
+				      false);
+exit:
+	return ret;
+}

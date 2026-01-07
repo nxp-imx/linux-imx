@@ -76,6 +76,7 @@
 			mclk-fs = <512>;
 
 			sai1_endpoint1: endpoint {
+				system-clock-direction-out;
 				remote-endpoint = <&mqs1_endpoint>;
 			};
 		};

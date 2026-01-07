@@ -9,15 +9,21 @@
 	status = "disabled";
 };
 
+/*
+ * Switch the SPI pins to RPi connector for testing.
+ * It will also control the pins of SAI3, so SAI3 is disabled above.
+ */
+&pcal6524 {
+	exp-sel-hog {
+		/delete-property/ output-low;
+		output-high;
+	};
+};
+
 &lpspi3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpspi3>;
 	cs-gpios = <&gpio2 8 GPIO_ACTIVE_LOW>;
-	/*
-	 * Switch the SPI pins to RPi connector for testing.
-	 * It will also control the pins of SAI3, so SAI3 is disabled above.
-	 */
-	pinctrl-assert-gpios = <&pcal6524 22 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
 	spidev0: spi@0 {
