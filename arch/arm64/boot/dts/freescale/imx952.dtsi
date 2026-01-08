@@ -1490,6 +1490,7 @@
 		mbox-names = "tx", "rx";
 		mboxes = <&v2x_mu 0 0>,
 			<&v2x_mu 1 0>;
+		status = "disabled";
 	};
 
 	v2x_she: secure-enclave-2 {
@@ -1505,6 +1506,7 @@
 		mbox-names = "tx", "rx";
 		mboxes = <&v2x_mu0 0 0>,
 			<&v2x_mu0 1 0>;
+		status = "disabled";
 	};
 
 	v2x_sg0: secure-enclave-4 {
@@ -1512,6 +1514,7 @@
 		mboxes = <&v2x_mu3 0 0>,
 			<&v2x_mu3 1 0>;
 		mbox-names = "tx", "rx";
+		status = "disabled";
 	};
 
 	v2x_sg1: secure-enclave-5 {
@@ -1519,6 +1522,7 @@
 		mboxes = <&v2x_mu4 0 0>,
 			<&v2x_mu4 1 0>;
 		mbox-names = "tx", "rx";
+		status = "disabled";
 	};
 
 };
