@@ -4924,26 +4924,6 @@ void pci_reset_secondary_bus(struct pci_dev *dev)
 
 void __weak pcibios_reset_secondary_bus(struct pci_dev *dev)
 {
-	struct pci_host_bridge *host = pci_find_host_bridge(dev->bus);
-	int ret;
-
-	if (pci_is_root_bus(dev->bus) && host->reset_root_port) {
-		/*
-		 * Save the config space of the Root Port before doing the
-		 * reset, since the state could be lost. The Endpoint state
-		 * should've been saved by the caller.
-		 */
-		pci_save_state(dev);
-		ret = host->reset_root_port(host, dev);
-		if (ret)
-			pci_err(dev, "Failed to reset Root Port: %d\n", ret);
-		else
-			/* Now restore it on success */
-			pci_restore_state(dev);
-
-		return;
-	}
-
 	pci_reset_secondary_bus(dev);
 }
 
