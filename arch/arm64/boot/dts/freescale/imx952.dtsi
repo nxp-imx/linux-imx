@@ -1558,6 +1558,30 @@
 			clock-names = "npu", "npu_apb, npu_cgc";
 			power-domains = <&scmi_devpd IMX952_PD_NPU>;
 		};
+
+		jpegdec: jpegdec@4c500000 {
+			compatible = "nxp,imx8qxp-jpgdec";
+			reg = <0x0 0x4C500000 0x0 0x00050000>;
+			interrupts = <GIC_SPI 295 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 296 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 297 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 298 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUJPEGDEC>,
+				 <&scmi_clk IMX952_CLK_VPUAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+		};
+
+		jpegenc: jpegenc@4c550000 {
+			compatible = "nxp,imx8qxp-jpgenc";
+			reg = <0x0 0x4C550000 0x0 0x00050000>;
+			interrupts = <GIC_SPI 291 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 292 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 293 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 294 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUJPEGENC>,
+				 <&scmi_clk IMX952_CLK_VPUAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+		};
 	};
 
 	ele_if0: secure-enclave-0 {
