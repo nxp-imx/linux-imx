@@ -274,10 +274,15 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	mac_dev->max_speed	= mac_dev->speed;
 	mac_dev->if_support = MEMAC_SUPPORTED;
 	/* We don't support half-duplex in SGMII mode */
+#ifndef CONFIG_IMX_GKI_FIX
 	if (mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII ||
 	    mac_dev->phy_if == PHY_INTERFACE_MODE_QSGMII ||
 	    mac_dev->phy_if == PHY_INTERFACE_MODE_2500SGMII)
-		mac_dev->if_support &= ~(SUPPORTED_10baseT_Half |
+#else
+	if (mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII ||
+	    mac_dev->phy_if == PHY_INTERFACE_MODE_QSGMII)
+#endif
+	mac_dev->if_support &= ~(SUPPORTED_10baseT_Half |
 					SUPPORTED_100baseT_Half);
 
 	/* Gigabit support (no half-duplex) */

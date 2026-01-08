@@ -139,7 +139,9 @@ typedef enum {
 	PHY_INTERFACE_MODE_100BASEX,
 	PHY_INTERFACE_MODE_1000BASEX,
 	PHY_INTERFACE_MODE_2500BASEX,
+#ifndef CONFIG_IMX_GKI_FIX
 	PHY_INTERFACE_MODE_2500SGMII,
+#endif
 	PHY_INTERFACE_MODE_5GBASER,
 	PHY_INTERFACE_MODE_RXAUI,
 	PHY_INTERFACE_MODE_XAUI,
@@ -156,9 +158,11 @@ typedef enum {
 	PHY_INTERFACE_MODE_LAUI,
 	PHY_INTERFACE_MODE_100GBASEP,
 	PHY_INTERFACE_MODE_MIILITE,
+#ifndef CONFIG_IMX_GKI_FIX
 	PHY_INTERFACE_MODE_25GKR,
 	PHY_INTERFACE_MODE_40GKR4,
 	PHY_INTERFACE_MODE_40GBASER,
+#endif
 	PHY_INTERFACE_MODE_MAX,
 } phy_interface_t;
 
@@ -227,8 +231,10 @@ static inline const char *phy_modes(phy_interface_t interface)
 		return "gmii";
 	case PHY_INTERFACE_MODE_SGMII:
 		return "sgmii";
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_2500SGMII:
 		return "sgmii-2500";
+#endif
 	case PHY_INTERFACE_MODE_TBI:
 		return "tbi";
 	case PHY_INTERFACE_MODE_REVMII:
@@ -295,12 +301,14 @@ static inline const char *phy_modes(phy_interface_t interface)
 		return "100gbase-p";
 	case PHY_INTERFACE_MODE_MIILITE:
 		return "mii-lite";
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_25GKR:
 		return "25gbase-kr";
 	case PHY_INTERFACE_MODE_40GKR4:
 		return "40gbase-kr4";
 	case PHY_INTERFACE_MODE_40GBASER:
 		return "40gbase-r";
+#endif
 	default:
 		return "unknown";
 	}

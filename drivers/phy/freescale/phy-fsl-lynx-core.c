@@ -151,12 +151,14 @@ enum lynx_lane_mode phy_interface_to_lane_mode(phy_interface_t intf)
 		return LANE_MODE_USXGMII;
 	case PHY_INTERFACE_MODE_25GBASER:
 		return LANE_MODE_25GBASER;
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_25GKR:
 		return LANE_MODE_25GBASEKR;
 	case PHY_INTERFACE_MODE_40GBASER:
 		return LANE_MODE_40GBASER_XLAUI;
 	case PHY_INTERFACE_MODE_40GKR4:
 		return LANE_MODE_40GBASEKR4;
+#endif
 	default:
 		return LANE_MODE_UNKNOWN;
 	}

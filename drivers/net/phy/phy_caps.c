@@ -331,7 +331,9 @@ unsigned long phy_caps_from_interface(phy_interface_t interface)
 		link_caps |= BIT(LINK_CAPA_1000FD);
 		break;
 
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_2500SGMII:
+#endif
 	case PHY_INTERFACE_MODE_2500BASEX:
 		link_caps |= BIT(LINK_CAPA_2500FD);
 		break;
@@ -349,13 +351,17 @@ unsigned long phy_caps_from_interface(phy_interface_t interface)
 		break;
 
 	case PHY_INTERFACE_MODE_25GBASER:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_25GKR:
+#endif
 		link_caps |= BIT(LINK_CAPA_25000FD);
 		break;
 
 	case PHY_INTERFACE_MODE_XLGMII:
+#ifndef CONFIG_IMX_GKI_FIX
 	case PHY_INTERFACE_MODE_40GBASER:
 	case PHY_INTERFACE_MODE_40GKR4:
+#endif
 		link_caps |= BIT(LINK_CAPA_40000FD);
 		break;
 

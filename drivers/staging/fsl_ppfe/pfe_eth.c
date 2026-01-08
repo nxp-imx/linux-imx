@@ -1195,8 +1195,10 @@ static void ls1012a_configure_serdes(struct net_device *ndev)
 	struct mii_bus *bus = mdio_priv->mii_bus;
 	u16 value = 0;
 
+#ifndef CONFIG_IMX_GKI_FIX
 	if (eth_priv->einfo->mii_config == PHY_INTERFACE_MODE_2500SGMII)
 		sgmii_2500 = 1;
+#endif
 
 	netif_info(eth_priv, drv, ndev, "%s\n", __func__);
 	/* PCS configuration done with corresponding GEMAC */
@@ -1253,9 +1255,13 @@ static int pfe_phy_init(struct net_device *ndev)
 		 priv->einfo->phy_id);
 	netif_info(priv, drv, ndev, "%s: %s\n", __func__, phy_id);
 	interface = priv->einfo->mii_config;
+#ifndef CONFIG_IMX_GKI_FIX
 	if ((interface == PHY_INTERFACE_MODE_SGMII) ||
 	    (interface == PHY_INTERFACE_MODE_2500SGMII)) {
-		/*Configure SGMII PCS */
+#else
+	if (interface == PHY_INTERFACE_MODE_SGMII) {
+#endif
+	/*Configure SGMII PCS */
 		if (pfe->scfg) {
 			/* Config MDIO from serdes */
 			regmap_write(pfe->scfg, MDIOSELCR, MDIOSEL_SERDES);
