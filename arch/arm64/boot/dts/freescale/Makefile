@@ -1218,6 +1218,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-tja1104-rgmii.dtb imx952-evk-tja1104-rmii.d
 			  imx952-evk-sgmii.dtb
 imx952-evk-mqs-dtbs := imx952-evk.dtb imx952-evk-mqs.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-mqs.dtb
+imx952-evk-cs42888-dtbs := imx952-evk.dtb imx952-evk-cs42888.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-cs42888.dtb
 
 imx952-evk-pcie-keym-dtbs := imx952-evk.dtb imx952-evk-pcie-keym.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-pcie-keym.dtb
