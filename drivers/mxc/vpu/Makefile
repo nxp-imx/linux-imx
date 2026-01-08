@@ -3,6 +3,7 @@
 #
 
 obj-y += memory_usage/
+obj-y += coda980/
 obj-y += wave6/
 
 obj-$(CONFIG_MXC_VPU)                  += mxc_vpu.o
