@@ -297,9 +297,6 @@
 /* Default eDMA LLP memory size */
 #define DMA_LLP_MEM_SIZE		PAGE_SIZE
 
-#define QUIRK_NOL2POLL_IN_PM		BIT(0)
-#define dwc_quirk(pci, val)		(pci->quirk_flag & val)
-
 struct dw_pcie;
 struct dw_pcie_rp;
 struct dw_pcie_ep;
@@ -514,7 +511,6 @@ struct dw_pcie {
 	const struct dw_pcie_ops *ops;
 	u32			version;
 	u32			type;
-	u32			quirk_flag;
 	unsigned long		caps;
 	int			num_lanes;
 	int			max_link_speed;
