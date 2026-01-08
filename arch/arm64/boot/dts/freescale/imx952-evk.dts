@@ -105,6 +105,11 @@
 			no-map;
 		};
 
+		vpuenc_boot: vpuenc_boot@88500000 {
+			reg = <0 0x88500000 0 0x100000>;
+			no-map;
+		};
+
 		vdevbuffer: vdevbuffer@88020000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0x88020000 0 0x100000>;
@@ -489,6 +494,10 @@
 
 &v2x_mu2 {
 	memory-region = <&v2x_prime_reserved>;
+};
+
+&vpuenc {
+	boot = <&vpuenc_boot>;
 };
 
 &wdog3 {

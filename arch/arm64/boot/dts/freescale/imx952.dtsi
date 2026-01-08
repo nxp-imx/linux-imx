@@ -1582,6 +1582,15 @@
 				 <&scmi_clk IMX952_CLK_VPUAPB>;
 			power-domains = <&scmi_devpd IMX952_PD_VPU>;
 		};
+
+		vpuenc: vpuenc@4c460000 {
+			compatible = "nxp,coda980-vpu";
+			reg = <0x0 0x4c460000 0x0 0x10000>;
+			interrupts = <GIC_SPI 303 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUENC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			clock-names = "vpu", "vpuapb";
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+		};
 	};
 
 	ele_if0: secure-enclave-0 {
