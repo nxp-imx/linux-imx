@@ -55,22 +55,26 @@ properties:
     const: 0
 
   clocks:
-    items:
-      - description: pixel clock
-      - description: bypass clock
-      - description: pixel mapper DI0 clock gate
-      - description: pixel mapper DI1 clock gate
-      - description: serializer channel0 gate
-      - description: serializer channel1 gate
+    oneOf:
+      - items:
+          - description: pixel clock
+          - description: bypass clock
+      - items:
+          - description: pixel mapper DI0 clock gate
+          - description: pixel mapper DI1 clock gate
+          - description: serializer channel0 gate
+          - description: serializer channel1 gate
 
   clock-names:
-    items:
-      - const: pixel
-      - const: bypass
-      - const: ldb_di0
-      - const: ldb_di1
-      - const: ldb_ch0
-      - const: ldb_ch1
+    oneOf:
+      - items:
+          - const: pixel
+          - const: bypass
+      - items:
+          - const: ldb_di0
+          - const: ldb_di1
+          - const: ldb_ch0
+          - const: ldb_ch1
 
   power-domains:
     maxItems: 1
@@ -152,6 +156,7 @@ allOf:
     then:
       properties:
         clocks:
+          minItems: 2
           maxItems: 2
         clock-names:
           items:
@@ -166,6 +171,7 @@ allOf:
     then:
       properties:
         clocks:
+          minItems: 4
           maxItems: 4
         clock-names:
           items:
