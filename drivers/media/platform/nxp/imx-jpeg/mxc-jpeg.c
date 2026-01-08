@@ -37,7 +37,7 @@
  *
  * This is inspired by the drivers/media/platform/samsung/s5p-jpeg driver
  *
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2019, 2026 NXP
  */
 
 #include <linux/kernel.h>
@@ -1032,12 +1032,15 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 
 	if (jpeg->mode == MXC_JPEG_ENCODE &&
 	    ctx->enc_state == MXC_JPEG_ENC_CONF) {
-		q_data = mxc_jpeg_get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
-		ctx->enc_state = MXC_JPEG_ENCODING;
-		dev_dbg(dev, "Encoder config finished. Start encoding...\n");
-		mxc_jpeg_enc_set_quality(dev, reg, ctx->jpeg_quality);
-		mxc_jpeg_enc_mode_go(dev, reg, mxc_jpeg_is_extended_sequential(q_data->fmt));
-		goto job_unlock;
+		if (mxc_jpeg_get_version(reg) == 0) {
+			ctx->enc_state = MXC_JPEG_ENCODING;
+			q_data = mxc_jpeg_get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+			dev_dbg(dev, "Encoder config finished. Start encoding...\n");
+			mxc_jpeg_enc_set_quality(dev, reg, ctx->jpeg_quality);
+			mxc_jpeg_enc_mode_go(dev, reg,
+				mxc_jpeg_is_extended_sequential(q_data->fmt));
+			goto job_unlock;
+		}
 	}
 	if (jpeg->mode == MXC_JPEG_DECODE && jpeg_src_buf->dht_needed &&
 	    mxc_dec_is_ongoing(ctx)) {
@@ -1337,9 +1340,15 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	struct mxc_jpeg_q_data *q_data;
 	enum mxc_jpeg_image_format img_fmt;
 	int w, h;
+	int version;
+	bool extseq;
 
+	version = mxc_jpeg_get_version(reg);
 	q_data = mxc_jpeg_get_q_data(ctx, src_buf->vb2_queue->type);
+	extseq = mxc_jpeg_is_extended_sequential(q_data->fmt);
 
+	memset(desc, 0, sizeof(struct mxc_jpeg_desc));
+	memset(cfg_desc, 0, sizeof(struct mxc_jpeg_desc));
 	jpeg->slot_data.cfg_stream_size =
 			mxc_jpeg_setup_cfg_stream(cfg_stream_vaddr,
 						  q_data->fmt->fourcc,
@@ -1350,13 +1359,12 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	cfg_desc->next_descpt_ptr = desc_handle | MXC_NXT_DESCPT_EN;
 
 	cfg_desc->buf_base0 = jpeg->slot_data.cfg_stream_handle;
-	cfg_desc->buf_base1 = 0;
-	cfg_desc->line_pitch = 0;
-	cfg_desc->stm_bufbase = 0; /* no output expected */
-	cfg_desc->stm_bufsize = 0x0;
-	cfg_desc->imgsize = 0;
 	cfg_desc->stm_ctrl = STM_CTRL_CONFIG_MOD(1);
 	cfg_desc->stm_ctrl |= STM_CTRL_BITBUF_PTR_CLR(1);
+	if (version > 0) {
+		cfg_desc->mode = (extseq) ? 0xb0 : 0xa0;
+		cfg_desc->cfg_mode = 0x3ff;
+	}
 
 	desc->next_descpt_ptr = 0; /* end of chain */
 
@@ -1374,11 +1382,18 @@ static void mxc_jpeg_config_enc_desc(struct vb2_buffer *out_buf,
 	desc->stm_ctrl = STM_CTRL_CONFIG_MOD(0) |
 			 STM_CTRL_IMAGE_FORMAT(img_fmt);
 	desc->stm_ctrl |= STM_CTRL_BITBUF_PTR_CLR(1);
-	if (mxc_jpeg_is_extended_sequential(q_data->fmt))
+	if (extseq)
 		desc->stm_ctrl |= STM_CTRL_PIXEL_PRECISION;
 	else
 		desc->stm_ctrl &= ~STM_CTRL_PIXEL_PRECISION;
 	mxc_jpeg_addrs(desc, src_buf, dst_buf, 0);
+	if (version > 0) {
+		desc->mode = (extseq) ? 0x150 : 0x140;
+		desc->cfg_mode = 0x3ff;
+		desc->quality = ctx->jpeg_quality;
+		desc->lumth = 0xffff;
+		desc->chrth = 0xffff;
+	}
 	dev_dbg(jpeg->dev, "cfg_desc:\n");
 	print_descriptor_info(jpeg->dev, cfg_desc);
 	dev_dbg(jpeg->dev, "enc desc:\n");

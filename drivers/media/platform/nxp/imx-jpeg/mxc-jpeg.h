@@ -2,7 +2,7 @@
 /*
  * i.MX8QXP/i.MX8QM JPEG encoder/decoder v4l2 driver
  *
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2019, 2026 NXP
  */
 
 #include <media/v4l2-ctrls.h>
@@ -81,6 +81,17 @@ struct mxc_jpeg_desc {
 	u32 stm_bufsize;
 	u32 imgsize;
 	u32 stm_ctrl;
+	/* below parameters are valid for v1 */
+	u32 mode;
+	u32 cfg_mode;
+	u32 quality;
+	u32 rc_regs_sel;
+	u32 lumth;
+	u32 chrth;
+	u32 nomfrsize_lo;
+	u32 nomfrsize_hi;
+	u32 ofbsize_lo;
+	u32 ofbsize_hi;
 } __packed;
 
 struct mxc_jpeg_q_data {
