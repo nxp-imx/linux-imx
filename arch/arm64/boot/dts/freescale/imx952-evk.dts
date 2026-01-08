@@ -110,6 +110,12 @@
 			reg = <0 0x88020000 0 0x100000>;
 			no-map;
 		};
+
+		v2x_prime_reserved: v2x-prime-reserved@a4220000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4220000 0 0x10000000>;
+			no-map;
+		};
 	};
 
 	flexcan1_phy: can-phy0 {
@@ -445,6 +451,10 @@
 	vmmc-supply = <&reg_usdhc2_vmmc>;
 	bus-width = <4>;
 	status = "okay";
+};
+
+&v2x_mu2 {
+	memory-region = <&v2x_prime_reserved>;
 };
 
 &wdog3 {

@@ -1257,13 +1257,15 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47300000 0x0 0x10000>;
 			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
 		v2x_mu2: mailbox@47320000 {
-			compatible = "fsl,imx95-mu-v2x";
+			compatible = "fsl,imx95-mu-v2x-prime";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1271,6 +1273,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47330000 0x0 0x10000>;
 			interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1278,6 +1281,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47340000 0x0 0x10000>;
 			interrupts = <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1285,6 +1289,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47350000 0x0 0x10000>;
 			interrupts = <GIC_SPI 255 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1472,4 +1477,48 @@
 			power-domains = <&scmi_devpd IMX952_PD_NPU>;
 		};
 	};
+
+	ele_if0: secure-enclave-0 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&elemu3 0 0>,
+			 <&elemu3 1 0>;
+	};
+
+	v2x_dbg: secure-enclave-1 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu 0 0>,
+			<&v2x_mu 1 0>;
+	};
+
+	v2x_she: secure-enclave-2 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu2 0 0>,
+			<&v2x_mu2 1 0>;
+		status = "disabled";
+	};
+
+	v2x_sv0: secure-enclave-3 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu0 0 0>,
+			<&v2x_mu0 1 0>;
+	};
+
+	v2x_sg0: secure-enclave-4 {
+		compatible = "fsl,imx95-se";
+		mboxes = <&v2x_mu3 0 0>,
+			<&v2x_mu3 1 0>;
+		mbox-names = "tx", "rx";
+	};
+
+	v2x_sg1: secure-enclave-5 {
+		compatible = "fsl,imx95-se";
+		mboxes = <&v2x_mu4 0 0>,
+			<&v2x_mu4 1 0>;
+		mbox-names = "tx", "rx";
+	};
+
 };
