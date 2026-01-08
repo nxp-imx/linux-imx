@@ -1415,6 +1415,56 @@
 			      <0x0 0x4c010014 0x0 0x4>;
 		};
 
+		vpu0: vpu@4c4b0000 {
+			compatible = "nxp,wave511-vpu";
+			reg = <0x0 0x4c4b0000 0x0 0x400>;
+			interrupts = <GIC_SPI 299 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUDEC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			clock-names = "vpu", "vpuapb";
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+			cnm,ctrl = <&vpuctrl>;
+		};
+
+		vpu1: vpu@4c4c0000 {
+			compatible = "nxp,wave511-vpu";
+			reg = <0x0 0x4c4c0000 0x0 0x400>;
+			interrupts = <GIC_SPI 300 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUDEC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			clock-names = "vpu", "vpuapb";
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+			cnm,ctrl = <&vpuctrl>;
+			status = "disabled";
+		};
+
+		vpu2: vpu@4c4d0000 {
+			compatible = "nxp,wave511-vpu";
+			reg = <0x0 0x4c4d0000 0x0 0x400>;
+			interrupts = <GIC_SPI 301 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUDEC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			clock-names = "vpu", "vpuapb";
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+			cnm,ctrl = <&vpuctrl>;
+			status = "disabled";
+		};
+
+		vpu3: vpu@4c4e0000 {
+			compatible = "nxp,wave511-vpu";
+			reg = <0x0 0x4c4e0000 0x0 0x400>;
+			interrupts = <GIC_SPI 302 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUDEC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			clock-names = "vpu", "vpuapb";
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+			cnm,ctrl = <&vpuctrl>;
+			status = "disabled";
+		};
+
+		vpuctrl: vpu-ctrl@4c4f0000 {
+			compatible = "nxp,wave511-vpu-ctrl";
+			reg = <0x0 0x4c4f0000 0x0 0x400>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_VPUDEC>, <&scmi_clk IMX952_CLK_VPUAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_VPU>;
+		};
+
 		mali: gpu@4d900000 {
 			compatible = "arm,mali-valhall", "nxp,imx952-mali";
 			reg = <0 0x4d900000 0 0x480000>;
