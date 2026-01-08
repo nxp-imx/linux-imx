@@ -37,8 +37,8 @@
 #define W5_MIN_DEC_PIC_8_HEIGHT         8U
 #define W5_MIN_DEC_PIC_32_WIDTH         32U
 #define W5_MIN_DEC_PIC_32_HEIGHT        32U
-#define W5_MAX_DEC_PIC_WIDTH            4096U
-#define W5_MAX_DEC_PIC_HEIGHT           2304U
+#define W5_MAX_DEC_PIC_WIDTH            8192U
+#define W5_MAX_DEC_PIC_HEIGHT           8192U
 #define W5_DEC_CODEC_STEP_WIDTH         1U
 #define W5_DEC_CODEC_STEP_HEIGHT        1U
 #define W5_DEC_RAW_STEP_WIDTH           32U
