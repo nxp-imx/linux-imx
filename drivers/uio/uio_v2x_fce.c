@@ -89,6 +89,7 @@ static int fce_probe(struct platform_device *pdev)
 
 static const struct of_device_id uio_fce_ids[] = {
 	{ .compatible = "fsl,imx94-mu-v2x-fce", },
+	{ .compatible = "fsl,imx95-mu-v2x-prime", },
 	{},
 };
 
