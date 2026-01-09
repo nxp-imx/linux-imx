@@ -151,15 +151,14 @@ static int dcnano_probe(struct platform_device *pdev)
 	dcnano->trusty_dev = NULL;
 	if (of_find_property(dev->of_node, "trusty", NULL)) {
 		dcnano->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (dcnano->trusty_dev) {
-			if (!trusty_fast_call32(dcnano->trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
-				dev_err(&pdev->dev, "dcnano: get trusty_dev node, use Trusty mode.\n");
-			} else {
-				dcnano->trusty_dev = NULL;
-				dev_err(&pdev->dev, "dcnano: failed to get response of echo. Use normal mode.\n");
-			}
+		if (!dcnano->trusty_dev || !dcnano->trusty_dev->driver || !dev_get_drvdata(dcnano->trusty_dev))
+			return -EPROBE_DEFER;
+
+		if (!trusty_fast_call32(dcnano->trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+			dev_err(&pdev->dev, "dcnano: get trusty_dev node, use Trusty mode.\n");
 		} else {
-			dev_err(&pdev->dev, "dcnano: failed to find trusty node. Use normal mode.\n");
+			dcnano->trusty_dev = NULL;
+			dev_err(&pdev->dev, "dcnano: failed to get response of echo. Use normal mode.\n");
 		}
 	}
 

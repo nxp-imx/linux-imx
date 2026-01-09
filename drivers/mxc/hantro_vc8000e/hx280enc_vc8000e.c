@@ -1221,12 +1221,16 @@ static int hantro_vc8000e_probe(struct platform_device *pdev)
 		pr_err("hantro vc8000e: unable to get vpu base addr\n");
 		return -ENODEV;
 	}
+
 	/* init trusty_dev */
-	trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-	if (trusty_dev) {
+	node = of_find_node_by_name(NULL, "trusty");
+	if (node != NULL) {
+		trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!trusty_dev || !trusty_dev->driver || !dev_get_drvdata(trusty_dev))
+			return -EPROBE_DEFER;
+
 		int ret = trusty_fast_call32(trusty_dev, SMC_HANTROENC_PROBE,
 				0, 0, 0);
-
 		if (ret < 0) {
 			pr_err("hantro_enc driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
 					SMC_HANTROENC_PROBE, ret);

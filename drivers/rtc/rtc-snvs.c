@@ -394,21 +394,25 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	struct snvs_rtc_data *data;
 	int ret;
 	void __iomem *mmio;
+	struct device_node *node;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
-	data->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-	if (data->trusty_dev) {
+	data->trusty_dev = NULL;
+	node = of_find_node_by_name(NULL, "trusty");
+	if (node != NULL) {
+		data->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!data->trusty_dev || !data->trusty_dev->driver || !dev_get_drvdata(data->trusty_dev))
+			return -EPROBE_DEFER;
+
 		ret = trusty_fast_call32(data->trusty_dev, SMC_SNVS_PROBE, 0, 0, 0);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "snvs rtc: trusty snvs driver failed to probe! nr=0x%x ret=%d. Use normal mode.\n", SMC_SNVS_PROBE, ret);
 			data->trusty_dev = NULL;
 		} else
 			dev_err(&pdev->dev, "snvs rtc: trusty snvs driver probe ok, use trusty mode.\n");
-	} else {
-		dev_err(&pdev->dev, "snvs rtc: failed to find trusty node. Use normal mode.\n");
 	}
 
 	data->rtc = devm_rtc_allocate_device(&pdev->dev);

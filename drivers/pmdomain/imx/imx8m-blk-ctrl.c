@@ -347,15 +347,14 @@ static int imx8m_blk_ctrl_probe(struct platform_device *pdev)
 	/* if the device contains trusty node, use the smcc to control the register */
 	if (of_find_property(np, "trusty", NULL)) {
 		bc->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (bc->trusty_dev) {
-			if (!trusty_fast_call32(bc->trusty_dev, SMC_HANTRO_PROBE, 0, 0, 0)) {
-				dev_info(dev, "BLK CTRL use trusty mode\n");
-			} else {
-				dev_info(dev, "BLK CTRL use normal mode\n");
-				bc->trusty_dev = NULL;
-			}
+		if (!bc->trusty_dev || !bc->trusty_dev->driver || !dev_get_drvdata(bc->trusty_dev))
+			return -EPROBE_DEFER;
+
+		if (!trusty_fast_call32(bc->trusty_dev, SMC_HANTRO_PROBE, 0, 0, 0)) {
+			dev_info(dev, "BLK CTRL use trusty mode\n");
 		} else {
 			dev_info(dev, "BLK CTRL use normal mode\n");
+			bc->trusty_dev = NULL;
 		}
 	} else {
 		dev_info(dev, "BLK CTRL use normal mode\n");

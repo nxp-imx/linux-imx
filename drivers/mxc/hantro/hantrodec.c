@@ -1946,8 +1946,13 @@ static int hantro_dev_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	/* add trusty device into hantrodec_data */
-	hantrodec_data.trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-	if (hantrodec_data.trusty_dev) {
+	node = of_find_node_by_name(NULL, "trusty");
+	if (node != NULL) {
+		hantrodec_data.trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!hantrodec_data.trusty_dev || !hantrodec_data.trusty_dev->driver ||
+				!dev_get_drvdata(hantrodec_data.trusty_dev))
+			return -EPROBE_DEFER;
+
 		int ret = trusty_fast_call32(hantrodec_data.trusty_dev,
 				SMC_HANTRO_PROBE, 0, 0, 0);
 		if (ret < 0) {

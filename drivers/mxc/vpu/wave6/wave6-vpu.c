@@ -323,16 +323,15 @@ static int wave6_vpu_probe(struct platform_device *pdev)
 	dev->trusty_dev = NULL;
 	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
 		dev->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (dev->trusty_dev) {
-			ret = trusty_fast_call32(dev->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
-			if (ret < 0) {
-				dev_info(&pdev->dev, "failed to get response of echo. vpu use normal mode.\n");
-				dev->trusty_dev = NULL;
-			} else
-				dev_info(&pdev->dev, "vpu will use secure mode\n");
-		} else {
-			dev_info(&pdev->dev, "failed to get trusty device. vpu use normal mode.\n");
-		}
+		if (!dev->trusty_dev || !dev->trusty_dev->driver || !dev_get_drvdata(dev->trusty_dev))
+			return -EPROBE_DEFER;
+
+		ret = trusty_fast_call32(dev->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+		if (ret < 0) {
+			dev_info(&pdev->dev, "failed to get response of echo. vpu use normal mode.\n");
+			dev->trusty_dev = NULL;
+		} else
+			dev_info(&pdev->dev, "vpu will use secure mode\n");
 	}
 
 	ret = devm_clk_bulk_get_all(&pdev->dev, &dev->clks);

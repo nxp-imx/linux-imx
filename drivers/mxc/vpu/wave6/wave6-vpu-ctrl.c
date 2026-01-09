@@ -1105,16 +1105,15 @@ static int wave6_vpu_ctrl_probe(struct platform_device *pdev)
 	ctrl->trusty_dev = NULL;
 	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
 		ctrl->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (ctrl->trusty_dev) {
-			ret = trusty_fast_call32(ctrl->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
-			if (ret < 0) {
-				dev_info(&pdev->dev,"failed to get response of echo. vcpu use normal mode.\n");
-				ctrl->trusty_dev = NULL;
-			} else
-				dev_info(&pdev->dev, "vcpu will use secure mode\n");
-		} else {
-			dev_info(&pdev->dev,"failed to find trusty device. vcpu use normal mode.\n");
-		}
+		if (!ctrl->trusty_dev || !ctrl->trusty_dev->driver || !dev_get_drvdata(ctrl->trusty_dev))
+			return -EPROBE_DEFER;
+
+		ret = trusty_fast_call32(ctrl->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+		if (ret < 0) {
+			dev_info(&pdev->dev,"failed to get response of echo. vcpu use normal mode.\n");
+			ctrl->trusty_dev = NULL;
+		} else
+			dev_info(&pdev->dev, "vcpu will use secure mode\n");
 	}
 
 	ret = devm_clk_bulk_get_all(&pdev->dev, &ctrl->clks);

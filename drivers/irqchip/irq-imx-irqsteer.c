@@ -229,15 +229,14 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
   	data->trusty_dev = NULL;
 	if (of_find_property(np, "trusty", NULL)) {
 		data->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (data->trusty_dev) {
-			if (!trusty_fast_call32(data->trusty_dev, SMC_IMX_DCSS_IRQ_ECHO, 0, 0, 0)) {
-				dev_err(&pdev->dev, "imx_irqsteer: get trusty_dev node, use Trusty mode.\n");
-			} else {
-				dev_err(&pdev->dev, "imx_irqsteer: failed to get response of echo. Use normal mode.\n");
-				data->trusty_dev = NULL;
-			}
+		if (!data->trusty_dev || !data->trusty_dev->driver || !dev_get_drvdata(data->trusty_dev))
+			return -EPROBE_DEFER;
+
+		if (!trusty_fast_call32(data->trusty_dev, SMC_IMX_DCSS_IRQ_ECHO, 0, 0, 0)) {
+			dev_err(&pdev->dev, "imx_irqsteer: get trusty_dev node, use Trusty mode.\n");
 		} else {
-			dev_err(&pdev->dev, "imx_irqsteer: failed to find trusty node. Use normal mode.\n");
+			dev_err(&pdev->dev, "imx_irqsteer: failed to get response of echo. Use normal mode.\n");
+			data->trusty_dev = NULL;
 		}
 	}
 	if (!data)

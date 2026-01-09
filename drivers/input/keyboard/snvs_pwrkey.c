@@ -187,6 +187,7 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	int error;
 	unsigned int val;
 	unsigned int bpt;
+	struct device_node *sp;
 
 	/* Get SNVS register Page */
 	np = pdev->dev.of_node;
@@ -197,8 +198,13 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	if (!pdata)
 		return -ENOMEM;
 
-	pdata->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-	if (pdata->trusty_dev) {
+	pdata->trusty_dev = NULL;
+	sp = of_find_node_by_name(NULL, "trusty");
+	if (sp != NULL) {
+		pdata->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!pdata->trusty_dev || !pdata->trusty_dev->driver || !dev_get_drvdata(pdata->trusty_dev))
+			return -EPROBE_DEFER;
+
 		error = trusty_fast_call32(pdata->trusty_dev, SMC_SNVS_PROBE, 0, 0, 0);
 		if (error < 0) {
 			dev_err(&pdev->dev, "snvs pwkey: trusty driver failed to probe! nr=0x%x error=%d. Use normal mode.\n", SMC_SNVS_PROBE, error);

@@ -750,15 +750,14 @@ static int imx_lcdif_probe(struct platform_device *pdev)
 	lcdif->trusty_dev = NULL;
 	if (of_find_property(dev->of_node, "trusty", NULL)) {
 		lcdif->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-		if (lcdif->trusty_dev) {
-			if (!trusty_fast_call32(lcdif->trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
-				dev_err(&pdev->dev, "lcdif: get trusty_dev node, use Trusty mode.\n");
-			} else {
-				lcdif->trusty_dev = NULL;
-				dev_err(&pdev->dev, "lcdif: failed to get response of echo. Use normal mode.\n");
-			}
+		if (!lcdif->trusty_dev || !lcdif->trusty_dev->driver || !dev_get_drvdata(lcdif->trusty_dev))
+			return -EPROBE_DEFER;
+
+		if (!trusty_fast_call32(lcdif->trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+			dev_err(&pdev->dev, "lcdif: get trusty_dev node, use Trusty mode.\n");
 		} else {
-			dev_err(&pdev->dev, "lcdif: failed to find trusty node. Use normal mode.\n");
+			lcdif->trusty_dev = NULL;
+			dev_err(&pdev->dev, "lcdif: failed to get response of echo. Use normal mode.\n");
 		}
 	}
 
