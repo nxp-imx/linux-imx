@@ -963,6 +963,7 @@ static int mxc_isi_source_fmt_init(struct mxc_isi_cap_dev *isi_cap)
 	src_fmt.format.code = MEDIA_BUS_FMT_UYVY8_1X16;
 	src_fmt.format.width = dst_f->width;
 	src_fmt.format.height = dst_f->height;
+	src_fmt.stream = 0;
 	ret = v4l2_subdev_call(src_sd, pad, set_fmt, NULL, &src_fmt);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
 		v4l2_err(&isi_cap->sd, "set remote fmt fail!\n");
