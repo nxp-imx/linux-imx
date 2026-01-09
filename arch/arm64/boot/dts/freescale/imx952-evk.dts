@@ -569,6 +569,10 @@
 	status = "okay";
 };
 
+&neoisp0 {
+	status = "okay";
+};
+
 &netc_blk_ctrl {
 	status = "okay";
 };
