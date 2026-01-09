@@ -184,7 +184,7 @@ config RESET_LANTIQ
 	help
 	  This enables the reset controller driver for Lantiq / Intel XWAY SoCs.
 
-config RESET_GPIO
+config GPIO_RESET
 	tristate "GPIO reset controller support"
 	default y
 	depends on GPIOLIB && OF
