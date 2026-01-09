@@ -28,6 +28,7 @@
 		reset-gpios = <&pcal6524 15 GPIO_ACTIVE_LOW>;
 
 		eqosphy: ethernet-phy@2 {
+			compatible = "ethernet-phy-ieee802.3-c45";
 			reg = <2>;
 		};
 	};
