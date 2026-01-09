@@ -890,10 +890,8 @@ static int enetc_vf_suspend(struct device *dev)
 
 	rtnl_lock();
 
-	if (!netif_running(si->ndev)) {
-		rtnl_unlock();
-		return 0;
-	}
+	if (!netif_running(si->ndev))
+		goto out;
 
 	netif_device_detach(si->ndev);
 	netif_carrier_off(si->ndev);
@@ -901,6 +899,7 @@ static int enetc_vf_suspend(struct device *dev)
 	enetc_vf_free_msg_msix(si);
 	enetc_suspend(si->ndev, false);
 
+out:
 	rtnl_unlock();
 
 	pci_free_irq_vectors(si->pdev);
