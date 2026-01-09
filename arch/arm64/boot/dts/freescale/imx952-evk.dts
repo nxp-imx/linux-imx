@@ -417,6 +417,10 @@
 	status = "okay";
 };
 
+&neoisp0 {
+	status = "okay";
+};
+
 &pcie0 {
 	pinctrl-0 = <&pinctrl_pcie0>;
 	pinctrl-names = "default";

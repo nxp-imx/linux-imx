@@ -1365,6 +1365,26 @@
 			status = "disabled";
 		};
 
+		neoisp0: isp@4ae00000 {
+			compatible = "nxp,imx952-neoisp";
+			reg = <0x0 0x4ae00000 0x0 0x8000>,
+			      <0x0 0x4afe0000 0x0 0x10000>;
+			reg-names = "registers", "stats";
+			interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-parent = <&gic>;
+			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_ISP_AXI>,
+				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP_PIXEL>,
+				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP>,
+				 <&scmi_clk IMX952_CLK_CGC_CAMISP>;
+			clock-names = "camblk_isp_axi",
+				      "camblk_isp_pixel",
+				      "camblk_isp",
+				      "cgc_camisp";
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+			nxp,blk-ctrl = <&cameramix_csr>;
+			status = "disabled";
+		};
+
 		hsio_blk_ctl: syscon@4c0100c0 {
 			compatible = "nxp,imx95-hsio-blk-ctl", "syscon";
 			reg = <0x0 0x4c0100c0 0x0 0x1>;
