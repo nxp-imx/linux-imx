@@ -87,7 +87,8 @@ struct dw_dphy {
 	struct regmap *dphy_regmap;
 	struct regmap *csis_regmap;
 	struct regmap *dsi_regmap;
-	struct clk *cfg_clk;
+	struct clk_bulk_data *clks;
+	int num_clks;
 
 	u32 reg_off;
 	u32 id;
@@ -247,6 +248,18 @@ static void dw_dphy_dump_regs(struct dw_dphy *priv)
 	}
 }
 
+static struct clk *find_cfg_clk(struct dw_dphy *priv)
+{
+	int i;
+
+	for (i = 0; i < priv->num_clks; i++) {
+		if (!strcmp(priv->clks[i].id, "phy_cfg"))
+			return priv->clks[i].clk;
+	}
+
+	return NULL;
+}
+
 static int dw_dphy_init(struct phy *phy)
 {
 	struct dw_dphy *priv = phy_get_drvdata(phy);
@@ -283,14 +296,14 @@ static int dw_dphy_init(struct phy *phy)
 	if (ret < 0)
 		return ret;
 
-	return clk_prepare_enable(priv->cfg_clk);
+	return clk_bulk_prepare_enable(priv->num_clks, priv->clks);
 }
 
 static int dw_dphy_exit(struct phy *phy)
 {
 	struct dw_dphy *priv = phy_get_drvdata(phy);
 
-	clk_disable_unprepare(priv->cfg_clk);
+	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 	phy_pm_runtime_put(phy);
 	return 0;
 }
@@ -696,14 +709,12 @@ static int dw_dphy_probe(struct platform_device *pdev)
 		dev_dbg(dev, "reg property not specified, using default 0\n");
 	}
 
-	priv->cfg_clk = devm_clk_get(dev, "phy_cfg");
-	if (IS_ERR(priv->cfg_clk)) {
-		dev_err(dev, "Failed to get DPHY config clock\n");
-		return PTR_ERR(priv->cfg_clk);
-	}
+	priv->num_clks = devm_clk_bulk_get_all(dev, &priv->clks);
+	if (priv->num_clks < 0)
+		return dev_err_probe(dev, priv->num_clks, "Failed to get clocks\n");
 
 	/* cfgclkfreqrange[5:0] = round[(cfg_clk(MHz) - 17) * 4] */
-	cfg_rate = clk_get_rate(priv->cfg_clk);
+	cfg_rate = clk_get_rate(find_cfg_clk(priv));
 	if (!cfg_rate) {
 		dev_err(dev, "Failed to get PHY config clock rate\n");
 		return -EINVAL;
