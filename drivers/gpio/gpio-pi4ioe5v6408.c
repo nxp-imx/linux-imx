@@ -136,7 +136,7 @@ static int pi4io_gpio_get(struct gpio_chip *chip, unsigned int offset)
 	return 0;
 }
 
-static void pi4io_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
+static int pi4io_gpio_set(struct gpio_chip *chip, unsigned int offset, int value)
 {
 	int ret;
 	struct pi4io_priv *pi4io = gpiochip_get_data(chip);
@@ -146,6 +146,8 @@ static void pi4io_gpio_set(struct gpio_chip *chip, unsigned int offset, int valu
 		pi4io->regmap, PI4IO_OUTPUT, 1 << offset, value << offset);
 	if (ret)
 		dev_err(dev, "Failed to write output: %d", ret);
+
+	return ret;
 }
 
 static int pi4io_gpio_direction_input(struct gpio_chip *chip, unsigned int offset)
