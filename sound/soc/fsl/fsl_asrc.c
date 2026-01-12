@@ -1281,6 +1281,7 @@ static int fsl_asrc_probe(struct platform_device *pdev)
 
 	asrc_priv->soc = of_device_get_match_data(&pdev->dev);
 	asrc->use_edma = asrc_priv->soc->use_edma;
+	asrc->start_before_dma = asrc_priv->soc->start_before_dma;
 	asrc->get_dma_channel = fsl_asrc_get_dma_channel;
 	asrc->request_pair = fsl_asrc_request_pair;
 	asrc->release_pair = fsl_asrc_release_pair;
@@ -1565,6 +1566,7 @@ static const struct fsl_asrc_soc_data fsl_asrc_imx8qxp_data = {
 static const struct fsl_asrc_soc_data fsl_asrc_imx952_data = {
 	.use_edma = true,
 	.channel_bits = 4,
+	.start_before_dma = true,
 };
 
 static const struct of_device_id fsl_asrc_ids[] = {
