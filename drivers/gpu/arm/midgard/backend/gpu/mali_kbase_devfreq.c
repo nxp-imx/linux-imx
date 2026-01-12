@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -392,6 +392,7 @@ static void kbase_devfreq_exit(struct device *dev)
 		kbase_devfreq_term_freq_table(kbdev);
 }
 
+#ifdef CONFIG_OF
 static void kbasep_devfreq_read_suspend_clock(struct kbase_device *kbdev, struct device_node *node)
 {
 	u64 freq = 0;
@@ -423,7 +424,7 @@ static void kbasep_devfreq_read_suspend_clock(struct kbase_device *kbdev, struct
 	kbdev->pm.backend.gpu_clock_suspend_freq = freq;
 	dev_info(kbdev->dev, "suspend clock %llu by opp-mali-errata-1485982", freq);
 }
-
+#endif
 static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 {
 #ifndef CONFIG_OF
@@ -500,25 +501,25 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 				opp_freq);
 			continue;
 		}
-		if (kbase_csf_dev_has_ne(kbdev)) {
+		if (kbase_csf_dev_has_nx(kbdev)) {
 			u64 neural_present = kbdev->gpu_props.neural_present;
-			u64 sc_with_ne = shader_present & neural_present;
+			u64 sc_with_nx = shader_present & neural_present;
 
-			if (!sc_with_ne) {
+			if (!sc_with_nx) {
 				dev_err(kbdev->dev,
-					"No shader cores with NE cores present in configuration with NE!");
+					"No shader cores with NX cores present in configuration with NX!");
 				continue;
 			}
 
 			if ((neural_present & shader_present) != neural_present) {
 				dev_err(kbdev->dev,
-					"Detected NE core without a corresponding shader core: NEURAL_PRESENT %llx SHADER_PRESENT %llx",
+					"Detected NX core without a corresponding shader core: NEURAL_PRESENT %llx SHADER_PRESENT %llx",
 					neural_present, shader_present);
 			}
 
-			if (!(core_mask & sc_with_ne)) {
+			if (!(core_mask & sc_with_nx)) {
 				dev_err(kbdev->dev,
-					"Ignoring OPP %d - No shader cores with NE cores present in the given core mask %llx",
+					"Ignoring OPP %d - No shader cores with NX cores present in the given core mask %llx",
 					i, core_mask);
 				continue;
 			}
@@ -757,8 +758,13 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	}
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
+#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
+	kbdev->devfreq_cooling =
+		devfreq_cooling_em_register(kbdev->devfreq, &kbase_ipa_power_model_ops);
+#else
 	kbdev->devfreq_cooling = of_devfreq_cooling_register_power(
 		kbdev->dev->of_node, kbdev->devfreq, &kbase_ipa_power_model_ops);
+#endif
 	if (IS_ERR_OR_NULL(kbdev->devfreq_cooling)) {
 		err = PTR_ERR_OR_ZERO(kbdev->devfreq_cooling);
 		dev_err(kbdev->dev, "Failed to register cooling device (%d)", err);

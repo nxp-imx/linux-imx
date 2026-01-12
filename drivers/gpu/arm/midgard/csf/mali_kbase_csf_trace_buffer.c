@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -124,7 +124,7 @@ static const struct firmware_trace_buffer_data trace_buffer_data[] = {
 	{ KBASE_CSFFW_BENCHMARK_BUF_NAME, { 0 }, 2 },
 	{ KBASE_CSFFW_TIMELINE_BUF_NAME, { 0 }, KBASE_CSF_TL_BUFFER_NR_PAGES },
 #if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
-	{ KBASE_CSFFW_GPU_METRICS_BUF_NAME, { 0 }, 16 },
+	{ KBASE_CSFFW_GPU_METRICS_BUF_NAME, { 0 }, (1 << 18) >> PAGE_SHIFT },
 #endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
 };
 

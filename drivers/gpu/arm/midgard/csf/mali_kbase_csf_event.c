@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -100,6 +100,9 @@ static void sync_update_notify_gpu(struct kbase_context *kctx)
 			can_notify_gpu = false;
 	}
 
+	if (kctx->kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0) &&
+	    atomic_read(&kctx->kbdev->pm.backend.reset_in_progress))
+		can_notify_gpu = false;
 
 	if (can_notify_gpu) {
 		kbase_csf_ring_doorbell(kctx->kbdev, CSF_KERNEL_DOORBELL_NR);

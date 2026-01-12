@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2022-2024 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -61,12 +61,12 @@ MAKE_ARGS := $(foreach config,$(CONFIGS), \
                         $(value config)=n))
 
 #
-# EXTRA_CFLAGS to define the custom CONFIGs on out-of-tree build
+# CFLAGS_MODULE to define the custom CONFIGs on out-of-tree build
 #
 # Generate the list of CONFIGs defines with values from CONFIGS.
 # $(value config) is the name of the CONFIG option.
 # When set to y or m, the CONFIG gets defined to 1.
-EXTRA_CFLAGS := $(foreach config,$(CONFIGS), \
+CFLAGS_MODULE := $(foreach config,$(CONFIGS), \
                     $(if $(filter y m,$(value $(value config))), \
                         -D$(value config)=1))
 
@@ -107,7 +107,7 @@ CFLAGS_MODULE += $(call cc-option,-Werror=designated-init)
 KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN1
 
 all:
-	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
+	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) CFLAGS_MODULE="$(CFLAGS_MODULE)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules
 
 modules_install:
 	$(MAKE) -C $(KDIR) M=$(M) $(MAKE_ARGS) modules_install

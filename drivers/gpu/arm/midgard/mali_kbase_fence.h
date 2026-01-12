@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -32,6 +32,7 @@
 #include "mali_kbase.h"
 
 #include <linux/list.h>
+#include <linux/rcupdate.h>
 #include <linux/version_compat_defs.h>
 
 /* Number of digits needed to express the max value of given unsigned type.
@@ -73,12 +74,14 @@
  *
  * @refcount:       Atomic value to keep track of number of references to an instance.
  *                  An instance can outlive the KCPU queue itself.
+ * @rcu:            Used for releasing metadata through call_rcu()
  * @kbdev:          Pointer to Kbase device.
  * @kctx_id:        Kbase context ID.
  * @timeline_name:  String of timeline name for associated fence object.
  */
 struct kbase_kcpu_dma_fence_meta {
 	kbase_refcount_t refcount;
+	struct rcu_head rcu;
 	struct kbase_device *kbdev;
 	u32 kctx_id;
 	char timeline_name[MAX_TIMELINE_NAME];
@@ -143,9 +146,9 @@ static inline struct kbase_kcpu_dma_fence *kbase_kcpu_dma_fence_get(struct dma_f
 
 static inline void kbase_kcpu_dma_fence_meta_put(struct kbase_kcpu_dma_fence_meta *metadata)
 {
-	if (kbase_refcount_dec_and_test(&metadata->refcount)) {
+	if (metadata && kbase_refcount_dec_and_test(&metadata->refcount)) {
 		atomic_dec(&metadata->kbdev->live_fence_metadata);
-		kfree(metadata);
+		kfree_rcu(metadata, rcu);
 	}
 }
 

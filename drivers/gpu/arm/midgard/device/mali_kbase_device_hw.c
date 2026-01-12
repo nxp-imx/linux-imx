@@ -27,17 +27,7 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
-/**
- * busy_wait_cache_operation - Wait for a pending cache flush to complete
- *
- * @kbdev:   Pointer of kbase device.
- * @irq_bit: IRQ bit cache flush operation to wait on.
- *
- * It will reset GPU if the wait fails.
- *
- * Return: 0 on success, error code otherwise.
- */
-static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
+static int kbase_gpu_busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 {
 	const ktime_t wait_loop_start = ktime_get_raw();
 	const u32 wait_time_ms = kbase_get_timeout_ms(kbdev, MMU_AS_INACTIVE_WAIT_TIMEOUT);
@@ -82,6 +72,8 @@ static int busy_wait_cache_operation(struct kbase_device *kbdev, u32 irq_bit)
 			}
 		}
 
+		if (kbase_io_is_aw_removed(kbdev))
+			return -ENODEV;
 
 		diff = ktime_to_ms(ktime_sub(ktime_get_raw(), wait_loop_start));
 	} while ((diff < wait_time_ms) && !completed);
@@ -138,7 +130,7 @@ int kbase_gpu_cache_flush_pa_range_and_busy_wait(struct kbase_device *kbdev, phy
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND), flush_op);
 
 	/* 3. Busy-wait irq status to be enabled. */
-	ret = busy_wait_cache_operation(kbdev, (u32)FLUSH_PA_RANGE_COMPLETED);
+	ret = kbase_gpu_busy_wait_cache_operation(kbdev, (u32)FLUSH_PA_RANGE_COMPLETED);
 
 	return ret;
 }
@@ -171,7 +163,7 @@ int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op
 				  irq_mask & ~CLEAN_CACHES_COMPLETED);
 
 		/* busy wait irq status to be enabled */
-		ret = busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
+		ret = kbase_gpu_busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
 		if (ret)
 			return ret;
 
@@ -190,7 +182,7 @@ int kbase_gpu_cache_flush_and_busy_wait(struct kbase_device *kbdev, u32 flush_op
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_COMMAND), flush_op);
 
 	/* 3. Busy-wait irq status to be enabled. */
-	ret = busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
+	ret = kbase_gpu_busy_wait_cache_operation(kbdev, CLEAN_CACHES_COMPLETED);
 	if (ret)
 		return ret;
 

@@ -403,7 +403,7 @@ int kbase_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcpu_queue,
 
 int kbase_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
 				 struct kbase_kcpu_command *current_command,
-				 struct base_fence *fence, struct sync_file **sync_file, int *fd);
+				 struct kbase_fence *fence, struct sync_file **sync_file, int *fd);
 #endif /* CONFIG_SYNC_FILE */
 
 /*

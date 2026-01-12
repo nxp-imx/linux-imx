@@ -29,6 +29,7 @@
 #include <mali_kbase_io.h>
 #include <linux/version_compat_defs.h>
 #include <asm/arch_timer.h>
+
 #include <linux/mali_hw_access.h>
 
 struct kbase_timeout_info {
@@ -37,6 +38,7 @@ struct kbase_timeout_info {
 };
 
 #define GPU_TIMESTAMP_OFFSET_INVALID S64_MAX
+#define GPU_TIMESTAMP_TIMEOUT_NS (100 * 1000) /* 100us */
 
 static struct kbase_timeout_info timeout_info[KBASE_TIMEOUT_SELECTOR_COUNT] = {
 	[CSF_FIRMWARE_TIMEOUT] = { "CSF_FIRMWARE_TIMEOUT", MIN(CSF_FIRMWARE_TIMEOUT_CYCLES,
@@ -77,6 +79,26 @@ void kbase_backend_invalidate_gpu_timestamp_offset(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_backend_invalidate_gpu_timestamp_offset);
 
+static inline u64 read_timestamp(struct kbase_device *kbdev)
+{
+	u64 initial = kbase_reg_read64_coherent(kbdev, GPU_CONTROL_ENUM(TIMESTAMP));
+	u64 s = initial;
+	u64 t0;
+
+	if (unlikely(kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2260))) {
+		t0 = ktime_get_ns();
+
+		do {
+			s = kbase_reg_read64_coherent(kbdev, GPU_CONTROL_ENUM(TIMESTAMP));
+		} while ((s == initial) && ((ktime_get_ns() - t0) < GPU_TIMESTAMP_TIMEOUT_NS));
+
+		if (s == initial)
+			dev_warn_once(kbdev->dev, "GPU timestamp loop timed out");
+	}
+
+	return s;
+}
+
 /**
  * kbase_backend_compute_gpu_ts_offset() - Compute GPU TS offset.
  *
@@ -106,7 +128,7 @@ static inline void kbase_backend_compute_gpu_ts_offset(struct kbase_device *kbde
 	else {
 		kbase_reg_write64(kbdev, GPU_CONTROL_ENUM(TIMESTAMP_OFFSET), 0);
 
-		gpu_ts_ticks = kbase_reg_read64_coherent(kbdev, GPU_CONTROL_ENUM(TIMESTAMP));
+		gpu_ts_ticks = read_timestamp(kbdev);
 		cpu_ts_ticks = ktime_get_raw_ns();
 		cpu_ts_ticks = div64_u64(cpu_ts_ticks * kbdev->backend_time.divisor,
 					 kbdev->backend_time.multiplier);
@@ -143,9 +165,8 @@ void kbase_backend_get_gpu_time_norequest(struct kbase_device *kbdev, u64 *cycle
 	if (cycle_counter)
 		*cycle_counter = kbase_backend_get_cycle_cnt(kbdev);
 
-	if (system_time) {
-		*system_time = kbase_reg_read64_coherent(kbdev, GPU_CONTROL_ENUM(TIMESTAMP));
-	}
+	if (system_time)
+		*system_time = kbase_io_is_aw_removed(kbdev) ? 0 : read_timestamp(kbdev);
 
 	/* Record the CPU's idea of current time */
 	if (ts != NULL)
@@ -191,7 +212,7 @@ void kbase_device_set_timeout_ms(struct kbase_device *kbdev, enum kbase_timeout_
 	}
 	selector_str = timeout_info[selector].selector_str;
 
-	if ((kbdev->gpu_props.impl_tech <= THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_SILICON) &&
+	if ((kbdev->gpu_props.impl_tech == THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_HARDWARE) &&
 	    unlikely(timeout_ms >= MAX_TIMEOUT_MS)) {
 		dev_warn(kbdev->dev, "%s is capped from %dms to %dms\n",
 			 timeout_info[selector].selector_str, timeout_ms, MAX_TIMEOUT_MS);
@@ -346,7 +367,7 @@ void kbase_gpu_timestamp_offset_debugfs_init(struct kbase_device *kbdev)
 		return;
 	}
 
-	timestamp_offset_file = debugfs_create_file("gpu_timestamp_offset", 0400,
+	timestamp_offset_file = debugfs_create_file("gpu_timestamp_offset", 0444,
 						    kbdev->mali_debugfs_directory, kbdev,
 						    &timestamp_offset_debugfs_fops);
 	if (IS_ERR_OR_NULL(timestamp_offset_file))

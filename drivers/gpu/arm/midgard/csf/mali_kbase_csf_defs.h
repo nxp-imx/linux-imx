@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1487,7 +1487,7 @@ struct kbase_csf_scheduler {
  * @KBASE_IPA_CORE_TYPE_MEMSYS: Memory System counters.
  * @KBASE_IPA_CORE_TYPE_TILER:  Tiler counters.
  * @KBASE_IPA_CORE_TYPE_SHADER: Shader Core counters.
- * @KBASE_IPA_CORE_TYPE_NEURAL: Neural Engine counters.
+ * @KBASE_IPA_CORE_TYPE_NEURAL: Neural Accelerator counters.
  * @KBASE_IPA_CORE_TYPE_NUM:    Number of core types.
  */
 enum kbase_ipa_core_type {
@@ -1664,10 +1664,12 @@ struct kbase_csf_firmware_interface {
  *                          done interrupt.
  * @enable_pending:         Flag set when HWC enable status change and used for
  *                          enable done interrupt.
+ * @hwcnt_inited:           Flag for indicating that the hwcnt counters are initialized.
  */
 struct kbase_csf_hwcnt {
 	bool request_pending;
 	bool enable_pending;
+	atomic_t hwcnt_inited;
 };
 
 /*
@@ -1951,6 +1953,8 @@ struct kbase_csf_user_reg {
  *                               timer timeout is reported for the compute iterator.
  * @neural_allowed_mask:         A mask for optionally disabling neural cores across all CSGs
  * @num_doorbells:               Number of doorbells supported by the GPU.
+ * @nx_pwr_allow_mask:           The allowed neural accelerators in EE mode.
+ * @ee_pwr_allow_mask:           The allowed execution engines in NX mode.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -2018,6 +2022,8 @@ struct kbase_csf_device {
 	u64 compute_progress_timeout_cc;
 	u64 neural_allowed_mask;
 	u32 num_doorbells;
+	u64 nx_pwr_allow_mask;
+	u64 ee_pwr_allow_mask;
 };
 
 /**

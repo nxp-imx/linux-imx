@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -49,6 +49,7 @@ DEFINE_MALI_ADD_EVENT(CORE_CTX_DESTROY);
 DEFINE_MALI_ADD_EVENT(CORE_CTX_HWINSTR_TERM);
 DEFINE_MALI_ADD_EVENT(CORE_GPU_IRQ);
 DEFINE_MALI_ADD_EVENT(CORE_PWR_IRQ);
+DEFINE_MALI_ADD_EVENT(CORE_WINDOW_IRQ);
 DEFINE_MALI_ADD_EVENT(CORE_GPU_IRQ_CLEAR);
 DEFINE_MALI_ADD_EVENT(CORE_GPU_IRQ_DONE);
 DEFINE_MALI_ADD_EVENT(CORE_GPU_SOFT_RESET);
@@ -112,6 +113,32 @@ DEFINE_MALI_ADD_EVENT(ARB_GPU_STOPPED);
 DEFINE_MALI_ADD_EVENT(ARB_GPU_REQUESTED);
 
 #include "backend/mali_kbase_debug_linux_ktrace_csf.h"
+
+/* Memory map/unmap event class */
+DECLARE_EVENT_CLASS(mali_mem_template,
+		    TP_PROTO(struct kbase_context *kctx, size_t pages, unsigned long long va,
+			     unsigned long long flags, pid_t tgid, int ctx_id, int as_nr),
+		    TP_ARGS(kctx, pages, va, flags, tgid, ctx_id, as_nr),
+		    TP_STRUCT__entry(__field(pid_t, tgid) __field(int, ctx_id) __field(int, as_nr)
+					     __field(size_t, pages) __field(unsigned long long, va)
+						     __field(unsigned long long, flags)),
+		    TP_fast_assign(__entry->tgid = tgid; __entry->ctx_id = ctx_id;
+				   __entry->as_nr = as_nr; __entry->pages = pages; __entry->va = va;
+				   __entry->flags = flags;),
+		    TP_printk("%zu pages at VA %#llx flags %#llx for ctx %d_%d as_nr %d",
+			      __entry->pages, __entry->va, __entry->flags, __entry->tgid,
+			      __entry->ctx_id, __entry->as_nr));
+
+/* Instantiate individual MEM tracepoints from mali_mem_template               */
+#define DEFINE_MALI_MEM_EVENT(name)                                                            \
+	DEFINE_EVENT(mali_mem_template, mali_mem_##name,                                       \
+		     TP_PROTO(struct kbase_context *kctx, size_t pages, unsigned long long va, \
+			      unsigned long long flags, pid_t tgid, int ctx_id, int as_nr),    \
+		     TP_ARGS(kctx, pages, va, flags, tgid, ctx_id, as_nr))
+
+/* Creating MEM events: */
+DEFINE_MALI_MEM_EVENT(MEM_MAPPED);
+DEFINE_MALI_MEM_EVENT(MEM_UNMAPPED);
 
 #undef DEFINE_MALI_ADD_EVENT
 

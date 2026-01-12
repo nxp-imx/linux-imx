@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,6 +20,7 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_am_reg.h>
 #include <mali_kbase_config_defaults.h>
 #include "backend/gpu/mali_kbase_clk_rate_trace_mgr.h"
 #include "mali_kbase_csf_ipa_control.h"
@@ -29,6 +30,7 @@
  * Status flags from the STATUS register of the IPA Control interface.
  */
 #define STATUS_COMMAND_ACTIVE ((u32)1 << 0)
+#define STATUS_TIMER_ACTIVE ((u32)1 << 1)
 #define STATUS_PROTECTED_MODE ((u32)1 << 8)
 #define STATUS_RESET ((u32)1 << 9)
 #define STATUS_TIMER_ENABLED ((u32)1 << 31)
@@ -81,6 +83,58 @@ struct kbase_ipa_control_listener_data {
 	atomic_t rate;
 };
 
+#if IS_ENABLED(MALI_KERNEL_TEST_API)
+u32 kbase_ipa_reg_read32(struct kbase_device *kbdev, u32 reg_enum)
+#else
+static u32 kbase_ipa_reg_read32(struct kbase_device *kbdev, u32 reg_enum)
+#endif
+{
+	if (kbdev->am_standalone)
+		return kbase_am_reg_read32_ipa(kbdev, reg_enum);
+	else
+		return kbase_reg_read32(kbdev, reg_enum);
+}
+KBASE_EXPORT_TEST_API(kbase_ipa_reg_read32);
+
+#if IS_ENABLED(MALI_KERNEL_TEST_API)
+u64 kbase_ipa_reg_read64(struct kbase_device *kbdev, u32 reg_enum)
+#else
+static u64 kbase_ipa_reg_read64(struct kbase_device *kbdev, u32 reg_enum)
+#endif
+{
+	if (kbdev->am_standalone)
+		return kbase_am_reg_read64_ipa(kbdev, reg_enum);
+	else
+		return kbase_reg_read64(kbdev, reg_enum);
+}
+KBASE_EXPORT_TEST_API(kbase_ipa_reg_read64);
+
+#if IS_ENABLED(MALI_KERNEL_TEST_API)
+void kbase_ipa_reg_write32(struct kbase_device *kbdev, u32 reg_enum, u32 value)
+#else
+static void kbase_ipa_reg_write32(struct kbase_device *kbdev, u32 reg_enum, u32 value)
+#endif
+{
+	if (kbdev->am_standalone)
+		kbase_am_reg_write32_ipa(kbdev, reg_enum, value);
+	else
+		kbase_reg_write32(kbdev, reg_enum, value);
+}
+KBASE_EXPORT_TEST_API(kbase_ipa_reg_write32);
+
+#if IS_ENABLED(MALI_KERNEL_TEST_API)
+void kbase_ipa_reg_write64(struct kbase_device *kbdev, u32 reg_enum, u64 value)
+#else
+static void kbase_ipa_reg_write64(struct kbase_device *kbdev, u32 reg_enum, u64 value)
+#endif
+{
+	if (kbdev->am_standalone)
+		kbase_am_reg_write64_ipa(kbdev, reg_enum, value);
+	else
+		kbase_reg_write64(kbdev, reg_enum, value);
+}
+KBASE_EXPORT_TEST_API(kbase_ipa_reg_write64);
+
 static u32 timer_value(u32 gpu_rate)
 {
 	return gpu_rate / TIMER_EVENTS_PER_SECOND;
@@ -90,12 +144,19 @@ static int wait_status(struct kbase_device *kbdev, u32 flags)
 {
 	u32 val;
 	const u32 timeout_us = kbase_get_timeout_ms(kbdev, IPA_INACTIVE_TIMEOUT) * USEC_PER_MSEC;
+	int err;
+
 	/*
 	 * Wait for the STATUS register to indicate that flags have been
 	 * cleared, in case a transition is pending.
 	 */
-	const int err = kbase_reg_poll32_timeout(kbdev, IPA_CONTROL_ENUM(STATUS), val,
-						 !(val & flags), 0, timeout_us, false);
+	if (kbdev->am_standalone)
+		err = mali_read_poll_timeout_atomic(kbase_am_reg_read32_ipa, val, !(val & flags), 0,
+						    timeout_us, false, kbdev,
+						    IPA_CONTROL_ENUM(STATUS));
+	else
+		err = kbase_reg_poll32_timeout(kbdev, IPA_CONTROL_ENUM(STATUS), val, !(val & flags),
+					       0, timeout_us, false);
 
 	if (err) {
 		dev_err(kbdev->dev, "IPA_CONTROL STATUS register stuck");
@@ -114,25 +175,26 @@ static int apply_select_config(struct kbase_device *kbdev, u64 *select)
 	 * auto clock-gating. When enabled, program the requested counter select
 	 * values for IPA profiling.
 	 */
-	if (!atomic_read(&kbdev->gpu_profile_enabled) && kbdev->need_dynamic_config_ipa_counter)
-		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
+	if (kbdev->need_dynamic_config_ipa_counter &&
+			(!atomic_read(&kbdev->gpu_profile_enabled)))
+		kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
 	else
-		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW),
-				  select[KBASE_IPA_CORE_TYPE_CSHW]);
-
-	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_MEMSYS),
-			  select[KBASE_IPA_CORE_TYPE_MEMSYS]);
-	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_TILER), select[KBASE_IPA_CORE_TYPE_TILER]);
-	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_SHADER),
-			  select[KBASE_IPA_CORE_TYPE_SHADER]);
-	if (kbase_csf_dev_has_ne(kbdev))
-		kbase_reg_write64(kbdev, GOV_IPA_CONTROL_ENUM(SELECT_NEURAL),
-				  select[KBASE_IPA_CORE_TYPE_NEURAL]);
+		kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW),
+			      select[KBASE_IPA_CORE_TYPE_CSHW]);
+	kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_MEMSYS),
+			      select[KBASE_IPA_CORE_TYPE_MEMSYS]);
+	kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_TILER),
+			      select[KBASE_IPA_CORE_TYPE_TILER]);
+	kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_SHADER),
+			      select[KBASE_IPA_CORE_TYPE_SHADER]);
+	if (kbase_csf_dev_has_nx(kbdev))
+		kbase_ipa_reg_write64(kbdev, GOV_IPA_CONTROL_ENUM(SELECT_NEURAL),
+				      select[KBASE_IPA_CORE_TYPE_NEURAL]);
 
 	ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
 
 	if (!ret) {
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_APPLY);
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_APPLY);
 		ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
 	} else {
 		dev_err(kbdev->dev, "Wait for the pending command failed");
@@ -145,19 +207,19 @@ static u64 read_value_cnt(struct kbase_device *kbdev, u8 type, u8 select_idx)
 {
 	switch (type) {
 	case KBASE_IPA_CORE_TYPE_CSHW:
-		return kbase_reg_read64(kbdev, IPA_VALUE_CSHW_OFFSET(select_idx));
+		return kbase_ipa_reg_read64(kbdev, IPA_VALUE_CSHW_OFFSET(select_idx));
 
 	case KBASE_IPA_CORE_TYPE_MEMSYS:
-		return kbase_reg_read64(kbdev, IPA_VALUE_MEMSYS_OFFSET(select_idx));
+		return kbase_ipa_reg_read64(kbdev, IPA_VALUE_MEMSYS_OFFSET(select_idx));
 
 	case KBASE_IPA_CORE_TYPE_TILER:
-		return kbase_reg_read64(kbdev, IPA_VALUE_TILER_OFFSET(select_idx));
+		return kbase_ipa_reg_read64(kbdev, IPA_VALUE_TILER_OFFSET(select_idx));
 
 	case KBASE_IPA_CORE_TYPE_SHADER:
-		return kbase_reg_read64(kbdev, IPA_VALUE_SHADER_OFFSET(select_idx));
+		return kbase_ipa_reg_read64(kbdev, IPA_VALUE_SHADER_OFFSET(select_idx));
 	case KBASE_IPA_CORE_TYPE_NEURAL:
-		if (kbase_csf_dev_has_ne(kbdev))
-			return kbase_reg_read64(kbdev, IPA_VALUE_NEURAL_OFFSET(select_idx));
+		if (kbase_csf_dev_has_nx(kbdev))
+			return kbase_ipa_reg_read64(kbdev, IPA_VALUE_NEURAL_OFFSET(select_idx));
 		else
 			return 0;
 	default:
@@ -307,8 +369,8 @@ static void kbase_ipa_ctrl_rate_change_worker(struct work_struct *data)
 	/* Update the timer for automatic sampling if active sessions
 	 * are present. Counters have already been manually sampled.
 	 */
-	if (ipa_ctrl->num_active_sessions > 0)
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), timer_value(rate));
+	if (kbdev->pm.backend.gpu_sleep_mode_active == false && ipa_ctrl->num_active_sessions > 0)
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), timer_value(rate));
 
 	spin_unlock(&ipa_ctrl->lock);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -378,7 +440,7 @@ void kbase_ipa_control_term(struct kbase_device *kbdev)
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	if (kbase_io_is_gpu_powered(kbdev))
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_term);
@@ -448,12 +510,38 @@ static int session_gpu_start(struct kbase_device *kbdev, struct kbase_ipa_contro
 	 * sampling.
 	 */
 	if (!session || first_start) {
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_SAMPLE);
-		ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
-		if (ret)
-			dev_err(kbdev->dev, "%s: failed to sample new counters", __func__);
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER),
-				  timer_value(ipa_ctrl->cur_gpu_rate));
+		if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434)) {
+			/* Disable timer first and wait */
+			kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
+			ret = wait_status(kbdev, STATUS_TIMER_ENABLED);
+			if (ret)
+				dev_err(kbdev->dev, "%s: failed to disable timer (%d)", __func__,
+					ret);
+
+			/* Toggle 1 clock timer and wait for timer to be disabled again */
+			kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 1);
+			kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
+			ret = wait_status(kbdev, STATUS_TIMER_ENABLED);
+			if (ret)
+				dev_err(kbdev->dev, "%s: failed to toggle timer to sample (%d)",
+					__func__, ret);
+
+			/* Wait for TIMER triggered sampling to be done */
+			ret = wait_status(kbdev, STATUS_TIMER_ACTIVE);
+			if (ret)
+				dev_err(kbdev->dev,
+					"%s: failed to sample new counters with timer (%d)",
+					__func__, ret);
+		} else {
+			kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_SAMPLE);
+			ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
+			if (ret)
+				dev_err(kbdev->dev, "%s: failed to sample new counters (%d)",
+					__func__, ret);
+		}
+
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER),
+				      timer_value(ipa_ctrl->cur_gpu_rate));
 	}
 
 	/*
@@ -642,8 +730,10 @@ int kbase_ipa_control_register(struct kbase_device *kbdev,
 	 * Apply new configuration, if necessary.
 	 * As a temporary solution, make sure that the GPU is on
 	 * before applying the new configuration.
+	 * When MAGNIHW_2434 exists, skip this during the device initialization.
 	 */
-	if (new_config) {
+	if (new_config &&
+	    (kbdev->device_inited || !kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434))) {
 		ret = update_select_registers(kbdev);
 		if (ret)
 			dev_err(kbdev->dev, "%s: failed to apply new SELECT configuration",
@@ -733,7 +823,9 @@ int kbase_ipa_control_unregister(struct kbase_device *kbdev, const void *client)
 		}
 	}
 
-	if (new_config) {
+	/* When MAGNIHW_2434 exists, skip this during the device initialization. */
+	if (new_config &&
+	    (kbdev->device_inited || !kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434))) {
 		ret = update_select_registers(kbdev);
 		if (ret)
 			dev_err(kbdev->dev, "%s: failed to apply SELECT configuration", __func__);
@@ -827,23 +919,41 @@ void kbase_ipa_control_handle_gpu_power_off(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	/* GPU should still be ready for use when this function gets called */
-	WARN_ON(!kbdev->pm.backend.gpu_ready);
+	if (kbdev->am_standalone)
+		WARN_ON(!kbase_io_is_am_powered(kbdev));
+	else
+		WARN_ON(!kbdev->pm.backend.gpu_ready);
 
 	/* Interrupts are already disabled and interrupt state is also saved */
 	spin_lock(&ipa_ctrl->lock);
 
 	/* First disable the automatic sampling through TIMER  */
-	kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
+	kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
 	ret = wait_status(kbdev, STATUS_TIMER_ENABLED);
 	if (ret) {
-		dev_err(kbdev->dev, "Wait for disabling of IPA control timer failed: %d", ret);
+		dev_err(kbdev->dev, "%s: failed to disable existing timer (%d)", __func__, ret);
 	}
 
 	/* Now issue the manual SAMPLE command */
-	kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_SAMPLE);
-	ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
-	if (ret) {
-		dev_err(kbdev->dev, "Wait for the completion of manual sample failed: %d", ret);
+	if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434)) {
+		/* Toggle 1 clock timer and wait for timer to be disabled again */
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 1);
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(TIMER), 0);
+		ret = wait_status(kbdev, STATUS_TIMER_ENABLED);
+		if (ret)
+			dev_err(kbdev->dev, "%s: 1 clk timer not fired (%d)", __func__, ret);
+
+		/* Wait for TIMER triggered sampling to be done */
+		ret = wait_status(kbdev, STATUS_TIMER_ACTIVE);
+		if (ret)
+			dev_err(kbdev->dev, "%s: failed to sample new counters with timer (%d)",
+				__func__, ret);
+	} else {
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_SAMPLE);
+		ret = wait_status(kbdev, STATUS_COMMAND_ACTIVE);
+		if (ret)
+			dev_err(kbdev->dev, "%s: failed to sample new counters (%d)", __func__,
+				ret);
 	}
 
 	for (session_idx = 0; session_idx < KBASE_IPA_CONTROL_MAX_SESSIONS; session_idx++) {
@@ -862,7 +972,7 @@ void kbase_ipa_control_handle_gpu_power_off(struct kbase_device *kbdev)
 	spin_unlock(&ipa_ctrl->lock);
 }
 
-void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev)
+void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev, bool reconfig_select)
 {
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 	int ret;
@@ -870,14 +980,18 @@ void kbase_ipa_control_handle_gpu_power_on(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	/* GPU should have become ready for use when this function gets called */
-	WARN_ON(!kbdev->pm.backend.gpu_ready);
+	if (kbdev->am_standalone)
+		WARN_ON(!kbase_io_is_am_powered(kbdev));
+	else
+		WARN_ON(!kbdev->pm.backend.gpu_ready);
 
 	/* Interrupts are already disabled and interrupt state is also saved */
 	spin_lock(&ipa_ctrl->lock);
 
-	ret = update_select_registers(kbdev);
-	if (ret) {
-		dev_err(kbdev->dev, "Failed to reconfigure the select registers: %d", ret);
+	if (reconfig_select || !kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434)) {
+		ret = update_select_registers(kbdev);
+		if (ret)
+			dev_err(kbdev->dev, "Failed to reconfigure the select registers: %d", ret);
 	}
 
 	/* Accumulator registers would not contain any sample after GPU power
@@ -895,7 +1009,7 @@ void kbase_ipa_control_handle_gpu_reset_pre(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_handle_gpu_reset_pre);
 
-void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev)
+void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev, bool reconfig_select)
 {
 	struct kbase_ipa_control *ipa_ctrl = &kbdev->csf.ipa_control;
 	int ret;
@@ -904,16 +1018,19 @@ void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	/* GPU should have become ready for use when this function gets called */
-	WARN_ON(!kbdev->pm.backend.gpu_ready);
+	if (kbdev->am_standalone)
+		WARN_ON(!kbase_io_is_am_powered(kbdev));
+	else
+		WARN_ON(!kbdev->pm.backend.gpu_ready);
 
 	/* Interrupts are already disabled and interrupt state is also saved */
 	spin_lock(&ipa_ctrl->lock);
 
 	/* Check the status reset bit is set before acknowledging it */
-	status = kbase_reg_read32(kbdev, IPA_CONTROL_ENUM(STATUS));
+	status = kbase_ipa_reg_read32(kbdev, IPA_CONTROL_ENUM(STATUS));
 	if (status & STATUS_RESET) {
 		/* Acknowledge the reset command */
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_RESET_ACK);
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_RESET_ACK);
 		ret = wait_status(kbdev, STATUS_RESET);
 		if (ret) {
 			dev_err(kbdev->dev, "Wait for the reset ack command failed: %d", ret);
@@ -922,7 +1039,7 @@ void kbase_ipa_control_handle_gpu_reset_post(struct kbase_device *kbdev)
 
 	spin_unlock(&ipa_ctrl->lock);
 
-	kbase_ipa_control_handle_gpu_power_on(kbdev);
+	kbase_ipa_control_handle_gpu_power_on(kbdev, reconfig_select);
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_handle_gpu_reset_post);
 
@@ -937,7 +1054,8 @@ void kbase_ipa_control_handle_gpu_sleep_enter(struct kbase_device *kbdev)
 		/* SELECT_CSHW register needs to be cleared to prevent any
 		 * IPA control message to be sent to the top level GPU HWCNT.
 		 */
-		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
+		if (!kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434))
+			kbase_ipa_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
 
 		/* No need to issue the APPLY command here */
 	}
@@ -949,13 +1067,15 @@ void kbase_ipa_control_handle_gpu_sleep_exit(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	if (kbdev->pm.backend.mcu_state == KBASE_MCU_IN_SLEEP) {
+		bool reconfig_select = !kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434);
+
 		/* To keep things simple, currently exit from
 		 * GPU Sleep is treated as a power on event where
 		 * all 4 SELECT registers are reconfigured.
 		 * On exit from sleep, reconfiguration is needed
 		 * only for the SELECT_CSHW register.
 		 */
-		kbase_ipa_control_handle_gpu_power_on(kbdev);
+		kbase_ipa_control_handle_gpu_power_on(kbdev, reconfig_select);
 	}
 }
 KBASE_EXPORT_TEST_API(kbase_ipa_control_handle_gpu_sleep_exit);
@@ -980,6 +1100,8 @@ void kbase_ipa_control_protm_entered(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ))
+		return;
 
 	ipa_ctrl->protm_start = ktime_get_raw_ns();
 }
@@ -993,6 +1115,8 @@ void kbase_ipa_control_protm_exited(struct kbase_device *kbdev)
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
+	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ))
+		return;
 
 	for (i = 0; i < KBASE_IPA_CONTROL_MAX_SESSIONS; i++) {
 		struct kbase_ipa_control_session *session = &ipa_ctrl->sessions[i];
@@ -1008,12 +1132,12 @@ void kbase_ipa_control_protm_exited(struct kbase_device *kbdev)
 	/* Acknowledge the protected_mode bit in the IPA_CONTROL STATUS
 	 * register
 	 */
-	status = kbase_reg_read32(kbdev, IPA_CONTROL_ENUM(STATUS));
+	status = kbase_ipa_reg_read32(kbdev, IPA_CONTROL_ENUM(STATUS));
 	if (status & STATUS_PROTECTED_MODE) {
 		int ret;
 
 		/* Acknowledge the protm command */
-		kbase_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_PROTECTED_ACK);
+		kbase_ipa_reg_write32(kbdev, IPA_CONTROL_ENUM(COMMAND), COMMAND_PROTECTED_ACK);
 		ret = wait_status(kbdev, STATUS_PROTECTED_MODE);
 		if (ret) {
 			dev_err(kbdev->dev, "Wait for the protm ack command failed: %d", ret);

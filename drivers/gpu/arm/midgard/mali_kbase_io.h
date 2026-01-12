@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2024-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -34,11 +34,15 @@ struct kbase_io;
  *
  * @KBASE_IO_STATUS_GPU_OFF: The GPU is OFF.
  * @KBASE_IO_STATUS_AW_REMOVED: The GPU access window has been removed.
+ * @KBASE_IO_STATUS_AM_OFF: The AM is OFF. (only for am_standalone mode)
+ * @KBASE_IO_STATUS_DUMMY_USER_REG: The user-reg is ready to be accessed.
  * @KBASE_IO_STATUS_NUM_BITS: Number of bits used to encode the status.
  */
 enum kbase_io_status_bits {
 	KBASE_IO_STATUS_GPU_OFF = 0,
 	KBASE_IO_STATUS_AW_REMOVED,
+	KBASE_IO_STATUS_AM_OFF,
+	KBASE_IO_STATUS_DUMMY_USER_REG,
 	KBASE_IO_STATUS_NUM_BITS,
 };
 
@@ -103,6 +107,24 @@ bool kbase_io_is_gpu_powered(struct kbase_device *kbdev);
  *	   or FALSE otherwise.
  */
 bool kbase_io_is_aw_removed(struct kbase_device *kbdev);
+
+/**
+ * kbase_io_is_am_powered() - Check if the AM is powered or not
+ *
+ * @kbdev: Pointer to kbase device structure.
+ *
+ * Return: TRUE if the am is powered ON or FALSE otherwise.
+ */
+bool kbase_io_is_am_powered(struct kbase_device *kbdev);
+
+/**
+ * kbase_io_is_user_reg_dummy() - Check if the user-reg is dummy or not
+ *
+ * @kbdev: Pointer to kbase device structure.
+ *
+ * Return: TRUE if the gpu user-reg is currently a dummy or FALSE otherwise.
+ */
+bool kbase_io_is_user_reg_dummy(struct kbase_device *kbdev);
 
 /**
  * kbase_io_has_gpu() - Check if GPU is available

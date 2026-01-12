@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2012-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -90,12 +90,16 @@ void kbase_hw_set_features_mask(struct kbase_device *kbdev)
 	case GPU_ID_PRODUCT_IDRX:
 	case GPU_ID_PRODUCT_TDRX:
 	case GPU_ID_PRODUCT_LDRX:
-		if (kbdev->gpu_props.gpu_id.version_major == 0) {
-			if (kbdev->gpu_props.gpu_id.version_minor == 1)
-				features = base_hw_features_tDRx_r0p1;
-			else
-				features = base_hw_features_tDRx_r0p0;
-		}
+		if (kbdev->gpu_props.gpu_id.version_minor == 1)
+			features = base_hw_features_tDRx_r0p1;
+		else
+			features = base_hw_features_tDRx_r0p0;
+		break;
+	case GPU_ID_PRODUCT_IMAX:
+	case GPU_ID_PRODUCT_TMAX:
+	case GPU_ID_PRODUCT_LMAX:
+		if (kbdev->am_standalone)
+			features = base_hw_features_tMAx_r0p0;
 		break;
 	default:
 		break;
@@ -285,6 +289,21 @@ static const enum base_hw_issue *kbase_hw_get_issues_for_new_id(struct kbase_dev
 		  { { GPU_ID_VERSION_MAKE(0, 0, 0), base_hw_issues_tDRx_r0p0 },
 		    { GPU_ID_VERSION_MAKE(0, 1, 0), base_hw_issues_tDRx_r0p1 },
 		    { U32_MAX, NULL } } },
+		{ GPU_ID_PRODUCT_IMAX,
+		  { { GPU_ID_VERSION_MAKE(0, 0, 0), base_hw_issues_tMAx_r0p0 },
+		    { GPU_ID_VERSION_MAKE(0, 1, 0), base_hw_issues_tMAx_r0p1 },
+		    { GPU_ID_VERSION_MAKE(0, 2, 0), base_hw_issues_tMAx_r0p2 },
+		    { U32_MAX, NULL } } },
+		{ GPU_ID_PRODUCT_TMAX,
+		  { { GPU_ID_VERSION_MAKE(0, 0, 0), base_hw_issues_tMAx_r0p0 },
+		    { GPU_ID_VERSION_MAKE(0, 1, 0), base_hw_issues_tMAx_r0p1 },
+		    { GPU_ID_VERSION_MAKE(0, 2, 0), base_hw_issues_tMAx_r0p2 },
+		    { U32_MAX, NULL } } },
+		{ GPU_ID_PRODUCT_LMAX,
+		  { { GPU_ID_VERSION_MAKE(0, 0, 0), base_hw_issues_tMAx_r0p0 },
+		    { GPU_ID_VERSION_MAKE(0, 1, 0), base_hw_issues_tMAx_r0p1 },
+		    { GPU_ID_VERSION_MAKE(0, 2, 0), base_hw_issues_tMAx_r0p2 },
+		    { U32_MAX, NULL } } },
 	};
 
 	struct kbase_gpu_id_props *gpu_id = &kbdev->gpu_props.gpu_id;
@@ -438,6 +457,11 @@ int kbase_hw_set_issues_mask(struct kbase_device *kbdev)
 		case GPU_ID_PRODUCT_TDRX:
 		case GPU_ID_PRODUCT_LDRX:
 			issues = base_hw_issues_model_tDRx;
+			break;
+		case GPU_ID_PRODUCT_IMAX:
+		case GPU_ID_PRODUCT_TMAX:
+		case GPU_ID_PRODUCT_LMAX:
+			issues = base_hw_issues_model_tMAx;
 			break;
 		default:
 			dev_err(kbdev->dev, "HW issues - Unknown Product ID %x",

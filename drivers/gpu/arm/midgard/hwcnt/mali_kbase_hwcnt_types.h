@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1334,7 +1334,9 @@ kbase_hwcnt_dump_buffer_append_block_states(struct kbase_hwcnt_dump_buffer *dump
 			blk_stt_t *dst_blk_stt = kbase_hwcnt_dump_buffer_block_state_instance(
 				dump_buf, blk, blk_inst);
 
-			kbase_hwcnt_block_state_append(dst_blk_stt, block_states[blk_inst_count]);
+			if (dst_blk_stt)
+				kbase_hwcnt_block_state_append(dst_blk_stt,
+							       block_states[blk_inst_count]);
 		}
 
 		blk_inst_count++;

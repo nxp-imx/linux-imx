@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -101,6 +101,25 @@ static inline bool kbasep_ktrace_initialized(struct kbase_ktrace *ktrace)
  */
 void kbasep_ktrace_add(struct kbase_device *kbdev, enum kbase_ktrace_code code,
 		       struct kbase_context *kctx, kbase_ktrace_flag_t flags, u64 info_val);
+
+/**
+ * kbasep_ktrace_add_mem - internal function to add trace for mem map/unmap
+ * @kbdev:    kbase device
+ * @code:     ktrace code
+ * @kctx:     kbase context, or NULL if no context
+ * @pages:    mapped or unmapped pages
+ * @va:       Virtual address where page mapped/unmapped
+ * @mem_flags: kbase va region flags passed from user space
+ * @tgid:     kctx thread id
+ * @ctx_id:   kctx id
+ * @as_nr:    Address space id
+ * @flags:    flags about the message
+ *
+ * PRIVATE: do not use directly. Use KBASE_KTRACE_ADD() instead.
+ */
+void kbasep_ktrace_add_mem(struct kbase_device *kbdev, enum kbase_ktrace_code code,
+			   struct kbase_context *kctx, u64 pages, u64 va, u64 mem_flags, pid_t tgid,
+			   u32 ctx_id, u32 as_nr, kbase_ktrace_flag_t flags);
 
 /**
  * kbasep_ktrace_clear - clear the trace ringbuffer
@@ -224,6 +243,51 @@ void kbasep_ktrace_dump(struct kbase_device *kbdev);
 	do {                                     \
 		KBASE_KTRACE_RBUF_DUMP(kbdev);   \
 		KBASE_KTRACE_FTRACE_DUMP(kbdev); \
+	} while (0)
+
+/* Memory tracepoint macros */
+#if KBASE_KTRACE_TARGET_RBUF
+#define KBASE_KTRACE_RBUF_ADD_MEM(kbdev, code, kctx, pages, va, flags, tgid, ctx_id, as_nr) \
+	kbasep_ktrace_add_mem(kbdev, KBASE_KTRACE_CODE(code), kctx, (u64)pages, (u64)va,    \
+			      (u64)flags, tgid, ctx_id, as_nr, 0)
+#else
+#define KBASE_KTRACE_RBUF_ADD_MEM(kbdev, code, kctx, pages, va, flags, tgid, ctx_id, as_nr) \
+	do {                                                                                \
+		CSTD_UNUSED(kbdev);                                                         \
+		CSTD_NOP(code);                                                             \
+		CSTD_UNUSED(kctx);                                                          \
+		CSTD_UNUSED(pages);                                                         \
+		CSTD_UNUSED(va);                                                            \
+		CSTD_UNUSED(flags);                                                         \
+		CSTD_UNUSED(tgid);                                                          \
+		CSTD_UNUSED(ctx_id);                                                        \
+		CSTD_UNUSED(as_nr);                                                         \
+	} while (0)
+#endif
+
+#if KBASE_KTRACE_TARGET_FTRACE
+#define KBASE_KTRACE_FTRACE_ADD_MEM(code, kctx, pages, va, flags, tgid, ctx_id, as_nr) \
+	trace_mali_mem_##code(kctx, pages, va, flags, tgid, ctx_id, as_nr)
+#else
+#define KBASE_KTRACE_FTRACE_ADD_MEM(...) ((void)0)
+#endif
+
+#define KBASE_KTRACE_ADD_MEM(kbdev, code, kctx, pages, va, flags)                                 \
+	do {                                                                                      \
+		pid_t __tgid = task_tgid_nr(current);                                             \
+		int __ctx_id = 0;                                                                 \
+		int __as_nr = 0;                                                                  \
+		u64 __pages = (u64)(pages);                                                       \
+		u64 __va = (u64)(va);                                                             \
+		u64 __flags = (u64)(flags);                                                       \
+		if (kctx) {                                                                       \
+			__ctx_id = kctx->id;                                                      \
+			__as_nr = kctx->as_nr;                                                    \
+		}                                                                                 \
+		KBASE_KTRACE_RBUF_ADD_MEM(kbdev, code, kctx, __pages, __va, __flags, __tgid,      \
+					  __ctx_id, __as_nr);                                     \
+		KBASE_KTRACE_FTRACE_ADD_MEM(code, kctx, __pages, __va, __flags, __tgid, __ctx_id, \
+					    __as_nr);                                             \
 	} while (0)
 
 #endif /* _KBASE_DEBUG_KTRACE_H_ */

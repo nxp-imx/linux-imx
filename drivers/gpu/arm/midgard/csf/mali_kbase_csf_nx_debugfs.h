@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -18,17 +18,17 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
  */
-#ifndef _KBASE_CSF_NE_DEBUGFS_H_
-#define _KBASE_CSF_NE_DEBUGFS_H_
+#ifndef _KBASE_CSF_NX_DEBUGFS_H_
+#define _KBASE_CSF_NX_DEBUGFS_H_
 
 struct kbase_device;
 
 /*
- * kbase_csf_ne_debugfs_init - Initialize neural engine debugfs entries.
+ * kbase_csf_nx_debugfs_init - Initialize neural accelerator debugfs entries.
  * @kbdev: Kbase device.
  *
  * Return: 0 on success, -1 on failure.
  */
-int kbase_csf_ne_control_debugfs_init(struct kbase_device *kbdev);
+int kbase_csf_nx_control_debugfs_init(struct kbase_device *kbdev);
 
-#endif /* _KBASE_CSF_NE_DEBUGFS_H_ */
+#endif /* _KBASE_CSF_NX_DEBUGFS_H_ */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -58,6 +58,7 @@
 static void kbase_device_firmware_hwcnt_term(struct kbase_device *kbdev)
 {
 	if (kbdev->csf.firmware_inited) {
+		atomic_set(&kbdev->csf.hwcnt.hwcnt_inited, false);
 		kbase_kinstr_prfcnt_term(kbdev->kinstr_prfcnt_ctx);
 		kbase_hwcnt_virtualizer_term(kbdev->hwcnt_gpu_virt);
 		kbase_hwcnt_backend_csf_metadata_term(&kbdev->hwcnt_gpu_iface);
@@ -98,7 +99,7 @@ static int kbase_backend_late_init(struct kbase_device *kbdev)
 #endif /* IS_ENABLED(CONFIG_MALI_REAL_HW) */
 #endif /* CONFIG_MALI_DEBUG */
 
-	{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ)) {
 		kbase_ipa_control_init(kbdev);
 
 		/* Initialise the metrics subsystem, it couldn't be initialized earlier
@@ -137,13 +138,13 @@ fail_update_l2_features:
 	kbase_backend_devfreq_term(kbdev);
 
 fail_devfreq_init:
-	{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ))
 		kbasep_pm_metrics_term(kbdev);
-	}
+
 fail_pm_metrics_init:
-	{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ))
 		kbase_ipa_control_term(kbdev);
-	}
+
 #ifdef CONFIG_MALI_DEBUG
 #if IS_ENABLED(CONFIG_MALI_REAL_HW)
 fail_interrupt_test:
@@ -166,7 +167,7 @@ fail_reset_gpu_init:
  */
 static void kbase_backend_late_term(struct kbase_device *kbdev)
 {
-	{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ)) {
 		kbase_backend_devfreq_term(kbdev);
 		kbasep_pm_metrics_term(kbdev);
 		kbase_ipa_control_term(kbdev);
@@ -213,6 +214,8 @@ static void kbase_csf_early_term(struct kbase_device *kbdev)
 static int kbase_csf_late_init(struct kbase_device *kbdev)
 {
 	int err = kbase_csf_firmware_late_init(kbdev);
+
+	atomic_set(&kbdev->csf.hwcnt.hwcnt_inited, false);
 
 	return err;
 }
@@ -314,6 +317,7 @@ static const struct kbase_device_init dev_init[] = {
 	{ kbase_csf_protected_memory_init, kbase_csf_protected_memory_term,
 	  "Protected memory allocator initialization failed" },
 	{ kbase_device_coherency_init, NULL, "Device coherency init failed" },
+	{ kbase_nx_ee_pwr_allow_masks_init, NULL, "NX/EE power allow masks init failed" },
 	{ kbase_protected_mode_init, kbase_protected_mode_term,
 	  "Protected mode subsystem initialization failed" },
 	{ kbase_device_list_init, kbase_device_list_term, "Device list setup failed" },
@@ -372,6 +376,8 @@ static void kbase_device_term_partial(struct kbase_device *kbdev, unsigned int i
 
 void kbase_device_term(struct kbase_device *kbdev)
 {
+	kbdev->device_inited = false;
+
 	kbase_device_term_partial(kbdev, ARRAY_SIZE(dev_init));
 	kbase_mem_halt(kbdev);
 }
@@ -396,6 +402,9 @@ int kbase_device_init(struct kbase_device *kbdev)
 			}
 		}
 	}
+
+	if (!err)
+		kbdev->device_inited = true;
 
 	return err;
 }
@@ -440,7 +449,7 @@ static int kbase_device_hwcnt_csf_deferred_init(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Performance counter instrumentation initialization failed");
 		goto kinstr_prfcnt_fail;
 	}
-
+	atomic_set(&kbdev->csf.hwcnt.hwcnt_inited, true);
 	return ret;
 
 kinstr_prfcnt_fail:

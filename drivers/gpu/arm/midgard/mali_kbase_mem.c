@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -34,6 +34,7 @@
 
 #include <mali_kbase_config.h>
 #include <mali_kbase.h>
+#include <mali_kbase_defs.h>
 #include <mali_kbase_reg_track.h>
 #include <mali_kbase_caps.h>
 #include <hw_access/mali_kbase_hw_access_regmap.h>
@@ -478,6 +479,14 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg, u64 
 			goto bad_insert;
 	}
 
+	dev_dbg(kctx->kbdev->dev,
+		"Mapped %zu pages to GPU at VA 0x%llx, flags 0x%lx for ctx %d_%d as_nr %d",
+		kbase_reg_current_backed_size(reg), reg->start_pfn << PAGE_SHIFT, reg->flags,
+		kctx->tgid, kctx->id, kctx->as_nr);
+
+	KBASE_KTRACE_ADD_MEM(kctx->kbdev, MEM_MAPPED, kctx, kbase_reg_current_backed_size(reg),
+			     reg->start_pfn << PAGE_SHIFT, reg->flags);
+
 	return err;
 
 bad_aliased_insert:
@@ -605,6 +614,14 @@ int kbase_gpu_munmap(struct kbase_context *kctx, struct kbase_va_region *reg)
 
 	if (alloc->type != KBASE_MEM_TYPE_ALIAS)
 		kbase_mem_phy_alloc_gpu_unmapped(reg->gpu_alloc);
+
+	dev_dbg(kctx->kbdev->dev,
+		"Unmapped %zu pages from GPU at VA 0x%llx, flags 0x%lx for ctx %d_%d as_nr %d",
+		kbase_reg_current_backed_size(reg), reg->start_pfn << PAGE_SHIFT, reg->flags,
+		kctx->tgid, kctx->id, kctx->as_nr);
+
+	KBASE_KTRACE_ADD_MEM(kctx->kbdev, MEM_UNMAPPED, kctx, kbase_reg_current_backed_size(reg),
+			     reg->start_pfn << PAGE_SHIFT, reg->flags);
 
 	return err;
 }
@@ -889,6 +906,9 @@ static int kbase_do_syncset(struct kbase_context *kctx, struct basep_syncset *ss
 	if (!(reg->flags & KBASE_REG_CPU_CACHED))
 		goto out_unlock;
 
+	if (reg->flags & KBASE_REG_DONT_NEED)
+		goto out_unlock;
+
 	start = (uintptr_t)sset->user_addr;
 	size = (size_t)sset->size;
 
@@ -998,7 +1018,7 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 	 * If the memory hasn't been reclaimed it will be unmapped and freed
 	 * below, if it has been reclaimed then the operations below are no-ops.
 	 */
-	if (reg->flags & BASEP_MEM_DONT_NEED) {
+	if (reg->flags & KBASE_REG_DONT_NEED) {
 		WARN_ON(reg->cpu_alloc->type != KBASE_MEM_TYPE_NATIVE);
 		mutex_lock(&kctx->jit_evict_lock);
 		/* Unlink the physical allocation before unmaking it evictable so
@@ -1016,14 +1036,6 @@ int kbase_mem_free_region(struct kbase_context *kctx, struct kbase_va_region *re
 	if (err) {
 		dev_warn(kctx->kbdev->dev, "Could not unmap from the GPU...\n");
 		goto out;
-	}
-
-	if (((kbase_bits_to_zone(reg->flags)) == FIXED_VA_ZONE) ||
-	    ((kbase_bits_to_zone(reg->flags)) == EXEC_FIXED_VA_ZONE)) {
-		if (reg->flags & KBASE_REG_FIXED_ADDRESS)
-			atomic64_dec(&kctx->num_fixed_allocs);
-		else
-			atomic64_dec(&kctx->num_fixable_allocs);
 	}
 
 	KBASE_TLSTREAM_REGION_FREE(kctx->kbdev, kctx->id, reg->start_pfn << PAGE_SHIFT,
@@ -1194,6 +1206,9 @@ int kbase_update_region_flags(struct kbase_context *kctx, struct kbase_va_region
 		kbase_gpu_vm_lock(kctx);
 		kbase_va_region_no_user_free_inc(reg);
 		kbase_gpu_vm_unlock(kctx);
+
+		if (flags & BASE_MEM_DONT_NEED)
+			reg->flags |= KBASE_REG_DONT_NEED;
 	}
 
 	if (flags & BASE_MEM_GPU_VA_SAME_4GB_PAGE)
@@ -1203,7 +1218,8 @@ int kbase_update_region_flags(struct kbase_context *kctx, struct kbase_va_region
 		reg->flags |= KBASE_REG_FIXED_ADDRESS;
 
 	if (flags & BASEP_MEM_ACTIVE_JIT_ALLOC)
-		reg->flags |= BASEP_MEM_ACTIVE_JIT_ALLOC;
+		reg->flags |= KBASE_REG_ACTIVE_JIT_ALLOC;
+
 	return 0;
 }
 
@@ -1698,8 +1714,10 @@ static size_t free_partial(struct kbase_context *kctx, struct tagged_addr tp, bo
 	spin_lock(&kctx->mem_partials_lock);
 	clear_bit(p - head_page, sa->sub_pages);
 	if (bitmap_empty(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE)) {
+		struct kbase_mem_pool *pool = &kctx->mem_pools.large[sa->group_id];
+
 		list_del(&sa->link);
-		kbase_mem_pool_free(&kctx->mem_pools.large[sa->group_id], head_page, false);
+		kbase_mem_pool_free_lite_defer(pool, head_page, false);
 		kfree(sa);
 		nr_pages_to_account = NUM_PAGES_IN_2MB_LARGE_PAGE;
 	} else if (bitmap_weight(sa->sub_pages, NUM_PAGES_IN_2MB_LARGE_PAGE) ==
@@ -1950,7 +1968,7 @@ void kbase_mem_kref_free(struct kref *kref)
 		/* raw pages, external cleanup */
 		break;
 	case KBASE_MEM_TYPE_IMPORTED_UMM:
-		if (!IS_ENABLED(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND)) {
+		if (!IS_ENABLED(CONFIG_MALI_DMA_BUF_MAP_ON_DEMAND) && alloc->imported.umm.sgt) {
 			WARN_ONCE(alloc->imported.umm.current_mapping_usage_count != 1,
 				  "WARNING: expected exactly 1 mapping, got %d",
 				  alloc->imported.umm.current_mapping_usage_count);
@@ -1970,8 +1988,11 @@ void kbase_mem_kref_free(struct kref *kref)
 		 */
 		if (kbase_csf_scheduler_delegate_imported_buf_alloc_free(alloc))
 			return;
-		dma_buf_detach(alloc->imported.umm.dma_buf, alloc->imported.umm.dma_attachment);
-		dma_buf_put(alloc->imported.umm.dma_buf);
+		if (alloc->imported.umm.dma_buf && alloc->imported.umm.dma_attachment) {
+			dma_buf_detach(alloc->imported.umm.dma_buf,
+				       alloc->imported.umm.dma_attachment);
+			dma_buf_put(alloc->imported.umm.dma_buf);
+		}
 		break;
 	case KBASE_MEM_TYPE_IMPORTED_USER_BUF:
 		switch (alloc->imported.user_buf.state) {
@@ -2087,6 +2108,12 @@ void kbase_set_phy_alloc_page_status(struct kbase_context *kctx, struct kbase_me
 
 		spin_lock(&page_md->migrate_lock);
 		page_md->status = PAGE_STATUS_SET(page_md->status, (u8)status);
+		if (status == ALLOCATED_MAPPED)
+			page_md->data.mapped.kctx_id = kctx->id;
+		else if (status == PT_MAPPED)
+			page_md->data.pt_mapped.kctx_id = kctx->id;
+		else
+			kbase_clear_page_metadata_kctx_id(page_md);
 		spin_unlock(&page_md->migrate_lock);
 	}
 }
@@ -2138,22 +2165,10 @@ bool kbase_check_alloc_flags(struct kbase_context *kctx, unsigned long flags)
 	if ((flags & BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP) == BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP)
 		return false;
 
-	/* Should not combine BASE_MEM_COHERENT_LOCAL with
-	 * BASE_MEM_COHERENT_SYSTEM
-	 */
-	if ((flags & (BASE_MEM_COHERENT_LOCAL | BASE_MEM_COHERENT_SYSTEM)) ==
-	    (BASE_MEM_COHERENT_LOCAL | BASE_MEM_COHERENT_SYSTEM))
-		return false;
-
 	if ((flags & BASE_MEM_SAME_VA) && (flags & (BASE_MEM_FIXABLE | BASE_MEM_FIXED)))
 		return false;
 
 	if ((flags & BASE_MEM_FIXABLE) && (flags & BASE_MEM_FIXED))
-		return false;
-
-	/* Cannot be set only allocation, only with base_mem_set */
-	if ((flags & BASE_MEM_DONT_NEED) &&
-	    (mali_kbase_supports_reject_alloc_mem_dont_need(kctx->api_version)))
 		return false;
 
 	/* Cannot directly allocate protected memory, it is imported instead */
@@ -3372,8 +3387,8 @@ void kbase_jit_free(struct kbase_context *kctx, struct kbase_va_region *reg)
 		return;
 	}
 	kbase_mem_evictable_mark_reclaim(reg->gpu_alloc);
-	reg->flags |= BASEP_MEM_DONT_NEED;
-	reg->flags &= ~BASEP_MEM_ACTIVE_JIT_ALLOC;
+	reg->flags |= KBASE_REG_DONT_NEED;
+	reg->flags &= ~KBASE_REG_ACTIVE_JIT_ALLOC;
 	kbase_mem_shrink_cpu_mapping(kctx, reg, 0, reg->gpu_alloc->nents);
 
 	/* Inactive JIT regions should be freed by the shrinker and not impacted

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  * COPYRIGHT 2024 - 2025 NXP
  *
  * This program is free software and is provided to you under the terms of the
@@ -459,10 +459,9 @@ static int protected_memory_allocator_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "could not read reserved memory-region\n");
 		return -ENODEV;
 	}
+	of_node_put(np);
 
 skip_reserved_lookup:
-
-	of_node_put(np);
 	epma_dev = devm_kzalloc(&pdev->dev, sizeof(*epma_dev), GFP_KERNEL);
 	if (!epma_dev)
 		return -ENOMEM;

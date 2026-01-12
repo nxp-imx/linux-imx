@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -34,7 +34,9 @@
 #include <backend/gpu/mali_kbase_model_linux.h>
 #include <mali_kbase_mem_linux.h>
 
+#ifdef CONFIG_ARM64
 #include <asm/arch_timer.h>
+#endif
 
 #include <csf/mali_kbase_csf_firmware.h>
 
@@ -60,6 +62,9 @@ static u32 sysc_alloc_regs[SYSC_ALLOC_COUNT];
 #define LO_MASK(M) ((M)&0xFFFFFFFF)
 #define HI_MASK(M) ((M)&0xFFFFFFFF00000000)
 
+#define MMU_FEATURES_AS_COUNT_DEFAULT 8
+#define MMU_FEATURES_AS_COUNT_SHIFT 16
+#define MMU_FEATURES_AS_COUNT(n) ((n) << MMU_FEATURES_AS_COUNT_SHIFT)
 
 /* Construct a value for the THREAD_FEATURES register, *except* the two most
  * significant bits, which are set to THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_SOFTWARE in
@@ -89,7 +94,7 @@ struct error_status_t hw_error_status;
  * @shader_present:		Available shader bitmap
  * @stack_present:		Core stack present bitmap
  * @base_present:		Shader core base present bitmap
- * @neural_present:		Neural engine present bitmap
+ * @neural_present:		Neural accelerator present bitmap
  *
  */
 struct control_reg_values_t {
@@ -107,6 +112,10 @@ struct control_reg_values_t {
 	u32 gpu_features_hi;
 	u32 shader_present;
 	u32 stack_present;
+	/**
+	 * @thread_num_active_granularity: Granularity of number of active threads
+	 */
+	u32 thread_num_active_granularity;
 	u64 base_present;
 	u64 neural_present;
 };
@@ -158,6 +167,23 @@ struct dummy_model_t {
 	struct kbase_device *kbdev;
 	u32 arch_id;
 };
+
+static inline bool addr_eq_reg_arch(struct dummy_model_t *model, u32 starting_arch, u32 addr,
+				    u32 reg, u32 legacy_reg)
+{
+	return ((model->arch_id >= starting_arch) && addr == (reg)) ||
+	       ((model->arch_id < starting_arch) && addr == (legacy_reg));
+}
+
+static inline bool addr_range_reg_arch(struct dummy_model_t *model, u32 starting_arch, u32 addr,
+				       u32 lower_reg, u32 upper_req, u32 legacy_lower_reg,
+				       u32 legacy_upper_reg)
+{
+	return ((model->arch_id >= starting_arch) &&
+		(addr >= (lower_reg) && addr <= (upper_req))) ||
+	       ((model->arch_id < starting_arch) &&
+		(addr >= (legacy_lower_reg) && addr <= (legacy_upper_reg)));
+}
 
 /* Array associating GPU names with control register values. The first
  * one is used in the case of no match.
@@ -425,7 +451,7 @@ static const struct control_reg_values_t all_control_reg_values[] = {
 		.stack_present = DUMMY_IMPLEMENTATION_STACK_PRESENT,
 	},
 	{
-		.name = "tDRx",
+		.name = "tDRx_r0p0",
 		.gpu_id = GPU_ID2_MAKE(14, 8, 5, 0, 0, 0, 0),
 		.as_present = 0xFF,
 		.thread_max_threads = 0x800,
@@ -438,6 +464,25 @@ static const struct control_reg_values_t all_control_reg_values[] = {
 		.gpu_features_lo = 0x3f,
 		.gpu_features_hi = 0,
 		.shader_present = DUMMY_IMPLEMENTATION_SHADER_PRESENT_TDRX,
+		.stack_present = DUMMY_IMPLEMENTATION_STACK_PRESENT,
+		.base_present = DUMMY_IMPLEMENTATION_BASE_PRESENT,
+		.neural_present = DUMMY_IMPLEMENTATION_NEURAL_PRESENT,
+	},
+	{
+		.name = "tMAx",
+		.gpu_id = GPU_ID3_MAKE(15, 8, 1, 0, 0, 0, 0),
+		.as_present = 0xFF,
+		.thread_max_threads = 0x800,
+		.thread_max_workgroup_size = 0x0,
+		.thread_num_active_granularity = 0x100,
+		.thread_max_barrier_size = 0x400,
+		.thread_features = THREAD_FEATURES_PARTIAL(0x10000, 16, 0),
+		.core_features = 0x1, /* core_1e64fma4tex */
+		.tiler_features = 0x809,
+		.mmu_features = 0x2830 | MMU_FEATURES_AS_COUNT(MMU_FEATURES_AS_COUNT_DEFAULT),
+		.gpu_features_lo = 0x3f,
+		.gpu_features_hi = 0,
+		.shader_present = DUMMY_IMPLEMENTATION_SHADER_PRESENT_TMAX,
 		.stack_present = DUMMY_IMPLEMENTATION_STACK_PRESENT,
 		.base_present = DUMMY_IMPLEMENTATION_BASE_PRESENT,
 		.neural_present = DUMMY_IMPLEMENTATION_NEURAL_PRESENT,
@@ -502,7 +547,7 @@ hctrl_get_implementation_register(u32 reg,
 	if (reg == GET_HOST_POWER_REG(HOST_POWER_BASE_PRESENT_LO))
 		return LO_MASK(control_reg_values->base_present);
 	if (reg == GET_HOST_POWER_REG(HOST_POWER_NEURAL_PRESENT_LO) &&
-	    (control_reg_values->gpu_features_lo & GPU_FEATURES_NEURAL_ENGINE_MASK))
+	    (control_reg_values->gpu_features_lo & GPU_FEATURES_NEURAL_ACCELERATOR_MASK))
 		return LO_MASK(control_reg_values->neural_present);
 
 	return 0;
@@ -743,6 +788,7 @@ void gpu_model_glb_request_job_irq(void *model)
 
 	spin_lock_irqsave(&hw_error_status.access_lock, flags);
 	hw_error_status.job_irq_status |= JOB_IRQ_GLOBAL_IF;
+	hw_error_status.window_status_irq |= WINDOW_STATUS_IRQ_JOB_CONTROL;
 	spin_unlock_irqrestore(&hw_error_status.access_lock, flags);
 	gpu_model_raise_irq(model, MODEL_LINUX_JOB_IRQ);
 }
@@ -898,8 +944,14 @@ static void find_gpu_rev(char *new_gpu_name, const char *gpu)
 {
 	strscpy(new_gpu_name, gpu, strlen(gpu) + GPU_REV_STR_LEN + 1);
 
+#ifdef CONFIG_MALI_PLATFORM_NAME
+	if (!strcmp(CONFIG_MALI_PLATFORM_NAME, "mt6983") && !strcmp(gpu, "tDRx")) {
+		strncat(new_gpu_name, "_r0p0", GPU_REV_STR_LEN + 1);
+		return;
+	}
+#endif
 
-	if (!strcmp(gpu, "tGOx")) {
+	if (!strcmp(gpu, "tGOx") || !strcmp(gpu, "tDRx")) {
 #ifdef CONFIG_GPU_HWVER
 		if (!strcmp(CONFIG_GPU_HWVER, "r0p0"))
 			strncat(new_gpu_name, "_r0p0", GPU_REV_STR_LEN + 1);
@@ -952,6 +1004,11 @@ static const struct control_reg_values_t *find_control_reg_values(const char *gp
 
 static u32 get_arch_id(u64 gpu_id)
 {
+	if (((gpu_id >> GPU_ID3_COMPAT_SHIFT) & 0xF) == GPU_ID3_COMPAT)
+		return GPU_ID_ARCH_MAKE(GPU_ID3_ARCH_MAJOR_GET(gpu_id),
+					GPU_ID3_ARCH_MINOR_GET(gpu_id),
+					GPU_ID3_ARCH_REV_GET(gpu_id));
+	else
 		return GPU_ID_ARCH_MAKE(GPU_ID2_ARCH_MAJOR_GET(gpu_id),
 					GPU_ID2_ARCH_MINOR_GET(gpu_id),
 					GPU_ID2_ARCH_REV_GET(gpu_id));
@@ -978,6 +1035,9 @@ void *midgard_model_create(struct kbase_device *kbdev)
 
 		dummy->arch_id = get_arch_id(dummy->control_reg_values->gpu_id);
 
+		if (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+			gpu_control_base_addr = GPU_CONTROL_BASE_V14_10;
+		else
 			gpu_control_base_addr = GPU_CONTROL_BASE;
 		if (kbdev->pm.backend.has_host_pwr_iface) {
 			performance_counters.l2_present = hctrl_get_implementation_register(
@@ -1011,28 +1071,35 @@ static void midgard_model_get_outputs(void *h)
 	struct dummy_model_t *dummy = (struct dummy_model_t *)h;
 	u32 irqs = 0;
 	int i;
+	u32 window_status_irq = 0;
 
 	lockdep_assert_held(&hw_error_status.access_lock);
 
 	if (hw_error_status.job_irq_status) {
+		window_status_irq |= WINDOW_STATUS_IRQ_JOB_CONTROL;
 		irqs |= MODEL_LINUX_JOB_IRQ;
 	}
 
 	if ((dummy->power_changed && dummy->power_changed_mask) ||
 	    (dummy->reset_completed & dummy->reset_completed_mask)) {
+		window_status_irq |= WINDOW_STATUS_IRQ_GPU_POWER;
 		irqs |= MODEL_LINUX_GPU_IRQ;
 	}
 
 	if (hw_error_status.gpu_error_irq ||
 	    (dummy->flush_pa_range_completed && dummy->flush_pa_range_completed_irq_enabled) ||
 	    (dummy->clean_caches_completed && dummy->clean_caches_completed_irq_enabled)) {
+		window_status_irq |= WINDOW_STATUS_IRQ_GPU_CONTROL;
 		irqs |= MODEL_LINUX_GPU_IRQ;
 	}
 
 	if (hw_error_status.mmu_irq_rawstat & hw_error_status.mmu_irq_mask) {
+		window_status_irq |= WINDOW_STATUS_IRQ_MMU_CONTROL;
 		irqs |= MODEL_LINUX_MMU_IRQ;
 	}
 
+	if (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		hw_error_status.window_status_irq = window_status_irq;
 
 	for (i = 0; irqs; i++, irqs >>= 1) {
 		if (irqs & 0x1)
@@ -1309,9 +1376,14 @@ void midgard_model_write_reg(void *h, u32 addr, u32 value)
 		WARN_ON(!dummy->kbdev->csf.num_doorbells);
 		if (addr == CSF_HW_DOORBELL_PAGE_OFFSET)
 			hw_error_status.job_irq_status = JOB_IRQ_GLOBAL_IF;
-	} else if ((addr >= GET_GPU_CONTROL_REG(SYSC_ALLOC0)) &&
-		   (addr < GET_GPU_CONTROL_REG(SYSC_ALLOC(SYSC_ALLOC_COUNT)))) {
-		u32 alloc_reg = (addr - GET_GPU_CONTROL_REG(SYSC_ALLOC0)) >> 2;
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       MMU_CONTROL_REG(MMU_SYSC_ALLOC0),
+				       MMU_CONTROL_REG(MMU_SYSC_ALLOC(MMU_SYSC_ALLOC_COUNT - 1)),
+				       GET_GPU_CONTROL_REG(SYSC_ALLOC0),
+				       GET_GPU_CONTROL_REG(SYSC_ALLOC(SYSC_ALLOC_COUNT - 1)))) {
+		u32 alloc_reg = (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) ?
+					      ((addr - MMU_CONTROL_REG(MMU_SYSC_ALLOC0)) >> 2) :
+					      ((addr - GET_GPU_CONTROL_REG(SYSC_ALLOC0)) >> 2);
 
 		sysc_alloc_regs[alloc_reg] = value;
 	} else if ((addr >= GET_GPU_CONTROL_REG(L2_SLICE_HASH_0)) &&
@@ -1356,88 +1428,96 @@ void midgard_model_write_reg(void *h, u32 addr, u32 value)
 		hw_error_status.mmu_irq_mask = value;
 	} else if (addr == MMU_CONTROL_REG(MMU_IRQ_CLEAR)) {
 		hw_error_status.mmu_irq_rawstat &= (~value);
-	} else if ((addr >= MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) &&
-		   (addr <= MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS)))) {
-		u32 mem_addr_space = (addr - MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) >>
-				     MMU_STAGE1_AS_SHIFT;
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       MMU_STAGE2_REG(MMU_STAGE2_AS_REG(0, AS_TRANSTAB_LO)),
+				       MMU_STAGE2_REG(MMU_STAGE2_AS_REG(15, AS_STATUS)),
+				       MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO)),
+				       MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS)))) {
+		u32 base = MMU_STAGE2_REG(MMU_STAGE2_AS_REG(0, AS_TRANSTAB_LO));
+		u32 base_legacy = MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO));
+		u32 mem_addr_space = (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) ?
+						   ((addr - base) >> MMU_STAGE2_AS_SHIFT) :
+						   ((addr - base_legacy) >> MMU_STAGE1_AS_SHIFT);
+
 		if (WARN_ON(mem_addr_space >= NUM_MMU_AS)) {
-			return;
-		}
+			/* Nothing to do */
+		} else {
+			u32 *as_command = &hw_error_status.as_command[mem_addr_space];
+			u32 *as_faultstatus = &hw_error_status.as_faultstatus[mem_addr_space];
+			u64 *as_transtab = &hw_error_status.as_transtab[mem_addr_space];
 
-		switch (addr & 0x3F) {
-		case AS_COMMAND:
-			switch (AS_COMMAND_COMMAND_GET(value)) {
-			case AS_COMMAND_COMMAND_NOP:
-				hw_error_status.as_command[mem_addr_space] = value;
-				break;
+			switch (addr & 0x3F) {
+			case AS_COMMAND:
+				switch (AS_COMMAND_COMMAND_GET(value)) {
+				case AS_COMMAND_COMMAND_NOP:
+					*as_command = value;
+					break;
 
-			case AS_COMMAND_COMMAND_UPDATE:
-				hw_error_status.as_command[mem_addr_space] = value;
-				if ((hw_error_status.as_faultstatus[mem_addr_space]) &&
-				    ((hw_error_status.as_transtab[mem_addr_space] & 0x3) != 0)) {
+				case AS_COMMAND_COMMAND_UPDATE:
+					*as_command = value;
+					if (*as_faultstatus && ((*as_transtab & 0x3) != 0)) {
+						model_error_log(
+							KBASE_CORE,
+							"\n ERROR: AS_COMMAND issued UPDATE on error condition before AS_TRANSTAB been set to unmapped\n");
+					} else if (*as_faultstatus && ((*as_transtab & 0x3) == 0)) {
+						/*invalidate all active jobs */
+						invalidate_active_jobs(dummy);
+						/* error handled */
+						*as_faultstatus = 0;
+					}
+					break;
+
+				case AS_COMMAND_COMMAND_LOCK:
+				case AS_COMMAND_COMMAND_UNLOCK:
+					*as_command = value;
+					break;
+
+				case AS_COMMAND_COMMAND_FLUSH_PT:
+				case AS_COMMAND_COMMAND_FLUSH_MEM:
+					if (*as_command != AS_COMMAND_COMMAND_LOCK)
+						model_error_log(
+							KBASE_CORE,
+							"\n ERROR: AS_COMMAND issued FLUSH without LOCKING before\n");
+					else /* error handled if any */
+						*as_faultstatus = 0;
+					*as_command = value;
+					break;
+
+				default:
 					model_error_log(
 						KBASE_CORE,
-						"\n ERROR: AS_COMMAND issued UPDATE on error condition before AS_TRANSTAB been set to unmapped\n");
-				} else if ((hw_error_status.as_faultstatus[mem_addr_space]) &&
-					   ((hw_error_status.as_transtab[mem_addr_space] & 0x3) ==
-					    0)) {
-					/*invalidate all active jobs */
-					invalidate_active_jobs(dummy);
-					/* error handled */
-					hw_error_status.as_faultstatus[mem_addr_space] = 0;
+						"\n WARNING: UNRECOGNIZED AS_COMMAND 0x%x\n",
+						value);
+					break;
 				}
 				break;
 
-			case AS_COMMAND_COMMAND_LOCK:
-			case AS_COMMAND_COMMAND_UNLOCK:
-				hw_error_status.as_command[mem_addr_space] = value;
+			case AS_TRANSTAB_LO:
+				*as_transtab &= ~((u64)(0xffffffff));
+				*as_transtab |= (u64)value;
 				break;
 
-			case AS_COMMAND_COMMAND_FLUSH_PT:
-			case AS_COMMAND_COMMAND_FLUSH_MEM:
-				if (hw_error_status.as_command[mem_addr_space] !=
-				    AS_COMMAND_COMMAND_LOCK)
-					model_error_log(
-						KBASE_CORE,
-						"\n ERROR: AS_COMMAND issued FLUSH without LOCKING before\n");
-				else /* error handled if any */
-					hw_error_status.as_faultstatus[mem_addr_space] = 0;
-				hw_error_status.as_command[mem_addr_space] = value;
+			case AS_TRANSTAB_HI:
+				*as_transtab &= (u64)0xffffffff;
+				*as_transtab |= ((u64)value) << 32;
+				break;
+
+			case AS_LOCKADDR_LO:
+			case AS_LOCKADDR_HI:
+			case AS_MEMATTR_LO:
+			case AS_MEMATTR_HI:
+			case AS_TRANSCFG_LO:
+			case AS_TRANSCFG_HI:
+				/* Writes ignored */
 				break;
 
 			default:
-				model_error_log(KBASE_CORE,
-						"\n WARNING: UNRECOGNIZED AS_COMMAND 0x%x\n",
-						value);
+				model_error_log(
+					KBASE_CORE,
+					"Dummy model register access: Writing unsupported MMU #%d register 0x%x value 0x%x\n",
+					mem_addr_space, addr, value);
 				break;
 			}
-			break;
-
-		case AS_TRANSTAB_LO:
-			hw_error_status.as_transtab[mem_addr_space] &= ~((u64)(0xffffffff));
-			hw_error_status.as_transtab[mem_addr_space] |= (u64)value;
-			break;
-
-		case AS_TRANSTAB_HI:
-			hw_error_status.as_transtab[mem_addr_space] &= (u64)0xffffffff;
-			hw_error_status.as_transtab[mem_addr_space] |= ((u64)value) << 32;
-			break;
-
-		case AS_LOCKADDR_LO:
-		case AS_LOCKADDR_HI:
-		case AS_MEMATTR_LO:
-		case AS_MEMATTR_HI:
-		case AS_TRANSCFG_LO:
-		case AS_TRANSCFG_HI:
-			/* Writes ignored */
-			break;
-
-		default:
-			model_error_log(
-				KBASE_CORE,
-				"Dummy model register access: Writing unsupported MMU #%d register 0x%x value 0x%x\n",
-				mem_addr_space, addr, value);
-			break;
 		}
 	} else {
 		switch (addr) {
@@ -1520,8 +1600,12 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 	spin_lock_irqsave(&hw_error_status.access_lock, flags);
 
 	*value = 0; /* 0 by default */
-	if (addr == GET_GPU_CONTROL_REG(GPU_ID)) {
+	if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr, GPU_DISCOVER_REG(GPU_ID),
+			     GET_GPU_CONTROL_REG(GPU_ID))) {
 		*value = dummy->control_reg_values->gpu_id & U32_MAX;
+	} else if (addr == (GPU_DISCOVER_REG(GPU_ID) + GPU_ID3_REG_HI) &&
+		   GPU_ID2_ARCH_MAJOR_GET(dummy->control_reg_values->gpu_id) == GPU_ID3_COMPAT) {
+		*value = dummy->control_reg_values->gpu_id >> 32;
 	} else if (addr == JOB_CONTROL_REG(JOB_IRQ_RAWSTAT)) {
 		*value = hw_error_status.job_irq_rawstat;
 		pr_debug("%s", "JS_IRQ_RAWSTAT being read");
@@ -1570,9 +1654,14 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 		*value = hw_error_status.gpu_fault_status;
 	} else if (addr == GET_GPU_CONTROL_REG(L2_CONFIG)) {
 		*value = dummy->l2_config;
-	} else if ((addr >= GET_GPU_CONTROL_REG(SYSC_ALLOC0)) &&
-		   (addr < GET_GPU_CONTROL_REG(SYSC_ALLOC(SYSC_ALLOC_COUNT)))) {
-		u32 alloc_reg = (addr - GET_GPU_CONTROL_REG(SYSC_ALLOC0)) >> 2;
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       MMU_CONTROL_REG(MMU_SYSC_ALLOC0),
+				       MMU_CONTROL_REG(MMU_SYSC_ALLOC(MMU_SYSC_ALLOC_COUNT - 1)),
+				       GET_GPU_CONTROL_REG(SYSC_ALLOC0),
+				       GET_GPU_CONTROL_REG(SYSC_ALLOC(SYSC_ALLOC_COUNT - 1)))) {
+		u32 alloc_reg = (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) ?
+					      ((addr - MMU_CONTROL_REG(MMU_SYSC_ALLOC0)) >> 2) :
+					      ((addr - GET_GPU_CONTROL_REG(SYSC_ALLOC0)) >> 2);
 		*value = sysc_alloc_regs[alloc_reg];
 	} else if ((addr >= GET_GPU_CONTROL_REG(L2_SLICE_HASH_0)) &&
 		   (addr < GET_GPU_CONTROL_REG(L2_SLICE_HASH(L2_SLICE_HASH_COUNT)))) {
@@ -1757,53 +1846,102 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 
 	} else if (addr == GET_GPU_CONTROL_REG(AS_PRESENT)) {
 		*value = dummy->control_reg_values->as_present;
-	} else if (addr >= GET_GPU_CONTROL_REG(TEXTURE_FEATURES_0) &&
-		   addr <= GET_GPU_CONTROL_REG(TEXTURE_FEATURES_3)) {
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       GPU_DISCOVER_REG(GPU_DISCOVER_TEXTURE_FEATURES_LO),
+				       GPU_DISCOVER_REG(GPU_DISCOVER_TEXTURE_FEATURES_HI),
+				       GET_GPU_CONTROL_REG(TEXTURE_FEATURES_0),
+				       GET_GPU_CONTROL_REG(TEXTURE_FEATURES_3))) {
 		if (addr == GET_GPU_CONTROL_REG(TEXTURE_FEATURES_0))
 			*value = 0xfffff;
 		else if (addr == GET_GPU_CONTROL_REG(TEXTURE_FEATURES_1))
 			*value = 0xffff;
-		else if (addr == GET_GPU_CONTROL_REG(TEXTURE_FEATURES_2))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_TEXTURE_FEATURES_LO),
+					  GET_GPU_CONTROL_REG(TEXTURE_FEATURES_2)))
 			*value = 0x9f81ffff;
-		else if (addr == GET_GPU_CONTROL_REG(TEXTURE_FEATURES_3))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_TEXTURE_FEATURES_HI),
+					  GET_GPU_CONTROL_REG(TEXTURE_FEATURES_3)))
 			*value = 0;
-	} else if (addr >= GET_GPU_CONTROL_REG(L2_FEATURES) &&
-		   addr <= GET_GPU_CONTROL_REG(MMU_FEATURES)) {
-		if (addr == GET_GPU_CONTROL_REG(L2_FEATURES))
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       GPU_DISCOVER_REG(GPU_DISCOVER_MEM_FEATURES_LO),
+				       GPU_DISCOVER_REG(GPU_DISCOVER_CORE_FEATURES_HI),
+				       GET_GPU_CONTROL_REG(L2_FEATURES),
+				       GET_GPU_CONTROL_REG(MMU_FEATURES))) {
+		if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				     GPU_DISCOVER_REG(GPU_DISCOVER_L2_FEATURES_LO),
+				     GET_GPU_CONTROL_REG(L2_FEATURES)))
 			*value = 0x6100206;
-		else if (addr == GET_GPU_CONTROL_REG(CORE_FEATURES))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_CORE_FEATURES_LO),
+					  GET_GPU_CONTROL_REG(CORE_FEATURES)))
 			*value = dummy->control_reg_values->core_features;
-		else if (addr == GET_GPU_CONTROL_REG(TILER_FEATURES))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_TILER_FEATURES_LO),
+					  GET_GPU_CONTROL_REG(TILER_FEATURES)))
 			*value = dummy->control_reg_values->tiler_features;
-		else if (addr == GET_GPU_CONTROL_REG(MEM_FEATURES)) {
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_MEM_FEATURES_LO),
+					  GET_GPU_CONTROL_REG(MEM_FEATURES))) {
 			/* Bit 0: Core group is coherent */
 			*value = 0x01;
 
-			/* Bits 11:8: L2 slice count - 1 */
-			*value |= (hweight64(DUMMY_IMPLEMENTATION_L2_PRESENT) - 1) << 8;
-		} else if (addr == GET_GPU_CONTROL_REG(MMU_FEATURES))
+			if (dummy->arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
+				/* Bits 11:8: L2 slice count - 1 */
+				*value |= (hweight64(DUMMY_IMPLEMENTATION_L2_PRESENT) - 1) << 8;
+		} else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					    GPU_DISCOVER_REG(GPU_DISCOVER_MMU_FEATURES_LO),
+					    GET_GPU_CONTROL_REG(MMU_FEATURES)))
 			*value = dummy->control_reg_values->mmu_features;
-	} else if (addr >= GET_GPU_CONTROL_REG(THREAD_MAX_THREADS) &&
-		   addr <= GET_GPU_CONTROL_REG(THREAD_FEATURES)) {
-		if (addr == GET_GPU_CONTROL_REG(THREAD_FEATURES))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_AMBA_FEATURES_LO),
+					  GET_GPU_CONTROL_REG(COHERENCY_FEATURES)))
+			*value = BIT(0) | BIT(1); /* ace_lite and ace, respectively. */
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_FEATURES),
+				       GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_MAX_BARRIER_SIZE),
+				       GET_GPU_CONTROL_REG(THREAD_MAX_THREADS),
+				       GET_GPU_CONTROL_REG(THREAD_FEATURES))) {
+		if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				     GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_FEATURES),
+				     GET_GPU_CONTROL_REG(THREAD_FEATURES)))
 			*value = dummy->control_reg_values->thread_features |
 				 (THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_SOFTWARE << 30);
-		else if (addr == GET_GPU_CONTROL_REG(THREAD_MAX_BARRIER_SIZE))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_MAX_BARRIER_SIZE),
+					  GET_GPU_CONTROL_REG(THREAD_MAX_BARRIER_SIZE)))
 			*value = dummy->control_reg_values->thread_max_barrier_size;
-		else if (addr == GET_GPU_CONTROL_REG(THREAD_MAX_THREADS))
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_MAX_THREADS),
+					  GET_GPU_CONTROL_REG(THREAD_MAX_THREADS)))
 			*value = dummy->control_reg_values->thread_max_threads;
-		else if (addr == GET_GPU_CONTROL_REG(THREAD_MAX_WORKGROUP_SIZE))
+		else if ((dummy->arch_id >= GPU_ID_ARCH_MAKE(15, 0, 1)) &&
+			 (addr == GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_NUM_ACTIVE_GRANULARITY)))
+			*value = dummy->control_reg_values->thread_num_active_granularity;
+		else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+					  GPU_DISCOVER_REG(GPU_DISCOVER_THREAD_MAX_WORKGROUP_SIZE),
+					  GET_GPU_CONTROL_REG(THREAD_MAX_WORKGROUP_SIZE)))
 			*value = dummy->control_reg_values->thread_max_workgroup_size;
-	} else if (addr >= GET_GPU_CONTROL_REG(CYCLE_COUNT_LO) &&
-		   addr <= GET_GPU_CONTROL_REG(TIMESTAMP_HI)) {
+	}
+	else if (addr >= GET_GPU_CONTROL_REG(CYCLE_COUNT_LO) &&
+		 addr <= GET_GPU_CONTROL_REG(TIMESTAMP_HI)) {
 		*value = 0;
 
-	} else if ((addr >= MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) &&
-		   (addr <= MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS)))) {
+	} else if (addr_range_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				       MMU_STAGE2_REG(MMU_STAGE2_AS_REG(0, AS_TRANSTAB_LO)),
+				       MMU_STAGE2_REG(MMU_STAGE2_AS_REG(15, AS_STATUS)),
+				       MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO)),
+				       MMU_STAGE1_REG(MMU_AS_REG(15, AS_STATUS)))) {
 		u32 mem_addr_space;
 
+		if (dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+			mem_addr_space =
+				(addr - MMU_STAGE2_REG(MMU_STAGE2_AS_REG(0, AS_TRANSTAB_LO))) >>
+				MMU_STAGE2_AS_SHIFT;
+		} else {
 			mem_addr_space = (addr - MMU_STAGE1_REG(MMU_AS_REG(0, AS_TRANSTAB_LO))) >>
 					 MMU_STAGE1_AS_SHIFT;
+		}
 
 		switch (addr & 0x3F) {
 		case AS_TRANSTAB_LO:
@@ -1942,10 +2080,20 @@ void midgard_model_read_reg(void *h, u32 addr, u32 *const value)
 
 		*value = gpu_model_get_prfcnt_value(KBASE_IPA_CORE_TYPE_NEURAL, counter_index,
 						    is_low_word);
-	} else if (addr == GET_GPU_CONTROL_REG(GPU_FEATURES_LO)) {
+	} else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				    GPU_DISCOVER_REG(GPU_DISCOVER_GPU_FEATURES_LO),
+				    GET_GPU_CONTROL_REG(GPU_FEATURES_LO))) {
 		*value = dummy->control_reg_values->gpu_features_lo;
-	} else if (addr == GET_GPU_CONTROL_REG(GPU_FEATURES_HI)) {
+	} else if (addr_eq_reg_arch(dummy, GPU_ID_ARCH_MAKE(14, 10, 0), addr,
+				    GPU_DISCOVER_REG(GPU_DISCOVER_GPU_FEATURES_HI),
+				    GET_GPU_CONTROL_REG(GPU_FEATURES_HI))) {
 		*value = dummy->control_reg_values->gpu_features_hi;
+	} else if (addr == GPU_GOV_CORE_MASK_OFFSET) {
+		*value = dummy->gov_core_mask;
+	} else if ((dummy->arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) &&
+		   (addr == WINDOW_CONTROL_REG(WINDOW_STATUS))) {
+		/* Window is always open. */
+		*value = hw_error_status.window_status_irq | WINDOW_STATUS_WINDOW_OPEN;
 	} else {
 		model_error_log(
 			KBASE_CORE,

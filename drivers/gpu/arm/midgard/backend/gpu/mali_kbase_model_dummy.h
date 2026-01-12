@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -152,6 +152,7 @@ struct error_status_t {
 	u32 as_faultstatus[NUM_MMU_AS];
 	u32 as_command[NUM_MMU_AS];
 	u64 as_transtab[NUM_MMU_AS];
+	u32 window_status_irq;
 };
 
 /**

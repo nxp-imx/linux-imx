@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -117,6 +117,16 @@ static struct decode_lut_element lut_fault_source_csf_w_t_major_14[] = {
 	{ 0xFFFF, 24, "pcb0_other" }, { 0xFFFF, 28, "lsu_other" },  { 0xFFFF, 29, "mcu_other" },
 };
 
+static struct decode_lut_element lut_fault_source_csf_r_t_major_15[] = {
+	{ 0xFFFF, 0, "pref0_jasid0" }, { 0xFFFF, 4, "iter0_jasid0" }, { 0xFFFF, 12, "lsu_jasid0" },
+	{ 0xFFFF, 13, "mcu_jasid0" },  { 0xFFFF, 16, "pref0_other" }, { 0xFFFF, 20, "iter0_other" },
+	{ 0xFFFF, 28, "lsu_other" },   { 0xFFFF, 29, "mcu_other" },
+};
+
+static struct decode_lut_element lut_fault_source_csf_w_t_major_15[] = {
+	{ 0xFFFF, 8, "pcb0_jasid0" }, { 0xFFFF, 12, "lsu_jasid0" }, { 0xFFFF, 13, "mcu_jasid0" },
+	{ 0xFFFF, 24, "pcb0_other" }, { 0xFFFF, 28, "lsu_other" },  { 0xFFFF, 29, "mcu_other" },
+};
 
 const char *decode_fault_source_csf_r_t(u16 idx, u32 gpu_id)
 {
@@ -143,6 +153,10 @@ const char *decode_fault_source_csf_r_t(u16 idx, u32 gpu_id)
 	case 14:
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_csf_r_t_major_14,
 						NELEMS(lut_fault_source_csf_r_t_major_14));
+		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_csf_r_t_major_15,
+						NELEMS(lut_fault_source_csf_r_t_major_15));
 		break;
 	}
 	return ret;
@@ -173,6 +187,10 @@ const char *decode_fault_source_csf_w_t(u16 idx, u32 gpu_id)
 	case 14:
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_csf_w_t_major_14,
 						NELEMS(lut_fault_source_csf_w_t_major_14));
+		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_csf_w_t_major_15,
+						NELEMS(lut_fault_source_csf_w_t_major_15));
 		break;
 	}
 	return ret;

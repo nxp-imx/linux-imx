@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -106,13 +106,17 @@ kbasep_get_neural_block_type(enum kbase_hwcnt_set counter_set)
 }
 
 static enum kbase_hwcnt_gpu_v5_block_type
-kbasep_get_memsys_block_type(enum kbase_hwcnt_set counter_set)
+kbasep_get_memsys_block_type(enum kbase_hwcnt_set counter_set,
+			     const struct kbase_hwcnt_gpu_info *gpu_info)
 {
 	switch (counter_set) {
 	case KBASE_HWCNT_SET_PRIMARY:
 		return KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_MEMSYS;
 	case KBASE_HWCNT_SET_SECONDARY:
-		return KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_MEMSYS2;
+		if (gpu_info && gpu_info->has_memsys2)
+			return KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_MEMSYS2;
+		else
+			return KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_MEMSYS_UNDEFINED;
 	case KBASE_HWCNT_SET_TERTIARY:
 		return KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_MEMSYS_UNDEFINED;
 	default:
@@ -174,7 +178,7 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	size_t core_block_count;
 	size_t sc_block_count;
 	size_t blk_idx = 0;
-	size_t ne_block_count = 0;
+	size_t nx_block_count = 0;
 
 	if (WARN_ON(!gpu_info))
 		return -EINVAL;
@@ -185,14 +189,15 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	/* Calculate number of block instances that aren't cores */
 	non_core_block_count = 2 + gpu_info->l2_count;
 	/* Calculate number of block instances that are shader cores */
-	sc_block_count = (size_t)fls64(gpu_info->sc_core_mask);
+	sc_block_count = (size_t)kbase_hwcnt_num_effective_cores(gpu_info->sc_core_mask,
+								 gpu_info->has_virtual_ids);
 	/* Determine the total number of cores */
 	core_block_count = sc_block_count;
 
-	if (gpu_info->has_ne) {
-		/* Number of NE cores is equal to number of SC cores */
-		ne_block_count = sc_block_count;
-		core_block_count += ne_block_count;
+	if (gpu_info->has_nx) {
+		/* Number of NX cores is equal to number of SC cores */
+		nx_block_count = sc_block_count;
+		core_block_count += nx_block_count;
 	}
 
 	if (gpu_info->has_fw_counters)
@@ -250,7 +255,7 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 
 	/* l2_count memsys blks */
 	blks[blk_idx++] = (struct kbase_hwcnt_block_description){
-		.type = kbasep_get_memsys_block_type(counter_set),
+		.type = kbasep_get_memsys_block_type(counter_set, gpu_info),
 		.inst_cnt = gpu_info->l2_count,
 		.hdr_cnt = KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
 		.ctr_cnt = gpu_info->prfcnt_values_per_block - KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
@@ -280,10 +285,10 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	};
 
 	/* Neural Core blks */
-	if (gpu_info->has_ne) {
+	if (gpu_info->has_nx) {
 		blks[blk_idx++] = (struct kbase_hwcnt_block_description){
 			.type = kbasep_get_neural_block_type(counter_set),
-			.inst_cnt = ne_block_count,
+			.inst_cnt = nx_block_count,
 			.hdr_cnt = KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
 			.ctr_cnt = gpu_info->prfcnt_values_per_block -
 				   KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
@@ -310,10 +315,10 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
 	kbase_hwcnt_set_avail_mask_bits(&desc.avail_mask, non_core_block_count, sc_block_count,
 					gpu_info->sc_core_mask);
 
-	if (gpu_info->has_ne)
+	if (gpu_info->has_nx)
 		kbase_hwcnt_set_avail_mask_bits(&desc.avail_mask,
 						non_core_block_count + sc_block_count,
-						ne_block_count, gpu_info->ne_core_mask);
+						nx_block_count, gpu_info->nx_core_mask);
 
 	return kbase_hwcnt_metadata_create(&desc, metadata);
 }
@@ -327,10 +332,14 @@ static int kbasep_hwcnt_backend_gpu_metadata_create(const struct kbase_hwcnt_gpu
  */
 static size_t kbasep_hwcnt_backend_jm_dump_bytes(const struct kbase_hwcnt_gpu_info *gpu_info)
 {
-	WARN_ON(!gpu_info);
+	size_t num_sc_cores;
 
-	return (2 + gpu_info->l2_count + (size_t)fls64(gpu_info->sc_core_mask)) *
-	       gpu_info->prfcnt_values_per_block * KBASE_HWCNT_VALUE_HW_BYTES;
+	WARN_ON(!gpu_info);
+	num_sc_cores =
+		kbase_hwcnt_num_effective_cores(gpu_info->sc_core_mask, gpu_info->has_virtual_ids);
+
+	return (2 + gpu_info->l2_count + num_sc_cores) * gpu_info->prfcnt_values_per_block *
+	       KBASE_HWCNT_VALUE_HW_BYTES;
 }
 
 int kbase_hwcnt_jm_metadata_create(const struct kbase_hwcnt_gpu_info *gpu_info,

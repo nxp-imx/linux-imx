@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,6 +23,11 @@
 #define _KBASE_CONTEXT_H_
 
 #include <linux/atomic.h>
+
+/* RESERVED_CONTEXT_ID is reserved for special purpose.
+ * This value won't be used for kbase context creation.
+ */
+#define RESERVED_CONTEXT_ID U32_MAX
 
 /**
  * kbase_context_debugfs_init - Initialize the kctx platform

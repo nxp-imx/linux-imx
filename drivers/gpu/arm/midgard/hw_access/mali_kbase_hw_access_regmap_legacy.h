@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,15 +24,57 @@
 
 #include "regmap/mali_kbase_regmap_legacy_csf.h"
 
-/* Begin Register Offsets */
+/* WINDOW_CONTROL registers */
+#define WINDOW_CONTROL_BASE 0x0000
+#define WINDOW_CONTROL_REG(r) (WINDOW_CONTROL_BASE + (r))
+
+#define WINDOW_DISCOVER 0x000 /* (RO) GPU feature discovery */
+#define WINDOW_STATUS 0x43C /* (RO) Access window status */
+#define WINDOW_IRQ_RAWSTAT 0x440 /* (IRQ_RW) Unmasked interrupt status */
+#define WINDOW_IRQ_CLEAR 0x444 /* (WO) Clear interrupts */
+#define WINDOW_IRQ_MASK 0x448 /* (RW) Enable interrupts */
+#define WINDOW_IRQ_STATUS 0x44C /* (RO) Masked interrupt status */
+#define WINDOW_MESSAGE 0x460 /* (RW) Access window message registers */
 
 /* GPU control registers */
+#define GPU_CONTROL_BASE_V14_10 0x3000
 
 #define GPU_CONTROL_BASE 0x0000
 #define GPU_CONTROL_REG_PAGE_MASK 0xFFF
 
 #define GPU_CONTROL_REG(r) (GPU_CONTROL_BASE + (r))
 
+/* GPU_DISCOVER base address */
+#ifndef GPU_DISCOVER_BASE
+#define GPU_DISCOVER_BASE 0x0000
+#endif
+
+#ifndef GPU_DISCOVER_REG
+#define GPU_DISCOVER_REG(r) (WINDOW_CONTROL_REG(GPU_DISCOVER_BASE) + (r))
+#endif
+
+#define GPU_DISCOVER_GPU_FEATURES_LO 0x020 /* (RO) GPU features, low word */
+#define GPU_DISCOVER_GPU_FEATURES_HI 0x024 /* (RO) GPU features, high word */
+#define GPU_DISCOVER_MEM_FEATURES_LO 0x100 /* (RO) Memory system features, low word */
+#define GPU_DISCOVER_MMU_FEATURES_LO 0x108 /* (RO) Memory management unit features, low word */
+#define GPU_DISCOVER_AMBA_FEATURES_LO 0x120 /* (R0) AMBA bus supported features, low word */
+#define GPU_DISCOVER_AMBA_FEATURES_HI 0x124 /* (R0) AMBA bus supported features, high word */
+#define GPU_DISCOVER_L2_FEATURES_LO 0x128 /* (RO) Level 2 cache features, low word */
+#define GPU_DISCOVER_TILER_FEATURES_LO 0x200 /* (RO) Tiler features, low word */
+#define GPU_DISCOVER_CORE_FEATURES_LO 0x300 /* (RO) Shader core features, low word */
+#define GPU_DISCOVER_CORE_FEATURES_HI 0x304 /* (RO) Shader core features, high word */
+#define GPU_DISCOVER_THREAD_FEATURES 0x0320 /* (RO) Thread features */
+#define GPU_DISCOVER_THREAD_MAX_THREADS 0x0330 /* (RO) Maximum number of threads per core*/
+#define GPU_DISCOVER_THREAD_MAX_WORKGROUP_SIZE \
+	0x0334 /* [14.10.x only] (RO) Maximum number of threads per workgroup */
+#define GPU_DISCOVER_THREAD_NUM_ACTIVE_GRANULARITY \
+	0x334 /* [>=15.0.x ] (RO) Granularity of number of active threads */
+
+#define GPU_DISCOVER_THREAD_MAX_BARRIER_SIZE 0x0338 /* (RO) Maximum number of threads per barrier */
+#define GPU_DISCOVER_TEXTURE_FEATURES_LO \
+	0x360 /* (RO) Support flags for compressed texture formats, low word */
+#define GPU_DISCOVER_TEXTURE_FEATURES_HI \
+	0x364 /* (RO) Support flags for compressed texture formats, high word */
 
 #define GPU_ID 0x000 /* (RO) GPU and revision identifier */
 #define L2_FEATURES 0x004 /* (RO) Level 2 cache features */
@@ -201,6 +243,9 @@
 #define MMU_IRQ_MASK 0x008 /* (RW) Interrupt mask register */
 #define MMU_IRQ_STATUS 0x00C /* (RO) Interrupt status register */
 
+#define MMU_SYSC_ALLOC0 0x0110 /* (RW) System cache allocation hint from source ID */
+#define MMU_SYSC_ALLOC(n) (MMU_SYSC_ALLOC0 + (n)*4)
+#define MMU_SYSC_ALLOC_COUNT 8
 
 #define MMU_STAGE1 MMU_CONTROL_BASE
 #define MMU_STAGE1_REG(r) (MMU_STAGE1 + (r))
@@ -208,6 +253,11 @@
 #define MMU_STAGE1_AS_SHIFT 6
 #define MMU_AS_REG(n, r) (MMU_STAGE1_AS_OFFSET + ((n) << MMU_STAGE1_AS_SHIFT) + (r))
 
+#define MMU_STAGE2 MMU_CONTROL_BASE
+#define MMU_STAGE2_REG(r) (MMU_CONTROL_BASE + (r))
+#define MMU_STAGE2_AS_OFFSET 0x800
+#define MMU_STAGE2_AS_SHIFT 7
+#define MMU_STAGE2_AS_REG(n, r) (MMU_STAGE2_AS_OFFSET + ((n) << MMU_STAGE2_AS_SHIFT) + (r))
 
 #define AS_TRANSTAB_LO 0x00 /* (RW) Translation Table Base Address for address space n, low word */
 #define AS_TRANSTAB_HI 0x04 /* (RW) Translation Table Base Address for address space n, high word */
@@ -270,16 +320,16 @@
 #define HOST_POWER_SHADER_PWRACTIVE_LO 0x218 /* (RO) Shader core active bitmap, low word */
 #define HOST_POWER_SHADER_PWRACTIVE_HI 0x21C /* (RO) Shader core active bitmap, high word */
 
-#define HOST_POWER_NEURAL_PRESENT_LO 0x240 /* (RO) Neural Engine present bitmap, low word */
-#define HOST_POWER_NEURAL_PRESENT_HI 0x244 /* (RO) Neural Engine present bitmap, high word */
-#define HOST_POWER_NEURAL_READY_LO 0x248 /* (RO) Neural Engine ready bitmap, low word */
-#define HOST_POWER_NEURAL_READY_HI 0x24C /* (RO) Neural Engine ready bitmap, high word */
+#define HOST_POWER_NEURAL_PRESENT_LO 0x240 /* (RO) Neural Accelerator present bitmap, low word */
+#define HOST_POWER_NEURAL_PRESENT_HI 0x244 /* (RO) Neural Accelerator present bitmap, high word */
+#define HOST_POWER_NEURAL_READY_LO 0x248 /* (RO) Neural Accelerator ready bitmap, low word */
+#define HOST_POWER_NEURAL_READY_HI 0x24C /* (RO) Neural Accelerator ready bitmap, high word */
 #define HOST_POWER_NEURAL_PWRTRANS_LO \
-	0x250 /* (RO) Neural Engine power transition bitmap, low word */
+	0x250 /* (RO) Neural Accelerator power transition bitmap, low word */
 #define HOST_POWER_NEURAL_PWRTRANS_HI \
-	0x254 /* (RO) Neural Engine power transition bitmap, high word */
-#define HOST_POWER_NEURAL_PWRACTIVE_LO 0x258 /* (RO) Neural Engine active bitmap, low word */
-#define HOST_POWER_NEURAL_PWRACTIVE_HI 0x25C /* (RO) Neural Engine active bitmap, high word */
+	0x254 /* (RO) Neural Accelerator power transition bitmap, high word */
+#define HOST_POWER_NEURAL_PWRACTIVE_LO 0x258 /* (RO) Neural Accelerator active bitmap, low word */
+#define HOST_POWER_NEURAL_PWRACTIVE_HI 0x25C /* (RO) Neural Accelerator active bitmap, high word */
 
 #define HOST_POWER_BASE_PRESENT_LO 0x380 /* (RO) Shader core base present bitmap, low word */
 #define HOST_POWER_BASE_PRESENT_HI 0x384 /* (RO) Shader core base present bitmap, high word */

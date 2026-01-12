@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -39,7 +39,7 @@
  * Disabling reclaim with pages being 0.
  */
 #define HEAP_RECLAIM_OFFSLOT_TIMEOUT_MS (30000)
-#define HEAP_RECLAIM_OFFSLOT_PAGES (0)
+#define HEAP_RECLAIM_OFFSLOT_PAGES (2048)
 
 static u8 get_kctx_highest_csg_priority(struct kbase_context *kctx)
 {
@@ -358,6 +358,10 @@ static unsigned long kbase_csf_tiler_heap_reclaim_scan_free_pages(struct kbase_d
 							       kbdev->csf.event_wait,
 							       (scheduler->state != SCHED_BUSY),
 							       remaining);
+		if (remaining == -KBASE_CSF_FW_IO_WAIT_GPU_LOST) {
+			/* GPU_LOST can be treated as a success. */
+			return 0;
+		}
 
 		if (!mutex_trylock(&kbdev->csf.scheduler.lock)) {
 			dev_dbg(kbdev->dev, "Tiler heap reclaim scan see device busy (freed: 0)");

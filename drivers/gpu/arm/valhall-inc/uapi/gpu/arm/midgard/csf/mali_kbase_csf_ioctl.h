@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,10 @@
 
 #include <asm-generic/ioctl.h>
 #include <linux/types.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 /*
  * 1.0:
@@ -83,7 +87,7 @@
  *   before allocating GPU memory for the context.
  * - CPU mappings of USER_BUFFER imported memory handles must be cached.
  * 1.19:
- * - Add NE support in queue_group_create IOCTL fields
+ * - Add NX support in queue_group_create IOCTL fields
  * - Previous version retained as KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_18 for
  *     backward compatibility.
  * 1.20:
@@ -137,10 +141,12 @@
  * - Enable TIMESTAMP broadcast by default.
  * 1.38:
  * - Add fragment_endpoint_task_limit to CSG configuration.
+ * 1.39:
+ * - Remove legacy IOCTLs KBASE_IOCTL_SET_LIMITED_CORE_COUNT and KBASE_IOCTL_DISJOINT_QUERY
  */
 
 #define BASE_UK_VERSION_MAJOR 1
-#define BASE_UK_VERSION_MINOR 38
+#define BASE_UK_VERSION_MINOR 39
 
 /**
  * struct kbase_ioctl_version_check - Check version compatibility between
@@ -828,5 +834,9 @@ union kbase_ioctl_cs_event_memory_read {
 };
 
 #endif /* MALI_UNIT_TEST */
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_KBASE_CSF_IOCTL_H_ */

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -51,7 +51,6 @@
 #include <linux/devfreq.h>
 #endif /* CONFIG_MALI_DEVFREQ */
 
-#include <arbiter/mali_kbase_arbiter_defs.h>
 
 #include <linux/memory_group_manager.h>
 
@@ -130,6 +129,9 @@
  * kernel.
  */
 #define BASE_MAX_NR_CLOCKS_REGULATORS (4)
+
+/* Maximum HW_QUIRKS size definition. */
+#define HW_QUIRKS_MAX_REG_SIZE (4)
 
 /* Forward declarations */
 struct kbase_context;
@@ -459,7 +461,6 @@ struct kbase_clk_rate_trace_manager {
  *                               management.
  * @dvfs_period: Time in milliseconds between each dvfs sample
  * @backend: KBase PM backend data
- * @arb_vm_state: The state of the arbiter VM machine
  * @gpu_users_waiting: Used by virtualization to notify the arbiter that there
  *                     are users waiting for the GPU so that it can request
  *                     and resume the driver.
@@ -482,7 +483,6 @@ struct kbase_pm_device_data {
 	void (*callback_power_runtime_term)(struct kbase_device *kbdev);
 	u32 dvfs_period;
 	struct kbase_pm_backend_data backend;
-	struct kbase_arbiter_vm_state *arb_vm_state;
 	atomic_t gpu_users_waiting;
 	struct kbase_clk_rate_trace_manager clk_rtm;
 };
@@ -740,6 +740,22 @@ struct kbase_mem_migrate {
 };
 
 /**
+ * enum kbase_reg_ext_type - The type of extended iomem pyhsical address regions
+ *                           required to support extra register subpages on access
+ *                           manager based GPU HWs.
+ * @KBASE_REG_EXT_SYS: Base PA for system submodule registers.
+ * @KBASE_REG_EXT_GOV: Base PA for governor submodule registers.
+ * @KBASE_REG_EXT_PTC: Base PA for partition control submodule registers.
+ * @KBASE_REG_EXT_MAX: Max number of kbase_reg_ext_type.
+ */
+enum kbase_reg_ext_type {
+	KBASE_REG_EXT_SYS,
+	KBASE_REG_EXT_GOV,
+	KBASE_REG_EXT_PTC,
+	KBASE_REG_EXT_MAX
+};
+
+/**
  * struct kbase_device   - Object representing an instance of GPU platform device,
  *                         allocated from the probe method of mali driver.
  * @hw_quirks_sc:          Configuration to be used for the shader cores as per
@@ -750,8 +766,9 @@ struct kbase_mem_migrate {
  *                         issues present in the GPU.
  * @hw_quirks_gpu:         Configuration to be used for the Job Manager or CSF/MCU
  *                         subsystems as per the HW issues present in the GPU.
- * @hw_quirks_ne:          Configuration to be used for the Neural Engine as per
+ * @hw_quirks_nx:          Configuration to be used for the Neural Accelerator as per
  *                         the HW issues present in the GPU.
+ * @hw_quirks_reg_size:    Number of words for quirk HW registers.
  * @entry:                 Links the device instance to the global list of GPU
  *                         devices. The list would have as many entries as there
  *                         are GPU device instances.
@@ -760,11 +777,22 @@ struct kbase_mem_migrate {
  * @mdev:                  Pointer to the miscellaneous device registered to
  *                         provide Userspace access to kernel driver through the
  *                         device file /dev/malixx.
+ * @reg_start_full:        Full range of base address of region defined in the DT.
+ * @reg_size_full:         Full size of the region defined in the DT.
  * @reg_start:             Base address of the region in physical address space
- *                         where GPU registers have been mapped.
- * @reg_size:              Size of the region containing GPU registers
+ *                         where GPU registers are mapped within full range.
+ * @reg_size:              Size of the region containing GPU registers.
  * @reg:                   Kernel virtual address of the region containing GPU
  *                         registers, using which Driver will access the registers.
+ * @reg_start_ext:         Array of base addresses in physical address space
+ *                         where access manager GPU register subpages are mapped.
+ * @reg_size_ext:          Array of region sizes for access manager GPU registers.
+ * @reg_ext:               Array of Kernel virtual addresses that contains
+ *                         access manager GPU registers.
+ * @am_standalone:         Flag that shows whether arbif is required or not.
+ * @am_reset_done:         Flag that shows whether reset is done from AM side.
+ * @am_shareable_cache:    Flag that shows whether the interconnect supports
+ *                         Shareable_Cache_Support feature. (Only for AM GPUs)
  * @regmap:                Top level structure for hw_access regmaps, containing
  *                         the size of the regmap, pointers to Look-Up Tables (LUT).
  * @regmap.regs:           Pointer to regmap LUT of precomputed iomem pointers from
@@ -1032,7 +1060,6 @@ struct kbase_mem_migrate {
  * @dummy_job_wa.flags:     dummy job workaround flags
  * @dummy_job_wa_loaded:    Flag for indicating that the workaround blob has
  *                          been loaded. Protected by @fw_load_lock.
- * @arb:                    Pointer to the arbiter device
  * @pcm_dev:                The priority control manager device.
  * @oom_notifier_block:     notifier_block containing kernel-registered out-of-
  *                          memory handler.
@@ -1050,20 +1077,34 @@ struct kbase_mem_migrate {
  *                              driver, this is used to be informed of the
  *                              changes in the list of prioritized processes.
  * @io:                     kbase IO object for the GPU device.
+ * @device_inited:          Flag for Device initialization. This becomes true when
+ *                          kbase_device_init() is successfully done and becomes
+ *                          false before starting kbase_device_term().
  */
 struct kbase_device {
-	u32 hw_quirks_sc;
-	u32 hw_quirks_tiler;
-	u32 hw_quirks_mmu;
-	u32 hw_quirks_gpu;
-	u32 hw_quirks_ne;
+	u32 hw_quirks_sc[HW_QUIRKS_MAX_REG_SIZE];
+	u32 hw_quirks_tiler[HW_QUIRKS_MAX_REG_SIZE];
+	u32 hw_quirks_mmu[HW_QUIRKS_MAX_REG_SIZE];
+	u32 hw_quirks_gpu[HW_QUIRKS_MAX_REG_SIZE];
+	u32 hw_quirks_nx[HW_QUIRKS_MAX_REG_SIZE];
+	u8 hw_quirks_reg_size;
 
 	struct list_head entry;
 	struct device *dev;
 	struct miscdevice mdev;
+
+	u64 reg_start_full;
+	size_t reg_size_full;
 	u64 reg_start;
 	size_t reg_size;
 	void __iomem *reg;
+	u64 reg_start_ext[KBASE_REG_EXT_MAX];
+	size_t reg_size_ext[KBASE_REG_EXT_MAX];
+	void __iomem *reg_ext[KBASE_REG_EXT_MAX];
+	bool am_standalone;
+	bool am_reset_done;
+	bool am_shareable_cache;
+
 	struct {
 		void __iomem **regs;
 		u32 *flags;
@@ -1220,6 +1261,7 @@ struct kbase_device {
 #if !MALI_CUSTOMER_RELEASE
 	struct {
 		u32 reg_offset;
+		u32 reg_offset_am[KBASE_REG_EXT_MAX];
 	} regs_dump_debugfs_data;
 #endif /* !MALI_CUSTOMER_RELEASE */
 
@@ -1298,7 +1340,6 @@ struct kbase_device {
 	} dummy_job_wa;
 	bool dummy_job_wa_loaded;
 
-	struct kbase_arbiter_device arb;
 	/* Priority Control Manager device */
 	struct priority_control_manager_device *pcm_dev;
 
@@ -1325,6 +1366,7 @@ struct kbase_device {
 	struct notifier_block pcm_prioritized_process_nb;
 
 	struct kbase_io *io;
+	bool device_inited;
 	struct dev_pm_domain_list  *pd_list;
 	struct device *dev_gpuperf;
 };
@@ -1596,10 +1638,6 @@ struct kbase_sub_alloc {
  *                        for the allocations >= 2 MB in size.
  * @reg_lock:             Lock used for GPU virtual address space management operations,
  *                        like adding/freeing a memory region in the address space.
- * @num_fixable_allocs:   A count for the number of memory allocations with the
- *                        BASE_MEM_FIXABLE property.
- * @num_fixed_allocs:     A count for the number of memory allocations with the
- *                        BASE_MEM_FIXED property.
  * @reg_zone:             Zone information for the reg_rbtree_<...> members.
  * @cookies:              Bitmask containing of BITS_PER_LONG bits, used mainly for
  *                        SAME_VA allocations to defer the reservation of memory region
@@ -1772,8 +1810,6 @@ struct kbase_sub_alloc {
  * @create_flags:         Flags used in context creation.
  * @tl_kctx_list_node:    List item into the device timeline's list of
  *                        contexts, for timeline summarization.
- * @limited_core_mask:    The mask that is applied to the affinity in case of atoms
- *                        marked with BASE_JD_REQ_LIMITED_CORE_MASK.
  * @task:                 Pointer to the task structure of the main thread of the process
  *                        that created the Kbase context. It would be set only for the
  *                        contexts created by the Userspace and not for the contexts
@@ -1810,8 +1846,6 @@ struct kbase_context {
 	struct list_head mem_partials;
 
 	struct mutex reg_lock;
-	atomic64_t num_fixable_allocs;
-	atomic64_t num_fixed_allocs;
 	struct kbase_reg_zone reg_zone[CONTEXT_ZONE_MAX];
 
 	struct kbase_csf_context csf;
@@ -1888,8 +1922,6 @@ struct kbase_context {
 	base_context_create_flags create_flags;
 
 	struct list_head tl_kctx_list_node;
-
-	u64 limited_core_mask;
 
 	struct task_struct *task;
 
@@ -1971,17 +2003,6 @@ static inline u64 kbase_get_lock_region_min_size_log2(struct kbase_gpu_props con
 	return 15; /* 32 kB */
 }
 
-/**
- * kbase_has_arbiter - Check whether GPU has an arbiter.
- *
- * @kbdev: KBase device.
- *
- * Return: True if there is an arbiter, False otherwise.
- */
-static inline bool kbase_has_arbiter(struct kbase_device *kbdev)
-{
-	return (bool)kbdev->arb.arb_if;
-}
 
 /* Conversion helpers for setting up high resolution timers */
 #define HR_TIMER_DELAY_MSEC(x) (ns_to_ktime(((u64)(x)) * 1000000U))

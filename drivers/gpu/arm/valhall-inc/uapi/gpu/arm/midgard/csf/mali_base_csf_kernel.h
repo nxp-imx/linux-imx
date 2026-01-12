@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,10 @@
 
 #include <linux/types.h>
 #include "../mali_base_common_kernel.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 /* Valid set of just-in-time memory allocation flags */
 #define BASE_JIT_ALLOC_VALID_FLAGS ((__u8)0)
@@ -606,5 +610,9 @@ struct mali_base_gpu_core_props {
 	__u8 paddings[4];
 	__u64 gpu_available_memory_size;
 };
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_BASE_CSF_KERNEL_H_ */

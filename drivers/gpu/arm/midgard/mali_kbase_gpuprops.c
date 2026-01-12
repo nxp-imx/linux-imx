@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2011-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -66,9 +66,10 @@ int kbase_gpuprops_get_curr_config_props(struct kbase_device *kbdev,
 	if (err)
 		return err;
 
-	{
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		curr_config->l2_slices = KBASE_UBFX64(curr_config_regdump.l2_features, 32U, 4) + 1;
+	else
 		curr_config->l2_slices = KBASE_UBFX64(curr_config_regdump.mem_features, 8U, 4) + 1;
-	}
 
 	curr_config->l2_present = curr_config_regdump.l2_present;
 
@@ -167,6 +168,17 @@ void kbase_gpuprops_parse_gpu_id(struct kbase_gpu_id_props *props, u64 gpu_id)
 	props->arch_rev = GPU_ID2_ARCH_REV_GET(gpu_id);
 	props->arch_minor = GPU_ID2_ARCH_MINOR_GET(gpu_id);
 
+	/* 64-bit GPU_ID */
+	if (props->arch_major == GPU_ID3_COMPAT) {
+		props->version_status = gpu_id & GPU_ID3_VERSION_STATUS;
+		props->version_minor = GPU_ID3_VERSION_MINOR_GET(gpu_id);
+		props->version_major = GPU_ID3_VERSION_MAJOR_GET(gpu_id);
+		props->product_major = GPU_ID3_PRODUCT_MAJOR_GET(gpu_id);
+		props->arch_rev = GPU_ID3_ARCH_REV_GET(gpu_id);
+		props->arch_minor = GPU_ID3_ARCH_MINOR_GET(gpu_id);
+		props->arch_major = GPU_ID3_ARCH_MAJOR_GET(gpu_id);
+	}
+
 	kbase_gpuprops_update_composite_ids(props);
 }
 KBASE_EXPORT_TEST_API(kbase_gpuprops_parse_gpu_id);
@@ -176,7 +188,7 @@ static void kbase_gpuprops_parse_gpu_features(struct kbase_gpu_features_props *p
 {
 	props->ray_intersection = KBASE_UBFX64(gpu_features, 2U, 1);
 	props->cross_stream_sync = KBASE_UBFX64(gpu_features, 3U, 1);
-	props->neural_engine = KBASE_UBFX64(gpu_features, 4U, 1);
+	props->neural_accelerator = KBASE_UBFX64(gpu_features, 4U, 1);
 	props->ray_traversal = KBASE_UBFX64(gpu_features, 5U, 1);
 }
 
@@ -188,6 +200,46 @@ static void kbase_gpuprops_parse_js_features(struct kbase_js_features_props *pro
 	props->compute_shader = KBASE_UBFX32(js_features, 4U, 1);
 	props->tiler = KBASE_UBFX32(js_features, 7U, 1);
 	props->fragment_shader = KBASE_UBFX32(js_features, 9U, 1);
+}
+
+static bool kbase_hw_has_magnihw_2110(struct kbase_device *kbdev)
+{
+	return (kbdev->gpu_props.gpu_id.arch_id & GPU_ID_ARCH_MAKE(0xFF, 0xFF, 0)) ==
+	       GPU_ID_ARCH_MAKE(15, 8, 0);
+}
+
+static bool kbase_gpuprops_refine_id_from_features(struct kbase_device *kbdev)
+{
+	struct kbase_gpu_props *gpu_props = &kbdev->gpu_props;
+	bool has_rt, has_nx;
+	u8 nr_cores;
+	u16 product_id;
+
+	if (!kbase_hw_has_magnihw_2110(kbdev))
+		return false;
+
+	/* Apply refinement */
+	has_rt = gpu_props->gpu_features.ray_traversal;
+	has_nx = gpu_props->gpu_features.neural_accelerator;
+	nr_cores = gpu_props->num_cores;
+
+	if (nr_cores >= 10 && has_rt && has_nx)
+		product_id = 0;
+	else if (nr_cores >= 6)
+		product_id = 1;
+	else
+		product_id = 3;
+
+	if (gpu_props->gpu_id.product_major != product_id) {
+		dev_info(kbdev->dev, "%s: massaging product_id field, %u -> %u\n", __func__,
+			 gpu_props->gpu_id.product_major, product_id);
+		gpu_props->gpu_id.product_major = product_id;
+		kbase_gpuprops_update_composite_ids(&gpu_props->gpu_id);
+
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -226,9 +278,12 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 	gpu_props->num_cores = hweight64(regdump->shader_present);
 	gpu_props->num_core_groups = hweight64(regdump->l2_present);
 
-	{
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+		gpu_props->num_address_spaces = KBASE_UBFX64(regdump->mmu_features, 16U, 8);
+		/* Fill in AS_PRESENT to send to userspace */
+		regdump->as_present = (1U << gpu_props->num_address_spaces) - 1;
+	} else
 		gpu_props->num_address_spaces = hweight32(regdump->as_present);
-	}
 
 	gpu_props->num_job_slots = hweight32(regdump->js_present);
 
@@ -244,11 +299,22 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 	if (IS_ENABLED(CONFIG_MALI_NO_MALI))
 		gpu_props->impl_tech = THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_NO_MALI;
 
-	if (of_machine_is_compatible("arm,juno"))
+	if (of_machine_is_compatible("arm,juno") > 0 || of_machine_is_compatible("xlnx,versal") > 0)
 		gpu_props->impl_tech = THREAD_FEATURES_IMPLEMENTATION_TECHNOLOGY_FPGA;
 
 	/* Features */
 	kbase_gpuprops_parse_gpu_features(&gpu_props->gpu_features, regdump->gpu_features);
+
+	/* Refine the GPU_ID, in case changes required from features */
+	if (kbase_gpuprops_refine_id_from_features(kbdev)) {
+		u64 gpu_id =
+			(regdump->gpu_id & ~GPU_ID3_PRODUCT_MAJOR) |
+			(((u64)gpu_props->gpu_id.product_major) << GPU_ID3_PRODUCT_MAJOR_SHIFT);
+
+		dev_info(kbdev->dev, "%s: gpu_id with product_id field massaged, %llx -> %llx\n",
+			 __func__, regdump->gpu_id, gpu_id);
+		regdump->gpu_id = gpu_id;
+	}
 
 	gpu_props->coherency_info.coherent_core_group = KBASE_UBFX64(regdump->mem_features, 0U, 1);
 	gpu_props->coherency_info.coherent_super_group = KBASE_UBFX64(regdump->mem_features, 1U, 1);
@@ -267,9 +333,10 @@ static int kbase_gpuprops_get_props(struct kbase_device *kbdev)
 				    COHERENCY_FEATURE_BIT(COHERENCY_NONE);
 
 	gpu_props->log2_line_size = KBASE_UBFX64(regdump->l2_features, 0U, 8);
-	{
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		gpu_props->num_l2_slices = KBASE_UBFX64(regdump->l2_features, 32U, 4) + 1;
+	else
 		gpu_props->num_l2_slices = KBASE_UBFX64(regdump->mem_features, 8U, 4) + 1;
-	}
 
 	for (i = 0; i < GPU_MAX_JOB_SLOTS; i++)
 		kbase_gpuprops_parse_js_features(&gpu_props->js_features[i],
@@ -543,6 +610,7 @@ static struct {
 
 	PROP(MAX_THREADS, thread_props.max_threads),
 	PROP(MAX_WORKGROUP_SIZE, thread_props.max_workgroup_size),
+	PROP(NUM_ACTIVE_GRANULARITY, thread_props.num_active_granularity),
 	PROP(MAX_BARRIER_SIZE, thread_props.max_barrier_size),
 	PROP(MAX_REGISTERS, thread_props.max_registers),
 	PROP(MAX_TASK_QUEUE, thread_props.max_task_queue),
@@ -655,9 +723,10 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	/* Properties (mostly) from raw register values */
 	data->raw_props.gpu_id = regdump->gpu_id;
 
-	{
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		data->core_props.product_id = kprops->gpu_id.product_id;
+	else
 		data->core_props.product_id = KBASE_UBFX64(regdump->gpu_id, 16U, 16);
-	}
 
 	for (i = 0; i < BASE_GPU_NUM_TEXTURE_FEATURES_REGISTERS; i++) {
 		data->core_props.texture_features[i] = regdump->texture_features[i];
@@ -689,6 +758,7 @@ static void kbase_populate_user_data(struct kbase_device *kbdev, struct gpu_prop
 	else
 		data->thread_props.max_workgroup_size = regdump->thread_max_workgroup_size;
 
+	data->thread_props.num_active_granularity = regdump->thread_num_active_granularity;
 
 	if (regdump->thread_max_barrier_size == 0)
 		data->thread_props.max_barrier_size = THREAD_MBS_DEFAULT;

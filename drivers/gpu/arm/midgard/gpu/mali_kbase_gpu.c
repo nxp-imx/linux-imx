@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,8 +27,12 @@ const char *kbase_gpu_access_type_name(struct kbase_device *kbdev, u32 fault_sta
 {
 	switch (AS_FAULTSTATUS_ACCESS_TYPE_GET(fault_status)) {
 	case AS_FAULTSTATUS_ACCESS_TYPE_ATOMIC:
-		CSTD_UNUSED(kbdev);
-		return "ATOMIC";
+		if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(15, 2, 2) &&
+		    kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(15, 8, 0))
+			return "READ_WRITE";
+		else
+			return "ATOMIC";
+
 	case AS_FAULTSTATUS_ACCESS_TYPE_READ:
 		return "READ";
 	case AS_FAULTSTATUS_ACCESS_TYPE_WRITE:

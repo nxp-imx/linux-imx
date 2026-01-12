@@ -22,14 +22,14 @@
 #ifndef _UAPI_KBASE_IOCTL_H_
 #define _UAPI_KBASE_IOCTL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <asm-generic/ioctl.h>
 #include <linux/types.h>
 
 #include "csf/mali_kbase_csf_ioctl.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #define KBASE_IOCTL_TYPE 0x80
 
@@ -139,16 +139,6 @@ struct kbase_ioctl_mem_free {
 };
 
 #define KBASE_IOCTL_MEM_FREE _IOW(KBASE_IOCTL_TYPE, 7, struct kbase_ioctl_mem_free)
-
-/**
- * struct kbase_ioctl_disjoint_query - Query the disjoint counter
- * @counter:   A counter of disjoint events in the kernel
- */
-struct kbase_ioctl_disjoint_query {
-	__u32 counter;
-};
-
-#define KBASE_IOCTL_DISJOINT_QUERY _IOR(KBASE_IOCTL_TYPE, 12, struct kbase_ioctl_disjoint_query)
 
 /**
  * struct kbase_ioctl_get_ddk_version - Query the kernel version
@@ -505,18 +495,6 @@ struct kbase_ioctl_context_priority_check {
 	_IOWR(KBASE_IOCTL_TYPE, 54, struct kbase_ioctl_context_priority_check)
 
 /**
- * struct kbase_ioctl_set_limited_core_count - Set the limited core count.
- *
- * @max_core_count: Maximum core count
- */
-struct kbase_ioctl_set_limited_core_count {
-	__u8 max_core_count;
-};
-
-#define KBASE_IOCTL_SET_LIMITED_CORE_COUNT \
-	_IOW(KBASE_IOCTL_TYPE, 55, struct kbase_ioctl_set_limited_core_count)
-
-/**
  * struct kbase_ioctl_kinstr_prfcnt_enum_info - Enum Performance counter
  *                                              information
  * @info_item_size:  Performance counter item size in bytes.
@@ -708,8 +686,10 @@ struct kbase_ioctl_tlstream_stats {
 #define KBASE_GPUPROP_RAW_GPU_FEATURES 85
 #define KBASE_GPUPROP_RAW_BASE_PRESENT 86
 #define KBASE_GPUPROP_RAW_NEURAL_PRESENT 87
+#define KBASE_GPUPROP_NUM_ACTIVE_GRANULARITY 88
 
-#ifdef __cplusplus
+
+#if defined(__cplusplus)
 }
 #endif
 

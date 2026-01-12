@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -236,6 +236,23 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev);
  *         wait was interrupted.
  */
 int kbase_pm_killable_wait_for_desired_state(struct kbase_device *kbdev);
+
+/**
+ * kbase_pm_wait_for_desired_mcu_state - Wait for the desired mcu state to be
+ *                                       reached.
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ *
+ * This function is same as kbase_pm_wait_for_desired_state(), expect that it would
+ * only wait for MCU desired state.
+ *
+ * This is to prevent potential deadlock between the fault handler and any work
+ * attempting to power down the GPU. Power management will not allow L2 power down
+ * and the scheduler lock will most likely be held by the caller.
+ *
+ * Return: 0 on success, or -ETIMEDOUT code on timeout error, -ERESTARTSYS if the
+ *         wait was interrupted.
+ */
+int kbase_pm_wait_for_desired_mcu_state(struct kbase_device *kbdev);
 
 /**
  * kbase_pm_wait_for_l2_powered - Wait for the L2 cache to be powered on
@@ -693,6 +710,26 @@ bool kbase_pm_is_mcu_desired(struct kbase_device *kbdev);
  */
 bool kbase_pm_is_mcu_inactive(struct kbase_device *kbdev, enum kbase_mcu_state state);
 
+#if MALI_UNIT_TEST && !IS_ENABLED(CONFIG_MALI_NO_MALI)
+/**
+ * hctl_base_power_down_done - Check the shader core base domains are powered down
+ *
+ * @kbdev:         Pointer to the device
+ * @base_ready:    Bitmask of shader core bases that are ready.
+ * @base_trans:    Bitmask of shader core bases that are transiting.
+ * @shaders_ready: Bitmask of shader cores (shading engines) that are ready.
+ * @neural_ready:  Bitmask of neural cores (neural accelerators) that are ready.
+ *
+ * This function is called to check if the required shader core base domains are
+ * powered down. A shader core base domain is expected to be powered down automatically
+ * when both shading and neural accelerator have been powered down.
+ *
+ * Return: true if required shader core base domains are powered down, otherwise false.
+ */
+bool hctl_base_power_down_done(struct kbase_device *kbdev, u64 base_ready, u64 base_trans,
+			       u64 shaders_ready, u64 neural_ready);
+#endif /* MALI_UNIT_TEST && !IS_ENABLED(CONFIG_MALI_NO_MALI) */
+
 /**
  * kbase_pm_enable_mcu_db_notification - Enable the Doorbell notification on
  *                                       MCU side
@@ -753,13 +790,13 @@ static inline bool kbase_pm_no_mcu_core_pwroff(struct kbase_device *kbdev)
 }
 
 /**
- * kbase_pm_mcu_is_in_desired_state - Check if MCU is in stable ON/OFF state.
+ * kbase_pm_mcu_is_in_desired_state_locked - Check if MCU is in stable ON/OFF state.
  *
  * @kbdev: Device pointer
  *
  * Return: true if MCU is in stable ON/OFF state.
  */
-static inline bool kbase_pm_mcu_is_in_desired_state(struct kbase_device *kbdev)
+static inline bool kbase_pm_mcu_is_in_desired_state_locked(struct kbase_device *kbdev)
 {
 	bool in_desired_state = true;
 
@@ -776,15 +813,17 @@ static inline bool kbase_pm_mcu_is_in_desired_state(struct kbase_device *kbdev)
 }
 
 /**
- * kbase_pm_l2_is_in_desired_state - Check if L2 is in stable ON/OFF state.
+ * kbase_pm_l2_is_in_desired_state_locked - Check if L2 is in stable ON/OFF state.
  *
  * @kbdev: Device pointer
  *
  * Return: true if L2 is in stable ON/OFF state.
  */
-static inline bool kbase_pm_l2_is_in_desired_state(struct kbase_device *kbdev)
+static inline bool kbase_pm_l2_is_in_desired_state_locked(struct kbase_device *kbdev)
 {
 	bool in_desired_state = true;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
 
 	if (kbase_pm_is_l2_desired(kbdev) && kbdev->pm.backend.l2_state != KBASE_L2_ON)
 		in_desired_state = false;
@@ -935,12 +974,6 @@ static inline bool kbase_pm_l2_allow_mmu_page_migration(struct kbase_device *kbd
 
 	return (backend->l2_state != KBASE_L2_PEND_ON && backend->l2_state != KBASE_L2_PEND_OFF);
 }
-
-#if MALI_UNIT_TEST
-int delegate_pm_domain_control_to_fw(struct kbase_device *kbdev, u32 pm_domain);
-
-int retract_pm_domain_control_from_fw(struct kbase_device *kbdev, u32 pm_domain);
-#endif
 
 /**
  * kbase_pm_get_domain_status - get pm domain status for particular endpoint

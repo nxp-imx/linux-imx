@@ -20,6 +20,7 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_am_reg.h>
 #include <mali_kbase_ctx_sched.h>
 #include <mali_kbase_io.h>
 #include <hwcnt/mali_kbase_hwcnt_context.h>
@@ -226,6 +227,7 @@ static void kbase_csf_reset_end_hw_access(struct kbase_device *kbdev, int err_du
 static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+	int i;
 
 	kbase_io_history_dump(kbdev);
 
@@ -261,6 +263,22 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(SHADER_CONFIG)),
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)),
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(TILER_CONFIG)));
+	} else if (kbdev->am_standalone) {
+		dev_err(kbdev->dev, "  PWR_OVERRIDE0=0x%08x  PWR_OVERRIDE1=0x%08x",
+			kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS, AM_SYSTEM__PWR_OVERRIDE0),
+			kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS, AM_SYSTEM__PWR_OVERRIDE1));
+		for (i = 0; i < kbdev->hw_quirks_reg_size; i++)
+			dev_err(kbdev->dev,
+				"  SHADER_CONFIG[%d]=0x%08x  L2_MMU_CONFIG[%d]=0x%08x  TILER_CONFIG[%d]=0x%08x",
+				i,
+				kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+						    AM_SYSTEM__SHADER_CONFIG(i)),
+				i,
+				kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+						    AM_SYSTEM__L2_MMU_CONFIG(i)),
+				i,
+				kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+						    AM_SYSTEM__TILER_CONFIG(i)));
 	}
 
 	if (kbdev->pm.backend.has_host_pwr_iface) {
@@ -269,6 +287,11 @@ static void kbase_csf_debug_dump_registers(struct kbase_device *kbdev)
 		if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
 			dev_err(kbdev->dev, "  NEURAL_CONFIG=0x%08x",
 				kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(NEURAL_CONFIG)));
+		else if (kbdev->am_standalone)
+			for (i = 0; i < kbdev->hw_quirks_reg_size; i++)
+				dev_err(kbdev->dev, "  NEURAL_CONFIG[%d]=0x%08x", i,
+					kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+							    AM_SYSTEM__NEURAL_CONFIG(i)));
 		if (!kbase_pm_get_domain_status(kbdev, PWR_COMMAND_DOMAIN_L2, 0, &domain_status) &&
 		    domain_status)
 			dev_err(kbdev->dev, "  L2_PWR_STATUS=0x%05llx",
@@ -347,7 +370,7 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 			kbase_csf_firmware_log_dump_buffer(kbdev);
 	}
 
-	{
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ)) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 		kbase_ipa_control_handle_gpu_reset_pre(kbdev);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -374,9 +397,8 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	mutex_lock(&kbdev->mmu_hw_mutex);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	kbase_ctx_sched_restore_all_as(kbdev);
-	{
-		kbase_ipa_control_handle_gpu_reset_post(kbdev);
-	}
+	if (!kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ))
+		kbase_ipa_control_handle_gpu_reset_post(kbdev, false);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 
@@ -394,16 +416,17 @@ kbase_csf_reset_gpu_once(struct kbase_device *kbdev, bool firmware_inited, bool 
 	kbase_pm_reset_complete(kbdev);
 	/* Synchronously wait for the reload of firmware to complete */
 	err = kbase_pm_wait_for_desired_state(kbdev);
-	mutex_unlock(&kbdev->pm.lock);
 
 	if (err) {
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		if (!kbase_pm_l2_is_in_desired_state(kbdev))
+		if (!kbase_pm_l2_is_in_desired_state_locked(kbdev))
 			ret = L2_ON_FAILED;
-		else if (!kbase_pm_mcu_is_in_desired_state(kbdev))
+		else if (!kbase_pm_mcu_is_in_desired_state_locked(kbdev))
 			ret = MCU_REINIT_FAILED;
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	}
+
+	mutex_unlock(&kbdev->pm.lock);
 
 	return ret;
 }
@@ -412,6 +435,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 {
 	unsigned long flags;
 	enum kbasep_soft_reset_status ret;
+	struct kbase_gpu_id_props *gpu_id = &kbdev->gpu_props.gpu_id;
 
 	WARN_ON(kbdev->irq_reset_flush);
 	/* The reset must now be happening otherwise other threads will not
@@ -440,7 +464,7 @@ static int kbase_csf_reset_gpu_now(struct kbase_device *kbdev, bool firmware_ini
 
 	cancel_work_sync(&kbdev->csf.firmware_reload_work);
 
-	{
+	if (gpu_id->arch_id < GPU_ID_ARCH_MAKE(14, 8, 0)) {
 		dev_dbg(kbdev->dev, "Disable GPU hardware counters.\n");
 		/* This call will block until counters are disabled. */
 		kbase_hwcnt_context_disable(kbdev->hwcnt_gpu_ctx);

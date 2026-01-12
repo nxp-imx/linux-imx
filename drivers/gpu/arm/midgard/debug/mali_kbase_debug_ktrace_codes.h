@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -87,6 +87,8 @@ KBASE_KTRACE_CODE_MAKE_CODE(CORE_CTX_DESTROY),
 	KBASE_KTRACE_CODE_MAKE_CODE(CORE_GPU_IRQ),
 	/* info_val == PWR_IRQ_STATUS register */
 	KBASE_KTRACE_CODE_MAKE_CODE(CORE_PWR_IRQ),
+	/* info_val == WINDOW_IRQ_STATUS register */
+	KBASE_KTRACE_CODE_MAKE_CODE(CORE_WINDOW_IRQ),
 	/* info_val == bits cleared */
 	KBASE_KTRACE_CODE_MAKE_CODE(CORE_GPU_IRQ_CLEAR),
 	/* info_val == GPU_IRQ_STATUS register */
@@ -166,6 +168,7 @@ KBASE_KTRACE_CODE_MAKE_CODE(CORE_CTX_DESTROY),
 	KBASE_KTRACE_CODE_MAKE_CODE(ARB_GPU_REQUESTED),
 
 #include "debug/backend/mali_kbase_debug_ktrace_codes_csf.h"
+	KBASE_KTRACE_CODE_MAKE_CODE(MEM_MAPPED), KBASE_KTRACE_CODE_MAKE_CODE(MEM_UNMAPPED),
 	/*
 	 * Unused code just to make it easier to not have a comma at the end.
 	 * All other codes MUST come before this

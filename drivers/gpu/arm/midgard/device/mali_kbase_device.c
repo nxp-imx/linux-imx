@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -33,6 +33,7 @@
 #include <linux/oom.h>
 
 #include <mali_kbase.h>
+#include <mali_kbase_am.h>
 #include <mali_kbase_defs.h>
 #include <mali_kbase_hwaccess_instr.h>
 #include <mali_kbase_hwaccess_time.h>
@@ -50,14 +51,13 @@
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "backend/gpu/mali_kbase_irq_internal.h"
 #include "mali_kbase_pbha.h"
-#include "arbiter/mali_kbase_arbiter_pm.h"
 #include <mali_kbase_io.h>
 
 static uint64_t neural_allowed_mask = UINT64_MAX;
 module_param(neural_allowed_mask, ullong, 0444);
 MODULE_PARM_DESC(
 	neural_allowed_mask,
-	"Additional optional bitmask to restrict which neural engine cores any CSG can enable");
+	"Additional optional bitmask to restrict which neural accelerator cores any CSG can enable");
 
 #if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_NO_MALI)
 
@@ -127,6 +127,7 @@ static void kbase_device_all_as_term(struct kbase_device *kbdev)
 		kbase_mmu_as_term(kbdev, i);
 }
 
+#if IS_ENABLED(CONFIG_OF)
 static int pcm_prioritized_process_cb(struct notifier_block *nb, unsigned long action, void *data)
 {
 	struct kbase_device *const kbdev =
@@ -149,6 +150,7 @@ static int pcm_prioritized_process_cb(struct notifier_block *nb, unsigned long a
 
 	return 0;
 }
+#endif
 
 int kbase_device_pcm_dev_init(struct kbase_device *const kbdev)
 {
@@ -530,17 +532,26 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	/* Ensure we can access the GPU registers */
 	kbase_pm_register_access_enable(kbdev);
 
+	/* Initialize AM submodule if it is am_standalone mode. */
+	if (kbdev->am_standalone) {
+		/* AM based GPU has 4x32 bits(128 bits) hw_quirks registers */
+		kbdev->hw_quirks_reg_size = 4;
+	} else {
+		/* CSF GPUs has 1x32 bits hw_quirks registers */
+		kbdev->hw_quirks_reg_size = 1;
+	}
+
 	/*
 	 * If -EPERM is returned, it means the device backend is not supported, but
 	 * device initialization can continue.
 	 */
 	err = kbase_device_backend_init(kbdev);
 	if (err != 0 && err != -EPERM)
-		goto pm_runtime_term;
+		goto regmap_term;
 
 	/*
 	 * Initialize register mapping LUTs. This would have been initialized on HW
-	 * Arbitration but not on PV or non-arbitration devices.
+	 * Arbitration but not on non-arbitration devices.
 	 */
 	if (!kbase_reg_is_init(kbdev)) {
 		/* Initialize GPU_ID props */
@@ -568,15 +579,23 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	if (err)
 		goto gpuprops_term;
 
+	if (kbdev->am_standalone) {
+		u64 val = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(AMBA_FEATURES));
+
+		/* Store Shareable_Cache_Support flag for AM GPUs */
+		kbdev->am_shareable_cache = AMBA_FEATURES_SHAREABLE_CACHE_SUPPORT_GET(val);
+
+		/* MAGNIHW-2434 workaround to disable GOV_CORE_MASK register usage */
+		if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2434))
+			clear_bit(KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT,
+				  &kbdev->hw_features_mask[0]);
+	}
+
 	/* We're done accessing the GPU registers for now. */
 	kbase_pm_register_access_disable(kbdev);
 
-	if (kbase_has_arbiter(kbdev)) {
-		if (kbdev->pm.arb_vm_state)
-			err = kbase_arbiter_pm_install_interrupts(kbdev);
-	} else {
-		err = kbase_install_interrupts(kbdev);
-	}
+	err = kbase_install_interrupts(kbdev);
+
 	if (err)
 		goto gpuprops_term;
 
@@ -586,8 +605,8 @@ gpuprops_term:
 	kbase_gpuprops_term(kbdev);
 backend_term:
 	kbase_device_backend_term(kbdev);
+regmap_term:
 	kbase_regmap_term(kbdev);
-pm_runtime_term:
 	if (kbase_io_is_gpu_powered(kbdev))
 		kbase_pm_register_access_disable(kbdev);
 
@@ -602,12 +621,19 @@ ktrace_term:
 
 void kbase_device_early_term(struct kbase_device *kbdev)
 {
-	if (kbase_has_arbiter(kbdev))
-		kbase_arbiter_pm_release_interrupts(kbdev);
-	else
-		kbase_release_interrupts(kbdev);
+	kbase_release_interrupts(kbdev);
 	kbase_gpuprops_term(kbdev);
 	kbase_device_backend_term(kbdev);
+	if (kbdev->am_standalone) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+		if (kbase_io_is_am_powered(kbdev)) {
+			kbase_am_power_off(kbdev);
+			kbase_io_set_status(kbdev->io, KBASE_IO_STATUS_AM_OFF);
+		}
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	}
 	kbase_regmap_term(kbdev);
 	kbase_pm_runtime_term(kbdev);
 	kbasep_platform_device_term(kbdev);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -483,7 +483,7 @@ static struct decode_lut_element lut_fault_source_shader_r_t_major_13[] = {
 static struct decode_lut_element lut_fault_source_shader_r_t_major_14[] = {
 	{ 0xFFFF, 4, "scm" },	{ 0xFFFF, 6, "plr" },	{ 0xFFFF, 7, "fsdc" },
 	{ 0xFFFF, 0, "ic0" },	{ 0xFFFF, 1, "ic1" },	{ 0xFFFF, 2, "adc" },
-	{ 0xFFFF, 3, "rtas" },	{ 0xFFFF, 5, "ne" },	{ 0xFFFF, 12, "tex0" },
+	{ 0xFFFF, 3, "rtas" },	{ 0xFFFF, 5, "nx" },	{ 0xFFFF, 12, "tex0" },
 	{ 0xFFFF, 13, "tex1" }, { 0xFFFF, 14, "tex2" }, { 0xFFFF, 15, "tex3" },
 	{ 0xFFFF, 16, "lsc" },
 };
@@ -516,7 +516,7 @@ static struct decode_lut_element lut_fault_source_shader_w_t_major_13[] = {
 
 static struct decode_lut_element lut_fault_source_shader_w_t_major_14[] = {
 	{ 0xFFFF, 0, "pcb" },  { 0xFFFF, 12, "tb0" }, { 0xFFFF, 13, "tb1" }, { 0xFFFF, 14, "tb2" },
-	{ 0xFFFF, 15, "tb3" }, { 0xFFFF, 4, "ne" },   { 0xFFFF, 16, "lsc" },
+	{ 0xFFFF, 15, "tb3" }, { 0xFFFF, 4, "nx" },   { 0xFFFF, 16, "lsc" },
 };
 
 static struct decode_lut_element lut_fault_source_tiler_r_t_major_10[] = {
@@ -580,6 +580,42 @@ static struct decode_lut_element lut_fault_source_tiler_w_t_major_14[] = {
 	{ 0xFFFF, 16, "plw" },
 };
 
+static struct decode_lut_element lut_fault_source_core_type_t_name_major_15[] = {
+	{ 0xFFFF, 0, "shader" }, { 0xFFFF, 1, "l2c" }, { 0xFFFF, 2, "tiler" },
+	{ 0xFFFF, 3, "mmu" },	 { 0xFFFF, 4, "csf" }, { 0xFFFF, 5, "memsys" },
+};
+
+static struct decode_lut_element lut_fault_source_core_type_t_desc_major_15[] = {
+	{ 0xFFFF, 0, "Shader core" }, { 0xFFFF, 1, "Level 2 cache" },
+	{ 0xFFFF, 2, "Tiler" },	      { 0xFFFF, 3, "MMU" },
+	{ 0xFFFF, 4, "CSF" },	      { 0xFFFF, 5, "Memory system" },
+};
+
+static struct decode_lut_element lut_fault_source_shader_r_t_major_15[] = {
+	{ 0xFFFF, 4, "scm" },	{ 0xFFFF, 6, "plr" },	{ 0xFFFF, 7, "fsdc" },
+	{ 0xFFFF, 0, "ic0" },	{ 0xFFFF, 1, "ic1" },	{ 0xFFFF, 2, "adc" },
+	{ 0xFFFF, 3, "rtas" },	{ 0xFFFF, 5, "nx" },	{ 0xFFFF, 12, "tex0" },
+	{ 0xFFFF, 13, "tex1" }, { 0xFFFF, 14, "tex2" }, { 0xFFFF, 15, "tex3" },
+	{ 0xFFFF, 16, "lsc" },
+};
+
+static struct decode_lut_element lut_fault_source_shader_w_t_major_15[] = {
+	{ 0xFFFF, 0, "pcb" },  { 0xFFFF, 12, "tb0" }, { 0xFFFF, 13, "tb1" }, { 0xFFFF, 14, "tb2" },
+	{ 0xFFFF, 15, "tb3" }, { 0xFFFF, 4, "nx" },   { 0xFFFF, 16, "lsc" },
+};
+
+static struct decode_lut_element lut_fault_source_tiler_r_t_major_15[] = {
+	{ 0xFFFF, 0, "pf" },
+	{ 0xFFFF, 1, "pcache" },
+	{ 0xFFFF, 2, "tcu" },
+	{ 0xFFFF, 3, "idx" },
+};
+
+static struct decode_lut_element lut_fault_source_tiler_w_t_major_15[] = {
+	{ 0xFFFF, 1, "pcache_wb" },
+	{ 0xFFFF, 2, "tcu_pcb" },
+	{ 0xFFFF, 16, "plw" },
+};
 
 const char *decode_fault_source_core_type_t_name(u16 idx, u32 gpu_id)
 {
@@ -616,6 +652,11 @@ const char *decode_fault_source_core_type_t_name(u16 idx, u32 gpu_id)
 		ret = decode_lut_element_lookup(min_rev, idx,
 						lut_fault_source_core_type_t_name_major_14,
 						NELEMS(lut_fault_source_core_type_t_name_major_14));
+		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx,
+						lut_fault_source_core_type_t_name_major_15,
+						NELEMS(lut_fault_source_core_type_t_name_major_15));
 		break;
 	}
 	return ret;
@@ -656,6 +697,11 @@ const char *decode_fault_source_core_type_t_desc(u16 idx, u32 gpu_id)
 		ret = decode_lut_element_lookup(min_rev, idx,
 						lut_fault_source_core_type_t_desc_major_14,
 						NELEMS(lut_fault_source_core_type_t_desc_major_14));
+		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx,
+						lut_fault_source_core_type_t_desc_major_15,
+						NELEMS(lut_fault_source_core_type_t_desc_major_15));
 		break;
 	}
 	return ret;
@@ -761,6 +807,10 @@ const char *decode_fault_source_shader_r_t(u16 idx, u32 gpu_id)
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_shader_r_t_major_14,
 						NELEMS(lut_fault_source_shader_r_t_major_14));
 		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_shader_r_t_major_15,
+						NELEMS(lut_fault_source_shader_r_t_major_15));
+		break;
 	}
 	return ret;
 }
@@ -795,6 +845,10 @@ const char *decode_fault_source_shader_w_t(u16 idx, u32 gpu_id)
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_shader_w_t_major_14,
 						NELEMS(lut_fault_source_shader_w_t_major_14));
 		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_shader_w_t_major_15,
+						NELEMS(lut_fault_source_shader_w_t_major_15));
+		break;
 	}
 	return ret;
 }
@@ -825,6 +879,10 @@ const char *decode_fault_source_tiler_r_t(u16 idx, u32 gpu_id)
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_tiler_r_t_major_14,
 						NELEMS(lut_fault_source_tiler_r_t_major_14));
 		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_tiler_r_t_major_15,
+						NELEMS(lut_fault_source_tiler_r_t_major_15));
+		break;
 	}
 	return ret;
 }
@@ -854,6 +912,10 @@ const char *decode_fault_source_tiler_w_t(u16 idx, u32 gpu_id)
 	case 14:
 		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_tiler_w_t_major_14,
 						NELEMS(lut_fault_source_tiler_w_t_major_14));
+		break;
+	case 15:
+		ret = decode_lut_element_lookup(min_rev, idx, lut_fault_source_tiler_w_t_major_15,
+						NELEMS(lut_fault_source_tiler_w_t_major_15));
 		break;
 	}
 	return ret;

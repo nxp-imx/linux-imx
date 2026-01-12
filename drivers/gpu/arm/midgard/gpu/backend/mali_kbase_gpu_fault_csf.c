@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -68,20 +68,20 @@ const char *kbase_gpu_exception_name(u32 const exception_code)
 	case CS_FAULT_EXCEPTION_TYPE_RT_STACK_OVERFLOW:
 		e = "RT_STACK_OVERFLOW";
 		break;
-	case CS_FAULT_EXCEPTION_TYPE_NE_WEIGHT_STREAM_ERROR:
-		e = "NE_WEIGHT_STREAM_ERROR";
+	case CS_FAULT_EXCEPTION_TYPE_NX_WEIGHT_STREAM_ERROR:
+		e = "NX_WEIGHT_STREAM_ERROR";
 		break;
-	case CS_FAULT_EXCEPTION_TYPE_NE_DATA_INVALID_FAULT:
-		e = "NE_DATA_INVALID_FAULT";
+	case CS_FAULT_EXCEPTION_TYPE_NX_DATA_INVALID_FAULT:
+		e = "NX_DATA_INVALID_FAULT";
 		break;
-	case CS_FAULT_EXCEPTION_TYPE_NE_ADDR_RANGE_FAULT:
-		e = "NE_ADDR_RANGE_FAULT";
+	case CS_FAULT_EXCEPTION_TYPE_NX_ADDR_RANGE_FAULT:
+		e = "NX_ADDR_RANGE_FAULT";
 		break;
-	case CS_FAULT_EXCEPTION_TYPE_NE_TSU_SPACE_FAULT:
-		e = "NE_TSU_SPACE_FAULT";
+	case CS_FAULT_EXCEPTION_TYPE_NX_TSU_SPACE_FAULT:
+		e = "NX_TSU_SPACE_FAULT";
 		break;
-	case CS_FAULT_EXCEPTION_TYPE_NE_TSU_INVALID_ENC:
-		e = "NE_TSU_INVALID_ENC";
+	case CS_FAULT_EXCEPTION_TYPE_NX_TSU_INVALID_ENC:
+		e = "NX_TSU_INVALID_ENC";
 		break;
 	/* Iterator exceptions */
 	case CS_FAULT_EXCEPTION_TYPE_KABOOM:

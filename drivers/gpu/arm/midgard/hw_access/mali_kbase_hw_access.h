@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -37,6 +37,7 @@
 #define KBASE_REG_WRITE(kbdev, reg_enum, value)                                             \
 	(kbase_reg_is_size64(kbdev, reg_enum) ? kbase_reg_write64(kbdev, reg_enum, value) : \
 						      kbase_reg_write32(kbdev, reg_enum, value))
+
 
 /**
  * kbase_reg_read32 - read from 32-bit GPU register

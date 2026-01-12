@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2024-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -66,6 +66,18 @@ bool kbase_io_is_aw_removed(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_io_is_aw_removed);
 
+bool kbase_io_is_am_powered(struct kbase_device *kbdev)
+{
+	return !test_bit(KBASE_IO_STATUS_AM_OFF, kbdev->io->status);
+}
+KBASE_EXPORT_TEST_API(kbase_io_is_am_powered);
+
+bool kbase_io_is_user_reg_dummy(struct kbase_device *kbdev)
+{
+	return test_bit(KBASE_IO_STATUS_DUMMY_USER_REG, kbdev->io->status);
+}
+KBASE_EXPORT_TEST_API(kbase_io_is_user_reg_dummy);
+
 bool kbase_io_has_gpu(struct kbase_device *kbdev)
 {
 	return kbase_io_is_gpu_powered(kbdev) && !kbase_io_is_aw_removed(kbdev);
@@ -82,6 +94,9 @@ int __must_check kbase_io_init(struct kbase_device *kbdev)
 
 	bitmap_zero(io->status, KBASE_IO_STATUS_NUM_BITS);
 	kbase_io_set_status(io, KBASE_IO_STATUS_GPU_OFF);
+	kbase_io_set_status(io, KBASE_IO_STATUS_AM_OFF);
+	kbase_io_set_status(io, KBASE_IO_STATUS_DUMMY_USER_REG);
+
 	kbdev->io = io;
 	io->kbdev = kbdev;
 

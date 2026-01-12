@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -65,6 +65,7 @@
 #define DUMMY_IMPLEMENTATION_SHADER_PRESENT_TTIX (0xFFFull)
 #define DUMMY_IMPLEMENTATION_SHADER_PRESENT_TKRX (0x1FFFull)
 #define DUMMY_IMPLEMENTATION_SHADER_PRESENT_TDRX (0x3FFFull)
+#define DUMMY_IMPLEMENTATION_SHADER_PRESENT_TMAX (0x3FFFull)
 #define DUMMY_IMPLEMENTATION_L2_PRESENT (0x1ull)
 #define DUMMY_IMPLEMENTATION_TILER_PRESENT (0x1ull)
 #define DUMMY_IMPLEMENTATION_STACK_PRESENT (0xFull)

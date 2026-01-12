@@ -236,10 +236,10 @@ enum {
 #if IS_ENABLED(CONFIG_MALI_VECTOR_DUMP)
 /* Set a large value to avoid timing out while vector dumping */
 #define KCPU_FENCE_SIGNAL_TIMEOUT_MS (1000000)
-#define KCPU_FENCE_SIGNAL_TIMEOUT_MS_FPGA (5000000)
+#define KCPU_FENCE_SIGNAL_TIMEOUT_MS_FPGA (10000000)
 #else
 #define KCPU_FENCE_SIGNAL_TIMEOUT_MS (10000)
-#define KCPU_FENCE_SIGNAL_TIMEOUT_MS_FPGA (50000)
+#define KCPU_FENCE_SIGNAL_TIMEOUT_MS_FPGA (100000)
 #endif
 
 /* MAX allowed timeout value(ms) on host side for fence signal timeout*/

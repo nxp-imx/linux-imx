@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,6 +31,7 @@
 #define MMU_IRQ_TAG 1
 #define GPU_IRQ_TAG 2
 #define EDGE_IRQ_TAG 3
+#define WINDOW_IRQ_TAG 4
 
 /**
  * kbase_install_interrupts - Install IRQs handlers.

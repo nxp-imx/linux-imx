@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -40,6 +40,7 @@ enum base_hw_feature {
 	KBASE_HW_FEATURE_LARGE_PAGE_ALLOC,
 	KBASE_HW_FEATURE_THREAD_TLS_ALLOC,
 	KBASE_HW_FEATURE_POWER_CONTROL,
+	KBASE_HW_FEATURE_EXTERNAL_IPA_DEVFREQ,
 	KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT,
 	KBASE_HW_FEATURE_END
 };
@@ -185,6 +186,23 @@ __maybe_unused static const enum base_hw_feature base_hw_features_tDRx_r0p1[] = 
 	KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT,
 	KBASE_HW_FEATURE_END
 };
+
+
+__maybe_unused static const enum base_hw_feature base_hw_features_tMAx_r0p0[] = {
+	KBASE_HW_FEATURE_FLUSH_REDUCTION,
+	KBASE_HW_FEATURE_PROTECTED_DEBUG_MODE,
+	KBASE_HW_FEATURE_L2_CONFIG,
+	KBASE_HW_FEATURE_CLEAN_ONLY_SAFE,
+	KBASE_HW_FEATURE_L2_SLICE_HASH,
+	KBASE_HW_FEATURE_GPU_SLEEP,
+	KBASE_HW_FEATURE_CORE_FEATURES,
+	KBASE_HW_FEATURE_PBHA_HWU,
+	KBASE_HW_FEATURE_LARGE_PAGE_ALLOC,
+	KBASE_HW_FEATURE_POWER_CONTROL,
+	KBASE_HW_FEATURE_GOV_CORE_MASK_SUPPORT,
+	KBASE_HW_FEATURE_END
+};
+
 
 
 #endif /* _KBASE_HWCONFIG_FEATURES_H_ */

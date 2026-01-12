@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2013-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2013-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -60,6 +60,7 @@ struct debug_mem_mapping {
 struct debug_mem_data {
 	struct list_head mapping_list;
 	struct kbase_context *kctx;
+	struct file *filp;
 	unsigned int column_width;
 };
 
@@ -236,13 +237,7 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	struct debug_mem_data *mem_data;
 	int ret;
 	enum kbase_memory_zone idx;
-
-#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
-	if (get_file_rcu(kctx->filp) == 0)
-#else
-	if (get_file_rcu(&kctx->filp) == 0)
-#endif
-		return -ENOENT;
+	struct file *filp;
 
 	/* Check if file was opened in write mode. GPU memory contents
 	 * are returned only when the file is not opened in write mode.
@@ -251,6 +246,20 @@ static int debug_mem_open(struct inode *i, struct file *file)
 		file->private_data = kctx;
 		return 0;
 	}
+
+#if (KERNEL_VERSION(6, 7, 0) > LINUX_VERSION_CODE)
+	rcu_read_lock();
+	filp = rcu_dereference_raw(kctx->filp);
+	if (!filp || !get_file_rcu(filp)) {
+		rcu_read_unlock();
+		return -ENOENT;
+	}
+	rcu_read_unlock();
+#else
+	filp = get_file_active(&kctx->filp);
+	if (!filp)
+		return -ENOENT;
+#endif
 
 	ret = seq_open(file, &ops);
 	if (ret)
@@ -263,6 +272,7 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	}
 
 	mem_data->kctx = kctx;
+	mem_data->filp = filp;
 
 	INIT_LIST_HEAD(&mem_data->mapping_list);
 
@@ -301,38 +311,37 @@ out:
 	}
 	seq_release(i, file);
 open_fail:
-	fput(kctx->filp);
+	fput(filp);
 
 	return ret;
 }
 
 static int debug_mem_release(struct inode *inode, struct file *file)
 {
-	struct kbase_context *const kctx = inode->i_private;
+	struct seq_file *sfile;
+	struct debug_mem_data *mem_data;
+	struct debug_mem_mapping *mapping;
 
-	/* If the file wasn't opened in write mode, then release the
+	if ((file->f_mode & FMODE_WRITE))
+		return 0;
+
+	sfile = file->private_data;
+	mem_data = sfile->private;
+
+	/* The file wasn't opened in write mode, so release the
 	 * memory allocated to show the GPU memory contents.
 	 */
-	if (!(file->f_mode & FMODE_WRITE)) {
-		struct seq_file *sfile = file->private_data;
-		struct debug_mem_data *mem_data = sfile->private;
-		struct debug_mem_mapping *mapping;
+	seq_release(inode, file);
 
-		seq_release(inode, file);
-
-		while (!list_empty(&mem_data->mapping_list)) {
-			mapping = list_first_entry(&mem_data->mapping_list,
-						   struct debug_mem_mapping, node);
-			kbase_mem_phy_alloc_put(mapping->alloc);
-			list_del(&mapping->node);
-			kfree(mapping);
-		}
-
-		kfree(mem_data);
+	while (!list_empty(&mem_data->mapping_list)) {
+		mapping = list_first_entry(&mem_data->mapping_list, struct debug_mem_mapping, node);
+		kbase_mem_phy_alloc_put(mapping->alloc);
+		list_del(&mapping->node);
+		kfree(mapping);
 	}
 
-	fput(kctx->filp);
-
+	fput(mem_data->filp);
+	kfree(mem_data);
 	return 0;
 }
 

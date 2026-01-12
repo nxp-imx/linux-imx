@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -253,7 +253,7 @@ struct kbase_hwcnt_backend_csf_info {
  * @headers_per_block:  For any block, the number of counters designated as block's header.
  * @counters_per_block: For any block, the number of counters designated as block's payload.
  * @values_per_block:   For any block, the number of counters in total (header + payload).
- * @ne_cnt:             NE block count.
+ * @nx_cnt:             NX block count.
  */
 struct kbase_hwcnt_csf_physical_layout {
 	u8 fe_cnt;
@@ -270,7 +270,7 @@ struct kbase_hwcnt_csf_physical_layout {
 	size_t headers_per_block;
 	size_t counters_per_block;
 	size_t values_per_block;
-	size_t ne_cnt;
+	size_t nx_cnt;
 };
 
 /**
@@ -388,6 +388,7 @@ kbasep_hwcnt_backend_csf_is_error_state(enum kbase_hwcnt_backend_csf_enable_stat
 	return (state == KBASE_HWCNT_BACKEND_CSF_UNRECOVERABLE_ERROR_WAIT_FOR_WORKER) ||
 	       (state == KBASE_HWCNT_BACKEND_CSF_UNRECOVERABLE_ERROR);
 }
+
 static bool kbasep_hwcnt_backend_csf_backend_exists(struct kbase_hwcnt_backend_csf_info *csf_info)
 {
 	if (WARN_ON(!csf_info))
@@ -403,15 +404,20 @@ void kbase_hwcnt_backend_csf_set_hw_availability(struct kbase_hwcnt_backend_inte
 {
 	struct kbase_hwcnt_backend_csf_info *csf_info;
 	u64 norm_shader_present = power_core_mask & shader_present;
+	unsigned long flags = 0UL;
 
 	if (!iface)
 		return;
 
 	csf_info = (struct kbase_hwcnt_backend_csf_info *)iface->info;
+	if (!csf_info)
+		return;
+
+	csf_info->csf_if->lock(csf_info->csf_if->ctx, &flags);
 
 	/* Early out if the backend does not exist. */
-	if (!csf_info || !csf_info->backend)
-		return;
+	if (!kbasep_hwcnt_backend_csf_backend_exists(csf_info))
+		goto unlock;
 
 	if (csf_info->prfcnt_info.has_virtual_ids) {
 		DECLARE_BITMAP(sc_mask, BITS_PER_TYPE(u64));
@@ -440,15 +446,18 @@ void kbase_hwcnt_backend_csf_set_hw_availability(struct kbase_hwcnt_backend_inte
 
 	/* MCU needs to be powered off. */
 	if (WARN_ON(csf_info->mcu_on))
-		return;
+		goto unlock;
 
 	if (WARN_ON(num_l2_slices > csf_info->backend->phys_layout.mmu_l2_cnt) ||
 	    WARN_ON((norm_shader_present & csf_info->backend->phys_layout.shader_avail_mask) !=
 		    norm_shader_present))
-		return;
+		goto unlock;
 
 	csf_info->backend->num_l2_slices = num_l2_slices;
 	csf_info->backend->powered_shader_core_mask = norm_shader_present;
+
+unlock:
+	csf_info->csf_if->unlock(csf_info->csf_if->ctx, flags);
 }
 
 /**
@@ -551,29 +560,34 @@ static void kbasep_hwcnt_backend_csf_init_layout(
 	size_t hw_block_cnt;
 	size_t md_block_cnt;
 	size_t core_cnt;
-	size_t ne_core_cnt;
+	size_t nx_core_cnt;
+	u64 shader_avail_mask;
 
 	WARN_ON(!prfcnt_info);
 	WARN_ON(!phys_layout);
 
-	shader_core_cnt = (size_t)fls64(prfcnt_info->sc_core_mask);
+	shader_core_cnt = kbase_hwcnt_num_effective_cores(prfcnt_info->sc_core_mask,
+							  prfcnt_info->has_virtual_ids);
+
+	pr_debug("%s: scm=0x%llx vi=%c scc=%zd\n", __func__, prfcnt_info->sc_core_mask,
+		 prfcnt_info->has_virtual_ids ? 'y' : 'n', shader_core_cnt);
+
 	values_per_block = prfcnt_info->prfcnt_block_size / KBASE_HWCNT_VALUE_HW_BYTES;
 	fw_block_cnt = div_u64(prfcnt_info->prfcnt_fw_size, prfcnt_info->prfcnt_block_size);
 	hw_block_cnt = div_u64(prfcnt_info->prfcnt_hw_size, prfcnt_info->prfcnt_block_size);
 	md_block_cnt = div_u64(prfcnt_info->metadata_size, prfcnt_info->prfcnt_block_size);
 
 	core_cnt = shader_core_cnt;
-	/* In the presence of heterogeneous NE, the SCs that don't have dedicated
+	/* In the presence of heterogeneous NX, the SCs that don't have dedicated
 	 * NEs will still have empty gaps in the HW dump buffer.
 	 */
-	ne_core_cnt = prfcnt_info->has_ne ? shader_core_cnt : 0;
-	core_cnt += ne_core_cnt;
+	nx_core_cnt = prfcnt_info->has_nx ? shader_core_cnt : 0;
+	core_cnt += nx_core_cnt;
 
-	/* The number of hardware counters reported by the GPU matches the legacy guess-work we
-	 * have done in the past
-	 */
-	WARN_ON(hw_block_cnt != KBASE_HWCNT_V5_FE_BLOCK_COUNT + KBASE_HWCNT_V5_TILER_BLOCK_COUNT +
-					prfcnt_info->l2_count + core_cnt);
+	if (prfcnt_info->has_virtual_ids)
+		shader_avail_mask = GENMASK(hweight64(prfcnt_info->sc_core_mask) - 1, 0);
+	else
+		shader_avail_mask = prfcnt_info->sc_core_mask;
 
 	*phys_layout = (struct kbase_hwcnt_csf_physical_layout){
 		.fe_cnt = KBASE_HWCNT_V5_FE_BLOCK_COUNT,
@@ -585,13 +599,52 @@ static void kbasep_hwcnt_backend_csf_init_layout(
 		.md_block_cnt = md_block_cnt,
 		.ringbuf_block_cnt = fw_block_cnt + hw_block_cnt + md_block_cnt,
 		.payload_block_cnt = fw_block_cnt + hw_block_cnt,
-		.shader_avail_mask = prfcnt_info->sc_core_mask,
+		.shader_avail_mask = shader_avail_mask,
 		.headers_per_block = KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
 		.values_per_block = values_per_block,
 		.counters_per_block = values_per_block - KBASE_HWCNT_V5_HEADERS_PER_BLOCK,
 		.enable_mask_offset = KBASE_HWCNT_V5_PRFCNT_EN_HEADER,
-		.ne_cnt = ne_core_cnt,
+		.nx_cnt = nx_core_cnt,
 	};
+
+	/* The number of hardware counters reported by the GPU matches the legacy guess-work we
+	 * have done in the past
+	 */
+	if (WARN_ON(hw_block_cnt != KBASE_HWCNT_V5_FE_BLOCK_COUNT +
+					    KBASE_HWCNT_V5_TILER_BLOCK_COUNT +
+					    prfcnt_info->l2_count + core_cnt)) {
+		pr_warn("prfcnt_info    WARN(hw(%zd) != fe(%d) + tl(%d) + l2(%zu) + cc(%zu)\n",
+			hw_block_cnt, KBASE_HWCNT_V5_FE_BLOCK_COUNT,
+			KBASE_HWCNT_V5_TILER_BLOCK_COUNT, prfcnt_info->l2_count, core_cnt);
+
+		pr_warn("prfcnt_info    hws=%zu fws=%zu mds=%zu dbs=%zu bs=%zu l2c=%zu cgc=%u scm=%.16llx\n",
+			prfcnt_info->prfcnt_hw_size, prfcnt_info->prfcnt_fw_size,
+			prfcnt_info->metadata_size, prfcnt_info->dump_bytes,
+			prfcnt_info->prfcnt_block_size, prfcnt_info->l2_count,
+			prfcnt_info->csg_count, prfcnt_info->sc_core_mask);
+
+		pr_warn("prfcnt_info    ck=%u cl=%c nx=%c ncm=0x%.16llx vi=%c ms=%c\n",
+			(unsigned int)prfcnt_info->clk_cnt,
+			prfcnt_info->clearing_samples ? 'y' : 'n', prfcnt_info->has_nx ? 'y' : 'n',
+			prfcnt_info->nx_core_mask, prfcnt_info->has_virtual_ids ? 'y' : 'n',
+			prfcnt_info->has_memsys2 ? 'y' : 'n');
+
+		pr_warn("hwc_phy_layout fec=%u tlc=%u l2c=%u shc=%u fwc=%u hwc=%u mdc=%u rbc=%u plc=%u\n",
+			(unsigned int)phys_layout->fe_cnt, (unsigned int)phys_layout->tiler_cnt,
+			(unsigned int)phys_layout->mmu_l2_cnt,
+			(unsigned int)phys_layout->shader_cnt,
+			(unsigned int)phys_layout->fw_block_cnt,
+			(unsigned int)phys_layout->hw_block_cnt,
+			(unsigned int)phys_layout->md_block_cnt,
+			(unsigned int)phys_layout->ringbuf_block_cnt,
+			(unsigned int)phys_layout->payload_block_cnt);
+
+		pr_warn("hwc_phy_layout sam=0x%.16llx emo=0x%zx hpb=%zx cpb=%zu vpb=%zu nc=%zu",
+			(unsigned long long)phys_layout->shader_avail_mask,
+			phys_layout->enable_mask_offset, phys_layout->headers_per_block,
+			phys_layout->counters_per_block, phys_layout->values_per_block,
+			phys_layout->nx_cnt);
+	}
 }
 
 static void
@@ -759,7 +812,7 @@ void kbasep_hwcnt_backend_csf_update_block_state(
 	case KBASE_HWCNT_BACKEND_CSF_ENABLED:
 	case KBASE_HWCNT_BACKEND_CSF_TRANSITIONING_TO_DISABLED_PENDING_REQ:
 	case KBASE_HWCNT_BACKEND_CSF_TRANSITIONING_TO_DISABLED_PENDING_ACK:
-		if (type != KBASE_HWCNT_BLOCK_SHADER)
+		if ((type != KBASE_HWCNT_BLOCK_SHADER) && (type != KBASE_HWCNT_BLOCK_NEURAL))
 			is_block_on = true;
 		else if (!sample_exiting_protm) {
 			/* When not exiting protected mode, a zero enable mask on a shader core
@@ -836,17 +889,17 @@ void kbasep_hwcnt_backend_csf_update_block_state(
 	case KBASE_HWCNT_BLOCK_NEURAL: {
 		u64 current_neural_core = 1ULL << idx_in_block_type;
 
-		WARN_ONCE(backend->phys_layout.ne_cnt > 64,
-			  "More than 64 NE cores may cause an overflow!");
+		WARN_ONCE(backend->phys_layout.nx_cnt > 64,
+			  "More than 64 NX cores may cause an overflow!");
 
 		if (curr_sample_reason == SAMPLE_REASON_BEFORE_YIELD)
 			kbase_hwcnt_block_state_append(block_state, KBASE_HWCNT_STATE_UNAVAILABLE);
-		else if (current_neural_core & backend->info->prfcnt_info.ne_core_mask)
+		else if (current_neural_core & backend->info->prfcnt_info.nx_core_mask)
 			kbase_hwcnt_block_state_append(block_state, KBASE_HWCNT_STATE_AVAILABLE);
-		else if (current_neural_core & ~backend->info->prfcnt_info.ne_core_mask)
+		else if (current_neural_core & ~backend->info->prfcnt_info.nx_core_mask)
 			kbase_hwcnt_block_state_append(block_state, KBASE_HWCNT_STATE_UNAVAILABLE);
 		else
-			WARN_ONCE(true, "Unknown NE core availability state!");
+			WARN_ONCE(true, "Unknown NX core availability state!");
 		break;
 	}
 	default:
@@ -3164,8 +3217,19 @@ int kbase_hwcnt_backend_csf_metadata_init(struct kbase_hwcnt_backend_interface *
 	gpu_info.clk_cnt = csf_info->prfcnt_info.clk_cnt;
 	gpu_info.prfcnt_values_per_block =
 		csf_info->prfcnt_info.prfcnt_block_size / KBASE_HWCNT_VALUE_HW_BYTES;
-	gpu_info.has_ne = csf_info->prfcnt_info.has_ne;
-	gpu_info.ne_core_mask = csf_info->prfcnt_info.ne_core_mask;
+	gpu_info.has_nx = csf_info->prfcnt_info.has_nx;
+	gpu_info.nx_core_mask = csf_info->prfcnt_info.nx_core_mask;
+	gpu_info.has_virtual_ids = csf_info->prfcnt_info.has_virtual_ids;
+	gpu_info.has_memsys2 = csf_info->prfcnt_info.has_memsys2;
+
+	pr_debug(
+		"%s: has_fw:%c l2:%zd ccnt: %d sc: 0x%.16llx ckcnt: %u vpb:%zd nx:%c necmsk: 0x%.16llx vi=%c ms: %c\n",
+		__func__, gpu_info.has_fw_counters ? 'y' : 'n', gpu_info.l2_count, gpu_info.csg_cnt,
+		gpu_info.sc_core_mask, (unsigned int)gpu_info.clk_cnt,
+		gpu_info.prfcnt_values_per_block, gpu_info.has_nx ? 'y' : 'n',
+		gpu_info.nx_core_mask, gpu_info.has_virtual_ids ? 'y' : 'n',
+		gpu_info.has_memsys2 ? 'y' : 'n');
+
 	return kbase_hwcnt_csf_metadata_create(&gpu_info, csf_info->counter_set,
 					       &csf_info->metadata);
 }

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2024-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -70,11 +70,29 @@
  */
 #define BASE_MEM_GROW_ON_GPF ((base_mem_alloc_flags)1 << 9)
 
-/* Page coherence Outer shareable, if available
+/* Page coherence Outer shareable, if available (Inner may be implied)
+ *
+ * This flag is treated as a suggestion: it will be honored only if
+ * the platform supports Outer shareable coherency, otherwise it will be
+ * silently ignored.
+ *
+ * The user may query the memory flags, if the allocation is successful,
+ * in order to verify whether the request has been honored and
+ * the property is set.
+ *
+ * This flag may or may not imply Inner shareable in addition to
+ * Outer shareable coherency, depending on how the HW decides
+ * to implement it.
  */
 #define BASE_MEM_COHERENT_SYSTEM ((base_mem_alloc_flags)1 << 10)
 
 /* Page coherence Inner shareable
+ *
+ * This flag enables Inner shareable coherency and is always honored.
+ *
+ * The user may query the memory flags, if the allocation is successful,
+ * in order to verify whether the request has been honored and
+ * the property is set.
  */
 #define BASE_MEM_COHERENT_LOCAL ((base_mem_alloc_flags)1 << 11)
 
@@ -95,6 +113,15 @@
 
 /* IN */
 /* Page coherence Outer shareable, required.
+ *
+ * This flag is treated as a mandatory request: it shall be honored.
+ * The memory allocation will succeed only if the platform supports
+ * Outer shareable coherency. In case of success, this flag is equivalent
+ * to BASE_MEM_COHERENT_SYSTEM.
+ *
+ * This flag may or may not imply Inner shareable in addition to
+ * Outer shareable coherency, depending on how the HW decides
+ * to implement it.
  */
 #define BASE_MEM_COHERENT_SYSTEM_REQUIRED ((base_mem_alloc_flags)1 << 15)
 
@@ -169,6 +196,18 @@
 	(((((base_mem_alloc_flags)1 << BASE_MEM_FLAGS_NR_BITS) - 1) | \
 	  BASE_MEM_FLAGS_KERNEL_ONLY) &                               \
 	 ~BASE_MEM_FLAGS_OUTPUT_MASK)
+
+/* Allowed flags with kbase mem_alias ioctl calls, violation rejected */
+#define BASE_MEM_FLAGS_ALIAS_INPUT_MASK (BASE_MEM_FLAGS_INPUT_MASK & ~BASE_MEM_FLAGS_KERNEL_ONLY)
+
+/* Allowed flags with kbase alloc ioctl calls, violation rejected */
+#define BASE_MEM_FLAGS_ALLOC_INPUT_MASK \
+	(BASE_MEM_FLAGS_INPUT_MASK & ~(BASE_MEM_FLAGS_KERNEL_ONLY | BASE_MEM_DONT_NEED))
+
+/* Allowed flags with kbase import iotcl calls, violation rejected */
+#define BASE_MEM_FLAGS_IMPORT_INPUT_MASK                                                   \
+	(BASE_MEM_FLAGS_INPUT_MASK & ~(BASE_MEM_FLAGS_KERNEL_ONLY | BASE_MEM_PROT_GPU_EX | \
+				       BASE_MEM_GROW_ON_GPF | BASE_MEM_FIXED | BASE_MEM_FIXABLE))
 
 /* A mask for all input and output bits */
 #define BASE_MEM_ALL_FLAGS_MASK (BASE_MEM_FLAGS_INPUT_MASK | BASE_MEM_FLAGS_OUTPUT_MASK)

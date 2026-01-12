@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,7 +28,10 @@
 
 #include <linux/version.h>
 
-#if (KERNEL_VERSION(6, 11, 0) > LINUX_VERSION_CODE)
+#if (KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE)
+#include <linux/minmax.h>
+#endif
+
 /**
  * MIN - Return the lesser of two values.
  * @x: value1
@@ -37,7 +40,9 @@
  * As a macro it may evaluate its arguments more than once.
  * Refer to MAX macro for more details
  */
+#ifndef MIN
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
+#endif
 
 /**
  * MAX - Return the greater of two values.
@@ -51,6 +56,7 @@
  * to retrieve the min and max of two values, consider using a conditional swap
  * instead.
  */
+#ifndef MAX
 #define MAX(x, y) ((x) < (y) ? (y) : (x))
 #endif
 

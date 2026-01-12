@@ -30,22 +30,26 @@
 #include <mali_kbase_ctx_sched.h>
 #include <mmu/mali_kbase_mmu_faults_decoder.h>
 
-#ifndef MALI_STRIP_KBASE_DEVELOPMENT
-/* For internal purposes, allow the symbol to be exported for use with the defect test */
-void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, const u32 status,
-					const u64 fault_addr);
-KBASE_EXPORT_TEST_API(kbase_gpu_fault_dispatch_interrupt);
-
-void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, const u32 status,
-					const u64 fault_addr)
-#else
-static void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, const u32 status)
-#endif
+static void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, u32 status)
 {
-	const bool as_valid = status & GPU_FAULTSTATUS_JASID_VALID_MASK;
-	const u32 as_nr = (status & GPU_FAULTSTATUS_JASID_MASK) >> GPU_FAULTSTATUS_JASID_SHIFT;
-	bool bus_fault = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) ==
-			 GPU_FAULTSTATUS_EXCEPTION_TYPE_GPU_BUS_FAULT;
+	bool as_valid;
+	u32 as_nr;
+	bool bus_fault;
+
+
+	if (kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_MAGNIHW_2257)) {
+		const u32 exception_type = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK);
+
+		if (exception_type == GPU_FAULTSTATUS_EXCEPTION_TYPE_GPU_SHAREABILITY_FAULT ||
+		    exception_type == GPU_FAULTSTATUS_EXCEPTION_TYPE_GPU_CACHEABILITY_FAULT) {
+			status &= GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK;
+		}
+	}
+
+	as_valid = status & GPU_FAULTSTATUS_JASID_VALID_MASK;
+	as_nr = (status & GPU_FAULTSTATUS_JASID_MASK) >> GPU_FAULTSTATUS_JASID_SHIFT;
+	bus_fault = (status & GPU_FAULTSTATUS_EXCEPTION_TYPE_MASK) ==
+		    GPU_FAULTSTATUS_EXCEPTION_TYPE_GPU_BUS_FAULT;
 
 	/* The exact fault address is of no further use in fault notification, in particular
 	 * with later fault information to the user land. Here the address is marked as
@@ -76,14 +80,8 @@ static void kbase_gpu_fault_dispatch_interrupt(struct kbase_device *kbdev, const
 static void kbase_gpu_fault_interrupt(struct kbase_device *kbdev)
 {
 	const u32 status = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_FAULTSTATUS));
-#ifndef MALI_STRIP_KBASE_DEVELOPMENT
-	const u64 fault_addr = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(GPU_FAULTADDRESS));
-
-	kbase_gpu_fault_dispatch_interrupt(kbdev, status, fault_addr);
-#else
 
 	kbase_gpu_fault_dispatch_interrupt(kbdev, status);
-#endif
 }
 
 void handle_db_mirror_irq(struct kbase_device *kbdev);
@@ -93,6 +91,8 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 	u32 power_changed_mask = (POWER_CHANGED_ALL | MCU_STATUS_GPU_IRQ);
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	bool is_legacy_gpu_irq_mask = true;
+	u32 irq_clear_mask;
+	bool spare_mcu_event_update = false;
 
 	if (kbdev->pm.backend.has_host_pwr_iface) {
 		power_changed_mask = MCU_STATUS_GPU_IRQ;
@@ -114,9 +114,9 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		 * deluge of such interrupts. It will be unmasked on GPU reset.
 		 */
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK),
-				  kbase_reg_gpu_irq_all(is_legacy_gpu_irq_mask) &
-					  ~GPU_PROTECTED_FAULT);
+			kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK),
+					  kbase_reg_gpu_irq_all(is_legacy_gpu_irq_mask) &
+						  ~GPU_PROTECTED_FAULT);
 
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
@@ -149,14 +149,19 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 	if (!kbdev->pm.backend.has_host_pwr_iface) {
 		if (val & RESET_COMPLETED)
 			kbase_pm_reset_done(kbdev);
+
+		/* Defer clearing CLEAN_CACHES_COMPLETED to kbase_clean_caches_done.
+		 * We need to acquire hwaccess_lock to avoid a race condition with
+		 * kbase_gpu_cache_flush_and_busy_wait.
+		 */
+		irq_clear_mask = val & ~(CLEAN_CACHES_COMPLETED | DOORBELL_MIRROR);
+	} else {
+		irq_clear_mask = val & ~(CLEAN_CACHES_COMPLETED | DOORBELL_MIRROR
+				       );
 	}
 
-	/* Defer clearing CLEAN_CACHES_COMPLETED to kbase_clean_caches_done.
-	 * We need to acquire hwaccess_lock to avoid a race condition with
-	 * kbase_gpu_cache_flush_and_busy_wait.
-	 */
-	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_CLEAR, NULL, val & ~CLEAN_CACHES_COMPLETED);
-	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), val & ~CLEAN_CACHES_COMPLETED);
+	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_CLEAR, NULL, irq_clear_mask);
+	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_CLEAR), irq_clear_mask);
 
 	if (IS_ENABLED(CONFIG_PM) && (val & DOORBELL_MIRROR))
 		handle_db_mirror_irq(kbdev);
@@ -175,6 +180,7 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 
 	if (val & power_changed_mask) {
 		kbase_pm_power_changed(kbdev);
+		spare_mcu_event_update = true;
 	} else if (val & CLEAN_CACHES_COMPLETED) {
 		/* If cache line evict messages can be lost when shader cores
 		 * power down then we need to flush the L2 cache before powering
@@ -183,12 +189,24 @@ void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val)
 		 * cores.
 		 */
 		if (kbdev->pm.backend.l2_always_on ||
-		    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TTRX_921))
+		    kbase_hw_has_issue(kbdev, KBASE_HW_ISSUE_TTRX_921)) {
 			kbase_pm_power_changed(kbdev);
+			spare_mcu_event_update = true;
+		}
 	}
 
-	if (val & MCU_STATUS_GPU_IRQ)
+	if (val & MCU_STATUS_GPU_IRQ) {
+		if (!spare_mcu_event_update) {
+			unsigned long flags;
+
+			spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+			if (kbdev->pm.backend.mcu_state == KBASE_MCU_ON_PEND_SLEEP)
+				kbase_pm_update_state(kbdev);
+			spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		}
+
 		wake_up_all(&kbdev->csf.event_wait);
+	}
 
 	KBASE_KTRACE_ADD(kbdev, CORE_GPU_IRQ_DONE, NULL, val);
 }

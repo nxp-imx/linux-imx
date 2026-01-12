@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -190,6 +190,15 @@ static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int 
 
 #define KBASE_REG_PROTECTED (1ul << 19)
 
+/* Region belongs to a shrinker.
+ *
+ * This can either mean that it is part of the JIT/Ephemeral or tiler heap
+ * shrinker paths. Should be removed only after making sure that there are
+ * no references remaining to it in these paths, as it may cause the physical
+ * backing of the region to disappear during use.
+ */
+#define KBASE_REG_DONT_NEED (1ul << 20)
+
 /* Imported buffer is padded? */
 #define KBASE_REG_IMPORT_PAD (1ul << 21)
 
@@ -227,6 +236,9 @@ static inline void kbase_process_page_usage_inc(struct kbase_context *kctx, int 
  * otherwise it points to a u64 holding the lowest address of unused memory.
  */
 #define KBASE_REG_HEAP_INFO_IS_SIZE (1ul << 27)
+
+/* Allocation is actively used for JIT memory */
+#define KBASE_REG_ACTIVE_JIT_ALLOC (1ul << 28)
 
 /* This flag only applies to allocations in the EXEC_FIXED_VA and FIXED_VA
  * memory zones, and it determines whether they were created with a fixed
@@ -453,6 +465,12 @@ struct kbase_page_metadata {
 			struct kbase_mmu_table *mmut;
 			/* GPU virtual page frame number, in GPU_PAGE_SIZE units */
 			u64 vpfn;
+			/*
+			 * @kctx_id: Id of Kbase context the page belongs to.
+			 *           Set this field with the id when page is mapped.
+			 *           Otherwise set to RESERVED_CONTEXT_ID.
+			 */
+			u32 kctx_id;
 		} mapped;
 		struct {
 			struct kbase_mmu_table *mmut;
@@ -479,6 +497,12 @@ struct kbase_page_metadata {
 			 */
 			s8 num_allocated_sub_pages;
 #endif
+			/*
+			 * @kctx_id: Id of Kbase context the page belongs to.
+			 *           Set this field with the id when pt_page is mapped.
+			 *           Otherwise set to RESERVED_CONTEXT_ID.
+			 */
+			u32 kctx_id;
 		} pt_mapped;
 	} data;
 
@@ -486,6 +510,21 @@ struct kbase_page_metadata {
 	u8 vmap_count;
 	u8 group_id;
 };
+
+/**
+ * kbase_clear_page_metadata_kctx_id - Clear kctx_id in page metadata.
+ *
+ * @page_md:  Pointer to the page metadata
+ *
+ * kctx_id is set with kctx id when the page is assicoated with a kctx.
+ * When @page_md is newly allocated or its association with a kctx is gone
+ * clear kctx_id in metadata.
+ */
+static inline void kbase_clear_page_metadata_kctx_id(struct kbase_page_metadata *page_md)
+{
+	page_md->data.mapped.kctx_id = RESERVED_CONTEXT_ID;
+	page_md->data.pt_mapped.kctx_id = RESERVED_CONTEXT_ID;
+}
 
 /**
  * enum kbase_jit_report_flags - Flags for just-in-time memory allocation
@@ -607,7 +646,7 @@ static inline struct kbase_mem_phy_alloc *kbase_mem_phy_alloc_put(struct kbase_m
  * @nr_pages:        The size of the region in pages.
  * @initial_commit:  Initial commit, for aligning the start address and
  *                   correctly growing KBASE_REG_TILER_ALIGN_TOP regions.
- * @flags:           Flags
+ * @flags:           KBASE_REG flags
  * @extension:    Number of pages allocated on page fault.
  * @cpu_alloc: The physical memory we mmap to the CPU when mapping this region.
  * @gpu_alloc: The physical memory we mmap to the GPU when mapping this region.
@@ -643,7 +682,7 @@ struct kbase_va_region {
 	void *user_data;
 	size_t nr_pages;
 	size_t initial_commit;
-	base_mem_alloc_flags flags;
+	unsigned long flags;
 	size_t extension;
 	struct kbase_mem_phy_alloc *cpu_alloc;
 	struct kbase_mem_phy_alloc *gpu_alloc;
@@ -719,7 +758,7 @@ static inline bool kbase_is_region_invalid_or_free(struct kbase_va_region *reg)
  */
 static inline bool kbase_is_region_shrinkable(struct kbase_va_region *reg)
 {
-	return (reg->flags & BASEP_MEM_DONT_NEED) || (reg->flags & BASEP_MEM_ACTIVE_JIT_ALLOC);
+	return (reg->flags & KBASE_REG_DONT_NEED) || (reg->flags & KBASE_REG_ACTIVE_JIT_ALLOC);
 }
 
 void kbase_remove_va_region(struct kbase_device *kbdev, struct kbase_va_region *reg);
@@ -933,6 +972,12 @@ static inline int kbase_reg_prepare_native(struct kbase_va_region *reg, struct k
 
 	reg->cpu_alloc->imported.native.kctx = kctx;
 	if (kbase_ctx_flag(kctx, KCTX_INFINITE_CACHE) && (reg->flags & KBASE_REG_CPU_CACHED)) {
+		if (WARN_ON_ONCE(kbase_is_page_migration_enabled())) {
+			kbase_mem_phy_alloc_put(reg->cpu_alloc);
+			reg->cpu_alloc = NULL;
+			return -EINVAL;
+		}
+
 		reg->gpu_alloc =
 			kbase_alloc_create(kctx, reg->nr_pages, KBASE_MEM_TYPE_NATIVE, group_id);
 		if (IS_ERR_OR_NULL(reg->gpu_alloc)) {
@@ -1119,6 +1164,17 @@ struct page *kbase_mem_pool_alloc_locked(struct kbase_mem_pool *pool);
  * kbase_mem_pool_free_locked() instead.
  */
 void kbase_mem_pool_free(struct kbase_mem_pool *pool, struct page *page, bool dirty);
+
+/**
+ * kbase_mem_pool_free_lite_defer - Same as kbase_mem_pool_free(), except the
+ *                                  handlling on defer restricted to only
+ *                                  adding the page insitu if required
+ * @pool:  Memory pool where page should be freed
+ * @page:  Page to free to the pool
+ * @dirty: Whether some of the page may be dirty in the cache.
+ *
+ */
+void kbase_mem_pool_free_lite_defer(struct kbase_mem_pool *pool, struct page *page, bool dirty);
 
 /**
  * kbase_mem_pool_free_locked - Free a page to memory pool

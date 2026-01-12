@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -492,7 +492,7 @@ static enum prfcnt_block_type kbase_hwcnt_metadata_block_type_to_prfcnt_block_ty
 
 	case KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_NEURAL:
 	case KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_NEURAL2:
-		block_type = PRFCNT_BLOCK_TYPE_NE;
+		block_type = PRFCNT_BLOCK_TYPE_NX;
 		break;
 
 	case KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_FE_UNDEFINED:
@@ -1001,10 +1001,14 @@ static int kbasep_kinstr_prfcnt_put_sample(struct kbase_kinstr_prfcnt_client *cl
 	}
 
 	fetch_idx = atomic_read(&cli->fetch_idx);
-	WARN_ON(read_idx == fetch_idx);
-	/* Setting the read_idx matching the fetch_idx, signals no in-flight
-	 * fetched sample.
-	 */
+	if (unlikely(read_idx == fetch_idx)) {
+		/* No sample was previously fetched; kbasep_kinstr_prfcnt_put_sample was not
+		 * called beforehand.
+		 */
+		err = -EINVAL;
+		goto error_out;
+	}
+
 	atomic_set(&cli->read_idx, fetch_idx);
 
 error_out:
@@ -1310,8 +1314,13 @@ int kbase_kinstr_prfcnt_init(struct kbase_hwcnt_virtualizer *hvirt,
 
 	mutex_init(&kinstr_ctx->lock);
 	INIT_LIST_HEAD(&kinstr_ctx->clients);
-	hrtimer_setup(&kinstr_ctx->dump_timer, kbasep_kinstr_prfcnt_dump_timer,
-		      CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
+	hrtimer_setup(&kinstr_ctx->dump_timer, kbasep_kinstr_prfcnt_dump_timer, CLOCK_MONOTONIC,
+		      HRTIMER_MODE_REL);
+#else
+	hrtimer_init(&kinstr_ctx->dump_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	kinstr_ctx->dump_timer.function = kbasep_kinstr_prfcnt_dump_timer;
+#endif
 	INIT_WORK(&kinstr_ctx->dump_work, kbasep_kinstr_prfcnt_dump_worker);
 
 	*out_kinstr_ctx = kinstr_ctx;
@@ -1624,7 +1633,7 @@ kbasep_kinstr_prfcnt_parse_request_enable(const struct prfcnt_request_enable *re
 		kbasep_kinstr_prfcnt_block_enable_req_to_cfg(config->enable_cm.csg_bm,
 							     req_enable->enable_mask);
 		break;
-	case PRFCNT_BLOCK_TYPE_NE:
+	case PRFCNT_BLOCK_TYPE_NX:
 		kbasep_kinstr_prfcnt_block_enable_req_to_cfg(config->enable_cm.neural_bm,
 							     req_enable->enable_mask);
 		break;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2023 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -61,9 +61,13 @@
 /* indicates if the trace message has valid KCPU-queue related info. */
 #define KBASE_KTRACE_FLAG_CSF_KCPU (((kbase_ktrace_flag_t)1) << 2)
 
+/* indicates if the trace message has valid Mem related info. */
+#define KBASE_KTRACE_FLAG_MEM (((kbase_ktrace_flag_t)1) << 3)
+
 /* Collect all the flags together for debug checking */
-#define KBASE_KTRACE_FLAG_BACKEND_ALL \
-	(KBASE_KTRACE_FLAG_CSF_GROUP | KBASE_KTRACE_FLAG_CSF_QUEUE | KBASE_KTRACE_FLAG_CSF_KCPU)
+#define KBASE_KTRACE_FLAG_BACKEND_ALL                                                             \
+	(KBASE_KTRACE_FLAG_CSF_GROUP | KBASE_KTRACE_FLAG_CSF_QUEUE | KBASE_KTRACE_FLAG_CSF_KCPU | \
+	 KBASE_KTRACE_FLAG_MEM)
 
 /**
  * union kbase_ktrace_backend - backend specific part of a trace message
@@ -89,6 +93,16 @@
  *                  @flags contains KBASE_KTRACE_FLAG_CSF_GROUP.
  * @gpu.csi_index:  ID of the associated queue's CS HW interface.
  *                  Only valid when @flags contains KBASE_KTRACE_FLAG_CSF_QUEUE.
+ * @mem:            mem struct for map/unmap parameters
+ * @mem.code:       Identifies the event, refer to enum kbase_ktrace_code.
+ * @mem.flags:      indicates information about the trace message itself. Used
+ *                  during dumping of the message.
+ * @mem.pages:      mapped or unmapped pages
+ * @mem.va:         Virtual address where page mapped/unmapped
+ * @mem.mem_flags:  kbase va region flags passed from user space
+ * @mem.tgid:       kctx thread id
+ * @mem.ctx_id:     kctx id
+ * @mem.as_nr:      Address space id
  */
 
 union kbase_ktrace_backend {
@@ -109,6 +123,18 @@ union kbase_ktrace_backend {
 		u8 slot_prio;
 		s8 csi_index;
 	} gpu;
+
+	/* Memory event payload */
+	struct {
+		kbase_ktrace_code_t code;
+		kbase_ktrace_flag_t flags;
+		u64 pages;
+		u64 va;
+		u64 mem_flags;
+		pid_t tgid;
+		int ctx_id;
+		int as_nr;
+	} mem;
 };
 
 #endif /* KBASE_KTRACE_TARGET_RBUF */

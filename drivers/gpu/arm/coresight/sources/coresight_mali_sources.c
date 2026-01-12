@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -70,7 +70,16 @@ static int coresight_mali_source_trace_id(struct coresight_device *csdev)
 #ifndef CSTD_UNUSED
 #define CSTD_UNUSED(x) ((void)(x))
 #endif
+#endif
 
+#if KERNEL_VERSION(6, 18, 0) <= LINUX_VERSION_CODE
+static int coresight_mali_enable_source(struct coresight_device *csdev, struct perf_event *event,
+					u32 mode, struct coresight_path *path)
+{
+	CSTD_UNUSED(path);
+	return coresight_mali_enable_component(csdev, mode);
+}
+#elif KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE
 static int coresight_mali_enable_source(struct coresight_device *csdev, struct perf_event *event,
 					u32 mode, struct coresight_trace_id_map *id_map)
 {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2015-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,10 @@
 
 #if defined(__linux)
 #include <linux/types.h>
+#endif
+
+#if defined(__cplusplus)
+extern "C" {
 #endif
 
 #define GPU_ID2_VERSION_STATUS_SHIFT 0
@@ -131,6 +135,87 @@
  * New GPU_ID_PRODUCT_XXXX macros in current file replace these macros.
  */
 
+/* GPU_ID3 */
+#define GPU_ID3_REG_LO 0x0
+#define GPU_ID3_REG_HI 0x4
+#define GPU_ID3_COMPAT 0xF
+
+#define GPU_ID3_VERSION_STATUS_SHIFT 0llu
+#define GPU_ID3_VERSION_MINOR_SHIFT 8llu
+#define GPU_ID3_VERSION_MAJOR_SHIFT 16llu
+#define GPU_ID3_COMPAT_SHIFT 28llu
+#define GPU_ID3_PRODUCT_MAJOR_SHIFT 32llu
+#define GPU_ID3_ARCH_REV_SHIFT 40llu
+#define GPU_ID3_ARCH_MINOR_SHIFT 48llu
+#define GPU_ID3_ARCH_MAJOR_SHIFT 56llu
+
+#define GPU_ID3_VERSION_STATUS (0xFFllu << GPU_ID3_VERSION_STATUS_SHIFT)
+#define GPU_ID3_VERSION_MINOR (0xFFllu << GPU_ID3_VERSION_MINOR_SHIFT)
+#define GPU_ID3_VERSION_MAJOR (0xFFllu << GPU_ID3_VERSION_MAJOR_SHIFT)
+#define GPU_ID3_PRODUCT_MAJOR (0xFFllu << GPU_ID3_PRODUCT_MAJOR_SHIFT)
+#define GPU_ID3_ARCH_REV (0xFFllu << GPU_ID3_ARCH_REV_SHIFT)
+#define GPU_ID3_ARCH_MINOR (0xFFllu << GPU_ID3_ARCH_MINOR_SHIFT)
+#define GPU_ID3_ARCH_MAJOR (0xFFllu << GPU_ID3_ARCH_MAJOR_SHIFT)
+#define GPU_ID3_PRODUCT_MODEL (GPU_ID3_ARCH_MAJOR | GPU_ID3_PRODUCT_MAJOR)
+#define GPU_ID3_VERSION (GPU_ID3_VERSION_MAJOR | GPU_ID3_VERSION_MINOR | GPU_ID3_VERSION_STATUS)
+
+#define GPU_ID3_ARCH_REV_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_ARCH_REV) >> GPU_ID3_ARCH_REV_SHIFT)
+#define GPU_ID3_ARCH_MINOR_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_ARCH_MINOR) >> GPU_ID3_ARCH_MINOR_SHIFT)
+#define GPU_ID3_ARCH_MAJOR_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_ARCH_MAJOR) >> GPU_ID3_ARCH_MAJOR_SHIFT)
+#define GPU_ID3_VERSION_MINOR_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_VERSION_MINOR) >> GPU_ID3_VERSION_MINOR_SHIFT)
+#define GPU_ID3_VERSION_MAJOR_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_VERSION_MAJOR) >> GPU_ID3_VERSION_MAJOR_SHIFT)
+#define GPU_ID3_PRODUCT_MAJOR_GET(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_PRODUCT_MAJOR) >> GPU_ID3_PRODUCT_MAJOR_SHIFT)
+
+#define GPU_ID3_ARCH_MAJOR_REV_REG(gpu_id) \
+	((((__u64)gpu_id) & GPU_ID3_ARCH_MAJOR) | (((__u64)gpu_id) & GPU_ID3_ARCH_REV))
+
+#define GPU_ID3_ARCH_MAJOR_REV_MAKE(arch_major, arch_rev)    \
+	((((__u64)arch_major) << GPU_ID3_ARCH_MAJOR_SHIFT) | \
+	 (((__u64)arch_rev) << GPU_ID3_ARCH_REV_SHIFT))
+
+/* Helper macro to create a partial GPU_ID (new format v3) that defines
+ * a product ignoring its version.
+ */
+#define GPU_ID3_PRODUCT_MAKE(arch_major, arch_minor, arch_rev, product_major) \
+	((((__u64)arch_major) << GPU_ID3_ARCH_MAJOR_SHIFT) |                  \
+	 (((__u64)arch_minor) << GPU_ID3_ARCH_MINOR_SHIFT) |                  \
+	 (((__u64)arch_rev) << GPU_ID3_ARCH_REV_SHIFT) |                      \
+	 (((__u64)product_major) << GPU_ID3_PRODUCT_MAJOR_SHIFT))
+
+/* Helper macro to create a partial GPU_ID (new format v3) that specifies the
+ * revision (major, minor, status) of a product
+ */
+#define GPU_ID3_VERSION_MAKE(version_major, version_minor, version_status) \
+	((((__u64)version_major) << GPU_ID3_VERSION_MAJOR_SHIFT) |         \
+	 (((__u64)version_minor) << GPU_ID3_VERSION_MINOR_SHIFT) |         \
+	 (((__u64)version_status) << GPU_ID3_VERSION_STATUS_SHIFT))
+
+/* Helper macro to create a complete GPU_ID (new format v3) */
+#define GPU_ID3_MAKE(arch_major, arch_minor, arch_rev, product_major, version_major, \
+		     version_minor, version_status)                                  \
+	(GPU_ID3_PRODUCT_MAKE(arch_major, arch_minor, arch_rev, product_major) |     \
+	 GPU_ID3_VERSION_MAKE(version_major, version_minor, version_status) |        \
+	 (((__u64)GPU_ID3_COMPAT) << GPU_ID3_COMPAT_SHIFT))
+
+/* Helper macro to create a partial GPU_ID (new format v3) that identifies
+ * a particular GPU model by its arch_major and product_major.
+ */
+#define GPU_ID3_MODEL_MAKE(arch_major, product_major)        \
+	((((__u64)arch_major) << GPU_ID3_ARCH_MAJOR_SHIFT) | \
+	 (((__u64)product_major) << GPU_ID3_PRODUCT_MAJOR_SHIFT))
+
+/* Strip off the non-relevant bits from a product_id value and make it suitable
+ * for comparison against the GPU_ID3_PRODUCT_xxx values which identify a GPU
+ * model.
+ */
+#define GPU_ID3_MODEL_MATCH_VALUE(product_id) \
+	((((__u32)product_id) << GPU_ID3_PRODUCT_MAJOR_SHIFT) & GPU_ID3_PRODUCT_MODEL)
 
 #define GPU_ID_U8_COMP(val3, val2, val1, val0) \
 	((((__u32)val3) << 24U) | (((__u32)val2) << 16U) | (((__u32)val1) << 8U) | ((__u32)val0))
@@ -179,5 +264,12 @@
 #define GPU_ID_PRODUCT_IDRX GPU_ID_MODEL_MAKE(14, 0)
 #define GPU_ID_PRODUCT_TDRX GPU_ID_MODEL_MAKE(14, 1)
 #define GPU_ID_PRODUCT_LDRX GPU_ID_MODEL_MAKE(14, 3)
+#define GPU_ID_PRODUCT_IMAX GPU_ID_MODEL_MAKE(15, 0)
+#define GPU_ID_PRODUCT_TMAX GPU_ID_MODEL_MAKE(15, 1)
+#define GPU_ID_PRODUCT_LMAX GPU_ID_MODEL_MAKE(15, 3)
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_KBASE_GPU_ID_H_ */

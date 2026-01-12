@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,6 +22,7 @@
 #include <linux/version_compat_defs.h>
 
 #include <mali_kbase.h>
+#include <mali_kbase_am_reg.h>
 #include <mali_kbase_config_defaults.h>
 #include <device/mali_kbase_device.h>
 #include "mali_kbase_l2_mmu_config.h"
@@ -80,10 +81,9 @@ int kbase_set_mmu_quirks(struct kbase_device *kbdev)
 {
 	/* All older GPUs had 2 bits for both fields, this is a default */
 	struct l2_mmu_config_limit limit = { 0, /* Any GPU not in the limits array defined above */
-					     { KBASE_AID_32, GENMASK(25, 24), 24 },
-					     { KBASE_AID_32, GENMASK(27, 26), 26 } };
+					     { KBASE_AID_32, GENMASK(10, 5), 5 },
+					     { KBASE_AID_32, GENMASK(16, 12), 12 } };
 	u32 product_model;
-	u32 mmu_config = 0;
 	unsigned int i;
 
 	product_model = kbdev->gpu_props.gpu_id.product_model;
@@ -96,25 +96,28 @@ int kbase_set_mmu_quirks(struct kbase_device *kbdev)
 		}
 	}
 
-	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)))
-		mmu_config = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG));
+	/* Read quirks from register */
+	if (kbdev->am_standalone)
+		for (i = 0; i < kbdev->hw_quirks_reg_size; i++)
+			kbdev->hw_quirks_mmu[i] = kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+								      AM_SYSTEM__L2_MMU_CONFIG(i));
+	else if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG)))
+		kbdev->hw_quirks_mmu[0] = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_MMU_CONFIG));
 
 	if (!kbase_io_has_gpu(kbdev))
 		return -EIO;
 
-	mmu_config &= ~(limit.read.mask | limit.write.mask);
+	kbdev->hw_quirks_mmu[0] &= ~(limit.read.mask | limit.write.mask);
 	/* Can't use FIELD_PREP() macro here as the mask isn't constant */
-	mmu_config |= (limit.read.value << limit.read.shift) |
-		      (limit.write.value << limit.write.shift);
-
-	kbdev->hw_quirks_mmu = mmu_config;
+	kbdev->hw_quirks_mmu[0] |= (limit.read.value << limit.read.shift) |
+				   (limit.write.value << limit.write.shift);
 
 	if (kbdev->system_coherency == COHERENCY_ACE) {
 		/* Allow memory configuration disparity to be ignored,
 		 * we optimize the use of shared memory and thus we
 		 * expect some disparity in the memory configuration.
 		 */
-		kbdev->hw_quirks_mmu |= L2_MMU_CONFIG_ALLOW_SNOOP_DISPARITY;
+		kbdev->hw_quirks_mmu[0] |= L2_MMU_CONFIG_ALLOW_SNOOP_DISPARITY;
 	}
 
 	return 0;

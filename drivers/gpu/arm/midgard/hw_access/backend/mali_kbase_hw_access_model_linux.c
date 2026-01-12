@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -36,6 +36,12 @@ u64 kbase_reg_get_gpu_id(struct kbase_device *kbdev)
 	midgard_model_read_reg(kbdev->model, GPU_CONTROL_REG(GPU_ID), &val[0]);
 	spin_unlock_irqrestore(&kbdev->reg_op_lock, flags);
 
+	if (GPU_ID2_ARCH_MAJOR_GET(val[0]) == GPU_ID3_COMPAT) {
+		spin_lock_irqsave(&kbdev->reg_op_lock, flags);
+		midgard_model_read_reg(kbdev->model, GPU_CONTROL_REG(GPU_ID) + GPU_ID3_REG_HI,
+				       &val[1]);
+		spin_unlock_irqrestore(&kbdev->reg_op_lock, flags);
+	}
 
 	return (u64)val[0] | ((u64)val[1] << 32);
 }

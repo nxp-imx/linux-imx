@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -191,6 +191,13 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	kbase_gpu_vm_unlock(kctx);
 
 	kctx->id = (u32)atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
+	/* Rollback the kctx ID to zero if it reaches RESERVED_CONTEXT_ID
+	 * which is reserved for special purpose.
+	 */
+	if (kctx->id == RESERVED_CONTEXT_ID) {
+		atomic_set(&(kctx->kbdev->ctx_num), 0);
+		kctx->id = 0;
+	}
 
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
 	err = kbase_insert_kctx_to_process(kctx);

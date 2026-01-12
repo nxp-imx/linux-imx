@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -50,8 +50,8 @@ static bool read_setting_valid(unsigned int prod_model, unsigned int id, unsigne
 			return false;
 		break;
 	case SYSC_ALLOC_ID_R_RT:
-	case SYSC_ALLOC_ID_R_NE_A:
-	case SYSC_ALLOC_ID_R_NE_N:
+	case SYSC_ALLOC_ID_R_NX_A:
+	case SYSC_ALLOC_ID_R_NX_N:
 		if (prod_model < GPU_ID_MODEL_MAKE(14, 0))
 			return false;
 		break;
@@ -98,8 +98,8 @@ static bool write_setting_valid(unsigned int prod_model, unsigned int id,
 	case SYSC_ALLOC_ID_W_LSC:
 		break;
 	case SYSC_ALLOC_ID_W_RT:
-	case SYSC_ALLOC_ID_W_NE_A:
-	case SYSC_ALLOC_ID_W_NE_N:
+	case SYSC_ALLOC_ID_W_NX_A:
+	case SYSC_ALLOC_ID_W_NX_N:
 		if (prod_model < GPU_ID_MODEL_MAKE(14, 0))
 			return false;
 		break;

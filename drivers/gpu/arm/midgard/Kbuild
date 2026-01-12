@@ -26,10 +26,6 @@ src:=$(if $(patsubst /%,,$(src)),$(src),$(src))
 # Prevent misuse when Kernel configurations are not present by default
 # in out-of-tree builds
 #
-ifeq ($(CONFIG_DMA_SHARED_BUFFER),n)
-    $(error CONFIG_DMA_SHARED_BUFFER must be set in Kernel configuration)
-endif
-
 ifeq ($(CONFIG_PM_DEVFREQ),n)
     $(error CONFIG_PM_DEVFREQ must be set in Kernel configuration)
 endif
@@ -63,7 +59,7 @@ endif
 #
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= '"r54p1-11eac0"'
+MALI_RELEASE_NAME ?= '"r56p0-18eac0"'
 # Set up defaults if not defined by build system
 ifeq ($(CONFIG_MALI_DEBUG), y)
     MALI_UNIT_TEST = 1
@@ -163,7 +159,9 @@ mali_kbase-y := \
     mali_power_gpu_frequency_trace.o \
     mali_kbase_trace_gpu_mem.o \
     mali_kbase_pbha.o \
-    mali_kbase_io.o
+    mali_kbase_io.o \
+    mali_kbase_am.o \
+    mali_kbase_am_reg.o
 
 
 MALI_PAGE_MIGRATE := 1
@@ -186,7 +184,6 @@ mali_kbase-$(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD) += \
 
 
 INCLUDE_SUBDIR = \
-    $(src)/arbiter/Kbuild \
     $(src)/context/Kbuild \
     $(src)/debug/Kbuild \
     $(src)/device/Kbuild \
@@ -198,6 +195,7 @@ INCLUDE_SUBDIR = \
     $(src)/hw_access/Kbuild \
     $(src)/thirdparty/Kbuild \
     $(src)/platform/$(MALI_PLATFORM_DIR)/Kbuild
+
 
 ifeq ($(CONFIG_MALI_CSF_SUPPORT),y)
     INCLUDE_SUBDIR += $(src)/csf/Kbuild

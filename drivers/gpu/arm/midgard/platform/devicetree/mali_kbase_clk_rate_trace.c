@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,9 +31,6 @@ static void *enumerate_gpu_clk(struct kbase_device *kbdev, unsigned int index)
 	if (index >= kbdev->nr_clocks)
 		return NULL;
 
-	if (of_machine_is_compatible("arm,juno"))
-		WARN_ON(kbdev->nr_clocks != 1);
-
 	return kbdev->clocks[index];
 }
 
@@ -53,8 +50,9 @@ static unsigned long get_gpu_clk_rate(struct kbase_device *kbdev, void *gpu_clk_
 	 * This is a reasonable workaround as the frequency value remains same
 	 * throughout. It can be removed after GPUCORE-25693.
 	 */
-	if (of_machine_is_compatible("arm,juno"))
-		return arch_timer_get_cntfrq();
+	if ((of_machine_is_compatible("arm,juno") > 0) ||
+	    (of_machine_is_compatible("xlnx,versal") > 0))
+		return kbase_arch_timer_get_cntfrq(kbdev);
 
 	return clk_get_rate((struct clk *)gpu_clk_handle);
 }
@@ -74,7 +72,8 @@ static int gpu_clk_notifier_register(struct kbase_device *kbdev, void *gpu_clk_h
 		"mismatch in the size of clk member");
 
 	/* Frequency is fixed on Juno platforms */
-	if (of_machine_is_compatible("arm,juno"))
+	if ((of_machine_is_compatible("arm,juno") > 0) ||
+	    (of_machine_is_compatible("xlnx,versal") > 0))
 		return 0;
 
 	return clk_notifier_register((struct clk *)gpu_clk_handle, nb);
@@ -85,7 +84,8 @@ static void gpu_clk_notifier_unregister(struct kbase_device *kbdev, void *gpu_cl
 {
 	CSTD_UNUSED(kbdev);
 
-	if (of_machine_is_compatible("arm,juno"))
+	if ((of_machine_is_compatible("arm,juno") > 0) ||
+	    (of_machine_is_compatible("xlnx,versal") > 0))
 		return;
 
 	clk_notifier_unregister((struct clk *)gpu_clk_handle, nb);

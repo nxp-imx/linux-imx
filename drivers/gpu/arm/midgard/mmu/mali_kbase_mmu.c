@@ -38,6 +38,7 @@
 #include <mali_kbase_hw.h>
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <mali_kbase_mem.h>
+#include <mali_kbase_mem_migrate.h>
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <mmu/mali_kbase_mmu_internal.h>
@@ -659,6 +660,12 @@ static bool kbase_mmu_handle_isolated_pgd_page(struct kbase_device *kbdev,
 	}
 	spin_unlock(&page_md->migrate_lock);
 
+#if MALI_UNIT_TEST
+	if (page_is_isolated)
+		kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_PAGE_FREE_IN_PROGRESS,
+					       p);
+#endif
+
 	if (unlikely(page_is_isolated)) {
 		/* Do the CPU cache flush and accounting here for the isolated
 		 * PGD page, which is done inside kbase_mmu_free_pgd() for the
@@ -1115,7 +1122,7 @@ page_fault_retry:
 		goto fault_done;
 	}
 
-	if ((region->flags & BASEP_MEM_DONT_NEED)) {
+	if ((region->flags & KBASE_REG_DONT_NEED)) {
 		kbase_gpu_vm_unlock(kctx);
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as,
 						"Don't need memory can't be grown", fault);
@@ -1221,7 +1228,7 @@ page_fault_retry:
 	pages_to_grow = 0;
 
 #if MALI_JIT_PRESSURE_LIMIT_BASE
-	if ((region->flags & BASEP_MEM_ACTIVE_JIT_ALLOC) && !pages_trimmed) {
+	if ((region->flags & KBASE_REG_ACTIVE_JIT_ALLOC) && !pages_trimmed) {
 		kbase_jit_request_phys_increase(kctx, new_pages);
 		pages_trimmed = new_pages;
 	}
@@ -1899,6 +1906,7 @@ static int update_parent_pgds(struct kbase_device *kbdev, struct kbase_mmu_table
 						page_md->status =
 							PAGE_STATUS_SET(page_md->status, PT_MAPPED);
 						page_md->data.pt_mapped.mmut = mmut;
+						page_md->data.pt_mapped.kctx_id = mmut->kctx->id;
 					} else {
 						WARN_ON_ONCE(page_md->data.pt_mapped.mmut != mmut);
 					}
@@ -1925,6 +1933,7 @@ static int update_parent_pgds(struct kbase_device *kbdev, struct kbase_mmu_table
 			if (mmut->kctx) {
 				page_md->status = PAGE_STATUS_SET(page_md->status, PT_MAPPED);
 				page_md->data.pt_mapped.mmut = mmut;
+				page_md->data.pt_mapped.kctx_id = mmut->kctx->id;
 				page_md->data.pt_mapped.pgd_vpfn_level[0] =
 					PGD_VPFN_LEVEL_SET(insert_vpfn, parent_index);
 			} else {
@@ -2268,6 +2277,10 @@ static void kbase_mmu_progress_migration_on_insert(struct tagged_addr phys,
 		page_md->data.mapped.reg = reg;
 		page_md->data.mapped.mmut = mmut;
 		page_md->data.mapped.vpfn = vpfn;
+		if (mmut->kctx)
+			page_md->data.mapped.kctx_id = mmut->kctx->id;
+		else
+			page_md->data.mapped.kctx_id = RESERVED_CONTEXT_ID;
 	}
 
 	spin_unlock(&page_md->migrate_lock);
@@ -2292,6 +2305,10 @@ static void kbase_mmu_progress_migration_on_teardown(struct kbase_device *kbdev,
 			continue;
 
 		if (page_md) {
+#if MALI_UNIT_TEST
+			struct page *page = as_page(phys[i]);
+			bool page_is_isolated = false;
+#endif
 			u8 status;
 
 			spin_lock(&page_md->migrate_lock);
@@ -2307,6 +2324,9 @@ static void kbase_mmu_progress_migration_on_teardown(struct kbase_device *kbdev,
 					 * status will subsequently be freed in either
 					 * kbase_page_migrate() or kbase_page_putback()
 					 */
+#if MALI_UNIT_TEST
+					page_is_isolated = true;
+#endif
 					phys[i] = as_tagged(KBASE_INVALID_PHYSICAL_ADDRESS);
 				} else
 					page_md->status = PAGE_STATUS_SET(page_md->status,
@@ -2314,6 +2334,15 @@ static void kbase_mmu_progress_migration_on_teardown(struct kbase_device *kbdev,
 			}
 
 			spin_unlock(&page_md->migrate_lock);
+
+#if MALI_UNIT_TEST
+			if (page_is_isolated) {
+				const enum kbase_page_migration_test_hook_point hook_point =
+					KBASE_PM_TEST_HOOK_PAGE_FREE_IN_PROGRESS;
+
+				kbase_page_migration_test_hook(hook_point, page);
+			}
+#endif
 		}
 	}
 }
@@ -3677,6 +3706,8 @@ int kbase_mmu_migrate_pgd_page(struct tagged_addr old_pgd_phys, struct tagged_ad
 	mmut = page_md->data.pt_mapped.mmut;
 
 	spin_unlock(&page_md->migrate_lock);
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_PGD_MMU_AFTER_MD,
+				       as_page(old_pgd_phys));
 
 	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
 	 * here we skip the no kctx case, which is only used with MCU's mmut.
@@ -3685,6 +3716,8 @@ int kbase_mmu_migrate_pgd_page(struct tagged_addr old_pgd_phys, struct tagged_ad
 		return -EINVAL;
 
 	kbdev = mmut->kctx->kbdev;
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_PGD_MMU_AFTER_KCTX_DEREF,
+				       as_page(old_pgd_phys));
 
 	if (WARN_ON_ONCE(old_pgd_phys_addr & ~PAGE_MASK))
 		return -EINVAL;
@@ -3830,7 +3863,6 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	check_state = PAGE_STATUS_GET(page_md->status);
 
 	if (check_state == FREE_ISOLATED_IN_PROGRESS) {
-		/* tear down in progress, abort for progressing to release the page  */
 		ret = -EAGAIN;
 		goto early_exit;
 	}
@@ -3846,6 +3878,8 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	vpfn = page_md->data.mapped.vpfn;
 
 	spin_unlock(&page_md->migrate_lock);
+	kbase_page_migration_test_hook(KBASE_PM_TEST_HOOK_DATA_MMU_AFTER_MD,
+				       as_page(old_phys));
 
 	/* Due to the hard binding of mmu_command_instr with kctx_id via kbase_mmu_hw_op_param,
 	 * here we skip the no kctx case, which is only used with MCU's mmut.
@@ -3909,11 +3943,14 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	op_param.flush_skip_levels = pgd_level_to_skip_flush(1ULL << MIDGARD_MMU_BOTTOMLEVEL);
 
 	/* The state was evaluated before entering this function, but it could
-	 * have changed before the mmu_lock was taken. However, the state
-	 * transitions which are possible at this point are only two, and in both
-	 * cases it is a stable state progressing to a "free in progress" state.
+	 * have changed before the mmu_lock was taken. For alloc-backed data
+	 * pages, concurrent paths such as MEM_FLAGS_CHANGE(BASE_MEM_DONT_NEED)
+	 * or kbase_vmap() saturation may move the page to NOT_MOVABLE while
+	 * leaving the alloc-backed metadata intact.
 	 *
-	 * After taking the mmu_lock the state can no longer change.
+	 * The PTE update itself is serialized by mmu_lock. Migration
+	 * completion therefore tolerates a late transition to NOT_MOVABLE and
+	 * still updates the alloc-backed references to the new page.
 	 */
 	mutex_lock(&mmut->mmu_lock);
 	spin_lock(&page_md->migrate_lock);
@@ -4077,17 +4114,32 @@ int kbase_mmu_migrate_data_page(struct tagged_addr old_phys, struct tagged_addr 
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 	spin_lock(&page_md->migrate_lock);
 
-	/* Undertaking metadata transfer, while we are holding the mmu_lock */
+	/* Undertake metadata transfer while holding mmu_lock.
+	 *
+	 * Once the PTE has been updated to point to @new_phys, alloc-backed
+	 * references to the page must also be updated even if the page became
+	 * NOT_MOVABLE while migration was in flight. NOT_MOVABLE blocks future
+	 * migration attempts, but it does not invalidate the alloc-backed
+	 * metadata for the page.
+	 */
 	page_status = PAGE_STATUS_GET(page_md->status);
-	if (page_status == ALLOCATED_MAPPED) {
+	if (page_status == ALLOCATED_MAPPED || page_status == NOT_MOVABLE) {
 		/* Replace page in array of pages of the physical allocation. */
 		size_t page_array_index = (page_md->data.mapped.vpfn / GPU_PAGES_PER_CPU_PAGE) -
 					  page_md->data.mapped.reg->start_pfn;
+		struct tagged_addr *page_array = page_md->data.mapped.reg->gpu_alloc->pages;
 
-		page_md->data.mapped.reg->gpu_alloc->pages[page_array_index] = new_phys;
-	} else if (page_status == NOT_MOVABLE) {
-		dev_dbg(kbdev->dev, "%s: migration completed and page has become NOT_MOVABLE.",
-			__func__);
+		if (WARN_ON_ONCE(as_phys_addr_t(page_array[page_array_index]) !=
+				 as_phys_addr_t(old_phys)))
+			dev_warn(kbdev->dev,
+				 "%s: page array entry changed during migration completion (status %u)",
+				 __func__, page_status);
+
+		page_array[page_array_index] = new_phys;
+
+		if (page_status == NOT_MOVABLE)
+			dev_dbg(kbdev->dev, "%s: migration completed after page became NOT_MOVABLE.",
+				__func__);
 	} else {
 		dev_WARN(kbdev->dev, "%s: migration completed but page has moved to status %d.",
 			 __func__, page_status);
@@ -4178,10 +4230,11 @@ static void mmu_teardown_level(struct kbase_device *kbdev, struct kbase_mmu_tabl
 
 static void kbase_mmu_mark_non_movable(struct kbase_device *const kbdev, struct page *page)
 {
+	struct kbase_page_metadata *page_md;
+
 	if (!kbase_is_page_migration_enabled())
 		return;
 
-#if MALI_PAGE_MIGRATE
 	lock_page(page);
 
 	/* Composite large-page is excluded from migration, trigger a warn if a development
@@ -4190,8 +4243,6 @@ static void kbase_mmu_mark_non_movable(struct kbase_device *const kbdev, struct 
 	if (is_huge_head(as_tagged(page_to_phys(page))) ||
 	    is_partial(as_tagged(page_to_phys(page))))
 		dev_WARN(kbdev->dev, "%s: migration on large-page attempted.", __func__);
-
-	struct kbase_page_metadata *page_md;
 
 	page_md = kbase_page_private(page);
 
@@ -4204,7 +4255,6 @@ static void kbase_mmu_mark_non_movable(struct kbase_device *const kbdev, struct 
 	kbase_clear_page_movable(page);
 	spin_unlock(&page_md->migrate_lock);
 	unlock_page(page);
-#endif
 }
 
 int kbase_mmu_init(struct kbase_device *const kbdev, struct kbase_mmu_table *const mmut,

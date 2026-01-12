@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -951,10 +951,9 @@ static void kbase_kcpu_cqs_set_process(struct kbase_device *kbdev,
 			evt[BASEP_EVENT32_ERR_OFFSET / sizeof(u32)] = queue->has_error;
 			/* Set to signaled */
 			evt[BASEP_EVENT32_VAL_OFFSET / sizeof(u32)]++;
-			kbase_phy_alloc_mapping_put(queue->kctx, mapping);
-
 			KBASE_KTRACE_ADD_CSF_KCPU(kbdev, KCPU_CQS_SET, queue, cqs_set->objs[i].addr,
 						  evt[BASEP_EVENT32_ERR_OFFSET / sizeof(u32)]);
+			kbase_phy_alloc_mapping_put(queue->kctx, mapping);
 		}
 	}
 
@@ -1390,7 +1389,11 @@ static void kbase_csf_fence_wait_callback(struct dma_fence *fence, struct dma_fe
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 	/* Fence gets signaled. Deactivate the timer for fence-wait timeout */
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	timer_delete(&kcpu_queue->fence_timeout);
+#else
+	del_timer(&kcpu_queue->fence_timeout);
+#endif
 #endif
 
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_WAIT_END, kcpu_queue, fence->context,
@@ -1418,7 +1421,11 @@ static void kbasep_kcpu_fence_wait_cancel(struct kbase_kcpu_command_queue *kcpu_
 		 * the timer would already have been deactivated inside
 		 * kbase_csf_fence_wait_callback().
 		 */
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 		timer_delete_sync(&kcpu_queue->fence_timeout);
+#else
+		del_timer_sync(&kcpu_queue->fence_timeout);
+#endif
 #endif
 		if (removed)
 			KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_WAIT_END, kcpu_queue,
@@ -1580,14 +1587,14 @@ static int kbase_kcpu_fence_wait_prepare(struct kbase_kcpu_command_queue *kcpu_q
 					 struct kbase_kcpu_command *current_command)
 {
 	struct dma_fence *fence_in;
-	struct base_fence fence;
+	struct kbase_fence fence;
 
 	lockdep_assert_held(&kcpu_queue->lock);
 
 	if (copy_from_user(&fence, u64_to_user_ptr(fence_info->fence), sizeof(fence)))
 		return -ENOMEM;
 
-	fence_in = sync_file_get_fence(fence.basep.fd);
+	fence_in = sync_file_get_fence(fence.fd);
 
 	if (!fence_in)
 		return -ENOENT;
@@ -1714,11 +1721,19 @@ static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
 	 */
 	atomic_set(&kcpu_queue->fence_signal_pending_cnt, 0);
 #ifdef CONFIG_MALI_FENCE_DEBUG
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	del = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+#else
+	del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
 	dev_info(kctx->kbdev->dev, "kbase KCPU [%pK] delete fence signal timeout timer ret: %d",
 		 kcpu_queue, del);
 #else
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+#else
+	del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
 #endif
 }
 
@@ -1786,13 +1801,21 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 #endif
 	} else {
 #ifdef CONFIG_MALI_FENCE_DEBUG
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 		int del = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+#else
+		int del = del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
 
 		dev_dbg(kctx->kbdev->dev, "kbase KCPU delete fence signal timeout timer ret: %d",
 			del);
 		CSTD_UNUSED(del);
 #else
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 		timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+#else
+		del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
 #endif
 	}
 
@@ -1805,7 +1828,7 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 
 static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
 					 struct kbase_kcpu_command *current_command,
-					 struct base_fence *fence, struct sync_file **sync_file,
+					 struct kbase_fence *fence, struct sync_file **sync_file,
 					 int *fd)
 {
 	struct dma_fence *fence_out;
@@ -1851,7 +1874,7 @@ static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_q
 
 	__module_get(THIS_MODULE);
 	kcpu_fence->module = THIS_MODULE;
-	fence->basep.fd = *fd;
+	fence->fd = *fd;
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL;
 	current_command->info.fence.fence = fence_out;
@@ -1876,7 +1899,7 @@ static int kbase_kcpu_fence_signal_prepare(struct kbase_kcpu_command_queue *kcpu
 					   struct base_kcpu_command_fence_info *fence_info,
 					   struct kbase_kcpu_command *current_command)
 {
-	struct base_fence fence;
+	struct kbase_fence fence;
 	struct sync_file *sync_file = NULL;
 	int fd;
 	int ret = 0;
@@ -1908,6 +1931,7 @@ static int kbase_kcpu_fence_signal_prepare(struct kbase_kcpu_command_queue *kcpu
 
 fail:
 	fput(sync_file->file);
+	put_unused_fd(fd);
 	kbase_fence_put(current_command->info.fence.fence);
 	current_command->info.fence.fence = NULL;
 
@@ -1926,7 +1950,7 @@ KBASE_EXPORT_TEST_API(kbase_kcpu_fence_signal_process);
 
 int kbase_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
 				 struct kbase_kcpu_command *current_command,
-				 struct base_fence *fence, struct sync_file **sync_file, int *fd)
+				 struct kbase_fence *fence, struct sync_file **sync_file, int *fd)
 {
 	if (!kcpu_queue || !current_command || !fence || !sync_file || !fd)
 		return -EINVAL;
@@ -2555,7 +2579,9 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	struct kbase_kcpu_command_queue *queue = NULL;
 	void __user *user_cmds = u64_to_user_ptr(enq->addr);
 	int ret = 0;
-	u32 i;
+	struct kbase_kcpu_command *kcpu_cmd;
+	struct base_kcpu_command command;
+	unsigned int j;
 
 	/* The offset to the first command that is being processed or yet to
 	 * be processed is of u8 type, so the number of commands inside the
@@ -2565,15 +2591,8 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 	 */
 	BUILD_BUG_ON(KBASEP_KCPU_QUEUE_SIZE != 256);
 
-	/* Whilst the backend interface allows enqueueing multiple commands in
-	 * a single operation, the Base interface does not expose any mechanism
-	 * to do so. And also right now the handling is missing for the case
-	 * where multiple commands are submitted and the enqueue of one of the
-	 * command in the set fails after successfully enqueuing other commands
-	 * in the set.
-	 */
 	if (enq->nr_commands != 1) {
-		dev_dbg(kctx->kbdev->dev, "More than one commands enqueued");
+		dev_err(kctx->kbdev->dev, "More than one commands enqueued");
 		return -EINVAL;
 	}
 
@@ -2608,114 +2627,88 @@ int kbase_csf_kcpu_queue_enqueue(struct kbase_context *kctx,
 		goto out;
 	}
 
-	/* Copy all command's info to the command buffer.
-	 * Note: it would be more efficient to process all commands in-line
-	 * until we encounter an unresolved CQS_ / FENCE_WAIT, however, the
-	 * interface allows multiple commands to be enqueued so we must account
-	 * for the possibility to roll back.
-	 */
+	kcpu_cmd = &queue->commands[(u8)(queue->start_offset + queue->num_pending_cmds)];
 
-	for (i = 0; (i != enq->nr_commands) && !ret; ++i) {
-		struct kbase_kcpu_command *kcpu_cmd =
-			&queue->commands[(u8)(queue->start_offset + queue->num_pending_cmds + i)];
-		struct base_kcpu_command command;
-		unsigned int j;
+	if (copy_from_user(&command, user_cmds, sizeof(command))) {
+		ret = -EFAULT;
+		goto out;
+	}
 
-		if (copy_from_user(&command, user_cmds, sizeof(command))) {
-			ret = -EFAULT;
+	for (j = 0; j < sizeof(command.padding); j++) {
+		if (command.padding[j] != 0) {
+			dev_dbg(kctx->kbdev->dev, "base_kcpu_command padding not 0\n");
+			ret = -EINVAL;
 			goto out;
-		}
-
-		user_cmds =
-			(void __user *)((uintptr_t)user_cmds + sizeof(struct base_kcpu_command));
-
-		for (j = 0; j < sizeof(command.padding); j++) {
-			if (command.padding[j] != 0) {
-				dev_dbg(kctx->kbdev->dev, "base_kcpu_command padding not 0\n");
-				ret = -EINVAL;
-				goto out;
-			}
-		}
-
-		kcpu_cmd->enqueue_ts = (u64)atomic64_inc_return(&kctx->csf.kcpu_queues.cmd_seq_num);
-		switch (command.type) {
-		case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
-#if IS_ENABLED(CONFIG_SYNC_FILE)
-			ret = kbase_kcpu_fence_wait_prepare(queue, &command.info.fence, kcpu_cmd);
-#else
-			ret = -EINVAL;
-			dev_warn(kctx->kbdev->dev, "fence wait command unsupported\n");
-#endif
-			break;
-		case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
-#if IS_ENABLED(CONFIG_SYNC_FILE)
-			ret = kbase_kcpu_fence_signal_prepare(queue, &command.info.fence, kcpu_cmd);
-#else
-			ret = -EINVAL;
-			dev_warn(kctx->kbdev->dev, "fence signal command unsupported\n");
-#endif
-			break;
-		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
-			ret = kbase_kcpu_cqs_wait_prepare(queue, &command.info.cqs_wait, kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_CQS_SET:
-			ret = kbase_kcpu_cqs_set_prepare(queue, &command.info.cqs_set, kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
-			ret = kbase_kcpu_cqs_wait_operation_prepare(
-				queue, &command.info.cqs_wait_operation, kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_CQS_SET_OPERATION:
-			ret = kbase_kcpu_cqs_set_operation_prepare(
-				queue, &command.info.cqs_set_operation, kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER:
-			kcpu_cmd->type = BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER;
-			ret = 0;
-			break;
-		case BASE_KCPU_COMMAND_TYPE_MAP_IMPORT:
-			ret = kbase_kcpu_map_import_prepare(queue, &command.info.import, kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_UNMAP_IMPORT:
-			ret = kbase_kcpu_unmap_import_prepare(queue, &command.info.import,
-							      kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_UNMAP_IMPORT_FORCE:
-			ret = kbase_kcpu_unmap_import_force_prepare(queue, &command.info.import,
-								    kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_JIT_ALLOC:
-			ret = kbase_kcpu_jit_allocate_prepare(queue, &command.info.jit_alloc,
-							      kcpu_cmd);
-			break;
-		case BASE_KCPU_COMMAND_TYPE_JIT_FREE:
-			ret = kbase_kcpu_jit_free_prepare(queue, &command.info.jit_free, kcpu_cmd);
-			break;
-#if IS_ENABLED(CONFIG_MALI_VECTOR_DUMP) || MALI_UNIT_TEST
-		case BASE_KCPU_COMMAND_TYPE_GROUP_SUSPEND:
-			ret = kbase_csf_queue_group_suspend_prepare(
-				queue, &command.info.suspend_buf_copy, kcpu_cmd);
-			break;
-#endif
-		default:
-			dev_dbg(queue->kctx->kbdev->dev, "Unknown command type %u", command.type);
-			ret = -EINVAL;
-			break;
 		}
 	}
 
-	if (!ret) {
-		/* We only instrument the enqueues after all commands have been
-		 * successfully enqueued, as if we do them during the enqueue
-		 * and there is an error, we won't be able to roll them back
-		 * like is done for the command enqueues themselves.
-		 */
-		for (i = 0; i != enq->nr_commands; ++i) {
-			u8 cmd_idx = (u8)(queue->start_offset + queue->num_pending_cmds + i);
+	kcpu_cmd->enqueue_ts = (u64)atomic64_inc_return(&kctx->csf.kcpu_queues.cmd_seq_num);
+	switch (command.type) {
+	case BASE_KCPU_COMMAND_TYPE_FENCE_WAIT:
+#if IS_ENABLED(CONFIG_SYNC_FILE)
+		ret = kbase_kcpu_fence_wait_prepare(queue, &command.info.fence, kcpu_cmd);
+#else
+		ret = -EINVAL;
+		dev_warn(kctx->kbdev->dev, "fence wait command unsupported\n");
+#endif
+		break;
+	case BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL:
+#if IS_ENABLED(CONFIG_SYNC_FILE)
+		ret = kbase_kcpu_fence_signal_prepare(queue, &command.info.fence, kcpu_cmd);
+#else
+		ret = -EINVAL;
+		dev_warn(kctx->kbdev->dev, "fence signal command unsupported\n");
+#endif
+		break;
+	case BASE_KCPU_COMMAND_TYPE_CQS_WAIT:
+		ret = kbase_kcpu_cqs_wait_prepare(queue, &command.info.cqs_wait, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_CQS_SET:
+		ret = kbase_kcpu_cqs_set_prepare(queue, &command.info.cqs_set, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION:
+		ret = kbase_kcpu_cqs_wait_operation_prepare(queue, &command.info.cqs_wait_operation,
+							    kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_CQS_SET_OPERATION:
+		ret = kbase_kcpu_cqs_set_operation_prepare(queue, &command.info.cqs_set_operation,
+							   kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER:
+		kcpu_cmd->type = BASE_KCPU_COMMAND_TYPE_ERROR_BARRIER;
+		ret = 0;
+		break;
+	case BASE_KCPU_COMMAND_TYPE_MAP_IMPORT:
+		ret = kbase_kcpu_map_import_prepare(queue, &command.info.import, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_UNMAP_IMPORT:
+		ret = kbase_kcpu_unmap_import_prepare(queue, &command.info.import, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_UNMAP_IMPORT_FORCE:
+		ret = kbase_kcpu_unmap_import_force_prepare(queue, &command.info.import, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_JIT_ALLOC:
+		ret = kbase_kcpu_jit_allocate_prepare(queue, &command.info.jit_alloc, kcpu_cmd);
+		break;
+	case BASE_KCPU_COMMAND_TYPE_JIT_FREE:
+		ret = kbase_kcpu_jit_free_prepare(queue, &command.info.jit_free, kcpu_cmd);
+		break;
+#if IS_ENABLED(CONFIG_MALI_VECTOR_DUMP) || MALI_UNIT_TEST
+	case BASE_KCPU_COMMAND_TYPE_GROUP_SUSPEND:
+		ret = kbase_csf_queue_group_suspend_prepare(queue, &command.info.suspend_buf_copy,
+							    kcpu_cmd);
+		break;
+#endif
+	default:
+		dev_dbg(queue->kctx->kbdev->dev, "Unknown command type %u", command.type);
+		ret = -EINVAL;
+		break;
+	}
 
-			KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_ENQUEUE_COMMAND(
-				queue, &queue->commands[cmd_idx]);
-		}
+	if (!ret) {
+		u8 cmd_idx = (u8)(queue->start_offset + queue->num_pending_cmds);
+
+		KBASE_TLSTREAM_TL_KBASE_KCPUQUEUE_ENQUEUE_COMMAND(queue, &queue->commands[cmd_idx]);
 
 		queue->num_pending_cmds += enq->nr_commands;
 		kbase_csf_kcpu_queue_process(queue, false);
@@ -2897,7 +2890,11 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 			mutex_lock(&kcpu_queue->lock);
 
 			if (atomic_read(&kcpu_queue->fence_signal_pending_cnt)) {
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 				int ret = timer_delete_sync(&kcpu_queue->fence_signal_timeout);
+#else
+				int ret = del_timer_sync(&kcpu_queue->fence_signal_timeout);
+#endif
 
 				dev_dbg(kbdev->dev,
 					"Fence signal timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",
@@ -2907,7 +2904,11 @@ int kbase_csf_kcpu_queue_halt_timers(struct kbase_device *kbdev)
 
 #ifdef CONFIG_MALI_FENCE_DEBUG
 			if (kcpu_queue->fence_wait_processed) {
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 				int ret = timer_delete_sync(&kcpu_queue->fence_timeout);
+#else
+				int ret = del_timer_sync(&kcpu_queue->fence_timeout);
+#endif
 
 				dev_dbg(kbdev->dev,
 					"Fence wait timeout on KCPU queue(%lu), kctx (%d_%d) was %s on suspend",

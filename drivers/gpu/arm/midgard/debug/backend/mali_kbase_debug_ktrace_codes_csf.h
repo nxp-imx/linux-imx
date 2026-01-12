@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -112,7 +112,6 @@ KBASE_KTRACE_CODE_MAKE_CODE(SCHEDULER_EVICT_CTX_SLOTS_START),
 	KBASE_KTRACE_CODE_MAKE_CODE(CSF_FIRMWARE_MCU_HALTED),
 	KBASE_KTRACE_CODE_MAKE_CODE(CSF_FIRMWARE_MCU_SLEEP),
 
-	KBASE_KTRACE_CODE_MAKE_CODE(KBASE_YIELD_NOW), KBASE_KTRACE_CODE_MAKE_CODE(KBASE_YIELD_IDLE),
 
 	/*
 	 * Group events

@@ -445,6 +445,7 @@ int kbase_mmu_hw_do_lock(struct kbase_device *kbdev, struct kbase_as *as,
 {
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
+
 	return mmu_hw_do_lock(kbdev, as, op_param);
 }
 
@@ -455,7 +456,6 @@ int kbase_mmu_hw_do_unlock_no_addr(struct kbase_device *kbdev, struct kbase_as *
 
 	if (WARN_ON(kbdev == NULL) || WARN_ON(as == NULL))
 		return -EINVAL;
-
 
 	ret = write_cmd(kbdev, as->number, AS_COMMAND_COMMAND_UNLOCK);
 
@@ -482,7 +482,6 @@ int kbase_mmu_hw_do_unlock(struct kbase_device *kbdev, struct kbase_as *as,
 
 	if (WARN_ON(kbdev == NULL) || WARN_ON(as == NULL))
 		return -EINVAL;
-
 
 	ret = mmu_hw_set_lock_addr(kbdev, as->number, &lock_addr, op_param);
 
@@ -577,8 +576,6 @@ int kbase_mmu_hw_do_flush_on_gpu_ctrl(struct kbase_device *kbdev, struct kbase_a
 
 	if (flush_op == KBASE_MMU_OP_FLUSH_PT)
 		gpu_cmd = GPU_COMMAND_CACHE_CLN_INV_L2;
-
-
 	/* 1. Issue MMU_AS_CONTROL.COMMAND.LOCK operation. */
 	ret = mmu_hw_do_lock(kbdev, as, op_param);
 	if (ret)

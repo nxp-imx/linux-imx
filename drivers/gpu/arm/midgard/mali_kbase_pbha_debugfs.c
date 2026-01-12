@@ -19,6 +19,7 @@
  *
  */
 
+#include <mali_kbase_am_reg.h>
 #include "mali_kbase_pbha_debugfs.h"
 #include "mali_kbase_pbha.h"
 #include <device/mali_kbase_device.h>
@@ -141,8 +142,14 @@ static int propagate_bits_show(struct seq_file *sfile, void *data)
 
 	kbase_csf_scheduler_pm_active(kbdev);
 	kbase_pm_wait_for_l2_powered(kbdev);
-	l2_config_val =
-		L2_CONFIG_PBHA_HWU_GET(kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_CONFIG)));
+
+	if (kbdev->am_standalone)
+		l2_config_val = L2_CONFIG_PBHA_HWU_GET(
+			kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS, AM_SYSTEM__L2_CONFIG));
+	else
+		l2_config_val = L2_CONFIG_PBHA_HWU_GET(
+			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_CONFIG)));
+
 	kbase_csf_scheduler_pm_idle(kbdev);
 
 	seq_printf(sfile, "PBHA Propagate Bits: 0x%x\n", l2_config_val);

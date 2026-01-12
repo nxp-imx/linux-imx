@@ -25,6 +25,10 @@
 #include <linux/types.h>
 #include "mali_kbase_mem_flags.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #define BASE_GPU_NUM_TEXTURE_FEATURES_REGISTERS 4
 
 /* Flags to pass to ::base_context_init.
@@ -78,5 +82,9 @@ typedef __u32 base_context_create_flags;
  * to account for the performance impact.
  */
 #define BASE_TLSTREAM_JOB_DUMPING_ENABLED (1U << 1)
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_BASE_COMMON_KERNEL_H_ */

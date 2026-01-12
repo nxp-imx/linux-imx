@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+#
+# (C) COPYRIGHT 2026 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the
+# GNU General Public License version 2 as published by the Free Software
+# Foundation, and any use by you of this program is subject to the terms
+# of such GNU license.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, you can access it online at
+# http://www.gnu.org/licenses/gpl-2.0.html.
+#
+#
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/arm,mali-operating-points.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ARM Mali Midgard / Bifrost Operating Performance Points (OPP)
+
+maintainers:
+  - Arm Ltd.
+
+description: |
+  This binding describes OPP tables for ARM Mali GPUs (Midgard/Bifrost).
+  It extends the standard operating-points-v2 binding with Mali-specific
+  properties such as shader core selection, multiple clocks/regulators,
+  errata handling, and hardware-version filtering. :contentReference[oaicite:0]{index=0}
+
+properties:
+  compatible:
+    description: |
+      Must include "operating-points-v2" and "operating-points-v2-mali".
+    items:
+      - const: operating-points-v2
+      - const: operating-points-v2-mali
+    minItems: 2
+    maxItems: 2
+
+patternProperties:
+  "^opp@[0-9a-f]+$":
+    type: object
+    description: |
+      An individual OPP describing a voltage/current/frequency configuration.
+      Node name is not significant; its phandle may be referenced. :contentReference[oaicite:1]{index=1}
+    properties:
+      opp-hz:
+        description: |
+          Nominal performance frequency in Hz, treated as a relative
+          performance metric and taking core configuration into account.
+        $ref: /schemas/types.yaml#/definitions/uint64
+
+      opp-hz-real:
+        description: |
+          One or two real clock frequencies in Hz, corresponding to the clocks
+          declared in the Mali GPU device node and following the same order.
+        $ref: /schemas/types.yaml#/definitions/uint64-array
+
+      opp-core-mask:
+        description: |
+          Shader core bitmask to be enabled for this OPP.
+          Ignored if opp-core-count is present.
+        $ref: /schemas/types.yaml#/definitions/uint64
+
+      opp-core-count:
+        description: |
+          Number of shader cores to enable for this OPP.
+          Must be non-zero. If present, opp-core-mask is ignored.
+        $ref: /schemas/types.yaml#/definitions/uint32
+        minimum: 1
+
+      opp-microvolt:
+        description: |
+          One or two regulator voltages in microvolts, corresponding to
+          "toplevel" and optionally "shadercores" regulators.
+          Each entry may be either:
+            - <target>
+            - <target min max>
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+
+      "^opp-microvolt-[a-zA-Z0-9_-]+$":
+        description: |
+          Named voltage set. Platform selects one name at runtime.
+          Falls back to opp-microvolt if no name is selected.
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+
+      opp-microamp:
+        description: |
+          Maximum current draw in microamperes for each regulator.
+          Must only be specified if opp-microvolt is present.
+          Entries follow the same order as regulators.
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+
+      "^opp-microamp-[a-zA-Z0-9_-]+$":
+        description: |
+          Named current limit set, matching named opp-microvolt entries.
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+
+      clock-latency-ns:
+        description: |
+          Maximum latency in nanoseconds to transition to this OPP.
+        $ref: /schemas/types.yaml#/definitions/uint32
+
+      turbo-mode:
+        description: |
+          Marks this OPP as turbo-only, usable for short-duration boost
+          operation subject to power and thermal limits.
+        type: boolean
+
+      opp-suspend:
+        description: |
+          Marks the OPP to be used during device suspend.
+          Only one OPP in the table should have this property.
+        type: boolean
+
+      opp-mali-errata-1485982:
+        description: |
+          Marks an OPP suitable for suspend clock selection when
+          MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE is enabled.
+        type: boolean
+
+      opp-supported-hw:
+        description: |
+          Hardware version mask enabling this OPP only on selected
+          hardware revisions. Each 32-bit value represents one level
+          of version hierarchy, with one bit per version.
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+
+      status:
+        description: Enables or disables this OPP.
+        enum: [okay, disabled]
+
+    required:
+      - opp-hz
+
+    additionalProperties: true
+
+required:
+  - compatible
+
+additionalProperties: false
+
+examples:
+  - |
+    gpu_opp_table: opp_table0 {
+      compatible = "operating-points-v2", "operating-points-v2-mali";
+
+      opp@112500000 {
+        opp-hz = /bits/ 64 <112500000>;
+        opp-hz-real = /bits/ 64 <450000000>;
+        opp-microvolt = <820000>;
+        opp-core-mask = /bits/ 64 <0x1>;
+        opp-suspend;
+        opp-mali-errata-1485982;
+      };
+
+      opp@225000000 {
+        opp-hz = /bits/ 64 <225000000>;
+        opp-hz-real = /bits/ 64 <450000000>;
+        opp-microvolt = <820000>;
+        opp-core-count = <2>;
+      };
+    };
+...

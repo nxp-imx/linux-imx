@@ -1,0 +1,237 @@
+# SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+#
+# (C) COPYRIGHT 2026 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the
+# GNU General Public License version 2 as published by the Free Software
+# Foundation, and any use by you of this program is subject to the terms
+# of such GNU license.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, you can access it online at
+# http://www.gnu.org/licenses/gpl-2.0.html.
+#
+#
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/gpu/arm,mali-midgard.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ARM Mali Midgard / Bifrost GPU
+
+maintainers:
+  - Arm Ltd.
+
+description: |
+  Device Tree binding for ARM Mali Midgard and Bifrost GPUs handled by
+  the KBase driver. The node describes the GPU register space, interrupts,
+  clocks, regulators, power models, coherency, arbitration, and various
+  hardware- and platform-specific tuning parameters. :contentReference[oaicite:0]{index=0}
+
+properties:
+  compatible:
+    description: |
+      GPU compatibility strings. The list must end with one of:
+      "arm,malit6xx", "arm,mali-midgard", or "arm,mali-bifrost".
+    minItems: 1
+    items:
+      oneOf:
+        - const: arm,malit6xx
+        - const: arm,mali-midgard
+        - const: arm,mali-bifrost
+
+  reg:
+    description: |
+      Physical base address and size of the GPU register region.
+      For Access-Manager GPUs this must cover the system sub-page
+      through the full Access Window 0.
+    maxItems: 1
+
+  interrupts:
+    description: |
+      Three interrupt lines used by the GPU.
+    minItems: 3
+    maxItems: 3
+
+  interrupt-names:
+    description: |
+      Names of the interrupt lines, in order.
+    items:
+      enum: [JOB, MMU, GPU]
+    minItems: 3
+    maxItems: 3
+
+  clocks:
+    description: |
+      One or more clock phandles. The first corresponds to "clk_mali".
+      Additional clocks may include "shadercores", "coregroup",
+      or "neuralaccelerators".
+    minItems: 1
+
+  clock-names:
+    description: |
+      Clock domain names. The first must be "clk_mali".
+    minItems: 1
+
+  mali-supply:
+    description: Regulator supplying the top-level Mali power domain.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  shadercores-supply:
+    description: Optional regulator for shader cores.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  coregroup-supply:
+    description: Optional regulator for core groups on newer GPUs.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  operating-points-v2:
+    description: Phandle to an OPP table for Mali GPUs.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  quirks-gpu:
+    description: |
+      Bitfield written to JM_CONFIG or CSF_CONFIG registers to override
+      default GPU behavior.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  quirks-sc:
+    description: Bitfield written to SHADER_CONFIG register.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  quirks-tiler:
+    description: Bitfield written to TILER_CONFIG register.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  quirks-mmu:
+    description: Bitfield written to L2_CONFIG register.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  power-policy:
+    description: Initial GPU power policy.
+    enum: [coarse_demand, always_on]
+
+  system-coherency:
+    description: |
+      Coherency protocol used by the GPU.
+        0  = ACE-Lite
+        1  = ACE
+        31 = No coherency
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+  ipa-model:
+    description: |
+      Name of the IPA power model to be used by the driver.
+    type: string
+
+  idvs-group-size:
+    description: |
+      Overrides the IDVS group size. Valid values are 0 to 0x3f.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    maximum: 63
+
+  l2-size:
+    description: |
+      Overrides L2 cache size (log2 of cache size in bytes).
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  l2-hash:
+    description: Overrides the L2 hash function.
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  l2-hash-values:
+    description: |
+      Explicit hash values for the L2 hash function.
+      Mutually exclusive with l2-hash.
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  arbiter-if:
+    description: |
+      Phandle to the Mali arbiter interface. Enables arbitration mode.
+      When present, DVFS, IPA, cooling cells, and full coherency are
+      not permitted.
+    $ref: /schemas/types.yaml#/definitions/phandle
+
+  int-id-override:
+    description: |
+      List of <ID, value> tuples for SYSC_ALLOC register programming.
+      The read/write settings are encoded as value = read | write << 4.
+      e.g. value 0x32 -> read 0x2 (NEVER_ALLOC), write 0x3 (ALWAYS_ALLOC)
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+
+  propagate-bits:
+    description: |
+      Bitmask configuring L2_CONFIG.PBHA_HWU propagation.
+    $ref: /schemas/types.yaml#/definitions/uint8
+
+  mma-wa-id:
+    description: |
+      PBHA value used to mark GPU MMU PTEs as non-cacheable.
+      Valid range: 1–15.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minimum: 1
+    maximum: 15
+
+  nx-pwr-allow-mask:
+    description: |
+      Shader-core bitmask controlling Neural Accelerator power allowance.
+    $ref: /schemas/types.yaml#/definitions/uint64
+
+  ee-pwr-allow-mask:
+    description: |
+      Shader-core bitmask controlling Execution Engine power allowance.
+    $ref: /schemas/types.yaml#/definitions/uint64
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - interrupt-names
+
+allOf:
+  - if:
+      required: [nx-pwr-allow-mask]
+    then:
+      required: [ee-pwr-allow-mask]
+  - if:
+      required: [ee-pwr-allow-mask]
+    then:
+      required: [nx-pwr-allow-mask]
+
+unevaluatedProperties: true
+
+examples:
+  - |
+    gpu@fc010000 {
+      compatible = "arm,malit602", "arm,malit60x", "arm,malit6xx", "arm,mali-midgard";
+      reg = <0xfc010000 0x4000>;
+      interrupts = <0 36 4>, <0 37 4>, <0 38 4>;
+      interrupt-names = "JOB", "MMU", "GPU";
+
+      clocks = <&pclk_mali>;
+      clock-names = "clk_mali";
+      mali-supply = <&vdd_mali>;
+      operating-points-v2 = <&gpu_opp_table>;
+
+      idvs-group-size = <0x7>;
+      l2-size = /bits/ 8 <0x10>;
+      l2-hash = /bits/ 8 <0x04>;
+
+      pbha {
+        int-id-override =
+            <0x02 0x32>,   /* CSF:        read=NEVER_ALLOC,  write=ALWAYS_ALLOC */
+            <0x09 0x05>,   /* TILER_PTR:  read=L2_PTL_ALLOC, write=L2_ALLOC */
+            <0x0a 0x32>,   /* TILER_VERT: read=NEVER_ALLOC,  write=ALWAYS_ALLOC */
+            <0x19 0x53>,   /* NX_A:       read=ALWAYS_ALLOC, write=L2_PTL_ALLOC */
+            <0x1a 0x22>    /* NX_N:       read=NEVER_ALLOC,  write=NEVER_ALLOC */
+        ;
+        propagate-bits = /bits/ 8 <0x03>;
+        mma-wa-id = <2>;
+      };
+    };
+...

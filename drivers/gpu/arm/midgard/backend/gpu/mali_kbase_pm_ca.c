@@ -24,6 +24,7 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_am_reg.h>
 #include <mali_kbase_pm.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 #include <backend/gpu/mali_kbase_model_linux.h>
@@ -79,8 +80,13 @@ static void kbase_pm_ca_write_gov_core_mask(struct kbase_device *kbdev)
 	 * otherwise value will be applied on next reboot.
 	 */
 	if (kbase_io_is_gpu_powered(kbdev)) {
-		kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
-				  all_core_masks.pm_core_mask_desired);
+		if (kbdev->am_standalone)
+			kbase_am_reg_write64(kbdev, KBASE_REG_EXT_GOV,
+					     AM_GOVERNOR__AM_GOV_CORE_MASK,
+					     all_core_masks.pm_core_mask_desired);
+		else
+			kbase_reg_write64(kbdev, GPU_GOVERNOR_ENUM(GOV_CORE_MASK),
+					  all_core_masks.pm_core_mask_desired);
 		dev_dbg(kbdev->dev, "PM-CA: Gov-core-mask set to %llX\n",
 			all_core_masks.pm_core_mask_desired);
 	} else

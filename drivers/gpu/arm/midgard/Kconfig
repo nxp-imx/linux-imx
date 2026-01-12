@@ -20,7 +20,6 @@
 
 menuconfig MALI_MIDGARD
 	tristate "Mali Midgard series support"
-	select DMA_SHARED_BUFFER
 	select PM_DEVFREQ
 	select DEVFREQ_THERMAL
 	select FW_LOADER
@@ -75,13 +74,12 @@ config MALI_NO_MALI_DEFAULT_GPU
 
 menu "Platform specific options"
 source "$(MALI_KCONFIG_EXT_PREFIX)drivers/gpu/arm/midgard/platform/Kconfig"
-
 endmenu
 
 config MALI_CSF_SUPPORT
 	bool "Enable Mali CSF based GPU support"
 	depends on MALI_MIDGARD
-	default n
+	default y
 	help
 	  Enables support for CSF based GPUs.
 
@@ -187,6 +185,19 @@ config LARGE_PAGE_SUPPORT
 	 This depends on GPU support.
 
 	 If in doubt, say Y.
+
+config MALI_PAGE_MIGRATION
+	bool "Support for page migration"
+	depends on MALI_MIDGARD && MALI_EXPERT
+	default n
+	help
+	 Allows runtime page migration to be operational (non-Android platforms).
+
+	 Note that this option only enables page migration on an experimental basis
+	 for non-Android builds. Enabling it on Android platforms will trigger a
+	 compile-time error and fail the build.
+
+	 If in doubt, say N.
 
 config MALI_CORESTACK
 	bool "Enable support of GPU core stack power control"

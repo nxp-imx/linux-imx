@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -74,7 +74,7 @@ struct prfcnt_item_header {
  * @PRFCNT_BLOCK_TYPE_FW:          Firmware.
  * @PRFCNT_BLOCK_TYPE_CSG:         CSG.
  * @PRFCNT_BLOCK_TYPE_RESERVED:    Reserved.
- * @PRFCNT_BLOCK_TYPE_NE:          Neural Engine.
+ * @PRFCNT_BLOCK_TYPE_NX:          Neural Accelerator.
  */
 enum prfcnt_block_type {
 	PRFCNT_BLOCK_TYPE_FE,
@@ -83,7 +83,7 @@ enum prfcnt_block_type {
 	PRFCNT_BLOCK_TYPE_SHADER_CORE,
 	PRFCNT_BLOCK_TYPE_FW,
 	PRFCNT_BLOCK_TYPE_CSG,
-	PRFCNT_BLOCK_TYPE_NE,
+	PRFCNT_BLOCK_TYPE_NX,
 	PRFCNT_BLOCK_TYPE_RESERVED = 255,
 };
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -119,9 +119,11 @@ static void kbasep_ktrace_format_msg(struct kbase_ktrace_msg *trace_msg, char *b
 	 * Note that the last column is empty, it's simply to hold the ktrace
 	 * version in the header
 	 */
-	written += MAX(scnprintf(buffer + written, (size_t)MAX(sz - written, 0), ",0x%.16llx",
-				 (unsigned long long)trace_msg->info_val),
-		       0);
+	if (!(trace_msg->backend.mem.flags & KBASE_KTRACE_FLAG_MEM)) {
+		written += MAX(scnprintf(buffer + written, (size_t)MAX(sz - written, 0),
+					 ",0x%.16llx", (unsigned long long)trace_msg->info_val),
+			       0);
+	}
 	buffer[sz - 1] = 0;
 }
 
@@ -194,6 +196,42 @@ void kbasep_ktrace_add(struct kbase_device *kbdev, enum kbase_ktrace_code code,
 
 	/* Fill the common part of the message (including backend.gpu.flags) */
 	kbasep_ktrace_msg_init(&kbdev->ktrace, trace_msg, code, kctx, flags, info_val);
+
+	/* Done */
+	spin_unlock_irqrestore(&kbdev->ktrace.lock, irqflags);
+}
+
+void kbasep_ktrace_add_mem(struct kbase_device *kbdev, enum kbase_ktrace_code code,
+			   struct kbase_context *kctx, u64 pages, u64 va, u64 mem_flags, pid_t tgid,
+			   u32 ctx_id, u32 as_nr, kbase_ktrace_flag_t flags)
+{
+	unsigned long irqflags;
+	struct kbase_ktrace_msg *trace_msg;
+
+	if (unlikely(!kbasep_ktrace_initialized(&kbdev->ktrace)))
+		return;
+
+	spin_lock_irqsave(&kbdev->ktrace.lock, irqflags);
+	trace_msg = kbasep_ktrace_reserve(&kbdev->ktrace);
+
+	/* common header */
+	kbasep_ktrace_msg_init(&kbdev->ktrace, trace_msg, code, kctx, flags, pages);
+
+	/* Indicate to the common code that backend-specific parts will be
+	 * valid
+	 */
+	trace_msg->backend.mem.flags |= KBASE_KTRACE_FLAG_BACKEND;
+	trace_msg->backend.mem.flags |= KBASE_KTRACE_FLAG_MEM;
+
+	/* Fill Mem specific parts of the message */
+	trace_msg->backend.mem.pages = pages;
+	trace_msg->backend.mem.va = va;
+	trace_msg->backend.mem.mem_flags = mem_flags;
+	trace_msg->backend.mem.tgid = tgid;
+	trace_msg->backend.mem.ctx_id = ctx_id;
+	trace_msg->backend.mem.as_nr = as_nr;
+
+	WARN_ON((trace_msg->backend.mem.flags & ~KBASE_KTRACE_FLAG_ALL));
 
 	/* Done */
 	spin_unlock_irqrestore(&kbdev->ktrace.lock, irqflags);

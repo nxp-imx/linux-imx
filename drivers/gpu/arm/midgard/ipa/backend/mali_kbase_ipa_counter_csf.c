@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -29,16 +29,19 @@
 #define L2_RD_MSG_IN_EVICT (12)
 #define L2_RD_MSG_IN_CU (13)
 #define L2_RD_MSG_IN (16)
+#define L2_RD_MSG_IN_STALL (17)
 #define L2_WR_MSG_IN (18)
 #define L2_SNP_MSG_IN (20)
 #define L2_RD_MSG_OUT (22)
 #define L2_WR_MSG_OUT (24)
+#define L2_ANY_LOOKUP (25)
 #define L2_READ_LOOKUP (26)
+#define L2_WRITE_LOOKUP (27)
 #define L2_EXT_READ_NOSNP (30)
 #define L2_EXT_AR_CNT_Q3 (36)
-#define L2_EXT_WRITE_NOSNP_FULL (43)
-#define L2_RD_MSG_IN_STALL (17)
 #define L2_EXT_WRITE (42)
+#define L2_EXT_WRITE_NOSNP_FULL (43)
+#define L2_EXT_AW_CNT_Q2 (50)
 
 /* SC counter block offsets */
 #define FRAG_STARVING (8)
@@ -49,7 +52,9 @@
 #define EXEC_INSTR_CVT (28)
 #define EXEC_INSTR_SFU (29)
 #define EXEC_INSTR_MSG (30)
+#define EXEC_STARVE_ARITH (33)
 #define TEX_MSGI_NUM_FLITS (35)
+#define TEX_TFCH_CLK_STALLED (37)
 #define TEX_FILT_NUM_OPS (39)
 #define LS_MEM_READ_SHORT (45)
 #define LS_MEM_WRITE_SHORT (47)
@@ -57,18 +62,22 @@
 #define BEATS_RD_LSC_EXT (57)
 #define BEATS_RD_TEX (58)
 #define BEATS_RD_TEX_EXT (59)
-#define FRAG_QUADS_COARSE (68)
-#define EXEC_STARVE_ARITH (33)
-#define TEX_TFCH_CLK_STALLED (37)
 #define BEATS_WR_TIB (62)
+#define EXEC_CORE_OCCUPANCY_75 (66)
+#define FRAG_QUADS_COARSE (68)
+#define EXEC_ISSUE_SLOT_0 (72)
 #define RT_BOX_ISSUE_CYCLES (78)
 #define RT_RAYS_STARTED (84)
+#define TEX_CFCH_NUM_OUTPUT_OPERATIONS (87)
 #define TEX_CFCH_NUM_L1_CT_OPERATIONS (90)
+#define FRAG_QUADS_HSR_BUF_TEST (102)
+#define FRAG_MAIN_PASS_STALLED_BY_PRE_PASS (105)
 #define EXEC_INSTR_SLOT1 (118)
 #define EXEC_ISSUE_SLOT_ANY (119)
 #define RT_RAY_BOX_TLAS (124)
 
 /* Tiler counter block offsets */
+#define PRIM_FRUSTUM_CULLED (13)
 #define IDVS_POS_SHAD_STALL (23)
 #define PREFETCH_STALL (25)
 #define VFETCH_POS_READ_WAIT (29)
@@ -81,11 +90,17 @@
 
 /* Neural engine block offsets */
 #define TU_WORKLOAD (7)
+#define DMA_WORKLOAD (9)
+#define PROCESSING (20)
 #define CE_SB_SRC0_TRANS (32)
+#define CE_SB_SRC1_TRANS (33)
 #define CE_AB_WR_TRANS (35)
+#define IR_DST_TRANS (48)
 #define IR_WF_HL_BEAT (52)
 #define TU_SB_DST_TRANS (57)
+#define VE_SB_SRC1_TRANS (69)
 #define VE_OP_CE_POST_PROCESS (72)
+#define VE_OP_RESIZE (77)
 
 #define COUNTER_DEF(cnt_name, coeff, cnt_idx, block_type)                                        \
 	{                                                                                        \
@@ -180,6 +195,16 @@ static const struct kbase_ipa_counter ipa_top_level_cntrs_def_tdrx[] = {
 	MEMSYS_COUNTER_DEF("l2_ext_read_nosnp", 135103, L2_EXT_READ_NOSNP),
 };
 
+static const struct kbase_ipa_counter ipa_top_level_cntrs_def_tmax[] = {
+	TILER_COUNTER_DEF("prim_frustum_culled", 840, PRIM_FRUSTUM_CULLED),
+	TILER_COUNTER_DEF("idvs_pos_shad_stall", 37457, IDVS_POS_SHAD_STALL),
+	TILER_COUNTER_DEF("primassy_stall", 8278, PRIMASSY_STALL),
+
+	MEMSYS_COUNTER_DEF("l2_any_lookup", 173451, L2_ANY_LOOKUP),
+	MEMSYS_COUNTER_DEF("l2_write_lookup", 47018, L2_WRITE_LOOKUP),
+	MEMSYS_COUNTER_DEF("l2_ext_aw_cnt_q2", 8757, L2_EXT_AW_CNT_Q2),
+};
+
 /* These tables provide a description of each performance counter
  * used by the shader cores counter model for energy estimation.
  */
@@ -249,40 +274,60 @@ static const struct kbase_ipa_counter ipa_shader_core_cntrs_def_tdrx[] = {
 	SC_COUNTER_DEF("beats_wr_tib", -568127, BEATS_WR_TIB),
 };
 
+static const struct kbase_ipa_counter ipa_shader_core_cntrs_def_tmax[] = {
+	SC_COUNTER_DEF("ls_mem_write_short", 11224, LS_MEM_WRITE_SHORT),
+	SC_COUNTER_DEF("exec_core_occupancy_75", 122468, EXEC_CORE_OCCUPANCY_75),
+	SC_COUNTER_DEF("exec_issue_slot_0", 155403, EXEC_ISSUE_SLOT_0),
+	SC_COUNTER_DEF("rt_rays_started", 1263, RT_RAYS_STARTED),
+	SC_COUNTER_DEF("tex_cfch_num_output_operations", 48281, TEX_CFCH_NUM_OUTPUT_OPERATIONS),
+	SC_COUNTER_DEF("frag_quads_hsr_buf_test", -61180, FRAG_QUADS_HSR_BUF_TEST),
+	SC_COUNTER_DEF("frag_main_pass_stalled_by_pre_pass", 50494,
+		       FRAG_MAIN_PASS_STALLED_BY_PRE_PASS),
+};
+
 /* These tables provide a description of each performance counter
- * used by the neural engine counter model for energy estimation.
+ * used by the neural accelerator counter model for energy estimation.
  */
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_todx[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_todx[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tgrx[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_tgrx[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tvax[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_tvax[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_ttux[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_ttux[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_ttix[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_ttix[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tkrx[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_tkrx[] = {
 	/* Empty */
 };
 
-static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tdrx[] = {
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_tdrx[] = {
 	NEURAL_COUNTER_DEF("ve_op_ce_post_process", 297265, VE_OP_CE_POST_PROCESS),
 	NEURAL_COUNTER_DEF("ir_wf_hl_beat", -155534, IR_WF_HL_BEAT),
 	NEURAL_COUNTER_DEF("ce_ab_wr_trans", -409042, CE_AB_WR_TRANS),
 	NEURAL_COUNTER_DEF("tu_sb_dst_trans", -710594, TU_SB_DST_TRANS),
 	NEURAL_COUNTER_DEF("tu_workload", 634133, TU_WORKLOAD),
 	NEURAL_COUNTER_DEF("ce_sb_src0_trans", 374726, CE_SB_SRC0_TRANS),
+};
+
+static const struct kbase_ipa_counter ipa_neural_accelerator_cntrs_def_tmax[] = {
+	NEURAL_COUNTER_DEF("dma_workload", 88591, DMA_WORKLOAD),
+	NEURAL_COUNTER_DEF("processing", 31892, PROCESSING),
+	NEURAL_COUNTER_DEF("ce_sb_src1_trans", 5397, CE_SB_SRC1_TRANS),
+	NEURAL_COUNTER_DEF("ir_dst_trans", -324917, IR_DST_TRANS),
+	NEURAL_COUNTER_DEF("ve_sb_src1_trans", -33907, VE_SB_SRC1_TRANS),
+	NEURAL_COUNTER_DEF("ve_op_resize", 14315, VE_OP_RESIZE),
 };
 
 #define IPA_POWER_MODEL_OPS(gpu, init_token)                             \
@@ -300,29 +345,36 @@ static const struct kbase_ipa_counter ipa_neural_engine_cntrs_def_tdrx[] = {
 	{                                                                                    \
 		BUILD_BUG_ON((1 + ARRAY_SIZE(ipa_top_level_cntrs_def_##gpu) +                \
 			      ARRAY_SIZE(ipa_shader_core_cntrs_def_##gpu) +                  \
-			      ARRAY_SIZE(ipa_neural_engine_cntrs_def_##gpu)) >               \
+			      ARRAY_SIZE(ipa_neural_accelerator_cntrs_def_##gpu)) >          \
 			     KBASE_IPA_MAX_COUNTER_DEF_NUM);                                 \
 		return kbase_ipa_counter_common_model_init(                                  \
 			model, ipa_top_level_cntrs_def_##gpu,                                \
 			ARRAY_SIZE(ipa_top_level_cntrs_def_##gpu),                           \
 			ipa_shader_core_cntrs_def_##gpu,                                     \
 			ARRAY_SIZE(ipa_shader_core_cntrs_def_##gpu),                         \
-			ipa_neural_engine_cntrs_def_##gpu,                                   \
-			ARRAY_SIZE(ipa_neural_engine_cntrs_def_##gpu), (reference_voltage)); \
+			ipa_neural_accelerator_cntrs_def_##gpu,                              \
+			ARRAY_SIZE(ipa_neural_accelerator_cntrs_def_##gpu),                  \
+			(reference_voltage));                                                \
 	}                                                                                    \
 	IPA_POWER_MODEL_OPS(gpu, gpu)
 
 #define ALIAS_POWER_MODEL(gpu, as_gpu) IPA_POWER_MODEL_OPS(gpu, as_gpu)
 
-/* Reference voltage value is 750 mV. */
+/* Reference voltage value, expressed in mV.
+ *
+ * For each model, the reference voltage value is equal to the actual voltage
+ * used in practice to measure power consumption and generate the weights.
+ * There's no theoretical rule that associates voltage numbers with GPUs.
+ */
 STANDARD_POWER_MODEL(todx, 750);
 STANDARD_POWER_MODEL(tgrx, 750);
 STANDARD_POWER_MODEL(tvax, 750);
 STANDARD_POWER_MODEL(ttux, 750);
-/* Reference voltage value is 550 mV. */
 STANDARD_POWER_MODEL(ttix, 550);
 STANDARD_POWER_MODEL(tkrx, 550);
-STANDARD_POWER_MODEL(tdrx, 550);
+STANDARD_POWER_MODEL(tdrx, 650);
+STANDARD_POWER_MODEL(tmax, 750);
+
 /* Assuming LKRX is an alias of TKRX for IPA */
 ALIAS_POWER_MODEL(lkrx, tkrx);
 
@@ -339,7 +391,7 @@ static const struct kbase_ipa_model_ops *ipa_counter_model_ops[] = {
 	&kbase_todx_ipa_model_ops, &kbase_lodx_ipa_model_ops, &kbase_tgrx_ipa_model_ops,
 	&kbase_tvax_ipa_model_ops, &kbase_ttux_ipa_model_ops, &kbase_ltux_ipa_model_ops,
 	&kbase_ttix_ipa_model_ops, &kbase_ltix_ipa_model_ops, &kbase_tkrx_ipa_model_ops,
-	&kbase_lkrx_ipa_model_ops, &kbase_tdrx_ipa_model_ops,
+	&kbase_lkrx_ipa_model_ops, &kbase_tdrx_ipa_model_ops, &kbase_tmax_ipa_model_ops,
 };
 
 const struct kbase_ipa_model_ops *kbase_ipa_counter_model_ops_find(struct kbase_device *kbdev,
@@ -384,6 +436,8 @@ const char *kbase_ipa_counter_model_name_from_id(struct kbase_gpu_id_props *gpu_
 		return "mali-lkrx-power-model";
 	case GPU_ID_PRODUCT_TDRX:
 		return "mali-tdrx-power-model";
+	case GPU_ID_PRODUCT_TMAX:
+		return "mali-tmax-power-model";
 	default:
 		return NULL;
 	}

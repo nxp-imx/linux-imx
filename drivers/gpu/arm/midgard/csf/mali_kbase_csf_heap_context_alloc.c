@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,6 +19,7 @@
  *
  */
 
+#include <tl/mali_kbase_tracepoints.h>
 #include <mali_kbase.h>
 #include <mali_kbase_mem_flags.h>
 #include "mali_kbase_csf_heap_context_alloc.h"
@@ -184,7 +185,8 @@ u64 kbase_csf_heap_context_allocator_alloc(struct kbase_csf_heap_context_allocat
 	base_mem_alloc_flags flags = BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
 				     BASE_MEM_PROT_CPU_WR | BASEP_MEM_NO_USER_FREE |
 				     BASE_MEM_PROT_CPU_RD;
-	u64 nr_pages = PFN_UP(MAX_TILER_HEAPS * ctx_alloc->heap_context_size_aligned);
+	u64 size = MAX_TILER_HEAPS * ctx_alloc->heap_context_size_aligned;
+	u64 nr_pages = PFN_UP(size);
 	u64 heap_gpu_va = 0;
 
 	/* Calls to this function are inherently asynchronous, with respect to
@@ -208,6 +210,9 @@ u64 kbase_csf_heap_context_allocator_alloc(struct kbase_csf_heap_context_allocat
 	else
 		heap_gpu_va = sub_alloc(ctx_alloc);
 
+	if (IS_ENABLED(CONFIG_MALI_VECTOR_DUMP))
+		KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_ALLOC(kctx->kbdev, kctx->id, heap_gpu_va, size);
+
 	mutex_unlock(&ctx_alloc->lock);
 
 	return heap_gpu_va;
@@ -217,6 +222,10 @@ void kbase_csf_heap_context_allocator_free(struct kbase_csf_heap_context_allocat
 					   u64 const heap_gpu_va)
 {
 	mutex_lock(&ctx_alloc->lock);
+	if (IS_ENABLED(CONFIG_MALI_VECTOR_DUMP))
+		KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_FREE(ctx_alloc->kctx->kbdev, ctx_alloc->kctx->id,
+							heap_gpu_va);
+
 	sub_free(ctx_alloc, heap_gpu_va);
 	mutex_unlock(&ctx_alloc->lock);
 }

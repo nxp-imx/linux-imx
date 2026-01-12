@@ -132,6 +132,9 @@ static void wait_csg_slots_status_update_finish(struct kbase_device *kbdev,
 		} else if (!remaining) {
 			dev_warn(kbdev->dev, "STATUS_UPDATE request timed out for slots 0x%lx",
 				 slots_mask[0]);
+		} else if (remaining == -KBASE_CSF_FW_IO_WAIT_GPU_LOST) {
+			/* GPU_LOST can be treated as a success. */
+			return;
 		}
 	}
 }
@@ -282,34 +285,35 @@ static void kbasep_csf_csg_active_dump_cs_trace(struct kbase_context *kctx,
 }
 
 /**
- * kbasep_csf_read_cmdbuff_value() - Read a command from a queue offset.
+ * dump_cmd_ptr_instructions() - Dump commands in a region.
  *
- * @queue:          Address of a GPU command queue to examine.
- * @cmdbuff_offset: GPU address offset in queue's memory buffer.
- *
- * Return: Encoded CSF command (64-bit)
+ * @kbpr:    Pointer to printer instance.
+ * @queue:   Address of a GPU command queue to examine.
+ * @cmd_begin: Region begin address.
+ * @cmd_end: Region end address.
  */
-static u64 kbasep_csf_read_cmdbuff_value(struct kbase_queue *queue, u32 cmdbuff_offset)
+static void dump_cmd_ptr_instructions(struct kbasep_printer *kbpr, struct kbase_queue *queue,
+				      u64 cmd_begin, u64 cmd_end)
 {
-	u64 page_off = cmdbuff_offset >> PAGE_SHIFT;
-	u64 offset_within_page = cmdbuff_offset & ~PAGE_MASK;
-	struct page *page = as_page(queue->queue_reg->gpu_alloc->pages[page_off]);
-	u64 *cmdbuff = vmap(&page, 1, VM_MAP, pgprot_noncached(PAGE_KERNEL));
-	u64 value;
+	struct kbase_vmap_struct mapping;
+	u64 address;
+	u64 *ptr;
 
-	if (!cmdbuff) {
-		struct kbase_context *kctx = queue->kctx;
-
-		dev_info(kctx->kbdev->dev, "%s failed to map the buffer page for read a command!",
-			 __func__);
-		/* Return an alternative 0 for dumping operation*/
-		value = 0;
-	} else {
-		value = cmdbuff[offset_within_page / sizeof(u64)];
-		vunmap(cmdbuff);
+	ptr = kbase_vmap(queue->kctx, cmd_begin, cmd_end - cmd_begin, &mapping);
+	if (!ptr) {
+		dev_info(queue->kctx->kbdev->dev,
+			 "%s failed to map the buffer page for read a command!", __func__);
+		return;
 	}
 
-	return value;
+	for (address = cmd_begin; address < cmd_end; address += sizeof(u64), ptr++) {
+		if (*ptr != 0)
+			kbasep_print(kbpr, "queue:GPU-%u-%u-%u at:0x%.16llx cmd:0x%.16llx\n",
+				     queue->kctx->id, queue->group->handle, queue->csi_index,
+				     address, *ptr);
+	}
+
+	kbase_vunmap(queue->kctx, &mapping);
 }
 
 /**
@@ -322,41 +326,32 @@ static u64 kbasep_csf_read_cmdbuff_value(struct kbase_queue *queue, u32 cmdbuff_
 static void kbasep_csf_csg_active_dump_cs_status_cmd_ptr(struct kbasep_printer *kbpr,
 							 struct kbase_queue *queue, u64 cmd_ptr)
 {
-	u64 cmd_ptr_offset;
-	u64 cursor, end_cursor, instr;
 	u32 nr_nearby_instr_size;
-	struct kbase_va_region *reg;
+	u64 queue_begin, queue_end;
+	u64 cmd_begin, cmd_end;
 
-	kbase_gpu_vm_lock(queue->kctx);
-	reg = kbase_region_tracker_find_region_enclosing_address(queue->kctx, cmd_ptr);
-	if (reg && !(reg->flags & KBASE_REG_FREE) && (reg->flags & KBASE_REG_CPU_RD) &&
-	    (reg->gpu_alloc->type == KBASE_MEM_TYPE_NATIVE)) {
-		kbasep_print(kbpr, "CMD_PTR region nr_pages: %zu\n", reg->nr_pages);
-		nr_nearby_instr_size = MAX_NR_NEARBY_INSTR * sizeof(u64);
-		cmd_ptr_offset = cmd_ptr - queue->base_addr;
-		cursor = (cmd_ptr_offset > nr_nearby_instr_size) ?
-				       cmd_ptr_offset - nr_nearby_instr_size :
-				       0;
-		end_cursor = cmd_ptr_offset + nr_nearby_instr_size;
-		if (end_cursor > queue->size)
-			end_cursor = queue->size;
-		kbasep_print(kbpr,
-			     "queue:GPU-%u-%u-%u at:0x%.16llx cmd_ptr:0x%.16llx "
-			     "dump_begin:0x%.16llx dump_end:0x%.16llx\n",
-			     queue->kctx->id, queue->group->handle, queue->csi_index,
-			     (queue->base_addr + cursor), cmd_ptr, (queue->base_addr + cursor),
-			     (queue->base_addr + end_cursor));
-		while ((cursor < end_cursor)) {
-			instr = kbasep_csf_read_cmdbuff_value(queue, (u32)cursor);
-			if (instr != 0)
-				kbasep_print(kbpr,
-					     "queue:GPU-%u-%u-%u at:0x%.16llx cmd:0x%.16llx\n",
-					     queue->kctx->id, queue->group->handle,
-					     queue->csi_index, (queue->base_addr + cursor), instr);
-			cursor += sizeof(u64);
-		}
+	nr_nearby_instr_size = MAX_NR_NEARBY_INSTR * sizeof(u64);
+	queue_begin = queue->base_addr;
+	queue_end = queue->base_addr + queue->size;
+
+	/* Instructions to print:
+	 * - When CMD is in ring-buffers, print instructions nearby CMD_PTR.
+	 * - When CMD is in linear-buffers, print CMD_PTR only.
+	 */
+	if (cmd_ptr >= queue_begin && cmd_ptr < queue_end) {
+		cmd_begin = MAX(cmd_ptr - nr_nearby_instr_size, queue_begin);
+		cmd_end = MIN(cmd_ptr + nr_nearby_instr_size, queue_end);
+	} else {
+		cmd_begin = cmd_ptr;
+		cmd_end = cmd_begin + sizeof(u64);
 	}
-	kbase_gpu_vm_unlock(queue->kctx);
+
+	kbasep_print(
+		kbpr,
+		"queue:GPU-%u-%u-%u at:0x%.16llx cmd_ptr:0x%.16llx dump_begin:0x%.16llx dump_end:0x%.16llx\n",
+		queue->kctx->id, queue->group->handle, queue->csi_index, cmd_begin, cmd_ptr,
+		cmd_begin, cmd_end);
+	dump_cmd_ptr_instructions(kbpr, queue, cmd_begin, cmd_end);
 }
 
 /**
@@ -536,12 +531,14 @@ static void kbasep_csf_csg_active_dump_group(struct kbasep_printer *kbpr,
 			kbasep_print(kbpr, "*** The following group-record is likely stale\n");
 		}
 		if (kbdev->gpu_props.gpu_id.product_model >= GPU_ID_MODEL_MAKE(14, 0)) {
+			kbasep_print(kbpr, "GroupID, CSG NR, CSG Prio, Run State, Priority,"
+					   " C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req),"
+					   " N_EP(Alloc/Req), C_EP PRI Threshold, C_EP PRI Ratio,"
+					   " F_EP Task Limit, Exclusive, Idle\n");
 			kbasep_print(
 				kbpr,
-				"GroupID, CSG NR, CSG Prio, Run State, Priority, C_EP(Alloc/Req), F_EP(Alloc/Req), T_EP(Alloc/Req), N_EP(Alloc/Req), C_EP PRI Threshold, C_EP PRI Ratio, F_EP Task Limit, Exclusive, Idle\n");
-			kbasep_print(
-				kbpr,
-				"%7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %11d/%3d %18d, %14d, %15d, %9c, %4c\n",
+				"%7d, %6d, %8d, %9d, %8d, %11d/%3d, %11d/%3d, %11d/%3d, %11d/%3d,"
+				" %18d, %14d, %15d, %9c, %4c\n",
 				group->handle, group->csg_nr, slot_priority, group->run_state,
 				group->priority, CSG_STATUS_EP_CURRENT_COMPUTE_EP_GET(ep_c),
 				CSG_STATUS_EP_REQ_COMPUTE_EP_GET(ep_r),

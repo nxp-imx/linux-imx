@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -32,6 +32,7 @@
 #include "mali_base_mem_priv.h"
 #include "gpu/mali_kbase_gpu_id.h"
 #include "gpu/mali_kbase_gpu_coherency.h"
+#include "csf/mali_base_csf_kernel.h"
 
 #ifdef __KERNEL__
 #include <linux/mm.h>
@@ -49,6 +50,10 @@
 
 #define LOCAL_PAGE_LSB ((1ul << LOCAL_PAGE_SHIFT) - 1)
 
+#endif
+
+#if defined(__cplusplus)
+extern "C" {
 #endif
 
 /* Physical memory group ID for normal usage.
@@ -151,17 +156,15 @@ struct base_mem_import_user_buffer {
 #define KBASE_MEM_ALLOC_MAX_SIZE ((8ull << 30) >> PAGE_SHIFT) /* 8 GB */
 
 /*
- * struct base_fence - Cross-device synchronisation fence.
+ * struct kbase_fence - Cross-device synchronisation fence.
  *
  * A fence is used to signal when the GPU has finished accessing a resource that
  * may be shared with other devices, and also to delay work done asynchronously
  * by the GPU until other devices have finished accessing a shared resource.
  */
-struct base_fence {
-	struct {
-		int fd;
-		int stream_fd;
-	} basep;
+struct kbase_fence {
+	int fd;
+	int stream_fd;
 };
 
 /**
@@ -427,6 +430,14 @@ struct mali_base_gpu_tiler_props {
 struct mali_base_gpu_thread_props {
 	__u32 max_threads;
 	__u32 max_workgroup_size;
+	/**
+	 * @num_active_granularity: Granularity of number of active threads
+	 */
+	__u32 num_active_granularity;
+	/**
+	 * @unused: Extra space for address alignment.
+	 */
+	__u32 unused;
 	__u32 max_barrier_size;
 	__u32 max_registers;
 	__u8 max_task_queue;
@@ -488,8 +499,6 @@ struct mali_base_gpu_coherent_group_info {
 	struct mali_base_gpu_coherent_group group[BASE_MAX_COHERENT_GROUPS];
 };
 
-#include "csf/mali_base_csf_kernel.h"
-
 /**
  * struct gpu_raw_gpu_props - A complete description of the GPU's Hardware
  *                            Configuration Discovery registers.
@@ -515,7 +524,7 @@ struct mali_base_gpu_coherent_group_info {
  *                  available modes as exposed in the coherency_features register
  * @thread_tls_alloc: Number of threads per core that TLS must be allocated for
  * @gpu_features: GPU features
- * @neural_present: Neural engine present bitmap
+ * @neural_present: Neural accelerator present bitmap
  * @base_present: Shader core base present bitmap
  *
  * The information is presented inefficiently for access. For frequent access,
@@ -629,5 +638,9 @@ struct base_gpu_props {
  * layers, since each cube map in the array will have 6 faces.
  */
 #define BASE_MEM_ALIAS_MAX_ENTS ((size_t)24576)
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_BASE_KERNEL_H_ */

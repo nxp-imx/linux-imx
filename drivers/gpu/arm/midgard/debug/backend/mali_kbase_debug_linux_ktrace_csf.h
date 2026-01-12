@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -71,8 +71,6 @@ DEFINE_MALI_ADD_EVENT(SCHED_BUSY);
 DEFINE_MALI_ADD_EVENT(SCHED_INACTIVE);
 DEFINE_MALI_ADD_EVENT(SCHED_SUSPENDED);
 DEFINE_MALI_ADD_EVENT(SCHED_SLEEPING);
-DEFINE_MALI_ADD_EVENT(KBASE_YIELD_NOW);
-DEFINE_MALI_ADD_EVENT(KBASE_YIELD_IDLE);
 
 #define KBASEP_MCU_STATE(n) DEFINE_MALI_ADD_EVENT(PM_MCU_##n);
 #include "backend/gpu/mali_kbase_pm_mcu_states.h"

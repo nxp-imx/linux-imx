@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -308,78 +308,17 @@ void __kbase_tlstream_jd_tiler_heap_chunk_alloc(
 	u64 chunk_va
 );
 
-void __kbase_tlstream_tl_js_sched_start(
+void __kbase_tlstream_jd_csf_heap_context_alloc(
 	struct kbase_tlstream *stream,
-	u32 dummy
+	u32 ctx_nr,
+	u64 context_va,
+	u64 context_size
 );
 
-void __kbase_tlstream_tl_js_sched_end(
+void __kbase_tlstream_jd_csf_heap_context_free(
 	struct kbase_tlstream *stream,
-	u32 dummy
-);
-
-void __kbase_tlstream_tl_jd_submit_atom_start(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_submit_atom_end(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_done_no_lock_start(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_done_no_lock_end(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_done_start(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_done_end(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_jd_atom_complete(
-	struct kbase_tlstream *stream,
-	const void *atom
-);
-
-void __kbase_tlstream_tl_run_atom_start(
-	struct kbase_tlstream *stream,
-	const void *atom,
-	u32 atom_nr
-);
-
-void __kbase_tlstream_tl_run_atom_end(
-	struct kbase_tlstream *stream,
-	const void *atom,
-	u32 atom_nr
-);
-
-void __kbase_tlstream_tl_attrib_atom_priority(
-	struct kbase_tlstream *stream,
-	const void *atom,
-	u32 prio
-);
-
-void __kbase_tlstream_tl_attrib_atom_state(
-	struct kbase_tlstream *stream,
-	const void *atom,
-	u32 state
-);
-
-void __kbase_tlstream_tl_attrib_atom_prioritized(
-	struct kbase_tlstream *stream,
-	const void *atom
+	u32 ctx_nr,
+	u64 context_va
 );
 
 void __kbase_tlstream_jd_as_info(
@@ -399,7 +338,7 @@ void __kbase_tlstream_tl_kbase_new_device(
 	u32 kbase_device_sb_entry_count,
 	u32 kbase_device_has_cross_stream_sync,
 	u32 kbase_device_supports_gpu_sleep,
-	u32 kbase_device_has_neural_engine
+	u32 kbase_device_has_neural_accelerator
 );
 
 void __kbase_tlstream_tl_kbase_gpucmdqueue_kick(
@@ -955,7 +894,8 @@ void __kbase_tlstream_aux_tiler_heap_stats(
 	u32 chunk_size,
 	u32 chunk_count,
 	u32 target_in_flight,
-	u32 nr_in_flight
+	u32 nr_in_flight,
+	u64 buf_desc_va
 );
 
 void __kbase_tlstream_aux_event_job_slot(
@@ -985,15 +925,6 @@ void __kbase_tlstream_aux_mmu_command(
 	u32 mmu_lock_page_num
 );
 
-void __kbase_tlstream_aux_protected_leave_start(
-	struct kbase_tlstream *stream,
-	const void *gpu
-);
-
-void __kbase_tlstream_aux_protected_leave_end(
-	struct kbase_tlstream *stream,
-	const void *gpu
-);
 
 struct kbase_tlstream;
 
@@ -1818,280 +1749,49 @@ struct kbase_tlstream;
 	} while (0)
 
 /**
- * KBASE_TLSTREAM_TL_JS_SCHED_START - Scheduling starts
+ * KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_ALLOC - CSF Heap Context Allocation
  *
  * @kbdev: Kbase device
- * @dummy: dummy argument
+ * @ctx_nr: Kernel context number
+ * @context_va: Virtual start address of the CSF heap context
+ * @context_size: The size of the CSF heap context in bytes
  */
-#define KBASE_TLSTREAM_TL_JS_SCHED_START(	\
+#define KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_ALLOC(	\
 	kbdev,	\
-	dummy	\
+	ctx_nr,	\
+	context_va,	\
+	context_size	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
 		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_js_sched_start(	\
+			__kbase_tlstream_jd_csf_heap_context_alloc(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				dummy	\
+				ctx_nr,	\
+				context_va,	\
+				context_size	\
 				);	\
 	} while (0)
 
 /**
- * KBASE_TLSTREAM_TL_JS_SCHED_END - Scheduling ends
+ * KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_FREE - CSF Heap Context Free
  *
  * @kbdev: Kbase device
- * @dummy: dummy argument
+ * @ctx_nr: Kernel context number
+ * @context_va: Virtual start address of the CSF heap context
  */
-#define KBASE_TLSTREAM_TL_JS_SCHED_END(	\
+#define KBASE_TLSTREAM_JD_CSF_HEAP_CONTEXT_FREE(	\
 	kbdev,	\
-	dummy	\
+	ctx_nr,	\
+	context_va	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
 		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_js_sched_end(	\
+			__kbase_tlstream_jd_csf_heap_context_free(	\
 				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				dummy	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_SUBMIT_ATOM_START - Submitting an atom starts
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_SUBMIT_ATOM_START(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_submit_atom_start(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_SUBMIT_ATOM_END - Submitting an atom ends
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_SUBMIT_ATOM_END(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_submit_atom_end(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_DONE_NO_LOCK_START - Within function kbase_jd_done_nolock
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_DONE_NO_LOCK_START(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_done_no_lock_start(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_DONE_NO_LOCK_END - Within function kbase_jd_done_nolock - end
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_DONE_NO_LOCK_END(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_done_no_lock_end(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_DONE_START - Start of kbase_jd_done
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_DONE_START(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_done_start(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_DONE_END - End of kbase_jd_done
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_DONE_END(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_done_end(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_JD_ATOM_COMPLETE - Atom marked complete
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_JD_ATOM_COMPLETE(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_jd_atom_complete(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_RUN_ATOM_START - Running of atom starts
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- * @atom_nr: Sequential number of an atom
- */
-#define KBASE_TLSTREAM_TL_RUN_ATOM_START(	\
-	kbdev,	\
-	atom,	\
-	atom_nr	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_run_atom_start(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom,	\
-				atom_nr	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_RUN_ATOM_END - Running of atom ends
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- * @atom_nr: Sequential number of an atom
- */
-#define KBASE_TLSTREAM_TL_RUN_ATOM_END(	\
-	kbdev,	\
-	atom,	\
-	atom_nr	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & TLSTREAM_ENABLED)	\
-			__kbase_tlstream_tl_run_atom_end(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom,	\
-				atom_nr	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_ATTRIB_ATOM_PRIORITY - atom priority
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- * @prio: Atom priority
- */
-#define KBASE_TLSTREAM_TL_ATTRIB_ATOM_PRIORITY(	\
-	kbdev,	\
-	atom,	\
-	prio	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_LATENCY_TRACEPOINTS)	\
-			__kbase_tlstream_tl_attrib_atom_priority(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom,	\
-				prio	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_ATTRIB_ATOM_STATE - atom state
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- * @state: Atom state
- */
-#define KBASE_TLSTREAM_TL_ATTRIB_ATOM_STATE(	\
-	kbdev,	\
-	atom,	\
-	state	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_LATENCY_TRACEPOINTS)	\
-			__kbase_tlstream_tl_attrib_atom_state(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom,	\
-				state	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_TL_ATTRIB_ATOM_PRIORITIZED - atom caused priority change
- *
- * @kbdev: Kbase device
- * @atom: Atom identifier
- */
-#define KBASE_TLSTREAM_TL_ATTRIB_ATOM_PRIORITIZED(	\
-	kbdev,	\
-	atom	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_LATENCY_TRACEPOINTS)	\
-			__kbase_tlstream_tl_attrib_atom_prioritized(	\
-				__TL_DISPATCH_STREAM(kbdev, obj),	\
-				atom	\
+				ctx_nr,	\
+				context_va	\
 				);	\
 	} while (0)
 
@@ -2134,7 +1834,7 @@ struct kbase_tlstream;
  * @kbase_device_sb_entry_count: The number of entries each scoreboard set in the physical hardware has available
  * @kbase_device_has_cross_stream_sync: Whether cross-stream synchronization is supported
  * @kbase_device_supports_gpu_sleep: Whether GPU sleep is supported
- * @kbase_device_has_neural_engine: Whether neural engine is supported
+ * @kbase_device_has_neural_accelerator: Whether neural accelerator is supported
  */
 #define KBASE_TLSTREAM_TL_KBASE_NEW_DEVICE(	\
 	kbdev,	\
@@ -2145,7 +1845,7 @@ struct kbase_tlstream;
 	kbase_device_sb_entry_count,	\
 	kbase_device_has_cross_stream_sync,	\
 	kbase_device_supports_gpu_sleep,	\
-	kbase_device_has_neural_engine	\
+	kbase_device_has_neural_accelerator	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
@@ -2159,7 +1859,7 @@ struct kbase_tlstream;
 				kbase_device_sb_entry_count,	\
 				kbase_device_has_cross_stream_sync,	\
 				kbase_device_supports_gpu_sleep,	\
-				kbase_device_has_neural_engine	\
+				kbase_device_has_neural_accelerator	\
 				);	\
 	} while (0)
 
@@ -4141,6 +3841,7 @@ struct kbase_tlstream;
  * @chunk_count: The number of chunks currently allocated in the tiler heap
  * @target_in_flight: Number of render-passes that the driver should attempt to keep in flight for which allocation of new chunks is allowed
  * @nr_in_flight: Number of render-passes that are in flight
+ * @buf_desc_va: VA of the tiler heap buffer descriptor
  */
 #define KBASE_TLSTREAM_AUX_TILER_HEAP_STATS(	\
 	kbdev,	\
@@ -4152,7 +3853,8 @@ struct kbase_tlstream;
 	chunk_size,	\
 	chunk_count,	\
 	target_in_flight,	\
-	nr_in_flight	\
+	nr_in_flight,	\
+	buf_desc_va	\
 	)	\
 	do {	\
 		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
@@ -4167,7 +3869,8 @@ struct kbase_tlstream;
 				chunk_size,	\
 				chunk_count,	\
 				target_in_flight,	\
-				nr_in_flight	\
+				nr_in_flight,	\
+				buf_desc_va	\
 				);	\
 	} while (0)
 
@@ -4268,43 +3971,6 @@ struct kbase_tlstream;
 				);	\
 	} while (0)
 
-/**
- * KBASE_TLSTREAM_AUX_PROTECTED_LEAVE_START - leave protected mode start
- *
- * @kbdev: Kbase device
- * @gpu: Name of the GPU object
- */
-#define KBASE_TLSTREAM_AUX_PROTECTED_LEAVE_START(	\
-	kbdev,	\
-	gpu	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_LATENCY_TRACEPOINTS)	\
-			__kbase_tlstream_aux_protected_leave_start(	\
-				__TL_DISPATCH_STREAM(kbdev, aux),	\
-				gpu	\
-				);	\
-	} while (0)
-
-/**
- * KBASE_TLSTREAM_AUX_PROTECTED_LEAVE_END - leave protected mode end
- *
- * @kbdev: Kbase device
- * @gpu: Name of the GPU object
- */
-#define KBASE_TLSTREAM_AUX_PROTECTED_LEAVE_END(	\
-	kbdev,	\
-	gpu	\
-	)	\
-	do {	\
-		u32 enabled = (u32)atomic_read(&kbdev->timeline_flags);	\
-		if (enabled & BASE_TLSTREAM_ENABLE_LATENCY_TRACEPOINTS)	\
-			__kbase_tlstream_aux_protected_leave_end(	\
-				__TL_DISPATCH_STREAM(kbdev, aux),	\
-				gpu	\
-				);	\
-	} while (0)
 
 /* Gator tracepoints are hooked into TLSTREAM interface.
  * When the following tracepoints are called, corresponding

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,8 +21,26 @@
 
 #include <linux/atomic.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 #include <mali_kbase_fence.h>
 #include <mali_kbase.h>
+
+struct kbase_fence_meta_put_defer {
+	struct rcu_head rcu;
+	struct kbase_kcpu_dma_fence_meta *metadata;
+	struct module *module;
+};
+
+static void kbase_fence_meta_put_deferred(struct rcu_head *rcu)
+{
+	struct kbase_fence_meta_put_defer *meta_defer =
+		container_of(rcu, struct kbase_fence_meta_put_defer, rcu);
+
+	kbase_kcpu_dma_fence_meta_put(meta_defer->metadata);
+	if (likely(meta_defer->module))
+		module_put(meta_defer->module);
+	kfree(meta_defer);
+}
 
 static const char *kbase_fence_get_driver_name(struct dma_fence *fence)
 {
@@ -34,8 +52,13 @@ static const char *kbase_fence_get_driver_name(struct dma_fence *fence)
 static const char *kbase_fence_get_timeline_name(struct dma_fence *fence)
 {
 	struct kbase_kcpu_dma_fence *kcpu_fence = (struct kbase_kcpu_dma_fence *)fence;
+	struct kbase_kcpu_dma_fence_meta *metadata = READ_ONCE(kcpu_fence->metadata);
 
-	return kcpu_fence->metadata->timeline_name;
+	/* Readers may race with fence release while still protected by the
+	 * dma_fence RCU lifetime. Hence the following extends the requirement of
+	 * the metadata to be freeed via kfree_rcu().
+	 */
+	return metadata->timeline_name;
 }
 
 static bool kbase_fence_enable_signaling(struct dma_fence *fence)
@@ -45,7 +68,7 @@ static bool kbase_fence_enable_signaling(struct dma_fence *fence)
 	return true;
 }
 
-#if (KERNEL_VERSION(6, 15, 0) > LINUX_VERSION_CODE)
+#if KERNEL_VERSION(6, 16, 0) > LINUX_VERSION_CODE
 static void kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int size)
 {
 	char *format;
@@ -62,12 +85,35 @@ static void kbase_fence_fence_value_str(struct dma_fence *fence, char *str, int 
 
 static void kbase_fence_release(struct dma_fence *fence)
 {
-	struct kbase_kcpu_dma_fence *kcpu_fence = (struct kbase_kcpu_dma_fence *)fence;
+	struct kbase_kcpu_dma_fence *kcpu_fence =
+		container_of(fence, struct kbase_kcpu_dma_fence, base);
+	struct kbase_kcpu_dma_fence_meta *metadata = kcpu_fence->metadata;
+	struct kbase_fence_meta_put_defer *meta_defer;
 
-	kbase_kcpu_dma_fence_meta_put(kcpu_fence->metadata);
-	if (likely(kcpu_fence->module))
-		module_put(kcpu_fence->module);
-	kfree(kcpu_fence);
+	BUILD_BUG_ON(offsetof(struct kbase_kcpu_dma_fence, base) != 0);
+
+	meta_defer = kzalloc(sizeof(*meta_defer), GFP_ATOMIC);
+	if (meta_defer) {
+		meta_defer->metadata = metadata;
+		meta_defer->module = kcpu_fence->module;
+	}
+
+	/* Below is a MUST in freeing a kbase_kcpu_dma_fence, i.e. must use
+	 * upstream exported dma_fence_free() method. This ensures the alignment
+	 * of free-handling in kbase to the kernel upstream framework.
+	 */
+	dma_fence_free(fence);
+
+	if (meta_defer) {
+		/* Ensure the metadata only freed after the fence RCU readers have
+		 * gone through a rcu-grace window.
+		 */
+		call_rcu(&meta_defer->rcu, kbase_fence_meta_put_deferred);
+	} else {
+		kbase_kcpu_dma_fence_meta_put(metadata);
+		if (likely(kcpu_fence->module))
+			module_put(kcpu_fence->module);
+	}
 }
 
 extern const struct dma_fence_ops kbase_fence_ops; /* silence checker warning */
@@ -75,7 +121,7 @@ const struct dma_fence_ops kbase_fence_ops = { .wait = dma_fence_default_wait,
 					       .get_driver_name = kbase_fence_get_driver_name,
 					       .get_timeline_name = kbase_fence_get_timeline_name,
 					       .enable_signaling = kbase_fence_enable_signaling,
-#if (KERNEL_VERSION(6, 15, 0) > LINUX_VERSION_CODE)
+#if KERNEL_VERSION(6, 16, 0) > LINUX_VERSION_CODE
 					       .fence_value_str = kbase_fence_fence_value_str,
 #endif
 					       .release = kbase_fence_release };

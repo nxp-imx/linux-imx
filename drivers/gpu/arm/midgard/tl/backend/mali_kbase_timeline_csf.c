@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -54,7 +54,7 @@ void kbase_create_timeline_objects(struct kbase_device *kbdev)
 					     (u32)kbdev->nr_hw_address_spaces, num_sb_entries,
 					     kbdev->gpu_props.gpu_features.cross_stream_sync,
 					     supports_gpu_sleep,
-					     kbdev->gpu_props.gpu_features.neural_engine);
+					     kbdev->gpu_props.gpu_features.neural_accelerator);
 
 	/* Lock the context list, to ensure no changes to the list are made
 	 * while we're summarizing the contexts and their contents.

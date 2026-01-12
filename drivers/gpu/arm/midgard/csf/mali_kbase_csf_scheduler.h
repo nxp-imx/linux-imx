@@ -377,12 +377,9 @@ static inline bool kbase_csf_scheduler_protected_mode_in_use(struct kbase_device
 /**
  * kbase_csf_scheduler_pm_active - Perform scheduler power active operation
  *
- * Note: This function will increase the scheduler's internal pm_active_count
- * value, ensuring that both GPU and MCU are powered for access. The MCU may
- * not have actually become active when this function returns, so need to
- * call kbase_csf_scheduler_wait_mcu_active() for that.
- *
- * This function should not be called with global scheduler lock held.
+ * Note: This function requests the GPU device PM active_count be incremented to bring both the
+ * GPU and MCU into a stable, powered-on state for access. The caller is expected to have called
+ * kbase_csf_scheduler_wait_mcu_active() first, to ensure a state, runnable state is reached.
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  */
@@ -391,9 +388,11 @@ void kbase_csf_scheduler_pm_active(struct kbase_device *kbdev);
 /**
  * kbase_csf_scheduler_pm_idle - Perform the scheduler power idle operation
  *
- * Note: This function will decrease the scheduler's internal pm_active_count
- * value. On reaching 0, the MCU and GPU could be powered off. This function
- * should not be called with global scheduler lock held.
+ * Note: This function indicates the GPU device PM active_count should be decremented, possibly
+ * resulting in a lower-power operational mode (ie, sleep, suspend).
+ *
+ * The function acquires the scheduler lock, and thus it must not already be taken before calling
+ * it.
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  */
@@ -453,6 +452,7 @@ void kbase_csf_scheduler_pm_resume(struct kbase_device *kbdev);
  * kbase_csf_scheduler_pm_suspend_no_lock - Idle the scheduler on system suspend
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ * @use_gls: Whether to use global level suspend or not
  *
  * This function will make the scheduler suspend all the running queue groups
  * and drop its power managemenet reference.
@@ -460,7 +460,7 @@ void kbase_csf_scheduler_pm_resume(struct kbase_device *kbdev);
  *
  * Return: 0 on success.
  */
-int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev);
+int kbase_csf_scheduler_pm_suspend_no_lock(struct kbase_device *kbdev, bool use_gls);
 
 /**
  * kbase_csf_scheduler_pm_suspend - Idle the scheduler on system suspend
@@ -672,17 +672,19 @@ static inline bool is_csf_scheduler_protm_seq_completed(struct kbase_device *kbd
 	struct kbase_csf_protm_mem_pages_defer_ctrl *pages_defer_ctrl =
 		&kbdev->csf.scheduler.pages_defer_ctrl;
 	int cur_seq_nr;
+	int event_id;
 
 	/* By design, seq_nr >= 0, and is always <= MAX_PROTM_EVENT_SEQ_NR */
 	WARN_ONCE(seq_nr > MAX_PROTM_EVENT_SEQ_NR || seq_nr < 0,
 		  "Unexpected 'event_seq_number > MAX_PROTM_EVENT_SEQ_NR || event_seq_number < 0'");
 
-	cur_seq_nr = GET_PROTM_EVENT_ID_SEQ(atomic_read(&pages_defer_ctrl->protm_event_id));
+	event_id = atomic_read(&pages_defer_ctrl->protm_event_id);
+	cur_seq_nr = GET_PROTM_EVENT_ID_SEQ(event_id);
 	/* protm event sequence number is ever increasing, but could wrap back to 0 */
 	if (cur_seq_nr < seq_nr)
 		cur_seq_nr += MAX_PROTM_EVENT_SEQ_NR + 1;
 
-	return cur_seq_nr > seq_nr;
+	return ((cur_seq_nr > seq_nr) || !(event_id & CSF_SCHED_PROTM_EVENT_FLAGS_MASK));
 }
 
 /**
@@ -847,20 +849,6 @@ void kbase_csf_scheduler_force_wakeup(struct kbase_device *kbdev);
 void kbase_csf_scheduler_force_sleep(struct kbase_device *kbdev);
 
 /**
- * kbase_csf_scheduler_revert_all_csg_suspension_preparation() - Revert the maintenance steps
- *                                                               done before suspending all CSGs.
- *
- * @kbdev: Pointer to the device
- *
- * This function should be called if suspension of all CSGs must be aborted
- * after calling prepare_all_csg_suspension(). This requirement does not apply
- * in case of suspension failure, because the driver would trigger a GPU reset.
- *
- * Return: 0 on success, otherwise error.
- */
-int kbase_csf_scheduler_revert_all_csg_suspension_preparation(struct kbase_device *kbdev);
-
-/**
  * kbase_csf_scheduler_check_gls_success() - Save CSG slots state after suspend
  *
  * @kbdev: Pointer to the device
@@ -920,5 +908,16 @@ bool is_gpu_level_suspend_supported(struct kbase_device *const kbdev);
  */
 void kbase_csf_scheduler_wakeup(struct kbase_device *kbdev);
 
+
+/**
+ * kbase_csf_scheduler_mark_unsuspended_csgs() - Process not suspended CSGs
+ *                                               and report if there are any.
+ *
+ * @kbdev: Pointer to the device
+ *
+ * Return: true if there are any not suspended CSGs processed
+ *
+ */
+bool kbase_csf_scheduler_mark_unsuspended_csgs(struct kbase_device *kbdev);
 
 #endif /* _KBASE_CSF_SCHEDULER_H_ */

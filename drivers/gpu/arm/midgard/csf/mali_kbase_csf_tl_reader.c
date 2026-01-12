@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -348,7 +348,11 @@ void kbase_csf_tl_reader_init(struct kbase_csf_tl_reader *self, struct kbase_tls
 
 void kbase_csf_tl_reader_term(struct kbase_csf_tl_reader *self)
 {
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	timer_delete_sync(&self->read_timer);
+#else
+	del_timer_sync(&self->read_timer);
+#endif
 }
 
 int kbase_csf_tl_reader_start(struct kbase_csf_tl_reader *self, struct kbase_device *kbdev)
@@ -406,7 +410,11 @@ void kbase_csf_tl_reader_stop(struct kbase_csf_tl_reader *self)
 	/* Disable the tracebuffer on the CSFFW side. */
 	tl_reader_update_enable_bit(self, false);
 
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	timer_delete_sync(&self->read_timer);
+#else
+	del_timer_sync(&self->read_timer);
+#endif
 
 	spin_lock_irqsave(&self->read_lock, flags);
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -251,7 +251,18 @@
 #define GLB_PRFCNT_TILER_EN 0x0058 /* () Performance counter enable for tiler */
 #define GLB_PRFCNT_MMU_L2_EN 0x005C /* () Performance counter enable for MMU/L2 cache */
 
-#define GLB_PRFCNT_NEURAL_EN 0x0060 /* () Performance counter enable for neural engines */
+#define GLB_PRFCNT_NEURAL_EN 0x0060 /* () Performance counter enable for neural accelerators */
+
+#define GLB_NX_PWR_ALLOW_MASK_LO \
+	0x0100 /* () Mask of neural accelerators allowed for allocation in EE power mode, */
+	       /* low word */
+#define GLB_NX_PWR_ALLOW_MASK_HI \
+	0x0104 /* () Mask of neural accelerators allowed for allocation in EE power mode, */
+	       /* high word */
+#define GLB_EE_PWR_ALLOW_MASK_LO \
+	0x0108 /* () Mask of execution engines allowed for allocation in NX power mode, low word */
+#define GLB_EE_PWR_ALLOW_MASK_HI \
+	0x010C /* () Mask of execution engines allowed for allocation in NX power mode, high word */
 
 #define GLB_DEBUG_ARG_IN0 0x0FE0 /* Firmware Debug argument array element 0 */
 #define GLB_DEBUG_ARG_IN1 0x0FE4 /* Firmware Debug argument array element 1 */
@@ -801,11 +812,11 @@
 #define CS_FAULT_EXCEPTION_TYPE_INSTR_INVALID_ENC 0x51
 #define CS_FAULT_EXCEPTION_TYPE_INSTR_BARRIER_FAULT 0x55
 #define CS_FAULT_EXCEPTION_TYPE_RT_STACK_OVERFLOW 0x56
-#define CS_FAULT_EXCEPTION_TYPE_NE_DATA_INVALID_FAULT 0x61
-#define CS_FAULT_EXCEPTION_TYPE_NE_ADDR_RANGE_FAULT 0x62
-#define CS_FAULT_EXCEPTION_TYPE_NE_TSU_SPACE_FAULT 0x63
-#define CS_FAULT_EXCEPTION_TYPE_NE_TSU_INVALID_ENC 0x64
-#define CS_FAULT_EXCEPTION_TYPE_NE_WEIGHT_STREAM_ERROR 0x65
+#define CS_FAULT_EXCEPTION_TYPE_NX_DATA_INVALID_FAULT 0x61
+#define CS_FAULT_EXCEPTION_TYPE_NX_ADDR_RANGE_FAULT 0x62
+#define CS_FAULT_EXCEPTION_TYPE_NX_TSU_SPACE_FAULT 0x63
+#define CS_FAULT_EXCEPTION_TYPE_NX_TSU_INVALID_ENC 0x64
+#define CS_FAULT_EXCEPTION_TYPE_NX_WEIGHT_STREAM_ERROR 0x65
 #define CS_FAULT_EXCEPTION_TYPE_DATA_INVALID_FAULT 0x58
 #define CS_FAULT_EXCEPTION_TYPE_TILE_RANGE_FAULT 0x59
 #define CS_FAULT_EXCEPTION_TYPE_ADDR_RANGE_FAULT 0x5A
@@ -1563,6 +1574,13 @@
 #define GLB_REQ_CFG_EVICTION_TIMER_SET(reg_val, value)    \
 	(((reg_val) & ~GLB_REQ_CFG_EVICTION_TIMER_MASK) | \
 	 (((value) << GLB_REQ_CFG_EVICTION_TIMER_SHIFT) & GLB_REQ_CFG_EVICTION_TIMER_MASK))
+#define GLB_REQ_NX_PWR_MODE_ENABLE_SHIFT 17
+#define GLB_REQ_NX_PWR_MODE_ENABLE_MASK (0x1 << GLB_REQ_NX_PWR_MODE_ENABLE_SHIFT)
+#define GLB_REQ_NX_PWR_MODE_ENABLE_GET(reg_val) \
+	(((reg_val)&GLB_REQ_NX_PWR_MODE_ENABLE_MASK) >> GLB_REQ_NX_PWR_MODE_ENABLE_SHIFT)
+#define GLB_REQ_NX_PWR_MODE_ENABLE_SET(reg_val, value)    \
+	(((reg_val) & ~GLB_REQ_NX_PWR_MODE_ENABLE_MASK) | \
+	 (((value) << GLB_REQ_NX_PWR_MODE_ENABLE_SHIFT) & GLB_REQ_NX_PWR_MODE_ENABLE_MASK))
 #define GLB_REQ_PROTM_EXIT_SHIFT 23
 #define GLB_REQ_PROTM_EXIT_MASK (0x1 << GLB_REQ_PROTM_EXIT_SHIFT)
 #define GLB_REQ_PROTM_EXIT_GET(reg_val) \
@@ -2061,6 +2079,8 @@ enum glb_fatal_status {
 	GLB_FATAL_STATUS_VALUE_UNEXPECTED_REQUEST,
 	GLB_FATAL_STATUS_VALUE_CORE_MASK,
 	GLB_FATAL_STATUS_VALUE_DMAC_FAILURE,
+	GLB_FATAL_STATUS_VALUE_BOUNDSAN_FAULT,
+	GLB_FATAL_STATUS_VALUE_STACK_PROTECTOR_FAULT,
 	GLB_FATAL_STATUS_VALUE_COUNT
 };
 

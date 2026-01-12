@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,10 +20,12 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_am.h>
 #include <device/mali_kbase_device.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
 #include <mali_kbase_io.h>
-
+#include <hw_access/mali_kbase_hw_access.h>
+#include <hw_access/mali_kbase_hw_access_regmap.h>
 
 #include <linux/interrupt.h>
 
@@ -134,6 +136,29 @@ static irqreturn_t kbase_pwr_irq_handler(int irq, void *data)
 	return irq_state;
 }
 
+static irqreturn_t kbase_window_irq_handler(int irq, void *data)
+{
+	unsigned long flags;
+	struct kbase_device *kbdev = kbase_untag(data);
+	u32 window_irq_status = 0;
+	irqreturn_t irq_state = IRQ_NONE;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	window_irq_status = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_STATUS));
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	if (window_irq_status) {
+		dev_dbg(kbdev->dev, "%s: window irq %d irqstatus 0x%x\n", __func__, irq,
+			window_irq_status);
+		if (kbdev->am_standalone)
+			kbase_am_irq_handler_aw(kbdev, window_irq_status);
+		irq_state = IRQ_HANDLED;
+	}
+
+	return irq_state;
+}
 
 static irqreturn_t kbase_gpuonly_irq_handler(int irq, void *data)
 {
@@ -198,6 +223,33 @@ static irqreturn_t kbase_gpu_irq_handler(int irq, void *data)
 static irqreturn_t kbase_combined_irq_handler(int irq, void *data)
 {
 	irqreturn_t irq_state = IRQ_NONE;
+	struct kbase_device *kbdev = kbase_untag(data);
+
+	u32 window_status;
+
+	if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
+		goto no_window_status;
+
+	window_status = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_STATUS));
+
+	if (window_status & WINDOW_STATUS_IRQ_WINDOW_CONTROL)
+		irq_state |= kbase_window_irq_handler(irq, data);
+
+	if (!(window_status & WINDOW_STATUS_WINDOW_OPEN))
+		return irq_state;
+
+	if (window_status & WINDOW_STATUS_IRQ_JOB_CONTROL)
+		irq_state |= kbase_job_irq_handler(irq, data);
+	if (window_status & WINDOW_STATUS_IRQ_MMU_CONTROL)
+		irq_state |= kbase_mmu_irq_handler(irq, data);
+	if (window_status & WINDOW_STATUS_IRQ_GPU_CONTROL)
+		irq_state |= kbase_gpuonly_irq_handler(irq, data);
+	if (window_status & WINDOW_STATUS_IRQ_GPU_POWER)
+		irq_state |= kbase_pwr_irq_handler(irq, data);
+
+	return irq_state;
+
+no_window_status:
 	irq_state |= kbase_job_irq_handler(irq, data);
 	irq_state |= kbase_mmu_irq_handler(irq, data);
 	irq_state |= kbase_gpu_irq_handler(irq, data);
@@ -209,6 +261,7 @@ static irq_handler_t kbase_handler_table[] = {
 	[JOB_IRQ_TAG] = kbase_job_irq_handler,
 	[MMU_IRQ_TAG] = kbase_mmu_irq_handler,
 	[GPU_IRQ_TAG] = kbase_gpu_irq_handler,
+	[WINDOW_IRQ_TAG] = kbase_window_irq_handler,
 };
 
 irq_handler_t kbase_get_interrupt_handler(struct kbase_device *kbdev, u32 irq_tag)
@@ -230,7 +283,7 @@ int kbase_set_custom_irq_handler(struct kbase_device *kbdev, irq_handler_t custo
 	irq_handler_t handler = custom_handler;
 	const int irq = (kbdev->nr_irqs == 1) ? 0 : irq_tag;
 
-	if (unlikely(!((irq_tag >= JOB_IRQ_TAG) && (irq_tag <= GPU_IRQ_TAG)))) {
+	if (unlikely(!((irq_tag >= JOB_IRQ_TAG) && (irq_tag <= WINDOW_IRQ_TAG)))) {
 		dev_err(kbdev->dev, "Invalid irq_tag (%d)\n", irq_tag);
 		return -EINVAL;
 	}
@@ -332,6 +385,37 @@ static irqreturn_t kbase_mmu_irq_test_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t kbase_window_irq_test_handler(int irq, void *data)
+{
+	unsigned long flags;
+	struct kbase_device *kbdev = kbase_untag(data);
+	u32 val;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	if (!kbase_io_is_gpu_powered(kbdev)) {
+		/* GPU is turned off - IRQ is not for us */
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+		return IRQ_NONE;
+	}
+
+	val = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_STATUS));
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	if (!val)
+		return IRQ_NONE;
+
+	dev_dbg(kbdev->dev, "%s: irq %d irqstatus 0x%x\n", __func__, irq, val);
+
+	kbasep_irq_test_data.triggered = 1;
+	wake_up(&kbasep_irq_test_data.wait);
+
+	kbase_reg_write32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_CLEAR), val);
+
+	return IRQ_HANDLED;
+}
+
 static enum hrtimer_restart kbasep_test_interrupt_timeout(struct hrtimer *timer)
 {
 	struct kbasep_irq_test *test_data = container_of(timer, struct kbasep_irq_test, timer);
@@ -347,6 +431,7 @@ struct interrupt_masks {
 	u32 mmu;
 	u32 gpu;
 	u32 pwr;
+	u32 window;
 };
 
 static void store_interrupt_masks(struct interrupt_masks *masks, struct kbase_device *const kbdev)
@@ -357,6 +442,8 @@ static void store_interrupt_masks(struct interrupt_masks *masks, struct kbase_de
 	masks->gpu = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		masks->pwr = kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK));
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		masks->window = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK));
 
 	/* Set all masks to 0 to disable all interrupt sources */
 	kbase_reg_write32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK), 0x0);
@@ -364,6 +451,8 @@ static void store_interrupt_masks(struct interrupt_masks *masks, struct kbase_de
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), 0x0);
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK), 0x0);
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		kbase_reg_write32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK), 0x0);
 }
 
 static void restore_interrupt_masks(struct interrupt_masks *masks, struct kbase_device *const kbdev)
@@ -374,6 +463,8 @@ static void restore_interrupt_masks(struct interrupt_masks *masks, struct kbase_
 	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), masks->gpu);
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK), masks->pwr);
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0))
+		kbase_reg_write32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK), masks->window);
 }
 
 /**
@@ -410,6 +501,11 @@ static int validate_interrupt(struct kbase_device *const kbdev, u32 tag)
 	case GPU_IRQ_TAG:
 		/* already tested by pm_driver - bail out */
 		return 0;
+	case WINDOW_IRQ_TAG:
+		handler = kbase_window_irq_test_handler;
+		rawstat_offset = WINDOW_CONTROL_ENUM(WINDOW_IRQ_RAWSTAT);
+		mask_offset = WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK);
+		break;
 	default:
 		dev_err(kbdev->dev, "Invalid tag (%d)\n", tag);
 		return -EINVAL;
@@ -424,8 +520,14 @@ static int validate_interrupt(struct kbase_device *const kbdev, u32 tag)
 			err = -EINVAL;
 		} else {
 			kbasep_irq_test_data.timeout = 0;
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 			hrtimer_setup(&kbasep_irq_test_data.timer, kbasep_test_interrupt_timeout,
 				      CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#else
+			hrtimer_init(&kbasep_irq_test_data.timer, CLOCK_MONOTONIC,
+				     HRTIMER_MODE_REL);
+			kbasep_irq_test_data.timer.function = kbasep_test_interrupt_timeout;
+#endif
 
 			/* trigger interrupt */
 			kbase_reg_write32(kbdev, mask_offset, 0x1);
@@ -495,6 +597,15 @@ int kbase_validate_interrupts(struct kbase_device *const kbdev)
 		goto out;
 	}
 
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+		err = validate_interrupt(kbdev, WINDOW_IRQ_TAG);
+		if (err) {
+			dev_err(kbdev->dev,
+				"Interrupt WINDOW_IRQ didn't reach CPU. Check interrupt assignments.\n");
+			goto out;
+		}
+	}
+
 	dev_dbg(kbdev->dev, "Interrupts are correctly assigned.\n");
 
 out:
@@ -505,10 +616,71 @@ out:
 #endif /* CONFIG_MALI_REAL_HW */
 #endif /* CONFIG_MALI_DEBUG */
 
+/**
+ * kbase_edge_irq_handler - Edge IRQ workaround handler
+ * @irq:  IRQ number
+ * @data: Data associated with this IRQ (i.e. kbdev)
+ *
+ * This handler is used to work around HW integration issues where an Edge
+ * based IRQ line is used to handle Level based GPU interrupts.
+ * It is used to toggle the IRQ masks causing an edge whenever the IRQ line
+ * remains high.
+ *
+ * Return: IRQ_NONE. This function will never actually handle the IRQ.
+ */
+static irqreturn_t kbase_edge_irq_handler(int irq, void *data)
+{
+	struct kbase_device *kbdev = kbase_untag(data);
+
+	u32 mask_val[5];
+	u32 window_status;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	/* Always toggle the WINDOW IRQ */
+	mask_val[0] = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK));
+	kbase_reg_write32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK), 0);
+
+	/*
+	 * Check if the AW is open and kbase thinks the GPU is powered before
+	 * accessing any of the other registers
+	 */
+	window_status = kbase_reg_read32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_STATUS));
+	if (!(window_status & WINDOW_STATUS_WINDOW_OPEN) || !kbase_io_is_gpu_powered(kbdev))
+		goto no_window;
+
+	/* Store mask values */
+	mask_val[1] = kbase_reg_read32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK));
+	mask_val[2] = kbase_reg_read32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK));
+	mask_val[3] = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK));
+	mask_val[4] = kbase_reg_read32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK));
+
+	/* Clear mask values to clear IRQ output */
+	kbase_reg_write32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK), 0);
+	kbase_reg_write32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK), 0);
+	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), 0);
+	kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK), 0);
+
+	/* Restore mask values */
+	kbase_reg_write32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_MASK), mask_val[1]);
+	kbase_reg_write32(kbdev, MMU_CONTROL_ENUM(IRQ_MASK), mask_val[2]);
+	kbase_reg_write32(kbdev, GPU_CONTROL_ENUM(GPU_IRQ_MASK), mask_val[3]);
+	kbase_reg_write32(kbdev, HOST_POWER_ENUM(PWR_IRQ_MASK), mask_val[4]);
+
+no_window:
+	kbase_reg_write32(kbdev, WINDOW_CONTROL_ENUM(WINDOW_IRQ_MASK), mask_val[0]);
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	/* Will never handle the IRQ */
+	return IRQ_NONE;
+}
 
 int kbase_install_interrupts(struct kbase_device *kbdev)
 {
 	u32 irq_index;
+	u32 edge_irq_index;
 
 	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 8, 0)) {
 		if (kbdev->nr_irqs != 1) {
@@ -534,9 +706,39 @@ int kbase_install_interrupts(struct kbase_device *kbdev)
 		}
 	}
 
+	/* Work around level to edge based IRQ connection */
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+		for (edge_irq_index = 0; edge_irq_index < kbdev->nr_irqs; edge_irq_index++) {
+			if ((kbdev->irqs[edge_irq_index].flags &
+			     (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)) != 0) {
+				const int result = request_irq(
+					kbdev->irqs[edge_irq_index].irq, kbase_edge_irq_handler,
+					kbdev->irqs[edge_irq_index].flags | IRQF_SHARED,
+					dev_name(kbdev->dev), kbase_tag(kbdev, EDGE_IRQ_TAG));
+				if (result) {
+					dev_err(kbdev->dev,
+						"Can't request edge interrupt %u (index %u)\n",
+						kbdev->irqs[edge_irq_index].irq, edge_irq_index);
+					goto edge_irq_release;
+				} else {
+					/* Force a toggle of the IRQ line in case it is high */
+					kbase_edge_irq_handler(0, kbase_tag(kbdev, EDGE_IRQ_TAG));
+				}
+			}
+		}
+	}
 
 	return 0;
 
+edge_irq_release:
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+		while (edge_irq_index-- > 0) {
+			if ((kbdev->irqs[edge_irq_index].flags &
+			     (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)) != 0)
+				free_irq(kbdev->irqs[edge_irq_index].irq,
+					 kbase_tag(kbdev, EDGE_IRQ_TAG));
+		}
+	}
 
 irq_release:
 	if (IS_ENABLED(CONFIG_SPARSE_IRQ))
@@ -555,6 +757,8 @@ void kbase_release_interrupts(struct kbase_device *kbdev)
 	for (i = 0; i < kbdev->nr_irqs; i++) {
 		if (kbdev->irqs[i].irq)
 			free_irq(kbdev->irqs[i].irq, kbase_tag(kbdev, i));
+		if ((kbdev->irqs[i].flags & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)) != 0)
+			free_irq(kbdev->irqs[i].irq, kbase_tag(kbdev, EDGE_IRQ_TAG));
 	}
 }
 

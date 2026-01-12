@@ -31,7 +31,6 @@
 #include <mali_kbase_pm.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
-#include <arbiter/mali_kbase_arbiter_pm.h>
 
 #include <backend/gpu/mali_kbase_clk_rate_trace_mgr.h>
 
@@ -45,7 +44,8 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 					       enum kbase_pm_suspend_handler suspend_handler,
 					       bool sched_lock_held)
 {
-	int c, r;
+	int c;
+
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	dev_dbg(kbdev->dev, "%s - reason = %d, pid = %d\n", __func__, suspend_handler,
@@ -58,46 +58,67 @@ kbasep_pm_context_active_handle_suspend_locked(struct kbase_device *kbdev,
 	else
 		kbase_lockdep_assert_not_held(&kbdev->csf.scheduler.lock);
 
-	/* If there is an Arbiter, wait for Arbiter to grant GPU back to KBase
-	 * so suspend request can be handled.
-	 */
-	r = kbase_arbiter_pm_ctx_active_handle_suspend(kbdev, suspend_handler, sched_lock_held);
 
 	if (kbase_pm_is_suspending(kbdev)) {
 		switch (suspend_handler) {
 		case KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE:
-			if (atomic_read(&kbdev->pm.active_count) != 0)
+			if (atomic_read(&kbdev->pm.active_count) != 0) {
+				/* We have the GPU, we have a non-zero active_count, and we're
+				 * currently suspending. Furthermore we're being told not to
+				 * reactivate.
+				 *
+				 * This means that if the active_count is already >0, we're allowed
+				 *  to increment it further, but not if it's currently zero - in
+				 * which case we'd end up calling kbase_hwaccess_pm_gpu_active(),
+				 * below (in addition to any other related operations, including
+				 * the sending of an arbiter KBASE_VM_REF_EVENT). But the original
+				 * intention of this logic was simply to avoid the
+				 * kbase_hwaccess_pm_gpu_active() call at this point.
+				 *
+				 * Reasons the caller might do this include needing to reset the
+				 * GPU, or the scheduler being told to wake up.  (See
+				 * scheduler_wakeup()).
+				 */
 				break;
+			}
 			fallthrough;
+			/* active_count is zero */
 		case KBASE_PM_SUSPEND_HANDLER_DONT_INCREASE:
+			/* We have the GPU, we're currently suspending, and either the active_count
+			 * is zero, or we've been told not to increase the active_count: bail out.
+			 *
+			 * Use-cases for this include context-termination.
+			 */
 			return 1;
 
 		case KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE:
+			/* We have the GPU, we're currently suspending, but we're being told
+			 * suspension isn't possible because there are reasons we want the GPU
+			 * to be active. This doesn't make sense.
+			 */
 			fallthrough;
 		case KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE:
 			break;
 		default:
+			/* Some other unrecognised suspend handler (while we have the GPU and we
+			 * are currently suspending)
+			 */
 			KBASE_DEBUG_ASSERT_MSG(false, "unreachable");
 			break;
 		}
 	}
+	/* Either we are not suspending, or we are, but we've decided we want to increment the
+	 * active_count anyway.
+	 */
 	c = atomic_inc_return(&kbdev->pm.active_count);
 	KBASE_KTRACE_ADD(kbdev, PM_CONTEXT_ACTIVE, NULL, (u64)c);
 
 	if (c == 1) {
-		if (r) {
-			/* SUSPEND_HANDLER_ALWAYS_INCREASE always succeeds even without a GPU
-			 * present, as it's used to restore the active_count counter value due to
-			 * a prior failure to power down.
-			 */
-			return (suspend_handler != KBASE_PM_SUSPEND_HANDLER_ALWAYS_INCREASE);
-		}
 
 		/* First context active: Power on the GPU and
 		 * any cores requested by the policy
 		 */
 		kbase_hwaccess_pm_gpu_active(kbdev);
-		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_REF_EVENT);
 		kbase_clk_rate_trace_manager_gpu_active(kbdev);
 	}
 
@@ -177,7 +198,7 @@ static void reenable_hwcnt_on_resume(struct kbase_device *kbdev)
 	}
 
 	/* Resume HW counters intermediaries. */
-	if (kbdev->csf.firmware_inited)
+	if (atomic_read(&kbdev->csf.hwcnt.hwcnt_inited))
 		kbase_kinstr_prfcnt_resume(kbdev->kinstr_prfcnt_ctx);
 }
 
@@ -194,7 +215,7 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	/* Suspend HW counter intermediaries. This blocks until workers and timers
 	 * are no longer running.
 	 */
-	if (kbdev->csf.firmware_inited)
+	if (atomic_read(&kbdev->csf.hwcnt.hwcnt_inited))
 		kbase_kinstr_prfcnt_suspend(kbdev->kinstr_prfcnt_ctx);
 
 	/* Disable GPU hardware counters.
@@ -212,13 +233,6 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	kbdev->pm.suspending = true;
 	mutex_unlock(&kbdev->pm.lock);
 
-	if (kbase_has_arbiter(kbdev)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		kbase_disjoint_state_up(kbdev);
-		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-	}
 
 	/* From now on, the active count will drop towards zero. Sometimes,
 	 * it'll go up briefly before going down again. However, once
@@ -255,17 +269,9 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev)
 	 */
 	if (kbase_hwaccess_pm_suspend(kbdev)) {
 		/* No early return yet */
-		if (kbase_has_arbiter(kbdev))
-			WARN_ON_ONCE(1);
-		else
-			goto exit;
+		goto exit;
 	}
 
-	if (kbase_has_arbiter(kbdev)) {
-		mutex_lock(&kbdev->pm.arb_vm_state->vm_state_lock);
-		kbase_arbiter_pm_vm_stopped(kbdev);
-		mutex_unlock(&kbdev->pm.arb_vm_state->vm_state_lock);
-	}
 
 	kbase_backend_invalidate_gpu_timestamp_offset(kbdev);
 
@@ -300,14 +306,7 @@ void kbase_pm_driver_resume(struct kbase_device *kbdev, bool arb_gpu_start)
 	/* MUST happen before any pm_context_active calls occur */
 	kbase_hwaccess_pm_resume(kbdev);
 
-	/* Initial active call, to power on the GPU/cores if needed */
-	if (kbase_has_arbiter(kbdev)) {
-		if (kbase_pm_context_active_handle_suspend(
-			    kbdev, (arb_gpu_start ? KBASE_PM_SUSPEND_HANDLER_VM_GPU_GRANTED :
-							  KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE)))
-			return;
-	} else
-		kbase_pm_context_active(kbdev);
+	kbase_pm_context_active(kbdev);
 
 	resume_job_scheduling(kbdev);
 
@@ -330,18 +329,12 @@ int kbase_pm_suspend(struct kbase_device *kbdev)
 {
 	int result = 0;
 
-	if (kbase_has_arbiter(kbdev))
-		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_OS_SUSPEND_EVENT);
-	else
-		result = kbase_pm_driver_suspend(kbdev);
+	result = kbase_pm_driver_suspend(kbdev);
 
 	return result;
 }
 
 void kbase_pm_resume(struct kbase_device *kbdev)
 {
-	if (kbase_has_arbiter(kbdev))
-		kbase_arbiter_pm_vm_event(kbdev, KBASE_VM_OS_RESUME_EVENT);
-	else
-		kbase_pm_driver_resume(kbdev, false);
+	kbase_pm_driver_resume(kbdev, false);
 }

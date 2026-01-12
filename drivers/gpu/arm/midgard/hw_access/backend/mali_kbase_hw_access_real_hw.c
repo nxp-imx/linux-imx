@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,12 +27,15 @@
 #include <linux/mali_hw_access.h>
 #include <mali_kbase_io.h>
 
+
 u64 kbase_reg_get_gpu_id(struct kbase_device *kbdev)
 {
 	u32 val[2] = { 0 };
 
 	val[0] = mali_readl(kbdev->reg);
 
+	if (GPU_ID2_ARCH_MAJOR_GET(val[0]) == GPU_ID3_COMPAT)
+		val[1] = mali_readl(kbdev->reg + GPU_ID3_REG_HI);
 
 	return (u64)val[0] | ((u64)val[1] << 32);
 }
@@ -46,6 +49,7 @@ u32 kbase_reg_read32(struct kbase_device *kbdev, u32 reg_enum)
 	if (unlikely(!kbase_reg_is_accessible(kbdev, reg_enum,
 					      KBASE_REGMAP_PERM_READ | KBASE_REGMAP_WIDTH_32_BIT)))
 		return 0;
+
 
 	val = mali_readl(kbdev->regmap.regs[reg_enum]);
 
@@ -70,6 +74,7 @@ u64 kbase_reg_read64(struct kbase_device *kbdev, u32 reg_enum)
 	if (unlikely(!kbase_reg_is_accessible(kbdev, reg_enum,
 					      KBASE_REGMAP_PERM_READ | KBASE_REGMAP_WIDTH_64_BIT)))
 		return 0;
+
 
 	val = mali_readq(kbdev->regmap.regs[reg_enum]);
 
@@ -98,6 +103,7 @@ u64 kbase_reg_read64_coherent(struct kbase_device *kbdev, u32 reg_enum)
 					      KBASE_REGMAP_PERM_READ | KBASE_REGMAP_WIDTH_64_BIT)))
 		return 0;
 
+
 	val = mali_readq_coherent(kbdev->regmap.regs[reg_enum]);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -123,6 +129,7 @@ void kbase_reg_write32(struct kbase_device *kbdev, u32 reg_enum, u32 value)
 					      KBASE_REGMAP_PERM_WRITE | KBASE_REGMAP_WIDTH_32_BIT)))
 		return;
 
+
 	mali_writel(value, kbdev->regmap.regs[reg_enum]);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -142,6 +149,7 @@ void kbase_reg_write64(struct kbase_device *kbdev, u32 reg_enum, u64 value)
 	if (unlikely(!kbase_reg_is_accessible(kbdev, reg_enum,
 					      KBASE_REGMAP_PERM_WRITE | KBASE_REGMAP_WIDTH_64_BIT)))
 		return;
+
 
 	mali_writeq(value, kbdev->regmap.regs[reg_enum]);
 

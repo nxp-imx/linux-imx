@@ -355,7 +355,7 @@ void kbase_pm_set_policy(struct kbase_device *kbdev, const struct kbase_pm_polic
 
 	if (sched_suspend) {
 		/* Update the suspend flag to reflect actually suspend being done ! */
-		sched_suspend = !kbase_csf_scheduler_pm_suspend_no_lock(kbdev);
+		sched_suspend = !kbase_csf_scheduler_pm_suspend_no_lock(kbdev, false);
 		/* Set the reset recovery flag if the required suspend failed */
 		reset_gpu = !sched_suspend;
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2021-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -308,7 +308,7 @@ static void kbasep_hwcnt_backend_csf_if_fw_get_prfcnt_info(
 		.prfcnt_block_size = KBASE_DUMMY_MODEL_BLOCK_SIZE,
 		.clk_cnt = 1,
 		.clearing_samples = true,
-		.ne_core_mask = 0,
+		.nx_core_mask = 0,
 	};
 
 	fw_ctx->buf_bytes = prfcnt_info->dump_bytes;
@@ -325,6 +325,7 @@ static void kbasep_hwcnt_backend_csf_if_fw_get_prfcnt_info(
 	u32 prfcnt_block_size =
 		KBASE_HWCNT_V5_DEFAULT_VALUES_PER_BLOCK * KBASE_HWCNT_VALUE_HW_BYTES;
 	bool has_virtual_core_ids;
+	bool has_memsys2 = true;
 
 	WARN_ON(!ctx);
 	WARN_ON(!prfcnt_info);
@@ -338,6 +339,7 @@ static void kbasep_hwcnt_backend_csf_if_fw_get_prfcnt_info(
 	prfcnt_fw_size = GLB_PRFCNT_SIZE_FIRMWARE_SIZE_GET(prfcnt_size);
 	metadata_size = GLB_PRFCNT_FEATURES_METADATA_SIZE_GET(prfcnt_features);
 	has_virtual_core_ids = kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 8, 4);
+
 
 	/* Read the block size if the GPU has the register PRFCNT_FEATURES
 	 * which was introduced in architecture version 11.x.7.
@@ -372,19 +374,20 @@ static void kbasep_hwcnt_backend_csf_if_fw_get_prfcnt_info(
 		.csg_count = fw_block_count > 1 ? csg_count : 0,
 		.clk_cnt = fw_ctx->clk_cnt,
 		.clearing_samples = true,
-		.has_ne = kbdev->gpu_props.gpu_features.neural_engine,
-		.ne_core_mask = kbdev->gpu_props.gpu_features.neural_engine ?
+		.has_nx = kbdev->gpu_props.gpu_features.neural_accelerator,
+		.nx_core_mask = kbdev->gpu_props.gpu_features.neural_accelerator ?
 					      kbasep_hwcnt_backend_csf_physical_mask_to_vid(
 						kbdev->gpu_props.coherency_info.group.core_mask,
 						kbdev->gpu_props.neural_present) :
 					      0,
-		.has_virtual_ids = has_virtual_core_ids
+		.has_virtual_ids = has_virtual_core_ids,
+		.has_memsys2 = has_memsys2
 	};
 
-	if (prfcnt_info->has_ne)
-		WARN_ON(prfcnt_info->ne_core_mask == 0);
+	if (prfcnt_info->has_nx)
+		WARN_ON(prfcnt_info->nx_core_mask == 0);
 	else
-		WARN_ON(prfcnt_info->ne_core_mask != 0);
+		WARN_ON(prfcnt_info->nx_core_mask != 0);
 
 	WARN((metadata_size % prfcnt_info->prfcnt_block_size) != 0,
 	     "Metadata block size is not aligned to block size (metadata size %u, block size %zu)",

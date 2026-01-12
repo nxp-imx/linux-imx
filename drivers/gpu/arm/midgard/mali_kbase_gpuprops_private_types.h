@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -51,7 +51,7 @@
  * @l2_config: Level 2 cache configuration
  * @l2_slice_hash: ASN Hash function arguments
  * @base_present: Shader core base present bitmap
- * @neural_present: Neural engine present bitmap
+ * @neural_present: Neural accelerator present bitmap
  *
  * This structure is used to store raw GPU register values that will be used as-is
  * or parsed into respective properties.
@@ -74,6 +74,10 @@ struct kbasep_gpuprops_regdump {
 	u64 gpu_id;
 	u32 thread_max_threads;
 	u32 thread_max_workgroup_size;
+	/**
+	 * @thread_num_active_granularity: Granularity of number of active threads
+	 */
+	u32 thread_num_active_granularity;
 	u32 thread_max_barrier_size;
 	u32 thread_features;
 	u32 coherency_features;

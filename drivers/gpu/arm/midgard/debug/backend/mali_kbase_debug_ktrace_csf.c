@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2020-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -80,6 +80,14 @@ void kbasep_ktrace_backend_format_msg(struct kbase_ktrace_msg *trace_msg, char *
 				0);
 	}
 
+	if (be_msg->gpu.flags & KBASE_KTRACE_FLAG_MEM) {
+		*written += MAX(
+			scnprintf(buffer + *written, (size_t)MAX(sz - *written, 0),
+				  "Mem %llu pages,from GPU at VA %#llx,flags %#llx,(%d_%d),as_nr %d",
+				  be_msg->mem.pages, be_msg->mem.va, be_msg->mem.mem_flags,
+				  be_msg->mem.tgid, be_msg->mem.ctx_id, be_msg->mem.as_nr),
+			0);
+	}
 	/* Don't end with a trailing "," - this is a 'standalone' formatted
 	 * msg, caller will handle the delimiters
 	 */

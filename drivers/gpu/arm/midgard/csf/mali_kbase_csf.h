@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -692,7 +692,7 @@ int kbase_csf_free_oom_tiler_heap_chunk(struct kbase_queue *queue);
 int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 group_id);
 
 /**
- * kbase_csf_report_cs_fault_info() - Assmble the CS fault event information.
+ * kbase_csf_report_cs_fault_info() - Assemble the CS fault event information.
  *
  * @queue:   Pointer to queue for which a fault event was received.
  * @slot_id: On-slot CSG index, where the queue fault was raised.
@@ -705,7 +705,7 @@ int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 
 void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id, bool atomic_ctx);
 
 /**
- * kbase_csf_report_cs_fatal_info() - Assmble the CS fatal information.
+ * kbase_csf_report_cs_fatal_info() - Assemble the CS fatal information.
  *
  * @queue:    Pointer to queue for which fatal event was received.
  * @slot_id: On-slot CSG index, where the queue fatal error was raised.
@@ -720,15 +720,15 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 u32 kbase_csf_report_cs_fatal_info(struct kbase_queue *const queue, u32 slot_id, bool atomic_ctx);
 
 /**
- * kbase_csf_dev_has_ne - Report whether the device has Neural Engine support.
+ * kbase_csf_dev_has_nx - Report whether the device has Neural Accelerator support.
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  *
- * Return: true on Neural Engine supported, otherwise false.
+ * Return: true on Neural Accelerator supported, otherwise false.
  */
-static inline bool kbase_csf_dev_has_ne(struct kbase_device *kbdev)
+static inline bool kbase_csf_dev_has_nx(struct kbase_device *kbdev)
 {
-	return kbdev->gpu_props.gpu_features.neural_engine;
+	return kbdev->gpu_props.gpu_features.neural_accelerator;
 }
 
 /**

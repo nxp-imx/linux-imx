@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -32,13 +32,26 @@
 #define KBASE_REGMAP_ACCESS_ALWAYS_POWERED (1U << 16)
 
 static u32 always_powered_regs[] = {
-
+	WINDOW_CONTROL__WINDOW_IRQ_CLEAR,
+	WINDOW_CONTROL__WINDOW_IRQ_MASK,
+	WINDOW_CONTROL__WINDOW_IRQ_RAWSTAT,
+	WINDOW_CONTROL__WINDOW_IRQ_STATUS,
+	WINDOW_CONTROL__WINDOW_MESSAGE__AM_INCOMING_MESSAGE0,
+	WINDOW_CONTROL__WINDOW_MESSAGE__AM_INCOMING_MESSAGE1,
+	WINDOW_CONTROL__WINDOW_MESSAGE__AM_OUTGOING_MESSAGE0,
+	WINDOW_CONTROL__WINDOW_MESSAGE__AM_OUTGOING_MESSAGE1,
+	WINDOW_CONTROL__WINDOW_MESSAGE__AM_OUTGOING_MESSAGE_STATUS,
+	WINDOW_CONTROL__WINDOW_STATUS,
+	WINDOW_CONTROL__WINDOW_DISCOVER__GPU_ID,
+	GPU_CONTROL__HOST_POWER__PWR_IRQ_STATUS,
 };
 
 static void kbasep_reg_setup_always_powered_registers(struct kbase_device *kbdev)
 {
 	u32 i;
 
+	if (kbdev->gpu_props.gpu_id.arch_id < GPU_ID_ARCH_MAKE(14, 10, 0))
+		return;
 
 	for (i = 0; i < ARRAY_SIZE(always_powered_regs); i++) {
 		u32 reg_enum = always_powered_regs[i];

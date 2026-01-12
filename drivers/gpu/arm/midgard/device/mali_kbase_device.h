@@ -87,6 +87,7 @@ int kbase_device_init(struct kbase_device *kbdev);
  */
 void kbase_device_term(struct kbase_device *kbdev);
 
+
 /**
  * kbase_gpu_cache_flush_pa_range_and_busy_wait() - Start a cache physical range flush
  * and busy wait

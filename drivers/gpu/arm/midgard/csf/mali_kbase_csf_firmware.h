@@ -509,6 +509,25 @@ void kbase_csf_firmware_trigger_mcu_sleep(struct kbase_device *kbdev);
  */
 bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev);
 
+/**
+ * kbase_csf_firmware_is_mcu_in_suspend - Check if suspend request has completed
+ *                                      and MCU has been suspended.
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Return: true if suspend MCU is suspended, otherwise false.
+ */
+bool kbase_csf_firmware_is_mcu_in_suspend(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_is_mcu_in_halt - Check if suspend request has completed
+ *                                      and MCU has been halted.
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Return: true if suspend MCU is halted, otherwise false.
+ */
+bool kbase_csf_firmware_is_mcu_in_halt(struct kbase_device *kbdev);
 
 /**
  * kbase_csf_firmware_trigger_gpu_suspend - Send global GPU_SUSPEND request

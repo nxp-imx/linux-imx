@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2018-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -185,8 +185,11 @@ enum kbase_hwcnt_physical_set {
  * @prfcnt_values_per_block: Total entries (header + counters) of performance
  *                           counter per block.
  * @has_fw_counters:         Whether the GPU has FW counters available.
- * @has_ne:                  Indicates whether NE is present.
- * @ne_core_mask:            Neural Engine core mask.
+ * @has_nx:                  Indicates whether NX is present.
+ * @nx_core_mask:            Neural Accelerator core mask.
+ * @has_virtual_ids:         Indicates whether the architecture uses virtual shader core IDs.
+ * @has_memsys2:             Indicates whether memory system has
+ *                           secondary performance counters.
  */
 struct kbase_hwcnt_gpu_info {
 	size_t l2_count;
@@ -195,8 +198,10 @@ struct kbase_hwcnt_gpu_info {
 	u8 csg_cnt;
 	size_t prfcnt_values_per_block;
 	bool has_fw_counters;
-	bool has_ne;
-	u64 ne_core_mask;
+	bool has_nx;
+	u64 nx_core_mask;
+	bool has_virtual_ids;
+	bool has_memsys2;
 };
 
 /**
@@ -244,13 +249,28 @@ struct kbase_hwcnt_curr_config {
 };
 
 /**
+ * kbase_hwcnt_num_effective_cores() - Determines the number of effective cores from a sc_mask,
+ *                                     depending on the GPU arch.
+ *
+ * @sc_core_mask:    the GPU's shader-core core mask.
+ * @has_virtual_ids: Whether the GPU has virtual ids.
+ *
+ * Return: the number of shader-cores to assume, when calculating the numbers of HWC blocks that
+ *         will exist.
+ */
+static inline u32 kbase_hwcnt_num_effective_cores(u64 sc_core_mask, bool has_virtual_ids)
+{
+	return has_virtual_ids ? hweight64(sc_core_mask) : fls64(sc_core_mask);
+}
+
+/**
  * kbase_hwcnt_is_block_type_undefined() - Check if a block type is undefined.
  *
  * @blk_type: Hardware counter block type.
  *
  * Return: true if the block type is undefined, else false.
  */
-static inline bool kbase_hwcnt_is_block_type_undefined(const uint64_t blk_type)
+static inline bool kbase_hwcnt_is_block_type_undefined(const u64 blk_type)
 {
 	return (blk_type == KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_FE_UNDEFINED ||
 		blk_type == KBASE_HWCNT_GPU_V5_BLOCK_TYPE_PERF_TILER_UNDEFINED ||

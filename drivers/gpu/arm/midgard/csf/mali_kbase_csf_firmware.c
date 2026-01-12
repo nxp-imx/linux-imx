@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -83,7 +83,7 @@ MODULE_PARM_DESC(fw_debug, "Enables effective use of a debugger for debugging fi
 
 #define FIRMWARE_HEADER_MAGIC (0xC3F13A6Eul)
 #define FIRMWARE_HEADER_VERSION_MAJOR (0ul)
-#define FIRMWARE_HEADER_VERSION_MINOR (3ul)
+#define FIRMWARE_HEADER_VERSION_MINOR (4ul)
 #define FIRMWARE_HEADER_LENGTH (0x14ul)
 
 #define CSF_FIRMWARE_ENTRY_SUPPORTED_FLAGS                                                    \
@@ -412,18 +412,13 @@ static void wait_for_firmware_boot(struct kbase_device *kbdev)
 
 	wait_timeout = kbase_csf_timeout_in_jiffies(csf_firmware_boot_timeout_ms);
 
-	/* Firmware will generate a global interface interrupt once booting
-	 * is complete.
-	 * Ignore FW I/O status by using wait_event_timeout() directly,
-	 * instead of kbase_csf_fw_io_wait_event_timeout().
-	 *
-	 * Once FW boot is started, FW notifies host when successful
-	 * before any servicing of YIELD_NOW.
-	 */
 	remaining = wait_event_timeout(kbdev->csf.event_wait, kbdev->csf.interrupt_received == true,
 				       wait_timeout);
 	if (!remaining)
 		dev_err(kbdev->dev, "Timed out waiting for fw boot completion");
+	else
+		kbase_csf_fw_io_clear_status_gpu_suspended(&kbdev->csf.fw_io);
+
 	kbase_hwcnt_backend_csf_on_after_mcu_on(&kbdev->hwcnt_gpu_iface);
 
 	kbdev->csf.interrupt_received = false;
@@ -804,6 +799,13 @@ static int parse_memory_setup_entry(struct kbase_device *kbdev,
 	bool reuse_pages = false;
 	bool is_small_page = true;
 	bool force_small_page = false;
+
+	/* Handle 0-sized section, nothing to do */
+	if (virtual_end == virtual_start) {
+		dev_dbg(kbdev->dev, "FW header with 0-region detected: va_end=%x, va_start=%x\n",
+			virtual_end, virtual_start);
+		return 0;
+	}
 
 	if (data_end < data_start) {
 		dev_err(kbdev->dev, "Firmware corrupt, data_end < data_start (0x%x<0x%x)\n",
@@ -1620,6 +1622,9 @@ static int wait_for_global_request_with_timeout(struct kbase_csf_fw_io *fw_io, u
 			 kbase_backend_get_cycle_cnt(kbdev), timeout_ms, req_mask);
 
 		return -ETIMEDOUT;
+	} else if (remaining == -KBASE_CSF_FW_IO_WAIT_GPU_LOST) {
+		/* GPU_LOST is an ownership change, not a timeout */
+		return 0;
 	}
 
 	return 0;
@@ -1951,6 +1956,7 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 
 	kbasep_enable_rtu(kbdev);
 
+
 	enable_endpoints_global(fw_io, core_mask);
 	set_shader_poweroff_timer(fw_io);
 
@@ -1999,11 +2005,65 @@ static void global_init(struct kbase_device *const kbdev, u64 core_mask)
 		GLB_DEBUG_REQ_FW_AS_READ_MASK | GLB_DEBUG_REQ_FW_AS_WRITE_MASK);
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
 
+	/* Enable timestamp broadcast */
+	kbase_csf_fw_io_global_write_mask(fw_io, GLB_REQ, GLB_REQ_COUNTER_ENABLE_MASK,
+					  GLB_REQ_COUNTER_ENABLE_MASK);
+
 	kbase_csf_ring_doorbell(kbdev, CSF_KERNEL_DOORBELL_NR);
 
 	kbase_csf_fw_io_close(fw_io, fw_io_flags);
 exit:
 	kbase_csf_scheduler_spin_unlock(kbdev, flags);
+}
+
+static void write_nx_ee_pwr_allow_masks(struct kbase_device *const kbdev, u32 *request_mask)
+{
+	if (!IS_ENABLED(CONFIG_MALI_NO_MALI) && kbase_csf_dev_has_nx(kbdev)) {
+		unsigned long flags, fw_io_flags;
+		struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
+
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		if (!kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
+			dev_dbg(kbdev->dev, "Writing nx_pwr_allow_mask=0x%.16llx to FW\n",
+				kbdev->csf.nx_pwr_allow_mask);
+			dev_dbg(kbdev->dev, "Writing ee_pwr_allow_mask=0x%.16llx to FW\n",
+				kbdev->csf.ee_pwr_allow_mask);
+
+			kbase_csf_fw_io_global_write(&kbdev->csf.fw_io, GLB_NX_PWR_ALLOW_MASK_LO,
+						     (u32)kbdev->csf.nx_pwr_allow_mask);
+			kbase_csf_fw_io_global_write(&kbdev->csf.fw_io, GLB_NX_PWR_ALLOW_MASK_HI,
+						     (u32)(kbdev->csf.nx_pwr_allow_mask >> 32));
+
+			kbase_csf_fw_io_global_write(&kbdev->csf.fw_io, GLB_EE_PWR_ALLOW_MASK_LO,
+						     (u32)kbdev->csf.ee_pwr_allow_mask);
+			kbase_csf_fw_io_global_write(&kbdev->csf.fw_io, GLB_EE_PWR_ALLOW_MASK_HI,
+						     (u32)(kbdev->csf.ee_pwr_allow_mask >> 32));
+
+			/* Make the GLB_REQ_NX_PWR_MODE_ENABLE conditional request */
+			if (kbdev->csf.nx_pwr_allow_mask != kbdev->csf.ee_pwr_allow_mask ||
+			    kbdev->csf.nx_pwr_allow_mask != ~(u64)0) {
+				kbase_csf_fw_io_global_write_mask(&kbdev->csf.fw_io, GLB_REQ,
+								  GLB_REQ_NX_PWR_MODE_ENABLE_MASK,
+								  GLB_REQ_NX_PWR_MODE_ENABLE_MASK);
+				dev_dbg(kbdev->dev, "Writing nx_pwr_mode=0x%x to FW\n",
+					GLB_REQ_NX_PWR_MODE_ENABLE_MASK);
+			}
+
+			/* It looks firmware takes a long time to configure the PWR_MODE_ENABLE.
+			 * As the configuration is one-off, one can relax the case by not waiting
+			 * for its ack at the boot up time, i.e. the following is skipped to avoid
+			 * time-out in the caller's waiting check:
+			 *   if (request_mask)
+			 *       *request_mask |= GLB_REQ_NX_PWR_MODE_ENABLE_MASK;
+			 */
+			CSTD_UNUSED(request_mask);
+
+			kbase_csf_fw_io_close(fw_io, fw_io_flags);
+		} else {
+			dev_warn(kbdev->dev, "MCU unresponsive during power allow masks init");
+		}
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+	}
 }
 
 /**
@@ -2051,6 +2111,9 @@ static int global_init_on_boot(struct kbase_device *const kbdev)
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
+
+	write_nx_ee_pwr_allow_masks(kbdev, &request_mask);
+
 	ret = wait_for_global_request(&kbdev->csf.fw_io, request_mask);
 
 #if IS_ENABLED(CONFIG_MALI_CORESIGHT)
@@ -2090,6 +2153,7 @@ void kbase_csf_firmware_global_reinit(struct kbase_device *kbdev, u64 core_mask)
 	}
 
 	global_init(kbdev, core_mask);
+	write_nx_ee_pwr_allow_masks(kbdev, NULL);
 }
 
 bool kbase_csf_firmware_global_reinit_complete(struct kbase_device *kbdev)
@@ -2221,6 +2285,7 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 		dev_err(kbdev->dev, "Version check failed in firmware reboot.");
 
 	KBASE_KTRACE_ADD(kbdev, CSF_FIRMWARE_REBOOT, NULL, 0u);
+	kbase_csf_fw_io_clear_status_gpu_suspended(&kbdev->csf.fw_io);
 	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 	kbase_hwcnt_backend_csf_set_hw_availability(&kbdev->hwcnt_gpu_iface,
 						    kbdev->gpu_props.curr_config.l2_slices,
@@ -3153,6 +3218,7 @@ int kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
 		for (loop = 0; loop < max_iterations; loop++) {
 			unsigned long flags;
 			bool pmode_exited;
+			u32 glb_req, glb_ack;
 
 			if (kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(GPU_STATUS)) &
 			    GPU_STATUS_PROTECTED_MODE_ACTIVE)
@@ -3161,8 +3227,17 @@ int kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
 			/* Check if GPU already exited the protected mode */
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
 			pmode_exited = !kbase_csf_scheduler_protected_mode_in_use(kbdev);
+			glb_req = kbase_csf_fw_io_global_input_read(&kbdev->csf.fw_io, GLB_REQ);
+			glb_ack = kbase_csf_fw_io_global_read(&kbdev->csf.fw_io, GLB_ACK);
 			kbase_csf_scheduler_spin_unlock(kbdev, flags);
 			if (pmode_exited)
+				break;
+			/* GLB_REQ_PROTM_EXIT_MASK is checked separately, as otherwise there can be
+			 * a false positive of timeout for the polling when GPU exits protected mode
+			 * very quickly but the handling of irq for PROTM_EXIT event gets delayed
+			 * due to platform specific reasons.
+			 */
+			else if ((glb_req ^ glb_ack) & GLB_REQ_PROTM_EXIT_MASK)
 				break;
 
 			udelay(DELAY_TIME_IN_US);
@@ -3184,6 +3259,33 @@ int kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev)
 	return err;
 }
 
+static void disable_all_csg_slots_status_change_irq(struct kbase_csf_fw_io *fw_io)
+{
+	struct kbase_device *const kbdev = fw_io->kbdev;
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+	u32 i;
+	u32 num_groups = kbdev->csf.global_iface.group_num;
+	u32 irq_mask;
+
+	/* csg_slots can be NULL when this function is called on rmmod. */
+	if (scheduler->csg_slots == NULL)
+		return;
+
+	kbase_csf_scheduler_spin_lock_assert_held(fw_io->kbdev);
+	kbase_csf_fw_io_assert_opened(fw_io);
+
+	for (i = 0; i < num_groups; i++) {
+		struct kbase_csf_csg_slot *csg_slot = &scheduler->csg_slots[i];
+		struct kbase_queue_group *group = csg_slot->resident_group;
+
+		if (group == NULL)
+			continue;
+		irq_mask = kbase_csf_fw_io_group_input_read(fw_io, i, CSG_ACK_IRQ_MASK);
+		irq_mask &= ~CSG_ACK_STATE_MASK;
+		kbase_csf_fw_io_group_write(fw_io, i, CSG_ACK_IRQ_MASK, irq_mask);
+	}
+}
+
 void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 {
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
@@ -3199,6 +3301,12 @@ void kbase_csf_firmware_trigger_mcu_halt(struct kbase_device *kbdev)
 			set_global_req_state_as_suspend(fw_io);
 		else
 			set_global_request(fw_io, GLB_REQ_STATE_SUSPEND);
+
+		/* Disable all CSG slots status change IRQ during GPU level suspension,
+		 * all CSG status would be confirmed after MCU halting.
+		 */
+		disable_all_csg_slots_status_change_irq(fw_io);
+
 		dev_dbg(kbdev->dev, "Sending request to SUSPEND MCU");
 	} else {
 		/* Validate there are no on-slot groups when sending the
@@ -3276,10 +3384,52 @@ bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev)
 	if (kbdev->pm.backend.has_host_pwr_iface)
 		return (get_global_ack_state(fw_io) == GLB_ACK_STATE_SLEEP);
 
+	if (kbdev->pm.backend.mcu_state == KBASE_MCU_ON_PEND_SLEEP) {
+		unsigned long flags;
+		u32 glb_req, glb_ack;
+
+		kbase_csf_scheduler_spin_lock(kbdev, &flags);
+		glb_ack = kbase_csf_fw_io_global_read(fw_io, GLB_ACK) & GLB_REQ_SLEEP_MASK;
+		glb_req = kbase_csf_fw_io_global_input_read(fw_io, GLB_REQ) & GLB_REQ_SLEEP_MASK;
+
+		if (glb_req != glb_ack) {
+			unsigned long fw_io_flags;
+
+			kbase_csf_fw_io_open_force(&kbdev->csf.fw_io, &fw_io_flags);
+			kbase_csf_fw_io_global_write_mask(fw_io, GLB_REQ, glb_ack,
+							  GLB_REQ_SLEEP_MASK);
+			kbase_csf_fw_io_close(fw_io, fw_io_flags);
+
+			dev_dbg(
+				kbdev->dev, "%s: MCU_HALTED, align sleep_req: %x, => ack: %x\n",
+				__func__, glb_req, glb_ack);
+		}
+
+		kbase_csf_scheduler_spin_unlock(kbdev, flags);
+		return true;
+	}
+
 	return global_request_complete(fw_io, GLB_REQ_SLEEP_MASK);
 }
 KBASE_EXPORT_TEST_API(kbase_csf_firmware_is_mcu_in_sleep);
 
+bool kbase_csf_firmware_is_mcu_in_suspend(struct kbase_device *kbdev)
+{
+	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return get_global_ack_state(fw_io) == GLB_ACK_STATE_SUSPEND;
+}
+
+bool kbase_csf_firmware_is_mcu_in_halt(struct kbase_device *kbdev)
+{
+	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return get_global_ack_state(fw_io) == GLB_ACK_STATE_HALT;
+}
 
 bool kbase_csf_firmware_mcu_halt_req_complete(struct kbase_device *kbdev)
 {
@@ -3585,7 +3735,7 @@ void kbase_csf_firmware_soi_update(struct kbase_device *kbdev)
 	 * updated safely without racing with any ongoing or future GPU idle
 	 * events.
 	 */
-	if (kbase_csf_scheduler_pm_suspend_no_lock(kbdev)) {
+	if (kbase_csf_scheduler_pm_suspend_no_lock(kbdev, true)) {
 		dev_warn(
 			kbdev->dev,
 			"Failed to suspend the scheduler, FW Sleep-on-Idle config remains unchanged");
@@ -3643,11 +3793,12 @@ void kbase_csf_firmware_glb_idle_timer_update(struct kbase_device *kbdev)
 
 	kbase_csf_scheduler_spin_lock(kbdev, &flags);
 	if (atomic_read(&scheduler->non_idle_offslot_grps)) {
-		if (atomic_read(&scheduler->gpu_idle_timer_enabled))
+		if (atomic_read(&scheduler->gpu_idle_timer_enabled)) {
 			if (kbase_csf_firmware_disable_gpu_idle_timer(kbdev)) {
 				dev_err(kbdev->dev, "Failed to disable GPU idle timer.");
 				glb_request = false;
 			}
+		}
 	} else if (!atomic_read(&scheduler->gpu_idle_timer_enabled)) {
 		if (kbase_csf_firmware_enable_gpu_idle_timer(kbdev)) {
 			dev_err(kbdev->dev, "Failed to enable GPU idle timer.");

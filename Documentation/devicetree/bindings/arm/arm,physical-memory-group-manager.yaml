@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+#
+# (C) COPYRIGHT 2026 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the
+# GNU General Public License version 2 as published by the Free Software
+# Foundation, and any use by you of this program is subject to the terms
+# of such GNU license.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, you can access it online at
+# http://www.gnu.org/licenses/gpl-2.0.html.
+#
+#
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/arm,physical-memory-group-manager.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Arm physical memory group manager for Mali GPU device drivers
+
+description: |
+  Binding for the physical memory group manager referenced by the GPU via the
+  "physical-memory-group-manager" phandle property. :contentReference[oaicite:87]{index=87}
+
+maintainers:
+  - Arm Ltd.
+
+properties:
+  compatible:
+    const: arm,physical-memory-group-manager  # :contentReference[oaicite:88]{index=88}
+
+required:
+  - compatible
+
+additionalProperties: true
+
+examples:
+  - |
+    gpu_physical_memory_group_manager: physical-memory-group-manager {
+      compatible = "arm,physical-memory-group-manager";
+    };
+...

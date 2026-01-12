@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2018-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -82,11 +82,18 @@ MODULE_PARM_DESC(dump_ktrace_in_dmesg,
  * @idle_seq:  The highest priority group that notified idle. If no such instance in the
  *             interrupt case, marked with the largest field value: U32_MAX.
  * @idle_slot: The slot number if @p idle_seq is valid in the given tracking case.
+ * @active_protm_slot: record the active p.mode CSG slot number during the iterative CSG
+ *                     interrupt handling, in current IRQ context.
+ * @protm_slots_enqueued: tracking each CSG that has enqueued its pending p.mode request
+ *                        during the iterative CSG/CS interrupt handlings, in current IRQ
+ *                        context.
  */
 struct irq_idle_and_protm_track {
 	struct kbase_queue_group *protm_grp;
 	u32 idle_seq;
 	s8 idle_slot;
+	s8 active_protm_slot;
+	DECLARE_BITMAP(protm_req_enqueued, BASEP_QUEUE_GROUP_MAX);
 };
 
 /**
@@ -943,7 +950,8 @@ int kbase_csf_queue_group_clear_faults(struct kbase_context *kctx,
 		if (likely(!kbase_is_region_invalid_or_free(region))) {
 			struct kbase_queue *queue = region->user_data;
 
-			queue->clear_faults = true;
+			if (queue)
+				queue->clear_faults = true;
 		} else {
 			dev_warn(kbdev->dev, "GPU queue %u without a valid command buffer region",
 				 i);
@@ -1417,8 +1425,8 @@ int kbase_csf_queue_group_create(struct kbase_context *const kctx,
 		   CSG_DVS_BUF_BUFFER_SIZE_GET(create->in.dvs_buf)) {
 		dev_warn(kctx->kbdev->dev, "DVS buffer pointer is null but size is not 0");
 		err = -EINVAL;
-	} else if (neural_count && !kbase_csf_dev_has_ne(kctx->kbdev)) {
-		dev_warn(kctx->kbdev->dev, "Device does not support Neural Engine feature");
+	} else if (neural_count && !kbase_csf_dev_has_nx(kctx->kbdev)) {
+		dev_warn(kctx->kbdev->dev, "Device does not support Neural Accelerator feature");
 		err = -EINVAL;
 	} else if ((comp_pri_threshold || comp_pri_ratio) && !compute_ep_prio_supported) {
 		dev_warn(kctx->kbdev->dev,
@@ -2993,13 +3001,46 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 	const u64 cs_fault_info_exception_data = CS_FAULT_INFO_EXCEPTION_DATA_GET(cs_fault_info);
 	bool has_trace_info = false;
 	bool skip_fault_report = kbase_ctx_flag(queue->kctx, KCTX_PAGE_FAULT_REPORT_SKIP);
+	u32 cs_fault_trace_id0;
+	u32 cs_fault_trace_id1;
+	u32 cs_fault_trace_task;
 
+	struct kbase_gpu_id_props *gpu_id = &kbdev->gpu_props.gpu_id;
+
+	if ((gpu_id->arch_major > 14) || ((gpu_id->arch_major == 14) && (gpu_id->arch_rev >= 4)))
+		has_trace_info = true;
 
 	if (atomic_ctx)
 		kbase_csf_scheduler_spin_lock_assert_held(kbdev);
 	else
 		lockdep_assert_held(&kbdev->csf.scheduler.lock);
 
+	if (has_trace_info) {
+		cs_fault_trace_id0 = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, slot_id,
+								 stream_id, CS_FAULT_TRACE_ID0);
+		cs_fault_trace_id1 = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, slot_id,
+								 stream_id, CS_FAULT_TRACE_ID1);
+		cs_fault_trace_task = kbase_csf_fw_io_stream_read(&kbdev->csf.fw_io, slot_id,
+								  stream_id, CS_FAULT_TRACE_TASK);
+		queue->cs_error_trace_id0 = cs_fault_trace_id0;
+		queue->cs_error_trace_id1 = cs_fault_trace_id1;
+		queue->cs_error_trace_task = cs_fault_trace_task;
+		if (!skip_fault_report) {
+			dev_warn(kbdev->dev,
+				 "Ctx %d_%d Group %d CSG %d CSI: %d\n"
+				 "CS_FAULT.EXCEPTION_TYPE: 0x%x (%s)\n"
+				 "CS_FAULT.EXCEPTION_DATA: 0x%x\n"
+				 "CS_FAULT_INFO.EXCEPTION_DATA: 0x%llx\n"
+				 "CS_FAULT_TRACE_ID0.EXCEPTION_TRACE_ID0: 0x%x\n"
+				 "CS_FAULT_TRACE_ID1.EXCEPTION_TRACE_ID1: 0x%x\n"
+				 "CS_FAULT_TRACE_TASK.EXCEPTION_TRACE_TASK: 0x%x\n",
+				 queue->kctx->tgid, queue->kctx->id, queue->group->handle,
+				 queue->group->csg_nr, queue->csi_index, cs_fault_exception_type,
+				 kbase_gpu_exception_name(cs_fault_exception_type),
+				 cs_fault_exception_data, cs_fault_info_exception_data,
+				 cs_fault_trace_id0, cs_fault_trace_id1, cs_fault_trace_task);
+		}
+	}
 
 	if (!has_trace_info && !skip_fault_report)
 		dev_warn(kbdev->dev,
@@ -3016,6 +3057,7 @@ void kbase_csf_report_cs_fault_info(struct kbase_queue *const queue, u32 slot_id
 	queue->cs_error_info = cs_fault_info;
 	queue->cs_error_fatal = false;
 	queue->cs_error_acked = false;
+	queue->cs_error_has_trace = has_trace_info;
 }
 
 int kbase_csf_handle_pending_oom_interrupt(struct kbase_queue *const queue, u32 group_id)
@@ -3129,8 +3171,8 @@ static int process_cs_interrupts(struct kbase_queue_group *const group, u32 grou
 			}
 
 			/* TILER_OOM can be safely ignored
-			 * because they will be raised again if the group
-			 * is assigned a CSG slot in future.
+			 * because the request has been already saved during suspension.
+			 * It will be dealt with during the resume.
 			 */
 			if (group_suspending) {
 				u32 const cs_req_remain = cs_req & ~CS_REQ_EXCEPTION_MASK;
@@ -3160,8 +3202,10 @@ static int process_cs_interrupts(struct kbase_queue_group *const group, u32 grou
 			track->protm_grp = group;
 		}
 
-		if (!group->protected_suspend_buf.pma)
+		if (!group->protected_suspend_buf.pma) {
+			bitmap_set(track->protm_req_enqueued, group->csg_nr, 1);
 			kbase_csf_scheduler_enqueue_protm_event_work(group);
+		}
 
 		if (test_bit(group->csg_nr, scheduler->csg_slots_idle_mask)) {
 			clear_bit(group->csg_nr, scheduler->csg_slots_idle_mask);
@@ -3384,13 +3428,15 @@ static int process_prfcnt_interrupts(struct kbase_device *kbdev, u32 glb_req, u3
 	/* Process PRFCNT_OVERFLOW interrupt. */
 	if ((glb_req ^ glb_ack) & GLB_REQ_PRFCNT_OVERFLOW_MASK) {
 		dev_dbg(kbdev->dev, "PRFCNT_OVERFLOW interrupt received.");
+		/* This function may lock the FW I/O interface, hence
+		 * it should not be called while keeping the FW I/O lock.
+		 */
+		kbase_hwcnt_backend_csf_on_prfcnt_overflow(&kbdev->hwcnt_gpu_iface);
 		if (kbase_csf_fw_io_open(fw_io, &fw_io_flags)) {
 			dev_dbg(kbdev->dev,
 				"Skipping PRFCNT_OVERFLOW interrupt handling due to unresponsive MCU.");
 			return -ENODEV;
 		}
-
-		kbase_hwcnt_backend_csf_on_prfcnt_overflow(&kbdev->hwcnt_gpu_iface);
 
 		/* Set the GLB_REQ.PRFCNT_OVERFLOW flag back to
 		 * the same value as GLB_ACK.PRFCNT_OVERFLOW
@@ -3448,17 +3494,21 @@ static inline void check_protm_enter_req_complete(struct kbase_device *kbdev, u3
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
  * @glb_ack: Global acknowledge register value.
+ * @track: Pointer to tracked information containing protected mode requests
+ *         enqueuing action, in current IRQ context.
  *
  * This function handles the PROTM_EXIT interrupt and sends notification
  * about the protected mode exit to components like HWC, IPA_CONTROL.
  *
  * Return: -ENODEV on unresponsive MCU, 0 otherwise.
  */
-static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
+static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack,
+				     const struct irq_idle_and_protm_track *track)
 {
 	struct kbase_csf_fw_io *fw_io = &kbdev->csf.fw_io;
 	struct kbase_csf_scheduler *scheduler = &kbdev->csf.scheduler;
 	unsigned long fw_io_flags;
+	struct kbase_queue_group *exit_grp = scheduler->active_protm_grp;
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
@@ -3488,6 +3538,18 @@ static inline int process_protm_exit(struct kbase_device *kbdev, u32 glb_ack)
 		kbase_hwcnt_backend_csf_protm_exited(&kbdev->hwcnt_gpu_iface);
 	}
 
+	if (likely(exit_grp)) {
+		s8 slot = track->active_protm_slot;
+		bool enqueued = (slot >= 0) && test_bit(slot, track->protm_req_enqueued);
+
+		/* re-enqueue the group for possible p.mode continuation */
+		if (!enqueued && !bitmap_empty(exit_grp->protm_pending_bitmap,
+					       BASEP_GPU_QUEUE_PER_QUEUE_GROUP_MAX)) {
+			dev_dbg(kbdev->dev, "Re-queues the pmode exit group %d", exit_grp->handle);
+			kbase_csf_scheduler_enqueue_protm_event_work(exit_grp);
+		}
+	}
+
 #if IS_ENABLED(CONFIG_MALI_CORESIGHT)
 	kbase_debug_coresight_csf_enable_pmode_exit(kbdev);
 #endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
@@ -3503,6 +3565,10 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 	u32 current_protm_pending_seq = scheduler->tick_protm_pending_seq;
 
 	kbase_csf_scheduler_spin_lock_assert_held(kbdev);
+
+	/* Track the active p.mode CSG's slot number, if applicable */
+	if (scheduler->active_protm_grp)
+		track->active_protm_slot = scheduler->active_protm_grp->csg_nr;
 
 	if (likely(current_protm_pending_seq == KBASEP_TICK_PROTM_PEND_SCAN_SEQ_NR_INVALID))
 		return;
@@ -3544,6 +3610,7 @@ static inline void process_tracked_info_for_protm(struct kbase_device *kbdev,
 		if (!tock_triggered) {
 			dev_dbg(kbdev->dev, "Group-%d on slot-%d start protm work\n", group->handle,
 				group->csg_nr);
+			bitmap_set(track->protm_req_enqueued, group->csg_nr, 1);
 			kbase_csf_scheduler_enqueue_protm_event_work(group);
 		}
 	}
@@ -3584,6 +3651,8 @@ static const char *const glb_fatal_status_errors[GLB_FATAL_STATUS_VALUE_COUNT] =
 	[GLB_FATAL_STATUS_VALUE_UNEXPECTED_REQUEST] = "Unexpected GLB_REQ request",
 	[GLB_FATAL_STATUS_VALUE_CORE_MASK] = "No cores available",
 	[GLB_FATAL_STATUS_VALUE_DMAC_FAILURE] = "DMA controller failure",
+	[GLB_FATAL_STATUS_VALUE_BOUNDSAN_FAULT] = "Array bounds sanitizer failure",
+	[GLB_FATAL_STATUS_VALUE_STACK_PROTECTOR_FAULT] = "Stack protection failure",
 };
 
 /**
@@ -3637,14 +3706,16 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 		unsigned long flags, fw_io_flags;
 		u32 csg_interrupts = val & ~JOB_IRQ_GLOBAL_IF;
 		bool glb_idle_irq_received = false;
+		struct irq_idle_and_protm_track track = { .protm_grp = NULL,
+							  .idle_seq = U32_MAX,
+							  .idle_slot = S8_MAX,
+							  .active_protm_slot = -1,
+							  .protm_req_enqueued = { 0 } };
 
 		kbase_reg_write32(kbdev, JOB_CONTROL_ENUM(JOB_IRQ_CLEAR), val);
 		order_job_irq_clear_with_iface_mem_read();
 
 		if (csg_interrupts != 0) {
-			struct irq_idle_and_protm_track track = { .protm_grp = NULL,
-								  .idle_seq = U32_MAX,
-								  .idle_slot = S8_MAX };
 			DECLARE_BITMAP(progress_timeout_csgs, BASEP_QUEUE_GROUP_MAX) = { 0 };
 
 			kbase_csf_scheduler_spin_lock(kbdev, &flags);
@@ -3698,7 +3769,7 @@ void kbase_csf_interrupt(struct kbase_device *kbdev, u32 val)
 					/* Stop processing interrupts in case of
 					 * an unresponsive MCU.
 					 */
-					err = process_protm_exit(kbdev, glb_ack);
+					err = process_protm_exit(kbdev, glb_ack, &track);
 					if (err) {
 						kbase_csf_scheduler_spin_unlock(kbdev, flags);
 						goto exit;

@@ -255,12 +255,6 @@ check_padding_KBASE_IOCTL_CONTEXT_PRIORITY_CHECK(struct kbase_ioctl_context_prio
 }
 
 static inline int
-check_padding_KBASE_IOCTL_SET_LIMITED_CORE_COUNT(struct kbase_ioctl_set_limited_core_count *p)
-{
-	return 0;
-}
-
-static inline int
 check_padding_KBASE_IOCTL_KINSTR_PRFCNT_ENUM_INFO(struct kbase_ioctl_kinstr_prfcnt_enum_info *p)
 {
 	return 0;

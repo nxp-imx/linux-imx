@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -273,7 +273,11 @@ void kbase_timeline_release(struct kbase_timeline *timeline)
 
 	/* Stop autoflush timer before releasing access to streams. */
 	atomic_set(&timeline->autoflush_timer_active, 0);
+#if KERNEL_VERSION(6, 15, 0) <= LINUX_VERSION_CODE
 	timer_delete_sync(&timeline->autoflush_timer);
+#else
+	del_timer_sync(&timeline->autoflush_timer);
+#endif
 
 	atomic_set(timeline->timeline_flags, 0);
 }

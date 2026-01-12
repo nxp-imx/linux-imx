@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,7 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_am_reg.h>
 #include <device/mali_kbase_device.h>
 #include <mali_kbase_hwaccess_gpuprops.h>
 #include <mali_kbase_gpuprops_private_types.h>
@@ -37,7 +38,8 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 	regdump->gpu_id = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(GPU_ID));
 
 	regdump->shader_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(SHADER_PRESENT));
-	regdump->tiler_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PRESENT));
+	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(TILER_PRESENT)))
+		regdump->tiler_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(TILER_PRESENT));
 	regdump->l2_present = kbase_reg_read64(kbdev, GPU_CONTROL_ENUM(L2_PRESENT));
 	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(AS_PRESENT)))
 		regdump->as_present = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(AS_PRESENT));
@@ -48,6 +50,9 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(THREAD_MAX_WORKGROUP_SIZE)))
 		regdump->thread_max_workgroup_size =
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(THREAD_MAX_WORKGROUP_SIZE));
+	if (kbase_reg_is_valid(kbdev, WINDOW_DISCOVER_ENUM(THREAD_NUM_ACTIVE_GRANULARITY)))
+		regdump->thread_num_active_granularity = kbase_reg_read32(
+			kbdev, WINDOW_DISCOVER_ENUM(THREAD_NUM_ACTIVE_GRANULARITY));
 	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(THREAD_MAX_BARRIER_SIZE)))
 		regdump->thread_max_barrier_size =
 			kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(THREAD_MAX_BARRIER_SIZE));
@@ -69,12 +74,18 @@ int kbase_backend_gpuprops_get(struct kbase_device *kbdev, struct kbasep_gpuprop
 		regdump->neural_present = kbase_reg_read64(kbdev, HOST_POWER_ENUM(NEURAL_PRESENT));
 	}
 
+	if (kbase_reg_is_valid(kbdev, GPU_CONTROL_ENUM(TILER_FEATURES)))
 		regdump->tiler_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(TILER_FEATURES));
 	regdump->l2_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(L2_FEATURES));
 	regdump->mem_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(MEM_FEATURES));
 	regdump->mmu_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(MMU_FEATURES));
 
-	{
+	if (kbdev->gpu_props.gpu_id.arch_id >= GPU_ID_ARCH_MAKE(14, 10, 0)) {
+		u64 texture_features =
+			kbase_reg_read64(kbdev, WINDOW_DISCOVER_ENUM(TEXTURE_FEATURES));
+		regdump->texture_features[0] = (u32)texture_features;
+		regdump->texture_features[1] = (u32)(texture_features >> 32);
+	} else {
 		for (i = 0; i < BASE_GPU_NUM_TEXTURE_FEATURES_REGISTERS; i++)
 			regdump->texture_features[i] =
 				kbase_reg_read32(kbdev, GPU_TEXTURE_FEATURES_OFFSET(i));
@@ -108,13 +119,23 @@ int kbase_backend_gpuprops_get_l2_features(struct kbase_device *kbdev,
 {
 	if (kbase_hw_has_feature(kbdev, KBASE_HW_FEATURE_L2_CONFIG)) {
 		regdump->l2_features = KBASE_REG_READ(kbdev, GPU_CONTROL_ENUM(L2_FEATURES));
-		regdump->l2_config = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_CONFIG));
+		if (kbdev->am_standalone)
+			regdump->l2_config =
+				kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS, AM_SYSTEM__L2_CONFIG);
+		else
+			regdump->l2_config = kbase_reg_read32(kbdev, GPU_CONTROL_ENUM(L2_CONFIG));
 
 		if (kbase_hw_has_l2_slice_hash_feature(kbdev)) {
 			uint i;
-			for (i = 0; i < GPU_L2_SLICE_HASH_COUNT; i++)
-				regdump->l2_slice_hash[i] =
-					kbase_reg_read32(kbdev, GPU_L2_SLICE_HASH_OFFSET(i));
+			for (i = 0; i < GPU_L2_SLICE_HASH_COUNT; i++) {
+				if (kbdev->am_standalone)
+					regdump->l2_slice_hash[i] =
+						kbase_am_reg_read32(kbdev, KBASE_REG_EXT_SYS,
+								    AM_SYSTEM__L2C_SLICE_HASH(i));
+				else
+					regdump->l2_slice_hash[i] = kbase_reg_read32(
+						kbdev, GPU_L2_SLICE_HASH_OFFSET(i));
+			}
 		}
 
 		if (!kbase_io_has_gpu(kbdev))

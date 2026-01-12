@@ -409,6 +409,9 @@ static int wait_for_global_request(struct kbase_csf_fw_io *fw_io, u32 const req_
 			 req_mask);
 
 		return -ETIMEDOUT;
+	} else if (remaining == -KBASE_CSF_FW_IO_WAIT_GPU_LOST) {
+		/* GPU_LOST is an ownership change, not a timeout */
+		return 0;
 	}
 
 	return 0;
@@ -747,6 +750,7 @@ static void kbase_csf_firmware_reload_worker(struct work_struct *work)
 	/* Reboot the firmware */
 	kbase_csf_firmware_enable_mcu(kbdev);
 
+	kbase_csf_fw_io_clear_status_gpu_suspended(&kbdev->csf.fw_io);
 	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 	kbase_hwcnt_backend_csf_set_hw_availability(&kbdev->hwcnt_gpu_iface,
 						    kbdev->gpu_props.curr_config.l2_slices,
@@ -771,6 +775,7 @@ void kbase_csf_firmware_trigger_reload(struct kbase_device *kbdev)
 	} else {
 		struct kbase_pm_core_masks all_core_masks;
 		kbase_csf_firmware_enable_mcu(kbdev);
+		kbase_csf_fw_io_clear_status_gpu_suspended(&kbdev->csf.fw_io);
 		all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 		kbase_hwcnt_backend_csf_set_hw_availability(
 			&kbdev->hwcnt_gpu_iface, kbdev->gpu_props.curr_config.l2_slices,
@@ -791,6 +796,7 @@ void kbase_csf_firmware_reload_completed(struct kbase_device *kbdev)
 	if (unlikely(!kbdev->csf.firmware_inited))
 		return;
 
+	kbase_csf_fw_io_clear_status_gpu_suspended(&kbdev->csf.fw_io);
 	all_core_masks = kbase_pm_ca_get_core_masks(kbdev);
 	kbase_hwcnt_backend_csf_set_hw_availability(&kbdev->hwcnt_gpu_iface,
 						    kbdev->gpu_props.curr_config.l2_slices,
@@ -1422,6 +1428,19 @@ bool kbase_csf_firmware_is_mcu_in_sleep(struct kbase_device *kbdev)
 		kbase_csf_firmware_mcu_halted(kbdev));
 }
 
+bool kbase_csf_firmware_is_mcu_in_suspend(struct kbase_device *kbdev)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return kbase_csf_fw_io_global_read(&kbdev->csf.fw_io, GLB_ACK) == GLB_ACK_STATE_SUSPEND;
+}
+
+bool kbase_csf_firmware_is_mcu_in_halt(struct kbase_device *kbdev)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return kbase_csf_fw_io_global_read(&kbdev->csf.fw_io, GLB_ACK) == GLB_ACK_STATE_HALT;
+}
 
 bool kbase_csf_firmware_mcu_halt_req_complete(struct kbase_device *kbdev)
 {

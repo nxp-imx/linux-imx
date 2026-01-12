@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+#
+# (C) COPYRIGHT 2026 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the
+# GNU General Public License version 2 as published by the Free Software
+# Foundation, and any use by you of this program is subject to the terms
+# of such GNU license.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, you can access it online at
+# http://www.gnu.org/licenses/gpl-2.0.html.
+#
+#
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/arm,protected-memory-allocator.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Arm protected memory allocator for Mali GPU device drivers
+
+description: |
+  The protected memory allocator manages allocations from a reserved protected
+  memory region and must reference a reserved-memory region via memory-region.
+  It is referenced by the GPU via protected-memory-allocator. :contentReference[oaicite:91]{index=91} :contentReference[oaicite:92]{index=92}
+
+maintainers:
+  - Arm Ltd.
+
+properties:
+  compatible:
+    const: arm,protected-memory-allocator  # :contentReference[oaicite:93]{index=93}
+
+  memory-region:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: Reference to reserved memory region used for protected pages. :contentReference[oaicite:94]{index=94} :contentReference[oaicite:95]{index=95}
+
+required:
+  - compatible
+  - memory-region
+
+additionalProperties: false
+
+examples:
+  - |
+    reserved-memory {
+      #address-cells = <2>;
+      #size-cells = <2>;
+      ranges;
+
+      mali_protected: mali_protected@c0000000 {
+        compatible = "mali-reserved";
+        reg = <0x0 0xc0000000 0x0 0x1000000>;
+      };
+    };
+
+    gpu_protected_memory_allocator: protected-memory-allocator {
+      compatible = "arm,protected-memory-allocator";
+      memory-region = <&mali_protected>;
+    };
+...

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -114,6 +114,7 @@ static bool set_pool_new_page_metadata(struct kbase_mem_pool *pool, struct page 
 			not_movable = true;
 		} else if (!WARN_ON_ONCE(IS_PAGE_ISOLATED(page_md->status))) {
 			page_md->status = PAGE_STATUS_SET(page_md->status, (u8)MEM_POOL);
+			kbase_clear_page_metadata_kctx_id(page_md);
 			page_md->data.mem_pool.pool = pool;
 			list_add(&p->lru, page_list);
 			(*list_size)++;
@@ -323,30 +324,26 @@ size_t kbase_mem_pool_deferred_list_size(struct kbase_mem_pool *pool)
 KBASE_EXPORT_TEST_API(kbase_mem_pool_deferred_list_size);
 
 /**
- * kbase_mem_pool_add_deferred_if_required_locked() - Add page to deferre_page list
- *                                                    Caller must hold the pool lock
+ * kbase_mem_pool_add_deferred_if_required_locked_no_free() - Add page to deferred_page list
+ *                                 Caller must hold the pool lock, no attempt to try early
+ *                                 free on existing deferred pages.
  *
  * @pool: Pointer to the memory pool.
  * @p:    Pointer to page structure
  *
  * This function check if conditions to move page to deferral
  * instead of returning it to free_pool or to kernel are meet.
- * It it is true page is added to deferred_pages list
- * This function also check if previouse deferral window is passed
- * and if it is, move all pages on deferred list to
- * free_pages list ot to kernel, before adding page p to the
- * deferred list.
+ * If it is true page is added to deferred_pages list.
+ * Note: this function will not attempt to do any early frees of
+ * existing deferred pages.
  *
  * Return: true if page was added to deferred_pages list
  *         otherwise false
  */
-static bool kbase_mem_pool_add_deferred_if_required_locked(struct kbase_mem_pool *pool,
-							   struct page *p)
+static bool kbase_mem_pool_add_deferred_if_required_locked_no_free(struct kbase_mem_pool *pool,
+								   struct page *p)
 {
 	lockdep_assert_held(&pool->pool_lock);
-	/* remove pages from deferred list if page defered is completed */
-	if (!pool->dying)
-		kbase_mem_pool_free_pages_from_defer_list_locked(pool, false);
 
 	/* check if page deferral is required */
 	if (kbase_mem_is_pmode_deferral_required(pool->kbdev)) {
@@ -357,6 +354,35 @@ static bool kbase_mem_pool_add_deferred_if_required_locked(struct kbase_mem_pool
 		return true;
 	}
 	return false;
+}
+
+/**
+ * kbase_mem_pool_add_deferred_if_required_locked() - Add page to deferred_page list
+ *                                                    Caller must hold the pool lock
+ *
+ * @pool: Pointer to the memory pool.
+ * @p:    Pointer to page structure
+ *
+ * This function check if conditions to move page to deferral
+ * instead of returning it to free_pool or to kernel are meet.
+ * If it is true page is added to deferred_pages list
+ * This function also check if previous deferral window is passed
+ * and if it is, move all pages on deferred list to
+ * free_pages list or to kernel, before adding a new page p to the
+ * deferred list.
+ *
+ * Return: true if page was added to deferred_pages list
+ *         otherwise false
+ */
+static bool kbase_mem_pool_add_deferred_if_required_locked(struct kbase_mem_pool *pool,
+							   struct page *p)
+{
+	lockdep_assert_held(&pool->pool_lock);
+	/* Attempting an expedited deferred pages free */
+	if (!pool->dying)
+		kbase_mem_pool_free_pages_from_defer_list_locked(pool, false);
+
+	return kbase_mem_pool_add_deferred_if_required_locked_no_free(pool, p);
 }
 
 /**
@@ -381,24 +407,27 @@ static bool kbase_mem_pool_add_deferred_if_required(struct kbase_mem_pool *pool,
 	bool ret_val;
 
 	kbase_mem_pool_lock(pool);
+	/* Calling from non-locked API, requesting expedited deferral pages' free */
 	ret_val = kbase_mem_pool_add_deferred_if_required_locked(pool, p);
 	kbase_mem_pool_unlock(pool);
 	return ret_val;
 }
 
 /**
- * kbase_mem_pool_add_array_deferred_locked() - add page array to defere_page_list
+ * kbase_mem_pool_add_array_deferred_locked() - add page array to deferred_pages_list
  *                                              Caller must hold the pool lock
  *
  * @pool:      Pointer to the memory pool.
  * @nr_pages:  Number of entry in array
  * @pages:     Pointer to array of tagged address
  * @zero:      Flag to zeore pages before add to list
- * @sync:	   Flag to sync cahce before add page to list
+ * @sync:	   Flag to sync cache before add page to list
  *
  * This function add array of pages to deferred_pages list
  * If zero flag is set, clear page
  * If sync flag is set, sync page
+ * Note: as this is called from locked API variant, deferred pages are not
+ *       expedited for an opportunistic free
  */
 static void kbase_mem_pool_add_array_deferred_locked(struct kbase_mem_pool *pool, size_t nr_pages,
 						     struct tagged_addr *pages, bool zero,
@@ -410,9 +439,6 @@ static void kbase_mem_pool_add_array_deferred_locked(struct kbase_mem_pool *pool
 	LIST_HEAD(new_page_list);
 
 	lockdep_assert_held(&pool->pool_lock);
-	/* free pages form deferred list if page defered is completed */
-	if (!pool->dying)
-		kbase_mem_pool_free_pages_from_defer_list_locked(pool, false);
 
 	if (unlikely(!nr_pages))
 		return;
@@ -449,13 +475,13 @@ static void kbase_mem_pool_add_array_deferred_locked(struct kbase_mem_pool *pool
 }
 
 /**
- * kbase_mem_pool_add_array_deferred() - add page array to defere_page_list
+ * kbase_mem_pool_add_array_deferred() - add page array to deferred_pages_list
  *
  * @pool:      Pointer to the memory pool.
  * @nr_pages:  Number of entry in array
  * @pages:     Pointer to array of tagged address
  * @zero:      Flag to zeore pages before add to list
- * @sync:	   Flag to sync cahce before add page to list
+ * @sync:	   Flag to sync cache before add page to list
  *
  * This function add array of pages to deferred_pages list
  * If zero flag is set, clear page
@@ -779,16 +805,18 @@ static unsigned long kbase_mem_pool_reclaim_count_objects(struct shrinker *s,
 	if (WARN_ON(!pool->pool_supports_reclaim))
 		return 0;
 
-	kbase_mem_pool_lock(pool);
+	/* We do not need to take the mem pool lock in this function as
+	 * it needs to be fast not accurate.
+	 * It acts as a hint to the kernel to trigger scan_objects which
+	 * will be accurate as it takes the lock.
+	 */
 	if (!pool->reclaim_allowed && !pool->dying) {
-		kbase_mem_pool_unlock(pool);
 		/* Tell shrinker to skip reclaim
 		 * even though freeable pages are available
 		 */
 		return 0;
 	}
 	pool_size = kbase_mem_pool_size(pool);
-	kbase_mem_pool_unlock(pool);
 
 	return pool_size;
 }
@@ -842,7 +870,7 @@ static int kbasep_mem_pool_init(struct kbase_mem_pool *pool, size_t max_size, un
 	pool->kbdev = kbdev;
 	pool->dying = false;
 	pool->pool_supports_reclaim = support_reclaim;
-	pool->reclaim_allowed = false;
+	pool->reclaim_allowed = support_reclaim;
 	atomic_set(&pool->isolation_in_progress_cnt, 0);
 	atomic_set(&pool->defer_seq, 0);
 
@@ -1000,7 +1028,34 @@ void kbase_mem_pool_free(struct kbase_mem_pool *pool, struct page *p, bool dirty
 {
 	pool_dbg(pool, "free()\n");
 
+	if (dirty)
+		kbase_mem_pool_sync_page(pool, p);
+
 	if (kbase_mem_pool_add_deferred_if_required(pool, p))
+		return;
+
+	if (!kbase_mem_pool_is_full(pool)) {
+		/* Add to our own pool */
+		kbase_mem_pool_add(pool, p);
+	} else {
+		/* Free page */
+		kbase_mem_pool_free_page(pool, p);
+		/* Freeing of pages will be deferred when page migration is enabled. */
+		enqueue_free_pool_pages_work(pool);
+	}
+}
+KBASE_EXPORT_TEST_API(kbase_mem_pool_free);
+
+void kbase_mem_pool_free_lite_defer(struct kbase_mem_pool *pool, struct page *p, bool dirty)
+{
+	bool deferred;
+
+	kbase_mem_pool_lock(pool);
+	/* Requesting defer_lite treatment, i.e. no expedited deferral free action */
+	deferred = kbase_mem_pool_add_deferred_if_required_locked_no_free(pool, p);
+	kbase_mem_pool_unlock(pool);
+
+	if (deferred)
 		return;
 
 	if (!kbase_mem_pool_is_full(pool)) {
@@ -1016,7 +1071,6 @@ void kbase_mem_pool_free(struct kbase_mem_pool *pool, struct page *p, bool dirty
 		enqueue_free_pool_pages_work(pool);
 	}
 }
-KBASE_EXPORT_TEST_API(kbase_mem_pool_free);
 
 void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p, bool dirty)
 {
@@ -1024,14 +1078,15 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p, boo
 
 	lockdep_assert_held(&pool->pool_lock);
 
-	if (kbase_mem_pool_add_deferred_if_required_locked(pool, p))
+	if (dirty)
+		kbase_mem_pool_sync_page(pool, p);
+
+	/* For the locked variant, avoiding the expedited deferral page free */
+	if (kbase_mem_pool_add_deferred_if_required_locked_no_free(pool, p))
 		return;
 
 	if (!kbase_mem_pool_is_full(pool)) {
 		/* Add to our own pool */
-		if (dirty)
-			kbase_mem_pool_sync_page(pool, p);
-
 		kbase_mem_pool_add_locked(pool, p);
 	} else {
 		/* Free page */

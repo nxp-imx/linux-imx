@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2024-2025 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -25,15 +25,6 @@
 #include <uapi/gpu/arm/midgard/csf/mali_kbase_csf_mem_flags.h>
 
 /* Kernel-side only flags allocated from 63 bit downwards */
-
-/* Region belongs to a shrinker.
- *
- * This can either mean that it is part of the JIT/Ephemeral or tiler heap
- * shrinker paths. Should be removed only after making sure that there are
- * no references remaining to it in these paths, as it may cause the physical
- * backing of the region to disappear during use.
- */
-#define BASEP_MEM_DONT_NEED ((base_mem_alloc_flags)1 << 61)
 
 /* Allocation is actively used for JIT memory */
 #define BASEP_MEM_ACTIVE_JIT_ALLOC ((base_mem_alloc_flags)1 << 60)

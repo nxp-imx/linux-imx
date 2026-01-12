@@ -572,7 +572,7 @@ static inline int of_changeset_add_prop_u32(struct of_changeset *ocs, struct dev
 #endif
 
 #if KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE
-#ifndef CONFIG_SPARC
+#if !defined(CONFIG_SPARC) && defined(CONFIG_OF)
 static inline int of_property_check_flag(const struct property *p, unsigned long flag)
 {
 	return -EINVAL;

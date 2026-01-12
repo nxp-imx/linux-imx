@@ -84,22 +84,12 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_DEBUG
 	unsigned long flags;
 #endif
-#ifdef IMX_GPU_BLK_CTRL
-	struct imx_platform_ctx *ictx = kbdev->platform_context;
-#endif
 
 	dev_dbg(kbdev->dev, "%s %pK\n", __func__, (void *)kbdev->dev->pm_domain);
 
 	if (pm_runtime_enabled(kbdev->dev)) {
 		error = pm_runtime_get_sync(kbdev->dev);
 		dev_dbg(kbdev->dev, "power on pm_runtime_get_sync returned %d\n", error);
-#ifdef IMX_GPU_BLK_CTRL
-		if (ictx && (ictx->init_blk_ctrl == 0)
-				&& !IS_ERR_OR_NULL(ictx->reg_blk_ctrl)) {
-			ictx->init_blk_ctrl = 1;
-			writel(0x1, ictx->reg_blk_ctrl + 0x8);
-		}
-#endif
 		if (error == 1)
 			ret = 0; //gpu still powered on.
 	}
@@ -122,9 +112,6 @@ static int pm_callback_power_on(struct kbase_device *kbdev)
 
 static void pm_callback_power_off(struct kbase_device *kbdev)
 {
-#ifdef IMX_GPU_BLK_CTRL
-	struct imx_platform_ctx *ictx = kbdev->platform_context;
-#endif
 #ifdef CONFIG_MALI_DEBUG
 	unsigned long flags;
 
@@ -145,9 +132,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 		pm_runtime_put_autosuspend(kbdev->dev);
 	}
 
-#ifdef IMX_GPU_BLK_CTRL
-	ictx->init_blk_ctrl = 0;
-#endif
 }
 
 static int kbase_device_runtime_init(struct kbase_device *kbdev)
@@ -222,13 +206,7 @@ static void pm_callback_resume(struct kbase_device *kbdev)
 
 static void pm_callback_suspend(struct kbase_device *kbdev)
 {
-#ifdef IMX_GPU_BLK_CTRL
-	struct imx_platform_ctx *ictx = kbdev->platform_context;
-#endif
 	pm_callback_runtime_off(kbdev);
-#ifdef IMX_GPU_BLK_CTRL
-	ictx->init_blk_ctrl = 0;
-#endif
 }
 
 struct kbase_pm_callback_conf pm_callbacks = {

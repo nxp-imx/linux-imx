@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -222,6 +222,8 @@ int registers_map(struct kbase_device *kbdev);
 void registers_unmap(struct kbase_device *kbdev);
 
 int kbase_device_coherency_init(struct kbase_device *kbdev);
+int kbase_nx_ee_pwr_allow_masks_init(struct kbase_device *kbdev);
+
 
 
 void kbase_event_post(struct kbase_context *kctx, struct kbase_jd_atom *event);

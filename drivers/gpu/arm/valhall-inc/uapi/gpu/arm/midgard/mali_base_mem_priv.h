@@ -25,6 +25,10 @@
 #include <linux/types.h>
 #include "mali_base_common_kernel.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #define BASE_SYNCSET_OP_MSYNC (1U << 0)
 #define BASE_SYNCSET_OP_CSYNC (1U << 1)
 
@@ -53,5 +57,9 @@ struct basep_syncset {
 	__u8 type;
 	__u8 padding[7];
 };
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* _UAPI_BASE_MEM_PRIV_H_ */

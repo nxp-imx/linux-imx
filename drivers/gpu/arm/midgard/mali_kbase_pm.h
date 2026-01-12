@@ -84,8 +84,8 @@ void kbase_pm_context_active(struct kbase_device *kbdev);
 
 /** Handler codes for doing kbase_pm_context_active_handle_suspend() */
 enum kbase_pm_suspend_handler {
-	/** A suspend is not expected/not possible - this is the same as
-	 * kbase_pm_context_active()
+	/** A suspend is not expected/not possible - kbase_pm_context_active() will select this
+	 * handler option when it calls kbase_pm_context_active_handle_suspend().
 	 */
 	KBASE_PM_SUSPEND_HANDLER_NOT_POSSIBLE,
 	/** If we're suspending, fail and don't increase the active count */
@@ -115,10 +115,14 @@ enum kbase_pm_suspend_handler {
  * @kbdev:     The kbase device structure for the device (must be a valid pointer)
  * @suspend_handler: The handler code for how to handle a suspend that might occur
  *
+ * As per kbase_pm_context_active, this indicates a new reason to keep the context active.
+ * However, it also indicates, via the suspend_handler param, how the power manager should
+ * behave if it needs to cater for an ongoing GPU suspend.
+ *
  * If a suspend is in progress, this allows for various different ways of
  * handling the suspend. Refer to @ref enum kbase_pm_suspend_handler for details.
  *
- * We returns a status code indicating whether we're allowed to keep the GPU
+ * We return a status code indicating whether we're allowed to keep the GPU
  * active during the suspend, depending on the handler code. If the status code
  * indicates a failure, the caller must abort whatever operation it was
  * attempting, and potentially queue it up for after the OS has resumed.
@@ -228,7 +232,8 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev);
 /**
  * kbase_pm_driver_resume() - Put GPU and driver in resume
  * @kbdev: The kbase device structure for the device (must be a valid pointer)
- * @arb_gpu_start: Arbiter has notified we can use GPU
+ * @arb_gpu_start: true if arbiter has notified we can use GPU. Otherwise (eg
+ *                 when called from system suspend), it will be false.
  *
  * Resume the GPU, allow register accesses to it, and resume running atoms on
  * the GPU.
@@ -243,16 +248,6 @@ int kbase_pm_driver_suspend(struct kbase_device *kbdev);
  */
 void kbase_pm_driver_resume(struct kbase_device *kbdev, bool arb_gpu_start);
 
-/**
- * kbase_pm_handle_gpu_lost() - Handle GPU Lost for the VM
- * @kbdev: Device pointer
- *
- * Handles the case that the Arbiter has forced the GPU away from the VM,
- * so that interrupts will not be received and registers are no longer
- * accessible because replaced by dummy RAM.
- * Kill any running tasks and put the driver into a GPU powered-off state.
- */
-void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev);
 
 /**
  * kbase_pm_handle_gpu_poweroff_wait_work - Work item for
