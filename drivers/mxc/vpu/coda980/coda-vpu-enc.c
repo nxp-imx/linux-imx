@@ -1004,7 +1004,8 @@ static int coda_vpu_enc_set_open_param(struct coda_enc_open_param *open_param,
 		else if (ctrls->bitrate_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_VBR)
 			open_param->rate_control_type = RATE_CONTROL_TYPE_ABR;
 	}
-	open_param->mb_interval = (ctrls->mb_rc_enable) ? mb_width : mb_width * mb_height;
+	open_param->mb_interval = (ctrls->mb_rc_enable) ?
+		DIV_ROUND_UP(mb_width, 8) : mb_width * mb_height;
 	open_param->initial_delay = coda_vpu_enc_cpb_size_kb_to_msec(ctrls->h264_cpb_size,
 								     ctrls->bitrate);
 	open_param->min_qp = ctrls->h264_min_qp;
