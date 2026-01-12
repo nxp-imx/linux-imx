@@ -2000,6 +2000,113 @@
 			power-domains = <&scmi_devpd IMX952_PD_NETC>;
 		};
 
+		netc_blk_ctrl: netc-blk-ctrl@4cd20000 {
+			compatible = "nxp,imx952-netc-blk-ctrl";
+			reg = <0x0 0x4cd20000 0x0 0x10000>,
+			      <0x0 0x4cd30000 0x0 0x10000>,
+			      <0x0 0x4c81000c 0x0 0x1c>;
+			reg-names = "ierb", "prb", "netcmix";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+			power-domains = <&scmi_devpd IMX952_PD_NETC>;
+			assigned-clocks = <&scmi_clk IMX952_CLK_ENET>,
+					  <&scmi_clk IMX952_CLK_ENETREF>;
+			assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1>,
+						 <&scmi_clk IMX952_CLK_SYSPLL1_PFD0>;
+			assigned-clock-rates = <800000000>, <250000000>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_NETC>;
+			clock-names = "ipg";
+			status = "disabled";
+
+			netc_bus0: pcie@4ca00000 {
+				compatible = "pci-host-ecam-generic";
+				reg = <0x0 0x4ca00000 0x0 0x100000>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				linux,pci-domain = <0>;
+				bus-range = <0x0 0x0>;
+				msi-map = <0x000 &its 0x60 0x1>, //ENETC0 PF
+					  <0x001 &its 0x62 0x1>, //NETC Timer
+					  <0x002 &its 0x63 0x1>, //EMDIO
+					  <0x040 &its 0x64 0x1>; //ENETC0 VF
+					  /* ENETC0 BAR0 - non-prefetchable memory */
+				ranges = <0x82000000 0x0 0x4cc00000  0x0 0x4cc00000  0x0 0x40000
+					  /* Timer and EMDIO BAR0/2 and ENETC0 VF BAR0 - non-prefetchable memory */
+					  0x82000000 0x0 0x4cc80000  0x0 0x4cc80000  0x0 0x70000
+					  /* ENETC0 VF BAR2 - non-prefetchable memory */
+					  0x82000000 0x0 0x4cd00000  0x0 0x4cd00000  0x0 0x10000>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0 0 0 7>;
+				interrupt-map = <0000 0 0 1 &gic 0 0
+						 GIC_SPI 304 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+
+				netc_enetc0: ethernet@0,0 {
+					compatible = "pci1131,e101";
+					reg = <0x00000 0 0 0 0>;
+					clocks = <&scmi_clk IMX952_CLK_ENETREF>;
+					clock-names = "ref";
+					status = "disabled";
+				};
+
+				netc_timer: ptp-timer@0,1 {
+					compatible = "pci1131,ee02";
+					reg = <0x00100 0 0 0 0>;
+					status = "disabled";
+				};
+
+				netc_emdio: mdio@0,2 {
+					compatible = "pci1131,ee00";
+					reg = <0x00200 0 0 0 0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+					status = "disabled";
+				};
+
+				rcec@1,0 {
+					reg = <0x00800 0 0 0 0>;
+					interrupts = <1>;
+				};
+			};
+
+			netc_bus1: pcie@4cb00000 {
+				compatible = "pci-host-ecam-generic";
+				reg = <0x0 0x4cb00000 0x0 0x100000>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				device_type = "pci";
+				linux,pci-domain = <1>;
+				bus-range = <0x1 0x1>;
+				msi-map = <0x100 &its 0x61 0x1>, //ENETC1 PF
+					  <0x140 &its 0x65 0x1>; //ENETC1 VF
+					  /* ENETC1 BAR0 - non-prefetchable memory */
+				ranges = <0x82000000 0x0 0x4cc40000  0x0 0x4cc40000  0x0 0x40000
+					  /* ENETC1: VF BAR0 - non-prefetchable memory */
+					  0x82000000 0x0 0x4ccf0000  0x0 0x4ccf0000  0x0 0x10000
+					  /* ENETC1: VF BAR2 - non-prefetchable memory */
+					  0x82000000 0x0 0x4cd10000  0x0 0x4cd10000  0x0 0x10000>;
+				#interrupt-cells = <1>;
+				interrupt-map-mask = <0 0 0 7>;
+				interrupt-map = <0000 0 0 1 &gic 0 0
+						 GIC_SPI 305 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+
+				netc_enetc1: ethernet@0,0 {
+					compatible = "pci1131,e101";
+					reg = <0x10000 0 0 0 0>;
+					ptp-timer = <&netc_timer>;
+					status = "disabled";
+				};
+
+				rcec@1,0 {
+					reg = <0x10800 0 0 0 0>;
+					interrupts = <1>;
+				};
+			};
+		};
+
 		ddr-pmu@4e090dc0 {
 			compatible = "fsl,imx95-ddr-pmu", "fsl,imx93-ddr-pmu";
 			reg = <0x0 0x4e090dc0 0x0 0x200>;

@@ -23,6 +23,7 @@
 	compatible = "fsl,imx952-evk", "fsl,imx952";
 
 	aliases {
+		ethernet0 = &netc_enetc0;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
 		gpio2 = &gpio3;
@@ -429,6 +430,40 @@
 	status = "okay";
 };
 
+&netc_blk_ctrl {
+	status = "okay";
+};
+
+&netc_bus0 {
+	status = "okay";
+};
+
+&netc_emdio {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_emdio>;
+	status = "okay";
+
+	ethphy0: ethernet-phy@1 {
+		reg = <1>;
+		reset-gpios = <&pcal6416 13 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <10000>;
+		reset-deassert-us = <80000>;
+		realtek,clkout-disable;
+	};
+};
+
+&netc_enetc0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enetc0>;
+	phy-handle = <&ethphy0>;
+	phy-mode = "rgmii-id";
+	status = "okay";
+};
+
+&netc_timer {
+	status = "okay";
+};
+
 &pcie0 {
 	pinctrl-0 = <&pinctrl_pcie0>;
 	pinctrl-names = "default";
@@ -547,6 +582,30 @@
 };
 
 &scmi_iomuxc {
+	pinctrl_emdio: emdiogrp {
+		fsl,pins = <
+			IMX952_PAD_ENET1_MDC__NETCMIX_TOP_NETC_MDC		0x50e
+			IMX952_PAD_ENET1_MDIO__NETCMIX_TOP_NETC_MDIO		0x90e
+		>;
+	};
+
+	pinctrl_enetc0: enetc0grp {
+		fsl,pins = <
+			IMX952_PAD_ENET1_TD3__NETCMIX_TOP_ETH0_RGMII_TD3	0x50e
+			IMX952_PAD_ENET1_TD2__NETCMIX_TOP_ETH0_RGMII_TD2	0x50e
+			IMX952_PAD_ENET1_TD1__NETCMIX_TOP_ETH0_RGMII_TD1	0x50e
+			IMX952_PAD_ENET1_TD0__NETCMIX_TOP_ETH0_RGMII_TD0	0x50e
+			IMX952_PAD_ENET1_TX_CTL__NETCMIX_TOP_ETH0_RGMII_TX_CTL	0x50e
+			IMX952_PAD_ENET1_TXC__NETCMIX_TOP_ETH0_RGMII_TX_CLK	0x58e
+			IMX952_PAD_ENET1_RX_CTL__NETCMIX_TOP_ETH0_RGMII_RX_CTL	0x50e
+			IMX952_PAD_ENET1_RXC__NETCMIX_TOP_ETH0_RGMII_RX_CLK	0x58e
+			IMX952_PAD_ENET1_RD0__NETCMIX_TOP_ETH0_RGMII_RD0	0x50e
+			IMX952_PAD_ENET1_RD1__NETCMIX_TOP_ETH0_RGMII_RD1	0x50e
+			IMX952_PAD_ENET1_RD2__NETCMIX_TOP_ETH0_RGMII_RD2	0x50e
+			IMX952_PAD_ENET1_RD3__NETCMIX_TOP_ETH0_RGMII_RD3	0x50e
+		>;
+	};
+
 	pinctrl_flexcan1: flexcan1grp {
 		fsl,pins = <
 			IMX952_PAD_PDM_CLK__AONMIX_TOP_CAN1_TX			0x39e
