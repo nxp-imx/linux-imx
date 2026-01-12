@@ -1633,6 +1633,167 @@
 			status = "disabled";
 		};
 
+		cameramix_csr: syscon@4ac10000 {
+			compatible = "nxp,imx95-camera-csr", "syscon";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x0 0x4ac10000 0x0 0x10000>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_CAMAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+
+			csi_pixel_formatter_0: formatter@20 {
+				compatible = "fsl,imx95-csi-formatter";
+				reg = <0x20 0x100>;
+				clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR0>;
+				power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+					};
+
+					port@1 {
+						reg = <1>;
+					};
+				};
+			};
+
+			csi_pixel_formatter_1: formatter@120 {
+				compatible = "fsl,imx95-csi-formatter";
+				reg = <0x120 0x100>;
+				clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR1>;
+				power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+					};
+
+					port@1 {
+						reg = <1>;
+					};
+				};
+			};
+		};
+
+		camera_phy_csr: syscon@4ad20000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0x0 0x4ad20000 0x0 0x10000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_CAMAPB>;
+
+			dphy_rx_0: dphy-rx@0 {
+				compatible = "fsl,imx952-dphy-rx";
+				#phy-cells = <0>;
+				power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+				status = "disabled";
+			};
+
+			dphy_rx_1: dphy-rx@100 {
+				compatible = "fsl,imx952-dphy-rx";
+				reg = <0x100 0x10>;
+				clocks = <&scmi_clk IMX952_CLK_CAMPHYCFG>,
+					 <&scmi_clk IMX952_CLK_CGC_CAMCSI0>;
+				clock-names = "phy_cfg", "csi0";
+				assigned-clocks = <&scmi_clk IMX952_CLK_CAMPHYCFG>;
+				assigned-clock-parents = <&scmi_clk IMX952_CLK_OSC24M>;
+				assigned-clock-rates = <24000000>;
+				#phy-cells = <0>;
+				fsl,csis = <&mipi_csi_1>;
+				power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+				status = "disabled";
+			};
+		};
+
+		mipi_csi_0: csi@4ad30000 {
+			compatible = "snps,dw-mipi-csi2", "syscon";
+			reg = <0x0 0x4ad30000 0x0 0x10000>;
+			interrupts = <GIC_SPI 374 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR0>,
+				 <&scmi_clk IMX952_CLK_CGC_CAMCSI0>;
+			clock-names = "per", "pixel";
+			phys = <&dphy_rx_0>;
+			phy-names = "dphy-rx";
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+				};
+
+				port@1 {
+					reg = <1>;
+				};
+			};
+		};
+
+		mipi_csi_1: csi@4ad40000 {
+			compatible = "snps,dw-mipi-csi2", "syscon";
+			reg = <0x0 0x4ad40000 0x0 0x10000>;
+			interrupts = <GIC_SPI 375 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR1>,
+				 <&scmi_clk IMX952_CLK_CGC_CAMCSI1>;
+			clock-names = "per", "pixel";
+			phys = <&dphy_rx_1>;
+			phy-names = "dphy-rx";
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+			status = "disabled";
+		};
+
+		isi: isi@4ad50000 {
+			compatible = "fsl,imx95-isi";
+			reg = <0x0 0x4ad50000 0x0 0x80000>;
+			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 344 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 345 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 346 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 347 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 348 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 349 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 350 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&scmi_clk IMX952_CLK_CAMAPB>,
+				 <&scmi_clk IMX952_CLK_CGC_CAMISI>;
+			clock-names = "apb", "axi";
+			fsl,blk-ctrl = <&cameramix_csr>;
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+				};
+
+				port@1 {
+					reg = <1>;
+				};
+
+				port@2 {
+					reg = <2>;
+				};
+
+				port@3 {
+					reg = <3>;
+				};
+			};
+		};
+
 		hsio_blk_ctl: syscon@4c0100c0 {
 			compatible = "nxp,imx95-hsio-blk-ctl", "syscon";
 			reg = <0x0 0x4c0100c0 0x0 0x1>;
