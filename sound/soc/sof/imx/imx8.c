@@ -137,14 +137,14 @@ static int imx8_probe(struct snd_sof_dev *sdev)
 	common->chip_pdata = sc_ipc_handle;
 
 #ifdef CONFIG_EXTCON
-	sof_imx8_edev  = devm_extcon_dev_allocate(&sdev->dev, sof_imx8_extcon_cables);
+	sof_imx8_edev  = devm_extcon_dev_allocate(sdev->dev, sof_imx8_extcon_cables);
 	if (IS_ERR(sof_imx8_edev)) {
-		dev_err(&sdev->dev, "failed to allocate extcon device\n");
+		dev_err(sdev->dev, "failed to allocate extcon device\n");
 		return 0;
 	}
-	ret = devm_extcon_dev_register(&sdev->dev, sof_imx8_edev);
+	ret = devm_extcon_dev_register(sdev->dev, sof_imx8_edev);
 	if (ret < 0) {
-		dev_err(&sdev->dev, "failed to register extcon device\n");
+		dev_err(sdev->dev, "failed to register extcon device\n");
 		return 0;
 	}
 	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
@@ -209,13 +209,13 @@ static int imx8m_probe(struct snd_sof_dev *sdev)
 	common->chip_pdata = chip;
 
 #ifdef CONFIG_EXTCON
-	sof_imx8_edev  = devm_extcon_dev_allocate(&sdev->dev, sof_imx8_extcon_cables);
+	sof_imx8_edev  = devm_extcon_dev_allocate(sdev->dev, sof_imx8_extcon_cables);
 	if (IS_ERR(sof_imx8_edev)) {
-		dev_err(&sdev->dev, "failed to allocate extcon device\n");
+		dev_err(sdev->dev, "failed to allocate extcon device\n");
 		return 0;
 	}
-	if (devm_extcon_dev_register(&sdev->dev, sof_imx8_edev) < 0) {
-		dev_err(&sdev->dev, "failed to register extcon device\n");
+	if (devm_extcon_dev_register(sdev->dev, sof_imx8_edev) < 0) {
+		dev_err(sdev->dev, "failed to register extcon device\n");
 		return 0;
 	}
 	extcon_set_state_sync(sof_imx8_edev, EXTCON_JACK_LINE_OUT, 1);
