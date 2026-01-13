@@ -1256,6 +1256,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds-dual.dtb
 imx952-evk-jdi-wuxga-lvds-panel-dtbs := imx952-evk.dtb imx952-evk-jdi-wuxga-lvds-panel.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-jdi-wuxga-lvds-panel.dtb
 
+imx952-evk-lt9611uxc-dtbs := imx952-evk.dtb imx952-evk-lt9611uxc.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-lt9611uxc.dtb
+
 imx952-evk-rm692c9-dtbs := imx952-evk.dtb imx952-evk-rm692c9.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-rm692c9.dtb
 

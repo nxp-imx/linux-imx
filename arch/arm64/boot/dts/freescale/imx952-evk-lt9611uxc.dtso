@@ -1,37 +1,38 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024,2026 NXP
+ * Copyright 2026 NXP
  */
 
 /dts-v1/;
 /plugin/;
 
-#include "imx95-clock.h"
+#include "imx952-clock.h"
+#include "imx952-pinfunc.h"
 #include "imx95-lt9611uxc-common.dtsi"
 
 &dpu {
-	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
 	assigned-clock-rates = <0>, <2673000000>, <297000000>;
 };
 
-&lpi2c6 {
+&lpi2c2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
 
 	hdmi@2b {
 		compatible = "lontium,lt9611uxc";
 		reg = <0x2b>;
-		reset-gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
-		interrupts-extended = <&gpio5 7 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&adp5585 4 GPIO_ACTIVE_HIGH>;
+		interrupts-extended = <&gpio3 27 IRQ_TYPE_EDGE_FALLING>;
 
 		vdd-supply = <&reg_1p8v>;
 		vcc-supply = <&reg_3p3v>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_mipi_dsi_csi>;
+		pinctrl-0 = <&pinctrl_mipi_dsi>;
 
 		ports {
 			#address-cells = <1>;
@@ -53,5 +54,17 @@
 				};
 			};
 		};
+	};
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_mipi_dsi: mipidsigrp {
+		fsl,pins = <
+			IMX952_PAD_CCM_CLKO2__WAKEUPMIX_TOP_GPIO3_IO_27	0x31e
+		>;
 	};
 };
