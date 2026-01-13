@@ -24,11 +24,13 @@ properties:
     const: 0
 
   clocks:
+    minItems: 1
     items:
       - description: PHY configuration clock
       - description: PHY reference clock
 
   clock-names:
+    minItems: 1
     items:
       - const: phy_cfg
       - const: phy_ref
