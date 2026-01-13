@@ -1706,8 +1706,9 @@
 						#size-cells = <0>;
 						reg = <2>;
 
-						endpoint@0 {
+						display_pixel_link0_to_mipi_dsi: endpoint@0 {
 							reg = <0>;
+							remote-endpoint = <&mipi_dsi_to_display_pixel_link0>;
 						};
 
 						display_pixel_link0_to_ldb_ch0: endpoint@1 {
@@ -1721,8 +1722,9 @@
 						#size-cells = <0>;
 						reg = <3>;
 
-						endpoint@0 {
+						display_pixel_link1_to_mipi_dsi: endpoint@0 {
 							reg = <0>;
+							remote-endpoint = <&mipi_dsi_to_display_pixel_link1>;
 						};
 
 						display_pixel_link1_to_ldb_ch1: endpoint@1 {
@@ -1731,6 +1733,67 @@
 						};
 					};
 				};
+			};
+		};
+
+		mipi_dsi: dsi@4b060000 {
+			compatible = "nxp,imx952-mipi-dsi2";
+			reg = <0x0 0x4b060000 0x0 0x10000>;
+			clocks = <&scmi_clk IMX952_CLK_MIPIPHYPLLBYPASS>,
+				 <&scmi_clk IMX952_CLK_CGC_DISPDSI>,
+				 <&scmi_clk IMX952_CLK_DISP1PIX>,
+				 <&scmi_clk IMX952_CLK_DISP1PIX>,
+				 <&mipi_dphy>;
+			clock-names = "bypass", "pclk", "sys", "pix", "phy_pll";
+			assigned-clocks = <&scmi_clk IMX952_CLK_MIPIPHYPLLBYPASS>,
+					  <&scmi_clk IMX952_CLK_CGC_DISPDSI>;
+			assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>,
+						 <&scmi_clk IMX952_CLK_DISPAPB>;
+			mux-controls = <&mux 0>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			nxp,display-dsi-csr = <&display_dsi_csr>;
+			phys = <&mipi_dphy>;
+			phy-names = "dphy";
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+
+					mipi_dsi_to_display_pixel_link0: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&display_pixel_link0_to_mipi_dsi>;
+					};
+
+					mipi_dsi_to_display_pixel_link1: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&display_pixel_link1_to_mipi_dsi>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+				};
+			};
+		};
+
+		display_dsi_csr: syscon@4b0a0000 {
+			compatible = "nxp,imx952-display-dsi-csr", "syscon";
+			reg = <0x0 0x4b0a0000 0x0 0x10000>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+
+			mux: mux-controller {
+				compatible = "mmio-mux";
+				#mux-control-cells = <1>;
+				mux-reg-masks = <0x4 0x00000001>; /* PXL_LINK_SEL */
+				idle-states = <0>;
 			};
 		};
 
@@ -1910,6 +1973,22 @@
 					};
 				};
 			};
+		};
+
+		mipi_dphy: phy@4b110000 {
+			compatible = "nxp,imx952-mipi-dphy";
+			reg = <0x0 0x4b110000 0x0 0x40000>;
+			#clock-cells = <0>;
+			clocks = <&scmi_clk IMX952_CLK_DISPCDPHYAPB>,
+				 <&scmi_clk IMX952_CLK_DISPPHYCFG>,
+				 <&scmi_clk IMX952_CLK_DISPPHYCFG>;
+			clock-names = "apb", "cfg", "ref";
+			assigned-clocks = <&scmi_clk IMX952_CLK_DISPPHYCFG>;
+			assigned-clock-parents = <&scmi_clk IMX952_CLK_OSC24M>;
+			nxp,blk-ctrl = <&display_dsi_csr>;
+			#phy-cells = <0>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			status = "disabled";
 		};
 
 		dpu: display-controller@4b400000 {

@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024,2026 NXP
+ * Copyright 2026 NXP
  */
 
-#include "imx95-clock.h"
+#include "imx952-clock.h"
+#include "imx952-pinfunc.h"
 #include "imx95-evk-adv7535-common.dtsi"
 
 &dpu {
-	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-rates = <0>, <4008000000>, <445333334>;
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-rates = <0>, <4009500000>, <445500000>;
 };
 
-&lpi2c6 {
+&lpi2c2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
 
@@ -27,7 +28,9 @@
 		a2vdd-supply = <&reg_3p3v>;
 		v3p3-supply = <&reg_1p8v>;
 		v1p2-supply = <&reg_1p8v>;
-		adi,dsi-lanes = <4>;
+		adi,dsi-lanes = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_dsi>;
 
 		ports {
 			#address-cells = <1>;
@@ -49,5 +52,17 @@
 				};
 			};
 		};
+	};
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_mipi_dsi: mipidsigrp {
+		fsl,pins = <
+			IMX952_PAD_CCM_CLKO2__WAKEUPMIX_TOP_GPIO3_IO_27	0x31e
+		>;
 	};
 };
