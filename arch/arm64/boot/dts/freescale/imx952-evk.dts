@@ -23,6 +23,8 @@
 	compatible = "fsl,imx952-evk", "fsl,imx952";
 
 	aliases {
+		dphy0 = &dphy_rx_0;
+		dphy1 = &dphy_rx_1;
 		ethernet0 = &netc_enetc0;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
