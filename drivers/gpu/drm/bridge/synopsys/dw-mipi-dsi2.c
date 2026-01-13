@@ -319,8 +319,11 @@ static void dw_mipi_dsi2_host_softrst(struct dw_mipi_dsi2 *dsi2)
 
 static void dw_mipi_dsi2_phy_clk_mode_cfg(struct dw_mipi_dsi2 *dsi2)
 {
+	const struct dw_mipi_dsi2_phy_ops *phy_ops = dsi2->plat_data->phy_ops;
+	unsigned long esc_rate = 20000000; /* Default to 20MHz */
 	u32 sys_clk, esc_clk_div;
 	u32 val = 0;
+	int ret;
 
 	/*
 	 * clk_type should be NON_CONTINUOUS_CLK before
@@ -329,8 +332,15 @@ static void dw_mipi_dsi2_phy_clk_mode_cfg(struct dw_mipi_dsi2 *dsi2)
 	val |= NON_CONTINUOUS_CLK;
 
 	/* The maximum value of the escape clock frequency is 20MHz */
-	sys_clk = clk_get_rate(dsi2->sys_clk) / USEC_PER_SEC;
-	esc_clk_div = DIV_ROUND_UP(sys_clk, 20 * 2);
+	if (phy_ops->get_esc_clk_rate) {
+		ret = phy_ops->get_esc_clk_rate(dsi2->plat_data->priv_data,
+						&esc_rate);
+		if (ret)
+			dev_err(dsi2->dev, "Retrieving phy escape clk rate failed\n");
+	}
+
+	sys_clk = clk_get_rate(dsi2->sys_clk);
+	esc_clk_div = DIV_ROUND_UP(sys_clk, esc_rate * 2);
 	val |= PHY_LPTX_CLK_DIV(esc_clk_div);
 
 	regmap_write(dsi2->regmap, DSI2_PHY_CLK_CFG, val);

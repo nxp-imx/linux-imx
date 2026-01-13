@@ -58,7 +58,7 @@ struct dw_mipi_dsi2_phy_ops {
 			     unsigned int *lane_mbps);
 	int (*get_timing)(void *priv_data, unsigned int lane_mbps,
 			  struct dw_mipi_dsi2_phy_timing *timing);
-	int (*get_esc_clk_rate)(void *priv_data, unsigned int *esc_clk_rate);
+	int (*get_esc_clk_rate)(void *priv_data, unsigned long *esc_clk_rate);
 };
 
 struct dw_mipi_dsi2_host_ops {
