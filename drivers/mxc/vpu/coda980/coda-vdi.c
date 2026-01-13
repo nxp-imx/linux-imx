@@ -121,7 +121,10 @@ static int coda_vdi_swap_endian(unsigned char *data, int len, int endian)
 int coda_vdi_read_memory(struct vpu_buf *vb, size_t offset,
 			 u8 *data, int len, int endian)
 {
-	if (!vb || !vb->vaddr) {
+	if (!vb)
+		return -EINVAL;
+
+	if (!vb->vaddr) {
 		dev_err(vb->dev, "%s(): unable to write to unmapped buffer\n", __func__);
 		return -EINVAL;
 	}
@@ -139,7 +142,10 @@ int coda_vdi_read_memory(struct vpu_buf *vb, size_t offset,
 int coda_vdi_write_memory(struct vpu_buf *vb, size_t offset,
 			  u8 *data, int len, int endian)
 {
-	if (!vb || !vb->vaddr) {
+	if (!vb)
+		return -EINVAL;
+
+	if (!vb->vaddr) {
 		dev_err(vb->dev, "%s(): unable to write to unmapped buffer\n", __func__);
 		return -EINVAL;
 	}

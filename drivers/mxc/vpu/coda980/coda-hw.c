@@ -337,6 +337,9 @@ static void coda_hw_load_bit_code(struct vpu_device *vpu)
 	int i, pos;
 	u32 val;
 
+	if (!vpu->common_mem.vaddr)
+		return;
+
 	code = (u8 *)vpu->common_mem.vaddr;
 
 	vpu_write_reg(vpu->dev, BIT_CODE_RUN, 0);
@@ -356,10 +359,8 @@ static void coda_hw_bit_issue_cmd(struct vpu_device *vpu, struct vpu_instance *i
 	int inst_idx = 0;
 	int cdc_mode = 0;
 	int aux_mode = 0;
-	struct coda_enc_info *p_enc_info;
 
 	if (inst) {
-		p_enc_info = &inst->codec_info->enc_info;
 		inst_idx = inst->id;
 		cdc_mode = inst->std;
 
@@ -485,10 +486,14 @@ int coda_hw_get_version(struct vpu_device *vpu, u32 *version, u32 *revision)
 int coda_hw_build_up_enc_param(struct vpu_instance *inst,
 			       struct coda_enc_open_param *open_param)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 
+	if (!inst->codec_info)
+		return -EINVAL;
 	if (!open_param)
 		return -EINVAL;
+
+	p_enc_info = &inst->codec_info->enc_info;
 
 	open_param->level = max(open_param->level, coda_hw_enc_calc_level(open_param));
 	open_param->conf_win = coda_hw_enc_calc_conf_win(open_param);
@@ -500,14 +505,16 @@ int coda_hw_build_up_enc_param(struct vpu_instance *inst,
 
 int coda_hw_enc_init_seq(struct vpu_instance *inst)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct coda_enc_open_param *p_open_param = &p_enc_info->open_param;
+	struct coda_enc_info *p_enc_info;
+	struct coda_enc_open_param *p_open_param;
 	struct vpu_device *vpu = inst->vpu_dev;
 	bool en_gamma, en_intra_qp;
 	u32 reg_val;
 
-	if (!p_enc_info)
+	if (!inst->codec_info)
 		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
+	p_open_param = &p_enc_info->open_param;
 
 	//TODO check bistream buffer information is needed.
 	vpu_write_reg(vpu->dev, CMD_ENC_SEQ_BB_START, 0);
@@ -613,10 +620,14 @@ int coda_hw_enc_init_seq(struct vpu_instance *inst)
 
 int coda_hw_enc_get_seq_info(struct vpu_instance *inst)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	struct vpu_device *vpu = inst->vpu_dev;
 	int ret = 0;
 
+	if (!inst->codec_info)
+		return -EINVAL;
+
+	p_enc_info = &inst->codec_info->enc_info;
 	if (vpu_read_reg(vpu->dev, RET_ENC_SEQ_SUCCESS) != 1)
 		return -EIO;
 
@@ -628,13 +639,18 @@ int coda_hw_enc_get_seq_info(struct vpu_instance *inst)
 
 static void coda_hw_config_tiled_map(struct vpu_instance *inst)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct coda_tiled_map_config *map_cfg = &p_enc_info->map_cfg;
+	struct coda_enc_info *p_enc_info;
+	struct coda_tiled_map_config *map_cfg;
 	const int luma_map = 0x40;
 	const int chro_map = 0x40;
 	int width;
 	int width_chr;
 	int i;
+
+	if (!inst->codec_info)
+		return;
+	p_enc_info = &inst->codec_info->enc_info;
+	map_cfg = &p_enc_info->map_cfg;
 
 	for (i = 0; i < 32; i = i + 1) {
 		map_cfg->xy2axi_luma_map[i] = luma_map;
@@ -1250,12 +1266,17 @@ static void coda_hw_config_sec_axi(struct coda_enc_info *p_enc_info)
 
 int coda_hw_enc_register_frame_buffer(struct vpu_instance *inst, struct coda_frame_buffer *fb_arr)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct coda_tiled_map_config *map_cfg = &p_enc_info->map_cfg;
+	struct coda_enc_info *p_enc_info;
+	struct coda_tiled_map_config *map_cfg;
 	struct vpu_device *vpu = inst->vpu_dev;
 	int i;
 	int ret;
 	u32 reg_val;
+
+	if (!inst->codec_info)
+		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
+	map_cfg = &p_enc_info->map_cfg;
 
 	coda_hw_config_sec_axi(p_enc_info);
 	coda_hw_config_tiled_map(inst);
@@ -1336,13 +1357,18 @@ int coda_hw_enc_register_frame_buffer(struct vpu_instance *inst, struct coda_fra
 
 static int coda_hw_enc_encode_header(struct vpu_instance *inst, u32 type)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct coda_enc_open_param *p_open_param = &p_enc_info->open_param;
+	struct coda_enc_info *p_enc_info;
+	struct coda_enc_open_param *p_open_param;
 	struct vpu_device *vpu = inst->vpu_dev;
 	bool en_frame_crop = false;
 	u32 reg_val;
 	u32 header_size;
 	int ret;
+
+	if (!inst->codec_info)
+		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
+	p_open_param = &p_enc_info->open_param;
 
 	p_enc_info->stream_wr_ptr = p_enc_info->bitstream_buf;
 	p_enc_info->stream_rd_ptr = p_enc_info->bitstream_buf;
@@ -1461,7 +1487,7 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 					struct coda_enc_output_info *info)
 {
 	struct vpu_device *vpu = inst->vpu_dev;
-	u8 addr_info[CODA_REPORT_BUF_SIZE_ADDR_INFO] = {0, };
+	u8 addr_info[CODA_REPORT_BUF_SIZE_ADDR_INFO] = { 0 };
 	u8 *report_data;
 	int i;
 
@@ -1469,8 +1495,9 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 			     CODA_REPORT_BUF_SIZE_ADDR_INFO, VDI_BIG_ENDIAN);
 
 	/* Get MB information*/
-	info->mb_info.size = (addr_info[2] << 8) | (addr_info[3] << 0);
+	info->mb_info.size = ((u32)addr_info[2] << 8) | (addr_info[3] << 0);
 	info->mb_info.buf_offset = CODA_REPORT_BUF_SIZE_ADDR_INFO;
+	info->mb_info.size = min(info->mb_info.size, CODA_REPORT_BUF_SIZE_MB_INFO);
 
 	report_data = kzalloc(ALIGN(info->mb_info.size, 8), GFP_KERNEL);
 	coda_vdi_read_memory(&inst->report_vbuf, info->mb_info.buf_offset,
@@ -1488,9 +1515,10 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 	kfree(report_data);
 
 	/* Get MV information*/
-	info->mv_info.size = (addr_info[10] << 8) | (addr_info[11] << 0);
+	info->mv_info.size = ((u32)addr_info[10] << 8) | (addr_info[11] << 0);
 	info->mv_info.ext_data = addr_info[9];
 	info->mv_info.buf_offset = CODA_REPORT_BUF_SIZE_ADDR_INFO + CODA_REPORT_BUF_SIZE_MB_INFO;
+	info->mv_info.size = min(info->mv_info.size, CODA_REPORT_BUF_SIZE_MV_INFO);
 
 	report_data = kzalloc(ALIGN(info->mv_info.size, 8), GFP_KERNEL);
 	coda_vdi_read_memory(&inst->report_vbuf, info->mv_info.buf_offset,
@@ -1503,8 +1531,8 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 		bool is_intra;
 
 		pos = i * 4;
-		mb_x = (report_data[pos] << 8) | report_data[pos + 1];
-		mb_y = (report_data[pos + 2] << 8) | report_data[pos + 3];
+		mb_x = ((u32)report_data[pos] << 8) | report_data[pos + 1];
+		mb_y = ((u32)report_data[pos + 2] << 8) | report_data[pos + 3];
 
 		is_intra = mb_x & 0x8000;
 		if (is_intra) {
@@ -1520,10 +1548,11 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 	kfree(report_data);
 
 	/* Get Slice information*/
-	info->slice_info.size = (addr_info[18] << 8) | (addr_info[19] << 0);
+	info->slice_info.size = ((u32)addr_info[18] << 8) | (addr_info[19] << 0);
 	info->slice_info.ext_data = addr_info[17];
 	info->slice_info.buf_offset = CODA_REPORT_BUF_SIZE_ADDR_INFO +
 				      CODA_REPORT_BUF_SIZE_MB_INFO + CODA_REPORT_BUF_SIZE_MV_INFO;
+	info->slice_info.size = min(info->slice_info.size, CODA_REPORT_BUF_SIZE_SLICE_INFO);
 
 	report_data = kzalloc(ALIGN(info->slice_info.size, 8), GFP_KERNEL);
 	coda_vdi_read_memory(&inst->report_vbuf, info->slice_info.buf_offset,
@@ -1535,10 +1564,10 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 		u32 mb_addr, slice_bits;
 
 		pos = i * 8;
-		mb_addr = (report_data[pos + 2] << 8) | report_data[pos + 3];
-		slice_bits = (report_data[pos + 4] << 24) |
-			     (report_data[pos + 5] << 16) |
-			     (report_data[pos + 6] << 8) |
+		mb_addr = ((u32)report_data[pos + 2] << 8) | report_data[pos + 3];
+		slice_bits = ((u32)report_data[pos + 4] << 24) |
+			     ((u32)report_data[pos + 5] << 16) |
+			     ((u32)report_data[pos + 6] << 8) |
 			     (report_data[pos + 7]);
 		dev_dbg(vpu->dev, "[%5d]%5d:%5d", i, mb_addr, slice_bits);
 	}
@@ -1546,10 +1575,11 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 	kfree(report_data);
 
 	/* Get Cost information*/
-	info->cost_info.size = (addr_info[26] << 8) | (addr_info[27] << 0);
+	info->cost_info.size = ((u32)addr_info[26] << 8) | (addr_info[27] << 0);
 	info->cost_info.buf_offset = CODA_REPORT_BUF_SIZE_ADDR_INFO +
 				     CODA_REPORT_BUF_SIZE_MB_INFO + CODA_REPORT_BUF_SIZE_MV_INFO +
 				     CODA_REPORT_BUF_SIZE_SLICE_INFO;
+	info->cost_info.size = min(info->cost_info.size, CODA_REPORT_BUF_SIZE_COST_INFO);
 
 	report_data = kzalloc(ALIGN(info->cost_info.size, 8), GFP_KERNEL);
 	coda_vdi_read_memory(&inst->report_vbuf, info->cost_info.buf_offset,
@@ -1561,10 +1591,10 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 		u32 intra_cost, inter_cost;
 
 		pos = i * 8;
-		intra_cost = (report_data[pos] << 24) | (report_data[pos + 1] << 16) |
-			     (report_data[pos + 2] << 8) | (report_data[pos + 3]);
-		inter_cost = (report_data[pos + 4] << 24) | (report_data[pos + 5] << 16) |
-			     (report_data[pos + 6] << 8) | (report_data[pos + 7]);
+		intra_cost = ((u32)report_data[pos] << 24) | ((u32)report_data[pos + 1] << 16) |
+			     ((u32)report_data[pos + 2] << 8) | (report_data[pos + 3]);
+		inter_cost = ((u32)report_data[pos + 4] << 24) | ((u32)report_data[pos + 5] << 16) |
+			     ((u32)report_data[pos + 6] << 8) | ((u32)report_data[pos + 7]);
 		dev_dbg(vpu->dev, "[%5d]%5d:%5d", i, intra_cost, inter_cost);
 	}
 
@@ -1573,11 +1603,14 @@ static void coda_hw_get_report_buf_info(struct vpu_instance *inst,
 
 static int coda_hw_enc_param_change(struct vpu_instance *inst, struct coda_enc_param *option)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	struct vpu_device *vpu = inst->vpu_dev;
 	int param_change_enable = 0;
 	int ret;
 
+	if (!inst->codec_info)
+		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
 	if (p_enc_info->open_param.bitrate != option->bitrate) {
 		param_change_enable |= BIT(PARAM_CHANGE_ENABLE_BITRATE);
 		vpu_write_reg(vpu->dev, CMD_ENC_PARAM_CHANGE_BITRATE, option->bitrate);
@@ -1603,13 +1636,18 @@ static int coda_hw_enc_param_change(struct vpu_instance *inst, struct coda_enc_p
 
 int coda_hw_enc_encode(struct vpu_instance *inst, struct coda_enc_param *option, u32 *fail_res)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
-	struct coda_tiled_map_config *map_cfg = &p_enc_info->map_cfg;
+	struct coda_enc_info *p_enc_info;
+	struct coda_tiled_map_config *map_cfg;
 	struct coda_frame_buffer *source_frame = option->source_frame;
 	struct vpu_device *vpu = inst->vpu_dev;
 	int i;
 	u32 rot_mir_mode = 0;
 	int reg_val, ret;
+
+	if (!inst->codec_info)
+		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
+	map_cfg = &p_enc_info->map_cfg;
 
 	ret = coda_hw_enc_param_change(inst, option);
 	if (ret)
@@ -1706,8 +1744,12 @@ int coda_hw_enc_encode(struct vpu_instance *inst, struct coda_enc_param *option,
 
 int coda_hw_enc_get_result(struct vpu_instance *inst, struct coda_enc_output_info *info)
 {
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	struct vpu_device *vpu = inst->vpu_dev;
+
+	if (!inst->codec_info)
+		return -EINVAL;
+	p_enc_info = &inst->codec_info->enc_info;
 
 	if (vpu_read_reg(vpu->dev, RET_ENC_PIC_SUCCESS) != 1)
 		return -EIO;

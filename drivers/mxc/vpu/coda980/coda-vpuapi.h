@@ -460,7 +460,7 @@ struct vpu_instance {
 	const struct vpu_instance_ops *ops;
 
 	enum coda_std std;
-	u32 id;
+	int id;
 	union {
 		struct coda_enc_info enc_info;
 	} *codec_info;

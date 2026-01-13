@@ -164,6 +164,8 @@ int coda_vpuapi_enc_issue_seq_init(struct vpu_instance *inst)
 
 	guard(mutex)(&vpu->hw_lock);
 	ret = coda_hw_enc_init_seq(inst);
+	if (ret)
+		dev_err(inst->vpu_dev->dev, "Failed to init seq, ret = %d\n", ret);
 
 	if (coda_vpu_wait_interrupt(inst, CODA_VPU_TIMEOUT) < 0) {
 		dev_err(inst->vpu_dev->dev, "seq init timeout\n");
@@ -180,9 +182,13 @@ int coda_vpuapi_enc_register_frame_buffer(struct vpu_instance *inst, unsigned in
 					  enum coda_tiled_map_type map_type)
 {
 	struct vpu_device *vpu = inst->vpu_dev;
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	int ret;
 
+	if (!inst->codec_info)
+		return -EINVAL;
+
+	p_enc_info = &inst->codec_info->enc_info;
 	if (p_enc_info->stride)
 		return -EINVAL;
 
@@ -218,11 +224,15 @@ int coda_vpuapi_enc_start_one_frame(struct vpu_instance *inst, struct coda_enc_p
 				    u32 *fail_res)
 {
 	struct vpu_device *vpu = inst->vpu_dev;
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	int ret;
 
 	*fail_res = 0;
 
+	if (!inst->codec_info)
+		return -EINVAL;
+
+	p_enc_info = &inst->codec_info->enc_info;
 	if (p_enc_info->stride == 0)
 		return -EINVAL;
 
@@ -247,11 +257,15 @@ int coda_vpuapi_enc_start_one_frame(struct vpu_instance *inst, struct coda_enc_p
 int coda_vpuapi_enc_get_output_info(struct vpu_instance *inst, struct coda_enc_output_info *info)
 {
 	struct vpu_device *vpu = inst->vpu_dev;
-	struct coda_enc_info *p_enc_info = &inst->codec_info->enc_info;
+	struct coda_enc_info *p_enc_info;
 	int ret;
 
 	if (!info)
 		return -EINVAL;
+	if (!inst->codec_info)
+		return -EINVAL;
+
+	p_enc_info = &inst->codec_info->enc_info;
 
 	ret = mutex_lock_interruptible(&vpu->hw_lock);
 	if (ret)
