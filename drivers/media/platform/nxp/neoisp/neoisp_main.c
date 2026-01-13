@@ -30,6 +30,13 @@
 #include "neoisp_regs.h"
 #include "neoisp_ctx.h"
 
+/* \todo : Must be in videodev2.h uapi file */
+/* Vendor specific - used for NXP NEOISP sub-system */
+#define V4L2_META_FMT_NEO_ISP_PARAMS v4l2_fourcc('N', 'N', 'I', 'P') /* NXP NEOISP Parameters */
+#define V4L2_META_FMT_NEO_ISP_EXT_PARAMS v4l2_fourcc('N', 'N', 'E', 'P') /* NXP NEOISP Ext Params */
+#define V4L2_META_FMT_NEO_ISP_STATS v4l2_fourcc('N', 'N', 'I', 'S') /* NXP NEOISP Statistics */
+#define V4L2_META_FMT_NEO_ISP_EXT_STATS v4l2_fourcc('N', 'N', 'E', 'S') /* NXP NEOISP Ext Stats */
+
 static int enable_debugfs;
 module_param_named(enable_debugfs, enable_debugfs, uint, 0600);
 
