@@ -9,3 +9,4 @@ ifdef CONFIG_IMX_ELE_TRNG
 sec_enclave-objs		+= ele_trng.o
 endif
 obj-${CONFIG_IMX_SEC_ENCLAVE}	+= sec_enclave.o
+obj-$(CONFIG_IMX_DISPMU)	+= disp-mu.o
