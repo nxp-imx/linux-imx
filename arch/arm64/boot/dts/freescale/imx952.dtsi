@@ -3,6 +3,7 @@
  * Copyright 2025-2026 NXP
  */
 
+#include <dt-bindings/clock/nxp,imx952-clock.h>
 #include <dt-bindings/dma/fsl-edma.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -1417,6 +1418,8 @@
 		dispmix_csr: syscon@4b010000 {
 			compatible = "nxp,imx952-display-csr", "syscon";
 			reg = <0x0 0x4b010000 0x0 0x10000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
 			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
 			assigned-clocks = <&scmi_clk IMX952_CLK_DISPAXI>,
@@ -1425,6 +1428,63 @@
 			assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1>,
 						 <&scmi_clk IMX952_CLK_SYSPLL1_PFD1_DIV2>;
 			assigned-clock-rates = <400000000>, <133333333>, <400000000>;
+
+			display_pixel_link: bridge@c {
+				compatible = "nxp,imx952-dc-pixel-link";
+				reg = <0xc 0x4>;
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+
+						display_pixel_link0_to_pixel_interleaver_disp0: endpoint {
+							remote-endpoint = <&pixel_interleaver_disp0_to_display_pixel_link0>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+
+						display_pixel_link1_to_pixel_interleaver_disp1: endpoint {
+							remote-endpoint = <&pixel_interleaver_disp1_to_display_pixel_link1>;
+						};
+					};
+
+					port@2 {
+						#address-cells = <1>;
+						#size-cells = <0>;
+						reg = <2>;
+
+						endpoint@0 {
+							reg = <0>;
+						};
+
+						display_pixel_link0_to_ldb_ch0: endpoint@1 {
+							reg = <1>;
+							remote-endpoint = <&ldb_ch0_to_display_pixel_link0>;
+						};
+					};
+
+					port@3 {
+						#address-cells = <1>;
+						#size-cells = <0>;
+						reg = <3>;
+
+						endpoint@0 {
+							reg = <0>;
+						};
+
+						display_pixel_link1_to_ldb_ch1: endpoint@1 {
+							reg = <1>;
+							remote-endpoint = <&ldb_ch1_to_display_pixel_link1>;
+						};
+					};
+				};
+			};
 		};
 
 		displaymix_irqsteer: interrupt-controller@4b0b0000 {
@@ -1446,6 +1506,163 @@
 			interrupt-controller;
 			#interrupt-cells = <1>;
 			status = "disabled";
+		};
+
+		lvds_csr: syscon@4b0c0000 {
+			compatible = "nxp,imx952-lvds-csr", "nxp,imx95-lvds-csr", "syscon";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x0 0x4b0c0000 0x0 0x10000>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+
+			ldb: ldb@4 {
+				compatible = "fsl,imx952-ldb", "fsl,imx95-ldb";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x4 0x4>;
+				clocks = <&lvds_csr IMX952_CLK_DISPMIX_PIX_DI0_GATE>,
+					 <&lvds_csr IMX952_CLK_DISPMIX_PIX_DI1_GATE>,
+					 <&lvds_csr IMX952_CLK_DISPMIX_LVDS_CH0_GATE>,
+					 <&lvds_csr IMX952_CLK_DISPMIX_LVDS_CH1_GATE>;
+				clock-names = "ldb_di0", "ldb_di1", "ldb_ch0", "ldb_ch1";
+				status = "disabled";
+
+				channel@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+					phys = <&ldb0_phy1>;
+					phy-names = "lvds_phy";
+					status = "disabled";
+
+					port@0 {
+						reg = <0>;
+
+						ldb_ch0_to_display_pixel_link0: endpoint {
+							remote-endpoint = <&display_pixel_link0_to_ldb_ch0>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+					};
+				};
+
+				channel@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+					phys = <&ldb1_phy1>;
+					phy-names = "lvds_phy";
+					status = "disabled";
+
+					port@0 {
+						reg = <0>;
+
+						ldb_ch1_to_display_pixel_link1: endpoint {
+							remote-endpoint = <&display_pixel_link1_to_ldb_ch1>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+					};
+				};
+			};
+
+			ldb0_phy: phy@8 {
+				compatible = "fsl,imx952-lvds0-phy", "fsl,imx95-lvds0-phy";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x8 0x4>;
+				gpr = <&lvds_csr>;
+				clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+				clock-names = "apb";
+				power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+				status = "disabled";
+
+				ldb0_phy1: port@0 {
+					reg = <0>;
+					#phy-cells = <0>;
+				};
+			};
+
+			ldb1_phy: phy@c {
+				compatible = "fsl,imx952-lvds1-phy", "fsl,imx95-lvds1-phy";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xc 0x4>;
+				gpr = <&lvds_csr>;
+				clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+				clock-names = "apb";
+				power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+				status = "disabled";
+
+				ldb1_phy1: port@0 {
+					reg = <0>;
+					#phy-cells = <0>;
+				};
+			};
+		};
+
+		pixel_interleaver: bridge@4b0d0000 {
+			compatible = "nxp,imx952-pixel-interleaver";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x0 0x4b0d0000 0x0 0x20000>;
+			interrupt-parent = <&displaymix_irqsteer>;
+			interrupts = <62>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_DISPSEERIS>;
+			nxp,blk-ctrl = <&dispmix_csr>;
+			status = "disabled";
+
+			channel@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0>;
+				status = "disabled";
+
+				port@0 {
+					reg = <0>;
+
+					pixel_interleaver_disp0_to_dpu_disp0: endpoint {
+						remote-endpoint = <&dpu_disp0_to_pixel_interleaver_disp0>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					pixel_interleaver_disp0_to_display_pixel_link0: endpoint {
+						remote-endpoint = <&display_pixel_link0_to_pixel_interleaver_disp0>;
+					};
+				};
+			};
+
+			channel@1 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <1>;
+				status = "disabled";
+
+				port@0 {
+					reg = <0>;
+
+					pixel_interleaver_disp1_to_dpu_disp1: endpoint {
+						remote-endpoint = <&dpu_disp1_to_pixel_interleaver_disp1>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					pixel_interleaver_disp1_to_display_pixel_link1: endpoint {
+						remote-endpoint = <&display_pixel_link1_to_pixel_interleaver_disp1>;
+					};
+				};
+			};
 		};
 
 		dpu: display-controller@4b400000 {
@@ -1577,10 +1794,17 @@
 				port@0 {
 					reg = <0>;
 
+					dpu_disp0_to_pixel_interleaver_disp0: endpoint {
+						remote-endpoint = <&pixel_interleaver_disp0_to_dpu_disp0>;
+					};
 				};
 
 				port@1 {
 					reg = <1>;
+
+					dpu_disp1_to_pixel_interleaver_disp1: endpoint {
+						remote-endpoint = <&pixel_interleaver_disp1_to_dpu_disp1>;
+					};
 				};
 			};
 		};

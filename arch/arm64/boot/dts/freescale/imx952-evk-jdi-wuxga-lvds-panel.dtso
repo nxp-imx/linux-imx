@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2023,2026 NXP
+ * Copyright 2026 NXP
  */
-/dts-v1/;
-/plugin/;
 
-#include "imx95-clock.h"
+#include "imx952-clock.h"
 #include "imx95-evk-jdi-wuxga-lvds-panel-common.dtsi"
 
 &ldb {
-	assigned-clocks = <&scmi_clk IMX95_CLK_LDBPLL_VCO>,
-			  <&scmi_clk IMX95_CLK_LDBPLL>;
+	assigned-clocks = <&scmi_clk IMX952_CLK_LDBPLL_VCO>,
+			  <&scmi_clk IMX952_CLK_LDBPLL>;
 	assigned-clock-rates = <3291120000>, <1097040000>;
 };
