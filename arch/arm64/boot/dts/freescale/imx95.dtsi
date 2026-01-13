@@ -2107,7 +2107,7 @@
 				clock-names = "phy_cfg";
 				assigned-clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 				assigned-clock-parents = <&scmi_clk IMX95_CLK_24M>;
-				assigned-clock-rate = <24000000>;
+				assigned-clock-rates = <24000000>;
 				#phy-cells = <0>;
 				fsl,csis = <&mipi_csi0>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
@@ -2121,7 +2121,7 @@
 				clock-names = "phy_cfg";
 				assigned-clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 				assigned-clock-parents = <&scmi_clk IMX95_CLK_24M>;
-				assigned-clock-rate = <24000000>;
+				assigned-clock-rates = <24000000>;
 				#phy-cells = <0>;
 				fsl,csis = <&mipi_csi1>;
 				fsl,dsi = <&mipi_dsi_intf>;
