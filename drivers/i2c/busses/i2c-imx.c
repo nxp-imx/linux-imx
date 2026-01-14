@@ -313,8 +313,10 @@ struct imx_i2c_struct {
 	int			pmuxcr_endian;
 	void __iomem		*pmuxcr_addr;
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	struct i2c_client	*slave;
 	enum i2c_slave_event last_slave_event;
+#endif
 
 	struct i2c_msg		*msg;
 	unsigned int		msg_buf_idx;
@@ -324,9 +326,11 @@ struct imx_i2c_struct {
 
 	bool			multi_master;
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	/* For checking slave events. */
 	spinlock_t     slave_lock;
 	struct hrtimer slave_timer;
+#endif
 };
 
 static const struct imx_i2c_hwdata imx1_i2c_hwdata = {
@@ -818,6 +822,7 @@ static void i2c_imx_stop(struct imx_i2c_struct *i2c_imx, bool atomic)
 	imx_i2c_write_reg(temp, i2c_imx, IMX_I2C_I2CR);
 }
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 /*
  * Enable bus idle interrupts
  * Note: IBIC register will be cleared after disabled i2c module.
@@ -1029,6 +1034,7 @@ static int i2c_imx_unreg_slave(struct i2c_client *client)
 
 	return ret;
 }
+#endif
 
 static inline int i2c_imx_isr_acked(struct imx_i2c_struct *i2c_imx)
 {
@@ -1190,7 +1196,9 @@ static irqreturn_t i2c_imx_isr(int irq, void *dev_id)
 	struct imx_i2c_struct *i2c_imx = dev_id;
 	unsigned int ctl, status;
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	scoped_guard(spinlock_irqsave, &i2c_imx->slave_lock) {
+#endif
 		status = imx_i2c_read_reg(i2c_imx, IMX_I2C_I2SR);
 		ctl = imx_i2c_read_reg(i2c_imx, IMX_I2C_I2CR);
 
@@ -1199,6 +1207,7 @@ static irqreturn_t i2c_imx_isr(int irq, void *dev_id)
 
 		i2c_imx_clear_irq(i2c_imx, I2SR_IIF);
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 		if (i2c_imx->slave) {
 			if (!(ctl & I2CR_MSTA))
 				return i2c_imx_slave_handle(i2c_imx,
@@ -1207,7 +1216,7 @@ static irqreturn_t i2c_imx_isr(int irq, void *dev_id)
 			i2c_imx_slave_finish_op(i2c_imx);
 		}
 	}
-
+#endif
 	return i2c_imx_master_isr(i2c_imx, status);
 }
 
@@ -1680,9 +1689,11 @@ fail0:
 	dev_dbg(&i2c_imx->adapter.dev, "<%s> exit with: %s: %d\n", __func__,
 		(result < 0) ? "error" : "success msg",
 			(result < 0) ? result : num);
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	/* After data is transferred, switch to slave mode(as a receiver) */
 	if (i2c_imx->slave)
 		i2c_imx_slave_init(i2c_imx);
+#endif
 
 	return (result < 0) ? result : num;
 }
@@ -1882,8 +1893,10 @@ static const struct i2c_algorithm i2c_imx_algo = {
 	.xfer = i2c_imx_xfer,
 	.xfer_atomic = i2c_imx_xfer_atomic,
 	.functionality = i2c_imx_func,
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	.reg_slave = i2c_imx_reg_slave,
 	.unreg_slave = i2c_imx_unreg_slave,
+#endif
 };
 
 static int i2c_imx_probe(struct platform_device *pdev)
@@ -1909,9 +1922,11 @@ static int i2c_imx_probe(struct platform_device *pdev)
 	if (!i2c_imx)
 		return -ENOMEM;
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	spin_lock_init(&i2c_imx->slave_lock);
 	hrtimer_setup(&i2c_imx->slave_timer, i2c_imx_slave_timeout, CLOCK_MONOTONIC,
 		      HRTIMER_MODE_ABS);
+#endif
 
 	match = device_get_match_data(&pdev->dev);
 	if (match)
@@ -2045,7 +2060,9 @@ static void i2c_imx_remove(struct platform_device *pdev)
 
 	ret = pm_runtime_get_sync(&pdev->dev);
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	hrtimer_cancel(&i2c_imx->slave_timer);
+#endif
 
 	/* remove adapter */
 	dev_dbg(&i2c_imx->adapter.dev, "adapter removed\n");
