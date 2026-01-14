@@ -1526,6 +1526,7 @@
 			interrupts = <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
+			status = "disabled";
 		};
 
 		v2x_mu3: mailbox@47330000 {
