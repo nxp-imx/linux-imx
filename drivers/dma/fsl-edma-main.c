@@ -874,6 +874,9 @@ static int fsl_edma_probe(struct platform_device *pdev)
 
 		edma_write_tcdreg(fsl_chan, cpu_to_le32(0), csr);
 		fsl_edma_chan_mux(fsl_chan, 0, false);
+		if (fsl_chan->edma->drvdata->flags & FSL_EDMA_DRV_HAS_CHMUX)
+			edma_writel(fsl_chan->edma, 0, fsl_chan->mux_addr);
+
 		if (fsl_chan->edma->drvdata->flags & FSL_EDMA_DRV_HAS_CHCLK)
 			clk_disable_unprepare(fsl_chan->clk);
 	}
