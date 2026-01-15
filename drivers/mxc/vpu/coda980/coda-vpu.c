@@ -227,9 +227,7 @@ static int coda_vpu_probe(struct platform_device *pdev)
 		 &vpu->common_mem.daddr, vpu->common_mem.size);
 
 	vpu->sram_pool = of_gen_pool_get(pdev->dev.of_node, "sram", 0);
-	if (!vpu->sram_pool) {
-		dev_warn(&pdev->dev, "sram node not found\n");
-	} else {
+	if (vpu->sram_pool) {
 		vpu->sram_buf.size = match_data->sram_size;
 		vpu->sram_buf.vaddr = gen_pool_dma_alloc(vpu->sram_pool,
 							 vpu->sram_buf.size,
