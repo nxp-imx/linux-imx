@@ -1488,8 +1488,10 @@ static int enetc4_get_fwnode(struct enetc_ndev_priv *priv,
 
 	/* keep parent reference */
 	priv->swnode = tmp_fwnode;
+#ifndef CONFIG_IMX_GKI_FIX
 	tmp_fwnode = fwnode_create_named_software_node(fl_props, tmp_fwnode,
 						       "fixed-link");
+#endif
 	if (IS_ERR(tmp_fwnode)) {
 		dev_err(priv->dev, "Failed to create 'fixed-link' swnode\n");
 		enetc4_put_fwnode(priv);
