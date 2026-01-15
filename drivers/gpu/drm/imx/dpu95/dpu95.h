@@ -99,6 +99,7 @@ enum dpu95_unit_name {
 	DPU95_FETCHYUV,
 	DPU95_HSCALER,
 	DPU95_LAYERBLEND,
+	DPU95_LOCALDIMMING,
 	DPU95_VSCALER,
 };
 
@@ -283,6 +284,7 @@ struct dpu95_soc {
 	struct dpu95_fetchunit		**fy;
 	struct dpu95_hscaler		*hs[2];
 	struct dpu95_layerblend		**lb;
+	struct dpu95_localdimming       *ld;
 	struct dpu95_vscaler		*vs[2];
 	int fe_cnt;
 	int fl_cnt;
@@ -520,6 +522,18 @@ void dpu95_lb_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base);
+
+/* Local Dimming Unit */
+struct dpu95_localdimming;
+struct dpu95_drm_device;
+struct dpu95_localdimming *dpu95_ld_get(struct dpu95_soc *dpu, unsigned int id);
+void dpu95_ld_hw_init(struct dpu95_soc *dpu, unsigned int index);
+int dpu95_ld_init(struct dpu95_soc *dpu, unsigned int index,
+		  unsigned int id, enum dpu95_unit_type type,
+		  unsigned long pec_base, unsigned long base);
+int dpu95_ld_mode_set(struct dpu95_localdimming *ld, struct drm_display_mode *mode);
+int dpu95_ld_enable(struct dpu95_localdimming *ld);
+int dpu95_ld_disable(struct dpu95_localdimming *ld);
 
 /* Vertical Scaler Unit */
 struct dpu95_vscaler;

@@ -13,6 +13,7 @@
 #include "dpu95-crtc.h"
 #include "dpu95-plane.h"
 #include "dpu95-blit.h"
+#include "dpu95-ld.h"
 
 #define DPU95_CRTCS	2
 #define DPU95_ENCODERS	DPU95_CRTCS
