@@ -339,6 +339,7 @@ struct dpu95_data {
 
 	/* FIXME: drop this when i.MX952 DPU blit engine is supported */
 	bool disable_blit;
+	u32 cmdseq_interrupt_clear0;
 };
 
 void dpu95_comctrl_irq_handle(struct irq_desc *desc, int irq);

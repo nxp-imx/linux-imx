@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #ifndef __DPU95_BLIT_H__

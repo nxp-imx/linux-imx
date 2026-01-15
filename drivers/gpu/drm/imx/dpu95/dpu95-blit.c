@@ -251,7 +251,7 @@ static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *
 	dpu95_be_write(dpu_be, CMDSEQ_SEQCOMPLETE_SYNC, CMDSEQ_HIF);
 
 	dpu95_be_write(dpu_be, 0x14000001, CMDSEQ_HIF);
-	dpu95_be_write(dpu_be, CMDSEQ_INTERRUPTCLEAR0, CMDSEQ_HIF);
+	dpu95_be_write(dpu_be, dpu->data->cmdseq_interrupt_clear0, CMDSEQ_HIF);
 	dpu95_be_write(dpu_be, STORE9_SEQCOMPLETE_IRQ_MASK, CMDSEQ_HIF);
 
 	enable_irq(dpu_be->irq_comctrl_sw[i]);

@@ -598,6 +598,7 @@ static const struct dpu95_data dpu952_data = {
 	.reg_polarityctrl = 0x10,
 
 	.disable_blit = true,
+	.cmdseq_interrupt_clear0 = 0x11014,
 };
 
 #endif /* __DRM_DPU952_DATA_H__ */

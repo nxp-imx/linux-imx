@@ -599,6 +599,8 @@ static const struct dpu95_data dpu95_data = {
 	.plane_association = 0x20,
 	.reg_polarityctrl = 0x08,
 	.vsbp_quirk = true,
+
+	.cmdseq_interrupt_clear0 = 0x11020,
 };
 
 #endif /* __DRM_DPU95_DATA_H__ */
