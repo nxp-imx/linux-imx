@@ -1575,7 +1575,6 @@
 			reg = <0x0 0x47510000 0x0 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-			status = "disabled";
 		};
 
 		elemu0: mailbox@47520000 {
