@@ -88,14 +88,15 @@ static int wave5_vpu_dbg_instance(struct seq_file *s, void *data)
 	}
 
 	num = scnprintf(str, sizeof(str),
-			"src %d, dst %d, decode %d, process %d, display %d, sequence %d, skip %d\n",
+			"src %d, dst %d, dec %d, proc %d, disp %d, sequence %d, skip %d, err %d\n",
 			inst->queued_src_buf_num,
 			inst->queued_dst_buf_num,
 			inst->total_dec_cnt,
 			inst->processed_buf_num,
 			inst->displayed_buf_num,
 			inst->sequence,
-			inst->skiped_frame_num);
+			inst->skiped_frame_num,
+			inst->error_frame_num);
 	if (seq_write(s, str, num))
 		return 0;
 

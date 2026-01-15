@@ -32,6 +32,7 @@ struct vpu_dst_buffer {
 	bool			display;
 	bool			decoded;
 	bool			registered;
+	bool			error;
 	ktime_t			ts_input;
 	ktime_t			ts_start;
 	ktime_t			ts_finish;

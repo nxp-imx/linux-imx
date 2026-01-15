@@ -534,6 +534,7 @@ struct vpu_instance {
 	bool retry_flag;
 
 	u32 skiped_frame_num;
+	u32 error_frame_num;
 	u32 processed_buf_num;
 	u32 displayed_buf_num;
 	u32 total_dec_cnt;
