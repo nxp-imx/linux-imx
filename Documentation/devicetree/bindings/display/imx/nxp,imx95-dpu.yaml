@@ -722,6 +722,12 @@ properties:
     description: |
       A phandle which points to NXP displaymix blk-ctrl.
 
+  nxp,ldfw-rproc:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: |
+      A phandle which points to an M-core remoteproc which runs the
+      Local Dimming firmware.
+
   ports:
     $ref: /schemas/graph.yaml#/properties/ports
 
@@ -763,6 +769,7 @@ allOf:
         interrupt-names:
           minItems: 86
           maxItems: 86
+        nxp,ldfw-rproc: false
 
   - if:
       properties:
