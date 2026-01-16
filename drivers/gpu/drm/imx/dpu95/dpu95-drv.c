@@ -73,17 +73,9 @@ static void dpu95_unload(struct dpu95_drm_device *dpu_drm)
 static int dpu95_probe(struct platform_device *pdev)
 {
 	struct dpu95_drm_device *dpu_drm;
-	const struct dpu95_data	*dpu_data;
 	struct device *dev = &pdev->dev;
 	struct drm_device *drm;
 	int ret;
-
-	dpu_data = of_device_get_match_data(dev);
-	if (!dpu_data)
-		return -EINVAL;
-
-	if (dpu_data->disable_blit)
-		dpu95_drm_driver.driver_features &= ~DRIVER_RENDER;
 
 	dpu_drm = devm_drm_dev_alloc(dev, &dpu95_drm_driver,
 				     struct dpu95_drm_device, base);

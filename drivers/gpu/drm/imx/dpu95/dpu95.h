@@ -344,8 +344,6 @@ struct dpu95_data {
 	u8 reg_polarityctrl;
 	bool vsbp_quirk;
 
-	/* FIXME: drop this when i.MX952 DPU blit engine is supported */
-	bool disable_blit;
 	u32 cmdseq_interrupt_clear0;
 };
 

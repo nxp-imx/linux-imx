@@ -636,7 +636,6 @@ static const struct dpu95_data dpu952_data = {
 	.plane_association = 0x18,
 	.reg_polarityctrl = 0x10,
 
-	.disable_blit = true,
 	.cmdseq_interrupt_clear0 = 0x11014,
 };
 

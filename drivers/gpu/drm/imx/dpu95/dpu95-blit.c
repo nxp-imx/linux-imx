@@ -790,13 +790,9 @@ const struct drm_ioctl_desc imx_drm_dpu95_ioctls[4] = {
 
 int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 {
-	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct drm_device *drm_dev = &dpu_drm->base;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
 	int ret;
-
-	if (dpu->data->disable_blit)
-		return 0;
 
 	dpu95_bliteng_set_dev(dpu_bliteng, drm_dev->dev);
 
@@ -823,11 +819,7 @@ out:
 
 void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)
 {
-	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
-
-	if (dpu->data->disable_blit)
-		return;
 
 	dpu95_bliteng_fini(dpu_bliteng);
 
@@ -838,11 +830,7 @@ void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)
 
 int dpu95_bliteng_runtime_suspend(struct dpu95_drm_device *dpu_drm)
 {
-	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
-
-	if (dpu->data->disable_blit)
-		return 0;
 
 	if (!dpu_bliteng || !dpu_bliteng->ready)
 		return 0;
@@ -858,11 +846,7 @@ int dpu95_bliteng_runtime_suspend(struct dpu95_drm_device *dpu_drm)
 
 int dpu95_bliteng_runtime_resume(struct dpu95_drm_device *dpu_drm)
 {
-	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
-
-	if (dpu->data->disable_blit)
-		return 0;
 
 	if (!dpu_bliteng || !dpu_bliteng->ready)
 		return 0;
