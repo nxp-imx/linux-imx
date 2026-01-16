@@ -561,6 +561,8 @@ struct vpu_instance {
 	struct vb2_v4l2_buffer *next_frame;
 	bool retry_flag;
 
+	bool header_separate;
+
 	u32 skipped_frame_num;
 	u32 error_frame_num;
 	u32 processed_buf_num;

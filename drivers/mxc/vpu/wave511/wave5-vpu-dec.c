@@ -233,6 +233,14 @@ static bool wave5_vpu_dec_is_dst_buf_displayed(struct vb2_v4l2_buffer *vbuf, uns
 	return target ? vpu_buf->display : !vpu_buf->display;
 }
 
+static bool wave5_vpu_dec_is_headers_only(struct vpu_instance *inst, struct vb2_v4l2_buffer *buf)
+{
+	if (inst->header_separate)
+		return (buf->flags & V4L2_BUF_FLAG_HEADERS_ONLY) ? true : false;
+
+	return false;
+}
+
 static void wave5_handle_src_buffer(struct vpu_instance *inst,
 				    struct dec_output_info *info)
 {
@@ -253,6 +261,13 @@ static void wave5_handle_src_buffer(struct vpu_instance *inst,
 	if (!vpu_buf->consumed) {
 		dev_err(inst->dev->dev, "source %d is not consumed\n", src_buf->vb2_buf.index);
 		return;
+	}
+
+	if (info->index_frame_decoded == DECODED_IDX_FLAG_SKIP &&
+			info->err_reason == AVC_ETCERR_DEC_PIC_VCL_NOT_FOUND &&
+			wave5_vpu_dec_is_headers_only(inst, src_buf)) {
+		inst->skipped_frame_num++;
+		goto buf_done;
 	}
 
 	if (info->index_frame_decoded == DECODED_IDX_FLAG_SKIP) {
@@ -2089,6 +2104,28 @@ static const struct v4l2_m2m_ops wave5_vpu_dec_m2m_ops = {
 	.job_ready = wave5_vpu_dec_job_ready,
 };
 
+static int wave5_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct vpu_instance *inst = container_of(ctrl->handler, struct vpu_instance, v4l2_ctrl_hdl);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
+		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? true :
+											    false;
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops wave5_vpu_dec_ctrl_ops = {
+	.s_ctrl = wave5_vpu_dec_s_ctrl,
+};
+
 static int wave5_vpu_open_dec(struct file *filp)
 {
 	struct video_device *vdev = video_devdata(filp);
@@ -2135,6 +2172,12 @@ static int wave5_vpu_open_dec(struct file *filp)
 			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY, 0, 0, 1, 0);
 	v4l2_ctrl_new_std(&inst->v4l2_ctrl_hdl, NULL,
 			  V4L2_CID_MPEG_VIDEO_DEC_DISPLAY_DELAY_ENABLE, 0, 1, 1, 0);
+	v4l2_ctrl_new_std_menu(&inst->v4l2_ctrl_hdl, &wave5_vpu_dec_ctrl_ops,
+			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+			       ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
+				 (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 
 	if (inst->v4l2_ctrl_hdl.error) {
 		ret = -ENODEV;
