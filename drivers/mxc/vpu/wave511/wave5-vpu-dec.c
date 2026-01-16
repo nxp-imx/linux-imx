@@ -1606,6 +1606,9 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 			goto return_buffers;
 	}
 
+	if (V4L2_TYPE_IS_OUTPUT(q->type))
+		wave5_vpu_enable_instance(inst);
+
 	return ret;
 
 return_buffers:
@@ -1655,6 +1658,8 @@ static int streamoff_output(struct vb2_queue *q)
 		return ret;
 
 	wave5_vpu_dec_reset_disp_flag(inst);
+
+	wave5_vpu_disable_instance(inst);
 
 	inst->seek_flag = true;
 	inst->next_frame = NULL;

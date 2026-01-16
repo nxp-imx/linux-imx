@@ -486,6 +486,9 @@ struct vpu_instance {
 	struct v4l2_ctrl_handler v4l2_ctrl_hdl;
 	struct vpu_device *dev;
 	struct completion irq_done;
+	bool enable;
+	atomic_t refcount;
+	wait_queue_head_t wq_irq;
 
 	struct v4l2_pix_format_mplane src_fmt;
 	struct v4l2_pix_format_mplane dst_fmt;

@@ -70,12 +70,14 @@ static inline struct vpu_dst_buffer *wave5_to_vpu_dst_buf(struct vb2_v4l2_buffer
 	return container_of(vbuf, struct vpu_dst_buffer, v4l2_m2m_buf.vb);
 }
 
-void wave5_vpu_pause(struct device *dev, int resume);
 void wave5_vpu_activate(struct vpu_device *dev);
 void wave5_vpu_wait_activated(struct vpu_device *dev);
 int wave5_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout);
 int  wave5_vpu_dec_register_device(struct vpu_device *dev);
 void wave5_vpu_dec_unregister_device(struct vpu_device *dev);
+
+void wave5_vpu_enable_instance(struct vpu_instance *inst);
+void wave5_vpu_disable_instance(struct vpu_instance *inst);
 
 u32 wave5_vpu_cq_depth(struct vpu_device *vpu_dev);
 

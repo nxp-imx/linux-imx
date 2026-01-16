@@ -52,6 +52,35 @@ int wave5_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
 	return 0;
 }
 
+void wave5_vpu_enable_instance(struct vpu_instance *inst)
+{
+	struct vpu_device *vpu;
+
+	if (!inst)
+		return;
+
+	vpu = inst->dev;
+	scoped_guard(spinlock, &vpu->inst_lock) {
+		init_waitqueue_head(&inst->wq_irq);
+		atomic_set(&inst->refcount, 0);
+		inst->enable = true;
+	}
+}
+
+void wave5_vpu_disable_instance(struct vpu_instance *inst)
+{
+	struct vpu_device *vpu;
+
+	if (!inst)
+		return;
+
+	vpu = inst->dev;
+	scoped_guard(spinlock, &vpu->inst_lock)
+		inst->enable = false;
+
+	wait_event(inst->wq_irq, !atomic_read(&inst->refcount));
+}
+
 static struct vpu_instance *wave5_vpu_get_instance(struct vpu_device *dev, u32 mask)
 {
 	struct vpu_instance *inst = NULL;
@@ -61,12 +90,30 @@ static struct vpu_instance *wave5_vpu_get_instance(struct vpu_device *dev, u32 m
 
 	scoped_guard(spinlock, &dev->inst_lock) {
 		list_for_each_entry(inst, &dev->instances, list) {
-			if (mask & BIT(inst->id))
-				break;
+			if (mask & BIT(inst->id)) {
+				if (!inst->enable)
+					return NULL;
+				atomic_inc(&inst->refcount);
+				return inst;
+			}
 		}
 	}
 
-	return inst;
+	return NULL;
+}
+
+static void wave5_vpu_put_instance(struct vpu_instance *inst)
+{
+	struct vpu_device *vpu;
+
+	if (!inst)
+		return;
+
+	vpu = inst->dev;
+	scoped_guard(spinlock, &vpu->inst_lock) {
+		if (atomic_dec_and_test(&inst->refcount))
+			wake_up_all(&inst->wq_irq);
+	}
 }
 
 static void wave5_vpu_handle_irq(void *dev_id)
@@ -100,6 +147,7 @@ static void wave5_vpu_handle_irq(void *dev_id)
 					wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST,
 								 cmd_done);
 					complete(&inst->irq_done);
+					wave5_vpu_put_instance(inst);
 				}
 			} else {
 				inst = wave5_vpu_get_instance(dev, mask & seq_done);
@@ -108,6 +156,7 @@ static void wave5_vpu_handle_irq(void *dev_id)
 					wave5_vdi_write_register(dev, W5_RET_SEQ_DONE_INSTANCE_INFO,
 								 seq_done);
 					complete(&inst->irq_done);
+					wave5_vpu_put_instance(inst);
 				}
 			}
 		}
@@ -117,6 +166,7 @@ static void wave5_vpu_handle_irq(void *dev_id)
 				cmd_done &= ~mask;
 				wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST, cmd_done);
 				inst->ops->finish_process(inst);
+				wave5_vpu_put_instance(inst);
 			}
 		}
 	}
