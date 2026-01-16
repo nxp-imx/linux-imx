@@ -1788,6 +1788,7 @@ static int initialize_sequence(struct vpu_instance *inst)
 
 	memset(&initial_info, 0, sizeof(struct dec_initial_info));
 
+	reinit_completion(&inst->irq_done);
 	ret = wave5_vpu_dec_issue_seq_init(inst);
 	if (ret) {
 		dev_err(inst->dev->dev, "[%d] wave5_vpu_dec_issue_seq_init, fail: %d\n",
@@ -1795,8 +1796,8 @@ static int initialize_sequence(struct vpu_instance *inst)
 		return ret;
 	}
 
-	if (wave5_vpu_wait_interrupt(inst, VPU_DEC_TIMEOUT_MS) < 0)
-		dev_err(inst->dev->dev, "[%d] failed to call vpu_wait_interrupt()\n", inst->id);
+	if (wave5_vpu_wait_interrupt(inst, VPU_DEC_TIMEOUT_MS * wave5_vpu_cq_depth(inst->dev)) < 0)
+		dev_dbg(inst->dev->dev, "[%d] failed to call vpu_wait_interrupt()\n", inst->id);
 
 	ret = wave5_vpu_dec_complete_seq_init(inst, &initial_info);
 	if (ret) {

@@ -49,8 +49,6 @@ int wave5_vpu_wait_interrupt(struct vpu_instance *inst, unsigned int timeout)
 	if (!ret)
 		return -ETIMEDOUT;
 
-	reinit_completion(&inst->irq_done);
-
 	return 0;
 }
 
