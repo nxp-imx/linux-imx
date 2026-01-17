@@ -85,7 +85,7 @@ drm_of_component_match_add(struct device *master,
 {
 }
 
-static int drm_of_component_probe_with_match(struct device *dev,
+static inline int drm_of_component_probe_with_match(struct device *dev,
 			   struct component_match *match,
 			   int (*compare_of)(struct device *, void *),
 			   const struct component_master_ops *m_ops)
