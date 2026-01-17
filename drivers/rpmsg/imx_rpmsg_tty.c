@@ -41,7 +41,7 @@ static int rpmsg_tty_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	dev_dbg(&rpdev->dev, "msg(<- src 0x%x) len %d\n", src, len);
 
-	print_hex_dump(KERN_DEBUG, __func__, DUMP_PREFIX_NONE, 16, 1,
+	print_hex_dump_debug(__func__, DUMP_PREFIX_NONE, 16, 1,
 			data, len,  true);
 
 	spin_lock_bh(&cport->rx_lock);
