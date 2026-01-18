@@ -42,6 +42,7 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_SW_STB		CCI_REG8(0x0100)
 #define OX05B1S_REG_SW_RST		CCI_REG8(0x0103)
 #define OX05B1S_REG_CHIP_ID		CCI_REG24(0x300a)
+#define OX05B1S_REG_MIPI_SC		CCI_REG8(0x3012)
 #define OX05B1S_REG_GH			CCI_REG8(0x3208)
 #define OX05B1S_GH_START		0x0
 #define OX05B1S_GH_END			0x10
@@ -141,6 +142,7 @@ struct ox05b1s {
 	u32 stream_status;
 	struct ox05b1s_ctrls ctrls;
 	u64 enabled_source_streams;
+	u32 num_data_lanes;
 };
 
 #define OS08A20_PIXEL_RATE_144M	144000000
@@ -1200,6 +1202,9 @@ static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 	cci_write(sensor->regmap, OX05B1S_REG_X_OUTPUT_SIZE, w, &ret);
 	cci_write(sensor->regmap, OX05B1S_REG_Y_OUTPUT_SIZE, h, &ret);
 
+	cci_write(sensor->regmap, OX05B1S_REG_MIPI_SC,
+		  sensor->num_data_lanes << 4 | 0x01, &ret);
+
 	if (ret)
 		goto out;
 
@@ -1530,6 +1535,43 @@ static int ox05b1s_read_chip_id(struct ox05b1s *sensor)
 	return 0;
 }
 
+static int ox05b1s_get_num_data_lanes(struct ox05b1s *sensor)
+{
+	struct device *dev = &sensor->i2c_client->dev;
+	struct fwnode_handle *endpoint;
+	struct v4l2_fwnode_endpoint ep = {
+		.bus_type = V4L2_MBUS_CSI2_DPHY,
+	};
+	int ret;
+
+	/* Find the first sink endpoint of the sensor */
+	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(dev), NULL);
+	if (!endpoint) {
+		dev_err(dev, "No endpoint found in graph\n");
+		return -ENODEV;
+	}
+
+	ret = v4l2_fwnode_endpoint_parse(endpoint, &ep);
+	fwnode_handle_put(endpoint);
+	if (ret) {
+		dev_err(dev, "Failed to parse endpoint: %d\n", ret);
+		return ret;
+	}
+
+	if (ep.bus_type != V4L2_MBUS_CSI2_DPHY) {
+		dev_err(dev, "Unsupported bus type %u\n", ep.bus_type);
+		return -EINVAL;
+	}
+
+	sensor->num_data_lanes = ep.bus.mipi_csi2.num_data_lanes;
+	if (sensor->num_data_lanes != 2 && sensor->num_data_lanes != 4) {
+		dev_err(dev, "Only 2 or 4 data lanes are supported\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int ox05b1s_probe(struct i2c_client *client)
 {
 	int ret;
@@ -1561,6 +1603,10 @@ static int ox05b1s_probe(struct i2c_client *client)
 	ret = ox05b1s_get_regulators(sensor);
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to get regulators\n");
+
+	ret = ox05b1s_get_num_data_lanes(sensor);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to get number of MIPI data lanes\n");
 
 	sd = &sensor->subdev;
 	v4l2_i2c_subdev_init(sd, client, &ox05b1s_subdev_ops);
