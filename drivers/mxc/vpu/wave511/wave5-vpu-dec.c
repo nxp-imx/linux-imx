@@ -1691,11 +1691,11 @@ static int streamoff_capture(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
 
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
+	scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
 		wave5_return_bufs(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
 
-	inst->v4l2_fh.m2m_ctx->ignore_cap_streaming = false;
-	v4l2_m2m_set_dst_buffered(inst->v4l2_fh.m2m_ctx, false);
+		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
+	}
 
 	return 0;
 }
@@ -1703,7 +1703,6 @@ static int streamoff_capture(struct vb2_queue *q)
 static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
-	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	bool check_cmd = inst->dynamic_source_change ? false : true;
 
 	dev_dbg(inst->dev->dev, "[%d] streamoff %s\n", inst->id,
@@ -1728,8 +1727,6 @@ static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 		if (wave5_vpu_dec_get_output_info(inst, &dec_output_info))
 			dev_dbg(inst->dev->dev, "Getting decoding results from fw, fail\n");
 	}
-
-	v4l2_m2m_update_stop_streaming_state(m2m_ctx, q);
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		streamoff_output(q);
