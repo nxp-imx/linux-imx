@@ -1307,6 +1307,20 @@ imx952-evk-it6263-lvds0-os08a20-csi0-2lanes-dtbs := imx952-evk.dtb \
 						    imx952-evk-os08a20-csi0-2lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds0-os08a20-csi0-2lanes.dtb
 
+imx952-evk-os08a20-csi1-2lanes-dtbs := imx952-evk.dtb imx952-evk-os08a20-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-os08a20-csi1-2lanes.dtb
+
+imx952-evk-it6263-lvds0-os08a20-csi1-2lanes-dtbs := imx952-evk.dtb \
+						    imx952-evk-it6263-lvds0.dtbo \
+						    imx952-evk-os08a20-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds0-os08a20-csi1-2lanes.dtb
+
+imx952-evk-it6263-lvds0-os08a20-dual-dtbs := imx952-evk.dtb \
+					     imx952-evk-it6263-lvds0.dtbo \
+					     imx952-evk-os08a20-csi0-2lanes.dtbo \
+					     imx952-evk-os08a20-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds0-os08a20-dual.dtb
+
 imx952-evk-ox05b1s-csi0-4lanes-dtbs := imx952-evk.dtb imx952-evk-ox05b1s-csi0-4lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-ox05b1s-csi0-4lanes.dtb
 
