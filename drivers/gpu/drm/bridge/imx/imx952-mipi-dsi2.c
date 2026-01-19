@@ -349,8 +349,7 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		 * dsi->clk_pixel, we have to validate mode against magic mode
 		 * clock rates.
 		 */
-		if (mode->clock != 297000 && mode->clock != 148500 &&
-		    mode->clock != 74250)
+		if (mode->clock != 148500 && mode->clock != 74250)
 			return MODE_NOCLOCK;
 
 		/* Allow +/-0.5% pixel clock rate deviation */
