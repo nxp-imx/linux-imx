@@ -917,9 +917,8 @@ imx952_mipi_dphy_static_configure(struct imx952_mipi_dphy_priv *priv)
 	writew(val, priv->regs + PPI_RW_COMMON_CFG);
 }
 
-#define MULTI2(x)			((x) * 2)
+#define MULTI5(x)			((x) * 5)
 #define D2A_HSTX_DLY			3
-#define LANE3_BIAS			5
 
 /* T_DCO_MAX = 4.77 */
 #define T_DCO_MAX_DIV_ROUND_UP(x)	DIV_ROUND_UP((x) * 100, 477)
@@ -1013,86 +1012,82 @@ imx952_mipi_dphy_dynamic_configure(struct imx952_mipi_dphy_priv *priv,
 	/* tlptxoverlap_reg */
 	tlptxoverlap_reg = T_DCO_MAX_DIV_ROUND_UP(5);
 	val = HS_TX_3_TLPTXOVERLAP_REG(tlptxoverlap_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 3));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 3));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 3));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 3));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 3));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 3));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 3));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 3));
 
 	/* tlp11init_dco_reg */
 	tlp11init_dco_reg = T_DCO_MAX_DIV_ROUND_UP(5000 / (lptx_clk_rate_hz / MHZ(1))) - 1;
 	val = HS_TX_10_TLP11INIT_DCO_REG(tlp11init_dco_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 10));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 10));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 10));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 10));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 10));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 10));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 10));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 10));
 
 	/* tlpx_dco_reg */
 	tlpx_dco_reg = T_DCO_MAX_DIV_ROUND_UP(lpx_ns) - 1;
 	val = HS_TX_4_TLPX_DCO_REG(tlpx_dco_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 4));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 4));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 4));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 4));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 4));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 4));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 4));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 4));
 
 	/* hs_prepare_dco_reg */
 	hs_prepare_dco_ps = 40000 + 4 * ui +
 			    DIV_ROUND_DOWN_ULL((85000 + 6 * ui) - (40000 + 4 * ui), 2);
-	cfg->hs_prepare = hs_prepare_dco_ps;
 	lptx_io_sr0_fall_dly_ps = 12500;
 	hs_prepare_dco_reg = T_DCO_MAX_PS_DIV_ROUND_UP(hs_prepare_dco_ps + lptx_io_sr0_fall_dly_ps) - 1;
 	val = HS_TX_9_THSPRPR_DCO_REG(hs_prepare_dco_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 9));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 9));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 9));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 9));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 9));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 9));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 9));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 9));
 
 	/* hs_zero_reg */
 	hs_zero_ps = 145000 + 10 * ui - hs_prepare_dco_ps;
-	cfg->hs_zero = hs_zero_ps;
 	hs_zero_reg = DIV_ROUND_UP_ULL((hs_zero_ps + cfg->lpx + hs_prepare_dco_ps +
 		T_DCO_MAX_PS_MULTI(5) - 3 * wordclk_period_ps), wordclk_period_ps) - 1;
 	val = HS_TX_1_THSZERO_REG(hs_zero_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 1));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 1));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 1));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 1));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 1));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 1));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 1));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 1));
 
 	/* hs_trail_reg */
 	t_hs_trail_ps = max(8 * ui, 60000 + 4 * ui);	/* n = 1, see cfg->hs_trail */
 	eot_ps = 105000 + 12 * ui;
 	t_hs_trail_ps = t_hs_trail_ps + (eot_ps - t_hs_trail_ps) / 2;
-	cfg->hs_trail = t_hs_trail_ps;
 	hs_trail_reg = DIV_ROUND_UP(t_hs_trail_ps, wordclk_period_ps) - 1 + D2A_HSTX_DLY;
 	val = HS_TX_0_THSTRAIL_REG(hs_trail_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 0));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 0));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 0));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 0));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 0));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 0));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 0));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 0));
 
 	/* hs_trail_dco_reg */
 	hs_trail_dco_reg = T_DCO_MAX_PS_DIV_ROUND_DOWN(hs_trail_reg * wordclk_period_ps -
 						       T_DCO_MAX_PS_MULTI(4)) - 1;
 	val = HS_TX_5_THSTRAIL_DCO_REG(hs_trail_dco_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 5));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 5));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 5));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 5));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 5));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 5));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 5));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 5));
 
 	/* tlp11end_dco_reg */
 	val = HS_TX_6_TLP11END_DCO_REG(tlp11init_dco_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 6));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 6));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 6));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 6));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 6));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 6));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 6));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 6));
 
 	/* hs_exit_reg */
-	hs_exit_reg = T_DCO_MAX_DIV_ROUND_UP(MULTI2(100)) - 1;
-	cfg->hs_exit = MULTI2(cfg->hs_exit);
+	hs_exit_reg = T_DCO_MAX_DIV_ROUND_UP(MULTI5(100)) - 1;
 	val = HS_TX_12_THSEXIT_DCO_REG(hs_exit_reg);
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 12));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 12));
-	writew(val,              priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 12));
-	writew(val + LANE3_BIAS, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 12));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(0, 12));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(1, 12));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(2, 12));
+	writew(val, priv->regs + CORE_DIG_DLANE_RW_HS_TX(3, 12));
 
 	/* clock lane */
 	val = HS_TX_3_TLPTXOVERLAP_REG(tlptxoverlap_reg);
@@ -1105,7 +1100,7 @@ imx952_mipi_dphy_dynamic_configure(struct imx952_mipi_dphy_priv *priv,
 	/* clk_zero_reg */
 	/* clk_prepare_ns = floor(38.0 + ((95.0 - 38.0) / 2)) */
 	clk_prepare_ps = 66000;
-	clk_zero_ps = MULTI2(300000 - clk_prepare_ps);
+	clk_zero_ps = MULTI5(300000 - clk_prepare_ps);
 	clk_zero_reg = DIV_ROUND_UP_ULL((cfg->lpx + clk_prepare_ps + clk_zero_ps +
 		T_DCO_MAX_PS_MULTI(5) - 3 * wordclk_period_ps), wordclk_period_ps) - 1;
 	val = HS_TX_1_THSZERO_REG(clk_zero_reg);
@@ -1123,7 +1118,7 @@ imx952_mipi_dphy_dynamic_configure(struct imx952_mipi_dphy_priv *priv,
 	val = HS_TX_5_THSTRAIL_DCO_REG(hs_trail_dco_reg);
 	writew(val, priv->regs + CORE_DIG_DLANE_CLK_RW_HS_TX(5));
 
-	clk_post_ps = MULTI2(60000 + 52 * ui);
+	clk_post_ps = MULTI5(60000 + 52 * ui);
 	clk_post_reg = DIV_ROUND_UP_ULL(clk_post_ps, wordclk_period_ps) - 3;
 	val = HS_TX_8_TCLKPOST_REG(clk_post_reg);
 	writew(val, priv->regs + CORE_DIG_DLANE_CLK_RW_HS_TX(8));
