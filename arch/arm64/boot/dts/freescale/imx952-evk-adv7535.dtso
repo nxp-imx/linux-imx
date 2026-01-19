@@ -28,7 +28,7 @@
 		a2vdd-supply = <&reg_3p3v>;
 		v3p3-supply = <&reg_1p8v>;
 		v1p2-supply = <&reg_1p8v>;
-		adi,dsi-lanes = <2>;
+		adi,dsi-lanes = <4>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_dsi>;
 
