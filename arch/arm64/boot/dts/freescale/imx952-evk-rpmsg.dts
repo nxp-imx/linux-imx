@@ -151,7 +151,7 @@
 
 	rpmsg_gpioa: gpio-rpbus-0 {
 		compatible = "fsl,imx-rpmsg-gpio";
-		port_idx = <0>;
+		port_idx = <2>;
 		gpio-controller;
 		#gpio-cells = <2>;
 		#interrupt-cells = <2>;
