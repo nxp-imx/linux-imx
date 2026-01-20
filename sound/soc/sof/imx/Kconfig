@@ -52,6 +52,7 @@ config SND_SOC_SOF_IMX8ULP
 
 config SND_SOC_SOF_IMX95
 	tristate "SOF support for i.MX95"
+	select SND_SOC_SOF_IMX_COMMON
 	help
 	  This adds support for Sound Open Firmware for NXP i.MX95 platforms.
 	  Say Y if you have such a device.
