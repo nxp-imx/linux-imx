@@ -723,6 +723,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-neutron.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-sof-wm8962.dtb
 
+imx95-19x19-evk-sof-wm8962-adv7535-dtbs := imx95-19x19-evk-sof-wm8962.dtb imx95-19x19-evk-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-sof-wm8962-adv7535.dtb
+
 imx95-19x19-evk-pcie1-ep-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-pcie1-ep.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-pcie1-ep.dtb
 
