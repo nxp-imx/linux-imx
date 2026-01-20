@@ -1782,7 +1782,7 @@
 		};
 
 		isi: isi@4ad50000 {
-			compatible = "fsl,imx95-isi";
+			compatible = "fsl,imx952-isi";
 			reg = <0x0 0x4ad50000 0x0 0x80000>;
 			interrupts = <GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 344 IRQ_TYPE_LEVEL_HIGH>,
