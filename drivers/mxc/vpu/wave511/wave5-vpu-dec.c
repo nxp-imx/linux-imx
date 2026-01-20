@@ -1205,6 +1205,26 @@ static int wave5_vpu_dec_stop(struct vpu_instance *inst)
 	return 0;
 }
 
+static void wave5_vpu_dec_reinit_dst_buffers(struct vpu_instance *inst)
+{
+	struct vb2_queue *dst_vq = v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx);
+	unsigned int num_buffers = vb2_get_num_buffers(dst_vq);
+
+	for (unsigned int i = 0; i < num_buffers; i++) {
+		struct vb2_buffer *vb = vb2_get_buffer(dst_vq, i);
+		struct vpu_dst_buffer *vpu_buf;
+
+		if (!vb)
+			continue;
+
+		vpu_buf = wave5_to_vpu_dst_buf(to_vb2_v4l2_buffer(vb));
+		vpu_buf->registered = false;
+		vpu_buf->decoded = false;
+		vpu_buf->display = false;
+		vpu_buf->error = false;
+	}
+}
+
 static int wave5_vpu_dec_start(struct vpu_instance *inst)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
@@ -1213,8 +1233,13 @@ static int wave5_vpu_dec_start(struct vpu_instance *inst)
 	if (m2m_ctx->is_draining)
 		return -EBUSY;
 
-	if (m2m_ctx->has_stopped)
-		m2m_ctx->has_stopped = false;
+	if (v4l2_m2m_has_stopped(m2m_ctx)) {
+		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
+		if (inst->dynamic_source_change) {
+			wave5_vpu_dec_reinit_dst_buffers(inst);
+			switch_state(inst, VPU_INST_STATE_INIT_SEQ);
+		}
+	}
 
 	vb2_clear_last_buffer_dequeued(dst_vq);
 	inst->eos = false;
