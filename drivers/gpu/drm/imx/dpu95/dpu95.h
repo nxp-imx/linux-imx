@@ -542,7 +542,8 @@ struct dpu95_localdimming *dpu95_ld_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_ld_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_ld_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base);
 int dpu95_ld_mode_set(struct dpu95_localdimming *ld, struct drm_display_mode *mode);
 int dpu95_ld_enable(struct dpu95_localdimming *ld);
 int dpu95_ld_disable(struct dpu95_localdimming *ld);

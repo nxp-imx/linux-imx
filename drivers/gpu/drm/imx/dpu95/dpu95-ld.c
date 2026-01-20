@@ -466,7 +466,8 @@ void dpu95_ld_hw_init(struct dpu95_soc *dpu, unsigned int index)
 
 int dpu95_ld_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long unused, unsigned long base)
+		  unsigned long unused, unsigned long base,
+		  unsigned long dpu_base)
 {
 	struct dpu95_localdimming *ld;
 	struct device *dev = dpu->dev;
