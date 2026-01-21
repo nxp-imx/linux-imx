@@ -47,10 +47,6 @@
 			reg = <0x21>;
 			#gpio-cells = <2>;
 			gpio-controller;
-			interrupt-controller;
-			#interrupt-cells = <2>;
-			interrupt-parent = <&rpmsg_gpioa>;
-			interrupts = <18 IRQ_TYPE_LEVEL_LOW>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_i2c4_pcal6408>;
 			vcc-supply = <&reg_3p3v>;
@@ -209,7 +205,10 @@
 };
 
 &pcal6416 {
-	interrupt-parent = <&rpmsg_gpioa>;
+	/delete-property/ interrupt-controller;
+	/delete-property/ #interrupt-cells;
+	/delete-property/ interrupt-parent;
+	/delete-property/ interrupts;
 };
 
 &edma1 {
