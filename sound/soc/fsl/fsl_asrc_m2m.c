@@ -259,6 +259,8 @@ static int asrc_m2m_device_run(struct fsl_asrc_pair *pair, struct snd_compr_task
 		dmaengine_submit(pair->desc[IN]);
 		dma_async_issue_pending(pair->desc[IN]->chan);
 		if (out_dma_len > 0) {
+			if (asrc->m2m_output_ready)
+				asrc->m2m_output_ready(pair);
 			dmaengine_submit(pair->desc[OUT]);
 			dma_async_issue_pending(pair->desc[OUT]->chan);
 		}
