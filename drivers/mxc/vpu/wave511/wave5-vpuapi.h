@@ -512,6 +512,7 @@ struct vpu_instance {
 	} *codec_info;
 	unsigned long disp_buf_mask;
 	unsigned long disp_buf_seek;
+	unsigned long avail_dst_bufs;
 	struct frame_buffer frame_buf[WAVE5_MAX_FBS];
 	struct vpu_buf frame_vbuf[WAVE5_MAX_FBS];
 	u32 fbc_buf_count;

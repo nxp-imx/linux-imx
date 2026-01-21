@@ -30,7 +30,6 @@ struct vpu_src_buffer {
 struct vpu_dst_buffer {
 	struct v4l2_m2m_buffer	v4l2_m2m_buf;
 	bool			display;
-	bool			decoded;
 	bool			registered;
 	bool			error;
 	ktime_t			ts_input;

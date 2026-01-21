@@ -166,6 +166,27 @@ valid_state_switch:
 	return 0;
 }
 
+static bool wave5_vpu_dec_is_src_buf_consumed(struct vb2_v4l2_buffer *vbuf, unsigned long target)
+{
+	struct vpu_src_buffer *vpu_buf = wave5_to_vpu_src_buf(vbuf);
+
+	return target ? vpu_buf->consumed : !vpu_buf->consumed;
+}
+
+static bool wave5_vpu_dec_is_dst_buf_registered(struct vb2_v4l2_buffer *vbuf, unsigned long target)
+{
+	struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
+
+	return target ? vpu_buf->registered : !vpu_buf->registered;
+}
+
+static bool wave5_vpu_dec_is_dst_buf_displayed(struct vb2_v4l2_buffer *vbuf, unsigned long target)
+{
+	struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
+
+	return target ? vpu_buf->display : !vpu_buf->display;
+}
+
 static void wave5_handle_src_buffer(struct vpu_instance *inst, struct dec_output_info *info)
 {
 	struct vb2_v4l2_buffer *src_buf;
@@ -225,38 +246,28 @@ buf_done:
 
 static struct vpu_dst_buffer *wave5_get_unregistered_dst_buf(struct vpu_instance *inst)
 {
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	struct vpu_dst_buffer *vpu_buf;
+	struct vb2_v4l2_buffer *vbuf;
 
 	lockdep_assert_held(&inst->state_spinlock);
 
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-		if (!vpu_buf->registered) {
-			vpu_buf->registered = true;
-			return vpu_buf;
-		}
-	}
+	vbuf = wave5_vpu_get_next_dst_buf(inst, wave5_vpu_dec_is_dst_buf_registered, 0);
+	if (!vbuf)
+		return NULL;
 
-	return NULL;
+	return wave5_to_vpu_dst_buf(vbuf);
 }
 
 static struct vpu_dst_buffer *wave5_get_displayed_dst_buf(struct vpu_instance *inst)
 {
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	struct vpu_dst_buffer *vpu_buf;
+	struct vb2_v4l2_buffer *vbuf;
 
 	lockdep_assert_held(&inst->state_spinlock);
 
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-		if (vpu_buf->display) {
-			vpu_buf->display = false;
-			return vpu_buf;
-		}
-	}
+	vbuf = wave5_vpu_get_next_dst_buf(inst, wave5_vpu_dec_is_dst_buf_displayed, 1);
+	if (!vbuf)
+		return NULL;
 
-	return NULL;
+	return wave5_to_vpu_dst_buf(vbuf);
 }
 
 static void wave5_handle_dst_buffer(struct vpu_instance *inst)
@@ -272,12 +283,12 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 		wave5_vpu_dec_fill_linear_frame(inst, &frame, &vpu_buf->v4l2_m2m_buf.vb.vb2_buf);
 		ret = wave5_vpu_dec_register_display_buffer_ex(inst, &frame);
 		if (ret) {
-			vpu_buf->registered = false;
 			dev_err(inst->dev->dev, "Fail to register capture buffer %d\n",
 				vpu_buf->v4l2_m2m_buf.vb.vb2_buf.index);
 			return;
 		}
 		set_bit(frame.index, &inst->disp_buf_mask);
+		vpu_buf->registered = true;
 
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 			vpu_buf = wave5_get_unregistered_dst_buf(inst);
@@ -296,6 +307,7 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 			return;
 		}
 
+		vpu_buf->display = false;
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 			vpu_buf = wave5_get_displayed_dst_buf(inst);
 	}
@@ -632,7 +644,6 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 	struct dec_output_info dec_info;
 	int ret;
 	struct vb2_v4l2_buffer *dec_buf = NULL;
-	struct vb2_v4l2_buffer *reuse_buf = NULL;
 	struct vb2_v4l2_buffer *disp_buf = NULL;
 	struct vb2_queue *dst_vq = v4l2_m2m_get_dst_vq(m2m_ctx);
 	struct queue_status_info q_status;
@@ -660,8 +671,8 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 	 */
 	if (dec_info.index_frame_decoded >= 0) {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			dec_buf = wave5_get_decoded_buffer(inst,
-							   dec_info.index_frame_decoded);
+			dec_buf = wave5_vpu_get_dst_buffer_by_idx(inst,
+								  dec_info.index_frame_decoded);
 		if (dec_buf) {
 			struct vpu_dst_buffer *dec_vpu_buf = wave5_to_vpu_dst_buf(dec_buf);
 
@@ -675,6 +686,8 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 				inst->performance.first_hw_time = dec_vpu_buf->hw_time;
 			dec_buf->vb2_buf.timestamp = inst->timestamp;
 			inst->ts_last_end = dec_vpu_buf->ts_finish;
+			if (dec_info.index_frame_decoded < WAVE5_MAX_FBS)
+				clear_bit(dec_info.index_frame_decoded, &inst->avail_dst_bufs);
 		} else {
 			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i",
 				 __func__, dec_info.index_frame_decoded);
@@ -683,23 +696,18 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 
 	if (dec_info.frame_display_flag) {
 		for (int i = 0; i < WAVE5_MAX_FBS; i++) {
-			if (!(BIT(i) & dec_info.frame_display_flag)) {
-				scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-					reuse_buf = wave5_get_reusable_buffer(inst, i);
-
-				if (reuse_buf) {
+			if ((BIT(i) & dec_info.frame_display_flag))
+				continue;
+			scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
+				if (wave5_vpu_get_reusable_buffer(inst, i))
 					inst->sequence++;
-					dev_dbg(inst->dev->dev, "[%d] reuse buffer %d",
-						inst->id, i);
-				}
 			}
 		}
 	}
 
 	if (dec_info.index_frame_display >= 0) {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			disp_buf = wave5_get_display_buffer(inst,
-							    dec_info.index_frame_display);
+			disp_buf = wave5_vpu_get_display_buffer(inst, dec_info.index_frame_display);
 		if (!disp_buf)
 			dev_warn(inst->dev->dev, "%s: invalid display frame index %i",
 				 __func__, dec_info.index_frame_display);
@@ -1219,9 +1227,10 @@ static void wave5_vpu_dec_reinit_dst_buffers(struct vpu_instance *inst)
 
 		vpu_buf = wave5_to_vpu_dst_buf(to_vb2_v4l2_buffer(vb));
 		vpu_buf->registered = false;
-		vpu_buf->decoded = false;
 		vpu_buf->display = false;
 		vpu_buf->error = false;
+		if (vb->state == VB2_BUF_STATE_ACTIVE && vb->index < WAVE5_MAX_FBS)
+			set_bit(vb->index, &inst->avail_dst_bufs);
 	}
 }
 
@@ -1447,7 +1456,8 @@ static int wave5_prepare_fb(struct vpu_instance *inst)
 static int wave5_vpu_dec_fill_source(struct vpu_instance *inst)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
-	struct v4l2_m2m_buffer *buf, *n;
+	struct vb2_v4l2_buffer *vbuf;
+	struct vpu_src_buffer *vpu_buf;
 
 	lockdep_assert_held(&inst->state_spinlock);
 
@@ -1460,31 +1470,22 @@ static int wave5_vpu_dec_fill_source(struct vpu_instance *inst)
 		}
 	}
 
-	v4l2_m2m_for_each_src_buf_safe(m2m_ctx, buf, n) {
-		struct vb2_v4l2_buffer *vbuf = &buf->vb;
-		struct vpu_src_buffer *vpu_buf = wave5_to_vpu_src_buf(vbuf);
+	if (inst->next_frame)
+		return 0;
 
-		/*only fill one frame into ring buffer*/
-		/*TODO, if only sequence header is fileed, need to fill frame*/
-		if (inst->next_frame)
-			break;
+	vbuf = wave5_vpu_get_next_src_buf(inst, wave5_vpu_dec_is_src_buf_consumed, 0);
+	if (!vbuf)
+		return 0;
 
-		if (vpu_buf->consumed) {
-			dev_dbg(inst->dev->dev, "already copied src buf (%u) to the ring buffer\n",
-				vbuf->vb2_buf.index);
-			continue;
-		}
+	vpu_buf = wave5_to_vpu_src_buf(vbuf);
 
-		vpu_buf->consumed = true;
-		vpu_buf->ts_start = ktime_get_raw();
-		inst->next_frame = vbuf;
+	vpu_buf->consumed = true;
+	vpu_buf->ts_start = ktime_get_raw();
+	inst->next_frame = vbuf;
 
-		/* Don't write buffers passed the last one while draining. */
-		if (v4l2_m2m_is_last_draining_src_buf(m2m_ctx, vbuf)) {
-			dev_dbg(inst->dev->dev, "last src buffer written to the ring buffer\n");
-			break;
-		}
-	}
+	/* Don't write buffers passed the last one while draining. */
+	if (v4l2_m2m_is_last_draining_src_buf(m2m_ctx, vbuf))
+		dev_dbg(inst->dev->dev, "last src buffer written to the ring buffer\n");
 
 	return 0;
 }
@@ -1527,7 +1528,6 @@ static void wave5_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 
 	inst->queued_dst_buf_num++;
-	vpu_buf->decoded = false;
 	vpu_buf->error = false;
 
 	if (vb2_is_streaming(vb->vb2_queue) && v4l2_m2m_dst_buf_is_last(m2m_ctx)) {
@@ -1543,11 +1543,13 @@ static void wave5_vpu_dec_buf_queue_dst(struct vb2_buffer *vb)
 	} else {
 		if (vpu_buf->registered && !test_bit(vb->index, &inst->disp_buf_mask)) {
 			vpu_buf->registered = false;
-			vpu_buf->decoded = false;
 			vpu_buf->display = false;
 		}
 		if (vpu_buf->registered && test_and_clear_bit(vb->index, &inst->disp_buf_seek))
 			vpu_buf->display = true;
+
+		if (vb->index < WAVE5_MAX_FBS)
+			set_bit(vb->index, &inst->avail_dst_bufs);
 
 		v4l2_m2m_buf_queue(m2m_ctx, vbuf);
 	}
@@ -1722,6 +1724,8 @@ static int streamoff_capture(struct vb2_queue *q)
 		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
 	}
 
+	inst->avail_dst_bufs = 0;
+
 	return 0;
 }
 
@@ -1767,7 +1771,6 @@ static int wave5_vpu_dec_buf_init(struct vb2_buffer *vb)
 		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(vbuf);
 
 		vpu_buf->registered = false;
-		vpu_buf->decoded = false;
 		vpu_buf->display = false;
 	}
 
@@ -1957,8 +1960,6 @@ finish_job_and_return:
 
 static bool wave5_vpu_check_input(struct vpu_instance *inst)
 {
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-
 	lockdep_assert_held(&inst->state_spinlock);
 
 	if (v4l2_m2m_has_stopped(inst->v4l2_fh.m2m_ctx))
@@ -1973,13 +1974,8 @@ static bool wave5_vpu_check_input(struct vpu_instance *inst)
 	if (inst->next_frame)
 		return true;
 
-	v4l2_m2m_for_each_src_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		struct vb2_v4l2_buffer *vbuf = &v4l2_m2m_buf->vb;
-		struct vpu_src_buffer *vpu_buf = wave5_to_vpu_src_buf(vbuf);
-
-		if (!vpu_buf->consumed)
-			return true;
-	}
+	if (wave5_vpu_get_next_src_buf(inst, wave5_vpu_dec_is_src_buf_consumed, 0))
+		return true;
 
 	return false;
 }

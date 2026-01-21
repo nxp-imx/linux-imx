@@ -13,6 +13,8 @@
 #define FMT_TYPES	2
 #define MAX_FMTS	13
 
+typedef bool (*wave5_compare_vb)(struct vb2_v4l2_buffer *vbuf, unsigned long target);
+
 const char *state_to_str(enum vpu_instance_state state);
 void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp);
 int wave5_vpu_release_device(struct file *filp,
@@ -35,9 +37,15 @@ void wave5_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  const struct v4l2_frmsize_stepwise *frmsize,
 			  bool new_resolution);
 void wave5_update_output_format_info(struct vpu_instance *inst);
-struct vb2_v4l2_buffer *wave5_get_decoded_buffer(struct vpu_instance *inst, int index);
-struct vb2_v4l2_buffer *wave5_get_reusable_buffer(struct vpu_instance *inst, int index);
-struct vb2_v4l2_buffer *wave5_get_display_buffer(struct vpu_instance *inst, int index);
+struct vb2_v4l2_buffer *wave5_vpu_get_next_src_buf(struct vpu_instance *inst,
+						   wave5_compare_vb compare,
+						   unsigned long target);
+struct vb2_v4l2_buffer *wave5_vpu_get_next_dst_buf(struct vpu_instance *inst,
+						   wave5_compare_vb compare,
+						   unsigned long target);
+struct vb2_v4l2_buffer *wave5_vpu_get_dst_buffer_by_idx(struct vpu_instance *inst, int index);
+struct vb2_v4l2_buffer *wave5_vpu_get_reusable_buffer(struct vpu_instance *inst, int index);
+struct vb2_v4l2_buffer *wave5_vpu_get_display_buffer(struct vpu_instance *inst, int index);
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst);
 void wave5_vpu_handle_performance(struct vpu_instance *inst, struct vpu_dst_buffer *vpu_buf);
 void wave5_vpu_reset_performace(struct vpu_instance *inst);

@@ -326,88 +326,91 @@ void wave5_return_bufs(struct vb2_queue *q, u32 state)
 	}
 }
 
-struct vb2_v4l2_buffer *wave5_get_decoded_buffer(struct vpu_instance *inst, int index)
+static struct vb2_v4l2_buffer *wave5_vpu_get_next_buf(struct v4l2_m2m_queue_ctx *q_ctx,
+						      wave5_compare_vb compare,
+						      unsigned long target)
 {
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	struct vpu_dst_buffer *vpu_buf;
+	struct v4l2_m2m_buffer *buf, *tmp;
 
-	lockdep_assert_held(&inst->state_spinlock);
+	if (!q_ctx || !compare)
+		return NULL;
 
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
-			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-			vpu_buf->decoded = true;
-			return &v4l2_m2m_buf->vb;
-		}
-	}
-
-	return NULL;
-}
-
-struct vb2_v4l2_buffer *wave5_get_reusable_buffer(struct vpu_instance *inst, int index)
-{
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	struct vpu_dst_buffer *vpu_buf;
-
-	lockdep_assert_held(&inst->state_spinlock);
-
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
-			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-			if (vpu_buf->decoded) {
-				vpu_buf->decoded = false;
-				return &v4l2_m2m_buf->vb;
-			}
+	scoped_guard(spinlock_irqsave, &q_ctx->rdy_spinlock) {
+		if (list_empty(&q_ctx->rdy_queue))
 			return NULL;
+		list_for_each_entry_safe(buf, tmp, &q_ctx->rdy_queue, list) {
+			if (compare(&buf->vb, target))
+				return &buf->vb;
 		}
 	}
 
 	return NULL;
 }
 
-struct vb2_v4l2_buffer *wave5_get_display_buffer(struct vpu_instance *inst, int index)
+struct vb2_v4l2_buffer *wave5_vpu_get_next_src_buf(struct vpu_instance *inst,
+						   wave5_compare_vb compare,
+						   unsigned long target)
 {
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
+	return wave5_vpu_get_next_buf(&inst->v4l2_fh.m2m_ctx->out_q_ctx, compare, target);
+}
+
+struct vb2_v4l2_buffer *wave5_vpu_get_next_dst_buf(struct vpu_instance *inst,
+						   wave5_compare_vb compare,
+						   unsigned long target)
+{
+	return wave5_vpu_get_next_buf(&inst->v4l2_fh.m2m_ctx->cap_q_ctx, compare, target);
+}
+
+static bool wave5_vpu_check_dst_buf_by_index(struct vb2_v4l2_buffer *vbuf, unsigned long index)
+{
+	return vbuf->vb2_buf.index == index ? true : false;
+}
+
+struct vb2_v4l2_buffer *wave5_vpu_get_dst_buffer_by_idx(struct vpu_instance *inst, int index)
+{
+	lockdep_assert_held(&inst->state_spinlock);
+
+	return wave5_vpu_get_next_dst_buf(inst, wave5_vpu_check_dst_buf_by_index, index);
+}
+
+struct vb2_v4l2_buffer *wave5_vpu_get_reusable_buffer(struct vpu_instance *inst, int index)
+{
+	struct vb2_v4l2_buffer *vbuf;
+
+	lockdep_assert_held(&inst->state_spinlock);
+
+	vbuf = wave5_vpu_get_dst_buffer_by_idx(inst, index);
+	if (vbuf && !test_and_set_bit(index, &inst->avail_dst_bufs)) {
+		dev_dbg(inst->dev->dev, "[%d] reuse buffer %d\n", inst->id, index);
+		return vbuf;
+	}
+
+	return NULL;
+}
+
+struct vb2_v4l2_buffer *wave5_vpu_get_display_buffer(struct vpu_instance *inst, int index)
+{
+	struct vb2_v4l2_buffer *vbuf;
 	struct vpu_dst_buffer *vpu_buf;
 
 	lockdep_assert_held(&inst->state_spinlock);
 
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		if (v4l2_m2m_buf->vb.vb2_buf.index == index) {
-			vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-			vpu_buf->display = true;
-			v4l2_m2m_dst_buf_remove_by_buf(inst->v4l2_fh.m2m_ctx,
-						       &v4l2_m2m_buf->vb);
-			return &v4l2_m2m_buf->vb;
-		}
-	}
+	vbuf = v4l2_m2m_dst_buf_remove_by_idx(inst->v4l2_fh.m2m_ctx, index);
+	if (!vbuf)
+		return NULL;
 
-	return NULL;
+	vpu_buf = wave5_to_vpu_dst_buf(vbuf);
+	vpu_buf->display = true;
+
+	return vbuf;
 }
 
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst)
 {
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	struct v4l2_m2m_buffer *v4l2_m2m_buf;
-	int unregisted_cnt = 0;
-	int available_cnt = 0;
-
 	lockdep_assert_held(&inst->state_spinlock);
 
-	v4l2_m2m_for_each_dst_buf(inst->v4l2_fh.m2m_ctx, v4l2_m2m_buf) {
-		struct vpu_dst_buffer *vpu_buf = wave5_to_vpu_dst_buf(&v4l2_m2m_buf->vb);
-
-		if (!vpu_buf->registered) {
-			unregisted_cnt++;
-			if (p_dec_info->num_of_display_fbs + unregisted_cnt <= WAVE5_MAX_FBS)
-				available_cnt++;
-		} else if (!vpu_buf->decoded) {
-			available_cnt++;
-		}
-
-		if (available_cnt > atomic_read(&inst->queued_dec_cmd))
-			return true;
-	}
+	if (hweight_long(inst->avail_dst_bufs) > atomic_read(&inst->queued_dec_cmd))
+		return true;
 
 	return false;
 }

@@ -67,8 +67,9 @@ static int wave5_vpu_dbg_instance(struct seq_file *s, void *data)
 	if (seq_write(s, str, num))
 		return 0;
 
-	num = scnprintf(str, sizeof(str), "fbc : %d; disp %d (0x%lx)\n",
-			inst->fbc_buf_count, inst->disp_buf_count, inst->disp_buf_mask);
+	num = scnprintf(str, sizeof(str), "fbc : %d; disp %d (register 0x%lx, avail 0x%lx)\n",
+			inst->fbc_buf_count, inst->disp_buf_count, inst->disp_buf_mask,
+			inst->avail_dst_bufs);
 	if (seq_write(s, str, num))
 		return 0;
 
