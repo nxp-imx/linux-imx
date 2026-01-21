@@ -20,6 +20,7 @@
 
 #include <drm/bridge/dw_mipi_dsi2.h>
 #include <drm/drm_bridge.h>
+#include <drm/drm_edid.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_modes.h>
 
@@ -335,6 +336,7 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 	struct device *dev = dsi->dev;
 	struct drm_encoder *encoder;
 	enum drm_mode_status ret;
+	u8 vic;
 
 	bridge = dw_mipi_dsi2_get_bridge(dsi->dmd);
 	encoder = bridge->encoder;
@@ -349,8 +351,13 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		 * dsi->clk_pixel, we have to validate mode against magic mode
 		 * clock rates.
 		 */
-		if (mode->clock != 148500 && mode->clock != 74250)
+		if (mode->clock != 297000 && mode->clock != 148500 && mode->clock != 74250)
 			return MODE_NOCLOCK;
+
+		/* Allow VIC 94 & 95(3840x2160@25/30) for 4K */
+		vic = drm_match_cea_mode(mode);
+		if (mode->clock == 297000 && vic != 94 && vic != 95)
+			return MODE_BAD;
 
 		/* Allow +/-0.5% pixel clock rate deviation */
 		target_pclk_rate = clk_round_rate(dsi->clk_pixel, pclk_rate);
@@ -447,6 +454,11 @@ static int imx952_dsi2_phy_get_timing(void *priv_data, unsigned int lane_mbps,
 
 	/* PHY_HS2LP_TIME = (THS-TRAIL + THS-EXIT) / Tphy_hstx_clk */
 	tmp = cfg->hs_trail + cfg->hs_exit;
+
+	/* empirical fixup for 4Kp30/25 with 4 data lanes */
+	if (lane_mbps == 1782 && cfg->lanes == 4)
+		tmp *= 3;
+
 	tmp = DIV_ROUND_CLOSEST_ULL((tmp * hstx_clk) << 16, USEC_PER_SEC);
 	timing->data_hs2lp = tmp;
 
