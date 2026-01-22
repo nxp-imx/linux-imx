@@ -312,8 +312,6 @@ void wave5_return_bufs(struct vb2_queue *q, u32 state)
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	struct vb2_v4l2_buffer *vbuf;
 
-	lockdep_assert_held(&inst->state_spinlock);
-
 	for (;;) {
 		if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 			vbuf = v4l2_m2m_src_buf_remove(m2m_ctx);
@@ -368,16 +366,12 @@ static bool wave5_vpu_check_dst_buf_by_index(struct vb2_v4l2_buffer *vbuf, unsig
 
 struct vb2_v4l2_buffer *wave5_vpu_get_dst_buffer_by_idx(struct vpu_instance *inst, int index)
 {
-	lockdep_assert_held(&inst->state_spinlock);
-
 	return wave5_vpu_get_next_dst_buf(inst, wave5_vpu_check_dst_buf_by_index, index);
 }
 
 struct vb2_v4l2_buffer *wave5_vpu_get_reusable_buffer(struct vpu_instance *inst, int index)
 {
 	struct vb2_v4l2_buffer *vbuf;
-
-	lockdep_assert_held(&inst->state_spinlock);
 
 	vbuf = wave5_vpu_get_dst_buffer_by_idx(inst, index);
 	if (vbuf && !test_and_set_bit(index, &inst->avail_dst_bufs)) {
@@ -393,8 +387,6 @@ struct vb2_v4l2_buffer *wave5_vpu_get_display_buffer(struct vpu_instance *inst, 
 	struct vb2_v4l2_buffer *vbuf;
 	struct vpu_dst_buffer *vpu_buf;
 
-	lockdep_assert_held(&inst->state_spinlock);
-
 	vbuf = v4l2_m2m_dst_buf_remove_by_idx(inst->v4l2_fh.m2m_ctx, index);
 	if (!vbuf)
 		return NULL;
@@ -407,8 +399,6 @@ struct vb2_v4l2_buffer *wave5_vpu_get_display_buffer(struct vpu_instance *inst, 
 
 bool wave5_vpu_check_fb_available(struct vpu_instance *inst)
 {
-	lockdep_assert_held(&inst->state_spinlock);
-
 	if (hweight_long(inst->avail_dst_bufs) > atomic_read(&inst->queued_dec_cmd))
 		return true;
 

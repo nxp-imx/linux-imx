@@ -248,8 +248,6 @@ static struct vpu_dst_buffer *wave5_get_unregistered_dst_buf(struct vpu_instance
 {
 	struct vb2_v4l2_buffer *vbuf;
 
-	lockdep_assert_held(&inst->state_spinlock);
-
 	vbuf = wave5_vpu_get_next_dst_buf(inst, wave5_vpu_dec_is_dst_buf_registered, 0);
 	if (!vbuf)
 		return NULL;
@@ -260,8 +258,6 @@ static struct vpu_dst_buffer *wave5_get_unregistered_dst_buf(struct vpu_instance
 static struct vpu_dst_buffer *wave5_get_displayed_dst_buf(struct vpu_instance *inst)
 {
 	struct vb2_v4l2_buffer *vbuf;
-
-	lockdep_assert_held(&inst->state_spinlock);
 
 	vbuf = wave5_vpu_get_next_dst_buf(inst, wave5_vpu_dec_is_dst_buf_displayed, 1);
 	if (!vbuf)
@@ -276,8 +272,7 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 	struct frame_buffer frame = {0};
 	int ret;
 
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-		vpu_buf = wave5_get_unregistered_dst_buf(inst);
+	vpu_buf = wave5_get_unregistered_dst_buf(inst);
 
 	while (vpu_buf) {
 		wave5_vpu_dec_fill_linear_frame(inst, &frame, &vpu_buf->v4l2_m2m_buf.vb.vb2_buf);
@@ -290,12 +285,10 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 		set_bit(frame.index, &inst->disp_buf_mask);
 		vpu_buf->registered = true;
 
-		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			vpu_buf = wave5_get_unregistered_dst_buf(inst);
+		vpu_buf = wave5_get_unregistered_dst_buf(inst);
 	}
 
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-		vpu_buf = wave5_get_displayed_dst_buf(inst);
+	vpu_buf = wave5_get_displayed_dst_buf(inst);
 
 	while (vpu_buf) {
 		ret = wave5_vpu_dec_clr_disp_flag(inst,
@@ -308,8 +301,7 @@ static void wave5_handle_dst_buffer(struct vpu_instance *inst)
 		}
 
 		vpu_buf->display = false;
-		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			vpu_buf = wave5_get_displayed_dst_buf(inst);
+		vpu_buf = wave5_get_displayed_dst_buf(inst);
 	}
 }
 
@@ -670,9 +662,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 	 * decoded.
 	 */
 	if (dec_info.index_frame_decoded >= 0) {
-		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			dec_buf = wave5_vpu_get_dst_buffer_by_idx(inst,
-								  dec_info.index_frame_decoded);
+		dec_buf = wave5_vpu_get_dst_buffer_by_idx(inst, dec_info.index_frame_decoded);
 		if (dec_buf) {
 			struct vpu_dst_buffer *dec_vpu_buf = wave5_to_vpu_dst_buf(dec_buf);
 
@@ -689,7 +679,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			if (dec_info.index_frame_decoded < WAVE5_MAX_FBS)
 				clear_bit(dec_info.index_frame_decoded, &inst->avail_dst_bufs);
 		} else {
-			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i",
+			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i\n",
 				 __func__, dec_info.index_frame_decoded);
 		}
 	}
@@ -698,16 +688,13 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 		for (int i = 0; i < WAVE5_MAX_FBS; i++) {
 			if ((BIT(i) & dec_info.frame_display_flag))
 				continue;
-			scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
-				if (wave5_vpu_get_reusable_buffer(inst, i))
-					inst->sequence++;
-			}
+			if (wave5_vpu_get_reusable_buffer(inst, i))
+				inst->sequence++;
 		}
 	}
 
 	if (dec_info.index_frame_display >= 0) {
-		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-			disp_buf = wave5_vpu_get_display_buffer(inst, dec_info.index_frame_display);
+		disp_buf = wave5_vpu_get_display_buffer(inst, dec_info.index_frame_display);
 		if (!disp_buf)
 			dev_warn(inst->dev->dev, "%s: invalid display frame index %i",
 				 __func__, dec_info.index_frame_display);
@@ -1639,8 +1626,7 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 	return ret;
 
 return_buffers:
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-		wave5_return_bufs(q, VB2_BUF_STATE_QUEUED);
+	wave5_return_bufs(q, VB2_BUF_STATE_QUEUED);
 	pm_runtime_put_sync(inst->dev->dev);
 	return ret;
 }
@@ -1677,8 +1663,7 @@ static int streamoff_output(struct vb2_queue *q)
 	struct v4l2_m2m_ctx *m2m_ctx = inst->v4l2_fh.m2m_ctx;
 	int ret;
 
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
-		wave5_return_bufs(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
+	wave5_return_bufs(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
 
 	ret = wave5_vpu_flush_instance(inst);
 	if (ret)
@@ -1718,12 +1703,8 @@ static int streamoff_capture(struct vb2_queue *q)
 {
 	struct vpu_instance *inst = vb2_get_drv_priv(q);
 
-	scoped_guard(spinlock_irqsave, &inst->state_spinlock) {
-		wave5_return_bufs(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
-
-		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
-	}
-
+	wave5_return_bufs(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx), VB2_BUF_STATE_ERROR);
+	v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
 	inst->avail_dst_bufs = 0;
 
 	return 0;
@@ -1985,8 +1966,6 @@ static int wave5_vpu_dec_job_ready(void *priv)
 	struct vpu_instance *inst = priv;
 	int ret = 0;
 
-	guard(spinlock_irqsave)(&inst->state_spinlock);
-
 	switch (inst->state) {
 	case VPU_INST_STATE_OPEN:
 	case VPU_INST_STATE_INIT_SEQ:
@@ -1995,8 +1974,7 @@ static int wave5_vpu_dec_job_ready(void *priv)
 	case VPU_INST_STATE_PIC_RUN:
 		if (atomic_read(&inst->queued_dec_cmd) >= wave5_vpu_cq_depth(inst->dev))
 			break;
-		if (wave5_vpu_check_input(inst) &&
-		    wave5_vpu_check_fb_available(inst))
+		if (wave5_vpu_check_input(inst) && wave5_vpu_check_fb_available(inst))
 			ret = 1;
 		break;
 	default:
