@@ -505,10 +505,16 @@ static int fsl_audmix_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (of_property_read_bool(pdev->dev.of_node, "fsl,amix-bypass")) {
-		ret = scmi_imx_misc_ctrl_set(SCMI_IMX_CTRL_BYPASS_AUDMIX, 0);
-		if (ret)
-			goto err_disable_pm;
+	if (of_device_is_compatible(pdev->dev.of_node, "fsl,imx952-audmix")) {
+		if (of_property_read_bool(pdev->dev.of_node, "fsl,amix-bypass")) {
+			ret = scmi_imx_misc_ctrl_set(SCMI_IMX_CTRL_BYPASS_AUDMIX, 0);
+			if (ret)
+				goto err_disable_pm;
+		} else {
+			ret = scmi_imx_misc_ctrl_set(SCMI_IMX_CTRL_BYPASS_AUDMIX, 1);
+			if (ret)
+				goto err_disable_pm;
+		}
 	}
 
 	return 0;
