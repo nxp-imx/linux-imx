@@ -94,6 +94,11 @@
 			reusable;
 		};
 
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
 		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
@@ -134,6 +139,11 @@
 			reg = <0 0x88020000 0 0x100000>;
 			no-map;
 		};
+	};
+
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
 	};
 
 	flexcan1_phy: can-phy0 {
@@ -1143,6 +1153,10 @@
 	};
 
 
+};
+
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };
 
 #include "imx952-android.dtsi"
