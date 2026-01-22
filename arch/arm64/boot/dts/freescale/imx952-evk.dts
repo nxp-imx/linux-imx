@@ -158,9 +158,9 @@
 		standby-gpios = <&i2c4_pcal6408 3 GPIO_ACTIVE_LOW>;
 	};
 
-	reg_dummy: reg_dummy {
+	reg_dummy: regulator-dummy {
 		compatible = "regulator-fixed";
-		regulator-name = "reg_dummy";
+		regulator-name = "dummy";
 	};
 
 	reg_3p3v: regulator-3p3v {
