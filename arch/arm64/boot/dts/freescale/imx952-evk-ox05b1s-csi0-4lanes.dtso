@@ -9,14 +9,6 @@
 #define DATA_LANES <1 2 3 4>
 #include "imx952-evk-ox05b1s-csi0-common.dtsi"
 
-&i2c3_pcal6408 {
-	csi_mux_hog {
-		gpio-hog;
-		gpios = <7 GPIO_ACTIVE_HIGH>;
-		output-low;
-	};
-};
-
 &camera_phy_csr {
 	#address-cells = <1>;
 	#size-cells = <1>;
@@ -32,5 +24,13 @@
 		assigned-clock-rates = <24000000>;
 		fsl,csis = <&mipi_csi_0>, <&mipi_csi_1>;
 		status = "okay";
+	};
+};
+
+&i2c3_pcal6408 {
+	csi_mux_hog {
+		gpio-hog;
+		gpios = <7 GPIO_ACTIVE_HIGH>;
+		output-low;
 	};
 };
