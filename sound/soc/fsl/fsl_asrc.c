@@ -1088,7 +1088,7 @@ static bool fsl_asrc_m2m_output_ready(struct fsl_asrc_pair *pair)
 {
 	struct fsl_asrc *asrc = pair->asrc;
 	enum asrc_pair_index index = pair->index;
-	int retry = 100;
+	int retry = 1000;
 	u32 val;
 
 	do {
