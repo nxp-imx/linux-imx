@@ -914,7 +914,7 @@ int wave5_vpu_dec_register_displaybuffer(struct vpu_instance *inst,
 			  (fb_arr->stride);
 	vpu_write_reg(inst->dev, W5_COMMON_PIC_INFO, reg_val);
 
-	reg_val = (1 << 4) | ((!fb_arr->index && !update_fb) << 3) | update_fb;
+	reg_val = (1 << 4) | ((!inst->disp_buf_mask && !update_fb) << 3) | update_fb;
 	vpu_write_reg(inst->dev, W5_SFB_OPTION, reg_val);
 
 	if (update_fb)
