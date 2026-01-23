@@ -449,15 +449,37 @@ fsl_asrc_dma_pcm_pointer(struct snd_soc_component *component,
 static int fsl_asrc_dma_pcm_new(struct snd_soc_component *component,
 				struct snd_soc_pcm_runtime *rtd)
 {
+	struct device *dev = component->dev;
+	struct fsl_asrc *asrc = dev_get_drvdata(dev);
+	struct fsl_asrc_pair *pair;
 	struct snd_pcm *pcm = rtd->pcm;
 	struct dma_chan *chan;
 	int ret;
 
 	/* Get dma channel is to get dma device for memory allocation */
-	chan = dma_request_slave_channel(component->dev, "rxa");
+	pair = kzalloc(sizeof(*pair) + asrc->pair_priv_size, GFP_KERNEL);
+	if (!pair)
+		return -ENOMEM;
+
+	pair->asrc = asrc;
+	pair->private = (void *)pair + sizeof(struct fsl_asrc_pair);
+
+	/* Request a dummy pair, which will be released later.
+	 * Request pair function needs channel num as input, for this
+	 * dummy pair, we just request "1" channel temporarily.
+	 */
+	ret = asrc->request_pair(1, pair);
+	if (ret < 0) {
+		dev_err(dev, "failed to request asrc pair\n");
+		goto req_pair_err;
+	}
+
+	/* Request a dummy dma channel, which will be released later. */
+	chan = asrc->get_dma_channel(pair, IN);
 	if (!chan) {
-		dev_err(component->dev,	"Missing %s dma channel\n", "rxa");
-		return -EINVAL;
+		dev_err(dev, "failed to get dma channel\n");
+		ret = -EINVAL;
+		goto dma_chan_err;
 	}
 
 	ret = snd_pcm_set_fixed_buffer_all(pcm,
@@ -466,6 +488,12 @@ static int fsl_asrc_dma_pcm_new(struct snd_soc_component *component,
 					   FSL_ASRC_DMABUF_SIZE);
 
 	dma_release_channel(chan);
+
+dma_chan_err:
+	asrc->release_pair(pair);
+
+req_pair_err:
+	kfree(pair);
 
 	return ret;
 }
