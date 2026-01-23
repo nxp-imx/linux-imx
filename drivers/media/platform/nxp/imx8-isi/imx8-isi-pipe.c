@@ -786,10 +786,8 @@ static int mxc_isi_pipe_set_selection(struct v4l2_subdev *sd,
 
 		sel->r.left = 0;
 		sel->r.top = 0;
-		sel->r.width = clamp(sel->r.width, MXC_ISI_MIN_WIDTH,
-				     format->width);
-		sel->r.height = clamp(sel->r.height, MXC_ISI_MIN_HEIGHT,
-				      format->height);
+		sel->r.width = CLAMP_DOWNSCALE_16(sel->r.width, format->width);
+		sel->r.height = CLAMP_DOWNSCALE_16(sel->r.height, format->height);
 
 		rect = mxc_isi_pipe_get_pad_compose(pipe, state,
 						    MXC_ISI_PIPE_PAD_SINK);

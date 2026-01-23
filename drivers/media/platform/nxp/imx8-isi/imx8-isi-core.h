@@ -59,6 +59,22 @@ struct v4l2_m2m_dev;
 #define MXC_ISI_M2M			"mxc-isi-m2m"
 #define MXC_MAX_PLANES			3
 
+/*
+ * ISI scaling engine works in two parts: it performs pre-decimation of
+ * the image followed by bilinear filtering to achieve the desired
+ * downscaling factor.
+ *
+ * The decimation filter provides a maximum downscaling factor of 8, and
+ * the subsequent bilinear filter provides a maximum downscaling factor
+ * of 2. Combined, the maximum scaling factor can be up to 16.
+ */
+#define CLAMP_DOWNSCALE_16(val, max_val)			\
+({								\
+	typeof(max_val) __max_val = (max_val);			\
+								\
+	clamp((val), max(1U, __max_val >> 4), __max_val);	\
+})
+
 struct mxc_isi_dev;
 struct mxc_isi_m2m_ctx;
 

@@ -512,9 +512,9 @@ __mxc_isi_m2m_try_fmt_vid(struct mxc_isi_m2m_ctx *ctx,
 			  const enum mxc_isi_video_type type)
 {
 	if (type == MXC_ISI_VIDEO_M2M_CAP) {
-		/* Downscaling only  */
-		pix->width = min(pix->width, ctx->queues.out.format.width);
-		pix->height = min(pix->height, ctx->queues.out.format.height);
+		/* Allow downscaling up to 16x */
+		pix->width = CLAMP_DOWNSCALE_16(pix->width, ctx->queues.out.format.width);
+		pix->height = CLAMP_DOWNSCALE_16(pix->height, ctx->queues.out.format.height);
 	}
 
 	return mxc_isi_format_try(ctx->m2m->pipe, pix, type);
