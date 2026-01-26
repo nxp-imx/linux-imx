@@ -189,14 +189,6 @@ static int neutron_inference_run(struct neutron_inference *inf)
 			break;
 		neutron_hw_reset(ndev);
 		neutron_firmw_reload(ndev, inf->buf);
-		/* set BASEDDR address again after hardware reset */
-		writel(inf->args.base_ddr_l, inf->ndev->reg_base + BASEDDRL);
-		writel(inf->args.base_ddr_l, inf->ndev->reg_base + BASEINOUTL);
-		writel(inf->args.base_ddr_l, inf->ndev->reg_base + BASESPILLL);
-
-		writel(inf->args.base_ddr_h, inf->ndev->reg_base + BASEDDRH);
-		writel(inf->args.base_ddr_h, inf->ndev->reg_base + BASEINOUTH);
-		writel(inf->args.base_ddr_h, inf->ndev->reg_base + BASESPILLH);
 		msleep(5);
 	}
 	mutex_unlock(&ndev->mutex);

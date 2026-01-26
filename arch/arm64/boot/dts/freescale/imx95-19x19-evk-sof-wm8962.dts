@@ -20,6 +20,10 @@
 		status = "disabled";
 	};
 
+	sound-micfil {
+		status = "disabled";
+	};
+
 	sof-sound-wm8962 {
 		compatible = "audio-graph-card2";
 		links = <&cpu>;

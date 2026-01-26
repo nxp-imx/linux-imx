@@ -630,7 +630,7 @@ static const struct reg_value ov5640_init_setting[] = {
 	{0x583b, 0x28, 0, 0}, {0x583c, 0x42, 0, 0}, {0x583d, 0xce, 0, 0},
 	{0x5025, 0x00, 0, 0}, {0x3a0f, 0x30, 0, 0}, {0x3a10, 0x28, 0, 0},
 	{0x3a1b, 0x30, 0, 0}, {0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0},
-	{0x3a1f, 0x14, 0, 0}, {0x3c00, 0x04, 0, 300},
+	{0x3a1f, 0x14, 0, 0}, {0x3c00, 0x04, 0, 300}, {0x302c, 0xc2, 0, 0},
 };
 
 static const struct reg_value ov5640_setting_low_res[] = {
@@ -3762,6 +3762,7 @@ static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
 static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	int delay;
 	int ret = 0;
 
 	if (enable) {
@@ -3799,6 +3800,10 @@ static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 
 		if (!ret)
 			sensor->streaming = enable;
+
+		/* wait camera stable */
+		delay = (enable) ? 100 : 0;
+		msleep(delay);
 	}
 
 out:

@@ -380,6 +380,20 @@ void kbase_pm_metrics_stop(struct kbase_device *kbdev);
 int kbase_pm_handle_runtime_suspend(struct kbase_device *kbdev);
 
 /**
+ * kbase_pm_cancel_pending_runtime_suspend - Completes a pending RT suspend callback
+ *
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ *
+ * This function is used to cancel a pending run-time suspend callback work
+ * item:
+ * - If the work item is not executing in the scheduler khtread, this causes
+ *   kbase_device_runtime_suspend() to return immediately with -EBUSY.
+ * - If the work item is executing in the scheduler kthread, this function
+ *   does nothing and the work item will continue executing as normal.
+ */
+void kbase_pm_cancel_pending_runtime_suspend(struct kbase_device *kbdev);
+
+/**
  * kbase_pm_force_mcu_wakeup_after_sleep - Force the wake up of MCU from sleep
  *
  * @kbdev: The kbase device structure for the device (must be a valid pointer)

@@ -292,7 +292,7 @@ struct mxc_isi_m2m {
 struct mxc_isi_dev {
 	struct device			*dev;
 
-	const struct mxc_isi_plat_data	*pdata;
+	struct mxc_isi_plat_data	*pdata;
 
 	void __iomem			*regs;
 	struct clk_bulk_data		*clks;
@@ -387,7 +387,7 @@ void mxc_isi_channel_get(struct mxc_isi_pipe *pipe);
 void mxc_isi_channel_put(struct mxc_isi_pipe *pipe);
 void mxc_isi_channel_enable(struct mxc_isi_pipe *pipe);
 void mxc_isi_channel_disable(struct mxc_isi_pipe *pipe);
-int mxc_isi_channel_chain(struct mxc_isi_pipe *pipe, bool bypass);
+int mxc_isi_channel_chain(struct mxc_isi_pipe *pipe);
 void mxc_isi_channel_unchain(struct mxc_isi_pipe *pipe);
 
 void mxc_isi_channel_config(struct mxc_isi_pipe *pipe,

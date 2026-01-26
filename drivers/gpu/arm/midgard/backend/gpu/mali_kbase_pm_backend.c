@@ -1223,3 +1223,13 @@ out:
 
 	return ret;
 }
+
+void kbase_pm_cancel_pending_runtime_suspend(struct kbase_device *kbdev)
+{
+	struct kbase_csf_scheduler *const scheduler = &kbdev->csf.scheduler;
+
+	if (atomic_cmpxchg(&scheduler->pending_runtime_suspend_work, true, false) == true) {
+		kbdev->pm.runtime_suspend_result = -EBUSY;
+		wake_up_all(&kbdev->csf.event_wait);
+	}
+}

@@ -2080,6 +2080,7 @@ int __pkvm_pgtable_stage2_split(struct kvm_vcpu *vcpu, phys_addr_t ipa, size_t s
 		ret = -EPERM;
 		goto end;
 	} else if (!ppage->order) {
+		unpin_user_pages(pages, nr_pages);
 		ret = 0;
 		goto end;
 	}

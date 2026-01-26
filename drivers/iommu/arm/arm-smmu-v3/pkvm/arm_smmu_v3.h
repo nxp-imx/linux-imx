@@ -21,7 +21,7 @@ struct hyp_arm_smmu_v3_device {
 
 	void __iomem		*base;
 	u32			cmdq_prod;
-	u64			*cmdq_base;
+	__le64			*cmdq_base;
 	size_t			cmdq_log2size;
 	/* strtab_cfg.l2.l2ptrs is not used, instead computed from L1 */
 	struct arm_smmu_strtab_cfg strtab_cfg;
@@ -44,5 +44,7 @@ enum kvm_arm_smmu_domain_type {
 	KVM_ARM_SMMU_DOMAIN_S2,
 	KVM_ARM_SMMU_DOMAIN_MAX,
 };
+
+extern struct kvm_iommu_ops smmu_ops;
 
 #endif /* __KVM_ARM_SMMU_V3_H */

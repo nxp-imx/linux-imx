@@ -5566,6 +5566,7 @@ static void gpu_idle_worker(struct kbase_device *kbdev)
 			 * callback to reduce latency & power usage.
 			 */
 			if (all_groups_suspended && immediate_rt_suspend) {
+				atomic_set(&scheduler->pending_runtime_suspend_work, true);
 				complete(&scheduler->kthread_signal);
 			}
 		}
@@ -7443,6 +7444,12 @@ static int kbase_csf_scheduler_kthread(void *data)
 		while (atomic_read(&scheduler->pending_gpu_idle_work) > 0)
 			gpu_idle_worker(kbdev);
 
+		/* Drain pending GPU suspend work */
+		if (atomic_read(&scheduler->pending_runtime_suspend_work) == true) {
+			kbdev->pm.runtime_suspend_result = kbase_pm_handle_runtime_suspend(kbdev);
+			atomic_set(&scheduler->pending_runtime_suspend_work, false);
+		}
+
 		/* Drain pending GPU power off work */
 		if (atomic_cmpxchg(&scheduler->pending_power_off_work, true, false) == true)
 			kbase_pm_handle_gpu_poweroff_wait_work(kbdev);
@@ -8052,6 +8059,7 @@ int kbase_csf_scheduler_early_init(struct kbase_device *kbdev)
 	atomic_set(&scheduler->pending_tick_work, false);
 	atomic_set(&scheduler->pending_tock_work, false);
 	atomic_set(&scheduler->pending_gpu_idle_work, 0);
+	atomic_set(&scheduler->pending_runtime_suspend_work, false);
 	atomic_set(&scheduler->pending_power_off_work, false);
 	atomic_set(&scheduler->pending_kcpuq_works, false);
 	spin_lock_init(&scheduler->kcpuq_work_queues_lock);

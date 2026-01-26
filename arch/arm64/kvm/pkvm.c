@@ -328,56 +328,6 @@ err_free_reqs:
 	return ret;
 }
 
-/*
- * Handle split huge pages which have not been reported to the kvm_pinned_page tree.
- */
-static int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
-				    int (*call_hyp_nvhe)(u64 pfn, u64 gfn, u8 order, void *args),
-				    void *args)
-{
-	size_t page_size, size = PAGE_SIZE << ppage->order;
-	u64 pfn = page_to_pfn(ppage->page);
-	u8 order = ppage->order;
-	u64 gfn = ppage->ipa >> PAGE_SHIFT;
-
-	while (size) {
-		int err = call_hyp_nvhe(pfn, gfn, order, args);
-
-		switch (err) {
-		case -E2BIG:
-			if (order)
-				order = 0;
-			else
-				/* Something is really wrong ... */
-				return -EINVAL;
-			break;
-		case 0:
-			page_size = PAGE_SIZE << order;
-			gfn += 1 << order;
-			pfn += 1 << order;
-
-			if (page_size > size)
-				return -EINVAL;
-
-			size -= page_size;
-			break;
-		default:
-			return err;
-		}
-	}
-
-	return 0;
-}
-
-static int __reclaim_dying_guest_page_call(u64 pfn, u64 gfn, u8 order, void *args)
-{
-	struct kvm *host_kvm = args;
-
-	return kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
-				 host_kvm->arch.pkvm.handle,
-				 pfn, gfn, order);
-}
-
 /* __pkvm_notify_guest_vm_avail_retry - notify secure of the VM state change
  * @host_kvm: the kvm structure
  * @availability_msg: the VM state that will be notified
@@ -446,8 +396,9 @@ retry:
 	while (ppage) {
 		struct kvm_pinned_page *next;
 
-		ret = pkvm_call_hyp_nvhe_ppage(ppage, __reclaim_dying_guest_page_call,
-					       host_kvm);
+		ret = kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page, host_kvm->arch.pkvm.handle,
+					page_to_pfn(ppage->page), ppage->ipa >> PAGE_SHIFT,
+					ppage->order);
 		cond_resched();
 		if (ret == -EBUSY) {
 			nr_busy++;

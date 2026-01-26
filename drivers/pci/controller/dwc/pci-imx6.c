@@ -1857,6 +1857,11 @@ static int imx_pcie_probe(struct platform_device *pdev)
 	 */
 	imx_pcie->supports_clkreq =
 		of_property_read_bool(node, "supports-clkreq");
+
+	ret = devm_regulator_get_enable_optional(&pdev->dev, "vpcie3v3aux");
+	if (ret < 0 && ret != -ENODEV)
+		return dev_err_probe(dev, ret, "failed to enable Vaux supply\n");
+
 	ret = devm_regulator_get_enable_optional(&pdev->dev, "vpcie");
 	if (ret < 0 && ret != -ENODEV)
 		return dev_err_probe(dev, ret, "failed to enable vpcie");

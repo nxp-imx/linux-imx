@@ -181,7 +181,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk.dtb imx8mp-evk-rm67191.dtb imx8mp-evk-it626
 			  imx8mp-evk-dual-os08a20.dtb \
 			  imx8mp-evk-iqaudio-dacplus.dtb imx8mp-evk-iqaudio-dacpro.dtb imx8mp-evk-hifiberry-dacplus.dtb \
 			  imx8mp-evk-hifiberry-dac2.dtb imx8mp-evk-hifiberry-dacplusadc.dtb \
-			  imx8mp-evk-usdhc1-m2.dtb imx8mp-evk-rm67199.dtb \
+			  imx8mp-evk-pciewifi.dtb imx8mp-evk-rm67199.dtb \
 			  imx8mp-evk-dpdk.dtb imx8mp-evk-8mic-swpdm.dtb imx8mp-evk-revA3-8mic-revE.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-navqp.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-ab2.dtb
@@ -213,7 +213,7 @@ imx8mp-evk-revb4-iqaudio-dacpro-dtbs := imx8mp-evk-iqaudio-dacpro.dtb imx8mp-evk
 imx8mp-evk-revb4-hifiberry-dacplus-dtbs := imx8mp-evk-hifiberry-dacplus.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-hifiberry-dac2-dtbs := imx8mp-evk-hifiberry-dac2.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-hifiberry-dacplusadc-dtbs := imx8mp-evk-hifiberry-dacplusadc.dtb imx8mp-evk-revb4.dtbo
-imx8mp-evk-revb4-usdhc1-m2-dtbs := imx8mp-evk-usdhc1-m2.dtb imx8mp-evk-revb4.dtbo
+imx8mp-evk-revb4-pciewifi-dtbs := imx8mp-evk-pciewifi.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-rm67199-dtbs := imx8mp-evk-rm67199.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-dpdk-dtbs := imx8mp-evk-dpdk.dtb imx8mp-evk-revb4.dtbo
 imx8mp-evk-revb4-8mic-swpdm-dtbs := imx8mp-evk-8mic-swpdm.dtb imx8mp-evk-revb4.dtbo
@@ -245,7 +245,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-iqaudio-dacpro.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-hifiberry-dacplus.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-hifiberry-dac2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-hifiberry-dacplusadc.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-usdhc1-m2.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-pciewifi.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-rm67199.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-dpdk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk-revb4-8mic-swpdm.dtb
@@ -768,6 +768,9 @@ imx95-15x15-evk-neutron-dtbs := imx95-15x15-evk.dtb imx95-19x19-evk-neutron.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-evk-neutron.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-sof-wm8962.dtb
+
+imx95-19x19-evk-sof-wm8962-adv7535-dtbs := imx95-19x19-evk-sof-wm8962.dtb imx95-19x19-evk-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-sof-wm8962-adv7535.dtb
 
 imx95-19x19-evk-pcie1-ep-dtbs := imx95-19x19-evk.dtb imx95-19x19-evk-pcie1-ep.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-evk-pcie1-ep.dtb

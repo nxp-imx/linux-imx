@@ -38,7 +38,7 @@
 #define IMX93_ADC_PCDR6		0x118
 #define IMX93_ADC_PCDR7		0x11c
 #define IMX93_ADC_CALSTAT	0x39C
-#define IMX93_ADC_CALCFG0	0X3A0
+#define IMX93_ADC_CALCFG0	0x3A0
 
 /* ADC bit shift */
 #define IMX93_ADC_MCR_MODE_MASK			BIT(29)
@@ -187,14 +187,15 @@ static int imx93_adc_calibration(struct imx93_adc *adc)
 
 	/* check whether calbration is success or not */
 	msr = readl(adc->regs + IMX93_ADC_MSR);
-	if (msr & IMX93_ADC_MSR_CALFAIL_MASK)
+	if (msr & IMX93_ADC_MSR_CALFAIL_MASK) {
 		/*
 		 * Only give warning here, this means the noise of the
 		 * reference voltage do not meet the requirement:
 		 *     ADC reference voltage Noise < 1.8V * 1/2^ENOB
-		 * And the reault of ADC is not that accurate.
+		 * And the resault of ADC is not that accurate.
 		 */
 		dev_warn(adc->dev, "ADC calibration failed!\n");
+	}
 
 	return 0;
 }
