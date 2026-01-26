@@ -1175,13 +1175,13 @@ static int wave5_vpu_dec_stop(struct vpu_instance *inst)
 	 * the capture queue.
 	 */
 	inst->eos = true;
+	v4l2_m2m_set_src_buffered(m2m_ctx, true);
 
 	if (m2m_ctx->has_stopped && !inst->dynamic_source_change)
 		return 0;
 
 	m2m_ctx->last_src_buf = v4l2_m2m_last_src_buf(m2m_ctx);
 	m2m_ctx->is_draining = true;
-	v4l2_m2m_set_src_buffered(m2m_ctx, true);
 
 	/*
 	 * Deferred to device run in case it wasn't in the ring buffer
@@ -1238,7 +1238,6 @@ static int wave5_vpu_dec_start(struct vpu_instance *inst)
 	}
 
 	vb2_clear_last_buffer_dequeued(dst_vq);
-	inst->eos = false;
 
 	return 0;
 }
