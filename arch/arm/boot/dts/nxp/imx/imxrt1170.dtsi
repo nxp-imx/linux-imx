@@ -83,7 +83,7 @@
 		};
 
 		iomuxc_snvs: iomuxc_snvs@40c94000 {
-			compatible = "fsl,imxrt1170-lpsr-iomuxc";
+			compatible = "fsl,imxrt1170-snvs-iomuxc";
 			reg = <0x40c94000 0x4000>;
 			fsl,mux_mask = <0x7>;
 		};
