@@ -41,9 +41,9 @@
 	assigned-clock-rates = <0>, <0>, <786432000>, <49152000>, <12288000>,
 				 <722534400>, <45158400>, <11289600>,
 				<49152000>;
-	clocks = <&sai5_lpcg IMX_LPCG_CLK_4>,
+	clocks = <&sai5_lpcg IMX_LPCG_CLK_0>,
 		<&clk_dummy>,
-		<&sai5_lpcg IMX_LPCG_CLK_0>,
+		<&sai5_lpcg IMX_LPCG_CLK_4>,
 		<&clk_dummy>,
 		<&clk_dummy>,
 		<&aud_pll_div0_lpcg IMX_LPCG_CLK_0>,

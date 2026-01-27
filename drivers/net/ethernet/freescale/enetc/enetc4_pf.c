@@ -909,6 +909,7 @@ static void enetc4_pf_free(struct enetc_pf *pf)
 static void enetc4_psi_do_set_rx_mode(struct work_struct *work)
 {
 	struct enetc_si *si = container_of(work, struct enetc_si, rx_mode_task);
+	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
 	struct enetc_pf *pf = enetc_si_priv(si);
 	struct net_device *ndev = si->ndev;
 	struct enetc_hw *hw = &si->hw;
@@ -917,6 +918,9 @@ static void enetc4_psi_do_set_rx_mode(struct work_struct *work)
 	int type = 0;
 
 	rtnl_lock();
+
+	if (unlikely(test_bit(ENETC_SUSPEND, &priv->flags)))
+		goto out;
 
 	if (ndev->flags & IFF_PROMISC) {
 		uc_promisc = true;
@@ -942,6 +946,7 @@ static void enetc4_psi_do_set_rx_mode(struct work_struct *work)
 	/* Set new MAC filter */
 	enetc4_pf_set_mac_filter(pf, type);
 
+out:
 	rtnl_unlock();
 }
 
@@ -1998,7 +2003,6 @@ static void enetc4_pf_power_down(struct enetc_si *si)
 
 	pci_free_irq_vectors(pdev);
 	pci_disable_device(pdev);
-	pcie_flr(pdev);
 }
 
 static int enetc4_pf_power_up(struct pci_dev *pdev, struct device_node *node)
@@ -2011,6 +2015,8 @@ static int enetc4_pf_power_up(struct pci_dev *pdev, struct device_node *node)
 	si = pci_get_drvdata(pdev);
 	pf = enetc_si_priv(si);
 	priv = netdev_priv(si->ndev);
+
+	pcie_flr(pdev);
 
 	err = pci_enable_device_mem(pdev);
 	if (err) {
@@ -2091,6 +2097,7 @@ static int enetc4_pf_suspend(struct device *dev)
 
 	enetc4_sriov_suspend(pdev);
 
+	set_bit(ENETC_SUSPEND, &priv->flags);
 	cancel_work_sync(&si->rx_mode_task);
 
 	rtnl_lock();
@@ -2141,6 +2148,8 @@ static int enetc4_pf_resume(struct device *dev)
 	priv = netdev_priv(si->ndev);
 
 	rtnl_lock();
+
+	clear_bit(ENETC_SUSPEND, &priv->flags);
 
 	if (!netif_running(si->ndev)) {
 		err = enetc4_pf_power_up(pdev, node);

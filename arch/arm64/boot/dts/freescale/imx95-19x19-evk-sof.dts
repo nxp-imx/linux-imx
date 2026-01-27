@@ -56,7 +56,7 @@
 
 &edma2 {
 	/* channels 30 and 31 reserved for FW usage */
-	dma-channel-mask = <0xc0000000>, <0x0>;
+	dma-channel-mask = <0xc0000003>, <0x0>;
 };
 
 &sai3 {

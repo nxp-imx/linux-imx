@@ -261,7 +261,7 @@
 
 	pinctrl_hog: hoggrp {
 		fsl,pins = <
-			IMX95_PAD_GPIO_IO04__GPIO2_IO_BIT4	0x3fe
+			IMX95_PAD_GPIO_IO04__GPIO2_IO_BIT4	0x39e
 		>;
 	};
 

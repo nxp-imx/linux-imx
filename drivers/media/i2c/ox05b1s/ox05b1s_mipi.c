@@ -24,7 +24,7 @@
 #define OX05B1S_CHIP_ID 0x580542
 #define OS08A20_CHIP_ID 0x530841
 #define OX05B1S_EXP_RATIO 16
-#define OX05B1S_VS_EXP_MAX 0x20
+#define OS08A20_VS_EXP_MAX 0x64
 
 enum ox05b1s_pad_ids {
 	OX05B1S_PAD_SRC,
@@ -243,7 +243,7 @@ static const struct ox05b1s_mode ox05b1s_supported_modes[] = {
 		.bpp		= 10,
 		.vts		= 0x850, /* 2128 */
 		.hts		= 0x2f0, /* 752 */
-		.exp		= 0x850 - 8,
+		.exp		= 0x850 - 30,
 		.h_bin		= false,
 		.pixel_rate	= OX05B1S_PIXEL_RATE_48M,
 		.reg_data	= ox05b1s_reglist_2592x1944,
@@ -492,15 +492,28 @@ static int ox05b1s_repeat_launch(struct ox05b1s *sensor)
 }
 
 static void ox05b1s_validate_exposures(struct ox05b1s *sensor,
-				       u32 *long_exp, u32 *short_exp)
+				       u32 *exp0, u32 *exp1)
 {
-	/* 4k 12 bit mode hangs with short exposures higher than this */
-	if (*short_exp > OX05B1S_VS_EXP_MAX)
-		*short_exp = OX05B1S_VS_EXP_MAX;
 
-	/* Datasheet mentions T_long + T_short < frame_length(VTS) - 4 */
-	if (*long_exp + *short_exp >= sensor->mode->vts - 4)
-		*long_exp = sensor->mode->vts - 4 - *short_exp - 1;
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* 4k 12 bit mode hangs with higher short exposures */
+		if (*exp1 > OS08A20_VS_EXP_MAX)
+			*exp1 = OS08A20_VS_EXP_MAX;
+
+		/* Datasheet: T_long + T_short < frame_length(VTS) - 4 */
+		if (*exp0 + *exp1 >= sensor->mode->vts - 4)
+			*exp0 = sensor->mode->vts - 4 - *exp1 - 1;
+		return;
+	case OX05B1S_CHIP_ID:
+		if (*exp0 > sensor->mode->exp)
+			*exp0 = sensor->mode->exp;
+		if (*exp1 > sensor->mode->exp)
+			*exp1 = sensor->mode->exp;
+		return;
+	default:
+		return;
+	}
 }
 
 static int ox05b1s_set_exp_long(struct ox05b1s *sensor, u32 exp)
@@ -1123,7 +1136,7 @@ static int ox05b1s_update_controls(struct ox05b1s *sensor)
 	u32 vblank = vts - sensor->mode->height;
 	u64 pixel_rate = sensor->mode->pixel_rate;
 	u32 min_exp = 1;
-	u32 max_exp = vts - 8;
+	u32 max_exp = sensor->mode->exp;
 	u32 new_values[2];
 
 	ret = __v4l2_ctrl_modify_range(sensor->ctrls.pixel_rate, pixel_rate,

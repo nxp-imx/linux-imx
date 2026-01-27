@@ -148,10 +148,10 @@
 &iomuxc {
 	pinctrl_lpspi8: lpspi8grp {
 		fsl,pins = <
-			MX93_PAD_GPIO_IO12__GPIO2_IO12          0x3fe
-			MX93_PAD_GPIO_IO13__LPSPI8_SIN          0x3fe
-			MX93_PAD_GPIO_IO14__LPSPI8_SOUT         0x3fe
-			MX93_PAD_GPIO_IO15__LPSPI8_SCK          0x3fe
+			MX93_PAD_GPIO_IO12__GPIO2_IO12          0x39e
+			MX93_PAD_GPIO_IO13__LPSPI8_SIN          0x39e
+			MX93_PAD_GPIO_IO14__LPSPI8_SOUT         0x39e
+			MX93_PAD_GPIO_IO15__LPSPI8_SCK          0x39e
 		>;
 	};
 

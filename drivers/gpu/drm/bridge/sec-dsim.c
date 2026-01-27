@@ -1613,6 +1613,16 @@ static int sec_mipi_dsim_bridge_atomic_check(struct drm_bridge *bridge,
 		adjusted_mode->htotal      += 2;
 	}
 
+	/* workaround for Raydium RM692C9 OLED panel */
+	if (!strcmp(adjusted_mode->name, "1080x2340") &&
+	    drm_mode_vrefresh(adjusted_mode) == 57 &&
+	    dsim->lanes == 4 &&
+	    dsim->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+		adjusted_mode->hsync_start += 2;
+		adjusted_mode->hsync_end   += 2;
+		adjusted_mode->htotal      += 2;
+	}
+
 	return 0;
 }
 

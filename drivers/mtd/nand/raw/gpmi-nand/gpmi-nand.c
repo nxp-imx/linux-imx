@@ -1232,7 +1232,7 @@ static const struct gpmi_devdata gpmi_devdata_imx7d = {
 };
 
 static const char * gpmi_clks_for_mx8qxp[GPMI_CLK_MAX] = {
-	"gpmi_clk", "gpmi_apb_clk", "bch_clk", "bch_apb_clk",
+	"gpmi_io", "gpmi_apb", "gpmi_bch", "gpmi_bch_apb",
 };
 
 static const struct gpmi_devdata gpmi_devdata_imx8qxp = {

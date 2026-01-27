@@ -12,7 +12,7 @@ static int dpaa2_eth_dcbnl_ieee_getpfc(struct net_device *net_dev,
 		return 0;
 
 	memcpy(pfc, &priv->pfc, sizeof(priv->pfc));
-	pfc->pfc_cap = dpaa2_eth_tc_count(priv);
+	pfc->pfc_cap = dpaa2_eth_rx_tc_count(priv);
 
 	return 0;
 }
@@ -32,7 +32,7 @@ static int dpaa2_eth_set_pfc_cn(struct dpaa2_eth_priv *priv, u8 pfc_en)
 	cfg.message_iova = 0ULL;
 	cfg.message_ctx = 0ULL;
 
-	for (i = 0; i < dpaa2_eth_tc_count(priv); i++) {
+	for (i = 0; i < dpaa2_eth_rx_tc_count(priv); i++) {
 		if (dpaa2_eth_is_prio_enabled(pfc_en, i)) {
 			cfg.threshold_entry = DPAA2_ETH_CN_THRESH_ENTRY(priv);
 			cfg.threshold_exit = DPAA2_ETH_CN_THRESH_EXIT(priv);
@@ -128,7 +128,7 @@ static u8 dpaa2_eth_dcbnl_getcap(struct net_device *net_dev, int capid, u8 *cap)
 		*cap = true;
 		break;
 	case DCB_CAP_ATTR_PFC_TCS:
-		*cap = 1 << (dpaa2_eth_tc_count(priv) - 1);
+		*cap = 1 << (dpaa2_eth_rx_tc_count(priv) - 1);
 		break;
 	case DCB_CAP_ATTR_DCBX:
 		*cap = priv->dcbx_mode;

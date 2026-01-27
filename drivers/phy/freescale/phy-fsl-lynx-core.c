@@ -174,6 +174,7 @@ bool lynx_lane_mode_needs_link_training(enum lynx_lane_mode mode)
 		return false;
 	}
 }
+EXPORT_SYMBOL_GPL(lynx_lane_mode_needs_link_training);
 
 int lynx_lane_mode_num_lanes(enum lynx_lane_mode lane_mode)
 {
@@ -193,6 +194,7 @@ int lynx_lane_mode_num_lanes(enum lynx_lane_mode lane_mode)
 		return -EOPNOTSUPP;
 	}
 }
+EXPORT_SYMBOL_GPL(lynx_lane_mode_num_lanes);
 
 /* A lane mode is supported if we have a PLL that can provide its required
  * clock net, and if there is a protocol converter for that mode on that lane.

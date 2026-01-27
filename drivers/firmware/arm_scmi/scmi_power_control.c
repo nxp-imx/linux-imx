@@ -330,7 +330,14 @@ static int scmi_userspace_notifier(struct notifier_block *nb,
 
 static void scmi_suspend_work_func(struct work_struct *work)
 {
-	pm_suspend(PM_SUSPEND_MEM);
+	int ret;
+	struct scmi_syspower_conf *sc =
+		container_of(work, struct scmi_syspower_conf, suspend_work);
+
+	ret = pm_suspend(PM_SUSPEND_MEM);
+
+	if (ret)
+		sc->state = SCMI_SYSPOWER_IDLE;
 }
 
 static int scmi_syspower_probe(struct scmi_device *sdev)

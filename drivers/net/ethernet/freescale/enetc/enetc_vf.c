@@ -349,6 +349,9 @@ static void enetc_vf_do_set_rx_mode(struct work_struct *work)
 
 	rtnl_lock();
 
+	if (unlikely(test_bit(ENETC_SUSPEND, &priv->flags)))
+		goto out;
+
 	if (ndev->flags & IFF_PROMISC) {
 		enetc_msg_vf_set_mac_promisc(priv, ENETC_MAC_FILTER_TYPE_ALL, true);
 	} else if (ndev->flags & IFF_ALLMULTI) {
@@ -360,6 +363,7 @@ static void enetc_vf_do_set_rx_mode(struct work_struct *work)
 		enetc_msg_vf_set_mac_hash_filter(ndev, ENETC_MAC_FILTER_TYPE_ALL);
 	}
 
+out:
 	rtnl_unlock();
 }
 
@@ -876,24 +880,26 @@ static int enetc_vf_restore_hw_config(struct enetc_si *si)
 static int enetc_vf_suspend(struct device *dev)
 {
 	struct enetc_si *si = pci_get_drvdata(to_pci_dev(dev));
+	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
 
 	if (is_enetc_rev1(si))
 		return 0;
 
+	set_bit(ENETC_SUSPEND, &priv->flags);
+	cancel_work_sync(&si->rx_mode_task);
+
 	rtnl_lock();
 
-	if (!netif_running(si->ndev)) {
-		rtnl_unlock();
-		return 0;
-	}
+	if (!netif_running(si->ndev))
+		goto out;
 
 	netif_device_detach(si->ndev);
 	netif_carrier_off(si->ndev);
-	cancel_work(&si->rx_mode_task);
 	enetc_msg_vf_register_link_status_notify(si, false);
 	enetc_vf_free_msg_msix(si);
 	enetc_suspend(si->ndev, false);
 
+out:
 	rtnl_unlock();
 
 	pci_free_irq_vectors(si->pdev);
@@ -905,6 +911,7 @@ static int enetc_vf_suspend(struct device *dev)
 static int enetc_vf_resume(struct device *dev)
 {
 	struct enetc_si *si = pci_get_drvdata(to_pci_dev(dev));
+	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
 	struct net_device *ndev = si->ndev;
 	int err;
 
@@ -928,6 +935,8 @@ static int enetc_vf_resume(struct device *dev)
 		return err;
 
 	rtnl_lock();
+
+	clear_bit(ENETC_SUSPEND, &priv->flags);
 
 	if (!netif_running(ndev))
 		goto unlock_rtnl;

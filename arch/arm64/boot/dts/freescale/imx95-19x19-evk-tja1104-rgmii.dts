@@ -21,6 +21,7 @@
 
 &netc_emdio {
 	ethphy1: ethernet-phy@2 {
+		compatible = "ethernet-phy-ieee802.3-c45";
 		/* PHY ADDR Configuration
 		 * CONFIG0: 1-2 CONFIG1: 1-2 CONFIG2: 2-3
 		 */

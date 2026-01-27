@@ -52,8 +52,8 @@
 
 &netc_emdio {
 	ethphy1: ethernet-phy@2 {
+		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <2>;
-		nxp,rmii-refclk-in;
 	};
 };
 
