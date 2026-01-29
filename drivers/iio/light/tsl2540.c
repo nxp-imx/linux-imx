@@ -290,7 +290,7 @@ static int tsl2540_write_interrupt_config(struct iio_dev *indio_dev,
 					  const struct iio_chan_spec *chan,
 					  enum iio_event_type type,
 					  enum iio_event_direction dir,
-					  int val)
+					  bool val)
 {
 	struct tsl2540_chip *chip = iio_priv(indio_dev);
 	int bits, mask, ret;
@@ -609,8 +609,7 @@ static const struct iio_chan_spec tsl2540_channels[] = {
 	}
 };
 
-static int tsl2540_probe(struct i2c_client *clientp,
-			 const struct i2c_device_id *id)
+static int tsl2540_probe(struct i2c_client *clientp)
 {
 	struct iio_dev *indio_dev;
 	struct tsl2540_chip *chip;
