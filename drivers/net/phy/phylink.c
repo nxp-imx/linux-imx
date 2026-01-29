@@ -535,7 +535,6 @@ static void phylink_validate_c73(unsigned long *supported,
 	phylink_set(mask, Autoneg);
 	phylink_set(mask, Asym_Pause);
 	phylink_set(mask, Pause);
-	linkmode_support_c73(mask);
 
 	phylink_caps_to_linkmodes(mask, mac_capabilities);
 
@@ -958,7 +957,6 @@ static int phylink_parse_mode(struct phylink *pl,
 		phylink_set(pl->supported, Autoneg);
 		phylink_set(pl->supported, Asym_Pause);
 		phylink_set(pl->supported, Pause);
-		linkmode_support_c73(pl->supported);
 #ifndef CONFIG_IMX_GKI_FIX
 		pl->config->cfg_link_an_mode = pl->cfg_link_an_mode;
 #endif
