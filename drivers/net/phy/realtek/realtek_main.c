@@ -551,23 +551,6 @@ static int rtl8211c_config_init(struct phy_device *phydev)
 			    CTL1000_ENABLE_MASTER | CTL1000_AS_MASTER);
 }
 
-static int rtl8211f_disable_clk_out(struct phy_device *phydev)
-{
-	struct rtl821x_priv *priv = phydev->priv;
-
-	/* The value is preserved if the device tree property is absent */
-	if (!priv->disable_clk_out)
-		return 0;
-
-	if (phydev->drv->phy_id == RTL_8211FVD_PHYID)
-		return phy_modify_paged(phydev, RTL8211FVD_CLKOUT_PAGE,
-					RTL8211FVD_CLKOUT_REG,
-					RTL8211FVD_CLKOUT_EN, 0);
-
-	return phy_modify_paged(phydev, RTL8211F_PHYCR_PAGE,
-				RTL8211F_PHYCR2, RTL8211F_CLKOUT_EN, 0);
-}
-
 static int rtl8211f_config_rgmii_delay(struct phy_device *phydev)
 {
 	u16 val_txdly, val_rxdly;
