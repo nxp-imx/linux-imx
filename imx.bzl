@@ -423,7 +423,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/usb/phy/phy-tegra-usb.ko",
     "drivers/net/ethernet/freescale/enetc/nxp-enetc-pf-common.ko",
     "drivers/nvmem/nvmem-imx-ocotp-ele.ko",
-    "drivers/net/phy/phy_package.ko",
     "lib/crc/crc-itu-t.ko",
     "drivers/ptp/ptp_qoriq.ko",
     "drivers/pmdomain/arm/scmi_pm_domain.ko",
@@ -437,6 +436,8 @@ _IMX_IN_TREE_MODULES = [
     "drivers/bus/imx-aipstz.ko",
     "drivers/usb/typec/mux/gpio-sbu-mux.ko",
     "drivers/reset/reset-imx-scu.ko",
+    "drivers/iio/light/tsl2540.ko",
+    "sound/soc/sof/imx/snd-sof-imx9.ko",
 ]
 
 def define_imx():
