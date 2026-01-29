@@ -12,7 +12,6 @@ config PHYLINK
 	tristate
 	select PHYLIB
 	select SWPHY
-	select MII
 	help
 	  PHYlink models the link between the PHY and MAC, allowing fixed
 	  configuration links, PHYs, and Serdes links with MAC level
