@@ -568,7 +568,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	isi->dev = dev;
 	platform_set_drvdata(pdev, isi);
 
-	isi->pdata = of_device_get_match_data(dev);
+	isi->pdata = (struct mxc_isi_plat_data *)of_device_get_match_data(dev);
 
 	match = soc_device_match(imx8_soc);
 	if (match) {
