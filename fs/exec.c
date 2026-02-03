@@ -77,6 +77,7 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+#include <trace/hooks/sched.h>
 
 /* For vma exec functions. */
 #include "../mm/internal.h"
@@ -1088,6 +1089,7 @@ void __set_task_comm(struct task_struct *tsk, const char *buf, bool exec)
 	memcpy(tsk->comm, buf, len);
 	memset(&tsk->comm[len], 0, sizeof(tsk->comm) - len);
 	perf_event_comm(tsk, exec);
+	trace_android_rvh_set_task_comm(tsk, exec);
 }
 
 /*

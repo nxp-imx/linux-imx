@@ -183,3 +183,13 @@ ssize_t kernel_read_file_from_fd(int fd, loff_t offset, void **buf,
 	return kernel_read_file(fd_file(f), offset, buf, buf_size, file_size, id);
 }
 EXPORT_SYMBOL_GPL(kernel_read_file_from_fd);
+
+ssize_t read_comp_algo_dictionary(void **dict, const char *dict_path)
+{
+	return kernel_read_file_from_path(dict_path, 0,
+					  dict,
+					  INT_MAX,
+					  NULL,
+					  READING_POLICY);
+}
+EXPORT_SYMBOL_GPL(read_comp_algo_dictionary);

@@ -37,6 +37,7 @@
 
 #include "pnode.h"
 #include "internal.h"
+#include <trace/hooks/blk.h>
 
 /* Maximum number of mounts in a mount namespace */
 static unsigned int sysctl_mount_max __read_mostly = 100000;
@@ -3659,8 +3660,10 @@ static int do_new_mount_fc(struct fs_context *fc, const struct path *mountpoint,
 
 	LOCK_MOUNT(mp, mountpoint);
 	error = do_add_mount(real_mount(mnt), &mp, mnt_flags);
-	if (!error)
+	if (!error) {
+		trace_android_vh_do_new_mount_fc(mountpoint, mnt);
 		retain_and_null_ptr(mnt); // consumed on success
+	}
 	return error;
 }
 

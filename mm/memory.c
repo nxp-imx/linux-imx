@@ -2173,6 +2173,7 @@ void zap_page_range_single(struct vm_area_struct *vma, unsigned long address,
 	zap_page_range_single_batched(&tlb, vma, address, size, details);
 	tlb_finish_mmu(&tlb);
 }
+EXPORT_SYMBOL_GPL(zap_page_range_single);
 
 /**
  * zap_vma_ptes - remove ptes mapping the vma
@@ -3587,6 +3588,7 @@ static inline void wp_page_reuse(struct vm_fault *vmf, struct folio *folio)
 	flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
 	entry = pte_mkyoung(vmf->orig_pte);
 	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+	trace_android_vh_wp_page_reuse(vmf, folio);
 	if (ptep_set_access_flags(vma, vmf->address, vmf->pte, entry, 1))
 		update_mmu_cache_range(vmf, vma, vmf->address, vmf->pte, 1);
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -5715,6 +5717,8 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 		ret = do_fault_around(vmf);
 		if (ret)
 			return ret;
+	} else {
+		trace_android_vh_do_read_fault(vmf, fault_around_pages);
 	}
 
 	ret = vmf_can_call_fault(vmf);

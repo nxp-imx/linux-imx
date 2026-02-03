@@ -8,9 +8,11 @@
 #include <linux/arm-smccc.h>
 #include <linux/bitfield.h>
 #include <linux/device.h>
+#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/sys_soc.h>
 
 #define SMCCC_SOC_ID_JEP106_BANK_IDX_MASK	GENMASK(30, 24)
@@ -31,6 +33,20 @@
 
 static struct soc_device *soc_dev;
 static struct soc_device_attribute *soc_dev_attr;
+
+/*
+ * Allow disabling SMCCC SoC ID registration via kernel cmdline.
+ * Example: add 'nosocid' to the command line to skip init.
+ */
+static bool smccc_socid_disabled;
+
+static int __init smccc_socid_disable_param(char *unused)
+{
+	smccc_socid_disabled = true;
+
+	return 0;
+}
+early_param("nosocid", smccc_socid_disable_param);
 
 #ifdef CONFIG_ARM64
 
@@ -116,6 +132,9 @@ static int __init smccc_soc_init(void)
 	int soc_id_rev, soc_id_version;
 	static char soc_id_str[20], soc_id_rev_str[12];
 	static char soc_id_jep106_id_str[12];
+
+	if (smccc_socid_disabled)
+		return 0;
 
 	if (arm_smccc_get_version() < ARM_SMCCC_VERSION_1_2)
 		return 0;

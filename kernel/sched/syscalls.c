@@ -345,6 +345,12 @@ static int uclamp_validate(struct task_struct *p,
 {
 	int util_min = p->uclamp_req[UCLAMP_MIN].value;
 	int util_max = p->uclamp_req[UCLAMP_MAX].value;
+	bool done = false;
+	int ret = 0;
+
+	trace_android_vh_uclamp_validate(p, attr, &ret, &done);
+	if (done)
+		return ret;
 
 	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP_MIN) {
 		util_min = attr->sched_util_min;
@@ -701,16 +707,18 @@ change:
 		 * itself.
 		 */
 		newprio = rt_effective_prio(p, newprio);
-		if (newprio == oldprio)
+		if (newprio == oldprio && !dl_prio(newprio))
 			queue_flags &= ~DEQUEUE_MOVE;
 	}
 
 	prev_class = p->sched_class;
 	next_class = __setscheduler_class(policy, newprio);
+	trace_android_vh_setscheduler_class(&next_class, NULL, p, policy, newprio);
 
 	if (prev_class != next_class && p->se.sched_delayed)
 		dequeue_task(rq, p, DEQUEUE_SLEEP | DEQUEUE_DELAYED | DEQUEUE_NOCLOCK);
 
+	trace_android_vh_scx_restore_flags(prev_class, next_class, &queue_flags);
 	queued = task_on_rq_queued(p);
 	running = task_current_donor(rq, p);
 	if (queued)
@@ -810,6 +818,7 @@ int sched_setattr(struct task_struct *p, const struct sched_attr *attr)
 {
 	return __sched_setscheduler(p, attr, true, true);
 }
+EXPORT_SYMBOL_GPL(sched_setattr);
 
 int sched_setattr_nocheck(struct task_struct *p, const struct sched_attr *attr)
 {
@@ -1225,7 +1234,8 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 {
 	struct affinity_context ac;
 	struct cpumask *user_mask;
-	int retval;
+	int retval = 0;
+	bool skip = false;
 
 	CLASS(find_get_task, p)(pid);
 	if (!p)
@@ -1240,6 +1250,9 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 			return -EPERM;
 	}
 
+	trace_android_vh_sched_setaffinity_early(p, in_mask, &skip);
+	if (skip)
+		return retval;
 	retval = security_task_setscheduler(p);
 	if (retval)
 		return retval;
@@ -1372,7 +1385,8 @@ static void do_sched_yield(void)
 	rq = this_rq_lock_irq(&rf);
 
 	schedstat_inc(rq->yld_count);
-	current->sched_class->yield_task(rq);
+	if (rq->donor->sched_class->yield_task)
+		rq->donor->sched_class->yield_task(rq);
 
 	trace_android_rvh_do_sched_yield(rq);
 
@@ -1443,12 +1457,13 @@ EXPORT_SYMBOL(yield);
  */
 int __sched yield_to(struct task_struct *p, bool preempt)
 {
-	struct task_struct *curr = current;
+	struct task_struct *curr;
 	struct rq *rq, *p_rq;
 	int yielded = 0;
 
 	scoped_guard (raw_spinlock_irqsave, &p->pi_lock) {
 		rq = this_rq();
+		curr = rq->donor;
 
 again:
 		p_rq = task_rq(p);

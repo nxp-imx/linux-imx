@@ -44,6 +44,7 @@ use crate::{
     error::{BinderError, BinderResult},
     node::{CouldNotDeliverCriticalIncrement, CritIncrWrapper, Node, NodeDeath, NodeRef},
     page_range::ShrinkablePageRange,
+    prio,
     range_alloc::{RangeAllocator, ReserveNew, ReserveNewArgs},
     stats::BinderStats,
     thread::{PushWorkRes, Thread},
@@ -414,6 +415,13 @@ impl ProcessNodeRefs {
     }
 }
 
+use core::mem::offset_of;
+use kernel::bindings::rb_process_layout;
+pub(crate) const PROCESS_LAYOUT: rb_process_layout = rb_process_layout {
+    arc_offset: Arc::<Process>::DATA_OFFSET,
+    task: offset_of!(Process, task),
+};
+
 /// A process using binder.
 ///
 /// Strictly speaking, there can be multiple of these per process. There is one for each binder fd
@@ -454,6 +462,8 @@ pub(crate) struct Process {
     links: ListLinks,
 
     pub(crate) stats: BinderStats,
+
+    pub(crate) default_priority: prio::BinderPriority,
 }
 
 kernel::impl_has_work! {
@@ -504,6 +514,7 @@ impl Process {
                 defer_work <- kernel::new_work!("Process::defer_work"),
                 links <- ListLinks::new(),
                 stats: BinderStats::new(),
+                default_priority: prio::get_default_prio_from_task(&current),
             }),
             GFP_KERNEL,
         )?;
@@ -1620,11 +1631,14 @@ impl Process {
 
         const _IOC_READ_WRITE: u32 = _IOC_READ | _IOC_WRITE;
 
-        match _IOC_DIR(cmd) {
+        let res = match _IOC_DIR(cmd) {
             _IOC_WRITE => Self::ioctl_write_only(this, file, cmd, &mut user_slice.reader()),
             _IOC_READ_WRITE => Self::ioctl_write_read(this, file, cmd, user_slice),
             _ => Err(EINVAL),
-        }
+        };
+
+        crate::trace::trace_ioctl_done(res);
+        res
     }
 
     pub(crate) fn mmap(

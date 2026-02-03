@@ -4522,6 +4522,7 @@ static int validate_ibt(struct objtool_file *file)
 		    !strcmp(sec->name, "_kprobe_blacklist")		||
 		    !strcmp(sec->name, "__bug_table")			||
 		    !strcmp(sec->name, "__ex_table")			||
+		    !strcmp(sec->name, ".pkvm__ex_table")		||
 		    !strcmp(sec->name, "__jump_table")			||
 		    !strcmp(sec->name, "__mcount_loc")			||
 		    !strcmp(sec->name, ".kcfi_traps")			||

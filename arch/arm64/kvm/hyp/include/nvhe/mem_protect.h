@@ -10,6 +10,7 @@
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pgtable.h>
+#include <asm/kvm_pkvm_module.h>
 #include <asm/virt.h>
 #include <nvhe/memory.h>
 #include <nvhe/pkvm.h>
@@ -44,6 +45,7 @@ int __pkvm_host_donate_hyp(u64 pfn, u64 nr_pages);
 int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio);
 int ___pkvm_host_donate_hyp_prot(u64 pfn, u64 nr_pages,
 				 bool accept_mmio, enum kvm_pgtable_prot prot);
+int __pkvm_host_donate_sglist_hyp(struct pkvm_sglist_page *sglist, size_t nr_pages);
 int __pkvm_hyp_donate_host(u64 pfn, u64 nr_pages);
 int __pkvm_guest_share_hyp_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa, u64 *hyp_va);
 int __pkvm_guest_unshare_hyp_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa);
@@ -70,7 +72,7 @@ int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
 				u64 nr_pages, u64 *nr_guarded);
 bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu);
 int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
-				    u64 ipa, u64 *ppa);
+				    u64 ipa, u64 flags, u64 *ppa);
 u64 __pkvm_ptdump_get_config(pkvm_handle_t handle, enum pkvm_ptdump_ops op);
 u64 __pkvm_ptdump_walk_range(pkvm_handle_t handle, struct pkvm_ptdump_log_hdr *log_hva);
 
@@ -121,6 +123,8 @@ static __always_inline void __load_host_stage2(void)
 
 int __pkvm_host_use_dma(phys_addr_t phys_addr, size_t size);
 int __pkvm_host_unuse_dma(phys_addr_t phys_addr, size_t size);
+
+int __pkvm_accept_module_prot_page(u64 ipa, u64 nr_pages);
 
 #ifdef CONFIG_NVHE_EL2_DEBUG
 void pkvm_ownership_selftest(void *base);

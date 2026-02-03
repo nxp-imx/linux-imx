@@ -708,6 +708,7 @@ int pkvm_enable_smc_forwarding(struct file *kvm_file)
 
 	return 0;
 }
+EXPORT_SYMBOL(pkvm_enable_smc_forwarding);
 
 static int __init pkvm_firmware_rmem_err(struct reserved_mem *rmem,
 					 const char *reason)
@@ -913,6 +914,7 @@ void pkvm_host_reclaim_page(struct kvm *kvm, phys_addr_t ipa)
 	if (ppage) {
 		WARN_ON(ppage->order);
 		kvm_pinned_pages_remove(ppage, &kvm->arch.pkvm.pinned_pages);
+		ppage->slot->arch.pkvm_pf_count--;
 	}
 	write_unlock(&kvm->mmu_lock);
 
@@ -921,7 +923,7 @@ void pkvm_host_reclaim_page(struct kvm *kvm, phys_addr_t ipa)
 		return;
 
 	account_locked_vm(mm, 1, false);
-	unpin_user_pages_dirty_lock(&ppage->page, 1, true);
+	pkvm_release_ppage(ppage, true);
 	kfree(ppage);
 }
 
@@ -970,9 +972,10 @@ retry:
 			continue;
 		}
 		WARN_ON(ret);
-		unpin_user_pages_dirty_lock(&ppage->page, 1, true);
+		pkvm_release_ppage(ppage, true);
 		account_locked_vm(mm, 1 << ppage->order, false);
 		kvm_pinned_pages_remove(ppage, &kvm->arch.pkvm.pinned_pages);
+		ppage->slot->arch.pkvm_pf_count--;
 		kfree(ppage);
 		ppage = next;
 	}
@@ -1721,7 +1724,7 @@ void pkvm_el2_mod_frob_sections(Elf_Ehdr *ehdr, Elf_Shdr *sechdrs, char *secstri
 }
 #endif /* CONFIG_MODULES */
 
-static int __pkvm_topup_hyp_alloc_mgt_mc(unsigned long id, struct kvm_hyp_memcache *mc)
+int __pkvm_topup_hyp_alloc_mgt_mc(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *mc)
 {
 	struct arm_smccc_res res;
 
@@ -1751,9 +1754,9 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
 }
 EXPORT_SYMBOL(__pkvm_topup_hyp_alloc);
 
-unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages)
+unsigned long __pkvm_reclaim_hyp_alloc_mgt_id(enum hyp_alloc_mgt_id id, unsigned long nr_pages)
 {
-	unsigned long ratelimit, last_reclaim, reclaimed = 0;
+	unsigned long ratelimit, reclaimed = 0;
 	struct kvm_hyp_memcache mc;
 	struct arm_smccc_res res;
 
@@ -1763,20 +1766,32 @@ unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages)
 		/* Arbitrary upper bound to limit the time spent at EL2 */
 		ratelimit = min(nr_pages, 16UL);
 
-		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_hyp_alloc_mgt_reclaim),
-				  ratelimit, &res);
-		if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS))
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_hyp_alloc_mgt_reclaim), id, ratelimit,
+				  &res);
+		if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS) || !res.a2)
 			break;
 
 		mc.head = res.a1;
-		last_reclaim = mc.nr_pages = res.a2;
+		mc.nr_pages = res.a2;
 
-		free_hyp_memcache(&mc);
-		reclaimed += last_reclaim;
-
-	} while (last_reclaim && (reclaimed < nr_pages));
+		if (id == HYP_ALLOC_MGT_IOMMU_ID)
+			reclaimed += __pkvm_free_iommu_hyp_memcache(&mc);
+		else
+			reclaimed += free_hyp_memcache(&mc);
+	} while (reclaimed < nr_pages);
 
 	return reclaimed;
+}
+
+unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages)
+{
+	unsigned long total = 0;
+	enum hyp_alloc_mgt_id id = __HYP_ALLOC_MGT_HEAP_ID_START__;
+
+	while ((id < NR_ALLOC_MGT_IDS) && (total < nr_pages))
+		total += __pkvm_reclaim_hyp_alloc_mgt_id(id++, nr_pages - total);
+
+	return total;
 }
 
 static int early_ffa_unmap_on_lend_cfg(char *arg)
@@ -1785,28 +1800,6 @@ static int early_ffa_unmap_on_lend_cfg(char *arg)
 	return 0;
 }
 early_param("kvm-arm.ffa-unmap-on-lend", early_ffa_unmap_on_lend_cfg);
-
-int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
-				   unsigned long sz_alloc, gfp_t gfp)
-{
-	struct kvm_hyp_memcache mc;
-	int ret;
-
-	init_hyp_memcache(&mc);
-
-	ret = topup_hyp_memcache_gfp(&mc, nr_pages, get_order(sz_alloc), gfp);
-	if (ret)
-		return ret;
-
-	ret = __pkvm_topup_hyp_alloc_mgt_mc(id, &mc);
-	if (ret) {
-		kvm_err("Failed topup %ld pages = %ld, size = %ld err = %d, freeing %ld pages\n",
-			id, nr_pages, sz_alloc, ret, mc.nr_pages);
-		free_hyp_memcache(&mc);
-	}
-
-	return ret;
-}
 
 static int __pkvm_donate_resource(struct resource *r)
 {

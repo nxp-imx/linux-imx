@@ -81,6 +81,10 @@ extern unsigned int pageblock_order;
 /* Forward declaration */
 struct page;
 
+unsigned long get_pfnblock_flags_mask(const struct page *page,
+				      unsigned long pfn,
+				      unsigned long mask);
+
 enum migratetype get_pfnblock_migratetype(const struct page *page,
 					  unsigned long pfn);
 bool get_pfnblock_bit(const struct page *page, unsigned long pfn,

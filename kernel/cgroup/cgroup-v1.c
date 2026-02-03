@@ -18,7 +18,7 @@
 #include <linux/fs_parser.h>
 
 #include <trace/events/cgroup.h>
-
+#include <trace/hooks/cgroup.h>
 /*
  * pidlists linger the following amount before being destroyed.  The goal
  * is avoiding frequent destruction in the middle of consecutive read calls
@@ -509,7 +509,7 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 	if (!cgrp)
 		return -ENODEV;
 
-	task = cgroup_procs_write_start(buf, threadgroup, &lock_mode);
+	task = cgroup_procs_write_start(buf, threadgroup, &lock_mode, cgrp);
 	ret = PTR_ERR_OR_ZERO(task);
 	if (ret)
 		goto out_unlock;
@@ -531,6 +531,7 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 		goto out_finish;
 
 	ret = cgroup_attach_task(cgrp, task, threadgroup);
+	trace_android_vh_cgroup_set_task(ret, cgrp, task, threadgroup);
 
 out_finish:
 	cgroup_procs_write_finish(task, lock_mode);

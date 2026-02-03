@@ -13,6 +13,9 @@
 #include <linux/kasan.h>
 #include <linux/stackdepot.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 /*
  * Internal slab definitions
  */
@@ -294,7 +297,7 @@ struct kmem_cache {
 	unsigned int useroffset;	/* Usercopy region offset */
 	unsigned int usersize;		/* Usercopy region size */
 #endif
-
+	ANDROID_OEM_DATA(1);
 	struct kmem_cache_node *node[MAX_NUMNODES];
 };
 
@@ -397,6 +400,7 @@ static inline struct kmem_cache *
 kmalloc_slab(size_t size, kmem_buckets *b, gfp_t flags, unsigned long caller)
 {
 	unsigned int index;
+	struct kmem_cache *s = NULL;
 
 	if (!b)
 		b = &kmalloc_caches[kmalloc_type(flags, caller)];
@@ -404,6 +408,10 @@ kmalloc_slab(size_t size, kmem_buckets *b, gfp_t flags, unsigned long caller)
 		index = kmalloc_size_index[size_index_elem(size)];
 	else
 		index = fls(size - 1);
+
+	trace_android_vh_kmalloc_slab(index, flags, &s);
+	if (s)
+		return s;
 
 	return (*b)[index];
 }
@@ -443,6 +451,7 @@ static inline bool is_kmalloc_normal(struct kmem_cache *s)
 
 bool __kfree_rcu_sheaf(struct kmem_cache *s, void *obj);
 void flush_all_rcu_sheaves(void);
+void flush_rcu_sheaves_on_cache(struct kmem_cache *s);
 
 #define SLAB_CORE_FLAGS (SLAB_HWCACHE_ALIGN | SLAB_CACHE_DMA | \
 			 SLAB_CACHE_DMA32 | SLAB_PANIC | \

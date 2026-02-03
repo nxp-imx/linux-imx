@@ -234,6 +234,7 @@ void swap_cache_del_folio(struct folio *folio)
 	put_swap_folio(folio, entry);
 	folio_ref_sub(folio, folio_nr_pages(folio));
 }
+EXPORT_SYMBOL_GPL(swap_cache_del_folio);
 
 /**
  * __swap_cache_replace_folio - Replace a folio in the swap cache.

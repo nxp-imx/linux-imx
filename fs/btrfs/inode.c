@@ -256,6 +256,7 @@ static void print_data_reloc_error(const struct btrfs_inode *inode, u64 file_off
 	if (ret < 0) {
 		btrfs_err_rl(fs_info, "failed to lookup extent item for logical %llu: %d",
 			     logical, ret);
+		btrfs_release_path(&path);
 		return;
 	}
 	eb = path.nodes[0];
@@ -3975,11 +3976,6 @@ static int btrfs_read_locked_inode(struct btrfs_inode *inode, struct btrfs_path 
 	btrfs_set_inode_mapping_order(inode);
 
 cache_index:
-	ret = btrfs_init_file_extent_tree(inode);
-	if (ret)
-		goto out;
-	btrfs_inode_set_file_extent_range(inode, 0,
-			round_up(i_size_read(vfs_inode), fs_info->sectorsize));
 	/*
 	 * If we were modified in the current generation and evicted from memory
 	 * and then re-read we need to do a full sync since we don't have any
@@ -4066,6 +4062,20 @@ cache_acl:
 				  btrfs_ino(inode), btrfs_root_id(root), ret);
 	}
 
+	/*
+	 * We don't need the path anymore, so release it to avoid holding a read
+	 * lock on a leaf while calling btrfs_init_file_extent_tree(), which can
+	 * allocate memory that triggers reclaim (GFP_KERNEL) and cause a locking
+	 * dependency.
+	 */
+	btrfs_release_path(path);
+
+	ret = btrfs_init_file_extent_tree(inode);
+	if (ret)
+		goto out;
+	btrfs_inode_set_file_extent_range(inode, 0,
+			  round_up(i_size_read(vfs_inode), fs_info->sectorsize));
+
 	if (!maybe_acls)
 		cache_no_acl(vfs_inode);
 
@@ -4098,6 +4108,15 @@ cache_acl:
 
 	return 0;
 out:
+	/*
+	 * We may have a read locked leaf and iget_failed() triggers inode
+	 * eviction which needs to release the delayed inode and that needs
+	 * to lock the delayed inode's mutex. This can cause a ABBA deadlock
+	 * with a task running delayed items, as that require first locking
+	 * the delayed inode's mutex and then modifying its subvolume btree.
+	 * So release the path before iget_failed().
+	 */
+	btrfs_release_path(path);
 	iget_failed(vfs_inode);
 	return ret;
 }

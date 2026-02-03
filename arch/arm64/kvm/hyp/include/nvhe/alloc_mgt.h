@@ -9,8 +9,8 @@ struct hyp_mgt_allocator_ops {
 	void (*reclaim)(struct kvm_hyp_memcache *host_mc, int target);
 };
 
-int hyp_alloc_mgt_refill(unsigned long id, struct kvm_hyp_memcache *host_mc);
+int hyp_alloc_mgt_refill(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *host_mc);
 int hyp_alloc_mgt_reclaimable(void);
-void hyp_alloc_mgt_reclaim(struct kvm_hyp_memcache *host_mc, int target);
+void hyp_alloc_mgt_reclaim(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *host_mc, int target);
 
 #endif /* __KVM_NVHE_HYP_ALLOC_MGT__ */

@@ -191,6 +191,7 @@ static void filemap_unaccount_folio(struct address_space *mapping,
 	__lruvec_stat_mod_folio(folio, NR_FILE_PAGES, -nr);
 	if (folio_test_swapbacked(folio)) {
 		__lruvec_stat_mod_folio(folio, NR_SHMEM, -nr);
+		trace_android_vh_shmem_mod_shmem(folio->mapping, -nr);
 		if (folio_test_pmd_mappable(folio))
 			__lruvec_stat_mod_folio(folio, NR_SHMEM_THPS, -nr);
 	} else if (folio_test_pmd_mappable(folio)) {
@@ -2061,6 +2062,7 @@ no_page:
 	/* not an uncached lookup, clear uncached if set */
 	if (folio_test_dropbehind(folio) && !(fgp_flags & FGP_DONTCACHE))
 		folio_clear_dropbehind(folio);
+	trace_android_vh_filemap_get_folio_end(mapping, folio);
 	return folio;
 }
 EXPORT_SYMBOL(__filemap_get_folio);
@@ -2737,6 +2739,7 @@ ssize_t filemap_read(struct kiocb *iocb, struct iov_iter *iter,
 
 	iov_iter_truncate(iter, inode->i_sb->s_maxbytes - iocb->ki_pos);
 	folio_batch_init(&fbatch);
+	trace_android_vh_filemap_read(filp, iocb->ki_pos, iov_iter_count(iter));
 
 	do {
 		cond_resched();
@@ -3525,6 +3528,8 @@ retry_find:
 		}
 	}
 
+	trace_android_vh_filemap_fault_pre_folio_locked(folio);
+
 	if (!lock_folio_maybe_drop_mmap(vmf, folio, &fpin))
 		goto out_retry;
 
@@ -3837,11 +3842,13 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 	unsigned long rss = 0;
 	unsigned int nr_pages = 0, folio_type;
 	unsigned short mmap_miss = 0, mmap_miss_saved;
+	pgoff_t first_pgoff = 0;
 
 	rcu_read_lock();
 	folio = next_uptodate_folio(&xas, mapping, end_pgoff);
 	if (!folio)
 		goto out;
+	first_pgoff = xas.xa_index;
 
 	file_end = DIV_ROUND_UP(i_size_read(mapping->host), PAGE_SIZE) - 1;
 	end_pgoff = min(end_pgoff, file_end);
@@ -3886,6 +3893,7 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 					nr_pages, &rss, &mmap_miss, file_end);
 
 		folio_unlock(folio);
+		trace_android_vh_filemap_folio_mapped(folio);
 	} while ((folio = next_uptodate_folio(&xas, mapping, end_pgoff)) != NULL);
 	add_mm_counter(vma->vm_mm, folio_type, rss);
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -3898,6 +3906,7 @@ out:
 		WRITE_ONCE(file->f_ra.mmap_miss, 0);
 	else
 		WRITE_ONCE(file->f_ra.mmap_miss, mmap_miss_saved - mmap_miss);
+	trace_android_vh_filemap_map_pages(file, first_pgoff, last_pgoff, ret);
 
 	return ret;
 }

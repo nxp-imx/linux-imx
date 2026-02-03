@@ -2898,6 +2898,36 @@ enum compact_result try_to_compact_pages(gfp_t gfp_mask, unsigned int order,
 	return rc;
 }
 
+/* Compact all zones within a node with MIGRATE_ASYNC */
+void compact_node_async(int nid)
+{
+	pg_data_t *pgdat = NODE_DATA(nid);
+	int zoneid;
+	struct zone *zone;
+	struct compact_control cc = {
+		.order = -1,
+		.mode = MIGRATE_ASYNC,
+		.ignore_skip_hint = true,
+		.whole_zone = true,
+		.gfp_mask = GFP_KERNEL,
+		.proactive_compaction = false,
+	};
+
+	for (zoneid = 0; zoneid < MAX_NR_ZONES; zoneid++) {
+		zone = &pgdat->node_zones[zoneid];
+		if (!populated_zone(zone))
+			continue;
+
+		if (fatal_signal_pending(current))
+			break;
+
+		cc.zone = zone;
+
+		compact_zone(&cc, NULL);
+	}
+}
+EXPORT_SYMBOL_GPL(compact_node_async);
+
 /*
  * compact_node() - compact all zones within a node
  * @pgdat: The node page data

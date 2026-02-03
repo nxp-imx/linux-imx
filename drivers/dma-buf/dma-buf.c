@@ -35,8 +35,6 @@
 
 #include "dma-buf-sysfs-stats.h"
 
-static inline int is_dma_buf_file(struct file *);
-
 static DEFINE_MUTEX(dmabuf_list_mutex);
 static LIST_HEAD(dmabuf_list);
 
@@ -613,10 +611,11 @@ static const struct file_operations dma_buf_fops = {
 /*
  * is_dma_buf_file - Check if struct file* is associated with dma_buf
  */
-static inline int is_dma_buf_file(struct file *file)
+int is_dma_buf_file(struct file *file)
 {
 	return file->f_op == &dma_buf_fops;
 }
+EXPORT_SYMBOL_NS_GPL(is_dma_buf_file, "DMA_BUF");
 
 static struct file *dma_buf_getfile(size_t size, int flags)
 {

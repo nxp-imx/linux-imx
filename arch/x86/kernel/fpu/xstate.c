@@ -38,6 +38,7 @@
 	(bit) = FIRST_EXTENDED_XFEATURE;				\
 	for_each_set_bit_from(bit, (unsigned long *)&(mask), 8 * sizeof(mask))
 
+#ifndef __PKVM_HYP__
 /*
  * Although we spell it out in here, the Processor Trace
  * xfeature is completely unused.  We use other mechanisms
@@ -86,6 +87,7 @@ static unsigned short xsave_cpuid_features[] __initdata = {
 	[XFEATURE_XTILE_DATA]			= X86_FEATURE_AMX_TILE,
 	[XFEATURE_APX]				= X86_FEATURE_APX,
 };
+#endif /* !__PKVM_HYP__ */
 
 static unsigned int xstate_offsets[XFEATURE_MAX] __ro_after_init =
 	{ [ 0 ... XFEATURE_MAX - 1] = -1};
@@ -121,6 +123,7 @@ static inline unsigned int next_xfeature_order(unsigned int i, u64 mask)
 #define XSTATE_FLAG_SUPERVISOR	BIT(0)
 #define XSTATE_FLAG_ALIGNED64	BIT(1)
 
+#ifndef __PKVM_HYP__
 /*
  * Return whether the system supports a given xfeature.
  *
@@ -158,6 +161,7 @@ int cpu_has_xfeatures(u64 xfeatures_needed, const char **feature_name)
 	return 1;
 }
 EXPORT_SYMBOL_GPL(cpu_has_xfeatures);
+#endif /* !__PKVM_HYP__ */
 
 static bool xfeature_is_aligned64(int xfeature_nr)
 {
@@ -197,6 +201,7 @@ static unsigned int xfeature_get_offset(u64 xcomp_bv, int xfeature)
 	return offs;
 }
 
+#ifndef __PKVM_HYP__
 /*
  * Enable the extended processor state save/restore feature.
  * Called once per CPU onlining.
@@ -233,6 +238,7 @@ void fpu__init_cpu_xstate(void)
 				     xfeatures_mask_independent());
 	}
 }
+#endif /* !__PKVM_HYP__ */
 
 static bool xfeature_enabled(enum xfeature xfeature)
 {
@@ -292,6 +298,7 @@ static void __init setup_xstate_cache(void)
 	sort(xfeature_uncompact_order, i, sizeof(unsigned int), compare_xstate_offsets, NULL);
 }
 
+#ifndef __PKVM_HYP__
 /*
  * Print out all the supported xstate features:
  */
@@ -585,6 +592,7 @@ static bool __init check_xstate_against_struct(int nr)
 
 	return true;
 }
+#endif /* !__PKVM_HYP__ */
 
 static unsigned int xstate_calculate_size(u64 xfeatures, bool compacted)
 {
@@ -606,6 +614,7 @@ static unsigned int xstate_calculate_size(u64 xfeatures, bool compacted)
 	return offset + xstate_sizes[topmost];
 }
 
+#ifndef __PKVM_HYP__
 /*
  * This essentially double-checks what the cpu told us about
  * how large the XSAVE buffer needs to be.  We are recalculating
@@ -988,6 +997,7 @@ void fpu__resume_cpu(void)
 	if (fpu_state_size_dynamic())
 		wrmsrq(MSR_IA32_XFD, x86_task_fpu(current)->fpstate->xfd);
 }
+#endif /* !__PKVM_HYP__ */
 
 /*
  * Given an xstate feature nr, calculate where in the xsave
@@ -1060,6 +1070,7 @@ void *get_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
 }
 EXPORT_SYMBOL_GPL(get_xsave_addr);
 
+#ifndef __PKVM_HYP__
 /*
  * Given an xstate feature nr, calculate where in the xsave buffer the state is.
  * The xsave buffer should be in standard format, not compacted (e.g. user mode
@@ -1473,6 +1484,7 @@ void xrstors(struct xregs_state *xstate, u64 mask)
 	XSTATE_OP(XRSTORS, xstate, (u32)mask, (u32)(mask >> 32), err);
 	WARN_ON_ONCE(err);
 }
+#endif /* !__PKVM_HYP__ */
 
 #if IS_ENABLED(CONFIG_KVM)
 void fpstate_clear_xstate_component(struct fpstate *fpstate, unsigned int xfeature)
@@ -1485,6 +1497,7 @@ void fpstate_clear_xstate_component(struct fpstate *fpstate, unsigned int xfeatu
 EXPORT_SYMBOL_GPL(fpstate_clear_xstate_component);
 #endif
 
+#ifndef __PKVM_HYP__
 #ifdef CONFIG_X86_64
 
 #ifdef CONFIG_X86_DEBUG_FPU
@@ -1813,6 +1826,7 @@ static inline int xstate_request_perm(unsigned long idx, bool guest)
 	return -EPERM;
 }
 #endif  /* !CONFIG_X86_64 */
+#endif /* __PKVM_HYP__ */
 
 u64 xstate_get_guest_group_perm(void)
 {
@@ -1820,6 +1834,7 @@ u64 xstate_get_guest_group_perm(void)
 }
 EXPORT_SYMBOL_GPL(xstate_get_guest_group_perm);
 
+#ifndef __PKVM_HYP__
 /**
  * fpu_xstate_prctl - xstate permission operations
  * @option:	A subfunction of arch_prctl()
@@ -1945,7 +1960,7 @@ static int dump_xsave_layout_desc(struct coredump_params *cprm)
 		};
 
 		if (!dump_emit(cprm, &xc, sizeof(xc)))
-			return 0;
+			return -1;
 
 		num_records++;
 	}
@@ -1983,7 +1998,7 @@ int elf_coredump_extra_notes_write(struct coredump_params *cprm)
 		return 1;
 
 	num_records = dump_xsave_layout_desc(cprm);
-	if (!num_records)
+	if (num_records < 0)
 		return 1;
 
 	/* Total size should be equal to the number of records */
@@ -2009,3 +2024,51 @@ int elf_coredump_extra_notes_size(void)
 	return size;
 }
 #endif /* CONFIG_COREDUMP */
+#else /* !__PKVM_HYP__ */
+void pkvm_setup_xstate_cache(void)
+{
+	if (!boot_cpu_has(X86_FEATURE_FPU) ||
+	    !boot_cpu_has(X86_FEATURE_XSAVE)) {
+		pr_info("pkvm: No FPU or XSAVE detected\n");
+		return;
+	}
+
+	/* Cache size, offset and flags for initialization */
+	setup_xstate_cache();
+}
+
+int __xfd_enable_feature(u64 xfd_err, struct fpu_guest *guest_fpu)
+{
+	u64 xfd_event = xfd_err & XFEATURE_MASK_USER_DYNAMIC;
+	struct fpstate *fps;
+	unsigned int ksize;
+
+	if (!xfd_event)
+		return 0;
+
+	if (WARN_ON_ONCE(!guest_fpu))
+		return -EINVAL;
+
+	if ((xstate_get_group_perm(!!guest_fpu) & xfd_event) != xfd_event)
+		return -EPERM;
+
+	fps = guest_fpu->fpstate;
+	ksize = xstate_calculate_size(fps->xfeatures | xfd_event,
+				      cpu_feature_enabled(X86_FEATURE_XCOMPACTED));
+	if (fps->size < ksize) {
+		/* State size is insufficient. */
+		return -ENOMEM;
+	}
+
+	guest_fpu->xfeatures |= xfd_event;
+	fps->xfeatures |= xfd_event;
+	fps->user_xfeatures |= xfd_event;
+	fps->xfd &= ~xfd_event;
+
+	xstate_init_xcomp_bv(&fps->regs.xsave, fps->xfeatures);
+	if (fps->in_use)
+		xfd_update_state(fps);
+
+	return 0;
+}
+#endif /* __PKVM_HYP__ */

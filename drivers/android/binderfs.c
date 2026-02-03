@@ -32,6 +32,7 @@
 #include <uapi/linux/android/binder.h>
 #include <uapi/linux/android/binderfs.h>
 
+#include "binder_pick.h"
 #include "binder_internal.h"
 
 #define FIRST_INODE 1
@@ -758,6 +759,9 @@ static int binderfs_init_fs_context(struct fs_context *fc)
 {
 	struct binderfs_mount_opts *ctx;
 
+	if (on_binderfs_mount())
+		return -EINVAL;
+
 	ctx = kzalloc(sizeof(struct binderfs_mount_opts), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
@@ -824,4 +828,10 @@ int __init init_binderfs(void)
 	}
 
 	return ret;
+}
+
+void unload_binderfs(void)
+{
+	unregister_filesystem(&binder_fs_type);
+	unregister_chrdev_region(binderfs_dev, BINDERFS_MAX_MINOR);
 }

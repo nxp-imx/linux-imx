@@ -34,6 +34,7 @@
 #include <linux/mmu_notifier.h>
 #include <trace/hooks/mm.h>
 #include <trace/hooks/sys.h>
+#include <trace/hooks/madvise.h>
 
 #include <asm/tlb.h>
 
@@ -374,10 +375,15 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 	unsigned int batch_count = 0;
 	bool abort_madvise = false;
 	int nr;
+	int ret = 0;
 
 	trace_android_vh_madvise_cold_or_pageout_abort(vma, &abort_madvise);
 	if (fatal_signal_pending(current) || abort_madvise)
 		return -EINTR;
+
+	trace_android_vh_madvise_pageout_bypass(mm, pageout, &ret);
+	if (ret)
+		return ret;
 
 	pageout_anon_only_filter = pageout && !vma_is_anonymous(vma) &&
 					!can_do_file_pageout(vma);
@@ -497,7 +503,11 @@ restart:
 			nr = madvise_folio_pte_batch(addr, end, folio, pte, &ptent);
 			if (nr < folio_nr_pages(folio)) {
 				int err;
+				bool bypass = false;
 
+				trace_android_vh_split_large_folio_bypass(&bypass);
+				if (bypass)
+					continue;
 				if (folio_maybe_mapped_shared(folio))
 					continue;
 				if (pageout_anon_only_filter && !folio_test_anon(folio))
@@ -617,7 +627,7 @@ static long madvise_cold(struct madvise_behavior *madv_behavior)
 	return 0;
 }
 
-static void madvise_pageout_page_range(struct mmu_gather *tlb,
+static int madvise_pageout_page_range(struct mmu_gather *tlb,
 		struct vm_area_struct *vma,
 		struct madvise_behavior_range *range)
 {
@@ -625,17 +635,22 @@ static void madvise_pageout_page_range(struct mmu_gather *tlb,
 		.pageout = true,
 		.tlb = tlb,
 	};
+	int ret;
 
 	tlb_start_vma(tlb, vma);
-	walk_page_range_vma(vma, range->start, range->end, &cold_walk_ops,
+	ret = walk_page_range_vma(vma, range->start, range->end, &cold_walk_ops,
 			    &walk_private);
 	tlb_end_vma(tlb, vma);
+
+	return ret;
 }
 
 static long madvise_pageout(struct madvise_behavior *madv_behavior)
 {
 	struct mmu_gather tlb;
 	struct vm_area_struct *vma = madv_behavior->vma;
+	int ret;
+	bool return_error = false;
 
 	if (!can_madv_lru_vma(vma))
 		return -EINVAL;
@@ -652,8 +667,12 @@ static long madvise_pageout(struct madvise_behavior *madv_behavior)
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, madv_behavior->mm);
-	madvise_pageout_page_range(&tlb, vma, &madv_behavior->range);
+	ret = madvise_pageout_page_range(&tlb, vma, &madv_behavior->range);
 	tlb_finish_mmu(&tlb);
+
+	trace_android_vh_madvise_pageout_return_error(ret, &return_error);
+	if (return_error)
+		return (long)ret;
 
 	return 0;
 }
@@ -2005,6 +2024,7 @@ static ssize_t vector_madvise(struct mm_struct *mm, struct iov_iter *iter,
 		.behavior = behavior,
 		.tlb = &tlb,
 	};
+	bool return_error = false;
 
 	total_len = iov_iter_count(iter);
 
@@ -2059,6 +2079,10 @@ static ssize_t vector_madvise(struct mm_struct *mm, struct iov_iter *iter,
 	madvise_unlock(&madv_behavior);
 
 out:
+	trace_android_vh_process_madvise_return_error(behavior, ret, &return_error);
+	if (return_error)
+		return ret;
+
 	ret = (total_len - iov_iter_count(iter)) ? : ret;
 
 	return ret;
@@ -2074,6 +2098,12 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	struct task_struct *task;
 	struct mm_struct *mm;
 	unsigned int f_flags;
+	bool bypass = false;
+
+	trace_android_rvh_process_madvise_bypass(pidfd, vec,
+			vlen, behavior, flags, &ret, &bypass);
+	if (bypass)
+		return ret;
 
 	if (flags != 0) {
 		ret = -EINVAL;

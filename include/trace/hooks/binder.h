@@ -23,6 +23,9 @@ DECLARE_HOOK(android_vh_binder_set_priority,
 DECLARE_HOOK(android_vh_binder_restore_priority,
 	TP_PROTO(struct binder_transaction *t),
 	TP_ARGS(t));
+DECLARE_HOOK(android_vh_binder_alloc_new_buf_locked,
+	TP_PROTO(size_t size, size_t *free_async_space, int is_async, bool *should_fail),
+	TP_ARGS(size, free_async_space, is_async, should_fail));
 DECLARE_HOOK(android_vh_binder_wait_for_work,
 	TP_PROTO(bool do_proc_work, struct binder_thread *tsk, struct binder_proc *proc),
 	TP_ARGS(do_proc_work, tsk, proc));
@@ -33,6 +36,10 @@ DECLARE_HOOK(android_vh_binder_proc_transaction_finish,
 	TP_PROTO(struct binder_proc *proc, struct binder_transaction *t,
 		struct task_struct *binder_th_task, bool pending_async, bool sync),
 	TP_ARGS(proc, t, binder_th_task, pending_async, sync));
+DECLARE_HOOK(android_vh_binder_select_special_worklist,
+	TP_PROTO(struct list_head **list, struct binder_thread *thread, struct binder_proc *proc,
+	int wait_for_proc_work, bool *nothing_to_do),
+	TP_ARGS(list, thread, proc, wait_for_proc_work, nothing_to_do));
 DECLARE_HOOK(android_vh_alloc_oem_binder_struct,
 	TP_PROTO(struct binder_transaction_data *tr, struct binder_transaction *t,
 		struct binder_proc *proc),
@@ -53,6 +60,49 @@ DECLARE_HOOK(android_vh_binder_buffer_release,
 	TP_PROTO(struct binder_proc *proc, struct binder_thread *thread,
 		struct binder_buffer *buffer, bool has_transaction),
 	TP_ARGS(proc, thread, buffer, has_transaction));
+DECLARE_HOOK(android_vh_binder_ioctl_end,
+	TP_PROTO(struct task_struct *caller_task,
+		unsigned int cmd,
+		unsigned long arg,
+		struct binder_thread *thread,
+		struct binder_proc *proc,
+		int *ret),
+	TP_ARGS(caller_task, cmd, arg, thread, proc, ret));
+DECLARE_HOOK(android_vh_binder_looper_exited,
+	TP_PROTO(struct binder_thread *thread, struct binder_proc *proc),
+	TP_ARGS(thread, proc));
+DECLARE_HOOK(android_vh_binder_spawn_new_thread,
+	TP_PROTO(struct binder_thread *thread, struct binder_proc *proc, bool *force_spawn),
+	TP_ARGS(thread, proc, force_spawn));
+DECLARE_HOOK(android_vh_binder_has_special_work_ilocked,
+	TP_PROTO(struct binder_thread *thread, bool do_proc_work, bool *has_work),
+	TP_ARGS(thread, do_proc_work, has_work));
+DECLARE_HOOK(android_vh_binder_preset,
+	TP_PROTO(struct hlist_head *hhead, struct mutex *lock),
+	TP_ARGS(hhead, lock));
+DECLARE_HOOK(android_vh_binder_reply,
+	TP_PROTO(struct binder_proc *target_proc, struct binder_proc *proc,
+		struct binder_thread *thread, struct binder_transaction_data *tr),
+	TP_ARGS(target_proc, proc, thread, tr));
+DECLARE_HOOK(android_vh_binder_trans,
+	TP_PROTO(struct binder_proc *target_proc, struct binder_proc *proc,
+		struct binder_thread *thread, struct binder_transaction_data *tr),
+	TP_ARGS(target_proc, proc, thread, tr));
+DECLARE_HOOK(android_vh_binder_proc_transaction,
+	TP_PROTO(struct task_struct *caller_task, struct task_struct *binder_proc_task,
+		struct task_struct *binder_th_task, int node_debug_id,
+		struct binder_transaction *t, bool pending_async),
+	TP_ARGS(caller_task, binder_proc_task, binder_th_task, node_debug_id, t, pending_async));
+DECLARE_HOOK(android_vh_binder_thread_read,
+	TP_PROTO(struct list_head **list, struct binder_proc *proc,
+		struct binder_thread *thread),
+	TP_ARGS(list, proc, thread));
+DECLARE_HOOK(android_vh_binder_new_ref,
+	TP_PROTO(struct binder_proc *proc, uint32_t ref_desc, int node_debug_id),
+	TP_ARGS(proc, ref_desc, node_debug_id));
+DECLARE_HOOK(android_vh_binder_del_ref,
+	TP_PROTO(struct binder_proc *proc, uint32_t ref_desc),
+	TP_ARGS(proc, ref_desc));
 #endif /* _TRACE_HOOK_BINDER_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

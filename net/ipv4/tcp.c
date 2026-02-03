@@ -287,6 +287,7 @@
 #include <net/hotdata.h>
 #include <trace/events/tcp.h>
 #include <net/rps.h>
+#include <trace/hooks/net.h>
 
 #include "../core/devmem.h"
 
@@ -1180,6 +1181,8 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size)
 		goto out_err;
 	}
 
+	trace_android_vh_uplink_send_msg(sk);
+
 	/* This should be in poll */
 	sk_clear_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 
@@ -1409,6 +1412,7 @@ int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 {
 	int ret;
 
+	trace_android_rvh_tcp_sendmsg(sk, msg, size);
 	lock_sock(sk);
 	ret = tcp_sendmsg_locked(sk, msg, size);
 	release_sock(sk);
@@ -2651,10 +2655,8 @@ static int tcp_recvmsg_locked(struct sock *sk, struct msghdr *msg, size_t len,
 	if (sk->sk_state == TCP_LISTEN)
 		goto out;
 
-	if (tp->recvmsg_inq) {
+	if (tp->recvmsg_inq)
 		*cmsg_flags = TCP_CMSG_INQ;
-		msg->msg_get_inq = 1;
-	}
 	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 
 	/* Urgent data needs to be handled specially. */
@@ -2928,16 +2930,19 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int flags,
 	ret = tcp_recvmsg_locked(sk, msg, len, flags, &tss, &cmsg_flags);
 	release_sock(sk);
 
-	if ((cmsg_flags || msg->msg_get_inq) && ret >= 0) {
+	if ((cmsg_flags | msg->msg_get_inq) && ret >= 0) {
 		if (cmsg_flags & TCP_CMSG_TS)
 			tcp_recv_timestamp(msg, sk, &tss);
-		if (msg->msg_get_inq) {
+		if ((cmsg_flags & TCP_CMSG_INQ) | msg->msg_get_inq) {
 			msg->msg_inq = tcp_inq_hint(sk);
 			if (cmsg_flags & TCP_CMSG_INQ)
 				put_cmsg(msg, SOL_TCP, TCP_CM_INQ,
 					 sizeof(msg->msg_inq), &msg->msg_inq);
 		}
 	}
+
+	trace_android_rvh_tcp_recvmsg(sk, msg, len, flags, addr_len);
+
 	return ret;
 }
 EXPORT_IPV6_MOD(tcp_recvmsg);
@@ -2945,6 +2950,8 @@ EXPORT_IPV6_MOD(tcp_recvmsg);
 void tcp_set_state(struct sock *sk, int state)
 {
 	int oldstate = sk->sk_state;
+
+	trace_android_vh_tcp_state_change(sk, TCP_STATE_CHANGE_REASON_NORMAL, state);
 
 	/* We defined a new enum for TCP states that are exported in BPF
 	 * so as not force the internal TCP states to be frozen. The

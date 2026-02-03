@@ -18,6 +18,7 @@
 #include <asm/module.h>
 #include <asm/sections.h>
 #include <asm/vdso.h>
+#include <asm/hyp_image.h>
 #include <linux/stop_machine.h>
 
 #define __ALT_PTR(a, f)		((void *)&(a)->f + (a)->f)
@@ -303,3 +304,4 @@ noinstr void alt_cb_patch_nops(struct alt_instr *alt, __le32 *origptr,
 		updptr[i] = cpu_to_le32(aarch64_insn_gen_nop());
 }
 EXPORT_SYMBOL(alt_cb_patch_nops);
+EXPORT_KVM_NVHE_ALT_CB(alt_cb_patch_nops);

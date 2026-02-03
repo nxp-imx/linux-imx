@@ -99,9 +99,9 @@ HYP_EVENT(host_mem_abort,
 );
 
 HYP_EVENT(__hyp_printk,
-	HE_PROTO(u8 fmt_id, u64 a, u64 b, u64 c, u64 d),
+	HE_PROTO(u16 fmt_id, u64 a, u64 b, u64 c, u64 d),
 	HE_STRUCT(
-		he_field(u8, fmt_id)
+		he_field(u16, fmt_id)
 		he_field(u64, a)
 		he_field(u64, b)
 		he_field(u64, c)

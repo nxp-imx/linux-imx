@@ -3119,6 +3119,22 @@
 			[KVM,Intel] Control nested virtualization feature in
 			KVM/VMX. Default is 1 (enabled).
 
+	kvm-intel.pkvm= [KVM,Intel,EARLY] If CONFIG_PKVM_INTEL is set, control
+			whether to enable pKVM hypervisor, i.e. deprivilege the
+			host as a VM running in non-root VMX mode under the
+			control of pKVM hypervisor that is running in root VMX
+			mode and allows running guests whose state is protected
+			from the host. Default is 0 (disabled).
+
+	kvm-intel.pkvm_relax_cpu_bugs=
+			[KVM,Intel] If kvm-intel.pkvm=1, control whether run
+			pKVM hypervisor when pKVM is not able to mitigate all
+			CPU vulnerabilities. By default, this parameter is true
+			to allow pKVM hypervisor to run to enable pKVM usage
+			even when it cannot mitigate all CPU vulnerabilities
+			for the development purpose. It should be set to false
+			for the production purpose.
+
 	kvm-intel.unrestricted_guest=
 			[KVM,Intel] Control KVM's use of unrestricted guest
 			feature (virtualized real and unpaged mode). Default
@@ -4459,6 +4475,17 @@
 			[KNL,X86,PPC,S390] Disable symmetric multithreading (SMT).
 			nosmt=force: Force disable SMT, cannot be undone
 				     via the sysfs control file.
+
+
+	nosocid		[ARM, ARM64] Disable SMCCC SoC ID driver
+			Disables initialization of the ARM SMCCC SoC ID driver
+			(CONFIG_ARM_SMCCC_SOC_ID) at boot. When specified, the
+			driver does not register the SoC device and related sysfs
+			entries under /sys/bus/soc/devices/soc0/*.
+			Useful for images that include the driver in a generic
+			build (e.g., GKI) but wish to suppress SoC ID exposure
+			at runtime without recompiling.
+			Format: "nosocid" (no value).
 
 	nosoftlockup	[KNL] Disable the soft-lockup detector.
 

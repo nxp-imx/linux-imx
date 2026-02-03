@@ -170,9 +170,13 @@ DECLARE_STATIC_KEY_FALSE(kvm_has_noapic_vcpu);
 
 static inline bool lapic_in_kernel(struct kvm_vcpu *vcpu)
 {
+#ifndef __PKVM_HYP__
 	if (static_branch_unlikely(&kvm_has_noapic_vcpu))
 		return vcpu->arch.apic;
 	return true;
+#else
+	return vcpu->arch.apic;
+#endif
 }
 
 extern struct static_key_false_deferred apic_hw_disabled;
@@ -257,6 +261,11 @@ static inline enum lapic_mode kvm_get_apic_mode(struct kvm_vcpu *vcpu)
 static inline u8 kvm_xapic_id(struct kvm_lapic *apic)
 {
 	return kvm_lapic_get_reg(apic, APIC_ID) >> 24;
+}
+
+static inline int kvm_apic_calc_nr_lvt_entries(struct kvm_vcpu *vcpu)
+{
+	return KVM_APIC_MAX_NR_LVT_ENTRIES - !(vcpu->arch.mcg_cap & MCG_CMCI_P);
 }
 
 #endif

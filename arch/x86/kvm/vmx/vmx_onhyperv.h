@@ -14,7 +14,7 @@
 
 #define current_evmcs ((struct hv_enlightened_vmcs *)this_cpu_read(current_vmcs))
 
-#if IS_ENABLED(CONFIG_HYPERV)
+#if IS_ENABLED(CONFIG_HYPERV) && !defined(__PKVM_HYP__)
 
 DECLARE_STATIC_KEY_FALSE(__kvm_is_using_evmcs);
 
@@ -119,7 +119,7 @@ static inline void evmcs_load(u64 phys_addr)
 }
 
 void evmcs_sanitize_exec_ctrls(struct vmcs_config *vmcs_conf);
-#else /* !IS_ENABLED(CONFIG_HYPERV) */
+#else /* !IS_ENABLED(CONFIG_HYPERV) || defined(__PKVM_HYP__) */
 static __always_inline bool kvm_is_using_evmcs(void) { return false; }
 static __always_inline void evmcs_write64(unsigned long field, u64 value) {}
 static __always_inline void evmcs_write32(unsigned long field, u32 value) {}
@@ -128,6 +128,6 @@ static __always_inline u64 evmcs_read64(unsigned long field) { return 0; }
 static __always_inline u32 evmcs_read32(unsigned long field) { return 0; }
 static __always_inline u16 evmcs_read16(unsigned long field) { return 0; }
 static inline void evmcs_load(u64 phys_addr) {}
-#endif /* IS_ENABLED(CONFIG_HYPERV) */
+#endif /* IS_ENABLED(CONFIG_HYPERV) && !defined(__PKVM_HYP__) */
 
 #endif /* __ARCH_X86_KVM_VMX_ONHYPERV_H__ */

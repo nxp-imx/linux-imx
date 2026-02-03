@@ -124,12 +124,21 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_util_est_se_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_update_nr_running_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_compute_energy_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_switch);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_waking);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_wakeup);
+#if defined(CONFIG_SCHEDSTATS)
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_sleep);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_wait);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_blocked);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_iowait);
+#endif
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 EXPORT_SYMBOL_GPL(runqueues);
+DEFINE_PER_CPU(struct rnd_state, sched_rnd_state);
 
 #ifdef CONFIG_SCHED_PROXY_EXEC
-DEFINE_STATIC_KEY_TRUE(__sched_proxy_exec);
+DEFINE_STATIC_KEY_FALSE(__sched_proxy_exec);
 static int __init setup_proxy_exec(char *str)
 {
 	bool proxy_enable = true;
@@ -147,6 +156,76 @@ static int __init setup_proxy_exec(char *str)
 		static_branch_disable(&__sched_proxy_exec);
 	}
 	return 1;
+}
+
+static ssize_t sched_proxy_exec_enable_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	return sysfs_emit(buf, "%d\n", sched_proxy_exec());
+}
+
+static ssize_t sched_proxy_exec_enable_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	if (sched_proxy_exec()) {
+		pr_info("sched_proxy_exec: already enabled\n");
+		return count;
+	}
+
+	pr_info("sched_proxy_exec: enabled via sysfs one-way toggle\n");
+	static_branch_enable(&__sched_proxy_exec);
+	return count;
+}
+static struct kobj_attribute sched_proxy_exec_toggle =
+	__ATTR(enable, 0664, sched_proxy_exec_enable_show, sched_proxy_exec_enable_store);
+
+static struct attribute *attrs[] = {
+	&sched_proxy_exec_toggle.attr,
+	NULL,   /* need to NULL terminate the list of attributes */
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static struct kobject *sched_proxy_exec_kobj;
+
+static int __init setup_proxy_exec_toggle(void)
+{
+	int retval;
+
+	pr_info("sched_proxy_exec: %s\n", sched_proxy_exec() ? "enabled" : "disabled");
+	sched_proxy_exec_kobj = kobject_create_and_add("sched_proxy_exec", kernel_kobj);
+	if (!sched_proxy_exec_kobj)
+		return -ENOMEM;
+	retval = sysfs_create_group(sched_proxy_exec_kobj, &attr_group);
+	if (retval)
+		kobject_put(sched_proxy_exec_kobj);
+	return 0;
+}
+late_initcall(setup_proxy_exec_toggle);
+
+static inline struct task_struct *__blocked_on_owner(struct blocked_on_lock *bo)
+{
+	if (bo->lock == PROXY_WAKING)
+		return NULL;
+	switch (bo->type) {
+	case BO_T_NONE:
+		return NULL;
+	case BO_T_MUTEX:
+		return __mutex_owner(bo->lock);
+	case BO_T_RWSEM:
+		return rwsem_writer_owner(bo->lock);
+	default:
+		BUG();
+	}
+}
+
+static inline struct task_struct *task_blocked_on_owner(struct task_struct *p)
+{
+       return __blocked_on_owner(&p->blocked_on);
 }
 #else
 static int __init setup_proxy_exec(char *str)
@@ -890,7 +969,7 @@ static enum hrtimer_restart hrtick(struct hrtimer *timer)
 
 	rq_lock(rq, &rf);
 	update_rq_clock(rq);
-	rq->donor->sched_class->task_tick(rq, rq->curr, 1);
+	rq->donor->sched_class->task_tick(rq, rq->donor, 1);
 	rq_unlock(rq, &rf);
 
 	return HRTIMER_NORESTART;
@@ -2110,6 +2189,7 @@ unsigned long get_wchan(struct task_struct *p)
 
 	return ip;
 }
+EXPORT_SYMBOL_GPL(get_wchan);
 
 void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
@@ -2164,7 +2244,7 @@ inline bool dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 	return dequeue_task_result;
 }
 
-void activate_task(struct rq *rq, struct task_struct *p, int flags)
+static inline void __activate_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	if (task_on_rq_migrating(p))
 		flags |= ENQUEUE_MIGRATED;
@@ -2177,6 +2257,61 @@ void activate_task(struct rq *rq, struct task_struct *p, int flags)
 	ASSERT_EXCLUSIVE_WRITER(p->on_rq);
 }
 EXPORT_SYMBOL_GPL(activate_task);
+
+#ifdef CONFIG_SCHED_PROXY_EXEC
+static inline
+void __proxy_remove_from_sleeping_owner(struct task_struct *owner, struct task_struct *p)
+{
+	lockdep_assert_held(&owner->blocked_lock);
+
+	if (p->sleeping_owner == owner) {
+		list_del_init(&p->blocked_node);
+		WRITE_ONCE(p->sleeping_owner, NULL);
+		put_task_struct(owner); // matches get in proxy_enqueue_on_owner
+	}
+}
+
+static inline void proxy_remove_from_sleeping_owner(struct task_struct *p)
+{
+	struct task_struct *owner = READ_ONCE(p->sleeping_owner);
+
+	if (owner) {
+		raw_spin_lock(&owner->blocked_lock);
+		__proxy_remove_from_sleeping_owner(owner, p);
+		raw_spin_unlock(&owner->blocked_lock);
+	}
+}
+
+void activate_task(struct rq *rq, struct task_struct *p, int en_flags)
+{
+	if (!sched_proxy_exec()) {
+		__activate_task(rq, p, en_flags);
+		return;
+	}
+
+	lockdep_assert_rq_held(rq);
+	proxy_remove_from_sleeping_owner(p);
+	/*
+	 * By calling __activate_task() with blocked_lock held, we
+	 * order against the find_proxy_task() blocked_task case
+	 * such that no more blocked tasks will be enqueued on p
+	 * once we release p->blocked_lock.
+	 */
+	raw_spin_lock(&p->blocked_lock);
+	WARN_ON(task_cpu(p) != cpu_of(rq));
+	__activate_task(rq, p, en_flags);
+	raw_spin_unlock(&p->blocked_lock);
+}
+#else
+static inline void proxy_remove_from_sleeping_owner(struct task_struct *p)
+{
+}
+
+void activate_task(struct rq *rq, struct task_struct *p, int en_flags)
+{
+	__activate_task(rq, p, en_flags);
+}
+#endif
 
 void deactivate_task(struct rq *rq, struct task_struct *p, int flags)
 {
@@ -2734,6 +2869,7 @@ out_unlock:
 	put_task_struct(p);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(push_cpu_stop);
 
 /*
  * sched_class::set_cpus_allowed must do the below, but is not required to
@@ -2754,6 +2890,8 @@ void set_cpus_allowed_common(struct task_struct *p, struct affinity_context *ctx
 	 */
 	if (ctx->flags & SCA_USER)
 		swap(p->user_cpus_ptr, ctx->user_mask);
+
+	trace_android_rvh_set_cpus_allowed_comm(p, ctx->new_mask);
 }
 
 static void
@@ -3208,13 +3346,15 @@ int __set_cpus_allowed_ptr(struct task_struct *p, struct affinity_context *ctx)
 {
 	struct rq_flags rf;
 	struct rq *rq;
+	bool skip_user_ptr = false;
 
+	trace_android_rvh_set_cpus_allowed_ptr(p, ctx, &skip_user_ptr);
 	rq = task_rq_lock(p, &rf);
 	/*
 	 * Masking should be skipped if SCA_USER or any of the SCA_MIGRATE_*
 	 * flags are set.
 	 */
-	if (p->user_cpus_ptr &&
+	if (!skip_user_ptr && p->user_cpus_ptr &&
 	    !(ctx->flags & (SCA_USER | SCA_MIGRATE_ENABLE | SCA_MIGRATE_DISABLE)) &&
 	    cpumask_and(rq->scratch_mask, ctx->new_mask, p->user_cpus_ptr))
 		ctx->new_mask = rq->scratch_mask;
@@ -3755,6 +3895,332 @@ static inline void ttwu_do_wakeup(struct task_struct *p)
 	trace_sched_wakeup(p);
 }
 
+#ifdef CONFIG_SCHED_PROXY_EXEC
+static inline void proxy_set_task_cpu(struct task_struct *p, int cpu)
+{
+	unsigned int wake_cpu;
+
+	/*
+	 * Since we are enqueuing a blocked task on a cpu it may
+	 * not be able to run on, preserve wake_cpu when we
+	 * __set_task_cpu so we can return the task to where it
+	 * was previously runnable.
+	 */
+	wake_cpu = p->wake_cpu;
+	__set_task_cpu(p, cpu);
+	p->wake_cpu = wake_cpu;
+}
+
+static bool proxy_task_runnable_but_waking(struct task_struct *p)
+{
+	if (!sched_proxy_exec())
+		return false;
+	return (READ_ONCE(p->__state) == TASK_RUNNING &&
+		READ_ONCE(p->blocked_on.lock) == PROXY_WAKING);
+}
+
+static void do_activate_blocked_waiter(struct rq *target_rq, struct task_struct *p, int en_flags)
+{
+	unsigned int state;
+	struct rq_flags rf;
+	int target_cpu = cpu_of(target_rq);
+
+	scoped_guard (raw_spinlock_irqsave, &p->pi_lock) {
+		state = READ_ONCE(p->__state);
+		/* Avoid racing with ttwu */
+		if (state == TASK_WAKING)
+			return;
+
+		if (READ_ONCE(p->on_rq)) {
+			/*
+			 * We raced with a non mutex handoff activation of p.
+			 * That activation will also take care of activating
+			 * all of the tasks after p in the blocked_head list,
+			 * so we're done here.
+			 */
+			return;
+		}
+		if (task_on_cpu(task_rq(p), p)) {
+			/*
+			 * Its possible this activation is very late, and
+			 * we already were woken up and are running on a
+			 * different cpu. If that task blocked, it could be
+			 * dequeued (so on_rq == 0), but still on_cpu.
+			 * Bail in this case, as we definitely don't want to
+			 * activate a task when its on_cpu elsewhere.
+			 */
+			return;
+		}
+		proxy_set_task_cpu(p, target_cpu);
+		rq_lock_irqsave(target_rq, &rf);
+		update_rq_clock(target_rq);
+		activate_task(target_rq, p, en_flags);
+		resched_curr(target_rq);
+		rq_unlock_irqrestore(target_rq, &rf);
+	}
+}
+
+static void activate_blocked_waiters(struct rq *target_rq,
+				     struct task_struct *owner,
+				     int wake_flags)
+{
+	struct list_head bal_head;
+	unsigned long flags;
+	int en_flags = ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK;
+
+	if (!sched_proxy_exec())
+		return;
+
+	INIT_LIST_HEAD(&bal_head);
+
+	if (wake_flags & WF_MIGRATED)
+		en_flags |= ENQUEUE_MIGRATED;
+
+	/*
+	 * A whole bunch of waiting donor tasks back this blocked
+	 * lock owner task, wake them all up to give this task its
+	 * 'fair' share.
+	 *
+	 * This is a little unique here and the locking is messy.
+	 * At this point we only hold the blocked_lock, so the
+	 * owner task may be able to run and do all sorts of
+	 * things while we are processing the blocked_head list,
+	 * including going back to sleep, which can cause tasks
+	 * to be added to the owners->blocked_head while we are
+	 * processing it!
+	 * Thus, we pull the entire list off the owner->blocked_head
+	 * here so that we will only process a finite amount of
+	 * tasks. Tasks added after this will be processed by the
+	 * future wake events.
+	 * Even though we have pulled the list off the blocked_head
+	 * the removed list is *still* "owned" and serialized by
+	 * the owner->blocked_lock! As we have to serialize against
+	 * mid-chain wakeups, who may try to remove themselves from
+	 * the list.
+	 */
+	raw_spin_lock_irqsave(&owner->blocked_lock, flags);
+	if (!list_empty(&owner->blocked_activation_node)) {
+		raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+		return;
+	}
+	get_task_struct(owner);
+	list_add_tail(&owner->blocked_activation_node, &bal_head);
+	raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+
+	while (!list_empty(&bal_head)) {
+		struct list_head tmp_head;
+
+		INIT_LIST_HEAD(&tmp_head);
+		owner = list_first_entry(&bal_head, struct task_struct, blocked_activation_node);
+
+		raw_spin_lock_irqsave(&owner->blocked_lock, flags);
+		list_replace_init(&owner->blocked_head, &tmp_head);
+		list_del_init(&owner->blocked_activation_node);
+		while (!list_empty(&tmp_head)) {
+			struct task_struct *p;
+
+			p = list_first_entry(&tmp_head,
+					     struct task_struct,
+					     blocked_node);
+			WARN_ON(p == owner);
+			WARN_ON(p->sleeping_owner != owner);
+			__proxy_remove_from_sleeping_owner(owner, p);
+			raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+
+			do_activate_blocked_waiter(target_rq, p, en_flags);
+			trace_sched_pe_activate_blocked_entity(owner, p);
+
+			raw_spin_lock_irqsave(&p->blocked_lock, flags);
+			if (list_empty(&p->blocked_activation_node)) {
+				get_task_struct(p);
+				list_add_tail(&p->blocked_activation_node, &bal_head);
+			}
+			raw_spin_unlock_irqrestore(&p->blocked_lock, flags);
+
+			raw_spin_lock_irqsave(&owner->blocked_lock, flags);
+		}
+		put_task_struct(owner); // put matches get prior to adding to local bal_head
+		raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+	}
+}
+
+/* XXX: Add detailed comment! */
+static inline bool task_queued_on_rq(struct rq *rq, struct task_struct *task)
+{
+	if (!task_on_rq_queued(task))
+		return false;
+
+	smp_rmb();
+
+	if (task_rq(task) != rq)
+		return false;
+
+	smp_rmb();
+
+	return task_on_rq_queued(task);
+}
+
+/*
+ * Returns the unblocked task at the end of the blocked chain starting with p
+ * if that chain is composed entirely of tasks enqueued on rq, or NULL otherwise.
+ */
+struct task_struct *find_exec_ctx(struct rq *rq, struct task_struct *p)
+{
+	struct task_struct *exec_ctx, *owner;
+
+	if (!sched_proxy_exec())
+		return p;
+
+	lockdep_assert_rq_held(rq);
+
+	for (exec_ctx = p; task_is_blocked(exec_ctx) && !task_on_cpu(rq, exec_ctx);
+							exec_ctx = owner) {
+		guard(raw_spinlock)(&exec_ctx->blocked_lock);
+		owner = task_blocked_on_owner(exec_ctx);
+		if (!owner || owner == exec_ctx)
+			break;
+
+		if (!task_queued_on_rq(rq, owner) || task_current_donor(rq, owner)) {
+			exec_ctx = NULL;
+			break;
+		}
+	}
+	return exec_ctx;
+}
+
+void move_queued_task_locked(struct rq *src_rq, struct rq *dst_rq, struct task_struct *task)
+{
+	lockdep_assert_rq_held(src_rq);
+	lockdep_assert_rq_held(dst_rq);
+
+	if (!sched_proxy_exec()) {
+		__move_queued_task_locked(src_rq, dst_rq, task);
+		return;
+	}
+
+	WARN_ON(!task_queued_on_rq(src_rq, task));
+	WARN_ON(task_current_donor(src_rq, task));
+
+	while (task) {
+		struct task_struct *owner = NULL;
+
+		if (!task_queued_on_rq(src_rq, task) || task_current_donor(src_rq, task))
+			break;
+
+		if (task_is_blocked(task))
+			owner = task_blocked_on_owner(task);
+
+		__move_queued_task_locked(src_rq, dst_rq, task);
+		if (task == owner)
+			break;
+		task = owner;
+	}
+}
+
+/*
+ * Returns:
+ * 1 if chain is pushable and affinity does not prevent pushing to cpu
+ * 0 if chain is unpushable
+ * -1 if chain is pushable but affinity blocks running on cpu.
+ */
+int task_is_pushable(struct rq *rq, struct task_struct *p, int cpu)
+{
+	struct task_struct *exec_ctx;
+
+	lockdep_assert_rq_held(rq);
+
+	if (!sched_proxy_exec())
+		return __task_is_pushable(rq, p, cpu);
+
+	if (task_rq(p) != rq || !task_on_rq_queued(p))
+		return 0;
+
+	exec_ctx = find_exec_ctx(rq, p);
+	/*
+	 * Chain leads off the rq, we're free to push it anywhere.
+	 *
+	 * One wrinkle with relying on find_exec_ctx is that when the chain
+	 * leads to a task currently migrating to rq, we see the chain as
+	 * pushable & push everything prior to the migrating task. Even if
+	 * we checked explicitly for this case, we could still race with a
+	 * migration after the check.
+	 * This shouldn't permanently produce a bad state though, as
+	 * find_proxy_task() will send the chain back to rq and by that point
+	 * the migration should be complete & a proper push can occur.
+	 */
+	if (!exec_ctx)
+		return 1;
+
+	if (task_on_cpu(rq, exec_ctx) || exec_ctx->nr_cpus_allowed <= 1)
+		return 0;
+
+	return cpumask_test_cpu(cpu, &exec_ctx->cpus_mask) ? 1 : -1;
+}
+
+static inline struct task_struct *proxy_resched_idle(struct rq *rq);
+
+/*
+ * Checks to see if task p has been proxy-migrated to another rq
+ * and needs to be returned. If so, we deactivate the task here
+ * so that it can be properly woken up on the p->wake_cpu
+ * (or whichever cpu select_task_rq() picks at the bottom of
+ * try_to_wake_up()
+ */
+static inline bool proxy_needs_return(struct rq *rq, struct task_struct *p)
+{
+	if (!sched_proxy_exec())
+		return false;
+
+	guard(raw_spinlock)(&p->blocked_lock);
+
+	/* If task isn't PROXY_WAKING, we don't need to do return migration */
+	if (p->blocked_on.lock != PROXY_WAKING)
+		return false;
+
+	__clear_task_blocked_on(p, PROXY_WAKING);
+
+	/* If already current, don't need to return migrate */
+	if (task_current(rq, p))
+		return false;
+
+	/* If wake_cpu is targeting this cpu, don't bother return migrating */
+	if (p->wake_cpu == cpu_of(rq)) {
+		resched_curr(rq);
+		return false;
+	}
+
+	/* If we're return migrating the rq->donor, switch it out for idle */
+	if (task_current_donor(rq, p))
+		proxy_resched_idle(rq);
+
+	/* (ab)Use DEQUEUE_SPECIAL to ensure task is always blocked here. */
+	block_task(rq, p, DEQUEUE_NOCLOCK | DEQUEUE_SPECIAL);
+	return true;
+}
+
+static inline void _trace_sched_pe_return_migration(struct task_struct *p)
+{
+	trace_sched_pe_return_migration(p, p->wake_cpu);
+}
+#else /* !CONFIG_SCHED_PROXY_EXEC */
+static bool proxy_task_runnable_but_waking(struct task_struct *p)
+{
+	return false;
+}
+static inline bool proxy_needs_return(struct rq *rq, struct task_struct *p)
+{
+	return false;
+}
+static inline void activate_blocked_waiters(struct rq *target_rq,
+					    struct task_struct *owner,
+					    int wake_flags)
+{
+}
+static inline void _trace_sched_pe_return_migration(struct task_struct *p)
+{
+}
+#endif /* CONFIG_SCHED_PROXY_EXEC */
+
 static void
 ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 		 struct rq_flags *rf)
@@ -3841,8 +4307,14 @@ static int ttwu_runnable(struct task_struct *p, int wake_flags)
 	rq = __task_rq_lock(p, &rf);
 	if (task_on_rq_queued(p)) {
 		update_rq_clock(rq);
-		if (p->se.sched_delayed)
+		if (p->se.sched_delayed) {
+			proxy_remove_from_sleeping_owner(p);
 			enqueue_task(rq, p, ENQUEUE_NOCLOCK | ENQUEUE_DELAYED);
+		}
+		if (proxy_needs_return(rq, p)) {
+			_trace_sched_pe_return_migration(p);
+			goto out;
+		}
 		if (!task_on_cpu(rq, p)) {
 			/*
 			 * When on_rq && !on_cpu the task is preempted, see if
@@ -3853,6 +4325,7 @@ static int ttwu_runnable(struct task_struct *p, int wake_flags)
 		ttwu_do_wakeup(p);
 		ret = 1;
 	}
+out:
 	__task_rq_unlock(rq, &rf);
 
 	return ret;
@@ -3872,13 +4345,19 @@ void sched_ttwu_pending(void *arg)
 	update_rq_clock(rq);
 
 	llist_for_each_entry_safe(p, t, llist, wake_entry.llist) {
+		int wake_flags;
 		if (WARN_ON_ONCE(p->on_cpu))
 			smp_cond_load_acquire(&p->on_cpu, !VAL);
 
 		if (WARN_ON_ONCE(task_cpu(p) != cpu_of(rq)))
 			set_task_cpu(p, cpu_of(rq));
 
-		ttwu_do_activate(rq, p, p->sched_remote_wakeup ? WF_MIGRATED : 0, &rf);
+		wake_flags = p->sched_remote_wakeup ? WF_MIGRATED : 0;
+		ttwu_do_activate(rq, p, wake_flags, &rf);
+		rq_unlock(rq, &rf);
+		activate_blocked_waiters(rq, p, wake_flags);
+		rq_lock(rq, &rf);
+		update_rq_clock(rq);
 	}
 
 	/*
@@ -4229,6 +4708,7 @@ int try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 	wake_flags |= WF_TTWU;
 
+	trace_android_rvh_try_to_wake_up_begin(p, state, &wake_flags);
 	if (p == current) {
 		/*
 		 * We're waking current, this means 'p->on_rq' and 'task_cpu(p)
@@ -4246,6 +4726,8 @@ int try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 		 *    it disabling IRQs (this allows not taking ->pi_lock).
 		 */
 		WARN_ON_ONCE(p->se.sched_delayed);
+		/* If p is current, we know we can run here, so clear blocked_on */
+		clear_task_blocked_on(p, NULL);
 		if (!ttwu_state_match(p, state, &success))
 			goto out;
 
@@ -4262,8 +4744,15 @@ int try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	 */
 	scoped_guard (raw_spinlock_irqsave, &p->pi_lock) {
 		smp_mb__after_spinlock();
-		if (!ttwu_state_match(p, state, &success))
-			break;
+		if (!ttwu_state_match(p, state, &success)) {
+			/*
+			 * If we're already TASK_RUNNING, and PROXY_WAKING
+			 * continue on to ttwu_runnable check to force
+			 * proxy_needs_return evaluation
+			 */
+			if (!proxy_task_runnable_but_waking(p))
+				break;
+		}
 
 		trace_sched_waking(p);
 
@@ -4375,11 +4864,22 @@ int try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 			wake_flags |= WF_MIGRATED;
 			psi_ttwu_dequeue(p);
 			set_task_cpu(p, cpu);
+		} else if (cpu != p->wake_cpu) {
+			/*
+			 * If we were proxy-migrated to cpu, then
+			 * select_task_rq() picks cpu instead of wake_cpu
+			 * to return to, we won't call set_task_cpu(),
+			 * leaving a stale wake_cpu pointing to where we
+			 * proxy-migrated from. So just fixup wake_cpu here
+			 * if its not correct
+			 */
+			p->wake_cpu = cpu;
 		}
 
 		ttwu_queue(p, cpu, wake_flags);
 	}
 out:
+	activate_blocked_waiters(cpu_rq(task_cpu(p)), p, wake_flags);
 	if (success) {
 		trace_android_rvh_try_to_wake_up_success(p);
 		ttwu_stat(p, task_cpu(p), wake_flags);
@@ -4517,6 +5017,7 @@ int wake_up_state(struct task_struct *p, unsigned int state)
 {
 	return try_to_wake_up(p, state, 0);
 }
+EXPORT_SYMBOL(wake_up_state);
 
 /*
  * Perform scheduler related setup for a newly forked process p.
@@ -4815,7 +5316,7 @@ int sched_fork(u64 clone_flags, struct task_struct *p)
 
 	scx_pre_fork(p);
 
-	trace_android_vh_task_should_scx(&should_scx, p->policy, p->prio);
+	trace_android_vh_setscheduler_class(NULL, &should_scx, p, p->policy, p->prio);
 	if (rt_prio(p->prio) && !should_scx) {
 		p->sched_class = &rt_sched_class;
 #ifdef CONFIG_SCHED_CLASS_EXT
@@ -5061,6 +5562,34 @@ static inline void finish_task(struct task_struct *prev)
 	 * Pairs with the smp_cond_load_acquire() in try_to_wake_up().
 	 */
 	smp_store_release(&prev->on_cpu, 0);
+}
+
+/*
+ * Only called from __schedule context
+ *
+ * There are some cases where we are going to re-do the action
+ * that added the balance callbacks. We may not be in a state
+ * where we can run them, so just zap them so they can be
+ * properly re-added on the next time around. This is similar
+ * handling to running the callbacks, except we just don't call
+ * them.
+ */
+static void zap_balance_callbacks(struct rq *rq)
+{
+	struct balance_callback *next, *head;
+	bool found = false;
+
+	lockdep_assert_rq_held(rq);
+
+	head = rq->balance_callback;
+	while (head) {
+		if (head == &balance_push_callback)
+			found = true;
+		next = head->next;
+		head->next = NULL;
+		head = next;
+	}
+	rq->balance_callback = found ? &balance_push_callback : NULL;
 }
 
 static void do_balance_callbacks(struct rq *rq, struct balance_callback *head)
@@ -5447,6 +5976,7 @@ unsigned int nr_running(void)
 
 	return sum;
 }
+EXPORT_SYMBOL(nr_running);
 
 /*
  * Check if only the current task is running on the CPU.
@@ -6024,10 +6554,9 @@ static inline void schedule_debug(struct task_struct *prev, bool preempt)
 	schedstat_inc(this_rq()->sched_count);
 }
 
-static void prev_balance(struct rq *rq, struct task_struct *prev,
-			 struct rq_flags *rf)
+static void prev_balance(struct rq *rq, struct rq_flags *rf)
 {
-	const struct sched_class *start_class = prev->sched_class;
+	const struct sched_class *start_class = rq->donor->sched_class;
 	const struct sched_class *class;
 
 #ifdef CONFIG_SCHED_CLASS_EXT
@@ -6052,7 +6581,7 @@ static void prev_balance(struct rq *rq, struct task_struct *prev,
 	 * a runnable task of @class priority or higher.
 	 */
 	for_active_class_range(class, start_class, &idle_sched_class) {
-		if (class->balance && class->balance(rq, prev, rf))
+		if (class->balance && class->balance(rq, rf))
 			break;
 	}
 }
@@ -6061,7 +6590,7 @@ static void prev_balance(struct rq *rq, struct task_struct *prev,
  * Pick up the highest-prio task:
  */
 static inline struct task_struct *
-__pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
+__pick_next_task(struct rq *rq, struct rq_flags *rf)
 {
 	const struct sched_class *class;
 	struct task_struct *p;
@@ -6077,34 +6606,34 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those lose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
-	if (likely(!sched_class_above(prev->sched_class, &fair_sched_class) &&
+	if (likely(!sched_class_above(rq->donor->sched_class, &fair_sched_class) &&
 		   rq->nr_running == rq->cfs.h_nr_queued)) {
 
-		p = pick_next_task_fair(rq, prev, rf);
+		p = pick_next_task_fair(rq, rf);
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
 
 		/* Assume the next prioritized class is idle_sched_class */
 		if (!p) {
 			p = pick_task_idle(rq);
-			put_prev_set_next_task(rq, prev, p);
+			put_prev_set_next_task(rq, rq->donor, p);
 		}
 
 		return p;
 	}
 
 restart:
-	prev_balance(rq, prev, rf);
+	prev_balance(rq, rf);
 
 	for_each_active_class(class) {
 		if (class->pick_next_task) {
-			p = class->pick_next_task(rq, prev);
+			p = class->pick_next_task(rq);
 			if (p)
 				return p;
 		} else {
 			p = class->pick_task(rq);
 			if (p) {
-				put_prev_set_next_task(rq, prev, p);
+				put_prev_set_next_task(rq, rq->donor, p);
 				return p;
 			}
 		}
@@ -6154,7 +6683,7 @@ extern void task_vruntime_update(struct rq *rq, struct task_struct *p, bool in_f
 static void queue_core_balance(struct rq *rq);
 
 static struct task_struct *
-pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
+pick_next_task(struct rq *rq, struct rq_flags *rf)
 {
 	struct task_struct *next, *p, *max = NULL;
 	const struct cpumask *smt_mask;
@@ -6166,7 +6695,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	bool need_sync;
 
 	if (!sched_core_enabled(rq))
-		return __pick_next_task(rq, prev, rf);
+		return __pick_next_task(rq, rf);
 
 	cpu = cpu_of(rq);
 
@@ -6179,7 +6708,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 		 */
 		rq->core_pick = NULL;
 		rq->core_dl_server = NULL;
-		return __pick_next_task(rq, prev, rf);
+		return __pick_next_task(rq, rf);
 	}
 
 	/*
@@ -6203,7 +6732,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 		goto out_set_next;
 	}
 
-	prev_balance(rq, prev, rf);
+	prev_balance(rq, rf);
 
 	smt_mask = cpu_smt_mask(cpu);
 	need_sync = !!rq->core->core_cookie;
@@ -6376,7 +6905,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	}
 
 out_set_next:
-	put_prev_set_next_task(rq, prev, next);
+	put_prev_set_next_task(rq, rq->donor, next);
 	if (rq->core->core_forceidle_count && next == rq->idle)
 		queue_core_balance(rq);
 
@@ -6598,9 +7127,9 @@ static inline void sched_core_cpu_deactivate(unsigned int cpu) {}
 static inline void sched_core_cpu_dying(unsigned int cpu) {}
 
 static struct task_struct *
-pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
+pick_next_task(struct rq *rq, struct rq_flags *rf)
 {
-	return __pick_next_task(rq, prev, rf);
+	return __pick_next_task(rq, rf);
 }
 
 #endif /* !CONFIG_SCHED_CORE */
@@ -6678,50 +7207,231 @@ static inline struct task_struct *proxy_resched_idle(struct rq *rq)
 	return rq->idle;
 }
 
-static bool __proxy_deactivate(struct rq *rq, struct task_struct *donor)
+/*
+ * If the blocked-on relationship crosses CPUs, migrate @p to the
+ * owner's CPU.
+ *
+ * This is because we must respect the CPU affinity of execution
+ * contexts (owner) but we can ignore affinity for scheduling
+ * contexts (@p). So we have to move scheduling contexts towards
+ * potential execution contexts.
+ *
+ * Note: The owner can disappear, but simply migrate to @target_cpu
+ * and leave that CPU to sort things out.
+ */
+static void proxy_migrate_task(struct rq *rq, struct rq_flags *rf,
+			       struct task_struct *p, int target_cpu)
 {
-	unsigned long state = READ_ONCE(donor->__state);
+	struct rq *target_rq = cpu_rq(target_cpu);
+	LIST_HEAD(migrate_list);
 
-	/* Don't deactivate if the state has been changed to TASK_RUNNING */
-	if (state == TASK_RUNNING)
-		return false;
+	lockdep_assert_rq_held(rq);
+
 	/*
-	 * Because we got donor from pick_next_task(), it is *crucial*
-	 * that we call proxy_resched_idle() before we deactivate it.
-	 * As once we deactivate donor, donor->on_rq is set to zero,
-	 * which allows ttwu() to immediately try to wake the task on
-	 * another rq. So we cannot use *any* references to donor
-	 * after that point. So things like cfs_rq->curr or rq->donor
-	 * need to be changed from next *before* we deactivate.
+	 * Since we're going to drop @rq, we have to put(@rq->donor) first,
+	 * otherwise we have a reference that no longer belongs to us.
+	 *
+	 * Additionally, as we put_prev_task(prev) earlier, its possible that
+	 * prev will migrate away as soon as we drop the rq lock, however we
+	 * still have it marked as rq->curr, as we've not yet switched tasks.
+	 *
+	 * So call proxy_resched_idle() to let go of the references before
+	 * we release the lock.
 	 */
 	proxy_resched_idle(rq);
-	return try_to_block_task(rq, donor, &state, true);
+
+	for (; p; p = p->blocked_donor) {
+		WARN_ON(p == rq->curr);
+		deactivate_task(rq, p, DEQUEUE_NOCLOCK);
+		proxy_set_task_cpu(p, target_cpu);
+		/*
+		 * We can abuse blocked_node to migrate the thing,
+		 * because @p was still on the rq.
+		 */
+		list_add(&p->migration_node, &migrate_list);
+	}
+	/*
+	 * We have to zap callbacks before unlocking the rq
+	 * as another CPU may jump in and call sched_balance_rq
+	 * which can trip the warning in rq_pin_lock() if we
+	 * leave callbacks set.
+	 */
+	zap_balance_callbacks(rq);
+	rq_unpin_lock(rq, rf);
+	raw_spin_rq_unlock(rq);
+
+	raw_spin_rq_lock(target_rq);
+	while (!list_empty(&migrate_list)) {
+		p = list_first_entry(&migrate_list, struct task_struct, migration_node);
+		list_del_init(&p->migration_node);
+		activate_task(target_rq, p, 0);
+		wakeup_preempt(target_rq, p, 0);
+	}
+	raw_spin_rq_unlock(target_rq);
+
+	raw_spin_rq_lock(rq);
+	rq_repin_lock(rq, rf);
+	update_rq_clock(rq);
 }
 
-static struct task_struct *proxy_deactivate(struct rq *rq, struct task_struct *donor)
+static void proxy_force_return(struct rq *rq, struct rq_flags *rf,
+			       struct task_struct *p)
 {
-	if (!__proxy_deactivate(rq, donor)) {
-		/*
-		 * XXX: For now, if deactivation failed, set donor
-		 * as unblocked, as we aren't doing proxy-migrations
-		 * yet (more logic will be needed then).
-		 */
-		donor->blocked_on = NULL;
+	struct rq *this_rq, *target_rq;
+	struct rq_flags this_rf;
+	int cpu, wake_flag = 0;
+
+	lockdep_assert_rq_held(rq);
+	WARN_ON(p == rq->curr);
+
+	_trace_sched_pe_return_migration(p);
+
+	get_task_struct(p);
+
+	/*
+	 * We have to zap callbacks before unlocking the rq
+	 * as another CPU may jump in and call sched_balance_rq
+	 * which can trip the warning in rq_pin_lock() if we
+	 * leave callbacks set.
+	 */
+	zap_balance_callbacks(rq);
+	rq_unpin_lock(rq, rf);
+	raw_spin_rq_unlock(rq);
+
+	/*
+	 * We drop the rq lock, and re-grab task_rq_lock to get
+	 * the pi_lock (needed for select_task_rq) as well.
+	 */
+	this_rq = task_rq_lock(p, &this_rf);
+
+	/*
+	 * Since we let go of the rq lock, the task may have been
+	 * woken or migrated to another rq before we  got the
+	 * task_rq_lock. So re-check we're on the same RQ. If
+	 * not, the task has already been migrated and that CPU
+	 * will handle any futher migrations.
+	 */
+	if (this_rq != rq)
+		goto err_out;
+
+	/* Similarly, if we've been dequeued, someone else will wake us */
+	if (!task_on_rq_queued(p))
+		goto err_out;
+
+	/*
+	 * Since we should only be calling here from __schedule()
+	 * -> find_proxy_task(), no one else should have
+	 * assigned current out from under us. But check and warn
+	 * if we see this, then bail.
+	 */
+	if (task_current(this_rq, p) || task_on_cpu(this_rq, p)) {
+		WARN_ONCE(1, "%s rq: %i current/on_cpu task %s %d  on_cpu: %i\n",
+			  __func__, cpu_of(this_rq),
+			  p->comm, p->pid, p->on_cpu);
+		goto err_out;
 	}
-	return NULL;
+
+	update_rq_clock(this_rq);
+	proxy_resched_idle(this_rq);
+	deactivate_task(this_rq, p, DEQUEUE_NOCLOCK);
+	cpu = select_task_rq(p, p->wake_cpu, &wake_flag);
+	set_task_cpu(p, cpu);
+	target_rq = cpu_rq(cpu);
+	clear_task_blocked_on(p, NULL);
+	task_rq_unlock(this_rq, p, &this_rf);
+
+	/* Drop this_rq and grab target_rq for activation */
+	raw_spin_rq_lock(target_rq);
+	activate_task(target_rq, p, 0);
+	wakeup_preempt(target_rq, p, 0);
+	put_task_struct(p);
+	raw_spin_rq_unlock(target_rq);
+
+	/* Finally, re-grab the origianl rq lock and return to pick-again */
+	raw_spin_rq_lock(rq);
+	rq_repin_lock(rq, rf);
+	update_rq_clock(rq);
+	return;
+
+err_out:
+	task_rq_unlock(this_rq, p, &this_rf);
+	put_task_struct(p);
+	raw_spin_rq_lock(rq);
+	rq_repin_lock(rq, rf);
+	update_rq_clock(rq);
 }
+
+static void proxy_enqueue_on_owner(struct rq *rq, struct task_struct *owner,
+				   struct task_struct *p)
+{
+	lockdep_assert_rq_held(rq);
+	lockdep_assert_held(&owner->blocked_lock);
+	/*
+	 * ttwu_activate() will pick them up and place them on whatever rq
+	 * @owner will run next.
+	 */
+	trace_sched_pe_enqueue_sleeping_task(owner, p);
+	WARN_ON(p == owner);
+	WARN_ON(!p->on_rq);
+	WARN_ON(p->sleeping_owner);
+	get_task_struct(owner);
+	WRITE_ONCE(p->sleeping_owner, owner);
+	/*
+	 * ttwu_do_activate must not have a chance to activate p
+	 * elsewhere before it's fully extricated from its old rq.
+	 */
+	list_add(&p->blocked_node, &owner->blocked_head);
+	block_task(rq, p, 0);
+}
+
+static void
+lock_blocked_on_lock(struct blocked_on_lock *bo)
+{
+	if (bo->type == BO_T_MUTEX)
+		raw_spin_lock(&((struct mutex *)bo->lock)->wait_lock);
+	else if (bo->type == BO_T_RWSEM)
+		raw_spin_lock(&((struct rw_semaphore *)bo->lock)->wait_lock);
+	else
+		BUG();
+}
+
+static void
+unlock_blocked_on_lock(struct blocked_on_lock *bo)
+{
+	if (bo->type == BO_T_MUTEX)
+		raw_spin_unlock(&((struct mutex *)bo->lock)->wait_lock);
+	else if (bo->type == BO_T_RWSEM)
+		raw_spin_unlock(&((struct rw_semaphore *)bo->lock)->wait_lock);
+	else
+		BUG();
+}
+
+DEFINE_LOCK_GUARD_1(blocked_on_lock, struct blocked_on_lock,
+    lock_blocked_on_lock(_T->lock),
+    unlock_blocked_on_lock(_T->lock))
 
 /*
  * Find runnable lock owner to proxy for mutex blocked donor
  *
  * Follow the blocked-on relation:
- *   task->blocked_on -> mutex->owner -> task...
+ *
+ *                ,-> task
+ *                |     | blocked-on
+ *                |     v
+ *  blocked_donor |   mutex
+ *                |     | owner
+ *                |     v
+ *                `-- task
+ *
+ * and set the blocked_donor relation, this latter is used by the mutex
+ * code to find which (blocked) task to hand-off to.
  *
  * Lock order:
  *
  *   p->pi_lock
  *     rq->lock
  *       mutex->wait_lock
+ *         p->blocked_lock
  *
  * Returns the task that is going to be used as execution context (the one
  * that is actually going to be run on cpu_of(rq)).
@@ -6729,25 +7439,45 @@ static struct task_struct *proxy_deactivate(struct rq *rq, struct task_struct *d
 static struct task_struct *
 find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 {
+	enum { FOUND, MIGRATE, NEEDS_RETURN } action = FOUND;
+	struct blocked_on_lock bo, *blocked_on;
 	struct task_struct *owner = NULL;
+	bool curr_in_chain = false;
 	int this_cpu = cpu_of(rq);
 	struct task_struct *p;
-	struct mutex *mutex;
+	int owner_cpu;
 
 	/* Follow blocked_on chain. */
 	for (p = donor; task_is_blocked(p); p = owner) {
-		mutex = p->blocked_on;
+		/* copy the entire blocked_on structure */
+		raw_spin_lock(&p->blocked_lock);
+		bo = p->blocked_on;
+		raw_spin_unlock(&p->blocked_lock);
+		blocked_on = &bo;
+
 		/* Something changed in the chain, so pick again */
-		if (!mutex)
+		if (!blocked_on->lock)
 			return NULL;
+
+		/* if its PROXY_WAKING, do return migration or run if current */
+		if (blocked_on->lock == PROXY_WAKING) {
+			if (task_current(rq, p)) {
+				clear_task_blocked_on(p, PROXY_WAKING);
+				return p;
+			}
+			action = NEEDS_RETURN;
+			break;
+		}
+
 		/*
 		 * By taking mutex->wait_lock we hold off concurrent mutex_unlock()
 		 * and ensure @owner sticks around.
 		 */
-		guard(raw_spinlock)(&mutex->wait_lock);
+		guard(blocked_on_lock)(blocked_on);
+		guard(raw_spinlock)(&p->blocked_lock);
 
-		/* Check again that p is blocked with wait_lock held */
-		if (mutex != __get_task_blocked_on(p)) {
+		/* Check again that p is blocked with blocked_lock held */
+		if (blocked_on->lock != __get_task_blocked_on(p)) {
 			/*
 			 * Something changed in the blocked_on chain and
 			 * we don't know if only at this level. So, let's
@@ -6757,23 +7487,67 @@ find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 			return NULL;
 		}
 
-		owner = __mutex_owner(mutex);
+		if (task_current(rq, p))
+			curr_in_chain = true;
+
+		owner = __blocked_on_owner(blocked_on);
 		if (!owner) {
-			__clear_task_blocked_on(p, mutex);
-			return p;
+			/*
+			 * If there is no owner, either clear blocked_on
+			 * and return p (if it is current and safe to
+			 * just run on this rq), or return-migrate the task.
+			 */
+			if (task_current(rq, p)) {
+				__clear_task_blocked_on(p, NULL);
+				return p;
+			}
+			action = NEEDS_RETURN;
+			break;
 		}
 
 		if (!READ_ONCE(owner->on_rq) || owner->se.sched_delayed) {
-			/* XXX Don't handle blocked owners/delayed dequeue yet */
-			return proxy_deactivate(rq, donor);
+			/*
+			 * rq->curr must not be added to the blocked_head list or else
+			 * ttwu_do_activate could enqueue it elsewhere before it switches
+			 * out here. The approach to avoid this is the same as in the
+			 * migrate_task case.
+			 */
+			if (curr_in_chain)
+				return proxy_resched_idle(rq);
+			/*
+			 * If !@owner->on_rq, holding @rq->lock will not pin the task,
+			 * so we cannot drop @mutex->wait_lock until we're sure its a blocked
+			 * task on this rq.
+			 *
+			 * We use @owner->blocked_lock to serialize against ttwu_activate().
+			 * Either we see its new owner->on_rq or it will see our list_add().
+			 */
+			WARN_ON(owner == p);
+			raw_spin_unlock(&p->blocked_lock);
+			raw_spin_lock(&owner->blocked_lock);
+			proxy_resched_idle(rq);
+			proxy_enqueue_on_owner(rq, owner, p);
+			raw_spin_unlock(&owner->blocked_lock);
+			raw_spin_lock(&p->blocked_lock);
+
+			return NULL; /* retry task selection */
 		}
 
-		if (task_cpu(owner) != this_cpu) {
-			/* XXX Don't handle migrations yet */
-			return proxy_deactivate(rq, donor);
+		owner_cpu = task_cpu(owner);
+		if (owner_cpu != this_cpu) {
+			/*
+			 * @owner can disappear, simply migrate to @owner_cpu
+			 * and leave that CPU to sort things out.
+			 */
+			if (curr_in_chain)
+				return proxy_resched_idle(rq);
+			action = MIGRATE;
+			trace_sched_pe_migration(donor, owner);
+			break;
 		}
 
 		if (task_on_rq_migrating(owner)) {
+			trace_sched_pe_owner_is_migrating(owner, p);
 			/*
 			 * One of the chain of mutex owners is currently migrating to this
 			 * CPU, but has not yet been enqueued because we are holding the
@@ -6826,8 +7600,20 @@ find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 		 * rq, therefore holding @rq->lock is sufficient to
 		 * guarantee its existence, as per ttwu_remote().
 		 */
+		owner->blocked_donor = p;
 	}
 
+	/* Handle actions we need to do outside of the guard() scope */
+	switch (action) {
+	case NEEDS_RETURN:
+		proxy_force_return(rq, rf, p);
+		return NULL;
+	case MIGRATE:
+		proxy_migrate_task(rq, rf, p, owner_cpu);
+		return NULL;
+	case FOUND:
+		/* fallthrough */;
+	}
 	WARN_ON_ONCE(owner && !owner->on_rq);
 	return owner;
 }
@@ -6909,6 +7695,7 @@ static void __sched notrace __schedule(int sched_mode)
 	unsigned long prev_state;
 	struct rq_flags rf;
 	struct rq *rq;
+	bool prev_not_proxied;
 	int cpu;
 
 	/* Trace preemptions consistently with task switches */
@@ -6981,16 +7768,30 @@ static void __sched notrace __schedule(int sched_mode)
 		switch_count = &prev->nvcsw;
 	}
 
+	prev_not_proxied = !prev->blocked_donor;
+
+	trace_sched_start_task_selection(prev, cpu, task_is_blocked(prev));
 pick_again:
-	next = pick_next_task(rq, rq->donor, &rf);
+	assert_balance_callbacks_empty(rq);
+	next = pick_next_task(rq, &rf);
 	rq_set_donor(rq, next);
+	next->blocked_donor = NULL;
 	if (unlikely(task_is_blocked(next))) {
 		next = find_proxy_task(rq, next, &rf);
-		if (!next)
+		if (!next) {
+			/* zap the balance_callbacks before picking again */
+			trace_sched_picking_again(rq->donor, cpu, task_is_blocked(rq->donor));
+			zap_balance_callbacks(rq);
 			goto pick_again;
-		if (next == rq->idle)
+		}
+		if (next == rq->idle) {
+			trace_sched_proxy_resched_idle(rq->donor, cpu, task_is_blocked(rq->donor));
+			zap_balance_callbacks(rq);
 			goto keep_resched;
+		}
+		trace_sched_found_proxy_task(rq->donor, next, cpu);
 	}
+	trace_sched_finish_task_selection(rq->donor, next, cpu);
 picked:
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
@@ -7045,7 +7846,7 @@ keep_resched:
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
 		/* In case next was already curr but just got blocked_donor */
-		if (!task_current_donor(rq, next))
+		if (prev_not_proxied && next->blocked_donor)
 			proxy_tag_curr(rq, next);
 
 		rq_unpin_lock(rq, &rf);
@@ -7387,18 +8188,8 @@ EXPORT_SYMBOL(default_wake_function);
 
 const struct sched_class *__setscheduler_class(int policy, int prio)
 {
-#ifdef CONFIG_SCHED_CLASS_EXT
-	int should_scx = 0;
-#endif
-
 	if (dl_prio(prio))
 		return &dl_sched_class;
-
-#ifdef CONFIG_SCHED_CLASS_EXT
-	trace_android_vh_task_should_scx(&should_scx, policy, prio);
-	if (should_scx)
-		return &ext_sched_class;
-#endif
 
 	if (rt_prio(prio))
 		return &rt_sched_class;
@@ -7509,15 +8300,17 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	trace_sched_pi_setprio(p, pi_task);
 	oldprio = p->prio;
 
-	if (oldprio == prio)
+	if (oldprio == prio && !dl_prio(prio))
 		queue_flag &= ~DEQUEUE_MOVE;
 
 	prev_class = p->sched_class;
 	next_class = __setscheduler_class(p->policy, prio);
+	trace_android_vh_setscheduler_class(&next_class, NULL, p, p->policy, prio);
 
 	if (prev_class != next_class && p->se.sched_delayed)
 		dequeue_task(rq, p, DEQUEUE_SLEEP | DEQUEUE_DELAYED | DEQUEUE_NOCLOCK);
 
+	trace_android_vh_scx_restore_flags(prev_class, next_class, &queue_flag);
 	queued = task_on_rq_queued(p);
 	running = task_current_donor(rq, p);
 	if (queued)
@@ -7557,6 +8350,7 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 
 	p->sched_class = next_class;
 	p->prio = prio;
+	trace_android_rvh_setscheduler_prio(p);
 
 	check_class_changing(rq, p, prev_class);
 
@@ -8721,6 +9515,8 @@ int sched_cpu_dying(unsigned int cpu)
 void __init sched_init_smp(void)
 {
 	sched_init_numa(NUMA_NO_NODE);
+
+	prandom_init_once(&sched_rnd_state);
 
 	/*
 	 * There's no userspace yet to cause hotplug operations; hence all the
@@ -10526,6 +11322,7 @@ const int sched_prio_to_weight[40] = {
  /*  10 */       110,        87,        70,        56,        45,
  /*  15 */        36,        29,        23,        18,        15,
 };
+EXPORT_SYMBOL_GPL(sched_prio_to_weight);
 
 /*
  * Inverse (2^32/x) values of the sched_prio_to_weight[] array, pre-calculated.
@@ -10544,6 +11341,7 @@ const u32 sched_prio_to_wmult[40] = {
  /*  10 */  39045157,  49367440,  61356676,  76695844,  95443717,
  /*  15 */ 119304647, 148102320, 186737708, 238609294, 286331153,
 };
+EXPORT_SYMBOL_GPL(sched_prio_to_wmult);
 
 void call_trace_sched_update_nr_running(struct rq *rq, int count)
 {
@@ -11083,7 +11881,7 @@ void sched_deq_and_put_task(struct task_struct *p, int queue_flags,
 		.p = p,
 		.queue_flags = queue_flags,
 		.queued = task_on_rq_queued(p),
-		.running = task_current(rq, p),
+		.running = task_current_donor(rq, p),
 	};
 
 	update_rq_clock(rq);

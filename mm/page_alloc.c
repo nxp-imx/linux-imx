@@ -20,6 +20,7 @@
 #include <linux/highmem.h>
 #include <linux/interrupt.h>
 #include <linux/jiffies.h>
+#include <linux/memblock.h>
 #include <linux/compiler.h>
 #include <linux/kernel.h>
 #include <linux/kasan.h>
@@ -171,6 +172,33 @@ static DEFINE_MUTEX(pcp_batch_high_lock);
 
 #define pcp_spin_unlock(ptr)						\
 	pcpu_spin_unlock(lock, ptr)
+
+/*
+ * With the UP spinlock implementation, when we spin_lock(&pcp->lock) (for i.e.
+ * a potentially remote cpu drain) and get interrupted by an operation that
+ * attempts pcp_spin_trylock(), we can't rely on the trylock failure due to UP
+ * spinlock assumptions making the trylock a no-op. So we have to turn that
+ * spin_lock() to a spin_lock_irqsave(). This works because on UP there are no
+ * remote cpu's so we can only be locking the only existing local one.
+ */
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT)
+static inline void __flags_noop(unsigned long *flags) { }
+#define pcp_spin_lock_maybe_irqsave(ptr, flags)		\
+({							\
+	 __flags_noop(&(flags));			\
+	 spin_lock(&(ptr)->lock);			\
+})
+#define pcp_spin_unlock_maybe_irqrestore(ptr, flags)	\
+({							\
+	 spin_unlock(&(ptr)->lock);			\
+	 __flags_noop(&(flags));			\
+})
+#else
+#define pcp_spin_lock_maybe_irqsave(ptr, flags)		\
+		spin_lock_irqsave(&(ptr)->lock, flags)
+#define pcp_spin_unlock_maybe_irqrestore(ptr, flags)	\
+		spin_unlock_irqrestore(&(ptr)->lock, flags)
+#endif
 
 #ifdef CONFIG_USE_PERCPU_NUMA_NODE_ID
 DEFINE_PER_CPU(int, numa_node);
@@ -413,6 +441,14 @@ static unsigned long __get_pfnblock_flags_mask(const struct page *page,
 	word = READ_ONCE(*bitmap_word);
 	return (word >> bitidx) & mask;
 }
+
+unsigned long get_pfnblock_flags_mask(const struct page *page,
+				      unsigned long pfn,
+				      unsigned long mask)
+{
+	return __get_pfnblock_flags_mask(page, pfn, mask);
+}
+EXPORT_SYMBOL_GPL(get_pfnblock_flags_mask);
 
 /**
  * get_pfnblock_bit - Check if a standalone bit of a pageblock is set
@@ -727,6 +763,7 @@ void prep_compound_page(struct page *page, unsigned int order)
 
 	prep_compound_head(page, order);
 }
+EXPORT_SYMBOL_GPL(prep_compound_page);
 
 static inline void set_buddy_order(struct page *page, unsigned int order)
 {
@@ -919,6 +956,17 @@ buddy_merge_likely(unsigned long pfn, unsigned long buddy_pfn,
 			NULL) != NULL;
 }
 
+static void change_pageblock_range(struct page *pageblock_page,
+				   int start_order, int migratetype)
+{
+	int nr_pageblocks = 1 << (start_order - pageblock_order);
+
+	while (nr_pageblocks--) {
+		set_pageblock_migratetype(pageblock_page, migratetype);
+		pageblock_page += pageblock_nr_pages;
+	}
+}
+
 /*
  * Freeing function for a buddy system allocator.
  *
@@ -1012,7 +1060,7 @@ static inline void __free_one_page(struct page *page,
 			 * expand() down the line puts the sub-blocks
 			 * on the right freelists.
 			 */
-			set_pageblock_migratetype(buddy, migratetype);
+			change_pageblock_range(buddy, order, migratetype);
 		}
 
 		combined_pfn = buddy_pfn & pfn;
@@ -1580,24 +1628,44 @@ static void __free_pages_ok(struct page *page, unsigned int order,
 	int migratetype;
 	unsigned long pfn = page_to_pfn(page);
 	struct zone *zone = page_zone(page);
+	bool skip_free_pages_prepare = false;
+	bool skip_free_pages_ok = false;
 	bool skip_free_unref_page = false;
 
-	if (free_pages_prepare(page, order)) {
-		/*
-		 * Calling get_pfnblock_migratetype() without spin_lock_irqsave() here
-		 * is used to avoid calling get_pfnblock_migratetype() under the lock.
-		 * This will reduce the lock holding time.
-		 * If a page is being freed, its migratetype won’t change, so no lock is needed.
-		 */
-		migratetype = get_pfnblock_migratetype(page, pfn);
-		trace_android_vh_free_unref_page_bypass(page, order, migratetype,
-			&skip_free_unref_page);
-		if (skip_free_unref_page)
-			return;
+	trace_android_vh_free_pages_prepare_bypass(page, order,
+			fpi_flags, &skip_free_pages_prepare);
+	if (skip_free_pages_prepare)
+		goto skip_prepare;
 
-		free_one_page(zone, page, pfn, order, fpi_flags);
-	}
+	if (!free_pages_prepare(page, order))
+		return;
+skip_prepare:
+	trace_android_vh_free_pages_ok_bypass(page, order,
+			fpi_flags, &skip_free_pages_ok);
+	if (skip_free_pages_ok)
+		return;
+	/*
+	 * Calling get_pfnblock_migratetype() without spin_lock_irqsave() here
+	 * is used to avoid calling get_pfnblock_migratetype() under the lock.
+	 * This will reduce the lock holding time.
+	 * If a page is being freed, its migratetype won’t change, so no lock is needed.
+	 */
+	migratetype = get_pfnblock_migratetype(page, pfn);
+	trace_android_vh_free_unref_page_bypass(page, order, migratetype,
+			&skip_free_unref_page);
+	if (skip_free_unref_page)
+		return;
+
+	free_one_page(zone, page, pfn, order, fpi_flags);
 }
+
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+void free_hpage(struct page *page, fpi_t fpi_flags)
+{
+	__free_pages_ok(page, HPAGE_PMD_ORDER, fpi_flags);
+}
+EXPORT_SYMBOL_GPL(free_hpage);
+#endif
 
 void __meminit __free_pages_core(struct page *page, unsigned int order,
 		enum meminit_context context)
@@ -1896,6 +1964,14 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 	trace_android_vh_test_clear_look_around_ref(page);
 }
 
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+void prep_new_hpage(struct page *page, gfp_t gfp_flags, unsigned int alloc_flags)
+{
+	return prep_new_page(page, HPAGE_PMD_ORDER, gfp_flags, alloc_flags);
+}
+EXPORT_SYMBOL_GPL(prep_new_hpage);
+#endif
+
 /*
  * Go through the free lists for the given migratetype and remove
  * the smallest available page from the freelists
@@ -2174,17 +2250,6 @@ bool pageblock_unisolate_and_move_free_pages(struct zone *zone, struct page *pag
 }
 
 #endif /* CONFIG_MEMORY_ISOLATION */
-
-static void change_pageblock_range(struct page *pageblock_page,
-					int start_order, int migratetype)
-{
-	int nr_pageblocks = 1 << (start_order - pageblock_order);
-
-	while (nr_pageblocks--) {
-		set_pageblock_migratetype(pageblock_page, migratetype);
-		pageblock_page += pageblock_nr_pages;
-	}
-}
 
 static inline bool boost_watermark(struct zone *zone)
 {
@@ -2585,10 +2650,11 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
  * Called from the vmstat counter updater to decay the PCP high.
  * Return whether there are addition works to do.
  */
-int decay_pcp_high(struct zone *zone, struct per_cpu_pages *pcp)
+bool decay_pcp_high(struct zone *zone, struct per_cpu_pages *pcp)
 {
-	int high_min, to_drain, batch;
-	int todo = 0;
+	int high_min, to_drain, to_drain_batched, batch;
+	unsigned long UP_flags;
+	bool todo = false;
 
 	high_min = READ_ONCE(pcp->high_min);
 	batch = READ_ONCE(pcp->batch);
@@ -2601,15 +2667,18 @@ int decay_pcp_high(struct zone *zone, struct per_cpu_pages *pcp)
 		pcp->high = max3(pcp->count - (batch << CONFIG_PCP_BATCH_SCALE_MAX),
 				 pcp->high - (pcp->high >> 3), high_min);
 		if (pcp->high > high_min)
-			todo++;
+			todo = true;
 	}
 
 	to_drain = pcp->count - pcp->high;
-	if (to_drain > 0) {
-		spin_lock(&pcp->lock);
-		free_pcppages_bulk(zone, to_drain, pcp, 0);
-		spin_unlock(&pcp->lock);
-		todo++;
+	while (to_drain > 0) {
+		to_drain_batched = min(to_drain, batch);
+		pcp_spin_lock_maybe_irqsave(pcp, UP_flags);
+		free_pcppages_bulk(zone, to_drain_batched, pcp, 0);
+		pcp_spin_unlock_maybe_irqrestore(pcp, UP_flags);
+		todo = true;
+
+		to_drain -= to_drain_batched;
 	}
 
 	return todo;
@@ -2623,14 +2692,15 @@ int decay_pcp_high(struct zone *zone, struct per_cpu_pages *pcp)
  */
 void drain_zone_pages(struct zone *zone, struct per_cpu_pages *pcp)
 {
+	unsigned long UP_flags;
 	int to_drain, batch;
 
 	batch = READ_ONCE(pcp->batch);
 	to_drain = min(pcp->count, batch);
 	if (to_drain > 0) {
-		spin_lock(&pcp->lock);
+		pcp_spin_lock_maybe_irqsave(pcp, UP_flags);
 		free_pcppages_bulk(zone, to_drain, pcp, 0);
-		spin_unlock(&pcp->lock);
+		pcp_spin_unlock_maybe_irqrestore(pcp, UP_flags);
 	}
 }
 #endif
@@ -2641,10 +2711,11 @@ void drain_zone_pages(struct zone *zone, struct per_cpu_pages *pcp)
 static void drain_pages_zone(unsigned int cpu, struct zone *zone)
 {
 	struct per_cpu_pages *pcp = per_cpu_ptr(zone->per_cpu_pageset, cpu);
+	unsigned long UP_flags;
 	int count;
 
 	do {
-		spin_lock(&pcp->lock);
+		pcp_spin_lock_maybe_irqsave(pcp, UP_flags);
 		count = pcp->count;
 		if (count) {
 			int to_drain = min(count,
@@ -2653,7 +2724,7 @@ static void drain_pages_zone(unsigned int cpu, struct zone *zone)
 			free_pcppages_bulk(zone, to_drain, pcp, 0);
 			count -= to_drain;
 		}
-		spin_unlock(&pcp->lock);
+		pcp_spin_unlock_maybe_irqrestore(pcp, UP_flags);
 	} while (count);
 }
 
@@ -2926,6 +2997,7 @@ static void __free_frozen_pages(struct page *page, unsigned int order,
 	unsigned long pfn = page_to_pfn(page);
 	int migratetype;
 	bool skip_free_unref_page = false;
+	bool skip_free_page = false;
 
 	if (!pcp_allowed_order(order)) {
 		__free_pages_ok(page, order, fpi_flags);
@@ -2935,6 +3007,9 @@ static void __free_frozen_pages(struct page *page, unsigned int order,
 	if (!free_pages_prepare(page, order))
 		return;
 
+	trace_android_vh_free_page_bypass(page, order, &skip_free_page);
+	if (skip_free_page)
+		return;
 	/*
 	 * We only track unmovable, reclaimable and movable on pcp lists.
 	 * Place ISOLATE pages on the isolated list because they are being
@@ -2985,14 +3060,21 @@ void free_unref_folios(struct folio_batch *folios)
 	struct per_cpu_pages *pcp = NULL;
 	struct zone *locked_zone = NULL;
 	int i, j;
+	bool skip_free = false;
 
 	/* Prepare folios for freeing */
 	for (i = 0, j = 0; i < folios->nr; i++) {
 		struct folio *folio = folios->folios[i];
 		unsigned long pfn = folio_pfn(folio);
 		unsigned int order = folio_order(folio);
+		bool skip_free_folio = false;
 
 		if (!free_pages_prepare(&folio->page, order))
+			continue;
+
+		trace_android_vh_free_folio_bypass(folio, order,
+				&skip_free_folio);
+		if (skip_free_folio)
 			continue;
 		/*
 		 * Free orders not handled on the PCP directly to the
@@ -3009,6 +3091,10 @@ void free_unref_folios(struct folio_batch *folios)
 		j++;
 	}
 	folios->nr = j;
+
+	trace_android_vh_free_unref_folios_to_pcp_bypass(folios, &skip_free);
+	if (skip_free)
+		goto out;
 
 	for (i = 0; i < folios->nr; i++) {
 		struct folio *folio = folios->folios[i];
@@ -3071,6 +3157,7 @@ void free_unref_folios(struct folio_batch *folios)
 		pcp_spin_unlock(pcp);
 		pcp_trylock_finish(UP_flags);
 	}
+out:
 	folio_batch_reinit(folios);
 }
 
@@ -3979,7 +4066,11 @@ try_this_zone:
 static void warn_alloc_show_mem(gfp_t gfp_mask, nodemask_t *nodemask)
 {
 	unsigned int filter = SHOW_MEM_FILTER_NODES;
+	bool bypass = false;
 
+	trace_android_vh_warn_alloc_show_mem_bypass(&bypass);
+	if (bypass)
+		return;
 	/*
 	 * This documents exceptions given to allocations in certain
 	 * contexts that are allowed to allocate outside current's set
@@ -4001,6 +4092,7 @@ void warn_alloc(gfp_t gfp_mask, nodemask_t *nodemask, const char *fmt, ...)
 	va_list args;
 	static DEFINE_RATELIMIT_STATE(nopage_rs, 10*HZ, 1);
 
+	trace_android_vh_warn_alloc_tune_ratelimit(&nopage_rs);
 	if ((gfp_mask & __GFP_NOWARN) ||
 	     !__ratelimit(&nopage_rs) ||
 	     ((gfp_mask & __GFP_DMA) && !has_managed_dma()))
@@ -4414,6 +4506,7 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 	struct page *page = NULL;
 	unsigned long pflags;
 	bool drained = false;
+	bool skip_pcp_drain = false;
 
 	psi_memstall_enter(&pflags);
 	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);
@@ -4430,7 +4523,10 @@ retry:
 	 */
 	if (!page && !drained) {
 		unreserve_highatomic_pageblock(ac, false);
-		drain_all_pages(NULL);
+		trace_android_vh_drain_all_pages_bypass(gfp_mask, order,
+			alloc_flags, ac->migratetype, *did_some_progress, &skip_pcp_drain);
+		if (!skip_pcp_drain)
+			drain_all_pages(NULL);
 		drained = true;
 		goto retry;
 	}
@@ -4702,6 +4798,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int retry_loop_count = 0;
 	u64 stime = 0;
 	bool should_alloc_retry = false;
+	unsigned long direct_reclaim_retries = 0;
 
 	if (unlikely(nofail)) {
 		/*
@@ -4764,6 +4861,9 @@ restart:
 
 	if (alloc_flags & ALLOC_KSWAPD)
 		wake_all_kswapds(order, gfp_mask, ac);
+
+	if (can_direct_reclaim && !direct_reclaim_retries && !(current->flags & PF_MEMALLOC))
+		trace_android_rvh_alloc_pages_reclaim_start(gfp_mask, order, &alloc_flags);
 
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
@@ -4882,6 +4982,9 @@ retry:
 	if (should_alloc_retry)
 		goto retry;
 
+	if (direct_reclaim_retries < ULONG_MAX)
+		direct_reclaim_retries++;
+
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
@@ -4906,6 +5009,9 @@ retry:
 	if (costly_order && (!can_compact ||
 			     !(gfp_mask & __GFP_RETRY_MAYFAIL)))
 		goto nopage;
+
+	trace_android_rvh_alloc_pages_reclaim_cycle_end(gfp_mask, order,
+		&alloc_flags, &did_some_progress, &no_progress_loops, direct_reclaim_retries);
 
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops))
@@ -5251,6 +5357,9 @@ struct page *__alloc_frozen_pages_noprof(gfp_t gfp, unsigned int order,
 			&alloc_gfp, &alloc_flags))
 		return NULL;
 
+	trace_android_rvh_try_alloc_pages_gfp(&page, order, gfp, gfp_zone(gfp));
+	if (page)
+		goto out;
 	/*
 	 * Forbid the first pass from falling back to types that fragment
 	 * memory until all local zones are considered.
@@ -5270,6 +5379,7 @@ struct page *__alloc_frozen_pages_noprof(gfp_t gfp, unsigned int order,
 	 * &cpuset_current_mems_allowed to optimize the fast-path attempt.
 	 */
 	ac.nodemask = nodemask;
+	trace_android_vh_customize_alloc_gfp(&alloc_gfp, order);
 
 	page = __alloc_pages_slowpath(alloc_gfp, order, &ac);
 
@@ -6161,6 +6271,7 @@ static void zone_pcp_update_cacheinfo(struct zone *zone, unsigned int cpu)
 {
 	struct per_cpu_pages *pcp;
 	struct cpu_cacheinfo *cci;
+	unsigned long UP_flags;
 
 	pcp = per_cpu_ptr(zone->per_cpu_pageset, cpu);
 	cci = get_cpu_cacheinfo(cpu);
@@ -6171,12 +6282,12 @@ static void zone_pcp_update_cacheinfo(struct zone *zone, unsigned int cpu)
 	 * This can reduce zone lock contention without hurting
 	 * cache-hot pages sharing.
 	 */
-	spin_lock(&pcp->lock);
+	pcp_spin_lock_maybe_irqsave(pcp, UP_flags);
 	if ((cci->per_cpu_data_slice_size >> PAGE_SHIFT) > 3 * pcp->batch)
 		pcp->flags |= PCPF_FREE_HIGH_BATCH;
 	else
 		pcp->flags &= ~PCPF_FREE_HIGH_BATCH;
-	spin_unlock(&pcp->lock);
+	pcp_spin_unlock_maybe_irqrestore(pcp, UP_flags);
 }
 
 void setup_pcp_cacheinfo(unsigned int cpu)
@@ -6277,8 +6388,15 @@ unsigned long free_reserved_area(void *start, void *end, int poison, const char 
 		free_reserved_page(page);
 	}
 
-	if (pages && s)
+	if (pages && s) {
 		pr_info("Freeing %s memory: %ldK\n", s, K(pages));
+		if (!strcmp(s, "initrd") || !strcmp(s, "unused kernel")) {
+			long size;
+
+			size = -1 * (long)(pages << PAGE_SHIFT);
+			memblock_memsize_mod_kernel_size(size);
+		}
+	}
 
 	return pages;
 }
@@ -6474,6 +6592,7 @@ static void __setup_per_zone_wmarks(void)
 		zone->_watermark[WMARK_HIGH] = low_wmark_pages(zone) + tmp;
 		zone->_watermark[WMARK_PROMO] = high_wmark_pages(zone) + tmp;
 		trace_mm_setup_per_zone_wmarks(zone);
+		trace_android_vh_init_adjust_zone_wmark(zone, tmp);
 
 		spin_unlock_irqrestore(&zone->lock, flags);
 	}
@@ -6694,11 +6813,19 @@ static int percpu_pagelist_high_fraction_sysctl_handler(const struct ctl_table *
 	int old_percpu_pagelist_high_fraction;
 	int ret;
 
+	/*
+	 * Avoid using pcp_batch_high_lock for reads as the value is read
+	 * atomically and a race with offlining is harmless.
+	 */
+
+	if (!write)
+		return proc_dointvec_minmax(table, write, buffer, length, ppos);
+
 	mutex_lock(&pcp_batch_high_lock);
 	old_percpu_pagelist_high_fraction = percpu_pagelist_high_fraction;
 
 	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
-	if (!write || ret < 0)
+	if (ret < 0)
 		goto out;
 
 	/* Sanity checking to avoid pcp imbalance */
@@ -7072,6 +7199,8 @@ int alloc_contig_range_noprof(unsigned long start, unsigned long end,
 
 	/* Make sure the range is really isolated. */
 	if (test_pages_isolated(outer_start, end, mode)) {
+		trace_android_vh_alloc_contig_range_not_isolated(outer_start,
+								end);
 		ret = -EBUSY;
 		goto done;
 	}

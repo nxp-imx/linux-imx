@@ -761,6 +761,28 @@ static const struct dmi_system_id sof_sdw_quirk_table[] = {
 		.callback = sof_sdw_quirk_cb,
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Google"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Lapis"),
+		},
+		.driver_data = (void *)(SOC_SDW_CODEC_SPKR |
+					SOC_SDW_PCH_DMIC |
+					SOF_BT_OFFLOAD_SSP(2) |
+					SOF_SSP_BT_OFFLOAD_PRESENT),
+	},
+	{
+		.callback = sof_sdw_quirk_cb,
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Google"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Francka"),
+		},
+		.driver_data = (void *)(SOC_SDW_CODEC_SPKR |
+					SOC_SDW_PCH_DMIC |
+					SOF_BT_OFFLOAD_SSP(2) |
+					SOF_SSP_BT_OFFLOAD_PRESENT),
+	},
+	{
+		.callback = sof_sdw_quirk_cb,
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Google"),
 			DMI_MATCH(DMI_PRODUCT_FAMILY, "Google_Fatcat"),
 		},
 		.driver_data = (void *)(SOC_SDW_PCH_DMIC |
@@ -1113,14 +1135,21 @@ static int create_bt_dailinks(struct snd_soc_card *card,
 			      struct snd_soc_dai_link **dai_links, int *be_id)
 {
 	struct device *dev = card->dev;
-	int port = (sof_sdw_quirk & SOF_BT_OFFLOAD_SSP_MASK) >>
-			SOF_BT_OFFLOAD_SSP_SHIFT;
-	char *name = devm_kasprintf(dev, GFP_KERNEL, "SSP%d-BT", port);
-	char *cpu_dai_name = devm_kasprintf(dev, GFP_KERNEL, "SSP%d Pin", port);
+	struct snd_soc_acpi_mach *mach = dev_get_platdata(dev);
+	char *cpu_dai_name;
+	char *name;
+	int port;
+	int ret;
+
+	if (sof_sdw_quirk & SOF_SSP_BT_OFFLOAD_PRESENT)
+		port = (sof_sdw_quirk & SOF_BT_OFFLOAD_SSP_MASK) >> SOF_BT_OFFLOAD_SSP_SHIFT;
+	else
+		port = fls(mach->mach_params.bt_link_mask) - 1;
+
+	name = devm_kasprintf(dev, GFP_KERNEL, "SSP%d-BT", port);
+	cpu_dai_name = devm_kasprintf(dev, GFP_KERNEL, "SSP%d Pin", port);
 	if (!name || !cpu_dai_name)
 		return -ENOMEM;
-
-	int ret;
 
 	ret = asoc_sdw_init_simple_dai_link(dev, *dai_links, be_id, name,
 					    1, 1, cpu_dai_name, "dummy",
@@ -1218,7 +1247,7 @@ static int sof_card_dai_links_create(struct snd_soc_card *card)
 		mach_params->dmic_num = DMIC_DEFAULT_CHANNELS;
 	}
 
-	if (sof_sdw_quirk & SOF_SSP_BT_OFFLOAD_PRESENT)
+	if (sof_sdw_quirk & SOF_SSP_BT_OFFLOAD_PRESENT || mach_params->bt_link_mask)
 		bt_num = 1;
 
 	dev_dbg(dev, "DAI link numbers: sdw %d, ssp %d, dmic %d, hdmi %d, bt: %d\n",
@@ -1273,7 +1302,7 @@ static int sof_card_dai_links_create(struct snd_soc_card *card)
 		goto err_end;
 
 	/* BT */
-	if (sof_sdw_quirk & SOF_SSP_BT_OFFLOAD_PRESENT) {
+	if (bt_num) {
 		ret = create_bt_dailinks(card, &dai_links, &be_id);
 		if (ret)
 			goto err_end;

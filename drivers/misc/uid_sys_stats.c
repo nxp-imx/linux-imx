@@ -28,6 +28,8 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/spinlock_types.h>
+#include <linux/pm_qos.h>
+#include <trace/hooks/power.h>
 
 #define UID_HASH_BITS	10
 #define UID_HASH_NUMS	(1 << UID_HASH_BITS)
@@ -45,6 +47,18 @@ spinlock_t uid_lock[UID_HASH_NUMS];
 #define for_each_uid_entry_safe(uid_entry, tmp, bkt) \
 	hlist_for_each_entry_safe(uid_entry, tmp,\
 			&hash_table[bkt], hash)
+
+#define UPDATE_ANDROID_OEM_DATA(target, source, task, type) \
+	trace_android_vh_update_uid_stats(target, source, task, type)
+
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+#define OEM_DATA(x) ((x)->android_oem_data1)
+#define OEM_DATA_PTR(x) (&(x)->android_oem_data1)
+#else
+static inline u64 *oem_data_ptr(void *x) { return NULL; }
+#define OEM_DATA(x) 0
+#define OEM_DATA_PTR(x) oem_data_ptr(x)
+#endif
 
 static struct proc_dir_entry *cpu_parent;
 static struct proc_dir_entry *io_parent;
@@ -80,6 +94,8 @@ struct uid_entry {
 	int state;
 	struct io_stats io[UID_STATE_SIZE];
 	struct hlist_node hash;
+
+	ANDROID_OEM_DATA(1);
 };
 
 static void init_hash_table_and_lock(void)
@@ -193,7 +209,7 @@ static struct uid_entry *find_or_register_uid(uid_t uid)
 }
 
 static void calc_uid_cputime(struct uid_entry *uid_entry,
-			u64 *total_utime, u64 *total_stime)
+			u64 *total_utime, u64 *total_stime, u64 *android_oem_data)
 {
 	struct user_namespace *user_ns = current_user_ns();
 	struct task_struct *p, *t;
@@ -210,6 +226,7 @@ static void calc_uid_cputime(struct uid_entry *uid_entry,
 		for_each_thread(p, t) {
 			/* avoid double accounting of dying threads */
 			if (!(t->flags & PF_EXITING)) {
+				UPDATE_ANDROID_OEM_DATA(android_oem_data, NULL, t, 3);
 				task_cputime_adjusted(t, &utime, &stime);
 				*total_utime += utime;
 				*total_stime += stime;
@@ -229,10 +246,14 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 		for_each_uid_entry(uid_entry, bkt) {
 			u64 total_utime = uid_entry->utime;
 			u64 total_stime = uid_entry->stime;
+			u64 android_oem_data = OEM_DATA(uid_entry);
 
-			calc_uid_cputime(uid_entry, &total_utime, &total_stime);
+			calc_uid_cputime(uid_entry, &total_utime,
+				&total_stime, &android_oem_data);
 			seq_printf(m, "%d: %llu %llu\n", uid_entry->uid,
 				ktime_to_us(total_utime), ktime_to_us(total_stime));
+			trace_android_vh_append_total_power(m, uid_entry->uid,
+				total_utime, total_stime, android_oem_data);
 		}
 		unlock_uid_by_bkt(bkt);
 	}
@@ -463,6 +484,8 @@ struct update_stats_work {
 	u64 utime;
 	u64 stime;
 	struct llist_node node;
+
+	ANDROID_OEM_DATA(1);
 };
 
 static LLIST_HEAD(work_usw);
@@ -483,6 +506,8 @@ static void update_stats_workfn(struct work_struct *work)
 
 		uid_entry->utime += usw->utime;
 		uid_entry->stime += usw->stime;
+		UPDATE_ANDROID_OEM_DATA(OEM_DATA_PTR(uid_entry),
+					OEM_DATA_PTR(usw), NULL, 0);
 
 		__add_uid_io_stats(uid_entry, &usw->ioac, UID_STATE_DEAD_TASKS);
 next:
@@ -517,6 +542,10 @@ static int process_notifier(struct notifier_block *self,
 			 */
 			usw->ioac = task->ioac;
 			task_cputime_adjusted(task, &usw->utime, &usw->stime);
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+			usw->android_oem_data1 = 0;
+#endif
+			UPDATE_ANDROID_OEM_DATA(NULL, OEM_DATA_PTR(usw), task, 1);
 			llist_add(&usw->node, &work_usw);
 			schedule_work(&update_stats_work);
 		}
@@ -532,6 +561,7 @@ static int process_notifier(struct notifier_block *self,
 	task_cputime_adjusted(task, &utime, &stime);
 	uid_entry->utime += utime;
 	uid_entry->stime += stime;
+	UPDATE_ANDROID_OEM_DATA(OEM_DATA_PTR(uid_entry), NULL, task, 2);
 
 	add_uid_io_stats(uid_entry, task, UID_STATE_DEAD_TASKS);
 

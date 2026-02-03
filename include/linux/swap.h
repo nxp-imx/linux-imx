@@ -215,7 +215,9 @@ enum {
 	SWP_AREA_DISCARD = (1 << 9),	/* single-time swap area discards */
 	SWP_PAGE_DISCARD = (1 << 10),	/* freed swap page-cluster discards */
 	SWP_STABLE_WRITES = (1 << 11),	/* no overwrite PG_writeback pages */
-	SWP_SYNCHRONOUS_IO = (1 << 12),	/* synchronous IO is efficient */
+	__SWP_READ_SYNCHRONOUS_IO = (1 << 12),	/* synchronous read IO is efficient */
+	__SWP_WRITE_SYNCHRONOUS_IO = (1 << 13),	/* synchronous write IO is efficient */
+	SWP_SYNCHRONOUS_IO = (__SWP_READ_SYNCHRONOUS_IO | __SWP_WRITE_SYNCHRONOUS_IO),
 					/* add others here before... */
 };
 
@@ -442,6 +444,7 @@ static inline unsigned long total_swapcache_pages(void)
 	return global_node_page_state(NR_SWAPCACHE);
 }
 
+void swap_cache_del_folio(struct folio *folio);
 void free_swap_cache(struct folio *folio);
 void free_folio_and_swap_cache(struct folio *folio);
 void free_pages_and_swap_cache(struct encoded_page **, int);

@@ -1601,7 +1601,14 @@ static void remote_partition_disable(struct cpuset *cs, struct tmpmasks *tmp)
 	bool isolcpus_updated;
 
 	WARN_ON_ONCE(!is_remote_partition(cs));
-	WARN_ON_ONCE(!cpumask_subset(cs->effective_xcpus, subpartitions_cpus));
+	/*
+	 * When a CPU is offlined, top_cpuset may end up with no available CPUs,
+	 * which should clear subpartitions_cpus. We should not emit a warning for this
+	 * scenario: the hierarchy is updated from top to bottom, so subpartitions_cpus
+	 * may already be cleared when disabling the partition.
+	 */
+	WARN_ON_ONCE(!cpumask_subset(cs->effective_xcpus, subpartitions_cpus) &&
+		     !cpumask_empty(subpartitions_cpus));
 
 	spin_lock_irq(&callback_lock);
 	list_del_init(&cs->remote_sibling);
@@ -3928,8 +3935,9 @@ retry:
 	if (remote || (is_partition_valid(cs) && is_partition_valid(parent)))
 		compute_partition_effective_cpumask(cs, &new_cpus);
 
-	if (remote && cpumask_empty(&new_cpus) &&
-	    partition_is_populated(cs, NULL)) {
+	if (remote && (cpumask_empty(subpartitions_cpus) ||
+			(cpumask_empty(&new_cpus) &&
+			 partition_is_populated(cs, NULL)))) {
 		cs->prs_err = PERR_HOTPLUG;
 		remote_partition_disable(cs, tmp);
 		compute_effective_cpumask(&new_cpus, cs, parent);
@@ -3942,9 +3950,12 @@ retry:
 	 * 1) empty effective cpus but not valid empty partition.
 	 * 2) parent is invalid or doesn't grant any cpus to child
 	 *    partitions.
+	 * 3) subpartitions_cpus is empty.
 	 */
-	if (is_local_partition(cs) && (!is_partition_valid(parent) ||
-				tasks_nocpu_error(parent, cs, &new_cpus)))
+	if (is_local_partition(cs) &&
+	    (!is_partition_valid(parent) ||
+	     tasks_nocpu_error(parent, cs, &new_cpus) ||
+	     cpumask_empty(subpartitions_cpus)))
 		partcmd = partcmd_invalidate;
 	/*
 	 * On the other hand, an invalid partition root may be transitioned
@@ -4176,6 +4187,7 @@ void cpuset_cpus_allowed(struct task_struct *tsk, struct cpumask *pmask)
 
 	spin_unlock_irqrestore(&callback_lock, flags);
 }
+EXPORT_SYMBOL_GPL(cpuset_cpus_allowed);
 
 /**
  * cpuset_cpus_allowed_fallback - final fallback before complete catastrophe.

@@ -9,6 +9,8 @@
 #include <asm/memory.h>
 #include <asm/percpu.h>
 
+#include <nvhe/trace.h>
+
 DEFINE_PER_CPU(unsigned long [OVERFLOW_STACK_SIZE/sizeof(long)], overflow_stack)
 	__aligned(16);
 
@@ -82,6 +84,8 @@ static void notrace unwind(struct unwind_state *state,
 	}
 }
 
+extern void __hyp_ftrace_ret_tramp(void);
+
 /*
  * pkvm_save_backtrace_entry - Saves a protected nVHE HYP stacktrace entry
  *
@@ -103,6 +107,14 @@ static bool pkvm_save_backtrace_entry(void *arg, unsigned long where)
 	if (*idx > ARRAY_SIZE(pkvm_stacktrace) - 2)
 		return false;
 
+#ifdef CONFIG_PKVM_FTRACE
+	if (where == (unsigned long)__hyp_ftrace_ret_tramp) {
+		unsigned long ret = hyp_ftrace_ret_pop();
+
+		if (ret != ULONG_MAX)
+			where = ret;
+	}
+#endif
 	stacktrace[*idx] = where;
 	stacktrace[++*idx] = 0UL;
 

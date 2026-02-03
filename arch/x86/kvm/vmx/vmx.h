@@ -5,6 +5,7 @@
 #include <linux/kvm_host.h>
 
 #include <asm/kvm.h>
+#include <asm/kvm_pkvm.h>
 #include <asm/intel_pt.h>
 #include <asm/perf_event.h>
 #include <asm/posted_intr.h>
@@ -534,6 +535,7 @@ static inline u8 vmx_get_rvi(void)
 	 CPU_BASED_RDPMC_EXITING |					\
 	 CPU_BASED_INTR_WINDOW_EXITING)
 
+#ifndef __PKVM_HYP__
 #ifdef CONFIG_X86_64
 	#define KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL		\
 		(__KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL |		\
@@ -543,10 +545,14 @@ static inline u8 vmx_get_rvi(void)
 	#define KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL		\
 		__KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL
 #endif
+#else /* !__PKVM_HYP__ */
+#define KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL			\
+	(__KVM_REQUIRED_VMX_CPU_BASED_VM_EXEC_CONTROL |			\
+	 CPU_BASED_TPR_SHADOW)
+#endif /* !__PKVM_HYP__ */
 
-#define KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL			\
+#define __KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL			\
 	(CPU_BASED_RDTSC_EXITING |					\
-	 CPU_BASED_TPR_SHADOW |						\
 	 CPU_BASED_USE_IO_BITMAPS |					\
 	 CPU_BASED_MONITOR_TRAP_FLAG |					\
 	 CPU_BASED_USE_MSR_BITMAPS |					\
@@ -555,14 +561,26 @@ static inline u8 vmx_get_rvi(void)
 	 CPU_BASED_ACTIVATE_SECONDARY_CONTROLS |			\
 	 CPU_BASED_ACTIVATE_TERTIARY_CONTROLS)
 
+#ifndef __PKVM_HYP__
+#define KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL			\
+	(__KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL |			\
+	 CPU_BASED_TPR_SHADOW)
+
 #define KVM_REQUIRED_VMX_SECONDARY_VM_EXEC_CONTROL 0
-#define KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL			\
+#else /* !__PKVM_HYP__ */
+#define KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL			\
+	__KVM_OPTIONAL_VMX_CPU_BASED_VM_EXEC_CONTROL
+
+#define KVM_REQUIRED_VMX_SECONDARY_VM_EXEC_CONTROL			\
+	 (SECONDARY_EXEC_ENABLE_EPT |					\
+	  SECONDARY_EXEC_UNRESTRICTED_GUEST)
+#endif /* !__PKVM_HYP__ */
+
+#define __KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL			\
 	(SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |			\
 	 SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE |			\
 	 SECONDARY_EXEC_WBINVD_EXITING |				\
 	 SECONDARY_EXEC_ENABLE_VPID |					\
-	 SECONDARY_EXEC_ENABLE_EPT |					\
-	 SECONDARY_EXEC_UNRESTRICTED_GUEST |				\
 	 SECONDARY_EXEC_PAUSE_LOOP_EXITING |				\
 	 SECONDARY_EXEC_DESC |						\
 	 SECONDARY_EXEC_ENABLE_RDTSCP |					\
@@ -584,9 +602,37 @@ static inline u8 vmx_get_rvi(void)
 	 SECONDARY_EXEC_ENCLS_EXITING |					\
 	 SECONDARY_EXEC_EPT_VIOLATION_VE)
 
+#ifndef __PKVM_HYP__
+#define KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL			\
+	(__KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL |			\
+	 SECONDARY_EXEC_ENABLE_EPT |					\
+	 SECONDARY_EXEC_UNRESTRICTED_GUEST)
+#else /* !__PKVM_HYP__ */
+#define KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL			\
+	__KVM_OPTIONAL_VMX_SECONDARY_VM_EXEC_CONTROL
+#endif /* !__PKVM_HYP__ */
+
 #define KVM_REQUIRED_VMX_TERTIARY_VM_EXEC_CONTROL 0
 #define KVM_OPTIONAL_VMX_TERTIARY_VM_EXEC_CONTROL			\
 	(TERTIARY_EXEC_IPI_VIRT)
+
+struct vmcs_config_setting {
+	u32 cpu_based_vm_exec_ctrl_req;
+	u32 cpu_based_vm_exec_ctrl_opt;
+	u32 secondary_vm_exec_ctrl_req;
+	u32 secondary_vm_exec_ctrl_opt;
+	u64 tertiary_vm_exec_ctrl_opt;
+	u32 pin_based_vm_exec_ctrl_req;
+	u32 pin_based_vm_exec_ctrl_opt;
+	u32 vmexit_ctrl_req;
+	u32 vmexit_ctrl_opt;
+	u32 vmentry_ctrl_req;
+	u32 vmentry_ctrl_opt;
+};
+
+int setup_vmcs_config_common(struct vmcs_config *vmcs_conf,
+			     struct vmx_capability *vmx_cap,
+			     struct vmcs_config_setting *setting);
 
 #define BUILD_CONTROLS_SHADOW(lname, uname, bits)						\
 static inline void lname##_controls_set(struct vcpu_vmx *vmx, u##bits val)			\
@@ -741,5 +787,39 @@ static inline void vmx_segment_cache_clear(struct vcpu_vmx *vmx)
 
 int vmx_init(void);
 void vmx_exit(void);
+int kvm_cpu_vmxon(u64 vmxon_pointer);
+int kvm_cpu_vmxoff(void);
+void vmx_clear_hlt(struct kvm_vcpu *vcpu);
+
+#ifdef CONFIG_PKVM_INTEL
+
+#define PKVM_HOST_KVM_VMX_PAGES		(PAGE_ALIGN(sizeof(struct kvm_vmx)) >> PAGE_SHIFT)
+#define PKVM_HOST_VCPU_VMX_PAGES	(PAGE_ALIGN(sizeof(struct vcpu_vmx)) >> PAGE_SHIFT)
+#define PKVM_VMX_PAGES			3 /* vmxarea+vmcs+msr_bitmap */
+
+static inline unsigned long pkvm_vmx_data_pages(void)
+{
+	return pkvm_data_pages(PKVM_HOST_KVM_VMX_PAGES,
+			       PKVM_HOST_VCPU_VMX_PAGES + PKVM_VMX_PAGES);
+}
+
+int __init vmx_pkvm_init(void);
+PKVM_DECLARE(void, pkvm_host_vmexit_entry, (void));
+PKVM_DECLARE(void, pkvm_vmx_register_excp_handlers, (void));
+extern struct vmx_capability pkvm_sym(vmx_capability);
+extern struct vmcs_config pkvm_sym(host_vmcs_config);
+extern struct pkvm_init_ops *pkvm_sym(pkvm_vmx_init_ops);
+
+#ifdef __PKVM_HYP__
+int pkvm_vmx_init(void);
+#endif
+
+bool pkvm_interrupt_blocked(struct kvm_vcpu *vcpu);
+
+#else
+
+static inline bool pkvm_interrupt_blocked(struct kvm_vcpu *vcpu) { return false; }
+
+#endif /* CONFIG_PKVM_INTEL */
 
 #endif /* __KVM_X86_VMX_H */

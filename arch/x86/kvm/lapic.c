@@ -47,6 +47,8 @@
 #include "hyperv.h"
 #include "smm.h"
 
+#ifndef __PKVM_HYP__
+
 #ifndef CONFIG_X86_64
 #define mod_64(x, y) ((x) - (y) * div64_u64(x, y))
 #else
@@ -533,17 +535,14 @@ static inline int apic_lvt_nmi_mode(u32 lvt_val)
 {
 	return (lvt_val & (APIC_MODE_MASK | APIC_LVT_MASKED)) == APIC_DM_NMI;
 }
+#endif /* !__PKVM_HYP__ */
 
 static inline bool kvm_lapic_lvt_supported(struct kvm_lapic *apic, int lvt_index)
 {
 	return apic->nr_lvt_entries > lvt_index;
 }
 
-static inline int kvm_apic_calc_nr_lvt_entries(struct kvm_vcpu *vcpu)
-{
-	return KVM_APIC_MAX_NR_LVT_ENTRIES - !(vcpu->arch.mcg_cap & MCG_CMCI_P);
-}
-
+#ifndef __PKVM_HYP__
 void kvm_apic_set_version(struct kvm_vcpu *vcpu)
 {
 	struct kvm_lapic *apic = vcpu->arch.apic;
@@ -566,26 +565,34 @@ void kvm_apic_set_version(struct kvm_vcpu *vcpu)
 		v |= APIC_LVR_DIRECTED_EOI;
 	kvm_lapic_set_reg(apic, APIC_LVR, v);
 }
+#endif /* !__PKVM_HYP__ */
 
 void kvm_apic_after_set_mcg_cap(struct kvm_vcpu *vcpu)
 {
 	int nr_lvt_entries = kvm_apic_calc_nr_lvt_entries(vcpu);
 	struct kvm_lapic *apic = vcpu->arch.apic;
+#ifndef __PKVM_HYP__
 	int i;
+#endif
 
 	if (!lapic_in_kernel(vcpu) || nr_lvt_entries == apic->nr_lvt_entries)
 		return;
 
+#ifndef __PKVM_HYP__
 	/* Initialize/mask any "new" LVT entries. */
 	for (i = apic->nr_lvt_entries; i < nr_lvt_entries; i++)
 		kvm_lapic_set_reg(apic, APIC_LVTx(i), APIC_LVT_MASKED);
+#endif
 
 	apic->nr_lvt_entries = nr_lvt_entries;
 
+#ifndef __PKVM_HYP__
 	/* The number of LVT entries is reflected in the version register. */
 	kvm_apic_set_version(vcpu);
+#endif
 }
 
+#ifndef __PKVM_HYP__
 static const unsigned int apic_lvt_mask[KVM_APIC_MAX_NR_LVT_ENTRIES] = {
 	[LVT_TIMER] = LVT_MASK,      /* timer mode mask added at runtime */
 	[LVT_THERMAL_MONITOR] = LVT_MASK | APIC_MODE_MASK,
@@ -1676,6 +1683,7 @@ static inline struct kvm_lapic *to_lapic(struct kvm_io_device *dev)
 {
 	return container_of(dev, struct kvm_lapic, dev);
 }
+#endif /* !__PKVM_HYP__ */
 
 #define APIC_REG_MASK(reg)	(1ull << ((reg) >> 4))
 #define APIC_REGS_MASK(first, count) \
@@ -1719,6 +1727,7 @@ u64 kvm_lapic_readable_reg_mask(struct kvm_lapic *apic)
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_lapic_readable_reg_mask);
 
+#ifndef __PKVM_HYP__
 static int kvm_lapic_reg_read(struct kvm_lapic *apic, u32 offset, int len,
 			      void *data)
 {
@@ -2131,15 +2140,33 @@ static void advance_periodic_target_expiration(struct kvm_lapic *apic)
 	ktime_t delta;
 
 	/*
-	 * Synchronize both deadlines to the same time source or
-	 * differences in the periods (caused by differences in the
-	 * underlying clocks or numerical approximation errors) will
-	 * cause the two to drift apart over time as the errors
-	 * accumulate.
+	 * Use kernel time as the time source for both the hrtimer deadline and
+	 * TSC-based deadline so that they stay synchronized.  Computing each
+	 * deadline independently will cause the two deadlines to drift apart
+	 * over time as differences in the periods accumulate, e.g. due to
+	 * differences in the underlying clocks or numerical approximation errors.
 	 */
 	apic->lapic_timer.target_expiration =
 		ktime_add_ns(apic->lapic_timer.target_expiration,
 				apic->lapic_timer.period);
+
+	/*
+	 * If the new expiration is in the past, e.g. because userspace stopped
+	 * running the VM for an extended duration, then force the expiration
+	 * to "now" and don't try to play catch-up with the missed events.  KVM
+	 * will only deliver a single interrupt regardless of how many events
+	 * are pending, i.e. restarting the timer with an expiration in the
+	 * past will do nothing more than waste host cycles, and can even lead
+	 * to a hard lockup in extreme cases.
+	 */
+	if (ktime_before(apic->lapic_timer.target_expiration, now))
+		apic->lapic_timer.target_expiration = now;
+
+	/*
+	 * Note, ensuring the expiration isn't in the past also prevents delta
+	 * from going negative, which could cause the TSC deadline to become
+	 * excessively large due to it an unsigned value.
+	 */
 	delta = ktime_sub(apic->lapic_timer.target_expiration, now);
 	apic->lapic_timer.tscdeadline = kvm_read_l1_tsc(apic->vcpu, tscl) +
 		nsec_to_cycles(apic->vcpu, delta);
@@ -2970,9 +2997,9 @@ static enum hrtimer_restart apic_timer_fn(struct hrtimer *data)
 
 	apic_timer_expired(apic, true);
 
-	if (lapic_is_periodic(apic)) {
+	if (lapic_is_periodic(apic) && !WARN_ON_ONCE(!apic->lapic_timer.period)) {
 		advance_periodic_target_expiration(apic);
-		hrtimer_add_expires_ns(&ktimer->timer, ktimer->period);
+		hrtimer_set_expires(&ktimer->timer, ktimer->target_expiration);
 		return HRTIMER_RESTART;
 	} else
 		return HRTIMER_NORESTART;
@@ -3512,3 +3539,4 @@ void kvm_lapic_exit(void)
 	static_key_deferred_flush(&apic_sw_disabled);
 	WARN_ON(static_branch_unlikely(&apic_sw_disabled.key));
 }
+#endif /* !__PKVM_HYP__ */

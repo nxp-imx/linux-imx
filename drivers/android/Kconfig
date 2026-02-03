@@ -11,6 +11,7 @@ config ANDROID_BINDER_IPC
 	bool "Android Binder IPC Driver"
 	depends on MMU
 	depends on NET
+	depends on EVENT_TRACING
 	default n
 	help
 	  Binder is used in Android for both communication between processes,
@@ -21,8 +22,8 @@ config ANDROID_BINDER_IPC
 	  between said processes.
 
 config ANDROID_BINDER_IPC_RUST
-	bool "Rust version of Android Binder IPC Driver"
-	depends on RUST && MMU && !ANDROID_BINDER_IPC
+	tristate "Rust version of Android Binder IPC Driver"
+	depends on RUST && MMU
 	help
 	  This enables the Rust implementation of the Binder driver.
 

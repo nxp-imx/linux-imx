@@ -75,6 +75,7 @@
 
 #include <linux/cacheflush.h>
 
+#include "binder_pick.h"
 #include "binder_netlink.h"
 #include "binder_internal.h"
 #include "binder_trace.h"
@@ -557,10 +558,12 @@ static void binder_inc_node_tmpref_ilocked(struct binder_node *node);
 static bool binder_has_work_ilocked(struct binder_thread *thread,
 				    bool do_proc_work)
 {
-	return thread->process_todo ||
+	bool has_work = thread->process_todo ||
 		thread->looper_need_return ||
 		(do_proc_work &&
-		 !binder_worklist_empty_ilocked(&thread->proc->todo));
+		!binder_worklist_empty_ilocked(&thread->proc->todo));
+	trace_android_vh_binder_has_special_work_ilocked(thread, do_proc_work, &has_work);
+	return has_work;
 }
 
 static bool binder_has_work(struct binder_thread *thread, bool do_proc_work)
@@ -719,7 +722,7 @@ static void binder_do_set_priority(struct binder_thread *thread,
 	bool has_cap_nice;
 	unsigned int policy = desired->sched_policy;
 
-	if (task->policy == policy && task->normal_prio == desired->prio) {
+	if (task->policy == policy && task->prio == desired->prio) {
 		spin_lock(&thread->prio_lock);
 		if (thread->prio_state == BINDER_PRIO_PENDING)
 			thread->prio_state = BINDER_PRIO_SET;
@@ -761,7 +764,7 @@ static void binder_do_set_priority(struct binder_thread *thread,
 			      task->pid, desired->prio,
 			      to_kernel_prio(policy, priority));
 
-	trace_binder_set_priority(task->tgid, task->pid, task->normal_prio,
+	trace_binder_set_priority(task->tgid, task->pid, task->prio,
 				  to_kernel_prio(policy, priority),
 				  desired->prio);
 
@@ -1350,6 +1353,7 @@ retry:
 		     "%d new ref %d desc %d for node %d\n",
 		      proc->pid, new_ref->data.debug_id, new_ref->data.desc,
 		      node->debug_id);
+	trace_android_vh_binder_new_ref(proc, new_ref->data.desc, new_ref->node->debug_id);
 	binder_node_unlock(node);
 	return new_ref;
 }
@@ -1526,6 +1530,7 @@ err_no_ref:
  */
 static void binder_free_ref(struct binder_ref *ref)
 {
+	trace_android_vh_binder_del_ref(ref->proc, ref->data.desc);
 	if (ref->node)
 		binder_free_node(ref->node);
 	kfree(ref->death);
@@ -3055,6 +3060,10 @@ static int binder_proc_transaction(struct binder_transaction *t,
 	if (!thread && !pending_async)
 		thread = binder_select_thread_ilocked(proc);
 
+	trace_android_vh_binder_proc_transaction(current, proc->tsk,
+		thread ? thread->task : NULL, node->debug_id, t,
+		pending_async);
+
 	if (thread) {
 		binder_transaction_priority(thread, t, node);
 		binder_enqueue_thread_work_ilocked(thread, &t->work);
@@ -3178,6 +3187,10 @@ static void binder_set_txn_from_error(struct binder_transaction *t, int id,
  * @t:		the binder transaction that failed
  * @data_size:	the user provided data size for the transaction
  * @error:	enum binder_driver_return_protocol returned to sender
+ *
+ * Note that t->buffer is not safe to access here, as it may have been
+ * released (or not yet allocated). Callers should guarantee all the
+ * transaction items used here are safe to access.
  */
 static void binder_netlink_report(struct binder_proc *proc,
 				  struct binder_transaction *t,
@@ -3367,6 +3380,7 @@ static void binder_transaction(struct binder_proc *proc,
 		target_proc = target_thread->proc;
 		target_proc->tmp_ref++;
 		binder_inner_proc_unlock(target_thread->proc);
+		trace_android_vh_binder_reply(target_proc, proc, thread, tr);
 	} else {
 		if (tr->target.handle) {
 			struct binder_ref *ref;
@@ -3427,6 +3441,7 @@ static void binder_transaction(struct binder_proc *proc,
 			return_error_line = __LINE__;
 			goto err_invalid_target_handle;
 		}
+		trace_android_vh_binder_trans(target_proc, proc, thread, tr);
 		if (security_binder_transaction(proc->cred,
 						target_proc->cred) < 0) {
 			binder_txn_error("%d:%d transaction credentials failed\n",
@@ -3534,7 +3549,7 @@ static void binder_transaction(struct binder_proc *proc,
 	    binder_supported_policy(current->policy)) {
 		/* Inherit supported policies for synchronous transactions */
 		t->priority.sched_policy = current->policy;
-		t->priority.prio = current->normal_prio;
+		t->priority.prio = current->prio;
 	} else {
 		/* Otherwise, fall back to the default priority */
 		t->priority = target_proc->default_priority;
@@ -3987,6 +4002,14 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_dead_proc_or_thread;
 		}
 	} else {
+		/*
+		 * Make a transaction copy. It is not safe to access 't' after
+		 * binder_proc_transaction() reported a pending frozen. The
+		 * target could thaw and consume the transaction at any point.
+		 * Instead, use a safe 't_copy' for binder_netlink_report().
+		 */
+		struct binder_transaction t_copy = *t;
+
 		BUG_ON(target_node == NULL);
 		BUG_ON(t->buffer->async_transaction != 1);
 		return_error = binder_proc_transaction(t, target_proc, NULL);
@@ -3997,7 +4020,7 @@ static void binder_transaction(struct binder_proc *proc,
 		 */
 		if (return_error == BR_TRANSACTION_PENDING_FROZEN) {
 			tcomplete->type = BINDER_WORK_TRANSACTION_PENDING;
-			binder_netlink_report(proc, t, tr->data_size,
+			binder_netlink_report(proc, &t_copy, tr->data_size,
 					      return_error);
 		}
 		binder_enqueue_thread_work(thread, tcomplete);
@@ -4574,6 +4597,7 @@ static int binder_thread_write(struct binder_proc *proc,
 			thread->looper |= BINDER_LOOPER_STATE_ENTERED;
 			break;
 		case BC_EXIT_LOOPER:
+			trace_android_vh_binder_looper_exited(thread, proc);
 			binder_debug(BINDER_DEBUG_THREADS,
 				     "%d:%d BC_EXIT_LOOPER\n",
 				     proc->pid, thread->pid);
@@ -4939,6 +4963,8 @@ static int binder_thread_read(struct binder_proc *proc,
 	void __user *end = buffer + size;
 
 	int ret = 0;
+	bool nothing_to_do = false;
+	bool force_spawn = false;
 	int wait_for_proc_work;
 
 	if (*consumed == 0) {
@@ -4991,12 +5017,20 @@ retry:
 		size_t trsize = sizeof(*trd);
 
 		binder_inner_proc_lock(proc);
+		trace_android_vh_binder_select_special_worklist(&list, thread,
+						proc, wait_for_proc_work, &nothing_to_do);
+		if (list)
+			goto skip;
+		else if (nothing_to_do)
+			goto no_work;
+
 		if (!binder_worklist_empty_ilocked(&thread->todo))
 			list = &thread->todo;
 		else if (!binder_worklist_empty_ilocked(&proc->todo) &&
 			   wait_for_proc_work)
 			list = &proc->todo;
 		else {
+no_work:
 			binder_inner_proc_unlock(proc);
 
 			/* no data added */
@@ -5004,11 +5038,12 @@ retry:
 				goto retry;
 			break;
 		}
-
+skip:
 		if (end - ptr < sizeof(tr) + 4) {
 			binder_inner_proc_unlock(proc);
 			break;
 		}
+		trace_android_vh_binder_thread_read(&list, proc, thread);
 		w = binder_dequeue_work_head_ilocked(list);
 		if (binder_worklist_empty_ilocked(&thread->todo))
 			thread->process_todo = false;
@@ -5354,11 +5389,13 @@ done:
 
 	*consumed = ptr - buffer;
 	binder_inner_proc_lock(proc);
-	if (proc->requested_threads == 0 &&
+	trace_android_vh_binder_spawn_new_thread(thread, proc, &force_spawn);
+
+	if (force_spawn || (proc->requested_threads == 0 &&
 	    list_empty(&thread->proc->waiting_threads) &&
 	    proc->requested_threads_started < proc->max_threads &&
 	    (thread->looper & (BINDER_LOOPER_STATE_REGISTERED |
-	     BINDER_LOOPER_STATE_ENTERED)) /* the user-space code fails to */
+	     BINDER_LOOPER_STATE_ENTERED)))/* the user-space code fails to */
 	     /*spawn a new thread if we leave this out */) {
 		proc->requested_threads++;
 		binder_inner_proc_unlock(proc);
@@ -6182,6 +6219,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		goto err;
 	}
 	ret = 0;
+	trace_android_vh_binder_ioctl_end(current, cmd, arg, thread, proc, &ret);
 err:
 	if (thread)
 		thread->looper_need_return = false;
@@ -6314,7 +6352,7 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	}
 	hlist_add_head(&proc->proc_node, &binder_procs);
 	mutex_unlock(&binder_procs_lock);
-
+	trace_android_vh_binder_preset(&binder_procs, &binder_procs_lock);
 	if (binder_debugfs_dir_entry_proc && !existing_pid) {
 		char strbuf[11];
 
@@ -7378,6 +7416,15 @@ err_alloc_device_names_failed:
 	binder_alloc_shrinker_exit();
 
 	return ret;
+}
+
+void binder_unload_builtin(void)
+{
+	genl_unregister_family(&binder_nl_family);
+	unload_binderfs();
+	debugfs_remove_recursive(binder_debugfs_dir_entry_root);
+	binder_alloc_shrinker_exit();
+	binder_remove_trace_events(THIS_MODULE);
 }
 
 device_initcall(binder_init);

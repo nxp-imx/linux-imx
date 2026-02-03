@@ -1106,6 +1106,7 @@ static void set_track_update(struct kmem_cache *s, void *object,
 	p->cpu = smp_processor_id();
 	p->pid = current->pid;
 	p->when = jiffies;
+	trace_android_vh_save_track_hash(alloc == TRACK_ALLOC, p);
 }
 
 static __always_inline void set_track(struct kmem_cache *s, void *object,
@@ -4152,11 +4153,39 @@ static void flush_rcu_sheaf(struct work_struct *w)
 
 
 /* needed for kvfree_rcu_barrier() */
-void flush_all_rcu_sheaves(void)
+void flush_rcu_sheaves_on_cache(struct kmem_cache *s)
 {
 	struct slub_flush_work *sfw;
-	struct kmem_cache *s;
 	unsigned int cpu;
+
+	mutex_lock(&flush_lock);
+
+	for_each_online_cpu(cpu) {
+		sfw = &per_cpu(slub_flush, cpu);
+
+		/*
+		 * we don't check if rcu_free sheaf exists - racing
+		 * __kfree_rcu_sheaf() might have just removed it.
+		 * by executing flush_rcu_sheaf() on the cpu we make
+		 * sure the __kfree_rcu_sheaf() finished its call_rcu()
+		 */
+
+		INIT_WORK(&sfw->work, flush_rcu_sheaf);
+		sfw->s = s;
+		queue_work_on(cpu, flushwq, &sfw->work);
+	}
+
+	for_each_online_cpu(cpu) {
+		sfw = &per_cpu(slub_flush, cpu);
+		flush_work(&sfw->work);
+	}
+
+	mutex_unlock(&flush_lock);
+}
+
+void flush_all_rcu_sheaves(void)
+{
+	struct kmem_cache *s;
 
 	cpus_read_lock();
 	mutex_lock(&slab_mutex);
@@ -4164,30 +4193,7 @@ void flush_all_rcu_sheaves(void)
 	list_for_each_entry(s, &slab_caches, list) {
 		if (!s->cpu_sheaves)
 			continue;
-
-		mutex_lock(&flush_lock);
-
-		for_each_online_cpu(cpu) {
-			sfw = &per_cpu(slub_flush, cpu);
-
-			/*
-			 * we don't check if rcu_free sheaf exists - racing
-			 * __kfree_rcu_sheaf() might have just removed it.
-			 * by executing flush_rcu_sheaf() on the cpu we make
-			 * sure the __kfree_rcu_sheaf() finished its call_rcu()
-			 */
-
-			INIT_WORK(&sfw->work, flush_rcu_sheaf);
-			sfw->s = s;
-			queue_work_on(cpu, flushwq, &sfw->work);
-		}
-
-		for_each_online_cpu(cpu) {
-			sfw = &per_cpu(slub_flush, cpu);
-			flush_work(&sfw->work);
-		}
-
-		mutex_unlock(&flush_lock);
+		flush_rcu_sheaves_on_cache(s);
 	}
 
 	mutex_unlock(&slab_mutex);
@@ -5320,6 +5326,8 @@ out:
 	 * object is set to NULL
 	 */
 	slab_post_alloc_hook(s, lru, gfpflags, 1, &object, init, orig_size);
+
+	trace_android_vh_slab_alloc_node(object, addr, s);
 
 	return object;
 }
@@ -6540,6 +6548,8 @@ static void defer_free(struct kmem_cache *s, void *head)
 
 	guard(preempt)();
 
+	head = kasan_reset_tag(head);
+
 	df = this_cpu_ptr(&defer_free_objects);
 	if (llist_add(head + s->offset, &df->objects))
 		irq_work_queue(&df->work);
@@ -6675,6 +6685,7 @@ void slab_free(struct kmem_cache *s, struct slab *slab, void *object,
 	memcg_slab_free_hook(s, slab, &object, 1);
 	alloc_tagging_slab_free_hook(s, slab, &object, 1);
 
+	trace_android_vh_slab_free(addr, s);
 	if (unlikely(!slab_free_hook(s, object, slab_want_init_on_free(s), false)))
 		return;
 
@@ -6709,6 +6720,9 @@ void slab_free_bulk(struct kmem_cache *s, struct slab *slab, void *head,
 	 */
 	if (likely(slab_free_freelist_hook(s, &head, &tail, &cnt)))
 		do_slab_free(s, slab, head, tail, cnt, addr);
+
+	trace_android_vh_slab_free(addr, s);
+
 }
 
 #ifdef CONFIG_SLUB_RCU_DEBUG

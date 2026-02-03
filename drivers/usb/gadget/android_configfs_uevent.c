@@ -151,13 +151,11 @@ int android_class_create(void)
 {
 	return class_register(&android_usb_class);
 }
-EXPORT_SYMBOL_GPL(android_class_create);
 
 void android_class_destroy(void)
 {
 	class_unregister(&android_usb_class);
 }
-EXPORT_SYMBOL_GPL(android_class_destroy);
 
 int android_device_create(struct android_uevent_opts *opts)
 {
@@ -191,7 +189,6 @@ int android_device_create(struct android_uevent_opts *opts)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(android_device_create);
 
 void android_device_destroy(struct android_uevent_opts *opts)
 {
@@ -226,7 +223,6 @@ void android_device_destroy(struct android_uevent_opts *opts)
 	device_destroy(dev->class, dev->devt);
 	spin_unlock_irqrestore(&opts_lock, flags);
 }
-EXPORT_SYMBOL_GPL(android_device_destroy);
 
 static void __android_set_connected(struct android_uevent_opts *opts,
 		bool connected)
@@ -260,69 +256,18 @@ void android_set_connected(struct android_uevent_opts *opts)
 {
 	__android_set_connected(opts, true);
 }
-EXPORT_SYMBOL_GPL(android_set_connected);
 
 void android_set_disconnected(struct android_uevent_opts *opts)
 {
 	__android_set_connected(opts, false);
 }
-EXPORT_SYMBOL_GPL(android_set_disconnected);
 
 void android_set_configured(struct android_uevent_opts *opts)
 {
 	__android_set_configured(opts, true);
 }
-EXPORT_SYMBOL_GPL(android_set_configured);
 
 void android_set_unconfigured(struct android_uevent_opts *opts)
 {
 	__android_set_configured(opts, false);
 }
-EXPORT_SYMBOL_GPL(android_set_unconfigured);
-
-struct device *android_create_function_device(char *name, void *drvdata,
-	       const struct attribute_group **groups)
-{
-	struct android_uevent_opts *opts;
-	struct device *dev;
-	unsigned long flags;
-	int id;
-
-	spin_lock_irqsave(&opts_lock, flags);
-	opts = android_opts;
-	if (IS_ERR_OR_NULL(opts) || IS_ERR_OR_NULL(opts->dev)) {
-		spin_unlock_irqrestore(&opts_lock, flags);
-		return ERR_PTR(-ENODEV);
-	}
-
-	id = ida_alloc(&opts->function_ida, GFP_ATOMIC);
-	if (id < 0) {
-		spin_unlock_irqrestore(&opts_lock, flags);
-		return ERR_PTR(id);
-	}
-	// device_create_with_groups can sleep, so we must unlock first
-	spin_unlock_irqrestore(&opts_lock, flags);
-	dev = device_create_with_groups(&android_usb_class, opts->dev,
-	       MKDEV(0, id), drvdata, groups, name);
-	return dev;
-}
-EXPORT_SYMBOL_GPL(android_create_function_device);
-
-void android_remove_function_device(struct device *dev)
-{
-	struct android_uevent_opts *opts;
-	unsigned long flags;
-
-	device_destroy(&android_usb_class, dev->devt);
-
-	spin_lock_irqsave(&opts_lock, flags);
-	opts = android_opts;
-	if (IS_ERR_OR_NULL(opts)) {
-		spin_unlock_irqrestore(&opts_lock, flags);
-		return;
-	}
-
-	ida_free(&opts->function_ida, MINOR(dev->devt));
-	spin_unlock_irqrestore(&opts_lock, flags);
-}
-EXPORT_SYMBOL_GPL(android_remove_function_device);

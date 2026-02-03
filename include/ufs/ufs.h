@@ -13,6 +13,7 @@
 
 #include <linux/bitops.h>
 #include <linux/types.h>
+#include <linux/android_vendor.h>
 #include <uapi/scsi/scsi_bsg_ufs.h>
 #include <linux/time64.h>
 
@@ -649,6 +650,7 @@ struct ufs_dev_info {
 	u32 rtc_update_period;
 
 	u8 rtt_cap; /* bDeviceRTTCap */
+	ANDROID_OEM_DATA(1);
 
 	bool hid_sup;
 };

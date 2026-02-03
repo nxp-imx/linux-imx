@@ -97,7 +97,7 @@ static int __pkvm_module_host_donate_hyp(u64 pfn, u64 nr_pages)
 	return ___pkvm_host_donate_hyp(pfn, nr_pages, true);
 }
 
-static void tracing_mod_hyp_printk(u8 fmt_id, u64 a, u64 b, u64 c, u64 d)
+static void tracing_mod_hyp_printk(u16 fmt_id, u64 a, u64 b, u64 c, u64 d)
 {
 #ifdef CONFIG_TRACING
 	struct trace_hyp_format___hyp_printk *entry;
@@ -125,6 +125,7 @@ enum mod_handler_type {
 	HOST_FAULT_HANDLER = 0,
 	HOST_SMC_HANDLER,
 	GUEST_SMC_HANDLER,
+	GUEST_ACCEPT_MODULE_OWNED_HANDLER,
 	NUM_MOD_HANDLER_TYPES,
 };
 
@@ -171,11 +172,17 @@ static int __register_host_smc_handler(bool (*cb)(struct user_pt_regs *))
 	return mod_handler_register(HOST_SMC_HANDLER, cb);
 }
 
-static int __register_guest_smc_handler(bool (*cb)(struct arm_smccc_1_2_regs *regs,
+static int __register_guest_smc_handler(enum pkvm_smc_handler_ret (*cb)(struct arm_smccc_1_2_regs *regs,
 						   struct arm_smccc_1_2_regs *res,
 						   pkvm_handle_t handle))
 {
 	return mod_handler_register(GUEST_SMC_HANDLER, cb);
+}
+
+static int __register_guest_accept_module_owned_handler(int (*cb)(u64 phys, u64 ipa, u64 size,
+								  pkvm_handle_t handle))
+{
+	return mod_handler_register(GUEST_ACCEPT_MODULE_OWNED_HANDLER, cb);
 }
 
 bool module_handle_host_perm_fault(struct user_pt_regs *regs, u64 esr, u64 addr)
@@ -204,19 +211,22 @@ bool module_handle_host_smc(struct user_pt_regs *regs)
 	return false;
 }
 
-bool module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
-			     pkvm_handle_t handle)
+enum pkvm_smc_handler_ret
+module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
+			pkvm_handle_t handle)
 {
-	bool (*cb)(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
+	enum pkvm_smc_handler_ret (*cb)(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
 		   pkvm_handle_t handle);
+	enum pkvm_smc_handler_ret ret;
 	int i;
 
 	for_each_mod_handler(GUEST_SMC_HANDLER, cb, i) {
-		if (cb(regs, res, handle))
-			return true;
+		ret = cb(regs, res, handle);
+		if (ret != GUEST_SMC_NOT_HANDLED)
+			return ret;
 	}
 
-	return false;
+	return GUEST_SMC_NOT_HANDLED;
 }
 
 static int __hyp_smp_processor_id(void)
@@ -260,6 +270,19 @@ u64 module_get_guest_trng_rng(u64 *entropy, int nbits)
 	return ops->trng_rnd64(entropy, nbits);
 }
 
+int module_guest_accept_module_owned_share(u64 phys, u64 ipa, u64 size, struct pkvm_hyp_vm *vm)
+{
+	int (*cb)(u64 phys, u64 ipa, u64 size, pkvm_handle_t handle);
+	int i;
+
+	for_each_mod_handler(GUEST_ACCEPT_MODULE_OWNED_HANDLER, cb, i) {
+		if (!cb(phys, ipa, size, vm->kvm.arch.pkvm.handle))
+			return 0;
+	}
+
+	return -EPERM;
+}
+
 const struct pkvm_module_ops module_ops = {
 	.create_private_mapping = __pkvm_create_private_mapping,
 	.alloc_module_va = __pkvm_alloc_module_va,
@@ -289,6 +312,7 @@ const struct pkvm_module_ops module_ops = {
 	.register_hyp_panic_notifier = __pkvm_register_hyp_panic_notifier,
 	.register_unmask_serror = __pkvm_register_unmask_serror,
 	.host_donate_hyp = __pkvm_module_host_donate_hyp,
+	.host_donate_sglist_hyp = __pkvm_host_donate_sglist_hyp,
 	.hyp_donate_host = __pkvm_hyp_donate_host,
 	.host_share_hyp = __pkvm_host_share_hyp,
 	.host_unshare_hyp = __pkvm_host_unshare_hyp,
@@ -296,9 +320,6 @@ const struct pkvm_module_ops module_ops = {
 	.unpin_shared_mem = hyp_unpin_shared_mem,
 	.memcpy = __pkvm_module_memcpy,
 	.memset = __pkvm_module_memset,
-	.hyp_pa = hyp_virt_to_phys,
-	.hyp_va = hyp_phys_to_virt,
-	.kern_hyp_va = __kern_hyp_va,
 	.tracing_reserve_entry = tracing_reserve_entry,
 	.tracing_commit_entry = tracing_commit_entry,
 	.tracing_mod_hyp_printk = tracing_mod_hyp_printk,
@@ -322,6 +343,8 @@ const struct pkvm_module_ops module_ops = {
 	.device_register_reset = pkvm_device_register_reset,
 	.iommu_register_pviommu_drv = kvm_iommu_register_pviommu_drv,
 	.register_guest_trng_ops = __register_guest_trng_ops,
+	.guest_accept_module_prot_page = __pkvm_accept_module_prot_page,
+	.register_guest_accept_module_owned_handler = __register_guest_accept_module_owned_handler,
 };
 
 static void *pkvm_module_hyp_va(struct pkvm_el2_module *mod, void *kern_va)

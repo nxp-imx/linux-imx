@@ -241,7 +241,8 @@ void vmx_vcpu_pi_put(struct kvm_vcpu *vcpu)
 	 */
 	if (!vcpu->preempted && kvm_vcpu_is_blocking(vcpu) &&
 	    ((is_td_vcpu(vcpu) && tdx_interrupt_allowed(vcpu)) ||
-	     (!is_td_vcpu(vcpu) && !vmx_interrupt_blocked(vcpu))))
+	     (!enable_pkvm && !is_td_vcpu(vcpu) && !vmx_interrupt_blocked(vcpu)) ||
+	     (enable_pkvm && !pkvm_interrupt_blocked(vcpu))))
 		pi_enable_wakeup_handler(vcpu);
 	else
 		pi_set_sn(pi_desc);

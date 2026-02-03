@@ -51,6 +51,12 @@ static const struct special_entry entries[] = {
 		.orig = EX_ORIG_OFFSET,
 		.new = EX_NEW_OFFSET,
 	},
+	{
+		.sec = ".pkvm__ex_table",
+		.size = EX_ENTRY_SIZE,
+		.orig = EX_ORIG_OFFSET,
+		.new = EX_NEW_OFFSET,
+	},
 	{},
 };
 

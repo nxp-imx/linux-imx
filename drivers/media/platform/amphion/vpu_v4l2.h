@@ -40,13 +40,4 @@ static inline struct vpu_format *vpu_get_format(struct vpu_inst *inst, u32 type)
 		return &inst->cap_format;
 }
 
-static inline int vpu_vb_is_codecconfig(struct vb2_v4l2_buffer *vbuf)
-{
-	struct vpu_inst *inst = vb2_get_drv_priv(vbuf->vb2_buf.vb2_queue);
-
-	if (inst->header_separate)
-		return (vbuf->flags & V4L2_BUF_FLAG_HEADERS_ONLY) ? 1 : 0;
-	return 0;
-}
-
 #endif

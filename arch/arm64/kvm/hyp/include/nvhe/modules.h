@@ -23,10 +23,13 @@ int handle_host_dynamic_hcall(struct user_pt_regs *regs, int id);
 void __pkvm_close_module_registration(void);
 bool module_handle_host_perm_fault(struct user_pt_regs *regs, u64 esr, u64 addr);
 bool module_handle_host_smc(struct user_pt_regs *regs);
-bool module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
-			     pkvm_handle_t handle);
+enum pkvm_smc_handler_ret
+module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
+			pkvm_handle_t handle);
 const uuid_t *module_get_guest_trng_uuid(void);
 u64 module_get_guest_trng_rng(u64 *entropy, int nbits);
+
+int module_guest_accept_module_owned_share(u64 phys, u64 ipa, u64 size, struct pkvm_hyp_vm *vm);
 #else
 static inline int __pkvm_init_module(void *module_init) { return -EOPNOTSUPP; }
 static inline int
@@ -39,9 +42,15 @@ handle_host_dynamic_hcall(struct kvm_cpu_context *host_ctxt, int id)
 static inline void __pkvm_close_module_registration(void) { }
 bool module_handle_host_perm_fault(struct user_pt_regs *regs, u64 esr, u64 addr) { return false; }
 bool module_handle_host_smc(struct user_pt_regs *regs) { return false; }
-bool module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
-			     pkvm_handle_t handle)
+enum pkvm_smc_handler_ret
+module_handle_guest_smc(struct arm_smccc_1_2_regs *regs, struct arm_smccc_1_2_regs *res,
+			pkvm_handle_t handle)
 {
 	return false;
+}
+
+static inline int module_guest_accept_module_owned_share(u64 phys, u64 ipa, u64 size, struct pkvm_hyp_vm *vm)
+{
+	return -EPERM;
 }
 #endif

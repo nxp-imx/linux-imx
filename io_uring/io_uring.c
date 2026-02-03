@@ -2551,6 +2551,9 @@ static enum hrtimer_restart io_cqring_min_timer_wakeup(struct hrtimer *timer)
 			goto out_wake;
 	}
 
+	/* any generated CQE posted past this time should wake us up */
+	iowq->cq_tail = iowq->cq_min_tail;
+
 	hrtimer_update_function(&iowq->t, io_cqring_timer_wakeup);
 	hrtimer_set_expires(timer, iowq->timeout);
 	return HRTIMER_RESTART;
@@ -3014,12 +3017,12 @@ static __cold void io_ring_exit_work(struct work_struct *work)
 			mutex_unlock(&ctx->uring_lock);
 		}
 
-		if (ctx->flags & IORING_SETUP_DEFER_TASKRUN)
-			io_move_task_work_from_local(ctx);
-
 		/* The SQPOLL thread never reaches this path */
-		while (io_uring_try_cancel_requests(ctx, NULL, true, false))
+		do {
+			if (ctx->flags & IORING_SETUP_DEFER_TASKRUN)
+				io_move_task_work_from_local(ctx);
 			cond_resched();
+		} while (io_uring_try_cancel_requests(ctx, NULL, true, false));
 
 		if (ctx->sq_data) {
 			struct io_sq_data *sqd = ctx->sq_data;
@@ -3949,7 +3952,7 @@ static inline int io_uring_allowed(void)
 		return -EPERM;
 
 	if (disabled == 0 || capable(CAP_SYS_ADMIN))
-		return 0;
+		goto allowed_lsm;
 
 	io_uring_group = make_kgid(&init_user_ns, sysctl_io_uring_group);
 	if (!gid_valid(io_uring_group))
@@ -3958,7 +3961,8 @@ static inline int io_uring_allowed(void)
 	if (!in_group_p(io_uring_group))
 		return -EPERM;
 
-	return 0;
+allowed_lsm:
+	return security_uring_allowed();
 }
 
 SYSCALL_DEFINE2(io_uring_setup, u32, entries,

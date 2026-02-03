@@ -297,6 +297,23 @@ rwsem_owner_flags(struct rw_semaphore *sem, unsigned long *pflags)
 }
 
 /*
+ * Return the task struct pointer of the owner if it's a writer,
+ * NULL otherwise.
+ */
+struct task_struct *rwsem_writer_owner(struct rw_semaphore *sem)
+{
+	struct task_struct *owner;
+	long count, flags;
+
+	count = atomic_long_read(&sem->count);
+	owner = rwsem_owner_flags(sem, &flags);
+	if (!(count & RWSEM_WRITER_MASK) || (flags & (RWSEM_READER_OWNED |
+	    RWSEM_NONSPINNABLE)))
+		return NULL;
+	return owner;
+}
+
+/*
  * Guide to the rw_semaphore's count field.
  *
  * When the RWSEM_WRITER_LOCKED bit in count is set, the lock is owned
@@ -422,17 +439,43 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 			    enum rwsem_wake_type wake_type,
 			    struct wake_q_head *wake_q)
 {
-	struct rwsem_waiter *waiter, *tmp;
+	struct rwsem_waiter *w, *waiter, *tmp;
 	long oldcount, woken = 0, adjustment = 0;
+	struct task_struct *_donor, *donor;
 	struct list_head wlist;
 
 	lockdep_assert_held(&sem->wait_lock);
+
+	waiter = NULL;
+	donor = NULL;
+	/* Try to wake up our donor */
+	if (sched_proxy_exec()) {
+		raw_spin_lock(&current->blocked_lock);
+		_donor = current->blocked_donor;
+		if (_donor) {
+			raw_spin_lock_nested(&_donor->blocked_lock,
+			    SINGLE_DEPTH_NESTING);
+			if (__get_task_blocked_on(_donor) == sem) {
+				list_for_each_entry(w, &sem->wait_list, list) {
+					if (w->task == _donor) {
+						donor = _donor;
+						waiter = w;
+						break;
+					}
+				}
+				WARN_ON_ONCE(waiter == NULL);
+			}
+			raw_spin_unlock(&_donor->blocked_lock);
+		}
+		raw_spin_unlock(&current->blocked_lock);
+	}
 
 	/*
 	 * Take a peek at the queue head waiter such that we can determine
 	 * the wakeup(s) to perform.
 	 */
-	waiter = rwsem_first_waiter(sem);
+	if (waiter == NULL)
+		waiter = rwsem_first_waiter(sem);
 
 	if (waiter->type == RWSEM_WAITING_FOR_WRITE) {
 		if (wake_type == RWSEM_WAKE_ANY) {
@@ -443,6 +486,16 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 			 * Readers, on the other hand, will block as they
 			 * will notice the queued writer.
 			 */
+			raw_spin_lock(&waiter->task->blocked_lock);
+			/*
+			 * We also get here if sem was reader owned and thus
+			 * waiter isn't blocked_on, but this function only sets
+			 * PROXY_WAKING if it is.
+			 */
+			__set_task_blocked_on_waking(waiter->task, sem);
+			if (waiter->task == donor)
+				current->blocked_donor = NULL;
+			raw_spin_unlock(&waiter->task->blocked_lock);
 			wake_q_add(wake_q, waiter->task);
 			lockevent_inc(rwsem_wake_writer);
 		}
@@ -574,6 +627,16 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 		 * after setting the reader waiter to nil.
 		 */
 		wake_q_add_safe(wake_q, tsk);
+		raw_spin_lock(&tsk->blocked_lock);
+		/*
+		 * We also get here if sem was reader owned and thus
+		 * waiter isn't blocked_on, but this function only sets
+		 * PROXY_WAKING if we are.
+		 */
+		__set_task_blocked_on_waking(tsk, sem);
+		if (tsk == donor)
+			current->blocked_donor = NULL;
+		raw_spin_unlock(&tsk->blocked_lock);
 	}
 }
 
@@ -734,6 +797,7 @@ static inline bool rwsem_can_spin_on_owner(struct rw_semaphore *sem)
 	if ((flags & RWSEM_NONSPINNABLE) ||
 	    (owner && !(flags & RWSEM_READER_OWNED) && !owner_on_cpu(owner)))
 		ret = false;
+	trace_android_vh_rwsem_can_spin_on_owner(sem, &ret);
 
 	lockevent_cond_inc(rwsem_opt_fail, !ret);
 	return ret;
@@ -757,6 +821,8 @@ rwsem_spin_on_owner(struct rw_semaphore *sem)
 	struct task_struct *new, *owner;
 	unsigned long flags, new_flags;
 	enum owner_state state;
+	int cnt = 0;
+	bool time_out = false;
 
 	lockdep_assert_preemption_disabled();
 
@@ -766,6 +832,9 @@ rwsem_spin_on_owner(struct rw_semaphore *sem)
 		return state;
 
 	for (;;) {
+		trace_android_vh_rwsem_opt_spin_start(sem, &time_out, &cnt, true);
+		if (time_out)
+			break;
 		/*
 		 * When a waiting writer set the handoff flag, it may spin
 		 * on the owner as well. Once that writer acquires the lock,
@@ -830,6 +899,8 @@ static bool rwsem_optimistic_spin(struct rw_semaphore *sem)
 	int prev_owner_state = OWNER_NULL;
 	int loop = 0;
 	u64 rspin_threshold = 0;
+	int cnt = 0;
+	bool time_out = false;
 
 	/* sem->wait_lock should not be held when doing optimistic spinning */
 	if (!osq_lock(&sem->osq))
@@ -844,6 +915,9 @@ static bool rwsem_optimistic_spin(struct rw_semaphore *sem)
 	for (;;) {
 		enum owner_state owner_state;
 
+		trace_android_vh_rwsem_opt_spin_start(sem, &time_out, &cnt, false);
+		if (time_out)
+			break;
 		owner_state = rwsem_spin_on_owner(sem);
 		if (owner_state == OWNER_NONSPINNABLE)
 			break;
@@ -937,6 +1011,7 @@ static bool rwsem_optimistic_spin(struct rw_semaphore *sem)
 		cpu_relax();
 	}
 	osq_unlock(&sem->osq);
+	trace_android_vh_rwsem_opt_spin_finish(sem, taken);
 done:
 	lockevent_cond_inc(rwsem_opt_fail, !taken);
 	return taken;
@@ -1010,6 +1085,7 @@ rwsem_down_read_slowpath(struct rw_semaphore *sem, long count, unsigned int stat
 	bool already_on_list = false;
 	bool steal = true;
 	bool rspin = false;
+	bool blocked_on_set;
 
 	/*
 	 * To prevent a constant stream of readers from starving a sleeping
@@ -1096,9 +1172,18 @@ queue:
 	if (state == TASK_UNINTERRUPTIBLE)
 		hung_task_set_blocker(sem, BLOCKER_TYPE_RWSEM_READER);
 
+	blocked_on_set = false;
 	/* wait to be given the lock */
 	trace_android_vh_rwsem_read_wait_start(sem);
 	for (;;) {
+		if (atomic_long_read(&sem->count) & RWSEM_WRITER_MASK) {
+			raw_spin_lock_irq(&current->blocked_lock);
+			/* PROXY_WAKE might have been set */
+			__clear_task_blocked_on(current, sem);
+			__set_task_blocked_on(current, sem, BO_T_RWSEM);
+			raw_spin_unlock_irq(&current->blocked_lock);
+			blocked_on_set = true;
+		}
 		if (!smp_load_acquire(&waiter.task)) {
 			/* Matches rwsem_mark_wake()'s smp_store_release(). */
 			break;
@@ -1121,6 +1206,8 @@ queue:
 
 	__set_current_state(TASK_RUNNING);
 	trace_android_vh_rwsem_read_wait_finish(sem);
+	if (blocked_on_set)
+		clear_task_blocked_on(current, sem);
 	lockevent_inc(rwsem_rlock);
 	trace_contention_end(sem, 0);
 	return sem;
@@ -1129,6 +1216,8 @@ out_nolock:
 	rwsem_del_wake_waiter(sem, &waiter, &wake_q);
 	__set_current_state(TASK_RUNNING);
 	trace_android_vh_rwsem_read_wait_finish(sem);
+	if (blocked_on_set)
+		clear_task_blocked_on(current, sem);
 	lockevent_inc(rwsem_rlock_fail);
 	trace_contention_end(sem, -EINTR);
 	return ERR_PTR(-EINTR);
@@ -1143,6 +1232,7 @@ rwsem_down_write_slowpath(struct rw_semaphore *sem, int state)
 	struct rwsem_waiter waiter;
 	DEFINE_WAKE_Q(wake_q);
 	bool already_on_list = false;
+	bool blocked_on_set;
 
 	/* do optimistic spinning and steal lock if possible */
 	if (rwsem_can_spin_on_owner(sem) && rwsem_optimistic_spin(sem)) {
@@ -1184,10 +1274,16 @@ rwsem_down_write_slowpath(struct rw_semaphore *sem, int state)
 	}
 
 	trace_android_vh_rwsem_wake(sem);
+	raw_spin_lock(&current->blocked_lock);
 	/* wait until we successfully acquire the lock */
 	trace_android_vh_rwsem_write_wait_start(sem);
 	set_current_state(state);
 	trace_contention_begin(sem, LCB_F_WRITE);
+	blocked_on_set = false;
+	if (atomic_long_read(&sem->count) & RWSEM_WRITER_MASK) {
+		__set_task_blocked_on(current, sem, BO_T_RWSEM);
+		blocked_on_set = true;
+	}
 
 	if (state == TASK_UNINTERRUPTIBLE)
 		hung_task_set_blocker(sem, BLOCKER_TYPE_RWSEM_WRITER);
@@ -1198,6 +1294,9 @@ rwsem_down_write_slowpath(struct rw_semaphore *sem, int state)
 			break;
 		}
 
+		if (blocked_on_set && !__get_task_blocked_on(current))
+			__set_task_blocked_on(current, sem, BO_T_RWSEM);
+		raw_spin_unlock(&current->blocked_lock);
 		raw_spin_unlock_irq(&sem->wait_lock);
 
 		if (signal_pending_state(state, current))
@@ -1224,6 +1323,9 @@ rwsem_down_write_slowpath(struct rw_semaphore *sem, int state)
 		set_current_state(state);
 trylock_again:
 		raw_spin_lock_irq(&sem->wait_lock);
+		raw_spin_lock(&current->blocked_lock);
+		if (blocked_on_set)
+			__clear_task_blocked_on(current, sem);
 	}
 
 	if (state == TASK_UNINTERRUPTIBLE)
@@ -1231,6 +1333,9 @@ trylock_again:
 
 	__set_current_state(TASK_RUNNING);
 	trace_android_vh_rwsem_write_wait_finish(sem);
+	if (blocked_on_set)
+		__clear_task_blocked_on(current, sem);
+	raw_spin_unlock(&current->blocked_lock);
 	raw_spin_unlock_irq(&sem->wait_lock);
 	lockevent_inc(rwsem_wlock);
 	trace_contention_end(sem, 0);
@@ -1239,6 +1344,8 @@ trylock_again:
 out_nolock:
 	__set_current_state(TASK_RUNNING);
 	trace_android_vh_rwsem_write_wait_finish(sem);
+	if (blocked_on_set)
+		clear_task_blocked_on(current, sem);
 	raw_spin_lock_irq(&sem->wait_lock);
 	rwsem_del_wake_waiter(sem, &waiter, &wake_q);
 	lockevent_inc(rwsem_wlock_fail);

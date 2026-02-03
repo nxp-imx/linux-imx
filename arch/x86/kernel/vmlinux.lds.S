@@ -118,6 +118,74 @@ PHDRS {
 	note PT_NOTE FLAGS(0);          /* ___ */
 }
 
+#ifdef CONFIG_PKVM_X86
+#include <asm/pkvm_image.h>
+
+#define PKVM_TEXT							\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(text_start) = .;						\
+	*(PKVM_SECTION_NAME(.text))					\
+	*(PKVM_SECTION_NAME(.noinstr.text))				\
+	*(PKVM_SECTION_NAME(.init.text))				\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(text_end) = .;
+
+#define PKVM_BSS							\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(bss_start) = .;						\
+	*(PKVM_SECTION_NAME(.bss))					\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(bss_end) = .;
+
+#define PKVM_DATA							\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(data_start) = .;						\
+	*(PKVM_SECTION_NAME(.data))					\
+	*(PKVM_SECTION_NAME(.init.data))				\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(data_end) = .;
+
+#define PKVM_RODATA							\
+	PKVM_SECTION_NAME(.rodata) : 					\
+		AT(ADDR(PKVM_SECTION_NAME(.rodata)) - LOAD_OFFSET) {	\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(rodata_start) = .;					\
+	pkvm_sym(__start___ex_table) = .;				\
+	*(PKVM_SECTION_NAME(__ex_table))				\
+	pkvm_sym(__stop___ex_table) = .;				\
+	*(PKVM_SECTION_NAME(.rodata))					\
+	*(PKVM_SECTION_NAME(.data..ro_after_init))			\
+	. = ALIGN(PAGE_SIZE);						\
+	pkvm_sym(rodata_end) = .;						\
+	}
+
+/*
+ * The PKVM_PERCPU requires to be put right after the PERCPU_SECTION. It will
+ * define pkvm_sym(__per_cpu_start) as __per_cpu_start, and enlarge
+ * __per_cpu_end by pkvm_sym(__per_cpu_end).
+ */
+#define PKVM_PERCPU							\
+	PKVM_SECTION_NAME(.data..percpu) :				\
+	AT(ADDR(PKVM_SECTION_NAME(.data..percpu)) -			\
+	   LOAD_OFFSET) {						\
+		. = ALIGN(PAGE_SIZE);					\
+		pkvm_sym(__per_cpu_start) = __per_cpu_start;		\
+		*(PKVM_SECTION_NAME(.data..percpu))			\
+		. = ALIGN(PAGE_SIZE);					\
+		pkvm_sym(__per_cpu_end) = .;				\
+		__per_cpu_end = pkvm_sym(__per_cpu_end);		\
+	}
+
+#else
+
+#define PKVM_TEXT
+#define PKVM_BSS
+#define PKVM_DATA
+#define PKVM_RODATA
+#define PKVM_PERCPU
+
+#endif
+
 SECTIONS
 {
 	. = __START_KERNEL;
@@ -156,6 +224,7 @@ SECTIONS
 		*(.text..__x86.return_thunk)
 #endif
 		STATIC_CALL_TEXT
+		PKVM_TEXT
 		*(.gnu.warning)
 
 	} :text = 0xcccccccc
@@ -184,6 +253,8 @@ SECTIONS
 		NOSAVE_DATA
 #endif
 
+		PKVM_DATA
+
 		PAGE_ALIGNED_DATA(PAGE_SIZE)
 
 		CACHE_HOT_DATA(L1_CACHE_BYTES)
@@ -200,6 +271,16 @@ SECTIONS
 		/* End of data section */
 		_edata = .;
 	} :data
+
+	/*
+	 * The mark_rodata_ro() function expects to unmap the gaps in the
+	 * text/rodata and rodata/data sections. Placing the pKVM rodata between
+	 * text, rodata and data will lead the mark_rodata_ro() to unmap and
+	 * free the pKVM rodata memory pages, causing the memory accessing
+	 * violation as these pages are protected by the pKVM. Position the pKVM
+	 * rodata after the data section.
+	 */
+	PKVM_RODATA
 
 	BUG_TABLE
 
@@ -331,6 +412,11 @@ SECTIONS
 	}
 
 	PERCPU_SECTION(L1_CACHE_BYTES)
+	/*
+	 * The PKVM_PERCPU is defined with the assumption that it is put after
+	 * the PERCPU_SECTION.
+	 */
+	PKVM_PERCPU
 	ASSERT(__per_cpu_hot_end - __per_cpu_hot_start <= 64, "percpu cache hot data too large")
 
 	RUNTIME_CONST_VARIABLES
@@ -369,6 +455,7 @@ SECTIONS
 		. = ALIGN(PAGE_SIZE);
 		*(BSS_MAIN)
 		BSS_DECRYPTED
+		PKVM_BSS
 		. = ALIGN(PAGE_SIZE);
 		__bss_stop = .;
 	}
@@ -517,6 +604,8 @@ PROVIDE(__ref_stack_chk_guard = __stack_chk_guard);
 #endif
 
 #endif /* CONFIG_X86_64 */
+
+#include <asm/pkvm_image_vars.h>
 
 /*
  * The symbols below are referenced using relative relocations in the

@@ -11,6 +11,24 @@
 #include "cpuid.h"
 
 #define KVM_MAX_MCE_BANKS 32
+#define KVM_MCE_BANKS				(KVM_MAX_MCE_BANKS * 4)
+#define KVM_MCI_CTL2_BANKS			(KVM_MAX_MCE_BANKS)
+#define KVM_MCE_SIZE				(KVM_MCE_BANKS * sizeof(u64))
+#define KVM_MCI_CTL2_SIZE			(KVM_MCI_CTL2_BANKS * sizeof(u64))
+
+#define KVM_SUPPORTED_XCR0     (XFEATURE_MASK_FP | XFEATURE_MASK_SSE \
+				| XFEATURE_MASK_YMM | XFEATURE_MASK_BNDREGS \
+				| XFEATURE_MASK_BNDCSR | XFEATURE_MASK_AVX512 \
+				| XFEATURE_MASK_PKRU | XFEATURE_MASK_XTILE)
+
+#define XFEATURE_MASK_CET_ALL	(XFEATURE_MASK_CET_USER | XFEATURE_MASK_CET_KERNEL)
+/*
+ * Note, KVM supports exposing PT to the guest, but does not support context
+ * switching PT via XSTATE (KVM's PT virtualization relies on perf; swapping
+ * PT via guest XSTATE would clobber perf state), i.e. KVM doesn't support
+ * IA32_XSS[bit 8] (guests can/must use RDMSR/WRMSR to save/restore PT MSRs).
+ */
+#define KVM_SUPPORTED_XSS	(XFEATURE_MASK_CET_ALL)
 
 struct kvm_caps {
 	/* control of guest tsc rate supported? */
@@ -491,6 +509,11 @@ static inline bool kvm_mpx_supported(void)
 		== (XFEATURE_MASK_BNDREGS | XFEATURE_MASK_BNDCSR);
 }
 
+static inline bool kvm_is_vm_type_supported(unsigned long type)
+{
+	return type < 32 && (kvm_caps.supported_vm_types & BIT(type));
+}
+
 extern unsigned int min_timer_period_us;
 
 extern bool enable_vmware_backdoor;
@@ -713,6 +736,8 @@ int ____kvm_emulate_hypercall(struct kvm_vcpu *vcpu, int cpl,
 })
 
 int kvm_emulate_hypercall(struct kvm_vcpu *vcpu);
+void kvm_user_return_msr_cpu_online(void);
+u64 kvm_get_arch_capabilities(void);
 
 #define CET_US_RESERVED_BITS		GENMASK(9, 6)
 #define CET_US_SHSTK_MASK_BITS		GENMASK(1, 0)

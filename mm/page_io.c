@@ -458,10 +458,10 @@ void __swap_writepage(struct folio *folio, struct swap_iocb **swap_plug)
 		swap_writepage_fs(folio, swap_plug);
 	/*
 	 * ->flags can be updated non-atomicially (scan_swap_map_slots),
-	 * but that will never affect SWP_SYNCHRONOUS_IO, so the data_race
+	 * but that will never affect __SWP_WRITE_SYNCHRONOUS_IO, so the data_race
 	 * is safe.
 	 */
-	else if (data_race(sis->flags & SWP_SYNCHRONOUS_IO))
+	else if (data_race(sis->flags & __SWP_WRITE_SYNCHRONOUS_IO))
 		swap_writepage_bdev_sync(folio, sis);
 	else
 		swap_writepage_bdev_async(folio, sis);

@@ -801,9 +801,274 @@
   __tracepoint_workqueue_execute_end
   __tracepoint_workqueue_execute_start
 
+# required by ems.ko
+  activate_task
+  arch_freq_scale
+  balance_push_callback
+  bpf_trace_run12
+  capacity_freq_ref
+  __cpu_dying_mask
+  cpufreq_add_update_util_hook
+  cpufreq_cpu_get_raw
+  cpufreq_disable_fast_switch
+  cpufreq_driver_fast_switch
+  __cpufreq_driver_target
+  cpufreq_enable_fast_switch
+  cpufreq_register_governor
+  cpufreq_remove_update_util_hook
+  cpufreq_this_cpu_can_update
+  __cpuhp_setup_state_cpuslocked
+  cpuidle_governor_latency_req
+  cpuidle_register_governor
+  cpumask_any_and_distribute
+  cpupri_find_fitness
+  cpu_scale
+  cpu_topology
+  deactivate_task
+  double_rq_lock
+  get_task_cred
+  housekeeping_any_cpu
+  housekeeping_overridden
+  housekeeping_test_cpu
+  irq_work_queue
+  irq_work_sync
+  kthread_create_worker_on_cpu
+  match_string
+  memory_read_from_buffer
+  ns_capable
+  pfn_is_map_memory
+  pick_highest_pushable_task
+  __put_cred
+  raw_spin_rq_lock_nested
+  raw_spin_rq_unlock
+  _raw_write_trylock
+  reciprocal_value
+  resched_curr
+  root_task_group
+  sched_feat_keys
+  sched_feat_names
+  sched_set_fifo
+  __scx_enabled
+  set_task_cpu
+  static_key_disable
+  stop_machine
+  stop_one_cpu
+  stop_one_cpu_nowait
+  sysctl_sched_features
+  system_32bit_el0_cpumask
+  tasklist_lock
+  task_rq_lock
+  tick_nohz_get_sleep_length
+  __traceiter_android_rvh_after_dequeue_task
+  __traceiter_android_rvh_attach_entity_load_avg
+  __traceiter_android_rvh_can_migrate_task
+  __traceiter_android_rvh_check_preempt_wakeup_fair
+  __traceiter_android_rvh_cpu_capacity_show
+  __traceiter_android_rvh_cpu_cgroup_attach
+  __traceiter_android_rvh_cpufreq_transition
+  __traceiter_android_rvh_dequeue_task
+  __traceiter_android_rvh_detach_entity_load_avg
+  __traceiter_android_rvh_do_sched_yield
+  __traceiter_android_rvh_enqueue_task
+  __traceiter_android_rvh_find_busiest_queue
+  __traceiter_android_rvh_find_lowest_rq
+  __traceiter_android_rvh_find_new_ilb
+  __traceiter_android_rvh_finish_prio_fork
+  __traceiter_android_rvh_get_nohz_timer_target
+  __traceiter_android_rvh_is_cpu_allowed
+  __traceiter_android_rvh_new_task_stats
+  __traceiter_android_rvh_post_init_entity_util_avg
+  __traceiter_android_rvh_remove_entity_load_avg
+  __traceiter_android_rvh_replace_next_task_fair
+  __traceiter_android_rvh_sched_newidle_balance
+  __traceiter_android_rvh_sched_nohz_balancer_kick
+  __traceiter_android_rvh_sched_rebalance_domains
+  __traceiter_android_rvh_schedule
+  __traceiter_android_rvh_select_fallback_rq
+  __traceiter_android_rvh_select_task_rq_fair
+  __traceiter_android_rvh_select_task_rq_rt
+  __traceiter_android_rvh_set_cpus_allowed_by_task
+  __traceiter_android_rvh_set_task_cpu
+  __traceiter_android_rvh_show_max_freq
+  __traceiter_android_rvh_tick_entry
+  __traceiter_android_rvh_try_to_wake_up
+  __traceiter_android_rvh_uclamp_eff_get
+  __traceiter_android_rvh_update_blocked_fair
+  __traceiter_android_rvh_update_cpu_capacity
+  __traceiter_android_rvh_update_load_avg
+  __traceiter_android_rvh_update_misfit_status
+  __traceiter_android_rvh_util_est_update
+  __traceiter_android_rvh_wake_up_new_task
+  __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_syscall_prctl_finished
+  __traceiter_cpu_frequency_limits
+  __tracepoint_android_rvh_after_dequeue_task
+  __tracepoint_android_rvh_attach_entity_load_avg
+  __tracepoint_android_rvh_can_migrate_task
+  __tracepoint_android_rvh_check_preempt_wakeup_fair
+  __tracepoint_android_rvh_cpu_capacity_show
+  __tracepoint_android_rvh_cpu_cgroup_attach
+  __tracepoint_android_rvh_cpufreq_transition
+  __tracepoint_android_rvh_dequeue_task
+  __tracepoint_android_rvh_detach_entity_load_avg
+  __tracepoint_android_rvh_do_sched_yield
+  __tracepoint_android_rvh_enqueue_task
+  __tracepoint_android_rvh_find_busiest_queue
+  __tracepoint_android_rvh_find_lowest_rq
+  __tracepoint_android_rvh_find_new_ilb
+  __tracepoint_android_rvh_finish_prio_fork
+  __tracepoint_android_rvh_get_nohz_timer_target
+  __tracepoint_android_rvh_is_cpu_allowed
+  __tracepoint_android_rvh_new_task_stats
+  __tracepoint_android_rvh_post_init_entity_util_avg
+  __tracepoint_android_rvh_remove_entity_load_avg
+  __tracepoint_android_rvh_replace_next_task_fair
+  __tracepoint_android_rvh_sched_newidle_balance
+  __tracepoint_android_rvh_sched_nohz_balancer_kick
+  __tracepoint_android_rvh_sched_rebalance_domains
+  __tracepoint_android_rvh_schedule
+  __tracepoint_android_rvh_select_fallback_rq
+  __tracepoint_android_rvh_select_task_rq_fair
+  __tracepoint_android_rvh_select_task_rq_rt
+  __tracepoint_android_rvh_set_cpus_allowed_by_task
+  __tracepoint_android_rvh_set_task_cpu
+  __tracepoint_android_rvh_show_max_freq
+  __tracepoint_android_rvh_tick_entry
+  __tracepoint_android_rvh_try_to_wake_up
+  __tracepoint_android_rvh_uclamp_eff_get
+  __tracepoint_android_rvh_update_blocked_fair
+  __tracepoint_android_rvh_update_cpu_capacity
+  __tracepoint_android_rvh_update_load_avg
+  __tracepoint_android_rvh_update_misfit_status
+  __tracepoint_android_rvh_util_est_update
+  __tracepoint_android_rvh_wake_up_new_task
+  __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_syscall_prctl_finished
+  __tracepoint_cpu_frequency_limits
+  uclamp_eff_value
+  update_rq_clock
+  wake_up_if_idle
+  wakeup_preempt
+
+# required by exynos-chipid_v2.ko
+  soc_device_register
+
 # required by exynos-irq-gic-v3-its.ko
   its_restore_enable
   its_save_disable
+
+# required by exynos_mct_v3.ko
+  clockevents_config_and_register
+  __clocksource_register_scale
+  irq_force_affinity
+  _printk_deferred
+
+# required by exynos_tty.ko
+  cache_line_size
+  console_suspend
+  dma_get_slave_caps
+  do_SAK
+  handle_sysrq
+  __kfifo_out_linear
+  __release_region
+  __request_region
+  sysrq_mask
+  tty_flip_buffer_push
+  __tty_insert_flip_string_flags
+  tty_kref_put
+  tty_port_tty_get
+  uart_add_one_port
+  uart_console_write
+  uart_get_baud_rate
+  uart_parse_options
+  uart_register_driver
+  uart_remove_one_port
+  uart_resume_port
+  uart_set_options
+  uart_suspend_port
+  uart_try_toggle_sysrq
+  uart_unregister_driver
+  uart_update_timeout
+  uart_write_wakeup
+
+# required by irq-gic-v3-vh.ko
+  __traceiter_android_rvh_gic_v3_set_affinity
+  __tracepoint_android_rvh_gic_v3_set_affinity
+
+# required by pinctrl-samsung-ext.ko
+  device_get_next_child_node
+  generic_handle_domain_irq
+  gpiochip_lock_as_irq
+  gpiochip_unlock_as_irq
+  irq_domain_xlate_twocell
+  irq_set_chained_handler_and_data
+  pinctrl_add_gpio_range
+  pinctrl_force_default
+  pinctrl_force_sleep
+  pinctrl_remove_gpio_range
+  pin_get_name
+  platform_get_irq_optional
+
+# required by pwm-exynos.ko
+  devm_clk_get_enabled
+  __devm_pwmchip_add
+  devm_pwmchip_alloc
+
+# required by s3c2410_wdt_ext.ko
+  watchdog_init_timeout
+  watchdog_register_device
+  watchdog_set_restart_priority
+  watchdog_unregister_device
+
+# required by samsung-iommu-group-v9.ko
+  iommu_group_alloc
+  iommu_group_set_name
+
+# required by samsung-secure-iova.ko
+  gen_pool_first_fit_align
+
+# required by samsung_dma_heap.ko
+  anon_inode_getfile
+  contig_page_data
+  dma_buf_export
+  dma_heap_add
+  dma_heap_get_dev
+  dma_heap_get_drvdata
+  dma_heap_get_name
+  dma_map_sgtable
+  is_dma_buf_file
+  kstrtoul_from_user
+  mod_node_page_state
+  sched_set_normal
+  __traceiter_android_vh_show_mem
+  __tracepoint_android_vh_show_mem
+  vm_insert_page
+
+# required by samsung_iommu_v9.ko
+  device_link_add
+  device_link_del
+  dev_iommu_priv_set
+  iommu_alloc_resv_region
+  iommu_device_register
+  iommu_device_sysfs_add
+  iommu_device_sysfs_remove
+  iommu_fwspec_add_ids
+  iommu_group_for_each_dev
+  iommu_group_get
+  iommu_group_get_iommudata
+  iommu_group_set_iommudata
+  of_find_node_with_property
+  rb_prev
+  __traceiter_android_rvh_iommu_alloc_insert_iova
+  __traceiter_android_rvh_iommu_dma_info_to_prot
+  __traceiter_android_rvh_iommu_iovad_init_alloc_algo
+  __traceiter_android_rvh_iommu_limit_align_shift
+  __tracepoint_android_rvh_iommu_alloc_insert_iova
+  __tracepoint_android_rvh_iommu_dma_info_to_prot
+  __tracepoint_android_rvh_iommu_iovad_init_alloc_algo
+  __tracepoint_android_rvh_iommu_limit_align_shift
 
 # required by zsmalloc.ko
   copy_page

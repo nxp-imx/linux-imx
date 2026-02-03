@@ -865,7 +865,10 @@ bool arch_is_embedded_insn(struct symbol *sym)
 {
 	return !strcmp(sym->name, "retbleed_return_thunk") ||
 	       !strcmp(sym->name, "srso_alias_safe_ret") ||
-	       !strcmp(sym->name, "srso_safe_ret");
+	       !strcmp(sym->name, "srso_safe_ret") ||
+	       !strcmp(sym->name, "retbleed_return_thunk__pkvm") ||
+	       !strcmp(sym->name, "srso_alias_safe_ret__pkvm") ||
+	       !strcmp(sym->name, "srso_safe_ret__pkvm");
 }
 
 unsigned int arch_reloc_size(struct reloc *reloc)

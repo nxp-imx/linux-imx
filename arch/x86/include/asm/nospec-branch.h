@@ -94,11 +94,16 @@
 	sarq	$5, PER_CPU_VAR(__x86_call_depth);		\
 	CALL_THUNKS_DEBUG_INC_CALLS
 
+#ifdef CONFIG_PKVM_X86
+#define INCREMENT_CALL_DEPTH_PKVM				\
+	sarq	$5, PER_CPU_VAR(__x86_call_depth__pkvm);
+#endif
 #else
 #define CREDIT_CALL_DEPTH
 #define RESET_CALL_DEPTH
 #define RESET_CALL_DEPTH_FROM_CALL
 #define INCREMENT_CALL_DEPTH
+#define INCREMENT_CALL_DEPTH_PKVM
 #endif
 
 /*
@@ -490,6 +495,57 @@ static inline void call_depth_return_thunk(void) {}
 # define CALL_NOSPEC "call *%[thunk_target]\n"
 # define THUNK_TARGET(addr) [thunk_target] "rm" (addr)
 #endif
+
+#ifdef CONFIG_PKVM_X86
+#ifdef CONFIG_MITIGATION_RETPOLINE
+#define GEN(reg)								\
+	extern retpoline_thunk_t __x86_indirect_thunk_##reg##__pkvm;
+#include <asm/GEN-for-each-reg.h>
+#undef GEN
+#endif
+
+#ifdef CONFIG_MITIGATION_RETHUNK
+extern void __x86_return_thunk__pkvm(void);
+#else
+static inline void __x86_return_thunk__pkvm(void) {}
+#endif
+
+#ifdef CONFIG_MITIGATION_UNRET_ENTRY
+extern void retbleed_return_thunk__pkvm(void);
+#else
+static inline void retbleed_return_thunk__pkvm(void) {}
+#endif
+
+#ifdef CONFIG_MITIGATION_SRSO
+extern void srso_return_thunk__pkvm(void);
+extern void srso_alias_return_thunk__pkvm(void);
+#else
+static inline void srso_return_thunk__pkvm(void) {}
+static inline void srso_alias_return_thunk__pkvm(void) {}
+#endif
+
+#ifdef CONFIG_MITIGATION_CALL_DEPTH_TRACKING
+extern void call_depth_return_thunk__pkvm(void);
+#define GEN(reg)								\
+	extern retpoline_thunk_t __x86_indirect_call_thunk_##reg##__pkvm;	\
+	extern retpoline_thunk_t __x86_indirect_jump_thunk_##reg##__pkvm;
+#include <asm/GEN-for-each-reg.h>
+#undef GEN
+#else
+static inline void call_depth_return_thunk__pkvm(void) {}
+#endif
+
+#ifdef CONFIG_MITIGATION_ITS
+extern void its_return_thunk__pkvm(void);
+#define GEN(reg)								\
+	extern its_thunk_t __x86_indirect_its_thunk_##reg;			\
+	extern its_thunk_t __x86_indirect_its_thunk_##reg##__pkvm;
+#include <asm/GEN-for-each-reg.h>
+#undef GEN
+#else
+static inline void its_return_thunk__pkvm(void) {}
+#endif
+#endif /* CONFIG_PKVM_X86 */
 
 /* The Spectre V2 mitigation variants */
 enum spectre_v2_mitigation {

@@ -25,6 +25,7 @@
 #include <linux/splice.h>
 #include <linux/sched.h>
 #include <linux/seq_file.h>
+#include <trace/hooks/fuse.h>
 
 #include "fuse_trace.h"
 
@@ -502,6 +503,7 @@ void fuse_request_end(struct fuse_req *req)
 	} else {
 		/* Wake up waiter sleeping in request_wait_answer() */
 		wake_up(&req->waitq);
+		trace_android_vh_fuse_request_end(current);
 	}
 
 	if (test_bit(FR_ASYNC, &req->flags))
@@ -592,6 +594,7 @@ static void __fuse_request_send(struct fuse_req *req)
 
 	BUG_ON(test_bit(FR_BACKGROUND, &req->flags));
 
+	trace_android_vh_fuse_request_send(&fiq->waitq);
 	/* acquire extra reference, since request is still needed after
 	   fuse_request_end() */
 	__fuse_get_request(req);
@@ -847,7 +850,7 @@ void fuse_copy_init(struct fuse_copy_state *cs, bool write,
 }
 
 /* Unmap and put previous page of userspace buffer */
-static void fuse_copy_finish(struct fuse_copy_state *cs)
+void fuse_copy_finish(struct fuse_copy_state *cs)
 {
 	if (cs->currbuf) {
 		struct pipe_buffer *buf = cs->currbuf;

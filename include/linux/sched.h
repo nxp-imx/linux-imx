@@ -819,6 +819,17 @@ struct kmap_ctrl {
 #endif
 };
 
+enum blocked_on_type {
+	BO_T_NONE,
+	BO_T_MUTEX,
+	BO_T_RWSEM,
+};
+
+struct blocked_on_lock {
+	void *lock;
+	enum blocked_on_type type;
+};
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -1248,7 +1259,17 @@ struct task_struct {
 	struct rt_mutex_waiter		*pi_blocked_on;
 #endif
 
-	struct mutex			*blocked_on;	/* lock we're blocked on */
+	struct task_struct		*blocked_donor;	/* task that is boosting this task */
+	struct blocked_on_lock		blocked_on;	/* lock we're blocked on */
+	raw_spinlock_t			blocked_lock;
+#ifdef CONFIG_SCHED_PROXY_EXEC
+	struct list_head		migration_node;
+	struct list_head		blocked_head;  /* tasks blocked on this task */
+	struct list_head		blocked_node;  /* our entry on someone elses blocked_head */
+	/* Node for list of tasks to process blocked_head list for blocked entitiy activations */
+	struct list_head		blocked_activation_node;
+	struct task_struct		*sleeping_owner; /* task our blocked_node is enqueued on */
+#endif
 
 #ifdef CONFIG_DETECT_HUNG_TASK_BLOCKER
 	/*
@@ -1678,7 +1699,7 @@ struct task_struct {
 } __attribute__ ((aligned (64)));
 
 #ifdef CONFIG_SCHED_PROXY_EXEC
-DECLARE_STATIC_KEY_TRUE(__sched_proxy_exec);
+DECLARE_STATIC_KEY_FALSE(__sched_proxy_exec);
 static inline bool sched_proxy_exec(void)
 {
 	return static_branch_likely(&__sched_proxy_exec);
@@ -2157,67 +2178,107 @@ extern int __cond_resched_rwlock_write(rwlock_t *lock);
 })
 
 #ifndef CONFIG_PREEMPT_RT
-static inline struct mutex *__get_task_blocked_on(struct task_struct *p)
-{
-	struct mutex *m = p->blocked_on;
 
-	if (m)
-		lockdep_assert_held_once(&m->wait_lock);
-	return m;
+/*
+ * With proxy exec, if a task has been proxy-migrated, it may be a donor
+ * on a cpu that it can't actually run on. Thus we need a special state
+ * to denote that the task is being woken, but that it needs to be
+ * evaluated for return-migration before it is run. So if the task is
+ * blocked_on PROXY_WAKING, return migrate it before running it.
+ */
+#define PROXY_WAKING ((struct mutex *)(-1L))
+
+static inline void *__get_task_blocked_on(struct task_struct *p)
+{
+	lockdep_assert_held_once(&p->blocked_lock);
+	return p->blocked_on.lock == PROXY_WAKING ? NULL : p->blocked_on.lock;
 }
 
-static inline void __set_task_blocked_on(struct task_struct *p, struct mutex *m)
+/*
+ * These helpers set and clear the task blocked_on pointer, as well
+ * as setting the initial blocked_on_state, or clearing it
+ */
+static inline void __set_task_blocked_on(struct task_struct *p, void *m,
+					 enum blocked_on_type type)
 {
-	struct mutex *blocked_on = READ_ONCE(p->blocked_on);
-
 	WARN_ON_ONCE(!m);
 	/* The task should only be setting itself as blocked */
 	WARN_ON_ONCE(p != current);
-	/* Currently we serialize blocked_on under the mutex::wait_lock */
-	lockdep_assert_held_once(&m->wait_lock);
+	/* Currently we serialize blocked_on under the task::blocked_lock */
+	lockdep_assert_held_once(&p->blocked_lock);
 	/*
 	 * Check ensure we don't overwrite existing mutex value
 	 * with a different mutex. Note, setting it to the same
 	 * lock repeatedly is ok.
 	 */
-	WARN_ON_ONCE(blocked_on && blocked_on != m);
-	WRITE_ONCE(p->blocked_on, m);
+	WARN_ON_ONCE(p->blocked_on.lock && p->blocked_on.lock != m);
+	p->blocked_on.lock = m;
+	p->blocked_on.type = type;
 }
 
-static inline void set_task_blocked_on(struct task_struct *p, struct mutex *m)
+static inline void __clear_task_blocked_on(struct task_struct *p, void *m)
 {
-	guard(raw_spinlock_irqsave)(&m->wait_lock);
-	__set_task_blocked_on(p, m);
+	/* Currently we serialize blocked_on under the task::blocked_lock */
+	lockdep_assert_held_once(&p->blocked_lock);
+	/*
+	 * There may be cases where we re-clear already cleared
+	 * blocked_on relationships, but make sure we are not
+	 * clearing the relationship with a different lock.
+	 */
+	WARN_ON_ONCE(m && p->blocked_on.lock &&
+		     p->blocked_on.lock != m && p->blocked_on.lock != PROXY_WAKING);
+	p->blocked_on.lock = NULL;
+	p->blocked_on.type = BO_T_NONE;
 }
 
-static inline void __clear_task_blocked_on(struct task_struct *p, struct mutex *m)
+static inline void clear_task_blocked_on(struct task_struct *p, void *m)
 {
-	if (m) {
-		struct mutex *blocked_on = READ_ONCE(p->blocked_on);
-
-		/* Currently we serialize blocked_on under the mutex::wait_lock */
-		lockdep_assert_held_once(&m->wait_lock);
-		/*
-		 * There may be cases where we re-clear already cleared
-		 * blocked_on relationships, but make sure we are not
-		 * clearing the relationship with a different lock.
-		 */
-		WARN_ON_ONCE(blocked_on && blocked_on != m);
-	}
-	WRITE_ONCE(p->blocked_on, NULL);
-}
-
-static inline void clear_task_blocked_on(struct task_struct *p, struct mutex *m)
-{
-	guard(raw_spinlock_irqsave)(&m->wait_lock);
+	guard(raw_spinlock_irqsave)(&p->blocked_lock);
 	__clear_task_blocked_on(p, m);
 }
+
+static inline void __set_task_blocked_on_waking(struct task_struct *p, void *m)
+{
+	/* Currently we serialize blocked_on under the task::blocked_lock */
+	lockdep_assert_held_once(&p->blocked_lock);
+
+	if (!sched_proxy_exec()) {
+		__clear_task_blocked_on(p, m);
+		return;
+	}
+
+	/* Don't set PROXY_WAKING if blocked_on was already cleared */
+	if (!p->blocked_on.lock)
+		return;
+	/*
+	 * There may be cases where we set PROXY_WAKING on tasks that were
+	 * already set to waking, but make sure we are not changing
+	 * the relationship with a different lock.
+	 */
+	WARN_ON_ONCE(m && p->blocked_on.lock != m && p->blocked_on.lock != PROXY_WAKING);
+	p->blocked_on.lock = PROXY_WAKING;
+}
+
+static inline void set_task_blocked_on_waking(struct task_struct *p, void *m)
+{
+	guard(raw_spinlock_irqsave)(&p->blocked_lock);
+	__set_task_blocked_on_waking(p, m);
+}
+
 #else
-static inline void __clear_task_blocked_on(struct task_struct *p, struct rt_mutex *m)
+static inline void __clear_task_blocked_on(struct task_struct *p, void *m)
 {
 }
 
-static inline void clear_task_blocked_on(struct task_struct *p, struct rt_mutex *m)
+static inline void clear_task_blocked_on(struct task_struct *p, void *m)
+{
+}
+
+static inline void __set_task_blocked_on_waking(struct task_struct *p, void *m)
+{
+}
+
+static inline void set_task_blocked_on_waking(struct task_struct *p, void *m)
 {
 }
 #endif /* !CONFIG_PREEMPT_RT */

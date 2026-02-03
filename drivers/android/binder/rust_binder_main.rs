@@ -40,6 +40,7 @@ mod defs;
 mod error;
 mod node;
 mod page_range;
+mod prio;
 mod process;
 mod range_alloc;
 mod stats;
@@ -89,6 +90,15 @@ module! {
     license: "GPL",
 }
 
+use kernel::bindings::rust_binder_layout;
+#[no_mangle]
+static RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
+    t: transaction::TRANSACTION_LAYOUT,
+    th: thread::THREAD_LAYOUT,
+    p: process::PROCESS_LAYOUT,
+    n: node::NODE_LAYOUT,
+};
+
 fn next_debug_id() -> usize {
     static NEXT_DEBUG_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -110,6 +120,7 @@ impl<'a> BinderReturnWriter<'a> {
     /// Write a return code back to user space.
     /// Should be a `BR_` constant from [`defs`] e.g. [`defs::BR_TRANSACTION_COMPLETE`].
     fn write_code(&mut self, code: u32) -> Result {
+        crate::trace::trace_return(code);
         stats::GLOBAL_STATS.inc_br(code);
         self.thread.process.stats.inc_br(code);
         self.writer.write(&code)
@@ -150,6 +161,10 @@ trait DeliverToRead: ListArcSafe + Send + Sync {
     ///
     /// Generally only set to true for non-oneway transactions.
     fn should_sync_wakeup(&self) -> bool;
+
+    /// Called when the work item is selected by a thread. This allows the work item to modify the
+    /// thread that is processing it.
+    fn on_thread_selected(&self, _thread: &Thread) {}
 
     fn debug_print(&self, m: &SeqFile, prefix: &str, transaction_prefix: &str) -> Result<()>;
 }
@@ -285,6 +300,18 @@ impl kernel::Module for BinderModule {
     fn init(_module: &'static kernel::ThisModule) -> Result<Self> {
         // SAFETY: The module initializer never runs twice, so we only call this once.
         unsafe { crate::context::CONTEXTS.init() };
+
+        // SAFETY: Doesn't run in parallel with C Binder init.
+        unsafe {
+            let unload = kernel::error::to_result(bindings::binder_try_unload_builtin());
+            if let Err(unload) = unload {
+                if unload != EPERM {
+                    pr_err!("Failed to load Rust Binder.\n");
+                }
+                bindings::binder_remove_trace_events(_module.as_ptr());
+                return Ok(Self {});
+            }
+        }
 
         pr_warn!("Loaded Rust Binder.");
 

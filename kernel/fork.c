@@ -137,6 +137,7 @@
 #define MAX_THREADS FUTEX_TID_MASK
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(task_newtask);
+EXPORT_TRACEPOINT_SYMBOL_GPL(task_rename);
 
 /*
  * Protected counters by write_lock_irq(&tasklist_lock)
@@ -2055,6 +2056,7 @@ __latent_entropy struct task_struct *copy_process(
 	ftrace_graph_init_task(p);
 
 	rt_mutex_init_task(p);
+	raw_spin_lock_init(&p->blocked_lock);
 
 	lockdep_assert_irqs_enabled();
 #ifdef CONFIG_PROVE_LOCKING
@@ -2151,7 +2153,15 @@ __latent_entropy struct task_struct *copy_process(
 
 	lockdep_init_task(p);
 
-	p->blocked_on = NULL; /* not blocked yet */
+	p->blocked_on.lock = NULL; /* not blocked yet */
+	p->blocked_donor = NULL; /* nobody is boosting p yet */
+#ifdef CONFIG_SCHED_PROXY_EXEC
+	INIT_LIST_HEAD(&p->migration_node);
+	INIT_LIST_HEAD(&p->blocked_head);
+	INIT_LIST_HEAD(&p->blocked_node);
+	INIT_LIST_HEAD(&p->blocked_activation_node);
+	p->sleeping_owner = NULL;
+#endif
 
 #ifdef CONFIG_BCACHE
 	p->sequential_io	= 0;
@@ -2428,6 +2438,7 @@ __latent_entropy struct task_struct *copy_process(
 		attach_pid(p, PIDTYPE_PID);
 		nr_threads++;
 	}
+	trace_android_vh_copy_process(current, nr_threads);
 	total_forks++;
 	hlist_del_init(&delayed.node);
 	spin_unlock(&current->sighand->siglock);

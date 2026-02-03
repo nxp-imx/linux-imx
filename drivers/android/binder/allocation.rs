@@ -208,6 +208,7 @@ impl Allocation {
             let res = FileDescriptorReservation::get_unused_fd_flags(bindings::O_CLOEXEC)?;
             let fd = res.reserved_fd();
             self.write::<u32>(file_info.buffer_offset, &fd)?;
+            crate::trace::trace_transaction_fd_recv(self.debug_id, fd, file_info.buffer_offset);
 
             reservations.push(
                 Reservation {
@@ -243,6 +244,8 @@ impl Drop for Allocation {
         if !self.free_on_drop {
             return;
         }
+
+        crate::trace::trace_transaction_failed_buffer_release(self.debug_id);
 
         if let Some(mut info) = self.allocation_info.take() {
             if let Some(oneway_node) = info.oneway_node.as_ref() {
@@ -406,6 +409,8 @@ impl<'a> AllocationView<'a> {
                 return Err(EINVAL);
             }
         }
+
+        crate::trace::trace_transaction_node_send(self.alloc.debug_id, &node, obj, &newobj);
 
         Ok(())
     }

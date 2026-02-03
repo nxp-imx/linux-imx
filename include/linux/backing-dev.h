@@ -360,4 +360,7 @@ static inline void wb_blkcg_offline(struct cgroup_subsys_state *css)
 
 const char *bdi_dev_name(struct backing_dev_info *bdi);
 
+void wb_wakeup(struct bdi_writeback *wb);
+void redirty_tail_locked(struct inode *inode, struct bdi_writeback *wb);
+
 #endif	/* _LINUX_BACKING_DEV_H */

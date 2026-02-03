@@ -110,7 +110,7 @@ static inline void *pop_hyp_memcache(struct kvm_hyp_memcache *mc,
 				     void *(*to_va)(phys_addr_t phys),
 				     unsigned long *order)
 {
-	phys_addr_t *p = to_va(mc->head & PAGE_MASK & PAGE_MASK);
+	phys_addr_t *p = to_va(mc->head & PAGE_MASK);
 
 	if (!mc->nr_pages)
 		return NULL;
@@ -141,21 +141,24 @@ static inline int __topup_hyp_memcache(struct kvm_hyp_memcache *mc,
 	return 0;
 }
 
-static inline void __free_hyp_memcache(struct kvm_hyp_memcache *mc,
+static inline unsigned long __free_hyp_memcache(struct kvm_hyp_memcache *mc,
 				       void (*free_fn)(void *virt, void *arg, unsigned long order),
 				       void *(*to_va)(phys_addr_t phys),
 				       void *arg)
 {
-	unsigned long order;
+	unsigned long order, nr_pages = 0;
 	void *p;
 
 	while (mc->nr_pages) {
 		p = pop_hyp_memcache(mc, to_va, &order);
 		free_fn(p, arg, order);
+		nr_pages += 1UL << order;
 	}
+
+	return nr_pages;
 }
 
-void free_hyp_memcache(struct kvm_hyp_memcache *mc);
+unsigned long free_hyp_memcache(struct kvm_hyp_memcache *mc);
 int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages, unsigned long order);
 int topup_hyp_memcache_gfp(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 			   unsigned long order, gfp_t gfp);
@@ -257,6 +260,7 @@ struct kvm_s2_mmu {
 };
 
 struct kvm_arch_memory_slot {
+	u64 pkvm_pf_count;
 };
 
 /**
@@ -278,7 +282,10 @@ struct kvm_pinned_page {
 		struct rb_node		node;
 		struct list_head	list_node;
 	};
-	struct page		*page;
+	struct page		*_page;
+	struct file		*file;
+	struct kvm_memory_slot	*slot;
+	u64			pfn;
 	u64			ipa;
 	u64			__subtree_last;
 	u8			order;
@@ -291,6 +298,8 @@ struct kvm_pinned_page
 *kvm_pinned_pages_iter_next(struct kvm_pinned_page *ppage, u64 start, u64 end);
 void kvm_pinned_pages_remove(struct kvm_pinned_page *ppage,
 			     struct rb_root_cached *root);
+
+void pkvm_release_ppage(struct kvm_pinned_page *ppage, bool dirty);
 
 typedef unsigned int pkvm_handle_t;
 
@@ -1874,12 +1883,17 @@ static inline long kvm_get_cap_for_kvm_ioctl(unsigned int ioctl, long *ext)
 }
 
 /* Allocator interface IDs. */
-#define HYP_ALLOC_MGT_HEAP_ID          0
-#define HYP_ALLOC_MGT_IOMMU_ID         1
+enum hyp_alloc_mgt_id {
+	__HYP_ALLOC_MGT_HEAP_ID_START__ = 0,
+	HYP_ALLOC_MGT_HEAP_ID = __HYP_ALLOC_MGT_HEAP_ID_START__,
+	HYP_ALLOC_MGT_IOMMU_ID,
+	NR_ALLOC_MGT_IDS
+};
 
+unsigned long __pkvm_reclaim_hyp_alloc_mgt_id(enum hyp_alloc_mgt_id id, unsigned long nr_pages);
 unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages);
-int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
-				   unsigned long sz_alloc, gfp_t gfp);
+unsigned long __pkvm_free_iommu_hyp_memcache(struct kvm_hyp_memcache *mc);
+int __pkvm_topup_hyp_iommu(unsigned long nr_pages, unsigned long sz_alloc, gfp_t gfp);
 
 #ifndef __KVM_NVHE_HYPERVISOR__
 struct kvm_iommu_driver {

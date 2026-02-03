@@ -51,6 +51,13 @@ struct kvm_follow_pfn {
 	 * IO/PFNMAP mappings).
 	 */
 	struct page **refcounted_page;
+
+	/*
+	 * Optional output. Set to a valid 'struct file' if the returned pfn
+	 * was resolved through a file-backed IO/PFNMAP vma. Reference count
+	 * of the file is elevated
+	 */
+	struct file **backing_file;
 };
 
 kvm_pfn_t hva_to_pfn(struct kvm_follow_pfn *kfp);

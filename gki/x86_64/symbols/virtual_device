@@ -359,7 +359,6 @@
   strchr
   strcmp
   strlen
-  strncpy
   strnlen
   __sw_hweight32
   sync_file_create
@@ -715,6 +714,7 @@
   skb_ensure_writable
   __skb_get_hash_net
   __skb_gso_segment
+  strncpy
   __sw_hweight64
   system_freezable_wq
   tasklet_kill

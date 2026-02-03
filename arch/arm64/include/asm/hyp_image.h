@@ -16,8 +16,21 @@
  * to separate it from the kernel proper.
  */
 #define kvm_nvhe_sym(sym)	__kvm_nvhe_##sym
+
+/*
+ * For nVHE builds, the compiler prefixes symbols used in EL2 code
+ * with __kvm_nvhe_. Modules will be linked against the correct symbol,
+ * but without export modpost would complain about non-existing function
+ */
+#define EXPORT_KVM_NVHE_ALT_CB(name) \
+	void kvm_nvhe_sym(name)(struct alt_instr *alt, \
+				__le32 *origptr, \
+				__le32 *updptr, \
+				int nr_inst) __alias(name); \
+	EXPORT_SYMBOL(kvm_nvhe_sym(name))
 #else
 #define kvm_nvhe_sym(sym)	sym
+#define EXPORT_KVM_NVHE_ALT_CB(name)
 #endif
 
 #ifdef LINKER_SCRIPT

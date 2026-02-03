@@ -14,7 +14,7 @@
 
 #include "hyp_trace.h"
 
-static const char *hyp_printk_fmt_from_id(u8 fmt_id);
+static const char *hyp_printk_fmt_from_id(u16 fmt_id);
 
 #include <asm/kvm_define_hypevents.h>
 
@@ -86,9 +86,9 @@ extern struct hyp_printk_fmt __hyp_printk_fmts_end[];
 static struct hyp_mod_tables mod_printk_fmt_tables;
 static unsigned long total_printk_fmts;
 
-static const char *hyp_printk_fmt_from_id(u8 fmt_id)
+static const char *hyp_printk_fmt_from_id(u16 fmt_id)
 {
-	u8 nr_fmts = nr_entries(__hyp_printk_fmts_start, __hyp_printk_fmts_end);
+	u16 nr_fmts = nr_entries(__hyp_printk_fmts_start, __hyp_printk_fmts_end);
 	struct hyp_printk_fmt *fmt = NULL;
 
 	if (fmt_id < nr_fmts)
@@ -877,12 +877,12 @@ int hyp_trace_init_events(void)
 	int nr_printk_fmts = nr_entries(__hyp_printk_fmts_start, __hyp_printk_fmts_end);
 	int ret;
 
-	/* __hyp_printk event only supports U8_MAX different formats */
-	WARN_ON(nr_printk_fmts > U8_MAX);
+	/* __hyp_printk event only supports U16_MAX different formats */
+	WARN(nr_printk_fmts > U16_MAX, "Too many trace_hyp_printk()!");
 
 	total_printk_fmts = nr_printk_fmts;
 
-	if (WARN(nr_events != nr_event_ids, "Too many trace_hyp_printk()!"))
+	if (WARN_ON(nr_events != nr_event_ids))
 		return -EINVAL;
 
 	ret = hyp_event_table_init(__hyp_events_start, __hyp_event_ids_start,
@@ -902,8 +902,8 @@ int hyp_trace_init_mod_events(struct pkvm_el2_module *mod)
 	struct hyp_event *event = mod->hyp_events;
 	size_t nr_events = mod->nr_hyp_events;
 	size_t nr_fmts = mod->nr_hyp_printk_fmts;
-	u8 *hyp_printk_fmt_offsets;
-	int ret;
+	u16 *hyp_printk_fmt_offsets;
+	int i, ret;
 
 	hyp_ftrace_init_mod(mod);
 
@@ -917,7 +917,7 @@ int hyp_trace_init_mod_events(struct pkvm_el2_module *mod)
 
 	hyp_event_table_init_tracefs(event, nr_events);
 
-	if (total_printk_fmts + nr_fmts > U8_MAX) {
+	if (total_printk_fmts + nr_fmts > U16_MAX) {
 		pr_warn("Too many trace_hyp_printk()!");
 		return 0;
 	}
@@ -932,8 +932,9 @@ int hyp_trace_init_mod_events(struct pkvm_el2_module *mod)
 	}
 
 	/* format offsets stored after event_ids (see module.lds.S) */
-	hyp_printk_fmt_offsets = (u8 *)(event_id + nr_events);
-	memset(hyp_printk_fmt_offsets, total_printk_fmts, nr_fmts);
+	hyp_printk_fmt_offsets = (u16 *)(event_id + nr_events);
+	for (i = 0; i < nr_fmts; i++, hyp_printk_fmt_offsets++)
+		*hyp_printk_fmt_offsets = total_printk_fmts;
 
 	total_printk_fmts += nr_fmts;
 

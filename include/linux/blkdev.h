@@ -26,6 +26,7 @@
 #include <linux/xarray.h>
 #include <linux/file.h>
 #include <linux/lockdep.h>
+#include <linux/android_vendor.h>
 
 struct module;
 struct request_queue;
@@ -485,7 +486,7 @@ struct request_queue {
 	 */
 	unsigned long		queue_flags;
 
-	unsigned int		rq_timeout;
+	unsigned int __data_racy rq_timeout;
 
 	unsigned int		queue_depth;
 
@@ -637,6 +638,8 @@ struct request_queue {
 	 * Serializes all debugfs metadata operations using the above dentries.
 	 */
 	struct mutex		debugfs_mutex;
+
+	ANDROID_OEM_DATA(1);
 };
 
 /* Keep blk_queue_flag_name[] in sync with the definitions below */

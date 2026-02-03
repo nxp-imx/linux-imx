@@ -18,10 +18,22 @@ use crate::{
     defs::*,
     error::{BinderError, BinderResult},
     node::{Node, NodeRef},
+    prio::{self, BinderPriority, PriorityState},
     process::{Process, ProcessInner},
     ptr_align,
     thread::{PushWorkRes, Thread},
     BinderReturnWriter, DArc, DLArc, DTRWrap, DeliverToRead,
+};
+
+use core::mem::offset_of;
+use kernel::bindings::rb_transaction_layout;
+pub(crate) const TRANSACTION_LAYOUT: rb_transaction_layout = rb_transaction_layout {
+    debug_id: offset_of!(Transaction, debug_id),
+    code: offset_of!(Transaction, code),
+    flags: offset_of!(Transaction, flags),
+    from_thread: offset_of!(Transaction, from),
+    to_proc: offset_of!(Transaction, to),
+    target_node: offset_of!(Transaction, target_node),
 };
 
 #[pin_data(PinnedDrop)]
@@ -43,6 +55,10 @@ pub(crate) struct Transaction {
     txn_security_ctx_off: Option<usize>,
     pub(crate) oneway_spam_detected: bool,
     start_time: Instant<Monotonic>,
+    set_priority_called: AtomicBool,
+    priority: BinderPriority,
+    #[pin]
+    saved_priority: SpinLock<BinderPriority>,
 }
 
 kernel::list::impl_list_arc_safe! {
@@ -92,6 +108,16 @@ impl Transaction {
         alloc.set_info_target_node(node_ref);
         let data_address = alloc.ptr;
 
+        let priority =
+            if (trd.flags & TF_ONE_WAY == 0) && prio::is_supported_policy(from.task.policy()) {
+                BinderPriority {
+                    sched_policy: from.task.policy(),
+                    prio: from.task.normal_prio(),
+                }
+            } else {
+                to.default_priority
+            };
+
         Ok(DTRWrap::arc_pin_init(pin_init!(Transaction {
             debug_id,
             target_node: Some(target_node),
@@ -109,6 +135,12 @@ impl Transaction {
             txn_security_ctx_off,
             oneway_spam_detected,
             start_time: Instant::now(),
+            priority,
+            saved_priority <- kernel::new_spinlock!(
+                BinderPriority::default(),
+                "Transaction::saved_priority"
+            ),
+            set_priority_called: AtomicBool::new(false),
         }))?)
     }
 
@@ -149,6 +181,12 @@ impl Transaction {
             txn_security_ctx_off: None,
             oneway_spam_detected,
             start_time: Instant::now(),
+            priority: BinderPriority::default(),
+            saved_priority <- kernel::new_spinlock!(
+                BinderPriority::default(),
+                "Transaction::saved_priority"
+            ),
+            set_priority_called: AtomicBool::new(false),
         }))?)
     }
 
@@ -170,6 +208,10 @@ impl Transaction {
             seq_print!(m, " node {}", target_node.debug_id);
         }
         seq_print!(m, " size {}:{}\n", self.data_size, self.offsets_size);
+    }
+
+    pub(crate) fn saved_priority(&self) -> BinderPriority {
+        *self.saved_priority.lock()
     }
 
     /// Determines if the transaction is stacked on top of the given transaction.
@@ -249,12 +291,16 @@ impl Transaction {
 
         if oneway {
             if let Some(target_node) = self.target_node.clone() {
+                crate::trace::trace_transaction(false, &self, None);
                 if process_inner.is_frozen.is_frozen() {
                     process_inner.async_recv = true;
                     if self.flags & TF_UPDATE_TXN != 0 {
                         if let Some(t_outdated) =
                             target_node.take_outdated_transaction(&self, &mut process_inner)
                         {
+                            crate::trace::trace_transaction_update_buffer_release(
+                                t_outdated.debug_id,
+                            );
                             // Save the transaction to be dropped after locks are released.
                             _t_outdated = t_outdated;
                         }
@@ -286,11 +332,13 @@ impl Transaction {
         }
 
         let res = if let Some(thread) = self.find_target_thread() {
+            crate::trace::trace_transaction(false, &self, Some(&thread.task));
             match thread.push_work(self) {
                 PushWorkRes::Ok => Ok(()),
                 PushWorkRes::FailedDead(me) => Err((BinderError::new_dead(), me)),
             }
         } else {
+            crate::trace::trace_transaction(false, &self, None);
             process_inner.push_work(self)
         };
         drop(process_inner);
@@ -355,6 +403,10 @@ impl DeliverToRead for Transaction {
             self.drop_outstanding_txn();
         });
 
+        // Update thread priority. This only has an effect if the transaction is delivered via the
+        // process work list, since the priority has otherwise already been updated.
+        self.on_thread_selected(thread);
+
         let files = if let Ok(list) = self.prepare_file_list() {
             list
         } else {
@@ -416,6 +468,8 @@ impl DeliverToRead for Transaction {
 
         self.drop_outstanding_txn();
 
+        crate::trace::trace_transaction_received(&self);
+
         // When this is not a reply and not a oneway transaction, update `current_transaction`. If
         // it's a reply, `current_transaction` has already been updated appropriately.
         if self.target_node.is_some() && tr_sec.transaction_data.flags & TF_ONE_WAY == 0 {
@@ -436,6 +490,58 @@ impl DeliverToRead for Transaction {
         }
 
         self.drop_outstanding_txn();
+    }
+
+    fn on_thread_selected(&self, to_thread: &Thread) {
+        // Return immediately if reply.
+        let target_node = match self.target_node.as_ref() {
+            Some(target_node) => target_node,
+            None => return,
+        };
+
+        // We only need to do this once.
+        if self.set_priority_called.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        crate::trace::trace_transaction_thread_selected(self, to_thread);
+
+        let node_prio = target_node.node_prio();
+        let mut desired = self.priority;
+
+        if !target_node.inherit_rt() && prio::is_rt_policy(desired.sched_policy) {
+            desired.prio = prio::DEFAULT_PRIO;
+            desired.sched_policy = prio::SCHED_NORMAL;
+        }
+
+        if node_prio.prio < desired.prio
+            || (node_prio.prio == desired.prio && node_prio.sched_policy == prio::SCHED_FIFO)
+        {
+            // In case the minimum priority on the node is
+            // higher (lower value), use that priority. If
+            // the priority is the same, but the node uses
+            // SCHED_FIFO, prefer SCHED_FIFO, since it can
+            // run unbounded, unlike SCHED_RR.
+            desired = node_prio;
+        }
+
+        let mut prio_state = to_thread.prio_lock.lock();
+        if prio_state.state == PriorityState::Pending {
+            // Task is in the process of changing priorities
+            // saving its current values would be incorrect.
+            // Instead, save the pending priority and signal
+            // the task to abort the priority restore.
+            prio_state.state = PriorityState::Abort;
+            *self.saved_priority.lock() = prio_state.next;
+        } else {
+            let task = &*to_thread.task;
+            let mut saved_priority = self.saved_priority.lock();
+            saved_priority.sched_policy = task.policy();
+            saved_priority.prio = task.normal_prio();
+        }
+        drop(prio_state);
+
+        to_thread.set_priority(&desired, self);
     }
 
     fn should_sync_wakeup(&self) -> bool {

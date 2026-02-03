@@ -9,6 +9,8 @@
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pkvm.h>
 
+#include <iommu-pages.h>
+
 #define kvm_call_hyp_nvhe_mc(...)					\
 ({									\
 	struct arm_smccc_res __res;					\
@@ -103,6 +105,55 @@ static int __init early_hyp_iommu_pages(char *arg)
 }
 early_param("kvm-arm.hyp_iommu_pages", early_hyp_iommu_pages);
 
+/*
+ * Note: iommu_alloc_pages_sz() returns a compound page when an order above 0 is used. Therefore,
+ * it is important that the address passed to hyp_mc_iommu_free_fn() is the same as what was
+ * returned by hyp_mc_iommu_alloc_gfp_fn().
+ */
+static void *hyp_mc_iommu_alloc_gfp_fn(void *gfp_flags_p, unsigned long order)
+{
+	return iommu_alloc_pages_sz(*(gfp_t *)gfp_flags_p, PAGE_SIZE << order);
+}
+
+static void hyp_mc_iommu_free_fn(void *virt, void *arg, unsigned long order)
+{
+	iommu_free_pages(virt);
+}
+
+unsigned long __pkvm_free_iommu_hyp_memcache(struct kvm_hyp_memcache *mc)
+{
+	return __free_hyp_memcache(mc, hyp_mc_iommu_free_fn, kvm_host_va, mc);
+}
+
+int __pkvm_topup_hyp_iommu(unsigned long nr_pages, unsigned long sz_alloc, gfp_t gfp)
+{
+	struct kvm_hyp_memcache mc;
+	int ret;
+	unsigned long order = get_order(sz_alloc);
+
+	if (!is_protected_kvm_enabled())
+		return 0;
+
+	if (order > PAGE_SHIFT)
+		return -E2BIG;
+
+	init_hyp_memcache(&mc);
+
+	ret = __topup_hyp_memcache(&mc, nr_pages, hyp_mc_iommu_alloc_gfp_fn, kvm_host_pa, &gfp,
+				   order);
+	if (ret)
+		return ret;
+
+	ret = __pkvm_topup_hyp_alloc_mgt_mc(HYP_ALLOC_MGT_IOMMU_ID, &mc);
+	if (ret) {
+		kvm_err("Failed topup iommu heap pages = %ld, size = %ld err = %d, freeing %ld pages\n",
+			nr_pages, sz_alloc, ret, mc.nr_pages);
+		__free_hyp_memcache(&mc, hyp_mc_iommu_free_fn, kvm_host_va, &mc);
+	}
+
+	return ret;
+}
+
 /* Hypercall abstractions exposed to kernel IOMMU drivers */
 static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 {
@@ -121,10 +172,7 @@ static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
 	}
 
 	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
-		return __pkvm_topup_hyp_alloc_mgt_gfp(HYP_ALLOC_MGT_IOMMU_ID,
-						      req.mem.nr_pages,
-						      req.mem.sz_alloc,
-						      gfp);
+		return __pkvm_topup_hyp_iommu(req.mem.nr_pages, req.mem.sz_alloc, gfp);
 	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
 		/* Fill hyp alloc*/
 		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);

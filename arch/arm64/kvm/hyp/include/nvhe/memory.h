@@ -32,13 +32,15 @@ enum pkvm_page_state {
 	 */
 	PKVM_NOPAGE			= BIT(0) | BIT(1),
 	PKVM_MODULE_OWNED_PAGE		= BIT(2),
+	PKVM_MODULE_SHARED_OWNED_PAGE	= BIT(3),
 
 	/*
 	 * Meta-states which aren't encoded directly in the PTE's SW bits (or
 	 * the hyp_vmemmap entry for the host)
 	 */
-	PKVM_PAGE_RESTRICTED_PROT	= BIT(3),
-	PKVM_MMIO			= BIT(4),
+	PKVM_PAGE_RESTRICTED_PROT	= BIT(4),
+	PKVM_MMIO			= BIT(5),
+	PKVM_ACCEPT_MODULE_OWNED	= BIT(6),
 };
 #define PKVM_PAGE_STATE_MASK		(BIT(0) | BIT(1))
 
@@ -75,18 +77,6 @@ struct hyp_page {
 
 extern u64 __hyp_vmemmap;
 #define hyp_vmemmap ((struct hyp_page *)__hyp_vmemmap)
-
-#define __hyp_va(phys)	((void *)((phys_addr_t)(phys) - hyp_physvirt_offset))
-
-static inline void *hyp_phys_to_virt(phys_addr_t phys)
-{
-	return __hyp_va(phys);
-}
-
-static inline phys_addr_t hyp_virt_to_phys(void *addr)
-{
-	return __hyp_pa(addr);
-}
 
 #define hyp_phys_to_pfn(phys)	((phys) >> PAGE_SHIFT)
 #define hyp_pfn_to_phys(pfn)	((phys_addr_t)((pfn) << PAGE_SHIFT))

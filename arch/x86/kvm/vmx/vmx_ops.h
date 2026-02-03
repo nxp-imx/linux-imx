@@ -303,6 +303,24 @@ static inline void vmcs_load(struct vmcs *vmcs)
 	vmx_asm1(vmptrld, "m"(phys_addr), vmcs, phys_addr);
 }
 
+static inline u64 vmcs_store(void)
+{
+	u64 phys_addr = INVALID_PAGE;
+
+	asm goto("1: vmptrst (%0)\n\t"
+		     _ASM_EXTABLE(1b, %l[do_exception])
+		     :
+		     : "r" (&phys_addr)
+		     : "cc", "memory"
+		     : do_exception);
+
+	return phys_addr;
+
+do_exception:
+	kvm_spurious_fault();
+	return INVALID_PAGE;
+}
+
 static inline void __invvpid(unsigned long ext, u16 vpid, gva_t gva)
 {
 	struct {

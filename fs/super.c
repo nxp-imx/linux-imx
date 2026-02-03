@@ -39,6 +39,8 @@
 #include <uapi/linux/mount.h>
 #include "internal.h"
 
+#include <trace/hooks/fs.h>
+
 static int thaw_super_locked(struct super_block *sb, enum freeze_holder who,
 			     const void *freeze_owner);
 
@@ -638,6 +640,7 @@ void generic_shutdown_super(struct super_block *sb)
 			sb->s_dio_done_wq = NULL;
 		}
 
+		trace_android_vh_put_super(sb);
 		if (sop->put_super)
 			sop->put_super(sb);
 
@@ -1188,7 +1191,7 @@ static void filesystems_freeze_callback(struct super_block *sb, void *freeze_all
 	if (!sb->s_op->freeze_fs && !sb->s_op->freeze_super)
 		return;
 
-	if (freeze_all_ptr && !(sb->s_type->fs_flags & FS_POWER_FREEZE))
+	if (!freeze_all_ptr && !(sb->s_type->fs_flags & FS_POWER_FREEZE))
 		return;
 
 	if (!get_active_super(sb))

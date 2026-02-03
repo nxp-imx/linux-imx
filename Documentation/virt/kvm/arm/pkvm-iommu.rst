@@ -122,7 +122,7 @@ The hypervisor manages two pools of memory that drivers can use:
    When ``kvm_iommu_donate_pages()`` fails to allocate, it automatically encodes
    a request returned via the HVC (see ``hyp_reqs_smccc_encode``). The caller
    can check the return value, top up the allocator using
-   ``__pkvm_topup_hyp_alloc_mgt_gfp()``, and repeat the HVC.
+   ``kvm_iommu_topup_memcache()``, and repeat the HVC.
 
    All HVCs have wrapper functions in ``arch/arm64/kvm/iommu.c`` which handle
    return values and top up the allocator if needed. This allows transparent

@@ -66,6 +66,7 @@ struct rw_semaphore {
 	struct lockdep_map	dep_map;
 #endif
 	ANDROID_VENDOR_DATA(1);
+	ANDROID_OEM_DATA_ARRAY(1, 2);
 };
 
 #define RWSEM_UNLOCKED_VALUE		0UL
@@ -218,6 +219,8 @@ static inline void rwsem_assert_held_write(const struct rw_semaphore *sem)
 	else
 		rwsem_assert_held_write_nolockdep(sem);
 }
+
+extern struct task_struct *rwsem_writer_owner(struct rw_semaphore *sem);
 
 /*
  * lock for reading

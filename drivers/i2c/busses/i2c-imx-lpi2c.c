@@ -615,8 +615,8 @@ static bool is_use_dma(struct lpi2c_imx_struct *lpi2c_imx, struct i2c_msg *msg)
 		return false;
 
 	/*
-	 * When system is in suspend process. LPI2C should use PIO to transfer data to
-	 * avoid issue caused by not ready DMA HW resource.
+	 * A system-wide suspend or resume transition is in progress. LPI2C should use PIO to
+	 * transfer data to avoid issue caused by no ready DMA HW resource.
 	 */
 	if (pm_suspend_in_progress())
 		return false;

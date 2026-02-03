@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __PKVM_VMX_VCPU_REGS_H
+#define __PKVM_VMX_VCPU_REGS_H
+
+#include <asm/bitsperlong.h>
+
+#define WORD_SIZE (BITS_PER_LONG / 8)
+
+#define VCPU_RAX	(__VCPU_REGS_RAX * WORD_SIZE)
+#define VCPU_RCX	(__VCPU_REGS_RCX * WORD_SIZE)
+#define VCPU_RDX	(__VCPU_REGS_RDX * WORD_SIZE)
+#define VCPU_RBX	(__VCPU_REGS_RBX * WORD_SIZE)
+#define VCPU_RBP	(__VCPU_REGS_RBP * WORD_SIZE)
+#define VCPU_RSI	(__VCPU_REGS_RSI * WORD_SIZE)
+#define VCPU_RDI	(__VCPU_REGS_RDI * WORD_SIZE)
+
+#define VCPU_R8		(__VCPU_REGS_R8  * WORD_SIZE)
+#define VCPU_R9		(__VCPU_REGS_R9  * WORD_SIZE)
+#define VCPU_R10	(__VCPU_REGS_R10 * WORD_SIZE)
+#define VCPU_R11	(__VCPU_REGS_R11 * WORD_SIZE)
+#define VCPU_R12	(__VCPU_REGS_R12 * WORD_SIZE)
+#define VCPU_R13	(__VCPU_REGS_R13 * WORD_SIZE)
+#define VCPU_R14	(__VCPU_REGS_R14 * WORD_SIZE)
+#define VCPU_R15	(__VCPU_REGS_R15 * WORD_SIZE)
+
+#endif /* __PKVM_VMX_VCPU_REGS_H */

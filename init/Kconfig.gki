@@ -243,6 +243,7 @@ config GKI_HIDDEN_NET_CONFIGS
 config GKI_HIDDEN_PHY_CONFIGS
 	bool "Hidden PHY configuration needed for GKI"
 	select GENERIC_PHY_MIPI_DPHY
+	select PHY_PACKAGE
 	help
 	  Dummy config option used to enable the hidden PHY configs,
 	  required by various SoC platforms.

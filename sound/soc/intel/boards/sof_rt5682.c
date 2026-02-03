@@ -27,6 +27,7 @@
 #include "sof_board_helpers.h"
 #include "sof_maxim_common.h"
 #include "sof_realtek_common.h"
+#include "sof_ti_common.h"
 
 /* Driver-specific board quirks: from bit 0 to 7 */
 #define SOF_RT5682_MCLK_EN			BIT(0)
@@ -615,6 +616,9 @@ sof_card_dai_links_create(struct device *dev, struct snd_soc_card *card,
 		ctx->amp_link->init = rt5650_spk_init;
 		ctx->amp_link->ops = &sof_rt5682_ops;
 		break;
+	case CODEC_TAS2563:
+		sof_tas2563_dai_link(ctx->amp_link);
+		break;
 	default:
 		dev_err(dev, "invalid amp type %d\n", ctx->amp_type);
 		return -EINVAL;
@@ -756,6 +760,7 @@ static int sof_audio_probe(struct platform_device *pdev)
 	case CODEC_MAX98360A:
 	case CODEC_RT1019P:
 	case CODEC_RT5650:
+	case CODEC_TAS2563:
 	case CODEC_NONE:
 		/* no codec conf required */
 		break;
@@ -923,3 +928,4 @@ MODULE_LICENSE("GPL v2");
 MODULE_IMPORT_NS("SND_SOC_INTEL_SOF_BOARD_HELPERS");
 MODULE_IMPORT_NS("SND_SOC_INTEL_SOF_MAXIM_COMMON");
 MODULE_IMPORT_NS("SND_SOC_INTEL_SOF_REALTEK_COMMON");
+MODULE_IMPORT_NS("SND_SOC_INTEL_SOF_TI_COMMON");

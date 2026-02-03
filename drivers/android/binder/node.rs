@@ -14,6 +14,7 @@ use kernel::{
 use crate::{
     defs::*,
     error::BinderError,
+    prio::{self, BinderPriority},
     process::{NodeRefInfo, Process, ProcessInner},
     thread::Thread,
     transaction::Transaction,
@@ -178,6 +179,14 @@ struct NodeInner {
     refs: List<NodeRefInfo, { NodeRefInfo::LIST_NODE }>,
 }
 
+use kernel::bindings::rb_node_layout;
+use mem::offset_of;
+pub(crate) const NODE_LAYOUT: rb_node_layout = rb_node_layout {
+    arc_offset: Arc::<Node>::DATA_OFFSET + offset_of!(DTRWrap<Node>, wrapped),
+    debug_id: offset_of!(Node, debug_id),
+    ptr: offset_of!(Node, ptr),
+};
+
 #[pin_data]
 pub(crate) struct Node {
     pub(crate) debug_id: usize,
@@ -308,6 +317,22 @@ impl Node {
                 .refs
                 .remove(info)
         }
+    }
+
+    pub(crate) fn node_prio(&self) -> prio::BinderPriority {
+        let flags = self.flags;
+        let priority = (flags & FLAT_BINDER_FLAG_PRIORITY_MASK) as prio::Nice;
+        let sched_policy =
+            (flags & FLAT_BINDER_FLAG_SCHED_POLICY_MASK) >> FLAT_BINDER_FLAG_SCHED_POLICY_SHIFT;
+
+        BinderPriority {
+            sched_policy,
+            prio: prio::to_kernel_prio(sched_policy, priority),
+        }
+    }
+
+    pub(crate) fn inherit_rt(&self) -> bool {
+        (self.flags & FLAT_BINDER_FLAG_INHERIT_RT) != 0
     }
 
     /// An id that is unique across all binder nodes on the system. Used as the key in the

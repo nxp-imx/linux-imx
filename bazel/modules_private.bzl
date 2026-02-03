@@ -10,6 +10,7 @@ visibility("private")
 
 _COMMON_GKI_MODULES_LIST = [
     # keep sorted
+    "drivers/android/binder/rust_binder.ko",
     "drivers/block/virtio_blk.ko",
     "drivers/block/zram/zram.ko",
     "drivers/bluetooth/btbcm.ko",
@@ -87,7 +88,6 @@ _COMMON_GKI_MODULES_LIST = [
     "net/rfkill/rfkill.ko",
     "net/tipc/tipc.ko",
     "net/tipc/tipc_diag.ko",
-    "net/tls/tls.ko",
     "net/vmw_vsock/vmw_vsock_virtio_transport.ko",
 ]
 
@@ -96,24 +96,20 @@ COMMON_GKI_MODULES_LIST = _COMMON_GKI_MODULES_LIST
 
 _ARM_GKI_MODULES_LIST = [
     # keep sorted
-    "drivers/ptp/ptp_kvm.ko",
 ]
 
 _ARM64_GKI_MODULES_LIST = [
     # keep sorted
     "drivers/char/hw_random/cctrng.ko",
     "drivers/misc/open-dice.ko",
-    "drivers/ptp/ptp_kvm.ko",
 ]
 
 _X86_GKI_MODULES_LIST = [
     # keep sorted
-    "drivers/ptp/ptp_kvm.ko",
 ]
 
 _X86_64_GKI_MODULES_LIST = [
     # keep sorted
-    "drivers/ptp/ptp_kvm.ko",
 ]
 
 def _apply(map_each, lst):

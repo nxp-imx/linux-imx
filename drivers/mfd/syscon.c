@@ -20,6 +20,7 @@
 #include <linux/reset.h>
 #include <linux/mfd/syscon.h>
 #include <linux/slab.h>
+#include <trace/hooks/regmap.h>
 
 static DEFINE_MUTEX(syscon_list_lock);
 static LIST_HEAD(syscon_list);
@@ -146,6 +147,7 @@ static struct syscon *of_syscon_register(struct device_node *np, bool check_res)
 			goto err_reset;
 	}
 
+	trace_android_vh_regmap_update(&syscon_config, regmap);
 	syscon->regmap = regmap;
 	syscon->np = np;
 

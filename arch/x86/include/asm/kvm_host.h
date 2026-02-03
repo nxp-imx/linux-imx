@@ -781,6 +781,71 @@ enum kvm_only_cpuid_leafs {
 	NKVMCAPINTS = NR_KVM_CPU_CAPS - NCAPINTS,
 };
 
+#ifdef CONFIG_PKVM_X86
+struct pkvm_memcache {
+	struct pkvm_page_range {
+		phys_addr_t addr;
+		u64 nr_pages;
+	} head;
+	unsigned long count;
+};
+
+static inline void push_pkvm_memcache(struct pkvm_memcache *mc,
+				      void *addr, size_t size,
+				      phys_addr_t (*to_pa)(void *virt))
+{
+	struct pkvm_page_range *head = addr;
+
+	if (WARN_ON_ONCE(!PAGE_ALIGNED(addr) || !PAGE_ALIGNED(size)))
+		return;
+
+	*head = mc->head;
+	mc->head.addr = to_pa(addr);
+	mc->head.nr_pages = size >> PAGE_SHIFT;
+
+	mc->count++;
+}
+
+static inline struct pkvm_page_range
+pop_pkvm_memcache(struct pkvm_memcache *mc, void *(*to_va)(phys_addr_t phys))
+{
+	struct pkvm_page_range head = { 0 };
+
+	if (!mc->count)
+		return head;
+
+	/*
+	 * The popped memory should be at least one page which contains the
+	 * next head.
+	 */
+	if (WARN_ON_ONCE(!mc->head.nr_pages))
+		return head;
+
+	head = mc->head;
+	mc->head = *(struct pkvm_page_range *)to_va(head.addr);
+
+	mc->count--;
+
+	return head;
+}
+
+static inline void free_pkvm_memcache(struct pkvm_memcache *mc,
+				      void (*free)(struct pkvm_page_range range),
+				      void *(*to_va)(phys_addr_t phys))
+{
+	while (mc->count)
+		free(pop_pkvm_memcache(mc, to_va));
+}
+
+struct kvm_pkvm_vm {
+	int handle;
+};
+
+struct kvm_pkvm_vcpu {
+	int handle;
+};
+#endif /* CONFIG_PKVM_X86 */
+
 struct kvm_vcpu_arch {
 	/*
 	 * rip and regs accesses must go through
@@ -1091,6 +1156,10 @@ struct kvm_vcpu_arch {
 
 #if IS_ENABLED(CONFIG_HYPERV)
 	hpa_t hv_root_tdp;
+#endif
+
+#ifdef CONFIG_PKVM_X86
+	struct kvm_pkvm_vcpu pkvm;
 #endif
 };
 
@@ -1618,6 +1687,10 @@ struct kvm_arch {
 	 * current VM.
 	 */
 	int cpu_dirty_log_size;
+
+#ifdef CONFIG_PKVM_X86
+	struct kvm_pkvm_vm pkvm;
+#endif
 };
 
 struct kvm_vm_stat {
@@ -1990,9 +2063,35 @@ extern bool __read_mostly enable_apicv;
 extern bool __read_mostly enable_ipiv;
 extern bool __read_mostly enable_device_posted_irqs;
 extern struct kvm_x86_ops kvm_x86_ops;
+#ifdef CONFIG_PKVM_X86
+extern bool __read_mostly enable_pkvm;	/* kernel command-line flag */
+extern phys_addr_t pkvm_mem_base;
+extern phys_addr_t pkvm_mem_size;
+void __init pkvm_reserve(void);
+void pkvm_init_debugfs(void);
+void kvm_free_pkvm_memcache(struct pkvm_memcache *mc);
+#else
+#define enable_pkvm		false
+static inline void __init pkvm_reserve(void) {}
+#endif
 
+#ifdef __PKVM_HYP__
+/*
+ * TODO: Enable the static call mechanism in the pKVM hypervisor.
+ *
+ * Until the static call mechanism is available, just use indirect
+ * calls. In particular, assume that any ops that are used by pKVM
+ * hypervisor code are non-NULL.
+ */
+#define kvm_x86_call(func)				\
+({							\
+	BUG_ON(!kvm_x86_ops.func);			\
+	(kvm_x86_ops.func);				\
+})
+#else
 #define kvm_x86_call(func) static_call(kvm_x86_##func)
 #define kvm_pmu_call(func) static_call(kvm_x86_pmu_##func)
+#endif
 
 #define KVM_X86_OP(func) \
 	DECLARE_STATIC_CALL(kvm_x86_##func, *(((struct kvm_x86_ops *)0)->func));
@@ -2006,6 +2105,8 @@ void kvm_x86_vendor_exit(void);
 #define __KVM_HAVE_ARCH_VM_ALLOC
 static inline struct kvm *kvm_arch_alloc_vm(void)
 {
+	if (enable_pkvm)
+		return kzalloc(kvm_x86_ops.vm_size, GFP_KERNEL_ACCOUNT);
 	return kvzalloc(kvm_x86_ops.vm_size, GFP_KERNEL_ACCOUNT);
 }
 
@@ -2225,6 +2326,7 @@ int kvm_emulate_xsetbv(struct kvm_vcpu *vcpu);
 
 int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr);
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr);
+bool pkvm_host_has_emulated_msr(struct kvm *kvm, u32 msr);
 
 unsigned long kvm_get_rflags(struct kvm_vcpu *vcpu);
 void kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
@@ -2387,7 +2489,6 @@ int kvm_pv_send_ipi(struct kvm *kvm, unsigned long ipi_bitmap_low,
 int kvm_add_user_return_msr(u32 msr);
 int kvm_find_user_return_msr(u32 msr);
 int kvm_set_user_return_msr(unsigned index, u64 val, u64 mask);
-void kvm_user_return_msr_update_cache(unsigned int index, u64 val);
 u64 kvm_get_user_return_msr(unsigned int slot);
 
 static inline bool kvm_is_supported_user_return_msr(u32 msr)
@@ -2424,6 +2525,7 @@ void __user *__x86_set_memory_region(struct kvm *kvm, int id, gpa_t gpa,
 				     u32 size);
 bool kvm_vcpu_is_reset_bsp(struct kvm_vcpu *vcpu);
 bool kvm_vcpu_is_bsp(struct kvm_vcpu *vcpu);
+int kvm_vcpu_x86_setup_mce(struct kvm_vcpu *vcpu, u64 mcg_cap);
 
 static inline bool kvm_irq_is_postable(struct kvm_lapic_irq *irq)
 {

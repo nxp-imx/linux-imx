@@ -664,6 +664,13 @@ unsigned long memcg_page_state(struct mem_cgroup *memcg, int idx)
 #endif
 	return x;
 }
+EXPORT_SYMBOL_GPL(memcg_page_state);
+
+/* For type visibility of memcg_page_state indices */
+const enum node_stat_item ANDROID_GKI_node_stat_item;
+EXPORT_SYMBOL_GPL(ANDROID_GKI_node_stat_item);
+const enum memcg_stat_item ANDROID_GKI_memcg_stat_item;
+EXPORT_SYMBOL_GPL(ANDROID_GKI_memcg_stat_item);
 
 static int memcg_page_state_unit(int item);
 
@@ -1261,6 +1268,34 @@ struct lruvec *folio_lruvec_lock_irqsave(struct folio *folio,
 
 	return lruvec;
 }
+
+void do_traversal_all_lruvec(int (*callback)(struct mem_cgroup *memcg,
+					     struct lruvec *lruvec,
+					     void *private),
+			     void *private)
+{
+	pg_data_t *pgdat;
+	int ret;
+
+	for_each_online_pgdat(pgdat) {
+		struct mem_cgroup *memcg = NULL;
+
+		memcg = mem_cgroup_iter(NULL, NULL, NULL);
+		do {
+			struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdat);
+
+			ret = callback(memcg, lruvec, private);
+			if (ret) {
+				mem_cgroup_iter_break(NULL, memcg);
+				break;
+			}
+
+			memcg = mem_cgroup_iter(NULL, memcg, NULL);
+		} while (memcg);
+	}
+}
+EXPORT_SYMBOL_GPL(do_traversal_all_lruvec);
+
 
 /**
  * mem_cgroup_update_lru_size - account for adding or removing an lru page

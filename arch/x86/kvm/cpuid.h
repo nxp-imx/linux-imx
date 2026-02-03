@@ -290,4 +290,9 @@ static inline bool guest_has_pred_cmd_msr(struct kvm_vcpu *vcpu)
 		guest_cpu_cap_has(vcpu, X86_FEATURE_SBPB));
 }
 
+#ifdef __PKVM_HYP__
+int kvm_set_cpuid(struct kvm_vcpu *vcpu, struct kvm_cpuid_entry2 *e2, int nent);
+int pkvm_enforce_cpuid(struct kvm_cpuid_entry2 *e2, int *nent, int max_nent);
+#endif
+
 #endif

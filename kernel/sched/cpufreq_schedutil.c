@@ -6,6 +6,7 @@
  * Author: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
  */
 #include <uapi/linux/sched/types.h>
+#include <trace/hooks/sched.h>
 #include "sched.h"
 
 #define IOWAIT_BOOST_MIN	(SCHED_CAPACITY_SCALE / 8)
@@ -221,9 +222,15 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int freq;
 	unsigned int coefficient = sg_policy->tunables->freq_coefficient;
+	unsigned long next_freq = 0;
 
 	freq = get_capacity_ref_freq(policy);
-	freq = map_util_freq(util, freq * coefficient, max);
+	trace_android_vh_map_util_freq(util, freq, max, &next_freq, policy,
+			&sg_policy->need_freq_update);
+	if (next_freq)
+		freq = next_freq;
+	else
+		freq = map_util_freq(util, freq * coefficient, max);
 
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;

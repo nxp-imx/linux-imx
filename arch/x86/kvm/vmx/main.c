@@ -861,33 +861,45 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 	.check_processor_compatibility = vmx_check_processor_compat,
 
+#ifndef __PKVM_HYP__
 	.hardware_unsetup = vmx_hardware_unsetup,
+#endif
 
 	.enable_virtualization_cpu = vmx_enable_virtualization_cpu,
+#ifndef __PKVM_HYP__
 	.disable_virtualization_cpu = vt_op(disable_virtualization_cpu),
 	.emergency_disable_virtualization_cpu = vmx_emergency_disable_virtualization_cpu,
 
 	.has_emulated_msr = vt_op(has_emulated_msr),
+#endif
 
 	.vm_size = sizeof(struct kvm_vmx),
 
 	.vm_init = vt_op(vm_init),
 	.vm_destroy = vt_op(vm_destroy),
+#ifndef __PKVM_HYP__
 	.vm_pre_destroy = vt_op_tdx_only(vm_pre_destroy),
+#endif
 
 	.vcpu_precreate = vt_op(vcpu_precreate),
 	.vcpu_create = vt_op(vcpu_create),
 	.vcpu_free = vt_op(vcpu_free),
 	.vcpu_reset = vt_op(vcpu_reset),
 
+#ifndef __PKVM_HYP__
 	.prepare_switch_to_guest = vt_op(prepare_switch_to_guest),
+#endif
 	.vcpu_load = vt_op(vcpu_load),
 	.vcpu_put = vt_op(vcpu_put),
 
+#ifndef __PKVM_HYP__
 	.HOST_OWNED_DEBUGCTL = VMX_HOST_OWNED_DEBUGCTL_BITS,
+#endif
 
 	.update_exception_bitmap = vt_op(update_exception_bitmap),
+#ifndef __PKVM_HYP__
 	.get_feature_msr = vmx_get_feature_msr,
+#endif
 	.get_msr = vt_op(get_msr),
 	.set_msr = vt_op(set_msr),
 
@@ -918,14 +930,18 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.flush_tlb_gva = vt_op(flush_tlb_gva),
 	.flush_tlb_guest = vt_op(flush_tlb_guest),
 
+#ifndef __PKVM_HYP__
 	.vcpu_pre_run = vt_op(vcpu_pre_run),
 	.vcpu_run = vt_op(vcpu_run),
 	.handle_exit = vt_op(handle_exit),
 	.skip_emulated_instruction = vmx_skip_emulated_instruction,
 	.update_emulated_instruction = vmx_update_emulated_instruction,
+#endif
 	.set_interrupt_shadow = vt_op(set_interrupt_shadow),
 	.get_interrupt_shadow = vt_op(get_interrupt_shadow),
+#ifndef __PKVM_HYP__
 	.patch_hypercall = vt_op(patch_hypercall),
+#endif
 	.inject_irq = vt_op(inject_irq),
 	.inject_nmi = vt_op(inject_nmi),
 	.inject_exception = vt_op(inject_exception),
@@ -938,15 +954,22 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.enable_irq_window = vt_op(enable_irq_window),
 	.update_cr8_intercept = vt_op(update_cr8_intercept),
 
+#ifndef __PKVM_HYP__
 	.x2apic_icr_is_split = false,
+#endif
 	.set_virtual_apic_mode = vt_op(set_virtual_apic_mode),
+#ifndef __PKVM_HYP__
 	.set_apic_access_page_addr = vt_op(set_apic_access_page_addr),
+#endif
 	.refresh_apicv_exec_ctrl = vt_op(refresh_apicv_exec_ctrl),
 	.load_eoi_exitmap = vt_op(load_eoi_exitmap),
+#ifndef __PKVM_HYP__
 	.apicv_pre_state_restore = pi_apicv_pre_state_restore,
 	.required_apicv_inhibits = VMX_REQUIRED_APICV_INHIBITS,
+#endif
 	.hwapic_isr_update = vt_op(hwapic_isr_update),
 	.sync_pir_to_irr = vt_op(sync_pir_to_irr),
+#ifndef __PKVM_HYP__
 	.deliver_interrupt = vt_op(deliver_interrupt),
 	.dy_apicv_has_pending_interrupt = pi_has_pending_interrupt,
 
@@ -956,18 +979,22 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 	.get_exit_info = vt_op(get_exit_info),
 	.get_entry_info = vt_op(get_entry_info),
+#endif
 
 	.vcpu_after_set_cpuid = vt_op(vcpu_after_set_cpuid),
 
+#ifndef __PKVM_HYP__
 	.has_wbinvd_exit = cpu_has_vmx_wbinvd_exit,
 
 	.get_l2_tsc_offset = vt_op(get_l2_tsc_offset),
 	.get_l2_tsc_multiplier = vt_op(get_l2_tsc_multiplier),
+#endif
 	.write_tsc_offset = vt_op(write_tsc_offset),
 	.write_tsc_multiplier = vt_op(write_tsc_multiplier),
 
 	.load_mmu_pgd = vt_op(load_mmu_pgd),
 
+#ifndef __PKVM_HYP__
 	.check_intercept = vmx_check_intercept,
 	.handle_exit_irqoff = vmx_handle_exit_irqoff,
 
@@ -982,9 +1009,11 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.set_hv_timer = vt_op(set_hv_timer),
 	.cancel_hv_timer = vt_op(cancel_hv_timer),
 #endif
+#endif /* !__PKVM_HYP__ */
 
 	.setup_mce = vt_op(setup_mce),
 
+#ifndef __PKVM_HYP__
 #ifdef CONFIG_KVM_SMM
 	.smi_allowed = vt_op(smi_allowed),
 	.enter_smm = vt_op(enter_smm),
@@ -1007,16 +1036,22 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.vcpu_mem_enc_ioctl = vt_op_tdx_only(vcpu_mem_enc_ioctl),
 
 	.gmem_max_mapping_level = vt_op_tdx_only(gmem_max_mapping_level)
+#endif /* !__PKVM_HYP__ */
 };
 
 struct kvm_x86_init_ops vt_init_ops __initdata = {
 	.hardware_setup = vt_op(hardware_setup),
+#ifndef __PKVM_HYP__
 	.handle_intel_pt_intr = NULL,
+#endif
 
 	.runtime_ops = &vt_x86_ops,
+#ifndef __PKVM_HYP__
 	.pmu_ops = &intel_pmu_ops,
+#endif
 };
 
+#ifndef __PKVM_HYP__
 static void __exit vt_exit(void)
 {
 	kvm_exit();
@@ -1071,3 +1106,4 @@ err_tdx_bringup:
 	return r;
 }
 module_init(vt_init);
+#endif /* !__PKVM_HYP__ */

@@ -77,6 +77,7 @@
 #include <asm/unistd.h>
 #include <asm/mmu_context.h>
 #include <trace/hooks/mm.h>
+#include <trace/hooks/dtask.h>
 
 #include "exit.h"
 
@@ -915,6 +916,7 @@ void __noreturn do_exit(long code)
 	io_uring_files_cancel();
 	exit_signals(tsk);  /* sets PF_EXITING */
 
+	trace_android_vh_exit_check(current);
 	seccomp_filter_release(tsk);
 
 	acct_update_integrals(tsk);

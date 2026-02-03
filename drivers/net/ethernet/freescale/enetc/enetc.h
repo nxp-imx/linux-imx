@@ -87,10 +87,9 @@ struct enetc_lso_t {
 #define ENETC_RXB_TRUESIZE(order)	(ENETC_PAGE_SIZE(order) >> 1)
 #define ENETC_RXB_PAD		NET_SKB_PAD /* add extra space if needed */
 #define ENETC_RXB_DMA_SIZE(order)	\
-	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) - ENETC_RXB_PAD)
+	min(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) - ENETC_RXB_PAD, 0xffff)
 #define ENETC_RXB_DMA_SIZE_XDP(order)	\
-	(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) \
-	 - XDP_PACKET_HEADROOM)
+	min(SKB_WITH_OVERHEAD(ENETC_RXB_TRUESIZE(order)) - XDP_PACKET_HEADROOM, 0xffff)
 
 struct enetc_rx_swbd {
 	dma_addr_t dma;

@@ -131,4 +131,8 @@ static __always_inline __pure bool fpu_state_size_dynamic(void)
 }
 #endif
 
+#ifdef __PKVM_HYP__
+void pkvm_setup_xstate_cache(void);
+#endif
+
 #endif

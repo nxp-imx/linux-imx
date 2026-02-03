@@ -34,12 +34,30 @@ extern __always_inline unsigned long native_save_fl(void)
 
 static __always_inline void native_irq_disable(void)
 {
+#ifndef __PKVM_HYP__
 	asm volatile("cli": : :"memory");
+#else
+	/*
+	 * The pKVM hypervisor always runs in the IRQ disabled context. So the
+	 * irq should not be disabled again and this function should not be
+	 * called. Warn on in case it is accidentally called.
+	 */
+	WARN_ON_ONCE(1);
+#endif
 }
 
 static __always_inline void native_irq_enable(void)
 {
+#ifndef __PKVM_HYP__
 	asm volatile("sti": : :"memory");
+#else
+	/*
+	 * The pKVM hypervisor always runs in the IRQ disabled context. So the
+	 * irq should not be enabled and this function should not be called.
+	 * Warn on in case it is accidentally called.
+	 */
+	WARN_ON_ONCE(1);
+#endif
 }
 
 static __always_inline void native_safe_halt(void)

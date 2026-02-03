@@ -18,7 +18,7 @@ ifeq ($(CONFIG_PKVM_FTRACE), y)
 ccflags-y += -fpatchable-function-entry=3
 endif
 
-HYPREL := arch/arm64/tools/gen-hyprel
+HYPREL := $(objtree)/arch/arm64/tools/gen-hyprel
 
 ##
 ## Build rules for compiling nVHE hyp code

@@ -642,6 +642,7 @@ static inline bool dma_buf_is_dynamic(struct dma_buf *dmabuf)
 	return !!dmabuf->ops->pin;
 }
 
+int is_dma_buf_file(struct file *file);
 struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
 					  struct device *dev);
 struct dma_buf_attachment *
@@ -691,4 +692,6 @@ long dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
 int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
 struct dma_buf *dma_buf_iter_begin(void);
 struct dma_buf *dma_buf_iter_next(struct dma_buf *dmbuf);
+
+int is_dma_buf_file(struct file *);
 #endif /* __DMA_BUF_H__ */

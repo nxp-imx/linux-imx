@@ -56,8 +56,6 @@ static struct hyp_trace_buffer {
 
 static size_t hyp_trace_buffer_size = 7 << 10;
 
-static bool hyp_trace_panic __read_mostly;
-
 /* Number of pages the ring-buffer requires to accommodate for size */
 #define NR_PAGES(size) \
 	((PAGE_ALIGN(size) >> PAGE_SHIFT) + 1)
@@ -177,11 +175,13 @@ static void hyp_clock_wait(struct hyp_trace_buffer *hyp_buffer)
 
 static int __get_reader_page(int cpu)
 {
-	/* we'd better no try to call the hyp if it has panic'ed */
-	if (hyp_trace_panic)
-		return 0;
+	int ret = kvm_call_hyp_nvhe(__pkvm_swap_reader_tracing, cpu);
 
-	return kvm_call_hyp_nvhe(__pkvm_swap_reader_tracing, cpu);
+	/* panic occured, hyp already fast-forwarded the reader page */
+	if (ret == -EBUSY)
+		ret = 0;
+
+	return ret;
 }
 
 static int __reset(int cpu)
@@ -948,7 +948,9 @@ static void hyp_trace_buffer_printk(struct hyp_trace_buffer *hyp_buffer)
 			return;
 
 		ht_iter->seq.buffer[ht_iter->seq.seq.len] = '\0';
-		printk("%s", ht_iter->seq.buffer);
+
+		if (!pr_emerg("%s", ht_iter->seq.buffer))
+			return;
 
 		ht_iter->seq.seq.len = 0;
 		ring_buffer_consume(hyp_buffer->trace_buffer, ht_iter->ent_cpu,
@@ -963,9 +965,6 @@ static int hyp_trace_panic_handler(struct notifier_block *self,
 	if (!hyp_trace_buffer_loaded(&hyp_trace_buffer) ||
 	    !hyp_trace_buffer.printk_iter)
 		return NOTIFY_DONE;
-
-	if (!strncmp("HYP panic:", v, 10))
-		hyp_trace_panic = true;
 
 	ring_buffer_poll_writer(hyp_trace_buffer.trace_buffer, RING_BUFFER_ALL_CPUS);
 	hyp_trace_buffer_printk(&hyp_trace_buffer);

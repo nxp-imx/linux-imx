@@ -235,7 +235,11 @@ becoming visible to another VM.
 |                     +----------+----+---------------------------------------------+
 |                     | (uint64) | R2 | Reserved / Must be zero                     |
 |                     +----------+----+---------------------------------------------+
-|                     | (uint64) | R3 | Reserved / Must be zero                     |
+|                     | (uint64) | R3 | Flags to control relinquish behaviour       |
+|                     |          |    +---------------------------------------------+
+|                     |          |    | ``KVM_FUNC_MEM_RELINQUISH_NO_POISON (1)``   |
+|                     |          |    | Tell hypervisor not to poison the page      |
+|                     |          |    | before making it visible to another VM.     |
 +---------------------+----------+----+---------------------------------------------+
 | Return Values:      | (int64)  | R0 | ``SUCCESS (0)``                             |
 |                     |          |    +---------------------------------------------+

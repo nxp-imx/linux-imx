@@ -306,6 +306,7 @@ kvm_pte_t *pkvm_pgtable_stage2_create_unlinked(struct kvm_pgtable *pgt, u64 phys
 					       enum kvm_pgtable_prot prot, void *mc,
 					       bool force_pte);
 
+int __pkvm_topup_hyp_alloc_mgt_mc(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *mc);
 int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
 
 #define kvm_call_refill_hyp_nvhe(f, ...)				\

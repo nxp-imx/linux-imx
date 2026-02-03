@@ -1126,6 +1126,7 @@ struct ufs_hba {
 	atomic_t dev_lvl_exception_count;
 	u64 dev_lvl_exception_id;
 
+	u32 vcc_off_delay_us;
 	ANDROID_OEM_DATA(1);
 };
 

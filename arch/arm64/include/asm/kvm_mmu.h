@@ -103,10 +103,11 @@ alternative_cb_end
 
 void kvm_update_va_mask(struct alt_instr *alt,
 			__le32 *origptr, __le32 *updptr, int nr_inst);
+void kvm_patch_physvirt_offset(struct alt_instr *alt, __le32 *origptr,
+			       __le32 *updptr, int nr_inst);
 void kvm_compute_layout(void);
+u32 kvm_hyp_va_bits(void);
 void kvm_apply_hyp_relocations(void);
-
-#define __hyp_pa(x) (((phys_addr_t)(x)) + hyp_physvirt_offset)
 
 /*
  * Convert a kernel VA into a HYP VA.
@@ -142,6 +143,64 @@ static __always_inline unsigned long __kern_hyp_va(unsigned long v)
 }
 
 #define kern_hyp_va(v) 	((typeof(v))(__kern_hyp_va((unsigned long)(v))))
+
+/*
+ * Convert a PA into a HYP VA.
+ *
+ * Can be called from hyp or non-hyp context.
+ *
+ * The actual code generation takes place in kvm_patch_physvirt_offset(),
+ * and the instructions below are only there to reserve the space and
+ * perform the register allocation (kvm_patch_physvirt_offset() uses the
+ * specific registers encoded in the instructions).
+ */
+static __always_inline void *hyp_phys_to_virt(phys_addr_t v)
+{
+	long offset = 0;
+
+	asm volatile (ALTERNATIVE_CB("movz  %1, #0\n\t"
+				     "nop\n\t"
+				     "nop\n\t"
+				     "nop\n\t"
+				     "sub  %0, %0, %1",
+				     ARM64_ALWAYS_SYSTEM,
+				     kvm_patch_physvirt_offset)
+		      : "+r" (v),
+			"=&r" (offset));
+
+	return (void *)v;
+}
+
+#define __hyp_va(v) hyp_phys_to_virt((phys_addr_t)v)
+
+/*
+ * Convert a HYP VA into a PA.
+ *
+ * Can be called from hyp or non-hyp context.
+ *
+ * The actual code generation takes place in kvm_patch_physvirt_offset(),
+ * and the instructions below are only there to reserve the space and
+ * perform the register allocation (kvm_patch_physvirt_offset() uses the
+ * specific registers encoded in the instructions).
+ */
+static __always_inline phys_addr_t hyp_virt_to_phys(void *v)
+{
+	long offset = 0;
+
+	asm volatile (ALTERNATIVE_CB("movz  %1, #0\n\t"
+				     "nop\n\t"
+				     "nop\n\t"
+				     "nop\n\t"
+				     "add  %0, %0, %1",
+				     ARM64_ALWAYS_SYSTEM,
+				     kvm_patch_physvirt_offset)
+		      : "+r" (v),
+			"=&r" (offset));
+
+	return (phys_addr_t)v;
+}
+
+#define __hyp_pa(v) hyp_virt_to_phys((void *)v)
 
 extern u32 __hyp_va_bits;
 
@@ -191,7 +250,7 @@ int __pkvm_pgtable_stage2_split(struct kvm_vcpu *vcpu, phys_addr_t ipa, size_t s
 
 phys_addr_t kvm_mmu_get_httbr(void);
 phys_addr_t kvm_get_idmap_vector(void);
-int __init kvm_mmu_init(u32 *hyp_va_bits);
+int __init kvm_mmu_init(u32 hyp_va_bits);
 
 static inline void *__kvm_vector_slot2addr(void *base,
 					   enum arm64_hyp_spectre_vector slot)

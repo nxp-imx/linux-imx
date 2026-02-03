@@ -2085,7 +2085,7 @@ static int kvm_set_memory_region(struct kvm *kvm,
 			return -EINVAL;
 		if ((mem->userspace_addr != old->userspace_addr) ||
 		    (npages != old->npages) ||
-		    ((mem->flags ^ old->flags) & KVM_MEM_READONLY))
+		    ((mem->flags ^ old->flags) & (KVM_MEM_READONLY | KVM_MEM_GUEST_MEMFD)))
 			return -EINVAL;
 
 		if (base_gfn != old->base_gfn)
@@ -3021,8 +3021,12 @@ retry:
 		r = hva_to_pfn_remapped(vma, kfp, &pfn);
 		if (r == -EAGAIN)
 			goto retry;
-		if (r < 0)
+		if (r < 0) {
 			pfn = KVM_PFN_ERR_FAULT;
+		} else if (kfp->backing_file && vma->vm_file) {
+			get_file(vma->vm_file);
+			*kfp->backing_file = vma->vm_file;
+		}
 	} else {
 		if ((kfp->flags & FOLL_NOWAIT) &&
 		    vma_is_valid(vma, kfp->flags & FOLL_WRITE))
@@ -3053,9 +3057,9 @@ static kvm_pfn_t kvm_follow_pfn(struct kvm_follow_pfn *kfp)
 	return hva_to_pfn(kfp);
 }
 
-kvm_pfn_t __kvm_faultin_pfn(const struct kvm_memory_slot *slot, gfn_t gfn,
-			    unsigned int foll, bool *writable,
-			    struct page **refcounted_page)
+kvm_pfn_t ___kvm_faultin_pfn(const struct kvm_memory_slot *slot, gfn_t gfn,
+			     unsigned int foll, bool *writable,
+			     struct page **refcounted_page, struct file **backing_file)
 {
 	struct kvm_follow_pfn kfp = {
 		.slot = slot,
@@ -3063,6 +3067,7 @@ kvm_pfn_t __kvm_faultin_pfn(const struct kvm_memory_slot *slot, gfn_t gfn,
 		.flags = foll,
 		.map_writable = writable,
 		.refcounted_page = refcounted_page,
+		.backing_file = backing_file,
 	};
 
 	if (WARN_ON_ONCE(!writable || !refcounted_page))
@@ -3072,6 +3077,13 @@ kvm_pfn_t __kvm_faultin_pfn(const struct kvm_memory_slot *slot, gfn_t gfn,
 	*refcounted_page = NULL;
 
 	return kvm_follow_pfn(&kfp);
+}
+
+kvm_pfn_t __kvm_faultin_pfn(const struct kvm_memory_slot *slot, gfn_t gfn,
+			    unsigned int foll, bool *writable,
+			    struct page **refcounted_page)
+{
+	return ___kvm_faultin_pfn(slot, gfn, foll, writable, refcounted_page, NULL);
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(__kvm_faultin_pfn);
 
@@ -4026,7 +4038,7 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me, bool yield_to_kernel_mode)
 
 		yielded = kvm_vcpu_yield_to(vcpu);
 		if (yielded > 0) {
-			WRITE_ONCE(kvm->last_boosted_vcpu, i);
+			WRITE_ONCE(kvm->last_boosted_vcpu, idx);
 			break;
 		} else if (yielded < 0 && !--try) {
 			break;

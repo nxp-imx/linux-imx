@@ -2103,6 +2103,9 @@ static int intel_c10pll_calc_state(struct intel_crtc_state *crtc_state,
 	return 0;
 }
 
+static int intel_c10pll_calc_port_clock(struct intel_encoder *encoder,
+					const struct intel_c10pll_state *pll_state);
+
 static void intel_c10pll_readout_hw_state(struct intel_encoder *encoder,
 					  struct intel_c10pll_state *pll_state)
 {
@@ -2127,6 +2130,8 @@ static void intel_c10pll_readout_hw_state(struct intel_encoder *encoder,
 	pll_state->tx = intel_cx0_read(encoder, lane, PHY_C10_VDR_TX(0));
 
 	intel_cx0_phy_transaction_end(encoder, wakeref);
+
+	pll_state->clock = intel_c10pll_calc_port_clock(encoder, pll_state);
 }
 
 static void intel_c10_pll_program(struct intel_display *display,
@@ -2585,20 +2590,6 @@ static bool is_dp2(u32 clock)
 	return false;
 }
 
-static bool is_hdmi_frl(u32 clock)
-{
-	switch (clock) {
-	case 300000: /* 3 Gbps */
-	case 600000: /* 6 Gbps */
-	case 800000: /* 8 Gbps */
-	case 1000000: /* 10 Gbps */
-	case 1200000: /* 12 Gbps */
-		return true;
-	default:
-		return false;
-	}
-}
-
 static bool intel_c20_protocol_switch_valid(struct intel_encoder *encoder)
 {
 	struct intel_digital_port *intel_dig_port = enc_to_dig_port(encoder);
@@ -2612,7 +2603,7 @@ static int intel_get_c20_custom_width(u32 clock, bool dp)
 {
 	if (dp && is_dp2(clock))
 		return 2;
-	else if (is_hdmi_frl(clock))
+	else if (intel_hdmi_is_frl(clock))
 		return 1;
 	else
 		return 0;
@@ -2624,11 +2615,13 @@ static void intel_c20_pll_program(struct intel_display *display,
 				  bool is_dp, int port_clock)
 {
 	u8 owned_lane_mask = intel_cx0_get_owned_lane_mask(encoder);
+	u8 serdes;
 	bool cntx;
 	int i;
 
 	/* 1. Read current context selection */
-	cntx = intel_cx0_read(encoder, INTEL_CX0_LANE0, PHY_C20_VDR_CUSTOM_SERDES_RATE) & BIT(0);
+	cntx = intel_cx0_read(encoder, INTEL_CX0_LANE0, PHY_C20_VDR_CUSTOM_SERDES_RATE) &
+		PHY_C20_CONTEXT_TOGGLE;
 
 	/*
 	 * 2. If there is a protocol switch from HDMI to DP or vice versa, clear
@@ -2698,28 +2691,31 @@ static void intel_c20_pll_program(struct intel_display *display,
 		      MB_WRITE_COMMITTED);
 
 	/* 5. For DP or 6. For HDMI */
-	if (is_dp) {
-		intel_cx0_rmw(encoder, owned_lane_mask, PHY_C20_VDR_CUSTOM_SERDES_RATE,
-			      BIT(6) | PHY_C20_CUSTOM_SERDES_MASK,
-			      BIT(6) | PHY_C20_CUSTOM_SERDES(intel_c20_get_dp_rate(port_clock)),
-			      MB_WRITE_COMMITTED);
-	} else {
-		intel_cx0_rmw(encoder, owned_lane_mask, PHY_C20_VDR_CUSTOM_SERDES_RATE,
-			      BIT(7) | PHY_C20_CUSTOM_SERDES_MASK,
-			      is_hdmi_frl(port_clock) ? BIT(7) : 0,
-			      MB_WRITE_COMMITTED);
+	serdes = 0;
+	if (is_dp)
+		serdes = PHY_C20_IS_DP |
+			 PHY_C20_DP_RATE(intel_c20_get_dp_rate(port_clock));
+	else if (intel_hdmi_is_frl(port_clock))
+		serdes = PHY_C20_IS_HDMI_FRL;
 
-		intel_cx0_write(encoder, INTEL_CX0_BOTH_LANES, PHY_C20_VDR_HDMI_RATE,
-				intel_c20_get_hdmi_rate(port_clock),
-				MB_WRITE_COMMITTED);
-	}
+	intel_cx0_rmw(encoder, owned_lane_mask, PHY_C20_VDR_CUSTOM_SERDES_RATE,
+		      PHY_C20_IS_DP | PHY_C20_DP_RATE_MASK | PHY_C20_IS_HDMI_FRL,
+		      serdes,
+		      MB_WRITE_COMMITTED);
+
+	if (!is_dp)
+		intel_cx0_rmw(encoder, INTEL_CX0_BOTH_LANES, PHY_C20_VDR_HDMI_RATE,
+			      PHY_C20_HDMI_RATE_MASK,
+			      intel_c20_get_hdmi_rate(port_clock),
+			      MB_WRITE_COMMITTED);
 
 	/*
 	 * 7. Write Vendor specific registers to toggle context setting to load
 	 * the updated programming toggle context bit
 	 */
 	intel_cx0_rmw(encoder, owned_lane_mask, PHY_C20_VDR_CUSTOM_SERDES_RATE,
-		      BIT(0), cntx ? 0 : 1, MB_WRITE_COMMITTED);
+		      PHY_C20_CONTEXT_TOGGLE, cntx ? 0 : PHY_C20_CONTEXT_TOGGLE,
+		      MB_WRITE_COMMITTED);
 }
 
 static int intel_c10pll_calc_port_clock(struct intel_encoder *encoder,
@@ -2766,7 +2762,7 @@ static void intel_program_port_clock_ctl(struct intel_encoder *encoder,
 
 	val |= XELPDP_FORWARD_CLOCK_UNGATE;
 
-	if (!is_dp && is_hdmi_frl(port_clock))
+	if (!is_dp && intel_hdmi_is_frl(port_clock))
 		val |= XELPDP_DDI_CLOCK_SELECT_PREP(display, XELPDP_DDI_CLOCK_SELECT_DIV18CLK);
 	else
 		val |= XELPDP_DDI_CLOCK_SELECT_PREP(display, XELPDP_DDI_CLOCK_SELECT_MAXPCLK);
@@ -2839,8 +2835,8 @@ static void intel_cx0_powerdown_change_sequence(struct intel_encoder *encoder,
 				 intel_cx0_get_powerdown_update(lane_mask), 0,
 				 XELPDP_PORT_POWERDOWN_UPDATE_TIMEOUT_US, 0, NULL))
 		drm_warn(display->drm,
-			 "PHY %c failed to bring out of Lane reset after %dus.\n",
-			 phy_name(phy), XELPDP_PORT_RESET_START_TIMEOUT_US);
+			 "PHY %c failed to bring out of lane reset\n",
+			 phy_name(phy));
 }
 
 static void intel_cx0_setup_powerdown(struct intel_encoder *encoder)
@@ -2850,11 +2846,11 @@ static void intel_cx0_setup_powerdown(struct intel_encoder *encoder)
 
 	intel_de_rmw(display, XELPDP_PORT_BUF_CTL2(display, port),
 		     XELPDP_POWER_STATE_READY_MASK,
-		     XELPDP_POWER_STATE_READY(CX0_P2_STATE_READY));
+		     XELPDP_POWER_STATE_READY(XELPDP_P2_STATE_READY));
 	intel_de_rmw(display, XELPDP_PORT_BUF_CTL3(display, port),
 		     XELPDP_POWER_STATE_ACTIVE_MASK |
 		     XELPDP_PLL_LANE_STAGGERING_DELAY_MASK,
-		     XELPDP_POWER_STATE_ACTIVE(CX0_P0_STATE_ACTIVE) |
+		     XELPDP_POWER_STATE_ACTIVE(XELPDP_P0_STATE_ACTIVE) |
 		     XELPDP_PLL_LANE_STAGGERING_DELAY(0));
 }
 
@@ -2901,8 +2897,8 @@ static void intel_cx0_phy_lane_reset(struct intel_encoder *encoder,
 				 XELPDP_PORT_BUF_SOC_PHY_READY,
 				 XELPDP_PORT_BUF_SOC_READY_TIMEOUT_US, 0, NULL))
 		drm_warn(display->drm,
-			 "PHY %c failed to bring out of SOC reset after %dus.\n",
-			 phy_name(phy), XELPDP_PORT_BUF_SOC_READY_TIMEOUT_US);
+			 "PHY %c failed to bring out of SOC reset\n",
+			 phy_name(phy));
 
 	intel_de_rmw(display, XELPDP_PORT_BUF_CTL2(display, port), lane_pipe_reset,
 		     lane_pipe_reset);
@@ -2911,8 +2907,8 @@ static void intel_cx0_phy_lane_reset(struct intel_encoder *encoder,
 				 lane_phy_current_status, lane_phy_current_status,
 				 XELPDP_PORT_RESET_START_TIMEOUT_US, 0, NULL))
 		drm_warn(display->drm,
-			 "PHY %c failed to bring out of Lane reset after %dus.\n",
-			 phy_name(phy), XELPDP_PORT_RESET_START_TIMEOUT_US);
+			 "PHY %c failed to bring out of lane reset\n",
+			 phy_name(phy));
 
 	intel_de_rmw(display, XELPDP_PORT_CLOCK_CTL(display, port),
 		     intel_cx0_get_pclk_refclk_request(owned_lane_mask),
@@ -2923,11 +2919,11 @@ static void intel_cx0_phy_lane_reset(struct intel_encoder *encoder,
 				 intel_cx0_get_pclk_refclk_ack(lane_mask),
 				 XELPDP_REFCLK_ENABLE_TIMEOUT_US, 0, NULL))
 		drm_warn(display->drm,
-			 "PHY %c failed to request refclk after %dus.\n",
-			 phy_name(phy), XELPDP_REFCLK_ENABLE_TIMEOUT_US);
+			 "PHY %c failed to request refclk\n",
+			 phy_name(phy));
 
 	intel_cx0_powerdown_change_sequence(encoder, INTEL_CX0_BOTH_LANES,
-					    CX0_P2_STATE_RESET);
+					    XELPDP_P2_STATE_RESET);
 	intel_cx0_setup_powerdown(encoder);
 
 	intel_de_rmw(display, XELPDP_PORT_BUF_CTL2(display, port), lane_pipe_reset, 0);
@@ -2936,8 +2932,8 @@ static void intel_cx0_phy_lane_reset(struct intel_encoder *encoder,
 				    lane_phy_current_status,
 				    XELPDP_PORT_RESET_END_TIMEOUT))
 		drm_warn(display->drm,
-			 "PHY %c failed to bring out of Lane reset after %dms.\n",
-			 phy_name(phy), XELPDP_PORT_RESET_END_TIMEOUT);
+			 "PHY %c failed to bring out of lane reset\n",
+			 phy_name(phy));
 }
 
 static void intel_cx0_program_phy_lane(struct intel_encoder *encoder, int lane_count,
@@ -3032,7 +3028,7 @@ static void __intel_cx0pll_enable(struct intel_encoder *encoder,
 	 * TODO: For DP alt mode use only one lane.
 	 */
 	intel_cx0_powerdown_change_sequence(encoder, INTEL_CX0_BOTH_LANES,
-					    CX0_P2_STATE_READY);
+					    XELPDP_P2_STATE_READY);
 
 	/*
 	 * 4. Program PORT_MSGBUS_TIMER register's Message Bus Timer field to 0xA000.
@@ -3076,8 +3072,8 @@ static void __intel_cx0pll_enable(struct intel_encoder *encoder,
 				 intel_cx0_get_pclk_pll_ack(INTEL_CX0_BOTH_LANES),
 				 intel_cx0_get_pclk_pll_ack(maxpclk_lane),
 				 XELPDP_PCLK_PLL_ENABLE_TIMEOUT_US, 0, NULL))
-		drm_warn(display->drm, "Port %c PLL not locked after %dus.\n",
-			 phy_name(phy), XELPDP_PCLK_PLL_ENABLE_TIMEOUT_US);
+		drm_warn(display->drm, "Port %c PLL not locked\n",
+			 phy_name(phy));
 
 	/*
 	 * 11. Follow the Display Voltage Frequency Switching Sequence After
@@ -3200,8 +3196,7 @@ static void intel_mtl_tbt_pll_enable(struct intel_encoder *encoder,
 				 XELPDP_TBT_CLOCK_ACK,
 				 XELPDP_TBT_CLOCK_ACK,
 				 100, 0, NULL))
-		drm_warn(display->drm,
-			 "[ENCODER:%d:%s][%c] PHY PLL not locked after 100us.\n",
+		drm_warn(display->drm, "[ENCODER:%d:%s][%c] PHY PLL not locked\n",
 			 encoder->base.base.id, encoder->base.name, phy_name(phy));
 
 	/*
@@ -3273,13 +3268,13 @@ static u8 cx0_power_control_disable_val(struct intel_encoder *encoder)
 	struct intel_display *display = to_intel_display(encoder);
 
 	if (intel_encoder_is_c10phy(encoder))
-		return CX0_P2PG_STATE_DISABLE;
+		return XELPDP_P2PG_STATE_DISABLE;
 
 	if ((display->platform.battlemage && encoder->port == PORT_A) ||
 	    (DISPLAY_VER(display) >= 30 && encoder->type == INTEL_OUTPUT_EDP))
-		return CX0_P2PG_STATE_DISABLE;
+		return XELPDP_P2PG_STATE_DISABLE;
 
-	return CX0_P4PG_STATE_DISABLE;
+	return XELPDP_P4PG_STATE_DISABLE;
 }
 
 static void intel_cx0pll_disable(struct intel_encoder *encoder)
@@ -3315,9 +3310,8 @@ static void intel_cx0pll_disable(struct intel_encoder *encoder)
 				 intel_cx0_get_pclk_pll_ack(INTEL_CX0_BOTH_LANES) |
 				 intel_cx0_get_pclk_refclk_ack(INTEL_CX0_BOTH_LANES), 0,
 				 XELPDP_PCLK_PLL_DISABLE_TIMEOUT_US, 0, NULL))
-		drm_warn(display->drm,
-			 "Port %c PLL not unlocked after %dus.\n",
-			 phy_name(phy), XELPDP_PCLK_PLL_DISABLE_TIMEOUT_US);
+		drm_warn(display->drm, "Port %c PLL not unlocked\n",
+			 phy_name(phy));
 
 	/*
 	 * 6. Follow the Display Voltage Frequency Switching Sequence After
@@ -3362,8 +3356,7 @@ static void intel_mtl_tbt_pll_disable(struct intel_encoder *encoder)
 	/* 3. Poll on PORT_CLOCK_CTL TBT CLOCK Ack == "0". */
 	if (intel_de_wait_custom(display, XELPDP_PORT_CLOCK_CTL(display, encoder->port),
 				 XELPDP_TBT_CLOCK_ACK, 0, 10, 0, NULL))
-		drm_warn(display->drm,
-			 "[ENCODER:%d:%s][%c] PHY PLL not unlocked after 10us.\n",
+		drm_warn(display->drm, "[ENCODER:%d:%s][%c] PHY PLL not unlocked\n",
 			 encoder->base.base.id, encoder->base.name, phy_name(phy));
 
 	/*

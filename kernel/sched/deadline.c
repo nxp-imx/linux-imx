@@ -761,8 +761,6 @@ static inline void setup_new_dl_entity(struct sched_dl_entity *dl_se)
 	struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
 	struct rq *rq = rq_of_dl_rq(dl_rq);
 
-	update_rq_clock(rq);
-
 	WARN_ON(is_dl_boosted(dl_se));
 	WARN_ON(dl_time_before(rq_clock(rq), dl_se->deadline));
 
@@ -1623,6 +1621,7 @@ void sched_init_dl_servers(void)
 		rq = cpu_rq(cpu);
 
 		guard(rq_lock_irq)(rq);
+		update_rq_clock(rq);
 
 		dl_se = &rq->fair_server;
 
@@ -1811,7 +1810,7 @@ static void dec_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
 	if (!dl_rq->dl_nr_running) {
 		dl_rq->earliest_dl.curr = 0;
 		dl_rq->earliest_dl.next = 0;
-		cpudl_clear(&rq->rd->cpudl, rq->cpu);
+		cpudl_clear(&rq->rd->cpudl, rq->cpu, rq->online);
 		cpupri_set(&rq->rd->cpupri, rq->cpu, rq->rt.highest_prio.curr);
 	} else {
 		struct rb_node *leftmost = rb_first_cached(&dl_rq->root);
@@ -2143,7 +2142,7 @@ static void yield_task_dl(struct rq *rq)
 	 * it and the bandwidth timer will wake it up and will give it
 	 * new scheduling parameters (thanks to dl_yielded=1).
 	 */
-	rq->curr->dl.dl_yielded = 1;
+	rq->donor->dl.dl_yielded = 1;
 
 	update_rq_clock(rq);
 	update_curr_dl(rq);
@@ -2163,7 +2162,7 @@ static inline bool dl_task_is_earliest_deadline(struct task_struct *p,
 			       rq->dl.earliest_dl.curr));
 }
 
-static int find_later_rq(struct task_struct *task);
+static int find_later_rq(struct task_struct *sched_ctx, struct task_struct *exec_ctx);
 
 static int
 select_task_rq_dl(struct task_struct *p, int cpu, int flags)
@@ -2203,7 +2202,7 @@ select_task_rq_dl(struct task_struct *p, int cpu, int flags)
 		select_rq |= !dl_task_fits_capacity(p, cpu);
 
 	if (select_rq) {
-		int target = find_later_rq(p);
+		int target = find_later_rq(p, p);
 
 		if (target != -1 &&
 		    dl_task_is_earliest_deadline(p, cpu_rq(target)))
@@ -2249,12 +2248,18 @@ static void migrate_task_rq_dl(struct task_struct *p, int new_cpu __maybe_unused
 
 static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
 {
+	struct task_struct *exec_ctx;
+
 	/*
 	 * Current can't be migrated, useless to reschedule,
 	 * let's hope p can move out.
 	 */
 	if (rq->curr->nr_cpus_allowed == 1 ||
-	    !cpudl_find(&rq->rd->cpudl, rq->donor, NULL))
+	    !cpudl_find(&rq->rd->cpudl, rq->donor, rq->curr, NULL))
+		return;
+
+	exec_ctx = find_exec_ctx(rq, p);
+	if (task_current(rq, exec_ctx))
 		return;
 
 	/*
@@ -2262,14 +2267,20 @@ static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
 	 * see if it is pushed or pulled somewhere else.
 	 */
 	if (p->nr_cpus_allowed != 1 &&
-	    cpudl_find(&rq->rd->cpudl, p, NULL))
+	    cpudl_find(&rq->rd->cpudl, p, exec_ctx, NULL))
 		return;
 
 	resched_curr(rq);
 }
 
-static int balance_dl(struct rq *rq, struct task_struct *p, struct rq_flags *rf)
+static int balance_dl(struct rq *rq, struct rq_flags *rf)
 {
+	/*
+	 * Note, rq->donor may change during rq lock drops,
+	 * so don't re-use prev across lock drops
+	 */
+	struct task_struct *p = rq->donor;
+
 	if (!on_dl_rq(&p->dl) && need_pull_dl_task(rq, p)) {
 		/*
 		 * This is OK, because current is on_cpu, which avoids it being
@@ -2457,7 +2468,7 @@ static struct task_struct *pick_earliest_pushable_dl_task(struct rq *rq, int cpu
 	while (next_node) {
 		p = __node_2_pdl(next_node);
 
-		if (task_is_pushable(rq, p, cpu))
+		if (task_is_pushable(rq, p, cpu) == 1)
 			return p;
 
 		next_node = rb_next(next_node);
@@ -2468,25 +2479,25 @@ static struct task_struct *pick_earliest_pushable_dl_task(struct rq *rq, int cpu
 
 static DEFINE_PER_CPU(cpumask_var_t, local_cpu_mask_dl);
 
-static int find_later_rq(struct task_struct *task)
+static int find_later_rq(struct task_struct *sched_ctx, struct task_struct *exec_ctx)
 {
 	struct sched_domain *sd;
 	struct cpumask *later_mask = this_cpu_cpumask_var_ptr(local_cpu_mask_dl);
 	int this_cpu = smp_processor_id();
-	int cpu = task_cpu(task);
+	int cpu = task_cpu(sched_ctx);
 
 	/* Make sure the mask is initialized first */
 	if (unlikely(!later_mask))
 		return -1;
 
-	if (task->nr_cpus_allowed == 1)
+	if (exec_ctx && exec_ctx->nr_cpus_allowed == 1)
 		return -1;
 
 	/*
 	 * We have to consider system topology and task affinity
 	 * first, then we can look for a suitable CPU.
 	 */
-	if (!cpudl_find(&task_rq(task)->rd->cpudl, task, later_mask))
+	if (!cpudl_find(&task_rq(exec_ctx)->rd->cpudl, sched_ctx, exec_ctx, later_mask))
 		return -1;
 
 	/*
@@ -2557,12 +2568,29 @@ static int find_later_rq(struct task_struct *task)
 
 static struct task_struct *pick_next_pushable_dl_task(struct rq *rq)
 {
-	struct task_struct *p;
+	struct task_struct *p = NULL;
+	struct rb_node *next_node;
 
 	if (!has_pushable_dl_tasks(rq))
 		return NULL;
 
-	p = __node_2_pdl(rb_first_cached(&rq->dl.pushable_dl_tasks_root));
+	next_node = rb_first_cached(&rq->dl.pushable_dl_tasks_root);
+	while (next_node) {
+		p = __node_2_pdl(next_node);
+		/*
+		 * cpu argument doesn't matter because we treat a -1 result
+		 * (pushable but can't go to cpu0) the same as a 1 result
+		 * (pushable to cpu0). All we care about here is general
+		 * pushability.
+		 */
+		if (task_is_pushable(rq, p, 0))
+			break;
+
+		next_node = rb_next(next_node);
+	}
+
+	if (!p)
+		return NULL;
 
 	WARN_ON_ONCE(rq->cpu != task_cpu(p));
 	WARN_ON_ONCE(task_current(rq, p));
@@ -2574,15 +2602,89 @@ static struct task_struct *pick_next_pushable_dl_task(struct rq *rq)
 	return p;
 }
 
+static inline bool __dl_revalidate_rq_state(struct task_struct *task, struct rq *rq,
+					    struct rq *later)
+{
+	/*
+	 * double_lock_balance had to release rq->lock, in the
+	 * meantime, task may no longer be fit to be migrated.
+	 * Check the following to ensure that the task is
+	 * still suitable for migration:
+	 * 1. It is possible the task was scheduled,
+	 *    migrate_disabled was set and then got preempted,
+	 *    so we must check the task migration disable
+	 *    flag.
+	 * 2. The CPU picked is in the task's affinity.
+	 * 3. For throttled task (dl_task_offline_migration),
+	 *    check the following:
+	 *    - the task is not on the rq anymore (it was
+	 *      migrated)
+	 *    - the task is not on CPU anymore
+	 *    - the task is still a dl task
+	 *    - the task is not queued on the rq anymore
+	 * 4. For the non-throttled task (push_dl_task), the
+	 *    check to ensure that this task is still at the
+	 *    head of the pushable tasks list is enough.
+	 */
+	if (unlikely(is_migration_disabled(task)))
+		return false;
+	if (!cpumask_test_cpu(later->cpu, &task->cpus_mask))
+		return false;
+	if (task->dl.dl_throttled && (task_rq(task) != rq ||
+				      task_on_cpu(rq, task) ||
+				      !dl_task(task) ||
+				      !task_on_rq_queued(task)))
+		return false;
+	if (!task->dl.dl_throttled &&
+	    task != pick_next_pushable_dl_task(rq))
+		return false;
+	return true;
+}
+
+static inline bool dl_revalidate_rq_state(struct task_struct *task, struct rq *rq,
+					  struct rq *later, bool *retry)
+{
+	if (!sched_proxy_exec())
+		return __dl_revalidate_rq_state(task, rq, later);
+
+	if (!dl_task(task) || is_migration_disabled(task))
+		return false;
+
+	if (rq != this_rq()) {
+		struct task_struct *next_task = pick_next_pushable_dl_task(rq);
+		struct task_struct *exec_ctx;
+
+		if (next_task != task)
+			return false;
+
+		exec_ctx = find_exec_ctx(rq, next_task);
+		*retry = (exec_ctx && !cpumask_test_cpu(later->cpu,
+							&exec_ctx->cpus_mask));
+	} else {
+		int pushable = task_is_pushable(rq, task, later->cpu);
+
+		*retry = (pushable == -1);
+		if (!pushable)
+			return false;
+	}
+	return true;
+}
+
 /* Locks the rq it finds */
 static struct rq *find_lock_later_rq(struct task_struct *task, struct rq *rq)
 {
+	struct task_struct *exec_ctx;
 	struct rq *later_rq = NULL;
+	bool retry;
 	int tries;
 	int cpu;
 
 	for (tries = 0; tries < DL_MAX_TRIES; tries++) {
-		cpu = find_later_rq(task);
+		retry = false;
+		exec_ctx = find_exec_ctx(rq, task);
+		if (!exec_ctx)
+			break;
+		cpu = find_later_rq(task, exec_ctx);
 
 		if ((cpu == -1) || (cpu == rq->cpu))
 			break;
@@ -2601,37 +2703,7 @@ static struct rq *find_lock_later_rq(struct task_struct *task, struct rq *rq)
 
 		/* Retry if something changed. */
 		if (double_lock_balance(rq, later_rq)) {
-			/*
-			 * double_lock_balance had to release rq->lock, in the
-			 * meantime, task may no longer be fit to be migrated.
-			 * Check the following to ensure that the task is
-			 * still suitable for migration:
-			 * 1. It is possible the task was scheduled,
-			 *    migrate_disabled was set and then got preempted,
-			 *    so we must check the task migration disable
-			 *    flag.
-			 * 2. The CPU picked is in the task's affinity.
-			 * 3. For throttled task (dl_task_offline_migration),
-			 *    check the following:
-			 *    - the task is not on the rq anymore (it was
-			 *      migrated)
-			 *    - the task is not on CPU anymore
-			 *    - the task is still a dl task
-			 *    - the task is not queued on the rq anymore
-			 * 4. For the non-throttled task (push_dl_task), the
-			 *    check to ensure that this task is still at the
-			 *    head of the pushable tasks list is enough.
-			 */
-			if (unlikely(is_migration_disabled(task) ||
-				     !cpumask_test_cpu(later_rq->cpu, &task->cpus_mask) ||
-				     (task->dl.dl_throttled &&
-				      (task_rq(task) != rq ||
-				       task_on_cpu(rq, task) ||
-				       !dl_task(task) ||
-				       !task_on_rq_queued(task))) ||
-				     (!task->dl.dl_throttled &&
-				      task != pick_next_pushable_dl_task(rq)))) {
-
+			if (unlikely(!dl_revalidate_rq_state(task, rq, later_rq, &retry))) {
 				double_unlock_balance(rq, later_rq);
 				later_rq = NULL;
 				break;
@@ -2643,7 +2715,7 @@ static struct rq *find_lock_later_rq(struct task_struct *task, struct rq *rq)
 		 * its earliest one has a later deadline than our
 		 * task, the rq is a good one.
 		 */
-		if (dl_task_is_earliest_deadline(task, later_rq))
+		if (!retry && dl_task_is_earliest_deadline(task, later_rq))
 			break;
 
 		/* Otherwise we try again. */
@@ -2884,9 +2956,10 @@ static void rq_online_dl(struct rq *rq)
 	if (rq->dl.overloaded)
 		dl_set_overload(rq);
 
-	cpudl_set_freecpu(&rq->rd->cpudl, rq->cpu);
 	if (rq->dl.dl_nr_running > 0)
 		cpudl_set(&rq->rd->cpudl, rq->cpu, rq->dl.earliest_dl.curr);
+	else
+		cpudl_clear(&rq->rd->cpudl, rq->cpu, true);
 }
 
 /* Assumes rq->lock is held */
@@ -2895,8 +2968,7 @@ static void rq_offline_dl(struct rq *rq)
 	if (rq->dl.overloaded)
 		dl_clear_overload(rq);
 
-	cpudl_clear(&rq->rd->cpudl, rq->cpu);
-	cpudl_clear_freecpu(&rq->rd->cpudl, rq->cpu);
+	cpudl_clear(&rq->rd->cpudl, rq->cpu, false);
 }
 
 void __init init_sched_dl_class(void)

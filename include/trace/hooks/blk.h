@@ -18,6 +18,13 @@ DECLARE_HOOK(android_vh_check_set_ioprio,
 	TP_PROTO(struct bio *bio),
 	TP_ARGS(bio));
 
+struct path;
+struct vfsmount;
+
+DECLARE_HOOK(android_vh_do_new_mount_fc,
+	TP_PROTO(const struct path *mountpoint, struct vfsmount *mnt),
+	TP_ARGS(mountpoint, mnt));
+
 #endif /* _TRACE_HOOK_BLK_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

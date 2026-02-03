@@ -601,6 +601,7 @@ out:
 		pkt_len = 1;
 	qdisc_skb_cb(skb)->pkt_len = pkt_len;
 }
+EXPORT_SYMBOL(__qdisc_calculate_pkt_len);
 
 static enum hrtimer_restart qdisc_watchdog(struct hrtimer *timer)
 {

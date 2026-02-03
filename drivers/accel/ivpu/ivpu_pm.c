@@ -54,7 +54,7 @@ static void ivpu_pm_prepare_cold_boot(struct ivpu_device *vdev)
 static void ivpu_pm_prepare_warm_boot(struct ivpu_device *vdev)
 {
 	struct ivpu_fw_info *fw = vdev->fw;
-	struct vpu_boot_params *bp = ivpu_bo_vaddr(fw->mem);
+	struct vpu_boot_params *bp = ivpu_bo_vaddr(fw->mem_bp);
 
 	if (!bp->save_restore_ret_address) {
 		ivpu_pm_prepare_cold_boot(vdev);
@@ -359,7 +359,6 @@ int ivpu_rpm_get(struct ivpu_device *vdev)
 
 void ivpu_rpm_put(struct ivpu_device *vdev)
 {
-	pm_runtime_mark_last_busy(vdev->drm.dev);
 	pm_runtime_put_autosuspend(vdev->drm.dev);
 }
 
@@ -428,7 +427,6 @@ void ivpu_pm_enable(struct ivpu_device *vdev)
 	struct device *dev = vdev->drm.dev;
 
 	pm_runtime_allow(dev);
-	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
 }
 

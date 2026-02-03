@@ -119,6 +119,53 @@ config KVM_INTEL_PROVE_VE
 
           If unsure, say N.
 
+config PKVM_X86
+	bool
+	depends on X86_X2APIC
+
+	help
+	  Provides pKVM x86 generic support.
+
+	  Note: It is selected by the CONFIG_PKVM_INTEL which is the only way to
+	  enable it at the moment. The reason is that, the entire pkvm source
+	  code is not split well between the x86 generic and Intel specific. So
+	  some x86 generic code may still rely on Intel specific code, which can
+	  result in x86 generic code compiling failed without having Intel
+	  specific code.
+
+config PKVM_INTEL
+	bool "pKVM for Intel processors support"
+	depends on KVM_INTEL=y
+	depends on X86_64
+	select PKVM_X86
+	help
+	  Provides support for pKVM on Intel processors.
+
+	  If pKVM is enabled, this will deprivilege the host as a VM running in
+	  non-root VMX operation mode, under the control of pKVM hypervisor
+	  running in root VMX operation mode. This will allow KVM to run guests
+	  whose memory and CPU state is protected from the host, while using
+	  only basic VMX hardware features for that, without relying on
+	  technologies like TDX.
+
+	  The pKVM enabling on the Intel processors is controlled by a kernel
+	  command line parameter "kvm_intel.pkvm". By default pKVM is disabled.
+	  To enable it, set "kvm_intel.pkvm=1" in the kernel command line.
+
+	  If unsure, say N.
+
+config PKVM_X86_DEBUG
+	bool "pKVM debugging support"
+	depends on PKVM_X86
+	help
+	  Provides support for the pKVM hypervisor to print logs by using the
+	  linux kernel symbols. With this config enabled, the security of the
+	  pKVM hypervisor cannot be guaranteed as the linux kernel symbols are
+	  untrusted code, which could be modified easily by the host. So suggest
+	  to enable this only for debugging purpose.
+
+	  If unsure, say N.
+
 config X86_SGX_KVM
 	bool "Software Guard eXtensions (SGX) Virtualization"
 	depends on X86_SGX && KVM_INTEL

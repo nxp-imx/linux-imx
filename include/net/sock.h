@@ -69,6 +69,7 @@
 #include <linux/net_tstamp.h>
 #include <net/l3mdev.h>
 #include <uapi/linux/socket.h>
+#include <linux/android_vendor.h>
 
 /*
  * This structure really needs to be cleaned up.
@@ -579,6 +580,8 @@ struct sock {
 #if IS_ENABLED(CONFIG_PROVE_LOCKING) && IS_ENABLED(CONFIG_MODULES)
 	struct module		*sk_owner;
 #endif
+
+	ANDROID_OEM_DATA(1);
 };
 
 struct sock_bh_locked {

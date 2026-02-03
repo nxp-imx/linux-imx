@@ -12,6 +12,7 @@ obj-$(CONFIG_KVM) += hyp/
 
 CFLAGS_sys_regs.o += -Wno-override-init
 CFLAGS_handle_exit.o += -Wno-override-init
+CFLAGS_iommu.o += -I $(srctree)/drivers/iommu
 
 kvm-y += arm.o mmu.o mmio.o psci.o hypercalls.o pvtime.o \
 	 inject_fault.o va_layout.o handle_exit.o config.o \

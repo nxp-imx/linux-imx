@@ -1,13 +1,7 @@
 {
   "imports": [
     {
-      "path": "packages/modules/Connectivity"
-    },
-    {
       "path": "packages/services/Telecomm"
-    },
-    {
-      "path": "system/netd"
     }
  ],
  "presubmit": [

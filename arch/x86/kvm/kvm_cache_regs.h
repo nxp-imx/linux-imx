@@ -44,6 +44,7 @@ BUILD_KVM_GPR_ACCESSORS(r14, R14)
 BUILD_KVM_GPR_ACCESSORS(r15, R15)
 #endif
 
+#ifndef __PKVM_HYP__
 /*
  * Using the register cache from interrupt context is generally not allowed, as
  * caching a register and marking it available/dirty can't be done atomically,
@@ -55,6 +56,9 @@ BUILD_KVM_GPR_ACCESSORS(r15, R15)
  */
 #define kvm_assert_register_caching_allowed(vcpu)		\
 	lockdep_assert_once(in_task() || kvm_arch_pmi_in_guest(vcpu))
+#else
+#define kvm_assert_register_caching_allowed(vcpu)
+#endif
 
 /*
  * avail  dirty

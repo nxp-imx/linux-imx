@@ -2,6 +2,7 @@
   __traceiter_android_rvh_cpu_util_cfs_boost
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_set_user_nice
+  __traceiter_android_vh_adjust_swap_info_flags
   __traceiter_android_vh_alter_futex_plist_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_rwsem_init
@@ -13,6 +14,7 @@
   __tracepoint_android_rvh_cpu_util_cfs_boost
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_set_user_nice
+  __tracepoint_android_vh_adjust_swap_info_flags
   __tracepoint_android_vh_alter_futex_plist_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_rwsem_init

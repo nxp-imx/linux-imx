@@ -38,6 +38,7 @@
 #include <linux/zsmalloc.h>
 #include <linux/fs.h>
 #include <linux/workqueue.h>
+#include <trace/hooks/mm.h>
 #include "zpdesc.h"
 
 #define ZSPAGE_MAGIC	0x58
@@ -1959,6 +1960,11 @@ static unsigned long zs_shrinker_count(struct shrinker *shrinker,
 	struct size_class *class;
 	unsigned long pages_to_free = 0;
 	struct zs_pool *pool = shrinker->private_data;
+	bool bypass = false;
+
+	trace_android_vh_zs_shrinker_bypass(&bypass);
+	if (bypass)
+		return 0;
 
 	for (i = ZS_SIZE_CLASSES - 1; i >= 0; i--) {
 		class = pool->size_class[i];
@@ -1967,6 +1973,7 @@ static unsigned long zs_shrinker_count(struct shrinker *shrinker,
 
 		pages_to_free += zs_can_compact(class);
 	}
+	trace_android_vh_zs_shrinker_adjust(&pages_to_free);
 
 	return pages_to_free;
 }

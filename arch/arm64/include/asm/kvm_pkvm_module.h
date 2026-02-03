@@ -38,6 +38,17 @@ struct pkvm_module_trng_ops {
 	ANDROID_KABI_RESERVE(2);
 };
 
+struct pkvm_sglist_page {
+	u64	pfn : 40;
+	u8	order;
+} __packed;
+
+enum pkvm_smc_handler_ret {
+	GUEST_SMC_HANDLED,
+	GUEST_SMC_NOT_HANDLED,
+	GUEST_SMC_NEED_TOPUP,
+};
+
 /**
  * struct pkvm_module_ops - pKVM modules callbacks
  * @create_private_mapping:	Map a memory region into the hypervisor private
@@ -146,6 +157,9 @@ struct pkvm_module_trng_ops {
  *				is called before remasking SErrors.
  * @host_donate_hyp:		The page @pfn is unmapped from the host and
  *				full control is given to the hypervisor.
+ * @host_donate_sglist_hyp:	Similar to host_donate_hyp but take an array of PFNs
+ *				(kvm_sglist_page) as an argument. This intends to
+ *				batch IOMMU updates.
  * @hyp_donate_host:		The page @pfn whom control has previously been
  *				given to the hypervisor (@host_donate_hyp) is
  *				given back to the host.
@@ -163,11 +177,6 @@ struct pkvm_module_trng_ops {
  *				(@host_unshare_hyp).
  * @memcpy:			Same as kernel memcpy, but use hypervisor VAs.
  * @memset:			Same as kernel memset, but use a hypervisor VA.
- * @hyp_pa:			Return the physical address for a hypervisor
- *				virtual address in the linear range.
- * @hyp_va:			Convert a physical address into a virtual one.
- * @kern_hyp_va:		Convert a kernel virtual address into an
- *				hypervisor virtual one.
  * @hyp_smp_processor_id:	Current CPU id
  * @iommu_donate_pages:		Allocate pages from the IOMMU pool.
  * @iommu_reclaim_pages:	Reclaim pages to the IOMMU pool.
@@ -233,7 +242,7 @@ struct pkvm_module_ops {
 	int (*host_stage2_mod_prot)(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages, bool update_iommu);
 	int (*host_stage2_get_leaf)(phys_addr_t phys, kvm_pte_t *ptep, s8 *level);
 	int (*register_host_smc_handler)(bool (*cb)(struct user_pt_regs *));
-	int (*register_guest_smc_handler)(bool (*cb)(struct arm_smccc_1_2_regs *regs,
+	int (*register_guest_smc_handler)(enum pkvm_smc_handler_ret (*cb)(struct arm_smccc_1_2_regs *regs,
 						     struct arm_smccc_1_2_regs *res,
 						     pkvm_handle_t handle));
 	int (*register_default_trap_handler)(bool (*cb)(struct user_pt_regs *));
@@ -242,6 +251,7 @@ struct pkvm_module_ops {
 	int (*register_hyp_panic_notifier)(void (*cb)(struct user_pt_regs *));
 	int (*register_unmask_serror)(bool (*unmask)(void), void (*mask)(void));
 	int (*host_donate_hyp)(u64 pfn, u64 nr_pages);
+	int (*host_donate_sglist_hyp)(struct pkvm_sglist_page *sglist, size_t nr_pages);
 	int (*hyp_donate_host)(u64 pfn, u64 nr_pages);
 	int (*host_share_hyp)(u64 pfn);
 	int (*host_unshare_hyp)(u64 pfn);
@@ -249,12 +259,9 @@ struct pkvm_module_ops {
 	void (*unpin_shared_mem)(void *from, void *to);
 	void* (*memcpy)(void *to, const void *from, size_t count);
 	void* (*memset)(void *dst, int c, size_t count);
-	phys_addr_t (*hyp_pa)(void *x);
-	void* (*hyp_va)(phys_addr_t phys);
-	unsigned long (*kern_hyp_va)(unsigned long x);
 	void* (*tracing_reserve_entry)(unsigned long length);
 	void (*tracing_commit_entry)(void);
-	void (*tracing_mod_hyp_printk)(u8 fmt_id, u64 a, u64 b, u64 c, u64 d);
+	void (*tracing_mod_hyp_printk)(u16 fmt_id, u64 a, u64 b, u64 c, u64 d);
 	int (*map_module_pages)(u64 pfn, void *va, u64 nr_pages,
 				    enum kvm_pgtable_prot prot, bool is_protected);
 	int (*unmap_module_pages)(u64 pfn, void *va, u64 nr_pages);
@@ -285,6 +292,10 @@ struct pkvm_module_ops {
 				     int (*cb)(void *cookie, bool host_to_guest));
 	int (*iommu_register_pviommu_drv)(pkvm_handle_t drv_id);
 	int (*register_guest_trng_ops)(const struct pkvm_module_trng_ops *ops);
+	int (*guest_accept_module_prot_page)(u64 ipa, u64 nr_pages);
+	int (*register_guest_accept_module_owned_handler)(int (*cb)(u64 phys, u64 ipa, u64 size,
+								   pkvm_handle_t handle));
+
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);

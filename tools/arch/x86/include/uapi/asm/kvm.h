@@ -966,6 +966,12 @@ struct kvm_hyperv_eventfd {
 #define KVM_X86_SNP_VM		4
 #define KVM_X86_TDX_VM		5
 
+/*
+ * TODO: this is a temporary vm_type value to avoid conflicts with the above
+ * vm_type values from upstream. Update this value when upstreaming pKVM-IA.
+ */
+#define KVM_X86_PKVM_PROTECTED_VM    28
+
 /* Trust Domain eXtension sub-ioctl() commands. */
 enum kvm_tdx_cmd_id {
 	KVM_TDX_CAPABILITIES = 0,

@@ -242,4 +242,6 @@ static inline int devm_device_init_wakeup(struct device *dev)
 	return devm_add_action_or_reset(dev, device_disable_wakeup, dev);
 }
 
+int wakeup_sources_stats_open(struct inode *inode, struct file *file);
+
 #endif /* _LINUX_PM_WAKEUP_H */
