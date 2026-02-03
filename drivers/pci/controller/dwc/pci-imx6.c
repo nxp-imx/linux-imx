@@ -1665,8 +1665,18 @@ static int imx_pcie_resume_noirq(struct device *dev)
 			imx_pcie->pci->suspended = true;
 			ret = dw_pcie_resume_noirq(imx_pcie->pci);
 		}
-		if (ret)
+
+		/*
+		 * Ignore link timeout during resume. The device might not be
+		 * present or the link may come up later. This prevents resume
+		 * failure when PCIe device is optional or slow to initialize.
+		 */
+		if (ret == -ETIMEDOUT) {
+			dev_info(dev, "PCIe link timeout during resume, continuing anyway\n");
+			ret = 0;
+		} else if (ret) {
 			return ret;
+		}
 	}
 	if (imx_check_flag(imx_pcie, IMX_PCIE_FLAG_HAS_LUT))
 		imx_pcie_lut_restore(imx_pcie);
