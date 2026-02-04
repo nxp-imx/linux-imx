@@ -23,6 +23,9 @@
 #define SEAT_TEMP_1 1
 #define SEAT_TEMP_2 2
 #define SEAT_TEMP_3 3
+// temperature range for HVAC_TEMPERATURE_SET
+#define MIN_TEMP_VALUE 1099694080
+#define MAX_TEMP_VALUE 1107427328
 
 #define DEFROST_ON 1
 #define DEFROST_OFF 0

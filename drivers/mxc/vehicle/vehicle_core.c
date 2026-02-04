@@ -173,6 +173,11 @@ void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param)
 	case VEHICLE_AC_TEMP:
 		property_encode.prop = HVAC_TEMPERATURE_SET;
 		property_encode.area_id = (u32)index;
+		// Restricts temperature range for HVAC_TEMPERATURE_SET
+		if (property_encode.value < MIN_TEMP_VALUE)
+			property_encode.value = MIN_TEMP_VALUE;
+		else if (property_encode.value > MAX_TEMP_VALUE)
+			property_encode.value =  MAX_TEMP_VALUE;
 		break;
 	case VEHICLE_HVAC_POWER_ON:
 		property_encode.prop = HVAC_POWER_ON;
