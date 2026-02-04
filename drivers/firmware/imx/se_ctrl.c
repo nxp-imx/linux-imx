@@ -1746,17 +1746,11 @@ static int se_ioctl_signed_msg_handler(struct file *fp,
  */
 static int se_ioctl_get_time(struct se_if_device_ctx *dev_ctx, unsigned long arg)
 {
-	struct se_if_priv *priv = dev_ctx->priv;
 	int err = -EINVAL;
 	struct se_time_frame time_frame;
 
-	if (!priv) {
-		err = -EINVAL;
-		goto exit;
-	}
-
-	time_frame.t_start = priv->time_frame.t_start;
-	time_frame.t_end = priv->time_frame.t_end;
+	time_frame.t_start = dev_ctx->time_frame.t_start;
+	time_frame.t_end = dev_ctx->time_frame.t_end;
 	err = (int)copy_to_user((u8 *)arg, (u8 *)(&time_frame), sizeof(time_frame));
 	if (err) {
 		dev_err(dev_ctx->priv->dev,

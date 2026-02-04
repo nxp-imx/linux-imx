@@ -141,7 +141,7 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 	guard(mutex)(&priv->se_if_cmd_lock);
 
 	/* Capture request timer */
-	ktime_get_raw_ts64(&priv->time_frame.t_start);
+	ktime_get_raw_ts64(&dev_ctx->time_frame.t_start);
 	priv->waiting_rsp_clbk_hdl.dev_ctx = dev_ctx;
 	priv->waiting_rsp_clbk_hdl.rx_msg_sz = exp_rx_msg_sz;
 	priv->waiting_rsp_clbk_hdl.rx_msg = rx_msg;
@@ -163,7 +163,7 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 	priv->waiting_rsp_clbk_hdl.dev_ctx = NULL;
 
 	/* Capture response timer */
-	ktime_get_raw_ts64(&priv->time_frame.t_end);
+	ktime_get_raw_ts64(&dev_ctx->time_frame.t_end);
 exit:
 	return err;
 }

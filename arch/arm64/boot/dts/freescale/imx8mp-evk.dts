@@ -833,7 +833,7 @@
 	fsl,refclk-pad-mode = <IMX8_PCIE_REFCLK_PAD_INPUT>;
 	clocks = <&pcie0_refclk>;
 	clock-names = "ref";
-	status = "disabled";
+	status = "okay";
 };
 
 &pcie0 {
@@ -843,7 +843,7 @@
 	host-wake-gpio = <&gpio5 21 GPIO_ACTIVE_LOW>;
 	vpcie-supply = <&reg_m2_wlan>;
 	supports-clkreq;
-	status = "disabled";
+	status = "okay";
 };
 
 &pcie0_ep {

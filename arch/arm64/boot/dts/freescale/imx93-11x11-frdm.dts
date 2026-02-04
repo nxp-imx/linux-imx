@@ -319,7 +319,7 @@
 
 		ethphy1: ethernet-phy@1 {
 			reg = <1>;
-			reset-gpios = <&pcal6524 15 GPIO_ACTIVE_LOW>;
+			reset-gpios = <&pcal6524 4 GPIO_ACTIVE_LOW>;
 			reset-assert-us = <10000>;
 			reset-deassert-us = <80000>;
 		};
@@ -343,7 +343,7 @@
 		ethphy2: ethernet-phy@2 {
 			reg = <2>;
 			eee-broken-1000t;
-			reset-gpios = <&pcal6524 16 GPIO_ACTIVE_LOW>;
+			reset-gpios = <&pcal6524 9 GPIO_ACTIVE_LOW>;
 			reset-assert-us = <10000>;
 			reset-deassert-us = <80000>;
 		};

@@ -62,7 +62,11 @@
 
 	pinctrl_reg_usdhc3_vmmc: regusdhc3vmmcgrp {
 		fsl,pins = <
-			MX93_PAD_GPIO_IO29__GPIO2_IO29			0x39e
+			/*
+			 * Enable open drain and internal pull-up to allow the IW610 JTAG
+			 * connector to control the PDn status.
+			 */
+			MX93_PAD_GPIO_IO29__GPIO2_IO29			0xb9e
 		>;
 	};
 

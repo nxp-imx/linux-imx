@@ -1294,20 +1294,6 @@ config VIDEO_KS0127
 	  To compile this driver as a module, choose M here: the
 	  module will be called ks0127.
 
-config VIDEO_MAX9286
-	tristate "Maxim MAX9286 GMSL deserializer support"
-	depends on I2C && I2C_MUX
-	depends on VIDEO_DEV
-	depends on OF_GPIO
-	select V4L2_FWNODE
-	select VIDEO_V4L2_SUBDEV_API
-	select MEDIA_CONTROLLER
-	help
-	  This driver supports the Maxim MAX9286 GMSL deserializer.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called max9286.
-
 config VIDEO_ML86V7667
 	tristate "OKI ML86V7667 video decoder"
 	depends on VIDEO_DEV && I2C
@@ -1742,6 +1728,20 @@ config VIDEO_DS90UB960
 	help
 	  Device driver for the Texas Instruments DS90UB960
 	  FPD-Link III Deserializer and DS90UB9702 FPD-Link IV Deserializer.
+
+config VIDEO_MAX9286
+	tristate "Maxim MAX9286 GMSL deserializer support"
+	depends on I2C && I2C_MUX
+	depends on VIDEO_DEV
+	depends on OF_GPIO
+	select V4L2_FWNODE
+	select VIDEO_V4L2_SUBDEV_API
+	select MEDIA_CONTROLLER
+	help
+	  This driver supports the Maxim MAX9286 GMSL deserializer.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called max9286.
 
 config VIDEO_MAX96714
 	tristate "Maxim MAX96714 GMSL2 deserializer"

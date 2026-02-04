@@ -84,6 +84,8 @@ struct se_if_device_ctx {
 
 	struct se_shared_mem_mgmt_info se_shared_mem_mgmt;
 	struct list_head link;
+
+	struct se_time_frame time_frame;
 };
 
 /* Header of the messages exchange with the EdgeLock Enclave */
@@ -148,8 +150,6 @@ struct se_if_priv {
 	struct list_head dev_ctx_list;
 	u32 active_devctx_count;
 	u32 dev_ctx_mono_count;
-
-	struct se_time_frame time_frame;
 };
 
 #define SE_DUMP_IOCTL_BUFS	0
