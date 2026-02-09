@@ -44,6 +44,7 @@ struct dpu95_localdimming {
 	struct dpu95_ld_fw fw;
 	struct dpu95_ld_cfg config;
 	struct drm_display_mode mode;
+	unsigned long reg_offset;
 };
 
 struct dpu95_ld_intr {

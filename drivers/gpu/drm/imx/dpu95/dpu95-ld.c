@@ -36,12 +36,22 @@ static struct dpu95_ld_cfg mbi6353_cfg = {
 
 static inline u32 dpu95_ld_read(struct dpu95_localdimming *ld, u32 offset)
 {
-	return readl(ld->base + offset);
+	if (ld->dpu->trusty_dev) {
+		return trusty_fast_call32(ld->dpu->trusty_dev, SMC_IMX_DPU_REG_GET,
+					  (u32)ld->reg_offset, offset, 0);
+	} else {
+		return readl(ld->base + offset);
+	}
 }
 
 static inline void dpu95_ld_write(struct dpu95_localdimming *ld, u32 offset, u32 value)
 {
-	writel(value, ld->base + offset);
+	if (ld->dpu->trusty_dev) {
+		trusty_fast_call32(ld->dpu->trusty_dev, SMC_IMX_DPU_REG_SET,
+				   (u32)ld->reg_offset, offset, value);
+	} else {
+		writel(value, ld->base + offset);
+	}
 }
 
 static inline u32 dpu95_disp_irq0_read(struct dpu95_soc *dpu, unsigned int offset)
@@ -472,6 +482,7 @@ int dpu95_ld_init(struct dpu95_soc *dpu, unsigned int index,
 	if (!ld)
 		return -ENOMEM;
 
+	ld->reg_offset = base - dpu_base;
 	ld->base = devm_ioremap(dpu->dev, base, SZ_64K);
 	if (!ld->base)
 		return -ENOMEM;
