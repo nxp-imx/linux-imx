@@ -47,3 +47,18 @@
 	reg = <1 0x00000000 0 0x6400000>;
 	no-map;
 };
+
+&dpu {
+        trusty;
+};
+
+&{/reserved-memory/} {
+	secure_region: secure {
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xA6000000 0 0x1AC00000>;
+	};
+};
+
+&prime_reserved {
+	reg = <0 0x96000000 0 0x10000000>;
+};
