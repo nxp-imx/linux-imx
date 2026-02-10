@@ -216,7 +216,6 @@ _IMX_IN_TREE_MODULES = [
     "sound/soc/codecs/snd-soc-wm8994.ko",
     "drivers/trusty/trusty-test.ko",
     "drivers/soc/imx/imx8m_pm_domains.ko",
-    "drivers/reset/gpio-reset.ko",
     "drivers/gpu/drm/bridge/nwl-dsi.ko",
     "drivers/clk/imx/clk-imx8mq.ko",
     "drivers/media/rc/gpio-ir-recv.ko",
@@ -401,7 +400,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/regulator/bd718x7-regulator.ko",
     "drivers/net/ethernet/freescale/enetc/nxp-netc-blk-ctrl.ko",
     "drivers/net/phy/qcom/at803x.ko",
-    "drivers/reset/reset-gpio.ko",
     "drivers/dma/fsl-edma.ko",
     "drivers/usb/chipidea/ci_hdrc_npcm.ko",
     "drivers/net/phy/qcom/qcom-phy-lib.ko",
@@ -443,6 +441,7 @@ _IMX_IN_TREE_MODULES = [
     "drivers/hwmon/pwm-fan.ko",
     "drivers/gpu/arm/pma/protected_memory_allocator.ko",
     "drivers/gpu/arm/pma/protected_heap.ko",
+    "sound/soc/sof/imx/snd-sof-imx95.ko",
 ]
 
 def define_imx():
