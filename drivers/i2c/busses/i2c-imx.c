@@ -265,6 +265,7 @@ struct imx_i2c_struct {
 	int			stopped;
 	unsigned int		ifdr; /* IMX_I2C_IFDR */
 	unsigned int		cur_clk;
+	unsigned int 		clk_rate;
 	unsigned int		bitrate;
 	const struct imx_i2c_hwdata	*hwdata;
 	struct i2c_bus_recovery_info rinfo;
@@ -711,8 +712,10 @@ static int i2c_imx_clk_notifier_call(struct notifier_block *nb,
 						      struct imx_i2c_struct,
 						      clk_change_nb);
 
-	if (action & POST_RATE_CHANGE)
+	if (action & POST_RATE_CHANGE) {
+		WRITE_ONCE(i2c_imx->clk_rate, ndata->new_rate);
 		ret = i2c_imx_set_clk(i2c_imx, ndata->new_rate);
+	}
 
 	return notifier_from_errno(ret);
 }
@@ -722,7 +725,11 @@ static int i2c_imx_start(struct imx_i2c_struct *i2c_imx, bool atomic)
 	unsigned int temp = 0;
 	int result;
 
-	result = i2c_imx_set_clk(i2c_imx, clk_get_rate(i2c_imx->clk));
+	if (!READ_ONCE(i2c_imx->clk_rate))
+		return -EINVAL;
+
+	result = i2c_imx_set_clk(i2c_imx, READ_ONCE(i2c_imx->clk_rate));
+
 	if (result)
 		return result;
 
@@ -1763,7 +1770,8 @@ static int i2c_imx_probe(struct platform_device *pdev)
 		i2c_imx->bitrate = pdata->bitrate;
 	i2c_imx->clk_change_nb.notifier_call = i2c_imx_clk_notifier_call;
 	clk_notifier_register(i2c_imx->clk, &i2c_imx->clk_change_nb);
-	ret = i2c_imx_set_clk(i2c_imx, clk_get_rate(i2c_imx->clk));
+	WRITE_ONCE(i2c_imx->clk_rate, clk_get_rate(i2c_imx->clk));
+	ret = i2c_imx_set_clk(i2c_imx, READ_ONCE(i2c_imx->clk_rate));
 	if (ret < 0) {
 		dev_err(&pdev->dev, "can't get I2C clock\n");
 		goto clk_notifier_unregister;
@@ -1875,6 +1883,13 @@ static int __maybe_unused i2c_imx_runtime_resume(struct device *dev)
 	ret = clk_prepare_enable(i2c_imx->clk);
 	if (ret)
 		dev_err(dev, "can't enable I2C clock, ret=%d\n", ret);
+	else {
+		i2c_imx->cur_clk = 0;
+		WRITE_ONCE(i2c_imx->clk_rate, clk_get_rate(i2c_imx->clk));
+		ret = i2c_imx_set_clk(i2c_imx, READ_ONCE(i2c_imx->clk_rate));
+		if (ret)
+			dev_err(dev, "can't set I2C clock, ret=%d\n", ret);
+	}
 
 	return ret;
 }
