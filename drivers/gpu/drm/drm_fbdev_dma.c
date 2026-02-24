@@ -50,8 +50,10 @@ static void drm_fbdev_dma_fb_destroy(struct fb_info *info)
 	if (!fb_helper->dev)
 		return;
 
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (info->fbdefio)
 		fb_deferred_io_cleanup(info);
+#endif
 	drm_fb_helper_fini(fb_helper);
 
 	drm_client_buffer_vunmap(fb_helper->buffer);
@@ -72,6 +74,7 @@ static const struct fb_ops drm_fbdev_dma_fb_ops = {
 	.fb_destroy = drm_fbdev_dma_fb_destroy,
 };
 
+#ifdef CONFIG_FB_DEFERRED_IO
 FB_GEN_DEFAULT_DEFERRED_DMAMEM_OPS(drm_fbdev_dma_shadowed,
 				   drm_fb_helper_damage_range,
 				   drm_fb_helper_damage_area);
@@ -104,6 +107,7 @@ static const struct fb_ops drm_fbdev_dma_shadowed_fb_ops = {
 	DRM_FB_HELPER_DEFAULT_OPS,
 	.fb_destroy = drm_fbdev_dma_shadowed_fb_destroy,
 };
+#endif
 
 /*
  * struct drm_fb_helper
@@ -226,6 +230,7 @@ static int drm_fbdev_dma_driver_fbdev_probe_tail(struct drm_fb_helper *fb_helper
 	return 0;
 }
 
+#ifdef CONFIG_FB_DEFERRED_IO
 static int drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(struct drm_fb_helper *fb_helper,
 							  struct drm_fb_helper_surface_size *sizes)
 {
@@ -261,11 +266,11 @@ static int drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(struct drm_fb_helper *
 		goto err_vfree;
 
 	return 0;
-
 err_vfree:
 	vfree(screen_buffer);
 	return ret;
 }
+#endif
 
 int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 				     struct drm_fb_helper_surface_size *sizes)
@@ -312,9 +317,11 @@ int drm_fbdev_dma_driver_fbdev_probe(struct drm_fb_helper *fb_helper,
 
 	drm_fb_helper_fill_info(info, fb_helper, sizes);
 
+#ifdef CONFIG_FB_DEFERRED_IO
 	if (fb->funcs->dirty)
 		ret = drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(fb_helper, sizes);
 	else
+#endif
 		ret = drm_fbdev_dma_driver_fbdev_probe_tail(fb_helper, sizes);
 	if (ret)
 		goto err_drm_fb_helper_release_info;

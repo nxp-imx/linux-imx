@@ -240,7 +240,7 @@ drm_fb_helper_from_client(struct drm_client_dev *client)
 	.fb_debug_leave = drm_fb_helper_debug_leave, \
 	.fb_ioctl	= drm_fb_helper_ioctl
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
+#if defined(CONFIG_DRM_FBDEV_EMULATION) || IS_MODULE(CONFIG_DRM_FBDEV_HELPER)
 void drm_fb_helper_prepare(struct drm_device *dev, struct drm_fb_helper *helper,
 			   unsigned int preferred_bpp,
 			   const struct drm_fb_helper_funcs *funcs);

@@ -13,7 +13,7 @@ config DRM_CLIENT_SELECTION
 	tristate
 	depends on DRM
 	select DRM_CLIENT_LIB if DRM_CLIENT_LOG
-	select DRM_CLIENT_LIB if DRM_FBDEV_EMULATION
+	select DRM_CLIENT_LIB if DRM_FBDEV_EMULATION || DRM_FBDEV_HELPER
 	help
 	  Drivers that support in-kernel DRM clients have to select this
 	  option.
@@ -42,9 +42,16 @@ config DRM_FBDEV_EMULATION
 
 	  If in doubt, say "Y".
 
+config DRM_FBDEV_HELPER
+	tristate "Build FBDEV related in DRM as module when DRM_FBDEV_EMULATION is not set"
+	depends on DRM_CLIENT_SELECTION
+	select DRM_CLIENT
+	select DRM_CLIENT_SETUP
+	default n if DRM_FBDEV_EMULATION
+
 config DRM_FBDEV_OVERALLOC
 	int "Overallocation of the fbdev buffer"
-	depends on DRM_FBDEV_EMULATION
+	depends on DRM_FBDEV_EMULATION || DRM_FBDEV_HELPER
 	default 100
 	help
 	  Defines the fbdev buffer overallocation in percent. Default
@@ -88,7 +95,7 @@ config DRM_CLIENT_LOG
 choice
 	prompt "Default DRM Client"
 	depends on DRM_CLIENT_SELECTION
-	depends on DRM_FBDEV_EMULATION || DRM_CLIENT_LOG
+	depends on DRM_FBDEV_EMULATION || DRM_CLIENT_LOG || DRM_FBDEV_HELPER
 	default DRM_CLIENT_DEFAULT_FBDEV
 	help
 	  Selects the default drm client.
@@ -98,7 +105,7 @@ choice
 
 config DRM_CLIENT_DEFAULT_FBDEV
 	bool "fbdev"
-	depends on DRM_FBDEV_EMULATION
+	depends on DRM_FBDEV_EMULATION || DRM_FBDEV_HELPER
 	help
 	  Use fbdev emulation as default drm client. This is needed to have
 	  fbcon on top of a drm driver.

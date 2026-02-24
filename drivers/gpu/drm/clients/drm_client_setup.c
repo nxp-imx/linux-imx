@@ -39,7 +39,7 @@ void drm_client_setup(struct drm_device *dev, const struct drm_format_info *form
 		return;
 	}
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
+#if defined(CONFIG_DRM_FBDEV_EMULATION) || IS_MODULE(CONFIG_DRM_FBDEV_HELPER)
 	if (!strcmp(drm_client_default, "fbdev")) {
 		int ret;
 

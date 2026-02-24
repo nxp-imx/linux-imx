@@ -1972,3 +1972,6 @@ void drm_fb_helper_lastclose(struct drm_device *dev)
 	drm_fb_helper_restore_fbdev_mode_unlocked(dev->fb_helper);
 }
 EXPORT_SYMBOL(drm_fb_helper_lastclose);
+
+MODULE_DESCRIPTION("DRM fbdev emulation helpers");
+MODULE_LICENSE("GPL");
