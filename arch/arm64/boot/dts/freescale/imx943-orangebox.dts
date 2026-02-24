@@ -291,6 +291,12 @@
 			reg = <0 0xa4120000 0 0x100000>;
 			no-map;
 		};
+
+		v2x_prime_reserved: v2x-prime-reserved@a4220000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4220000 0 0x10000000>;
+			no-map;
+		};
 	};
 
 	reg_usdhc2_vmmc: regulator-usdhc2 {
@@ -340,6 +346,10 @@
 
 &ele_if0 {
 	memory-region = <&ele_reserved>;
+};
+
+&v2x_mu2 {
+	memory-region = <&v2x_prime_reserved>;
 };
 
 &enetc1 {

@@ -34,6 +34,7 @@ static int fce_probe(struct platform_device *pdev)
 	struct resource *regs_fce_io;
 	int ret, len;
 	struct device *dev = &pdev->dev;
+	struct device_node *rmem_np;
 
 	fce_dev = devm_kzalloc(dev, sizeof(struct uio_fce_dev), GFP_KERNEL);
 	if (!fce_dev)
@@ -64,6 +65,21 @@ static int fce_probe(struct platform_device *pdev)
 	info->mem[0].size = resource_size(regs_fce_io);
 	info->mem[0].memtype = UIO_MEM_PHYS;
 	info->mem[0].internal_addr = fce_dev->fce_io_vaddr;
+
+	rmem_np = of_parse_phandle(dev->of_node, "memory-region", 0);
+	if (rmem_np) {
+		struct reserved_mem *rmem = of_reserved_mem_lookup(rmem_np);
+
+		of_node_put(rmem_np);
+		if (rmem) {
+			info->mem[1].name = "V2X PRIME Reserved Memory";
+			info->mem[1].addr = rmem->base;
+			info->mem[1].size = rmem->size;
+			info->mem[1].memtype = UIO_MEM_PHYS;
+			info->mem[1].internal_addr = NULL;
+		} else
+			dev_warn(dev, "Reserved memory not found; map1 not created\n");
+	}
 
 	info->name = "FCE UIO";
 	info->version = "UIO V2X FCE Driver 1.0";

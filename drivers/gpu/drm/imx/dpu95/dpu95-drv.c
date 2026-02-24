@@ -212,6 +212,13 @@ static int dpu95_resume(struct device *dev)
 	return drm_mode_config_helper_resume(drm_dev);
 }
 
+static void dpu95_shutdown(struct platform_device *pdev)
+{
+	struct drm_device *drm = platform_get_drvdata(pdev);
+
+	drm_atomic_helper_shutdown(drm);
+}
+
 static const struct dev_pm_ops dpu95_pm_ops = {
 	RUNTIME_PM_OPS(dpu95_runtime_suspend, dpu95_runtime_resume, NULL)
 	SYSTEM_SLEEP_PM_OPS(dpu95_suspend, dpu95_resume)
@@ -226,6 +233,7 @@ MODULE_DEVICE_TABLE(of, dpu95_dt_ids);
 static struct platform_driver dpu95_platform_driver = {
 	.probe = dpu95_probe,
 	.remove = dpu95_remove,
+	.shutdown = dpu95_shutdown,
 	.driver = {
 		.name = DRIVER_NAME,
 		.of_match_table	= dpu95_dt_ids,
