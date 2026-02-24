@@ -26,6 +26,7 @@
 
 static const char * const dpu95_unit_names[] = {
 	"ConstFrame",
+	"ColorMatrix",
 	"DomainBlend",
 	"Dither",
 	"ExtDst",

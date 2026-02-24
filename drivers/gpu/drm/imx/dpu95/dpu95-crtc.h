@@ -41,6 +41,7 @@ struct dpu95_crtc {
 	struct dpu95_domainblend	*db;
 	struct dpu95_dither		*dt;
 	struct dpu95_localdimming	*ld;
+	struct dpu95_matrix		*cm;
 	unsigned int			dpu_dec_frame_complete_irq;
 	unsigned int			dpu_dec_seq_complete_irq;
 	unsigned int			dpu_dec_shdld_irq;

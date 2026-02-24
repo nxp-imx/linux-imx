@@ -29,6 +29,25 @@ static const struct dpu95_units dpu95_dpu_cfs = {
 	.hw_init	= dpu95_cf_hw_init,
 };
 
+/* Color Matrix */
+static const unsigned int dpu95_cm_ids[] = {0, 1, 4, 9};
+static const enum dpu95_unit_type dpu95_cm_types[] = {
+DPU95_DISP, DPU95_DISP, DPU95_DISP, DPU95_BLIT};
+static const unsigned long dpu95_cm_ofss[] = {
+0x2f0000, 0x360000, 0x260000, 0x60000};
+static const unsigned long dpu95_cm_aux_ofss[] = {0, 0, 0x261000, 0x61000};
+
+static const struct dpu95_units dpu95_dpu_cms = {
+	.ids		= dpu95_cm_ids,
+	.types		= dpu95_cm_types,
+	.ofss		= dpu95_cm_ofss,
+	.aux_ofss	= dpu95_cm_aux_ofss,
+	.cnt		= ARRAY_SIZE(dpu95_cm_ids),
+	.name		= DPU95_COLORMATRIX,
+	.init		= dpu95_cm_init,
+	.hw_init	= dpu95_cm_hw_init,
+};
+
 /* Domain Blend */
 static const unsigned int dpu95_db_ids[] = {0, 1};
 static const enum dpu95_unit_type dpu95_db_types[] = {DPU95_DISP, DPU95_DISP};
@@ -209,6 +228,7 @@ static const struct dpu95_units dpu95_dpu_vss = {
 
 static const struct dpu95_units *dpu95_all_units[] = {
 	&dpu95_dpu_cfs,
+	&dpu95_dpu_cms,
 	&dpu95_dpu_dbs,
 	&dpu95_dpu_dts,
 	&dpu95_dpu_eds,

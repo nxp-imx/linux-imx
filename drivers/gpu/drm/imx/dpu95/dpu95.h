@@ -19,6 +19,7 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modes.h>
 #include <drm/drm_plane.h>
+#include <drm/drm_property.h>
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
 
@@ -98,6 +99,7 @@ enum dpu95_unit_type {
 
 enum dpu95_unit_name {
 	DPU95_CONSTFRAME,
+	DPU95_COLORMATRIX,
 	DPU95_DOMAINBLEND,
 	DPU95_DITHER,
 	DPU95_EXTDST,
@@ -144,6 +146,15 @@ enum dpu95_link_id {
 	DPU95_LINK_ID_MATRIX4		= 0x23,
 	DPU95_LINK_ID_HSCALER4		= 0x24,
 	DPU95_LINK_ID_VSCALER4		= 0x25,
+};
+
+enum dpu95_cm_mode {
+	/* input data is bypassed */
+	CM_MODE_NEUTRAL,
+	/* input data is multiplied with matrix values */
+	CM_MODE_MATRIX,
+	/* input color is multiplied with input alpha */
+	CM_MODE_PREMUL,
 };
 
 enum dpu95_db_modecontrol {
@@ -283,6 +294,7 @@ struct dpu95_soc {
 	struct irq_domain		*disp_irq2_domain;
 
 	struct dpu95_constframe		*cf[4];
+	struct dpu95_matrix		*cm[4];
 	struct dpu95_domainblend	*db[2];
 	struct dpu95_dither		*dt[2];
 	struct dpu95_extdst		*ed[4];
@@ -390,6 +402,17 @@ void dpu95_cf_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_cf_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base, unsigned long dpu_base);
+
+/* Color Matrix Unit */
+struct dpu95_matrix;
+void dpu95_cm_mode(struct dpu95_matrix *cm, enum dpu95_cm_mode m);
+void dpu95_cm_set_matrix(struct dpu95_matrix *cm,
+			 struct drm_property_blob *ctm_blob);
+struct dpu95_matrix *dpu95_cm_get(struct dpu95_soc *dpu, unsigned int id);
+void dpu95_cm_hw_init(struct dpu95_soc *dpu, unsigned int index);
+int dpu95_cm_init(struct dpu95_soc *dpu, unsigned int index,
+		  unsigned int id, enum dpu95_unit_type type,
+		  unsigned long pec_base, unsigned long base);
 
 /* Domain Blend Unit */
 struct dpu95_domainblend;

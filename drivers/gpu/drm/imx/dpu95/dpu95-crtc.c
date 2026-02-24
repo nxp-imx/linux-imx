@@ -317,6 +317,18 @@ static void dpu95_crtc_atomic_begin(struct drm_crtc *crtc,
 	}
 }
 
+static void dpu95_crtc_set_ctm(struct drm_crtc_state *crtc_state)
+{
+	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc_state->crtc);
+
+	if (crtc_state->ctm) {
+		dpu95_cm_set_matrix(dpu_crtc->cm, crtc_state->ctm);
+		dpu95_cm_mode(dpu_crtc->cm, CM_MODE_MATRIX);
+	} else {
+		dpu95_cm_mode(dpu_crtc->cm, CM_MODE_NEUTRAL);
+	}
+}
+
 static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 				    struct drm_atomic_state *state)
 {
@@ -326,6 +338,7 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct drm_plane_state *old_plane_state;
 	const struct dpu95_hscaler_ops *hs_ops;
 	const struct dpu95_vscaler_ops *vs_ops;
+	struct drm_crtc_state *new_crtc_state;
 	struct drm_crtc_state *old_crtc_state;
 	struct dpu95_plane_state *old_dpstate;
 	struct drm_atomic_state *old_state;
@@ -334,8 +347,18 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct dpu95_vscaler *vs;
 	int i;
 
+	new_crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
 	old_state = old_crtc_state->state;
+
+	if (!need_modeset && crtc->state->active && new_crtc_state->color_mgmt_changed) {
+		dpu95_crtc_set_ctm(new_crtc_state);
+
+		enable_irq(dpu_crtc->dec_shdld_irq);
+		dpu95_fg_shdtokgen(dpu_crtc->fg);
+		DPU95_CRTC_WAIT_FOR_COMPLETION_TIMEOUT(dec_shdld_done);
+		disable_irq(dpu_crtc->dec_shdld_irq);
+	}
 
 	if (old_crtc_state->plane_mask == 0 && crtc->state->plane_mask == 0) {
 		/* Queue a pending vbl event if necessary. */
@@ -421,6 +444,7 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 static void dpu95_crtc_atomic_enable(struct drm_crtc *crtc,
 				     struct drm_atomic_state *state)
 {
+	struct drm_crtc_state *new_crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 	struct dpu95_drm_device *dpu_drm = to_dpu95_drm_device(crtc->dev);
 	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc);
 	struct drm_encoder *encoder = &dpu_drm->encoder[dpu_crtc->stream_id];
@@ -435,6 +459,7 @@ static void dpu95_crtc_atomic_enable(struct drm_crtc *crtc,
 	dpu95_fg_enable_clock(dpu_crtc->fg, enc_is_dsi);
 	dpu95_ed_pec_sync_trigger(dpu_crtc->ed_cont);
 	dpu95_db_shdtokgen(dpu_crtc->db);
+	dpu95_crtc_set_ctm(new_crtc_state);
 	dpu95_fg_shdtokgen(dpu_crtc->fg);
 	dpu95_fg_enable(dpu_crtc->fg);
 
@@ -551,6 +576,7 @@ static int dpu95_crtc_get_resources(struct dpu95_crtc *dpu_crtc)
 		{(void *)&dpu_crtc->db,		(void *)dpu95_db_get},
 		{(void *)&dpu_crtc->dt,		(void *)dpu95_dt_get},
 		{(void *)&dpu_crtc->ld,		(void *)dpu95_ld_get},
+		{(void *)&dpu_crtc->cm,		(void *)dpu95_cm_get},
 	};
 	int i, ret;
 
@@ -694,6 +720,8 @@ int dpu95_crtc_init(struct dpu95_drm_device *dpu_drm,
 	}
 
 	dpu_drm->crtc_mask |= drm_crtc_mask(crtc);
+
+	drm_crtc_enable_color_mgmt(crtc, 0, true, 0);
 
 	ret = dpu95_crtc_pm_runtime_resume_and_get(dpu_crtc);
 	if (ret < 0)
