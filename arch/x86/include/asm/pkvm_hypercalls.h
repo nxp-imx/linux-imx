@@ -24,6 +24,7 @@ PKVM_HC(dump_vmexit_trace)
 PKVM_HC(check_processor_compatibility)
 PKVM_HC(enable_virtualization_cpu)
 PKVM_HC(vm_init)
+PKVM_HC(vm_finalize)
 PKVM_HC_OUT(vm_destroy)
 PKVM_HC(vcpu_create)
 PKVM_HC_OUT(vcpu_free)
@@ -75,6 +76,14 @@ PKVM_HC(write_tsc_offset)
 PKVM_HC(write_tsc_multiplier)
 PKVM_HC(load_mmu_pgd)
 PKVM_HC(setup_mce)
+PKVM_HC_OUT(vcpu_run)
+PKVM_HC(complete_emulated_msr)
+PKVM_HC(has_wbinvd_exit)
+
+/* KVM MMU hypercalls */
+PKVM_HC(vm_mmu_map)
+PKVM_HC(vm_mmu_unmap)
+PKVM_HC(vm_mmu_age)
 
 #undef PKVM_HC
 #undef PKVM_HC_OUT

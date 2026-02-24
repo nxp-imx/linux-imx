@@ -5,12 +5,10 @@
 #include "pkvm.h"
 #include "trace.h"
 
-struct perf_ctrl {
-	unsigned int age;
-	bool on;
-};
+static bool trace_on;
+static atomic_t trace_age;
+
 static DEFINE_PER_CPU(struct vmexit_perf, hvcpu_perf);
-static DEFINE_PER_CPU(struct perf_ctrl, perf_ctrl);
 
 static inline bool is_host_vcpu(struct kvm_vcpu *vcpu)
 {
@@ -19,22 +17,45 @@ static inline bool is_host_vcpu(struct kvm_vcpu *vcpu)
 
 static inline struct vmexit_perf *vcpu_to_perf(struct kvm_vcpu *vcpu)
 {
-	/*
-	 * TODO: Currently there is only host vCPU but not guest vCPU.
-	 * Enable the trace support for guest once the pKVM hypervisor
-	 * support running a guest vCPU.
-	 */
-	BUG_ON(!is_host_vcpu(vcpu));
-
-	return this_cpu_ptr(&hvcpu_perf);
+	return is_host_vcpu(vcpu) ? this_cpu_ptr(&hvcpu_perf) :
+				    &to_pkvm_vcpu(vcpu)->perf;
 }
 
-static void refresh_vmexit_perf(struct perf_ctrl *pctrl, struct vmexit_perf *perf)
+static void refresh_vmexit_perf(struct vmexit_perf *perf)
 {
+	pkvm_spin_lock(&perf->lock);
 	memset(perf->data.vmexit_reasons, 0, sizeof(perf->data.vmexit_reasons));
 	memset(perf->data.hypercalls, 0, sizeof(perf->data.hypercalls));
+	pkvm_spin_unlock(&perf->lock);
+}
 
-	perf->age = pctrl->age;
+static void refresh_host_vm_trace(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu)
+		refresh_vmexit_perf(per_cpu_ptr(&hvcpu_perf, cpu));
+}
+
+static int __refresh_guest_vm_trace(struct pkvm_vm *vm, void *param)
+{
+	int i;
+
+	pkvm_spin_lock(&vm->lock);
+	for (i = 0; i < vm->kvm.created_vcpus; i++) {
+		if (!vm->vcpus[i])
+			continue;
+
+		refresh_vmexit_perf(&vm->vcpus[i]->perf);
+	}
+	pkvm_spin_unlock(&vm->lock);
+
+	return 0;
+}
+
+static void refresh_guest_vm_trace(void)
+{
+	pkvm_walk_each_vm(__refresh_guest_vm_trace, NULL);
 }
 
 static void copy_vmexit_perf_data(struct perf_data *dst, struct vmexit_perf *perf)
@@ -44,54 +65,105 @@ static void copy_vmexit_perf_data(struct perf_data *dst, struct vmexit_perf *per
 	pkvm_spin_unlock(&perf->lock);
 }
 
-static void copy_host_vm_trace(void *dst, unsigned long size)
+static void copy_host_vm_trace(void **dst, unsigned long *size)
 {
 	struct vmexit_perf *perf;
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
 		perf = per_cpu_ptr(&hvcpu_perf, cpu);
-		if (size >= sizeof(struct perf_data)) {
-			copy_vmexit_perf_data(dst, perf);
-			dst += sizeof(struct perf_data);
-			size -= sizeof(struct perf_data);
+		if (*size >= sizeof(struct perf_data)) {
+			copy_vmexit_perf_data(*dst, perf);
+			*dst += sizeof(struct perf_data);
+			*size -= sizeof(struct perf_data);
 		}
 	}
 }
 
+struct copy_arg {
+	int vm_handle;
+	void *dst;
+	unsigned long size;
+};
+
+static int __copy_guest_vm_trace(struct pkvm_vm *vm, void *param)
+{
+	struct copy_arg *arg = param;
+	int i;
+
+	if (arg->vm_handle != PKVM_HOST_VM_HANDLE &&
+	    arg->vm_handle != vm->kvm.arch.pkvm.handle)
+		return 0;
+
+	pkvm_spin_lock(&vm->lock);
+	for (i = 0; i < vm->kvm.created_vcpus; i++) {
+		if (!vm->vcpus[i])
+			continue;
+
+		if (arg->size < sizeof(struct perf_data))
+			return -ENOSPC;
+
+		copy_vmexit_perf_data(arg->dst, &vm->vcpus[i]->perf);
+		arg->dst += sizeof(struct perf_data);
+		arg->size -= sizeof(struct perf_data);
+	}
+	pkvm_spin_unlock(&vm->lock);
+
+	/*
+	 * If vm_handle != PKVM_HOST_VM_HANDLE, it means the host wants to get
+	 * the trace for a specific guest VM, and the pKVM can stop dumping the
+	 * other guest VM's trace. Otherwise, the pKVM will continue.
+	 */
+	return arg->vm_handle != PKVM_HOST_VM_HANDLE;
+}
+
+static void copy_guest_vm_trace(int vm_handle, void *dst, unsigned long size)
+{
+	struct copy_arg arg = {
+		.vm_handle = vm_handle,
+		.dst = dst,
+		.size = size,
+	};
+
+	pkvm_walk_each_vm(__copy_guest_vm_trace, &arg);
+}
+
 void pkvm_trace_vmexit_start(struct kvm_vcpu *vcpu)
 {
-	struct perf_ctrl *pctrl = this_cpu_ptr(&perf_ctrl);
 	struct vmexit_perf *perf;
 
-	if (!pctrl->on)
+	/*
+	 * Read trace_on before trace_age. Pairs with smp_store_release() in
+	 * pkvm_enable_vmexit_trace().
+	 */
+	if (likely(!smp_load_acquire(&trace_on)))
 		return;
 
 	perf = vcpu_to_perf(vcpu);
-	if (pctrl->age != perf->age)
-		refresh_vmexit_perf(pctrl, perf);
 
 	perf->rax = vcpu->arch.regs[VCPU_REGS_RAX];
 	perf->tsc = rdtsc_ordered();
+	perf->age = atomic_read(&trace_age);
 }
 
 void pkvm_trace_vmexit_end(struct kvm_vcpu *vcpu, u32 reason)
 {
-	struct perf_ctrl *pctrl = this_cpu_ptr(&perf_ctrl);
 	struct vmexit_perf *perf;
 	unsigned long long cycles;
 
-	if (!pctrl->on)
+	/*
+	 * Read trace_on before trace_age. Pairs with smp_store_release() in
+	 * pkvm_enable_vmexit_trace().
+	 */
+	if (likely(!smp_load_acquire(&trace_on)))
 		return;
 
 	if (reason >= MAX_EXIT_REASONS)
 		return;
 
 	perf = vcpu_to_perf(vcpu);
-	if (pctrl->age != perf->age) {
-		refresh_vmexit_perf(pctrl, perf);
+	if (perf->age != atomic_read(&trace_age))
 		return;
-	}
 
 	cycles = rdtsc_ordered() - perf->tsc;
 
@@ -113,6 +185,7 @@ void pkvm_vcpu_perf_init(struct kvm_vcpu *vcpu)
 {
 	struct vmexit_perf *perf = vcpu_to_perf(vcpu);
 
+	perf->data.vm_handle = vcpu->kvm->arch.pkvm.handle;
 	perf->data.vcpu_id = vcpu->vcpu_id;
 
 	pkvm_spin_lock_init(&perf->lock);
@@ -120,24 +193,33 @@ void pkvm_vcpu_perf_init(struct kvm_vcpu *vcpu)
 
 void pkvm_enable_vmexit_trace(bool en)
 {
-	struct perf_ctrl *pctrl = this_cpu_ptr(&perf_ctrl);
+	if (en) {
+		refresh_host_vm_trace();
+		refresh_guest_vm_trace();
 
-	if (en && !pctrl->on) {
-		pctrl->age++;
-		pctrl->on = true;
-	} else if (!en && pctrl->on) {
-		pctrl->on = false;
+		atomic_inc(&trace_age);
 	}
+
+	/*
+	 * Update trace_on after updating trace_age. Pairs with smp_load_acquire()
+	 * in pkvm_trace_vmexit_start()/pkvm_trace_vmexit_end().
+	 */
+	smp_store_release(&trace_on, en);
 }
 
-int pkvm_dump_vmexit_trace(phys_addr_t phys, unsigned long size)
+int pkvm_dump_vmexit_trace(phys_addr_t phys, unsigned long size, int vm_handle)
 {
 	int ret = pkvm_host_share_hyp(phys, size);
+	unsigned long dst_size = size;
+	void *dst = __pkvm_va(phys);
 
 	if (ret)
 		return ret;
 
-	copy_host_vm_trace(__pkvm_va(phys), size);
+	if (vm_handle == PKVM_HOST_VM_HANDLE)
+		copy_host_vm_trace(&dst, &dst_size);
+
+	copy_guest_vm_trace(vm_handle, dst, dst_size);
 
 	pkvm_host_unshare_hyp(phys, size);
 

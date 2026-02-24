@@ -20,6 +20,7 @@
   anon_inode_getfd
   arc4_crypt
   arc4_setkey
+  __arch_clear_user
   __arch_copy_from_user
   __arch_copy_to_user
   arm64_use_ng_mappings
@@ -128,6 +129,7 @@
   cec_transmit_done_ts
   cec_unregister_adapter
   __check_object_size
+  check_zeroed_user
   class_create
   class_destroy
   class_find_device
@@ -295,6 +297,7 @@
   dev_err_probe
   dev_fetch_sw_netstats
   devfreq_add_device
+  devfreq_cooling_em_register
   devfreq_cooling_unregister
   devfreq_recommended_opp
   devfreq_register_opp_notifier
@@ -385,6 +388,7 @@
   devm_clk_put
   devm_clk_rate_exclusive_get
   devm_clk_register
+  devm_devfreq_add_device
   devm_device_add_group
   devm_drm_bridge_add
   __devm_drm_bridge_alloc
@@ -459,6 +463,8 @@
   devm_platform_ioremap_resource
   devm_platform_ioremap_resource_byname
   devm_pm_domain_attach_list
+  devm_pm_opp_of_add_table
+  devm_pm_opp_set_config
   devm_pm_runtime_enable
   devm_pm_set_wake_irq
   devm_power_supply_register
@@ -540,6 +546,7 @@
   dev_pm_opp_remove
   dev_pm_opp_remove_all_dynamic
   dev_pm_opp_set_config
+  dev_pm_opp_set_opp
   dev_pm_opp_set_rate
   dev_pm_opp_set_sharing_cpus
   dev_pm_set_wake_irq
@@ -557,6 +564,7 @@
   disable_irq
   disable_irq_nosync
   disable_percpu_irq
+  disable_work_sync
   divider_determine_rate
   divider_get_val
   divider_recalc_rate
@@ -594,6 +602,7 @@
   dma_fence_init
   dma_fence_release
   dma_fence_remove_callback
+  dma_fence_set_deadline
   dma_fence_signal
   dma_fence_signal_locked
   dma_fence_wait_timeout
@@ -623,6 +632,10 @@
   dma_release_channel
   dma_request_chan
   __dma_request_channel
+  dma_resv_add_fence
+  dma_resv_iter_first
+  dma_resv_iter_next
+  dma_resv_reserve_fences
   dma_set_coherent_mask
   dma_set_mask
   __dma_sync_sg_for_cpu
@@ -762,14 +775,19 @@
   drm_crtc_vblank_put
   drm_crtc_wait_one_vblank
   __drm_debug
+  drm_debugfs_create_files
+  drm_debugfs_gpuva_info
   drm_default_rgb_quant_range
   drm_detect_hdmi_monitor
   drm_detect_monitor_audio
   drm_dev_alloc
   __drm_dev_dbg
+  drm_dev_enter
+  drm_dev_exit
   drm_dev_printk
   drm_dev_put
   drm_dev_register
+  drm_dev_unplug
   drm_dev_unregister
   drm_display_info_set_bus_formats
   drm_display_mode_from_cea_vic
@@ -789,12 +807,14 @@
   drm_encoder_cleanup
   drm_encoder_init
   __drm_err
+  drm_fdinfo_print_size
   drm_format_info
   drm_format_info_block_height
   drm_format_info_block_width
   drm_gem_create_mmap_offset
   drm_gem_fb_create
   drm_gem_fb_get_obj
+  drm_gem_free_mmap_offset
   drm_gem_handle_create
   drm_gem_mmap
   drm_gem_object_free
@@ -802,10 +822,27 @@
   drm_gem_object_lookup
   drm_gem_object_release
   drm_gem_plane_helper_prepare_fb
+  drm_gem_prime_export
   drm_gem_prime_import
   drm_gem_private_object_init
+  drm_gem_shmem_create
+  drm_gem_shmem_free
+  drm_gem_shmem_get_pages_sgt
+  drm_gem_shmem_get_sg_table
+  drm_gem_shmem_mmap
+  drm_gem_shmem_pin
+  drm_gem_shmem_pin_locked
+  drm_gem_shmem_prime_import_sg_table
+  drm_gem_shmem_print_info
+  drm_gem_shmem_unpin
+  drm_gem_shmem_unpin_locked
+  drm_gem_shmem_vmap_locked
+  drm_gem_shmem_vm_ops
+  drm_gem_shmem_vunmap_locked
+  drm_gem_vmap
   drm_gem_vm_close
   drm_gem_vm_open
+  drm_gem_vunmap
   drm_get_connector_status_name
   drm_get_edid
   drm_get_format_info
@@ -816,6 +853,7 @@
   drm_helper_hpd_irq_event
   drm_helper_probe_single_connector_modes
   drm_ioctl
+  drm_is_current_master
   drm_kms_helper_connector_hotplug_event
   drm_kms_helper_hotplug_event
   drm_kms_helper_poll_fini
@@ -825,7 +863,13 @@
   drmm_connector_hdmi_init
   drmm_connector_init
   drmm_kmalloc
+  drm_mm_init
+  drm_mm_insert_node_in_range
   drmm_mode_config_init
+  drm_mm_remove_node
+  drm_mm_reserve_node
+  drm_mm_takedown
+  __drmm_mutex_release
   drm_mode_config_cleanup
   drm_mode_config_helper_resume
   drm_mode_config_helper_suspend
@@ -899,7 +943,14 @@
   drm_release
   drm_self_refresh_helper_cleanup
   drm_self_refresh_helper_init
+  drm_show_fdinfo
+  drm_show_memory_stats
   drm_simple_encoder_init
+  drm_syncobj_add_point
+  drm_syncobj_find
+  drm_syncobj_find_fence
+  drm_syncobj_free
+  drm_syncobj_replace_fence
   drm_sysfs_connector_property_event
   drm_universal_plane_init
   drm_vblank_init
@@ -998,6 +1049,7 @@
   free_irq
   free_netdev
   __free_pages
+  free_pages
   free_pages_exact
   free_percpu
   free_percpu_irq
@@ -1348,6 +1400,7 @@
   __kfifo_out_peek
   __kfifo_to_user
   kfree
+  kfree_const
   kfree_sensitive
   kfree_skb_list_reason
   kimage_voffset
@@ -1356,10 +1409,12 @@
   __kmalloc_large_noprof
   __kmalloc_noprof
   kmalloc_size_roundup
+  kmem_cache_alloc_bulk_noprof
   kmem_cache_alloc_noprof
   __kmem_cache_create_args
   kmem_cache_destroy
   kmem_cache_free
+  kmem_cache_free_bulk
   kmemdup_array
   kmemdup_noprof
   kobject_create_and_add
@@ -1369,6 +1424,7 @@
   kobject_uevent_env
   krealloc_node_align_noprof
   kstrdup
+  kstrdup_const
   kstrndup
   kstrtobool
   kstrtobool_from_user
@@ -1406,6 +1462,7 @@
   kvfree
   kvfree_call_rcu
   __kvmalloc_node_noprof
+  kvrealloc_node_align_noprof
   led_init_default_state_get
   led_set_brightness
   led_sysfs_disable
@@ -2107,7 +2164,9 @@
   _raw_write_lock_irqsave
   _raw_write_unlock_irqrestore
   rb_erase
+  __rb_erase_color
   rb_first
+  __rb_insert_augmented
   rb_insert_color
   rb_next
   rb_prev
@@ -2215,6 +2274,7 @@
   __request_region
   request_resource
   request_threaded_irq
+  reservation_ww_class
   reset_control_assert
   reset_control_deassert
   reset_controller_register
@@ -2589,6 +2649,7 @@
   strncmp
   strncpy
   strncpy_from_user
+  strndup_user
   strnlen
   strpbrk
   strrchr
@@ -3062,11 +3123,19 @@
   wireless_send_event
   woken_wake_function
   __write_overflow_field
+  ww_mutex_lock
   ww_mutex_lock_interruptible
   ww_mutex_unlock
   x509_load_certificate_list
   __xa_alloc
+  xa_destroy
   xa_erase
+  xa_find
+  xa_find_after
+  xa_get_mark
+  xa_load
+  xa_set_mark
+  xa_store
   xdp_build_skb_from_buff
   xdp_convert_zc_to_xdp_frame
   xdp_do_flush

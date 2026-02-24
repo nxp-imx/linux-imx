@@ -21,6 +21,7 @@ unsigned int nr_cpu_ids;
 DEFINE_PER_CPU(u64, x86_spec_ctrl_current);
 DEFINE_STATIC_KEY_FALSE(switch_vcpu_ibpb);
 u64 x86_pred_cmd = PRED_CMD_IBPB;
+unsigned int tsc_khz;
 
 /*
  * Used to switch the FPU state between the host VM and pVMs. The fpu struct is

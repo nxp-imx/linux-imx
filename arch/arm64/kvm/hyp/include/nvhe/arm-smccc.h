@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <asm/kvm_hyp.h>
 #include <asm/kvm_hypevents.h>
 
 #include <linux/arm-smccc.h>

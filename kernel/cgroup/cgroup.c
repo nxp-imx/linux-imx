@@ -4617,6 +4617,7 @@ int cgroup_rm_cftypes(struct cftype *cfts)
 	cgroup_unlock();
 	return 0;
 }
+EXPORT_SYMBOL_GPL(cgroup_rm_cftypes);
 
 /**
  * cgroup_add_cftypes - add an array of cftypes to a subsystem

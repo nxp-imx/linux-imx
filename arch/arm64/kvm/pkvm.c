@@ -1341,27 +1341,6 @@ static struct module *pkvm_el2_mod_to_module(struct pkvm_el2_module *hyp_mod)
 	return container_of(arch, struct module, arch);
 }
 
-#ifdef CONFIG_PKVM_STACKTRACE
-unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
-{
-	struct pkvm_el2_module *mod;
-
-	list_for_each_entry(mod, &pkvm_modules, node) {
-		unsigned long hyp_va = (unsigned long)mod->hyp_va;
-		size_t len = (unsigned long)mod->sections.end -
-			     (unsigned long)mod->sections.start;
-
-		if (addr >= hyp_va && addr < (hyp_va + len))
-			return (unsigned long)mod->sections.start +
-				(addr - hyp_va);
-	}
-
-	return 0;
-}
-#else
-unsigned long pkvm_el2_mod_kern_va(unsigned long addr) { return 0; }
-#endif
-
 static struct pkvm_el2_module *pkvm_el2_mod_lookup_symbol(const char *name,
 							  unsigned long *addr)
 {
@@ -1597,6 +1576,78 @@ static void pkvm_module_kmemleak(struct module *this,
 	kmemleak_scan_area(start, end - start, GFP_KERNEL);
 }
 
+#define PKVM_EL2_MOD_DIRECT_RANGE	SZ_128M
+
+static unsigned long mod_direct_kern_base;
+static unsigned long mod_direct_hyp_base;
+
+unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
+{
+#ifdef CONFIG_PKVM_STACKTRACE
+	struct pkvm_el2_module *mod;
+
+	/* Fast lookup into the direct range */
+	if (mod_direct_hyp_base &&
+		addr >= mod_direct_hyp_base &&
+		addr < mod_direct_hyp_base + PKVM_EL2_MOD_DIRECT_RANGE)
+		return mod_direct_kern_base + (addr - mod_direct_hyp_base);
+
+	list_for_each_entry(mod, &pkvm_modules, node) {
+		unsigned long hyp_va = (unsigned long)mod->hyp_va;
+		size_t len = (unsigned long)mod->sections.end -
+				 (unsigned long)mod->sections.start;
+
+		if (addr >= hyp_va && addr < (hyp_va + len))
+			return (unsigned long)mod->sections.start +
+				(addr - hyp_va);
+	}
+#endif
+	return 0;
+}
+
+static void *pkvm_el2_mod_alloc_hyp_va(size_t size)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_alloc_module_va), size >> PAGE_SHIFT, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS || !res.a1)
+		return NULL;
+
+	return (void *)res.a1;
+}
+
+static __ref void *pkvm_el2_mod_alloc_mod_direct(unsigned long start, unsigned long end)
+{
+	if (mod_direct_hyp_base)
+		goto alloc;
+
+	mod_direct_kern_base = module_direct_base ?: module_plt_base;
+	if (WARN_ON(!mod_direct_kern_base))
+		return NULL;
+
+	mod_direct_hyp_base = (unsigned long)pkvm_el2_mod_alloc_hyp_va(PKVM_EL2_MOD_DIRECT_RANGE);
+	if (!mod_direct_hyp_base) {
+		mod_direct_kern_base = 0;
+		return NULL;
+	}
+
+alloc:
+	if (start < mod_direct_kern_base ||
+		end > mod_direct_kern_base + PKVM_EL2_MOD_DIRECT_RANGE)
+		return NULL;
+
+	return (void *)(mod_direct_hyp_base + (start - mod_direct_kern_base));
+}
+
+static void *pkvm_el2_mod_alloc_va(unsigned long start, unsigned long end)
+{
+	void *hyp_va;
+
+	hyp_va = pkvm_el2_mod_alloc_mod_direct(start, end);
+
+	return hyp_va ?: pkvm_el2_mod_alloc_hyp_va(end - start);
+}
+
 int __pkvm_load_el2_module(struct module *this)
 {
 	struct pkvm_el2_module *mod = &this->arch.hyp;
@@ -1609,7 +1660,6 @@ int __pkvm_load_el2_module(struct module *this)
 		{ &mod->data, KVM_PGTABLE_PROT_R | KVM_PGTABLE_PROT_W },
 	};
 	void *start, *end, *hyp_va, *mod_remap;
-	struct arm_smccc_res res;
 	kvm_nvhe_reloc_t *endrel;
 	int ret, i, secs_first;
 	size_t size;
@@ -1643,14 +1693,12 @@ int __pkvm_load_el2_module(struct module *this)
 	mod->sections.start = start;
 	mod->sections.end = end;
 
-	arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_alloc_module_va),
-			  size >> PAGE_SHIFT, &res);
-	if (res.a0 != SMCCC_RET_SUCCESS || !res.a1) {
+	hyp_va = pkvm_el2_mod_alloc_va((unsigned long)start, (unsigned long)end);
+	if (!hyp_va) {
 		kvm_err("Failed to allocate hypervisor VA space for EL2 module\n");
 		module_put(this);
-		return res.a0 == SMCCC_RET_SUCCESS ? -ENOMEM : -EPERM;
+		return -ENOMEM;
 	}
-	hyp_va = (void *)res.a1;
 	mod->hyp_va = hyp_va;
 
 	/* Relies on kvm_apply_hyp_module_relocations() sync_icache_aliases */

@@ -1732,6 +1732,29 @@ static void handle___pkvm_host_iommu_free_domain(struct kvm_cpu_context *host_ct
 	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
+static void handle___pkvm_host_iommu_iotlb_inv_nested_domain(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
+	DECLARE_REG(size_t, size, host_ctxt, 3);
+	DECLARE_REG(size_t, granule, host_ctxt, 4);
+	DECLARE_REG(bool, leaf, host_ctxt, 5);
+
+	cpu_reg(host_ctxt, 1) = kvm_iommu_iotlb_inv_nested_domain(domain, iova, size, granule,
+								  leaf);
+}
+
+static void handle___pkvm_host_iommu_nested_cfg_sync(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(pkvm_handle_t, drv_id, host_ctxt, 1);
+	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 2);
+	DECLARE_REG(void *, cmd_desc_hva, host_ctxt, 3);
+	DECLARE_REG(size_t, cmd_desc_size, host_ctxt, 4);
+
+	cpu_reg(host_ctxt, 1) = kvm_iommu_nested_cfg_sync(drv_id, iommu, cmd_desc_hva,
+							  cmd_desc_size);
+}
+
 static void handle___pkvm_host_iommu_attach_dev(struct kvm_cpu_context *host_ctxt)
 {
 	int ret;
@@ -1744,6 +1767,22 @@ static void handle___pkvm_host_iommu_attach_dev(struct kvm_cpu_context *host_ctx
 
 	ret = kvm_iommu_attach_dev(iommu, domain, endpoint,
 				   pasid, pasid_bits, flags);
+	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+}
+
+static void handle___pkvm_host_iommu_attach_dev_nested(struct kvm_cpu_context *host_ctxt)
+{
+	int ret;
+	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
+	DECLARE_REG(unsigned int, endpoint, host_ctxt, 3);
+	DECLARE_REG(unsigned int, pasid, host_ctxt, 4);
+	DECLARE_REG(unsigned long, flags, host_ctxt, 5);
+	DECLARE_REG(void *, s1_desc_hva, host_ctxt, 6);
+	DECLARE_REG(size_t, s1_desc_size, host_ctxt, 7);
+
+	ret = kvm_iommu_attach_dev_nested(iommu, domain, endpoint, pasid, flags, s1_desc_hva,
+					  s1_desc_size);
 	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
@@ -1983,7 +2022,10 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_host_iommu_alloc_domain),
 	HANDLE_FUNC(__pkvm_host_iommu_free_domain),
 	HANDLE_FUNC(__pkvm_host_iommu_attach_dev),
+	HANDLE_FUNC(__pkvm_host_iommu_attach_dev_nested),
 	HANDLE_FUNC(__pkvm_host_iommu_detach_dev),
+	HANDLE_FUNC(__pkvm_host_iommu_iotlb_inv_nested_domain),
+	HANDLE_FUNC(__pkvm_host_iommu_nested_cfg_sync),
 	HANDLE_FUNC(__pkvm_host_iommu_map_pages),
 	HANDLE_FUNC(__pkvm_host_iommu_unmap_pages),
 	HANDLE_FUNC(__pkvm_host_iommu_iova_to_phys),

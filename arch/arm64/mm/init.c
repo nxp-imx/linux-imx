@@ -435,8 +435,8 @@ void dump_mem_limit(void)
 }
 
 #ifdef CONFIG_EXECMEM
-static u64 module_direct_base __ro_after_init = 0;
-static u64 module_plt_base __ro_after_init = 0;
+u64 module_direct_base __ro_after_init;
+u64 module_plt_base __ro_after_init;
 
 /*
  * Choose a random page-aligned base address for a window of 'size' bytes which

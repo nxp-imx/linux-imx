@@ -77,6 +77,8 @@
 #include "mem_protect.h"
 #include "memory.h"
 #include "pkvm.h"
+#include "pkvm/trace.h"
+#include "vmx/ept.h"
 
 #undef module_param_named
 #define module_param_named(...)
@@ -87,6 +89,9 @@
 MODULE_AUTHOR("Qumranet");
 MODULE_DESCRIPTION("KVM support for VMX (Intel VT-x) extensions");
 MODULE_LICENSE("GPL");
+
+static struct kvm_x86_ops *x86_ops = &vt_x86_ops;
+static struct kvm_x86_init_ops *x86_init_ops = &vt_init_ops;
 
 #ifdef MODULE
 static const struct x86_cpu_id vmx_cpu_id[] = {
@@ -142,20 +147,16 @@ module_param_named(pml, enable_pml, bool, 0444);
 static bool __read_mostly error_on_inconsistent_vmcs_config = true;
 module_param(error_on_inconsistent_vmcs_config, bool, 0444);
 
-#ifndef __PKVM_HYP__
 static bool __read_mostly dump_invalid_vmcs = 0;
 module_param(dump_invalid_vmcs, bool, 0644);
-#endif /* !__PKVM_HYP__ */
 
 #define MSR_BITMAP_MODE_X2APIC		1
 #define MSR_BITMAP_MODE_X2APIC_APICV	2
 
 #define KVM_VMX_TSC_MULTIPLIER_MAX     0xffffffffffffffffULL
 
-#ifndef __PKVM_HYP__
 /* Guest_tsc -> host_tsc conversion requires 64-bit division.  */
 static int __read_mostly cpu_preemption_timer_multi;
-#endif /* !__PKVM_HYP__ */
 static bool __read_mostly enable_preemption_timer = 1;
 #ifdef CONFIG_X86_64
 module_param_named(preemption_timer, enable_preemption_timer, bool, S_IRUGO);
@@ -587,7 +588,7 @@ static __init void hv_init_evmcs(void)
 		}
 
 		if (ms_hyperv.nested_features & HV_X64_NESTED_DIRECT_FLUSH)
-			vt_x86_ops.enable_l2_tlb_flush
+			x86_ops->enable_l2_tlb_flush
 				= hv_enable_l2_tlb_flush;
 	} else {
 		enlightened_vmcs = false;
@@ -918,10 +919,27 @@ void vmx_update_exception_bitmap(struct kvm_vcpu *vcpu)
 	if (vcpu->arch.xfd_no_write_intercept)
 		eb |= (1u << NM_VECTOR);
 
+#ifdef __PKVM_HYP__
+	/*
+	 * For simplicity, do not intercept #PF/#UD/#GP for pVM to avoid
+	 * instruction emulations in the pKVM hypervisor. In fact, the #GP
+	 * is actually not intercepted as the pKVM hypervisor has disabled
+	 * enable_vmware_backdoor which is the only one enabling interception
+	 * for #GP). Handling the #BP needs to exit to the user space VMM in the
+	 * host side with guest RIP, which is not supported for pVM. In fact,
+	 * the #BP is not intercepted for pVM as debugging pVM from host side is
+	 * not supported. As the guest debug features are not supported for the
+	 * pVM for security reasons, no need to intercept #DB for a pVM.
+	 */
+	if (pkvm_is_protected_vcpu(vcpu))
+		eb &= ~((1u << PF_VECTOR) | (1u << UD_VECTOR) |
+			(1u << GP_VECTOR) | (1u << BP_VECTOR) |
+			(1u << DB_VECTOR));
+#endif
+
 	vmcs_write32(EXCEPTION_BITMAP, eb);
 }
 
-#ifndef __PKVM_HYP__
 /*
  * Check if MSR is intercepted for currently loaded MSR bitmap.
  */
@@ -948,13 +966,14 @@ unsigned int __vmx_vcpu_run_flags(struct vcpu_vmx *vmx)
 	if (!msr_write_intercepted(vmx, MSR_IA32_SPEC_CTRL))
 		flags |= VMX_RUN_SAVE_SPEC_CTRL;
 
+#ifndef __PKVM_HYP__
 	if (static_branch_unlikely(&cpu_buf_vm_clear) &&
 	    kvm_vcpu_can_access_host_mmio(&vmx->vcpu))
 		flags |= VMX_RUN_CLEAR_CPU_BUFFERS_FOR_MMIO;
+#endif
 
 	return flags;
 }
-#endif /* !__PKVM_HYP__ */
 
 static __always_inline void clear_atomic_switch_msr_special(struct vcpu_vmx *vmx,
 		unsigned long entry, unsigned long exit)
@@ -1186,6 +1205,7 @@ static inline bool pt_output_base_valid(struct kvm_vcpu *vcpu, u64 base)
 	/* The base must be 128-byte aligned and a legal physical address. */
 	return kvm_vcpu_is_legal_aligned_gpa(vcpu, base, 128);
 }
+#endif /* !__PKVM_HYP__ */
 
 static inline void pt_load_msr(struct pt_ctx *ctx, u32 addr_range)
 {
@@ -1250,6 +1270,7 @@ static void pt_guest_exit(struct vcpu_vmx *vmx)
 		wrmsrq(MSR_IA32_RTIT_CTL, vmx->pt_desc.host.ctl);
 }
 
+#ifndef __PKVM_HYP__
 void vmx_set_host_fs_gs(struct vmcs_host_state *host, u16 fs_sel, u16 gs_sel,
 			unsigned long fs_base, unsigned long gs_base)
 {
@@ -1276,17 +1297,20 @@ void vmx_set_host_fs_gs(struct vmcs_host_state *host, u16 fs_sel, u16 gs_sel,
 		host->gs_base = gs_base;
 	}
 }
+#endif /* !__PKVM_HYP__ */
 
 void vmx_prepare_switch_to_guest(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	struct vcpu_vt *vt = to_vt(vcpu);
+#ifndef __PKVM_HYP__
 	struct vmcs_host_state *host_state;
 #ifdef CONFIG_X86_64
 	int cpu = raw_smp_processor_id();
 #endif
 	unsigned long fs_base, gs_base;
 	u16 fs_sel, gs_sel;
+#endif
 	int i;
 
 	/*
@@ -1312,6 +1336,7 @@ void vmx_prepare_switch_to_guest(struct kvm_vcpu *vcpu)
 	if (vt->guest_state_loaded)
 		return;
 
+#ifndef __PKVM_HYP__
 	host_state = &vmx->loaded_vmcs->host_state;
 
 	/*
@@ -1347,16 +1372,33 @@ void vmx_prepare_switch_to_guest(struct kvm_vcpu *vcpu)
 #endif
 
 	vmx_set_host_fs_gs(host_state, fs_sel, gs_sel, fs_base, gs_base);
+#else
+	/*
+	 * The pKVM hypervisor's segments are constant thus they are either
+	 * initialized during resetting the guest VMCS or loading the guest
+	 * VMCS. No need to manually save them.
+	 *
+	 * The MSR_KERNEL_GS_BASE is not used by the pKVM hypervisor. It will be
+	 * restored with the host's value before switching to the host by the
+	 * vmx_prepare_switch_to_host, thus save this MSR for the host before
+	 * loading with the guest's value.
+	 */
+	rdmsrq(MSR_KERNEL_GS_BASE, vt->msr_host_kernel_gs_base);
+	wrmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
+#endif
 	vt->guest_state_loaded = true;
 }
 
 static void vmx_prepare_switch_to_host(struct vcpu_vmx *vmx)
 {
+#ifndef __PKVM_HYP__
 	struct vmcs_host_state *host_state;
+#endif
 
 	if (!vmx->vt.guest_state_loaded)
 		return;
 
+#ifndef __PKVM_HYP__
 	host_state = &vmx->loaded_vmcs->host_state;
 
 	++vmx->vcpu.stat.host_state_reload;
@@ -1385,10 +1427,22 @@ static void vmx_prepare_switch_to_host(struct vcpu_vmx *vmx)
 	wrmsrq(MSR_KERNEL_GS_BASE, vmx->vt.msr_host_kernel_gs_base);
 #endif
 	load_fixmap_gdt(raw_smp_processor_id());
+#else
+	/*
+	 * The pKVM hypervisor's segments (only cares about the GDT/IDT/FS/GS)
+	 * are restored by the VMX automatically when existing from the guest.
+	 *
+	 * Restore the MSR_KERNEL_GS_BASE with the host VM's value. This can
+	 * hidden the guest's value from the host which can provide security
+	 * benefit for pVMs. With this, the host doesn't need to save/restore
+	 * this MSR by itself.
+	 */
+	rdmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
+	wrmsrq(MSR_KERNEL_GS_BASE, vmx->vt.msr_host_kernel_gs_base);
+#endif
 	vmx->vt.guest_state_loaded = false;
 	vmx->guest_uret_msrs_loaded = false;
 }
-#endif /* !__PKVM_HYP__ */
 
 #ifdef CONFIG_X86_64
 static u64 vmx_read_guest_host_msr(struct vcpu_vmx *vmx, u32 msr, u64 *cache)
@@ -1423,7 +1477,6 @@ static void vmx_write_guest_kernel_gs_base(struct vcpu_vmx *vmx, u64 data)
 }
 #endif
 
-#ifndef __PKVM_HYP__
 static void grow_ple_window(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -1439,7 +1492,6 @@ static void grow_ple_window(struct kvm_vcpu *vcpu)
 					    vmx->ple_window, old);
 	}
 }
-#endif /* !__PKVM_HYP__ */
 
 static void shrink_ple_window(struct kvm_vcpu *vcpu)
 {
@@ -1499,6 +1551,8 @@ void vmx_vcpu_load_vmcs(struct kvm_vcpu *vcpu, int cpu)
 	if (!already_loaded) {
 #ifdef __PKVM_HYP__
 		struct desc_ptr gdt;
+		u16 sel;
+
 		/*
 		 * Flush all EPTP/VPID contexts, the new pCPU may have stale
 		 * TLB entries from its previous association with the vCPU.
@@ -1515,6 +1569,28 @@ void vmx_vcpu_load_vmcs(struct kvm_vcpu *vcpu, int cpu)
 
 			vmcs_writel(HOST_IA32_SYSENTER_ESP, msr);
 		}
+
+		/*
+		 * Switch the FS/GS selector/base when loading the guest VMCS as
+		 * the pKVM hypervisor doesn't change FS/GS on this CPU at the
+		 * running time. Specifically, in the debug mode, the FS/GS are
+		 * initialized with the host FS/GS before deprivileging so may
+		 * be non-zero values. And in the non-debug mode, FS/GS selector
+		 * and FS base are zero, but GS base is non-zero value which is
+		 * the per cpu base. In this case, we can switch FS/GS for the
+		 * non-debug mode with fixed value rather than reading from
+		 * segment regs and MSRs. But as the vcpu loading is not a hot
+		 * path, using the same code logic to read values from segment
+		 * regs and MSRs for both modes can make the code a bit simpler
+		 * and also give a better flexibility for the non-debug mode if
+		 * in the future the FS/GS are changed.
+		 */
+		savesegment(fs, sel);
+		vmcs_write16(HOST_FS_SELECTOR, sel);
+		savesegment(gs, sel);
+		vmcs_write16(HOST_GS_SELECTOR, sel);
+		vmcs_writel(HOST_FS_BASE, read_msr(MSR_FS_BASE));
+		vmcs_writel(HOST_GS_BASE, read_msr(MSR_GS_BASE));
 #else
 		void *gdt = get_current_gdt_ro();
 
@@ -1763,6 +1839,7 @@ int vmx_check_emulate_instruction(struct kvm_vcpu *vcpu, int emul_type,
 
 	return X86EMUL_CONTINUE;
 }
+#endif /* !__PKVM_HYP__ */
 
 static int skip_emulated_instruction(struct kvm_vcpu *vcpu)
 {
@@ -1868,7 +1945,6 @@ int vmx_skip_emulated_instruction(struct kvm_vcpu *vcpu)
 	vmx_update_emulated_instruction(vcpu);
 	return skip_emulated_instruction(vcpu);
 }
-#endif /* !__PKVM_HYP__ */
 
 void vmx_clear_hlt(struct kvm_vcpu *vcpu)
 {
@@ -2798,6 +2874,16 @@ int setup_vmcs_config_common(struct vmcs_config *vmcs_conf,
 	 * feature unconditionally.
 	 */
 	_cpu_based_2nd_exec_control &= ~SECONDARY_EXEC_EPT_VIOLATION_VE;
+#endif
+
+#ifdef __PKVM_HYP__
+	/*
+	 * The pKVM hypervisor doesn't support instruction decoding and
+	 * emulation, thus doesn't support handling EXIT_REASON_GDTR_IDTR
+	 * and EXIT_REASON_LDTR_TR. Remove SECONDARY_EXEC_DESC to make sure
+	 * the descriptor instructions won't cause these exits.
+	 */
+	_cpu_based_2nd_exec_control &= ~SECONDARY_EXEC_DESC;
 #endif
 
 #ifndef CONFIG_X86_64
@@ -4348,7 +4434,6 @@ static void vmx_update_msr_bitmap_x2apic(struct kvm_vcpu *vcpu)
 	}
 }
 
-#ifndef __PKVM_HYP__
 void pt_update_intercept_for_msr(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -4442,6 +4527,7 @@ void vmx_recalc_intercepts(struct kvm_vcpu *vcpu)
 	vmx_recalc_msr_intercepts(vcpu);
 }
 
+#ifndef __PKVM_HYP__
 static int vmx_deliver_nested_posted_interrupt(struct kvm_vcpu *vcpu,
 						int vector)
 {
@@ -5491,6 +5577,7 @@ static int handle_machine_check(struct kvm_vcpu *vcpu)
 	/* handled by vmx_vcpu_run() */
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 /*
  * If the host has split lock detection disabled, then #AC is
@@ -5521,14 +5608,18 @@ static bool is_xfd_nm_fault(struct kvm_vcpu *vcpu)
 static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
+#ifndef __PKVM_HYP__
 	struct kvm_run *kvm_run = vcpu->run;
+#endif
 	u32 intr_info, ex_no, error_code;
-	unsigned long cr2, dr6;
+	unsigned long dr6;
 	u32 vect_info;
 
 	vect_info = vmx->idt_vectoring_info;
 	intr_info = vmx_get_intr_info(vcpu);
 
+	/* The MC and NMI will be handled by the host. */
+#ifndef __PKVM_HYP__
 	/*
 	 * Machine checks are handled by handle_exception_irqoff(), or by
 	 * vmx_vcpu_run() if a #MC occurs on VM-Entry.  NMIs are handled by
@@ -5536,6 +5627,7 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 	 */
 	if (is_machine_check(intr_info) || is_nmi(intr_info))
 		return 1;
+#endif
 
 	/*
 	 * Queue the exception here instead of in handle_nm_fault_irqoff().
@@ -5549,8 +5641,14 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 		return 1;
 	}
 
+	/*
+	 * The pKVM hypervisor doesn't intercept #UD for pVM. For npVM, this
+	 * can be handled by the host.
+	 */
+#ifndef __PKVM_HYP__
 	if (is_invalid_opcode(intr_info))
 		return handle_ud(vcpu);
+#endif
 
 	if (WARN_ON_ONCE(is_ve_fault(intr_info))) {
 		struct vmx_ve_information *ve_info = vmx->ve_info;
@@ -5558,7 +5656,9 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 		WARN_ONCE(ve_info->exit_reason != EXIT_REASON_EPT_VIOLATION,
 			  "Unexpected #VE on VM-Exit reason 0x%x", ve_info->exit_reason);
 		dump_vmcs(vcpu);
+#ifndef __PKVM_HYP__
 		kvm_mmu_print_sptes(vcpu, ve_info->guest_physical_address, "#VE");
+#endif
 		return 1;
 	}
 
@@ -5566,6 +5666,13 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 	if (intr_info & INTR_INFO_DELIVER_CODE_MASK)
 		error_code = vmcs_read32(VM_EXIT_INTR_ERROR_CODE);
 
+	/*
+	 * The pKVM hypervisor has disabled enable_vmware_backdoor thus #GP will
+	 * not be intercepted for pVM and npVM.
+	 *
+	 * #PF is only intercepted for npVM, which can be handled by the host.
+	 */
+#ifndef __PKVM_HYP__
 	if (!vmx->rmode.vm86_active && is_gp_fault(intr_info)) {
 		WARN_ON_ONCE(!enable_vmware_backdoor);
 
@@ -5599,7 +5706,8 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 	}
 
 	if (is_page_fault(intr_info)) {
-		cr2 = vmx_get_exit_qual(vcpu);
+		unsigned long cr2 = vmx_get_exit_qual(vcpu);
+
 		if (enable_ept && !vcpu->arch.apf.host_apf_flags) {
 			/*
 			 * EPT will cause page fault only if we need to
@@ -5611,11 +5719,18 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 		} else
 			return kvm_handle_page_fault(vcpu, error_code, cr2, NULL, 0);
 	}
+#endif
 
 	ex_no = intr_info & INTR_INFO_VECTOR_MASK;
 
+	/*
+	 * The pKVM hypervisor requires to enable unrestricted guest feature
+	 * thus vm86_active won't be set and no rmode exception to be handled.
+	 */
+#ifndef __PKVM_HYP__
 	if (vmx->rmode.vm86_active && rmode_exception(vcpu, ex_no))
 		return handle_rmode_exception(vcpu, ex_no, error_code);
+#endif
 
 	switch (ex_no) {
 	case DB_VECTOR:
@@ -5655,9 +5770,25 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 			kvm_queue_exception_p(vcpu, DB_VECTOR, dr6);
 			return 1;
 		}
+#ifndef __PKVM_HYP__
 		kvm_run->debug.arch.dr6 = dr6 | DR6_ACTIVE_LOW;
 		kvm_run->debug.arch.dr7 = vmcs_readl(GUEST_DR7);
 		fallthrough;
+#else
+		/*
+		 * The #DB caused by KVM_GUESTDBG_SINGLESTEP or
+		 * KVM_GUESTDBG_USE_HW_BP needs to be handled by exiting to the
+		 * user space VMM in the host side, which should be done by the
+		 * host.
+		 */
+		break;
+#endif
+		/*
+		 * The #BP is not intercepted for pVM but only npVM. It is
+		 * handled by exiting to the user space VMM, which should be
+		 * done by the host.
+		 */
+#ifndef __PKVM_HYP__
 	case BP_VECTOR:
 		/*
 		 * Update instruction length as we may reinject #BP from
@@ -5670,12 +5801,14 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 		kvm_run->debug.arch.pc = kvm_get_linear_rip(vcpu);
 		kvm_run->debug.arch.exception = ex_no;
 		break;
+#endif
 	case AC_VECTOR:
 		if (vmx_guest_inject_ac(vcpu)) {
 			kvm_queue_exception_e(vcpu, AC_VECTOR, error_code);
 			return 1;
 		}
 
+#ifndef __PKVM_HYP__
 		/*
 		 * Handle split lock. Depending on detection mode this will
 		 * either warn and disable split lock detection for this
@@ -5684,30 +5817,45 @@ static int handle_exception_nmi(struct kvm_vcpu *vcpu)
 		if (handle_guest_split_lock(kvm_rip_read(vcpu)))
 			return 1;
 		fallthrough;
+#else
+		/* Handle split lock in the host side. */
+		break;
+#endif
 	default:
+#ifndef __PKVM_HYP__
 		kvm_run->exit_reason = KVM_EXIT_EXCEPTION;
 		kvm_run->ex.exception = ex_no;
 		kvm_run->ex.error_code = error_code;
+#endif
 		break;
 	}
+
 	return 0;
 }
 
+#ifndef __PKVM_HYP__
 static __always_inline int handle_external_interrupt(struct kvm_vcpu *vcpu)
 {
 	++vcpu->stat.irq_exits;
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_triple_fault(struct kvm_vcpu *vcpu)
 {
+#ifndef __PKVM_HYP__
 	vcpu->run->exit_reason = KVM_EXIT_SHUTDOWN;
 	vcpu->mmio_needed = 0;
+#else
+	if (pkvm_is_protected_vcpu(vcpu))
+		vcpu->arch.mp_state = KVM_MP_STATE_STOPPED;
+#endif
 	return 0;
 }
 
 static int handle_io(struct kvm_vcpu *vcpu)
 {
+#ifndef __PKVM_HYP__
 	unsigned long exit_qualification;
 	int size, in, string;
 	unsigned port;
@@ -5725,8 +5873,29 @@ static int handle_io(struct kvm_vcpu *vcpu)
 	in = (exit_qualification & 8) != 0;
 
 	return kvm_fast_pio(vcpu, size, port, in);
+#else
+	/*
+	 * The pKVM hypervisor doesn't emulate IO device thus the IO exit should
+	 * be handled by the host.
+	 *
+	 * To emulate a string IO instruction, decoder is required. But the host
+	 * cannot decode for a pVM due to isolation. Thus a pVM should be
+	 * enlightened to unroll string IO instructions to IO instructions. In
+	 * case this is not done by the pVM, handling such IO exit by injecting
+	 * a #GP exception to the pVM.
+	 */
+	if ((vmx_get_exit_qual(vcpu) & 16) != 0) {
+		if (pkvm_is_protected_vcpu(vcpu)) {
+			kvm_queue_exception(vcpu, GP_VECTOR);
+			return 1;
+		}
+	}
+
+	return 0;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 void vmx_patch_hypercall(struct kvm_vcpu *vcpu, unsigned char *hypercall)
 {
 	/*
@@ -5736,6 +5905,7 @@ void vmx_patch_hypercall(struct kvm_vcpu *vcpu, unsigned char *hypercall)
 	hypercall[1] = 0x01;
 	hypercall[2] = 0xc1;
 }
+#endif /* !__PKVM_HYP__ */
 
 /* called to set cr0 as appropriate for a mov-to-cr0 exit. */
 static int handle_set_cr0(struct kvm_vcpu *vcpu, unsigned long val)
@@ -5781,6 +5951,7 @@ static int handle_set_cr4(struct kvm_vcpu *vcpu, unsigned long val)
 		return kvm_set_cr4(vcpu, val);
 }
 
+#ifndef __PKVM_HYP__
 static int handle_desc(struct kvm_vcpu *vcpu)
 {
 	/*
@@ -5792,6 +5963,7 @@ static int handle_desc(struct kvm_vcpu *vcpu)
 	WARN_ON_ONCE(!kvm_is_cr4_bit_set(vcpu, X86_CR4_UMIP));
 	return kvm_emulate_instruction(vcpu, 0);
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_cr(struct kvm_vcpu *vcpu)
 {
@@ -5799,7 +5971,6 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 	int cr;
 	int reg;
 	int err;
-	int ret;
 
 	exit_qualification = vmx_get_exit_qual(vcpu);
 	cr = exit_qualification & 15;
@@ -5812,17 +5983,30 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 		case 0:
 			err = handle_set_cr0(vcpu, val);
 			return kvm_complete_insn_gp(vcpu, err);
+		/*
+		 * The pKVM hypervisor requires EPT and unrestricted guest
+		 * feature thus the guest will not cause move-to-cr3 vmexit.
+		 */
+#ifndef __PKVM_HYP__
 		case 3:
 			WARN_ON_ONCE(enable_unrestricted_guest);
 
 			err = kvm_set_cr3(vcpu, val);
 			return kvm_complete_insn_gp(vcpu, err);
+#endif
 		case 4:
 			err = handle_set_cr4(vcpu, val);
 			return kvm_complete_insn_gp(vcpu, err);
+		/*
+		 * The pKVM hypervisor requires TPR shadow feature thus the
+		 * guest will not cause move-to-cr8 exit.
+		 */
+#ifndef __PKVM_HYP__
 		case 8: {
 				u8 cr8_prev = kvm_get_cr8(vcpu);
 				u8 cr8 = (u8)val;
+				int ret;
+
 				err = kvm_set_cr8(vcpu, cr8);
 				ret = kvm_complete_insn_gp(vcpu, err);
 				if (lapic_in_kernel(vcpu))
@@ -5837,11 +6021,18 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 				vcpu->run->exit_reason = KVM_EXIT_SET_TPR;
 				return 0;
 			}
+#endif
 		}
 		break;
 	case 2: /* clts */
 		KVM_BUG(1, vcpu->kvm, "Guest always owns CR0.TS");
 		return -EIO;
+	/*
+	 * Similar to move-to-cr3 and move-to-cr8, the pKVM hypervisor
+	 * virtualize CR3 and CR8 via VMX hardware features thus there is no
+	 * move-from-cr3 and move-from-cr8 vmexit.
+	 */
+#ifndef __PKVM_HYP__
 	case 1: /*mov from cr*/
 		switch (cr) {
 		case 3:
@@ -5858,6 +6049,7 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 			return kvm_skip_emulated_instruction(vcpu);
 		}
 		break;
+#endif
 	case 3: /* lmsw */
 		val = (exit_qualification >> LMSW_SOURCE_DATA_SHIFT) & 0x0f;
 		trace_kvm_cr_write(0, (kvm_read_cr0_bits(vcpu, ~0xful) | val));
@@ -5867,7 +6059,9 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 	default:
 		break;
 	}
+#ifndef __PKVM_HYP__ /* The pKVM vcpu doesn't have run page. */
 	vcpu->run->exit_reason = 0;
+#endif
 	vcpu_unimpl(vcpu, "unhandled control register: op %d cr %d\n",
 	       (int)(exit_qualification >> 4) & 3, cr);
 	return 0;
@@ -5897,11 +6091,13 @@ static int handle_dr(struct kvm_vcpu *vcpu)
 		 * guest debugging itself.
 		 */
 		if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP) {
+#ifndef __PKVM_HYP__
 			vcpu->run->debug.arch.dr6 = DR6_BD | DR6_ACTIVE_LOW;
 			vcpu->run->debug.arch.dr7 = dr7;
 			vcpu->run->debug.arch.pc = kvm_get_linear_rip(vcpu);
 			vcpu->run->debug.arch.exception = DB_VECTOR;
 			vcpu->run->exit_reason = KVM_EXIT_DEBUG;
+#endif
 			return 0;
 		} else {
 			kvm_queue_exception_p(vcpu, DB_VECTOR, DR6_BD);
@@ -5932,7 +6128,6 @@ static int handle_dr(struct kvm_vcpu *vcpu)
 out:
 	return kvm_complete_insn_gp(vcpu, err);
 }
-#endif /* !__PKVM_HYP__ */
 
 void vmx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu)
 {
@@ -5964,17 +6159,24 @@ static int handle_tpr_below_threshold(struct kvm_vcpu *vcpu)
 	kvm_apic_update_ppr(vcpu);
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_interrupt_window(struct kvm_vcpu *vcpu)
 {
 	exec_controls_clearbit(to_vmx(vcpu), CPU_BASED_INTR_WINDOW_EXITING);
 
+#ifndef __PKVM_HYP__
 	kvm_make_request(KVM_REQ_EVENT, vcpu);
 
 	++vcpu->stat.irq_window_exits;
 	return 1;
+#else
+	/* Back to host to check if any pending event should be handled */
+	return 0;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 static int handle_invlpg(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qualification = vmx_get_exit_qual(vcpu);
@@ -6031,6 +6233,7 @@ static int handle_apic_write(struct kvm_vcpu *vcpu)
 	kvm_apic_write_nodecode(vcpu, offset);
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_task_switch(struct kvm_vcpu *vcpu)
 {
@@ -6040,6 +6243,18 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	u32 error_code = 0;
 	u16 tss_selector;
 	int reason, type, idt_v, idt_index;
+
+#ifdef __PKVM_HYP__
+	/*
+	 * The pKVM hypervisor doesn't have instruction emulation thus cannot
+	 * emulate the task switch. So handle the EXIT_REASON_TASK_SWITCH for
+	 * the pVM by injecting #GP.
+	 */
+	if (pkvm_is_protected_vcpu(vcpu)) {
+		kvm_queue_exception(vcpu, GP_VECTOR);
+		return 1;
+	}
+#endif
 
 	idt_v = (vmx->idt_vectoring_info & VECTORING_INFO_VALID_MASK);
 	idt_index = (vmx->idt_vectoring_info & VECTORING_INFO_VECTOR_MASK);
@@ -6080,6 +6295,7 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 		       type != INTR_TYPE_NMI_INTR))
 		WARN_ON(!skip_emulated_instruction(vcpu));
 
+#ifndef __PKVM_HYP__
 	/*
 	 * TODO: What about debug traps on tss switch?
 	 *       Are we supposed to inject them and update dr6?
@@ -6087,12 +6303,21 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	return kvm_task_switch(vcpu, tss_selector,
 			       type == INTR_TYPE_SOFT_INTR ? idt_index : -1,
 			       reason, has_error_code, error_code);
+#else
+	/*
+	 * Switch to the host and let the host to emulate the task switch
+	 * for the npVMs.
+	 */
+	return 0;
+#endif
 }
 
 static int handle_ept_violation(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qualification = vmx_get_exit_qual(vcpu);
+#ifndef __PKVM_HYP__
 	gpa_t gpa;
+#endif
 
 	/*
 	 * EPT violation happened while executing iret from NMI,
@@ -6105,6 +6330,7 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 			(exit_qualification & INTR_INFO_UNBLOCK_NMI))
 		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO, GUEST_INTR_STATE_NMI);
 
+#ifndef __PKVM_HYP__
 	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
 	trace_kvm_page_fault(vcpu, gpa, exit_qualification);
 
@@ -6120,8 +6346,12 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 		return kvm_emulate_instruction(vcpu, 0);
 
 	return __vmx_handle_ept_violation(vcpu, gpa, exit_qualification);
+#else
+	return 0;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 static int handle_ept_misconfig(struct kvm_vcpu *vcpu)
 {
 	gpa_t gpa;
@@ -6142,6 +6372,7 @@ static int handle_ept_misconfig(struct kvm_vcpu *vcpu)
 
 	return kvm_mmu_page_fault(vcpu, gpa, PFERR_RSVD_MASK, NULL, 0);
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_nmi_window(struct kvm_vcpu *vcpu)
 {
@@ -6149,12 +6380,17 @@ static int handle_nmi_window(struct kvm_vcpu *vcpu)
 		return -EIO;
 
 	exec_controls_clearbit(to_vmx(vcpu), CPU_BASED_NMI_WINDOW_EXITING);
+#ifndef __PKVM_HYP__
 	++vcpu->stat.nmi_window_exits;
 	kvm_make_request(KVM_REQ_EVENT, vcpu);
 
 	return 1;
+#else
+	return 0;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 /*
  * Returns true if emulation is required (due to the vCPU having invalid state
  * with unsrestricted guest mode disabled) and KVM can't faithfully emulate the
@@ -6186,9 +6422,11 @@ static bool vmx_unhandleable_emulation_required(struct kvm_vcpu *vcpu)
 	return !vmx->rmode.vm86_active &&
 	       (kvm_is_exception_pending(vcpu) || vcpu->arch.exception.injected);
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_invalid_guest_state(struct kvm_vcpu *vcpu)
 {
+#ifndef __PKVM_HYP__
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	bool intr_window_requested;
 	unsigned count = 130;
@@ -6233,8 +6471,16 @@ static int handle_invalid_guest_state(struct kvm_vcpu *vcpu)
 	}
 
 	return 1;
+#else
+	/*
+	 * The pKVM hypervisor requires to enable unrestricted guest thus the
+	 * guest state should be valid.
+	 */
+	return -EINVAL;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 int vmx_vcpu_pre_run(struct kvm_vcpu *vcpu)
 {
 	if (vmx_unhandleable_emulation_required(vcpu)) {
@@ -6244,6 +6490,7 @@ int vmx_vcpu_pre_run(struct kvm_vcpu *vcpu)
 
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 /*
  * Indicate a busy-waiting vcpu in spinlock. We do not enable the PAUSE
@@ -6260,8 +6507,12 @@ static int handle_pause(struct kvm_vcpu *vcpu)
 	 * never set PAUSE_EXITING and just set PLE if supported,
 	 * so the vcpu must be CPL=0 if it gets a PAUSE exit.
 	 */
+#ifndef __PKVM_HYP__
 	kvm_vcpu_on_spin(vcpu, true);
 	return kvm_skip_emulated_instruction(vcpu);
+#else
+	return 0;
+#endif
 }
 
 static int handle_monitor_trap(struct kvm_vcpu *vcpu)
@@ -6269,6 +6520,7 @@ static int handle_monitor_trap(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+#ifndef __PKVM_HYP__
 static int handle_invpcid(struct kvm_vcpu *vcpu)
 {
 	u32 vmx_instruction_info;
@@ -6299,6 +6551,7 @@ static int handle_invpcid(struct kvm_vcpu *vcpu)
 
 	return kvm_handle_invpcid(vcpu, type, gva);
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_pml_full(struct kvm_vcpu *vcpu)
 {
@@ -6345,6 +6598,7 @@ static fastpath_t handle_fastpath_preemption_timer(struct kvm_vcpu *vcpu,
 	if (force_immediate_exit)
 		return EXIT_FASTPATH_EXIT_HANDLED;
 
+#ifndef __PKVM_HYP__
 	/*
 	 * If L2 is active, go down the slow path as emulating the guest timer
 	 * expiration likely requires synthesizing a nested VM-Exit.
@@ -6354,8 +6608,12 @@ static fastpath_t handle_fastpath_preemption_timer(struct kvm_vcpu *vcpu,
 
 	kvm_lapic_expired_hv_timer(vcpu);
 	return EXIT_FASTPATH_REENTER_GUEST;
+#else
+	return EXIT_FASTPATH_NONE;
+#endif
 }
 
+#ifndef __PKVM_HYP__
 static int handle_preemption_timer(struct kvm_vcpu *vcpu)
 {
 	/*
@@ -6367,6 +6625,7 @@ static int handle_preemption_timer(struct kvm_vcpu *vcpu)
 	kvm_lapic_expired_hv_timer(vcpu);
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 /*
  * When nested=0, all VMX instruction VM Exits filter here.  The handlers
@@ -6411,9 +6670,11 @@ static int handle_bus_lock_vmexit(struct kvm_vcpu *vcpu)
 static int handle_notify(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qual = vmx_get_exit_qual(vcpu);
+#ifndef __PKVM_HYP__
 	bool context_invalid = exit_qual & NOTIFY_VM_CONTEXT_INVALID;
 
 	++vcpu->stat.notify_window_exits;
+#endif
 
 	/*
 	 * Notify VM exit happened while executing iret from NMI,
@@ -6423,6 +6684,7 @@ static int handle_notify(struct kvm_vcpu *vcpu)
 		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO,
 			      GUEST_INTR_STATE_NMI);
 
+#ifndef __PKVM_HYP__
 	if (vcpu->kvm->arch.notify_vmexit_flags & KVM_X86_NOTIFY_VMEXIT_USER ||
 	    context_invalid) {
 		vcpu->run->exit_reason = KVM_EXIT_NOTIFY;
@@ -6432,6 +6694,9 @@ static int handle_notify(struct kvm_vcpu *vcpu)
 	}
 
 	return 1;
+#else
+	return 0;
+#endif
 }
 
 static int vmx_get_msr_imm_reg(struct kvm_vcpu *vcpu)
@@ -6451,6 +6716,27 @@ static int handle_wrmsr_imm(struct kvm_vcpu *vcpu)
 				     vmx_get_msr_imm_reg(vcpu));
 }
 
+#ifdef __PKVM_HYP__
+static int handle_init(struct kvm_vcpu *vcpu)
+{
+	/*
+	 * EXIT_REASON_INIT_SIGNAL is caused by the pKVM hypervisor sending INIT
+	 * signal to kick vCPU out of non-root mode. Nothing needs to be handled
+	 * by the pKVM hypervisor, and also no need to involve the host.
+	 */
+	return 1;
+}
+#endif
+
+static int handle_vmcall(struct kvm_vcpu *vcpu)
+{
+#ifndef __PKVM_HYP__
+	return kvm_emulate_hypercall(vcpu);
+#else
+	return pkvm_emulate_hypercall(vcpu);
+#endif
+}
+
 /*
  * The exit handlers return 1 if the exit was handled fully and guest execution
  * may resume.  Otherwise they set the kvm_run parameter to indicate what needs
@@ -6458,7 +6744,9 @@ static int handle_wrmsr_imm(struct kvm_vcpu *vcpu)
  */
 static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_EXCEPTION_NMI]           = handle_exception_nmi,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_EXTERNAL_INTERRUPT]      = handle_external_interrupt,
+#endif
 	[EXIT_REASON_TRIPLE_FAULT]            = handle_triple_fault,
 	[EXIT_REASON_NMI_WINDOW]	      = handle_nmi_window,
 	[EXIT_REASON_IO_INSTRUCTION]          = handle_io,
@@ -6470,9 +6758,11 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_INTERRUPT_WINDOW]        = handle_interrupt_window,
 	[EXIT_REASON_HLT]                     = kvm_emulate_halt,
 	[EXIT_REASON_INVD]		      = kvm_emulate_invd,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_INVLPG]		      = handle_invlpg,
+#endif
 	[EXIT_REASON_RDPMC]                   = kvm_emulate_rdpmc,
-	[EXIT_REASON_VMCALL]                  = kvm_emulate_hypercall,
+	[EXIT_REASON_VMCALL]                  = handle_vmcall,
 	[EXIT_REASON_VMCLEAR]		      = handle_vmx_instruction,
 	[EXIT_REASON_VMLAUNCH]		      = handle_vmx_instruction,
 	[EXIT_REASON_VMPTRLD]		      = handle_vmx_instruction,
@@ -6482,18 +6772,24 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_VMWRITE]		      = handle_vmx_instruction,
 	[EXIT_REASON_VMOFF]		      = handle_vmx_instruction,
 	[EXIT_REASON_VMON]		      = handle_vmx_instruction,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_TPR_BELOW_THRESHOLD]     = handle_tpr_below_threshold,
 	[EXIT_REASON_APIC_ACCESS]             = handle_apic_access,
 	[EXIT_REASON_APIC_WRITE]              = handle_apic_write,
 	[EXIT_REASON_EOI_INDUCED]             = handle_apic_eoi_induced,
 	[EXIT_REASON_WBINVD]                  = kvm_emulate_wbinvd,
+#endif
 	[EXIT_REASON_XSETBV]                  = kvm_emulate_xsetbv,
 	[EXIT_REASON_TASK_SWITCH]             = handle_task_switch,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_MCE_DURING_VMENTRY]      = handle_machine_check,
 	[EXIT_REASON_GDTR_IDTR]		      = handle_desc,
 	[EXIT_REASON_LDTR_TR]		      = handle_desc,
+#endif
 	[EXIT_REASON_EPT_VIOLATION]	      = handle_ept_violation,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_EPT_MISCONFIG]           = handle_ept_misconfig,
+#endif
 	[EXIT_REASON_PAUSE_INSTRUCTION]       = handle_pause,
 	[EXIT_REASON_MWAIT_INSTRUCTION]	      = kvm_emulate_mwait,
 	[EXIT_REASON_MONITOR_TRAP_FLAG]       = handle_monitor_trap,
@@ -6503,9 +6799,13 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_RDRAND]                  = kvm_handle_invalid_op,
 	[EXIT_REASON_RDSEED]                  = kvm_handle_invalid_op,
 	[EXIT_REASON_PML_FULL]		      = handle_pml_full,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_INVPCID]                 = handle_invpcid,
+#endif
 	[EXIT_REASON_VMFUNC]		      = handle_vmx_instruction,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_PREEMPTION_TIMER]	      = handle_preemption_timer,
+#endif
 	[EXIT_REASON_ENCLS]		      = handle_encls,
 	[EXIT_REASON_BUS_LOCK]                = handle_bus_lock_vmexit,
 	[EXIT_REASON_NOTIFY]		      = handle_notify,
@@ -6513,6 +6813,9 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_TDCALL]		      = handle_tdx_instruction,
 	[EXIT_REASON_MSR_READ_IMM]            = handle_rdmsr_imm,
 	[EXIT_REASON_MSR_WRITE_IMM]           = handle_wrmsr_imm,
+#ifdef __PKVM_HYP__
+	[EXIT_REASON_INIT_SIGNAL]	      = handle_init,
+#endif
 };
 
 static const int kvm_vmx_max_exit_handlers =
@@ -6539,6 +6842,7 @@ void vmx_get_exit_info(struct kvm_vcpu *vcpu, u32 *reason,
 	}
 }
 
+#ifndef __PKVM_HYP__
 void vmx_get_entry_info(struct kvm_vcpu *vcpu, u32 *intr_info, u32 *error_code)
 {
 	*intr_info = vmcs_read32(VM_ENTRY_INTR_INFO_FIELD);
@@ -6594,6 +6898,7 @@ static void vmx_flush_pml_buffer(struct kvm_vcpu *vcpu)
 	/* reset PML index */
 	vmcs_write16(GUEST_PML_INDEX, PML_HEAD_INDEX);
 }
+#endif /* !__PKVM_HYP__ */
 
 static void vmx_dump_sel(char *name, uint32_t sel)
 {
@@ -6825,6 +7130,10 @@ void dump_vmcs(struct kvm_vcpu *vcpu)
 /*
  * The guest has exited.  See if we can fix it or if we need userspace
  * assistance.
+ *
+ * For the pKVM hypervisor, __vmx_handle_exit will return 1 if the exit reason
+ * is handled. Otherwise return 0 or negative value to indicate the host needs
+ * to be involved.
  */
 static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 {
@@ -6833,6 +7142,7 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 	u32 vectoring_info = vmx->idt_vectoring_info;
 	u16 exit_handler_index;
 
+#ifndef __PKVM_HYP__
 	/*
 	 * Flush logged GPAs PML buffer, this will make dirty_bitmap more
 	 * updated. Another good is, in kvm_vm_ioctl_get_dirty_log, before
@@ -6843,6 +7153,7 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 	 */
 	if (enable_pml && !is_guest_mode(vcpu))
 		vmx_flush_pml_buffer(vcpu);
+#endif
 
 	/*
 	 * KVM should never reach this point with a pending nested VM-Enter.
@@ -6900,19 +7211,23 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 
 	if (exit_reason.failed_vmentry) {
 		dump_vmcs(vcpu);
+#ifndef __PKVM_HYP__ /* The pKVM vcpu doesn't have run page. */
 		vcpu->run->exit_reason = KVM_EXIT_FAIL_ENTRY;
 		vcpu->run->fail_entry.hardware_entry_failure_reason
 			= exit_reason.full;
 		vcpu->run->fail_entry.cpu = vcpu->arch.last_vmentry_cpu;
+#endif
 		return 0;
 	}
 
 	if (unlikely(vmx->fail)) {
 		dump_vmcs(vcpu);
+#ifndef __PKVM_HYP__ /* The pKVM vcpu doesn't have run page. */
 		vcpu->run->exit_reason = KVM_EXIT_FAIL_ENTRY;
 		vcpu->run->fail_entry.hardware_entry_failure_reason
 			= vmcs_read32(VM_INSTRUCTION_ERROR);
 		vcpu->run->fail_entry.cpu = vcpu->arch.last_vmentry_cpu;
+#endif
 		return 0;
 	}
 
@@ -6924,7 +7239,9 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 	     exit_reason.basic != EXIT_REASON_TASK_SWITCH &&
 	     exit_reason.basic != EXIT_REASON_NOTIFY &&
 	     exit_reason.basic != EXIT_REASON_EPT_MISCONFIG)) {
+#ifndef __PKVM_HYP__ /* The pKVM vcpu doesn't have run page. */
 		kvm_prepare_event_vectoring_exit(vcpu, INVALID_GPA);
+#endif
 		return 0;
 	}
 
@@ -6952,7 +7269,7 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 
 	if (exit_reason.basic >= kvm_vmx_max_exit_handlers)
 		goto unexpected_vmexit;
-#ifdef CONFIG_MITIGATION_RETPOLINE
+#if defined(CONFIG_MITIGATION_RETPOLINE) && !defined(__PKVM_HYP__)
 	if (exit_reason.basic == EXIT_REASON_MSR_WRITE)
 		return kvm_emulate_wrmsr(vcpu);
 	else if (exit_reason.basic == EXIT_REASON_MSR_WRITE_IMM)
@@ -6977,6 +7294,7 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 	return kvm_vmx_exit_handlers[exit_handler_index](vcpu);
 
 unexpected_vmexit:
+#ifndef __PKVM_HYP__
 	vcpu_unimpl(vcpu, "vmx: unexpected exit reason 0x%x\n",
 		    exit_reason.full);
 	dump_vmcs(vcpu);
@@ -6986,6 +7304,7 @@ unexpected_vmexit:
 	vcpu->run->internal.ndata = 2;
 	vcpu->run->internal.data[0] = exit_reason.full;
 	vcpu->run->internal.data[1] = vcpu->arch.last_vmentry_cpu;
+#endif
 	return 0;
 }
 
@@ -6998,15 +7317,18 @@ int vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 	 * a bus lock in guest.
 	 */
 	if (vmx_get_exit_reason(vcpu).bus_lock_detected) {
+#ifndef __PKVM_HYP__ /* The pKVM vcpu doesn't have run page. */
 		if (ret > 0)
 			vcpu->run->exit_reason = KVM_EXIT_X86_BUS_LOCK;
 
 		vcpu->run->flags |= KVM_RUN_X86_BUS_LOCK;
+#endif
 		return 0;
 	}
 	return ret;
 }
 
+#ifndef __PKVM_HYP__
 /*
  * Software based L1D cache flush which is used when microcode providing
  * the cache control MSR is not loaded.
@@ -7361,6 +7683,7 @@ void vmx_load_eoi_exitmap(struct kvm_vcpu *vcpu, u64 *eoi_exit_bitmap)
 #ifndef __PKVM_HYP__
 void vmx_do_interrupt_irqoff(unsigned long entry);
 void vmx_do_nmi_irqoff(void);
+#endif /* !__PKVM_HYP__ */
 
 static void handle_nm_fault_irqoff(struct kvm_vcpu *vcpu)
 {
@@ -7383,17 +7706,20 @@ static void handle_nm_fault_irqoff(struct kvm_vcpu *vcpu)
 
 static void handle_exception_irqoff(struct kvm_vcpu *vcpu, u32 intr_info)
 {
-	/* if exit due to PF check for async PF */
-	if (is_page_fault(intr_info))
-		vcpu->arch.apf.host_apf_flags = kvm_read_and_reset_apf_flags();
 	/* if exit due to NM, handle before interrupts are enabled */
-	else if (is_nm_fault(intr_info))
+	if (is_nm_fault(intr_info))
 		handle_nm_fault_irqoff(vcpu);
+#ifndef __PKVM_HYP__
+	/* if exit due to PF check for async PF */
+	else if (is_page_fault(intr_info))
+		vcpu->arch.apf.host_apf_flags = kvm_read_and_reset_apf_flags();
 	/* Handle machine checks before interrupts are enabled */
 	else if (is_machine_check(intr_info))
 		kvm_machine_check();
+#endif
 }
 
+#ifndef __PKVM_HYP__
 static void handle_external_interrupt_irqoff(struct kvm_vcpu *vcpu,
 					     u32 intr_info)
 {
@@ -7418,18 +7744,22 @@ static void handle_external_interrupt_irqoff(struct kvm_vcpu *vcpu,
 
 	vcpu->arch.at_instruction_boundary = true;
 }
+#endif /* !__PKVM_HYP__ */
 
 void vmx_handle_exit_irqoff(struct kvm_vcpu *vcpu)
 {
 	if (to_vt(vcpu)->emulation_required)
 		return;
 
-	if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_EXTERNAL_INTERRUPT)
-		handle_external_interrupt_irqoff(vcpu, vmx_get_intr_info(vcpu));
-	else if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_EXCEPTION_NMI)
+	if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_EXCEPTION_NMI)
 		handle_exception_irqoff(vcpu, vmx_get_intr_info(vcpu));
+#ifndef __PKVM_HYP__
+	else if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_EXTERNAL_INTERRUPT)
+		handle_external_interrupt_irqoff(vcpu, vmx_get_intr_info(vcpu));
+#endif
 }
 
+#ifndef __PKVM_HYP__
 /*
  * The kvm parameter can be NULL (module initialization, or invocation before
  * VM creation). Be sure to check the kvm parameter before using it.
@@ -7455,6 +7785,7 @@ bool vmx_has_emulated_msr(struct kvm *kvm, u32 index)
 		return true;
 	}
 }
+#endif /* !__PKVM_HYP__ */
 
 static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
 {
@@ -7490,12 +7821,15 @@ static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
 			vmx->loaded_vmcs->nmi_known_unmasked =
 				!(vmcs_read32(GUEST_INTERRUPTIBILITY_INFO)
 				  & GUEST_INTR_STATE_NMI);
+#ifndef __PKVM_HYP__
 	} else if (unlikely(vmx->loaded_vmcs->soft_vnmi_blocked))
 		vmx->loaded_vmcs->vnmi_blocked_time +=
 			ktime_to_ns(ktime_sub(ktime_get(),
 					      vmx->loaded_vmcs->entry_time));
+#else
+	}
+#endif
 }
-#endif /* !__PKVM_HYP__ */
 
 static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 				      u32 idt_vectoring_info,
@@ -7555,14 +7889,12 @@ static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 	}
 }
 
-#ifndef __PKVM_HYP__
 static void vmx_complete_interrupts(struct vcpu_vmx *vmx)
 {
 	__vmx_complete_interrupts(&vmx->vcpu, vmx->idt_vectoring_info,
 				  VM_EXIT_INSTRUCTION_LEN,
 				  IDT_VECTORING_ERROR_CODE);
 }
-#endif /* !__PKVM_HYP__ */
 
 void vmx_cancel_injection(struct kvm_vcpu *vcpu)
 {
@@ -7597,6 +7929,7 @@ static void atomic_switch_perf_msrs(struct vcpu_vmx *vmx)
 			add_atomic_switch_msr(vmx, msrs[i].msr, msrs[i].guest,
 					msrs[i].host, false);
 }
+#endif /* !__PKVM_HYP__ */
 
 static void vmx_update_hv_timer(struct kvm_vcpu *vcpu, bool force_immediate_exit)
 {
@@ -7623,7 +7956,6 @@ static void vmx_update_hv_timer(struct kvm_vcpu *vcpu, bool force_immediate_exit
 		vmx->loaded_vmcs->hv_timer_soft_disabled = true;
 	}
 }
-#endif /* !__PKVM_HYP__ */
 
 void noinstr vmx_update_host_rsp(struct vcpu_vmx *vmx, unsigned long host_rsp)
 {
@@ -7658,7 +7990,6 @@ void noinstr vmx_spec_ctrl_restore_host(struct vcpu_vmx *vmx,
 	barrier_nospec();
 }
 
-#ifndef __PKVM_HYP__
 static fastpath_t vmx_exit_handlers_fastpath(struct kvm_vcpu *vcpu,
 					     bool force_immediate_exit)
 {
@@ -7671,22 +8002,27 @@ static fastpath_t vmx_exit_handlers_fastpath(struct kvm_vcpu *vcpu,
 		return EXIT_FASTPATH_NONE;
 
 	switch (vmx_get_exit_reason(vcpu).basic) {
+#ifndef __PKVM_HYP__
 	case EXIT_REASON_MSR_WRITE:
 		return handle_fastpath_wrmsr(vcpu);
 	case EXIT_REASON_MSR_WRITE_IMM:
 		return handle_fastpath_wrmsr_imm(vcpu, vmx_get_exit_qual(vcpu),
 						 vmx_get_msr_imm_reg(vcpu));
+#endif
 	case EXIT_REASON_PREEMPTION_TIMER:
 		return handle_fastpath_preemption_timer(vcpu, force_immediate_exit);
+#ifndef __PKVM_HYP__
 	case EXIT_REASON_HLT:
 		return handle_fastpath_hlt(vcpu);
 	case EXIT_REASON_INVD:
 		return handle_fastpath_invd(vcpu);
+#endif
 	default:
 		return EXIT_FASTPATH_NONE;
 	}
 }
 
+#ifndef __PKVM_HYP__
 noinstr void vmx_handle_nmi(struct kvm_vcpu *vcpu)
 {
 	if ((u16)vmx_get_exit_reason(vcpu).basic != EXIT_REASON_EXCEPTION_NMI ||
@@ -7700,12 +8036,24 @@ noinstr void vmx_handle_nmi(struct kvm_vcpu *vcpu)
 		vmx_do_nmi_irqoff();
 	kvm_after_interrupt(vcpu);
 }
+#endif /* !__PKVM_HYP__ */
 
 static noinstr void vmx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 					unsigned int flags)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
+	/*
+	 * For pKVM hypervisor, guest_state_enter_irqoff() should be done by the
+	 * host.
+	 *
+	 * The CPU that runs the pKVM hypervisor doesn't have L1TF and
+	 * MMIO_STALE_DATA bugs since pkvm_mitigate_cpu_bugs() doesn't currently
+	 * mitigate these bugs thus would fail pKVM initialization if any of the
+	 * two bugs was present. Thus it is not necessary for pKVM to check the
+	 * mitigation.
+	 */
+#ifndef __PKVM_HYP__
 	guest_state_enter_irqoff();
 
 	/*
@@ -7723,14 +8071,21 @@ static noinstr void vmx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 	else if (static_branch_unlikely(&cpu_buf_vm_clear) &&
 		 (flags & VMX_RUN_CLEAR_CPU_BUFFERS_FOR_MMIO))
 		x86_clear_cpu_buffers();
+#endif
 
 	vmx_disable_fb_clear(vmx);
 
 	if (vcpu->arch.cr2 != native_read_cr2())
 		native_write_cr2(vcpu->arch.cr2);
 
+#ifdef __PKVM_HYP__
+	pkvm_trace_vmexit_end(vcpu, vmx_get_exit_reason(vcpu).basic);
+#endif
 	vmx->fail = __vmx_vcpu_run(vmx, (unsigned long *)&vcpu->arch.regs,
 				   flags);
+#ifdef __PKVM_HYP__
+	pkvm_trace_vmexit_start(vcpu);
+#endif
 
 	vcpu->arch.cr2 = native_read_cr2();
 	vcpu->arch.regs_avail &= ~VMX_REGS_LAZY_LOAD_SET;
@@ -7741,17 +8096,28 @@ static noinstr void vmx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 
 	if (unlikely(vmx->fail)) {
 		vmx->vt.exit_reason.full = 0xdead;
+#ifndef __PKVM_HYP__
 		goto out;
+#else
+		return;
+#endif
 	}
 
 	vmx->vt.exit_reason.full = vmcs_read32(VM_EXIT_REASON);
 	if (likely(!vmx_get_exit_reason(vcpu).failed_vmentry))
 		vmx->idt_vectoring_info = vmcs_read32(IDT_VECTORING_INFO_FIELD);
 
+	/*
+	 * For the pKVM hypervisor, vmexit caused by NMI is handled by the host.
+	 * Similar to guest_state_enter_irqoff(), guest_state_exit_irqoff()
+	 * should also be done by the host.
+	 */
+#ifndef __PKVM_HYP__
 	vmx_handle_nmi(vcpu);
 
 out:
 	guest_state_exit_irqoff();
+#endif
 }
 
 fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
@@ -7760,10 +8126,18 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	unsigned long cr3, cr4;
 
+	/*
+	 * The pKVM hypervisor doesn't have symbols to calculate time. It
+	 * is also not necessary to calculate blocking time for the soft
+	 * virtual NMI as the pKVM hypervisor uses the hardware virtual
+	 * NMI feature.
+	 */
+#ifndef __PKVM_HYP__
 	/* Record the guest's net vcpu time for enforced NMI injections. */
 	if (unlikely(!enable_vnmi &&
 		     vmx->loaded_vmcs->soft_vnmi_blocked))
 		vmx->loaded_vmcs->entry_time = ktime_get();
+#endif
 
 	/*
 	 * Don't enter VMX if guest state is invalid, let the exit handler
@@ -7814,13 +8188,21 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 	 * when switching to a temporary mm to patch kernel code, e.g. if KVM
 	 * toggles a static key while handling a VM-Exit.
 	 */
+#ifndef __PKVM_HYP__
 	cr3 = __get_current_cr3_fast();
+#else
+	cr3 = __native_read_cr3();
+#endif
 	if (unlikely(cr3 != vmx->loaded_vmcs->host_state.cr3)) {
 		vmcs_writel(HOST_CR3, cr3);
 		vmx->loaded_vmcs->host_state.cr3 = cr3;
 	}
 
+#ifndef __PKVM_HYP__
 	cr4 = cr4_read_shadow();
+#else
+	cr4 = native_read_cr4();
+#endif
 	if (unlikely(cr4 != vmx->loaded_vmcs->host_state.cr4)) {
 		vmcs_writel(HOST_CR4, cr4);
 		vmx->loaded_vmcs->host_state.cr4 = cr4;
@@ -7838,20 +8220,33 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 
 	pt_guest_enter(vmx);
 
+	/* The pKVM hypervisor doesn't have PMU support for guest VMs. */
+#ifndef __PKVM_HYP__
 	atomic_switch_perf_msrs(vmx);
 	if (intel_pmu_lbr_is_enabled(vcpu))
 		vmx_passthrough_lbr_msrs(vcpu);
+#endif
 
 	if (enable_preemption_timer)
 		vmx_update_hv_timer(vcpu, force_immediate_exit);
+	/*
+	 * The pkvm hypervisor will use the preemption timer for
+	 * force_immediate_exit.
+	 *
+	 * Wait for lapic expire is done by the host.
+	 */
+#ifndef __PKVM_HYP__
 	else if (force_immediate_exit)
 		smp_send_reschedule(vcpu->cpu);
 
 	kvm_wait_lapic_expire(vcpu);
+#endif
 
 	/* The actual VMENTER/EXIT is in the .noinstr.text section. */
 	vmx_vcpu_enter_exit(vcpu, __vmx_vcpu_run_flags(vmx));
 
+	/* The pKVM hypervisor doesn't use evmcs. */
+#ifndef __PKVM_HYP__
 	/* All fields are clean at this point */
 	if (kvm_is_using_evmcs()) {
 		current_evmcs->hv_clean_fields |=
@@ -7859,6 +8254,7 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 
 		current_evmcs->hv_vp_id = kvm_hv_get_vpindex(vcpu);
 	}
+#endif
 
 	/* MSR_IA32_DEBUGCTLMSR is zeroed on vmexit. Restore it if needed */
 	if (vcpu->arch.host_debugctl)
@@ -7896,8 +8292,14 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 	if (unlikely(vmx->fail))
 		return EXIT_FASTPATH_NONE;
 
+	/*
+	 * The pKVM hypervisor doesn't handle machine check vmexit, which should
+	 * be handled by the host.
+	 */
+#ifndef __PKVM_HYP__
 	if (unlikely((u16)vmx_get_exit_reason(vcpu).basic == EXIT_REASON_MCE_DURING_VMENTRY))
 		kvm_machine_check();
+#endif
 
 	trace_kvm_exit(vcpu, KVM_ISA_VMX);
 
@@ -7911,7 +8313,6 @@ fastpath_t vmx_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 
 	return vmx_exit_handlers_fastpath(vcpu, force_immediate_exit);
 }
-#endif /* !__PKVM_HYP__ */
 
 void vmx_vcpu_free(struct kvm_vcpu *vcpu)
 {
@@ -8107,7 +8508,6 @@ int vmx_vm_init(struct kvm *kvm)
 	return 0;
 }
 
-#ifndef __PKVM_HYP__
 static inline bool vmx_ignore_guest_pat(struct kvm *kvm)
 {
 	/*
@@ -8134,7 +8534,6 @@ u8 vmx_get_mt_mask(struct kvm_vcpu *vcpu, gfn_t gfn, bool is_mmio)
 
 	return (MTRR_TYPE_WRBACK << VMX_EPT_MT_EPTE_SHIFT);
 }
-#endif /* !__PKVM_HYP__ */
 
 static void vmcs_set_secondary_exec_control(struct vcpu_vmx *vmx, u32 new_ctl)
 {
@@ -8457,6 +8856,8 @@ static __init void vmx_set_cpu_caps(void)
 		kvm_cpu_cap_clear(X86_FEATURE_SHSTK);
 		kvm_cpu_cap_clear(X86_FEATURE_IBT);
 	}
+
+	kvm_setup_xss_caps();
 }
 
 #ifndef __PKVM_HYP__
@@ -8973,7 +9374,15 @@ __init int vmx_hardware_setup(void)
 		allow_smaller_maxphyaddr = true;
 
 	if (!cpu_has_vmx_ept_ad_bits() || !enable_ept)
+#ifndef __PKVM_HYP__
 		enable_ept_ad_bits = 0;
+#else
+		/*
+		 * The pKVM hypervisor requires EPT A/D bits capability to
+		 * support aging of guest pages in a simple efficient way.
+		 */
+		return -EOPNOTSUPP;
+#endif
 
 	if (!cpu_has_vmx_unrestricted_guest() || !enable_ept)
 #ifndef __PKVM_HYP__
@@ -9011,11 +9420,11 @@ __init int vmx_hardware_setup(void)
 	 * using the APIC_ACCESS_ADDR VMCS field.
 	 */
 	if (!flexpriority_enabled)
-		vt_x86_ops.set_apic_access_page_addr = NULL;
+		x86_ops->set_apic_access_page_addr = NULL;
 
 	if (!cpu_has_vmx_tpr_shadow())
 #ifndef __PKVM_HYP__
-		vt_x86_ops.update_cr8_intercept = NULL;
+		x86_ops->update_cr8_intercept = NULL;
 #else
 		/*
 		 * The pKVM hypervisor requires TPR shadow to avoid emulating
@@ -9027,8 +9436,8 @@ __init int vmx_hardware_setup(void)
 #if IS_ENABLED(CONFIG_HYPERV) && !defined(__PKVM_HYP__)
 	if (ms_hyperv.nested_features & HV_X64_NESTED_GUEST_MAPPING_FLUSH
 	    && enable_ept) {
-		vt_x86_ops.flush_remote_tlbs = hv_flush_remote_tlbs;
-		vt_x86_ops.flush_remote_tlbs_range = hv_flush_remote_tlbs_range;
+		x86_ops->flush_remote_tlbs = hv_flush_remote_tlbs;
+		x86_ops->flush_remote_tlbs_range = hv_flush_remote_tlbs_range;
 	}
 #endif
 
@@ -9043,7 +9452,7 @@ __init int vmx_hardware_setup(void)
 	if (!cpu_has_vmx_apicv())
 		enable_apicv = 0;
 	if (!enable_apicv)
-		vt_x86_ops.sync_pir_to_irr = NULL;
+		x86_ops->sync_pir_to_irr = NULL;
 
 	if (!enable_apicv || !cpu_has_vmx_ipiv())
 		enable_ipiv = false;
@@ -9058,7 +9467,7 @@ __init int vmx_hardware_setup(void)
 
 	set_bit(0, vmx_vpid_bitmap); /* 0 is reserved for host */
 
-#ifndef __PKVM_HYP__ /* TODO: Coordinate with pvEPT */
+#ifndef __PKVM_HYP__
 	if (enable_ept)
 		kvm_mmu_set_ept_masks(enable_ept_ad_bits,
 				      cpu_has_vmx_ept_execute_only());
@@ -9073,6 +9482,8 @@ __init int vmx_hardware_setup(void)
 
 	kvm_configure_mmu(enable_ept, 0, vmx_get_max_ept_level(),
 			  ept_caps_to_lpage_level(vmx_capability.ept));
+#else
+	pkvm_guest_ept_setup();
 #endif
 
 	/*
@@ -9093,12 +9504,6 @@ __init int vmx_hardware_setup(void)
 		return -EOPNOTSUPP;
 #endif
 
-	/*
-	 * The pKVM hypervisor will use the preemption timer for immediate
-	 * vmexit thus will not use it for guest VMs. The following preemption
-	 * timer setup is for guest VMs, so it can be skipped for the pKVM.
-	 */
-#ifndef __PKVM_HYP__
 	if (enable_preemption_timer) {
 		u64 use_timer_freq = 5000ULL * 1000 * 1000;
 
@@ -9118,9 +9523,10 @@ __init int vmx_hardware_setup(void)
 			enable_preemption_timer = false;
 	}
 
+#ifndef __PKVM_HYP__
 	if (!enable_preemption_timer) {
-		vt_x86_ops.set_hv_timer = NULL;
-		vt_x86_ops.cancel_hv_timer = NULL;
+		x86_ops->set_hv_timer = NULL;
+		x86_ops->cancel_hv_timer = NULL;
 	}
 #endif
 
@@ -9133,9 +9539,9 @@ __init int vmx_hardware_setup(void)
 	if (!enable_ept || !enable_pmu || !cpu_has_vmx_intel_pt())
 		pt_mode = PT_MODE_SYSTEM;
 	if (pt_mode == PT_MODE_HOST_GUEST)
-		vt_init_ops.handle_intel_pt_intr = vmx_handle_intel_pt_intr;
+		x86_init_ops->handle_intel_pt_intr = vmx_handle_intel_pt_intr;
 	else
-		vt_init_ops.handle_intel_pt_intr = NULL;
+		x86_init_ops->handle_intel_pt_intr = NULL;
 
 	setup_default_sgx_lepubkeyhash();
 
@@ -9223,8 +9629,40 @@ static void __init do_vmx_pkvm_init(void)
 	}
 #endif
 	r = vmx_pkvm_init();
-	if (r)
+	if (r) {
 		pr_warn("pKVM init failed with error %d. Continue KVM init\n", r);
+	} else if (enable_pkvm) {
+		x86_ops = &pkvm_host_vt_x86_ops;
+		x86_init_ops = &pkvm_host_vt_init_ops;
+
+		/*
+		 * Disable below features to keep align with the pKVM. See the
+		 * code in pkvm_vmx_init().
+		 */
+		enable_pmu = false;
+		nested = false;
+		flexpriority_enabled = false;
+		enable_pml = false;
+		enable_vmware_backdoor = false;
+		/* Below features are also disabled in the pKVM implicitly. */
+#ifdef CONFIG_X86_SGX_KVM
+		enable_sgx = false;
+#endif
+		allow_smaller_maxphyaddr = false;
+
+		/*
+		 * Below features are required by the pKVM. See the checks in
+		 * vmx_hardware_setup().
+		 *
+		 * enable_preemption_timer is also required by pKVM, but on the
+		 * host side it can be disabled. In such case the host will
+		 * simply use the SW timer instead.
+		 */
+		enable_ept = true;
+		enable_ept_ad_bits = true;
+		enable_unrestricted_guest = true;
+		enable_vnmi = true;
+	}
 }
 #endif
 
@@ -9254,7 +9692,7 @@ int __init vmx_init(void)
 	if (setup_vmcs_config(&vmcs_config, &vmx_capability) < 0)
 		return -EIO;
 
-	r = kvm_x86_vendor_init(&vt_init_ops);
+	r = kvm_x86_vendor_init(x86_init_ops);
 	if (r)
 		return r;
 
@@ -9286,6 +9724,255 @@ err_l1d_flush:
 
 #else /* !__PKVM_HYP__ */
 
+void pkvm_vmx_prepare_switch_to_host(struct kvm_vcpu *vcpu)
+{
+	vmx_prepare_switch_to_host(to_vmx(vcpu));
+}
+
+static void update_protected_vcpu_state(struct kvm_vcpu *vcpu,
+					struct kvm_vcpu *shared_vcpu)
+{
+	switch (vmx_get_exit_reason(vcpu).basic) {
+	case EXIT_REASON_IO_INSTRUCTION:
+		/* Only need to update RAX for the input data */
+		if ((vmx_get_exit_qual(vcpu) & 8) != 0)
+			kvm_rax_write(vcpu, shared_vcpu->arch.regs[VCPU_REGS_RAX]);
+		fallthrough;
+	case EXIT_REASON_WBINVD:
+	case EXIT_REASON_PAUSE_INSTRUCTION:
+		WARN_ON_ONCE(kvm_skip_emulated_instruction(vcpu) != 1);
+		break;
+	case EXIT_REASON_MSR_READ:
+	case EXIT_REASON_MSR_WRITE:
+		if (!pkvm_host_has_emulated_msr(vcpu->kvm, kvm_rcx_read(vcpu)))
+			to_pkvm_vcpu(vcpu)->host_emulated_msr_err = 1;
+
+		if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_MSR_READ &&
+		    !to_pkvm_vcpu(vcpu)->host_emulated_msr_err) {
+			kvm_rax_write(vcpu, shared_vcpu->arch.regs[VCPU_REGS_RAX]);
+			kvm_rdx_write(vcpu, shared_vcpu->arch.regs[VCPU_REGS_RDX]);
+		}
+
+		WARN_ON_ONCE(kvm_complete_insn_gp(vcpu,
+				to_pkvm_vcpu(vcpu)->host_emulated_msr_err) != 1);
+		to_pkvm_vcpu(vcpu)->host_emulated_msr_err = 0;
+		break;
+	case EXIT_REASON_MSR_READ_IMM:
+	case EXIT_REASON_MSR_WRITE_IMM:
+		if (!pkvm_host_has_emulated_msr(vcpu->kvm, vmx_get_exit_qual(vcpu)))
+			to_pkvm_vcpu(vcpu)->host_emulated_msr_err = 1;
+
+		if (vmx_get_exit_reason(vcpu).basic == EXIT_REASON_MSR_READ_IMM &&
+		    !to_pkvm_vcpu(vcpu)->host_emulated_msr_err) {
+			int reg = vmx_get_msr_imm_reg(vcpu);
+
+			kvm_register_write(vcpu, reg, shared_vcpu->arch.regs[reg]);
+		}
+
+		WARN_ON_ONCE(kvm_complete_insn_gp(vcpu,
+				to_pkvm_vcpu(vcpu)->host_emulated_msr_err) != 1);
+		to_pkvm_vcpu(vcpu)->host_emulated_msr_err = 0;
+		break;
+	case EXIT_REASON_VMCALL:
+		/*
+		 * If the memory share hypercall has been handled by the host,
+		 * not by pKVM alone, it indicates that there were not enough
+		 * pages in the memcache for pKVM to handle the hypercall, and
+		 * now the host has refilled the memcache with the needed number
+		 * of pages and the hypercall should be retried. So don't skip
+		 * the instruction, to let the guest re-issue the hypercall.
+		 * See also comments in kvm_pkvm_hypercall().
+		 */
+		if (kvm_rax_read(vcpu) == PKVM_GHC_SHARE_MEM)
+			break;
+
+		/*
+		 * After a hypercall being emulated by the host, the RAX may be
+		 * filled by the host with the return value to the guest. So for
+		 * the pVM, suppose it is aware that the RAX may be modified by
+		 * the host after returning back from a hypercall.
+		 */
+		kvm_rax_write(vcpu, shared_vcpu->arch.regs[VCPU_REGS_RAX]);
+		WARN_ON_ONCE(kvm_skip_emulated_instruction(vcpu) != 1);
+		break;
+	default:
+		break;
+	}
+}
+
+static void pkvm_vmx_update_vcpu_state_from_host(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu *shared_vcpu = to_pkvm_vcpu(vcpu)->shared_vcpu;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	/*
+	 * The pKVM hypervisor relies on the preemption timer feature. Thus the
+	 * host may also request the pKVM hypervisor to use this feature to
+	 * emulate the guest timer. So need to sync the host's hv_deadline_tsc
+	 * to the pKVM unconditionally so that the pKVM hypervisor can properly
+	 * update the preemption timer for the guest.
+	 */
+	vmx->hv_deadline_tsc = to_vmx(shared_vcpu)->hv_deadline_tsc;
+
+	if (pkvm_is_protected_vcpu(vcpu) &&
+	    pkvm_has_req_to_host(HOST_HANDLE_EXIT, vcpu) &&
+	    !vmx_get_exit_reason(vcpu).failed_vmentry &&
+	    !vmx->fail)
+		update_protected_vcpu_state(vcpu, shared_vcpu);
+}
+
+static void share_nonprotected_vcpu_state(struct kvm_vcpu *vcpu,
+					  struct kvm_vcpu *shared_vcpu)
+{
+	shared_vcpu->arch.event_exit_inst_len = 0;
+
+	switch (vmx_get_exit_reason(vcpu).basic) {
+	case EXIT_REASON_EXCEPTION_NMI: {
+		u32 ex_no = vmx_get_intr_info(vcpu) & INTR_INFO_VECTOR_MASK;
+
+		if (ex_no == DB_VECTOR) {
+			/*
+			 * DR6 can be decoded from the exit qualification which
+			 * is already shared. Only share guest DR7 with host.
+			 */
+			shared_vcpu->arch.dr7 = vmcs_readl(GUEST_DR7);
+		} else if (ex_no == BP_VECTOR) {
+			/*
+			 * Update instruction length as the host may reinject
+			 * #BP from user space while in guest debugging mode.
+			 */
+			shared_vcpu->arch.event_exit_inst_len =
+				vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
+		}
+		break;
+	case EXIT_REASON_EPT_VIOLATION:
+		to_vmx(shared_vcpu)->exit_gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+		fallthrough;
+	case EXIT_REASON_IO_INSTRUCTION:
+	case EXIT_REASON_MSR_READ:
+	case EXIT_REASON_MSR_WRITE:
+	case EXIT_REASON_VMCALL:
+		/* For the host to skip the instruction for certain exit reasons */
+		shared_vcpu->arch.event_exit_inst_len = vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
+		break;
+	case EXIT_REASON_MSR_READ_IMM:
+	case EXIT_REASON_MSR_WRITE_IMM:
+		to_vmx(shared_vcpu)->instr_info = vmcs_read32(VMX_INSTRUCTION_INFO);
+		shared_vcpu->arch.event_exit_inst_len = vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+static void share_protected_vcpu_state(struct kvm_vcpu *vcpu,
+				       struct kvm_vcpu *shared_vcpu)
+{
+	int reg;
+
+	switch (vmx_get_exit_reason(vcpu).basic) {
+	case EXIT_REASON_IO_INSTRUCTION:
+		/* IO output/Input data */
+		shared_vcpu->arch.regs[VCPU_REGS_RAX] = kvm_rax_read(vcpu);
+		break;
+	case EXIT_REASON_MSR_WRITE:
+		shared_vcpu->arch.regs[VCPU_REGS_RAX] = kvm_rax_read(vcpu);
+		shared_vcpu->arch.regs[VCPU_REGS_RDX] = kvm_rdx_read(vcpu);
+		fallthrough;
+	case EXIT_REASON_MSR_READ:
+		shared_vcpu->arch.regs[VCPU_REGS_RCX] = kvm_rcx_read(vcpu);
+		break;
+	case EXIT_REASON_EPT_VIOLATION:
+		to_vmx(shared_vcpu)->exit_gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+		break;
+	case EXIT_REASON_MSR_WRITE_IMM:
+		reg = vmx_get_msr_imm_reg(vcpu);
+		shared_vcpu->arch.regs[reg] = kvm_register_read(vcpu, reg);
+		fallthrough;
+	case EXIT_REASON_MSR_READ_IMM:
+		to_vmx(shared_vcpu)->instr_info = vmcs_read32(VMX_INSTRUCTION_INFO);
+		break;
+	case EXIT_REASON_VMCALL:
+		/*
+		 * The pVM may also needs to use the hypercall to
+		 * communicate with the host, e.g., MMIO emulation. And
+		 * the hypercall parameters are usually filled by the
+		 * pVM software in below registers, so they should be
+		 * shared with the host. Suppose the pVM itself won't
+		 * leak any sensitive data via below registers when
+		 * fills the hypercall parameters.
+		 */
+		shared_vcpu->arch.regs[VCPU_REGS_RAX] = kvm_rax_read(vcpu);
+		shared_vcpu->arch.regs[VCPU_REGS_RCX] = kvm_rcx_read(vcpu);
+		shared_vcpu->arch.regs[VCPU_REGS_RDX] = kvm_rdx_read(vcpu);
+		shared_vcpu->arch.regs[VCPU_REGS_RBX] = kvm_rbx_read(vcpu);
+		shared_vcpu->arch.regs[VCPU_REGS_RSI] = kvm_rsi_read(vcpu);
+		break;
+	default:
+		break;
+	}
+}
+
+static void pkvm_vmx_share_vcpu_state_with_host(struct kvm_vcpu *vcpu)
+{
+	struct kvm_vcpu *shared_vcpu = to_pkvm_vcpu(vcpu)->shared_vcpu;
+	struct vcpu_vmx *shared_vmx = to_vmx(shared_vcpu);
+	u32 exit_reason, exit_intr_info, error_code;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	u64 exit_info1, exit_info2;
+
+	vmx_get_exit_info(vcpu, &exit_reason, &exit_info1,
+			  &exit_info2, &exit_intr_info, &error_code);
+
+	shared_vmx->vt.exit_reason.full = exit_reason;
+	kvm_register_mark_available(shared_vcpu, VCPU_EXREG_EXIT_INFO_1);
+	shared_vmx->vt.exit_qualification = exit_info1;
+	shared_vmx->idt_vectoring_info = exit_info2;
+	shared_vmx->vt.exit_intr_info = exit_intr_info;
+	kvm_register_mark_available(shared_vcpu, VCPU_EXREG_EXIT_INFO_2);
+	shared_vmx->error_code = error_code;
+
+	if (!pkvm_is_protected_vcpu(vcpu)) {
+		/*
+		 * Share the npVM's AR field of CS/SS for optimization purposes
+		 * as these are more frequently used by the host, namely: by
+		 * get_cs_db_l_bits to emulate instructions, and by
+		 * get_cpl_no_cache to schedule out a non-protected vCPU at
+		 * runtime, so that the host doesn't need to issue additional
+		 * hypercalls to retrieve the AR field of CS/SS for that. No
+		 * need to share for a pVM as the host does not emulate
+		 * instructions or use CPL for scheduling in case of a pVM
+		 * anyway.
+		 */
+		if (WARN_ON(vmx->rmode.vm86_active)) {
+			shared_vmx->segment_cache.seg[VCPU_SREG_CS].ar = 0;
+			shared_vmx->segment_cache.seg[VCPU_SREG_SS].ar = 0;
+		} else {
+			shared_vmx->segment_cache.seg[VCPU_SREG_CS].ar =
+				vmx_read_guest_seg_ar(vmx, VCPU_SREG_CS);
+			shared_vmx->segment_cache.seg[VCPU_SREG_SS].ar =
+				vmx_read_guest_seg_ar(vmx, VCPU_SREG_SS);
+		}
+		vmx_segment_cache_test_set(shared_vmx, VCPU_SREG_CS, SEG_FIELD_AR);
+		vmx_segment_cache_test_set(shared_vmx, VCPU_SREG_SS, SEG_FIELD_AR);
+	}
+
+	if (pkvm_has_req_to_host(HOST_HANDLE_EXIT, vcpu) &&
+	    !vmx_get_exit_reason(vcpu).failed_vmentry &&
+	    !vmx->fail) {
+		if (!pkvm_is_protected_vcpu(vcpu))
+			share_nonprotected_vcpu_state(vcpu, shared_vcpu);
+		else
+			share_protected_vcpu_state(vcpu, shared_vcpu);
+	}
+}
+
+static struct pkvm_x86_ops pkvm_vt_x86_ops = {
+	.update_vcpu_state_from_host = pkvm_vmx_update_vcpu_state_from_host,
+	.share_vcpu_state_with_host = pkvm_vmx_share_vcpu_state_with_host,
+};
+
 int pkvm_vmx_init(void)
 {
 	BUILD_BUG_ON(offsetof(struct kvm_vmx, kvm) != 0);
@@ -9298,10 +9985,15 @@ int pkvm_vmx_init(void)
 	nested = false;
 	flexpriority_enabled = false;
 	enable_pml = false;
+	enable_vmware_backdoor = false;
+
+	/* TODO: Respect the host kvm and kvm_intel module params. */
 
 	kvm_vcpu_sz = sizeof(struct vcpu_vmx);
 
-	return pkvm_x86_vendor_init(&vt_init_ops);
+	pkvm_x86_ops_init(&pkvm_vt_x86_ops);
+
+	return pkvm_x86_vendor_init(x86_init_ops);
 }
 
 #endif /* !__PKVM_HYP__ */

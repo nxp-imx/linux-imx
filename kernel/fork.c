@@ -1102,6 +1102,9 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 
 	mm->user_ns = get_user_ns(user_ns);
 	lru_gen_init_mm(mm);
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	mm->android_vendor_data1 = 0;
+#endif
 	return mm;
 
 fail_pcpu:

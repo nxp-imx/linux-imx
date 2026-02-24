@@ -86,7 +86,7 @@ enum rqf_flags {
 
 /* flags that prevent us from merging requests: */
 #define RQF_NOMERGE_FLAGS \
-	(RQF_STARTED | RQF_FLUSH_SEQ | RQF_SPECIAL_PAYLOAD)
+	(RQF_STARTED | RQF_FLUSH_SEQ | RQF_DONTPREP | RQF_SPECIAL_PAYLOAD)
 
 enum mq_rq_state {
 	MQ_RQ_IDLE		= 0,
@@ -1194,5 +1194,16 @@ static inline int blk_rq_map_sg(struct request *rq, struct scatterlist *sglist)
 	return __blk_rq_map_sg(rq, sglist, &last_sg);
 }
 void blk_dump_rq_flags(struct request *, char *);
+
+static inline bool blk_rq_is_seq_zoned_write(struct request *rq)
+{
+	switch (req_op(rq)) {
+	case REQ_OP_WRITE:
+	case REQ_OP_WRITE_ZEROES:
+		return bdev_zone_is_seq(rq->q->disk->part0, blk_rq_pos(rq));
+	default:
+		return false;
+	}
+}
 
 #endif /* BLK_MQ_H */

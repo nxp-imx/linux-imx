@@ -25,6 +25,7 @@ struct perf_data {
 	struct vmexit_stats vmexit_reasons[MAX_EXIT_REASONS];
 	struct vmexit_stats hypercalls[MAX_PKVM_HYPERCALLS];
 	int vcpu_id;
+	int vm_handle;
 };
 
 struct vmexit_perf {

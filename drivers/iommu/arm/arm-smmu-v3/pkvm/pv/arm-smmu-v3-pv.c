@@ -114,12 +114,38 @@ static int smmu_send_cmd(struct hyp_arm_smmu_v3_device_pv *smmu,
 	return smmu_sync_cmd(&smmu->common);
 }
 
-static void __smmu_add_cmd(void *__opaque, struct arm_smmu_cmdq_batch *unused,
+static int smmu_submit_batch_sync(struct hyp_arm_smmu_v3_device *smmu,
+				  struct arm_smmu_cmdq_batch *cmds)
+{
+	int i;
+	int ret;
+	bool use_wfe = smmu->features & ARM_SMMU_FEAT_SEV;
+
+	ret = smmu_wait(use_wfe, smmu_cmdq_has_space(&smmu->cmdq, cmds->num));
+	if (ret)
+		return ret;
+
+	for (i = 0; i < cmds->num; i++)
+		smmu_add_cmd_raw(smmu, &cmds->cmds[i]);
+
+	return smmu_sync_cmd(smmu);
+}
+
+static void __smmu_add_cmd(void *__opaque, struct arm_smmu_cmdq_batch *cmds,
 			   struct arm_smmu_cmdq_ent *cmd)
 {
 	struct hyp_arm_smmu_v3_device *smmu = (struct hyp_arm_smmu_v3_device *)__opaque;
+	int index;
 
-	WARN_ON(smmu_add_cmd(smmu, cmd));
+	if (cmds->num == CMDQ_BATCH_ENTRIES) {
+		smmu_submit_batch_sync(smmu, cmds);
+		cmds->num = 0;
+	}
+
+	index = cmds->num * CMDQ_ENT_DWORDS;
+
+	WARN_ON(arm_smmu_cmdq_build_cmd(&cmds->cmds[index], cmd));
+	cmds->num++;
 }
 
 static void smmu_inv_domain(struct hyp_arm_smmu_v3_device_pv *smmu,
@@ -157,11 +183,14 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device_pv *smmu,
 				   unsigned long iova, size_t size, size_t granule)
 {
 
+	struct arm_smmu_cmdq_batch cmds;
+
+	cmds.num = 0;
 	arm_smmu_tlb_inv_build(cmd, iova, size, granule,
 			       pgtable->cfg.pgsize_bitmap,
 			       smmu->common.features & ARM_SMMU_FEAT_RANGE_INV,
-			       smmu, __smmu_add_cmd, NULL);
-	return smmu_sync_cmd(&smmu->common);
+			       smmu, __smmu_add_cmd, &cmds);
+	return smmu_submit_batch_sync(&smmu->common, &cmds);
 }
 
 static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
@@ -969,8 +998,10 @@ static int smmu_alloc_domain(pkvm_handle_t iommu,
 		return -EINVAL;
 
 	smmu_domain = hyp_alloc(sizeof(*smmu_domain));
-	if (!smmu_domain)
+	if (!smmu_domain) {
+		kvm_iommu_request_hyp_alloc();
 		return -ENOMEM;
+	}
 
 	smmu_domain->domain = domain;
 	smmu_domain->type = type;

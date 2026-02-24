@@ -193,4 +193,6 @@ void kvm_arch_create_vm_debugfs(struct kvm *kvm)
 {
 	debugfs_create_file("mmu_rmaps_stat", 0644, kvm->debugfs_dentry, kvm,
 			    &mmu_rmaps_stat_fops);
+
+	pkvm_create_vm_debugfs(kvm);
 }

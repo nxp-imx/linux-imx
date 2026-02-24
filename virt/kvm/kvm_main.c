@@ -1604,6 +1604,12 @@ static int check_memory_region_flags(struct kvm *kvm,
 	if (mem->flags & KVM_MEM_GUEST_MEMFD)
 		valid_flags &= ~KVM_MEM_LOG_DIRTY_PAGES;
 
+#ifdef CONFIG_PKVM_X86
+	/* Dirty logging is not currently supported by pKVM on x86. */
+	if (enable_pkvm)
+		valid_flags &= ~KVM_MEM_LOG_DIRTY_PAGES;
+#endif
+
 	/*
 	 * GUEST_MEMFD is incompatible with read-only memslots, as writes to
 	 * read-only memslots have emulated MMIO, not page fault, semantics,

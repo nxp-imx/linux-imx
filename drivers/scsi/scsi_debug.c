@@ -230,6 +230,7 @@ struct tape_block {
 #define SDEBUG_OPT_NO_CDB_NOISE		0x4000
 #define SDEBUG_OPT_HOST_BUSY		0x8000
 #define SDEBUG_OPT_CMD_ABORT		0x10000
+#define SDEBUG_OPT_UNALIGNED_WRITE	0x20000
 #define SDEBUG_OPT_ALL_NOISE (SDEBUG_OPT_NOISE | SDEBUG_OPT_Q_NOISE | \
 			      SDEBUG_OPT_RESET_NOISE)
 #define SDEBUG_OPT_ALL_INJECTING (SDEBUG_OPT_RECOVERED_ERR | \
@@ -237,7 +238,8 @@ struct tape_block {
 				  SDEBUG_OPT_DIF_ERR | SDEBUG_OPT_DIX_ERR | \
 				  SDEBUG_OPT_SHORT_TRANSFER | \
 				  SDEBUG_OPT_HOST_BUSY | \
-				  SDEBUG_OPT_CMD_ABORT)
+				  SDEBUG_OPT_CMD_ABORT | \
+				  SDEBUG_OPT_UNALIGNED_WRITE)
 #define SDEBUG_OPT_RECOV_DIF_DIX (SDEBUG_OPT_RECOVERED_ERR | \
 				  SDEBUG_OPT_DIF_ERR | SDEBUG_OPT_DIX_ERR)
 
@@ -393,7 +395,6 @@ struct sdebug_dev_info {
 	bool zoned;
 	unsigned int zcap;
 	unsigned int zsize;
-	unsigned int zsize_shift;
 	unsigned int nr_zones;
 	unsigned int nr_conv_zones;
 	unsigned int nr_seq_zones;
@@ -1004,6 +1005,7 @@ static int dix_reads;
 static int dif_errors;
 
 /* ZBC global data */
+static bool sdeb_preserves_write_order;
 static bool sdeb_zbc_in_use;	/* true for host-aware and host-managed disks */
 static int sdeb_zbc_zone_cap_mb;
 static int sdeb_zbc_zone_size_mb;
@@ -3735,7 +3737,7 @@ static inline bool sdebug_dev_is_zoned(struct sdebug_dev_info *devip)
 static struct sdeb_zone_state *zbc_zone(struct sdebug_dev_info *devip,
 					unsigned long long lba)
 {
-	u32 zno = lba >> devip->zsize_shift;
+	u32 zno = div_u64(lba, devip->zsize);
 	struct sdeb_zone_state *zsp;
 
 	if (devip->zcap == devip->zsize || zno < devip->nr_conv_zones)
@@ -4931,6 +4933,14 @@ static int resp_write_dt0(struct scsi_cmnd *scp, struct sdebug_dev_info *devip)
 	struct sdeb_store_info *sip = devip2sip(devip, true);
 	u8 *cmd = scp->cmnd;
 	bool meta_data_locked = false;
+
+	if (unlikely(sdebug_opts & SDEBUG_OPT_UNALIGNED_WRITE &&
+		     atomic_read(&sdeb_inject_pending))) {
+		atomic_set(&sdeb_inject_pending, 0);
+		mk_sense_buffer(scp, ILLEGAL_REQUEST, LBA_OUT_OF_RANGE,
+				UNALIGNED_WRITE_ASCQ);
+		return check_condition_result;
+	}
 
 	switch (cmd[0]) {
 	case WRITE_16:
@@ -6435,6 +6445,14 @@ static void sdebug_q_cmd_wq_complete(struct work_struct *work)
 static bool got_shared_uuid;
 static uuid_t shared_uuid;
 
+static bool sdebug_is_zone_start(struct sdebug_dev_info *devip, u64 zstart)
+{
+	u32 remainder;
+
+	div_u64_rem(zstart, devip->zsize, &remainder);
+	return remainder == 0;
+}
+
 static int sdebug_device_create_zones(struct sdebug_dev_info *devip)
 {
 	struct sdeb_zone_state *zsp;
@@ -6459,10 +6477,6 @@ static int sdebug_device_create_zones(struct sdebug_dev_info *devip)
 			return -EINVAL;
 		}
 	} else {
-		if (!is_power_of_2(sdeb_zbc_zone_size_mb)) {
-			pr_err("Zone size is not a power of 2\n");
-			return -EINVAL;
-		}
 		devip->zsize = (sdeb_zbc_zone_size_mb * SZ_1M)
 			>> ilog2(sdebug_sector_size);
 		if (devip->zsize >= capacity) {
@@ -6471,8 +6485,7 @@ static int sdebug_device_create_zones(struct sdebug_dev_info *devip)
 		}
 	}
 
-	devip->zsize_shift = ilog2(devip->zsize);
-	devip->nr_zones = (capacity + devip->zsize - 1) >> devip->zsize_shift;
+	devip->nr_zones = div_u64(capacity + devip->zsize - 1, devip->zsize);
 
 	if (sdeb_zbc_zone_cap_mb == 0) {
 		devip->zcap = devip->zsize;
@@ -6485,14 +6498,14 @@ static int sdebug_device_create_zones(struct sdebug_dev_info *devip)
 		}
 	}
 
-	conv_capacity = (sector_t)sdeb_zbc_nr_conv << devip->zsize_shift;
+	conv_capacity = (sector_t)sdeb_zbc_nr_conv * devip->zsize;
 	if (conv_capacity >= capacity) {
 		pr_err("Number of conventional zones too large\n");
 		return -EINVAL;
 	}
 	devip->nr_conv_zones = sdeb_zbc_nr_conv;
-	devip->nr_seq_zones = ALIGN(capacity - conv_capacity, devip->zsize) >>
-			      devip->zsize_shift;
+	devip->nr_seq_zones = div_u64(capacity - conv_capacity +
+				      devip->zsize - 1, devip->zsize);
 	devip->nr_zones = devip->nr_conv_zones + devip->nr_seq_zones;
 
 	/* Add gap zones if zone capacity is smaller than the zone size */
@@ -6523,7 +6536,7 @@ static int sdebug_device_create_zones(struct sdebug_dev_info *devip)
 			zsp->z_wp = (sector_t)-1;
 			zsp->z_size =
 				min_t(u64, devip->zsize, capacity - zstart);
-		} else if ((zstart & (devip->zsize - 1)) == 0) {
+		} else if (sdebug_is_zone_start(devip, zstart)) {
 			if (devip->zoned)
 				zsp->z_type = ZBC_ZTYPE_SWR;
 			else
@@ -6625,9 +6638,14 @@ static struct sdebug_dev_info *find_build_dev_info(struct scsi_device *sdev)
 
 static int scsi_debug_sdev_init(struct scsi_device *sdp)
 {
+	struct request_queue *q = sdp->request_queue;
+
 	if (sdebug_verbose)
 		pr_info("sdev_init <%u %u %u %llu>\n",
 		       sdp->host->host_no, sdp->channel, sdp->id, sdp->lun);
+
+	if (sdeb_preserves_write_order)
+		q->limits.features |= BLK_FEAT_ORDERED_HWQ;
 
 	return 0;
 }
@@ -7357,6 +7375,8 @@ module_param_named(statistics, sdebug_statistics, bool, S_IRUGO | S_IWUSR);
 module_param_named(strict, sdebug_strict, bool, S_IRUGO | S_IWUSR);
 module_param_named(submit_queues, submit_queues, int, S_IRUGO);
 module_param_named(poll_queues, poll_queues, int, S_IRUGO);
+module_param_named(preserves_write_order, sdeb_preserves_write_order, bool,
+		   S_IRUGO);
 module_param_named(tur_ms_to_ready, sdeb_tur_ms_to_ready, int, S_IRUGO);
 module_param_named(unmap_alignment, sdebug_unmap_alignment, int, S_IRUGO);
 module_param_named(unmap_granularity, sdebug_unmap_granularity, int, S_IRUGO);
@@ -7429,6 +7449,8 @@ MODULE_PARM_DESC(opts, "1->noise, 2->medium_err, 4->timeout, 8->recovered_err...
 MODULE_PARM_DESC(per_host_store, "If set, next positive add_host will get new store (def=0)");
 MODULE_PARM_DESC(physblk_exp, "physical block exponent (def=0)");
 MODULE_PARM_DESC(poll_queues, "support for iouring iopoll queues (1 to max(submit_queues - 1))");
+MODULE_PARM_DESC(preserves_write_order,
+		 "Whether or not to inform the block layer that this driver preserves the order of WRITE commands (def=0)");
 MODULE_PARM_DESC(ptype, "SCSI peripheral type(def=0[disk])");
 MODULE_PARM_DESC(random, "If set, uniformly randomize command duration between 0 and delay_in_ns");
 MODULE_PARM_DESC(removable, "claim to have removable media (def=0)");

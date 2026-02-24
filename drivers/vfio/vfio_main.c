@@ -442,6 +442,13 @@ void vfio_device_get_kvm_safe(struct vfio_device *device, struct kvm *kvm)
 	if (!kvm)
 		return;
 
+	/* See kvm_vfio_file_set_kvm() */
+#if IS_BUILTIN(CONFIG_KVM)
+	ret = kvm_get_kvm_safe(kvm);
+	pfn = kvm_put_kvm;
+	/* silence compiler warning */
+	fn = NULL;
+#else
 	pfn = symbol_get(kvm_put_kvm);
 	if (WARN_ON(!pfn))
 		return;
@@ -458,6 +465,7 @@ void vfio_device_get_kvm_safe(struct vfio_device *device, struct kvm *kvm)
 		symbol_put(kvm_put_kvm);
 		return;
 	}
+#endif
 
 	device->put_kvm = pfn;
 	device->kvm = kvm;
@@ -475,7 +483,9 @@ void vfio_device_put_kvm(struct vfio_device *device)
 
 	device->put_kvm(device->kvm);
 	device->put_kvm = NULL;
+#if IS_MODULE(CONFIG_KVM)
 	symbol_put(kvm_put_kvm);
+#endif
 
 clear:
 	device->kvm = NULL;

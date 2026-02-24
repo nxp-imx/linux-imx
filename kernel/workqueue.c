@@ -58,6 +58,7 @@
 
 #include "workqueue_internal.h"
 
+#include <trace/hooks/dtask.h>
 #include <trace/hooks/wqlockup.h>
 /* events/workqueue.h uses default TRACE_INCLUDE_PATH */
 #undef TRACE_INCLUDE_PATH
@@ -4033,7 +4034,9 @@ void __flush_workqueue(struct workqueue_struct *wq)
 
 	mutex_unlock(&wq->mutex);
 
+	trace_android_vh_flush_wq_wait_start(wq);
 	wait_for_completion(&this_flusher.done);
+	trace_android_vh_flush_wq_wait_finish(wq);
 
 	/*
 	 * Wake-up-and-cascade phase
@@ -4277,7 +4280,9 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 		}
 	}
 
+	trace_android_vh_flush_work_wait_start(work);
 	wait_for_completion(&barr.done);
+	trace_android_vh_flush_work_wait_finish(work);
 
 out_destroy:
 	destroy_work_on_stack(&barr.work);
@@ -4654,6 +4659,7 @@ void free_workqueue_attrs(struct workqueue_attrs *attrs)
 		kfree(attrs);
 	}
 }
+EXPORT_SYMBOL_GPL(free_workqueue_attrs);
 
 /**
  * alloc_workqueue_attrs - allocate a workqueue_attrs
@@ -4682,6 +4688,7 @@ fail:
 	free_workqueue_attrs(attrs);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(alloc_workqueue_attrs_noprof);
 
 static void copy_workqueue_attrs(struct workqueue_attrs *to,
 				 const struct workqueue_attrs *from)
@@ -5391,7 +5398,7 @@ static void apply_wqattrs_commit(struct apply_wqattrs_ctx *ctx)
 	mutex_unlock(&ctx->wq->mutex);
 }
 
-static int apply_workqueue_attrs_locked(struct workqueue_struct *wq,
+int apply_workqueue_attrs_locked(struct workqueue_struct *wq,
 					const struct workqueue_attrs *attrs)
 {
 	struct apply_wqattrs_ctx *ctx;
@@ -5410,6 +5417,7 @@ static int apply_workqueue_attrs_locked(struct workqueue_struct *wq,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(apply_workqueue_attrs_locked);
 
 /**
  * apply_workqueue_attrs - apply new workqueue_attrs to an unbound workqueue

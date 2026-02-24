@@ -408,6 +408,7 @@ enum {
 	UFS_DEV_WRITE_BOOSTER_SUP	= BIT(8),
 	UFS_DEV_LVL_EXCEPTION_SUP       = BIT(12),
 	UFS_DEV_HID_SUPPORT		= BIT(13),
+	UFS_DEV_ZWOR_SUPPORT		= BIT(20),
 };
 #define UFS_DEV_HPB_SUPPORT_VERSION		0x310
 
@@ -650,9 +651,10 @@ struct ufs_dev_info {
 	u32 rtc_update_period;
 
 	u8 rtt_cap; /* bDeviceRTTCap */
-	ANDROID_OEM_DATA(1);
-
 	bool hid_sup;
+	bool zwor_sup;
+
+	ANDROID_OEM_DATA(1);
 };
 
 #endif /* End of Header */

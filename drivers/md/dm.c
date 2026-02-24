@@ -1802,9 +1802,8 @@ static inline bool dm_zone_bio_needs_split(struct bio *bio)
 
 static inline bool dm_zone_plug_bio(struct mapped_device *md, struct bio *bio)
 {
-	if (!bio_needs_zone_write_plugging(bio))
-		return false;
-	return blk_zone_plug_bio(bio, 0);
+	return bio_needs_zone_write_plugging(bio) &&
+		blk_zone_plug_bio(bio, 0, -1);
 }
 
 static blk_status_t __send_zone_reset_all_emulated(struct clone_info *ci,

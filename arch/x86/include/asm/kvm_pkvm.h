@@ -119,6 +119,14 @@ union pkvm_hc_data {
 		struct pkvm_memcache memcache;
 	} vcpu_add_fpstate;
 	struct {
+		unsigned long reqs_to_host;
+#define HOST_HANDLE_EXIT			0
+#define HOST_HANDLE_GUESTDBG_SINGLESTEP		1
+#define HOST_INIT_MMU				2
+#define HOST_RESET_MMU				3
+#define HOST_APF_READY				4
+	} vcpu_run;
+	struct {
 		u64 data[PKVM_HC_DATA_MAX_NUM];
 	} raw;
 };
@@ -338,9 +346,13 @@ extern struct fpu_state_config pkvm_sym(fpu_user_cfg);
 #ifdef CONFIG_X86_64
 DECLARE_STATIC_KEY_FALSE(pkvm_sym(__fpu_state_size_dynamic));
 #endif
+extern unsigned int pkvm_sym(tsc_khz);
+extern bool pkvm_sym(pvmfw_present);
+extern phys_addr_t pkvm_sym(pvmfw_base);
+extern phys_addr_t pkvm_sym(pvmfw_size);
 
 u64 pkvm_total_reserve_pages(void);
-PKVM_DECLARE(void *, pkvm_early_alloc_page, (void));
+PKVM_DECLARE(void *, pkvm_early_alloc_page, (struct pkvm_memcache *mc));
 PKVM_DECLARE(void *, pkvm_early_alloc_contig, (unsigned int nr_pages));
 PKVM_DECLARE(void, pkvm_early_alloc_init, (void *virt, unsigned long size));
 PKVM_DECLARE(int, pkvm_setup_per_cpu, (int cpu, unsigned long base));
@@ -547,6 +559,9 @@ static inline size_t pkvm_guest_initial_fpstate_size(struct kvm *kvm)
 	BUG_ON(__ret);							\
 	unlikely(__ret);						\
 })
+
+#undef KVM_BUG
+#define KVM_BUG(cond, kvm, fmt...)		KVM_BUG_ON(cond, kvm)
 
 #endif /* __PKVM_HYP__ */
 

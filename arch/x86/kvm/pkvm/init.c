@@ -18,6 +18,10 @@
  */
 struct pkvm_init_ops *init_ops;
 
+bool pvmfw_present;
+phys_addr_t pvmfw_base;
+phys_addr_t pvmfw_size;
+
 static void *hyp_pgt_base;
 static void *host_pgt_base;
 static void *pkvm_vmemmap_base;
@@ -154,6 +158,14 @@ static int create_hyp_mmu(const struct pkvm_mem_info infos[], int nr_infos)
 	ret = back_vmemmap(__pkvm_pa(pkvm_vmemmap_base));
 	if (ret)
 		return ret;
+
+	if (pvmfw_present) {
+		ret = pkvm_hyp_mmu_map((unsigned long)__pkvm_va(pvmfw_base),
+				       pvmfw_base, pvmfw_size,
+				       (u64)pgprot_val(PAGE_KERNEL_RO));
+		if (ret)
+			return ret;
+	}
 
 	/* Load pKVM hypervisor's MMU to use pKVM vmemmap */
 	pkvm_hyp_mmu_load();

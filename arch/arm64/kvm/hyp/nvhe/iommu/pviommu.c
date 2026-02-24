@@ -156,7 +156,10 @@ static bool pkvm_guest_iommu_alloc_domain(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *e
 	guest_domain = hyp_alloc(sizeof(*guest_domain));
 	if (!guest_domain) {
 		BUG_ON(hyp_alloc_errno() != -ENOMEM);
-		req = pkvm_hyp_req_reserve(hyp_vcpu, REQ_MEM_DEST_HYP_ALLOC);
+		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM);
+		if (!req)
+			return false;
+		req->mem.dest = REQ_MEM_DEST_HYP_ALLOC;
 		req->mem.nr_pages = hyp_alloc_missing_donations();
 		req->mem.sz_alloc = PAGE_SIZE;
 		pkvm_pviommu_hyp_req(exit_code);

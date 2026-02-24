@@ -13,6 +13,22 @@ struct blk_mq_ctxs {
 	struct blk_mq_ctx __percpu	*queue_ctx;
 };
 
+struct blk_mq_hw_ctx_priv {
+	struct blk_mq_hw_ctx hctx;
+
+	/**
+	 * @zwp_mutex: Mutex used for serializing dispatching of zoned writes
+	 * if zoned write pipelining is enabled.
+	 */
+	struct mutex zwp_mutex;
+};
+
+static inline struct blk_mq_hw_ctx_priv *
+to_hctx_priv(struct blk_mq_hw_ctx *hctx)
+{
+	return container_of(hctx, struct blk_mq_hw_ctx_priv, hctx);
+}
+
 /**
  * struct blk_mq_ctx - State for a software queue facing the submitting CPUs
  */
@@ -41,8 +57,10 @@ enum {
 
 typedef unsigned int __bitwise blk_insert_t;
 #define BLK_MQ_INSERT_AT_HEAD		((__force blk_insert_t)0x01)
+#define BLK_MQ_INSERT_ORDERED		((__force blk_insert_t)0x02)
 
 void blk_mq_submit_bio(struct bio *bio);
+void blk_mq_insert_ordered(struct request *rq, struct list_head *list);
 int blk_mq_poll(struct request_queue *q, blk_qc_t cookie, struct io_comp_batch *iob,
 		unsigned int flags);
 void blk_mq_exit_queue(struct request_queue *q);
@@ -396,45 +414,6 @@ static inline void blk_mq_free_requests(struct list_head *list)
 	}
 }
 
-/*
- * For shared tag users, we track the number of currently active users
- * and attempt to provide a fair share of the tag depth for each of them.
- */
-static inline bool hctx_may_queue(struct blk_mq_hw_ctx *hctx,
-				  struct sbitmap_queue *bt)
-{
-	unsigned int depth, users;
-
-	if (!hctx || !(hctx->flags & BLK_MQ_F_TAG_QUEUE_SHARED))
-		return true;
-
-	/*
-	 * Don't try dividing an ant
-	 */
-	if (bt->sb.depth == 1)
-		return true;
-
-	if (blk_mq_is_shared_tags(hctx->flags)) {
-		struct request_queue *q = hctx->queue;
-
-		if (!test_bit(QUEUE_FLAG_HCTX_ACTIVE, &q->queue_flags))
-			return true;
-	} else {
-		if (!test_bit(BLK_MQ_S_TAG_ACTIVE, &hctx->state))
-			return true;
-	}
-
-	users = READ_ONCE(hctx->tags->active_queues);
-	if (!users)
-		return true;
-
-	/*
-	 * Allow at least some tags
-	 */
-	depth = max((bt->sb.depth + users - 1) / users, 4U);
-	return __blk_mq_active_requests(hctx) < depth;
-}
-
 /* run the code block in @dispatch_ops with rcu/srcu read lock held */
 #define __blk_mq_run_dispatch_ops(q, check_sleep, dispatch_ops)	\
 do {								\
@@ -455,6 +434,43 @@ do {								\
 
 #define blk_mq_run_dispatch_ops(q, dispatch_ops)		\
 	__blk_mq_run_dispatch_ops(q, true, dispatch_ops)	\
+
+static inline struct mutex *blk_mq_zwp_mutex(struct blk_mq_hw_ctx *hctx)
+{
+	struct request_queue *q = hctx->queue;
+
+	/*
+	 * If pipelining zoned writes is disabled or if zone write order
+	 * restore is supported, do not serialize dispatch operations.
+	 */
+	if (!blk_pipeline_zwr(q) || (q->limits.features & BLK_FEAT_ZWOR))
+		return NULL;
+
+	/*
+	 * If no I/O scheduler is active or if the selected I/O scheduler
+	 * uses multiple queues internally, serialize per hardware queue.
+	 */
+	if (!blk_queue_sq_sched(q))
+		return &to_hctx_priv(hctx)->zwp_mutex;
+
+	/* For single queue I/O schedulers, serialize per request queue. */
+	hctx = blk_mq_map_queue_type(q, HCTX_TYPE_DEFAULT, 0);
+	return &to_hctx_priv(hctx)->zwp_mutex;
+}
+
+#define blk_mq_run_dispatch_ops_serialized(hctx, dispatch_ops)	\
+do {								\
+	struct request_queue *q = hctx->queue;			\
+	struct mutex *m = blk_mq_zwp_mutex(hctx);		\
+								\
+	if (m) {						\
+		mutex_lock(m);					\
+		blk_mq_run_dispatch_ops(q, dispatch_ops);	\
+		mutex_unlock(m);				\
+	} else {						\
+		blk_mq_run_dispatch_ops(q, dispatch_ops);	\
+	}							\
+} while (0)
 
 static inline bool blk_mq_can_poll(struct request_queue *q)
 {

@@ -262,7 +262,7 @@ int kvm_tdp_map_page(struct kvm_vcpu *vcpu, gpa_t gpa, u64 error_code, u8 *level
 
 static inline bool kvm_memslots_have_rmaps(struct kvm *kvm)
 {
-	return !tdp_mmu_enabled || kvm_shadow_root_allocated(kvm);
+	return (!tdp_mmu_enabled || kvm_shadow_root_allocated(kvm)) && !enable_pkvm;
 }
 
 static inline gfn_t gfn_to_index(gfn_t gfn, gfn_t base_gfn, int level)

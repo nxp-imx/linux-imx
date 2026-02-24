@@ -500,6 +500,7 @@
   mbox_free_channel
   mbox_request_channel
   mbox_send_message
+  mem_alloc_profiling_key
   memcpy
   memcpy_and_pad
   memcpy_fromio
@@ -2144,8 +2145,6 @@
 # required by smem.ko
   devm_hwspin_lock_request_specific
   hwspin_lock_bust
-  hwspin_lock_free
-  hwspin_lock_request_specific
   __hwspin_lock_timeout
   __hwspin_unlock
   of_hwspin_lock_get_id
@@ -2182,7 +2181,6 @@
   snd_pcm_stop_xrun
 
 # required by snd-soc-lpass-va-macro.ko
-  clk_hw_get_clk
   regcache_sync_region
   snd_soc_dapm_regulator_event
 

@@ -62,6 +62,7 @@ enum pkvm_page_state {
  * enum pkvm_owner_id - Id to indicate the page owner.
  * @PKVM_ID_HOST:	Host VM.
  * @PKVM_ID_HYP:	pKVM hypervisor.
+ * @PKVM_ID_GUEST:	(Any) guest VM.
  *
  * The owner ID is used to indicate the page owner. It is saved in the host
  * MMU non-present leaf entry.
@@ -69,6 +70,7 @@ enum pkvm_page_state {
 enum pkvm_owner_id {
 	PKVM_ID_HOST,
 	PKVM_ID_HYP,
+	PKVM_ID_GUEST,
 	PKVM_MAX_ID,
 };
 
@@ -79,5 +81,18 @@ void pkvm_hyp_donate_host(unsigned long phys, unsigned long size, bool clear);
 int pkvm_hyp_donate_host_mmio_locked(unsigned long phys, unsigned long size);
 int pkvm_host_share_hyp(unsigned long phys, unsigned long size);
 void pkvm_host_unshare_hyp(unsigned long phys, unsigned long size);
+int pkvm_host_donate_guest(struct kvm_vcpu *vcpu, unsigned long gpa,
+			   unsigned long hpa, unsigned long size);
+int pkvm_host_share_guest(struct kvm_vcpu *vcpu, unsigned long gpa,
+			  unsigned long hpa, unsigned long size,
+			  bool writable);
+int pkvm_host_unshare_guest(struct kvm *kvm, unsigned long gpa,
+			    unsigned long size);
+int pkvm_host_test_clear_young_guest(struct kvm *kvm, unsigned long gpa,
+				     unsigned long size, bool mkold);
+int pkvm_guest_share_host(struct kvm_vcpu *vcpu, unsigned long gpa,
+			  unsigned long size);
+int pkvm_guest_unshare_host(struct kvm_vcpu *vcpu, unsigned long gpa,
+			    unsigned long size);
 
 #endif /* __PKVM_X86_MEM_PROTECT_H */

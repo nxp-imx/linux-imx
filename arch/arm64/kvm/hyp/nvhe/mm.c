@@ -87,7 +87,8 @@ int pkvm_alloc_private_va_range(size_t size, unsigned long *haddr)
 	ret = __pkvm_alloc_private_va_range(addr, size);
 	hyp_spin_unlock(&pkvm_pgd_lock);
 
-	*haddr = addr;
+	if (!ret)
+		*haddr = addr;
 
 	return ret;
 }

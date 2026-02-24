@@ -254,6 +254,14 @@
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_kmalloc_slab
   __traceiter_android_vh_map_util_freq
+  __traceiter_android_vh_mutex_lock_acquired
+  __traceiter_android_vh_mutex_lock_released
+  __traceiter_android_vh_rtmutex_lock_acquired
+  __traceiter_android_vh_rtmutex_lock_released
+  __traceiter_android_vh_rwsem_lock_acquired
+  __traceiter_android_vh_rwsem_lock_released
+  __traceiter_android_vh_pcpu_rwsem_lock_acquired
+  __traceiter_android_vh_pcpu_rwsem_lock_released
   __traceiter_android_vh_mutex_can_spin_on_owner
   __traceiter_android_vh_mutex_opt_spin_finish
   __traceiter_android_vh_mutex_opt_spin_start
@@ -295,6 +303,18 @@
   __traceiter_sched_stat_wait
   __traceiter_sched_waking
   __traceiter_task_rename
+  __traceiter_android_vh_rmqueue_pcplist_override_batch
+  __traceiter_android_vh_tune_inactive_ratio
+  __traceiter_android_vh_shrink_node
+  __traceiter_android_vh_save_vmalloc_stack
+  __traceiter_android_vh_show_stack_hash
+  __traceiter_android_vh_calc_alloc_flags
+  __tracepoint_android_vh_rmqueue_pcplist_override_batch
+  __tracepoint_android_vh_tune_inactive_ratio
+  __tracepoint_android_vh_shrink_node
+  __tracepoint_android_vh_save_vmalloc_stack
+  __tracepoint_android_vh_show_stack_hash
+  __tracepoint_android_vh_calc_alloc_flags
   __tracepoint_android_rvh_alloc_workqueue
   __tracepoint_android_rvh_sched_fork
   __tracepoint_android_rvh_set_balance_anon_file_reclaim
@@ -334,6 +354,14 @@
   __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_kmalloc_slab
   __tracepoint_android_vh_map_util_freq
+  __tracepoint_android_vh_mutex_lock_acquired
+  __tracepoint_android_vh_mutex_lock_released
+  __tracepoint_android_vh_rtmutex_lock_acquired
+  __tracepoint_android_vh_rtmutex_lock_released
+  __tracepoint_android_vh_rwsem_lock_acquired
+  __tracepoint_android_vh_rwsem_lock_released
+  __tracepoint_android_vh_pcpu_rwsem_lock_acquired
+  __tracepoint_android_vh_pcpu_rwsem_lock_released
   __tracepoint_android_vh_mutex_can_spin_on_owner
   __tracepoint_android_vh_mutex_opt_spin_finish
   __tracepoint_android_vh_mutex_opt_spin_start
@@ -424,3 +452,43 @@
   wrap_directory_iterator
   xt_register_match
   xt_unregister_match
+  __traceiter_android_vh_lru_gen_add_folio_skip
+  __traceiter_android_vh_lru_gen_del_folio_skip
+  __traceiter_android_vh_evict_folios_bypass
+  __traceiter_android_vh_keep_reclaimed_folio
+  __traceiter_android_vh_clear_reclaimed_folio
+  __traceiter_android_vh_filemap_pages
+  __traceiter_android_rvh_kswapd_shrink_node
+  __traceiter_android_rvh_perform_reclaim
+  __traceiter_android_vh_mglru_should_abort_scan_ex
+  __tracepoint_android_vh_lru_gen_add_folio_skip
+  __tracepoint_android_vh_lru_gen_del_folio_skip
+  __tracepoint_android_vh_evict_folios_bypass
+  __tracepoint_android_vh_keep_reclaimed_folio
+  __tracepoint_android_vh_clear_reclaimed_folio
+  __tracepoint_android_vh_filemap_pages
+  __tracepoint_android_rvh_kswapd_shrink_node
+  __tracepoint_android_rvh_perform_reclaim
+  __tracepoint_android_vh_mglru_should_abort_scan_ex
+  timer_init_key
+  alloc_workqueue_noprof
+  alloc_workqueue_attrs_noprof
+  apply_workqueue_attrs_locked
+  debugfs_create_file_unsafe
+  free_workqueue_attrs
+  inode_just_drop
+  hrtimer_setup
+  hrtimer_setup_on_stack
+  lookup_noperm
+  lookup_noperm_positive_unlocked
+  tcp_hashinfo
+  udp_table
+  devm_power_supply_get_by_reference
+  elevator_alloc
+  __msi_lock_descs
+  __msi_unlock_descs
+  krealloc_node_align_noprof
+  rtnl_link_register
+  rtnl_link_unregister
+  snd_soc_unregister_component_by_driver
+  kthread_create_worker_on_node

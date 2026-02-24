@@ -3,38 +3,72 @@
   bdev_fput
   __brelse
   class_find_device
+  _copy_from_iter
   end_buffer_read_sync
   end_buffer_write_sync
+  gnet_stats_add_queue
+  gnet_stats_copy_basic
+  gnet_stats_copy_queue
   kern_path
   __lock_buffer
   mipi_dsi_dcs_write
+  __neigh_create
+  netdev_is_rx_handler_busy
+  noop_qdisc
   path_put
+  pfifo_qdisc_ops
+  pfn_to_online_page
   proc_create_single_data
   profile_event_register
-  pfn_to_online_page
   put_device
+  __qdisc_calculate_pkt_len
+  qdisc_create_dflt
+  qdisc_hash_add
+  qdisc_offload_dump_helper
+  qdisc_offload_graft_helper
+  qdisc_put
+  qdisc_reset
+  qdisc_tree_reduce_backlog
   regulator_get_drvdata
   remove_proc_entry
   set_blocksize
+  skb_copy_bits
+  skb_orphan_partial
   submit_bh
+  tcf_block_get
+  tcf_block_put
+  tcf_classify
+  __traceiter_android_rvh_alloc_pages_reclaim_cycle_end
+  __traceiter_android_rvh_alloc_pages_reclaim_start
+  __traceiter_android_rvh_bpf_skb_load_bytes
   __traceiter_android_rvh_cpufreq_transition
   __traceiter_android_rvh_dequeue_task_fair
   __traceiter_android_rvh_enqueue_task_fair
+  __traceiter_android_rvh_inet_sock_create
+  __traceiter_android_rvh_inet_sock_release
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_set_user_nice
+  __traceiter_android_rvh_tcp_rcv_spurious_retrans
+  __traceiter_android_rvh_tcp_recvmsg
+  __traceiter_android_rvh_tcp_select_window
+  __traceiter_android_rvh_tcp_sendmsg
   __traceiter_android_rvh_try_to_wake_up
-  __traceiter_android_rvh_alloc_pages_reclaim_start
-  __traceiter_android_rvh_alloc_pages_reclaim_cycle_end
-  __traceiter_android_vh_throttle_direct_reclaim_bypass
+  __traceiter_android_rvh_udp_recvmsg
+  __traceiter_android_rvh_udp_sendmsg
+  __traceiter_android_rvh_udpv6_recvmsg
+  __traceiter_android_rvh_udpv6_sendmsg
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_binder_wait_for_work
+  __traceiter_android_vh_build_skb_around
   __traceiter_android_vh_cgroup_attach
   __traceiter_android_vh_check_nanosleep_syscall
   __traceiter_android_vh_do_send_sig_info
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_free_task
+  __traceiter_android_vh_free_unref_folios_to_pcp_bypass
+  __traceiter_android_vh_mmap_region
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_wait_finish
   __traceiter_android_vh_mutex_wait_start
@@ -46,30 +80,52 @@
   __traceiter_android_vh_rwsem_write_wait_finish
   __traceiter_android_vh_rwsem_write_wait_start
   __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_shrink_node_memcgs
+  __traceiter_android_vh_sk_alloc
+  __traceiter_android_vh_sk_clone_lock
+  __traceiter_android_vh_sk_free
+  __traceiter_android_vh_swap_writepage
   __traceiter_android_vh_sync_txn_recvd
+  __traceiter_android_vh_tcp_rtt_estimator
+  __traceiter_android_vh_throttle_direct_reclaim_bypass
+  __traceiter_android_vh_try_to_unmap_one
+  __traceiter_android_vh_udp_enqueue_schedule_skb
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
+  __traceiter_tcp_retransmit_skb
   __traceiter_workqueue_execute_end
   __traceiter_workqueue_execute_start
-  __traceiter_android_vh_free_unref_folios_to_pcp_bypass
+  __tracepoint_android_rvh_alloc_pages_reclaim_cycle_end
+  __tracepoint_android_rvh_alloc_pages_reclaim_start
+  __tracepoint_android_rvh_bpf_skb_load_bytes
   __tracepoint_android_rvh_cpufreq_transition
   __tracepoint_android_rvh_dequeue_task_fair
   __tracepoint_android_rvh_enqueue_task_fair
+  __tracepoint_android_rvh_inet_sock_create
+  __tracepoint_android_rvh_inet_sock_release
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_set_user_nice
+  __tracepoint_android_rvh_tcp_rcv_spurious_retrans
+  __tracepoint_android_rvh_tcp_recvmsg
+  __tracepoint_android_rvh_tcp_select_window
+  __tracepoint_android_rvh_tcp_sendmsg
   __tracepoint_android_rvh_try_to_wake_up
-  __tracepoint_android_rvh_alloc_pages_reclaim_start
-  __tracepoint_android_rvh_alloc_pages_reclaim_cycle_end
-  __tracepoint_android_vh_throttle_direct_reclaim_bypass
+  __tracepoint_android_rvh_udp_recvmsg
+  __tracepoint_android_rvh_udp_sendmsg
+  __tracepoint_android_rvh_udpv6_recvmsg
+  __tracepoint_android_rvh_udpv6_sendmsg
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_wait_for_work
+  __tracepoint_android_vh_build_skb_around
   __tracepoint_android_vh_cgroup_attach
   __tracepoint_android_vh_check_nanosleep_syscall
   __tracepoint_android_vh_do_send_sig_info
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_free_task
+  __tracepoint_android_vh_free_unref_folios_to_pcp_bypass
+  __tracepoint_android_vh_mmap_region
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_wait_finish
   __tracepoint_android_vh_mutex_wait_start
@@ -81,38 +137,21 @@
   __tracepoint_android_vh_rwsem_write_wait_finish
   __tracepoint_android_vh_rwsem_write_wait_start
   __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_shrink_node_memcgs
+  __tracepoint_android_vh_sk_alloc
+  __tracepoint_android_vh_sk_clone_lock
+  __tracepoint_android_vh_sk_free
+  __tracepoint_android_vh_swap_writepage
   __tracepoint_android_vh_sync_txn_recvd
+  __tracepoint_android_vh_tcp_rtt_estimator
+  __tracepoint_android_vh_throttle_direct_reclaim_bypass
+  __tracepoint_android_vh_try_to_unmap_one
+  __tracepoint_android_vh_udp_enqueue_schedule_skb
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
+  __tracepoint_tcp_retransmit_skb
   __tracepoint_workqueue_execute_end
   __tracepoint_workqueue_execute_start
-  __tracepoint_android_vh_free_unref_folios_to_pcp_bypass
   ucsi_send_command
   unlock_buffer
   __wait_on_buffer
-  __traceiter_android_rvh_tcp_sendmsg
-  __traceiter_android_rvh_tcp_recvmsg
-  __traceiter_android_rvh_udp_sendmsg
-  __traceiter_android_rvh_udp_recvmsg
-  __traceiter_android_rvh_udpv6_sendmsg
-  __traceiter_android_rvh_udpv6_recvmsg
-  __tracepoint_android_rvh_tcp_sendmsg
-  __tracepoint_android_rvh_tcp_recvmsg
-  __tracepoint_android_rvh_udp_sendmsg
-  __tracepoint_android_rvh_udp_recvmsg
-  __tracepoint_android_rvh_udpv6_sendmsg
-  __tracepoint_android_rvh_udpv6_recvmsg
-  __traceiter_android_rvh_tcp_select_window
-  __traceiter_android_rvh_inet_sock_create
-  __traceiter_android_rvh_inet_sock_release
-  __traceiter_android_vh_tcp_rtt_estimator
-  __traceiter_android_vh_udp_enqueue_schedule_skb
-  __traceiter_android_vh_build_skb_around
-  __tracepoint_android_rvh_tcp_select_window
-  __tracepoint_android_rvh_inet_sock_create
-  __tracepoint_android_rvh_inet_sock_release
-  __tracepoint_android_vh_tcp_rtt_estimator
-  __tracepoint_android_vh_udp_enqueue_schedule_skb
-  __tracepoint_android_vh_build_skb_around
-  __traceiter_android_rvh_bpf_skb_load_bytes
-  __tracepoint_android_rvh_bpf_skb_load_bytes

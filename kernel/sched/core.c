@@ -138,7 +138,7 @@ EXPORT_SYMBOL_GPL(runqueues);
 DEFINE_PER_CPU(struct rnd_state, sched_rnd_state);
 
 #ifdef CONFIG_SCHED_PROXY_EXEC
-DEFINE_STATIC_KEY_FALSE(__sched_proxy_exec);
+DEFINE_STATIC_KEY_TRUE(__sched_proxy_exec);
 static int __init setup_proxy_exec(char *str)
 {
 	bool proxy_enable = true;
@@ -227,6 +227,7 @@ static inline struct task_struct *task_blocked_on_owner(struct task_struct *p)
 {
        return __blocked_on_owner(&p->blocked_on);
 }
+EXPORT_SYMBOL_GPL(__sched_proxy_exec);
 #else
 static int __init setup_proxy_exec(char *str)
 {

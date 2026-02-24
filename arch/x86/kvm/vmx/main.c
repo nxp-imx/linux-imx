@@ -886,8 +886,9 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.vcpu_free = vt_op(vcpu_free),
 	.vcpu_reset = vt_op(vcpu_reset),
 
-#ifndef __PKVM_HYP__
 	.prepare_switch_to_guest = vt_op(prepare_switch_to_guest),
+#ifdef __PKVM_HYP__
+	.prepare_switch_to_host = pkvm_vmx_prepare_switch_to_host,
 #endif
 	.vcpu_load = vt_op(vcpu_load),
 	.vcpu_put = vt_op(vcpu_put),
@@ -932,9 +933,11 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 #ifndef __PKVM_HYP__
 	.vcpu_pre_run = vt_op(vcpu_pre_run),
+#endif
 	.vcpu_run = vt_op(vcpu_run),
 	.handle_exit = vt_op(handle_exit),
 	.skip_emulated_instruction = vmx_skip_emulated_instruction,
+#ifndef __PKVM_HYP__
 	.update_emulated_instruction = vmx_update_emulated_instruction,
 #endif
 	.set_interrupt_shadow = vt_op(set_interrupt_shadow),
@@ -975,17 +978,19 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 	.set_tss_addr = vt_op(set_tss_addr),
 	.set_identity_map_addr = vt_op(set_identity_map_addr),
+#endif
 	.get_mt_mask = vmx_get_mt_mask,
 
+#ifndef __PKVM_HYP__
 	.get_exit_info = vt_op(get_exit_info),
 	.get_entry_info = vt_op(get_entry_info),
 #endif
 
 	.vcpu_after_set_cpuid = vt_op(vcpu_after_set_cpuid),
 
-#ifndef __PKVM_HYP__
 	.has_wbinvd_exit = cpu_has_vmx_wbinvd_exit,
 
+#ifndef __PKVM_HYP__
 	.get_l2_tsc_offset = vt_op(get_l2_tsc_offset),
 	.get_l2_tsc_multiplier = vt_op(get_l2_tsc_multiplier),
 #endif
@@ -996,8 +1001,10 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 
 #ifndef __PKVM_HYP__
 	.check_intercept = vmx_check_intercept,
+#endif
 	.handle_exit_irqoff = vmx_handle_exit_irqoff,
 
+#ifndef __PKVM_HYP__
 	.update_cpu_dirty_logging = vt_op(update_cpu_dirty_logging),
 
 	.nested_ops = &vmx_nested_ops,
@@ -1024,10 +1031,12 @@ struct kvm_x86_ops vt_x86_ops __initdata = {
 	.check_emulate_instruction = vt_op(check_emulate_instruction),
 	.apic_init_signal_blocked = vt_op(apic_init_signal_blocked),
 	.migrate_timers = vmx_migrate_timers,
+#endif
 
 	.recalc_intercepts = vt_op(recalc_intercepts),
 	.complete_emulated_msr = vt_op(complete_emulated_msr),
 
+#ifndef __PKVM_HYP__
 	.vcpu_deliver_sipi_vector = kvm_vcpu_deliver_sipi_vector,
 
 	.get_untagged_addr = vmx_get_untagged_addr,

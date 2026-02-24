@@ -175,6 +175,9 @@ static int kvm_enable_external_write_tracking(struct kvm *kvm)
 	if (kvm->arch.vm_type == KVM_X86_TDX_VM)
 		return -EOPNOTSUPP;
 
+	if (enable_pkvm)
+		return -EOPNOTSUPP;
+
 	mutex_lock(&kvm->slots_arch_lock);
 
 	/*

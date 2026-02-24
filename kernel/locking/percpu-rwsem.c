@@ -13,6 +13,25 @@
 
 #include <trace/hooks/dtask.h>
 
+/*
+ * trace_android_vh_pcpu_rwsem_lock_acquired(released) is called in
+ * include/linux/percpu-rwsem.h by including include/hooks/dtask.h, which
+ * will result to build-err. So we create func:
+ * _trace_android_vh_pcpu_rwsem_lock_acquired(released)
+ * for percpu-rwsem.h to call.
+ */
+void _trace_android_vh_pcpu_rwsem_lock_acquired(struct percpu_rw_semaphore *sem)
+{
+	trace_android_vh_pcpu_rwsem_lock_acquired(sem);
+}
+EXPORT_SYMBOL_GPL(_trace_android_vh_pcpu_rwsem_lock_acquired);
+
+void _trace_android_vh_pcpu_rwsem_lock_released(struct percpu_rw_semaphore *sem)
+{
+	trace_android_vh_pcpu_rwsem_lock_released(sem);
+}
+EXPORT_SYMBOL_GPL(_trace_android_vh_pcpu_rwsem_lock_released);
+
 int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 			const char *name, struct lock_class_key *key)
 {
@@ -259,6 +278,7 @@ void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 	rcuwait_wait_event(&sem->writer, readers_active_check(sem), TASK_UNINTERRUPTIBLE);
 	if (contended)
 		trace_contention_end(sem, 0);
+	trace_android_vh_pcpu_rwsem_lock_acquired(sem);
 }
 EXPORT_SYMBOL_GPL(percpu_down_write);
 
@@ -289,5 +309,6 @@ void percpu_up_write(struct percpu_rw_semaphore *sem)
 	 * exclusive write lock because its counting.
 	 */
 	rcu_sync_exit(&sem->rss);
+	trace_android_vh_pcpu_rwsem_lock_released(sem);
 }
 EXPORT_SYMBOL_GPL(percpu_up_write);

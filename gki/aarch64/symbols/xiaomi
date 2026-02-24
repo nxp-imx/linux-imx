@@ -31,6 +31,7 @@
   reuseport_alloc
   reuseport_detach_sock
   reuseport_select_sock
+  cgroup_rm_cftypes
   __traceiter_android_vh_remove_mapping
   __traceiter_android_vh_remove_mapping_failed
   __traceiter_android_vh_filemap_get_folio_end

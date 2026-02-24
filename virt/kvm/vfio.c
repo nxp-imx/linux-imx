@@ -45,6 +45,14 @@ struct kvm_pviommu {
 
 static void kvm_vfio_file_set_kvm(struct file *file, struct kvm *kvm)
 {
+	/*
+	 * These symbols can't be added to KMI, as it pulls a lot of internal kernel structs
+	 * to the KMI which is impractical to track. Instead, for Android kernels both VFIO and
+	 * KVM are built-in and not modules, so they can directly call each other in that case.
+	 */
+#if IS_BUILTIN(CONFIG_VFIO)
+	vfio_file_set_kvm(file, kvm);
+#else
 	void (*fn)(struct file *file, struct kvm *kvm);
 
 	fn = symbol_get(vfio_file_set_kvm);
@@ -54,6 +62,7 @@ static void kvm_vfio_file_set_kvm(struct file *file, struct kvm *kvm)
 	fn(file, kvm);
 
 	symbol_put(vfio_file_set_kvm);
+#endif
 }
 
 static bool kvm_vfio_file_enforced_coherent(struct file *file)
@@ -74,6 +83,10 @@ static bool kvm_vfio_file_enforced_coherent(struct file *file)
 
 static bool kvm_vfio_file_is_valid(struct file *file)
 {
+	/* See kvm_vfio_file_set_kvm() */
+#if IS_BUILTIN(CONFIG_VFIO)
+	return vfio_file_is_valid(file);
+#else
 	bool (*fn)(struct file *file);
 	bool ret;
 
@@ -86,10 +99,15 @@ static bool kvm_vfio_file_is_valid(struct file *file)
 	symbol_put(vfio_file_is_valid);
 
 	return ret;
+#endif
 }
 
 static struct device *kvm_vfio_file_get_device(struct file *file)
 {
+	/* See kvm_vfio_file_set_kvm() */
+#if IS_BUILTIN(CONFIG_VFIO)
+	return vfio_file_get_device(file);
+#else
 	struct device *(*fn)(struct file *file);
 	struct device *dev;
 
@@ -102,10 +120,15 @@ static struct device *kvm_vfio_file_get_device(struct file *file)
 	symbol_put(vfio_file_get_device);
 
 	return dev;
+#endif
 }
 
 static struct iommu_group *kvm_vfio_file_iommu_group(struct file *file)
 {
+	/* See kvm_vfio_file_set_kvm() */
+#if IS_BUILTIN(CONFIG_VFIO)
+	return vfio_file_iommu_group(file);
+#else
 	struct iommu_group *(*fn)(struct file *file);
 	struct iommu_group *ret;
 
@@ -118,6 +141,7 @@ static struct iommu_group *kvm_vfio_file_iommu_group(struct file *file)
 	symbol_put(vfio_file_iommu_group);
 
 	return ret;
+#endif
 }
 
 #ifdef CONFIG_SPAPR_TCE_IOMMU

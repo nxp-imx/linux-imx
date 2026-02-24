@@ -698,6 +698,11 @@ enum ufshcd_quirks {
 	UFSHCD_QUIRK_PERFORM_LINK_STARTUP_ONCE		= 1 << 26,
 };
 
+enum ufshcd_android_quirks {
+	/* Set IID to one. */
+	UFSHCD_ANDROID_QUIRK_SET_IID_TO_ONE		= 1 << 30,
+};
+
 enum ufshcd_caps {
 	/* Allow dynamic clk gating */
 	UFSHCD_CAP_CLK_GATING				= 1 << 0,
@@ -860,6 +865,7 @@ enum ufshcd_mcq_opr {
  * @is_irq_enabled: whether or not the UFS controller interrupt is enabled.
  * @dev_ref_clk_freq: reference clock frequency
  * @quirks: bitmask with information about deviations from the UFSHCI standard.
+ * @android_quirks: Android-specific deviations from the UFSHCI standard.
  * @dev_quirks: bitmask with information about deviations from the UFS standard.
  * @tmf_tag_set: TMF tag set.
  * @tmf_queue: Used to allocate TMF tags.
@@ -1008,6 +1014,8 @@ struct ufs_hba {
 	enum ufs_ref_clk_freq dev_ref_clk_freq;
 
 	unsigned int quirks;	/* Deviations from standard UFSHCI spec. */
+
+	unsigned int android_quirks;
 
 	/* Device deviations from standard UFS device spec. */
 	unsigned int dev_quirks;

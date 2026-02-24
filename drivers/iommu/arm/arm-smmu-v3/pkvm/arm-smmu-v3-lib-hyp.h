@@ -59,5 +59,6 @@ void smmu_reclaim_pages(u64 phys, size_t size);
 int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 		 struct arm_smmu_cmdq_ent *ent);
 int smmu_sync_cmd(struct hyp_arm_smmu_v3_device *smmu);
+bool smmu_cmdq_has_space(struct arm_smmu_queue *cmdq, u32 n);
 
 #endif

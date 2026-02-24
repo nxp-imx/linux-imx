@@ -28,6 +28,7 @@
 #include <linux/sched/vhost_task.h>
 #include <linux/call_once.h>
 #include <linux/atomic.h>
+#include <linux/interval_tree_generic.h>
 
 #include <asm/apic.h>
 #include <asm/pvclock-abi.h>
@@ -788,6 +789,8 @@ struct pkvm_memcache {
 		u64 nr_pages;
 	} head;
 	unsigned long count;
+#define PKVM_MC_ACCOUNT_PGTABLE_PAGES	BIT(1)
+	unsigned long flags;
 };
 
 static inline void push_pkvm_memcache(struct pkvm_memcache *mc,
@@ -829,20 +832,113 @@ pop_pkvm_memcache(struct pkvm_memcache *mc, void *(*to_va)(phys_addr_t phys))
 	return head;
 }
 
+static inline void push_pkvm_memcache_page(struct pkvm_memcache *mc,
+					   void *addr,
+					   phys_addr_t (*to_pa)(void *virt))
+{
+	push_pkvm_memcache(mc, addr, PAGE_SIZE, to_pa);
+}
+
+/* For memcaches containing single-page ranges only. */
+static inline void *pop_pkvm_memcache_page(struct pkvm_memcache *mc,
+					   void *(*to_va)(phys_addr_t phys))
+{
+	if (!mc->count)
+		return NULL;
+
+	if (WARN_ON_ONCE(mc->head.nr_pages != 1))
+		return NULL;
+
+	return to_va(pop_pkvm_memcache(mc, to_va).addr);
+}
+
+/* For memcaches containing single-page ranges only. */
+static inline int topup_pkvm_memcache(struct pkvm_memcache *mc,
+				      unsigned long min_pages,
+				      void *(*alloc_pg)(void *arg),
+				      phys_addr_t (*to_pa)(void *virt),
+				      void *arg)
+{
+	while (mc->count < min_pages) {
+		void *p = alloc_pg(arg);
+
+		if (!p)
+			return -ENOMEM;
+
+		push_pkvm_memcache_page(mc, p, to_pa);
+	}
+
+	return 0;
+}
+
 static inline void free_pkvm_memcache(struct pkvm_memcache *mc,
-				      void (*free)(struct pkvm_page_range range),
-				      void *(*to_va)(phys_addr_t phys))
+				      void (*free)(struct pkvm_page_range range,
+						   void *arg),
+				      void *(*to_va)(phys_addr_t phys),
+				      void *arg)
 {
 	while (mc->count)
-		free(pop_pkvm_memcache(mc, to_va));
+		free(pop_pkvm_memcache(mc, to_va), arg);
 }
+
+static inline void init_pkvm_mmu_memcache(struct pkvm_memcache *mc)
+{
+	memset(mc, 0, sizeof(*mc));
+	mc->flags = PKVM_MC_ACCOUNT_PGTABLE_PAGES;
+}
+
+struct pkvm_mapping {
+	struct rb_node node;
+	gfn_t gfn;
+	kvm_pfn_t pfn;
+	gfn_t nr_pages;
+	gfn_t __subtree_last;	/* Internal member for interval tree */
+
+	struct page *pinned_page;
+};
+
+void pkvm_mapping_insert(struct pkvm_mapping *node,
+			 struct rb_root_cached *root);
+void pkvm_mapping_remove(struct pkvm_mapping *node,
+			 struct rb_root_cached *root);
+struct pkvm_mapping *pkvm_mapping_iter_first(struct rb_root_cached *root,
+					     gfn_t start, gfn_t last);
+struct pkvm_mapping *pkvm_mapping_iter_next(struct pkvm_mapping *node,
+					    gfn_t start, gfn_t last);
+
+/*
+ * Iterates the interval tree safely, allowing removing __map node from it
+ * while iterating.
+ * Caution: __start and __end are evaluated multiple times.
+ */
+#define for_each_pkvm_mapping(__kvm, __start, __end, __map)					\
+	for (struct pkvm_mapping *__tmp = pkvm_mapping_iter_first(&(__kvm)->arch.pkvm.mappings,	\
+								  (__start), (__end) - 1);	\
+	     __tmp && ({									\
+				__map = __tmp;							\
+				__tmp = pkvm_mapping_iter_next(__map, (__start), (__end) - 1);	\
+				true;								\
+		       });									\
+	    )
+
+#define PKVM_HOST_VM_HANDLE	INT_MAX
 
 struct kvm_pkvm_vm {
 	int handle;
+	struct pkvm_memcache guest_mmu_teardown_mc;
+	struct rb_root_cached mappings;
+
+	gpa_t pvmfw_load_addr;
+	bool finalized;
+	struct mutex finalized_lock;
 };
 
 struct kvm_pkvm_vcpu {
 	int handle;
+	struct pkvm_memcache guest_mmu_memcache;
+
+	/* Used for passing additional parameters in requests from pKVM to host */
+	u64 req_param;
 };
 #endif /* CONFIG_PKVM_X86 */
 
@@ -1809,6 +1905,7 @@ struct kvm_x86_ops {
 	void (*vcpu_reset)(struct kvm_vcpu *vcpu, bool init_event);
 
 	void (*prepare_switch_to_guest)(struct kvm_vcpu *vcpu);
+	void (*prepare_switch_to_host)(struct kvm_vcpu *vcpu);
 	void (*vcpu_load)(struct kvm_vcpu *vcpu, int cpu);
 	void (*vcpu_put)(struct kvm_vcpu *vcpu);
 
@@ -2067,12 +2164,21 @@ extern struct kvm_x86_ops kvm_x86_ops;
 extern bool __read_mostly enable_pkvm;	/* kernel command-line flag */
 extern phys_addr_t pkvm_mem_base;
 extern phys_addr_t pkvm_mem_size;
+extern bool pvmfw_present;
+extern phys_addr_t pvmfw_base;
+extern phys_addr_t pvmfw_size;
 void __init pkvm_reserve(void);
 void pkvm_init_debugfs(void);
+void pkvm_create_vm_debugfs(struct kvm *kvm);
+int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap);
+int kvm_topup_pkvm_memcache(struct pkvm_memcache *mc, unsigned long min_pages);
 void kvm_free_pkvm_memcache(struct pkvm_memcache *mc);
 #else
 #define enable_pkvm		false
 static inline void __init pkvm_reserve(void) {}
+static inline void pkvm_create_vm_debugfs(struct kvm *kvm) {}
+static inline int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
+{ return -EINVAL; }
 #endif
 
 #ifdef __PKVM_HYP__

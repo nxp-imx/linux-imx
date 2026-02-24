@@ -8,6 +8,7 @@
 #include <asm/module.h>
 
 #include <nvhe/alloc.h>
+#include <nvhe/arm-smccc.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
@@ -345,6 +346,8 @@ const struct pkvm_module_ops module_ops = {
 	.register_guest_trng_ops = __register_guest_trng_ops,
 	.guest_accept_module_prot_page = __pkvm_accept_module_prot_page,
 	.register_guest_accept_module_owned_handler = __register_guest_accept_module_owned_handler,
+	.arm_smccc_1_2_smc = nvhe_arm_smccc_1_2_smc,
+	.request_hyp_alloc = kvm_iommu_request_hyp_alloc,
 };
 
 static void *pkvm_module_hyp_va(struct pkvm_el2_module *mod, void *kern_va)

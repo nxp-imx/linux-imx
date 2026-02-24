@@ -7,9 +7,10 @@
 
 #define PGTABLE_WALK_DONE      1
 
-static void *pgtable_alloc_page(const struct pkvm_pgtable_mm_ops *mm_ops)
+static void *pgtable_alloc_page(const struct pkvm_pgtable_mm_ops *mm_ops,
+				struct pkvm_memcache *mc)
 {
-	return mm_ops->zalloc_page();
+	return mm_ops->zalloc_page(mc);
 }
 
 static bool leaf_in_addr_range(unsigned long leaf_size,
@@ -29,6 +30,7 @@ struct pgt_map_data {
 	unsigned long phys;
 	u64 prot;
 	u64 annotation;
+	struct pkvm_memcache *memcache;
 };
 
 static bool leaf_mapping_changed(struct pkvm_pgtable_visit_ctx *ctx,
@@ -224,7 +226,7 @@ static int __map_walker(struct pkvm_pgtable_visit_ctx *ctx,
 	 * The mapping needs be done at the next level or even smaller.
 	 * Allocate a new page as the next level page table page.
 	 */
-	page = pgtable_alloc_page(mm_ops);
+	page = pgtable_alloc_page(mm_ops, data->memcache);
 	if (!page)
 		return -ENOMEM;
 
@@ -386,7 +388,7 @@ static int unmap_walker(struct pkvm_pgtable_visit_ctx *ctx, unsigned long walk_f
 	if (pgt_ops->pte_huge(ptep) || pgt_ops->pte_annotated(ptep)) {
 		void *page;
 
-		page = pgtable_alloc_page(mm_ops);
+		page = pgtable_alloc_page(mm_ops, NULL);
 		if (!page)
 			return -ENOMEM;
 
@@ -396,6 +398,30 @@ static int unmap_walker(struct pkvm_pgtable_visit_ctx *ctx, unsigned long walk_f
 	} else {
 		/* Not a huge entry means it is a table entry */
 		pgtable_free_child(ctx);
+	}
+
+	return 0;
+}
+
+static int free_walker(struct pkvm_pgtable_visit_ctx *ctx, unsigned long walk_flags,
+		       void *const arg)
+{
+	const struct pkvm_pgtable_mm_ops *mm_ops = ctx->pgt->mm_ops;
+	const struct pkvm_pgtable_ops *pgt_ops = ctx->pgt->pgt_ops;
+	void *child, *ptep = ctx->ptep;
+
+	if (!pgt_ops->pte_present(ptep) && !pgt_ops->pte_annotated(ptep))
+		return 0;
+
+	mm_ops->put_page(ptep);
+
+	if (!pgt_ops->pte_is_leaf(ptep, ctx->level)) {
+		BUG_ON(!pgt_ops->pte_present(ptep));
+
+		child = __pkvm_va(pgt_ops->pte_to_phys(ptep));
+		BUG_ON(mm_ops->page_count(child) != 1);
+
+		mm_ops->put_page(child);
 	}
 
 	return 0;
@@ -426,6 +452,71 @@ static int lookup_walker(struct pkvm_pgtable_visit_ctx *ctx, unsigned long walk_
 	}
 
 	return PGTABLE_WALK_DONE;
+}
+
+struct pgt_lookup_range_data {
+	unsigned long vaddr, vaddr_end;
+	unsigned long start, end;
+	unsigned long phys;
+	u64 prot;
+};
+
+static int lookup_range_walker(struct pkvm_pgtable_visit_ctx *ctx,
+			       unsigned long walk_flags,
+			       void *const arg)
+{
+	const struct pkvm_pgtable_ops *pgt_ops = ctx->pgt->pgt_ops;
+	struct pgt_lookup_range_data *data = arg;
+	u64 pte = pgt_ops->pte_get(ctx->ptep);
+
+	if (pgt_ops->pte_present(&pte)) {
+		unsigned long size = pgt_ops->level_to_size(ctx->level);
+		unsigned long phys = pgt_ops->pte_to_phys(&pte);
+		u64 prot = pgt_ops->pte_to_prot(&pte);
+
+		if (data->start == INVALID_PAGE) {
+			unsigned long offset;
+
+			data->start = max(ctx->addr, data->vaddr);
+			offset = data->start & ~pgt_ops->level_to_mask(ctx->level);
+
+			data->end = min(data->start + (size - offset),
+					data->vaddr_end);
+			data->phys = phys + offset;
+			data->prot = prot;
+		} else if (phys == data->phys + (data->end - data->start) &&
+			   prot == data->prot) {
+			data->end = min(ctx->addr + size, data->vaddr_end);
+		} else {
+			return PGTABLE_WALK_DONE;
+		}
+	} else if (data->start != INVALID_PAGE) {
+		return PGTABLE_WALK_DONE;
+	}
+
+	return 0;
+}
+
+struct pgt_age_data {
+	bool mkold;
+	bool young;
+};
+
+static int age_walker(struct pkvm_pgtable_visit_ctx *ctx, unsigned long walk_flags,
+		      void *const arg)
+{
+	const struct pkvm_pgtable_ops *pgt_ops = ctx->pgt->pgt_ops;
+	struct pgt_age_data *data = arg;
+	void *ptep = ctx->ptep;
+
+	if (!pgt_ops->pte_present(ptep) || !pgt_ops->pte_young(ptep))
+		return 0;
+
+	data->young = true;
+	if (data->mkold)
+		pgt_ops->pte_mkold(ptep);
+
+	return 0;
 }
 
 struct pgt_walk_data {
@@ -533,7 +624,7 @@ int pkvm_pgtable_init(struct pkvm_pgtable *pgt,
 	if (!pgt || !mm_ops || !pgt_ops)
 		return -EINVAL;
 
-	root = pgtable_alloc_page(mm_ops);
+	root = pgtable_alloc_page(mm_ops, NULL);
 	if (!root)
 		return -ENOMEM;
 
@@ -613,6 +704,7 @@ int pkvm_pgtable_walk(struct pkvm_pgtable *pgt, unsigned long vaddr,
  * @phys:	The physical address to map.
  * @size:	The memory size to map.
  * @prot:	The property bits to create the mapping.
+ * @mc:		Optional memcache for allocating page table pages.
  *
  * The mapped range is the minimum PAGE_SIZE-aligned range covering
  * [@vaddr, @vaddr + @size), and @phys is aligned down to the PAGE_SIZE.
@@ -627,11 +719,13 @@ int pkvm_pgtable_walk(struct pkvm_pgtable *pgt, unsigned long vaddr,
  * Return: 0 on success, negative error code on failure.
  */
 int pkvm_pgtable_map(struct pkvm_pgtable *pgt, unsigned long vaddr,
-		     unsigned long phys, unsigned long size, u64 prot)
+		     unsigned long phys, unsigned long size, u64 prot,
+		     struct pkvm_memcache *mc)
 {
 	struct pgt_map_data data = {
 		.prot = prot,
 		.annotation = 0,
+		.memcache = mc,
 	};
 	struct pkvm_pgtable_walker walker = {
 		.cb = map_walker,
@@ -766,4 +860,109 @@ void pkvm_pgtable_lookup(struct pkvm_pgtable *pgt, unsigned long vaddr,
 		*prot = data.prot;
 	if (level)
 		*level = data.level;
+}
+
+/*
+ * pkvm_pgtable_lookup_range() - Lookup the first contiguously mapped sub-range
+ *				 within the given virtual address range.
+ * @pgt:		The page table to lookup.
+ * @vaddr:		The start address of virtual address range.
+ * @size:		The size of the virtual address range.
+ * @range_vaddr:	To return the start virtual address of the found range.
+ * @range_size:		To return the size of the found range.
+ * @phys:		To return the start physical address of the found range.
+ * @prot:		To return the property bits of the found range.
+ *
+ * The page table is walked to look up the first mapped sub-range within the VA
+ * range [@vaddr, @vaddr + @size) such that all the pages within this sub-range
+ * are mapped physically contiguously and with the same property bits. If such a
+ * VA sub-range is found, its start virtual address is returned as @range_vaddr,
+ * its size is returned as @range_size, its start physical address is returned
+ * as @phys and its property bits are returned as @prot. If no such VA sub-range
+ * found, @range_vaddr and @phys are set to INVALID_PAGE, and @range_size and
+ * @prot are set to 0.
+ */
+void pkvm_pgtable_lookup_range(struct pkvm_pgtable *pgt,
+			       unsigned long vaddr, unsigned long size,
+			       unsigned long *range_vaddr,
+			       unsigned long *range_size,
+			       unsigned long *phys, u64 *prot)
+{
+	struct pgt_lookup_range_data data = {
+		.vaddr = vaddr,
+		.vaddr_end = vaddr + size,
+		.start = INVALID_PAGE,
+		.end = INVALID_PAGE,
+		.phys = INVALID_PAGE,
+		.prot = 0,
+	};
+	struct pkvm_pgtable_walker walker = {
+		.cb = lookup_range_walker,
+		.arg = &data,
+		.walk_flags = PKVM_PGTABLE_WALK_LEAF,
+	};
+
+	BUG_ON(!VALID_PAGE(vaddr));
+	pkvm_pgtable_walk(pgt, vaddr, size, &walker);
+
+	if (range_vaddr)
+		*range_vaddr = data.start;
+	if (range_size)
+		*range_size = data.end - data.start;
+	if (phys)
+		*phys = data.phys;
+	if (prot)
+		*prot = data.prot;
+}
+
+/**
+ * pkvm_pgtable_destroy() - Destroy an unused page table.
+ * @pgt:	The page table to be destroyed.
+ *
+ * Frees pages allocated for the given page table. Does not clear PTEs
+ * and does not flush TLB, assuming that the page table is no longer used
+ * by any hardware walkers.
+ */
+void pkvm_pgtable_destroy(struct pkvm_pgtable *pgt)
+{
+	struct pkvm_pgtable_walker walker = {
+		.cb = free_walker,
+		.arg = NULL,
+		.walk_flags = PKVM_PGTABLE_WALK_LEAF | PKVM_PGTABLE_WALK_TABLE_POST,
+	};
+
+	WARN_ON(pkvm_pgtable_walk(pgt, 0, pkvm_pgtable_max_size(pgt), &walker));
+
+	pgt->mm_ops->put_page(__pkvm_va(pgt->root_pa));
+}
+
+/**
+ * pkvm_pgtable_test_clear_young() - Test and optionally clear the access flag
+ *				     in the page table entries for the given
+ *				     virtual address range.
+ * @pgt:	The page table.
+ * @vaddr:	The start address of virtual address range.
+ * @size:	The size of the virtual address range.
+ * @mkold:	If true, clear the access flag if it is set.
+ *
+ * Does not flush the TLB after clearing the access flag. It is the caller's
+ * responsibility to flush the TLB when needed.
+ *
+ * Return: true if any of the visited PTEs had the access flag set.
+ */
+bool pkvm_pgtable_test_clear_young(struct pkvm_pgtable *pgt, unsigned long vaddr,
+				   unsigned long size, bool mkold)
+{
+	struct pgt_age_data data = {
+		.mkold = mkold,
+		.young = false,
+	};
+	struct pkvm_pgtable_walker walker = {
+		.cb = age_walker,
+		.arg = &data,
+		.walk_flags = PKVM_PGTABLE_WALK_LEAF,
+	};
+
+	WARN_ON_ONCE(pkvm_pgtable_walk(pgt, vaddr, size, &walker));
+	return data.young;
 }

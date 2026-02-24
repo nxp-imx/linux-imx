@@ -423,6 +423,9 @@ static int pviommu_probe(struct platform_device *pdev)
 
 	pgsize_bitmap = res.a0;
 
+	/* Hardcoded value for now as there is now way to probe this information. */
+	pv->iommu.max_pasids = 256;
+
 	platform_set_drvdata(pdev, pv);
 
 	ret = iommu_device_sysfs_add(&pv->iommu, dev, NULL,

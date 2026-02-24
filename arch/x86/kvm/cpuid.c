@@ -30,6 +30,10 @@
 #include "pmu.h"
 #include "xen.h"
 
+#ifdef __PKVM_HYP__
+#include "pkvm/mmu.h"
+#endif
+
 /*
  * Unlike "struct cpuinfo_x86.x86_capability", kvm_cpu_caps doesn't need to be
  * aligned to sizeof(unsigned long) because it's not accessed via bitops.
@@ -258,6 +262,25 @@ static u32 kvm_apply_cpuid_pv_features_quirk(struct kvm_vcpu *vcpu)
 		 * the corresponding CPUID.
 		 */
 		best->eax = 0;
+#ifdef __PKVM_HYP__
+		best = kvm_find_cpuid_entry(vcpu, KVM_CPUID_SIGNATURE);
+		if (best) {
+			/*
+			 * TODO:
+			 * Overriding the KVM_CPUID_SIGNATURE leaf with
+			 * "PKVMPKVMPKVM" is to make the guest aware that it is
+			 * running with the protection from the pKVM hypervisor
+			 * so it has to enable some enlightenment.
+			 * To achieve this, is there any better solution rather
+			 * than changing the KVM_CPUID_SIGNATURE leaf?
+			 */
+			const u32 *sigptr = (const u32 *)"PKVMPKVMPKVM";
+
+			best->ebx = sigptr[0];
+			best->ecx = sigptr[1];
+			best->edx = sigptr[2];
+		}
+#endif
 		return 0;
 	}
 
@@ -1788,11 +1811,12 @@ static inline int __do_cpuid_func(struct kvm_cpuid_array *array, u32 function)
 		} else {
 			phys_as = entry->eax & 0xff;
 			g_phys_as = phys_as;
-			/* FIXME: Check pKVM guest MMU level */
-#ifndef __PKVM_HYP__
+#ifdef __PKVM_HYP__
+			if (pkvm_guest_mmu_max_level() < 5)
+#else
 			if (kvm_mmu_get_max_tdp_level() < 5)
-				g_phys_as = min(g_phys_as, 48U);
 #endif
+				g_phys_as = min(g_phys_as, 48U);
 		}
 
 		entry->eax = phys_as | (virt_as << 8) | (g_phys_as << 16);
@@ -1994,6 +2018,7 @@ out_free:
 	kvfree(array.entries);
 	return r;
 }
+#endif /* !__PKVM_HYP__ */
 
 /*
  * Intel CPUID semantics treats any query for an out-of-range leaf as if the
@@ -2092,6 +2117,7 @@ bool kvm_cpuid(struct kvm_vcpu *vcpu, u32 *eax, u32 *ebx,
 			    !kvm_msr_read(vcpu, MSR_IA32_TSX_CTRL, &data) &&
 			    (data & TSX_CTRL_CPUID_CLEAR))
 				*ebx &= ~(feature_bit(RTM) | feature_bit(HLE));
+#ifndef __PKVM_HYP__
 		} else if (function == 0x80000007) {
 			if (kvm_hv_invtsc_suppressed(vcpu))
 				*edx &= ~feature_bit(CONSTANT_TSC);
@@ -2110,6 +2136,39 @@ bool kvm_cpuid(struct kvm_vcpu *vcpu, u32 *eax, u32 *ebx,
 				*edx = vcpu->arch.pvclock_tsc_shift;
 			} else if (index == 2) {
 				*eax = vcpu->arch.hw_tsc_khz;
+			}
+#endif
+		} else if (pkvm_is_protected_vcpu(vcpu) && function == 0x15) {
+			/*
+			 * Since protected VMs cannot use kvmclock to find out the
+			 * TSC frequency, expose the native TSC frequency directly
+			 * via cpuid. For now this is not for security (pKVM does not
+			 * provide secure TSC yet) but just to let the guest know the
+			 * TSC frequency so that it doesn't need to calibrate the TSC
+			 * against host-emulated PIT/HPET timers which are inherently
+			 * inaccurate as they are sensitive to the system load in the
+			 * host.
+			 */
+			if (tsc_khz) {
+				/*
+				 * Core crystal clock must match the LAPIC clock.
+				 * See native_calibrate_tsc().
+				 */
+				*ecx = 1000000000 / vcpu->kvm->arch.apic_bus_cycle_ns;
+				/*
+				 * Try to minimize calculation error: use 38.4 MHz
+				 * which is the typical core crystal clock frequency
+				 * on today's Intel's desktop CPUs.
+				 *
+				 * TODO: we could avoid any calculation error, by
+				 * exposing tsc_khz via some PV (akin to kvmclock)
+				 * instead of cpuid.
+				 */
+				*eax = *ecx / 38400000;	/* denominator */
+				*ebx = tsc_khz / 38400;	/* numerator */
+				*edx = 0;
+			} else {
+				*eax = *ebx = *ecx = *edx = 0;
 			}
 		}
 	} else {
@@ -2152,7 +2211,8 @@ int kvm_emulate_cpuid(struct kvm_vcpu *vcpu)
 	return kvm_skip_emulated_instruction(vcpu);
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_emulate_cpuid);
-#else  /* !__PKVM_HYP__ */
+
+#ifdef __PKVM_HYP__
 
 static DEFINE_PER_CPU(struct kvm_cpuid_entry2, cpuid_def[KVM_MAX_CPUID_ENTRIES]);
 
@@ -2405,4 +2465,4 @@ int pkvm_enforce_cpuid(struct kvm_cpuid_entry2 *e2, int *nent, int max_nent)
 
 	return 0;
 }
-#endif /* !__PKVM_HYP__ */
+#endif /* __PKVM_HYP__ */

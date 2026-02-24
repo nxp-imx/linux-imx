@@ -124,6 +124,7 @@
 #include <trace/hooks/net.h>
 
 struct udp_table udp_table __read_mostly;
+EXPORT_SYMBOL(udp_table);
 
 long sysctl_udp_mem[3] __read_mostly;
 EXPORT_IPV6_MOD(sysctl_udp_mem);

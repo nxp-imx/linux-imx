@@ -11,6 +11,7 @@
 #include <asm/page.h>		/* pgprot_t */
 #include <linux/rbtree.h>
 #include <linux/overflow.h>
+#include <linux/android_vendor.h>
 
 #include <asm/vmalloc.h>
 
@@ -62,6 +63,7 @@ struct vm_struct {
 	phys_addr_t		phys_addr;
 	const void		*caller;
 	unsigned long		requested_size;
+	ANDROID_OEM_DATA(1);
 };
 
 struct vmap_area {

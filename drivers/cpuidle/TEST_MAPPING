@@ -1,12 +1,6 @@
 {
   "imports": [
     {
-      "path": "frameworks/base/packages/PackageInstaller"
-    },
-    {
-      "path": "frameworks/base/core/java/android/content/pm"
-    },
-    {
       "path": "frameworks/base/services/core/java/com/android/server"
     },
     {

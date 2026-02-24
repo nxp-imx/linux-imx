@@ -13,6 +13,10 @@ static unsigned int pkvm_memblock_nr;
 phys_addr_t pkvm_mem_base;
 phys_addr_t pkvm_mem_size;
 
+bool pvmfw_present;
+phys_addr_t pvmfw_base;
+phys_addr_t pvmfw_size;
+
 static int cmp_pkvm_memblock(const void *p1, const void *p2)
 {
 	const struct memblock_region *r1 = p1;
@@ -82,12 +86,27 @@ void __init pkvm_reserve(void)
 		 pkvm_mem_base);
 }
 
+static phys_addr_t kvm_host_pa(void *addr)
+{
+	return __pa(addr);
+}
+
 static void *kvm_host_va(phys_addr_t phys)
 {
 	return __va(phys);
 }
 
-static void kvm_free_pkvm_page_range(struct pkvm_page_range range)
+static void *kvm_alloc_pkvm_page(void *flags)
+{
+	void *addr = (void *)__get_free_page(GFP_KERNEL_ACCOUNT);
+
+	if (addr && (unsigned long)flags & PKVM_MC_ACCOUNT_PGTABLE_PAGES)
+		kvm_account_pgtable_pages(addr, 1);
+
+	return addr;
+}
+
+static void kvm_free_pkvm_page_range(struct pkvm_page_range range, void *flags)
 {
 	void *vaddr = __va(range.addr);
 	u64 nr_pages = range.nr_pages;
@@ -95,13 +114,70 @@ static void kvm_free_pkvm_page_range(struct pkvm_page_range range)
 	if (WARN_ON_ONCE(!nr_pages))
 		return;
 
+	if ((unsigned long)flags & PKVM_MC_ACCOUNT_PGTABLE_PAGES)
+		kvm_account_pgtable_pages(vaddr, -nr_pages);
+
 	if (nr_pages > 1)
 		free_pages_exact(vaddr, nr_pages << PAGE_SHIFT);
 	else
 		free_page((unsigned long)vaddr);
 }
 
+int kvm_topup_pkvm_memcache(struct pkvm_memcache *mc, unsigned long min_pages)
+{
+	return topup_pkvm_memcache(mc, min_pages, kvm_alloc_pkvm_page,
+				   kvm_host_pa, (void *)mc->flags);
+}
+
 void kvm_free_pkvm_memcache(struct pkvm_memcache *mc)
 {
-	free_pkvm_memcache(mc, kvm_free_pkvm_page_range, kvm_host_va);
+	free_pkvm_memcache(mc, kvm_free_pkvm_page_range, kvm_host_va,
+			   (void *)mc->flags);
+}
+
+static int pkvm_vm_ioctl_set_fw_gpa(struct kvm *kvm, u64 gpa)
+{
+	struct kvm_pkvm_vm *pkvm = &kvm->arch.pkvm;
+	int ret = 0;
+
+	if (!pvmfw_present)
+		return -EINVAL;
+
+	mutex_lock(&pkvm->finalized_lock);
+	if (pkvm->finalized) {
+		ret = -EBUSY;
+		goto out;
+	}
+	pkvm->pvmfw_load_addr = gpa;
+out:
+	mutex_unlock(&pkvm->finalized_lock);
+	return ret;
+}
+
+static int pkvm_vm_ioctl_info(struct kvm *kvm,
+			      struct kvm_protected_vm_info __user *info)
+{
+	struct kvm_protected_vm_info kinfo = {
+		.firmware_size = pvmfw_present ? pvmfw_size : 0,
+	};
+
+	return copy_to_user(info, &kinfo, sizeof(kinfo)) ? -EFAULT : 0;
+}
+
+int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
+{
+	if (!pkvm_is_protected_vm(kvm))
+		return -EINVAL;
+
+	if (cap->args[1] || cap->args[2] || cap->args[3])
+		return -EINVAL;
+
+	switch (cap->flags) {
+	case KVM_CAP_X86_PROTECTED_VM_FLAGS_SET_FW_GPA:
+		return pkvm_vm_ioctl_set_fw_gpa(kvm, cap->args[0]);
+	case KVM_CAP_X86_PROTECTED_VM_FLAGS_INFO:
+		return pkvm_vm_ioctl_info(kvm, (void __force __user *)cap->args[0]);
+	default:
+		return -EINVAL;
+	}
 }

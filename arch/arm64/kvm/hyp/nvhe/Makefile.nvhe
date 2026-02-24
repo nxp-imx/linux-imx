@@ -31,9 +31,9 @@ targets += $(hyp-obj) kvm_nvhe.tmp.o kvm_nvhe.rel.o hyp.lds hyp-reloc.S hyp-relo
 
 # 1) Compile all source files to `.nvhe.o` object files. The file extension
 #    avoids file name clashes for files shared with VHE.
-$(obj)/%.nvhe.o: $(src)/%.c FORCE
+$(obj)/%.nvhe.o: $(obj)/%.c FORCE
 	$(call if_changed_rule,cc_o_c)
-$(obj)/%.nvhe.o: $(src)/%.S FORCE
+$(obj)/%.nvhe.o: $(obj)/%.S FORCE
 	$(call if_changed_rule,as_o_S)
 
 # 2) Partially link all '.nvhe.o' files and apply the linker script.

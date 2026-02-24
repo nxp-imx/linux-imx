@@ -2087,7 +2087,8 @@ static void __init cpu_prepare_hyp_mode(int cpu, u32 hyp_va_bits)
 	if (cpus_have_final_cap(ARM64_KVM_HVHE))
 		params->hcr_el2 |= HCR_E2H;
 	params->vttbr = params->vtcr = 0;
-	params->hfgwtr_el2 = HFGWTR_EL2_nSMPRI_EL1_MASK | HFGWTR_EL2_nTPIDR2_EL0_MASK;
+	params->hfgwtr_el2 = HFGWTR_EL2_nSMPRI_EL1_MASK | HFGWTR_EL2_nTPIDR2_EL0_MASK |
+			     HFGWTR_EL2_nGCS_EL0_MASK | HFGWTR_EL2_nGCS_EL1_MASK;
 
 	/*
 	 * Flush the init params from the data cache because the struct will

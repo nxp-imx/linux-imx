@@ -3514,6 +3514,7 @@ void __receive_sock(struct file *file)
 	if (sock) {
 		sock_update_netprioidx(&sock->sk->sk_cgrp_data);
 		sock_update_classid(&sock->sk->sk_cgrp_data);
+		trace_android_vh_receive_sock(sock->sk);
 	}
 }
 

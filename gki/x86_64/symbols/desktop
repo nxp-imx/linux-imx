@@ -1513,6 +1513,7 @@
   intel_scu_ipc_dev_command_with_size
   intel_scu_ipc_dev_simple_command
   intel_tcc_get_offset
+  intel_tcc_get_offset_mask
   intel_tcc_get_temp
   intel_tcc_get_tjmax
   intel_tcc_set_offset

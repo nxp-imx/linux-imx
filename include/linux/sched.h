@@ -1699,7 +1699,7 @@ struct task_struct {
 } __attribute__ ((aligned (64)));
 
 #ifdef CONFIG_SCHED_PROXY_EXEC
-DECLARE_STATIC_KEY_FALSE(__sched_proxy_exec);
+DECLARE_STATIC_KEY_TRUE(__sched_proxy_exec);
 static inline bool sched_proxy_exec(void)
 {
 	return static_branch_likely(&__sched_proxy_exec);
@@ -1827,6 +1827,11 @@ static __always_inline bool is_percpu_thread(void)
 {
 	return (current->flags & PF_NO_SETAFFINITY) &&
 		(current->nr_cpus_allowed  == 1);
+}
+
+static __always_inline bool is_user_task(struct task_struct *task)
+{
+	return task->mm && !(task->flags & (PF_KTHREAD | PF_USER_WORKER));
 }
 
 /* Per-process atomic flags. */

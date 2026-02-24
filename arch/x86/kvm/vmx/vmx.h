@@ -300,6 +300,12 @@ struct vcpu_vmx {
 
 	/* ve_info must be page aligned. */
 	struct vmx_ve_information *ve_info;
+
+#ifdef CONFIG_PKVM_INTEL
+	u32 error_code;
+	u32 instr_info;
+	u64 exit_gpa;
+#endif
 };
 
 struct kvm_vmx {

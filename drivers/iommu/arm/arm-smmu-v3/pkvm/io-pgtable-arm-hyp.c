@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2022 Arm Ltd.
  */
+#include <nvhe/alloc.h>
 #include <nvhe/iommu.h>
 
 #include <linux/io-pgtable.h>
@@ -75,12 +76,19 @@ void __arm_lpae_sync_pte(arm_lpae_iopte *ptep, int num_entries,
 /* At the moment this is only used once, so rounding up to a page is not really a problem. */
 void *__arm_lpae_alloc_data(struct io_pgtable_cfg *cfg, size_t size, gfp_t gfp)
 {
+	void *p;
+
 	if (size > PAGE_SIZE)
 		return NULL;
 
 	if (cfg->quirks & IO_PGTABLE_QUIRK_IDMAP)
 		return kvm_iommu_donate_pages_atomic(get_order(size));
-	return kvm_iommu_donate_page();
+
+	p = hyp_alloc(size);
+	if (!p)
+		kvm_iommu_request_hyp_alloc();
+
+	return p;
 }
 
 void __arm_lpae_free_data(struct io_pgtable_cfg *cfg, void *p)
@@ -88,7 +96,7 @@ void __arm_lpae_free_data(struct io_pgtable_cfg *cfg, void *p)
 	if (cfg->quirks & IO_PGTABLE_QUIRK_IDMAP)
 		kvm_iommu_reclaim_pages_atomic(p);
 	else
-		kvm_iommu_reclaim_page(p);
+		hyp_free(p);
 }
 
 #if IS_ENABLED(CONFIG_IOMMUFD_DRIVER)

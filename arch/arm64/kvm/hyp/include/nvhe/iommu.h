@@ -28,6 +28,9 @@ struct kvm_iommu_ops {
 	void (*host_stage2_idmap)(phys_addr_t start, phys_addr_t end, int prot);
 	int (*attach_dev)(pkvm_handle_t iommu, struct kvm_hyp_iommu_domain *domain,
 			  pkvm_handle_t dev, u32 pasid, u32 pasid_bits, unsigned long flags);
+	int (*attach_dev_nested)(pkvm_handle_t iommu, struct kvm_hyp_iommu_domain *domain,
+				 pkvm_handle_t dev, u32 pasid, unsigned long flags, void *s1_desc,
+				 size_t s1_desc_size);
 	int (*detach_dev)(pkvm_handle_t iommu, struct kvm_hyp_iommu_domain *domain,
 			  pkvm_handle_t dev, u32 pasid);
 	bool (*dabt_handler)(struct user_pt_regs *regs, u64 esr, u64 addr);
@@ -49,6 +52,9 @@ struct kvm_iommu_ops {
 	int (*dev_block_dma)(pkvm_handle_t iommu, u32 endpoint_id,
 			     bool is_host_to_guest);
 	int (*get_iommu_token_by_id)(pkvm_handle_t smmu_id, u64 *out_token);
+	void (*iotlb_inv_nested_domain)(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
+					size_t size, size_t granule, bool leaf);
+	int (*nested_cfg_sync)(pkvm_handle_t iommu, void *cmd_desc, size_t cmd_desc_size);
 };
 
 int kvm_iommu_init(void *pool_base, size_t nr_pages);
@@ -68,6 +74,9 @@ int kvm_iommu_free_domain(pkvm_handle_t domain_id);
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid, u32 pasid_bits,
 			 unsigned long flags);
+int kvm_iommu_attach_dev_nested(pkvm_handle_t iommu_id, pkvm_handle_t domain_id, u32 endpoint_id,
+				u32 pasid, unsigned long flags, void *s1_desc_hva,
+				size_t s1_desc_size);
 int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid);
 
@@ -83,6 +92,10 @@ size_t kvm_iommu_map_sg(pkvm_handle_t domain, unsigned long iova, struct kvm_iom
 			unsigned int nent, unsigned int prot);
 int kvm_iommu_iotlb_sync_map(pkvm_handle_t domain_id,
 			     unsigned long iova, size_t size);
+int kvm_iommu_iotlb_inv_nested_domain(pkvm_handle_t domain_id, unsigned long iova, size_t size,
+				      size_t granule, bool leaf);
+int kvm_iommu_nested_cfg_sync(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, void *cmd_desc,
+			      size_t cmd_desc_size);
 /* Flags not used and added for future use. */
 void *kvm_iommu_donate_pages(u8 order, int flags);
 void kvm_iommu_reclaim_pages(void *p, u8 order);
@@ -99,6 +112,8 @@ void kvm_iommu_iotlb_gather_add_page(struct kvm_hyp_iommu_domain *domain,
 				     unsigned long iova, size_t size);
 
 int kvm_iommu_register_pviommu_drv(pkvm_handle_t iommu_id);
+
+int kvm_iommu_request_hyp_alloc(void);
 
 extern struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops;
 extern pkvm_handle_t pviommu_drv_id;

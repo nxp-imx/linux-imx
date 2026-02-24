@@ -357,7 +357,6 @@ void fpu_update_guest_xfd(struct fpu_guest *guest_fpu, u64 xfd)
 }
 EXPORT_SYMBOL_GPL(fpu_update_guest_xfd);
 
-#ifndef __PKVM_HYP__
 /**
  * fpu_sync_guest_vmexit_xfd_state - Synchronize XFD MSR and software state
  *
@@ -381,7 +380,6 @@ void fpu_sync_guest_vmexit_xfd_state(void)
 	}
 }
 EXPORT_SYMBOL_GPL(fpu_sync_guest_vmexit_xfd_state);
-#endif /* !__PKVM_HYP__ */
 #endif /* CONFIG_X86_64 */
 
 int fpu_swap_kvm_fpstate(struct fpu_guest *guest_fpu, bool enter_guest)

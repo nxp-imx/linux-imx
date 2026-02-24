@@ -12,6 +12,7 @@ extern struct kvm_x86_ops vt_x86_ops __initdata;
 extern struct kvm_x86_init_ops vt_init_ops __initdata;
 #ifdef CONFIG_PKVM_INTEL
 extern struct kvm_x86_ops pkvm_host_vt_x86_ops __initdata;
+extern struct kvm_x86_init_ops pkvm_host_vt_init_ops __initdata;
 #endif
 
 void vmx_hardware_unsetup(void);
@@ -157,6 +158,10 @@ void tdx_flush_tlb_current(struct kvm_vcpu *vcpu);
 void tdx_flush_tlb_all(struct kvm_vcpu *vcpu);
 void tdx_load_mmu_pgd(struct kvm_vcpu *vcpu, hpa_t root_hpa, int root_level);
 int tdx_gmem_max_mapping_level(struct kvm *kvm, kvm_pfn_t pfn, bool is_private);
+#endif
+
+#ifdef __PKVM_HYP__
+void pkvm_vmx_prepare_switch_to_host(struct kvm_vcpu *vcpu);
 #endif
 
 #endif /* __KVM_X86_VMX_X86_OPS_H */

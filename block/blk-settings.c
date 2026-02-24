@@ -780,6 +780,8 @@ int blk_stack_limits(struct queue_limits *t, struct queue_limits *b,
 		t->features &= ~BLK_FEAT_NOWAIT;
 	if (!(b->features & BLK_FEAT_POLL))
 		t->features &= ~BLK_FEAT_POLL;
+	if (!(b->features & BLK_FEAT_ORDERED_HWQ))
+		t->features &= ~BLK_FEAT_ORDERED_HWQ;
 
 	t->flags |= (b->flags & BLK_FLAG_MISALIGNED);
 
