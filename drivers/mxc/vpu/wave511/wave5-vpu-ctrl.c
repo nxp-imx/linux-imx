@@ -25,6 +25,8 @@
 #include "wave5-regdefine.h"
 #include "wave5-vdi.h"
 #include "wave5-vpu-ctrl.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define VPU_CTRL_PLATFORM_DEVICE_NAME "wave5-vpu-ctrl"
 
@@ -64,6 +66,27 @@ module_param(debug, uint, 0644);
 	} while (wave5_wait_ret == -ERESTARTSYS && freezing(current));		\
 	wave5_wait_ret;								\
 })
+
+#define SMC_ENTITY_IMX_WAVE_LINUX_OPT 55
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 0)
+#define SMC_IMX_VCPU_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 2)
+#define OPT_WRITE 0x1
+
+#ifdef writel
+#undef writel
+#define writel(val, addr) \
+	do { \
+		if (ctrl->trusty_dev) { \
+			trusty_vcpu_set_reg(ctrl->trusty_dev, (addr - ctrl->reg_base), val); \
+		} else { \
+			{ __iowmb(); writel_relaxed((val),(addr)); } \
+		}\
+	} while (0)
+#endif
+
+static void trusty_vcpu_set_reg(struct device *dev, u32 target, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_VCPU_REG, target, OPT_WRITE, val);
+}
 
 struct vpu_ctrl_resource {
 	const char *fw_name;
@@ -113,6 +136,7 @@ struct vpu_ctrl {
 	struct loger_t *loger;
 	struct dentry *debugfs;
 #endif
+	struct device *trusty_dev;
 };
 
 static const struct vpu_ctrl_resource nxp_wave511_ctrl_data = {
@@ -640,9 +664,10 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 		ret = -EINVAL;
 		goto exit;
 	}
-
-	wave5_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
-	memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	if (!ctrl->trusty_dev) {
+		wave5_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
+		memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	}
 
 exit:
 	scoped_guard(mutex, &ctrl->ctrl_lock) {
@@ -958,6 +983,21 @@ static int wave5_vpu_ctrl_probe(struct platform_device *pdev)
 	ctrl->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(ctrl->reg_base))
 		return PTR_ERR(ctrl->reg_base);
+
+	ctrl->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+			ctrl->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+			if (!ctrl->trusty_dev || !ctrl->trusty_dev->driver || !dev_get_drvdata(ctrl->trusty_dev))
+				return -EPROBE_DEFER;
+
+			ret = trusty_fast_call32(ctrl->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+			if (ret < 0) {
+				dev_info(&pdev->dev, "failed to get response of echo. vpu use normal mode.\n");
+				ctrl->trusty_dev = NULL;
+			} else
+				dev_info(&pdev->dev, "vcpu will use secure mode\n");
+	}
+
 	ret = devm_clk_bulk_get_all(&pdev->dev, &ctrl->clks);
 	if (ret < 0) {
 		dev_warn(&pdev->dev, "unable to get clocks: %d\n", ret);

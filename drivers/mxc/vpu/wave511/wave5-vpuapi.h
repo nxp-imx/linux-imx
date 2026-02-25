@@ -485,6 +485,9 @@ struct vpu_device {
 	struct dentry *debugfs;
 	struct kfifo irq_fifo;
 	spinlock_t irq_lock; /* lock irq fifo access */
+	struct device *trusty_dev;
+	u8 vpu_id;
+	bool secure_mode;
 };
 
 struct vpu_instance;
@@ -605,4 +608,6 @@ int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);
 int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index);
 bool wave5_vpu_dec_is_cq_done(struct vpu_instance *inst);
 
+int wave5_allocate_secure_dma_memory(struct device *dev, struct vpu_buf *vb);
+void wave5_free_secure_dma_memory(struct vpu_buf *vb);
 #endif

@@ -14,6 +14,8 @@
 
 #define VPU_DEC_DEV_NAME "C&M Wave5 VPU decoder"
 #define VPU_DEC_DRV_NAME "wave5-dec"
+#define VPU_SECURE_DEC_DEV_NAME "C&M Wave5 VPU secure decoder"
+#define VPU_SECURE_DEC_DRV_NAME "wave5-sec-dec"
 
 static const struct v4l2_frmsize_stepwise dec_hevc_frmsize = {
 	.min_width = W5_MIN_DEC_PIC_8_WIDTH,
@@ -943,8 +945,14 @@ exit:
 
 static int wave5_vpu_dec_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 {
-	strscpy(cap->driver, VPU_DEC_DRV_NAME, sizeof(cap->driver));
-	strscpy(cap->card, VPU_DEC_DRV_NAME, sizeof(cap->card));
+	struct vpu_instance *inst = wave5_to_vpu_inst(file_to_v4l2_fh(file));
+	if (inst->dev->trusty_dev && inst->dev->vpu_id == 1) {
+		strscpy(cap->driver, VPU_SECURE_DEC_DRV_NAME, sizeof(cap->driver));
+		strscpy(cap->card, VPU_SECURE_DEC_DRV_NAME, sizeof(cap->card));
+	} else {
+		strscpy(cap->driver, VPU_DEC_DRV_NAME, sizeof(cap->driver));
+		strscpy(cap->card, VPU_DEC_DRV_NAME, sizeof(cap->card));
+	}
 
 	return 0;
 }
@@ -2241,7 +2249,10 @@ int wave5_vpu_dec_register_device(struct vpu_device *dev)
 
 	dev->video_dev_dec = vdev_dec;
 
-	strscpy(vdev_dec->name, VPU_DEC_DEV_NAME, sizeof(vdev_dec->name));
+	if (dev->trusty_dev && dev->vpu_id == 1)
+		strscpy(vdev_dec->name, VPU_SECURE_DEC_DEV_NAME, sizeof(vdev_dec->name));
+	else
+		strscpy(vdev_dec->name, VPU_DEC_DEV_NAME, sizeof(vdev_dec->name));
 	vdev_dec->fops = &wave5_vpu_dec_fops;
 	vdev_dec->ioctl_ops = &wave5_vpu_dec_ioctl_ops;
 	vdev_dec->release = video_device_release_empty;

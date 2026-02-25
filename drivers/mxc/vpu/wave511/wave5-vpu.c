@@ -19,11 +19,16 @@
 #include "wave5-vpuconfig.h"
 #include "wave5-hw.h"
 #include "wave5-vpu-dbg.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define VPU_PLATFORM_DEVICE_NAME "wave5-vpu"
 #define VPU_CLK_NAME "vcodec"
 
 #define WAVE5_IS_DEC BIT(1)
+
+#define SMC_ENTITY_IMX_WAVE_LINUX_OPT 55
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 0)
 
 struct wave5_match_data {
 	int flags;
@@ -422,6 +427,7 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	struct vpu_device *dev;
 	struct device_node *np;
 	const struct wave5_match_data *match_data;
+	struct resource *res;
 
 	match_data = device_get_match_data(&pdev->dev);
 	if (!match_data) {
@@ -440,6 +446,20 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res->start == VPU0_REG_BASE)
+		dev->vpu_id = 0;
+	else if (res->start == VPU1_REG_BASE)
+		dev->vpu_id = 1;
+	else if (res->start == VPU2_REG_BASE)
+		dev->vpu_id = 2;
+	else if (res->start == VPU3_REG_BASE)
+		dev->vpu_id = 3;
+	else {
+		dev_err(&pdev->dev, "invalid memory resource start address: 0x%pa\n", &res->start);
+		return -EINVAL;
+	}
 
 	dev->vdb_register = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(dev->vdb_register))
@@ -462,6 +482,21 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 		}
 	} else {
 		dev_info(&pdev->dev, "it's a follower vpu device\n");
+	}
+
+	// find trusty property
+	dev->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+			dev->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+			if (!dev->trusty_dev || !dev->trusty_dev->driver || !dev_get_drvdata(dev->trusty_dev))
+					return -EPROBE_DEFER;
+
+			ret = trusty_fast_call32(dev->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+			if (ret < 0) {
+				dev_info(&pdev->dev, "failed to get response of echo. vpu:%d will use normal mode.\n", dev->vpu_id);
+		    	dev->trusty_dev = NULL;
+			} else
+				dev_info(&pdev->dev, "vpu:%d will use secure mode\n", dev->vpu_id);
 	}
 
 	mutex_init(&dev->dev_lock);

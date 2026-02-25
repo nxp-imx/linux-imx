@@ -503,4 +503,9 @@ enum query_opt {
 #define W5_COMBINED_BACKBONE_BUS_CTRL       (W5_COMBINED_BACKBONE_BASE + 0x010)
 #define W5_COMBINED_BACKBONE_BUS_STATUS     (W5_COMBINED_BACKBONE_BASE + 0x014)
 
+#define VPU0_REG_BASE                        0x4c4b0000
+#define VPU1_REG_BASE                        0x4c4c0000
+#define VPU2_REG_BASE                        0x4c4d0000
+#define VPU3_REG_BASE                        0x4c4e0000
+
 #endif /* __WAVE5_REGISTER_DEFINE_H__ */
