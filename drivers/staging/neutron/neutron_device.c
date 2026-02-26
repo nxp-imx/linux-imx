@@ -188,15 +188,13 @@ static int neutron_firmw_request(struct neutron_device *ndev, struct neutron_buf
 				 void *data_ddr, const char *fw_name)
 {
 	int ret = 0;
-	struct device *dev;
+	struct device *dev = ndev->dev;
 	struct rproc *rproc = ndev->rproc;
 
 	if (!buf) {
 		dev_err(dev, "%s: invalid neutron bufffer\n", __func__);
 		return PTR_ERR(buf);
 	}
-
-	dev = ndev->dev;
 
 	/* firmware exists */
 	if (buf->firmware_p)
