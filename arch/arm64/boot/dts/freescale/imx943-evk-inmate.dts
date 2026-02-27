@@ -224,8 +224,8 @@
 &scmi_iomuxc {
 	pinctrl_uart12: uart12grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO26__LPUART12_TX      0x31e
-			IMX94_PAD_GPIO_IO27__LPUART12_RX      0x31e
+			IMX94_PAD_GPIO_IO26__LPUART12_TX      0x30e
+			IMX94_PAD_GPIO_IO27__LPUART12_RX      0x30e
 		>;
 	};
 

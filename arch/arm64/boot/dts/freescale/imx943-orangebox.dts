@@ -904,62 +904,62 @@
 
 	pinctrl_flexcan2: flexcan2grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO34__CAN2_TX		0x39e
-			IMX94_PAD_GPIO_IO35__CAN2_RX		0x39e
-			IMX94_PAD_ETH1_TX_CLK__GPIO5_IO19	0x31e	/* can2_stby */
-			IMX94_PAD_ETH1_TX_ER__GPIO5_IO29	0x31e	/* can2_en */
+			IMX94_PAD_GPIO_IO34__CAN2_TX		0x38e
+			IMX94_PAD_GPIO_IO35__CAN2_RX		0x38e
+			IMX94_PAD_ETH1_TX_CLK__GPIO5_IO19	0x30e	/* can2_stby */
+			IMX94_PAD_ETH1_TX_ER__GPIO5_IO29	0x30e	/* can2_en */
 		>;
 	};
 
 	pinctrl_flexcan4: flexcan4grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO36__CAN4_TX		0x39e
-			IMX94_PAD_GPIO_IO37__CAN4_RX		0x39e
-			IMX94_PAD_ETH1_COL__GPIO5_IO31		0x31e	/* can4_stby */
-			IMX94_PAD_ETH1_RX_DV__GPIO5_IO22	0x31e	/* can4_en */
+			IMX94_PAD_GPIO_IO36__CAN4_TX		0x38e
+			IMX94_PAD_GPIO_IO37__CAN4_RX		0x38e
+			IMX94_PAD_ETH1_COL__GPIO5_IO31		0x30e	/* can4_stby */
+			IMX94_PAD_ETH1_RX_DV__GPIO5_IO22	0x30e	/* can4_en */
 		>;
 	};
 
 	pinctrl_fxls8967: fxls8967grp {
 		fsl,pins = <
-			IMX94_PAD_ETH0_TXD0__GPIO5_IO0		0x31
+			IMX94_PAD_ETH0_TXD0__GPIO5_IO0		0x30e
 		>;
 	};
 
 	pinctrl_lpi2c3: lpi2c3grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO16__LPI2C3_SDA		0x40000b9e
-			IMX94_PAD_GPIO_IO17__LPI2C3_SCL		0x40000b9e
+			IMX94_PAD_GPIO_IO16__LPI2C3_SDA		0x40000b8e
+			IMX94_PAD_GPIO_IO17__LPI2C3_SCL		0x40000b8e
 		>;
 	};
 
 	pinctrl_lpi2c4: lpi2c4grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO18__LPI2C4_SDA		0x40000b9e
-			IMX94_PAD_GPIO_IO19__LPI2C4_SCL		0x40000b9e
+			IMX94_PAD_GPIO_IO18__LPI2C4_SDA		0x40000b8e
+			IMX94_PAD_GPIO_IO19__LPI2C4_SCL		0x40000b8e
 		>;
 	};
 
 	pinctrl_lpi2c6: lpi2c6grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO29__LPI2C6_SDA		0x40000b9e
-			IMX94_PAD_GPIO_IO28__LPI2C6_SCL		0x40000b9e
+			IMX94_PAD_GPIO_IO29__LPI2C6_SDA		0x40000b8e
+			IMX94_PAD_GPIO_IO28__LPI2C6_SCL		0x40000b8e
 		>;
 	};
 
 	pinctrl_lpspi3: lpspi3grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO08__GPIO2_IO8			0x3fe
-			IMX94_PAD_GPIO_IO09__LPSPI3_SIN			0x3fe
-			IMX94_PAD_GPIO_IO10__LPSPI3_SOUT		0x3fe
-			IMX94_PAD_GPIO_IO11__LPSPI3_SCK			0x3fe
+			IMX94_PAD_GPIO_IO08__GPIO2_IO8			0x38e
+			IMX94_PAD_GPIO_IO09__LPSPI3_SIN			0x38e
+			IMX94_PAD_GPIO_IO10__LPSPI3_SOUT		0x38e
+			IMX94_PAD_GPIO_IO11__LPSPI3_SCK			0x38e
 		>;
 	};
 
 	pinctrl_mqs1: mqs1grp {
 		fsl,pins = <
-			IMX94_PAD_PDM_CLK__MQS1_LEFT           0x31e
-			IMX94_PAD_PDM_BIT_STREAM0__MQS1_RIGHT  0x31e
+			IMX94_PAD_PDM_CLK__MQS1_LEFT           0x30e
+			IMX94_PAD_PDM_BIT_STREAM0__MQS1_RIGHT  0x30e
 		>;
 	};
 
@@ -971,30 +971,30 @@
 
 	pinctrl_pcie0: pcie0grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO20__PCIE1_CLKREQ_B	0x4000031e
+			IMX94_PAD_GPIO_IO20__PCIE1_CLKREQ_B	0x4000030e
 		>;
 	};
 
 	pinctrl_pcie1: pcie1grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO23__PCIE2_CLKREQ_B	0x4000031e
+			IMX94_PAD_GPIO_IO23__PCIE2_CLKREQ_B	0x4000030e
 		>;
 	};
 
 	pinctrl_pdm: pdmgrp {
 		fsl,pins = <
-			IMX94_PAD_PDM_CLK__PDM_CLK			0x31e
-			IMX94_PAD_PDM_BIT_STREAM0__PDM_BIT_STREAM0	0x31e
-			IMX94_PAD_PDM_BIT_STREAM1__PDM_BIT_STREAM1	0x31e
+			IMX94_PAD_PDM_CLK__PDM_CLK			0x30e
+			IMX94_PAD_PDM_BIT_STREAM0__PDM_BIT_STREAM0	0x30e
+			IMX94_PAD_PDM_BIT_STREAM1__PDM_BIT_STREAM1	0x30e
 		>;
 	};
 
 	pinctrl_sai3: sai3grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO42__SAI3_TX_BCLK	0x31e
-			IMX94_PAD_GPIO_IO56__SAI3_TX_SYNC	0x31e
-			IMX94_PAD_GPIO_IO46__SAI3_RX_DATA0	0x31e
-			IMX94_PAD_GPIO_IO47__SAI3_TX_DATA0	0x31e
+			IMX94_PAD_GPIO_IO42__SAI3_TX_BCLK	0x30e
+			IMX94_PAD_GPIO_IO56__SAI3_TX_SYNC	0x30e
+			IMX94_PAD_GPIO_IO46__SAI3_RX_DATA0	0x30e
+			IMX94_PAD_GPIO_IO47__SAI3_TX_DATA0	0x30e
 		>;
 	};
 
@@ -1017,7 +1017,7 @@
 
 	pinctrl_typec_usb3_0: typecgrp3 {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO44__GPIO3_IO12		0x31e
+			IMX94_PAD_GPIO_IO44__GPIO3_IO12		0x30e
 			/* The CCM_CLKO1 (output) function will make USB_ID not work */
 			IMX94_PAD_CCM_CLKO1__GPIO4_IO0		0x31e
 		>;
@@ -1031,17 +1031,17 @@
 
 	pinctrl_uart1: uart1grp {
 		fsl,pins = <
-			IMX94_PAD_UART1_TXD__LPUART1_TX		0x31e
-			IMX94_PAD_UART1_RXD__LPUART1_RX		0x31e
+			IMX94_PAD_UART1_TXD__LPUART1_TX		0x30e
+			IMX94_PAD_UART1_RXD__LPUART1_RX		0x30e
 		>;
 	};
 
 	pinctrl_uart6: uart6grp {
 		fsl,pins = <
-			IMX94_PAD_GPIO_IO04__LPUART6_TX		0x31e
-			IMX94_PAD_GPIO_IO05__LPUART6_RX		0x31e
-			IMX94_PAD_GPIO_IO06__LPUART6_CTS_B	0x31e
-			IMX94_PAD_GPIO_IO07__LPUART6_RTS_B	0x31e
+			IMX94_PAD_GPIO_IO04__LPUART6_TX		0x30e
+			IMX94_PAD_GPIO_IO05__LPUART6_RX		0x30e
+			IMX94_PAD_GPIO_IO06__LPUART6_CTS_B	0x30e
+			IMX94_PAD_GPIO_IO07__LPUART6_RTS_B	0x30e
 		>;
 	};
 
@@ -1131,13 +1131,13 @@
 
 	pinctrl_usdhc2_gpio: usdhc2gpiogrp {
 		fsl,pins = <
-			IMX94_PAD_SD2_CD_B__GPIO4_IO20		0x31e
+			IMX94_PAD_SD2_CD_B__GPIO4_IO20		0x30e
 		>;
 	};
 
 	pinctrl_reg_usdhc2_vmmc: regusdhc2vmmcgrp {
 		fsl,pins = <
-			IMX94_PAD_SD2_RESET_B__GPIO4_IO27	0x31e
+			IMX94_PAD_SD2_RESET_B__GPIO4_IO27	0x30e
 		>;
 	};
 
