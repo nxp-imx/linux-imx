@@ -438,6 +438,13 @@ _IMX_IN_TREE_MODULES = [
     "drivers/reset/reset-imx-scu.ko",
     "drivers/iio/light/tsl2540.ko",
     "sound/soc/sof/imx/snd-sof-imx9.ko",
+    "drivers/gpu/drm/panthor/panthor.ko",
+    "sound/soc/codecs/snd-soc-rpmsg-pcm512x-i2c.ko",
+    "drivers/gpu/drm/drm_exec.ko",
+    "drivers/gpu/drm/drm_gpuvm.ko",
+    "drivers/gpu/drm/scheduler/gpu-sched.ko",
+    "sound/soc/codecs/snd-soc-rpmsg-pcm512x.ko",
+    "sound/soc/fsl/snd-soc-imx-pcm512x-rpmsg.ko",
 ]
 
 def define_imx():
