@@ -1584,6 +1584,7 @@ static __always_inline void __folio_add_file_rmap(struct folio *folio,
 	VM_WARN_ON_FOLIO(folio_test_anon(folio), folio);
 
 	__folio_add_rmap(folio, page, nr_pages, vma, level);
+	trace_android_vh_folio_add_file_rmap(folio, page, nr_pages, level);
 
 	/*
 	 * Only mlock it if the folio is fully mapped to the VMA.
@@ -1756,6 +1757,7 @@ static __always_inline void __folio_remove_rmap(struct folio *folio,
 	 * it's only reliable while mapped.
 	 */
 
+	trace_android_vh_folio_remove_rmap(folio, page, nr_pages, level);
 	munlock_vma_folio(folio, vma);
 }
 

@@ -48,6 +48,7 @@
 #include <linux/sched/mm.h>
 #include <linux/ksm.h>
 #include <linux/memfd.h>
+#include <linux/page_size_compat.h>
 
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
@@ -66,13 +67,13 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(vm_unmapped_area);
 #endif
 
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_BITS
-const int mmap_rnd_bits_min = CONFIG_ARCH_MMAP_RND_BITS_MIN;
+int mmap_rnd_bits_min __ro_after_init = CONFIG_ARCH_MMAP_RND_BITS_MIN;
 int mmap_rnd_bits_max __ro_after_init = CONFIG_ARCH_MMAP_RND_BITS_MAX;
 int mmap_rnd_bits __read_mostly = CONFIG_ARCH_MMAP_RND_BITS;
 #endif
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_COMPAT_BITS
-const int mmap_rnd_compat_bits_min = CONFIG_ARCH_MMAP_RND_COMPAT_BITS_MIN;
-const int mmap_rnd_compat_bits_max = CONFIG_ARCH_MMAP_RND_COMPAT_BITS_MAX;
+int mmap_rnd_compat_bits_min __ro_after_init = CONFIG_ARCH_MMAP_RND_COMPAT_BITS_MIN;
+int mmap_rnd_compat_bits_max __ro_after_init = CONFIG_ARCH_MMAP_RND_COMPAT_BITS_MAX;
 int mmap_rnd_compat_bits __read_mostly = CONFIG_ARCH_MMAP_RND_COMPAT_BITS;
 #endif
 
@@ -152,8 +153,8 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 			      mm->end_data, mm->start_data))
 		goto out;
 
-	newbrk = PAGE_ALIGN(brk);
-	oldbrk = PAGE_ALIGN(mm->brk);
+	newbrk = __PAGE_ALIGN(brk);
+	oldbrk = __PAGE_ALIGN(mm->brk);
 	if (oldbrk == newbrk) {
 		mm->brk = brk;
 		goto success;
@@ -187,8 +188,8 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 * expansion area
 	 */
 	vma_iter_init(&vmi, mm, oldbrk);
-	next = vma_find(&vmi, newbrk + PAGE_SIZE + stack_guard_gap);
-	if (next && newbrk + PAGE_SIZE > vm_start_gap(next))
+	next = vma_find(&vmi, newbrk + __PAGE_SIZE + stack_guard_gap);
+	if (next && newbrk + __PAGE_SIZE > vm_start_gap(next))
 		goto out;
 
 	brkvma = vma_prev_limit(&vmi, mm->start_brk);
@@ -220,10 +221,10 @@ out:
  */
 static inline unsigned long round_hint_to_min(unsigned long hint)
 {
-	hint &= PAGE_MASK;
+	hint &= __PAGE_MASK;
 	if (((void *)hint != NULL) &&
 	    (hint < mmap_min_addr))
-		return PAGE_ALIGN(mmap_min_addr);
+		return __PAGE_ALIGN(mmap_min_addr);
 	return hint;
 }
 
@@ -339,6 +340,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			unsigned long pgoff, unsigned long *populate,
 			struct list_head *uf)
 {
+	unsigned long file_backed_len = 0;
 	struct mm_struct *mm = current->mm;
 	int pkey = 0;
 
@@ -367,7 +369,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		addr = round_hint_to_min(addr);
 
 	/* Careful about overflows.. */
-	len = PAGE_ALIGN(len);
+	len = __COMPAT_PAGE_ALIGN(len, flags);
 	if (!len)
 		return -ENOMEM;
 
@@ -428,6 +430,8 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 
 		if (!file_mmap_ok(file, inode, pgoff, len))
 			return -EOVERFLOW;
+
+		file_backed_len = __filemap_len(inode, pgoff, len, flags);
 
 		flags_mask = LEGACY_MAP_MASK;
 		if (file->f_op->fop_flags & FOP_MMAP_SYNC)
@@ -562,6 +566,9 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	    ((vm_flags & VM_LOCKED) ||
 	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
 		*populate = len;
+
+	__filemap_fixup(addr, prot, file_backed_len, len);
+
 	return addr;
 }
 
@@ -1081,6 +1088,12 @@ EXPORT_SYMBOL(vm_munmap);
 SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 {
 	addr = untagged_addr(addr);
+
+	if (!__PAGE_ALIGNED(addr))
+		return -EINVAL;
+
+	len = __PAGE_ALIGN(len);
+
 	profile_munmap(addr);
 	return __vm_munmap(addr, len, true);
 }

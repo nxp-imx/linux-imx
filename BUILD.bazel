@@ -214,6 +214,7 @@ filegroup(
         "gki/aarch64/symbols/db845c",
         "gki/aarch64/symbols/exynos",
         "gki/aarch64/symbols/exynosauto",
+        "gki/aarch64/symbols/fips140",
         "gki/aarch64/symbols/galaxy",
         "gki/aarch64/symbols/honor",
         "gki/aarch64/symbols/imx",
@@ -1257,6 +1258,38 @@ pkg_install(
     srcs = [":yukawa_dist_files"],
     visibility = ["//visibility:private"],
     destdir = "out/yukawa/dist",
+)
+
+kernel_build(
+    name = "fips140",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    defconfig = "arch/arm64/configs/gki_defconfig",
+    kmi_symbol_list = "gki/aarch64/symbols/fips140",
+    make_goals = ["modules"],
+    makefile = ":Makefile",
+    module_outs = ["crypto/fips140.ko"],
+    post_defconfig_fragments = ["arch/arm64/configs/fips140_gki.fragment"],
+    strip_modules = True,
+)
+
+kernel_abi(
+    name = "fips140_abi",
+    kernel_build = ":fips140",
+    kmi_symbol_list_add_only = True,
+)
+
+pkg_files(
+    name = "fips140_dist_files",
+    srcs = [":fips140"],
+    strip_prefix = strip_prefix.files_only(),
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
+    name = "fips140_dist",
+    srcs = ["fips140_dist_files"],
+    destdir = "out/fips140/dist",
 )
 
 # allmodconfig build tests.

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Add crypto library object files to the fips140 module.
+
+crypto-fips-objs += lib-crypto-aes.o \
+		    lib-crypto-gf128mul.o \
+		    lib-crypto-memneq.o \
+		    lib-crypto-sha256.o \
+		    lib-crypto-sha512.o \
+		    lib-crypto-utils.o
+
+$(obj)/lib-crypto-%.o: KBUILD_CFLAGS += $(FIPS140_CFLAGS)
+
+$(obj)/lib-crypto-%.o: $(srctree)/lib/crypto/%.c FORCE
+	$(call if_changed_rule,cc_o_c)
+
+$(obj)/lib-crypto-$(SRCARCH)-%.o: $(srctree)/lib/crypto/$(SRCARCH)/%.S FORCE
+	$(call if_changed_rule,as_o_S)
+
+ifeq ($(CONFIG_ARM64),y)
+CFLAGS_lib-crypto-sha256.o += -I$(srctree)/lib/crypto/arm64
+CFLAGS_lib-crypto-sha512.o += -I$(srctree)/lib/crypto/arm64
+crypto-fips-objs += lib-crypto-arm64-sha256-ce.o \
+		    lib-crypto-arm64-sha256-core.o \
+		    lib-crypto-arm64-sha512-ce-core.o \
+		    lib-crypto-arm64-sha512-core.o
+
+quiet_cmd_perlasm = PERLASM $@
+      cmd_perlasm = $(PERL) $(<) void $(@)
+
+$(obj)/lib-crypto-arm64-sha256-core.S: $(srctree)/lib/crypto/arm64/sha2-armv8.pl
+	$(call cmd,perlasm)
+$(obj)/lib-crypto-arm64-sha512-core.S: $(srctree)/lib/crypto/arm64/sha2-armv8.pl
+	$(call cmd,perlasm)
+$(obj)/lib-crypto-arm64-sha256-core.o: $(obj)/lib-crypto-arm64-sha256-core.S
+	$(call if_changed_rule,as_o_S)
+$(obj)/lib-crypto-arm64-sha512-core.o: $(obj)/lib-crypto-arm64-sha512-core.S
+	$(call if_changed_rule,as_o_S)
+endif # CONFIG_ARM64
+# clean-files must be defined unconditionally
+clean-files += lib-crypto-arm64-sha256-core.S lib-crypto-arm64-sha512-core.S

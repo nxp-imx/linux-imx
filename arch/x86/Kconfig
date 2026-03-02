@@ -131,7 +131,6 @@ config X86
 	select ARCH_SUPPORTS_LTO_CLANG
 	select ARCH_SUPPORTS_LTO_CLANG_THIN
 	select ARCH_SUPPORTS_RT
-	select ARCH_SUPPORTS_AUTOFDO_CLANG
 	select ARCH_SUPPORTS_PROPELLER_CLANG    if X86_64
 	select ARCH_USE_BUILTIN_BSWAP
 	select ARCH_USE_CMPXCHG_LOCKREF		if X86_CX8
@@ -917,6 +916,22 @@ config INTEL_TDX_GUEST
 	  which protect the confidentiality and integrity of guest
 	  memory contents and CPU state. TDX guests are protected from
 	  some attacks from the VMM.
+
+config PKVM_X86_GUEST
+	bool "pKVM Protected Guest Support"
+	select ARCH_HAS_CC_PLATFORM
+	select ARCH_HAS_VIRTIO_BALLOON_HYP_OPS
+	select X86_MEM_ENCRYPT
+	help
+	  Support running as a protected guest under Protected KVM (pKVM).
+	  Without this support, a protected guest kernel cannot successfully
+	  boot or run under Protected KVM, since guest memory and CPU state
+	  is protected from the host, and thus a protected guest kernel needs
+	  to do certain things in a different way than a regular kernel, for
+	  instance, use hypercalls to pKVM to share its memory with the host
+	  when needed (e.g. for virtio), or use hypercalls for accessing MMIO
+	  to let the host emulate MMIO for the guest without having access to
+	  the guest memory.
 
 endif # HYPERVISOR_GUEST
 

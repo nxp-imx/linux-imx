@@ -32,6 +32,7 @@
   reuseport_detach_sock
   reuseport_select_sock
   cgroup_rm_cftypes
+  mem_cgroup_flush_stats
   __traceiter_android_vh_remove_mapping
   __traceiter_android_vh_remove_mapping_failed
   __traceiter_android_vh_filemap_get_folio_end
@@ -52,3 +53,23 @@
   __tracepoint_android_vh_handle_folio_writeback
   __traceiter_android_vh_reclaim_before_kswapd
   __tracepoint_android_vh_reclaim_before_kswapd
+  __traceiter_android_vh_filemap_add_folio
+  __tracepoint_android_vh_filemap_add_folio
+  __traceiter_android_vh_mem_cgroup_charge
+  __tracepoint_android_vh_mem_cgroup_charge
+
+# required by custom memory policy
+  __tracepoint_android_vh_mm_get_zone_mark
+  __traceiter_android_vh_mm_get_zone_mark
+  __tracepoint_android_vh_folio_add_file_rmap
+  __traceiter_android_vh_folio_add_file_rmap
+  __tracepoint_android_vh_folio_remove_rmap
+  __traceiter_android_vh_folio_remove_rmap
+  __tracepoint_android_vh_folios_put_refs_direct_free_extent
+  __traceiter_android_vh_folios_put_refs_direct_free_extent
+  __tracepoint_android_vh_free_pages_and_swap_cache
+  __traceiter_android_vh_free_pages_and_swap_cache
+  __filemap_remove_folio
+  inode_add_lru
+  prep_new_page
+  folio_isolate_lru

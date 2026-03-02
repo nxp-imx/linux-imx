@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2008 Steven Rostedt <srostedt@redhat.com>
  */
+#include <linux/page_size_compat_defs.h>
 #include <linux/trace_recursion.h>
 #include <linux/trace_events.h>
 #include <linux/ring_buffer.h>
@@ -2629,7 +2630,7 @@ struct trace_buffer *__ring_buffer_alloc(unsigned long size, unsigned flags,
 					 struct ring_buffer_writer *writer)
 {
 	/* Default buffer page size - one system page */
-	return alloc_buffer(size, flags, 0, 0, 0, 0, key, writer);
+	return alloc_buffer(size, flags, get_order(__PAGE_SIZE), 0, 0, 0, key, writer);
 
 }
 EXPORT_SYMBOL_GPL(__ring_buffer_alloc);

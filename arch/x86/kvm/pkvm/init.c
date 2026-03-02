@@ -177,45 +177,15 @@ static int create_hyp_mmu(const struct pkvm_mem_info infos[], int nr_infos)
 static int create_host_mmu(const struct pkvm_mem_info infos[], int nr_infos,
 			   host_mmu_init_fn_t host_mmu_init_fn)
 {
-	int ret, i;
-
-	ret = pkvm_host_mmu_init(host_pgt_base, pkvm_host_pgtable_pages(),
-				 host_mmu_init_fn);
-	if (ret)
-		return ret;
-
-	/*
-	 * Unmap the memory range in the pkvm_mem_info, which includes the pkvm
-	 * TEXT/DATA and its reserved memory, to protect the pKVM hypervisor
-	 * from the host VM.
-	 */
-	for (i = 0; i < nr_infos; i++) {
-#ifdef CONFIG_PKVM_X86_DEBUG
-		/*
-		 * Only keep the pKVM TEXT/DATA mapped in the host mmu to allow
-		 * the host to access pKVM's text and data for debugging, and
-		 * unmap all the other regions i.e., pKVM reserved memory region
-		 * which the host doesn't need to access.
-		 */
-		if (infos[i].type != PKVM_TEXT_DATA) {
-			ret = pkvm_host_donate_hyp(infos[i].pa, infos[i].size, false);
-			if (ret)
-				return ret;
-		}
-#else
-		ret = pkvm_host_donate_hyp(infos[i].pa, infos[i].size, false);
-		if (ret)
-			return ret;
-#endif
-	}
-
-	return 0;
+	return pkvm_host_mmu_init(host_pgt_base, pkvm_host_pgtable_pages(),
+				  infos, nr_infos, host_mmu_init_fn);
 }
 
 #define TMP_NR_INFOS	16
 static int initialize_global(struct pkvm_mem_info infos[], int nr_infos)
 {
 	host_mmu_init_fn_t host_mmu_init_fn = init_ops ? init_ops->host_mmu_init : NULL;
+	hyp_iommu_init_fn_t hyp_iommu_init = init_ops ? init_ops->hyp_iommu_init : NULL;
 	hyp_global_init_fn_t hyp_global_init = init_ops ? init_ops->hyp_global_init : NULL;
 	struct pkvm_mem_info tmp_infos[TMP_NR_INFOS];
 	phys_addr_t mem_base = INVALID_PAGE;
@@ -264,6 +234,12 @@ static int initialize_global(struct pkvm_mem_info infos[], int nr_infos)
 	 * guest VMs.
 	 */
 	kvm_init_xstate_sizes();
+
+	if (hyp_iommu_init) {
+		ret = hyp_iommu_init();
+		if (ret)
+			return ret;
+	}
 
 	return hyp_global_init ? hyp_global_init() : 0;
 }

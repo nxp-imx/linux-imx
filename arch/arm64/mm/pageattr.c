@@ -253,6 +253,7 @@ int set_direct_map_invalid_noflush(struct page *page)
 	return update_range_prot((unsigned long)page_address(page),
 				 PAGE_SIZE, set_mask, clear_mask);
 }
+EXPORT_SYMBOL_GPL(set_direct_map_invalid_noflush);
 
 int set_direct_map_default_noflush(struct page *page)
 {
@@ -355,6 +356,7 @@ int set_direct_map_valid_noflush(struct page *page, unsigned nr, bool valid)
 
 	return set_memory_valid(addr, nr, valid);
 }
+EXPORT_SYMBOL_GPL(set_direct_map_default_noflush);
 
 #ifdef CONFIG_DEBUG_PAGEALLOC
 /*

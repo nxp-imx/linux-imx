@@ -19,7 +19,9 @@ struct pkvm_page {
 	u8 order;
 
 	/* Store host memory page state. */
-	enum pkvm_page_state host_state: 8;
+	enum pkvm_page_state host_state: 4;
+	/* Store page owner id. */
+	enum pkvm_owner_id owner: 4;
 
 	/* Tracks how many times the page is shared with pKVM. */
 	u16 host_share_hyp_count;
@@ -150,7 +152,7 @@ static inline void *kern_pkvm_va(void *va)
 	return va;
 }
 
-void pkvm_clflush_cache_range(void *vaddr, unsigned int size);
+void clflush_cache_range(void *vaddr, unsigned int size);
 
 static inline void pkvm_clear_memory(void *va, size_t size)
 {
@@ -159,7 +161,7 @@ static inline void pkvm_clear_memory(void *va, size_t size)
 	 * Flush CPU cache to ensure clearing the memory range in RAM, so that
 	 * the previous contents cannot be read via non-coherent DMA.
 	 */
-	pkvm_clflush_cache_range(va, size);
+	clflush_cache_range(va, size);
 }
 
 static inline void *pkvm_phys_to_virt(phys_addr_t phys)

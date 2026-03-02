@@ -440,10 +440,12 @@ static inline struct mutex *blk_mq_zwp_mutex(struct blk_mq_hw_ctx *hctx)
 	struct request_queue *q = hctx->queue;
 
 	/*
-	 * If pipelining zoned writes is disabled or if zone write order
-	 * restore is supported, do not serialize dispatch operations.
+	 * If @q is not associated with a zoned block device, if pipelining
+	 * zoned writes is disabled or if zone write order restore is supported,
+	 * do not serialize dispatch operations.
 	 */
-	if (!blk_pipeline_zwr(q) || (q->limits.features & BLK_FEAT_ZWOR))
+	if (!blk_queue_is_zoned(q) || !blk_pipeline_zwr(q) ||
+	    (q->limits.features & BLK_FEAT_ZWOR))
 		return NULL;
 
 	/*

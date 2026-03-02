@@ -12,6 +12,7 @@
  *  Copyright (C) 2004-2006 Ingo Molnar
  *  Copyright (C) 2004 Nadia Yvette Chambers
  */
+#include <linux/page_size_compat_defs.h>
 #include <linux/ring_buffer.h>
 #include <linux/utsname.h>
 #include <linux/stacktrace.h>
@@ -9640,6 +9641,7 @@ static ssize_t
 buffer_subbuf_size_write(struct file *filp, const char __user *ubuf,
 			 size_t cnt, loff_t *ppos)
 {
+	unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;
 	struct trace_array *tr = filp->private_data;
 	unsigned long val;
 	int old_order;
@@ -9653,11 +9655,12 @@ buffer_subbuf_size_write(struct file *filp, const char __user *ubuf,
 
 	val *= 1024; /* value passed in is in KB */
 
-	pages = DIV_ROUND_UP(val, PAGE_SIZE);
+	pages = DIV_ROUND_UP(val, __PAGE_SIZE);
+	pages *= nr_subpages;
 	order = fls(pages - 1);
 
 	/* limit between 1 and 128 system pages */
-	if (order < 0 || order > 7)
+	if (order < 0 || order > 7 + get_order(nr_subpages))
 		return -EINVAL;
 
 	/* Do not allow tracing while changing the order of the ring buffer */
@@ -9840,8 +9843,7 @@ allocate_trace_buffer(struct trace_array *tr, struct array_buffer *buf, int size
 	buf->tr = tr;
 
 	if (tr->range_addr_start && tr->range_addr_size) {
-		/* Add scratch buffer to handle 128 modules */
-		buf->buffer = ring_buffer_alloc_range(size, rb_flags, 0,
+		buf->buffer = ring_buffer_alloc_range(size, rb_flags, get_order(__PAGE_SIZE),
 						      tr->range_addr_start,
 						      tr->range_addr_size,
 						      struct_size(tscratch, entries, 128));

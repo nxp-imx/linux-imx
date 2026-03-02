@@ -5,7 +5,11 @@
 #include <linux/sort.h>
 #include <asm/kvm_pkvm.h>
 
+/* Kernel command-line parameter */
 bool __read_mostly enable_pkvm;
+
+/* Flag denoting pKVM successfully initialized */
+DEFINE_STATIC_KEY_FALSE(pkvm_enabled_key);
 
 static struct memblock_region *pkvm_memory = pkvm_sym(pkvm_memory);
 static unsigned int pkvm_memblock_nr;

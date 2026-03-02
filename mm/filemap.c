@@ -42,6 +42,7 @@
 #include <linux/psi.h>
 #include <linux/ramfs.h>
 #include <linux/page_idle.h>
+#include <linux/page_size_compat.h>
 #include <linux/migrate.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/splice.h>
@@ -234,6 +235,7 @@ void __filemap_remove_folio(struct folio *folio, void *shadow)
 	filemap_unaccount_folio(mapping, folio);
 	page_cache_delete(mapping, folio, shadow);
 }
+EXPORT_SYMBOL(__filemap_remove_folio);
 
 void filemap_free_folio(struct address_space *mapping, struct folio *folio)
 {
@@ -976,6 +978,9 @@ int filemap_add_folio(struct address_space *mapping, struct folio *folio,
 
 	if (kernel_file)
 		tmp = set_active_memcg(root_mem_cgroup);
+
+	trace_android_vh_filemap_add_folio(mapping, folio, index);
+
 	ret = mem_cgroup_charge(folio, NULL, gfp);
 	if (kernel_file)
 		set_active_memcg(tmp);
@@ -4628,6 +4633,8 @@ resched:
 		}
 	}
 	rcu_read_unlock();
+
+	__adjust_cachestat_counters(cs);
 }
 
 /*

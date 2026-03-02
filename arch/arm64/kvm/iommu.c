@@ -11,13 +11,29 @@
 
 #include <iommu-pages.h>
 
-#define kvm_call_hyp_nvhe_mc(...)					\
-({									\
-	struct arm_smccc_res __res;					\
-	do {								\
-		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);		\
-	} while (__res.a1 && !kvm_iommu_topup_memcache(&__res, GFP_KERNEL));\
-	__res.a1;							\
+/* HVCs returning an error code or 0: handle pending hyp_req and retry */
+#define kvm_call_hyp_nvhe_mc(...)							\
+({											\
+	struct arm_smccc_res __res;							\
+	int __ret;									\
+	do {										\
+		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);				\
+		__ret = __pkvm_handle_smccc_req(&__res, (void *)(uintptr_t)GFP_KERNEL); \
+	} while (__res.a1 && !__ret);							\
+	__ret;										\
+})
+
+/* HVCs returning a number of elements: handle pending hyp_req and return num elems */
+#define kvm_call_hyp_nvhe_elem(res, gfp, ret, ...)					\
+({											\
+	struct kvm_hyp_req __req;							\
+	int __num_elems;								\
+	ret = 0;									\
+	res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);					\
+	__num_elems = res.a1;								\
+	if (smccc_to_hyp_req(&__req, &res))						\
+		ret = handle_hyp_req(NULL, &__req, (void *)(uintptr_t)gfp);		\
+	__num_elems;									\
 })
 
 extern size_t kvm_nvhe_sym(hyp_kvm_iommu_pages);
@@ -155,34 +171,6 @@ int __pkvm_topup_hyp_iommu(unsigned long nr_pages, unsigned long sz_alloc, gfp_t
 }
 
 /* Hypercall abstractions exposed to kernel IOMMU drivers */
-static int kvm_iommu_topup_memcache(struct arm_smccc_res *res, gfp_t gfp)
-{
-	struct kvm_hyp_req req;
-
-	hyp_reqs_smccc_decode(res, &req);
-
-	if ((res->a1 == -ENOMEM) && (req.type != KVM_HYP_REQ_TYPE_MEM)) {
-		/*
-		 * There is no way for drivers to populate hyp_alloc requests,
-		 * so -ENOMEM + no request indicates that.
-		 */
-		return __pkvm_topup_hyp_alloc(1);
-	} else if (req.type != KVM_HYP_REQ_TYPE_MEM) {
-		return -EBADE;
-	}
-
-	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
-		return __pkvm_topup_hyp_iommu(req.mem.nr_pages, req.mem.sz_alloc, gfp);
-	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
-		/* Fill hyp alloc*/
-		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);
-	}
-
-	pr_err("Bogus mem request");
-	return -EBADE;
-}
-
-
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 unsigned int endpoint, unsigned int pasid,
 			 unsigned int ssid_bits, unsigned long flags)
@@ -230,20 +218,23 @@ int kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 	size_t mapped;
 	size_t size = pgsize * pgcount;
 	struct arm_smccc_res res;
+	int ret;
 
 	do {
-		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_pages, domain_id,
-					      iova, paddr, pgsize, pgcount, prot);
-		mapped = res.a1;
+		mapped = kvm_call_hyp_nvhe_elem(res, gfp, ret,
+						__pkvm_host_iommu_map_pages, domain_id,
+						iova, paddr, pgsize, pgcount, prot);
 		iova += mapped;
 		paddr += mapped;
 		WARN_ON(mapped % pgsize);
 		WARN_ON(mapped > pgcount * pgsize);
 		pgcount -= mapped / pgsize;
 		*total_mapped += mapped;
-	} while (*total_mapped < size && !kvm_iommu_topup_memcache(&res, gfp));
+	} while (*total_mapped < size && !ret);
+
+	/* See handle___pkvm_host_iommu_map_pages */
 	if (*total_mapped < size)
-		return res.a0;
+		return res.a0 ? res.a0 : ret;
 	return 0;
 }
 EXPORT_SYMBOL(kvm_iommu_map_pages);
@@ -255,11 +246,12 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
 	size_t total_unmapped = 0;
 	size_t size = pgsize * pgcount;
 	struct arm_smccc_res res;
+	int ret;
 
 	do {
-		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_unmap_pages,
-					      domain_id, iova, pgsize, pgcount);
-		unmapped = res.a1;
+		unmapped = kvm_call_hyp_nvhe_elem(res, GFP_ATOMIC, ret,
+						  __pkvm_host_iommu_unmap_pages,
+						  domain_id, iova, pgsize, pgcount);
 		total_unmapped += unmapped;
 		iova += unmapped;
 		WARN_ON(unmapped % pgsize);
@@ -271,8 +263,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
 		 * of the range, or it needs a page in the memcache to break a
 		 * block mapping.
 		 */
-	} while (total_unmapped < size &&
-		 (unmapped || !kvm_iommu_topup_memcache(&res, GFP_ATOMIC)));
+	} while (total_unmapped < size && (unmapped || !ret));
 
 	return total_unmapped;
 
@@ -361,11 +352,12 @@ size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, struct kvm_iommu_sg *sg,
 {
 	size_t mapped, total_mapped = 0;
 	struct arm_smccc_res res;
+	int ret;
 
 	do {
-		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_sg,
-					      domain_id, iova, sg, nent, prot);
-		mapped = res.a1;
+		mapped = kvm_call_hyp_nvhe_elem(res, gfp, ret,
+						__pkvm_host_iommu_map_sg,
+						domain_id, iova, sg, nent, prot);
 		iova += mapped;
 		total_mapped += mapped;
 		/* Skip mapped */
@@ -381,7 +373,7 @@ size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, struct kvm_iommu_sg *sg,
 			}
 		}
 
-	} while (nent && !kvm_iommu_topup_memcache(&res, gfp));
+	} while (nent && !ret);
 
 	return total_mapped;
 }

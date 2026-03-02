@@ -87,6 +87,9 @@ DECLARE_HOOK(android_vh_clear_reclaimed_folio,
 DECLARE_HOOK(android_vh_evict_folios_bypass,
 	TP_PROTO(struct folio *folio, bool *bypass),
 	TP_ARGS(folio, bypass));
+DECLARE_HOOK(android_vh_mm_get_zone_mark,
+	TP_PROTO(struct zone *zone, unsigned long *mark),
+	TP_ARGS(zone, mark));
 #endif /* _TRACE_HOOK_VMSCAN_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

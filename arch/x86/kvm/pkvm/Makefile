@@ -51,6 +51,8 @@ $(obj)/$(kvm)/vmx/vmenter.pkvm.o: $(obj)/kvm-asm-offsets.h
 fpu				:= ../../kernel/fpu
 pkvm-hyp-y			+= $(fpu)/core.o $(fpu)/xstate.o
 
+include $(srctree)/drivers/iommu/intel/pkvm/Makefile.pkvm
+
 pkvm-obj 			:= $(patsubst %.o,%.pkvm.o,$(pkvm-hyp-y))
 obj-$(CONFIG_PKVM_X86)		+= pkvm.o
 

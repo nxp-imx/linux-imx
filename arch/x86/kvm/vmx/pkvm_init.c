@@ -8,6 +8,7 @@
 #include <asm/pkvm_image.h>
 #include "pkvm_constants.h"
 #include "vmx.h"
+#include "pkvm_iommu.h"
 
 extern u64 x86_pred_cmd;
 
@@ -84,6 +85,8 @@ u64 pkvm_total_reserve_pages(void)
 
 static __init void pkvm_setup_syms(void)
 {
+	int i;
+
 	/*
 	 * The pKVM hypervisor has defined the same symbol page_offset_base
 	 * and phys_base with the linux kernel. Initialize with the same value
@@ -105,6 +108,9 @@ static __init void pkvm_setup_syms(void)
 #endif
 	/* For the pKVM hypervisor to leverage pgprot_val macro */
 	pkvm_sym(__default_kernel_pte_mask) = __default_kernel_pte_mask;
+	for (i = 0; i < _PAGE_CACHE_MODE_NUM; i++)
+		pkvm_sym(__cachemode2pte_tbl)[i] = cachemode2protval(i);
+
 #ifdef CONFIG_AMD_MEM_ENCRYPT
 	pkvm_sym(sme_me_mask) = sme_me_mask;
 #endif
@@ -1267,7 +1273,6 @@ static int __init pkvm_firmware_rmem_clear(void)
 	return 0;
 }
 
-
 int __init vmx_pkvm_init(void)
 {
 	struct pkvm_hyp *pkvm;
@@ -1338,6 +1343,10 @@ int __init vmx_pkvm_init(void)
 		pr_cont("reboot with kvm-intel.pkvm_relax_cpu_bugs=false\n");
 	}
 
+	ret = pkvm_host_prepare_iommu();
+	if (ret)
+		goto out;
+
 	pkvm_sym(init_ops) = pkvm_sym(pkvm_vmx_init_ops);
 
 	ret = pkvm_host_deprivilege_cpus(pkvm);
@@ -1347,6 +1356,13 @@ int __init vmx_pkvm_init(void)
 	ret = pkvm_hyp_init();
 	if (ret)
 		goto repriv_cpus;
+	static_branch_enable(&pkvm_enabled_key);
+
+	ret = pkvm_host_init_iommu();
+	if (ret) {
+		static_branch_disable(&pkvm_enabled_key);
+		goto repriv_cpus;
+	}
 
 	pkvm_hypercall(init_finalize);
 
@@ -1366,6 +1382,9 @@ out:
 	 * can clear it while we are still in VMX non-root.
 	 */
 	pkvm_firmware_rmem_clear();
+
+	/* TODO: Try re-initialize IOMMU */
+
 	/*
 	 * As the reserved memory at the pkvm_mem_base will not be
 	 * released back to the host, no need to de-initialize or

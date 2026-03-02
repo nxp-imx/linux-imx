@@ -48,6 +48,9 @@ static const __initconst struct hypervisor_x86 * const hypervisors[] =
 #ifdef CONFIG_BHYVE_GUEST
 	&x86_hyper_bhyve,
 #endif
+#ifdef CONFIG_PKVM_X86_GUEST
+	&x86_hyper_pkvm,
+#endif
 };
 
 enum x86_hypervisor_type x86_hyper_type;

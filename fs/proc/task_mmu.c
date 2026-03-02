@@ -10,6 +10,7 @@
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/page_size_compat.h>
 #include <linux/mempolicy.h>
 #include <linux/rmap.h>
 #include <linux/swap.h>
@@ -17,6 +18,7 @@
 #include <linux/swapops.h>
 #include <linux/mmu_notifier.h>
 #include <linux/page_idle.h>
+#include <linux/page_size_compat.h>
 #include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
 #include <linux/pkeys.h>
@@ -97,13 +99,14 @@ unsigned long task_statm(struct mm_struct *mm,
 			 unsigned long *shared, unsigned long *text,
 			 unsigned long *data, unsigned long *resident)
 {
-	*shared = get_mm_counter_sum(mm, MM_FILEPAGES) +
-			get_mm_counter_sum(mm, MM_SHMEMPAGES);
-	*text = (PAGE_ALIGN(mm->end_code) - (mm->start_code & PAGE_MASK))
-								>> PAGE_SHIFT;
-	*data = mm->data_vm + mm->stack_vm;
-	*resident = *shared + get_mm_counter_sum(mm, MM_ANONPAGES);
-	return mm->total_vm;
+	*shared = __page_size_count(get_mm_counter_sum(mm, MM_FILEPAGES) +
+			get_mm_counter_sum(mm, MM_SHMEMPAGES));
+	*text = (__PAGE_ALIGN(mm->end_code) - (mm->start_code & __PAGE_MASK))
+								>> __PAGE_SHIFT;
+	*data = __page_size_count(mm->data_vm + mm->stack_vm);
+	*resident = __page_size_count(*shared + get_mm_counter_sum(mm, MM_ANONPAGES));
+
+	return __page_size_count(mm->total_vm);
 }
 
 #ifdef CONFIG_NUMA
@@ -482,6 +485,28 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 
 	start = vma->vm_start;
 	end = vma->vm_end;
+
+	/*
+	 * The seq_file iterator for /proc/pid/maps can be interrupted and
+	 * restarted. The restart logic uses the vm_end of the last VMA as
+	 * the new position (see get_vma_at_pos()).
+	 *
+	 * In page size compatibility mode, this can cause the scan to restart
+	 * exactly at an anonymous "fixup" VMA (__VM_NO_COMPAT). However, the
+	 * logic in __fold_filemap_fixup_entry() depends on processing the
+	 * main file-backed VMA first to correctly fold the subsequent fixup
+	 * VMA into it.
+	 *
+	 * If we start on a fixup VMA, the folding is missed, and it gets
+	 * printed as a separate, overlapping map. To prevent this, simply
+	 * skip printing these entries. They are only meant to be merged with
+	 * their preceding VMA, not displayed directly.
+	 */
+	if (flags & __VM_NO_COMPAT)
+		return;
+
+	__fold_filemap_fixup_entry(&((struct proc_maps_private *)m->private)->iter, &end);
+
 	show_vma_header_prefix(m, start, end, flags, pgoff, dev, ino);
 
 	get_vma_name(vma, &path, &name, &name_fmt);
@@ -2172,6 +2197,30 @@ static const struct mm_walk_ops pagemap_ops = {
 	.walk_lock	= PGWALK_RDLOCK,
 };
 
+static inline void __collapse_pagemap_result(pagemap_entry_t *src_vec,
+					     pagemap_entry_t *res_vec,
+					     unsigned int entries,
+					     unsigned int nr_subpages)
+{
+	unsigned int i;
+
+	if (nr_subpages == 1)
+		return;
+
+	for (i = 0; i < entries; i++) {
+		/*
+		 * Zero the PFN since there is no guarantee that the PFNs are contiguous.
+		 * Zero the flags - applicable flags are derived from the sub-entries,
+		 *                  inapplicable flags are kept zeroed.
+		 */
+		if (i % nr_subpages == 0)
+			res_vec[i / nr_subpages] = make_pme(0, 0);
+
+		res_vec[i / nr_subpages].pme
+			|= src_vec[i].pme & (PM_SOFT_DIRTY|PM_MMAP_EXCLUSIVE|PM_FILE|PM_PRESENT);
+	}
+}
+
 /*
  * /proc/pid/pagemap - an array mapping virtual pages to pfns
  *
@@ -2210,6 +2259,8 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 	unsigned long start_vaddr;
 	unsigned long end_vaddr;
 	int ret = 0, copied = 0;
+	unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;
+	pagemap_entry_t *res = NULL;
 
 	if (!mm || !mmget_not_zero(mm))
 		goto out;
@@ -2231,6 +2282,21 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 	ret = -ENOMEM;
 	if (!pm.buffer)
 		goto out_mm;
+
+	if (unlikely(nr_subpages > 1)) {
+		/*
+		 * Userspace thinks the pages are large than the actually are, adjust the count to
+		 * compensate.
+		 */
+		count *= nr_subpages;
+
+		res = kcalloc(pm.len / nr_subpages, PM_ENTRY_BYTES, GFP_KERNEL);
+		if (!res) {
+			ret = -ENOMEM;
+			goto out_free;
+		}
+	} else
+		res = pm.buffer;
 
 	src = *ppos;
 	svpfn = src / PM_ENTRY_BYTES;
@@ -2274,19 +2340,33 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 		start_vaddr = end;
 
 		len = min(count, PM_ENTRY_BYTES * pm.pos);
-		if (copy_to_user(buf, pm.buffer, len)) {
+
+		__collapse_pagemap_result(pm.buffer, res, len / PM_ENTRY_BYTES, nr_subpages);
+
+		if (copy_to_user(buf, res, len / nr_subpages)) {
 			ret = -EFAULT;
 			goto out_free;
 		}
+
+		/*
+		 * If emulating the page size, clear the old results, to avoid
+		 * corrupting the next __collapse_pagemap_result()
+		 */
+		if (unlikely(nr_subpages > 1))
+			memset(res, 0, len / nr_subpages);
+
 		copied += len;
-		buf += len;
+		buf += len / nr_subpages;
 		count -= len;
 	}
 	*ppos += copied;
 	if (!ret || ret == PM_END_OF_BUFFER)
-		ret = copied;
+		ret = copied / nr_subpages;
 
 out_free:
+	/* Avoid double free, as res = pm.buffer if nr_subpages == 1 */
+	if (unlikely(nr_subpages > 1))
+		kfree(res);
 	kfree(pm.buffer);
 out_mm:
 	mmput(mm);
@@ -3080,14 +3160,38 @@ static long do_pagemap_cmd(struct file *file, unsigned int cmd,
 	}
 }
 
+static loff_t __pagemap_lseek(struct file *file, loff_t offset, int orig)
+{
+	unsigned long nr_subpages = __PAGE_SIZE / PAGE_SIZE;
+	loff_t ret;
+
+	/*
+	 * Userspace thinks the pages are larger than they actually are, so adjust the
+	 * offset to compensate.
+	 */
+	offset *= nr_subpages;
+
+	ret = mem_lseek(file, offset, orig);  /* borrow this */
+	if (ret < 0)
+		return offset;
+
+	/* Re-adjust the offset to reflect the larger userspace page size. */
+	return ret / nr_subpages;
+}
+
 const struct file_operations proc_pagemap_operations = {
-	.llseek		= mem_lseek, /* borrow this */
+	.llseek		= __pagemap_lseek,
 	.read		= pagemap_read,
 	.open		= pagemap_open,
 	.release	= pagemap_release,
 	.unlocked_ioctl = do_pagemap_cmd,
 	.compat_ioctl	= do_pagemap_cmd,
 };
+
+bool __is_emulated_pagemap_file(struct file *file)
+{
+	return __PAGE_SIZE != PAGE_SIZE && file->f_op == &proc_pagemap_operations;
+}
 #endif /* CONFIG_PROC_PAGE_MONITOR */
 
 #ifdef CONFIG_NUMA

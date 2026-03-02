@@ -145,13 +145,13 @@ static int map_vdso(const struct vdso_image *image, unsigned long addr)
 		return -EINTR;
 
 	addr = get_unmapped_area(NULL, addr,
-				 image->size + __VDSO_PAGES * PAGE_SIZE, 0, 0);
+				 image->size + __VDSO_PAGES * __MAX_PAGE_SIZE, 0, 0);
 	if (IS_ERR_VALUE(addr)) {
 		ret = addr;
 		goto up_fail;
 	}
 
-	text_start = addr + __VDSO_PAGES * PAGE_SIZE;
+	text_start = addr + __VDSO_PAGES * __MAX_PAGE_SIZE;
 
 	/*
 	 * MAYWRITE to allow gdb to COW and set breakpoints
@@ -178,7 +178,7 @@ static int map_vdso(const struct vdso_image *image, unsigned long addr)
 
 	vma = _install_special_mapping(mm,
 				       VDSO_VCLOCK_PAGES_START(addr),
-				       VDSO_NR_VCLOCK_PAGES * PAGE_SIZE,
+				       VDSO_NR_VCLOCK_PAGES * __MAX_PAGE_SIZE,
 				       VM_READ|VM_MAYREAD|VM_IO|VM_DONTDUMP|
 				       VM_PFNMAP|VM_SEALED_SYSMAP,
 				       &vvar_vclock_mapping);

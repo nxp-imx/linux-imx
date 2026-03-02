@@ -1591,8 +1591,8 @@ static int pkvm_request_vcpu_memcache(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_
 	if (!req)
 		return -ENOMEM;
 
-	req->mem.dest = REQ_MEM_DEST_VCPU_MEMCACHE;
-	req->mem.nr_pages = kvm_mmu_cache_min_pages(&hyp_vcpu->vcpu.kvm->arch.mmu);
+	req->memcache.dest = REQ_MEM_DEST_VCPU_MEMCACHE;
+	req->memcache.nr_pages = kvm_mmu_cache_min_pages(&hyp_vcpu->vcpu.kvm->arch.mmu);
 
 	if (rewind)
 		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);

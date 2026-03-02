@@ -38,6 +38,7 @@
 #include <linux/sched/signal.h>
 #include <linux/sched/numa_balancing.h>
 #include <linux/sched/task.h>
+#include <linux/page_size_compat.h>
 #include <linux/pagemap.h>
 #include <linux/perf_event.h>
 #include <linux/highmem.h>
@@ -627,14 +628,14 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	if (vma->vm_end - vma->vm_start > stack_base)
 		return -ENOMEM;
 
-	stack_base = PAGE_ALIGN(stack_top - stack_base);
+	stack_base = __PAGE_ALIGN(stack_top - stack_base);
 
 	stack_shift = vma->vm_start - stack_base;
 	mm->arg_start = bprm->p - stack_shift;
 	bprm->p = vma->vm_end - stack_shift;
 #else
 	stack_top = arch_align_stack(stack_top);
-	stack_top = PAGE_ALIGN(stack_top);
+	stack_top = __PAGE_ALIGN(stack_top);
 
 	if (unlikely(stack_top < mmap_min_addr) ||
 	    unlikely(vma->vm_end - vma->vm_start >= stack_top - mmap_min_addr))
@@ -702,7 +703,7 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	 * Align this down to a page boundary as expand_stack
 	 * will align it up.
 	 */
-	rlim_stack = bprm->rlim_stack.rlim_cur & PAGE_MASK;
+	rlim_stack = bprm->rlim_stack.rlim_cur & __PAGE_MASK;
 
 	stack_expand = min(rlim_stack, stack_size + stack_expand);
 

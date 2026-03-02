@@ -156,7 +156,8 @@ sha256_blocks_generic(struct sha256_block_state *state,
 	memzero_explicit(W, sizeof(W));
 }
 
-#if defined(CONFIG_CRYPTO_LIB_SHA256_ARCH) && !defined(__DISABLE_EXPORTS)
+#if defined(CONFIG_CRYPTO_LIB_SHA256_ARCH) && \
+	(!defined(__DISABLE_EXPORTS) || defined(BUILD_FIPS140_KO))
 #include "sha256.h" /* $(SRCARCH)/sha256.h */
 #else
 #define sha256_blocks sha256_blocks_generic
@@ -172,18 +173,21 @@ static void __sha256_init(struct __sha256_ctx *ctx,
 
 void sha224_init(struct sha224_ctx *ctx)
 {
+	FIPS140_CALL(sha224_init, ctx);
 	__sha256_init(&ctx->ctx, &sha224_iv, 0);
 }
 EXPORT_SYMBOL_GPL(sha224_init);
 
 void sha256_init(struct sha256_ctx *ctx)
 {
+	FIPS140_CALL(sha256_init, ctx);
 	__sha256_init(&ctx->ctx, &sha256_iv, 0);
 }
 EXPORT_SYMBOL_GPL(sha256_init);
 
 void __sha256_update(struct __sha256_ctx *ctx, const u8 *data, size_t len)
 {
+	FIPS140_CALL(__sha256_update, ctx, data, len);
 	size_t partial = ctx->bytecount % SHA256_BLOCK_SIZE;
 
 	ctx->bytecount += len;
@@ -237,6 +241,7 @@ static void __sha256_final(struct __sha256_ctx *ctx,
 
 void sha224_final(struct sha224_ctx *ctx, u8 out[SHA224_DIGEST_SIZE])
 {
+	FIPS140_CALL(sha224_final, ctx, out);
 	__sha256_final(&ctx->ctx, out, SHA224_DIGEST_SIZE);
 	memzero_explicit(ctx, sizeof(*ctx));
 }
@@ -244,6 +249,7 @@ EXPORT_SYMBOL(sha224_final);
 
 void sha256_final(struct sha256_ctx *ctx, u8 out[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(sha256_final, ctx, out);
 	__sha256_final(&ctx->ctx, out, SHA256_DIGEST_SIZE);
 	memzero_explicit(ctx, sizeof(*ctx));
 }
@@ -251,6 +257,7 @@ EXPORT_SYMBOL(sha256_final);
 
 void sha224(const u8 *data, size_t len, u8 out[SHA224_DIGEST_SIZE])
 {
+	FIPS140_CALL(sha224, data, len, out);
 	struct sha224_ctx ctx;
 
 	sha224_init(&ctx);
@@ -261,6 +268,7 @@ EXPORT_SYMBOL(sha224);
 
 void sha256(const u8 *data, size_t len, u8 out[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(sha256, data, len, out);
 	struct sha256_ctx ctx;
 
 	sha256_init(&ctx);
@@ -273,7 +281,7 @@ EXPORT_SYMBOL(sha256);
  * Pre-boot environments (as indicated by __DISABLE_EXPORTS being defined) just
  * need the generic SHA-256 code.  Omit all other features from them.
  */
-#ifndef __DISABLE_EXPORTS
+#if !defined(__DISABLE_EXPORTS) || defined(BUILD_FIPS140_KO)
 
 #ifndef sha256_finup_2x_arch
 static bool sha256_finup_2x_arch(const struct __sha256_ctx *ctx,
@@ -309,6 +317,8 @@ void sha256_finup_2x(const struct sha256_ctx *ctx, const u8 *data1,
 		     const u8 *data2, size_t len, u8 out1[SHA256_DIGEST_SIZE],
 		     u8 out2[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(sha256_finup_2x, ctx, data1, data2, len, out1, out2);
+
 	if (ctx == NULL)
 		ctx = &initial_sha256_ctx;
 
@@ -321,6 +331,7 @@ EXPORT_SYMBOL_GPL(sha256_finup_2x);
 
 bool sha256_finup_2x_is_optimized(void)
 {
+	FIPS140_CALL(sha256_finup_2x_is_optimized);
 	return sha256_finup_2x_is_optimized_arch();
 }
 EXPORT_SYMBOL_GPL(sha256_finup_2x_is_optimized);
@@ -361,6 +372,7 @@ static void __hmac_sha256_preparekey(struct sha256_block_state *istate,
 void hmac_sha224_preparekey(struct hmac_sha224_key *key,
 			    const u8 *raw_key, size_t raw_key_len)
 {
+	FIPS140_CALL(hmac_sha224_preparekey, key, raw_key, raw_key_len);
 	__hmac_sha256_preparekey(&key->key.istate, &key->key.ostate,
 				 raw_key, raw_key_len, &sha224_iv);
 }
@@ -369,6 +381,7 @@ EXPORT_SYMBOL_GPL(hmac_sha224_preparekey);
 void hmac_sha256_preparekey(struct hmac_sha256_key *key,
 			    const u8 *raw_key, size_t raw_key_len)
 {
+	FIPS140_CALL(hmac_sha256_preparekey, key, raw_key, raw_key_len);
 	__hmac_sha256_preparekey(&key->key.istate, &key->key.ostate,
 				 raw_key, raw_key_len, &sha256_iv);
 }
@@ -377,6 +390,7 @@ EXPORT_SYMBOL_GPL(hmac_sha256_preparekey);
 void __hmac_sha256_init(struct __hmac_sha256_ctx *ctx,
 			const struct __hmac_sha256_key *key)
 {
+	FIPS140_CALL(__hmac_sha256_init, ctx, key);
 	__sha256_init(&ctx->sha_ctx, &key->istate, SHA256_BLOCK_SIZE);
 	ctx->ostate = key->ostate;
 }
@@ -385,6 +399,7 @@ EXPORT_SYMBOL_GPL(__hmac_sha256_init);
 void hmac_sha224_init_usingrawkey(struct hmac_sha224_ctx *ctx,
 				  const u8 *raw_key, size_t raw_key_len)
 {
+	FIPS140_CALL(hmac_sha224_init_usingrawkey, ctx, raw_key, raw_key_len);
 	__hmac_sha256_preparekey(&ctx->ctx.sha_ctx.state, &ctx->ctx.ostate,
 				 raw_key, raw_key_len, &sha224_iv);
 	ctx->ctx.sha_ctx.bytecount = SHA256_BLOCK_SIZE;
@@ -394,6 +409,7 @@ EXPORT_SYMBOL_GPL(hmac_sha224_init_usingrawkey);
 void hmac_sha256_init_usingrawkey(struct hmac_sha256_ctx *ctx,
 				  const u8 *raw_key, size_t raw_key_len)
 {
+	FIPS140_CALL(hmac_sha256_init_usingrawkey, ctx, raw_key, raw_key_len);
 	__hmac_sha256_preparekey(&ctx->ctx.sha_ctx.state, &ctx->ctx.ostate,
 				 raw_key, raw_key_len, &sha256_iv);
 	ctx->ctx.sha_ctx.bytecount = SHA256_BLOCK_SIZE;
@@ -422,6 +438,7 @@ static void __hmac_sha256_final(struct __hmac_sha256_ctx *ctx,
 void hmac_sha224_final(struct hmac_sha224_ctx *ctx,
 		       u8 out[SHA224_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha224_final, ctx, out);
 	__hmac_sha256_final(&ctx->ctx, out, SHA224_DIGEST_SIZE);
 }
 EXPORT_SYMBOL_GPL(hmac_sha224_final);
@@ -429,6 +446,7 @@ EXPORT_SYMBOL_GPL(hmac_sha224_final);
 void hmac_sha256_final(struct hmac_sha256_ctx *ctx,
 		       u8 out[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha256_final, ctx, out);
 	__hmac_sha256_final(&ctx->ctx, out, SHA256_DIGEST_SIZE);
 }
 EXPORT_SYMBOL_GPL(hmac_sha256_final);
@@ -436,6 +454,7 @@ EXPORT_SYMBOL_GPL(hmac_sha256_final);
 void hmac_sha224(const struct hmac_sha224_key *key,
 		 const u8 *data, size_t data_len, u8 out[SHA224_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha224, key, data, data_len, out);
 	struct hmac_sha224_ctx ctx;
 
 	hmac_sha224_init(&ctx, key);
@@ -447,6 +466,7 @@ EXPORT_SYMBOL_GPL(hmac_sha224);
 void hmac_sha256(const struct hmac_sha256_key *key,
 		 const u8 *data, size_t data_len, u8 out[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha256, key, data, data_len, out);
 	struct hmac_sha256_ctx ctx;
 
 	hmac_sha256_init(&ctx, key);
@@ -459,6 +479,8 @@ void hmac_sha224_usingrawkey(const u8 *raw_key, size_t raw_key_len,
 			     const u8 *data, size_t data_len,
 			     u8 out[SHA224_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha224_usingrawkey, raw_key, raw_key_len, data,
+		     data_len, out);
 	struct hmac_sha224_ctx ctx;
 
 	hmac_sha224_init_usingrawkey(&ctx, raw_key, raw_key_len);
@@ -471,6 +493,8 @@ void hmac_sha256_usingrawkey(const u8 *raw_key, size_t raw_key_len,
 			     const u8 *data, size_t data_len,
 			     u8 out[SHA256_DIGEST_SIZE])
 {
+	FIPS140_CALL(hmac_sha256_usingrawkey, raw_key, raw_key_len, data,
+		     data_len, out);
 	struct hmac_sha256_ctx ctx;
 
 	hmac_sha256_init_usingrawkey(&ctx, raw_key, raw_key_len);

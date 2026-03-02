@@ -677,11 +677,8 @@ static int host_stage2_adjust_range(u64 addr, struct kvm_mem_range *range)
 	if (kvm_pte_valid(pte))
 		return -EAGAIN;
 
-	if (pte) {
-		WARN_ON(addr_is_memory(addr) &&
-			get_host_state(hyp_phys_to_page(addr)) != PKVM_NOPAGE);
+	if (pte)
 		return -EPERM;
-	}
 
 	for (; level <= KVM_PGTABLE_LAST_LEVEL; level++) {
 		if (!kvm_level_supports_block_mapping(level))

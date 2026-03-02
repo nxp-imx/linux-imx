@@ -10,6 +10,7 @@
 #include <linux/pagemap.h>
 #include <linux/syscalls.h>
 #include <linux/mempolicy.h>
+#include <linux/page_size_compat.h>
 #include <linux/page-isolation.h>
 #include <linux/page_idle.h>
 #include <linux/userfaultfd_k.h>
@@ -1822,9 +1823,9 @@ static bool is_valid_madvise(unsigned long start, size_t len_in, int behavior)
 	if (!madvise_behavior_valid(behavior))
 		return false;
 
-	if (!PAGE_ALIGNED(start))
+	if (!__PAGE_ALIGNED(start))
 		return false;
-	len = PAGE_ALIGN(len_in);
+	len = __PAGE_ALIGN(len_in);
 
 	/* Check to see whether len was rounded up from small -ve to zero */
 	if (len_in && !len)
@@ -1894,6 +1895,7 @@ static int madvise_do_behavior(unsigned long start, size_t len_in,
 	int error;
 	struct madvise_behavior_range *range = &madv_behavior->range;
 
+	len_in = __PAGE_ALIGN(len_in);
 	if (is_memory_failure(madv_behavior)) {
 		range->start = start;
 		range->end = start + len_in;
@@ -1901,7 +1903,7 @@ static int madvise_do_behavior(unsigned long start, size_t len_in,
 	}
 
 	range->start = get_untagged_addr(madv_behavior->mm, start);
-	range->end = range->start + PAGE_ALIGN(len_in);
+	range->end = range->start + len_in;
 
 	blk_start_plug(&plug);
 	if (is_madvise_populate(madv_behavior))
@@ -2185,9 +2187,9 @@ static int madvise_set_anon_name(struct mm_struct *mm, unsigned long start,
 		.anon_name = anon_name,
 	};
 
-	if (start & ~PAGE_MASK)
+	if (start & ~__PAGE_MASK)
 		return -EINVAL;
-	len = (len_in + ~PAGE_MASK) & PAGE_MASK;
+	len = (len_in + ~__PAGE_MASK) & __PAGE_MASK;
 
 	/* Check to see whether len was rounded up from small -ve to zero */
 	if (len_in && !len)

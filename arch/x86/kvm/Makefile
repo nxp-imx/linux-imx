@@ -47,6 +47,9 @@ $(obj)/kvm-asm-offsets.h: $(obj)/kvm-asm-offsets.s FORCE
 
 pkvm-intel-$(CONFIG_PKVM_INTEL)	+= vmx/pkvm_init.o vmx/pkvm_host.o
 
+ccflags-$(CONFIG_PKVM_INTEL) += -I $(srctree)/drivers/iommu/intel
+pkvm-intel-$(CONFIG_PKVM_INTEL)	+= ../../../drivers/iommu/intel/pkvm_iommu.o
+
 $(obj)/vmx/pkvm_init.o: $(obj)/pkvm_constants.h
 $(obj)/vmx/pkvm_host.o: $(obj)/pkvm_constants.h
 

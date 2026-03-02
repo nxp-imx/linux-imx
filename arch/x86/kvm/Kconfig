@@ -121,6 +121,7 @@ config KVM_INTEL_PROVE_VE
 
 config PKVM_X86
 	bool
+	depends on X86_64
 	depends on X86_X2APIC
 
 	help
@@ -136,7 +137,8 @@ config PKVM_X86
 config PKVM_INTEL
 	bool "pKVM for Intel processors support"
 	depends on KVM_INTEL=y
-	depends on X86_64
+	depends on INTEL_IOMMU
+	depends on !BLK_DEV_FD
 	select PKVM_X86
 	help
 	  Provides support for pKVM on Intel processors.

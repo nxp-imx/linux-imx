@@ -77,7 +77,10 @@ enum pkvm_owner_id {
 #define PKVM_OWNER_ID_BITS		bits_per(PKVM_MAX_ID - 1)
 
 int pkvm_host_donate_hyp(unsigned long phys, unsigned long size, bool clear);
+int pkvm_host_donate_hyp_share_ro(unsigned long phys, unsigned long size,
+				  bool clear);
 void pkvm_hyp_donate_host(unsigned long phys, unsigned long size, bool clear);
+int pkvm_host_donate_hyp_mmio(unsigned long phys, unsigned long size);
 int pkvm_hyp_donate_host_mmio_locked(unsigned long phys, unsigned long size);
 int pkvm_host_share_hyp(unsigned long phys, unsigned long size);
 void pkvm_host_unshare_hyp(unsigned long phys, unsigned long size);
@@ -94,5 +97,7 @@ int pkvm_guest_share_host(struct kvm_vcpu *vcpu, unsigned long gpa,
 			  unsigned long size);
 int pkvm_guest_unshare_host(struct kvm_vcpu *vcpu, unsigned long gpa,
 			    unsigned long size);
+int pkvm_host_use_dma(unsigned long phys, unsigned long size);
+void pkvm_host_unuse_dma(unsigned long phys, unsigned long size);
 
 #endif /* __PKVM_X86_MEM_PROTECT_H */

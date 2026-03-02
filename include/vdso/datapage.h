@@ -2,6 +2,12 @@
 #ifndef __VDSO_DATAPAGE_H
 #define __VDSO_DATAPAGE_H
 
+#ifdef CONFIG_X86_64
+#define VDSO_PAGE_SIZE __MAX_PAGE_SIZE
+#else
+#define VDSO_PAGE_SIZE PAGE_SIZE
+#endif
+
 #ifndef __ASSEMBLY__
 
 #include <linux/compiler.h>
@@ -198,19 +204,19 @@ enum vdso_pages {
 #else /* !__ASSEMBLY__ */
 
 #ifdef CONFIG_VDSO_GETRANDOM
-#define __vdso_u_rng_data	PROVIDE(vdso_u_rng_data = vdso_u_data + 2 * PAGE_SIZE);
+#define __vdso_u_rng_data	PROVIDE(vdso_u_rng_data = vdso_u_data + 2 * VDSO_PAGE_SIZE);
 #else
 #define __vdso_u_rng_data
 #endif
 
 #ifdef CONFIG_ARCH_HAS_VDSO_ARCH_DATA
-#define __vdso_u_arch_data	PROVIDE(vdso_u_arch_data = vdso_u_data + 3 * PAGE_SIZE);
+#define __vdso_u_arch_data	PROVIDE(vdso_u_arch_data = vdso_u_data + 3 * VDSO_PAGE_SIZE);
 #else
 #define __vdso_u_arch_data
 #endif
 
 #define VDSO_VVAR_SYMS						\
-	PROVIDE(vdso_u_data = . - __VDSO_PAGES * PAGE_SIZE);	\
+	PROVIDE(vdso_u_data = . - __VDSO_PAGES * VDSO_PAGE_SIZE);	\
 	PROVIDE(vdso_u_time_data = vdso_u_data);		\
 	__vdso_u_rng_data					\
 	__vdso_u_arch_data					\

@@ -3,6 +3,8 @@
 #include <asm/vdso/vsyscall.h>
 #include <vdso/datapage.h>
 
+#include <linux/page_size_compat.h>
+
 /*
  * Linker script for vDSO.  This is an ELF shared object prelinked to
  * its virtual address, and with only one read-only segment.
@@ -21,8 +23,8 @@ SECTIONS
 	VDSO_VVAR_SYMS
 
 	vclock_pages = VDSO_VCLOCK_PAGES_START(vdso_u_data);
-	pvclock_page = vclock_pages + VDSO_PAGE_PVCLOCK_OFFSET * PAGE_SIZE;
-	hvclock_page = vclock_pages + VDSO_PAGE_HVCLOCK_OFFSET * PAGE_SIZE;
+	pvclock_page = vclock_pages + VDSO_PAGE_PVCLOCK_OFFSET * __MAX_PAGE_SIZE;
+	hvclock_page = vclock_pages + VDSO_PAGE_HVCLOCK_OFFSET * __MAX_PAGE_SIZE;
 
 	. = SIZEOF_HEADERS;
 

@@ -13,6 +13,7 @@
 #include "trace.h"
 #include "../x86.h"
 #include "../lapic.h"
+#include "pkvm_iommu.h"
 
 /*
  * Needed by kvm_spurious_fault() which is a generic fault function for the
@@ -1879,6 +1880,62 @@ void pkvm_handle_host_hypercall(struct kvm_vcpu *vcpu)
 		ret = pkvm_vm_mmu_age(pkvm_hc_input1(vcpu), pkvm_hc_input2(vcpu),
 				      pkvm_hc_input3(vcpu), pkvm_hc_input4(vcpu));
 		break;
+#ifdef CONFIG_PKVM_INTEL
+	case __pkvm__iommu_mmio_read:
+		ret = pkvm_iommu_mmio_read(pkvm_hc_input1(vcpu),
+					   pkvm_hc_input2(vcpu),
+					   &out.iommu_mmio_read.val);
+		break;
+	case __pkvm__iommu_mmio_write:
+		ret = pkvm_iommu_mmio_write(pkvm_hc_input1(vcpu),
+					    pkvm_hc_input2(vcpu),
+					    pkvm_hc_input3(vcpu));
+		break;
+	case __pkvm__iommu_iec_flush:
+		ret = pkvm_iommu_iec_flush(pkvm_hc_input1(vcpu),
+					   pkvm_hc_input2(vcpu),
+					   pkvm_hc_input3(vcpu),
+					   pkvm_hc_input4(vcpu));
+		break;
+	case __pkvm__iommu_clear_ce:
+		ret = pkvm_iommu_clear_ce(&in.iommu_clear_ce.data);
+		break;
+	case __pkvm__iommu_set_lm_ce:
+		ret = pkvm_iommu_set_lm_ce(&in.iommu_set_lm_ce.in,
+					   &out.iommu_set_lm_ce.out);
+		break;
+	case __pkvm__iommu_set_sm_ce:
+		ret = pkvm_iommu_set_sm_ce(&in.iommu_set_sm_ce.in,
+					   &out.iommu_set_sm_ce.out);
+		break;
+	case __pkvm__iommu_pasid_setup_fl:
+		ret = pkvm_iommu_pasid_setup_fl(&in.iommu_pasid_setup_fl.in,
+						&out.iommu_pasid_setup_fl.out);
+		break;
+	case __pkvm__iommu_pasid_setup_sl:
+		ret = pkvm_iommu_pasid_setup_sl(&in.iommu_pasid_setup_sl.in,
+						&out.iommu_pasid_setup_sl.out);
+		break;
+	case __pkvm__iommu_pasid_teardown:
+		ret = pkvm_iommu_pasid_teardown(&in.iommu_pasid_teardown.data);
+		break;
+	case __pkvm__iommu_alloc_domain:
+		ret = pkvm_iommu_alloc_domain(&in.iommu_alloc_domain.data);
+		break;
+	case __pkvm__iommu_free_domain:
+		ret = pkvm_iommu_free_domain(pkvm_hc_input1(vcpu),
+					     &out.iommu_free_domain.memcache);
+		break;
+	case __pkvm__iommu_domain_map:
+		ret = pkvm_iommu_domain_map(&in.iommu_domain_map.in,
+					    &out.iommu_domain_map.out);
+		break;
+	case __pkvm__iommu_domain_unmap:
+		ret = pkvm_iommu_domain_unmap(pkvm_hc_input1(vcpu),
+					      pkvm_hc_input2(vcpu),
+					      pkvm_hc_input3(vcpu));
+		break;
+#endif
 	default:
 		ret = pkvm_vcpu_handle_host_hypercall(vcpu, hc, &in, &out);
 		break;

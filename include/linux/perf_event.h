@@ -1775,6 +1775,7 @@ static inline int perf_callchain_store(struct perf_callchain_entry_ctx *ctx, u64
 }
 
 extern int sysctl_perf_event_paranoid;
+extern int sysctl_perf_event_mlock;
 extern int sysctl_perf_event_sample_rate;
 
 extern void perf_sample_event_took(u64 sample_len_ns);

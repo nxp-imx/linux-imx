@@ -60,6 +60,7 @@ obj-$(CONFIG_X86_LOCAL_APIC)		+= perfctr-watchdog.o
 obj-$(CONFIG_HYPERVISOR_GUEST)		+= vmware.o hypervisor.o mshyperv.o
 obj-$(CONFIG_BHYVE_GUEST)		+= bhyve.o
 obj-$(CONFIG_ACRN_GUEST)		+= acrn.o
+obj-$(CONFIG_PKVM_X86_GUEST)		+= pkvm.o
 
 obj-$(CONFIG_DEBUG_FS)			+= debugfs.o
 

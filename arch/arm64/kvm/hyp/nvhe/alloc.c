@@ -6,6 +6,7 @@
 
 #include <nvhe/alloc.h>
 #include <nvhe/alloc_mgt.h>
+#include <nvhe/errno.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 #include <nvhe/spinlock.h>
@@ -186,7 +187,7 @@ static int hyp_allocator_map(struct hyp_allocator *allocator,
 
 		*missing_donations = min(delta, U8_MAX);
 
-		return -ENOMEM;
+		return -ENOMEMHYPALLOC;
 	}
 
 	while (nr_pages < (size >> PAGE_SHIFT)) {

@@ -309,6 +309,8 @@ kvm_pte_t *pkvm_pgtable_stage2_create_unlinked(struct kvm_pgtable *pgt, u64 phys
 int __pkvm_topup_hyp_alloc_mgt_mc(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *mc);
 int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
 
+int __pkvm_handle_smccc_req(struct arm_smccc_res *res, void *arg);
+
 #define kvm_call_refill_hyp_nvhe(f, ...)				\
 ({									\
 	struct arm_smccc_res res;					\
@@ -319,13 +321,10 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
 				  ##__VA_ARGS__, &res);			\
 		if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS))		\
 			break;						\
-									\
 		__ret = res.a1;						\
-		if (__ret == -ENOMEM && res.a3) {			\
-			__ret = __pkvm_topup_hyp_alloc(res.a3);		\
-		} else {						\
+		if (!__ret)						\
 			break;						\
-		}							\
+		__ret = __pkvm_handle_smccc_req(&res, NULL);		\
 	} while (!__ret);						\
 	__ret;								\
 })

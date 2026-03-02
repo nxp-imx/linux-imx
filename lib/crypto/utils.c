@@ -5,6 +5,7 @@
  * Copyright (c) 2006 Herbert Xu <herbert@gondor.apana.org.au>
  */
 
+#include <crypto/fips140-lib-overrides.h>
 #include <crypto/utils.h>
 #include <linux/export.h>
 #include <linux/module.h>
@@ -85,6 +86,22 @@ void __crypto_xor(u8 *dst, const u8 *src1, const u8 *src2, unsigned int len)
 		*dst++ = *src1++ ^ *src2++;
 }
 EXPORT_SYMBOL_GPL(__crypto_xor);
+
+#ifndef BUILD_FIPS140_KO
+struct fips140_lib_funcs fips140_lib_funcs;
+EXPORT_SYMBOL_GPL(fips140_lib_funcs);
+
+DEFINE_STATIC_KEY_FALSE(fips140_lib_funcs_loaded);
+EXPORT_SYMBOL_GPL(fips140_lib_funcs_loaded);
+
+void register_fips140_lib_funcs(const struct fips140_lib_funcs *funcs)
+{
+	WARN_ON(static_key_enabled(&fips140_lib_funcs_loaded));
+	fips140_lib_funcs = *funcs;
+	static_branch_enable(&fips140_lib_funcs_loaded);
+}
+EXPORT_SYMBOL_GPL(register_fips140_lib_funcs);
+#endif
 
 MODULE_DESCRIPTION("Crypto library utility functions");
 MODULE_LICENSE("GPL");

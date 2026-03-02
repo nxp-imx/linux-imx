@@ -10,6 +10,7 @@
 #include "pkvm/lapic.h"
 #include "pkvm/trace.h"
 #include "pkvm.h"
+#include "pkvm_iommu.h"
 
 #define CR4			4
 #define MOV_TO_CR		0
@@ -32,6 +33,7 @@ static struct pkvm_init_ops vmx_init_ops = {
 	.host_mmu_finalize = pkvm_host_ept_finalize,
 	.hyp_global_init = pkvm_vmx_init,
 	.reprivilege_cpu = pkvm_vmx_reprivilege_cpu,
+	.hyp_iommu_init = pkvm_intel_iommu_init,
 };
 
 struct pkvm_init_ops *pkvm_vmx_init_ops = &vmx_init_ops;

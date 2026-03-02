@@ -216,6 +216,7 @@
   config_item_set_name
   console_lock
   console_suspend_enabled
+  console_trylock
   console_unlock
   __const_udelay
   consume_skb
@@ -739,6 +740,18 @@
   drm_bridge_put
   drm_bridge_remove
   drm_bus_flags_from_videomode
+  drm_client_buffer_vmap
+  drm_client_buffer_vunmap
+  drm_client_framebuffer_create
+  drm_client_framebuffer_delete
+  drm_client_init
+  drm_client_modeset_commit
+  drm_client_modeset_commit_locked
+  drm_client_modeset_dpms
+  drm_client_modeset_probe
+  drm_client_register
+  drm_client_release
+  drm_client_rotation
   drm_compat_ioctl
   drm_connector_atomic_hdr_metadata_equal
   drm_connector_attach_colorspace_property
@@ -793,6 +806,8 @@
   drm_display_mode_from_cea_vic
   drm_display_mode_from_videomode
   drm_display_mode_to_videomode
+  drm_driver_color_mode_format
+  drm_driver_legacy_fb_format
   drm_edid_connector_add_modes
   drm_edid_connector_update
   drm_edid_dup
@@ -824,6 +839,7 @@
   drm_gem_plane_helper_prepare_fb
   drm_gem_prime_export
   drm_gem_prime_import
+  drm_gem_prime_mmap
   drm_gem_private_object_init
   drm_gem_shmem_create
   drm_gem_shmem_free
@@ -863,6 +879,8 @@
   drmm_connector_hdmi_init
   drmm_connector_init
   drmm_kmalloc
+  drm_master_internal_acquire
+  drm_master_internal_release
   drm_mm_init
   drm_mm_insert_node_in_range
   drmm_mode_config_init
@@ -887,6 +905,7 @@
   drm_mode_is_420_only
   drm_mode_object_put
   drm_mode_probed_add
+  drm_mode_set_config_internal
   drm_modeset_acquire_fini
   drm_modeset_acquire_init
   drm_modeset_backoff
@@ -2201,6 +2220,7 @@
   register_restart_handler
   __register_rpmsg_driver
   register_syscore_ops
+  register_sysrq_key
   register_tcf_proto_ops
   register_virtio_device
   __register_virtio_driver
@@ -2831,6 +2851,7 @@
   unregister_qdisc
   unregister_reboot_notifier
   unregister_rpmsg_driver
+  unregister_sysrq_key
   unregister_tcf_proto_ops
   unregister_virtio_device
   unregister_virtio_driver
@@ -3069,6 +3090,7 @@
   video_device_release
   video_device_release_empty
   video_firmware_drivers_only
+  video_get_options
   video_ioctl2
   videomode_from_timing
   __video_register_device

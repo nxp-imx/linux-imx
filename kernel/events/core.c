@@ -46,6 +46,7 @@
 #include <linux/filter.h>
 #include <linux/namei.h>
 #include <linux/parser.h>
+#include <linux/page_size_compat.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/mm.h>
 #include <linux/proc_ns.h>
@@ -467,7 +468,7 @@ static struct kmem_cache *perf_event_cache;
 int sysctl_perf_event_paranoid __read_mostly = 2;
 
 /* Minimum for 512 kiB + 1 user control page. 'free' kiB per user. */
-static int sysctl_perf_event_mlock __read_mostly = 512 + (PAGE_SIZE / 1024);
+int sysctl_perf_event_mlock __read_mostly = 512 + (PAGE_SIZE / 1024);
 
 /*
  * max perf event sample rate
@@ -6519,7 +6520,7 @@ static void perf_event_init_userpage(struct perf_event *event)
 	/* Allow new userspace to detect that bit 0 is deprecated */
 	userpg->cap_bit0_is_deprecated = 1;
 	userpg->size = offsetof(struct perf_event_mmap_page, __reserved);
-	userpg->data_offset = PAGE_SIZE;
+	userpg->data_offset = __PAGE_SIZE;
 	userpg->data_size = perf_data_size(rb);
 
 unlock:
@@ -6982,7 +6983,7 @@ static int perf_mmap_rb(struct vm_area_struct *vma, struct perf_event *event,
 	struct perf_buffer *rb;
 	int rb_flags = 0;
 
-	nr_pages -= 1;
+	nr_pages -= (__PAGE_SIZE / PAGE_SIZE);
 
 	/*
 	 * If we have rb pages ensure they're a power-of-two number, so we

@@ -4,6 +4,7 @@
  */
 
 #include <crypto/aes.h>
+#include <crypto/fips140-lib-overrides.h>
 #include <linux/crypto.h>
 #include <linux/export.h>
 #include <linux/module.h>
@@ -186,6 +187,7 @@ static u32 subw(u32 in)
 int aes_expandkey(struct crypto_aes_ctx *ctx, const u8 *in_key,
 		  unsigned int key_len)
 {
+	FIPS140_CALL(aes_expandkey, ctx, in_key, key_len);
 	u32 kwords = key_len / sizeof(u32);
 	u32 rc, i, j;
 	int err;
@@ -258,6 +260,7 @@ EXPORT_SYMBOL(aes_expandkey);
  */
 void aes_encrypt(const struct crypto_aes_ctx *ctx, u8 *out, const u8 *in)
 {
+	FIPS140_CALL(aes_encrypt, ctx, out, in);
 	const u32 *rkp = ctx->key_enc + 4;
 	int rounds = 6 + ctx->key_length / 4;
 	u32 st0[4], st1[4];
@@ -309,6 +312,7 @@ EXPORT_SYMBOL(aes_encrypt);
  */
 void aes_decrypt(const struct crypto_aes_ctx *ctx, u8 *out, const u8 *in)
 {
+	FIPS140_CALL(aes_decrypt, ctx, out, in);
 	const u32 *rkp = ctx->key_dec + 4;
 	int rounds = 6 + ctx->key_length / 4;
 	u32 st0[4], st1[4];

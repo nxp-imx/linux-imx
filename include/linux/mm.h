@@ -87,13 +87,13 @@ extern int sysctl_legacy_va_layout;
 #endif
 
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_BITS
-extern const int mmap_rnd_bits_min;
+extern int mmap_rnd_bits_min __ro_after_init;
 extern int mmap_rnd_bits_max __ro_after_init;
 extern int mmap_rnd_bits __read_mostly;
 #endif
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_COMPAT_BITS
-extern const int mmap_rnd_compat_bits_min;
-extern const int mmap_rnd_compat_bits_max;
+extern int mmap_rnd_compat_bits_min __ro_after_init;
+extern int mmap_rnd_compat_bits_max __ro_after_init;
 extern int mmap_rnd_compat_bits __read_mostly;
 #endif
 
@@ -4404,6 +4404,8 @@ static inline bool snapshot_page_is_faithful(const struct page_snapshot *ps)
 }
 
 void snapshot_page(struct page_snapshot *ps, const struct page *page);
+void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
+							unsigned int alloc_flags);
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 void free_hpage(struct page *page, int __bitwise fpi_flags);

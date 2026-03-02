@@ -1330,3 +1330,22 @@ void __init e820__memblock_setup(void)
 
 	memblock_dump_all();
 }
+
+void __init e820__reserve_nomap_region(void)
+{
+	struct memblock_region *region;
+	resource_size_t start;
+
+	for_each_mem_region(region) {
+		if (memblock_is_nomap(region)) {
+			start = __pfn_to_phys(memblock_region_reserved_base_pfn(region));
+
+			/*
+			 * Add corresponding e820 region and let
+			 * e820__update_table sanitize e820 map
+			 */
+			e820__range_add(start, region->size, E820_TYPE_RESERVED);
+			e820__update_table_print();
+		}
+	}
+}

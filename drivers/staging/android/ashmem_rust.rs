@@ -26,6 +26,7 @@ use kernel::{
     miscdevice::{loff_t, MiscDevice, MiscDeviceOptions, MiscDeviceRegistration},
     mm::virt::{flags as vma_flags, VmaNew},
     page::{page_align, PAGE_MASK, PAGE_SIZE},
+    page_size_compat::__page_align,
     prelude::*,
     seq_file::{seq_print, SeqFile},
     sync::{new_mutex, Mutex, UniqueArc},
@@ -174,7 +175,7 @@ impl MiscDevice for Ashmem {
         }
 
         // Requested mapping size larger than object size.
-        if vma.end() - vma.start() > page_align(asma.size) {
+        if vma.end() - vma.start() > __page_align(asma.size) {
             return Err(EINVAL);
         }
 

@@ -263,6 +263,8 @@
   __tracepoint_android_vh_should_memcg_bypass
   __traceiter_android_vh_cma_alloc_retry
   __tracepoint_android_vh_cma_alloc_retry
+  __traceiter_android_vh_ufs_update_sdev
+  __tracepoint_android_vh_ufs_update_sdev
   __traceiter_android_vh_ufs_eh_timed_out
   __tracepoint_android_vh_ufs_eh_timed_out
   __traceiter_android_vh_ufs_link_startup

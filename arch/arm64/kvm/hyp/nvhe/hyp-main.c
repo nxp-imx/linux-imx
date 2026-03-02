@@ -19,8 +19,9 @@
 
 #include <nvhe/alloc.h>
 #include <nvhe/alloc_mgt.h>
-#include <nvhe/iommu.h>
+#include <nvhe/errno.h>
 #include <nvhe/ffa.h>
+#include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
@@ -41,27 +42,6 @@ DEFINE_PER_CPU(struct kvm_nvhe_init_params, kvm_init_params);
  * typically HVC returns on first failure.
  */
 DEFINE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
-
-/* Serialize request in SMCCC return context. */
-static inline void hyp_reqs_smccc_encode(unsigned long ret, struct kvm_cpu_context *host_ctxt,
-					 struct kvm_hyp_req *req)
-{
-	cpu_reg(host_ctxt, 1) = ret;
-	cpu_reg(host_ctxt, 2) = 0;
-	cpu_reg(host_ctxt, 3) = 0;
-
-	if (req->type == KVM_HYP_REQ_TYPE_MEM) {
-		cpu_reg(host_ctxt, 2) = FIELD_PREP(SMCCC_REQ_TYPE_MASK, req->type) |
-					FIELD_PREP(SMCCC_REQ_DEST_MASK, req->mem.dest);
-
-		cpu_reg(host_ctxt, 3) = FIELD_PREP(SMCCC_REQ_NR_PAGES_MASK, req->mem.nr_pages) |
-					FIELD_PREP(SMCCC_REQ_SZ_ALLOC_MASK, req->mem.sz_alloc);
-	}
-
-	/* We can't encode others */
-	WARN_ON((req->type != KVM_HYP_REQ_TYPE_MEM) && ((req->type != KVM_HYP_LAST_REQ)));
-	req->type = KVM_HYP_LAST_REQ;
-}
 
 void __kvm_hyp_host_forward_smc(struct kvm_cpu_context *host_ctxt);
 
@@ -1033,6 +1013,30 @@ out:
 	cpu_reg(host_ctxt, 1) =  ret;
 }
 
+static void this_cpu_hyp_req_to_smccc(u64 a1, struct kvm_cpu_context *host_ctxt)
+{
+	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
+
+	cpu_reg(host_ctxt, 1) = a1;
+	hyp_req_to_smccc(host_ctxt, req);
+
+	req->type = KVM_HYP_LAST_REQ;
+}
+
+static void errno_to_smccc(int ret, struct kvm_cpu_context *host_ctxt)
+{
+	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
+
+	switch (ret) {
+	case -ENOMEMHYPALLOC:
+		req->type = KVM_HYP_REQ_TYPE_HYP_ALLOC;
+		req->mem.nr_pages = hyp_alloc_missing_donations();
+		break;
+	}
+
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
+}
+
 static void handle___pkvm_host_map_guest(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(u64, pfn, host_ctxt, 1);
@@ -1479,8 +1483,7 @@ static void handle___pkvm_init_vm(struct kvm_cpu_context *host_ctxt)
 	DECLARE_REG(unsigned long, pgd_hva, host_ctxt, 2);
 
 	host_kvm = kern_hyp_va(host_kvm);
-	cpu_reg(host_ctxt, 1) = __pkvm_init_vm(host_kvm, pgd_hva);
-	cpu_reg(host_ctxt, 3) = hyp_alloc_missing_donations();
+	errno_to_smccc(__pkvm_init_vm(host_kvm, pgd_hva), host_ctxt);
 }
 
 static void handle___pkvm_init_vcpu(struct kvm_cpu_context *host_ctxt)
@@ -1489,8 +1492,7 @@ static void handle___pkvm_init_vcpu(struct kvm_cpu_context *host_ctxt)
 	DECLARE_REG(struct kvm_vcpu *, host_vcpu, host_ctxt, 2);
 
 	host_vcpu = kern_hyp_va(host_vcpu);
-	cpu_reg(host_ctxt, 1) = __pkvm_init_vcpu(handle, host_vcpu);
-	cpu_reg(host_ctxt, 3) = hyp_alloc_missing_donations();
+	errno_to_smccc(__pkvm_init_vcpu(handle, host_vcpu), host_ctxt);
 }
 
 static void handle___pkvm_reclaim_dying_guest_page(struct kvm_cpu_context *host_ctxt)
@@ -1533,8 +1535,7 @@ static void handle___pkvm_load_tracing(struct kvm_cpu_context *host_ctxt)
 	 DECLARE_REG(unsigned long, desc_hva, host_ctxt, 1);
 	 DECLARE_REG(size_t, desc_size, host_ctxt, 2);
 
-	 cpu_reg(host_ctxt, 1) = __pkvm_load_tracing(desc_hva, desc_size);
-	 cpu_reg(host_ctxt, 3) = hyp_alloc_missing_donations();
+	 errno_to_smccc(__pkvm_load_tracing(desc_hva, desc_size), host_ctxt);
 }
 
 static void handle___pkvm_teardown_tracing(struct kvm_cpu_context *host_ctxt)
@@ -1720,16 +1721,15 @@ static void handle___pkvm_host_iommu_alloc_domain(struct kvm_cpu_context *host_c
 	DECLARE_REG(int, type, host_ctxt, 4);
 
 	ret = kvm_iommu_alloc_domain(drv_id, iommu_id, domain, type);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_free_domain(struct kvm_cpu_context *host_ctxt)
 {
-	int ret;
 	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
 
-	ret = kvm_iommu_free_domain(domain);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	cpu_reg(host_ctxt, 1) = kvm_iommu_free_domain(domain);
 }
 
 static void handle___pkvm_host_iommu_iotlb_inv_nested_domain(struct kvm_cpu_context *host_ctxt)
@@ -1767,7 +1767,8 @@ static void handle___pkvm_host_iommu_attach_dev(struct kvm_cpu_context *host_ctx
 
 	ret = kvm_iommu_attach_dev(iommu, domain, endpoint,
 				   pasid, pasid_bits, flags);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_attach_dev_nested(struct kvm_cpu_context *host_ctxt)
@@ -1783,19 +1784,17 @@ static void handle___pkvm_host_iommu_attach_dev_nested(struct kvm_cpu_context *h
 
 	ret = kvm_iommu_attach_dev_nested(iommu, domain, endpoint, pasid, flags, s1_desc_hva,
 					  s1_desc_size);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_detach_dev(struct kvm_cpu_context *host_ctxt)
 {
-	int ret;
 	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
 	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
 	DECLARE_REG(unsigned int, endpoint, host_ctxt, 3);
 	DECLARE_REG(unsigned int, pasid, host_ctxt, 4);
 
-	ret = kvm_iommu_detach_dev(iommu, domain, endpoint, pasid);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	cpu_reg(host_ctxt, 1) = kvm_iommu_detach_dev(iommu, domain, endpoint, pasid);
 }
 
 static void handle___pkvm_host_iommu_map_pages(struct kvm_cpu_context *host_ctxt)
@@ -1809,10 +1808,15 @@ static void handle___pkvm_host_iommu_map_pages(struct kvm_cpu_context *host_ctxt
 	DECLARE_REG(size_t, pgcount, host_ctxt, 5);
 	DECLARE_REG(unsigned int, prot, host_ctxt, 6);
 
-	ret = kvm_iommu_map_pages(domain, iova, paddr,
-				  pgsize, pgcount, prot, &mapped);
+	ret = kvm_iommu_map_pages(domain, iova, paddr, pgsize, pgcount, prot, &mapped);
+	this_cpu_hyp_req_to_smccc(mapped, host_ctxt);
+
+	/*
+	 * For faster map operations, we allow this HVC to fail half-way but to keep some pages
+	 * mapped. We then need to tell the host how many pages have been already mapped. As we
+	 * already encode a hyp_req into x1/x2, repurpose the SMCCC return value.
+	 */
 	cpu_reg(host_ctxt, 0) = ret;
-	hyp_reqs_smccc_encode(mapped, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
 static void handle___pkvm_host_iommu_unmap_pages(struct kvm_cpu_context *host_ctxt)
@@ -1823,9 +1827,8 @@ static void handle___pkvm_host_iommu_unmap_pages(struct kvm_cpu_context *host_ct
 	DECLARE_REG(size_t, pgsize, host_ctxt, 3);
 	DECLARE_REG(size_t, pgcount, host_ctxt, 4);
 
-	ret = kvm_iommu_unmap_pages(domain, iova,
-				    pgsize, pgcount);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	ret = kvm_iommu_unmap_pages(domain, iova, pgsize, pgcount);
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_iova_to_phys(struct kvm_cpu_context *host_ctxt)
@@ -1845,7 +1848,7 @@ static void handle___pkvm_host_iommu_set_identity(struct kvm_cpu_context *host_c
 	DECLARE_REG(bool, on, host_ctxt, 4);
 
 	ret = kvm_iommu_set_identity(drv_id, iommu, dev, on);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_map_sg(struct kvm_cpu_context *host_ctxt)
@@ -1858,7 +1861,7 @@ static void handle___pkvm_host_iommu_map_sg(struct kvm_cpu_context *host_ctxt)
 	DECLARE_REG(unsigned int, prot, host_ctxt, 5);
 
 	ret = kvm_iommu_map_sg(domain, iova, kern_hyp_va(sg), nent, prot);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_iommu_iotlb_sync_map(struct kvm_cpu_context *host_ctxt)
@@ -1869,7 +1872,7 @@ static void handle___pkvm_host_iommu_iotlb_sync_map(struct kvm_cpu_context *host
 	DECLARE_REG(size_t, size, host_ctxt, 3);
 
 	ret = kvm_iommu_iotlb_sync_map(domain, iova, size);
-	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
+	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_hvc_pd(struct kvm_cpu_context *host_ctxt)

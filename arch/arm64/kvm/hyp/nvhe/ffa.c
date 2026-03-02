@@ -33,6 +33,7 @@
 
 #include <nvhe/arm-smccc.h>
 #include <nvhe/alloc.h>
+#include <nvhe/errno.h>
 #include <nvhe/ffa.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/memory.h>
@@ -760,7 +761,7 @@ static int ffa_store_translation(struct ffa_mem_transfer *transfer, u64 ipa, phy
 
 	tr = hyp_alloc(sizeof(struct ffa_translation));
 	if (!tr)
-		return -ENOMEM;
+		return hyp_alloc_errno();
 
 	tr->ipa = ipa;
 	tr->pa = pa;
@@ -999,7 +1000,7 @@ static int __do_ffa_mem_xfer(const u64 func_id,
 
 		transfer = hyp_alloc(sizeof(struct ffa_mem_transfer));
 		if (!transfer)
-			return -ENOMEM;
+			return hyp_alloc_errno();
 
 		INIT_LIST_HEAD(&transfer->translations);
 	}
@@ -1795,18 +1796,11 @@ bool kvm_guest_ffa_handler(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 	}
 
 	switch (ret) {
-	case -ENOMEM:
-		if (hyp_alloc_errno() != -ENOMEM) {
-			/* Only hyp_alloc() can raise -ENOMEM. Let the HVC fail */
-			ret = hyp_alloc_errno();
-			goto out_guest_with_ret;
-		}
-
-		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM);
+	case -ENOMEMHYPALLOC:
+		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_HYP_ALLOC);
 		if (!req)
 			goto out_guest_with_ret;
 
-		req->mem.dest = REQ_MEM_DEST_HYP_ALLOC;
 		req->mem.nr_pages = hyp_alloc_missing_donations();
 		fallthrough;
 	case -ENOENT:

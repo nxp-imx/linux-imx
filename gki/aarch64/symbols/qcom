@@ -2746,6 +2746,8 @@
   sampling_rate_store
   scatterwalk_ffwd
   sched_clock
+  sched_clock_read_begin
+  sched_clock_read_retry
   sched_feat_keys
   sched_feat_names
   __sched_proxy_exec
@@ -2847,6 +2849,8 @@
   set_capacity
   set_capacity_and_notify
   set_cpus_allowed_ptr
+  set_direct_map_default_noflush
+  set_direct_map_invalid_noflush
   set_disk_ro
   set_next_entity
   set_normalized_timespec64
@@ -3464,6 +3468,7 @@
   tty_port_put
   tty_port_register_device
   tty_port_tty_get
+  __tty_port_tty_hangup
   tty_port_tty_wakeup
   tty_register_driver
   tty_register_ldisc
@@ -3842,6 +3847,8 @@
   vsnprintf
   vsprintf
   vunmap
+  vunmap_range_noflush
+  __vunmap_range_noflush
   vzalloc_noprof
   wait_for_completion
   wait_for_completion_interruptible

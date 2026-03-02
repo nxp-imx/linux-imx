@@ -18,6 +18,7 @@
 //
 // Stable since Rust 1.79.0.
 #![feature(generic_nonzero)]
+#![feature(asm_goto)]
 #![feature(inline_const)]
 #![feature(pointer_is_aligned)]
 //
@@ -113,6 +114,7 @@ pub mod of;
 #[cfg(CONFIG_PM_OPP)]
 pub mod opp;
 pub mod page;
+pub mod page_size_compat;
 #[cfg(CONFIG_PCI)]
 pub mod pci;
 pub mod pid_namespace;

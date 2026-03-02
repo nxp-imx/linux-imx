@@ -20,6 +20,7 @@ void pkvm_hyp_mmu_clone_host(unsigned long start_vaddr);
 #endif
 
 int pkvm_host_mmu_init(void *pool_base, unsigned long pool_pages,
+		       const struct pkvm_mem_info infos[], int nr_infos,
 		       host_mmu_init_fn_t fn);
 int pkvm_host_mmu_finalize(host_mmu_finalize_fn_t fn);
 

@@ -5,6 +5,9 @@
  */
 
 #include "vma_internal.h"
+
+#include <linux/page_size_compat.h>
+
 #include "vma.h"
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
@@ -2888,7 +2891,7 @@ unsigned long unmapped_area(struct vm_unmapped_area_info *info)
 	VMA_ITERATOR(vmi, current->mm, 0);
 
 	/* Adjust search length to account for worst case alignment overhead */
-	length = info->length + info->align_mask + info->start_gap;
+	length = __PAGE_SIZE_ROUND_UP_ADJ(info->length + info->align_mask + info->start_gap);
 	if (length < info->length)
 		return -ENOMEM;
 
@@ -2924,7 +2927,7 @@ retry:
 		}
 	}
 
-	return gap;
+	return __PAGE_ALIGN(gap);
 }
 
 /**
@@ -2945,7 +2948,7 @@ unsigned long unmapped_area_topdown(struct vm_unmapped_area_info *info)
 	VMA_ITERATOR(vmi, current->mm, 0);
 
 	/* Adjust search length to account for worst case alignment overhead */
-	length = info->length + info->align_mask + info->start_gap;
+	length = __PAGE_SIZE_ROUND_UP_ADJ(info->length + info->align_mask + info->start_gap);
 	if (length < info->length)
 		return -ENOMEM;
 
@@ -2976,7 +2979,7 @@ retry:
 		}
 	}
 
-	return gap;
+	return __PAGE_ALIGN(gap);
 }
 
 /*
@@ -3121,7 +3124,7 @@ int expand_downwards(struct vm_area_struct *vma, unsigned long address)
 
 	mmap_assert_write_locked(mm);
 
-	address &= PAGE_MASK;
+	address &= __PAGE_MASK;
 	if (address < mmap_min_addr || address < FIRST_USER_ADDRESS)
 		return -EPERM;
 

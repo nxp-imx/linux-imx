@@ -61,6 +61,11 @@ DECLARE_HOOK(android_vh_ufs_check_int_errors,
 	TP_PROTO(struct ufs_hba *hba, bool queue_eh_work),
 	TP_ARGS(hba, queue_eh_work));
 
+struct scsi_device;
+DECLARE_HOOK(android_vh_ufs_update_sdev,
+	TP_PROTO(struct scsi_device *sdev),
+	TP_ARGS(sdev));
+
 DECLARE_HOOK(android_vh_ufs_eh_timed_out,
 	TP_PROTO(struct ufs_hba *hba, struct scsi_cmnd *scmd),
 	TP_ARGS(hba, scmd));

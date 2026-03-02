@@ -31,6 +31,7 @@ enum x86_hypervisor_type {
 	X86_HYPER_JAILHOUSE,
 	X86_HYPER_ACRN,
 	X86_HYPER_BHYVE,
+	X86_HYPER_PKVM,
 };
 
 #ifdef CONFIG_HYPERVISOR_GUEST
@@ -66,6 +67,7 @@ extern const struct hypervisor_x86 x86_hyper_kvm;
 extern const struct hypervisor_x86 x86_hyper_jailhouse;
 extern const struct hypervisor_x86 x86_hyper_acrn;
 extern const struct hypervisor_x86 x86_hyper_bhyve;
+extern const struct hypervisor_x86 x86_hyper_pkvm;
 extern struct hypervisor_x86 x86_hyper_xen_hvm;
 
 extern bool nopv;

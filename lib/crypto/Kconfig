@@ -162,6 +162,7 @@ config CRYPTO_LIB_SHA1_ARCH
 
 config CRYPTO_LIB_SHA256
 	tristate
+	select CRYPTO_LIB_UTILS
 	help
 	  The SHA-224, SHA-256, HMAC-SHA224, and HMAC-SHA256 library functions.
 	  Select this if your module uses any of these functions from

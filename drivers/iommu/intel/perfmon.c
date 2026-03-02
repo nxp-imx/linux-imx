@@ -96,10 +96,20 @@ IOMMU_PMU_ATTR(filter_page_table,	"config2:32-36",	IOMMU_PMU_FILTER_PAGE_TABLE);
 #define iommu_pmu_get_ats(filter)		(((filter) >> 24) & 0x1f)
 #define iommu_pmu_get_page_table(filter)	(((filter) >> 32) & 0x1f)
 
+#define dmar_pmu_readq(pmu, o)		dmar_readq((pmu)->iommu, (unsigned long)(o) - \
+						   (unsigned long)(pmu)->iommu->reg)
+#define dmar_pmu_writeq(pmu, o, v)	dmar_writeq((pmu)->iommu, (unsigned long)(o) - \
+						    (unsigned long)(pmu)->iommu->reg, (v))
+#define dmar_pmu_readl(pmu, o)		dmar_readl((pmu)->iommu, (unsigned long)(o) - \
+						   (unsigned long)(pmu)->iommu->reg)
+#define dmar_pmu_writel(pmu, o, v)	dmar_writel((pmu)->iommu, (unsigned long)(o) - \
+						    (unsigned long)(pmu)->iommu->reg, (v))
+
 #define iommu_pmu_set_filter(_name, _config, _filter, _idx, _econfig)		\
 {										\
 	if ((iommu_pmu->filter & _filter) && iommu_pmu_en_##_name(_econfig)) {	\
-		dmar_writel(iommu_pmu->cfg_reg + _idx * IOMMU_PMU_CFG_OFFSET +	\
+		dmar_pmu_writel(iommu_pmu,					\
+			    iommu_pmu->cfg_reg + _idx * IOMMU_PMU_CFG_OFFSET +	\
 			    IOMMU_PMU_CFG_SIZE +				\
 			    (ffs(_filter) - 1) * IOMMU_PMU_CFG_FILTERS_OFFSET,	\
 			    iommu_pmu_get_##_name(_config) | IOMMU_PMU_FILTER_EN);\
@@ -109,7 +119,8 @@ IOMMU_PMU_ATTR(filter_page_table,	"config2:32-36",	IOMMU_PMU_FILTER_PAGE_TABLE);
 #define iommu_pmu_clear_filter(_filter, _idx)					\
 {										\
 	if (iommu_pmu->filter & _filter) {					\
-		dmar_writel(iommu_pmu->cfg_reg + _idx * IOMMU_PMU_CFG_OFFSET +	\
+		dmar_pmu_writel(iommu_pmu,					\
+			    iommu_pmu->cfg_reg + _idx * IOMMU_PMU_CFG_OFFSET +	\
 			    IOMMU_PMU_CFG_SIZE +				\
 			    (ffs(_filter) - 1) * IOMMU_PMU_CFG_FILTERS_OFFSET,	\
 			    0);							\
@@ -307,7 +318,7 @@ static void iommu_pmu_event_update(struct perf_event *event)
 
 again:
 	prev_count = local64_read(&hwc->prev_count);
-	new_count = dmar_readq(iommu_event_base(iommu_pmu, hwc->idx));
+	new_count = dmar_pmu_readq(iommu_pmu, iommu_event_base(iommu_pmu, hwc->idx));
 	if (local64_xchg(&hwc->prev_count, new_count) != prev_count)
 		goto again;
 
@@ -340,7 +351,7 @@ static void iommu_pmu_start(struct perf_event *event, int flags)
 	hwc->state = 0;
 
 	/* Always reprogram the period */
-	count = dmar_readq(iommu_event_base(iommu_pmu, hwc->idx));
+	count = dmar_pmu_readq(iommu_pmu, iommu_event_base(iommu_pmu, hwc->idx));
 	local64_set((&hwc->prev_count), count);
 
 	/*
@@ -411,7 +422,7 @@ static int iommu_pmu_assign_event(struct iommu_pmu *iommu_pmu,
 	hwc->idx = idx;
 
 	/* config events */
-	dmar_writeq(iommu_config_base(iommu_pmu, idx), hwc->config);
+	dmar_pmu_writeq(iommu_pmu, iommu_config_base(iommu_pmu, idx), hwc->config);
 
 	iommu_pmu_set_filter(requester_id, event->attr.config1,
 			     IOMMU_PMU_FILTER_REQUESTER_ID, idx,
@@ -496,7 +507,7 @@ static void iommu_pmu_counter_overflow(struct iommu_pmu *iommu_pmu)
 	 * Two counters may be overflowed very close. Always check
 	 * whether there are more to handle.
 	 */
-	while ((status = dmar_readq(iommu_pmu->overflow))) {
+	while ((status = dmar_pmu_readq(iommu_pmu, iommu_pmu->overflow))) {
 		for_each_set_bit(i, (unsigned long *)&status, iommu_pmu->num_cntr) {
 			/*
 			 * Find the assigned event of the counter.
@@ -510,7 +521,7 @@ static void iommu_pmu_counter_overflow(struct iommu_pmu *iommu_pmu)
 			iommu_pmu_event_update(event);
 		}
 
-		dmar_writeq(iommu_pmu->overflow, status);
+		dmar_pmu_writeq(iommu_pmu, iommu_pmu->overflow, status);
 	}
 }
 
@@ -518,13 +529,13 @@ static irqreturn_t iommu_pmu_irq_handler(int irq, void *dev_id)
 {
 	struct intel_iommu *iommu = dev_id;
 
-	if (!dmar_readl(iommu->reg + DMAR_PERFINTRSTS_REG))
+	if (!dmar_readl(iommu, DMAR_PERFINTRSTS_REG))
 		return IRQ_NONE;
 
 	iommu_pmu_counter_overflow(iommu->pmu);
 
 	/* Clear the status bit */
-	dmar_writel(iommu->reg + DMAR_PERFINTRSTS_REG, DMA_PERFINTRSTS_PIS);
+	dmar_writel(iommu, DMAR_PERFINTRSTS_REG, DMA_PERFINTRSTS_PIS);
 
 	return IRQ_HANDLED;
 }
@@ -555,7 +566,7 @@ static int __iommu_pmu_register(struct intel_iommu *iommu)
 static inline void __iomem *
 get_perf_reg_address(struct intel_iommu *iommu, u32 offset)
 {
-	u32 off = dmar_readl(iommu->reg + offset);
+	u32 off = dmar_readl(iommu, offset);
 
 	return iommu->reg + off;
 }
@@ -574,7 +585,7 @@ int alloc_iommu_pmu(struct intel_iommu *iommu)
 	if (!cap_ecmds(iommu->cap))
 		return -ENODEV;
 
-	perfcap = dmar_readq(iommu->reg + DMAR_PERFCAP_REG);
+	perfcap = dmar_readq(iommu, DMAR_PERFCAP_REG);
 	/* The performance monitoring is not supported. */
 	if (!perfcap)
 		return -ENODEV;
@@ -617,8 +628,7 @@ int alloc_iommu_pmu(struct intel_iommu *iommu)
 	for (i = 0; i < iommu_pmu->num_eg; i++) {
 		u64 pcap;
 
-		pcap = dmar_readq(iommu->reg + DMAR_PERFEVNTCAP_REG +
-				  i * IOMMU_PMU_CAP_REGS_STEP);
+		pcap = dmar_readq(iommu, DMAR_PERFEVNTCAP_REG + i * IOMMU_PMU_CAP_REGS_STEP);
 		iommu_pmu->evcap[i] = pecap_es(pcap);
 	}
 
@@ -645,13 +655,15 @@ int alloc_iommu_pmu(struct intel_iommu *iommu)
 	iommu_pmu->cntr_reg = get_perf_reg_address(iommu, DMAR_PERFCNTROFF_REG);
 	iommu_pmu->overflow = get_perf_reg_address(iommu, DMAR_PERFOVFOFF_REG);
 
+	iommu_pmu->iommu = iommu;
+
 	/*
 	 * Check per-counter capabilities. All counters should have the
 	 * same capabilities on Interrupt on Overflow Support and Counter
 	 * Width.
 	 */
 	for (i = 0; i < iommu_pmu->num_cntr; i++) {
-		cap = dmar_readl(iommu_pmu->cfg_reg +
+		cap = dmar_pmu_readl(iommu_pmu, iommu_pmu->cfg_reg +
 				 i * IOMMU_PMU_CFG_OFFSET +
 				 IOMMU_PMU_CFG_CNTRCAP_OFFSET);
 		if (!iommu_cntrcap_pcc(cap))
@@ -675,7 +687,8 @@ int alloc_iommu_pmu(struct intel_iommu *iommu)
 
 		/* Override with per-counter event capabilities */
 		for (j = 0; j < iommu_cntrcap_egcnt(cap); j++) {
-			cap = dmar_readl(iommu_pmu->cfg_reg + i * IOMMU_PMU_CFG_OFFSET +
+			cap = dmar_pmu_readl(iommu_pmu,
+					 iommu_pmu->cfg_reg + i * IOMMU_PMU_CFG_OFFSET +
 					 IOMMU_PMU_CFG_CNTREVCAP_OFFSET +
 					 (j * IOMMU_PMU_OFF_REGS_STEP));
 			iommu_pmu->cntr_evcap[i][iommu_event_group(cap)] = iommu_event_select(cap);
@@ -687,7 +700,6 @@ int alloc_iommu_pmu(struct intel_iommu *iommu)
 		}
 	}
 
-	iommu_pmu->iommu = iommu;
 	iommu->pmu = iommu_pmu;
 
 	return 0;

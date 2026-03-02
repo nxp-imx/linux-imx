@@ -131,7 +131,7 @@ static bool mem_relinquish_available;
 
 static bool pkvm_page_relinquish_disallowed(void)
 {
-	return mem_relinquish_available && (pkvm_granule > PAGE_SIZE);
+	return WARN_ON(mem_relinquish_available && (pkvm_granule > PAGE_SIZE));
 }
 
 static void pkvm_page_relinquish(struct page *page, unsigned int nr)

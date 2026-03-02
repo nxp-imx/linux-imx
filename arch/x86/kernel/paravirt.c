@@ -34,6 +34,7 @@
 #include <asm/io_bitmap.h>
 #include <asm/gsseg.h>
 #include <asm/msr.h>
+#include <asm/pci_x86.h>
 
 /* stub always returning 0. */
 DEFINE_ASM_FUNC(paravirt_ret0, "xor %eax,%eax", .entry.text);
@@ -245,6 +246,30 @@ struct paravirt_patch_template pv_ops = {
 				PV_CALLEE_SAVE(__native_vcpu_is_preempted),
 #endif /* SMP */
 #endif
+	.mmio.raw_readb			= raw_readb,
+	.mmio.raw_readw			= raw_readw,
+	.mmio.raw_readl			= raw_readl,
+	.mmio.raw_readb_relaxed		= raw_readb_relaxed,
+	.mmio.raw_readw_relaxed		= raw_readw_relaxed,
+	.mmio.raw_readl_relaxed		= raw_readl_relaxed,
+	.mmio.raw_writeb		= raw_writeb,
+	.mmio.raw_writew		= raw_writew,
+	.mmio.raw_writel		= raw_writel,
+	.mmio.raw_writeb_relaxed	= raw_writeb_relaxed,
+	.mmio.raw_writew_relaxed	= raw_writew_relaxed,
+	.mmio.raw_writel_relaxed	= raw_writel_relaxed,
+#ifdef CONFIG_X86_64
+	.mmio.raw_readq			= raw_readq,
+	.mmio.raw_readq_relaxed		= raw_readq_relaxed,
+	.mmio.raw_writeq		= raw_writeq,
+	.mmio.raw_writeq_relaxed	= raw_writeq_relaxed,
+#endif
+	.mmio.pci_mmcfg_readb		= pci_mmcfg_readb,
+	.mmio.pci_mmcfg_readw		= pci_mmcfg_readw,
+	.mmio.pci_mmcfg_readl		= pci_mmcfg_readl,
+	.mmio.pci_mmcfg_writeb		= pci_mmcfg_writeb,
+	.mmio.pci_mmcfg_writew		= pci_mmcfg_writew,
+	.mmio.pci_mmcfg_writel		= pci_mmcfg_writel,
 };
 
 #ifdef CONFIG_PARAVIRT_XXL

@@ -27,6 +27,36 @@ static struct cc_attr_flags {
 	      __resv		: 63;
 } cc_flags;
 
+static bool noinstr pkvm_cc_platform_has(enum cc_attr attr)
+{
+	/*
+	 * Since host can't access pkvm guest's memory, pkvm guest needs to
+	 * share DMA buffers with host to make virtio work. By using these
+	 * attributes, pkvm guest will use bounce buffer for DMA operation,
+	 * and share the bounce buffer with the host.
+	 *
+	 * CC_ATTR_GUEST_UNROLL_STRING_IO: Since string io causes KVM to do
+	 * instruction decoding, to avoid it, use this attribute to unroll
+	 * string io.
+	 *
+	 * CC_ATTR_GUEST_MEM_ENCRYPT: This attribute is checked in
+	 * force_dma_unencrypted() to make all DMA buffers shared with the
+	 * host, and in pci_swiotlb_detect() to force using bounce buffer
+	 * for all DMA.
+	 *
+	 * CC_ATTR_MEM_ENCRYPT: This attribute is checked in
+	 * mem_encrypt_init() to make the bounce buffer shared with the host.
+	 */
+	switch (attr) {
+	case CC_ATTR_GUEST_UNROLL_STRING_IO:
+	case CC_ATTR_GUEST_MEM_ENCRYPT:
+	case CC_ATTR_MEM_ENCRYPT:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static bool noinstr intel_cc_platform_has(enum cc_attr attr)
 {
 	switch (attr) {
@@ -122,6 +152,8 @@ bool noinstr cc_platform_has(enum cc_attr attr)
 		return amd_cc_platform_has(attr);
 	case CC_VENDOR_INTEL:
 		return intel_cc_platform_has(attr);
+	case CC_VENDOR_PKVM:
+		return pkvm_cc_platform_has(attr);
 	default:
 		return false;
 	}

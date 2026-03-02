@@ -10,12 +10,14 @@
 #include <nvhe/alloc_mgt.h>
 
 struct kvm_iommu_ops;
+struct pkvm_hyp_vm;
+
 struct kvm_hyp_iommu_domain {
 	atomic_t		refs;
 	pkvm_handle_t		domain_id;
 	void			*priv;
 	struct kvm_iommu_ops	*driver;
-	struct pkvm_hyp_vm		*vm;
+	void			*owner;
 };
 
 int kvm_iommu_dev_block_dma(pkvm_handle_t iommu_id, u32 endpoint_id, bool host_to_guest);

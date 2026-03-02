@@ -9,6 +9,7 @@ typedef int (*hyp_mmu_finalize_fn_t)(struct pkvm_pgtable *pgt);
 typedef int (*host_mmu_init_fn_t)(struct pkvm_pgtable *pgt, void *pool_base,
 				  unsigned long pool_pages);
 typedef int (*host_mmu_finalize_fn_t)(struct pkvm_pgtable *pgt);
+typedef int (*hyp_iommu_init_fn_t)(void);
 typedef int (*hyp_global_init_fn_t)(void);
 typedef void (*reprivilege_cpu_fn_t)(unsigned long *vcpu_regs);
 
@@ -28,6 +29,7 @@ struct pkvm_init_ops {
 	hyp_mmu_finalize_fn_t		hyp_mmu_finalize;
 	host_mmu_init_fn_t		host_mmu_init;
 	host_mmu_finalize_fn_t		host_mmu_finalize;
+	hyp_iommu_init_fn_t		hyp_iommu_init;
 	hyp_global_init_fn_t		hyp_global_init;
 	reprivilege_cpu_fn_t		reprivilege_cpu;
 };

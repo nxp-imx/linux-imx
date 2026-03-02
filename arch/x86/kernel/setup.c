@@ -1075,6 +1075,10 @@ void __init setup_arch(char **cmdline_p)
 
 	e820__memblock_setup();
 
+	x86_flattree_get_config();
+
+	e820__reserve_nomap_region();
+
 	/*
 	 * Needs to run after memblock setup because it needs the physical
 	 * memory size.
@@ -1184,8 +1188,6 @@ void __init setup_arch(char **cmdline_p)
 	/* Some platforms need the APIC registered for NUMA configuration */
 	early_acpi_boot_init();
 	x86_init.mpparse.early_parse_smp_cfg();
-
-	x86_flattree_get_config();
 
 	initmem_init();
 	dma_contiguous_reserve(max_pfn_mapped << PAGE_SHIFT);

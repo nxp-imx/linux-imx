@@ -226,6 +226,7 @@
   cancel_work
   cancel_work_sync
   capable
+  cc_mkdec
   cdc_ncm_bind_common
   cdc_ncm_change_mtu
   cdc_ncm_fill_tx_frame
@@ -1700,6 +1701,7 @@
   __kvmalloc_node_noprof
   kvmemdup
   kvrealloc_node_align_noprof
+  lcm
   led_add_lookup
   led_classdev_register_ext
   led_classdev_unregister

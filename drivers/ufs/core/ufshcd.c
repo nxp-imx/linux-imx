@@ -2378,8 +2378,8 @@ void ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag,
 		lrbp->issue_time_stamp_local_clock = local_clock();
 		lrbp->compl_time_stamp = ktime_set(0, 0);
 		lrbp->compl_time_stamp_local_clock = 0;
-		trace_android_vh_ufs_send_command(hba, lrbp);
 	}
+	trace_android_vh_ufs_send_command(hba, lrbp);
 	ufshcd_add_command_trace(hba, task_tag, UFS_CMD_SEND);
 	if (lrbp->cmd)
 		ufshcd_clk_scaling_start_busy(hba);
@@ -5344,6 +5344,8 @@ static int ufshcd_sdev_init(struct scsi_device *sdev)
 	ufshcd_lu_init(hba, sdev);
 
 	ufshcd_setup_links(hba, sdev);
+
+	trace_android_vh_ufs_update_sdev(sdev);
 
 	return 0;
 }
