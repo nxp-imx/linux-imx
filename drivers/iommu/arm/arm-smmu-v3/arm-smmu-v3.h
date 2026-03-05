@@ -1355,7 +1355,8 @@ int arm_smmu_setup_irqs(struct arm_smmu_device *smmu,
 			irqreturn_t combined_irq(int irq, void *dev),
 			irqreturn_t evtqirq(int irq, void *dev),
 			irqreturn_t gerrorirq(int irq, void *dev),
-			irqreturn_t priirq(int irq, void *dev));
+			irqreturn_t priirq(int irq, void *dev),
+			bool resume);
 irqreturn_t arm_smmu_gerror_common(int irq, void *dev,
 				   void(*cmd_err)(struct arm_smmu_device *smmu));
 irqreturn_t arm_smmu_evtq_common(int irq, void *dev,

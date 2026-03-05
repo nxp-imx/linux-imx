@@ -602,7 +602,8 @@ static int kvm_arm_smmu_device_reset(struct host_arm_smmu_device *host_smmu)
 				  kvm_arm_smmu_combined_handler,
 				  kvm_arm_smmu_evt_handler,
 				  kvm_arm_smmu_gerror_handler,
-				  kvm_arm_smmu_pri_handler);
+				  kvm_arm_smmu_pri_handler,
+				  resume);
 	return 0;
 }
 

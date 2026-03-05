@@ -3106,7 +3106,8 @@ static int arm_smmu_device_reset(struct arm_smmu_device *smmu, bool resume)
 				  arm_smmu_combined_irq_handler,
 				  arm_smmu_evtq_thread,
 				  arm_smmu_gerror_handler,
-				  arm_smmu_priq_thread);
+				  arm_smmu_priq_thread,
+				  resume);
 	if (ret) {
 		dev_err(smmu->dev, "failed to setup irqs\n");
 		return ret;

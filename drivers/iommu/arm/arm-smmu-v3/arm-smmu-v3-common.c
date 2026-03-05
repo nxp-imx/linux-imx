@@ -719,6 +719,16 @@ static void arm_smmu_setup_msis(struct arm_smmu_device *smmu)
 	devm_add_action_or_reset(dev, arm_smmu_free_msis, dev);
 }
 
+static void arm_smmu_resume_unique_irqs(struct arm_smmu_device *smmu)
+{
+	struct device *dev = smmu->dev;
+
+	if (!dev->msi.domain)
+		return;
+
+	dev_warn(smmu->dev, "SMMU MSI suspend/resume is not supported as of now\n");
+}
+
 static void arm_smmu_setup_unique_irqs(struct arm_smmu_device *smmu,
 				       irqreturn_t evtqirq(int irq, void *dev),
 				       irqreturn_t gerrorirq(int irq, void *dev),
@@ -773,7 +783,8 @@ int arm_smmu_setup_irqs(struct arm_smmu_device *smmu,
 			irqreturn_t combined_irq(int irq, void *dev),
 			irqreturn_t evtqirq(int irq, void *dev),
 			irqreturn_t gerrorirq(int irq, void *dev),
-			irqreturn_t priirq(int irq, void *dev))
+			irqreturn_t priirq(int irq, void *dev),
+			bool resume)
 {
 	int ret, irq;
 	u32 irqen_flags = IRQ_CTRL_EVTQ_IRQEN | IRQ_CTRL_GERROR_IRQEN;
@@ -787,7 +798,7 @@ int arm_smmu_setup_irqs(struct arm_smmu_device *smmu,
 	}
 
 	irq = smmu->combined_irq;
-	if (irq) {
+	if (irq && !resume) {
 		/*
 		 * Cavium ThunderX2 implementation doesn't support unique irq
 		 * lines. Use a single irq line for all the SMMUv3 interrupts.
@@ -799,9 +810,13 @@ int arm_smmu_setup_irqs(struct arm_smmu_device *smmu,
 					"arm-smmu-v3-combined-irq", smmu);
 		if (ret < 0)
 			dev_warn(smmu->dev, "failed to enable combined irq\n");
-	} else
-		arm_smmu_setup_unique_irqs(smmu, evtqirq,
-					   gerrorirq, priirq);
+	} else {
+		if (resume)
+			arm_smmu_resume_unique_irqs(smmu);
+		 else
+			arm_smmu_setup_unique_irqs(smmu, evtqirq,
+						   gerrorirq, priirq);
+	}
 
 	if (smmu->features & ARM_SMMU_FEAT_PRI)
 		irqen_flags |= IRQ_CTRL_PRIQ_IRQEN;
