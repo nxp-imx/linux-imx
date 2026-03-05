@@ -336,6 +336,9 @@ struct clk_hw *imx_clk_hw_gate_exclusive(const char *name, const char *parent,
 struct clk_hw *imx_clk_hw_pfd(const char *name, const char *parent_name,
 		void __iomem *reg, u8 idx);
 
+struct clk_hw *imx_clk_hw_pfd_rmw(const char *name, const char *parent_name,
+		void __iomem *reg, u8 idx, spinlock_t *lock);
+
 struct clk_hw *imx_clk_hw_pfdv2(enum imx_pfdv2_type type, const char *name,
 	 const char *parent_name, void __iomem *reg, u8 idx);
 

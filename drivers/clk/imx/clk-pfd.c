@@ -18,15 +18,21 @@
  * @hw:		clock source
  * @reg:	PFD register address
  * @idx:	the index of PFD encoded in the register
+ * @rmw_lock:	spinlock for read-modify-write mode, or NULL for SET/CLR mode
  *
- * PFD clock found on i.MX6 series.  Each register for PFD has 4 clk_pfd
- * data encoded, and member idx is used to specify the one.  And each
- * register has SET, CLR and TOG registers at offset 0x4 0x8 and 0xc.
+ * PFD clock found on i.MX6 series and i.MX RT series.  Each register for
+ * PFD has 4 clk_pfd data encoded, and member idx is used to specify the one.
+ * On i.MX6, each register has SET, CLR and TOG registers at offset 0x4 0x8
+ * and 0xc.  On i.MX RT1170, the ANATOP module does not have SET/CLR/TOG
+ * registers, so direct read-modify-write is used instead.  In RMW mode,
+ * a shared spinlock protects against concurrent access from multiple PFDs
+ * within the same register.
  */
 struct clk_pfd {
 	struct clk_hw	hw;
 	void __iomem	*reg;
 	u8		idx;
+	spinlock_t	*rmw_lock;
 };
 
 #define to_clk_pfd(_hw) container_of(_hw, struct clk_pfd, hw)
@@ -37,10 +43,26 @@ struct clk_pfd {
 
 static void clk_pfd_do_hardware(struct clk_pfd *pfd, bool enable)
 {
-	if (enable)
-		writel_relaxed(1 << ((pfd->idx + 1) * 8 - 1), pfd->reg + CLR);
-	else
-		writel_relaxed(1 << ((pfd->idx + 1) * 8 - 1), pfd->reg + SET);
+	u32 gate_bit = 1 << ((pfd->idx + 1) * 8 - 1);
+
+	if (pfd->rmw_lock) {
+		unsigned long flags;
+		u32 val;
+
+		spin_lock_irqsave(pfd->rmw_lock, flags);
+		val = readl_relaxed(pfd->reg);
+		if (enable)
+			val &= ~gate_bit;
+		else
+			val |= gate_bit;
+		writel_relaxed(val, pfd->reg);
+		spin_unlock_irqrestore(pfd->rmw_lock, flags);
+	} else {
+		if (enable)
+			writel_relaxed(gate_bit, pfd->reg + CLR);
+		else
+			writel_relaxed(gate_bit, pfd->reg + SET);
+	}
 }
 
 static void clk_pfd_do_shared_clks(struct clk_hw *hw, bool enable)
@@ -136,8 +158,20 @@ static int clk_pfd_set_rate(struct clk_hw *hw, unsigned long rate,
 	else if (frac > 35)
 		frac = 35;
 
-	writel_relaxed(0x3f << (pfd->idx * 8), pfd->reg + CLR);
-	writel_relaxed(frac << (pfd->idx * 8), pfd->reg + SET);
+	if (pfd->rmw_lock) {
+		unsigned long flags;
+		u32 val;
+
+		spin_lock_irqsave(pfd->rmw_lock, flags);
+		val = readl_relaxed(pfd->reg);
+		val &= ~(0x3f << (pfd->idx * 8));
+		val |= frac << (pfd->idx * 8);
+		writel_relaxed(val, pfd->reg);
+		spin_unlock_irqrestore(pfd->rmw_lock, flags);
+	} else {
+		writel_relaxed(0x3f << (pfd->idx * 8), pfd->reg + CLR);
+		writel_relaxed(frac << (pfd->idx * 8), pfd->reg + SET);
+	}
 
 	return 0;
 }
@@ -164,6 +198,25 @@ static const struct clk_ops clk_pfd_ops = {
 struct clk_hw *imx_clk_hw_pfd(const char *name, const char *parent_name,
 			void __iomem *reg, u8 idx)
 {
+	return imx_clk_hw_pfd_rmw(name, parent_name, reg, idx, NULL);
+}
+EXPORT_SYMBOL_GPL(imx_clk_hw_pfd);
+
+/**
+ * imx_clk_hw_pfd_rmw - register a PFD clock using read-modify-write
+ * @name:	clock name
+ * @parent_name: parent clock name
+ * @reg:	PFD register address (shared by 4 PFDs)
+ * @idx:	PFD index within the register (0-3)
+ * @lock:	shared spinlock protecting RMW on this register
+ *
+ * For SoCs (like i.MX RT1170) where the ANATOP PFD register does not
+ * have SET/CLR/TOG companion registers.  All PFDs sharing the same
+ * register must use the same @lock to prevent concurrent RMW races.
+ */
+struct clk_hw *imx_clk_hw_pfd_rmw(const char *name, const char *parent_name,
+			void __iomem *reg, u8 idx, spinlock_t *lock)
+{
 	struct clk_pfd *pfd;
 	struct clk_hw *hw;
 	struct clk_init_data init;
@@ -175,6 +228,7 @@ struct clk_hw *imx_clk_hw_pfd(const char *name, const char *parent_name,
 
 	pfd->reg = reg;
 	pfd->idx = idx;
+	pfd->rmw_lock = lock;
 
 	init.name = name;
 	init.ops = &clk_pfd_ops;
@@ -193,4 +247,4 @@ struct clk_hw *imx_clk_hw_pfd(const char *name, const char *parent_name,
 
 	return hw;
 }
-EXPORT_SYMBOL_GPL(imx_clk_hw_pfd);
+EXPORT_SYMBOL_GPL(imx_clk_hw_pfd_rmw);
