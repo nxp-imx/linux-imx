@@ -144,6 +144,10 @@ static struct imxrt1170_clk_ccgr clk_ccgrs[] = {
 static struct clk_hw **hws;
 static struct clk_hw_onecell_data *clk_hw_data;
 
+/* Spinlocks for PFD RMW — one per shared PFD register */
+static DEFINE_SPINLOCK(pll3_pfd_lock);
+static DEFINE_SPINLOCK(pll2_pfd_lock);
+
 /* base address of the CLOCK_GROUPn_CONTROL register */
 #define IMXRT1170_CCM_CLOCK_GROUP_CONTROL_SET(base, grp_id) (base + 0x4000 + ((grp_id) * 0x80))
 #define CGC_DIV0_SHIFT		0
@@ -196,22 +200,22 @@ static void __init imxrt1170_clocks_init(struct device_node *ccm_node)
 	       imx_clk_hw_pll_rt1170(IMXRT1170_PLL1, "pll1_sys", "osc", base + 0x2c0);
 
 	hws[IMXRT1170_CLK_PLL3_PFD0] =
-	       imx_clk_hw_pfd("pll3_pfd0", "pll3_sys", base + 0x230, 0);
+	       imx_clk_hw_pfd_rmw("pll3_pfd0", "pll3_sys", base + 0x230, 0, &pll3_pfd_lock);
 	hws[IMXRT1170_CLK_PLL3_PFD1] =
-	       imx_clk_hw_pfd("pll3_pfd1", "pll3_sys", base + 0x230, 1);
+	       imx_clk_hw_pfd_rmw("pll3_pfd1", "pll3_sys", base + 0x230, 1, &pll3_pfd_lock);
 	hws[IMXRT1170_CLK_PLL3_PFD2] =
-	       imx_clk_hw_pfd("pll3_pfd2", "pll3_sys", base + 0x230, 2);
+	       imx_clk_hw_pfd_rmw("pll3_pfd2", "pll3_sys", base + 0x230, 2, &pll3_pfd_lock);
 	hws[IMXRT1170_CLK_PLL3_PFD3] =
-	       imx_clk_hw_pfd("pll3_pfd3", "pll3_sys", base + 0x230, 3);
+	       imx_clk_hw_pfd_rmw("pll3_pfd3", "pll3_sys", base + 0x230, 3, &pll3_pfd_lock);
 
 	hws[IMXRT1170_CLK_PLL2_PFD0] =
-	       imx_clk_hw_pfd("pll2_pfd0", "pll2_sys", base + 0x270, 0);
+	       imx_clk_hw_pfd_rmw("pll2_pfd0", "pll2_sys", base + 0x270, 0, &pll2_pfd_lock);
 	hws[IMXRT1170_CLK_PLL2_PFD1] =
-	       imx_clk_hw_pfd("pll2_pfd1", "pll2_sys", base + 0x270, 1);
+	       imx_clk_hw_pfd_rmw("pll2_pfd1", "pll2_sys", base + 0x270, 1, &pll2_pfd_lock);
 	hws[IMXRT1170_CLK_PLL2_PFD2] =
-	       imx_clk_hw_pfd("pll2_pfd2", "pll2_sys", base + 0x270, 2);
+	       imx_clk_hw_pfd_rmw("pll2_pfd2", "pll2_sys", base + 0x270, 2, &pll2_pfd_lock);
 	hws[IMXRT1170_CLK_PLL2_PFD3] =
-	       imx_clk_hw_pfd("pll2_pfd3", "pll2_sys", base + 0x270, 3);
+	       imx_clk_hw_pfd_rmw("pll2_pfd3", "pll2_sys", base + 0x270, 3, &pll2_pfd_lock);
 
 	hws[IMXRT1170_CLK_PLL3_DIV2] =
 	       imxrt1170_clk_pll_div_out_composite("pll3_div2", "pll3_sys", base + 0x210, 2, 3, 0);
