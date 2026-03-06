@@ -22,6 +22,13 @@ config HBMC_AM654
 	 This is the driver for HyperBus controller on TI's AM65x and
 	 other SoCs
 
+config HBMC_IMXRT
+	tristate "HyperBus controller driver for i.MX RT SoCs"
+	depends on ARCH_MXC || COMPILE_TEST
+	help
+	  This is the driver for HyperBus controller on NXP i.MX RT SoCs
+	  using the FlexSPI peripheral in HyperBus mode.
+
 config RPCIF_HYPERBUS
 	tristate "Renesas RPC-IF HyperBus driver"
 	depends on RENESAS_RPCIF
