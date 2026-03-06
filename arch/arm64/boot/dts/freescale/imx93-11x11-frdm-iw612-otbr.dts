@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2024 NXP
+ */
+
+#include "imx93-11x11-frdm.dts"
+
+&lpi2c1 {
+	pcal6408_b: gpio@21 {
+		compatible = "nxp,pcal9554b";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		vcc-supply = <&reg_usdhc3_vmmc>;
+		status = "okay";
+	};
+};
+
+&lpspi3 {
+	pinctrl-assert-gpios = <&pcal6408 0 GPIO_ACTIVE_HIGH>,
+			       <&pcal6408_b 0 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
