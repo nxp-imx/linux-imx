@@ -441,8 +441,8 @@ static void rpmsg_eptdev_release_device(struct device *dev)
 {
 	struct rpmsg_eptdev *eptdev = dev_to_eptdev(dev);
 
-	ida_simple_remove(&rpmsg_ept_ida, dev->id);
-	ida_simple_remove(&rpmsg_minor_ida, MINOR(eptdev->dev.devt));
+	ida_free(&rpmsg_ept_ida, dev->id);
+	ida_free(&rpmsg_minor_ida, MINOR(eptdev->dev.devt));
 	kfree(eptdev);
 }
 
@@ -483,12 +483,12 @@ static int rpmsg_chre_eptdev_add(struct rpmsg_eptdev *eptdev, struct rpmsg_chann
 
 	eptdev->chinfo = chinfo;
 
-	ret = ida_simple_get(&rpmsg_minor_ida, 0, RPMSG_DEV_MAX, GFP_KERNEL);
+	ret = ida_alloc_max(&rpmsg_minor_ida, RPMSG_DEV_MAX - 1, GFP_KERNEL);
 	if (ret < 0)
 		goto free_eptdev;
 	dev->devt = MKDEV(MAJOR(rpmsg_major), ret);
 
-	ret = ida_simple_get(&rpmsg_ept_ida, 0, 0, GFP_KERNEL);
+	ret = ida_alloc(&rpmsg_ept_ida, GFP_KERNEL);
 	if (ret < 0)
 		goto free_minor_ida;
 	dev->id = ret;
@@ -504,9 +504,9 @@ static int rpmsg_chre_eptdev_add(struct rpmsg_eptdev *eptdev, struct rpmsg_chann
 	return ret;
 
 free_ept_ida:
-	ida_simple_remove(&rpmsg_ept_ida, dev->id);
+	ida_free(&rpmsg_ept_ida, dev->id);
 free_minor_ida:
-	ida_simple_remove(&rpmsg_minor_ida, MINOR(dev->devt));
+	ida_free(&rpmsg_minor_ida, MINOR(dev->devt));
 free_eptdev:
 	put_device(dev);
 	kfree(eptdev);
