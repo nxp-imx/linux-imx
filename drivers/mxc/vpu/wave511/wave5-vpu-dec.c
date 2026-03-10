@@ -14,6 +14,7 @@
 
 #define VPU_DEC_DEV_NAME "C&M Wave5 VPU decoder"
 #define VPU_DEC_DRV_NAME "wave5-dec"
+#define V4L2_CID_VPU_SECURE_MODE (V4L2_CID_USER_BASE + 0x10b7)
 #define VPU_SECURE_DEC_DEV_NAME "C&M Wave5 VPU secure decoder"
 #define VPU_SECURE_DEC_DRV_NAME "wave5-sec-dec"
 
@@ -2122,6 +2123,10 @@ static int wave5_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 		inst->header_separate = ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE ? true :
 											    false;
 		break;
+	case V4L2_CID_VPU_SECURE_MODE:
+		inst->secure_mode = ctrl->val;
+		inst->dev->secure_mode = ctrl->val;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -2132,6 +2137,17 @@ static int wave5_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops wave5_vpu_dec_ctrl_ops = {
 	.s_ctrl = wave5_vpu_dec_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config wave5_vpu_secure_mode = {
+	.ops = &wave5_vpu_dec_ctrl_ops,
+	.id = V4L2_CID_VPU_SECURE_MODE,
+	.name = "secure mode",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.def = 0,
+	.min = 0,
+	.max = 1,
+	.step = 1,
 };
 
 static int wave5_vpu_open_dec(struct file *filp)
@@ -2186,6 +2202,7 @@ static int wave5_vpu_open_dec(struct file *filp)
 			       ~((1 << V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE) |
 				 (1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME)),
 			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
+	v4l2_ctrl_new_custom(&inst->v4l2_ctrl_hdl, &wave5_vpu_secure_mode, NULL);
 
 	if (inst->v4l2_ctrl_hdl.error) {
 		ret = -ENODEV;

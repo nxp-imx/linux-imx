@@ -574,6 +574,7 @@ struct vpu_instance {
 	u32 drain_dec_cnt;
 	struct vpu_performance_info performance;
 	struct dentry *debugfs;
+	bool secure_mode;
 };
 
 struct vpu_state_trans_element {
