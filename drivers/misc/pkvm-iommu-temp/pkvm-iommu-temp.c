@@ -33,7 +33,7 @@ static struct kvm_iommu_driver kvm_iommu_temp_ops = {
 
 static int __init pkvm_iommu_temp_init(void)
 {
-	return kvm_iommu_register_driver(&kvm_iommu_temp_ops, 1);
+	return kvm_iommu_register_driver(&kvm_iommu_temp_ops, 0);
 }
 
 module_init(pkvm_iommu_temp_init);

@@ -734,9 +734,9 @@ static int validate_hash_tree(struct backing_file_context *bfc, struct file *f,
 			return res;
 		if (res != INCFS_DATA_FILE_BLOCK_SIZE)
 			return -EIO;
-		res = incfs_calc_digest(tree->alg,
-					range(buf, INCFS_DATA_FILE_BLOCK_SIZE),
-					range(calculated_digest, digest_size));
+		res = incfs_hash_block(tree->alg,
+				       range(buf, INCFS_DATA_FILE_BLOCK_SIZE),
+				       range(calculated_digest, digest_size));
 		if (res)
 			return res;
 
@@ -773,8 +773,8 @@ static int validate_hash_tree(struct backing_file_context *bfc, struct file *f,
 		}
 	}
 
-	res = incfs_calc_digest(tree->alg, data,
-				range(calculated_digest, digest_size));
+	res = incfs_hash_block(tree->alg, data,
+			       range(calculated_digest, digest_size));
 	if (res)
 		return res;
 

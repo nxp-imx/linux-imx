@@ -6,7 +6,6 @@
 #define _INCFS_INTEGRITY_H
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <crypto/hash.h>
 
 #include <uapi/linux/incrementalfs.h>
 
@@ -19,13 +18,11 @@ struct incfs_hash_alg {
 	const char *name;
 	int digest_size;
 	enum incfs_hash_tree_algorithm id;
-
-	struct crypto_shash *shash;
 };
 
 /* Merkle tree structure. */
 struct mtree {
-	struct incfs_hash_alg *alg;
+	const struct incfs_hash_alg *alg;
 
 	u8 root_hash[INCFS_MAX_HASH_SIZE];
 
@@ -38,7 +35,8 @@ struct mtree {
 	int depth;
 };
 
-struct incfs_hash_alg *incfs_get_hash_alg(enum incfs_hash_tree_algorithm id);
+const struct incfs_hash_alg *
+incfs_get_hash_alg(enum incfs_hash_tree_algorithm id);
 
 struct mtree *incfs_alloc_mtree(struct mem_range signature,
 				int data_block_count);
@@ -50,7 +48,10 @@ size_t incfs_get_mtree_depth(enum incfs_hash_tree_algorithm alg, loff_t size);
 size_t incfs_get_mtree_hash_count(enum incfs_hash_tree_algorithm alg,
 					loff_t size);
 
-int incfs_calc_digest(struct incfs_hash_alg *alg, struct mem_range data,
-			struct mem_range digest);
+int incfs_hash_buffer(const struct incfs_hash_alg *alg, const void *data,
+		      size_t len, u8 *out);
+
+int incfs_hash_block(const struct incfs_hash_alg *alg, struct mem_range data,
+		     struct mem_range digest);
 
 #endif /* _INCFS_INTEGRITY_H */

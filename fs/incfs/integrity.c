@@ -3,49 +3,26 @@
  * Copyright 2019 Google LLC
  */
 #include <crypto/sha2.h>
-#include <crypto/hash.h>
 #include <linux/err.h>
 #include <linux/version.h>
 
 #include "integrity.h"
 
-struct incfs_hash_alg *incfs_get_hash_alg(enum incfs_hash_tree_algorithm id)
+const struct incfs_hash_alg *
+incfs_get_hash_alg(enum incfs_hash_tree_algorithm id)
 {
-	static struct incfs_hash_alg sha256 = {
+	static const struct incfs_hash_alg sha256 = {
 		.name = "sha256",
 		.digest_size = SHA256_DIGEST_SIZE,
 		.id = INCFS_HASH_TREE_SHA256
 	};
-	struct incfs_hash_alg *result = NULL;
-	struct crypto_shash *shash;
 
 	if (id == INCFS_HASH_TREE_SHA256) {
 		BUILD_BUG_ON(INCFS_MAX_HASH_SIZE < SHA256_DIGEST_SIZE);
-		result = &sha256;
+		return &sha256;
 	}
 
-	if (result == NULL)
-		return ERR_PTR(-ENOENT);
-
-	/* pairs with cmpxchg_release() below */
-	shash = smp_load_acquire(&result->shash);
-	if (shash)
-		return result;
-
-	shash = crypto_alloc_shash(result->name, 0, 0);
-	if (IS_ERR(shash)) {
-		int err = PTR_ERR(shash);
-
-		pr_err("Can't allocate hash alg %s, error code:%d",
-			result->name, err);
-		return ERR_PTR(err);
-	}
-
-	/* pairs with smp_load_acquire() above */
-	if (cmpxchg_release(&result->shash, NULL, shash) != NULL)
-		crypto_free_shash(shash);
-
-	return result;
+	return ERR_PTR(-ENOENT);
 }
 
 struct signature_info {
@@ -133,7 +110,7 @@ struct mtree *incfs_alloc_mtree(struct mem_range signature,
 	int error;
 	struct signature_info si;
 	struct mtree *result = NULL;
-	struct incfs_hash_alg *hash_alg = NULL;
+	const struct incfs_hash_alg *hash_alg = NULL;
 	int hash_per_block;
 	int lvl;
 	int total_blocks = 0;
@@ -204,18 +181,26 @@ void incfs_free_mtree(struct mtree *tree)
 	kfree(tree);
 }
 
-int incfs_calc_digest(struct incfs_hash_alg *alg, struct mem_range data,
-			struct mem_range digest)
+int incfs_hash_buffer(const struct incfs_hash_alg *alg, const void *data,
+		      size_t len, u8 *out)
 {
-	SHASH_DESC_ON_STACK(desc, alg->shash);
+	switch (alg->id) {
+	case INCFS_HASH_TREE_SHA256:
+		sha256(data, len, out);
+		return 0;
+	default:
+		return -ENOENT;
+	}
+}
 
-	if (!alg || !alg->shash || !data.data || !digest.data)
+int incfs_hash_block(const struct incfs_hash_alg *alg, struct mem_range data,
+		     struct mem_range digest)
+{
+	if (!alg || !data.data || !digest.data)
 		return -EFAULT;
 
 	if (alg->digest_size > digest.len)
 		return -EINVAL;
-
-	desc->tfm = alg->shash;
 
 	if (data.len < INCFS_DATA_FILE_BLOCK_SIZE) {
 		int err;
@@ -225,11 +210,10 @@ int incfs_calc_digest(struct incfs_hash_alg *alg, struct mem_range data,
 			return -ENOMEM;
 
 		memcpy(buf, data.data, data.len);
-		err = crypto_shash_digest(desc, buf, INCFS_DATA_FILE_BLOCK_SIZE,
-					  digest.data);
+		err = incfs_hash_buffer(alg, buf, INCFS_DATA_FILE_BLOCK_SIZE,
+					digest.data);
 		kfree(buf);
 		return err;
 	}
-	return crypto_shash_digest(desc, data.data, data.len, digest.data);
+	return incfs_hash_buffer(alg, data.data, data.len, digest.data);
 }
-

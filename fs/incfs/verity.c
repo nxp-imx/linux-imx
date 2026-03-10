@@ -38,7 +38,6 @@
  *    rest of the process is completed.
  */
 
-#include <crypto/hash.h>
 #include <crypto/sha2.h>
 #include <linux/fsverity.h>
 #include <linux/mount.h>
@@ -125,16 +124,6 @@ out:
 	return error;
 }
 
-static int incfs_compute_file_digest(struct incfs_hash_alg *alg,
-				struct fsverity_descriptor *desc,
-				u8 *digest)
-{
-	SHASH_DESC_ON_STACK(d, alg->shash);
-
-	d->tfm = alg->shash;
-	return crypto_shash_digest(d, (u8 *)desc, sizeof(*desc), digest);
-}
-
 static enum incfs_hash_tree_algorithm incfs_convert_fsverity_hash_alg(
 								int hash_alg)
 {
@@ -207,7 +196,7 @@ static struct mem_range incfs_calc_verity_digest_from_desc(
 	enum incfs_hash_tree_algorithm incfs_hash_alg;
 	struct mem_range verity_file_digest;
 	int err;
-	struct incfs_hash_alg *hash_alg;
+	const struct incfs_hash_alg *hash_alg;
 
 	incfs_hash_alg = incfs_convert_fsverity_hash_alg(desc->hash_algorithm);
 	if (incfs_hash_alg < 0)
@@ -222,8 +211,8 @@ static struct mem_range incfs_calc_verity_digest_from_desc(
 	if (!verity_file_digest.data)
 		return range(ERR_PTR(-ENOMEM), 0);
 
-	err = incfs_compute_file_digest(hash_alg, desc,
-					verity_file_digest.data);
+	err = incfs_hash_buffer(hash_alg, desc, sizeof(*desc),
+				verity_file_digest.data);
 	if (err) {
 		pr_err("Error %d computing file digest", err);
 		kfree(verity_file_digest.data);
@@ -277,9 +266,10 @@ static struct mem_range incfs_calc_verity_digest(
 }
 
 static int incfs_build_merkle_tree(struct file *f, struct data_file *df,
-			     struct backing_file_context *bfc,
-			     struct mtree *hash_tree, loff_t hash_offset,
-			     struct incfs_hash_alg *alg, struct mem_range hash)
+				   struct backing_file_context *bfc,
+				   struct mtree *hash_tree, loff_t hash_offset,
+				   const struct incfs_hash_alg *alg,
+				   struct mem_range hash)
 {
 	int error = 0;
 	int limit, lvl, i, result;
@@ -323,7 +313,7 @@ static int incfs_build_merkle_tree(struct file *f, struct data_file *df,
 			}
 
 			partial_buf.len = result;
-			error = incfs_calc_digest(alg, partial_buf, hash);
+			error = incfs_hash_block(alg, partial_buf, hash);
 			if (error)
 				goto out;
 
@@ -405,7 +395,8 @@ static int incfs_add_signature_record(struct file *f)
 	struct backing_file_context *bfc;
 	int error;
 	loff_t hash_offset, sig_offset;
-	struct incfs_hash_alg *alg = incfs_get_hash_alg(INCFS_HASH_TREE_SHA256);
+	const struct incfs_hash_alg *alg =
+		incfs_get_hash_alg(INCFS_HASH_TREE_SHA256);
 	u8 hash_buf[INCFS_MAX_HASH_SIZE];
 	int hash_size = alg->digest_size;
 	struct mem_range hash = range(hash_buf, hash_size);

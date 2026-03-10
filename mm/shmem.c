@@ -2405,6 +2405,7 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 	 * and swap cache folios are never partially freed.
 	 */
 	folio_lock(folio);
+	trace_android_vh_shmem_swapin_folio(folio);
 	if ((!skip_swapcache && !folio_test_swapcache(folio)) ||
 	    shmem_confirm_swap(mapping, index, swap) < 0 ||
 	    folio->swap.val != swap.val) {

@@ -2093,6 +2093,7 @@ retry:
 		vm->addr = (void *)va->va_start;
 		vm->size = va_size(va);
 		va->vm = vm;
+		trace_android_vh_save_vmalloc_stack(va_flags, vm);
 	}
 
 	vn = addr_to_node(va->va_start);

@@ -140,6 +140,7 @@ struct fw_blobs_by_type {
 
 /* for the GSC FW we match the compatibility version and not the release one */
 #define XE_GSC_FIRMWARE_DEFS(fw_def, major_ver)		\
+	fw_def(PANTHERLAKE,	GT_TYPE_ANY,	major_ver(xe,	gsc,	ptl,	105, 1, 0))	\
 	fw_def(LUNARLAKE,	GT_TYPE_ANY,	major_ver(xe,	gsc,	lnl,	104, 1, 0))	\
 	fw_def(METEORLAKE,	GT_TYPE_ANY,	major_ver(i915,	gsc,	mtl,	102, 1, 0))
 
@@ -738,7 +739,7 @@ static int uc_fw_request(struct xe_uc_fw *uc_fw, const struct firmware **firmwar
 		return 0;
 	}
 
-	err = request_firmware(&fw, uc_fw->path, dev);
+	err = firmware_request_nowarn(&fw, uc_fw->path, dev);
 	if (err)
 		goto fail;
 
@@ -767,8 +768,12 @@ fail:
 			       XE_UC_FIRMWARE_MISSING :
 			       XE_UC_FIRMWARE_ERROR);
 
-	xe_gt_notice(gt, "%s firmware %s: fetch failed with error %pe\n",
-		     xe_uc_fw_type_repr(uc_fw->type), uc_fw->path, ERR_PTR(err));
+	if (err == -ENOENT)
+		xe_gt_info(gt, "%s firmware %s not found\n",
+			   xe_uc_fw_type_repr(uc_fw->type), uc_fw->path);
+	else
+		xe_gt_notice(gt, "%s firmware %s: fetch failed with error %pe\n",
+			     xe_uc_fw_type_repr(uc_fw->type), uc_fw->path, ERR_PTR(err));
 	xe_gt_info(gt, "%s firmware(s) can be downloaded from %s\n",
 		   xe_uc_fw_type_repr(uc_fw->type), XE_UC_FIRMWARE_URL);
 

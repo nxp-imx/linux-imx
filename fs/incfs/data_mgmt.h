@@ -14,7 +14,6 @@
 #include <linux/completion.h>
 #include <linux/wait.h>
 #include <linux/zstd.h>
-#include <crypto/hash.h>
 #include <linux/rwsem.h>
 
 #include <uapi/linux/incrementalfs.h>

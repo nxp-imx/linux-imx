@@ -51,7 +51,7 @@ int pkvm_iommu_clear_ce(struct clear_ce_data *data)
 		 */
 		if (ecap_dit(iommu->ecap))
 			info.pfsid = bdf;
-	} else if (data->ats_enabled || data->ats_supported) {
+	} else if (data->ats_supported) {
 		return -EPERM;
 	}
 
@@ -60,7 +60,7 @@ int pkvm_iommu_clear_ce(struct clear_ce_data *data)
 	info.devfn = data->devfn;
 	info.ats_qdep = data->ats_qdep;
 	info.ats_supported = data->ats_supported;
-	info.ats_enabled = data->ats_enabled;
+	info.ats_enabled = info.ats_supported;
 
 	pkvm_dbg("%s: dev[%x:%x], ats_qdep: %d\n",
 		 __func__, data->bus, data->devfn, data->ats_qdep);
@@ -109,7 +109,7 @@ static int iommu_set_lm_ce(struct set_lm_ce_data *data)
 	if (is_dev_in_satc(bdf)) {
 		if (ecap_dit(iommu->ecap))
 			info.pfsid = bdf;
-	} else if (data->ats_enabled || data->ats_supported) {
+	} else if (data->ats_supported) {
 		return -EPERM;
 	}
 
@@ -118,7 +118,7 @@ static int iommu_set_lm_ce(struct set_lm_ce_data *data)
 	info.iommu = iommu;
 	info.ats_qdep = data->ats_qdep;
 	info.ats_supported = data->ats_supported;
-	info.ats_enabled = data->ats_enabled;
+	info.ats_enabled = info.ats_supported;
 	if (data->did == FLPT_DEFAULT_DID) {
 		/*
 		 * Passthrough will break pkvm security guarantees as
@@ -177,15 +177,14 @@ static int iommu_set_sm_ce(struct set_sm_ce_data *data)
 	if (data->ats_qdep > PCI_ATS_MAX_QDEP)
 		return -EINVAL;
 
-	if ((data->ats_supported || data->ats_enabled) &&
-	    !is_dev_in_satc(bdf))
+	if (data->ats_supported && !is_dev_in_satc(bdf))
 		return -EPERM;
 
 	info.bus = data->bus;
 	info.devfn = data->devfn;
 	info.ats_qdep = data->ats_qdep;
 	info.ats_supported = data->ats_supported;
-	info.ats_enabled = data->ats_enabled;
+	info.ats_enabled = info.ats_supported;
 	info.pasid_supported = data->pasid_supported;
 	info.pasid_enabled = data->pasid_enabled;
 	table.table = pkvm_host_gpa_to_virt(data->pasid_table_gpa);
@@ -262,7 +261,7 @@ static int iommu_pasid_setup_fl(struct pasid_setup_fl_data *data)
 	if (is_dev_in_satc(bdf)) {
 		if (ecap_dit(iommu->ecap))
 			info.pfsid = bdf;
-	} else if (data->ats_supported || data->ats_enabled) {
+	} else if (data->ats_supported) {
 		return -EPERM;
 	}
 
@@ -274,8 +273,8 @@ static int iommu_pasid_setup_fl(struct pasid_setup_fl_data *data)
 	info.bus = data->bus;
 	info.devfn = data->devfn;
 	info.ats_qdep = data->ats_qdep;
-	info.ats_enabled = data->ats_enabled;
 	info.ats_supported = data->ats_supported;
+	info.ats_enabled = info.ats_supported;
 	info.pasid_table = &table;
 	info.iommu = iommu;
 
@@ -322,7 +321,7 @@ static int iommu_pasid_setup_sl(struct pasid_setup_sl_data *data)
 	if (is_dev_in_satc(bdf)) {
 		if (ecap_dit(iommu->ecap))
 			info.pfsid = bdf;
-	} else if (data->ats_supported || data->ats_enabled) {
+	} else if (data->ats_supported) {
 		return -EPERM;
 	}
 
@@ -336,7 +335,7 @@ static int iommu_pasid_setup_sl(struct pasid_setup_sl_data *data)
 	info.iommu = iommu;
 	info.ats_qdep = data->ats_qdep;
 	info.ats_supported = data->ats_supported;
-	info.ats_enabled = data->ats_enabled;
+	info.ats_enabled = info.ats_supported;
 
 	if (data->did == FLPT_DEFAULT_DID) {
 		/*
@@ -394,7 +393,7 @@ int pkvm_iommu_pasid_teardown(struct pasid_teardown_data *data)
 	if (is_dev_in_satc(bdf)) {
 		if (ecap_dit(iommu->ecap))
 			info.pfsid = bdf;
-	} else if (data->ats_supported || data->ats_enabled) {
+	} else if (data->ats_supported) {
 		return -EPERM;
 	}
 
@@ -405,8 +404,8 @@ int pkvm_iommu_pasid_teardown(struct pasid_teardown_data *data)
 	info.bus = data->bus;
 	info.devfn = data->devfn;
 	info.ats_qdep = data->ats_qdep;
-	info.ats_enabled = data->ats_enabled;
 	info.ats_supported = data->ats_supported;
+	info.ats_enabled = info.ats_supported;
 	info.pasid_table = &table;
 	info.iommu = iommu;
 

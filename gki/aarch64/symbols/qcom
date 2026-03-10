@@ -1488,6 +1488,7 @@
   int_sqrt
   iomem_resource
   iommu_alloc_resv_region
+  iommu_alloc_pages_node_sz
   iommu_attach_device
   iommu_detach_device
   iommu_device_register
@@ -1497,6 +1498,7 @@
   iommu_dma_get_resv_regions
   iommu_domain_free
   iommu_fwspec_add_ids
+  iommu_free_pages
   iommu_get_domain_for_dev
   iommu_get_msi_cookie
   iommu_group_for_each_dev

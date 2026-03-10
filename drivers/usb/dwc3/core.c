@@ -36,6 +36,8 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 
+#include <trace/hooks/dwc3.h>
+
 #include "core.h"
 #include "gadget.h"
 #include "glue.h"
@@ -336,10 +338,18 @@ int dwc3_core_soft_reset(struct dwc3 *dwc)
 	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST)
 		return 0;
 
+	trace_android_vh_dwc3_core_soft_reset(dwc->dev, dwc->regs,
+					      dwc->usb3_generic_phy,
+					      PRE_SOFT_RESET);
+
 	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
 	reg |= DWC3_DCTL_CSFTRST;
 	reg &= ~DWC3_DCTL_RUN_STOP;
 	dwc3_gadget_dctl_write_safe(dwc, reg);
+
+	trace_android_vh_dwc3_core_soft_reset(dwc->dev, dwc->regs,
+					      dwc->usb3_generic_phy,
+					      SOFT_RESET_INITIATED);
 
 	/*
 	 * For DWC_usb31 controller 1.90a and later, the DCTL.CSFRST bit
@@ -361,6 +371,9 @@ int dwc3_core_soft_reset(struct dwc3 *dwc)
 			udelay(1);
 	} while (--retries);
 
+	trace_android_vh_dwc3_core_soft_reset(dwc->dev, dwc->regs,
+					      dwc->usb3_generic_phy,
+					      POST_SOFT_RESET);
 	dev_warn(dwc->dev, "DWC3 controller soft reset failed.\n");
 	return -ETIMEDOUT;
 
@@ -373,6 +386,9 @@ done:
 	if (DWC3_VER_IS_WITHIN(DWC31, ANY, 180A))
 		msleep(50);
 
+	trace_android_vh_dwc3_core_soft_reset(dwc->dev, dwc->regs,
+					      dwc->usb3_generic_phy,
+					      POST_SOFT_RESET);
 	return 0;
 }
 

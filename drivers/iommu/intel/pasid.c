@@ -186,6 +186,9 @@ retry:
 		if (!ecap_coherent(info->iommu->ecap))
 			clflush_cache_range(entries, VTD_PAGE_SIZE);
 
+		if (!ecap_coherent(info->iommu->ecap))
+			clflush_cache_range(entries, VTD_PAGE_SIZE);
+
 		/*
 		 * The pasid directory table entry won't be freed after
 		 * allocation. No worry about the race with free and

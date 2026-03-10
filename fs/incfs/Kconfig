@@ -5,7 +5,7 @@ config INCREMENTAL_FS
 	depends on !CONFIG_FS_VERITY_BUILTIN_SIGNATURES
 	select DECOMPRESS_LZ4
 	select DECOMPRESS_ZSTD
-	select CRYPTO_SHA256
+	select CRYPTO_LIB_SHA256
 	help
 	  Incremental FS is a read-only virtual file system that facilitates execution
 	  of programs while their binaries are still being lazily downloaded over the

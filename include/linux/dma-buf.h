@@ -692,6 +692,4 @@ long dma_buf_set_name(struct dma_buf *dmabuf, const char *name);
 int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
 struct dma_buf *dma_buf_iter_begin(void);
 struct dma_buf *dma_buf_iter_next(struct dma_buf *dmbuf);
-
-int is_dma_buf_file(struct file *);
 #endif /* __DMA_BUF_H__ */

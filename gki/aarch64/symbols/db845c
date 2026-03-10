@@ -232,6 +232,7 @@
   _dev_warn
   disable_irq
   disable_irq_nosync
+  divider_determine_rate
   divider_get_val
   divider_recalc_rate
   divider_round_rate_parent

@@ -64,7 +64,10 @@
   __traceiter_android_vh_build_skb_around
   __traceiter_android_vh_cgroup_attach
   __traceiter_android_vh_check_nanosleep_syscall
+  __traceiter_android_vh_do_anonymous_page
   __traceiter_android_vh_do_send_sig_info
+  __traceiter_android_vh_do_swap_page
+  __traceiter_android_vh_do_wp_page
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_free_task
   __traceiter_android_vh_free_unref_folios_to_pcp_bypass
@@ -80,6 +83,7 @@
   __traceiter_android_vh_rwsem_write_wait_finish
   __traceiter_android_vh_rwsem_write_wait_start
   __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_shmem_swapin_folio
   __traceiter_android_vh_shrink_node_memcgs
   __traceiter_android_vh_sk_alloc
   __traceiter_android_vh_sk_clone_lock
@@ -90,6 +94,7 @@
   __traceiter_android_vh_throttle_direct_reclaim_bypass
   __traceiter_android_vh_try_to_unmap_one
   __traceiter_android_vh_udp_enqueue_schedule_skb
+  __traceiter_android_vh_uprobes_uprobe_write
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
   __traceiter_tcp_retransmit_skb
@@ -121,7 +126,10 @@
   __tracepoint_android_vh_build_skb_around
   __tracepoint_android_vh_cgroup_attach
   __tracepoint_android_vh_check_nanosleep_syscall
+  __tracepoint_android_vh_do_anonymous_page
   __tracepoint_android_vh_do_send_sig_info
+  __tracepoint_android_vh_do_swap_page
+  __tracepoint_android_vh_do_wp_page
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_free_unref_folios_to_pcp_bypass
@@ -137,6 +145,7 @@
   __tracepoint_android_vh_rwsem_write_wait_finish
   __tracepoint_android_vh_rwsem_write_wait_start
   __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_shmem_swapin_folio
   __tracepoint_android_vh_shrink_node_memcgs
   __tracepoint_android_vh_sk_alloc
   __tracepoint_android_vh_sk_clone_lock
@@ -147,6 +156,7 @@
   __tracepoint_android_vh_throttle_direct_reclaim_bypass
   __tracepoint_android_vh_try_to_unmap_one
   __tracepoint_android_vh_udp_enqueue_schedule_skb
+  __tracepoint_android_vh_uprobes_uprobe_write
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
   __tracepoint_tcp_retransmit_skb

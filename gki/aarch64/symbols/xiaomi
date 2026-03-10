@@ -44,6 +44,9 @@
   __tracepoint_android_vh_do_new_mount_fc
   __tracepoint_android_vh_put_super
 
+  __traceiter_android_vh_save_vmalloc_stack
+  __tracepoint_android_vh_save_vmalloc_stack
+
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
   __tracepoint_android_rvh_try_to_wake_up_begin
@@ -57,6 +60,8 @@
   __tracepoint_android_vh_filemap_add_folio
   __traceiter_android_vh_mem_cgroup_charge
   __tracepoint_android_vh_mem_cgroup_charge
+  __traceiter_android_rvh_swap_bio_charge
+  __tracepoint_android_rvh_swap_bio_charge
 
 # required by custom memory policy
   __tracepoint_android_vh_mm_get_zone_mark
@@ -73,3 +78,11 @@
   inode_add_lru
   prep_new_page
   folio_isolate_lru
+
+# required by kmem_protect.ko
+  __traceiter_android_vh_free_mod_mem
+  __traceiter_android_vh_set_mod_perm_after_init
+  __traceiter_android_vh_set_mod_perm_before_init
+  __tracepoint_android_vh_free_mod_mem
+  __tracepoint_android_vh_set_mod_perm_after_init
+  __tracepoint_android_vh_set_mod_perm_before_init

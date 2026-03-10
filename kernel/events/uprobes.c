@@ -33,6 +33,9 @@
 
 #include <linux/uprobes.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 #define UINSNS_PER_PAGE			(PAGE_SIZE/UPROBE_XOL_SLOT_BYTES)
 #define MAX_UPROBE_XOL_SLOTS		UINSNS_PER_PAGE
 
@@ -431,6 +434,7 @@ static int __uprobe_write(struct vm_area_struct *vma,
 	flush_cache_page(vma, vaddr, pte_pfn(fw->pte));
 	fw->pte = ptep_clear_flush(vma, vaddr, fw->ptep);
 	copy_to_page(fw->page, insn_vaddr, insn, nbytes);
+	trace_android_vh_uprobes_uprobe_write(page_folio(fw->page), folio);
 
 	/*
 	 * When unregistering, we may only zap a PTE if uffd is disabled and
