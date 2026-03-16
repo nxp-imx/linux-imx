@@ -507,6 +507,9 @@ int handle_hyp_req(struct kvm_vcpu *vcpu, struct kvm_hyp_req *req, void *arg)
 			return -EINVAL;
 		return __pkvm_pgtable_stage2_split(vcpu, req->split.guest_ipa, req->split.size);
 
+	case KVM_HYP_REQ_TYPE_MEM_HOST_S2:
+		return pkvm_host_stage2_topup();
+
 	case KVM_HYP_LAST_REQ:
 		return 0;
 	}

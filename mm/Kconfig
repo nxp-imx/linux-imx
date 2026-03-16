@@ -1247,18 +1247,6 @@ config KMAP_LOCAL_NON_LINEAR_PTE_ARRAY
 config MEMFD_CREATE
 	bool "Enable memfd_create() system call" if EXPERT
 
-config MEMFD_ASHMEM_SHIM
-	bool "Memfd ashmem ioctl compatibility support"
-	default y
-	depends on MEMFD_CREATE && ASHMEM_C
-	help
-	  This provides compatibility support for ashmem ioctl commands against
-	  memfd file descriptors. This is useful for compatibility on Android
-	  for older applications that may use ashmem's ioctl commands on the
-	  now memfds passed to them.
-
-	  Unless you are running Android, say N.
-
 config SECRETMEM
 	default y
 	bool "Enable memfd_secret() system call" if EXPERT

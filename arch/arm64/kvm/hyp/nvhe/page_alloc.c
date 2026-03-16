@@ -5,9 +5,18 @@
  */
 
 #include <asm/kvm_hyp.h>
+
 #include <nvhe/gfp.h>
+#include <nvhe/mem_protect.h>
 
 u64 __hyp_vmemmap;
+
+static bool page_in_pool_range(struct hyp_page *p, struct hyp_pool *pool)
+{
+	phys_addr_t phys = hyp_page_to_phys(p);
+
+	return phys >= pool->range_start && phys < pool->range_end;
+}
 
 /*
  * Index the hyp_vmemmap to find a potential buddy page, but make no assumption
@@ -42,7 +51,7 @@ static struct hyp_page *__find_buddy_nocheck(struct hyp_pool *pool,
 	 * Don't return a page outside the pool range -- it belongs to
 	 * something else and may not be mapped in hyp_vmemmap.
 	 */
-	if (addr < pool->range_start || addr >= pool->range_end)
+	if (!page_in_pool_range(hyp_phys_to_page(addr), pool))
 		return NULL;
 
 	return hyp_phys_to_page(addr);
@@ -58,11 +67,18 @@ static struct hyp_page *__find_buddy_avail(struct hyp_pool *pool,
 	if (!buddy)
 		return NULL;
 
+	/* Pages within the reclaimable range might be unmapped */
+	if (pool->range_reclaimable && get_hyp_state(buddy) != PKVM_PAGE_OWNED)
+		return NULL;
+
+	/* Pool with reclaimable range can only coalesce pages tagged with their ID */
+	if (buddy->tag != pool->range_reclaimable)
+		return NULL;
+
 	if (buddy->order != order || hyp_refcount_get(buddy->refcount))
 		return NULL;
 
 	return buddy;
-
 }
 
 /*
@@ -96,14 +112,13 @@ static inline struct hyp_page *node_to_page(struct list_head *node)
 static void __hyp_attach_page(struct hyp_pool *pool,
 			      struct hyp_page *p)
 {
-	phys_addr_t phys = hyp_page_to_phys(p);
 	u8 order = p->order;
 	struct hyp_page *buddy;
 
 	memset(hyp_page_to_virt(p), 0, PAGE_SIZE << p->order);
 
 	/* Skip coalescing for 'external' pages being freed into the pool. */
-	if (phys < pool->range_start || phys >= pool->range_end)
+	if (!page_in_pool_range(p, pool))
 		goto insert;
 
 	/*
@@ -255,6 +270,7 @@ static int __hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages
 			      get_order(nr_pages << PAGE_SHIFT));
 	for (i = 0; i <= pool->max_order; i++)
 		INIT_LIST_HEAD(&pool->free_area[i]);
+	pool->range_reclaimable = 0;
 
 	if (empty_alloc) {
 		/* All pages are attached from outside. */
@@ -287,4 +303,111 @@ int hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
 int hyp_pool_init_empty(struct hyp_pool *pool, unsigned int nr_pages)
 {
 	return __hyp_pool_init(pool, 0, nr_pages, 0, true);
+}
+
+void __hyp_pool_set_range_reclaimable(struct hyp_pool *pool)
+{
+	struct hyp_page *p, *end;
+	static u32 id = 1;
+
+	WARN_ON(pool->range_reclaimable);
+	pool->range_reclaimable = id++;
+
+	p = hyp_phys_to_page(pool->range_start);
+	end = hyp_phys_to_page(pool->range_end);
+	for (; p < end; p++) {
+		WARN_ON(p->tag);
+		if (get_hyp_state(p) == PKVM_PAGE_OWNED)
+			p->tag = pool->range_reclaimable;
+	}
+}
+
+static bool hyp_pool_can_reclaim(struct hyp_pool *pool, struct hyp_page *p, u8 order)
+{
+	bool in_pool_range = page_in_pool_range(p, pool);
+	u64 nr_pages = 1 << order;
+
+	if (!IS_ALIGNED(hyp_page_to_pfn(p), 1 << order))
+		return false;
+
+	/* Ensure the page doesn't overlap the pool range */
+	if (in_pool_range != page_in_pool_range(p + (nr_pages - 1), pool))
+		return false;
+
+	if (!pool->range_reclaimable && in_pool_range)
+		return false;
+
+	return true;
+}
+
+int hyp_pool_admit(struct hyp_pool *pool, struct hyp_page *p, u8 order)
+{
+	u64 nr_pages = 1 << order;
+	int i;
+
+	if (!hyp_pool_can_reclaim(pool, p, order))
+		return -EINVAL;
+
+	if (get_hyp_state(p) != PKVM_PAGE_OWNED)
+		return -EBUSY;
+
+	p->order = order;
+	hyp_set_page_refcounted(p);
+
+	for (i = 0; i < nr_pages; i++) {
+		WARN_ON(p[i].tag);
+		p[i].tag = pool->range_reclaimable;
+	}
+
+	hyp_put_page(pool, hyp_page_to_virt(p));
+
+	return 0;
+}
+
+int hyp_pool_reclaim(struct hyp_pool *pool, struct hyp_page *p, u8 order, bool force)
+{
+	u64 nr_pages = 1 << order;
+	int i;
+
+	if (!force && !hyp_pool_can_reclaim(pool, p, order))
+		return -EINVAL;
+
+	WARN_ON(p->refcount != 1);
+
+	hyp_spin_lock(&pool->lock);
+	for (i = 0; i < nr_pages; i++) {
+		p->refcount = 0;
+		p->order = 0;
+		p->tag = 0;
+	}
+	hyp_spin_unlock(&pool->lock);
+
+	return 0;
+}
+
+unsigned long hyp_pool_reclaimable(struct hyp_pool *pool, u8 order)
+{
+	switch (order) {
+	case 0:
+		return hyp_pool_free_pages(pool);
+	}
+
+	return 0;
+}
+
+bool hyp_pool_owned(struct hyp_pool *pool, void *addr)
+{
+	struct hyp_page *p = hyp_virt_to_page(addr);
+
+	if (!page_in_pool_range(p, pool))
+		return false;
+
+	if (pool->range_reclaimable != p->tag)
+		return false;
+
+	if (!pool->range_reclaimable)
+		return true;
+
+	WARN_ON(get_hyp_state(p) != PKVM_PAGE_OWNED);
+	return true;
 }

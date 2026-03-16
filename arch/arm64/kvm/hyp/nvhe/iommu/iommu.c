@@ -74,7 +74,7 @@ static void kvm_iommu_reclaim(struct kvm_hyp_memcache *host_mc, int target)
 	if (!iommu_pools_ready)
 		return;
 
-	reclaim_hyp_pool(&iommu_host_pool, host_mc, target);
+	reclaim_hyp_pool(&iommu_host_pool, host_mc, target, false);
 }
 
 static int kvm_iommu_reclaimable(void)

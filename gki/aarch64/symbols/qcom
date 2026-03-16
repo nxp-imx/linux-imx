@@ -50,8 +50,8 @@
   arm_smccc_1_1_get_conduit
   arm_smccc_1_2_hvc
   arm_smccc_1_2_smc
-  __arm_smccc_smc
   arm_smccc_get_version
+  __arm_smccc_smc
   async_schedule_node
   async_synchronize_cookie
   atomic_notifier_call_chain
@@ -225,8 +225,8 @@
   cgroup_path_ns
   cgroup_taskset_first
   cgroup_taskset_next
-  __check_object_size
   check_move_unevictable_folios
+  __check_object_size
   check_zeroed_user
   class_create
   class_create_file_ns
@@ -1066,7 +1066,6 @@
   eventfd_ctx_remove_wait_queue
   eventfd_signal_mask
   event_triggers_call
-  ext_sched_class
   extcon_get_edev_by_phandle
   extcon_get_edev_name
   extcon_get_extcon_dev
@@ -1078,6 +1077,7 @@
   extcon_set_state
   extcon_set_state_sync
   extcon_unregister_notifier
+  ext_sched_class
   fasync_helper
   fd_install
   fget
@@ -1193,12 +1193,14 @@
   get_cpu_idle_time_us
   get_device
   get_device_system_crosststamp
+  get_each_kmemcache_object
   get_free_pages_noprof
   get_governor_parent_kobj
   get_netmem
   get_net_ns_by_fd
   get_net_ns_by_pid
   get_option
+  get_page_owner_handle
   get_pid_task
   get_random_bytes
   get_random_u16
@@ -1210,6 +1212,7 @@
   get_task_cred
   get_task_mm
   get_task_pid
+  get_track
   __get_unmapped_area
   get_unused_fd_flags
   get_user_ifreq
@@ -1260,6 +1263,18 @@
   gro_cells_init
   gro_cells_receive
   __gro_flush
+  gunyah_get_info
+  gunyah_hypercall_msgq_recv
+  gunyah_hypercall_msgq_send
+  gunyah_hypercall_vcpu_run
+  gunyah_qtvm_register_notifier
+  gunyah_qtvm_unregister_notifier
+  gunyah_reclaim_fw_parcel
+  gunyah_rm_call
+  gunyah_rm_notifier_register
+  gunyah_rm_notifier_unregister
+  gunyah_vm_get
+  gunyah_vm_put
   h4_recv_buf
   handle_bad_irq
   handle_edge_irq
@@ -1487,8 +1502,8 @@
   interval_tree_remove
   int_sqrt
   iomem_resource
-  iommu_alloc_resv_region
   iommu_alloc_pages_node_sz
+  iommu_alloc_resv_region
   iommu_attach_device
   iommu_detach_device
   iommu_device_register
@@ -1497,8 +1512,8 @@
   iommu_device_unregister
   iommu_dma_get_resv_regions
   iommu_domain_free
-  iommu_fwspec_add_ids
   iommu_free_pages
+  iommu_fwspec_add_ids
   iommu_get_domain_for_dev
   iommu_get_msi_cookie
   iommu_group_for_each_dev
@@ -1592,6 +1607,8 @@
   irq_work_queue_on
   irq_work_sync
   is_vmalloc_addr
+  isolate_and_split_free_page
+  isolate_anon_lru_page
   iterate_fd
   jiffies
   jiffies_to_msecs
@@ -1860,6 +1877,7 @@
   memunmap
   metadata_dst_alloc
   metadata_dst_free
+  migrate_pages
   migrate_swap
   __migrate_task
   mipi_dsi_create_packet
@@ -1880,8 +1898,8 @@
   mmc_regulator_set_vqmmc
   mmc_send_tuning
   __mmdrop
-  mmput
   mm_get_unmapped_area
+  mmput
   mod_delayed_work_on
   mod_node_page_state
   mod_timer
@@ -2149,6 +2167,8 @@
   out_of_line_wait_on_bit_timeout
   overflowgid
   overflowuid
+  page_ext_get
+  page_ext_put
   page_is_ram
   page_pool_alloc_pages
   page_pool_create
@@ -2447,6 +2467,7 @@
   put_device
   put_disk
   put_iova_domain
+  putback_movable_pages
   __put_net
   put_pid
   put_sg_io_hdr
@@ -3038,8 +3059,8 @@
   sock_edemux
   sock_efree
   sockfd_lookup
-  sock_gettstamp
   sock_gen_put
+  sock_gettstamp
   sock_init_data
   sock_no_accept
   sock_no_bind
@@ -3244,7 +3265,6 @@
   trace_event_reg
   trace_get_event_file
   trace_handle_return
-  __traceiter_android_rvh___set_task_cpu
   __traceiter_android_rvh_account_irq
   __traceiter_android_rvh_before_do_sched_yield
   __traceiter_android_rvh_bitmap_find_best_next_area
@@ -3262,6 +3282,11 @@
   __traceiter_android_rvh_find_lowest_rq
   __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_get_nohz_timer_target
+  __traceiter_android_rvh_gh_after_vcpu_run
+  __traceiter_android_rvh_gh_before_vcpu_run
+  __traceiter_android_rvh_gh_note_fw_parcel
+  __traceiter_android_rvh_gh_vcpu_release
+  __traceiter_android_rvh_gh_vm_release
   __traceiter_android_rvh_gic_v3_set_affinity
   __traceiter_android_rvh_iommu_alloc_insert_iova
   __traceiter_android_rvh_iommu_iovad_init_alloc_algo
@@ -3282,6 +3307,7 @@
   __traceiter_android_rvh_select_task_rq_fair
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_set_cpus_allowed_by_task
+  __traceiter_android_rvh___set_task_cpu
   __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_set_user_nice
   __traceiter_android_rvh_shmem_allowable_huge_orders
@@ -3305,12 +3331,10 @@
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_cpuidle_psci_enter
   __traceiter_android_vh_cpuidle_psci_exit
+  __traceiter_android_vh_do_wake_up_sync
   __traceiter_android_vh_freq_qos_add_request
-  __tracepoint_android_vh_do_wake_up_sync
   __traceiter_android_vh_freq_qos_remove_request
   __traceiter_android_vh_freq_qos_update_request
-  __traceiter_android_vh_try_fixup_sea
-  __tracepoint_android_rvh___set_task_cpu
   __traceiter_android_vh_ftrace_dump_buffer
   __traceiter_android_vh_ftrace_format_check
   __traceiter_android_vh_ftrace_oops_enter
@@ -3326,6 +3350,7 @@
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
   __traceiter_android_vh_timer_calc_index
+  __traceiter_android_vh_try_fixup_sea
   __traceiter_android_vh_ufs_check_int_errors
   __traceiter_android_vh_ufs_compl_command
   __traceiter_android_vh_ufs_send_command
@@ -3353,12 +3378,16 @@
   __tracepoint_android_rvh_cpu_overutilized
   __tracepoint_android_rvh_dequeue_task
   __tracepoint_android_rvh_do_sched_yield
-  __traceiter_android_vh_do_wake_up_sync
   __tracepoint_android_rvh_enqueue_task
   __tracepoint_android_rvh_find_busiest_queue
   __tracepoint_android_rvh_find_lowest_rq
   __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_get_nohz_timer_target
+  __tracepoint_android_rvh_gh_after_vcpu_run
+  __tracepoint_android_rvh_gh_before_vcpu_run
+  __tracepoint_android_rvh_gh_note_fw_parcel
+  __tracepoint_android_rvh_gh_vcpu_release
+  __tracepoint_android_rvh_gh_vm_release
   __tracepoint_android_rvh_gic_v3_set_affinity
   __tracepoint_android_rvh_iommu_alloc_insert_iova
   __tracepoint_android_rvh_iommu_iovad_init_alloc_algo
@@ -3379,6 +3408,7 @@
   __tracepoint_android_rvh_select_task_rq_fair
   __tracepoint_android_rvh_select_task_rq_rt
   __tracepoint_android_rvh_set_cpus_allowed_by_task
+  __tracepoint_android_rvh___set_task_cpu
   __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_set_user_nice
   __tracepoint_android_rvh_shmem_allowable_huge_orders
@@ -3402,10 +3432,10 @@
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_cpuidle_psci_enter
   __tracepoint_android_vh_cpuidle_psci_exit
+  __tracepoint_android_vh_do_wake_up_sync
   __tracepoint_android_vh_freq_qos_add_request
   __tracepoint_android_vh_freq_qos_remove_request
   __tracepoint_android_vh_freq_qos_update_request
-  __tracepoint_android_vh_try_fixup_sea
   __tracepoint_android_vh_ftrace_dump_buffer
   __tracepoint_android_vh_ftrace_format_check
   __tracepoint_android_vh_ftrace_oops_enter
@@ -3421,6 +3451,7 @@
   __tracepoint_android_vh_show_resume_epoch_val
   __tracepoint_android_vh_show_suspend_epoch_val
   __tracepoint_android_vh_timer_calc_index
+  __tracepoint_android_vh_try_fixup_sea
   __tracepoint_android_vh_ufs_check_int_errors
   __tracepoint_android_vh_ufs_compl_command
   __tracepoint_android_vh_ufs_send_command
@@ -3826,8 +3857,8 @@
   vmalloc_to_page
   vmalloc_to_pfn
   vmap
-  vmap_pages_range_noflush
   __vmap_pages_range_noflush
+  vmap_pages_range_noflush
   vmemdup_user
   vmf_insert_mixed
   vmf_insert_pfn
@@ -3849,8 +3880,8 @@
   vsnprintf
   vsprintf
   vunmap
-  vunmap_range_noflush
   __vunmap_range_noflush
+  vunmap_range_noflush
   vzalloc_noprof
   wait_for_completion
   wait_for_completion_interruptible

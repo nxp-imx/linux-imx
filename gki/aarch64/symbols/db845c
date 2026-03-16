@@ -235,6 +235,7 @@
   divider_determine_rate
   divider_get_val
   divider_recalc_rate
+  divider_ro_determine_rate
   divider_round_rate_parent
   dma_alloc_attrs
   dma_async_device_register

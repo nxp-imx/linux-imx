@@ -753,7 +753,7 @@ static int imx7d_pcie_enable_ref_clk(struct imx_pcie *imx_pcie, bool enable)
 	return 0;
 }
 
-static void  imx95_pcie_clkreq_override(struct imx_pcie *imx_pcie, bool enable)
+static void imx95_pcie_clkreq_override(struct imx_pcie *imx_pcie, bool enable)
 {
 	regmap_update_bits(imx_pcie->iomuxc_gpr, IMX95_PCIE_SS_RW_REG_1,
 			   IMX95_PCIE_CLKREQ_OVERRIDE_EN,

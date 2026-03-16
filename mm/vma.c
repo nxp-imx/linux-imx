@@ -4,6 +4,8 @@
  * VMA-specific functions.
  */
 
+#include <linux/pgsize_migration.h>
+
 #include "vma_internal.h"
 
 #include <linux/page_size_compat.h>
@@ -102,6 +104,8 @@ static inline bool is_mergeable_vma(struct vma_merge_struct *vmg, bool merge_nex
 	if (!is_mergeable_vm_userfaultfd_ctx(vma, vmg->uffd_ctx))
 		return false;
 	if (!anon_vma_name_eq(anon_vma_name(vma), vmg->anon_name))
+		return false;
+	if (!is_mergable_pad_vma(vma, vmg->vm_flags))
 		return false;
 	return true;
 }
@@ -582,6 +586,7 @@ __split_vma(struct vma_iterator *vmi, struct vm_area_struct *vma,
 	else
 		vma_prev(vmi);
 
+	split_pad_vma(vma, new, addr, new_below);
 	return 0;
 
 out_free_mpol:

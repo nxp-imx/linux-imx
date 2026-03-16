@@ -1032,6 +1032,9 @@ static void errno_to_smccc(int ret, struct kvm_cpu_context *host_ctxt)
 		req->type = KVM_HYP_REQ_TYPE_HYP_ALLOC;
 		req->mem.nr_pages = hyp_alloc_missing_donations();
 		break;
+	case -ENOMEMHOSTS2:
+		req->type = KVM_HYP_REQ_TYPE_MEM_HOST_S2;
+		break;
 	}
 
 	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
@@ -1062,7 +1065,7 @@ static void handle___pkvm_host_map_guest(struct kvm_cpu_context *host_ctxt)
 	else
 		ret = __pkvm_host_share_guest(pfn, gfn, nr_pages, hyp_vcpu, prot);
 out:
-	cpu_reg(host_ctxt, 1) =  ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_donate_guest_sglist(struct kvm_cpu_context *host_ctxt)
@@ -1084,7 +1087,7 @@ static void handle___pkvm_host_donate_guest_sglist(struct kvm_cpu_context *host_
 	ret = __pkvm_host_donate_sglist_guest(hyp_vcpu);
 
 out:
-	cpu_reg(host_ctxt, 1) =  ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_host_unshare_guest(struct kvm_cpu_context *host_ctxt)
@@ -1650,9 +1653,15 @@ static void handle___pkvm_hyp_alloc_mgt_refill(struct kvm_cpu_context *host_ctxt
 		.nr_pages	= nr_pages,
 	};
 
-	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_refill(id, &mc);
-	cpu_reg(host_ctxt, 2) = mc.head;
-	cpu_reg(host_ctxt, 3) = mc.nr_pages;
+	errno_to_smccc(hyp_alloc_mgt_refill(id, &mc), host_ctxt);
+
+	/*
+	 * errno_to_smccc() uses X2/X3 to store a kvm_hyp_req. Luckily here, the
+	 * only request we can get is TYPE_MEM_HOST_S2, small enough to fit X2.
+	 * We can then use X3 for the memcache.
+	 */
+	WARN_ON(!PAGE_ALIGNED(mc.head) || mc.nr_pages > PAGE_SIZE);
+	cpu_reg(host_ctxt, 3) = mc.head | mc.nr_pages;
 }
 
 static void handle___pkvm_hyp_alloc_mgt_reclaimable(struct kvm_cpu_context *host_ctxt)
@@ -1684,7 +1693,7 @@ static void handle___pkvm_ptdump(struct kvm_cpu_context *host_ctxt)
 	if (op == PKVM_PTDUMP_GET_LEVEL || op == PKVM_PTDUMP_GET_RANGE)
 		cpu_reg(host_ctxt, 1) = __pkvm_ptdump_get_config(handle, op);
 	else if (op == PKVM_PTDUMP_WALK_RANGE)
-		cpu_reg(host_ctxt, 1) = __pkvm_ptdump_walk_range(handle, log);
+		errno_to_smccc(__pkvm_ptdump_walk_range(handle, log), host_ctxt);
 	else
 		cpu_reg(host_ctxt, 0) = SMCCC_RET_NOT_SUPPORTED;
 }

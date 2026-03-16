@@ -72,7 +72,12 @@ struct hyp_page {
 	 */
 	unsigned __hyp_state_comp : 4;
 
-	u32 host_share_guest_count;
+	union {
+		u32 host_share_guest_count;
+
+		/* When the page is hyp owned, a tag may be added */
+		u32 tag;
+	};
 };
 
 extern u64 __hyp_vmemmap;

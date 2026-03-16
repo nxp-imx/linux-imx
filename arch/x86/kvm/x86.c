@@ -10698,6 +10698,7 @@ static int kvm_pkvm_hypercall(struct kvm_vcpu *vcpu)
 		/* Leverage sev_es MMIO write */
 		ret = kvm_sev_es_mmio_write(vcpu, kvm_rbx_read(vcpu), size, &val);
 		break;
+	}
 	case PKVM_GHC_SHARE_MEM:
 		/*
 		 * The only case when pKVM forwards this hypercall to the host
@@ -10732,7 +10733,6 @@ static int kvm_pkvm_hypercall(struct kvm_vcpu *vcpu)
 		kvm_rax_write(vcpu, ret);
 		ret = 1;
 		break;
-	}
 	default:
 		ret = 1;
 		break;

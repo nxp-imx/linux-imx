@@ -1962,7 +1962,8 @@ static int __pkvm_topup_stage2_memcache(struct kvm_vcpu *vcpu, struct list_head 
 	return 0;
 }
 
-static int __pkvm_host_donate_guest_sglist(struct kvm_vcpu *vcpu, struct list_head *ppages)
+static int __pkvm_host_donate_guest_sglist(struct kvm_vcpu *vcpu, struct list_head *ppages,
+					   struct arm_smccc_res *res)
 {
 	struct kvm *kvm = vcpu->kvm;
 	int ret;
@@ -1998,7 +1999,9 @@ static int __pkvm_host_donate_guest_sglist(struct kvm_vcpu *vcpu, struct list_he
 				hyp_ppage->order = ~((u8)0);
 		}
 
-		ret = kvm_call_hyp_nvhe(__pkvm_host_donate_guest_sglist);
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_host_donate_guest_sglist), res);
+		WARN_ON(res->a0 != SMCCC_RET_SUCCESS);
+		ret = res->a1;
 		/* See __pkvm_host_donate_guest() -EPERM comment */
 		if (ret == -EPERM) {
 			ret = 0;
@@ -2024,13 +2027,14 @@ static int __pkvm_host_donate_guest_sglist(struct kvm_vcpu *vcpu, struct list_he
 static int __pkvm_host_donate_guest(struct kvm_vcpu *vcpu, struct list_head *ppages)
 {
 	struct kvm_pinned_page *ppage, *tmp;
+	struct arm_smccc_res res = { 0 };
 	struct kvm *kvm = vcpu->kvm;
 	int ret = -EINVAL; /* Empty list */
 
 	write_lock(&kvm->mmu_lock);
 
 	if (ppages->next != ppages->prev && kvm_vm_is_protected(kvm)) {
-		ret = __pkvm_host_donate_guest_sglist(vcpu, ppages);
+		ret = __pkvm_host_donate_guest_sglist(vcpu, ppages, &res);
 		goto unlock;
 	}
 
@@ -2038,8 +2042,11 @@ static int __pkvm_host_donate_guest(struct kvm_vcpu *vcpu, struct list_head *ppa
 		gfn_t gfn = ppage->ipa >> PAGE_SHIFT;
 		u64 pfn = ppage->pfn;
 
-		ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn, 1 << ppage->order,
-					KVM_PGTABLE_PROT_RWX);
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_host_map_guest), pfn, gfn,
+				  1 << ppage->order, KVM_PGTABLE_PROT_RWX, &res);
+		WARN_ON(res.a0 != SMCCC_RET_SUCCESS);
+		ret = res.a1;
+
 		/*
 		 * Getting -EPERM at this point implies that the pfn has already been
 		 * mapped. This should only ever happen when two vCPUs faulted on the
@@ -2063,7 +2070,11 @@ static int __pkvm_host_donate_guest(struct kvm_vcpu *vcpu, struct list_head *ppa
 unlock:
 	write_unlock(&kvm->mmu_lock);
 
-	return ret;
+	/*
+	 * If a hyp_request was pending, it is handled here and the abort path
+	 * will return 0. The vCPU will have to fault again to retry.
+	 */
+	return ret && res.a1 ? __pkvm_handle_smccc_req(&res, NULL) : ret;
 }
 
 static int pkvm_mem_abort_device(struct kvm_vcpu *vcpu, struct kvm_memory_slot *memslot,

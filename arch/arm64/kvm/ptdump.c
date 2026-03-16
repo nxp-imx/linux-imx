@@ -355,8 +355,8 @@ static int pkvm_ptdump_show(struct seq_file *m, void *unused)
 	parser_state->start_address = 0;
 
 retry_dump:
-	ret = kvm_call_hyp_nvhe(__pkvm_ptdump, PKVM_HANDLE(kvm),
-				PKVM_PTDUMP_WALK_RANGE, st->log_pages);
+	ret = kvm_call_refill_hyp_nvhe(__pkvm_ptdump, PKVM_HANDLE(kvm),
+				       PKVM_PTDUMP_WALK_RANGE, st->log_pages);
 	if (ret == -ENOMEM) {
 		ret = pkvm_ptdump_alloc_page(&st->log_pages, &num_pages);
 		if (ret)

@@ -438,6 +438,47 @@ static void test_restricted_debug(void)
 	GUEST_SYNC(CMD_HEARTBEAT);
 }
 
+static void test_s1pie_s1poe(void)
+{
+	uint64_t mmfr3 = read_sysreg_s(SYS_ID_AA64MMFR3_EL1);
+	uint64_t s1pie = (mmfr3 >> 8) & 0xf;
+	uint64_t s1poe = (mmfr3 >> 16) & 0xf;
+	uint64_t pir, pire0, por_el1, por_el0;
+
+	/* If features are supported, ensure registers don't trap. */
+	if (s1pie) {
+		GUEST_PRINTF("s1pie enabled\n");
+
+		pir = read_sysreg_s(SYS_PIR_EL1);
+		pire0 = read_sysreg_s(SYS_PIRE0_EL1);
+
+		write_sysreg_s(0xdeadbeef, SYS_PIR_EL1);
+		write_sysreg_s(0xdeadbeef, SYS_PIRE0_EL1);
+
+		GUEST_ASSERT(read_sysreg_s(SYS_PIR_EL1) == 0xdeadbeef);
+		GUEST_ASSERT(read_sysreg_s(SYS_PIRE0_EL1) == 0xdeadbeef);
+
+		write_sysreg_s(pir, SYS_PIR_EL1);
+		write_sysreg_s(pire0, SYS_PIRE0_EL1);
+	}
+
+	if (s1poe) {
+		GUEST_PRINTF("s1poe enabled\n");
+
+		por_el1 = read_sysreg_s(SYS_POR_EL1);
+		por_el0 = read_sysreg_s(SYS_POR_EL0);
+
+		write_sysreg_s(0xcafebabe, SYS_POR_EL1);
+		write_sysreg_s(0xcafebabe, SYS_POR_EL0);
+
+		GUEST_ASSERT(read_sysreg_s(SYS_POR_EL1) == 0xcafebabe);
+		GUEST_ASSERT(read_sysreg_s(SYS_POR_EL0) == 0xcafebabe);
+
+		write_sysreg_s(por_el1, SYS_POR_EL1);
+		write_sysreg_s(por_el0, SYS_POR_EL0);
+	}
+}
+
 /*
  * Main code to run by the guest vm.
  */
@@ -475,6 +516,8 @@ static void guest_code(vm_paddr_t ucall_pool_phys, size_t ucall_pool_size,
 	test_feature_id_regs();
 
 	test_restricted_debug();
+
+	test_s1pie_s1poe();
 
 	/* Populate the donated memslot to facilitate testing poisoning after destruction. */
 	guest_dirty_memslot();
@@ -730,8 +773,6 @@ static void test_run(enum vm_mem_backing_src_type src_type)
 
 	getrusage(RUSAGE_SELF, &usage);
 	pr_info("Memory usage after teardown: %ld bytes\n", usage.ru_maxrss);
-
-	pr_info("All ok!\n");
 }
 
 int main(int argc, char *argv[])
@@ -739,14 +780,13 @@ int main(int argc, char *argv[])
 	pr_info("\n*** Testing regular pages.\n");
 	test_run(VM_MEM_SRC_ANONYMOUS);
 
-	if (!thp_configured()) {
+	if (thp_configured()) {
+		pr_info("\n*** Testing THP. This is best-effort.\n");
+		test_run(VM_MEM_SRC_ANONYMOUS_THP);
+	} else {
 		pr_info("\n*** THP is not configured. Skipping THP tests.\n");
-
-		return 0;
 	}
 
-	pr_info("\n*** Testing THP. This is best-effort.\n");
-	test_run(VM_MEM_SRC_ANONYMOUS_THP);
-
+	pr_info("All ok!\n");
 	return 0;
 }

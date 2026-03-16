@@ -472,6 +472,23 @@ bool get_pfnblock_bit(const struct page *page, unsigned long pfn,
 	return test_bit(bitidx + pb_bit, bitmap_word);
 }
 
+int isolate_anon_lru_page(struct page *page)
+{
+	int ret;
+
+	if (!PageLRU(page) || !PageAnon(page))
+		return -EINVAL;
+
+	if (!get_page_unless_zero(page))
+		return -EINVAL;
+
+	ret = folio_isolate_lru(page_folio(page));
+	put_page(page);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(isolate_anon_lru_page);
+
 /**
  * get_pfnblock_migratetype - Return the migratetype of a pageblock
  * @page: The page within the block of interest
@@ -7085,6 +7102,31 @@ static int __alloc_contig_verify_gfp_mask(gfp_t gfp_mask, gfp_t *gfp_cc_mask)
 			__GFP_MOVABLE | __GFP_RETRY_MAYFAIL;
 	return 0;
 }
+
+#ifdef CONFIG_COMPACTION
+unsigned long isolate_and_split_free_page(struct page *page,
+		struct list_head *list, gfp_t gfp_mask)
+{
+	unsigned long isolated;
+	unsigned int order;
+
+	if (!PageBuddy(page))
+		return 0;
+
+	order = buddy_order(page);
+	isolated = __isolate_free_page(page, order);
+	if (!isolated)
+		return 0;
+
+	set_page_private(page, order);
+	list_add(&page->lru, &list[order]);
+
+	split_free_pages(list, gfp_mask);
+
+	return isolated;
+}
+EXPORT_SYMBOL_GPL(isolate_and_split_free_page);
+#endif
 
 /**
  * alloc_contig_range() -- tries to allocate given range of pages

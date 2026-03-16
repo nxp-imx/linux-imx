@@ -2504,6 +2504,8 @@ static int filemap_update_page(struct kiocb *iocb,
 {
 	int error;
 
+	trace_android_vh_filemap_update_page(mapping, folio, iocb->ki_filp);
+
 	if (iocb->ki_flags & IOCB_NOWAIT) {
 		if (!filemap_invalidate_trylock_shared(mapping))
 			return -EAGAIN;
@@ -3222,6 +3224,8 @@ unlock:
 static int lock_folio_maybe_drop_mmap(struct vm_fault *vmf, struct folio *folio,
 				     struct file **fpin)
 {
+	struct task_struct *tsk = NULL;
+
 	if (folio_trylock(folio))
 		return 1;
 
@@ -3234,6 +3238,7 @@ static int lock_folio_maybe_drop_mmap(struct vm_fault *vmf, struct folio *folio,
 		return 0;
 
 	*fpin = maybe_unlock_mmap_for_io(vmf, *fpin);
+	trace_android_vh_lock_folio_drop_mmap_start(&tsk, vmf, folio, *fpin);
 	if (vmf->flags & FAULT_FLAG_KILLABLE) {
 		if (__folio_lock_killable(folio)) {
 			/*
@@ -3245,11 +3250,13 @@ static int lock_folio_maybe_drop_mmap(struct vm_fault *vmf, struct folio *folio,
 			 */
 			if (*fpin == NULL)
 				release_fault_lock(vmf);
+			trace_android_vh_lock_folio_drop_mmap_end(false, &tsk, vmf, folio, *fpin);
 			return 0;
 		}
 	} else
 		__folio_lock(folio);
 
+	trace_android_vh_lock_folio_drop_mmap_end(true, &tsk, vmf, folio, *fpin);
 	return 1;
 }
 

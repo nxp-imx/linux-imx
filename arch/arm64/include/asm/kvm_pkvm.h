@@ -121,6 +121,9 @@ struct pkvm_moveable_reg {
 extern struct pkvm_moveable_reg kvm_nvhe_sym(pkvm_moveable_regs)[];
 extern unsigned int kvm_nvhe_sym(pkvm_moveable_regs_nr);
 
+extern phys_addr_t kvm_nvhe_sym(host_s2_cma_base);
+extern phys_addr_t kvm_nvhe_sym(host_s2_cma_size);
+
 extern struct memblock_region kvm_nvhe_sym(hyp_memory)[];
 extern unsigned int kvm_nvhe_sym(hyp_memblock_nr);
 
@@ -204,18 +207,17 @@ static inline unsigned long hyp_s1_pgtable_pages(void)
 
 static inline unsigned long host_s2_pgtable_pages(void)
 {
-	unsigned long res;
-
 	/*
 	 * Include an extra 16 pages to safely upper-bound the worst case of
 	 * concatenated pgds.
 	 */
-	res = __hyp_pgtable_moveable_regs_pages() + 16;
+	return __hyp_pgtable_moveable_regs_pages() + 16;
+}
 
+static inline unsigned long host_s2_mmio_pgtable_pages(void)
+{
 	/* Allow 1 GiB for non-moveable regions */
-	res += __hyp_pgtable_max_pages(SZ_1G >> PAGE_SHIFT);
-
-	return res;
+	return __hyp_pgtable_max_pages(SZ_1G >> PAGE_SHIFT);
 }
 
 #ifdef CONFIG_NVHE_EL2_DEBUG
@@ -328,6 +330,12 @@ int __pkvm_handle_smccc_req(struct arm_smccc_res *res, void *arg);
 	} while (!__ret);						\
 	__ret;								\
 })
+
+#ifdef CONFIG_CMA
+int pkvm_host_stage2_topup(void);
+#else
+static inline int pkvm_host_stage2_topup(void) { return -EINVAL; }
+#endif
 
 enum pkvm_ptdump_ops {
 	PKVM_PTDUMP_GET_LEVEL,

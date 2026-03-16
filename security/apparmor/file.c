@@ -154,8 +154,12 @@ static int path_name(const char *op, const struct cred *subj_cred,
 	const char *info = NULL;
 	int error;
 
-	error = aa_path_name(path, flags, buffer, name, &info,
-			     labels_profile(label)->disconnected);
+	/* don't reaudit files closed during inheritance */
+	if (unlikely(path->dentry == aa_null.dentry))
+		error = -EACCES;
+	else
+		error = aa_path_name(path, flags, buffer, name, &info,
+				     labels_profile(label)->disconnected);
 	if (error) {
 		fn_for_each_confined(label, profile,
 			aa_audit_file(subj_cred,
@@ -578,6 +582,9 @@ static bool __unix_needs_revalidation(struct file *file, struct aa_label *label,
 		return false;
 	if (request & NET_PEER_MASK)
 		return false;
+	/* sock and sock->sk can be NULL for sockets being set up or torn down */
+	if (!sock || !sock->sk)
+		return false;
 	if (sock->sk->sk_family == PF_UNIX) {
 		struct aa_sk_ctx *ctx = aa_sock(sock->sk);
 
@@ -612,6 +619,10 @@ int aa_file_perm(const char *op, const struct cred *subj_cred,
 
 	AA_BUG(!label);
 	AA_BUG(!file);
+
+	/* don't reaudit files closed during inheritance */
+	if (unlikely(file->f_path.dentry == aa_null.dentry))
+		return -EACCES;
 
 	fctx = file_ctx(file);
 
