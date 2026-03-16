@@ -76,6 +76,45 @@ static void __init imx6q_enet_phy_init(void)
 	}
 }
 
+static bool imx6q_enet_ref_clk_is_tx_clk(void)
+{
+    const u32 enet_ref_mux_reg = 0x1d4;
+    struct device_node *fec_np, *pin_np;
+    const __be32 *list;
+    int size, j;
+    bool result = false;
+
+    fec_np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-fec");
+    if (!fec_np)
+        return false;
+
+    for (j = 0; (pin_np = of_parse_phandle(fec_np, "pinctrl-0", j)); j++) {
+        int n, k;
+
+        list = of_get_property(pin_np, "fsl,pins", &size);
+        if (!list) {
+            of_node_put(pin_np);
+            continue;
+        }
+
+        n = size / sizeof(*list);
+        for (k = 0; k + 5 < n; k += 6) {
+            u32 mux_reg  = be32_to_cpu(list[k]);
+            u32 mux_mode = be32_to_cpu(list[k + 3]);
+
+            if (mux_reg == enet_ref_mux_reg) {
+                result = (mux_mode == 0x1);
+                of_node_put(pin_np);
+                goto out;
+            }
+        }
+        of_node_put(pin_np);
+    }
+out:
+    of_node_put(fec_np);
+    return result;
+}
+
 static void __init imx6q_1588_init(void)
 {
 	struct device_node *np;
@@ -119,11 +158,19 @@ static void __init imx6q_1588_init(void)
 				IMX6Q_GPR1_ENET_CLK_SEL_ANATOP :
 				IMX6Q_GPR1_ENET_CLK_SEL_PAD;
 	gpr = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
-	if (!IS_ERR(gpr))
+	if (!IS_ERR(gpr)) {
 		regmap_update_bits(gpr, IOMUXC_GPR1,
 				IMX6Q_GPR1_ENET_CLK_SEL_MASK,
 				clksel);
-	else
+		if (clksel == IMX6Q_GPR1_ENET_CLK_SEL_ANATOP &&
+		    cpu_is_imx6q() &&
+		    imx_get_soc_revision() >= IMX_CHIP_REVISION_2_0 &&
+			!imx6q_enet_ref_clk_is_tx_clk()) {
+			regmap_update_bits(gpr, IOMUXC_GPR5,
+					IMX6Q_GPR5_ENET_TX_CLK_SEL,
+					IMX6Q_GPR5_ENET_TX_CLK_SEL);
+		}
+	} else
 		pr_err("failed to find fsl,imx6q-iomuxc-gpr regmap\n");
 
 	clk_put(enet_ref);
