@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0+
 //
 // Copyright 2016 Freescale Semiconductor, Inc.
-// Copyright 2017 NXP
+// Copyright 2017, 2026 NXP
 
 #include <linux/clk.h>
 #include <linux/clockchips.h>
 #include <linux/clocksource.h>
-#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/sched_clock.h>
-
-#include "timer-of.h"
 
 #define TPM_PARAM			0x4
 #define TPM_PARAM_WIDTH_SHIFT		16
@@ -34,70 +30,83 @@
 #define TPM_C0SC_CHF_MASK		(0x1 << 7)
 #define TPM_C0V				0x24
 
-static int counter_width __ro_after_init;
-static void __iomem *timer_base __ro_after_init;
+/* Timer rating values */
+#define TPM_RATING_32BIT		200
+#define TPM_RATING_16BIT		150
 
-static inline void tpm_timer_disable(void)
+/**
+ * struct tpm_timer - TPM timer instance data
+ * @base: Base address of the TPM timer registers
+ * @ipg: IPG clock (bus clock)
+ * @per: Peripheral clock (functional clock)
+ * @rate: Effective timer rate after prescaler
+ * @counter_width: Counter width in bits (16 or 32)
+ * @clkevt: Clock event device
+ * @clksrc: Clock source device
+ */
+struct tpm_timer {
+	void __iomem		*base;
+	struct clk		*ipg;
+	struct clk		*per;
+	unsigned long		rate;
+	int			counter_width;
+	struct clock_event_device clkevt;
+	struct clocksource	clksrc;
+};
+
+static inline int tpm_get_rating(int counter_width)
+{
+	return (counter_width == 0x20) ? TPM_RATING_32BIT : TPM_RATING_16BIT;
+}
+
+static inline void tpm_timer_disable(struct tpm_timer *tpm)
 {
 	unsigned int val;
 
 	/* channel disable */
-	val = readl(timer_base + TPM_C0SC);
+	val = readl(tpm->base + TPM_C0SC);
 	val &= ~(TPM_C0SC_MODE_MASK | TPM_C0SC_CHIE);
-	writel(val, timer_base + TPM_C0SC);
+	writel(val, tpm->base + TPM_C0SC);
 }
 
-static inline void tpm_timer_enable(void)
+static inline void tpm_timer_enable(struct tpm_timer *tpm)
 {
 	unsigned int val;
 
 	/* channel enabled in sw compare mode */
-	val = readl(timer_base + TPM_C0SC);
+	val = readl(tpm->base + TPM_C0SC);
 	val |= (TPM_C0SC_MODE_SW_COMPARE << TPM_C0SC_MODE_SHIFT) |
 	       TPM_C0SC_CHIE;
-	writel(val, timer_base + TPM_C0SC);
+	writel(val, tpm->base + TPM_C0SC);
 }
 
-static inline void tpm_irq_acknowledge(void)
+static inline void tpm_irq_acknowledge(struct tpm_timer *tpm)
 {
-	writel(TPM_STATUS_CH0F, timer_base + TPM_STATUS);
+	writel(TPM_STATUS_CH0F, tpm->base + TPM_STATUS);
 }
 
-static inline unsigned long tpm_read_counter(void)
+static inline unsigned long tpm_read_counter(struct tpm_timer *tpm)
 {
-	return readl(timer_base + TPM_CNT);
+	return readl(tpm->base + TPM_CNT);
 }
-
-#if defined(CONFIG_ARM)
-static struct delay_timer tpm_delay_timer;
-
-static unsigned long tpm_read_current_timer(void)
-{
-	return tpm_read_counter();
-}
-
-static u64 notrace tpm_read_sched_clock(void)
-{
-	return tpm_read_counter();
-}
-#endif
 
 static int tpm_set_next_event(unsigned long delta,
-				struct clock_event_device *evt)
+			       struct clock_event_device *evt)
 {
+	struct tpm_timer *tpm = container_of(evt, struct tpm_timer, clkevt);
 	unsigned long next, prev, now;
 
-	prev = tpm_read_counter();
+	prev = tpm_read_counter(tpm);
 	next = prev + delta;
-	writel(next, timer_base + TPM_C0V);
-	now = tpm_read_counter();
+	writel(next, tpm->base + TPM_C0V);
+	now = tpm_read_counter(tpm);
 
 	/*
 	 * Need to wait CNT increase at least 1 cycle to make sure
 	 * the C0V has been updated into HW.
 	 */
-	if ((next & 0xffffffff) != readl(timer_base + TPM_C0V))
-		while (now == tpm_read_counter())
+	if ((next & 0xffffffff) != readl(tpm->base + TPM_C0V))
+		while (now == tpm_read_counter(tpm))
 			;
 
 	/*
@@ -111,105 +120,116 @@ static int tpm_set_next_event(unsigned long delta,
 
 static int tpm_set_state_oneshot(struct clock_event_device *evt)
 {
-	tpm_timer_enable();
+	struct tpm_timer *tpm = container_of(evt, struct tpm_timer, clkevt);
 
+	tpm_timer_enable(tpm);
 	return 0;
 }
 
 static int tpm_set_state_shutdown(struct clock_event_device *evt)
 {
-	tpm_timer_disable();
+	struct tpm_timer *tpm = container_of(evt, struct tpm_timer, clkevt);
 
+	tpm_timer_disable(tpm);
 	return 0;
 }
 
 static irqreturn_t tpm_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = dev_id;
+	struct tpm_timer *tpm = container_of(evt, struct tpm_timer, clkevt);
 
-	tpm_irq_acknowledge();
+	tpm_irq_acknowledge(tpm);
 
-	evt->event_handler(evt);
+	if (evt->event_handler)
+		evt->event_handler(evt);
 
 	return IRQ_HANDLED;
 }
 
-static struct timer_of to_tpm = {
-	.flags = TIMER_OF_IRQ | TIMER_OF_BASE | TIMER_OF_CLOCK,
-	.clkevt = {
-		.name			= "i.MX TPM Timer",
-		.rating			= 200,
-		.features		= CLOCK_EVT_FEAT_ONESHOT | CLOCK_EVT_FEAT_DYNIRQ,
-		.set_state_shutdown	= tpm_set_state_shutdown,
-		.set_state_oneshot	= tpm_set_state_oneshot,
-		.set_next_event		= tpm_set_next_event,
-		.cpumask		= cpu_possible_mask,
-	},
-	.of_irq = {
-		.handler		= tpm_timer_interrupt,
-		.flags			= IRQF_TIMER,
-	},
-	.of_clk = {
-		.name = "per",
-	},
-};
-
-static int tpm_clocksource_init(void)
+static u64 tpm_clocksource_read(struct clocksource *cs)
 {
-#if defined(CONFIG_ARM)
-	tpm_delay_timer.read_current_timer = &tpm_read_current_timer;
-	tpm_delay_timer.freq = timer_of_rate(&to_tpm) >> 3;
-	register_current_timer_delay(&tpm_delay_timer);
-
-	sched_clock_register(tpm_read_sched_clock, counter_width,
-			     timer_of_rate(&to_tpm) >> 3);
-#endif
-
-	return clocksource_mmio_init(timer_base + TPM_CNT,
-				     "imx-tpm",
-				     timer_of_rate(&to_tpm) >> 3,
-				     to_tpm.clkevt.rating,
-				     counter_width,
-				     clocksource_mmio_readl_up);
+	struct tpm_timer *tpm = container_of(cs, struct tpm_timer, clksrc);
+	return readl(tpm->base + TPM_CNT);
 }
 
-static void tpm_clockevent_init(void)
+static int tpm_clocksource_init(struct tpm_timer *tpm)
 {
-	clockevents_config_and_register(&to_tpm.clkevt,
-					timer_of_rate(&to_tpm) >> 3,
-					300,
-					GENMASK(counter_width - 1,
-					1));
+	struct clocksource *cs = &tpm->clksrc;
+
+	cs->name	= "imx-tpm";
+	cs->rating	= tpm_get_rating(tpm->counter_width);
+	cs->read	= tpm_clocksource_read;
+	cs->mask	= CLOCKSOURCE_MASK(tpm->counter_width);
+	cs->flags	= CLOCK_SOURCE_IS_CONTINUOUS;
+
+	return clocksource_register_hz(cs, tpm->rate);
 }
 
-static int tpm_timer_init(struct device_node *np)
+static void tpm_clockevent_init(struct tpm_timer *tpm)
 {
-	struct clk *ipg;
-	int ret;
+	struct clock_event_device *evt = &tpm->clkevt;
 
-	ipg = of_clk_get_by_name(np, "ipg");
-	if (IS_ERR(ipg)) {
-		pr_err("tpm: failed to get ipg clk\n");
-		return -ENODEV;
-	}
-	/* enable clk before accessing registers */
-	ret = clk_prepare_enable(ipg);
+	evt->name		= "i.MX TPM Timer";
+	evt->features		= CLOCK_EVT_FEAT_ONESHOT | CLOCK_EVT_FEAT_DYNIRQ;
+	evt->set_state_shutdown	= tpm_set_state_shutdown;
+	evt->set_state_oneshot	= tpm_set_state_oneshot;
+	evt->set_next_event	= tpm_set_next_event;
+	evt->rating		= tpm_get_rating(tpm->counter_width);
+	evt->cpumask		= cpu_possible_mask;
+
+	clockevents_config_and_register(evt, tpm->rate, 300,
+					GENMASK(tpm->counter_width - 1, 1));
+}
+
+static int tpm_timer_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct tpm_timer *tpm;
+	int ret, irq;
+	u32 param;
+
+	tpm = devm_kzalloc(dev, sizeof(*tpm), GFP_KERNEL);
+	if (!tpm)
+		return -ENOMEM;
+
+	tpm->base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(tpm->base))
+		return PTR_ERR(tpm->base);
+
+	tpm->ipg = devm_clk_get(dev, "ipg");
+	if (IS_ERR(tpm->ipg))
+		return dev_err_probe(dev, PTR_ERR(tpm->ipg),
+				     "failed to get ipg clock\n");
+
+	tpm->per = devm_clk_get(dev, "per");
+	if (IS_ERR(tpm->per))
+		return dev_err_probe(dev, PTR_ERR(tpm->per),
+				     "failed to get per clock\n");
+
+	/* Enable IPG clock */
+	ret = clk_prepare_enable(tpm->ipg);
 	if (ret) {
-		pr_err("tpm: ipg clock enable failed (%d)\n", ret);
-		clk_put(ipg);
+		dev_err(dev, "failed to enable ipg clock: %d\n", ret);
 		return ret;
 	}
 
-	ret = timer_of_init(np, &to_tpm);
-	if (ret)
-		return ret;
+	/* Enable PER clock */
+	ret = clk_prepare_enable(tpm->per);
+	if (ret) {
+		dev_err(dev, "failed to enable per clock: %d\n", ret);
+		goto err_disable_ipg;
+	}
 
-	timer_base = timer_of_base(&to_tpm);
+	tpm->rate = clk_get_rate(tpm->per);
+	if (!tpm->rate) {
+		dev_err(dev, "invalid clock rate\n");
+		ret = -EINVAL;
+		goto err_disable_per;
+	}
 
-	counter_width = (readl(timer_base + TPM_PARAM)
-		& TPM_PARAM_WIDTH_MASK) >> TPM_PARAM_WIDTH_SHIFT;
-	/* use rating 200 for 32-bit counter and 150 for 16-bit counter */
-	to_tpm.clkevt.rating = counter_width == 0x20 ? 200 : 150;
+	param = readl(tpm->base + TPM_PARAM);
+	tpm->counter_width = (param & TPM_PARAM_WIDTH_MASK) >> TPM_PARAM_WIDTH_SHIFT;
 
 	/*
 	 * Initialize tpm module to a known state
@@ -219,55 +239,87 @@ static int tpm_timer_init(struct device_node *np)
 	 * 4) Channel0 disabled
 	 * 5) DMA transfers disabled
 	 */
-	/* make sure counter is disabled */
-	writel(0, timer_base + TPM_SC);
+	writel(0, tpm->base + TPM_SC);
 	/* TOF is W1C */
-	writel(TPM_SC_TOF_MASK, timer_base + TPM_SC);
-	writel(0, timer_base + TPM_CNT);
+	writel(TPM_SC_TOF_MASK, tpm->base + TPM_SC);
+	writel(0, tpm->base + TPM_CNT);
 	/* CHF is W1C */
-	writel(TPM_C0SC_CHF_MASK, timer_base + TPM_C0SC);
+	writel(TPM_C0SC_CHF_MASK, tpm->base + TPM_C0SC);
 
 	/*
 	 * increase per cnt,
 	 * div 8 for 32-bit counter and div 128 for 16-bit counter
 	 */
 	writel(TPM_SC_CMOD_INC_PER_CNT |
-		(counter_width == 0x20 ?
+		(tpm->counter_width == 0x20 ?
 		TPM_SC_CMOD_DIV_DEFAULT : TPM_SC_CMOD_DIV_MAX),
-		timer_base + TPM_SC);
+		tpm->base + TPM_SC);
 
 	/* set MOD register to maximum for free running mode */
-	writel(GENMASK(counter_width - 1, 0), timer_base + TPM_MOD);
+	writel(GENMASK(tpm->counter_width - 1, 0), tpm->base + TPM_MOD);
 
-	tpm_clockevent_init();
+	/* Adjust rate based on prescaler */
+	tpm->rate >>= (tpm->counter_width == 0x20 ? 3 : 7);
 
-	return tpm_clocksource_init();
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0) {
+		ret = irq;
+		goto err_disable_per;
+	}
+
+	ret = devm_request_irq(dev, irq, tpm_timer_interrupt,
+			       IRQF_TIMER, dev_name(dev), &tpm->clkevt);
+	if (ret) {
+		dev_err(dev, "failed to request IRQ: %d\n", ret);
+		goto err_disable_per;
+	}
+
+	tpm_clockevent_init(tpm);
+
+	ret = tpm_clocksource_init(tpm);
+	if (ret) {
+		dev_err(dev, "failed to init clocksource: %d\n", ret);
+		goto err_disable_per;
+	}
+
+	platform_set_drvdata(pdev, tpm);
+
+	dev_info(dev, "TPM timer initialized (width=%d bits, rate=%lu Hz, rating=%d)\n",
+		 tpm->counter_width, tpm->rate, tpm_get_rating(tpm->counter_width));
+
+	return 0;
+
+err_disable_per:
+	clk_disable_unprepare(tpm->per);
+err_disable_ipg:
+	clk_disable_unprepare(tpm->ipg);
+	return ret;
 }
-#ifdef MODULE
-static int tpm_timer_probe(struct platform_device *pdev)
+
+static void tpm_timer_remove(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
+	struct tpm_timer *tpm = platform_get_drvdata(pdev);
 
-	return tpm_timer_init(np);
+	tpm_timer_disable(tpm);
+	clk_disable_unprepare(tpm->per);
+	clk_disable_unprepare(tpm->ipg);
 }
 
-static const struct of_device_id tpm_timer_match_table[] = {
+static const struct of_device_id tpm_timer_of_match[] = {
 	{ .compatible = "fsl,imx7ulp-tpm" },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, tpm_timer_match_table);
+MODULE_DEVICE_TABLE(of, tpm_timer_of_match);
 
 static struct platform_driver tpm_timer_driver = {
 	.probe		= tpm_timer_probe,
+	.remove		= tpm_timer_remove,
 	.driver		= {
-		.name	= "tpm-timer",
-		.of_match_table = tpm_timer_match_table,
+		.name	= "imx-tpm-timer",
+		.of_match_table = tpm_timer_of_match,
 	},
 };
 module_platform_driver(tpm_timer_driver);
 
-#else
-TIMER_OF_DECLARE(imx7ulp, "fsl,imx7ulp-tpm", tpm_timer_init);
-#endif
-
+MODULE_DESCRIPTION("i.MX TPM Timer Driver");
 MODULE_LICENSE("GPL");
