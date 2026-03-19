@@ -762,6 +762,25 @@ static void imx7_csi_vb2_buf_done(struct imx7_csi *csi)
 	imx7_csi_update_buf(csi, dma_addr, csi->buf_num);
 }
 
+static void revert_pingpong_buffer(struct imx7_csi *csi) {
+	dma_addr_t fb1_addr = 0;
+	dma_addr_t fb2_addr = 0;
+	struct imx7_csi_vb2_buffer *csi_vb2 = NULL;
+
+	fb1_addr = imx7_csi_reg_read(csi, CSI_CSIDMASA_FB1);
+	fb2_addr = imx7_csi_reg_read(csi, CSI_CSIDMASA_FB2);
+
+	imx7_csi_reg_write(csi, fb1_addr, CSI_CSIDMASA_FB2);
+	imx7_csi_reg_write(csi, fb2_addr, CSI_CSIDMASA_FB1);
+
+	csi_vb2 = csi->active_vb2_buf[0];
+	csi->active_vb2_buf[0] = csi->active_vb2_buf[1];
+	csi->active_vb2_buf[1] = csi_vb2;
+
+	dev_warn(csi->dev, "%s, set FB1 %p, FB2 %p\n",
+		__func__, (void *)fb2_addr, (void *)fb1_addr);
+}
+
 static irqreturn_t imx7_csi_irq_handler(int irq, void *data)
 {
 	struct imx7_csi *csi =  data;
@@ -818,6 +837,8 @@ static irqreturn_t imx7_csi_irq_handler(int irq, void *data)
 		if (csi->frame_skip) {
 			dev_warn(csi->dev, "skip frame: %d\n", csi->frame_skip);
 			csi->frame_skip--;
+		  if (status & BIT_DMA_TSF_DONE_FB2)
+				revert_pingpong_buffer(csi);
 			goto out;
 		} else {
 			imx7_csi_vb2_buf_done(csi);
