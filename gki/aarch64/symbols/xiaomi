@@ -31,6 +31,7 @@
   reuseport_alloc
   reuseport_detach_sock
   reuseport_select_sock
+  cgroup_add_legacy_cftypes
   cgroup_rm_cftypes
   mem_cgroup_flush_stats
   __traceiter_android_vh_remove_mapping
@@ -46,6 +47,12 @@
 
   __traceiter_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_save_vmalloc_stack
+  __traceiter_android_vh_customize_thp_gfp_orders
+  __tracepoint_android_vh_customize_thp_gfp_orders
+  __traceiter_android_vh_customize_pmd_gfp_bypass
+  __tracepoint_android_vh_customize_pmd_gfp_bypass
+  __traceiter_android_vh_thp_vma_allowable_orders
+  __tracepoint_android_vh_thp_vma_allowable_orders
 
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
@@ -86,3 +93,19 @@
   __tracepoint_android_vh_free_mod_mem
   __tracepoint_android_vh_set_mod_perm_after_init
   __tracepoint_android_vh_set_mod_perm_before_init
+
+#required by perf_helper.ko
+  __traceiter_android_rvh_dequeue_entity_delayed
+  __tracepoint_android_rvh_dequeue_entity_delayed
+
+# low lat mem
+ __tracepoint_android_vh_compact_bypass
+ __traceiter_android_vh_compact_bypass
+ __tracepoint_android_vh_cma_release_bypass
+ __traceiter_android_vh_cma_release_bypass
+ __tracepoint_android_vh_cma_alloc_end
+ __traceiter_android_vh_cma_alloc_end
+
+# required by mi clean page
+ __traceiter_android_vh_folio_end_writeback
+ __tracepoint_android_vh_folio_end_writeback

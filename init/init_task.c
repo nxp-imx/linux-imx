@@ -236,6 +236,7 @@ struct task_struct init_task __aligned(L1_CACHE_BYTES) = {
 	.android_vendor_data1 = {0, },
 	.android_oem_data1 = {0, },
 #endif
+	.dmabuf_info = NULL,
 };
 EXPORT_SYMBOL(init_task);
 

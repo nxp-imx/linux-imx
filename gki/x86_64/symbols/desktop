@@ -113,6 +113,7 @@
   __alloc_skb
   alloc_workqueue_noprof
   amd_get_boost_ratio_numerator
+  android_rvh_probe_register
   anon_inode_getfd
   arc4_crypt
   arc4_setkey
@@ -3112,6 +3113,7 @@
   trace_event_raw_init
   trace_event_reg
   trace_handle_return
+  __traceiter_android_rvh_iommu_limit_align_shift
   __traceiter_gpu_mem_total
   __traceiter_mmap_lock_acquire_returned
   __traceiter_mmap_lock_released
@@ -3121,6 +3123,7 @@
   __traceiter_write_msr
   __traceiter_xdp_exception
   trace_output_call
+  __tracepoint_android_rvh_iommu_limit_align_shift
   __tracepoint_gpu_mem_total
   __tracepoint_mmap_lock_acquire_returned
   __tracepoint_mmap_lock_released
@@ -3334,6 +3337,8 @@
   usb_autopm_put_interface
   usb_autopm_put_interface_async
   usb_bulk_msg
+  usb_check_bulk_endpoints
+  usb_check_int_endpoints
   usb_clear_halt
   usb_composite_overwrite_options
   usb_composite_probe

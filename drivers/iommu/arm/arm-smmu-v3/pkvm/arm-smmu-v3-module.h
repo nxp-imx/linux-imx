@@ -19,7 +19,6 @@ extern const struct pkvm_module_ops		*mod_ops;
 
 #define kvm_iommu_donate_pages_atomic(x)		CALL_FROM_OPS(iommu_donate_pages_atomic, x)
 #define kvm_iommu_reclaim_pages_atomic(x)		CALL_FROM_OPS(iommu_reclaim_pages_atomic, x)
-#define memcpy(x, y, z)				CALL_FROM_OPS(memcpy, x, y, z)
 #define pkvm_time_get(x)			CALL_FROM_OPS(get_time, x)
 #define kvm_flush_dcache_to_poc(x, y)		CALL_FROM_OPS(flush_dcache_to_poc, x, y)
 #define ___pkvm_host_donate_hyp_prot(x, y, z, w) CALL_FROM_OPS(host_donate_hyp_prot, x, y, z, w)

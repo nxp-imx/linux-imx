@@ -47,6 +47,8 @@
 #define CONTEXT_SIZE		VTD_PAGE_SIZE
 
 #define IS_GFX_DEVICE(pdev) pci_is_display(pdev)
+#define IS_IGFX_DEVICE(pdev) (IS_GFX_DEVICE(pdev) && pci_is_root_bus((pdev)->bus) &&\
+			      (pdev)->vendor == 0x8086)
 #define IS_USB_DEVICE(pdev) ((pdev->class >> 8) == PCI_CLASS_SERIAL_USB)
 #define IS_ISA_DEVICE(pdev) ((pdev->class >> 8) == PCI_CLASS_BRIDGE_ISA)
 #define IS_AZALIA(pdev) ((pdev)->vendor == 0x8086 && (pdev)->device == 0x3a3e)
@@ -2203,6 +2205,11 @@ static int device_def_domain_type(struct device *dev)
 	if (dev_is_pci(dev)) {
 		struct pci_dev *pdev = to_pci_dev(dev);
 
+		if (pkvm_enabled() && disable_igfx_iommu && IS_IGFX_DEVICE(pdev)) {
+			pci_info(pdev, "force enabling IOMMU passthrough mode for graphics\n");
+			return IOMMU_DOMAIN_IDENTITY;
+		}
+
 		if ((iommu_identity_mapping & IDENTMAP_AZALIA) && IS_AZALIA(pdev))
 			return IOMMU_DOMAIN_IDENTITY;
 	}
@@ -2600,7 +2607,12 @@ static void __init init_no_remapping_devices(void)
 		/* This IOMMU has *only* gfx devices. Either bypass it or
 		   set the gfx_mapped flag, as appropriate */
 		drhd->gfx_dedicated = 1;
-		if (disable_igfx_iommu)
+		/*
+		 * Do not disable IOMMU if pkvm is enabled as pKVM relies
+		 * on IOMMU to guarantee that device is not able to access
+		 * protected memory.
+		 */
+		if (disable_igfx_iommu && !pkvm_enabled())
 			drhd->ignored = 1;
 	}
 }
@@ -3347,7 +3359,8 @@ static bool has_external_pci(void)
 
 static int __init platform_optin_force_iommu(void)
 {
-	if (!dmar_platform_optin() || no_platform_optin || !has_external_pci())
+	if ((!dmar_platform_optin() || no_platform_optin || !has_external_pci()) &&
+	    !pkvm_enabled())
 		return 0;
 
 	if (no_iommu || dmar_disabled)

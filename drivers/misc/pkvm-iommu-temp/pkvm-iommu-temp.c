@@ -33,6 +33,11 @@ static struct kvm_iommu_driver kvm_iommu_temp_ops = {
 
 static int __init pkvm_iommu_temp_init(void)
 {
+	if (!is_protected_kvm_enabled()) {
+		pr_warn("pKVM not enabled, iommu-temp module is not registering\n");
+		return 0;
+	}
+
 	return kvm_iommu_register_driver(&kvm_iommu_temp_ops, 0);
 }
 

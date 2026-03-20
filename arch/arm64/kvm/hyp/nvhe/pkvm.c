@@ -2036,6 +2036,15 @@ bool kvm_handle_pvm_smc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 }
 
 /*
+ * Set the func bit into one of the 4 32-bit arguments for ARM_SMCCC_VENDOR_HYP_KVM_FEATURES
+ */
+#define __smccc_kvm_func_to_feature_args(args, func)			\
+do {									\
+	BUILD_BUG_ON((func) / 32 > 3);					\
+	(args)[(func) / 32] |= BIT((func) % 32);			\
+} while (0)
+
+/*
  * Handler for protected VM HVC calls.
  *
  * Returns true if the hypervisor has handled the exit, and control should go
@@ -2063,17 +2072,19 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 		val[3] = smccc_uuid_to_reg(&uuid, 3);
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_FEATURES_FUNC_ID:
-		val[0] = BIT(ARM_SMCCC_KVM_FUNC_FEATURES);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MEM_SHARE);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MEM_UNSHARE);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_GUARD_INFO);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_GUARD_ENROLL);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_GUARD_MAP);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_GUARD_UNMAP);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_RGUARD_MAP);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MMIO_RGUARD_UNMAP);
-		val[0] |= BIT(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH);
+		val[0] = 0;
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_FEATURES);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_HYP_MEMINFO);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MEM_SHARE);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MEM_UNSHARE);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_GUARD_INFO);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_GUARD_ENROLL);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_GUARD_MAP);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_GUARD_UNMAP);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_RGUARD_MAP);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MMIO_RGUARD_UNMAP);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH);
+		__smccc_kvm_func_to_feature_args(val, ARM_SMCCC_KVM_FUNC_DEV_REQ_PWR);
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID:
 		set_bit(KVM_ARCH_FLAG_MMIO_GUARD, &vcpu->kvm->arch.flags);
@@ -2107,6 +2118,8 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 		return pkvm_device_request_mmio(hyp_vcpu, exit_code);
 	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_DMA_FUNC_ID:
 		return pkvm_device_request_dma(hyp_vcpu, exit_code);
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
+		return pkvm_device_request_power(hyp_vcpu, exit_code);
 	default:
 		if (is_ffa_call(fn))
 			return kvm_guest_ffa_handler(hyp_vcpu, exit_code);

@@ -2092,10 +2092,15 @@ int pkvm_get_guest_pa_request(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
 	kvm_pte_t pte;
 	enum pkvm_page_state state;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+	int ret;
 
 	guest_lock_component(vm);
-	WARN_ON(kvm_pgtable_get_leaf(&vm->pgt, ipa, &pte, out_level));
+	ret = kvm_pgtable_get_leaf(&vm->pgt, ipa, &pte, out_level);
 	guest_unlock_component(vm);
+
+	if (ret)
+		return ret;
+
 	if (!kvm_pte_valid(pte)) {
 		/* Page not mapped, create a request*/
 		req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MAP);

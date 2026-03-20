@@ -13,6 +13,8 @@
 #include <kvm/arm_hypercalls.h>
 #include <kvm/device.h>
 
+#include <asm/kvm_hypevents.h>
+
 struct pkvm_device *registered_devices;
 unsigned long registered_devices_nr;
 
@@ -61,19 +63,29 @@ static struct pkvm_device *pkvm_get_device(u64 addr, size_t size)
 	return NULL;
 }
 
+static bool pkvm_device_has_resource(struct pkvm_device *dev, u64 phys)
+{
+	int i;
+
+	for (i = 0 ; i < dev->nr_resources; i++) {
+		struct pkvm_dev_resource *res = &dev->resources[i];
+
+		if ((phys >= res->base) && (phys < res->base + res->size))
+			return true;
+	}
+
+	return false;
+}
+
 static struct pkvm_device *pkvm_get_device_by_addr(u64 addr)
 {
 	struct pkvm_device *dev;
-	struct pkvm_dev_resource *res;
-	int i, j;
+	int i;
 
 	for (i = 0 ; i < registered_devices_nr ; ++i) {
 		dev = &registered_devices[i];
-		for (j = 0 ; j < dev->nr_resources; ++j) {
-			res = &dev->resources[j];
-			if ((addr >= res->base) && (addr < res->base + res->size))
-				return dev;
-		}
+		if (pkvm_device_has_resource(dev, addr))
+			return dev;
 	}
 
 	return NULL;
@@ -151,6 +163,27 @@ out_unlock:
 	return ret;
 }
 
+static int pkvm_device_power_lock(struct pkvm_hyp_vm *vm, struct pkvm_device *dev, bool lock)
+{
+	int ret = 0;
+
+	hyp_assert_lock_held(&device_spinlock);
+
+	if (!dev || !dev->ops || !dev->ops->power_lock)
+		return -EOPNOTSUPP;
+
+	if (dev->power_locked == lock)
+		return 0;
+
+	ret = dev->ops->power_lock(dev->cookie, lock);
+	if (!ret)
+		dev->power_locked = lock;
+
+	trace_power_lock(vm->host_kvm->userspace_pid, dev->resources[0].base, lock, ret);
+
+	return ret;
+}
+
 static int pkvm_device_reset(struct pkvm_device *dev, bool host_to_guest)
 {
 	struct pkvm_dev_iommu *iommu;
@@ -160,10 +193,10 @@ static int pkvm_device_reset(struct pkvm_device *dev, bool host_to_guest)
 	hyp_assert_lock_held(&device_spinlock);
 
 	/* Reset is mandatory. */
-	if (!dev->reset_handler)
+	if (!dev->ops || !dev->ops->reset)
 		return -ENODEV;
 
-	ret = dev->reset_handler(dev->cookie, host_to_guest);
+	ret = dev->ops->reset(dev->cookie, host_to_guest);
 	if (ret)
 		return ret;
 
@@ -187,6 +220,12 @@ static int __pkvm_device_assign(struct pkvm_device *dev, struct pkvm_hyp_vm *vm)
 	for (i = 0 ; i < dev->nr_resources; ++i) {
 		res = &dev->resources[i];
 		ret = hyp_check_range_owned(res->base, res->size);
+		if (ret)
+			return ret;
+	}
+
+	if (dev->ops && dev->ops->power_lock) {
+		ret = pkvm_device_power_lock(vm, dev, true);
 		if (ret)
 			return ret;
 	}
@@ -268,14 +307,34 @@ out_ret:
 	return ret;
 }
 
+static struct pkvm_device *pkvm_get_vm_device_by_addr(struct pkvm_hyp_vm *hyp_vm, u64 phys)
+{
+	int i;
+
+	hyp_assert_lock_held(&device_spinlock);
+
+	for (i = 0 ; i < registered_devices_nr ; ++i) {
+		struct pkvm_device *dev = &registered_devices[i];
+
+		if (dev->ctxt != hyp_vm)
+			continue;
+
+		if (pkvm_device_has_resource(dev, phys))
+			return dev;
+	}
+
+	return NULL;
+}
+
 bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 {
-	int i, j, ret;
 	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 	u64 ipa = smccc_get_arg1(vcpu);
+	struct pkvm_device *dev;
 	u64 token;
 	s8 level;
+	int ret;
 
 	/* args 2..6 reserved for future use. */
 	if (smccc_get_arg2(vcpu) || smccc_get_arg3(vcpu) || smccc_get_arg4(vcpu) ||
@@ -289,8 +348,7 @@ bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
 		*exit_code = ARM_EXCEPTION_HYP_REQ;
 		return false;
-	}
-	else if (ret) {
+	} else if (ret) {
 		goto out_inval;
 	}
 
@@ -298,26 +356,14 @@ bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 	WARN_ON(level != KVM_PGTABLE_LAST_LEVEL);
 
 	hyp_spin_lock(&device_spinlock);
-	for (i = 0 ; i < registered_devices_nr ; ++i) {
-		struct pkvm_device *dev = &registered_devices[i];
+	dev = pkvm_get_vm_device_by_addr(vm, token);
+	hyp_spin_unlock(&device_spinlock);
 
-		if (dev->ctxt != vm)
-			continue;
-
-		for (j = 0 ; j < dev->nr_resources; ++j) {
-			struct pkvm_dev_resource *res = &dev->resources[j];
-
-			if ((token >= res->base) && (token + PAGE_SIZE <= res->base + res->size)) {
-				smccc_set_retval(vcpu, SMCCC_RET_SUCCESS, token, 0, 0);
-				goto out_ret;
-			}
-		}
+	if (dev) {
+		smccc_set_retval(vcpu, SMCCC_RET_SUCCESS, token, 0, 0);
+		return true;
 	}
 
-	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
-out_ret:
-	hyp_spin_unlock(&device_spinlock);
-	return true;
 out_inval:
 	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
 	return true;
@@ -347,6 +393,8 @@ void pkvm_devices_teardown(struct pkvm_hyp_vm *vm)
 		if (dev->ctxt != vm)
 			continue;
 		WARN_ON(pkvm_device_reset(dev, false));
+		if (dev->ops && dev->ops->power_lock)
+			WARN_ON(pkvm_device_power_lock(vm, dev, false));
 		dev->ctxt = NULL;
 		pkvm_devices_reclaim_device(dev);
 	}
@@ -400,8 +448,7 @@ void pkvm_devices_put_context(u64 iommu_id, u32 endpoint_id)
 	hyp_spin_unlock(&device_spinlock);
 }
 
-int pkvm_device_register_reset(u64 phys, void *cookie,
-			       int (*cb)(void *cookie, bool host_to_guest))
+int pkvm_device_register_ops(u64 phys, struct pkvm_device_ops *ops, void *cookie)
 {
 	struct pkvm_device *dev;
 	int ret = 0;
@@ -411,11 +458,11 @@ int pkvm_device_register_reset(u64 phys, void *cookie,
 		return -ENODEV;
 
 	hyp_spin_lock(&device_spinlock);
-	if (!dev->reset_handler) {
-		dev->reset_handler = cb;
-		dev->cookie = cookie;
-	} else {
+	if (dev->ops) {
 		ret = -EBUSY;
+	} else {
+		dev->ops = ops;
+		dev->cookie = cookie;
 	}
 	hyp_spin_unlock(&device_spinlock);
 
@@ -473,4 +520,86 @@ bool pkvm_device_request_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 out_ret:
 	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
 	return true;
+}
+
+static int
+__pkvm_device_request_power(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa, bool on, bool dryrun)
+{
+	struct pkvm_hyp_vm *hyp_vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+	struct pkvm_device *dev;
+	s8 level;
+	u64 phys;
+	int ret;
+
+	ret = pkvm_get_guest_pa_request(hyp_vcpu, ipa, PAGE_SIZE, &phys, &level);
+	if (ret) {
+		/* A hyp_req might have been generated. Reset it */
+		hyp_vcpu->vcpu.arch.hyp_reqs[0].type = KVM_HYP_LAST_REQ;
+		return ret;
+	}
+
+	hyp_spin_lock(&device_spinlock);
+	dev = pkvm_get_vm_device_by_addr(hyp_vm, phys);
+	if (dryrun)
+		ret = (!dev || !dev->ops || !dev->ops->power_lock) ? -EOPNOTSUPP : 0;
+	else
+		ret = pkvm_device_power_lock(hyp_vm, dev, on);
+	hyp_spin_unlock(&device_spinlock);
+
+	return ret;
+}
+
+bool pkvm_device_request_power(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
+{
+	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
+	u64 func = smccc_get_arg1(vcpu);
+
+	/* args 3..6 reserved for future use. */
+	if (smccc_get_arg3(vcpu) || smccc_get_arg4(vcpu) || smccc_get_arg5(vcpu) ||
+	    smccc_get_arg6(vcpu))
+		goto out_guest_err;
+
+	switch (func) {
+	case KVM_DEV_REQ_PWR_OFF:
+	case KVM_DEV_REQ_PWR_ON: {
+		u64 ipa = smccc_get_arg2(vcpu);
+		bool on = func;
+		int ret;
+
+		/* When powering-on, power_lock is called after forwarding to shot  */
+		ret = __pkvm_device_request_power(hyp_vcpu, ipa, on, on);
+		if (ret)
+			goto out_guest_err;
+
+		/* Success! Forward to host */
+		return false;
+	}
+	}
+
+out_guest_err:
+	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
+	return true;
+}
+
+int pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
+	u64 func = smccc_get_arg1(vcpu);
+
+	switch (func) {
+	case KVM_DEV_REQ_PWR_OFF:
+	case KVM_DEV_REQ_PWR_ON: {
+		u64 ipa = smccc_get_arg2(vcpu);
+		bool on = func;
+
+		/* When powering-off, power_lock is called before forwarding to host */
+		if (!on)
+			return 0;
+
+		/* power_lock failed. We have no way of rolling back the host power-on */
+		return WARN_ON(__pkvm_device_request_power(hyp_vcpu, ipa, on, false));
+	}
+	}
+
+	return 0;
 }

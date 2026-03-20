@@ -50,6 +50,7 @@ struct cma {
 	char name[CMA_MAX_NAME];
 	int nranges;
 	struct cma_memrange ranges[CMA_MAX_RANGES];
+	bool gcma;
 #ifdef CONFIG_CMA_SYSFS
 	/* the number of CMA page successful allocations */
 	atomic64_t nr_pages_succeeded;
@@ -64,6 +65,7 @@ struct cma {
 	/* NUMA node (NUMA_NO_NODE if unspecified) */
 	int nid;
 	ANDROID_VENDOR_DATA(1);
+	ANDROID_OEM_DATA(1);
 };
 
 enum cma_flags {

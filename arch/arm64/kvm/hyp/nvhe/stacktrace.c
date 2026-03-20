@@ -108,7 +108,7 @@ static bool pkvm_save_backtrace_entry(void *arg, unsigned long where)
 		return false;
 
 #ifdef CONFIG_PKVM_FTRACE
-	if (where == (unsigned long)__hyp_ftrace_ret_tramp) {
+	if (ptrauth_strip_kernel_insn_pac(where) == (unsigned long)__hyp_ftrace_ret_tramp) {
 		unsigned long ret = hyp_ftrace_ret_pop();
 
 		if (ret != ULONG_MAX)

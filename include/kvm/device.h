@@ -36,9 +36,10 @@ struct pkvm_device {
 	u32 nr_resources;
 	u32 nr_iommus;
 	u32 group_id;
-	void *ctxt; /* Current context of the device*/
+	void *ctxt; /* Current context of the device */
 	unsigned short refcount;
-	int (*reset_handler)(void *cookie, bool host_to_guest);
+	bool power_locked;
+	struct pkvm_device_ops *ops;
 	void *cookie; /* cookie from drivers. */
 };
 

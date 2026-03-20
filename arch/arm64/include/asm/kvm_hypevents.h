@@ -176,4 +176,22 @@ HYP_EVENT(iommu_idmap_complete,
 	),
 	HE_PRINTK("map=%d", __entry->map)
 );
+
+HYP_EVENT(power_lock,
+	HE_PROTO(pid_t vm, u64 device, bool lock, int ret),
+	HE_STRUCT(
+		he_field(pid_t, vm)
+		he_field(u64, device)
+		he_field(bool, lock)
+		he_field(int, ret)
+	),
+	HE_ASSIGN(
+		__entry->vm = vm;
+		__entry->device = device;
+		__entry->lock = lock;
+		__entry->ret = ret;
+	),
+	HE_PRINTK("vm=%d device=%llu lock=%d ret=%d",
+		  __entry->vm, __entry->device, __entry->lock, __entry->ret)
+);
 #endif /* __ARM64_KVM_HYPEVENTS_H_ */

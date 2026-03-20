@@ -36,6 +36,11 @@ void *__memset(void *dst, int c, size_t count)
 {
 	return memset(dst, c, count);
 }
+
+void *memcpy(void *dst, const void *src, size_t count)
+{
+	return CALL_FROM_OPS(memcpy, dst, src, count);
+}
 #ifdef CONFIG_LIST_HARDENED
 bool __list_add_valid_or_report(struct list_head *new,
 				struct list_head *prev,

@@ -188,6 +188,8 @@ contiguous:
 	return IS_ALIGNED(region->base + region->size, pkvm_granule);
 }
 
+#include "pkvm-guest.h"
+
 void pkvm_init_hyp_services(void)
 {
 	struct arm_smccc_res res;
@@ -216,4 +218,7 @@ void pkvm_init_hyp_services(void)
 	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_MEM_RELINQUISH))
 		mem_relinquish_available = true;
 #endif
+
+	if (kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_DEV_REQ_PWR))
+		pkvm_device_pm_init();
 }

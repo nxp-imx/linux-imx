@@ -81,10 +81,8 @@ int pkvm_get_domain_cache_tag_assign(void *pgd, int did, u32 pasid,
 	struct dmar_domain *domain;
 	int ret;
 
-	if (did == FLPT_DEFAULT_DID) {
-		cache_tag_assign_domain(&pt_domain, did, &dev, pasid);
-		return 0;
-	}
+	if (did == FLPT_DEFAULT_DID)
+		return cache_tag_assign_domain(&pt_domain, did, &dev, pasid);
 
 	domain = pkvm_get_iommu_domain(pgd);
 	if (!domain) {

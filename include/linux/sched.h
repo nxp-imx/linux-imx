@@ -85,6 +85,7 @@ struct seq_file;
 struct sighand_struct;
 struct signal_struct;
 struct task_delay_info;
+struct task_dma_buf_info;
 struct task_group;
 struct task_struct;
 struct user_event_mm;
@@ -1691,6 +1692,8 @@ struct task_struct {
 
 	/* CPU-specific state of this task: */
 	struct thread_struct		thread;
+
+	struct task_dma_buf_info *dmabuf_info;
 
 	/*
 	 * New fields for task_struct should be added above here, so that

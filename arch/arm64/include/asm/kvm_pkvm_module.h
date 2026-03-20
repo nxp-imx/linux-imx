@@ -50,6 +50,34 @@ enum pkvm_smc_handler_ret {
 };
 
 /**
+ * struct pkvm_device_ops - pKVM assigned device callbacks
+ * @reset:      Called before/after devices are assigned.
+ *              Reset is expected to clear any state/secrets on the device and put
+ *              it in quiescent state, where it can't trigger any DMA. If reset
+ *              fails at device assignment to guest, the device won't be assigned.
+ *              Or if it fails on the guest teardown path, that would panic to avoid
+ *              leaking any information. Direction of assignment can be deduced from
+ *              pkvm_device::ctxt where NULL means host to guest and vice versa.
+ * @power_lock: It is expected from this callback to protect or unprotect
+ *              (according to the @lock value) the device against power cycle. This
+ *              is optional on device (un)assignement: @reset can be used for this
+ *              purpose. However it is mandatory to allow guest to dynamically signal
+ *              power on/off.
+ */
+struct pkvm_device_ops {
+	int (*reset)(void *cookie, bool host_to_guest);
+	int (*power_lock)(void *cookie, bool lock);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
+};
+
+/**
  * struct pkvm_module_ops - pKVM modules callbacks
  * @create_private_mapping:	Map a memory region into the hypervisor private
  *				range. @haddr returns the virtual address where
@@ -199,20 +227,8 @@ enum pkvm_smc_handler_ret {
  *				successful unmap() operation, so the hypervisor
  *				can track the page state.
  * @init_hvc_pd:		Register a power domain ops.
- * @device_register_reset:	Register a reset callback for devices that is called
- *				before/after devices are assigned. Only one callback
- *				can be registered per device.
- *				Devices are identified by the base address of the MMIO
- *				as defined in the device tree.
- *				Reset is expected to clear any state/secrets on the
- *				device and put it in quiescent state, where it can't
- *				trigger any DMA.
- *				If reset fails at device assignment to guest, the
- *				device won't be assigned.
- *				Or if it fails on the guest teardown path, that would
- *				panic to avoid leaking any information.
- *				Direction of assignment can be deduced from pkvm_device::ctxt
- *				where NULL means host to guest and vice versa.
+ * @device_register_ops		Register a pkvm_device_ops for a device, identified by the
+ *				base address of the MMIO as defined in the device tree.
  * @iommu_register_pviommu_drv:	Register an IOMMU driver to handle guest VMs pvIOMMU
  * @register_guest_trng_ops:    Register a ARM SMCCC TRNG alternative implementation
  *				for pVMs. The @ops.trng_uuid is used to advertise the
@@ -291,8 +307,7 @@ struct pkvm_module_ops {
 	int (*pkvm_use_dma)(phys_addr_t phys_addr, size_t size);
 	int (*pkvm_unuse_dma)(phys_addr_t phys_addr, size_t size);
 	int (*init_hvc_pd)(struct kvm_power_domain *pd, const struct kvm_power_domain_ops *ops);
-	int (*device_register_reset)(u64 phys, void *cookie,
-				     int (*cb)(void *cookie, bool host_to_guest));
+	int (*device_register_ops)(u64 phys, struct pkvm_device_ops *ops, void *cookie);
 	int (*iommu_register_pviommu_drv)(pkvm_handle_t drv_id);
 	int (*register_guest_trng_ops)(const struct pkvm_module_trng_ops *ops);
 	int (*guest_accept_module_prot_page)(u64 ipa, u64 nr_pages);

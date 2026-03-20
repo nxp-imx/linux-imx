@@ -200,7 +200,7 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 		 */
 		ret = pkvm_init_host_vm(kvm, type);
 		if (ret)
-			goto err_free_cpumask;
+			goto err_uninit_mmu;
 	} else if (type & KVM_VM_TYPE_ARM_PROTECTED) {
                 ret = -EINVAL;
                 goto err_free_cpumask;
@@ -219,6 +219,8 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 
 	return 0;
 
+err_uninit_mmu:
+	kvm_uninit_stage2_mmu(kvm);
 err_free_cpumask:
 	free_cpumask_var(kvm->arch.supported_cpus);
 err_unshare_kvm:
@@ -1740,6 +1742,37 @@ static int kvm_arm_vcpu_set_events(struct kvm_vcpu *vcpu,
 	return __kvm_arm_vcpu_set_events(vcpu, events);
 }
 
+static int kvm_pvm_one_reg_allowed(struct kvm_vcpu *vcpu, struct kvm_one_reg *reg)
+{
+	u64 off;
+
+	if (!vcpu_get_flag(vcpu, VCPU_PKVM_FINALIZED))
+		return 0;
+
+	if ((reg->id & KVM_REG_ARM_COPROC_MASK) != KVM_REG_ARM_CORE)
+		return -EPERM;
+
+	/* Only regs[0] to regs[3] matter to HVCs */
+	off = reg->id & ~(KVM_REG_ARCH_MASK | KVM_REG_SIZE_MASK | KVM_REG_ARM_CORE);
+	if (off > KVM_REG_ARM_CORE_REG(regs.regs[3]))
+		return -EPERM;
+
+	/* For protected VMs, SET_ONE_REG|GET_ONE_REG only make sense for forwarded guest HVCs */
+	if (vcpu->run->exit_reason != KVM_EXIT_HYPERCALL)
+		return -EBUSY;
+
+	switch (vcpu->run->hypercall.nr) {
+	/*
+	 * It is expected from the VMM to perform the power cycle, most likely with
+	 * VFIO_DEVICE_FEATURE_LOW_POWER_ENTRY/EXIT
+	 */
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
+		return 0;
+	}
+
+	return -EBUSY;
+}
+
 long kvm_arch_vcpu_ioctl(struct file *filp,
 			 unsigned int ioctl, unsigned long arg)
 {
@@ -1767,13 +1800,15 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 		if (unlikely(!kvm_vcpu_initialized(vcpu)))
 			break;
 
-		r = -EPERM;
-		if (unlikely(vcpu_is_protected(vcpu) && vcpu_get_flag(vcpu, VCPU_PKVM_FINALIZED)))
-			break;
-
 		r = -EFAULT;
 		if (copy_from_user(&reg, argp, sizeof(reg)))
 			break;
+
+		if (vcpu_is_protected(vcpu)) {
+			r = kvm_pvm_one_reg_allowed(vcpu, &reg);
+			if (r)
+				break;
+		}
 
 		/*
 		 * We could owe a reset due to PSCI. Handle the pending reset
@@ -1923,7 +1958,7 @@ int kvm_arch_vm_ioctl(struct file *filp, unsigned int ioctl, unsigned long arg)
 	void __user *argp = (void __user *)arg;
 	struct kvm_device_attr attr;
 
-	if (is_protected_kvm_enabled() && !kvm_pkvm_ioctl_allowed(kvm, ioctl))
+	if (is_protected_kvm_enabled() && !kvm_pkvm_ioctl_allowed(kvm, ioctl, argp))
 		return -EINVAL;
 
 	switch (ioctl) {

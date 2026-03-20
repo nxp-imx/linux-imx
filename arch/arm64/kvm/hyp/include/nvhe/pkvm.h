@@ -194,6 +194,8 @@ int pkvm_host_hvc_pd(u64 device_id, u64 on);
 
 bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
 bool pkvm_device_request_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+bool pkvm_device_request_power(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+int pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu);
 void pkvm_devices_teardown(struct pkvm_hyp_vm *vm);
 int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id, struct pkvm_hyp_vm *vm);
 void pkvm_devices_put_context(u64 iommu_id, u32 endpoint_id);
@@ -219,7 +221,5 @@ int pkvm_init_devices(void);
 int pkvm_device_hyp_assign_mmio(u64 pfn, u64 nr_pages);
 int pkvm_device_reclaim_mmio(u64 pfn, u64 nr_pages);
 int pkvm_host_map_guest_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 pfn, u64 gfn);
-int pkvm_device_register_reset(u64 phys, void *cookie,
-			       int (*cb)(void *cookie, bool host_to_guest));
-
+int pkvm_device_register_ops(u64 phys, struct pkvm_device_ops *ops, void *cookie);
 #endif /* __ARM64_KVM_NVHE_PKVM_H__ */

@@ -15,6 +15,16 @@ DECLARE_RESTRICTED_HOOK(android_rvh_set_balance_anon_file_reclaim,
 DECLARE_RESTRICTED_HOOK(android_rvh_kswapd_shrink_node,
 			TP_PROTO(unsigned long *nr_reclaimed),
 			TP_ARGS(nr_reclaimed), 1);
+DECLARE_HOOK(android_vh_shrink_folio_list,
+	TP_PROTO(struct folio *folio, bool dirty, bool writeback,
+		bool *activate, bool *keep),
+	TP_ARGS(folio, dirty, writeback, activate, keep));
+DECLARE_HOOK(android_vh_inode_lru_isolate,
+	TP_PROTO(struct inode *inode, bool *skip),
+	TP_ARGS(inode, skip));
+DECLARE_HOOK(android_vh_invalidate_mapping_pagevec,
+	TP_PROTO(struct address_space *mapping, bool *skip),
+	TP_ARGS(mapping, skip));
 DECLARE_HOOK(android_vh_mglru_should_abort_scan,
 	TP_PROTO(unsigned long nr_reclaimed, unsigned long nr_to_reclaim,
 	unsigned int order, bool *bypass),

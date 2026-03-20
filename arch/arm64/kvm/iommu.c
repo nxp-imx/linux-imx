@@ -398,6 +398,25 @@ int kvm_get_iommu_id_by_of(struct device_node *np, pkvm_handle_t *out_id)
 	return ret;
 }
 
+int kvm_get_iommu_endpoint(struct of_phandle_args *iommu_spec, u64 *out_endpoint)
+{
+	int ret = -ENODEV;
+	struct kvm_iommu_driver *driver;
+
+	/* Find a driver that handles this device */
+	mutex_lock(&kvm_iommu_reg_lock);
+	list_for_each_entry(driver, &kvm_iommu_drivers, node) {
+		if (driver->get_iommu_endpoint) {
+			ret = driver->get_iommu_endpoint(iommu_spec, out_endpoint);
+			if (ret == 0)
+				break;
+		}
+	}
+
+	mutex_unlock(&kvm_iommu_reg_lock);
+	return ret;
+}
+
 int kvm_iommu_device_num_ids(struct device *dev)
 {
 	int ret = 0;

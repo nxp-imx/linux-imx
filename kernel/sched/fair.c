@@ -5424,6 +5424,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 
 		WARN_ON_ONCE(delay && se->sched_delayed);
 
+		trace_android_rvh_dequeue_entity_delayed(cfs_rq, se, &delay);
 		if (sched_feat(DELAY_DEQUEUE) && delay &&
 		    !entity_eligible(cfs_rq, se)) {
 			update_load_avg(cfs_rq, se, 0);
@@ -8927,7 +8928,7 @@ struct task_struct *
 pick_next_task_fair(struct rq *rq, struct rq_flags *rf)
 {
 	struct sched_entity *se;
-	struct task_struct *p, *prev;
+	struct task_struct *p = NULL, *prev;
 	int new_tasks;
 
 again:
@@ -8936,8 +8937,11 @@ again:
 	 * changed across a rq lock drop
 	 */
 	prev = rq->donor;
-	p = pick_task_fair(rq, rf);
-	trace_android_rvh_replace_next_task_fair(rq, &p, prev);
+	trace_android_rvh_before_pick_task_fair(rq, &p, prev, rf);
+	if (!p) {
+		p = pick_task_fair(rq, rf);
+		trace_android_rvh_replace_next_task_fair(rq, &p, prev);
+	}
 	if (!p)
 		goto idle;
 	se = &p->se;

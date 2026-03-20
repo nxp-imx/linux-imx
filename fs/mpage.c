@@ -29,6 +29,7 @@
 #include <linux/writeback.h>
 #include <linux/backing-dev.h>
 #include <linux/pagevec.h>
+#include <linux/cleancache.h>
 #include "internal.h"
 
 /*
@@ -274,6 +275,12 @@ static void do_mpage_readpage(struct mpage_readpage_args *args)
 		}
 	} else if (fully_mapped) {
 		folio_set_mappedtodisk(folio);
+	}
+
+	if (fully_mapped && blocks_per_folio == 1 && !folio_test_uptodate(folio) &&
+	    cleancache_get_page(&folio->page) == 0) {
+		folio_mark_uptodate(folio);
+		goto confused;
 	}
 
 	/*

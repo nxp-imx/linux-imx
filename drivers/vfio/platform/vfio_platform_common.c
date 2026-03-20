@@ -228,7 +228,8 @@ void vfio_platform_close_device(struct vfio_device *core_vdev)
 			"reset driver is required and reset call failed in release (%d) %s\n",
 			ret, extra_dbg ? extra_dbg : "");
 	}
-	pm_runtime_put(vdev->device);
+	if (!vdev->low_power)
+		pm_runtime_put(vdev->device);
 	vfio_platform_regions_cleanup(vdev);
 	vfio_platform_irq_cleanup(vdev);
 }
@@ -252,6 +253,8 @@ int vfio_platform_open_device(struct vfio_device *core_vdev)
 	ret = pm_runtime_get_sync(vdev->device);
 	if (ret < 0)
 		goto err_rst;
+
+	vdev->low_power = false;
 
 	ret = vfio_platform_call_reset(vdev, &extra_dbg);
 	if (ret && vdev->reset_required) {
@@ -381,6 +384,42 @@ long vfio_platform_ioctl(struct vfio_device *core_vdev,
 	return -ENOTTY;
 }
 EXPORT_SYMBOL_GPL(vfio_platform_ioctl);
+
+static int vfio_platform_pm(struct vfio_device *core_vdev, u32 flags, bool enter)
+{
+	int ret = vfio_check_feature(flags, 0, VFIO_DEVICE_FEATURE_SET, 0);
+	struct vfio_platform_device *vdev =
+		container_of(core_vdev, struct vfio_platform_device, vdev);
+
+	if (ret != 1)
+		return ret;
+
+	guard(mutex)(&vdev->igate);
+
+	if (vdev->low_power == enter)
+		return 0;
+
+	ret = enter ? pm_runtime_put(vdev->device) : pm_runtime_get_sync(vdev->device);
+
+	/* Even on an error, the power refcount is updated */
+	vdev->low_power = enter;
+
+	return ret;
+}
+
+int vfio_platform_ioctl_feature(struct vfio_device *core_vdev, u32 flags, void __user *arg,
+				size_t argsz)
+{
+	switch (flags & VFIO_DEVICE_FEATURE_MASK) {
+	case VFIO_DEVICE_FEATURE_LOW_POWER_ENTRY:
+		return vfio_platform_pm(core_vdev, flags, true);
+	case VFIO_DEVICE_FEATURE_LOW_POWER_EXIT:
+		return vfio_platform_pm(core_vdev, flags, false);
+	}
+
+	return -ENOTTY;
+}
+EXPORT_SYMBOL_GPL(vfio_platform_ioctl_feature);
 
 static ssize_t vfio_platform_read_mmio(struct vfio_platform_region *reg,
 				       char __user *buf, size_t count,

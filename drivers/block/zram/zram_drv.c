@@ -1800,7 +1800,7 @@ static int write_incompressible_page(struct zram *zram, struct page *page,
 	 */
 	handle = zs_malloc(zram->mem_pool, PAGE_SIZE,
 			   GFP_NOIO | __GFP_NOWARN |
-			   __GFP_HIGHMEM | __GFP_MOVABLE, page_to_nid(page));
+			   __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA, page_to_nid(page));
 	if (IS_ERR_VALUE(handle))
 		return PTR_ERR((void *)handle);
 
@@ -1863,7 +1863,7 @@ static int zram_write_page(struct zram *zram, struct page *page, u32 index)
 
 	handle = zs_malloc(zram->mem_pool, comp_len,
 			   GFP_NOIO | __GFP_NOWARN |
-			   __GFP_HIGHMEM | __GFP_MOVABLE, page_to_nid(page));
+			   __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA, page_to_nid(page));
 	if (IS_ERR_VALUE(handle)) {
 		zcomp_stream_put(zstrm);
 		return PTR_ERR((void *)handle);

@@ -332,3 +332,50 @@ See pviommu.rst
 --------------------------------------
 
 See pviommu.rst
+
+``ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID``
+------------------------------------------------
+
+Request a power state change for a device assigned to the pKVM guest.
+
+This HVC is userspace forwardable, which is expected to handle the actual power
+request: pKVM only performs limited checks.
+
++---------------------+-------------------------------------------------------------+
+| Presence:           | Optional.                                                   |
++---------------------+-------------------------------------------------------------+
+| Calling convention: | HVC64                                                       |
++---------------------+----------+--------------------------------------------------+
+| Function ID:        | (uint32) | 0xC6000003C                                      |
++---------------------+----------+----+---------------------------------------------+
+| Arguments:          | (uint64) | R1 | Power Function (see below)                  |
+|                     +----------+----+---------------------------------------------+
+|                     | (uint64) | R2 | Power Function argument (see below)         |
+|                     +----------+----+---------------------------------------------+
+|                     | (uint64) | R3 | Reserved / Must be zero                     |
+|                     +----------+----+---------------------------------------------+
+|                     | (uint64) | R4 | Reserved / Must be zero                     |
+|                     +----------+----+---------------------------------------------+
+|                     | (uint64) | R5 | Reserved / Must be zero                     |
+|                     +----------+----+---------------------------------------------+
+|                     | (uint64) | R6 | Reserved / Must be zero                     |
++---------------------+----------+----+---------------------------------------------+
+| Return Values:      | (int64)  | R0 | ``SUCCESS (0)``                             |
+|                     |          |    +---------------------------------------------+
+|                     |          |    | ``INVALID_PARAMETER (-3)``                  |
++---------------------+----------+----+---------------------------------------------+
+
+The Power Function R1 argument can be one of the following:
+
+0: Power Off
+^^^^^^^^^^^^
+
+Request a power-off for the device (R2 argument), described by the base address of one
+of its MMIO region.
+
+
+1: Power On
+^^^^^^^^^^^
+
+Request a power-on for the device (R2 argument), described by the base address of one
+of its MMIO region.

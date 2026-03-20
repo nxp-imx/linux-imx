@@ -50,6 +50,7 @@
   __bitmap_complement
   __bitmap_equal
   bitmap_free
+  bitmap_from_arr32
   __bitmap_or
   bitmap_parse
   bitmap_print_to_pagebuf
@@ -191,6 +192,7 @@
   clk_set_rate
   clk_unprepare
   clockevents_config_and_register
+  __clocksource_register_scale
   close_candev
   cma_alloc
   cma_get_name
@@ -510,6 +512,7 @@
   devm_tegra_memory_controller_get
   devm_thermal_of_cooling_device_register
   devm_thermal_of_zone_register
+  __devm_uio_register_device
   devm_usb_get_phy
   devm_usb_get_phy_by_phandle
   __devm_v4l2_sensor_clk_get
@@ -826,21 +829,27 @@
   drm_format_info
   drm_format_info_block_height
   drm_format_info_block_width
+  drm_format_info_bpp
   drm_gem_create_mmap_offset
   drm_gem_fb_create
   drm_gem_fb_get_obj
   drm_gem_free_mmap_offset
+  drm_gem_get_pages
   drm_gem_handle_create
+  drm_gem_is_prime_exported_dma_buf
   drm_gem_mmap
   drm_gem_object_free
   drm_gem_object_init
+  drm_gem_object_init_with_mnt
   drm_gem_object_lookup
   drm_gem_object_release
   drm_gem_plane_helper_prepare_fb
   drm_gem_prime_export
   drm_gem_prime_import
   drm_gem_prime_mmap
+  drm_gem_private_object_fini
   drm_gem_private_object_init
+  drm_gem_put_pages
   drm_gem_shmem_create
   drm_gem_shmem_free
   drm_gem_shmem_get_pages_sgt
@@ -866,6 +875,7 @@
   drm_hdmi_avi_infoframe_quant_range
   drm_hdmi_connector_get_output_format_name
   drm_hdmi_vendor_infoframe_from_display_mode
+  drm_helper_disable_unused_functions
   drm_helper_hpd_irq_event
   drm_helper_probe_single_connector_modes
   drm_ioctl
@@ -875,12 +885,12 @@
   drm_kms_helper_poll_fini
   drm_kms_helper_poll_init
   __drmm_add_action_or_reset
+  drm_master_internal_acquire
+  drm_master_internal_release
   drm_match_cea_mode
   drmm_connector_hdmi_init
   drmm_connector_init
   drmm_kmalloc
-  drm_master_internal_acquire
-  drm_master_internal_release
   drm_mm_init
   drm_mm_insert_node_in_range
   drmm_mode_config_init
@@ -905,15 +915,17 @@
   drm_mode_is_420_only
   drm_mode_object_put
   drm_mode_probed_add
-  drm_mode_set_config_internal
   drm_modeset_acquire_fini
   drm_modeset_acquire_init
   drm_modeset_backoff
+  drm_mode_set_config_internal
   drm_modeset_drop_locks
   drm_modeset_lock
+  drm_modeset_lock_all
   drm_modeset_lock_single_interruptible
   drm_mode_set_name
   drm_modeset_unlock
+  drm_modeset_unlock_all
   drm_mode_vrefresh
   __drmm_simple_encoder_alloc
   drm_object_attach_property
@@ -951,12 +963,16 @@
   drm_poll
   drm_prime_gem_destroy
   drm_prime_get_contiguous_size
+  drm_prime_pages_to_sg
   drm_printf
   __drm_printfn_dbg
   drm_probe_ddc
+  drm_property_blob_put
+  drm_property_create_blob
   drm_property_create_enum
   drm_property_create_range
   drm_property_destroy
+  drm_property_replace_blob
   drm_read
   drm_rect_intersect
   drm_release
@@ -1342,6 +1358,7 @@
   input_unregister_device
   int_pow
   int_sqrt
+  invalidate_mapping_pages
   iomem_resource
   iommu_alloc_resv_region
   iommu_device_register
@@ -1457,9 +1474,12 @@
   kstrtoull
   kthread_create_on_cpu
   kthread_create_on_node
+  kthread_create_worker_on_node
+  kthread_destroy_worker
   kthread_freezable_should_stop
   kthread_park
   kthread_parkme
+  kthread_queue_work
   kthread_set_per_cpu
   kthread_should_park
   kthread_should_stop
@@ -1552,6 +1572,7 @@
   media_graph_walk_next
   media_graph_walk_start
   media_pad_remote_pad_first
+  mem_alloc_profiling_key
   memchr
   memchr_inv
   memcmp
@@ -1594,6 +1615,7 @@
   mipi_dsi_generic_write
   mipi_dsi_host_register
   mipi_dsi_host_unregister
+  mipi_dsi_packet_format_is_short
   misc_deregister
   misc_register
   mmc_cqe_request_done
@@ -2197,6 +2219,7 @@
   rdev_get_id
   reboot_mode
   refcount_dec_and_mutex_lock
+  refcount_dec_not_one
   refcount_warn_saturate
   __refrigerator
   regcache_cache_bypass
@@ -2436,6 +2459,7 @@
   __sg_page_iter_next
   __sg_page_iter_start
   shmem_file_setup
+  shmem_truncate_range
   shrinker_alloc
   shrinker_free
   shrinker_register
@@ -2579,6 +2603,7 @@
   snd_soc_dpcm_get_substream
   snd_soc_dummy_dlc
   snd_soc_find_dai
+  snd_soc_find_dai_with_mutex
   snd_soc_get_dai_id
   snd_soc_get_dai_via_args
   snd_soc_get_dlc
@@ -2907,6 +2932,7 @@
   __usecs_to_jiffies
   usleep_range_state
   utf8_data_table
+  v4l2_apply_frmsize_constraints
   __v4l2_async_nf_add_fwnode
   __v4l2_async_nf_add_fwnode_remote
   v4l2_async_nf_cleanup
@@ -2933,6 +2959,7 @@
   v4l2_ctrl_new_std_menu
   v4l2_ctrl_new_std_menu_items
   v4l2_ctrl_poll
+  v4l2_ctrl_request_complete
   __v4l2_ctrl_s_ctrl
   __v4l2_ctrl_s_ctrl_compound
   __v4l2_ctrl_s_ctrl_int64

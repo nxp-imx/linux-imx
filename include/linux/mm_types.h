@@ -1227,6 +1227,9 @@ struct mm_struct {
 #ifdef CONFIG_MM_ID
 		mm_id_t mm_id;
 #endif /* CONFIG_MM_ID */
+
+		struct task_dma_buf_info *dmabuf_info;
+
 		ANDROID_VENDOR_DATA(1);
 	} __randomize_layout;
 

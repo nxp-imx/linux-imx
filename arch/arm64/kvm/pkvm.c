@@ -348,7 +348,7 @@ again:
 	 * carveout with a CMA region as it has the same alignment requirements.
 	 */
 	ret = cma_init_reserved_mem(hyp_mem_base, hyp_mem_size, 0, "pkvm,host_s2_cma",
-				    &host_s2_cma);
+				    &host_s2_cma, false);
 	if (ret) {
 		kvm_err("Failed to init CMA region for host stage-2 (%d)\n", ret);
 		return;
@@ -627,15 +627,22 @@ static int pkvm_register_device(struct of_phandle_args *args,
 	while (!of_parse_phandle_with_args(np, "iommus",
 					   "#iommu-cells",
 					   j, &iommu_spec)) {
-		if (iommu_spec.args_count != 1) {
-			kvm_err("[Devices] Unsupported binding for %s, expected <&iommu id>",
-				np->full_name);
-			return -EINVAL;
-		}
+		u64 endpoint;
 
 		if (j >= PKVM_DEVICE_MAX_RESOURCE) {
 			of_node_put(iommu_spec.np);
 			return -E2BIG;
+		}
+
+		if (iommu_spec.args_count != 1) {
+			/* Unknown binding, check if the driver knows it. */
+			if (kvm_get_iommu_endpoint(&iommu_spec, &endpoint)) {
+				kvm_err("[Devices] Unsupported binding for %s, expected <&iommu id>",
+					np->full_name);
+				return -EINVAL;
+			}
+		} else {
+			endpoint = iommu_spec.args[0];
 		}
 
 		ret = kvm_get_iommu_id_by_of(iommu_spec.np, &iommu_id);
@@ -643,7 +650,7 @@ static int pkvm_register_device(struct of_phandle_args *args,
 			return ret;
 
 		dev->iommus[j].id = iommu_id;
-		dev->iommus[j].endpoint = iommu_spec.args[0];
+		dev->iommus[j].endpoint = endpoint;
 		of_node_put(iommu_spec.np);
 		j++;
 	}
@@ -1848,7 +1855,8 @@ int __pkvm_load_el2_module(struct module *this)
 	if (ret) {
 		kvm_err("Failed to init EL2 module: %d\n", ret);
 		list_del(&mod->node);
-		pkvm_unmap_module_sections(secs_map, hyp_va, ARRAY_SIZE(secs_map));
+		pkvm_unmap_module_sections(secs_map + secs_first, hyp_va,
+					   ARRAY_SIZE(secs_map) - secs_first);
 		module_put(this);
 		return ret;
 	}
