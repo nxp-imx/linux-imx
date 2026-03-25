@@ -187,5 +187,10 @@ void mipid_hx8394_get_lcd_videomode(struct fb_videomode **mode, int *size,
                                      struct mipi_lcd_config **data);
 int mipid_hx8394_lcd_setup(struct mipi_dsi_info *mipi_dsi);
 #endif
+#ifdef CONFIG_FB_MXC_RPI_7INCH_LCD
+void mipid_rpi_get_lcd_videomode(struct fb_videomode **mode, int *size,
+                                     struct mipi_lcd_config **data);
+int mipid_rpi_lcd_setup(struct mipi_dsi_info *mipi_dsi);
+#endif
 
 #endif

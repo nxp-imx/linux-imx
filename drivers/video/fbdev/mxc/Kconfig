@@ -130,3 +130,7 @@ config FB_MXC_DCIC
 	depends on FB_MXC_SYNC_PANEL
 	depends on MXC_IPU_V3 || FB_MXS
 	select VIDEOMODE_HELPERS
+
+config FB_MXC_RPI_7INCH_LCD
+	depends on I2C
+	tristate "Raspberry Pi 7 inch LCD"

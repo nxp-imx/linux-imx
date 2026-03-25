@@ -95,6 +95,12 @@ static struct mipi_dsi_match_lcd mipi_dsi_lcd_db[] = {
 	 {mipid_hx8394_get_lcd_videomode, mipid_hx8394_lcd_setup}
 	},
 #endif
+#ifdef CONFIG_FB_MXC_RPI_7INCH_LCD
+	{
+	 "RPI-7INCH-LCD",
+	 {mipid_rpi_get_lcd_videomode, mipid_rpi_lcd_setup}
+	},
+#endif
 	{
 	"", {NULL, NULL}
 	}
