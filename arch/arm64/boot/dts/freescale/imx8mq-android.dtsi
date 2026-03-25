@@ -81,3 +81,7 @@
 &irqsteer {
 	trusty;
 };
+
+&vpu_blk_ctrl {
+	trusty;
+};
