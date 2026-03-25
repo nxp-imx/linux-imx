@@ -455,6 +455,8 @@ static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 			"requested data lane num is invalid\n");
 		return -EINVAL;
 	}
+	dev_info(&mipi_dsi->pdev->dev, "DSI bit clock: %u bpp %u lanes %u\n",
+		req_bit_clk, bpp, lcd_config->data_lane_num);
 
 	if (mipi_dsi->encoder) {
 		if (req_bit_clk > lcd_config->max_phy_clk)
