@@ -1106,7 +1106,7 @@ static int mipi_dsi_pkt_write(struct mipi_dsi_info *mipi_dsi,
 	const uint8_t *data = (const uint8_t *)buf;
 
 	if (len == 0)
-		/* handle generic long write command */
+		/* handle generic short write command */
 		mipi_dsi_wr_tx_header(mipi_dsi, data_type, data[0], data[1], DSI_LP_MODE, 0);
 	else {
 		reinit_completion(&dsi_tx_done);
