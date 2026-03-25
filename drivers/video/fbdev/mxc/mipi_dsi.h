@@ -121,7 +121,9 @@ struct mipi_dsi_info {
 	int				dsi_power_on;
 	int				lcd_inited;
 	int				encoder;
-	int				traffic_mode;
+	u32				traffic_mode;
+	u32				non_continuous_clock;
+	u32				auto_eotp;
 	u32				dphy_pll_config;
 	int				dev_id;
 	int				disp_id;

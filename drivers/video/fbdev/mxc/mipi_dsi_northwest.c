@@ -381,10 +381,12 @@ static void mipi_dsi_set_mode(struct mipi_dsi_info *mipi_dsi,
 
 	switch (mode) {
 	case DSI_LP_MODE:
-		writel(0x1, mipi_dsi->mmio_base + HOST_CFG_NONCONTINUOUS_CLK);
+		writel(mipi_dsi->non_continuous_clock,
+			mipi_dsi->mmio_base + HOST_CFG_NONCONTINUOUS_CLK);
 		break;
 	case DSI_HS_MODE:
 		writel(0x0, mipi_dsi->mmio_base + HOST_CFG_NONCONTINUOUS_CLK);
+
 		break;
 	default:
 		dev_err(&mipi_dsi->pdev->dev,
@@ -703,13 +705,13 @@ static int mipi_dsi_host_init(struct mipi_dsi_info *mipi_dsi)
 #endif
 
 	writel(lane_num, mipi_dsi->mmio_base + HOST_CFG_NUM_LANES);
-	writel(mipi_dsi->encoder ? 0x0 : 0x1,
+	writel(mipi_dsi->non_continuous_clock,
 	       mipi_dsi->mmio_base + HOST_CFG_NONCONTINUOUS_CLK);
 	writel(0x1, mipi_dsi->mmio_base + HOST_CFG_T_PRE);
 	writel(52, mipi_dsi->mmio_base + HOST_CFG_T_POST);
 	writel(13, mipi_dsi->mmio_base + HOST_CFG_TX_GAP);
-	writel(mipi_dsi->encoder ? 0x0 : 0x1,
-	       mipi_dsi->mmio_base + HOST_CFG_AUTOINSERT_EOTP);
+	writel(mipi_dsi->auto_eotp,
+		mipi_dsi->mmio_base + HOST_CFG_AUTOINSERT_EOTP);
 	writel(0x0, mipi_dsi->mmio_base + HOST_CFG_EXTRA_CMDS_AFTER_EOTP);
 	writel(0x0, mipi_dsi->mmio_base + HOST_CFG_HTX_TO_COUNT);
 	writel(0x0, mipi_dsi->mmio_base + HOST_CFG_LRX_H_TO_COUNT);
@@ -725,8 +727,12 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 	uint32_t pixel_fifo_level, hfp_period, hbp_period, hsa_period;
 	struct fb_videomode *mode = mipi_dsi->mode;
 	struct mipi_lcd_config *lcd_config = mipi_dsi->lcd_config;
+	uint32_t bytes_per_pixel;
+	uint32_t blank;
+	uint32_t pl, phl;
 
 	bpp = fmt_to_bpp(lcd_config->dpi_fmt);
+	bytes_per_pixel = bpp / 8;
 
 	writel(mode->xres, mipi_dsi->mmio_base + DPI_PIXEL_PAYLOAD_SIZE);
 
@@ -743,6 +749,28 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 		hbp_period = 0x60;
 		hsa_period = 0xf0;
 #endif
+
+		/* see drivers/gpu/drm/bridge/nwl-dsi.c */
+		pixel_fifo_level = mode->xres;
+		hfp_period = mode->right_margin * bytes_per_pixel;
+		hbp_period = mode->left_margin * bytes_per_pixel;
+		hsa_period = mode->hsync_len * bytes_per_pixel;
+		/* should be even ?*/
+		hfp_period = roundup(hfp_period, 2);
+		hbp_period = roundup(hbp_period, 2);
+		hsa_period = roundup(hsa_period, 2);
+
+		blank = hfp_period + hbp_period + hsa_period;
+		pl = roundup(((hfp_period * 100 / blank) * 32) / 100, 2);
+		phl = pl;
+		hfp_period -= pl;
+		pl = roundup(((hbp_period * 100 / blank) * 32) / 100, 2);
+		phl += pl;
+		hbp_period -= pl;
+
+		hsa_period -= (phl <= 32) ? 32 - phl : 0;
+		dev_dbg(&mipi_dsi->pdev->dev, " Actual hfp/hsa/hbp: %u/%u/%u",
+			hfp_period, hsa_period, hbp_period);
 		break;
 	case DSI_BURST_MODE:
 		pixel_fifo_level = mode->xres;
@@ -787,6 +815,8 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 	writel(0x0, mipi_dsi->mmio_base + DPI_VSYNC_POLARITY);
 	writel(0x0, mipi_dsi->mmio_base + DPI_HSYNC_POLARITY);
 #endif
+	dev_info(&mipi_dsi->pdev->dev, "%s: traffic_mode:%u\n",
+		__func__, mipi_dsi->traffic_mode);
 	writel(mipi_dsi->traffic_mode,
 	       mipi_dsi->mmio_base + DPI_VIDEO_MODE);
 
@@ -1396,6 +1426,12 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 #endif
+	/* Properties names should be inverted, but to keep backward
+	 * compatibility no property is treated as previously default value */
+	mipi_dsi->non_continuous_clock = !of_property_read_bool(np,
+		"continuous-clock");
+	mipi_dsi->auto_eotp = !of_property_read_bool(np, "no-auto-eotp");
+
 	/* check whether an encoder exists */
 	endpoint = of_graph_get_next_endpoint(np, NULL);
 	if (endpoint) {
@@ -1433,9 +1469,16 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 		}
 
 		mipi_dsi->encoder = 1;
+		/* backward compatibility: this settings depended on encoder.
+		 * set option values to match */
+		mipi_dsi->non_continuous_clock = 0;
+		mipi_dsi->auto_eotp = 0;
 	} else {
 		/* Default, using 'BURST-MODE' for mipi panel */
-		mipi_dsi->traffic_mode = 2;
+		ret = of_property_read_u32(np, "dsi-traffic-mode",
+			&mipi_dsi->traffic_mode);
+		if (ret < 0 || mipi_dsi->traffic_mode > 2)
+			mipi_dsi->traffic_mode = DSI_BURST_MODE;
 
 		ret = of_property_read_string(np, "lcd_panel", &lcd_panel);
 		if (ret) {
