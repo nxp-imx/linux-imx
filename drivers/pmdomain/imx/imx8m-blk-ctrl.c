@@ -573,8 +573,9 @@ static int imx8mm_vpu_power_notifier(struct notifier_block *nb,
 	 * allow the handshake with the GPC to progress we put the VPUs
 	 * in reset and ungate the clocks.
 	 */
-	regmap_clear_bits(bc->regmap, BLK_SFT_RSTN, BIT(0) | BIT(1) | BIT(2));
-	regmap_set_bits(bc->regmap, BLK_CLK_EN, BIT(0) | BIT(1) | BIT(2));
+	trusty_ctrlblk_write(bc, BLK_SFT_RSTN, 0, BIT(0) | BIT(1) | BIT(2), CLEAR_BIT_REG);
+	trusty_ctrlblk_write(bc, BLK_CLK_EN, BIT(0) | BIT(1) | BIT(2),
+			BIT(0) | BIT(1) | BIT(2), SET_BIT_REG);
 
 	if (action == GENPD_NOTIFY_ON) {
 		/*
@@ -585,10 +586,10 @@ static int imx8mm_vpu_power_notifier(struct notifier_block *nb,
 		udelay(5);
 
 		/* set "fuse" bits to enable the VPUs */
-		regmap_set_bits(bc->regmap, 0x8, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0xc, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0x10, 0xffffffff);
-		regmap_set_bits(bc->regmap, 0x14, 0xffffffff);
+		trusty_ctrlblk_write(bc, 0x8, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0xc, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0x10, 0xffffffff, 0xffffffff, SET_BIT_REG);
+		trusty_ctrlblk_write(bc, 0x14, 0xffffffff, 0xffffffff, SET_BIT_REG);
 	}
 
 	return NOTIFY_OK;
