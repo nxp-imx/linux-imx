@@ -132,9 +132,8 @@ static int vfpm_notifier(struct notifier_block *self, unsigned long cmd,
 	case THREAD_NOTIFY_COPY:
 		if (current_thread->vfpstate.hard.used) {
 			vfpm_save_context(&current_thread->vfpstate);
-
+			thread->vfpstate = current_thread->vfpstate;
 			thread->vfpstate.hard.used = 1;
-			vfpm_last_thread = thread;
 		} else
 			memset(&thread->vfpstate, 0, sizeof(thread->vfpstate));
 		break;
