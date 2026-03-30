@@ -100,8 +100,10 @@ static int __copy_guest_vm_trace(struct pkvm_vm *vm, void *param)
 		if (!vm->vcpus[i])
 			continue;
 
-		if (arg->size < sizeof(struct perf_data))
+		if (arg->size < sizeof(struct perf_data)) {
+			pkvm_spin_unlock(&vm->lock);
 			return -ENOSPC;
+		}
 
 		copy_vmexit_perf_data(arg->dst, &vm->vcpus[i]->perf);
 		arg->dst += sizeof(struct perf_data);

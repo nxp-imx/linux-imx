@@ -36,6 +36,7 @@
 #include <uapi/linux/magic.h>
 
 #include <trace/events/kmem.h>
+#include <trace/hooks/dmabuf.h>
 
 #include "dma-buf-sysfs-stats.h"
 
@@ -165,6 +166,7 @@ static void dma_buf_release(struct dentry *dentry)
 	dma_buf_stats_teardown(dmabuf);
 	dmabuf->ops->release(dmabuf);
 
+	trace_android_vh_dma_buf_release(dmabuf);
 	if (dmabuf->resv == (struct dma_resv *)&dmabuf[1])
 		dma_resv_fini(dmabuf->resv);
 

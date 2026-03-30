@@ -3009,6 +3009,23 @@
 			max_snp_asid == min_sev_asid-1, will effectively make
 			SEV-ES unusable.
 
+	kvm-arm.host_s2=
+			[KVM,ARM,EARLY] Select the host stage-2 memory pool mode.
+
+			cma: (default) Use a CMA region for the host stage-2
+			     memory pool, allowing it to be reclaimed by the
+			     host when not in use.
+
+			gcma: Use a GCMA pool for the host stage-2 memory pool.
+			      Unallocated GCMA memory is restricted to use as
+			      page-cache, but can be allocated from interrupt
+			      context. This is useful for drivers triggering
+			      IOMMU page-table allocations from non-preemptible
+			      contexts.
+
+			carveout: Use a static carveout for the host stage-2
+			          memory pool.
+
 	kvm-arm.hyp_lm_size_mb=
 			[KVM,ARM,EARLY] Maximum amount of contiguous memory mappable in
 			the pKVM hypervisor linear map, in MB. Any attempt to map more

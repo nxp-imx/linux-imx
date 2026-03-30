@@ -32,6 +32,7 @@ bool tdp_enabled = true;
 struct pkvm_hyp *pkvm_hyp;
 DEFINE_PER_CPU(struct pkvm_pcpu *, phys_cpu);
 DEFINE_PER_CPU(struct kvm_vcpu *, host_vcpu);
+DEFINE_PER_CPU(bool, host_vcpu_fixup);
 /*
  * similarly pmu.c is not compiled. define kvm_mmu_cap here for the use
  * in cpuid.c
@@ -297,14 +298,15 @@ static struct pkvm_vcpu *detach_pkvm_vcpu_from_vm(struct pkvm_vm *pkvm_vm, int v
 static int setup_vcpu_lapic(struct kvm_vcpu *vcpu)
 {
 	struct kvm_lapic *apic = vcpu->arch.apic, *shared_apic;
+	struct pkvm_vcpu *pkvm_vcpu = to_pkvm_vcpu(vcpu);
 	size_t apic_size = sizeof(struct kvm_lapic);
-	void *apic_regs = NULL;
+	void *shared_lapic_regs = NULL;
 	int ret;
 
 	if (!apic)
 		return 0;
 
-	shared_apic = kern_pkvm_va(to_pkvm_vcpu(vcpu)->shared_vcpu->arch.apic);
+	shared_apic = kern_pkvm_va(pkvm_vcpu->shared_vcpu->arch.apic);
 	/*
 	 * Temporary sharing host's apic structure to access its elements for
 	 * setting up pKVM's apic structure. It will be unshared after that.
@@ -313,18 +315,43 @@ static int setup_vcpu_lapic(struct kvm_vcpu *vcpu)
 	if (ret)
 		return ret;
 
-	apic_regs = kern_pkvm_va(shared_apic->regs);
-	if (!apic_regs) {
+	shared_lapic_regs = kern_pkvm_va(shared_apic->regs);
+	if (!shared_lapic_regs) {
 		ret = -EINVAL;
 		goto unshare_apic;
 	}
 
-	ret = pkvm_host_share_hyp(__pkvm_pa(apic_regs), PAGE_SIZE);
+	ret = pkvm_host_share_hyp(__pkvm_pa(shared_lapic_regs), PAGE_SIZE);
 	if (ret)
 		goto unshare_apic;
 
-	apic->regs = apic_regs;
-	apic->apicv_active = shared_apic->apicv_active;
+	pkvm_vcpu->shared_lapic_regs = shared_lapic_regs;
+	/*
+	 * For a protected vCPU with APICv enabled, the pKVM hypervisor will
+	 * donate the separate page for the vCPU's LAPIC registers to enforce
+	 * the protection. For other cases, the pKVM hypervisor can directly
+	 * use the host's apic page as the host will use PV interfaces which are
+	 * enforced the protection to inject interrupts.
+	 */
+	if (!pkvm_is_protected_vcpu(vcpu) || !enable_apicv) {
+		apic->regs = shared_lapic_regs;
+	} else {
+		apic->regs = PTR_ALIGN((void *)apic + apic_size, PAGE_SIZE);
+		apic->guest_apic_protected = true;
+
+		/*
+		 * The separate page for the vCPU's LAPIC registers should be
+		 * within the donated memory range of pkvm_vcpu, which is
+		 * guaranteed by the pkvm_vcpu_create. Otherwise it is a code
+		 * bug.
+		 */
+		BUG_ON((apic->regs + PAGE_SIZE) > ((void *)pkvm_vcpu + pkvm_vcpu->size));
+	}
+
+	if (enable_apicv) {
+		apic->apicv_active = true;
+		kvm_make_request(KVM_REQ_APICV_UPDATE, vcpu);
+	}
 	apic->nr_lvt_entries = kvm_apic_calc_nr_lvt_entries(vcpu);
 	apic->vcpu = vcpu;
 
@@ -368,8 +395,6 @@ static int pkvm_vm_finalize(int vm_handle)
 		kvm->arch.pkvm.pvmfw_load_addr = pvmfw_load_addr;
 	}
 
-	kvm->arch.bsp_vcpu_id = shared_kvm->arch.bsp_vcpu_id;
-
 	for (i = 0; i < kvm->created_vcpus; i++) {
 		struct kvm_vcpu *vcpu = &pkvm_vm->vcpus[i]->vcpu;
 
@@ -395,12 +420,12 @@ put_pkvm_vm:
 
 static void unsetup_vcpu_lapic(struct kvm_vcpu *vcpu)
 {
-	struct kvm_lapic *apic = vcpu->arch.apic;
+	void *regs = to_pkvm_vcpu(vcpu)->shared_lapic_regs;
 
-	if (!apic)
+	if (!regs)
 		return;
 
-	pkvm_host_unshare_hyp(__pkvm_pa(apic->regs), PAGE_SIZE);
+	pkvm_host_unshare_hyp(__pkvm_pa(regs), PAGE_SIZE);
 }
 
 static int share_vcpu_mce_banks(struct kvm_vcpu *vcpu)
@@ -428,6 +453,29 @@ static void unshare_vcpu_mce_banks(struct kvm_vcpu *vcpu)
 
 	pkvm_host_unshare_hyp(__pkvm_pa(vcpu->arch.mce_banks), KVM_MCE_SIZE);
 	pkvm_host_unshare_hyp(__pkvm_pa(vcpu->arch.mci_ctl2_banks), KVM_MCI_CTL2_SIZE);
+}
+
+static void pkvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
+{
+	kvm_vcpu_reset(vcpu, init_event);
+
+	if (lapic_in_kernel(vcpu) && vcpu->arch.apic->guest_apic_protected) {
+		/*
+		 * TPR is the key register for the protected APIC, as it will be
+		 * used by the APICv to evaluate pending interrupts. To prevent
+		 * the host from injecting exception vectors (0 - 31) via the
+		 * posted interrupt mechanism into the pVM, the TPR should be
+		 * set as 0x10 to prevent both class 1 and class 0 interrupts.
+		 * As the pVM OS may not set the TPR during early boot, or even
+		 * doesn't set the TPR at all if it doesn't use APIC, these will
+		 * make the TPR as 0x0 which allows the host to inject exception
+		 * vectors (16 - 31) into the pVM and may cause security issues.
+		 * So enforce the TPR as 0x10 after reset vcpu in the pKVM to
+		 * prevent the host from injecting exception vectors from the
+		 * beginning of the pVM boot.
+		 */
+		kvm_set_cr8(vcpu, 1);
+	}
 }
 
 static int __vcpu_create(struct kvm *kvm, struct kvm_vcpu *vcpu, struct fpstate *fps)
@@ -469,6 +517,9 @@ static int __vcpu_create(struct kvm *kvm, struct kvm_vcpu *vcpu, struct fpstate 
 	if (!pkvm_is_protected_vm(kvm))
 		kvm->arch.disabled_exits = pkvm_vm->shared_kvm->arch.disabled_exits;
 
+	if (!kvm->created_vcpus)
+		kvm->arch.bsp_vcpu_id = pkvm_vm->shared_kvm->arch.bsp_vcpu_id;
+
 	pkvm_spin_unlock(&pkvm_vm->lock);
 
 	vcpu->kvm = kvm;
@@ -496,7 +547,6 @@ static int __vcpu_create(struct kvm *kvm, struct kvm_vcpu *vcpu, struct fpstate 
 	}
 	vcpu->arch.mcg_cap = KVM_MAX_MCE_BANKS;
 
-	vcpu->arch.apic_base = pkvm_vcpu->shared_vcpu->arch.apic_base;
 	if (lapic_in_kernel(pkvm_vcpu->shared_vcpu))
 		vcpu->arch.apic = unused;
 
@@ -526,10 +576,39 @@ static int __vcpu_create(struct kvm *kvm, struct kvm_vcpu *vcpu, struct fpstate 
 
 	pkvm_vcpu_perf_init(vcpu);
 
-	/* Load guest vCPU to reset it. */
+	/* Load guest vCPU to post-set after it is created. */
 	kvm_x86_call(vcpu_load)(vcpu, cpu);
 
-	kvm_vcpu_reset(vcpu, false);
+	kvm_vcpu_after_set_cpuid(vcpu);
+
+	pkvm_vcpu_reset(vcpu, false);
+
+	if (pkvm_is_protected_vcpu(vcpu)) {
+		u64 apic_base = APIC_DEFAULT_PHYS_BASE | LAPIC_MODE_X2APIC |
+				(kvm_vcpu_is_reset_bsp(vcpu) ? MSR_IA32_APICBASE_BSP : 0);
+
+		/*
+		 * Force set the X86_FEATURE_X2APIC to enable x2apic mode by
+		 * default for pVMs to let the pVM use MSR instructions to
+		 * access lapic, as emulating xapic mode will require the host
+		 * to decode MMIO instruction which is not supported if the
+		 * guest is a pVM as the pVM's CPU and memory state will be
+		 * isolated. Doing this when creating vCPU to guarantee the
+		 * x2apic mode will be enabled.
+		 *
+		 * Setting X86_FEATURE_X2APIC without checking the pVM's CPUID
+		 * is fine as the pVM's CPUID will be enforced by the pKVM to
+		 * have this feature.
+		 */
+		guest_cpu_cap_set(vcpu, X86_FEATURE_X2APIC);
+		/*
+		 * The kvm_apic_set_base should not be failed as the apic_base
+		 * is a valid value, and the pKVM hypervisor has already set up
+		 * the reserved bits for checking this apic_base. It should be a
+		 * code bug if it is failed.
+		 */
+		BUG_ON(kvm_apic_set_base(vcpu, apic_base, true));
+	}
 
 	/*
 	 * The guest vCPU should be put before switching back to the host vCPU
@@ -580,8 +659,11 @@ static int pkvm_vcpu_create(int vm_handle, phys_addr_t host_vcpu_pa,
 	vcpu_size = PKVM_VCPU_BASE_SIZE + kvm_vcpu_sz;
 	if (pkvm_is_protected_vm(&pkvm_vm->kvm))
 		vcpu_size += KVM_MCE_SIZE + KVM_MCI_CTL2_SIZE;
-	if (lapic_in_kernel(shared_vcpu))
+	if (lapic_in_kernel(shared_vcpu)) {
 		vcpu_size += sizeof(struct kvm_lapic);
+		if (pkvm_is_protected_vm(&pkvm_vm->kvm) && enable_apicv)
+			vcpu_size += PAGE_SIZE;
+	}
 	vcpu_size = PAGE_ALIGN(vcpu_size);
 
 	ret = pkvm_host_donate_hyp(pkvm_vcpu_pa, vcpu_size, true);
@@ -793,16 +875,15 @@ static bool is_guest_vcpu_accessible(struct kvm_vcpu *vcpu, enum pkvm_hc hc)
 	case __pkvm__inject_nmi:
 	case __pkvm__cancel_injection:
 	case __pkvm__update_cr8_intercept:
-	case __pkvm__set_virtual_apic_mode:
 	case __pkvm__refresh_apicv_exec_ctrl:
 	case __pkvm__load_eoi_exitmap:
 	case __pkvm__hwapic_isr_update:
-	case __pkvm__sync_pir_to_irr:
 	case __pkvm__write_tsc_offset:
 	case __pkvm__write_tsc_multiplier:
 	case __pkvm__setup_mce:
 	case __pkvm__vcpu_run:
 	case __pkvm__complete_emulated_msr:
+	case __pkvm__protected_apic_has_interrupt:
 		/*
 		 * The host is responsible for running vCPU, injecting
 		 * interrupts, emulating lapic etc. Always allow the related PV
@@ -1010,24 +1091,43 @@ static int pkvm_nmi_allowed(struct kvm_vcpu *vcpu, bool for_injection)
 	return kvm_x86_call(nmi_allowed)(vcpu, for_injection);
 }
 
-static void pkvm_inject_irq(struct kvm_vcpu *vcpu)
+static int pkvm_inject_irq(struct kvm_vcpu *vcpu)
 {
 	struct kvm_vcpu *shared_vcpu = to_pkvm_vcpu(vcpu)->shared_vcpu;
 
 	if (WARN_ON_ONCE(pkvm_interrupt_allowed(vcpu, true) <= 0))
-		return;
+		return -EBUSY;
+
+	/*
+	 * Injecting software interrupts will change the guest's RIP. As there
+	 * is no usage to require the host to do so for a pVM, disallow the host
+	 * to inject software interrupts to a pVM for security reason.
+	 *
+	 * As the pVM's exceptions are emulated and injected by the pKVM itself,
+	 * the host is not allowed to inject exceptions to the pVM. So validate
+	 * the interrupt vector number to make sure it won't be a reserved
+	 * vector number by the Intel 64 and IA-32 architectures for
+	 * architecture-defined exceptions.
+	 */
+	if (pkvm_is_protected_vcpu(vcpu) && (shared_vcpu->arch.interrupt.soft ||
+					     shared_vcpu->arch.interrupt.nr < 32))
+		return -EPERM;
 
 	vcpu->arch.interrupt.soft = shared_vcpu->arch.interrupt.soft;
 	vcpu->arch.interrupt.nr = shared_vcpu->arch.interrupt.nr;
 	kvm_x86_call(inject_irq)(vcpu, false);
+
+	return 0;
 }
 
-static void pkvm_inject_nmi(struct kvm_vcpu *vcpu)
+static int pkvm_inject_nmi(struct kvm_vcpu *vcpu)
 {
 	if (WARN_ON_ONCE(pkvm_nmi_allowed(vcpu, true) <= 0))
-		return;
+		return -EBUSY;
 
 	kvm_x86_call(inject_nmi)(vcpu);
+
+	return 0;
 }
 
 static void pkvm_inject_exception(struct kvm_vcpu *vcpu)
@@ -1054,9 +1154,19 @@ static void pkvm_cancel_injection(struct kvm_vcpu *vcpu)
 		shared_vcpu->arch.nmi_injected = true;
 		vcpu->arch.nmi_injected = false;
 	} else if (vcpu->arch.interrupt.injected) {
-		kvm_queue_interrupt(shared_vcpu, vcpu->arch.interrupt.nr,
-				    vcpu->arch.interrupt.soft);
-		kvm_clear_interrupt_queue(vcpu);
+		/*
+		 * The npVM's injected software and external interrupts can be
+		 * canceled as the host is allowed to inject both. But the host
+		 * is not allowed to inject the pVM's software interrupt, and
+		 * the pending pVM's software interrupt (exits during delivering
+		 * a software interrupt) should be injected by the pKVM, thus
+		 * the host cannot cancel such injection.
+		 */
+		if (!pkvm_is_protected_vcpu(vcpu) || !vcpu->arch.interrupt.soft) {
+			kvm_queue_interrupt(shared_vcpu, vcpu->arch.interrupt.nr,
+					    vcpu->arch.interrupt.soft);
+			kvm_clear_interrupt_queue(vcpu);
+		}
 	} else if (!pkvm_is_protected_vcpu(vcpu) && vcpu->arch.exception.injected) {
 		/*
 		 * For the pVM, the exception can only be injected and canceled
@@ -1069,24 +1179,15 @@ static void pkvm_cancel_injection(struct kvm_vcpu *vcpu)
 	}
 }
 
-static void pkvm_set_virtual_apic_mode(struct kvm_vcpu *vcpu)
+static int pkvm_refresh_apicv_exec_ctrl(struct kvm_vcpu *vcpu, bool apicv_active)
 {
-	u64 apic_base = to_pkvm_vcpu(vcpu)->shared_vcpu->arch.apic_base;
-
-	if ((vcpu->arch.apic_base ^ apic_base) & MSR_IA32_APICBASE_ENABLE)
-		vcpu->arch.cpuid_dynamic_bits_dirty = true;
-
-	vcpu->arch.apic_base = apic_base;
-	kvm_x86_call(set_virtual_apic_mode)(vcpu);
-}
-
-static void pkvm_refresh_apicv_exec_ctrl(struct kvm_vcpu *vcpu, bool apicv_active)
-{
-	if (!lapic_in_kernel(vcpu))
-		return;
+	if (!lapic_in_kernel(vcpu) || (!enable_apicv && apicv_active))
+		return -EINVAL;
 
 	vcpu->arch.apic->apicv_active = apicv_active;
-	kvm_x86_call(refresh_apicv_exec_ctrl)(vcpu);
+	kvm_make_request(KVM_REQ_APICV_UPDATE, vcpu);
+
+	return 0;
 }
 
 static void pkvm_load_eoi_exitmap(struct kvm_vcpu *vcpu, u64 eoi_exit_bitmap0,
@@ -1103,10 +1204,35 @@ static void pkvm_load_eoi_exitmap(struct kvm_vcpu *vcpu, u64 eoi_exit_bitmap0,
 	kvm_x86_call(load_eoi_exitmap)(vcpu, eoi_exit_bitmap);
 }
 
-static void pkvm_sync_pir_to_irr(struct kvm_vcpu *vcpu, int pir)
+static int pkvm_hwapic_isr_update(struct kvm_vcpu *vcpu, int max_isr)
 {
-	to_pkvm_vcpu(vcpu)->max_irr = pir;
-	kvm_x86_call(sync_pir_to_irr)(vcpu);
+	if (!lapic_in_kernel(vcpu) || !vcpu->arch.apic->apicv_active)
+		return -EOPNOTSUPP;
+
+	/*
+	 * The value -1 represents no interrupt, thus always allow the host to
+	 * update the ISR in this case. For the other values, should do proper
+	 * checks.
+	 *
+	 * For a protected APIC, the ISR state is protected so don't allow the
+	 * host to update it. But the host will recognize the protected apic
+	 * after the vCPU starts running. Before that the host may still use
+	 * this PV interface with value -1 for the protected apic to indicate no
+	 * interrupts when reset the vCPU. So don't allow for any other max_isr
+	 * values for the protected apic.
+	 *
+	 * For pVMs which don't have protected apic, also needs to validate the
+	 * max_isr value to make sure the host cannot inject an exception vector
+	 * for the same security reason with the PV interface __pkvm__inject_irq.
+	 * See comments in the function pkvm_inject_irq.
+	 */
+	if ((max_isr != -1) && (vcpu->arch.apic->guest_apic_protected ||
+				(pkvm_is_protected_vcpu(vcpu) && max_isr < 32)))
+		return -EPERM;
+
+	kvm_x86_call(hwapic_isr_update)(vcpu, max_isr);
+
+	return 0;
 }
 
 static int pkvm_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu,
@@ -1148,6 +1274,20 @@ static int pkvm_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu,
 	ret = kvm_set_cpuid(vcpu, new, new_nent);
 	if (ret)
 		goto undonate;
+
+	/*
+	 * The pVM will directly boot with lapic in x2apic mode, which requires
+	 * the X86_FEATURE_X2APIC to be set in the vCPUID. The vCPUID entries
+	 * are enforced by pkvm_enforce_cpuid() via overriding the vCPUID leaf
+	 * 0x1 ECX X2APIC feature bit with the value from the native CPUID. As
+	 * the pKVM initialization requires the native lapic in X2APIC mode, it
+	 * means that the native CPUID will always have the X2APIC feature bit
+	 * set, thus the enforced vCPUID will also always have the X2APIC set
+	 * for a pVM. So it must be a pKVM code bug if the pVM doesn't have
+	 * X2APIC feature after enforcing.
+	 */
+	if (pkvm_is_protected_vcpu(vcpu))
+		BUG_ON(!guest_cpu_cap_has(vcpu, X86_FEATURE_X2APIC));
 
 	memset(mc, 0, sizeof(*mc));
 	/*
@@ -1340,7 +1480,7 @@ static void pkvm_vcpu_pvmfw_entry_init(struct kvm_vcpu *vcpu)
 
 static void pkvm_vcpu_ap_entry_init(struct kvm_vcpu *vcpu)
 {
-	kvm_vcpu_reset(vcpu, true);
+	pkvm_vcpu_reset(vcpu, true);
 	kvm_vcpu_deliver_sipi_vector(vcpu, vcpu->arch.apic->sipi_vector);
 }
 
@@ -1536,6 +1676,16 @@ static int pkvm_complete_emulated_msr(struct kvm_vcpu *vcpu, int err)
 	 */
 	to_pkvm_vcpu(vcpu)->host_emulated_msr_err = err;
 	return 1;
+}
+
+static int pkvm_protected_apic_has_interrupt(struct kvm_vcpu *vcpu, bool *has_intr)
+{
+	if (!lapic_in_kernel(vcpu) || !vcpu->arch.apic->guest_apic_protected)
+		return -EOPNOTSUPP;
+
+	*has_intr = (kvm_apic_has_interrupt(vcpu) != -1);
+
+	return 0;
 }
 
 static int pkvm_vm_mmu_map(unsigned long gpa, unsigned long hpa,
@@ -1734,10 +1884,10 @@ static int pkvm_vcpu_handle_host_hypercall(struct kvm_vcpu *hvcpu, enum pkvm_hc 
 		kvm_x86_call(set_nmi_mask)(vcpu, pkvm_hc_input1(hvcpu));
 		break;
 	case __pkvm__inject_irq:
-		pkvm_inject_irq(vcpu);
+		ret = pkvm_inject_irq(vcpu);
 		break;
 	case __pkvm__inject_nmi:
-		pkvm_inject_nmi(vcpu);
+		ret = pkvm_inject_nmi(vcpu);
 		break;
 	case __pkvm__inject_exception:
 		pkvm_inject_exception(vcpu);
@@ -1750,20 +1900,18 @@ static int pkvm_vcpu_handle_host_hypercall(struct kvm_vcpu *hvcpu, enum pkvm_hc 
 						   pkvm_hc_input2(hvcpu));
 		break;
 	case __pkvm__set_virtual_apic_mode:
-		pkvm_set_virtual_apic_mode(vcpu);
+		ret = kvm_apic_set_base(vcpu, to_pkvm_vcpu(vcpu)->shared_vcpu->arch.apic_base,
+					true);
 		break;
 	case __pkvm__refresh_apicv_exec_ctrl:
-		pkvm_refresh_apicv_exec_ctrl(vcpu, pkvm_hc_input1(hvcpu));
+		ret = pkvm_refresh_apicv_exec_ctrl(vcpu, pkvm_hc_input1(hvcpu));
 		break;
 	case __pkvm__load_eoi_exitmap:
 		pkvm_load_eoi_exitmap(vcpu, pkvm_hc_input1(hvcpu), pkvm_hc_input2(hvcpu),
 				      pkvm_hc_input3(hvcpu), pkvm_hc_input4(hvcpu));
 		break;
 	case __pkvm__hwapic_isr_update:
-		kvm_x86_call(hwapic_isr_update)(vcpu, pkvm_hc_input1(hvcpu));
-		break;
-	case __pkvm__sync_pir_to_irr:
-		pkvm_sync_pir_to_irr(vcpu, pkvm_hc_input1(hvcpu));
+		ret = pkvm_hwapic_isr_update(vcpu, pkvm_hc_input1(hvcpu));
 		break;
 	case __pkvm__vcpu_after_set_cpuid:
 		ret = pkvm_vcpu_after_set_cpuid(vcpu, pkvm_host_gpa_to_phys(pkvm_hc_input1(hvcpu)),
@@ -1791,6 +1939,10 @@ static int pkvm_vcpu_handle_host_hypercall(struct kvm_vcpu *hvcpu, enum pkvm_hc 
 		break;
 	case __pkvm__complete_emulated_msr:
 		ret = pkvm_complete_emulated_msr(vcpu, pkvm_hc_input1(hvcpu));
+		break;
+	case __pkvm__protected_apic_has_interrupt:
+		ret = pkvm_protected_apic_has_interrupt(vcpu,
+				&out->protected_apic_has_interrupt.has_intr);
 		break;
 	default:
 		ret = -EINVAL;

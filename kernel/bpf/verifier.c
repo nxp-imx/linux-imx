@@ -2347,6 +2347,9 @@ static void __update_reg32_bounds(struct bpf_reg_state *reg)
 
 static void __update_reg64_bounds(struct bpf_reg_state *reg)
 {
+	u64 tnum_next, tmax;
+	bool umin_in_tnum;
+
 	/* min signed is max(sign bit) | min(other bits) */
 	reg->smin_value = max_t(s64, reg->smin_value,
 				reg->var_off.value | (reg->var_off.mask & S64_MIN));
@@ -2356,6 +2359,33 @@ static void __update_reg64_bounds(struct bpf_reg_state *reg)
 	reg->umin_value = max(reg->umin_value, reg->var_off.value);
 	reg->umax_value = min(reg->umax_value,
 			      reg->var_off.value | reg->var_off.mask);
+
+	/* Check if u64 and tnum overlap in a single value */
+	tnum_next = tnum_step(reg->var_off, reg->umin_value);
+	umin_in_tnum = (reg->umin_value & ~reg->var_off.mask) == reg->var_off.value;
+	tmax = reg->var_off.value | reg->var_off.mask;
+	if (umin_in_tnum && tnum_next > reg->umax_value) {
+		/* The u64 range and the tnum only overlap in umin.
+		 * u64:  ---[xxxxxx]-----
+		 * tnum: --xx----------x-
+		 */
+		___mark_reg_known(reg, reg->umin_value);
+	} else if (!umin_in_tnum && tnum_next == tmax) {
+		/* The u64 range and the tnum only overlap in the maximum value
+		 * represented by the tnum, called tmax.
+		 * u64:  ---[xxxxxx]-----
+		 * tnum: xx-----x--------
+		 */
+		___mark_reg_known(reg, tmax);
+	} else if (!umin_in_tnum && tnum_next <= reg->umax_value &&
+		   tnum_step(reg->var_off, tnum_next) > reg->umax_value) {
+		/* The u64 range and the tnum only overlap in between umin
+		 * (excluded) and umax.
+		 * u64:  ---[xxxxxx]-----
+		 * tnum: xx----x-------x-
+		 */
+		___mark_reg_known(reg, tnum_next);
+	}
 }
 
 static void __update_reg_bounds(struct bpf_reg_state *reg)
@@ -15377,6 +15407,48 @@ static void scalar_min_max_arsh(struct bpf_reg_state *dst_reg,
 	__update_reg_bounds(dst_reg);
 }
 
+static void scalar_byte_swap(struct bpf_reg_state *dst_reg, struct bpf_insn *insn)
+{
+	/*
+	 * Byte swap operation - update var_off using tnum_bswap.
+	 * Three cases:
+	 * 1. bswap(16|32|64): opcode=0xd7 (BPF_END | BPF_ALU64 | BPF_TO_LE)
+	 *    unconditional swap
+	 * 2. to_le(16|32|64): opcode=0xd4 (BPF_END | BPF_ALU | BPF_TO_LE)
+	 *    swap on big-endian, truncation or no-op on little-endian
+	 * 3. to_be(16|32|64): opcode=0xdc (BPF_END | BPF_ALU | BPF_TO_BE)
+	 *    swap on little-endian, truncation or no-op on big-endian
+	 */
+
+	bool alu64 = BPF_CLASS(insn->code) == BPF_ALU64;
+	bool to_le = BPF_SRC(insn->code) == BPF_TO_LE;
+	bool is_big_endian;
+#ifdef CONFIG_CPU_BIG_ENDIAN
+	is_big_endian = true;
+#else
+	is_big_endian = false;
+#endif
+	/* Apply bswap if alu64 or switch between big-endian and little-endian machines */
+	bool need_bswap = alu64 || (to_le == is_big_endian);
+
+	if (need_bswap) {
+		if (insn->imm == 16)
+			dst_reg->var_off = tnum_bswap16(dst_reg->var_off);
+		else if (insn->imm == 32)
+			dst_reg->var_off = tnum_bswap32(dst_reg->var_off);
+		else if (insn->imm == 64)
+			dst_reg->var_off = tnum_bswap64(dst_reg->var_off);
+		/*
+		 * Byteswap scrambles the range, so we must reset bounds.
+		 * Bounds will be re-derived from the new tnum later.
+		 */
+		__mark_reg_unbounded(dst_reg);
+	}
+	/* For bswap16/32, truncate dst register to match the swapped size */
+	if (insn->imm == 16 || insn->imm == 32)
+		coerce_reg_to_size(dst_reg, insn->imm / 8);
+}
+
 static bool is_safe_to_compute_dst_reg_range(struct bpf_insn *insn,
 					     const struct bpf_reg_state *src_reg)
 {
@@ -15403,6 +15475,7 @@ static bool is_safe_to_compute_dst_reg_range(struct bpf_insn *insn,
 	case BPF_XOR:
 	case BPF_OR:
 	case BPF_MUL:
+	case BPF_END:
 		return true;
 
 	/* Shift operators range is only computable if shift dimension operand
@@ -15551,12 +15624,23 @@ static int adjust_scalar_min_max_vals(struct bpf_verifier_env *env,
 		else
 			scalar_min_max_arsh(dst_reg, &src_reg);
 		break;
+	case BPF_END:
+		scalar_byte_swap(dst_reg, insn);
+		break;
 	default:
 		break;
 	}
 
-	/* ALU32 ops are zero extended into 64bit register */
-	if (alu32)
+	/*
+	 * ALU32 ops are zero extended into 64bit register.
+	 *
+	 * BPF_END is already handled inside the helper (truncation),
+	 * so skip zext here to avoid unexpected zero extension.
+	 * e.g., le64: opcode=(BPF_END|BPF_ALU|BPF_TO_LE), imm=0x40
+	 * This is a 64bit byte swap operation with alu32==true,
+	 * but we should not zero extend the result.
+	 */
+	if (alu32 && opcode != BPF_END)
 		zext_32_to_64(dst_reg);
 	reg_bounds_sync(dst_reg);
 	return 0;
@@ -15736,7 +15820,7 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 		}
 
 		/* check dest operand */
-		if (opcode == BPF_NEG &&
+		if ((opcode == BPF_NEG || opcode == BPF_END) &&
 		    regs[insn->dst_reg].type == SCALAR_VALUE) {
 			err = check_reg_arg(env, insn->dst_reg, DST_OP_NO_MARK);
 			err = err ?: adjust_scalar_min_max_vals(env, insn,
@@ -16699,17 +16783,24 @@ static void __collect_linked_regs(struct linked_regs *reg_set, struct bpf_reg_st
  * in verifier state, save R in linked_regs if R->id == id.
  * If there are too many Rs sharing same id, reset id for leftover Rs.
  */
-static void collect_linked_regs(struct bpf_verifier_state *vstate, u32 id,
+static void collect_linked_regs(struct bpf_verifier_env *env,
+				struct bpf_verifier_state *vstate,
+				u32 id,
 				struct linked_regs *linked_regs)
 {
+	struct bpf_insn_aux_data *aux = env->insn_aux_data;
 	struct bpf_func_state *func;
 	struct bpf_reg_state *reg;
+	u16 live_regs;
 	int i, j;
 
 	id = id & ~BPF_ADD_CONST;
 	for (i = vstate->curframe; i >= 0; i--) {
+		live_regs = aux[frame_insn_idx(vstate, i)].live_regs_before;
 		func = vstate->frame[i];
 		for (j = 0; j < BPF_REG_FP; j++) {
+			if (!(live_regs & BIT(j)))
+				continue;
 			reg = &func->regs[j];
 			__collect_linked_regs(linked_regs, reg, id, i, j, true);
 		}
@@ -16915,9 +17006,9 @@ static int check_cond_jmp_op(struct bpf_verifier_env *env,
 	 * if parent state is created.
 	 */
 	if (BPF_SRC(insn->code) == BPF_X && src_reg->type == SCALAR_VALUE && src_reg->id)
-		collect_linked_regs(this_branch, src_reg->id, &linked_regs);
+		collect_linked_regs(env, this_branch, src_reg->id, &linked_regs);
 	if (dst_reg->type == SCALAR_VALUE && dst_reg->id)
-		collect_linked_regs(this_branch, dst_reg->id, &linked_regs);
+		collect_linked_regs(env, this_branch, dst_reg->id, &linked_regs);
 	if (linked_regs.cnt > 1) {
 		err = push_jmp_history(env, this_branch, 0, linked_regs_pack(&linked_regs));
 		if (err)

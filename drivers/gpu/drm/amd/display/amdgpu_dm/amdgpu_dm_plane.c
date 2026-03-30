@@ -1256,6 +1256,14 @@ static int amdgpu_dm_plane_atomic_check(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
+	/* Reject commits that attempt to use both COLOR_PIPELINE and CRTC DEGAMMA_LUT */
+	if (new_plane_state->color_pipeline && new_crtc_state->degamma_lut) {
+		drm_dbg_atomic(plane->dev,
+			       "[PLANE:%d:%s] COLOR_PIPELINE and CRTC DEGAMMA_LUT cannot be enabled simultaneously\n",
+			       plane->base.id, plane->name);
+		return -EINVAL;
+	}
+
 	ret = amdgpu_dm_plane_fill_dc_scaling_info(adev, new_plane_state, &scaling_info);
 	if (ret)
 		return ret;
@@ -1795,12 +1803,13 @@ dm_atomic_plane_get_property(struct drm_plane *plane,
 static int
 dm_plane_init_colorops(struct drm_plane *plane)
 {
-	struct drm_prop_enum_list pipelines[MAX_COLOR_PIPELINES];
+	struct drm_prop_enum_list pipelines[MAX_COLOR_PIPELINES] = {};
 	struct drm_device *dev = plane->dev;
 	struct amdgpu_device *adev = drm_to_adev(dev);
 	struct dc *dc = adev->dm.dc;
 	int len = 0;
-	int ret;
+	int ret = 0;
+	int i;
 
 	if (plane->type == DRM_PLANE_TYPE_CURSOR)
 		return 0;
@@ -1811,7 +1820,7 @@ dm_plane_init_colorops(struct drm_plane *plane)
 		if (ret) {
 			drm_err(plane->dev, "Failed to create color pipeline for plane %d: %d\n",
 				plane->base.id, ret);
-			return ret;
+			goto out;
 		}
 		len++;
 
@@ -1819,7 +1828,11 @@ dm_plane_init_colorops(struct drm_plane *plane)
 		drm_plane_create_color_pipeline_property(plane, pipelines, len);
 	}
 
-	return 0;
+out:
+	for (i = 0; i < len; i++)
+		kfree(pipelines[i].name);
+
+	return ret;
 }
 #endif
 

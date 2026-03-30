@@ -133,6 +133,24 @@ TRACE_EVENT(kvm_set_guest_debug,
 	TP_printk("vcpu: %p, flags: 0x%08x", __entry->vcpu, __entry->guest_debug)
 );
 
+TRACE_EVENT(kvm_handle_hyp_req,
+	TP_PROTO(struct kvm_vcpu *vcpu, struct kvm_hyp_req *req),
+	TP_ARGS(vcpu, req),
+
+	TP_STRUCT__entry(
+		__field(u8, type)
+		__field(bool, is_vcpu)
+	),
+
+	TP_fast_assign(
+		__entry->type = req->type;
+		__entry->is_vcpu = !!vcpu;
+	),
+
+	TP_printk("type: %u, channel: %s",
+		  __entry->type, __entry->is_vcpu ? "vcpu" : "HVC")
+);
+
 #endif /* _TRACE_HANDLE_EXIT_ARM64_KVM_H */
 
 #undef TRACE_INCLUDE_PATH

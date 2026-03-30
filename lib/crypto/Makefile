@@ -282,6 +282,8 @@ obj-$(CONFIG_MPILIB) += mpi/
 
 obj-$(CONFIG_CRYPTO_SELFTESTS_FULL)		+= simd.o
 
+obj-$(CONFIG_CRYPTO_FIPS140_LIB_OVERRIDE_SUPPORT) += fips140.o
+
 obj-$(CONFIG_CRYPTO_LIB_SM3)			+= libsm3.o
 libsm3-y					:= sm3.o
 

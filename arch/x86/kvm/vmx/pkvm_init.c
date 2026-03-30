@@ -171,6 +171,71 @@ static __init int pkvm_setup_host_vmcs_config(void)
 		.vmentry_ctrl_opt = 0,
 	};
 
+	if (boot_cpu_has(X86_FEATURE_INTEL_PT)) {
+		/*
+		 * Enable the RTIT VM-Exit/VM-Entry controls to guarantee the
+		 * deprivileged host cannot profile the pKVM via Intel PT.
+		 *
+		 * Hide the vmx non-root indications and the VMCS packets from
+		 * the Intel PT, and make the output written to the GPA which
+		 * can be translated by the EPT.
+		 */
+		setting.vmexit_ctrl_req |= VM_EXIT_PT_CONCEAL_PIP |
+					   VM_EXIT_CLEAR_IA32_RTIT_CTL;
+		setting.vmentry_ctrl_req |= VM_ENTRY_PT_CONCEAL_PIP |
+					    VM_ENTRY_LOAD_IA32_RTIT_CTL;
+		setting.secondary_vm_exec_ctrl_req |= SECONDARY_EXEC_PT_CONCEAL_VMX |
+						      SECONDARY_EXEC_PT_USE_GPA;
+	}
+
+	if (boot_cpu_has(X86_FEATURE_ARCH_LBR)) {
+		/*
+		 * Enable the arch-LBR VM-Exit/VM-Entry controls to guarantee the
+		 * deprivileged host cannot profile the pKVM via arch-LBR.
+		 */
+		setting.vmexit_ctrl_req |= VM_EXIT_CLEAR_IA32_LBR_CTL;
+		setting.vmentry_ctrl_req |= VM_ENTRY_LOAD_IA32_LBR_CTL;
+	}
+
+	if (boot_cpu_has(X86_FEATURE_IBT) || boot_cpu_has(X86_FEATURE_SHSTK)) {
+		unsigned long s_cet;
+
+		rdmsrq(MSR_IA32_S_CET, s_cet);
+		/*
+		 * Supervisor shadow stack is not enabled in the linux kernel
+		 * yet. The VMCS shadow stack fields of both guest (deprivileged
+		 * host) and host (pKVM) will be initialized as 0 to simplify.
+		 * So check the shadow stack enable bit here to guarantee this
+		 * assumption.
+		 */
+		if (s_cet & CET_SHSTK_EN) {
+			pr_warn("Supervisor Shadow Stack is enabled but not supported by pKVM\n");
+			return -EOPNOTSUPP;
+		}
+
+		/*
+		 * Enable the CET VM-Exit/VM-Entry controls to guarantee the
+		 * deprivileged host cannot manipulate the control flow of the
+		 * pKVM.
+		 */
+		setting.vmexit_ctrl_req |= VM_EXIT_LOAD_CET_STATE;
+		setting.vmentry_ctrl_req |= VM_ENTRY_LOAD_CET_STATE;
+	}
+
+	if (boot_cpu_has(X86_FEATURE_MPX)) {
+		/*
+		 * The MPX is deprecated in the newer Intel CPU, e.g., PTL. In
+		 * case the pKVM hypervisor runs on some older Intel CPU which
+		 * has the MPX, enable the MPX vmexit control to guarantee the
+		 * MSR_IA32_BNDCFGS will be cleared for the pKVM hypervisor.
+		 *
+		 * No need to enable vmentry control to load IA32_BNDCFGS for
+		 * the deprivileged host as the linux kernel will not use the
+		 * MPX even if the CPU supports it.
+		 */
+		setting.vmexit_ctrl_req |= VM_EXIT_CLEAR_BNDCFGS;
+	}
+
 	if (setup_vmcs_config_common(vmcs_config, vmx_cap, &setting))
 		return -EINVAL;
 
@@ -769,6 +834,29 @@ static __init void init_guest_state_area_from_native(struct vcpu_vmx *vmx)
 		pmu->global_ctrl = msrq;
 		vmcs_write64(GUEST_IA32_PERF_GLOBAL_CTRL, msrq);
 	}
+
+	if (boot_cpu_has(X86_FEATURE_INTEL_PT)) {
+		rdmsrq(MSR_IA32_RTIT_CTL, msrq);
+		vmcs_write64(GUEST_IA32_RTIT_CTL, msrq);
+	}
+
+	if (boot_cpu_has(X86_FEATURE_ARCH_LBR)) {
+		rdmsrq(MSR_ARCH_LBR_CTL, msrq);
+		vmcs_write64(GUEST_IA32_LBR_CTL, msrq);
+	}
+
+	if (boot_cpu_has(X86_FEATURE_IBT) || boot_cpu_has(X86_FEATURE_SHSTK)) {
+		rdmsrq(MSR_IA32_S_CET, msrq);
+		vmcs_writel(GUEST_S_CET, msrq);
+		/*
+		 * Supervisor shadow stack is guaranteed not to be enabled. See
+		 * comments in pkvm_setup_host_vmcs_config.
+		 */
+		if (boot_cpu_has(X86_FEATURE_SHSTK)) {
+			vmcs_writel(GUEST_SSP, 0);
+			vmcs_writel(GUEST_INTR_SSP_TABLE, 0);
+		}
+	}
 }
 
 static __init void init_guest_state_area(struct vcpu_vmx *vmx)
@@ -872,6 +960,19 @@ static __init void init_host_state_area(struct vcpu_vmx *vmx, struct pkvm_hyp *p
 
 	vmcs_write64(HOST_IA32_PERF_GLOBAL_CTRL, 0);
 
+	if (boot_cpu_has(X86_FEATURE_IBT) || boot_cpu_has(X86_FEATURE_SHSTK)) {
+		rdmsrq(MSR_IA32_S_CET, msrq);
+		vmcs_writel(HOST_S_CET, msrq);
+		/*
+		 * Supervisor shadow stack is guaranteed not to be enabled. See
+		 * comments in pkvm_setup_host_vmcs_config.
+		 */
+		if (boot_cpu_has(X86_FEATURE_SHSTK)) {
+			vmcs_writel(HOST_SSP, 0);
+			vmcs_writel(HOST_INTR_SSP_TABLE, 0);
+		}
+	}
+
 	/*
 	 * [pcpu->stack, pcpu->stack + PKVM_STACK_SIZE) is per cpu stack.
 	 * It is used as stack when the pcpu enters pKVM, i.e. HOST stack from
@@ -919,6 +1020,15 @@ static __init void init_execution_control(struct vcpu_vmx *vmx)
 	secondary_exec_controls_set(vmx, pkvm_sym(host_vmcs_config).cpu_based_2nd_exec_ctrl &
 					 ~(SECONDARY_EXEC_ENABLE_EPT |
 					   SECONDARY_EXEC_ENABLE_VPID));
+
+	/*
+	 * The SECONDARY_EXEC_PT_USE_GPA bit is depending on the
+	 * SECONDARY_EXEC_ENABLE_EPT bit. Remove it at this point
+	 * and re-enable it after the EPT is enabled.
+	 */
+	if (boot_cpu_has(X86_FEATURE_INTEL_PT))
+		secondary_exec_controls_clearbit(vmx, SECONDARY_EXEC_PT_USE_GPA);
+
 	/*
 	 * Shadow VMCS will not be used as the VMCS will be exposed via PV-based
 	 * method.
@@ -972,6 +1082,25 @@ static __init void init_vmentry_control(struct vcpu_vmx *vmx)
 	/* No need to switch if PMU is not enabled */
 	if (!pmu->global_ctrl)
 		vmentry_ctrl &= ~VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL;
+
+	if (boot_cpu_has(X86_FEATURE_INTEL_PT)) {
+		u64 rtit;
+
+		rdmsrq(MSR_IA32_RTIT_CTL, rtit);
+		if (rtit & RTIT_CTL_TRACEEN) {
+			/*
+			 * According to SDM Vol.3 VM-Execution Control Fields:
+			 * If the logical processor is operating with Intel PT
+			 * enabled (if IA32_RTIT_CTL.TraceEn = 1) at the time of
+			 * VM entry, the “load IA32_RTIT_CTL” VM-entry control
+			 * must be 0.
+			 *
+			 * So need to clear the VM_ENTRY_LOAD_IA32_RTIT_CTL bit
+			 * and set it back after VM-Exit.
+			 */
+			vmentry_ctrl &= ~VM_ENTRY_LOAD_IA32_RTIT_CTL;
+		}
+	}
 
 	vm_entry_controls_set(vmx, vmentry_ctrl);
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, 0);

@@ -353,19 +353,21 @@ static void flush_reclaim_state(struct scan_control *sc)
 static bool can_demote(int nid, struct scan_control *sc,
 		       struct mem_cgroup *memcg)
 {
-	int demotion_nid;
+	struct pglist_data *pgdat = NODE_DATA(nid);
+	nodemask_t allowed_mask;
 
-	if (!numa_demotion_enabled)
+	if (!pgdat || !numa_demotion_enabled)
 		return false;
 	if (sc && sc->no_demotion)
 		return false;
 
-	demotion_nid = next_demotion_node(nid);
-	if (demotion_nid == NUMA_NO_NODE)
+	node_get_allowed_targets(pgdat, &allowed_mask);
+	if (nodes_empty(allowed_mask))
 		return false;
 
-	/* If demotion node isn't in the cgroup's mems_allowed, fall back */
-	return mem_cgroup_node_allowed(memcg, demotion_nid);
+	/* Filter out nodes that are not in cgroup's mems_allowed. */
+	mem_cgroup_node_filter_allowed(memcg, &allowed_mask);
+	return !nodes_empty(allowed_mask);
 }
 
 static inline bool can_reclaim_anon_pages(struct mem_cgroup *memcg,
@@ -1068,9 +1070,10 @@ static struct folio *alloc_demote_folio(struct folio *src,
  * Folios which are not demoted are left on @demote_folios.
  */
 static unsigned int demote_folio_list(struct list_head *demote_folios,
-				     struct pglist_data *pgdat)
+				      struct pglist_data *pgdat,
+				      struct mem_cgroup *memcg)
 {
-	int target_nid = next_demotion_node(pgdat->node_id);
+	int target_nid;
 	unsigned int nr_succeeded;
 	nodemask_t allowed_mask;
 
@@ -1082,7 +1085,6 @@ static unsigned int demote_folio_list(struct list_head *demote_folios,
 		 */
 		.gfp_mask = (GFP_HIGHUSER_MOVABLE & ~__GFP_RECLAIM) | __GFP_NOWARN |
 			__GFP_NOMEMALLOC | GFP_NOWAIT,
-		.nid = target_nid,
 		.nmask = &allowed_mask,
 		.reason = MR_DEMOTION,
 	};
@@ -1090,10 +1092,18 @@ static unsigned int demote_folio_list(struct list_head *demote_folios,
 	if (list_empty(demote_folios))
 		return 0;
 
-	if (target_nid == NUMA_NO_NODE)
+	node_get_allowed_targets(pgdat, &allowed_mask);
+	mem_cgroup_node_filter_allowed(memcg, &allowed_mask);
+	if (nodes_empty(allowed_mask))
 		return 0;
 
-	node_get_allowed_targets(pgdat, &allowed_mask);
+	target_nid = next_demotion_node(pgdat->node_id);
+	if (target_nid == NUMA_NO_NODE)
+		/* No lower-tier nodes or nodes were hot-unplugged. */
+		return 0;
+	if (!node_isset(target_nid, allowed_mask))
+		target_nid = node_random(&allowed_mask);
+	mtc.nid = target_nid;
 
 	/* Demotion ignores all cpuset and mempolicy settings */
 	migrate_pages(demote_folios, alloc_demote_folio, NULL,
@@ -1630,6 +1640,10 @@ activate_locked:
 			folio_free_swap(folio);
 		VM_BUG_ON_FOLIO(folio_test_active(folio), folio);
 		if (!folio_test_mlocked(folio)) {
+			bool skip = false;
+			trace_android_vh_folio_skip_activate(folio, &skip);
+			if (skip)
+				goto keep_locked;
 			int type = folio_is_file_lru(folio);
 			folio_set_active(folio);
 			stat->nr_activate[type] += nr_pages;
@@ -1647,7 +1661,7 @@ keep:
 	/* 'folio_list' is always empty here */
 
 	/* Migrate folios selected for demotion */
-	nr_demoted = demote_folio_list(&demote_folios, pgdat);
+	nr_demoted = demote_folio_list(&demote_folios, pgdat, memcg);
 	nr_reclaimed += nr_demoted;
 	stat->nr_demoted += nr_demoted;
 	/* Folios that could not be demoted are still in @demote_folios */
@@ -1794,6 +1808,12 @@ static unsigned long isolate_lru_folios(unsigned long nr_to_scan,
 	unsigned long nr_pages;
 	unsigned long max_nr_skipped = 0;
 	LIST_HEAD(folios_skipped);
+	unsigned long nr_scanned_before = *nr_scanned;
+
+	trace_android_vh_mm_isolate_priv_lru(nr_to_scan, lruvec, lru, dst, sc->reclaim_idx,
+					     sc->may_unmap, nr_scanned, &nr_taken);
+	if (*nr_scanned != nr_scanned_before)
+		return nr_taken;
 
 	while (scan < nr_to_scan && !list_empty(src)) {
 		struct list_head *move_to = src;
@@ -2054,7 +2074,7 @@ static unsigned long shrink_inactive_list(unsigned long nr_to_scan,
 		enum lru_list lru)
 {
 	LIST_HEAD(folio_list);
-	unsigned long nr_scanned;
+	unsigned long nr_scanned = 0;
 	unsigned int nr_reclaimed = 0;
 	unsigned long nr_taken;
 	struct reclaim_stat stat;
@@ -2176,7 +2196,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			       enum lru_list lru)
 {
 	unsigned long nr_taken;
-	unsigned long nr_scanned;
+	unsigned long nr_scanned = 0;
 	vm_flags_t vm_flags;
 	LIST_HEAD(l_hold);	/* The folios which were snipped off */
 	LIST_HEAD(l_active);
@@ -2249,9 +2269,13 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			 * so we ignore them here.
 			 */
 			if ((vm_flags & VM_EXEC) && folio_is_file_lru(folio)) {
+				bool bypass = false;
 				nr_rotated += folio_nr_pages(folio);
-				list_add(&folio->lru, &l_active);
-				continue;
+				trace_android_vh_folio_trylock_clear_bypass(folio, &bypass);
+				if (!bypass) {
+					list_add(&folio->lru, &l_active);
+					continue;
+				}
 			}
 		}
 

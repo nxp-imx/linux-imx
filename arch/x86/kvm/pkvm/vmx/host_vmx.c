@@ -400,3 +400,22 @@ handle_events:
 
 	pkvm_trace_vmexit_end(vcpu, vt->exit_reason.basic);
 }
+
+void pkvm_host_vmx_fixup(struct vcpu_vmx *vmx)
+{
+	if (boot_cpu_has(X86_FEATURE_INTEL_PT)) {
+		/*
+		 * The VM_ENTRY_LOAD_IA32_RTIT_CTL bit may be cleared due to the
+		 * MSR_IA32_RTIT_CTL TRACEEN bit is set before deprivileging. See
+		 * comments in init_vmentry_control in pkvm_init.c.
+		 *
+		 * Ensure this bit is set after the host exits to the root mode.
+		 * This can be done safely as VM_EXIT_CLEAR_IA32_RTIT_CTL is
+		 * guaranteed to be set which causes the MSR_IA32_RTIT_CTL is 0.
+		 */
+		if (!(vm_entry_controls_get(vmx) & VM_ENTRY_LOAD_IA32_RTIT_CTL))
+			vm_entry_controls_setbit(vmx, VM_ENTRY_LOAD_IA32_RTIT_CTL);
+	}
+
+	this_cpu_write(host_vcpu_fixup, false);
+}

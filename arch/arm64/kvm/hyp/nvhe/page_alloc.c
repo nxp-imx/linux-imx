@@ -376,9 +376,9 @@ int hyp_pool_reclaim(struct hyp_pool *pool, struct hyp_page *p, u8 order, bool f
 
 	hyp_spin_lock(&pool->lock);
 	for (i = 0; i < nr_pages; i++) {
-		p->refcount = 0;
-		p->order = 0;
-		p->tag = 0;
+		p[i].refcount = 0;
+		p[i].order = 0;
+		p[i].tag = 0;
 	}
 	hyp_spin_unlock(&pool->lock);
 

@@ -118,7 +118,8 @@ void register_fips140_lib_funcs(const struct fips140_lib_funcs *funcs);
  * fips140.ko, passing the name of the current function as 'func'.  (Note that
  * we can't just use __func__, since __func__ is a string.)
  */
-#ifdef BUILD_FIPS140_KO
+#if defined(BUILD_FIPS140_KO) || \
+	!defined(CONFIG_CRYPTO_FIPS140_LIB_OVERRIDE_SUPPORT)
 #define FIPS140_CALL(func, ...)
 #else
 #define FIPS140_CALL(func, ...)                                        \

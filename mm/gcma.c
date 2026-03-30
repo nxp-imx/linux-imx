@@ -496,23 +496,25 @@ static void isolate_gcma_page(struct gcma_inode *inode, struct page *page)
  */
 static void __gcma_discard_range(struct gcma_area *area,
 				unsigned long start_pfn,
-				unsigned long end_pfn)
+				unsigned long end_pfn,
+				gfp_t gfp)
 {
+	unsigned long scanned = 0;
+	unsigned long flags;
 	unsigned long pfn;
 	struct page *page;
-	unsigned long scanned = 0;
 
-	local_irq_disable();
+	local_irq_save(flags);
 
 	for (pfn = start_pfn; pfn <= end_pfn; pfn++) {
 		struct gcma_inode *inode;
 		unsigned long index;
 again:
-		if (!(++scanned % XA_CHECK_SCHED)) {
+		if (!(++scanned % XA_CHECK_SCHED) && (gfp != GFP_ATOMIC)) {
 			/* let in any pending interrupt */
-			local_irq_enable();
+			local_irq_restore(flags);
 			cond_resched();
-			local_irq_disable();
+			local_irq_save(flags);
 		}
 
 		page = pfn_to_page(pfn);
@@ -598,10 +600,10 @@ again:
 		gcma_stat_inc(DISCARDED_PAGE);
 		put_gcma_inode(inode);
 	}
-	local_irq_enable();
+	local_irq_restore(flags);
 }
 
-void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn)
+void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn, gfp_t gfp)
 {
 	int i;
 	unsigned long pfn;
@@ -621,7 +623,7 @@ void gcma_alloc_range(unsigned long start_pfn, unsigned long end_pfn)
 		s_pfn = max(start_pfn, area->start_pfn);
 		e_pfn = min(end_pfn, area->end_pfn);
 
-		__gcma_discard_range(area, s_pfn, e_pfn);
+		__gcma_discard_range(area, s_pfn, e_pfn, gfp);
 	}
 	gcma_stat_add(ALLOCATED_PAGE, end_pfn - start_pfn + 1);
 

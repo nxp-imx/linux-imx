@@ -79,6 +79,10 @@ SYM_FUNC_START(pkvm_host_vmexit_entry)
 	wrmsr
 
 .Lspec_ctrl_done:
+	cmpb $1, PER_CPU_VAR(host_vcpu_fixup)
+	je .Lfixup
+
+.Lresume:
 	/*
 	 * Restore registers to reflect the vm-exit handling/emulation result
 	 * before vmresume.
@@ -113,5 +117,9 @@ SYM_FUNC_START(pkvm_host_vmexit_entry)
 	vmread %_ASM_CX, %_ASM_AX
 failed:
 	jmp failed			/* should never come here */
+.Lfixup:
+	mov WORD_SIZE*1(%_ASM_SP), %_ASM_DI
+	call pkvm_host_vmx_fixup
+	jmp .Lresume
 SYM_FUNC_END(pkvm_host_vmexit_entry)
 STACK_FRAME_NON_STANDARD(pkvm_host_vmexit_entry);

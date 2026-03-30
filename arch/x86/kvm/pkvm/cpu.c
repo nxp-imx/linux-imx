@@ -72,6 +72,7 @@ int pkvm_setup_per_cpu(int cpu, unsigned long base)
 	per_cpu(cpu_number, cpu) = cpu;
 	per_cpu(phys_cpu, cpu) = pcpu;
 	per_cpu(host_vcpu, cpu) = vcpu;
+	per_cpu(host_vcpu_fixup, cpu) = true;
 
 	task = &per_cpu_ptr(&pkvm_task, cpu)->task;
 	task->group_leader = task;

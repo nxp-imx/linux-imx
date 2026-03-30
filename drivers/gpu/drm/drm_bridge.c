@@ -39,6 +39,11 @@
 
 #include "drm_crtc_internal.h"
 
+#include <linux/android_kabi.h>
+ANDROID_KABI_DECLONLY(acpi_device_id);
+ANDROID_KABI_DECLONLY(device_node);
+ANDROID_KABI_DECLONLY(of_device_id);
+
 /**
  * DOC: overview
  *

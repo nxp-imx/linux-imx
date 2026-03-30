@@ -85,3 +85,20 @@
   drm_panel_remove_follower
   hid_driver_reset_resume
   hid_driver_suspend
+  devm_memunmap
+  drm_property_add_enum
+  extcon_find_edev_by_node
+  iov_iter_extract_pages
+  mmc_alloc_host
+  no_seek_end_llseek
+  regulator_list_voltage
+  sha1_final
+  sha1_init
+  sha1_update
+  skb_append
+  tcpci_get_tcpm_port
+  tcpci_register_port
+  tcpci_unregister_port
+  __usb_serial_register_drivers
+  v4l2_s_ctrl
+  vmalloc_array_noprof

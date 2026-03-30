@@ -53,6 +53,8 @@
   __tracepoint_android_vh_customize_pmd_gfp_bypass
   __traceiter_android_vh_thp_vma_allowable_orders
   __tracepoint_android_vh_thp_vma_allowable_orders
+  __traceiter_android_vh_dma_buf_release
+  __tracepoint_android_vh_dma_buf_release
 
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
@@ -69,6 +71,35 @@
   __tracepoint_android_vh_mem_cgroup_charge
   __traceiter_android_rvh_swap_bio_charge
   __tracepoint_android_rvh_swap_bio_charge
+
+# required by mi_kernel_monitor.ko
+  __tracepoint_android_vh_swapin_start
+  __traceiter_android_vh_swapin_start
+  __tracepoint_android_vh_swapin_end
+  __traceiter_android_vh_swapin_end
+  __tracepoint_android_vh_swap_writepage_start
+  __traceiter_android_vh_swap_writepage_start
+  __tracepoint_android_vh_swap_writepage_end
+  __traceiter_android_vh_swap_writepage_end
+
+# required by mi_ext_lru.ko
+  mem_cgroup_iter
+  __traceiter_android_vh_readahead_add_folio
+  __tracepoint_android_vh_readahead_add_folio
+  __traceiter_android_vh_mm_split_huge_page_bypass
+  __tracepoint_android_vh_mm_split_huge_page_bypass
+  __traceiter_android_vh_mm_try_split_folio_bypass
+  __tracepoint_android_vh_mm_try_split_folio_bypass
+  __traceiter_android_vh_mm_free_page
+  __tracepoint_android_vh_mm_free_page
+  __traceiter_android_vh_mm_isolate_priv_lru
+  __tracepoint_android_vh_mm_isolate_priv_lru
+  __traceiter_android_vh_folio_skip_activate
+  __tracepoint_android_vh_folio_skip_activate
+  __traceiter_android_vh_folio_trylock_clear_bypass
+  __tracepoint_android_vh_folio_trylock_clear_bypass
+  __traceiter_android_vh_filemap_adjust_folio_flags
+  __tracepoint_android_vh_filemap_adjust_folio_flags
 
 # required by custom memory policy
   __tracepoint_android_vh_mm_get_zone_mark

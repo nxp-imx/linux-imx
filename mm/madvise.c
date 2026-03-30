@@ -1998,12 +1998,19 @@ int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in, int beh
 		.behavior = behavior,
 		.tlb = &tlb,
 	};
+	bool bypass = false;
 
 	if (madvise_should_skip(start, len_in, behavior, &error))
 		return error;
 	error = madvise_lock(&madv_behavior);
 	if (error)
 		return error;
+
+	trace_android_vh_mm_do_madvise_bypass(mm, start, len_in, behavior,
+					      &error, &bypass);
+	if (bypass)
+		return error;
+
 	madvise_init_tlb(&madv_behavior);
 	error = madvise_do_behavior(start, len_in, &madv_behavior);
 	madvise_finish_tlb(&madv_behavior);

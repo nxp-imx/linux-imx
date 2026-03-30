@@ -734,8 +734,11 @@ static int pkvm_vcpu_create(struct kvm_vcpu *vcpu)
 	vcpu_size = PKVM_VMX_VCPU_SIZE;
 	if (pkvm_is_protected_vcpu(vcpu))
 		vcpu_size += KVM_MCE_SIZE + KVM_MCI_CTL2_SIZE;
-	if (lapic_in_kernel(vcpu))
+	if (lapic_in_kernel(vcpu)) {
 		vcpu_size += sizeof(struct kvm_lapic);
+		if (pkvm_is_protected_vcpu(vcpu) && enable_apicv)
+			vcpu_size += PAGE_SIZE;
+	}
 
 	ret = -ENOMEM;
 	pkvm_vcpu = alloc_pages_exact(vcpu_size, GFP_KERNEL_ACCOUNT);
@@ -825,16 +828,23 @@ static void pkvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 
 	if (pkvm_is_protected_vcpu(vcpu)) {
 		/*
-		 * Emulating xapic mode will require the host to decode MMIO
-		 * instruction which is not supported if the guest is a pVM as
-		 * the pVM's CPU and memory state will be isolated. To avoid
-		 * using xapic mode for a pVM, enable x2apic mode by default so
-		 * that pVM will use MSR instructions to access lapic, which
-		 * doesn't require decoding.
+		 * The pVM's lapic is set up in x2apic mode by the pKVM
+		 * hypervisor when creating a vCPU. Set the apic_base from the
+		 * host side to x2apic mode to be consistent with the pKVM to
+		 * make sure the host emulated lapic registers (e.g., APIC_ID)
+		 * are initialized properly.
 		 */
 		u64 data = APIC_DEFAULT_PHYS_BASE | LAPIC_MODE_X2APIC |
 			   (kvm_vcpu_is_reset_bsp(vcpu) ? MSR_IA32_APICBASE_BSP : 0);
 
+		/*
+		 * Force set the X86_FEATURE_X2APIC bit in the vcpu caps to make
+		 * sure the x2apic mode apic base can be set successfully. Doing
+		 * so without respecting the X2APIC feature bit in the vCPUID
+		 * entries is fine as the pVM's vCPUID entries will be enforced
+		 * by the pKVM hypervisor to make sure the X2APIC feature bit
+		 * is always set.
+		 */
 		guest_cpu_cap_set(vcpu, X86_FEATURE_X2APIC);
 		kvm_apic_set_base(vcpu, data, true);
 	}
@@ -1344,6 +1354,20 @@ static fastpath_t pkvm_vcpu_run(struct kvm_vcpu *vcpu, u64 run_flags)
 		     !vcpu->arch.guest_state_protected)) {
 		vcpu->arch.guest_state_protected = true;
 		fpstate_set_confidential(&vcpu->arch.guest_fpu);
+		if (lapic_in_kernel(vcpu)) {
+			/*
+			 * As the host VMM (e.g., crosvm) is still using the
+			 * ioctl to access the pVM's apic state, i.e.,
+			 * kvm_vcpu_ioctl_get/set_lapic, defer setting the
+			 * host's guest_apic_protected flag after the vCPU
+			 * starts running to avoid failures to the crosvm.
+			 * Allowing this should be fine as the apic page is
+			 * donated to the pKVM which is inaccessible to the
+			 * host, and the host VMM can only use this ioctl to
+			 * access the states emulated by the host itself.
+			 */
+			vcpu->arch.apic->guest_apic_protected = enable_apicv;
+		}
 	}
 
 	if (unlikely(vmx_get_exit_reason(vcpu).full == 0xdead))
@@ -1550,6 +1574,9 @@ static void pkvm_update_cr8_intercept(struct kvm_vcpu *vcpu, int tpr, int irr)
 
 static void pkvm_set_virtual_apic_mode(struct kvm_vcpu *vcpu)
 {
+	if (pkvm_is_protected_vcpu(vcpu))
+		return;
+
 	if (lapic_in_kernel(vcpu))
 		KVM_BUG_ON(pkvm_hypercall(set_virtual_apic_mode), vcpu->kvm);
 }
@@ -1580,7 +1607,18 @@ static void pkvm_load_eoi_exitmap(struct kvm_vcpu *vcpu, u64 *eoi_exit_bitmap)
 
 static void pkvm_hwapic_isr_update(struct kvm_vcpu *vcpu, int max_isr)
 {
+	if (lapic_in_kernel(vcpu) && vcpu->arch.apic->guest_apic_protected)
+		return;
+
 	KVM_BUG_ON(pkvm_hypercall(hwapic_isr_update, max_isr), vcpu->kvm);
+}
+
+static int pkvm_sync_pir_to_irr(struct kvm_vcpu *vcpu)
+{
+	if (!lapic_in_kernel(vcpu) || vcpu->arch.apic->guest_apic_protected)
+		return -1;
+
+	return vmx_sync_pir_to_irr(vcpu);
 }
 
 static void pkvm_get_exit_info(struct kvm_vcpu *vcpu, u32 *reason, u64 *info1,
@@ -1825,6 +1863,23 @@ static int pkvm_complete_emulated_msr(struct kvm_vcpu *vcpu, int err)
 	return kvm_complete_insn_gp(vcpu, err);
 }
 
+static bool pkvm_protected_apic_has_interrupt(struct kvm_vcpu *vcpu)
+{
+	union pkvm_hc_data out;
+
+	if (!lapic_in_kernel(vcpu) || KVM_BUG_ON(!vcpu->arch.apic->guest_apic_protected,
+						 vcpu->kvm))
+		return false;
+
+	if (pi_has_pending_interrupt(vcpu))
+		return true;
+
+	if (KVM_BUG_ON(pkvm_hypercall_out(protected_apic_has_interrupt, &out), vcpu->kvm))
+		return false;
+
+	return out.protected_apic_has_interrupt.has_intr;
+}
+
 struct kvm_x86_ops pkvm_host_vt_x86_ops __initdata = {
 	.name = KBUILD_MODNAME,
 
@@ -1908,7 +1963,7 @@ struct kvm_x86_ops pkvm_host_vt_x86_ops __initdata = {
 	.apicv_pre_state_restore = pi_apicv_pre_state_restore,
 	.required_apicv_inhibits = VMX_REQUIRED_APICV_INHIBITS,
 	.hwapic_isr_update = pkvm_hwapic_isr_update,
-	.sync_pir_to_irr = vmx_sync_pir_to_irr,
+	.sync_pir_to_irr = pkvm_sync_pir_to_irr,
 	.deliver_interrupt = vmx_deliver_interrupt,
 	.dy_apicv_has_pending_interrupt = pi_has_pending_interrupt,
 
@@ -1956,6 +2011,8 @@ struct kvm_x86_ops pkvm_host_vt_x86_ops __initdata = {
 	.vcpu_deliver_sipi_vector = kvm_vcpu_deliver_sipi_vector,
 
 	.get_untagged_addr = vmx_get_untagged_addr,
+
+	.protected_apic_has_interrupt = pkvm_protected_apic_has_interrupt,
 };
 
 static struct kvm_pmc *pkvm_intel_rdpmc_ecx_to_pmc(struct kvm_vcpu *vcpu,

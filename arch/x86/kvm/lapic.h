@@ -11,6 +11,10 @@
 #include "hyperv.h"
 #include "smm.h"
 
+#ifdef __PKVM_HYP__
+#include "pkvm/pkvm.h"
+#endif
+
 #define KVM_APIC_INIT		0
 #define KVM_APIC_SIPI		1
 
@@ -150,6 +154,9 @@ int kvm_lapic_set_pv_eoi(struct kvm_vcpu *vcpu, u64 data, unsigned long len);
 void kvm_lapic_exit(void);
 
 u64 kvm_lapic_readable_reg_mask(struct kvm_lapic *apic);
+#ifdef __PKVM_HYP__
+u64 pkvm_protected_lapic_readable_reg_mask(struct kvm_lapic *apic);
+#endif
 
 static inline void kvm_lapic_set_irr(int vec, struct kvm_lapic *apic)
 {
@@ -183,18 +190,27 @@ extern struct static_key_false_deferred apic_hw_disabled;
 
 static inline bool kvm_apic_hw_enabled(struct kvm_lapic *apic)
 {
+#ifndef __PKVM_HYP__
 	if (static_branch_unlikely(&apic_hw_disabled.key))
 		return apic->vcpu->arch.apic_base & MSR_IA32_APICBASE_ENABLE;
 	return true;
+#else
+	return apic->vcpu->arch.apic_base & MSR_IA32_APICBASE_ENABLE;
+#endif
 }
 
 extern struct static_key_false_deferred apic_sw_disabled;
 
 static inline bool kvm_apic_sw_enabled(struct kvm_lapic *apic)
 {
+#ifndef __PKVM_HYP__
 	if (static_branch_unlikely(&apic_sw_disabled.key))
 		return apic->sw_enabled;
 	return true;
+#else
+	return apic_get_reg(to_pkvm_vcpu(apic->vcpu)->shared_lapic_regs, APIC_SPIV) &
+	       APIC_SPIV_APIC_ENABLED;
+#endif
 }
 
 static inline bool kvm_apic_present(struct kvm_vcpu *vcpu)
@@ -234,6 +250,8 @@ static inline int kvm_lapic_latched_init(struct kvm_vcpu *vcpu)
 }
 
 bool kvm_apic_pending_eoi(struct kvm_vcpu *vcpu, int vector);
+
+bool kvm_lapic_suppress_eoi_broadcast(struct kvm_lapic *apic);
 
 void kvm_wait_lapic_expire(struct kvm_vcpu *vcpu);
 

@@ -4412,10 +4412,23 @@ static void vmx_update_msr_bitmap_x2apic(struct kvm_vcpu *vcpu)
 	 * through reads for all valid registers by default in x2APIC+APICv
 	 * mode, only the current timer count needs on-demand emulation by KVM.
 	 */
-	if (mode & MSR_BITMAP_MODE_X2APIC_APICV)
+	if (mode & MSR_BITMAP_MODE_X2APIC_APICV) {
 		msr_bitmap[read_idx] = ~kvm_lapic_readable_reg_mask(vcpu->arch.apic);
-	else
+#ifdef __PKVM_HYP__
+		if (vcpu->arch.apic->guest_apic_protected)
+			/*
+			 * The protected apic still has some registers emulated by the
+			 * host. Such registers should be intercepted to make sure the
+			 * guest always gets up-to-date values from the host via
+			 * the emulation, instead of reading stale values from the apic
+			 * page directly.
+			 */
+			msr_bitmap[read_idx] =
+				~pkvm_protected_lapic_readable_reg_mask(vcpu->arch.apic);
+#endif
+	} else {
 		msr_bitmap[read_idx] = ~0ull;
+	}
 	msr_bitmap[write_idx] = ~0ull;
 
 	/*
@@ -6216,6 +6229,7 @@ static int handle_apic_eoi_induced(struct kvm_vcpu *vcpu)
 	kvm_apic_set_eoi_accelerated(vcpu, vector);
 	return 1;
 }
+#endif /* !__PKVM_HYP__ */
 
 static int handle_apic_write(struct kvm_vcpu *vcpu)
 {
@@ -6230,10 +6244,39 @@ static int handle_apic_write(struct kvm_vcpu *vcpu)
 	 */
 	u32 offset = exit_qualification & 0xff0;
 
+#ifndef __PKVM_HYP__
 	kvm_apic_write_nodecode(vcpu, offset);
 	return 1;
+#else
+	/*
+	 * If the apic page is protected by the pKVM, it represents this is a
+	 * pVM which is in x2apic mode, and the apic virtualization is enabled.
+	 * In this case, APIC-write VM exit may happen when accessing the x2APIC
+	 * MSR self-IPI(0x3F0) or ICR(0x300) in certain scenarios according to
+	 * the SDM vol3 VIRTUALIZING MSR-BASED APIC ACCESSES. Such vmexits
+	 * should be emulated by the host, which will need the value of self-IPI
+	 * or ICR to complete the APIC-write emulation. However these values are
+	 * stored in the pKVM's apic page rather than the host's apic page. Sync
+	 * these values to the host's side.
+	 */
+	if (lapic_in_kernel(vcpu) && vcpu->arch.apic->guest_apic_protected) {
+		void *shared_regs = to_pkvm_vcpu(vcpu)->shared_lapic_regs;
+		void *regs = vcpu->arch.apic->regs;
+
+		if (WARN_ON(!shared_regs || !regs))
+			return 0;
+
+		if (offset == APIC_ICR)
+			apic_set_reg64(shared_regs, offset, apic_get_reg64(regs, offset));
+		else if (offset == APIC_SELF_IPI)
+			apic_set_reg(shared_regs, offset, apic_get_reg(regs, offset));
+		else
+			WARN_ONCE(1, "Unexpected reg offset 0x%x for APIC-write exit", offset);
+	}
+
+	return 0;
+#endif
 }
-#endif /* !__PKVM_HYP__ */
 
 static int handle_task_switch(struct kvm_vcpu *vcpu)
 {
@@ -6775,7 +6818,9 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 #ifndef __PKVM_HYP__
 	[EXIT_REASON_TPR_BELOW_THRESHOLD]     = handle_tpr_below_threshold,
 	[EXIT_REASON_APIC_ACCESS]             = handle_apic_access,
+#endif
 	[EXIT_REASON_APIC_WRITE]              = handle_apic_write,
+#ifndef __PKVM_HYP__
 	[EXIT_REASON_EOI_INDUCED]             = handle_apic_eoi_induced,
 	[EXIT_REASON_WBINVD]                  = kvm_emulate_wbinvd,
 #endif
@@ -7435,17 +7480,6 @@ void vmx_set_virtual_apic_mode(struct kvm_vcpu *vcpu)
 		return;
 	}
 
-#ifdef __PKVM_HYP__
-	/*
-	 * Emulating xapic mode requires instruction decoding. As pVM's CPU and
-	 * memory state are isolated from the host, the host cannot decode pVM's
-	 * instruction. Not to use xapic mode for a pVM.
-	 */
-	if (pkvm_is_protected_vcpu(vcpu) &&
-	    (kvm_get_apic_mode(vcpu) == LAPIC_MODE_XAPIC))
-		return;
-#endif
-
 	sec_exec_control = secondary_exec_controls_get(vmx);
 	sec_exec_control &= ~(SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |
 			      SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE);
@@ -7614,6 +7648,9 @@ int vmx_sync_pir_to_irr(struct kvm_vcpu *vcpu)
 {
 #ifndef __PKVM_HYP__
 	struct vcpu_vt *vt = to_vt(vcpu);
+#else
+	struct vcpu_vt *vt = to_vt(to_pkvm_vcpu(vcpu)->shared_vcpu);
+#endif
 	int max_irr;
 	bool got_posted_interrupt;
 
@@ -7650,22 +7687,16 @@ int vmx_sync_pir_to_irr(struct kvm_vcpu *vcpu)
 	 * a VM-Exit and the subsequent entry will call sync_pir_to_irr.
 	 */
 	if (!is_guest_mode(vcpu) && kvm_vcpu_apicv_active(vcpu)) {
-#ifdef CONFIG_PKVM_INTEL
-		if (!enable_pkvm)
-			vmx_set_rvi(max_irr);
-		else if (max_irr != -1)
-			KVM_BUG_ON(pkvm_hypercall(sync_pir_to_irr, max_irr), vcpu->kvm);
-#else
-		vmx_set_rvi(max_irr);
+#ifndef __PKVM_HYP__
+		if (enable_pkvm)
+			/* RVI will be updated by the pKVM before entering the guest. */
+			return max_irr;
 #endif
+		vmx_set_rvi(max_irr);
 	} else if (got_posted_interrupt) {
 		kvm_make_request(KVM_REQ_EVENT, vcpu);
 	}
-#else
-	int max_irr = to_pkvm_vcpu(vcpu)->max_irr;
 
-	vmx_set_rvi(max_irr);
-#endif
 	return max_irr;
 }
 
@@ -9452,7 +9483,22 @@ __init int vmx_hardware_setup(void)
 	if (!cpu_has_vmx_apicv())
 		enable_apicv = 0;
 	if (!enable_apicv)
+#ifndef __PKVM_HYP__
 		x86_ops->sync_pir_to_irr = NULL;
+#else
+		/*
+		 * To mitigate the attack from the host by injecting malicious
+		 * software interrupt on vector 0x80, the pVM needs to either
+		 * not handle the software interrupt 0x80 by disabling the IA32
+		 * emulation or have the protected apic which is reliable for
+		 * the pVM to distinguish software and external int 0x80 so that
+		 * the pVM can only perform IA32 emulation for the software one.
+		 *
+		 * As the pVM's kernel now doesn't have the code to disable the
+		 * IA32 emulation, require the APICv support in hardware.
+		 */
+		return -EOPNOTSUPP;
+#endif
 
 	if (!enable_apicv || !cpu_has_vmx_ipiv())
 		enable_ipiv = false;

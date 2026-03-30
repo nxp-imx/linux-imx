@@ -185,8 +185,8 @@ static void handle_pvm_entry_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
 		/* If the host said success, call power_lock */
-		ret = vcpu_get_reg(hyp_vcpu->host_vcpu, 0);
-		if (ret == SMCCC_RET_SUCCESS && pkvm_device_request_power_pvm_entry(hyp_vcpu))
+		ret = READ_ONCE(hyp_vcpu->host_vcpu->arch.ctxt.regs.regs[0]);
+		if (ret != SMCCC_RET_SUCCESS || pkvm_device_request_power_pvm_entry(hyp_vcpu))
 			ret = SMCCC_RET_INVALID_PARAMETER;
 
 		vcpu_set_reg(&hyp_vcpu->vcpu, 0, ret);

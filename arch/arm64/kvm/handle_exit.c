@@ -486,6 +486,8 @@ static int handle_hyp_req_mem(struct kvm_vcpu *vcpu, struct kvm_hyp_req *req)
 
 int handle_hyp_req(struct kvm_vcpu *vcpu, struct kvm_hyp_req *req, void *arg)
 {
+	trace_kvm_handle_hyp_req(vcpu, req);
+
 	switch (req->type) {
 	case KVM_HYP_REQ_TYPE_HYP_ALLOC:
 		return __pkvm_topup_hyp_alloc(req->mem.nr_pages);
@@ -508,7 +510,7 @@ int handle_hyp_req(struct kvm_vcpu *vcpu, struct kvm_hyp_req *req, void *arg)
 		return __pkvm_pgtable_stage2_split(vcpu, req->split.guest_ipa, req->split.size);
 
 	case KVM_HYP_REQ_TYPE_MEM_HOST_S2:
-		return pkvm_host_stage2_topup();
+		return pkvm_host_stage2_topup(arg ? (gfp_t)(uintptr_t)arg : GFP_KERNEL);
 
 	case KVM_HYP_LAST_REQ:
 		return 0;

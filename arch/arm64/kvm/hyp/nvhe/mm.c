@@ -699,6 +699,14 @@ int reclaim_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc, in
 		if (!p)
 			return -ENOMEM;
 
+		/*
+		 * Pools with external pages can return higher order allocation
+		 * than requested, so rely on the actual order of the page in
+		 * the reclaim.
+		 */
+		order = hyp_virt_to_page(p)->order;
+		nr_pages -= 1 << order;
+
 		ret = hyp_pool_reclaim(pool, hyp_virt_to_page(p), order, force);
 		if (ret) {
 			hyp_put_page(pool, p);

@@ -262,7 +262,7 @@ devtlb_invalidation_with_pasid(struct intel_iommu *iommu,
 		return;
 
 #ifndef __PKVM_HYP__
-	if (pci_dev_is_disconnected(to_pci_dev(dev)))
+	if (!pci_device_is_present(to_pci_dev(dev)))
 		return;
 #endif
 

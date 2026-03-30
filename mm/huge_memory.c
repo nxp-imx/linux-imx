@@ -97,6 +97,9 @@ static inline bool file_thp_enabled(struct vm_area_struct *vma)
 
 	inode = file_inode(vma->vm_file);
 
+	if (IS_ANON_FILE(inode))
+		return false;
+
 	return !inode_is_open_for_write(inode) && S_ISREG(inode->i_mode);
 }
 
@@ -3595,6 +3598,7 @@ static int __folio_split(struct folio *folio, unsigned int new_order,
 	int extra_pins, ret;
 	pgoff_t end;
 	bool is_hzp;
+	bool bypass = false;
 
 	VM_WARN_ON_ONCE_FOLIO(!folio_test_locked(folio), folio);
 	VM_WARN_ON_ONCE_FOLIO(!folio_test_large(folio), folio);
@@ -3685,6 +3689,10 @@ static int __folio_split(struct folio *folio, unsigned int new_order,
 		if (shmem_mapping(mapping))
 			end = shmem_fallocend(mapping->host, end);
 	}
+
+	trace_android_vh_mm_split_huge_page_bypass(folio, list, &ret, &bypass);
+	if (bypass)
+		goto out_unlock;
 
 	/*
 	 * Racy check if we can split the page, before unmap_folio() will

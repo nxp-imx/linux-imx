@@ -355,9 +355,9 @@ int __pkvm_handle_smccc_req(struct arm_smccc_res *res, void *arg);
 })
 
 #ifdef CONFIG_CMA
-int pkvm_host_stage2_topup(void);
+int pkvm_host_stage2_topup(gfp_t gfp);
 #else
-static inline int pkvm_host_stage2_topup(void) { return -EINVAL; }
+static inline int pkvm_host_stage2_topup(gfp_t gfp) { return -EINVAL; }
 #endif
 
 enum pkvm_ptdump_ops {

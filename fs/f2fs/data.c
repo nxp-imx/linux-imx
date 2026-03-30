@@ -29,6 +29,7 @@
 #include <trace/events/f2fs.h>
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/fs.h>
+#include <trace/hooks/blk.h>
 
 #define NUM_PREALLOC_POST_READ_CTXS	128
 
@@ -2162,7 +2163,10 @@ static inline loff_t f2fs_readpage_limit(struct inode *inode)
 
 static inline blk_opf_t f2fs_ra_op_flags(struct readahead_control *rac)
 {
-	return rac ? REQ_RAHEAD : 0;
+	blk_opf_t op_flag = rac ? REQ_RAHEAD : 0;
+
+	trace_android_vh_f2fs_ra_op_flags(&op_flag, rac);
+	return op_flag;
 }
 
 static int f2fs_read_single_page(struct inode *inode, struct fsverity_info *vi,

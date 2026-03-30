@@ -64,9 +64,32 @@ phys_addr_t hyp_mem_size;
 extern struct pkvm_device *kvm_nvhe_sym(registered_devices);
 extern u32 kvm_nvhe_sym(registered_devices_nr);
 
+static enum {
+	PKVM_HOST_S2_CMA,
+	PKVM_HOST_S2_GCMA,
+	PKVM_HOST_S2_CARVEOUT,
+} host_s2_mode;
+
 #ifdef CONFIG_CMA
 static struct cma *host_s2_cma;
-static DEFINE_MUTEX(host_s2_cma_lock);
+
+static int __init early_kvm_arm_host_s2_cfg(char *arg)
+{
+	if (!arg)
+		return -EINVAL;
+
+	if (strcmp(arg, "carveout") == 0)
+		host_s2_mode = PKVM_HOST_S2_CARVEOUT;
+	else if (strcmp(arg, "cma") == 0)
+		host_s2_mode = PKVM_HOST_S2_CMA;
+	else if (strcmp(arg, "gcma") == 0)
+		host_s2_mode = PKVM_HOST_S2_GCMA;
+	else
+		return -EINVAL;
+
+	return 0;
+}
+early_param("kvm-arm.host_s2", early_kvm_arm_host_s2_cfg);
 
 /*
  * kvm_hyp_reserve() being called way too early for CMA, this function allows to later-on reserve
@@ -95,10 +118,12 @@ static void __init pkvm_host_stage2_drain(void)
 	kvm_info("Shrunk Hyp Reserved memory by %lu MiB\n", reclaimed >> (20 - PAGE_SHIFT));
 }
 
-static void *__host_stage2_alloc(void *mc, unsigned long order)
+static void *__host_stage2_alloc(void *arg, unsigned long order)
 {
-	struct page *p = cma_alloc(host_s2_cma, 1, 0, true);
+	gfp_t gfp = (gfp_t)(uintptr_t)arg;
+	struct page *p;
 
+	p = __cma_alloc(host_s2_cma, 1, 0, gfp);
 	if (!p)
 		return NULL;
 
@@ -110,15 +135,17 @@ static void __host_stage2_free(void *virt, void *arg, unsigned long order)
 	WARN_ON(!cma_release(host_s2_cma, virt_to_page(virt), 1));
 }
 
-int pkvm_host_stage2_topup(void)
+int pkvm_host_stage2_topup(gfp_t gfp)
 {
 	struct kvm_hyp_memcache mc;
-	int ret;
+	int ret = -EINVAL;
 
-	guard(mutex)(&host_s2_cma_lock);
+	if (!gfpflags_allow_blocking(gfp) && host_s2_mode != PKVM_HOST_S2_GCMA)
+		goto err;
 
 	init_hyp_memcache(&mc);
-	ret = __topup_hyp_memcache(&mc, 3, __host_stage2_alloc, kvm_host_pa, NULL, 0);
+	ret = __topup_hyp_memcache(&mc, 3, __host_stage2_alloc, kvm_host_pa,
+				   (void *)(uintptr_t)(gfp | __GFP_NOWARN), 0);
 	if (ret && !mc.nr_pages)
 		return ret;
 
@@ -126,6 +153,7 @@ int pkvm_host_stage2_topup(void)
 	if (ret)
 		__free_hyp_memcache(&mc, __host_stage2_free, kvm_host_va, NULL);
 
+err:
 	return WARN_ON_ONCE(ret);
 }
 EXPORT_SYMBOL(pkvm_host_stage2_topup);
@@ -343,12 +371,15 @@ again:
 	kvm_info("Reserved %lld MiB at 0x%llx\n", hyp_mem_size >> 20, hyp_mem_base);
 
 #ifdef CONFIG_CMA
+	if (host_s2_mode == PKVM_HOST_S2_CARVEOUT)
+		return;
+
 	/*
 	 * Even though only the host s2 is reclaimable, cover the entire
 	 * carveout with a CMA region as it has the same alignment requirements.
 	 */
 	ret = cma_init_reserved_mem(hyp_mem_base, hyp_mem_size, 0, "pkvm,host_s2_cma",
-				    &host_s2_cma, false);
+				    &host_s2_cma, host_s2_mode == PKVM_HOST_S2_GCMA);
 	if (ret) {
 		kvm_err("Failed to init CMA region for host stage-2 (%d)\n", ret);
 		return;

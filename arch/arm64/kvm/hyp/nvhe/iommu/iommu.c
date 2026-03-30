@@ -104,19 +104,32 @@ struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops = {
 	.reclaimable = kvm_iommu_reclaimable,
 };
 
-static inline int pkvm_to_iommu_prot(enum kvm_pgtable_prot prot)
+#define IOMMU_PROT_ALLOWLIST (KVM_PGTABLE_PROT_RWX |		\
+			      KVM_PGTABLE_PROT_PXN |		\
+			      KVM_PGTABLE_PROT_UXN)
+
+static inline int pkvm_to_iommu_prot(enum kvm_pgtable_prot prot, u64 addr)
 {
 	int iommu_prot = 0;
+
+	/* We don't understand that, might be dangerous. */
+	WARN_ON((prot & IOMMU_PROT_ALLOWLIST) != prot);
+
+	if (!prot)
+		return 0;
 
 	if (prot & KVM_PGTABLE_PROT_R)
 		iommu_prot |= IOMMU_READ;
 	if (prot & KVM_PGTABLE_PROT_W)
 		iommu_prot |= IOMMU_WRITE;
-	if (prot == PKVM_HOST_MMIO_PROT)
+
+	/* KVM_PGTABLE_PROT_UXN is irrelevant for DMA operations, ignore it. */
+	if (!(prot & KVM_PGTABLE_PROT_X) || prot & KVM_PGTABLE_PROT_PXN)
+		iommu_prot |= IOMMU_NOEXEC;
+
+	if (!addr_is_memory(addr))
 		iommu_prot |= IOMMU_MMIO;
 
-	/* We don't understand that, might be dangerous. */
-	WARN_ON(prot & ~PKVM_HOST_MEM_PROT);
 	return iommu_prot;
 }
 
@@ -135,9 +148,9 @@ static int __snapshot_host_stage2(const struct kvm_pgtable_visit_ctx *ctx,
 		return 0;
 
 	if (kvm_pte_valid(pte))
-		prot = pkvm_to_iommu_prot(kvm_pgtable_stage2_pte_prot(pte));
+		prot = pkvm_to_iommu_prot(kvm_pgtable_stage2_pte_prot(pte), start);
 	else if (!addr_is_memory(start))
-		prot |= IOMMU_MMIO;
+		prot |= IOMMU_MMIO | IOMMU_NOEXEC;
 
 	ops->host_stage2_idmap(start, end, prot);
 	return 0;
@@ -227,7 +240,7 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 	trace_iommu_idmap(start, end, prot);
 	kvm_iommu_drv_lock();
 	for_each_drv(kvm_iommu_ops) {
-		kvm_iommu_ops->host_stage2_idmap(start, end, pkvm_to_iommu_prot(prot));
+		kvm_iommu_ops->host_stage2_idmap(start, end, pkvm_to_iommu_prot(prot, start));
 	}
 	kvm_iommu_drv_unlock();
 }

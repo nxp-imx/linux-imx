@@ -30,15 +30,18 @@
   qdisc_put
   qdisc_reset
   qdisc_tree_reduce_backlog
+  readahead_gfp_mask
   regulator_get_drvdata
   remove_proc_entry
   set_blocksize
   skb_copy_bits
   skb_orphan_partial
   submit_bh
+  __set_task_comm
   tcf_block_get
   tcf_block_put
   tcf_classify
+  __traceiter_android_rvh_alloc_and_link_pwqs
   __traceiter_android_rvh_alloc_pages_reclaim_cycle_end
   __traceiter_android_rvh_alloc_pages_reclaim_start
   __traceiter_android_rvh_bpf_skb_load_bytes
@@ -50,6 +53,8 @@
   __traceiter_android_rvh_inet_sock_create
   __traceiter_android_rvh_inet_sock_release
   __traceiter_android_rvh_replace_next_task_fair
+  __traceiter_android_rvh_set_gfp_zone_flags
+  __traceiter_android_rvh_set_readahead_gfp_mask
   __traceiter_android_rvh_set_user_nice
   __traceiter_android_rvh_tcp_rcv_spurious_retrans
   __traceiter_android_rvh_tcp_recvmsg
@@ -80,6 +85,7 @@
   __traceiter_android_vh_do_async_mmap_readahead
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_f2fs_file_open
+  __traceiter_android_vh_f2fs_ra_op_flags
   __traceiter_android_vh_filemap_update_page
   __traceiter_android_vh_free_task
   __traceiter_android_vh_free_unref_folios_to_pcp_bypass
@@ -122,6 +128,7 @@
   __traceiter_workqueue_execute_end
   __traceiter_workqueue_execute_start
   __traceiter_sys_exit
+  __tracepoint_android_rvh_alloc_and_link_pwqs
   __tracepoint_android_rvh_alloc_pages_reclaim_cycle_end
   __tracepoint_android_rvh_alloc_pages_reclaim_start
   __tracepoint_android_rvh_bpf_skb_load_bytes
@@ -133,6 +140,8 @@
   __tracepoint_android_rvh_inet_sock_create
   __tracepoint_android_rvh_inet_sock_release
   __tracepoint_android_rvh_replace_next_task_fair
+  __tracepoint_android_rvh_set_gfp_zone_flags
+  __tracepoint_android_rvh_set_readahead_gfp_mask
   __tracepoint_android_rvh_set_user_nice
   __tracepoint_android_rvh_tcp_rcv_spurious_retrans
   __tracepoint_android_rvh_tcp_recvmsg
@@ -163,6 +172,7 @@
   __tracepoint_android_vh_do_async_mmap_readahead
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_f2fs_file_open
+  __tracepoint_android_vh_f2fs_ra_op_flags
   __tracepoint_android_vh_filemap_update_page
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_inode_lru_isolate

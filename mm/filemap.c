@@ -1015,6 +1015,7 @@ int filemap_add_folio(struct address_space *mapping, struct folio *folio,
 		WARN_ON_ONCE(folio_test_active(folio));
 		if (!(gfp & __GFP_WRITE) && shadow)
 			workingset_refault(folio, shadow);
+		trace_android_vh_filemap_adjust_folio_flags(mapping, folio, index);
 		folio_add_lru(folio);
 		if (kernel_file)
 			mod_node_page_state(folio_pgdat(folio),

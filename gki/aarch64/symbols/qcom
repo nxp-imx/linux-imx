@@ -3327,6 +3327,9 @@
   __traceiter_android_vh_check_uninterruptible_tasks
   __traceiter_android_vh_check_uninterruptible_tasks_dn
   __traceiter_android_vh_cpu_cgroup_css_free
+  __traceiter_android_vh_cpufreq_fast_switch
+  __traceiter_android_vh_cpufreq_resolve_freq
+  __traceiter_android_vh_cpufreq_target
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_cpuidle_psci_enter
@@ -3428,6 +3431,9 @@
   __tracepoint_android_vh_check_uninterruptible_tasks
   __tracepoint_android_vh_check_uninterruptible_tasks_dn
   __tracepoint_android_vh_cpu_cgroup_css_free
+  __tracepoint_android_vh_cpufreq_fast_switch
+  __tracepoint_android_vh_cpufreq_resolve_freq
+  __tracepoint_android_vh_cpufreq_target
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_cpuidle_psci_enter
