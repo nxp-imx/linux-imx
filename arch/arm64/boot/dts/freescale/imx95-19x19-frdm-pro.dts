@@ -71,6 +71,11 @@
 			no-map;
 		};
 
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
 		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
@@ -338,6 +343,11 @@
 		simple-audio-card,codec {
 			sound-dai = <&bt_sco_codec 1>;
 		};
+	};
+
+	mali_pma: protected-memory-allocator {
+		 compatible = "arm,protected-memory-allocator";
+		 memory-region = <&mali_protected>;
 	};
 
 };
@@ -1177,6 +1187,10 @@
 	sram = <&sram1>;
 };
 
+&mali {
+	protected-memory-allocator = <&mali_pma>;
+};
+
 &wdog3 {
 	status = "okay";
 };
@@ -1273,3 +1287,5 @@
 			       <361267200>, <49152000>;
 	status = "okay";
 };
+
+#include "imx95-android.dtsi"
