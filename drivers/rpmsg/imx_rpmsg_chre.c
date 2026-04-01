@@ -322,7 +322,7 @@ static ssize_t rpmsg_eptdev_write_iter(struct kiocb *iocb,
 	size_t len = iov_iter_count(from);
 	u16 ret;
 	struct host_to_chre_msg msg = {};
-	void *kbuf;
+	void *kbuf = NULL;
 	/* Record the position of each sub-message in the full message */
 	u16 cur_msg_pos = 0;
 
