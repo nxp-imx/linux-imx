@@ -699,6 +699,8 @@ static int dwc_csi_device_init(struct dwc_csi_device *csidev)
 	u32 phy_stopstate;
 	u32 val;
 	int ret;
+	int retry_count = 0;
+	const int MAX_RETRIES = 3;
 
 	ret = dwc_csi_get_dphy_configuration(csidev, &opts);
 	if (ret)
@@ -707,6 +709,7 @@ static int dwc_csi_device_init(struct dwc_csi_device *csidev)
 	phy_set_mode(csidev->phy, PHY_MODE_MIPI_DPHY);
 	phy_configure(csidev->phy, &opts);
 
+retry_init:
 	dwc_csi_write(csidev, CSI2RX_HOST_RESETN, 0);
 	phy_power_on(csidev->phy);
 	dwc_csi_write(csidev, CSI2RX_HOST_RESETN, 0x1);
@@ -718,7 +721,20 @@ static int dwc_csi_device_init(struct dwc_csi_device *csidev)
 				 val, (val & phy_stopstate) != phy_stopstate,
 				 10, 10000);
 	if (ret) {
-		dev_err(dev, "Lanes are not in stop state(%#x)\n", val);
+		dev_warn(dev, "Lanes are not in stop state(%#x), retry %d/%d\n",
+			 val, retry_count + 1, MAX_RETRIES);
+
+		if (retry_count < MAX_RETRIES) {
+			retry_count++;
+			/* reset PHY */
+			phy_power_off(csidev->phy);
+			usleep_range(10000, 15000);
+
+			goto retry_init;
+		}
+
+		dev_err(dev, "Lanes failed to enter stop state after %d retries(%#x)\n",
+			MAX_RETRIES, val);
 		return ret;
 	}
 
