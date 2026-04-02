@@ -111,7 +111,7 @@ void generic_fillattr(struct mnt_idmap *idmap, u32 request_mask,
 	}
 
 }
-EXPORT_SYMBOL(generic_fillattr);
+EXPORT_SYMBOL_NS(generic_fillattr, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * generic_fill_statx_attr - Fill in the statx attributes from the inode flags
@@ -261,7 +261,7 @@ int vfs_getattr(const struct path *path, struct kstat *stat,
 		return retval;
 	return vfs_getattr_nosec(path, stat, request_mask, query_flags);
 }
-EXPORT_SYMBOL(vfs_getattr);
+EXPORT_SYMBOL_NS(vfs_getattr, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * vfs_fstat - Get the basic attributes by file descriptor

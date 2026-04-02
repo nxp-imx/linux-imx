@@ -12,6 +12,8 @@ struct kvm_power_domain {
 	union {
 		u64 device_id; /* HOST_HVC device ID*/
 	};
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 #endif /* __KVM_POWER_DOMAIN_H */

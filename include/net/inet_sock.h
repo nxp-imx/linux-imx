@@ -17,6 +17,7 @@
 #include <linux/types.h>
 #include <linux/jhash.h>
 #include <linux/netdevice.h>
+#include <linux/android_kabi.h>
 
 #include <net/flow.h>
 #include <net/inet_dscp.h>
@@ -214,6 +215,7 @@ struct inet_sock {
 	struct sock		sk;
 #if IS_ENABLED(CONFIG_IPV6)
 	struct ipv6_pinfo	*pinet6;
+	struct ipv6_fl_socklist __rcu *ipv6_fl_list;
 #endif
 	/* Socket demultiplex comparisons on incoming packets. */
 #define inet_daddr		sk.__sk_common.skc_daddr
@@ -241,6 +243,9 @@ struct inet_sock {
 
 	struct ip_mc_socklist __rcu	*mc_list;
 	struct inet_cork_full	cork;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 #define IPCORK_OPT		1	/* ip-options has been held in ipcork.opt */

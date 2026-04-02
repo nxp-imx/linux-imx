@@ -35,6 +35,7 @@
 MODULE_DESCRIPTION("BeOS File System (BeFS) driver");
 MODULE_AUTHOR("Will Dyson");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /* The units the vfs expects inode->i_blocks to be in */
 #define VFS_BLOCK_SIZE 512

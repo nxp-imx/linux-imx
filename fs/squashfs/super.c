@@ -704,3 +704,4 @@ module_exit(exit_squashfs_fs);
 MODULE_DESCRIPTION("squashfs 4.0, a compressed read-only filesystem");
 MODULE_AUTHOR("Phillip Lougher <phillip@squashfs.org.uk>");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");

@@ -11,6 +11,7 @@
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
 #include <linux/siphash.h>
+#include <linux/android_kabi.h>
 
 struct ctl_table_header;
 struct ipv4_devconf;
@@ -294,6 +295,8 @@ struct netns_ipv4 {
 	siphash_key_t	ip_id_key;
 	struct hlist_head	*inet_addr_lst;
 	struct delayed_work	addr_chk_work;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #endif

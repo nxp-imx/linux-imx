@@ -312,6 +312,7 @@ static void __exit exit_nfs_v4(void)
 
 MODULE_DESCRIPTION("NFSv4 client support");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 module_init(init_nfs_v4);
 module_exit(exit_nfs_v4);

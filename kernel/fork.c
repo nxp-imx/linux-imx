@@ -3086,7 +3086,7 @@ static int unshare_fs(unsigned long unshare_flags, struct fs_struct **new_fsp)
 		return 0;
 
 	/* don't need lock here; in the worst case we'll do useless copy */
-	if (fs->users == 1)
+	if (!(unshare_flags & CLONE_NEWNS) && fs->users == 1)
 		return 0;
 
 	*new_fsp = copy_fs_struct(fs);
@@ -3128,6 +3128,7 @@ int ksys_unshare(unsigned long unshare_flags)
 	struct files_struct *new_fd = NULL;
 	struct cred *new_cred = NULL;
 	struct nsproxy *new_nsproxy = NULL;
+	struct task_dma_buf_info *dmabuf_info = NULL;
 	int do_sysvsem = 0;
 	int err;
 
@@ -3212,10 +3213,22 @@ int ksys_unshare(unsigned long unshare_flags)
 			read_sequnlock_excl(&fs->seq);
 		}
 
-		if (new_fd)
+		if (new_fd) {
 			swap(current->files, new_fd);
 
+			/*
+			 * This is a new partial sharing relationship for the current task, since we
+			 * have a new files_struct (and the MM might still be shared). Since partial
+			 * sharing is not supported for dmabuf accounting, we need to remove the
+			 * accounting info from the task. Leave the mm->dmabuf_info so any existing
+			 * accounting can be unaccounted properly.
+			 */
+			dmabuf_info = current->dmabuf_info;
+			current->dmabuf_info = NULL;
+		}
+
 		task_unlock(current);
+		put_dmabuf_info(dmabuf_info);
 
 		if (new_cred) {
 			/* Install the new user namespace */
@@ -3256,6 +3269,7 @@ int unshare_files(void)
 {
 	struct task_struct *task = current;
 	struct files_struct *old, *copy = NULL;
+	struct task_dma_buf_info *dmabuf_info;
 	int error;
 
 	error = unshare_fd(CLONE_FILES, &copy);
@@ -3267,16 +3281,17 @@ int unshare_files(void)
 	task->files = copy;
 
 	/*
-	 * This is a new partial sharing relationship for task, since we have a new
-	 * files_struct (but the MM is still used). Since partial sharing is not
-	 * supported for dmabuf accounting, we need to remove the accounting info
-	 * from the task. Leave the mm->dmabuf_info so any existing accounting can
-	 * be unaccounted properly. The fixup for this new files_struct happens
-	 * externally with appropriate locking.
+	 * This is a new partial sharing relationship for the current task, since we have a new
+	 * files_struct (and the MM might still be shared). Since partial sharing is not
+	 * supported for dmabuf accounting, we need to remove the accounting info from the task.
+	 * Leave the mm->dmabuf_info so any existing accounting can be unaccounted properly. For
+	 * execs where we also have a new MM, the fixup for this new files_struct happens externally
+	 * with appropriate locking in dma_buf_begin_new_exec.
 	 */
-	put_dmabuf_info(task->dmabuf_info);
+	dmabuf_info = task->dmabuf_info;
 	task->dmabuf_info = NULL;
 	task_unlock(task);
+	put_dmabuf_info(dmabuf_info);
 	put_files_struct(old);
 	return 0;
 }

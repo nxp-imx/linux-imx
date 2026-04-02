@@ -10,6 +10,7 @@
 #include <trace/hooks/vendor_hooks.h>
 
 struct cpufreq_policy;
+struct device;
 
 DECLARE_RESTRICTED_HOOK(android_rvh_show_max_freq,
 	TP_PROTO(struct cpufreq_policy *policy, unsigned int *max_freq),
@@ -41,6 +42,10 @@ DECLARE_HOOK(android_vh_cpufreq_target,
 	TP_PROTO(struct cpufreq_policy *policy, unsigned int *target_freq,
 		unsigned int old_target_freq),
 	TP_ARGS(policy, target_freq, old_target_freq));
+
+DECLARE_RESTRICTED_HOOK(android_rvh_scmi_limit_notify_cb,
+	TP_PROTO(bool *done, struct device *cpu_dev, unsigned int limit_freq_khz),
+	TP_ARGS(done, cpu_dev, limit_freq_khz), 1);
 
 #endif /* _TRACE_HOOK_CPUFREQ_H */
 /* This part must be outside protection */

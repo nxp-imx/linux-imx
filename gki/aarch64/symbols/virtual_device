@@ -215,7 +215,7 @@
   input_register_device
   input_set_abs_params
   input_unregister_device
-  ioremap_prot
+  __ioremap_prot
   iounmap
   irq_set_irq_wake
   is_vmalloc_addr

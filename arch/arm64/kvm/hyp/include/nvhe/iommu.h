@@ -18,6 +18,7 @@ struct kvm_hyp_iommu_domain {
 	void			*priv;
 	struct kvm_iommu_ops	*driver;
 	void			*owner;
+	ANDROID_KABI_RESERVE(1);
 };
 
 int kvm_iommu_dev_block_dma(pkvm_handle_t iommu_id, u32 endpoint_id, bool host_to_guest);
@@ -27,7 +28,7 @@ int kvm_iommu_id_to_token(pkvm_handle_t smmu_id, u64 *out_token);
 
 struct kvm_iommu_ops {
 	int (*init)(pkvm_handle_t drv_id);
-	void (*host_stage2_idmap)(phys_addr_t start, phys_addr_t end, int prot);
+	int (*host_stage2_idmap)(phys_addr_t start, phys_addr_t end, int prot);
 	int (*attach_dev)(pkvm_handle_t iommu, struct kvm_hyp_iommu_domain *domain,
 			  pkvm_handle_t dev, u32 pasid, u32 pasid_bits, unsigned long flags);
 	int (*attach_dev_nested)(pkvm_handle_t iommu, struct kvm_hyp_iommu_domain *domain,
@@ -57,12 +58,20 @@ struct kvm_iommu_ops {
 	void (*iotlb_inv_nested_domain)(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
 					size_t size, size_t granule, bool leaf);
 	int (*nested_cfg_sync)(pkvm_handle_t iommu, void *cmd_desc, size_t cmd_desc_size);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
 };
 
 int kvm_iommu_init(void *pool_base, size_t nr_pages);
 int kvm_iommu_register_ops(struct kvm_iommu_ops *ops, pkvm_handle_t *drv_id);
 
-void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
+int kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 				 enum kvm_pgtable_prot prot);
 void *kvm_iommu_donate_pages_atomic(u8 order);
 void kvm_iommu_reclaim_pages_atomic(void *ptr);

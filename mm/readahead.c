@@ -493,12 +493,13 @@ void page_cache_ra_order(struct readahead_control *ractl,
 	unsigned int nofs;
 	int err = 0;
 	gfp_t gfp = readahead_gfp_mask(mapping);
-	unsigned int new_order = ra->order;
+	DEFINE_RA_MMAP_MISS(ra);
+	unsigned int new_order = ra_mmap_miss->order;
 	bool bypass = false;
 
 	trace_page_cache_ra_order(mapping->host, start, ra);
 	if (!mapping_large_folio_support(mapping)) {
-		ra->order = 0;
+		ra_mmap_miss->order = 0;
 		goto fallback;
 	}
 
@@ -513,7 +514,7 @@ void page_cache_ra_order(struct readahead_control *ractl,
 	new_order = min_t(unsigned int, new_order, ilog2(ra->size));
 	new_order = max(new_order, min_order);
 
-	ra->order = new_order;
+	ra_mmap_miss->order = new_order;
 
 	/* See comment in page_cache_ra_unbounded() */
 	nofs = memalloc_nofs_save();
@@ -586,6 +587,7 @@ void page_cache_sync_ra(struct readahead_control *ractl,
 	pgoff_t index = readahead_index(ractl);
 	bool do_forced_ra = ractl->file && (ractl->file->f_mode & FMODE_RANDOM);
 	struct file_ra_state *ra = ractl->ra;
+	DEFINE_RA_MMAP_MISS(ra);
 	unsigned long max_pages, contig_count;
 	pgoff_t prev_index, miss;
 
@@ -650,7 +652,7 @@ void page_cache_sync_ra(struct readahead_control *ractl,
 	ra->size = min(contig_count + req_count, max_pages);
 	ra->async_size = 1;
 readit:
-	ra->order = 0;
+	ra_mmap_miss->order = 0;
 	ractl->_index = ra->start;
 	page_cache_ra_order(ractl, ra);
 }
@@ -661,6 +663,7 @@ void page_cache_async_ra(struct readahead_control *ractl,
 {
 	unsigned long max_pages;
 	struct file_ra_state *ra = ractl->ra;
+	DEFINE_RA_MMAP_MISS(ra);
 	pgoff_t index = readahead_index(ractl);
 	pgoff_t expected, start, end, aligned_end, align;
 
@@ -686,7 +689,7 @@ void page_cache_async_ra(struct readahead_control *ractl,
 	 * Ramp up sizes, and push forward the readahead window.
 	 */
 	expected = round_down(ra->start + ra->size - ra->async_size,
-			folio_nr_pages(folio));
+			1UL << folio_order(folio));
 	if (index == expected) {
 		ra->start += ra->size;
 		/*
@@ -715,8 +718,8 @@ void page_cache_async_ra(struct readahead_control *ractl,
 	ra->size += req_count;
 	ra->size = get_next_ra_size(ra, max_pages);
 readit:
-	ra->order += 2;
-	align = 1UL << min(ra->order, ffs(max_pages) - 1);
+	ra_mmap_miss->order += 2;
+	align = 1UL << min(ra_mmap_miss->order, ffs(max_pages) - 1);
 	end = ra->start + ra->size;
 	aligned_end = round_down(end, align);
 	if (aligned_end > ra->start)

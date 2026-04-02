@@ -4,6 +4,7 @@
 
 #include <uapi/linux/ipv6.h>
 #include <linux/cache.h>
+#include <linux/android_kabi.h>
 
 #define ipv6_optlen(p)  (((p)->hdrlen+1) << 3)
 #define ipv6_authlen(p) (((p)->hdrlen+2) << 2)
@@ -94,6 +95,11 @@ struct ipv6_devconf {
 	__u8		ra_honor_pio_pflag;
 
 	struct ctl_table_header *sysctl_header;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 struct ipv6_params {
@@ -272,7 +278,6 @@ struct ipv6_pinfo {
 
 	struct ipv6_mc_socklist	__rcu *ipv6_mc_list;
 	struct ipv6_ac_socklist	*ipv6_ac_list;
-	struct ipv6_fl_socklist __rcu *ipv6_fl_list;
 };
 
 /* We currently use available bits from inet_sk(sk)->inet_flags,

@@ -70,6 +70,7 @@
 #include <net/l3mdev.h>
 #include <uapi/linux/socket.h>
 #include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
 /*
  * This structure really needs to be cleaned up.
@@ -581,6 +582,14 @@ struct sock {
 	struct module		*sk_owner;
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
 	ANDROID_OEM_DATA(1);
 };
 

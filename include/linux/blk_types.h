@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include <linux/ktime.h>
 #include <linux/rw_hint.h>
+#include <linux/android_kabi.h>
 
 struct bio_set;
 struct bio;
@@ -257,6 +258,9 @@ struct bio {
 #endif
 
 	unsigned short		bi_vcnt;	/* how many bio_vec's */
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 
 	/*
 	 * Everything starting with bi_max_vecs will be preserved by bio_reset()

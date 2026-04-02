@@ -31,6 +31,7 @@
 MODULE_AUTHOR("Miklos Szeredi <miklos@szeredi.hu>");
 MODULE_DESCRIPTION("Filesystem in Userspace");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static struct kmem_cache *fuse_inode_cachep;
 struct list_head fuse_conn_list;
@@ -108,6 +109,18 @@ static struct inode *fuse_alloc_inode(struct super_block *sb)
 	memset((void *) fi + sizeof(fi->inode), 0, sizeof(*fi) - sizeof(fi->inode));
 
 	fi->inval_mask = ~0;
+
+#ifdef CONFIG_FUSE_BPF
+	fi->backing_inode = NULL;
+	fi->bpf = NULL;
+#endif
+
+	fi->nodeid = 0;
+	fi->nlookup = 0;
+	fi->attr_version = 0;
+	fi->orig_ino = 0;
+	fi->state = 0;
+	fi->submount_lookup = NULL;
 	mutex_init(&fi->mutex);
 	spin_lock_init(&fi->lock);
 	fi->forget = fuse_alloc_forget();
@@ -141,6 +154,10 @@ static void fuse_free_inode(struct inode *inode)
 	if (IS_ENABLED(CONFIG_FUSE_PASSTHROUGH))
 		fuse_backing_put(fuse_inode_backing(fi));
 
+#ifdef CONFIG_FUSE_BPF
+	if (fi->bpf)
+		bpf_prog_put(fi->bpf);
+#endif
 	kmem_cache_free(fuse_inode_cachep, fi);
 }
 
@@ -199,6 +216,15 @@ static void fuse_evict_inode(struct inode *inode)
 	}
 }
 
+#ifdef CONFIG_FUSE_BPF
+static void fuse_destroy_inode(struct inode *inode)
+{
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	iput(fi->backing_inode);
+}
+#endif
+
 static int fuse_reconfigure(struct fs_context *fsc)
 {
 	struct super_block *sb = fsc->root->d_sb;
@@ -220,6 +246,32 @@ static ino_t fuse_squash_ino(u64 ino64)
 	if (sizeof(ino_t) < sizeof(u64))
 		ino ^= ino64 >> (sizeof(u64) - sizeof(ino_t)) * 8;
 	return ino;
+}
+
+static void fuse_fill_attr_from_inode(struct fuse_attr *attr,
+				      const struct fuse_inode *fi)
+{
+	struct timespec64 atime = inode_get_atime(&fi->inode);
+	struct timespec64 mtime = inode_get_mtime(&fi->inode);
+	struct timespec64 ctime = inode_get_ctime(&fi->inode);
+
+	*attr = (struct fuse_attr){
+		.ino		= fi->inode.i_ino,
+		.size		= fi->inode.i_size,
+		.blocks		= fi->inode.i_blocks,
+		.atime		= atime.tv_sec,
+		.mtime		= mtime.tv_sec,
+		.ctime		= ctime.tv_sec,
+		.atimensec	= atime.tv_nsec,
+		.mtimensec	= mtime.tv_nsec,
+		.ctimensec	= ctime.tv_nsec,
+		.mode		= fi->inode.i_mode,
+		.nlink		= fi->inode.i_nlink,
+		.uid		= __kuid_val(fi->inode.i_uid),
+		.gid		= __kgid_val(fi->inode.i_gid),
+		.rdev		= fi->inode.i_rdev,
+		.blksize	= 1u << fi->inode.i_blkbits,
+	};
 }
 
 void fuse_change_attributes_common(struct inode *inode, struct fuse_attr *attr,
@@ -435,8 +487,7 @@ static void fuse_init_inode(struct inode *inode, struct fuse_attr *attr,
 	else if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode) ||
 		 S_ISFIFO(inode->i_mode) || S_ISSOCK(inode->i_mode)) {
 		fuse_init_common(inode);
-		init_special_inode(inode, inode->i_mode,
-				   new_decode_dev(attr->rdev));
+		init_special_inode(inode, inode->i_mode, attr->rdev);
 	} else
 		BUG();
 	/*
@@ -447,20 +498,97 @@ static void fuse_init_inode(struct inode *inode, struct fuse_attr *attr,
 		inode->i_acl = inode->i_default_acl = ACL_DONT_CACHE;
 }
 
+struct fuse_inode_identifier {
+	u64 nodeid;
+	struct inode *backing_inode;
+};
+
 static int fuse_inode_eq(struct inode *inode, void *_nodeidp)
 {
-	u64 nodeid = *(u64 *) _nodeidp;
-	if (get_node_id(inode) == nodeid)
-		return 1;
-	else
-		return 0;
+	struct fuse_inode_identifier *fii =
+		(struct fuse_inode_identifier *) _nodeidp;
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	return fii->nodeid == fi->nodeid;
+}
+
+static int fuse_inode_backing_eq(struct inode *inode, void *_nodeidp)
+{
+	struct fuse_inode_identifier *fii =
+		(struct fuse_inode_identifier *) _nodeidp;
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	return fii->nodeid == fi->nodeid
+#ifdef CONFIG_FUSE_BPF
+		&& fii->backing_inode == fi->backing_inode
+#endif
+		;
 }
 
 static int fuse_inode_set(struct inode *inode, void *_nodeidp)
 {
-	u64 nodeid = *(u64 *) _nodeidp;
-	get_fuse_inode(inode)->nodeid = nodeid;
+	struct fuse_inode_identifier *fii =
+		(struct fuse_inode_identifier *) _nodeidp;
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	fi->nodeid = fii->nodeid;
+
 	return 0;
+}
+
+static int fuse_inode_bpf_backing_set(struct inode *inode, void *_nodeidp)
+{
+	struct fuse_inode_identifier *fii =
+		(struct fuse_inode_identifier *) _nodeidp;
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	fi->nodeid = fii->nodeid;
+#ifdef CONFIG_FUSE_BPF
+	fi->backing_inode = fii->backing_inode;
+	if (fi->backing_inode)
+		ihold(fi->backing_inode);
+#endif
+
+	return 0;
+}
+
+struct inode *fuse_iget_backing(struct super_block *sb, u64 nodeid,
+				struct inode *backing_inode)
+{
+	struct inode *inode;
+	struct fuse_inode *fi;
+	struct fuse_conn *fc = get_fuse_conn_super(sb);
+	struct fuse_inode_identifier fii = {
+		.nodeid = nodeid,
+		.backing_inode = backing_inode,
+	};
+	struct fuse_attr attr;
+	unsigned long hash = (unsigned long) backing_inode;
+
+	if (nodeid)
+		hash = nodeid;
+
+	fuse_fill_attr_from_inode(&attr, get_fuse_inode(backing_inode));
+	inode = iget5_locked(sb, hash, fuse_inode_backing_eq,
+			     fuse_inode_bpf_backing_set, &fii);
+	if (!inode)
+		return NULL;
+
+	if ((inode->i_state & I_NEW)) {
+		inode->i_flags |= S_NOATIME;
+		if (!fc->writeback_cache)
+			inode->i_flags |= S_NOCMTIME;
+		fuse_init_common(inode);
+		unlock_new_inode(inode);
+	}
+
+	fi = get_fuse_inode(inode);
+	fuse_init_inode(inode, &attr, fc);
+	spin_lock(&fi->lock);
+	fi->nlookup++;
+	spin_unlock(&fi->lock);
+
+	return inode;
 }
 
 struct inode *fuse_iget(struct super_block *sb, u64 nodeid,
@@ -471,6 +599,9 @@ struct inode *fuse_iget(struct super_block *sb, u64 nodeid,
 	struct inode *inode;
 	struct fuse_inode *fi;
 	struct fuse_conn *fc = get_fuse_conn_super(sb);
+	struct fuse_inode_identifier fii = {
+		.nodeid = nodeid,
+	};
 
 	/*
 	 * Auto mount points get their node id from the submount root, which is
@@ -502,7 +633,7 @@ struct inode *fuse_iget(struct super_block *sb, u64 nodeid,
 	}
 
 retry:
-	inode = iget5_locked(sb, nodeid, fuse_inode_eq, fuse_inode_set, &nodeid);
+	inode = iget5_locked(sb, nodeid, fuse_inode_eq, fuse_inode_set, &fii);
 	if (!inode)
 		return NULL;
 
@@ -537,13 +668,16 @@ struct inode *fuse_ilookup(struct fuse_conn *fc, u64 nodeid,
 {
 	struct fuse_mount *fm_iter;
 	struct inode *inode;
+	struct fuse_inode_identifier fii = {
+		.nodeid = nodeid,
+	};
 
 	WARN_ON(!rwsem_is_locked(&fc->killsb));
 	list_for_each_entry(fm_iter, &fc->mounts, fc_entry) {
 		if (!fm_iter->sb)
 			continue;
 
-		inode = ilookup5(fm_iter->sb, nodeid, fuse_inode_eq, &nodeid);
+		inode = ilookup5(fm_iter->sb, nodeid, fuse_inode_eq, &fii);
 		if (inode) {
 			if (fm)
 				*fm = fm_iter;
@@ -641,20 +775,6 @@ static void fuse_send_destroy(struct fuse_mount *fm)
 	}
 }
 
-static void convert_fuse_statfs(struct kstatfs *stbuf, struct fuse_kstatfs *attr)
-{
-	stbuf->f_type    = FUSE_SUPER_MAGIC;
-	stbuf->f_bsize   = attr->bsize;
-	stbuf->f_frsize  = attr->frsize;
-	stbuf->f_blocks  = attr->blocks;
-	stbuf->f_bfree   = attr->bfree;
-	stbuf->f_bavail  = attr->bavail;
-	stbuf->f_files   = attr->files;
-	stbuf->f_ffree   = attr->ffree;
-	stbuf->f_namelen = attr->namelen;
-	/* fsid is left zero */
-}
-
 static int fuse_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
 	struct super_block *sb = dentry->d_sb;
@@ -662,11 +782,23 @@ static int fuse_statfs(struct dentry *dentry, struct kstatfs *buf)
 	FUSE_ARGS(args);
 	struct fuse_statfs_out outarg;
 	int err;
+#ifdef CONFIG_FUSE_BPF
+	struct fuse_err_ret fer;
+#endif
 
 	if (!fuse_allow_current_process(fm->fc)) {
 		buf->f_type = FUSE_SUPER_MAGIC;
 		return 0;
 	}
+
+#ifdef CONFIG_FUSE_BPF
+	fer = fuse_bpf_backing(dentry->d_inode, struct fuse_statfs_out,
+			       fuse_statfs_initialize, fuse_statfs_backing,
+			       fuse_statfs_finalize,
+			       dentry, buf);
+	if (fer.ret)
+		return PTR_ERR(fer.result);
+#endif
 
 	memset(&outarg, 0, sizeof(outarg));
 	args.in_numargs = 0;
@@ -784,6 +916,9 @@ enum {
 	OPT_ALLOW_OTHER,
 	OPT_MAX_READ,
 	OPT_BLKSIZE,
+	OPT_ROOT_BPF,
+	OPT_ROOT_DIR,
+	OPT_NO_DAEMON,
 	OPT_ERR
 };
 
@@ -798,6 +933,9 @@ static const struct fs_parameter_spec fuse_fs_parameters[] = {
 	fsparam_u32	("max_read",		OPT_MAX_READ),
 	fsparam_u32	("blksize",		OPT_BLKSIZE),
 	fsparam_string	("subtype",		OPT_SUBTYPE),
+	fsparam_u32	("root_bpf",		OPT_ROOT_BPF),
+	fsparam_u32	("root_dir",		OPT_ROOT_DIR),
+	fsparam_flag	("no_daemon",		OPT_NO_DAEMON),
 	{}
 };
 
@@ -893,6 +1031,26 @@ static int fuse_parse_param(struct fs_context *fsc, struct fs_parameter *param)
 		ctx->blksize = result.uint_32;
 		break;
 
+	case OPT_ROOT_BPF:
+		ctx->root_bpf = bpf_prog_get_type_dev(result.uint_32,
+						BPF_PROG_TYPE_FUSE, false);
+		if (IS_ERR(ctx->root_bpf)) {
+			ctx->root_bpf = NULL;
+			return invalfc(fsc, "Unable to open bpf program");
+		}
+		break;
+
+	case OPT_ROOT_DIR:
+		ctx->root_dir = fget(result.uint_32);
+		if (!ctx->root_dir)
+			return invalfc(fsc, "Unable to open root directory");
+		break;
+
+	case OPT_NO_DAEMON:
+		ctx->no_daemon = true;
+		ctx->fd_present = true;
+		break;
+
 	default:
 		return -EINVAL;
 	}
@@ -905,6 +1063,10 @@ static void fuse_free_fsc(struct fs_context *fsc)
 	struct fuse_fs_context *ctx = fsc->fs_private;
 
 	if (ctx) {
+		if (ctx->root_dir)
+			fput(ctx->root_dir);
+		if (ctx->root_bpf)
+			bpf_prog_put(ctx->root_bpf);
 		kfree(ctx->subtype);
 		kfree(ctx);
 	}
@@ -1052,15 +1214,34 @@ struct fuse_conn *fuse_conn_get(struct fuse_conn *fc)
 }
 EXPORT_SYMBOL_GPL(fuse_conn_get);
 
-static struct inode *fuse_get_root_inode(struct super_block *sb, unsigned int mode)
+static struct inode *fuse_get_root_inode(struct super_block *sb,
+					 unsigned int mode,
+					 struct bpf_prog *root_bpf,
+					 struct file *backing_fd)
 {
 	struct fuse_attr attr;
-	memset(&attr, 0, sizeof(attr));
+	struct inode *inode;
 
+	memset(&attr, 0, sizeof(attr));
 	attr.mode = mode;
 	attr.ino = FUSE_ROOT_ID;
 	attr.nlink = 1;
-	return fuse_iget(sb, FUSE_ROOT_ID, 0, &attr, 0, 0, 0);
+	inode = fuse_iget(sb, FUSE_ROOT_ID, 0, &attr, 0, 0, 0);
+	if (!inode)
+		return NULL;
+
+#ifdef CONFIG_FUSE_BPF
+	get_fuse_inode(inode)->bpf = root_bpf;
+	if (root_bpf)
+		bpf_prog_inc(root_bpf);
+
+	if (backing_fd) {
+		get_fuse_inode(inode)->backing_inode = backing_fd->f_inode;
+		ihold(backing_fd->f_inode);
+	}
+#endif
+
+	return inode;
 }
 
 struct fuse_inode_handle {
@@ -1075,11 +1256,14 @@ static struct dentry *fuse_get_dentry(struct super_block *sb,
 	struct inode *inode;
 	struct dentry *entry;
 	int err = -ESTALE;
+	struct fuse_inode_identifier fii = {
+		.nodeid = handle->nodeid,
+	};
 
 	if (handle->nodeid == 0)
 		goto out_err;
 
-	inode = ilookup5(sb, handle->nodeid, fuse_inode_eq, &handle->nodeid);
+	inode = ilookup5(sb, handle->nodeid, fuse_inode_eq, &fii);
 	if (!inode) {
 		struct fuse_entry_out outarg;
 		const struct qstr name = QSTR_INIT(".", 1);
@@ -1088,7 +1272,7 @@ static struct dentry *fuse_get_dentry(struct super_block *sb,
 			goto out_err;
 
 		err = fuse_lookup_name(sb, handle->nodeid, &name, &outarg,
-				       &inode);
+				       NULL, &inode);
 		if (err && err != -ENOENT)
 			goto out_err;
 		if (err || !inode) {
@@ -1183,13 +1367,14 @@ static struct dentry *fuse_get_parent(struct dentry *child)
 	struct inode *inode;
 	struct dentry *parent;
 	struct fuse_entry_out outarg;
+	const struct qstr name = QSTR_INIT("..", 2);
 	int err;
 
 	if (!fc->export_support)
 		return ERR_PTR(-ESTALE);
 
 	err = fuse_lookup_name(child_inode->i_sb, get_node_id(child_inode),
-			       &dotdot_name, &outarg, &inode);
+			       &name, &outarg, NULL, &inode);
 	if (err) {
 		if (err == -ENOENT)
 			return ERR_PTR(-ESTALE);
@@ -1217,6 +1402,9 @@ static const struct export_operations fuse_export_operations = {
 
 static const struct super_operations fuse_super_operations = {
 	.alloc_inode    = fuse_alloc_inode,
+#ifdef CONFIG_FUSE_BPF
+	.destroy_inode  = fuse_destroy_inode,
+#endif
 	.free_inode     = fuse_free_inode,
 	.evict_inode	= fuse_evict_inode,
 	.write_inode	= fuse_write_inode,
@@ -1550,7 +1738,7 @@ int fuse_send_init(struct fuse_mount *fm)
 			err = 0;
 	} else {
 		ia->args.end = process_init_reply;
-		err = fuse_simple_background(fm, &ia->args, GFP_KERNEL);
+		err = unlikely(fm->fc->no_daemon) ? 0 : fuse_simple_background(fm, &ia->args, GFP_KERNEL);
 		if (!err)
 			return 0;
 	}
@@ -1665,32 +1853,6 @@ void fuse_dev_free(struct fuse_dev *fud)
 	kfree(fud);
 }
 EXPORT_SYMBOL_GPL(fuse_dev_free);
-
-static void fuse_fill_attr_from_inode(struct fuse_attr *attr,
-				      const struct fuse_inode *fi)
-{
-	struct timespec64 atime = inode_get_atime(&fi->inode);
-	struct timespec64 mtime = inode_get_mtime(&fi->inode);
-	struct timespec64 ctime = inode_get_ctime(&fi->inode);
-
-	*attr = (struct fuse_attr){
-		.ino		= fi->inode.i_ino,
-		.size		= fi->inode.i_size,
-		.blocks		= fi->inode.i_blocks,
-		.atime		= atime.tv_sec,
-		.mtime		= mtime.tv_sec,
-		.ctime		= ctime.tv_sec,
-		.atimensec	= atime.tv_nsec,
-		.mtimensec	= mtime.tv_nsec,
-		.ctimensec	= ctime.tv_nsec,
-		.mode		= fi->inode.i_mode,
-		.nlink		= fi->inode.i_nlink,
-		.uid		= __kuid_val(fi->inode.i_uid),
-		.gid		= __kgid_val(fi->inode.i_gid),
-		.rdev		= fi->inode.i_rdev,
-		.blksize	= 1u << fi->inode.i_blkbits,
-	};
-}
 
 static void fuse_sb_defaults(struct super_block *sb)
 {
@@ -1887,13 +2049,16 @@ int fuse_fill_super_common(struct super_block *sb, struct fuse_fs_context *ctx)
 	fc->destroy = ctx->destroy;
 	fc->no_control = ctx->no_control;
 	fc->no_force_umount = ctx->no_force_umount;
+	fc->no_daemon = ctx->no_daemon;
 
 	err = -ENOMEM;
-	root = fuse_get_root_inode(sb, ctx->rootmode);
+	root = fuse_get_root_inode(sb, ctx->rootmode, ctx->root_bpf,
+		ctx->root_dir);
 	set_default_d_op(sb, &fuse_dentry_operations);
 	root_dentry = d_make_root(root);
 	if (!root_dentry)
 		goto err_dev_free;
+	fuse_init_dentry_root(root_dentry, ctx->root_dir);
 
 	mutex_lock(&fuse_mutex);
 	err = -EINVAL;
@@ -1937,18 +2102,20 @@ static int fuse_fill_super(struct super_block *sb, struct fs_context *fsc)
 	struct fuse_mount *fm;
 	int err;
 
-	if (!ctx->file || !ctx->rootmode_present ||
-	    !ctx->user_id_present || !ctx->group_id_present)
-		return -EINVAL;
+	if (!ctx->no_daemon) {
+		if (!ctx->file || !ctx->rootmode_present ||
+		    !ctx->user_id_present || !ctx->group_id_present)
+			return -EINVAL;
 
-	/*
-	 * Require mount to happen from the same user namespace which
-	 * opened /dev/fuse to prevent potential attacks.
-	 */
-	if ((ctx->file->f_op != &fuse_dev_operations) ||
-	    (ctx->file->f_cred->user_ns != sb->s_user_ns))
-		return -EINVAL;
-	ctx->fudptr = &ctx->file->private_data;
+		/*
+		 * Require mount to happen from the same user namespace which
+		 * opened /dev/fuse to prevent potential attacks.
+		 */
+		if ((ctx->file->f_op != &fuse_dev_operations) ||
+		    (ctx->file->f_cred->user_ns != sb->s_user_ns))
+			return -EINVAL;
+		ctx->fudptr = &ctx->file->private_data;
+	}
 
 	err = fuse_fill_super_common(sb, ctx);
 	if (err)
@@ -2249,9 +2416,23 @@ static struct kobj_attribute fuse_passthrough_attr =
 		__ATTR_RO(fuse_passthrough);
 #endif
 
+#ifdef CONFIG_FUSE_BPF
+static ssize_t fuse_bpf_show(struct kobject *kobj,
+				       struct kobj_attribute *attr, char *buff)
+{
+	return sysfs_emit(buff, "supported\n");
+}
+
+static struct kobj_attribute fuse_bpf_attr =
+		__ATTR_RO(fuse_bpf);
+#endif
+
 static struct attribute *fuse_features[] = {
 #ifdef CONFIG_FUSE_PASSTHROUGH
 	&fuse_passthrough_attr.attr,
+#endif
+#ifdef CONFIG_FUSE_BPF
+	&fuse_bpf_attr.attr,
 #endif
 	NULL,
 };
@@ -2261,8 +2442,38 @@ static const struct attribute_group fuse_features_group = {
 	.attrs = fuse_features,
 };
 
+#ifdef CONFIG_FUSE_BPF
+/*
+ * TODO Remove this once fuse-bpf is upstreamed
+ *
+ * bpf_prog_type_fuse exports the bpf_prog_type_fuse 'constant', which cannot be
+ * constant until the code is upstreamed
+ */
+static ssize_t bpf_prog_type_fuse_show(struct kobject *kobj,
+				       struct kobj_attribute *attr, char *buff)
+{
+	return sysfs_emit(buff, "%d\n", BPF_PROG_TYPE_FUSE);
+}
+
+static struct kobj_attribute bpf_prog_type_fuse_attr =
+		__ATTR_RO(bpf_prog_type_fuse);
+#endif
+
+static struct attribute *bpf_attributes[] = {
+#ifdef CONFIG_FUSE_BPF
+	&bpf_prog_type_fuse_attr.attr,
+#endif
+	NULL,
+};
+
+static const struct attribute_group bpf_attr_group = {
+	.attrs = bpf_attributes,
+};
+/* TODO remove to here */
+
 static const struct attribute_group *attribute_groups[] = {
 	&fuse_features_group,
+	&bpf_attr_group,
 	NULL
 };
 
@@ -2324,11 +2535,21 @@ static int __init fuse_init(void)
 	if (res)
 		goto err_sysfs_cleanup;
 
+#ifdef CONFIG_FUSE_BPF
+	res = fuse_bpf_init();
+	if (res)
+		goto err_ctl_cleanup;
+#endif
+
 	sanitize_global_limit(&max_user_bgreq);
 	sanitize_global_limit(&max_user_congthresh);
 
 	return 0;
 
+#ifdef CONFIG_FUSE_BPF
+ err_ctl_cleanup:
+	fuse_ctl_cleanup();
+#endif
  err_sysfs_cleanup:
 	fuse_sysfs_cleanup();
  err_dev_cleanup:
@@ -2346,6 +2567,9 @@ static void __exit fuse_exit(void)
 	fuse_ctl_cleanup();
 	fuse_sysfs_cleanup();
 	fuse_fs_cleanup();
+#ifdef CONFIG_FUSE_BPF
+	fuse_bpf_cleanup();
+#endif
 	fuse_dev_cleanup();
 }
 

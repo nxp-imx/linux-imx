@@ -428,6 +428,11 @@ pub(crate) const THREAD_LAYOUT: rb_thread_layout = rb_thread_layout {
     arc_offset: Arc::<Thread>::DATA_OFFSET,
     process: offset_of!(Thread, process),
     id: offset_of!(Thread, id),
+    task: offset_of!(Thread, task),
+    __kabi_reserved_backport0: 0,
+    __kabi_reserved_backport1: 0,
+    __kabi_reserved_backport2: 0,
+    __kabi_reserved_backport3: 0,
 };
 
 /// This represents a thread that's used with binder.
@@ -755,11 +760,13 @@ impl Thread {
         prio_state.state = PriorityState::Set;
     }
 
-    pub(crate) fn set_priority(&self, desired: &BinderPriority, _t: &Transaction) {
+    pub(crate) fn set_priority(&self, desired: &BinderPriority, t: &Transaction) {
         self.do_set_priority(desired, true);
+        crate::trace::vh_set_priority(t, &self.task);
     }
 
     pub(crate) fn restore_priority(&self, desired: &BinderPriority) {
+        crate::trace::vh_restore_priority(&self.task);
         self.do_set_priority(desired, false);
     }
 
@@ -1135,12 +1142,9 @@ impl Thread {
 
         // Copy offsets if there are any.
         if offsets_size > 0 {
-            {
-                let mut reader =
-                    UserSlice::new(UserPtr::from_addr(trd_data_ptr.offsets as _), offsets_size)
-                        .reader();
-                alloc.copy_into(&mut reader, aligned_data_size, offsets_size)?;
-            }
+            let mut offsets_reader =
+                UserSlice::new(UserPtr::from_addr(trd_data_ptr.offsets as _), offsets_size)
+                    .reader();
 
             let offsets_start = aligned_data_size;
             let offsets_end = aligned_data_size + offsets_size;
@@ -1161,11 +1165,9 @@ impl Thread {
                 .step_by(size_of::<u64>())
                 .enumerate()
             {
-                let offset: usize = view
-                    .alloc
-                    .read::<u64>(index_offset)?
-                    .try_into()
-                    .map_err(|_| EINVAL)?;
+                let offset = offsets_reader.read::<u64>()?;
+                view.alloc.write(index_offset, &offset)?;
+                let offset: usize = offset.try_into().map_err(|_| EINVAL)?;
 
                 if offset < end_of_previous_object || !is_aligned(offset, size_of::<u32>()) {
                     pr_warn!("Got transaction with invalid offset.");

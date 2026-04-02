@@ -7,6 +7,7 @@
 #ifndef __LINUX_IOMMU_H
 #define __LINUX_IOMMU_H
 
+#include <linux/android_kabi.h>
 #include <linux/scatterlist.h>
 #include <linux/device.h>
 #include <linux/types.h>
@@ -362,6 +363,7 @@ struct iommu_iotlb_gather {
 	size_t			pgsize;
 	struct iommu_pages_list	freelist;
 	bool			queued;
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -711,6 +713,11 @@ struct iommu_ops {
 	struct iommu_domain *release_domain;
 	struct iommu_domain *default_domain;
 	u8 user_pasid_table:1;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 /**
@@ -798,6 +805,10 @@ struct iommu_domain_ops {
 	int (*add_deferred_map_sg)(struct iommu_map_cookie_sg *cookie,
 				   phys_addr_t paddr, size_t pgsize, size_t pgcount);
 	size_t (*consume_deferred_map_sg)(struct iommu_map_cookie_sg *cookie);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 /**

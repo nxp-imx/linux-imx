@@ -80,6 +80,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_user_nice);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_user_nice_locked);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_setscheduler);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_setscheduler_prio);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_should_honor_rt_sync);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_tick_entry);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_try_to_wake_up);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_try_to_wake_up_begin);

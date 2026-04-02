@@ -8,6 +8,7 @@
 #include <linux/types.h>
 #include <linux/xarray.h>
 #include <net/netmem.h>
+#include <linux/android_kabi.h>
 
 #define PP_FLAG_DMA_MAP		BIT(0) /* Should page_pool do the DMA
 					* map/unmap
@@ -246,9 +247,10 @@ struct page_pool {
 	/* User-facing fields, protected by page_pools_lock */
 	struct {
 		struct hlist_node list;
-		u64 detach_time;
+		ktime_t detach_time;
 		u32 id;
 	} user;
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct page *page_pool_alloc_pages(struct page_pool *pool, gfp_t gfp);

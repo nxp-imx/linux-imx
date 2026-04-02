@@ -496,7 +496,7 @@
   input_unregister_handle
   int_sqrt
   iomem_resource
-  ioremap_prot
+  __ioremap_prot
   iounmap
   ip_route_output_flow
   ip_send_check
@@ -1141,6 +1141,7 @@
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_adjust_alloc_flags
+  __traceiter_android_vh_adjust_iocb_flags
   __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alloc_pages_reclaim_bypass
   __traceiter_android_vh_alter_futex_plist_add
@@ -1162,6 +1163,7 @@
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_exit_check
   __traceiter_android_vh_exit_signal
+  __traceiter_android_vh_filemap_end_dropbehind_bypass
   __traceiter_android_vh_filemap_fault_end
   __traceiter_android_vh_filemap_fault_start
   __traceiter_android_vh_free_unref_page_bypass
@@ -1310,6 +1312,7 @@
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_adjust_alloc_flags
+  __tracepoint_android_vh_adjust_iocb_flags
   __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alloc_pages_reclaim_bypass
   __tracepoint_android_vh_alter_futex_plist_add
@@ -1331,6 +1334,7 @@
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_exit_check
   __tracepoint_android_vh_exit_signal
+  __tracepoint_android_vh_filemap_end_dropbehind_bypass
   __tracepoint_android_vh_filemap_fault_end
   __tracepoint_android_vh_filemap_fault_start
   __tracepoint_android_vh_free_unref_page_bypass

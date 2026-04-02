@@ -1,3 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
 fuse_mnt
 fusectl_test
+fuse_test
+*.raw

@@ -44,6 +44,9 @@
   __traceiter_android_rvh_alloc_and_link_pwqs
   __traceiter_android_rvh_alloc_pages_reclaim_cycle_end
   __traceiter_android_rvh_alloc_pages_reclaim_start
+  __traceiter_android_vh_mglru_aging_bypass
+  __traceiter_android_vh_count_workingset_refault
+  __traceiter_android_rvh_kswapd_shrink_node_bypass
   __traceiter_android_rvh_bpf_skb_load_bytes
   __traceiter_android_rvh_before_pick_task_fair
   __traceiter_android_rvh_cpufreq_transition
@@ -86,6 +89,7 @@
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_f2fs_file_open
   __traceiter_android_vh_f2fs_ra_op_flags
+  __traceiter_android_vh_fas_gpu_qos_update_tracer
   __traceiter_android_vh_filemap_update_page
   __traceiter_android_vh_free_task
   __traceiter_android_vh_free_unref_folios_to_pcp_bypass
@@ -131,6 +135,9 @@
   __tracepoint_android_rvh_alloc_and_link_pwqs
   __tracepoint_android_rvh_alloc_pages_reclaim_cycle_end
   __tracepoint_android_rvh_alloc_pages_reclaim_start
+  __tracepoint_android_vh_mglru_aging_bypass
+  __tracepoint_android_vh_count_workingset_refault
+  __tracepoint_android_rvh_kswapd_shrink_node_bypass
   __tracepoint_android_rvh_bpf_skb_load_bytes
   __tracepoint_android_rvh_before_pick_task_fair
   __tracepoint_android_rvh_cpufreq_transition
@@ -173,6 +180,7 @@
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_f2fs_file_open
   __tracepoint_android_vh_f2fs_ra_op_flags
+  __tracepoint_android_vh_fas_gpu_qos_update_tracer
   __tracepoint_android_vh_filemap_update_page
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_inode_lru_isolate

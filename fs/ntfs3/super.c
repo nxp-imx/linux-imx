@@ -1927,6 +1927,7 @@ static void __exit exit_ntfs_fs(void)
 }
 
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 MODULE_DESCRIPTION("ntfs3 read/write filesystem");
 #ifdef CONFIG_NTFS3_FS_POSIX_ACL
 MODULE_INFO(behaviour, "Enabled Linux POSIX ACLs support");

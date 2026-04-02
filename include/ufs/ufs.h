@@ -14,6 +14,7 @@
 #include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 #include <uapi/scsi/scsi_bsg_ufs.h>
 #include <linux/time64.h>
 
@@ -654,6 +655,8 @@ struct ufs_dev_info {
 	bool hid_sup;
 	bool zwor_sup;
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 	ANDROID_OEM_DATA(1);
 };
 

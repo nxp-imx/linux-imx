@@ -210,6 +210,12 @@ DECLARE_HOOK(android_vh_alloc_pages_slowpath_end,
 		unsigned long pages_reclaimed, int retry_loop_count),
 	TP_ARGS(gfp_mask, order, alloc_start, stime, did_some_progress,
 		pages_reclaimed, retry_loop_count));
+DECLARE_HOOK(android_vh_mm_compaction_begin,
+	TP_PROTO(struct compact_control *cc, long *vendor_ret),
+	TP_ARGS(cc, vendor_ret));
+DECLARE_HOOK(android_vh_mm_compaction_end,
+	TP_PROTO(struct compact_control *cc, long vendor_ret),
+	TP_ARGS(cc, vendor_ret));
 DECLARE_HOOK(android_vh_mm_free_page,
 	TP_PROTO(struct page *page),
 	TP_ARGS(page));
@@ -410,6 +416,15 @@ DECLARE_HOOK(android_vh_free_page_bypass,
 DECLARE_HOOK(android_vh_free_folio_bypass,
 	TP_PROTO(struct folio *folio, unsigned int order, bool *skip_free_folio),
 	TP_ARGS(folio, order, skip_free_folio));
+DECLARE_HOOK(android_vh_free_pages_prepare_init,
+	TP_PROTO(struct page *page, int nr_pages, bool *init),
+	TP_ARGS(page, nr_pages, init));
+DECLARE_HOOK(android_vh_post_alloc_hook,
+	TP_PROTO(struct page *page, unsigned int order, bool *init),
+	TP_ARGS(page, order, init));
+DECLARE_HOOK(android_vh_check_new_page,
+	TP_PROTO(unsigned long *flags),
+	TP_ARGS(flags));
 DECLARE_HOOK(android_vh_split_large_folio_bypass,
 	TP_PROTO(bool *bypass),
 	TP_ARGS(bypass));
@@ -536,6 +551,20 @@ DECLARE_HOOK(android_vh_filemap_update_page,
 DECLARE_HOOK(android_vh_folio_end_writeback,
 	TP_PROTO(struct folio *folio),
 	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_calculate_totalreserve_pages,
+	TP_PROTO(bool *skip),
+	TP_ARGS(skip));
+DECLARE_RESTRICTED_HOOK(android_rvh_gup_longterm_locked,
+	TP_PROTO(long rc, long nr_pinned_pages,
+		unsigned long start, unsigned long nr_pages,
+		struct page **pages),
+	TP_ARGS(rc, nr_pinned_pages, start, nr_pages, pages), 5);
+DECLARE_HOOK(android_vh_adjust_iocb_flags,
+	TP_PROTO(struct file *file, loff_t pos, size_t count, int *flags),
+	TP_ARGS(file, pos, count, flags));
+DECLARE_HOOK(android_vh_filemap_end_dropbehind_bypass,
+	TP_PROTO(struct folio *folio, bool *bypass),
+	TP_ARGS(folio, bypass));
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */

@@ -57,7 +57,7 @@ void fsstack_copy_inode_size(struct inode *dst, struct inode *src)
 	if (sizeof(i_size) > sizeof(long) || sizeof(i_blocks) > sizeof(long))
 		spin_unlock(&dst->i_lock);
 }
-EXPORT_SYMBOL_GPL(fsstack_copy_inode_size);
+EXPORT_SYMBOL_NS_GPL(fsstack_copy_inode_size, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /* copy all attributes */
 void fsstack_copy_attr_all(struct inode *dest, const struct inode *src)

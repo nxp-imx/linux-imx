@@ -81,3 +81,4 @@ module_exit(exit_nls_koi8_ru)
 
 MODULE_DESCRIPTION("NLS KOI8-RU (Belarusian)");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");

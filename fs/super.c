@@ -1739,7 +1739,7 @@ void kill_block_super(struct super_block *sb)
 	}
 }
 
-EXPORT_SYMBOL(kill_block_super);
+EXPORT_SYMBOL_NS(kill_block_super, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 #endif
 
 /**

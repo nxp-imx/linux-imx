@@ -690,6 +690,7 @@
   dev_pm_qos_remove_notifier
   dev_pm_qos_remove_request
   dev_pm_qos_update_request
+  dev_pm_set_dedicated_wake_irq
   dev_pm_set_wake_irq
   _dev_printk
   __dev_queue_xmit
@@ -1530,7 +1531,7 @@
   iommu_set_pgtable_quirks
   iommu_unmap
   __ioread32_copy
-  ioremap_prot
+  __ioremap_prot
   iounmap
   iov_iter_init
   iov_iter_kvec
@@ -3303,6 +3304,7 @@
   __traceiter_android_rvh_sched_newidle_balance
   __traceiter_android_rvh_sched_nohz_balancer_kick
   __traceiter_android_rvh_schedule
+  __traceiter_android_rvh_scmi_limit_notify_cb
   __traceiter_android_rvh_select_fallback_rq
   __traceiter_android_rvh_select_task_rq_fair
   __traceiter_android_rvh_select_task_rq_rt
@@ -3407,6 +3409,7 @@
   __tracepoint_android_rvh_sched_newidle_balance
   __tracepoint_android_rvh_sched_nohz_balancer_kick
   __tracepoint_android_rvh_schedule
+  __tracepoint_android_rvh_scmi_limit_notify_cb
   __tracepoint_android_rvh_select_fallback_rq
   __tracepoint_android_rvh_select_task_rq_fair
   __tracepoint_android_rvh_select_task_rq_rt

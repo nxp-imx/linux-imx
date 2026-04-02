@@ -91,12 +91,19 @@ module! {
 }
 
 use kernel::bindings::rust_binder_layout;
-#[no_mangle]
-static RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
+const RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
     t: transaction::TRANSACTION_LAYOUT,
     th: thread::THREAD_LAYOUT,
     p: process::PROCESS_LAYOUT,
     n: node::NODE_LAYOUT,
+    __kabi_reserved_backport0: 0,
+    __kabi_reserved_backport1: 0,
+    __kabi_reserved_backport2: 0,
+    __kabi_reserved_backport3: 0,
+    __kabi_reserved_backport4: 0,
+    __kabi_reserved_backport5: 0,
+    __kabi_reserved_backport6: 0,
+    __kabi_reserved_backport7: 0,
 };
 
 fn next_debug_id() -> usize {
@@ -301,7 +308,12 @@ impl kernel::Module for BinderModule {
         // SAFETY: The module initializer never runs twice, so we only call this once.
         unsafe { crate::context::CONTEXTS.init() };
 
-        // SAFETY: Doesn't run in parallel with C Binder init.
+        // SAFETY: Nobody will access this except through tracepoints triggered by this driver, so
+        // currently safe to write.
+        unsafe { bindings::RUST_BINDER_LAYOUT = RUST_BINDER_LAYOUT };
+
+        // SAFETY: This just accesses global booleans.
+        #[cfg(CONFIG_ANDROID_BINDER_IPC)]
         unsafe {
             let unload = kernel::error::to_result(bindings::binder_try_unload_builtin());
             if let Err(unload) = unload {

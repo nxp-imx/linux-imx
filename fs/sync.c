@@ -70,7 +70,7 @@ int sync_filesystem(struct super_block *sb)
 	}
 	return sync_blockdev(sb->s_bdev);
 }
-EXPORT_SYMBOL(sync_filesystem);
+EXPORT_SYMBOL_NS(sync_filesystem, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static void sync_inodes_one_sb(struct super_block *sb, void *arg)
 {

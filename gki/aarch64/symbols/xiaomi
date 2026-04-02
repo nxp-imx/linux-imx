@@ -55,6 +55,10 @@
   __tracepoint_android_vh_thp_vma_allowable_orders
   __traceiter_android_vh_dma_buf_release
   __tracepoint_android_vh_dma_buf_release
+  __traceiter_cma_alloc_busy_retry
+  __tracepoint_cma_alloc_busy_retry
+  __traceiter_cma_release
+  __tracepoint_cma_release
 
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
@@ -140,3 +144,7 @@
 # required by mi clean page
  __traceiter_android_vh_folio_end_writeback
  __tracepoint_android_vh_folio_end_writeback
+
+# required by sched-walt.ko
+ __traceiter_android_rvh_should_honor_rt_sync
+ __tracepoint_android_rvh_should_honor_rt_sync
