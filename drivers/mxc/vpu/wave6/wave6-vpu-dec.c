@@ -938,6 +938,9 @@ static void wave6_vpu_dec_handle_source_change(struct vpu_instance *inst,
 	if (info->seq_change_info == SEQ_CHANGE_ENABLE_VIDEO_SIGNAL) {
 		inst->registered_fb_num = 0;
 		wave6_event_src_ch_colorsapce(inst);
+	} else if (info->seq_change_info == SEQ_CHANGE_ENABLE_CONF_WIN_OFFSET) {
+		inst->registered_fb_num = 0;
+		wave6_event_src_ch_resolution(inst);
 	} else {
 		scoped_guard(mutex, &inst->fbc_lock)
 			wave6_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);

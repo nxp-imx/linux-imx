@@ -72,6 +72,7 @@
 #define NETC_GLOBAL_IPBRR0		0xbf8
 #define  IPBRR0_IP_REV			GENMASK(15, 0)
 #define NETC_REV_4_1			0x0401
+#define NETC_REV_4_6			0x0406
 
 #define NETC_TMR_FIPER_NUM		3
 #define NETC_TMR_INVALID_CHANNEL	NETC_TMR_FIPER_NUM
@@ -88,6 +89,7 @@
 #define NETC_TMR_EXT_OSC		2 /* tmr_1588_clk, from IO pins */
 
 #define NETC_TMR_SYSCLK_333M		333333333U
+#define NETC_TMR_SYSCLK_133M		133333333U
 
 enum netc_pp_type {
 	NETC_PP_PPS = 1,
@@ -871,7 +873,10 @@ static int netc_timer_get_reference_clk_source(struct netc_timer *priv)
 
 	/* Select NETC system clock as the reference clock by default */
 	priv->clk_select = NETC_TMR_SYSTEM_CLK;
-	priv->clk_freq = NETC_TMR_SYSCLK_333M;
+	if (priv->revision == NETC_REV_4_6)
+		priv->clk_freq = NETC_TMR_SYSCLK_133M;
+	else
+		priv->clk_freq = NETC_TMR_SYSCLK_333M;
 
 	/* Update the clock source of the reference clock if the clock
 	 * is specified in DT node.

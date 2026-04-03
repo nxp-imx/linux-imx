@@ -3879,7 +3879,12 @@ int kbase_csf_doorbell_mapping_init(struct kbase_device *kbdev)
 	struct file *filp;
 	int ret;
 
-	filp = shmem_file_setup("mali csf db", MAX_LFS_FILESIZE, VM_NORESERVE);
+	filp = shmem_file_setup("mali csf db", MAX_LFS_FILESIZE,
+#if (KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE)
+			mk_vma_flags(VMA_NORESERVE_BIT));
+#else
+			VM_NORESERVE);
+#endif
 	if (IS_ERR(filp))
 		return PTR_ERR(filp);
 
@@ -3944,7 +3949,12 @@ int kbase_csf_setup_dummy_user_reg_page(struct kbase_device *kbdev)
 
 	kbdev->csf.user_reg.filp = NULL;
 
-	filp = shmem_file_setup("mali csf user_reg", MAX_LFS_FILESIZE, VM_NORESERVE);
+	filp = shmem_file_setup("mali csf user_reg", MAX_LFS_FILESIZE,
+#if (KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE)
+			mk_vma_flags(VMA_NORESERVE_BIT));
+#else
+			VM_NORESERVE);
+#endif
 	if (IS_ERR(filp)) {
 		dev_err(kbdev->dev, "failed to get an unlinked file for user_reg");
 		return PTR_ERR(filp);

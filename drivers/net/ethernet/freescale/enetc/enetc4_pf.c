@@ -430,17 +430,10 @@ static void enetc4_pf_set_si_vlan_promisc(struct enetc_hw *hw, int si, bool en)
 static struct phylink_pcs *enetc4_pf_create_pcs(struct enetc_pf *pf,
 						struct mii_bus *bus)
 {
-	struct device *dev = &pf->si->pdev->dev;
-	int xpcs_ver;
+	int xpcs_ver = DW_XPCS_VER_DEFAULT;
 
-	switch (pf->si->revision) {
-	case ENETC_REV_4_1:
+	if (pf->si->revision == ENETC_REV_4_1)
 		xpcs_ver = DW_XPCS_VER_MX95;
-		break;
-	default:
-		dev_err(dev, "unsupported xpcs version\n");
-		return ERR_PTR(-EOPNOTSUPP);
-	}
 
 	return xpcs_create_mdiodev_with_phy(bus, 0, 16, 0, xpcs_ver, pf->if_mode);
 }

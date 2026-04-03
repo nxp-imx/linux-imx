@@ -284,13 +284,24 @@ struct pf0900_regulator_irq {
 	unsigned int  event;
 };
 
-static const struct regmap_range pf0900_range = {
-	.range_min = PF0900_REG_DEV_ID,
-	.range_max = PF0900_REG_SYS_DIAG,
+static const struct regmap_range pf0900_range[] = {
+	regmap_reg_range(PF0900_REG_SYSTEM_INT, PF0900_REG_SYSTEM_INT),
+	regmap_reg_range(PF0900_REG_STATUS1_SNS, PF0900_REG_STATUS1_SNS),
+	regmap_reg_range(PF0900_REG_STATUS2_SNS, PF0900_REG_STATUS2_SNS),
+	regmap_reg_range(PF0900_REG_SW_ILIM_SNS, PF0900_REG_SW_ILIM_SNS),
+	regmap_reg_range(PF0900_REG_LDO_ILIM_SNS, PF0900_REG_LDO_ILIM_SNS),
+	regmap_reg_range(PF0900_REG_SW_UV_SNS, PF0900_REG_SW_UV_SNS),
+	regmap_reg_range(PF0900_REG_SW_OV_SNS, PF0900_REG_SW_OV_SNS),
+	regmap_reg_range(PF0900_REG_LDO_UV_SNS, PF0900_REG_LDO_UV_SNS),
+	regmap_reg_range(PF0900_REG_LDO_OV_SNS, PF0900_REG_LDO_OV_SNS),
+	regmap_reg_range(PF0900_REG_IO_SNS, PF0900_REG_ABIST_IO),
+	regmap_reg_range(PF0900_REG_SECURE_WR1, PF0900_REG_SECURE_WR1),
+	regmap_reg_range(PF0900_REG_WD_CNT1, PF0900_REG_WD_CNT2),
+	regmap_reg_range(PF0900_REG_SYS_DIAG, PF0900_REG_SYS_DIAG),
 };
 
 static const struct regmap_access_table pf0900_volatile_regs = {
-	.yes_ranges = &pf0900_range,
+	.yes_ranges = pf0900_range,
 	.n_yes_ranges = 1,
 };
 

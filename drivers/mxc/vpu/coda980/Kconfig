@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "Coda980 vpu driver"
+
+config MXC_VIDEO_CODA980
+	tristate "Coda980 VPU (Video Processing Unit) Codec IP"
+	depends on V4L_MEM2MEM_DRIVERS
+	depends on ARCH_MXC || COMPILE_TEST
+	depends on MEDIA_SUPPORT
+	depends on VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select V4L2_MEM2MEM_DEV
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  Coda980 VPU Codec IP contains H.264 encoder.
+	  To compile this driver as a module choose m here.

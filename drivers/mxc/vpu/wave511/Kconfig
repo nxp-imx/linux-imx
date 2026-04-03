@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+comment "Wave511 vpu driver"
+
+config MXC_VIDEO_WAVE511_CTRL
+	tristate "WAVE511 VPU Ctrl"
+	help
+	  Wave511 VPU Ctrl is to handle the global region.
+	  It help load the firmware and boot the vcpu,
+	  It also help manage the vpu power domain and clock,
+	  To compile this driver as a module choose m here.
+
+config MXC_VIDEO_WAVE511
+	tristate "WAVE511 VPU (Video Processing Unit) Codec IP"
+	depends on V4L_MEM2MEM_DRIVERS
+	depends on ARCH_MXC || COMPILE_TEST
+	depends on MEDIA_SUPPORT
+	depends on VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select V4L2_MEM2MEM_DEV
+	select VIDEOBUF2_DMA_CONTIG
+	select MXC_VIDEO_WAVE511_CTRL
+	help
+	  Wave511 VPU Codec IP contains avc and hevc decoder.
+	  It can support up to 4 vms, and up to 32 instances.
+	  It supports H.264/HEVC 4K@60fps decoding.
+	  To compile this driver as a module choose m here.

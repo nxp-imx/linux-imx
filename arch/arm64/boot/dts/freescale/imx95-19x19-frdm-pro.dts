@@ -684,13 +684,6 @@
 	status = "okay";
 };
 
-&enetc_port2 {
-	phy-handle = <&ethphy2>;
-	phy-mode = "10gbase-r";
-	managed = "in-band-status";
-	status = "okay";
-};
-
 &netc_timer {
 	status = "okay";
 };
@@ -712,12 +705,6 @@
 		reset-gpios = <&i2c3_gpio_expander_20 2 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <10000>;
 		reset-deassert-us = <80000>;
-	};
-
-	ethphy2: ethernet-phy@8 {
-		compatible = "ethernet-phy-ieee802.3-c45";
-		reset-gpios = <&i2c3_gpio_expander_20 0 GPIO_ACTIVE_LOW>;
-		reg = <8>;
 	};
 };
 
@@ -1228,6 +1215,7 @@
 			mclk-fs = <256>;
 
 			sai1_endpoint1: endpoint {
+				system-clock-direction-out;
 				remote-endpoint = <&mqs1_endpoint>;
 			};
 		};

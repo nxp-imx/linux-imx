@@ -84,7 +84,6 @@ struct imx8mp_blk_ctrl_domain {
 	struct device *power_dev;
 	struct imx8mp_blk_ctrl *bc;
 	struct notifier_block power_nb;
-	int num_paths;
 	int id;
 };
 

@@ -1709,8 +1709,8 @@ static int neoisp_probe(struct platform_device *pdev)
 		goto err_pm;
 	}
 
-	ret = devm_request_irq(&pdev->dev, irq, neoisp_irq_handler, IRQF_ONESHOT,
-			dev_name(&pdev->dev), neoispd);
+	ret = devm_request_irq(&pdev->dev, irq, neoisp_irq_handler, 0,
+			       dev_name(&pdev->dev), neoispd);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to request irq: %d\n", ret);
 		goto err_pm;

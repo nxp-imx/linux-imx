@@ -479,18 +479,6 @@ static int ox05b1s_gh_end(struct ox05b1s *sensor, u8 group)
 	}
 }
 
-static int ox05b1s_repeat_launch(struct ox05b1s *sensor)
-{
-	struct regmap *regmap = sensor->regmap;
-
-	switch (sensor->model->chip_id) {
-	case OX05B1S_CHIP_ID:
-		return cci_write(regmap, OX05B1S_REG_GH, OX05B1S_GH_REPEAT, NULL);
-	default:
-		return 0;
-	}
-}
-
 static void ox05b1s_validate_exposures(struct ox05b1s *sensor,
 				       u32 *exp0, u32 *exp1)
 {
@@ -692,8 +680,6 @@ static int ox05b1s_set_exp_gains(struct ox05b1s *sensor)
 	ret |= ox05b1s_set_again_short(sensor, exp1_again);
 	ret |= ox05b1s_set_dgain_short(sensor, exp1_dgain);
 	ret |= ox05b1s_gh_end(sensor, 1);
-
-	ret |= ox05b1s_repeat_launch(sensor);
 
 	return ret ? -EIO : 0;
 }

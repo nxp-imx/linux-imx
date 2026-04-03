@@ -761,6 +761,13 @@ static inline int of_changeset_add_prop_string_array(struct of_changeset *ocs,
 	return ret;
 }
 #endif
+#if (KERNEL_VERSION(6, 19, 0) > LINUX_VERSION_CODE)
+static inline bool dma_fence_check_and_signal(struct dma_fence *fence)
+{
+	dma_fence_signal(fence);
+	return 0;
+}
+#endif
 
 #ifndef DEVFREQ_GOV_SIMPLE_ONDEMAND
 #define DEVFREQ_GOV_SIMPLE_ONDEMAND "simple_ondemand"

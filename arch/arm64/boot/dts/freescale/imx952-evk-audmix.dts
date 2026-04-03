@@ -1,0 +1,361 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx952-clock.h"
+
+#include "imx952-evk.dts"
+
+/ {
+	sound-wm8962 {
+		status = "disabled";
+	};
+
+	sound-amix {
+		compatible = "audio-graph-card2";
+		label = "audmix-wm8962";
+		widgets =
+			"Headphone", "Headphones",
+			"Speaker", "Ext Spk",
+			"Microphone", "AMIC";
+		routing = "SAI6 SAI-Playback", "ASRC1 ASRC-Playback",
+			  "SAI3 SAI-Playback", "ASRC2 ASRC-Playback",
+			  "AUDMIX-Playback-0", "SAI6 SAI-Playback",
+			  "AUDMIX-Playback-1", "SAI3 SAI-Playback",
+			  "Playback", "AUDMIX-Playback-0",
+			  "Playback", "AUDMIX-Playback-1",
+			  "SAI6 SAI-Capture", "AUDMIX-Capture-0",
+			  "Headphones", "HPOUTL",
+			  "Headphones", "HPOUTR",
+			  "Ext Spk", "SPKOUTL",
+			  "Ext Spk", "SPKOUTR",
+			  "AMIC", "MICBIAS",
+			  "IN3R", "AMIC",
+			  "IN1R", "AMIC";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_hp>;
+		hp-det-gpios = <&gpio2 11 GPIO_ACTIVE_HIGH>;
+		links = <&fe00 &fe01 &fe02 &be00 &be01 &be02>;
+
+		multi {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ports@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					mbe0_ep: endpoint {
+						remote-endpoint = <&be00_ep>;
+					};
+				};/* (X) to pair */
+				port@1 {
+					reg = <1>;
+					mcodec01_ep: endpoint {
+						remote-endpoint = <&sai6_endpoint0>;
+					};
+				};/* (A) Multi Element */
+				port@2 {
+					reg = <2>;
+					mcodec02_ep: endpoint {
+						remote-endpoint = <&amix_endpoint0>;
+					};
+				};/* (B) Multi Element */
+				port@3 {
+					reg = <3>;
+					mcodec03_ep: endpoint {
+						remote-endpoint = <&codec0_ep>;
+					};
+				};/* (B) Multi Element */
+			};
+
+			ports@1 {
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					mbe1_ep: endpoint {
+						remote-endpoint = <&be01_ep>;
+					};
+				};/* (X) to pair */
+				port@1 {
+					reg = <1>;
+					mcodec11_ep: endpoint {
+						remote-endpoint = <&sai3_endpoint0>;
+					};
+				};/* (A) Multi Element */
+				port@2 {
+					reg = <2>;
+					mcodec12_ep: endpoint {
+						remote-endpoint = <&amix_endpoint1>;
+					};
+				};/* (B) Multi Element */
+				port@3 {
+					reg = <3>;
+					mcodec13_ep: endpoint {
+						remote-endpoint = <&codec1_ep>; };
+				};/* (B) Multi Element */
+			};
+		};
+
+		dpcm {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ports@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				fe00: port@0 {
+					reg = <0>;
+					fe00_ep: endpoint {
+						remote-endpoint = <&asrc1_endpoint0>;
+					};
+				};
+				fe01: port@1 {
+					reg = <1>;
+					fe01_ep: endpoint {
+						remote-endpoint = <&asrc2_endpoint0>;
+					};
+				};
+				fe02: port@2 {
+					reg = <2>;
+					fe02_ep: endpoint {
+						remote-endpoint = <&sai6_endpoint1>;
+					};
+				};
+			};
+
+			ports@1 {
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				convert-rate = <48000>;
+				convert-sample-format = "s16_le";
+
+				be00: port@0 {
+					reg = <0>;
+					be00_ep: endpoint {
+						remote-endpoint = <&mbe0_ep>;
+					};
+				};
+				be01: port@1 {
+					reg = <1>;
+					be01_ep: endpoint {
+						remote-endpoint = <&mbe1_ep>;
+					};
+				};
+				be02: port@2 {
+					reg = <2>;
+					be02_ep: endpoint {
+						remote-endpoint = <&amix_endpoint2>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&amix {
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			playback-only;
+
+			amix_endpoint0: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				remote-endpoint = <&mcodec02_ep>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			playback-only;
+
+			amix_endpoint1: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				remote-endpoint = <&mcodec12_ep>;
+			};
+		};
+
+		port@2 {
+			reg = <2>;
+			capture-only;
+
+			amix_endpoint2: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				bitclock-master;
+				frame-master;
+				remote-endpoint = <&be02_ep>;
+			};
+		};
+	};
+};
+
+&asrc1 {
+	sound-name-prefix = "ASRC1";
+	port {
+		asrc1_endpoint0: endpoint {
+			playback-only;
+			remote-endpoint = <&fe00_ep>;
+		};
+	};
+};
+
+&asrc2 {
+	sound-name-prefix = "ASRC2";
+	port {
+		asrc2_endpoint0: endpoint {
+			playback-only;
+			remote-endpoint = <&fe01_ep>;
+		};
+	};
+};
+
+&sai3 {
+	assigned-clocks = <&scmi_clk IMX952_CLK_AUDIOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL2_VCO>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL1>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL2>,
+			  <&scmi_clk IMX952_CLK_SAI3>;
+	assigned-clock-parents = <0>, <0>, <0>, <0>, <&scmi_clk IMX952_CLK_AUDIOPLL1>;
+	assigned-clock-rates = <3932160000>, <3612672000>, <393216000>, <361267200>, <24576000>;
+	fsl,sai-mclk-direction-output;
+	fsl,sai-asynchronous;
+	fsl,sai-amix-mode = "audmix";
+	sound-name-prefix = "SAI3";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			playback-only;
+
+			sai3_endpoint0: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				bitclock-master;
+				frame-master;
+				remote-endpoint = <&mcodec11_ep>;
+			};
+		};
+
+		port@2 {
+			reg = <2>;
+			capture-only;
+
+			sai3_endpoint1: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				bitclock-master;
+				frame-master;
+			};
+		};
+
+	};
+};
+
+&sai6 {
+	assigned-clocks = <&scmi_clk IMX952_CLK_AUDIOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL2_VCO>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL1>,
+			  <&scmi_clk IMX952_CLK_AUDIOPLL2>,
+			  <&scmi_clk IMX952_CLK_SAI3>;
+	assigned-clock-parents = <0>, <0>, <0>, <0>, <&scmi_clk IMX952_CLK_AUDIOPLL1>;
+	assigned-clock-rates = <3932160000>, <3612672000>, <393216000>, <361267200>, <24576000>;
+	fsl,sai-mclk-direction-output;
+	fsl,sai-asynchronous;
+	sound-name-prefix = "SAI6";
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			playback-only;
+
+			sai6_endpoint0: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				bitclock-master;
+				frame-master;
+				remote-endpoint = <&mcodec01_ep>;
+			};
+		};
+
+		port@2 {
+			reg = <2>;
+			capture-only;
+
+			sai6_endpoint1: endpoint {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-width-map = <32 32 8>;
+				dai-format = "dsp_a";
+				remote-endpoint = <&fe02_ep>;
+			};
+		};
+	};
+};
+
+&wm8962 {
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		dai-format = "dsp_a";
+
+		port@0  {
+			reg = <0>;
+			codec0_ep:  endpoint@0 {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				remote-endpoint = <&mcodec03_ep>;
+			};
+			codec1_ep:  endpoint@1 {
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				remote-endpoint = <&mcodec13_ep>;
+			};
+		};
+	};
+};
+
+&scmi_iomuxc {
+	pinctrl_sai3: sai3grp {
+		fsl,pins = <
+			IMX952_PAD_GPIO_IO17__WAKEUPMIX_TOP_SAI3_MCLK			0x31e
+			IMX952_PAD_GPIO_IO16__WAKEUPMIX_TOP_AUDMIX_TDM_OUT_TXBCLK	0x4000031e
+			IMX952_PAD_GPIO_IO21__WAKEUPMIX_TOP_AUDMIX_TDM_OUT_TXDATA	0x4000031e
+			IMX952_PAD_GPIO_IO26__WAKEUPMIX_TOP_AUDMIX_TDM_OUT_TXSYNC	0x4000031e
+		>;
+	};
+};

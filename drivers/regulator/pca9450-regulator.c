@@ -1300,7 +1300,6 @@ static int pca9450_i2c_probe(struct i2c_client *i2c)
 	struct regulator_dev *ldo5;
 	struct pca9450 *pca9450;
 	unsigned int device_id, i, val;
-	unsigned int reset_ctrl;
 	bool pmic_trim = false;
 	const char *type_name;
 	int ret;

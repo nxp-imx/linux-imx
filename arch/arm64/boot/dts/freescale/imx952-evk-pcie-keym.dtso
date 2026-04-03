@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+&{/} {
+	reg_pcie0_keym: regulator-pcie-keym {
+		compatible = "regulator-fixed";
+		regulator-name = "PCIe slot-power";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pcal6524 14 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	reg_pcie_switch: regulator-pcie-switch {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie-switch";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_pcie0_keym>;
+		gpio = <&pcal6524 10 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&pcie0 {
+	reset-gpio = <&pcal6524 16 GPIO_ACTIVE_LOW>;
+	vpcie3v3aux-supply = <&reg_pcie_switch>;
+	supports-clkreq;
+	status = "okay";
+};

@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-evk.dts"
+
+/ {
+	aliases {
+		ethernet1 = &netc_enetc1;
+	};
+
+	reg_phy_en: regulator-phy-en {
+		compatible = "regulator-fixed";
+		regulator-name = "PHY_EN";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pcal6416 11 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&netc_bus1 {
+	status = "okay";
+};
+
+&netc_emdio {
+	phy-supply = <&reg_phy_en>;
+
+	ethphy1: ethernet-phy@2 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		/* PHY ADDR Configuration
+		 * CONFIG0: 1-2 CONFIG1: 1-2 CONFIG2: 2-3
+		 */
+		reg = <2>;
+		tx-internal-delay-ps = <1800>;
+		rx-internal-delay-ps = <1666>;
+	};
+};
+
+&netc_enetc1 {
+	clocks = <&scmi_clk IMX952_CLK_ENETREF>;
+	clock-names = "ref";
+	phy-handle = <&ethphy1>;
+	phy-mode = "rgmii-id";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enetc1>;
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_enetc1: enetc1grp {
+		fsl,pins = <
+			IMX952_PAD_ENET2_TD3__NETCMIX_TOP_ETH1_RGMII_TD3	0x50e
+			IMX952_PAD_ENET2_TD2__NETCMIX_TOP_ETH1_RGMII_TD2	0x50e
+			IMX952_PAD_ENET2_TD1__NETCMIX_TOP_ETH1_RGMII_TD1	0x50e
+			IMX952_PAD_ENET2_TD0__NETCMIX_TOP_ETH1_RGMII_TD0	0x50e
+			IMX952_PAD_ENET2_TX_CTL__NETCMIX_TOP_ETH1_RGMII_TX_CTL	0x50e
+			IMX952_PAD_ENET2_TXC__NETCMIX_TOP_ETH1_RGMII_TX_CLK	0x58e
+			IMX952_PAD_ENET2_RX_CTL__NETCMIX_TOP_ETH1_RGMII_RX_CTL	0x50e
+			IMX952_PAD_ENET2_RXC__NETCMIX_TOP_ETH1_RGMII_RX_CLK	0x58e
+			IMX952_PAD_ENET2_RD0__NETCMIX_TOP_ETH1_RGMII_RD0	0x50e
+			IMX952_PAD_ENET2_RD1__NETCMIX_TOP_ETH1_RGMII_RD1	0x50e
+			IMX952_PAD_ENET2_RD2__NETCMIX_TOP_ETH1_RGMII_RD2	0x50e
+			IMX952_PAD_ENET2_RD3__NETCMIX_TOP_ETH1_RGMII_RD3	0x50e
+		>;
+	};
+};

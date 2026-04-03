@@ -57,9 +57,10 @@
 	mmc-pwrseq = <&usdhc3_pwrseq>;
 	non-removable;
 	/*
-	 * Only enable SDIO2.0 mode as the corresponding GPIO pads are 3.3V, the
-	 * max frequency is 50MHz.
+	 * Only enable SDIO2.0 mode as the corresponding GPIO pads are 3.3V.
+	 * Per hardware team requirement, the max frequency is limited to 25MHz.
 	 */
+	max-frequency = <25000000>;
 	pinctrl-0 = <&pinctrl_usdhc3>;
 	pinctrl-1 = <&pinctrl_usdhc3>;
 	pinctrl-names = "default", "sleep";

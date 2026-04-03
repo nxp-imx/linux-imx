@@ -1450,6 +1450,12 @@ properties:
               - fsl,imx95-19x19-evk       # i.MX95 19x19 EVK Board
           - const: fsl,imx95
 
+      - description: i.MX952 based Boards
+        items:
+          - enum:
+              - fsl,imx952-evk            # i.MX952 EVK Board
+          - const: fsl,imx952
+
       - description: PHYTEC i.MX 95 FPSC based Boards
         items:
           - enum:

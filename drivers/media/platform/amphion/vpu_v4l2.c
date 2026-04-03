@@ -729,11 +729,12 @@ static int vpu_v4l2_release(struct vpu_inst *inst)
 		inst->workqueue = NULL;
 	}
 
+	imx_mur_release_v4l2_ctrl(inst->recorder);
+	imx_mur_destroy_node(inst->recorder);
+
 	vpu_release_core(inst->core);
 	put_device(inst->dev);
 
-	imx_mur_release_v4l2_ctrl(inst->recorder);
-	imx_mur_destroy_node(inst->recorder);
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 	mutex_destroy(&inst->lock);
 

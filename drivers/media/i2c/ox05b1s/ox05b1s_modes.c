@@ -25,6 +25,8 @@
 #define OS08A20_REG_FORMAT2		CCI_REG8(0x3821)
 #define OS08A20_REG_BLC_CTRL08		CCI_REG8(0x4008)
 #define OS08A20_REG_BLC_CTRL09		CCI_REG8(0x4009)
+#define OS08A20_REG_BLC_CTRL50		CCI_REG8(0x4050)
+#define OS08A20_REG_BLC_CTRL51		CCI_REG8(0x4051)
 #define OS08A20_REG_PCLK_PERIOD		CCI_REG8(0x4837)
 #define OS08A20_REG_ISP_CTRL_1		CCI_REG8(0x5001)
 #define OS08A20_REG_ISP_CTRL_5		CCI_REG8(0x5005)
@@ -37,6 +39,8 @@ static const struct cci_reg_sequence os08a20_init_setting_common[] = {
 	{OS08A20_REG_L2S_MODE, 0x04},
 	{OS08A20_REG_BLC_CTRL08, 0x02},
 	{OS08A20_REG_BLC_CTRL09, 0x0d},
+	{OS08A20_REG_BLC_CTRL50, 0x00},
+	{OS08A20_REG_BLC_CTRL51, 0x01},
 	{OS08A20_REG_ISP_CTRL_1, 0x42},
 	{OS08A20_REG_ISP_CTRL_5, 0x00},
 };
@@ -154,6 +158,7 @@ const struct ox05b1s_reglist os08a20_reglist_1080p_10b[] = {
 #define OX05B1S_REG_MIPI_CORE_REG02	CCI_REG8(0x4802)
 #define OX05B1S_REG_MIPI_CORE_REG1B	CCI_REG8(0x481b)
 #define OX05B1S_REG_PCLK_PERIOD		CCI_REG8(0x4837)
+#define OX05B1S_REG_ISP_REG01		CCI_REG8(0x5001)
 
 /* OX05B1S 2592 x 1944 @30fps GRBG10 */
 static const struct cci_reg_sequence ovx5b_init_setting_2592x1944[] = {
@@ -194,6 +199,7 @@ static const struct cci_reg_sequence ovx5b_init_setting_2592x1944[] = {
 	{OX05B1S_REG_MIPI_CORE_REG02, 0x00},
 	{OX05B1S_REG_MIPI_CORE_REG1B, 0x3c},
 	{OX05B1S_REG_PCLK_PERIOD, 0x19},
+	{OX05B1S_REG_ISP_REG01, 0x00},
 };
 
 const struct ox05b1s_reglist ox05b1s_reglist_2592x1944[] = {

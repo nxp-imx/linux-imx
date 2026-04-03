@@ -6618,12 +6618,6 @@ gckHARDWARE_SetPowerState(IN gckHARDWARE Hardware,
 
     gcmkHEADER_ARG("Hardware=%p State=%d", Hardware, State);
 
-#if gcmIS_DEBUG(gcdDEBUG_TRACE)
-    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
-                   "Switching to power state %d(%s)",
-                   State, _PowerEnum(State));
-#endif
-
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
@@ -6665,6 +6659,12 @@ gckHARDWARE_SetPowerState(IN gckHARDWARE Hardware,
     default:
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
+
+#if gcmIS_DEBUG(gcdDEBUG_TRACE)
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "Switching to power state %d(%s)",
+                   State, _PowerEnum(State));
+#endif
 
     if (broadcast) {
         /* Try to acquire the power mutex. */

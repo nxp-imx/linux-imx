@@ -1632,7 +1632,6 @@ static int kbase_kcpu_fence_force_signal_process(struct kbase_kcpu_command_queue
 						 struct kbase_kcpu_command_fence_info *fence_info)
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
-	int ret;
 
 	/* already force signaled just return*/
 	if (kbase_kcpu_command_fence_has_force_signaled(fence_info))
@@ -1641,12 +1640,7 @@ static int kbase_kcpu_fence_force_signal_process(struct kbase_kcpu_command_queue
 	if (WARN_ON(!fence_info->fence))
 		return -EINVAL;
 
-	ret = dma_fence_signal(fence_info->fence);
-	if (unlikely(ret < 0)) {
-		dev_warn(kctx->kbdev->dev, "dma_fence(%d) has been signalled already\n", ret);
-		/* Treated as a success */
-		ret = 0;
-	}
+	dma_fence_check_and_signal(fence_info->fence);
 
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_SIGNAL, kcpu_queue,
 				  fence_info->fence->context, fence_info->fence->seqno);
@@ -1667,7 +1661,7 @@ static int kbase_kcpu_fence_force_signal_process(struct kbase_kcpu_command_queue
 	kbase_fence_put(fence_info->fence);
 	fence_info->fence = NULL;
 
-	return ret;
+	return 0;
 }
 
 static void kcpu_force_signal_fence(struct kbase_kcpu_command_queue *kcpu_queue)
@@ -1770,7 +1764,6 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 					    struct kbase_kcpu_command_fence_info *fence_info)
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
-	int ret;
 
 	/* already force signaled */
 	if (kbase_kcpu_command_fence_has_force_signaled(fence_info))
@@ -1779,13 +1772,7 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 	if (WARN_ON(!fence_info->fence))
 		return -EINVAL;
 
-	ret = dma_fence_signal(fence_info->fence);
-
-	if (unlikely(ret < 0)) {
-		dev_warn(kctx->kbdev->dev, "dma_fence(%d) has been signalled already\n", ret);
-		/* Treated as a success */
-		ret = 0;
-	}
+	dma_fence_check_and_signal(fence_info->fence);
 
 	KBASE_KTRACE_ADD_CSF_KCPU(kctx->kbdev, KCPU_FENCE_SIGNAL, kcpu_queue,
 				  fence_info->fence->context, fence_info->fence->seqno);
@@ -1813,7 +1800,7 @@ static int kbasep_kcpu_fence_signal_process(struct kbase_kcpu_command_queue *kcp
 	kbase_fence_put(fence_info->fence);
 	fence_info->fence = NULL;
 
-	return ret;
+	return 0;
 }
 
 static int kbasep_kcpu_fence_signal_init(struct kbase_kcpu_command_queue *kcpu_queue,
