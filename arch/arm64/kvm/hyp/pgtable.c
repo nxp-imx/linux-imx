@@ -980,7 +980,7 @@ static int stage2_map_walker_try_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	/* Perform CMOs before installation of the guest stage-2 PTE */
 	if (!kvm_pgtable_walk_skip_cmo(ctx) && mm_ops->dcache_clean_inval_poc &&
 	    stage2_pte_cacheable(pgt, new) &&
-	    !(new & KVM_PTE_LEAF_ATTR_S2_DEVICE))
+	    !(new & KVM_PTE_LEAF_ATTR_S2_DEVICE) && !stage2_has_fwb(pgt))
 		mm_ops->dcache_clean_inval_poc(kvm_pte_follow(new, mm_ops),
 					       granule);
 

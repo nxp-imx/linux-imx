@@ -58,6 +58,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmap.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 #include "internal.h"
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(vm_unmapped_area);
@@ -378,6 +381,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		return -EOVERFLOW;
 
 	/* Too many mappings? */
+	trace_android_vh_do_mmap_map_count(file, addr, len, prot, flags);
 	if (mm->map_count > sysctl_max_map_count)
 		return -ENOMEM;
 

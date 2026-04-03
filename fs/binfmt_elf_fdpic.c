@@ -595,12 +595,6 @@ static int create_elf_fdpic_tables(struct linux_binprm *bprm,
 #ifdef ELF_HWCAP2
 	nitems++;
 #endif
-#ifdef ELF_HWCAP3
-	nitems++;
-#endif
-#ifdef ELF_HWCAP4
-	nitems++;
-#endif
 
 	csp = sp;
 	sp -= nitems * 2 * sizeof(unsigned long);

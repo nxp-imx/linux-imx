@@ -71,10 +71,35 @@ static int zram_process_walker(pmd_t *pmd, unsigned long start,
 		pte = ptep_get(ptep);
 		pte_unmap_unlock(ptep, ptl);
 
+		/*
+		 * We hold pte_offset_map_lock() to take an atomic snapshot of
+		 * the PTE into a local variable. Once we release the lock via
+		 * pte_unmap_unlock(), the actual page table entry may change
+		 * immediately (e.g., the process exits or drops the page).
+		 *
+		 * This means our local 'pte' variable might technically
+		 * contain stale data while we continue to process it. However,
+		 * this is safe because:
+		 *
+		 * 1. If the page was modified (touched, freed or overwritten),
+		 *    it will clear the ZRAM_PP_SLOT flag for that entry.
+		 * 2. We rely on the ZRAM_PP_SLOT flag as a gatekeeper:
+		 * - scan_slots_for_writeback() checks this flag before marking
+		 *   a slot for writeback.
+		 * - zram_writeback_slots() performs a double-check of this
+		 *   flag just before writing.
+		 * 3. zram->pp_in_progress also ensures the ZRAM_PP_SLOT flag
+		 *    won't be set again since we don't allow concurrent
+		 *    post-processing.
+		 *
+		 * Therefore, even if the PTE changes and our local variable is
+		 * stale, the missing ZRAM_PP_SLOT flag will prevent us from
+		 * writing back invalid or freed data.
+		 */
+		entry = pte_to_swp_entry(pte);
+
 		if (!is_swap_pte(pte))
 			continue;
-
-		entry = pte_to_swp_entry(pte);
 
 		/* prevent the swapoff race condition */
 		sis = get_swap_device(entry);
@@ -154,7 +179,8 @@ release_task:
 static int zram_ioctl_process_writeback(struct zram *zram,
 	struct zram_android_ioc_data_process_writeback *ioc_data_pwb)
 {
-	struct zram_pp_ctl *ctl = NULL;
+	struct zram_pp_ctl *pp_ctl = NULL;
+	struct zram_wb_ctl *wb_ctl = NULL;
 	int ret;
 
 	/* Require CAP_SYS_NICE for influencing process performance. */
@@ -172,18 +198,27 @@ static int zram_ioctl_process_writeback(struct zram *zram,
 	if (atomic_xchg(&zram->pp_in_progress, 1))
 		return -EAGAIN;
 
-	ctl = init_pp_ctl();
-	if (!ctl) {
+	pp_ctl = init_pp_ctl();
+	if (!pp_ctl) {
 		ret = -ENOMEM;
 		goto clear_pp_in_progress;
 	}
 
-	ret = zram_ioctl_process_writeback_scan(zram, ioc_data_pwb, ctl);
-	if (!ret)
-		ret = zram_writeback_slots(zram, ctl);
+	wb_ctl = init_wb_ctl(zram);
+	if (!wb_ctl) {
+		ret = -ENOMEM;
+		goto clear_pp_ctl;
+	}
 
-	ioc_data_pwb->written_bytes = ctl->processed_bytes;
-	release_pp_ctl(zram, ctl);
+	ret = zram_ioctl_process_writeback_scan(zram, ioc_data_pwb, pp_ctl);
+	if (!ret)
+		ret = zram_writeback_slots(zram, pp_ctl, wb_ctl);
+
+	ioc_data_pwb->written_bytes = wb_ctl->processed_bytes;
+
+	release_wb_ctl(wb_ctl);
+clear_pp_ctl:
+	release_pp_ctl(zram, pp_ctl);
 clear_pp_in_progress:
 	atomic_set(&zram->pp_in_progress, 0);
 

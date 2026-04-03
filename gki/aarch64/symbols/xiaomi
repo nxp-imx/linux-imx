@@ -55,10 +55,20 @@
   __tracepoint_android_vh_thp_vma_allowable_orders
   __traceiter_android_vh_dma_buf_release
   __tracepoint_android_vh_dma_buf_release
+  __traceiter_cma_alloc_start
+  __tracepoint_cma_alloc_start
+  __traceiter_cma_alloc_finish
+  __tracepoint_cma_alloc_finish
   __traceiter_cma_alloc_busy_retry
   __tracepoint_cma_alloc_busy_retry
   __traceiter_cma_release
   __tracepoint_cma_release
+  __traceiter_android_vh_vmalloc_node_range_start
+  __tracepoint_android_vh_vmalloc_node_range_start
+  __traceiter_android_vh_vmalloc_node_range_end
+  __tracepoint_android_vh_vmalloc_node_range_end
+  __traceiter_android_vh_do_mmap_map_count
+  __tracepoint_android_vh_do_mmap_map_count
 
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin

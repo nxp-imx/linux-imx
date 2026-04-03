@@ -2234,6 +2234,19 @@ static int vfio_iommu_domain_alloc(struct device *dev, void *data)
 	return 1; /* Don't iterate */
 }
 
+
+static int vfio_iommu_verify_coherence(struct device *dev, void *data)
+{
+	int *ret = data;
+
+	if (!device_iommu_capable(dev, IOMMU_CAP_CACHE_COHERENCY)) {
+		*ret = -EINVAL;
+		return 1;
+	}
+
+	return 0;
+}
+
 static int vfio_iommu_type1_attach_group(void *iommu_data,
 		struct iommu_group *iommu_group, enum vfio_group_type type)
 {
@@ -2252,6 +2265,14 @@ static int vfio_iommu_type1_attach_group(void *iommu_data,
 	/* Attach could require pinning, so disallow while vaddr is invalid. */
 	if (iommu->vaddr_invalid_count)
 		goto out_unlock;
+
+	if (type == VFIO_IOMMU) {
+		ret = 0;
+		iommu_group_for_each_dev(iommu_group, &ret,
+					 vfio_iommu_verify_coherence);
+		if (ret)
+			goto out_unlock;
+	}
 
 	/* Check for duplicates */
 	ret = -EINVAL;

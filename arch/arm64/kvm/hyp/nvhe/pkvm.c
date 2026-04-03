@@ -935,6 +935,7 @@ int __pkvm_init_vm(struct kvm *host_kvm, unsigned long pgd_hva)
 	void *pgd = NULL;
 	size_t pgd_size;
 	int ret;
+	int flags = 0;
 
 	ret = hyp_pin_shared_mem(host_kvm, host_kvm + 1);
 	if (ret)
@@ -977,11 +978,24 @@ int __pkvm_init_vm(struct kvm *host_kvm, unsigned long pgd_hva)
 	if (ret)
 		goto err_remove_mappings;
 
-	ret = kvm_guest_prepare_stage2(hyp_vm, pgd);
-	if (ret)
-		goto err_remove_mappings;
-
 	ret = pkvm_pviommu_finalise(hyp_vm);
+	/*
+	 * With FWB, we ensure that the guest always accesses memory using
+	 * cacheable attributes, and we don't have to clean to PoC when
+	 * faulting in pages. Furthermore, FWB implies IDC, so cleaning to
+	 * PoU is not required either in this case.
+	 * With devices assigned, the VM will use NC mappings and hence
+	 * we have to disable this optimization.
+	 * If the VM has at least one device, FWB can't be used as we can't trust
+	 * the host not to reconfigure coherent devices to emit non-coherent
+	 * transactions.
+	 */
+	if (ret < 0)
+		goto err_remove_mappings;
+	else if (ret)
+		flags = KVM_PGTABLE_S2_NOFWB;
+
+	ret = kvm_guest_prepare_stage2(hyp_vm, pgd, flags);
 	if (ret)
 		goto err_remove_mappings;
 

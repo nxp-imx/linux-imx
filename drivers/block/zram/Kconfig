@@ -152,5 +152,5 @@ config ZRAM_ANDROID_IOCTL
        help
 	 With this feature, admin can use the zram ioctl interface to operate
 	 on a target process's virtual memory areas (VMAs) in zram. Then we can
-	 invokes the corresponding operations like writeback the compressed
+	 invoke the corresponding operations like writeback the compressed
 	 pages into the backing device.

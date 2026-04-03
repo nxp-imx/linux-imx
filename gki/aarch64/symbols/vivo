@@ -1,6 +1,11 @@
 [abi_symbol_list]
+  apply_workqueue_attrs
   bdev_file_open_by_dev
   bdev_fput
+  blk_bio_list_merge
+  blk_mq_insert_ordered
+  blk_stat_disable_accounting
+  blk_stat_enable_accounting
   __brelse
   class_find_device
   _copy_from_iter
@@ -11,15 +16,18 @@
   gnet_stats_copy_queue
   kblockd_mod_delayed_work_on
   kern_path
+  __kmalloc_node_noprof
   __lock_buffer
   mipi_dsi_dcs_write
   __neigh_create
   netdev_is_rx_handler_busy
   noop_qdisc
+  of_css
   path_put
   pfifo_qdisc_ops
   pfn_to_online_page
   proc_create_single_data
+  proc_mkdir_mode
   profile_event_register
   put_device
   __qdisc_calculate_pkt_len
@@ -33,6 +41,19 @@
   readahead_gfp_mask
   regulator_get_drvdata
   remove_proc_entry
+  sbitmap_any_bit_set
+  sbitmap_add_wait_queue
+  sbitmap_del_wait_queue
+  sbitmap_init_node
+  sbitmap_queue_clear
+  __sbitmap_queue_get
+  sbitmap_queue_init_node
+  sbitmap_queue_resize
+  sbitmap_queue_show
+  seq_file_path
+  seq_put_decimal_ll
+  seq_put_decimal_ull
+  seq_read_iter
   set_blocksize
   skb_copy_bits
   skb_orphan_partial
@@ -41,6 +62,7 @@
   tcf_block_get
   tcf_block_put
   tcf_classify
+  timer_reduce
   __traceiter_android_rvh_alloc_and_link_pwqs
   __traceiter_android_rvh_alloc_pages_reclaim_cycle_end
   __traceiter_android_rvh_alloc_pages_reclaim_start
@@ -97,6 +119,8 @@
   __traceiter_android_vh_invalidate_mapping_pagevec
   __traceiter_android_vh_lock_folio_drop_mmap_end
   __traceiter_android_vh_lock_folio_drop_mmap_start
+  __traceiter_android_vh_lruvec_add_folio
+  __traceiter_android_vh_lruvec_del_folio
   __traceiter_android_vh_mmap_region
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_wait_finish
@@ -188,6 +212,8 @@
   __tracepoint_android_vh_free_unref_folios_to_pcp_bypass
   __tracepoint_android_vh_lock_folio_drop_mmap_end
   __tracepoint_android_vh_lock_folio_drop_mmap_start
+  __tracepoint_android_vh_lruvec_add_folio
+  __tracepoint_android_vh_lruvec_del_folio
   __tracepoint_android_vh_mmap_region
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_wait_finish
