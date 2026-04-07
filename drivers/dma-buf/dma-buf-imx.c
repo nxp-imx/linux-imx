@@ -31,6 +31,22 @@ static void dma_buf_ioc_sync_release(struct device *dev)
 	return;
 }
 
+static unsigned long dma_buf_get_contiguous_size(struct sg_table *sgt)
+{
+       struct scatterlist *s;
+       dma_addr_t expected = sg_dma_address(sgt->sgl);
+       unsigned int i;
+       unsigned long size = 0;
+
+       for_each_sgtable_dma_sg(sgt, s, i) {
+               if (sg_dma_address(s) != expected)
+                       break;
+               expected += sg_dma_len(s);
+               size += sg_dma_len(s);
+       }
+       return size;
+}
+
 static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
@@ -83,7 +99,10 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		sgt = dma_buf_map_attachment_unlocked(attachment, DMA_BIDIRECTIONAL);
 		if (sgt && !IS_ERR(sgt)) {
-			phys = sg_dma_address(sgt->sgl);
+			if (dma_buf_get_contiguous_size(sgt) == dmabuf->size)
+				phys = sg_dma_address(sgt->sgl);
+			else
+				pr_warn("DMA_BUF_IOCTL_PHYS: DMA buffer is not contiguous\n");
 			dma_buf_unmap_attachment_unlocked(attachment, sgt,
 				DMA_BIDIRECTIONAL);
 		}
