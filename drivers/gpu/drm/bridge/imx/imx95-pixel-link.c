@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <linux/bits.h>
@@ -15,10 +15,6 @@
 
 #include <drm/drm_atomic_state_helper.h>
 #include <drm/drm_bridge.h>
-
-#define CTRL		0x8
-#define  PL_VALID(n)	BIT(1 + 4 * (n))
-#define  PL_ENABLE(n)	BIT(4 * (n))
 
 #define STREAMS		2
 #define OUT_ENDPOINTS	2
@@ -36,6 +32,19 @@ struct imx95_pl {
 	struct regmap *regmap;
 	struct imx95_pl_bridge *bridge[STREAMS];
 	struct drm_bridge *next_bridge[STREAMS];
+	unsigned int ctrl_reg;
+	unsigned int pl0_enable;
+	unsigned int pl0_valid;
+	unsigned int pl1_enable;
+	unsigned int pl1_valid;
+};
+
+struct imx95_pl_devdata {
+	unsigned int ctrl_reg;
+	unsigned int pl0_enable;
+	unsigned int pl0_valid;
+	unsigned int pl1_enable;
+	unsigned int pl1_valid;
 };
 
 static int imx95_pl_bridge_attach(struct drm_bridge *bridge,
@@ -58,20 +67,32 @@ static void imx95_pl_bridge_disable(struct drm_bridge *bridge)
 {
 	struct imx95_pl_bridge *pl_bridge = bridge->driver_private;
 	struct imx95_pl *pl = pl_bridge->pl;
-	unsigned int id = pl_bridge->id;
 
-	regmap_update_bits(pl->regmap, CTRL, PL_ENABLE(id), 0);
-	regmap_update_bits(pl->regmap, CTRL, PL_VALID(id), 0);
+	if (pl_bridge->id) {
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl1_enable, 0);
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl1_valid, 0);
+	} else {
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl0_enable, 0);
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl0_valid, 0);
+	}
 }
 
 static void imx95_pl_bridge_enable(struct drm_bridge *bridge)
 {
 	struct imx95_pl_bridge *pl_bridge = bridge->driver_private;
 	struct imx95_pl *pl = pl_bridge->pl;
-	unsigned int id = pl_bridge->id;
 
-	regmap_update_bits(pl->regmap, CTRL, PL_VALID(id), PL_VALID(id));
-	regmap_update_bits(pl->regmap, CTRL, PL_ENABLE(id), PL_ENABLE(id));
+	if (pl_bridge->id) {
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl1_valid,
+				   pl->pl1_valid);
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl1_enable,
+				   pl->pl1_enable);
+	} else {
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl0_valid,
+				   pl->pl0_valid);
+		regmap_update_bits(pl->regmap, pl->ctrl_reg, pl->pl0_enable,
+				   pl->pl0_enable);
+	}
 }
 
 static u32 *
@@ -175,6 +196,7 @@ static void imx95_pl_bridge_remove(struct imx95_pl *pl)
 
 static int imx95_pl_probe(struct platform_device *pdev)
 {
+	const struct imx95_pl_devdata *devdata;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node, *port;
 	struct imx95_pl_bridge *bridge;
@@ -186,6 +208,13 @@ static int imx95_pl_probe(struct platform_device *pdev)
 	if (!pl)
 		return -ENOMEM;
 
+	devdata = device_get_match_data(dev);
+
+	pl->ctrl_reg = devdata->ctrl_reg;
+	pl->pl0_enable = devdata->pl0_enable;
+	pl->pl0_valid = devdata->pl0_valid;
+	pl->pl1_enable = devdata->pl1_enable;
+	pl->pl1_valid = devdata->pl1_valid;
 	pl->dev = dev;
 	platform_set_drvdata(pdev, pl);
 
@@ -244,8 +273,27 @@ static void imx95_pl_remove(struct platform_device *pdev)
 	imx95_pl_bridge_remove(pl);
 }
 
+static const struct imx95_pl_devdata imx95_pl_devdata = {
+	.ctrl_reg = 0x8,
+	.pl0_enable = BIT(0),
+	.pl0_valid = BIT(1),
+	.pl1_enable = BIT(4),
+	.pl1_valid = BIT(5),
+};
+
+static const struct imx95_pl_devdata imx952_pl_devdata = {
+	.ctrl_reg = 0xc,
+	.pl0_enable = BIT(0),
+	.pl0_valid = BIT(1),
+	.pl1_enable = BIT(8),
+	.pl1_valid = BIT(9),
+};
+
 static const struct of_device_id imx95_pl_dt_ids[] = {
-	{ .compatible = "nxp,imx95-dc-pixel-link", },
+	{ .compatible = "nxp,imx95-dc-pixel-link",
+	  .data = &imx95_pl_devdata, },
+	{ .compatible = "nxp,imx952-dc-pixel-link",
+	  .data = &imx952_pl_devdata, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx95_pl_dt_ids);

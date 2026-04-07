@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2017-2020,2022,2023,2025 NXP
+ * Copyright 2017-2020,2022,2023,2025,2026 NXP
  */
 
 #include <drm/drm_atomic.h>
@@ -634,7 +634,8 @@ int dpu95_plane_initialize(struct dpu95_drm_device *dpu_drm,
 
 	zpos = dpu95_plane_get_default_zpos(type);
 	ret = drm_plane_create_zpos_property(plane,
-					     zpos, 0, DPU95_HW_PLANES - 1);
+					     zpos, 0,
+					     dpu_drm->dpu_hw_plane_cnt - 1);
 	if (ret)
 		return ret;
 

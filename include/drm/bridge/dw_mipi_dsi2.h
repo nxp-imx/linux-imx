@@ -29,6 +29,14 @@ enum dw_mipi_dsi2_phy_type {
 	DW_MIPI_DSI2_CPHY,
 };
 
+enum dw_mipi_dsi2_ipi_mapping {
+	DW_MIPI_DSI2_IPI_MAPPING_IPI,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG1,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG2,
+	DW_MIPI_DSI2_IPI_MAPPING_DPI_CONFIG3,
+	DW_MIPI_DSI2_IPI_MAPPING_NONE,
+};
+
 struct dw_mipi_dsi2_phy_iface {
 	int ppi_width;
 	enum dw_mipi_dsi2_phy_type phy_type;
@@ -50,7 +58,7 @@ struct dw_mipi_dsi2_phy_ops {
 			     unsigned int *lane_mbps);
 	int (*get_timing)(void *priv_data, unsigned int lane_mbps,
 			  struct dw_mipi_dsi2_phy_timing *timing);
-	int (*get_esc_clk_rate)(void *priv_data, unsigned int *esc_clk_rate);
+	int (*get_esc_clk_rate)(void *priv_data, unsigned long *esc_clk_rate);
 };
 
 struct dw_mipi_dsi2_host_ops {
@@ -63,6 +71,11 @@ struct dw_mipi_dsi2_host_ops {
 struct dw_mipi_dsi2_plat_data {
 	struct regmap *regmap;
 	unsigned int max_data_lanes;
+	unsigned int ipi_lanes;
+	unsigned int ipi_fifo_depth;
+	enum dw_mipi_dsi2_ipi_mapping ipi_mapping;
+	unsigned int cri_cmd_wr_pld_fifo_depth;
+	unsigned int cri_cmd_rd_pld_fifo_depth;
 
 	enum drm_mode_status (*mode_valid)(void *priv_data,
 					   const struct drm_display_mode *mode,
@@ -85,6 +98,8 @@ struct dw_mipi_dsi2_plat_data {
 
 	void *priv_data;
 };
+
+struct drm_bridge *dw_mipi_dsi2_get_bridge(struct dw_mipi_dsi2 *dsi);
 
 struct dw_mipi_dsi2 *dw_mipi_dsi2_probe(struct platform_device *pdev,
 					const struct dw_mipi_dsi2_plat_data *plat_data);

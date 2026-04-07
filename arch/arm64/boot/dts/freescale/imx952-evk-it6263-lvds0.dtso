@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-clock.h"
+#include "imx95-evk-it6263-lvds0-common.dtsi"
+
+&ldb {
+	assigned-clocks = <&scmi_clk IMX952_CLK_LDBPLL_VCO>,
+			  <&scmi_clk IMX952_CLK_LDBPLL>;
+	assigned-clock-rates = <4158000000>, <1039500000>;
+};

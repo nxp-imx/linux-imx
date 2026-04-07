@@ -112,6 +112,9 @@
 #define DSI2_CRI_TX_PLD			0x02c4
 #define DSI2_CRI_RX_HDR			0x02c8
 #define DSI2_CRI_RX_PLD			0x02cc
+#define DSI2_CRI_FIFO_DEPTH_CFG		0x02e0
+#define CMD_WR_PLD_FIFO_DEPTH_VALUE(x)	FIELD_PREP(GENMASK(15, 0), x)
+#define CMD_RD_PLD_FIFO_DEPTH_VALUE(x)	FIELD_PREP(GENMASK(31, 16), x)
 
 #define DSI2_IPI_COLOR_MAN_CFG		0x0300
 #define IPI_DEPTH(x)			FIELD_PREP(GENMASK(7, 4), x)
@@ -140,6 +143,12 @@
 #define VID_VFP_LINES(x)		FIELD_PREP(GENMASK(9, 0), x)
 #define DSI2_IPI_PIX_PKT_CFG		0x0344
 #define MAX_PIX_PKT(x)			FIELD_PREP(GENMASK(15, 0), x)
+#define LANES_MAN_CFG			0x034c
+#define IPI_LANES(x)			FIELD_PREP(GENMASK(1, 0), x)
+#define FIFO_DEPTH_CFG			0x03c0
+#define IPI_FIFO_DEPTH_VALUE(x)		FIELD_PREP(GENMASK(15, 0), x)
+#define IPI_MAPPING_CFG			0x03c4
+#define IPI_MAPPING(x)			FIELD_PREP(GENMASK(1, 0), x)
 
 #define DSI2_INT_ST_PHY			0x0400
 #define DSI2_INT_MASK_PHY		0x0404
@@ -183,6 +192,12 @@ enum ppi_width {
 	PPI_WIDTH_32_BITS,
 };
 
+enum ipi_lanes {
+	IPI_LANES_N_4,
+	IPI_LANES_N_1,
+	IPI_LANES_N_2,
+};
+
 struct cmd_header {
 	u8 cmd_type;
 	u8 delay;
@@ -198,11 +213,14 @@ struct dw_mipi_dsi2 {
 	struct clk *pclk;
 	struct clk *sys_clk;
 
+	bool device_found;
+
 	unsigned int lane_mbps; /* per lane */
 	u32 channel;
 	u32 lanes;
 	u32 format;
 	unsigned long mode_flags;
+	int ppi_width;
 
 	struct drm_display_mode mode;
 	const struct dw_mipi_dsi2_plat_data *plat_data;
@@ -301,8 +319,11 @@ static void dw_mipi_dsi2_host_softrst(struct dw_mipi_dsi2 *dsi2)
 
 static void dw_mipi_dsi2_phy_clk_mode_cfg(struct dw_mipi_dsi2 *dsi2)
 {
+	const struct dw_mipi_dsi2_phy_ops *phy_ops = dsi2->plat_data->phy_ops;
+	unsigned long esc_rate = 20000000; /* Default to 20MHz */
 	u32 sys_clk, esc_clk_div;
 	u32 val = 0;
+	int ret;
 
 	/*
 	 * clk_type should be NON_CONTINUOUS_CLK before
@@ -311,8 +332,15 @@ static void dw_mipi_dsi2_phy_clk_mode_cfg(struct dw_mipi_dsi2 *dsi2)
 	val |= NON_CONTINUOUS_CLK;
 
 	/* The maximum value of the escape clock frequency is 20MHz */
-	sys_clk = clk_get_rate(dsi2->sys_clk) / USEC_PER_SEC;
-	esc_clk_div = DIV_ROUND_UP(sys_clk, 20 * 2);
+	if (phy_ops->get_esc_clk_rate) {
+		ret = phy_ops->get_esc_clk_rate(dsi2->plat_data->priv_data,
+						&esc_rate);
+		if (ret)
+			dev_err(dsi2->dev, "Retrieving phy escape clk rate failed\n");
+	}
+
+	sys_clk = clk_get_rate(dsi2->sys_clk);
+	esc_clk_div = DIV_ROUND_UP(sys_clk, esc_rate * 2);
 	val |= PHY_LPTX_CLK_DIV(esc_clk_div);
 
 	regmap_write(dsi2->regmap, DSI2_PHY_CLK_CFG, val);
@@ -326,11 +354,11 @@ static void dw_mipi_dsi2_phy_ratio_cfg(struct dw_mipi_dsi2 *dsi2)
 	u64 tmp;
 
 	/*
-	 * in DPHY mode, the phy_hstx_clk is exactly 1/16 the Lane high-speed
-	 * data rate; In CPHY mode, the phy_hstx_clk is exactly 1/7 the trio
-	 * high speed symbol rate.
+	 * in DPHY mode, the phy_hstx_clk is exactly 1/ppi_width the Lane
+	 * high-speed data rate; In CPHY mode, the phy_hstx_clk is exactly 1/7
+	 * the trio high speed symbol rate.
 	 */
-	phy_hsclk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, 16);
+	phy_hsclk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, dsi2->ppi_width);
 
 	/* IPI_RATIO_MAN_CFG = PHY_HSTX_CLK / IPI_CLK */
 	pixel_clk = mode->crtc_clock * MSEC_PER_SEC;
@@ -368,8 +396,14 @@ static void dw_mipi_dsi2_phy_init(struct dw_mipi_dsi2 *dsi2)
 	const struct dw_mipi_dsi2_phy_ops *phy_ops = dsi2->plat_data->phy_ops;
 	struct dw_mipi_dsi2_phy_iface iface;
 	u32 val = 0;
+	int ret;
+
+	ret = phy_ops->init(dsi2->plat_data->priv_data);
+	if (ret)
+		dev_err(dsi2->dev, "Phy init() failed\n");
 
 	phy_ops->get_interface(dsi2->plat_data->priv_data, &iface);
+	dsi2->ppi_width = iface.ppi_width;
 
 	switch (iface.ppi_width) {
 	case 8:
@@ -408,6 +442,21 @@ static void dw_mipi_dsi2_tx_option_set(struct dw_mipi_dsi2 *dsi2)
 
 	regmap_write(dsi2->regmap, DSI2_DSI_GENERAL_CFG, val);
 	regmap_write(dsi2->regmap, DSI2_DSI_VCID_CFG, TX_VCID(dsi2->channel));
+}
+
+static void dw_mipi_dsi2_cri_set(struct dw_mipi_dsi2 *dsi2)
+{
+	const struct dw_mipi_dsi2_plat_data *pdata = dsi2->plat_data;
+	u32 val;
+
+	if (pdata->cri_cmd_wr_pld_fifo_depth == 0 &&
+	    pdata->cri_cmd_rd_pld_fifo_depth == 0)
+		return;
+
+	val = CMD_WR_PLD_FIFO_DEPTH_VALUE(pdata->cri_cmd_wr_pld_fifo_depth) |
+	      CMD_RD_PLD_FIFO_DEPTH_VALUE(pdata->cri_cmd_rd_pld_fifo_depth);
+
+	regmap_write(dsi2->regmap, DSI2_CRI_FIFO_DEPTH_CFG, val);
 }
 
 static void dw_mipi_dsi2_ipi_color_coding_cfg(struct dw_mipi_dsi2 *dsi2)
@@ -451,6 +500,7 @@ static void dw_mipi_dsi2_vertical_timing_config(struct dw_mipi_dsi2 *dsi2,
 
 static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 {
+	const struct dw_mipi_dsi2_plat_data *pdata = dsi2->plat_data;
 	struct drm_display_mode *mode = &dsi2->mode;
 	u32 hline, hsa, hbp, hact;
 	u64 hline_time, hsa_time, hbp_time, hact_time, tmp;
@@ -477,7 +527,7 @@ static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 
 	pixel_clk = mode->crtc_clock * MSEC_PER_SEC;
 
-	phy_hs_clk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, 16);
+	phy_hs_clk = DIV_ROUND_CLOSEST_ULL(dsi2->lane_mbps * USEC_PER_SEC, dsi2->ppi_width);
 
 	tmp = hsa * phy_hs_clk;
 	hsa_time = DIV_ROUND_CLOSEST_ULL(tmp << 16, pixel_clk);
@@ -496,6 +546,26 @@ static void dw_mipi_dsi2_ipi_set(struct dw_mipi_dsi2 *dsi2)
 	regmap_write(dsi2->regmap, DSI2_IPI_VID_HLINE_MAN_CFG, VID_HLINE_TIME(hline_time));
 
 	dw_mipi_dsi2_vertical_timing_config(dsi2, mode);
+
+	switch (pdata->ipi_lanes) {
+	case 1:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_1));
+		break;
+	case 2:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_2));
+		break;
+	case 4:
+		regmap_write(dsi2->regmap, LANES_MAN_CFG, IPI_LANES(IPI_LANES_N_4));
+		break;
+	}
+
+	if (pdata->ipi_fifo_depth)
+		regmap_write(dsi2->regmap, FIFO_DEPTH_CFG,
+			     IPI_FIFO_DEPTH_VALUE(pdata->ipi_fifo_depth));
+
+	if (pdata->ipi_mapping != DW_MIPI_DSI2_IPI_MAPPING_NONE)
+		regmap_write(dsi2->regmap, IPI_MAPPING_CFG,
+			     IPI_MAPPING(pdata->ipi_mapping));
 }
 
 static void
@@ -528,14 +598,15 @@ static int dw_mipi_dsi2_host_attach(struct mipi_dsi_host *host,
 	dsi2->format = device->format;
 	dsi2->mode_flags = device->mode_flags;
 
-	bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
-	if (IS_ERR(bridge))
-		return PTR_ERR(bridge);
+	if (!dsi2->device_found) {
+		bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
+		if (IS_ERR(bridge))
+			return PTR_ERR(bridge);
 
-	bridge->pre_enable_prev_first = true;
-	dsi2->panel_bridge = bridge;
-
-	drm_bridge_add(&dsi2->bridge);
+		bridge->pre_enable_prev_first = true;
+		dsi2->panel_bridge = bridge;
+		dsi2->device_found = true;
+	}
 
 	if (pdata->host_ops && pdata->host_ops->attach) {
 		ret = pdata->host_ops->attach(pdata->priv_data, device);
@@ -558,8 +629,6 @@ static int dw_mipi_dsi2_host_detach(struct mipi_dsi_host *host,
 		if (ret < 0)
 			return ret;
 	}
-
-	drm_bridge_remove(&dsi2->bridge);
 
 	drm_of_panel_bridge_remove(host->dev->of_node, 1, 0);
 
@@ -805,6 +874,7 @@ static void dw_mipi_dsi2_mode_set(struct dw_mipi_dsi2 *dsi2,
 		phy_ops->power_on(dsi2->plat_data->priv_data);
 
 	dw_mipi_dsi2_tx_option_set(dsi2);
+	dw_mipi_dsi2_cri_set(dsi2);
 
 	/*
 	 * initial deskew calibration is send after phy_power_on,
@@ -879,6 +949,15 @@ static int dw_mipi_dsi2_bridge_attach(struct drm_bridge *bridge,
 	/* Set the encoder type as caller does not know it */
 	encoder->encoder_type = DRM_MODE_ENCODER_DSI;
 
+	if (!dsi2->device_found) {
+		dsi2->panel_bridge = devm_drm_of_get_bridge(dsi2->dev, dsi2->dev->of_node, 1, 0);
+		if (IS_ERR(dsi2->panel_bridge))
+			return PTR_ERR(dsi2->panel_bridge);
+
+		dsi2->panel_bridge->pre_enable_prev_first = true;
+		dsi2->device_found = true;
+	}
+
 	/* Attach the panel-bridge to the dsi bridge */
 	return drm_bridge_attach(encoder, dsi2->panel_bridge, bridge,
 				 flags);
@@ -905,6 +984,12 @@ static const struct regmap_config dw_mipi_dsi2_regmap_config = {
 	.reg_stride = 4,
 	.fast_io = true,
 };
+
+struct drm_bridge *dw_mipi_dsi2_get_bridge(struct dw_mipi_dsi2 *dsi)
+{
+	return &dsi->bridge;
+}
+EXPORT_SYMBOL_GPL(dw_mipi_dsi2_get_bridge);
 
 static struct dw_mipi_dsi2 *
 __dw_mipi_dsi2_probe(struct platform_device *pdev,
@@ -984,12 +1069,14 @@ __dw_mipi_dsi2_probe(struct platform_device *pdev,
 
 	dsi2->bridge.driver_private = dsi2;
 	dsi2->bridge.of_node = pdev->dev.of_node;
+	drm_bridge_add(&dsi2->bridge);
 
 	return dsi2;
 }
 
 static void __dw_mipi_dsi2_remove(struct dw_mipi_dsi2 *dsi2)
 {
+	drm_bridge_remove(&dsi2->bridge);
 	mipi_dsi_host_unregister(&dsi2->dsi_host);
 }
 

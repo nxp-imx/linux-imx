@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <linux/bitfield.h>
@@ -20,7 +20,7 @@
 #include <drm/drm_atomic_state_helper.h>
 #include <drm/drm_bridge.h>
 
-#define PIXEL_INTERLEAVER_CTRL	0x4
+/* register PIXEL_INTERLEAVER_CTRL */
 #define  DISP_IN_SEL		BIT(1)
 #define  MODE			BIT(0)
 
@@ -68,6 +68,11 @@ struct imx95_pinter {
 	unsigned int irq;
 	struct imx95_pinter_channel *ch[STREAMS];
 	enum imx95_pinter_mode mode;
+	unsigned int ctrl_reg;
+};
+
+struct imx95_pinter_devdata {
+	unsigned int ctrl_reg;
 };
 
 static void imx95_pinter_sw_reset(struct imx95_pinter_channel *ch)
@@ -133,13 +138,13 @@ static void imx95_pinter_bridge_enable(struct drm_bridge *bridge)
 
 	switch (pinter->mode) {
 	case BYPASS:
-		regmap_write(pinter->regmap, PIXEL_INTERLEAVER_CTRL, 0);
+		regmap_write(pinter->regmap, pinter->ctrl_reg, 0);
 		break;
 	case STREAM0_SPLIT2:
-		regmap_write(pinter->regmap, PIXEL_INTERLEAVER_CTRL, MODE);
+		regmap_write(pinter->regmap, pinter->ctrl_reg, MODE);
 		break;
 	case STREAM1_SPLIT2:
-		regmap_write(pinter->regmap, PIXEL_INTERLEAVER_CTRL,
+		regmap_write(pinter->regmap, pinter->ctrl_reg,
 			     MODE | DISP_IN_SEL);
 		break;
 	}
@@ -211,6 +216,7 @@ static irqreturn_t pinter_irq_handler(int irq, void *data)
 
 static int imx95_pinter_probe(struct platform_device *pdev)
 {
+	const struct imx95_pinter_devdata *devdata;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *child, *remote;
@@ -225,6 +231,9 @@ static int imx95_pinter_probe(struct platform_device *pdev)
 	if (!pinter)
 		return -ENOMEM;
 
+	devdata = device_get_match_data(dev);
+
+	pinter->ctrl_reg = devdata->ctrl_reg;
 	pinter->dev = dev;
 	platform_set_drvdata(pdev, pinter);
 
@@ -359,8 +368,19 @@ static void imx95_pinter_remove(struct platform_device *pdev)
 	}
 }
 
+static const struct imx95_pinter_devdata imx95_pinter_devdata = {
+	.ctrl_reg = 0x4,
+};
+
+static const struct imx95_pinter_devdata imx952_pinter_devdata = {
+	.ctrl_reg = 0x8,
+};
+
 static const struct of_device_id imx95_pinter_dt_ids[] = {
-	{ .compatible = "nxp,imx95-pixel-interleaver", },
+	{ .compatible = "nxp,imx95-pixel-interleaver",
+	  .data = &imx95_pinter_devdata, },
+	{ .compatible = "nxp,imx952-pixel-interleaver",
+	  .data = &imx952_pinter_devdata, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx95_pinter_dt_ids);

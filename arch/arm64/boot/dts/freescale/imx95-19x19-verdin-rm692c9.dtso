@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024 NXP
+ * Copyright 2024,2026 NXP
  */
 
-/dts-v1/;
-/plugin/;
-
 #include <dt-bindings/gpio/gpio.h>
-#include "imx95-clock.h"
 
-&display_pixel_link {
-	status = "okay";
-};
+#include "imx95-clock.h"
+#include "imx95-evk-rm692c9-common.dtsi"
 
 &dpu {
 	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
@@ -22,36 +17,8 @@
 };
 
 &mipi_dsi {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "okay";
-
 	panel@0 {
-		compatible = "raydium,rm692c9";
-		reg = <0>;
 		reset-gpios = <&i2c7_pcal6524_23 10 GPIO_ACTIVE_LOW>;
-		dsi-lanes = <4>;
-		v3p3-supply = <&reg_3p3v>;
-		v1p8-supply = <&reg_1p8v>;
-
-		port {
-			panel_in: endpoint {
-				remote-endpoint = <&dsi_out>;
-			};
-		};
-	};
-
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@1 {
-			reg = <1>;
-
-			dsi_out: endpoint {
-				remote-endpoint = <&panel_in>;
-			};
-		};
 	};
 };
 
@@ -70,17 +37,6 @@
 		touchscreen-size-x = <1080>;
 		touchscreen-size-y = <2340>;
 		max-touch-number = <10>;
-		status = "okay";
-	};
-};
-
-&pixel_interleaver {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "okay";
-
-	channel@0 {
-		reg = <0>;
 		status = "okay";
 	};
 };

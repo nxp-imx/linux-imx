@@ -14,7 +14,9 @@ description: |
 
 properties:
   compatible:
-    const: nxp,imx95-dc-pixel-link
+    enum:
+      - nxp,imx95-dc-pixel-link
+      - nxp,imx952-dc-pixel-link
 
   reg:
     maxItems: 1

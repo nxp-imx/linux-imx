@@ -239,6 +239,8 @@
 			  <&scmi_clk IMX952_CLK_SAI3>;
 	assigned-clock-parents = <0>, <0>, <0>, <0>, <&scmi_clk IMX952_CLK_AUDIOPLL1>;
 	assigned-clock-rates = <3932160000>, <3612672000>, <393216000>, <361267200>, <24576000>;
+	pinctrl-0 = <&pinctrl_sai3>;
+	pinctrl-names = "default";
 	fsl,sai-mclk-direction-output;
 	fsl,sai-asynchronous;
 	fsl,sai-amix-mode = "audmix";

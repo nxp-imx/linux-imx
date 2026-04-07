@@ -152,6 +152,11 @@
 		standby-gpios = <&i2c4_pcal6408 3 GPIO_ACTIVE_LOW>;
 	};
 
+	reg_dummy: regulator-dummy {
+		compatible = "regulator-fixed";
+		regulator-name = "dummy";
+	};
+
 	reg_3p3v: regulator-3p3v {
 		compatible = "regulator-fixed";
 		regulator-max-microvolt = <3300000>;
@@ -333,6 +338,13 @@
 	status = "okay";
 };
 
+&displaymix_irqsteer {
+	status = "okay";
+};
+
+&dpu {
+	status = "okay";
+};
 
 /* pin conflict with PDM */
 &flexcan1 {

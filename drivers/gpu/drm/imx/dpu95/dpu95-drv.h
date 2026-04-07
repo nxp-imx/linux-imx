@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #ifndef __DPU95_DRV_H__
@@ -17,8 +17,6 @@
 #define DPU95_CRTCS	2
 #define DPU95_ENCODERS	DPU95_CRTCS
 #define DPU95_PRIMARYS	DPU95_CRTCS
-#define DPU95_OVERLAYS	5
-#define DPU95_HW_PLANES	6
 
 struct dpu95_drm_device {
 	struct drm_device	base;
@@ -26,9 +24,11 @@ struct dpu95_drm_device {
 	struct dpu_bliteng	dpu_be;
 	struct dpu95_crtc	dpu_crtc[DPU95_CRTCS];
 	struct dpu95_plane	dpu_primary[DPU95_PRIMARYS];
-	struct dpu95_plane	dpu_overlay[DPU95_OVERLAYS];
+	struct dpu95_plane	*dpu_overlay;
 	struct dpu95_plane_grp	dpu_plane_grp;
 	struct drm_encoder	encoder[DPU95_ENCODERS];
+	unsigned int		dpu_overlay_cnt;
+	unsigned int		dpu_hw_plane_cnt;
 	u32			crtc_mask;
 };
 
