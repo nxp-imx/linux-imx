@@ -155,29 +155,12 @@ static struct coda_rect coda_hw_enc_calc_conf_win(struct coda_enc_open_param *pa
 {
 	struct coda_rect conf_win;
 	u32 conf_right, conf_left, conf_top, conf_bot;
-	u32 pad_right, pad_bot;
 	u32 rot_mir_mode = 0;
-
-	pad_right = ALIGN(param->pic_width, 16) - param->pic_width;
-	pad_bot = ALIGN(param->pic_height, 16) - param->pic_height;
-
-	if (param->conf_win.right > 0)
-		conf_right = param->conf_win.right + pad_right;
-	else
-		conf_right = pad_right;
-
-	if (param->conf_win.bottom > 0)
-		conf_bot = param->conf_win.bottom + pad_bot;
-	else
-		conf_bot = pad_bot;
 
 	conf_top = param->conf_win.top;
 	conf_left = param->conf_win.left;
-
-	conf_win.top = conf_top;
-	conf_win.left = conf_left;
-	conf_win.bottom = conf_bot;
-	conf_win.right = conf_right;
+	conf_bot = param->conf_win.bottom;
+	conf_right = param->conf_win.right;
 
 	rot_mir_mode = coda_hw_enc_calc_rot_mir_mode(param);
 
@@ -198,9 +181,13 @@ static struct coda_rect coda_hw_enc_calc_conf_win(struct coda_enc_open_param *pa
 		conf_win.right = conf_top;
 	} else if (rot_mir_mode == 4 || rot_mir_mode == 10) {
 		conf_win.top = conf_bot;
+		conf_win.left = conf_left;
 		conf_win.bottom = conf_top;
+		conf_win.right = conf_right;
 	} else if (rot_mir_mode == 8 || rot_mir_mode == 6) {
+		conf_win.top = conf_top;
 		conf_win.left = conf_right;
+		conf_win.bottom = conf_bot;
 		conf_win.right = conf_left;
 	} else if (rot_mir_mode == 5 || rot_mir_mode == 11) {
 		conf_win.top = conf_left;
@@ -212,6 +199,11 @@ static struct coda_rect coda_hw_enc_calc_conf_win(struct coda_enc_open_param *pa
 		conf_win.left = conf_bot;
 		conf_win.bottom = conf_left;
 		conf_win.right = conf_top;
+	} else {
+		conf_win.top = conf_top;
+		conf_win.left = conf_left;
+		conf_win.bottom = conf_bot;
+		conf_win.right = conf_right;
 	}
 
 	return conf_win;

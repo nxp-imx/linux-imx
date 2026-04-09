@@ -184,10 +184,10 @@ static void coda_update_crop_info(struct vpu_instance *inst,
 	inst->codec_rect.top = round_down(top, CODA_ENC_CROP_Y_POS_STEP);
 
 	enc_pic_width = width + left - inst->codec_rect.left;
-	inst->codec_rect.width = round_up(enc_pic_width, CODA_ENC_CODEC_PIC_STEP);
+	inst->codec_rect.width = round_up(enc_pic_width, 16);
 
 	enc_pic_height = height + top - inst->codec_rect.top;
-	inst->codec_rect.height = round_up(enc_pic_height, CODA_ENC_CODEC_PIC_STEP);
+	inst->codec_rect.height = round_up(enc_pic_height, 16);
 }
 
 static void coda_update_frame_buf_addr(struct vpu_instance *inst,
