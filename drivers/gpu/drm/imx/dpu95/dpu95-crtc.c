@@ -216,6 +216,9 @@ static void dpu95_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		else
 			dpu95_dt_polvs_active_low(dpu_crtc->dt);
 	}
+
+	if (dpu_crtc->ld)
+		dpu95_ld_mode_set(dpu_crtc->ld, adj);
 }
 
 static int dpu95_crtc_atomic_check(struct drm_crtc *crtc,
@@ -440,6 +443,9 @@ static void dpu95_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	DPU95_CRTC_WAIT_FOR_FRAMEGEN_PRIMARY_SYNCUP(dpu_crtc->fg);
 
+	if (dpu_crtc->ld)
+		dpu95_ld_enable(dpu_crtc->ld);
+
 	/* ignore initial empty primary pixel FIFO read status, just clear it */
 	dpu95_fg_primary_clear_channel_status(dpu_crtc->fg);
 
@@ -452,6 +458,9 @@ static void dpu95_crtc_disable(struct drm_crtc *crtc)
 	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc);
 	struct drm_encoder *encoder = &dpu_drm->encoder[dpu_crtc->stream_id];
 	bool enc_is_dsi = encoder->encoder_type == DRM_MODE_ENCODER_DSI;
+
+	if (dpu_crtc->ld)
+		dpu95_ld_disable(dpu_crtc->ld);
 
 	enable_irq(dpu_crtc->dec_seq_complete_irq);
 	dpu95_fg_disable(dpu_crtc->fg);
@@ -536,6 +545,7 @@ static int dpu95_crtc_get_resources(struct dpu95_crtc *dpu_crtc)
 		{(void *)&dpu_crtc->fg,		(void *)dpu95_fg_get},
 		{(void *)&dpu_crtc->db,		(void *)dpu95_db_get},
 		{(void *)&dpu_crtc->dt,		(void *)dpu95_dt_get},
+		{(void *)&dpu_crtc->ld,		(void *)dpu95_ld_get},
 	};
 	int i, ret;
 

@@ -875,6 +875,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx943-evk-crrm.dtb
 imx943-evk-sdwifi-dtbs := imx943-evk.dtb imx943-evk-sdwifi.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi.dtb
 
+imx943-evk-sdwifi-a0-dtbs := imx943-evk-sdwifi.dtb imx943-evk-sdwifi-a0.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi-a0.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-root.dtb imx943-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-netc-rpmsg.dtb
 
@@ -1258,7 +1261,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-waveshare-7inch-c-panel.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-tja1104-rgmii.dtb imx952-evk-tja1104-rmii.dtb \
-			  imx952-evk-sgmii.dtb
+			  imx952-evk-sgmii.dtb imx952-evk-netc-rpmsg.dtb
 
 imx952-evk-ap1302-csi0-2lanes-dtbs := imx952-evk.dtb \
 				      imx952-evk-ap1302-csi0-2lanes.dtbo
@@ -1286,6 +1289,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-root.dtb imx952-jailhouse-inmate.dtb
 
 imx952-evk-adv7535-dtbs := imx952-evk.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535.dtb
+
+imx952-evk-v2x-she0-dtbs := imx952-evk.dtb imx952-evk-v2x-she0.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-v2x-she0.dtb
 
 imx952-evk-it6263-lvds0-dtbs := imx952-evk.dtb imx952-evk-it6263-lvds0.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds0.dtb
@@ -1396,6 +1402,10 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-it6263-lvds0-ox03c10-csi0.dtb
 
 imx8mm-kontron-dl-dtbs			:= imx8mm-kontron-bl.dtb imx8mm-kontron-dl.dtbo
 imx8mm-kontron-bl-lte-dtbs		:= imx8mm-kontron-bl.dtb imx8mm-kontron-bl-lte.dtbo
+
+imx952-evk-kd123c02-dtbs := imx952-evk.dtb imx952-evk-kd123c02.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-kd123c02.dtb
+
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-dl.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-bl-lte.dtb

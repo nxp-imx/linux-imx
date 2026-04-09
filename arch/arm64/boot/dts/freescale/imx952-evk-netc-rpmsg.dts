@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-evk.dts"
+
+/delete-node/ &netc_blk_ctrl;
+/delete-node/ &pinctrl_enetc0;
+/delete-node/ &pinctrl_emdio;
+
+/ {
+	aliases {
+		/delete-property/ ethernet0;
+	};
+
+	soc {
+		netc_bus0: pcie@88224000 {
+			compatible = "nxp,netc-rpmsg-pci-host-ecam";
+			reg = <0x0 0x88224000 0x0 0x100000>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			linux,pci-domain = <0>;
+			bus-range = <0x0 0x0>;
+			msi-map = <0x000 &its 0x60 0x1>,
+				  <0x040 &its 0x64 0x1>;
+			ranges = <0x82000000 0x0 0x4cc00000  0x0 0x4cc00000  0x0 0x40000
+				  0x82000000 0x0 0x4cce0000  0x0 0x4cce0000  0x0 0x10000
+				  0x82000000 0x0 0x4cd00000  0x0 0x4cd00000  0x0 0x10000>;
+			power-domains = <&scmi_devpd IMX952_PD_NETC>;
+
+			netc_enetc0: ethernet@0,0 {
+				compatible = "pci1131,080b";
+				reg = <0x00000 0 0 0 0>;
+			};
+		};
+	};
+};
+
+&lpi2c6 {
+	status = "disabled";
+};
+
+&netcmix_blk_ctrl {
+	status = "disabled";
+};

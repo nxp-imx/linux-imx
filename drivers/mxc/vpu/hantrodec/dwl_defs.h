@@ -1,6 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*****************************************************************************
  *    The GPL License (GPL)
  *
+ *    Copyright 2026 NXP
  *    Copyright (c) 2015-2017, VeriSilicon Inc.
  *    Copyright (c) 2011-2014, Google Inc.
  *
@@ -34,9 +36,6 @@
 #define DWL_VP7_E 24   /* 1 bit */
 #define DWL_WEBP_E 19  /* 1 bit */
 #define DWL_AVS_E 22   /* 1 bit */
-#if 0
-#define DWL_PP_E       16  /* 1 bit */
-#endif
 #define DWL_PP_E 31    /* 1 bit */
 #define DWL_HEVC_E 5   /* 2 bits */
 #define DWL_VP9_E 3    /* 2 bits */
@@ -90,10 +89,6 @@
 
 #define HANTROPP_SYNTH_CFG           100
 #define HANTROPP_SYNTH_CFG_OFF       (HANTROPP_SYNTH_CFG * 4)
-#define HANTRODEC_SYNTH_CFG          50
-#define HANTRODEC_SYNTH_CFG_OFF      (HANTRODEC_SYNTH_CFG * 4)
-#define HANTRODEC_SYNTH_CFG_2        54
-#define HANTRODEC_SYNTH_CFG_2_OFF    (HANTRODEC_SYNTH_CFG_2 * 4)
 
 #define HANTRO_DEC_E                 0x01
 #define HANTRO_PP_E                  0x01

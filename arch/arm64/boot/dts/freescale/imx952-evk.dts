@@ -139,6 +139,12 @@
 			reg = <0 0x88020000 0 0x100000>;
 			no-map;
 		};
+
+		prime_reserved: prime-reserved@a4220000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4220000 0 0x10000000>;
+			no-map;
+		};
 	};
 
 	mali_pma: protected-memory-allocator {
@@ -572,6 +578,10 @@
 	status = "okay";
 };
 
+&neoisp0 {
+	status = "okay";
+};
+
 &netc_blk_ctrl {
 	status = "okay";
 };
@@ -808,6 +818,10 @@
 
 &vpuenc {
 	boot = <&vpuenc_boot>;
+};
+
+&v2x_mu2 {
+	memory-region = <&prime_reserved>;
 };
 
 &wdog3 {

@@ -35,6 +35,7 @@ static const char * const dpu95_unit_names[] = {
 	"FetchYUV",
 	"HScaler",
 	"LayerBlend",
+	"LocalDimming",
 	"VScaler",
 };
 

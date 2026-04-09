@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright 2026 NXP
+ * Copyright (c) 2015-2020, VeriSilicon Inc.
+ * Copyright (c) 2011-2014, Google Inc.
+ */
+
+#ifndef __HANTROENC_VC8000E_H
+#define __HANTROENC_VC8000E_H
+
+#include "hantro-enc.h"
+
+#define VC8000E_IOCGHWOFFSET		_IOR(HX280ENC_IOC_MAGIC,  3, u32 *)
+#define VC8000E_IOCGHWIOSIZE		_IOR(HX280ENC_IOC_MAGIC,  4, u32 *)
+#define VC8000E_IOCGSRAMOFFSET		_IOR(HX280ENC_IOC_MAGIC,  9, u32 *)
+#define VC8000E_IOCGSRAMEIOSIZE		_IOR(HX280ENC_IOC_MAGIC,  10, u32 *)
+#define VC8000E_IOCH_ENC_RESERVE	_IOR(HX280ENC_IOC_MAGIC, 11, u32 *)
+#define VC8000E_IOCH_ENC_RELEASE	_IOR(HX280ENC_IOC_MAGIC, 12, u32 *)
+#define VC8000E_IOCG_CORE_NUM		_IOR(HX280ENC_IOC_MAGIC, 13, u32 *)
+#define VC8000E_IOCG_EN_CORE		_IOR(HX280ENC_IOC_MAGIC, 14, u32 *)
+#define VC8000E_IOCG_CORE_WAIT		_IOR(HX280ENC_IOC_MAGIC, 19, u32 *)
+#define VC8000E_IOC_WRITE_REGS	_IOW(HX280ENC_IOC_MAGIC, 20, struct hantro_enc_regs_buffer *)
+#define VC8000E_IOC_READ_REGS	_IOR(HX280ENC_IOC_MAGIC, 21, struct hantro_enc_regs_buffer *)
+
+#endif

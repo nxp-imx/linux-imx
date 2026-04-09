@@ -318,6 +318,7 @@ struct imx_pgc_domain {
 	unsigned int pgc_sw_pup_reg;
 	unsigned int pgc_sw_pdn_reg;
 	const struct imx_pgc_noc_data *noc_data[DOMAIN_MAX_NOC];
+	void (*update_voltage)(struct imx_pgc_domain *domain);
 	u32 parent;
 };
 
@@ -700,6 +701,29 @@ static const struct imx_pgc_domain_data imx7_pgc_domain_data = {
 	.pgc_regs = &imx7_pgc_regs,
 };
 
+#define IMX8MQ_VPU_OVERDRIVE_FREQUENCY		600000000
+#define IMX8MQ_VPU_OVERDRIVE_VOLTAGE		1000000
+
+static void imx_8m_vpu_update_voltage(struct imx_pgc_domain *domain)
+{
+	struct clk *clk;
+	unsigned long frequency;
+
+	if (!domain || !domain->dev || !domain->regulator)
+		return;
+
+	clk = clk_get(domain->dev, "g2");
+	if (IS_ERR_OR_NULL(clk))
+		return;
+
+	frequency = clk_get_rate(clk);
+	if (frequency >= IMX8MQ_VPU_OVERDRIVE_FREQUENCY)
+		regulator_set_voltage(domain->regulator,
+				      IMX8MQ_VPU_OVERDRIVE_VOLTAGE, IMX8MQ_VPU_OVERDRIVE_VOLTAGE);
+
+	clk_put(clk);
+}
+
 static const struct imx_pgc_domain imx8m_pgc_domains[] = {
 	[IMX8M_POWER_DOMAIN_MIPI] = {
 		.genpd = {
@@ -782,6 +806,7 @@ static const struct imx_pgc_domain imx8m_pgc_domains[] = {
 		},
 		.pgc   = BIT(IMX8M_PGC_VPU),
 		.keep_clocks = true,
+		.update_voltage = imx_8m_vpu_update_voltage,
 	},
 
 	[IMX8M_POWER_DOMAIN_DISP] = {

@@ -318,6 +318,7 @@ struct imx_pgc_domain {
 	unsigned int pgc_sw_pup_reg;
 	unsigned int pgc_sw_pdn_reg;
 	const struct imx_pgc_noc_data *noc_data[DOMAIN_MAX_NOC];
+	void (*update_voltage)(struct imx_pgc_domain *domain);
 	u32 parent;
 };
 
@@ -343,6 +344,8 @@ static int imx_pgc_domain_probe(struct platform_device *pdev)
 	} else if (domain->voltage) {
 		regulator_set_voltage(domain->regulator,
 				      domain->voltage, domain->voltage);
+	} else if (domain->update_voltage) {
+		domain->update_voltage(domain);
 	}
 
 	domain->num_clks = devm_clk_bulk_get_all(domain->dev, &domain->clks);

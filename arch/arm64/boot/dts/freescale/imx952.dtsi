@@ -428,6 +428,34 @@
 		};
 	};
 
+	disp_mu: disp-mu {
+		compatible = "nxp,imx-disp-mu";
+		mbox-names = "tx", "rx";
+		mboxes = <&dispmix_mu1 0 0>,
+			 <&dispmix_mu1 1 0>;
+		status = "disabled";
+	};
+
+	ld_fw: remoteproc {
+		compatible = "nxp,imx952-cm0p-rproc";
+		firmware-name = "imx9xm0p_ld_fw.bin";
+		clocks = <&dispmix_cm0p_csr IMX952_CLK_CM0P_GATE_SEL>,
+			 <&scmi_clk IMX952_CLK_CGC_DISPOCRAM>,
+			 <&scmi_clk IMX952_CLK_DISPLPSPI>;
+		clock-names = "cm0p", "ocram", "lpspi";
+		assigned-clocks = <&scmi_clk IMX952_CLK_DISPLPSPI>;
+		assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1_DIV2>;
+		assigned-clock-rates = <20000000>;
+		power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		memory-region = <&ocram_d>;
+
+		nxp,cm0p-ctrl = <&dispmix_cm0p_csr>;
+		nxp,ocram-ctrl = <&dispmix_csr>;
+		nxp,ocram-cfg = <&ocram_d_config>;
+
+		status = "disabled";
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -1520,13 +1548,15 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47300000 0x0 0x10000>;
 			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
 		v2x_mu2: mailbox@47320000 {
-			compatible = "fsl,imx95-mu-v2x";
+			compatible = "fsl,imx952-mu-prime";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1534,6 +1564,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47330000 0x0 0x10000>;
 			interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1541,6 +1572,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47340000 0x0 0x10000>;
 			interrupts = <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1548,6 +1580,7 @@
 			compatible = "fsl,imx95-mu-v2x";
 			reg = <0x0 0x47350000 0x0 0x10000>;
 			interrupts = <GIC_SPI 255 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
 			#mbox-cells = <2>;
 		};
 
@@ -1574,7 +1607,14 @@
 			reg = <0x0 0x47510000 0x0 0x10000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-			status = "disabled";
+
+			eth_mac0: mac-address@0 {
+				reg = <0x0514 0x6>;
+			};
+
+			eth_mac1: mac-address@1 {
+				reg = <0x1514 0x6>;
+			};
 		};
 
 		elemu0: mailbox@47520000 {
@@ -1785,6 +1825,26 @@
 			};
 		};
 
+		neoisp0: isp@4ae00000 {
+			compatible = "nxp,imx952-neoisp";
+			reg = <0x0 0x4ae00000 0x0 0x8000>,
+			      <0x0 0x4afe0000 0x0 0x10000>;
+			reg-names = "registers", "stats";
+			interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-parent = <&gic>;
+			clocks = <&cameramix_csr IMX952_CLK_CAMBLK_ISP_AXI>,
+				 <&cameramix_csr IMX952_CLK_CAMBLK_ISP_PIXEL>,
+				 <&cameramix_csr IMX952_CLK_CAMBLK_ISP>,
+				 <&scmi_clk IMX952_CLK_CGC_CAMISP>;
+			clock-names = "camblk_isp_axi",
+				      "camblk_isp_pixel",
+				      "camblk_isp",
+				      "cgc_camisp";
+			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
+			nxp,blk-ctrl = <&cameramix_csr>;
+			status = "disabled";
+		};
+
 		hsio_blk_ctl: syscon@4c0100c0 {
 			compatible = "nxp,imx95-hsio-blk-ctl", "syscon";
 			reg = <0x0 0x4c0100c0 0x0 0x1>;
@@ -1932,6 +1992,36 @@
 					reg = <1>;
 				};
 			};
+		};
+
+		dispmix_cm0p_csr: syscon@4b070000 {
+			compatible = "nxp,imx952-display-cm0p-csr", "syscon";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x0 0x4b070000 0x0 0x10000>;
+			#clock-cells = <1>;
+			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		};
+
+		dispmix_mu0: mailbox@4b080000 {
+			compatible = "fsl,imx95-mu-cm0p";
+			reg = <0x0 0x4b080000 0x0 0x10000>;
+			interrupts = <GIC_SPI 408 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
+			#mbox-cells = <2>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			status = "disabled";
+		};
+
+		dispmix_mu1: mailbox@4b090000 {
+			compatible = "fsl,imx95-mu-cm0p";
+			reg = <0x0 0x4b090000 0x0 0x10000>;
+			interrupts = <GIC_SPI 409 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "tx", "rx";
+			#mbox-cells = <2>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+			status = "disabled";
 		};
 
 		display_dsi_csr: syscon@4b0a0000 {
@@ -2141,6 +2231,17 @@
 			#phy-cells = <0>;
 			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
 			status = "disabled";
+		};
+
+		ocram_d_config: syscon@4b0f0000 {
+			compatible = "nxp,imx95-ocram-config", "syscon";
+			reg = <0x0 0x4b0f0000 0x0 0x10000>;
+			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
+		};
+
+		ocram_d: ocram@4b300000 {
+			reg = <0x0 0x4b300000 0x0 0x4000>;
+			no-map;
 		};
 
 		dpu: display-controller@4b400000 {
@@ -2472,6 +2573,8 @@
 					reg = <0x00000 0 0 0 0>;
 					clocks = <&scmi_clk IMX952_CLK_ENETREF>;
 					clock-names = "ref";
+					nvmem-cells = <&eth_mac0>;
+					nvmem-cell-names = "mac-address";
 					status = "disabled";
 				};
 
@@ -2521,6 +2624,8 @@
 					compatible = "pci1131,e101";
 					reg = <0x10000 0 0 0 0>;
 					ptp-timer = <&netc_timer>;
+					nvmem-cells = <&eth_mac1>;
+					nvmem-cell-names = "mac-address";
 					status = "disabled";
 				};
 
@@ -2635,4 +2740,48 @@
 			power-domains = <&scmi_devpd IMX952_PD_VPU>;
 		};
 	};
+
+	ele_if0: secure-enclave-0 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&elemu3 0 0>,
+			 <&elemu3 1 0>;
+	};
+
+	v2x_dbg: secure-enclave-1 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu 0 0>,
+			<&v2x_mu 1 0>;
+	};
+
+	v2x_sv0: secure-enclave-2 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu0 0 0>,
+			<&v2x_mu0 1 0>;
+	};
+
+	v2x_she: secure-enclave-3 {
+		compatible = "fsl,imx95-se";
+		mbox-names = "tx", "rx";
+		mboxes = <&v2x_mu2 0 0>,
+			<&v2x_mu2 1 0>;
+		status = "disabled";
+	};
+
+	v2x_sg0: secure-enclave-4 {
+		compatible = "fsl,imx95-se";
+		mboxes = <&v2x_mu3 0 0>,
+			<&v2x_mu3 1 0>;
+		mbox-names = "tx", "rx";
+	};
+
+	v2x_sg1: secure-enclave-5 {
+		compatible = "fsl,imx95-se";
+		mboxes = <&v2x_mu4 0 0>,
+			<&v2x_mu4 1 0>;
+		mbox-names = "tx", "rx";
+	};
+
 };

@@ -292,7 +292,7 @@
 			no-map;
 		};
 
-		v2x_prime_reserved: v2x-prime-reserved@a4220000 {
+		prime_reserved: prime-reserved@a4220000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0xa4220000 0 0x10000000>;
 			no-map;
@@ -349,7 +349,7 @@
 };
 
 &v2x_mu2 {
-	memory-region = <&v2x_prime_reserved>;
+	memory-region = <&prime_reserved>;
 };
 
 &enetc1 {

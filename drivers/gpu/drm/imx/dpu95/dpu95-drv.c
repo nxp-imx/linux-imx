@@ -57,6 +57,10 @@ static int dpu95_load(struct dpu95_drm_device *dpu_drm)
 	if (ret)
 		return ret;
 
+	ret = dpu95_ld_load(dpu_drm);
+	if (ret)
+		return ret;
+
 	ret = dpu95_bliteng_load(dpu_drm);
 	if (ret)
 		return ret;
@@ -67,6 +71,7 @@ static int dpu95_load(struct dpu95_drm_device *dpu_drm)
 static void dpu95_unload(struct dpu95_drm_device *dpu_drm)
 {
 	dpu95_bliteng_unload(dpu_drm);
+	dpu95_ld_unload(dpu_drm);
 	dpu95_kms_unprepare(dpu_drm);
 }
 

@@ -10,6 +10,7 @@
 #include <linux/iopoll.h>
 #include <linux/cleanup.h>
 #include "wave5-helper.h"
+#include "wave5-vpu-dbg.h"
 
 #define VPU_DEC_DEV_NAME "C&M Wave5 VPU decoder"
 #define VPU_DEC_DRV_NAME "wave5-dec"
@@ -1695,6 +1696,7 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 			ret = switch_state(inst, VPU_INST_STATE_OPEN);
 		if (ret)
 			goto error_dec_close;
+		wave5_vpu_create_dbgfs_file(inst);
 	} else if (V4L2_TYPE_IS_OUTPUT(q->type) && inst->state == VPU_INST_STATE_STOP) {
 		if (!inst->dynamic_source_change) {
 			scoped_guard(spinlock_irqsave, &inst->state_spinlock)

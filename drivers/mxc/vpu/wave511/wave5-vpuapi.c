@@ -11,7 +11,6 @@
 #include "wave5-regdefine.h"
 #include "wave5-hw.h"
 #include "wave5-helper.h"
-#include "wave5-vpu-dbg.h"
 
 #define DECODE_ALL_TEMPORAL_LAYERS 0
 #define DECODE_ALL_SPATIAL_LAYERS 0
@@ -118,7 +117,6 @@ int wave5_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *open_pa
 	if (!ret) {
 		scoped_guard(spinlock_irqsave, &inst->dev->inst_lock)
 			list_add_tail(&inst->list, &inst->dev->instances);
-		wave5_vpu_create_dbgfs_file(inst);
 	}
 
 	return ret;
@@ -175,7 +173,6 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 
 	scoped_guard(spinlock_irqsave, &inst->dev->inst_lock)
 		list_del_init(&inst->list);
-	wave5_vpu_remove_dbgfs_file(inst);
 
 	wave5_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
 

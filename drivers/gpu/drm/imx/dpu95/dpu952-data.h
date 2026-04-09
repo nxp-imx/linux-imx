@@ -201,6 +201,21 @@ static const struct dpu95_units dpu952_dpu_lbs = {
 	.hw_init	= dpu95_lb_hw_init,
 };
 
+/* Local Dimming */
+static const unsigned int dpu952_ld_id[] = {0};
+static const enum dpu95_unit_type dpu952_ld_type[] = {DPU95_DISP};
+static const unsigned long dpu952_ld_ofss[] = {0x320000};
+
+static const struct dpu95_units dpu952_dpu_ld = {
+	.ids		= dpu952_ld_id,
+	.types		= dpu952_ld_type,
+	.ofss		= dpu952_ld_ofss,
+	.cnt		= ARRAY_SIZE(dpu952_ld_id),
+	.name		= DPU95_LOCALDIMMING,
+	.init		= dpu95_ld_init,
+	.hw_init	= dpu95_ld_hw_init,
+};
+
 /* Vertical Scaler */
 static const unsigned int dpu952_vs_ids[] = {4, 9};
 static const enum dpu95_unit_type dpu952_vs_types[] = {DPU95_DISP, DPU95_BLIT};
@@ -229,6 +244,7 @@ static const struct dpu95_units *dpu952_all_units[] = {
 	&dpu952_dpu_fys,
 	&dpu952_dpu_hss,
 	&dpu952_dpu_lbs,
+	&dpu952_dpu_ld,
 	&dpu952_dpu_vss,
 };
 

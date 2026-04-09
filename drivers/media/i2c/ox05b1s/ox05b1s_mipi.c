@@ -49,6 +49,7 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_GH_REPEAT		0xA0
 #define OX05B1S_GH_0			0x0
 #define OX05B1S_GH_1			0x1
+#define OX05B1S_REG_GH_SEL_REAL		CCI_REG8(0x322d)
 #define OX05B1S_REG_EXP			CCI_REG24(0x3500)
 #define OX05B1S_REG_AGAIN		CCI_REG16(0x3508)
 #define OX05B1S_REG_DGAIN		CCI_REG24(0x350a)
@@ -143,6 +144,8 @@ struct ox05b1s {
 	struct ox05b1s_ctrls ctrls;
 	u64 enabled_source_streams;
 	u32 num_data_lanes;
+	struct delayed_work exp_gain_work;
+	u8 g_retry_cnt[2]; /* group retry counts */
 };
 
 #define OS08A20_PIXEL_RATE_144M	144000000
@@ -661,27 +664,192 @@ static int ox05b1s_set_dgain_short(struct ox05b1s *sensor, u32 dgain)
 	}
 }
 
+/* Calculate frame duration in microseconds based on current mode */
+static int ox05b1s_get_frame_duration_us(struct ox05b1s *sensor)
+{
+	u64 pixel_rate = sensor->mode->pixel_rate;
+	u32 hts = sensor->mode->hts;
+	u32 vts = sensor->mode->vts;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		/* TODO, not used for now, significance is unclear for hdr */
+		return -EINVAL;
+	case OX05B1S_CHIP_ID:
+		return div64_u64(hts * vts * 1000000ULL, pixel_rate);
+	default:
+		return -EINVAL;
+	}
+}
+
+static int ox05b1s_get_active_group(struct ox05b1s *sensor, u8 *active_group)
+{
+	struct regmap *regmap = sensor->regmap;
+	u64 reg_val;
+	int ret;
+
+	ret = cci_read(regmap, OX05B1S_REG_GH_SEL_REAL, &reg_val, NULL);
+	if (ret)
+		return ret;
+	if (reg_val > OX05B1S_NUM_EXP - 1)
+		return -EINVAL;
+
+	*active_group = reg_val;
+
+	return 0;
+}
+
+static int ox05b1s_set_exp_gains_gh(struct ox05b1s *sensor, u8 group)
+{
+	u8 other_group = (group == OX05B1S_EXP0) ? OX05B1S_EXP1 : OX05B1S_EXP0;
+	u32 again = sensor->ctrls.again_multi->p_new.p_u32[other_group];
+	u32 dgain = sensor->ctrls.dgain_multi->p_new.p_u32[other_group];
+	u32 exp = sensor->ctrls.exposure_multi->p_new.p_u32[other_group];
+	struct device *dev = &sensor->i2c_client->dev;
+	int delay_us;
+	u8 active_group;
+	int ret;
+
+	/* OX05B1S_CHIP_ID only */
+
+	/*
+	 * Update group0 in the first half of t0, while context for
+	 * group0 is active. This gives us plenty of time to finish
+	 * the i2c tranfers, there is at least 1 frame before the
+	 * next group0 launch point.
+	 * See "Context switch (AB mode) group write timeline" above.
+	 */
+	ret = ox05b1s_get_active_group(sensor, &active_group);
+	if (ret)
+		return ret;
+
+	if (active_group != group) {
+		/* Schedule inactive group later */
+		delay_us = ox05b1s_get_frame_duration_us(sensor);
+		if (delay_us < 0)
+			return delay_us;
+		delay_us = delay_us * 2 / 3;
+		sensor->g_retry_cnt[group]++; /* Mark group as pending */
+		dev_dbg(dev, "Active group=%d, scheduling deferred update in %u ms, g_retry_cnt=[%d, %d]\n",
+			active_group, delay_us / 1000, sensor->g_retry_cnt[0],
+			sensor->g_retry_cnt[1]);
+		cancel_delayed_work(&sensor->exp_gain_work); /* unlocked */
+		schedule_delayed_work(&sensor->exp_gain_work,
+				      usecs_to_jiffies(delay_us));
+
+		return 0;
+	}
+
+	/*
+	 * Update active group immediately.
+	 * Configure exposure and gain for the opposite context because
+	 * the virtual channel assignment takes effect in frame N+1, while
+	 * exposure and gain changes take effect in frame N+2. This prevents
+	 * the settings from being applied to the wrong virtual channel.
+	 * Refer to "Context switch (AB mode) group write timeline" below.
+	 */
+	ret = ox05b1s_gh_start(sensor, group);
+	ret |= ox05b1s_set_exp_long(sensor, exp);
+	ret |= ox05b1s_set_again_long(sensor, again);
+	ret |= ox05b1s_set_dgain_long(sensor, dgain);
+	ret |= ox05b1s_gh_end(sensor, group);
+	dev_dbg(dev, "Active group=%d updated after %d retries\n",
+		active_group, sensor->g_retry_cnt[group]);
+	sensor->g_retry_cnt[group] = 0;
+
+	return ret ? -EIO : 0;
+}
+
+/* Deferred work handler for exposure/gain update */
+static void ox05b1s_exp_gain_work_handler(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct ox05b1s *sensor = container_of(dwork, struct ox05b1s, exp_gain_work);
+	struct device *dev = &sensor->i2c_client->dev;
+	int ret = 0;
+
+	guard(mutex)(&sensor->lock);
+
+	if (!sensor->stream_status) {
+		sensor->g_retry_cnt[OX05B1S_EXP0] = 0;
+		sensor->g_retry_cnt[OX05B1S_EXP1] = 0;
+		return;
+	}
+	if (sensor->g_retry_cnt[OX05B1S_EXP0] == 0 && sensor->g_retry_cnt[OX05B1S_EXP1] == 0) {
+		dev_warn(dev, "Both retry counts zero, useless entry in work handler\n");
+		return;
+	}
+
+	if (sensor->g_retry_cnt[OX05B1S_EXP0])
+		ret |= ox05b1s_set_exp_gains_gh(sensor, OX05B1S_EXP0);
+	if (sensor->g_retry_cnt[OX05B1S_EXP1])
+		ret |= ox05b1s_set_exp_gains_gh(sensor, OX05B1S_EXP1);
+	if (ret)
+		dev_err(dev, "Failed to apply deferred exposure/gain settings\n");
+}
+
+/*
+ *  Context switch (AB mode) group write timeline:
+ *
+ *   Group0 launch    Group1 launch    Group0 launch    Group1 launch
+ *
+ *   |                |                |                |
+ *   v                v                v                v
+ *
+ *   frame0 (A)       frame1 (B)       frame2 (A)       frame3 (B)
+ *   (exp_init,vc0)   (exp0,vc1)       (exp1,vc0)       (exp0,vc1)
+ *
+ *---+----------------+----------------+----------------+---------------> time
+ *   |                |                |                |
+ *   G0:N+1 vc0       G0:N+2 exp0      G0:N+1 vc0       G0:N+2 exp0
+ *                    ^                ^                ^
+ *                    |                |                |
+ *                    G1:N+1 vc1       G1:N+2 exp1      G1:N+1 vc1
+ *
+ *   <--------t0 (G0 update)---------->
+ *                    <---------t1 (G1 update)--------->
+ *
+ * Group0 update (exp0, vc0) needs to be between group0 launch points (t0)
+ * Group1 update (exp1, vc1) needs to be between group1 launch points (t1)
+ * Group launch point is at VTS-3
+ * Virtual channel (per-group) takes effect at frame N+1
+ * Exposure and gain settings take effect at frame N+2, so they appear reversed
+ */
+
 static int ox05b1s_set_exp_gains(struct ox05b1s *sensor)
 {
-	int ret;
 	u32 exp0_again = sensor->ctrls.again_multi->p_new.p_u32[OX05B1S_EXP0];
 	u32 exp1_again = sensor->ctrls.again_multi->p_new.p_u32[OX05B1S_EXP1];
 	u32 exp0_dgain = sensor->ctrls.dgain_multi->p_new.p_u32[OX05B1S_EXP0];
 	u32 exp1_dgain = sensor->ctrls.dgain_multi->p_new.p_u32[OX05B1S_EXP1];
 	u32 exp0_exp = sensor->ctrls.exposure_multi->p_new.p_u32[OX05B1S_EXP0];
 	u32 exp1_exp = sensor->ctrls.exposure_multi->p_new.p_u32[OX05B1S_EXP1];
+	struct device *dev = &sensor->i2c_client->dev;
+	int ret;
 
-	ret = ox05b1s_gh_start(sensor, 0);
-	ret |= ox05b1s_set_exp_long(sensor, exp0_exp);
-	ret |= ox05b1s_set_again_long(sensor, exp0_again);
-	ret |= ox05b1s_set_dgain_long(sensor, exp0_dgain);
-	ret |= ox05b1s_gh_end(sensor, 0);
+	dev_dbg(dev, "EXP0 exp=%u, again=%u, dgain=%u | EXP1 exp=%u, again=%u, dgain=%u\n",
+		exp0_exp, exp0_again, exp0_dgain,
+		exp1_exp, exp1_again, exp1_dgain);
 
-	ret |= ox05b1s_gh_start(sensor, 1);
-	ret |= ox05b1s_set_exp_short(sensor, exp1_exp);
-	ret |= ox05b1s_set_again_short(sensor, exp1_again);
-	ret |= ox05b1s_set_dgain_short(sensor, exp1_dgain);
-	ret |= ox05b1s_gh_end(sensor, 1);
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		/* Context switching, single register set for exp/gains */
+		cancel_delayed_work(&sensor->exp_gain_work); /* unlocked */
+		ret = ox05b1s_set_exp_gains_gh(sensor, OX05B1S_EXP0);
+		ret |= ox05b1s_set_exp_gains_gh(sensor, OX05B1S_EXP1);
+		break;
+	case OS08A20_CHIP_ID:
+		/* HDR, double exposure, double register set for exp/gains */
+		ret = ox05b1s_set_exp_long(sensor, exp0_exp);
+		ret |= ox05b1s_set_again_long(sensor, exp0_again);
+		ret |= ox05b1s_set_dgain_long(sensor, exp0_dgain);
+		ret |= ox05b1s_set_exp_short(sensor, exp1_exp);
+		ret |= ox05b1s_set_again_short(sensor, exp1_again);
+		ret |= ox05b1s_set_dgain_short(sensor, exp1_dgain);
+		break;
+	default:
+		return 0;
+	}
 
 	return ret ? -EIO : 0;
 }
@@ -702,6 +870,7 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 	u32 h = sensor->mode->height;
 	int ret = 0;
 	u32 hts;
+	u32 long_exp, short_exp;
 
 	/* apply V4L2 controls values only if power is already up */
 	if (!pm_runtime_get_if_in_use(&client->dev))
@@ -735,9 +904,8 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ret ? -EIO : 0;
 		break;
 	case V4L2_CID_EXPOSURE:
-	{
-		u32 long_exp = ctrl->val;
-		u32 short_exp = ctrl->val / OX05B1S_EXP_RATIO;
+		long_exp = ctrl->val;
+		short_exp = ctrl->val / OX05B1S_EXP_RATIO;
 
 		if (!hdr_ctrl->cur.val)
 			short_exp = 0;
@@ -748,7 +916,6 @@ static int ox05b1s_s_ctrl(struct v4l2_ctrl *ctrl)
 			ret |= ox05b1s_set_exp_short(sensor, short_exp);
 		ret = ret ? -EIO : 0;
 		break;
-	}
 	case V4L2_CID_EXPOSURE_MULTI:
 		/* control available only for HDR mode */
 		if (!hdr_ctrl->cur.val)
@@ -1593,6 +1760,11 @@ static int ox05b1s_probe(struct i2c_client *client)
 
 	sensor->model = of_device_get_match_data(dev);
 
+	/* Initialize delayed work for exposure/gain updates */
+	INIT_DELAYED_WORK(&sensor->exp_gain_work, ox05b1s_exp_gain_work_handler);
+	sensor->g_retry_cnt[OX05B1S_EXP0] = 0;
+	sensor->g_retry_cnt[OX05B1S_EXP1] = 0;
+
 	ox05b1s_get_gpios(sensor);
 
 	/* Get system clock, xvclk */
@@ -1694,6 +1866,7 @@ static void ox05b1s_remove(struct i2c_client *client)
 	struct ox05b1s *sensor = client_to_ox05b1s(client);
 	struct device *dev = &client->dev;
 
+	cancel_delayed_work_sync(&sensor->exp_gain_work);
 	pm_runtime_disable(dev);
 	if (!pm_runtime_status_suspended(dev))
 		ox05b1s_runtime_suspend(dev);

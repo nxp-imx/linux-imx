@@ -15,6 +15,7 @@
 #define SOC_ID_OF_IMX93			0x9300
 #define SOC_ID_OF_IMX94			0x9430
 #define SOC_ID_OF_IMX95			0x9500
+#define SOC_ID_OF_IMX952		0x9520
 
 #define OTP_UNIQ_ID			0x01
 #define OTFAD_CONFIG			0x2

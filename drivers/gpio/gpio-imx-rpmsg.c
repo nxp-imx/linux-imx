@@ -475,8 +475,7 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	port->chip = imx_rpmsg_irq_chip;
 	port->chip.name = kasprintf(GFP_KERNEL, "rpmsg-irq-port-%d", port->idx);
 
-	irq_base = irq_alloc_descs(-1, 0, IMX_RPMSG_GPIO_PER_PORT,
-				   numa_node_id());
+	irq_base = devm_irq_alloc_descs(dev, -1, 0, IMX_RPMSG_GPIO_PER_PORT, numa_node_id());
 	WARN_ON(irq_base < 0);
 
 	port->domain = irq_domain_create_legacy(of_fwnode_handle(np), IMX_RPMSG_GPIO_PER_PORT,
@@ -492,6 +491,14 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 
 	return 0;
 }
+
+static void imx_rpmsg_gpio_remove(struct platform_device *pdev)
+{
+	struct imx_rpmsg_gpio_port *port = platform_get_drvdata(pdev);
+
+	irq_domain_remove(port->domain);
+}
+
 static const struct of_device_id imx_rpmsg_gpio_dt_ids[] = {
 	{ .compatible = "fsl,imx-rpmsg-gpio" },
 	{ /* sentinel */ }
@@ -503,6 +510,7 @@ static struct platform_driver imx_rpmsg_gpio_driver = {
 		.of_match_table = imx_rpmsg_gpio_dt_ids,
 	},
 	.probe = imx_rpmsg_gpio_probe,
+	.remove = imx_rpmsg_gpio_remove,
 };
 
 static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
@@ -517,6 +525,11 @@ static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)
 	return platform_driver_register(&imx_rpmsg_gpio_driver);
 }
 
+static void gpio_rpmsg_remove(struct rpmsg_device *rpdev)
+{
+	platform_driver_unregister(&imx_rpmsg_gpio_driver);
+}
+
 static struct rpmsg_device_id gpio_rpmsg_id_table[] = {
 	{ .name = "rpmsg-io-channel" },
 	{},
@@ -527,6 +540,7 @@ static struct rpmsg_driver gpio_rpmsg_driver = {
 	.drv.owner	= THIS_MODULE,
 	.id_table	= gpio_rpmsg_id_table,
 	.probe		= gpio_rpmsg_probe,
+	.remove		= gpio_rpmsg_remove,
 	.callback	= gpio_rpmsg_cb,
 };
 

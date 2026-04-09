@@ -278,9 +278,10 @@ static int imx94_link_config(struct netc_blk_ctrl *priv,
 
 	netc_reg_write(priv->netcmix, IMX94_NETC_LINK_CFG(link_id), val);
 
-	if (link_id == IMX94_ENETC0_LINK) {
+	if (link_id == IMX94_ENETC0_LINK || link_id == IMX94_SWITCH_PORT2) {
 		val = netc_reg_read(priv->netcmix, IMX94_EXT_PIN_CONTROL);
-		val |= MAC2_MAC3_SEL;
+		val = u32_replace_bits(val, link_id == IMX94_ENETC0_LINK,
+				       MAC2_MAC3_SEL);
 		netc_reg_write(priv->netcmix, IMX94_EXT_PIN_CONTROL, val);
 	}
 

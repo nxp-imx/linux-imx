@@ -435,11 +435,48 @@ static const struct ocotp_devtype_data imx95_ocotp_data = {
 	},
 };
 
+/*
+ * i.MX952 uses the following mac address offset list:
+ * | No. | Mac address user  |
+ * |-----|-------------------|
+ * | 0   | enetc mac pf0     |
+ * | 1   | enetc mac vf0     |
+ * | 2   | enetc mac pf1     |
+ * | 3   | enetc mac vf1     |
+ */
+static const u8 imx952_pf_mac_offset_list[] = { 0, 2 };
+static const struct ocotp_devtype_data imx952_ocotp_data = {
+	.reg_off = 0x8000,
+	.reg_read = imx_ocotp_reg_read,
+	.reg_write = imx_ocotp_reg_write,
+	.size = 2440, /* 610 words */
+	.num_entry = 12,
+	.fuse_mac_addr_netc = true,
+	.increase_mac_address = true,
+	.pf_mac_offset_list = imx952_pf_mac_offset_list,
+	.se_soc_id = SOC_ID_OF_IMX952,
+	.entry = {
+		{ 0, 1, FUSE_FSB | FUSE_ECC },
+		{ 7, 1, FUSE_FSB | FUSE_ECC },
+		{ 9, 3, FUSE_FSB | FUSE_ECC },
+		{ 12, 24, FUSE_FSB },
+		{ 36, 2, FUSE_FSB  | FUSE_ECC },
+		{ 38, 14, FUSE_FSB },
+		{ 317, 2, FUSE_FSB | FUSE_ECC },
+		{ 320, 7, FUSE_FSB },
+		{ 328, 64, FUSE_FSB },
+		{ 448, 143, FUSE_FSB },
+		{ 591, 1, FUSE_FSB | FUSE_ECC },
+		{ 592, 16, FUSE_FSB }
+	},
+};
+
 static const struct of_device_id imx_ele_ocotp_dt_ids[] = {
 	{ .compatible = "fsl,imx8ulp-ocotp", .data = &imx8ulp_ocotp_data, },
 	{ .compatible = "fsl,imx93-ocotp", .data = &imx93_ocotp_data, },
 	{ .compatible = "fsl,imx94-ocotp", .data = &imx94_ocotp_data, },
 	{ .compatible = "fsl,imx95-ocotp", .data = &imx95_ocotp_data, },
+	{ .compatible = "fsl,imx952-ocotp", .data = &imx952_ocotp_data, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, imx_ele_ocotp_dt_ids);

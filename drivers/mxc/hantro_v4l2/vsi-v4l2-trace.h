@@ -54,15 +54,14 @@ DEFINE_EVENT(vsiv4l2_msg, vsiv4l2_message,
 	TP_ARGS(msg));
 
 TRACE_EVENT(vsiv4l2_source_change,
-	TP_PROTO(struct vsi_v4l2_mediacfg *cfg, u64 inst_id, u32 change),
-	TP_ARGS(cfg, inst_id, change),
+	TP_PROTO(struct vsi_v4l2_mediacfg *cfg, u64 inst_id),
+	TP_ARGS(cfg, inst_id),
 	TP_STRUCT__entry(
 		__field(u64, id)
 		__field(u32, width)
 		__field(u32, height)
 		__field(u32, bitdepth)
 		__field(u32, dpb_num)
-		__field(u32, change)
 	),
 	TP_fast_assign(
 		__entry->id = inst_id;
@@ -70,11 +69,10 @@ TRACE_EVENT(vsiv4l2_source_change,
 		__entry->height = cfg->decparams.dec_info.io_buffer.srcheight;
 		__entry->bitdepth = cfg->src_pixeldepth;
 		__entry->dpb_num = cfg->minbuf_4capture;
-		__entry->change = change;
 	),
-	TP_printk("[%llx] source change: %dx%d %d bits, %d dpbs, change 0x%x",
+	TP_printk("[%llx] source change: %dx%d %d bits, %d dpbs",
 		  __entry->id, __entry->width, __entry->height, __entry->bitdepth,
-		  __entry->dpb_num, __entry->change)
+		  __entry->dpb_num)
 );
 
 TRACE_EVENT(vsiv4l2_set_fmt_enc,

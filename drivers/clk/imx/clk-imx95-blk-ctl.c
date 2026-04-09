@@ -5,6 +5,7 @@
 
 #include <dt-bindings/clock/nxp,imx94-clock.h>
 #include <dt-bindings/clock/nxp,imx95-clock.h>
+#include <dt-bindings/clock/nxp,imx952-clock.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/pm_runtime.h>
@@ -352,6 +353,24 @@ static const struct imx95_blk_ctl_dev_data imx94_dispmix_csr_dev_data = {
 	.rpm_enabled = true,
 };
 
+static const struct imx95_blk_ctl_clk_dev_data imx952_cm0p_clk_dev_data[] = {
+	[IMX952_CLK_CM0P_GATE_SEL] = {
+		.name = "cm0p_clk_gate",
+		.parent_names = (const char *[]){ "disp", },
+		.num_parents = 1,
+		.reg = 0,
+		.bit_idx = 0,
+		.type = CLK_GATE,
+		.flags = CLK_SET_RATE_PARENT,
+		.flags2 = CLK_GATE_SET_TO_DISABLE,
+	},
+};
+
+static const struct imx95_blk_ctl_dev_data imx952_cm0p_csr_dev_data = {
+	.num_clks = 1,
+	.clk_dev_data = imx952_cm0p_clk_dev_data,
+};
+
 static int imx95_bc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -554,6 +573,7 @@ static const struct of_device_id imx95_bc_of_match[] = {
 	{ .compatible = "nxp,imx95-hsio-blk-ctl", .data = &hsio_blk_ctl_dev_data },
 	{ .compatible = "nxp,imx95-vpu-csr", .data = &vpublk_dev_data },
 	{ .compatible = "nxp,imx95-netcmix-blk-ctrl", .data = &netcmix_dev_data},
+	{ .compatible = "nxp,imx952-display-cm0p-csr", .data = &imx952_cm0p_csr_dev_data },
 	{ .compatible = "nxp,imx952-display-csr", },
 	{ .compatible = "nxp,imx952-display-dsi-csr", },
 	{ /* Sentinel */ },

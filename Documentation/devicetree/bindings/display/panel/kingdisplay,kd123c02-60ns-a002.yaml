@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/panel/kingdisplay,kd123c02-60ns-a002.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: King & Display KD123C02-60NS-A002 12.3" (1920x720) TFT LCD panel
+
+maintainers:
+  - Liu Ying <victor.liu@nxp.com>
+
+allOf:
+  - $ref: /schemas/display/lvds-dual-ports.yaml#
+  - $ref: panel-common.yaml#
+
+properties:
+  compatible:
+    items:
+      - const: kingdisplay,kd123c02-60ns-a002
+      - {} # panel-lvds, but not listed here to avoid false select
+
+  interrupts:
+    maxItems: 1
+    description: FAULT signal output(normal=H, abnormal=L)
+
+  width-mm:
+    const: 292
+
+  height-mm:
+    const: 110
+
+  backlight: true
+
+  data-mapping:
+    const: vesa-24
+
+  power-supply: true
+  enable-gpios: true # STBYB signal(standby mode, active high)
+  reset-gpios: true
+  panel-timing: true
+
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+
+    properties:
+      port@0:
+        required:
+          - dual-lvds-odd-pixels
+
+      port@1:
+        required:
+          - dual-lvds-even-pixels
+
+    required:
+      - port@0
+      - port@1
+
+required:
+  - compatible
+  - width-mm
+  - height-mm
+  - data-mapping
+  - power-supply
+  - panel-timing
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    panel {
+        compatible = "kingdisplay,kd123c02-60ns-a002", "panel-lvds";
+        width-mm = <292>;
+        height-mm = <110>;
+        backlight = <&backlight>;
+        data-mapping = "vesa-24";
+        power-supply = <&reg_b_lcm_3v3>;
+        enable-gpios = <&pi4io_gpio 2 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&pi4io_gpio 1 GPIO_ACTIVE_HIGH>;
+
+        panel-timing {
+            clock-frequency = <91600000>;
+            hactive = <1920>;
+            vactive = <720>;
+            hfront-porch = <52>;
+            hback-porch = <32>;
+            hsync-len = <24>;
+            vfront-porch = <8>;
+            vback-porch = <21>;
+            vsync-len = <3>;
+        };
+
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            port@0 {
+                reg = <0>;
+                dual-lvds-odd-pixels;
+
+                panel_in_odd: endpoint {
+                    remote-endpoint = <&lvds0_out>;
+                };
+            };
+
+            port@1 {
+                reg = <1>;
+                dual-lvds-even-pixels;
+
+                panel_in_even: endpoint {
+                    remote-endpoint = <&lvds1_out>;
+                };
+            };
+        };
+    };

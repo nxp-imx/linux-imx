@@ -280,7 +280,7 @@ struct ipft_keye_data {
 	__le16 frm_attr_flags_mask;
 	__le16 dscp;
 #define IPFT_DSCP		GENMASK(5, 0)
-#define IPFT_DSCP_MASK		GENMASK(11, 0)
+#define IPFT_DSCP_MASK		GENMASK(11, 6)
 #define IPFT_DSCP_MASK_ALL	0x3f
 	__le16 src_port; /* This field is reserved for ENETC */
 #define	IPFT_SRC_PORT		GENMASK(4, 0)

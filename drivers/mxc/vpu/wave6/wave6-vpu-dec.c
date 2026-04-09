@@ -890,16 +890,6 @@ static void wave6_vpu_dec_retry_one_frame(struct vpu_instance *inst)
 	vpu_buf->consumed = false;
 }
 
-static void wave6_event_src_ch_colorsapce(struct vpu_instance *inst)
-{
-	static const struct v4l2_event vpu_event_src_ch = {
-		.type = V4L2_EVENT_SOURCE_CHANGE,
-		.u.src_change.changes = V4L2_EVENT_SRC_CH_COLORSPACE,
-	};
-
-	v4l2_event_queue_fh(&inst->v4l2_fh, &vpu_event_src_ch);
-}
-
 static void wave6_event_src_ch_resolution(struct vpu_instance *inst)
 {
 	static const struct v4l2_event vpu_event_src_ch = {
@@ -935,17 +925,14 @@ static void wave6_vpu_dec_handle_source_change(struct vpu_instance *inst,
 
 	trace_source_change(inst, info);
 
-	if (info->seq_change_info == SEQ_CHANGE_ENABLE_VIDEO_SIGNAL) {
-		inst->registered_fb_num = 0;
-		wave6_event_src_ch_colorsapce(inst);
-	} else if (info->seq_change_info == SEQ_CHANGE_ENABLE_CONF_WIN_OFFSET) {
-		inst->registered_fb_num = 0;
-		wave6_event_src_ch_resolution(inst);
-	} else {
+	if (info->seq_change_info & ~SEQ_CHANGE_WITHOUT_REALLOCATION) {
 		scoped_guard(mutex, &inst->fbc_lock)
 			wave6_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
-		wave6_event_src_ch_resolution(inst);
+	} else {
+		inst->registered_fb_num = 0;
 	}
+
+	wave6_event_src_ch_resolution(inst);
 }
 
 static void wave6_vpu_dec_handle_decoding_warn_error(struct vpu_instance *inst,
