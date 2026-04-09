@@ -24,6 +24,9 @@
 #include <linux/debugfs.h>
 #include <linux/hantrodec.h>
 #include "dwl_defs.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/of_platform.h>
 
 #ifdef CONFIG_DEVFREQ_THERMAL
 #include <linux/thermal.h>
@@ -149,6 +152,7 @@ struct hantro_dec_core {
 	unsigned long frame_num[DWL_CLIENT_TYPE_MAX];
 
 	struct dentry *debugfs;
+	struct device *trusty_dev;
 };
 
 struct hantro_dec_interface {
@@ -172,6 +176,44 @@ struct hantro_dec_interface {
 
 	struct dentry *debugfs;
 };
+
+static u32 secure_regs_g1[2] = {
+	HWIF_RLC_VLC_BASE,
+	HWIF_DEC_OUT_BASE
+};
+
+static u32 secure_regs_g2[5] = {
+	HWIF_DEC_RSY_BASE,
+	HWIF_STREAM_BASE,
+	HWIF_DEC_OUT_YBASE,
+	HWIF_DEC_DSY_BASE,
+	HWIF_DEC_OUT_TYBASE
+};
+
+enum SMC_TYPE {
+	WRITE_REGS = 0,
+	WRITE_SECURE_CTRL_REGS,
+};
+
+#define comp_secure_regs(id) \
+	do { \
+		if ((target/4) == secure_regs_##id[i]) {\
+			return true; \
+		} \
+	} while (0)
+
+static bool check_secure_regs(u32 target, int id)
+{
+	int array_size = id == 0 ? 2 : 5;
+
+	for (size_t i = 0; i < array_size; i++) {
+		if (id == 0)
+			comp_secure_regs(g1);
+		else
+			comp_secure_regs(g2);
+	}
+	return false;
+}
 
 static const char *hantro_dec_get_fmt_name(u32 format)
 {
@@ -208,14 +250,39 @@ static inline bool hantro_dec_is_g1(struct hantro_dec_core *core)
 	return core->resource->type == HANTRO_DEC_TYPE_G1 ? true : false;
 }
 
-static u32 hantro_dec_readl(struct hantro_dec_core *core, u32 addr)
-{
-	return readl(core->reg_base + addr);
-}
+#define hantro_dec_readl(core, addr) \
+	(core->trusty_dev ? \
+		trusty_fast_call32(core->trusty_dev, SMC_VPU_REGS_OP, addr, \
+			((hantro_dec_is_g1(core) ? 0 : 1) << 4  | OPT_READ), 0) : \
+		readl(core->reg_base + (addr)))
 
 static void hantro_dec_writel(struct hantro_dec_core *core, u32 value, u32 addr)
 {
 	writel(value, core->reg_base + addr);
+}
+
+static void trusty_dec_writel(struct hantro_dec_core *core, u32 value, u32 addr, enum SMC_TYPE smc_type)
+{
+	if (core->trusty_dev) {
+		u32 core_type = (hantro_dec_is_g1(core) ? 0 : 1) << 4;
+		switch (smc_type) {
+		case WRITE_REGS:
+			if (check_secure_regs(addr, hantro_dec_is_g1(core) ? 0 : 1)) {
+				trusty_fast_call32(core->trusty_dev, SMC_VPU_REGS_OP, addr,
+					(core_type  | OPT_SECURE_WRITE), value);
+			} else {
+				trusty_fast_call32(core->trusty_dev, SMC_VPU_REGS_OP, addr,
+					(core_type | OPT_WRITE), value);
+			}
+			break;
+		case WRITE_SECURE_CTRL_REGS:
+			trusty_fast_call32(core->trusty_dev, SMC_VPU_REGS_OP, addr,
+				(core_type | OPT_SECURE_CTRL_WRITE), value);
+			break;
+		}
+	} else {
+		hantro_dec_writel(core, value, addr);
+	}
 }
 
 static bool hantro_dec_core_has_format(struct hantro_dec_core *core, u32 format)
@@ -269,14 +336,15 @@ static void hantro_dec_reset_core(struct hantro_dec_core *core)
 	status = hantro_dec_readl(core, HANTRODEC_IRQ_STAT_DEC_OFF);
 	if (status & HANTRODEC_DEC_E) {
 		status = HANTRODEC_DEC_ABORT | HANTRODEC_DEC_IRQ_DISABLE;
-		hantro_dec_writel(core, status, HANTRODEC_IRQ_STAT_DEC_OFF);
+		trusty_dec_writel(core, status, HANTRODEC_IRQ_STAT_DEC_OFF, WRITE_REGS);
 	}
 
 	if (hantro_dec_is_g1(core))
-		hantro_dec_writel(core, 0, HANTRO_IRQ_STAT_PP_OFF);	/* reset PP */
+		trusty_dec_writel(core, 0, HANTRO_IRQ_STAT_PP_OFF, WRITE_REGS);	/* reset PP */
 
-	for (i = 1; i < core->num_regs; i++)
-		hantro_dec_writel(core, 0, i * 4);
+	for (i = 2; i < core->num_regs; i++)
+		trusty_dec_writel(core, 0, i * 4, WRITE_REGS);
+	trusty_dec_writel(core, 0, 4, WRITE_SECURE_CTRL_REGS);
 
 	hantro_dec_update_mirror_regs(core);
 }
@@ -341,7 +409,7 @@ static void hantro_dec_put_core(struct hantro_dec_core *core, struct file *filp,
 						"Dec[%d] is still enabled -> reset\n", core->id);
 
 					status |= HANTRODEC_DEC_ABORT | HANTRODEC_DEC_IRQ_DISABLE;
-					hantro_dec_writel(core, status, HANTRODEC_IRQ_STAT_DEC_OFF);
+					trusty_dec_writel(core, status, HANTRODEC_IRQ_STAT_DEC_OFF, WRITE_REGS);
 				}
 				iface->num_active_cores--;
 				flag = true;
@@ -427,14 +495,15 @@ static long hantro_dec_push_regs(struct hantro_dec_interface *iface, struct core
 	}
 
 	for (int i = 2; i < count; i++)
-		hantro_dec_writel(core, reg_buf[i], i * 4);
+		trusty_dec_writel(core, reg_buf[i], i * 4, WRITE_REGS);
 
 	/*
 	 * Write memory barrier to ensure all configuration register writes are completed
 	 * before enabling the decoder.
 	 */
 	wmb();
-	hantro_dec_writel(core, reg_buf[1], 4);
+
+	trusty_dec_writel(core, reg_buf[1], 4, WRITE_SECURE_CTRL_REGS);
 	scoped_guard(spinlock_irqsave, &core->lock) {
 		core->is_enabled = 1;
 		hantro_dec_update_mirror_regs(core);
@@ -787,7 +856,7 @@ static irqreturn_t hantro_dec_isr(int irq, void *dev_id)
 	irq_status = hantro_dec_readl(core, HANTRODEC_IRQ_STAT_DEC_OFF);
 	if (irq_status & HANTRODEC_DEC_IRQ) {
 		irq_status &= (~HANTRODEC_DEC_IRQ);
-		hantro_dec_writel(core, irq_status, HANTRODEC_IRQ_STAT_DEC_OFF);
+		trusty_dec_writel(core, irq_status, HANTRODEC_IRQ_STAT_DEC_OFF, WRITE_REGS);
 
 		if (irq_status & HANTRODEC_DEC_ERROR_MASK) {
 			if (irq_status & HANTRODEC_DEC_BUS_ERROR)
@@ -1325,6 +1394,7 @@ static int hantro_dec_probe(struct platform_device *pdev)
 	struct hantro_dec_core *core;
 	struct resource *res;
 	int ret;
+	struct device_node *node;
 
 	resource = device_get_match_data(&pdev->dev);
 	if (!resource) {
@@ -1378,6 +1448,25 @@ static int hantro_dec_probe(struct platform_device *pdev)
 	if (!core->iface) {
 		dev_err(&pdev->dev, "failed to get decoder interface\n");
 		return -EINVAL;
+	}
+
+	/* get trusty device for smc*/
+	node = of_find_node_by_name(NULL, "trusty");
+	if (node != NULL) {
+			core->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+			if (!core->trusty_dev || !core->trusty_dev->driver || \
+							!dev_get_drvdata(core->trusty_dev))
+					return -EPROBE_DEFER;
+
+			int ret = trusty_fast_call32(core->trusty_dev,
+							SMC_HANTRO_PROBE, 0, 0, 0);
+			if (ret < 0) {
+					pr_err("vpu driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
+									SMC_HANTRO_PROBE, ret);
+					core->trusty_dev = NULL;
+			} else {
+					pr_info("trusty vpu driver probe ok, use trusty mode.\n");
+			}
 	}
 
 	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);

@@ -107,4 +107,26 @@
 #define HWIF_DEC_DSY_BASE            186
 #define HWIF_DEC_OUT_TYBASE          190
 
+//trusty smc
+#define SMC_ENTITY_VPU 55
+#define SMC_HANTRO_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU, 0)
+#define SMC_VPU_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 1)
+#define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU, 2)
+
+#ifndef OPT_READ
+#define OPT_READ  0x1
+#endif
+#ifndef OPT_WRITE
+#define OPT_WRITE 0x2
+#endif
+#ifndef OPT_SECURE_WRITE
+#define OPT_SECURE_WRITE 0x3
+#endif
+#ifndef OPT_SECURE_CTRL_WRITE
+#define OPT_SECURE_CTRL_WRITE 0x4
+#endif
+#ifndef OPT_SECURE_PPCTRL_WRITE
+#define OPT_SECURE_PPCTRL_WRITE 0x5
+#endif
+
 #endif /* SOFTWARE_LINUX_DWL_DWL_DEFS_H_ */

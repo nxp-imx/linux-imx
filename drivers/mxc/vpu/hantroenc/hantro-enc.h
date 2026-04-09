@@ -34,4 +34,18 @@ struct hantro_enc_regs_buffer {
 
 #define HANTROENC_INT_STATUS_TIMEOUT_ENA		BIT(11)
 
+// trusty smc
+/*define smc intrface*/
+#define SMC_ENTITY_VPU_ENCODER 56
+#define SMC_HANTROENC_PROBE SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 0)
+#define SMC_VPU_ENC_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 1)
+#define SMC_CTRLBLK_REGS_OP SMC_FASTCALL_NR(SMC_ENTITY_VPU_ENCODER, 2)
+
+#ifndef OPT_READ
+#define OPT_READ 0x1
+#endif
+#ifndef OPT_WRITE
+#define OPT_WRITE 0x2
+#endif
+
 #endif

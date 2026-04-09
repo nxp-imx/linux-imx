@@ -23,6 +23,10 @@
 #include <linux/debugfs.h>
 #include "hantroenc-h1.h"
 #include "hantroenc-vc8000e.h"
+/* head file related to smc */
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
+#include <linux/of_platform.h>
 
 #define HANTRO_ENC_NAME				"hx280enc"
 
@@ -144,6 +148,7 @@ struct hantro_enc_core {
 	struct file *filp;
 
 	struct dentry *debugfs;
+	struct device *trusty_dev;
 };
 
 struct hantro_enc_device {
@@ -167,15 +172,18 @@ struct hantro_enc_device {
 	struct dentry *debugfs;
 };
 
-static u32 hantro_enc_readl(struct hantro_enc_core *core, u32 addr)
-{
-	return readl(core->reg_base + addr);
-}
+#define hantro_enc_readl(core, addr) \
+	((core)->trusty_dev ? \
+		trusty_fast_call32((core)->trusty_dev, SMC_VPU_ENC_REGS_OP, addr, OPT_READ, 0) : \
+		readl((core)->reg_base + (addr)))
 
-static void hantro_enc_writel(struct hantro_enc_core *core, u32 value, u32 addr)
-{
-	writel(value, core->reg_base + addr);
-}
+#define hantro_enc_writel(core, value, addr) \
+	do { \
+		if ((core)->trusty_dev) \
+			trusty_fast_call32((core)->trusty_dev, SMC_VPU_ENC_REGS_OP, addr, OPT_WRITE, value); \
+		else \
+			writel(value, (core)->reg_base + (addr)); \
+	} while (0)
 
 static u32 hantro_enc_readl_mirror(struct hantro_enc_core *core, u32 addr)
 {
@@ -1358,11 +1366,32 @@ static int hantro_enc_probe(struct platform_device *pdev)
 	const struct hantro_enc_resource *resource;
 	struct hantro_enc_device *encoder;
 	int ret;
+	struct device *trusty_dev;
+	struct device_node *node;
 
 	resource = device_get_match_data(&pdev->dev);
 	if (!resource) {
 		dev_err(&pdev->dev, "missing match data\n");
 		return -EINVAL;
+	}
+	/* init trusty_dev */
+	node = of_find_node_by_name(NULL, "trusty");
+	if (node != NULL) {
+			trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+			if (!trusty_dev || !trusty_dev->driver || !dev_get_drvdata(trusty_dev))
+					return -EPROBE_DEFER;
+
+			int ret = trusty_fast_call32(trusty_dev, SMC_HANTROENC_PROBE,
+							0, 0, 0);
+			if (ret < 0) {
+					pr_err("hantro_enc driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
+									SMC_HANTROENC_PROBE, ret);
+					trusty_dev = NULL;
+			} else {
+					pr_err("trusty vpu driver probe ok, use trusty mode.\n");
+			}
+	} else {
+			dev_err(&pdev->dev, "hantro_enc: failed to find trusty node. Use normal mode.\n");
 	}
 
 	encoder = devm_kzalloc(&pdev->dev, sizeof(*encoder), GFP_KERNEL);
@@ -1405,6 +1434,7 @@ static int hantro_enc_probe(struct platform_device *pdev)
 			ret = -ENXIO;
 			break;
 		}
+		encoder->cores[i].trusty_dev = trusty_dev;
 
 		ret = devm_request_threaded_irq(&pdev->dev, encoder->cores[i].irq,
 						hantro_enc_isr, NULL,
