@@ -1406,6 +1406,17 @@ imx8mm-kontron-bl-lte-dtbs		:= imx8mm-kontron-bl.dtb imx8mm-kontron-bl-lte.dtbo
 imx952-evk-kd123c02-dtbs := imx952-evk.dtb imx952-evk-kd123c02.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-kd123c02.dtb
 
+imx952-evk-adv7535-os08a20-csi0-4lanes-cs42888-dtbs := imx952-evk.dtb \
+                                              imx952-evk-adv7535.dtbo \
+                                              imx952-evk-os08a20-csi0-4lanes.dtbo \
+                                              imx952-evk-cs42888.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes-cs42888.dtb
+
+imx952-evk-adv7535-os08a20-csi0-4lanes-mqs-dtbs := imx952-evk.dtb \
+                                              imx952-evk-adv7535.dtbo \
+                                              imx952-evk-os08a20-csi0-4lanes.dtbo \
+                                              imx952-evk-mqs.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes-mqs.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-dl.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-bl-lte.dtb
