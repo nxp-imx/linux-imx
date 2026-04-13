@@ -16,6 +16,7 @@ load(
     "common_kernel_protected_module_names",
 )
 load("//build/kernel/kleaf:constants.bzl", "COMMON_KCFLAGS", "DEFAULT_GKI_OUTS", "X86_64_OUTS")
+load("//build/kernel/kleaf:dwarves.bzl", "pahole")
 load("//build/kernel/kleaf:fail.bzl", "fail_rule")
 load(
     "//build/kernel/kleaf:kernel.bzl",
@@ -1380,6 +1381,35 @@ kernel_build(
     makefile = ":Makefile",
     post_defconfig_fragments = ["arch/arm/configs/allmodconfig.fragment"],
     visibility = ["//visibility:private"],
+)
+
+# libbpf
+cc_library(
+    name = "bpf_x86",
+    srcs = glob([
+        "tools/arch/x86/include/**/*.h",
+        "tools/include/**/*.h",
+        "tools/lib/bpf/*.c",
+    ]),
+    hdrs = glob([
+        "tools/lib/bpf/*.h",
+    ]),
+    copts = [
+        "-I{}/tools/include".format(package_name()),
+        "-I{}/tools/lib/bpf".format(package_name()),
+    ],
+    includes = [
+        "tools/include/uapi",
+    ],
+    strip_include_prefix = "tools/lib",
+    visibility = ["//visibility:public"],
+    deps = ["//prebuilts/kernel-build-tools:imported_libs"],
+)
+
+pahole(
+    name = "pahole",
+    visibility = ["//visibility:private"],
+    deps = [":bpf_x86"],
 )
 
 # KUnit test targets

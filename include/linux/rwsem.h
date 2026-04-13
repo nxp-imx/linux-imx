@@ -102,6 +102,12 @@ static inline void rwsem_assert_held_write_nolockdep(const struct rw_semaphore *
 #define __RWSEM_OPT_INIT(lockname)
 #endif
 
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+#define __RWSEM_VENDOR_DATA_INIT(lockname) .android_vendor_data1 = 0,
+#else
+#define __RWSEM_VENDOR_DATA_INIT(lockname)
+#endif
+
 #define __RWSEM_INITIALIZER(name)				\
 	{ __RWSEM_COUNT_INIT(name),				\
 	  .owner = ATOMIC_LONG_INIT(0),				\
@@ -109,7 +115,8 @@ static inline void rwsem_assert_held_write_nolockdep(const struct rw_semaphore *
 	  .wait_lock = __RAW_SPIN_LOCK_UNLOCKED(name.wait_lock),\
 	  .wait_list = LIST_HEAD_INIT((name).wait_list),	\
 	  __RWSEM_DEBUG_INIT(name)				\
-	  __RWSEM_DEP_MAP_INIT(name) }
+	  __RWSEM_DEP_MAP_INIT(name)				\
+	  __RWSEM_VENDOR_DATA_INIT(name) }
 
 #define DECLARE_RWSEM(name) \
 	struct rw_semaphore name = __RWSEM_INITIALIZER(name)

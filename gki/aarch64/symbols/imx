@@ -321,6 +321,7 @@
   device_attach
   device_create
   device_create_file
+  device_create_with_groups
   device_del
   device_destroy
   device_find_child
@@ -1154,6 +1155,7 @@
   gen_pool_create
   gen_pool_destroy
   gen_pool_dma_alloc
+  gen_pool_dma_zalloc
   gen_pool_free_owner
   gen_pool_virt_to_phys
   get_cached_msi_msg
@@ -1814,6 +1816,8 @@
   of_irq_get
   of_irq_get_byname
   of_machine_compatible_match
+  of_machine_device_match
+  of_machine_get_match_data
   of_map_id
   of_match_device
   of_match_node

@@ -812,6 +812,7 @@
   _find_next_bit
   _find_next_zero_bit
   find_pid_ns
+  find_task_by_vpid
   find_vma_intersection
   finish_wait
   firmware_request_nowarn
@@ -1247,6 +1248,7 @@
   mbox_free_channel
   mbox_request_channel
   mbox_send_message
+  mem_alloc_profiling_key
   memchr
   memcmp
   memcpy

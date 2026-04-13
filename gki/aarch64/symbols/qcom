@@ -362,6 +362,7 @@
   cpu_latency_qos_remove_request
   cpu_latency_qos_request_active
   cpu_latency_qos_update_request
+  cpu_logical_map
   cpumask_any_and_distribute
   __cpu_online_mask
   cpu_pm_register_notifier

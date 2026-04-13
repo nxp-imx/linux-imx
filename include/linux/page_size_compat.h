@@ -127,6 +127,20 @@ extern int __fixup_swap_header(struct file *swap_file, struct address_space *map
 
 extern void __fold_filemap_fixup_entry(struct vma_iterator *iter, unsigned long *end);
 
+bool bpf_is_ringbuf_file(struct file *file);
+
+static inline unsigned long __bpf_pgoff_fixup(struct file *file, unsigned long pgoff)
+{
+	if (file && bpf_is_ringbuf_file(file)) {
+		unsigned int nr_subpages = __PAGE_SIZE / PAGE_SIZE;
+
+		if (nr_subpages > 1 && pgoff > 0 && (pgoff & (nr_subpages - 1)) == 0)
+			pgoff /= nr_subpages;
+	}
+
+	return pgoff;
+}
+
 #ifdef CONFIG_PROC_PAGE_MONITOR
 extern bool __is_emulated_pagemap_file(struct file *file);
 #else

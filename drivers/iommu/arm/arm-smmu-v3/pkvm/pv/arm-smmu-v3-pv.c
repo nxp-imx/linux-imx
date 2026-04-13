@@ -24,7 +24,8 @@ struct kvm_smmu_unmapped {
 	size_t size[KVM_SMMU_UNMAPPED_MAX];
 };
 
-static DEFINE_PER_CPU(struct kvm_smmu_unmapped, kvm_smmu_deferred_unuse);
+static struct kvm_smmu_unmapped kvm_smmu_deferred_unuse[NR_CPUS];
+#define smmu_this_cpu_ptr(arr)		(&((arr)[hyp_smp_processor_id()]))
 
 #ifdef MODULE
 void *memset(void *dst, int c, size_t count)
@@ -405,7 +406,7 @@ static void smmu_flush_deferred_unuse(struct kvm_smmu_unmapped *unmapped)
  */
 static void smmu_put_pages(void *cookie, u64 phys, size_t size, struct iommu_iotlb_gather *gather)
 {
-	struct kvm_smmu_unmapped *unmapped = this_cpu_ptr(&kvm_smmu_deferred_unuse);
+	struct kvm_smmu_unmapped *unmapped = smmu_this_cpu_ptr(kvm_smmu_deferred_unuse);
 	struct kvm_hyp_iommu_domain *domain = cookie;
 
 	if (unmapped->ptr == KVM_SMMU_UNMAPPED_MAX) {
@@ -948,7 +949,7 @@ static size_t smmu_unmap_pages(struct kvm_hyp_iommu_domain *domain, unsigned lon
 		pgcount -= unmapped / pgsize;
 	}
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
-	smmu_flush_deferred_unuse(this_cpu_ptr(&kvm_smmu_deferred_unuse));
+	smmu_flush_deferred_unuse(smmu_this_cpu_ptr(kvm_smmu_deferred_unuse));
 	return total_unmapped;
 }
 
@@ -976,7 +977,7 @@ static void smmu_free_domain(struct kvm_hyp_iommu_domain *domain)
 	if (smmu_domain->pgtable)
 		kvm_arm_io_pgtable_free(smmu_domain->pgtable);
 
-	smmu_flush_deferred_unuse(this_cpu_ptr(&kvm_smmu_deferred_unuse));
+	smmu_flush_deferred_unuse(smmu_this_cpu_ptr(kvm_smmu_deferred_unuse));
 	hyp_free(smmu_domain);
 }
 

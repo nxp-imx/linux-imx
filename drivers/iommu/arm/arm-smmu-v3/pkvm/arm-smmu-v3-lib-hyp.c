@@ -35,7 +35,7 @@ int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 		return ret;
 
 	smmu_add_cmd_raw(smmu, cmd);
-	writel_relaxed(smmu->cmdq.llq.prod, smmu->cmdq.prod_reg);
+	writel(smmu->cmdq.llq.prod, smmu->cmdq.prod_reg);
 	return 0;
 }
 

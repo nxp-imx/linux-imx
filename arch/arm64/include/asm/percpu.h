@@ -5,6 +5,7 @@
 #ifndef __ASM_PERCPU_H
 #define __ASM_PERCPU_H
 
+#include <linux/build_bug.h>
 #include <linux/preempt.h>
 
 #include <asm/alternative.h>
@@ -46,8 +47,18 @@ static inline unsigned long __kern_my_cpu_offset(void)
 	return off;
 }
 
+static inline unsigned long __hyp_mod_per_cpu_offset(unsigned int cpu)
+{
+	BUILD_BUG_ON_MSG(1, "per-cpu variables are not supported in pKVM modules");
+	return 0;
+}
+
 #ifdef __KVM_NVHE_HYPERVISOR__
+#ifdef MODULE
+#define __my_cpu_offset __hyp_mod_per_cpu_offset(0)
+#else
 #define __my_cpu_offset __hyp_my_cpu_offset()
+#endif /* MODULE */
 #else
 #define __my_cpu_offset __kern_my_cpu_offset()
 #endif
@@ -258,7 +269,11 @@ PERCPU_RET_OP(add, add, ldadd)
 })
 
 #ifdef __KVM_NVHE_HYPERVISOR__
+#ifdef MODULE
+#define  __hyp_per_cpu_offset(cpu) __hyp_mod_per_cpu_offset(cpu)
+#else
 extern unsigned long __hyp_per_cpu_offset(unsigned int cpu);
+#endif /* MODULE */
 #define __per_cpu_offset
 #define per_cpu_offset(cpu)	__hyp_per_cpu_offset((cpu))
 #endif
