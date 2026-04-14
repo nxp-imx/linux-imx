@@ -73,9 +73,9 @@
 			no-map;
 		};
 
-		audio_reserved: audio-rpmsg@c0000000 {
+		audio_reserved: audio-rpmsg@c0c00000 {
 			compatible = "shared-dma-pool";
-			reg = <0 0xc0000000 0 0x10000000>;
+			reg = <0 0xc0c00000 0 0x10000000>;
 			no-map;
 		};
 	};
