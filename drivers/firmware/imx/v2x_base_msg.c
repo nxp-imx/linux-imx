@@ -11,6 +11,15 @@
 
 #define FW_DBG_DUMP_FIXED_STR		"\nS40X: "
 
+
+#define FW_MAJOR_SHIFT        16
+#define FW_MAJOR_MASK         0xFF
+
+#define FW_MINOR_SHIFT        4
+#define FW_MINOR_MASK         0xFFF
+
+#define FW_PATCH_MASK         0xF
+
 /*
  * v2x_start_rng() - prepare and send the command to start
  *                   initialization of the ELE RNG context
@@ -276,6 +285,64 @@ int v2x_debug_dump(struct se_if_priv *priv)
 		}
 		msg_ex_cnt++;
 	} while (keep_logging);
+
+exit:
+	return ret;
+}
+
+int v2x_get_fw_version(struct se_if_priv *priv,
+		       struct se_ioctl_get_v2x_version *v2x_version)
+{
+	struct se_api_msg *tx_msg __free(kfree) = NULL;
+	struct se_api_msg *rx_msg __free(kfree) = NULL;
+	int ret = 0;
+
+	if (!priv) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	tx_msg = kzalloc(V2X_DBG_GET_FW_VER_MSG_SZ, GFP_KERNEL);
+	if (!tx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	rx_msg = kzalloc(V2X_DBG_GET_FW_VER_RSP_MSG_SZ, GFP_KERNEL);
+	if (!rx_msg) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = se_fill_cmd_msg_hdr(priv,
+				  (struct se_msg_hdr *)&tx_msg->header,
+				  V2X_DBG_GET_FW_VER,
+				  V2X_DBG_GET_FW_VER_MSG_SZ,
+				  true);
+
+	if (ret)
+		goto exit;
+
+	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
+			       tx_msg,
+			       V2X_DBG_GET_FW_VER_MSG_SZ,
+			       rx_msg,
+			       V2X_DBG_GET_FW_VER_RSP_MSG_SZ);
+	if (ret < 0)
+		goto exit;
+
+	ret = se_val_rsp_hdr_n_status(priv,
+				      rx_msg,
+				      V2X_DBG_GET_FW_VER,
+				      V2X_DBG_GET_FW_VER_RSP_MSG_SZ,
+				      true);
+	if (ret < 0)
+		goto exit;
+
+	v2x_version->major = (rx_msg->data[1] >> FW_MAJOR_SHIFT) & FW_MAJOR_MASK;
+	v2x_version->minor = (rx_msg->data[1] >> FW_MINOR_SHIFT) & FW_MINOR_MASK;
+	v2x_version->patch = rx_msg->data[1] & FW_PATCH_MASK;
+	v2x_version->commit_id = rx_msg->data[2];
 
 exit:
 	return ret;

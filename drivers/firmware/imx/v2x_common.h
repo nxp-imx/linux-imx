@@ -17,4 +17,6 @@ int v2x_late_init(struct se_if_priv *priv);
 
 int v2x_suspend(struct se_if_priv *priv);
 int v2x_resume(struct se_if_priv *priv);
+int v2x_get_version(struct se_if_priv *priv,
+		    struct se_ioctl_get_v2x_version *v2x_version);
 #endif /*__V2X_COMMON_H__ */

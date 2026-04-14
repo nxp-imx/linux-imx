@@ -24,7 +24,8 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx);
 
 int imx_se_write_fuse(void *se_if_data, uint16_t fuse_index,
 		   u32 value, bool block);
-int imx_se_voltage_change_req(void *se_if_data, bool start);
+int imx_se_voltage_change_req(void *se_if_data, void *regulator_soc_reg,
+			      int new_uV, int tol_uV);
 int imx_se_read_fuse(void *se_if_data,
 		     uint16_t fuse_id, u32 *value);
 

@@ -17,6 +17,6 @@ void se_start_enforce_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl);
 void se_continue_to_enforce_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl,
 					 void *tx_msg);
 void se_halt_to_enforce_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl);
-void se_qualify_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl,
+bool se_qualify_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl,
 			     void *tx_msg);
 #endif

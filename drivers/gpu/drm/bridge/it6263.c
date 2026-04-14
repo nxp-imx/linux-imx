@@ -738,8 +738,8 @@ static void it6263_bridge_enable(struct drm_bridge *bridge)
 	hdmi_update_bits(it6263, HDMI_REG_SW_RST, SOFTV_RST, 0);
 
 	/* reconfigure LVDS and retry several times in case video is instable */
-	for (i = 0; i < 3; i++) {
-		timeout = jiffies + msecs_to_jiffies(500);
+	for (i = 0; i < 15; i++) {
+		timeout = jiffies + msecs_to_jiffies(150);
 		do {
 			regmap_read(regmap, HDMI_REG_SYS_STATUS, &status);
 		} while (!(status & TXVIDSTABLE) &&

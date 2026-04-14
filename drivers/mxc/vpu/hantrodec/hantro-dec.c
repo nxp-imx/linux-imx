@@ -375,6 +375,9 @@ static bool hantro_dec_get_workable_core(struct hantro_dec_interface *iface,
 			core->is_reserved = 1;
 			core->dec_filp = filp;
 			core->format = format;
+			core->is_enabled = 0;
+			core->irq_received = 0;
+			core->irq_status = 0;
 			got = true;
 			iface->num_active_cores++;
 			if (iface->num_active_cores > 1)
@@ -549,8 +552,12 @@ static bool hantro_dec_check_done(struct hantro_dec_core *core)
 	bool done = false;
 
 	scoped_guard(spinlock_irqsave, &core->lock) {
-		if (core->irq_received)
+		if (core->irq_received) {
 			done = true;
+			/* reset the wait condition(s) */
+			core->irq_received = 0;
+			core->is_enabled = 0;
+		}
 	}
 
 	return done;
@@ -846,13 +853,6 @@ static irqreturn_t hantro_dec_isr(int irq, void *dev_id)
 	unsigned int handled = 0;
 	u32 irq_status;
 
-	scoped_guard(spinlock_irqsave, &core->lock) {
-		if (!core->is_reserved) {
-			dev_dbg(core->dev, "irq received but core is not reserved\n");
-			return IRQ_HANDLED;
-		}
-	}
-
 	irq_status = hantro_dec_readl(core, HANTRODEC_IRQ_STAT_DEC_OFF);
 	if (irq_status & HANTRODEC_DEC_IRQ) {
 		irq_status &= (~HANTRODEC_DEC_IRQ);
@@ -869,8 +869,13 @@ static irqreturn_t hantro_dec_isr(int irq, void *dev_id)
 				dev_dbg(core->dev, "stream input error\n");
 		}
 		scoped_guard(spinlock_irqsave, &core->lock) {
-			core->irq_received = 1;
-			core->irq_status = irq_status;
+			if (core->is_reserved) {
+				core->irq_received = 1;
+				core->irq_status = irq_status;
+			} else {
+				dev_dbg(core->dev, "irq 0x%x received but core is not reserved\n",
+					irq_status);
+			}
 
 			hantro_dec_update_mirror_regs(core);
 		}

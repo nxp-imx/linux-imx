@@ -23,11 +23,17 @@ void se_halt_to_enforce_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl)
 	mutex_unlock(&se_msg_sq_ctl->se_msg_sq_lk);
 }
 
-void se_qualify_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl,
-			     void *tx_msg)
+bool se_qualify_msg_seq_flow(struct se_msg_seq_ctrl *se_msg_sq_ctl, void *tx_msg)
 {
-	if (mutex_is_locked(&se_msg_sq_ctl->se_msg_sq_lk) &&
-			se_msg_sq_ctl->exp_tx_msg != tx_msg) {
-		guard(mutex)(&se_msg_sq_ctl->se_msg_sq_lk);
+	/* Fast-path: if this caller is the sequence owner,
+	 * proceed without blocking.
+	 */
+	if (se_msg_sq_ctl->exp_tx_msg == tx_msg) {
+		se_msg_sq_ctl->exp_tx_msg = NULL;
+		return false;
 	}
+
+	/* Sequence in progress and we are not the owner: wait for it to finish. */
+	mutex_lock(&se_msg_sq_ctl->se_msg_sq_lk);
+	return true;
 }

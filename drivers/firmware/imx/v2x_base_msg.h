@@ -35,7 +35,13 @@
 #define V2X_DBG_DUMP_MSG_SZ		0x08
 #define V2X_DBG_DUMP_RSP_MSG_SZ		0x5c
 
+#define V2X_DBG_GET_FW_VER		0x08
+#define V2X_DBG_GET_FW_VER_MSG_SZ	0x04
+#define V2X_DBG_GET_FW_VER_RSP_MSG_SZ	0x10
+
 int v2x_start_rng(struct se_if_priv *priv);
 int v2x_pwr_state(struct se_if_priv *priv, u16 action);
 int v2x_debug_dump(struct se_if_priv *priv);
+int v2x_get_fw_version(struct se_if_priv *priv,
+		       struct se_ioctl_get_v2x_version *v2x_version);
 #endif

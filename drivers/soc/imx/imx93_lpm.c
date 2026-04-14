@@ -248,9 +248,7 @@ static void sys_freq_scaling(enum mode_type new_mode)
 
 	if (new_mode == OD_MODE) {
 		/* increase the voltage first */
-		imx_se_voltage_change_req(se_data, true);
-		regulator_set_voltage_tol(soc_reg, VDD_SOC_OD_VOLTAGE, 0);
-		imx_se_voltage_change_req(se_data, false);
+		imx_se_voltage_change_req(se_data, soc_reg, VDD_SOC_OD_VOLTAGE, 0);
 
 		/* Increase the NIC_AXI first */
 		lpm_update_clk(path, NIC_AXI, new_mode);
@@ -292,12 +290,9 @@ static void sys_freq_scaling(enum mode_type new_mode)
 		scaling_dram_freq(new_mode == LD_MODE ? 0x1 : 0x2);
 
 		if (!no_od_mode)
-			imx_se_voltage_change_req(se_data, true);
-
-		regulator_set_voltage_tol(soc_reg, VDD_SOC_LD_VOLTAGE, 0);
-
-		if (!no_od_mode)
-			imx_se_voltage_change_req(se_data, false);
+			imx_se_voltage_change_req(se_data, soc_reg, VDD_SOC_LD_VOLTAGE, 0);
+		else
+			regulator_set_voltage_tol(soc_reg, VDD_SOC_LD_VOLTAGE, 0);
 
 		pr_info("System switching to LD/SWFFC mode...\n");
 	}

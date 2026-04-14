@@ -1494,6 +1494,30 @@ exit:
 	return err;
 }
 
+static int se_ioctl_get_v2x_version(struct se_if_device_ctx *dev_ctx,
+				    u64 arg)
+{
+	struct se_if_priv *priv = dev_ctx->priv;
+	struct se_ioctl_get_v2x_version v2x_version;
+	int err = 0;
+
+	if (v2x_get_version(priv, &v2x_version)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (copy_to_user((u8 __user *)arg, &v2x_version, sizeof(v2x_version))) {
+		dev_err(priv->dev,
+			"%s: Failed to copy V2X version to user\n",
+			dev_ctx->devname);
+		err = -EFAULT;
+		goto exit;
+	}
+
+exit:
+	return err;
+}
+
 static int se_ioctl_get_mu_info(struct se_if_device_ctx *dev_ctx,
 				u64 arg)
 {
@@ -2030,6 +2054,9 @@ static long se_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	case SE_IOCTL_GET_TIMER:
 		err = se_ioctl_get_time(dev_ctx, arg);
 		break;
+	case SE_IOCTL_GET_V2X_VERSION:
+		err = se_ioctl_get_v2x_version(dev_ctx, arg);
+		break;
 	default:
 		err = -EINVAL;
 		dev_dbg(priv->dev,
@@ -2186,7 +2213,7 @@ static int se_if_probe(struct platform_device *pdev)
 	dev_set_drvdata(dev, priv);
 
 	if (info->se_if_early_init) {
-		/* start initializing ele fw */
+		/* start initializing ele/v2x fw */
 		ret = info->se_if_early_init(priv);
 		if (ret)
 			goto exit;
@@ -2277,7 +2304,7 @@ static int se_if_probe(struct platform_device *pdev)
 			goto exit;
 	}
 
-	/* start ele rng */
+	/* start ele/v2x rng */
 	if (info->start_rng) {
 		ret = info->start_rng(priv);
 		if (ret)
