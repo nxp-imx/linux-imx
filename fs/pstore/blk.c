@@ -356,6 +356,7 @@ static void __exit pstore_blk_exit(void)
 module_exit(pstore_blk_exit);
 
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 MODULE_AUTHOR("WeiXiong Liao <liaoweixiong@allwinnertech.com>");
 MODULE_AUTHOR("Kees Cook <keescook@chromium.org>");
 MODULE_DESCRIPTION("pstore backend for block devices");

@@ -185,6 +185,10 @@ pub(crate) const NODE_LAYOUT: rb_node_layout = rb_node_layout {
     arc_offset: Arc::<Node>::DATA_OFFSET + offset_of!(DTRWrap<Node>, wrapped),
     debug_id: offset_of!(Node, debug_id),
     ptr: offset_of!(Node, ptr),
+    __kabi_reserved_backport0: 0,
+    __kabi_reserved_backport1: 0,
+    __kabi_reserved_backport2: 0,
+    __kabi_reserved_backport3: 0,
 };
 
 #[pin_data]

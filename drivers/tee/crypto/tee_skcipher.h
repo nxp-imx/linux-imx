@@ -12,7 +12,7 @@
 	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_32, \
 			   ARM_SMCCC_OWNER_TRUSTED_OS, (func_num))
 
-#define TEE_CRYPTO_CRA_PRIORITY        3000
+#define TEE_CRYPTO_CRA_PRIORITY        100
 
 /* Commands implemented by the PTA */
 /*

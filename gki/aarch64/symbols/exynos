@@ -410,7 +410,7 @@
   iommu_map
   iommu_map_sg
   iommu_unmap
-  ioremap_prot
+  __ioremap_prot
   iounmap
   __irq_apply_affinity_hint
   irq_create_mapping_affinity

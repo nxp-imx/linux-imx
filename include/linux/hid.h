@@ -27,6 +27,7 @@
 #include <linux/power_supply.h>
 #include <uapi/linux/hid.h>
 #include <linux/hid_bpf.h>
+#include <linux/android_kabi.h>
 
 /*
  * We parse each description item into this structure. Short items data
@@ -576,6 +577,7 @@ struct hid_report {
 	/* tool related state */
 	bool tool_active;				/* whether the current tool is active */
 	unsigned int tool;				/* BTN_TOOL_* */
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define HID_MAX_IDS 256
@@ -620,6 +622,8 @@ struct hid_input {
 	struct list_head reports;	/* the list of reports */
 	unsigned int application;	/* application usage for this input */
 	bool registered;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 enum hid_type {
@@ -726,6 +730,9 @@ struct hid_device {
 #ifdef CONFIG_HID_BPF
 	struct hid_bpf bpf;						/* hid-bpf data */
 #endif /* CONFIG_HID_BPF */
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 void hiddev_free(struct kref *ref);
@@ -760,6 +767,7 @@ struct hid_parser {
 	unsigned int          collection_stack_size;
 	struct hid_device    *device;
 	unsigned int          scan_flags;
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct hid_class_descriptor {
@@ -886,6 +894,9 @@ struct hid_driver {
 	void (*on_hid_hw_open)(struct hid_device *hdev);
 	void (*on_hid_hw_close)(struct hid_device *hdev);
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
 /* private: */
 	struct device_driver driver;
 };
@@ -936,6 +947,9 @@ struct hid_ll_driver {
 	bool (*may_wakeup)(struct hid_device *hdev);
 
 	unsigned int max_buffer_size;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 extern bool hid_is_usb(const struct hid_device *hdev);

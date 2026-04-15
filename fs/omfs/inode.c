@@ -21,6 +21,7 @@
 MODULE_AUTHOR("Bob Copeland <me@bobcopeland.com>");
 MODULE_DESCRIPTION("OMFS (ReplayTV/Karma) Filesystem for Linux");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 struct buffer_head *omfs_bread(struct super_block *sb, sector_t block)
 {

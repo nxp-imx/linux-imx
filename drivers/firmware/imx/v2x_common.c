@@ -57,7 +57,6 @@ int v2x_early_init(struct se_if_priv *priv)
 		}
 	}
 exit:
-
 	return ret;
 }
 
@@ -148,4 +147,31 @@ int v2x_resume(struct se_if_priv *priv)
 	}
 
 	return 0;
+}
+
+int v2x_get_version(struct se_if_priv *priv,
+		    struct se_ioctl_get_v2x_version *v2x_version)
+{
+	struct se_if_priv *v2x_dbg_priv;
+	int ret = 0;
+
+	v2x_dbg_priv = imx_get_se_data_info(get_se_soc_id(priv), 1);
+	if (!v2x_dbg_priv) {
+		dev_err(priv->dev,
+			"failure: No V2X DBG device found [0x%x].", ret);
+		return ret;
+	}
+
+	if (!is_v2x_fw_running(v2x_fw_state)) {
+		dev_err(priv->dev, "V2X FW is not running\n");
+		return -1;
+	}
+
+	ret = v2x_get_fw_version(v2x_dbg_priv, v2x_version);
+	if (ret) {
+		dev_err(priv->dev, "Failed to read V2X Commit Id\n");
+		return ret;
+	}
+
+	return ret;
 }

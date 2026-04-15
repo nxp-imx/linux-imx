@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-clock.h"
+#include "imx952-pinfunc.h"
+#include "imx95-evk-adv7535-common.dtsi"
+
+&dpu {
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-rates = <0>, <4009500000>, <445500000>;
+};
+
+&lpi2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	hdmi@3d {
+		compatible = "adi,adv7535";
+		reg = <0x3d>;
+		avdd-supply = <&reg_1p8v>;
+		dvdd-supply = <&reg_1p8v>;
+		pvdd-supply = <&reg_1p8v>;
+		a2vdd-supply = <&reg_3p3v>;
+		v3p3-supply = <&reg_1p8v>;
+		v1p2-supply = <&reg_1p8v>;
+		adi,dsi-lanes = <4>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_dsi>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				adv7535_to_dsi: endpoint {
+					remote-endpoint = <&dsi_to_adv7535>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				adv7535_out: endpoint {
+					remote-endpoint = <&hdmi_connector_in>;
+				};
+			};
+		};
+	};
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_mipi_dsi: mipidsigrp {
+		fsl,pins = <
+			IMX952_PAD_CCM_CLKO2__WAKEUPMIX_TOP_GPIO3_IO_27	0x31e
+		>;
+	};
+};

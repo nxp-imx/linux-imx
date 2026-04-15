@@ -408,6 +408,12 @@
 		#gpio-cells = <2>;
 		vcc-supply = <&reg_usdhc3_vmmc>;
 		status = "okay";
+
+		iw610-buffer-enable-hog {
+			gpio-hog;
+			gpios = <0 GPIO_ACTIVE_HIGH>;
+			output-high;
+		};
 	};
 };
 
@@ -801,6 +807,15 @@
 };
 
 &scmi_iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	pinctrl_hog: hoggrp {
+		fsl,pins = <
+			IMX95_PAD_XSPI1_DQS__GPIO5_IO_BIT8		0x31e
+		>;
+	};
+
 	pinctrl_flexcan2: flexcan2grp {
 		fsl,pins = <
 			IMX95_PAD_GPIO_IO25__CAN2_TX			0x39e
@@ -1150,6 +1165,7 @@
 			mclk-fs = <512>;
 
 			sai1_endpoint1: endpoint {
+				system-clock-direction-out;
 				remote-endpoint = <&mqs1_endpoint>;
 			};
 		};

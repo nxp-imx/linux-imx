@@ -1,0 +1,13 @@
+
+menu "MXC HANTRO(Video Processing Unit) H1 and VC8000E encoder support"
+	depends on ARCH_MXC
+
+config MXC_VIDEO_HANTRO_ENC
+	tristate "Support for MXC HANTRO(Video Processing Unit) encoder"
+	help
+	  Hantro VPU Encoder IP contains H1 and VC8000E.
+	  It support the H1 encoder and VC8000E encoder both.
+	  Just replace the MXC_HANTRO_845_H1 and MXC_HANTRO_VC8000E.
+	  To compile this driver as a module choose m here.
+
+endmenu

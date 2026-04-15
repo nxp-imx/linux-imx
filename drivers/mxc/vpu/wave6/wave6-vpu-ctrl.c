@@ -1227,20 +1227,9 @@ static int wave6_vpu_ctrl_runtime_resume(struct device *dev)
 }
 #endif
 
-#ifdef CONFIG_PM_SLEEP
-static int wave6_vpu_ctrl_suspend(struct device *dev)
-{
-	return 0;
-}
-
-static int wave6_vpu_ctrl_resume(struct device *dev)
-{
-	return 0;
-}
-#endif
 static const struct dev_pm_ops wave6_vpu_ctrl_pm_ops = {
 	SET_RUNTIME_PM_OPS(wave6_vpu_ctrl_runtime_suspend, wave6_vpu_ctrl_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(wave6_vpu_ctrl_suspend, wave6_vpu_ctrl_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 
 static const struct of_device_id wave6_ctrl_ids[] = {

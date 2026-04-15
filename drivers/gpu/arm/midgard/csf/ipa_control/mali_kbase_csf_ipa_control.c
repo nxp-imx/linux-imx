@@ -109,7 +109,12 @@ static int apply_select_config(struct kbase_device *kbdev, u64 *select)
 {
 	int ret;
 
-	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), select[KBASE_IPA_CORE_TYPE_CSHW]);
+	if (of_machine_is_compatible("fsl,imx952"))
+		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
+	else
+		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW),
+				  select[KBASE_IPA_CORE_TYPE_CSHW]);
+
 	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_MEMSYS),
 			  select[KBASE_IPA_CORE_TYPE_MEMSYS]);
 	kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_TILER), select[KBASE_IPA_CORE_TYPE_TILER]);

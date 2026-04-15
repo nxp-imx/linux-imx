@@ -1241,6 +1241,9 @@ int pkvm_pgtable_stage2_flush(struct kvm_pgtable *pgt, u64 addr, u64 size)
 	struct kvm *kvm = kvm_s2_mmu_to_kvm(pgt->mmu);
 	struct pkvm_mapping *mapping;
 
+	if (cpus_have_final_cap(ARM64_HAS_STAGE2_FWB) && !(pgt->flags & KVM_PGTABLE_S2_NOFWB))
+		return 0;
+
 	lockdep_assert_held(&kvm->mmu_lock);
 	for_each_mapping_in_range_safe(pgt, addr, addr + size, mapping)
 		__clean_dcache_guest_page(pfn_to_kaddr(mapping->pfn),

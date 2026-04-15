@@ -633,7 +633,8 @@ static void xpcs_disable(struct phylink_pcs *pcs)
 	struct dw_xpcs *xpcs = phylink_pcs_to_xpcs(pcs);
 
 	if (xpcs && (xpcs->info.pma == NXP_MX95_XPCS_ID ||
-		     xpcs->info.pma == NXP_MX94_XPCS_ID))
+		     xpcs->info.pma == NXP_MX94_XPCS_ID ||
+		     xpcs->info.pma == NXP_MX952_XPCS_ID))
 		xpcs_phy_reset(xpcs);
 }
 
@@ -674,6 +675,7 @@ static void xpcs_pre_config(struct phylink_pcs *pcs, phy_interface_t interface)
 
 	switch (xpcs->info.pma) {
 	case NXP_MX94_XPCS_ID:
+	case NXP_MX952_XPCS_ID:
 		xpcs->pcs.poll = false;
 		xpcs->need_reset = false;
 		break;
@@ -1471,6 +1473,16 @@ static const struct dw_xpcs_compat nxp_mx94_xpcs_compat[] = {
 	}
 };
 
+static const struct dw_xpcs_compat nxp_mx952_xpcs_compat[] = {
+	{
+		.supported = xpcs_mx94_features,
+		.interface = PHY_INTERFACE_MODE_SGMII,
+		.an_mode = DW_AN_C37_SGMII,
+		.pma_config = imx952_xpcs_phy_sgmii_config,
+	}, {
+	}
+};
+
 static const struct dw_xpcs_desc xpcs_desc_list[] = {
 	{
 		.id = DW_XPCS_ID,
@@ -1492,6 +1504,10 @@ static const struct dw_xpcs_desc xpcs_desc_list[] = {
 		.id = NXP_MX94_XPCS_ID,
 		.mask = DW_XPCS_ID_MASK,
 		.compat = nxp_mx94_xpcs_compat,
+	}, {
+		.id = NXP_MX952_XPCS_ID,
+		.mask = DW_XPCS_ID_MASK,
+		.compat = nxp_mx952_xpcs_compat,
 	},
 };
 

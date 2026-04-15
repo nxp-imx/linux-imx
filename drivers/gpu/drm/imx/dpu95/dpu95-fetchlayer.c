@@ -2,7 +2,7 @@
 
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2020,2022,2023,2025 NXP
+ * Copyright 2017-2020,2022,2023,2025,2026 NXP
  */
 
 #include <linux/kernel.h>
@@ -70,13 +70,13 @@ struct dpu95_fetchunit *dpu95_fl_get(struct dpu95_soc *dpu, unsigned int id)
 	struct dpu95_fetchunit *fu;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dpu->fl); i++) {
+	for (i = 0; i < dpu->fl_cnt; i++) {
 		fu = dpu->fl[i];
 		if (fu->id == id)
 			break;
 	}
 
-	if (i == ARRAY_SIZE(dpu->fl))
+	if (i == dpu->fl_cnt)
 		return ERR_PTR(-EINVAL);
 
 	return fu;

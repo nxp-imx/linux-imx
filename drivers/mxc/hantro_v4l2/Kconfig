@@ -11,6 +11,8 @@ config MXC_HANTRO_V4L2
 	depends on VIDEO_DEV
 	depends on VIDEOBUF2_V4L2 || VIDEOBUF2_V4L2=n
 	select MXC_MUR
+	select MXC_VIDEO_HANTRO_DEC
+	select MXC_VIDEO_HANTRO_ENC
 	default y
 	help
 		VPU hantro v4l2 device.

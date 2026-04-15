@@ -28,6 +28,7 @@
 #include <ufs/ufs_quirks.h>
 #include <ufs/ufshci.h>
 #include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
 #define UFSHCD "ufshcd"
 
@@ -203,6 +204,8 @@ struct ufshcd_lrb {
 	int crypto_key_slot;
 	u64 data_unit_num;
 #endif
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -431,6 +434,8 @@ struct ufs_clk_gating {
 	bool is_enabled;
 	bool is_initialized;
 	int active_reqs;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -482,6 +487,8 @@ struct ufs_clk_scaling {
 	bool is_busy_started;
 	bool is_suspended;
 	bool suspend_on_no_request;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define UFS_EVENT_HIST_LENGTH 8

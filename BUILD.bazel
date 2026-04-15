@@ -16,6 +16,7 @@ load(
     "common_kernel_protected_module_names",
 )
 load("//build/kernel/kleaf:constants.bzl", "COMMON_KCFLAGS", "DEFAULT_GKI_OUTS", "X86_64_OUTS")
+load("//build/kernel/kleaf:dwarves.bzl", "pahole")
 load("//build/kernel/kleaf:fail.bzl", "fail_rule")
 load(
     "//build/kernel/kleaf:kernel.bzl",
@@ -31,6 +32,7 @@ load(
     "merge_kzip",
     "merged_kernel_uapi_headers",
     "modinfo_summary_report",
+    "multi_abi_update",
 )
 load(":bazel/abi.bzl", "cc_binary_with_abi")
 load(
@@ -351,6 +353,25 @@ common_kernel(
     system_dlkm_extra_archive_files = [":generate_gki_module_info_x86_64"],
     trim_nonlisted_kmi = True,
     visibility = ["//visibility:public"],
+)
+
+# NOTE: While a 'genquery' target seems ideal for automating the 'targets' list
+#  below, it is not viable because genquery does not support wildcards (e.g., :all)
+#  in its scope[0].
+#
+# This means the list cannot be calculated dynamically. If you add a new
+#  abi_update target to this package, you must manually add it here.
+#
+# To check for missing targets, run:
+#  $ bazel query 'kind("^abi_update rule$", //common:all)'
+#
+# [0] https://bazel.build/reference/be/general#genquery.scope
+multi_abi_update(
+    name = "kernel_abis_update",
+    targets = [
+        ":kernel_aarch64_abi_update",
+        ":kernel_x86_64_abi_update",
+    ],
 )
 
 alias(
@@ -1362,6 +1383,35 @@ kernel_build(
     visibility = ["//visibility:private"],
 )
 
+# libbpf
+cc_library(
+    name = "bpf_x86",
+    srcs = glob([
+        "tools/arch/x86/include/**/*.h",
+        "tools/include/**/*.h",
+        "tools/lib/bpf/*.c",
+    ]),
+    hdrs = glob([
+        "tools/lib/bpf/*.h",
+    ]),
+    copts = [
+        "-I{}/tools/include".format(package_name()),
+        "-I{}/tools/lib/bpf".format(package_name()),
+    ],
+    includes = [
+        "tools/include/uapi",
+    ],
+    strip_include_prefix = "tools/lib",
+    visibility = ["//visibility:public"],
+    deps = ["//prebuilts/kernel-build-tools:imported_libs"],
+)
+
+pahole(
+    name = "pahole",
+    visibility = ["//visibility:private"],
+    deps = [":bpf_x86"],
+)
+
 # KUnit test targets
 _KUNIT_DIR = "testcases/kunit"
 
@@ -1720,6 +1770,8 @@ ddk_headers(
 ddk_headers(
     name = "all_headers_allowlist_exynos",
     hdrs = [
+        "drivers/android/binder/rust_binder.h",
+        "drivers/android/binder/rust_binder_hooks.h",
         "drivers/android/binder_alloc.h",
         "drivers/android/binder_internal.h",
         "drivers/android/binder_trace.h",

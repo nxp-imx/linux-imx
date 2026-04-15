@@ -65,10 +65,15 @@ enum zram_pageflags {
  */
 struct zram_table_entry {
 	unsigned long handle;
-	unsigned long flags;
+	union {
+		unsigned long __lock;
+		struct attr {
+			u32 flags;
 #ifdef CONFIG_ZRAM_TRACK_ENTRY_ACTIME
-	ktime_t ac_time;
+			u32 ac_time;
 #endif
+		} attr;
+	};
 	struct lockdep_map dep_map;
 };
 
@@ -127,8 +132,9 @@ struct zram {
 	bool claim; /* Protected by disk->open_mutex */
 #ifdef CONFIG_ZRAM_WRITEBACK
 	struct file *backing_dev;
-	spinlock_t wb_limit_lock;
 	bool wb_limit_enable;
+	bool wb_compressed;
+	u32 wb_batch_size;
 	u64 bd_wb_limit;
 	struct block_device *bdev;
 	unsigned long *bitmap;
@@ -153,7 +159,6 @@ bool init_done(struct zram *zram);
 
 struct zram_pp_ctl {
 	struct list_head	pp_buckets[NUM_PP_BUCKETS];
-	u64			processed_bytes;
 };
 
 struct zram_pp_ctl *init_pp_ctl(void);
@@ -164,7 +169,22 @@ int scan_slots_for_writeback(struct zram *zram, u32 mode,
 #endif
 
 #ifdef CONFIG_ZRAM_WRITEBACK
-int zram_writeback_slots(struct zram *zram, struct zram_pp_ctl *ctl);
+struct zram_wb_ctl {
+	/* idle list is accessed only by the writeback task, no concurency */
+	struct list_head idle_reqs;
+	/* done list is accessed concurrently, protect by done_lock */
+	struct list_head done_reqs;
+	wait_queue_head_t done_wait;
+	spinlock_t done_lock;
+	atomic_t num_inflight;
+	u64 processed_bytes;
+};
+
+struct zram_wb_ctl *init_wb_ctl(struct zram *zram);
+void release_wb_ctl(struct zram_wb_ctl *wb_ctl);
+int zram_writeback_slots(struct zram *zram,
+			 struct zram_pp_ctl *ctl,
+			 struct zram_wb_ctl *wb_ctl);
 #endif
 
 #endif

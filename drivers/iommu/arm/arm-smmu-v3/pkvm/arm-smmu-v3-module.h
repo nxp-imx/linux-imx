@@ -13,6 +13,7 @@ extern const struct pkvm_module_ops		*mod_ops;
 #undef memset
 #undef memcpy
 #undef kvm_flush_dcache_to_poc
+#undef hyp_smp_processor_id
 
 /* Needs alternatives which is not supported at the moment. */
 #undef CONFIG_ARM64_LSE_ATOMICS
@@ -40,6 +41,7 @@ extern const struct pkvm_module_ops		*mod_ops;
 #define iommu_pkvm_unuse_dma(x, y)		CALL_FROM_OPS(pkvm_unuse_dma, x, y)
 #define kvm_iommu_register_pviommu_drv(x)	CALL_FROM_OPS(iommu_register_pviommu_drv, x)
 #define kvm_iommu_request_hyp_alloc()		CALL_FROM_OPS(request_hyp_alloc)
+#define hyp_smp_processor_id()			CALL_FROM_OPS(hyp_smp_processor_id)
 #endif
 
 

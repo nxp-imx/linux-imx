@@ -2,7 +2,7 @@
 /*
  * i.MX8QXP/i.MX8QM JPEG encoder/decoder v4l2 driver
  *
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2019, 2026 NXP
  */
 
 #ifndef _MXC_JPEG_HW_H
@@ -73,6 +73,7 @@
 #define GLB_CTRL_DEC_GO					(0x1 << 2)
 #define GLB_CTRL_L_ENDIAN(le)				((le) << 3)
 #define GLB_CTRL_SLOT_EN(slot)				(0x1 << ((slot) + 4))
+#define GLB_CTRL_CUR_VERSION(r)			(((r) >> 16) & 0xF)
 
 /* COM_STAUS fields */
 #define COM_STATUS_DEC_ONGOING(r)		(((r) & (1 << 31)) >> 31)
@@ -129,4 +130,5 @@ void mxc_jpeg_set_res(struct mxc_jpeg_desc *desc, u16 w, u16 h);
 void mxc_jpeg_set_line_pitch(struct mxc_jpeg_desc *desc, u32 line_pitch);
 void mxc_jpeg_set_desc(u32 desc, void __iomem *reg, int slot);
 void mxc_jpeg_clr_desc(void __iomem *reg, int slot);
+int mxc_jpeg_get_version(void __iomem *reg);
 #endif

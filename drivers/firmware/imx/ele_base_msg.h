@@ -135,7 +135,7 @@ int ele_debug_dump(struct se_if_priv *priv);
 int ele_start_rng(struct se_if_priv *priv);
 int ele_write_fuse(struct se_if_priv *priv, uint16_t fuse_index,
 		   u32 value, bool block);
-int ele_voltage_change_req(struct se_if_priv *priv, bool start);
+int ele_voltage_change_req(struct se_if_priv *priv, bool start, bool enforce_fl_ctrl);
 int read_common_fuse(struct se_if_priv *priv,
 		     uint16_t fuse_id, u32 *value);
 int ele_get_v2x_fw_state(struct se_if_priv *priv, uint32_t *state);

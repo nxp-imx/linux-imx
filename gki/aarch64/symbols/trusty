@@ -24,17 +24,27 @@
   _dev_info
   _dev_warn
   disable_percpu_irq
+  dma_buf_export
+  dma_heap_add
+  dma_heap_get_dev
+  dma_heap_get_name
+  dma_map_sgtable
   dma_set_coherent_mask
   dma_set_mask
+  __dma_sync_sg_for_cpu
+  __dma_sync_sg_for_device
   dma_unmap_sg_attrs
   enable_percpu_irq
+  fget
   __fortify_panic
+  fput
   __free_pages
   free_pages_exact
   free_percpu
   free_percpu_irq
   __init_swait_queue_head
   __init_waitqueue_head
+  iommu_get_domain_for_dev
   irq_create_of_mapping
   kasan_flag_enabled
   kfree
@@ -49,6 +59,7 @@
   memcpy
   memset
   memstart_addr
+  misc_register
   module_layout
   __mutex_init
   mutex_lock
@@ -68,6 +79,7 @@
   preempt_schedule
   preempt_schedule_notrace
   _printk
+  prot_ns_shared
   put_device
   __put_task_struct
   queue_work_on
@@ -78,17 +90,23 @@
   _raw_spin_unlock_irqrestore
   refcount_warn_saturate
   register_virtio_device
+  remap_pfn_range
   remove_wait_queue
   __request_percpu_irq
+  rsi_present
   scnprintf
+  sg_alloc_table
   sg_free_table
   sg_init_one
   sg_init_table
+  __sg_page_iter_next
+  __sg_page_iter_start
   snprintf
   sprintf
   __stack_chk_fail
   strlen
   strnlen
+  __swiotlb_find_pool
   trace_event_buffer_commit
   trace_event_buffer_reserve
   trace_event_printf
@@ -102,6 +120,7 @@
   utf8_data_table
   uuid_null
   vfree
+  vmalloc_noprof
   vmalloc_to_page
   vmap
   vring_del_virtqueue
@@ -154,23 +173,10 @@
   __xa_insert
   xa_load
 
-# required by system_heap.ko
-  dma_buf_export
-  dma_heap_add
-  dma_heap_get_dev
-  dma_heap_get_name
-  dma_map_sgtable
-  __dma_sync_sg_for_cpu
-  __dma_sync_sg_for_device
-  iommu_get_domain_for_dev
-  prot_ns_shared
-  remap_pfn_range
-  rsi_present
-  sg_alloc_table
-  __sg_page_iter_next
-  __sg_page_iter_start
-  __swiotlb_find_pool
-  vmalloc_noprof
+# required by pkvm-dma-buf-heap.ko
+  pkvm_enable_smc_forwarding
+  __pkvm_load_el2_module
+  __pkvm_register_el2_call
 
 # required by trusty-core.ko
   atomic_notifier_call_chain
@@ -225,9 +231,7 @@
   dma_buf_map_attachment_unlocked
   dma_buf_put
   dma_buf_unmap_attachment_unlocked
-  fget
   finish_wait
-  fput
   idr_alloc
   idr_destroy
   idr_find
@@ -266,7 +270,6 @@
 # required by trusty-log.ko
   memparse
   misc_deregister
-  misc_register
   panic_notifier_list
   seq_open
   seq_printf

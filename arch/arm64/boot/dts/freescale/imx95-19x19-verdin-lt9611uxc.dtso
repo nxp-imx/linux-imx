@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024 NXP
+ * Copyright 2024,2026 NXP
  */
 
 /dts-v1/;
 /plugin/;
 
+#include "imx95-clock.h"
 #include "imx95-lt9611uxc-common.dtsi"
+
+&dpu {
+	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
+			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+	assigned-clock-rates = <0>, <2673000000>, <297000000>;
+};
 
 &lpi2c2 {
 	#address-cells = <1>;

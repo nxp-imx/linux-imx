@@ -1127,7 +1127,7 @@ struct file *dentry_open(const struct path *path, int flags,
 	}
 	return f;
 }
-EXPORT_SYMBOL(dentry_open);
+EXPORT_SYMBOL_NS(dentry_open, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 struct file *dentry_open_nonotify(const struct path *path, int flags,
 				  const struct cred *cred)
@@ -1405,7 +1405,7 @@ struct file *filp_open(const char *filename, int flags, umode_t mode)
 	}
 	return file;
 }
-EXPORT_SYMBOL(filp_open);
+EXPORT_SYMBOL_NS(filp_open, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 
 /* ANDROID: Allow drivers to open only block files from kernel mode */
@@ -1650,7 +1650,7 @@ int generic_file_open(struct inode * inode, struct file * filp)
 	return 0;
 }
 
-EXPORT_SYMBOL(generic_file_open);
+EXPORT_SYMBOL_GPL(generic_file_open);
 
 /*
  * This is used by subsystems that don't want seekable

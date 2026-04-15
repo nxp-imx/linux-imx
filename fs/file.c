@@ -737,7 +737,7 @@ int close_fd(unsigned fd)
 
 	return filp_close(file, files);
 }
-EXPORT_SYMBOL(close_fd);
+EXPORT_SYMBOL_NS(close_fd, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * last_fd - return last valid index into fd table

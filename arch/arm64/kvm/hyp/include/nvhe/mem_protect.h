@@ -93,7 +93,8 @@ int host_stage2_idmap_locked(phys_addr_t addr, u64 size, enum kvm_pgtable_prot p
 int host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id);
 int host_stage2_unmap_reg_locked(phys_addr_t start, u64 size);
 int kvm_host_prepare_stage2(void *pgt_pool_base, void *mmio_pool_base);
-int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd);
+int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd,
+			     enum kvm_pgtable_stage2_flags flags);
 void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt);
 
 int hyp_pin_shared_mem(void *from, void *to);

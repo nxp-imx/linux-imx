@@ -83,7 +83,7 @@ EXPORT_SYMBOL(kvm_iommu_register_hyp_ops);
 int kvm_iommu_init_driver(void)
 {
 	struct kvm_iommu_driver *driver;
-	int ret = 0;
+	int ret = -ENODEV;
 
 	guard(mutex)(&kvm_iommu_reg_lock);
 
@@ -96,7 +96,7 @@ int kvm_iommu_init_driver(void)
 	}
 
 	if (ret)
-		kvm_err("Failed to init iommu driver: %d\n", ret);
+		kvm_err("Failed to init iommu driver, do not run confidential workloads in virtual machines: %d\n", ret);
 	return ret;
 }
 

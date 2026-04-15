@@ -1347,7 +1347,7 @@
 		};
 
 		v2x_mu2: mailbox@47320000 {
-			compatible = "fsl,imx94-mu-v2x-fce";
+			compatible = "fsl,imx94-mu-prime";
 			reg = <0x0 0x47320000 0x0 0x10000>;
 			interrupts = <GIC_SPI 384 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "tx", "rx";
@@ -1677,9 +1677,11 @@
 			num-lanes = <1>;
 			num-viewport = <8>;
 			interrupts = <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 365 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 364 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "msi", "pme", "intr";
+			interrupt-names = "msi", "dma", "aer", "intr", "pme";
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 0x7>;
 			interrupt-map = <0 0 0 1 &gic 0 0 GIC_SPI 360 IRQ_TYPE_LEVEL_HIGH>,

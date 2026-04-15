@@ -36,11 +36,9 @@
 typedef unsigned char bool;
 #endif
 #endif
+#include <stdint.h>
 #define irqreturn_t int
 #define dma_addr_t int
-#define uint32_t unsigned int
-#define uint16_t unsigned short
-#define uint8_t unsigned char
 #define u32 unsigned int
 #define u8 unsigned char
 #define __u32 u32

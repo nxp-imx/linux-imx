@@ -18,7 +18,8 @@ struct zram_android_ioc_data {
 };
 
 #define ZRAM_ANDROID_IOC_MAGIC 0xBB
-#define ZRAM_ANDROID_IOC_PROCESS_WRITEBACK _IOWR(ZRAM_ANDROID_IOC_MAGIC, 1, struct zram_android_ioc_data)
+#define ZRAM_ANDROID_IOC_PROCESS_WRITEBACK \
+	_IOWR(ZRAM_ANDROID_IOC_MAGIC, 1, struct zram_android_ioc_data)
 
 #endif /* _UAPI_LINUX_ZRAM_IOCTL_H */
 

@@ -2,7 +2,7 @@
 /*
  * i.MX8QXP/i.MX8QM JPEG encoder/decoder v4l2 driver
  *
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2019, 2026 NXP
  */
 
 #include <linux/delay.h>
@@ -99,6 +99,9 @@ void mxc_jpeg_sw_reset(void __iomem *reg)
 
 void mxc_jpeg_enc_mode_conf(struct device *dev, void __iomem *reg, u8 extseq)
 {
+	if (mxc_jpeg_get_version(reg) > 0)
+		return;
+
 	dev_dbg(dev, "CAST Encoder CONFIG...\n");
 	/*
 	 * "Config_Mode" enabled, "Config_Mode auto clear enabled",
@@ -188,4 +191,12 @@ void mxc_jpeg_set_desc(u32 desc, void __iomem *reg, int slot)
 void mxc_jpeg_clr_desc(void __iomem *reg, int slot)
 {
 	writel(0, reg + MXC_SLOT_OFFSET(slot, SLOT_NXT_DESCPT_PTR));
+}
+
+int mxc_jpeg_get_version(void __iomem *reg)
+{
+	u32 regval;
+
+	regval = readl(reg + GLB_CTRL);
+	return GLB_CTRL_CUR_VERSION(regval);
 }

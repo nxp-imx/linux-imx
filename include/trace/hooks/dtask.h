@@ -129,6 +129,9 @@ DECLARE_HOOK(android_vh_percpu_rwsem_up_write,
 DECLARE_RESTRICTED_HOOK(android_rvh_percpu_rwsem_wait_complete,
 	TP_PROTO(struct percpu_rw_semaphore *sem, long state, bool *complete),
 	TP_ARGS(sem, state, complete), 1);
+DECLARE_HOOK(android_vh_percpu_rwsem_init,
+	TP_PROTO(struct percpu_rw_semaphore *sem),
+	TP_ARGS(sem));
 
 DECLARE_HOOK(android_vh_set_tsk_need_resched_lazy,
 	TP_PROTO(struct task_struct *p, struct rq *rq, int *need_lazy),

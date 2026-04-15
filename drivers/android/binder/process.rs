@@ -424,6 +424,10 @@ use kernel::bindings::rb_process_layout;
 pub(crate) const PROCESS_LAYOUT: rb_process_layout = rb_process_layout {
     arc_offset: Arc::<Process>::DATA_OFFSET,
     task: offset_of!(Process, task),
+    __kabi_reserved_backport0: 0,
+    __kabi_reserved_backport1: 0,
+    __kabi_reserved_backport2: 0,
+    __kabi_reserved_backport3: 0,
 };
 
 /// A process using binder.
@@ -1300,7 +1304,8 @@ impl Process {
     }
 
     pub(crate) fn dead_binder_done(&self, cookie: u64, thread: &Thread) {
-        if let Some(death) = self.inner.lock().pull_delivered_death(cookie) {
+        let death = self.inner.lock().pull_delivered_death(cookie);
+        if let Some(death) = death {
             death.set_notification_done(thread);
         }
     }

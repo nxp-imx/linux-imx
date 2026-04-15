@@ -225,7 +225,7 @@ ssize_t generic_read_dir(struct file *filp, char __user *buf, size_t siz, loff_t
 {
 	return -EISDIR;
 }
-EXPORT_SYMBOL(generic_read_dir);
+EXPORT_SYMBOL_NS(generic_read_dir, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 const struct file_operations simple_dir_operations = {
 	.open		= dcache_dir_open,
@@ -1551,7 +1551,7 @@ out:
 		ret = err;
 	return ret;
 }
-EXPORT_SYMBOL(__generic_file_fsync);
+EXPORT_SYMBOL_NS(__generic_file_fsync, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * generic_file_fsync - generic fsync implementation for simple filesystems
@@ -1574,7 +1574,7 @@ int generic_file_fsync(struct file *file, loff_t start, loff_t end,
 		return err;
 	return blkdev_issue_flush(inode->i_sb->s_bdev);
 }
-EXPORT_SYMBOL(generic_file_fsync);
+EXPORT_SYMBOL_NS(generic_file_fsync, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * generic_check_addressable - Check addressability of file system

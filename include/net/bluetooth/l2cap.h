@@ -29,6 +29,7 @@
 
 #include <linux/unaligned.h>
 #include <linux/atomic.h>
+#include <linux/android_kabi.h>
 
 /* L2CAP defaults */
 #define L2CAP_DEFAULT_MTU		672
@@ -614,6 +615,9 @@ struct l2cap_chan {
 	void			*data;
 	const struct l2cap_ops	*ops;
 	struct mutex		lock;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 struct l2cap_ops {
@@ -638,6 +642,9 @@ struct l2cap_ops {
 					       unsigned long len, int nb);
 	int			(*filter) (struct l2cap_chan * chan,
 					   struct sk_buff *skb);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 struct l2cap_conn {
@@ -673,6 +680,9 @@ struct l2cap_conn {
 	struct mutex		lock;
 	struct kref		ref;
 	struct list_head	users;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 struct l2cap_user {

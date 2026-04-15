@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #include <drm/drm_drv.h>
@@ -20,6 +20,11 @@
 #include "dpu95-drv.h"
 #include "dpu95-blit-registers.h"
 
+enum drm_imx_dpu_version {
+	DRM_IMX_DPU_MDR5 = 0,
+	DRM_IMX_DPU_MDR7 = 1,
+};
+
 static const u32 fetch_unit_addr[3] = {
 	FETCHDECODE9_BASEADDRESS0,
 	FETCHROT9_BASEADDRESS0,
@@ -37,6 +42,7 @@ static const u32 store_unit_addr[3] = {
 
 static struct dpu_bliteng *dpu_blit_eng;
 static int imx_dpu_num;
+static unsigned char dpu_version;
 
 static inline u32 dpu95_be_read(struct dpu_bliteng *dpu_be, unsigned int offset)
 {
@@ -71,6 +77,24 @@ static void dpu95_cs_wait_idle(struct dpu_bliteng *dpu_be)
 		mdelay(1);
 }
 
+static int dpu95_cs_alloc_command_buffer(struct dpu_bliteng *dpu_be)
+{
+	dma_addr_t dma_handle;
+
+	/* command buffer need 40 bit address */
+	dpu_be->buffer_addr_virt =
+		dma_alloc_coherent(dpu_be->dev, COMMAND_BUFFER_SIZE,
+			&dma_handle, GFP_KERNEL | __GFP_ZERO);
+	if (!dpu_be->buffer_addr_virt) {
+		dev_err(dpu_be->dev, "memory alloc failed for dpu command buffer\n");
+		return -ENOMEM;
+	}
+
+	dpu_be->buffer_addr_phy = dma_handle;
+
+	return 0;
+}
+
 static void dpu95_cs_static_setup(struct dpu_bliteng *dpu_be)
 {
 	dpu95_cs_wait_idle(dpu_be);
@@ -80,7 +104,8 @@ static void dpu95_cs_static_setup(struct dpu_bliteng *dpu_be)
 		CMDSEQ_CONTROL);
 
 	/* BufferAddress and BufferSize */
-	dpu95_be_write(dpu_be, CMDSEQ_OCRAM_D_ADDR, CMDSEQ_BUFFERADDRESS);
+	dpu95_be_write(dpu_be, lower_32_bits(dpu_be->buffer_addr_phy), CMDSEQ_BUFFERADDRESS);
+	dpu95_be_write(dpu_be, upper_32_bits(dpu_be->buffer_addr_phy), CMDSEQ_BUFFERADDRESSMSB);
 	dpu95_be_write(dpu_be, COMMAND_BUFFER_SIZE / WORD_SIZE,
 		CMDSEQ_BUFFERSIZE);
 }
@@ -216,6 +241,9 @@ failed:
 
 static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *fence, bool stall)
 {
+	struct dpu95_drm_device *dpu_drm =
+		container_of(dpu_be, struct dpu95_drm_device, dpu_be);
+	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
 	int i = 0;
 
 	/* Get the available fence index with spin-lock */
@@ -239,7 +267,7 @@ static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *
 	dpu95_be_write(dpu_be, CMDSEQ_SEQCOMPLETE_SYNC, CMDSEQ_HIF);
 
 	dpu95_be_write(dpu_be, 0x14000001, CMDSEQ_HIF);
-	dpu95_be_write(dpu_be, CMDSEQ_INTERRUPTCLEAR0, CMDSEQ_HIF);
+	dpu95_be_write(dpu_be, dpu->data->cmdseq_interrupt_clear0, CMDSEQ_HIF);
 	dpu95_be_write(dpu_be, STORE9_SEQCOMPLETE_IRQ_MASK, CMDSEQ_HIF);
 
 	enable_irq(dpu_be->irq_comctrl_sw[i]);
@@ -247,7 +275,7 @@ static int dpu95_be_emit_fence(struct dpu_bliteng *dpu_be, struct dpu_be_fence *
 	/* Write comctrl interrupt PRESET to command sequencer */
 	dpu95_be_write(dpu_be, 0x14000001, CMDSEQ_HIF);
 	dpu95_be_write(dpu_be, COMCTRL_INTERRUPTPRESET1, CMDSEQ_HIF);
-	dpu95_be_write(dpu_be, 1 << (i + (DPU95_IRQ_COMCTRL_SW0 & 0x1F)), CMDSEQ_HIF);
+	dpu95_be_write(dpu_be, 1 << (i + (dpu->data->comctrl_irq[0] & 0x1F)), CMDSEQ_HIF);
 
 	/*Stall until semaphore released */
 	if (stall) {
@@ -475,8 +503,7 @@ static void dpu95_be_init_units(struct dpu_bliteng *dpu_be)
 
 static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 {
-	int i, virq, sw_irqs[4] = {DPU95_IRQ_COMCTRL_SW0, DPU95_IRQ_COMCTRL_SW1,
-		DPU95_IRQ_COMCTRL_SW2, DPU95_IRQ_COMCTRL_SW3};
+	int i, virq, sw_irqs[4];
 	struct dpu95_drm_device *dpu_drm =
 		container_of(dpu_bliteng, struct dpu95_drm_device, dpu_be);
 	struct dpu95_soc *dpu = &dpu_drm->dpu_soc;
@@ -484,8 +511,14 @@ static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 	struct resource *res;
 	unsigned long dpu_base;
 	void __iomem *base;
+	u32 ip_identifier, ip_evolution;
 	u32 *cmd_list;
 	int ret;
+
+	sw_irqs[0] = dpu->data->comctrl_irq[0];
+	sw_irqs[1] = dpu->data->comctrl_irq[1];
+	sw_irqs[2] = dpu->data->comctrl_irq[2];
+	sw_irqs[3] = dpu->data->comctrl_irq[3];
 
 	cmd_list = kzalloc(sizeof(*cmd_list) * CMDSEQ_FIFO_SPACE_THRESHOLD,
 			GFP_KERNEL);
@@ -505,10 +538,30 @@ static int dpu95_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 
 	mutex_init(&dpu_bliteng->mutex);
 
+	ip_identifier = dpu95_be_read(dpu_bliteng, COMCTRL_IPIDENTIFIER);
+	ip_evolution = (ip_identifier & COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_MASK)
+						>> COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_SHIFT;
+
+	switch (ip_evolution) {
+	case DRM_IMX_DPU_MDR5:
+		dpu_version = 1;
+		break;
+	case DRM_IMX_DPU_MDR7:
+		dpu_version = 2;
+		break;
+	default:
+		dev_err(dpu_bliteng->dev, "Unsupported DPU version\n");
+		return -EINVAL;
+	}
+
 	/* Init the uints used by blit engine */
 	dpu95_be_init_units(dpu_bliteng);
 
 	/* Init for command sequencer */
+	ret = dpu95_cs_alloc_command_buffer(dpu_bliteng);
+	if (ret)
+		return ret;
+
 	dpu95_cs_static_setup(dpu_bliteng);
 
 	/*Request general SW interrupts to implement DPU fence */
@@ -545,6 +598,12 @@ static void dpu95_bliteng_fini(struct dpu_bliteng *dpu_bliteng)
 
 	for (i = 0; i < 4; i++)
 		free_irq(dpu_bliteng->irq_comctrl_sw[i], dpu_bliteng);
+
+	if (dpu_bliteng->buffer_addr_virt)
+		dma_free_coherent(dpu_bliteng->dev,
+					COMMAND_BUFFER_SIZE,
+					dpu_bliteng->buffer_addr_virt,
+					dpu_bliteng->buffer_addr_phy);
 }
 
 static int imx_drm_dpu95_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
@@ -653,10 +712,18 @@ static int imx_drm_dpu95_get_param_ioctl(struct drm_device *drm_dev, void *data,
 	int ret, fd = -1;
 
 	switch (*param) {
-	case (DRM_IMX_MAX_DPUS):
+	case DRM_IMX_MAX_DPUS:
 		ret = imx_dpu_num;
 		break;
+	case DRM_IMX_DPU_VERSION:
+		ret = dpu_version;
+		break;
 	case DRM_IMX_GET_FENCE:
+		ret = pm_runtime_resume_and_get(dpu_blit_eng->dev);
+		if (ret < 0) {
+			drm_err(drm_dev, "failed to get device RPM: %d\n", ret);
+			return ret;
+		}
 		dpu95_be_get(dpu_blit_eng);
 
 		if (fd == -1)
@@ -664,6 +731,7 @@ static int imx_drm_dpu95_get_param_ioctl(struct drm_device *drm_dev, void *data,
 
 		dpu95_be_set_fence(dpu_blit_eng, fd);
 		dpu95_be_put(dpu_blit_eng);
+		pm_runtime_put_autosuspend(dpu_blit_eng->dev);
 
 		ret = fd;
 		break;
@@ -734,15 +802,21 @@ const struct drm_ioctl_desc imx_drm_dpu95_ioctls[4] = {
 
 int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 {
-	struct drm_device *drm = &dpu_drm->base;
+	struct drm_device *drm_dev = &dpu_drm->base;
 	struct dpu_bliteng *dpu_bliteng = &dpu_drm->dpu_be;
 	int ret;
 
-	dpu95_bliteng_set_dev(dpu_bliteng, drm->dev);
+	dpu95_bliteng_set_dev(dpu_bliteng, drm_dev->dev);
+
+	ret = pm_runtime_resume_and_get(dpu_bliteng->dev);
+	if (ret < 0) {
+		drm_err(drm_dev, "failed to get device RPM: %d\n", ret);
+		return ret;
+	}
 
 	ret = dpu95_bliteng_init(dpu_bliteng);
 	if (ret)
-		return ret;
+		goto out;
 
 	dpu_blit_eng = dpu_bliteng;
 
@@ -750,7 +824,9 @@ int dpu95_bliteng_load(struct dpu95_drm_device *dpu_drm)
 
 	dpu_bliteng->ready = true;
 
-	return 0;
+out:
+	pm_runtime_put_autosuspend(dpu_bliteng->dev);
+	return ret;
 }
 
 void dpu95_bliteng_unload(struct dpu95_drm_device *dpu_drm)

@@ -165,15 +165,15 @@ config UIO_DFL
 
 	  If you compile this as a module, it will be called uio_dfl.
 
-config UIO_V2X_FCE
-	tristate "i.MX V2X Fast Crypto Engine UIO support"
+config UIO_PRIME
+	tristate "i.MX Fast Crypto Engine UIO support"
 	default y
 	help
-	  Selecting this will allow V2X FCE UIO support for
+	  Selecting this will enable PRIME UIO support for
 	  Userspace drivers
 
 	  To compile this as a module, choose M here: the module
-	  will be called uio_v2x_fce.
+	  will be called uio_prime.
 
 config UIO_IVSHMEM
 	tristate "Inter-VM Shared Memory driver"

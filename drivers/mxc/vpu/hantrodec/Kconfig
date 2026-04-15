@@ -1,0 +1,15 @@
+
+menu "MXC HANTRO(Video Processing Unit) G1 and G2 decoder support"
+	depends on ARCH_MXC
+
+config MXC_VIDEO_HANTRO_DEC
+	tristate "Support for MXC HANTRO(Video Processing Unit) encoder"
+	help
+	  Hantro VPU Decoder IP contains G1 and G2.
+	  G1 decoder can support H264 and VP8,
+	  and the full version of i.MX8MQ can support some legacy formats,
+	  such as MPEG2, MPEG4, H263, VC1, AVS2, XVID, RV and jpeg.
+	  G2 decoder can support HEVC and VP9.
+	  To compile this driver as a module choose m here.
+
+endmenu

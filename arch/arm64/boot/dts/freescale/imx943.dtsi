@@ -286,9 +286,11 @@
 			num-lanes = <1>;
 			num-viewport = <8>;
 			interrupts = <GIC_SPI 370 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 371 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 370 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 370 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 370 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "msi", "pme", "intr";
+			interrupt-names = "msi", "dma", "aer", "intr", "pme";
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 0x7>;
 			interrupt-map = <0 0 0 1 &gic 0 0 GIC_SPI 366 IRQ_TYPE_LEVEL_HIGH>,

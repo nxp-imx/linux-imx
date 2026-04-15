@@ -692,3 +692,4 @@ module_init(init_qnx6_fs)
 module_exit(exit_qnx6_fs)
 MODULE_DESCRIPTION("QNX6 file system");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");

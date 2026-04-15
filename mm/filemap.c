@@ -1411,14 +1411,16 @@ repeat:
 
 #ifdef CONFIG_MIGRATION
 /**
- * migration_entry_wait_on_locked - Wait for a migration entry to be removed
- * @entry: migration swap entry.
+ * migration_entry_wait_on_locked - Wait for a migration entry or
+ * device_private entry to be removed.
+ * @entry: migration or device_private swap entry.
  * @ptl: already locked ptl. This function will drop the lock.
  *
- * Wait for a migration entry referencing the given page to be removed. This is
+ * Wait for a migration entry referencing the given page, or device_private
+ * entry referencing a dvice_private page to be unlocked. This is
  * equivalent to folio_put_wait_locked(folio, TASK_UNINTERRUPTIBLE) except
  * this can be called without taking a reference on the page. Instead this
- * should be called while holding the ptl for the migration entry referencing
+ * should be called while holding the ptl for @entry referencing
  * the page.
  *
  * Returns after unlocking the ptl.
@@ -1460,6 +1462,9 @@ void migration_entry_wait_on_locked(swp_entry_t entry, spinlock_t *ptl)
 	 * If a migration entry exists for the page the migration path must hold
 	 * a valid reference to the page, and it must take the ptl to remove the
 	 * migration entry. So the page is valid until the ptl is dropped.
+	 * Similarly any path attempting to drop the last reference to a
+	 * device-private page needs to grab the ptl to remove the device-private
+	 * entry.
 	 */
 	spin_unlock(ptl);
 
@@ -2715,10 +2720,17 @@ static inline bool pos_same_folio(loff_t pos1, loff_t pos2, struct folio *folio)
 
 static void filemap_end_dropbehind_read(struct folio *folio)
 {
+	bool bypass = false;
+
 	if (!folio_test_dropbehind(folio))
 		return;
 	if (folio_test_writeback(folio) || folio_test_dirty(folio))
 		return;
+
+	trace_android_vh_filemap_end_dropbehind_bypass(folio, &bypass);
+	if (bypass)
+		return;
+
 	if (folio_trylock(folio)) {
 		filemap_end_dropbehind(folio);
 		folio_unlock(folio);
@@ -2761,7 +2773,8 @@ ssize_t filemap_read(struct kiocb *iocb, struct iov_iter *iter,
 	iov_iter_truncate(iter, inode->i_sb->s_maxbytes - iocb->ki_pos);
 	folio_batch_init(&fbatch);
 	trace_android_vh_filemap_read(filp, iocb->ki_pos, iov_iter_count(iter));
-
+	trace_android_vh_adjust_iocb_flags(filp, iocb->ki_pos,
+					  iov_iter_count(iter), &iocb->ki_flags);
 	do {
 		cond_resched();
 
@@ -2838,6 +2851,8 @@ ssize_t filemap_read(struct kiocb *iocb, struct iov_iter *iter,
 				break;
 			}
 		}
+		trace_android_vh_filemap_read_end(inode, fbatch.folios,
+				folio_batch_count(&fbatch));
 put_folios:
 		for (i = 0; i < folio_batch_count(&fbatch); i++) {
 			struct folio *folio = fbatch.folios[i];
@@ -3285,11 +3300,17 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 {
 	struct file *file = vmf->vma->vm_file;
 	struct file_ra_state *ra = &file->f_ra;
+	DEFINE_RA_MMAP_MISS(ra);
 	struct address_space *mapping = file->f_mapping;
 	DEFINE_READAHEAD(ractl, file, ra, mapping, vmf->pgoff);
 	struct file *fpin = NULL;
 	vm_flags_t vm_flags = vmf->vma->vm_flags;
 	unsigned short mmap_miss;
+	bool skip = false;
+
+	trace_android_vh_do_sync_mmap_readahead(vmf, &skip);
+	if (skip)
+		return fpin;
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	/* Use the readahead code, even if readahead is disabled */
@@ -3304,7 +3325,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 		if (!(vm_flags & VM_RAND_READ))
 			ra->size *= 2;
 		ra->async_size = HPAGE_PMD_NR;
-		ra->order = HPAGE_PMD_ORDER;
+		ra_mmap_miss->order = HPAGE_PMD_ORDER;
 		page_cache_ra_order(&ractl, ra);
 		return fpin;
 	}
@@ -3329,9 +3350,9 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	}
 
 	/* Avoid banging the cache line if not needed */
-	mmap_miss = READ_ONCE(ra->mmap_miss);
+	mmap_miss = READ_ONCE(ra_mmap_miss->mmap_miss);
 	if (mmap_miss < MMAP_LOTSAMISS * 10)
-		WRITE_ONCE(ra->mmap_miss, ++mmap_miss);
+		WRITE_ONCE(ra_mmap_miss->mmap_miss, ++mmap_miss);
 
 	/*
 	 * Do we miss much more than hit in this file? If so,
@@ -3371,7 +3392,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 		ra->start = max_t(long, 0, vmf->pgoff - ra->ra_pages / 2);
 		ra->size = ra->ra_pages;
 		ra->async_size = ra->ra_pages / 4;
-		ra->order = 0;
+		ra_mmap_miss->order = 0;
 	}
 
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
@@ -3395,6 +3416,7 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 {
 	struct file *file = vmf->vma->vm_file;
 	struct file_ra_state *ra = &file->f_ra;
+	DEFINE_RA_MMAP_MISS(ra);
 	DEFINE_READAHEAD(ractl, file, ra, file->f_mapping, vmf->pgoff);
 	struct file *fpin = NULL;
 	unsigned short mmap_miss;
@@ -3415,9 +3437,9 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 	 * increase in do_sync_mmap_readahead().
 	 */
 	if (likely(!folio_test_locked(folio))) {
-		mmap_miss = READ_ONCE(ra->mmap_miss);
+		mmap_miss = READ_ONCE(ra_mmap_miss->mmap_miss);
 		if (mmap_miss)
-			WRITE_ONCE(ra->mmap_miss, --mmap_miss);
+			WRITE_ONCE(ra_mmap_miss->mmap_miss, --mmap_miss);
 	}
 
 	if (folio_test_readahead(folio)) {
@@ -3622,6 +3644,7 @@ retry_find:
 	}
 
 	vmf->page = folio_file_page(folio, index);
+	trace_android_vh_filemap_fault_folio_locked(inode, folio, index);
 	return ret | VM_FAULT_LOCKED;
 
 page_not_uptodate:
@@ -3872,6 +3895,7 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 	vm_fault_t ret = 0;
 	unsigned long rss = 0;
 	unsigned int nr_pages = 0, folio_type;
+	DEFINE_RA_MMAP_MISS(&file->f_ra);
 	unsigned short mmap_miss = 0, mmap_miss_saved;
 	pgoff_t first_pgoff = 0;
 
@@ -3933,9 +3957,9 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 out:
 	rcu_read_unlock();
 
-	mmap_miss_saved = READ_ONCE(file->f_ra.mmap_miss);
+	mmap_miss_saved = READ_ONCE(ra_mmap_miss->mmap_miss);
 	if (mmap_miss >= mmap_miss_saved)
-		WRITE_ONCE(file->f_ra.mmap_miss, 0);
+		WRITE_ONCE(ra_mmap_miss->mmap_miss, 0);
 	else
 		WRITE_ONCE(file->f_ra.mmap_miss, mmap_miss_saved - mmap_miss);
 	trace_android_vh_filemap_map_pages(file, first_pgoff, last_pgoff, ret);
@@ -4295,6 +4319,7 @@ ssize_t generic_perform_write(struct kiocb *iocb, struct iov_iter *i)
 	long status = 0;
 	ssize_t written = 0;
 
+	trace_android_vh_adjust_iocb_flags(file, pos, iov_iter_count(i), &iocb->ki_flags);
 	do {
 		struct folio *folio;
 		size_t offset;		/* Offset into folio */

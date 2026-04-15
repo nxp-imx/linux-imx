@@ -188,8 +188,6 @@ static int neutron_rproc_addr_init(struct neutron_rproc *priv,
 		b++;
 	}
 
-	writel(dcfg->src_stop, priv->regbase + dcfg->src_reg);
-
 	return 0;
 }
 

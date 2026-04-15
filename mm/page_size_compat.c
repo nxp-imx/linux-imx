@@ -96,6 +96,23 @@ unsigned long ___filemap_len(struct inode *inode, unsigned long pgoff, unsigned 
 	return len;
 }
 
+#ifdef CONFIG_BPF_SYSCALL
+bool bpf_is_ringbuf_file(struct file *file)
+{
+	if (file->f_op != &bpf_map_fops)
+		return false;
+
+	struct bpf_map *map = file->private_data;
+
+	return map->map_type == BPF_MAP_TYPE_RINGBUF ||
+		map->map_type == BPF_MAP_TYPE_USER_RINGBUF;
+}
+#else
+bool bpf_is_ringbuf_file(struct file *file)
+{
+	return false;
+}
+#endif
 /*
  * Given a file mapping of 48KiB backed by a file of size 18KiB, the
  * faulting behaviour of the different page-size configurations is

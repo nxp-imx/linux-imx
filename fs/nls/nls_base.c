@@ -552,9 +552,9 @@ struct nls_table *load_nls_default(void)
 }
 
 EXPORT_SYMBOL(unregister_nls);
-EXPORT_SYMBOL(unload_nls);
-EXPORT_SYMBOL(load_nls);
-EXPORT_SYMBOL(load_nls_default);
+EXPORT_SYMBOL_NS(unload_nls, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+EXPORT_SYMBOL_NS(load_nls, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+EXPORT_SYMBOL_NS(load_nls_default, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 MODULE_DESCRIPTION("Base file system native language support");
 MODULE_LICENSE("Dual BSD/GPL");

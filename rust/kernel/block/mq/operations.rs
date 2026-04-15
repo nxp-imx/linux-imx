@@ -278,6 +278,7 @@ impl<T: Operations> OperationsVTable<T> {
         map_queues: None,
         #[cfg(CONFIG_BLK_DEBUG_FS)]
         show_rq: None,
+        __kabi_reserved1: 0,
     };
 
     pub(crate) const fn build() -> &'static bindings::blk_mq_ops {

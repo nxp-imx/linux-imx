@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025-2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/i3c/i3c.h>
+#include "imx952-pinfunc.h"
+
+/*
+ * I3C is using the same pad with ENET1, I3C only can be enabled and tested
+ * at rework board. Populate R665, R666 and DNP R663, R664 for I3C validation.
+ */
+
+&i3c2 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_i3c2>;
+	pinctrl-1 = <&pinctrl_i3c2_sleep>;
+	#address-cells = <3>;
+	#size-cells = <0>;
+	i2c-scl-hz = <400000>;
+	status = "okay";
+
+	pca9570: gpio@24 {
+		compatible = "nxp,pca9570";
+		reg = <0x24 0 (I2C_FILTER)>;
+		#gpio-cells = <2>;
+		gpio-controller;
+		gpio-line-names = "OUT1", "OUT2", "OUT3", "OUT4";
+	};
+};
+
+&scmi_iomuxc {
+	pinctrl_i3c2: i3c2grp {
+		fsl,pins = <
+			IMX952_PAD_ENET1_MDC__WAKEUPMIX_TOP_I3C2_SCL		0x4000019e
+			IMX952_PAD_ENET1_MDIO__WAKEUPMIX_TOP_I3C2_SDA		0x4000019e
+		>;
+	};
+
+	pinctrl_i3c2_sleep: i3c2sleepgrp {
+		fsl,pins = <
+			IMX952_PAD_ENET1_MDC__WAKEUPMIX_TOP_GPIO4_IO_0		0x31e
+			IMX952_PAD_ENET1_MDIO__WAKEUPMIX_TOP_GPIO4_IO_1		0x31e
+		>;
+	};
+};

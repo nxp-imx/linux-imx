@@ -30,5 +30,9 @@ config MX6_VPU_352M
 
 endmenu
 
+source "drivers/mxc/vpu/hantrodec/Kconfig"
+source "drivers/mxc/vpu/hantroenc/Kconfig"
 source "drivers/mxc/vpu/memory_usage/Kconfig"
+source "drivers/mxc/vpu/coda980/Kconfig"
+source "drivers/mxc/vpu/wave511/Kconfig"
 source "drivers/mxc/vpu/wave6/Kconfig"

@@ -332,7 +332,7 @@ retry_deleg:
 
 	return error;
 }
-EXPORT_SYMBOL_GPL(vfs_setxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_setxattr, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static ssize_t
 xattr_getsecurity(struct mnt_idmap *idmap, struct inode *inode,
@@ -455,7 +455,7 @@ vfs_getxattr(struct mnt_idmap *idmap, struct dentry *dentry,
 nolsm:
 	return __vfs_getxattr(dentry, inode, name, value, size);
 }
-EXPORT_SYMBOL_GPL(vfs_getxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_getxattr, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * vfs_listxattr - retrieve \0 separated list of xattr names
@@ -498,7 +498,7 @@ vfs_listxattr(struct dentry *dentry, char *list, size_t size)
 	}
 	return error;
 }
-EXPORT_SYMBOL_GPL(vfs_listxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_listxattr, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 int
 __vfs_removexattr(struct mnt_idmap *idmap, struct dentry *dentry,

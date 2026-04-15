@@ -69,6 +69,13 @@ struct se_ioctl_get_soc_info {
 	__u8  board_type;
 };
 
+struct se_ioctl_get_v2x_version {
+	__u8 major;
+	__u8 minor;
+	__u8 patch;
+	__u32 commit_id;
+};
+
 struct se_ioctl_signed_message {
 	__u8 *message;
 	__u32 msg_size;
@@ -152,5 +159,11 @@ struct se_time_frame {
  * for a crypto operation
  */
 #define SE_IOCTL_GET_TIMER	_IOR(SE_IOCTL, 0x08, struct se_time_frame)
+
+/*
+ * ioctl to get V2X Firmware version Info from user-space.
+ */
+#define SE_IOCTL_GET_V2X_VERSION      _IOR(SE_IOCTL, 0x09, \
+					struct se_ioctl_get_v2x_version)
 
 #endif

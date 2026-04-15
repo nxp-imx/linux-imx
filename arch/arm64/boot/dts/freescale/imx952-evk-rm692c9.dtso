@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+#include "imx952-clock.h"
+#include "imx952-pinfunc.h"
+#include "imx95-evk-rm692c9-common.dtsi"
+
+&dpu {
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-rates = <0>, <4009500000>, <445500000>;
+};
+
+&mipi_dsi {
+	panel@0 {
+		reset-gpios = <&adp5585 4 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&lpi2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+
+	focaltech_touch: touchscreen@38 {
+		compatible = "focaltech,ft3518u";
+		reg = <0x38>;
+		irq-gpio = <&gpio3 27 GPIO_ACTIVE_HIGH>;
+		reset-gpio = <&adp5585 6 GPIO_ACTIVE_LOW>;
+		touchscreen-size-x = <1080>;
+		touchscreen-size-y = <2340>;
+		max-touch-number = <10>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_dsi>;
+		status = "okay";
+	};
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_mipi_dsi: mipidsigrp {
+		fsl,pins = <
+			IMX952_PAD_CCM_CLKO2__WAKEUPMIX_TOP_GPIO3_IO_27	0x31e
+		>;
+	};
+};

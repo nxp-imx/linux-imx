@@ -1470,5 +1470,6 @@ MODULE_AUTHOR("Damien Le Moal");
 MODULE_DESCRIPTION("Zone file system for zoned block devices");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_FS("zonefs");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 module_init(zonefs_init);
 module_exit(zonefs_exit);

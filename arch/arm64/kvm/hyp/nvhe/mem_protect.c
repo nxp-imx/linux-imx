@@ -407,7 +407,8 @@ static void hyp_flush_page(phys_addr_t phys, size_t size)
 	__apply_guest_page(__hyp_va(phys), size, __hyp_flush_page);
 }
 
-int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd)
+int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd,
+			     enum kvm_pgtable_stage2_flags flags)
 {
 	struct kvm_s2_mmu *mmu = &vm->kvm.arch.mmu;
 	unsigned long nr_pages;
@@ -434,7 +435,7 @@ int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd)
 	};
 
 	guest_lock_component(vm);
-	ret = __kvm_pgtable_stage2_init(mmu->pgt, mmu, &vm->mm_ops, 0,
+	ret = __kvm_pgtable_stage2_init(mmu->pgt, mmu, &vm->mm_ops, flags,
 					&guest_s2_pte_ops);
 	guest_unlock_component(vm);
 	if (ret)
@@ -772,7 +773,7 @@ static int host_stage2_adjust_range(u64 addr, struct kvm_mem_range *range)
 		granule = kvm_granule_size(level);
 		cur.start = ALIGN_DOWN(addr, granule);
 		cur.end = cur.start + granule;
-		if (!range_included(&cur, range))
+		if (!range_included(&cur, range) && level < KVM_PGTABLE_LAST_LEVEL)
 			continue;
 		*range = cur;
 		return 0;
@@ -854,7 +855,7 @@ static int __host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_i
 		goto psci_mem_protect;
 
 	prot = owner_id == PKVM_ID_HOST ? PKVM_HOST_MEM_PROT : 0;
-	kvm_iommu_host_stage2_idmap(addr, addr + size, prot);
+	WARN_ON(kvm_iommu_host_stage2_idmap(addr, addr + size, prot));
 
 psci_mem_protect:
 	if (flags & HOST_SET_PSCI_MEM_PROTECT) {
@@ -1179,7 +1180,8 @@ static int __host_set_page_state_range(u64 addr, u64 size,
 
 		if (ret)
 			return ret;
-		kvm_iommu_host_stage2_idmap(addr, addr + size, PKVM_HOST_MEM_PROT);
+
+		WARN_ON(kvm_iommu_host_stage2_idmap(addr, addr + size, PKVM_HOST_MEM_PROT));
 		kvm_iommu_host_stage2_idmap_complete(true);
 	}
 
@@ -1940,7 +1942,7 @@ update:
 		ret = host_stage2_idmap_locked(
 				addr, nr_pages << PAGE_SHIFT, prot, reg);
 		if (update_iommu) {
-			kvm_iommu_host_stage2_idmap(addr, end, prot);
+			WARN_ON(kvm_iommu_host_stage2_idmap(addr, end, prot));
 			kvm_iommu_host_stage2_idmap_complete(!!prot);
 		}
 	}
@@ -3057,7 +3059,7 @@ static void init_selftest_vm(void *virt)
 	int i;
 
 	selftest_vm.kvm.arch.mmu.vtcr = host_mmu.arch.mmu.vtcr;
-	WARN_ON(kvm_guest_prepare_stage2(&selftest_vm, virt));
+	WARN_ON(kvm_guest_prepare_stage2(&selftest_vm, virt, 0));
 
 	for (i = 0; i < pkvm_selftest_pages(); i++) {
 		if (p[i].refcount)

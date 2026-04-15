@@ -549,6 +549,7 @@ static __exit void efivarfs_exit(void)
 MODULE_AUTHOR("Matthew Garrett, Jeremy Kerr");
 MODULE_DESCRIPTION("EFI Variable Filesystem");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 MODULE_ALIAS_FS("efivarfs");
 
 module_init(efivarfs_init);

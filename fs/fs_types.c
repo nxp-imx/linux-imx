@@ -41,7 +41,7 @@ unsigned char fs_ftype_to_dtype(unsigned int filetype)
 
 	return fs_dtype_by_ftype[filetype];
 }
-EXPORT_SYMBOL_GPL(fs_ftype_to_dtype);
+EXPORT_SYMBOL_NS_GPL(fs_ftype_to_dtype, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * dirent file type to fs on-disk file type conversion

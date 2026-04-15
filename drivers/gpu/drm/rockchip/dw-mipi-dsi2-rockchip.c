@@ -418,6 +418,7 @@ static int dw_mipi_dsi2_rockchip_probe(struct platform_device *pdev)
 	dsi2->dev = dev;
 	dsi2->pdata.regmap = dsi2->regmap;
 	dsi2->pdata.max_data_lanes = 4;
+	dsi2->pdata.ipi_mapping = DW_MIPI_DSI2_IPI_MAPPING_NONE;
 	dsi2->pdata.phy_ops = &dw_mipi_dsi2_rockchip_phy_ops;
 	dsi2->pdata.host_ops = &dw_mipi_dsi2_rockchip_host_ops;
 	dsi2->pdata.priv_data = dsi2;

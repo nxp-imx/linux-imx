@@ -422,7 +422,7 @@
   iommu_paging_domain_alloc_flags
   iommu_unmap
   __ioread32_copy
-  ioremap_prot
+  __ioremap_prot
   iounmap
   iov_iter_revert
   __iowrite32_copy_full

@@ -135,8 +135,9 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 {
 	int err;
 	struct se_if_priv *priv = dev_ctx->priv;
+	bool do_unlock;
 
-	se_qualify_msg_seq_flow(&priv->se_msg_sq_ctl, tx_msg);
+	do_unlock = se_qualify_msg_seq_flow(&priv->se_msg_sq_ctl, tx_msg);
 
 	guard(mutex)(&priv->se_if_cmd_lock);
 
@@ -165,6 +166,9 @@ int ele_msg_send_rcv(struct se_if_device_ctx *dev_ctx,
 	/* Capture response timer */
 	ktime_get_raw_ts64(&dev_ctx->time_frame.t_end);
 exit:
+	if (do_unlock)
+		se_halt_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
+
 	return err;
 }
 

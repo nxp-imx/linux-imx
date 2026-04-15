@@ -16,6 +16,7 @@
 #include <linux/rwsem.h>
 #include <linux/atomic.h>
 #include <linux/hashtable.h>
+#include <linux/android_kabi.h>
 #include <net/gen_stats.h>
 #include <net/rtnetlink.h>
 #include <net/flow_offload.h>
@@ -129,6 +130,9 @@ struct Qdisc {
 	struct rcu_head		rcu;
 	netdevice_tracker	dev_tracker;
 	struct lock_class_key	root_lock_key;
+
+	ANDROID_KABI_RESERVE(1);
+
 	/* private data */
 	long privdata[] ____cacheline_aligned;
 };
@@ -275,6 +279,8 @@ struct Qdisc_class_ops {
 					struct sk_buff *skb, struct tcmsg*);
 	int			(*dump_stats)(struct Qdisc *, unsigned long,
 					struct gnet_dump *);
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /* Qdisc_class_ops flag values */
@@ -320,6 +326,8 @@ struct Qdisc_ops {
 	u32			(*egress_block_get)(struct Qdisc *sch);
 
 	struct module		*owner;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct tcf_result {
@@ -696,6 +704,34 @@ void qdisc_destroy(struct Qdisc *qdisc);
 void qdisc_put(struct Qdisc *qdisc);
 void qdisc_put_unlocked(struct Qdisc *qdisc);
 void qdisc_tree_reduce_backlog(struct Qdisc *qdisc, int n, int len);
+
+static inline void dev_reset_queue(struct net_device *dev,
+				   struct netdev_queue *dev_queue,
+				   void *_unused)
+{
+	struct Qdisc *qdisc;
+	bool nolock;
+
+	qdisc = rtnl_dereference(dev_queue->qdisc_sleeping);
+	if (!qdisc)
+		return;
+
+	nolock = qdisc->flags & TCQ_F_NOLOCK;
+
+	if (nolock)
+		spin_lock_bh(&qdisc->seqlock);
+	spin_lock_bh(qdisc_lock(qdisc));
+
+	qdisc_reset(qdisc);
+
+	spin_unlock_bh(qdisc_lock(qdisc));
+	if (nolock) {
+		clear_bit(__QDISC_STATE_MISSED, &qdisc->state);
+		clear_bit(__QDISC_STATE_DRAINING, &qdisc->state);
+		spin_unlock_bh(&qdisc->seqlock);
+	}
+}
+
 #ifdef CONFIG_NET_SCHED
 int qdisc_offload_dump_helper(struct Qdisc *q, enum tc_setup_type type,
 			      void *type_data);
@@ -1382,6 +1418,11 @@ void mini_qdisc_pair_init(struct mini_Qdisc_pair *miniqp, struct Qdisc *qdisc,
 			  struct mini_Qdisc __rcu **p_miniq);
 void mini_qdisc_pair_block_init(struct mini_Qdisc_pair *miniqp,
 				struct tcf_block *block);
+
+static inline bool mini_qdisc_pair_inited(struct mini_Qdisc_pair *miniqp)
+{
+	return !!miniqp->p_miniq;
+}
 
 void mq_change_real_num_tx(struct Qdisc *sch, unsigned int new_real_tx);
 

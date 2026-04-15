@@ -229,11 +229,17 @@ static __init int pkvm_setup_host_vmcs_config(void)
 		 * has the MPX, enable the MPX vmexit control to guarantee the
 		 * MSR_IA32_BNDCFGS will be cleared for the pKVM hypervisor.
 		 *
-		 * No need to enable vmentry control to load IA32_BNDCFGS for
-		 * the deprivileged host as the linux kernel will not use the
-		 * MPX even if the CPU supports it.
+		 * From the security/function point of view, there is no need to
+		 * enable VM-Entry control to load IA32_BNDCFGS for the
+		 * deprivileged host as the linux kernel will not use the MPX
+		 * even if the CPU supports it. But as the code setup the VMCS
+		 * config via reusing KVM's setup_vmcs_config_common() which
+		 * checks if MPX VM-Entry and VM-Exit configs are in pair of
+		 * not, it still needs to set VM_ENTRY_LOAD_BNDCFGS to pass
+		 * this check.
 		 */
 		setting.vmexit_ctrl_req |= VM_EXIT_CLEAR_BNDCFGS;
+		setting.vmentry_ctrl_req |= VM_ENTRY_LOAD_BNDCFGS;
 	}
 
 	if (setup_vmcs_config_common(vmcs_config, vmx_cap, &setting))

@@ -6,7 +6,6 @@
  */
 
 #include <linux/clk.h>
-#include <linux/firmware/imx/sm.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
@@ -503,12 +502,6 @@ static int fsl_audmix_probe(struct platform_device *pdev)
 			dev_err(dev, "failed to register platform: %d\n", ret);
 			goto err_disable_pm;
 		}
-	}
-
-	if (of_property_read_bool(pdev->dev.of_node, "fsl,amix-bypass")) {
-		ret = scmi_imx_misc_ctrl_set(SCMI_IMX_CTRL_BYPASS_AUDMIX, 0);
-		if (ret)
-			goto err_disable_pm;
 	}
 
 	return 0;

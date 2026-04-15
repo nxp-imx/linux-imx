@@ -43,6 +43,8 @@
   pstore_unregister
   put_disk
   runqueues
+  scsi_device_quiesce
+  scsi_device_resume
   stack_trace_save_regs
   stack_trace_save_tsk
   swap_cache_del_folio

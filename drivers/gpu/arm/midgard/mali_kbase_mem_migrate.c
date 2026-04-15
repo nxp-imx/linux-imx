@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2022-2025 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2022-2026 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -226,6 +226,11 @@ static int kbasep_migrate_page_pt_mapped(struct page *old_page, struct page *new
 
 	spin_lock(&page_md->migrate_lock);
 
+	if (PAGE_STATUS_GET(page_md->status) == FREE_PT_ISOLATED_IN_PROGRESS) {
+		ret = -EAGAIN;
+		goto early_exit;
+	}
+
 	if (WARN_ONCE(PAGE_STATUS_GET(page_md->status) != PT_MAPPED,
 		      "Page metadata status %d doesn't match expected value %d",
 		      PAGE_STATUS_GET(page_md->status), PT_MAPPED)) {
@@ -330,22 +335,31 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	vpfn = page_md->data.mapped.vpfn;
 	filp = page_md->data.mapped.mmut->kctx->filp;
 
+	if (file_count(filp) <= 0) {
+		/* Device closing, abort migration */
+		ret = -EINVAL;
+		goto early_exit;
+	}
+
 	/* Take a reference on the mali device file because
 	 * we want to unmap the old physical range but only
 	 * after having synchronized with the VM fault() function
 	 */
 	get_file(filp);
-
 	spin_unlock(&page_md->migrate_lock);
 
 	/* Defer the migration action if deferral condition exists */
-	if (kbase_mem_is_pmode_deferral_required(kbdev))
-		return -EAGAIN;
+	if (kbase_mem_is_pmode_deferral_required(kbdev)) {
+		ret = -EAGAIN;
+		goto err_exit_with_fput;
+	}
 
 	/* Create a new dma map for the new page */
 	new_dma_addr = dma_map_page(kbdev->dev, new_page, 0, PAGE_SIZE, DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(kbdev->dev, new_dma_addr))
-		return -ENOMEM;
+	if (dma_mapping_error(kbdev->dev, new_dma_addr)) {
+		ret = -ENOMEM;
+		goto err_exit_with_fput;
+	}
 
 	/* Synchronize with the VM fault() function and then
 	 * unmap the old physical range. After that, we can
@@ -355,7 +369,7 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	down(&page_md->cpu_map_lock);
 	unmap_mapping_range(filp->f_inode->i_mapping,
 			    (loff_t)(vpfn / GPU_PAGES_PER_CPU_PAGE) << PAGE_SHIFT, PAGE_SIZE, 1);
-	fput(filp);
+
 	ret = kbase_mmu_migrate_data_page(as_tagged(page_to_phys(old_page)),
 					  as_tagged(page_to_phys(new_page)), old_dma_addr,
 					  new_dma_addr);
@@ -390,6 +404,8 @@ static int kbasep_migrate_page_allocated_mapped(struct page *old_page, struct pa
 	} else
 		dma_unmap_page(kbdev->dev, new_dma_addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
 
+err_exit_with_fput:
+	fput(filp);
 	return ret;
 
 early_exit:

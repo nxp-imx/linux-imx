@@ -92,7 +92,7 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
 		buf->f_flags = calculate_f_flags(path->mnt);
 	return error;
 }
-EXPORT_SYMBOL(vfs_statfs);
+EXPORT_SYMBOL_NS(vfs_statfs, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 int user_statfs(const char __user *pathname, struct kstatfs *st)
 {

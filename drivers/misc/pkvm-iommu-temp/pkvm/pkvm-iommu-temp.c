@@ -19,9 +19,10 @@ static int iommu_temp_init(pkvm_handle_t drv_id)
 	return 0;
 }
 
-static void iommu_temp_host_stage2_idmap(phys_addr_t start, phys_addr_t end, int prot)
+static int iommu_temp_host_stage2_idmap(phys_addr_t start, phys_addr_t end, int prot)
 {
 	/* Update the IOMMU/MPU page table. */
+	return 0;
 }
 
 static bool iommu_temp_dabt_handler(struct user_pt_regs *regs, u64 esr, u64 addr)

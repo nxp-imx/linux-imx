@@ -812,6 +812,7 @@
   _find_next_bit
   _find_next_zero_bit
   find_pid_ns
+  find_task_by_vpid
   find_vma_intersection
   finish_wait
   firmware_request_nowarn
@@ -1066,7 +1067,7 @@
   iommu_paging_domain_alloc_flags
   iommu_set_fault_handler
   iommu_unmap
-  ioremap_prot
+  __ioremap_prot
   io_schedule_timeout
   iounmap
   iova_domain_init_rcaches
@@ -1247,6 +1248,7 @@
   mbox_free_channel
   mbox_request_channel
   mbox_send_message
+  mem_alloc_profiling_key
   memchr
   memcmp
   memcpy
@@ -1774,6 +1776,7 @@
   rtnl_lock
   rtnl_trylock
   rtnl_unlock
+  RUST_BINDER_LAYOUT
   sbitmap_weight
   sched_clock
   sched_setattr_nocheck
@@ -2087,6 +2090,8 @@
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_ipi_stop
+  __traceiter_android_vh_rust_binder_restore_priority
+  __traceiter_android_vh_rust_binder_set_priority
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_sysrq_crash
   __traceiter_android_vh_ufs_check_int_errors
@@ -2116,6 +2121,8 @@
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_ipi_stop
+  __tracepoint_android_vh_rust_binder_restore_priority
+  __tracepoint_android_vh_rust_binder_set_priority
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_sysrq_crash
   __tracepoint_android_vh_ufs_check_int_errors

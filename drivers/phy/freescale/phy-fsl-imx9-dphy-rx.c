@@ -42,6 +42,7 @@
 #define DSI_DPHY_TEST_CTRL0	0xB4
 #define DSI_DPHY_TEST_CTRL1	0xB8
 
+#define MAX_CSI_COUNT		2
 
 struct dw_dphy;
 
@@ -59,6 +60,9 @@ enum dphy_reg_id {
 	DPHY_RX_PHY_ENABLE_BYP,
 	DPHY_RX_PHY_PLL_CLKSEL,
 	DPHY_RX_PHY_PLL_CLKEN,
+
+	/* iMX952 only */
+	DPHY_RX_PHY_AGGR,
 };
 
 struct dw_dphy_reg {
@@ -78,18 +82,20 @@ struct dw_dphy_drv_data {
 	const struct dw_dphy_reg *regs;
 	const struct dw_dphy_config_ops *cfg_ops;
 	u32 regs_size;
-	u32 max_lanes;
+	u32 max_lanes[2];
 	u32 max_data_rate; /* Mbps */
 };
 
 struct dw_dphy {
 	struct device *dev;
 	struct regmap *dphy_regmap;
-	struct regmap *csis_regmap;
+	struct regmap *csis_regmap[MAX_CSI_COUNT];
 	struct regmap *dsi_regmap;
-	struct clk *cfg_clk;
+	struct clk_bulk_data *clks;
+	int num_clks;
 
-	u32 reg_off;
+	u32 reg_off[4];
+	u32 id;
 
 	const struct dw_dphy_drv_data *drv_data;
 	struct phy_configure_opts_mipi_dphy config;
@@ -175,16 +181,26 @@ static const struct dphy_mbps_hsfreqrange_map hsfreqrange_table[] = {
 	{ /* sentinel */ },
 };
 
-static inline void csis_write(struct dw_dphy *priv, unsigned int offset, u32 val)
+static inline void csis_write(struct dw_dphy *priv, unsigned int offset, u32 val, u32 id)
 {
-	regmap_write(priv->csis_regmap, offset, val);
+	if (id >= MAX_CSI_COUNT) {
+		id = 0;
+		dev_warn(priv->dev, "CSI write index out of bounds, using default 0\n");
+	}
+
+	regmap_write(priv->csis_regmap[id], offset, val);
 }
 
-static inline int csis_read(struct dw_dphy *priv, unsigned int offset)
+static inline int csis_read(struct dw_dphy *priv, unsigned int offset, u32 id)
 {
 	u32 val;
 
-	regmap_read(priv->csis_regmap, offset, &val);
+	if (id >= MAX_CSI_COUNT) {
+		id = 0;
+		dev_warn(priv->dev, "CSI read index out of bounds, using default 0\n");
+	}
+
+	regmap_read(priv->csis_regmap[id], offset, &val);
 	return val;
 }
 
@@ -201,7 +217,7 @@ static inline u32 dsi_read(struct dw_dphy *priv, unsigned int offset)
 	return val;
 }
 
-static int dphy_write(struct dw_dphy *priv, unsigned int index, u32 val)
+static int dphy_write(struct dw_dphy *priv, unsigned int index, u32 val, u32 id)
 {
 	const struct dw_dphy_reg *reg;
 	u32 mask;
@@ -211,12 +227,18 @@ static int dphy_write(struct dw_dphy *priv, unsigned int index, u32 val)
 		return -EINVAL;
 	}
 
+	if (id >= MAX_CSI_COUNT) {
+		id = 0;
+		dev_warn(priv->dev, "DPHY index out of range, using default 0\n");
+	}
+
 	reg = &priv->drv_data->regs[index];
 	mask = reg->mask << reg->shift;
 	val <<= reg->shift;
 
 	return regmap_update_bits(priv->dphy_regmap,
-				  reg->offset + priv->reg_off, mask, val);
+				  reg->offset + priv->reg_off[id * 2],
+				  mask, val);
 }
 
 static void dw_dphy_dump_regs(struct dw_dphy *priv)
@@ -240,10 +262,70 @@ static void dw_dphy_dump_regs(struct dw_dphy *priv)
 	dev_dbg(priv->dev, "--- DPHY registers from CSIS ---");
 
 	for (i = 0; i < ARRAY_SIZE(csis_registers); i++) {
-		cfg = csis_read(priv, csis_registers[i].offset);
+		cfg = csis_read(priv, csis_registers[i].offset, 0);
 		dev_dbg(priv->dev, "%14s[0x%02x]: 0x%08x\n",
 			csis_registers[i].name, csis_registers[i].offset, cfg);
 	}
+}
+
+static struct clk *find_cfg_clk(struct dw_dphy *priv)
+{
+	int i;
+
+	for (i = 0; i < priv->num_clks; i++) {
+		if (!strcmp(priv->clks[i].id, "phy_cfg"))
+			return priv->clks[i].clk;
+	}
+
+	return NULL;
+}
+
+static int syscon_get_csi_regmaps(struct dw_dphy *priv)
+{
+	struct device *dev = priv->dev;
+	struct device_node *np = dev->of_node;
+	struct regmap *csis;
+	int count;
+	int i;
+
+	count = of_count_phandle_with_args(np, "fsl,csis", NULL);
+	if (count <= 0) {
+		dev_err(dev, "No fsl,csis phandle found\n");
+		return -EINVAL;
+	}
+
+	dev_dbg(dev, "csis count: %d\n", count);
+
+	if (count > MAX_CSI_COUNT) {
+		dev_warn(dev, "Too many csi instance\n");
+		count = MAX_CSI_COUNT;
+	}
+
+	for (i = 0; i < count; ++i) {
+		struct device_node *csi_node;
+
+		if (priv->csis_regmap[i])
+			continue;
+
+		csi_node = of_parse_phandle(np, "fsl,csis", i);
+		if (!csi_node) {
+			dev_err(dev, "Failed to parse phandle %d\n", i);
+			return -ENODEV;
+		}
+
+		dev_dbg(dev, "csis instance[%d]: name=%s\n", i, csi_node->name);
+
+		csis = syscon_node_to_regmap(csi_node);
+		of_node_put(csi_node);
+		if (IS_ERR(csis)) {
+			dev_err(dev, "Failed to get remap for csis[%d]\n", i);
+			return PTR_ERR(csis);
+		}
+
+		priv->csis_regmap[i] = csis;
+	}
+
+	return 0;
 }
 
 static int dw_dphy_init(struct phy *phy)
@@ -251,7 +333,6 @@ static int dw_dphy_init(struct phy *phy)
 	struct dw_dphy *priv = phy_get_drvdata(phy);
 	struct device *dev = priv->dev;
 	struct device_node *np = dev->of_node;
-	struct regmap *csis;
 	int ret;
 
 	/*
@@ -261,14 +342,10 @@ static int dw_dphy_init(struct phy *phy)
 	 * CSI controller and PHY recursive dependency issue if do
 	 * this when probe.
 	 */
-	if (!priv->csis_regmap) {
-		csis = syscon_regmap_lookup_by_phandle(np, "fsl,csis");
-		if (IS_ERR(csis)) {
-			dev_err(dev, "failed to get csi controller\n");
-			return PTR_ERR(csis);
-		}
-
-		priv->csis_regmap = csis;
+	ret = syscon_get_csi_regmaps(priv);
+	if (ret) {
+		dev_err(dev, "Failed to get csi controller regmaps\n");
+		return ret;
 	}
 
 	if (!priv->dsi_regmap) {
@@ -276,21 +353,20 @@ static int dw_dphy_init(struct phy *phy)
 		priv->dsi_regmap = syscon_regmap_lookup_by_phandle(np, "fsl,dsi");
 		if (IS_ERR(priv->dsi_regmap))
 			priv->dsi_regmap = NULL;
-		of_property_read_u32(np, "fsl,reg-offset", &priv->reg_off);
 	}
 
 	ret = phy_pm_runtime_get_sync(phy);
 	if (ret < 0)
 		return ret;
 
-	return clk_prepare_enable(priv->cfg_clk);
+	return clk_bulk_prepare_enable(priv->num_clks, priv->clks);
 }
 
 static int dw_dphy_exit(struct phy *phy)
 {
 	struct dw_dphy *priv = phy_get_drvdata(phy);
 
-	clk_disable_unprepare(priv->cfg_clk);
+	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 	phy_pm_runtime_put(phy);
 	return 0;
 }
@@ -303,12 +379,12 @@ static int dw_dphy_power_on(struct phy *phy)
 	u32 val;
 
 	/* Release Synopsys DPHY test codes from reset */
-	csis_write(priv, CSIS_DPHY_RSTZ, 0x0);
-	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0);
+	csis_write(priv, CSIS_DPHY_RSTZ, 0x0, 0);
+	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0, 0);
 
-	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0);
+	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 0);
 	val &= ~PHY_TESTCLR;
-	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val);
+	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 0);
 
 	/* For combo-phy we also need to do the same for DSI phy */
 	if (priv->dsi_regmap) {
@@ -321,9 +397,9 @@ static int dw_dphy_power_on(struct phy *phy)
 	ndelay(15);
 
 	/* Set testclr=1'b1 */
-	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0);
+	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 0);
 	val |= PHY_TESTCLR;
-	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val);
+	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 0);
 
 	if (priv->dsi_regmap) {
 		val = dsi_read(priv, DSI_DPHY_TEST_CTRL0);
@@ -332,14 +408,14 @@ static int dw_dphy_power_on(struct phy *phy)
 	}
 
 	/* Config the number of active lanes */
-	csis_write(priv, CSIS_N_LANES, N_LANES(config->lanes));
+	csis_write(priv, CSIS_N_LANES, N_LANES(config->lanes), 0);
 
 	drv_data->cfg_ops->config(priv);
 
 	/* Release PHY from reset */
-	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x1);
+	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x1, 0);
 	ndelay(5);
-	csis_write(priv, CSIS_DPHY_RSTZ, 0x1);
+	csis_write(priv, CSIS_DPHY_RSTZ, 0x1, 0);
 	ndelay(5);
 
 	dw_dphy_dump_regs(priv);
@@ -350,9 +426,9 @@ static int dw_dphy_power_off(struct phy *phy)
 {
 	struct dw_dphy *priv = phy_get_drvdata(phy);
 
-	csis_write(priv, CSIS_N_LANES, 0);
-	csis_write(priv, CSIS_DPHY_RSTZ, 0x0);
-	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0);
+	csis_write(priv, CSIS_N_LANES, 0, 0);
+	csis_write(priv, CSIS_DPHY_RSTZ, 0x0, 0);
+	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0, 0);
 	return 0;
 }
 
@@ -391,7 +467,7 @@ static int dw_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
 	u64 data_rate_mbps;
 	int ret;
 
-	if (config->lanes > drv_data->max_lanes) {
+	if (config->lanes > drv_data->max_lanes[priv->id]) {
 		dev_err(dev, "The number of lanes has exceeded the maximum value\n");
 		return -EINVAL;
 	}
@@ -421,24 +497,47 @@ static int dw_dphy_reset(struct phy *phy)
 	u32 val;
 
 	/* Apply PHY Reset */
-	csis_write(priv, CSIS_DPHY_RSTZ, 0x0);
-	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0);
+	csis_write(priv, CSIS_DPHY_RSTZ, 0x0, 0);
+	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0, 0);
 	ndelay(15);
 
-	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x1);
+	csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x1, 0);
 	ndelay(15);
-	csis_write(priv, CSIS_DPHY_RSTZ, 0x1);
+	csis_write(priv, CSIS_DPHY_RSTZ, 0x1, 0);
 
 	/* Set PHY_TST_CTRL0, bit[0] */
-	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0);
+	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 0);
 	val |= PHY_TESTCLR;
-	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val);
+	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 0);
 	ndelay(15);
 
 	/* Clear PHY_TST_CTRL0, bit[0] */
-	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0);
+	val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 0);
 	val &= ~PHY_TESTCLR;
-	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val);
+	csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 0);
+
+	/* DPHY instance 1 reset */
+	if (priv->csis_regmap[1]) {
+		/* Apply PHY Reset */
+		csis_write(priv, CSIS_DPHY_RSTZ, 0x0, 1);
+		csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x0, 1);
+		ndelay(15);
+
+		csis_write(priv, CSIS_DPHY_SHUTDOWNZ, 0x1, 1);
+		ndelay(15);
+		csis_write(priv, CSIS_DPHY_RSTZ, 0x1, 1);
+
+		/* Set PHY_TST_CTRL0, bit[0] */
+		val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 1);
+		val |= PHY_TESTCLR;
+		csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 1);
+		ndelay(15);
+
+		/* Clear PHY_TST_CTRL0, bit[0] */
+		val = csis_read(priv, CSIS_DPHY_TEST_CTRL0, 1);
+		val &= ~PHY_TESTCLR;
+		csis_write(priv, CSIS_DPHY_TEST_CTRL0, val, 1);
+	}
 
 	return 0;
 }
@@ -467,8 +566,8 @@ static const struct dw_dphy_reg imx93_dphy_regs[] = {
 static void imx93_dphy_config(struct dw_dphy *priv)
 {
 	/* Configure the PHY frequency range */
-	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange);
-	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange);
+	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange, 0);
+	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange, 0);
 }
 
 static const struct dw_dphy_config_ops imx93_dphy_cfg_ops = {
@@ -479,7 +578,7 @@ static const struct dw_dphy_drv_data imx93_dphy_drvdata = {
 	.regs = imx93_dphy_regs,
 	.regs_size = ARRAY_SIZE(imx93_dphy_regs),
 	.cfg_ops = &imx93_dphy_cfg_ops,
-	.max_lanes = 2,
+	.max_lanes = { 2 },
 	.max_data_rate = 1500,
 };
 
@@ -510,19 +609,19 @@ static void imx95_dphy_config(struct dw_dphy *priv)
 	u32 active_lanes = GENMASK(config->lanes - 1, 0);
 
 	/* Configure the PHY frequency range */
-	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange);
-	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange);
+	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange, 0);
+	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange, 0);
 
-	dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, 1);
+	dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, 1, 0);
 	ndelay(15);
 
-	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes);
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes, 0);
 	ndelay(15);
 
-	dphy_write(priv, DPHY_RX_DATA_LANE_EN, active_lanes);
-	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, 0);
-	dphy_write(priv, DPHY_RX_ENABLE_CLK_EXT, 1);
-	dphy_write(priv, DPHY_RX_PHY_ENABLE_BYP, 1);
+	dphy_write(priv, DPHY_RX_DATA_LANE_EN, active_lanes, 0);
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, 0, 0);
+	dphy_write(priv, DPHY_RX_ENABLE_CLK_EXT, 1, 0);
+	dphy_write(priv, DPHY_RX_PHY_ENABLE_BYP, 1, 0);
 }
 
 static const struct dw_dphy_config_ops imx95_dphy_cfg_ops = {
@@ -533,7 +632,7 @@ static const struct dw_dphy_drv_data imx95_dphy_drvdata = {
 	.regs = imx95_dphy_regs,
 	.regs_size = ARRAY_SIZE(imx95_dphy_regs),
 	.cfg_ops = &imx95_dphy_cfg_ops,
-	.max_lanes = 4,
+	.max_lanes = { 4 },
 	.max_data_rate = 2500,
 };
 
@@ -594,7 +693,7 @@ static inline void tx_dphy_write_control(struct dw_dphy *priv,
 static inline void rx_dphy_write_control(struct dw_dphy *priv,
 					 u32 addr, u32 data)
 {
-	dphy_intf_send_cmd(priv->csis_regmap,
+	dphy_intf_send_cmd(priv->csis_regmap[0],
 			   CSIS_DPHY_TEST_CTRL0,
 			   CSIS_DPHY_TEST_CTRL1,
 			   addr, data);
@@ -606,8 +705,8 @@ static void imx95_combo_config(struct dw_dphy *priv)
 	u32 active_lanes = GENMASK(config->lanes - 1, 0);
 
 	/* Configure the PHY frequency range */
-	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange);
-	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes);
+	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange, 0);
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes, 0);
 
 	/*
 	 * Configure the combo-phy into slave mode (initialization procedure
@@ -627,18 +726,18 @@ static void imx95_combo_config(struct dw_dphy *priv)
 	rx_dphy_write_control(priv, 0xe3, 0x01);
 	rx_dphy_write_control(priv, 0xe4, 0x11);
 
-	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange);
-	dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, active_lanes);
-	dphy_write(priv, DPHY_RX_PHY_PLL_CLKSEL, 1);
-	dphy_write(priv, DPHY_RX_PHY_PLL_CLKEN, 1);
+	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange, 0);
+	dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, active_lanes, 0);
+	dphy_write(priv, DPHY_RX_PHY_PLL_CLKSEL, 1, 0);
+	dphy_write(priv, DPHY_RX_PHY_PLL_CLKEN, 1, 0);
 
 	ndelay(15);
 
-	dphy_write(priv, DPHY_RX_DATA_LANE_EN, active_lanes);
-	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, 0);
-	dphy_write(priv, DPHY_RX_ENABLE_CLK_EXT, 1);
-	dphy_write(priv, DPHY_RX_TURNDISABLE, 0);
-	dphy_write(priv, DPHY_RX_PHY_ENABLE_BYP, 1);
+	dphy_write(priv, DPHY_RX_DATA_LANE_EN, active_lanes, 0);
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, 0, 0);
+	dphy_write(priv, DPHY_RX_ENABLE_CLK_EXT, 1, 0);
+	dphy_write(priv, DPHY_RX_TURNDISABLE, 0, 0);
+	dphy_write(priv, DPHY_RX_PHY_ENABLE_BYP, 1, 0);
 }
 
 static const struct dw_dphy_config_ops imx95_combo_cfg_ops = {
@@ -649,7 +748,204 @@ static const struct dw_dphy_drv_data imx95_combo_drvdata = {
 	.regs = imx95_combo_regs,
 	.regs_size = ARRAY_SIZE(imx95_combo_regs),
 	.cfg_ops = &imx95_combo_cfg_ops,
-	.max_lanes = 4,
+	.max_lanes = { 4 },
+	.max_data_rate = 2500,
+};
+
+/* -----------------------------------------------------------------------------
+ * i.MX952 PHY config
+ **/
+
+/* DPHY CSR */
+#define IMX952_CSR_PHY_MODE_CTRL		0x00
+#define IMX952_CSR_PHY_FREQ_CTRL		0x04
+#define IMX952_CSR_PHY_TEST_MODE_CTRL		0x08
+#define IMX952_CSR_PHY_TEST_MODE_STS		0x0C
+#define IMX952_CSR_4L_2L_AGGR_CTRL		0x300
+
+static const struct dw_dphy_reg imx952_dphy_regs[] = {
+	[DPHY_RX_CFGCLKFREQRANGE] = PHY_REG(IMX952_CSR_PHY_FREQ_CTRL, 6, 0),
+	[DPHY_RX_HSFREQRANGE] = PHY_REG(IMX952_CSR_PHY_FREQ_CTRL, 7, 16),
+	[DPHY_RX_DATA_LANE_EN] = PHY_REG(IMX952_CSR_PHY_MODE_CTRL, 2, 4),
+	[DPHY_RX_DATA_LANE_BASEDIR] = PHY_REG(IMX952_CSR_PHY_TEST_MODE_CTRL, 1, 0),
+	[DPHY_RX_DATA_LANE_FORCETXSTOPMODE] = PHY_REG(IMX952_CSR_PHY_TEST_MODE_CTRL, 1, 4),
+	[DPHY_RX_DATA_LANE_FORCERXMODE] = PHY_REG(IMX952_CSR_PHY_TEST_MODE_CTRL, 2, 8),
+	[DPHY_RX_ENABLE_CLK_EXT] = PHY_REG(IMX952_CSR_PHY_TEST_MODE_CTRL, 1, 12),
+	[DPHY_RX_PHY_ENABLE_BYP] = PHY_REG(IMX952_CSR_PHY_TEST_MODE_CTRL, 1, 14),
+	[DPHY_RX_PHY_AGGR] = PHY_REG(IMX952_CSR_4L_2L_AGGR_CTRL, 1, 0),
+};
+
+static void dphy_write_control(struct dw_dphy *priv, u8 addr, u8 data, u8 instance)
+{
+	struct regmap *base;
+
+	if (instance >= MAX_CSI_COUNT) {
+		instance = 0;
+		dev_warn(priv->dev, "DPHY write instance out of bounds, using default 0\n");
+	}
+
+	base = priv->csis_regmap[instance];
+
+	/* prepare address content */
+	regmap_set_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTEN);
+	regmap_update_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTIN_MASK, PHY_TESTIN(addr));
+
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLR);
+
+	regmap_set_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+
+	/* prepare data content */
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTEN);
+	regmap_update_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTIN_MASK, PHY_TESTIN(data));
+
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+	regmap_set_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+}
+
+static void dphy_read_control(struct dw_dphy *priv, u8 addr, u8 *data, u8 instance)
+{
+	struct regmap *base;
+	u32 val;
+
+	if (instance >= MAX_CSI_COUNT) {
+		instance = 0;
+		dev_warn(priv->dev, "DPHY read instance out of bounds, using default 0\n");
+	}
+
+	base = priv->csis_regmap[instance];
+
+	/* prepare address content */
+	regmap_set_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTEN);
+	regmap_update_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTIN_MASK, PHY_TESTIN(addr));
+
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLR);
+
+	regmap_set_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL0, PHY_TESTCLK);
+
+	regmap_read(base, CSIS_DPHY_TEST_CTRL1, &val);
+	*data = PHY_TESTOUT(val);
+
+	regmap_clear_bits(base, CSIS_DPHY_TEST_CTRL1, PHY_TESTEN);
+}
+
+static void dphy_2lanes_control(struct dw_dphy *priv, int instance)
+{
+	u8 val;
+
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0x01, 0x20, instance);
+	dphy_write_control(priv, 0x02, priv->hsfreqrange, instance);
+
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0xe5, 0x01, instance);
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0xe4, 0x10, instance);
+
+	dphy_write_control(priv, 0x00, 0x1, instance);
+	dphy_write_control(priv, 0xac, 0x4b, instance);
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0x0a, 0x43, instance);
+	dphy_write_control(priv, 0x00, 0x3, instance);
+	dphy_write_control(priv, 0x07, 0x80, instance);
+
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0xe2, (priv->ddlfreq & 0xff), instance);
+	dphy_write_control(priv, 0x00, 0x0, instance);
+	dphy_write_control(priv, 0xe3, ((priv->ddlfreq >> 8) & 0xff), instance);
+	dphy_write_control(priv, 0xe4, 0x11, instance);
+
+	dphy_read_control(priv, 0x02, &val, instance);
+	dev_dbg(priv->dev, "instance[%d]: hsfreq = %#x\n", instance, val);
+}
+
+static void dphy_4lanes_control(struct dw_dphy *priv)
+{
+	dphy_write_control(priv, 0x00, 0x01, 0);
+	dphy_write_control(priv, 0x33, 0x01, 0);
+	dphy_write_control(priv, 0x00, 0x01, 1);
+	dphy_write_control(priv, 0x33, 0x00, 1);
+
+	dphy_write_control(priv, 0x00, 0x03, 0);
+	dphy_write_control(priv, 0x07, 0x04, 0);
+	dphy_write_control(priv, 0x00, 0x03, 1);
+	dphy_write_control(priv, 0x07, 0x00, 1);
+
+	dphy_write_control(priv, 0x00, 0x05, 0);
+	dphy_write_control(priv, 0x08, 0x20, 0);
+	dphy_write_control(priv, 0x00, 0x05, 1);
+	dphy_write_control(priv, 0x08, 0x20, 1);
+
+	dphy_write_control(priv, 0x00, 0x07, 0);
+	dphy_write_control(priv, 0x08, 0x20, 0);
+	dphy_write_control(priv, 0x00, 0x07, 1);
+	dphy_write_control(priv, 0x08, 0x20, 1);
+
+	dphy_write_control(priv, 0x00, 0x03, 0);
+	dphy_write_control(priv, 0x08, 0x00, 0);
+	dphy_write_control(priv, 0x00, 0x03, 1);
+	dphy_write_control(priv, 0x08, 0x08, 1);
+
+	dphy_write_control(priv, 0x00, 0x00, 1);
+	dphy_write_control(priv, 0xe0, 0x03, 1);
+
+	dphy_write_control(priv, 0x00, 0x00, 1);
+	dphy_write_control(priv, 0xe1, 0x02, 1);
+
+	dphy_write_control(priv, 0x00, 0x03, 1);
+	dphy_write_control(priv, 0x07, 0x08, 1);
+
+	dphy_write_control(priv, 0x00, 0x03, 1);
+	dphy_write_control(priv, 0x04, 0x80, 1);
+
+	dphy_write_control(priv, 0x00, 0x03, 1);
+	dphy_write_control(priv, 0x05, 0x80, 1);
+}
+
+static void imx952_dphy_config(struct dw_dphy *priv)
+{
+	struct phy_configure_opts_mipi_dphy *config = &priv->config;
+	u32 active_lanes = GENMASK(config->lanes - 1, 0);
+
+	/* DPHY control */
+	dphy_2lanes_control(priv, 0);
+
+	/* Configure the PHY frequency range */
+	dphy_write(priv, DPHY_RX_CFGCLKFREQRANGE, priv->cfgclkfreqrange, 0);
+	dphy_write(priv, DPHY_RX_HSFREQRANGE, priv->hsfreqrange, 0);
+
+	dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, 1, 0);
+	ndelay(15);
+
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes, 0);
+	ndelay(15);
+
+	dphy_write(priv, DPHY_RX_DATA_LANE_EN, active_lanes, 0);
+	dphy_write(priv, DPHY_RX_DATA_LANE_FORCERXMODE, 0, 0);
+	dphy_write(priv, DPHY_RX_ENABLE_CLK_EXT, 1, 0);
+	dphy_write(priv, DPHY_RX_PHY_ENABLE_BYP, 1, 0);
+
+	if (config->lanes > 2) {
+		dphy_2lanes_control(priv, 1);
+		dphy_4lanes_control(priv);
+
+		dphy_write(priv, DPHY_RX_DATA_LANE_BASEDIR, 1, 1);
+		dphy_write(priv, DPHY_RX_PHY_AGGR, 0x1, 0);
+	}
+}
+
+static const struct dw_dphy_config_ops imx952_dphy_cfg_ops = {
+	.config = imx952_dphy_config,
+};
+
+static const struct dw_dphy_drv_data imx952_dphy_drvdata = {
+	.regs = imx952_dphy_regs,
+	.regs_size = ARRAY_SIZE(imx952_dphy_regs),
+	.cfg_ops = &imx952_dphy_cfg_ops,
+	.max_lanes = { 4, 2 },
 	.max_data_rate = 2500,
 };
 
@@ -657,6 +953,7 @@ static const struct of_device_id dw_dphy_of_match[] = {
 	{ .compatible = "fsl,imx93-dphy-rx", .data = &imx93_dphy_drvdata},
 	{ .compatible = "fsl,imx95-dphy-rx", .data = &imx95_dphy_drvdata},
 	{ .compatible = "fsl,imx95-combo-rx", .data = &imx95_combo_drvdata},
+	{ .compatible = "fsl,imx952-dphy-rx", .data = &imx952_dphy_drvdata},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, dw_dphy_of_match);
@@ -669,6 +966,8 @@ static int dw_dphy_probe(struct platform_device *pdev)
 	struct dw_dphy *priv;
 	struct phy *phy;
 	unsigned long cfg_rate;
+	int count;
+	int ret;
 
 	if (!dev->parent || !dev->parent->of_node)
 		return -ENODEV;
@@ -680,20 +979,30 @@ static int dw_dphy_probe(struct platform_device *pdev)
 	priv->dev = dev;
 	priv->drv_data = of_device_get_match_data(dev);
 
+	ret = of_alias_get_id(np, "dphy");
+	priv->id = ret < 0 ? 0 : ret;
+
 	priv->dphy_regmap = syscon_node_to_regmap(dev->parent->of_node);
 	if (IS_ERR(priv->dphy_regmap)) {
 		dev_err(dev, "Failed to DPHY regmap\n");
 		return -ENODEV;
 	}
 
-	priv->cfg_clk = devm_clk_get(dev, "phy_cfg");
-	if (IS_ERR(priv->cfg_clk)) {
-		dev_err(dev, "Failed to get DPHY config clock\n");
-		return PTR_ERR(priv->cfg_clk);
+	count = of_property_count_u32_elems(np, "reg");
+	if (count > 0) {
+		ret = of_property_read_u32_array(np, "reg", priv->reg_off, count);
+		if (ret) {
+			dev_dbg(dev, "reg property not specified, using default 0\n");
+			return ret;
+		}
 	}
 
+	priv->num_clks = devm_clk_bulk_get_all(dev, &priv->clks);
+	if (priv->num_clks < 0)
+		return dev_err_probe(dev, priv->num_clks, "Failed to get clocks\n");
+
 	/* cfgclkfreqrange[5:0] = round[(cfg_clk(MHz) - 17) * 4] */
-	cfg_rate = clk_get_rate(priv->cfg_clk);
+	cfg_rate = clk_get_rate(find_cfg_clk(priv));
 	if (!cfg_rate) {
 		dev_err(dev, "Failed to get PHY config clock rate\n");
 		return -EINVAL;

@@ -1642,7 +1642,7 @@ free_lock:
 	locks_free_lease(new_fl);
 	return error;
 }
-EXPORT_SYMBOL(__break_lease);
+EXPORT_SYMBOL_NS(__break_lease, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  *	lease_get_mtime - update modified time of an inode with exclusive lease

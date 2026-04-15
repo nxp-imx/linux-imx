@@ -248,7 +248,7 @@ error:
 	abort_creds(new);
 	return NULL;
 }
-EXPORT_SYMBOL(prepare_creds);
+EXPORT_SYMBOL_NS(prepare_creds, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * Prepare credentials for current to perform an execve()

@@ -286,8 +286,19 @@ static int kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *s
 
 	kbase_pm_get_dvfs_metrics(kbdev, &kbdev->last_devfreq_metrics, &diff);
 
-	stat->busy_time = diff.time_busy;
-	stat->total_time = diff.time_busy + diff.time_idle;
+	/*
+	 * After clear SELECT_CSHW register to enable gpu autocg, busy_time from
+	 * gpu ipa counter is always 0. In this case, gpu will run at min freq.
+	 * To make gpu run at max freq, we set total_time=busy_time temporarily on 952.
+	 */
+	if (of_machine_is_compatible("fsl,imx952")) {
+		stat->busy_time = diff.time_idle;
+		stat->total_time = diff.time_idle;
+	} else {
+		stat->busy_time = diff.time_busy;
+		stat->total_time = diff.time_busy + diff.time_idle;
+	}
+
 	stat->current_frequency = kbdev->current_nominal_freq;
 	stat->private_data = NULL;
 
@@ -433,8 +444,6 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 	u64 shader_present = kbdev->gpu_props.shader_present;
 
 	if (!opp_node)
-		return 0;
-	if (!of_device_is_compatible(opp_node, "operating-points-v2-mali"))
 		return 0;
 
 	count = dev_pm_opp_get_opp_count(kbdev->dev);

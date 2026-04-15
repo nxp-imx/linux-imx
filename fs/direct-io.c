@@ -1313,7 +1313,7 @@ fail_dio:
 	kmem_cache_free(dio_cache, dio);
 	return retval;
 }
-EXPORT_SYMBOL(__blockdev_direct_IO);
+EXPORT_SYMBOL_NS(__blockdev_direct_IO, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static __init int dio_init(void)
 {

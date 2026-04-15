@@ -937,7 +937,7 @@ static int max8903_suspend(struct platform_device *pdev,
 				irq = gpio_to_irq(pdata->uok);
 				enable_irq_wake(irq);
 			}
-			cancel_delayed_work(&data->work);
+			cancel_delayed_work_sync(&data->work);
 		}
 	}
 	return 0;

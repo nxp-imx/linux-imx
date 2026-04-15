@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2017-2020,2022,2023 NXP
+ * Copyright 2017-2020,2022,2023,2026 NXP
  */
 
 #ifndef __DPU95_CRTC_H__
@@ -9,7 +9,6 @@
 
 #include <linux/completion.h>
 #include <linux/kernel.h>
-#include <linux/of.h>
 
 #include <drm/drm_crtc.h>
 #include <drm/drm_print.h>
@@ -36,12 +35,12 @@ struct dpu95_drm_device;
 struct dpu95_crtc {
 	struct drm_crtc			base;
 	struct dpu95_soc		*dpu;
-	struct device_node		*np;
 	struct dpu95_constframe		*cf_cont;
 	struct dpu95_extdst		*ed_cont;
 	struct dpu95_framegen		*fg;
 	struct dpu95_domainblend	*db;
 	struct dpu95_dither		*dt;
+	struct dpu95_localdimming	*ld;
 	unsigned int			dpu_dec_frame_complete_irq;
 	unsigned int			dpu_dec_seq_complete_irq;
 	unsigned int			dpu_dec_shdld_irq;

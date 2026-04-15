@@ -1407,3 +1407,4 @@ module_exit(zloop_exit);
 
 MODULE_DESCRIPTION("Zoned loopback device");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");

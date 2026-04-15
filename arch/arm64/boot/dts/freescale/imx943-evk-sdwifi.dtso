@@ -33,16 +33,6 @@
 	};
 };
 
-/*
- * Since usdhc3 has issue with single GPIO_IO48 pad for usdhc3 clk, need to
- * add ETH4_TX_CLK pad for usdhc3 clock internal reference, otherwise usdhc3
- * can't trigger transfer complete interrupt.
- * Disable enetc2 due to pin conflict.
- */
-&enetc2 {
-	status = "disabled";
-};
-
 &pcie0 {
 	status = "disabled";
 };
@@ -57,9 +47,10 @@
 	mmc-pwrseq = <&usdhc3_pwrseq>;
 	non-removable;
 	/*
-	 * Only enable SDIO2.0 mode as the corresponding GPIO pads are 3.3V, the
-	 * max frequency is 50MHz.
+	 * Only enable SDIO2.0 mode as the corresponding GPIO pads are 3.3V.
+	 * Per hardware team requirement, the max frequency is limited to 25MHz.
 	 */
+	max-frequency = <25000000>;
 	pinctrl-0 = <&pinctrl_usdhc3>;
 	pinctrl-1 = <&pinctrl_usdhc3>;
 	pinctrl-names = "default", "sleep";
@@ -72,7 +63,6 @@
 	pinctrl_usdhc3: usdhc3grp {
 		fsl,pins = <
 			IMX94_PAD_GPIO_IO48__USDHC3_CLK		0x158e
-			IMX94_PAD_ETH4_TX_CLK__USDHC3_CLK	0x158e
 			IMX94_PAD_GPIO_IO49__USDHC3_CMD		0x4000138e
 			IMX94_PAD_GPIO_IO50__USDHC3_DATA0	0x138e
 			IMX94_PAD_GPIO_IO51__USDHC3_DATA1	0x138e

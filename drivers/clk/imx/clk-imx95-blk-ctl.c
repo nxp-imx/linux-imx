@@ -5,6 +5,7 @@
 
 #include <dt-bindings/clock/nxp,imx94-clock.h>
 #include <dt-bindings/clock/nxp,imx95-clock.h>
+#include <dt-bindings/clock/nxp,imx952-clock.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/pm_runtime.h>
@@ -44,6 +45,8 @@ struct imx95_blk_ctl_clk_dev_data {
 	const char * const *parent_names;
 	u32 num_parents;
 	u32 reg;
+	u32 reg_init_msk;
+	u32 reg_init_val;
 	u32 bit_idx;
 	u32 bit_width;
 	u32 clk_type;
@@ -278,12 +281,24 @@ static const struct imx95_blk_ctl_dev_data netcmix_dev_data = {
 };
 
 static const struct imx95_blk_ctl_clk_dev_data hsio_blk_ctl_clk_dev_data[] = {
-	[0] = {
+	[1] = {
 		.name = "hsio_blk_ctl_clk",
 		.parent_names = (const char *[]){ "hsio_pll", },
 		.num_parents = 1,
 		.reg = 0,
+		.reg_init_msk = GENMASK(10, 7),
+		.reg_init_val = GENMASK(10, 7),
 		.bit_idx = 6,
+		.bit_width = 1,
+		.type = CLK_GATE,
+		.flags = CLK_SET_RATE_PARENT,
+	},
+	[0] = {
+		.name = "pcie_ref_out_en",
+		.parent_names = (const char *[]){ "hsio_blk_ctl_clk", },
+		.num_parents = 1,
+		.reg = 0,
+		.bit_idx = 2,
 		.bit_width = 1,
 		.type = CLK_GATE,
 		.flags = CLK_SET_RATE_PARENT,
@@ -291,7 +306,7 @@ static const struct imx95_blk_ctl_clk_dev_data hsio_blk_ctl_clk_dev_data[] = {
 };
 
 static const struct imx95_blk_ctl_dev_data hsio_blk_ctl_dev_data = {
-	.num_clks = 1,
+	.num_clks = ARRAY_SIZE(hsio_blk_ctl_clk_dev_data),
 	.clk_dev_data = hsio_blk_ctl_clk_dev_data,
 };
 
@@ -336,6 +351,24 @@ static const struct imx95_blk_ctl_dev_data imx94_dispmix_csr_dev_data = {
 	.num_clks = ARRAY_SIZE(imx94_dispmix_csr_clk_dev_data),
 	.clk_dev_data = imx94_dispmix_csr_clk_dev_data,
 	.rpm_enabled = true,
+};
+
+static const struct imx95_blk_ctl_clk_dev_data imx952_cm0p_clk_dev_data[] = {
+	[IMX952_CLK_CM0P_GATE_SEL] = {
+		.name = "cm0p_clk_gate",
+		.parent_names = (const char *[]){ "disp", },
+		.num_parents = 1,
+		.reg = 0,
+		.bit_idx = 0,
+		.type = CLK_GATE,
+		.flags = CLK_SET_RATE_PARENT,
+		.flags2 = CLK_GATE_SET_TO_DISABLE,
+	},
+};
+
+static const struct imx95_blk_ctl_dev_data imx952_cm0p_csr_dev_data = {
+	.num_clks = 1,
+	.clk_dev_data = imx952_cm0p_clk_dev_data,
 };
 
 static int imx95_bc_probe(struct platform_device *pdev)
@@ -394,6 +427,9 @@ static int imx95_bc_probe(struct platform_device *pdev)
 	for (i = 0; i < bc->pdata->num_clks; i++) {
 		const struct imx95_blk_ctl_clk_dev_data *data = &bc->pdata->clk_dev_data[i];
 		void __iomem *reg = base + data->reg;
+
+		if (data->reg_init_msk)
+			writel((readl(reg) & ~data->reg_init_msk) | data->reg_init_val, reg);
 
 		if (data->type == CLK_MUX) {
 			hws[i] = clk_hw_register_mux(dev, data->name, data->parent_names,
@@ -537,6 +573,9 @@ static const struct of_device_id imx95_bc_of_match[] = {
 	{ .compatible = "nxp,imx95-hsio-blk-ctl", .data = &hsio_blk_ctl_dev_data },
 	{ .compatible = "nxp,imx95-vpu-csr", .data = &vpublk_dev_data },
 	{ .compatible = "nxp,imx95-netcmix-blk-ctrl", .data = &netcmix_dev_data},
+	{ .compatible = "nxp,imx952-display-cm0p-csr", .data = &imx952_cm0p_csr_dev_data },
+	{ .compatible = "nxp,imx952-display-csr", },
+	{ .compatible = "nxp,imx952-display-dsi-csr", },
 	{ /* Sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, imx95_bc_of_match);

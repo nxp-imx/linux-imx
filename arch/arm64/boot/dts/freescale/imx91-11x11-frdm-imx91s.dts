@@ -402,6 +402,7 @@
 		reg = <0x22>;
 		gpio-controller;
 		#gpio-cells = <2>;
+		gpio-line-names = "", "", "IWxxx_NB_IND_RST_15_4";
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		interrupt-parent = <&gpio3>;
@@ -417,6 +418,12 @@
 			gpio-hog;
 			gpios = <5 GPIO_ACTIVE_HIGH>;
 			output-high;
+		};
+
+		config-lpspi-hog {
+			gpio-hog;
+			gpios = <20 GPIO_ACTIVE_HIGH>;
+			output-low;
 		};
 	};
 };
@@ -440,6 +447,24 @@
 
 	bluetooth {
 		compatible = "nxp,88w8987-bt";
+		fw-init-baudrate = <3000000>;
+	};
+};
+
+&lpspi1 {
+	fsl,spi-num-chipselects = <1>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpspi1>;
+	pinctrl-1 = <&pinctrl_lpspi1>;
+	cs-gpios = <&gpio1 11 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	spidev0: spi@0 {
+		reg = <0>;
+		compatible = "lwn,bk4";
+		spi-max-frequency = <1000000>;
+		spi-cs-inactive-delay-ns = <50000>;
+		label="IWxxx_SPIDEV";
 	};
 };
 
@@ -638,6 +663,15 @@
 		fsl,pins = <
 			MX91_PAD_I2C2_SCL__LPI2C2_SCL			0x40000b9e
 			MX91_PAD_I2C2_SDA__LPI2C2_SDA			0x40000b9e
+		>;
+	};
+
+	pinctrl_lpspi1: lpspi1grp {
+		fsl,pins = <
+			MX91_PAD_SAI1_TXFS__GPIO1_IO11      0x3fe
+			MX91_PAD_SAI1_TXC__LPSPI1_SIN       0x3fe
+			MX91_PAD_SAI1_RXD0__LPSPI1_SOUT     0x3fe
+			MX91_PAD_SAI1_TXD0__LPSPI1_SCK      0x3fe
 		>;
 	};
 

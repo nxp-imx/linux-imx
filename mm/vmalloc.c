@@ -3852,6 +3852,8 @@ void *__vmalloc_node_range_noprof(unsigned long size, unsigned long align,
 	unsigned long original_align = align;
 	unsigned int shift = PAGE_SHIFT;
 
+	trace_android_vh_vmalloc_node_range_start(size);
+
 	if (WARN_ON_ONCE(!size))
 		return NULL;
 
@@ -3947,7 +3949,7 @@ again:
 
 	if (!(vm_flags & VM_DEFER_KMEMLEAK))
 		kmemleak_vmalloc(area, PAGE_ALIGN(size), gfp_mask);
-
+	trace_android_vh_vmalloc_node_range_end(size, area->addr);
 	return area->addr;
 
 fail:

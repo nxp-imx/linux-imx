@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx94-pinfunc.h"
+
+/*
+ * Since usdhc3 has issue with single GPIO_IO48 pad for usdhc3 clk, need to
+ * add ETH4_TX_CLK pad for usdhc3 clock internal reference, otherwise usdhc3
+ * can't trigger transfer complete interrupt. Refer to TKT0668914.
+ * Disable enetc2 due to pin conflict.
+ */
+&enetc2 {
+	status = "disabled";
+};
+
+&scmi_iomuxc {
+	pinctrl_usdhc3: usdhc3grp {
+		fsl,pins = <
+			IMX94_PAD_GPIO_IO48__USDHC3_CLK		0x158e
+			IMX94_PAD_ETH4_TX_CLK__USDHC3_CLK	0x158e
+			IMX94_PAD_GPIO_IO49__USDHC3_CMD		0x4000138e
+			IMX94_PAD_GPIO_IO50__USDHC3_DATA0	0x138e
+			IMX94_PAD_GPIO_IO51__USDHC3_DATA1	0x138e
+			IMX94_PAD_GPIO_IO52__USDHC3_DATA2	0x138e
+			IMX94_PAD_GPIO_IO53__USDHC3_DATA3	0x138e
+		>;
+	};
+};

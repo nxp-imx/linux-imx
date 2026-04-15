@@ -19,6 +19,7 @@
 #include <linux/spinlock.h>
 #include <linux/srcu.h>
 #include <linux/workqueue.h>
+#include <linux/android_kabi.h>
 
 #define GPIOCHIP_NAME	"gpiochip"
 
@@ -89,6 +90,7 @@ struct gpio_device {
 	 */
 	struct list_head pin_ranges;
 #endif
+	ANDROID_KABI_RESERVE(1);
 };
 
 static inline struct gpio_device *to_gpio_device(struct device *dev)
@@ -132,6 +134,7 @@ struct gpio_array {
 	struct gpio_device	*gdev;
 	unsigned long		*get_mask;
 	unsigned long		*set_mask;
+	ANDROID_KABI_RESERVE(1);
 	unsigned long		invert_mask[];
 };
 
@@ -216,6 +219,7 @@ struct gpio_desc {
 	/* debounce period in microseconds */
 	unsigned int		debounce_period_us;
 #endif
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define gpiod_not_found(desc)		(IS_ERR(desc) && PTR_ERR(desc) == -ENOENT)

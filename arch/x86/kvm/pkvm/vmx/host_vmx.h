@@ -14,6 +14,4 @@ void pkvm_host_vmexit_main(struct vcpu_vmx *vmx);
 
 void pkvm_vmx_reprivilege_cpu(unsigned long *vcpu_regs);
 
-void pkvm_host_vmx_fixup(struct vcpu_vmx *vmx);
-
 #endif /* __PKVM_VMX_HOST_VMX_H */

@@ -1237,19 +1237,6 @@
 	};
 };
 
-&vpu_g1 {
-	status = "disabled";
-};
-
-&vpu_g2 {
-	status = "disabled";
-};
-
-&vpu {
-	vpu-supply = <&sw1c_reg>;
-	status = "okay";
-};
-
 &vpu_v4l2 {
 	status = "okay";
 };

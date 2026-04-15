@@ -134,6 +134,7 @@ int imx95_xpcs_phy_sgmii_1g_config(struct dw_xpcs *xpcs);
 int imx95_xpcs_phy_sgmii_2p5g_config(struct dw_xpcs *xpcs);
 int imx94_xpcs_phy_sgmii_1g_config(struct dw_xpcs *xpcs);
 int imx94_xpcs_phy_sgmii_2p5g_config(struct dw_xpcs *xpcs);
+int imx952_xpcs_phy_sgmii_config(struct dw_xpcs *xpcs);
 void xpcs_phy_reset(struct dw_xpcs *xpcs);
 u32 xpcs_phy_get_id(struct dw_xpcs *xpcs);
 int xpcs_phy_check_id(u32 id);

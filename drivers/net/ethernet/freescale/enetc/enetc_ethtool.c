@@ -1487,6 +1487,8 @@ static void enetc_get_ringparam(struct net_device *ndev,
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
 
+	ring->rx_max_pending = priv->rx_bd_count;
+	ring->tx_max_pending = priv->tx_bd_count;
 	ring->rx_pending = priv->rx_bd_count;
 	ring->tx_pending = priv->tx_bd_count;
 
@@ -1670,6 +1672,7 @@ static int enetc_get_phc_index_by_pdev(struct enetc_si *si)
 		devfn = PCI_DEVFN(24, 0);
 		break;
 	case ENETC_REV_4_3:
+	case ENETC_REV_4_6:
 		devfn = PCI_DEVFN(0, 1);
 		break;
 	default:
@@ -1889,7 +1892,7 @@ static int enetc_set_wol(struct net_device *dev,
 	}
 
 	if (!priv->wolopts && wol->wolopts) {
-		if (priv->rcec && !netc_ierb_may_wakeonlan()) {
+		if (priv->rcec) {
 			priv->rcec->dev_flags |= PCI_DEV_FLAGS_NO_D3;
 			device_set_wakeup_enable(&priv->rcec->dev, 1);
 		}
@@ -1901,7 +1904,7 @@ static int enetc_set_wol(struct net_device *dev,
 	if (!wol->wolopts) {
 		netc_ierb_disable_wakeonlan();
 
-		if (priv->rcec && !netc_ierb_may_wakeonlan()) {
+		if (priv->rcec) {
 			device_set_wakeup_enable(&priv->rcec->dev, 0);
 			priv->rcec->dev_flags &= ~PCI_DEV_FLAGS_NO_D3;
 		}

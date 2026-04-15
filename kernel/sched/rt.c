@@ -1437,12 +1437,15 @@ static void dequeue_rt_entity(struct sched_rt_entity *rt_se, unsigned int flags)
 static inline bool should_honor_rt_sync(struct rq *rq, struct task_struct *p,
 					bool sync)
 {
+	bool honor = true;
+
+	trace_android_rvh_should_honor_rt_sync(rq, p, sync, &honor);
 	/*
 	 * If the waker is CFS, then an RT sync wakeup would preempt the waker
 	 * and force it to run for a likely small time after the RT wakee is
 	 * done. So, only honor RT sync wakeups from RT wakers.
 	 */
-	return sync && task_has_rt_policy(rq->curr) &&
+	return honor && sync && task_has_rt_policy(rq->curr) &&
 		p->prio <= rq->rt.highest_prio.next &&
 		rq->rt.rt_nr_running <= 2;
 }

@@ -633,6 +633,7 @@ static void __exit exit_dlmfs_fs(void)
 
 MODULE_AUTHOR("Oracle");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 MODULE_DESCRIPTION("OCFS2 DLM-Filesystem");
 
 module_init(init_dlmfs_fs)

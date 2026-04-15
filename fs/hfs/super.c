@@ -31,6 +31,7 @@ static struct kmem_cache *hfs_inode_cachep;
 
 MODULE_DESCRIPTION("Apple Macintosh file system support");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static int hfs_sync_fs(struct super_block *sb, int wait)
 {

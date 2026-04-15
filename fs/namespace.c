@@ -547,7 +547,7 @@ int mnt_want_write_file(struct file *file)
 		sb_end_write(file_inode(file)->i_sb);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(mnt_want_write_file);
+EXPORT_SYMBOL_NS_GPL(mnt_want_write_file, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * mnt_put_write_access - give up write access to a mount
@@ -591,7 +591,7 @@ void mnt_drop_write_file(struct file *file)
 	mnt_put_write_access_file(file);
 	sb_end_write(file_inode(file)->i_sb);
 }
-EXPORT_SYMBOL(mnt_drop_write_file);
+EXPORT_SYMBOL_NS(mnt_drop_write_file, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * mnt_hold_writers - prevent write access to the given mount
@@ -1425,7 +1425,7 @@ struct vfsmount *mntget(struct vfsmount *mnt)
 		mnt_add_count(real_mount(mnt), 1);
 	return mnt;
 }
-EXPORT_SYMBOL(mntget);
+EXPORT_SYMBOL_NS_GPL(mntget, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * Make a mount point inaccessible to new lookups.

@@ -602,7 +602,7 @@ void d_drop(struct dentry *dentry)
 	__d_drop(dentry);
 	spin_unlock(&dentry->d_lock);
 }
-EXPORT_SYMBOL(d_drop);
+EXPORT_SYMBOL_NS(d_drop, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static inline void dentry_unlist(struct dentry *dentry)
 {
@@ -984,7 +984,7 @@ repeat:
 	spin_unlock(&ret->d_lock);
 	return ret;
 }
-EXPORT_SYMBOL(dget_parent);
+EXPORT_SYMBOL_NS(dget_parent, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static struct dentry * __d_find_any_alias(struct inode *inode)
 {
@@ -2083,7 +2083,7 @@ struct dentry *d_obtain_alias(struct inode *inode)
 {
 	return __d_obtain_alias(inode, true);
 }
-EXPORT_SYMBOL(d_obtain_alias);
+EXPORT_SYMBOL_NS(d_obtain_alias, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * d_obtain_root - find or allocate a dentry for a given inode
@@ -2158,7 +2158,7 @@ struct dentry *d_add_ci(struct dentry *dentry, struct inode *inode,
 	}
 	return found;
 }
-EXPORT_SYMBOL(d_add_ci);
+EXPORT_SYMBOL_NS(d_add_ci, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * d_same_name - compare dentry name with case-exact name
@@ -2503,7 +2503,7 @@ void d_rehash(struct dentry * entry)
 	__d_rehash(entry);
 	spin_unlock(&entry->d_lock);
 }
-EXPORT_SYMBOL(d_rehash);
+EXPORT_SYMBOL_NS(d_rehash, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static inline unsigned start_dir_add(struct inode *dir)
 {
@@ -2904,7 +2904,7 @@ void d_move(struct dentry *dentry, struct dentry *target)
 	__d_move(dentry, target, false);
 	write_sequnlock(&rename_lock);
 }
-EXPORT_SYMBOL(d_move);
+EXPORT_SYMBOL_NS(d_move, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * d_exchange - exchange two dentries
@@ -3065,7 +3065,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 {
 	return d_splice_alias_ops(inode, dentry, NULL);
 }
-EXPORT_SYMBOL(d_splice_alias);
+EXPORT_SYMBOL_NS(d_splice_alias, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * Test whether new_dentry is a subdirectory of old_dentry.

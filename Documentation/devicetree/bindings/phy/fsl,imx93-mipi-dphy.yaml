@@ -13,22 +13,23 @@ properties:
   compatible:
     items:
       - enum:
-        - fsl,imx93-mipi-dphy
-        - fsl,imx95-dphy-rx
-        - fsl,imx95-combo-rx
+          - fsl,imx93-mipi-dphy
+          - fsl,imx95-dphy-rx
+          - fsl,imx95-combo-rx
+
+  reg:
+    minItems: 1
 
   "#phy-cells":
     const: 0
 
   clocks:
-    items:
-      - description: PHY configuration clock
-      - description: PHY reference clock
+    minItems: 1
+    maxItems: 3
 
   clock-names:
-    items:
-      - const: phy_cfg
-      - const: phy_ref
+    minItems: 1
+    maxItems: 3
 
   power-domains:
     maxItems: 1
@@ -43,16 +44,12 @@ properties:
     maxItems: 1
 
   fsl,csis:
+    $ref: /schemas/types.yaml#/definitions/phandle-array
+    minItems: 1
+    maxItems: 2
     description:
       Must be the device tree identifier of the CSI memory map. This is required only
       for the i.MX95 CSI standalone dphy-rx driver.
-    maxItems: 1
-
-  fsl,reg-offset:
-    description:
-      Register offset, in hex, in the register map, where the driver can access its
-      relevant registers.
-    maxItems: 1
 
   fsl,dsi:
     description:
@@ -68,6 +65,76 @@ required:
   - power-domains
 
 additionalProperties: false
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - fsl,imx93-mipi-dphy
+    then:
+      properties:
+        clocks:
+          items:
+            - description: PHY configuration clock
+            - description: PHY reference clock
+        clock-names:
+          items:
+            - const: phy_cfg
+            - const: phy_ref
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - fsl,imx95-dphy-rx
+              - fsl,imx95-combo-rx
+    then:
+      properties:
+        reg:
+          maxItems: 1
+        clocks:
+          description: PHY configuration clock
+        clock-names:
+          const: phy_cfg
+        fsl,csis:
+          minItems: 1
+          maxItems: 1
+      required:
+        - reg
+        - fsl,csis
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - fsl,imx952-dphy-rx
+    then:
+      properties:
+        reg:
+          minItems: 1
+          maxItems: 2
+        clocks:
+          items:
+            - description: PHY configuration clock
+            - description: CSI controller instance 0 pixel clock
+            - description: CSI controller instance 1 pixel clock
+          minItems: 2
+        clock-names:
+          items:
+            - const: phy_cfg
+            - const: csi0
+            - const: csi1
+          minItems: 2
+        fsl,csis:
+          minItems: 1
+          maxItems: 2
+      required:
+        - reg
+        - fsl,csis
 
 examples:
   - |

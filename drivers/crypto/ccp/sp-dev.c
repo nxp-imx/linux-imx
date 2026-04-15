@@ -28,6 +28,7 @@ MODULE_AUTHOR("Gary R Hook <gary.hook@amd.com>");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.1.0");
 MODULE_DESCRIPTION("AMD Secure Processor driver");
+MODULE_IMPORT_NS("ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /* List of SPs, SP count, read-write access lock, and access functions
  *

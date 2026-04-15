@@ -174,7 +174,7 @@ void end_buffer_write_sync(struct buffer_head *bh, int uptodate)
 	unlock_buffer(bh);
 	put_bh(bh);
 }
-EXPORT_SYMBOL(end_buffer_write_sync);
+EXPORT_SYMBOL_NS(end_buffer_write_sync, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static struct buffer_head *
 __find_get_block_slow(struct block_device *bdev, sector_t block, bool atomic)
@@ -458,7 +458,7 @@ void mark_buffer_async_write(struct buffer_head *bh)
 {
 	mark_buffer_async_write_endio(bh, end_buffer_async_write);
 }
-EXPORT_SYMBOL(mark_buffer_async_write);
+EXPORT_SYMBOL_NS(mark_buffer_async_write, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 
 /*
@@ -1206,7 +1206,7 @@ void mark_buffer_dirty(struct buffer_head *bh)
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 }
-EXPORT_SYMBOL(mark_buffer_dirty);
+EXPORT_SYMBOL_NS(mark_buffer_dirty, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 void mark_buffer_write_io_error(struct buffer_head *bh)
 {
@@ -1217,7 +1217,7 @@ void mark_buffer_write_io_error(struct buffer_head *bh)
 	if (bh->b_assoc_map)
 		mapping_set_error(bh->b_assoc_map, -EIO);
 }
-EXPORT_SYMBOL(mark_buffer_write_io_error);
+EXPORT_SYMBOL_NS(mark_buffer_write_io_error, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * __brelse - Release a buffer.
@@ -1233,7 +1233,7 @@ void __brelse(struct buffer_head *bh)
 	}
 	WARN(1, KERN_ERR "VFS: brelse: Trying to free free buffer\n");
 }
-EXPORT_SYMBOL(__brelse);
+EXPORT_SYMBOL_NS(__brelse, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * __bforget - Discard any dirty data in a buffer.
@@ -1255,7 +1255,7 @@ void __bforget(struct buffer_head *bh)
 	}
 	__brelse(bh);
 }
-EXPORT_SYMBOL(__bforget);
+EXPORT_SYMBOL_NS(__bforget, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static struct buffer_head *__bread_slow(struct buffer_head *bh)
 {
@@ -1472,7 +1472,7 @@ void __breadahead(struct block_device *bdev, sector_t block, unsigned size)
 		brelse(bh);
 	}
 }
-EXPORT_SYMBOL(__breadahead);
+EXPORT_SYMBOL_NS(__breadahead, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * __bread_gfp() - Read a block.
@@ -1515,7 +1515,7 @@ struct buffer_head *__bread_gfp(struct block_device *bdev, sector_t block,
 		bh = __bread_slow(bh);
 	return bh;
 }
-EXPORT_SYMBOL(__bread_gfp);
+EXPORT_SYMBOL_NS(__bread_gfp, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static void __invalidate_bh_lrus(struct bh_lru *b)
 {
@@ -1710,7 +1710,7 @@ struct buffer_head *create_empty_buffers(struct folio *folio,
 
 	return head;
 }
-EXPORT_SYMBOL(create_empty_buffers);
+EXPORT_SYMBOL_NS(create_empty_buffers, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /**
  * clean_bdev_aliases: clean a range of buffers in block device
@@ -1784,7 +1784,7 @@ unlock_page:
 			break;
 	}
 }
-EXPORT_SYMBOL(clean_bdev_aliases);
+EXPORT_SYMBOL_NS(clean_bdev_aliases, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static struct buffer_head *folio_create_buffers(struct folio *folio,
 						struct inode *inode,
@@ -2331,7 +2331,7 @@ int generic_write_end(const struct kiocb *iocb, struct address_space *mapping,
 		mark_inode_dirty(inode);
 	return copied;
 }
-EXPORT_SYMBOL(generic_write_end);
+EXPORT_SYMBOL_NS(generic_write_end, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * block_is_partially_uptodate checks whether buffers within a folio are
@@ -2374,7 +2374,7 @@ bool block_is_partially_uptodate(struct folio *folio, size_t from, size_t count)
 
 	return ret;
 }
-EXPORT_SYMBOL(block_is_partially_uptodate);
+EXPORT_SYMBOL_NS(block_is_partially_uptodate, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 /*
  * Generic "read_folio" function for block devices that have the normal
@@ -2489,7 +2489,7 @@ int generic_cont_expand_simple(struct inode *inode, loff_t size)
 out:
 	return err;
 }
-EXPORT_SYMBOL(generic_cont_expand_simple);
+EXPORT_SYMBOL_NS(generic_cont_expand_simple, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static int cont_expand_zero(const struct kiocb *iocb,
 			    struct address_space *mapping,
@@ -2761,7 +2761,7 @@ sector_t generic_block_bmap(struct address_space *mapping, sector_t block,
 	get_block(inode, block, &tmp, 0);
 	return tmp.b_blocknr;
 }
-EXPORT_SYMBOL(generic_block_bmap);
+EXPORT_SYMBOL_NS(generic_block_bmap, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static void end_bio_bh_io_sync(struct bio *bio)
 {
@@ -2870,13 +2870,13 @@ int __sync_dirty_buffer(struct buffer_head *bh, blk_opf_t op_flags)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(__sync_dirty_buffer);
+EXPORT_SYMBOL_NS(__sync_dirty_buffer, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 int sync_dirty_buffer(struct buffer_head *bh)
 {
 	return __sync_dirty_buffer(bh, REQ_SYNC);
 }
-EXPORT_SYMBOL(sync_dirty_buffer);
+EXPORT_SYMBOL_NS(sync_dirty_buffer, "ANDROID_GKI_VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
 
 static inline int buffer_busy(struct buffer_head *bh)
 {

@@ -62,6 +62,10 @@ module_param_named(enable_unsafe_noiommu_mode,
 MODULE_PARM_DESC(enable_unsafe_noiommu_mode, "Enable UNSAFE, no-IOMMU mode.  This mode provides no device isolation, no DMA translation, no host kernel protection, cannot be used for device assignment to virtual machines, requires RAWIO permissions, and will taint the kernel.  If you do not know what this is for, step away. (default: false)");
 #endif
 
+bool allow_non_coherent __read_mostly;
+module_param(allow_non_coherent, bool, 0444);
+MODULE_PARM_DESC(allow_non_coherent, "Allow binding of non-coherent devices, not supported with type1 IOMMU. (default: false)");
+
 static DEFINE_XARRAY(vfio_device_set_xa);
 
 int vfio_assign_device_set(struct vfio_device *device, void *set_id)
@@ -343,7 +347,8 @@ static int __vfio_register_dev(struct vfio_device *device,
 	 * valid for cases where we are using iommu groups.
 	 */
 	if (type == VFIO_IOMMU && !vfio_device_is_noiommu(device) &&
-	    !device_iommu_capable(device->dev, IOMMU_CAP_CACHE_COHERENCY)) {
+	    !device_iommu_capable(device->dev, IOMMU_CAP_CACHE_COHERENCY)
+		&& !allow_non_coherent) {
 		ret = -EINVAL;
 		goto err_out;
 	}

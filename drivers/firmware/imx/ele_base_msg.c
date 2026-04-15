@@ -9,6 +9,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/genalloc.h>
 #include <linux/firmware/imx/se_api.h>
+#include <linux/regulator/consumer.h>
 
 #include "ele_base_msg.h"
 #include "ele_common.h"
@@ -635,7 +636,7 @@ int imx_se_read_fuse(void *se_if_data,
 }
 EXPORT_SYMBOL_GPL(imx_se_read_fuse);
 
-int ele_voltage_change_req(struct se_if_priv *priv, bool start)
+int ele_voltage_change_req(struct se_if_priv *priv, bool start, bool enforce_fl_ctrl)
 {
 	struct se_api_msg *tx_msg __free(kfree) = NULL;
 	struct se_api_msg *rx_msg __free(kfree) = NULL;
@@ -667,8 +668,9 @@ int ele_voltage_change_req(struct se_if_priv *priv, bool start)
 	if (ret)
 		goto exit;
 
-	se_continue_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl,
-					    tx_msg);
+	if (enforce_fl_ctrl)
+		se_continue_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl,
+						    tx_msg);
 
 	ret = ele_msg_send_rcv(priv->priv_dev_ctx,
 			       tx_msg,
@@ -703,18 +705,26 @@ exit:
  *   0,   means success.
  *   < 0, means failure.
  */
-int imx_se_voltage_change_req(void *se_if_data, bool start)
+int imx_se_voltage_change_req(void *se_if_data, void *regulator_soc_reg, int new_uV, int tol_uV)
 {
+	struct regulator *soc_reg = regulator_soc_reg;
 	struct se_if_priv *priv = se_if_data;
 	int ret;
 
-	if (start)
-		se_start_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
+	se_start_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
 
-	ret = ele_voltage_change_req(priv, start);
-
-	if (start == false)
+	ret = ele_voltage_change_req(priv, true, true);
+	if (ret) {
 		se_halt_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
+		return -EINVAL;
+	}
+
+	regulator_set_voltage_tol(soc_reg, new_uV, tol_uV);
+	ret = ele_voltage_change_req(priv, false, true);
+	if (ret)
+		ret = -EINVAL;
+
+	se_halt_to_enforce_msg_seq_flow(&priv->se_msg_sq_ctl);
 
 	return ret;
 }

@@ -73,6 +73,7 @@
 #include <linux/delayacct.h>
 #include <linux/mmu_context.h>
 #include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
 #include <trace/events/power.h>
 #include <trace/events/sched.h>
@@ -532,6 +533,10 @@ struct task_group {
 	ANDROID_VENDOR_DATA_ARRAY(1, 4);
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 #ifdef CONFIG_GROUP_SCHED_WEIGHT
@@ -690,8 +695,8 @@ struct cfs_rq {
 	unsigned int		h_nr_runnable;     /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		h_nr_idle; /* SCHED_IDLE */
 
-	s64			avg_vruntime;
-	u64			avg_load;
+	s64			sum_w_vruntime;
+	u64			sum_weight;
 
 	u64			zero_vruntime;
 #ifdef CONFIG_SCHED_CORE
@@ -1055,6 +1060,11 @@ struct root_domain {
 	struct perf_domain __rcu *pd;
 
 	ANDROID_VENDOR_DATA(1);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 extern void init_defrootdomain(void);
@@ -1337,6 +1347,10 @@ struct rq {
 	struct list_head	cfsb_csd_list;
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 	ANDROID_OEM_DATA_ARRAY(1, 16);
 };
 
@@ -4033,7 +4047,7 @@ void sched_enq_and_set_task(struct sched_enq_and_set_ctx *ctx);
 
 #include "ext.h"
 
-extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se);
+extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, bool first);
 
 #ifdef CONFIG_RT_SOFTIRQ_AWARE_SCHED
 extern bool cpu_busy_with_softirqs(int cpu);

@@ -56,8 +56,11 @@ static int platform_init_func(struct kbase_device *kbdev)
 {
 	struct imx_platform_ctx *ictx;
 	struct platform_device *pdev;
+	struct kbase_pm_callback_conf *callbacks;
+
 
 	pdev = to_platform_device(kbdev->dev);
+	callbacks = (struct kbase_pm_callback_conf *)POWER_MANAGEMENT_CALLBACKS;
 
 	ictx = devm_kzalloc(kbdev->dev, sizeof(struct imx_platform_ctx), GFP_KERNEL);
 	if (pdev->num_resources > 1) {
@@ -84,6 +87,11 @@ static int platform_init_func(struct kbase_device *kbdev)
 	dev_info(kbdev->dev, "module built by %s at %s",
 			MALI_BUILD_BY, MALI_BUILD_TM);
 #endif
+
+	if (of_machine_is_compatible("fsl,imx952")) {
+		callbacks->power_runtime_on_callback = NULL;
+		callbacks->power_runtime_off_callback = NULL;
+	}
 
 	return 0;
 }

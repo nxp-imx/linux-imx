@@ -17,6 +17,7 @@
 #include <linux/util_macros.h>
 #include <linux/wait.h>
 #include <linux/workqueue_types.h>
+#include <linux/android_kabi.h>
 
 /*
  * Callbacks for platform drivers to implement.
@@ -308,6 +309,8 @@ struct dev_pm_ops {
 	int (*runtime_suspend)(struct device *dev);
 	int (*runtime_resume)(struct device *dev);
 	int (*runtime_idle)(struct device *dev);
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define SYSTEM_SLEEP_PM_OPS(suspend_fn, resume_fn) \
@@ -684,6 +687,7 @@ struct dev_pm_info {
 	bool			smart_suspend:1;	/* Owned by the PM core */
 	bool			must_resume:1;		/* Owned by the PM core */
 	bool			may_skip_resume:1;	/* Set by subsystems */
+	bool			out_band_wakeup:1;
 	bool			strict_midlayer:1;
 #else
 	bool			should_wakeup:1;
@@ -723,6 +727,9 @@ struct dev_pm_info {
 	void (*set_latency_tolerance)(struct device *, s32);
 	struct dev_pm_qos	*qos;
 	bool			detach_power_off:1;	/* Owned by the driver core */
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 extern int dev_pm_get_subsys_data(struct device *dev);
@@ -751,6 +758,8 @@ struct dev_pm_domain {
 	void (*sync)(struct device *dev);
 	void (*dismiss)(struct device *dev);
 	int (*set_performance_state)(struct device *dev, unsigned int state);
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*

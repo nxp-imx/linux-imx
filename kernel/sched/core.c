@@ -6177,6 +6177,7 @@ unsigned long long task_sched_runtime(struct task_struct *p)
 
 	return ns;
 }
+EXPORT_SYMBOL_GPL(task_sched_runtime);
 
 static u64 cpu_resched_latency(struct rq *rq)
 {
@@ -7646,23 +7647,6 @@ find_proxy_task(struct rq *rq, struct task_struct *donor, struct rq_flags *rf)
 }
 #endif /* SCHED_PROXY_EXEC */
 
-static inline void proxy_tag_curr(struct rq *rq, struct task_struct *owner)
-{
-	if (!sched_proxy_exec())
-		return;
-	/*
-	 * pick_next_task() calls set_next_task() on the chosen task
-	 * at some point, which ensures it is not push/pullable.
-	 * However, the chosen/donor task *and* the mutex owner form an
-	 * atomic pair wrt push/pull.
-	 *
-	 * Make sure owner we run is not pushable. Unfortunately we can
-	 * only deal with that by means of a dequeue/enqueue cycle. :-/
-	 */
-	dequeue_task(rq, owner, DEQUEUE_NOCLOCK | DEQUEUE_SAVE);
-	enqueue_task(rq, owner, ENQUEUE_NOCLOCK | ENQUEUE_RESTORE);
-}
-
 /*
  * __schedule() is the main scheduler function.
  *
@@ -7705,6 +7689,7 @@ static inline void proxy_tag_curr(struct rq *rq, struct task_struct *owner)
 static void __sched notrace __schedule(int sched_mode)
 {
 	struct task_struct *prev, *next;
+	struct task_struct *prev_donor;
 	/*
 	 * On PREEMPT_RT kernel, SM_RTLOCK_WAIT is noted
 	 * as a preemption by schedule_debug() and RCU.
@@ -7724,6 +7709,7 @@ static void __sched notrace __schedule(int sched_mode)
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
 	prev = rq->curr;
+	prev_donor = rq->donor;
 
 	schedule_debug(prev, preempt);
 
@@ -7809,6 +7795,23 @@ pick_again:
 			zap_balance_callbacks(rq);
 			goto keep_resched;
 		}
+		if (rq->donor == prev_donor && prev != next) {
+			struct task_struct *donor = rq->donor;
+			/*
+			 * When transitioning like:
+			 *
+			 *         prev         next
+			 * donor:    B            B
+			 * curr:     A          B or C
+			 *
+			 * then put_prev_set_next_task() will not have done
+			 * anything, since B == B. However, A might have
+			 * missed a RT/DL balance opportunity due to being
+			 * on_cpu.
+			 */
+			donor->sched_class->put_prev_task(rq, donor, donor);
+			donor->sched_class->set_next_task(rq, donor, true);
+		}
 		trace_sched_found_proxy_task(rq->donor, next, cpu);
 	}
 	trace_sched_finish_task_selection(rq->donor, next, cpu);
@@ -7827,9 +7830,6 @@ keep_resched:
 		 * changes to task_struct made by pick_next_task().
 		 */
 		RCU_INIT_POINTER(rq->curr, next);
-
-		if (!task_current_donor(rq, next))
-			proxy_tag_curr(rq, next);
 
 		/*
 		 * The membarrier system call requires each architecture
@@ -7865,10 +7865,6 @@ keep_resched:
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
-		/* In case next was already curr but just got blocked_donor */
-		if (prev_not_proxied && next->blocked_donor)
-			proxy_tag_curr(rq, next);
-
 		rq_unpin_lock(rq, &rf);
 		__balance_callbacks(rq);
 		raw_spin_rq_unlock_irq(rq);

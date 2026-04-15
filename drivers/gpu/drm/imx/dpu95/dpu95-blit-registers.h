@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 
 /*
- * Copyright 2023 NXP
+ * Copyright 2023,2026 NXP
  */
 
 #ifndef __DPU95_BLIT_REGISTERS_H__
@@ -9,6 +9,8 @@
 
 /* Registers defination */
 #define COMCTRL_IPIDENTIFIER                       ((uint32_t)(0))
+#define COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_MASK 0x7000U
+#define COMCTRL_IPIDENTIFIER_COMCTRL_IPEVOLUTION_SHIFT 12U
 
 /* Register for interrupts in Common Control domain */
 #define COMCTRL_INTERRUPTENABLE0                    ((uint32_t)(0x1008))
@@ -16,9 +18,6 @@
 #define COMCTRL_INTERRUPTPRESET1                    ((uint32_t)(0x1018))
 #define COMCTRL_INTERRUPTCLEAR0                     ((uint32_t)(0x1020))
 #define COMCTRL_INTERRUPTSTATUS0                    ((uint32_t)(0x102c))
-
-/* Register for interrupts in CMDSEQ domain */
-#define CMDSEQ_INTERRUPTCLEAR0                     ((uint32_t)(0x11020))
 
 /* Register for pixel engine path configuration */
 #define PIXENGCFG_FETCHDECODE9_DYNAMIC              ((uint32_t)(0x91008))
@@ -247,6 +246,7 @@
 #define CMDSEQ_LOCKUNLOCK_LOCKUNLOCK__UNLOCK_KEY    0x691DB936U
 
 #define CMDSEQ_BUFFERADDRESS                        ((uint32_t)(0x10188))
+#define CMDSEQ_BUFFERADDRESSMSB                     ((uint32_t)(0x1018c))
 #define CMDSEQ_BUFFERSIZE                           ((uint32_t)(0x10190))
 
 #define CMDSEQ_CONTROL                              ((uint32_t)(0x10198))

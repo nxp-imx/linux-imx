@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-evk.dts"
+
+/ {
+	aliases {
+		ethernet1 = &netc_enetc1;
+	};
+
+	reg_si5332_en: regulator-si5332-en {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_si5332_pcie1_clk>;
+		regulator-name = "SI5332_EN";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_m2_pwr>;
+		gpio = <&gpio5 12 GPIO_ACTIVE_LOW>;
+	};
+
+	reg_phy_en: regulator-phy-en {
+		compatible = "regulator-fixed";
+		regulator-name = "PHY_EN";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_si5332_en>;
+		gpio = <&pcal6524 17 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&netc_bus1 {
+	power-domains = <&scmi_devpd IMX952_PD_HSIO_TOP>;
+	status = "okay";
+};
+
+&netc_emdio {
+	phy-supply = <&reg_phy_en>;
+
+	ethphy1: ethernet-phy@f {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0xf>;
+	};
+};
+
+&netc_enetc1 {
+	managed = "in-band-status";
+	phy-handle = <&ethphy1>;
+	phy-mode = "sgmii";
+	status = "okay";
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+&pcie0_ep {
+	status = "disabled";
+};
+
+&scmi_iomuxc {
+	pinctrl_si5332_pcie1_clk: si5332pcie1clkgrp {
+		fsl,pins = <
+			IMX952_PAD_GPIO_IO32__WAKEUPMIX_TOP_GPIO5_IO_12			0x51e
+		>;
+	};
+};

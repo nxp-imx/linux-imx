@@ -2209,6 +2209,21 @@
 			power-domains = <&vpumix_blk_ctrl IMX8MP_VPUBLK_PD_G2>;
 		};
 
+		vpu_vc8000e: video-codec@38320000 {
+			compatible = "nxp,imx8mp-hantro-vc8000e";
+			reg = <0x38320000 0x10000>;
+			reg-names = "regs_hantro_vc8000e";
+			interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "irq_hantro_vc8000e";
+			clocks = <&clk IMX8MP_CLK_VPU_VC8KE_ROOT>, <&clk IMX8MP_CLK_VPU_ROOT>;
+			clock-names = "clk_hantro_vc8000e", "clk_hantro_vc8000e_bus";
+			assigned-clocks = <&clk IMX8MP_CLK_VPU_VC8000E>, <&clk IMX8MP_CLK_VPU_BUS>;
+			assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_1000M>,
+						 <&clk IMX8MP_SYS_PLL1_800M>;
+			assigned-clock-rates = <500000000>, <800000000>;
+			power-domains = <&vpumix_blk_ctrl IMX8MP_VPUBLK_PD_VC8000E>;
+		};
+
 		vpumix_blk_ctrl: blk-ctrl@38330000 {
 			compatible = "fsl,imx8mp-vpu-blk-ctrl", "syscon";
 			reg = <0x38330000 0x100>;
@@ -2364,20 +2379,6 @@
 			>;
 			status = "disabled";
 		};
-	};
-
-	vpu_vc8000e: vpu_vc8000e@38320000 {
-		compatible = "nxp,imx8mp-hantro-vc8000e";
-		reg = <0x0 0x38320000 0x0 0x10000>;
-		reg-names = "regs_hantro_vc8000e";
-		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "irq_hantro_vc8000e";
-		clocks = <&clk IMX8MP_CLK_VPU_VC8KE_ROOT>, <&clk IMX8MP_CLK_VPU_ROOT>;
-		clock-names = "clk_hantro_vc8000e", "clk_hantro_vc8000e_bus";
-		assigned-clocks = <&clk IMX8MP_CLK_VPU_VC8000E>,<&clk IMX8MP_CLK_VPU_BUS>;
-		assigned-clock-parents = <&clk IMX8MP_SYS_PLL2_1000M>, <&clk IMX8MP_SYS_PLL1_800M>;
-		assigned-clock-rates = <500000000>, <800000000>;
-		power-domains = <&vpumix_blk_ctrl IMX8MP_VPUBLK_PD_VC8000E>;
 	};
 
 	vpu_v4l2: vpu_v4l2 {
