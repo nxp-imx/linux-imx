@@ -155,7 +155,6 @@ CONFIG_ZSMALLOC=m
 
 CONFIG_FSL_IMX8_DDR_PMU=m
 # CONFIG_SOC_IMX9 is not set
-# CONFIG_MODULE_SIG_ALL is not set
 CONFIG_IMX_GKI_FIX=y
 
 CONFIG_PWRSEQ_SIMPLE=m
@@ -171,3 +170,11 @@ CONFIG_LOGO=y
 # CONFIG_LOGO_LINUX_MONO is not set
 # CONFIG_LOGO_LINUX_VGA16 is not set
 CONFIG_LOGO_LINUX_CLUT224=y
+
+# Disable automatic module signing during build (sign-file needs key)
+# CONFIG_MODULE_SIG is kept enabled (required by GKI)
+# But we disable signing ALL modules at build time
+# CONFIG_MODULE_SIG_ALL is not set
+
+# Disable protected symbol enforcement (allow unsigned modules to export symbols)
+CONFIG_MODULE_SIG_PROTECT_LIST=""

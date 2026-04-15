@@ -5,8 +5,8 @@ load(
 )
 
 _IMX_EXT_MODULES = [
-    "//nxp-mwifiex:mwifiex_modules",
-    "//verisilicon_sw_isp_vvcam/vvcam:vvcam_modules",
+    "//nxp-mwifiex:mwifiex_modules_imx",
+    "//verisilicon_sw_isp_vvcam/vvcam:vvcam_modules_imx",
 ]
 
 _IMX_IN_TREE_MODULES = [
@@ -466,8 +466,8 @@ def define_imx():
         module_outs = _IMX_IN_TREE_MODULES,
         kbuild_symtypes="true",
         makefile = ":Makefile",
-        kmi_symbol_list = "//common:gki/aarch64/symbols/imx",
-        base_kernel = "//common:kernel_aarch64",
+        kmi_symbol_list = "//kernel_imx:gki/aarch64/symbols/imx",
+        base_kernel = "//kernel_imx:kernel_aarch64",
         make_goals = [
           "Image",
           "modules",
