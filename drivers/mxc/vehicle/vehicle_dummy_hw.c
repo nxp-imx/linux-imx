@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018,2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,12 +88,10 @@ struct extcon_dev *rg_edev;
 struct extcon_dev *ev_edev;
 #endif
 
-extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
-extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param);
 static struct vehicle_dummy_drvdata *vehicle_dummy;
 static struct class* vehicle_dummy_class;
 
-void mcu_set_control_commands(u32 prop, u32 area, u32 value)
+static void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 {
 	dev_dbg("%s: prop %d, area %d, value %d \n", __func__, prop, area, value);
 	switch (prop) {

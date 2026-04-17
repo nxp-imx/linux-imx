@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018,2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -363,5 +363,9 @@ enum vehicle_event_gear {
 	VEHICLE_GEAR_MANUAL_5,
 	VEHICLE_GEAR_MANUAL_6,
 };
+
+/* Function prototypes */
+void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
+void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param);
 
 #endif

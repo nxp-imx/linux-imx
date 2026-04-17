@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018,2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -80,7 +80,7 @@ static int vehicle_send_message_core(u32 prop, u32 area, u32 value)
 	return 0;
 }
 
-int send_usrmsg(char *pbuf, uint16_t len)
+static int send_usrmsg(char *pbuf, uint16_t len)
 {
 	struct sk_buff *nl_skb;
 	struct nlmsghdr *nlh;

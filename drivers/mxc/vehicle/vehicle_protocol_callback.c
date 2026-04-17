@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018,2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -146,6 +146,8 @@ bool decode_config_string_callback(pb_istream_t *stream, const pb_field_t *field
 bool encode_prop_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	emulator_VehiclePropGet propget;
+
+	memset(&propget, 0, sizeof(emulator_VehiclePropGet));
 	//need fill arg emulator_VehiclePropGet if have this filed
 	if (!pb_encode(stream, emulator_VehiclePropGet_fields, &propget))
 	{
@@ -158,6 +160,8 @@ bool encode_prop_callback(pb_ostream_t *stream, const pb_field_t *field, void * 
 bool encode_area_configs_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	emulator_VehicleAreaConfig vehicle_area;
+
+	memset(&vehicle_area, 0, sizeof(emulator_VehicleAreaConfig));
 	if (!pb_encode(stream, emulator_VehicleAreaConfig_fields, &vehicle_area))
 		return false;
 	return true;

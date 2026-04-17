@@ -1,5 +1,5 @@
 /*
- * Copyright 2018,2021 NXP
+ * Copyright 2018,2021,2026 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -136,8 +136,6 @@ struct extcon_dev *ev_edev;
 
 static DEFINE_MUTEX(vehicle_send_rpmsg_lock);
 
-extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
-extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value, u32 param);
 static struct rpmsg_vehicle_mcu_drvdata *vehicle_rpmsg;
 static struct class* vehicle_rpmsg_class;
 int state = 0;
@@ -194,7 +192,7 @@ err_out:
 	return err;
 }
 
-void mcu_set_control_commands(u32 prop, u32 area, u32 value)
+static void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 {
 	struct vehicle_rpmsg_data msg;
 
