@@ -345,8 +345,6 @@ static void hantro_dec_reset_core(struct hantro_dec_core *core)
 	for (i = 2; i < core->num_regs; i++)
 		trusty_dec_writel(core, 0, i * 4, WRITE_REGS);
 	trusty_dec_writel(core, 0, 4, WRITE_SECURE_CTRL_REGS);
-
-	hantro_dec_update_mirror_regs(core);
 }
 
 static bool hantro_dec_get_workable_core(struct hantro_dec_interface *iface,
@@ -565,6 +563,7 @@ static bool hantro_dec_check_done(struct hantro_dec_core *core)
 
 static void hantro_dec_cancel(struct hantro_dec_core *core)
 {
+	hantro_dec_update_mirror_regs(core);
 	core->mirror_regs[1] = 0x40100;
 	hantro_dec_reset_core(core);
 }
@@ -1277,6 +1276,7 @@ static int hantro_dec_init_core(struct hantro_dec_core *core)
 
 	hantro_dec_read_core_config(core);
 	hantro_dec_reset_core(core);
+	hantro_dec_update_mirror_regs(core);
 	ret = hantro_dec_add_core(core->iface, core);
 	if (ret)
 		goto exit;

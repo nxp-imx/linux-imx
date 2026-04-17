@@ -163,6 +163,14 @@
 		regulator-always-on;
 	};
 
+	reg_ext_12v: regulator-ext-12v {
+		compatible = "regulator-fixed";
+		regulator-max-microvolt = <12000000>;
+		regulator-min-microvolt = <12000000>;
+		regulator-name = "VCCEXT_12V";
+		vin-supply = <&reg_ext_5v>;
+	};
+
 	reg_usdhc2_vmmc: regulator-usdhc2 {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
@@ -923,7 +931,7 @@
 
 	pinctrl_mipi_dsi_csi: mipidsigrp {
 		fsl,pins = <
-			IMX95_PAD_XSPI1_DATA6__GPIO5_IO_BIT6			0x31e
+			IMX95_PAD_CCM_CLKO1__GPIO3_IO_BIT26			0x31e
 		>;
 	};
 

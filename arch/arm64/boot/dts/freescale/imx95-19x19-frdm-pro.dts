@@ -175,6 +175,7 @@
 		regulator-name = "EXP_1V8";
 		gpio = <&i2c4_gpio_expander_22 10 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
+		regulator-enable-ramp-delay = <40000>;
 	};
 
 	reg_exp_3v3: regulator-exp-3v3 {
@@ -185,6 +186,7 @@
 		gpio = <&i2c4_gpio_expander_22 6 GPIO_ACTIVE_HIGH>;
 		vin-supply = <&reg_dcdc_3v3>;
 		enable-active-high;
+		regulator-enable-ramp-delay = <40000>;
 	};
 
 	reg_exp_5v: regulator-exp-5v {

@@ -34,6 +34,12 @@
 
 #define MAX96724_XTAL_CLOCK		25000000ULL
 
+static const char *const max96724_supplies[] = {
+	"v1p8",	 /* 1.8V supply */
+	"v3p3",	 /* 3.3V supply */
+	"v12p0", /* 12V supply  */
+};
+
 enum max96724_data_type {
 	MAX96724_DT_EMBEDDED		= 0x12,
 	MAX96724_DT_YUV422_8BIT		= 0x1E,
@@ -1511,9 +1517,13 @@ static int max96724_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, priv);
 
-	ret = devm_regulator_get_enable_optional(dev, "v12p0");
-	if (ret < 0 && ret != -ENODEV)
+	/* Initialize regulator supplies */
+	ret = devm_regulator_bulk_get_enable(dev, ARRAY_SIZE(max96724_supplies),
+					     max96724_supplies);
+	if (ret < 0) {
+		dev_err(dev, "Failed to get and enable regulators: %d\n", ret);
 		return ret;
+	}
 
 	priv->reset_gpio = of_get_named_gpio(dev->of_node, "rst-gpios", 0);
 	if (gpio_is_valid(priv->reset_gpio)) {

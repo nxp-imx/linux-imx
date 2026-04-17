@@ -301,8 +301,6 @@ static int hantro_enc_get_cmd_param_h1(int id, unsigned long arg, struct hantro_
 	case HANTRO_ENC_CMD_ID_READ_REGS:
 		ret = copy_from_user(&param->regs, (void __user *)arg, sizeof(param->regs));
 		break;
-		param->val = 1;
-		break;
 	case HANTRO_ENC_CMD_ID_G_IO_ADDR:
 	case HANTRO_ENC_CMD_ID_G_IO_SIZE:
 		param->val = 0;

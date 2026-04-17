@@ -50,10 +50,6 @@
 	};
 };
 
-&lcdif {
-	assigned-clock-rates = <484000000>, <121000000>, <400000000>, <133333333>;
-};
-
 &lpi2c1 {
 	#address-cells = <1>;
 	#size-cells = <0>;

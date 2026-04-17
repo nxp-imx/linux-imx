@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+
  *
- * Copyright 2023 NXP
+ * Copyright 2023-2026 NXP
  */
 
 #ifndef NEUTRON_DEVICE_H
@@ -47,6 +47,18 @@
 #define BASEINOUTH  0x280
 #define BASESPILLL  0x284
 #define BASESPILLH  0x288
+
+// Performance Counter Registers
+#define CYCLOW     0x0C
+#define CYCHIGH    0x10
+#define DDRLATENT  0x14
+#define DDRSPREAD  0x18
+#define DDRRCNTS   0x1C
+#define DDRWWORDS  0x20
+#define DDRRWORDS  0x24
+#define DDRSTALL   0x28
+#define NSTALL     0x2C
+#define NACT       0x30
 
 // values for ctrl firmware mbox (first fw mbox)
 #define RUN_ACK   0xA3
@@ -134,6 +146,10 @@ struct neutron_device {
 	void __iomem                   *reg_reset;
 	u32                            power_mode;
 	u32                            suspend_delay;
+
+	/* Performance profiling state */
+	struct mutex                  profile_lock;
+	struct dentry                 *debugfs_root;
 };
 
 int neutron_dev_init(struct neutron_device *ndev,
@@ -151,6 +167,21 @@ void neutron_memory_sync(struct neutron_device *ndev, dma_addr_t addr,
 void neutron_clk_enable(struct neutron_device *ndev);
 void neutron_clk_disable(struct neutron_device *ndev);
 void neutron_irq_enable(struct neutron_device *ndev);
+
+#ifdef CONFIG_DEBUG_FS
+int neutron_profile_init(struct neutron_device *ndev);
+void neutron_profile_cleanup(struct neutron_device *ndev);
+#else
+static inline int neutron_profile_init(struct neutron_device *ndev)
+{
+	(void)ndev;
+	return 0;
+}
+static inline void neutron_profile_cleanup(struct neutron_device *ndev)
+{
+	(void)ndev;
+}
+#endif
 
 #endif /* NEUTRON_DEVICE_H */
 

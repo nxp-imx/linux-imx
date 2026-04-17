@@ -1221,6 +1221,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-waveshare-7inch-c-panel.dtb
 imx95-15x15-frdm-ap1302-dtbs := imx95-15x15-frdm.dtb imx95-15x15-frdm-ap1302.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-ap1302.dtb
 
+imx95-15x15-frdm-adv7535-dtbs := imx95-15x15-frdm.dtb imx95-15x15-frdm-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-adv7535.dtb
+
 imx95-15x15-frdm-os08a20-isp-dtbs := imx95-15x15-frdm.dtb \
 				     imx95-15x15-frdm-os08a20.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-os08a20-isp.dtb
@@ -1234,10 +1237,33 @@ imx95-15x15-frdm-dual-os08a20-isp-dtbs := imx95-15x15-frdm.dtb \
 					  imx95-15x15-frdm-os08a20-combo.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-dual-os08a20-isp.dtb
 
+imx95-15x15-frdm-ox03c10-dtbs := imx95-15x15-frdm.dtb imx95-15x15-frdm-ox03c10.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-ox03c10.dtb
+
+imx95-15x15-frdm-ox03c10-combo-dtbs := imx95-15x15-frdm.dtb imx95-15x15-frdm-ox03c10-combo.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-ox03c10-combo.dtb
+
+imx95-15x15-frdm-ox03c10-dual-dtbs := imx95-15x15-frdm.dtb \
+				      imx95-15x15-frdm-ox03c10.dtbo \
+				      imx95-15x15-frdm-ox03c10-combo.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-ox03c10-dual.dtb
+
+imx95-15x15-frdm-lt9611uxc-dtbs := imx95-15x15-frdm.dtb \
+				   imx95-15x15-frdm-lt9611uxc.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-lt9611uxc.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-aud-hat.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx95-15x15-frdm-8mic-reve.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro.dtb imx95-19x19-frdm-pro-aud-hat.dtb
+
+imx95-19x19-frdm-pro-adv7535-dtbs := imx95-19x19-frdm-pro.dtb \
+				     imx95-19x19-frdm-pro-adv7535.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-adv7535.dtb
+
+imx95-19x19-frdm-pro-lt9611uxc-dtbs := imx95-19x19-frdm-pro.dtb \
+				       imx95-19x19-frdm-pro-lt9611uxc.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-lt9611uxc.dtb
 
 imx95-19x19-frdm-pro-root-dtbs := imx95-19x19-frdm-pro.dtb imx95-jailhouse-root.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-root.dtb
@@ -1254,6 +1280,15 @@ imx95-19x19-frdm-pro-dual-os08a20-isp-dtbs := imx95-19x19-frdm-pro.dtb \
 					      imx95-19x19-frdm-pro-os08a20.dtbo \
 					      imx95-19x19-frdm-pro-os08a20-combo.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-dual-os08a20-isp.dtb
+
+imx95-19x19-frdm-pro-ox03c10-isp-dtbs := imx95-19x19-frdm-pro.dtb \
+					 imx95-19x19-frdm-pro-ox03c10.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-ox03c10-isp.dtb
+
+imx95-19x19-frdm-pro-ox03c10-dual-dtbs := imx95-19x19-frdm-pro.dtb \
+					 imx95-19x19-frdm-pro-ox03c10.dtbo \
+					 imx95-19x19-frdm-pro-ox03c10-combo.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx95-19x19-frdm-pro-ox03c10-dual.dtb
 
 imx95-19x19-frdm-pro-waveshare-7inch-c-panel-dtbs := imx95-19x19-frdm-pro.dtb \
 						     imx95-19x19-frdm-pro-waveshare-7inch-c-panel.dtbo

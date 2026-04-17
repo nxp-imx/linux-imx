@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2024,2026 NXP
+ * Copyright 2026 NXP
  */
 
 /dts-v1/;
 /plugin/;
 
-#include "imx95-clock.h"
 #include "imx95-lt9611uxc-common.dtsi"
-
-&dpu {
-	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-rates = <0>, <2673000000>, <297000000>;
-};
 
 &lpi2c2 {
 	#address-cells = <1>;
@@ -24,11 +15,11 @@
 	hdmi@2b {
 		compatible = "lontium,lt9611uxc";
 		reg = <0x2b>;
-		reset-gpios = <&adp5585 4 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&i2c3_gpio_expander_20 15 GPIO_ACTIVE_HIGH>;
 		interrupts-extended = <&gpio3 27 IRQ_TYPE_EDGE_FALLING>;
 
-		vdd-supply = <&reg_1p8v>;
-		vcc-supply = <&reg_3p3v>;
+		vdd-supply = <&reg_exp_1v8>;
+		vcc-supply = <&reg_exp_3v3>;
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_dsi_csi>;
@@ -61,8 +52,8 @@
 	#size-cells = <0>;
 	status = "okay";
 
-	channel@0 {
-		reg = <0>;
+	channel@1 {
+		reg = <1>;
 		status = "okay";
 	};
 };

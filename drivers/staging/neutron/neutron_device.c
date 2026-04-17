@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2023 NXP
+ * Copyright 2023-2026 NXP
  */
 /****************************************************************************/
 
@@ -22,6 +22,7 @@
 #include <linux/firmware.h>
 #include <linux/elf.h>
 #include <linux/platform_device.h>
+#include <linux/debugfs.h>
 
 #include "uapi/neutron.h"
 #include "neutron_buffer.h"
@@ -706,6 +707,13 @@ int neutron_dev_init(struct neutron_device *ndev,
 
 	ndev->rproc = neutron_get_rproc(ndev);
 
+	ret = neutron_profile_init(ndev);
+	if (ret) {
+		dev_warn(ndev->dev, "Failed to initialize profiling, continuing without it\n");
+		ndev->debugfs_root = NULL;
+		ret = 0;
+	}
+
 	dev_info(ndev->dev,
 		 "created neutron device, name=%s\n", dev_name(sysdev));
 
@@ -726,6 +734,7 @@ destroy_mutex:
 
 void neutron_dev_deinit(struct neutron_device *ndev)
 {
+	neutron_profile_cleanup(ndev);
 	neutron_queue_destroy(ndev->queue);
 	neutron_mbox_destroy(ndev->mbox);
 	neutron_rproc_put(ndev);
@@ -734,4 +743,110 @@ void neutron_dev_deinit(struct neutron_device *ndev)
 	cdev_del(&ndev->cdev);
 	pr_info("neutron device is removed\n");
 }
+
+/****************************************************************************/
+/* Performance Profiling Support                                           */
+/****************************************************************************/
+
+#ifdef CONFIG_DEBUG_FS
+
+static ssize_t perf_counters_read(struct file *file, char __user *buf,
+				  size_t len, loff_t *ppos)
+{
+	struct neutron_device *ndev = file->f_inode->i_private;
+	u32 cycle_low, cycle_high;
+	u32 ddrlat, ddrspread, ddrrcnts, ddrwwords, ddrrwords, ddrstall;
+	u32 nstall, nact;
+	char str[256];
+	int slen;
+	int pm_count;
+
+	mutex_lock(&ndev->profile_lock);
+
+	pm_count = pm_runtime_get_sync(ndev->dev);
+	if (pm_count < 0) {
+		slen = snprintf(str, sizeof(str), "0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0\n");
+		mutex_unlock(&ndev->profile_lock);
+		return simple_read_from_buffer(buf, len, ppos, str, slen);
+	}
+
+	/* Read all performance counter registers */
+	do {
+		cycle_high = readl(ndev->reg_base + CYCHIGH);
+		cycle_low = readl(ndev->reg_base + CYCLOW);
+	} while (cycle_high != readl(ndev->reg_base + CYCHIGH));
+
+	ddrlat = readl(ndev->reg_base + DDRLATENT);
+	ddrspread = readl(ndev->reg_base + DDRSPREAD);
+	ddrrcnts = readl(ndev->reg_base + DDRRCNTS);
+	ddrwwords = readl(ndev->reg_base + DDRWWORDS);
+	ddrrwords = readl(ndev->reg_base + DDRRWORDS);
+	ddrstall = readl(ndev->reg_base + DDRSTALL);
+	nstall = readl(ndev->reg_base + NSTALL);
+	nact = readl(ndev->reg_base + NACT);
+
+	mutex_unlock(&ndev->profile_lock);
+
+	pm_runtime_put_autosuspend(ndev->dev);
+
+	/* Output space-separated hex values */
+	/* Format: CYCHIGH CYCLOW DDRLATENT DDRSPREAD DDRRCNTS DDRWWORDS */
+	/*         DDRRWORDS DDRSTALL NSTALL NACT */
+	slen = snprintf(str, sizeof(str),
+			"0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+			cycle_high, cycle_low, ddrlat, ddrspread, ddrrcnts,
+			ddrwwords, ddrrwords, ddrstall, nstall, nact);
+
+	return simple_read_from_buffer(buf, len, ppos, str, slen);
+}
+
+static const struct file_operations perf_counters_fops = {
+	.owner = THIS_MODULE,
+	.read = perf_counters_read,
+};
+
+/**
+ * neutron_profile_init - Initialize performance profiling
+ *
+ * Creates debugfs entries for performance monitoring
+ */
+int neutron_profile_init(struct neutron_device *ndev)
+{
+	int ret = 0;
+
+	mutex_init(&ndev->profile_lock);
+
+	ndev->debugfs_root = debugfs_create_dir("neutron", NULL);
+	if (IS_ERR_OR_NULL(ndev->debugfs_root)) {
+		ret = PTR_ERR(ndev->debugfs_root);
+		dev_err(ndev->dev, "Failed to create debugfs directory: %d\n", ret);
+		goto err_destroy_mutex;
+	}
+
+	debugfs_create_file("perf_counters", 0444, ndev->debugfs_root,
+			    ndev, &perf_counters_fops);
+
+	dev_dbg(ndev->dev, "Performance profiling initialized\n");
+
+	return 0;
+
+err_destroy_mutex:
+	mutex_destroy(&ndev->profile_lock);
+	return ret;
+}
+
+/**
+ * neutron_profile_cleanup - Cleanup performance profiling
+ *
+ * Removes debugfs entries and cleanup profiling data
+ */
+void neutron_profile_cleanup(struct neutron_device *ndev)
+{
+	debugfs_remove_recursive(ndev->debugfs_root);
+	mutex_destroy(&ndev->profile_lock);
+
+	dev_dbg(ndev->dev, "Performance profiling cleaned up\n");
+}
+
+#endif /* CONFIG_DEBUG_FS */
 

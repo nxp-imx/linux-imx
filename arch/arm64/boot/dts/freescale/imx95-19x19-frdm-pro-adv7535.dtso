@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2023,2026 NXP
+ * Copyright 2026 NXP
  */
 
 #include "imx95-clock.h"
@@ -17,17 +17,16 @@
 &lpi2c2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <400000>;
 
 	hdmi@3d {
 		compatible = "adi,adv7535";
 		reg = <0x3d>;
-		avdd-supply = <&reg_1p8v>;
-		dvdd-supply = <&reg_1p8v>;
-		pvdd-supply = <&reg_1p8v>;
-		a2vdd-supply = <&reg_3p3v>;
-		v3p3-supply = <&reg_1p8v>;
-		v1p2-supply = <&reg_1p8v>;
+		avdd-supply = <&reg_exp_1v8>;
+		dvdd-supply = <&reg_exp_1v8>;
+		pvdd-supply = <&reg_exp_1v8>;
+		a2vdd-supply = <&reg_exp_3v3>;
+		v3p3-supply = <&reg_exp_1v8>;
+		v1p2-supply = <&reg_exp_1v8>;
 		adi,dsi-lanes = <4>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_dsi_csi>;
@@ -60,8 +59,8 @@
 	#size-cells = <0>;
 	status = "okay";
 
-	channel@0 {
-		reg = <0>;
+	channel@1 {
+		reg = <1>;
 		status = "okay";
 	};
 };

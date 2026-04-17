@@ -79,6 +79,7 @@ extern struct imx_pll14xx_clk imx_1443x_dram_pll;
 
 #define CLK_FRACN_GPPLL_INTEGER	BIT(0)
 #define CLK_FRACN_GPPLL_FRACN	BIT(1)
+#define CLK_FRACN_GPPLL_NEAREST	BIT(2) /* Select closest rate instead of next lowest */
 
 /* NOTE: Rate table should be kept sorted in descending order. */
 struct imx_fracn_gppll_rate_table {
@@ -101,6 +102,10 @@ struct clk_hw *imx_clk_fracn_gppll(const char *name, const char *parent_name, vo
 struct clk_hw *imx_clk_fracn_gppll_integer(const char *name, const char *parent_name,
 					   void __iomem *base,
 					   const struct imx_fracn_gppll_clk *pll_clk);
+struct clk_hw *imx_clk_fracn_gppll_flags(const char *name, const char *parent_name,
+					 void __iomem *base,
+					 const struct imx_fracn_gppll_clk *pll_clk,
+					 unsigned int flags);
 
 extern struct imx_fracn_gppll_clk imx_fracn_gppll;
 extern struct imx_fracn_gppll_clk imx_fracn_gppll_integer;

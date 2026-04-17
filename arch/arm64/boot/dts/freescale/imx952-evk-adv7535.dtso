@@ -5,7 +5,7 @@
 
 #include "imx952-clock.h"
 #include "imx952-pinfunc.h"
-#include "imx95-evk-adv7535-common.dtsi"
+#include "imx95-adv7535-common.dtsi"
 
 &dpu {
 	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
@@ -57,6 +57,17 @@
 
 &mipi_dphy {
 	status = "okay";
+};
+
+&pixel_interleaver {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel@0 {
+		reg = <0>;
+		status = "okay";
+	};
 };
 
 &scmi_iomuxc {
