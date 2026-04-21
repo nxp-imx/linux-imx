@@ -649,12 +649,12 @@ int wave5_vpu_dec_reset_framebuffer(struct vpu_instance *inst, unsigned int inde
 	if (inst->frame_vbuf[index].size == 0)
 		return -EINVAL;
 
-	if (inst->secure_mode) {
+	if (inst->secure_mode)
 		wave5_free_secure_dma_memory(&inst->frame_vbuf[index]);
-	} else {
+	else
 		wave5_vdi_free_dma_memory(&inst->frame_vbuf[index]);
-		memset(&inst->frame_buf[index], 0, sizeof(struct frame_buffer));
-	}
+
+	memset(&inst->frame_buf[index], 0, sizeof(struct frame_buffer));
 
 	return 0;
 }
@@ -667,10 +667,9 @@ void wave5_vpu_dec_reset_disp_buf(struct vpu_instance *inst)
 
 	p_dec_info->num_of_display_fbs = 0;
 
-	if (!inst->secure_mode) {
-		for (int i = 0; i < WAVE5_MAX_FBS; i++)
-			memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
-	}
+	for (int i = 0; i < WAVE5_MAX_FBS; i++)
+		memset(&p_dec_info->disp_buf[i], 0, sizeof(struct frame_buffer));
+
 	inst->disp_buf_mask = 0;
 }
 
