@@ -6,6 +6,10 @@
 #include "imx95-19x19-frdm-pro.dts"
 
 / {
+	sound-mqs {
+		status = "disabled";
+	};
+
 	mic_leds {
 		compatible = "gpio-leds";
 		mic0 {
