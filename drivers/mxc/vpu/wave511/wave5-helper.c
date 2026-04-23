@@ -494,3 +494,16 @@ unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane
 		return 0;
 	return vb2_get_plane_payload(buf, plane_no) - buf->planes[plane_no].data_offset;
 }
+
+void wave5_vpu_record_flow(struct vpu_instance *inst, u32 flow, u32 arg1, u32 arg2)
+{
+	int index;
+
+	scoped_guard(spinlock_irqsave, &inst->flow.lock)
+		index = inst->flow.index++;
+
+	index %= WAVE5_VPU_FLOW_DEPTH;
+	inst->flow.flows[index].arg1 = arg1;
+	inst->flow.flows[index].arg2 = arg2;
+	inst->flow.flows[index].key = flow;
+}

@@ -177,14 +177,6 @@ static const struct linear_range pca9450_dvs_buck_volts[] = {
  * BUCK1/3
  * 0.65 to 2.2375V (12.5mV step)
  */
-static const struct linear_range pca9450_trim_dvs_buck_volts[] = {
-	REGULATOR_LINEAR_RANGE(650000, 0x00, 0x7F, 12500),
-};
-
-/*
- * BUCK1/3
- * 0.65 to 2.2375V (12.5mV step)
- */
 static const struct linear_range pca9451a_dvs_buck_volts[] = {
 	REGULATOR_LINEAR_RANGE(650000, 0x00, 0x7F, 12500),
 };
@@ -893,35 +885,6 @@ static struct pca9450_regulator_desc pca9451a_regulators[] = {
 	},
 	{
 		.desc = {
-			.name = "buck1_trim",
-			.of_match = of_match_ptr("BUCK1"),
-			.regulators_node = of_match_ptr("regulators"),
-			.id = PCA9450_BUCK1,
-			.ops = &pca9450_dvs_buck_regulator_ops,
-			.type = REGULATOR_VOLTAGE,
-			.n_voltages = PCA9450_BUCK1_VOLTAGE_NUM,
-			.linear_ranges = pca9450_trim_dvs_buck_volts,
-			.n_linear_ranges = ARRAY_SIZE(pca9450_trim_dvs_buck_volts),
-			.vsel_reg = PCA9450_REG_BUCK1OUT_DVS0,
-			.vsel_mask = BUCK1OUT_DVS0_MASK,
-			.enable_reg = PCA9450_REG_BUCK1CTRL,
-			.enable_mask = BUCK1_ENMODE_MASK,
-			.enable_val = BUCK_ENMODE_ONREQ,
-			.ramp_mask = BUCK1_RAMP_MASK,
-			.ramp_delay_table = pca9450_dvs_buck_ramp_table,
-			.n_ramp_values = ARRAY_SIZE(pca9450_dvs_buck_ramp_table),
-			.owner = THIS_MODULE,
-			.of_parse_cb = pca9450_set_dvs_levels,
-		},
-		.dvs = {
-			.run_reg = PCA9450_REG_BUCK1OUT_DVS0,
-			.run_mask = BUCK1OUT_DVS0_MASK,
-			.standby_reg = PCA9450_REG_BUCK1OUT_DVS1,
-			.standby_mask = BUCK1OUT_DVS1_MASK,
-		},
-	},
-	{
-		.desc = {
 			.name = "buck2",
 			.of_match = of_match_ptr("BUCK2"),
 			.regulators_node = of_match_ptr("regulators"),
@@ -1215,9 +1178,19 @@ static int pca9450_of_init(struct pca9450 *pca9450)
 	}
 
 	ret = of_property_read_u32(i2c->dev.of_node, "nxp,pmic-on-req-off-debounce-us", &val);
-	if (ret == -EINVAL)
-		t_off_deb = T_OFF_DEB_120US;
-	else if (ret)
+	if (ret == -EINVAL) {
+		switch (pca9450->type) {
+		case PCA9450_TYPE_PCA9451A:
+		case PCA9450_TYPE_PCA9452:
+			/* PCA9451A Rev.2.1 and PCA9452 Rev.1.0 default: 2ms */
+			t_off_deb = T_OFF_DEB_2MS;
+			break;
+		default:
+			/* Other variants default: 120us */
+			t_off_deb = T_OFF_DEB_120US;
+			break;
+		}
+	} else if (ret)
 		return ret;
 	else {
 		switch (val) {
@@ -1299,8 +1272,7 @@ static int pca9450_i2c_probe(struct i2c_client *i2c)
 	struct regulator_config config = { };
 	struct regulator_dev *ldo5;
 	struct pca9450 *pca9450;
-	unsigned int device_id, i, val;
-	bool pmic_trim = false;
+	unsigned int device_id, i;
 	const char *type_name;
 	int ret;
 
@@ -1313,16 +1285,6 @@ static int pca9450_i2c_probe(struct i2c_client *i2c)
 	if (IS_ERR(pca9450->regmap))
 		return dev_err_probe(&i2c->dev, PTR_ERR(pca9450->regmap),
 				     "regmap initialization failed\n");
-
-	ret = regmap_read(pca9450->regmap, PCA9450_REG_PWRCTRL, &val);
-	if (ret) {
-		dev_err(&i2c->dev, "Read device id error\n");
-		return ret;
-	}
-
-	if (val & PCA9450_REG_PWRCTRL_TOFF_DEB)
-		pmic_trim = true;
-
 	switch (type) {
 	case PCA9450_TYPE_PCA9450A:
 		regulator_desc = pca9450a_regulators;
@@ -1372,16 +1334,7 @@ static int pca9450_i2c_probe(struct i2c_client *i2c)
 		struct regulator_dev *rdev;
 		const struct pca9450_regulator_desc *r;
 
-		if (type == PCA9450_TYPE_PCA9451A &&
-		    !strcmp((&regulator_desc[i])->desc.name, "buck1") && pmic_trim) {
-			r = &regulator_desc[i + 1];
-			i = i + 1;
-		} else if (type == PCA9450_TYPE_PCA9451A &&
-			   !strcmp((&regulator_desc[i])->desc.name, "buck1")) {
-			r = &regulator_desc[i];
-			i = i + 1;
-		} else
-			r = &regulator_desc[i];
+		r = &regulator_desc[i];
 		desc = &r->desc;
 
 		if (type == PCA9450_TYPE_PCA9451A && !strcmp(desc->name, "ldo3"))

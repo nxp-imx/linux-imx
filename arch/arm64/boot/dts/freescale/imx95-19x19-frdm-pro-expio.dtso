@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx95-pinfunc.h"
+
+&lpi2c7 {
+	pinctrl-0 = <&pinctrl_lpi2c7>;
+	pinctrl-names = "default";
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	ina219@41 {
+		compatible = "ti,ina219";
+		reg = <0x41>;
+		shunt-resistor = <100000>;
+	};
+};
+
+&lpuart8 {
+	pinctrl-0 = <&pinctrl_lpuart8>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&scmi_iomuxc {
+	pinctrl_lpi2c7: lpi2cgrp {
+		fsl,pins = <
+			IMX95_PAD_GPIO_IO06__LPI2C7_SDA         0x40000b9e
+			IMX95_PAD_GPIO_IO07__LPI2C7_SCL         0x40000b9e
+		>;
+	};
+
+	pinctrl_lpuart8: uart8grp {
+		fsl,pins = <
+			IMX95_PAD_GPIO_IO12__LPUART8_TX         0x31e
+			IMX95_PAD_GPIO_IO13__LPUART8_RX         0x31e
+		>;
+	};
+};

@@ -508,6 +508,19 @@ struct vpu_performance_info {
 	u32 first_hw_time;
 };
 
+struct vpu_flow_item {
+	u32 key;
+	u32 arg1;
+	u32 arg2;
+};
+
+#define WAVE5_VPU_FLOW_DEPTH		48
+struct vpu_flow {
+	struct vpu_flow_item flows[WAVE5_VPU_FLOW_DEPTH];
+	int index;
+	spinlock_t lock;   /* This protects the flow recorder */
+};
+
 struct vpu_instance {
 	struct list_head list;
 	struct v4l2_fh v4l2_fh;
@@ -575,6 +588,7 @@ struct vpu_instance {
 	struct vpu_performance_info performance;
 	struct dentry *debugfs;
 	bool secure_mode;
+	struct vpu_flow flow;
 };
 
 struct vpu_state_trans_element {

@@ -197,6 +197,8 @@ static int switch_state(struct vpu_instance *inst, enum vpu_instance_state state
 
 	lockdep_assert_held(&inst->state_spinlock);
 
+	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_SET_STATE, inst->state, state);
+
 	trans = wave5_vpu_dec_find_trans(inst, state);
 	if (!trans) {
 		WARN(1, "Invalid state switch from %s to %s.\n",
@@ -575,6 +577,8 @@ static void send_eos_event(struct vpu_instance *inst)
 
 	v4l2_event_queue_fh(&inst->v4l2_fh, &vpu_event_eos);
 	inst->eos = false;
+
+	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_EOS, 0, 0);
 }
 
 static int wave5_vpu_dec_check_constraint(struct vpu_instance *inst,
@@ -657,6 +661,9 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 		inst->id, initial_info->pic_width, initial_info->pic_height,
 		initial_info->profile, initial_info->min_frame_buffer_count,
 		initial_info->reorder_delay);
+
+	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_SOURCE_CHANGE,
+			      initial_info->pic_width, initial_info->pic_height);
 
 	if (wave5_vpu_dec_check_constraint(inst, initial_info)) {
 		scoped_guard(spinlock_irqsave, &inst->state_spinlock)
@@ -1337,6 +1344,8 @@ static int wave5_vpu_dec_stop(struct vpu_instance *inst)
 	if (m2m_ctx->is_draining)
 		return -EBUSY;
 
+	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_STOP,
+			      inst->dynamic_source_change, m2m_ctx->has_stopped);
 	dev_dbg(inst->dev->dev, "drain, has_stopped = %d, dynamic_source_change = %d\n",
 		m2m_ctx->has_stopped, inst->dynamic_source_change);
 	/*
@@ -1374,6 +1383,8 @@ static void wave5_vpu_dec_reinit_dst_buffers(struct vpu_instance *inst)
 	struct vb2_queue *dst_vq = v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx);
 	unsigned int num_buffers = vb2_get_num_buffers(dst_vq);
 
+	inst->avail_dst_bufs = 0;
+
 	for (unsigned int i = 0; i < num_buffers; i++) {
 		struct vb2_buffer *vb = vb2_get_buffer(dst_vq, i);
 		struct vpu_dst_buffer *vpu_buf;
@@ -1401,6 +1412,7 @@ static int wave5_vpu_dec_start(struct vpu_instance *inst)
 	if (m2m_ctx->is_draining)
 		return -EBUSY;
 
+	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_START, 0, 0);
 	if (v4l2_m2m_has_stopped(m2m_ctx)) {
 		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
 		if (inst->dynamic_source_change) {
@@ -1703,6 +1715,11 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 	dev_dbg(inst->dev->dev, "[%d] streamon %s\n", inst->id,
 		V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
 
+	if (V4L2_TYPE_IS_OUTPUT(q->type))
+		wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_OUTPUT_ON, 0, 0);
+	else
+		wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_CAPTURE_ON, 0, 0);
+
 	v4l2_m2m_update_start_streaming_state(m2m_ctx, q);
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE && inst->state == VPU_INST_STATE_NONE) {
@@ -1865,6 +1882,13 @@ static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 
 	dev_dbg(inst->dev->dev, "[%d] streamoff %s\n", inst->id,
 		V4L2_TYPE_IS_OUTPUT(q->type) ? "output" : "capture");
+
+	if (V4L2_TYPE_IS_OUTPUT(q->type))
+		wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_OUTPUT_OFF,
+				      inst->queued_src_buf_num, inst->processed_buf_num);
+	else
+		wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_CAPTURE_OFF,
+				      inst->queued_dst_buf_num, inst->displayed_buf_num);
 
 	if (inst->state == VPU_INST_STATE_NONE)
 		return;
@@ -2168,6 +2192,7 @@ static int wave5_vpu_open_dec(struct file *filp)
 	inst->id = -1;
 
 	spin_lock_init(&inst->state_spinlock);
+	spin_lock_init(&inst->flow.lock);
 
 	inst->codec_info = kzalloc(sizeof(*inst->codec_info), GFP_KERNEL);
 	if (!inst->codec_info)

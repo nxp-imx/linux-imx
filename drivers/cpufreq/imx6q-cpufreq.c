@@ -117,7 +117,7 @@ static int imx6q_set_target(struct cpufreq_policy *policy, unsigned int index)
 		new_freq / 1000, volt / 1000);
 
 	if (low_power_run_support) {
-		if (old_freq == freq_table[0].frequency)
+		if (old_freq <= freq_table[0].frequency)
 			request_bus_freq(BUS_FREQ_HIGH);
 	} else if (old_freq <= FREQ_396_MHZ && new_freq > FREQ_396_MHZ) {
 		request_bus_freq(BUS_FREQ_HIGH);

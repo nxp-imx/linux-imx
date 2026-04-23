@@ -989,7 +989,7 @@ static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_again = {
 	.min		= 0x0,
 	.max		= OX05B1S_AGAIN_MAX,
 	.step		= 1,
-	.def		= 0x100,
+	.def		= OX05B1S_AGAIN_1X,
 	.dims		= { OX05B1S_NUM_EXP },
 };
 
@@ -1005,6 +1005,31 @@ static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_dgain = {
 	.dims		= { OX05B1S_NUM_EXP },
 };
 
+static const struct v4l2_ctrl_config os08a20_ctrl_cfg_again = {
+	.ops		= &ox05b1s_ctrl_ops,
+	.id		= V4L2_CID_AGAIN_MULTI,
+	.name		= "Analog gains for multiple captures",
+	.type		= V4L2_CTRL_TYPE_U32,
+	.min		= 0x0,
+	.max		= OS08A20_AGAIN_MAX,
+	.step		= 1,
+	.def		= OS08A20_AGAIN_1X,
+	.dims		= { OX05B1S_NUM_EXP },
+};
+
+static const struct v4l2_ctrl_config *
+ox05b1s_get_ctrl_cfg_again(struct ox05b1s *sensor)
+{
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		return &ox05b1s_ctrl_cfg_again;
+	case OS08A20_CHIP_ID:
+		return &os08a20_ctrl_cfg_again;
+	default:
+		return &ox05b1s_ctrl_cfg_again;
+	}
+}
+
 static int ox05b1s_init_controls(struct ox05b1s *sensor)
 {
 	const struct v4l2_ctrl_ops *ops = &ox05b1s_ctrl_ops;
@@ -1012,6 +1037,8 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	struct v4l2_ctrl_handler *hdl = &ctrls->handler;
 	struct device *dev = &sensor->i2c_client->dev;
 	struct v4l2_fwnode_device_properties props;
+	const struct v4l2_ctrl_config *again_cfg =
+		ox05b1s_get_ctrl_cfg_again(sensor);
 	int ret;
 
 	v4l2_ctrl_handler_init(hdl, 11);
@@ -1039,14 +1066,15 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_EXPOSURE,
 					    0, 0, 1, 0);
 
-	ctrls->again = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
-					 0, 0xFFFF, 1, 0x80);
+	ctrls->again = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN, 0,
+					 again_cfg->max, 1,
+					 again_cfg->def);
 
 	ctrls->dgain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_DIGITAL_GAIN,
-					 0, 0xFFFF, 1, 0x400);
+					 0, OX05B1S_DGAIN_MAX, 1, 0x400);
 
 	ctrls->exposure_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_exp, NULL);
-	ctrls->again_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_again, NULL);
+	ctrls->again_multi = v4l2_ctrl_new_custom(hdl, again_cfg, NULL);
 	ctrls->dgain_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_dgain, NULL);
 
 	if (sensor->model->hdr_modes)
