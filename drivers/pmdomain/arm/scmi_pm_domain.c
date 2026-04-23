@@ -83,6 +83,19 @@ static int scmi_pm_domain_probe(struct scmi_device *sdev)
 			continue;
 		}
 
+#ifdef CONFIG_VEHICLE_IMX_DISPLAY_PWR_INIT_OVERRIDE_2_OFF
+		const char *domain_name = power_ops->name_get(ph, i);
+		if (domain_name != NULL) {
+			if (strcmp(power_ops->name_get(ph, i), "display") == 0) {
+				/* Override to OFF for Car image. The display domain
+				 * is toggled(reset) from M core before passing control
+				 * to A core. OFF state is not reach on M side without
+				 * this modification is active. */
+				state = SCMI_POWER_STATE_GENERIC_OFF;
+			}
+		}
+#endif
+
 		/*
 		 * Register the explicit power on request to the firmware so
 		 * that it is tracked as used by OSPM agent and not

@@ -35,3 +35,8 @@ config ARM_SCPI_POWER_DOMAIN
 
 	  This driver can also be built as a module. If so, the module will be
 	  called scpi_pm_domain.
+
+config VEHICLE_IMX_DISPLAY_PWR_INIT_OVERRIDE_2_OFF
+	bool "Display power domain override to off"
+	help
+	  Display power domain override to off.
