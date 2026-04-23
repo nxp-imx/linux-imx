@@ -1393,6 +1393,12 @@ imx952-evk-adv7535-os08a20-csi0-4lanes-dtbs := imx952-evk.dtb \
                                               imx952-evk-os08a20-csi0-4lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes.dtb
 
+imx952-evk-adv7535-dual-os08a20-dtbs := imx952-evk.dtb \
+					imx952-evk-adv7535.dtbo \
+					imx952-evk-os08a20-csi0-2lanes.dtbo \
+					imx952-evk-os08a20-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-dual-os08a20.dtb
+
 imx952-evk-os08a20-csi0-2lanes-dtbs := imx952-evk.dtb imx952-evk-os08a20-csi0-2lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-os08a20-csi0-2lanes.dtb
 
