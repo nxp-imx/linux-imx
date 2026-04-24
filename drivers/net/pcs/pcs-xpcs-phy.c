@@ -374,6 +374,12 @@ void xpcs_phy_reset(struct dw_xpcs *xpcs)
 			PMA_RX_GENCTRL1_RX_RST_0, PMA_RX_GENCTRL1_RX_RST_0);
 }
 
+static void xpcs_modify_an_enable(struct dw_xpcs *xpcs, bool an)
+{
+	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_AN_ENABLE,
+			an ? MII_CTRL_AN_ENABLE : 0);
+}
+
 static void mx95_xpcs_phy_reg_lock(struct dw_xpcs *xpcs)
 {
 	int ret;
@@ -587,8 +593,7 @@ static int xpcs_phy_common_init_seq_1(struct dw_xpcs *xpcs, bool has_pcs_pma, bo
 	int ret;
 	u8 devad = has_pcs_pma ? MDIO_MMD_PMAPMD : MDIO_MMD_VEND2;
 
-	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_AN_ENABLE,
-			an ? MII_CTRL_AN_ENABLE : 0);
+	xpcs_modify_an_enable(xpcs, an);
 	xpcs_phy_modify(xpcs, XPCS_DEV, devad, PMA_MP_12G_16G_25G_TX_GENCTRL0,
 			PMA_TX_GENCTRL0_TX_RST_0, PMA_TX_GENCTRL0_TX_RST_0);
 	xpcs_phy_modify(xpcs, XPCS_DEV, devad, PMA_MP_12G_16G_25G_RX_GENCTRL1,
@@ -1696,11 +1701,11 @@ timeout:
 	return -ETIMEDOUT;
 }
 
-static int imx95_xpcs_phy_xfi_10g_config(struct dw_xpcs *xpcs)
+static int imx95_xpcs_phy_10g_mode_config(struct dw_xpcs *xpcs, bool usxgmii)
 {
 	int ret;
 
-	/* 2 Config MPLL for 10G XGMII */
+	/* 2 Configure MPLL for the selected 10G serial mode */
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_REF_CLK_CTRL,
 			PMA_REF_CLK_CTRL_REF_RANGE_MASK, PMA_REF_CLK_CTRL_REF_RANGE(6));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_REF_CLK_CTRL,
@@ -1753,7 +1758,7 @@ static int imx95_xpcs_phy_xfi_10g_config(struct dw_xpcs *xpcs)
 			PMA_RX_PPM_CTRL0_RX0_CDR_PPM_MAX_MASK,
 			PMA_RX_PPM_CTRL0_RX0_CDR_PPM_MAX(0x12));
 
-	/* 3 Configure LANE0 for 10G XGMII */
+	/* 3 Configure LANE0 for 10G XFI or USXGMII */
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_16G_25G_TX_MISC_CTRL0,
 			PMA_TX_MISC_CTRL0_TX0_MISC_MASK, PMA_TX_MISC_CTRL0_TX0_MISC(0x0));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_RATE_CTRL,
@@ -1763,15 +1768,20 @@ static int imx95_xpcs_phy_xfi_10g_config(struct dw_xpcs *xpcs)
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_TX_GENCTRL2,
 			PMA_TX_GENCTRL2_TX0_WIDTH_MASK, PMA_TX_GENCTRL2_TX0_WIDTH(0x3));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_GENCTRL1,
-			PMA_TX_GENCTRL1_VBOOST_EN_0, PMA_TX_GENCTRL1_VBOOST_EN_0);
+			PMA_TX_GENCTRL1_VBOOST_EN_0,
+			usxgmii ? PMA_TX_GENCTRL1_VBOOST_EN_0 : 0);
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_BOOST_CTRL,
 			PMA_TX_BOOST_CTRL_TX0_IBOOST_MASK, PMA_TX_BOOST_CTRL_TX0_IBOOST(0xf));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_EQ_CTRL0,
 			PMA_TX_EQ_CTRL0_TX_EQ_PRE_MASK, PMA_TX_EQ_CTRL0_TX_EQ_PRE(0));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_EQ_CTRL1,
-			PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK, PMA_TX_EQ_CTRL1_TX_EQ_POST(0x20));
+			PMA_TX_EQ_CTRL1_TX_EQ_POST_MASK,
+			usxgmii ? PMA_TX_EQ_CTRL1_TX_EQ_POST(0x20)
+				 : PMA_TX_EQ_CTRL1_TX_EQ_POST(0xc));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_TX_EQ_CTRL0,
-			PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK, PMA_TX_EQ_CTRL0_TX_EQ_MAIN(0x20));
+			PMA_TX_EQ_CTRL0_TX_EQ_MAIN_MASK,
+			usxgmii ? PMA_TX_EQ_CTRL0_TX_EQ_MAIN(0x20)
+				 : PMA_TX_EQ_CTRL0_TX_EQ_MAIN(0x19));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_RX_RATE_CTRL,
 			PMA_RX_RATE_CTRL_RX0_RATE_MASK, PMA_RX_RATE_CTRL_RX0_RATE(0x0));
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_16G_25G_RX_EQ_CTRL0,
@@ -1815,12 +1825,12 @@ static int imx95_xpcs_phy_xfi_10g_config(struct dw_xpcs *xpcs)
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_16G_25G_RX_EQ_CTRL5,
 			PMA_RX_EQ_CTRL5_RX0_ADPT_MODE_MASK, PMA_RX_EQ_CTRL5_RX0_ADPT_MODE(0x3));
 
-	/* 4 Configure XPCS for 10G XGMII */
+	/* 4 Configure XPCS for the selected 10G mode */
 	xpcs_write(xpcs, MDIO_MMD_PCS, XPCS_PHY_REG(PCS_CTRL2), 0x0);
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PCS, PCS_DIG_CTRL1, PCS_DIG_CTRL1_USXG_EN,
-			PCS_DIG_CTRL1_USXG_EN);
+			usxgmii ? PCS_DIG_CTRL1_USXG_EN : 0);
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PCS, PCS_KR_CTRL1, PCS_KR_CTRL1_USXG_MODE_MASK,
-			PCS_KR_CTRL1_USXG_MODE(0));
+			usxgmii ? PCS_KR_CTRL1_USXG_MODE(0) : 0);
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_MPLLA_CTRL0,
 			PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER_MASK,
 			PMA_MPLLA_CTRL0_MPLLA_MULTIPLIER(33));
@@ -1955,13 +1965,28 @@ static int imx95_xpcs_phy_xfi_10g_config(struct dw_xpcs *xpcs)
 	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_PMAPMD, PMA_MP_12G_16G_25G_RX_EQ_CTRL4,
 			PMA_RX_EQ_CTRL4_RX_AD_REQ, 0);
 
-	/* 18 Set the value of Config_Reg to 0 for Clause 37 autonegotiation. */
-	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_AN_CTRL, MII_AN_CTRL_TX_CONFIG, 0);
+	if (usxgmii) {
+		/* 18 Set the value of Config_Reg to 0 for Clause 37 autonegotiation. */
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_AN_CTRL,
+				MII_AN_CTRL_TX_CONFIG, 0);
 
-	/* 19 Select XGMII speed */
-	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS5, 0);
-	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS6, MII_CTRL_SS6);
-	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS13, MII_CTRL_SS13);
+		/* 19 Select XGMII speed */
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS5, 0);
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS6,
+				MII_CTRL_SS6);
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_CTRL, MII_CTRL_SS13,
+				MII_CTRL_SS13);
+
+		/* 20 Enable Clause 37 auto-negotiation. */
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_AN_CTRL,
+				MII_AN_CTRL_MII_AN_INTR_EN, MII_AN_CTRL_MII_AN_INTR_EN);
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_LINK_TIMER_CTRL,
+				MII_LINK_TIMER_CTRL_CL37_LINK_TIME_MASK,
+				MII_LINK_TIMER_CTRL_CL37_LINK_TIME(1));
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_DIG_CTRL1,
+				MII_DIG_CTRL1_CL37_TMR_OVR_RIDE,
+				MII_DIG_CTRL1_CL37_TMR_OVR_RIDE);
+	}
 
 	return 0;
 
@@ -2021,13 +2046,42 @@ int imx95_xpcs_phy_xfi_config(struct dw_xpcs *xpcs)
 	if (ret)
 		return ret;
 
-	ret = imx95_xpcs_phy_xfi_10g_config(xpcs);
+	ret = imx95_xpcs_phy_10g_mode_config(xpcs, false);
 	if (ret)
 		return ret;
 
 	ret = xpcs_phy_common_init_seq_2(xpcs, true);
 	if (ret)
 		return ret;
+
+	ret = xpcs_phy_reg_unlock(xpcs);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int imx95_xpcs_phy_usxgmii_config(struct dw_xpcs *xpcs)
+{
+	int ret;
+
+	ret = xpcs_phy_reg_lock(xpcs);
+	if (ret)
+		return ret;
+
+	ret = xpcs_phy_common_init_seq_1(xpcs, true, false);
+	if (ret)
+		return ret;
+
+	ret = imx95_xpcs_phy_10g_mode_config(xpcs, true);
+	if (ret)
+		return ret;
+
+	ret = xpcs_phy_common_init_seq_2(xpcs, true);
+	if (ret)
+		return ret;
+
+	xpcs_modify_an_enable(xpcs, true);
 
 	ret = xpcs_phy_reg_unlock(xpcs);
 	if (ret)

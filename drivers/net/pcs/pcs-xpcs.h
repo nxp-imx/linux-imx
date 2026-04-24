@@ -77,6 +77,7 @@
 #define DW_VR_MII_C37_ANSGM_SP_100		0x1
 #define DW_VR_MII_C37_ANSGM_SP_1000		0x2
 #define DW_VR_MII_C37_ANSGM_SP_LNKSTS		BIT(4)
+#define DW_VR_MII_USX_AN_STS_MASK		GENMASK(14, 8)
 
 #define DW_VR_MII_EEE_MCTRL0		0x8006
 #define DW_VR_MII_EEE_LTX_EN			BIT(0)  /* LPI Tx Enable */
@@ -131,6 +132,7 @@ int nxp_sja1110_sgmii_pma_config(struct dw_xpcs *xpcs);
 int nxp_sja1110_2500basex_pma_config(struct dw_xpcs *xpcs);
 int txgbe_xpcs_switch_mode(struct dw_xpcs *xpcs, phy_interface_t interface);
 int imx95_xpcs_phy_xfi_config(struct dw_xpcs *xpcs);
+int imx95_xpcs_phy_usxgmii_config(struct dw_xpcs *xpcs);
 int imx95_xpcs_phy_sgmii_1g_config(struct dw_xpcs *xpcs);
 int imx95_xpcs_phy_sgmii_2p5g_config(struct dw_xpcs *xpcs);
 int imx94_xpcs_phy_sgmii_1g_config(struct dw_xpcs *xpcs);

@@ -276,6 +276,7 @@ static int xpcs_soft_reset(struct dw_xpcs *xpcs,
 		dev = MDIO_MMD_PCS;
 		break;
 	case DW_AN_C37_SGMII:
+	case DW_AN_C37_USXGMII:
 	case DW_2500BASEX:
 	case DW_AN_C37_1000BASEX:
 		dev = MDIO_MMD_VEND2;
@@ -613,6 +614,7 @@ static unsigned int xpcs_inband_caps(struct phylink_pcs *pcs,
 
 	switch (compat->an_mode) {
 	case DW_AN_C73:
+	case DW_AN_C37_USXGMII:
 		return LINK_INBAND_ENABLE;
 
 	case DW_AN_C37_SGMII:
@@ -905,6 +907,8 @@ static int xpcs_do_config(struct dw_xpcs *xpcs, phy_interface_t interface,
 				return ret;
 		}
 		break;
+	case DW_AN_C37_USXGMII:
+		break;
 	case DW_AN_C37_SGMII:
 		ret = xpcs_config_aneg_c37_sgmii(xpcs, neg_mode);
 		if (ret)
@@ -1142,6 +1146,32 @@ static int xpcs_get_state_2500basex(struct dw_xpcs *xpcs,
 	return 0;
 }
 
+static int xpcs_get_state_c37_usxgmii(struct dw_xpcs *xpcs,
+				       struct phylink_link_state *state)
+{
+	u16 usxg_an_status;
+	int ret;
+
+	state->link = false;
+	state->speed = SPEED_UNKNOWN;
+	state->duplex = DUPLEX_UNKNOWN;
+	state->pause = 0;
+
+	ret = xpcs_read(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS);
+	if (ret < 0)
+		return ret;
+
+	usxg_an_status = FIELD_GET(DW_VR_MII_USX_AN_STS_MASK, ret);
+	if (!(usxg_an_status & BIT(6)))
+		return 0;
+
+	state->link = true;
+	state->an_complete = true;
+	phylink_decode_usxgmii_word(state, usxg_an_status << 7);
+
+	return 0;
+}
+
 static void xpcs_get_state(struct phylink_pcs *pcs, unsigned int neg_mode,
 			   struct phylink_link_state *state)
 {
@@ -1173,6 +1203,12 @@ static void xpcs_get_state(struct phylink_pcs *pcs, unsigned int neg_mode,
 		if (ret)
 			dev_err(&xpcs->mdiodev->dev, "%s returned %pe\n",
 				"xpcs_get_state_c73", ERR_PTR(ret));
+		break;
+	case DW_AN_C37_USXGMII:
+		ret = xpcs_get_state_c37_usxgmii(xpcs, state);
+		if (ret)
+			dev_err(&xpcs->mdiodev->dev, "%s returned %pe\n",
+				"xpcs_get_state_c37_usxgmii", ERR_PTR(ret));
 		break;
 	case DW_AN_C37_SGMII:
 		ret = xpcs_get_state_c37_sgmii(xpcs, state);
@@ -1440,6 +1476,11 @@ static const struct dw_xpcs_compat nxp_sja1110_xpcs_compat[] = {
 
 static const struct dw_xpcs_compat nxp_mx95_xpcs_compat[] = {
 	{
+		.supported = xpcs_usxgmii_features,
+		.interface = PHY_INTERFACE_MODE_USXGMII,
+		.an_mode = DW_AN_C37_USXGMII,
+		.pma_config = imx95_xpcs_phy_usxgmii_config,
+	}, {
 		.supported = xpcs_mx95_10g_features,
 		.interface = PHY_INTERFACE_MODE_10GBASER,
 		.an_mode = DW_10GBASER,
