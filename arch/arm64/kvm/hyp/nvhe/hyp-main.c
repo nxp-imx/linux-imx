@@ -774,10 +774,12 @@ static void flush_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 	 * vcpu.
 	 */
 	if (!pkvm_hyp_vcpu_is_protected(hyp_vcpu)) {
-		if (vcpu_get_flag(host_vcpu, PKVM_HOST_STATE_DIRTY))
+		u8 host_iflags = READ_ONCE(host_vcpu->arch.iflags);
+
+		if (host_iflags & unpack_vcpu_flag(PKVM_HOST_STATE_DIRTY))
 			__flush_hyp_vcpu(hyp_vcpu);
 
-		hyp_vcpu->vcpu.arch.iflags = READ_ONCE(host_vcpu->arch.iflags);
+		hyp_vcpu->vcpu.arch.iflags = host_iflags;
 		hyp_vcpu->vcpu.arch.hcr_el2 &= ~(HCR_TWI | HCR_TWE);
 		hyp_vcpu->vcpu.arch.hcr_el2 |= READ_ONCE(host_vcpu->arch.hcr_el2) &
 							 (HCR_TWI | HCR_TWE);
@@ -1865,8 +1867,9 @@ static void handle___pkvm_host_iommu_set_identity(struct kvm_cpu_context *host_c
 	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 2);
 	DECLARE_REG(pkvm_handle_t, dev, host_ctxt, 3);
 	DECLARE_REG(bool, on, host_ctxt, 4);
+	DECLARE_REG(unsigned long, flags, host_ctxt, 5);
 
-	ret = kvm_iommu_set_identity(drv_id, iommu, dev, on);
+	ret = kvm_iommu_set_identity(drv_id, iommu, dev, on, flags);
 	this_cpu_hyp_req_to_smccc(ret, host_ctxt);
 }
 
@@ -2107,7 +2110,13 @@ inval:
 static void handle_host_smc(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(u64, func_id, host_ctxt, 0);
+	u64 esr = read_sysreg_el2(SYS_ESR);
 	bool handled;
+
+	if (esr & ESR_ELx_xVC_IMM_MASK) {
+		cpu_reg(host_ctxt, 0) = SMCCC_RET_NOT_SUPPORTED;
+		goto exit_skip_instr;
+	}
 
 	func_id &= ~ARM_SMCCC_CALL_HINTS;
 
@@ -2124,6 +2133,7 @@ static void handle_host_smc(struct kvm_cpu_context *host_ctxt)
 
 	trace_host_smc(func_id, !handled);
 
+exit_skip_instr:
 	/* SMC was trapped, move ELR past the current PC. */
 	kvm_skip_host_instr();
 }

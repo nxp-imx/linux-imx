@@ -485,6 +485,7 @@ void folio_mark_accessed(struct folio *folio)
 			__lru_cache_activate_folio(folio);
 		folio_clear_referenced(folio);
 		workingset_activation(folio);
+		trace_android_vh_spec_promote_folio(folio);
 	}
 	if (folio_test_idle(folio))
 		folio_clear_idle(folio);

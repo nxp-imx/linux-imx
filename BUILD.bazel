@@ -56,7 +56,9 @@ package(
 _GKI_AARCH64_MAKE_GOALS = [
     "Image",
     "Image.lz4",
+    "Image.lzma",
     "Image.gz",
+    "Image.zst",
     "modules",
 ]
 
@@ -64,16 +66,6 @@ _GKI_X86_64_MAKE_GOALS = [
     "bzImage",
     "modules",
 ]
-
-_GKI_AARCH64_BOOT_IMAGE_SIZES = {
-    "": "67108864",
-    "lz4": "53477376",
-    "gz": "47185920",
-}
-
-_GKI_X86_64_BOOT_IMAGE_SIZES = {
-    "": "67108864",
-}
 
 # Extra generated headers below $OUT_DIR for external modules.
 _GENERATED_HEADERS_FOR_MODULE = [
@@ -250,7 +242,6 @@ common_kernel(
         ":tests_zip_arm64",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_AARCH64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
     kcflags = COMMON_KCFLAGS,
     kmi_enforced = True,
@@ -280,7 +271,6 @@ common_kernel(
         ":tests_zip_arm64_16k",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_AARCH64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
     kcflags = COMMON_KCFLAGS,
     kmi_symbol_list = "gki/aarch64/symbols/base",
@@ -339,7 +329,6 @@ common_kernel(
         ":tests_zip_x86_64",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_X86_64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_x86_64",
     kcflags = COMMON_KCFLAGS,
     kmi_enforced = True,
@@ -1385,22 +1374,26 @@ kernel_build(
 
 # libbpf
 cc_library(
+    name = "tools_includes",
+    hdrs = glob([
+        "tools/include/**/*.h",
+    ]),
+    includes = [
+        "tools/include",
+        "tools/include/uapi",
+    ],
+)
+
+cc_library(
     name = "bpf_x86",
     srcs = glob([
         "tools/arch/x86/include/**/*.h",
-        "tools/include/**/*.h",
         "tools/lib/bpf/*.c",
     ]),
     hdrs = glob([
         "tools/lib/bpf/*.h",
     ]),
-    copts = [
-        "-I{}/tools/include".format(package_name()),
-        "-I{}/tools/lib/bpf".format(package_name()),
-    ],
-    includes = [
-        "tools/include/uapi",
-    ],
+    implementation_deps = [":tools_includes"],
     strip_include_prefix = "tools/lib",
     visibility = ["//visibility:public"],
     deps = ["//prebuilts/kernel-build-tools:imported_libs"],

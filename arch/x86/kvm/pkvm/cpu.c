@@ -47,19 +47,18 @@ unsigned int pkvm_per_cpu_nr_pages(void)
 #endif
 }
 
-int pkvm_setup_per_cpu(int cpu, unsigned long base)
+int pkvm_setup_per_cpu(int cpu, unsigned long base,
+		       unsigned long pcpu_pa, unsigned long vcpu_pa)
 {
+	struct pkvm_pcpu *pcpu = __pkvm_va(pcpu_pa);
+	struct kvm_vcpu *vcpu = __pkvm_va(vcpu_pa);
 	struct task_struct *task;
-	struct pkvm_pcpu *pcpu;
-	struct kvm_vcpu *vcpu;
 
 	if (cpu >= ARRAY_SIZE(__per_cpu_offset))
 		return -EINVAL;
-	pcpu = pkvm_hyp->pcpus[cpu];
-	if (!pcpu)
+	if (pcpu->cpu != cpu)
 		return -EINVAL;
-	vcpu = pkvm_hyp->host_vcpus[cpu];
-	if (!vcpu)
+	if (vcpu->cpu != cpu)
 		return -EINVAL;
 
 #ifndef CONFIG_PKVM_X86_DEBUG

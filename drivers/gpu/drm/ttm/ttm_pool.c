@@ -47,6 +47,10 @@
 #include <drm/ttm/ttm_tt.h>
 #include <drm/ttm/ttm_bo.h>
 
+#include <linux/android_kabi.h>
+#include <trace/hooks/ttm_pool.h>
+ANDROID_KABI_DECLONLY(trace_eval_map);
+
 #include "ttm_module.h"
 
 #ifdef CONFIG_FAULT_INJECTION
@@ -147,6 +151,8 @@ static struct page *ttm_pool_alloc_page(struct ttm_pool *pool, gfp_t gfp_flags,
 	if (order)
 		gfp_flags |= __GFP_NOMEMALLOC | __GFP_NORETRY | __GFP_NOWARN |
 			__GFP_THISNODE;
+
+	trace_android_vh_ttm_pool_alloc_page_flags(order, &gfp_flags);
 
 	if (!pool->use_dma_alloc) {
 		p = alloc_pages_node(pool->nid, gfp_flags, order);
@@ -702,6 +708,7 @@ static int __ttm_pool_alloc(struct ttm_pool *pool, struct ttm_tt *tt,
 			    struct ttm_pool_alloc_state *alloc,
 			    struct ttm_pool_tt_restore *restore)
 {
+	unsigned int max_page_order = MAX_PAGE_ORDER;
 	enum ttm_caching page_caching;
 	gfp_t gfp_flags = GFP_USER;
 	pgoff_t caching_divide;
@@ -724,9 +731,11 @@ static int __ttm_pool_alloc(struct ttm_pool *pool, struct ttm_tt *tt,
 	else
 		gfp_flags |= GFP_HIGHUSER;
 
+	trace_android_vh_ttm_pool_alloc_max_page_order(&max_page_order);
+
 	page_caching = tt->caching;
 	allow_pools = true;
-	for (order = ttm_pool_alloc_find_order(MAX_PAGE_ORDER, alloc);
+	for (order = ttm_pool_alloc_find_order(max_page_order, alloc);
 	     alloc->remaining_pages;
 	     order = ttm_pool_alloc_find_order(order, alloc)) {
 		struct ttm_pool_type *pt;

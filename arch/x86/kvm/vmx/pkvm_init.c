@@ -51,12 +51,9 @@ static int __init early_pvmfw_parse_cmdline(char *buf)
 early_param("pvmfw", early_pvmfw_parse_cmdline);
 
 static DEFINE_PER_CPU(struct vmcs *, pkvm_vmxarea);
+static DEFINE_PER_CPU(struct pkvm_pcpu*, pkvm_pcpu);
+static DEFINE_PER_CPU(struct kvm_vcpu*, host_vcpu);
 static unsigned long data_pages;
-
-struct pkvm_deprivilege_param {
-	struct pkvm_hyp *pkvm;
-	int ret;
-};
 
 /* Only need GDT entries for KERNEL_CS & KERNEL_DS as pKVM only use these two */
 static struct gdt_page pkvm_gdt_page = {
@@ -351,7 +348,7 @@ static __init void init_tss(struct pkvm_pcpu *pcpu)
 	write_gdt_entry(d, GDT_ENTRY_TSS, &tss, DESC_TSS);
 }
 
-static __init int pkvm_setup_pcpu(struct pkvm_hyp *pkvm, int cpu)
+static __init int pkvm_setup_pcpu(int cpu)
 {
 	struct pkvm_pcpu *pcpu;
 	int ret;
@@ -371,18 +368,19 @@ static __init int pkvm_setup_pcpu(struct pkvm_hyp *pkvm, int cpu)
 	init_idt(pcpu);
 	init_tss(pcpu);
 
-	pkvm->pcpus[cpu] = pcpu;
-
 	ret = pkvm_alloc_vmxarea(cpu);
-	if (ret)
+	if (ret) {
 		pr_err("alloc vmxarea for CPU%d failed with ret %d\n", cpu, ret);
+		return ret;
+	}
 
+	pcpu->cpu = cpu;
+	per_cpu(pkvm_pcpu, cpu) = pcpu;
 	return 0;
 }
 
-static __init int pkvm_setup_host_vcpu(struct pkvm_hyp *pkvm, int cpu)
+static __init int pkvm_setup_host_vcpu(struct kvm *kvm, int cpu)
 {
-	struct kvm *kvm = pkvm->host_kvm;
 	struct vcpu_vmx *vmx;
 
 	if (cpu >= CONFIG_NR_CPUS) {
@@ -416,13 +414,15 @@ static __init int pkvm_setup_host_vcpu(struct pkvm_hyp *pkvm, int cpu)
 	vmx->vcpu.vcpu_id = kvm->created_vcpus;
 	vmx->vcpu.kvm = kvm;
 	kvm->created_vcpus++;
-	pkvm->host_vcpus[cpu] = &vmx->vcpu;
 
+	per_cpu(host_vcpu, cpu) = &vmx->vcpu;
 	return 0;
 }
 
-static __init int pkvm_setup_per_cpu(struct pkvm_hyp *pkvm, int cpu)
+static __init int pkvm_setup_per_cpu(int cpu)
 {
+	struct pkvm_pcpu *pcpu = per_cpu(pkvm_pcpu, cpu);
+	struct kvm_vcpu *vcpu = per_cpu(host_vcpu, cpu);
 #ifndef CONFIG_PKVM_X86_DEBUG
 	unsigned int nr_pages;
 	void *per_cpu_base;
@@ -439,7 +439,8 @@ static __init int pkvm_setup_per_cpu(struct pkvm_hyp *pkvm, int cpu)
 		return 0;
 
 	per_cpu_base = pkvm_sym(pkvm_early_alloc_contig)(nr_pages);
-	if (!per_cpu_base || pkvm_sym(pkvm_setup_per_cpu)(cpu, __pa(per_cpu_base))) {
+	if (!per_cpu_base || pkvm_sym(pkvm_setup_per_cpu)(cpu, __pa(per_cpu_base),
+				      __pa(pcpu), __pa(vcpu))) {
 		pr_err("no percpu page for CPU%d\n", cpu);
 		return -ENOMEM;
 	}
@@ -449,7 +450,8 @@ static __init int pkvm_setup_per_cpu(struct pkvm_hyp *pkvm, int cpu)
 	 * as the same percpu base will be used by the pKVM and the host in the
 	 * debug build.
 	 */
-	if (pkvm_sym(pkvm_setup_per_cpu)(cpu, __pa(__per_cpu_offset[cpu]))) {
+	if (pkvm_sym(pkvm_setup_per_cpu)(cpu, __pa(__per_cpu_offset[cpu]),
+					 __pa(pcpu), __pa(vcpu))) {
 		pr_err("no percpu page for CPU%d\n", cpu);
 		return -ENOMEM;
 	}
@@ -876,11 +878,11 @@ static __init void init_guest_state_area(struct vcpu_vmx *vmx)
 	vmcs_write64(VMCS_LINK_POINTER, -1ull);
 }
 
-static __init void init_host_state_area(struct vcpu_vmx *vmx, struct pkvm_hyp *pkvm)
+static __init void init_host_state_area(struct vcpu_vmx *vmx)
 {
+	struct pkvm_pcpu *pcpu = this_cpu_read(pkvm_pcpu);
 	int cpu = smp_processor_id();
 	unsigned long host_rsp;
-	struct pkvm_pcpu *pcpu;
 #ifdef CONFIG_PKVM_X86_DEBUG
 	struct desc_ptr dt;
 	u16 selector;
@@ -930,7 +932,6 @@ static __init void init_host_state_area(struct vcpu_vmx *vmx, struct pkvm_hyp *p
 	 * Use pKVM's exception handlers, to minimize differences from
 	 * non-debug mode.
 	 */
-	pcpu = pkvm->pcpus[cpu];
 	vmcs_writel(HOST_IDTR_BASE, (unsigned long)(&pcpu->idt_page));
 
 	rdmsrq(MSR_IA32_SYSENTER_CS, msrq);
@@ -952,7 +953,6 @@ static __init void init_host_state_area(struct vcpu_vmx *vmx, struct pkvm_hyp *p
 	vmcs_writel(HOST_FS_BASE, 0);
 	vmcs_writel(HOST_GS_BASE, pkvm_sym(pkvm_per_cpu_offset)(cpu));
 
-	pcpu = pkvm->pcpus[cpu];
 	vmcs_writel(HOST_TR_BASE, (unsigned long)&pcpu->tss);
 	vmcs_writel(HOST_GDTR_BASE, (unsigned long)(&pcpu->gdt_page));
 	vmcs_writel(HOST_IDTR_BASE, (unsigned long)(&pcpu->idt_page));
@@ -1114,14 +1114,14 @@ static __init void init_vmentry_control(struct vcpu_vmx *vmx)
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, 0);
 }
 
-static __init int pkvm_host_init_vmx(struct vcpu_vmx *vmx, struct pkvm_hyp *pkvm)
+static __init int pkvm_host_init_vmx(struct vcpu_vmx *vmx)
 {
 	vmx->loaded_vmcs = &vmx->vmcs01;
 	vmcs_load(vmx->loaded_vmcs->vmcs);
 	vmx->loaded_vmcs->cpu = smp_processor_id();
 
 	init_guest_state_area(vmx);
-	init_host_state_area(vmx, pkvm);
+	init_host_state_area(vmx);
 	init_execution_control(vmx);
 	init_vmexit_control(vmx);
 	init_vmentry_control(vmx);
@@ -1219,14 +1219,8 @@ static __init void pkvm_host_reprivilege_cpus(void)
 
 static __init void pkvm_host_deprivilege_cpu(void *data)
 {
-	struct pkvm_deprivilege_param *p = data;
-	int cpu = smp_processor_id(), ret;
-	struct kvm_vcpu *vcpu;
-
-	if (!p || !p->pkvm)
-		return;
-
-	vcpu = p->pkvm->host_vcpus[cpu];
+	int cpu = smp_processor_id(), *deprivilege_ret = data, ret;
+	struct kvm_vcpu *vcpu = this_cpu_read(host_vcpu);
 
 	ret = kvm_cpu_vmxon(__pa(this_cpu_read(pkvm_vmxarea)));
 	if (ret) {
@@ -1234,7 +1228,7 @@ static __init void pkvm_host_deprivilege_cpu(void *data)
 		goto done;
 	}
 
-	ret = pkvm_host_init_vmx(to_vmx(vcpu), p->pkvm);
+	ret = pkvm_host_init_vmx(to_vmx(vcpu));
 	if (ret) {
 		pr_err("CPU%d init vmx failed, ret %d\n", cpu, ret);
 		goto vmxoff;
@@ -1253,7 +1247,7 @@ static __init void pkvm_host_deprivilege_cpu(void *data)
 vmxoff:
 	kvm_cpu_vmxoff();
 done:
-	p->ret = ret;
+	*deprivilege_ret = ret;
 }
 
 /*
@@ -1261,11 +1255,7 @@ done:
  */
 static __init int pkvm_host_deprivilege_cpus(struct pkvm_hyp *pkvm)
 {
-	struct pkvm_deprivilege_param p = {
-		.pkvm = pkvm,
-		.ret = 0,
-	};
-	int cpu, ret = 0;
+	int cpu, ret = 0, deprivilege_ret = 0;
 
 	pkvm_sym(pkvm_vmx_register_excp_handlers)();
 
@@ -1280,15 +1270,16 @@ static __init int pkvm_host_deprivilege_cpus(struct pkvm_hyp *pkvm)
 		sort_extable(pkvm_sym(__start___ex_table), pkvm_sym(__stop___ex_table));
 
 	for_each_possible_cpu(cpu) {
-		ret = smp_call_function_single(cpu, pkvm_host_deprivilege_cpu, &p, 1);
-		if (ret || p.ret) {
+		ret = smp_call_function_single(cpu, pkvm_host_deprivilege_cpu,
+					       &deprivilege_ret, 1);
+		if (ret || deprivilege_ret) {
 			pr_err("Failed to deprivilege CPU%d: smp_call %d, deprivilege: %d\n",
-			       cpu, ret, p.ret);
+			       cpu, ret, deprivilege_ret);
 			break;
 		}
 	}
 
-	return ret ? ret : p.ret;
+	return ret ? ret : deprivilege_ret;
 }
 
 static void do_pkvm_hyp_init(void *data)
@@ -1453,18 +1444,24 @@ int __init vmx_pkvm_init(void)
 	if (ret)
 		goto out;
 
-	pkvm->num_cpus = num_possible_cpus();
+	pkvm->num_cpus = 0;
 
 	for_each_possible_cpu(cpu) {
-		ret = pkvm_setup_pcpu(pkvm, cpu);
+		ret = pkvm_setup_pcpu(cpu);
 		if (ret)
 			goto out;
-		ret = pkvm_setup_host_vcpu(pkvm, cpu);
+
+		ret = pkvm_setup_host_vcpu(pkvm->host_kvm, cpu);
 		if (ret)
 			goto out;
-		ret = pkvm_setup_per_cpu(pkvm, cpu);
+
+		ret = pkvm_setup_per_cpu(cpu);
 		if (ret)
 			goto out;
+
+		pkvm->pcpus[pkvm->num_cpus] = per_cpu(pkvm_pcpu, cpu);
+		pkvm->host_vcpus[pkvm->num_cpus] = per_cpu(host_vcpu, cpu);
+		pkvm->num_cpus++;
 	}
 
 	/*

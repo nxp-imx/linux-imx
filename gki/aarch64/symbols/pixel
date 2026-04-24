@@ -1193,6 +1193,7 @@
   kthread_stop_put
   kthread_unpark
   kthread_worker_fn
+  ktime_add_safe
   ktime_get
   ktime_get_coarse_with_offset
   ktime_get_mono_fast_ns
@@ -1247,6 +1248,7 @@
   mbox_controller_unregister
   mbox_free_channel
   mbox_request_channel
+  mbox_request_channel_byname
   mbox_send_message
   mem_alloc_profiling_key
   memchr
@@ -2376,6 +2378,13 @@
   ww_mutex_lock
   ww_mutex_unlock
   x509_load_certificate_list
+  __xa_clear_mark
+  xa_destroy
+  xa_find
+  xa_find_after
+  xa_load
+  xa_set_mark
+  xa_store
   __xfrm_state_destroy
   xfrm_state_lookup_byspi
   xfrm_stateonly_find

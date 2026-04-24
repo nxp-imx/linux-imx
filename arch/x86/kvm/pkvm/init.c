@@ -333,3 +333,8 @@ int pkvm_init_finalize(void)
 
 	return 0;
 }
+
+bool pkvm_cpu_initialized(int cpu)
+{
+	return READ_ONCE(per_cpu(cpu_initialized, cpu));
+}

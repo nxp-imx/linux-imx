@@ -146,7 +146,7 @@ static void kvm_arm_smmu_detach_dev_pasid(struct device *dev,
 			int ret;
 			u32 sid = master->streams[i].id;
 
-			ret = kvm_iommu_set_identity(hyp_drv_id, host_smmu->id, sid, false);
+			ret = kvm_iommu_set_identity(hyp_drv_id, host_smmu->id, sid, false, 0);
 			if (ret)
 				dev_err(dev, "Failed to disable identity(sid=0x%x) %d\n",
 					sid, ret);
@@ -351,7 +351,7 @@ static int kvm_arm_smmu_attach_dev_identity(struct iommu_domain *domain,
 	for (i = 0; i < master->num_streams; i++) {
 		u32 sid = master->streams[i].id;
 
-		ret = kvm_iommu_set_identity(hyp_drv_id, host_smmu->id, sid, true);
+		ret = kvm_iommu_set_identity(hyp_drv_id, host_smmu->id, sid, true, 0);
 		if (ret) {
 			dev_err(dev, "Failed to enable identity(sid=0x%x) %d\n", sid, ret);
 			return ret;

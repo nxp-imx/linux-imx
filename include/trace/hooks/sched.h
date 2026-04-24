@@ -279,6 +279,14 @@ DECLARE_HOOK(android_vh_free_task,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p));
 
+DECLARE_HOOK(android_vh_mmap_lock_init,
+	TP_PROTO(struct rw_semaphore *sem),
+	TP_ARGS(sem));
+
+DECLARE_HOOK(android_vh_mmap_lock_free,
+	TP_PROTO(struct rw_semaphore *sem),
+	TP_ARGS(sem));
+
 DECLARE_HOOK(android_vh_irqtime_account_process_tick,
 	TP_PROTO(struct task_struct *p, struct rq *rq, int user_tick, int ticks),
 	TP_ARGS(p, rq, user_tick, ticks));
@@ -550,6 +558,14 @@ DECLARE_RESTRICTED_HOOK(android_rvh_util_fits_cpu,
 DECLARE_RESTRICTED_HOOK(android_rvh_dequeue_entity_delayed,
 	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se, bool *delay),
 	TP_ARGS(cfs_rq, se, delay), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_fair_dl_server_start,
+	TP_PROTO(struct rq *rq, bool *start_server),
+	TP_ARGS(rq, start_server), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_dl_server_stop_skip,
+	TP_PROTO(struct sched_dl_entity *dl_se, struct rq *rq, struct task_struct *p, bool *skip),
+	TP_ARGS(dl_se, rq, p, skip), 1);
 
 /* macro versions of hooks are no longer required */
 #endif /* _TRACE_HOOK_SCHED_H */

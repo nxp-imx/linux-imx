@@ -2051,6 +2051,7 @@
   panic_notifier_list
   param_array_ops
   param_get_int
+  param_get_uint
   param_ops_bint
   param_ops_bool
   param_ops_byte
@@ -2061,6 +2062,7 @@
   param_ops_ulong
   param_ops_ushort
   param_set_int
+  param_set_uint_minmax
   parse_int_array
   parse_int_array_user
   passthru_features_check
@@ -3119,6 +3121,8 @@
   trace_event_reg
   trace_handle_return
   __traceiter_android_rvh_iommu_limit_align_shift
+  __traceiter_android_vh_ttm_pool_alloc_max_page_order
+  __traceiter_android_vh_ttm_pool_alloc_page_flags
   __traceiter_gpu_mem_total
   __traceiter_mmap_lock_acquire_returned
   __traceiter_mmap_lock_released
@@ -3129,10 +3133,14 @@
   __traceiter_xdp_exception
   trace_output_call
   __tracepoint_android_rvh_iommu_limit_align_shift
+  __tracepoint_android_vh_ttm_pool_alloc_max_page_order
+  __tracepoint_android_vh_ttm_pool_alloc_page_flags
   __tracepoint_gpu_mem_total
   __tracepoint_mmap_lock_acquire_returned
   __tracepoint_mmap_lock_released
   __tracepoint_mmap_lock_start_locking
+  tracepoint_probe_register
+  tracepoint_probe_unregister
   __tracepoint_read_msr
   __tracepoint_sched_set_state_tp
   __tracepoint_write_msr

@@ -299,6 +299,8 @@ void page_cache_ra_unbounded(struct readahead_control *ractl,
 
 		trace_android_vh_readahead_add_folio(folio, mapping);
 
+		trace_android_vh_page_cache_ra_mark(folio, mark, i);
+
 		ret = filemap_add_folio(mapping, folio, index + i, gfp_mask);
 		if (ret < 0) {
 			folio_put(folio);

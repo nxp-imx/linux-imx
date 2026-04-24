@@ -305,10 +305,10 @@ int pkvm_iommu_resume(int device_id)
 EXPORT_SYMBOL(pkvm_iommu_resume);
 
 int kvm_iommu_set_identity(pkvm_handle_t drv_id, pkvm_handle_t iommu,
-			   pkvm_handle_t dev, bool on)
+			   pkvm_handle_t dev, bool on, unsigned long flags)
 {
 	return kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_set_identity, drv_id,
-				    iommu, dev, on);
+				    iommu, dev, on, flags);
 }
 EXPORT_SYMBOL(kvm_iommu_set_identity);
 

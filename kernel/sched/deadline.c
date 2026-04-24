@@ -2632,6 +2632,7 @@ static struct task_struct *__pick_task_dl(struct rq *rq, struct rq_flags *rf)
 	struct sched_dl_entity *dl_se;
 	struct dl_rq *dl_rq = &rq->dl;
 	struct task_struct *p;
+	bool skip = false;
 
 again:
 	if (!sched_dl_runnable(rq))
@@ -2642,7 +2643,8 @@ again:
 
 	if (dl_server(dl_se)) {
 		p = dl_se->server_pick_task(dl_se, rf);
-		if (!p) {
+		trace_android_rvh_dl_server_stop_skip(dl_se, rq, p, &skip);
+		if (!p || skip) {
 			dl_server_stop(dl_se);
 			goto again;
 		}
@@ -2754,7 +2756,7 @@ static int find_later_rq(struct task_struct *sched_ctx, struct task_struct *exec
 	if (unlikely(!later_mask))
 		return -1;
 
-	if (exec_ctx && exec_ctx->nr_cpus_allowed == 1)
+	if (!exec_ctx || exec_ctx->nr_cpus_allowed == 1)
 		return -1;
 
 	/*

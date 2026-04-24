@@ -508,7 +508,7 @@ void fuse_request_end(struct fuse_req *req)
 	} else {
 		/* Wake up waiter sleeping in request_wait_answer() */
 		wake_up(&req->waitq);
-		trace_android_vh_fuse_request_end(current);
+		trace_android_vh_fuse_request_end(req, current);
 	}
 
 	if (test_bit(FR_ASYNC, &req->flags))
@@ -599,7 +599,7 @@ static void __fuse_request_send(struct fuse_req *req)
 
 	BUG_ON(test_bit(FR_BACKGROUND, &req->flags));
 
-	trace_android_vh_fuse_request_send(&fiq->waitq);
+	trace_android_vh_fuse_request_send(req, &fiq->waitq);
 	/* acquire extra reference, since request is still needed after
 	   fuse_request_end() */
 	__fuse_get_request(req);
@@ -1474,6 +1474,7 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 	}
 
 	req = list_entry(fiq->pending.next, struct fuse_req, list);
+	trace_android_vh_fuse_request_fetch(req, current);
 	clear_bit(FR_PENDING, &req->flags);
 	list_del_init(&req->list);
 	spin_unlock(&fiq->lock);

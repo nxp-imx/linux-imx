@@ -83,6 +83,23 @@ struct pkvm_vm {
 /* The pkvm_vm structure size w/o struct kvm */
 #define PKVM_VM_BASE_SIZE		offsetof(struct pkvm_vm, kvm)
 
+/**
+ * for_each_pkvm_guest_vcpu - iterate over non-NULL guest vCPUs
+ * @i: loop counter
+ * @vcpu: struct kvm_vcpu pointer, assigned by macro and guaranteed non-NULL.
+ * @vm: struct pkvm_vm pointer, evaluated multiple times. Don't use expressions.
+ *
+ * Iterates over all vCPUs in the VM, automatically skipping if vCPU pointer is
+ * NULL.
+ */
+#define for_each_pkvm_guest_vcpu(i, vcpu, vm)							\
+	for ((i) = 0; (i) < (vm)->kvm.created_vcpus &&						\
+		      ({ (vcpu) = (vm)->vcpus[(i)] ?						\
+				  &(vm)->vcpus[(i)]->vcpu : NULL; true; }); (i)++)		\
+		if (!(vcpu))									\
+			continue;								\
+		else
+
 static inline struct pkvm_vm *to_pkvm(struct kvm *kvm)
 {
 	/*
@@ -141,6 +158,38 @@ static inline bool pkvm_vcpu_is_pvmfw_bsp(struct kvm_vcpu *vcpu)
 	return kvm_vcpu_is_reset_bsp(vcpu) && pkvm_vm_has_pvmfw(vcpu->kvm);
 }
 
+static inline void pkvm_set_vcpu_in_guest(struct kvm_vcpu *vcpu)
+{
+	/*
+	 * Ensure that IN_GUEST_MODE is globally visible before any subsequent
+	 * loads of vcpu->requests (like those inside the run loop or if bump
+	 * back to handle_events). This pairs with the full barrier in
+	 * kvm_vcpu_exiting_guest_mode().
+	 */
+	smp_store_mb(vcpu->mode, IN_GUEST_MODE);
+}
+
+static inline void pkvm_set_vcpu_outside_guest(struct kvm_vcpu *vcpu)
+{
+	/*
+	 * Make the OUTSIDE_GUEST_MODE visible as early as possible for
+	 * the other CPUs to skip unnecessary kicks. It can also prevent
+	 * the vcpu->mode writing and the following vcpu->requests
+	 * reading from being reordered, so that the vcpu->requests made
+	 * before changing to OUTSIDE_GUEST_MODE can be handled. In fact
+	 * the vcpu->requests reading can be reordered before vcpu->mode
+	 * writing, as the missed vcpu->requests can be handled again
+	 * after setting to IN_GUEST_MODE with full memory barrier in
+	 * the next iteration. And a full memory barrier also cannot
+	 * prevent this CPU from missing the new requests made by the
+	 * other CPUs, e.g., the requests made after this CPU has
+	 * executed the event handlers. So a write barrier is fine from
+	 * functional point of view. But using a full memory barrier to
+	 * propagate the OUTSIDE_GUEST_MODE.
+	 */
+	smp_store_mb(vcpu->mode, OUTSIDE_GUEST_MODE);
+}
+
 struct pkvm_x86_ops {
 	void (*update_vcpu_state_from_host)(struct kvm_vcpu *vcpu);
 	void (*share_vcpu_state_with_host)(struct kvm_vcpu *vcpu);
@@ -148,6 +197,7 @@ struct pkvm_x86_ops {
 
 void pkvm_handle_host_hypercall(struct kvm_vcpu *vcpu);
 void pkvm_kick_vcpu(struct kvm_vcpu *vcpu);
+void pkvm_wait_vcpu_kicked_out(struct kvm_vcpu *vcpu);
 int pkvm_x86_vendor_init(struct kvm_x86_init_ops *ops);
 struct pkvm_vm *pkvm_get_vm(int vm_handle);
 void pkvm_put_vm(struct pkvm_vm *pkvm_vm);

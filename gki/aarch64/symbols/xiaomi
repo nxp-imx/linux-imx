@@ -71,6 +71,10 @@
   __tracepoint_android_vh_vmalloc_node_range_end
   __traceiter_android_vh_do_mmap_map_count
   __tracepoint_android_vh_do_mmap_map_count
+  __traceiter_android_vh_mm_direct_reclaim_enter
+  __tracepoint_android_vh_mm_direct_reclaim_enter
+  __traceiter_android_vh_mm_direct_reclaim_exit
+  __tracepoint_android_vh_mm_direct_reclaim_exit
 
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
@@ -144,6 +148,10 @@
 #required by perf_helper.ko
   __traceiter_android_rvh_dequeue_entity_delayed
   __tracepoint_android_rvh_dequeue_entity_delayed
+  __traceiter_android_rvh_fair_dl_server_start
+  __tracepoint_android_rvh_fair_dl_server_start
+  __traceiter_android_rvh_dl_server_stop_skip
+  __tracepoint_android_rvh_dl_server_stop_skip
 
 # required by page reclaim
   __traceiter_android_vh_filemap_fault_folio_locked
@@ -167,11 +175,85 @@
  __traceiter_android_vh_folio_end_writeback
  __tracepoint_android_vh_folio_end_writeback
 
+# required by dw_wdt.ko
+ __traceiter_android_rvh_fiq_dump
+ __tracepoint_android_rvh_fiq_dump
+
 # required by sched-walt.ko
  __traceiter_android_rvh_should_honor_rt_sync
  __tracepoint_android_rvh_should_honor_rt_sync
  task_sched_runtime
 
 # required by xr-qi.ko
+ __traceiter_android_vh_binder_transaction_init
+ __tracepoint_android_vh_binder_transaction_init
+ __traceiter_android_vh_fuse_request_fetch
+ __tracepoint_android_vh_fuse_request_fetch
+ __traceiter_android_vh_mmap_lock_init
+ __tracepoint_android_vh_mmap_lock_init
+ __traceiter_android_vh_mmap_lock_free
+ __tracepoint_android_vh_mmap_lock_free
  __traceiter_android_vh_percpu_rwsem_init
  __tracepoint_android_vh_percpu_rwsem_init
+ __traceiter_android_vh_rcu_boost_end
+ __tracepoint_android_vh_rcu_boost_end
+ __traceiter_android_vh_rcu_boost_start
+ __tracepoint_android_vh_rcu_boost_start
+ __traceiter_android_vh_sync_rcu_wait_end
+ __tracepoint_android_vh_sync_rcu_wait_end
+ __traceiter_android_vh_sync_rcu_wait_start
+ __tracepoint_android_vh_sync_rcu_wait_start
+ cpumask_any_distribute
+
+# required by xring_thermal.ko
+ __traceiter_android_vh_enable_thermal_genl_check
+ __tracepoint_android_vh_enable_thermal_genl_check
+
+# required by printk_hook.ko
+ __traceiter_android_rvh_logbuf
+ __tracepoint_android_rvh_logbuf
+
+# required by memory
+ ufshcd_alloc_host
+ scsi_dma_unmap
+ scsi_done
+ blk_mq_destroy_queue
+ scsi_remove_host
+ scsi_host_put
+ scsi_host_alloc
+ sbitmap_weight
+ wait_for_completion_io_timeout
+ blk_crypto_keyslot_index
+ dev_pm_opp_remove
+ scsi_dma_map
+ scsi_print_command
+ scsi_change_queue_depth
+ blk_mq_wait_quiesce_done
+ blk_mq_tagset_busy_iter
+ scsi_report_bus_reset
+ scsi_add_host_with_dma
+ async_schedule_node
+ scsi_scan_host
+ __scsi_add_device
+ scsi_remove_device
+ blk_pm_runtime_init
+ scsi_device_quiesce
+ scsi_print_sense_hdr
+ scsi_execute_cmd
+ blk_crypto_reprogram_all_keys
+ blk_crypto_register
+ bsg_remove_queue
+ bsg_setup_queue
+ bsg_job_done
+ scsi_is_host_device
+ param_set_uint_minmax
+ scsi_host_lookup
+ scsi_device_lookup
+ scsi_host_lookup
+ scsi_device_set_state
+ blk_mq_quiesce_tagset
+ blk_mq_unquiesce_tagset
+ dev_pm_opp_find_freq_floor_indexed
+ blk_mq_alloc_queue
+ scsi_host_busy
+ dev_pm_opp_find_freq_ceil_indexed

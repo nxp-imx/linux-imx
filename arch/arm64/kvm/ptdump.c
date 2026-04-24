@@ -69,6 +69,11 @@ static const struct ptdump_prot_bits stage2_pte_bits[] = {
 		.val	= KVM_PGTABLE_PROT_SW1 | PTE_VALID,
 		.set	= "SW1",
 		.clear	= "   ",
+	}, {
+		.mask	= KVM_INVALID_PTE_MMIO_NOTE | PTE_VALID,
+		.val	= KVM_INVALID_PTE_MMIO_NOTE,
+		.set	= "MMIO-GUARD",
+		.clear	= "          ",
 	},
 };
 
@@ -329,14 +334,19 @@ static void pkvm_ptdump_free_pages(struct pkvm_ptdump_log_hdr *log_pages)
 	} while (log_pfn != INVALID_PTDUMP_PFN);
 }
 
-static u64 pkvm_ptdump_unpack_pte(struct pkvm_ptdump_log *log)
+static u64 pkvm_ptdump_unpack_pte(struct pkvm_ptdump_log *log, bool is_guest)
 {
-	return FIELD_PREP(KVM_PTE_VALID, log->valid) |
+	u64 pte_attr = FIELD_PREP(KVM_PTE_VALID, log->valid) |
 		FIELD_PREP(KVM_PTE_LEAF_ATTR_LO_S2_S2AP_R, log->r) |
 		FIELD_PREP(KVM_PTE_LEAF_ATTR_LO_S2_S2AP_W, log->w) |
 		FIELD_PREP(KVM_PTE_LEAF_ATTR_HI_S2_XN, log->xn) |
 		FIELD_PREP(KVM_PTE_TYPE, log->table) |
 		FIELD_PREP(KVM_PGTABLE_PROT_SW0 | KVM_PGTABLE_PROT_SW1, log->page_state);
+
+	if (is_guest)
+		pte_attr |= FIELD_PREP(KVM_INVALID_PTE_MMIO_NOTE, log->mmio_guard);
+
+	return pte_attr;
 }
 
 static int pkvm_ptdump_show(struct seq_file *m, void *unused)
@@ -349,6 +359,7 @@ static int pkvm_ptdump_show(struct seq_file *m, void *unused)
 	struct pkvm_ptdump_log *log = NULL;
 	struct pkvm_ptdump_log_hdr *it;
 	size_t num_pages;
+	u64 pte;
 
 	parser_state->seq = m;
 	parser_state->level = -1;
@@ -375,8 +386,8 @@ retry_dump:
 	for (;;) {
 		for (i = 0; i < it->w_index; i += sizeof(struct pkvm_ptdump_log)) {
 			log = (void *)it + sizeof(struct pkvm_ptdump_log_hdr) + i;
-			note_page(pt_st, ((unsigned long)log->pfn) << PAGE_SHIFT, log->level,
-				  pkvm_ptdump_unpack_pte(log));
+			pte = pkvm_ptdump_unpack_pte(log, !!kvm);
+			note_page(pt_st, ((unsigned long)log->pfn) << PAGE_SHIFT, log->level, pte);
 		}
 
 		if (it->pfn_next == INVALID_PTDUMP_PFN)

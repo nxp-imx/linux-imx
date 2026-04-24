@@ -1053,7 +1053,7 @@ static int __do_ffa_mem_xfer(const u64 func_id,
 		}
 
 		size_t translated_sz = reg->total_pg_cnt * sizeof(struct ffa_mem_region_addr_range)
-			+ offset;
+			+ checked_offset;
 		if (translated_sz > PAGE_SIZE) {
 			ffa_to_smccc_error(res, FFA_RET_INVALID_PARAMETERS);
 			goto out_unlock;

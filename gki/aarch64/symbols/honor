@@ -468,3 +468,10 @@
   udp_table
   wakeup_sources_walk_next
   wakeup_sources_walk_start
+  mmc_sw_reset
+  tty_chars_in_buffer
+  tty_dev_name_to_number
+  tty_kclose
+  tty_kopen_exclusive
+  tty_set_ldisc
+  tty_unlock

@@ -42,6 +42,7 @@
 #include <linux/iversion.h>
 #include <linux/unicode.h>
 #include <linux/mm_inline.h>
+#include <linux/page_size_compat.h>
 #include "swap.h"
 
 #undef CREATE_TRACE_POINTS
@@ -2780,6 +2781,15 @@ static vm_fault_t shmem_fault(struct vm_fault *vmf)
 	struct folio *folio = NULL;
 	vm_fault_t ret = 0;
 	int err;
+	pgoff_t max_idx;
+
+	max_idx = DIV_ROUND_UP(i_size_read(inode), __PAGE_SIZE) * (__PAGE_SIZE / PAGE_SIZE);
+	if (unlikely(vmf->pgoff >= max_idx))
+		return VM_FAULT_SIGBUS;
+
+	max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);
+	if (unlikely(vmf->pgoff >= max_idx))
+		return VM_FAULT_NEED_ANONPAGE;
 
 	/*
 	 * Trinity finds that probing a hole which tmpfs is punching can

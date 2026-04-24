@@ -5,28 +5,31 @@ optimize kernel builds, improving performance for specific architectures and ker
 
 ## Profile Availability
 
-The AutoFDO profile (kernel.afdo) for vmlinux is updated regularly for the following kernel
-branches:
-
-* [android15-6.6](https://android.googlesource.com/kernel/common/+/refs/heads/android15-6.6/android/gki/aarch64/afdo)
-* [android16-6.12](https://android.googlesource.com/kernel/common/+/refs/heads/android16-6.12/gki/aarch64/afdo/)
+kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.16 (
+SHA b28e01c379ff11bce445f0654f6016221fbf1b84, build server ID 15080977). It is updated
+regularly in [kernel.afdo](https://android.googlesource.com/kernel/common/+/refs/heads/android17-6.18/gki/aarch64/afdo/).
 
 
 ## Performance improvements
 
-When applying these AutoFDO profiles to the android15-6.6 and android16-6.12 kernels, we observed
-the following performance improvements during testing on a Pixel 6 device.
+The benchmark results for the `android17-6.18` kernel are currently preliminary. Pixel devices
+have not yet been fully optimized for this kernel version regarding power management, CPU
+frequency scaling, and scheduling. Consequently, these numbers can't accurately reflect the
+expected performance of a fully tuned system. We anticipate improved results as the platform
+matures.
 
+Benchmark results were tested on Pixel 8.
 
 | Benchmark             | Improvement |
 | --------------------- | ----------- |
-| Boot time             | 2-3%        |
-| Cold App launch time  | 3-4%        |
-| Binder-rpc            | 8-9%        |
-| Binder-addints        | 12-25%      |
-| Hwbinder              | 12-18%      |
-| Bionic (syscall_mmap) | 6%          |
+| Boot time             | 1.9%        |
+| Cold App launch time  | 3.4%        |
+| Binder-rpc            | 13.9%*      |
+| Binder-addints        | 17.1%*      |
+| Hwbinder              | 23.9%*      |
 
+\* For the binder benchmarks, the reported values represent the best result observed across
+multiple runs to account for variance.
 
 ## Steps to reproduce the profile
 

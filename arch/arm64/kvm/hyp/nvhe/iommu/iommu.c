@@ -797,7 +797,7 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 }
 
 int kvm_iommu_set_identity(pkvm_handle_t drv_id, pkvm_handle_t iommu,
-			   pkvm_handle_t dev, bool on)
+			   pkvm_handle_t dev, bool on, unsigned long flags)
 {
 	struct kvm_iommu_ops *kvm_iommu_ops = get_drv(drv_id);
 	int ret;
@@ -809,7 +809,7 @@ int kvm_iommu_set_identity(pkvm_handle_t drv_id, pkvm_handle_t iommu,
 	ret = pkvm_devices_get_context(iommu, dev, NULL);
 	if (ret)
 		return ret;
-	ret = kvm_iommu_ops->set_identity(iommu, dev, on);
+	ret = kvm_iommu_ops->set_identity(iommu, dev, on, flags);
 	pkvm_devices_put_context(iommu, dev);
 	return ret;
 }
