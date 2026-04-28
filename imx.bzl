@@ -456,6 +456,18 @@ _IMX_IN_TREE_MODULES = [
     "drivers/gpu/drm/clients/drm_client_lib.ko",
     "drivers/firmware/imx/disp-mu.ko",
     "drivers/i3c/master/svc-i3c-master.ko",
+    "drivers/spi/spi-nxp-xspi.ko",
+    "drivers/gpu/drm/bridge/imx/imx952-mipi-dsi2.ko",
+    "drivers/mxc/vpu/coda980/coda.ko",
+    "drivers/mxc/vpu/wave511/wave5-ctrl.ko",
+    "drivers/remoteproc/imx_cm0p_rproc.ko",
+    "drivers/mxc/vpu/wave511/wave5.ko",
+    "drivers/video/backlight/gpio_backlight.ko",
+    "drivers/gpu/drm/bridge/synopsys/dw-mipi-dsi2.ko",
+    "drivers/gpio/gpio-pi4ioe5v6408.ko",
+    "drivers/mux/mux-gpio.ko",
+    "drivers/phy/freescale/phy-fsl-imx952-mipi-dphy.ko",
+    "drivers/uio/uio_prime.ko",
 ]
 
 def define_imx():
