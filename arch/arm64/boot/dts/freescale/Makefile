@@ -1515,6 +1515,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes-mqs.dtb
 
 imx952-evk-adv7535-rpmsg-dtbs := imx952-evk-rpmsg.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-rpmsg.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-dl.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-bl-lte.dtb
