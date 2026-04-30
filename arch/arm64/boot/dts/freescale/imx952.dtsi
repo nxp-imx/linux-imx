@@ -381,6 +381,22 @@
 		};
 	};
 
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
+		compatible = "nxp,imx-vehicle";
+		status = "disabled";
+	};
+
+	/*
+	 * vehicle M7 driver which can get info from MCU.
+	 */
+	vehicle_rpmsg_m7: vehicle_rpmsg_m7 {
+		compatible = "nxp,imx-vehicle-m7";
+		status = "disabled";
+	};
+
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>,
