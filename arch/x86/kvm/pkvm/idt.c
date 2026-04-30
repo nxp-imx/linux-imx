@@ -8,6 +8,8 @@
 #include <asm/trapnr.h>
 #include "debug.h"
 #include "idt.h"
+#include "panic.h"
+#include "pkvm.h"
 
 static const int pt_regoff[] = {
 	offsetof(struct pt_regs, ax),
@@ -132,14 +134,19 @@ static bool pkvm_fixup_exception(struct pt_regs *regs)
 static void default_exception_handler(struct pt_regs *regs,
 				      int vector, bool has_error_code)
 {
-	if (has_error_code)
-		pkvm_err("Exception %d @ip %pS (0x%px), err code 0x%lx\n",
-			 vector, (void *)regs->ip, (void *)regs->ip, regs->orig_ax);
-	else
-		pkvm_err("Exception %d @ip %pS (0x%px), no err code\n",
-			 vector, (void *)regs->ip, (void *)regs->ip);
+	unsigned long rip = regs->ip;
+	void *adj_rip = (void *)(rip - kaslr_offset_val);
 
-	asm volatile("hlt" : : : "memory");
+	if (has_error_code)
+		pkvm_panic("\n========================================\n"
+			   "pKVM Exception %d @ip %pS (%px), err code 0x%lx\n"
+			   "========================================\n",
+			   vector, adj_rip, (void *)rip, regs->orig_ax);
+	else
+		pkvm_panic("\n========================================\n"
+			   "pKVM Exception %d @ip %pS (%px), no err code\n"
+			   "========================================\n",
+			   vector, adj_rip, (void *)rip);
 }
 
 static exception_handler_t exception_handlers[X86_TRAP_IRET] = {

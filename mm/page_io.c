@@ -29,6 +29,7 @@
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
+#include <trace/hooks/vmscan.h>
 
 static void __end_swap_bio_write(struct bio *bio)
 {
@@ -287,6 +288,7 @@ int swap_writeout(struct folio *folio, struct swap_iocb **swap_plug)
 	__swap_writepage(folio, swap_plug);
 	return 0;
 out_unlock:
+	trace_android_vh_shrink_folio_lock_owner_clear(folio);
 	folio_unlock(folio);
 	return ret;
 }
@@ -383,6 +385,7 @@ static void swap_writepage_fs(struct folio *folio, struct swap_iocb **swap_plug)
 
 	count_swpout_vm_event(folio);
 	folio_start_writeback(folio);
+	trace_android_vh_shrink_folio_lock_owner_clear(folio);
 	folio_unlock(folio);
 	if (sio) {
 		if (sio->iocb.ki_filp != swap_file ||
@@ -424,6 +427,7 @@ static void swap_writepage_bdev_sync(struct folio *folio,
 	count_swpout_vm_event(folio);
 
 	folio_start_writeback(folio);
+	trace_android_vh_shrink_folio_lock_owner_clear(folio);
 	folio_unlock(folio);
 
 	submit_bio_wait(&bio);
@@ -443,6 +447,7 @@ static void swap_writepage_bdev_async(struct folio *folio,
 	bio_associate_blkg_from_page(bio, folio);
 	count_swpout_vm_event(folio);
 	folio_start_writeback(folio);
+	trace_android_vh_shrink_folio_lock_owner_clear(folio);
 	folio_unlock(folio);
 	submit_bio(bio);
 }

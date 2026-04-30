@@ -154,6 +154,11 @@ static bool pkvm_guest_iommu_alloc_domain(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *e
 	struct kvm_hyp_req *req;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 
+	/* MBZ */
+	if (smccc_get_arg2(vcpu) || smccc_get_arg3(vcpu) || smccc_get_arg4(vcpu) ||
+	    smccc_get_arg5(vcpu) || smccc_get_arg6(vcpu))
+		goto out;
+
 	guest_domain = hyp_alloc(sizeof(*guest_domain));
 	if (!guest_domain) {
 		BUG_ON(hyp_alloc_errno() != -ENOMEMHYPALLOC);
@@ -165,15 +170,10 @@ static bool pkvm_guest_iommu_alloc_domain(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *e
 		return false;
 	}
 
-	/* MBZ */
-	if (smccc_get_arg2(vcpu) || smccc_get_arg3(vcpu) || smccc_get_arg4(vcpu) ||
-	    smccc_get_arg5(vcpu) || smccc_get_arg6(vcpu))
-		goto out_inval;
-
 	hyp_spin_lock(&pviommu_guest_domain_lock);
 	domain_id = pkvm_guest_iommu_alloc_id();
 	if (domain_id < 0)
-		goto out_inval;
+		goto out_unlock;
 
 	/*
 	 * Starting from Android17-6.18 the IOMMU requires an IOMMU to alloc the domain,
@@ -187,9 +187,10 @@ static bool pkvm_guest_iommu_alloc_domain(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *e
 	smccc_set_retval(vcpu, SMCCC_RET_SUCCESS, domain_id, 0, 0);
 	return true;
 
-out_inval:
+out_unlock:
 	hyp_spin_unlock(&pviommu_guest_domain_lock);
 	hyp_free(guest_domain);
+out:
 	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
 	return true;
 }
@@ -230,9 +231,20 @@ out_ret:
 	return true;
 }
 
+#define PVIOMMU_PROT_ALLOW (ARM_SMCCC_KVM_PVIOMMU_READ | \
+			    ARM_SMCCC_KVM_PVIOMMU_WRITE | \
+			    ARM_SMCCC_KVM_PVIOMMU_CACHE | \
+			    ARM_SMCCC_KVM_PVIOMMU_NOEXEC | \
+			    ARM_SMCCC_KVM_PVIOMMU_MMIO | \
+			    ARM_SMCCC_KVM_PVIOMMU_PRIV)
+
+/* Return positive prot or negative error code*/
 static int __smccc_prot_linux(u64 prot)
 {
 	int iommu_prot = 0;
+
+	if (prot & ~PVIOMMU_PROT_ALLOW)
+		return -EINVAL;
 
 	if (prot & ARM_SMCCC_KVM_PVIOMMU_READ)
 		iommu_prot |= IOMMU_READ;
@@ -260,19 +272,24 @@ static bool pkvm_guest_iommu_map(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 	u64 size = smccc_get_arg5(vcpu);
 	u64 prot = smccc_get_arg6(vcpu);
 	u64 paddr;
-	int ret;
+	int ret, iommu_prot;
 	s8 level;
 	u64 smccc_ret = SMCCC_RET_SUCCESS;
 
+	iommu_prot = __smccc_prot_linux(prot);
+
 	if (!IS_ALIGNED(size, PAGE_SIZE) ||
 	    !IS_ALIGNED(ipa, PAGE_SIZE) ||
-	    !IS_ALIGNED(iova, PAGE_SIZE)) {
+	    !IS_ALIGNED(iova, PAGE_SIZE) ||
+		iommu_prot < 0) {
 		smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
 		return true;
 	}
 
 	while (size) {
 		size_t mapped = 0;
+		size_t off;
+		size_t pinned_size;
 
 		/*
 		 * We need to get the PA and atomically use the page temporarily to avoid
@@ -291,10 +308,12 @@ static bool pkvm_guest_iommu_map(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 			break;
 		}
 
-		ret = kvm_iommu_map_pages(domain, iova, paddr,
-					  PAGE_SIZE, min(size, kvm_granule_size(level)) / PAGE_SIZE,
-					  __smccc_prot_linux(prot), &mapped);
-		WARN_ON(__pkvm_unuse_dma(paddr, kvm_granule_size(level), hyp_vcpu));
+		off = paddr - ALIGN_DOWN(paddr, kvm_granule_size(level));
+		pinned_size = min(size, kvm_granule_size(level) - off);
+		kvm_iommu_map_pages(domain, iova, paddr,
+				    PAGE_SIZE, pinned_size / PAGE_SIZE,
+				    iommu_prot, &mapped);
+		WARN_ON(__pkvm_unuse_dma(paddr, pinned_size, hyp_vcpu));
 		if (!mapped) {
 			if (!__need_req(vcpu)) {
 				smccc_ret = SMCCC_RET_INVALID_PARAMETER;

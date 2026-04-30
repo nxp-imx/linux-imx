@@ -253,7 +253,7 @@ struct vcpu_vmx {
 	struct {
 		int vm86_active;
 		ulong save_rflags;
-		struct kvm_segment segs[8];
+		struct kvm_segment segs[NR_VCPU_SEGMENTS];
 	} rmode;
 	struct {
 		u32 bitmask; /* 4 bits per segment (1 bit per field) */
@@ -262,7 +262,7 @@ struct vcpu_vmx {
 			unsigned long base;
 			u32 limit;
 			u32 ar;
-		} seg[8];
+		} seg[NR_VCPU_SEGMENTS];
 	} segment_cache;
 	int vpid;
 

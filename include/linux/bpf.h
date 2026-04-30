@@ -339,6 +339,8 @@ struct bpf_map {
 	s64 __percpu *elem_count;
 	u64 cookie; /* write-once */
 	char *excl_prog_sha;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 static inline const char *btf_field_type_name(enum btf_field_type type)
@@ -643,6 +645,8 @@ struct bpf_offloaded_map {
 	const struct bpf_map_dev_ops *dev_ops;
 	void *dev_priv;
 	struct list_head offloads;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 static inline struct bpf_offloaded_map *map_to_offmap(struct bpf_map *map)
@@ -939,6 +943,8 @@ struct bpf_func_proto {
 	};
 	int *ret_btf_id; /* return value btf_id */
 	bool (*allowed)(const struct bpf_prog *prog);
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /* bpf_context is intentionally undefined structure. Pointer to bpf_context is
@@ -1794,6 +1800,8 @@ struct bpf_link {
 	 * link's semantics is determined by target attach hook
 	 */
 	bool sleepable;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct bpf_link_ops {
@@ -1944,6 +1952,8 @@ struct bpf_struct_ops {
 	struct module *owner;
 	const char *name;
 	struct btf_func_model func_models[BPF_STRUCT_OPS_MAX_NR_MEMBERS];
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /* Every member of a struct_ops type has an instance even a member is not
@@ -2673,6 +2683,8 @@ struct bpf_iter_aux_info {
 		enum bpf_iter_task_type	type;
 		u32 pid;
 	} task;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 typedef int (*bpf_iter_attach_target_t)(struct bpf_prog *prog,

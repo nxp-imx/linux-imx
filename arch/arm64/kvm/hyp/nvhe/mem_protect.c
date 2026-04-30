@@ -3512,18 +3512,25 @@ int __pkvm_unuse_dma(phys_addr_t phys, size_t size, struct pkvm_hyp_vcpu *hyp_vc
 	return 0;
 }
 
-/* Get a PA and use the page for DMA */
+/*
+ * Get a PA of an IPA and pin the memory starting from this PA till
+ *  the requested ipa_size or the end of the page boundary returned in level.
+ */
 int pkvm_get_guest_pa_request_use_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
-                                     size_t ipa_size_request, u64 *out_pa, s8 *level)
+                                     size_t ipa_size, u64 *out_pa, s8 *level)
 {
 	int ret;
+	size_t off;
 
 	host_lock_component();
-	ret = pkvm_get_guest_pa_request(hyp_vcpu, ipa, ipa_size_request,
+	ret = pkvm_get_guest_pa_request(hyp_vcpu, ipa, ipa_size,
 					out_pa, level);
 	if (ret)
 		goto out_ret;
-	WARN_ON(__pkvm_use_dma_locked(*out_pa, kvm_granule_size(*level), hyp_vcpu));
+	off = *out_pa - ALIGN_DOWN(*out_pa, kvm_granule_size(*level));
+	WARN_ON(__pkvm_use_dma_locked(*out_pa,
+				      min(kvm_granule_size(*level) - off, ipa_size),
+				      hyp_vcpu));
 out_ret:
 	host_unlock_component();
 	return ret;

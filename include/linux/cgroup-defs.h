@@ -21,6 +21,7 @@
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup-defs.h>
 #include <linux/psi_types.h>
+#include <linux/android_kabi.h>
 
 #ifdef CONFIG_CGROUPS
 
@@ -260,6 +261,8 @@ struct cgroup_subsys_state {
 	 * Protected by css->ss->rstat_ss_lock otherwise.
 	 */
 	struct cgroup_subsys_state *rstat_flush_next;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -625,6 +628,8 @@ struct cgroup {
 	struct bpf_local_storage __rcu  *bpf_cgrp_storage;
 #endif
 
+	ANDROID_KABI_RESERVE(1);
+
 	/* All ancestors including self */
 	struct cgroup *ancestors[];
 };
@@ -668,6 +673,8 @@ struct cgroup_root {
 
 	/* The name for this hierarchy - may be empty */
 	char name[MAX_CGROUP_ROOT_NAMELEN];
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -757,6 +764,8 @@ struct cftype {
 			 struct poll_table_struct *pt);
 
 	struct lock_class_key	lockdep_key;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -852,6 +861,8 @@ struct cgroup_subsys {
 
 	spinlock_t rstat_ss_lock;
 	struct llist_head __percpu *lhead; /* lockless update list head */
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 extern struct percpu_rw_semaphore cgroup_threadgroup_rwsem;

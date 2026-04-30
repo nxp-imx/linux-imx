@@ -14,9 +14,10 @@ cmd_deps			:= $(src)/compiling_cmds.sh
 
 pkvm-hyp-y			:= early_alloc.o pkvm.o memory.o cpu.o \
 				   idt.o entry.o kern_stub.o init.o pgtable.o \
-				   mmu.o page_alloc.o lapic.o trace.o fpu.o
+				   mmu.o page_alloc.o lapic.o trace.o fpu.o \
+				   panic.o
 pkvm-lib			:= lib
-pkvm-hyp-y			+= $(pkvm-lib)/find_bit.o
+pkvm-hyp-y			+= $(pkvm-lib)/find_bit.o $(pkvm-lib)/printf.o
 
 kernel-x86-lib			:= ../../lib
 pkvm-hyp-y			+= $(kernel-x86-lib)/memset_64.o
@@ -35,6 +36,8 @@ pkvm-hyp-y			+= $(kernel-lib)/sort.o $(kernel-lib)/bsearch.o \
 				   $(kernel-lib)/extable.o $(kernel-lib)/hweight.o \
 				   $(kernel-lib)/string.o $(kernel-lib)/ctype.o
 pkvm-hyp-$(CONFIG_LIST_HARDENED) += $(kernel-lib)/list_debug.o
+
+CFLAGS_REMOVE_$(kernel-lib)/string.pkvm.o := -D__NO_FORTIFY
 
 kvm				:= ..
 pkvm-hyp-y			+= $(kvm)/x86.o $(kvm)/cpuid.o $(kvm)/mtrr.o \

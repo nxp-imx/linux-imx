@@ -471,7 +471,7 @@ out:
 const struct dentry_operations fuse_dentry_operations = {
 	.d_revalidate	= fuse_dentry_revalidate,
 	.d_delete	= fuse_dentry_delete,
-#if defined(CONFIG_FUSE_BPF)
+#if BITS_PER_LONG < 64 || defined(CONFIG_FUSE_BPF)
 	.d_init		= fuse_dentry_init,
 	.d_release	= fuse_dentry_release,
 #endif

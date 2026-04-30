@@ -59,11 +59,15 @@ static int back_vmemmap(phys_addr_t back_pa)
 	int ret;
 
 	/*
-	 * Map the vmemmap region to virtual address at page 1.
-	 * Keep page 0 unmapped, to catch NULL dereference bugs in the
+	 * Map the vmemmap region at virtual address 64KB.
+	 * Keep the lower pages unmapped, to catch NULL dereference bugs in the
 	 * hypervisor code.
+	 *
+	 * 64KB guard hole is chosen as it mimics kernel's mmap_min_addr (which
+	 * is typically set to 32KB or 64KB) and should catch most of struct
+	 * member offsets.
 	 */
-	__pkvm_vmemmap = PAGE_SIZE;
+	__pkvm_vmemmap = SZ_64K;
 
 	for (i = 0; i < pkvm_memblock_nr; i++) {
 		reg = &pkvm_memory[i];
@@ -163,6 +167,14 @@ static int create_hyp_mmu(const struct pkvm_mem_info infos[], int nr_infos)
 		ret = pkvm_hyp_mmu_map((unsigned long)__pkvm_va(pvmfw_base),
 				       pvmfw_base, pvmfw_size,
 				       (u64)pgprot_val(PAGE_KERNEL_RO));
+		if (ret)
+			return ret;
+	}
+
+	if (pkvm_ramoops_console_size) {
+		ret = pkvm_hyp_mmu_map((unsigned long)__pkvm_va(pkvm_ramoops_console_pa),
+				       pkvm_ramoops_console_pa, pkvm_ramoops_console_size,
+				       (u64)pgprot_val(PAGE_KERNEL));
 		if (ret)
 			return ret;
 	}
@@ -283,7 +295,9 @@ int pkvm_init(struct pkvm_mem_info infos[], int nr_infos)
 	if (ret)
 		return ret;
 
-	pkvm_init_percpu_fpu();
+	ret = pkvm_init_percpu_fpu();
+	if (ret)
+		return ret;
 
 	pkvm_vcpu_perf_init(this_cpu_read(host_vcpu));
 

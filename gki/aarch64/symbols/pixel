@@ -316,6 +316,7 @@
   device_remove_file
   device_remove_groups
   device_rename
+  __device_set_driver_override
   device_set_wakeup_capable
   device_set_wakeup_enable
   device_show_string
@@ -435,6 +436,7 @@
   dev_pm_qos_add_notifier
   dev_pm_qos_read_value
   dev_pm_qos_remove_notifier
+  dev_pm_qos_remove_request
   dev_pm_qos_update_request
   _dev_printk
   dev_printk_emit

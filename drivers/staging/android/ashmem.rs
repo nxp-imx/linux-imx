@@ -80,6 +80,13 @@ fn shrinker_should_stop() -> bool {
     NUM_PIN_IOCTLS_WAITING.load(Ordering::Relaxed) > 0
 }
 
+#[cfg(CONFIG_COMPAT)]
+fn compat_writer(compat_user_ptr: u32, size: usize) -> UserSliceWriter {
+    // SAFETY: Caller guarantees that this is a valid pointer.
+    let user_ptr = unsafe { bindings::compat_ptr(compat_user_ptr) };
+    UserSlice::new(UserPtr::from_addr(user_ptr as usize), size).writer()
+}
+
 module! {
     type: AshmemModule,
     name: "ashmem_rust",
@@ -284,6 +291,9 @@ impl MiscDevice for Ashmem {
         let cmd = match compat_cmd {
             bindings::COMPAT_ASHMEM_SET_SIZE => bindings::ASHMEM_SET_SIZE,
             bindings::COMPAT_ASHMEM_SET_PROT_MASK => bindings::ASHMEM_SET_PROT_MASK,
+            bindings::COMPAT_ASHMEM_GET_FILE_ID => {
+                return me.compat_get_file_id(compat_writer(arg as u32, _IOC_SIZE(compat_cmd)))
+            }
             _ => compat_cmd,
         };
         Self::ioctl(me, file, cmd, arg)
@@ -381,15 +391,24 @@ impl Ashmem {
         Ok(self.inner.lock().prot_mask as isize)
     }
 
-    fn get_file_id(&self, mut writer: UserSliceWriter) -> Result<isize> {
-        let ino = {
-            let asma = self.inner.lock();
-            let Some(file) = asma.file.as_ref() else {
-                return Err(EINVAL);
-            };
-            file.inode_ino()
+    fn __get_file_id(&self) -> Result<usize> {
+        let asma = self.inner.lock();
+        let Some(file) = asma.file.as_ref() else {
+            return Err(EINVAL);
         };
+        Ok(file.inode_ino())
+    }
+
+    fn get_file_id(&self, mut writer: UserSliceWriter) -> Result<isize> {
+        let ino = self.__get_file_id()?;
         writer.write(&ino)?;
+        Ok(0)
+    }
+
+    #[cfg(CONFIG_COMPAT)]
+    fn compat_get_file_id(&self, mut writer: UserSliceWriter) -> Result<isize> {
+        let ino = self.__get_file_id()?;
+        writer.write(&(ino as u32))?;
         Ok(0)
     }
 
@@ -437,6 +456,14 @@ impl Ashmem {
         let len_plus_offset = offset.checked_add(len).ok_or(EINVAL)?;
         if max_size < len_plus_offset {
             return Err(EINVAL);
+        }
+        if len == 0 {
+            return match cmd {
+                ASHMEM_PIN => Ok(bindings::ASHMEM_NOT_PURGED as isize),
+                ASHMEM_UNPIN => Ok(0),
+                ASHMEM_GET_PIN_STATUS => Ok(bindings::ASHMEM_IS_PINNED as isize),
+                _ => unreachable!(),
+            };
         }
 
         let pgstart = offset / PAGE_SIZE;
@@ -512,17 +539,27 @@ impl AshmemInner {
 
 #[no_mangle]
 unsafe extern "C" fn ashmem_memfd_ioctl(file: *mut bindings::file, cmd: u32, arg: usize) -> isize {
-    #[cfg(CONFIG_COMPAT)]
-    let cmd = match cmd {
-        bindings::COMPAT_ASHMEM_SET_SIZE => bindings::ASHMEM_SET_SIZE,
-        bindings::COMPAT_ASHMEM_SET_PROT_MASK => bindings::ASHMEM_SET_PROT_MASK,
-        cmd => cmd,
-    };
-
     // SAFETY:
     // * The file is valid for the duration of this call.
     // * There is no active fdget_pos region on the file on this thread.
     let file = unsafe { File::from_raw_file(file) };
+
+    #[cfg(CONFIG_COMPAT)]
+    let cmd = match cmd {
+        bindings::COMPAT_ASHMEM_SET_SIZE => bindings::ASHMEM_SET_SIZE,
+        bindings::COMPAT_ASHMEM_SET_PROT_MASK => bindings::ASHMEM_SET_PROT_MASK,
+        bindings::COMPAT_ASHMEM_GET_FILE_ID => {
+            // SAFETY: Accessing the ino is always okay.
+            let ino = unsafe { (*(*file.as_ptr()).f_inode).i_ino as usize };
+
+            let mut writer = compat_writer(arg as u32, _IOC_SIZE(cmd));
+            match writer.write(&(ino as u32)) {
+                Ok(_) => return 0,
+                Err(err) => return err.to_errno() as isize,
+            };
+        }
+        cmd => cmd,
+    };
 
     match ashmem_memfd_ioctl_inner(file, cmd, arg) {
         Ok(ret) => ret,
@@ -534,10 +571,8 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
     use kernel::bindings::{F_ADD_SEALS, F_GET_SEALS, F_SEAL_FUTURE_WRITE, F_SEAL_WRITE};
     const WRITE_SEALS_MASK: usize = (F_SEAL_WRITE | F_SEAL_FUTURE_WRITE) as usize;
 
-    /// # Safety
-    /// The file must be a memfd file.
-    unsafe fn get_seals(file: &File) -> Result<usize> {
-        // SAFETY: This is a memfd file.
+    fn get_seals(file: &File) -> Result<usize> {
+        // SAFETY: This is a valid file.
         let seals: isize = unsafe { bindings::memfd_fcntl(file.as_ptr(), F_GET_SEALS, 0) };
         if seals < 0 {
             return Err(Error::from_errno(seals as i32));
@@ -548,32 +583,20 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
     let size = _IOC_SIZE(cmd);
     match cmd {
         bindings::ASHMEM_GET_NAME => {
-            let file_ptr = file.as_ptr();
-            // SAFETY: It's safe to access a file's dentry.
-            let dentry = unsafe { (*file_ptr).__bindgen_anon_1.f_path.dentry };
-            // SAFETY: memfd stores the supplied name at this location. A default value is stored
-            // when no name is supplied, so this is always a valid string.
-            let full_name = unsafe {
-                core::slice::from_raw_parts(
-                    (*dentry).__bindgen_anon_1.d_name.name,
-                    (*dentry)
-                        .__bindgen_anon_1
-                        .d_name
-                        .__bindgen_anon_1
-                        .__bindgen_anon_1
-                        .len as usize,
-                )
-            };
+            pin_init::stack_pin_init! {
+                let full_name = shmem::DentryNameSnapshot::new(file)
+            }
 
-            let name = full_name.strip_prefix(b"memfd:").unwrap_or(full_name);
-            let max = usize::min(name.len(), ASHMEM_NAME_LEN);
+            let name = full_name.strip_prefix(b"memfd:").unwrap_or(&full_name);
+            let len = usize::min(name.len(), ASHMEM_NAME_LEN - 1);
 
             let mut local_name = [0u8; ASHMEM_NAME_LEN];
-            local_name[..max].copy_from_slice(&name[..max]);
-            local_name[ASHMEM_NAME_LEN - 1] = 0;
+            local_name[..len].copy_from_slice(&name[..len]);
 
             let mut writer = UserSlice::new(UserPtr::from_addr(arg), size).writer();
-            writer.write_slice(&local_name)?;
+            // Include `local_name[len]` for NUL-terminator.
+            writer.write_slice(&local_name[..=len])?;
+
             Ok(0)
         }
         bindings::ASHMEM_GET_SIZE => {
@@ -585,8 +608,7 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
             Ok(size as isize)
         }
         bindings::ASHMEM_SET_PROT_MASK => {
-            // SAFETY: This is a memfd file.
-            let seals = unsafe { get_seals(file) }?;
+            let seals = get_seals(file)?;
             let mut prot = arg;
 
             // The memfd compat layer does not support unsetting these.
@@ -601,7 +623,7 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
             }
 
             if is_writable && !should_be_writable {
-                // SAFETY: This is a memfd file.
+                // SAFETY: This is a valid file.
                 let ret = unsafe {
                     bindings::memfd_fcntl(file.as_ptr(), F_ADD_SEALS, F_SEAL_FUTURE_WRITE)
                 };
@@ -612,8 +634,7 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
             Ok(0)
         }
         bindings::ASHMEM_GET_PROT_MASK => {
-            // SAFETY: This is a memfd file.
-            let seals = unsafe { get_seals(file) }?;
+            let seals = get_seals(file)?;
 
             let mut prot = PROT_READ | PROT_EXEC;
             if seals & WRITE_SEALS_MASK == 0 {
@@ -650,7 +671,7 @@ fn ashmem_memfd_ioctl_inner(file: &File, cmd: u32, arg: usize) -> Result<isize> 
         // memfd is used, so we should never end up here.
         bindings::ASHMEM_SET_NAME => Err(EINVAL),
         bindings::ASHMEM_SET_SIZE => Err(EINVAL),
-        _ => Err(EINVAL),
+        _ => Err(ENOTTY),
     }
 }
 
@@ -674,7 +695,7 @@ unsafe extern "C" fn is_ashmem_file(file: *mut bindings::file) -> bool {
 /// The caller must ensure that `file` references a valid file for the duration of 'a.
 unsafe fn get_ashmem_area<'a>(file: *mut bindings::file) -> Result<&'a Ashmem, Error> {
     // SAFETY: Caller ensures that file is valid, so this should be safe.
-    if unsafe { is_ashmem_file(file) } {
+    if unsafe { !is_ashmem_file(file) } {
         return Err(EINVAL);
     }
 

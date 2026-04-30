@@ -198,6 +198,8 @@ struct pkvm_x86_ops {
 void pkvm_handle_host_hypercall(struct kvm_vcpu *vcpu);
 void pkvm_kick_vcpu(struct kvm_vcpu *vcpu);
 void pkvm_wait_vcpu_kicked_out(struct kvm_vcpu *vcpu);
+void pkvm_handle_init_signal(void);
+void pkvm_udelay(unsigned int usecs);
 int pkvm_x86_vendor_init(struct kvm_x86_init_ops *ops);
 struct pkvm_vm *pkvm_get_vm(int vm_handle);
 void pkvm_put_vm(struct pkvm_vm *pkvm_vm);

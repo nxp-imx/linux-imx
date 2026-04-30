@@ -49,15 +49,6 @@ int ufshcd_query_descriptor_retry(struct ufs_hba *hba,
 				  enum desc_idn idn, u8 index,
 				  u8 selector,
 				  u8 *desc_buf, int *buf_len);
-int ufshcd_read_desc_param(struct ufs_hba *hba,
-			   enum desc_idn desc_id,
-			   int desc_index,
-			   u8 param_offset,
-			   u8 *param_read_buf,
-			   u8 param_size);
-int ufshcd_query_attr_retry(struct ufs_hba *hba, enum query_opcode opcode,
-			    enum attr_idn idn, u8 index, u8 selector,
-			    u32 *attr_val);
 int ufshcd_query_attr(struct ufs_hba *hba, enum query_opcode opcode,
 		      enum attr_idn idn, u8 index, u8 selector, u32 *attr_val);
 int ufshcd_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
@@ -79,6 +70,9 @@ int ufshcd_mcq_abort(struct scsi_cmnd *cmd);
 int ufshcd_try_to_abort_task(struct ufs_hba *hba, int tag);
 void ufshcd_release_scsi_cmd(struct ufs_hba *hba,
 			     struct ufshcd_lrb *lrbp);
+int ufshcd_pause_command_processing(struct ufs_hba *hba, u64 timeout_us);
+void ufshcd_resume_command_processing(struct ufs_hba *hba);
+int ufshcd_scale_clks(struct ufs_hba *hba, unsigned long freq, bool scale_up);
 
 #define SD_ASCII_STD true
 #define SD_RAW false
@@ -97,6 +91,16 @@ int ufshcd_exec_raw_upiu_cmd(struct ufs_hba *hba,
 
 int ufshcd_wb_toggle(struct ufs_hba *hba, bool enable);
 int ufshcd_read_device_lvl_exception_id(struct ufs_hba *hba, u64 *exception_id);
+
+int ufshcd_uic_tx_eqtr(struct ufs_hba *hba, int gear);
+void ufshcd_apply_valid_tx_eq_settings(struct ufs_hba *hba);
+int ufshcd_config_tx_eq_settings(struct ufs_hba *hba,
+				 struct ufs_pa_layer_attr *pwr_mode,
+				 bool force_tx_eqtr);
+void ufshcd_print_tx_eq_params(struct ufs_hba *hba);
+bool ufshcd_is_txeq_presets_used(struct ufs_hba *hba);
+bool ufshcd_is_txeq_preset_selected(u8 preshoot, u8 deemphasis);
+int ufshcd_retrain_tx_eq(struct ufs_hba *hba, u32 gear);
 
 /* Wrapper functions for safely calling variant operations */
 static inline const char *ufshcd_get_var_name(struct ufs_hba *hba)
@@ -162,14 +166,24 @@ static inline int ufshcd_vops_link_startup_notify(struct ufs_hba *hba,
 	return 0;
 }
 
+static inline int ufshcd_vops_negotiate_pwr_mode(struct ufs_hba *hba,
+						 const struct ufs_pa_layer_attr *dev_max_params,
+						 struct ufs_pa_layer_attr *dev_req_params)
+{
+	if (hba->vops && hba->vops->negotiate_pwr_mode)
+		return hba->vops->negotiate_pwr_mode(hba, dev_max_params,
+					dev_req_params);
+
+	return -ENOTSUPP;
+}
+
 static inline int ufshcd_vops_pwr_change_notify(struct ufs_hba *hba,
 				enum ufs_notify_change_status status,
-				const struct ufs_pa_layer_attr *dev_max_params,
 				struct ufs_pa_layer_attr *dev_req_params)
 {
 	if (hba->vops && hba->vops->pwr_change_notify)
 		return hba->vops->pwr_change_notify(hba, status,
-					dev_max_params, dev_req_params);
+					dev_req_params);
 
 	return -ENOTSUPP;
 }
@@ -282,6 +296,38 @@ static inline u32 ufshcd_vops_freq_to_gear_speed(struct ufs_hba *hba, unsigned l
 	return 0;
 }
 
+static inline int ufshcd_vops_get_rx_fom(struct ufs_hba *hba,
+					 struct ufs_pa_layer_attr *pwr_mode,
+					 struct tx_eqtr_iter *h_iter,
+					 struct tx_eqtr_iter *d_iter)
+{
+	if (hba->vops && hba->vops->get_rx_fom)
+		return hba->vops->get_rx_fom(hba, pwr_mode, h_iter, d_iter);
+
+	return 0;
+}
+
+static inline int ufshcd_vops_apply_tx_eqtr_settings(struct ufs_hba *hba,
+						     struct ufs_pa_layer_attr *pwr_mode,
+						     struct tx_eqtr_iter *h_iter,
+						     struct tx_eqtr_iter *d_iter)
+{
+	if (hba->vops && hba->vops->apply_tx_eqtr_settings)
+		return hba->vops->apply_tx_eqtr_settings(hba, pwr_mode, h_iter, d_iter);
+
+	return 0;
+}
+
+static inline int ufshcd_vops_tx_eqtr_notify(struct ufs_hba *hba,
+					     enum ufs_notify_change_status status,
+					     struct ufs_pa_layer_attr *pwr_mode)
+{
+	if (hba->vops && hba->vops->tx_eqtr_notify)
+		return hba->vops->tx_eqtr_notify(hba, status, pwr_mode);
+
+	return 0;
+}
+
 extern const struct ufs_pm_lvl_states ufs_pm_lvl_states[];
 
 /**
@@ -318,19 +364,9 @@ static inline int ufshcd_update_ee_usr_mask(struct ufs_hba *hba,
 					&hba->ee_drv_mask, set, clr);
 }
 
-static inline int ufshcd_rpm_get_sync(struct ufs_hba *hba)
-{
-	return pm_runtime_get_sync(&hba->ufs_device_wlun->sdev_gendev);
-}
-
 static inline int ufshcd_rpm_get_if_active(struct ufs_hba *hba)
 {
 	return pm_runtime_get_if_active(&hba->ufs_device_wlun->sdev_gendev);
-}
-
-static inline int ufshcd_rpm_put_sync(struct ufs_hba *hba)
-{
-	return pm_runtime_put_sync(&hba->ufs_device_wlun->sdev_gendev);
 }
 
 static inline void ufshcd_rpm_get_noresume(struct ufs_hba *hba)
@@ -341,11 +377,6 @@ static inline void ufshcd_rpm_get_noresume(struct ufs_hba *hba)
 static inline int ufshcd_rpm_resume(struct ufs_hba *hba)
 {
 	return pm_runtime_resume(&hba->ufs_device_wlun->sdev_gendev);
-}
-
-static inline int ufshcd_rpm_put(struct ufs_hba *hba)
-{
-	return pm_runtime_put(&hba->ufs_device_wlun->sdev_gendev);
 }
 
 /**

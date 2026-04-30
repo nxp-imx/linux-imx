@@ -1028,7 +1028,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 		spin_lock_irqsave(&n->list_lock, flags);
 		list_for_each_entry(slab, &n->partial, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;
@@ -1038,7 +1040,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 #ifdef CONFIG_SLUB_DEBUG
 		list_for_each_entry(slab, &n->full, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;

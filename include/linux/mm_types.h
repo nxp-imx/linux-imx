@@ -1237,6 +1237,7 @@ struct mm_struct {
 		struct task_dma_buf_info *dmabuf_info;
 
 		ANDROID_KABI_RESERVE(1);
+		ANDROID_BACKPORT_RESERVE(1);
 		ANDROID_VENDOR_DATA(1);
 	} __randomize_layout;
 
@@ -1307,6 +1308,8 @@ struct lru_gen_mm_list {
 	struct list_head fifo;
 	/* protects the list above */
 	spinlock_t lock;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #endif /* CONFIG_LRU_GEN */

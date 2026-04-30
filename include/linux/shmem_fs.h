@@ -52,6 +52,9 @@ struct shmem_inode_info {
 	(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL | FS_NOATIME_FL | FS_CASEFOLD_FL)
 #define SHMEM_FL_INHERITED		(FS_NODUMP_FL | FS_NOATIME_FL | FS_CASEFOLD_FL)
 
+/* ANDROID: Inode backs a shmem-backed memfd */
+#define SHMEM_FL_MEMFD			0x40000000
+
 struct shmem_quota_limits {
 	qsize_t usrquota_bhardlimit; /* Default user quota block hard limit */
 	qsize_t usrquota_ihardlimit; /* Default user quota inode hard limit */

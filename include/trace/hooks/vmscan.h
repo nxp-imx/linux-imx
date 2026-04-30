@@ -25,6 +25,12 @@ DECLARE_HOOK(android_vh_shrink_folio_list,
 	TP_PROTO(struct folio *folio, bool dirty, bool writeback,
 		bool *activate, bool *keep),
 	TP_ARGS(folio, dirty, writeback, activate, keep));
+DECLARE_HOOK(android_vh_shrink_folio_lock_owner_set,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_shrink_folio_lock_owner_clear,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
 DECLARE_HOOK(android_vh_inode_lru_isolate,
 	TP_PROTO(struct inode *inode, bool *skip),
 	TP_ARGS(inode, skip));

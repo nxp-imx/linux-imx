@@ -2029,6 +2029,8 @@ int kvm_iommu_iotlb_inv_nested_domain(pkvm_handle_t domain_id, unsigned long iov
 				      size_t granule, bool leaf);
 int kvm_iommu_nested_cfg_sync(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, void *cmd_desc_hva,
 			      size_t cmd_desc_size);
+int kvm_iommu_page_response(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, unsigned int endpoint,
+			    unsigned int pasid, unsigned int grpid, unsigned int status_code);
 #endif
 /*
  * Unlike previous android versions, where we supported 1 << 16 domains,

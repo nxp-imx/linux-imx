@@ -214,14 +214,37 @@ static void handle_preemption_timer(struct kvm_vcpu *vcpu)
 	pin_controls_clearbit(to_vmx(vcpu), PIN_BASED_VMX_PREEMPTION_TIMER);
 }
 
-static void handle_xsetbv(struct kvm_vcpu *vcpu)
+static int handle_xsetbv(struct kvm_vcpu *vcpu)
 {
 	u32 eax = (u32)(vcpu->arch.regs[VCPU_REGS_RAX] & -1u);
 	u32 edx = (u32)(vcpu->arch.regs[VCPU_REGS_RDX] & -1u);
 	u32 ecx = (u32)(vcpu->arch.regs[VCPU_REGS_RCX] & -1u);
 
-	asm volatile(".byte 0x0f,0x01,0xd1"
-			: : "a" (eax), "d" (edx), "c" (ecx));
+	asm goto("1: xsetbv\n\t"
+		 _ASM_EXTABLE(1b, %l[fault])
+		 : : "a" (eax), "d" (edx), "c" (ecx) : : fault);
+
+	return X86EMUL_CONTINUE;
+
+fault:
+	/*
+	 * Although the SDM doesn't describe the priority of #UD and
+	 * interception for xsetbv, the experiment shows that #UD due to
+	 * CR4.OSXSAVE[bit 18] == 0 and the LOCK prefix has priority
+	 * over the interception.
+	 *
+	 * So the pKVM hypervisor itself won't generate #UD when
+	 * executes the xsetbv instruction, only #GP can be generated
+	 * due to invalid configurations. Always inject #GP if xsetbv
+	 * is failed.
+	 *
+	 * TODO: CPUID.01H:ECX.XSAVE[bit 26] == 0 will also result in
+	 * #UD but all modern Intel CPUs have XSAVE. If the pKVM runs
+	 * on such CPU without XSAVE, verify if this #UD also has
+	 * priority over the interception.
+	 */
+	kvm_inject_gp(vcpu, 0);
+	return X86EMUL_UNHANDLEABLE;
 }
 
 static void inject_pending_nmi(struct kvm_vcpu *vcpu)
@@ -327,11 +350,7 @@ void pkvm_host_vmexit_main(struct vcpu_vmx *vmx)
 
 	switch (vt->exit_reason.full) {
 	case EXIT_REASON_INIT_SIGNAL:
-		/*
-		 * INIT is used as kick when making a request.
-		 * So just break the vmexits and go to pending
-		 * events handling.
-		 */
+		pkvm_handle_init_signal();
 		break;
 	case EXIT_REASON_INTERRUPT_WINDOW:
 		handle_irq_window(vcpu);
@@ -357,19 +376,14 @@ void pkvm_host_vmexit_main(struct vcpu_vmx *vmx)
 			skip_instruction = true;
 		break;
 	case EXIT_REASON_EPT_VIOLATION:
-		/*
-		 * Inject #GP to the host VM if its EPT violation
-		 * cannot be handled.
-		 */
-		if (pkvm_handle_host_ept_violation())
-			kvm_inject_gp(vcpu, 0);
+		pkvm_handle_host_ept_violation(vcpu);
 		break;
 	case EXIT_REASON_PREEMPTION_TIMER:
 		handle_preemption_timer(vcpu);
 		break;
 	case EXIT_REASON_XSETBV:
-		handle_xsetbv(vcpu);
-		skip_instruction = true;
+		if (handle_xsetbv(vcpu) == X86EMUL_CONTINUE)
+			skip_instruction = true;
 		break;
 	default:
 		pkvm_err_ratelimited("Unsupported vmexit reason 0x%x.\n",

@@ -101,23 +101,26 @@ static void smmu_copy_from_host(struct hyp_arm_smmu_v3_device *smmu,
 static int smmu_share_pages(phys_addr_t addr, size_t size)
 {
 	int i;
-	size_t nr_pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
+	phys_addr_t base = addr & PAGE_MASK;
+	size_t nr_pages = PAGE_ALIGN(size + (addr & ~PAGE_MASK)) >> PAGE_SHIFT;
 
 	for (i = 0 ; i < nr_pages ; ++i)
-		WARN_ON(__pkvm_host_share_hyp((addr + i * PAGE_SIZE) >> PAGE_SHIFT));
+		WARN_ON(__pkvm_host_share_hyp((base + i * PAGE_SIZE) >> PAGE_SHIFT));
 
-	return hyp_pin_shared_mem(hyp_phys_to_virt(addr), hyp_phys_to_virt(addr + size));
+	return hyp_pin_shared_mem(hyp_phys_to_virt(base),
+				  hyp_phys_to_virt(base + nr_pages * PAGE_SIZE));
 }
 
 static int smmu_unshare_pages(phys_addr_t addr, size_t size)
 {
 	int i;
-	size_t nr_pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
+	phys_addr_t base = addr & PAGE_MASK;
+	size_t nr_pages = PAGE_ALIGN(size + (addr & ~PAGE_MASK)) >> PAGE_SHIFT;
 
-	hyp_unpin_shared_mem(hyp_phys_to_virt(addr), hyp_phys_to_virt(addr + size));
+	hyp_unpin_shared_mem(hyp_phys_to_virt(base), hyp_phys_to_virt(base + nr_pages * PAGE_SIZE));
 
 	for (i = 0 ; i < nr_pages ; ++i)
-		WARN_ON(__pkvm_host_unshare_hyp((addr + i * PAGE_SIZE) >> PAGE_SHIFT));
+		WARN_ON(__pkvm_host_unshare_hyp((base + i * PAGE_SIZE) >> PAGE_SHIFT));
 
 	return 0;
 }

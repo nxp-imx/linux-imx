@@ -867,7 +867,7 @@ static int smmu_dev_block_dma(pkvm_handle_t iommu, u32 sid, bool is_host2guest)
 
 				cd_table = hyp_phys_to_virt(le64_to_cpu(dst->data[0]) & STRTAB_STE_0_S1CTXPTR_MASK);
 				nr_entries = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX, le64_to_cpu(dst->data[0]));
-				cd_sz = (1 << nr_entries) * (CTXDESC_CD_DWORDS << 3);
+				cd_sz = nr_entries * (CTXDESC_CD_DWORDS << 3);
 				kvm_iommu_reclaim_pages(cd_table, get_order(cd_sz));
 			}
 

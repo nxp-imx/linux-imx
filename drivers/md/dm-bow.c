@@ -1163,7 +1163,16 @@ static int dm_bow_map(struct dm_target *ti, struct bio *bio)
 		} else if (state == CHECKPOINT) {
 			if (bio->bi_iter.bi_sector == 0)
 				ret = handle_sector0(bc, bio);
-			else if (bio_data_dir(bio) == WRITE)
+			else if (bio_op(bio) == REQ_OP_DISCARD) {
+				/*
+				 * Ignore discard requests in CHECKPOINT state.
+				 * Passing them through would physically erase data that we
+				 * are trying to protect, creating a state mismatch.
+				 * We complete the bio with success and stop processing.
+				 */
+				bio_endio(bio);
+				ret = DM_MAPIO_SUBMITTED;
+			} else if (bio_data_dir(bio) == WRITE)
 				ret = queue_write(bc, bio);
 			/* else pass-through */
 		}

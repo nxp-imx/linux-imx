@@ -292,6 +292,14 @@ int kvm_iommu_nested_cfg_sync(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, void
 }
 EXPORT_SYMBOL(kvm_iommu_nested_cfg_sync);
 
+int kvm_iommu_page_response(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, unsigned int endpoint,
+			    unsigned int pasid, unsigned int grpid, unsigned int status_code)
+{
+	return kvm_call_hyp_nvhe(__pkvm_host_iommu_page_response, drv_id, iommu_id, endpoint, pasid,
+				 grpid, status_code);
+}
+EXPORT_SYMBOL(kvm_iommu_page_response);
+
 int pkvm_iommu_suspend(int device_id)
 {
 	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 0);

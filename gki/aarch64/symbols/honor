@@ -1,5 +1,6 @@
 [abi_symbol_list]
   netdev_get_name
+  netif_get_flags
   sock_from_file
   tcp_done
   tcp_send_active_reset

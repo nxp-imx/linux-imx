@@ -66,13 +66,13 @@ bool pkvm_find_addr_range(unsigned long phys, struct range *range)
 		end = reg->base + reg->size;
 		if (phys < reg->base) {
 			right = cur;
-			range->end = reg->base;
+			range->end = reg->base - 1;
 		} else if (phys >= end) {
 			left = cur + 1;
 			range->start = end;
 		} else {
 			range->start = reg->base;
-			range->end = end;
+			range->end = end - 1;
 			return true;
 		}
 	}

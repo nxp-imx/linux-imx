@@ -80,6 +80,27 @@
   __traceiter_android_rvh_try_to_wake_up_begin
   __tracepoint_android_rvh_try_to_wake_up_begin
 
+#required by cpq.ko
+  elv_rb_former_request
+  elv_rb_latter_request
+  blk_mq_sched_try_merge
+  elv_rb_find
+  elv_bio_merge_ok
+  elv_rb_del
+  elv_rb_add
+  elv_rqhash_del
+  blk_mq_sched_mark_restart_hctx
+  blk_mq_sched_try_insert_merge
+  elv_rqhash_add
+  blkcg_print_blkgs
+  blkg_conf_init
+  blkg_conf_prep
+  blkg_conf_exit
+  __blkg_prfill_u64
+  blkcg_root
+  blkcg_activate_policy
+  blkcg_deactivate_policy
+
 #required by zram.ko module
   __traceiter_android_vh_handle_folio_writeback
   __tracepoint_android_vh_handle_folio_writeback
@@ -128,8 +149,8 @@
   __traceiter_android_vh_folio_add_file_rmap
   __tracepoint_android_vh_folio_remove_rmap
   __traceiter_android_vh_folio_remove_rmap
-  __tracepoint_android_vh_folios_put_refs_direct_free_extent
-  __traceiter_android_vh_folios_put_refs_direct_free_extent
+  __tracepoint_android_vh_folios_put_direct_free
+  __traceiter_android_vh_folios_put_direct_free
   __tracepoint_android_vh_free_pages_and_swap_cache
   __traceiter_android_vh_free_pages_and_swap_cache
   __filemap_remove_folio
@@ -174,6 +195,8 @@
 # required by mi clean page
  __traceiter_android_vh_folio_end_writeback
  __tracepoint_android_vh_folio_end_writeback
+ __traceiter_android_vh_folio_start_writeback
+ __tracepoint_android_vh_folio_start_writeback
 
 # required by dw_wdt.ko
  __traceiter_android_rvh_fiq_dump

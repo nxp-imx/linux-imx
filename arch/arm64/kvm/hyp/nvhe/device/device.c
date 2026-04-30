@@ -425,7 +425,7 @@ int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id, struct pkvm_hyp_vm *
 	int ret = 0;
 
 	if (!dev)
-		return 0;
+		return vm ? -EPERM : 0;
 
 	hyp_spin_lock(&device_spinlock);
 	if (dev->ctxt != vm)

@@ -364,10 +364,14 @@ int gunyah_vm_add_resource_ticket(struct gunyah_vm *ghvm,
 	int ret = 0;
 
 	mutex_lock(&ghvm->resources_lock);
+	INIT_LIST_HEAD(&ticket->resources);
+	INIT_LIST_HEAD(&ticket->vm_list);
 	list_for_each_entry(iter, &ghvm->resource_tickets, vm_list) {
 		if (iter->resource_type == ticket->resource_type &&
 		    iter->label == ticket->label) {
-			ret = -EEXIST;
+			dev_warn(ghvm->parent,
+				"Duplicate resource of type %d label %d\n",
+				ticket->resource_type, ticket->label);
 			goto out;
 		}
 	}
@@ -378,7 +382,6 @@ int gunyah_vm_add_resource_ticket(struct gunyah_vm *ghvm,
 	}
 
 	list_add(&ticket->vm_list, &ghvm->resource_tickets);
-	INIT_LIST_HEAD(&ticket->resources);
 
 	list_for_each_entry_safe(ghrsc, rsc_iter, &ghvm->resources, list) {
 		if (ghrsc->type == ticket->resource_type &&
@@ -404,8 +407,10 @@ __gunyah_vm_remove_resource_ticket(struct gunyah_vm *ghvm,
 		list_move(&ghrsc->list, &ghvm->resources);
 	}
 
-	module_put(ticket->owner);
-	list_del(&ticket->vm_list);
+	if (!list_empty(&ticket->vm_list)) {
+		module_put(ticket->owner);
+		list_del(&ticket->vm_list);
+	}
 }
 
 void gunyah_vm_remove_resource_ticket(struct gunyah_vm *ghvm,

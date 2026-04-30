@@ -15,6 +15,7 @@
 #include <linux/bitops.h>
 #include <linux/hardirq.h> /* for in_interrupt() */
 #include <linux/hugetlb_inline.h>
+#include <linux/android_kabi.h>
 
 struct folio_batch;
 
@@ -1339,7 +1340,9 @@ struct readahead_control {
 	bool dropbehind;
 	bool _workingset;
 	unsigned long _pflags;
+
 	ANDROID_OEM_DATA(1);
+	ANDROID_KABI_RESERVE(1);
 };
 
 #define DEFINE_READAHEAD(ractl, f, r, m, i)				\

@@ -338,11 +338,7 @@ static inline void ufshcd_add_delay_before_dme_cmd(struct ufs_hba *hba);
 static int ufshcd_host_reset_and_restore(struct ufs_hba *hba);
 static void ufshcd_resume_clkscaling(struct ufs_hba *hba);
 static void ufshcd_suspend_clkscaling(struct ufs_hba *hba);
-static int ufshcd_scale_clks(struct ufs_hba *hba, unsigned long freq,
-			     bool scale_up);
 static irqreturn_t ufshcd_intr(int irq, void *__hba);
-static int ufshcd_change_power_mode(struct ufs_hba *hba,
-			     struct ufs_pa_layer_attr *pwr_mode);
 static int ufshcd_setup_hba_vreg(struct ufs_hba *hba, bool on);
 static int ufshcd_setup_vreg(struct ufs_hba *hba, bool on);
 static inline int ufshcd_config_vreg_hpm(struct ufs_hba *hba,
@@ -1220,8 +1216,7 @@ static int ufshcd_opp_set_rate(struct ufs_hba *hba, unsigned long freq)
  *
  * Return: 0 if successful; < 0 upon failure.
  */
-static int ufshcd_scale_clks(struct ufs_hba *hba, unsigned long freq,
-			     bool scale_up)
+int ufshcd_scale_clks(struct ufs_hba *hba, unsigned long freq, bool scale_up)
 {
 	int ret = 0;
 	ktime_t start = ktime_get();
@@ -1375,6 +1370,48 @@ out:
 }
 
 /**
+ * ufshcd_pause_command_processing - Pause command processing
+ * @hba: per-adapter instance
+ * @timeout_us: timeout in microseconds to wait for pending commands to finish
+ *
+ * This function stops new command submissions and waits for existing commands
+ * to complete.
+ *
+ * Return: 0 on success, %-EBUSY if commands did not finish within @timeout_us.
+ * On failure, all acquired locks are released and the tagset is unquiesced.
+ */
+int ufshcd_pause_command_processing(struct ufs_hba *hba, u64 timeout_us)
+{
+	int ret = 0;
+
+	mutex_lock(&hba->host->scan_mutex);
+	blk_mq_quiesce_tagset(&hba->host->tag_set);
+	down_write(&hba->clk_scaling_lock);
+
+	if (ufshcd_wait_for_pending_cmds(hba, timeout_us)) {
+		ret = -EBUSY;
+		up_write(&hba->clk_scaling_lock);
+		blk_mq_unquiesce_tagset(&hba->host->tag_set);
+		mutex_unlock(&hba->host->scan_mutex);
+	}
+
+	return ret;
+}
+
+/**
+ * ufshcd_resume_command_processing - Resume command processing
+ * @hba: per-adapter instance
+ *
+ * This function resumes command submissions.
+ */
+void ufshcd_resume_command_processing(struct ufs_hba *hba)
+{
+	up_write(&hba->clk_scaling_lock);
+	blk_mq_unquiesce_tagset(&hba->host->tag_set);
+	mutex_unlock(&hba->host->scan_mutex);
+}
+
+/**
  * ufshcd_scale_gear - scale up/down UFS gear
  * @hba: per adapter instance
  * @target_gear: target gear to scale to
@@ -1419,7 +1456,8 @@ static int ufshcd_scale_gear(struct ufs_hba *hba, u32 target_gear, bool scale_up
 
 config_pwr_mode:
 	/* check if the power mode needs to be changed or not? */
-	ret = ufshcd_config_pwr_mode(hba, &new_pwr_info);
+	ret = ufshcd_config_pwr_mode(hba, &new_pwr_info,
+				     UFSHCD_PMC_POLICY_DONT_FORCE);
 	if (ret)
 		dev_err(hba->dev, "%s: failed err %d, old gear: (tx %d rx %d), new gear: (tx %d rx %d)",
 			__func__, ret,
@@ -4307,7 +4345,8 @@ int ufshcd_dme_get_attr(struct ufs_hba *hba, u32 attr_sel,
 			pwr_mode_change = true;
 		}
 		if (pwr_mode_change) {
-			ret = ufshcd_change_power_mode(hba, &temp_pwr_info);
+			ret = ufshcd_change_power_mode(hba, &temp_pwr_info,
+						       UFSHCD_PMC_POLICY_DONT_FORCE);
 			if (ret)
 				goto out;
 		}
@@ -4331,7 +4370,8 @@ int ufshcd_dme_get_attr(struct ufs_hba *hba, u32 attr_sel,
 
 	if (peer && (hba->quirks & UFSHCD_QUIRK_DME_PEER_ACCESS_AUTO_MODE)
 	    && pwr_mode_change)
-		ufshcd_change_power_mode(hba, &orig_pwr_info);
+		ufshcd_change_power_mode(hba, &orig_pwr_info,
+					 UFSHCD_PMC_POLICY_DONT_FORCE);
 out:
 	return ret;
 }
@@ -4398,16 +4438,18 @@ static int ufshcd_uic_pwr_ctrl(struct ufs_hba *hba, struct uic_command *cmd)
 	ret = __ufshcd_send_uic_cmd(hba, cmd);
 	if (ret) {
 		dev_err(hba->dev,
-			"pwr ctrl cmd 0x%x with mode 0x%x uic error %d\n",
-			cmd->command, cmd->argument3, ret);
+			"pwr ctrl cmd 0x%x with (MIBattribute 0x%x, mode 0x%x) uic error %d\n",
+			cmd->command, UIC_GET_ATTR_ID(cmd->argument1),
+			cmd->argument3, ret);
 		goto out;
 	}
 
 	if (!wait_for_completion_timeout(hba->uic_async_done,
 					 msecs_to_jiffies(uic_cmd_timeout))) {
 		dev_err(hba->dev,
-			"pwr ctrl cmd 0x%x with mode 0x%x completion timeout\n",
-			cmd->command, cmd->argument3);
+			"pwr ctrl cmd 0x%x with (MIBattribute 0x%x, mode 0x%x) completion timeout\n",
+			cmd->command, UIC_GET_ATTR_ID(cmd->argument1),
+			cmd->argument3);
 
 		if (!cmd->cmd_active) {
 			dev_err(hba->dev, "%s: Power Mode Change operation has been completed, go check UPMCRS\n",
@@ -4423,14 +4465,16 @@ check_upmcrs:
 	status = ufshcd_get_upmcrs(hba);
 	if (status != PWR_LOCAL) {
 		dev_err(hba->dev,
-			"pwr ctrl cmd 0x%x failed, host upmcrs:0x%x\n",
-			cmd->command, status);
+			"pwr ctrl cmd 0x%x with (MIBattribute 0x%x, mode 0x%x) failed, host upmcrs:0x%x\n",
+			cmd->command, UIC_GET_ATTR_ID(cmd->argument1),
+			cmd->argument3, status);
 		ret = (status != PWR_OK) ? status : -1;
 	}
 out:
 	if (ret) {
 		ufshcd_print_host_state(hba);
 		ufshcd_print_pwr_info(hba);
+		ufshcd_print_tx_eq_params(hba);
 		ufshcd_print_evt_hist(hba);
 	}
 
@@ -4444,6 +4488,29 @@ out:
 out_unlock:
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 	mutex_unlock(&hba->uic_cmd_mutex);
+
+	return ret;
+}
+
+/**
+ * ufshcd_uic_tx_eqtr - Perform UIC TX Equalization Training
+ * @hba: per adapter instance
+ * @gear: target gear for EQTR
+ *
+ * Returns 0 on success, negative error code otherwise
+ */
+int ufshcd_uic_tx_eqtr(struct ufs_hba *hba, int gear)
+{
+	struct uic_command uic_cmd = {
+		.command = UIC_CMD_DME_SET,
+		.argument1 = UIC_ARG_MIB(PA_EQTR_GEAR),
+		.argument3 = gear,
+	};
+	int ret;
+
+	ufshcd_hold(hba);
+	ret = ufshcd_uic_pwr_ctrl(hba, &uic_cmd);
+	ufshcd_release(hba);
 
 	return ret;
 }
@@ -4711,13 +4778,33 @@ static int ufshcd_get_max_pwr_mode(struct ufs_hba *hba)
 	return 0;
 }
 
-static int ufshcd_change_power_mode(struct ufs_hba *hba,
-			     struct ufs_pa_layer_attr *pwr_mode)
+/**
+ * ufshcd_dme_change_power_mode() - UniPro DME Power Mode change sequence
+ * @hba: per-adapter instance
+ * @pwr_mode: pointer to the target power mode (gear/lane) attributes
+ * @pmc_policy: Power Mode change policy
+ *
+ * This function handles the low-level DME (Device Management Entity)
+ * configuration required to transition the UFS link to a new power mode. It
+ * performs the following steps:
+ * 1. Checks if the requested mode matches the current state.
+ * 2. Sets M-PHY and UniPro attributes including Gear (PA_RXGEAR/TXGEAR),
+ *    Lanes, Termination, and HS Series (PA_HSSERIES).
+ * 3. Configures default UniPro timeout values (DL_FC0, etc.) unless
+ *    explicitly skipped via quirks.
+ * 4. Triggers the actual hardware mode change via ufshcd_uic_change_pwr_mode().
+ * 5. Updates the HBA's cached power information on success.
+ *
+ * Return: 0 on success, non-zero error code on failure.
+ */
+static int ufshcd_dme_change_power_mode(struct ufs_hba *hba,
+					struct ufs_pa_layer_attr *pwr_mode,
+					enum ufshcd_pmc_policy pmc_policy)
 {
 	int ret;
 
 	/* if already configured to the requested pwr_mode */
-	if (!hba->force_pmc &&
+	if (pmc_policy == UFSHCD_PMC_POLICY_DONT_FORCE &&
 	    pwr_mode->gear_rx == hba->pwr_info.gear_rx &&
 	    pwr_mode->gear_tx == hba->pwr_info.gear_tx &&
 	    pwr_mode->lane_rx == hba->pwr_info.lane_rx &&
@@ -4797,31 +4884,67 @@ static int ufshcd_change_power_mode(struct ufs_hba *hba,
 }
 
 /**
+ * ufshcd_change_power_mode() - Change UFS Link Power Mode
+ * @hba: per-adapter instance
+ * @pwr_mode: pointer to the target power mode (gear/lane) attributes
+ * @pmc_policy: Power Mode change policy
+ *
+ * This function handles the high-level sequence for changing the UFS link
+ * power mode. It triggers vendor-specific pre-change notification,
+ * executes the DME (Device Management Entity) power mode change sequence,
+ * and, upon success, triggers vendor-specific post-change notification.
+ *
+ * Return: 0 on success, non-zero error code on failure.
+ */
+int ufshcd_change_power_mode(struct ufs_hba *hba,
+			     struct ufs_pa_layer_attr *pwr_mode,
+			     enum ufshcd_pmc_policy pmc_policy)
+{
+	int ret;
+
+	ufshcd_vops_pwr_change_notify(hba, PRE_CHANGE, pwr_mode);
+
+	ret = ufshcd_dme_change_power_mode(hba, pwr_mode, pmc_policy);
+
+	if (!ret)
+		ufshcd_vops_pwr_change_notify(hba, POST_CHANGE, pwr_mode);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(ufshcd_change_power_mode);
+
+/**
  * ufshcd_config_pwr_mode - configure a new power mode
  * @hba: per-adapter instance
  * @desired_pwr_mode: desired power configuration
+ * @pmc_policy: Power Mode change policy
  *
  * Return: 0 upon success; < 0 upon failure.
  */
 int ufshcd_config_pwr_mode(struct ufs_hba *hba,
-		struct ufs_pa_layer_attr *desired_pwr_mode)
+			   struct ufs_pa_layer_attr *desired_pwr_mode,
+			   enum ufshcd_pmc_policy pmc_policy)
 {
 	struct ufs_pa_layer_attr final_params = { 0 };
 	int ret;
 
-	ret = ufshcd_vops_pwr_change_notify(hba, PRE_CHANGE,
-					desired_pwr_mode, &final_params);
+	ret = ufshcd_vops_negotiate_pwr_mode(hba, desired_pwr_mode,
+					     &final_params);
+	if (ret) {
+		if (ret != -ENOTSUPP)
+			dev_err(hba->dev, "Failed to negotiate power mode: %d, use desired as is\n",
+				ret);
 
-	if (ret)
 		memcpy(&final_params, desired_pwr_mode, sizeof(final_params));
+	}
 
-	ret = ufshcd_change_power_mode(hba, &final_params);
+	ret = ufshcd_config_tx_eq_settings(hba, &final_params, false);
+	if (ret)
+		dev_warn(hba->dev, "Failed to configure TX Equalization for HS-G%u, Rate-%s: %d\n",
+			 final_params.gear_tx,
+			 ufs_hs_rate_to_str(final_params.hs_rate), ret);
 
-	if (!ret)
-		ufshcd_vops_pwr_change_notify(hba, POST_CHANGE, NULL,
-					&final_params);
-
-	return ret;
+	return ufshcd_change_power_mode(hba, &final_params, pmc_policy);
 }
 EXPORT_SYMBOL_GPL(ufshcd_config_pwr_mode);
 
@@ -6825,6 +6948,7 @@ again:
 		spin_unlock_irqrestore(hba->host->host_lock, flags);
 		ufshcd_print_host_state(hba);
 		ufshcd_print_pwr_info(hba);
+		ufshcd_print_tx_eq_params(hba);
 		ufshcd_print_evt_hist(hba);
 		ufshcd_print_tmrs(hba, hba->outstanding_tasks);
 		ufshcd_print_trs_all(hba, pr_prdt);
@@ -6883,14 +7007,13 @@ again:
 		 * are sent via bsg and/or sysfs.
 		 */
 		down_write(&hba->clk_scaling_lock);
-		hba->force_pmc = true;
-		pmc_err = ufshcd_config_pwr_mode(hba, &(hba->pwr_info));
+		pmc_err = ufshcd_config_pwr_mode(hba, &hba->pwr_info,
+						 UFSHCD_PMC_POLICY_FORCE);
 		if (pmc_err) {
 			needs_reset = true;
 			dev_err(hba->dev, "%s: Failed to restore power mode, err = %d\n",
 					__func__, pmc_err);
 		}
-		hba->force_pmc = false;
 		ufshcd_print_pwr_info(hba);
 		up_write(&hba->clk_scaling_lock);
 		spin_lock_irqsave(hba->host->host_lock, flags);
@@ -7016,10 +7139,19 @@ static irqreturn_t ufshcd_update_uic_error(struct ufs_hba *hba)
 	}
 
 	reg = ufshcd_readl(hba, REG_UIC_ERROR_CODE_DME);
-	if ((reg & UIC_DME_ERROR) &&
-	    (reg & UIC_DME_ERROR_CODE_MASK)) {
+	if (reg & UIC_DME_ERROR) {
 		ufshcd_update_evt_hist(hba, UFS_EVT_DME_ERR, reg);
-		hba->uic_error |= UFSHCD_UIC_DME_ERROR;
+
+		if (reg & UIC_DME_ERROR_CODE_MASK)
+			hba->uic_error |= UFSHCD_UIC_DME_ERROR;
+
+		if (reg & UIC_DME_QOS_MASK) {
+			atomic_set(&hba->dme_qos_notification,
+				   reg & UIC_DME_QOS_MASK);
+			if (hba->dme_qos_sysfs_handle)
+				sysfs_notify_dirent(hba->dme_qos_sysfs_handle);
+		}
+
 		retval |= IRQ_HANDLED;
 	}
 
@@ -7091,6 +7223,7 @@ static irqreturn_t ufshcd_check_errors(struct ufs_hba *hba, u32 intr_status)
 			ufshcd_dump_regs(hba, 0, UFSHCI_REG_SPACE_SIZE,
 					 "host_regs: ");
 			ufshcd_print_pwr_info(hba);
+			ufshcd_print_tx_eq_params(hba);
 		}
 		ufshcd_schedule_eh_work(hba);
 		retval |= IRQ_HANDLED;
@@ -7853,6 +7986,7 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 		ufshcd_print_evt_hist(hba);
 		ufshcd_print_host_state(hba);
 		ufshcd_print_pwr_info(hba);
+		ufshcd_print_tx_eq_params(hba);
 		ufshcd_print_tr(hba, tag, true);
 	} else {
 		ufshcd_print_tr(hba, tag, false);
@@ -8747,6 +8881,8 @@ static void ufshcd_tune_unipro_params(struct ufs_hba *hba)
 
 	if (hba->dev_quirks & UFS_DEVICE_QUIRK_PA_HIBER8TIME)
 		ufshcd_quirk_override_pa_h8time(hba);
+
+	ufshcd_apply_valid_tx_eq_settings(hba);
 }
 
 static void ufshcd_clear_dbg_ufs_stats(struct ufs_hba *hba)
@@ -9051,6 +9187,12 @@ static int ufshcd_post_device_init(struct ufs_hba *hba)
 
 	/* UFS device is also active now */
 	ufshcd_set_ufs_dev_active(hba);
+
+	/* Indicate that DME QoS Monitor has been reset */
+	atomic_set(&hba->dme_qos_notification, 0x1);
+	if (hba->dme_qos_sysfs_handle)
+		sysfs_notify_dirent(hba->dme_qos_sysfs_handle);
+
 	ufshcd_force_reset_auto_bkops(hba);
 
 	ufshcd_set_timestamp_attr(hba);
@@ -9065,7 +9207,8 @@ static int ufshcd_post_device_init(struct ufs_hba *hba)
 	if (hba->dev_ref_clk_freq != REF_CLK_FREQ_INVAL)
 		ufshcd_set_dev_ref_clk(hba);
 	/* Gear up to HS gear. */
-	ret = ufshcd_config_pwr_mode(hba, &hba->max_pwr_info.info);
+	ret = ufshcd_config_pwr_mode(hba, &hba->max_pwr_info.info,
+				     UFSHCD_PMC_POLICY_DONT_FORCE);
 	if (ret) {
 		dev_err(hba->dev, "%s: Failed setting power mode, err = %d\n",
 			__func__, ret);
@@ -9680,6 +9823,7 @@ static void ufshcd_hba_exit(struct ufs_hba *hba)
 		hba->is_powered = false;
 		ufs_put_device_desc(hba);
 	}
+	sysfs_put(hba->dme_qos_sysfs_handle);
 }
 
 static int ufshcd_execute_start_stop(struct scsi_device *sdev,
@@ -9879,11 +10023,13 @@ static void ufshcd_vreg_set_lpm(struct ufs_hba *hba)
 #ifdef CONFIG_PM
 static int ufshcd_vreg_set_hpm(struct ufs_hba *hba)
 {
+	bool vcc_on = false;
 	int ret = 0;
 
 	if (ufshcd_is_ufs_dev_poweroff(hba) && ufshcd_is_link_off(hba) &&
 	    !hba->dev_info.is_lu_power_on_wp) {
 		ret = ufshcd_setup_vreg(hba, true);
+		vcc_on = true;
 	} else if (!ufshcd_is_ufs_dev_active(hba)) {
 		if (!ufshcd_is_link_active(hba)) {
 			ret = ufshcd_config_vreg_hpm(hba, hba->vreg_info.vccq);
@@ -9894,6 +10040,7 @@ static int ufshcd_vreg_set_hpm(struct ufs_hba *hba)
 				goto vccq_lpm;
 		}
 		ret = ufshcd_toggle_vreg(hba->dev, hba->vreg_info.vcc, true);
+		vcc_on = true;
 	}
 	goto out;
 
@@ -9902,6 +10049,15 @@ vccq_lpm:
 vcc_disable:
 	ufshcd_toggle_vreg(hba->dev, hba->vreg_info.vcc, false);
 out:
+	/*
+	 * On platforms with a slow VCC ramp-up, a delay is needed after
+	 * turning on VCC to ensure the voltage is stable before the
+	 * reference clock is enabled.
+	 */
+	if (hba->quirks & UFSHCD_QUIRK_VCC_ON_DELAY && !ret && vcc_on &&
+	    hba->vreg_info.vcc && !hba->vreg_info.vcc->always_on)
+		usleep_range(1000, 1100);
+
 	return ret;
 }
 #endif /* CONFIG_PM */
@@ -11001,6 +11157,8 @@ initialized:
 		goto out_disable;
 
 	ufs_sysfs_add_nodes(hba->dev);
+	hba->dme_qos_sysfs_handle = sysfs_get_dirent(hba->dev->kobj.sd,
+						     "dme_qos_notification");
 	async_schedule(ufshcd_async_scan, hba);
 
 	trace_android_vh_ufs_update_sysfs(hba);

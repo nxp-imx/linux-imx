@@ -215,6 +215,7 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 /* The main kvm_arm_smmu_attach_dev() handles also the blocked domain. */
 static const struct iommu_domain_ops kvm_arm_smmu_blocked_ops = {
 	.attach_dev = kvm_arm_smmu_attach_dev,
+	.set_dev_pasid = kvm_arm_smmu_attach_dev_pasid,
 };
 
 static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_domain,

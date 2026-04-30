@@ -4691,6 +4691,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 				 * to entry reuse.
 				 */
 				if (swapcache_prepare(entry, nr_pages)) {
+					trace_android_vh_do_swap_page_wait(folio, vmf);
 					/*
 					 * Relax a bit to prevent rapid
 					 * repeated page faults.
@@ -4741,6 +4742,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		count_memcg_event_mm(vma->vm_mm, PGMAJFAULT);
 	}
 
+	trace_android_vh_do_swap_page_folio_lock_check(folio, vmf);
 	ret |= folio_lock_or_retry(folio, vmf);
 	if (ret & VM_FAULT_RETRY)
 		goto out_release;

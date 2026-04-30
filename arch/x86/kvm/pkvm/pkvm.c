@@ -9,6 +9,7 @@
 #include "mem_protect.h"
 #include "memory.h"
 #include "mmu.h"
+#include "panic.h"
 #include "pkvm.h"
 #include "trace.h"
 #include "../x86.h"
@@ -33,6 +34,12 @@ struct pkvm_hyp *pkvm_hyp;
 DEFINE_PER_CPU(struct pkvm_pcpu *, phys_cpu);
 DEFINE_PER_CPU(struct kvm_vcpu *, host_vcpu);
 DEFINE_PER_CPU(bool, host_vcpu_fixup);
+
+phys_addr_t pkvm_ramoops_console_pa;
+size_t pkvm_ramoops_console_size;
+
+unsigned long kaslr_offset_val;
+
 /*
  * similarly pmu.c is not compiled. define kvm_mmu_cap here for the use
  * in cpuid.c
@@ -1067,6 +1074,33 @@ static void pkvm_set_dr7(struct kvm_vcpu *vcpu, unsigned long val)
 		vcpu->arch.switch_db_regs |= KVM_DEBUGREG_BP_ENABLED;
 }
 
+static int pkvm_set_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg)
+{
+	if (seg < 0 || seg >= NR_VCPU_SEGMENTS)
+		return -EINVAL;
+
+	kvm_x86_call(set_segment)(vcpu, var, seg);
+	return 0;
+}
+
+static int pkvm_get_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg)
+{
+	if (seg < 0 || seg >= NR_VCPU_SEGMENTS)
+		return -EINVAL;
+
+	kvm_x86_call(get_segment)(vcpu, var, seg);
+	return 0;
+}
+
+static int pkvm_get_segment_base(struct kvm_vcpu *vcpu, int seg, u64 *data)
+{
+	if (seg < 0 || seg >= NR_VCPU_SEGMENTS)
+		return -EINVAL;
+
+	*data = kvm_x86_call(get_segment_base)(vcpu, seg);
+	return 0;
+}
+
 static inline bool pkvm_event_injection_allowed(struct kvm_vcpu *vcpu)
 {
 	return !kvm_event_needs_reinjection(vcpu) &&
@@ -1212,22 +1246,29 @@ static int pkvm_hwapic_isr_update(struct kvm_vcpu *vcpu, int max_isr)
 	 * The value -1 represents no interrupt, thus always allow the host to
 	 * update the ISR in this case. For the other values, should do proper
 	 * checks.
-	 *
-	 * For a protected APIC, the ISR state is protected so don't allow the
-	 * host to update it. But the host will recognize the protected apic
-	 * after the vCPU starts running. Before that the host may still use
-	 * this PV interface with value -1 for the protected apic to indicate no
-	 * interrupts when reset the vCPU. So don't allow for any other max_isr
-	 * values for the protected apic.
-	 *
-	 * For pVMs which don't have protected apic, also needs to validate the
-	 * max_isr value to make sure the host cannot inject an exception vector
-	 * for the same security reason with the PV interface __pkvm__inject_irq.
-	 * See comments in the function pkvm_inject_irq.
 	 */
-	if ((max_isr != -1) && (vcpu->arch.apic->guest_apic_protected ||
-				(pkvm_is_protected_vcpu(vcpu) && max_isr < 32)))
-		return -EPERM;
+	if (max_isr != -1) {
+		/* A valid max_isr should be in [0-255]. */
+		if (max_isr & ~0xff)
+			return -EINVAL;
+
+		/*
+		 * For a protected APIC, the ISR state is protected so don't allow the
+		 * host to update it. But the host will recognize the protected apic
+		 * after the vCPU starts running. Before that the host may still use
+		 * this PV interface with value -1 for the protected apic to indicate no
+		 * interrupts when reset the vCPU. So don't allow for any other max_isr
+		 * values for the protected apic.
+		 *
+		 * For pVMs which don't have protected apic, also needs to validate the
+		 * max_isr value to make sure the host cannot inject an exception vector
+		 * for the same security reason with the PV interface __pkvm__inject_irq.
+		 * See comments in the function pkvm_inject_irq.
+		 */
+		if (vcpu->arch.apic->guest_apic_protected ||
+		    (pkvm_is_protected_vcpu(vcpu) && max_isr < 32))
+			return -EPERM;
+	}
 
 	kvm_x86_call(hwapic_isr_update)(vcpu, max_isr);
 
@@ -1823,16 +1864,14 @@ static int pkvm_vcpu_handle_host_hypercall(struct kvm_vcpu *hvcpu, enum pkvm_hc 
 		kvm_vcpu_reset(vcpu, true);
 		break;
 	case __pkvm__set_segment:
-		kvm_x86_call(set_segment)(vcpu, &in->set_segment.seg_val,
-					  in->set_segment.seg);
+		ret = pkvm_set_segment(vcpu, &in->set_segment.seg_val, in->set_segment.seg);
 		break;
 	case __pkvm__get_segment:
-		kvm_x86_call(get_segment)(vcpu, &out->get_segment.seg_val,
-					  pkvm_hc_input1(hvcpu));
+		ret = pkvm_get_segment(vcpu, &out->get_segment.seg_val, pkvm_hc_input1(hvcpu));
 		break;
 	case __pkvm__get_segment_base:
-		out->get_segment_base.data =
-			kvm_x86_call(get_segment_base)(vcpu, pkvm_hc_input1(hvcpu));
+		ret = pkvm_get_segment_base(vcpu, pkvm_hc_input1(hvcpu),
+					    &out->get_segment_base.data);
 		break;
 	case __pkvm__set_idt:
 		kvm_x86_call(set_idt)(vcpu, &in->set_idt.desc);
@@ -2125,10 +2164,27 @@ void pkvm_wait_vcpu_kicked_out(struct kvm_vcpu *vcpu)
 			 * CPU needs to wake from a deeper low-power state) but
 			 * should not take as long as a second.
 			 */
-			BUG_ON(tsc_khz && (((rdtsc() - start) / tsc_khz) > 1000));
+			BUG_ON(((rdtsc() - start) / tsc_khz) > 1000);
 			relax_iters = 0;
 		}
 	} while (READ_ONCE(vcpu->mode) == EXITING_GUEST_MODE);
+}
+
+void pkvm_handle_init_signal(void)
+{
+	if (unlikely(atomic_read(&pkvm_panic_in_progress))) {
+		while (1)
+			asm volatile("cli; hlt");
+	}
+}
+
+void pkvm_udelay(unsigned int usecs)
+{
+	u64 start = rdtsc_ordered();
+	u64 delta = (u64)usecs * tsc_khz / 1000;
+
+	while (rdtsc_ordered() - start < delta)
+		cpu_relax();
 }
 
 int pkvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
@@ -2219,10 +2275,11 @@ struct pkvm_vcpu *pkvm_get_vcpu(int vm_handle, int vcpu_handle)
 void pkvm_put_vcpu(struct pkvm_vcpu *pkvm_vcpu)
 {
 	int vcpu_handle = pkvm_vcpu->vcpu.arch.pkvm.handle;
+	struct pkvm_vm *pkvm_vm = pkvm_vcpu->pkvm_vm;
 
-	WARN_ON(atomic_dec_if_positive(&pkvm_vcpu->pkvm_vm->vcpu_refs[vcpu_handle]) <= 0);
+	WARN_ON(atomic_dec_if_positive(&pkvm_vm->vcpu_refs[vcpu_handle]) <= 0);
 
-	pkvm_put_vm(pkvm_vcpu->pkvm_vm);
+	pkvm_put_vm(pkvm_vm);
 }
 
 unsigned long pkvm_pcpu_tss(int cpu)

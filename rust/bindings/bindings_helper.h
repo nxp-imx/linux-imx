@@ -41,6 +41,7 @@
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
 #include <linux/clk.h>
+#include <linux/compat.h>
 #include <linux/completion.h>
 #include <linux/configfs.h>
 #include <linux/cpu.h>
