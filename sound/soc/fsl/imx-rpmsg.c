@@ -165,7 +165,9 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	struct device_node *np = NULL;
 	struct of_phandle_args args;
 	const char *platform_name;
+#if IS_ENABLED(CONFIG_SND_SOC_IMX_PCM512X_RPMSG)
 	const char *model_string;
+#endif
 	struct imx_rpmsg *data;
 	int ret = 0;
 
