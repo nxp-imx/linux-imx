@@ -155,7 +155,6 @@ _IMX8MP_VENDOR_DLKM_MODULES = [
     "sound/soc/fsl/imx-pcm-rpmsg.ko",
     "sound/soc/fsl/snd-soc-fsl-rpmsg.ko",
     "sound/soc/fsl/imx-audio-rpmsg.ko",
-    "sound/soc/codecs/snd-soc-rpmsg-wm8960.ko",
     "sound/soc/fsl/snd-soc-imx-pcm512x-rpmsg.ko",
     "sound/soc/fsl/snd-soc-imx-rpmsg.ko",
 
