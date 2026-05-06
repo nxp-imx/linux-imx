@@ -515,7 +515,7 @@ static int enetc4_get_cls_flower_stats(struct enetc_ndev_priv *priv,
 	struct ntmp_user *user = &priv->si->ntmp_user;
 	unsigned long cookie = f->cookie;
 	struct netc_flower_rule *rule;
-	u64 pkt_cnt, drop_cnt;
+	u64 pkt_cnt, drop_cnt = 0;
 	u64 byte_cnt = 0;
 	int err;
 
