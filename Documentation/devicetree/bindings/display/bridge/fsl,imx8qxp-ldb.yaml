@@ -68,6 +68,7 @@ properties:
           - description: pixel mapper DI1 clock gate
           - description: serializer channel0 gate
           - description: serializer channel1 gate
+          - description: ldb pll
 
   clock-names:
     oneOf:
@@ -79,6 +80,7 @@ properties:
           - const: ldb_di1
           - const: ldb_ch0
           - const: ldb_ch1
+          - const: ldb_pll
 
   power-domains:
     maxItems: 1
@@ -175,14 +177,15 @@ allOf:
     then:
       properties:
         clocks:
-          minItems: 4
-          maxItems: 4
+          minItems: 5
+          maxItems: 5
         clock-names:
           items:
             - const: ldb_di0
             - const: ldb_di1
             - const: ldb_ch0
             - const: ldb_ch1
+            - const: ldb_pll
 
 additionalProperties: false
 

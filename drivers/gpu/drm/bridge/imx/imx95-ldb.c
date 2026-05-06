@@ -24,9 +24,6 @@
 
 #include "imx-ldb-helper.h"
 
-#define LVDS_PHY_CLK_CTRL		0x00
-#define  LVDS_PHY_DIV2			BIT(0)
-
 #define LDB_DI0_HS_POL_ACT_LOW		BIT(13)
 #define LDB_DI1_HS_POL_ACT_LOW		BIT(14)
 #define LDB_VSYNC_ADJ_EN		BIT(19)
@@ -44,6 +41,7 @@ struct imx95_ldb {
 	struct imx95_ldb_channel *channel[MAX_LDB_CHAN_NUM];
 	struct clk *clk_ch[MAX_LDB_CHAN_NUM];
 	struct clk *clk_di[MAX_LDB_CHAN_NUM];
+	struct clk *clk_ldb_pll;
 	int active_chno;
 };
 
@@ -78,7 +76,7 @@ imx95_ldb_bridge_mode_set(struct drm_bridge *bridge,
 					base_to_imx95_ldb_channel(ldb_ch);
 	struct imx95_ldb *imx95_ldb = base_to_imx95_ldb(ldb);
 	struct device *dev = imx95_ldb->dev;
-	unsigned long di_clk = adjusted_mode->clock * 1000;
+	unsigned long ch_clk, ldb_pll_clk;
 	bool is_split = ldb_channel_is_split_link(ldb_ch);
 	int ret;
 
@@ -90,8 +88,20 @@ imx95_ldb_bridge_mode_set(struct drm_bridge *bridge,
 	if (ret < 0)
 		dev_err(dev, "failed to initialize PHY: %d\n", ret);
 
-	/* set lvds di clock rate */
-	clk_set_rate(imx95_ldb->clk_di[ldb_ch->chno], di_clk);
+	ldb_pll_clk = adjusted_mode->clock * 1000 * 7;
+	ch_clk = ldb_pll_clk / (is_split ? 2 : 1);
+
+	if (ldb->available_ch_cnt == 1 || (ldb->available_ch_cnt == 2 && is_split)) {
+		/* set LDB PLL clock rate */
+		ret = clk_set_rate(imx95_ldb->clk_ldb_pll, ldb_pll_clk);
+		if (ret)
+			dev_err(dev, "failed to set ldbpll clock rate: %d\n", ret);
+
+		/* Set LVDS serializer clock rate */
+		ret = clk_set_rate(imx95_ldb->clk_ch[ldb_ch->chno], ch_clk);
+		if (ret)
+			dev_err(dev, "failed to set serializer clock rate: %d\n", ret);
+	}
 
 	if (is_split) {
 		imx95_ldb_ch = imx95_ldb->channel[imx95_ldb->active_chno ^ 1];
@@ -158,10 +168,6 @@ static void imx95_ldb_bridge_atomic_enable(struct drm_bridge *bridge,
 	}
 
 	if (is_split) {
-		/* PHY clock divider 2 */
-		regmap_update_bits(ldb->regmap, LVDS_PHY_CLK_CTRL,
-				   LVDS_PHY_DIV2, LVDS_PHY_DIV2);
-
 		ret = phy_power_on(imx95_ldb->channel[0]->phy);
 		if (ret)
 			dev_err(dev,
@@ -203,10 +209,6 @@ static void imx95_ldb_bridge_atomic_disable(struct drm_bridge *bridge,
 		if (ret)
 			dev_err(dev,
 				"failed to power off channel1 PHY: %d\n", ret);
-
-		/* clean PHY clock divider 2 */
-		regmap_update_bits(ldb->regmap, LVDS_PHY_CLK_CTRL, LVDS_PHY_DIV2, 0);
-
 	} else {
 		ret = phy_power_off(imx95_ldb_ch->phy);
 		if (ret)
@@ -320,9 +322,6 @@ imx95_ldb_bridge_mode_valid(struct drm_bridge *bridge,
 	struct ldb *ldb = ldb_ch->ldb;
 	struct imx95_ldb *imx95_ldb = base_to_imx95_ldb(ldb);
 	bool is_single = ldb_channel_is_single_link(ldb_ch);
-	struct drm_bridge *next_bridge = bridge;
-	unsigned long pixel_clock_rate;
-	unsigned long rounded_rate;
 
 	if (mode->clock > 330000)
 		return MODE_CLOCK_HIGH;
@@ -330,16 +329,32 @@ imx95_ldb_bridge_mode_valid(struct drm_bridge *bridge,
 	if (mode->clock > 165000 && is_single)
 		return MODE_CLOCK_HIGH;
 
-	while (drm_bridge_get_next_bridge(next_bridge))
-		next_bridge = drm_bridge_get_next_bridge(next_bridge);
+	if (imx95_ldb->clk_ch[ldb_ch->chno]) {
+		unsigned long ldb_pll_rate = mode->clock * 7000;
+		bool is_split = ldb_channel_is_split_link(ldb_ch);
 
-	if ((next_bridge->ops & DRM_BRIDGE_OP_DETECT) &&
-	    (next_bridge->ops & DRM_BRIDGE_OP_EDID)) {
-		if (imx95_ldb->clk_di[ldb_ch->chno]) {
-			pixel_clock_rate = mode->clock * 1000;
-			rounded_rate = clk_round_rate(imx95_ldb->clk_di[ldb_ch->chno],
-						      pixel_clock_rate);
-			if (rounded_rate != pixel_clock_rate)
+		if (ldb->available_ch_cnt == 2 && !is_split) {
+			unsigned long clk_ch_rate;
+
+			/*
+			 * For the two display case, the default clock is used. By
+			 * using clk_get_rate, only a few modes will be supported.
+			 * The clock rate is set by the assigned clocks in the device
+			 * tree.
+			 */
+			clk_ch_rate = clk_get_rate(imx95_ldb->clk_ch[ldb_ch->chno]);
+			if (clk_ch_rate != ldb_pll_rate)
+				return MODE_CLOCK_RANGE;
+		} else {
+			unsigned long rounded_rate;
+
+			/*
+			 * Note: clk_round_rate always returns the requested rate for
+			 * SCMI based clock frameworks.
+			 */
+			rounded_rate = clk_round_rate(imx95_ldb->clk_ldb_pll,
+						      ldb_pll_rate);
+			if (rounded_rate != ldb_pll_rate)
 				return MODE_CLOCK_RANGE;
 		}
 	}
@@ -425,6 +440,10 @@ static int imx95_ldb_probe(struct platform_device *pdev)
 			return dev_err_probe(dev, PTR_ERR(imx95_ldb->clk_di[i]),
 					     "failed to get ldb di%d clock\n", i);
 	}
+	imx95_ldb->clk_ldb_pll = devm_clk_get(dev, "ldb_pll");
+	if (IS_ERR(imx95_ldb->clk_ldb_pll))
+		return dev_err_probe(dev, PTR_ERR(imx95_ldb->clk_ldb_pll),
+				     "failed to get ldb pll clk\n");
 
 	imx95_ldb->dev = dev;
 
@@ -453,26 +472,41 @@ static int imx95_ldb_probe(struct platform_device *pdev)
 		of_node_put(port1);
 		of_node_put(port2);
 
-		if (pixel_order == DRM_LVDS_DUAL_LINK_EVEN_ODD_PIXELS) {
-			dev_err(dev, "invalid dual link pixel order: %d\n", pixel_order);
+		if (pixel_order == DRM_LVDS_DUAL_LINK_ODD_EVEN_PIXELS) {
+			imx95_ldb->active_chno = 0;
+			imx95_ldb_ch = imx95_ldb->channel[0];
+			ldb_ch = &imx95_ldb_ch->base;
+			ldb_ch->link_type = LDB_CH_DUAL_LINK_ODD_EVEN_PIXELS;
+		} else if (pixel_order == -EINVAL) {
+			/*
+			 * We have to assume that we have 2 single links here because
+			 * drm_of_lvds_get_dual_link_pixel_order returns -EINVAL for
+			 * a non dual link configuration.
+			 */
+			for (i = 0; i < MAX_LDB_CHAN_NUM; i++) {
+				imx95_ldb_ch = imx95_ldb->channel[i];
+				ldb_ch = &imx95_ldb_ch->base;
+				ldb_ch->link_type = LDB_CH_SINGLE_LINK;
+			}
+		} else {
+			/*
+			 * Handle case when drm_of_lvds_get_dual_link_pixel_order
+			 * returns DRM_LVDS_DUAL_LINK_EVEN_ODD_PIXELS, -EPIPE or anything else
+			 */
+			dev_err(dev,
+				"unsupported dual link pixel order: %d\n", pixel_order);
 			return -EINVAL;
 		}
-
-		imx95_ldb->active_chno = 0;
-		imx95_ldb_ch = imx95_ldb->channel[0];
-		ldb_ch = &imx95_ldb_ch->base;
-		ldb_ch->link_type = pixel_order;
 	} else {
 		for (i = 0; i < MAX_LDB_CHAN_NUM; i++) {
 			imx95_ldb_ch = imx95_ldb->channel[i];
 			ldb_ch = &imx95_ldb_ch->base;
 
 			if (ldb_ch->is_available) {
-				imx95_ldb->active_chno = ldb_ch->chno;
+				ldb_ch->link_type = LDB_CH_SINGLE_LINK;
 				break;
 			}
 		}
-		ldb_ch->link_type = LDB_CH_SINGLE_LINK;
 	}
 
 	ret = imx95_ldb_get_phy(imx95_ldb);

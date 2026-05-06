@@ -1102,11 +1102,6 @@ static void enetc4_mac_config(struct enetc_pf *pf, unsigned int mode,
 	case PHY_INTERFACE_MODE_RGMII_RXID:
 	case PHY_INTERFACE_MODE_RGMII_TXID:
 		val |= IFMODE_RGMII;
-		/* We need to enable auto-negotiation for the MAC
-		 * if its RGMII interface support In-Band status.
-		 */
-		if (phylink_autoneg_inband(mode))
-			val |= PM_IF_MODE_ENA;
 		break;
 	case PHY_INTERFACE_MODE_RMII:
 		val |= IFMODE_RMII;
@@ -1212,22 +1207,6 @@ static void enetc4_set_rmii_mac(struct enetc_pf *pf, int speed, int duplex)
 	enetc_port_mac_wr(si, ENETC4_PM_IF_MODE(0), val);
 }
 
-static void enetc4_set_hd_flow_control(struct enetc_pf *pf, bool enable)
-{
-	struct enetc_si *si = pf->si;
-	u32 old_val, val;
-
-	if (!pf->caps.half_duplex)
-		return;
-
-	old_val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
-	val = u32_replace_bits(old_val, enable ? 1 : 0, PM_CMD_CFG_HD_FCEN);
-	if (val == old_val)
-		return;
-
-	enetc_port_mac_wr(si, ENETC4_PM_CMD_CFG(0), val);
-}
-
 static void enetc4_set_rx_pause(struct enetc_pf *pf, bool rx_pause)
 {
 	struct enetc_si *si = pf->si;
@@ -1286,18 +1265,112 @@ static void enetc4_set_tx_pause(struct enetc_pf *pf, int num_rxbdr, bool tx_paus
 	enetc_port_wr(hw, ENETC4_PPAUOFFTR, pause_off_thresh);
 }
 
-static void enetc4_enable_mac(struct enetc_pf *pf, bool en)
+static void enetc4_mac_wait_tx_empty(struct enetc_si *si, int mac)
+{
+	u32 val;
+
+	if (read_poll_timeout(enetc_port_rd, val,
+			      val & PM_IEVENT_TX_EMPTY,
+			      100, 10000, false, &si->hw,
+			      ENETC4_PM_IEVENT(mac)))
+		dev_warn(&si->pdev->dev,
+			 "MAC %d TX is not empty\n", mac);
+}
+
+static void enetc4_mac_tx_graceful_stop(struct enetc_pf *pf)
 {
 	struct enetc_hw *hw = &pf->si->hw;
 	struct enetc_si *si = pf->si;
 	u32 val;
 
-	enetc_port_wr(hw, ENETC4_POR, en ? 0 : POR_TXDIS | POR_RXDIS);
+	val = enetc_port_rd(hw, ENETC4_POR);
+	val |= POR_TXDIS;
+	enetc_port_wr(hw, ENETC4_POR, val);
+
+	if (enetc_is_pseudo_mac(si))
+		return;
+
+	enetc4_mac_wait_tx_empty(si, 0);
+	if (si->hw_features & ENETC_SI_F_QBU)
+		enetc4_mac_wait_tx_empty(si, 1);
 
 	val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
-	val &= ~(PM_CMD_CFG_TX_EN | PM_CMD_CFG_RX_EN);
-	val |= en ? (PM_CMD_CFG_TX_EN | PM_CMD_CFG_RX_EN) : 0;
+	val &= ~PM_CMD_CFG_TX_EN;
+	enetc_port_mac_wr(si, ENETC4_PM_CMD_CFG(0), val);
+}
 
+static void enetc4_mac_tx_enable(struct enetc_pf *pf)
+{
+	struct enetc_hw *hw = &pf->si->hw;
+	struct enetc_si *si = pf->si;
+	u32 val;
+
+	val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
+	val |= PM_CMD_CFG_TX_EN;
+	enetc_port_mac_wr(si, ENETC4_PM_CMD_CFG(0), val);
+
+	val = enetc_port_rd(hw, ENETC4_POR);
+	val &= ~POR_TXDIS;
+	enetc_port_wr(hw, ENETC4_POR, val);
+}
+
+static void enetc4_mac_wait_rx_empty(struct enetc_si *si, int mac)
+{
+	u32 val;
+
+	if (read_poll_timeout(enetc_port_rd, val,
+			      val & PM_IEVENT_RX_EMPTY,
+			      100, 10000, false, &si->hw,
+			      ENETC4_PM_IEVENT(mac)))
+		dev_warn(&si->pdev->dev,
+			 "MAC %d RX is not empty\n", mac);
+}
+
+static void enetc4_mac_rx_graceful_stop(struct enetc_pf *pf)
+{
+	struct enetc_hw *hw = &pf->si->hw;
+	struct enetc_si *si = pf->si;
+	u32 val;
+
+	if (enetc_is_pseudo_mac(si))
+		goto check_rx_busy;
+
+	if (si->hw_features & ENETC_SI_F_QBU) {
+		val = enetc_port_rd(hw, ENETC4_PM_CMD_CFG(1));
+		val &= ~PM_CMD_CFG_RX_EN;
+		enetc_port_wr(hw, ENETC4_PM_CMD_CFG(1), val);
+		enetc4_mac_wait_rx_empty(si, 1);
+	}
+
+	val = enetc_port_rd(hw, ENETC4_PM_CMD_CFG(0));
+	val &= ~PM_CMD_CFG_RX_EN;
+	enetc_port_wr(hw, ENETC4_PM_CMD_CFG(0), val);
+	enetc4_mac_wait_rx_empty(si, 0);
+
+check_rx_busy:
+	if (read_poll_timeout(enetc_port_rd, val,
+			      !(val & PSR_RX_BUSY),
+			      100, 10000, false, hw,
+			      ENETC4_PSR))
+		dev_warn(&si->pdev->dev, "Port RX busy\n");
+
+	val = enetc_port_rd(hw, ENETC4_POR);
+	val |= POR_RXDIS;
+	enetc_port_wr(hw, ENETC4_POR, val);
+}
+
+static void enetc4_mac_rx_enable(struct enetc_pf *pf)
+{
+	struct enetc_hw *hw = &pf->si->hw;
+	struct enetc_si *si = pf->si;
+	u32 val;
+
+	val = enetc_port_rd(hw, ENETC4_POR);
+	val &= ~POR_RXDIS;
+	enetc_port_wr(hw, ENETC4_POR, val);
+
+	val = enetc_port_mac_rd(si, ENETC4_PM_CMD_CFG(0));
+	val |= PM_CMD_CFG_RX_EN;
 	enetc_port_mac_wr(si, ENETC4_PM_CMD_CFG(0), val);
 }
 
@@ -1342,13 +1415,11 @@ static void enetc4_pl_mac_link_up(struct phylink_config *config,
 	struct enetc_pf *pf = phylink_to_enetc_pf(config);
 	struct enetc_si *si = pf->si;
 	struct enetc_ndev_priv *priv;
-	bool hd_fc = false;
 
 	priv = netdev_priv(si->ndev);
 	enetc4_set_port_speed(priv, speed);
 
-	if (!phylink_autoneg_inband(mode) &&
-	    phy_interface_mode_is_rgmii(interface))
+	if (phy_interface_mode_is_rgmii(interface))
 		enetc4_set_rgmii_mac(pf, speed, duplex);
 
 	if (interface == PHY_INTERFACE_MODE_RMII)
@@ -1360,21 +1431,12 @@ static void enetc4_pl_mac_link_up(struct phylink_config *config,
 		 */
 		if (priv->active_offloads & ENETC_F_QBU)
 			tx_pause = false;
-	} else { /* DUPLEX_HALF */
-		if (tx_pause || rx_pause)
-			hd_fc = true;
-
-		/* As per 802.3 annex 31B, PAUSE frames are only supported
-		 * when the link is configured for full duplex operation.
-		 */
-		tx_pause = false;
-		rx_pause = false;
 	}
 
-	enetc4_set_hd_flow_control(pf, hd_fc);
 	enetc4_set_tx_pause(pf, priv->num_rx_rings, tx_pause);
 	enetc4_set_rx_pause(pf, rx_pause);
-	enetc4_enable_mac(pf, true);
+	enetc4_mac_tx_enable(pf);
+	enetc4_mac_rx_enable(pf);
 
 	if (phy)
 		priv->eee.eee_active = phy_init_eee(phy, true) >= 0;
@@ -1402,7 +1464,8 @@ static void enetc4_pl_mac_link_down(struct phylink_config *config,
 	priv = netdev_priv(ndev);
 	priv->eee.eee_active = false;
 	enetc_eee_mode_set(ndev, priv->eee.eee_active);
-	enetc4_enable_mac(pf, false);
+	enetc4_mac_rx_graceful_stop(pf);
+	enetc4_mac_tx_graceful_stop(pf);
 }
 
 static const struct phylink_mac_ops enetc_pl_mac_ops = {
@@ -1736,58 +1799,6 @@ static const struct enetc_si_ops enetc4_psi_ops = {
 	.set_rss_table = enetc4_set_rss_table,
 };
 
-static bool enetc_is_emdio_consumer(const struct device_node *np)
-{
-	struct device_node *phy_node, *mdio_node;
-
-	/* If the node does not have phy-handle property, then the PF
-	 * does not connect to a PHY, so it is not the EMDIO consumer.
-	 */
-	phy_node = of_parse_phandle(np, "phy-handle", 0);
-	if (!phy_node)
-		return false;
-
-	of_node_put(phy_node);
-
-	/* If the node has phy-handle property and it contains a mdio
-	 * child node, then the PF is not the EMDIO consumer.
-	 */
-	mdio_node = of_get_child_by_name(np, "mdio");
-	if (mdio_node) {
-		of_node_put(mdio_node);
-		return false;
-	}
-
-	return true;
-}
-
-static int enetc_add_emdio_consumer(struct pci_dev *pdev)
-{
-	struct device_node *node = pdev->dev.of_node;
-	struct device *dev = &pdev->dev;
-	struct device_node *phy_node;
-	struct phy_device *phydev;
-	struct device_link *link;
-
-	if (!node || !enetc_is_emdio_consumer(node))
-		return 0;
-
-	phy_node = of_parse_phandle(node, "phy-handle", 0);
-	phydev = of_phy_find_device(phy_node);
-	of_node_put(phy_node);
-	if (!phydev)
-		return -EPROBE_DEFER;
-
-	link = device_link_add(dev, phydev->mdio.bus->parent,
-			       DL_FLAG_PM_RUNTIME |
-			       DL_FLAG_AUTOREMOVE_SUPPLIER);
-	put_device(&phydev->mdio.dev);
-	if (!link)
-		return -EINVAL;
-
-	return 0;
-}
-
 static int enetc4_pf_probe(struct pci_dev *pdev,
 			   const struct pci_device_id *ent)
 {
@@ -1798,10 +1809,6 @@ static int enetc4_pf_probe(struct pci_dev *pdev,
 
 	if (is_enetc_proxy_pf(pdev))
 		return 0;
-
-	err = enetc_add_emdio_consumer(pdev);
-	if (err)
-		return err;
 
 	err = enetc_pci_probe(pdev, KBUILD_MODNAME, sizeof(*pf));
 	if (err)

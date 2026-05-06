@@ -6,7 +6,6 @@
 /plugin/;
 
 #include <dt-bindings/gpio/gpio.h>
-#include "imx95-clock.h"
 
 &{/} {
 	backlight: backlight {
@@ -77,9 +76,6 @@
 &ldb {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	assigned-clocks = <&scmi_clk IMX95_CLK_LDBPLL_VCO>,
-			  <&scmi_clk IMX95_CLK_LDBPLL>;
-	assigned-clock-rates = <3206000000>, <641200000>;
 	status = "okay";
 
 	channel@0 {

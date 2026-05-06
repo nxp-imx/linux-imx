@@ -22,6 +22,6 @@
 	memory-region = <&lpa_reserved>;
 	fsl,enable-lpa;
 	ignore-suspend-widgets =
-		"HP_L", "HP_R", "Playback",
-		"Capture", "MICB", "LINPUT1";
+		"Headphone Jack", "Playback",
+		"Capture", "Main MIC";
 };

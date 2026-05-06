@@ -9,6 +9,14 @@
 #include "enetc_pf_common.h"
 #include "enetc4_tc.h"
 
+#define ENETC_GENERIC_KEYS	(BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) | \
+				 BIT_ULL(FLOW_DISSECTOR_KEY_PORTS))
+
 static LIST_HEAD(enetc4_block_cb_list);
 
 static const struct netc_flower enetc4_flower[] = {
@@ -18,6 +26,18 @@ static const struct netc_flower enetc4_flower[] = {
 		BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) |
 		BIT_ULL(FLOW_DISSECTOR_KEY_VLAN),
 		FLOWER_TYPE_PSFP
+	},
+	{
+		BIT_ULL(FLOW_ACTION_POLICE),
+		0,
+		ENETC_GENERIC_KEYS,
+		FLOWER_TYPE_POLICE
+	},
+	{
+		BIT_ULL(FLOW_ACTION_DROP),
+		0,
+		ENETC_GENERIC_KEYS,
+		FLOWER_TYPE_DROP
 	},
 };
 
@@ -421,6 +441,10 @@ static int enetc4_config_cls_flower(struct enetc_ndev_priv *priv,
 			return -EOPNOTSUPP;
 
 		return netc_setup_psfp(&si->ntmp_user, 0, f);
+	case FLOWER_TYPE_POLICE:
+		return netc_setup_police(&si->ntmp_user, -1, f);
+	case FLOWER_TYPE_DROP:
+		return netc_setup_drop(&si->ntmp_user, -1, f);
 	default:
 		NL_SET_ERR_MSG_MOD(extack, "Unsupported flower type");
 		return -EOPNOTSUPP;
@@ -433,6 +457,12 @@ static void enetc4_destroy_flower_rule(struct ntmp_user *user,
 	switch (rule->flower_type) {
 	case FLOWER_TYPE_PSFP:
 		netc_delete_psfp_flower_rule(user, rule);
+		break;
+	case FLOWER_TYPE_POLICE:
+		netc_delete_police_flower_rule(user, rule);
+		break;
+	case FLOWER_TYPE_DROP:
+		netc_delete_drop_flower_rule(user, rule);
 		break;
 	default:
 		break;
@@ -506,6 +536,12 @@ static int enetc4_get_cls_flower_stats(struct enetc_ndev_priv *priv,
 					   "Failed to get statistics of PSFP");
 			goto unlock_flower;
 		}
+		break;
+	case FLOWER_TYPE_POLICE:
+	case FLOWER_TYPE_DROP:
+		err = netc_ipft_flower_stat(user, rule, &pkt_cnt);
+		if (err)
+			goto unlock_flower;
 		break;
 	default:
 		NL_SET_ERR_MSG_MOD(extack, "Unknown flower type");

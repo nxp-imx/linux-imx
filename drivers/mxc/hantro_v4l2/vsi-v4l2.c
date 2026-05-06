@@ -806,7 +806,7 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 			goto out;
 		}
 		vq = &ctx->input_que;
-		vb = vq->bufs[inbufidx];
+		vb = vb2_get_buffer(vq, inbufidx);
 		if (!vb) {
 			v4l2_klog(LOGLVL_ERROR, "%llx:%s:%lx:%d:%d, input vb is NULL pointer\n",
 				  ctx->ctxid, __func__, ctx->flag, inbufidx,
@@ -858,7 +858,7 @@ int vsi_v4l2_bufferdone(struct vsi_v4l2_msg *pmsg)
 		if (bytesused[0] > 0)
 			ctx->frameidx++;
 		vq = &ctx->output_que;
-		vb = vq->bufs[outbufidx];
+		vb = vb2_get_buffer(vq, outbufidx);
 		if (!vb) {
 			v4l2_klog(LOGLVL_ERROR, "%llx:%s:%lx:%d:%d, output vb is NULL pointer\n",
 				  ctx->ctxid, __func__, ctx->flag, outbufidx,

@@ -993,6 +993,16 @@ config REGULATOR_MTK_DVFSRC
 	  of Mediatek. It allows for voting on regulator state
 	  between multiple users.
 
+config REGULATOR_P3H2X4X
+       tristate "NXP P3H2X4X regulator support"
+       depends on MFD_P3H2X4X
+       help
+         This driver provides support for the voltage regulators of the
+         P3H244x/P3H284x multi-function I3C Hub device.
+
+         Say M here if you want to include support for this regulator as
+         a module. The module will be named "p3h2840_i3c_hub_regulator".
+
 config REGULATOR_PALMAS
 	tristate "TI Palmas PMIC Regulators"
 	depends on MFD_PALMAS

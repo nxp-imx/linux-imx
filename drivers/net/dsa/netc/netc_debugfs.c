@@ -450,6 +450,7 @@ static int netc_flower_list_show(struct seq_file *s, void *data)
 		case FLOWER_TYPE_TRAP:
 		case FLOWER_TYPE_REDIRECT:
 		case FLOWER_TYPE_POLICE:
+		case FLOWER_TYPE_DROP:
 			netc_show_ipft_flower(s, rule);
 			break;
 		default:

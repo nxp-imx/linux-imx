@@ -68,11 +68,19 @@ static int panthor_clk_init(struct panthor_device *ptdev)
 static int panthor_init_power(struct device *dev)
 {
 	struct dev_pm_domain_list  *pd_list = NULL;
+	int ret;
 
 	if (dev->pm_domain)
 		return 0;
 
-	return devm_pm_domain_attach_list(dev, NULL, &pd_list);
+	ret = devm_pm_domain_attach_list(dev, NULL, &pd_list);
+
+	if ((of_device_is_compatible(dev->of_node, "nxp,imx95-mali") ||
+		   of_device_is_compatible(dev->of_node, "nxp,imx952-mali")) &&
+		   ret == 2)
+		ret = dev_pm_genpd_set_performance_state(pd_list->pd_devs[1], 1000000);
+
+	return ret;
 }
 
 void panthor_device_unplug(struct panthor_device *ptdev)

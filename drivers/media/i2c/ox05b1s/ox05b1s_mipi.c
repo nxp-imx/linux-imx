@@ -42,7 +42,9 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_SW_STB		CCI_REG8(0x0100)
 #define OX05B1S_REG_SW_RST		CCI_REG8(0x0103)
 #define OX05B1S_REG_CHIP_ID		CCI_REG24(0x300a)
-#define OX05B1S_REG_MIPI_SC		CCI_REG8(0x3012)
+#define OX05B1S_REG_SC_CMMN_REG10	CCI_REG8(0x3010)
+#define OX05B1S_MIPI_NLANE_MASK		GENMASK(7, 4)
+#define OX05B1S_MIPI_NLANE_SHIFT	4
 #define OX05B1S_REG_GH			CCI_REG8(0x3208)
 #define OX05B1S_GH_START		0x0
 #define OX05B1S_GH_END			0x10
@@ -59,6 +61,7 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_TIMING_VTS		CCI_REG16(0x380e)
 #define OX05B1S_REG_MIPI_CTRL_13	CCI_REG8(0x4813)
 
+#define OS08A20_REG_MIPI_SC		CCI_REG8(0x3012)
 #define OS08A20_REG_EXP_LONG		CCI_REG16(0x3501)
 #define OS08A20_REG_EXP_SHORT		CCI_REG16(0x3511)
 #define OS08A20_REG_DGAIN		CCI_REG16(0x350a)
@@ -1136,7 +1139,7 @@ static int ox05b1s_s_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put_autosuspend(&client->dev);
 	}
 
-	return 0;
+	return ret;
 }
 
 static void ox05b1s_update_pad_format(const struct ox05b1s_mode *mode,
@@ -1375,6 +1378,29 @@ out:
 	return ret;
 }
 
+static int ox05b1s_apply_mipi_num_lanes(struct ox05b1s *sensor)
+{
+	int ret = 0;
+	u32 reg;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		reg = OS08A20_REG_MIPI_SC;
+		break;
+	case OX05B1S_CHIP_ID:
+		reg = OX05B1S_REG_SC_CMMN_REG10;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* Update only the lane count field */
+	return cci_update_bits(sensor->regmap, reg,
+			       OX05B1S_MIPI_NLANE_MASK,
+			       sensor->num_data_lanes << OX05B1S_MIPI_NLANE_SHIFT,
+			       &ret);
+}
+
 /* needs sensor lock and power on */
 static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 {
@@ -1398,8 +1424,8 @@ static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 	cci_write(sensor->regmap, OX05B1S_REG_X_OUTPUT_SIZE, w, &ret);
 	cci_write(sensor->regmap, OX05B1S_REG_Y_OUTPUT_SIZE, h, &ret);
 
-	cci_write(sensor->regmap, OX05B1S_REG_MIPI_SC,
-		  sensor->num_data_lanes << 4 | 0x01, &ret);
+	ret |= ox05b1s_apply_mipi_num_lanes(sensor);
+	dev_dbg(dev, "Mipi num lanes applied: %d\n", sensor->num_data_lanes);
 
 	if (ret)
 		goto out;

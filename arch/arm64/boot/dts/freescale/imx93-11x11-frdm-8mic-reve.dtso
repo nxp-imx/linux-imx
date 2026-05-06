@@ -2,10 +2,17 @@
 /*
  * Copyright 2025 NXP
  */
+#include <dt-bindings/clock/imx93-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 
-#include "imx93-11x11-frdm.dts"
+#include "imx93-pinfunc.h"
 
-/ {
+/dts-v1/;
+/plugin/;
+
+&{/} {
 	mic_leds {
 		compatible = "gpio-leds";
 		mic0 {
@@ -86,26 +93,6 @@
 		};
 	};
 
-	reg_exp_3v3: regulator-3v3-switch {
-		compatible = "regulator-fixed";
-		regulator-name = "exp-3v3-switch";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&pcal6524 2 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
-	};
-
-	reg_exp_5v0: regulator-5v-switch {
-		compatible = "regulator-fixed";
-		regulator-name = "exp-5v-switch";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&pcal6524 8 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
-	};
-
 	sound-micfil {
 		compatible = "fsl,imx-audio-card";
 		model = "micfil-audio";
@@ -119,6 +106,14 @@
 			};
 		};
 	};
+};
+
+&reg_vexp_3v3 {
+	regulator-always-on;
+};
+
+&reg_vexp_5v {
+	regulator-always-on;
 };
 
 &lpi2c4 {
@@ -143,7 +138,7 @@
 		#interrupt-cells = <2>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
-		vcc-supply = <&reg_exp_3v3>;
+		vcc-supply = <&reg_vexp_3v3>;
 	};
 };
 

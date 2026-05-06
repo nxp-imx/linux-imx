@@ -57,6 +57,9 @@ static size_t coda_vpu_convert_firmware_to_binary(struct vpu_device *vpu,
 	size_t pos = 0;
 	int i;
 
+	if (!in || !out)
+		return pos;
+
 	for (i = 0; i < in_size; i += 5) {
 		out[pos++] = (coda_vpu_char_to_hex(in[i]) << 4) |
 			     coda_vpu_char_to_hex(in[i + 1]);

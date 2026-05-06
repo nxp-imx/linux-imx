@@ -15,11 +15,13 @@
 
 struct neutron_device;
 struct device;
+struct dma_buf;
 
 /**
  * struct neutron_buffer - Buffer
  * @dev:                Device
  * @file:               File
+ * @dmabuf:             DMA-BUF handle
  * @kref:               Reference counting
  * @capacity:           Maximum capacity of the buffer
  * @cpu_addr:           Kernel mapped address
@@ -31,6 +33,7 @@ struct device;
 struct neutron_buffer {
 	struct neutron_device *ndev;
 	struct file           *file;
+	struct dma_buf        *dmabuf;
 	struct kref           kref;
 	size_t                size;
 	void                  *cpu_addr;

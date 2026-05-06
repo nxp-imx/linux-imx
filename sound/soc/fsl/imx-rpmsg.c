@@ -35,6 +35,53 @@ static const struct snd_soc_dapm_widget imx_rpmsg_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Main MIC", NULL),
 };
 
+static int imx_rpmsg_hw_params(struct snd_pcm_substream *substream,
+			       struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	snd_pcm_format_t format = params_format(params);
+	struct device *dev = rtd->card->dev;
+	unsigned int fmt = rtd->dai_link->dai_fmt;
+	bool format_is_dsd = false;
+	int ret;
+
+	switch (format) {
+	case SNDRV_PCM_FORMAT_DSD_U8:
+	case SNDRV_PCM_FORMAT_DSD_U16_LE:
+	case SNDRV_PCM_FORMAT_DSD_U16_BE:
+	case SNDRV_PCM_FORMAT_DSD_U32_LE:
+	case SNDRV_PCM_FORMAT_DSD_U32_BE:
+		format_is_dsd = true;
+		break;
+	default:
+		format_is_dsd = false;
+		break;
+	}
+
+	if (format_is_dsd)
+		fmt = (rtd->dai_link->dai_fmt & ~SND_SOC_DAIFMT_FORMAT_MASK) |
+		       SND_SOC_DAIFMT_PDM;
+
+	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
+	if (ret && ret != -ENOTSUPP) {
+		dev_err(dev, "failed to set cpu dai fmt: %d\n", ret);
+		return ret;
+	}
+	ret = snd_soc_dai_set_fmt(codec_dai, fmt);
+	if (ret && ret != -ENOTSUPP) {
+		dev_err(dev, "failed to set codec dai fmt: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static const struct snd_soc_ops imx_rpmsg_ops = {
+	.hw_params = imx_rpmsg_hw_params,
+};
+
 static int imx_rpmsg_late_probe(struct snd_soc_card *card)
 {
 	struct imx_rpmsg *data = snd_soc_card_get_drvdata(card);
@@ -45,10 +92,29 @@ static int imx_rpmsg_late_probe(struct snd_soc_card *card)
 	int ret;
 
 	if (data->lpa) {
-		struct snd_soc_component *codec_comp;
+		struct snd_soc_dapm_widget *w;
 		struct device_node *codec_np;
 		struct device_driver *codec_drv;
 		struct device *codec_dev = NULL;
+		int i, num_widgets;
+		const char *widgets;
+
+		num_widgets = of_property_count_strings(data->card.dev->of_node,
+							"ignore-suspend-widgets");
+		for_each_card_widgets(card, w) {
+			for (i = 0; i < num_widgets; i++) {
+				of_property_read_string_index(data->card.dev->of_node,
+							      "ignore-suspend-widgets",
+							      i, &widgets);
+				if (!strcmp(w->name, widgets)) {
+					ret = snd_soc_dapm_ignore_suspend(w->dapm, widgets);
+					if (ret) {
+						dev_err(dev, "failed to find ignore suspend widgets\n");
+						return ret;
+					}
+				}
+			}
+		}
 
 		codec_np = data->dai.codecs->of_node;
 		if (codec_np) {
@@ -65,22 +131,6 @@ static int imx_rpmsg_late_probe(struct snd_soc_card *card)
 			}
 		}
 		if (codec_dev) {
-			codec_comp = snd_soc_lookup_component_nolocked(codec_dev, NULL);
-			if (codec_comp) {
-				int i, num_widgets;
-				const char *widgets;
-				struct snd_soc_dapm_context *dapm;
-
-				num_widgets = of_property_count_strings(data->card.dev->of_node,
-									"ignore-suspend-widgets");
-				for (i = 0; i < num_widgets; i++) {
-					of_property_read_string_index(data->card.dev->of_node,
-								      "ignore-suspend-widgets",
-								      i, &widgets);
-					dapm = snd_soc_component_get_dapm(codec_comp);
-					snd_soc_dapm_ignore_suspend(dapm, widgets);
-				}
-			}
 			codec_drv = codec_dev->driver;
 			if (codec_drv->pm) {
 				memcpy(&lpa_pm, codec_drv->pm, sizeof(lpa_pm));
@@ -141,6 +191,7 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	data->dai.dai_fmt = SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF |
 			    SND_SOC_DAIFMT_CBC_CFC;
+	data->dai.ops = &imx_rpmsg_ops;
 
 	/*
 	 * i.MX rpmsg sound cards work on codec slave mode. MCLK will be
@@ -176,19 +227,9 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "no reserved DMA memory\n");
 
 	/* Optional codec node */
-	of_property_read_string(np, "model", &model_string);
 	ret = of_parse_phandle_with_fixed_args(np, "audio-codec", 0, 0, &args);
 	if (ret) {
-		if (of_device_is_compatible(np, "fsl,imx7ulp-rpmsg-audio")) {
-			data->dai.codecs->dai_name = "rpmsg-wm8960-hifi";
-			data->dai.codecs->name = RPMSG_CODEC_DRV_NAME_WM8960;
-		} else if (of_device_is_compatible(np, "fsl,imx8mm-rpmsg-audio") &&
-			   !strcmp("ak4497-audio", model_string)) {
-			data->dai.codecs->dai_name = "rpmsg-ak4497-aif";
-			data->dai.codecs->name = RPMSG_CODEC_DRV_NAME_AK4497;
-		} else {
-			*data->dai.codecs = snd_soc_dummy_dlc;
-		}
+		*data->dai.codecs = snd_soc_dummy_dlc;
 	} else {
 		struct clk *clk;
 
@@ -241,6 +282,7 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	data->card.dapm_widgets = imx_rpmsg_dapm_widgets;
 	data->card.num_dapm_widgets = ARRAY_SIZE(imx_rpmsg_dapm_widgets);
 	data->card.late_probe = imx_rpmsg_late_probe;
+	data->card.driver_name = "imx-audio-rpmsg";
 	/*
 	 * Inoder to use common api to get card name and audio routing.
 	 * Use parent of_node for this device, revert it after finishing using
@@ -267,11 +309,12 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
-	data->hp_jack.pin.pin = "Headphone Jack";
-	data->hp_jack.pin.mask = SND_JACK_HEADPHONE;
-	snd_soc_card_jack_new_pins(&data->card, "Headphone Jack", SND_JACK_HEADPHONE,
-				   &data->hp_jack.jack, &data->hp_jack.pin, 1);
-	snd_soc_jack_report(&data->hp_jack.jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
+	if (of_property_present(np, "hp-det-gpios")) {
+		ret = simple_util_init_jack(&data->card, &data->hp_jack,
+					    1, NULL, "Headphone Jack");
+		if (ret)
+			goto fail;
+	}
 fail:
 	pdev->dev.of_node = NULL;
 	return ret;

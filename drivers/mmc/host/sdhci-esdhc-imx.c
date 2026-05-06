@@ -378,6 +378,15 @@ static struct esdhc_soc_data usdhc_imx95_data = {
 	.quirks = SDHCI_QUIRK_NO_LED,
 };
 
+static struct esdhc_soc_data usdhc_imx952_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MAN_TUNING
+			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
+			| ESDHC_FLAG_HS400 | ESDHC_FLAG_HS400_ES
+			| ESDHC_FLAG_CQHCI | ESDHC_FLAG_STATE_LOST_IN_LPMODE
+			| ESDHC_FLAG_BUSFREQ | ESDHC_FLAG_DUMMY_PAD,
+	.quirks = SDHCI_QUIRK_NO_LED,
+};
+
 static struct esdhc_soc_data usdhc_s32v234_data = {
 	.flags = ESDHC_FLAG_USDHC,
 	.quirks = SDHCI_QUIRK_NO_LED,
@@ -430,6 +439,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx8mq-usdhc", .data = &usdhc_imx8mq_data, },
 	{ .compatible = "fsl,imx94-usdhc", .data = &usdhc_imx95_data, },
 	{ .compatible = "fsl,imx95-usdhc", .data = &usdhc_imx95_data, },
+	{ .compatible = "fsl,imx952-usdhc", .data = &usdhc_imx952_data, },
 	{ .compatible = "fsl,imxrt1050-usdhc", .data = &usdhc_imxrt1050_data, },
 	{ .compatible = "nxp,s32g2-usdhc", .data = &usdhc_s32g2_data, },
 	{ .compatible = "fsl,s32v234-usdhc", .data = &usdhc_s32v234_data, },

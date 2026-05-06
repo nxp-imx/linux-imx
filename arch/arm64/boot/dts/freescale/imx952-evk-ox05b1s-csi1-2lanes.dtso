@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#define DATA_LANES <1 2>
+#include "imx952-evk-ox05b1s-csi1-common.dtsi"
+
+&camera_phy_csr {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	dphy_rx_1: dphy-rx@100 {
+		reg = <0x100 0x10>;
+		clocks = <&scmi_clk IMX952_CLK_CAMPHYCFG>,
+			 <&scmi_clk IMX952_CLK_CGC_CAMCSI1>;
+		clock-names = "phy_cfg", "csi1";
+		assigned-clocks = <&scmi_clk IMX952_CLK_CAMPHYCFG>;
+		assigned-clock-parents = <&scmi_clk IMX952_CLK_OSC24M>;
+		assigned-clock-rates = <24000000>;
+		fsl,csis = <&mipi_csi_1>;
+		status = "okay";
+	};
+};
+
+&i2c3_pcal6408 {
+	csi_mux_hog {
+		gpio-hog;
+		gpios = <7 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+};

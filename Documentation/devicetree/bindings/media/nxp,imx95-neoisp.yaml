@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 %YAML 1.2
 ---
-$id: http://devicetree.org/schemas/media/nxp,neoisp.yaml#
+$id: http://devicetree.org/schemas/media/nxp,imx95-neoisp.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
 title: NXP NEOISP Image Signal Processing Pipeline
@@ -10,7 +10,7 @@ maintainers:
   - Antoine Bouyer <antoine.bouyer@nxp.com>
   - Julien Vuillaumier <julien.vuillaumier@nxp.com>
 
-description: |-
+description:
   The NXP NEOISP performs a set of image processing tasks on the RAW camera stream,
   where the input camera stream and NEOISP processed output image are stored in DDR
   or any system memory fast enough to keep up with NEOISP processing.
@@ -18,9 +18,7 @@ description: |-
 properties:
   compatible:
     enum:
-      - nxp,imx95-a0-neoisp
-      - nxp,imx95-a1-neoisp
-      - nxp,imx95-b0-neoisp
+      - nxp,imx95-neoisp
       - nxp,imx952-neoisp
 
   reg:
@@ -62,7 +60,7 @@ examples:
     #include <dt-bindings/interrupt-controller/arm-gic.h>
     #include <dt-bindings/power/fsl,imx95-power.h>
     neosip0: isp@4ae00000 {
-        compatible = "nxp,imx95-b0-neoisp";
+        compatible = "nxp,imx95-neoisp";
         #address-cells = <2>;
         #size-cells = <2>;
         reg = <0x0 0x4ae00000 0x0 0x8000>, <0x0 0x4afe0000 0x0 0x10000>;

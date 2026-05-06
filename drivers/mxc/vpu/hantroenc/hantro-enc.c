@@ -638,9 +638,6 @@ static void hantro_enc_release_core(struct hantro_enc_core *core, struct file *f
 		val &= ~1;
 		hantro_enc_writel(core, val, core->resource->reg_enable);
 
-		pm_runtime_mark_last_busy(core->dev->dev);
-		pm_runtime_put_autosuspend(core->dev->dev);
-
 		scoped_guard(spinlock_irqsave, &core->lock) {
 			core->filp = NULL;
 			core->is_reserved = 0;
@@ -649,6 +646,10 @@ static void hantro_enc_release_core(struct hantro_enc_core *core, struct file *f
 			core->is_enabled = 0;
 
 		}
+
+		pm_runtime_mark_last_busy(core->dev->dev);
+		pm_runtime_put_autosuspend(core->dev->dev);
+
 		wake_up_interruptible_all(&core->dev->hw_queue);
 	}
 }
@@ -871,7 +872,7 @@ static void hantro_enc_cancel(struct hantro_enc_device *encoder, u32 core_info)
 static int hantro_enc_wait_core(struct hantro_enc_device *encoder, u32 core_info,
 				struct hantro_enc_done_status *done_status)
 {
-	struct hantro_enc_done_status status;
+	struct hantro_enc_done_status status = { 0 };
 
 	if (!encoder)
 		return -EINVAL;
@@ -1155,6 +1156,7 @@ static irqreturn_t hantro_enc_isr(int irq, void *dev_id)
 {
 	struct hantro_enc_core *core = dev_id;
 	u32 irq_status;
+	u32 wakeup = 0;
 
 	scoped_guard(spinlock_irqsave, &core->lock) {
 		if (!core->is_reserved) {
@@ -1162,29 +1164,30 @@ static irqreturn_t hantro_enc_isr(int irq, void *dev_id)
 				"irq received but core[%d] is not reserved\n", core->id);
 			return IRQ_HANDLED;
 		}
-	}
 
-	irq_status = hantro_enc_readl(core, core->resource->reg_irq);
-	dev_dbg(core->dev->dev, "irq status 0x%x on core[%d]\n", irq_status, core->id);
+		irq_status = hantro_enc_readl(core, core->resource->reg_irq);
 
-	if (irq_status & HANTROENC_INT_STATUS_ENA) {
-		core->resource->clear_irq(core, irq_status);
+		if (irq_status & HANTROENC_INT_STATUS_ENA) {
+			core->resource->clear_irq(core, irq_status);
 
-		irq_status &= core->resource->irq_mask;
-		if (irq_status == HANTROENC_INT_STATUS_SLICE_DONE) {
-			dev_dbg(core->dev->dev, "Slice ready IRQ handled\n");
-			return IRQ_HANDLED;
-		}
+			irq_status &= core->resource->irq_mask;
+			if (irq_status == HANTROENC_INT_STATUS_SLICE_DONE) {
+				dev_dbg(core->dev->dev, "Slice ready IRQ handled\n");
+				return IRQ_HANDLED;
+			}
 
-		scoped_guard(spinlock_irqsave, &core->lock) {
 			core->irq_status = irq_status;
 			hantro_enc_update_mirror_regs(core);
 			hantro_enc_clear_status_on_ready(core);
 			core->irq_received = 1;
+			wakeup = 1;
 		}
-		wake_up_all(&core->dev->enc_done);
 	}
 
+	dev_dbg(core->dev->dev, "irq status 0x%x on core[%d]\n", irq_status, core->id);
+
+	if (wakeup)
+		wake_up_all(&core->dev->enc_done);
 	return IRQ_HANDLED;
 }
 
@@ -1237,7 +1240,7 @@ static void hantro_enc_create_debugfs(struct hantro_enc_core *core)
 {
 	char name[64];
 
-	if (!core || !core->dev || !core->dev->debugfs)
+	if (!core->dev->debugfs)
 		return;
 
 	if (!core->id)
@@ -1271,6 +1274,7 @@ static bool hantro_enc_check_hw_id(struct hantro_enc_device *encoder, u32 hw_id)
 static int hantro_enc_init_cores(struct hantro_enc_device *encoder)
 {
 	struct hantro_enc_core *core;
+	u32 num_cores = 0;
 	u32 hw_id;
 	u32 size;
 	int ret;
@@ -1300,10 +1304,14 @@ static int hantro_enc_init_cores(struct hantro_enc_device *encoder)
 		if (core->resource->read_format_config)
 			core->resource->read_format_config(core);
 		hantro_enc_create_debugfs(core);
+		num_cores++;
 	}
 
 	pm_runtime_mark_last_busy(encoder->dev);
 	pm_runtime_put_autosuspend(encoder->dev);
+
+	if (!num_cores)
+		return -EINVAL;
 
 	return 0;
 }
@@ -1455,10 +1463,19 @@ static int hantro_enc_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-	hantro_enc_init_cores(encoder);
+	ret = hantro_enc_init_cores(encoder);
+	if (ret < 0) {
+		pm_runtime_dont_use_autosuspend(&pdev->dev);
+		pm_runtime_disable(&pdev->dev);
+		return ret;
+	}
 
 	ret = hantro_enc_init(encoder);
 	if (ret) {
+		for (int i = 0; i < encoder->num_cores; i++) {
+			vfree((const void *)encoder->cores[i].mirror_regs);
+			debugfs_remove(encoder->cores[i].debugfs);
+		}
 		pm_runtime_dont_use_autosuspend(&pdev->dev);
 		pm_runtime_disable(&pdev->dev);
 		return ret;

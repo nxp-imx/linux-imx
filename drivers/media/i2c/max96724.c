@@ -62,7 +62,6 @@ enum max96724_gmsl_speed {
 	MAX96724_GMSL_6G		= 2,
 };
 
-
 enum max96724_i2c_speed {
 	MAX96724_I2C_BPS_9920,
 	MAX96724_I2C_BPS_33200,
@@ -1000,7 +999,7 @@ static int max96724_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *st
 			continue;
 
 		source_fmt = v4l2_subdev_state_get_format(state, route->source_pad,
-								 route->source_stream);
+							  route->source_stream);
 		if (!source_fmt)
 			return -EINVAL;
 
@@ -1057,17 +1056,23 @@ static int max96724_set_routing(struct v4l2_subdev *sd, struct v4l2_subdev_state
 
 static struct v4l2_subdev *max96724_xlate_streams(struct max96724_priv *priv,
 						  struct v4l2_subdev_state *state, u32 src_pad,
-						  u64 src_streams, u32 sink_pad, u64 *sink_streams,
+						  u32 src_stream, u32 *sink_stream,
 						  u32 *remote_pad)
 {
 	struct device *dev = &priv->client->dev;
-	u64 streams;
 	struct v4l2_subdev *remote_sd;
 	struct media_pad *pad;
+	u32 other_stream;
+	u32 sink_pad;
+	int ret;
 
-	streams = v4l2_subdev_state_xlate_streams(state, src_pad, sink_pad, &src_streams);
-	if (!streams)
-		dev_dbg(dev, "no streams found on sink pad\n");
+	ret = v4l2_subdev_routing_find_opposite_end(&state->routing, src_pad,
+						    src_stream, &sink_pad,
+						    &other_stream);
+	if (ret) {
+		dev_err(dev, "failed to find opposite end for pad %u\n", src_pad);
+		return ERR_PTR(ret);
+	}
 
 	pad = media_pad_remote_pad_first(&priv->pads[sink_pad]);
 	if (!pad) {
@@ -1081,7 +1086,7 @@ static struct v4l2_subdev *max96724_xlate_streams(struct max96724_priv *priv,
 		return ERR_PTR(-EPIPE);
 	}
 
-	*sink_streams = streams;
+	*sink_stream = other_stream;
 	*remote_pad = pad->index;
 
 	return remote_sd;
@@ -1095,7 +1100,7 @@ static int max96724_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_st
 	struct v4l2_subdev *remote_sd;
 	int ret = 0;
 	u32 remote_pad = 0;
-	u64 sink_streams = 0;
+	u32 sink_stream = 0;
 	u64 sources_mask = streams_mask;
 
 	mutex_lock(&priv->lock);
@@ -1120,8 +1125,8 @@ static int max96724_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_st
 		if (pos == -1)
 			break;
 
-		remote_sd = max96724_xlate_streams(priv, state, src_pad, BIT(pos), pos,
-						   &sink_streams, &remote_pad);
+		remote_sd = max96724_xlate_streams(priv, state, src_pad, pos,
+						   &sink_stream, &remote_pad);
 		if (IS_ERR(remote_sd)) {
 			ret = PTR_ERR(remote_sd);
 			goto unlock;
@@ -1129,8 +1134,8 @@ static int max96724_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_st
 
 		ret = v4l2_subdev_enable_streams(remote_sd, remote_pad, 0x1);
 		if (ret) {
-			dev_err(dev, "failed to enable streams 0x%llx on '%s':%u: %d\n",
-				sink_streams, remote_sd->name, remote_pad, ret);
+			dev_err(dev, "failed to enable stream %d on '%s':%u: %d\n",
+				sink_stream, remote_sd->name, remote_pad, ret);
 			goto unlock;
 		}
 
@@ -1151,7 +1156,7 @@ static int max96724_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_s
 	struct max96724_priv *priv = container_of(sd, struct max96724_priv, sd);
 	struct device *dev = &priv->client->dev;
 	struct v4l2_subdev *remote_sd;
-	u64 sink_streams = 0;
+	u32 sink_stream = 0;
 	u64 sources_mask = streams_mask;
 	u32 remote_pad = 0;
 	int ret = 0;
@@ -1167,8 +1172,8 @@ static int max96724_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_s
 		if (pos == -1)
 			break;
 
-		remote_sd = max96724_xlate_streams(priv, state, src_pad, BIT(pos), pos,
-						   &sink_streams, &remote_pad);
+		remote_sd = max96724_xlate_streams(priv, state, src_pad, pos,
+						   &sink_stream, &remote_pad);
 		if (IS_ERR(remote_sd)) {
 			ret = PTR_ERR(remote_sd);
 			goto unlock;
@@ -1177,8 +1182,8 @@ static int max96724_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_s
 		ret = v4l2_subdev_disable_streams(remote_sd, remote_pad, 0x1);
 		if (ret) {
 			dev_err(dev,
-				"failed to disable streams 0x%llx on '%s':%u: %d\n",
-				sink_streams, remote_sd->name, remote_pad, ret);
+				"failed to disable streams %d on '%s':%u: %d\n",
+				sink_stream, remote_sd->name, remote_pad, ret);
 			goto unlock;
 		}
 

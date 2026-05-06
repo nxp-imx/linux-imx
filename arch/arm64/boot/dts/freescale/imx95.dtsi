@@ -1946,6 +1946,7 @@
 				reg = <0x20 0x100>;
 				clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR0>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
+				nxp,neoisp = <&neoisp0>;
 				status = "disabled";
 
 				ports {
@@ -1967,6 +1968,7 @@
 				reg = <0x120 0x100>;
 				clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR1>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
+				nxp,neoisp = <&neoisp0>;
 				status = "disabled";
 
 				ports {
@@ -2313,14 +2315,11 @@
 		};
 
 		neoisp0: isp@4ae00000 {
-			compatible = "nxp,imx95-b0-neoisp";
-			#address-cells = <2>;
-			#size-cells = <2>;
+			compatible = "nxp,imx95-neoisp";
 			reg = <0x0 0x4ae00000 0x0 0x8000>,
 			      <0x0 0x4afe0000 0x0 0x10000>;
 			reg-names = "registers", "stats";
 			interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-parent = <&gic>;
 			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_ISP_AXI>,
 				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP_PIXEL>,
 				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP>;
@@ -2444,8 +2443,9 @@
 				clocks = <&lvds_csr IMX95_CLK_DISPMIX_PIX_DI0_GATE>,
 					 <&lvds_csr IMX95_CLK_DISPMIX_PIX_DI1_GATE>,
 					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH0_GATE>,
-					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH1_GATE>;
-				clock-names = "ldb_di0", "ldb_di1", "ldb_ch0", "ldb_ch1";
+					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH1_GATE>,
+					 <&scmi_clk IMX95_CLK_LDBPLL>;
+				clock-names = "ldb_di0", "ldb_di1", "ldb_ch0", "ldb_ch1", "ldb_pll";
 				status = "disabled";
 
 				channel@0 {

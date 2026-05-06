@@ -45,6 +45,8 @@
 #define APPCTRL_MBWR_UPDATED        (0xF807)
 #define appctrl_get_mbwr(val)       (((val) & 0xFFFF0000) >> 16)
 
+#define NEUTRON_SATURATE	    0xFFFFFFFF
+
 /****************************************************************************/
 
 /**
@@ -784,6 +786,23 @@ static ssize_t perf_counters_read(struct file *file, char __user *buf,
 	ddrstall = readl(ndev->reg_base + DDRSTALL);
 	nstall = readl(ndev->reg_base + NSTALL);
 	nact = readl(ndev->reg_base + NACT);
+
+	if (ddrlat == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRLATENT);
+	if (ddrspread == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRSPREAD);
+	if (ddrrcnts == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRRCNTS);
+	if (ddrwwords == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRWWORDS);
+	if (ddrrwords == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRRWORDS);
+	if (ddrstall == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + DDRSTALL);
+	if (nstall == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + NSTALL);
+	if (nact == NEUTRON_SATURATE)
+		writel(0, ndev->reg_base + NACT);
 
 	mutex_unlock(&ndev->profile_lock);
 

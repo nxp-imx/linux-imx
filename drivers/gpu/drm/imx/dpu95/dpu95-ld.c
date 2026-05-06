@@ -114,7 +114,7 @@ static void dpu95_ldfw_mu_callback(struct disp_mu_client *cl, void *msg)
 	struct dpu95_localdimming *ld = container_of(fw, struct dpu95_localdimming, fw);
 	struct dpu95_ldfw_cmd *cmd = msg;
 
-	dev_err(ld->dpu->dev, "ID:0x%02X, D0:0x%08X, D1:0x%08X, D2:0x%08X\n",
+	dev_dbg(ld->dpu->dev, "ID:0x%02X, D0:0x%08X, D1:0x%08X, D2:0x%08X\n",
 		cmd->cmd_id,
 		cmd->cmd_data0, cmd->cmd_data1, cmd->cmd_data2);
 
@@ -295,7 +295,7 @@ static void dpu95_ldfw_start_worker(struct work_struct *work)
 	/* TODO: we need to sleep here so that the BL driver is fully powered on.
 	 * This need to be reworked and sync-up with the BL driver power-on event.
 	 */
-	msleep(80);
+	msleep(100);
 
 	memset(&fw_cmd, 0, sizeof(fw_cmd));
 	fw_cmd.cmd_id = DPU95_LD_FW_START;

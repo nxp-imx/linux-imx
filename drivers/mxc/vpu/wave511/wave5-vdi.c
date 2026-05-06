@@ -105,6 +105,13 @@ int wave5_vdi_allocate_dma_memory(struct device *dev, struct vpu_buf *vb)
 	if (!vaddr)
 		return -ENOMEM;
 
+	if (vb->recorder) {
+		if (vb->label)
+			imx_mur_long_new_and_add(vb->recorder, vb->size, vb->label);
+		else
+			imx_mur_long_add(vb->recorder, vb->size);
+	}
+
 	vb->vaddr = vaddr;
 	vb->daddr = daddr;
 	vb->dev = dev;
@@ -123,6 +130,13 @@ void wave5_vdi_free_dma_memory(struct vpu_buf *vb)
 		return;
 	}
 
+	if (vb->recorder) {
+		if (vb->label)
+			imx_mur_long_sub_and_del_by_name(vb->recorder, vb->size, vb->label);
+		else
+			imx_mur_long_sub(vb->recorder, vb->size);
+	}
+
 	dma_free_coherent(vb->dev, vb->size, vb->vaddr, vb->daddr);
 	memset(vb, 0, sizeof(*vb));
 }
@@ -131,7 +145,7 @@ EXPORT_SYMBOL_GPL(wave5_vdi_free_dma_memory);
 int wave5_vdi_allocate_array(struct device *dev, struct vpu_buf *array, unsigned int count,
 			     size_t size)
 {
-	struct vpu_buf vb_buf;
+	struct vpu_buf vb_buf = { 0 };
 	int i, ret = 0;
 	struct vpu_device *vpu_dev = NULL;
 

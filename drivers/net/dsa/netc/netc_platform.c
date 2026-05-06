@@ -26,8 +26,6 @@ static void imx94_switch_phylink_get_caps(int port, struct phylink_config *confi
 	case 0 ... 1:
 		__set_bit(PHY_INTERFACE_MODE_SGMII,
 			  config->supported_interfaces);
-		__set_bit(PHY_INTERFACE_MODE_1000BASEX,
-			  config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_2500BASEX,
 			  config->supported_interfaces);
 		config->mac_capabilities |= MAC_2500FD;

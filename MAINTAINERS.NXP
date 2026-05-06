@@ -321,7 +321,7 @@ M: Antoine Bouyer <antoine.bouyer@nxp.com>
 M: Julien Vuillaumier <julien.vuillaumier@nxp.com>
 F: arch/arm64/boot/dts/freescale/imx95-19x19-evk-neoisp.dtso
 F: Documentation/admin-guide/media/nxp-neoisp*
-F: Documentation/devicetree/bindings/media/nxp,neoisp.yaml
+F: Documentation/devicetree/bindings/media/nxp,imx95-neoisp.yaml
 F: Documentation/userspace-api/media/v4l/metafmt-nxp-neoisp.rst
 F: drivers/media/platform/nxp/neoisp/neoisp*
 F: include/uapi/linux/media/nxp/nxp_neoisp.h

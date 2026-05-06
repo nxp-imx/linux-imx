@@ -480,7 +480,9 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 			dev_info(&pdev->dev, "vpu ctrl is not found\n");
 			return -EINVAL;
 		}
+		dev->recorder = wave5_vpu_ctrl_get_recorder(dev->ctrl);
 	} else {
+		dev->recorder = imx_mur_create_node(NULL, dev_name(dev->dev));
 		dev_info(&pdev->dev, "it's a follower vpu device\n");
 	}
 
@@ -565,6 +567,8 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	}
 
 	dev->temp_vbuf.size = ALIGN(WAVE5_TEMPBUF_SIZE, 4096);
+	dev->temp_vbuf.recorder = dev->recorder;
+	dev->temp_vbuf.label = "temp_vbuf";
 	ret = wave5_vdi_allocate_dma_memory(&pdev->dev, &dev->temp_vbuf);
 	if (ret) {
 		dev_err(&pdev->dev, "alloc temp of size %zu failed\n", dev->temp_vbuf.size);

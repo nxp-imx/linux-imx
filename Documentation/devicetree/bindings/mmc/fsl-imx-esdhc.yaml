@@ -59,6 +59,7 @@ properties:
               - fsl,imx93-usdhc
               - fsl,imx94-usdhc
               - fsl,imx95-usdhc
+              - fsl,imx952-usdhc
           - const: fsl,imx8mm-usdhc
       - items:
           - enum:

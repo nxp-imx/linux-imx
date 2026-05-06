@@ -327,6 +327,9 @@ struct dec_initial_info {
 	u32 vlc_buf_size;
 	u32 param_buf_size;
 	struct color_param color;
+
+	struct v4l2_ctrl_hdr10_cll_info hdr10_cll_info;
+	struct v4l2_ctrl_hdr10_mastering_display hdr10_mastering_display;
 };
 
 struct dec_output_info {
@@ -488,6 +491,7 @@ struct vpu_device {
 	struct device *trusty_dev;
 	u8 vpu_id;
 	bool secure_mode;
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_instance;
@@ -589,6 +593,7 @@ struct vpu_instance {
 	struct dentry *debugfs;
 	bool secure_mode;
 	struct vpu_flow flow;
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_state_trans_element {

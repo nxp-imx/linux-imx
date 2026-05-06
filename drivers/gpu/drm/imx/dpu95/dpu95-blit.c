@@ -9,6 +9,7 @@
 #include <drm/imx_drm.h>
 #include <linux/device.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-resv.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
@@ -303,6 +304,47 @@ static int dpu95_be_set_fence(struct dpu_bliteng *dpu_be, int fd)
 	return 0;
 }
 
+static int dpu95_be_sync_dmabuf_fence(struct drm_device *drm_dev, int fd)
+{
+	const unsigned int timeout_ms = 100;
+	struct dma_buf *dmabuf;
+	long ret;
+
+	if (fd < 0)
+		return 0;
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR(dmabuf)) {
+		drm_err(drm_dev, "failed to get dmabuf from fd %d: %ld\n",
+			fd, PTR_ERR(dmabuf));
+		return PTR_ERR(dmabuf);
+	}
+
+	/* Wait for all read fences to signal.
+	 * Returns immediately with positive value if no fences exist.
+	 */
+	ret = dma_resv_wait_timeout(dmabuf->resv,
+				    DMA_RESV_USAGE_READ,
+				    true, msecs_to_jiffies(timeout_ms));
+
+	dma_buf_put(dmabuf);
+
+	/* ret > 0: success (fences signaled or no fences exist)
+	 * ret == 0: timeout occurred
+	 * ret < 0: error (e.g., -ERESTARTSYS if interrupted)
+	 */
+	if (ret == 0) {
+		drm_warn(drm_dev, "dmabuf fence wait timeout after %ums\n",
+			timeout_ms);
+		return -ETIMEDOUT;
+	} else if (ret < 0) {
+		drm_err(drm_dev, "dmabuf fence wait failed: %ld\n", ret);
+		return (int)ret;
+	}
+
+	return 0;
+}
+
 static int dpu95_be_fd_to_address(struct drm_device *drm_dev, int fd, unsigned long *phy)
 {
 	int ret = 0;
@@ -311,7 +353,7 @@ static int dpu95_be_fd_to_address(struct drm_device *drm_dev, int fd, unsigned l
 	struct dma_buf_attachment *attachment = NULL;
 
 	if (fd < 0)
-		return fd;
+		return -1;
 
 	dmabuf = dma_buf_get(fd);
 	if (IS_ERR(dmabuf)) {
@@ -340,20 +382,38 @@ err_put:
 	return ret;
 }
 
-static void dpu95_be_get_plane_addr(struct drm_device *drm_dev,
+static int dpu95_be_get_plane_addr(struct drm_device *drm_dev,
 	struct drm_imx_dpu_frame_plane_info plane_info,
 	unsigned long *src_plane_addr, unsigned long *dst_plane_addr)
 {
-	int i;
+	int i, ret;
 
 	for (i = 0; i < 3; i++) {
-		dpu95_be_fd_to_address(drm_dev,
+
+		ret = dpu95_be_fd_to_address(drm_dev,
 			plane_info.src_plane_fd[i], &src_plane_addr[i]);
-		src_plane_addr[i] += plane_info.src_plane_offset[i];
-		dpu95_be_fd_to_address(drm_dev,
-			plane_info.dst_plane_fd[i], &dst_plane_addr[i]);
-		dst_plane_addr[i] += plane_info.dst_plane_offset[i];
+		if (ret < -1)
+			return ret;
+		else if (ret == 0) {
+			src_plane_addr[i] += plane_info.src_plane_offset[i];
+
+			/* Sync dmabuf fence after getting src address */
+			ret = dpu95_be_sync_dmabuf_fence(drm_dev, plane_info.src_plane_fd[i]);
+			if (ret)
+				return ret;
+		}
 	}
+
+	for (i = 0; i < 3; i++) {
+		ret = dpu95_be_fd_to_address(drm_dev,
+			plane_info.dst_plane_fd[i], &dst_plane_addr[i]);
+		if (ret < -1)
+			return ret;
+		else if (ret == 0)
+			dst_plane_addr[i] += plane_info.dst_plane_offset[i];
+	}
+
+	return 0;
 }
 
 static void dpu95_be_set_plane_addr(struct dpu_bliteng *dpu_be,
@@ -638,8 +698,10 @@ static int imx_drm_dpu95_set_cmdlist_ioctl(struct drm_device *drm_dev, void *dat
 			return -EFAULT;
 		}
 
-		dpu95_be_get_plane_addr(drm_dev, plane_info,
+		ret = dpu95_be_get_plane_addr(drm_dev, plane_info,
 			src_plane_addr, dst_plane_addr);
+		if (ret < 0)
+			return ret;
 	}
 
 	ret = pm_runtime_resume_and_get(dpu_blit_eng->dev);

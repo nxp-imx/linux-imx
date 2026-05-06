@@ -208,7 +208,6 @@ static int netc_port_get_info_from_dt(struct netc_port *port,
 static bool netc_port_has_pcs(phy_interface_t phy_mode)
 {
 	return (phy_mode == PHY_INTERFACE_MODE_SGMII ||
-		phy_mode == PHY_INTERFACE_MODE_1000BASEX ||
 		phy_mode == PHY_INTERFACE_MODE_2500BASEX);
 }
 
@@ -987,57 +986,64 @@ static void netc_teardown(struct dsa_switch *ds)
 	netc_free_ports_taprio(priv);
 }
 
-static bool netc_switch_is_emdio_consumer(struct device_node *ports)
+static bool netc_port_is_emdio_consumer(struct device_node *node)
 {
-	struct device_node *phy_node, *mdio_node;
+	struct device_node *mdio_node;
 
-	for_each_available_child_of_node_scoped(ports, child) {
-		/* If the node does not have phy-handle property, then
-		 * the port does not connect to a PHY, so the port is
-		 * not the EMDIO consumer.
-		 */
-		phy_node = of_parse_phandle(child, "phy-handle", 0);
-		if (!phy_node)
-			continue;
+	/* If the port node has phy-handle property and it does
+	 * not contain a mdio child node, then the port is the
+	 * EMDIO consumer.
+	 */
+	mdio_node = of_get_child_by_name(node, "mdio");
+	if (!mdio_node)
+		return true;
 
-		of_node_put(phy_node);
-		/* If the port node has phy-handle property and it does
-		 * not contain a mdio child node, then the switch is the
-		 * EMDIO consumer.
-		 */
-		mdio_node = of_get_child_by_name(child, "mdio");
-		if (!mdio_node)
-			return true;
-
-		of_node_put(mdio_node);
-
-		return false;
-	}
+	of_node_put(mdio_node);
 
 	return false;
 }
 
-static int netc_switch_add_emdio_consumer(struct device *dev)
+/* Currently, phylink_of_phy_connect() is called by dsa_user_create(),
+ * so if the switch uses the external MDIO controller (like the EMDIO
+ * function) to manage the external PHYs. The MDIO bus may not be
+ * created when phylink_of_phy_connect() is called, so it will return
+ * an error and cause the switch driver to fail to probe.
+ * This workaround can be removed when DSA phylink_of_phy_connect()
+ * calls are moved from probe() to ndo_open().
+ */
+static int netc_switch_check_emdio_is_ready(struct device *dev)
 {
-	struct phy_device *phydev = NULL, *last_phydev = NULL;
-	struct device_node *node = dev->of_node;
 	struct device_node *ports, *phy_node;
-	struct device_link *link;
+	struct phy_device *phydev;
 	int err = 0;
 
-	ports = of_get_child_by_name(node, "ports");
+	ports = of_get_child_by_name(dev->of_node, "ports");
 	if (!ports)
-		ports = of_get_child_by_name(node, "ethernet-ports");
-	if (!ports)
-		return 0;
+		ports = of_get_child_by_name(dev->of_node, "ethernet-ports");
 
-	if (!netc_switch_is_emdio_consumer(ports))
-		goto out;
+	if (!ports) {
+		dev_err(dev, "Cannot find the ethernet-ports or ports node\n");
+		return -EINVAL;
+	}
 
 	for_each_available_child_of_node_scoped(ports, child) {
+		/* If the node does not have phy-handle property, then the
+		 * port does not connect to a PHY, so the port is not the
+		 * EMDIO consumer.
+		 */
 		phy_node = of_parse_phandle(child, "phy-handle", 0);
 		if (!phy_node)
 			continue;
+
+		/* Note that from the hardware perspective, the switch ports
+		 * do not support share the MDIO bus defined under one port.
+		 * Ecah port can only access its own external PHY through its
+		 * port MDIO bus.
+		 */
+		if (!netc_port_is_emdio_consumer(child)) {
+			of_node_put(phy_node);
+			continue;
+		}
 
 		phydev = of_phy_find_device(phy_node);
 		of_node_put(phy_node);
@@ -1046,21 +1052,7 @@ static int netc_switch_add_emdio_consumer(struct device *dev)
 			goto out;
 		}
 
-		if (last_phydev) {
-			put_device(&last_phydev->mdio.dev);
-			last_phydev = phydev;
-		}
-	}
-
-	if (phydev) {
-		link = device_link_add(dev, phydev->mdio.bus->parent,
-				       DL_FLAG_PM_RUNTIME |
-				       DL_FLAG_AUTOREMOVE_SUPPLIER);
 		put_device(&phydev->mdio.dev);
-		if (!link) {
-			err = -EINVAL;
-			goto out;
-		}
 	}
 
 out:
@@ -1783,12 +1775,7 @@ static int netc_port_change_mtu(struct dsa_switch *ds, int port_id, int new_mtu)
 
 static int netc_port_max_mtu(struct dsa_switch *ds, int port_id)
 {
-	int mtu = NETC_MAX_FRAME_LEN - VLAN_ETH_HLEN - ETH_FCS_LEN;
-
-	if (dsa_is_cpu_port(ds, port_id))
-		mtu -= NETC_TAG_MAX_LEN;
-
-	return mtu;
+	return NETC_MAX_FRAME_LEN - VLAN_ETH_HLEN - ETH_FCS_LEN;
 }
 
 static struct net_device *netc_classify_db(struct dsa_db db)
@@ -2398,11 +2385,6 @@ static void netc_port_set_mac_mode(struct netc_port *port,
 	case PHY_INTERFACE_MODE_RGMII_RXID:
 	case PHY_INTERFACE_MODE_RGMII_TXID:
 		val |= IFMODE_RGMII;
-		/* We need to enable auto-negotiation for the MAC
-		 * if its RGMII interface support In-Band status.
-		 */
-		if (phylink_autoneg_inband(mode))
-			val |= PM_IF_MODE_ENA;
 		break;
 	case PHY_INTERFACE_MODE_RMII:
 		val |= IFMODE_RMII;
@@ -2515,22 +2497,6 @@ static void net_port_set_rmii_mii_mac(struct netc_port *port,
 	netc_mac_port_wr(port, NETC_PM_IF_MODE(0), val);
 }
 
-static void netc_port_set_hd_flow_control(struct netc_port *port,
-					  bool enable)
-{
-	u32 old_val, val;
-
-	if (!port->caps.half_duplex)
-		return;
-
-	old_val = netc_mac_port_rd(port, NETC_PM_CMD_CFG(0));
-	val = u32_replace_bits(old_val, enable ? 1 : 0, PM_CMD_CFG_HD_FCEN);
-	if (val == old_val)
-		return;
-
-	netc_mac_port_wr(port, NETC_PM_CMD_CFG(0), val);
-}
-
 void netc_port_set_tx_pause(struct netc_port *port, bool tx_pause)
 {
 	struct netc_switch *priv = port->switch_priv;
@@ -2601,15 +2567,12 @@ static void netc_mac_link_up(struct phylink_config *config,
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct netc_switch *priv = dp->ds->priv;
 	struct netc_port *port;
-	bool hd_fc = false;
 
 	port = NETC_PORT(priv, dp->index);
 	netc_port_set_speed(port, speed);
 
-	if (phy_interface_mode_is_rgmii(interface) &&
-	    !phylink_autoneg_inband(mode)) {
+	if (phy_interface_mode_is_rgmii(interface))
 		netc_port_force_set_rgmii_mac(port, speed, duplex);
-	}
 
 	if (interface == PHY_INTERFACE_MODE_RMII ||
 	    interface == PHY_INTERFACE_MODE_REVMII ||
@@ -2617,25 +2580,14 @@ static void netc_mac_link_up(struct phylink_config *config,
 		net_port_set_rmii_mii_mac(port, speed, duplex);
 	}
 
-	if (duplex == DUPLEX_HALF) {
-		if (tx_pause || rx_pause)
-			hd_fc = true;
-
-		/* As per 802.3 annex 31B, PAUSE frames are only supported
-		 * when the link is configured for full duplex operation.
-		 */
-		tx_pause = false;
-		rx_pause = false;
-	} else if (duplex == DUPLEX_FULL) {
+	if (port->offloads & NETC_FLAG_QBU && duplex == DUPLEX_FULL) {
 		/* When preemption is enabled, generation of PAUSE frames
 		 * must be disabled, as stated in the IEEE 802.3 standard.
 		 */
-		if (port->offloads & NETC_FLAG_QBU)
-			tx_pause = false;
+		tx_pause = false;
 	}
 
 	port->tx_pause = tx_pause ? 1 : 0;
-	netc_port_set_hd_flow_control(port, hd_fc);
 	netc_port_set_tx_pause(port, tx_pause);
 	netc_port_set_rx_pause(port, rx_pause);
 	netc_port_enable_mac_path(port, true);
@@ -2772,7 +2724,7 @@ static int netc_switch_probe(struct pci_dev *pdev, const struct pci_device_id *i
 		return -ENODEV;
 	}
 
-	err = netc_switch_add_emdio_consumer(dev);
+	err = netc_switch_check_emdio_is_ready(dev);
 	if (err)
 		return err;
 

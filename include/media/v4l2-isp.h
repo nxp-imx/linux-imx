@@ -15,30 +15,30 @@ struct device;
 struct vb2_buffer;
 
 /**
+ * v4l2_isp_buffer_size - Calculate size of v4l2_isp_buffer
+ * @max_size: The total size of the ISP configuration or statistic blocks
+ *
+ * Users of v4l2-isp will have differing sized data arrays for parameters and
+ * statistics, depending on their specific blocks. Drivers need to be able to
+ * calculate the appropriate size of the buffer to accommodate all ISP blocks
+ * supported by the platform. This macro provides a convenient tool for the
+ * calculation.
+ *
+ * The intended users of this function are drivers initializing the size
+ * of their metadata (parameters and statistics) buffers.
+ */
+#define v4l2_isp_buffer_size(max_size) \
+	(offsetof(struct v4l2_isp_buffer, data) + (max_size))
+
+/**
  * v4l2_isp_params_buffer_size - Calculate size of v4l2_isp_params_buffer
  * @max_params_size: The total size of the ISP configuration blocks
  *
- * Users of the v4l2 extensible parameters will have differing sized data arrays
- * depending on their specific parameter buffers. Drivers and userspace will
- * need to be able to calculate the appropriate size of the struct to
- * accommodate all ISP configuration blocks provided by the platform.
- * This macro provides a convenient tool for the calculation.
+ * Compatibility with existing users of v4l2_isp_params_buffer_size which
+ * pre-date the introduction of v4l2_isp_buffer.
  */
 #define v4l2_isp_params_buffer_size(max_params_size) \
-	(offsetof(struct v4l2_isp_params_buffer, data) + (max_params_size))
-
-/**
- * v4l2_isp_stats_buffer_size - Calculate size of v4l2_isp_stats_buffer
- * @max_stats_size: The total size of the ISP statistic blocks
- *
- * Users of the v4l2 extensible statistics buffers will have differing sized data
- * arrays depending on their specific ISP blocks. Drivers and userspace will need
- * to be able to calculate the appropriate size of the struct to accommodate all
- * ISP statistics blocks provided by the platform.
- * This macro provides a convenient tool for the calculation.
- */
-#define v4l2_isp_stats_buffer_size(max_stats_size) \
-	(offsetof(struct v4l2_isp_stats_buffer, data) + (max_stats_size))
+	v4l2_isp_buffer_size(max_params_size)
 
 /**
  * v4l2_isp_params_validate_buffer_size - Validate a V4L2 ISP buffer sizes

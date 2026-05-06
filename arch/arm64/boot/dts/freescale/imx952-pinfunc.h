@@ -307,6 +307,28 @@
 #define IMX952_PAD_GPIO_IO37__WAKEUPMIX_TOP_LPUART7_RX                0x00A4 0x02D4 0x05B0 0x02 0x01
 #define IMX952_PAD_GPIO_IO37__WAKEUPMIX_TOP_LPSPI4_SCK                0x00A4 0x02D4 0x0568 0x04 0x01
 
+#define IMX952_PAD_GPIO_IO38__GPIO_IO38                               0x00A8 0x02D8 0x0000 0x00 0x00
+
+#define IMX952_PAD_GPIO_IO39__GPIO_IO39                               0x00AC 0x02DC 0x0000 0x00 0x00
+
+#define IMX952_PAD_GPIO_IO40__GPIO_IO40                               0x00B0 0x02E0 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_SPI_CS0__LD_SPI_CS0                             0x00B4 0x02E4 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_SPI_SCK__LD_SPI_SCK                             0x00B8 0x02E8 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_SPI_DI__LD_SPI_DI                               0x00BC 0x02EC 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_SPI_DO__LD_SPI_DO                               0x00C0 0x02F0 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_HSYNC__LD_HSYNC                                 0x00C4 0x02F4 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_VSYNC__LD_VSYNC                                 0x00C8 0x02F8 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_GPIO0__LD_GPIO0                                 0x00CC 0x02FC 0x0000 0x00 0x00
+
+#define IMX952_PAD_LD_GPIO1__LD_GPIO1                                 0x00D0 0x0300 0x0000 0x00 0x00
+
 #define IMX952_PAD_CCM_CLKO1__CCMSRCGPCMIX_TOP_CLKO_1                 0x00D4 0x0304 0x0000 0x00 0x00
 #define IMX952_PAD_CCM_CLKO1__NETCMIX_TOP_NETC_TMR_1588_TRIG1         0x00D4 0x0304 0x0494 0x01 0x00
 #define IMX952_PAD_CCM_CLKO1__WAKEUPMIX_TOP_FLEXIO1_FLEXIO_26         0x00D4 0x0304 0x04AC 0x04 0x00

@@ -289,11 +289,10 @@ static int rtc_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	struct rtc_rpmsg_data *msg = (struct rtc_rpmsg_data *)data;
 
 	if (msg->header.type == RTC_RPMSG_RECEIVE) {
-		rtc_rpmsg.msg = msg;
+		*rtc_rpmsg.msg = *msg;
 		complete(&rtc_rpmsg.cmd_complete);
 		return 0;
 	} else if (msg->header.type == RTC_RPMSG_NOTIFY) {
-		rtc_rpmsg.msg = msg;
 		imx_rpmsg_rtc_alarm_irq_update();
 	} else
 		dev_err(&rtc_rpmsg.rpdev->dev, "wrong command type!\n");
@@ -358,6 +357,12 @@ static int rtc_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	rtc_rpmsg.rpdev = rpdev;
 	mutex_init(&rtc_rpmsg.lock);
+
+	rtc_rpmsg.msg = devm_kzalloc(&rpdev->dev,
+				     sizeof(struct rtc_rpmsg_data),
+				     GFP_KERNEL);
+	if (!rtc_rpmsg.msg)
+		return -ENOMEM;
 
 	init_completion(&rtc_rpmsg.cmd_complete);
 	return platform_driver_register(&imx_rpmsg_rtc_driver);

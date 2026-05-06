@@ -331,6 +331,10 @@ enum query_opt {
 #define W5_CMD_DEC_FORCE_FB_LATENCY_PLUS1       (W5_REG_BASE + 0x0134)
 #define W5_USE_SEC_AXI                          (W5_REG_BASE + 0x0150)
 
+#define W5_CMD_DEC_USER_BASE                    (W5_REG_BASE + 0x0170)
+#define W5_CMD_DEC_USER_SIZE                    (W5_REG_BASE + 0x0174)
+#define W5_CMD_DEC_USER_PARAM                   (W5_REG_BASE + 0x0178)
+
 /************************************************************************/
 /* DECODER - QUERY : GET_VPU_INFO                                       */
 /************************************************************************/
@@ -424,6 +428,15 @@ enum query_opt {
  * reg_val & 0xf => display picture index for FBC buffer (by reordering)
  */
 #define W5_RET_DEC_DISP_IDC                 (W5_REG_BASE + 0x017C)
+
+#define W5_RET_DEC_HDR10_CLL                (W5_REG_BASE + 0x0188)
+#define W5_RET_DEC_HDR10_MD_PRIMARIES_G     (W5_REG_BASE + 0x018C)
+#define W5_RET_DEC_HDR10_MD_PRIMARIES_B     (W5_REG_BASE + 0x0190)
+#define W5_RET_DEC_HDR10_MD_PRIMARIES_R     (W5_REG_BASE + 0x0194)
+#define W5_RET_DEC_HDR10_MD_WHITE           (W5_REG_BASE + 0x0198)
+#define W5_RET_DEC_HDR10_MD_MAX_LUM         (W5_REG_BASE + 0x01A8)
+#define W5_RET_DEC_HDR10_MD_MIN_LUM         (W5_REG_BASE + 0x01AC)
+
 /*
  * #define W5_RET_DEC_ERR_CTB_NUM              (W5_REG_BASE + 0x0180)
  * => Number of error CTUs

@@ -509,19 +509,6 @@ struct rpmsg_info {
 	struct wakeup_source     *rpmsg_wakeup_source;
 };
 
-struct rpmsg_codec {
-        int audioindex;
-
-        /*property for wm8960*/
-        bool capless;
-        bool shared_lrclk;
-};
-
-#define RPMSG_CODEC_WM8960 1
-#define RPMSG_CODEC_AK4497 2
-
-#define RPMSG_CODEC_DRV_NAME_WM8960 "rpmsg-codec-wm8960"
-#define RPMSG_CODEC_DRV_NAME_AK4497 "rpmsg-codec-ak4497"
 #define RPMSG_CODEC_DRV_NAME_PCM512X "rpmsg-codec-pcm512x"
 #define IMX_PCM_DRV_NAME "imx_pcm_rpmsg"
 

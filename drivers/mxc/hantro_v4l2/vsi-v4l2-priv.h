@@ -61,7 +61,6 @@ extern int vsi_kloglvl;
 //compound type for extension ctrls
 #define VSI_V4L2_CMPTYPE_ROI				(V4L2_CTRL_COMPOUND_TYPES + 100)
 #define VSI_V4L2_CMPTYPE_IPCM				(V4L2_CTRL_COMPOUND_TYPES + 101)
-#define VSI_V4L2_CMPTYPE_HDR10META		(V4L2_CTRL_COMPOUND_TYPES + 102)
 
 enum {
 	LOGLVL_VERBOSE = 0,	//log all
@@ -627,9 +626,13 @@ static inline void return_all_buffers(struct vb2_queue *vq, int status, int bRel
 		plist = &ctx->output_list;
 
 	for (i = 0; i < vb2_get_num_buffers(vq); ++i) {
-		if (vq->bufs[i]->state == VB2_BUF_STATE_ACTIVE) {
+		struct vb2_buffer *vb = vb2_get_buffer(vq, i);
+
+		if (!vb)
+			continue;
+		if (vb->state == VB2_BUF_STATE_ACTIVE) {
 			v4l2_klog(LOGLVL_FLOW, "return buffer %d", i);
-			vb2_buffer_done(vq->bufs[i], status);
+			vb2_buffer_done(vb, status);
 		}
 	}
 	if (bRelbuf) {
@@ -648,8 +651,10 @@ static inline void print_queinfo(struct vb2_queue *q)
 
 	v4l2_klog(LOGLVL_VERBOSE, "got %d buffer", vb2_get_num_buffers(q));
 	for (i = 0; i < vb2_get_num_buffers(q); i++) {
-		struct vb2_buffer	*buf = q->bufs[i];
+		struct vb2_buffer *buf = vb2_get_buffer(q, i);
 
+		if (!buf)
+			continue;
 		v4l2_klog(LOGLVL_VERBOSE, "buf %d%p has %d planes", i, buf, buf->num_planes);
 		for (k = 0; k < buf->num_planes; k++) {
 			int *data = vb2_plane_vaddr(buf, k);

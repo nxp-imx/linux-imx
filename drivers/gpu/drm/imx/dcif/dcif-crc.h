@@ -33,7 +33,6 @@ static inline void dcif_copy_roi(struct drm_rect *from, struct drm_rect *to)
 	to->y2 = from->y2;
 }
 
-#ifdef CONFIG_DEBUG_FS
 int dcif_crtc_verify_crc_source(struct drm_crtc *crtc, const char *source_name,
 				size_t *values_cnt);
 int dcif_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name);
@@ -42,11 +41,5 @@ void dcif_crtc_enable_crc_source(struct dcif_dev *dcif,
 				 struct drm_rect *roi,
 				 int nCRC);
 void dcif_crtc_disable_crc_source(struct dcif_dev *dcif, int nCRC);
-#else
-#define dcif_crtc_verify_crc_source	NULL
-#define dcif_crtc_set_crc_source	NULL
-#define dcif_crtc_enable_crc_source	NULL
-#define dcif_crtc_disable_crc_source	NULL
-#endif
 
 #endif /* __DCIF_CRC_H__ */

@@ -152,7 +152,7 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	}
 
 	/* Receive Success */
-	i2c_rpmsg.msg = msg;
+	*i2c_rpmsg.msg = *msg;
 
 	complete(&i2c_rpmsg.cmd_complete);
 
@@ -449,6 +449,12 @@ static int i2c_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 		 rpdev->src, rpdev->dst);
+
+	i2c_rpmsg.msg = devm_kzalloc(&rpdev->dev,
+				     sizeof(struct i2c_rpmsg_msg),
+				     GFP_KERNEL);
+	if (!i2c_rpmsg.msg)
+		return -ENOMEM;
 
 	i2c_rpmsg.wq = create_singlethread_workqueue("rpmsg-i2c");
 	if (!i2c_rpmsg.wq) {

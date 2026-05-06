@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx95-15x15-frdm.dts"
+
+/ {
+	reserved-memory {
+		m7_reserved: m7@80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+	};
+};
+
+&edma1{
+	status = "disabled";
+};
+
+&edma2{
+	status = "disabled";
+};
+
+&lpi2c2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c3 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c4 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c5 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c6 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&lpi2c7 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
