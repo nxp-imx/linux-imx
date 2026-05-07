@@ -173,9 +173,28 @@ static struct hyp_page *__hyp_extract_page(struct hyp_pool *pool,
 static void __hyp_put_page(struct hyp_pool *pool, struct hyp_page *p)
 {
 	u64 free_pages;
+	u16 seen_refcount, old_refcount;
 
-	if (hyp_page_ref_dec_and_test(p)) {
-		hyp_spin_lock(&pool->lock);
+	for (old_refcount = READ_ONCE(p->refcount); ; old_refcount = seen_refcount) {
+		WARN_ON(old_refcount == 0);
+		if (old_refcount == 1) {
+			/*
+			 * Acquire the pool lock before we drop the refcount to
+			 * zero, thus avoiding a race with __find_buddy_avail()
+			 * finding us before we initialise our in-page
+			 * list_head.
+			 */
+			hyp_spin_lock(&pool->lock);
+		}
+		seen_refcount = cmpxchg_relaxed(
+			&p->refcount, old_refcount, old_refcount-1);
+		if (seen_refcount == old_refcount)
+			break;
+		if (old_refcount == 1)
+			hyp_spin_unlock(&pool->lock);
+	}
+
+	if (old_refcount == 1) {
 		free_pages = pool->free_pages + (1ULL << p->order);
 		__hyp_attach_page(pool, p);
 		WRITE_ONCE(pool->free_pages, free_pages);

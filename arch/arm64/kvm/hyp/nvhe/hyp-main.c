@@ -173,7 +173,6 @@ static void handle_pvm_entry_psci(struct pkvm_hyp_vcpu *hyp_vcpu)
 static void handle_pvm_entry_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	u32 fn = smccc_get_function(&hyp_vcpu->vcpu);
-	u64 ret;
 
 	switch (fn) {
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID:
@@ -184,12 +183,7 @@ static void handle_pvm_entry_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 		vcpu_set_reg(&hyp_vcpu->vcpu, 0, SMCCC_RET_SUCCESS);
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
-		/* If the host said success, call power_lock */
-		ret = READ_ONCE(hyp_vcpu->host_vcpu->arch.ctxt.regs.regs[0]);
-		if (ret != SMCCC_RET_SUCCESS || pkvm_device_request_power_pvm_entry(hyp_vcpu))
-			ret = SMCCC_RET_INVALID_PARAMETER;
-
-		vcpu_set_reg(&hyp_vcpu->vcpu, 0, ret);
+		pkvm_device_request_power_pvm_entry(hyp_vcpu);
 		break;
 	default:
 		handle_pvm_entry_psci(hyp_vcpu);

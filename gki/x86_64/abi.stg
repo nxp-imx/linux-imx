@@ -326205,6 +326205,15 @@ elf_symbol {
   full_name: "pci_dev_get"
 }
 elf_symbol {
+  id: 0xcfb414d4
+  name: "pci_dev_lock"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x86c0de7d
+  type_id: 0x14e1f000
+  full_name: "pci_dev_lock"
+}
+elf_symbol {
   id: 0x9252d1d7
   name: "pci_dev_present"
   is_defined: true
@@ -326230,6 +326239,15 @@ elf_symbol {
   crc: 0x0e1a6e87
   type_id: 0xfaddfa97
   full_name: "pci_dev_run_wake"
+}
+elf_symbol {
+  id: 0x86ee1bbd
+  name: "pci_dev_unlock"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x86c0de7d
+  type_id: 0x14e1f000
+  full_name: "pci_dev_unlock"
 }
 elf_symbol {
   id: 0x3937523a
@@ -342714,9 +342732,11 @@ interface {
   symbol_id: 0x676e51dd
   symbol_id: 0xefd6c2f6
   symbol_id: 0x04525af5
+  symbol_id: 0xcfb414d4
   symbol_id: 0x9252d1d7
   symbol_id: 0x4f0ba1d7
   symbol_id: 0x41cb19ff
+  symbol_id: 0x86ee1bbd
   symbol_id: 0x3937523a
   symbol_id: 0x75040d3e
   symbol_id: 0x7cd4622d

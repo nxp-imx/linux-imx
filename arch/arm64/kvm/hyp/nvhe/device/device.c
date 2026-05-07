@@ -581,25 +581,41 @@ out_guest_err:
 	return true;
 }
 
-int pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu)
+void pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
 	u64 func = smccc_get_arg1(vcpu);
+	u64 ipa = smccc_get_arg2(vcpu);
+	u64 ret = SMCCC_RET_SUCCESS;
+	int host_ret;
 
 	switch (func) {
 	case KVM_DEV_REQ_PWR_OFF:
-	case KVM_DEV_REQ_PWR_ON: {
-		u64 ipa = smccc_get_arg2(vcpu);
-		bool on = func;
+		/*
+		 * When powering-off, power_lock is called before forwarding
+		 * to host and we always return success to the guest.
+		 */
+		break;
+	case KVM_DEV_REQ_PWR_ON:
+		host_ret = READ_ONCE(hyp_vcpu->host_vcpu->arch.ctxt.regs.regs[0]);
 
-		/* When powering-off, power_lock is called before forwarding to host */
-		if (!on)
-			return 0;
+		/*
+		 * If the host claims that it failed, then don't bother with
+		 * power lock as it may not be available. Return an error
+		 * to the guest so that it continues to treat the device as
+		 * if it is powered down.
+		 */
+		if (host_ret != SMCCC_RET_SUCCESS) {
+			ret = SMCCC_RET_INVALID_PARAMETER;
+			break;
+		}
 
-		/* power_lock failed. We have no way of rolling back the host power-on */
-		return WARN_ON(__pkvm_device_request_power(hyp_vcpu, ipa, on, false));
+		/*
+		 * We have no way of rolling back the host power-on so WARN if
+		 * this fails.
+		 */
+		WARN_ON(__pkvm_device_request_power(hyp_vcpu, ipa, true, false));
 	}
-	}
 
-	return 0;
+	vcpu_set_reg(&hyp_vcpu->vcpu, 0, ret);
 }

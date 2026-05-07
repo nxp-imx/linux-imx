@@ -2080,9 +2080,11 @@
   pci_d3cold_enable
   pci_dev_get
   pci_device_is_present
+  pci_dev_lock
   pci_dev_present
   pci_dev_put
   pci_dev_run_wake
+  pci_dev_unlock
   pci_disable_device
   pci_disable_link_state
   pci_disable_link_state_locked
