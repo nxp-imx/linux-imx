@@ -1,0 +1,130 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright 2026 NXP
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx952-pinfunc.h"
+
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	backlight_lvds: backlight-lvds {
+		compatible = "pwm-backlight";
+		pwms = <&tpm6 1 100000 0>;
+		brightness-levels = <0 100>;
+		num-interpolated-steps = <100>;
+		default-brightness-level = <100>;
+		power-supply = <&reg_ext_5v>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds_backlight>;
+		enable-gpios = <&gpio5 18 GPIO_ACTIVE_HIGH>;
+	};
+
+	panel-lvds {
+		compatible = "boe,ev121wxm-n10-1850";
+		backlight = <&backlight_lvds>;
+		power-supply = <&reg_ext_5v>;
+
+		port {
+			panel_lvds_in: endpoint {
+				remote-endpoint = <&lvds0_out>;
+			};
+		};
+	};
+};
+
+&ldb {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0>;
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds0_out: endpoint {
+				remote-endpoint = <&panel_lvds_in>;
+			};
+		};
+	};
+
+	channel@1 {
+		reg = <1>;
+		status = "disabled";
+	};
+};
+
+
+&ldb0_phy {
+	status = "okay";
+};
+
+&ldb1_phy {
+	status = "disabled";
+};
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	touchscreen@2a {
+		compatible = "eeti,exc80h60";
+		reg = <0x2a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds_ctp_int_0>;
+		interrupt-parent = <&gpio5>;
+		interrupts = <16 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH>;
+		touchscreen-size-x = <4096>;
+		touchscreen-size-y = <4096>;
+	};
+};
+
+&pixel_interleaver {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@0 {
+		reg = <0>;
+		status = "okay";
+	};
+
+	channel@1 {
+		reg = <1>;
+		status = "disabled";
+	};
+};
+
+&scmi_iomuxc {
+	pinctrl_lvds_ctp_int_0: lvds-ctp-int-0-grp {
+		fsl,pins = <
+			IMX952_PAD_GPIO_IO36__WAKEUPMIX_TOP_GPIO5_IO_16	0x31e
+			IMX952_PAD_GPIO_IO37__WAKEUPMIX_TOP_GPIO5_IO_17	0x31e
+		>;
+	};
+
+	pinctrl_lvds_backlight: lvds-backlight-grp {
+		fsl,pins = <
+			IMX952_PAD_GPIO_IO38__GPIO_IO38			0x31e
+		>;
+	};
+
+	pinctrl_tpm6_ch1: tpm6-ch1-grp {
+		fsl,pins = <
+			IMX952_PAD_GPIO_IO23__WAKEUPMIX_TOP_TPM6_CH1	0x31e
+		>;
+	};
+};
+
+&tpm6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_tpm6_ch1>;
+	status = "okay";
+};

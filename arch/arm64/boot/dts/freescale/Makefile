@@ -1527,6 +1527,9 @@ imx952-evk-adv7535-rpmsg-dtbs := imx952-evk-rpmsg.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx952-frdm.dtb
 
+imx952-frdm-boe-wxga-lvds-panel-dtbs := imx952-frdm.dtb imx952-frdm-boe-wxga-lvds-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-boe-wxga-lvds-panel.dtb
+
 imx952-frdm-waveshare-7inch-c-panel-dtbs := imx952-frdm.dtb imx952-frdm-waveshare-7inch-c-panel.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-waveshare-7inch-c-panel.dtb
 
