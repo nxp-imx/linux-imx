@@ -186,6 +186,7 @@ int atu_ll_init(struct atu_dev *ad)
 
 	return 0;
 }
+EXPORT_SYMBOL(atu_ll_init);
 
 static void atu_dealloc_inbound_address(struct atu_dev *ad,
 					u32 inbound_addr,
@@ -548,6 +549,7 @@ int atu_mmap(struct atu_dev *atu_dev, struct vm_area_struct *vma)
 
 	return 0;
 }
+EXPORT_SYMBOL(atu_mmap);
 
 /*
  * IOCTL handler for miscdevice
@@ -626,3 +628,7 @@ long atu_ioctl(struct atu_dev *atu_dev, unsigned int cmd, unsigned long arg)
 
 	return ret;
 }
+EXPORT_SYMBOL(atu_ioctl);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("ATU Driver for UIO");
