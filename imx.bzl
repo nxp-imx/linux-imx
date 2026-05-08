@@ -466,6 +466,12 @@ _IMX_IN_TREE_MODULES = [
     "drivers/mux/mux-gpio.ko",
     "drivers/phy/freescale/phy-fsl-imx952-mipi-dphy.ko",
     "drivers/uio/uio_prime.ko",
+    "drivers/uio/atu.ko",
+    "drivers/media/v4l2-core/v4l2-isp.ko",
+    "drivers/rpmsg/imx_rpmsg_chre.ko",
+    "drivers/rpmsg/imx_rpmsg_tty.ko",
+    "drivers/rpmsg/imx_rpmsg.ko",
+    "drivers/rpmsg/imx_rpmsg_pingpong.ko",
 ]
 
 def define_imx():

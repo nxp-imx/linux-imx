@@ -18,7 +18,8 @@ function update_config() {
          -e IMX_SEC_ENCLAVE \
          -m MXC_VIDEO_WAVE6 \
          -m VIDEO_AMPHION_VPU \
-         -m MXC_HANTRO_845_H1
+         -m MXC_HANTRO_845_H1 \
+         -m HAVE_IMX_RPMSG
     rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}
 }
 
