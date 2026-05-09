@@ -289,8 +289,8 @@ static void fsl_lpspi_set_cmd(struct fsl_lpspi_data *fsl_lpspi)
 		 * For the first transfer, clear TCR_CONTC to assert SS.
 		 * For subsequent transfer, set TCR_CONTC to keep SS asserted.
 		 */
+		temp |= TCR_CONT;
 		if (!fsl_lpspi->usedma) {
-			temp |= TCR_CONT;
 			if (fsl_lpspi->is_first_byte)
 				temp &= ~TCR_CONTC;
 			else
