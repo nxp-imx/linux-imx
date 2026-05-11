@@ -235,6 +235,13 @@ F: drivers/media/platform/nxp/imx-csi-formatter.c
 capture/hdp
 M: Sandor Yu <sandor.yu@nxp.com>
 
+capture/imx519
+M: Mirela Rabulea <mirela.rabulea@nxp.com>
+R: Laurentiu Palcu <laurentiu.palcu@oss.nxp.com>
+R: Julien Vuillaumier <julien.vuillaumier@nxp.com>
+F: drivers/media/i2c/imx519.c
+F: Documentation/devicetree/bindings/media/i2c/sony,imx519.yaml
+
 capture/isi
 M: G.n. Zhou <guoniu.zhou@nxp.com>
 F: Documentation/devicetree/bindings/media/imx8-isi.txt

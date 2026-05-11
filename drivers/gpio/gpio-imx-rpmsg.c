@@ -80,7 +80,6 @@ struct imx_rpmsg_gpio_pin {
 struct imx_rpmsg_gpio_port {
 	struct gpio_chip gc;
 	struct irq_chip chip;
-	struct irq_domain *domain;
 	struct imx_rpmsg_gpio_pin gpio_pins[IMX_RPMSG_GPIO_PER_PORT];
 	int idx;
 };
@@ -485,13 +484,6 @@ static int imx_rpmsg_gpio_probe(struct platform_device *pdev)
 	return devm_gpiochip_add_data(dev, gc, port);
 }
 
-static void imx_rpmsg_gpio_remove(struct platform_device *pdev)
-{
-	struct imx_rpmsg_gpio_port *port = platform_get_drvdata(pdev);
-
-	irq_domain_remove(port->domain);
-}
-
 static const struct of_device_id imx_rpmsg_gpio_dt_ids[] = {
 	{ .compatible = "fsl,imx-rpmsg-gpio" },
 	{ /* sentinel */ }
@@ -503,7 +495,6 @@ static struct platform_driver imx_rpmsg_gpio_driver = {
 		.of_match_table = imx_rpmsg_gpio_dt_ids,
 	},
 	.probe = imx_rpmsg_gpio_probe,
-	.remove = imx_rpmsg_gpio_remove,
 };
 
 static int gpio_rpmsg_probe(struct rpmsg_device *rpdev)

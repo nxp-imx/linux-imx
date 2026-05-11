@@ -24,8 +24,8 @@
 			  "SAI3 SAI-Playback", "ASRC2 ASRC-Playback",
 			  "AUDMIX-Playback-0", "SAI6 SAI-Playback",
 			  "AUDMIX-Playback-1", "SAI3 SAI-Playback",
-			  "Playback", "AUDMIX-Playback-0",
-			  "Playback", "AUDMIX-Playback-1",
+			  "Playback", "ASRC1 ASRC-Playback",
+			  "Playback", "ASRC2 ASRC-Playback",
 			  "SAI6 SAI-Capture", "AUDMIX-Capture-0",
 			  "Headphones", "HPOUTL",
 			  "Headphones", "HPOUTR",
@@ -37,7 +37,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_hp>;
 		hp-det-gpios = <&gpio2 11 GPIO_ACTIVE_HIGH>;
-		links = <&fe00 &fe01 &fe02 &be00 &be01 &be02>;
+		links = <&fe00 &fe01 &fe02 &be00 &be01 &be02 &be03>;
 
 		multi {
 			#address-cells = <1>;
@@ -65,12 +65,6 @@
 						remote-endpoint = <&amix_endpoint0>;
 					};
 				};/* (B) Multi Element */
-				port@3 {
-					reg = <3>;
-					mcodec03_ep: endpoint {
-						remote-endpoint = <&codec0_ep>;
-					};
-				};/* (B) Multi Element */
 			};
 
 			ports@1 {
@@ -94,11 +88,6 @@
 					mcodec12_ep: endpoint {
 						remote-endpoint = <&amix_endpoint1>;
 					};
-				};/* (B) Multi Element */
-				port@3 {
-					reg = <3>;
-					mcodec13_ep: endpoint {
-						remote-endpoint = <&codec1_ep>; };
 				};/* (B) Multi Element */
 			};
 		};
@@ -155,6 +144,12 @@
 					reg = <2>;
 					be02_ep: endpoint {
 						remote-endpoint = <&amix_endpoint2>;
+					};
+				};
+				be03: port@3 {
+					reg = <3>;
+					be03_ep: endpoint {
+						remote-endpoint = <&codec0_ep>;
 					};
 				};
 			};
@@ -214,8 +209,8 @@
 &asrc1 {
 	sound-name-prefix = "ASRC1";
 	port {
+		playback-only;
 		asrc1_endpoint0: endpoint {
-			playback-only;
 			remote-endpoint = <&fe00_ep>;
 		};
 	};
@@ -224,8 +219,8 @@
 &asrc2 {
 	sound-name-prefix = "ASRC2";
 	port {
+		playback-only;
 		asrc2_endpoint0: endpoint {
-			playback-only;
 			remote-endpoint = <&fe01_ep>;
 		};
 	};
@@ -330,23 +325,12 @@
 };
 
 &wm8962 {
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		dai-format = "dsp_a";
-
-		port@0  {
-			reg = <0>;
-			codec0_ep:  endpoint@0 {
-				dai-tdm-slot-num = <8>;
-				dai-tdm-slot-width = <32>;
-				remote-endpoint = <&mcodec03_ep>;
-			};
-			codec1_ep:  endpoint@1 {
-				dai-tdm-slot-num = <8>;
-				dai-tdm-slot-width = <32>;
-				remote-endpoint = <&mcodec13_ep>;
-			};
+	port  {
+		codec0_ep: endpoint {
+			dai-tdm-slot-num = <8>;
+			dai-tdm-slot-width = <32>;
+			dai-format = "dsp_a";
+			remote-endpoint = <&be03_ep>;
 		};
 	};
 };

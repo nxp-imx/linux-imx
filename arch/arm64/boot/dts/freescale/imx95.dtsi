@@ -2227,9 +2227,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad30000 0x0 0x10000>;
 			interrupts = <GIC_SPI 374 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR0>,
-				 <&scmi_clk IMX95_CLK_CAMAPB>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;
+			clock-names = "per";
 			phys = <&dphy_rx>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
@@ -2253,9 +2252,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad40000 0x0 0x10000>;
 			interrupts = <GIC_SPI 375 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR1>,
-				 <&scmi_clk IMX95_CLK_CAMAPB>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;
+			clock-names = "per";
 			phys = <&combo_rx>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX95_PD_CAMERA>;

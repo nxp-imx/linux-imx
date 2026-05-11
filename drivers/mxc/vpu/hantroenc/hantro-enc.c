@@ -111,6 +111,7 @@ struct hantro_enc_resource {
 	const u32 reg_enable;
 	const u32 reg_irq;
 	const u32 reg_write1_clr;
+	const bool keep_runtime_on;
 
 	int (*get_cmd_id)(unsigned int cmd);
 	int (*get_cmd_param)(int id, unsigned long arg, struct hantro_cmd_param *param);
@@ -164,6 +165,7 @@ struct hantro_enc_device {
 	wait_queue_head_t enc_done;
 	struct semaphore shared_resource_sem;
 	struct file *filp;
+	bool keep_runtime_on_during_open;
 
 	dev_t devt;
 	struct cdev cdev;
@@ -647,7 +649,6 @@ static void hantro_enc_release_core(struct hantro_enc_core *core, struct file *f
 
 		}
 
-		pm_runtime_mark_last_busy(core->dev->dev);
 		pm_runtime_put_autosuspend(core->dev->dev);
 
 		wake_up_interruptible_all(&core->dev->hw_queue);
@@ -961,8 +962,16 @@ static int hantro_enc_read_regs(struct hantro_enc_device *encoder,
 static int hantro_enc_open(struct inode *inode, struct file *filp)
 {
 	struct hantro_enc_device *encoder;
+	int ret;
 
 	encoder = container_of(inode->i_cdev, struct hantro_enc_device, cdev);
+
+	if (encoder->keep_runtime_on_during_open) {
+		ret = pm_runtime_resume_and_get(encoder->dev);
+		if (ret)
+			return ret;
+	}
+
 	filp->private_data = encoder;
 
 	return 0;
@@ -973,6 +982,9 @@ static int hantro_enc_release(struct inode *inode, struct file *filp)
 	struct hantro_enc_device *encoder = filp->private_data;
 
 	hantro_enc_release_encoder(encoder, filp, encoder->cores_mask);
+
+	if (encoder->keep_runtime_on_during_open)
+		pm_runtime_put_autosuspend(encoder->dev);
 
 	return 0;
 }
@@ -1307,7 +1319,6 @@ static int hantro_enc_init_cores(struct hantro_enc_device *encoder)
 		num_cores++;
 	}
 
-	pm_runtime_mark_last_busy(encoder->dev);
 	pm_runtime_put_autosuspend(encoder->dev);
 
 	if (!num_cores)
@@ -1406,6 +1417,7 @@ static int hantro_enc_probe(struct platform_device *pdev)
 
 	encoder->dev = &pdev->dev;
 	encoder->resource = resource;
+	encoder->keep_runtime_on_during_open = resource->keep_runtime_on;
 	sema_init(&encoder->shared_resource_sem, 1);
 	init_waitqueue_head(&encoder->hw_queue);
 	init_waitqueue_head(&encoder->enc_done);
@@ -1579,6 +1591,7 @@ static struct hantro_enc_resource hantro_vc8000e_id = {
 	.reg_enable = 0x14,
 	.reg_irq = 0x4,
 	.resource_shared_inter_cores = false,
+	.keep_runtime_on = true,
 	.get_cmd_id = hantro_enc_get_cmd_id_vc8000e,
 	.get_cmd_param = hantro_enc_get_cmd_param_vc8000e,
 	.put_cmd_result = hantro_enc_put_cmd_result_vc8000e,

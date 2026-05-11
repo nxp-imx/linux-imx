@@ -136,8 +136,20 @@ config FSL_DPAA_INGRESS_CS_THRESHOLD
 	depends on FSL_SDK_DPAA_ETH
 	default "0x10000000"
 	help
-	  The size in bytes of the ingress tail-drop threshold on FMan ports.
-	  Traffic piling up above this value will be rejected by QMan and discarded by FMan.
+	  The size in bytes of the ingress tail-drop threshold on FMan ports,
+	  excluding high priority PCD queues. Traffic piling up above this
+	  value will be rejected by QMan and discarded by FMan. The default
+	  value likely needs to be customized in order to trigger.
+
+config FSL_DPAA_INGRESS_HI_PRIO_CS_THRESHOLD
+	hex "Ingress congestion threshold on FMan port high priority RX PCD queues"
+	depends on FSL_SDK_DPAA_ETH
+	default "0x10000000"
+	help
+	  The size in bytes of the tail-drop threshold on all high priority RX
+	  PCD queues of an FMan port. Traffic piling up above this value will
+	  be rejected by QMan and discarded by FMan. The default value likely
+	  needs to be customized in order to trigger.
 
 config FSL_DPAA_ETH_DEBUGFS
 	bool "DPAA Ethernet debugfs interface"

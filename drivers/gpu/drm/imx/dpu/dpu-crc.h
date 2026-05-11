@@ -58,16 +58,18 @@ void dpu_crtc_disable_crc_source(struct drm_crtc *crtc, bool dual_crc);
 #else
 #define dpu_crtc_verify_crc_source NULL
 #define dpu_crtc_set_crc_source	NULL
-irqreturn_t dpu_crc_valid_irq_threaded_handler(int irq, void *dev_id)
+static inline irqreturn_t dpu_crc_valid_irq_threaded_handler(int irq,
+							     void *dev_id)
 {
 	return IRQ_HANDLED;
 }
-void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
-				enum dpu_crc_source source,
-				struct drm_rect *roi)
+static inline void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
+					      enum dpu_crc_source source,
+					      struct drm_rect *roi)
 {
 }
-void dpu_crtc_disable_crc_source(struct drm_crtc *crtc, bool dual_crc)
+static inline void dpu_crtc_disable_crc_source(struct drm_crtc *crtc,
+					       bool dual_crc)
 {
 }
 #endif

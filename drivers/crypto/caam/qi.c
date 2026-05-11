@@ -239,7 +239,7 @@ static int empty_retired_fq(struct device *qidev, struct qman_fq *fq)
 		struct qman_portal *p;
 
 		p = qman_get_affine_portal(smp_processor_id());
-		qman_p_poll_dqrr(p, 16);
+		qman_p_poll_dqrr(p, 16, NULL);
 	} while (fq->flags & QMAN_FQ_STATE_NE);
 
 	return 0;
@@ -484,8 +484,7 @@ EXPORT_SYMBOL(qi_cache_free);
 static int caam_qi_poll(struct napi_struct *napi, int budget)
 {
 	struct caam_napi *np = container_of(napi, struct caam_napi, irqtask);
-
-	int cleaned = qman_p_poll_dqrr(np->p, budget);
+	int cleaned = qman_p_poll_dqrr(np->p, budget, napi);
 
 	if (cleaned < budget) {
 		napi_complete(napi);
@@ -550,14 +549,10 @@ static void cgr_cb(struct qman_portal *qm, struct qman_cgr *cgr, int congested)
 	}
 }
 
-static int caam_qi_napi_schedule(struct qman_portal *p, struct caam_napi *np)
+static int caam_qi_napi_schedule(struct qman_portal *p, struct caam_napi *np,
+				 bool sched_napi)
 {
-	/*
-	 * In case of threaded ISR, for RT kernels in_irq() does not return
-	 * appropriate value, so use in_serving_softirq to distinguish between
-	 * softirq and irq contexts.
-	 */
-	if (unlikely(in_irq() || !in_serving_softirq())) {
+	if (unlikely(sched_napi)) {
 		/* Disable QMan IRQ source and invoke NAPI */
 		qman_p_irqsource_remove(p, QM_PIRQ_DQRI);
 		np->p = p;
@@ -569,7 +564,9 @@ static int caam_qi_napi_schedule(struct qman_portal *p, struct caam_napi *np)
 
 static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
 						    struct qman_fq *rsp_fq,
-						    const struct qm_dqrr_entry *dqrr)
+						    const struct qm_dqrr_entry *dqrr,
+						    bool sched_napi,
+						    struct qman_poll_ctx *ctx)
 {
 	struct caam_napi *caam_napi = raw_cpu_ptr(&pcpu_qipriv.caam_napi);
 	struct caam_drv_req *drv_req;
@@ -577,7 +574,7 @@ static enum qman_cb_dqrr_result caam_rsp_fq_dqrr_cb(struct qman_portal *p,
 	struct device *qidev = &(raw_cpu_ptr(&pcpu_qipriv)->net_dev->dev);
 	struct caam_drv_private *priv = dev_get_drvdata(qidev);
 
-	if (caam_qi_napi_schedule(p, caam_napi))
+	if (caam_qi_napi_schedule(p, caam_napi, sched_napi))
 		return qman_cb_dqrr_stop;
 
 	fd = &dqrr->fd;

@@ -1256,8 +1256,8 @@
 			clocks = <&scmi_clk IMX952_CLK_BUSWAKEUP>,
 				 <&scmi_clk IMX952_CLK_BUSWAKEUP>;
 			clock-names = "gpio", "port";
-			gpio-ranges = <&scmi_iomuxc 0 103 12>, <&scmi_iomuxc 12 36 6>;
-			ngpios = <18>;
+			gpio-ranges = <&scmi_iomuxc 0 103 12>, <&scmi_iomuxc 12 36 9>;
+			ngpios = <21>;
 		};
 
 		aips1: bus@44000000 {
@@ -1756,9 +1756,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad30000 0x0 0x10000>;
 			interrupts = <GIC_SPI 374 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR0>,
-				 <&scmi_clk IMX952_CLK_CGC_CAMCSI0>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX952_CLK_CGC_CAMCSI0>;
+			clock-names = "per";
 			phys = <&dphy_rx_0>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;
@@ -1782,9 +1781,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad40000 0x0 0x10000>;
 			interrupts = <GIC_SPI 375 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX952_CLK_CAMBLK_CSI2_FOR1>,
-				 <&scmi_clk IMX952_CLK_CGC_CAMCSI1>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX952_CLK_CGC_CAMCSI1>;
+			clock-names = "per";
 			phys = <&dphy_rx_1>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX952_PD_CAMERA>;

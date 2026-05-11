@@ -427,6 +427,8 @@ int enetc_phylink_create(struct enetc_ndev_priv *priv,
 		  pf->phylink_config.supported_interfaces);
 
 	if (!enetc_is_pseudo_mac(priv->si)) {
+		__set_bit(PHY_INTERFACE_MODE_RMII,
+			  pf->phylink_config.supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_SGMII,
 			  pf->phylink_config.supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_1000BASEX,

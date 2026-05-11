@@ -197,7 +197,7 @@ static int mxc_isi_create_default_routing(struct mxc_isi_crossbar *xbar,
 
 		of_graph_parse_endpoint(node, &ep);
 
-		if (ep.port > xbar->isi->pdata->num_ports) {
+		if (ep.port >= xbar->isi->pdata->num_ports) {
 			dev_err(dev, "Invalid port number(%d)\n", ep.port);
 			return -EINVAL;
 		}
@@ -207,22 +207,32 @@ static int mxc_isi_create_default_routing(struct mxc_isi_crossbar *xbar,
 
 	for (i = 0; i < xbar->num_sources; ++i) {
 		struct v4l2_subdev_route *route = &routes[i];
+		unsigned int checked = 0;
+		bool found = false;
 
-		j = index;
-		while (j < xbar->num_sinks) {
-			if (!xbar->inputs[j].connected) {
-				j = (++index) % xbar->num_sinks;
-				continue;
+		while (checked < xbar->num_sinks) {
+			j = (index + checked) % xbar->num_sinks;
+
+			if (xbar->inputs[j].connected) {
+				route->sink_pad = j;
+				route->source_pad = i + xbar->num_sinks;
+				route->flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE;
+
+				index = (j + 1) % xbar->num_sinks;
+				dev_dbg(dev, "route: sink(%d) -> source(%d)\n",
+					route->sink_pad, route->source_pad);
+
+				found = true;
+				break;
+
 			}
 
-			route->sink_pad = j;
-			route->source_pad = i + xbar->num_sinks;
-			route->flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE;
+			checked++;
+		}
 
-			index = (j + 1) % xbar->num_sinks;
-			dev_dbg(dev, "route: sink(%d) -> source(%d)\n",
-				route->sink_pad, route->source_pad);
-			break;
+		if (!found) {
+			dev_err(dev, "No connected sink found for source %d\n", i);
+			return -ENODEV;
 		}
 	}
 

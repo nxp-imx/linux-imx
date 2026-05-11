@@ -296,7 +296,7 @@ struct dpa_napi_portal {
 
 struct dpa_percpu_priv_s {
 	struct net_device *net_dev;
-	struct dpa_napi_portal *np;
+	struct dpa_napi_portal np;
 	u64 in_interrupt;
 	u64 tx_returned;
 	u64 tx_confirm;
@@ -357,6 +357,7 @@ struct dpa_priv_s {
 	/* Use a per-port CGR for ingress traffic. */
 	bool use_ingress_cgr;
 	struct qman_cgr ingress_cgr;
+	struct qman_cgr ingress_cgr_hi_prio;
 
 #ifdef CONFIG_FSL_DPAA_TS
 	bool ts_tx_en; /* Tx timestamping enabled */
@@ -399,7 +400,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		struct dpa_percpu_priv_s *percpu_priv,
 		const struct qm_fd *fd,
 		u32 fqid,
-		int *count_ptr);
+		int *count_ptr,
+		struct qman_poll_ctx *ctx);
 int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev);
 int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 		struct qman_fq *egress_fq, struct qman_fq *conf_fq);
@@ -438,26 +440,17 @@ int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 	struct sk_buff *skb, struct qm_fd *fd, char *parse_results);
 
 static inline int dpaa_eth_napi_schedule(struct dpa_percpu_priv_s *percpu_priv,
-			struct qman_portal *portal)
+					 struct qman_portal *portal,
+					 bool sched_napi)
 {
-	/* In case of threaded ISR for RT enable kernel,
-	 * in_irq() does not return appropriate value, so use
-	 * in_serving_softirq to distinguish softirq or irq context.
-	 */
-	if (unlikely(in_irq() || !in_serving_softirq())) {
+	if (sched_napi) {
 		/* Disable QMan IRQ and invoke NAPI */
-		int ret = qman_p_irqsource_remove(portal, QM_PIRQ_DQRI);
-		if (likely(!ret)) {
-			const struct qman_portal_config *pc =
-					qman_p_get_portal_config(portal);
-			struct dpa_napi_portal *np =
-					&percpu_priv->np[pc->index];
+		qman_p_irqsource_remove(portal, QM_PIRQ_DQRI);
 
-			np->p = portal;
-			napi_schedule(&np->napi);
-			percpu_priv->in_interrupt++;
-			return 1;
-		}
+		percpu_priv->np.p = portal;
+		napi_schedule(&percpu_priv->np.napi);
+		percpu_priv->in_interrupt++;
+		return 1;
 	}
 	return 0;
 }

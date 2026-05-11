@@ -417,10 +417,8 @@ static void hantro_dec_put_core(struct hantro_dec_core *core, struct file *filp,
 			}
 		}
 	}
-	if (flag && poweroff) {
-		pm_runtime_mark_last_busy(core->dev);
+	if (flag && poweroff)
 		pm_runtime_put_autosuspend(core->dev);
-	}
 
 	wake_up_interruptible_all(&iface->hw_queue);
 }
@@ -909,12 +907,10 @@ static int hantro_dec_pause(struct hantro_dec_core *core)
 
 	ret = read_poll_timeout(hantro_dec_is_ready_to_sleep, data, data, 10,
 				HANTRO_DEC_TIMEOUT_MS * USEC_PER_MSEC, false, core);
-	if (ret) {
+	if (ret)
 		dev_err(core->dev, "wait core[%d] done timeout, status %d, %d, %d, 0x%x\n",
 			core->id, core->is_reserved, core->is_enabled,
 			core->irq_received, core->irq_status);
-		return -EINVAL;
-	}
 
 	dev_dbg(core->dev, "suspend, irq_status = 0x%x\n", core->irq_status);
 
@@ -1291,7 +1287,6 @@ static int hantro_dec_init_core(struct hantro_dec_core *core)
 
 	hantro_dec_create_debugfs(core);
 exit:
-	pm_runtime_mark_last_busy(core->dev);
 	pm_runtime_put_autosuspend(core->dev);
 	if (ret) {
 		if (core->mirror_regs) {

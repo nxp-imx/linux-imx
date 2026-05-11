@@ -188,6 +188,7 @@ int dpa_get_channel(void);
 void dpa_release_channel(void);
 void dpaa_eth_add_channel(u16 channel);
 int dpaa_eth_cgr_init(struct dpa_priv_s *priv);
+void dpa_destroy_cgr(struct qman_cgr *cgr);
 void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 		struct fm_port *tx_port);
 int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable);

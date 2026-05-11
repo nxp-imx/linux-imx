@@ -3217,10 +3217,11 @@ static struct dpaa_bp *dpaa_bp_alloc(struct device *dev)
 	return dpaa_bp;
 }
 
-/* Place all ingress FQs (Rx Default, Rx Error) in a dedicated CGR.
- * We won't be sending congestion notifications to FMan; for now, we just use
- * this CGR to generate enqueue rejections to FMan in order to drop the frames
- * before they reach our ingress queues and eat up memory.
+/* Place all ingress FQs in two dedicated CGR: one for Rx Default, Rx Error and
+ * Rx PCD, and the other for Rx high priority PCD. We won't be sending
+ * congestion notifications to FMan; for now, we just use this CGR to generate
+ * enqueue rejections to FMan in order to drop the frames before they reach our
+ * ingress queues and eat up memory.
  */
 static int dpaa_ingress_cgr_init(struct dpaa_priv *priv)
 {
