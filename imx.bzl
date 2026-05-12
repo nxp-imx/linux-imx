@@ -472,6 +472,7 @@ _IMX_IN_TREE_MODULES = [
     "drivers/rpmsg/imx_rpmsg_tty.ko",
     "drivers/rpmsg/imx_rpmsg.ko",
     "drivers/rpmsg/imx_rpmsg_pingpong.ko",
+    "drivers/net/phy/motorcomm.ko",
 ]
 
 def define_imx():
