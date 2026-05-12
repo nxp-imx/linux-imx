@@ -1135,9 +1135,11 @@
   genphy_c45_check_and_restart_aneg
   genphy_c45_fast_retrain
   genphy_c45_pma_read_abilities
+  genphy_c45_pma_read_ext_abilities
   genphy_c45_pma_resume
   genphy_c45_pma_setup_forced
   genphy_c45_pma_suspend
+  genphy_c45_read_lpa
   genphy_c45_read_status
   __genphy_config_aneg
   genphy_handle_interrupt_no_ack
@@ -1972,6 +1974,7 @@
   pfifo_qdisc_ops
   pfn_is_map_memory
   phy_attached_info
+  phy_basic_ports_array
   phy_basic_t1_features
   phy_configure
   phy_connect
