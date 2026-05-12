@@ -476,3 +476,25 @@
   tty_kopen_exclusive
   tty_set_ldisc
   tty_unlock
+  __tracepoint_block_io_start
+  __traceiter_block_io_start
+  __tracepoint_block_rq_issue
+  __traceiter_block_rq_issue
+  __tracepoint_block_rq_merge
+  __traceiter_block_rq_merge
+  __tracepoint_block_rq_requeue
+  __traceiter_block_rq_requeue
+  __traceiter_android_rvh_submit_bio_pre
+  __tracepoint_android_rvh_submit_bio_pre
+  __traceiter_android_rvh_submit_bio_post
+  __tracepoint_android_rvh_submit_bio_post
+  __tracepoint_android_vh_request_issue_err
+  __traceiter_android_vh_request_issue_err
+  blk_mq_queue_inflight
+  scsi_device_from_queue
+  blk_mq_quiesce_queue_nowait
+  blk_mq_unquiesce_queue
+  blk_mq_quiesce_tagset
+  blk_mq_unquiesce_tagset
+  __percpu_counter_compare
+  __percpu_counter_sum

@@ -457,8 +457,11 @@ static void reset_timer(struct idletimer_tg * const info_timer,
 
 		/* Stores the uid resposible for waking up the radio */
 		if (skb && (skb->sk)) {
-			info_timer->uid = from_kuid_munged(current_user_ns(),
-							   sk_uid(skb_to_full_sk(skb)));
+			struct sock *full_sk = skb_to_full_sk(skb);
+
+			if (full_sk)
+				info_timer->uid = from_kuid_munged(current_user_ns(),
+								   sk_uid(full_sk));
 		}
 
 		/* checks if there is a pending inactive notification*/

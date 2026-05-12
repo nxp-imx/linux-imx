@@ -7,7 +7,8 @@
 #ifdef CONFIG_BPF_LIRC_MODE2
 int lirc_prog_attach(const union bpf_attr *attr, struct bpf_prog *prog);
 int lirc_prog_detach(const union bpf_attr *attr);
-int lirc_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr);
+int lirc_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
+		    u32 uattr_size);
 #else
 static inline int lirc_prog_attach(const union bpf_attr *attr,
 				   struct bpf_prog *prog)
@@ -21,7 +22,8 @@ static inline int lirc_prog_detach(const union bpf_attr *attr)
 }
 
 static inline int lirc_prog_query(const union bpf_attr *attr,
-				  union bpf_attr __user *uattr)
+				  union bpf_attr __user *uattr,
+				  u32 uattr_size)
 {
 	return -EINVAL;
 }

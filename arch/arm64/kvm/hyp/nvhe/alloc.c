@@ -645,6 +645,7 @@ void hyp_free(void *addr)
 	prev_chunk = chunk_get_prev(chunk, allocator);
 	next_chunk = chunk_get_next(chunk, allocator);
 
+	WARN_ON(!chunk->alloc_size);
 	chunk->alloc_size = 0;
 	chunk_hash_update(chunk);
 

@@ -15,6 +15,10 @@ DECLARE_HOOK(android_vh_allow_domain_state,
 	TP_PROTO(struct generic_pm_domain *genpd, uint32_t idx, bool *allow),
 	TP_ARGS(genpd, idx, allow))
 
+DECLARE_HOOK(android_vh_cpu_domain_power_down_ok,
+	TP_PROTO(struct generic_pm_domain *genpd, bool *ret, bool *done),
+	TP_ARGS(genpd, ret, done))
+
 #endif /* _TRACE_HOOK_PM_DOMAIN_H */
 
 #include <trace/define_trace.h>

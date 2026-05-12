@@ -3288,11 +3288,16 @@ new_request:
 	if (bio_zone_write_plugging(bio))
 		blk_zone_write_plug_init_request(rq);
 
-	if (op_is_flush(bio->bi_opf) && blk_insert_flush(rq))
+	trace_android_rvh_submit_bio_pre(bio, rq);
+
+	if (op_is_flush(bio->bi_opf) && blk_insert_flush(rq)) {
+		trace_android_rvh_submit_bio_post(bio, rq);
 		return;
+	}
 
 	if (plug) {
 		blk_add_rq_to_plug(plug, rq);
+		trace_android_rvh_submit_bio_post(bio, rq);
 		return;
 	}
 
@@ -3305,6 +3310,8 @@ new_request:
 	} else {
 		blk_mq_run_dispatch_ops(q, blk_mq_try_issue_directly(hctx, rq));
 	}
+
+	trace_android_rvh_submit_bio_post(bio, rq);
 	return;
 
 queue_exit:
@@ -3374,8 +3381,10 @@ blk_status_t blk_insert_cloned_request(struct request *rq)
 	 */
 	blk_mq_run_dispatch_ops(q,
 			ret = blk_mq_request_issue_directly(rq, true));
-	if (ret)
+	if (ret) {
 		blk_account_io_done(rq, blk_time_get_ns());
+		trace_android_vh_request_issue_err(rq);
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(blk_insert_cloned_request);

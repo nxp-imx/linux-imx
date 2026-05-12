@@ -1611,6 +1611,8 @@
   is_vmalloc_addr
   isolate_and_split_free_page
   isolate_anon_lru_page
+  isolate_folio_to_list
+  isolate_movable_ops_page
   iterate_fd
   jiffies
   jiffies_to_msecs

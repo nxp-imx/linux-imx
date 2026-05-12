@@ -173,28 +173,15 @@ static struct hyp_page *__hyp_extract_page(struct hyp_pool *pool,
 static void __hyp_put_page(struct hyp_pool *pool, struct hyp_page *p)
 {
 	u64 free_pages;
-	u16 seen_refcount, old_refcount;
 
-	for (old_refcount = READ_ONCE(p->refcount); ; old_refcount = seen_refcount) {
-		WARN_ON(old_refcount == 0);
-		if (old_refcount == 1) {
-			/*
-			 * Acquire the pool lock before we drop the refcount to
-			 * zero, thus avoiding a race with __find_buddy_avail()
-			 * finding us before we initialise our in-page
-			 * list_head.
-			 */
-			hyp_spin_lock(&pool->lock);
-		}
-		seen_refcount = cmpxchg_relaxed(
-			&p->refcount, old_refcount, old_refcount-1);
-		if (seen_refcount == old_refcount)
-			break;
-		if (old_refcount == 1)
-			hyp_spin_unlock(&pool->lock);
-	}
-
-	if (old_refcount == 1) {
+	if (hyp_refcount_dec(p->refcount) == 1) {
+		/*
+		 * The page is now "pending free". The elevated reference count
+		 * prevents anyone from trying to buddy-merge before we have
+		 * initialised the in-page list_head under the pool lock.
+		 */
+		hyp_spin_lock(&pool->lock);
+		WRITE_ONCE(p->refcount, 0);
 		free_pages = pool->free_pages + (1ULL << p->order);
 		__hyp_attach_page(pool, p);
 		WRITE_ONCE(pool->free_pages, free_pages);
@@ -391,7 +378,7 @@ int hyp_pool_reclaim(struct hyp_pool *pool, struct hyp_page *p, u8 order, bool f
 	if (!force && !hyp_pool_can_reclaim(pool, p, order))
 		return -EINVAL;
 
-	WARN_ON(p->refcount != 1);
+	WARN_ON(p->refcount != HYP_PAGE_INIT_REFCOUNT);
 
 	hyp_spin_lock(&pool->lock);
 	for (i = 0; i < nr_pages; i++) {

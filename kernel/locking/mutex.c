@@ -739,6 +739,7 @@ __mutex_lock_common(struct mutex *lock, unsigned int state, unsigned int subclas
 			raw_spin_lock_irqsave(&lock->wait_lock, flags);
 			raw_spin_lock(&current->blocked_lock);
 			__set_task_blocked_on(current, lock, BO_T_MUTEX);
+			set_current_state(state);
 
 			if (opt_acquired)
 				break;

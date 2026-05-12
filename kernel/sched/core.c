@@ -7782,6 +7782,19 @@ static void __sched notrace __schedule(int sched_mode)
 		try_to_block_task(rq, prev, &prev_state,
 				  !task_is_blocked(prev));
 		switch_count = &prev->nvcsw;
+	} else if (preempt && prev->blocked_on.lock) {
+		/*
+		 * If we are SM_PREEMPT, we may have interrupted
+		 * after blocked_on was set, before schedule()
+		 * was run, preventing workques from running. So
+		 * clear blocked_on and mark task RUNNING so it
+		 * can be reselected to run and complete its
+		 * logic
+		 */
+		if (prev_state & TASK_NORMAL) {
+			WRITE_ONCE(prev->__state, TASK_RUNNING);
+			clear_task_blocked_on(prev, NULL);
+		}
 	}
 
 	prev_not_proxied = !prev->blocked_donor;

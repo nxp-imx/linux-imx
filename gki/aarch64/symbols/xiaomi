@@ -76,6 +76,10 @@
   __traceiter_android_vh_mm_direct_reclaim_exit
   __tracepoint_android_vh_mm_direct_reclaim_exit
 
+#required by thermal
+  __traceiter_android_vh_cpu_domain_power_down_ok
+  __tracepoint_android_vh_cpu_domain_power_down_ok
+
 #required by metis.ko module
   __traceiter_android_rvh_try_to_wake_up_begin
   __tracepoint_android_rvh_try_to_wake_up_begin
@@ -112,6 +116,8 @@
   __tracepoint_android_vh_mem_cgroup_charge
   __traceiter_android_rvh_swap_bio_charge
   __tracepoint_android_rvh_swap_bio_charge
+  __traceiter_android_rvh_swap_read_folio_bdev_sync
+  __tracepoint_android_rvh_swap_read_folio_bdev_sync
 
 # required by mi_kernel_monitor.ko
   __tracepoint_android_vh_swapin_start
@@ -183,6 +189,10 @@
   __tracepoint_android_vh_filemap_read_end
   __tracepoint_android_vh_force_page_cache_ra
   __tracepoint_android_vh_page_cache_ra_unbounded
+
+#required by mi_mempool.ko
+  __traceiter_android_vh_alloc_pages_failure_bypass
+  __tracepoint_android_vh_alloc_pages_failure_bypass
 
 # low lat mem
  __tracepoint_android_vh_compact_bypass
@@ -259,6 +269,7 @@
  scsi_scan_host
  __scsi_add_device
  scsi_remove_device
+ __scsi_register_driver
  blk_pm_runtime_init
  scsi_device_quiesce
  scsi_print_sense_hdr
@@ -280,3 +291,5 @@
  blk_mq_alloc_queue
  scsi_host_busy
  dev_pm_opp_find_freq_ceil_indexed
+ __tracepoint_android_rvh_ufs_complete_init
+ __traceiter_android_rvh_ufs_complete_init

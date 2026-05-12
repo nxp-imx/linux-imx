@@ -28,6 +28,7 @@ load(
     "kernel_build",
     "kernel_compile_commands",
     "kernel_kythe",
+    "kernel_module_group",
     "kernel_modules_install",
     "merge_kzip",
     "merged_kernel_uapi_headers",
@@ -208,6 +209,7 @@ filegroup(
         # keep sorted
         "gki/aarch64/symbols/allwinner",
         "gki/aarch64/symbols/db845c",
+        "gki/aarch64/symbols/desktop",
         "gki/aarch64/symbols/exynos",
         "gki/aarch64/symbols/exynosauto",
         "gki/aarch64/symbols/fips140",
@@ -224,6 +226,7 @@ filegroup(
         "gki/aarch64/symbols/unisoc",
         "gki/aarch64/symbols/virtual_device",
         "gki/aarch64/symbols/vivo",
+        "gki/aarch64/symbols/wonder",
         "gki/aarch64/symbols/xiaomi",
     ],
     visibility = ["//visibility:public"],
@@ -618,6 +621,57 @@ pkg_install(
     name = "kernel_x86_64_crashdump_dist",
     srcs = ["kernel_x86_64_crashdump_dist_files"],
     destdir = "out/kernel_x86_64_crashdump/dist",
+)
+
+kernel_build(
+    name = "wonder_aarch64",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    collect_unstripped_modules = True,
+    kmi_symbol_list = "gki/aarch64/symbols/wonder",
+    make_goals = ["modules"],
+    makefile = ":Makefile",
+    module_outs = [
+        "net/mac80211/mac80211.ko",
+        "net/wireless/cfg80211.ko",
+    ],
+    pre_defconfig_fragments = ["arch/arm64/configs/wonder.fragment"],
+    strip_modules = True,
+)
+
+kernel_module_group(
+    name = "wonder_ddk_modules",
+    srcs = ["//common-modules/wonder"],
+)
+
+kernel_abi(
+    name = "wonder_aarch64_abi",
+    kernel_build = ":wonder_aarch64",
+    kernel_modules = [":wonder_ddk_modules"],
+)
+
+kernel_modules_install(
+    name = "wonder_aarch64_modules_install",
+    kernel_build = ":wonder_aarch64",
+    kernel_modules = [":wonder_ddk_modules"],
+)
+
+pkg_files(
+    name = "wonder_aarch64_dist_files",
+    srcs = [
+        ":kernel_aarch64",
+        ":kernel_aarch64_additional_artifacts",
+        ":wonder_aarch64",
+        ":wonder_aarch64_modules_install",
+    ],
+    strip_prefix = strip_prefix.files_only(),
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
+    name = "wonder_aarch64_dist",
+    srcs = [":wonder_aarch64_dist_files"],
+    destdir = "out/wonder_aarch64/dist",
 )
 
 _DB845C_MODULE_OUTS = [

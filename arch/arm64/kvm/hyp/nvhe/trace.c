@@ -448,6 +448,7 @@ static int rb_cpu_init(struct rb_page_desc *pdesc, struct hyp_rb_per_cpu *cpu_bu
 				 ((void *)cpu_buffer->meta) + PAGE_SIZE);
 	if (ret) {
 		hyp_free(cpu_buffer->bpages);
+		cpu_buffer->bpages = NULL;
 		return ret;
 	}
 

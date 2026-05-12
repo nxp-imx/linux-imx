@@ -589,6 +589,17 @@ static void swap_read_folio_bdev_sync(struct folio *folio,
 {
 	struct bio_vec bv;
 	struct bio bio;
+	bool read = false;
+
+	trace_android_rvh_swap_read_folio_bdev_sync(sis->bdev,
+		swap_folio_sector(folio) + get_start_sect(sis->bdev),
+		&folio->page, &read);
+	if (read) {
+		count_mthp_stat(folio_order(folio), MTHP_STAT_SWPIN);
+		count_memcg_folio_events(folio, PSWPIN, folio_nr_pages(folio));
+		count_vm_events(PSWPIN, folio_nr_pages(folio));
+		return;
+	}
 
 	bio_init(&bio, sis->bdev, &bv, 1, REQ_OP_READ);
 	bio.bi_iter.bi_sector = swap_folio_sector(folio);

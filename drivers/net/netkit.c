@@ -597,7 +597,8 @@ out:
 	return ret;
 }
 
-int netkit_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr)
+int netkit_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
+		      u32 uattr_size)
 {
 	struct net_device *dev;
 	int ret;
@@ -610,7 +611,7 @@ int netkit_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr)
 		ret = PTR_ERR(dev);
 		goto out;
 	}
-	ret = bpf_mprog_query(attr, uattr, netkit_entry_fetch(dev, false));
+	ret = bpf_mprog_query(attr, uattr, uattr_size, netkit_entry_fetch(dev, false));
 out:
 	rtnl_unlock();
 	return ret;

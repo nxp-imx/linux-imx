@@ -1553,7 +1553,7 @@ static int sock_map_prog_update(struct bpf_map *map, struct bpf_prog *prog,
 }
 
 int sock_map_bpf_prog_query(const union bpf_attr *attr,
-			    union bpf_attr __user *uattr)
+			    union bpf_attr __user *uattr, u32 uattr_size)
 {
 	__u32 __user *prog_ids = u64_to_user_ptr(attr->query.prog_ids);
 	u32 prog_cnt = 0, flags = 0;

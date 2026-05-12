@@ -185,6 +185,7 @@ out_putfolio:
 out:
 	return false;
 }
+EXPORT_SYMBOL_GPL(isolate_movable_ops_page);
 
 /**
  * putback_movable_ops_page - putback an isolated movable_ops page
@@ -299,6 +300,7 @@ bool isolate_folio_to_list(struct folio *folio, struct list_head *list)
 	list_add(&folio->lru, list);
 	return true;
 }
+EXPORT_SYMBOL_GPL(isolate_folio_to_list);
 
 static bool try_to_map_unused_to_zeropage(struct page_vma_mapped_walk *pvmw,
 		struct folio *folio, pte_t old_pte, unsigned long idx)

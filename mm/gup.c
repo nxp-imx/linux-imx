@@ -476,11 +476,13 @@ EXPORT_SYMBOL_GPL(unpin_folios);
  * by including include/trace/hooks/mm.h, which will result to build-err.
  * So we create func: _trace_android_vh_mm_customize_longterm_pinnable.
  */
+#ifdef CONFIG_MIGRATION
 void _trace_android_vh_mm_customize_longterm_pinnable(struct folio *folio,
 		bool *is_longterm_pinnable)
 {
 	trace_android_vh_mm_customize_longterm_pinnable(folio, is_longterm_pinnable);
 }
+#endif
 
 /*
  * Set the MMF_HAS_PINNED if not set yet; after set it'll be there for the mm's

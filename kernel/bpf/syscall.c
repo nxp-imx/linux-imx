@@ -4610,7 +4610,7 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 #define BPF_PROG_QUERY_LAST_FIELD query.revision
 
 static int bpf_prog_query(const union bpf_attr *attr,
-			  union bpf_attr __user *uattr)
+			  union bpf_attr __user *uattr, u32 uattr_size)
 {
 	if (!bpf_net_capable())
 		return -EPERM;
@@ -4649,23 +4649,23 @@ static int bpf_prog_query(const union bpf_attr *attr,
 	case BPF_CGROUP_GETSOCKOPT:
 	case BPF_CGROUP_SETSOCKOPT:
 	case BPF_LSM_CGROUP:
-		return cgroup_bpf_prog_query(attr, uattr);
+		return cgroup_bpf_prog_query(attr, uattr, uattr_size);
 	case BPF_LIRC_MODE2:
-		return lirc_prog_query(attr, uattr);
+		return lirc_prog_query(attr, uattr, uattr_size);
 	case BPF_FLOW_DISSECTOR:
 	case BPF_SK_LOOKUP:
-		return netns_bpf_prog_query(attr, uattr);
+		return netns_bpf_prog_query(attr, uattr, uattr_size);
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
 	case BPF_SK_MSG_VERDICT:
 	case BPF_SK_SKB_VERDICT:
-		return sock_map_bpf_prog_query(attr, uattr);
+		return sock_map_bpf_prog_query(attr, uattr, uattr_size);
 	case BPF_TCX_INGRESS:
 	case BPF_TCX_EGRESS:
-		return tcx_prog_query(attr, uattr);
+		return tcx_prog_query(attr, uattr, uattr_size);
 	case BPF_NETKIT_PRIMARY:
 	case BPF_NETKIT_PEER:
-		return netkit_prog_query(attr, uattr);
+		return netkit_prog_query(attr, uattr, uattr_size);
 	default:
 		return -EINVAL;
 	}
@@ -6176,20 +6176,30 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		err = bpf_prog_detach(&attr);
 		break;
 	case BPF_PROG_QUERY:
-		err = bpf_prog_query(&attr, uattr.user);
+		if (size < offsetofend(union bpf_attr, query.prog_cnt))
+			return -EINVAL;
+		err = bpf_prog_query(&attr, uattr.user, size);
 		break;
 	case BPF_PROG_TEST_RUN:
+		if (size < offsetofend(union bpf_attr, test.duration))
+			return -EINVAL;
 		err = bpf_prog_test_run(&attr, uattr.user);
 		break;
 	case BPF_PROG_GET_NEXT_ID:
+		if (size < offsetofend(union bpf_attr, next_id))
+			return -EINVAL;
 		err = bpf_obj_get_next_id(&attr, uattr.user,
 					  &prog_idr, &prog_idr_lock);
 		break;
 	case BPF_MAP_GET_NEXT_ID:
+		if (size < offsetofend(union bpf_attr, next_id))
+			return -EINVAL;
 		err = bpf_obj_get_next_id(&attr, uattr.user,
 					  &map_idr, &map_idr_lock);
 		break;
 	case BPF_BTF_GET_NEXT_ID:
+		if (size < offsetofend(union bpf_attr, next_id))
+			return -EINVAL;
 		err = bpf_obj_get_next_id(&attr, uattr.user,
 					  &btf_idr, &btf_idr_lock);
 		break;
@@ -6200,6 +6210,8 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		err = bpf_map_get_fd_by_id(&attr);
 		break;
 	case BPF_OBJ_GET_INFO_BY_FD:
+		if (size < offsetofend(union bpf_attr, info.info_len))
+			return -EINVAL;
 		err = bpf_obj_get_info_by_fd(&attr, uattr.user);
 		break;
 	case BPF_RAW_TRACEPOINT_OPEN:
@@ -6212,22 +6224,32 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		err = bpf_btf_get_fd_by_id(&attr);
 		break;
 	case BPF_TASK_FD_QUERY:
+		if (size < offsetofend(union bpf_attr, task_fd_query.probe_addr))
+			return -EINVAL;
 		err = bpf_task_fd_query(&attr, uattr.user);
 		break;
 	case BPF_MAP_LOOKUP_AND_DELETE_ELEM:
 		err = map_lookup_and_delete_elem(&attr);
 		break;
 	case BPF_MAP_LOOKUP_BATCH:
+		if (size < offsetofend(union bpf_attr, batch.flags))
+			return -EINVAL;
 		err = bpf_map_do_batch(&attr, uattr.user, BPF_MAP_LOOKUP_BATCH);
 		break;
 	case BPF_MAP_LOOKUP_AND_DELETE_BATCH:
+		if (size < offsetofend(union bpf_attr, batch.flags))
+			return -EINVAL;
 		err = bpf_map_do_batch(&attr, uattr.user,
 				       BPF_MAP_LOOKUP_AND_DELETE_BATCH);
 		break;
 	case BPF_MAP_UPDATE_BATCH:
+		if (size < offsetofend(union bpf_attr, batch.flags))
+			return -EINVAL;
 		err = bpf_map_do_batch(&attr, uattr.user, BPF_MAP_UPDATE_BATCH);
 		break;
 	case BPF_MAP_DELETE_BATCH:
+		if (size < offsetofend(union bpf_attr, batch.flags))
+			return -EINVAL;
 		err = bpf_map_do_batch(&attr, uattr.user, BPF_MAP_DELETE_BATCH);
 		break;
 	case BPF_LINK_CREATE:
@@ -6240,6 +6262,8 @@ static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
 		err = bpf_link_get_fd_by_id(&attr);
 		break;
 	case BPF_LINK_GET_NEXT_ID:
+		if (size < offsetofend(union bpf_attr, next_id))
+			return -EINVAL;
 		err = bpf_obj_get_next_id(&attr, uattr.user,
 					  &link_idr, &link_idr_lock);
 		break;
@@ -6286,7 +6310,7 @@ static bool syscall_prog_is_valid_access(int off, int size,
 	return true;
 }
 
-BPF_CALL_3(bpf_sys_bpf, int, cmd, union bpf_attr *, attr, u32, attr_size)
+BPF_CALL_3(bpf_sys_bpf, int, cmd, union bpf_attr *, attr, u32, uattr_size)
 {
 	switch (cmd) {
 	case BPF_MAP_CREATE:
@@ -6302,7 +6326,7 @@ BPF_CALL_3(bpf_sys_bpf, int, cmd, union bpf_attr *, attr, u32, attr_size)
 	default:
 		return -EINVAL;
 	}
-	return __sys_bpf(cmd, KERNEL_BPFPTR(attr), attr_size);
+	return __sys_bpf(cmd, KERNEL_BPFPTR(attr), uattr_size);
 }
 
 

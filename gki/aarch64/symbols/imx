@@ -49,6 +49,7 @@
   __bitmap_clear
   __bitmap_complement
   __bitmap_equal
+  bitmap_find_next_zero_area_off
   bitmap_free
   bitmap_from_arr32
   __bitmap_or
@@ -350,6 +351,7 @@
   device_remove_software_node
   device_rename
   __device_reset
+  __device_set_driver_override
   device_set_node
   device_set_of_node_from_dev
   device_set_wakeup_capable
@@ -641,6 +643,7 @@
   dma_resv_iter_first
   dma_resv_iter_next
   dma_resv_reserve_fences
+  dma_resv_wait_timeout
   dma_set_coherent_mask
   dma_set_mask
   __dma_sync_sg_for_cpu
@@ -1117,6 +1120,7 @@
   generic_device_group
   generic_file_llseek
   generic_handle_domain_irq
+  generic_handle_domain_irq_safe
   generic_handle_irq
   generic_shutdown_super
   genlmsg_multicast_allns
@@ -1387,6 +1391,7 @@
   iommu_iova_to_phys
   __ioremap_prot
   iounmap
+  iov_iter_revert
   __iowrite32_copy_full
   __irq_alloc_descs
   __irq_alloc_domain_generic_chips
@@ -2360,14 +2365,19 @@
   round_jiffies
   round_jiffies_relative
   round_jiffies_up
+  rpmsg_chrdev_eptdev_destroy
+  rpmsg_class
   rpmsg_create_channel
   rpmsg_create_ept
+  rpmsg_destroy_ept
   rpmsg_find_device
+  rpmsg_poll
   rpmsg_register_device
   rpmsg_register_device_override
   rpmsg_release_channel
   rpmsg_send
   rpmsg_sendto
+  rpmsg_trysendto
   rpmsg_unregister_device
   rproc_add
   rproc_add_carveout
@@ -2845,13 +2855,24 @@
   tso_build_data
   tso_build_hdr
   tso_start
+  __tty_alloc_driver
+  tty_driver_kref_put
   tty_flip_buffer_push
   tty_get_frame_size
   __tty_insert_flip_string_flags
   tty_kref_put
+  tty_port_close
+  tty_port_destroy
+  tty_port_init
+  tty_port_install
+  tty_port_open
   tty_port_tty_get
+  tty_prepare_flip_string
+  tty_register_driver
+  tty_std_termios
   tty_termios_baud_rate
   tty_termios_encode_baud_rate
+  tty_unregister_driver
   typec_mux_get_drvdata
   typec_mux_register
   typec_mux_unregister
@@ -3168,6 +3189,7 @@
   vring_del_virtqueue
   vring_interrupt
   vring_new_virtqueue
+  vring_transport_features
   vscnprintf
   vsnprintf
   vsprintf
