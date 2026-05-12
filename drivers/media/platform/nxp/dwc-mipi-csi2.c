@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2023 NXP
+ * Copyright 2023, 2026 NXP
  *
  */
 
@@ -22,6 +22,7 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mc.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-device.h>
 
 /* MIPI CSI-2 Host Controller Registers Define */
 
@@ -1305,6 +1306,13 @@ static int dwc_csi_notify_bound(struct v4l2_async_notifier *notifier,
 {
 	struct dwc_csi_device *csidev = notifier_to_dwc_csi_device(notifier);
 	struct media_pad *sink = &csidev->sd.entity.pads[DWC_CSI2RX_PAD_SINK];
+
+	dev_info(csidev->dev, "%s: call v4l2_device_register_subdev_nodes\n", __func__);
+	int ret = v4l2_device_register_subdev_nodes(csidev->sd.v4l2_dev);
+	if (ret) {
+		dev_err(csidev->dev, "%s: v4l2_device_register_subdev_nodes failed, ret %d", __func__, ret);
+		return ret;
+	}
 
 	return v4l2_create_fwnode_links_to_pad(sd, sink, 0);
 }

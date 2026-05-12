@@ -1133,6 +1133,13 @@ static int imx8mq_mipi_csi_notify_bound(struct v4l2_async_notifier *notifier,
 	}
 	state->remote_pad = pad->index;
 
+	dev_info(state->dev, "%s: call v4l2_device_register_subdev_nodes\n", __func__);
+	ret = v4l2_device_register_subdev_nodes(state->sd.v4l2_dev);
+	if (ret) {
+		dev_err(state->dev, "%s: v4l2_device_register_subdev_nodes failed, ret %d", __func__, ret);
+		return ret;
+	}
+
 	return 0;
 }
 
