@@ -55,9 +55,6 @@
 &ldb {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	assigned-clocks = <&scmi_clk IMX95_CLK_LDBPLL_VCO>,
-			  <&scmi_clk IMX95_CLK_LDBPLL>;
-	assigned-clock-rates = <2986200000>, <497700000>;
 	status = "okay";
 
 	channel@0 {

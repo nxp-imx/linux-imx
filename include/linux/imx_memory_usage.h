@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  */
 
 /*
@@ -25,6 +25,7 @@ void imx_mur_long_add(struct imx_mur_node *node, long val);
 void imx_mur_long_sub(struct imx_mur_node *node, long val);
 void imx_mur_long_new_and_add(struct imx_mur_node *node, long val, const char *label);
 void imx_mur_long_sub_and_del(struct imx_mur_node *node, long val);
+void imx_mur_long_sub_and_del_by_name(struct imx_mur_node *node, long val, const char *name);
 void imx_mur_long_set(struct imx_mur_node *node, long val);
 long imx_mur_long_read(struct imx_mur_node *node);
 struct v4l2_ctrl *imx_mur_new_v4l2_ctrl(struct v4l2_ctrl_handler *hdl, struct imx_mur_node *node);

@@ -1963,6 +1963,7 @@
 				reg = <0x20 0x100>;
 				clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR0>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
+				nxp,neoisp = <&neoisp0>;
 				status = "disabled";
 
 				ports {
@@ -1984,6 +1985,7 @@
 				reg = <0x120 0x100>;
 				clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR1>;
 				power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
+				nxp,neoisp = <&neoisp0>;
 				status = "disabled";
 
 				ports {
@@ -2242,9 +2244,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad30000 0x0 0x10000>;
 			interrupts = <GIC_SPI 374 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR0>,
-				 <&scmi_clk IMX95_CLK_CAMAPB>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;
+			clock-names = "per";
 			phys = <&dphy_rx>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
@@ -2268,9 +2269,8 @@
 			compatible = "snps,dw-mipi-csi2", "syscon";
 			reg = <0x0 0x4ad40000 0x0 0x10000>;
 			interrupts = <GIC_SPI 375 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_CSI2_FOR1>,
-				 <&scmi_clk IMX95_CLK_CAMAPB>;
-			clock-names = "per", "pixel";
+			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;
+			clock-names = "per";
 			phys = <&combo_rx>;
 			phy-names = "dphy-rx";
 			power-domains = <&scmi_devpd IMX95_PD_CAMERA>;
@@ -2330,14 +2330,11 @@
 		};
 
 		neoisp0: isp@4ae00000 {
-			compatible = "nxp,imx95-b0-neoisp";
-			#address-cells = <2>;
-			#size-cells = <2>;
+			compatible = "nxp,imx95-neoisp";
 			reg = <0x0 0x4ae00000 0x0 0x8000>,
 			      <0x0 0x4afe0000 0x0 0x10000>;
 			reg-names = "registers", "stats";
 			interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-parent = <&gic>;
 			clocks = <&cameramix_csr IMX95_CLK_CAMBLK_ISP_AXI>,
 				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP_PIXEL>,
 				 <&cameramix_csr IMX95_CLK_CAMBLK_ISP>;
@@ -2461,8 +2458,9 @@
 				clocks = <&lvds_csr IMX95_CLK_DISPMIX_PIX_DI0_GATE>,
 					 <&lvds_csr IMX95_CLK_DISPMIX_PIX_DI1_GATE>,
 					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH0_GATE>,
-					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH1_GATE>;
-				clock-names = "ldb_di0", "ldb_di1", "ldb_ch0", "ldb_ch1";
+					 <&lvds_csr IMX95_CLK_DISPMIX_LVDS_CH1_GATE>,
+					 <&scmi_clk IMX95_CLK_LDBPLL>;
+				clock-names = "ldb_di0", "ldb_di1", "ldb_ch0", "ldb_ch1", "ldb_pll";
 				status = "disabled";
 
 				channel@0 {
@@ -2827,7 +2825,7 @@
 			      <0 0x4c340000 0 0x4000>;
 			reg-names = "dbi", "config", "atu", "app";
 			ranges = <0x81000000 0x0 0x00000000 0x0 0x6ff00000 0 0x00100000>,
-				 <0x82000000 0x0 0x10000000 0x9 0x10000000 0 0x10000000>;
+				 <0x82000000 0x0 0x10000000 0x9 0x10000000 0 0x80000000>;
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";
@@ -2907,7 +2905,7 @@
 			      <0 0x4c3c0000 0 0x4000>;
 			reg-names = "dbi", "config", "atu", "app";
 			ranges = <0x81000000 0 0x00000000 0x8 0x8ff00000 0 0x00100000>,
-				 <0x82000000 0 0x10000000 0xa 0x10000000 0 0x10000000>;
+				 <0x82000000 0 0x10000000 0xa 0x10000000 0 0x80000000>;
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";

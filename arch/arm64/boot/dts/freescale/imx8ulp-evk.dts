@@ -228,10 +228,17 @@
 		fsl,rpmsg-in;
 		audio-codec = <&wm8960>;
 		memory-region = <&audio_reserved>;
+		hp-det-gpios = <&rpmsg_gpiob 14 GPIO_ACTIVE_HIGH>;
 		audio-routing =
-			"LINPUT1", "MICB",
-			"LINPUT3", "MICB";
-		status = "okay";
+			"Headphone Jack", "HP_L",
+			"Headphone Jack", "HP_R",
+			"Ext Spk", "SPK_LP",
+			"Ext Spk", "SPK_LN",
+			"Ext Spk", "SPK_RP",
+			"Ext Spk", "SPK_RN",
+			"Main MIC", "MICB",
+			"LINPUT1", "Main MIC",
+			"LINPUT3", "Main MIC";
 	};
 
 	rpmsg_micfil: rpmsg_micfil {

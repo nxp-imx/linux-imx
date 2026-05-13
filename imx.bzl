@@ -5,8 +5,8 @@ load(
 )
 
 _IMX_EXT_MODULES = [
-    "//nxp-mwifiex:mwifiex_modules",
-    "//verisilicon_sw_isp_vvcam/vvcam:vvcam_modules",
+    "//nxp-mwifiex:mwifiex_modules_imx",
+    "//verisilicon_sw_isp_vvcam/vvcam:vvcam_modules_imx",
 ]
 
 _IMX_IN_TREE_MODULES = [
@@ -86,7 +86,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/mtd/parsers/ofpart.ko",
     "drivers/net/ethernet/freescale/fec.ko",
     "drivers/iio/imu/st_lsm6dsx/st_lsm6dsx_i3c.ko",
-    "sound/soc/codecs/snd-soc-rpmsg-wm8960.ko",
     "drivers/usb/chipidea/ci_hdrc.ko",
     "drivers/leds/leds-gpio.ko",
     "drivers/i2c/busses/i2c-imx.ko",
@@ -147,7 +146,6 @@ _IMX_IN_TREE_MODULES = [
     "drivers/gpu/drm/imx/imx8mp-hdmi-pavi.ko",
     "drivers/perf/fsl_imx8_ddr_perf.ko",
     "drivers/spi/spi-fsl-qspi.ko",
-    "sound/soc/codecs/snd-soc-rpmsg-ak4497.ko",
     "drivers/power/supply/dummy_battery.ko",
     "drivers/gpu/drm/mxsfb/imx-lcdif.ko",
     "sound/soc/fsl/snd-soc-fsl-esai.ko",
@@ -456,6 +454,25 @@ _IMX_IN_TREE_MODULES = [
     "drivers/gpu/drm/clients/drm_client_lib.ko",
     "drivers/firmware/imx/disp-mu.ko",
     "drivers/i3c/master/svc-i3c-master.ko",
+    "drivers/spi/spi-nxp-xspi.ko",
+    "drivers/gpu/drm/bridge/imx/imx952-mipi-dsi2.ko",
+    "drivers/mxc/vpu/coda980/coda.ko",
+    "drivers/mxc/vpu/wave511/wave5-ctrl.ko",
+    "drivers/remoteproc/imx_cm0p_rproc.ko",
+    "drivers/mxc/vpu/wave511/wave5.ko",
+    "drivers/video/backlight/gpio_backlight.ko",
+    "drivers/gpu/drm/bridge/synopsys/dw-mipi-dsi2.ko",
+    "drivers/gpio/gpio-pi4ioe5v6408.ko",
+    "drivers/mux/mux-gpio.ko",
+    "drivers/phy/freescale/phy-fsl-imx952-mipi-dphy.ko",
+    "drivers/uio/uio_prime.ko",
+    "drivers/uio/atu.ko",
+    "drivers/media/v4l2-core/v4l2-isp.ko",
+    "drivers/rpmsg/imx_rpmsg_chre.ko",
+    "drivers/rpmsg/imx_rpmsg_tty.ko",
+    "drivers/rpmsg/imx_rpmsg.ko",
+    "drivers/rpmsg/imx_rpmsg_pingpong.ko",
+    "drivers/net/phy/motorcomm.ko",
 ]
 
 def define_imx():
@@ -466,8 +483,8 @@ def define_imx():
         module_outs = _IMX_IN_TREE_MODULES,
         kbuild_symtypes="true",
         makefile = ":Makefile",
-        kmi_symbol_list = "//common:gki/aarch64/symbols/imx",
-        base_kernel = "//common:kernel_aarch64",
+        kmi_symbol_list = "//kernel_imx:gki/aarch64/symbols/imx",
+        base_kernel = "//kernel_imx:kernel_aarch64",
         make_goals = [
           "Image",
           "modules",

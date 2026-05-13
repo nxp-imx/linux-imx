@@ -36,6 +36,14 @@
 extern "C" {
 #endif
 
+struct qman_poll_ctx;
+struct napi_struct;
+struct sk_buff;
+
+void qman_portal_napi_gro_receive(struct qman_poll_ctx *ctx,
+				  struct napi_struct *napi,
+				  struct sk_buff *skb);
+
 /* Last updated for v00.800 of the BG */
 
 /* Hardware constants */
@@ -1904,17 +1912,20 @@ enum qman_cb_dqrr_result {
 	 * DCA via EQCR entries. */
 	qman_cb_dqrr_defer,
 	/* Stop processing without consuming this ring entry. Exits the current
-	 * qman_poll_dqrr() or interrupt-handling, as appropriate. If within an
-	 * interrupt handler, the callback would typically call
+	 * qman_p_poll_dqrr() or interrupt-handling, as appropriate. If within
+	 * an interrupt handler, the callback would typically call
 	 * qman_irqsource_remove(QM_PIRQ_DQRI) before returning this value,
 	 * otherwise the interrupt will reassert immediately. */
 	qman_cb_dqrr_stop,
 	/* Like qman_cb_dqrr_stop, but consumes the current entry. */
 	qman_cb_dqrr_consume_stop
 };
+
 typedef enum qman_cb_dqrr_result (*qman_cb_dqrr)(struct qman_portal *qm,
-					struct qman_fq *fq,
-					const struct qm_dqrr_entry *dqrr);
+						 struct qman_fq *fq,
+						 const struct qm_dqrr_entry *dqrr,
+						 bool sched_napi,
+						 struct qman_poll_ctx *ctx);
 
 /* This callback type is used when handling ERNs, FQRNs and FQRLs via MR. They
  * are always consumed after the callback returns. */
@@ -2079,19 +2090,6 @@ struct qman_cgr {
 const struct qman_portal_config *qman_get_portal_config(void);
 
 /**
- * qman_irqsource_get - return the portal work that is interrupt-driven
- *
- * Returns a bitmask of QM_PIRQ_**I processing sources that are currently
- * enabled for interrupt handling on the current cpu's affine portal. These
- * sources will trigger the portal interrupt and the interrupt handler (or a
- * tasklet/bottom-half it defers to) will perform the corresponding processing
- * work. The qman_poll_***() functions will only process sources that are not in
- * this bitmask. If the current CPU is sharing a portal hosted on another CPU,
- * this always returns zero.
- */
-u32 qman_irqsource_get(void);
-
-/**
  * qman_irqsource_add - add processing sources to be interrupt-driven
  * @bits: bitmask of QM_PIRQ_**I processing sources
  *
@@ -2130,48 +2128,6 @@ u16 qman_affine_channel(unsigned int cpu);
  *
  */
 void *qman_get_affine_portal(int cpu);
-
-/**
- * qman_poll_dqrr - process DQRR (fast-path) entries
- * @limit: the maximum number of DQRR entries to process
- *
- * Use of this function requires that DQRR processing not be interrupt-driven.
- * Ie. the value returned by qman_irqsource_get() should not include
- * QM_PIRQ_DQRI. If the current CPU is sharing a portal hosted on another CPU,
- * this function will return -EINVAL, otherwise the return value is >=0 and
- * represents the number of DQRR entries processed.
- */
-int qman_poll_dqrr(unsigned int limit);
-
-/**
- * qman_poll_slow - process anything (except DQRR) that isn't interrupt-driven.
- *
- * This function does any portal processing that isn't interrupt-driven. If the
- * current CPU is sharing a portal hosted on another CPU, this function will
- * return (u32)-1, otherwise the return value is a bitmask of QM_PIRQ_* sources
- * indicating what interrupt sources were actually processed by the call.
- */
-u32 qman_poll_slow(void);
-
-/**
- * qman_poll - legacy wrapper for qman_poll_dqrr() and qman_poll_slow()
- *
- * Dispatcher logic on a cpu can use this to trigger any maintenance of the
- * affine portal. There are two classes of portal processing in question;
- * fast-path (which involves demuxing dequeue ring (DQRR) entries and tracking
- * enqueue ring (EQCR) consumption), and slow-path (which involves EQCR
- * thresholds, congestion state changes, etc). This function does whatever
- * processing is not triggered by interrupts.
- *
- * Note, if DQRR and some slow-path processing are poll-driven (rather than
- * interrupt-driven) then this function uses a heuristic to determine how often
- * to run slow-path processing - as slow-path processing introduces at least a
- * minimum latency each time it is run, whereas fast-path (DQRR) processing is
- * close to zero-cost if there is no work to be done. Applications can tune this
- * behaviour themselves by using qman_poll_dqrr() and qman_poll_slow() directly
- * rather than going via this wrapper.
- */
-void qman_poll(void);
 
 /**
  * qman_stop_dequeues - Stop h/w dequeuing to the s/w portal
@@ -3933,9 +3889,9 @@ const struct qman_portal_config *qman_p_get_portal_config(struct qman_portal
 									 *p);
 int qman_p_irqsource_add(struct qman_portal *p, u32 bits);
 int qman_p_irqsource_remove(struct qman_portal *p, u32 bits);
-int qman_p_poll_dqrr(struct qman_portal *p, unsigned int limit);
+int qman_p_poll_dqrr(struct qman_portal *p, unsigned int limit,
+		     const struct napi_struct *active_napi);
 u32 qman_p_poll_slow(struct qman_portal *p);
-void qman_p_poll(struct qman_portal *p);
 void qman_p_stop_dequeues(struct qman_portal *p);
 void qman_p_start_dequeues(struct qman_portal *p);
 void qman_p_static_dequeue_add(struct qman_portal *p, u32 pools);

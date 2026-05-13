@@ -42,7 +42,9 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_SW_STB		CCI_REG8(0x0100)
 #define OX05B1S_REG_SW_RST		CCI_REG8(0x0103)
 #define OX05B1S_REG_CHIP_ID		CCI_REG24(0x300a)
-#define OX05B1S_REG_MIPI_SC		CCI_REG8(0x3012)
+#define OX05B1S_REG_SC_CMMN_REG10	CCI_REG8(0x3010)
+#define OX05B1S_MIPI_NLANE_MASK		GENMASK(7, 4)
+#define OX05B1S_MIPI_NLANE_SHIFT	4
 #define OX05B1S_REG_GH			CCI_REG8(0x3208)
 #define OX05B1S_GH_START		0x0
 #define OX05B1S_GH_END			0x10
@@ -59,6 +61,7 @@ enum ox05b1s_stream_ids {
 #define OX05B1S_REG_TIMING_VTS		CCI_REG16(0x380e)
 #define OX05B1S_REG_MIPI_CTRL_13	CCI_REG8(0x4813)
 
+#define OS08A20_REG_MIPI_SC		CCI_REG8(0x3012)
 #define OS08A20_REG_EXP_LONG		CCI_REG16(0x3501)
 #define OS08A20_REG_EXP_SHORT		CCI_REG16(0x3511)
 #define OS08A20_REG_DGAIN		CCI_REG16(0x350a)
@@ -989,7 +992,7 @@ static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_again = {
 	.min		= 0x0,
 	.max		= OX05B1S_AGAIN_MAX,
 	.step		= 1,
-	.def		= 0x100,
+	.def		= OX05B1S_AGAIN_1X,
 	.dims		= { OX05B1S_NUM_EXP },
 };
 
@@ -1005,6 +1008,31 @@ static const struct v4l2_ctrl_config ox05b1s_ctrl_cfg_dgain = {
 	.dims		= { OX05B1S_NUM_EXP },
 };
 
+static const struct v4l2_ctrl_config os08a20_ctrl_cfg_again = {
+	.ops		= &ox05b1s_ctrl_ops,
+	.id		= V4L2_CID_AGAIN_MULTI,
+	.name		= "Analog gains for multiple captures",
+	.type		= V4L2_CTRL_TYPE_U32,
+	.min		= 0x0,
+	.max		= OS08A20_AGAIN_MAX,
+	.step		= 1,
+	.def		= OS08A20_AGAIN_1X,
+	.dims		= { OX05B1S_NUM_EXP },
+};
+
+static const struct v4l2_ctrl_config *
+ox05b1s_get_ctrl_cfg_again(struct ox05b1s *sensor)
+{
+	switch (sensor->model->chip_id) {
+	case OX05B1S_CHIP_ID:
+		return &ox05b1s_ctrl_cfg_again;
+	case OS08A20_CHIP_ID:
+		return &os08a20_ctrl_cfg_again;
+	default:
+		return &ox05b1s_ctrl_cfg_again;
+	}
+}
+
 static int ox05b1s_init_controls(struct ox05b1s *sensor)
 {
 	const struct v4l2_ctrl_ops *ops = &ox05b1s_ctrl_ops;
@@ -1012,6 +1040,8 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	struct v4l2_ctrl_handler *hdl = &ctrls->handler;
 	struct device *dev = &sensor->i2c_client->dev;
 	struct v4l2_fwnode_device_properties props;
+	const struct v4l2_ctrl_config *again_cfg =
+		ox05b1s_get_ctrl_cfg_again(sensor);
 	int ret;
 
 	v4l2_ctrl_handler_init(hdl, 11);
@@ -1039,14 +1069,15 @@ static int ox05b1s_init_controls(struct ox05b1s *sensor)
 	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_EXPOSURE,
 					    0, 0, 1, 0);
 
-	ctrls->again = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
-					 0, 0xFFFF, 1, 0x80);
+	ctrls->again = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN, 0,
+					 again_cfg->max, 1,
+					 again_cfg->def);
 
 	ctrls->dgain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_DIGITAL_GAIN,
-					 0, 0xFFFF, 1, 0x400);
+					 0, OX05B1S_DGAIN_MAX, 1, 0x400);
 
 	ctrls->exposure_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_exp, NULL);
-	ctrls->again_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_again, NULL);
+	ctrls->again_multi = v4l2_ctrl_new_custom(hdl, again_cfg, NULL);
 	ctrls->dgain_multi = v4l2_ctrl_new_custom(hdl, &ox05b1s_ctrl_cfg_dgain, NULL);
 
 	if (sensor->model->hdr_modes)
@@ -1108,7 +1139,7 @@ static int ox05b1s_s_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put_autosuspend(&client->dev);
 	}
 
-	return 0;
+	return ret;
 }
 
 static void ox05b1s_update_pad_format(const struct ox05b1s_mode *mode,
@@ -1347,6 +1378,29 @@ out:
 	return ret;
 }
 
+static int ox05b1s_apply_mipi_num_lanes(struct ox05b1s *sensor)
+{
+	int ret = 0;
+	u32 reg;
+
+	switch (sensor->model->chip_id) {
+	case OS08A20_CHIP_ID:
+		reg = OS08A20_REG_MIPI_SC;
+		break;
+	case OX05B1S_CHIP_ID:
+		reg = OX05B1S_REG_SC_CMMN_REG10;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* Update only the lane count field */
+	return cci_update_bits(sensor->regmap, reg,
+			       OX05B1S_MIPI_NLANE_MASK,
+			       sensor->num_data_lanes << OX05B1S_MIPI_NLANE_SHIFT,
+			       &ret);
+}
+
 /* needs sensor lock and power on */
 static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 {
@@ -1370,8 +1424,8 @@ static int ox05b1s_apply_current_mode(struct ox05b1s *sensor)
 	cci_write(sensor->regmap, OX05B1S_REG_X_OUTPUT_SIZE, w, &ret);
 	cci_write(sensor->regmap, OX05B1S_REG_Y_OUTPUT_SIZE, h, &ret);
 
-	cci_write(sensor->regmap, OX05B1S_REG_MIPI_SC,
-		  sensor->num_data_lanes << 4 | 0x01, &ret);
+	ret |= ox05b1s_apply_mipi_num_lanes(sensor);
+	dev_dbg(dev, "Mipi num lanes applied: %d\n", sensor->num_data_lanes);
 
 	if (ret)
 		goto out;

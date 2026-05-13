@@ -100,6 +100,7 @@ _ARM64_GKI_MODULES_LIST = [
     # keep sorted
     "arch/arm64/geniezone/gzvm.ko",
     "drivers/char/hw_random/cctrng.ko",
+    "drivers/perf/dwc_pcie_pmu.ko",
 ]
 
 _X86_GKI_MODULES_LIST = [

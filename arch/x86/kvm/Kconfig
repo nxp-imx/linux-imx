@@ -139,6 +139,8 @@ config PKVM_INTEL
 	depends on KVM_INTEL=y
 	depends on INTEL_IOMMU
 	depends on BLK_DEV_FD=n
+	depends on X86_64
+	depends on X86_X2APIC
 	select PKVM_X86
 	help
 	  Provides support for pKVM on Intel processors.

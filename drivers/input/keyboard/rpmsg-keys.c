@@ -130,11 +130,11 @@ static int keys_rpmsg_cb(struct rpmsg_device *rpdev,
 	struct key_rpmsg_data *msg = (struct key_rpmsg_data *)data;
 
 	if (msg->header.type == KEY_RPMSG_REPLY) {
-		keys_rpmsg->msg = msg;
+		*keys_rpmsg->msg = *msg;
 		complete(&keys_rpmsg->cmd_complete);
 		return 0;
 	} else if (msg->header.type == KEY_RPMSG_NOTIFY) {
-		keys_rpmsg->msg = msg;
+		*keys_rpmsg->msg = *msg;
 		keys_rpmsg->ack = false;
 	} else
 		dev_err(&keys_rpmsg->rpdev->dev, "wrong command type!\n");
@@ -175,6 +175,11 @@ static int keys_rpmsg_probe(struct rpmsg_device *rpdev)
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 			rpdev->src, rpdev->dst);
 
+	keys_rpmsg->msg = devm_kzalloc(&rpdev->dev,
+				       sizeof(struct key_rpmsg_data),
+				       GFP_KERNEL);
+	if (!keys_rpmsg->msg)
+		return -ENOMEM;
 	init_completion(&keys_rpmsg->cmd_complete);
 
 	INIT_DELAYED_WORK(&keys_rpmsg->keysetup_work,

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 config VIDEO_NXP_NEOISP
-	tristate "NXP NEOISP v4l2 hardware driver"
+	tristate "NXP NEO Image Signal Processor (ISP) driver"
 	depends on VIDEO_DEV
 	select MEDIA_CONTROLLER
 	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_ISP
 	help
 	  Enable this to support the NXP NEO Image Signal Processing (ISP)
 	  module present in various NXP SoCs. This module offers multiple

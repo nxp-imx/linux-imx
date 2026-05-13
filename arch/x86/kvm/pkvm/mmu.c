@@ -1613,7 +1613,8 @@ unlock:
  * Does not flush the TLB after clearing the access flag. It is the caller's
  * responsibility to flush the TLB when needed.
  *
- * Returns: true if any of the pages in the range had the access flag set.
+ * Returns: 1 if any of the pages in the range had the access flag set, 0 if
+ * none of the pages had it set, or a negative error code on failure.
  */
 int pkvm_host_test_clear_young_guest(struct kvm *kvm, unsigned long gpa,
 				     unsigned long size, bool mkold)

@@ -376,6 +376,7 @@ struct pkvm_ptdump_log {
 	bool	table: 1;
 	u16	page_state: 2;
 	u16	level: 8;
+	u8	mmio_guard : 1;
 } __packed;
 
 #define INVALID_PTDUMP_PFN	(BIT(41) - 1)

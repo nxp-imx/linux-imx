@@ -9,6 +9,20 @@
 #include "wave5-helper.h"
 #include "wave5-vpu-dbg.h"
 
+static char *wave5_flow_name[] = {
+	[WAVE5_VPU_FLOW_NONE] = "none",
+	[WAVE5_VPU_FLOW_SET_STATE] = "switch state",
+	[WAVE5_VPU_FLOW_OUTPUT_ON] = "output on",
+	[WAVE5_VPU_FLOW_OUTPUT_OFF] = "output off",
+	[WAVE5_VPU_FLOW_CAPTURE_ON] = "capture on",
+	[WAVE5_VPU_FLOW_CAPTURE_OFF] = "capture off",
+	[WAVE5_VPU_FLOW_START] = "start",
+	[WAVE5_VPU_FLOW_STOP] = "stop",
+	[WAVE5_VPU_FLOW_SOURCE_CHANGE] = "dynamic source change",
+	[WAVE5_VPU_FLOW_EOS] = "eos",
+	[WAVE5_VPU_FLOW_MAXIMUM] = "unknown",
+};
+
 static int wave5_vpu_dbg_instance(struct seq_file *s, void *data)
 {
 	struct vpu_instance *inst = s->private;
@@ -20,6 +34,7 @@ static int wave5_vpu_dbg_instance(struct seq_file *s, void *data)
 	int num;
 	s64 tmp;
 	s64 fps;
+	int index;
 
 	if (!inst->v4l2_fh.m2m_ctx)
 		return 0;
@@ -144,6 +159,28 @@ static int wave5_vpu_dbg_instance(struct seq_file *s, void *data)
 	num = scnprintf(str, sizeof(str), "\n");
 	if (seq_write(s, str, num))
 		return 0;
+
+	num = scnprintf(str, sizeof(str), "flow:\n");
+	if (seq_write(s, str, num))
+		return 0;
+
+	index = inst->flow.index;
+	for (int i = 0; i < WAVE5_VPU_FLOW_DEPTH; i++) {
+		struct vpu_flow_item *item = &inst->flow.flows[(index + i) % WAVE5_VPU_FLOW_DEPTH];
+
+		if (item->key == WAVE5_VPU_FLOW_NONE || item->key >= WAVE5_VPU_FLOW_MAXIMUM)
+			continue;
+
+		if (item->key == WAVE5_VPU_FLOW_SET_STATE)
+			num = scnprintf(str, sizeof(str), "    %s, %s -> %s\n",
+					wave5_flow_name[item->key],
+					state_to_str(item->arg1), state_to_str(item->arg2));
+		else
+			num = scnprintf(str, sizeof(str), "    %s, %d, %d\n",
+					wave5_flow_name[item->key], item->arg1, item->arg2);
+		if (seq_write(s, str, num))
+			return 0;
+	}
 
 	return 0;
 }

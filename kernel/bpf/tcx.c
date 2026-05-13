@@ -119,7 +119,8 @@ void tcx_uninstall(struct net_device *dev, bool ingress)
 		tcx_entry_free(entry);
 }
 
-int tcx_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr)
+int tcx_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
+		   u32 uattr_size)
 {
 	bool ingress = attr->query.attach_type == BPF_TCX_INGRESS;
 	struct net *net = current->nsproxy->net_ns;
@@ -132,7 +133,7 @@ int tcx_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr)
 		ret = -ENODEV;
 		goto out;
 	}
-	ret = bpf_mprog_query(attr, uattr, tcx_entry_fetch(dev, ingress));
+	ret = bpf_mprog_query(attr, uattr, uattr_size, tcx_entry_fetch(dev, ingress));
 out:
 	rtnl_unlock();
 	return ret;

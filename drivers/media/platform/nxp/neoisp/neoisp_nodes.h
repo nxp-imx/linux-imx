@@ -1,14 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 /*
  * NEOISP nodes description
  *
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2026 NXP
  */
 
+#ifndef __NXP_NEOISP_NODES_H
+#define __NXP_NEOISP_NODES_H
+
 #include <linux/videodev2.h>
+
 #include "neoisp.h"
 
-const struct neoisp_node_desc_s node_desc[NEOISP_NODES_COUNT] = {
+static const struct neoisp_node_desc_s node_desc[NEOISP_NODES_COUNT] = {
 	/* NEOISP_INPUT0_NODE */
 	{
 		.ent_name = NEOISP_NAME "-input0",
@@ -52,3 +56,5 @@ const struct neoisp_node_desc_s node_desc[NEOISP_NODES_COUNT] = {
 		.link_flags = MEDIA_LNK_FL_ENABLED,
 	}
 };
+
+#endif /* __NXP_NEOISP_NODES_H */

@@ -157,7 +157,7 @@ static int pwm_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 	}
 
 	/* Receive Success */
-	pwm_rpmsg.msg = msg;
+	*pwm_rpmsg.msg = *msg;
 
 	complete(&pwm_rpmsg.cmd_complete);
 
@@ -275,6 +275,12 @@ static int pwm_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
 						rpdev->src, rpdev->dst);
+
+	pwm_rpmsg.msg = devm_kzalloc(&rpdev->dev,
+				     sizeof(struct pwm_rpmsg_msg),
+				     GFP_KERNEL);
+	if (!pwm_rpmsg.msg)
+		return -ENOMEM;
 
 	return ret;
 }

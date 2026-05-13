@@ -2,6 +2,7 @@
 
 DEFCONFIG=imx_gki_defconfig
 PRE_DEFCONFIG_CMDS="KCONFIG_CONFIG=${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG} ${ROOT_DIR}/${KERNEL_DIR}/scripts/kconfig/merge_config.sh -m -r ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/gki_defconfig \
+${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx952_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx95_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mp_gki.fragment \
 ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/imx8mm_gki.fragment \
@@ -17,7 +18,8 @@ function update_config() {
          -e IMX_SEC_ENCLAVE \
          -m MXC_VIDEO_WAVE6 \
          -m VIDEO_AMPHION_VPU \
-         -m MXC_HANTRO_845_H1
+         -m MXC_HANTRO_845_H1 \
+         -m HAVE_IMX_RPMSG
     rm ${ROOT_DIR}/${KERNEL_DIR}/arch/arm64/configs/${DEFCONFIG}
 }
 

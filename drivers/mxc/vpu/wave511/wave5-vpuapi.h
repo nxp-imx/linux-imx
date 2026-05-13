@@ -327,6 +327,9 @@ struct dec_initial_info {
 	u32 vlc_buf_size;
 	u32 param_buf_size;
 	struct color_param color;
+
+	struct v4l2_ctrl_hdr10_cll_info hdr10_cll_info;
+	struct v4l2_ctrl_hdr10_mastering_display hdr10_mastering_display;
 };
 
 struct dec_output_info {
@@ -485,6 +488,10 @@ struct vpu_device {
 	struct dentry *debugfs;
 	struct kfifo irq_fifo;
 	spinlock_t irq_lock; /* lock irq fifo access */
+	struct device *trusty_dev;
+	u8 vpu_id;
+	bool secure_mode;
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_instance;
@@ -503,6 +510,19 @@ struct vpu_performance_info {
 	u64 total_sw_time;
 	u64 total_hw_time;
 	u32 first_hw_time;
+};
+
+struct vpu_flow_item {
+	u32 key;
+	u32 arg1;
+	u32 arg2;
+};
+
+#define WAVE5_VPU_FLOW_DEPTH		48
+struct vpu_flow {
+	struct vpu_flow_item flows[WAVE5_VPU_FLOW_DEPTH];
+	int index;
+	spinlock_t lock;   /* This protects the flow recorder */
 };
 
 struct vpu_instance {
@@ -571,6 +591,9 @@ struct vpu_instance {
 	u32 drain_dec_cnt;
 	struct vpu_performance_info performance;
 	struct dentry *debugfs;
+	bool secure_mode;
+	struct vpu_flow flow;
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_state_trans_element {
@@ -605,4 +628,6 @@ int wave5_vpu_dec_clr_disp_flag(struct vpu_instance *inst, int index);
 int wave5_vpu_dec_set_disp_flag(struct vpu_instance *inst, int index);
 bool wave5_vpu_dec_is_cq_done(struct vpu_instance *inst);
 
+int wave5_allocate_secure_dma_memory(struct device *dev, struct vpu_buf *vb);
+void wave5_free_secure_dma_memory(struct vpu_buf *vb);
 #endif

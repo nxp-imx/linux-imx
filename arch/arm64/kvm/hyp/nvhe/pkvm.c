@@ -1115,20 +1115,25 @@ unlock:
 	return ret;
 }
 
+static struct pkvm_hyp_vm *get_pkvm_unref_hyp_vm_locked(pkvm_handle_t handle)
+{
+	struct pkvm_hyp_vm *hyp_vm;
+
+	hyp_vm = get_vm_by_handle(handle);
+	if (!hyp_vm || hyp_refcount_get(hyp_vm->refcount))
+		return NULL;
+
+	return hyp_vm;
+}
+
 int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 {
 	struct pkvm_hyp_vm *hyp_vm;
 	int ret = 0;
 
 	hyp_write_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm) {
-		ret = -ENOENT;
-		goto unlock;
-	} else if (WARN_ON(hyp_refcount_get(hyp_vm->refcount))) {
-		ret = -EBUSY;
-		goto unlock;
-	} else if (hyp_vm->is_dying) {
+	hyp_vm = get_pkvm_unref_hyp_vm_locked(handle);
+	if (!hyp_vm || hyp_vm->is_dying) {
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -1149,12 +1154,9 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	int err;
 
 	hyp_write_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm) {
-		err = -ENOENT;
-		goto err_unlock;
-	} else if (!hyp_vm->is_dying) {
-		err = -EBUSY;
+	hyp_vm = get_pkvm_unref_hyp_vm_locked(handle);
+	if (!hyp_vm || !hyp_vm->is_dying) {
+		err = -EINVAL;
 		goto err_unlock;
 	}
 

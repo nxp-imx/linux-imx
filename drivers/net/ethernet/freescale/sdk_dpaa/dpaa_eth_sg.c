@@ -553,7 +553,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		struct dpa_percpu_priv_s *percpu_priv,
 		const struct qm_fd *fd,
 		u32 fqid,
-		int *count_ptr)
+		int *count_ptr,
+		struct qman_poll_ctx *ctx)
 {
 	bool dcl4c_valid = !!(net_dev->features & NETIF_F_RXCSUM);
 	bool use_gro = !!(net_dev->features & NETIF_F_GRO);
@@ -618,15 +619,13 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	skb_record_rx_queue(skb, raw_smp_processor_id());
 
 	if (use_gro) {
-		const struct qman_portal_config *pc =
-					qman_p_get_portal_config(portal);
-		struct dpa_napi_portal *np = &percpu_priv->np[pc->index];
+		struct dpa_napi_portal *np = &percpu_priv->np;
 
 		np->p = portal;
 		/* The stack doesn't report if the frame was dropped but it
 		 * will increment rx_dropped automatically.
 		 */
-		napi_gro_receive(&np->napi, skb);
+		qman_portal_napi_gro_receive(ctx, &np->napi, skb);
 	} else if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
 		return;
 
@@ -1146,7 +1145,7 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 		/* Code borrowed from skb_unshare(). */
 		if (skb_cloned(skb) && !skb_need_wa) {
 			nskb = skb_copy(skb, GFP_ATOMIC);
-			kfree_skb(skb);
+			consume_skb(skb);
 			skb = nskb;
 			skb_changed = true;
 

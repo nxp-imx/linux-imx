@@ -28,6 +28,7 @@ load(
     "kernel_build",
     "kernel_compile_commands",
     "kernel_kythe",
+    "kernel_module_group",
     "kernel_modules_install",
     "merge_kzip",
     "merged_kernel_uapi_headers",
@@ -46,6 +47,8 @@ load(
 )
 load(":imx.bzl", "define_imx")
 define_imx()
+load(":imx8mp.bzl", "define_imx8mp")
+define_imx8mp()
 
 package(
     default_visibility = [
@@ -56,7 +59,9 @@ package(
 _GKI_AARCH64_MAKE_GOALS = [
     "Image",
     "Image.lz4",
+    "Image.lzma",
     "Image.gz",
+    "Image.zst",
     "modules",
 ]
 
@@ -64,16 +69,6 @@ _GKI_X86_64_MAKE_GOALS = [
     "bzImage",
     "modules",
 ]
-
-_GKI_AARCH64_BOOT_IMAGE_SIZES = {
-    "": "67108864",
-    "lz4": "53477376",
-    "gz": "47185920",
-}
-
-_GKI_X86_64_BOOT_IMAGE_SIZES = {
-    "": "67108864",
-}
 
 # Extra generated headers below $OUT_DIR for external modules.
 _GENERATED_HEADERS_FOR_MODULE = [
@@ -214,6 +209,7 @@ filegroup(
         # keep sorted
         "gki/aarch64/symbols/allwinner",
         "gki/aarch64/symbols/db845c",
+        "gki/aarch64/symbols/desktop",
         "gki/aarch64/symbols/exynos",
         "gki/aarch64/symbols/exynosauto",
         "gki/aarch64/symbols/fips140",
@@ -230,6 +226,7 @@ filegroup(
         "gki/aarch64/symbols/unisoc",
         "gki/aarch64/symbols/virtual_device",
         "gki/aarch64/symbols/vivo",
+        "gki/aarch64/symbols/wonder",
         "gki/aarch64/symbols/xiaomi",
     ],
     visibility = ["//visibility:public"],
@@ -242,6 +239,7 @@ common_kernel(
     additional_kmi_symbol_lists = [":aarch64_additional_kmi_symbol_lists"],
     arch = "arm64",
     build_gki_artifacts = True,
+    clang_autofdo_profile = ":gki/aarch64/afdo/kernel.afdo",
     ddk_headers_archive = ":kernel_aarch64_ddk_headers_archive",
     ddk_module_headers = [":all_headers_aarch64"],
     defconfig = "arch/arm64/configs/gki_defconfig",
@@ -250,7 +248,6 @@ common_kernel(
         ":tests_zip_arm64",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_AARCH64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
     kcflags = COMMON_KCFLAGS,
     kmi_enforced = True,
@@ -280,7 +277,6 @@ common_kernel(
         ":tests_zip_arm64_16k",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_AARCH64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
     kcflags = COMMON_KCFLAGS,
     kmi_symbol_list = "gki/aarch64/symbols/base",
@@ -339,7 +335,6 @@ common_kernel(
         ":tests_zip_x86_64",
     ],
     generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
-    gki_boot_img_sizes = _GKI_X86_64_BOOT_IMAGE_SIZES,
     gki_system_dlkm_modules = ":gki_system_dlkm_modules_x86_64",
     kcflags = COMMON_KCFLAGS,
     kmi_enforced = True,
@@ -626,6 +621,57 @@ pkg_install(
     name = "kernel_x86_64_crashdump_dist",
     srcs = ["kernel_x86_64_crashdump_dist_files"],
     destdir = "out/kernel_x86_64_crashdump/dist",
+)
+
+kernel_build(
+    name = "wonder_aarch64",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    collect_unstripped_modules = True,
+    kmi_symbol_list = "gki/aarch64/symbols/wonder",
+    make_goals = ["modules"],
+    makefile = ":Makefile",
+    module_outs = [
+        "net/mac80211/mac80211.ko",
+        "net/wireless/cfg80211.ko",
+    ],
+    pre_defconfig_fragments = ["arch/arm64/configs/wonder.fragment"],
+    strip_modules = True,
+)
+
+kernel_module_group(
+    name = "wonder_ddk_modules",
+    srcs = ["//common-modules/wonder"],
+)
+
+kernel_abi(
+    name = "wonder_aarch64_abi",
+    kernel_build = ":wonder_aarch64",
+    kernel_modules = [":wonder_ddk_modules"],
+)
+
+kernel_modules_install(
+    name = "wonder_aarch64_modules_install",
+    kernel_build = ":wonder_aarch64",
+    kernel_modules = [":wonder_ddk_modules"],
+)
+
+pkg_files(
+    name = "wonder_aarch64_dist_files",
+    srcs = [
+        ":kernel_aarch64",
+        ":kernel_aarch64_additional_artifacts",
+        ":wonder_aarch64",
+        ":wonder_aarch64_modules_install",
+    ],
+    strip_prefix = strip_prefix.files_only(),
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
+    name = "wonder_aarch64_dist",
+    srcs = [":wonder_aarch64_dist_files"],
+    destdir = "out/wonder_aarch64/dist",
 )
 
 _DB845C_MODULE_OUTS = [
@@ -1385,22 +1431,26 @@ kernel_build(
 
 # libbpf
 cc_library(
+    name = "tools_includes",
+    hdrs = glob([
+        "tools/include/**/*.h",
+    ]),
+    includes = [
+        "tools/include",
+        "tools/include/uapi",
+    ],
+)
+
+cc_library(
     name = "bpf_x86",
     srcs = glob([
         "tools/arch/x86/include/**/*.h",
-        "tools/include/**/*.h",
         "tools/lib/bpf/*.c",
     ]),
     hdrs = glob([
         "tools/lib/bpf/*.h",
     ]),
-    copts = [
-        "-I{}/tools/include".format(package_name()),
-        "-I{}/tools/lib/bpf".format(package_name()),
-    ],
-    includes = [
-        "tools/include/uapi",
-    ],
+    implementation_deps = [":tools_includes"],
     strip_include_prefix = "tools/lib",
     visibility = ["//visibility:public"],
     deps = ["//prebuilts/kernel-build-tools:imported_libs"],

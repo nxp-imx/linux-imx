@@ -175,6 +175,7 @@
 		regulator-name = "EXP_1V8";
 		gpio = <&i2c4_gpio_expander_22 10 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
+		regulator-enable-ramp-delay = <40000>;
 	};
 
 	reg_exp_3v3: regulator-exp-3v3 {
@@ -185,6 +186,7 @@
 		gpio = <&i2c4_gpio_expander_22 6 GPIO_ACTIVE_HIGH>;
 		vin-supply = <&reg_dcdc_3v3>;
 		enable-active-high;
+		regulator-enable-ramp-delay = <40000>;
 	};
 
 	reg_exp_5v: regulator-exp-5v {
@@ -391,9 +393,6 @@
 };
 
 &ldb {
-	assigned-clocks = <&scmi_clk IMX95_CLK_LDBPLL_VCO>,
-			  <&scmi_clk IMX95_CLK_LDBPLL>;
-	assigned-clock-rates = <4158000000>, <1039500000>;
 	status = "okay";
 
 	channel@0 {
@@ -550,11 +549,11 @@
 				  "";
 		vcc-supply = <&reg_3p3v>;
 
-		/* When low, select lpspi; When high, select gpio. */
+		/* When high, select lpspi; When low, select gpio. */
 		lpspi-gpio-sel-hog {
 			gpio-hog;
 			gpios = <16 GPIO_ACTIVE_HIGH>;
-			output-low;
+			output-high;
 		};
 	};
 };

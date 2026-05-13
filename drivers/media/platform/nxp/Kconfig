@@ -32,6 +32,7 @@ config VIDEO_IMX_CSI_FORMATTER
 	tristate "NXP i.MX95 CSI Pixel Formatter Driver"
 	depends on ARCH_MXC || COMPILE_TEST
 	depends on VIDEO_DEV
+	depends on VIDEO_NXP_NEOISP || !VIDEO_NXP_NEOISP
 	select MEDIA_CONTROLLER
 	select V4L2_FWNODE
 	select VIDEO_V4L2_SUBDEV_API

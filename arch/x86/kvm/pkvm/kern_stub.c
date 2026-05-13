@@ -7,7 +7,7 @@
 void warn_thunk_thunk(void) {}
 
 #ifndef CONFIG_PREEMPTION
-int __cond_resched(void) {}
+int __cond_resched(void) { return 0; }
 #endif
 
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP

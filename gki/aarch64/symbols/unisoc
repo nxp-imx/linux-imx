@@ -1110,6 +1110,7 @@
   __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_get_nohz_timer_target
   __traceiter_android_rvh_is_cpu_allowed
+  __traceiter_android_rvh_kmalloc_large_fallback_cma
   __traceiter_android_rvh_migrate_queued_task
   __traceiter_android_rvh_new_task_stats
   __traceiter_android_rvh_prepare_prio_fork
@@ -1166,6 +1167,7 @@
   __traceiter_android_vh_filemap_end_dropbehind_bypass
   __traceiter_android_vh_filemap_fault_end
   __traceiter_android_vh_filemap_fault_start
+  __traceiter_android_vh_free_large_kmalloc_bypass
   __traceiter_android_vh_free_unref_page_bypass
   __traceiter_android_vh_freq_qos_add_request
   __traceiter_android_vh_freq_qos_remove_request
@@ -1281,6 +1283,7 @@
   __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_get_nohz_timer_target
   __tracepoint_android_rvh_is_cpu_allowed
+  __tracepoint_android_rvh_kmalloc_large_fallback_cma
   __tracepoint_android_rvh_migrate_queued_task
   __tracepoint_android_rvh_new_task_stats
   __tracepoint_android_rvh_prepare_prio_fork
@@ -1337,6 +1340,7 @@
   __tracepoint_android_vh_filemap_end_dropbehind_bypass
   __tracepoint_android_vh_filemap_fault_end
   __tracepoint_android_vh_filemap_fault_start
+  __tracepoint_android_vh_free_large_kmalloc_bypass
   __tracepoint_android_vh_free_unref_page_bypass
   __tracepoint_android_vh_freq_qos_add_request
   __tracepoint_android_vh_freq_qos_remove_request

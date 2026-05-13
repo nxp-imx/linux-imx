@@ -23,6 +23,8 @@
 
 #include "internal.h"
 
+#include <trace/hooks/mm.h>
+
 /*
  * POSIX_FADV_WILLNEED could set PG_Referenced, and POSIX_FADV_NOREUSE could
  * deactivate the pages and clear PG_Referenced.
@@ -103,7 +105,10 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 		if (!nrpages)
 			nrpages = ~0UL;
 
+		trace_android_vh_page_cache_readahead_start(file,
+				start_index, nrpages, true);
 		force_page_cache_readahead(mapping, file, start_index, nrpages);
+		trace_android_vh_page_cache_readahead_end(file, start_index);
 		break;
 	case POSIX_FADV_NOREUSE:
 		spin_lock(&file->f_lock);

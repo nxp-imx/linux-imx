@@ -121,6 +121,8 @@ struct mem_cgroup_per_node {
 	atomic_t		slab_reclaimable;
 	atomic_t		slab_unreclaimable;
 #endif
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct mem_cgroup_threshold {
@@ -180,6 +182,8 @@ struct obj_cgroup {
 		struct list_head list; /* protected by objcg_lock */
 		struct rcu_head rcu;
 	};
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -324,6 +328,7 @@ struct mem_cgroup {
 
 	ANDROID_OEM_DATA_ARRAY(1, 2);
 	ANDROID_VENDOR_DATA(1);
+	ANDROID_KABI_RESERVE(1);
 
 	struct mem_cgroup_per_node *nodeinfo[];
 };

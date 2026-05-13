@@ -166,7 +166,7 @@ int tcx_prog_detach(const union bpf_attr *attr, struct bpf_prog *prog);
 void tcx_uninstall(struct net_device *dev, bool ingress);
 
 int tcx_prog_query(const union bpf_attr *attr,
-		   union bpf_attr __user *uattr);
+		   union bpf_attr __user *uattr, u32 uattr_size);
 
 static inline void dev_tcx_uninstall(struct net_device *dev)
 {
@@ -194,7 +194,8 @@ static inline int tcx_prog_detach(const union bpf_attr *attr,
 }
 
 static inline int tcx_prog_query(const union bpf_attr *attr,
-				 union bpf_attr __user *uattr)
+				 union bpf_attr __user *uattr,
+				 u32 uattr_size)
 {
 	return -EINVAL;
 }

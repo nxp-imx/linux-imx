@@ -3405,9 +3405,11 @@ config RUST_KERNEL_DOCTESTS
 	  If unsure, say N.
 
 config RUST_INLINE_HELPERS
-	bool "Inline C helpers into Rust code"
+	bool "Inline C helpers into Rust code (EXPERIMENTAL)"
 	depends on RUST && RUSTC_CLANG_LLVM_COMPATIBLE
 	depends on EXPERT
+	depends on ARM64 || X86_64
+	depends on !UML
 	help
 	  Inlines C helpers into Rust code using Link Time Optimization.
 

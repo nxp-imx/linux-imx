@@ -802,6 +802,7 @@ static void netc_timer_init(struct netc_timer *priv)
 	ktime_get_real_ts64(&now);
 	ns = timespec64_to_ns(&now);
 	netc_timer_cnt_write(priv, ns);
+	netc_timer_offset_write(priv, 0);
 
 	/* Allow atomic writes to TCLK_PERIOD and TMR_ADD, An update to
 	 * TCLK_PERIOD does not take effect until TMR_ADD is written.

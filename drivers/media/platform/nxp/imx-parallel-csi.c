@@ -2,7 +2,7 @@
 /*
  * i.MX Parallel CSI receiver driver.
  *
- * Copyright 2019-2024 NXP
+ * Copyright 2019-2024, 2026 NXP
  *
  */
 
@@ -479,6 +479,13 @@ static int parallel_csi_notify_bound(struct v4l2_async_notifier *notifier,
 	    notifier_to_parallel_csi_device(notifier);
 	struct media_pad *sink =
 	    &pcsidev->sd.entity.pads[PARALLEL_CSI_PAD_SINK];
+
+	dev_info(pcsidev->dev, "%s: call v4l2_device_register_subdev_nodes\n", __func__);
+	int ret = v4l2_device_register_subdev_nodes(pcsidev->sd.v4l2_dev);
+	if (ret) {
+		dev_err(pcsidev->dev, "%s: v4l2_device_register_subdev_nodes failed, ret %d", __func__, ret);
+		return ret;
+	}
 
 	return v4l2_create_fwnode_links_to_pad(sd, sink, 0);
 }

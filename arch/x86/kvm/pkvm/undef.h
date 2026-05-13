@@ -28,6 +28,7 @@
 #undef CONFIG_DEBUG_IRQFLAGS
 
 #define NOTRACE
+#define __NO_FORTIFY
 
 /*
  * Avoid undefining the below options, as it would change the layout of some

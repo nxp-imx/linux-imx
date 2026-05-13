@@ -1875,6 +1875,7 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	struct mm_struct *mm = vma->vm_mm;
 	struct vm_area_struct *new_vma;
 	bool faulted_in_anon_vma = true;
+	int acct_err = 0;
 	VMA_ITERATOR(vmi, mm, addr);
 	VMG_VMA_STATE(vmg, &vmi, NULL, vma, addr, addr + len);
 
@@ -1936,8 +1937,16 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 			goto out_free_vma;
 		if (anon_vma_clone(new_vma, vma))
 			goto out_free_mempol;
-		if (new_vma->vm_file)
+		if (new_vma->vm_file) {
 			get_file(new_vma->vm_file);
+			if (is_dma_buf_file(new_vma->vm_file)) {
+				acct_err = dma_buf_account_task(new_vma->vm_file->private_data,
+								new_vma->vm_mm->dmabuf_info);
+
+				if (acct_err)
+					pr_err("failed to account dmabuf, err %d\n", acct_err);
+			}
+		}
 		if (new_vma->vm_ops && new_vma->vm_ops->open)
 			new_vma->vm_ops->open(new_vma);
 		if (vma_link(mm, new_vma))
@@ -1950,8 +1959,12 @@ out_vma_link:
 	fixup_hugetlb_reservations(new_vma);
 	vma_close(new_vma);
 
-	if (new_vma->vm_file)
+	if (new_vma->vm_file) {
+		if (is_dma_buf_file(new_vma->vm_file) && !acct_err)
+			dma_buf_unaccount_task(new_vma->vm_file->private_data,
+					       new_vma->vm_mm->dmabuf_info);
 		fput(new_vma->vm_file);
+	}
 
 	unlink_anon_vmas(new_vma);
 out_free_mempol:

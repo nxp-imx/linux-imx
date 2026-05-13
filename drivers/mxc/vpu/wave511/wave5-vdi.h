@@ -12,6 +12,10 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
+#include <uapi/linux/dma-heap.h>
+#include <linux/imx_memory_usage.h>
 
 /* system register write */
 #define vpu_write_reg(VPU_INST, ADDR, DATA) wave5_vdi_write_register(VPU_INST, ADDR, DATA)
@@ -23,6 +27,9 @@ struct vpu_buf {
 	dma_addr_t daddr;
 	void *vaddr;
 	struct device *dev;
+	struct dma_buf* secure_dma_buf;
+	struct imx_mur_node *recorder;
+	const char *label;
 };
 
 enum endian_mode {

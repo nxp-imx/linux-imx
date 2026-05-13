@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright 2025-2026 NXP
+config P3H2X4X_I3C_HUB
+    tristate "NXP P3H2X4X I3C HUB support"
+    depends on MFD_P3H2X4X
+    select I3C_HUB
+    help
+      This enables support for NXP P3H244x/P3H284x I3C HUB. These hubs
+      connect to a host via I3C/I2C/SMBus and allow communication with
+      multiple downstream peripherals. The Say Y or M here to use I3C
+      HUB driver to configure I3C HUB device.

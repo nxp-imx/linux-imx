@@ -65,6 +65,7 @@
 #include <linux/swapops.h>
 #include <linux/balloon_compaction.h>
 #include <linux/sched/sysctl.h>
+#include <linux/android_kabi.h>
 
 #include "internal.h"
 #include "swap.h"
@@ -189,6 +190,9 @@ struct scan_control {
 	/* for recording the reclaimed slab by now */
 	struct reclaim_state reclaim_state;
 	ANDROID_VENDOR_DATA(1);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 #ifdef ARCH_HAS_PREFETCHW
@@ -1169,6 +1173,8 @@ retry:
 		if (!folio_trylock(folio))
 			goto keep;
 
+		trace_android_vh_shrink_folio_lock_owner_set(folio);
+
 		if (folio_contain_hwpoisoned_page(folio)) {
 			/*
 			 * unmap_poisoned_folio() can't handle large
@@ -1179,6 +1185,7 @@ retry:
 				goto keep_locked;
 
 			unmap_poisoned_folio(folio, folio_pfn(folio), false);
+			trace_android_vh_shrink_folio_lock_owner_clear(folio);
 			folio_unlock(folio);
 			folio_put(folio);
 			continue;
@@ -1309,6 +1316,7 @@ retry:
 
 			/* Case 3 above */
 			} else {
+				trace_android_vh_shrink_folio_lock_owner_clear(folio);
 				folio_unlock(folio);
 				folio_wait_writeback(folio);
 				/* then go back and try same folio again */
@@ -1338,6 +1346,7 @@ retry:
 		if (do_demote_pass &&
 		    (thp_migration_supported() || !folio_test_large(folio))) {
 			list_add(&folio->lru, &demote_folios);
+			trace_android_vh_shrink_folio_lock_owner_clear(folio);
 			folio_unlock(folio);
 			continue;
 		}
@@ -1573,6 +1582,7 @@ retry:
 			if (!filemap_release_folio(folio, sc->gfp_mask))
 				goto activate_locked;
 			if (!mapping && folio_ref_count(folio) == 1) {
+				trace_android_vh_shrink_folio_lock_owner_clear(folio);
 				folio_unlock(folio);
 				if (folio_put_testzero(folio))
 					goto free_it;
@@ -1608,6 +1618,7 @@ retry:
 							 sc->target_mem_cgroup))
 			goto keep_locked;
 
+		trace_android_vh_shrink_folio_lock_owner_clear(folio);
 		folio_unlock(folio);
 free_it:
 		/*
@@ -1650,6 +1661,7 @@ activate_locked:
 			count_memcg_folio_events(folio, PGACTIVATE, nr_pages);
 		}
 keep_locked:
+		trace_android_vh_shrink_folio_lock_owner_clear(folio);
 		folio_unlock(folio);
 keep:
 		trace_android_vh_adjust_nr_reclaimed(folio, &nr_reclaimed);
@@ -5938,6 +5950,7 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	bool proportional_reclaim;
 	struct blk_plug plug;
 	bool bypass = false;
+	bool shrink_bypass = false;
 
 	if (lru_gen_enabled() && !root_reclaim(sc)) {
 		lru_gen_shrink_lruvec(lruvec, sc);
@@ -5964,6 +5977,11 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 				sc->priority == DEF_PRIORITY);
 
 	blk_start_plug(&plug);
+	trace_android_rvh_shrink_spec_lru(lruvec, sc, &nr_reclaimed,
+					 nr_to_reclaim, proportional_reclaim,
+					 nr, &shrink_bypass);
+	if (shrink_bypass)
+		goto out;
 
 	trace_android_vh_reclaim_before_kswapd(&nr_reclaimed);
 	if (nr_reclaimed >= nr_to_reclaim)

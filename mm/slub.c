@@ -188,22 +188,6 @@
  * 			the fast path and disables lockless freelists.
  */
 
-/**
- * enum slab_flags - How the slab flags bits are used.
- * @SL_locked: Is locked with slab_lock()
- * @SL_partial: On the per-node partial list
- * @SL_pfmemalloc: Was allocated from PF_MEMALLOC reserves
- *
- * The slab flags share space with the page flags but some bits have
- * different interpretations.  The high bits are used for information
- * like zone/node/section.
- */
-enum slab_flags {
-	SL_locked = PG_locked,
-	SL_partial = PG_workingset,	/* Historical reasons for this bit */
-	SL_pfmemalloc = PG_active,	/* Historical reasons for this bit */
-};
-
 /*
  * We could simply use migrate_disable()/enable() but as long as it's a
  * function call even on !PREEMPT_RT, use inline preempt_disable() there.
@@ -721,11 +705,6 @@ static inline void slab_set_pfmemalloc(struct slab *slab)
 	set_bit(SL_pfmemalloc, &slab->flags.f);
 }
 
-static inline void __slab_clear_pfmemalloc(struct slab *slab)
-{
-	__clear_bit(SL_pfmemalloc, &slab->flags.f);
-}
-
 /*
  * Per slab locking using the pagelock
  */
@@ -1049,7 +1028,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 		spin_lock_irqsave(&n->list_lock, flags);
 		list_for_each_entry(slab, &n->partial, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;
@@ -1059,7 +1040,9 @@ unsigned long get_each_kmemcache_object(struct kmem_cache *s,
 #ifdef CONFIG_SLUB_DEBUG
 		list_for_each_entry(slab, &n->full, slab_list) {
 			for_each_object(p, s, slab_address(slab), slab->objects) {
+				metadata_access_enable();
 				ret = fn(s, p, private);
+				metadata_access_disable();
 				if (ret) {
 					spin_unlock_irqrestore(&n->list_lock, flags);
 					return ret;
@@ -5687,6 +5670,7 @@ static void *___kmalloc_large_node(size_t size, gfp_t flags, int node)
 	else
 		folio = (struct folio *)__alloc_frozen_pages_noprof(flags, order, node, NULL);
 
+	trace_android_rvh_kmalloc_large_fallback_cma(&folio, order, flags);
 	if (folio) {
 		ptr = folio_address(folio);
 		lruvec_stat_mod_folio(folio, NR_SLAB_UNRECLAIMABLE_B,
@@ -6872,6 +6856,7 @@ EXPORT_SYMBOL(kmem_cache_free);
 static void free_large_kmalloc(struct folio *folio, void *object)
 {
 	unsigned int order = folio_order(folio);
+	bool bypass = false;
 
 	if (WARN_ON_ONCE(!folio_test_large_kmalloc(folio))) {
 		dump_page(&folio->page, "Not a kmalloc allocation");
@@ -6888,6 +6873,10 @@ static void free_large_kmalloc(struct folio *folio, void *object)
 	lruvec_stat_mod_folio(folio, NR_SLAB_UNRECLAIMABLE_B,
 			      -(PAGE_SIZE << order));
 	__folio_clear_large_kmalloc(folio);
+
+	trace_android_vh_free_large_kmalloc_bypass(folio, &bypass);
+	if (bypass)
+		return;
 	free_frozen_pages(&folio->page, order);
 }
 

@@ -2,28 +2,13 @@
 /*
  * NEOISP hardware structures definition
  *
- * Copyright 2023-2025 NXP
+ * Copyright 2023-2026 NXP
  */
 
-#ifndef NEO_HW_H
-#define NEO_HW_H
+#ifndef __NXP_NEOISP_HW_H
+#define __NXP_NEOISP_HW_H
 
 #include "neoisp_regs.h"
-
-struct neoisp_pipe_conf_v1_s {
-	u32 unusedw0[26];
-	u32 int_en;
-	u32 int_stat;
-	u32 csi_stat;
-};
-
-struct neoisp_pipe_conf_v2_s {
-	u32 unusedw0[9];
-	u32 int_en;
-	u32 int_stat;
-	u32 csi_stat;
-	u32 unusedw1[14];
-};
 
 struct neoisp_pipe_conf_s {
 	u32 reset;
@@ -35,10 +20,12 @@ struct neoisp_pipe_conf_s {
 	u32 shd_ctrl;
 	u32 reg_shd_cmd;
 	u32 trig_cam0;
-	u32 unusedw1_int_on_v2[3];	/* int_en + int_stat + csi_stat on V2 */
+	u32 int_en;
+	u32 int_stat;
+	u32 csi_stat;
 	u32 img_conf;
 	u32 img_size;
-	u32 unusedw2[1];
+	u32 unusedw1[1];
 	u32 img0_in_addr;
 	u32 img1_in_addr;
 	u32 outch0_addr;
@@ -50,14 +37,7 @@ struct neoisp_pipe_conf_s {
 	u32 outch1_ls;
 	u32 outir_ls;
 	u32 skip_ctrl;
-	u32 unusedw3_int_on_v1[3];	/* int_en + int_stat + csi_stat on V1 */
-}; /* 29 words */
-
-union neoisp_pipe_conf_u {
-	struct neoisp_pipe_conf_s common;
-	struct neoisp_pipe_conf_v1_s v1;
-	struct neoisp_pipe_conf_v2_s v2;
-};
+}; /* 26 words */
 
 struct neoisp_hc_s {
 	u32 ctrl;
@@ -134,7 +114,7 @@ struct neoisp_hdr_merge_s {
 	u32 s_line_num;
 };
 
-struct neoisp_color_temp_s {
+struct neoisp_ctemp_s {
 	u32 ctrl;
 	u32 roi_pos;
 	u32 roi_size;
@@ -249,7 +229,7 @@ struct neoisp_rgbir_s {
 	u32 ccm0_th;
 	u32 ccm1_th;
 	u32 ccm2_th;
-	uint32_t unused0[1];
+	u32 unused0[1];
 	u32 roi0_pos;
 	u32 roi0_size;
 	u32 roi1_pos;
@@ -326,7 +306,7 @@ struct neoisp_bnr_s {
 	u32 stretch;
 };
 
-struct neoisp_vignetting_s {
+struct neoisp_vignetting_ctrl_s {
 	u32 ctrl;
 	u32 blk_conf;
 	u32 blk_size;
@@ -367,7 +347,7 @@ struct neoisp_rgb2yuv_s {
 	u32 offset2;
 };
 
-struct neoisp_drc_s {
+struct neoisp_dr_comp_s {
 	u32 roi0_pos;
 	u32 roi0_size;
 	u32 roi1_pos;
@@ -521,8 +501,8 @@ struct neoisp_idbg2_s {
 };
 
 struct neoisp_hw_s {
-	union neoisp_pipe_conf_u pipe_conf;
-	u32 unused0[19];
+	struct neoisp_pipe_conf_s pipe_conf;
+	u32 unused0[22];
 	struct neoisp_hc_s hc;
 	u32 unused1[15];
 	struct neoisp_hdr_decompress0_s hdr_decompress0;
@@ -537,7 +517,7 @@ struct neoisp_hw_s {
 	u32 unused6[27];
 	struct neoisp_hdr_merge_s hdr_merge;
 	u32 unused7[46];
-	struct neoisp_color_temp_s color_temp;
+	struct neoisp_ctemp_s ctemp;
 	u32 unused8[23];
 	struct neoisp_rgbir_s rgbir;
 	u32 unused9[48];
@@ -547,7 +527,7 @@ struct neoisp_hw_s {
 	u32 unused11[14];
 	struct neoisp_bnr_s bnr;
 	u32 unused12[38];
-	struct neoisp_vignetting_s vignetting;
+	struct neoisp_vignetting_ctrl_s vignetting_ctrl;
 	u32 unused13[421];
 	struct neoisp_idbg1_s idbg1;
 	u32 unused14[107];
@@ -555,7 +535,7 @@ struct neoisp_hw_s {
 	u32 unused15[12];
 	struct neoisp_rgb2yuv_s rgb2yuv;
 	u32 unused16[69];
-	struct neoisp_drc_s drc;
+	struct neoisp_dr_comp_s drc;
 	u32 unused17[42];
 	struct neoisp_nr_s nr;
 	u32 unused18[11];
@@ -574,4 +554,4 @@ struct neoisp_hw_s {
 	struct neoisp_autofocus_s autofocus;
 };
 
-#endif /* NEO_HW_H */
+#endif /* __NXP_NEOISP_HW_H */

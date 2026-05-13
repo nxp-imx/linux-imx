@@ -1850,6 +1850,7 @@ static int enetc_set_wol(struct net_device *dev,
 	u32 changed = priv->wolopts ^ wol->wolopts;
 	u32 support = WAKE_MAGIC | WAKE_FILTER;
 	struct enetc_si *si = priv->si;
+	struct pci_dev *rcec;
 	struct enetc_pf *pf;
 	int err;
 
@@ -1891,10 +1892,11 @@ static int enetc_set_wol(struct net_device *dev,
 		enetc4_enable_wol_filter(priv, en);
 	}
 
+	rcec = si->pdev->rcec;
 	if (!priv->wolopts && wol->wolopts) {
-		if (priv->rcec) {
-			priv->rcec->dev_flags |= PCI_DEV_FLAGS_NO_D3;
-			device_set_wakeup_enable(&priv->rcec->dev, 1);
+		if (rcec) {
+			rcec->dev_flags |= PCI_DEV_FLAGS_NO_D3;
+			device_set_wakeup_enable(&rcec->dev, 1);
 		}
 
 		netc_ierb_enable_wakeonlan();
@@ -1904,9 +1906,9 @@ static int enetc_set_wol(struct net_device *dev,
 	if (!wol->wolopts) {
 		netc_ierb_disable_wakeonlan();
 
-		if (priv->rcec) {
-			device_set_wakeup_enable(&priv->rcec->dev, 0);
-			priv->rcec->dev_flags &= ~PCI_DEV_FLAGS_NO_D3;
+		if (rcec) {
+			device_set_wakeup_enable(&rcec->dev, 0);
+			rcec->dev_flags &= ~PCI_DEV_FLAGS_NO_D3;
 		}
 
 		netdev_info(dev, "enetc: wakeup disable\n");

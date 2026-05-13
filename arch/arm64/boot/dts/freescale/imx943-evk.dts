@@ -313,9 +313,9 @@
 			no-map;
 		};
 
-		prime_reserved: prime-reserved@a4220000 {
+		prime_reserved: prime-reserved@240000000 {
 			compatible = "shared-dma-pool";
-			reg = <0 0xa4220000 0 0x10000000>;
+			reg = <0x00000002 0x40000000 0x00000000 0x40000000>;
 			no-map;
 		};
 	};

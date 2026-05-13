@@ -3311,6 +3311,7 @@ static void binder_transaction(struct binder_proc *proc,
 	INIT_LIST_HEAD(&t->fd_fixups);
 	binder_stats_created(BINDER_STAT_TRANSACTION);
 	spin_lock_init(&t->lock);
+	trace_android_vh_binder_transaction_init(t);
 	t->debug_id = t_debug_id;
 	t->start_time = t_start_time;
 	t->from_pid = proc->pid;

@@ -69,7 +69,6 @@ struct rpmsg_iio_data {
 
 	struct rpmsg_device *rpdev;
 	struct rpmsg_iio_msg *reply_msg;
-	struct rpmsg_iio_msg *notify_msg;
 	struct pm_qos_request pm_qos_req;
 	struct completion cmd_complete;
 	struct mutex lock;
@@ -150,10 +149,9 @@ static int rpmsg_iio_cb(struct rpmsg_device *rpdev, void *data, int len,
 	struct rpmsg_iio_msg *msg = (struct rpmsg_iio_msg *)data;
 
 	if (msg->header.type == RPMSG_IIO_REPLY) {
-		iio_rpmsg->reply_msg = msg;
+		*iio_rpmsg->reply_msg = *msg;
 		complete(&iio_rpmsg->cmd_complete);
 	} else if (msg->header.type == RPMSG_IIO_NOTIFY) {
-		iio_rpmsg->notify_msg = msg;
 		rpmsg_iio_event_report(msg);
 	} else {
 		dev_err(&iio_rpmsg->rpdev->dev, "wrong command type %d!\n",
@@ -170,6 +168,12 @@ static int rpmsg_iio_probe(struct rpmsg_device *rpdev)
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x\n",
 			rpdev->src, rpdev->dst);
+
+	iio_rpmsg->reply_msg = devm_kzalloc(&rpdev->dev,
+				      sizeof(struct rpmsg_iio_msg),
+				      GFP_KERNEL);
+	if (!iio_rpmsg->reply_msg)
+		return -ENOMEM;
 
 	init_completion(&iio_rpmsg->cmd_complete);
 	mutex_init(&iio_rpmsg->lock);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2022 NXP
+ * Copyright 2022,2026 NXP
  */
 
 /dts-v1/;
@@ -8,8 +8,8 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 / {
-	model = "NXP i.MX93 11x11 EVK";
-	compatible = "fsl,imx93-11x11-evk", "fsl,imx93";
+	model = "NXP i.MX93/93W jailhouse inmate";
+	compatible = "fsl,imx93";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;

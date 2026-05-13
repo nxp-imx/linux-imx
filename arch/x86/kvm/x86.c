@@ -846,7 +846,6 @@ void kvm_deliver_exception_payload(struct kvm_vcpu *vcpu,
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_deliver_exception_payload);
 
-#ifndef __PKVM_HYP__
 static void kvm_queue_exception_vmexit(struct kvm_vcpu *vcpu, unsigned int vector,
 				       bool has_error_code, u32 error_code,
 				       bool has_payload, unsigned long payload)
@@ -861,7 +860,6 @@ static void kvm_queue_exception_vmexit(struct kvm_vcpu *vcpu, unsigned int vecto
 	ex->has_payload = has_payload;
 	ex->payload = payload;
 }
-#endif /* !__PKVM_HYP__ */
 
 static void kvm_multiple_exception(struct kvm_vcpu *vcpu, unsigned int nr,
 				   bool has_error, u32 error_code,
@@ -942,13 +940,11 @@ void kvm_queue_exception_p(struct kvm_vcpu *vcpu, unsigned nr,
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_queue_exception_p);
 
-#ifndef __PKVM_HYP__
 static void kvm_queue_exception_e_p(struct kvm_vcpu *vcpu, unsigned nr,
 				    u32 error_code, unsigned long payload)
 {
 	kvm_multiple_exception(vcpu, nr, true, error_code, true, payload);
 }
-#endif /* !__PKVM_HYP__ */
 
 void kvm_requeue_exception(struct kvm_vcpu *vcpu, unsigned int nr,
 			   bool has_error_code, u32 error_code)
@@ -1001,6 +997,7 @@ static int complete_emulated_insn_gp(struct kvm_vcpu *vcpu, int err)
 	return kvm_emulate_instruction(vcpu, EMULTYPE_NO_DECODE | EMULTYPE_SKIP |
 				       EMULTYPE_COMPLETE_USER_EXIT);
 }
+#endif /* !__PKVM_HYP__ */
 
 void kvm_inject_page_fault(struct kvm_vcpu *vcpu, struct x86_exception *fault)
 {
@@ -1019,6 +1016,7 @@ void kvm_inject_page_fault(struct kvm_vcpu *vcpu, struct x86_exception *fault)
 					fault->address);
 }
 
+#ifndef __PKVM_HYP__
 void kvm_inject_emulated_page_fault(struct kvm_vcpu *vcpu,
 				    struct x86_exception *fault)
 {
@@ -3874,11 +3872,11 @@ static void kvm_vcpu_flush_tlb_all(struct kvm_vcpu *vcpu)
 	kvm_clear_request(KVM_REQ_TLB_FLUSH_CURRENT, vcpu);
 }
 
-#ifndef __PKVM_HYP__
 static void kvm_vcpu_flush_tlb_guest(struct kvm_vcpu *vcpu)
 {
 	++vcpu->stat.tlb_flush;
 
+#ifndef __PKVM_HYP__
 	if (!tdp_enabled) {
 		/*
 		 * A TLB flush on behalf of the guest is equivalent to
@@ -3889,16 +3887,18 @@ static void kvm_vcpu_flush_tlb_guest(struct kvm_vcpu *vcpu)
 		kvm_mmu_sync_roots(vcpu);
 		kvm_mmu_sync_prev_roots(vcpu);
 	}
+#endif
 
 	kvm_x86_call(flush_tlb_guest)(vcpu);
 
+#ifndef __PKVM_HYP__
 	/*
 	 * Flushing all "guest" TLB is always a superset of Hyper-V's fine
 	 * grained flushing.
 	 */
 	kvm_hv_vcpu_purge_flush_tlb(vcpu);
+#endif
 }
-#endif /* !__PKVM_HYP__ */
 
 
 static inline void kvm_vcpu_flush_tlb_current(struct kvm_vcpu *vcpu)
@@ -14940,6 +14940,9 @@ static int __pkvm_vcpu_enter_guest(struct kvm_vcpu *vcpu, bool force_immediate_e
 		if (kvm_check_request(KVM_REQ_TLB_FLUSH_CURRENT, vcpu))
 			kvm_vcpu_flush_tlb_current(vcpu);
 
+		if (kvm_check_request(KVM_REQ_TLB_FLUSH_GUEST, vcpu))
+			kvm_vcpu_flush_tlb_guest(vcpu);
+
 		if (kvm_check_request(KVM_REQ_APICV_UPDATE, vcpu))
 			kvm_vcpu_update_apicv(vcpu);
 
@@ -14952,12 +14955,7 @@ static int __pkvm_vcpu_enter_guest(struct kvm_vcpu *vcpu, bool force_immediate_e
 
 	kvm_x86_call(prepare_switch_to_guest)(vcpu);
 
-	/*
-	 * Make sure vcpu->mode is changed to IN_GUEST_MODE before
-	 * running to mark this vcpu should be kicked for any new
-	 * vcpu request.
-	 */
-	smp_store_mb(vcpu->mode, IN_GUEST_MODE);
+	pkvm_set_vcpu_in_guest(vcpu);
 
 	if (enable_apicv && kvm_lapic_enabled(vcpu))
 		kvm_x86_call(sync_pir_to_irr)(vcpu);
@@ -14968,8 +14966,20 @@ static int __pkvm_vcpu_enter_guest(struct kvm_vcpu *vcpu, bool force_immediate_e
 		req_immediate_exit = force_immediate_exit;
 
 	run_flags = 0;
-	if (req_immediate_exit)
+	if (req_immediate_exit) {
 		run_flags |= KVM_RUN_FORCE_IMMEDIATE_EXIT;
+	} else if (READ_ONCE(vcpu->mode) == EXITING_GUEST_MODE ||
+		 kvm_request_pending(vcpu)) {
+		pkvm_set_vcpu_outside_guest(vcpu);
+		/*
+		 * No need to cancel the previously injected events as the event
+		 * is injected via either handling exit reasons or the PV
+		 * interface which both happen on this CPU, thus there is no new
+		 * event injection request. And the vCPU run loop also doesn't
+		 * break out in this case, so no need to cancel.
+		 */
+		return 1;
+	}
 
 	if (vcpu->arch.guest_fpu.xfd_err)
 		wrmsrl(MSR_IA32_XFD_ERR, vcpu->arch.guest_fpu.xfd_err);
@@ -14997,12 +15007,7 @@ static int __pkvm_vcpu_enter_guest(struct kvm_vcpu *vcpu, bool force_immediate_e
 		kvm_update_dr7(vcpu);
 	}
 
-	/*
-	 * Make sure vcpu->mode is changed to OUTSIDE_GUEST_MODE after
-	 * vmexit to mark this vcpu no need to be kicked for any new
-	 * vcpu request.
-	 */
-	smp_store_mb(vcpu->mode, OUTSIDE_GUEST_MODE);
+	pkvm_set_vcpu_outside_guest(vcpu);
 
 	if (unlikely(exit_fastpath == EXIT_FASTPATH_REENTER_GUEST))
 		return 1;

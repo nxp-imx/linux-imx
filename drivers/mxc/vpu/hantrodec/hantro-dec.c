@@ -345,8 +345,6 @@ static void hantro_dec_reset_core(struct hantro_dec_core *core)
 	for (i = 2; i < core->num_regs; i++)
 		trusty_dec_writel(core, 0, i * 4, WRITE_REGS);
 	trusty_dec_writel(core, 0, 4, WRITE_SECURE_CTRL_REGS);
-
-	hantro_dec_update_mirror_regs(core);
 }
 
 static bool hantro_dec_get_workable_core(struct hantro_dec_interface *iface,
@@ -419,10 +417,8 @@ static void hantro_dec_put_core(struct hantro_dec_core *core, struct file *filp,
 			}
 		}
 	}
-	if (flag && poweroff) {
-		pm_runtime_mark_last_busy(core->dev);
+	if (flag && poweroff)
 		pm_runtime_put_autosuspend(core->dev);
-	}
 
 	wake_up_interruptible_all(&iface->hw_queue);
 }
@@ -565,6 +561,7 @@ static bool hantro_dec_check_done(struct hantro_dec_core *core)
 
 static void hantro_dec_cancel(struct hantro_dec_core *core)
 {
+	hantro_dec_update_mirror_regs(core);
 	core->mirror_regs[1] = 0x40100;
 	hantro_dec_reset_core(core);
 }
@@ -853,65 +850,67 @@ static irqreturn_t hantro_dec_isr(int irq, void *dev_id)
 	unsigned int handled = 0;
 	u32 irq_status;
 
-	irq_status = hantro_dec_readl(core, HANTRODEC_IRQ_STAT_DEC_OFF);
-	if (irq_status & HANTRODEC_DEC_IRQ) {
-		irq_status &= (~HANTRODEC_DEC_IRQ);
-		trusty_dec_writel(core, irq_status, HANTRODEC_IRQ_STAT_DEC_OFF, WRITE_REGS);
-
-		if (irq_status & HANTRODEC_DEC_ERROR_MASK) {
-			if (irq_status & HANTRODEC_DEC_BUS_ERROR)
-				dev_dbg(core->dev, "bus error\n");
-			if (irq_status & HANTRODEC_DEC_STRM_BUF_EMPTY)
-				dev_dbg(core->dev, "stream buffer empty\n");
-			if (irq_status & HANTRODEC_DEC_ASO_DETECTED)
-				dev_dbg(core->dev, "detect ASO\n");
-			if (irq_status & HANTRODEC_DEC_STRM_INPUT_ERR)
-				dev_dbg(core->dev, "stream input error\n");
+	scoped_guard(spinlock_irqsave, &core->lock) {
+		if (!core->is_reserved) {
+			dev_dbg(core->dev, "irq received but core is not reserved\n");
+			return IRQ_HANDLED;
 		}
-		scoped_guard(spinlock_irqsave, &core->lock) {
-			if (core->is_reserved) {
-				core->irq_received = 1;
-				core->irq_status = irq_status;
-			} else {
-				dev_dbg(core->dev, "irq 0x%x received but core is not reserved\n",
-					irq_status);
+
+		irq_status = hantro_dec_readl(core, HANTRODEC_IRQ_STAT_DEC_OFF);
+		if (irq_status & HANTRODEC_DEC_IRQ) {
+			irq_status &= (~HANTRODEC_DEC_IRQ);
+			trusty_dec_writel(core, irq_status, HANTRODEC_IRQ_STAT_DEC_OFF, WRITE_REGS);
+
+			if (irq_status & HANTRODEC_DEC_ERROR_MASK) {
+				if (irq_status & HANTRODEC_DEC_BUS_ERROR)
+					dev_dbg(core->dev, "bus error\n");
+				if (irq_status & HANTRODEC_DEC_STRM_BUF_EMPTY)
+					dev_dbg(core->dev, "stream buffer empty\n");
+				if (irq_status & HANTRODEC_DEC_ASO_DETECTED)
+					dev_dbg(core->dev, "detect ASO\n");
+				if (irq_status & HANTRODEC_DEC_STRM_INPUT_ERR)
+					dev_dbg(core->dev, "stream input error\n");
 			}
 
+			core->irq_received = 1;
+			core->irq_status = irq_status;
+
 			hantro_dec_update_mirror_regs(core);
+			handled++;
 		}
-		wake_up_all(&core->dec_done);
-		handled++;
 	}
+
+	dev_dbg(core->dev, "irq status 0x%x, handled %d\n", irq_status, handled);
+	if (handled)
+		wake_up_all(&core->dec_done);
 
 	return IRQ_RETVAL(handled);
 }
 
-static inline int hantro_dec_read_irq_received(struct hantro_dec_core *core)
+static inline int hantro_dec_is_ready_to_sleep(struct hantro_dec_core *core)
 {
 	guard(spinlock_irqsave)(&core->lock);
+
+	if (!core->is_reserved || !core->is_enabled)
+		return 1;
 
 	return core->irq_received;
 }
 
 static int hantro_dec_pause(struct hantro_dec_core *core)
 {
+	u32 data;
 	int ret;
 
 	if (!core || !core->is_valid)
 		return 0;
-	if (!core->is_reserved)
-		return 0;
 
-	if (core->is_enabled) {
-		u32 data;
-
-		ret = read_poll_timeout(hantro_dec_read_irq_received, data, data, 10,
-					HANTRO_DEC_TIMEOUT_MS * USEC_PER_MSEC, false, core);
-		if (ret) {
-			dev_err(core->dev, "wait core[%d] done timeout\n", core->id);
-			return -EINVAL;
-		}
-	}
+	ret = read_poll_timeout(hantro_dec_is_ready_to_sleep, data, data, 10,
+				HANTRO_DEC_TIMEOUT_MS * USEC_PER_MSEC, false, core);
+	if (ret)
+		dev_err(core->dev, "wait core[%d] done timeout, status %d, %d, %d, 0x%x\n",
+			core->id, core->is_reserved, core->is_enabled,
+			core->irq_received, core->irq_status);
 
 	dev_dbg(core->dev, "suspend, irq_status = 0x%x\n", core->irq_status);
 
@@ -1224,7 +1223,7 @@ static void hantro_dec_create_debugfs(struct hantro_dec_core *core)
 {
 	char name[64];
 
-	if (!core || !core->iface || !core->iface->debugfs)
+	if (!core->iface->debugfs)
 		return;
 	if (hantro_dec_is_g1(core))
 		scnprintf(name, sizeof(name), "g1");
@@ -1277,6 +1276,7 @@ static int hantro_dec_init_core(struct hantro_dec_core *core)
 
 	hantro_dec_read_core_config(core);
 	hantro_dec_reset_core(core);
+	hantro_dec_update_mirror_regs(core);
 	ret = hantro_dec_add_core(core->iface, core);
 	if (ret)
 		goto exit;
@@ -1287,7 +1287,6 @@ static int hantro_dec_init_core(struct hantro_dec_core *core)
 
 	hantro_dec_create_debugfs(core);
 exit:
-	pm_runtime_mark_last_busy(core->dev);
 	pm_runtime_put_autosuspend(core->dev);
 	if (ret) {
 		if (core->mirror_regs) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2024 NXP
+ * Copyright 2024,2026 NXP
  *
  */
 
@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
@@ -22,6 +23,8 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mc.h>
 #include <media/v4l2-subdev.h>
+
+#include "neoisp/neoisp_core.h"
 
 /* CSI Pixel Formaterr Registers Define */
 
@@ -97,6 +100,7 @@ struct csi_formatter {
 	u64 enabled_streams;
 
 	u32 reg_offset;
+	struct device *isp_dev;
 };
 
 struct dt_index {
@@ -230,6 +234,28 @@ static const struct formatter_pix_format *find_csi_format(u32 code)
 	return &formats[0];
 }
 
+static int neoisp_core_probe(struct device **isp_dev, struct platform_device *pdev)
+{
+#if IS_ENABLED(CONFIG_VIDEO_NXP_NEOISP)
+	struct platform_device *neoisp;
+	struct device_node *of_neoisp;
+
+	of_neoisp = of_parse_phandle(pdev->dev.of_node, "nxp,neoisp", 0);
+	if (!of_neoisp)
+		return 0;
+
+	neoisp = of_find_device_by_node(of_neoisp);
+	if (!neoisp)
+		return 0;
+
+	if (!platform_get_drvdata(neoisp))
+		return -EPROBE_DEFER;
+
+	*isp_dev = &neoisp->dev;
+#endif
+	return 0;
+}
+
 /* -----------------------------------------------------------------------------
  * V4L2 subdev operations
  */
@@ -256,6 +282,7 @@ static int __formatter_subdev_set_routing(struct v4l2_subdev *sd,
 	return v4l2_subdev_set_routing_with_fmt(sd, state, routing,
 						&formatter_default_fmt);
 }
+
 static int formatter_subdev_init_state(struct v4l2_subdev *sd,
 				       struct v4l2_subdev_state *sd_state)
 {
@@ -275,6 +302,16 @@ static int formatter_subdev_init_state(struct v4l2_subdev *sd,
 	};
 
 	return __formatter_subdev_set_routing(sd, sd_state, &routing);;
+}
+
+static int formatter_subdev_registered(struct v4l2_subdev *sd)
+{
+	struct csi_formatter *formatter = sd_to_formatter(sd);
+
+	if (!formatter->isp_dev)
+		return 0;
+
+	return neoisp_core_media_register(formatter->isp_dev, sd);
 }
 
 static int formatter_subdev_enum_mbus_code(struct v4l2_subdev *sd,
@@ -632,6 +669,7 @@ static const struct v4l2_subdev_ops formatter_subdev_ops = {
 
 static const struct v4l2_subdev_internal_ops formatter_internal_ops = {
 	.init_state = formatter_subdev_init_state,
+	.registered = formatter_subdev_registered,
 };
 
 /* -----------------------------------------------------------------------------
@@ -828,6 +866,13 @@ static int csi_formatter_probe(struct platform_device *pdev)
 	if (IS_ERR(formatter->clk)) {
 		dev_err(dev, "Failed to get pixel clock\n");
 		return PTR_ERR(formatter->clk);
+	}
+
+	/* Check if neoisp is connected to formatter */
+	ret = neoisp_core_probe(&formatter->isp_dev, pdev);
+	if (ret) {
+		platform_device_put(pdev);
+		return ret;
 	}
 
 	ret = csi_formatter_subdev_init(formatter);

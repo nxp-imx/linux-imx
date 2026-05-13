@@ -117,11 +117,6 @@ static inline void put_affine_portal(void)
 {
 	put_cpu_var(bman_affine_portal);
 }
-static inline struct bman_portal *get_poll_portal(void)
-{
-	return &get_cpu_var(bman_affine_portal);
-}
-#define put_poll_portal()
 
 /* GOTCHA: this object type refers to a pool, it isn't *the* pool. There may be
  * more than one such object per Bman buffer pool, eg. if different users of the
@@ -179,13 +174,6 @@ static void depletion_unlink(struct bman_pool *pool)
 	PORTAL_IRQ_UNLOCK(pool->portal, irqflags);
 }
 
-/* In the case that the application's core loop calls qman_poll() and
- * bman_poll(), we ought to balance how often we incur the overheads of the
- * slow-path poll. We'll use two decrementer sources. The idle decrementer
- * constant is used when the last slow-poll detected no work to do, and the busy
- * decrementer constant when the last slow-poll had work to do. */
-#define SLOW_POLL_IDLE 1000
-#define SLOW_POLL_BUSY 10
 static u32 __poll_portal_slow(struct bman_portal *p, u32 is);
 
 /* Portal interrupt handler */
@@ -526,15 +514,6 @@ const struct bman_portal_config *bman_get_portal_config(void)
 }
 EXPORT_SYMBOL(bman_get_portal_config);
 
-u32 bman_irqsource_get(void)
-{
-	struct bman_portal *p = get_raw_affine_portal();
-	u32 ret = p->irq_sources & BM_PIRQ_VISIBLE;
-	put_affine_portal();
-	return ret;
-}
-EXPORT_SYMBOL(bman_irqsource_get);
-
 int bman_p_irqsource_add(struct bman_portal *p, __maybe_unused u32 bits)
 {
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
@@ -601,48 +580,6 @@ const cpumask_t *bman_affine_cpus(void)
 	return &affine_mask;
 }
 EXPORT_SYMBOL(bman_affine_cpus);
-
-u32 bman_poll_slow(void)
-{
-	struct bman_portal *p = get_poll_portal();
-	u32 ret;
-#ifdef CONFIG_FSL_DPA_PORTAL_SHARE
-	if (unlikely(p->sharing_redirect))
-		ret = (u32)-1;
-	else
-#endif
-	{
-		u32 is = bm_isr_status_read(&p->p) & ~p->irq_sources;
-		ret = __poll_portal_slow(p, is);
-		bm_isr_status_clear(&p->p, ret);
-	}
-	put_poll_portal();
-	return ret;
-}
-EXPORT_SYMBOL(bman_poll_slow);
-
-/* Legacy wrapper */
-void bman_poll(void)
-{
-	struct bman_portal *p = get_poll_portal();
-#ifdef CONFIG_FSL_DPA_PORTAL_SHARE
-	if (unlikely(p->sharing_redirect))
-		goto done;
-#endif
-	if (!(p->slowpoll--)) {
-		u32 is = bm_isr_status_read(&p->p) & ~p->irq_sources;
-		u32 active = __poll_portal_slow(p, is);
-		if (active)
-			p->slowpoll = SLOW_POLL_BUSY;
-		else
-			p->slowpoll = SLOW_POLL_IDLE;
-	}
-#ifdef CONFIG_FSL_DPA_PORTAL_SHARE
-done:
-#endif
-	put_poll_portal();
-}
-EXPORT_SYMBOL(bman_poll);
 
 static const u32 zero_thresholds[4] = {0, 0, 0, 0};
 

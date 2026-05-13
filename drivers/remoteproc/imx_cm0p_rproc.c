@@ -293,6 +293,108 @@ static int imx_cm0p_load(struct rproc *rproc, const struct firmware *fw)
 	return 0;
 }
 
+/* pm runtime functions */
+static int imx_cm0p_runtime_resume(struct device *dev)
+{
+	struct rproc *rproc = dev_get_drvdata(dev);
+	struct imx_cm0p_rproc *cm0p = rproc->priv;
+	int ret;
+
+	ret = clk_prepare_enable(cm0p->cm0p_clk);
+	if (ret) {
+		dev_err(cm0p->dev, "failed to enable M0 clock: %d\n", ret);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(cm0p->spi_clk);
+	if (ret)
+		dev_warn(cm0p->dev, "failed to enable SPI clock: %d\n", ret);
+
+	return 0;
+}
+
+static int imx_cm0p_runtime_suspend(struct device *dev)
+{
+	struct rproc *rproc = dev_get_drvdata(dev);
+	struct imx_cm0p_rproc *cm0p = rproc->priv;
+
+	clk_disable_unprepare(cm0p->cm0p_clk);
+	clk_disable_unprepare(cm0p->spi_clk);
+
+	return 0;
+}
+
+static void imx_cm0p_load_firmware(const struct firmware *fw, void *context)
+{
+	struct rproc *rproc = context;
+	struct imx_cm0p_rproc *cm0p = rproc->priv;
+	int ret;
+
+	ret = imx_cm0p_alloc_memory_region(cm0p);
+	if (ret)
+		return;
+
+	ret = imx_cm0p_load(rproc, fw);
+	if (ret)
+		return;
+
+	/* Start the remote processor */
+	if (rproc->state == RPROC_RUNNING)
+		rproc->ops->start(rproc);
+}
+
+
+static int imx_cm0p_suspend(struct device *dev)
+{
+	struct rproc *rproc = dev_get_drvdata(dev);
+	struct imx_cm0p_rproc *cm0p = rproc->priv;
+	int ret;
+
+	/* Stop the remote processor */
+	ret = rproc->ops->stop(rproc);
+	if (ret)
+		return ret;
+
+	clk_disable_unprepare(cm0p->ocram_clk);
+
+	return pm_runtime_force_suspend(dev);
+}
+
+static int imx_cm0p_resume(struct device *dev)
+{
+	struct rproc *rproc = dev_get_drvdata(dev);
+	struct imx_cm0p_rproc *cm0p = rproc->priv;
+	int ret = 0;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret)
+		return ret;
+
+	if (rproc->state != RPROC_RUNNING)
+		return 0;
+
+	ret = clk_prepare_enable(cm0p->ocram_clk);
+	if (ret) {
+		dev_err(dev, "failed to enable OCRAM clock: %d\n", ret);
+		goto err;
+	}
+
+	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
+				      rproc->firmware, dev, GFP_KERNEL,
+				      rproc, imx_cm0p_load_firmware);
+	if (ret < 0) {
+		dev_err(dev, "load firmware failed: %d\n", ret);
+		goto err;
+	}
+
+	return 0;
+
+err:
+	pm_runtime_force_suspend(dev);
+
+	return ret;
+}
+
 static const struct rproc_ops imx_cm0p_rproc_ops = {
 	.start = imx_cm0p_start,
 	.stop = imx_cm0p_stop,
@@ -345,9 +447,6 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 	/* LPSPI clock is optional */
 	cm0p_rproc->spi_clk = devm_clk_get_optional(dev, "lpspi");
 
-	pm_runtime_enable(dev);
-	pm_runtime_resume_and_get(dev);
-
 	cm0p_rproc->cm0p_ctl = syscon_regmap_lookup_by_phandle(np, "nxp,cm0p-ctrl");
 	if (IS_ERR(cm0p_rproc->cm0p_ctl)) {
 		ret = PTR_ERR(cm0p_rproc->cm0p_ctl);
@@ -365,16 +464,6 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 		goto err_rproc;
 	}
 
-	ret = clk_prepare_enable(cm0p_rproc->ocram_clk);
-	if (ret) {
-		dev_err(dev, "failed to enable OCRAM clock: %d\n", ret);
-		goto err_rproc;
-	}
-
-	ret = imx_cm0p_alloc_memory_region(cm0p_rproc);
-	if (ret)
-		goto err_clk;
-
 	dev_set_drvdata(dev, rproc);
 
 	ret = rproc_add(rproc);
@@ -384,7 +473,7 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 		goto err_clk;
 	}
 
-	return 0;
+	return devm_pm_runtime_enable(dev);
 
 err_clk:
 	clk_disable_unprepare(cm0p_rproc->ocram_clk);
@@ -407,6 +496,11 @@ static void imx_cm0p_rproc_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 }
 
+static const struct dev_pm_ops imx_cm0p_rproc_pm_ops = {
+	SYSTEM_SLEEP_PM_OPS(imx_cm0p_suspend, imx_cm0p_resume)
+	RUNTIME_PM_OPS(imx_cm0p_runtime_suspend, imx_cm0p_runtime_resume, NULL)
+};
+
 static const struct of_device_id imx_cm0p_rproc_of_match[] = {
 	{ .compatible = "nxp,imx952-cm0p-rproc",
 	  .data = &imx_cm0p_rproc_cfg_imx952,
@@ -421,6 +515,7 @@ static struct platform_driver imx_cm0p_rproc_driver = {
 	.driver = {
 		.name = "imx-cm0p-rproc",
 		.of_match_table = imx_cm0p_rproc_of_match,
+		.pm = pm_ptr(&imx_cm0p_rproc_pm_ops),
 	},
 };
 module_platform_driver(imx_cm0p_rproc_driver);

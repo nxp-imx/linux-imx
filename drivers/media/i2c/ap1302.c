@@ -1440,10 +1440,10 @@ static const struct v4l2_ctrl_config ap1302_ctrls[] = {
 		.id = V4L2_CID_GAMMA,
 		.name = "Gamma",
 		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0x0100,
-		.max = 0xFFFF,
+		.min = 0x0,	/* min: 0 represents default gamma 2.2 */
+		.max = 0x7FFF,
 		.step = 0x100,
-		.def = 0x1000,
+		.def = 0x0,	/* default: 0 (gamma 2.2) */
 	}, {
 		.ops = &ap1302_ctrl_ops,
 		.id = V4L2_CID_CONTRAST,

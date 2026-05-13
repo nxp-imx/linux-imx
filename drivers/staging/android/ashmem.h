@@ -28,6 +28,7 @@ static const gfp_t RUST_CONST_HELPER___GFP_IO = ___GFP_IO;
 enum {
 	COMPAT_ASHMEM_SET_SIZE		=	_IOW(__ASHMEMIOC, 3, compat_size_t),
 	COMPAT_ASHMEM_SET_PROT_MASK	=	_IOW(__ASHMEMIOC, 5, unsigned int),
+	COMPAT_ASHMEM_GET_FILE_ID	=	_IOR(__ASHMEMIOC, 11, compat_uptr_t),
 };
 #endif
 

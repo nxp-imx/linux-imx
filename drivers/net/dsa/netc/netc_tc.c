@@ -8,6 +8,7 @@
 
 #define NETC_IPFT_KEYS	(BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) | \
 			 BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) | \
+			 BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) | \
 			 BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) | \
 			 BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) | \
 			 BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) | \
@@ -39,6 +40,12 @@ static const struct netc_flower netc_flow_filter[] = {
 		0,
 		NETC_IPFT_KEYS,
 		FLOWER_TYPE_POLICE
+	},
+	{
+		BIT_ULL(FLOW_ACTION_DROP),
+		0,
+		NETC_IPFT_KEYS,
+		FLOWER_TYPE_DROP
 	},
 };
 
@@ -768,6 +775,8 @@ int netc_port_flow_cls_replace(struct netc_port *port,
 		return netc_setup_trap_redirect(user, port->index, f);
 	case FLOWER_TYPE_POLICE:
 		return netc_setup_police(user, port->index, f);
+	case FLOWER_TYPE_DROP:
+		return netc_setup_drop(user, port->index, f);
 	default:
 		NL_SET_ERR_MSG_MOD(extack, "Unsupported flower type");
 		return -EOPNOTSUPP;
@@ -816,6 +825,9 @@ static void netc_delete_flower_rule(struct ntmp_user *user,
 	case FLOWER_TYPE_POLICE:
 		netc_delete_police_flower_rule(user, rule);
 		break;
+	case FLOWER_TYPE_DROP:
+		netc_delete_drop_flower_rule(user, rule);
+		break;
 	default:
 		break;
 	}
@@ -847,8 +859,6 @@ static int netc_trap_redirect_flower_stat(struct ntmp_user *user,
 					  u64 *byte_cnt, u64 *pkt_cnt,
 					  u64 *drop_cnt)
 {
-	struct ntmp_ipft_entry *ipft_entry = rule->key_tbl->ipft_entry;
-	struct ntmp_ipft_entry *ipft_query __free(kfree) = NULL;
 	struct isct_stse_data stse = { };
 	int err;
 
@@ -863,16 +873,9 @@ static int netc_trap_redirect_flower_stat(struct ntmp_user *user,
 			    le32_to_cpu(stse.sg_drop_count) +
 			    le32_to_cpu(stse.policer_drop_count);
 	} else {
-		ipft_query = kzalloc(sizeof(*ipft_query), GFP_KERNEL);
-		if (!ipft_query)
-			return -ENOMEM;
-
-		err = ntmp_ipft_query_entry(user, ipft_entry->entry_id,
-					    true, ipft_query);
+		err = netc_ipft_flower_stat(user, rule, pkt_cnt);
 		if (err)
 			return err;
-
-		*pkt_cnt = le64_to_cpu(ipft_query->match_count);
 	}
 
 	return 0;
@@ -911,7 +914,8 @@ int netc_port_flow_cls_stats(struct netc_port *port,
 			goto err_out;
 		break;
 	case FLOWER_TYPE_POLICE:
-		err = netc_police_flower_stat(user, rule, &pkt_cnt);
+	case FLOWER_TYPE_DROP:
+		err = netc_ipft_flower_stat(user, rule, &pkt_cnt);
 		if (err)
 			goto err_out;
 		break;

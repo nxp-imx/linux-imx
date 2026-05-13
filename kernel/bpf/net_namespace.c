@@ -244,7 +244,7 @@ static const struct bpf_link_ops bpf_netns_link_ops = {
 /* Must be called with netns_bpf_mutex held. */
 static int __netns_bpf_prog_query(const union bpf_attr *attr,
 				  union bpf_attr __user *uattr,
-				  struct net *net,
+				  u32 uattr_size, struct net *net,
 				  enum netns_bpf_attach_type type)
 {
 	__u32 __user *prog_ids = u64_to_user_ptr(attr->query.prog_ids);
@@ -268,7 +268,7 @@ static int __netns_bpf_prog_query(const union bpf_attr *attr,
 }
 
 int netns_bpf_prog_query(const union bpf_attr *attr,
-			 union bpf_attr __user *uattr)
+			 union bpf_attr __user *uattr, u32 uattr_size)
 {
 	enum netns_bpf_attach_type type;
 	struct net *net;
@@ -286,7 +286,7 @@ int netns_bpf_prog_query(const union bpf_attr *attr,
 		return PTR_ERR(net);
 
 	mutex_lock(&netns_bpf_mutex);
-	ret = __netns_bpf_prog_query(attr, uattr, net, type);
+	ret = __netns_bpf_prog_query(attr, uattr, uattr_size, net, type);
 	mutex_unlock(&netns_bpf_mutex);
 
 	put_net(net);

@@ -569,6 +569,7 @@ void workingset_refault(struct folio *folio, void *shadow)
 		return;
 
 	folio_set_active(folio);
+	trace_android_vh_workingset_active(folio);
 	workingset_age_nonresident(lruvec, nr);
 	mod_lruvec_state(lruvec, WORKINGSET_ACTIVATE_BASE + file, nr);
 

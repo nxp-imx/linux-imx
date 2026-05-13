@@ -160,7 +160,7 @@ static int pkvm_dump_vmexit_trace(struct seq_file *m, struct perf_data *dump,
 				  unsigned long size)
 {
 	struct perf_data *summary = kmalloc(sizeof(struct perf_data), GFP_KERNEL_ACCOUNT);
-	int ret;
+	int ret = 0;
 
 	if (!summary) {
 		pr_err("failed to allocate perf summary buffer\n");

@@ -1979,6 +1979,8 @@ repeat:
 	folio = filemap_get_entry(mapping, index);
 	if (xa_is_value(folio))
 		folio = NULL;
+	trace_android_vh_filemap_get_folio(mapping, index, fgp_flags,
+					gfp, folio);
 	if (!folio)
 		goto no_page;
 
@@ -3300,7 +3302,6 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 {
 	struct file *file = vmf->vma->vm_file;
 	struct file_ra_state *ra = &file->f_ra;
-	DEFINE_RA_MMAP_MISS(ra);
 	struct address_space *mapping = file->f_mapping;
 	DEFINE_READAHEAD(ractl, file, ra, mapping, vmf->pgoff);
 	struct file *fpin = NULL;
@@ -3325,7 +3326,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 		if (!(vm_flags & VM_RAND_READ))
 			ra->size *= 2;
 		ra->async_size = HPAGE_PMD_NR;
-		ra_mmap_miss->order = HPAGE_PMD_ORDER;
+		ra->order = HPAGE_PMD_ORDER;
 		page_cache_ra_order(&ractl, ra);
 		return fpin;
 	}
@@ -3350,9 +3351,9 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	}
 
 	/* Avoid banging the cache line if not needed */
-	mmap_miss = READ_ONCE(ra_mmap_miss->mmap_miss);
+	mmap_miss = READ_ONCE(ra->mmap_miss);
 	if (mmap_miss < MMAP_LOTSAMISS * 10)
-		WRITE_ONCE(ra_mmap_miss->mmap_miss, ++mmap_miss);
+		WRITE_ONCE(ra->mmap_miss, ++mmap_miss);
 
 	/*
 	 * Do we miss much more than hit in this file? If so,
@@ -3392,7 +3393,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 		ra->start = max_t(long, 0, vmf->pgoff - ra->ra_pages / 2);
 		ra->size = ra->ra_pages;
 		ra->async_size = ra->ra_pages / 4;
-		ra_mmap_miss->order = 0;
+		ra->order = 0;
 	}
 
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
@@ -3416,7 +3417,6 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 {
 	struct file *file = vmf->vma->vm_file;
 	struct file_ra_state *ra = &file->f_ra;
-	DEFINE_RA_MMAP_MISS(ra);
 	DEFINE_READAHEAD(ractl, file, ra, file->f_mapping, vmf->pgoff);
 	struct file *fpin = NULL;
 	unsigned short mmap_miss;
@@ -3437,9 +3437,9 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 	 * increase in do_sync_mmap_readahead().
 	 */
 	if (likely(!folio_test_locked(folio))) {
-		mmap_miss = READ_ONCE(ra_mmap_miss->mmap_miss);
+		mmap_miss = READ_ONCE(ra->mmap_miss);
 		if (mmap_miss)
-			WRITE_ONCE(ra_mmap_miss->mmap_miss, --mmap_miss);
+			WRITE_ONCE(ra->mmap_miss, --mmap_miss);
 	}
 
 	if (folio_test_readahead(folio)) {
@@ -3530,9 +3530,13 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 	vm_fault_t ret = 0;
 	bool mapping_locked = false;
 
-	max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);
+	max_idx = DIV_ROUND_UP(i_size_read(inode), __PAGE_SIZE) * (__PAGE_SIZE / PAGE_SIZE);
 	if (unlikely(index >= max_idx))
 		return VM_FAULT_SIGBUS;
+
+	max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);
+	if (unlikely(index >= max_idx))
+		return VM_FAULT_NEED_ANONPAGE;
 
 	trace_mm_filemap_fault(mapping, index);
 
@@ -3636,11 +3640,17 @@ retry_find:
 	 * Found the page and have a reference on it.
 	 * We must recheck i_size under page lock.
 	 */
-	max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);
+	max_idx = DIV_ROUND_UP(i_size_read(inode), __PAGE_SIZE) * (__PAGE_SIZE / PAGE_SIZE);
 	if (unlikely(index >= max_idx)) {
 		folio_unlock(folio);
 		folio_put(folio);
 		return VM_FAULT_SIGBUS;
+	}
+
+	max_idx = DIV_ROUND_UP(i_size_read(inode), PAGE_SIZE);
+	if (unlikely(index >= max_idx)) {
+		folio_unlock(folio);
+		return VM_FAULT_NEED_ANONPAGE;
 	}
 
 	vmf->page = folio_file_page(folio, index);
@@ -3895,7 +3905,6 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 	vm_fault_t ret = 0;
 	unsigned long rss = 0;
 	unsigned int nr_pages = 0, folio_type;
-	DEFINE_RA_MMAP_MISS(&file->f_ra);
 	unsigned short mmap_miss = 0, mmap_miss_saved;
 	pgoff_t first_pgoff = 0;
 
@@ -3957,9 +3966,9 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 out:
 	rcu_read_unlock();
 
-	mmap_miss_saved = READ_ONCE(ra_mmap_miss->mmap_miss);
+	mmap_miss_saved = READ_ONCE(file->f_ra.mmap_miss);
 	if (mmap_miss >= mmap_miss_saved)
-		WRITE_ONCE(ra_mmap_miss->mmap_miss, 0);
+		WRITE_ONCE(file->f_ra.mmap_miss, 0);
 	else
 		WRITE_ONCE(file->f_ra.mmap_miss, mmap_miss_saved - mmap_miss);
 	trace_android_vh_filemap_map_pages(file, first_pgoff, last_pgoff, ret);

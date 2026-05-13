@@ -188,39 +188,44 @@ static u64 ept_pte_get(void *ptep)
 static void host_ept_flush_tlb(struct pkvm_pgtable *pgt,
 			       unsigned long vaddr, unsigned long size)
 {
+	struct kvm_vcpu *vcpu;
 	int i;
 
-	for (i = 0; i < pkvm_hyp->num_cpus; i++) {
-		struct kvm_vcpu *vcpu = pkvm_hyp->host_vcpus[i];
-
+	/*
+	 * During pKVM initialization phase, the host EPT will unmap the
+	 * pKVM's memory pages which can trigger TLB flushing on each
+	 * CPU. During this phase, a CPU may not be initialized yet to
+	 * respond to this request. In fact, it is also not necessary to
+	 * trigger TLB flushing for that CPU as the EPT will be flushed
+	 * eventually on that CPU when the CPU initialization is done.
+	 */
+	for_each_pkvm_initialized_cpu(i, vcpu) {
 		kvm_make_request(KVM_REQ_TLB_FLUSH_CURRENT, vcpu);
 		pkvm_kick_vcpu(vcpu);
 	}
 
 	pkvm_iommu_pt_flush(vaddr, size);
+
+	for_each_pkvm_initialized_cpu(i, vcpu)
+		pkvm_wait_vcpu_kicked_out(vcpu);
 }
 
 static void guest_ept_flush_tlb(struct pkvm_pgtable *pgt,
 				unsigned long vaddr, unsigned long size)
 {
 	struct pkvm_vm *pkvm_vm = pgt_to_pkvm(pgt);
+	struct kvm_vcpu *vcpu;
 	int i;
 
 	pkvm_spin_lock(&pkvm_vm->lock);
 
-	for (i = 0; i < pkvm_vm->kvm.created_vcpus; i++) {
-		struct pkvm_vcpu *pkvm_vcpu;
-		struct kvm_vcpu *vcpu;
-
-		pkvm_vcpu = pkvm_vm->vcpus[i];
-		if (WARN_ON_ONCE(!pkvm_vcpu))
-			continue;
-
-		vcpu = &pkvm_vcpu->vcpu;
-
+	for_each_pkvm_guest_vcpu(i, vcpu, pkvm_vm) {
 		kvm_make_request(KVM_REQ_TLB_FLUSH_CURRENT, vcpu);
 		pkvm_kick_vcpu(vcpu);
 	}
+
+	for_each_pkvm_guest_vcpu(i, vcpu, pkvm_vm)
+		pkvm_wait_vcpu_kicked_out(vcpu);
 
 	pkvm_spin_unlock(&pkvm_vm->lock);
 }
@@ -394,7 +399,55 @@ int pkvm_host_ept_finalize(struct pkvm_pgtable *pgt)
 	return 0;
 }
 
-int pkvm_handle_host_ept_violation(void)
+static void handle_host_ept_violation_failure(struct kvm_vcpu *vcpu)
+{
+	unsigned long exit_qualification = vmx_get_exit_qual(vcpu);
+	struct x86_exception fault = { 0 };
+	u64 error_code = 0;
+
+	/*
+	 * The guest linear address(GLA) should be valid for injecting #PF.
+	 * But the GLA may be invalid according to SDM vol. 3 Exit Qualification
+	 * for EPT Violations:
+	 * "The guest linear-address field is valid for all EPT violations
+	 * except those resulting from an attempt to load the guest PDPTEs as
+	 * part of the execution of the MOV CR instruction and those due to
+	 * trace-address pre-translation (TAPT; Section 27.5.4)."
+	 *
+	 * For loading guest PDPTEs via MOV CR, SDM Page-Fault Exceptions:
+	 * "Failures to load the PDPTE registers with PAE paging (see Section
+	 * 5.4.1) cause general-protection exceptions (#GP(0)) and not
+	 * page-fault exceptions.", #GP(0) can be injected.
+	 *
+	 * For TAPT, SDM IA32_RTIT_OUTPUT_BASE MSR:
+	 * "however, if any of those bits are set outside SEAM, trace output may
+	 * fail in a model-specific manner." Similar for pKVM, injecting #GP(0)
+	 * can be pKVM specific manner.
+	 */
+	if (!(exit_qualification & EPT_VIOLATION_GVA_IS_VALID)) {
+		kvm_inject_gp(vcpu, 0);
+		return;
+	}
+
+	error_code |= (exit_qualification & EPT_VIOLATION_PROT_MASK)
+		      ? PFERR_PRESENT_MASK : 0;
+	error_code |= (exit_qualification & EPT_VIOLATION_ACC_WRITE)
+		      ? PFERR_WRITE_MASK : 0;
+	error_code |= VMX_AR_DPL(vmcs_read32(GUEST_SS_AR_BYTES)) == 3
+		      ? PFERR_USER_MASK : 0;
+	error_code |= (exit_qualification & EPT_VIOLATION_ACC_INSTR)
+		      ? PFERR_FETCH_MASK : 0;
+
+	fault.vector = PF_VECTOR;
+	fault.error_code_valid = true;
+	fault.error_code = error_code;
+	fault.address = vmcs_readl(GUEST_LINEAR_ADDRESS);
+	fault.exit_qualification = exit_qualification;
+
+	kvm_inject_page_fault(vcpu, &fault);
+}
+
+void pkvm_handle_host_ept_violation(struct kvm_vcpu *vcpu)
 {
 	struct range range, cur;
 	int level, ret = -EPERM;
@@ -410,8 +463,8 @@ int pkvm_handle_host_ept_violation(void)
 	 */
 	if (pkvm_find_addr_range(gpa, &range) || is_pvmfw(gpa) ||
 	    is_iommu_mmio(gpa)) {
-		pkvm_err("Host access to protected memory at 0x%lx\n", gpa);
-		return ret;
+		pkvm_err_ratelimited("Host access to protected memory at 0x%lx\n", gpa);
+		goto failed;
 	}
 
 	pkvm_host_mmu_lock();
@@ -423,7 +476,7 @@ int pkvm_handle_host_ept_violation(void)
 		 * the host VM and retry.
 		 */
 		pkvm_host_mmu_unlock();
-		return 0;
+		return;
 	}
 
 	BUG_ON(level > host_ept->cap.level);
@@ -451,17 +504,19 @@ int pkvm_handle_host_ept_violation(void)
 			 * host VM to reclaim some mmu pages and try again.
 			 */
 			ret = pkvm_hyp_donate_host_mmio_locked(cur.start, size);
-			if (ret == -ENOMEM)
-				pkvm_err("No page-table page to map host GPA 0x%lx\n", gpa);
 			break;
 		}
 	}
 
 	if (ret)
-		pkvm_err("No valid range found to map host GPA 0x%lx\n", gpa);
+		pkvm_err("No valid range found to map host GPA 0x%lx, err %d\n", gpa, ret);
 
 	pkvm_host_mmu_unlock();
-	return ret;
+
+	if (likely(!ret))
+		return;
+failed:
+	handle_host_ept_violation_failure(vcpu);
 }
 
 void pkvm_flush_host_ept(void)

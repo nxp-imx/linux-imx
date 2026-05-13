@@ -454,6 +454,7 @@ int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 	struct kvm_hyp_iommu_domain *domain;
 	struct kvm_iommu_ops *kvm_iommu_ops;
 	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
+	struct pkvm_hyp_vm *vm = NULL;
 
 	domain = handle_to_domain(domain_id);
 	if (!domain)
@@ -466,14 +467,10 @@ int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 		goto out_unlock;
 	}
 
-	if (hyp_vcpu) {
-		if (domain->owner != pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu)) {
-			ret = -EPERM;
-			goto out_unlock;
-		}
-	}
+	if (hyp_vcpu)
+		vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 
-	if (WARN_ON(atomic_cmpxchg_acquire(&domain->refs, 1, 0) != 1)) {
+	if (domain->owner != vm || WARN_ON(atomic_cmpxchg_acquire(&domain->refs, 1, 0) != 1)) {
 		ret = -EINVAL;
 		goto out_unlock;
 	}
@@ -600,6 +597,30 @@ int kvm_iommu_nested_cfg_sync(pkvm_handle_t drv_id, pkvm_handle_t iommu_id,
 	ret = kvm_iommu_ops->nested_cfg_sync(iommu_id, cmd_desc_hyp_va, cmd_desc_size);
 out_unpin_mem:
 	hyp_unpin_shared_mem(cmd_desc_hyp_va, cmd_desc_hyp_va_end);
+	return ret;
+}
+
+int kvm_iommu_page_response(pkvm_handle_t drv_id, pkvm_handle_t iommu_id, u32 endpoint_id,
+			    u32 pasid, u32 grpid, u32 status_code)
+{
+	struct kvm_iommu_ops *kvm_iommu_ops;
+	int ret;
+
+	/* Prevent host from arbitrarily resuming guest device transactions. */
+	ret = pkvm_devices_get_context(iommu_id, endpoint_id, NULL);
+	if (ret)
+		return ret;
+
+	kvm_iommu_ops = get_drv(drv_id);
+	if (!kvm_iommu_ops || !kvm_iommu_ops->page_response) {
+		ret = -ENODEV;
+		goto out;
+	}
+
+	kvm_iommu_ops->page_response(iommu_id, endpoint_id, pasid, grpid, status_code);
+
+out:
+	pkvm_devices_put_context(iommu_id, endpoint_id);
 	return ret;
 }
 
@@ -797,7 +818,7 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 }
 
 int kvm_iommu_set_identity(pkvm_handle_t drv_id, pkvm_handle_t iommu,
-			   pkvm_handle_t dev, bool on)
+			   pkvm_handle_t dev, bool on, unsigned long flags)
 {
 	struct kvm_iommu_ops *kvm_iommu_ops = get_drv(drv_id);
 	int ret;
@@ -809,7 +830,7 @@ int kvm_iommu_set_identity(pkvm_handle_t drv_id, pkvm_handle_t iommu,
 	ret = pkvm_devices_get_context(iommu, dev, NULL);
 	if (ret)
 		return ret;
-	ret = kvm_iommu_ops->set_identity(iommu, dev, on);
+	ret = kvm_iommu_ops->set_identity(iommu, dev, on, flags);
 	pkvm_devices_put_context(iommu, dev);
 	return ret;
 }

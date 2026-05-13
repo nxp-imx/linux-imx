@@ -24,9 +24,6 @@
 #include "gpmi-regs.h"
 #include "bch-regs.h"
 
-/* export the bch geometry to dbgfs */
-static struct debugfs_blob_wrapper dbg_bch_geo;
-
 /* Resource names for the GPMI NAND driver. */
 #define GPMI_NAND_GPMI_REGS_ADDR_RES_NAME  "gpmi-nand"
 #define GPMI_NAND_BCH_REGS_ADDR_RES_NAME   "bch"
@@ -737,34 +734,25 @@ static int common_nfc_set_geometry(struct gpmi_nand_data *this)
 	return err;
 }
 
-static int bch_create_debugfs(struct gpmi_nand_data *this)
+#if defined(CONFIG_DEBUG_FS)
+static void bch_create_debugfs(struct gpmi_nand_data *this)
 {
 	struct bch_geometry *bch_geo = &this->bch_geometry;
 	struct dentry *dbg_root;
+	struct debugfs_blob_wrapper dbg_bch_geo;
 
 	dbg_root = debugfs_create_dir("gpmi-nand", NULL);
-	if (!dbg_root) {
-		dev_err(this->dev, "failed to create debug directory\n");
-		return -EINVAL;
-	}
-
 	dbg_bch_geo.data = (void *)bch_geo;
 	dbg_bch_geo.size = sizeof(struct bch_geometry);
-	if (!debugfs_create_blob("bch_geometry", S_IRUGO,
-				dbg_root, &dbg_bch_geo)) {
-		dev_err(this->dev, "failed to create debug bch geometry\n");
-		return -EINVAL;
-	}
-
+	debugfs_create_blob("bch_geometry", 0444, dbg_root, &dbg_bch_geo);
 	/* create raw mode flag */
-	if (!debugfs_create_file_full("raw_mode", S_IRUGO,
-				dbg_root, NULL, NULL, NULL)) {
-		dev_err(this->dev, "failed to create raw mode flag\n");
-		return -EINVAL;
-	}
-
-	return 0;
+	debugfs_create_file_full("raw_mode", 0444, dbg_root, NULL, NULL, NULL);
 }
+#else
+static void bch_create_debugfs(struct gpmi_nand_data *this)
+{
+}
+#endif /* CONFIG_DEBUG_FS */
 
 /* Configures the geometry for BCH.  */
 static int bch_set_geometry(struct gpmi_nand_data *this)
@@ -2336,10 +2324,8 @@ static int gpmi_init_last(struct gpmi_nand_data *this)
 	if (ret)
 		return ret;
 
-	/* Save the geometry to debugfs*/
-	ret = bch_create_debugfs(this);
-	if (ret)
-		return ret;
+	/* if DEBUG_FS enabled, Save the geometry to debugfs */
+	bch_create_debugfs(this);
 
 	/* Init the nand_ecc_ctrl{} */
 	ecc->read_page	= gpmi_ecc_read_page;

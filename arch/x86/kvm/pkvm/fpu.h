@@ -4,7 +4,7 @@
 
 #include <asm/fpu/types.h>
 
-void pkvm_init_percpu_fpu(void);
+int pkvm_init_percpu_fpu(void);
 void pkvm_init_guest_fpu(struct fpu_guest *gfpu);
 
 #endif /* __PKVM_X86_FPU_H */

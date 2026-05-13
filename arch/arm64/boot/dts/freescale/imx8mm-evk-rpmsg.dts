@@ -70,7 +70,9 @@
 			 <&clk IMX8MM_AUDIO_PLL1_OUT>,
 			 <&clk IMX8MM_AUDIO_PLL2_OUT>;
 		clock-names = "ipg", "mclk", "dma", "pll8k", "pll11k";
-		status = "okay";
+		audio-codec = <&ak4497>;
+		ignore-suspend-widgets =
+			"AK4497 AOUT", "Playback";
 	};
 
 	imx8mm-cm4 {
@@ -102,12 +104,8 @@
 
 /*
  * ATTENTION: M4 may use IPs like below
- * ECSPI0/ECSPI2, GPIO1/GPIO5, GPT1, I2C3, I2S3, WDOG1, UART4, PWM3, SDMA1
+ * ECSPI0/ECSPI2, GPIO1/GPIO5, GPT1, I2S3, WDOG1, UART4, PWM3, SDMA1
  */
-
-&i2c3 {
-	status = "disabled";
-};
 
 &uart4 {
 	status = "disabled";

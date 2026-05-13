@@ -578,7 +578,7 @@ static int visit_put_pages(struct io_pgtable_walk_data *walk_data, int lvl,
 {
 	struct put_pages_data *put_data = walk_data->data;
 
-	io_pgtable_put_pages(put_data->data->iop.cookie, iopte_to_paddr(*ptep, put_data->data),
+	io_pgtable_put_pages(&put_data->data->iop, iopte_to_paddr(*ptep, put_data->data),
 			     ARM_LPAE_BLOCK_SIZE(lvl, put_data->data), put_data->gather);
 	return 0;
 }

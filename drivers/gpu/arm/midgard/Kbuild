@@ -211,11 +211,6 @@ ifeq ($(CONFIG_MALI_DEVFREQ),y)
 endif
 
 ldflags-y +=--strip-debug
-ifeq ($(CONFIG_MALI_MIDGARD),m)
-MALI_BUILD_TM =\"$(shell date +"%H:%M:%S %Y/%m/%d")\"
-EXTRA_CFLAGS += -DMALI_BUILD_BY=\"$(shell whoami)\"
-EXTRA_CFLAGS += -DMALI_BUILD_TM="${MALI_BUILD_TM}"
-endif
 
 ifeq ($(KBUILD_EXTMOD),)
 # in-tree

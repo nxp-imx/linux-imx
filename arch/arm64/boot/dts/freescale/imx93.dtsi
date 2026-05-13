@@ -170,7 +170,7 @@
 			 <&clk IMX93_CLK_CAM_PIX>;
 		clock-names = "per", "pixel";
 		assigned-clocks = <&clk IMX93_CLK_CAM_PIX>;
-		assigned-clock-parents = <&clk IMX93_CLK_VIDEO_PLL>;
+		assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD0>;
 		assigned-clock-rates = <140000000>;
 		phys = <&dphy_rx>;
 		phy-names = "dphy-rx";
@@ -299,11 +299,9 @@
 			 <&clk IMX93_CLK_MIPI_DSI_GATE>,
 			 <&clk IMX93_CLK_MEDIA_DISP_PIX>;
 		clock-names = "byte", "pclk", "pixel";
-		assigned-clocks = <&clk IMX93_CLK_MIPI_TEST_BYTE>,
-				  <&clk IMX93_CLK_MEDIA_APB>;
-		assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD0>,
-					 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
-		assigned-clock-rates = <20000000>, <133333333>;
+		assigned-clocks = <&clk IMX93_CLK_MIPI_TEST_BYTE>;
+		assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD0>;
+		assigned-clock-rates = <20000000>;
 		phys = <&dphy>;
 		phy-names = "dphy";
 		power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_DSI>;

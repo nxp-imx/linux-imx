@@ -14,7 +14,7 @@ use kernel::{
     mm::virt::{vm_flags_t, VmaNew},
     prelude::*,
     str::CStr,
-    types::ARef,
+    types::{ARef, Opaque},
 };
 
 use core::{
@@ -243,4 +243,48 @@ unsafe extern "C" fn ashmem_vmfile_get_unmapped_area(
     let mm = unsafe { (*bindings::get_current()).mm };
     // SAFETY: This calls the right get_unmapped_area for a shmem.
     unsafe { bindings::mm_get_unmapped_area(mm, file, addr, len, pgoff, flags) }
+}
+
+#[pin_data(PinnedDrop)]
+pub(crate) struct DentryNameSnapshot {
+    #[pin]
+    snapshot: Opaque<bindings::name_snapshot>,
+}
+
+impl DentryNameSnapshot {
+    pub(crate) fn new(file: &File) -> impl PinInit<Self, core::convert::Infallible> + '_ {
+        pin_init!(Self {
+            snapshot <- Opaque::ffi_init(move |ptr| {
+                let file_ptr = file.as_ptr();
+                // SAFETY: It's safe to access a file's dentry.
+                let dentry = unsafe { (*file_ptr).__bindgen_anon_1.f_path.dentry };
+                // SAFETY: ptr is valid for writing. dentry is valid by safety requirements.
+                unsafe { bindings::take_dentry_name_snapshot(ptr, dentry) };
+            }),
+        })
+    }
+}
+
+impl core::ops::Deref for DentryNameSnapshot {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        let snapshot_ptr = self.snapshot.get();
+        // SAFETY: The snapshot is initialized and valid.
+        unsafe {
+            core::slice::from_raw_parts(
+                (*snapshot_ptr).name.name,
+                (*snapshot_ptr).name.__bindgen_anon_1.__bindgen_anon_1.len as usize,
+            )
+        }
+    }
+}
+
+#[pinned_drop]
+impl PinnedDrop for DentryNameSnapshot {
+    fn drop(self: Pin<&mut Self>) {
+        let snapshot_ptr = self.snapshot.get();
+        // SAFETY: This snapshot is valid.
+        unsafe { bindings::release_dentry_name_snapshot(snapshot_ptr) };
+    }
 }

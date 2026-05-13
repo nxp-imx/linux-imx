@@ -770,7 +770,8 @@ out_unlock:
 	return ret;
 }
 
-static int smmu_set_identity(pkvm_handle_t iommu, pkvm_handle_t sid, bool on)
+static int smmu_set_identity(pkvm_handle_t iommu, pkvm_handle_t sid,
+			     bool on, unsigned long flags)
 {
 	struct hyp_arm_smmu_v3_device_pv *smmu = smmu_id_to_ptr(iommu);
 	struct arm_smmu_ste *dst;
@@ -866,7 +867,7 @@ static int smmu_dev_block_dma(pkvm_handle_t iommu, u32 sid, bool is_host2guest)
 
 				cd_table = hyp_phys_to_virt(le64_to_cpu(dst->data[0]) & STRTAB_STE_0_S1CTXPTR_MASK);
 				nr_entries = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX, le64_to_cpu(dst->data[0]));
-				cd_sz = (1 << nr_entries) * (CTXDESC_CD_DWORDS << 3);
+				cd_sz = nr_entries * (CTXDESC_CD_DWORDS << 3);
 				kvm_iommu_reclaim_pages(cd_table, get_order(cd_sz));
 			}
 
@@ -1149,7 +1150,7 @@ static int smmu_init_registers(struct hyp_arm_smmu_v3_device *smmu)
 	      FIELD_PREP(CR1_QUEUE_OC, CR1_CACHE_WB) |
 	      FIELD_PREP(CR1_QUEUE_IC, CR1_CACHE_WB);
 	writel_relaxed(val, smmu->base + ARM_SMMU_CR1);
-	writel_relaxed(CR2_PTM, smmu->base + ARM_SMMU_CR2);
+	writel_relaxed(CR2_PTM | CR2_RECINVSID, smmu->base + ARM_SMMU_CR2);
 
 	val = readl_relaxed(smmu->base + ARM_SMMU_GERROR);
 	old = readl_relaxed(smmu->base + ARM_SMMU_GERRORN);
@@ -1332,6 +1333,9 @@ static int smmu_host_stage2_idmap(phys_addr_t start, phys_addr_t end, int prot)
 		return 0;
 
 	if (prot) {
+		if (!(prot & IOMMU_MMIO))
+			prot |= IOMMU_CACHE;
+
 		while (size) {
 			mapped = 0;
 			pgsize = smmu_pgsize_idmap(size, start, pgtable->cfg.pgsize_bitmap);

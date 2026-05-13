@@ -26,6 +26,7 @@ struct pkvm_pcpu {
 	struct gdt_page gdt_page;
 	struct idt_page idt_page;
 	struct tss_struct tss;
+	int cpu;
 };
 
 struct pkvm_hyp {
@@ -652,6 +653,12 @@ extern unsigned int pkvm_sym(tsc_khz);
 extern bool pkvm_sym(pvmfw_present);
 extern phys_addr_t pkvm_sym(pvmfw_base);
 extern phys_addr_t pkvm_sym(pvmfw_size);
+
+extern phys_addr_t pkvm_sym(pkvm_ramoops_console_pa);
+extern size_t pkvm_sym(pkvm_ramoops_console_size);
+
+extern unsigned long pkvm_sym(kaslr_offset_val);
+
 extern bool __read_mostly pkvm_sym(enable_apicv);
 extern bool __read_mostly pkvm_sym(enable_ipiv);
 extern bool __read_mostly pkvm_sym(enable_vpid);
@@ -660,7 +667,8 @@ u64 pkvm_total_reserve_pages(void);
 PKVM_DECLARE(void *, pkvm_early_alloc_page, (struct pkvm_memcache *mc));
 PKVM_DECLARE(void *, pkvm_early_alloc_contig, (unsigned int nr_pages));
 PKVM_DECLARE(void, pkvm_early_alloc_init, (void *virt, unsigned long size));
-PKVM_DECLARE(int, pkvm_setup_per_cpu, (int cpu, unsigned long base));
+PKVM_DECLARE(int, pkvm_setup_per_cpu, (int cpu, unsigned long base,
+				       unsigned long pcpu_pa, unsigned long vcpu_pa));
 PKVM_DECLARE(unsigned int, pkvm_per_cpu_nr_pages, (void));
 PKVM_DECLARE(unsigned long, pkvm_per_cpu_offset, (int cpu));
 #define GEN(x, ...) PKVM_DECLARE(void, handle_exception_##x, (void));
@@ -836,7 +844,6 @@ static inline size_t pkvm_guest_initial_fpstate_size(struct kvm *kvm)
 #undef WARN
 #undef WARN_ON_ONCE
 #undef WARN_ONCE
-#undef _BUG_FLAGS
 
 #define WARN_ON(condition) ({						\
 	int __ret_warn_on = !!(condition);				\
@@ -852,9 +859,28 @@ static inline size_t pkvm_guest_initial_fpstate_size(struct kvm *kvm)
 #define WARN_ON_ONCE(condition) WARN_ON(condition)
 #define WARN_ONCE(condition, format...) WARN(condition, format)
 
-#define _BUG_FLAGS(ins, flags, extra)  asm volatile(ins)
-
 #endif /* CONFIG_PKVM_X86_DEBUG */
+
+void __noreturn pkvm_panic(const char *fmt, ...);
+
+/*
+ * Directly call the panic handler with file/line info. This avoids the use
+ * of 'ud2' instructions and associated 'bug_table' metadata parsing, which
+ * would unnecessarily increase the TCB and complexity of the hypervisor's
+ * emergency recovery path. This is also critical for production (non-debug)
+ * environments where hypervisor doesn't have its own kallsyms or access to
+ * the host's metadata.
+ */
+#undef BUG
+#define BUG() do { pkvm_panic("\n==================================\n"	\
+			      "pKVM BUG at %s:%u\n"			\
+			      "==================================\n",	\
+			       __FILE__, __LINE__);			\
+			      __builtin_unreachable();			\
+		} while (0)
+
+#undef BUG_ON
+#define BUG_ON(condition) do { if (unlikely(condition)) BUG(); } while (0)
 
 #undef KVM_BUG_ON
 #define KVM_BUG_ON(cond, kvm)						\

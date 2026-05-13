@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2023 NXP
+ * Copyright 2023, 2026 NXP
  *
  */
 
@@ -22,6 +22,7 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mc.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-device.h>
 
 /* MIPI CSI-2 Host Controller Registers Define */
 
@@ -315,17 +316,6 @@ static const struct dwc_csi_event dwc_events[] = {
 #define DWC_EVENT_MASK		0x500ff
 
 /* -----------------------------------------------------------------------------
- * Clocks
- */
-
-static const struct clk_bulk_data dwc_clks[] = {
-	{ .id = "per" },
-	{ .id = "pixel" },
-};
-
-#define DWC_NUM_CLKS		ARRAY_SIZE(dwc_clks)
-
-/* -----------------------------------------------------------------------------
  * Format helpers
  */
 
@@ -340,7 +330,8 @@ struct dwc_csi_device {
 	struct device *dev;
 	void __iomem *regs;
 	struct phy *phy;
-	struct clk_bulk_data clks[DWC_NUM_CLKS];
+	struct clk_bulk_data *clks;
+	int num_clks;
 
 	struct v4l2_subdev sd;
 	struct v4l2_async_notifier notifier;
@@ -694,10 +685,7 @@ static int dwc_csi_get_dphy_configuration(struct dwc_csi_device *csidev,
 
 static int dwc_csi_device_init(struct dwc_csi_device *csidev)
 {
-	struct device *dev = csidev->dev;
 	union phy_configure_opts opts;
-	u32 phy_stopstate;
-	u32 val;
 	int ret;
 
 	ret = dwc_csi_get_dphy_configuration(csidev, &opts);
@@ -711,18 +699,26 @@ static int dwc_csi_device_init(struct dwc_csi_device *csidev)
 	phy_power_on(csidev->phy);
 	dwc_csi_write(csidev, CSI2RX_HOST_RESETN, 0x1);
 
+	return 0;
+}
+
+static int dwc_csi_wait_for_phy_stopstate(struct dwc_csi_device *csidev)
+{
+	struct device *dev = csidev->dev;
+	u32 phy_stopstate;
+	u32 val;
+	int ret;
+
 	/* Check if lanes are in stop state */
 	phy_stopstate = CSI2RX_DPHY_STOPSTATE_CLK_LANE;
 	phy_stopstate |= GENMASK(csidev->bus.num_data_lanes - 1, 0);
 	ret = readl_poll_timeout(csidev->regs + CSI2RX_DPHY_STOPSTATE,
-				 val, (val & phy_stopstate) != phy_stopstate,
+				 val, (val & phy_stopstate) == phy_stopstate,
 				 10, 10000);
-	if (ret) {
+	if (ret)
 		dev_err(dev, "Lanes are not in stop state(%#x)\n", val);
-		return ret;
-	}
 
-	return 0;
+	return ret;
 }
 
 static void dwc_csi_device_hs_rx_start(struct dwc_csi_device *csidev)
@@ -756,31 +752,6 @@ static void dwc_csi_device_enable_interrupts(struct dwc_csi_device *csidev, bool
 	dwc_csi_write(csidev, CSI2RX_INT_MSK_PKT_FATAL, on ? 0x3 : 0);
 	dwc_csi_write(csidev, CSI2RX_INT_MSK_DPHY, on ? 0x30003 : 0);
 	dwc_csi_write(csidev, CSI2RX_INT_MSK_IPI_FATAL, on ? 0x7f : 0);
-}
-
-static int dwc_csi_clk_enable(struct dwc_csi_device *csidev)
-{
-	return clk_bulk_prepare_enable(DWC_NUM_CLKS, csidev->clks);
-}
-
-static void dwc_csi_clk_disable(struct dwc_csi_device *csidev)
-{
-	clk_bulk_disable_unprepare(DWC_NUM_CLKS, csidev->clks);
-}
-
-static int dwc_csi_clk_get(struct dwc_csi_device *csidev)
-{
-	int ret;
-
-	memcpy(csidev->clks, dwc_clks, sizeof(dwc_clks));
-
-	ret = devm_clk_bulk_get(csidev->dev, DWC_NUM_CLKS, csidev->clks);
-	if (ret < 0) {
-		dev_err(csidev->dev, "Failed to acquire clocks: %d\n", ret);
-		return ret;
-	}
-
-	return 0;
 }
 
 /* -----------------------------------------------------------------------------
@@ -1172,14 +1143,27 @@ static int dwc_csi_enable_streams(struct v4l2_subdev *sd,
 	ret = v4l2_subdev_enable_streams(csidev->source_sd, csidev->remote_pad,
 					 sink_streams);
 	if (ret)
-		return ret;
+		goto err_csi_stop;
+
+	if (!csidev->enabled_streams) {
+		ret = dwc_csi_wait_for_phy_stopstate(csidev);
+		if (ret)
+			goto err_disable_stream;
+	}
 
 	csidev->enabled_streams |= streams_mask;
 
 	return 0;
 
+err_disable_stream:
+	v4l2_subdev_disable_streams(csidev->source_sd, csidev->remote_pad,
+				    sink_streams);
+err_csi_stop:
+	if (!csidev->enabled_streams)
+		dwc_csi_stop_stream(csidev);
 err_runtime_put:
-	pm_runtime_put(csidev->dev);
+	if (!csidev->enabled_streams)
+		pm_runtime_put(csidev->dev);
 	return ret;
 }
 
@@ -1322,6 +1306,13 @@ static int dwc_csi_notify_bound(struct v4l2_async_notifier *notifier,
 {
 	struct dwc_csi_device *csidev = notifier_to_dwc_csi_device(notifier);
 	struct media_pad *sink = &csidev->sd.entity.pads[DWC_CSI2RX_PAD_SINK];
+
+	dev_info(csidev->dev, "%s: call v4l2_device_register_subdev_nodes\n", __func__);
+	int ret = v4l2_device_register_subdev_nodes(csidev->sd.v4l2_dev);
+	if (ret) {
+		dev_err(csidev->dev, "%s: v4l2_device_register_subdev_nodes failed, ret %d", __func__, ret);
+		return ret;
+	}
 
 	return v4l2_create_fwnode_links_to_pad(sd, sink, 0);
 }
@@ -1490,7 +1481,7 @@ static int dwc_csi_runtime_suspend(struct device *dev)
 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
 	struct dwc_csi_device *csidev = sd_to_dwc_csi_device(sd);
 
-	dwc_csi_clk_disable(csidev);
+	clk_bulk_disable_unprepare(csidev->num_clks, csidev->clks);
 
 	return 0;
 }
@@ -1501,7 +1492,7 @@ static int dwc_csi_runtime_resume(struct device *dev)
 	struct dwc_csi_device *csidev = sd_to_dwc_csi_device(sd);
 	int ret;
 
-	ret = dwc_csi_clk_enable(csidev);
+	ret = clk_bulk_prepare_enable(csidev->num_clks, csidev->clks);
 	if (ret < 0)
 		return ret;
 
@@ -1626,11 +1617,9 @@ static int dwc_csi_device_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = dwc_csi_clk_get(csidev);
-	if (ret < 0) {
-		dev_err(dev, "Failed to get clocks\n");
-		return ret;
-	}
+	csidev->num_clks = devm_clk_bulk_get_all(dev, &csidev->clks);
+	if (csidev->num_clks < 0)
+		return dev_err_probe(dev, csidev->num_clks, "Failed to get clocks\n");
 
 	dwc_csi_param_init(csidev);
 

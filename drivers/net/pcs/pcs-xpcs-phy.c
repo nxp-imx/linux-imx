@@ -1427,6 +1427,11 @@ static int imx952_xpcs_phy_mpll_sel(struct dw_xpcs *xpcs)
 		goto timeout;
 	}
 
+	xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2,
+			PMA_MP_12G_16G_MPLLA_CTRL2,
+			PMA_MPLLA_CTRL2_V2_MPLLA_TX_CLK_DIV_MASK,
+			PMA_MPLLA_CTRL2_V2_MPLLA_TX_CLK_DIV(0x2));
+
 	return 0;
 
 timeout:

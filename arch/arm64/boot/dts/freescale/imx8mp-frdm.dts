@@ -22,7 +22,7 @@
 	memory@40000000 {
 		device_type = "memory";
 		reg = <0x0 0x40000000 0 0xc0000000>,
-			  <0x1 0x00000000 0 0xc0000000>;
+			  <0x1 0x00000000 0 0x40000000>;
 	};
 
 	pcie0_refclk: pcie0-refclk {

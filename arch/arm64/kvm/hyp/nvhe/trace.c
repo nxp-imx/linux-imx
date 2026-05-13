@@ -448,6 +448,7 @@ static int rb_cpu_init(struct rb_page_desc *pdesc, struct hyp_rb_per_cpu *cpu_bu
 				 ((void *)cpu_buffer->meta) + PAGE_SIZE);
 	if (ret) {
 		hyp_free(cpu_buffer->bpages);
+		cpu_buffer->bpages = NULL;
 		return ret;
 	}
 
@@ -583,7 +584,7 @@ int __pkvm_load_tracing(unsigned long desc_hva, size_t desc_size)
 		unsigned int cpu;
 
 		ret = -EINVAL;
-		if (!rb_cpu_fits_desc(pdesc, desc_hva + desc_size))
+		if (!rb_cpu_fits_desc(pdesc, (unsigned long)desc + desc_size))
 			break;
 
 		cpu = pdesc->cpu;

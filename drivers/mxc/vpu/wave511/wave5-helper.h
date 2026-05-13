@@ -50,4 +50,20 @@ void wave5_vpu_handle_performance(struct vpu_instance *inst, struct vpu_dst_buff
 void wave5_vpu_reset_performace(struct vpu_instance *inst);
 dma_addr_t wave5_get_plane_dma_addr(struct vb2_buffer *buf, unsigned int plane_no);
 unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane_no);
+
+enum {
+	WAVE5_VPU_FLOW_NONE,
+	WAVE5_VPU_FLOW_SET_STATE,
+	WAVE5_VPU_FLOW_OUTPUT_ON,
+	WAVE5_VPU_FLOW_OUTPUT_OFF,
+	WAVE5_VPU_FLOW_CAPTURE_ON,
+	WAVE5_VPU_FLOW_CAPTURE_OFF,
+	WAVE5_VPU_FLOW_START,
+	WAVE5_VPU_FLOW_STOP,
+	WAVE5_VPU_FLOW_SOURCE_CHANGE,
+	WAVE5_VPU_FLOW_EOS,
+	WAVE5_VPU_FLOW_MAXIMUM,
+};
+
+void wave5_vpu_record_flow(struct vpu_instance *inst, u32 flow, u32 arg1, u32 arg2);
 #endif

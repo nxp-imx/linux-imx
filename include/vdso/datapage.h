@@ -3,9 +3,12 @@
 #define __VDSO_DATAPAGE_H
 
 #ifdef CONFIG_X86_64
+#include <linux/page_size_compat_defs.h>
 #define VDSO_PAGE_SIZE __MAX_PAGE_SIZE
+#define __PAGE_CNT_PER_MAX_PAGE (__MAX_PAGE_SIZE / PAGE_SIZE)
 #else
 #define VDSO_PAGE_SIZE PAGE_SIZE
+#define __PAGE_CNT_PER_MAX_PAGE 1
 #endif
 
 #ifndef __ASSEMBLY__
@@ -178,14 +181,14 @@ extern struct vdso_time_data *vdso_k_time_data;
 extern struct vdso_rng_data *vdso_k_rng_data;
 extern struct vdso_arch_data *vdso_k_arch_data;
 
-#define VDSO_ARCH_DATA_SIZE ALIGN(sizeof(struct vdso_arch_data), PAGE_SIZE)
+#define VDSO_ARCH_DATA_SIZE ALIGN(sizeof(struct vdso_arch_data), VDSO_PAGE_SIZE)
 #define VDSO_ARCH_DATA_PAGES (VDSO_ARCH_DATA_SIZE >> PAGE_SHIFT)
 
 enum vdso_pages {
-	VDSO_TIME_PAGE_OFFSET,
-	VDSO_TIMENS_PAGE_OFFSET,
-	VDSO_RNG_PAGE_OFFSET,
-	VDSO_ARCH_PAGES_START,
+	VDSO_TIME_PAGE_OFFSET = 0,
+	VDSO_TIMENS_PAGE_OFFSET = 1 * __PAGE_CNT_PER_MAX_PAGE,
+	VDSO_RNG_PAGE_OFFSET = 2 * 1 * __PAGE_CNT_PER_MAX_PAGE,
+	VDSO_ARCH_PAGES_START = 3 * __PAGE_CNT_PER_MAX_PAGE,
 	VDSO_ARCH_PAGES_END = VDSO_ARCH_PAGES_START + VDSO_ARCH_DATA_PAGES - 1,
 	VDSO_NR_PAGES
 };
@@ -216,7 +219,7 @@ enum vdso_pages {
 #endif
 
 #define VDSO_VVAR_SYMS						\
-	PROVIDE(vdso_u_data = . - __VDSO_PAGES * VDSO_PAGE_SIZE);	\
+	PROVIDE(vdso_u_data = . - __VDSO_PAGES * PAGE_SIZE);	\
 	PROVIDE(vdso_u_time_data = vdso_u_data);		\
 	__vdso_u_rng_data					\
 	__vdso_u_arch_data					\

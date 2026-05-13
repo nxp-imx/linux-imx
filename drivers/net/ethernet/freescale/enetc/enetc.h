@@ -560,7 +560,6 @@ struct enetc_ndev_priv {
 	/* Kernel stack and XDP share the tx rings */
 	bool shared_tx_rings;
 
-	struct pci_dev *rcec;
 	u32 ipt_wol_eid;
 	int wolopts;
 

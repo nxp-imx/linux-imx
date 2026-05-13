@@ -16,6 +16,22 @@
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
 
+/**
+ * enum slab_flags - How the slab flags bits are used.
+ * @SL_locked: Is locked with slab_lock()
+ * @SL_partial: On the per-node partial list
+ * @SL_pfmemalloc: Was allocated from PF_MEMALLOC reserves
+ *
+ * The slab flags share space with the page flags but some bits have
+ * different interpretations.  The high bits are used for information
+ * like zone/node/section.
+ */
+enum slab_flags {
+	SL_locked = PG_locked,
+	SL_partial = PG_workingset,     /* Historical reasons for this bit */
+	SL_pfmemalloc = PG_active,      /* Historical reasons for this bit */
+};
+
 /*
  * Internal slab definitions
  */
@@ -438,6 +454,11 @@ slab_flags_t kmem_cache_flags(slab_flags_t flags, const char *name);
 static inline bool is_kmalloc_cache(struct kmem_cache *s)
 {
 	return (s->flags & SLAB_KMALLOC);
+}
+
+static inline void __slab_clear_pfmemalloc(struct slab *slab)
+{
+	__clear_bit(SL_pfmemalloc, &slab->flags.f);
 }
 
 static inline bool is_kmalloc_normal(struct kmem_cache *s)

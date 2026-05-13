@@ -39,10 +39,6 @@
 	status = "disabled";
 };
 
-&lcdif {
-	assigned-clock-rates = <498000000>, <71142857>, <400000000>, <133333333>;
-};
-
 &ldb {
 	#address-cells = <1>;
 	#size-cells = <0>;

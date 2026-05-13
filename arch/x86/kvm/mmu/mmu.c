@@ -1686,10 +1686,18 @@ static bool pkvm_age_gfn_range(struct kvm *kvm, struct kvm_gfn_range *range,
 	read_lock(&kvm->mmu_lock);
 
 	for_each_pkvm_mapping(kvm, range->start, range->end, m) {
-		young |= pkvm_hypercall(vm_mmu_age, kvm->arch.pkvm.handle,
-					m->gfn << PAGE_SHIFT,
-					m->nr_pages << PAGE_SHIFT,
-					mkold);
+		int ret = pkvm_hypercall(vm_mmu_age, kvm->arch.pkvm.handle,
+					 m->gfn << PAGE_SHIFT,
+					 m->nr_pages << PAGE_SHIFT,
+					 mkold);
+		if (ret < 0) {
+			WARN_ONCE(1, "pkvm %s gfn[%llx..%llx] failed, err = %d\n",
+				  mkold ? "age" : "test_age",
+				  m->gfn, m->gfn + m->nr_pages, ret);
+			continue;
+		}
+
+		young |= ret;
 		if (young && !mkold)
 			break;
 	}
@@ -3116,12 +3124,6 @@ static int mmu_set_spte(struct kvm_vcpu *vcpu, struct kvm_memory_slot *slot,
 	bool prefetch = !fault || fault->prefetch;
 	bool write_fault = fault && fault->write;
 
-	if (unlikely(is_noslot_pfn(pfn))) {
-		vcpu->stat.pf_mmio_spte_created++;
-		mark_mmio_spte(vcpu, sptep, gfn, pte_access);
-		return RET_PF_EMULATE;
-	}
-
 	if (is_shadow_present_pte(*sptep)) {
 		if (prefetch && is_last_spte(*sptep, level) &&
 		    pfn == spte_to_pfn(*sptep))
@@ -3138,11 +3140,20 @@ static int mmu_set_spte(struct kvm_vcpu *vcpu, struct kvm_memory_slot *slot,
 			child = spte_to_child_sp(pte);
 			drop_parent_pte(vcpu->kvm, child, sptep);
 			flush = true;
-		} else if (WARN_ON_ONCE(pfn != spte_to_pfn(*sptep))) {
+		} else if (pfn != spte_to_pfn(*sptep)) {
+			WARN_ON_ONCE(vcpu->arch.mmu->root_role.direct);
 			drop_spte(vcpu->kvm, sptep);
 			flush = true;
 		} else
 			was_rmapped = 1;
+	}
+
+	if (unlikely(is_noslot_pfn(pfn))) {
+		vcpu->stat.pf_mmio_spte_created++;
+		mark_mmio_spte(vcpu, sptep, gfn, pte_access);
+		if (flush)
+			kvm_flush_remote_tlbs_gfn(vcpu->kvm, gfn, level);
+		return RET_PF_EMULATE;
 	}
 
 	wrprot = make_spte(vcpu, sp, slot, pte_access, gfn, pfn, *sptep, prefetch,
@@ -5040,12 +5051,14 @@ static int pkvm_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault)
 	r = kvm_topup_pkvm_memcache(&vcpu->arch.pkvm.guest_mmu_memcache,
 				    pkvm_mmu_cache_min_pages());
 	if (r)
-		return r;
+		goto out_release_pfn;
 
 	/* Allocate non-atomically before taking mmu_lock. */
 	mapping = kzalloc(sizeof(struct pkvm_mapping), GFP_KERNEL_ACCOUNT);
-	if (!mapping)
-		return -ENOMEM;
+	if (!mapping) {
+		r = -ENOMEM;
+		goto out_release_pfn;
+	}
 
 	r = RET_PF_RETRY;
 	write_lock(&vcpu->kvm->mmu_lock);
@@ -5107,6 +5120,10 @@ out_unlock:
 
 	if (r != RET_PF_FIXED)
 		kfree(mapping);
+	return r;
+out_release_pfn:
+	kvm_release_faultin_page(vcpu->kvm, fault->refcounted_page,
+				 true, fault->map_writable);
 	return r;
 }
 #endif /* CONFIG_PKVM_X86 */

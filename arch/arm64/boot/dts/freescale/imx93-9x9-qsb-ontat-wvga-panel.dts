@@ -26,7 +26,6 @@
 
 &lcdif {
 	status = "okay";
-	assigned-clock-rates = <150000000>, <30000000>, <400000000>, <133333333>;
 };
 
 &media_blk_ctrl {

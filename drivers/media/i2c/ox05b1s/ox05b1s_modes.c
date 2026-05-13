@@ -163,8 +163,6 @@ const struct ox05b1s_reglist os08a20_reglist_1080p_10b[] = {
 /* OX05B1S 2592 x 1944 @30fps GRBG10 */
 static const struct cci_reg_sequence ovx5b_init_setting_2592x1944[] = {
 	{CCI_REG8(0x0107), 0x01}, /* Reserved */
-	{OX05B1S_REG_PLL1_CTRL_REG07, 0x02},
-	{OX05B1S_REG_PLL3_CTRL_REG4A, 0x05},
 	{OX05B1S_REG_PLL_MONITOR_REG0B, 0x5c},
 	{OX05B1S_REG_PLL_MONITOR_REG0C, 0xcd},
 	{OX05B1S_REG_SC_CMMN_REG09, 0x2e},
@@ -198,14 +196,35 @@ static const struct cci_reg_sequence ovx5b_init_setting_2592x1944[] = {
 	{OX05B1S_REG_TIMING_CTRL + 0x6e, 0x7b},
 	{OX05B1S_REG_MIPI_CORE_REG02, 0x00},
 	{OX05B1S_REG_MIPI_CORE_REG1B, 0x3c},
-	{OX05B1S_REG_PCLK_PERIOD, 0x19},
 	{OX05B1S_REG_ISP_REG01, 0x00},
+
+	/* MIPI datarate 640 Mbps */
+	{OX05B1S_REG_PLL1_CTRL_REG07, 0x02},
+	{OX05B1S_REG_PLL3_CTRL_REG4A, 0x05},
+	{OX05B1S_REG_PCLK_PERIOD, 0x19},
+};
+
+/*
+ * OX05B1S MIPI datarate 960 Mbps, enough for:
+ * 2592 * 1944 * 30fps * 10bit / 1024 / 1024 / 4 lanes = ~360 Mbps per lane
+ * 2592 * 1944 * 60fps * 10bit / 1024 / 1024 / 4 lanes = ~720 Mbps per lane
+ * 2592 * 1944 * 30fps * 10bit / 1024 / 1024 / 2 lanes = ~720 Mbps per lane
+ * with a 1.33 factor for mipi overhead: ~958 Mbps for 30fps on 2 lanes
+ */
+static const struct cci_reg_sequence ovx5b_init_setting_960Mbps[] = {
+	{OX05B1S_REG_PLL1_CTRL_REG07, 0x01},
+	{OX05B1S_REG_PLL3_CTRL_REG4A, 0x03},
+	{OX05B1S_REG_PCLK_PERIOD, 0x10},
 };
 
 const struct ox05b1s_reglist ox05b1s_reglist_2592x1944[] = {
 	{
 		.regs = ovx5b_init_setting_2592x1944,
 		.count = ARRAY_SIZE(ovx5b_init_setting_2592x1944),
+	},
+	{
+		.regs = ovx5b_init_setting_960Mbps,
+		.count = ARRAY_SIZE(ovx5b_init_setting_960Mbps),
 	},
 	{
 		/* sentinel */

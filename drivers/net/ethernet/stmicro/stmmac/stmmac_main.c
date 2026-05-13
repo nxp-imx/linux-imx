@@ -5877,6 +5877,8 @@ static int stmmac_change_mtu(struct net_device *dev, int new_mtu)
 
 		__stmmac_release(dev);
 
+		phylink_prepare_resume(priv->phylink);
+
 		ret = __stmmac_open(dev, dma_conf);
 		if (ret) {
 			free_dma_desc_resources(priv, dma_conf);

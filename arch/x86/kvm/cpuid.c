@@ -2328,7 +2328,7 @@ static void pkvm_enforce_cpuid_entry(struct kvm_cpuid_entry2 *entry,
 
 static bool cpuid_entry_is_empty(struct kvm_cpuid_entry2 *e2)
 {
-	return !e2->function && !e2->eax;
+	return !e2->function && !e2->eax && !e2->ebx && !e2->ecx && !e2->edx;
 }
 
 static struct kvm_cpuid_entry2 *find_cpuid_entry(struct kvm_cpuid_entry2 *buf,
@@ -2382,7 +2382,7 @@ static struct kvm_cpuid_entry2 *find_cpuid_entry(struct kvm_cpuid_entry2 *buf,
 int pkvm_enforce_cpuid(struct kvm_cpuid_entry2 *e2, int *nent, int max_nent)
 {
 	struct kvm_cpuid_entry2 *de2 = this_cpu_ptr(cpuid_def);
-	int def_nent, r, i, n;
+	int def_nent, r, i, n, first_empty_index, func0_index;
 	int orig_nent = *nent;
 	bool has_func4 = false;
 
@@ -2454,13 +2454,41 @@ int pkvm_enforce_cpuid(struct kvm_cpuid_entry2 *e2, int *nent, int max_nent)
 	if (n > orig_nent)
 		*nent = n;
 
+	func0_index = first_empty_index = *nent;
 	/* Apply fixed values to the final set of entries */
 	for (i = 0; i < *nent; i++) {
-		if (cpuid_entry_is_empty(&e2[i]) ||
-		    pkvm_cpuid_entry_host_owned(&e2[i]))
+		if (cpuid_entry_is_empty(&e2[i])) {
+			if (i < first_empty_index)
+				first_empty_index = i;
+			continue;
+		} else if (e2[i].function == 0 && i < func0_index) {
+			func0_index = i;
+		}
+
+		if (pkvm_cpuid_entry_host_owned(&e2[i]))
 			continue;
 
 		pkvm_fixup_cpuid_entry(&e2[i]);
+	}
+
+	/*
+	 * As the CPUID entries are enforced by the pKVM according to the native
+	 * CPUID, any missed CPUID entries will be inserted to the e2. So there
+	 * is always CPUID00H in the e2. func0_index is initialized as *nent and
+	 * set to a value in [0, *nent) thus it is also not possible larger than
+	 * *nent.
+	 */
+	if (WARN_ON(func0_index >= *nent))
+		return -EINVAL;
+
+	/*
+	 * If CPUID00H sits after the first empty CPUID entry, swap the entries.
+	 * Thus avoid erroneously exposing this empty entry instead of the
+	 * native CPUID00H to the guest.
+	 */
+	if (func0_index > first_empty_index) {
+		e2[first_empty_index] = e2[func0_index];
+		memset(&e2[func0_index], 0, sizeof(struct kvm_cpuid_entry2));
 	}
 
 	return 0;

@@ -65,6 +65,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_issue);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_merge);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_requeue);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_complete);
+EXPORT_TRACEPOINT_SYMBOL_GPL(block_io_start);
 
 static DEFINE_IDA(blk_queue_ida);
 

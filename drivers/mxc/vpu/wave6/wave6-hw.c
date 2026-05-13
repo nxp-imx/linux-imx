@@ -115,7 +115,7 @@ void wave6_vpu_check_state(struct vpu_device *vpu_dev)
 		ret = read_poll_timeout(vpu_read_reg, val, val != 0,
 					W6_VPU_POLL_DELAY_US, W6_VPU_POLL_TIMEOUT,
 					false, vpu_dev, W6_VPU_VCPU_CUR_PC);
-		if (!ret)
+		if (!ret && vpu_dev->entity.on_boot)
 			vpu_dev->entity.on_boot(vpu_dev->dev);
 	}
 }
@@ -1808,6 +1808,9 @@ static void wave6_gen_enc_pic_reg(struct enc_info *p_enc_info, bool cbcr_interle
 	bool is_csc_format = false;
 	bool is_24bit = false;
 	bool format_conv;
+
+	if (!opt->source_frame)
+		return;
 
 	endian = wave6_vdi_convert_endian(open.source_endian);
 	endian = (~endian & VDI_128BIT_ENDIAN_MASK);

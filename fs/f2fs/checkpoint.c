@@ -240,15 +240,6 @@ void _trace_android_rvh_f2fs_down_read(wait_queue_head_t *read_waiters,
 }
 EXPORT_SYMBOL_GPL(_trace_android_rvh_f2fs_down_read);
 
-void f2fs_stop_checkpoint(struct f2fs_sb_info *sbi, bool end_io,
-						unsigned char reason)
-{
-	f2fs_build_fault_attr(sbi, 0, 0, FAULT_ALL);
-	if (!end_io)
-		f2fs_flush_merged_writes(sbi);
-	f2fs_handle_critical_error(sbi, reason);
-}
-
 /*
  * We guarantee no failure on the returned page.
  */
@@ -795,7 +786,7 @@ void f2fs_remove_ino_entry(struct f2fs_sb_info *sbi, nid_t ino, int type)
 	__remove_ino_entry(sbi, ino, type);
 }
 
-/* mode should be APPEND_INO, UPDATE_INO or TRANS_DIR_INO */
+/* mode should be APPEND_INO, UPDATE_INO, LARGE_FOLIO_IO, or TRANS_DIR_INO */
 bool f2fs_exist_written_data(struct f2fs_sb_info *sbi, nid_t ino, int mode)
 {
 	struct inode_management *im = &sbi->im[mode];

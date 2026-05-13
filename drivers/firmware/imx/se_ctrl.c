@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  */
 
 #include <linux/completion.h>
@@ -47,9 +47,16 @@
 
 #define FW_NAME_SIZE			50
 
+/* Primary HSM MU interface index */
+#define SE_PRIMARY_HSM_INSTANCE		0
+
+#define VAL_TO_REQ_LOADING_RUNTIME_FW	1
+
 static int se_log;
 static struct kobject *se_kobj;
 u32 se_rcv_msg_timeout = SE_RCV_MSG_DEFAULT_TIMEOUT;
+
+static struct work_struct se_fw_load_work;
 
 struct fw_info {
 	u8 fw_name[FW_NAME_SIZE];
@@ -194,8 +201,8 @@ static struct se_if_node_info_list imx95_info = {
 			.if_defs = {
 				.se_if_type = SE_TYPE_ID_V2X_DBG,
 				.se_instance_id = 0,
-				.cmd_tag = 0x1a,
-				.rsp_tag = 0xe4,
+				.cmd_tag = 0x17,
+				.rsp_tag = 0xe1,
 				.success_tag = ELE_SUCCESS_IND,
 				.base_api_ver = MESSAGING_VERSION_2,
 				.fw_api_ver = MESSAGING_VERSION_2,
@@ -585,10 +592,13 @@ char *get_se_if_name(u8 se_if_id)
  * se_rcv_msg_timeout: to change the rcv_msg timeout value in jiffies for
  *                     the operations that take more time.
  * echo 180000 > /sys/kernel/se/se_rcv_msg_timeout
+ *
+ * se_load_fw: to trigger firmware load
+ * echo 1 > /sys/kernel/se/se_load_fw
  */
 static ssize_t se_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   const char *buf, size_t count)
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
 {
 	int var, ret;
 
@@ -598,10 +608,21 @@ static ssize_t se_store(struct kobject *kobj,
 		return ret;
 	}
 
-	if (strcmp(attr->attr.name, "se_log") == 0)
+	if (strcmp(attr->attr.name, "se_log") == 0) {
 		se_log = var;
-	else
+	} else if (strcmp(attr->attr.name, "se_rcv_msg_timeout") == 0) {
 		se_rcv_msg_timeout = var;
+	} else if (strcmp(attr->attr.name, "se_load_fw") == 0) {
+		if (var != VAL_TO_REQ_LOADING_RUNTIME_FW ) {
+			pr_err("Invalid value. Write 1 to trigger firmware load\n");
+			return -EINVAL;
+		}
+		if (var_se_info.load_fw.is_fw_loaded) {
+			pr_info("Firmware already loaded\n");
+			return count;
+		}
+		schedule_work(&se_fw_load_work);
+	}
 
 	return count;
 }
@@ -612,17 +633,21 @@ static ssize_t se_store(struct kobject *kobj,
  * se_log: to know SE logging is enabled/disabled
  *
  * se_rcv_msg_timeout: to read the current rcv_msg timeout value in jiffies
+ *
+ * se_load_fw: to check if firmware is loaded
  */
 static ssize_t se_show(struct kobject *kobj,
-				  struct kobj_attribute *attr,
-				  char *buf)
+		       struct kobj_attribute *attr,
+		       char *buf)
 {
 	int var = 0;
 
 	if (strcmp(attr->attr.name, "se_log") == 0)
 		var = se_log;
-	else
+	else if (strcmp(attr->attr.name, "se_rcv_msg_timeout") == 0)
 		var = se_rcv_msg_timeout;
+	else if (strcmp(attr->attr.name, "se_load_fw") == 0)
+		var = var_se_info.load_fw.is_fw_loaded ? 1 : 0;
 
 	return sysfs_emit(buf, "%d\n", var);
 }
@@ -635,8 +660,12 @@ struct kobj_attribute se_rcv_msg_timeout_attr = __ATTR(se_rcv_msg_timeout,
 						       0664, se_show,
 						       se_store);
 
-/* Exposing the variable se_log via sysfs to enable/disable logging */
-static int  se_sysfs_log(void)
+struct kobj_attribute se_load_fw_attr = __ATTR(se_load_fw, 0664,
+					       se_show,
+					       se_store);
+
+/* Expose sysfs attributes for se_log, se_rcv_msg_timeout, and se_load_fw */
+static int se_sysfs_init(void)
 {
 	int ret = 0;
 
@@ -660,6 +689,12 @@ static int  se_sysfs_log(void)
 		pr_err("Failed to create se_rcv_msg_timeout file\n");
 		ret = -ENOMEM;
 		goto out;
+	}
+
+	/* Create file for the se_load_fw attribute */
+	if (sysfs_create_file(se_kobj, &se_load_fw_attr.attr)) {
+		pr_err("Failed to create se_load_fw file\n");
+		ret = -ENOMEM;
 	}
 
 out:
@@ -981,6 +1016,25 @@ static int se_load_firmware(struct se_if_priv *priv)
 	}
 exit:
 	return ret;
+}
+
+/* Work handler */
+static void se_fw_load_work_handler(struct work_struct *work)
+{
+	struct se_if_priv *priv;
+	int ret;
+
+	priv = imx_get_se_data_info(var_se_info.soc_id, SE_PRIMARY_HSM_INSTANCE);
+	if (!priv) {
+		pr_err("Failed to get SE data\n");
+		return;
+	}
+
+	ret = se_load_firmware(priv);
+	if (ret)
+		dev_err(priv->dev, "Firmware load failed: %d\n", ret);
+	else
+		dev_info(priv->dev, "Firmware loaded successfully\n");
 }
 
 #define NANO_SEC_PRN_LEN	9
@@ -1387,6 +1441,7 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 	struct se_if_priv *priv = dev_ctx->priv;
 	struct se_api_msg *tx_msg __free(kfree) = NULL;
 	struct se_api_msg *rx_msg __free(kfree) = NULL;
+	int rsp_status_err = 0;
 	int err = 0;
 
 	if (copy_from_user(&cmd_snd_rcv_rsp_info, (u8 __user *)arg,
@@ -1449,8 +1504,14 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 	if (err < 0)
 		goto exit;
 
-	if (rx_msg->header.command == SE_OPEN_SESS_REQ ||
-	    rx_msg->header.command == SE_CLOSE_SESS_REQ)
+	rsp_status_err
+		= se_val_rsp_hdr_n_status(priv, rx_msg, tx_msg->header.command,
+					  cmd_snd_rcv_rsp_info.rx_buf_sz,
+					  tx_msg->header.ver
+					     == priv->if_defs->fw_api_ver ? false : true);
+
+	if (!rsp_status_err && (rx_msg->header.command == SE_OPEN_SESS_REQ ||
+				rx_msg->header.command == SE_CLOSE_SESS_REQ))
 		manage_sess_hdl(dev_ctx, rx_msg);
 
 	dev_dbg(priv->dev,
@@ -1462,9 +1523,8 @@ static int se_ioctl_cmd_snd_rcv_rsp_handler(struct se_if_device_ctx *dev_ctx,
 	/* We may need to copy the output data to user before
 	 * delivering the completion message.
 	 */
-	err = se_dev_ctx_cpy_out_data(dev_ctx);
-	if (err < 0)
-		goto exit;
+	if (!rsp_status_err)
+		err = se_dev_ctx_cpy_out_data(dev_ctx);
 
 	/* Copy data from the buffer */
 	print_hex_dump_debug("to user ", DUMP_PREFIX_OFFSET, 4, 4,
@@ -1497,25 +1557,21 @@ exit:
 static int se_ioctl_get_v2x_version(struct se_if_device_ctx *dev_ctx,
 				    u64 arg)
 {
+	struct se_ioctl_get_v2x_version v2x_version = {0};
 	struct se_if_priv *priv = dev_ctx->priv;
-	struct se_ioctl_get_v2x_version v2x_version;
-	int err = 0;
 
-	if (v2x_get_version(priv, &v2x_version)) {
-		err = -EFAULT;
-		goto exit;
-	}
+	if (v2x_get_version(priv, &v2x_version))
+		return -EFAULT;
 
-	if (copy_to_user((u8 __user *)arg, &v2x_version, sizeof(v2x_version))) {
+	if (v2x_version.commit_id &&
+	    copy_to_user((u8 __user *)arg, &v2x_version, sizeof(v2x_version))) {
 		dev_err(priv->dev,
 			"%s: Failed to copy V2X version to user\n",
 			dev_ctx->devname);
-		err = -EFAULT;
-		goto exit;
+		return -EFAULT;
 	}
 
-exit:
-	return err;
+	return 0;
 }
 
 static int se_ioctl_get_mu_info(struct se_if_device_ctx *dev_ctx,
@@ -2125,6 +2181,9 @@ static void se_if_probe_cleanup(void *plat_dev)
 	priv = dev_get_drvdata(dev);
 	load_fw = get_load_fw_instance(priv);
 
+	/* Cancel work if it exists */
+	cancel_work_sync(&se_fw_load_work);
+
 	/* In se_if_request_channel(), passed the clean-up functional
 	 * pointer reference as action to devm_add_action().
 	 * No need to free the mbox channels here.
@@ -2167,6 +2226,7 @@ static void se_if_probe_cleanup(void *plat_dev)
 	if (se_kobj) {
 		sysfs_remove_file(se_kobj, &se_log_attr.attr);
 		sysfs_remove_file(se_kobj, &se_rcv_msg_timeout_attr.attr);
+		sysfs_remove_file(se_kobj, &se_load_fw_attr.attr);
 		kobject_put(se_kobj);
 		se_kobj = NULL;
 	}
@@ -2217,6 +2277,16 @@ static int se_if_probe(struct platform_device *pdev)
 		ret = info->se_if_early_init(priv);
 		if (ret)
 			goto exit;
+	}
+
+	/* Setup firmware load work for HSM instance 0 */
+	if (info->if_defs.se_if_type == SE_TYPE_ID_HSM &&
+	    info->if_defs.se_instance_id == SE_PRIMARY_HSM_INSTANCE) {
+		dev_info(dev, "INIT_WORK call for i.MX secure-enclave: %s%d.\n",
+				get_se_if_name(priv->if_defs->se_if_type),
+				priv->if_defs->se_instance_id);
+
+		INIT_WORK(&se_fw_load_work, se_fw_load_work_handler);
 	}
 
 	list_add_tail(&priv->priv_data, &priv_data_list);
@@ -2341,11 +2411,11 @@ static int se_if_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* exposing variables se_log and se_rcv_msg_timeout via sysfs */
+	/* exposing variables se_log, se_rcv_msg_timeout and se_load_fw via sysfs */
 	if (!se_kobj) {
-		ret = se_sysfs_log();
+		ret = se_sysfs_init();
 		if (ret)
-			pr_warn("Warn: Creating sysfs entry for se_log and  se_rcv_msg_timeout: %d\n", ret);
+			pr_warn("Failed to create SE sysfs entries: %d\n", ret);
 	}
 
 	dev_info(dev, "i.MX secure-enclave: %s%d interface to firmware, configured.\n",

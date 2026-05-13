@@ -103,13 +103,22 @@
 		audio-codec = <&wm8960>;
 		memory-region = <&audio_reserved>;
 		power-domains = <&audiomix_pd>;
+		pinctrl-0 = <&pinctrl_hpdet>;
+		pinctrl-names = "default";
+		hp-det-gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
 		audio-routing =
-			"LINPUT1", "MICB",
-			"LINPUT3", "MICB";
+			"Headphone Jack", "HP_L",
+			"Headphone Jack", "HP_R",
+			"Ext Spk", "SPK_LP",
+			"Ext Spk", "SPK_LN",
+			"Ext Spk", "SPK_RP",
+			"Ext Spk", "SPK_RN",
+			"Main MIC", "MICB",
+			"LINPUT1", "Main MIC",
+			"LINPUT3", "Main MIC";
 		ignore-suspend-widgets =
-			"HP_L", "HP_R", "Playback",
-			"Capture", "MICB", "LINPUT1";
-		status = "okay";
+			"Headphone Jack", "Playback",
+			"Capture", "Main MIC";
 	};
 
 	rpmsg_micfil: rpmsg_micfil {

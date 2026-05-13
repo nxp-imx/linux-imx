@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0)
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  */
 
 /*
@@ -247,6 +247,9 @@ static void imx_mur_delete_node(struct imx_mur_node *node)
 {
 	struct imx_mur_node *child, *tmp;
 
+	if (!node || !node->recorder)
+		return;
+
 	list_for_each_entry_safe(child, tmp, &node->children, list)
 		imx_mur_delete_node(child);
 
@@ -307,7 +310,7 @@ void imx_mur_long_new_and_add(struct imx_mur_node *node, long val, const char *l
 }
 EXPORT_SYMBOL_GPL(imx_mur_long_new_and_add);
 
-void imx_mur_long_sub_and_del(struct imx_mur_node *node, long val)
+static void __imx_mur_long_sub_and_del(struct imx_mur_node *node, long val, const char *name)
 {
 	struct imx_mu_recorder *recorder;
 	bool found = false;
@@ -323,11 +326,18 @@ void imx_mur_long_sub_and_del(struct imx_mur_node *node, long val)
 		list_for_each_entry(child, &node->children, list) {
 			if (!list_empty(&child->children))
 				continue;
-			if (atomic_long_read(&child->memory_usage_bytes) == val) {
-				imx_mur_delete_node(child);
-				found = true;
-				break;
-			}
+
+			/* Match by size */
+			if (atomic_long_read(&child->memory_usage_bytes) != val)
+				continue;
+
+			/* Match by name if provided */
+			if (name && (!child->name || strcmp(child->name, name)))
+				continue;
+
+			imx_mur_delete_node(child);
+			found = true;
+			break;
 		}
 	}
 
@@ -336,7 +346,18 @@ void imx_mur_long_sub_and_del(struct imx_mur_node *node, long val)
 	else
 		imx_mur_update_ctrl(node);
 }
+
+void imx_mur_long_sub_and_del(struct imx_mur_node *node, long val)
+{
+	__imx_mur_long_sub_and_del(node, val, NULL);
+}
 EXPORT_SYMBOL_GPL(imx_mur_long_sub_and_del);
+
+void imx_mur_long_sub_and_del_by_name(struct imx_mur_node *node, long val, const char *name)
+{
+	__imx_mur_long_sub_and_del(node, val, name);
+}
+EXPORT_SYMBOL_GPL(imx_mur_long_sub_and_del_by_name);
 
 void imx_mur_long_sub(struct imx_mur_node *node, long val)
 {

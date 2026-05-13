@@ -23,10 +23,11 @@ DECLARE_HOOK(android_vh_futex_sleep_start,
 	TP_ARGS(p));
 
 DECLARE_HOOK(android_vh_do_futex,
-	TP_PROTO(int cmd,
+	TP_PROTO(u32 __user *uaddr,
+		 int cmd,
 		 unsigned int *flags,
 		 u32 __user *uaddr2),
-	TP_ARGS(cmd, flags, uaddr2));
+	TP_ARGS(uaddr, cmd, flags, uaddr2));
 DECLARE_HOOK(android_vh_futex_wait_start,
 	TP_PROTO(unsigned int flags,
 		 u32 bitset),

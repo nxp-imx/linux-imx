@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx95-lt9611uxc-common.dtsi"
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	hdmi@2b {
+		compatible = "lontium,lt9611uxc";
+		reg = <0x2b>;
+		reset-gpios = <&pcal6524 17 GPIO_ACTIVE_HIGH>;
+		interrupts-extended = <&gpio3 26 IRQ_TYPE_EDGE_FALLING>;
+
+		vdd-supply = <&reg_1p8v>;
+		vcc-supply = <&reg_ext_3v3>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_mipi_dsi_csi>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				lt9611uxc_to_dsi: endpoint {
+					remote-endpoint = <&dsi_to_lt9611uxc>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+
+				lt9611uxc_out: endpoint {
+					remote-endpoint = <&hdmi_lt9611uxc_in>;
+				};
+			};
+		};
+	};
+};
+
+&pixel_interleaver {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	channel@0 {
+		reg = <0>;
+		status = "okay";
+	};
+};

@@ -1123,6 +1123,14 @@
 				 <&clk IMX93_CLK_MIPI_DSI_GATE>;
 			clock-names = "apb", "axi", "nic", "disp", "cam",
 				      "pxp", "lcdif", "isi", "csi", "dsi";
+			assigned-clocks = <&clk IMX93_CLK_MEDIA_AXI>,
+					  <&clk IMX93_CLK_MEDIA_APB>,
+					  <&clk IMX93_CLK_MEDIA_DISP_PIX>;
+			assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1>,
+						 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>,
+						 <&clk IMX93_CLK_VIDEO_PLL>;
+			assigned-clock-rates = <400000000>, <133333333>;
+
 			#power-domain-cells = <1>;
 
 			parallel_disp_fmt: dpi {
@@ -1158,7 +1166,7 @@
 				 <&clk IMX93_CLK_MEDIA_APB>;
 			clock-names = "pixel", "ipg";
 			assigned-clocks = <&clk IMX93_CLK_CAM_PIX>;
-			assigned-clock-parents = <&clk IMX93_CLK_VIDEO_PLL>;
+			assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD0>;
 			assigned-clock-rates = <140000000>;
 			power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_MIPI_CSI>;
 			status = "disabled";
@@ -1186,14 +1194,6 @@
 				 <&clk IMX93_CLK_MEDIA_AXI>,
 				 <&clk IMX93_CLK_LCDIF_GATE>;
 			clock-names = "pix", "disp-axi", "disp-apb";
-			assigned-clocks = <&clk IMX93_CLK_VIDEO_PLL>,
-					  <&clk IMX93_CLK_MEDIA_DISP_PIX>,
-					  <&clk IMX93_CLK_MEDIA_AXI>,
-					  <&clk IMX93_CLK_MEDIA_APB>;
-			assigned-clock-parents = <&clk IMX93_CLK_24M>,
-						 <&clk IMX93_CLK_VIDEO_PLL>,
-						 <&clk IMX93_CLK_SYS_PLL_PFD1>,
-						 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
 			power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_LCDIF>;
 			status = "disabled";
 
@@ -1223,11 +1223,6 @@
 			clocks = <&clk IMX93_CLK_ISI_GATE>,
 				 <&clk IMX93_CLK_MEDIA_AXI>;
 			clock-names = "axi", "apb";
-			assigned-clocks = <&clk IMX93_CLK_MEDIA_AXI>,
-					 <&clk IMX93_CLK_MEDIA_APB>;
-			assigned-clock-parents = <&clk IMX93_CLK_SYS_PLL_PFD1>,
-						 <&clk IMX93_CLK_SYS_PLL_PFD1_DIV2>;
-			assigned-clock-rates = <400000000>, <133333333>;
 			fsl,blk-ctrl = <&media_blk_ctrl>;
 			power-domains = <&media_blk_ctrl IMX93_MEDIABLK_PD_ISI>;
 			status = "disabled";

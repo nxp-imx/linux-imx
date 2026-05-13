@@ -6762,10 +6762,11 @@ static int handle_wrmsr_imm(struct kvm_vcpu *vcpu)
 #ifdef __PKVM_HYP__
 static int handle_init(struct kvm_vcpu *vcpu)
 {
+	pkvm_handle_init_signal();
 	/*
-	 * EXIT_REASON_INIT_SIGNAL is caused by the pKVM hypervisor sending INIT
-	 * signal to kick vCPU out of non-root mode. Nothing needs to be handled
-	 * by the pKVM hypervisor, and also no need to involve the host.
+	 * EXIT_REASON_INIT_SIGNAL is only caused by the pKVM hypervisor sending
+	 * INIT signal to kick vCPU out of non-root mode. So no need to involve
+	 * the host.
 	 */
 	return 1;
 }

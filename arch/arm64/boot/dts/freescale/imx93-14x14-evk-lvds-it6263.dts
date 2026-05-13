@@ -20,7 +20,6 @@
 
 &lcdif {
 	status = "okay";
-	assigned-clock-rates = <1039500000>, <148444444>, <400000000>, <133333333>;
 };
 
 &lpi2c1 {

@@ -432,6 +432,13 @@ int dpa_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 }
 EXPORT_SYMBOL(dpa_ioctl);
 
+void dpa_destroy_cgr(struct qman_cgr *cgr)
+{
+	qman_delete_cgr_safe(cgr);
+	qman_release_cgrid(cgr->cgrid);
+}
+EXPORT_SYMBOL(dpa_destroy_cgr);
+
 void __cold dpa_remove(struct platform_device *of_dev)
 {
 	struct device		*dev;
@@ -450,10 +457,9 @@ void __cold dpa_remove(struct platform_device *of_dev)
 
 	dpa_fq_free(dev, &priv->dpa_fq_list);
 
-	qman_delete_cgr_safe(&priv->ingress_cgr);
-	qman_release_cgrid(priv->ingress_cgr.cgrid);
-	qman_delete_cgr_safe(&priv->cgr_data.cgr);
-	qman_release_cgrid(priv->cgr_data.cgr.cgrid);
+	dpa_destroy_cgr(&priv->ingress_cgr);
+	dpa_destroy_cgr(&priv->ingress_cgr_hi_prio);
+	dpa_destroy_cgr(&priv->cgr_data.cgr);
 
 	dpa_private_napi_del(net_dev);
 
@@ -1168,6 +1174,17 @@ void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 }
 EXPORT_SYMBOL(dpa_fq_setup);
 
+static void dpa_fq_init_cgr(struct qm_mcc_initfq *initfq, uint8_t cgid,
+			    signed char oal)
+{
+	initfq->we_mask |= QM_INITFQ_WE_CGID;
+	initfq->fqd.fq_ctrl |= QM_FQCTRL_CGE;
+	initfq->fqd.cgid = cgid;
+	initfq->we_mask |= QM_INITFQ_WE_OAC;
+	initfq->fqd.oac_init.oac = QM_OAC_CG;
+	initfq->fqd.oac_init.oal = oal;
+}
+
 int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 {
 	int			 _errno;
@@ -1194,6 +1211,9 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 	fq = &dpa_fq->fq_base;
 
 	if (dpa_fq->init) {
+		signed char oal = min(sizeof(struct sk_buff) + priv->tx_headroom,
+				      (size_t)FSL_QMAN_MAX_OAL);
+
 		memset(&initfq, 0, sizeof(initfq));
 
 		initfq.we_mask = QM_INITFQ_WE_FQCTRL;
@@ -1217,11 +1237,8 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 		 * place them in the netdev's CGR, along with the Tx FQs.
 		 */
 		if (dpa_fq->fq_type == FQ_TYPE_TX ||
-				dpa_fq->fq_type == FQ_TYPE_TX_CONFIRM ||
-				dpa_fq->fq_type == FQ_TYPE_TX_CONF_MQ) {
-			initfq.we_mask |= QM_INITFQ_WE_CGID;
-			initfq.fqd.fq_ctrl |= QM_FQCTRL_CGE;
-			initfq.fqd.cgid = (uint8_t)priv->cgr_data.cgr.cgrid;
+		    dpa_fq->fq_type == FQ_TYPE_TX_CONFIRM ||
+		    dpa_fq->fq_type == FQ_TYPE_TX_CONF_MQ)
 			/* Set a fixed overhead accounting, in an attempt to
 			 * reduce the impact of fixed-size skb shells and the
 			 * driver's needed headroom on system memory. This is
@@ -1231,12 +1248,7 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 			 * insufficient value, but even that is better than
 			 * no overhead accounting at all.
 			 */
-			initfq.we_mask |= QM_INITFQ_WE_OAC;
-			initfq.fqd.oac_init.oac = QM_OAC_CG;
-			initfq.fqd.oac_init.oal =
-				(signed char)(min(sizeof(struct sk_buff) +
-				priv->tx_headroom, (size_t)FSL_QMAN_MAX_OAL));
-		}
+			dpa_fq_init_cgr(&initfq, priv->cgr_data.cgr.cgrid, oal);
 
 		if (td_enable) {
 			initfq.we_mask |= QM_INITFQ_WE_TDTHRESH;
@@ -1269,22 +1281,18 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 
 		/* Put all *private* ingress queues in our "ingress CGR". */
 		if (priv->use_ingress_cgr &&
-				(dpa_fq->fq_type == FQ_TYPE_RX_DEFAULT ||
-				 dpa_fq->fq_type == FQ_TYPE_RX_ERROR ||
-				 dpa_fq->fq_type == FQ_TYPE_RX_PCD ||
-				 dpa_fq->fq_type == FQ_TYPE_RX_PCD_HI_PRIO)) {
-			initfq.we_mask |= QM_INITFQ_WE_CGID;
-			initfq.fqd.fq_ctrl |= QM_FQCTRL_CGE;
-			initfq.fqd.cgid = (uint8_t)priv->ingress_cgr.cgrid;
+		    (dpa_fq->fq_type == FQ_TYPE_RX_DEFAULT ||
+		     dpa_fq->fq_type == FQ_TYPE_RX_ERROR ||
+		     dpa_fq->fq_type == FQ_TYPE_RX_PCD))
 			/* Set a fixed overhead accounting, just like for the
 			 * egress CGR.
 			 */
-			initfq.we_mask |= QM_INITFQ_WE_OAC;
-			initfq.fqd.oac_init.oac = QM_OAC_CG;
-			initfq.fqd.oac_init.oal =
-				(signed char)(min(sizeof(struct sk_buff) +
-				priv->tx_headroom, (size_t)FSL_QMAN_MAX_OAL));
-		}
+			dpa_fq_init_cgr(&initfq, priv->ingress_cgr.cgrid, oal);
+
+		if (priv->use_ingress_cgr &&
+		    dpa_fq->fq_type == FQ_TYPE_RX_PCD_HI_PRIO)
+			dpa_fq_init_cgr(&initfq, priv->ingress_cgr_hi_prio.cgrid,
+					oal);
 
 		/* Initialization common to all ingress queues */
 		if (dpa_fq->flags & QMAN_FQ_FLAG_NO_ENQUEUE) {

@@ -2,7 +2,7 @@
 /*
  * NEOISP debugfs definition
  *
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  */
 
 #include <linux/debugfs.h>
@@ -22,9 +22,9 @@ static const struct debugfs_reg32 neoisp_dfs_regs[] = {
 	NEOISP_DFS_REG(NEO_PIPE_CONF_REG_SHD_CTRL),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_REG_SHD_CMD),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_TRIG_CAM0),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_EN0_V2),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_STAT0_V2),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_CSI_STAT_V2),
+	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_EN0),
+	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_STAT0),
+	NEOISP_DFS_REG(NEO_PIPE_CONF_CSI_STAT),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_IMG_CONF_CAM0),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_IMG_SIZE_CAM0),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_IMG0_IN_ADDR_CAM0),
@@ -38,9 +38,6 @@ static const struct debugfs_reg32 neoisp_dfs_regs[] = {
 	NEOISP_DFS_REG(NEO_PIPE_CONF_OUTCH1_LS_CAM0),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_OUTIR_LS_CAM0),
 	NEOISP_DFS_REG(NEO_PIPE_CONF_SKIP_CTRL0),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_EN0),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_INT_STAT0),
-	NEOISP_DFS_REG(NEO_PIPE_CONF_CSI_STAT),
 	NEOISP_DFS_REG(NEO_HC_CTRL_CAM0),
 	NEOISP_DFS_REG(NEO_HDR_DECOMPRESS0_CTRL_CAM0),
 	NEOISP_DFS_REG(NEO_HDR_DECOMPRESS0_KNEE_POINT1_CAM0),
@@ -413,6 +410,7 @@ static const struct debugfs_reg32 neoisp_dfs_regs[] = {
 	NEOISP_DFS_REG(NEO_IDBG2_IMD),
 	NEOISP_DFS_REG(NEO_IDBG2_DONE_STAT),
 };
+
 /* Structure to store word when reading memory */
 union udata_t {
 	u8 byte[4];
@@ -452,31 +450,25 @@ static inline int neoisp_dump_memory(struct seq_file *m, enum isp_block_map_e ma
 
 static int neoisp_dump_vignetting_show(struct seq_file *m, void *private)
 {
-	struct neoisp_dev_s *neoispd = m->private;
-
-	return neoisp_dump_memory(m, neoispd->info->mems->vignetting_table, sizeof(u16));
+	return neoisp_dump_memory(m, NEO_VIGNETTING_TABLE_MAP, sizeof(u16));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_vignetting);
 
 static int neoisp_dump_drc_global_show(struct seq_file *m, void *private)
 {
-	struct neoisp_dev_s *neoispd = m->private;
-
-	return neoisp_dump_memory(m, neoispd->info->mems->drc_global_tonemap, sizeof(u16));
+	return neoisp_dump_memory(m, NEO_DRC_GLOBAL_TONEMAP_MAP, sizeof(u16));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_drc_global);
 
 static int neoisp_dump_drc_local_show(struct seq_file *m, void *private)
 {
-	struct neoisp_dev_s *neoispd = m->private;
-
-	return neoisp_dump_memory(m, neoispd->info->mems->drc_local_tonemap, sizeof(u8));
+	return neoisp_dump_memory(m, NEO_DRC_LOCAL_TONEMAP_MAP, sizeof(u8));
 }
 DEFINE_SHOW_ATTRIBUTE(neoisp_dump_drc_local);
 
 void neoisp_debugfs_init(struct neoisp_dev_s *neoispd)
 {
-	neoispd->regset = devm_kzalloc(&neoispd->pdev->dev, sizeof(*neoispd->regset), GFP_KERNEL);
+	neoispd->regset = devm_kzalloc(neoispd->dev, sizeof(*neoispd->regset), GFP_KERNEL);
 	if (!neoispd->regset)
 		return;
 
@@ -484,7 +476,7 @@ void neoisp_debugfs_init(struct neoisp_dev_s *neoispd)
 	neoispd->regset->nregs = ARRAY_SIZE(neoisp_dfs_regs);
 	neoispd->regset->base = neoispd->mmio;
 
-	neoispd->debugfs_entry = debugfs_create_dir(dev_name(&neoispd->pdev->dev), NULL);
+	neoispd->debugfs_entry = debugfs_create_dir(dev_name(neoispd->dev), NULL);
 
 	debugfs_create_regset32("registers", 0400, neoispd->debugfs_entry, neoispd->regset);
 

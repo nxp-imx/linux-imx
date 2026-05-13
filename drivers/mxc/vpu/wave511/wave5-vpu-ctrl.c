@@ -25,6 +25,8 @@
 #include "wave5-regdefine.h"
 #include "wave5-vdi.h"
 #include "wave5-vpu-ctrl.h"
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #define VPU_CTRL_PLATFORM_DEVICE_NAME "wave5-vpu-ctrl"
 
@@ -36,7 +38,7 @@ module_param(debug, uint, 0644);
 
 #define call_void_op(entity, op, args...)				\
 	do {								\
-		if ((entity)->op)					\
+		if ((entity) && (entity)->op)					\
 			(entity)->op((entity)->dev, ##args);		\
 	} while (0)
 
@@ -64,6 +66,27 @@ module_param(debug, uint, 0644);
 	} while (wave5_wait_ret == -ERESTARTSYS && freezing(current));		\
 	wave5_wait_ret;								\
 })
+
+#define SMC_ENTITY_IMX_WAVE_LINUX_OPT 55
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 0)
+#define SMC_IMX_VCPU_REG SMC_FASTCALL_NR(SMC_ENTITY_IMX_WAVE_LINUX_OPT, 2)
+#define OPT_WRITE 0x1
+
+#ifdef writel
+#undef writel
+#define writel(val, addr) \
+	do { \
+		if (ctrl->trusty_dev) { \
+			trusty_vcpu_set_reg(ctrl->trusty_dev, (addr - ctrl->reg_base), val); \
+		} else { \
+			{ __iowmb(); writel_relaxed((val),(addr)); } \
+		}\
+	} while (0)
+#endif
+
+static void trusty_vcpu_set_reg(struct device *dev, u32 target, u32 val) {
+	trusty_fast_call32(dev, SMC_IMX_VCPU_REG, target, OPT_WRITE, val);
+}
 
 struct vpu_ctrl_resource {
 	const char *fw_name;
@@ -113,6 +136,8 @@ struct vpu_ctrl {
 	struct loger_t *loger;
 	struct dentry *debugfs;
 #endif
+	struct device *trusty_dev;
+	struct imx_mur_node *recorder;
 };
 
 static const struct vpu_ctrl_resource nxp_wave511_ctrl_data = {
@@ -135,6 +160,7 @@ static void wave5_vpu_ctrl_init_loger(struct vpu_ctrl *ctrl)
 	}
 	ctrl->loger = ctrl->loger_buf.vaddr;
 	ctrl->loger->size = TRACEBUF_SIZE - sizeof(struct loger_t);
+	imx_mur_long_new_and_add(ctrl->recorder, ctrl->loger_buf.size, "loger_buf");
 	dev_info(ctrl->dev, "sw uart at %pad, 0x%zx\n",
 		 &ctrl->loger_buf.daddr, ctrl->loger_buf.size);
 }
@@ -142,11 +168,13 @@ static void wave5_vpu_ctrl_init_loger(struct vpu_ctrl *ctrl)
 static void wave5_vpu_ctrl_free_loger(struct vpu_ctrl *ctrl)
 {
 	ctrl->loger = NULL;
-	if (ctrl->loger_buf.vaddr)
+	if (ctrl->loger_buf.vaddr) {
+		imx_mur_long_sub_and_del_by_name(ctrl->recorder, ctrl->loger_buf.size, "loger_buf");
 		dma_free_coherent(ctrl->dev,
 				  ctrl->loger_buf.size,
 				  ctrl->loger_buf.vaddr,
 				  ctrl->loger_buf.daddr);
+	}
 
 	memset(&ctrl->loger_buf, 0, sizeof(ctrl->loger_buf));
 }
@@ -460,9 +488,6 @@ static int wave5_vpu_ctrl_init_vpu(struct vpu_ctrl *ctrl)
 
 static void wave5_vpu_ctrl_on_boot(struct wave5_vpu_entity *entity)
 {
-	if (!entity->on_boot)
-		return;
-
 	if (!entity->booted) {
 		call_void_op(entity, on_boot);
 		entity->booted = true;
@@ -501,6 +526,8 @@ static void wave5_vpu_ctrl_acquire_buffers(struct vpu_ctrl *ctrl)
 	for (i = 0; i < MAX_NUM_INSTANCE; i++) {
 		buf = &ctrl->buffers[i];
 		buf->size = WAVE517_WORKBUF_SIZE;
+		buf->recorder = ctrl->recorder;
+		buf->label = "work_buf";
 		if (wave5_vdi_allocate_dma_memory(ctrl->dev, buf))
 			return;
 
@@ -640,9 +667,10 @@ static void wave5_vpu_ctrl_load_firmware(const struct firmware *fw, void *contex
 		ret = -EINVAL;
 		goto exit;
 	}
-
-	wave5_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
-	memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	if (!ctrl->trusty_dev) {
+		wave5_swap_endian((u8 *)fw->data, fw->size, VDI_128BIT_LITTLE_ENDIAN);
+		memcpy(ctrl->boot_mem.vaddr, fw->data, fw->size);
+	}
 
 exit:
 	scoped_guard(mutex, &ctrl->ctrl_lock) {
@@ -899,6 +927,17 @@ int wave5_vpu_ctrl_get_state(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_get_state);
 
+struct imx_mur_node *wave5_vpu_ctrl_get_recorder(struct device *dev)
+{
+	struct vpu_ctrl *ctrl = dev_get_drvdata(dev);
+
+	if (!ctrl)
+		return NULL;
+
+	return ctrl->recorder;
+}
+EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_get_recorder);
+
 static void wave5_vpu_ctrl_init_reserved_boot_region(struct vpu_ctrl *ctrl, struct resource mem)
 {
 	phys_addr_t phys_addr = mem.start;
@@ -923,6 +962,7 @@ static void wave5_vpu_ctrl_init_reserved_boot_region(struct vpu_ctrl *ctrl, stru
 		return;
 	}
 
+	imx_mur_long_new_and_add(ctrl->recorder, ctrl->boot_mem.size, "boot_mem");
 	dev_info(ctrl->dev, "boot phys_addr: %pad, dma_addr: %pad, size: 0x%zx\n",
 		 &phys_addr, &ctrl->boot_mem.daddr, ctrl->boot_mem.size);
 }
@@ -958,6 +998,21 @@ static int wave5_vpu_ctrl_probe(struct platform_device *pdev)
 	ctrl->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(ctrl->reg_base))
 		return PTR_ERR(ctrl->reg_base);
+
+	ctrl->trusty_dev = NULL;
+	if (of_find_property(pdev->dev.of_node, "trusty", NULL)) {
+			ctrl->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+			if (!ctrl->trusty_dev || !ctrl->trusty_dev->driver || !dev_get_drvdata(ctrl->trusty_dev))
+				return -EPROBE_DEFER;
+
+			ret = trusty_fast_call32(ctrl->trusty_dev, SMC_IMX_ECHO, 0, 0, 0);
+			if (ret < 0) {
+				dev_info(&pdev->dev, "failed to get response of echo. vpu use normal mode.\n");
+				ctrl->trusty_dev = NULL;
+			} else
+				dev_info(&pdev->dev, "vcpu will use secure mode\n");
+	}
+
 	ret = devm_clk_bulk_get_all(&pdev->dev, &ctrl->clks);
 	if (ret < 0) {
 		dev_warn(&pdev->dev, "unable to get clocks: %d\n", ret);
@@ -965,6 +1020,7 @@ static int wave5_vpu_ctrl_probe(struct platform_device *pdev)
 	}
 
 	ctrl->num_clks = ret;
+	ctrl->recorder = imx_mur_create_node(NULL, "wave511-decoder");
 
 	np = of_parse_phandle(pdev->dev.of_node, "boot", 0);
 	if (np) {
@@ -1042,6 +1098,8 @@ static void wave5_vpu_ctrl_remove(struct platform_device *pdev)
 				   ctrl->boot_mem.size,
 				   DMA_BIDIRECTIONAL,
 				   0);
+	imx_mur_long_sub_and_del_by_name(ctrl->recorder, ctrl->boot_mem.size, "boot_mem");
+	imx_mur_destroy_node(ctrl->recorder);
 	mutex_destroy(&ctrl->ctrl_lock);
 }
 

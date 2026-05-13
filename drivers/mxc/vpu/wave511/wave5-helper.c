@@ -142,11 +142,18 @@ void wave5_update_output_format_info(struct vpu_instance *inst)
 
 void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp)
 {
+	long usage;
+
+	imx_mur_release_v4l2_ctrl(inst->recorder);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	if (inst->v4l2_fh.vdev) {
 		v4l2_fh_del(&inst->v4l2_fh, filp);
 		v4l2_fh_exit(&inst->v4l2_fh);
 	}
+	usage = imx_mur_long_read(inst->recorder);
+	if (usage)
+		dev_err(inst->dev->dev, "[%d] leak memory, size is %ld\n", inst->id, usage);
+	imx_mur_destroy_node(inst->recorder);
 	kfree(inst->codec_info);
 	kfree(inst);
 }
@@ -397,7 +404,6 @@ struct vb2_v4l2_buffer *wave5_vpu_get_display_buffer(struct vpu_instance *inst, 
 		return NULL;
 
 	vpu_buf = wave5_to_vpu_dst_buf(vbuf);
-	vpu_buf->display = true;
 
 	return vbuf;
 }
@@ -493,4 +499,17 @@ unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane
 	if (plane_no >= buf->num_planes)
 		return 0;
 	return vb2_get_plane_payload(buf, plane_no) - buf->planes[plane_no].data_offset;
+}
+
+void wave5_vpu_record_flow(struct vpu_instance *inst, u32 flow, u32 arg1, u32 arg2)
+{
+	int index;
+
+	scoped_guard(spinlock_irqsave, &inst->flow.lock)
+		index = inst->flow.index++;
+
+	index %= WAVE5_VPU_FLOW_DEPTH;
+	inst->flow.flows[index].arg1 = arg1;
+	inst->flow.flows[index].arg2 = arg2;
+	inst->flow.flows[index].key = flow;
 }

@@ -56,7 +56,9 @@
 #define REF_CLK_RATE_MIN	MHZ(2)
 #define FOUT_MAX		MHZ(1250)
 #define FOUT_MIN		MHZ(40)
-#define FVCO_DIV_FACTOR		MHZ(80)
+
+#define FVCO_CNTRL_OP_DIV_MASK	GENMASK(5, 4)
+#define FVCO_CNTRL_OP_DIV(n)	FIELD_GET(FVCO_CNTRL_OP_DIV_MASK, n)
 
 #define MBPS(x)			((x) * 1000000UL)
 
@@ -72,6 +74,7 @@
 struct dw_dphy_cfg {
 	u32 m;	/* PLL Feedback Multiplication Ratio */
 	u32 n;	/* PLL Input Frequency Division Ratio */
+	unsigned int vco_prop_sel; /* Index for best PLL vco_cntrl/prop_cntrl */
 };
 
 struct dw_dphy_priv {
@@ -82,7 +85,8 @@ struct dw_dphy_priv {
 };
 
 struct dw_dphy_vco_prop {
-	unsigned int max_fout;
+	unsigned long min_fout;
+	unsigned long max_fout;
 	u8 vco_cntl;
 	u8 prop_cntl;
 };
@@ -94,17 +98,17 @@ struct dw_dphy_hsfreqrange {
 
 /* Databook Table 3-13 Charge-pump Programmability */
 static const struct dw_dphy_vco_prop vco_prop_map[] = {
-	{   55, 0x3f, 0x0d },
-	{   82, 0x37, 0x0d },
-	{  110, 0x2f, 0x0d },
-	{  165, 0x27, 0x0d },
-	{  220, 0x1f, 0x0d },
-	{  330, 0x17, 0x0d },
-	{  440, 0x0f, 0x0d },
-	{  660, 0x07, 0x0d },
-	{ 1149, 0x03, 0x0d },
-	{ 1152, 0x01, 0x0d },
-	{ 1250, 0x01, 0x0e },
+	{   40,   55, 0x3f, 0x0d },
+	{   52,   82, 0x37, 0x0d },
+	{   80,  110, 0x2f, 0x0d },
+	{  105,  165, 0x27, 0x0d },
+	{  160,  220, 0x1f, 0x0d },
+	{  210,  330, 0x17, 0x0d },
+	{  320,  440, 0x0f, 0x0d },
+	{  420,  660, 0x07, 0x0d },
+	{  630, 1149, 0x03, 0x0d },
+	{ 1100, 1152, 0x01, 0x0d },
+	{ 1150, 1250, 0x01, 0x0e },
 };
 
 /* Databook Table 5-7 Frequency Ranges and Defaults */
@@ -191,6 +195,17 @@ static inline unsigned long data_rate_to_fout(unsigned long data_rate)
 	return data_rate / 2;
 }
 
+static inline unsigned int vco_cntrl_to_fvco_div(u8 vco_cntl)
+{
+	/* bits [5:4] of vco_cntrl represent fvco divider */
+	/* fvco_div is determined using the below mapping  */
+	/* 00 -> divide by 1 */
+	/* 01 -> divide by 2 */
+	/* 10 -> divide by 4 */
+	/* 11 -> divide by 8 */
+	return 1 << FVCO_CNTRL_OP_DIV(vco_cntl);
+}
+
 static int
 dw_dphy_config_from_opts(struct phy *phy,
 			 struct phy_configure_opts_mipi_dphy *dphy_opts,
@@ -205,6 +220,8 @@ dw_dphy_config_from_opts(struct phy *phy,
 	unsigned long m, best_m;
 	unsigned long min_delta = ULONG_MAX;
 	unsigned long tmp, delta;
+	unsigned int i;
+	unsigned int best_vco_prop, best_fvco_div;
 
 	if (dphy_opts->hs_clk_rate < DATA_RATE_MIN_SPEED ||
 	    dphy_opts->hs_clk_rate > DATA_RATE_MAX_SPEED) {
@@ -215,9 +232,6 @@ dw_dphy_config_from_opts(struct phy *phy,
 
 	fout = data_rate_to_fout(dphy_opts->hs_clk_rate);
 
-	/* Fout = Fvco / Fvco_div = (Fin * M) / (Fvco_div * N) */
-	fvco_div = 8UL / min(DIV_ROUND_UP(fout, FVCO_DIV_FACTOR), 8UL);
-
 	/* limitation: 2MHz <= Fin / N <= 8MHz */
 	min_n = DIV_ROUND_UP(fin, MHZ(8));
 	max_n = DIV_ROUND_DOWN_ULL(fin, MHZ(2));
@@ -226,39 +240,53 @@ dw_dphy_config_from_opts(struct phy *phy,
 	min_n = clamp(min_n, N_MIN, N_MAX);
 	max_n = clamp(max_n, N_MIN, N_MAX);
 
-	dev_dbg(&phy->dev, "Fout = %lu, Fvco_div = %u, n_range = [%u, %u]\n",
-		fout, fvco_div, min_n, max_n);
+	dev_dbg(&phy->dev, "Fout = %lu, n_range = [%u, %u]\n",
+		fout, min_n, max_n);
 
-	for (n = min_n; n <= max_n; n++) {
-		/* M = (Fout * N * Fvco_div) / Fin */
-		tmp = fout * n * fvco_div;
-		m = DIV_ROUND_CLOSEST(tmp, fin);
-
-		/* check M range */
-		if (m < M_MIN || m > M_MAX)
+	for (i = 0; i < ARRAY_SIZE(vco_prop_map); i++) {
+		if ((fout / MHZ(1)) < vco_prop_map[i].min_fout ||
+		    (fout / MHZ(1)) > vco_prop_map[i].max_fout)
 			continue;
 
-		/* calculate temporary Fout */
-		tmp = m * fin;
-		do_div(tmp, n * fvco_div);
-		if (tmp < FOUT_MIN || tmp > FOUT_MAX)
-			continue;
+		/* fvco divider value can be either 1,2,4,or 8 */
+		fvco_div = vco_cntrl_to_fvco_div(vco_prop_map[i].vco_cntl);
 
-		delta = abs(fout - tmp);
-		if (delta < min_delta) {
-			best_n = n;
-			best_m = m;
-			min_delta = delta;
-			best_fout = tmp;
+		dev_dbg(&phy->dev, "Trying fvco_div = %u\n", fvco_div);
+
+		for (n = min_n; n <= max_n; n++) {
+			/* M = (Fout * N * Fvco_div) / Fin */
+			tmp = fout * n * fvco_div;
+			m = DIV_ROUND_CLOSEST(tmp, fin);
+
+			/* check M range */
+			if (m < M_MIN || m > M_MAX)
+				continue;
+
+			/* calculate temporary Fout */
+			tmp = m * fin;
+			do_div(tmp, n * fvco_div);
+			if (tmp < FOUT_MIN || tmp > FOUT_MAX)
+				continue;
+
+			delta = abs(fout - tmp);
+			if (delta < min_delta) {
+				best_n = n;
+				best_m = m;
+				best_vco_prop = i;
+				best_fvco_div = fvco_div;
+				best_fout = tmp;
+				min_delta = delta;
+			}
 		}
 	}
 
 	if (best_fout) {
 		cfg->m = best_m;
 		cfg->n = best_n;
+		cfg->vco_prop_sel = best_vco_prop;
 		dphy_opts->hs_clk_rate = best_fout * 2;
-		dev_dbg(&phy->dev, "best Fout = %lu, m = %u, n = %u\n",
-			best_fout, cfg->m, cfg->n);
+		dev_dbg(&phy->dev, "best Fout = %lu, fvco_div = %u, m = %u, n = %u\n",
+			best_fout, best_fvco_div, cfg->m, cfg->n);
 	} else {
 		dev_dbg(&phy->dev, "failed to find best Fout\n");
 		return -EINVAL;
@@ -304,28 +332,14 @@ dw_dphy_get_hsfreqrange(struct phy_configure_opts_mipi_dphy *dphy_opts)
 	return 0;
 }
 
-static u8 dw_dphy_get_vco(struct phy_configure_opts_mipi_dphy *dphy_opts)
+static u8 dw_dphy_get_vco(struct dw_dphy_cfg *cfg)
 {
-	unsigned int fout = data_rate_to_fout(dphy_opts->hs_clk_rate) / MHZ(1);
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(vco_prop_map); i++)
-		if (fout <= vco_prop_map[i].max_fout)
-			return vco_prop_map[i].vco_cntl;
-
-	return 0;
+	return vco_prop_map[cfg->vco_prop_sel].vco_cntl;
 }
 
-static u8 dw_dphy_get_prop(struct phy_configure_opts_mipi_dphy *dphy_opts)
+static u8 dw_dphy_get_prop(struct dw_dphy_cfg *cfg)
 {
-	unsigned int fout = data_rate_to_fout(dphy_opts->hs_clk_rate) / MHZ(1);
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(vco_prop_map); i++)
-		if (fout <= vco_prop_map[i].max_fout)
-			return vco_prop_map[i].prop_cntl;
-
-	return 0;
+	return vco_prop_map[cfg->vco_prop_sel].prop_cntl;
 }
 
 static int dw_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
@@ -348,8 +362,8 @@ static int dw_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
 
 	/* w_reg0 */
 	val = M(cfg.m) | N(cfg.n) | INT_CTRL(0) |
-	      VCO_CTRL(dw_dphy_get_vco(&opts->mipi_dphy)) |
-	      PROP_CTRL(dw_dphy_get_prop(&opts->mipi_dphy));
+	      VCO_CTRL(dw_dphy_get_vco(&cfg)) |
+	      PROP_CTRL(dw_dphy_get_prop(&cfg));
 	phy_write(phy, val, DSI_WRITE_REG0);
 
 	/* w_reg1 */

@@ -39,15 +39,12 @@ static void refresh_host_vm_trace(void)
 
 static int __refresh_guest_vm_trace(struct pkvm_vm *vm, void *param)
 {
+	struct kvm_vcpu *vcpu;
 	int i;
 
 	pkvm_spin_lock(&vm->lock);
-	for (i = 0; i < vm->kvm.created_vcpus; i++) {
-		if (!vm->vcpus[i])
-			continue;
-
-		refresh_vmexit_perf(&vm->vcpus[i]->perf);
-	}
+	for_each_pkvm_guest_vcpu(i, vcpu, vm)
+		refresh_vmexit_perf(&to_pkvm_vcpu(vcpu)->perf);
 	pkvm_spin_unlock(&vm->lock);
 
 	return 0;
@@ -89,6 +86,7 @@ struct copy_arg {
 static int __copy_guest_vm_trace(struct pkvm_vm *vm, void *param)
 {
 	struct copy_arg *arg = param;
+	struct kvm_vcpu *vcpu;
 	int i;
 
 	if (arg->vm_handle != PKVM_HOST_VM_HANDLE &&
@@ -96,16 +94,13 @@ static int __copy_guest_vm_trace(struct pkvm_vm *vm, void *param)
 		return 0;
 
 	pkvm_spin_lock(&vm->lock);
-	for (i = 0; i < vm->kvm.created_vcpus; i++) {
-		if (!vm->vcpus[i])
-			continue;
-
+	for_each_pkvm_guest_vcpu(i, vcpu, vm) {
 		if (arg->size < sizeof(struct perf_data)) {
 			pkvm_spin_unlock(&vm->lock);
 			return -ENOSPC;
 		}
 
-		copy_vmexit_perf_data(arg->dst, &vm->vcpus[i]->perf);
+		copy_vmexit_perf_data(arg->dst, &to_pkvm_vcpu(vcpu)->perf);
 		arg->dst += sizeof(struct perf_data);
 		arg->size -= sizeof(struct perf_data);
 	}

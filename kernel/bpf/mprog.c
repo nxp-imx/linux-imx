@@ -393,7 +393,7 @@ out:
 }
 
 int bpf_mprog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
-		    struct bpf_mprog_entry *entry)
+		    u32 uattr_size, struct bpf_mprog_entry *entry)
 {
 	u32 __user *uprog_flags, *ulink_flags;
 	u32 __user *uprog_id, *ulink_id;
@@ -413,7 +413,8 @@ int bpf_mprog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
 	}
 	if (copy_to_user(&uattr->query.attach_flags, &flags, sizeof(flags)))
 		return -EFAULT;
-	if (copy_to_user(&uattr->query.revision, &revision, sizeof(revision)))
+	if (uattr_size >= offsetofend(union bpf_attr, query.revision) &&
+	    copy_to_user(&uattr->query.revision, &revision, sizeof(revision)))
 		return -EFAULT;
 	if (copy_to_user(&uattr->query.count, &count, sizeof(count)))
 		return -EFAULT;

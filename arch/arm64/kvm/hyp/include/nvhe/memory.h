@@ -127,7 +127,8 @@ static inline int hyp_page_count(void *addr)
 {
 	struct hyp_page *p = hyp_virt_to_page(addr);
 
-	return hyp_refcount_get(p->refcount);
+	/* Callers shouldn't see the extra reference held by page_alloc.c */
+	return hyp_refcount_get(p->refcount) - 1;
 }
 
 static inline void hyp_page_ref_inc(struct hyp_page *p)
@@ -140,13 +141,14 @@ static inline void hyp_page_ref_dec(struct hyp_page *p)
 	hyp_refcount_dec(p->refcount);
 }
 
-static inline int hyp_page_ref_dec_and_test(struct hyp_page *p)
-{
-	return hyp_refcount_dec(p->refcount) == 0;
-}
+/*
+ * page_alloc.c takes an extra reference on freshly-allocated pages,
+ * hence we initialise the reference count to 2.
+ */
+#define HYP_PAGE_INIT_REFCOUNT 2
 
 static inline void hyp_set_page_refcounted(struct hyp_page *p)
 {
-	hyp_refcount_set(p->refcount, 1);
+	hyp_refcount_set(p->refcount, HYP_PAGE_INIT_REFCOUNT);
 }
 #endif /* __KVM_HYP_MEMORY_H */

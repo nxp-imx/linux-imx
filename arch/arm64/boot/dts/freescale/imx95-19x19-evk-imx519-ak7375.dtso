@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+&{/} {
+	reg_cam2p8v: regulator-cam2p8v {
+		compatible = "regulator-fixed";
+		regulator-max-microvolt = <2800000>;
+		regulator-min-microvolt = <2800000>;
+		regulator-name = "+V2.8_SW cam";
+		gpio = <&i2c3_gpio_expander_20 2 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+};
+
+&csi_pixel_formatter_0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			formatter_0_in: endpoint {
+				remote-endpoint = <&mipi_csi0_out>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			formatter_0_out: endpoint {
+				remote-endpoint = <&isi_in_2>;
+			};
+		};
+	};
+};
+
+&dphy_rx {
+	status = "okay";
+};
+
+&isi {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@2 {
+			reg = <2>;
+
+			isi_in_2: endpoint {
+				remote-endpoint = <&formatter_0_out>;
+			};
+		};
+	};
+};
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	ak7375: ak7375@c {
+		compatible = "asahi-kasei,ak7375";
+		reg = <0x0c>;
+		vdd-supply = <&reg_cam2p8v>;
+		vio-supply = <&reg_dummy>;
+		status = "okay";
+	};
+
+	imx519@1a {
+		compatible = "sony,imx519";
+		reg = <0x1a>;
+		clocks = <&osc_24m>;
+		clock-names = "xclk";
+		VANA-supply = <&reg_cam2p8v>;
+		VDIG-supply = <&reg_dummy>;
+		VDDL-supply = <&reg_dummy>;
+		lens-focus = <&ak7375>;
+		orientation = <2>;
+		rotation = <0>;
+		status = "okay";
+
+		port {
+			imx519_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+				clock-noncontinuous;
+				link-frequencies = /bits/ 64 <408000000>;
+			};
+		};
+	};
+};
+
+&mipi_csi0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mipi_csi0_ep: endpoint {
+				remote-endpoint = <&imx519_ep>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+				mipi_csi0_out: endpoint {
+				remote-endpoint = <&formatter_0_in>;
+			};
+		};
+	};
+};

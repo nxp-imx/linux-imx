@@ -11,11 +11,16 @@
 	model = "wm8962-audio";
 	audio-codec = <&wm8962>;
 	audio-routing =
-		"IN1R", "MICBIAS",
-		"IN1L", "MICBIAS";
+		"Headphone Jack", "HPOUTL",
+		"Headphone Jack", "HPOUTR",
+		"Ext Spk", "SPKOUTL",
+		"Ext Spk", "SPKOUTR",
+		"Main MIC", "MICBIAS",
+		"IN3R", "Main MIC",
+		"IN1R", "Main MIC";
 	ignore-suspend-widgets =
-		"HPOUTL", "HPOUTR", "Playback",
-		"Capture", "IN1L", "IN1R";
+		"Headphone Jack", "Playback",
+		"Capture", "Main MIC";
 };
 
 &i2c_rpbus_3 {

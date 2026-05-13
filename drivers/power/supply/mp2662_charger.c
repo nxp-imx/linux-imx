@@ -612,8 +612,7 @@ static int mp2662_fw_probe(struct mp2662_device *mp)
 	return 0;
 }
 
-static int mp2662_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+static int mp2662_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct mp2662_device *mp;

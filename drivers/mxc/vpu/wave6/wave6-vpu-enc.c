@@ -819,7 +819,7 @@ static int wave6_update_seq_param(struct vpu_instance *inst)
 
 static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 {
-	int ret = -EINVAL;
+	int ret;
 	struct vb2_v4l2_buffer *src_buf = NULL;
 	struct vb2_v4l2_buffer *dst_buf = NULL;
 	struct vpu_buffer *src_vbuf = NULL;

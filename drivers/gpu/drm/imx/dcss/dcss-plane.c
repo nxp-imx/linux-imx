@@ -221,7 +221,9 @@ static void dcss_plane_get_hdr10_pipe_cfg(struct drm_plane_state *plane_state,
 
 	if (!fb->format->is_yuv) {
 		ipipe_cfg->pr = PR_FULL;
-		if (fb->format->depth == 30) {
+		if (fb->format->depth == 30 &&
+		    (dcss_crtc_state->opipe_g == G_REC2020 ||
+		     dcss_crtc_state->opipe_nl == NL_REC2084)) {
 			ipipe_cfg->nl = NL_REC2084;
 			ipipe_cfg->g = G_REC2020;
 		} else {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2022, 2024 NXP
+ * Copyright 2022-2026 NXP
  */
 
 #include <linux/arm-smccc.h>
@@ -17,6 +17,8 @@
 #include <linux/regmap.h>
 #include <linux/firmware/imx/se_api.h>
 #include <linux/thermal.h>
+#include <linux/sched.h>
+#include <linux/kthread.h>
 
 #define FSL_SIP_DDR_DVFS                0xc2000004
 #define DDR_DFS_GET_FSP_COUNT		0x10
@@ -189,6 +191,9 @@ static unsigned int fsp_table[3];
 static struct regulator *soc_reg;
 static struct regmap *regmap;
 static void *se_data;
+static struct kthread_worker *lpm_worker;
+static struct kthread_work reg_work;
+static int soc_reg_target;
 DEFINE_MUTEX(mode_mutex);
 
 struct lpm_ctx {
@@ -236,6 +241,22 @@ static void lpm_update_all_clks(struct critical_clk_path *path,
 	}
 }
 
+static void lpm_soc_reg_change_work(struct kthread_work *work)
+{
+	/* Set the voltage via ELE driver API */
+	imx_se_voltage_change_req(se_data, soc_reg, soc_reg_target, 0);
+}
+
+static void lpm_soc_reg_volt_change(int target_uv)
+{
+	soc_reg_target = target_uv;
+
+	kthread_queue_work(lpm_worker, &reg_work);
+
+	/* Block until regulator work completes */
+	kthread_flush_work(&reg_work);
+}
+
 /* Caller should hold mode_mutex lock */
 static void sys_freq_scaling(enum mode_type new_mode)
 {
@@ -248,7 +269,7 @@ static void sys_freq_scaling(enum mode_type new_mode)
 
 	if (new_mode == OD_MODE) {
 		/* increase the voltage first */
-		imx_se_voltage_change_req(se_data, soc_reg, VDD_SOC_OD_VOLTAGE, 0);
+		lpm_soc_reg_volt_change(VDD_SOC_OD_VOLTAGE);
 
 		/* Increase the NIC_AXI first */
 		lpm_update_clk(path, NIC_AXI, new_mode);
@@ -290,7 +311,7 @@ static void sys_freq_scaling(enum mode_type new_mode)
 		scaling_dram_freq(new_mode == LD_MODE ? 0x1 : 0x2);
 
 		if (!no_od_mode)
-			imx_se_voltage_change_req(se_data, soc_reg, VDD_SOC_LD_VOLTAGE, 0);
+			lpm_soc_reg_volt_change(VDD_SOC_LD_VOLTAGE);
 		else
 			regulator_set_voltage_tol(soc_reg, VDD_SOC_LD_VOLTAGE, 0);
 
@@ -653,6 +674,18 @@ static int imx93_lpm_probe(struct platform_device *pdev)
 		return err;
 	}
 
+	lpm_worker = kthread_run_worker(0, "lpm_worker");
+	if (IS_ERR(lpm_worker)) {
+		dev_err(&pdev->dev, "creating lpm worker failed\n");
+		err = PTR_ERR(lpm_worker);
+		lpm_worker = NULL;
+		return err;
+	}
+
+	/* Set to fifo schedule for calling ELE voltage change */
+	sched_set_fifo(lpm_worker->task);
+	kthread_init_work(&reg_work, lpm_soc_reg_change_work);
+
 	/* Normally, we assuming the system in boot up in OD or ND(i.MX91/P) mode */
 	system_run_mode.current_mode = no_od_mode ? ND_MODE : OD_MODE;
 	system_run_mode.manual_mode = system_run_mode.current_mode;
@@ -671,6 +704,13 @@ static int imx93_lpm_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static void imx93_lpm_remove(struct platform_device *pdev)
+{
+	if (lpm_worker) {
+		kthread_destroy_worker(lpm_worker);
+	}
+}
+
 static const struct of_device_id imx93_lpm_ids[] = {
 	{.compatible = "nxp,imx93-lpm", },
 	{ /* sentinel */}
@@ -683,6 +723,7 @@ static struct platform_driver imx93_lpm_driver = {
 		.of_match_table = imx93_lpm_ids,
 		},
 	.probe = imx93_lpm_probe,
+	.remove = imx93_lpm_remove,
 };
 module_platform_driver(imx93_lpm_driver);
 

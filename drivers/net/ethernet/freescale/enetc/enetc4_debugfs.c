@@ -118,8 +118,17 @@ static int enetc_flower_list_show(struct seq_file *s, void *data)
 		seq_printf(s, "Cookie:0x%lx\n", rule->cookie);
 		seq_printf(s, "Flower type:%d\n", rule->flower_type);
 
-		if (rule->flower_type == FLOWER_TYPE_PSFP)
+		switch (rule->flower_type) {
+		case FLOWER_TYPE_PSFP:
 			netc_show_psfp_flower(s, rule);
+			break;
+		case FLOWER_TYPE_POLICE:
+		case FLOWER_TYPE_DROP:
+			netc_show_ipft_flower(s, rule);
+			break;
+		default:
+			break;
+		}
 
 		seq_puts(s, "\n");
 	}

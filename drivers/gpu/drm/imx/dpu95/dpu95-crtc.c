@@ -14,6 +14,7 @@
 #include <drm/drm_atomic_state_helper.h>
 #include <drm/drm_color_mgmt.h>
 #include <drm/drm_encoder.h>
+#include <drm/drm_mode.h>
 
 #include "dpu95.h"
 #include "dpu95-crtc.h"
@@ -146,6 +147,10 @@ dpu95_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode
 {
 	if (mode->crtc_clock > DPU95_FRAMEGEN_MAX_CLOCK)
 		return MODE_CLOCK_HIGH;
+	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+		return MODE_NO_INTERLACE;
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		return MODE_BAD;
 
 	return MODE_OK;
 }

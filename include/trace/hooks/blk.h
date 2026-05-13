@@ -14,6 +14,7 @@ struct block_device;
 struct path;
 struct bio;
 struct gendisk;
+struct request;
 
 DECLARE_HOOK(android_vh_check_set_ioprio,
 	TP_PROTO(struct bio *bio),
@@ -46,6 +47,18 @@ struct readahead_control;
 DECLARE_HOOK(android_vh_f2fs_ra_op_flags,
 	TP_PROTO(blk_opf_t *op_flag, struct readahead_control *rac),
 	TP_ARGS(op_flag, rac));
+
+DECLARE_RESTRICTED_HOOK(android_rvh_submit_bio_pre,
+	TP_PROTO(struct bio *bio, struct request *rq),
+	TP_ARGS(bio, rq), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_submit_bio_post,
+	TP_PROTO(struct bio *bio, struct request *rq),
+	TP_ARGS(bio, rq), 1);
+
+DECLARE_HOOK(android_vh_request_issue_err,
+	TP_PROTO(struct request *rq),
+	TP_ARGS(rq));
 
 #endif /* _TRACE_HOOK_BLK_H */
 /* This part must be outside protection */

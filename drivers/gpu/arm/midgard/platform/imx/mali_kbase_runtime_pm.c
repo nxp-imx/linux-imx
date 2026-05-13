@@ -32,12 +32,6 @@
 
 #include "mali_kbase_config_platform.h"
 
-#ifndef IMX_GPU_BLK_CTRL
-#if KERNEL_VERSION(6, 12, 0) >= LINUX_VERSION_CODE
-#define IMX_GPU_BLK_CTRL 1
-#endif
-#endif
-
 static void enable_gpu_power_control(struct kbase_device *kbdev)
 {
 	unsigned int i;
@@ -146,10 +140,10 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	/* Power down the GPU immediately */
 	disable_gpu_power_control(kbdev);
 
-if (pm_runtime_enabled(kbdev->dev)) {
-	pm_runtime_mark_last_busy(kbdev->dev);
-	pm_runtime_put_autosuspend(kbdev->dev);
-}
+	if (pm_runtime_enabled(kbdev->dev)) {
+		pm_runtime_mark_last_busy(kbdev->dev);
+		pm_runtime_put_autosuspend(kbdev->dev);
+	}
 
 #ifdef IMX_GPU_BLK_CTRL
 	ictx->init_blk_ctrl = 0;

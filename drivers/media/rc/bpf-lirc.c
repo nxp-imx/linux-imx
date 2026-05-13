@@ -292,7 +292,8 @@ int lirc_prog_detach(const union bpf_attr *attr)
 	return ret;
 }
 
-int lirc_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr)
+int lirc_prog_query(const union bpf_attr *attr, union bpf_attr __user *uattr,
+		    u32 uattr_size)
 {
 	__u32 __user *prog_ids = u64_to_user_ptr(attr->query.prog_ids);
 	struct bpf_prog_array *progs;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright 2019-2020 NXP
+ * Copyright 2019-2020, 2026 NXP
  */
 
 #include <linux/bits.h>
@@ -82,7 +82,7 @@ static int mxc_isi_async_notifier_complete(struct v4l2_async_notifier *notifier)
 	struct mxc_isi_dev *isi = notifier_to_mxc_isi_dev(notifier);
 	int ret;
 
-	dev_dbg(isi->dev, "All subdevs bound\n");
+	dev_info(isi->dev, "All subdevs bound\n");
 
 	ret = v4l2_device_register_subdev_nodes(&isi->v4l2_dev);
 	if (ret < 0) {
@@ -91,7 +91,7 @@ static int mxc_isi_async_notifier_complete(struct v4l2_async_notifier *notifier)
 		return ret;
 	}
 
-	return media_device_register(&isi->media_dev);
+	return 0;
 }
 
 static const struct v4l2_async_notifier_operations mxc_isi_async_notifier_ops = {
@@ -595,6 +595,12 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	ret = mxc_isi_v4l2_init(isi);
 	if (ret < 0) {
 		dev_err(dev, "Failed to initialize V4L2: %d\n", ret);
+		goto err_xbar;
+	}
+
+	ret = media_device_register(&isi->media_dev);
+	if (ret < 0) {
+		dev_err(dev, "Failed to register media device: %d\n", ret);
 		goto err_xbar;
 	}
 

@@ -67,13 +67,18 @@
 		clock-names = "ipg", "mclk", "dma", "pll8k";
 		audio-codec = <&wm8962>;
 		memory-region = <&audio_reserved>;
+		hp-det-gpios = <&pcal6524 4 GPIO_ACTIVE_HIGH>;
 		audio-routing =
-			"IN1R", "MICBIAS",
-			"IN1L", "MICBIAS";
+			"Headphone Jack", "HPOUTL",
+			"Headphone Jack", "HPOUTR",
+			"Ext Spk", "SPKOUTL",
+			"Ext Spk", "SPKOUTR",
+			"Main MIC", "MICBIAS",
+			"IN3R", "Main MIC",
+			"IN1R", "Main MIC";
 		ignore-suspend-widgets =
-			"HPOUTL", "HPOUTR", "Playback",
-			"Capture", "IN1L", "IN1R";
-		status = "okay";
+			"Headphone Jack", "Playback",
+			"Capture", "Main MIC";
 	};
 
 	rpmsg_micfil: rpmsg_micfil {

@@ -88,7 +88,7 @@
  * lot more complicated to retrofit.
  */
 
-#define JOB_TIMEOUT_MS				5000
+#define JOB_TIMEOUT_MS				20000
 
 #define MAX_CSG_PRIO				0xf
 
