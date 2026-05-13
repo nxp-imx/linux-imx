@@ -175,6 +175,7 @@ _IMX8MP_VENDOR_DLKM_MODULES = [
 
     # Ethernet PHY
     "drivers/net/phy/realtek/realtek.ko",
+    "drivers/net/phy/motorcomm.ko",
 
     # FEC Ethernet
     "drivers/net/ethernet/freescale/fec.ko",
