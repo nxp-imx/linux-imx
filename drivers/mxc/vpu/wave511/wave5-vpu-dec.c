@@ -1061,16 +1061,37 @@ static int wave5_vpu_dec_enum_framesizes(struct file *f, void *fh, struct v4l2_f
 
 static int wave5_vpu_dec_enum_fmt_cap(struct file *file, void *fh, struct v4l2_fmtdesc *f)
 {
+	struct vpu_instance *inst = wave5_to_vpu_inst(file_to_v4l2_fh(file));
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	const struct vpu_format *vpu_fmt;
+	unsigned int count = 0;
+	unsigned int i;
 
-	vpu_fmt = wave5_find_vpu_fmt_by_idx(f->index, dec_fmt_list[VPU_FMT_TYPE_RAW]);
-	if (!vpu_fmt)
-		return -EINVAL;
+	for (i = 0; i < MAX_FMTS; i++) {
+		vpu_fmt = wave5_find_vpu_fmt_by_idx(i, dec_fmt_list[VPU_FMT_TYPE_RAW]);
+		if (!vpu_fmt)
+			break;
 
-	f->pixelformat = vpu_fmt->v4l2_pix_fmt;
-	f->flags = 0;
+		if (p_dec_info->initial_info_obtained) {
+			if (p_dec_info->initial_info.c_fmt_idc == C_FMT_IDC_YUV400) {
+				/* 4:0:0 stream: only GREY */
+				if (vpu_fmt->v4l2_pix_fmt != V4L2_PIX_FMT_GREY)
+					continue;
+			} else {
+				/* other: exclude GREY */
+				if (vpu_fmt->v4l2_pix_fmt == V4L2_PIX_FMT_GREY)
+					continue;
+			}
+		}
 
-	return 0;
+		if (count++ == f->index) {
+			f->pixelformat = vpu_fmt->v4l2_pix_fmt;
+			f->flags = 0;
+			return 0;
+		}
+	}
+
+	return -EINVAL;
 }
 
 static int wave5_vpu_dec_try_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)

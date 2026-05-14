@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright NXP 2026
+
+#include "imx8mp-evk.dts"
+
+/delete-node/ &dsp;
+/delete-node/ &dsp_reserved_heap;
+/delete-node/ &dsp_vdev0vring0;
+/delete-node/ &dsp_vdev0vring1;
+/delete-node/ &dsp_vdev0buffer;
+
+/ {
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		m7_reserved: m7@80000000  {
+			no-map;
+			reg = <0 0x80000000 0 0x2600000>;
+		};
+		dma_reserved: memory@82600000 {
+			compatible = "shared-dma-pool";
+			reusable;
+			reg = <0x0 0x82600000 0x0 0x200000>;
+		};
+	};
+
+	sound-wm8960 {
+		status = "disabled";
+	};
+
+	sof_cpu: cm7-cpu@7E0000 {
+		compatible = "fsl,imx8mp-cm7-sof";
+		reg = <0 0x7E0000 0x0 0x20000>;
+		power-domains = <&pgc_audio>;
+
+		reg-names = "iram";
+		clocks = <&clk IMX8MP_CLK_M7_CORE>,
+			<&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SAI3_IPG>,
+			<&audio_blk_ctrl IMX8MP_CLK_AUDIOMIX_SDMA3_ROOT>;
+		clock-names = "core", "ipg", "sdma3_root";
+		assigned-clocks = <&clk IMX8MP_CLK_M7_CORE>;
+		assigned-clock-parents = <&clk IMX8MP_SYS_PLL1_800M>;
+		assigned-clock-rates = <800000000>;
+
+		mbox-names = "txdb0", "txdb1", "rxdb0", "rxdb1";
+		mboxes = <&mu 2 0>, <&mu 2 1>, <&mu 3 0>, <&mu 3 1>;
+		memory-region = <&m7_reserved>, <&dma_reserved>;
+		memory-region-names = "sram", "dma";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				endpoint { /* not used */
+				};
+			};
+			port@1 {
+				reg = <1>;
+				endpoint { /* not used */
+				};
+			};
+			cpu: port@2 {
+				reg = <2>;
+				cpu_ep: endpoint {
+					remote-endpoint = <&codec_ep>;
+				};
+			};
+		};
+	};
+
+	sof-sound-wm8960 {
+		compatible = "audio-graph-card2";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_hpdet>;
+		links = <&cpu>;
+		label = "wm8960-audio";
+		hp-det-gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		widgets = "Headphone", "Headphones",
+			  "Speaker", "Ext Spk",
+			  "Microphone", "Mic Jack";
+		routing = "Headphones", "HP_L",
+			  "Headphones", "HP_R",
+			  "Ext Spk", "SPK_LP",
+			  "Ext Spk", "SPK_LN",
+			  "Ext Spk", "SPK_RP",
+			  "Ext Spk", "SPK_RN",
+			  "LINPUT1", "Mic Jack",
+			  "LINPUT3", "Mic Jack",
+			  "Mic Jack", "MICB";
+	};
+};
+
+&wm8960 {
+	assigned-clocks = <&clk IMX8MP_CLK_SAI3>;
+	assigned-clock-parents = <&clk IMX8MP_AUDIO_PLL1_OUT>;
+	assigned-clock-rates = <12288000>;
+
+	port {
+		bitclock-master;
+		frame-master;
+		codec_ep: endpoint { remote-endpoint = <&cpu_ep>; };
+	};
+};
+
+&sai3 {
+	status = "disabled";
+};
+
+&sdma3 {
+	status = "disabled";
+};

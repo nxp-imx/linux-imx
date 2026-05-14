@@ -43,6 +43,11 @@ static const unsigned int sof_imx8_extcon_cables[] = {
 };
 #endif
 
+/* M7 remote processor control */
+#define IMX_SIP_RPROC		0xC2000005
+#define IMX_SIP_RPROC_START	0x00
+#define IMX_SIP_RPROC_STOP	0x02
+
 struct imx8m_chip_data {
 	void __iomem *dap;
 	struct regmap *regmap;
@@ -183,6 +188,24 @@ static int imx8m_run(struct snd_sof_dev *sdev)
 	struct imx8m_chip_data *chip = get_chip_pdata(sdev);
 
 	return reset_control_deassert(chip->run_stall);
+}
+
+static int imx8m_cm7_core_kick(struct snd_sof_dev *sdev)
+{
+	struct arm_smccc_res smc_ret;
+
+	arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_START, 0,
+		      0, 0, 0, 0, 0, &smc_ret);
+	return smc_ret.a0;
+}
+
+static int imx8m_cm7_core_shutdown(struct snd_sof_dev *sdev)
+{
+	struct arm_smccc_res smc_ret;
+
+	arm_smccc_smc(IMX_SIP_RPROC, IMX_SIP_RPROC_STOP, 0,
+		      0, 0, 0, 0, 0, &smc_ret);
+	return smc_ret.a0;
 }
 
 static int imx8m_probe(struct snd_sof_dev *sdev)
@@ -344,6 +367,11 @@ static const struct imx_chip_ops imx8m_chip_ops = {
 	.core_reset = imx8m_reset,
 };
 
+static const struct imx_chip_ops imx8m_cm7_chip_ops = {
+	.core_kick = imx8m_cm7_core_kick,
+	.core_shutdown = imx8m_cm7_core_shutdown
+};
+
 static const struct imx_chip_ops imx8ulp_chip_ops = {
 	.probe = imx8ulp_probe,
 	.core_kick = imx8ulp_run,
@@ -357,6 +385,12 @@ static struct imx_memory_info imx8_memory_regions[] = {
 };
 
 static struct imx_memory_info imx8m_memory_regions[] = {
+	{ .name = "iram", .reserved = false },
+	{ .name = "sram", .reserved = true },
+	{ }
+};
+
+static struct imx_memory_info imx8m_cm7_memory_regions[] = {
 	{ .name = "iram", .reserved = false },
 	{ .name = "sram", .reserved = true },
 	{ }
@@ -402,6 +436,19 @@ static const struct imx_chip_info imx8m_chip_info = {
 	.drv = imx8m_dai,
 	.num_drv = ARRAY_SIZE(imx8m_dai),
 	.ops = &imx8m_chip_ops,
+};
+
+static const struct imx_chip_info imx8m_cm7_chip_info = {
+	.ipc_info = {
+		.has_panic_code = true,
+		.boot_mbox_offset = 0x2000000,
+		.window_offset = 0x2000000,
+	},
+	.has_dma_reserved = true,
+	.memory = imx8m_cm7_memory_regions,
+	.drv = imx8m_dai,
+	.num_drv = ARRAY_SIZE(imx8m_dai),
+	.ops = &imx8m_cm7_chip_ops,
 };
 
 static const struct imx_chip_info imx8ulp_chip_info = {
@@ -469,6 +516,7 @@ static struct snd_sof_of_mach sof_imx8_machs[] = {
 IMX_SOF_DEV_DESC(imx8, sof_imx8_machs, &imx8_chip_info, &sof_imx8_ops, imx8_ops_init);
 IMX_SOF_DEV_DESC(imx8x, sof_imx8_machs, &imx8x_chip_info, &sof_imx8_ops, imx8_ops_init);
 IMX_SOF_DEV_DESC(imx8m, sof_imx8_machs, &imx8m_chip_info, &sof_imx8_ops, imx8_ops_init);
+IMX_SOF_DEV_DESC(imx8m_cm7, sof_imx8_machs, &imx8m_cm7_chip_info, &sof_imx8_ops, imx8_ops_init);
 IMX_SOF_DEV_DESC(imx8ulp, sof_imx8_machs, &imx8ulp_chip_info, &sof_imx8_ops, imx8_ops_init);
 
 static const struct of_device_id sof_of_imx8_ids[] = {
@@ -483,6 +531,10 @@ static const struct of_device_id sof_of_imx8_ids[] = {
 	{
 		.compatible = "fsl,imx8mp-dsp",
 		.data = &IMX_SOF_DEV_DESC_NAME(imx8m),
+	},
+	{
+		.compatible = "fsl,imx8mp-cm7-sof",
+		.data = &IMX_SOF_DEV_DESC_NAME(imx8m_cm7),
 	},
 	{
 		.compatible = "fsl,imx8ulp-dsp",

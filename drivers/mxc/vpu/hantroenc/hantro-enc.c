@@ -783,8 +783,11 @@ static int hantro_enc_enable_core(struct hantro_enc_core *core)
 	value |= 0x1;
 	hantro_enc_writel(core, value, core->resource->reg_enable);
 
-	scoped_guard(spinlock_irqsave, &core->lock)
+	scoped_guard(spinlock_irqsave, &core->lock) {
 		core->is_enabled = 1;
+		core->irq_received = 0;
+		core->irq_status = 0;
+	}
 	if (core->resource->get_encode_fmt) {
 		core->format = core->resource->get_encode_fmt(core);
 		dev_dbg(core->dev->dev, "Encode %s frame\n", hantro_enc_get_fmt_name(core->format));
@@ -838,14 +841,19 @@ static int hantro_enc_check_done_status(struct hantro_enc_device *encoder, u32 c
 		core = hantro_enc_get_core(encoder, id);
 		if (!core)
 			continue;
-		if (core->irq_received) {
-			if (done_status) {
-				done_status->core_id = id;
-				done_status->irq_status = core->irq_status;
+		scoped_guard(spinlock_irqsave, &core->lock) {
+			if (core->irq_received) {
+				if (done_status) {
+					done_status->core_id = id;
+					done_status->irq_status = core->irq_status;
+				}
+				done = 1;
+				core->irq_received = 0;
+				core->is_enabled = 0;
 			}
-			done = 1;
-			break;
 		}
+		if (done)
+			break;
 	}
 
 	return done;
@@ -1112,36 +1120,32 @@ static const struct file_operations hantro_enc_fops = {
 	.mmap = hantro_enc_mmap,
 };
 
-static inline int hantro_enc_read_irq_received(struct hantro_enc_core *core)
+static inline int hantro_enc_is_ready_to_sleep(struct hantro_enc_core *core)
 {
 	guard(spinlock_irqsave)(&core->lock);
+
+	if (!core->is_reserved || !core->is_enabled)
+		return 1;
 
 	return core->irq_received;
 }
 
 static int hantro_enc_pause_core(struct hantro_enc_core *core)
 {
+	ktime_t ts = ktime_get_raw();
+	u32 data;
 	int ret;
 
-	if (!core->is_reserved)
-		return 0;
+	ret = read_poll_timeout(hantro_enc_is_ready_to_sleep, data, data,
+				10, HANTRO_ENC_TIMEOUT_MS * USEC_PER_MSEC, false, core);
+	if (ret)
+		dev_err(core->dev->dev, "wait core[%d] done timeout\n", core->id);
 
-	if (core->is_enabled) {
-		ktime_t ts = ktime_get_raw();
-		u32 data;
+	ts = ktime_get_raw() - ts;
 
-		ret = read_poll_timeout(hantro_enc_read_irq_received, data, data,
-					10, HANTRO_ENC_TIMEOUT_MS * USEC_PER_MSEC, false, core);
-		if (ret) {
-			dev_err(core->dev->dev, "wait core[%d] done timeout\n", core->id);
-			return -EINVAL;
-		}
-
-		ts = ktime_get_raw() - ts;
-		dev_dbg(core->dev->dev, "wait core[%d] %lld us\n", core->id, ts / NSEC_PER_USEC);
-	}
-
-	dev_dbg(core->dev->dev, "suspend, irq_status = 0x%x\n", core->irq_status);
+	dev_dbg(core->dev->dev, "suspend, wait core[%d] %lld us, status %d, %d, %d, 0x%x\n",
+		core->id, ts / NSEC_PER_USEC, core->is_reserved,
+		core->is_enabled, core->irq_received, core->irq_status);
 
 	return 0;
 }

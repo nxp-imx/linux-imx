@@ -34,7 +34,7 @@
 
 #define PIXEL_LINK_STREAMS		2
 
-#define ESC_CLK_RATE_HZ			18562500
+#define MAX_ESC_CLK_RATE_HZ		20000000
 
 enum dsi_pixel_link_format {
 	RGB_24BIT,
@@ -58,6 +58,10 @@ struct imx952_dsi2 {
 	struct dw_mipi_dsi2_plat_data pdata;
 	union phy_configure_opts phy_cfg;
 	unsigned long target_pclk_rate;
+	unsigned long esc_clk_rate;
+	unsigned long mode_flags;
+	bool phy_submode;
+	bool hs2lp_lp2hs_quirk;
 };
 
 static int imx952_dsi2_get_clk(struct imx952_dsi2 *dsi)
@@ -204,7 +208,7 @@ static int imx952_dsi2_phy_init(void *priv_data)
 		return -EINVAL;
 	}
 
-	ret = phy_set_mode(dsi->phy, PHY_MODE_MIPI_DPHY);
+	ret = phy_set_mode_ext(dsi->phy, PHY_MODE_MIPI_DPHY, dsi->phy_submode);
 	if (ret) {
 		dev_err(dsi->dev, "failed to set phy mode: %d\n", ret);
 		return ret;
@@ -216,23 +220,32 @@ static int imx952_dsi2_phy_init(void *priv_data)
 		return ret;
 	}
 
-	ret = phy_configure(dsi->phy, &dsi->phy_cfg);
+	return 0;
+}
+
+static void imx952_dsi2_phy_power_on(void *priv_data)
+{
+	struct imx952_dsi2 *dsi = priv_data;
+	union phy_configure_opts *phy_cfg = &dsi->phy_cfg;
+	struct phy_configure_opts_mipi_dphy *dphy_opts = &phy_cfg->mipi_dphy;
+	int ret;
+
+	if (WARN_ON(dsi->esc_clk_rate == 0))
+		return;
+
+	dphy_opts->lpx = PSEC_PER_SEC / dsi->esc_clk_rate;
+
+	dev_dbg(dsi->dev, "PHY lpx = %ups\n", dphy_opts->lpx);
+
+	ret = phy_configure(dsi->phy, phy_cfg);
 	if (ret < 0) {
 		dev_err(dsi->dev, "failed to configure phy: %d\n", ret);
-		goto uninit_phy;
+		return;
 	}
 
 	ret = phy_power_on(dsi->phy);
-	if (ret < 0) {
+	if (ret < 0)
 		dev_err(dsi->dev, "failed to power on phy: %d\n", ret);
-		goto uninit_phy;
-	}
-
-	return 0;
-
-uninit_phy:
-	phy_exit(dsi->phy);
-	return ret;
 }
 
 static void imx952_dsi2_phy_power_off(void *priv_data)
@@ -325,6 +338,153 @@ imx952_dsi2_validate_phy(struct imx952_dsi2 *dsi, unsigned long pclk_rate,
 	return MODE_OK;
 }
 
+static const u8 adv7535_vics[] = {
+4, 16, 19, 31, 32, 33, 34, 68, 69, 72, 73, 74, 75, 76, };
+static const bool adv7535_vic_quirks[] = {
+	true, /* 4 */	true, /* 16 */	false,/* 19 */	true, /* 31 */
+	false,/* 32 */	false,/* 33 */	true, /* 34 */	false,/* 68 */
+	true, /* 69 */	false,/* 72 */	false,/* 73 */	true, /* 74 */
+	true, /* 75 */	true, /* 76 */
+};
+
+struct dmt_mini_mode {
+	int hdisplay;
+	int vdisplay;
+	int vrefresh;
+	bool rb;
+};
+
+static const struct dmt_mini_mode adv7535_valid_dmt_mini_modes[] = {
+	/* 0x09 - 800x600@60Hz */
+	{ 800, 600, 60, false },
+	/* 0x10 - 1024x768@60Hz */
+	{ 1024, 768, 60, false },
+	/* 0x1b - 1280x800@60Hz RB */
+	{ 1280, 800, 60, true },
+	/* 0x1c - 1280x800@60Hz */
+	{ 1280, 800, 60, false },
+	/* 0x52 - 1920x1080@60Hz */
+	{ 1920, 1080, 60, false },
+};
+
+static const bool adv7535_dmt_quirks[] = { true, false, true, true, true, };
+
+static bool is_adv7535_valid_cea_mode(const struct drm_display_mode *mode, int *i)
+{
+	u8 vic;
+	int j;
+
+	vic = drm_match_cea_mode(mode);
+	if (vic > 0) {
+		for (j = 0; j < ARRAY_SIZE(adv7535_vics); j++) {
+			if (vic == adv7535_vics[j]) {
+				*i = j;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static bool check_vendor_dmt_mode(struct drm_device *drm,
+				  const struct drm_display_mode *mode,
+				  const struct dmt_mini_mode *dmt_mini_modes,
+				  int num_dmt_mini_modes, int *i)
+{
+	const struct dmt_mini_mode *mini_mode;
+	struct drm_display_mode *dmt_mode;
+	int j;
+
+	for (j = 0; j < num_dmt_mini_modes; j++) {
+		mini_mode = &dmt_mini_modes[j];
+
+		dmt_mode = drm_mode_find_dmt(drm,
+					     mini_mode->hdisplay,
+					     mini_mode->vdisplay,
+					     mini_mode->vrefresh,
+					     mini_mode->rb);
+		if (WARN_ON(!dmt_mode))
+			continue;
+
+		if (drm_mode_equal(dmt_mode, mode)) {
+			drm_mode_destroy(drm, dmt_mode);
+			if (i)
+				*i = j;
+			return true;
+		}
+
+		drm_mode_destroy(drm, dmt_mode);
+	}
+
+	return false;
+}
+
+static bool is_adv7535_valid_dmt_mode(struct drm_device *drm,
+				      const struct drm_display_mode *mode,
+				      int *i)
+{
+	return check_vendor_dmt_mode(drm, mode, adv7535_valid_dmt_mini_modes,
+				     ARRAY_SIZE(adv7535_valid_dmt_mini_modes),
+				     i);
+}
+
+static const u8 dsi_serdes_vics[] = { 1, 2, 3, 16, 17, 18, 76, };
+
+static const struct dmt_mini_mode dsi_serdes_valid_dmt_mini_modes[] = {
+	/* 0x04 - 640x480@60Hz */
+	{ 640, 480, 60, false },
+	/* 0x09 - 800x600@60Hz */
+	{ 800, 600, 60, false },
+	/* 0x0b - 800x600@75Hz */
+	{ 800, 600, 75, false },
+	/* 0x10 - 1024x768@60Hz */
+	{ 1024, 768, 60, false },
+	/* 0x1b - 1280x800@60Hz RB */
+	{ 1280, 800, 60, true },
+};
+
+static bool is_dsi_serdes_valid_cea_mode(const struct drm_display_mode *mode)
+{
+	u8 vic;
+	int i;
+
+	vic = drm_match_cea_mode(mode);
+	if (vic > 0) {
+		for (i = 0; i < ARRAY_SIZE(dsi_serdes_vics); i++) {
+			if (vic == dsi_serdes_vics[i])
+				return true;
+		}
+	}
+
+	return false;
+}
+
+static bool is_dsi_serdes_valid_dmt_mode(struct drm_device *drm,
+					 const struct drm_display_mode *mode)
+{
+	return check_vendor_dmt_mode(drm, mode, dsi_serdes_valid_dmt_mini_modes,
+				     ARRAY_SIZE(dsi_serdes_valid_dmt_mini_modes),
+				     NULL);
+}
+
+static const struct dmt_mini_mode lt9611uxc_invalid_dmt_mini_modes[] = {
+	/* 0x1b - 1280x800@60Hz RB */
+	{ 1280, 800, 60, true },
+	/* 0x1c - 1280x800@60Hz */
+	{ 1280, 800, 60, false },
+	/* 0x51 - 1366x768@60Hz */
+	{ 1366, 768, 60, false },
+};
+
+static bool is_lt9611uxc_invalid_dmt_mode(struct drm_device *drm,
+					  const struct drm_display_mode *mode)
+{
+	return check_vendor_dmt_mode(drm, mode, lt9611uxc_invalid_dmt_mini_modes,
+				     ARRAY_SIZE(lt9611uxc_invalid_dmt_mini_modes),
+				     NULL);
+}
+
 static enum drm_mode_status
 imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		       unsigned long mode_flags, u32 lanes, u32 format)
@@ -336,7 +496,6 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 	struct device *dev = dsi->dev;
 	struct drm_encoder *encoder;
 	enum drm_mode_status ret;
-	u8 vic;
 
 	bridge = dw_mipi_dsi2_get_bridge(dsi->dmd);
 	encoder = bridge->encoder;
@@ -346,18 +505,6 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		    !(iter->ops & DRM_BRIDGE_OP_EDID))
 			continue;
 
-		/*
-		 * Since clk_round_rate() returns unreasonable rate for
-		 * dsi->clk_pixel, we have to validate mode against magic mode
-		 * clock rates.
-		 */
-		if (mode->clock != 297000 && mode->clock != 148500 && mode->clock != 74250)
-			return MODE_NOCLOCK;
-
-		/* Allow VIC 94 & 95(3840x2160@25/30) for 4K */
-		vic = drm_match_cea_mode(mode);
-		if (mode->clock == 297000 && vic != 94 && vic != 95)
-			return MODE_BAD;
 
 		/* Allow +/-0.5% pixel clock rate deviation */
 		target_pclk_rate = clk_round_rate(dsi->clk_pixel, pclk_rate);
@@ -366,6 +513,56 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 			dev_dbg(dev, "failed to round clock for mode " DRM_MODE_FMT "\n",
 				DRM_MODE_ARG(mode));
 			return MODE_NOCLOCK;
+		}
+
+		if (!iter->product)
+			break;
+
+		if (strcmp(iter->product, "ADV7535") == 0) {
+			bool vic_match, dmt_match = false;
+			int i;
+
+			vic_match = is_adv7535_valid_cea_mode(mode, &i);
+
+			if (vic_match) {
+				dsi->hs2lp_lp2hs_quirk = adv7535_vic_quirks[i];
+			} else {
+				dmt_match = is_adv7535_valid_dmt_mode(encoder->dev, mode, &i);
+				if (dmt_match)
+					dsi->hs2lp_lp2hs_quirk = adv7535_dmt_quirks[i];
+			}
+
+			if (!vic_match && !dmt_match)
+				return MODE_BAD;
+
+			/*
+			 * For display modes with pixel clock running higher
+			 * than or equal to 40MHz, use PHY submode.  The PHY
+			 * submode condition check or the clock rate are subject
+			 * to update if more display modes are supported in the
+			 * future.
+			 */
+			dsi->phy_submode = mode->clock >= 40000;
+		} else if (strcmp(iter->product, "IT6263") == 0) {
+			bool vic_match, dmt_match = false;
+
+			vic_match = is_dsi_serdes_valid_cea_mode(mode);
+
+			if (!vic_match)
+				dmt_match = is_dsi_serdes_valid_dmt_mode(encoder->dev, mode);
+
+			if (!vic_match && !dmt_match)
+				return MODE_BAD;
+		} else if (strcmp(iter->product, "LT9611UXC") == 0) {
+			u8 vic;
+
+			/* Allow VIC 94 & 95(3840x2160@25/30) for 4K */
+			vic = drm_match_cea_mode(mode);
+			if (mode->clock == 297000 && vic != 94 && vic != 95)
+				return MODE_BAD;
+
+			if (is_lt9611uxc_invalid_dmt_mode(encoder->dev, mode))
+				return MODE_BAD;
 		}
 
 		break;
@@ -441,26 +638,32 @@ static int imx952_dsi2_phy_get_timing(void *priv_data, unsigned int lane_mbps,
 				      struct dw_mipi_dsi2_phy_timing *timing)
 {
 	struct imx952_dsi2 *dsi = priv_data;
-	struct phy_configure_opts_mipi_dphy *cfg = &dsi->phy_cfg.mipi_dphy;
-	unsigned long long tmp;
-	unsigned long long hstx_clk;
+	unsigned int lp2hs_m, lp2hs_b;
+	unsigned int hs2lp_m, hs2lp_b;
 
-	hstx_clk = DIV_ROUND_CLOSEST_ULL(lane_mbps, 8);
+	if (dsi->hs2lp_lp2hs_quirk) {
+		timing->data_lp2hs = 0x10000;
+		timing->data_hs2lp = 0x10000;
+		dev_dbg(dsi->dev, "hs2lp_lp2hs_quirk\n");
 
-	/* PHY_LP2HS_TIME = (TLPX + THS-PREPARE + THS-ZERO) / Tphy_hstx_clk */
-	tmp = cfg->lpx + cfg->hs_prepare + cfg->hs_zero;
-	tmp = DIV_ROUND_CLOSEST_ULL((tmp * hstx_clk) << 16, USEC_PER_SEC);
-	timing->data_lp2hs = tmp;
+		return 0;
+	}
 
-	/* PHY_HS2LP_TIME = (THS-TRAIL + THS-EXIT) / Tphy_hstx_clk */
-	tmp = cfg->hs_trail + cfg->hs_exit;
+	/* PHY_LP2HS/HS2LP_TIME = DIV_ROUND_UP((lane_mbps * m), 100) + b */
+	if (dsi->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) {
+		lp2hs_m = 13;
+		lp2hs_b = 20;
+		hs2lp_m = 7;
+		hs2lp_b = 25;
+	} else {
+		lp2hs_m = 7;
+		lp2hs_b = 20;
+		hs2lp_m = 5;
+		hs2lp_b = 10;
+	}
 
-	/* empirical fixup for 4Kp30/25 with 4 data lanes */
-	if (lane_mbps == 1782 && cfg->lanes == 4)
-		tmp *= 20;
-
-	tmp = DIV_ROUND_CLOSEST_ULL((tmp * hstx_clk) << 16, USEC_PER_SEC);
-	timing->data_hs2lp = tmp;
+	timing->data_lp2hs = (DIV_ROUND_UP(lane_mbps * lp2hs_m, 100) + lp2hs_b) << 16;
+	timing->data_hs2lp = (DIV_ROUND_UP(lane_mbps * hs2lp_m, 100) + hs2lp_b) << 16;
 
 	return 0;
 }
@@ -468,13 +671,33 @@ static int imx952_dsi2_phy_get_timing(void *priv_data, unsigned int lane_mbps,
 static int
 imx952_dsi2_phy_get_esc_clk_rate(void *priv_data, unsigned long *esc_clk_rate)
 {
-	*esc_clk_rate = ESC_CLK_RATE_HZ;
+	struct imx952_dsi2 *dsi = priv_data;
+	unsigned long pclk_rate;
+	unsigned int div = 2;
+
+	pclk_rate = clk_get_rate(dsi->clk_pixel);
+	if (pclk_rate == 0)
+		return -EINVAL;
+
+	*esc_clk_rate = pclk_rate;
+	while (*esc_clk_rate > MAX_ESC_CLK_RATE_HZ) {
+		*esc_clk_rate = pclk_rate / div;
+		div = div + 2;
+
+		if (div > 126)
+			return -EINVAL;
+	}
+
+	dsi->esc_clk_rate = *esc_clk_rate;
+
+	dev_dbg(dsi->dev, "get esc_clk_rate = %lu\n", *esc_clk_rate);
 
 	return 0;
 }
 
 static const struct dw_mipi_dsi2_phy_ops imx952_dsi2_phy_ops = {
 	.init = imx952_dsi2_phy_init,
+	.power_on = imx952_dsi2_phy_power_on,
 	.power_off = imx952_dsi2_phy_power_off,
 	.get_interface = imx952_dsi2_phy_get_iface,
 	.get_lane_mbps = imx952_dsi2_phy_get_lane_mbps,
@@ -488,6 +711,7 @@ static int imx952_dsi2_imx_host_attach(void *priv_data,
 	struct imx952_dsi2 *dsi = priv_data;
 
 	dsi->format = device->format;
+	dsi->mode_flags = device->mode_flags;
 
 	return 0;
 }
