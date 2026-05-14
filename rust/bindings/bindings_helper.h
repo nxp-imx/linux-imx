@@ -121,7 +121,7 @@ const vm_flags_t RUST_CONST_HELPER_VM_MERGEABLE = VM_MERGEABLE;
 #include "../../drivers/android/binder_pick.h"
 #include "../../drivers/android/binder/rust_binder.h"
 #include "../../drivers/android/binder/rust_binder_events.h"
-#include "../../drivers/android/binder/rust_binder_hooks.h"
+#include <trace/hooks/rust_binder.h>
 #include "../../drivers/android/binder/page_range_helper.h"
 #endif
 

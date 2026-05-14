@@ -21,6 +21,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_kswapd_shrink_node_bypass,
 			TP_PROTO(unsigned long *nr_to_reclaim, unsigned long *nr_scanned,
 			unsigned long *nr_reclaimed, bool *bypass),
 			TP_ARGS(nr_to_reclaim, nr_scanned, nr_reclaimed, bypass), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_mglru_shrink_spec_lru,
+			TP_PROTO(struct lruvec *lruvec, struct scan_control *sc,
+			int swappiness, int *delta, unsigned long nr_to_scan,
+			unsigned long *scanned, bool *skip),
+			TP_ARGS(lruvec, sc, swappiness, delta, nr_to_scan, scanned, skip), 1);
 DECLARE_HOOK(android_vh_shrink_folio_list,
 	TP_PROTO(struct folio *folio, bool dirty, bool writeback,
 		bool *activate, bool *keep),

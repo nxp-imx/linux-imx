@@ -1297,6 +1297,7 @@
   __module_get
   module_layout
   module_put
+  msi_domain_get_virq
   __msecs_to_jiffies
   msleep
   msleep_interruptible
@@ -1545,6 +1546,8 @@
   platform_device_add_resources
   platform_device_alloc
   platform_device_del
+  platform_device_msi_free_irqs_all
+  platform_device_msi_init_and_alloc_irqs
   platform_device_put
   platform_device_register
   platform_device_register_full

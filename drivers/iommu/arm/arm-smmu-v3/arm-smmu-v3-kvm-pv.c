@@ -397,8 +397,10 @@ static struct iommu_map_cookie_sg *kvm_arm_smmu_alloc_cookie_sg(unsigned long io
 	/* Rounds nents to allocate to page aligned size. */
 	map_sg->nents = kvm_iommu_sg_nents_round(nents);
 	map_sg->sg = kvm_iommu_sg_alloc(map_sg->nents, gfp);
-	if (!map_sg->sg)
+	if (!map_sg->sg) {
+		kfree(map_sg);
 		return NULL;
+	}
 	map_sg->iova = iova;
 	map_sg->prot = prot;
 	map_sg->gfp = gfp;

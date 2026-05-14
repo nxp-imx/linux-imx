@@ -536,9 +536,9 @@ static inline u64 _vcpu_read_sys_reg(struct kvm_vcpu *vcpu, enum vcpu_sysreg reg
 static inline void _vcpu_write_sys_reg(struct kvm_vcpu *vcpu, enum vcpu_sysreg reg, u64 val)
 {
 	if (!is_nvhe_hyp_code())
-		vcpu_write_sys_reg(vcpu, val, SCTLR_EL1);
+		vcpu_write_sys_reg(vcpu, val, reg);
 	else
-		__vcpu_assign_sys_reg(vcpu, SCTLR_EL1, val);
+		__vcpu_assign_sys_reg(vcpu, reg, val);
 }
 
 static inline void kvm_vcpu_set_be(struct kvm_vcpu *vcpu)
@@ -553,7 +553,7 @@ static inline void kvm_vcpu_set_be(struct kvm_vcpu *vcpu)
 
 		sctlr = _vcpu_read_sys_reg(vcpu, r);
 		sctlr |= SCTLR_ELx_EE;
-		_vcpu_write_sys_reg(vcpu, sctlr, r);
+		_vcpu_write_sys_reg(vcpu, r, sctlr);
 	}
 }
 

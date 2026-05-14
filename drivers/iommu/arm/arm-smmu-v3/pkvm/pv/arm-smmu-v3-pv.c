@@ -132,7 +132,7 @@ static int smmu_submit_batch_sync(struct hyp_arm_smmu_v3_device *smmu,
 		return ret;
 
 	for (i = 0; i < cmds->num; i++)
-		smmu_add_cmd_raw(smmu, &cmds->cmds[i]);
+		smmu_add_cmd_raw(smmu, &cmds->cmds[i * CMDQ_ENT_DWORDS]);
 
 	return smmu_sync_cmd(smmu);
 }
@@ -254,6 +254,7 @@ static const struct iommu_flush_ops smmu_tlb_ops = {
 	.tlb_add_page	= smmu_tlb_add_page,
 };
 
+static void smmu_flush_deferred_unuse(struct kvm_smmu_unmapped *unmapped);
 static void smmu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
 			    struct iommu_iotlb_gather *gather)
 {
@@ -263,6 +264,8 @@ static void smmu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
 		return;
 	size = gather->end - gather->start + 1;
 	smmu_tlb_inv_range(domain, gather->start, size,  gather->pgsize, true);
+
+	smmu_flush_deferred_unuse(smmu_this_cpu_ptr(kvm_smmu_deferred_unuse));
 }
 
 static int smmu_sync_ste(struct hyp_arm_smmu_v3_device_pv *smmu, __le64 *step, u32 sid)
@@ -950,7 +953,6 @@ static size_t smmu_unmap_pages(struct kvm_hyp_iommu_domain *domain, unsigned lon
 		pgcount -= unmapped / pgsize;
 	}
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
-	smmu_flush_deferred_unuse(smmu_this_cpu_ptr(kvm_smmu_deferred_unuse));
 	return total_unmapped;
 }
 

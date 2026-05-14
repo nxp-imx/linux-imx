@@ -178,4 +178,14 @@ static inline binder_uintptr_t rust_binder_node_ptr(rust_binder_node t)
 	return *(binder_uintptr_t *) (t + RUST_BINDER_LAYOUT.n.ptr);
 }
 
+/*
+ * Constants for bitflag passed to `android_vh_rust_binder_looper_entry`. A
+ * registered looper is one created after the driver requested its creation
+ * with BR_SPAWN_LOOPER, and an entered looper is one that userspace decided to
+ * create on its own volition.
+ */
+#define RB_LOOPER_REGISTERED 0x01
+#define RB_LOOPER_ENTERED 0x02
+#define RB_LOOPER_EXITED 0x04
+
 #endif
