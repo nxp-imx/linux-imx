@@ -735,11 +735,11 @@ static int common_nfc_set_geometry(struct gpmi_nand_data *this)
 }
 
 #if defined(CONFIG_DEBUG_FS)
+struct debugfs_blob_wrapper dbg_bch_geo;
 static void bch_create_debugfs(struct gpmi_nand_data *this)
 {
 	struct bch_geometry *bch_geo = &this->bch_geometry;
 	struct dentry *dbg_root;
-	struct debugfs_blob_wrapper dbg_bch_geo;
 
 	dbg_root = debugfs_create_dir("gpmi-nand", NULL);
 	dbg_bch_geo.data = (void *)bch_geo;
