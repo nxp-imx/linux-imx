@@ -1,4 +1,3 @@
-# CONFIG_ARCH_QCOM is not set
 # CONFIG_IMX8M_BLK_CTRL is not set
 # CONFIG_MXC_HANTRO_V4L2 is not set
 # CONFIG_VIDEO_AMPHION_VPU is not set
@@ -164,6 +163,7 @@ CONFIG_SND_SOC_SOF_TOPLEVEL=y
 CONFIG_SND_SOC_SOF_IMX_TOPLEVEL=y
 CONFIG_SOC_IMX9=m
 CONFIG_SOC_IMX8M=m
+# CONFIG_IMX9_LPM_CTRL is not set
 CONFIG_SPI_BITBANG=m
 CONFIG_SPI_FSL_LPSPI=m
 CONFIG_SPI_NXP_FLEXSPI=m
@@ -177,6 +177,7 @@ CONFIG_USB_CHIPIDEA=m
 CONFIG_USB_CHIPIDEA_HOST=y
 CONFIG_USB_CHIPIDEA_IMX=m
 CONFIG_USB_CHIPIDEA_UDC=y
+# CONFIG_USB_CHIPIDEA_PCI is not set
 CONFIG_USB_DWC3_IMX8MP=m
 CONFIG_TOUCHSCREEN_FTS=m
 CONFIG_TOUCHSCREEN_ILITEK=m
@@ -212,3 +213,26 @@ CONFIG_LOGO=y
 # CONFIG_LOGO_LINUX_MONO is not set
 # CONFIG_LOGO_LINUX_VGA16 is not set
 CONFIG_LOGO_LINUX_CLUT224=y
+
+# Disable automatic module signing during build (sign-file needs key)
+# CONFIG_MODULE_SIG is kept enabled (required by GKI)
+# But we disable signing ALL modules at build time
+# CONFIG_MODULE_SIG_ALL is not set
+
+# Disable protected symbol enforcement (allow unsigned modules to export symbols)
+CONFIG_MODULE_SIG_PROTECT_LIST=""
+
+# Disable Tegra platform support
+# CONFIG_ARCH_TEGRA is not set
+# CONFIG_TEGRA_BPMP is not set
+# CONFIG_SERIAL_TEGRA_TCU is not set
+# CONFIG_TEGRA_HSP_MBOX is not set
+# CONFIG_ARCH_TEGRA_234_SOC is not set
+
+# Disable Qualcomm platform support
+# CONFIG_ARCH_QCOM is not set
+# CONFIG_PCIE_QCOM is not set
+# CONFIG_SERIAL_QCOM_GENI is not set
+# CONFIG_SERIAL_QCOM_GENI_CONSOLE is not set
+# CONFIG_GUNYAH_QCOM_TRUSTED_VM is not set
+# CONFIG_QCOM_GENI_SE is not set
