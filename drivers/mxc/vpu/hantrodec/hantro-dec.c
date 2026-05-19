@@ -502,11 +502,11 @@ static long hantro_dec_push_regs(struct hantro_dec_interface *iface, struct core
 	 */
 	wmb();
 
-	trusty_dec_writel(core, reg_buf[1], 4, WRITE_SECURE_CTRL_REGS);
 	scoped_guard(spinlock_irqsave, &core->lock) {
 		core->is_enabled = 1;
 		hantro_dec_update_mirror_regs(core);
 	}
+	trusty_dec_writel(core, reg_buf[1], 4, WRITE_SECURE_CTRL_REGS);
 
 	if (core->format < DWL_CLIENT_TYPE_MAX)
 		core->frame_num[core->format]++;
