@@ -779,15 +779,16 @@ static int hantro_enc_enable_core(struct hantro_enc_core *core)
 	 */
 	wmb();
 
-	value = hantro_enc_readl(core, core->resource->reg_enable);
-	value |= 0x1;
-	hantro_enc_writel(core, value, core->resource->reg_enable);
-
 	scoped_guard(spinlock_irqsave, &core->lock) {
 		core->is_enabled = 1;
 		core->irq_received = 0;
 		core->irq_status = 0;
 	}
+
+	value = hantro_enc_readl(core, core->resource->reg_enable);
+	value |= 0x1;
+	hantro_enc_writel(core, value, core->resource->reg_enable);
+
 	if (core->resource->get_encode_fmt) {
 		core->format = core->resource->get_encode_fmt(core);
 		dev_dbg(core->dev->dev, "Encode %s frame\n", hantro_enc_get_fmt_name(core->format));
