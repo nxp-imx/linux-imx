@@ -1593,6 +1593,7 @@ _DebugfsCleanup(IN gckGALDEVICE Device)
 
     sysfs_remove_groups(&dev->kobj, Info_groups);
 #endif
+    galDevice = gcvNULL;
 }
 
 /*******************************************************************************
@@ -2675,13 +2676,13 @@ gckGALDEVICE_Construct(IN gcsPLATFORM                *Platform,
     gcmkONERROR(_DebugfsInit(gal_device));
 
     /* Return pointer to the device. */
-    galDevice = gal_device;
     *Device   = gal_device;
 
 OnError:
     if (gcmIS_ERROR(status)) {
         /* Roll back. */
         gcmkVERIFY_OK(gckGALDEVICE_Destroy(gal_device));
+        gal_device = gcvNULL;
     }
 
     gcmkFOOTER();
@@ -2717,6 +2718,9 @@ gckGALDEVICE_Destroy(gckGALDEVICE gal_device)
     gcmkHEADER_ARG("gal_device=%p", gal_device);
 
     if (gal_device) {
+        if (!gal_device->devices[0])
+            goto free_gal_device;
+
         kernel = gal_device->devices[0]->kernels[0];
 
         if (!kernel) {
@@ -2752,6 +2756,8 @@ gckGALDEVICE_Destroy(gckGALDEVICE gal_device)
             gal_device->lowContiguousPhysName = 0;
         }
 #endif
+
+        _DebugfsCleanup(gal_device);
 
         for (devIndex = 0; devIndex < gal_device->args.devCount; devIndex++) {
             device = gal_device->devices[devIndex];
@@ -2929,11 +2935,15 @@ gckGALDEVICE_Destroy(gckGALDEVICE gal_device)
             gal_device->os = gcvNULL;
         }
 
-        _DebugfsCleanup(gal_device);
-
         /* Free the device. */
         kfree(gal_device);
     }
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+free_gal_device:
+    kfree(gal_device);
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;

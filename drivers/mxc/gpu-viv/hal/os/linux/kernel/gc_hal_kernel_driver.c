@@ -978,6 +978,8 @@ OnError:
     if (device) {
         gcmkVERIFY_OK(gckGALDEVICE_Stop(device));
         gcmkVERIFY_OK(gckGALDEVICE_Destroy(device));
+        galDevice = gcvNULL;
+        device = gcvNULL;
     }
 
     gcmkFOOTER();
@@ -1001,6 +1003,7 @@ static void drv_exit(void)
 
     gcmkVERIFY_OK(gckGALDEVICE_Stop(galDevice));
     gcmkVERIFY_OK(gckGALDEVICE_Destroy(galDevice));
+    galDevice = gcvNULL;
 
     gcmkFOOTER_NO();
 }
