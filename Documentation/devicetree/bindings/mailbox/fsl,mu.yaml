@@ -20,7 +20,6 @@ description: |
   Therefore, the MU must synchronize the accesses from one side to the
   other. The MU accomplishes synchronization using two sets of matching
   registers (Processor A-facing, Processor B-facing).
-
 properties:
   compatible:
     oneOf:
@@ -31,10 +30,13 @@ properties:
       - const: fsl,imx8-mu-seco
       - const: fsl,imx8ulp-mu-s4
       - const: fsl,imx93-mu-s4
+      - const: fsl,imx94-mu-prime
+      - const: fsl,imx94-mu-v2x
       - const: fsl,imx95-mu
       - const: fsl,imx95-mu-cm0p
       - const: fsl,imx95-mu-ele
       - const: fsl,imx95-mu-v2x
+      - const: fsl,imx952-mu-prime
       - items:
           - const: fsl,imx93-mu
           - const: fsl,imx8ulp-mu
@@ -61,7 +63,15 @@ properties:
           - const: fsl,imx95-mu
 
   reg:
-    maxItems: 1
+    minItems: 1
+    maxItems: 2
+
+  reg-names:
+    minItems: 1
+    maxItems: 2
+
+  memory-region:
+    $ref: /schemas/types.yaml#/definitions/phandle
 
   interrupts:
     minItems: 1
@@ -69,9 +79,7 @@ properties:
 
   interrupt-names:
     minItems: 1
-    items:
-      - const: tx
-      - const: rx
+    maxItems: 2
 
   "#mbox-cells":
     description: |
@@ -111,11 +119,6 @@ properties:
   '#size-cells':
     const: 1
 
-patternProperties:
-  "^sram@[a-f0-9]+":
-    $ref: /schemas/sram/sram.yaml#
-    unevaluatedProperties: false
-
 required:
   - compatible
   - reg
@@ -134,24 +137,60 @@ allOf:
           minItems: 2
         interrupts:
           minItems: 2
+      required:
+        - interrupt-names
 
     else:
       properties:
         interrupts:
           maxItems: 1
-      not:
-        required:
-          - interrupt-names
 
   - if:
-      not:
-        properties:
-          compatible:
-            contains:
-              const: fsl,imx95-mu
+      properties:
+        compatible:
+          contains:
+            const: fsl,imx95-mu
     then:
       patternProperties:
-        "^sram@[a-f0-9]+": false
+        "^sram@[a-f0-9]+$":
+          type: object
+  # MU Prime requires 2 register regions (MU + ATU)
+  - if:
+      properties:
+        compatible:
+          enum:
+            - fsl,imx94-mu-prime
+            - fsl,imx952-mu-prime
+    then:
+      properties:
+        reg:
+          minItems: 2
+          maxItems: 2
+
+        reg-names:
+          items:
+            - const: prime
+            - const: atu
+
+        interrupts:
+          maxItems: 1
+
+        interrupt-names:
+          items:
+            - const: tx
+            - const: rx
+
+        memory-region:
+          description: External DDR region for V2X messaging
+
+      required:
+        - reg-names
+        - interrupt-names
+
+patternProperties:
+  "^sram@[a-f0-9]+$":
+    type: object
+    description: Optional SRAM region for SCMI shared memory
 
 additionalProperties: false
 
@@ -195,4 +234,17 @@ examples:
                 reg = <0x80 0x80>;
             };
         };
+    };
+
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+
+    mailbox@47320000 {
+        compatible = "fsl,imx94-mu-prime";
+        reg = <0x47320000 0x10000>,
+              <0x42680000 0x200>;
+        reg-names = "prime", "atu";
+        interrupts = <GIC_SPI 384 IRQ_TYPE_LEVEL_HIGH>;
+        interrupt-names = "tx", "rx";
+        #mbox-cells = <2>;
     };

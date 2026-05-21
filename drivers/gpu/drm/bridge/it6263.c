@@ -1090,6 +1090,8 @@ static int it6263_probe(struct i2c_client *client)
 	it6263->bridge.ops = DRM_BRIDGE_OP_DETECT | DRM_BRIDGE_OP_EDID |
 		DRM_BRIDGE_OP_MODES;
 	it6263->bridge.type = DRM_MODE_CONNECTOR_HDMIA;
+	it6263->bridge.vendor = "ITE";
+	it6263->bridge.product = "IT6263";
 	drm_bridge_add(&it6263->bridge);
 
 	i2c_set_clientdata(client, it6263);

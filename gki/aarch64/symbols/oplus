@@ -470,6 +470,7 @@
   __traceiter_android_rvh_kswapd_shrink_node
   __traceiter_android_rvh_perform_reclaim
   __traceiter_android_vh_mglru_should_abort_scan_ex
+  __traceiter_android_vh_alloc_pages_entry
   __traceiter_android_vh_filemap_get_folio
   __tracepoint_android_vh_lru_gen_add_folio_skip
   __tracepoint_android_vh_lru_gen_del_folio_skip
@@ -480,6 +481,7 @@
   __tracepoint_android_rvh_kswapd_shrink_node
   __tracepoint_android_rvh_perform_reclaim
   __tracepoint_android_vh_mglru_should_abort_scan_ex
+  __tracepoint_android_vh_alloc_pages_entry
   __tracepoint_android_vh_filemap_get_folio
   timer_init_key
   alloc_workqueue_noprof

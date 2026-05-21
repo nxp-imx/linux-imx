@@ -87,8 +87,6 @@
 		fsl,enable-lpa;
 		fsl,rpmsg-out;
 		fsl,rpmsg-in;
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_sai3>;
 		assigned-clocks = <&scmi_clk IMX952_CLK_AUDIOPLL1_VCO>,
 				  <&scmi_clk IMX952_CLK_AUDIOPLL2_VCO>,
 				  <&scmi_clk IMX952_CLK_AUDIOPLL1>,

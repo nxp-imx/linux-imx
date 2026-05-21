@@ -28,6 +28,15 @@
 #include <nvhe/pviommu-host.h>
 #include <nvhe/trap_handler.h>
 
+int pkvm_refill_memcache(struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	struct kvm_vcpu *host_vcpu = hyp_vcpu->host_vcpu;
+
+	return refill_memcache(&hyp_vcpu->vcpu.arch.stage2_mc,
+			       host_vcpu->arch.stage2_mc.nr_pages,
+			       &host_vcpu->arch.stage2_mc);
+}
+
 /* Used by icache_is_aliasing(). */
 unsigned long __icache_flags;
 
@@ -525,6 +534,24 @@ static void teardown_sve_state(struct pkvm_hyp_vcpu *hyp_vcpu)
 	}
 }
 
+static void teardown_hyp_vcpu_init(struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	struct pkvm_hyp_vm *hyp_vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+
+	unpin_host_vcpu(hyp_vcpu);
+
+	if (hyp_vm->pvmfw_entry_vcpu == hyp_vcpu)
+		hyp_vm->pvmfw_entry_vcpu = NULL;
+
+	if (!hyp_vcpu->vcpu.arch.sve_state)
+		return;
+
+	if (pkvm_hyp_vcpu_is_protected(hyp_vcpu))
+		teardown_sve_state(hyp_vcpu);
+	else
+		unpin_host_sve_state(hyp_vcpu);
+}
+
 static void unpin_host_vcpus(struct pkvm_hyp_vcpu *hyp_vcpus[],
 			     unsigned int nr_vcpus)
 {
@@ -666,40 +693,36 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 			      struct pkvm_hyp_vm *hyp_vm,
 			      struct kvm_vcpu *host_vcpu)
 {
-	int ret = 0;
-	u32 mp_state;
+	struct kvm_hyp_req *hyp_reqs_va;
 	struct kvm_hyp_req *hyp_reqs;
+	u32 mp_state;
+	int ret = -EINVAL;
 
 	if (hyp_pin_shared_mem(host_vcpu, host_vcpu + 1))
 		return -EBUSY;
 
-	hyp_reqs = READ_ONCE(host_vcpu->arch.hyp_reqs);
-	if (!PAGE_ALIGNED(hyp_reqs)) {
-		hyp_unpin_shared_mem(host_vcpu, host_vcpu + 1);
-		return -EINVAL;
-	}
-
-	hyp_vcpu->vcpu.arch.hyp_reqs = kern_hyp_va(hyp_reqs);
-	if (hyp_pin_shared_mem(hyp_vcpu->vcpu.arch.hyp_reqs,
-			       hyp_vcpu->vcpu.arch.hyp_reqs + 1)) {
-		hyp_unpin_shared_mem(host_vcpu, host_vcpu + 1);
-		return -EBUSY;
-	}
+	/* Set before mp_state check so 'done:' cleanup can unpin host_vcpu. */
+	hyp_vcpu->host_vcpu = host_vcpu;
+	hyp_vcpu->vcpu.kvm = &hyp_vm->kvm;
 
 	mp_state = READ_ONCE(host_vcpu->arch.mp_state.mp_state);
-	if (mp_state != KVM_MP_STATE_RUNNABLE && mp_state != KVM_MP_STATE_STOPPED) {
-		ret = -EINVAL;
+	if (mp_state != KVM_MP_STATE_RUNNABLE && mp_state != KVM_MP_STATE_STOPPED)
 		goto done;
-	}
 
-	hyp_vcpu->host_vcpu = host_vcpu;
+	hyp_reqs = READ_ONCE(host_vcpu->arch.hyp_reqs);
+	if (!PAGE_ALIGNED(hyp_reqs))
+		goto done;
 
-	hyp_vcpu->vcpu.kvm = &hyp_vm->kvm;
+	hyp_reqs_va = kern_hyp_va(hyp_reqs);
+	if (hyp_pin_shared_mem(hyp_reqs_va, hyp_reqs_va + 1))
+		goto done;
+
 	hyp_vcpu->vcpu.vcpu_id = READ_ONCE(host_vcpu->vcpu_id);
 	hyp_vcpu->vcpu.vcpu_idx = READ_ONCE(host_vcpu->vcpu_idx);
 
 	hyp_vcpu->vcpu.arch.hw_mmu = &hyp_vm->kvm.arch.mmu;
 	hyp_vcpu->vcpu.arch.cflags = READ_ONCE(host_vcpu->arch.cflags);
+	hyp_vcpu->vcpu.arch.hyp_reqs = hyp_reqs_va;
 	hyp_vcpu->vcpu.arch.hyp_reqs->type = KVM_HYP_LAST_REQ;
 
 	ret = pkvm_vcpu_init_sysregs(hyp_vcpu);
@@ -719,7 +742,7 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 		goto done;
 done:
 	if (ret)
-		unpin_host_vcpu(hyp_vcpu);
+		teardown_hyp_vcpu_init(hyp_vcpu);
 	return ret;
 }
 
@@ -1033,6 +1056,25 @@ unlock:
 	return transfer;
 }
 
+static int register_hyp_vcpu(struct pkvm_hyp_vm *hyp_vm,
+			      struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	unsigned int idx = hyp_vcpu->vcpu.vcpu_idx;
+
+	if (idx >= hyp_vm->kvm.created_vcpus)
+		return -EINVAL;
+
+	if (hyp_vm->vcpus[idx])
+		return -EINVAL;
+
+	/*
+	 * Ensure the hyp_vcpu is initialised before publishing it to
+	 * the vCPU-load path via 'hyp_vm->vcpus[]'.
+	 */
+	smp_store_release(&hyp_vm->vcpus[idx], hyp_vcpu);
+	return 0;
+}
+
 /*
  * Initialize the hypervisor copy of the vCPU state using host-donated memory.
  *
@@ -1045,7 +1087,6 @@ int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu)
 {
 	struct pkvm_hyp_vcpu *hyp_vcpu;
 	struct pkvm_hyp_vm *hyp_vm;
-	unsigned int idx;
 	int ret;
 
 	hyp_read_lock(&vm_table_lock);
@@ -1067,22 +1108,9 @@ int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu)
 	if (ret)
 		goto unlock_vcpus;
 
-	idx = hyp_vcpu->vcpu.vcpu_idx;
-	if (idx >= hyp_vm->kvm.created_vcpus) {
-		ret = -EINVAL;
-		goto unlock_vcpus;
-	}
-
-	if (hyp_vm->vcpus[idx]) {
-		ret = -EINVAL;
-		goto unlock_vcpus;
-	}
-
-	/*
-	 * Ensure the hyp_vcpu is initialised before publishing it to
-	 * the vCPU-load path via 'hyp_vm->vcpus[]'.
-	 */
-	smp_store_release(&hyp_vm->vcpus[idx], hyp_vcpu);
+	ret = register_hyp_vcpu(hyp_vm, hyp_vcpu);
+	if (ret)
+		teardown_hyp_vcpu_init(hyp_vcpu);
 unlock_vcpus:
 	hyp_spin_unlock(&hyp_vm->vcpus_lock);
 
@@ -1363,6 +1391,9 @@ struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *hyp_vm,
 	for (i = 0; i < hyp_vm->kvm.created_vcpus; i++) {
 		hyp_vcpu = hyp_vm->vcpus[i];
 
+		if (!hyp_vcpu)
+			continue;
+
 		if (mpidr == kvm_vcpu_get_mpidr_aff(&hyp_vcpu->vcpu))
 			goto unlock;
 	}
@@ -1471,6 +1502,9 @@ static bool pvm_psci_vcpu_affinity_info(struct pkvm_hyp_vcpu *hyp_vcpu)
 	hyp_spin_lock(&hyp_vm->vcpus_lock);
 	for (i = 0; i < hyp_vm->kvm.created_vcpus; i++) {
 		struct pkvm_hyp_vcpu *target = hyp_vm->vcpus[i];
+
+		if (!target)
+			continue;
 
 		mpidr = kvm_vcpu_get_mpidr_aff(&target->vcpu);
 
@@ -1676,14 +1710,15 @@ static int pkvm_request_map(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa, u64 nr_page
 	return 0;
 }
 
-static int pkvm_request_host_s2(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
+int pkvm_request_host_s2(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code, bool rewind)
 {
 	struct kvm_hyp_req *req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM_HOST_S2);
 
 	if (!req)
 		return -ENOMEM;
 
-	write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
+	if (rewind)
+		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
 	*exit_code = ARM_EXCEPTION_HYP_REQ;
 
 	return 0;
@@ -1725,7 +1760,7 @@ static bool pkvm_memshare_call(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 
 		goto out_host;
 	case -ENOMEMHOSTS2:
-		if (pkvm_request_host_s2(hyp_vcpu, exit_code))
+		if (pkvm_request_host_s2(hyp_vcpu, exit_code, true))
 			goto out_guest_err;
 
 		goto out_host;
@@ -1765,7 +1800,7 @@ static bool pkvm_memunshare_call(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 
 		return true;
 	case -ENOMEMHOSTS2:
-		if (pkvm_request_host_s2(hyp_vcpu, exit_code))
+		if (pkvm_request_host_s2(hyp_vcpu, exit_code, true))
 			goto out_guest_err;
 
 		return false;
@@ -1792,6 +1827,19 @@ static bool pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu,
 		nr_pages = 1;
 	else if (smccc_get_arg3(&hyp_vcpu->vcpu))
 		goto out_guest_err;
+
+	ret = pkvm_refill_memcache(hyp_vcpu);
+	switch (ret) {
+	case 0:
+		break;
+	case -ENOMEMHOSTS2:
+		if (pkvm_request_host_s2(hyp_vcpu, exit_code, true))
+			goto out_guest_err;
+
+		return false;
+	default:
+		goto out_guest_err;
+	}
 
 	ret = __pkvm_install_ioguard_page(hyp_vcpu, ipa, nr_pages, &nr_guarded);
 	if (ret == -ENOMEM && !pkvm_request_vcpu_memcache(hyp_vcpu, exit_code, true))
@@ -1880,7 +1928,7 @@ static bool pkvm_memrelinquish_call(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_co
 
 		return false;
 	case -ENOMEMHOSTS2:
-		if (pkvm_request_host_s2(hyp_vcpu, exit_code))
+		if (pkvm_request_host_s2(hyp_vcpu, exit_code, true))
 			goto out_guest_err;
 
 		return false;
@@ -2018,6 +2066,7 @@ bool kvm_handle_pvm_smc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 	struct arm_smccc_1_2_regs regs;
 	struct arm_smccc_1_2_regs res;
 	DECLARE_REG(u64, func_id, ctxt, 0);
+	int ret;
 
 	hyp_vcpu = container_of(vcpu, struct pkvm_hyp_vcpu, vcpu);
 	vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
@@ -2027,6 +2076,20 @@ bool kvm_handle_pvm_smc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 
 	if (!vm->kvm.arch.pkvm.smc_forwarded)
 		return false;
+
+	/* SMC handlers might use the vCPU memcache (GUEST_SMC_NEED_TOPUP) */
+	ret = pkvm_refill_memcache(hyp_vcpu);
+	switch (ret) {
+	case 0:
+		break;
+	case -ENOMEMHOSTS2:
+		if (pkvm_request_host_s2(hyp_vcpu, exit_code, false))
+			goto out_guest_err;
+
+		return false;
+	default:
+		goto out_guest_err;
+	}
 
 	memcpy(&regs, &ctxt->regs, sizeof(regs));
 	handler_ret = module_handle_guest_smc(&regs, &res, vm->kvm.arch.pkvm.handle);
@@ -2040,15 +2103,18 @@ bool kvm_handle_pvm_smc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 	case GUEST_SMC_NEED_TOPUP:
 		if (!pkvm_request_vcpu_memcache(hyp_vcpu, exit_code, false))
 			return false;
-		smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
-		break;
+		goto out_guest_err;
 	default:
 		WARN_ON(1);
 	}
 
+out:
 	__kvm_skip_instr(vcpu);
-
 	return true;
+
+out_guest_err:
+	smccc_set_retval(vcpu, SMCCC_RET_INVALID_PARAMETER, 0, 0, 0);
+	goto out;
 }
 
 /*

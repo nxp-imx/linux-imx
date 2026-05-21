@@ -65,15 +65,15 @@
 		linux,cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			alloc-ranges = <0 0x80000000 0 0x30000000>;
+			alloc-ranges = <0 0x80000000 0 0x40000000>;
 			size = <0 0x10000000>;
 			linux,cma-default;
 		};
 
-		ethosu_mem: ethosu_region@A8000000 {
+		ethosu_mem: ethosu_region@C0000000 {
 			compatible = "shared-dma-pool";
 			reusable;
-			reg = <0x0 0xA8000000 0x0 0x08000000>;
+			reg = <0x0 0xC0000000 0x0 0x10000000>;
 		};
 
 		vdev0vring0: vdev0vring0@a4000000 {

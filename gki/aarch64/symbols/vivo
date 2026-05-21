@@ -79,6 +79,7 @@
   __traceiter_android_rvh_enqueue_task_fair
   __traceiter_android_rvh_inet_sock_create
   __traceiter_android_rvh_inet_sock_release
+  __traceiter_android_rvh_mglru_shrink_spec_lru
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_set_gfp_zone_flags
   __traceiter_android_rvh_set_readahead_gfp_mask
@@ -183,6 +184,7 @@
   __tracepoint_android_rvh_enqueue_task_fair
   __tracepoint_android_rvh_inet_sock_create
   __tracepoint_android_rvh_inet_sock_release
+  __tracepoint_android_rvh_mglru_shrink_spec_lru
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_set_gfp_zone_flags
   __tracepoint_android_rvh_set_readahead_gfp_mask

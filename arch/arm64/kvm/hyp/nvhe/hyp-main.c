@@ -114,14 +114,6 @@ void __hyp_exit(void)
 	trace_hyp_exit();
 }
 
-static int pkvm_refill_memcache(struct pkvm_hyp_vcpu *hyp_vcpu)
-{
-	struct kvm_vcpu *host_vcpu = hyp_vcpu->host_vcpu;
-
-	return refill_memcache(&hyp_vcpu->vcpu.arch.stage2_mc,
-			       host_vcpu->arch.stage2_mc.nr_pages,
-			       &host_vcpu->arch.stage2_mc);
-}
 
 typedef void (*hyp_entry_exit_handler_fn)(struct pkvm_hyp_vcpu *);
 
@@ -749,9 +741,6 @@ static void __flush_hyp_reqs(struct pkvm_hyp_vcpu *hyp_vcpu)
 	struct kvm_hyp_req *hyp_req = hyp_vcpu->vcpu.arch.hyp_reqs;
 
 	hyp_req->type = KVM_HYP_LAST_REQ;
-
-	/* One of the request might have been TYPE_MEM/DEST_VCPU_MEMCACHE */
-	pkvm_refill_memcache(hyp_vcpu);
 }
 
 static void flush_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)

@@ -179,6 +179,7 @@ int wave5_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 	scoped_guard(spinlock_irqsave, &inst->dev->inst_lock)
 		list_del_init(&inst->list);
 
+	p_dec_info->initial_info_obtained = false;
 	wave5_vpu_dec_give_command(inst, DEC_RESET_FRAMEBUF_INFO, NULL);
 
 	return ret;

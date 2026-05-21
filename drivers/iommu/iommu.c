@@ -2747,11 +2747,10 @@ ssize_t iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 
 	if (deferred_sg) {
 		cookie_sg = ops->alloc_cookie_sg(iova, prot, nents, gfp);
-		if (!cookie_sg) {
-			pr_err("Failed alloc sg cookie\n");
-			return -ENOMEM;
-		}
-		cookie_sg->domain = domain;
+		if (cookie_sg)
+			cookie_sg->domain = domain;
+		else
+			deferred_sg = false;
 	}
 
 	while (i <= nents) {

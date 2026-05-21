@@ -577,8 +577,12 @@ static int visit_put_pages(struct io_pgtable_walk_data *walk_data, int lvl,
 			   arm_lpae_iopte *ptep, size_t size)
 {
 	struct put_pages_data *put_data = walk_data->data;
+	arm_lpae_iopte pte = READ_ONCE(*ptep);
 
-	io_pgtable_put_pages(&put_data->data->iop, iopte_to_paddr(*ptep, put_data->data),
+	if (!iopte_leaf(pte, lvl, put_data->data->iop.fmt))
+		return 0;
+
+	io_pgtable_put_pages(&put_data->data->iop, iopte_to_paddr(pte, put_data->data),
 			     ARM_LPAE_BLOCK_SIZE(lvl, put_data->data), put_data->gather);
 	return 0;
 }
@@ -821,6 +825,7 @@ static int io_pgtable_visit(struct arm_lpae_io_pgtable *data,
 	}
 
 	if (!iopte_table(pte, lvl)) {
+		walk_data->addr += size;
 		return -EINVAL;
 	}
 

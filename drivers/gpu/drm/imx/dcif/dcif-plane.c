@@ -27,9 +27,13 @@ static const u32 dcif_primary_plane_formats[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_XRGB1555,
+	DRM_FORMAT_ARGB1555,
 	DRM_FORMAT_XRGB4444,
+	DRM_FORMAT_ARGB4444,
 	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
 
 	/* Packed YCbCr */
 	DRM_FORMAT_YUYV,
@@ -43,9 +47,13 @@ static const u32 dcif_overlay_plane_formats[] = {
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_XRGB1555,
+	DRM_FORMAT_ARGB1555,
 	DRM_FORMAT_XRGB4444,
+	DRM_FORMAT_ARGB4444,
 	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
 };
 
 static inline struct dcif_dev *plane_to_dcif_dev(struct drm_plane *plane)
@@ -104,6 +112,11 @@ static int dcif_plane_atomic_check(struct drm_plane *plane, struct drm_atomic_st
 	if (ret)
 		return ret;
 
+	if (new_plane_state->fb->format->has_alpha &&
+	    (new_plane_state->pixel_blend_mode != DRM_MODE_BLEND_PIXEL_NONE) &&
+	    (new_plane_state->alpha != DRM_BLEND_ALPHA_OPAQUE))
+		return -EINVAL;
+
 	return 0;
 }
 
@@ -156,15 +169,19 @@ static void dcif_plane_atomic_update(struct drm_plane *plane,
 		layer_fmt = CTRLDESCL0_FORMAT_RGB888;
 		break;
 	case DRM_FORMAT_XRGB1555:
+	case DRM_FORMAT_ARGB1555:
 		layer_fmt = CTRLDESCL0_FORMAT_ARGB1555;
 		break;
 	case DRM_FORMAT_XRGB4444:
+	case DRM_FORMAT_ARGB4444:
 		layer_fmt = CTRLDESCL0_FORMAT_ARGB4444;
 		break;
 	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
 		layer_fmt = CTRLDESCL0_FORMAT_ABGR8888;
 		break;
 	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
 		layer_fmt = CTRLDESCL0_FORMAT_ARGB8888;
 		break;
 
@@ -200,8 +217,11 @@ static void dcif_plane_atomic_update(struct drm_plane *plane,
 	      DCIF_CTRLDESC0_FORMAT(layer_fmt) | DCIF_CTRLDESC0_YUV_FORMAT(yuv_fmt);
 
 	/* Alpha */
-	if (new_state->pixel_blend_mode == DRM_MODE_BLEND_COVERAGE)
+	if (new_state->pixel_blend_mode == DRM_MODE_BLEND_PIXEL_NONE ||
+	    !new_state->fb->format->has_alpha)
 		reg |= DCIF_CTRLDESC0_GLOBAL_ALPHA(new_state->alpha >> 8) | ALPHA_GLOBAL;
+	else if (new_state->pixel_blend_mode == DRM_MODE_BLEND_COVERAGE)
+		reg |= ALPHA_EMBEDDED;
 	else
 		reg |= DCIF_CTRLDESC0_GLOBAL_ALPHA(255) | ALPHA_GLOBAL;
 
