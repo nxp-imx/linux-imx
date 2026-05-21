@@ -26,6 +26,7 @@
 #include <linux/debugfs.h>
 #include <linux/imx_vpu.h>
 #include <linux/imx_memory_usage.h>
+#include <linux/kref.h>
 #include "vsi-v4l2.h"
 
 #define CTX_SEQID_UPLIMT 0x7FFFFFFF
@@ -321,7 +322,7 @@ struct vsi_v4l2_ctx {
 	struct vsi_v4l2_device *dev;
 	u64 ctxid;
 	struct mutex ctxlock;
-	atomic_t refcnt;
+	struct kref kref;
 
 	s32 status;		/*hold current status*/
 	s32 error;

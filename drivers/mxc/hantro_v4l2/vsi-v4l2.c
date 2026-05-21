@@ -242,62 +242,59 @@ static struct vsi_v4l2_ctx *get_ctx(unsigned long ctxid)
 	if (mutex_lock_interruptible(&vsi_ctx_array_lock))
 		return NULL;
 
-	ctx  = (struct vsi_v4l2_ctx *)idr_find(&vsi_inst_array, id);
-	if (ctx && (CTX_SEQ_ID(ctx->ctxid)  == seq)) {
-		atomic_inc(&ctx->refcnt);
-		mutex_unlock(&vsi_ctx_array_lock);
-		return ctx;
-	}
+	ctx = (struct vsi_v4l2_ctx *)idr_find(&vsi_inst_array, id);
+	if (ctx && (CTX_SEQ_ID(ctx->ctxid) == seq))
+		kref_get(&ctx->kref);
+	else
+		ctx = NULL;
 
 	mutex_unlock(&vsi_ctx_array_lock);
-	return NULL;
+	return ctx;
+}
+
+static void vsi_ctx_release(struct kref *kref)
+{
+	struct vsi_v4l2_ctx *ctx = container_of(kref, struct vsi_v4l2_ctx, kref);
+
+	trace_vsiv4l2_remove_ctx(ctx, 0);
+	dev_dbg(ctx->dev->dev, "[%llx] release %s instance\n",
+		ctx->ctxid, isencoder(ctx) ? "encoder" : "decoder");
+
+	return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
+	return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
+	removeallcropinfo(ctx);
+	imx_mur_release_v4l2_ctrl(ctx->recorder);
+	vb2_queue_release(&ctx->input_que);
+	vb2_queue_release(&ctx->output_que);
+	v4l2_ctrl_handler_free(&ctx->ctrlhdl);
+	imx_mur_destroy_node(ctx->recorder);
+
+	v4l2_klog(LOGLVL_BRIEF, "free ctx %llx", ctx->ctxid);
+	kfree(ctx);
 }
 
 static void put_ctx(struct vsi_v4l2_ctx *ctx)
 {
-	if (atomic_dec_return(&ctx->refcnt) == 0) {
-		trace_vsiv4l2_remove_ctx(ctx, 0);
-		dev_dbg(ctx->dev->dev, "[%llx] release %s instance\n",
-			ctx->ctxid, isencoder(ctx) ? "encoder" : "decoder");
-		imx_mur_destroy_node(ctx->recorder);
-		v4l2_klog(LOGLVL_BRIEF, "free ctx %llx", ctx->ctxid);
-		kfree(ctx);
-	}
+	kref_put(&ctx->kref, vsi_ctx_release);
 }
 
 static void release_ctx(struct vsi_v4l2_ctx *ctx, int notifydaemon, struct file *filp)
 {
-	int ret = 0;
-
 	if (notifydaemon == 1 && test_bit(CTX_FLAG_DAEMONLIVE_BIT, &ctx->flag)) {
 		if (isdecoder(ctx))
-			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_DEC, NULL);
+			vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_DEC, NULL);
 		else
-			ret = vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_ENC, NULL);
+			vsiv4l2_execcmd(ctx, V4L2_DAEMON_VIDIOC_DESTROY_ENC, NULL);
 	}
 
-	if (mutex_lock_interruptible(&vsi_ctx_array_lock))
-		return;
+	mutex_lock(&vsi_ctx_array_lock);
 	idr_remove(&vsi_inst_array, CTX_ARRAY_ID(ctx->ctxid));
 	mutex_unlock(&vsi_ctx_array_lock);
 
-	/*vsi_vpu_buf obj is freed here, together with all buffer memory */
-	if (mutex_lock_interruptible(&ctx->ctxlock))
-		return;
-	return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
-	return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
-	removeallcropinfo(ctx);
-
-	imx_mur_release_v4l2_ctrl(ctx->recorder);
-
-	vb2_queue_release(&ctx->input_que);
-	vb2_queue_release(&ctx->output_que);
-	v4l2_ctrl_handler_free(&ctx->ctrlhdl);
 	if (filp) {
 		v4l2_fh_del(&ctx->fh, filp);
 		v4l2_fh_exit(&ctx->fh);
 	}
-	mutex_unlock(&ctx->ctxlock);
 
 	put_ctx(ctx);
 }
@@ -331,7 +328,7 @@ struct vsi_v4l2_ctx *vsi_create_ctx(void)
 		ctx->ctxid |= (ctx_seqid << 32);
 		v4l2_klog(LOGLVL_BRIEF, "create ctx with %llx", ctx->ctxid);
 	}
-	atomic_set(&ctx->refcnt, 1);
+	kref_init(&ctx->kref);
 	mutex_unlock(&vsi_ctx_array_lock);
 	init_waitqueue_head(&ctx->retbuf_queue);
 	init_waitqueue_head(&ctx->capoffdone_queue);
