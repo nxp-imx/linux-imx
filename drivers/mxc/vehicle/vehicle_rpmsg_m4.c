@@ -671,33 +671,6 @@ static void vehicle_init_handler(struct work_struct *work)
 	}
 }
 
-/* This functions is on used now */
-#if 0
-/* send unregister event to M4 core
- * M4 will not send can event to ap once get the unregister signal successfully.
- */
-static void vehicle_deinit_handler(struct work_struct *work)
-{
-	struct vehicle_rpmsg_data msg;
-
-	msg.header.cate = IMX_RPMSG_VEHICLE;
-	msg.header.major = IMX_RMPSG_MAJOR;
-	msg.header.minor = IMX_RMPSG_MINOR;
-	msg.header.type = 0;
-	msg.header.cmd = VEHICLE_RPMSG_UNREGISTER;
-	msg.client = 0;
-	msg.reserved1 = 0;
-	msg.reason = 0;
-
-	/* need check whether ap have been registered before deregister the ap*/
-	if (vehicle_rpmsg->vehicle_client_registered) {
-		if (vehicle_send_message(&msg, vehicle_rpmsg, true)) {
-			pr_err("unregister vehicle device failed!\n");
-		}
-	}
-}
-#endif
-
 static int vehicle_rpmsg_probe(struct rpmsg_device *rpdev)
 {
 #ifdef CONFIG_EXTCON
