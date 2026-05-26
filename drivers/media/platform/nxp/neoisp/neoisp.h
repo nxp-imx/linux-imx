@@ -171,10 +171,6 @@ struct neoisp_node_s {
 	struct media_intf_devnode *intf_devnode;
 	struct media_link *intf_link;
 	struct neoisp_node_group_s *node_group;
-	/* Video device lock */
-	struct mutex node_lock;
-	/* vb2_queue lock */
-	struct mutex queue_lock;
 	struct list_head ready_queue;
 	struct vb2_queue queue;
 	struct v4l2_format format;
@@ -192,6 +188,8 @@ struct neoisp_node_group_s {
 	struct media_device mdev;
 	struct neoisp_dev_s *neoisp_dev;
 	struct neoisp_node_s node[NEOISP_NODES_COUNT];
+	/* Global lock for the node queues */
+	struct mutex queue_lock;
 	u32 streaming_map; /* Bitmap of which nodes are streaming */
 	struct media_pad pad[NEOISP_NODES_COUNT]; /* Output pads first */
 	dma_addr_t params_dma_addr;

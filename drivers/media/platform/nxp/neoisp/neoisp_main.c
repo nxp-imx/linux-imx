@@ -455,7 +455,7 @@ static int neoisp_prepare_job(struct neoisp_node_group_s *node_group)
 
 		if (!buf[i] && neoisp_node_link_is_enabled(node)) {
 			dev_dbg(neoispd->dev, "Nothing to do\n");
-			return -EINVAL;
+			return -ENODEV;
 		}
 	}
 
@@ -1483,8 +1483,6 @@ static int neoisp_init_node(struct neoisp_node_group_s *node_group, u32 id)
 	node->node_group = node_group;
 	node->buf_type = node_desc[id].buf_type;
 
-	mutex_init(&node->node_lock);
-	mutex_init(&node->queue_lock);
 	INIT_LIST_HEAD(&node->ready_queue);
 
 	node->format.type = node->buf_type;
@@ -1502,8 +1500,8 @@ static int neoisp_init_node(struct neoisp_node_group_s *node_group, u32 id)
 	q->buf_struct_size = sizeof(struct neoisp_buffer_s);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->dev = neoispd->dev;
-	/* Get V4L2 to handle node->queue locking */
-	q->lock = &node->queue_lock;
+	/* Share node group lock between video devices */
+	q->lock = &node_group->queue_lock;
 
 	ret = vb2_queue_init(q);
 	if (ret < 0) {
@@ -1517,7 +1515,6 @@ static int neoisp_init_node(struct neoisp_node_group_s *node_group, u32 id)
 	vdev->v4l2_dev = &node_group->v4l2_dev;
 	vdev->vfl_dir = output ? VFL_DIR_TX : VFL_DIR_RX;
 	/* Get V4L2 to serialise our ioctls */
-	vdev->lock = &node->node_lock;
 	vdev->queue = &node->queue;
 	vdev->device_caps = V4L2_CAP_STREAMING | node_desc[id].caps;
 
@@ -1581,6 +1578,8 @@ static int neoisp_init_node_group(struct neoisp_dev_s *neoispd,
 
 	node_group->id = id;
 	node_group->neoisp_dev = neoispd;
+
+	mutex_init(&node_group->queue_lock);
 
 	/* Register v4l2_device and media_device */
 	v4l2_dev->mdev = mdev;
