@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+#include "imx937.dtsi"
+#include "imx952-evk.dtsi"
+
+/ {
+	model = "NXP i.MX937 EVK board";
+	compatible = "fsl,imx937-evk", "fsl,imx937";
+};

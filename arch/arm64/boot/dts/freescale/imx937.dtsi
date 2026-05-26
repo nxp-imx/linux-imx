@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952.dtsi"
+
+&gpu_opp_table {
+	/delete-node/ opp-1000000000;
+};
