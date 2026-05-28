@@ -1098,6 +1098,15 @@ init_cpucap_indirect_list_from_array(const struct arm64_cpu_capabilities *caps)
 
 bool TKT340553_SW_WORKAROUND;
 EXPORT_SYMBOL_GPL(TKT340553_SW_WORKAROUND);
+
+static int __init tkt340553_setup(char *str)
+{
+	TKT340553_SW_WORKAROUND = true;
+	pr_info("TKT340553_SW_WORKAROUND enabled\n");
+	return 0;
+}
+early_param("tkt340553_workaround", tkt340553_setup);
+
 static void __init init_cpucap_indirect_list(void)
 {
 	init_cpucap_indirect_list_from_array(arm64_features);
