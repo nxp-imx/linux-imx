@@ -87,6 +87,7 @@
 #define I2C_RPMSG_TYPE_RESPONSE			0x01
 #define I2C_RPMSG_COMMAND_READ			0x00
 #define I2C_RPMSG_COMMAND_WRITE			0x01
+#define I2C_RPMSG_COMMAND_WRITE_READ		0x02
 #define I2C_RPMSG_PRIORITY			0x01
 
 #define I2C_RPMSG_M_STOP			0x0200
@@ -94,6 +95,7 @@
 struct i2c_rpmsg_devtype_data {
 	unsigned int max_buf_size;
 	bool dynamic_buffer_support;
+	bool support_write_read_command;
 };
 
 struct i2c_rpmsg_msg {
@@ -285,6 +287,97 @@ static int i2c_rpmsg_write(struct i2c_msg *msg, struct i2c_rpmsg_info *info,
 	return ret;
 }
 
+/*
+ * i2c_rpmsg_write_read - Combined write-then-read via single RPMSG message.
+ *
+ * This sends both msg[0] (write: register address) and msg[1] (read: data)
+ * information to the MCU in one RPMSG transaction. The MCU will perform a
+ * single combined I2C transfer (write sub-address + repeated-START + read).
+ *
+ * RPMSG message layout for WRITE_READ command (Linux -> MCU):
+ *   header.cmd          = I2C_RPMSG_COMMAND_WRITE_READ (0x02)
+ *   bus_id              = I2C bus number
+ *   ret_val             = wmsg->len (write data length / sub-address size)
+ *                         Maps to MCU payload 'reserved' field.
+ *   addr                = slave address (same for both msgs)
+ *   flags               = rmsg->flags | I2C_RPMSG_M_STOP
+ *   len                 = wmsg->len + rmsg->len (total, for send size calc)
+ *   buf[0..wmsg->len-1] = wmsg->buf (write data: register/sub-address bytes)
+ *
+ * MCU extracts:
+ *   txLen  = reserved (= ret_val) = write data length
+ *   rxLen  = len - txLen = read data length
+ *   subAddr = buf[0..txLen-1]
+ *
+ * MCU response (MCU -> Linux):
+ *   len                 = number of bytes read (rxLen)
+ *   buf[0..len-1]       = read data
+ */
+static int i2c_rpmsg_write_read(struct i2c_msg *wmsg, struct i2c_msg *rmsg,
+				struct i2c_rpmsg_info *info, int bus_id, bool is_last)
+{
+	int ret;
+	struct i2c_rpmsg_msg rpmsg_msg;
+
+	if (!info->rpdev)
+		return -EINVAL;
+
+	if (wmsg->len > U8_MAX) {
+		dev_err(&info->rpdev->dev, "%s: wmsg->len %d overflows u8\n",
+			__func__, wmsg->len);
+		return -EINVAL;
+	}
+
+	if (rmsg->len + wmsg->len > info->devtype_data->max_buf_size) {
+		dev_err(&info->rpdev->dev,
+			"%s failed: wlen=%d rlen=%d exceeds max %d\n",
+			__func__, wmsg->len, rmsg->len, info->devtype_data->max_buf_size);
+		return -EINVAL;
+	}
+
+	memset(&rpmsg_msg, 0, sizeof(struct i2c_rpmsg_msg));
+	rpmsg_msg.header.cate = I2C_RPMSG_CATEGORY;
+	rpmsg_msg.header.major = I2C_RPMSG_VERSION;
+	rpmsg_msg.header.minor = I2C_RPMSG_VERSION >> 8;
+	rpmsg_msg.header.type = I2C_RPMSG_TYPE_REQUEST;
+	rpmsg_msg.header.cmd = I2C_RPMSG_COMMAND_WRITE_READ;
+	rpmsg_msg.header.reserved[0] = I2C_RPMSG_PRIORITY;
+	rpmsg_msg.bus_id = bus_id;
+
+	rpmsg_msg.ret_val = (u8)wmsg->len;
+	rpmsg_msg.flags = rmsg->flags;
+	rpmsg_msg.addr = wmsg->addr;
+	if (is_last)
+		rpmsg_msg.flags |= I2C_RPMSG_M_STOP;
+
+	/*
+	 * ret_val maps to MCU payload 'reserved' field = write data length.
+	 * len = wmsg->len + rmsg->len ensures rpmsg_xfer sends enough bytes
+	 * to cover write data in buf[]. MCU derives rxLen = len - reserved.
+	 */
+	rpmsg_msg.len = wmsg->len + rmsg->len;
+
+	/* Pack msg[0] write data (sub-address / register address) into buf */
+	memcpy(rpmsg_msg.buf, wmsg->buf, wmsg->len);
+
+	reinit_completion(&info->cmd_complete);
+
+	ret = rpmsg_xfer(&rpmsg_msg, info);
+	if (ret)
+		return ret;
+
+	if (!info->msg || info->msg->len != rmsg->len) {
+		dev_err(&info->rpdev->dev,
+			"%s failed: %d\n", __func__, -EPROTO);
+		return -EPROTO;
+	}
+
+	/* Copy read data from MCU response into msg[1].buf */
+	memcpy(rmsg->buf, info->msg->buf, info->msg->len);
+
+	return rmsg->len;
+}
+
 static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 			  struct i2c_msg *msgs, int num)
 {
@@ -293,6 +386,7 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 	struct i2c_msg *pmsg;
 	int i, ret;
 	bool is_last = false;
+	bool wr_is_last;
 
 	mutex_lock(&i2c_rpmsg.lock);
 
@@ -306,7 +400,39 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 		i2c_rpmsg.bus_id = rdata->adapter.nr;
 		i2c_rpmsg.addr = pmsg->addr;
 
-		if (pmsg->flags & I2C_M_RD) {
+		/*
+		 * Detect combined write+read pattern:
+		 *   - Current msg[i] is a write (no I2C_M_RD flag)
+		 *   - Next msg[i+1] exists and is a read (I2C_M_RD set)
+		 *   - Both msgs target the same slave address
+		 *
+		 * When detected, merge msg[i] and msg[i+1] into a single
+		 * WRITE_READ RPMSG command so the MCU can perform an atomic
+		 * combined I2C transfer (write sub-addr + repeated-START + read).
+		 */
+		if (i2c_rpmsg.devtype_data->support_write_read_command &&
+		    !(pmsg->flags & I2C_M_RD) &&
+		    (i + 1 < num) &&
+		    (msgs[i + 1].flags & I2C_M_RD) &&
+		    pmsg->addr == msgs[i + 1].addr) {
+			wr_is_last = (i + 1 >= num - 1);
+			ret = i2c_rpmsg_write_read(pmsg, &msgs[i + 1],
+						   &i2c_rpmsg, rdata->adapter.nr, wr_is_last);
+			if (ret < 0) {
+				mutex_unlock(&i2c_rpmsg.lock);
+				return ret;
+			}
+
+			/*
+			 * Update msg[1].len with actual bytes read, consistent with
+			 * how i2c_rpmsg_read() updates pmsg->len. In practice this
+			 * is a no-op since ret == rmsg->len on success, but it keeps
+			 * the return semantics uniform across all transfer paths.
+			 */
+			msgs[i + 1].len = ret;
+			i++; /* skip msg[i+1], already handled */
+
+		} else if (pmsg->flags & I2C_M_RD) {
 			ret = i2c_rpmsg_read(pmsg, &i2c_rpmsg,
 						rdata->adapter.nr, is_last);
 			if (ret < 0) {
@@ -405,11 +531,13 @@ static void i2c_rpbus_remove(struct platform_device *pdev)
 static struct i2c_rpmsg_devtype_data i2c_rpmsg_devtype_data = {
 	.max_buf_size = 16,
 	.dynamic_buffer_support = false,
+	.support_write_read_command = false,
 };
 
 static struct i2c_rpmsg_devtype_data i2c_rpmsg_v2_devtype_data = {
 	.max_buf_size = I2C_RPMSG_MAX_BUF_SIZE,
 	.dynamic_buffer_support = true,
+	.support_write_read_command = true,
 };
 
 static const struct of_device_id imx_rpmsg_i2c_dt_ids[] = {
