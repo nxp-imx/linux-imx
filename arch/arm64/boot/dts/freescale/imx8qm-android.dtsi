@@ -4,6 +4,10 @@
  */
 
 / {
+	chosen {
+		bootargs = "tkt340553_workaround";
+	};
+
 	firmware {
 		android {
 			compatible = "android,firmware";
