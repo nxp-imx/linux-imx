@@ -266,23 +266,32 @@ static int imx_cm0p_load(struct rproc *rproc, const struct firmware *fw)
 	void *mba_region;
 	int ret = 0;
 
+	ret = pm_runtime_resume_and_get(cm0p->dev);
+	if (ret < 0) {
+		dev_err(cm0p->dev, "pm_runtime_resume_and_get failed: %d\n",
+			ret);
+		return ret;
+	}
+
 	if (!cm0p->mba_init) {
 		ret = imx_cm0p_alloc_memory_region(cm0p);
 		if (ret)
-			return ret;
+			goto err_put_rpm;
 	}
 
 	if (fw->size > cm0p->mba_size) {
 		dev_err(cm0p->dev, "CM0+ firmware file too big: %lu > %lu",
 			fw->size, cm0p->mba_size);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_put_rpm;
 	}
 
 	mba_region = memremap(cm0p->mba_phys, cm0p->mba_size, MEMREMAP_WC);
 	if (!mba_region) {
 		dev_err(cm0p->dev, "unable to map memory region: %pa+%zx\n",
 			&cm0p->mba_phys, cm0p->mba_size);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err_put_rpm;
 	}
 
 	memcpy(mba_region, fw->data, fw->size);
@@ -290,7 +299,9 @@ static int imx_cm0p_load(struct rproc *rproc, const struct firmware *fw)
 	dev_info(cm0p->dev, "CM0+ firmware (%lu bytes) loaded to: %pa+%zx",
 		 fw->size, &cm0p->mba_phys, cm0p->mba_size);
 
-	return 0;
+err_put_rpm:
+	pm_runtime_put(cm0p->dev);
+	return ret;
 }
 
 /* pm runtime functions */
@@ -310,6 +321,12 @@ static int imx_cm0p_runtime_resume(struct device *dev)
 	if (ret)
 		dev_warn(cm0p->dev, "failed to enable SPI clock: %d\n", ret);
 
+	ret = clk_prepare_enable(cm0p->ocram_clk);
+	if (ret) {
+		dev_err(cm0p->dev, "failed to enable OCRAM clock: %d\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -320,6 +337,7 @@ static int imx_cm0p_runtime_suspend(struct device *dev)
 
 	clk_disable_unprepare(cm0p->cm0p_clk);
 	clk_disable_unprepare(cm0p->spi_clk);
+	clk_disable_unprepare(cm0p->ocram_clk);
 
 	return 0;
 }
@@ -327,12 +345,7 @@ static int imx_cm0p_runtime_suspend(struct device *dev)
 static void imx_cm0p_load_firmware(const struct firmware *fw, void *context)
 {
 	struct rproc *rproc = context;
-	struct imx_cm0p_rproc *cm0p = rproc->priv;
 	int ret;
-
-	ret = imx_cm0p_alloc_memory_region(cm0p);
-	if (ret)
-		return;
 
 	ret = imx_cm0p_load(rproc, fw);
 	if (ret)
@@ -347,7 +360,6 @@ static void imx_cm0p_load_firmware(const struct firmware *fw, void *context)
 static int imx_cm0p_suspend(struct device *dev)
 {
 	struct rproc *rproc = dev_get_drvdata(dev);
-	struct imx_cm0p_rproc *cm0p = rproc->priv;
 	int ret;
 
 	/* Stop the remote processor */
@@ -355,15 +367,12 @@ static int imx_cm0p_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	clk_disable_unprepare(cm0p->ocram_clk);
-
 	return pm_runtime_force_suspend(dev);
 }
 
 static int imx_cm0p_resume(struct device *dev)
 {
 	struct rproc *rproc = dev_get_drvdata(dev);
-	struct imx_cm0p_rproc *cm0p = rproc->priv;
 	int ret = 0;
 
 	ret = pm_runtime_force_resume(dev);
@@ -372,12 +381,6 @@ static int imx_cm0p_resume(struct device *dev)
 
 	if (rproc->state != RPROC_RUNNING)
 		return 0;
-
-	ret = clk_prepare_enable(cm0p->ocram_clk);
-	if (ret) {
-		dev_err(dev, "failed to enable OCRAM clock: %d\n", ret);
-		goto err;
-	}
 
 	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
 				      rproc->firmware, dev, GFP_KERNEL,
