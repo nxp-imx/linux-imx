@@ -1694,21 +1694,21 @@ dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-os08a20-csi0-4lanes-mqs.dtb
 imx952-evk-adv7535-rpmsg-dtbs := imx952-evk-rpmsg.dtb imx952-evk-adv7535.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-adv7535-rpmsg.dtb
 
-imx952-evk-car-adv7535-ox03c10-csi0-dtbs := imx952-evk.dtb \
+imx952-evk-car-adv7535-ox03c10-csi0-dtbs := imx952-evk-rpmsg-car.dtb \
 					imx952-evk-adv7535.dtbo \
 					imx952-evk-ox03c10-csi0.dtbo \
 					imx952-evk-cs42888.dtbo \
 					imx952-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-car-adv7535-ox03c10-csi0.dtb
 
-imx952-evk-car-it6263-lvds0-ox03c10-csi0-dtbs := imx952-evk.dtb \
+imx952-evk-car-it6263-lvds0-ox03c10-csi0-dtbs := imx952-evk-rpmsg-car.dtb \
 					imx952-evk-it6263-lvds0.dtbo \
 					imx952-evk-ox03c10-csi0.dtbo \
 					imx952-evk-cs42888.dtbo \
 					imx952-evk-car.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-evk-car-it6263-lvds0-ox03c10-csi0.dtb
 
-imx952-evk-car-adv7535-it6263-lvds1-ox03c10-csi0-dtbs := imx952-evk.dtb \
+imx952-evk-car-adv7535-it6263-lvds1-ox03c10-csi0-dtbs := imx952-evk-rpmsg-car.dtb \
 					imx952-evk-adv7535.dtbo \
 					imx952-evk-it6263-lvds1.dtbo \
 					imx952-evk-ox03c10-csi0.dtbo \

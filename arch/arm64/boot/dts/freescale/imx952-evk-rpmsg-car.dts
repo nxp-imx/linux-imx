@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+/dts-v1/;
+
+#include "imx952-evk.dts"
+
+/delete-node/ &lpi2c2;
+/delete-node/ &lpi2c3;
+
+/ {
+	aliases {
+		i2c1 = &lpi2c2;
+		i2c2 = &lpi2c3;
+	};
+
+	lpi2c2: i2c-rpbus-1 {
+		compatible = "fsl,i2c-rpbus-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+
+		adp5585: io-expander@34 {
+			compatible = "adi,adp5585-00", "adi,adp5585";
+			reg = <0x34>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-reserved-ranges = <5 1>;
+			#pwm-cells = <3>;
+		};
+	};
+
+
+	lpi2c3: i2c-rpbus-2 {
+		compatible = "fsl,i2c-rpbus-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+
+		i2c3_pcal6408: gpio@20 {
+			compatible = "nxp,pcal6408";
+			reg = <0x20>;
+			#gpio-cells = <2>;
+			gpio-controller;
+			vcc-supply = <&reg_3p3v>;
+		};
+	};
+
+	reserved-memory {
+		m7_reserved: m7@80000000 {
+			no-map;
+			reg = <0 0x80000000 0 0x1000000>;
+		};
+	};
+};
