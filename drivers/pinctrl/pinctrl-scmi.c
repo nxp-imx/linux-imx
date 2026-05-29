@@ -506,6 +506,7 @@ static int pinctrl_scmi_get_pins(struct scmi_pinctrl *pmx,
 }
 
 static const char * const scmi_pinctrl_blocklist[] = {
+	"fsl,imx937",
 	"fsl,imx94",
 	"fsl,imx95",
 	"fsl,imx952",
