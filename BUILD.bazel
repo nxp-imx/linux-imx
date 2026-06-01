@@ -328,6 +328,9 @@ common_kernel(
     additional_kmi_symbol_lists = [":x86_64_additional_kmi_symbol_lists"],
     arch = "x86_64",
     build_gki_artifacts = True,
+    # We use aarch64 here because it's readily available and improves performance.
+    # See b/500458317 for more on x86_64 collection efforts.
+    clang_autofdo_profile = ":gki/aarch64/afdo/kernel.afdo",
     ddk_module_headers = [":all_headers_x86_64"],
     defconfig = "arch/x86/configs/gki_defconfig",
     extra_dist = [
@@ -1702,6 +1705,7 @@ ddk_headers(
         ":all_headers_allowlist_aarch64_globs",
         ":all_headers_allowlist_common_globs",
         ":all_headers_allowlist_exynos",
+        ":all_headers_allowlist_vivo",
         ":pkvm_headers_aarch64",
         ":xhci_headers",
     ],
@@ -1826,6 +1830,7 @@ ddk_headers(
         "drivers/android/binder_internal.h",
         "drivers/android/binder_trace.h",
         "drivers/android/dbitmap.h",
+        "kernel/futex/futex.h",
         "kernel/sched/cpudeadline.h",
         "kernel/sched/cpupri.h",
         "kernel/sched/ext.h",
@@ -1872,6 +1877,19 @@ devicetree_library(
     includes = ["arch/arm64/boot/dts/exynos/google"],
     visibility = ["//devices/google:__subpackages__"],
     deps = ["//common:dtc_includes_aarch64"],
+)
+
+ddk_headers(
+    name = "all_headers_allowlist_vivo",
+    hdrs = [
+        "fs/f2fs/f2fs.h",
+        "fs/f2fs/iostat.h",
+        "fs/f2fs/node.h",
+        "fs/f2fs/segment.h",
+        "mm/internal.h",
+        "mm/swap.h",
+    ],
+    visibility = ["//visibility:private"],
 )
 
 _KSELFTEST_DIR = "testcases/selftests"

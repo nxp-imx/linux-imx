@@ -100,7 +100,31 @@ CFLAGS_KASAN += $(call check-args, cc-param, $(kasan_params))
 
 ifdef CONFIG_RUST
 	# Avoid calling `rustc-param` unless Rust is enabled.
-	RUSTFLAGS_KASAN += $(call check-args, rustc-param, $(kasan_params))
+	#
+	# b/513032835: TODO: Re-enable instrumentation for globals once it's working properly.
+	#
+	# When CONFIG_KASAN_GENERIC is enabled, constructors are generated to setup KASAN's redzones
+	# for global variables. However, under the following conditions, memory corruption has been
+	# observed:
+	#
+	# 1. CONFIG_RUST=y
+	# 2. CONFIG_SHADOW_CALL_STACK=y
+	# 3. CONFIG_UNWIND_PATCH_PAC_INTO_SCS=y
+	# 4. The CPUs on the device do not support the pointer authentication code (PAC) feature
+	#
+	# Condition 4 causes the kernel to fallback to using the shadow call stack feature by
+	# patching the PAC instructions with loads and stores from and to the shadow call stack
+	# respectively. However, this is not happening as expected at the moment and manifests
+	# as memory corruption.
+	#
+	# While this has only been observed with the Rust stdlib module (rust/core.o), it could
+	# happen with other Rust modules. So, disable instrumentation of Rust globals if needed.
+ifdef CONFIG_UNWIND_PATCH_PAC_INTO_SCS
+	rust_kasan_params := $(subst asan-globals=1,asan-globals=0,$(kasan_params))
+else
+	rust_kasan_params := $(kasan_params)
+endif
+	RUSTFLAGS_KASAN += $(call check-args, rustc-param, $(rust_kasan_params))
 endif # CONFIG_RUST
 
 export CFLAGS_KASAN CFLAGS_KASAN_NOSANITIZE RUSTFLAGS_KASAN

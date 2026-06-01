@@ -3999,11 +3999,6 @@ static void activate_blocked_waiters(struct rq *target_rq,
 	if (!sched_proxy_exec())
 		return;
 
-	INIT_LIST_HEAD(&bal_head);
-
-	if (wake_flags & WF_MIGRATED)
-		en_flags |= ENQUEUE_MIGRATED;
-
 	/*
 	 * A whole bunch of waiting donor tasks back this blocked
 	 * lock owner task, wake them all up to give this task its
@@ -4031,9 +4026,19 @@ static void activate_blocked_waiters(struct rq *target_rq,
 		raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
 		return;
 	}
+
+	if (list_empty(&owner->blocked_head)) {
+		raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+		return;
+	}
+
 	get_task_struct(owner);
+	INIT_LIST_HEAD(&bal_head);
 	list_add_tail(&owner->blocked_activation_node, &bal_head);
 	raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+
+	if (wake_flags & WF_MIGRATED)
+		en_flags |= ENQUEUE_MIGRATED;
 
 	while (!list_empty(&bal_head)) {
 		struct list_head tmp_head;

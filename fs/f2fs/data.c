@@ -1182,6 +1182,8 @@ static void __set_data_blkaddr(struct dnode_of_data *dn, block_t blkaddr)
 {
 	__le32 *addr = get_dnode_addr(dn->inode, dn->node_folio);
 
+	trace_android_vh_f2fs_dnode_set_blkaddr(dn->inode, blkaddr);
+
 	dn->data_blkaddr = blkaddr;
 	addr[dn->ofs_in_node] = cpu_to_le32(dn->data_blkaddr);
 }
@@ -3598,6 +3600,7 @@ static int __f2fs_write_data_pages(struct address_space *mapping,
 	struct blk_plug plug;
 	int ret;
 	bool locked = false;
+	bool wb_done = false;
 
 	/* skip writing if there is no dirty page in this inode */
 	if (!get_dirty_pages(inode) && wbc->sync_mode == WB_SYNC_NONE)
@@ -3637,7 +3640,14 @@ static int __f2fs_write_data_pages(struct address_space *mapping,
 	account_writeback(inode, true);
 
 	blk_start_plug(&plug);
+
+	trace_android_rvh_f2fs_write_cache_pages(mapping, wbc, &ret, &wb_done);
+	if (wb_done)
+		goto blk_finish;
+
 	ret = f2fs_write_cache_pages(mapping, wbc, io_type);
+
+blk_finish:
 	blk_finish_plug(&plug);
 
 	account_writeback(inode, false);

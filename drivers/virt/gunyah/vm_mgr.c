@@ -1109,6 +1109,16 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 
 		return gunyah_vm_set_auth_type(ghvm, &auth_desc);
 	}
+	case GH_VM_CHECK_EXTENSION:
+		switch (arg) {
+		case GH_CAP_VCPU_TIMER_WAKEUP:
+			r = 1;
+			break;
+		default:
+			r = 0;
+			break;
+		}
+		break;
 	default:
 		r = -ENOTTY;
 		break;

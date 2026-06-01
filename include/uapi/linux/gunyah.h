@@ -456,4 +456,25 @@ struct gunyah_auth_desc {
 };
 #define GH_VM_ANDROID_SET_AUTH_TYPE		_IOW(GH_ANDROID_IOCTL_TYPE, 0x16, \
 							struct gunyah_auth_desc)
+
+/**
+ * GH_VM_CHECK_EXTENSION - Query whether the kernel supports a given capability.
+ *
+ * Issued on a VM fd. Pass a GH_CAP_* constant as the ioctl arg.
+ * Returns 1 if the capability is supported, 0 if not.
+ *
+ * On kernels that do not recognise this ioctl, -ENOTTY is returned, which
+ * userspace should also treat as "not supported".
+ *
+ * Example: ioctl(vm_fd, GH_VM_CHECK_EXTENSION, GH_CAP_VCPU_TIMER_WAKEUP)
+ */
+#define GH_VM_CHECK_EXTENSION		_IO(GH_ANDROID_IOCTL_TYPE, 0x17)
+
+/*
+ * Capability IDs for use with GH_VM_CHECK_EXTENSION.
+ *
+ * GH_CAP_VCPU_TIMER_WAKEUP: kernel handles GUNYAH_VCPU_STATE_EXPECTS_WAKEUP_OR_TIMEOUT,
+ *     arming a per-vCPU hrtimer for the hypervisor-provided deadline.
+ */
+#define GH_CAP_VCPU_TIMER_WAKEUP	0
 #endif

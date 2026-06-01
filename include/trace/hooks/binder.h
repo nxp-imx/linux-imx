@@ -118,6 +118,12 @@ DECLARE_HOOK(android_vh_binder_new_ref,
 DECLARE_HOOK(android_vh_binder_del_ref,
 	TP_PROTO(struct binder_proc *proc, uint32_t ref_desc),
 	TP_ARGS(proc, ref_desc));
+DECLARE_HOOK(android_vh_binder_skip_set_priority,
+	TP_PROTO(struct binder_thread *thread, bool *skip),
+	TP_ARGS(thread, skip));
+DECLARE_HOOK(android_vh_binder_transaction_priority,
+	TP_PROTO(struct binder_thread *thread, struct binder_transaction *t),
+	TP_ARGS(thread, t));
 #endif /* _TRACE_HOOK_BINDER_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

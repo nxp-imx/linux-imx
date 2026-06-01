@@ -1725,6 +1725,7 @@ static inline int zap_nonpresent_ptes(struct mmu_gather *tlb,
 {
 	swp_entry_t entry;
 	int nr = 1;
+	bool bypass = false;
 
 	*any_skipped = true;
 	entry = pte_to_swp_entry(ptent);
@@ -1752,6 +1753,9 @@ static inline int zap_nonpresent_ptes(struct mmu_gather *tlb,
 
 		nr = swap_pte_batch(pte, max_nr, ptent);
 		rss[MM_SWAPENTS] -= nr;
+		trace_android_vh_swapmem_gather_add_bypass(tlb->mm, entry, nr, &bypass);
+		if (bypass)
+			goto skip;
 		free_swap_and_cache_nr(entry, nr);
 	} else if (is_migration_entry(entry)) {
 		struct folio *folio = pfn_swap_entry_folio(entry);
@@ -1782,6 +1786,7 @@ static inline int zap_nonpresent_ptes(struct mmu_gather *tlb,
 		pr_alert("unrecognized swap entry 0x%lx\n", entry.val);
 		WARN_ON_ONCE(1);
 	}
+skip:
 	clear_not_present_full_ptes(vma->vm_mm, addr, pte, nr, tlb->fullmm);
 	*any_skipped = zap_install_uffd_wp_if_needed(vma, addr, pte, nr, details, ptent);
 
@@ -5055,7 +5060,7 @@ static struct folio *alloc_anon_folio(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	unsigned long orders;
-	struct folio *folio;
+	struct folio *folio = NULL;
 	unsigned long addr;
 	pte_t *pte;
 	gfp_t gfp;
@@ -5106,10 +5111,16 @@ static struct folio *alloc_anon_folio(struct vm_fault *vmf)
 	gfp = vma_thp_gfp_mask(vma);
 
 	trace_android_vh_customize_thp_gfp_orders(&gfp, &orders, &order);
+
+	trace_android_rvh_mm_customize_alloc_anon_thp(&gfp, &orders, &order, &folio);
+	if (folio)
+		goto allocated;
+
 	while (orders) {
 		addr = ALIGN_DOWN(vmf->address, PAGE_SIZE << order);
 		folio = vma_alloc_folio(gfp, order, vma, addr);
 		if (folio) {
+allocated:
 			if (mem_cgroup_charge(folio, vma->vm_mm, gfp)) {
 				count_mthp_stat(order, MTHP_STAT_ANON_FAULT_FALLBACK_CHARGE);
 				folio_put(folio);
@@ -5669,6 +5680,8 @@ static vm_fault_t do_fault_around(struct vm_fault *vmf)
 	pgoff_t from_pte, to_pte;
 	vm_fault_t ret;
 
+	trace_android_vh_do_fault_around(vmf, &nr_pages);
+
 	/*
 	 * Fault occurred in the padding region. There are no file-cache pages
 	 * to map in this region, so skip fault-around.
@@ -5722,6 +5735,8 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 {
 	vm_fault_t ret = 0;
 	struct folio *folio;
+
+	trace_android_rvh_do_read_fault(vmf, &fault_around_pages);
 
 	/*
 	 * Let's call ->map_pages() first and use ->fault() as fallback

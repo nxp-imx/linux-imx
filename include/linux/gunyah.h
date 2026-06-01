@@ -9,6 +9,7 @@
 #include <linux/bitfield.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
+#include <linux/ktime.h>
 #include <linux/limits.h>
 #include <linux/list.h>
 #include <linux/mod_devicetable.h>
@@ -529,6 +530,8 @@ struct gunyah_hypercall_vcpu_run_resp {
 			GUNYAH_VCPU_ADDRSPACE_VMMIO_WRITE	= 5,
 			/* VCPU blocked on fault where we can demand page */
 			GUNYAH_VCPU_ADDRSPACE_PAGE_FAULT	= 7,
+			/* VCPU is sleeping until an interrupt arrives or timeout expires */
+			GUNYAH_VCPU_STATE_EXPECTS_WAKEUP_OR_TIMEOUT	= 8,
 			/* VCPU is powered off due to some system event/reset */
 			GUNYAH_VCPU_STATE_SYSTEM_OFF		= 0x100,
 			/* clang-format on */
@@ -564,6 +567,7 @@ enum {
  *      Resource Manager.
  * @ticket: resource ticket to claim vCPU# for the VM
  * @kref: Reference counter
+ * @wakeup_timer: High-resolution timer for EXPECTS_WAKEUP_OR_TIMEOUT state
  */
 struct gunyah_vcpu {
 	struct gunyah_vm_function_instance *f;
@@ -593,6 +597,7 @@ struct gunyah_vcpu {
 	struct notifier_block nb;
 	struct gunyah_vm_resource_ticket ticket;
 	struct kref kref;
+	struct hrtimer wakeup_timer;
 };
 
 enum gunyah_error
@@ -608,4 +613,41 @@ gunyah_hypercall_addrspace_find_info_area(unsigned long *ipa, unsigned long *siz
 enum gunyah_error
 #define GUNYAH_ADDRSPACE_VMMIO_CONFIGURE_OP_ADD_RANGE	0
 gunyah_hypercall_addrspc_configure_vmmio_range(u64 capid, u64 base, u64 size, u64 op);
+
+/******************************************************************************/
+/* Arch-specific timer functions for deadline conversion                      */
+
+#if IS_REACHABLE(CONFIG_GUNYAH_TIMER)
+/**
+ * gunyah_arch_timer_init() - Initialize arch-specific timer scaling factors
+ *
+ * Must be called once during driver initialization to set up the timer
+ * conversion parameters. This pre-calculates the scaling factors needed
+ * to convert hypervisor tick deadlines to kernel time.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+int gunyah_arch_timer_init(void);
+#else
+static inline int gunyah_arch_timer_init(void)
+{
+	return 0;
+}
+#endif /* IS_REACHABLE(CONFIG_GUNYAH_TIMER) */
+
+/**
+ * gunyah_arch_deadline_to_ktime() - Convert hypervisor tick deadline to CLOCK_MONOTONIC ktime
+ * @timeout_ticks: Absolute deadline in system counter ticks
+ * @expires:       Output ktime, set only when the deadline is still in the future
+ *
+ * Converts a hypervisor-provided absolute deadline (in system counter ticks)
+ * to a kernel ktime value suitable for use with hrtimer.
+ *
+ * Returns: true and populates @expires if @timeout_ticks is still in the future
+ *          and the counter frequency is available. Returns false if the deadline
+ *          has already passed or the frequency is unavailable; the caller should
+ *          re-enter the hypercall immediately without waiting.
+ */
+bool gunyah_arch_deadline_to_ktime(u64 timeout_ticks, ktime_t *expires);
+
 #endif

@@ -10,7 +10,6 @@
   crypto_alloc_acomp
   device_match_name
   __devm_alloc_percpu
-  dma_heap_try_get_pool_size_kb
   file_bdev
   filemap_fdatawrite_range_kick
   file_ra_state_init
@@ -68,6 +67,7 @@
   __traceiter_android_vh_do_read_fault
   __traceiter_android_vh_dpm_wait_finish
   __traceiter_android_vh_dpm_wait_start
+  __traceiter_android_vh_exit_oom_victim
   __traceiter_android_vh_filemap_map_pages
   __traceiter_android_vh_filemap_read
   __traceiter_android_vh_flush_work_wait_finish
@@ -78,11 +78,14 @@
   __traceiter_android_vh_free_page_bypass
   __traceiter_android_vh_free_pages_ok_bypass
   __traceiter_android_vh_free_pages_prepare_bypass
+  __traceiter_android_vh_gcma_cc_allow_nonworkingset
+  __traceiter_android_vh_gcma_cc_store_page_bypass
   __traceiter_android_vh_is_fpsimd_save
   __traceiter_android_vh_madvise_pageout_bypass
   __traceiter_android_vh_madvise_pageout_return_error
   __traceiter_android_vh_mutex_wait_finish
   __traceiter_android_vh_mutex_wait_start
+  __traceiter_android_vh_oom_killer_disable
   __traceiter_android_vh_process_madvise_return_error
   __traceiter_android_vh_rebalance_anon_lru_bypass
   __traceiter_android_vh_rtmutex_wait_finish
@@ -113,6 +116,7 @@
   __traceiter_console
   __traceiter_error_report_end
   __traceiter_irq_handler_entry
+  __traceiter_mark_victim
   __traceiter_rss_stat
   __traceiter_vm_unmapped_area
   __traceiter_workqueue_execute_start
@@ -135,6 +139,7 @@
   __tracepoint_android_vh_do_read_fault
   __tracepoint_android_vh_dpm_wait_finish
   __tracepoint_android_vh_dpm_wait_start
+  __tracepoint_android_vh_exit_oom_victim
   __tracepoint_android_vh_filemap_map_pages
   __tracepoint_android_vh_filemap_read
   __tracepoint_android_vh_flush_work_wait_finish
@@ -145,11 +150,14 @@
   __tracepoint_android_vh_free_page_bypass
   __tracepoint_android_vh_free_pages_ok_bypass
   __tracepoint_android_vh_free_pages_prepare_bypass
+  __tracepoint_android_vh_gcma_cc_allow_nonworkingset
+  __tracepoint_android_vh_gcma_cc_store_page_bypass
   __tracepoint_android_vh_is_fpsimd_save
   __tracepoint_android_vh_madvise_pageout_bypass
   __tracepoint_android_vh_madvise_pageout_return_error
   __tracepoint_android_vh_mutex_wait_finish
   __tracepoint_android_vh_mutex_wait_start
+  __tracepoint_android_vh_oom_killer_disable
   __tracepoint_android_vh_process_madvise_return_error
   __tracepoint_android_vh_rebalance_anon_lru_bypass
   __tracepoint_android_vh_rtmutex_wait_finish
@@ -180,6 +188,7 @@
   __tracepoint_console
   __tracepoint_error_report_end
   __tracepoint_irq_handler_entry
+  __tracepoint_mark_victim
   __tracepoint_rss_stat
   __tracepoint_vm_unmapped_area
   __tracepoint_workqueue_execute_start

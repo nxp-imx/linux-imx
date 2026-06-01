@@ -25,6 +25,7 @@
 #include <linux/refcount.h>
 #include <linux/atomic.h>
 #include <linux/android_kabi.h>
+#include <linux/jump_label.h>
 
 struct device;
 struct dma_buf;
@@ -768,6 +769,17 @@ void get_dmabuf_info(struct task_dma_buf_info *dmabuf_info);
 void put_dmabuf_info(struct task_dma_buf_info *dmabuf_info);
 int dma_buf_begin_new_exec(struct files_struct *old_files);
 
+DECLARE_STATIC_KEY_TRUE(dmabuf_accounting_key);
+/**
+ * is_dmabuf_accounting_enabled - Check if dmabuf accounting is enabled
+ *
+ * Return: true if enabled, false otherwise
+ */
+static inline bool is_dmabuf_accounting_enabled(void)
+{
+	return static_branch_likely(&dmabuf_accounting_key);
+}
+
 #else /* CONFIG_DMA_SHARED_BUFFER */
 
 static inline int is_dma_buf_file(struct file *file) { return 0; }
@@ -781,6 +793,7 @@ static inline void get_dmabuf_info(struct task_dma_buf_info *dmabuf_info) {}
 static inline void put_dmabuf_info(struct task_dma_buf_info *dmabuf_info) {}
 static inline int dma_buf_begin_new_exec(struct files_struct *old_files) { return 0; }
 
+static inline bool is_dmabuf_accounting_enabled(void) { return false; }
 #endif /* CONFIG_DMA_SHARED_BUFFER */
 
 #endif /* __DMA_BUF_H__ */

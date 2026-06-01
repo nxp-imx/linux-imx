@@ -2430,6 +2430,7 @@ static bool folio_prepare_writeback(struct address_space *mapping,
 	if (folio_test_writeback(folio)) {
 		if (wbc->sync_mode == WB_SYNC_NONE)
 			return false;
+		trace_android_rvh_folio_prepare_wb_folio_wait(folio);
 		folio_wait_writeback(folio);
 	}
 	BUG_ON(folio_test_writeback(folio));

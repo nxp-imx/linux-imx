@@ -40,6 +40,7 @@
 #include <net/dropreason-core.h>
 #include <net/netmem.h>
 #include <linux/android_kabi.h>
+#include <linux/android_vendor.h>
 
 /**
  * DOC: skb checksums
@@ -627,6 +628,7 @@ struct skb_shared_info {
 
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
+	ANDROID_OEM_DATA_ARRAY(1, 3);
 
 	/* must be last field, see pskb_expand_head() */
 	skb_frag_t	frags[MAX_SKB_FRAGS];

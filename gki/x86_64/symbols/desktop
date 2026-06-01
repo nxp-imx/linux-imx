@@ -321,6 +321,7 @@
   config_item_set_name
   __const_udelay
   consume_skb
+  contig_page_data
   cont_write_begin
   _copy_from_iter
   _copy_from_user
@@ -845,6 +846,7 @@
   __drm_debug
   drm_debugfs_add_files
   drm_debugfs_create_files
+  __drm_debug_trace
   drm_default_rgb_quant_range
   __drm_dev_dbg
   drm_dev_enter
@@ -1022,6 +1024,7 @@
   __drm_printfn_info
   __drm_printfn_line
   __drm_printfn_seq_file
+  __drm_printfn_trace
   drm_print_hex_dump
   drm_print_memory_stats
   drm_privacy_screen_get
@@ -1088,6 +1091,7 @@
   efivars_register
   efivars_unregister
   emergency_restart
+  empty_zero_page
   enable_irq
   enable_work
   eth_commit_mac_addr_change
@@ -1687,6 +1691,7 @@
   kstrtoul_from_user
   kstrtoull
   kstrtoull_from_user
+  kthread_complete_and_exit
   kthread_create_on_node
   kthread_create_worker_on_node
   kthread_destroy_worker

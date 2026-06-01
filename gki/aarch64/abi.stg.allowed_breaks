@@ -1,1 +1,6 @@
 # See http://go/approve-abi-break
+
+type 'enum attr_idn' changed
+  enumerator 'QUERY_ATTR_IDN_TX_EQ_GN_SETTINGS' (71) was added
+  ... 1 other enumerator(s) added
+

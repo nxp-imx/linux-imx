@@ -427,6 +427,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_rq_clock_pelt,
 	TP_PROTO(struct rq *rq, s64 delta, int *ret),
 	TP_ARGS(rq, delta, ret), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_update_load_sum,
+	TP_PROTO(int *force_update),
+	TP_ARGS(force_update), 1);
+
 DECLARE_RESTRICTED_HOOK(android_rvh_update_load_avg_blocked_se,
 	TP_PROTO(u64 now, struct sched_entity *se, int *ret),
 	TP_ARGS(now, se, ret), 1);
@@ -566,6 +570,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_fair_dl_server_start,
 DECLARE_RESTRICTED_HOOK(android_rvh_dl_server_stop_skip,
 	TP_PROTO(struct sched_dl_entity *dl_se, struct rq *rq, struct task_struct *p, bool *skip),
 	TP_ARGS(dl_se, rq, p, skip), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_task_fits_cpu,
+	TP_PROTO(struct task_struct *tsk, unsigned long util, unsigned long uclamp_min,
+		 unsigned long uclamp_max, int cpu, bool *fits, bool *done),
+	TP_ARGS(tsk, util, uclamp_min, uclamp_max, cpu, fits, done), 1);
 
 /* macro versions of hooks are no longer required */
 #endif /* _TRACE_HOOK_SCHED_H */

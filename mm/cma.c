@@ -924,6 +924,8 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	gfp_t gfp_allowed;
 	unsigned long i;
 	const char *name = cma ? cma->name : NULL;
+	bool bypass = false;
+	u64 stime = 0;
 
 	/*
 	 * GCMA allows GFP_ATOMIC, while CMA can only do GFP_KERNEL.
@@ -937,6 +939,11 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	if (!cma || !cma->count)
 		return page;
 
+	trace_android_vh_cma_alloc_bypass(cma, count, align, gfp,
+				&page, &bypass);
+	if (bypass)
+		return page;
+
 	pr_debug("%s(cma %p, name: %s, count %lu, align %d)\n", __func__,
 		(void *)cma, cma->name, count, align);
 
@@ -945,6 +952,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 
 	trace_cma_alloc_start(name, count, cma->available_count, cma->count, align);
 
+	trace_android_vh_cma_alloc_lat_start(&stime);
 	for (r = 0; r < cma->nranges; r++) {
 		page = NULL;
 
@@ -974,6 +982,7 @@ struct page *__cma_alloc(struct cma *cma, unsigned long count,
 	trace_cma_alloc_finish(name, page ? page_to_pfn(page) : 0,
 			       page, count, align, ret);
 	trace_android_vh_cma_alloc_end(cma, page ? page_to_pfn(page) : 0, page, count, align, ret);
+	trace_android_vh_cma_alloc_lat_end(stime, count);
 	if (page) {
 		count_vm_event(CMA_ALLOC_SUCCESS);
 		cma_sysfs_account_success_pages(cma, count);

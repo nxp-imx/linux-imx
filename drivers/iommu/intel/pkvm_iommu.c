@@ -146,8 +146,8 @@ int pkvm_context_mapping(struct intel_iommu *iommu, struct device_domain_info *i
 	data->did = did;
 	data->bus = bus;
 	data->devfn = devfn;
-	data->ats_qdep = info->ats_qdep;
-	data->ats_supported = info->ats_supported;
+	data->ats_qdep = info ? info->ats_qdep : 0;
+	data->ats_supported = info ? info->ats_supported : 0;
 
 	spin_lock(&iommu->lock);
 	ret = pkvm_hypercall_inout(iommu_set_lm_ce, &d, &d);
@@ -378,11 +378,11 @@ int pkvm_domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
 	struct domain_map_data *data = &d.iommu_domain_map.in;
 	int ret;
 
-	data->pgd_gpa = virt_to_phys(domain->pgd),
-	data->iov_pfn = iov_pfn,
-	data->phys_pfn = phys_pfn,
-	data->nr_pages = nr_pages,
-	data->prot = prot,
+	data->pgd_gpa = virt_to_phys(domain->pgd);
+	data->iov_pfn = iov_pfn;
+	data->phys_pfn = phys_pfn;
+	data->nr_pages = nr_pages;
+	data->prot = prot;
 
 	ret = pkvm_hypercall_inout(iommu_domain_map, &d, &d);
 	if (ret == -ENOMEM) {

@@ -9892,6 +9892,7 @@ static void share_nonprotected_vcpu_state(struct kvm_vcpu *vcpu,
 				vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 		}
 		break;
+	}
 	case EXIT_REASON_EPT_VIOLATION:
 		to_vmx(shared_vcpu)->exit_gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
 		fallthrough;
@@ -9907,7 +9908,6 @@ static void share_nonprotected_vcpu_state(struct kvm_vcpu *vcpu,
 		to_vmx(shared_vcpu)->instr_info = vmcs_read32(VMX_INSTRUCTION_INFO);
 		shared_vcpu->arch.event_exit_inst_len = vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 		break;
-	}
 	default:
 		break;
 	}

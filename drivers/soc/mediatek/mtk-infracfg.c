@@ -7,6 +7,7 @@
 #include <linux/jiffies.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <linux/module.h>
 #include <linux/soc/mediatek/infracfg.h>
 #include <asm/processor.h>
 
@@ -43,6 +44,7 @@ int mtk_infracfg_set_bus_protection(struct regmap *infracfg, u32 mask,
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(mtk_infracfg_set_bus_protection);
 
 /**
  * mtk_infracfg_clear_bus_protection - disable bus protection
@@ -73,8 +75,9 @@ int mtk_infracfg_clear_bus_protection(struct regmap *infracfg, u32 mask,
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(mtk_infracfg_clear_bus_protection);
 
-static int __init mtk_infracfg_init(void)
+int mtk_infracfg_init(void)
 {
 	struct regmap *infracfg;
 
@@ -90,4 +93,6 @@ static int __init mtk_infracfg_init(void)
 				MT8192_INFRA_CTRL_DISABLE_MFG2ACP);
 	return 0;
 }
-postcore_initcall(mtk_infracfg_init);
+EXPORT_SYMBOL_GPL(mtk_infracfg_init);
+
+MODULE_LICENSE("GPL");

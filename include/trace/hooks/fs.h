@@ -70,6 +70,38 @@ DECLARE_RESTRICTED_HOOK(android_rvh_do_fcntl,
 	TP_PROTO(struct file *filp, unsigned int cmd, unsigned long arg, long *err),
 	TP_ARGS(filp, cmd, arg, err), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_f2fs_buffer_write,
+	TP_PROTO(struct kiocb *iocb, struct iov_iter *from,
+		 ssize_t *ret, bool *write_done),
+	TP_ARGS(iocb, from, ret, write_done), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_f2fs_move_data_block_bypass,
+	TP_PROTO(struct inode *inode, unsigned int bidx, int gc_type,
+		 unsigned int segno, int off, int *err, bool *bypass),
+	TP_ARGS(inode, bidx, gc_type, segno, off, err, bypass), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_f2fs_ra_data_block_bypass,
+	TP_PROTO(struct inode *inode, pgoff_t index, int *err, bool *bypass),
+	TP_ARGS(inode, index, err, bypass), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_f2fs_write_cache_pages,
+	TP_PROTO(struct address_space *mapping, struct writeback_control *wbc,
+		 int *ret, bool *wb_done),
+	TP_ARGS(mapping, wbc, ret, wb_done), 1);
+
+DECLARE_HOOK(android_vh_f2fs_customized_ioctl,
+	TP_PROTO(struct file *filp, unsigned int cmd, unsigned long arg,
+		 long *ret, bool *ioctl_done),
+	TP_ARGS(filp, cmd, arg, ret, ioctl_done));
+
+DECLARE_HOOK(android_vh_f2fs_dnode_set_blkaddr,
+	TP_PROTO(struct inode *inode, u32 blkaddr),
+	TP_ARGS(inode, blkaddr));
+
+DECLARE_HOOK(android_vh_f2fs_inode_may_compress,
+	TP_PROTO(struct inode *inode, int *err),
+	TP_ARGS(inode, err));
+
 DECLARE_HOOK(android_vh_f2fs_improve_priority,
 	TP_PROTO(struct task_struct *p, int *saved_prio, bool *skip),
 	TP_ARGS(p, saved_prio, skip));

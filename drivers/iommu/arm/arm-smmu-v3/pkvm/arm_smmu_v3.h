@@ -53,6 +53,8 @@ struct hyp_arm_smmu_v3_device {
  * @host_ste_cfg	Host stream table config
  * @host_ste_base	Host stream table base
  * @gbpa		Last value of GBPA from the host
+ * @evtq_base		Host evtq base reg
+ * @priq_base		Host priq base reg
  */
 struct hyp_arm_smmu_v3_nested_device {
 	struct hyp_arm_smmu_v3_device common;
@@ -64,6 +66,8 @@ struct hyp_arm_smmu_v3_nested_device {
 	u64			host_ste_cfg;
 	u64			host_ste_base;
 	u32			gbpa;
+	unsigned long		evtq_base;
+	unsigned long		priq_base;
 };
 
 extern size_t kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_count);

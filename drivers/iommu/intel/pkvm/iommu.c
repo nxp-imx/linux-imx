@@ -131,33 +131,44 @@ static int iommu_direct_mmio_write(struct intel_iommu *iommu, u64 phys,
 
 static int handle_gcmd_direct(struct intel_iommu *iommu, u32 gcmd_bit, bool set)
 {
-	u32 gcmd = iommu->vgsts & DMAR_GSTS_EN_BITS;
+	u32 gcmd = readl(iommu->reg + DMAR_GSTS_REG) & DMAR_GSTS_EN_BITS;
 	u32 sts;
 
 	if ((gcmd_bit & DMAR_GCMD_ONESHOT) && !set)
 		return -EINVAL;
 
-	if (set)
+	if (set) {
+		if (gcmd & gcmd_bit) {
+			iommu->vgsts |= gcmd_bit;
+			return 0;
+		}
 		gcmd |= gcmd_bit;
-	else
+	} else {
+		if (!(gcmd & gcmd_bit)) {
+			iommu->vgsts &= ~gcmd_bit;
+			return 0;
+		}
 		gcmd &= ~gcmd_bit;
+	}
 
 	writel(gcmd, iommu->reg + DMAR_GCMD_REG);
-	if (set)
+	if (set) {
 		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, readl, (sts & gcmd_bit), sts);
-	else
+		iommu->vgsts |= gcmd_bit;
+	} else {
 		IOMMU_WAIT_OP(iommu, DMAR_GSTS_REG, readl, !(sts & gcmd_bit), sts);
-
-	iommu->vgsts = (iommu->vgsts & DMAR_GCMD_ONESHOT) | gcmd;
+		iommu->vgsts &= ~gcmd_bit;
+	}
 
 	return 0;
 }
 
 static int initialize_qi(struct intel_iommu *iommu)
 {
+	void *desc = pkvm_host_gpa_to_virt(iommu->viqa & VTD_PAGE_MASK);
 	u64 desc_sz = ecap_smts(iommu->ecap) ? SZ_8K : SZ_4K;
-	struct q_inval *qi = iommu->qi;
-	u64 val = __pkvm_pa(qi->desc);
+	struct q_inval *qi = &iommu->_qi;
+	u64 val = __pkvm_pa(desc);
 	int ret;
 
 	ret = pkvm_host_donate_hyp_share_ro(val, desc_sz, true);
@@ -172,6 +183,7 @@ static int initialize_qi(struct intel_iommu *iommu)
 	pkvm_spin_lock_init(&qi->q_lock);
 	qi->free_head = qi->free_tail = 0;
 	qi->free_cnt = QI_LENGTH;
+	qi->desc = desc;
 
 	/*
 	 * Set DW=1 and QS=1 in IQA_REG when Scalable Mode capability
@@ -185,7 +197,22 @@ static int initialize_qi(struct intel_iommu *iommu)
 	/* Set IQA */
 	writeq(val, iommu->reg + DMAR_IQA_REG);
 
-	return handle_gcmd_direct(iommu, DMA_GCMD_QIE, true);
+	/*
+	 * QIE is not oneshot bit for enabling thus should not be failed unless
+	 * there is a code bug.
+	 */
+	BUG_ON(handle_gcmd_direct(iommu, DMA_GCMD_QIE, true));
+
+	/*
+	 * Host IOMMU driver dynamically allocates iommu->qi, but pKVM has it
+	 * embedded. For easy re-use of host code, the embedded field is named
+	 * as iommu->_qi, and the pointer iommu->qi points to iommu->_qi.
+	 * Also, it serves as a flag to denote whether qi is
+	 * enabled(similar to how host driver does)
+	 */
+	iommu->qi = qi;
+
+	return 0;
 }
 
 static int handle_gcmd_qie(struct intel_iommu *iommu, bool enable)
@@ -201,15 +228,6 @@ static int handle_gcmd_qie(struct intel_iommu *iommu, bool enable)
 			return -EINVAL;
 		}
 
-		/*
-		 * Host IOMMU driver dynamically allocates iommu->qi, but pKVM has it
-		 * embedded. For easy re-use of host code, the embedded field is named
-		 * as iommu->_qi, and the pointer iommu->qi points to iommu->_qi.
-		 * Also, it serves as a flag to denote whether qi is
-		 * enabled(similar to how host driver does)
-		 */
-		iommu->qi = &iommu->_qi;
-		iommu->qi->desc = pkvm_host_gpa_to_virt(iommu->viqa & VTD_PAGE_MASK);
 		ret = initialize_qi(iommu);
 	} else {
 		if (!iommu->qi)
@@ -255,6 +273,9 @@ static int handle_gcmd_srtp(struct intel_iommu *iommu)
 	} else if (iommu->root_entry) {
 		pkvm_warn("iommu%d: SRTP allowed only once", iommu->seq_id);
 		return -EBUSY;
+	} else if (!cap_esrtps(iommu->cap) && !iommu->qi) {
+		pkvm_warn("iommu%d: QI is required but not initialized yet", iommu->seq_id);
+		return -EINVAL;
 	}
 
 	root_pa = pkvm_host_gpa_to_phys(iommu->vrta & VTD_PAGE_MASK);
@@ -293,7 +314,7 @@ static int handle_gcmd_te(struct intel_iommu *iommu, bool enable)
 		 * compromise pKVM security guarantees.
 		 */
 		iommu->vgsts &= ~DMA_GSTS_TES;
-		pkvm_dbg("iommu%d: Translation marked as disabled!", iommu->seq_id);
+		pkvm_dbg("iommu%d: Translation marked as disabled!\n", iommu->seq_id);
 	}
 
 	return 0;
@@ -421,7 +442,7 @@ int pkvm_iommu_mmio_write(u64 phys, int len, u64 val)
 		if (iommu->qi) {
 			pkvm_err("iommu%d: write to IQT not allowed!\n",
 				 iommu->seq_id);
-			return -EPERM;
+			ret = -EPERM;
 		}
 		break;
 	case DMAR_RTADDR_REG:

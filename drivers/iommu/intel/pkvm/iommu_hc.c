@@ -17,10 +17,8 @@ int pkvm_iommu_iec_flush(u64 phys, int index, int mask, bool global)
 {
 	struct intel_iommu *iommu = iommu_from_phys(phys);
 
-	if (!iommu)
+	if (!iommu || !iommu->qi)
 		return -EINVAL;
-
-	BUG_ON(!iommu->qi);
 
 	if (global) {
 		qi_global_iec(iommu);
@@ -474,6 +472,7 @@ int pkvm_iommu_alloc_domain(struct alloc_domain_data *data)
 	if (IS_ERR(domain)) {
 		pkvm_err("%s: domain alloc failed for device[%x] (err=%ld)\n",
 			 __func__, data->bdf, PTR_ERR(domain));
+		pkvm_hyp_donate_host(__pkvm_pa(pgd), VTD_PAGE_SIZE, false);
 		return PTR_ERR(domain);
 	}
 

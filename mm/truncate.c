@@ -192,6 +192,8 @@ static int try_folio_split_or_unmap(struct folio *folio, struct page *split_at,
 
 	ret = try_folio_split_to_order(folio, split_at, min_order);
 
+	trace_android_vh_mm_truncate_try_split_folio(folio, split_at, &ret);
+
 	/*
 	 * If the split fails, unmap the folio, so it will be refaulted
 	 * with PTEs to respect SIGBUS semantics.

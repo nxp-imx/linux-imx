@@ -550,6 +550,7 @@ struct binder_thread {
 	spinlock_t prio_lock;
 	struct binder_priority prio_next;
 	enum binder_prio_state prio_state;
+	ANDROID_OEM_DATA(1);
 };
 
 /**
