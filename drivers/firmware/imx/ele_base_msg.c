@@ -548,8 +548,9 @@ int read_common_fuse(struct se_if_priv *priv,
 {
 	struct se_api_msg *tx_msg __free(kfree) = NULL;
 	struct se_api_msg *rx_msg __free(kfree) = NULL;
-	int rx_msg_sz = ELE_READ_FUSE_RSP_MSG_SZ;
+	int rx_msg_sz = ELE_READ_FUSE_RSP_MSG_SZ_CRC;
 	int ret = 0;
+	u32 soc_id;
 
 	if (!priv) {
 		ret = -EINVAL;
@@ -562,8 +563,23 @@ int read_common_fuse(struct se_if_priv *priv,
 		goto exit;
 	}
 
-	if (fuse_id == OTP_UNIQ_ID)
+	if ((get_ele_fw_vers_word() & ELE_FW_VERSION_MASK) < ELE_FW_VERSION_2_0_6) {
+		rx_msg_sz = ELE_READ_FUSE_RSP_MSG_SZ;
+	/* Firmware version >= 2.0.6 */
+	} else {
+		soc_id = get_se_soc_id(priv);
+
+		/* i.MX8ULP/93/91 platforms */
+		if (soc_id == SOC_ID_OF_IMX93 ||
+		    soc_id == SOC_ID_OF_IMX91 ||
+		    soc_id == SOC_ID_OF_IMX8ULP)
+			rx_msg_sz = ELE_READ_FUSE_RSP_MSG_SZ;
+	}
+
+	/* OTP_UNIQ_ID is only used on i.MX8ULP platform */
+	if (fuse_id == OTP_UNIQ_ID && soc_id == SOC_ID_OF_IMX8ULP) {
 		rx_msg_sz = ELE_READ_FUSE_OTP_UNQ_ID_RSP_MSG_SZ;
+	}
 
 	rx_msg = kzalloc(rx_msg_sz, GFP_KERNEL);
 	if (!rx_msg) {

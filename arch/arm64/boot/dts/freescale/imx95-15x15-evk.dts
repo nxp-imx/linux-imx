@@ -21,6 +21,10 @@
 #define BRD_SM_CTRL_PCIE2_WAKE		0x8003
 #define BRD_SM_CTRL_BUTTON		0x8004
 
+&ele_if0 {
+	memory-region = <&ele_reserved>;
+};
+
 / {
 	compatible = "fsl,imx95-15x15-evk", "fsl,imx95";
 	model = "NXP i.MX95 15X15 board";
@@ -228,6 +232,12 @@
 
 		mali_protected: mali_protected {
 			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
 			no-map;
 		};
 	};

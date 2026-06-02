@@ -128,6 +128,8 @@
 #define  PLL_CLKOUTEN_LEFT_RW		BIT(0)
 #define DIG_RDWR_TX_CB_0		0x1aa
 #define DIG_RDWR_TX_CB_1		0x1ab
+#define DIG_RDWR_TX_CB_2		0x1ac
+#define  CB_CLKDIV_CLK_EN_RW		BIT(4)
 #define DIG_RDWR_TX_TX_SLEW_0		0x26b
 #define DIG_RDWR_TX_TX_SLEW_5		0x270
 #define DIG_RDWR_TX_TX_SLEW_6		0x271
@@ -668,6 +670,14 @@ static int imx95_dsi_phy_pll_configure(struct imx95_dsi *dsi,
 
 	/* set pll_mpll_prog_rw (bits1:0) to 2'b11 */
 	imx95_dsi_phy_tst_ctrl_write(dsi, DIG_RDWR_TX_PLL_13, 0x03);
+
+	/* from DPHY databook section 5.3.4 Start-Up Sequence
+	 * set cb_clkdiv_clk_en_rw (bit 4) to 1 for data rates below 450Mbps
+	 */
+	if (opts->mipi_dphy.hs_clk_rate < MBPS(450))
+		imx95_dsi_phy_tst_ctrl_update(dsi, DIG_RDWR_TX_CB_2,
+					      CB_CLKDIV_CLK_EN_RW, CB_CLKDIV_CLK_EN_RW);
+
 	/* set cb_sel_vref_lprx_rw (bits 1:0) to 2'b10 */
 	imx95_dsi_phy_tst_ctrl_write(dsi, DIG_RDWR_TX_CB_1, 0x06);
 	/* set cb_sel_vrefcd_lprx_rw (bits 6:5) to 2'b10 */
@@ -946,10 +956,6 @@ static bool imx95_dsi_mode_fixup(void *priv_data,
 
 	dev_dbg(dsi->dev, "adj clock %d for mode " DRM_MODE_FMT "\n",
 		adjusted_mode->clock, DRM_MODE_ARG(mode));
-
-	/* pixel link always generates active low HSYNC and VSYNC */
-	adjusted_mode->flags &= ~(DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC);
-	adjusted_mode->flags |= DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC;
 
 	return true;
 }

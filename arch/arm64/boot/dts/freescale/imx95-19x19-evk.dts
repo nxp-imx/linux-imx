@@ -19,6 +19,10 @@
 #define BRD_SM_CTRL_PCIE2_WAKE		0x8003	/* PCAL6408A-6 */
 #define BRD_SM_CTRL_BUTTON		0x8004	/* PCAL6408A-7 */
 
+&ele_if0 {
+	memory-region = <&ele_reserved>;
+};
+
 / {
 	model = "NXP i.MX95 19X19 board";
 	compatible = "fsl,imx95-19x19-evk", "fsl,imx95";
@@ -133,6 +137,13 @@
 			reg = <0 0x88020000 0 0x100000>;
 			no-map;
 		};
+
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
+			no-map;
+		};
+
 	};
 
 	flexcan1_phy: can-phy0 {

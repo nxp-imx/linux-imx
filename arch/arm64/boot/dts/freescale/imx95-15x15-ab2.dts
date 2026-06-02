@@ -13,6 +13,10 @@
 #define BRD_SM_CTRL_BT_WAKE		8	/*!< PCAL6408A-5 */
 #define BRD_SM_CTRL_BUTTON		10	/*!< PCAL6408A-7 */
 
+&ele_if0 {
+	memory-region = <&ele_reserved>;
+};
+
 / {
 	model = "NXP i.MX95 CPU on AB2";
 	compatible = "fsl,imx95-15x15-ab2", "fsl,imx95";
@@ -47,6 +51,12 @@
 
 		vpu_boot: vpu_boot@a0000000 {
 			reg = <0 0xa0000000 0 0x100000>;
+			no-map;
+		};
+
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
 			no-map;
 		};
 	};

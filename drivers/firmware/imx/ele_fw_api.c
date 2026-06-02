@@ -76,7 +76,7 @@ int ele_get_random(struct se_if_priv *priv,
 	struct se_api_msg *rx_msg __free(kfree) = NULL;
 	struct ele_rng_msg_data *rng_msg_data;
 	dma_addr_t dst_dma;
-	u8 *buf = NULL;
+	void *buf = NULL;
 	int ret;
 
 	if (!priv) {
@@ -103,10 +103,11 @@ int ele_get_random(struct se_if_priv *priv,
 	 * for every iteration.
 	 */
 	len = ELE_RNG_MAX_SIZE;
-	buf = dma_alloc_coherent(priv->dev, len, &dst_dma, GFP_KERNEL);
-	if (!buf) {
-		dev_err(priv->dev, "Failed to map destination buffer memory.\n");
-		ret = -ENOMEM;
+
+	ret = get_shared_mem_slot(priv->priv_dev_ctx, SE_IO_BUF_FLAGS_IS_OUTPUT,
+				  len, &dst_dma, &buf);
+	if (ret) {
+		dev_err(priv->dev, "Failed to allocate buffer.\n");
 		goto exit;
 	}
 
@@ -147,8 +148,8 @@ int ele_get_random(struct se_if_priv *priv,
 		ret = len;
 	}
 exit:
-	if (buf)
-		dma_free_coherent(priv->dev, len, buf, dst_dma);
+	se_dev_ctx_shared_mem_cleanup(priv->priv_dev_ctx);
+
 	return ret;
 }
 

@@ -13,6 +13,7 @@
 #define SOC_ID_OF_IMX8QM		0x1
 #define SOC_ID_OF_IMX8QXP		0x2
 #define SOC_ID_OF_IMX93			0x9300
+#define SOC_ID_OF_IMX91			0x9100
 #define SOC_ID_OF_IMX94			0x9430
 #define SOC_ID_OF_IMX95			0x9500
 #define SOC_ID_OF_IMX952		0x9520

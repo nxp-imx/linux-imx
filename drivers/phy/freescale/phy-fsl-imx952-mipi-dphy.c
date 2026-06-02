@@ -950,7 +950,7 @@ imx952_mipi_dphy_static_configure(struct imx952_mipi_dphy_priv *priv)
 static inline unsigned long
 multi(struct imx952_mipi_dphy_priv *priv, unsigned long x)
 {
-	return x * (priv->submode ? 55 : 11) / 10;
+	return x * priv->submode / 10;
 }
 
 static void

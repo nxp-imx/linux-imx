@@ -21,6 +21,10 @@
 #define BRD_SM_CTRL_PCIE2_WAKE		0x8003	/*!< PCAL6408A-6 */
 #define BRD_SM_CTRL_BUTTON		0x8004	/*!< PCAL6408A-7 */
 
+&ele_if0 {
+	memory-region = <&ele_reserved>;
+};
+
 / {
 	model = "NXP FRDM-IMX95-PRO";
 	compatible = "fsl,frdm-imx95-pro", "fsl,imx95";
@@ -104,6 +108,12 @@
 		vdevbuffer: vdevbuffer@88020000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0x88020000 0 0x100000>;
+			no-map;
+		};
+
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
 			no-map;
 		};
 	};
