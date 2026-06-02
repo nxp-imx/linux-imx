@@ -172,7 +172,7 @@
 /delete-node/ &i2c3;
 
 &i2c_rpbus_3 {
-	compatible = "fsl,i2c-rpbus";
+	compatible = "fsl,i2c-rpbus-v2";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";

@@ -2397,7 +2397,7 @@
 	};
 
 	i2c_rpbus_3: i2c-rpbus-3 {
-		compatible = "fsl,i2c-rpbus";
+		compatible = "fsl,i2c-rpbus-v2";
 		status = "disabled";
 	};
 };
