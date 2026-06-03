@@ -269,7 +269,7 @@ static int dpu95_irq_init(struct platform_device *pdev, struct dpu95_soc *dpu)
 	struct device *dev = &pdev->dev;
 	struct irq_chip_generic *gc;
 	struct irq_chip_type *ct;
-	int ret, i, j;
+	int ret, i, j, irq_num;
 
 	parent_domain = dpu95_find_parent_irq_domain(dev);
 	if (!parent_domain)
@@ -285,8 +285,8 @@ static int dpu95_irq_init(struct platform_device *pdev, struct dpu95_soc *dpu)
 		return -ENOMEM;
 
 	for (i = 0; i < data->comctrl_irq_cnt; i++) {
-		dpu->comctrl_irq[i] = platform_get_irq(pdev,
-						       data->comctrl_irq[i]);
+		irq_num = data->get_platform_irq_num(data->comctrl_irq[i]);
+		dpu->comctrl_irq[i] = platform_get_irq(pdev, irq_num);
 		if (dpu->comctrl_irq[i] < 0)
 			return dev_err_probe(dev, dpu->comctrl_irq[i],
 					     "failed to get comctrl irq[%d]\n",
@@ -294,8 +294,8 @@ static int dpu95_irq_init(struct platform_device *pdev, struct dpu95_soc *dpu)
 	}
 
 	for (i = 0; i < data->disp_irq0_cnt; i++) {
-		dpu->disp_irq0[i] = platform_get_irq(pdev,
-						     data->disp_irq0[i]);
+		irq_num = data->get_platform_irq_num(data->disp_irq0[i]);
+		dpu->disp_irq0[i] = platform_get_irq(pdev, irq_num);
 		if (dpu->disp_irq0[i] < 0)
 			return dev_err_probe(dev, dpu->disp_irq0[i],
 					     "failed to get display irq0[%d]\n",
@@ -303,8 +303,8 @@ static int dpu95_irq_init(struct platform_device *pdev, struct dpu95_soc *dpu)
 	}
 
 	for (i = 0; i < data->disp_irq2_cnt; i++) {
-		dpu->disp_irq2[i] = platform_get_irq(pdev,
-						     data->disp_irq2[i]);
+		irq_num = data->get_platform_irq_num(data->disp_irq2[i]);
+		dpu->disp_irq2[i] = platform_get_irq(pdev, irq_num);
 		if (dpu->disp_irq2[i] < 0)
 			return dev_err_probe(dev, dpu->disp_irq2[i],
 					     "failed to get display irq2[%d]\n",

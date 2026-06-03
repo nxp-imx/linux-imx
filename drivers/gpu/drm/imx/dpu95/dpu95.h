@@ -343,6 +343,7 @@ struct dpu95_data {
 
 	int irq_cnt;
 	const unsigned long *unused_irq;
+	int (* const get_platform_irq_num)(int irq);
 
 	int *comctrl_irq;
 	int comctrl_irq_cnt;

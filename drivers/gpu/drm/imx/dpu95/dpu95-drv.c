@@ -22,6 +22,7 @@
 #include <drm/drm_module.h>
 #include <drm/drm_print.h>
 
+#include "dpu937-data.h"
 #include "dpu95.h"
 #include "dpu95-data.h"
 #include "dpu95-drv.h"
@@ -233,6 +234,7 @@ static const struct dev_pm_ops dpu95_pm_ops = {
 };
 
 static const struct of_device_id dpu95_ids[] = {
+	{ .compatible = "nxp,imx937-dpu", .data = &dpu937_data },
 	{ .compatible = "nxp,imx95-dpu", .data = &dpu95_data },
 	{ .compatible = "nxp,imx952-dpu", .data = &dpu952_data },
 	{ /* sentinel */ }

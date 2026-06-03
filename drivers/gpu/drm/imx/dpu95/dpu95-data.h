@@ -385,6 +385,11 @@ enum dpu95_irq {
 static const unsigned long dpu95_unused_irq[] = {
 0x00000000, 0x00000000, 0xffc00000};
 
+static int dpu95_get_platform_irq_num(int irq)
+{
+	return irq;
+}
+
 static enum dpu95_irq dpu95_comctrl_irq[] = {
 	DPU95_IRQ_COMCTRL_SW0,
 	DPU95_IRQ_COMCTRL_SW1,
@@ -595,6 +600,7 @@ static const struct dpu95_data dpu95_data = {
 
 	.irq_cnt = DPU95_IRQ_CNT,
 	.unused_irq = dpu95_unused_irq,
+	.get_platform_irq_num = dpu95_get_platform_irq_num,
 
 	.comctrl_irq = (int *)dpu95_comctrl_irq,
 	.comctrl_irq_cnt = ARRAY_SIZE(dpu95_comctrl_irq),
