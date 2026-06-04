@@ -3270,16 +3270,9 @@ static int pxp_store_config(struct pxps *pxp,
 	pxp_writel(shift_ctrl, HW_PXP_INPUT_STORE_SHIFT_CTRL_CH0);
 	pxp_writel(store_size, HW_PXP_INPUT_STORE_SIZE_CH0);
 	pxp_writel(store_pitch, HW_PXP_INPUT_STORE_PITCH);
-	if (op->fill_en) {
-		uint32_t lrc;
 
-		lrc = (output->width - 1) | ((output->height - 1) << 16);
+	if (op->fill_en)
 		pxp_writel(op->fill_data, HW_PXP_INPUT_STORE_FILL_DATA_CH0);
-
-		pxp_writel(0x1, HW_PXP_INPUT_FETCH_CTRL_CH0);
-		pxp_writel(0, HW_PXP_INPUT_FETCH_ACTIVE_SIZE_ULC_CH0);
-		pxp_writel(lrc, HW_PXP_INPUT_FETCH_ACTIVE_SIZE_LRC_CH0);
-	}
 
 	offset = output->crop.y * output->pitch +
 		 output->crop.x * (output->bpp >> 3);
