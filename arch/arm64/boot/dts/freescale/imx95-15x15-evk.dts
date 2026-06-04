@@ -235,9 +235,9 @@
 			no-map;
 		};
 
-		ele_reserved: ele-reserved@a4120000 {
+		ele_reserved: ele-reserved@88230000 {
 			compatible = "shared-dma-pool";
-			reg = <0 0xa4120000 0 0x100000>;
+			reg = <0 0x88230000 0 0x100000>;
 			no-map;
 		};
 	};
