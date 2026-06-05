@@ -16,6 +16,7 @@
 struct cs42xx8_driver_data {
 	char name[32];
 	int num_adcs;
+	bool is_rpmsg_i2c;
 };
 
 extern const struct dev_pm_ops cs42xx8_pm;

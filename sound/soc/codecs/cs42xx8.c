@@ -654,8 +654,9 @@ static int cs42xx8_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 1);
-	gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 0);
+	if (!cs42xx8->drvdata->is_rpmsg_i2c) {
+		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 0);
+	}
 
 	ret = regulator_bulk_enable(ARRAY_SIZE(cs42xx8->supplies),
 				    cs42xx8->supplies);
@@ -695,6 +696,10 @@ static int cs42xx8_runtime_suspend(struct device *dev)
 
 	regulator_bulk_disable(ARRAY_SIZE(cs42xx8->supplies),
 			       cs42xx8->supplies);
+
+	/* In rpmsg i2c cases, don't reset codec at runtime suspend */
+	if (!cs42xx8->drvdata->is_rpmsg_i2c)
+		gpiod_set_value_cansleep(cs42xx8->gpiod_reset, 1);
 
 	clk_disable_unprepare(cs42xx8->clk);
 
