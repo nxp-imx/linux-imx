@@ -380,6 +380,8 @@ static int wave6_vpu_dec_handle_frame_buffer(struct vpu_instance *inst)
 {
 	int ret, idx;
 
+	guard(mutex)(&inst->fbc_lock);
+
 	if (inst->registered_fb_num >= inst->allocated_fb_num)
 		return 0;
 
@@ -903,9 +905,11 @@ static void wave6_event_src_ch_resolution(struct vpu_instance *inst)
 static void wave6_vpu_dec_handle_source_change(struct vpu_instance *inst,
 					       struct dec_initial_info *info)
 {
-	dprintk(inst->dev->dev, "pic size %dx%d profile %d, min_fb_cnt : %d | min_disp_cnt : %d\n",
-		info->pic_width, info->pic_height,
-		info->profile, info->min_frame_buffer_count, info->frame_buf_delay);
+	dprintk(inst->dev->dev,
+		"pic size %dx%d profile %d, min_fb_cnt : %d | min_disp_cnt : %d, change 0x%x\n",
+		info->pic_width, info->pic_height, info->profile,
+		info->min_frame_buffer_count, info->frame_buf_delay,
+		info->seq_change_info);
 
 	wave6_vpu_dec_retry_one_frame(inst);
 
@@ -1407,6 +1411,15 @@ static void wave6_vpu_reset_dst_buffers(struct vpu_instance *inst)
 	}
 }
 
+static void wave6_vpu_dec_replenish_internal_buffers(struct vpu_instance *inst)
+{
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+	unsigned int fb_num = p_dec_info->initial_info.min_frame_buffer_count;
+
+	for (u32 idx = inst->allocated_fb_num; idx < fb_num; idx++)
+		wave6_allocate_internal_buffers(inst);
+}
+
 static void wave6_vpu_dec_start_cmd(struct vpu_instance *inst)
 {
 	struct vb2_queue *q = v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx);
@@ -1415,6 +1428,8 @@ static void wave6_vpu_dec_start_cmd(struct vpu_instance *inst)
 		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
 		wave6_vpu_dec_flush_instance(inst);
 		wave6_vpu_reset_dst_buffers(inst);
+		if (inst->state >= VPU_INST_STATE_INIT_SEQ)
+			wave6_vpu_dec_replenish_internal_buffers(inst);
 	}
 
 	vb2_clear_last_buffer_dequeued(q);

@@ -253,15 +253,24 @@ int wave6_vpu_dec_register_frame_buffer_ex(struct vpu_instance *inst,
 	int ret;
 	struct vpu_device *vpu_dev = inst->dev;
 
-	if (!p_dec_info->initial_info_obtained)
+	if (!p_dec_info->initial_info_obtained) {
+		dev_err(inst->dev->dev, "fail to register fbc %d, initial_info_obtained %d\n",
+			fb.index, p_dec_info->initial_info_obtained);
 		return -EINVAL;
+	}
 
-	if (fb.index < 0 || fb.index >= WAVE6_MAX_FBS)
+	if (fb.index < 0 || fb.index >= WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev, "fail to register fbc %d, out of range\n", fb.index);
 		return -EINVAL;
+	}
 
 	if (fb.stride < p_dec_info->initial_info.pic_width || (fb.stride % 8) ||
-	    fb.height < p_dec_info->initial_info.pic_height)
+	    fb.height < p_dec_info->initial_info.pic_height) {
+		dev_err(inst->dev->dev, "fail to register fbc %d, stride %d, %dx%d, %dx%d\n",
+			fb.index, fb.stride, fb.width, fb.height,
+			p_dec_info->initial_info.pic_width, p_dec_info->initial_info.pic_height);
 		return -EINVAL;
+	}
 
 	mutex_lock(&vpu_dev->hw_lock);
 
