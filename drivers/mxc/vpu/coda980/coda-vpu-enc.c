@@ -1092,6 +1092,8 @@ static int coda_vpu_enc_create_instance(struct vpu_instance *inst)
 	}
 
 	inst->work_vbuf.size = CODA_WORK_BUF_SIZE;
+	inst->work_vbuf.recorder = inst->recorder;
+	inst->work_vbuf.label = "work_buf";
 	ret = coda_vdi_allocate_dma_memory(inst->vpu_dev->dev, &inst->work_vbuf);
 	if (ret) {
 		dev_dbg(inst->vpu_dev->dev, "%s: allocate work buffer of size %zu fail: %d\n",
@@ -1102,6 +1104,8 @@ static int coda_vpu_enc_create_instance(struct vpu_instance *inst)
 	inst->report_vbuf.size = CODA_REPORT_BUF_SIZE_ADDR_INFO + CODA_REPORT_BUF_SIZE_MB_INFO +
 				 CODA_REPORT_BUF_SIZE_MV_INFO + CODA_REPORT_BUF_SIZE_SLICE_INFO +
 				 CODA_REPORT_BUF_SIZE_COST_INFO;
+	inst->report_vbuf.recorder = inst->recorder;
+	inst->report_vbuf.label = "report_buf";
 	ret = coda_vdi_allocate_dma_memory(inst->vpu_dev->dev, &inst->report_vbuf);
 	if (ret) {
 		dev_dbg(inst->vpu_dev->dev, "%s: allocate report buffer of size %zu fail: %d\n",
@@ -1167,6 +1171,8 @@ static int coda_vpu_enc_prepare_fb(struct vpu_instance *inst)
 		u32 chroma_size = ALIGN(fb_stride / 2, 16) * fb_height;
 
 		vframe->size = luma_size + chroma_size;
+		vframe->recorder = inst->recorder;
+		vframe->label = "frame_buf";
 		ret = coda_vdi_allocate_dma_memory(inst->vpu_dev->dev, vframe);
 		if (ret < 0) {
 			dev_err(inst->vpu_dev->dev, "%s: failed to allocate FBC buffer %zu\n",
@@ -1339,10 +1345,43 @@ static const struct v4l2_ioctl_ops coda_vpu_enc_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
+static int coda_vpu_enc_buf_init(struct vb2_buffer *vb)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
+
+	if (vb->memory == VB2_MEMORY_MMAP) {
+		int i;
+
+		for (i = 0; i < vb->num_planes; i++)
+			imx_mur_long_new_and_add(inst->recorder, vb->planes[i].length,
+						V4L2_TYPE_IS_OUTPUT(vb->type) ?
+						"output" : "capture");
+	}
+
+	return 0;
+}
+
+static void coda_vpu_enc_buf_cleanup(struct vb2_buffer *vb)
+{
+	struct vpu_instance *inst = vb2_get_drv_priv(vb->vb2_queue);
+
+	if (vb->memory == VB2_MEMORY_MMAP) {
+		int i;
+
+		for (i = 0; i < vb->num_planes; i++)
+			imx_mur_long_sub_and_del_by_name(inst->recorder,
+							 vb->planes[i].length,
+							 V4L2_TYPE_IS_OUTPUT(vb->type) ?
+							 "output" : "capture");
+	}
+}
+
 static const struct vb2_ops coda_vpu_enc_vb2_ops = {
 	.queue_setup = coda_vpu_enc_queue_setup,
 	.wait_prepare = vb2_ops_wait_prepare,
 	.wait_finish = vb2_ops_wait_finish,
+	.buf_init = coda_vpu_enc_buf_init,
+	.buf_cleanup = coda_vpu_enc_buf_cleanup,
 	.buf_queue = coda_vpu_enc_buf_queue,
 	.buf_finish = coda_vpu_enc_buf_finish,
 	.start_streaming = coda_vpu_enc_start_streaming,
@@ -1745,6 +1784,9 @@ static int coda_vpu_enc_open(struct file *filp)
 		goto cleanup_inst;
 	}
 
+	inst->recorder = imx_mur_create_node(vpu->recorder, "encoder instance");
+	imx_mur_new_v4l2_ctrl(v4l2_ctrl_hdl, inst->recorder);
+
 	return 0;
 
 cleanup_inst:
@@ -1762,6 +1804,7 @@ free_inst:
 static int coda_vpu_enc_release(struct file *filp)
 {
 	struct vpu_instance *inst = coda_to_vpu_inst(file_to_v4l2_fh(filp));
+	long usage;
 
 	dev_dbg(inst->vpu_dev->dev, "[%d] release %d\n", inst->id, inst->state);
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
@@ -1775,9 +1818,16 @@ static int coda_vpu_enc_release(struct file *filp)
 	mutex_unlock(&inst->vpu_dev->dev_lock);
 
 	ida_free(&inst->vpu_dev->inst_ida, inst->id);
+	imx_mur_release_v4l2_ctrl(inst->recorder);
 	v4l2_ctrl_handler_free(&inst->v4l2_ctrl_hdl);
 	v4l2_fh_del(&inst->v4l2_fh, filp);
 	v4l2_fh_exit(&inst->v4l2_fh);
+
+	usage = imx_mur_long_read(inst->recorder);
+	if (usage)
+		dev_err(inst->vpu_dev->dev, "[%d] leak memory, size is %ld\n",
+			inst->id, usage);
+	imx_mur_destroy_node(inst->recorder);
 	kfree(inst);
 
 	return 0;

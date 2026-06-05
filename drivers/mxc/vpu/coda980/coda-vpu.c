@@ -185,6 +185,7 @@ static int coda_vpu_probe(struct platform_device *pdev)
 	init_completion(&vpu->irq_done);
 	dev_set_drvdata(&pdev->dev, vpu);
 	vpu->dev = &pdev->dev;
+	vpu->recorder = imx_mur_create_node(NULL, "coda980-encoder");
 	vpu->fw_name = match_data->fw_name;
 
 	vpu->reg_base = devm_platform_ioremap_resource(pdev, 0);
@@ -324,6 +325,7 @@ static void coda_vpu_remove(struct platform_device *pdev)
 	struct vpu_device *vpu = dev_get_drvdata(&pdev->dev);
 
 	pm_runtime_disable(vpu->dev);
+	imx_mur_destroy_node(vpu->recorder);
 	coda_vpu_enc_unregister_device(vpu);
 	coda_vpu_release_m2m_dev(vpu);
 	v4l2_device_unregister(&vpu->v4l2_dev);

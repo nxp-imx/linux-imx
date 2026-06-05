@@ -483,6 +483,8 @@ struct vpu_instance {
 	ktime_t ts_finish;
 	u64 total_sw_time;
 	u32 processed_buf_num;
+
+	struct imx_mur_node *recorder;
 };
 
 struct vpu_device {
@@ -509,6 +511,7 @@ struct vpu_device {
 	int num_clks;
 	struct clk_bulk_data *clks;
 	u32 reg_bk[64];
+	struct imx_mur_node *recorder;
 };
 
 int coda_vpuapi_init_with_bitcode(struct device *dev, u8 *code, size_t size);

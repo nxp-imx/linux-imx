@@ -172,6 +172,13 @@ int coda_vdi_allocate_dma_memory(struct device *dev, struct vpu_buf *vb)
 	vaddr = dma_alloc_coherent(dev, vb->size, &daddr, GFP_KERNEL);
 	if (!vaddr)
 		return -ENOMEM;
+	if (vb->recorder) {
+		if (vb->label)
+			imx_mur_long_new_and_add(vb->recorder, vb->size, vb->label);
+		else
+			imx_mur_long_add(vb->recorder, vb->size);
+	}
+
 	vb->vaddr = vaddr;
 	vb->daddr = daddr;
 	vb->dev = dev;
@@ -183,6 +190,13 @@ void coda_vdi_free_dma_memory(struct vpu_buf *vb)
 {
 	if (!vb || !vb->size || !vb->vaddr)
 		return;
+
+	if (vb->recorder) {
+		if (vb->label)
+			imx_mur_long_sub_and_del_by_name(vb->recorder, vb->size, vb->label);
+		else
+			imx_mur_long_sub(vb->recorder, vb->size);
+	}
 
 	dma_free_coherent(vb->dev, vb->size, vb->vaddr, vb->daddr);
 	memset(vb, 0, sizeof(*vb));

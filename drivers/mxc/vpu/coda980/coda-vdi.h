@@ -11,6 +11,7 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+#include <linux/imx_memory_usage.h>
 
 /* system register write */
 #define vpu_write_reg(DEV, ADDR, DATA) coda_vdi_writel(DEV, ADDR, DATA)
@@ -23,6 +24,8 @@ struct vpu_buf {
 	void *vaddr;
 	phys_addr_t paddr;
 	struct device *dev;
+	struct imx_mur_node *recorder;
+	const char *label;
 };
 
 enum vpu_endian_mode {
