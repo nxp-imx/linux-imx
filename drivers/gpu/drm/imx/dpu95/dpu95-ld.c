@@ -149,6 +149,8 @@ static int dpu95_ldfw_rproc_boot_thread(void *arg)
 	struct rproc *rproc = ld->fw.rproc;
 	int ret;
 
+	/* Delay some time before DPU-LD ready */
+	msleep(100);
 	/* Request a boot from the remote processor */
 	ret = rproc_boot(rproc);
 	if (ret)
