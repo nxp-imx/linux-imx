@@ -5,8 +5,14 @@
 
 #include <dt-bindings/gpio/gpio.h>
 
+#include "imx952-clock.h"
 #include "imx952-pinfunc.h"
 #include "imx95-evk-rm692c9-common.dtsi"
+
+&dpu {
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+};
 
 &mipi_dsi {
 	panel@0 {

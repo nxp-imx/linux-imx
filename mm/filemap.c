@@ -248,7 +248,8 @@ void __filemap_remove_folio(struct folio *folio, void *shadow)
 }
 EXPORT_SYMBOL(__filemap_remove_folio);
 
-void filemap_free_folio(struct address_space *mapping, struct folio *folio)
+static void filemap_free_folio(const struct address_space *mapping,
+		struct folio *folio)
 {
 	void (*free_folio)(struct folio *);
 

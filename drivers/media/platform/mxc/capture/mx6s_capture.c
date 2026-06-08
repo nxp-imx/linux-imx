@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Copyright (C) 2014-2016 Freescale Semiconductor, Inc. All Rights Reserved.
- * Copyright 2019-2024 NXP
+ * Copyright 2019-2026 NXP
  */
 
 /*!
@@ -302,7 +302,6 @@ struct mx6s_csi_dev {
 
 	struct vb2_queue			vb2_vidq;
 	struct v4l2_ctrl_handler	ctrl_handler;
-	struct v4l2_fh fh;
 
 	struct mutex		lock;
 	spinlock_t			slock;
@@ -346,11 +345,19 @@ struct mx6s_csi_dev {
 	struct mx6s_csi_mux csi_mux;
 };
 
+struct mx6s_fh {
+	struct v4l2_fh fh;
+	struct mx6s_csi_dev *csi_dev;
+};
+
 static const struct of_device_id mx6s_csi_dt_ids[];
 
 static inline struct mx6s_csi_dev *file_to_csidev(struct file *filp)
 {
-	return container_of(file_to_v4l2_fh(filp), struct mx6s_csi_dev, fh);
+	struct v4l2_fh *vfh = file_to_v4l2_fh(filp);
+	struct mx6s_fh *fh = container_of(vfh, struct mx6s_fh, fh);
+
+	return fh->csi_dev;
 }
 
 static inline int csi_read(struct mx6s_csi_dev *csi, unsigned int offset)
@@ -1213,10 +1220,22 @@ static int mx6s_csi_open(struct file *file)
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 	struct vb2_queue *q = &csi_dev->vb2_vidq;
+	struct mx6s_fh *fh;
 	int ret = 0;
 
-	if (mutex_lock_interruptible(&csi_dev->lock))
-		return -ERESTARTSYS;
+	fh = kzalloc(sizeof(*fh), GFP_KERNEL);
+	if (!fh)
+		return -ENOMEM;
+
+	v4l2_fh_init(&fh->fh, video_devdata(file));
+	fh->csi_dev = csi_dev;
+
+	if (mutex_lock_interruptible(&csi_dev->lock)) {
+		ret = -ERESTARTSYS;
+		goto err_free;
+	}
+
+	v4l2_fh_add(&fh->fh, file);
 
 	if (csi_dev->open_count++ == 0) {
 		q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -1230,7 +1249,7 @@ static int mx6s_csi_open(struct file *file)
 
 		ret = vb2_queue_init(q);
 		if (ret < 0)
-			goto unlock;
+			goto err_del_fh;
 
 		pm_runtime_get_sync(csi_dev->dev);
 
@@ -1239,14 +1258,19 @@ static int mx6s_csi_open(struct file *file)
 		v4l2_subdev_call(sd, core, s_power, 1);
 		mx6s_csi_init(csi_dev);
 
-		v4l2_fh_init(&csi_dev->fh, video_devdata(file));
-		v4l2_fh_add(&csi_dev->fh, file);
 	}
 	mutex_unlock(&csi_dev->lock);
 
 	return ret;
-unlock:
+
+err_del_fh:
+	csi_dev->open_count--;
 	mutex_unlock(&csi_dev->lock);
+	v4l2_fh_del(&fh->fh, file);
+
+err_free:
+	v4l2_fh_exit(&fh->fh);
+	kfree(fh);
 	return ret;
 }
 
@@ -1254,6 +1278,8 @@ static int mx6s_csi_close(struct file *file)
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
+	struct v4l2_fh *vfh = file_to_v4l2_fh(file);
+	struct mx6s_fh *fh = container_of(vfh, struct mx6s_fh, fh);
 
 	mutex_lock(&csi_dev->lock);
 
@@ -1268,11 +1294,12 @@ static int mx6s_csi_close(struct file *file)
 		release_bus_freq(BUS_FREQ_HIGH);
 
 		pm_runtime_put_sync_suspend(csi_dev->dev);
-
-		v4l2_fh_del(&csi_dev->fh, file);
-		v4l2_fh_exit(&csi_dev->fh);
 	}
 	mutex_unlock(&csi_dev->lock);
+
+	v4l2_fh_del(&fh->fh, file);
+	v4l2_fh_exit(&fh->fh);
+	kfree(fh);
 
 	return 0;
 }
