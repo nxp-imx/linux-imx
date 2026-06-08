@@ -122,6 +122,7 @@
   class_interface_unregister
   class_register
   class_unregister
+  cleancache_register_ops
   clear_page
   clk_disable
   clk_enable
@@ -144,6 +145,7 @@
   clockevents_config_and_register
   clocks_calc_mult_shift
   __clocksource_register_scale
+  close_fd
   __cma_alloc
   cma_alloc
   cma_for_each_area
@@ -393,6 +395,8 @@
   devm_power_supply_register
   __devm_pwmchip_add
   devm_pwmchip_alloc
+  devm_pwrseq_device_register
+  devm_pwrseq_get
   devm_register_reboot_notifier
   devm_register_sys_off_handler
   devm_regmap_add_irq_chip
@@ -417,6 +421,7 @@
   devm_thermal_of_zone_unregister
   devm_usb_get_phy_by_phandle
   _dev_notice
+  dev_open
   dev_pm_domain_attach_by_name
   dev_pm_domain_detach
   dev_pm_opp_add_dynamic
@@ -773,6 +778,7 @@
   drop_reasons_register_subsys
   drop_reasons_unregister_subsys
   dump_backtrace
+  dump_page
   dump_stack
   dw_handle_msi_irq
   dw_pcie_find_capability
@@ -881,6 +887,7 @@
   get_cpu_idle_time_us
   get_cpu_iowait_time_us
   get_device
+  get_file_active
   get_file_rcu
   get_free_pages_noprof
   get_net_ns_by_fd
@@ -1016,6 +1023,7 @@
   inet_csk_get_port
   init_iova_domain
   init_net
+  init_on_free
   init_pid_ns
   __init_rwsem
   __init_swait_queue_head
@@ -1134,6 +1142,7 @@
   klist_iter_exit
   klist_iter_init
   klist_next
+  klist_node_attached
   klist_remove
   __kmalloc_cache_node_noprof
   __kmalloc_cache_noprof
@@ -1299,8 +1308,8 @@
   __module_get
   module_layout
   module_put
-  msi_domain_get_virq
   __msecs_to_jiffies
+  msi_domain_get_virq
   msleep
   msleep_interruptible
   mtree_load
@@ -1355,6 +1364,7 @@
   nonseekable_open
   noop_llseek
   nr_cpu_ids
+  nr_swap_pages
   nsec_to_clock_t
   ns_to_timespec64
   __num_online_cpus
@@ -1470,6 +1480,7 @@
   pci_clear_master
   pci_disable_device
   pci_enable_device
+  pci_enable_ptm
   pci_enable_wake
   pci_find_bus
   pci_find_capability
@@ -1633,6 +1644,9 @@
   __put_task_struct_rcu_cb
   put_unused_fd
   put_vaddr_frames
+  pwrseq_device_get_drvdata
+  pwrseq_power_off
+  pwrseq_power_on
   queue_delayed_work_on
   queue_work_on
   raise_softirq
@@ -1672,6 +1686,7 @@
   rdev_get_id
   rdev_get_regmap
   reboot_mode
+  refcount_dec_and_mutex_lock
   refcount_warn_saturate
   __refrigerator
   regcache_cache_only
@@ -2097,22 +2112,37 @@
   trace_event_raw_init
   trace_event_reg
   trace_handle_return
+  __traceiter_android_rvh_gup_longterm_locked
   __traceiter_android_rvh_hw_protection_shutdown
   __traceiter_android_rvh_task_fits_cpu
   __traceiter_android_rvh_ufs_reprogram_all_keys
   __traceiter_android_rvh_update_load_sum
+  __traceiter_android_trigger_vendor_lmk_kill
+  __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alter_futex_plist_add
+  __traceiter_android_vh_calculate_totalreserve_pages
+  __traceiter_android_vh_check_new_page
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
+  __traceiter_android_vh_do_async_mmap_readahead
+  __traceiter_android_vh_do_sync_mmap_readahead
+  __traceiter_android_vh_free_pages_prepare_init
   __traceiter_android_vh_ipi_stop
+  __traceiter_android_vh_page_cache_ra_order_bypass
+  __traceiter_android_vh_page_cache_readahead_start
   __traceiter_android_vh_platform_pci_choose_state
   __traceiter_android_vh_platform_pci_get_power_state
   __traceiter_android_vh_platform_pci_power_manageable
   __traceiter_android_vh_platform_pci_set_power_state
+  __traceiter_android_vh_post_alloc_hook
+  __traceiter_android_vh_ra_alloc_retry
   __traceiter_android_vh_rust_binder_restore_priority
   __traceiter_android_vh_rust_binder_set_priority
   __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_si_meminfo_adjust
+  __traceiter_android_vh_swap_writepage
   __traceiter_android_vh_sysrq_crash
+  __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_ufs_check_int_errors
   __traceiter_android_vh_ufs_compl_command
   __traceiter_android_vh_ufs_fill_prdt
@@ -2134,23 +2164,40 @@
   __traceiter_sched_set_state_tp
   __traceiter_sched_switch
   __traceiter_suspend_resume
+  __traceiter_workqueue_execute_end
+  __traceiter_workqueue_execute_start
   trace_output_call
+  __tracepoint_android_rvh_gup_longterm_locked
   __tracepoint_android_rvh_hw_protection_shutdown
   __tracepoint_android_rvh_task_fits_cpu
   __tracepoint_android_rvh_ufs_reprogram_all_keys
   __tracepoint_android_rvh_update_load_sum
+  __tracepoint_android_trigger_vendor_lmk_kill
+  __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alter_futex_plist_add
+  __tracepoint_android_vh_calculate_totalreserve_pages
+  __tracepoint_android_vh_check_new_page
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
+  __tracepoint_android_vh_do_async_mmap_readahead
+  __tracepoint_android_vh_do_sync_mmap_readahead
+  __tracepoint_android_vh_free_pages_prepare_init
   __tracepoint_android_vh_ipi_stop
+  __tracepoint_android_vh_page_cache_ra_order_bypass
+  __tracepoint_android_vh_page_cache_readahead_start
   __tracepoint_android_vh_platform_pci_choose_state
   __tracepoint_android_vh_platform_pci_get_power_state
   __tracepoint_android_vh_platform_pci_power_manageable
   __tracepoint_android_vh_platform_pci_set_power_state
+  __tracepoint_android_vh_post_alloc_hook
+  __tracepoint_android_vh_ra_alloc_retry
   __tracepoint_android_vh_rust_binder_restore_priority
   __tracepoint_android_vh_rust_binder_set_priority
   __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_si_meminfo_adjust
+  __tracepoint_android_vh_swap_writepage
   __tracepoint_android_vh_sysrq_crash
+  __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_ufs_check_int_errors
   __tracepoint_android_vh_ufs_compl_command
   __tracepoint_android_vh_ufs_fill_prdt
@@ -2174,6 +2221,8 @@
   __tracepoint_sched_set_state_tp
   __tracepoint_sched_switch
   __tracepoint_suspend_resume
+  __tracepoint_workqueue_execute_end
+  __tracepoint_workqueue_execute_start
   trace_print_array_seq
   trace_print_bitmask_seq
   trace_print_flags_seq
@@ -2264,6 +2313,8 @@
   usb_hcd_platform_shutdown
   usb_hub_find_child
   usb_interface_id
+  usb_offload_get
+  usb_offload_put
   usb_put_function_instance
   usb_put_hcd
   usb_register_notify
@@ -2369,6 +2420,7 @@
   vmap
   __vma_start_write
   vmf_insert_pfn_prot
+  vm_node_stat
   vm_unmapped_area
   vprintk
   vprintk_emit
@@ -2404,10 +2456,14 @@
   x509_load_certificate_list
   __xa_clear_mark
   xa_destroy
+  __xa_erase
   xa_find
   xa_find_after
   xa_load
   xa_set_mark
+  xas_find
+  xas_pause
+  __xa_store
   xa_store
   __xfrm_state_destroy
   xfrm_state_lookup_byspi
@@ -2424,4 +2480,5 @@
   xhci_sideband_remove_endpoint
   xhci_sideband_remove_interrupter
   xhci_sideband_unregister
+  xhci_stop_endpoint_sync
   xhci_suspend

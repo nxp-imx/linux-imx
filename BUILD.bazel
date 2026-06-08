@@ -333,6 +333,7 @@ common_kernel(
     # We use aarch64 here because it's readily available and improves performance.
     # See b/500458317 for more on x86_64 collection efforts.
     clang_autofdo_profile = ":gki/aarch64/afdo/kernel.afdo",
+    ddk_headers_archive = ":kernel_x86_64_ddk_headers_archive",
     ddk_module_headers = [":all_headers_x86_64"],
     defconfig = "arch/x86/configs/gki_defconfig",
     extra_dist = [
@@ -1608,6 +1609,14 @@ ddk_headers(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+ddk_headers_archive(
+    name = "kernel_x86_64_ddk_headers_archive",
+    srcs = [
+        "all_headers_x86_64",
+    ],
+    visibility = ["//visibility:private"],
 )
 
 ddk_headers(
