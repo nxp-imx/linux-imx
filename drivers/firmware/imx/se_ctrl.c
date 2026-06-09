@@ -41,6 +41,8 @@
 #define MBOX_TXDB_NAME			"txdb"
 #define MBOX_RXDB_NAME			"rxdb"
 
+#define SOC_ID_MASK_IMX952		0xFFF0
+#define SOC_ID_MASK_IMX95		0xFF00
 #define SE_RCV_MSG_DEFAULT_TIMEOUT	5000
 #define SE_RCV_MSG_LONG_TIMEOUT		5000000
 #define IMX_SE_LOG_PATH			"/var/lib/se_"
@@ -900,6 +902,19 @@ static void get_fw_nm_in_rfs(struct se_if_priv *priv)
 	}
 }
 
+static u32 get_normalized_soc_id(u32 info_list_soc_id, u32 get_info_soc_id)
+{
+	/* Handle SOC-specific ID normalization */
+	if (info_list_soc_id == SOC_ID_OF_IMX93)
+		return get_info_soc_id;  /* iMX93 uses Get-Info value */
+
+	if (info_list_soc_id == SOC_ID_OF_IMX95 &&
+	    ((get_info_soc_id & SOC_ID_MASK_IMX952) == SOC_ID_OF_IMX952))
+		return SOC_ID_OF_IMX952;
+
+	return info_list_soc_id;  /* Default to list value */
+}
+
 static int se_soc_info(struct se_if_priv *priv)
 {
 	const struct se_if_node_info_list *info_list = device_get_match_data(priv->dev);
@@ -937,7 +952,9 @@ static int se_soc_info(struct se_if_priv *priv)
 			s_info = (void *)data;
 
 			var_se_info.board_type = 0;
-			var_se_info.soc_id = s_info->d_info.soc_id;
+			var_se_info.soc_id = get_normalized_soc_id(info_list->soc_id,
+								   s_info->d_info.soc_id);
+
 			var_se_info.soc_rev = s_info->d_info.soc_rev;
 			if (load_fw)
 				load_fw->imem.state = s_info->d_addn_info.imem_state;
