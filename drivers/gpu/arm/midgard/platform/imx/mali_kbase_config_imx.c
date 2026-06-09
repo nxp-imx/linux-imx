@@ -77,7 +77,11 @@ static int platform_init_func(struct kbase_device *kbdev)
 	kbdev->platform_context = ictx;
 	imx_waveform_start(kbdev);
 
-	if (of_machine_is_compatible("fsl,imx952")) {
+	kbdev->need_dynamic_config_ipa_counter =
+		of_device_is_compatible(kbdev->dev->of_node, "nxp,imx952-mali");
+	atomic_set(&kbdev->gpu_profile_enabled, 0);
+
+	if (kbdev->need_dynamic_config_ipa_counter) {
 		callbacks->power_runtime_on_callback = NULL;
 		callbacks->power_runtime_off_callback = NULL;
 	}

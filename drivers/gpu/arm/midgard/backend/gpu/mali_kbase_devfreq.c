@@ -291,7 +291,7 @@ static int kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *s
 	 * gpu ipa counter is always 0. In this case, gpu will run at min freq.
 	 * To make gpu run at max freq, we set total_time=busy_time temporarily on 952.
 	 */
-	if (of_machine_is_compatible("fsl,imx952")) {
+	if (kbdev->need_dynamic_config_ipa_counter) {
 		stat->busy_time = diff.time_idle;
 		stat->total_time = diff.time_idle;
 	} else {

@@ -75,6 +75,82 @@ static const struct file_operations kbasep_dvfs_utilization_debugfs_fops = {
 	.release = single_release,
 };
 
+/**
+ * kbasep_gpu_profile_debugfs_show() - Print the gpu_profile enable state
+ *
+ * @file: The seq_file for printing to
+ * @data: The debugfs dentry private data, a pointer to kbase_context
+ *
+ * Return: 0 on success.
+ */
+static int kbasep_gpu_profile_debugfs_show(struct seq_file *file, void *data)
+{
+	struct kbase_device *kbdev = file->private;
+
+	CSTD_UNUSED(data);
+	seq_printf(file, "%d\n", atomic_read(&kbdev->gpu_profile_enabled) ? 1 : 0);
+	return 0;
+}
+
+static int kbasep_gpu_profile_debugfs_open(struct inode *in, struct file *file)
+{
+	return single_open(file, kbasep_gpu_profile_debugfs_show, in->i_private);
+}
+
+/**
+ * kbasep_gpu_profile_debugfs_write() - Write 0 or 1 to gpu_profile
+ *
+ * Writing 1 enables SELECT_CSHW profiling counters.
+ * Writing 0 disables SELECT_CSHW (allows GPU auto clock-gating).
+ *
+ * @file:  file pointer
+ * @ubuf:  user buffer containing data to store
+ * @count: number of bytes in user buffer
+ * @ppos:  file position
+ *
+ * Return: @count if the function succeeded. An error code on failure.
+ */
+static ssize_t kbasep_gpu_profile_debugfs_write(struct file *file,
+						const char __user *ubuf,
+						size_t count, loff_t *ppos)
+{
+	struct seq_file *sfile = file->private_data;
+	struct kbase_device *kbdev = sfile->private;
+	unsigned long val;
+	char buf[8];
+	int ret;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	if (count >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, ubuf, count))
+		return -EFAULT;
+
+	buf[count] = '\0';
+	ret = kstrtoul(buf, 0, &val);
+	if (ret)
+		return ret;
+
+	if (val > 1)
+		return -EINVAL;
+
+	atomic_set(&kbdev->gpu_profile_enabled, (val == 1) ? 1 : 0);
+	dev_dbg(kbdev->dev, "gpu_profile set to %lu\n", val);
+
+	return count;
+}
+
+static const struct file_operations kbasep_gpu_profile_debugfs_fops = {
+	.open    = kbasep_gpu_profile_debugfs_open,
+	.read    = seq_read,
+	.write   = kbasep_gpu_profile_debugfs_write,
+	.llseek  = seq_lseek,
+	.release = single_release,
+};
+
 void kbase_dvfs_status_debugfs_init(struct kbase_device *kbdev)
 {
 	struct dentry *file;
@@ -88,6 +164,13 @@ void kbase_dvfs_status_debugfs_init(struct kbase_device *kbdev)
 
 	if (IS_ERR_OR_NULL(file)) {
 		dev_warn(kbdev->dev, "Unable to create dvfs debugfs entry");
+	}
+
+	if (kbdev->need_dynamic_config_ipa_counter) {
+		file = debugfs_create_file("gpu_profile", 0644, kbdev->mali_debugfs_directory, kbdev,
+					&kbasep_gpu_profile_debugfs_fops);
+		if (IS_ERR_OR_NULL(file))
+			dev_warn(kbdev->dev, "Unable to create gpu_profile debugfs entry");
 	}
 }
 

@@ -1280,6 +1280,9 @@ struct kbase_device {
 	/* CSF object for the GPU device. */
 	struct kbase_csf_device csf;
 
+	atomic_t gpu_profile_enabled;
+	bool need_dynamic_config_ipa_counter;
+
 	struct rb_root process_root;
 	struct rb_root dma_buf_root;
 

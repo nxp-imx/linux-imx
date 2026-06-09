@@ -109,7 +109,12 @@ static int apply_select_config(struct kbase_device *kbdev, u64 *select)
 {
 	int ret;
 
-	if (of_machine_is_compatible("fsl,imx952"))
+	/* In GPU which needs config ipa counter dynamically, and when
+	 * gpu_profile is disabled, write 0 to SELECT_CSHW to allow GPU
+	 * auto clock-gating. When enabled, program the requested counter select
+	 * values for IPA profiling.
+	 */
+	if (!atomic_read(&kbdev->gpu_profile_enabled) && kbdev->need_dynamic_config_ipa_counter)
 		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW), 0);
 	else
 		kbase_reg_write64(kbdev, IPA_CONTROL_ENUM(SELECT_CSHW),
