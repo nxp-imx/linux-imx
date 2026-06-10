@@ -28,7 +28,7 @@ static struct kvm_iommu_ops *kvm_iommu_drivers[KVM_IOMMU_MAX_DRV];
 static struct hyp_pool iommu_pages_pool_atomic;
 
 /* Hypervisor is non-preemptable, so cur_context can be per cpu. */
-DEFINE_PER_CPU(struct pkvm_hyp_vcpu *, __cur_context);
+DEFINE_PER_CPU(struct pkvm_hyp_vm *, __cur_context);
 #define cur_context (*this_cpu_ptr(&__cur_context))
 static struct hyp_pool iommu_host_pool;
 static bool iommu_pools_ready;
@@ -255,13 +255,29 @@ int kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end, enum kvm_pgt
 	return ret;
 }
 
-/* Return current vcpu or NULL for host. */
+/*
+ * Returns current running vcpu, this is only called if the CPU is running
+ * and needed when the vcpu context is required, as for the per-cpu requests.
+ */
 static struct pkvm_hyp_vcpu *__get_vcpu(void)
 {
 	struct kvm_vcpu *vcpu = this_cpu_ptr(&kvm_host_data)->host_ctxt.__hyp_running_vcpu;
 
-	if (vcpu)
-		return container_of(vcpu, struct pkvm_hyp_vcpu, vcpu);
+	return vcpu ? container_of(vcpu, struct pkvm_hyp_vcpu, vcpu) : NULL;
+}
+/*
+ * Returns current context, that also include teardown of a VM, this is needed
+ * as the core hypervisor can free guest domains after a guest dies.
+ * However the teardown has to be done from the VM context so the memory go
+ * back to the correct pool.
+ */
+static struct pkvm_hyp_vm *__get_vm(void)
+{
+	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
+
+	if (hyp_vcpu)
+		return pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+
 	/* Maybe guest is not loaded but we are in teardown context. */
 	return cur_context;
 }
@@ -300,11 +316,11 @@ static void __kvm_iommu_reclaim_pages(struct hyp_pool *pool, void *p, u8 order)
 
 void *kvm_iommu_donate_pages(u8 order, int flags)
 {
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
+	struct pkvm_hyp_vm *vm = __get_vm();
 	struct hyp_pool *pool;
 
-	if (hyp_vcpu)
-		pool = &pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu)->iommu_pool;
+	if (vm)
+		pool = &vm->iommu_pool;
 	else
 		pool = &iommu_host_pool;
 
@@ -313,11 +329,11 @@ void *kvm_iommu_donate_pages(u8 order, int flags)
 
 void kvm_iommu_reclaim_pages(void *p, u8 order)
 {
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
+	struct pkvm_hyp_vm *vm = __get_vm();
 	struct hyp_pool *pool;
 
-	if (hyp_vcpu)
-		pool = &pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu)->iommu_pool;
+	if (vm)
+		pool = &vm->iommu_pool;
 	else
 		pool = &iommu_host_pool;
 
@@ -379,39 +395,34 @@ static struct kvm_hyp_iommu_domain *handle_to_domain(pkvm_handle_t domain_id)
 static int domain_get(struct kvm_hyp_iommu_domain *domain)
 {
 	int old = atomic_fetch_inc_acquire(&domain->refs);
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
-	int ret = 0;
+	struct pkvm_hyp_vm *vm = __get_vm();
 
 	BUG_ON(!old || (old + 1 < 0));
 
 	/* check done after refcount is elevated to avoid race with alloc_domain */
-	if (!hyp_vcpu && domain->owner)
-		ret = -EPERM;
-	if (hyp_vcpu && (domain->owner != pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu)))
-		ret = -EPERM;
-
-	if (ret)
+	if (domain->owner != vm) {
 		atomic_dec_return_release(&domain->refs);
-	return ret;
+		return -EPERM;
+	}
+
+	return 0;
 }
 
 static void domain_put(struct kvm_hyp_iommu_domain *domain)
 {
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
+	struct pkvm_hyp_vm *vm = __get_vm();
 
 	BUG_ON(!atomic_dec_return_release(&domain->refs));
-	WARN_ON(!hyp_vcpu && domain->owner);
-	WARN_ON(hyp_vcpu && (domain->owner != pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu)));
+	WARN_ON(domain->owner != vm);
 }
 
 int kvm_iommu_alloc_domain(pkvm_handle_t drv_id, pkvm_handle_t iommu_id,
 			   pkvm_handle_t domain_id, int type)
 {
-	int ret = -EINVAL;
+	struct pkvm_hyp_vm *vm = __get_vm();
 	struct kvm_hyp_iommu_domain *domain;
 	struct kvm_iommu_ops *kvm_iommu_ops;
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
-	void *owner;
+	int ret = -EINVAL;
 
 	kvm_iommu_ops = get_drv(drv_id);
 	if (!kvm_iommu_ops || !kvm_iommu_ops->alloc_domain)
@@ -421,7 +432,7 @@ int kvm_iommu_alloc_domain(pkvm_handle_t drv_id, pkvm_handle_t iommu_id,
 	 * Host only has access to the lower half of the domain IDs.
 	 * Guest ID space is managed by the hypervisor, so it is trusted.
 	 */
-	if (!hyp_vcpu && (domain_id >= (KVM_IOMMU_MAX_DOMAINS >> 1)))
+	if (!vm && (domain_id >= (KVM_IOMMU_MAX_DOMAINS >> 1)))
 		return -EINVAL;
 
 	domain = handle_to_domain(domain_id);
@@ -437,11 +448,8 @@ int kvm_iommu_alloc_domain(pkvm_handle_t drv_id, pkvm_handle_t iommu_id,
 	if (ret)
 		goto out_unlock;
 	domain->driver = kvm_iommu_ops;
+	domain->owner = vm;
 
-	if (hyp_vcpu) {
-		owner = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
-		domain->owner = owner;
-	}
 	atomic_set_release(&domain->refs, 1);
 out_unlock:
 	hyp_spin_unlock(&kvm_iommu_domain_lock);
@@ -450,11 +458,10 @@ out_unlock:
 
 int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 {
-	int ret = 0;
 	struct kvm_hyp_iommu_domain *domain;
 	struct kvm_iommu_ops *kvm_iommu_ops;
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
-	struct pkvm_hyp_vm *vm = NULL;
+	struct pkvm_hyp_vm *vm = __get_vm();
+	int ret = 0;
 
 	domain = handle_to_domain(domain_id);
 	if (!domain)
@@ -466,9 +473,6 @@ int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 		ret = -ENODEV;
 		goto out_unlock;
 	}
-
-	if (hyp_vcpu)
-		vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 
 	if (domain->owner != vm || WARN_ON(atomic_cmpxchg_acquire(&domain->refs, 1, 0) != 1)) {
 		ret = -EINVAL;
@@ -490,7 +494,7 @@ int kvm_iommu_force_free_domain(pkvm_handle_t domain_id, struct pkvm_hyp_vm *vm)
 	int ret = 0;
 
 	BUG_ON(!domain);
-	cur_context = vm->vcpus[0];
+	cur_context = vm;
 
 	hyp_spin_lock(&kvm_iommu_domain_lock);
 	kvm_iommu_ops = domain->driver;
@@ -627,14 +631,11 @@ out:
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid, u32 pasid_bits, unsigned long flags)
 {
-	int ret;
 	struct kvm_hyp_iommu_domain *domain;
 	struct kvm_iommu_ops *kvm_iommu_ops;
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
-	struct pkvm_hyp_vm *vm = NULL;
+	struct pkvm_hyp_vm *vm = __get_vm();
+	int ret;
 
-	if (hyp_vcpu)
-		vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 	/*
 	 * Make sure device can't transition to/from VMs while in the middle of attach.
 	 */
@@ -670,14 +671,11 @@ out_unlock:
 int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid)
 {
-	int ret;
 	struct kvm_hyp_iommu_domain *domain;
 	struct kvm_iommu_ops *kvm_iommu_ops;
-	struct pkvm_hyp_vcpu *hyp_vcpu = __get_vcpu();
-	struct pkvm_hyp_vm *vm = NULL;
+	struct pkvm_hyp_vm *vm = __get_vm();
+	int ret;
 
-	if (hyp_vcpu)
-		vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 	/* See kvm_iommu_attach_dev(). */
 	ret = pkvm_devices_get_context(iommu_id, endpoint_id, vm);
 	if (ret)
@@ -932,12 +930,12 @@ int kvm_iommu_dev_block_dma(pkvm_handle_t iommu_id, u32 endpoint_id, bool host_t
 
 int iommu_pkvm_use_dma(u64 phys_addr, size_t size)
 {
-	return __pkvm_use_dma(phys_addr, size, __get_vcpu());
+	return __pkvm_use_dma(phys_addr, size, __get_vm());
 }
 
 int iommu_pkvm_unuse_dma(u64 phys_addr, size_t size)
 {
-	return __pkvm_unuse_dma(phys_addr, size, __get_vcpu());
+	return __pkvm_unuse_dma(phys_addr, size, __get_vm());
 }
 
 int kvm_iommu_id_to_token(pkvm_handle_t id, u64 *out_token)

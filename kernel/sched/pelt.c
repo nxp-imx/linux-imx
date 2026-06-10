@@ -181,6 +181,7 @@ __always_inline int
 ___update_load_sum(u64 now, struct sched_avg *sa,
 		  unsigned long load, unsigned long runnable, int running)
 {
+	int force_update = 0;
 	u64 delta;
 
 	delta = now - sa->last_update_time;
@@ -217,6 +218,8 @@ ___update_load_sum(u64 now, struct sched_avg *sa,
 	if (!load)
 		runnable = running = 0;
 
+	trace_android_rvh_update_load_sum(&force_update);
+
 	/*
 	 * Now we know we crossed measurement unit boundaries. The *_avg
 	 * accrues by two steps:
@@ -225,7 +228,7 @@ ___update_load_sum(u64 now, struct sched_avg *sa,
 	 * crossed period boundaries, finish.
 	 */
 	if (!accumulate_sum(delta, sa, load, runnable, running))
-		return 0;
+		return force_update;
 
 	return 1;
 }

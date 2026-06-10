@@ -1164,7 +1164,8 @@ static int rxgk_verify_authenticator(struct rxrpc_connection *conn,
 	}
 
 	p = auth;
-	ret = rxgk_do_verify_authenticator(conn, krb5, skb, p, p + auth_len);
+	ret = rxgk_do_verify_authenticator(conn, krb5, skb, p,
+					   p + auth_len / sizeof(*p));
 error:
 	kfree(auth);
 	return ret;
@@ -1208,7 +1209,8 @@ static int rxgk_verify_response(struct rxrpc_connection *conn,
 
 	token_offset	= offset;
 	token_len	= ntohl(rhdr.token_len);
-	if (xdr_round_up(token_len) + sizeof(__be32) > len)
+	if (token_len > len ||
+	    xdr_round_up(token_len) + sizeof(__be32) > len)
 		goto short_packet;
 
 	trace_rxrpc_rx_response(conn, sp->hdr.serial, 0, sp->hdr.cksum, token_len);
@@ -1223,7 +1225,7 @@ static int rxgk_verify_response(struct rxrpc_connection *conn,
 
 	auth_offset	= offset;
 	auth_len	= ntohl(xauth_len);
-	if (auth_len < len)
+	if (auth_len > len)
 		goto short_packet;
 	if (auth_len & 3)
 		goto inconsistent;

@@ -11,6 +11,7 @@
 #include <linux/fs_stack.h>
 #include <linux/fsnotify.h>
 #include <linux/fsverity.h>
+#include <linux/lockdep.h>
 #include <linux/mmap_lock.h>
 #include <linux/namei.h>
 #include <linux/pagemap.h>
@@ -328,6 +329,28 @@ static int inode_test(struct inode *inode, void *opaque)
 		inode->i_ino == search->ino;
 }
 
+#ifdef CONFIG_LOCKDEP
+#define INCFS_MAX_NESTING FILESYSTEM_MAX_STACK_DEPTH
+
+static inline void incfs_lockdep_annotate_inode_mutex_key(struct inode *inode)
+{
+	static struct lock_class_key incfs_i_mutex_key[INCFS_MAX_NESTING];
+	static struct lock_class_key incfs_i_mutex_dir_key[INCFS_MAX_NESTING];
+
+	int depth = inode->i_sb->s_stack_depth - 1;
+
+	if (WARN_ON_ONCE(depth < 0 || depth >= INCFS_MAX_NESTING))
+		depth = 0;
+
+	if (S_ISDIR(inode->i_mode))
+		lockdep_set_class(&inode->i_rwsem, &incfs_i_mutex_dir_key[depth]);
+	else
+		lockdep_set_class(&inode->i_rwsem, &incfs_i_mutex_key[depth]);
+}
+#else
+static inline void incfs_lockdep_annotate_inode_mutex_key(struct inode *inode) {}
+#endif
+
 static int inode_set(struct inode *inode, void *opaque)
 {
 	struct inode_search *search = opaque;
@@ -336,6 +359,7 @@ static int inode_set(struct inode *inode, void *opaque)
 	struct inode *backing_inode = d_inode(backing_dentry);
 
 	fsstack_copy_attr_all(inode, backing_inode);
+	incfs_lockdep_annotate_inode_mutex_key(inode);
 	if (S_ISREG(inode->i_mode)) {
 		u64 size = search->size;
 

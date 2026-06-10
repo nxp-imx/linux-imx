@@ -324,6 +324,7 @@
   _copy_to_iter
   __cpu_active_mask
   cpu_bit_bitmap
+  alloc_swapdev_block
   cpu_busy_with_softirqs
   __cpu_dying_mask
   cpufreq_cpu_get
@@ -780,6 +781,7 @@
   dma_iova_unlink
   dmam_alloc_attrs
   dma_map_page_attrs
+  dma_map_phys
   dma_map_resource
   dma_map_sg_attrs
   dma_map_sgtable
@@ -798,6 +800,7 @@
   __dma_sync_single_for_cpu
   __dma_sync_single_for_device
   dma_unmap_page_attrs
+  dma_unmap_phys
   dma_unmap_resource
   dma_unmap_sg_attrs
   dma_vmap_noncontiguous
@@ -1554,6 +1557,7 @@
   ipv6_skip_exthdr
   ipv6_stub
   __irq_apply_affinity_hint
+  irq_work_run
   irq_check_status_bit
   irq_chip_ack_parent
   irq_chip_disable_parent
@@ -2262,6 +2266,7 @@
   __per_cpu_offset
   per_cpu_ptr_to_phys
   percpu_up_write
+  perf_allow_kernel
   perf_aux_output_begin
   perf_aux_output_end
   perf_aux_output_flag
@@ -2368,6 +2373,7 @@
   __platform_driver_register
   platform_driver_unregister
   platform_get_irq
+  platform_get_irq_affinity
   platform_get_irq_byname
   platform_get_irq_byname_optional
   platform_get_irq_optional
@@ -3285,6 +3291,7 @@
   trace_get_event_file
   trace_handle_return
   __traceiter_android_rvh_account_irq
+  snapshot_get_image_size
   __traceiter_android_rvh_before_do_sched_yield
   __traceiter_android_rvh_bitmap_find_best_next_area
   __traceiter_android_rvh_build_perf_domains
@@ -3355,6 +3362,8 @@
   __traceiter_android_vh_cpuidle_psci_enter
   __traceiter_android_vh_cpuidle_psci_exit
   __traceiter_android_vh_do_wake_up_sync
+  __traceiter_android_vh_check_hibernation_swap
+  __traceiter_android_vh_encrypt_page
   __traceiter_android_vh_freq_qos_add_request
   __traceiter_android_vh_freq_qos_remove_request
   __traceiter_android_vh_freq_qos_update_request
@@ -3390,6 +3399,11 @@
   __traceiter_suspend_resume
   trace_output_call
   __tracepoint_android_rvh_account_irq
+  __traceiter_android_vh_init_aes_encrypt
+  __traceiter_android_vh_post_image_save
+  __traceiter_android_vh_save_cpu_resume
+  __traceiter_android_vh_save_hib_resume_bdev
+  __traceiter_android_vh_skip_swap_map_write
   __tracepoint_android_rvh_before_do_sched_yield
   __tracepoint_android_rvh_bitmap_find_best_next_area
   __tracepoint_android_rvh_build_perf_domains
@@ -3449,6 +3463,7 @@
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_set_priority
+  __tracepoint_android_vh_check_hibernation_swap
   __tracepoint_android_vh_check_uninterruptible_tasks
   __tracepoint_android_vh_check_uninterruptible_tasks_dn
   __tracepoint_android_vh_cpu_cgroup_css_free
@@ -3460,6 +3475,7 @@
   __tracepoint_android_vh_cpuidle_psci_enter
   __tracepoint_android_vh_cpuidle_psci_exit
   __tracepoint_android_vh_do_wake_up_sync
+  __tracepoint_android_vh_encrypt_page
   __tracepoint_android_vh_freq_qos_add_request
   __tracepoint_android_vh_freq_qos_remove_request
   __tracepoint_android_vh_freq_qos_update_request
@@ -4001,3 +4017,8 @@
   zlib_inflateInit2
   zlib_inflateReset
   zlib_inflate_workspacesize
+  __tracepoint_android_vh_init_aes_encrypt
+  __tracepoint_android_vh_post_image_save
+  __tracepoint_android_vh_save_cpu_resume
+  __tracepoint_android_vh_save_hib_resume_bdev
+  __tracepoint_android_vh_skip_swap_map_write

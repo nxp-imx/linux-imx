@@ -18,6 +18,10 @@
 #define BRD_SM_CTRL_M2M_WAKE		0x8003U /*!< PCAL6408A-6 */
 #define BRD_SM_CTRL_BUTTON		0x8004U /*!< PCAL6408A-7 */
 
+&ele_if0 {
+        memory-region = <&ele_reserved>;
+};
+
 / {
 	model = "NXP i.MX952 EVK board";
 	compatible = "fsl,imx952-evk", "fsl,imx952";
@@ -140,11 +144,18 @@
 			no-map;
 		};
 
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
+			no-map;
+		};
+
 		prime_reserved: prime-reserved@240000000 {
 			compatible = "shared-dma-pool";
 			reg = <0x00000002 0x40000000 0x00000000 0x40000000>;
 			no-map;
 		};
+
 	};
 
 	mali_pma: protected-memory-allocator {

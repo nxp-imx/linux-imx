@@ -268,6 +268,7 @@ inval:
 	count_vm_vma_lock_event(VMA_LOCK_ABORT);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(lock_vma_under_rcu);
 
 static struct vm_area_struct *lock_next_vma_under_mmap_lock(struct mm_struct *mm,
 							    struct vma_iterator *vmi,

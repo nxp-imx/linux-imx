@@ -23,6 +23,7 @@
 #include <linux/vmalloc.h>
 #include <linux/debugfs.h>
 #include <linux/hantrodec.h>
+#include <linux/scatterlist.h>
 #include "dwl_defs.h"
 #include <linux/trusty/smcall.h>
 #include <linux/trusty/trusty.h>
@@ -153,6 +154,16 @@ struct hantro_dec_core {
 
 	struct dentry *debugfs;
 	struct device *trusty_dev;
+
+	void *batch_write_shm;
+	size_t batch_write_shm_sz;
+	struct scatterlist batch_write_sg;
+	trusty_shared_mem_id_t batch_write_shm_id;
+
+	void *batch_read_shm;
+	size_t batch_read_shm_sz;
+	struct scatterlist batch_read_sg;
+	trusty_shared_mem_id_t batch_read_shm_id;
 };
 
 struct hantro_dec_interface {
@@ -261,6 +272,56 @@ static void hantro_dec_writel(struct hantro_dec_core *core, u32 value, u32 addr)
 	writel(value, core->reg_base + addr);
 }
 
+static int hantro_dec_trusty_batch_write_regs(struct hantro_dec_core *core,
+					      const struct vpu_batch_reg_entry *entries,
+					      u32 count)
+{
+	struct vpu_batch_reg_entry *shm;
+	u32 core_type;
+	s32 ret;
+
+	if (!core->trusty_dev || !core->batch_write_shm)
+		return -EINVAL;
+	if (!entries || !count || count > VPU_BATCH_REG_MAX_ENTRIES)
+		return -EINVAL;
+
+	shm = (struct vpu_batch_reg_entry *)core->batch_write_shm;
+	memcpy(shm, entries, count * sizeof(*shm));
+
+	core_type = hantro_dec_is_g1(core) ? 0 : 1;
+	ret = trusty_fast_call32(core->trusty_dev, SMC_VPU_BATCH_WRITE,
+				 (core_type << 16) | count, 0, 0);
+	return ret < 0 ? ret : 0;
+}
+
+static int hantro_dec_trusty_batch_read_regs(struct hantro_dec_core *core,
+					     struct vpu_batch_reg_entry *entries,
+					     u32 count)
+{
+	struct vpu_batch_reg_entry *shm;
+	u32 core_type;
+	s32 ret;
+
+	if (!core->trusty_dev || !core->batch_read_shm)
+		return -EINVAL;
+	if (!entries || !count || count > VPU_BATCH_REG_MAX_ENTRIES)
+		return -EINVAL;
+
+	shm = (struct vpu_batch_reg_entry *)core->batch_read_shm;
+	memcpy(shm, entries, count * sizeof(*shm));
+
+	core_type = hantro_dec_is_g1(core) ? 0 : 1;
+	ret = trusty_fast_call32(core->trusty_dev, SMC_VPU_BATCH_READ,
+				 (core_type << 16) | count, 0, 0);
+	if (ret < 0) {
+		pr_err("batch read regs failed\n");
+		return ret;
+	}
+
+	memcpy(entries, shm, count * sizeof(*shm));
+	return 0;
+}
+
 static void trusty_dec_writel(struct hantro_dec_core *core, u32 value, u32 addr, enum SMC_TYPE smc_type)
 {
 	if (core->trusty_dev) {
@@ -319,16 +380,59 @@ static struct hantro_dec_core *hantro_dec_get_core_by_format(struct hantro_dec_i
 	return NULL;
 }
 
+static void hantro_dec_batch_writel_range(struct hantro_dec_core *core,
+					  const u32 *values, u32 reg_start, u32 count)
+{
+	int i;
+
+	if (core->trusty_dev && core->batch_write_shm) {
+		struct vpu_batch_reg_entry entries[VPU_BATCH_REG_MAX_ENTRIES];
+		u32 batch_start, batch_count, i;
+
+		for (batch_start = 0; batch_start < count; batch_start += batch_count) {
+			batch_count = min_t(u32, count - batch_start,
+					    VPU_BATCH_REG_MAX_ENTRIES);
+			for (i = 0; i < batch_count; i++) {
+				entries[i].offset = (reg_start + batch_start + i) * 4;
+				entries[i].value  = values ? values[reg_start + batch_start + i] : 0;
+			}
+			hantro_dec_trusty_batch_write_regs(core, entries, batch_count);
+		}
+	} else {
+		for (i = reg_start; i < (reg_start + count); i++)
+			trusty_dec_writel(core, values ? values[i] : 0 , i * 4, WRITE_REGS);
+	}
+}
+
 static void hantro_dec_update_mirror_regs(struct hantro_dec_core *core)
 {
-	for (int i = 0; i < core->num_regs; i++)
-		core->mirror_regs[i] = hantro_dec_readl(core, i * 4);
+	if (core->trusty_dev && core->batch_read_shm) {
+		struct vpu_batch_reg_entry entries[VPU_BATCH_REG_MAX_ENTRIES];
+		u32 num_regs = core->num_regs;
+		u32 i, batch_start, batch_count;
+
+		for (batch_start = 0; batch_start < num_regs; batch_start += batch_count) {
+			batch_count = min_t(u32, num_regs - batch_start,
+					    VPU_BATCH_REG_MAX_ENTRIES);
+			for (i = 0; i < batch_count; i++)
+				entries[i].offset = (batch_start + i) * 4;
+			if (!hantro_dec_trusty_batch_read_regs(core, entries, batch_count)) {
+				for (i = 0; i < batch_count; i++)
+					core->mirror_regs[batch_start + i] = entries[i].value;
+			} else {
+				pr_err("batch read regs failed, cannot update mirror_regs\n");
+				break;
+			}
+		}
+	} else {
+		for (int i = 0; i < core->num_regs; i++)
+			core->mirror_regs[i] = hantro_dec_readl(core, i * 4);
+	}
 }
 
 static void hantro_dec_reset_core(struct hantro_dec_core *core)
 {
 	u32 status;
-	int i;
 
 	if (!core->is_valid)
 		return;
@@ -342,8 +446,7 @@ static void hantro_dec_reset_core(struct hantro_dec_core *core)
 	if (hantro_dec_is_g1(core))
 		trusty_dec_writel(core, 0, HANTRO_IRQ_STAT_PP_OFF, WRITE_REGS);	/* reset PP */
 
-	for (i = 2; i < core->num_regs; i++)
-		trusty_dec_writel(core, 0, i * 4, WRITE_REGS);
+	hantro_dec_batch_writel_range(core, NULL, 2, core->num_regs - 2);
 	trusty_dec_writel(core, 0, 4, WRITE_SECURE_CTRL_REGS);
 }
 
@@ -493,8 +596,8 @@ static long hantro_dec_push_regs(struct hantro_dec_interface *iface, struct core
 		return -EINVAL;
 	}
 
-	for (int i = 2; i < count; i++)
-		trusty_dec_writel(core, reg_buf[i], i * 4, WRITE_REGS);
+	if (count > 2)
+		hantro_dec_batch_writel_range(core, reg_buf, 2, count - 2);
 
 	/*
 	 * Write memory barrier to ensure all configuration register writes are completed
@@ -1392,6 +1495,79 @@ static void hantro_dec_cooling_remove(struct hantro_dec_core *core)
 }
 #endif
 
+static int hantro_dec_setup_batch_shm(struct hantro_dec_core *core, u32 core_id, u32 type)
+{
+	void **shm;
+	size_t *shm_sz;
+	struct scatterlist *sg;
+	trusty_shared_mem_id_t *shm_id;
+
+	if (type == BATCH_SHM_WRITE) {
+		shm = &core->batch_write_shm;
+		shm_sz = &core->batch_write_shm_sz;
+		sg = &core->batch_write_sg;
+		shm_id = &core->batch_write_shm_id;
+	} else {
+		shm = &core->batch_read_shm;
+		shm_sz = &core->batch_read_shm_sz;
+		sg = &core->batch_read_sg;
+		shm_id = &core->batch_read_shm_id;
+	}
+
+	*shm_sz = PAGE_ALIGN(VPU_BATCH_REG_MAX_ENTRIES * sizeof(struct vpu_batch_reg_entry));
+	*shm = alloc_pages_exact(*shm_sz, GFP_KERNEL | __GFP_ZERO);
+	if (!*shm)
+		return -ENOMEM;
+
+	sg_init_one(sg, *shm, *shm_sz);
+	if (trusty_share_memory_compat(core->trusty_dev, shm_id, sg, 1, PAGE_KERNEL))
+		goto err_free;
+
+	if (trusty_fast_call32(core->trusty_dev, SMC_VPU_BATCH_MAP,
+			       (core_id << 16) | type,
+			       lower_32_bits(*shm_id),
+			       upper_32_bits(*shm_id)) < 0)
+		goto err_reclaim;
+
+	return 0;
+
+err_reclaim:
+	trusty_reclaim_memory(core->trusty_dev, *shm_id, sg, 1);
+err_free:
+	free_pages_exact(*shm, *shm_sz);
+	*shm = NULL;
+	return -EIO;
+}
+
+static void hantro_dec_teardown_batch_shm(struct hantro_dec_core *core, u32 core_id, u32 type)
+{
+	void **shm;
+	size_t *shm_sz;
+	struct scatterlist *sg;
+	trusty_shared_mem_id_t *shm_id;
+
+	if (type == BATCH_SHM_WRITE) {
+		shm = &core->batch_write_shm;
+		shm_sz = &core->batch_write_shm_sz;
+		sg = &core->batch_write_sg;
+		shm_id = &core->batch_write_shm_id;
+	} else {
+		shm = &core->batch_read_shm;
+		shm_sz = &core->batch_read_shm_sz;
+		sg = &core->batch_read_sg;
+		shm_id = &core->batch_read_shm_id;
+	}
+
+	if (!*shm)
+		return;
+
+	trusty_fast_call32(core->trusty_dev, SMC_VPU_BATCH_UNMAP,
+			   (core_id << 16) | type, 0, 0);
+	trusty_reclaim_memory(core->trusty_dev, *shm_id, sg, 1);
+	free_pages_exact(*shm, *shm_sz);
+	*shm = NULL;
+}
+
 static int hantro_dec_probe(struct platform_device *pdev)
 {
 	const struct hantro_dec_resource *resource;
@@ -1457,20 +1633,28 @@ static int hantro_dec_probe(struct platform_device *pdev)
 	/* get trusty device for smc*/
 	node = of_find_node_by_name(NULL, "trusty");
 	if (node != NULL) {
-			core->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
-			if (!core->trusty_dev || !core->trusty_dev->driver || \
-							!dev_get_drvdata(core->trusty_dev))
-					return -EPROBE_DEFER;
+		core->trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (!core->trusty_dev || !core->trusty_dev->driver || \
+				!dev_get_drvdata(core->trusty_dev))
+			return -EPROBE_DEFER;
 
-			int ret = trusty_fast_call32(core->trusty_dev,
-							SMC_HANTRO_PROBE, 0, 0, 0);
-			if (ret < 0) {
-					pr_err("vpu driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
-									SMC_HANTRO_PROBE, ret);
-					core->trusty_dev = NULL;
-			} else {
-					pr_info("trusty vpu driver probe ok, use trusty mode.\n");
+		int ret = trusty_fast_call32(core->trusty_dev,
+						SMC_HANTRO_PROBE, 0, 0, 0);
+		if (ret < 0) {
+			pr_err("vpu driver probe fail! nr=0x%x ret=%d. Use normal mode.\n",
+				SMC_HANTRO_PROBE, ret);
+			core->trusty_dev = NULL;
+		} else {
+			u32 core_id = hantro_dec_is_g1(core) ? 0 : 1;
+			pr_info("trusty vpu driver probe ok, use trusty mode.\n");
+
+			if (hantro_dec_setup_batch_shm(core, core_id, BATCH_SHM_WRITE))
+				pr_err("hantrodec: setup batch write shm failed\n");
+			else if (hantro_dec_setup_batch_shm(core, core_id, BATCH_SHM_READ)) {
+				pr_err("hantrodec: setup batch read shm failed\n");
+				hantro_dec_teardown_batch_shm(core, core_id, BATCH_SHM_WRITE);
 			}
+		}
 	}
 
 	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);
@@ -1482,6 +1666,11 @@ static int hantro_dec_probe(struct platform_device *pdev)
 		hantro_dec_put_interface(core->iface);
 		pm_runtime_dont_use_autosuspend(&pdev->dev);
 		pm_runtime_disable(&pdev->dev);
+		if (core->trusty_dev) {
+			u32 core_id = hantro_dec_is_g1(core) ? 0 : 1;
+			hantro_dec_teardown_batch_shm(core, core_id, BATCH_SHM_WRITE);
+			hantro_dec_teardown_batch_shm(core, core_id, BATCH_SHM_READ);
+		}
 		return ret;
 	}
 
@@ -1507,6 +1696,12 @@ static void hantro_dec_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 	vfree(core->mirror_regs);
 	vfree(core->temp_regs);
+	if (core->trusty_dev) {
+		u32 core_id = hantro_dec_is_g1(core) ? 0 : 1;
+
+		hantro_dec_teardown_batch_shm(core, core_id, BATCH_SHM_WRITE);
+		hantro_dec_teardown_batch_shm(core, core_id, BATCH_SHM_READ);
+	}
 }
 
 static int hantro_dec_runtime_suspend(struct device *dev)

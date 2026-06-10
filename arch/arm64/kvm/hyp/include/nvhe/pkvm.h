@@ -14,6 +14,9 @@
 #include <nvhe/gfp.h>
 #include <nvhe/rwlock.h>
 
+/* Sentinel: distinct from NULL and any real pkvm_hyp_vcpu pointer. */
+#define PKVM_PVMFW_ENTERED ((struct pkvm_hyp_vcpu *)-1L)
+
 /*
  * Holds the relevant data for maintaining the vcpu state completely at hyp.
  */
@@ -72,8 +75,14 @@ struct pkvm_hyp_vm {
 	struct list_head pviommus;
 	struct hyp_pool iommu_pool;
 	struct list_head domains;
-	/* Primary vCPU pending entry to the pvmfw */
-	struct pkvm_hyp_vcpu *pvmfw_entry_vcpu;
+	/*
+	 * Primary vCPU slot, set once at first successful init and
+	 * never cleared after the primary has entered pvmfw. Encodings:
+	 *   NULL                - no primary claimed.
+	 *   real vCPU pointer   - claimed; for pvmfw VMs, not yet entered.
+	 *   PKVM_PVMFW_ENTERED  - claimed and has entered pvmfw (sticky).
+	 */
+	struct pkvm_hyp_vcpu *primary_vcpu;
 
 	unsigned short refcount;
 
@@ -144,7 +153,7 @@ void kvm_init_pvm_id_regs(struct kvm_vcpu *vcpu);
 void kvm_reset_pvm_sys_regs(struct kvm_vcpu *vcpu);
 int kvm_check_pvm_sysreg_table(void);
 
-void pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu);
+int pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu);
 int pkvm_request_host_s2(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code, bool rewind);
 int pkvm_refill_memcache(struct pkvm_hyp_vcpu *hyp_vcpu);
 
@@ -189,6 +198,8 @@ u64 pkvm_time_get(void);
 struct kvm_power_domain_ops {
 	int (*power_on)(struct kvm_power_domain *pd);
 	int (*power_off)(struct kvm_power_domain *pd);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 int pkvm_init_hvc_pd(struct kvm_power_domain *pd,

@@ -1040,6 +1040,8 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_device_pv *smmu,
 	const u32 read_write = (u32)(-1);
 	const u32 read_only = is_write ? no_access : read_write;
 	u32 mask = no_access;
+	bool is_xzr = (rd == 31);
+	u64 val = is_xzr ? 0 : regs->regs[rd];
 
 	/*
 	 * Only handle MMIO access with u32 size and alignment.
@@ -1065,11 +1067,15 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_device_pv *smmu,
 
 	if (!mask)
 		return false;
-	if (is_write)
-		writel_relaxed(regs->regs[rd] & mask, smmu->common.base + off);
-	else
-		regs->regs[rd] = readl_relaxed(smmu->common.base + off);
 
+	if (is_write) {
+		writel_relaxed(val & mask, smmu->common.base + off);
+		return true;
+	}
+
+	val = readl_relaxed(smmu->common.base + off);
+	if (!is_xzr)
+		regs->regs[rd] = val;
 	return true;
 }
 
@@ -1329,6 +1335,7 @@ static int smmu_host_stage2_idmap(phys_addr_t start, phys_addr_t end, int prot)
 	size_t mapped, unmapped;
 	int ret;
 	struct io_pgtable *pgtable = idmap_pgtable;
+	struct iommu_iotlb_gather gather;
 
 	end = min(end, BIT(pgtable->cfg.oas));
 	if (start >= end)
@@ -1356,10 +1363,11 @@ static int smmu_host_stage2_idmap(phys_addr_t start, phys_addr_t end, int prot)
 		}
 	} else {
 		while (size) {
+			iommu_iotlb_gather_init(&gather);
 			pgsize = smmu_pgsize_idmap(size, start, pgtable->cfg.pgsize_bitmap);
 			pgcount = size / pgsize;
 			unmapped = pgtable->ops.unmap_pages(&pgtable->ops, start,
-							    pgsize, pgcount, NULL);
+							    pgsize, pgcount, &gather);
 			if (!unmapped)
 				break;
 
@@ -1378,15 +1386,16 @@ static void smmu_tlb_inv_range_idmap(unsigned long iova, size_t size, size_t gra
 				     bool leaf)
 {
 	struct hyp_arm_smmu_v3_device_pv *smmu;
-	struct arm_smmu_cmdq_ent cmd = {
-		.opcode = CMDQ_OP_TLBI_S2_IPA,
-		.tlbi = {
-			.leaf = leaf,
-			.vmid = 0,
-		},
-	};
 
 	for_each_smmu(smmu) {
+		struct arm_smmu_cmdq_ent cmd = {
+			.opcode = CMDQ_OP_TLBI_S2_IPA,
+			.tlbi = {
+				.leaf = leaf,
+				.vmid = 0,
+			},
+		};
+
 		kvm_smmu_lock(&smmu->common);
 		if (!smmu->idmap_ref || smmu->power_is_off) {
 			kvm_smmu_unlock(&smmu->common);

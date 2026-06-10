@@ -16,7 +16,6 @@ struct dma_heap;
 /**
  * struct dma_heap_ops - ops to operate on a given heap
  * @allocate:	allocate dmabuf and return struct dma_buf ptr
- * @get_pool_size:	if heap maintains memory pools, get pool size in bytes
  *
  * allocate returns dmabuf on success, ERR_PTR(-errno) on error.
  */
@@ -25,7 +24,6 @@ struct dma_heap_ops {
 				    unsigned long len,
 				    u32 fd_flags,
 				    u64 heap_flags);
-	long (*get_pool_size)(struct dma_heap *heap);
 };
 
 /**
@@ -118,11 +116,4 @@ void dma_heap_buffer_free(struct dma_buf *);
 int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
 			    u32 fd_flags,
 			    u64 heap_flags);
-
-/**
- * dma_heap_try_get_pool_size_kb - Returns total dma-heap pool size in kb
- * if there is no lock contention. The pool size will always be 0 if no heaps
- * use pools, or do not implement get_pool_size.
- **/
-long dma_heap_try_get_pool_size_kb(void);
 #endif /* _DMA_HEAPS_H */

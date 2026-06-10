@@ -657,8 +657,16 @@ static inline void *detach_page_private(struct page *page)
 #ifdef CONFIG_NUMA
 struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order);
 #else
+extern void _trace_android_vh_filemap_alloc_folio(gfp_t gfp, unsigned int order,
+					   bool *alloc_fail);
+
 static inline struct folio *filemap_alloc_folio_noprof(gfp_t gfp, unsigned int order)
 {
+	bool alloc_fail = false;
+	_trace_android_vh_filemap_alloc_folio(gfp, order, &alloc_fail);
+	if (alloc_fail)
+		return NULL;
+
 	return folio_alloc_noprof(gfp, order);
 }
 #endif

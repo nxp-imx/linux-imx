@@ -107,6 +107,11 @@ static int __init gunyah_init(void)
 		return -ENODEV;
 	}
 
+	if (gunyah_arch_timer_init()) {
+		pr_err("Failed to initialize arch-specific timer\n");
+		return -ENODEV;
+	}
+
 	return gunyah_map_addrspace_info_area();
 }
 core_initcall(gunyah_init);

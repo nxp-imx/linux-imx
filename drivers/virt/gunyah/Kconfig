@@ -3,6 +3,9 @@
 config GUNYAH_HYPERCALLS
 	tristate
 
+config GUNYAH_TIMER
+	tristate
+
 config GUNYAH
 	tristate "Gunyah Virtualization drivers"
 	depends on ARM64
@@ -10,6 +13,7 @@ config GUNYAH
 	select AUXILIARY_BUS
 	imply GUNYAH_QCOM_PLATFORM if ARCH_QCOM
 	select GUNYAH_HYPERCALLS
+	select GUNYAH_TIMER
 	depends on SYSFS
 	select SYS_HYPERVISOR
 	help

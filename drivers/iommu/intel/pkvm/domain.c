@@ -245,7 +245,7 @@ static int iommu_domain_map(struct domain_map_data *data)
 	u64 iova, phys, size, end;
 	int ret;
 
-	/* Check for possible overfows that may have security implications */
+	/* Check for possible overflows that may have security implications */
 	if (check_shl_overflow(data->iov_pfn, VTD_PAGE_SHIFT, &iova))
 		return -EINVAL;
 	if (check_shl_overflow(data->phys_pfn, VTD_PAGE_SHIFT, &phys))

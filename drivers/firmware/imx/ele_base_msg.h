@@ -103,6 +103,7 @@ struct ele_dev_info {
 #define ELE_READ_FUSE_REQ		0x97
 #define ELE_READ_FUSE_REQ_MSG_SZ	0x08
 #define ELE_READ_FUSE_RSP_MSG_SZ	0x0C
+#define ELE_READ_FUSE_RSP_MSG_SZ_CRC	0x10
 #define ELE_READ_FUSE_OTP_UNQ_ID_RSP_MSG_SZ \
 					0x1C
 
@@ -123,6 +124,10 @@ struct ele_dev_info {
 #define ELE_GET_FW_VERSION_REQ		0x9d
 #define ELE_GET_FW_VERSION_REQ_SZ	0x04
 #define ELE_GET_FW_VERSION_RSP_SZ	0x10
+
+#define ELE_FW_VERSION_MASK		0xFFFFFF
+#define ELE_FW_VERSION_2_0_6		0x020006
+u32 get_ele_fw_vers_word(void);
 
 int ele_get_info(struct se_if_priv *priv, struct ele_dev_info *s_info);
 int ele_fetch_soc_info(struct se_if_priv *priv, void *data);

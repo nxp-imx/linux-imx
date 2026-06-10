@@ -120,8 +120,9 @@ static int mmio_guard_ioremap_hook(phys_addr_t phys, size_t size,
 	end = ALIGN(phys + size, pkvm_granule);
 	phys = ALIGN_DOWN(phys, pkvm_granule);
 
-	WARN_ON_ONCE(arm_smccc_do_range(func_id, phys, (end - phys) >> PAGE_SHIFT,
-					pkvm_func_range));
+	if (arm_smccc_do_range(func_id, phys, (end - phys) >> PAGE_SHIFT,
+			      pkvm_func_range))
+		pr_warn_once("MMIO guard map failed, not enrolled?\n");
 	return 0;
 }
 

@@ -40,6 +40,7 @@ static const struct address_space_operations swap_aops = {
 struct address_space swap_space __read_mostly = {
 	.a_ops = &swap_aops,
 };
+EXPORT_SYMBOL_GPL(swap_space);
 
 static bool enable_vma_readahead __read_mostly = true;
 
@@ -540,6 +541,8 @@ struct folio *read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 	put_swap_device(si);
 	return folio;
 }
+
+EXPORT_SYMBOL_GPL(read_swap_cache_async);
 
 static unsigned int __swapin_nr_pages(unsigned long prev_offset,
 				      unsigned long offset,

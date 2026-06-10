@@ -147,6 +147,14 @@
   __tracepoint_android_vh_folio_trylock_clear_bypass
   __traceiter_android_vh_filemap_adjust_folio_flags
   __tracepoint_android_vh_filemap_adjust_folio_flags
+  __traceiter_android_vh_direct_reclaim_begin
+  __traceiter_android_vh_direct_reclaim_end
+  __tracepoint_android_vh_direct_reclaim_begin
+  __tracepoint_android_vh_direct_reclaim_end
+  __traceiter_android_vh_do_group_exit
+  __tracepoint_android_vh_do_group_exit
+  __traceiter_android_vh_mark_folio_accessed
+  __tracepoint_android_vh_mark_folio_accessed
 
 # required by custom memory policy
   __tracepoint_android_vh_mm_get_zone_mark
@@ -163,6 +171,13 @@
   inode_add_lru
   prep_new_page
   folio_isolate_lru
+
+
+# required by launch_boost driver
+  __traceiter_android_vh_filemap_read
+  __tracepoint_android_vh_filemap_read
+  __traceiter_android_vh_filemap_map_pages
+  __tracepoint_android_vh_filemap_map_pages
 
 # required by kmem_protect.ko
   __traceiter_android_vh_free_mod_mem
@@ -201,6 +216,21 @@
  __traceiter_android_vh_cma_release_bypass
  __tracepoint_android_vh_cma_alloc_end
  __traceiter_android_vh_cma_alloc_end
+ __tracepoint_android_vh_cma_alloc_bypass
+ __traceiter_android_vh_cma_alloc_bypass
+ __traceiter_android_vh_cma_alloc_lat_start
+ __tracepoint_android_vh_cma_alloc_lat_start
+ __traceiter_android_vh_cma_alloc_lat_end
+ __tracepoint_android_vh_cma_alloc_lat_end
+ __traceiter_android_vh_dma_heap_buffer_alloc_lat_start
+ __tracepoint_android_vh_dma_heap_buffer_alloc_lat_start
+ __traceiter_android_vh_dma_heap_buffer_alloc_lat_end
+ __tracepoint_android_vh_dma_heap_buffer_alloc_lat_end
+ __tracepoint_android_vh_mm_direct_reclaim_start
+ __traceiter_android_vh_mm_direct_reclaim_start
+ __tracepoint_android_vh_mm_direct_reclaim_end
+ __traceiter_android_vh_mm_direct_reclaim_end
+ try_to_free_pages
 
 # required by mi clean page
  __traceiter_android_vh_folio_end_writeback
@@ -293,3 +323,15 @@
  dev_pm_opp_find_freq_ceil_indexed
  __tracepoint_android_rvh_ufs_complete_init
  __traceiter_android_rvh_ufs_complete_init
+ blk_mq_freeze_queue_nomemsave
+ blk_mq_unfreeze_queue_nomemrestore
+
+# required by pte preread
+ __traceiter_android_vh_mmput
+ __tracepoint_android_vh_mmput
+ read_swap_cache_async
+ vfs_fadvise
+
+# required by xiaomi binder
+__tracepoint_android_vh_binder_skip_set_priority
+__traceiter_android_vh_binder_skip_set_priority

@@ -1009,6 +1009,7 @@ struct f2fs_inode_info {
 #ifdef CONFIG_FS_ENCRYPTION
 	struct fscrypt_inode_info *i_crypt_info; /* filesystem encryption info */
 #endif
+	ANDROID_OEM_DATA_ARRAY(1, 2);
 };
 
 static inline void get_read_extent_info(struct extent_info *ext,

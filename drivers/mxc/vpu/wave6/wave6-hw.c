@@ -474,12 +474,18 @@ int wave6_vpu_dec_register_frame_buffer(struct vpu_instance *inst,
 	u32 endian;
 	int ret;
 
-	if (!p_dec_info->vb_fbc_y_tbl[idx].daddr)
+	if (!p_dec_info->vb_fbc_y_tbl[idx].daddr) {
+		dev_err(inst->dev->dev, "fbc_y_tbl[%d] is invalid\n", idx);
 		return -EINVAL;
-	if (!p_dec_info->vb_fbc_c_tbl[idx].daddr)
+	}
+	if (!p_dec_info->vb_fbc_c_tbl[idx].daddr) {
+		dev_err(inst->dev->dev, "fbc_c_tbl[%d] is invalid\n", idx);
 		return -EINVAL;
-	if (!p_dec_info->vb_mv[idx].daddr)
+	}
+	if (!p_dec_info->vb_mv[idx].daddr) {
+		dev_err(inst->dev->dev, "mv_col[%d] is invalid\n", idx);
 		return -EINVAL;
+	}
 
 	endian = wave6_vdi_convert_endian(p_dec_info->open_param.frame_endian);
 

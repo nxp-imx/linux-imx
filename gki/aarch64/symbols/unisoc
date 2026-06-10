@@ -3107,6 +3107,28 @@
   sysfs_emit_at
   unregister_blkdev
   wake_up_bit
+  wait_for_completion_io_timeout
+  unregister_memory_notifier
+  zstd_cctx_workspace_bound
+  zstd_compress_cctx
+  zstd_compress_using_cdict
+  zstd_create_cctx_advanced
+  zstd_create_cdict_byreference
+  zstd_create_dctx_advanced
+  zstd_create_ddict_byreference
+  zstd_dctx_workspace_bound
+  zstd_decompress_dctx
+  zstd_decompress_using_ddict
+  zstd_default_clevel
+  zstd_free_cctx
+  zstd_free_cdict
+  zstd_free_dctx
+  zstd_free_ddict
+  zstd_get_cparams
+  zstd_get_params
+  zstd_init_cctx
+  zstd_init_dctx
+  zstd_is_error
   zs_compact
   zs_create_pool
   zs_destroy_pool

@@ -3331,6 +3331,9 @@ static struct task_dma_buf_info *get_task_dmabuf_info(struct task_struct *task)
 {
 	struct task_dma_buf_info *dmabuf_info;
 
+	if (!is_dmabuf_accounting_enabled())
+		return NULL;
+
 	task_lock(task);
 	dmabuf_info = task->dmabuf_info;
 	if (dmabuf_info)

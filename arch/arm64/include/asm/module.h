@@ -40,6 +40,14 @@ struct pkvm_el2_module {
 	struct list_head ext_symbols;
 	unsigned int nr_relocs;
 	int (*init)(const struct pkvm_module_ops *ops);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
 };
 
 void kvm_apply_hyp_module_relocations(struct pkvm_el2_module *mod,

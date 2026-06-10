@@ -50,9 +50,9 @@ int ___pkvm_host_donate_hyp_prot(u64 pfn, u64 nr_pages,
 int __pkvm_host_donate_sglist_hyp(struct pkvm_sglist_page *sglist, size_t nr_pages);
 int __pkvm_hyp_donate_host(u64 pfn, u64 nr_pages);
 int __pkvm_guest_share_hyp_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa, u64 *hyp_va);
-int __pkvm_guest_unshare_hyp_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa);
+int __pkvm_guest_unshare_hyp_page(struct pkvm_hyp_vm *vm, u64 ipa);
 int __pkvm_guest_share_ffa_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa, phys_addr_t *phys);
-int __pkvm_guest_unshare_ffa_page(struct pkvm_hyp_vcpu *vcpu, u64 ipa);
+int __pkvm_guest_unshare_ffa_page(struct pkvm_hyp_vm *vm, u64 ipa);
 int __pkvm_host_share_ffa(u64 pfn, u64 nr_pages);
 int __pkvm_host_unshare_ffa(u64 pfn, u64 nr_pages);
 int __pkvm_host_donate_guest(u64 pfn, u64 gfn, u64 nr_pages, struct pkvm_hyp_vcpu *vcpu);
@@ -116,8 +116,8 @@ int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot,
 void psci_mem_protect_inc(u64 n);
 void psci_mem_protect_dec(u64 n);
 
-int __pkvm_use_dma(u64 phys_addr, size_t size, struct pkvm_hyp_vcpu *hyp_vcpu);
-int __pkvm_unuse_dma(u64 phys_addr, size_t size, struct pkvm_hyp_vcpu *hyp_vcpu);
+int __pkvm_use_dma(u64 phys_addr, size_t size, struct pkvm_hyp_vm *vm);
+int __pkvm_unuse_dma(u64 phys_addr, size_t size, struct pkvm_hyp_vm *vm);
 
 static __always_inline void __load_host_stage2(void)
 {

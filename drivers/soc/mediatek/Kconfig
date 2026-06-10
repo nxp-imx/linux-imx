@@ -38,7 +38,7 @@ config MTK_DVFSRC
 	  best achievable performance-per-watt.
 
 config MTK_INFRACFG
-	bool "MediaTek INFRACFG Support"
+	tristate "MediaTek INFRACFG Support"
 	select REGMAP
 	help
 	  Say yes here to add support for the MediaTek INFRACFG controller. The

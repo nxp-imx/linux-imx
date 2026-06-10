@@ -92,7 +92,7 @@ static bool ept_pte_young(void *ptep)
 
 static void ept_pte_mkold(void *ptep)
 {
-	*(u64 *)ptep &= ~VMX_EPT_ACCESS_BIT;
+	atomic64_and(~VMX_EPT_ACCESS_BIT, (atomic64_t *)ptep);
 }
 
 static unsigned long ept_pte_to_phys(void *ptep)

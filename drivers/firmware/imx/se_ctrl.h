@@ -16,7 +16,7 @@
 #define MAX_FW_LOAD_RETRIES		50
 
 #define RES_STATUS(x)			FIELD_GET(0x000000ff, x)
-#define MAX_DATA_SIZE_PER_USER		(65 * 1024)
+#define MAX_DATA_SIZE_PER_USER		(128 * 1024)
 #define MAX_NVM_MSG_LEN			(256)
 #define MESSAGING_VERSION_2		0x2
 #define MESSAGING_VERSION_6		0x6
@@ -129,10 +129,23 @@ struct se_if_priv {
 	 */
 	struct se_clbk_handle waiting_rsp_clbk_hdl;
 	/*
+	 * Serialise the timeout path in ele_msg_rcv() against
+	 * se_if_rx_callback() so that the callback can never
+	 * memcpy into a buffer that the timeout path has already
+	 * freed.
+	 */
+	spinlock_t clbk_rx_lock;
+	/*
 	 * prevent new command to be sent on the se interface while previous
 	 * command is still processing. (response is awaited)
 	 */
 	struct mutex se_if_cmd_lock;
+	/*
+	 * Circuit breaker: set on timeout, cleared when ELE responds.
+	 * Prevents hammering ELE when it's overloaded (OP-TEE contention).
+	 * Accessed from both process and ISR context → use atomic ops.
+	 */
+	atomic_t fw_busy;
 	struct se_msg_seq_ctrl se_msg_sq_ctl;
 
 	struct mbox_client se_mb_cl;
@@ -150,6 +163,15 @@ struct se_if_priv {
 	struct list_head dev_ctx_list;
 	u32 active_devctx_count;
 	u32 dev_ctx_mono_count;
+
+	/*
+	 * Telemetry: track timeout and recovery events.
+	 * timeout_count: incremented each time a command times out
+	 * recovery_count: incremented each time circuit breaker closes
+	 * Accessed from both process and ISR context → use atomic_t
+	 */
+	atomic_t timeout_count;
+	atomic_t recovery_count;
 };
 
 #define SE_DUMP_IOCTL_BUFS	0
@@ -162,4 +184,7 @@ int se_dump_to_logfl(struct se_if_device_ctx *dev_ctx,
 		     u8 caller_type, int buf_size,
 		     const char *buf, ...);
 char *get_se_if_name(u8 se_if_id);
+int get_shared_mem_slot(struct se_if_device_ctx *dev_ctx, u32 flags,
+			u32 length, dma_addr_t *ele_dma_addr, void **ptr);
+void se_dev_ctx_shared_mem_cleanup(struct se_if_device_ctx *dev_ctx);
 #endif

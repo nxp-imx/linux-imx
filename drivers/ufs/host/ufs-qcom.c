@@ -1256,6 +1256,9 @@ static void ufs_qcom_advertise_quirks(struct ufs_hba *hba)
 	if (host->hw_ver.major > 0x3)
 		hba->quirks |= UFSHCD_QUIRK_REINIT_AFTER_MAX_GEAR_SWITCH;
 
+	if (host->hw_ver.major == 0x7 && host->hw_ver.minor == 0x1)
+		hba->quirks |= UFSHCD_QUIRK_EXTENDED_TX_EQTR_ADAPT_LENGTH_L0L1L2L3;
+
 	if (drvdata && drvdata->quirks)
 		hba->quirks |= drvdata->quirks;
 }

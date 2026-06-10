@@ -57,10 +57,9 @@ struct imx952_dsi2 {
 	struct dw_mipi_dsi2 *dmd;
 	struct dw_mipi_dsi2_plat_data pdata;
 	union phy_configure_opts phy_cfg;
-	unsigned long target_pclk_rate;
 	unsigned long esc_clk_rate;
 	unsigned long mode_flags;
-	bool phy_submode;
+	int phy_submode;
 	bool hs2lp_lp2hs_quirk;
 };
 
@@ -368,6 +367,8 @@ static const struct dmt_mini_mode adv7535_valid_dmt_mini_modes[] = {
 };
 
 static const bool adv7535_dmt_quirks[] = { true, false, true, true, true, };
+/* PHY multiplication factor x10 */
+static const int adv7535_dmt_phy_submodes[] = { 55, 55, 60, 55, 55, };
 
 static bool is_adv7535_valid_cea_mode(const struct drm_display_mode *mode, int *i)
 {
@@ -485,17 +486,54 @@ static bool is_lt9611uxc_invalid_dmt_mode(struct drm_device *drm,
 				     NULL);
 }
 
-static enum drm_mode_status
-imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
-		       unsigned long mode_flags, u32 lanes, u32 format)
+static int imx952_dsi2_get_target_pclk_rate(struct imx952_dsi2 *dsi,
+					    const struct drm_display_mode *mode,
+					    unsigned long *target_pclk_rate)
 {
 	unsigned long pclk_rate = mode->clock * 1000;
-	unsigned long target_pclk_rate = pclk_rate;
-	struct imx952_dsi2 *dsi = priv_data;
 	struct drm_bridge *bridge, *iter;
 	struct device *dev = dsi->dev;
 	struct drm_encoder *encoder;
-	enum drm_mode_status ret;
+
+	*target_pclk_rate = pclk_rate;
+
+	bridge = dw_mipi_dsi2_get_bridge(dsi->dmd);
+	encoder = bridge->encoder;
+
+	/*
+	 * Get target_pclk_rate for cases where downstream bridges have
+	 * DRM_BRIDGE_OP_DETECT and DRM_BRIDGE_OP_EDID flags.
+	 */
+	list_for_each_entry_reverse(iter, &encoder->bridge_chain, chain_node) {
+		if (!(iter->ops & DRM_BRIDGE_OP_DETECT) ||
+		    !(iter->ops & DRM_BRIDGE_OP_EDID))
+			continue;
+
+		/* Allow +/-0.5% pixel clock rate deviation */
+		*target_pclk_rate = clk_round_rate(dsi->clk_pixel, pclk_rate);
+		if (*target_pclk_rate < pclk_rate * 995 / 1000 ||
+		    *target_pclk_rate > pclk_rate * 1005 / 1000) {
+			dev_dbg(dev, "failed to round clock for mode " DRM_MODE_FMT "\n",
+				DRM_MODE_ARG(mode));
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static enum drm_mode_status
+imx952_dsi2_mode_valid_downstream_bridge(struct imx952_dsi2 *dsi,
+					 const struct drm_display_mode *mode,
+					 int *phy_submode,
+					 bool *hs2lp_lp2hs_quirk)
+{
+	struct drm_bridge *bridge, *iter;
+	struct drm_encoder *encoder;
+
+	/* PHY multiplication factor 1.1 */
+	*phy_submode = 11;
+	*hs2lp_lp2hs_quirk = false;
 
 	bridge = dw_mipi_dsi2_get_bridge(dsi->dmd);
 	encoder = bridge->encoder;
@@ -504,16 +542,6 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		if (!(iter->ops & DRM_BRIDGE_OP_DETECT) ||
 		    !(iter->ops & DRM_BRIDGE_OP_EDID))
 			continue;
-
-
-		/* Allow +/-0.5% pixel clock rate deviation */
-		target_pclk_rate = clk_round_rate(dsi->clk_pixel, pclk_rate);
-		if (target_pclk_rate < pclk_rate * 995 / 1000 ||
-		    target_pclk_rate > pclk_rate * 1005 / 1000) {
-			dev_dbg(dev, "failed to round clock for mode " DRM_MODE_FMT "\n",
-				DRM_MODE_ARG(mode));
-			return MODE_NOCLOCK;
-		}
 
 		if (!iter->product)
 			break;
@@ -525,24 +553,20 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 			vic_match = is_adv7535_valid_cea_mode(mode, &i);
 
 			if (vic_match) {
-				dsi->hs2lp_lp2hs_quirk = adv7535_vic_quirks[i];
+				*hs2lp_lp2hs_quirk = adv7535_vic_quirks[i];
+
+				/* PHY multiplication factor 5.5 */
+				*phy_submode = 55;
 			} else {
 				dmt_match = is_adv7535_valid_dmt_mode(encoder->dev, mode, &i);
-				if (dmt_match)
-					dsi->hs2lp_lp2hs_quirk = adv7535_dmt_quirks[i];
+				if (dmt_match) {
+					*hs2lp_lp2hs_quirk = adv7535_dmt_quirks[i];
+					*phy_submode = adv7535_dmt_phy_submodes[i];
+				}
 			}
 
 			if (!vic_match && !dmt_match)
 				return MODE_BAD;
-
-			/*
-			 * For display modes with pixel clock running higher
-			 * than or equal to 40MHz, use PHY submode.  The PHY
-			 * submode condition check or the clock rate are subject
-			 * to update if more display modes are supported in the
-			 * future.
-			 */
-			dsi->phy_submode = mode->clock >= 40000;
 		} else if (strcmp(iter->product, "IT6263") == 0) {
 			bool vic_match, dmt_match = false;
 
@@ -568,6 +592,33 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 		break;
 	}
 
+	return MODE_OK;
+}
+
+static enum drm_mode_status
+imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
+		       unsigned long mode_flags, u32 lanes, u32 format)
+{
+	struct imx952_dsi2 *dsi = priv_data;
+	unsigned long target_pclk_rate;
+	struct device *dev = dsi->dev;
+	enum drm_mode_status ret;
+	bool hs2lp_lp2hs_quirk;
+	int phy_submode;
+	int err;
+
+	err = imx952_dsi2_get_target_pclk_rate(dsi, mode, &target_pclk_rate);
+	if (err)
+		return MODE_NOCLOCK;
+
+	ret = imx952_dsi2_mode_valid_downstream_bridge(dsi, mode, &phy_submode,
+						       &hs2lp_lp2hs_quirk);
+	if (ret != MODE_OK) {
+		dev_dbg(dev, "failed to validate downstream bridge for mode " DRM_MODE_FMT "\n",
+			DRM_MODE_ARG(mode));
+		return ret;
+	}
+
 	ret = imx952_dsi2_validate_phy(dsi, target_pclk_rate, mode_flags, lanes,
 				       format);
 	if (ret != MODE_OK) {
@@ -575,8 +626,6 @@ imx952_dsi2_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 			DRM_MODE_ARG(mode));
 		return ret;
 	}
-
-	dsi->target_pclk_rate = target_pclk_rate;
 
 	return MODE_OK;
 }
@@ -598,10 +647,6 @@ static bool imx952_dsi2_mode_fixup(void *priv_data,
 	dev_dbg(dsi->dev, "adj clock %d for mode " DRM_MODE_FMT "\n",
 		adjusted_mode->clock, DRM_MODE_ARG(mode));
 
-	/* pixel link always generates active low HSYNC and VSYNC */
-	adjusted_mode->flags &= ~(DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC);
-	adjusted_mode->flags |= DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC;
-
 	return true;
 }
 
@@ -613,10 +658,25 @@ imx952_dsi2_phy_get_lane_mbps(void *priv_data,
 {
 	struct imx952_dsi2 *dsi = priv_data;
 	union phy_configure_opts phy_cfg;
+	enum drm_mode_status mode_status;
+	unsigned long target_pclk_rate;
 	struct device *dev = dsi->dev;
 	int ret;
 
-	ret = imx952_dsi2_get_phy_configure_opts(dsi, dsi->target_pclk_rate,
+	ret = imx952_dsi2_get_target_pclk_rate(dsi, mode, &target_pclk_rate);
+	if (ret)
+		return ret;
+
+	mode_status = imx952_dsi2_mode_valid_downstream_bridge(dsi, mode,
+							       &dsi->phy_submode,
+							       &dsi->hs2lp_lp2hs_quirk);
+	if (mode_status != MODE_OK) {
+		dev_dbg(dev, "failed to validate downstream bridge for mode " DRM_MODE_FMT "\n",
+			DRM_MODE_ARG(mode));
+		return -EINVAL;
+	}
+
+	ret = imx952_dsi2_get_phy_configure_opts(dsi, target_pclk_rate,
 						 &phy_cfg, mode_flags, lanes,
 						 format);
 	if (ret < 0) {

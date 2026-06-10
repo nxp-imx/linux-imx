@@ -1164,6 +1164,7 @@ retry:
 		bool bypass = false;
 		bool activate = false;
 		bool keep = false;
+		bool try_release = false;
 
 		cond_resched();
 
@@ -1411,6 +1412,17 @@ retry:
 				 */
 				folio_mark_dirty(folio);
 			}
+		}
+
+		trace_android_vh_shrink_try_release_folio(folio, &try_release);
+		if (try_release) {
+			trace_android_vh_shrink_folio_lock_owner_clear(folio);
+			folio_unlock(folio);
+			if (folio_put_testzero(folio))
+				goto free_it;
+
+			nr_reclaimed += nr_pages;
+			continue;
 		}
 
 		/*
@@ -2437,6 +2449,15 @@ static bool inactive_is_low(struct lruvec *lruvec, enum lru_list inactive_lru)
 	return inactive * inactive_ratio < active;
 }
 
+static void customize_sc_file_is_tiny(struct scan_control *sc)
+{
+	bool file_is_tiny = sc->file_is_tiny;
+
+	trace_android_vh_mm_customize_file_is_tiny(sc->may_swap, sc->order,
+						   sc->reclaim_idx, &file_is_tiny);
+	sc->file_is_tiny = file_is_tiny;
+}
+
 enum scan_balance {
 	SCAN_EQUAL,
 	SCAN_FRACT,
@@ -2546,6 +2567,8 @@ static void prepare_scan_control(pg_data_t *pgdat, struct scan_control *sc)
 			!(sc->may_deactivate & DEACTIVATE_ANON) &&
 			anon >> sc->priority;
 	}
+
+	customize_sc_file_is_tiny(sc);
 }
 
 static inline void calculate_pressure_balance(struct scan_control *sc,
@@ -6177,6 +6200,7 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 		unsigned long reclaimed;
 		unsigned long scanned;
 		bool skip = false;
+		bool bypass = false;
 
 		/*
 		 * This loop can become CPU-bound when target memcgs
@@ -6226,8 +6250,14 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 				   sc->nr_scanned - scanned,
 				   sc->nr_reclaimed - reclaimed);
 
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+		trace_android_vh_shrink_node_memcgs_bypass(&sc->android_vendor_data1,
+				    partial, sc->nr_to_reclaim, sc->nr_reclaimed,
+				    sc->gfp_mask, sc->order, &bypass);
+#endif
+
 		/* If partial walks are allowed, bail once goal is reached */
-		if (partial && sc->nr_reclaimed >= sc->nr_to_reclaim) {
+		if (bypass || (partial && sc->nr_reclaimed >= sc->nr_to_reclaim)) {
 			mem_cgroup_iter_break(target_memcg, memcg);
 			break;
 		}
@@ -6442,6 +6472,9 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		sc->gfp_mask |= __GFP_HIGHMEM;
 		sc->reclaim_idx = gfp_zone(sc->gfp_mask);
 	}
+
+	trace_android_vh_mm_customize_reclaim_idx(sc->order, sc->gfp_mask,
+						  &sc->reclaim_idx, NULL);
 
 	for_each_zone_zonelist_nodemask(zone, z, zonelist,
 					sc->reclaim_idx, sc->nodemask) {
@@ -6795,6 +6828,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.may_swap = 1,
 	};
 	bool skip_swap = false;
+	int prio = 0;
 
 	/*
 	 * scan_control uses s8 fields for order, priority, and reclaim_idx.
@@ -6817,14 +6851,17 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		sc.may_swap = 0;
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	trace_mm_vmscan_direct_reclaim_begin(order, sc.gfp_mask);
+	trace_android_vh_direct_reclaim_begin(&prio);
 
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
 
+	trace_android_vh_direct_reclaim_end(prio);
 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
 	set_task_reclaim_state(current, NULL);
 
 	return nr_reclaimed;
 }
+EXPORT_SYMBOL_GPL(try_to_free_pages);
 
 #ifdef CONFIG_MEMCG
 
@@ -6978,7 +7015,14 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int highest_zoneidx)
 {
 	int i;
 	unsigned long mark = -1;
+	bool customized = false;
+	bool balanced = false;
 	struct zone *zone;
+
+	trace_android_vh_mm_customize_pgdat_balanced(order, highest_zoneidx,
+						     &balanced, &customized);
+	if (customized)
+		return balanced;
 
 	/*
 	 * Check watermarks bottom-up as lower zones are more likely to
@@ -7604,6 +7648,9 @@ void wakeup_kswapd(struct zone *zone, gfp_t gfp_flags, int order,
 
 	if (!cpuset_zone_allowed(zone, gfp_flags))
 		return;
+
+	trace_android_vh_mm_customize_reclaim_idx(order, gfp_flags, NULL,
+						  &highest_zoneidx);
 
 	pgdat = zone->zone_pgdat;
 	curr_idx = READ_ONCE(pgdat->kswapd_highest_zoneidx);

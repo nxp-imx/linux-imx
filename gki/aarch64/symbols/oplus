@@ -282,6 +282,7 @@
   __traceiter_android_vh_sched_setaffinity_early
   __traceiter_android_vh_scx_enabled
   __traceiter_android_vh_scx_enq_to_priq
+  __traceiter_android_vh_switching_to_scx
   __traceiter_android_vh_scx_exit_on_abnormal
   __traceiter_android_vh_scx_fix_prev_slice
   __traceiter_android_vh_scx_ops_consider_migration
@@ -386,6 +387,7 @@
   __tracepoint_android_vh_sched_setaffinity_early
   __tracepoint_android_vh_scx_enabled
   __tracepoint_android_vh_scx_enq_to_priq
+  __tracepoint_android_vh_switching_to_scx
   __tracepoint_android_vh_scx_exit_on_abnormal
   __tracepoint_android_vh_scx_fix_prev_slice
   __tracepoint_android_vh_scx_ops_consider_migration
@@ -472,6 +474,7 @@
   __traceiter_android_vh_mglru_should_abort_scan_ex
   __traceiter_android_vh_alloc_pages_entry
   __traceiter_android_vh_filemap_get_folio
+  __traceiter_android_vh_shrink_node_memcgs_bypass
   __tracepoint_android_vh_lru_gen_add_folio_skip
   __tracepoint_android_vh_lru_gen_del_folio_skip
   __tracepoint_android_vh_evict_folios_bypass
@@ -483,6 +486,7 @@
   __tracepoint_android_vh_mglru_should_abort_scan_ex
   __tracepoint_android_vh_alloc_pages_entry
   __tracepoint_android_vh_filemap_get_folio
+  __tracepoint_android_vh_shrink_node_memcgs_bypass
   timer_init_key
   alloc_workqueue_noprof
   alloc_workqueue_attrs_noprof
@@ -509,3 +513,4 @@
   of_css
   wait_for_completion_io_timeout
   get_pfnblock_migratetype
+  iov_iter_bvec

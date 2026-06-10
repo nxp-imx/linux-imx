@@ -2165,7 +2165,10 @@ bool kvm_cpuid(struct kvm_vcpu *vcpu, u32 *eax, u32 *ebx,
 				 * instead of cpuid.
 				 */
 				*eax = *ecx / 38400000;	/* denominator */
-				*ebx = tsc_khz / 38400;	/* numerator */
+				if (*eax)
+					*ebx = tsc_khz / 38400;	/* numerator */
+				else
+					*ebx = 0;
 				*edx = 0;
 			} else {
 				*eax = *ebx = *ecx = *edx = 0;

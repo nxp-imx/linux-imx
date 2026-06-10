@@ -47,7 +47,7 @@ struct sil164_priv {
 #define sil164_dbg(client, format, ...) do {				\
 		if (drm_debug_enabled(DRM_UT_KMS))			\
 			dev_printk(KERN_DEBUG, &client->dev,		\
-				   "%s: " format, __func__, ## __VA_ARGS__); \
+				   "%s: " format, __func__, ## __VA_ARGS__);	\
 	} while (0)
 #define sil164_info(client, format, ...)		\
 	dev_info(&client->dev, format, __VA_ARGS__)

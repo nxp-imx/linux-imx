@@ -485,6 +485,7 @@ extern int swp_swapcount(swp_entry_t entry);
 struct backing_dev_info;
 extern struct swap_info_struct *get_swap_device(swp_entry_t entry);
 sector_t swap_folio_sector(struct folio *folio);
+extern sector_t alloc_swapdev_block(int swap);
 
 static inline void put_swap_device(struct swap_info_struct *si)
 {

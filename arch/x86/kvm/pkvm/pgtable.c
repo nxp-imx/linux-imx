@@ -670,11 +670,9 @@ int pkvm_pgtable_walk(struct pkvm_pgtable *pgt, unsigned long vaddr,
 	};
 	int ret;
 
-	if (!pgt->root_pa)
+	if (!pgt->root_pa || vaddr + size <= vaddr || data.end <= data.start ||
+	    data.end - data.start > pkvm_pgtable_max_size(pgt))
 		return -EINVAL;
-
-	if (data.start == data.end)
-		return 0;
 
 	ret = _pgtable_walk(&data, __pkvm_va(pgt->root_pa), pgt->cap.level);
 

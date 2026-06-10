@@ -244,18 +244,21 @@ int fuse_create_open_backing(
 				&(struct qstr) QSTR_INIT(fa->in_args[1].value,
 						strlen(fa->in_args[1].value)),
 				dir_fuse_dentry->backing_path.dentry);
-	inode_unlock(dir_fuse_inode->backing_inode);
 
-	if (IS_ERR(backing_dentry))
+	if (IS_ERR(backing_dentry)) {
+		inode_unlock(dir_fuse_inode->backing_inode);
 		return PTR_ERR(backing_dentry);
+	}
 
 	if (d_really_is_positive(backing_dentry)) {
 		err = -EIO;
+		inode_unlock(dir_fuse_inode->backing_inode);
 		goto out;
 	}
 
 	err = vfs_create(&nop_mnt_idmap, dir_fuse_inode->backing_inode,
 			 backing_dentry, fci->mode, true);
+	inode_unlock(dir_fuse_inode->backing_inode);
 	if (err)
 		goto out;
 
@@ -290,6 +293,7 @@ int fuse_create_open_backing(
 
 	inode = NULL;
 	entry = newent ? newent : entry;
+	entry->d_time = atomic_read(&get_fuse_conn(dir)->epoch);
 	err = finish_open(file, entry, fuse_open_file_backing);
 
 out:
@@ -1354,9 +1358,13 @@ struct dentry *fuse_lookup_finalize(struct fuse_bpf_args *fa, struct inode *dir,
 
 		get_fuse_inode(inode)->nodeid = feo->nodeid;
 		ret = d_splice_alias(inode, entry);
-		if (!IS_ERR(ret))
+		if (!IS_ERR(ret)) {
+			struct dentry *d = ret ? ret : entry;
 			inode = NULL;
+			d->d_time = atomic_read(&get_fuse_conn(dir)->epoch);
+		}
 	}
+
 out:
 	iput(inode);
 	if (feb->backing_file)
@@ -1473,6 +1481,7 @@ int fuse_mknod_backing(
 		goto out;
 	}
 	d_instantiate(entry, inode);
+	entry->d_time = atomic_read(&get_fuse_conn(dir)->epoch);
 out:
 	path_put(&backing_path);
 	return err;
@@ -1534,6 +1543,7 @@ int fuse_mkdir_backing(
 					backing_path.dentry, mode);
 	if (IS_ERR(backing_path.dentry)) {
 		err = PTR_ERR(backing_path.dentry);
+		backing_path.dentry = NULL;  // Safe - vfs_mkdir already did dput!
 		goto out;
 	}
 	if (d_really_is_negative(backing_path.dentry) ||
@@ -1557,6 +1567,7 @@ int fuse_mkdir_backing(
 		goto out;
 	}
 	d_instantiate(entry, inode);
+	entry->d_time = atomic_read(&get_fuse_conn(dir_inode)->epoch);
 	if (get_fuse_inode(inode)->bpf)
 		bpf_prog_put(get_fuse_inode(inode)->bpf);
 	get_fuse_inode(inode)->bpf = get_fuse_dentry(entry)->bpf;
@@ -1916,6 +1927,7 @@ int fuse_link_backing(struct fuse_bpf_args *fa, struct dentry *entry,
 		goto out;
 	}
 	d_instantiate(newent, fuse_new_inode);
+	newent->d_time = atomic_read(&get_fuse_conn(dir)->epoch);
 
 out:
 	dput(backing_dir_dentry);
@@ -2304,6 +2316,7 @@ int fuse_symlink_backing(
 		goto out;
 	}
 	d_instantiate(entry, inode);
+	entry->d_time = atomic_read(&get_fuse_conn(dir)->epoch);
 out:
 	path_put(&backing_path);
 	return err;
