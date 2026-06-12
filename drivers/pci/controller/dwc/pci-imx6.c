@@ -33,6 +33,8 @@
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 
+#include <trace/hooks/pci.h>
+
 #include "../../pci.h"
 #include "pcie-designware.h"
 
@@ -2318,8 +2320,19 @@ static void imx_pcie_quirk(struct pci_dev *dev)
 DECLARE_PCI_FIXUP_CLASS_HEADER(PCI_VENDOR_ID_SYNOPSYS, 0xabcd,
 			PCI_CLASS_BRIDGE_PCI, 8, imx_pcie_quirk);
 
+static void imx_pcie_pwrctrl_should_skip(void *data,
+					 struct device_node *np,
+					 bool *skip)
+{
+	if (of_device_is_compatible(np, "pci1131,e101") ||
+	    of_device_is_compatible(np, "pci1131,ee00"))
+		*skip = true;
+}
+
 static int __init imx_pcie_init(void)
 {
+	int ret;
+
 #ifdef CONFIG_ARM
 	struct device_node *np;
 
@@ -2338,6 +2351,11 @@ static int __init imx_pcie_init(void)
 	hook_fault_code(8, imx6q_pcie_abort_handler, SIGBUS, 0,
 			"external abort on non-linefetch");
 #endif
+
+	ret = register_trace_android_vh_pci_pwrctrl_should_skip(
+			imx_pcie_pwrctrl_should_skip, NULL);
+	if (ret)
+		pr_err("imx-pcie: failed to register pwrctrl skip hook: %d\n", ret);
 
 	return platform_driver_register(&imx_pcie_driver);
 }
