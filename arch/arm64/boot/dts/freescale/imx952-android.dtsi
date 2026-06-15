@@ -55,6 +55,10 @@
         trusty;
 };
 
+&ld_fw {
+	trusty;
+};
+
 &{/reserved-memory/} {
 	secure_region: secure {
 		compatible = "imx-secure-ion-pool";

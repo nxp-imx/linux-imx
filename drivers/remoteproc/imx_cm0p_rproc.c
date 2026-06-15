@@ -19,6 +19,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/remoteproc.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 
 #include "imx_rproc.h"
 
@@ -36,6 +38,10 @@
 #define IMX95_CSR_REG_SRAMCTL_RAMIAE	0x8
 #define IMX95_CSR_REG_SRAMCTL_RAMSR	0xc
 #define IMX95_CSR_RAMSR_IDONE		BIT(0)
+
+#define SMC_ENTITY_IMX_LINUX_OPT 54
+#define SMC_IMX_ECHO SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 0)
+#define SMC_IMX_DPU_CM0P_LOAD_FW SMC_FASTCALL_NR(SMC_ENTITY_IMX_LINUX_OPT, 5)
 
 static const struct reg_field ocram_done =
 			REG_FIELD(IMX95_CSR_REG_SRAMCTL_RAMSR, 0, 0);
@@ -57,6 +63,7 @@ struct imx_cm0p_rproc {
 	phys_addr_t mba_phys;
 	size_t mba_size;
 	bool mba_init;
+	struct device *trusty_dev;
 };
 
 /* Custom registers to initialize */
@@ -294,7 +301,23 @@ static int imx_cm0p_load(struct rproc *rproc, const struct firmware *fw)
 		goto err_put_rpm;
 	}
 
-	memcpy(mba_region, fw->data, fw->size);
+	if (cm0p->trusty_dev) {
+		/* In Trusty mode, the TA is responsible for copying the firmware */
+		dev_info(cm0p->dev, "Trusty mode: Load fw in secure world\n");
+		while(true) {
+			if (trusty_fast_call32(cm0p->trusty_dev,
+						 SMC_IMX_DPU_CM0P_LOAD_FW, 0, 0, 0)) {
+				ret = 0;
+				break;
+			} else {
+				dev_info(cm0p->dev, "Waiting for TA to copy CM0+ firmware\n");
+				msleep(100);
+			}
+		}
+	} else {
+		/* Copy the firmware to the M0+ memory region */
+		memcpy(mba_region, fw->data, fw->size);
+	}
 	memunmap(mba_region);
 	dev_info(cm0p->dev, "CM0+ firmware (%lu bytes) loaded to: %pa+%zx",
 		 fw->size, &cm0p->mba_phys, cm0p->mba_size);
@@ -413,6 +436,7 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 	const char *fw_name;
 	struct rproc *rproc;
 	int ret;
+	struct device *trusty_dev = NULL;
 
 	cm0p_cfg = of_device_get_match_data(dev);
 	if (!cm0p_cfg)
@@ -465,6 +489,21 @@ static int imx_cm0p_rproc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(cm0p_rproc->ocram_cfg);
 		dev_err_probe(dev, ret, "failed to get ocram-cfg: %d\n", ret);
 		goto err_rproc;
+	}
+
+	cm0p_rproc->trusty_dev = NULL;
+	if (of_find_property(dev->of_node, "trusty", NULL)) {
+		trusty_dev = bus_find_device_by_name(&platform_bus_type, NULL, "trusty-core");
+		if (trusty_dev != NULL) {
+			if (!trusty_fast_call32(trusty_dev, SMC_IMX_ECHO, 0, 0, 0)) {
+				cm0p_rproc->trusty_dev = trusty_dev;
+				dev_info(&pdev->dev, "cm0p: get trusty_dev node, use Trusty mode.\n");
+			} else {
+				dev_err(&pdev->dev, "cm0p: failed to get response of echo. Use normal mode.\n");
+			}
+		} else {
+			dev_err(&pdev->dev, "cm0p: failed to find trusty node. Use normal mode.\n");
+		}
 	}
 
 	dev_set_drvdata(dev, rproc);
