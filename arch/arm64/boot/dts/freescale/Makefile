@@ -784,6 +784,10 @@ imx937-frdm-ap1302-csi0-2lanes-dtbs := imx937-frdm.dtb imx937-frdm-ap1302-csi0-2
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-ap1302-csi0-2lanes.dtb
 imx937-frdm-ap1302-csi1-2lanes-dtbs := imx937-frdm.dtb imx937-frdm-ap1302-csi1-2lanes.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-ap1302-csi1-2lanes.dtb
+imx937-frdm-dual-ap1302-dtbs := imx937-frdm.dtb \
+				imx937-frdm-ap1302-csi0-2lanes.dtbo \
+				imx937-frdm-ap1302-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-dual-ap1302.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm.dtb \
 			  imx91-11x11-frdm-mt9m114.dtb \
