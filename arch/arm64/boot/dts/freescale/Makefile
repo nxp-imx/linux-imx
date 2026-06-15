@@ -780,6 +780,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-boe-wxga-lvds-panel.dtb
 imx937-frdm-waveshare-7inch-c-panel-dtbs := imx937-frdm.dtb imx952-frdm-waveshare-7inch-c-panel.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-waveshare-7inch-c-panel.dtb
 
+imx937-frdm-ap1302-csi0-2lanes-dtbs := imx937-frdm.dtb imx937-frdm-ap1302-csi0-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-ap1302-csi0-2lanes.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm.dtb \
 			  imx91-11x11-frdm-mt9m114.dtb \
 			  imx91-11x11-frdm-aud-hat.dtb \
