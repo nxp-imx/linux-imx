@@ -306,7 +306,7 @@ static int dpu95_be_set_fence(struct dpu_bliteng *dpu_be, int fd)
 
 static int dpu95_be_sync_dmabuf_fence(struct drm_device *drm_dev, int fd)
 {
-	const unsigned int timeout_ms = 100;
+	const unsigned int timeout_ms = 5000;
 	struct dma_buf *dmabuf;
 	long ret;
 
