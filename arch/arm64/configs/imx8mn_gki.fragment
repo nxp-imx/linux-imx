@@ -93,6 +93,7 @@ CONFIG_SPI_BITBANG=m
 CONFIG_SPI_SPIDEV=m
 CONFIG_MTD_SPI_NOR=m
 CONFIG_MTD=m
+CONFIG_MAILBOX=y
 CONFIG_IMX_MBOX=m
 CONFIG_STMP_DEVICE=m
 CONFIG_MXS_DMA=m
@@ -143,3 +144,21 @@ CONFIG_LOGO=y
 # CONFIG_LOGO_LINUX_MONO is not set
 # CONFIG_LOGO_LINUX_VGA16 is not set
 CONFIG_LOGO_LINUX_CLUT224=y
+
+# Disable protected symbol enforcement (allow unsigned modules to export symbols)
+CONFIG_MODULE_SIG_PROTECT_LIST=""
+
+# Disable Tegra platform support
+# CONFIG_ARCH_TEGRA is not set
+# CONFIG_TEGRA_BPMP is not set
+# CONFIG_SERIAL_TEGRA_TCU is not set
+# CONFIG_TEGRA_HSP_MBOX is not set
+# CONFIG_ARCH_TEGRA_234_SOC is not set
+
+# Disable Qualcomm platform support
+# CONFIG_ARCH_QCOM is not set
+# CONFIG_PCIE_QCOM is not set
+# CONFIG_SERIAL_QCOM_GENI is not set
+# CONFIG_SERIAL_QCOM_GENI_CONSOLE is not set
+# CONFIG_GUNYAH_QCOM_TRUSTED_VM is not set
+# CONFIG_QCOM_GENI_SE is not set
