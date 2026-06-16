@@ -435,11 +435,28 @@ def define_imx8mp():
         content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_RAMDISK_MODULES] + _IMX8MP_EXT_VENDOR_RAMDISK_MODULES + [""],
     )
 
+    # Explicit module load order for vendor ramdisk
+    # Matches the order defined in _IMX8MP_VENDOR_RAMDISK_MODULES
+    write_file(
+        name = "imx8mp_modules_load_order",
+        out = "imx8mp_modules.load",
+        content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_RAMDISK_MODULES] + _IMX8MP_EXT_VENDOR_RAMDISK_MODULES + [""],
+    )
+
     # Modules list for vendor_dlkm
     # Combines in-tree modules + external WiFi modules
     write_file(
         name = "imx8mp_vendor_dlkm_modules_list",
         out = "imx8mp_vendor_dlkm_modules.txt",
+
+        content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_DLKM_MODULES] + _IMX8MP_EXT_VENDOR_DLKM_MODULES + [""],
+    )
+
+    # Explicit module load order for vendor_dlkm
+    # Matches the order defined in _IMX8MP_VENDOR_DLKM_MODULES
+    write_file(
+        name = "imx8mp_vendor_dlkm_modules_load_order",
+        out = "imx8mp_vendor_dlkm_modules.load",
         content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_DLKM_MODULES] + _IMX8MP_EXT_VENDOR_DLKM_MODULES + [""],
     )
 
@@ -514,6 +531,10 @@ def define_imx8mp():
         ramdisk_compression = "lz4",
         # Only include vendor ramdisk modules
         modules_list = ":imx8mp_vendor_ramdisk_modules_list",
+        # Explicit load order matching _IMX8MP_VENDOR_RAMDISK_MODULES
+        modules_load = ":imx8mp_modules_load_order",
+        # Remove modules not in modules_list from initramfs
+        trim_unused_modules = True,
     )
 
     # vendor_boot.img - contains vendor ramdisk with ramdisk.lz4
@@ -535,6 +556,8 @@ def define_imx8mp():
         kernel_modules_install = ":imx8mp_modules_install",
         # Only include vendor dlkm modules
         modules_list = ":imx8mp_vendor_dlkm_modules_list",
+        # Explicit load order matching _IMX8MP_VENDOR_DLKM_MODULES
+        modules_load = ":imx8mp_vendor_dlkm_modules_load_order",
         # Strip modules already in initramfs to avoid duplication
         vendor_boot_modules_load = ":imx8mp_initramfs",
         fs_type = "erofs",

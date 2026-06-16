@@ -49,8 +49,20 @@ load(":imx.bzl", "define_imx")
 define_imx()
 load(":imx8mp.bzl", "define_imx8mp")
 define_imx8mp()
+load(":imx8q.bzl", "define_imx8q")
+define_imx8q()
+load(":imx8mm.bzl", "define_imx8mm")
+define_imx8mm()
+load(":imx8mn.bzl", "define_imx8mn")
+define_imx8mn()
+load(":imx8mq.bzl", "define_imx8mq")
+define_imx8mq()
+load(":imx8ulp.bzl", "define_imx8ulp")
+define_imx8ulp()
 load(":imx95.bzl", "define_imx95")
 define_imx95()
+load(":imx952.bzl", "define_imx952")
+define_imx952()
 
 package(
     default_visibility = [
@@ -261,6 +273,50 @@ common_kernel(
     makefile = ":Makefile",
     module_implicit_outs = get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
     modules_superset = get_gki_modules_superset("arm64") + get_kunit_modules_superset("arm64"),
+    protected_module_names_list = ":gki_aarch64_protected_module_names",
+    system_dlkm_extra_archive_files = [":generate_gki_module_info_arm64"],
+    trim_nonlisted_kmi = True,
+    visibility = ["//visibility:public"],
+)
+
+# i.MX 8Q needs CONFIG_IMX_GKI_8Q_FIX in GKI base kernel to match
+# symbol CRC in pm_domain.h. Define a dedicated GKI kernel for 8Q.
+write_file(
+    name = "kernel_aarch64_8q_extra_config",
+    out = "kernel_aarch64_8q_extra.fragment",
+    content = [
+        "CONFIG_IMX_GKI_8Q_FIX=y",
+    ],
+)
+
+common_kernel(
+    name = "kernel_aarch64_8q",
+    outs = DEFAULT_GKI_OUTS,
+    abi_definition_stg = "gki/aarch64/abi.stg",
+    additional_kmi_symbol_lists = [":aarch64_additional_kmi_symbol_lists"],
+    arch = "arm64",
+    build_gki_artifacts = True,
+    clang_autofdo_profile = ":gki/aarch64/afdo/kernel.afdo",
+    ddk_headers_archive = ":kernel_aarch64_ddk_headers_archive",
+    ddk_module_headers = [":all_headers_aarch64"],
+    defconfig = "arch/arm64/configs/gki_defconfig",
+    extra_dist = [
+        ":test_mappings_zip",
+        ":tests_zip_arm64",
+    ],
+    generated_headers_for_module = _GENERATED_HEADERS_FOR_MODULE,
+    gki_system_dlkm_modules = ":gki_system_dlkm_modules_arm64",
+    kcflags = COMMON_KCFLAGS,
+    kmi_enforced = True,
+    kmi_symbol_list = "gki/aarch64/symbols/base",
+    kmi_symbol_list_strict_mode = True,
+    make_goals = _GKI_AARCH64_MAKE_GOALS,
+    makefile = ":Makefile",
+    module_implicit_outs = get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
+    modules_superset = get_gki_modules_superset("arm64") + get_kunit_modules_superset("arm64"),
+    post_defconfig_fragments = [
+        ":kernel_aarch64_8q_extra_config",
+    ],
     protected_module_names_list = ":gki_aarch64_protected_module_names",
     system_dlkm_extra_archive_files = [":generate_gki_module_info_arm64"],
     trim_nonlisted_kmi = True,
