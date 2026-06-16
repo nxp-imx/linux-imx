@@ -65,9 +65,10 @@
 #define DM_ACK    0xDA3
 #define DONE      0xAD0
 #define DM_DONE   0xDAD
-#define RESET_VAL 0x0
+#define RESET_VAL 0xA1
 
 // values received from SoC (first driver mbox)
+#define POLL            0x9011
 #define RUN             0x269
 #define CLEAR_FW_LOG    0x270
 #define GET_FW_LOGLEVEL 0x271

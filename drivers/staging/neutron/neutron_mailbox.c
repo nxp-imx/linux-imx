@@ -90,6 +90,11 @@ static int mbox_send_data(struct neutron_mbox *mbox, void *data)
 		msg->argc = MAX_SEND_MSG_ARGC;
 	}
 
+	/* Write POLL first to wake firmware and signal "request incoming".
+	 * Prevents race where firmware wakes on argument writes and reads stale request.
+	 */
+	writel(POLL, mbox->base + MBOX3);
+
 	for (i = 0; i < msg->argc; i++)
 		writel(msg->args[i], mbox->base + SEND_MSG_ARG(i));
 
@@ -124,6 +129,8 @@ static int mbox_send_reset(struct neutron_mbox *mbox)
 {
 	u32 i, val;
 
+	/* Write POLL first to wake firmware and signal "request incoming". */
+	writel(POLL, mbox->base + MBOX3);
 	writel(RESET_VAL, mbox->base + MBOX4);
 	writel(RESET_VAL, mbox->base + MBOX5);
 	writel(RESET, mbox->base + MBOX3);
@@ -181,7 +188,7 @@ static void mbox_recv_callback(struct neutron_mbox *mbox)
 {
 	struct neutron_mbox_rx_msg rx_msg;
 
-	mbox_recv_data(mbox, &rx_msg);
+	rx_msg.retcode = mbox_read_ret(mbox);
 
 	if (mbox->callback)
 		mbox->callback(mbox->ndev, &rx_msg);

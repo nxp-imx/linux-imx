@@ -11,6 +11,7 @@
  ****************************************************************************/
 
 #include "uapi/neutron.h"
+#include "neutron_mailbox.h"
 
 #include <linux/kref.h>
 #include <linux/types.h>
@@ -46,6 +47,9 @@ enum neutron_cmd_type {
  * @inf_arg:			Inference arguments
  * @poll_mode:			Whether use polling mode to read inference result
  * @poll_timer:			Poll timer to check inference status
+ * @fw_rx:			Firmware reply snapshot taken in
+ *				inference_done_callback before send_reset
+ *				clobbers the MBOX registers.
  */
 struct neutron_inference {
 	struct neutron_device    *ndev;
@@ -60,6 +64,7 @@ struct neutron_inference {
 	unsigned int             poll_count;
 	enum   neutron_cmd_type  cmd_type;
 	struct neutron_uapi_inference_args  args;
+	struct neutron_mbox_rx_msg          fw_rx;
 };
 
 /**

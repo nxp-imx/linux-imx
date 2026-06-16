@@ -328,6 +328,12 @@ int neutron_rproc_boot(struct neutron_device *ndev, const char *fw_name)
 		if (!wait_until_neutron_ready(ndev, 100))
 			dev_err(ndev->dev, "failed: neutron is not ready, timeout\n");
 
+		/* Reset neutron state so firmware is ready in main loop to
+		 * process incoming requests.
+		 */
+		if (ndev->mbox)
+			ndev->mbox->ops->send_reset(ndev->mbox);
+
 		if (ndev->power_mode >= POWER_MODE_LOW)
 			neutron_clk_disable(ndev);
 
