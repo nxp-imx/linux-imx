@@ -12,6 +12,10 @@
 #define BRD_SM_CTRL_M2M_WAKE		0x8003U /*!< PCAL6408A-6 */
 #define BRD_SM_CTRL_BUTTON		0x8004U /*!< PCAL6408A-7 */
 
+&ele_if0 {
+	memory-region = <&ele_reserved>;
+};
+
 / {
 	compatible = "fsl,imx952-frdm", "fsl,imx952";
 	model = "NXP i.MX952 FRDM board";
@@ -268,6 +272,12 @@
 
 		vpuenc_boot: vpuenc-boot@88500000 {
 			reg = <0 0x88500000 0 0x100000>;
+			no-map;
+		};
+
+		ele_reserved: ele-reserved@a4120000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0xa4120000 0 0x100000>;
 			no-map;
 		};
 
