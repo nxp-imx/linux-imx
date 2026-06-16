@@ -62,10 +62,6 @@
 	};
 };
 
-&prime_reserved {
-	reg = <0 0x96000000 0 0x10000000>;
-};
-
 &vpu0 {
 	trusty;
 };
