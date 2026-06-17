@@ -2210,6 +2210,12 @@ void vsi_v4l2_update_decfmt(struct vsi_v4l2_ctx *ctx)
 			fmt.fmt.pix.pixelformat != V4L2_PIX_FMT_RFCX) {
 			fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_NV12X;
 		}
+	} else {
+		if (fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_NV12X ||
+		    fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_P010 ||
+		    fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_TILEX ||
+		    fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_RFCX)
+			fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_NV12;
 	}
 	if (isJpegOnlyFmt(ctx->mediacfg.decparams.dec_info.dec_info.src_pix_fmt)) {
 		fmt.fmt.pix.pixelformat = find_local_dec_format(ctx->mediacfg.decparams.dec_info.dec_info.src_pix_fmt, 1);
