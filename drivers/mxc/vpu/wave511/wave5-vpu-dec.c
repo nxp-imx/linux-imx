@@ -785,6 +785,9 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 			inst->dst_fmt.pixelformat = V4L2_PIX_FMT_GREY;
 		else if (initial_info->luma_bitdepth == 10)
 			inst->dst_fmt.pixelformat = V4L2_PIX_FMT_P010;
+		else if (initial_info->luma_bitdepth == 8 &&
+			 inst->dst_fmt.pixelformat == V4L2_PIX_FMT_P010)
+			inst->dst_fmt.pixelformat = dec_fmt_list[VPU_FMT_TYPE_RAW][0].v4l2_pix_fmt;
 
 		vpu_fmt = wave5_find_vpu_fmt(inst->dst_fmt.pixelformat,
 					     dec_fmt_list[VPU_FMT_TYPE_RAW]);
