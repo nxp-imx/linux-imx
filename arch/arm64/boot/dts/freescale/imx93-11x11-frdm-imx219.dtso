@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2025 NXP
+ *
+ * Device tree overlay for Sony IMX219 camera on i.MX93 FRDM board
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "imx93-pinfunc.h"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/media/video-interfaces.h>
+
+&{/} {
+	/* 24MHz reference clock for IMX219 */
+	cam24m: cam24m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "cam24m";
+	};
+
+	/* VANA: Analog power 2.8V */
+	reg_cam_vana: regulator-cam-vana {
+		compatible = "regulator-fixed";
+		regulator-name = "cam_vana";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-always-on;
+	};
+
+	/* VDDL: Digital power 1.2V */
+	reg_cam_vddl: regulator-cam-vddl {
+		compatible = "regulator-fixed";
+		regulator-name = "cam_vddl";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-always-on;
+	};
+
+	/* VDIG: I/O power 1.8V - controlled via GPIO (uses freed AP1302 reset pin) */
+	reg_cam_vdig: regulator-cam-vdig {
+		compatible = "regulator-fixed";
+		regulator-name = "cam_vdig";
+		gpio = <&pcal6524 22 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+};
+
+/* Delete AP1302 ISP from base device tree */
+/delete-node/ &ap1302;
+/delete-node/ &mipi_csi;
+/delete-node/ &dphy_rx;
+
+&lpi2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+
+	imx219: imx219@10 {
+		compatible = "sony,imx219";
+		reg = <0x10>;
+		clocks = <&cam24m>;
+		clock-names = "xclk";
+		VDIG-supply = <&reg_cam_vdig>;
+		VANA-supply = <&reg_cam_vana>;
+		VDDL-supply = <&reg_cam_vddl>;
+
+		/* Orientation and rotation properties */
+		orientation = <2>;
+		rotation = <0>;
+
+		port {
+			imx219_to_mipi_csi2: endpoint {
+				remote-endpoint = <&mipi_csi_in>;
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				link-frequencies = /bits/ 64 <456000000>;
+			};
+		};
+	};
+};
+
+/* Enable MIPI CSI receiver with IMX219 sensor */
+&mipi_csi {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			mipi_csi_in: endpoint {
+				remote-endpoint = <&imx219_to_mipi_csi2>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			mipi_csi_out: endpoint {
+				remote-endpoint = <&isi_in>;
+			};
+		};
+	};
+};
+
+/* Enable MIPI DPHY receiver */
+&dphy_rx {
+	status = "okay";
+};
+
+/* Enable ISI for image processing */
+&isi {
+	status = "okay";
+
+	port {
+		isi_in: endpoint {
+			remote-endpoint = <&mipi_csi_out>;
+		};
+	};
+};
