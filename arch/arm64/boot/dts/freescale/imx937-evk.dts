@@ -11,3 +11,4 @@
 	model = "NXP i.MX937 EVK board";
 	compatible = "fsl,imx937-evk", "fsl,imx937";
 };
+#include "imx937-android.dtsi"

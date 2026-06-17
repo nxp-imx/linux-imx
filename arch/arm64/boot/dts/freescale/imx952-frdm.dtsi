@@ -234,6 +234,11 @@
 			linux,cma-default;
 		};
 
+		mali_protected: mali_protected {
+			reg = <0 0xa0100000 0 0x1000000>;
+			no-map;
+		};
+
 		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
@@ -286,6 +291,11 @@
 			reg = <0x00000002 0x40000000 0x00000000 0x40000000>;
 			no-map;
 		};
+	};
+
+	mali_pma: protected-memory-allocator {
+		compatible = "arm,protected-memory-allocator";
+		memory-region = <&mali_protected>;
 	};
 
 	sound-bt-sco {
@@ -1167,4 +1177,8 @@
 &wdog3 {
 	fsl,ext-reset-output;
 	status = "okay";
+};
+
+&mali {
+	protected-memory-allocator = <&mali_pma>;
 };

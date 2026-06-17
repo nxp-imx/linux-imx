@@ -37,3 +37,4 @@
 		};
 	};
 };
+#include "imx937-android.dtsi"
