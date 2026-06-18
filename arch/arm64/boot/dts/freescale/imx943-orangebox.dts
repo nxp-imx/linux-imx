@@ -486,7 +486,7 @@
 	status = "okay";
 
 	fxls8967af: accelerometer@19 {
-		compatible = "nxp,fxls8967af";
+		compatible = "nxp,fxls8967af","nxp,fxls8962af";
 		reg = <0x19>;
 		interrupt-parent = <&gpio5>;
 		interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
