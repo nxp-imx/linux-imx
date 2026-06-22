@@ -257,7 +257,7 @@ to_virtio_vd(struct video_device *video_dev)
 
 static inline struct virtio_video_stream *file2stream(struct file *file)
 {
-	return container_of(file->private_data, struct virtio_video_stream, fh);
+	return container_of(file_to_v4l2_fh(file), struct virtio_video_stream, fh);
 }
 
 static inline struct virtio_video_stream *ctrl2stream(struct v4l2_ctrl *ctrl)

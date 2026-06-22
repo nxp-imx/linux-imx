@@ -1293,8 +1293,7 @@ static int virtio_video_device_open(struct file *file)
 
 	v4l2_m2m_set_src_buffered(stream->fh.m2m_ctx, true);
 	v4l2_m2m_set_dst_buffered(stream->fh.m2m_ctx, true);
-	file->private_data = &stream->fh;
-	v4l2_fh_add(&stream->fh);
+	v4l2_fh_add(&stream->fh, file);
 
 	switch (vvd->type) {
 	case VIRTIO_VIDEO_DEVICE_ENCODER:
@@ -1320,7 +1319,7 @@ err_init_ctrls:
 	v4l2_m2m_ctx_release(stream->fh.m2m_ctx);
 	mutex_unlock(video_dev->lock);
 err_init_m2m_ctx:
-	v4l2_fh_del(&stream->fh);
+	v4l2_fh_del(&stream->fh, file);
 	v4l2_fh_exit(&stream->fh);
 err_stream_get_params:
 	virtio_video_cmd_stream_destroy(vv, stream->stream_id);
@@ -1340,7 +1339,7 @@ static int virtio_video_device_release(struct file *file)
 
 	virtio_video_stream_id_put(vv, stream);
 
-	v4l2_fh_del(&stream->fh);
+	v4l2_fh_del(&stream->fh, file);
 	v4l2_fh_exit(&stream->fh);
 	mutex_lock(video_dev->lock);
 	v4l2_m2m_ctx_release(stream->fh.m2m_ctx);
