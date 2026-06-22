@@ -7,3 +7,5 @@
 
 #include "imx952.dtsi"
 #include "imx952-frdm.dtsi"
+
+#include "imx952-android.dtsi"
