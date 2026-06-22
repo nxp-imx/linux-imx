@@ -349,7 +349,7 @@ static int dpaa2_mdo_add_rxsa(struct macsec_context *ctx)
 	struct macsec_rx_sa_cfg cfg = { 0 };
 	int err, i;
 
-	cfg.lowest_pn = ctx->sa.tx_sa->next_pn_halves.lower;
+	cfg.lowest_pn = ctx->sa.rx_sa->next_pn_halves.lower;
 	for (i = 0; i < ctx->secy->key_len; i++)
 		cfg.key[i] = ctx->sa.key[i];
 	cfg.an = ctx->sa.assoc_num;
