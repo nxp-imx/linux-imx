@@ -13,6 +13,9 @@
 #include "imx952-pinfunc.h"
 
 &{/} {
+	sound-mqs {
+		status = "disabled";
+	};
 	mic_leds {
 		compatible = "gpio-leds";
 		mic0 {
