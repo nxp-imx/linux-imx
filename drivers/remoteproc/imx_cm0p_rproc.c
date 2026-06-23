@@ -310,7 +310,7 @@ static int imx_cm0p_load(struct rproc *rproc, const struct firmware *fw)
 				ret = 0;
 				break;
 			} else {
-				dev_info(cm0p->dev, "Waiting for TA to copy CM0+ firmware\n");
+				dev_info_once(cm0p->dev, "Waiting for TA to copy CM0+ firmware\n");
 				msleep(100);
 			}
 		}
