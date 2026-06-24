@@ -44,6 +44,8 @@
 #define  PHY_TESTDOUT(n)		FIELD_PREP(PHY_TESTDOUT_MASK, (n))
 #define  PHY_TESTDIN(n)			FIELD_PREP(GENMASK(7, 0), (n))
 
+#define DSI_SDF_3D			0x190
+
 /* master CSR */
 #define DSI_CLOCK_GATING_CONTROL	0x0
 #define  DISPLAY_ASYNC_FIFO(n)		BIT(0 + (n))
@@ -89,7 +91,7 @@
 #define PHY_TEST_MODE_STATUS		0xc
 #define  PHY_LOCK			BIT(11)
 
-/* DPHY test control register */
+/* DPHY TX test control register */
 #define DIG_RDWR_TX_PLL_1		0x15e
 #define  PLL_CPBIAS_CNTRL_RW_MASK	GENMASK(6, 0)
 #define  PLL_CPBIAS_CNTRL_RW(n)		FIELD_PREP(PLL_CPBIAS_CNTRL_RW_MASK, (n))
@@ -136,6 +138,14 @@
 #define DIG_RDWR_TX_TX_SLEW_7		0x272
 #define DIG_RDWR_TX_CLK_TERMLOWCAP	0x402
 
+/* MIPI CSI-2 host register */
+#define CSI_PHY_TEST_CTRL0		0x50
+#define CSI_PHY_TEST_CTRL1		0x54
+
+/* DPHY RX test control register */
+#define DIG_RDWR_RX_CLKLANE_LANE_1	0x302
+#define  HSRXENTERM_BYPASS_CLKLANE_RW	BIT(1)
+
 #define IMX95_DSI_ENDPOINT_PL0		0
 #define IMX95_DSI_ENDPOINT_PL1		1
 
@@ -173,10 +183,11 @@ enum dsi_pixel_link_format {
 
 struct imx95_dsi {
 	struct device *dev;
-	void __iomem *base;
+	struct regmap *dsi;
 	struct regmap *mst;
 	struct regmap *str;
 	struct regmap *phy;
+	struct regmap *csi;
 	struct clk *clk_pixel;
 	struct clk *clk_cfg;
 	struct clk *clk_ref;
@@ -347,6 +358,11 @@ static int imx95_dsi_get_regmap(struct imx95_dsi *dsi)
 		return dev_err_probe(dev, PTR_ERR(dsi->phy),
 				     "failed to get phy CSR\n");
 
+	dsi->csi = syscon_regmap_lookup_by_phandle(np, "nxp,mipi-csi");
+	if (IS_ERR(dsi->csi))
+		return dev_err_probe(dev, PTR_ERR(dsi->csi),
+				     "failed to get MIPI CSI-2 host syscon\n");
+
 	return 0;
 }
 
@@ -415,17 +431,9 @@ out:
 	return ret;
 }
 
-static inline void imx95_dsi_write(struct imx95_dsi *dsi, u32 reg, u32 val)
-{
-	writel(val, dsi->base + reg);
-}
-
-static inline u32 imx95_dsi_read(struct imx95_dsi *dsi, u32 reg)
-{
-	return readl(dsi->base + reg);
-}
-
-static void imx95_dsi_phy_write_testcode(struct imx95_dsi *dsi, u16 test_code)
+static void imx95_combo_phy_write_testcode(struct regmap *regmap,
+					   u32 tst_ctrl0, u32 tst_ctrl1,
+					   u16 test_code)
 {
 	/*
 	 * Each control register address is composed by a 4-bit word(testcode
@@ -434,67 +442,78 @@ static void imx95_dsi_phy_write_testcode(struct imx95_dsi *dsi, u16 test_code)
 
 	/* 1. For writing the 4-bit testcode MSBs: */
 	/* a. Ensure that TESTCLK and TESTEN are set to low. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_UNTESTCLK);
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_UNTESTEN);
+	regmap_write(regmap, tst_ctrl0, PHY_UNTESTCLK);
+	regmap_write(regmap, tst_ctrl1, PHY_UNTESTEN);
 	/* b. Set TESTEN to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_TESTEN);
+	regmap_write(regmap, tst_ctrl1, PHY_TESTEN);
 	/* c. Set TESTCLK to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_TESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_TESTCLK);
 	/* d. Place 0x00 in TESTDIN. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_TESTEN | PHY_TESTDIN(0));
+	regmap_write(regmap, tst_ctrl1, PHY_TESTEN | PHY_TESTDIN(0));
 	/*
 	 * e. Set TESTCLK to low(with the falling edge on TESTCLK, the TESTDIN
 	 * signal content is latched internally).
 	 */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_UNTESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_UNTESTCLK);
 	/* f. Set TESTEN to low. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_UNTESTEN);
+	regmap_write(regmap, tst_ctrl1, PHY_UNTESTEN);
 	/* g. Place the MSB 8-bit word of testcode in TESTDIN. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_TESTDIN(test_code >> 8));
+	regmap_write(regmap, tst_ctrl1, PHY_TESTDIN(test_code >> 8));
 	/* h. Set TESTCLK to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_TESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_TESTCLK);
 
 	/* 2. For writing the 8-bit testcode LSBs: */
 	/* a. Set TESTCLK to low. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_UNTESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_UNTESTCLK);
 	/* b. Set TESTEN to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_TESTEN);
+	regmap_write(regmap, tst_ctrl1, PHY_TESTEN);
 	/* c. Set TESTCLK to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_TESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_TESTCLK);
 	/* d. Place the LSB 8-bit word of testcode in TESTDIN. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1,
-			PHY_TESTEN | PHY_TESTDIN(test_code & 0xff));
+	regmap_write(regmap, tst_ctrl1,
+		     PHY_TESTEN | PHY_TESTDIN(test_code & 0xff));
 	/*
 	 * e. Set TESTCLK to low(with the falling edge on TESTCLK, the TESTDIN
 	 * signal content is latched internally).
 	 */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_UNTESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_UNTESTCLK);
 	/* f. Set TESTEN to low. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1,
-			PHY_UNTESTEN | PHY_TESTDIN(test_code & 0xff));
+	regmap_write(regmap, tst_ctrl1,
+		     PHY_UNTESTEN | PHY_TESTDIN(test_code & 0xff));
 }
 
-static void
-imx95_dsi_phy_tst_ctrl_write(struct imx95_dsi *dsi, u16 test_code, u8 test_data)
+static void imx95_combo_phy_tst_ctrl_write(struct regmap *regmap,
+					   u32 tst_ctrl0, u32 tst_ctrl1,
+					   u16 test_code, u8 test_data)
 {
-	imx95_dsi_phy_write_testcode(dsi, test_code);
+	imx95_combo_phy_write_testcode(regmap, tst_ctrl0, tst_ctrl1, test_code);
 
 	/* For writing the data: */
 	/* a. Place the 8-bit word in TESTDIN. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL1, PHY_TESTDIN(test_data));
+	regmap_write(regmap, tst_ctrl1, PHY_TESTDIN(test_data));
 	/* b. Set TESTCLK to high. */
-	imx95_dsi_write(dsi, DSI_PHY_TST_CTRL0, PHY_TESTCLK);
+	regmap_write(regmap, tst_ctrl0, PHY_TESTCLK);
 }
 
-static u8 imx95_dsi_phy_tst_ctrl_read(struct imx95_dsi *dsi, u16 test_code)
+static u8 imx95_combo_phy_tst_ctrl_read(struct regmap *regmap,
+					u32 tst_ctrl0, u32 tst_ctrl1,
+					u16 test_code)
 {
-	u32 val;
+	unsigned int val;
 
-	imx95_dsi_phy_write_testcode(dsi, test_code);
+	imx95_combo_phy_write_testcode(regmap, tst_ctrl0, tst_ctrl1, test_code);
 
 	/* For reading the data: */
-	val = imx95_dsi_read(dsi, DSI_PHY_TST_CTRL1);
+	regmap_read(regmap, tst_ctrl1, &val);
 	return FIELD_GET(PHY_TESTDOUT_MASK, val);
+}
+
+static void imx95_dsi_phy_tst_ctrl_write(struct imx95_dsi *dsi,
+					 u16 test_code, u8 test_data)
+{
+	imx95_combo_phy_tst_ctrl_write(dsi->dsi,
+				       DSI_PHY_TST_CTRL0, DSI_PHY_TST_CTRL1,
+				       test_code, test_data);
 }
 
 static void
@@ -502,9 +521,27 @@ imx95_dsi_phy_tst_ctrl_update(struct imx95_dsi *dsi, u16 test_code, u8 mask, u8 
 {
 	u8 tmp;
 
-	tmp = imx95_dsi_phy_tst_ctrl_read(dsi, test_code);
+	tmp = imx95_combo_phy_tst_ctrl_read(dsi->dsi,
+					    DSI_PHY_TST_CTRL0, DSI_PHY_TST_CTRL1,
+					    test_code);
 	tmp &= ~mask;
 	imx95_dsi_phy_tst_ctrl_write(dsi, test_code, tmp | val);
+}
+
+static void imx95_csi_phy_tst_ctrl_write(struct imx95_dsi *dsi,
+					 u16 test_code, u8 test_data)
+{
+	imx95_combo_phy_tst_ctrl_write(dsi->csi,
+				       CSI_PHY_TEST_CTRL0, CSI_PHY_TEST_CTRL1,
+				       test_code, test_data);
+}
+
+static u8 imx95_csi_phy_tst_ctrl_read(struct imx95_dsi *dsi, u16 test_code)
+{
+	return imx95_combo_phy_tst_ctrl_read(dsi->csi,
+					     CSI_PHY_TEST_CTRL0,
+					     CSI_PHY_TEST_CTRL1,
+					     test_code);
 }
 
 static inline unsigned long data_rate_to_fout(unsigned long data_rate)
@@ -779,7 +816,7 @@ static int imx95_dsi_phy_init(void *priv_data)
 		return bpp;
 	}
 
-	imx95_dsi_write(dsi, DSI_DPI_CFG_POL, VSYNC_ACTIVE_LOW | HSYNC_ACTIVE_LOW);
+	regmap_write(dsi->dsi, DSI_DPI_CFG_POL, VSYNC_ACTIVE_LOW | HSYNC_ACTIVE_LOW);
 
 	regmap_write(dsi->mst, DSI_CLOCK_SETTING, 0);
 
@@ -796,6 +833,14 @@ static int imx95_dsi_phy_init(void *priv_data)
 	default:
 		dev_err(dsi->dev, "invalid dsi format bpp %d\n", bpp);
 		return -EINVAL;
+	}
+
+	imx95_csi_phy_tst_ctrl_write(dsi, DIG_RDWR_RX_CLKLANE_LANE_1,
+				     HSRXENTERM_BYPASS_CLKLANE_RW);
+	if (imx95_csi_phy_tst_ctrl_read(dsi, DIG_RDWR_RX_CLKLANE_LANE_1) !=
+	    HSRXENTERM_BYPASS_CLKLANE_RW) {
+		dev_err(dsi->dev, "failed to set DPHY RX HSRXENTERM bypass\n");
+		return -EIO;
 	}
 
 	lane_mask = int_pow(2, dsi->lanes) - 1;
@@ -1136,10 +1181,19 @@ static int imx95_dsi_parse_dt(struct imx95_dsi *dsi)
 	return 0;
 }
 
+static const struct regmap_config dsi_regmap_config = {
+	.reg_bits = 8,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = DSI_SDF_3D,
+	.name = "mipi-dsi",
+};
+
 static int imx95_dsi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct imx95_dsi *dsi;
+	void __iomem *base;
 	int ret;
 
 	dsi = devm_kzalloc(dev, sizeof(*dsi), GFP_KERNEL);
@@ -1149,15 +1203,20 @@ static int imx95_dsi_probe(struct platform_device *pdev)
 	dsi->dev = dev;
 	platform_set_drvdata(pdev, dsi);
 
-	dsi->base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(dsi->base))
-		return PTR_ERR(dsi->base);
+	base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
+	dsi->dsi = devm_regmap_init_mmio(dev, base, &dsi_regmap_config);
+	if (IS_ERR(dsi->dsi))
+		return dev_err_probe(dev, PTR_ERR(dsi->dsi),
+				     "failed to create MIPI DSI regmap\n");
 
 	ret = imx95_dsi_parse_dt(dsi);
 	if (ret)
 		return ret;
 
-	dsi->pdata.base = dsi->base;
+	dsi->pdata.base = base;
 	dsi->pdata.max_data_lanes = 4;
 	dsi->pdata.mode_valid = imx95_dsi_mode_valid;
 	dsi->pdata.mode_fixup = imx95_dsi_mode_fixup;
