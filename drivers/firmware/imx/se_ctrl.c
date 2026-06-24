@@ -41,6 +41,7 @@
 #define MBOX_TXDB_NAME			"txdb"
 #define MBOX_RXDB_NAME			"rxdb"
 
+#define SOC_ID_MASK_IMX937		0xFFF0
 #define SOC_ID_MASK_IMX952		0xFFF0
 #define SOC_ID_MASK_IMX95		0xFF00
 #define SE_RCV_MSG_DEFAULT_TIMEOUT	5000
@@ -773,6 +774,7 @@ static bool runtime_fw_status(struct se_if_priv *priv)
 
 	if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
 	    get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+	    get_se_soc_id(priv) == SOC_ID_OF_IMX937 ||
 	    get_se_soc_id(priv) == SOC_ID_OF_IMX952)
 		fw_prsnt_n_running =
 			(var_se_info.fw_vers_word & 0x1000000) ? true : false;
@@ -824,6 +826,7 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx)
 	case SOC_ID_OF_IMX93:
 		info_list = &imx93_info; break;
 	case SOC_ID_OF_IMX95:
+	case SOC_ID_OF_IMX937:
 	case SOC_ID_OF_IMX952:
 		info_list = &imx95_info; break;
 	case SOC_ID_OF_IMX8DXL:
@@ -869,6 +872,8 @@ static char *get_soc_id_str(struct se_if_priv *priv)
 		return "mx95";
 	case SOC_ID_OF_IMX94:
 		return "mx943";
+	case SOC_ID_OF_IMX937:
+		return "mx937";
 	case SOC_ID_OF_IMX952:
 		return "mx952";
 	default:
@@ -891,6 +896,7 @@ static void get_fw_nm_in_rfs(struct se_if_priv *priv)
 		var_se_info.load_fw.se_fw_img_nm.secn_fw.is_fw_name_valid = true;
 	} else if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
 		   get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+		   get_se_soc_id(priv) == SOC_ID_OF_IMX937 ||
 		   get_se_soc_id(priv) == SOC_ID_OF_IMX952) {
 		sprintf(var_se_info.load_fw.se_fw_img_nm.secn_fw.fw_name,
 			"%s%s%xruntime-ahab-container.img",
@@ -908,9 +914,13 @@ static u32 get_normalized_soc_id(u32 info_list_soc_id, u32 get_info_soc_id)
 	if (info_list_soc_id == SOC_ID_OF_IMX93)
 		return get_info_soc_id;  /* iMX93 uses Get-Info value */
 
-	if (info_list_soc_id == SOC_ID_OF_IMX95 &&
-	    ((get_info_soc_id & SOC_ID_MASK_IMX952) == SOC_ID_OF_IMX952))
-		return SOC_ID_OF_IMX952;
+	if (info_list_soc_id == SOC_ID_OF_IMX95) {
+		if ((get_info_soc_id & SOC_ID_MASK_IMX937) == SOC_ID_OF_IMX937)
+			return SOC_ID_OF_IMX937;
+
+		if ((get_info_soc_id & SOC_ID_MASK_IMX952) == SOC_ID_OF_IMX952)
+			return SOC_ID_OF_IMX952;
+	}
 
 	return info_list_soc_id;  /* Default to list value */
 }
