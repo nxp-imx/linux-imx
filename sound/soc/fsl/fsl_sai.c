@@ -798,6 +798,9 @@ static void fsl_sai_config_disable(struct fsl_sai *sai, int dir)
 	regmap_update_bits(sai->regmap, FSL_SAI_xCSR(tx, ofs),
 			   FSL_SAI_CSR_FR, FSL_SAI_CSR_FR);
 
+	regmap_update_bits(sai->regmap, FSL_SAI_xCR2(tx, ofs),
+			   FSL_SAI_CR2_BCI | FSL_SAI_CR2_BYP, 0);
+
 	/*
 	 * For sai master mode, after several open/close sai,
 	 * there will be no frame clock, and can't recover
