@@ -45,8 +45,6 @@ load(
     "get_kunit_modules_list",
     "get_kunit_modules_superset",
 )
-load(":imx.bzl", "define_imx")
-define_imx()
 load(":imx8mp.bzl", "define_imx8mp")
 define_imx8mp()
 load(":imx8q.bzl", "define_imx8q")
