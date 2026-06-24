@@ -2123,6 +2123,7 @@
 			nxp,disp-master-csr = <&display_master_csr>;
 			nxp,disp-stream-csr = <&display_stream_csr>;
 			nxp,mipi-combo-phy-csr = <&mipi_tx_phy_csr>;
+			nxp,mipi-csi = <&mipi_csi1>;
 			status = "disabled";
 
 			ports {
