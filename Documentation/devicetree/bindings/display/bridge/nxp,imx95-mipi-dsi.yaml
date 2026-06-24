@@ -68,6 +68,14 @@ properties:
       i.MX95 display stream CSR, as a syscon, controls some MIPI DPHY
       configurations.
 
+  nxp,mipi-csi:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      i.MX95 uses a combo MIPI DPHY RX/TX.  i.MX95 MIPI CSI-2 host controller,
+      as a syscon, controls MIPI DPHY RX hsrxenterm_bypass_clkin setting.  Use
+      this setting, as a workaround, to improve MIPI DPHY TX compliance test
+      result as suggested by combo PHY designer.
+
 required:
   - compatible
   - interrupts
@@ -76,6 +84,7 @@ required:
   - nxp,disp-master-csr
   - nxp,disp-stream-csr
   - nxp,mipi-combo-phy-csr
+  - nxp,mipi-csi
 
 unevaluatedProperties: false
 
@@ -100,6 +109,7 @@ examples:
       nxp,disp-master-csr = <&display_master_csr>;
       nxp,disp-stream-csr = <&display_stream_csr>;
       nxp,mipi-combo-phy-csr = <&mipi_combo_phy_csr>;
+      nxp,mipi-csi = <&mipi_csi1>;
       #address-cells = <1>;
       #size-cells = <0>;
 
