@@ -862,6 +862,7 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 	dst_vbuf = wave6_to_vpu_buf(dst_buf);
 	pic_param.pic_stream_buffer_addr = wave6_get_dma_addr(dst_buf, 0);
 	pic_param.pic_stream_buffer_size = vb2_plane_size(&dst_buf->vb2_buf, 0);
+	wave6_vpu_force_dma_sync_for_device(inst, dst_buf, DMA_BIDIRECTIONAL);
 	if (!src_buf) {
 		dev_dbg(inst->dev->dev, "no valid src buf\n");
 		if (inst->v4l2_fh.m2m_ctx->is_draining)
@@ -883,13 +884,7 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 			frame_buf.buf_cb = wave6_get_dma_addr(src_buf, 1);
 			frame_buf.buf_cr = wave6_get_dma_addr(src_buf, 2);
 		}
-		for (int i = 0; i < inst->src_fmt.num_planes; i++) {
-			dma_addr_t daddr = vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, i);
-			size_t sizeimage = inst->src_fmt.plane_fmt[i].sizeimage;
-
-			wave6_vpu_force_dma_sync_single_for_device(inst->dev, daddr,
-								   sizeimage, DMA_BIDIRECTIONAL);
-		}
+		wave6_vpu_force_dma_sync_for_device(inst, src_buf, DMA_BIDIRECTIONAL);
 		wave6_update_frame_buf_addr(inst, &frame_buf);
 		frame_buf.stride = stride;
 		pic_param.src_idx = src_buf->vb2_buf.index;
@@ -927,11 +922,13 @@ static int wave6_vpu_enc_start_encode(struct vpu_instance *inst)
 		dst_buf = v4l2_m2m_dst_buf_remove(inst->v4l2_fh.m2m_ctx);
 		if (dst_buf) {
 			dst_buf->sequence = inst->sequence;
+			wave6_vpu_force_dma_sync_for_cpu(inst, dst_buf, DMA_BIDIRECTIONAL);
 			v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_ERROR);
 		}
 
 		src_buf = v4l2_m2m_src_buf_remove(inst->v4l2_fh.m2m_ctx);
 		if (src_buf) {
+			wave6_vpu_force_dma_sync_for_cpu(inst, src_buf, DMA_BIDIRECTIONAL);
 			v4l2_m2m_buf_done(src_buf, VB2_BUF_STATE_ERROR);
 			inst->sequence++;
 			inst->processed_buf_num++;
@@ -986,6 +983,7 @@ static void wave6_handle_encoded_frame(struct vpu_instance *inst,
 	wave6_vpu_handle_performance(inst, dst_vpu_buf);
 
 	v4l2_m2m_buf_copy_metadata(src_buf, dst_buf, true);
+	wave6_vpu_force_dma_sync_for_cpu(inst, src_buf, DMA_BIDIRECTIONAL);
 	v4l2_m2m_buf_done(src_buf, state);
 
 	vb2_set_plane_payload(&dst_buf->vb2_buf, 0, info->bitstream_size);
@@ -1004,8 +1002,7 @@ static void wave6_handle_encoded_frame(struct vpu_instance *inst,
 		inst->error_recovery = true;
 		inst->error_buf_num++;
 	}
-	wave6_vpu_force_dma_sync_single_for_cpu(inst->dev, info->bitstream_buffer,
-						info->bitstream_size, DMA_BIDIRECTIONAL);
+	wave6_vpu_force_dma_sync_for_cpu(inst, dst_buf, DMA_BIDIRECTIONAL);
 	v4l2_m2m_buf_done(dst_buf, state);
 	inst->processed_buf_num++;
 }

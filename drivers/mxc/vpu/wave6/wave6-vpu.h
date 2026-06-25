@@ -94,6 +94,12 @@ void wave6_vpu_force_dma_sync_single_for_cpu(struct vpu_device *dev,
 					     dma_addr_t addr,
 					     size_t size,
 					     enum dma_data_direction dir);
+void wave6_vpu_force_dma_sync_for_device(struct vpu_instance *inst,
+					 struct vb2_v4l2_buffer *vbuf,
+					 enum dma_data_direction dir);
+void wave6_vpu_force_dma_sync_for_cpu(struct vpu_instance *inst,
+				      struct vb2_v4l2_buffer *vbuf,
+				      enum dma_data_direction dir);
 void wave6_update_pix_fmt(struct v4l2_pix_format_mplane *pix_mp,
 			  unsigned int width,
 			  unsigned int height);

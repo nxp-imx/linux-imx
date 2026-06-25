@@ -335,6 +335,46 @@ void wave6_vpu_finish_job(struct vpu_instance *inst)
 	v4l2_m2m_job_finish(inst->dev->m2m_dev, inst->v4l2_fh.m2m_ctx);
 }
 
+void wave6_vpu_force_dma_sync_for_device(struct vpu_instance *inst,
+					 struct vb2_v4l2_buffer *vbuf,
+					 enum dma_data_direction dir)
+{
+	int i;
+
+	if (!inst->dev->force_dma_sync)
+		return;
+
+	if (vbuf->vb2_buf.memory == VB2_MEMORY_MMAP)
+		return;
+
+	for (i = 0; i < vbuf->vb2_buf.num_planes; i++) {
+		dma_addr_t daddr = vb2_dma_contig_plane_dma_addr(&vbuf->vb2_buf, i);
+		size_t size = vbuf->vb2_buf.planes[i].length;
+
+		wave6_vpu_force_dma_sync_single_for_device(inst->dev, daddr, size, dir);
+	}
+}
+
+void wave6_vpu_force_dma_sync_for_cpu(struct vpu_instance *inst,
+				      struct vb2_v4l2_buffer *vbuf,
+				      enum dma_data_direction dir)
+{
+	int i;
+
+	if (!inst->dev->force_dma_sync)
+		return;
+
+	if (vbuf->vb2_buf.memory == VB2_MEMORY_MMAP)
+		return;
+
+	for (i = 0; i < vbuf->vb2_buf.num_planes; i++) {
+		dma_addr_t daddr = vb2_dma_contig_plane_dma_addr(&vbuf->vb2_buf, i);
+		size_t size = vbuf->vb2_buf.planes[i].length;
+
+		wave6_vpu_force_dma_sync_single_for_cpu(inst->dev, daddr, size, dir);
+	}
+}
+
 void wave6_vpu_handle_performance(struct vpu_instance *inst, struct vpu_buffer *vpu_buf)
 {
 	s64 latency, time_spent;
