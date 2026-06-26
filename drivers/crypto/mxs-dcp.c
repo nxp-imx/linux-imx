@@ -3,6 +3,7 @@
  * Freescale i.MX23/i.MX28 Data Co-Processor driver
  *
  * Copyright (C) 2013 Marek Vasut <marex@denx.de>
+ * Copyright 2026 NXP
  */
 
 #include <linux/dma-mapping.h>
@@ -431,11 +432,20 @@ static int dcp_chan_thread_aes(void *data)
 	set_freezable();
 #endif
 	while (!kthread_should_stop()) {
+#ifdef CONFIG_PM_SLEEP
+/*
+ * Call try_to_freeze() before set_current_state() to ensure the thread
+ * is in TASK_RUNNING state when the freeze check occurs. Calling it
+ * after set_current_state(TASK_INTERRUPTIBLE) causes a race condition
+ * where the thread may sleep before responding to the PM freeze request,
+ * resulting in a 20-second suspend timeout. On thaw, 'continue' restarts
+ * the loop to re-check kthread_should_stop() before proceeding.
+ */
+		if (try_to_freeze())
+			continue;
+#endif
 		set_current_state(TASK_INTERRUPTIBLE);
 
-#ifdef CONFIG_PM_SLEEP
-		try_to_freeze();
-#endif
 		spin_lock(&sdcp->lock[chan]);
 		backlog = crypto_get_backlog(&sdcp->queue[chan]);
 		arq = crypto_dequeue_request(&sdcp->queue[chan]);
@@ -473,10 +483,6 @@ static int mxs_dcp_block_fallback(struct skcipher_request *req, int enc)
 	skcipher_request_set_crypt(&rctx->fallback_req, req->src, req->dst,
 				   req->cryptlen, req->iv);
 
-#ifdef CONFIG_PM_SLEEP
-set_freezable();
-try_to_freeze();
-#endif
 	if (enc)
 		ret = crypto_skcipher_encrypt(&rctx->fallback_req);
 	else
@@ -771,11 +777,20 @@ static int dcp_chan_thread_sha(void *data)
 	set_freezable();
 #endif
 	while (!kthread_should_stop()) {
+#ifdef CONFIG_PM_SLEEP
+/*
+ * Call try_to_freeze() before set_current_state() to ensure the thread
+ * is in TASK_RUNNING state when the freeze check occurs. Calling it
+ * after set_current_state(TASK_INTERRUPTIBLE) causes a race condition
+ * where the thread may sleep before responding to the PM freeze request,
+ * resulting in a 20-second suspend timeout. On thaw, 'continue' restarts
+ * the loop to re-check kthread_should_stop() before proceeding.
+ */
+		if (try_to_freeze())
+			continue;
+#endif
 		set_current_state(TASK_INTERRUPTIBLE);
 
-#ifdef CONFIG_PM_SLEEP
-		try_to_freeze();
-#endif
 		spin_lock(&sdcp->lock[chan]);
 		backlog = crypto_get_backlog(&sdcp->queue[chan]);
 		arq = crypto_dequeue_request(&sdcp->queue[chan]);
