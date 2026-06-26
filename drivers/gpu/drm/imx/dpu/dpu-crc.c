@@ -16,6 +16,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_device.h>
 #include <drm/drm_plane.h>
+#include <linux/cleanup.h>
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <video/dpu.h>
@@ -79,14 +80,22 @@ dpu_crc_parse_source(const char *source_name, enum dpu_crc_source *s,
 	} else if (!strcmp(source_name, "auto")) {
 		*s = DPU_CRC_SRC_FRAMEGEN;
 	} else if (strstarts(source_name, roi_prefix)) {
-		char *options, *opt;
+		char *opt, *options_sep;
 		int len = strlen(roi_prefix);
 		int params[4];
 		int i = 0, ret;
 
-		options = kstrdup(source_name + len, GFP_KERNEL);
+		char *options __free(kfree) = kstrdup(source_name + len, GFP_KERNEL);
+		if (!options)
+			return -ENOMEM;
 
-		while ((opt = strsep(&options, ",")) != NULL) {
+		/*
+		 * To free options correctly, copy it to options_sep.
+		 * options_sep would be updated to next tokens by strsep().
+		 */
+		options_sep = options;
+
+		while ((opt = strsep(&options_sep, ",")) != NULL) {
 			if (i > 3)
 				return -EINVAL;
 
@@ -129,9 +138,10 @@ int dpu_crtc_verify_crc_source(struct drm_crtc *crtc, const char *source_name,
 	enum dpu_crc_source source;
 	int ret;
 
-	if (dpu_crc_parse_source(source_name, &source, &roi) < 0) {
+	ret = dpu_crc_parse_source(source_name, &source, &roi);
+	if (ret < 0) {
 		dev_dbg(dpu_crtc->dev, "unknown source %s\n", source_name);
-		return -EINVAL;
+		return ret;
 	}
 
 	ret = drm_modeset_lock_single_interruptible(&crtc->mutex);
@@ -157,9 +167,10 @@ int dpu_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name)
 	enum dpu_crc_source source;
 	int ret;
 
-	if (dpu_crc_parse_source(source_name, &source, &roi) < 0) {
+	ret = dpu_crc_parse_source(source_name, &source, &roi);
+	if (ret < 0) {
 		dev_dbg(dpu_crtc->dev, "unknown source %s\n", source_name);
-		return -EINVAL;
+		return ret;
 	}
 
 	/* Perform an atomic commit to set the CRC source. */
