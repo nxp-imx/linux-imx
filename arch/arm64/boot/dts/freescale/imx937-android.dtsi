@@ -59,3 +59,32 @@
 &lpuart5 {
 	/delete-node/ bluetooth;
 };
+
+&dpu {
+	trusty;
+};
+
+&{/reserved-memory/} {
+	secure_region: secure {
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xA6000000 0 0x1AA00000>;
+	};
+};
+
+&vpu0 {
+	trusty;
+};
+
+&vpu1 {
+	status = "okay";
+	trusty;
+};
+
+&vpuctrl {
+	trusty;
+};
+
+&vpudec_boot {
+	reg = <0 0xC0A00000 0 0x200000>;
+	no-map;
+};
