@@ -199,13 +199,15 @@ static u16 enetc_msg_pf_set_vf_vlan_hash_filter(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
 	struct enetc_msg_vlan_hash_filter *msg;
 	int si_id = vf_id + 1;
+	u64 hash;
 
 	msg = (struct enetc_msg_vlan_hash_filter *)msg_swbd->vaddr;
 	/* Currently, hardware only supports 64 bits table size */
 	if (msg->size != ENETC_VLAN_HASH_TABLE_SIZE_64)
 		return ENETC_MSG_CODE_NOT_SUPPORT;
 
-	pf->ops->set_si_vlan_hash_filter(pf->si, si_id, msg->hash_tbl[0]);
+	hash = (u64)msg->hash_tbl[1] << 32 | msg->hash_tbl[0];
+	pf->ops->set_si_vlan_hash_filter(pf->si, si_id, hash);
 
 	return ENETC_MSG_CODE_SUCCESS;
 }

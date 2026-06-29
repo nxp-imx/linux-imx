@@ -199,7 +199,7 @@ struct enetc_msg_vlan_hash_filter {
 	struct enetc_msg_header hdr;
 	u8 size;
 	u8 resv[3];
-	u64 hash_tbl[];
+	u32 hash_tbl[];
 };
 
 /* message format of class_id 0x21, cmd_id: 0x4,

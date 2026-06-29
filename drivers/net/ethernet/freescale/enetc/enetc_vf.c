@@ -386,7 +386,7 @@ static int enetc_msg_vf_set_vlan_hash_filter(struct enetc_ndev_priv *priv)
 	int err;
 
 	/* Currently, hardware only supports 64 bits table size */
-	msg_size = struct_size(msg, hash_tbl, 1);
+	msg_size = struct_size(msg, hash_tbl, 2);
 	msg_swbd.size = ALIGN(msg_size, ENETC_MSG_ALIGN);
 	msg_swbd.vaddr = dma_alloc_coherent(priv->dev, msg_swbd.size,
 					    &msg_swbd.dma, GFP_KERNEL);
@@ -396,7 +396,7 @@ static int enetc_msg_vf_set_vlan_hash_filter(struct enetc_ndev_priv *priv)
 	msg = (struct enetc_msg_vlan_hash_filter *)msg_swbd.vaddr;
 	msg->size = ENETC_VLAN_HASH_TABLE_SIZE_64;
 
-	memcpy(msg->hash_tbl, si->vlan_ht_filter, sizeof(si->vlan_ht_filter));
+	bitmap_to_arr32(msg->hash_tbl, si->vlan_ht_filter, ENETC_VLAN_HT_SIZE);
 	enetc_msg_vsi_fill_cmn_hdr(&msg_swbd, ENETC_MSG_CLASS_ID_VLAN_FILTER,
 				   ENETC_MSG_SET_VLAN_HASH_TABLE, 0, 0);
 
