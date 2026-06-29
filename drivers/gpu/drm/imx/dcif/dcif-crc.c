@@ -102,13 +102,17 @@ dcif_crc_parse_source(const char *source_name, enum dcif_crc_source *s,
 		int params[4];
 		int i = 0, ret;
 
-		options = kstrdup(source_name + len, GFP_KERNEL);
+		char *buf __free(kfree) = kstrdup(source_name + len, GFP_KERNEL);
+		if (!buf)
+			return -ENOMEM;
+
+		options = buf;
 
 		while ((opt = strsep(&options, ",")) != NULL) {
-			if (i > 3)
+			if (i >= ARRAY_SIZE(params))
 				return -EINVAL;
 
-			ret = kstrtouint(opt, 10, &params[i]);
+			ret = kstrtoint(opt, 10, &params[i]);
 			if (ret < 0)
 				return ret;
 
@@ -118,7 +122,7 @@ dcif_crc_parse_source(const char *source_name, enum dcif_crc_source *s,
 			i++;
 		}
 
-		if (i != 4)
+		if (i != ARRAY_SIZE(params))
 			return -EINVAL;
 
 		roi->x1 = params[0];
@@ -143,10 +147,12 @@ int dcif_crtc_verify_crc_source(struct drm_crtc *crtc, const char *source_name,
 	struct dcif_dev *dcif = crtc_to_dcif_dev(crtc);
 	enum dcif_crc_source source;
 	struct drm_rect roi;
+	int ret;
 
-	if (dcif_crc_parse_source(source_name, &source, &roi) < 0) {
+	ret = dcif_crc_parse_source(source_name, &source, &roi);
+	if (ret < 0) {
 		dev_dbg(dcif->drm.dev, "unknown source %s\n", source_name);
-		return -EINVAL;
+		return ret;
 	}
 
 	*values_cnt = 1;
@@ -164,9 +170,10 @@ int dcif_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name)
 	enum dcif_crc_source source;
 	int ret;
 
-	if (dcif_crc_parse_source(source_name, &source, &roi) < 0) {
+	ret = dcif_crc_parse_source(source_name, &source, &roi);
+	if (ret < 0) {
 		dev_dbg(dcif->drm.dev, "unknown source %s\n", source_name);
-		return -EINVAL;
+		return ret;
 	}
 
 	/* Perform an atomic commit to set the CRC source. */
