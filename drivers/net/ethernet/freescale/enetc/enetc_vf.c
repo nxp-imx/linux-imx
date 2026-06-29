@@ -289,10 +289,10 @@ static int enetc_msg_vf_set_mac_hash_filter(struct net_device *ndev, int type)
 	struct enetc_si *si = priv->si;
 	struct netdev_hw_addr *ha;
 	u32 msg_size, tbl_cnt;
-	u64 *hash_tbl_base;
+	int i = 0;
 	int err;
 
-	tbl_cnt = (type == ENETC_MAC_FILTER_TYPE_ALL) ? 2 : 1;
+	tbl_cnt = (type == ENETC_MAC_FILTER_TYPE_ALL) ? 4 : 2;
 
 	msg_size = struct_size(msg, hash_tbl, tbl_cnt);
 	msg_swbd.size = ALIGN(msg_size, ENETC_MSG_ALIGN);
@@ -305,7 +305,6 @@ static int enetc_msg_vf_set_mac_hash_filter(struct net_device *ndev, int type)
 	msg->type = type & ENETC_MAC_FILTER_TYPE_ALL;
 	msg->size = ENETC_MAC_HASH_TABLE_SIZE_64;
 
-	hash_tbl_base = msg->hash_tbl;
 	netif_addr_lock_bh(ndev);
 	if (type & ENETC_MAC_FILTER_TYPE_UC) {
 		mac_filter = &si->mac_filter[UC];
@@ -313,10 +312,10 @@ static int enetc_msg_vf_set_mac_hash_filter(struct net_device *ndev, int type)
 		netdev_for_each_uc_addr(ha, ndev)
 			enetc_add_mac_addr_ht_filter(mac_filter, ha->addr);
 
-		memcpy(hash_tbl_base, mac_filter->mac_hash_table,
-		       sizeof(*hash_tbl_base));
+		bitmap_to_arr32(&msg->hash_tbl[i], mac_filter->mac_hash_table,
+				ENETC_MADDR_HASH_TBL_SZ);
 
-		hash_tbl_base++;
+		i += 2;
 	}
 
 	if (type & ENETC_MAC_FILTER_TYPE_MC) {
@@ -325,8 +324,8 @@ static int enetc_msg_vf_set_mac_hash_filter(struct net_device *ndev, int type)
 		netdev_for_each_mc_addr(ha, ndev)
 			enetc_add_mac_addr_ht_filter(mac_filter, ha->addr);
 
-		memcpy(hash_tbl_base, mac_filter->mac_hash_table,
-		       sizeof(*hash_tbl_base));
+		bitmap_to_arr32(&msg->hash_tbl[i], mac_filter->mac_hash_table,
+				ENETC_MADDR_HASH_TBL_SZ);
 	}
 	netif_addr_unlock_bh(ndev);
 

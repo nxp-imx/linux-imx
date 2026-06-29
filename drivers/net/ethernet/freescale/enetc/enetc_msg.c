@@ -86,6 +86,7 @@ static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
 	struct enetc_msg_mac_hash_filter *msg;
 	struct enetc_hw *hw = &pf->si->hw;
 	int si_id = vf_id + 1;
+	u64 uc_hash, mc_hash;
 
 	if (is_enetc_rev1(pf->si))
 		return ENETC_MSG_CODE_NOT_SUPPORT;
@@ -99,12 +100,16 @@ static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
 		return ENETC_MSG_CODE_NOT_SUPPORT;
 
 	if (msg->type == ENETC_MAC_FILTER_TYPE_UC) {
-		pf->ops->set_si_mac_hash_filter(hw, si_id, UC, msg->hash_tbl[0]);
+		uc_hash = (u64)msg->hash_tbl[1] << 32 | msg->hash_tbl[0];
+		pf->ops->set_si_mac_hash_filter(hw, si_id, UC, uc_hash);
 	} else if (msg->type == ENETC_MAC_FILTER_TYPE_MC) {
-		pf->ops->set_si_mac_hash_filter(hw, si_id, MC, msg->hash_tbl[0]);
+		mc_hash = (u64)msg->hash_tbl[1] << 32 | msg->hash_tbl[0];
+		pf->ops->set_si_mac_hash_filter(hw, si_id, MC, mc_hash);
 	} else {
-		pf->ops->set_si_mac_hash_filter(hw, si_id, UC, msg->hash_tbl[0]);
-		pf->ops->set_si_mac_hash_filter(hw, si_id, MC, msg->hash_tbl[1]);
+		uc_hash = (u64)msg->hash_tbl[1] << 32 | msg->hash_tbl[0];
+		pf->ops->set_si_mac_hash_filter(hw, si_id, UC, uc_hash);
+		mc_hash = (u64)msg->hash_tbl[3] << 32 | msg->hash_tbl[2];
+		pf->ops->set_si_mac_hash_filter(hw, si_id, MC, mc_hash);
 	}
 
 	return ENETC_MSG_CODE_SUCCESS;

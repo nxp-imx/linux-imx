@@ -177,7 +177,8 @@ struct enetc_msg_mac_hash_filter {
 	struct enetc_msg_header hdr;
 	u8 size:6;
 	u8 type:2;
-	u64 hash_tbl[];
+	u8 resv[3];
+	u32 hash_tbl[];
 };
 
 /* message format of class_id 0x20, cmd_id: 0x5,
