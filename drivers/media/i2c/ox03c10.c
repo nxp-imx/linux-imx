@@ -21,6 +21,9 @@
 #define OX03C10_I2C_ADDR		0x36
 #define OX03C10_PIXEL_RATE		90000000L
 
+#define OX03C10_I2C_MAX_RETRIES	5
+#define OX03C10_I2C_RETRY_DELAY_US	2000
+
 #define OX03C10_EXPOSURE_MIN		2U
 
 #define OX03C10_AGAIN_MIN		0x10000L /* Q16.16 for 1.0 */
@@ -1229,6 +1232,22 @@ int ox03c10_set_mode(struct ox03c10 *sensor, const struct ox03c10_mode *mode)
 }
 EXPORT_SYMBOL(ox03c10_set_mode);
 
+static int ox03c10_regmap_write_retry(struct regmap *rmap, unsigned int reg, unsigned int val)
+{
+	int ret;
+	int retry;
+
+	for (retry = 0; retry < OX03C10_I2C_MAX_RETRIES; retry++) {
+		ret = regmap_write(rmap, reg, val);
+		if (!ret)
+			return 0;
+
+		fsleep(OX03C10_I2C_RETRY_DELAY_US);
+	}
+
+	return ret;
+}
+
 static int ox03c10_sensor_init(struct ox03c10 *sensor)
 {
 	const struct ox03c10_reg *reg;
@@ -1250,7 +1269,7 @@ static int ox03c10_sensor_init(struct ox03c10 *sensor)
 		if (reg->addr == OX03C10_GRP_HOLD_8 && (reg->val == 0x14 || reg->val == 0x15))
 			regcache_cache_bypass(sensor->rmap, false);
 
-		ret = regmap_write(sensor->rmap, reg->addr, reg->val);
+		ret = ox03c10_regmap_write_retry(sensor->rmap, reg->addr, reg->val);
 		if (ret < 0) {
 			dev_err(&sensor->client->dev, "Failed to write addr 0x%04x with 0x%02x\n",
 				reg->addr, reg->val);
