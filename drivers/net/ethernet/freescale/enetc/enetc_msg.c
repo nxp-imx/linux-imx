@@ -244,9 +244,9 @@ static u16 enetc_msg_pf_reply_link_status(struct enetc_pf *pf)
 
 	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
 	if (netif_carrier_ok(ndev))
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_UP;
+		pf_msg.class_code_u8 = ENETC_PF_NC_LINK_STATUS_UP;
 	else
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_DOWN;
+		pf_msg.class_code_u8 = ENETC_PF_NC_LINK_STATUS_DOWN;
 
 	return pf_msg.code;
 }
@@ -284,9 +284,9 @@ static void enetc_send_link_status_msg(struct enetc_pf *pf, u16 ms_mask)
 
 	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
 	if (netif_carrier_ok(ndev))
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_UP;
+		pf_msg.class_code_u8 = ENETC_PF_NC_LINK_STATUS_UP;
 	else
-		pf_msg.class_code = ENETC_PF_NC_LINK_STATUS_DOWN;
+		pf_msg.class_code_u8 = ENETC_PF_NC_LINK_STATUS_DOWN;
 
 	err = enetc_pf_send_msg(pf, pf_msg.code, ms_mask);
 	if (err)

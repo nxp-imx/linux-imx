@@ -655,8 +655,8 @@ void enetc_pf_send_link_status_msg(struct enetc_pf *pf, bool up)
 		return;
 
 	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
-	pf_msg.class_code = up ? ENETC_PF_NC_LINK_STATUS_UP :
-				 ENETC_PF_NC_LINK_STATUS_DOWN;
+	pf_msg.class_code_u8 = up ? ENETC_PF_NC_LINK_STATUS_UP :
+				    ENETC_PF_NC_LINK_STATUS_DOWN;
 
 	err = enetc_pf_send_msg(pf, pf_msg.code, ms_mask);
 	if (err)

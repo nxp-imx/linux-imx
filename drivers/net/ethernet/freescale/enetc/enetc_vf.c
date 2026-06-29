@@ -600,7 +600,7 @@ static void enetc_vf_msg_task(struct work_struct *work)
 	pf_msg.code = VSIMSGRR_GET_MC(val);
 	switch (pf_msg.class_id) {
 	case ENETC_MSG_CLASS_ID_LINK_STATUS:
-		enetc_vf_msg_handle_link_status(si, pf_msg.class_code);
+		enetc_vf_msg_handle_link_status(si, pf_msg.class_code_u8);
 		break;
 	default:
 		dev_err(&si->pdev->dev,
