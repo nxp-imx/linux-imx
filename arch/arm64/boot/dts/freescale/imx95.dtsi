@@ -2336,13 +2336,11 @@
 			#clock-cells = <1>;
 			clocks = <&scmi_clk IMX95_CLK_DISPAPB>;
 			power-domains = <&scmi_devpd IMX95_PD_DISPLAY>;
-			assigned-clocks = <&scmi_clk IMX95_CLK_DISPAXI>,
-					  <&scmi_clk IMX95_CLK_DISPOCRAM>,
+			assigned-clocks = <&scmi_clk IMX95_CLK_DISPOCRAM>,
 					  <&scmi_clk IMX95_CLK_DISPAPB>;
 			assigned-clock-parents = <&scmi_clk IMX95_CLK_SYSPLL1_PFD1>,
-						 <&scmi_clk IMX95_CLK_SYSPLL1_PFD1>,
 						 <&scmi_clk IMX95_CLK_SYSPLL1_PFD1_DIV2>;
-			assigned-clock-rates = <400000000>, <400000000>, <133333333>;
+			assigned-clock-rates = <400000000>, <133333333>;
 
 			display_pixel_link: bridge@8 {
 				compatible = "nxp,imx95-dc-pixel-link";
