@@ -1885,12 +1885,10 @@
 			#size-cells = <1>;
 			clocks = <&scmi_clk IMX952_CLK_DISPAPB>;
 			power-domains = <&scmi_devpd IMX952_PD_DISPLAY>;
-			assigned-clocks = <&scmi_clk IMX952_CLK_DISPAXI>,
-					  <&scmi_clk IMX952_CLK_DISPAPB>,
+			assigned-clocks = <&scmi_clk IMX952_CLK_DISPAPB>,
 					  <&scmi_clk IMX952_CLK_CGC_DISPOCRAM>;
-			assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1>,
-						 <&scmi_clk IMX952_CLK_SYSPLL1_PFD1_DIV2>;
-			assigned-clock-rates = <400000000>, <133333333>, <400000000>;
+			assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1_DIV2>;
+			assigned-clock-rates = <133333333>, <400000000>;
 
 			display_pixel_link: bridge@c {
 				compatible = "nxp,imx952-dc-pixel-link";
