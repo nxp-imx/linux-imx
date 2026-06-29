@@ -99,10 +99,16 @@ enum enetc_msg_link_speed_val {
 	ENETC_MSG_SPEED_1000M,
 	ENETC_MSG_SPEED_2500M,
 	ENETC_MSG_SPEED_5G,
-	ENETC_MSG_SPEED_10G,
-	ENETC_MSG_SPEED_25G,
-	ENETC_MSG_SPEED_50G,
-	ENETC_MSG_SPEED_100G,
+	/* Do not add enumeration values for any speed greater than
+	 * 5Gbps. For any speed greater than 5Gbps, its speed class
+	 * code should follow the formula below.
+	 *
+	 * SPEED = (link_speed - 5000) / 1000 + ENETC_MSG_SPEED_5G
+	 *
+	 * The unit of link_speed should be Mbps, the max SPEED
+	 * should <= ENETC_MSG_SPEED_MAX.
+	 */
+	ENETC_MSG_SPEED_MAX = 0xff,
 };
 
 enum enetc_msg_vlan_filter_cmd_id {

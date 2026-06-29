@@ -328,11 +328,26 @@ static u16 enetc_msg_handle_link_status(struct enetc_msg_header *msg_hdr,
 	}
 }
 
+static u32 enetc_msg_get_speed_code(u32 link_speed)
+{
+	u32 speed;
+
+	if (link_speed < SPEED_5000)
+		return ENETC_MSG_SPEED_UNKNOWN;
+
+	speed = (link_speed - SPEED_5000) / 1000 + ENETC_MSG_SPEED_5G;
+	if (speed > ENETC_MSG_SPEED_MAX)
+		return ENETC_MSG_SPEED_UNKNOWN;
+
+	return speed;
+}
+
 static u16 enetc_msg_pf_reply_link_speed(struct enetc_pf *pf)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(pf->si->ndev);
 	struct ethtool_link_ksettings link_info = {};
 	union enetc_pf_msg pf_msg = {};
+	u8 speed_code;
 
 	rtnl_lock();
 	if (!priv->phylink ||
@@ -348,40 +363,30 @@ static u16 enetc_msg_pf_reply_link_speed(struct enetc_pf *pf)
 	switch (link_info.base.speed) {
 	case SPEED_10:
 		if (link_info.base.duplex == DUPLEX_HALF)
-			pf_msg.class_code = ENETC_MSG_SPEED_10M_HD;
+			speed_code = ENETC_MSG_SPEED_10M_HD;
 		else
-			pf_msg.class_code = ENETC_MSG_SPEED_10M_FD;
+			speed_code = ENETC_MSG_SPEED_10M_FD;
 		break;
 	case SPEED_100:
 		if (link_info.base.duplex == DUPLEX_HALF)
-			pf_msg.class_code = ENETC_MSG_SPEED_100M_HD;
+			speed_code = ENETC_MSG_SPEED_100M_HD;
 		else
-			pf_msg.class_code = ENETC_MSG_SPEED_100M_FD;
+			speed_code = ENETC_MSG_SPEED_100M_FD;
 		break;
 	case SPEED_1000:
-		pf_msg.class_code = ENETC_MSG_SPEED_1000M;
+		speed_code = ENETC_MSG_SPEED_1000M;
 		break;
 	case SPEED_2500:
-		pf_msg.class_code = ENETC_MSG_SPEED_2500M;
+		speed_code = ENETC_MSG_SPEED_2500M;
 		break;
 	case SPEED_5000:
-		pf_msg.class_code = ENETC_MSG_SPEED_5G;
-		break;
-	case SPEED_10000:
-		pf_msg.class_code = ENETC_MSG_SPEED_10G;
-		break;
-	case SPEED_25000:
-		pf_msg.class_code = ENETC_MSG_SPEED_25G;
-		break;
-	case SPEED_50000:
-		pf_msg.class_code = ENETC_MSG_SPEED_50G;
-		break;
-	case SPEED_100000:
-		pf_msg.class_code = ENETC_MSG_SPEED_100G;
+		speed_code = ENETC_MSG_SPEED_5G;
 		break;
 	default:
-		pf_msg.class_code = ENETC_MSG_SPEED_UNKNOWN;
+		speed_code = enetc_msg_get_speed_code(link_info.base.speed);
 	}
+
+	pf_msg.class_code_u8 = speed_code;
 
 	return pf_msg.code;
 }
