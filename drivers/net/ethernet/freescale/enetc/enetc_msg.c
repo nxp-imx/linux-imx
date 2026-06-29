@@ -118,12 +118,12 @@ static u16 enetc_msg_pf_set_vf_mac_hash_filter(struct enetc_pf *pf, int vf_id)
 static u16 enetc_msg_pf_set_vf_mac_promisc_mode(struct enetc_pf *pf, int vf_id)
 {
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
-	struct enetc_msg_mac_promsic_mode *msg;
+	struct enetc_msg_mac_promisc_mode *msg;
 	struct enetc_hw *hw = &pf->si->hw;
 	bool promisc_mode = false;
 	int si_id = vf_id + 1;
 
-	msg = (struct enetc_msg_mac_promsic_mode *)msg_swbd->vaddr;
+	msg = (struct enetc_msg_mac_promisc_mode *)msg_swbd->vaddr;
 	if (msg->promisc_mode == ENETC_MAC_PROMISC_MODE_ENABLE) {
 		if (!enetc_pf_is_vf_trusted(pf, vf_id))
 			return ENETC_MSG_CODE_PERMISSION_DENY;
@@ -215,12 +215,12 @@ static u16 enetc_msg_pf_set_vf_vlan_hash_filter(struct enetc_pf *pf, int vf_id)
 static u16 enetc_msg_pf_set_vf_vlan_promisc_mode(struct enetc_pf *pf, int vf_id)
 {
 	struct enetc_msg_swbd *msg_swbd = &pf->rxmsg[vf_id];
-	struct enetc_msg_vlan_promsic_mode *msg;
+	struct enetc_msg_vlan_promisc_mode *msg;
 	struct enetc_si *si = pf->si;
 	bool promisc_mode = false;
 	int si_id = vf_id + 1;
 
-	msg = (struct enetc_msg_vlan_promsic_mode *)msg_swbd->vaddr;
+	msg = (struct enetc_msg_vlan_promisc_mode *)msg_swbd->vaddr;
 	if (msg->promisc_mode == ENETC_VLAN_PROMISC_MODE_ENABLE)
 		promisc_mode = true;
 

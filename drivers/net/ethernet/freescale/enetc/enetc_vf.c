@@ -197,7 +197,7 @@ static int enetc_vf_set_mac_addr(struct net_device *ndev, void *addr)
 
 static int enetc_msg_vf_set_vlan_promisc(struct enetc_ndev_priv *priv, bool en)
 {
-	struct enetc_msg_vlan_promsic_mode *msg;
+	struct enetc_msg_vlan_promisc_mode *msg;
 	struct enetc_msg_swbd msg_swbd;
 	struct enetc_si *si = priv->si;
 	int err;
@@ -208,7 +208,7 @@ static int enetc_msg_vf_set_vlan_promisc(struct enetc_ndev_priv *priv, bool en)
 	if (!msg_swbd.vaddr)
 		return -ENOMEM;
 
-	msg = (struct enetc_msg_vlan_promsic_mode *)msg_swbd.vaddr;
+	msg = (struct enetc_msg_vlan_promisc_mode *)msg_swbd.vaddr;
 	msg->promisc_mode = en ? ENETC_VLAN_PROMISC_MODE_ENABLE :
 				 ENETC_VLAN_PROMISC_MODE_DISABLE;
 	enetc_msg_vsi_fill_cmn_hdr(&msg_swbd, ENETC_MSG_CLASS_ID_VLAN_FILTER,
@@ -254,7 +254,7 @@ static int enetc_vf_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 static void enetc_msg_vf_set_mac_promisc(struct enetc_ndev_priv *priv,
 					 int type, bool en)
 {
-	struct enetc_msg_mac_promsic_mode *msg;
+	struct enetc_msg_mac_promisc_mode *msg;
 	struct enetc_msg_swbd msg_swbd;
 
 	if (!(type & ENETC_MAC_FILTER_TYPE_ALL))
@@ -266,7 +266,7 @@ static void enetc_msg_vf_set_mac_promisc(struct enetc_ndev_priv *priv,
 	if (!msg_swbd.vaddr)
 		return;
 
-	msg = (struct enetc_msg_mac_promsic_mode *)msg_swbd.vaddr;
+	msg = (struct enetc_msg_mac_promisc_mode *)msg_swbd.vaddr;
 	msg->type = type & ENETC_MAC_FILTER_TYPE_ALL;
 	msg->promisc_mode = en ? ENETC_MAC_PROMISC_MODE_ENABLE :
 				 ENETC_MAC_PROMISC_MODE_DISABLE;
