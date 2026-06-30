@@ -1898,7 +1898,20 @@ static int fsl_sai_runtime_resume(struct device *dev)
 {
 	struct fsl_sai *sai = dev_get_drvdata(dev);
 	unsigned int ofs = sai->soc_data->reg_offset;
-	int ret;
+	int ret, err;
+	struct clk *ipg_clk;
+
+	ipg_clk = devm_clk_get_optional(dev, "ipg");
+	if (IS_ERR(ipg_clk)) {
+		dev_err(dev, "Set ipg clock failed\n");
+		return PTR_ERR(ipg_clk);
+	}
+
+	err = clk_prepare_enable(ipg_clk);
+	if (err) {
+		dev_err(dev, "Enable ipg clock failed\n");
+		return err;
+	}
 
 	ret = clk_prepare_enable(sai->bus_clk);
 	if (ret) {

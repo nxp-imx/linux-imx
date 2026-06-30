@@ -63,8 +63,9 @@
 	clocks = <&scmi_clk IMX952_CLK_BUSNETCMIX>, <&clk_dummy>,
 		 <&scmi_clk IMX952_CLK_SAI2>, <&clk_dummy>,
 		 <&clk_dummy>, <&scmi_clk IMX952_CLK_AUDIOPLL1>,
-		 <&scmi_clk IMX952_CLK_AUDIOPLL2>;
-	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
+		 <&scmi_clk IMX952_CLK_AUDIOPLL2>,
+		 <&scmi_clk IMX952_CLK_CGC_NETC>;
+	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k", "ipg";
 	assigned-clocks = <&scmi_clk IMX952_CLK_AUDIOPLL1_VCO>,
 			  <&scmi_clk IMX952_CLK_AUDIOPLL2_VCO>,
 			  <&scmi_clk IMX952_CLK_AUDIOPLL1>,
