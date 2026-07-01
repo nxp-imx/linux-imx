@@ -11,6 +11,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c-mux.h>
 #include <linux/module.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 
@@ -19,6 +20,8 @@
 
 #include "max96717.h"
 #include "ox03c10.h"
+
+#define MX95MBCAM_MAX_VC			4
 
 struct mx95mbcam_priv {
 	struct i2c_client *client;
@@ -32,12 +35,61 @@ struct mx95mbcam_priv {
 	struct v4l2_subdev sd;
 
 	struct media_pad pad;
+
+	unsigned int vc;
 };
+
+/*
+ * In tunnel mode the deserializer forwards the virtual channels as-is, so each
+ * camera has to transmit on a virtual channel that is unique on the CSI-2 bus.
+ * Use the deserializer link the camera is connected to, which is the port
+ * number of the remote endpoint.
+ */
+static int mx95mbcam_parse_vc(struct mx95mbcam_priv *priv)
+{
+	struct device *dev = &priv->client->dev;
+	struct fwnode_handle *ep, *remote_ep;
+	struct fwnode_endpoint remote;
+	int ret;
+
+	ep = fwnode_graph_get_next_endpoint(dev_fwnode(dev), NULL);
+	if (!ep) {
+		dev_err(dev, "No endpoint found.\n");
+		return -ENOENT;
+	}
+
+	remote_ep = fwnode_graph_get_remote_endpoint(ep);
+	fwnode_handle_put(ep);
+	if (!remote_ep) {
+		dev_err(dev, "Endpoint not connected to a deserializer.\n");
+		return -ENOENT;
+	}
+
+	ret = fwnode_graph_parse_endpoint(remote_ep, &remote);
+	fwnode_handle_put(remote_ep);
+	if (ret < 0) {
+		dev_err(dev, "Failed to parse the remote endpoint: %d\n", ret);
+		return ret;
+	}
+
+	if (remote.port >= MX95MBCAM_MAX_VC) {
+		dev_err(dev, "Unsupported virtual channel number: %u\n", remote.port);
+		return -EINVAL;
+	}
+
+	priv->vc = remote.port;
+
+	return 0;
+}
 
 static int mx95mbcam_parse_dt(struct mx95mbcam_priv *priv)
 {
 	struct device *dev = &priv->client->dev;
 	int ret;
+
+	ret = mx95mbcam_parse_vc(priv);
+	if (ret < 0)
+		return ret;
 
 	ret = of_property_read_u32(dev->of_node, "nxp,camera_sensor_reset_pin",
 				   &priv->sensor_reset_pin);
@@ -197,8 +249,9 @@ static int mx95mbcam_get_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *s
 }
 
 static int mx95mbcam_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
-			     struct v4l2_mbus_frame_desc *fd)
+				    struct v4l2_mbus_frame_desc *fd)
 {
+	struct mx95mbcam_priv *priv = container_of(sd, struct mx95mbcam_priv, sd);
 	struct v4l2_subdev_state *state;
 	struct v4l2_subdev_format format;
 
@@ -212,7 +265,7 @@ static int mx95mbcam_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 	mx95mbcam_get_fmt(sd, state, &format);
 
 	fd->entry[0].pixelcode = format.format.code;
-	fd->entry[0].bus.csi2.vc = 0;
+	fd->entry[0].bus.csi2.vc = priv->vc;
 	fd->entry[0].bus.csi2.dt = MAX96717_DT_RAW16;
 
 	v4l2_subdev_unlock_state(state);
@@ -270,7 +323,6 @@ static const struct v4l2_subdev_ops mx95mbcam_subdev_ops = {
 	.video		= &mx95mbcam_video_ops,
 	.pad		= &mx95mbcam_subdev_pad_ops,
 };
-
 
 static int mx95mbcam_v4l2_init_controls(struct mx95mbcam_priv *priv)
 {
@@ -345,19 +397,11 @@ static int mx95mbcam_config_lanes_polarity(struct mx95mbcam_priv *priv)
 static int mx95mbcam_init(struct mx95mbcam_priv *priv)
 {
 	int ret;
-	u8 data_types[2] = {
-		MAX96717_DT_RAW16,
-		MAX96717_DT_EMBEDDED,
-	};
 
-	ret = max96717_tunnel_mode_en(priv->ser, false);
+	ret = max96717_tunnel_mode_en(priv->ser, true);
 	ret |= max96717_set_lanes_no(priv->ser, 4);
 	ret |= mx95mbcam_config_csi_lanes(priv);
 	ret |= mx95mbcam_config_lanes_polarity(priv);
-	ret |= max96717_data_type_filter(priv->ser, data_types, ARRAY_SIZE(data_types));
-	ret |= max96717_double_mode_en(priv->ser);
-	ret |= max96717_soft_bpp_override(priv->ser, 16); /* RAW16 bpp */
-	ret |= max96717_vc_filter(priv->ser, BIT(0)); /* process only VC0 */
 	ret |= max96717_stream_id_set(priv->ser, 0);
 	ret |= max96717_set_i2c_speed(priv->ser, MAX96717_I2C_BPS_980000);
 
@@ -393,7 +437,7 @@ static int mx95mbcam_probe(struct i2c_client *client)
 		return ret;
 	}
 
-	priv->sensor = ox03c10_init_with_dummy_client(client, true, 0);
+	priv->sensor = ox03c10_init_with_dummy_client(client, true, priv->vc);
 	if (IS_ERR(priv->sensor))
 		return PTR_ERR(priv->sensor);
 
