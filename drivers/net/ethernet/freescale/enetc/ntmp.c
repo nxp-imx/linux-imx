@@ -1100,7 +1100,7 @@ int ntmp_isft_query_entry(struct ntmp_user *user, u32 entry_id,
 {
 	struct ntmp_dma_buf data = {
 		.dev = user->dev,
-		.size = sizeof(struct maft_req_add),
+		.size = sizeof(struct isft_resp_query),
 	};
 	struct isft_resp_query *resp;
 	struct isft_req_qd *req;
