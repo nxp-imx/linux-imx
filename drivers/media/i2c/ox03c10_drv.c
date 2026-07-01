@@ -319,7 +319,7 @@ static int ox03c10_probe(struct i2c_client *client)
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to enable clock\n");
 
-	priv->sensor = ox03c10_init_with_dummy_client(client, false);
+	priv->sensor = ox03c10_init_with_dummy_client(client, false, 0);
 	if (IS_ERR(priv->sensor))
 		return PTR_ERR(priv->sensor);
 
