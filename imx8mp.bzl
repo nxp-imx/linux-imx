@@ -415,6 +415,38 @@ _IMX8MP_EXT_VENDOR_DLKM_MODULES = [
     "moal.ko",
 ]
 
+# =============================================================================
+# Powersave mode: additional/replacement DTBs and modules
+# Used when POWERSAVE=true (MCU image + powersave support)
+# =============================================================================
+
+# RPMSG DTB replacement for powersave mode
+_IMX8MP_POWERSAVE_RPMSG_DTB = [
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-hifiberry-dacpp-m-rpmsg.dtb",
+]
+
+# Normal RPMSG DTBs (replaced by powersave RPMSG DTB when powersave=True)
+_IMX8MP_NORMAL_RPMSG_DTBS = [
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-rpmsg.dtb",
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-revb4-rpmsg.dtb",
+]
+
+# Additional powersave-only DTBs
+_IMX8MP_POWERSAVE_DTBS = [
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-powersave.dtb",
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-revb4-powersave.dtb",
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-powersave-non-rpmsg.dtb",
+    "arch/arm64/boot/dts/freescale/imx8mp-evk-revb4-powersave-non-rpmsg.dtb",
+]
+
+# Additional powersave-only vendor DLKM modules
+_IMX8MP_POWERSAVE_MODULES = [
+    "drivers/soc/imx/lpa_ctrl.ko",
+    "sound/soc/codecs/snd-soc-rpmsg-pcm512x.ko",
+    "sound/soc/codecs/snd-soc-rpmsg-pcm512x-i2c.ko",
+    "sound/soc/codecs/snd-soc-tpa6130a2.ko",
+]
+
 # Helper function to generate modules list file content
 def _modules_list_content(modules):
     """Generate module list content with just .ko filenames."""
@@ -460,9 +492,27 @@ def define_imx8mp():
         content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_DLKM_MODULES] + _IMX8MP_EXT_VENDOR_DLKM_MODULES + [""],
     )
 
+    # Modules list for vendor_dlkm (powersave mode — includes extra modules)
+    write_file(
+        name = "imx8mp_powersave_vendor_dlkm_modules_list",
+        out = "imx8mp_powersave_vendor_dlkm_modules.txt",
+        content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_DLKM_MODULES + _IMX8MP_POWERSAVE_MODULES] + _IMX8MP_EXT_VENDOR_DLKM_MODULES + [""],
+    )
+
+    # Explicit module load order for vendor_dlkm (powersave mode)
+    write_file(
+        name = "imx8mp_powersave_vendor_dlkm_modules_load_order",
+        out = "imx8mp_powersave_vendor_dlkm_modules.load",
+        content = [m.split("/")[-1] for m in _IMX8MP_VENDOR_DLKM_MODULES + _IMX8MP_POWERSAVE_MODULES] + _IMX8MP_EXT_VENDOR_DLKM_MODULES + [""],
+    )
+
     # ==========================================================================
     # Kernel build
     # ==========================================================================
+
+    # kernel_build includes ALL DTBs (normal + powersave) so both modes
+    # can pick the DTBs they need from the same build output.
+    _all_dtbs = _IMX8MP_DTB_OUTS + _IMX8MP_POWERSAVE_RPMSG_DTB + _IMX8MP_POWERSAVE_DTBS
 
     kernel_build(
         name = "imx8mp",
@@ -470,7 +520,7 @@ def define_imx8mp():
         outs = [
             "Image",
             "Image.lz4",
-        ] + _IMX8MP_DTB_OUTS + _IMX8MP_DTBO_OUTS,
+        ] + _all_dtbs + _IMX8MP_DTBO_OUTS,
         arch = "arm64",
         # Mixed build: use GKI as base
         base_kernel = ":kernel_aarch64",
@@ -563,6 +613,19 @@ def define_imx8mp():
         fs_type = "erofs",
     )
 
+    # vendor_dlkm.img (powersave) - includes _IMX8MP_VENDOR_DLKM_MODULES + _IMX8MP_POWERSAVE_MODULES
+    vendor_dlkm_image(
+        name = "imx8mp_powersave_vendor_dlkm",
+        kernel_modules_install = ":imx8mp_modules_install",
+        # Include vendor dlkm + powersave modules
+        modules_list = ":imx8mp_powersave_vendor_dlkm_modules_list",
+        # Explicit load order matching vendor dlkm + powersave modules
+        modules_load = ":imx8mp_powersave_vendor_dlkm_modules_load_order",
+        # Strip modules already in initramfs to avoid duplication
+        vendor_boot_modules_load = ":imx8mp_initramfs",
+        fs_type = "erofs",
+    )
+
     # ==========================================================================
     # Distribution file groups
     # ==========================================================================
@@ -613,6 +676,29 @@ def define_imx8mp():
         visibility = ["//visibility:private"],
     )
 
+    # Powersave DTBs (replace normal RPMSG DTBs + add powersave DTBs)
+    _powersave_dtb_list = [
+        d for d in _IMX8MP_DTB_OUTS
+        if d not in _IMX8MP_NORMAL_RPMSG_DTBS
+    ] + _IMX8MP_POWERSAVE_RPMSG_DTB + _IMX8MP_POWERSAVE_DTBS + _IMX8MP_DTBO_OUTS
+
+    pkg_files(
+        name = "imx8mp_powersave_dtb_files",
+        srcs = [":imx8mp/" + f for f in _powersave_dtb_list],
+        strip_prefix = strip_prefix.from_pkg("imx8mp/arch/arm64/boot/dts/freescale"),
+        visibility = ["//visibility:private"],
+    )
+
+    # Vendor DLKM (powersave — includes extra powersave modules)
+    pkg_files(
+        name = "imx8mp_powersave_vendor_dlkm_files",
+        srcs = [
+            ":imx8mp_powersave_vendor_dlkm",
+        ],
+        strip_prefix = strip_prefix.files_only(),
+        visibility = ["//visibility:private"],
+    )
+
     # GKI boot.img variants
     pkg_files(
         name = "imx8mp_boot_files",
@@ -653,7 +739,7 @@ def define_imx8mp():
     )
 
     # Vendor boot only (initramfs.img)
-    # Command: tools/bazel run //common:imx8mp_vendor_boot_dist
+    # Command: tools/bazel run //kernel_imx:imx8mp_vendor_boot_dist
     pkg_install(
         name = "imx8mp_vendor_boot_dist",
         srcs = [
@@ -664,7 +750,7 @@ def define_imx8mp():
     )
 
     # Vendor DLKM only (vendor_dlkm.img)
-    # Command: tools/bazel run //common:imx8mp_vendor_dlkm_dist
+    # Command: tools/bazel run //kernel_imx:imx8mp_vendor_dlkm_dist
     pkg_install(
         name = "imx8mp_vendor_dlkm_dist",
         srcs = [
@@ -675,7 +761,7 @@ def define_imx8mp():
     )
 
     # GKI boot.img only
-    # Command: tools/bazel run //common:imx8mp_boot_dist
+    # Command: tools/bazel run //kernel_imx:imx8mp_boot_dist
     pkg_install(
         name = "imx8mp_boot_dist",
         srcs = [
@@ -685,7 +771,7 @@ def define_imx8mp():
     )
 
     # GKI system_dlkm only
-    # Command: tools/bazel run //common:imx8mp_system_dlkm_dist
+    # Command: tools/bazel run //kernel_imx:imx8mp_system_dlkm_dist
     pkg_install(
         name = "imx8mp_system_dlkm_dist",
         srcs = [
@@ -713,6 +799,46 @@ def define_imx8mp():
             ":imx8mp_dtb_files",
         ],
         destdir = "out/imx_evk_8mp_aarch64/dist",
+    )
+
+    # ==========================================================================
+    # Distribution targets — powersave mode
+    # ==========================================================================
+
+    # Full distribution (powersave — different DTBs + extra modules)
+    # Command: tools/bazel run //kernel_imx:imx8mp_powersave_dist
+    pkg_install(
+        name = "imx8mp_powersave_dist",
+        srcs = [
+            ":imx8mp_kernel_files",
+            ":imx8mp_vendor_boot_files",
+            ":imx8mp_powersave_vendor_dlkm_files",
+            ":imx8mp_boot_files",
+            ":imx8mp_system_dlkm_files",
+            ":imx8mp_powersave_dtb_files",
+        ],
+        destdir = "out/imx_evk_8mp_aarch64_powersave/dist",
+    )
+
+    # Vendor DLKM only (powersave — includes extra powersave modules)
+    # Command: tools/bazel run //kernel_imx:imx8mp_powersave_vendor_dlkm_dist
+    pkg_install(
+        name = "imx8mp_powersave_vendor_dlkm_dist",
+        srcs = [
+            ":imx8mp_kernel_files",
+            ":imx8mp_powersave_vendor_dlkm_files",
+        ],
+        destdir = "out/imx_evk_8mp_aarch64_powersave/dist",
+    )
+
+    # DTB only distribution (powersave — different RPMSG + powersave DTBs)
+    # Command: tools/bazel run //kernel_imx:imx8mp_powersave_dtb_dist
+    pkg_install(
+        name = "imx8mp_powersave_dtb_dist",
+        srcs = [
+            ":imx8mp_powersave_dtb_files",
+        ],
+        destdir = "out/imx_evk_8mp_aarch64_powersave/dist",
     )
 
 # Export module lists for use in BUILD.bazel or other .bzl files
