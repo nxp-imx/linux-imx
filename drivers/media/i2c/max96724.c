@@ -676,52 +676,6 @@ static int __maybe_unused max96724_gmsl_speed_set(struct max96724_priv *priv,
 	return ret ? -EIO : 0;
 }
 
-static int max96724_vc_mapping_set(struct max96724_priv *priv, int pipe, int map_no,
-				   int src_vc, enum max96724_data_type src_dt,
-				   int dst_vc, enum max96724_data_type dst_dt)
-{
-	int ret;
-
-	ret = regmap_write(priv->rmap, MAX96724_MIPI_TX_MAP_SRC(pipe, map_no),
-			   (src_vc << 6) | (src_dt & 0x3f));
-	ret |= regmap_write(priv->rmap, MAX96724_MIPI_TX_MAP_DST(pipe, map_no),
-			    (dst_vc << 6) | (dst_dt & 0x3f));
-
-	return ret ? -EIO : 0;
-}
-
-/* Each set bit in the mapping_mask will enable a mapping. */
-static int max96724_vc_mapping_en(struct max96724_priv *priv, int pipe, u16 mapping_mask)
-{
-	int ret;
-
-	ret = regmap_write(priv->rmap, MAX96724_MIPI_TX_MAP_EN_H(pipe), mapping_mask >> 8);
-	ret |= regmap_write(priv->rmap, MAX96724_MIPI_TX_MAP_EN_L(pipe), mapping_mask & 0xff);
-
-	return ret ? -EIO : 0;
-}
-
-/* Each VC src/dst map with a set bit in mapping_mask will be routed to dphy_no. */
-static int max96724_vc_dphy_dst_select(struct max96724_priv *priv, int pipe,
-				       unsigned long *mapping_mask, int dphy_no)
-{
-	int i, bit;
-	int base_dphy_map_addr = MAX96724_MIPI_TX_45(pipe);
-	u8 offs;
-	u8 dphy_map[4] = {0};
-	int ret = 0;
-
-	for_each_set_bit(bit, mapping_mask, 16) {
-		offs = bit / 4;
-		dphy_map[offs] |= dphy_no << ((bit & 0x3) * 2);
-	}
-
-	for (i = 0; i < 4; i++)
-		ret |= regmap_write(priv->rmap, base_dphy_map_addr + i, dphy_map[i]);
-
-	return ret ? -EIO : 0;
-}
-
 static int max96724_assign_pipe_to_mipi_ctrl(struct max96724_priv *priv, int pipe)
 {
 	int ctrl_sel = 0;
@@ -751,12 +705,9 @@ static int max96724_pipe_setup(struct max96724_priv *priv, int pipe,
 	int ret, i;
 	struct v4l2_mbus_framefmt *format;
 	const struct max96724_format_info *info = NULL;
-	unsigned long mapping_mask;
-	u8 dt_vc0;
 	int csi_port = (priv->csi2_video_pipe_mask[0] & BIT(pipe)) ? 0 : 1;
 	u8 pos_shift;
 
-	/* the pixel data is on VC0 */
 	format = v4l2_subdev_state_get_format(state, pipe, 0);
 	if (!format)
 		return -EINVAL;
@@ -781,17 +732,6 @@ static int max96724_pipe_setup(struct max96724_priv *priv, int pipe,
 	ret |= regmap_update_bits(priv->rmap, MAX96724_VIDEO_PIPE_SEL_VIDEO_PIPE_EN,
 				  BIT(pipe), BIT(pipe));
 
-	mapping_mask = 0xf;
-	dt_vc0 = info->data_type;
-
-	ret |= max96724_vc_mapping_en(priv, pipe, mapping_mask);
-	ret |= max96724_vc_mapping_set(priv, pipe, 0, 0, dt_vc0, pipe, dt_vc0);
-	ret |= max96724_vc_mapping_set(priv, pipe, 1, 0, 0x00, pipe, 0x00); /* frame-start */
-	ret |= max96724_vc_mapping_set(priv, pipe, 2, 0, 0x01, pipe, 0x01); /* frame-end */
-	ret |= max96724_vc_mapping_set(priv, pipe, 3, 0, MAX96724_DT_EMBEDDED,
-				       pipe, MAX96724_DT_EMBEDDED);
-
-	ret |= max96724_vc_dphy_dst_select(priv, pipe, &mapping_mask, csi_port == 0 ? 1 : 2);
 	ret |= regmap_update_bits(priv->rmap, MAX96724_MIPI_TX_10(csi_port == 0 ? 1 : 2),
 			CSI2_LANE_CNT_MASK,
 			(priv->csi2_data_lanes[csi_port] - 1) << CSI2_LANE_CNT_SHIFT);
@@ -1262,13 +1202,7 @@ static int max96724_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 		fd->entry[fd->num_entries].flags = source_entry->flags;
 		fd->entry[fd->num_entries].length = source_entry->length;
 		fd->entry[fd->num_entries].pixelcode = source_entry->pixelcode;
-
-		/*
-		 * TODO: Currently, the sink pad gives the VC number. But we need to fix this
-		 * if we're using the 2nd CSI port as well as we will end up with VC0 and VC1 on
-		 * CSI1 and VC2 and VC3 on CSI2. Should be VC0 and VC1 on CSI2.
-		 */
-		fd->entry[fd->num_entries].bus.csi2.vc = route->sink_pad;
+		fd->entry[fd->num_entries].bus.csi2.vc = source_entry->bus.csi2.vc;
 		fd->entry[fd->num_entries].bus.csi2.dt = source_entry->bus.csi2.dt;
 
 		fd->num_entries++;
