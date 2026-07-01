@@ -311,9 +311,11 @@ static int imx94_link_config(struct netc_blk_ctrl *priv,
 
 	if (mii_proto == MII_PROT_RMII) {
 		ref_clk = of_clk_get_by_name(np, "ref");
-		if (!IS_ERR(ref_clk) && imx94_rmii_refclk_is_from_ccm(ref_clk))
-			val |= RMII_REF_CLK_EN(link_id);
-		clk_put(ref_clk);
+		if (!IS_ERR(ref_clk)) {
+			if (imx94_rmii_refclk_is_from_ccm(ref_clk))
+				val |= RMII_REF_CLK_EN(link_id);
+			clk_put(ref_clk);
+		}
 	}
 	netc_reg_write(priv->netcmix, IMX94_EXT_PIN_CONTROL, val);
 
