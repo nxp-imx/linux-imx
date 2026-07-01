@@ -423,6 +423,14 @@ _IMX952_EXT_MODULES = [
     "//nxp-mwifiex:mwifiex_modules_imx952",
 ]
 
+# Mesa GPU modules (USE_GPU_DRIVERS=mesa)
+_IMX952_MESA_GPU_MODULES = [
+    "drivers/gpu/drm/drm_exec.ko",
+    "drivers/gpu/drm/drm_gpuvm.ko",
+    "drivers/gpu/drm/scheduler/gpu-sched.ko",
+    "drivers/gpu/drm/panthor/panthor.ko",
+]
+
 # Combined list of all in-tree modules for kernel_build
 _IMX952_IN_TREE_MODULES = _IMX952_VENDOR_RAMDISK_MODULES + _IMX952_VENDOR_DLKM_MODULES + _IMX952_MALI_GPU_MODULES
 
@@ -523,6 +531,20 @@ def define_imx952():
         content = [m.split("/")[-1] for m in _IMX952_RECOVERY_ADDITION_MODULES + _IMX952_VENDOR_DLKM_MODULES + _IMX952_MALI_GPU_MODULES] + _IMX952_EXT_VENDOR_DLKM_MODULES + [""],
     )
 
+    # Modules list for vendor_dlkm (mesa GPU mode)
+    write_file(
+        name = "imx952_mesa_vendor_dlkm_modules_list",
+        out = "imx952_mesa_vendor_dlkm_modules.txt",
+        content = [m.split("/")[-1] for m in _IMX952_RECOVERY_ADDITION_MODULES + _IMX952_VENDOR_DLKM_MODULES + _IMX952_MESA_GPU_MODULES] + _IMX952_EXT_VENDOR_DLKM_MODULES + [""],
+    )
+
+    # Explicit module load order for vendor_dlkm (mesa GPU mode)
+    write_file(
+        name = "imx952_mesa_vendor_dlkm_modules_load_order",
+        out = "imx952_mesa_vendor_dlkm_modules.load",
+        content = [m.split("/")[-1] for m in _IMX952_RECOVERY_ADDITION_MODULES + _IMX952_VENDOR_DLKM_MODULES + _IMX952_MESA_GPU_MODULES] + _IMX952_EXT_VENDOR_DLKM_MODULES + [""],
+    )
+
     # ==========================================================================
     # Kernel build
     # ==========================================================================
@@ -617,7 +639,7 @@ def define_imx952():
         vendor_boot_name = "vendor_boot",
     )
 
-    # vendor_dlkm.img - contains recovery + vendor dlkm + GPU modules
+    # vendor_dlkm.img - contains recovery + vendor dlkm + Mali GPU modules
     vendor_dlkm_image(
         name = "imx952_vendor_dlkm",
         kernel_modules_install = ":imx952_modules_install",
@@ -625,6 +647,19 @@ def define_imx952():
         modules_list = ":imx952_vendor_dlkm_modules_list",
         # Explicit load order matching recovery + vendor dlkm + GPU modules
         modules_load = ":imx952_vendor_dlkm_modules_load_order",
+        # Strip modules already in initramfs to avoid duplication
+        vendor_boot_modules_load = ":imx952_initramfs",
+        fs_type = "erofs",
+    )
+
+    # vendor_dlkm.img (mesa) - contains recovery + vendor dlkm + Mesa GPU modules
+    vendor_dlkm_image(
+        name = "imx952_mesa_vendor_dlkm",
+        kernel_modules_install = ":imx952_modules_install",
+        # Include vendor dlkm + Mesa GPU modules (panthor, drm_exec, etc.)
+        modules_list = ":imx952_mesa_vendor_dlkm_modules_list",
+        # Explicit load order matching recovery + vendor dlkm + Mesa GPU modules
+        modules_load = ":imx952_mesa_vendor_dlkm_modules_load_order",
         # Strip modules already in initramfs to avoid duplication
         vendor_boot_modules_load = ":imx952_initramfs",
         fs_type = "erofs",
@@ -655,11 +690,21 @@ def define_imx952():
         visibility = ["//visibility:private"],
     )
 
-    # Vendor DLKM
+    # Vendor DLKM (Mali GPU — default)
     pkg_files(
         name = "imx952_vendor_dlkm_files",
         srcs = [
             ":imx952_vendor_dlkm",
+        ],
+        strip_prefix = strip_prefix.files_only(),
+        visibility = ["//visibility:private"],
+    )
+
+    # Vendor DLKM (Mesa GPU — USE_GPU_DRIVERS=mesa)
+    pkg_files(
+        name = "imx952_mesa_vendor_dlkm_files",
+        srcs = [
+            ":imx952_mesa_vendor_dlkm",
         ],
         strip_prefix = strip_prefix.files_only(),
         visibility = ["//visibility:private"],
@@ -780,6 +825,35 @@ def define_imx952():
         destdir = "out/imx_evk_952_aarch64/dist",
     )
 
+    # ==========================================================================
+    # Distribution targets — Mesa GPU mode (USE_GPU_DRIVERS=mesa)
+    # ==========================================================================
+
+    # Full distribution (mesa — panthor GPU instead of Mali)
+    # Command: tools/bazel run //kernel_imx:imx952_mesa_dist
+    pkg_install(
+        name = "imx952_mesa_dist",
+        srcs = [
+            ":imx952_kernel_files",
+            ":imx952_vendor_boot_files",
+            ":imx952_mesa_vendor_dlkm_files",
+            ":imx952_boot_files",
+            ":imx952_system_dlkm_files",
+            ":imx952_dtb_files",
+        ],
+        destdir = "out/imx_evk_952_aarch64_mesa/dist",
+    )
+
+    # Vendor DLKM only (mesa — panthor GPU modules)
+    # Command: tools/bazel run //kernel_imx:imx952_mesa_vendor_dlkm_dist
+    pkg_install(
+        name = "imx952_mesa_vendor_dlkm_dist",
+        srcs = [
+            ":imx952_kernel_files",
+            ":imx952_mesa_vendor_dlkm_files",
+        ],
+        destdir = "out/imx_evk_952_aarch64_mesa/dist",
+    )
 
 # Export module lists for use in BUILD.bazel or other .bzl files
 IMX952_VENDOR_RAMDISK_MODULES = _IMX952_VENDOR_RAMDISK_MODULES
