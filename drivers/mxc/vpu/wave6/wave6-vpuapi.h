@@ -10,6 +10,7 @@
 
 #include <linux/kfifo.h>
 #include <linux/idr.h>
+#include <linux/workqueue.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ctrls.h>
@@ -944,6 +945,8 @@ struct vpu_instance {
 		struct enc_info enc_info;
 		struct dec_info dec_info;
 	} *codec_info;
+	struct workqueue_struct *workqueue;
+	struct work_struct fb_work;
 	struct mutex fbc_lock; /* the lock for internal buffers */
 	struct frame_buffer frame_buf[WAVE6_MAX_FBS];
 	struct vpu_buf frame_y_vbuf[WAVE6_MAX_FBS];
