@@ -261,10 +261,11 @@ EXPORT_SYMBOL_GPL(ntmp_clear_eid_bitmap);
 
 u32 ntmp_lookup_free_words(unsigned long *bitmap, u32 size, u32 num_words)
 {
-	u32 entry_id, next_eid, num;
+	u32 entry_id, num;
+	u32 next_eid = 0;
 
 	do {
-		entry_id = find_first_zero_bit(bitmap, size);
+		entry_id = find_next_zero_bit(bitmap, size, next_eid);
 		if (entry_id == size)
 			return NTMP_NULL_ENTRY_ID;
 
