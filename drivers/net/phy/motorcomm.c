@@ -2439,6 +2439,9 @@ static int yt8521_get_features(struct phy_device *phydev)
 		/* add fiber's features to phydev->supported */
 		yt8521_prepare_fiber_features(phydev, phydev->supported);
 	}
+
+	genphy_c45_read_eee_abilities(phydev);
+
 	return ret;
 }
 
