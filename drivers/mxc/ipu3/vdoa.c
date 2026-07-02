@@ -350,8 +350,8 @@ void vdoa_get_handle(vdoa_handle_t *handle)
 
 	CHECK_NULL_PTR(handle);
 	*handle = (vdoa_handle_t *)NULL;
-	CHECK_STATE(VDOA_INIT, return);
 	mutex_lock(&vdoa_lock);
+	CHECK_STATE(VDOA_INIT, mutex_unlock(&vdoa_lock); return);
 	clk_prepare_enable(vdoa->vdoa_clk);
 	vdoa->state = VDOA_GET;
 	vdoa->field = VDOA_NULL;
