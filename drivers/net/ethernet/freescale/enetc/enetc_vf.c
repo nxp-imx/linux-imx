@@ -714,12 +714,14 @@ static int enetc_vf_probe(struct pci_dev *pdev,
 	si = pci_get_drvdata(pdev);
 	enetc_vf_get_revision(si);
 
-	si->devlink = device_link_add(&pdev->dev, &pdev->physfn->dev,
-				      DL_FLAG_PM_RUNTIME |
-				      DL_FLAG_STATELESS);
-	if (!si->devlink) {
-		err = -ENOMEM;
-		goto err_devlink_add;
+	if (pdev->physfn) {
+		si->devlink = device_link_add(&pdev->dev, &pdev->physfn->dev,
+					      DL_FLAG_PM_RUNTIME |
+					      DL_FLAG_STATELESS);
+		if (!si->devlink) {
+			err = -ENOMEM;
+			goto err_devlink_add;
+		}
 	}
 
 	if (is_enetc_rev1(si))
@@ -799,7 +801,8 @@ err_setup_cbdr:
 	free_netdev(ndev);
 err_alloc_netdev:
 err_get_driver_data:
-	device_link_del(si->devlink);
+	if (si->devlink)
+		device_link_del(si->devlink);
 err_devlink_add:
 	enetc_pci_remove(pdev);
 
@@ -821,7 +824,8 @@ static void enetc_vf_remove(struct pci_dev *pdev)
 	si->ops->vf_teardown_cbdr(si);
 
 	free_netdev(si->ndev);
-	device_link_del(si->devlink);
+	if (si->devlink)
+		device_link_del(si->devlink);
 	enetc_pci_remove(pdev);
 }
 
