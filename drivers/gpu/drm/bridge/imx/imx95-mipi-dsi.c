@@ -22,6 +22,7 @@
 
 #include <drm/bridge/dw_mipi_dsi.h>
 #include <drm/drm_bridge.h>
+#include <drm/drm_edid.h>
 #include <drm/drm_mipi_dsi.h>
 
 #define DSI_DPI_CFG_POL			0x14
@@ -196,6 +197,7 @@ struct imx95_dsi {
 	unsigned int lane_mbps;
 	bool use_pl0;
 	enum mipi_dsi_pixel_format format;
+	unsigned long mode_flags;
 	struct dw_mipi_dsi *dmd;
 	struct dw_mipi_dsi_plat_data pdata;
 	union phy_configure_opts phy_cfg;
@@ -985,6 +987,36 @@ imx95_dsi_mode_valid(void *priv_data, const struct drm_display_mode *mode,
 	return MODE_OK;
 }
 
+static bool imx95_dsi_has_fractional_word_count(const struct drm_display_mode *mode,
+						int bpp, unsigned int lanes,
+						unsigned long flags)
+{
+	int i, vic;
+
+	/* Workarounds for common modes that need to round htotal up when
+	 * using 4 data lanes and 24 bpp. The standard horizontal timings
+	 * cannot display correctly for these modes due to rounding:
+	 *    VIC 2,3   -> 720x480 @ 60 Hz
+	 *    VIC 48,49 -> 720x480 @ 120 Hz
+	 *    VIC 56,57 -> 720x480 @ 240 Hz
+	 *    VIC 32,72 -> 1920x1080 @ 24 Hz
+	 */
+	const u8 fixup_modes[] = {2, 3, 48, 49, 56, 57, 32, 72};
+
+	if (flags & MIPI_DSI_MODE_VIDEO_BURST || lanes != 4 || bpp != 24)
+		return false;
+
+	vic = drm_match_cea_mode(mode);
+	if (vic) {
+		for (i = 0; i < ARRAY_SIZE(fixup_modes); i++) {
+			if (fixup_modes[i] == vic)
+				return true;
+		}
+	}
+
+	return false;
+}
+
 static bool imx95_dsi_mode_fixup(void *priv_data,
 				 const struct drm_display_mode *mode,
 				 struct drm_display_mode *adjusted_mode)
@@ -992,12 +1024,47 @@ static bool imx95_dsi_mode_fixup(void *priv_data,
 	struct imx95_dsi *dsi = priv_data;
 	unsigned long pixel_clock_rate;
 	unsigned long rounded_rate;
+	int bpp;
+
+	bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
+	if (bpp < 0) {
+		dev_err(dsi->dev, "failed to get bpp for pixel format %d\n", dsi->format);
+		return false;
+	}
 
 	pixel_clock_rate = mode->clock * 1000;
 	rounded_rate = clk_round_rate(dsi->clk_pixel, pixel_clock_rate);
 
 	memcpy(adjusted_mode, mode, sizeof(*mode));
 	adjusted_mode->clock = rounded_rate / 1000;
+
+	/* Add 2 pixels to htotal to round up fractional MIPI word count per line.
+	 * With 4 lanes and 24 bpp, certain modes result in non-integer
+	 * word counts (words per line) that require rounding up the horizontal total.
+	 *
+	 *  Words per line = htotal x BPP / (lanes x 8 bits/byte)
+	 *
+	 * for 24 bpp using 4 lanes,
+	 *
+	 *  Words per line = htotal x 24 BPP / (4 lanes x 8 bits/byte) = htotal x 3/4
+	 *
+	 *  if htotal = 858, then words per line = 858 x 3/4 = 643.5
+	 *
+	 */
+	if (imx95_dsi_has_fractional_word_count(mode, bpp, dsi->lanes, dsi->mode_flags)) {
+		/* Add 2 pixels to round up to next whole MIPI word count.
+		 * Note: This is only supported for 24 bpp and 4 lanes which is
+		 *       the most common case.
+		 */
+		adjusted_mode->hsync_start += 2;
+		adjusted_mode->hsync_end   += 2;
+		adjusted_mode->htotal      += 2;
+
+		dev_dbg(dsi->dev, "adj htotal %u for mode " DRM_MODE_FMT "\n",
+			adjusted_mode->htotal, DRM_MODE_ARG(mode));
+	}
+
+	drm_mode_set_crtcinfo(adjusted_mode, 0);
 
 	dev_dbg(dsi->dev, "adj clock %d for mode " DRM_MODE_FMT "\n",
 		adjusted_mode->clock, DRM_MODE_ARG(mode));
@@ -1150,6 +1217,7 @@ static int imx95_dsi_imx_host_attach(void *priv_data,
 
 	dsi->lanes = device->lanes;
 	dsi->format = device->format;
+	dsi->mode_flags = device->mode_flags;
 
 	return 0;
 }
