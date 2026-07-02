@@ -405,7 +405,6 @@ _IMX95_IMPLICIT_MODULES = [
     "net/sched/sch_mqprio.ko",
     "drivers/usb/chipidea/ci_hdrc_usb2.ko",
     "drivers/usb/chipidea/ci_hdrc_npcm.ko",
-    "drivers/gpu/drm/drm_shmem_helper.ko",
     "sound/soc/fsl/snd-soc-fsl-spdif.ko",
     "drivers/cpufreq/imx-cpufreq-dt.ko",
     "drivers/soc/imx/soc-imx8m.ko",
