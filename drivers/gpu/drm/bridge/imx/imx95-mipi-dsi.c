@@ -910,6 +910,30 @@ static int imx95_dsi_get_phy_configure_opts(struct imx95_dsi *dsi,
 	return 0;
 }
 
+static bool imx95_dsi_is_mode_clock_valid(unsigned int clock)
+{
+	switch (clock) {
+	case 25200:   /* 640x480@60Hz (VGA) */
+	case 27000:   /* 480p@59.94Hz, 720x480@59.94Hz (NTSC) */
+	case 27027:   /* 480p@60Hz, 720x480@60Hz */
+	case 40000:   /* 800x600@60Hz (SVGA) */
+	case 54000:   /* 480p@119.88Hz, 720x576@100Hz */
+	case 54054:   /* 480p@120Hz, 720x480@120Hz */
+	case 65000:   /* 1024x768@60Hz (XGA) */
+	case 74176:   /* 720p@59.94Hz, 1280x720@59.94Hz */
+	case 74250:   /* 720p@60Hz, 1280x720@60Hz */
+	case 108000:  /* 480p@239.76Hz, 1280x1024@60Hz (SXGA) */
+	case 108108:  /* 480p@240Hz, 720x480@240Hz */
+	case 132000:  /* 1024x768@120Hz (XGA) */
+	case 148352:  /* 1080p@59.94Hz, 1920x1080@59.94Hz */
+	case 148500:  /* 1080p@60Hz, 1920x1080@60Hz */
+	case 297000:  /* 2160p@30Hz, 1080p@120Hz, 3840x2160@30Hz (4K) */
+		return true;
+	default:
+		return false;
+	}
+}
+
 static enum drm_mode_status
 imx95_dsi_validate_mode(struct imx95_dsi *dsi, const struct drm_display_mode *mode)
 {
@@ -920,13 +944,7 @@ imx95_dsi_validate_mode(struct imx95_dsi *dsi, const struct drm_display_mode *mo
 	list_for_each_entry_reverse(iter, &encoder->bridge_chain, chain_node) {
 		if ((iter->ops & DRM_BRIDGE_OP_DETECT) &&
 		    (iter->ops & DRM_BRIDGE_OP_EDID)) {
-			/*
-			 * Since clk_round_rate() returns unreasonable rate for
-			 * dsi->clk_pixel, we have to validate mode against
-			 * magic mode clock rates.
-			 */
-			if (mode->clock != 297000 && mode->clock != 148500 &&
-			    mode->clock != 74250)
+			if (!imx95_dsi_is_mode_clock_valid(mode->clock))
 				return MODE_NOCLOCK;
 
 			break;
