@@ -413,3 +413,26 @@ CONFIG_ZRAM=y
 CONFIG_ZSMALLOC=y
 CONFIG_IMX_DISPMU=y
 CONFIG_WIDEVINE_L1_SKIP_MEMSET_SECUREHEAP=y
+
+# Disable automatic module signing during build (sign-file needs key)
+# CONFIG_MODULE_SIG is kept enabled (required by GKI)
+# But we disable signing ALL modules at build time
+# CONFIG_MODULE_SIG_ALL is not set
+
+# Disable protected symbol enforcement (allow unsigned modules to export symbols)
+CONFIG_MODULE_SIG_PROTECT_LIST=""
+
+# Disable Tegra platform support
+# CONFIG_ARCH_TEGRA is not set
+# CONFIG_TEGRA_BPMP is not set
+# CONFIG_SERIAL_TEGRA_TCU is not set
+# CONFIG_TEGRA_HSP_MBOX is not set
+# CONFIG_ARCH_TEGRA_234_SOC is not set
+
+# Disable Qualcomm platform support
+# CONFIG_ARCH_QCOM is not set
+# CONFIG_PCIE_QCOM is not set
+# CONFIG_SERIAL_QCOM_GENI is not set
+# CONFIG_SERIAL_QCOM_GENI_CONSOLE is not set
+# CONFIG_GUNYAH_QCOM_TRUSTED_VM is not set
+# CONFIG_QCOM_GENI_SE is not set
