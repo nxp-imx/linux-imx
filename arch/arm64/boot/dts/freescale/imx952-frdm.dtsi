@@ -536,12 +536,6 @@
 	pinctrl-0 = <&pinctrl_lpspi3>;
 	pinctrl-names = "default";
 	status = "okay";
-
-	spidev0: spi@0 {
-		compatible = "lwn,bk4";
-		reg = <0>;
-		spi-max-frequency = <1000000>;
-	};
 };
 
 &lpuart1 {
