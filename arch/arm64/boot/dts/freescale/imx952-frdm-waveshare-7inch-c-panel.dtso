@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright 2025-2026 NXP
+ * Copyright 2026 NXP
  */
 
-#include "imx95-clock.h"
+#include "imx952-clock.h"
 #include "imx95-frdm-waveshare-7inch-c-panel-common.dtsi"
 
 &dpu {
-	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+	assigned-clocks = <&scmi_clk IMX952_CLK_DISP1PIX>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1_VCO>,
+			  <&scmi_clk IMX952_CLK_VIDEOPLL1>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_VIDEOPLL1>;
 	assigned-clock-rates = <0>, <3000000000>, <500000000>;
 };
 
@@ -23,4 +23,8 @@
 		reg = <0>;
 		status = "okay";
 	};
+};
+
+&mipi_dphy {
+	status = "okay";
 };
