@@ -771,6 +771,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk-pmic-pf0900-rpmsg.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx937-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx937-frdm.dtb
+imx937-frdm-aud-hat-dtbs := imx937-frdm.dtb imx952-frdm-aud-hat.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx937-frdm-aud-hat.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm.dtb \
 			  imx91-11x11-frdm-mt9m114.dtb \
