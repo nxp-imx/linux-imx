@@ -735,9 +735,35 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 
 	queue = &session->queues[b->type];
 
-	/* REQBUFS(0) is an implicit STREAMOFF. */
-	if (b->count == 0)
-		virtio_media_clear_queue(session, queue);
+	/*
+	 * REQBUFS (with *any* count) frees every buffer previously allocated on
+	 * this queue before allocating the new set, so the old queue state must
+	 * be torn down here regardless of the new count. REQBUFS(0) is also an
+	 * implicit STREAMOFF. clear_queue() must run *before* the vfree() below,
+	 * as it walks queue->buffers[] to reset per-buffer flags and drops the
+	 * pending_dqbufs entries that point into that array; skipping it on a
+	 * REQBUFS(count>0) reallocation (e.g. a dynamic resolution / source
+	 * change that does not issue REQBUFS(0) first) would leave dangling
+	 * pending_dqbufs pointers and stale queued_bufs/streaming state.
+	 */
+	virtio_media_clear_queue(session, queue);
+
+	/*
+	 * Likewise, any grant maps created for the old buffers must be released
+	 * now. This is essential on a source change, where the client
+	 * re-REQBUFS the CAPTURE queue with a new count *without* an
+	 * intervening REQBUFS(0): failing to unmap here would leak the old
+	 * grant references (Dom0 logs "g.e. 0x... still in use!") and the host
+	 * could not reuse or reallocate the buffers, stalling the stream.
+	 *
+	 * Note we still deliberately do NOT free grant maps on STREAMOFF, so
+	 * that seek (STREAMOFF/STREAMON without REQBUFS) keeps the buffers
+	 * grant-mapped. The new buffers are lazily re-mapped at QUERYBUF time
+	 * (virtio_media_map_buffer() is idempotent). If a dma-buf exported from
+	 * an old buffer is still alive it holds its own reference, so the pages
+	 * survive until the last dma-buf is released.
+	 */
+	virtio_media_free_queue_grant_maps(session, b->type);
 
 	vfree(queue->buffers);
 	queue->buffers = NULL;
@@ -750,6 +776,7 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	}
 
 	queue->allocated_bufs = b->count;
+	queue->memory = b->memory;
 
 	/*
 	 * If a multiplanar queue is successfully used here, this means
@@ -788,6 +815,34 @@ static int virtio_media_querybuf(struct file *file, void *fh,
 		return -EINVAL;
 
 	buffer = &queue->buffers[b->index];
+
+	/*
+	 * Store the host-provided mem_offset(s) into our buffer state so that
+	 * virtio_media_map_buffer() below (and later mmap/expbuf) can locate
+	 * them. QUERYBUF is where the offsets first become known.
+	 */
+	buffer->buffer.m = b->m;
+	buffer->buffer.length = b->length;
+	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
+		int i;
+
+		if (b->length > VIDEO_MAX_PLANES)
+			return -EINVAL;
+		for (i = 0; i < b->length; i++)
+			buffer->planes[i].m = b->m.planes[i].m;
+	}
+
+	/*
+	 * Create the grant mapping(s) for this buffer now that the host has
+	 * provided the per-plane offsets. This is idempotent, so repeated
+	 * QUERYBUF calls are harmless.
+	 */
+	if (queue->memory == V4L2_MEMORY_MMAP) {
+		ret = virtio_media_map_buffer(session, b->type, b->index);
+		if (ret)
+			return ret;
+	}
+
 	/*
 	 * Set the DONE flag if the buffer is waiting in our own dequeue
 	 * queue.
@@ -906,6 +961,13 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	old_flags = buffer->buffer.flags;
 	buffer->buffer.flags = V4L2_BUF_FLAG_QUEUED;
 
+	/*
+	 * The buffer memory is a foreign (host) buffer mapped into the guest
+	 * via grant refs and is cacheable. Clean the CPU caches so the data
+	 * the guest wrote is visible to the non-coherent host DMA master.
+	 */
+	virtio_media_sync_buffer(session, b->type, b->index, DMA_TO_DEVICE);
+
 	ret = virtio_media_send_buffer_ioctl(vfh, VIDIOC_QBUF, b);
 	if (ret) {
 		/* Rollback the previous flags as the buffer is not queued. */
@@ -972,6 +1034,14 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 				 list);
 	list_del(&dqbuf->list);
 	mutex_unlock(&session->queues_lock);
+
+	/*
+	 * The host DMA master has written the buffer. Invalidate the CPU
+	 * caches so the guest reads the fresh data from DRAM rather than
+	 * stale cache lines.
+	 */
+	virtio_media_sync_buffer(session, b->type, dqbuf->buffer.index,
+				 DMA_FROM_DEVICE);
 
 	/* Clear the DONE flag as the buffer is now being dequeued. */
 	dqbuf->buffer.flags &= ~V4L2_BUF_FLAG_DONE;
@@ -1153,7 +1223,7 @@ const struct v4l2_ioctl_ops virtio_media_ioctl_ops = {
 	.vidioc_reqbufs = virtio_media_reqbufs,
 	.vidioc_querybuf = virtio_media_querybuf,
 	.vidioc_qbuf = virtio_media_qbuf,
-	.vidioc_expbuf = NULL,
+	.vidioc_expbuf = virtio_media_expbuf,
 	.vidioc_dqbuf = virtio_media_dqbuf,
 	.vidioc_create_bufs = virtio_media_create_bufs,
 	.vidioc_prepare_buf = virtio_media_prepare_buf,

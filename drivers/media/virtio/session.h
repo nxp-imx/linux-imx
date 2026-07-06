@@ -12,7 +12,7 @@
 #include <linux/scatterlist.h>
 #include <media/v4l2-fh.h>
 
-#include "uapi/linux/virtio_media.h"
+#include <uapi/linux/virtio_media.h>
 
 #define VIRTIO_MEDIA_LAST_QUEUE (V4L2_BUF_TYPE_META_OUTPUT)
 
@@ -44,6 +44,9 @@ struct virtio_media_buffer {
  * @buffers: Buffer state array of size @allocated_bufs.
  * @queued_bufs: How many buffers are currently queued on the device.
  * @pending_dqbufs: Buffers that are available for being dequeued.
+ * @grant_maps: list of ``struct virtio_media_grant_map`` for buffers of this
+ * queue (one entry per (index, plane)). Populated at QUERYBUF time and freed
+ * on REQBUFS(0) or session close.
  */
 struct virtio_media_queue_state {
 	bool streaming;
@@ -53,6 +56,8 @@ struct virtio_media_queue_state {
 	struct virtio_media_buffer *buffers;
 	size_t queued_bufs;
 	struct list_head pending_dqbufs;
+	struct list_head grant_maps;
+	enum v4l2_memory memory;
 };
 
 /**

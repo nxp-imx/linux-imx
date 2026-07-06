@@ -181,12 +181,14 @@ struct virtio_media_cmd_mmap {
 /**
  * struct virtio_media_resp_mmap - Device response for VIRTIO_MEDIA_CMD_MMAP.
  * @hdr: header containing the status of the command.
- * @driver_addr: offset into SHM region 0 of the start of the mapping.
+ * @grant_ref_header: first grant reference for the mapping.
+ * @grant_ref_count: number of grant references (pages) in the mapping.
  * @len: length of the mapping.
  */
 struct virtio_media_resp_mmap {
 	struct virtio_media_resp_header hdr;
-	u64 driver_addr;
+	u32 grant_ref_header;
+	u32 grant_ref_count;
 	u64 len;
 };
 
@@ -199,12 +201,13 @@ struct virtio_media_resp_mmap {
 /**
  * struct virtio_media_cmd_munmap - Driver command for VIRTIO_MEDIA_CMD_MUNMAP.
  * @hdr: header with cmd member set to VIRTIO_MEDIA_CMD_MUNMAP.
- * @driver_addr: offset into SHM region 0 at which the buffer has been
- *               previously mapped.
+ * @grant_ref_header: first grant reference of the mapping to unmap.
+ * @grant_ref_count: number of grant references in the mapping.
  */
 struct virtio_media_cmd_munmap {
 	struct virtio_media_cmd_header hdr;
-	u64 driver_addr;
+	u32 grant_ref_header;
+	u32 grant_ref_count;
 };
 
 /**
