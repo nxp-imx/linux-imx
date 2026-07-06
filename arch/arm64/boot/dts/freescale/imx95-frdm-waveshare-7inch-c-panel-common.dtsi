@@ -4,7 +4,6 @@
  */
 
 #include "imx95-clock.h"
-#include "imx95-pinfunc.h"
 
 /dts-v1/;
 /plugin/;
