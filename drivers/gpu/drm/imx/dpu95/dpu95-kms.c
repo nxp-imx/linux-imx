@@ -237,6 +237,8 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 					return PTR_ERR(hs);
 
 				dpstate->hs = hs;
+			} else {
+				dpstate->hs = NULL;
 			}
 
 			if (need_vs) {
@@ -245,6 +247,8 @@ dpu95_atomic_assign_plane_source_per_crtc(struct dpu95_crtc *dpu_crtc,
 					return PTR_ERR(vs);
 
 				dpstate->vs = vs;
+			} else {
+				dpstate->vs = NULL;
 			}
 
 			fu_ops->set_inavailable(fu);
