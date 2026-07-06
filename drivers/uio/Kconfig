@@ -167,6 +167,7 @@ config UIO_DFL
 
 config UIO_PRIME
 	tristate "i.MX Fast Crypto Engine UIO support"
+	depends on ARCH_MXC || COMPILE_TEST
 	default y
 	help
 	  Selecting this will enable PRIME UIO support for
