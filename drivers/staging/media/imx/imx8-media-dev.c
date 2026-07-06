@@ -1131,10 +1131,9 @@ static int mxc_md_probe(struct platform_device *pdev)
 
 				mxc_md_clean_unlink_channels(mxc_md);
 			} else {
-				/* no sensors connected */
-				mxc_md_unregister_all(mxc_md);
-				v4l2_async_nf_unregister(&mxc_md->subdev_notifier);
-				v4l2_async_nf_cleanup(&mxc_md->subdev_notifier);
+				/* no sensors loaded yet */
+				ret = -EPROBE_DEFER;
+				goto err_register_nf;
 			}
 		}
 	}
