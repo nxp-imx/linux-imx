@@ -1036,7 +1036,7 @@ static void update_dl_entity(struct sched_dl_entity *dl_se)
 	if (dl_time_before(dl_se->deadline, rq_clock(rq)) ||
 	    dl_entity_overflow(dl_se, rq_clock(rq))) {
 
-		if (unlikely(!dl_is_implicit(dl_se) &&
+		if (unlikely((!dl_is_implicit(dl_se) || dl_se->dl_defer) &&
 			     !dl_time_before(dl_se->deadline, rq_clock(rq)) &&
 			     !is_dl_boosted(dl_se))) {
 			update_dl_revised_wakeup(dl_se, rq);
@@ -2360,7 +2360,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
 	if (dl_rq->curr == dl_se)
 		return;
 
-	if (!task_current(rq, p) && !p->dl.dl_throttled && p->nr_cpus_allowed > 1)
+	if (!task_current(rq, p) && !dl_se->dl_throttled && p->nr_cpus_allowed > 1)
 		enqueue_pushable_dl_task(rq, p);
 }
 
@@ -2513,6 +2513,9 @@ static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
 		return;
 
 	exec_ctx = find_exec_ctx(rq, p);
+	if (!exec_ctx)
+		return;
+
 	if (task_current(rq, exec_ctx))
 		return;
 

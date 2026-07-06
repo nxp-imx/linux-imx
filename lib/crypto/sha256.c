@@ -520,6 +520,7 @@ static int __init sha256_mod_init(void)
 		hmac_sha256_usingrawkey(fips_test_key, sizeof(fips_test_key),
 					fips_test_data, sizeof(fips_test_data),
 					mac);
+		fips140_inject_selftest_failure("hmac(sha256)", mac);
 		if (memcmp(fips_test_hmac_sha256_value, mac, sizeof(mac)) != 0)
 			panic("sha256: FIPS self-test failed\n");
 	}

@@ -33,6 +33,8 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/wbt.h>
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/blk.h>
 
 enum wbt_flags {
 	WBT_TRACKED		= 1,	/* write, tracked for throttling */
@@ -647,6 +649,7 @@ static void wbt_wait(struct rq_qos *rqos, struct bio *bio)
 	enum wbt_flags flags;
 
 	flags = bio_to_wbt_flags(rwb, bio);
+	trace_android_vh_wbt_wait(bio, (int)flags);
 	if (!(flags & WBT_TRACKED)) {
 		if (flags & WBT_READ)
 			wb_timestamp(rwb, &rwb->last_issue);
@@ -663,6 +666,7 @@ static void wbt_track(struct rq_qos *rqos, struct request *rq, struct bio *bio)
 {
 	struct rq_wb *rwb = RQWB(rqos);
 	rq->wbt_flags |= bio_to_wbt_flags(rwb, bio);
+	trace_android_vh_wbt_track(rq, bio);
 }
 
 static void wbt_issue(struct rq_qos *rqos, struct request *rq)

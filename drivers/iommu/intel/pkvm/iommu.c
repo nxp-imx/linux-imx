@@ -18,14 +18,26 @@
 unsigned int iommu_pgsz_mask = 1 << PG_LEVEL_4K | 1 << PG_LEVEL_2M | 1 << PG_LEVEL_1G;
 unsigned int iommu_pglvl_mask = IOMMU_PGT_4LEVEL | IOMMU_PGT_5LEVEL;
 
+/*
+ * x86 MSI address base: all legitimate MSI interrupts target this range
+ * (Local APIC delivery). FEADDR must have this prefix.
+ */
+#define X86_MSI_ADDR_BASE		0xfee00000U
+/* Mask for 0xFEE and RsvdZ bits 11:4 and 1:0 */
+#define X86_MSI_ADDR_MASK		0xfff00ff3U
+#define X86_MSI_ADDR_DEST_ID_MASK	GENMASK_U32(19, 12)
+#define X86_MSI_ADDR_DEST_ID_SHIFT	12
+#define X86_MSI_ADDR_DEST_MODE_LOGICAL	BIT(2)
+#define X86_MSI_UADDR_DEST_ID_MASK	GENMASK_U32(31, 8)
+
 /* GCMD bits that handle enabling/disabling of IOMMU features */
 #define DMAR_GSTS_EN_BITS	(DMA_GCMD_TE | DMA_GCMD_QIE | DMA_GCMD_IRE | DMA_GCMD_CFI)
 /* GCMD oneshot bits where unsetting the bit doesn't have an effect */
 #define DMAR_GCMD_ONESHOT	(DMA_GCMD_SRTP | DMA_GCMD_SIRTP)
 /* Mask of bits the host is allowed to access directly (passed through to hardware) */
-#define DMAR_GCMD_DIRECT	(DMA_GCMD_IRE | DMA_GCMD_CFI | DMA_GCMD_SIRTP)
+#define DMAR_GCMD_DIRECT	(DMA_GCMD_IRE | DMA_GCMD_CFI)
 /* Mask of bits supported by pKVM */
-#define DMAR_GCMD_SUPPORTED_BITS	(DMAR_GSTS_EN_BITS | DMA_GCMD_SRTP | DMA_GCMD_SIRTP)
+#define DMAR_GCMD_SUPPORTED_BITS	(DMAR_GSTS_EN_BITS | DMA_GCMD_SRTP)
 
 u16 satc_devs[PKVM_MAX_SATC_DEVS];
 int nr_satc_devs;
@@ -90,10 +102,13 @@ bool overlaps_iommu_mmio(unsigned long phys, unsigned long size)
 }
 
 static int iommu_direct_mmio_read(struct intel_iommu *iommu, u64 phys,
-				  int len, u64 *val)
+				  int len, int expected_len, u64 *val)
 {
 	unsigned long offset = phys - iommu->reg_phys;
 	void *reg = iommu->reg + offset;
+
+	if (len > expected_len)
+		return -EINVAL;
 
 	switch (len) {
 	case 4:
@@ -110,10 +125,13 @@ static int iommu_direct_mmio_read(struct intel_iommu *iommu, u64 phys,
 }
 
 static int iommu_direct_mmio_write(struct intel_iommu *iommu, u64 phys,
-				   int len, u64 val)
+				   int len, int expected_len, u64 val)
 {
 	unsigned long offset = phys - iommu->reg_phys;
 	void *reg = iommu->reg + offset;
+
+	if (len > expected_len)
+		return -EINVAL;
 
 	switch (len) {
 	case 4:
@@ -295,6 +313,39 @@ static int handle_gcmd_srtp(struct intel_iommu *iommu)
 	return 0;
 }
 
+/*
+ * Donate the IR table to the hypervisor as read-only and record its virtual
+ * address in iommu->ir_table.
+ */
+static int iommu_protect_ir_table(struct intel_iommu *iommu)
+{
+	u64 ir_table_pa;
+	int ret;
+
+	if (!iommu->virta) {
+		pkvm_err("iommu%d: IR table protection requested before IRTA set\n",
+			 iommu->seq_id);
+		return -EINVAL;
+	}
+
+	ir_table_pa = pkvm_host_gpa_to_phys(iommu->virta & VTD_PAGE_MASK);
+	/*
+	 * We reach here during IOMMU initialization and IR table is already
+	 * setup by host. So, do not clear the table(Host is considered trusted
+	 * at this stage)
+	 */
+	ret = pkvm_host_donate_hyp_share_ro(ir_table_pa, SZ_1M, false);
+	if (ret) {
+		pkvm_err("iommu%d: failed to write protect IR table[%llx] (err=%d)\n",
+			 iommu->seq_id, ir_table_pa, ret);
+		return ret;
+	}
+
+	iommu->ir_table = __pkvm_va(ir_table_pa);
+
+	return 0;
+}
+
 static int handle_gcmd_te(struct intel_iommu *iommu, bool enable)
 {
 	if (enable) {
@@ -377,9 +428,6 @@ int pkvm_iommu_mmio_read(u64 phys, int len, u64 *val)
 	offset = phys - iommu->reg_phys;
 
 	switch (offset) {
-	case DMAR_GCMD_REG:
-		ret = -EINVAL;
-		break;
 	case DMAR_CAP_REG:
 		*val = iommu->cap;
 		break;
@@ -392,12 +440,121 @@ int pkvm_iommu_mmio_read(u64 phys, int len, u64 *val)
 	case DMAR_RTADDR_REG:
 		*val = iommu->vrta;
 		break;
+	case DMAR_IRTA_REG:
+		*val = iommu->virta;
+		break;
 	case DMAR_GSTS_REG:
 		*val = iommu->vgsts;
 		break;
+	/* 32-bit registers */
+	case DMAR_VER_REG:
+	case DMAR_PMEN_REG:
+	case DMAR_PRS_REG:
+	case DMAR_PERFCFGOFF_REG:
+	case DMAR_PERFOVFOFF_REG:
+	case DMAR_PERFCNTROFF_REG:
+	case DMAR_PERFINTRSTS_REG:
+	case DMAR_PERFINTRCTL_REG:
+	case DMAR_FSTS_REG:
+	case DMAR_FECTL_REG:
+#ifdef CONFIG_INTEL_IOMMU_DEBUGFS
+	/*
+	 * 32-bit registers read only by the Intel IOMMU debugfs register dump
+	 * (iommu_regs_32[] in debugfs.c); the core driver never reads them, so
+	 * allow them only when debugfs is built (deny-by-default keeps least
+	 * privilege in production).
+	 */
+	case DMAR_GCMD_REG:
+	case DMAR_PLMBASE_REG:
+	case DMAR_PLMLIMIT_REG:
+	case DMAR_ICS_REG:
+	case DMAR_PECTL_REG:
+	case DMAR_PEDATA_REG:
+	case DMAR_PEADDR_REG:
+	case DMAR_PEUADDR_REG:
+	case DMAR_PERFINTRDATA_REG:
+	case DMAR_PERFINTRADDR_REG:
+	case DMAR_PERFINTRUADDR_REG:
+	case DMAR_FEDATA_REG:
+	case DMAR_FEADDR_REG:
+	case DMAR_FEUADDR_REG:
+#endif
+		ret = iommu_direct_mmio_read(iommu, phys, len, 4, val);
+		break;
+	/* 64-bit registers */
+	case DMAR_IQH_REG:
+	case DMAR_IQT_REG:
+	case DMAR_ECRSP_REG:
+	case DMAR_IQER_REG:
+	case DMAR_PERFCAP_REG:
+	case DMAR_ECCAP_REG:
+	case DMAR_ECCAP_REG + DMA_ECMD_REG_STEP:
+	case DMAR_ECCAP_REG + 2 * DMA_ECMD_REG_STEP:
+	case DMAR_ECCAP_REG + 3 * DMA_ECMD_REG_STEP:
+#ifdef CONFIG_INTEL_IOMMU_DEBUGFS
+	/*
+	 * 64-bit registers read only by the Intel IOMMU debugfs register dump
+	 * (iommu_regs_64[] in debugfs.c); same rationale as the 32-bit block.
+	 */
+	case DMAR_PHMBASE_REG:
+	case DMAR_PHMLIMIT_REG:
+	case DMAR_PQH_REG:
+	case DMAR_PQT_REG:
+	case DMAR_PQA_REG:
+	case DMAR_MTRRCAP_REG:
+	case DMAR_MTRRDEF_REG:
+	case DMAR_MTRR_FIX64K_00000_REG:
+	case DMAR_MTRR_FIX16K_80000_REG:
+	case DMAR_MTRR_FIX16K_A0000_REG:
+	case DMAR_MTRR_FIX4K_C0000_REG:
+	case DMAR_MTRR_FIX4K_C8000_REG:
+	case DMAR_MTRR_FIX4K_D0000_REG:
+	case DMAR_MTRR_FIX4K_D8000_REG:
+	case DMAR_MTRR_FIX4K_E0000_REG:
+	case DMAR_MTRR_FIX4K_E8000_REG:
+	case DMAR_MTRR_FIX4K_F0000_REG:
+	case DMAR_MTRR_FIX4K_F8000_REG:
+	case DMAR_MTRR_PHYSBASE0_REG:
+	case DMAR_MTRR_PHYSMASK0_REG:
+	case DMAR_MTRR_PHYSBASE1_REG:
+	case DMAR_MTRR_PHYSMASK1_REG:
+	case DMAR_MTRR_PHYSBASE2_REG:
+	case DMAR_MTRR_PHYSMASK2_REG:
+	case DMAR_MTRR_PHYSBASE3_REG:
+	case DMAR_MTRR_PHYSMASK3_REG:
+	case DMAR_MTRR_PHYSBASE4_REG:
+	case DMAR_MTRR_PHYSMASK4_REG:
+	case DMAR_MTRR_PHYSBASE5_REG:
+	case DMAR_MTRR_PHYSMASK5_REG:
+	case DMAR_MTRR_PHYSBASE6_REG:
+	case DMAR_MTRR_PHYSMASK6_REG:
+	case DMAR_MTRR_PHYSBASE7_REG:
+	case DMAR_MTRR_PHYSMASK7_REG:
+	case DMAR_MTRR_PHYSBASE8_REG:
+	case DMAR_MTRR_PHYSMASK8_REG:
+	case DMAR_MTRR_PHYSBASE9_REG:
+	case DMAR_MTRR_PHYSMASK9_REG:
+#endif
+		ret = iommu_direct_mmio_read(iommu, phys, len, 8, val);
+		break;
 	default:
-		/* Not emulated MMIO can directly go to hardware */
-		ret = iommu_direct_mmio_read(iommu, phys, len, val);
+		ret = pkvm_iommu_pmu_validate_read(iommu, offset, len);
+		if (ret == IOMMU_REG_NOT_HANDLED)
+			ret = pkvm_iommu_frcd_validate_read(iommu, offset, len);
+
+		if (ret == IOMMU_REG_NOT_HANDLED) {
+			/*
+			 * Deny-by-default: block all registers not explicitly handled
+			 * above. Any register the host driver legitimately needs must
+			 * be added as an explicit case; unknown or unreviewed registers
+			 * must not reach hardware.
+			 */
+			pkvm_err("iommu%d: unsupported register read blocked at offset 0x%lx\n",
+				 iommu->seq_id, offset);
+			ret = -EOPNOTSUPP;
+		}
+		if (!ret)
+			ret = iommu_direct_mmio_read(iommu, phys, len, len, val);
 	}
 
 	pkvm_spin_unlock(&iommu->lock);
@@ -458,12 +615,253 @@ int pkvm_iommu_mmio_write(u64 phys, int len, u64 val)
 			iommu->vrta = val;
 		}
 		break;
+	case DMAR_PMEN_REG: {
+		/* RsvdP bits: 30:1 */
+		u32 rsvdp_mask = GENMASK_U32(30, 1);
+		u32 rsvdp = readl(iommu->reg + DMAR_PMEN_REG) & rsvdp_mask;
+
+		if ((val & rsvdp_mask) != rsvdp) {
+			pkvm_err("iommu%d: PMEN reserved bits mismatch(0x%x != 0x%x)\n",
+				 iommu->seq_id, rsvdp, (u32)(val & rsvdp_mask));
+			ret = -EINVAL;
+		} else if (val & DMA_PMEN_EPM) {
+			/*
+			 * pKVM disables PMRs during iommu init. Block any attempt to
+			 * re-enable PMRs (EPM bit set) as that could disrupt guest DMA.
+			 */
+			pkvm_err("iommu%d: attempt to enable PMRs blocked\n",
+				 iommu->seq_id);
+			ret = -EPERM;
+		} else {
+			ret = iommu_direct_mmio_write(iommu, phys, len, 4, val);
+		}
+		break;
+	}
+	case DMAR_ECEO_REG:
+		if (!cap_ecmds(iommu->cap) && val) {
+			pkvm_err("iommu%d: non-zero val 0x%llx when ECMD not supported\n",
+				 iommu->seq_id, val);
+			ret = -EINVAL;
+		} else {
+			ret = iommu_direct_mmio_write(iommu, phys, len, 8, val);
+		}
+		break;
+	case DMAR_ECMD_REG:
+		if (!cap_ecmds(iommu->cap) && val) {
+			pkvm_err("iommu%d: non-zero val 0x%llx when ECMD not supported\n",
+				 iommu->seq_id, val);
+			ret = -EINVAL;
+		} else if (val & GENMASK_ULL(15, 8)) {
+			pkvm_err("iommu%d: ECMD 0x%llx has reserved bits set\n",
+				 iommu->seq_id, val);
+			ret = -EINVAL;
+		} else {
+			/*
+			 * Extended Command Interface. Only allow performance monitoring
+			 * counter control commands (ENABLE/DISABLE/FREEZE/UNFREEZE).
+			 * These toggle counter state only and have no memory or DMA
+			 * remapping implications. Block all other command codes as they
+			 * are reserved or unknown and cannot be reasoned about safely.
+			 *
+			 * For simplicity don't validate that the command is supported
+			 * in ECCAP3, since per VT-d spec section 11.4.14.3, usage of an
+			 * unsupported command shall only result in an error reported in
+			 * ECRSP rather than in an undefined behavior.
+			 */
+			u8 ecmd = val & 0xff;
+
+			if (ecmd != DMA_ECMD_ENABLE && ecmd != DMA_ECMD_DISABLE &&
+			    ecmd != DMA_ECMD_FREEZE && ecmd != DMA_ECMD_UNFREEZE) {
+				pkvm_err("iommu%d: unsupported ECMD 0x%x blocked\n",
+					 iommu->seq_id, ecmd);
+				ret = -EPERM;
+			} else {
+				ret = iommu_direct_mmio_write(iommu, phys, len, 8, val);
+			}
+		}
+		break;
+	case DMAR_PERFINTRCTL_REG:
+	case DMAR_FECTL_REG: {
+		/* RsvdP bits: 29:0 */
+		u32 rsvdp_mask = (~0U) >> 2;
+		u32 rsvdp;
+
+		if (offset == DMAR_PERFINTRCTL_REG) {
+			/* RsvdZ if PMU is not supported */
+			if (!ecap_pms(iommu->ecap) && val) {
+				ret = -EINVAL;
+				break;
+			}
+		}
+
+		rsvdp = readl(iommu->reg + offset) & rsvdp_mask;
+		if ((val & rsvdp_mask) != rsvdp) {
+			pkvm_err("iommu%d: %s reserved bits mismatch(0x%x != 0x%x)\n",
+				 iommu->seq_id,
+				 offset == DMAR_FECTL_REG ? "FECTL" : "PERFINTRCTL",
+				 rsvdp, (u32)(val & rsvdp_mask));
+			ret = -EINVAL;
+		} else {
+			ret = iommu_direct_mmio_write(iommu, phys, len, 4, val);
+		}
+		break;
+	}
+	case DMAR_PERFINTRSTS_REG:
+		if (val & (GENMASK_ULL(31, 1) |
+			   (ecap_pms(iommu->ecap) ? 0 : DMA_PERFINTRSTS_PIS))) {
+			pkvm_err("iommu%d: PERFINTRSTS 0x%llx has reserved bits set\n",
+				 iommu->seq_id, val);
+			ret = -EINVAL;
+		} else {
+			/* RW1C for clearing fault status bits */
+			ret = iommu_direct_mmio_write(iommu, phys, len, 4, val);
+		}
+		break;
+	case DMAR_FSTS_REG:
+		/*
+		 * Bit 7(DMA_FSTS_PRO) is deprecated and RsvdZ (since VT-d spec
+		 * Revision 3.1). But host driver still sets this bit. So we
+		 * don't validate it here.
+		 */
+		if (val & (GENMASK_U32(31, 16) | GENMASK_U32(3, 2))) {
+			pkvm_err("iommu%d: FSTS 0x%llx has reserved bits set\n",
+				 iommu->seq_id, val);
+			ret = -EINVAL;
+		} else {
+			/* RW1C for clearing fault status bits */
+			ret = iommu_direct_mmio_write(iommu, phys, len, 4, val);
+		}
+		break;
 	default:
-		/* Not emulated MMIO can directly go to hardware */
-		ret = iommu_direct_mmio_write(iommu, phys, len, val);
+		ret = pkvm_iommu_pmu_validate_write(iommu, offset, len, val);
+		if (ret == IOMMU_REG_NOT_HANDLED)
+			ret = pkvm_iommu_frcd_validate_write(iommu, offset, len, val);
+
+		if (ret == IOMMU_REG_NOT_HANDLED) {
+			/*
+			 * Deny-by-default: block all registers not explicitly handled
+			 * above. Any register the host driver legitimately needs must
+			 * be added as an explicit case; unknown or unreviewed registers
+			 * must not reach hardware.
+			 */
+			pkvm_err("iommu%d: unsupported register write blocked at offset 0x%lx val 0x%llx\n",
+				 iommu->seq_id, offset, val);
+			ret = -EOPNOTSUPP;
+		}
+		if (!ret)
+			ret = iommu_direct_mmio_write(iommu, phys, len, len, val);
 	}
 
 	pkvm_spin_unlock(&iommu->lock);
+	return ret;
+}
+
+static u32 iommu_msi_dest_id(u32 addr, u32 uaddr)
+{
+	return ((addr & X86_MSI_ADDR_DEST_ID_MASK) >> X86_MSI_ADDR_DEST_ID_SHIFT) |
+	       (uaddr & X86_MSI_UADDR_DEST_ID_MASK);
+}
+
+static bool iommu_msi_dest_id_valid(u32 dest_id)
+{
+	struct pkvm_pcpu *cpu;
+	int i;
+
+	for_each_pkvm_pcpu(i, cpu) {
+		u32 cpu_dest_id = msi_dest_mode_logical ?
+				  cpu->msi_dest_id :
+				  cpu->apic_id;
+
+		if (dest_id == cpu_dest_id)
+			return true;
+	}
+
+	return false;
+}
+
+static int iommu_validate_msi_dest_id(struct intel_iommu *iommu, u32 addr,
+				      u32 uaddr, const char *name)
+{
+	u32 dest_id = iommu_msi_dest_id(addr, uaddr);
+
+	if (!iommu_msi_dest_id_valid(dest_id)) {
+		pkvm_err("iommu%d: %s MSI destination 0x%x is not a pKVM CPU\n",
+			 iommu->seq_id, name, dest_id);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int iommu_validate_msi_msg(struct intel_iommu *iommu, u32 offset,
+				  u32 data, u32 addr, u32 uaddr,
+				  const char *name)
+{
+	if (offset == DMAR_PERFINTRCTL_REG && !ecap_pms(iommu->ecap)) {
+		pkvm_err("iommu%d: perf MSI write when PMU is not supported\n",
+			 iommu->seq_id);
+		return -EINVAL;
+	}
+
+	if (data >> 9) {
+		pkvm_err("iommu%d: %s DATA 0x%x has reserved bits set\n",
+			 iommu->seq_id, name, data);
+		return -EINVAL;
+	}
+
+	if ((addr & X86_MSI_ADDR_MASK) != X86_MSI_ADDR_BASE) {
+		pkvm_err("iommu%d: %s ADDR 0x%x not in MSI address range\n",
+			 iommu->seq_id, name, addr);
+		return -EINVAL;
+	}
+
+	if (!!(addr & X86_MSI_ADDR_DEST_MODE_LOGICAL) != msi_dest_mode_logical) {
+		pkvm_err("iommu%d: %s ADDR 0x%x has invalid destination mode\n",
+			 iommu->seq_id, name, addr);
+		return -EINVAL;
+	}
+
+	if (uaddr & 0xFF) {
+		pkvm_err("iommu%d: %s UADDR 0x%x has reserved bits set\n",
+			 iommu->seq_id, name, uaddr);
+		return -EINVAL;
+	}
+
+	return iommu_validate_msi_dest_id(iommu, addr, uaddr, name);
+}
+
+int pkvm_iommu_msi_write(u64 phys, u32 offset, u32 data, u32 addr, u32 uaddr)
+{
+	struct intel_iommu *iommu = iommu_from_phys(phys);
+	const char *name;
+	int ret;
+
+	if (!iommu)
+		return -EINVAL;
+
+	switch (offset) {
+	case DMAR_FECTL_REG:
+		name = "fault event";
+		break;
+	case DMAR_PERFINTRCTL_REG:
+		name = "perf monitoring";
+		break;
+	default:
+		pkvm_err("iommu%d: unsupported MSI register group 0x%x\n",
+			 iommu->seq_id, offset);
+		return -EOPNOTSUPP;
+	}
+
+	ret = iommu_validate_msi_msg(iommu, offset, data, addr, uaddr, name);
+	if (ret)
+		return ret;
+
+	pkvm_spin_lock(&iommu->lock);
+	writel(data, iommu->reg + offset + 4);
+	writel(addr, iommu->reg + offset + 8);
+	writel(uaddr, iommu->reg + offset + 12);
+	pkvm_spin_unlock(&iommu->lock);
+
 	return ret;
 }
 
@@ -513,12 +911,47 @@ static int iommu_init(struct intel_iommu *iommu)
 
 	pkvm_spin_lock_init(&iommu->lock);
 
+	pkvm_iommu_pmu_init(iommu);
+
 	/*
 	 * Take a snapshot of GSTS. GCMD updates will be handled by pKVM and
 	 * hence this snapshot will be kept up-to-date by pKVM and used as
 	 * virtual GSTS for the host.
 	 */
 	iommu->vgsts = readl(iommu->reg + DMAR_GSTS_REG);
+
+	/*
+	 * Protected Memory Regions (PMRs) are a legacy DMA protection mechanism
+	 * used by firmware before DMA remapping is active. Host driver disables
+	 * PMRs once DMA remapping is set up. Disable them explicitly to be on
+	 * the safer side in case host driver doesn't get to do it.
+	 */
+	if (cap_plmr(iommu->cap) || cap_phmr(iommu->cap)) {
+		u32 pmen = readl(iommu->reg + DMAR_PMEN_REG);
+
+		if (pmen & DMA_PMEN_EPM) {
+			pkvm_dbg("iommu%d: disabling PMRs\n", iommu->seq_id);
+			pmen &= ~DMA_PMEN_EPM;
+			writel(pmen, iommu->reg + DMAR_PMEN_REG);
+		}
+	}
+
+	/*
+	 * Interrupt remapping(IR) hardware initialization happens during x2apic
+	 * enable and should happen before pKVM initialization.
+	 * Although pKVM itself does not rely on the IR functionality, it relies
+	 * on x2apic which requires IR, so IR is supposed to be set up.
+	 */
+	if (!(iommu->vgsts & DMA_GSTS_IRTPS) || !(iommu->vgsts & DMA_GSTS_IRES)) {
+		pkvm_err("iommu%d: Interrupt remapping hardware not setup!\n",
+			 iommu->seq_id);
+		return -EINVAL;
+	}
+
+	iommu->virta = readq(iommu->reg + DMAR_IRTA_REG);
+	ret = iommu_protect_ir_table(iommu);
+	if (ret)
+		return ret;
 
 	return 0;
 }

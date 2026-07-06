@@ -236,6 +236,12 @@ err_free_dev:
 	return ret;
 }
 
+static int gzvm_vm_internal_enable_cap(struct gzvm *gzvm,
+				       struct gzvm_enable_cap *cap)
+{
+	return gzvm_vm_internal_arch_enable_cap(gzvm, cap);
+}
+
 static int gzvm_vm_ioctl_enable_cap(struct gzvm *gzvm,
 				    struct gzvm_enable_cap *cap,
 				    void __user *argp)
@@ -442,7 +448,7 @@ static void setup_vm_demand_paging(struct gzvm *vm)
 	/* demand_page_buffer is freed when destroy VM */
 	vm->demand_page_buffer = buffer;
 
-	ret = gzvm_vm_ioctl_enable_cap(vm, &cap, NULL);
+	ret = gzvm_vm_internal_enable_cap(vm, &cap);
 	if (ret == 0) {
 		vm->demand_page_gran = GZVM_BLOCK_BASED_DEMAND_PAGE_SIZE;
 		/* freed when destroy vm */
@@ -569,7 +575,7 @@ static int setup_mem_alloc_mode(struct gzvm *vm)
 
 	cap.cap = GZVM_CAP_ENABLE_DEMAND_PAGING;
 
-	ret = gzvm_vm_ioctl_enable_cap(vm, &cap, NULL);
+	ret = gzvm_vm_internal_enable_cap(vm, &cap);
 	if (!ret) {
 		vm->mem_alloc_mode = GZVM_DEMAND_PAGING;
 		setup_vm_demand_paging(vm);
@@ -586,7 +592,7 @@ static int enable_idle_support(struct gzvm *vm)
 	struct gzvm_enable_cap cap = {0};
 
 	cap.cap = GZVM_CAP_ENABLE_IDLE;
-	ret = gzvm_vm_ioctl_enable_cap(vm, &cap, NULL);
+	ret = gzvm_vm_internal_enable_cap(vm, &cap);
 	if (ret)
 		dev_dbg(vm->gzvm_drv->dev, "Hypervisor doesn't support idle\n");
 	return ret;

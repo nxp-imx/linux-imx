@@ -54,4 +54,16 @@ bool pkvm_cpu_initialized(int cpu);
 			continue;						\
 		else
 
+/**
+ * for_each_pkvm_pcpu - iterate over pKVM physical CPUs
+ * @i: iterator variable for physical CPU index
+ * @pcpu: struct pkvm_pcpu pointer, assigned by macro.
+ *
+ * NOTE: Iterates over all CPUs, including those that
+ * might not be initialized by pkvm_init() yet.
+ */
+#define for_each_pkvm_pcpu(i, pcpu)						\
+	for ((i) = 0; (i) < pkvm_hyp->num_cpus &&				\
+		      ({ (pcpu) = pkvm_hyp->pcpus[(i)]; true; }); (i)++)	\
+
 #endif /* __PKVM_X86_INIT_H */

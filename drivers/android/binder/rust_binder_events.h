@@ -232,8 +232,8 @@ TRACE_EVENT(binder_transaction_fd_recv,
 );
 
 TRACE_EVENT(binder_transaction_alloc_buf,
-	TP_PROTO(int debug_id, const struct binder_transaction_data_sg *data),
-	TP_ARGS(debug_id, data),
+	TP_PROTO(int debug_id, size_t data_size, size_t offsets_size, size_t extra_buffers_size),
+	TP_ARGS(debug_id, data_size, offsets_size, extra_buffers_size),
 
 	TP_STRUCT__entry(
 		__field(int, debug_id)
@@ -243,9 +243,9 @@ TRACE_EVENT(binder_transaction_alloc_buf,
 	),
 	TP_fast_assign(
 		__entry->debug_id = debug_id;
-		__entry->data_size = data->transaction_data.data_size;
-		__entry->offsets_size = data->transaction_data.offsets_size;
-		__entry->extra_buffers_size = data->buffers_size;
+		__entry->data_size = data_size;
+		__entry->offsets_size = offsets_size;
+		__entry->extra_buffers_size = extra_buffers_size;
 	),
 	TP_printk("transaction=%d data_size=%zd offsets_size=%zd extra_buffers_size=%zd",
 		  __entry->debug_id, __entry->data_size, __entry->offsets_size,

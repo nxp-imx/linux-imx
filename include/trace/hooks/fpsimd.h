@@ -15,6 +15,15 @@ DECLARE_HOOK(android_vh_is_fpsimd_save,
 	TP_PROTO(struct task_struct *prev, struct task_struct *next),
 	TP_ARGS(prev, next))
 
+/*
+ * Vendor hook fired after the first SME access trap (EC=0x1D) is
+ * handled and TIF_SME is set. Fired exactly once per task when SME
+ * state is fully initialised and the task is ready to use SME.
+ */
+DECLARE_RESTRICTED_HOOK(android_rvh_sme_smstart,
+	TP_PROTO(struct task_struct *task),
+	TP_ARGS(task), 1)
+
 #endif /* _TRACE_HOOK_FPSIMD_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

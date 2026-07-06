@@ -1350,7 +1350,7 @@ struct readahead_control {
 	unsigned long _pflags;
 
 	ANDROID_OEM_DATA(1);
-	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_USE(1, pgoff_t _max_index); /* limit readahead to _max_index, inclusive */
 };
 
 #define DEFINE_READAHEAD(ractl, f, r, m, i)				\
@@ -1359,6 +1359,7 @@ struct readahead_control {
 		.mapping = m,						\
 		.ra = r,						\
 		._index = i,						\
+		._max_index = ULONG_MAX,				\
 	}
 
 #define VM_READAHEAD_PAGES	(SZ_128K / PAGE_SIZE)

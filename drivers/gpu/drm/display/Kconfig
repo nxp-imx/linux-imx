@@ -12,7 +12,7 @@ config DRM_DISPLAY_HELPER
 	help
 	  DRM helpers for display adapters.
 
-if DRM_DISPLAY_HELPER
+if DRM_DISPLAY_HELPER || GKI_HIDDEN_DRM_CONFIGS
 
 config DRM_BRIDGE_CONNECTOR
 	bool

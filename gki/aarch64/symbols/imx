@@ -2831,6 +2831,7 @@
   trace_event_raw_init
   trace_event_reg
   trace_handle_return
+  __traceiter_android_vh_pci_pwrctrl_should_skip
   __traceiter_gpu_mem_total
   __traceiter_rwmmio_post_read
   __traceiter_rwmmio_post_write
@@ -2839,7 +2840,9 @@
   __traceiter_sched_set_state_tp
   __traceiter_xdp_exception
   trace_output_call
+  __tracepoint_android_vh_pci_pwrctrl_should_skip
   __tracepoint_gpu_mem_total
+  tracepoint_probe_register
   __tracepoint_rwmmio_post_read
   __tracepoint_rwmmio_post_write
   __tracepoint_rwmmio_read

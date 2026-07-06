@@ -1207,7 +1207,7 @@ static const char *uaccess_safe_builtin[] = {
 	"copy_mc_enhanced_fast_string",
 	"rep_stos_alternative",
 	"rep_movs_alternative",
-	"__copy_user_nocache",
+	"copy_to_nontemporal",
 	NULL
 };
 
@@ -2118,12 +2118,11 @@ static void mark_func_jump_tables(struct objtool_file *file,
 			last = insn;
 
 		/*
-		 * Store back-pointers for unconditional forward jumps such
+		 * Store back-pointers for forward jumps such
 		 * that find_jump_table() can back-track using those and
 		 * avoid some potentially confusing code.
 		 */
-		if (insn->type == INSN_JUMP_UNCONDITIONAL && insn->jump_dest &&
-		    insn->offset > last->offset &&
+		if (insn->jump_dest &&
 		    insn->jump_dest->offset > insn->offset &&
 		    !insn->jump_dest->first_jump_src) {
 

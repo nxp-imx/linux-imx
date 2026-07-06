@@ -6,6 +6,7 @@
 #ifndef _CRYPTO_FIPS140_MODULE_H
 #define _CRYPTO_FIPS140_MODULE_H
 
+#include <crypto/fips140-selftests.h>
 #include <linux/completion.h>
 #include <linux/module.h>
 #include <generated/utsrelease.h>
@@ -22,13 +23,9 @@
 
 /* fips140-eval-testing.c */
 #ifdef CONFIG_CRYPTO_FIPS140_MOD_EVAL_TESTING
-void fips140_inject_selftest_failure(const char *impl, u8 *result);
 void fips140_inject_integrity_failure(u8 *textcopy);
 bool fips140_eval_testing_init(void);
 #else
-static inline void fips140_inject_selftest_failure(const char *impl, u8 *result)
-{
-}
 static inline void fips140_inject_integrity_failure(u8 *textcopy)
 {
 }

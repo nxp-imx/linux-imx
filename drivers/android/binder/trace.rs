@@ -2,11 +2,10 @@
 
 // Copyright (C) 2024 Google LLC.
 
-use crate::{defs::BinderTransactionDataSg, node::Node, thread::Thread, transaction::Transaction};
+use crate::{node::Node, thread::Thread, transaction::Transaction};
 
 use kernel::bindings::{
-    binder_transaction_data_sg, flat_binder_object, rust_binder_node, rust_binder_thread,
-    rust_binder_transaction, task_struct,
+    flat_binder_object, rust_binder_node, rust_binder_thread, rust_binder_transaction, task_struct,
 };
 use kernel::error::Result;
 use kernel::ffi::{c_int, c_uint, c_ulong};
@@ -32,7 +31,7 @@ declare_trace! {
                                                 trans: *const flat_binder_object);
     unsafe fn binder_transaction_fd_send(t_debug_id: c_int, fd: c_int, offset: usize);
     unsafe fn binder_transaction_fd_recv(t_debug_id: c_int, fd: c_int, offset: usize);
-    unsafe fn binder_transaction_alloc_buf(debug_id: c_int, d: *const binder_transaction_data_sg);
+    unsafe fn binder_transaction_alloc_buf(debug_id: c_int, ds: usize, os: usize, bs: usize);
     unsafe fn binder_transaction_buffer_release(debug_id: c_int);
     unsafe fn binder_transaction_failed_buffer_release(debug_id: c_int);
     unsafe fn binder_transaction_update_buffer_release(debug_id: c_int);
@@ -182,10 +181,9 @@ pub(crate) fn trace_transaction_fd_recv(t_debug_id: usize, fd: u32, offset: usiz
 }
 
 #[inline]
-pub(crate) fn trace_transaction_alloc_buf(debug_id: usize, data: &BinderTransactionDataSg) {
-    let data = data as *const BinderTransactionDataSg;
+pub(crate) fn trace_transaction_alloc_buf(debug_id: usize, ds: usize, os: usize, bs: usize) {
     // SAFETY: The `data` pointer is valid.
-    unsafe { binder_transaction_alloc_buf(debug_id as c_int, data.cast()) }
+    unsafe { binder_transaction_alloc_buf(debug_id as c_int, ds, os, bs) }
 }
 
 #[inline]

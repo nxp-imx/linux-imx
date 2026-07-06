@@ -102,3 +102,10 @@
   __usb_serial_register_drivers
   v4l2_s_ctrl
   vmalloc_array_noprof
+  mmc_retune_pause
+  mmc_retune_unpause
+  ir_raw_handler_register
+  ir_raw_handler_unregister
+  ir_raw_gen_pd
+  ir_raw_gen_manchester
+  rc_repeat

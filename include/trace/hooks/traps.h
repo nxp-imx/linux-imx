@@ -34,6 +34,18 @@ DECLARE_RESTRICTED_HOOK(android_rvh_arm64_serror_panic,
 	TP_PROTO(struct pt_regs *regs, unsigned long esr),
 	TP_ARGS(regs, esr), 1);
 
+/*
+ * Vendor hook fired for all unrecognised EL0 sync exceptions before
+ * bad_el0_sync() is called. The full ESR is passed so vendor drivers
+ * can inspect EC, IL and the trapped opcode (ESR_ELx[63:32]).
+ * Set *handled = true to suppress bad_el0_sync() / SIGILL delivery.
+ * If no handler is registered or *handled remains false, SIGILL is
+ * delivered as usual.
+ */
+DECLARE_RESTRICTED_HOOK(android_rvh_el0_impdef_exception,
+	TP_PROTO(struct pt_regs *regs, unsigned long esr, bool *handled),
+	TP_ARGS(regs, esr, handled), 1)
+
 #endif /* _TRACE_HOOK_TRAPS_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

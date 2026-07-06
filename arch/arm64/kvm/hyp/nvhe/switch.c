@@ -137,6 +137,16 @@ static bool __pmu_switch_to_guest(struct kvm_vcpu *vcpu)
 {
 	struct kvm_pmu_events *pmu = &vcpu->arch.pmu.events;
 
+	/*
+	 * A protected guest runs with MDCR_EL2.HPME=0, which gates the event
+	 * counters but not PMCCNTR_EL0/PMICNTR_EL0. The host-maintained mask is
+	 * untrusted and incomplete here, so disable whatever is enabled instead.
+	 */
+	if (vcpu_is_protected(vcpu) && system_supports_pmuv3()) {
+		pmu->events_host = read_sysreg(pmcntenset_el0);
+		pmu->events_guest = 0;
+	}
+
 	if (pmu->events_host)
 		write_sysreg(pmu->events_host, pmcntenclr_el0);
 

@@ -2620,12 +2620,14 @@
   devm_hwrng_register
 
 # required by sprd_typec_displayport.ko
+  driver_find
   typec_altmode_enter
   typec_altmode_exit
   typec_altmode_get_partner
   typec_altmode2port
   __typec_altmode_register_driver
   typec_altmode_unregister_driver
+  typec_bus
   typec_get_negotiated_svdm_version
 
 # required by sprd_u_serial.ko

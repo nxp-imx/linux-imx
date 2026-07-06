@@ -40,6 +40,7 @@ mod context;
 mod deferred_close;
 mod defs;
 mod error;
+mod netlink;
 mod node;
 mod page_range;
 mod prio;
@@ -303,7 +304,9 @@ fn ptr_align(value: usize) -> Option<usize> {
 // SAFETY: We call register in `init`.
 static BINDER_SHRINKER: Shrinker = unsafe { Shrinker::new() };
 
-struct BinderModule {}
+struct BinderModule {
+    _netlink: Option<kernel::net::netlink::Registration>,
+}
 
 impl kernel::Module for BinderModule {
     fn init(_module: &'static kernel::ThisModule) -> Result<Self> {
@@ -323,25 +326,28 @@ impl kernel::Module for BinderModule {
                     pr_err!("Failed to load Rust Binder.\n");
                 }
                 bindings::binder_remove_trace_events(_module.as_ptr());
-                return Ok(Self {});
+                return Ok(Self { _netlink: None });
             }
         }
 
         pr_warn!("Loaded Rust Binder.");
 
+        let netlink = crate::netlink::BINDER_NL_FAMILY.register()?;
         BINDER_SHRINKER.register(kernel::c_str!("android-binder"))?;
 
         // SAFETY: The module is being loaded, so we can initialize binderfs.
         unsafe { kernel::error::to_result(binderfs::init_rust_binderfs())? };
 
-        Ok(Self {})
+        Ok(Self {
+            _netlink: Some(netlink),
+        })
     }
 }
 
 /// Makes the inner type Sync.
 #[repr(transparent)]
 pub struct AssertSync<T>(T);
-// SAFETY: Used only to insert `file_operations` into a global, which is safe.
+// SAFETY: Used only to insert C bindings types into globals, which is safe.
 unsafe impl<T> Sync for AssertSync<T> {}
 
 /// File operations that rust_binderfs.c can use.

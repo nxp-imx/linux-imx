@@ -56,6 +56,12 @@ struct kvm_ffa_buffers {
 	u64 vm_creating_bitmap;
 };
 
+enum protected_vm_state {
+	PROTECTED_VM_ALIVE = 0,
+	PROTECTED_VM_DYING,
+	PROTECTED_VM_DEAD,
+};
+
 /*
  * Holds the relevant data for running a vm in protected mode.
  */
@@ -89,11 +95,11 @@ struct pkvm_hyp_vm {
 	hyp_spinlock_t vcpus_lock;
 
 	/*
-	 * True when the guest is being torn down. When in this state, the
-	 * guest's vCPUs can't be loaded anymore, but its pages can be
+	 * Bigger than one when the guest is being torn down. When in this state,
+	 * the guest's vCPUs can't be loaded anymore, but its pages can be
 	 * reclaimed by the host.
 	 */
-	bool is_dying;
+	enum protected_vm_state is_dying;
 
 	struct kvm_ffa_buffers ffa_buf;
 	struct list_head vm_list;

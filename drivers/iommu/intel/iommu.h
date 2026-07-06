@@ -162,6 +162,9 @@
 #define DMAR_PERFCNTROFF_REG	0x31c
 #define DMAR_PERFINTRSTS_REG	0x324
 #define DMAR_PERFINTRCTL_REG	0x328
+#define DMAR_PERFINTRDATA_REG	0x32c
+#define DMAR_PERFINTRADDR_REG	0x330
+#define DMAR_PERFINTRUADDR_REG	0x334
 #define DMAR_PERFEVNTCAP_REG	0x380
 #define DMAR_ECMD_REG		0x400
 #define DMAR_ECEO_REG		0x408
@@ -774,7 +777,6 @@ struct dmar_domain {
 #endif /* !__PKVM_HYP__ */
 };
 
-#ifndef __PKVM_HYP__
 /*
  * In theory, the VT-d 4.0 spec can support up to 2 ^ 16 counters.
  * But in practice, there are only 14 counters for the existing
@@ -785,6 +787,7 @@ struct dmar_domain {
  */
 #define IOMMU_PMU_IDX_MAX		64
 
+#ifndef __PKVM_HYP__
 struct iommu_pmu {
 	struct intel_iommu	*iommu;
 	u32			num_cntr;	/* Number of counters */
@@ -875,6 +878,8 @@ struct intel_iommu {
 	u32		vgsts;	/* Virtual GSTS register */
 	u64		viqa;  /* Virtual IQA register */
 	u64		vrta; /* Virtual RTA register */
+	u64		virta; /* Virtual IRTA register */
+	struct irte	*ir_table; /* VA of hypervisor-protected interrupt remapping table */
 	int		seq_id;	/* sequence id of the iommu */
 	int		agaw; /* agaw of this iommu */
 	int		msagaw; /* max sagaw of this iommu */
@@ -882,6 +887,17 @@ struct intel_iommu {
 	struct q_inval  *qi;    /* Pointer to _qi. Enables host code re-use */
 	struct iommu_flush flush;
 	struct root_entry *root_entry;
+	bool		pmu_supported;
+	u64		pmu_perfcap;
+	u32		pmu_cfg;
+	u32		pmu_overflow;
+	u32		pmu_counter;
+	u32		pmu_num_cntr;
+	u32		pmu_num_eg;
+	u32		pmu_cntr_width;
+	u32		pmu_cntr_stride;
+	u32		pmu_filter;
+	u32		pmu_cntrcap[IOMMU_PMU_IDX_MAX];
 	/*
 	 * Virtual address of page donated by host for constructing
 	 * translation structures(context table/pasid table). This

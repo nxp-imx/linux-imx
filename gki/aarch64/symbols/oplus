@@ -272,6 +272,7 @@
   __traceiter_android_vh_mutex_opt_spin_start
   __traceiter_android_vh_oom_evaluate_task_bypass
   __traceiter_android_vh_percpu_rwsem_wq_add
+  __traceiter_android_vh_preempt_lazy_mode
   __traceiter_android_vh_reweight_entity
   __traceiter_android_vh_rtmutex_wait_start
   __traceiter_android_vh_rwsem_can_spin_on_owner
@@ -314,6 +315,9 @@
   __traceiter_android_vh_shrink_node
   __traceiter_android_vh_save_vmalloc_stack
   __traceiter_android_vh_show_stack_hash
+  __traceiter_android_vh_lock_delay_schedule
+  __traceiter_android_vh_lock_task_fork
+  __traceiter_android_vh_lock_task_exit
   __traceiter_android_vh_calc_alloc_flags
   __tracepoint_android_vh_rmqueue_pcplist_override_batch
   __tracepoint_android_vh_tune_inactive_ratio
@@ -377,6 +381,7 @@
   __tracepoint_android_vh_mutex_opt_spin_start
   __tracepoint_android_vh_oom_evaluate_task_bypass
   __tracepoint_android_vh_percpu_rwsem_wq_add
+  __tracepoint_android_vh_preempt_lazy_mode
   __tracepoint_android_vh_reweight_entity
   __tracepoint_android_vh_rtmutex_wait_start
   __tracepoint_android_vh_rwsem_can_spin_on_owner
@@ -414,6 +419,9 @@
   __tracepoint_sched_stat_wait
   __tracepoint_sched_waking
   __tracepoint_task_rename
+  __tracepoint_android_vh_lock_delay_schedule
+  __tracepoint_android_vh_lock_task_fork
+  __tracepoint_android_vh_lock_task_exit
   __udp4_lib_lookup
   __udp6_lib_lookup
   unlock_rename
@@ -514,3 +522,10 @@
   wait_for_completion_io_timeout
   get_pfnblock_migratetype
   iov_iter_bvec
+  led_trigger_remove
+  led_update_brightness
+  led_get_flash_fault
+  get_tree_nodev
+  fs_param_is_enum
+  compat_vma_mmap_prepare
+  unregister_sys_off_handler

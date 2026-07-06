@@ -219,6 +219,7 @@ filegroup(
         "gki/aarch64/symbols/honor",
         "gki/aarch64/symbols/imx",
         "gki/aarch64/symbols/kunit",
+        "gki/aarch64/symbols/lenovo",
         "gki/aarch64/symbols/mtk",
         "gki/aarch64/symbols/oplus",
         "gki/aarch64/symbols/pixel",
@@ -230,6 +231,7 @@ filegroup(
         "gki/aarch64/symbols/vivo",
         "gki/aarch64/symbols/wonder",
         "gki/aarch64/symbols/xiaomi",
+        "gki/aarch64/symbols/xring",
     ],
     visibility = ["//visibility:public"],
 )
@@ -1857,8 +1859,13 @@ devicetree_library(
     name = "dt-bindings",
     hdrs = glob([
         "scripts/dtc/include-prefixes/dt-bindings/**/*.h",
-    ]),
-    includes = ["scripts/dtc/include-prefixes"],
+    ]) + [
+        "include/linux/kconfig.h",
+    ],
+    includes = [
+        "include",
+        "scripts/dtc/include-prefixes",
+    ],
     visibility = ["//visibility:private"],
 )
 

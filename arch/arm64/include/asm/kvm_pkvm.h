@@ -255,10 +255,14 @@ static inline unsigned long pkvm_selftest_pages(void) { return 0; }
 #define KVM_FFA_SPM_HANDLE_NR_PAGES	2
 
 /*
- * Maximum number of consitutents allowed in a descriptor. This number is
- * arbitrary, see comment below on SG_MAX_SEGMENTS in hyp_ffa_proxy_pages().
+ * Maximum number of constituents allowed in a descriptor. This number is
+ * arbitrary, and can be overridden via command line kvm-arm.ffa_max_nr_constituents.
+ * See comment below on SG_MAX_SEGMENTS in hyp_ffa_proxy_pages().
  */
 #define KVM_FFA_MAX_NR_CONSTITUENTS	4096
+extern size_t kvm_nvhe_sym(ffa_max_nr_constituents);
+
+DECLARE_STATIC_KEY_FALSE(kvm_ffa_unmap_on_lend);
 
 static inline unsigned long hyp_ffa_proxy_pages(void)
 {
@@ -274,7 +278,7 @@ static inline unsigned long hyp_ffa_proxy_pages(void)
 	 * it is sometimes abused, so let's allow larger descriptors and hope
 	 * for the best.
 	 */
-	BUILD_BUG_ON(KVM_FFA_MAX_NR_CONSTITUENTS < SG_MAX_SEGMENTS);
+	WARN_ON(kvm_nvhe_sym(ffa_max_nr_constituents) < SG_MAX_SEGMENTS);
 
 	/*
 	 * The hypervisor FFA proxy needs enough memory to buffer a fragmented
@@ -283,10 +287,13 @@ static inline unsigned long hyp_ffa_proxy_pages(void)
 	desc_max = sizeof(struct ffa_mem_region) +
 		   sizeof(struct ffa_mem_region_attributes) +
 		   sizeof(struct ffa_composite_mem_region) +
-		   KVM_FFA_MAX_NR_CONSTITUENTS * sizeof(struct ffa_mem_region_addr_range);
+		   kvm_nvhe_sym(ffa_max_nr_constituents) * sizeof(struct ffa_mem_region_addr_range);
 
 	/* Plus a page each for the hypervisor's RX and TX mailboxes. */
 	num_pages = (2 * KVM_FFA_MBOX_NR_PAGES) + DIV_ROUND_UP(desc_max, PAGE_SIZE);
+
+	if (static_branch_unlikely(&kvm_ffa_unmap_on_lend))
+		num_pages += KVM_FFA_SPM_HANDLE_NR_PAGES;
 
 	return num_pages;
 }

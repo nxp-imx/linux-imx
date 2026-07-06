@@ -591,13 +591,15 @@ static int init_pkvm_hyp_vm(struct kvm *host_kvm, struct pkvm_hyp_vm *hyp_vm,
 	hyp_vm->kvm.created_vcpus = nr_vcpus;
 	hyp_vm->kvm.arch.pkvm.is_protected = READ_ONCE(host_kvm->arch.pkvm.is_protected);
 
-	if (hyp_vm->kvm.arch.pkvm.is_protected)
+	if (hyp_vm->kvm.arch.pkvm.is_protected) {
 		pvmfw_load_addr = READ_ONCE(host_kvm->arch.pkvm.pvmfw_load_addr);
+		if ((pvmfw_load_addr != PVMFW_INVALID_LOAD_ADDR) && !PAGE_ALIGNED(pvmfw_load_addr))
+			return -EINVAL;
+	}
 	hyp_vm->kvm.arch.pkvm.pvmfw_load_addr = pvmfw_load_addr;
 
 	hyp_vm->kvm.arch.pkvm.smc_forwarded = READ_ONCE(host_kvm->arch.pkvm.smc_forwarded);
 	hyp_vm->kvm.arch.pkvm.ffa_support = READ_ONCE(host_kvm->arch.pkvm.ffa_support);
-	hyp_vm->kvm.arch.pkvm.is_created = true;
 	hyp_vm->kvm.arch.flags = 0;
 
 	ret = pkvm_init_features_from_host(hyp_vm, host_kvm);
@@ -1131,7 +1133,7 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 gfn, u64 nr_pages)
 
 	hyp_read_lock(&vm_table_lock);
 	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm || !hyp_vm->is_dying)
+	if (!hyp_vm || (hyp_vm->is_dying != PROTECTED_VM_DEAD))
 		goto unlock;
 
 	ret = __pkvm_host_reclaim_page_guest(gfn, nr_pages, hyp_vm);
@@ -1168,8 +1170,22 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 		goto unlock;
 	}
 
-	hyp_vm->is_dying = true;
+	hyp_vm->is_dying = PROTECTED_VM_DYING;
 unlock:
+	hyp_write_unlock(&vm_table_lock);
+
+	/*
+	 * vCPUs are quiescent, but assigned devices may still be issuing DMA
+	 * via the guest's SMMU domains. Block DMA and tear down guest IOMMU
+	 * translations *before* allowing __pkvm_host_reclaim_page() to hand
+	 * OWNED pages (which may still carry a DMA hyp_page->refcount) back
+	 * to the host.
+	 */
+	pkvm_devices_teardown(hyp_vm);
+	pkvm_pviommu_teardown(hyp_vm);
+
+	hyp_write_lock(&vm_table_lock);
+	hyp_vm->is_dying = PROTECTED_VM_DEAD;
 	hyp_write_unlock(&vm_table_lock);
 
 	return ret;
@@ -1185,7 +1201,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 
 	hyp_write_lock(&vm_table_lock);
 	hyp_vm = get_pkvm_unref_hyp_vm_locked(handle);
-	if (!hyp_vm || !hyp_vm->is_dying) {
+	if (!hyp_vm || (hyp_vm->is_dying != PROTECTED_VM_DEAD)) {
 		err = -EINVAL;
 		goto err_unlock;
 	}
@@ -1202,10 +1218,6 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 		err = kvm_dying_guest_reclaim_ffa_resources(hyp_vm);
 	} while (err == -EAGAIN);
 	WARN_ON(err);
-
-	pkvm_devices_teardown(hyp_vm);
-
-	pkvm_pviommu_teardown(hyp_vm);
 
 	/*
 	 * At this point all page tables are destroyed and should be pushed to the pool

@@ -14,6 +14,7 @@
 #include <nvhe/arm-smccc.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/memory.h>
+#include <nvhe/mm.h>
 #include <nvhe/modules.h>
 #include <nvhe/pkvm.h>
 #include <nvhe/trap_handler.h>
@@ -228,6 +229,36 @@ static int psci_system_suspend(u64 func_id, struct kvm_cpu_context *host_ctxt)
 			 __hyp_pa(init_params), 0);
 }
 
+static void psci_relax_late_cpu_vector(void)
+{
+	u64 pfr0;
+	u8 csv2;
+
+	pfr0 = read_sysreg_s(SYS_ID_AA64PFR0_EL1);
+	csv2 = cpuid_feature_extract_unsigned_field(pfr0, ID_AA64PFR0_EL1_CSV2_SHIFT);
+	if (csv2 >= ID_AA64PFR0_EL1_CSV2_CSV2_3) {
+		pkvm_cpu_set_vector(HYP_VECTOR_DIRECT);
+	} else if (csv2) {
+		u64 mmfr1 = read_sysreg_s(SYS_ID_AA64MMFR1_EL1);
+
+		if (cpuid_feature_extract_unsigned_field(mmfr1, ID_AA64MMFR1_EL1_ECBHB_SHIFT))
+			pkvm_cpu_set_vector(HYP_VECTOR_DIRECT);
+	}
+}
+
+static void psci_handle_late_cpu(struct kvm_cpu_context *host_ctxt)
+{
+	if (!host_data_test_flag(PKVM_LATE_CPU))
+		return;
+
+	kvm_init_host_cpu_context(host_ctxt);
+	kvm_init_host_debug_data();
+
+	psci_relax_late_cpu_vector();
+
+	host_data_clear_flag(PKVM_LATE_CPU);
+}
+
 asmlinkage void __noreturn __kvm_host_psci_cpu_entry(bool is_cpu_on)
 {
 	struct psci_boot_args *boot_args;
@@ -236,6 +267,11 @@ asmlinkage void __noreturn __kvm_host_psci_cpu_entry(bool is_cpu_on)
 	__hyp_enter();
 
 	host_ctxt = host_data_ptr(host_ctxt);
+
+	psci_handle_late_cpu(host_ctxt);
+
+	if (static_branch_unlikely(&kvm_vgic_global_state.gicv3_cpuif))
+		__vgic_v3_init_lrs();
 
 	if (is_cpu_on)
 		boot_args = this_cpu_ptr(&cpu_on_args);

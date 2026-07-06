@@ -127,6 +127,7 @@
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/sched.h>
+#include <trace/hooks/dtask.h>
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -2473,6 +2474,7 @@ __latent_entropy struct task_struct *copy_process(
 	uprobe_copy_process(p, clone_flags);
 	user_events_fork(p, clone_flags);
 
+	trace_android_vh_lock_task_fork(p);
 	copy_oom_score_adj(clone_flags, p);
 
 	return p;

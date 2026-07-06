@@ -3303,6 +3303,7 @@
   __traceiter_android_rvh_cpu_overutilized
   __traceiter_android_rvh_dequeue_task
   __traceiter_android_rvh_do_sched_yield
+  __traceiter_android_rvh_el0_impdef_exception
   __traceiter_android_rvh_enqueue_task
   __traceiter_android_rvh_find_busiest_queue
   __traceiter_android_rvh_find_lowest_rq
@@ -3341,6 +3342,7 @@
   __traceiter_android_rvh_shmem_get_folio
   __traceiter_android_rvh_shmem_suitable_orders
   __traceiter_android_rvh_show_max_freq
+  __traceiter_android_rvh_sme_smstart
   __traceiter_android_rvh_tick_entry
   __traceiter_android_rvh_try_to_wake_up
   __traceiter_android_rvh_ttwu_cond
@@ -3415,6 +3417,7 @@
   __tracepoint_android_rvh_cpu_overutilized
   __tracepoint_android_rvh_dequeue_task
   __tracepoint_android_rvh_do_sched_yield
+  __tracepoint_android_rvh_el0_impdef_exception
   __tracepoint_android_rvh_enqueue_task
   __tracepoint_android_rvh_find_busiest_queue
   __tracepoint_android_rvh_find_lowest_rq
@@ -3453,6 +3456,7 @@
   __tracepoint_android_rvh_shmem_get_folio
   __tracepoint_android_rvh_shmem_suitable_orders
   __tracepoint_android_rvh_show_max_freq
+  __tracepoint_android_rvh_sme_smstart
   __tracepoint_android_rvh_tick_entry
   __tracepoint_android_rvh_try_to_wake_up
   __tracepoint_android_rvh_ttwu_cond

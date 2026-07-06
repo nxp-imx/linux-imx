@@ -1,1 +1,6 @@
 # See http://go/approve-abi-break
+
+type 'struct readahead_control' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { unsigned long _max_index; struct { u64 __kabi_reserved1; }; union { }; }' was added
+

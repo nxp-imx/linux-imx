@@ -155,6 +155,8 @@
   __tracepoint_android_vh_do_group_exit
   __traceiter_android_vh_mark_folio_accessed
   __tracepoint_android_vh_mark_folio_accessed
+  __tracepoint_android_vh_do_shrink_slab
+  __traceiter_android_vh_do_shrink_slab
 
 # required by custom memory policy
   __tracepoint_android_vh_mm_get_zone_mark
@@ -335,3 +337,16 @@
 # required by xiaomi binder
 __tracepoint_android_vh_binder_skip_set_priority
 __traceiter_android_vh_binder_skip_set_priority
+
+# required by xiaomi game
+__traceiter_android_vh_free_user
+__traceiter_android_vh_alloc_uid
+__traceiter_android_rvh_cpuset_fork
+__traceiter_android_vh_sched_setaffinity_early
+__tracepoint_android_vh_free_user
+__tracepoint_android_vh_alloc_uid
+__tracepoint_android_rvh_cpuset_fork
+__tracepoint_android_vh_sched_setaffinity_early
+free_uid
+find_user
+jiffies_64

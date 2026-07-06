@@ -293,7 +293,13 @@ static void inject_undef64(struct kvm_vcpu *vcpu)
 
 	*vcpu_pc(vcpu) = read_sysreg_el2(SYS_ELR);
 	*vcpu_cpsr(vcpu) = read_sysreg_el2(SYS_SPSR);
+
+	/*
+	 * Sync VBAR_EL1 and SCTLR_EL1, both read by enter_exception64(),
+	 * as pKVM handles traps before sysregs are resync'ed.
+	 */
 	__vcpu_assign_sys_reg(vcpu, VBAR_EL1, read_sysreg_el1(SYS_VBAR));
+	__vcpu_assign_sys_reg(vcpu, SCTLR_EL1, read_sysreg_el1(SYS_SCTLR));
 
 	kvm_pend_exception(vcpu, EXCEPT_AA64_EL1_SYNC);
 
@@ -301,6 +307,7 @@ static void inject_undef64(struct kvm_vcpu *vcpu)
 
 	write_sysreg_el1(esr, SYS_ESR);
 	write_sysreg_el1(read_sysreg_el2(SYS_ELR), SYS_ELR);
+	write_sysreg_el1(read_sysreg_el2(SYS_SPSR), SYS_SPSR);
 	write_sysreg_el2(*vcpu_pc(vcpu), SYS_ELR);
 	write_sysreg_el2(*vcpu_cpsr(vcpu), SYS_SPSR);
 }

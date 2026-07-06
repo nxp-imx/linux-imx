@@ -2328,7 +2328,8 @@ skip_folio_referenced:
 }
 
 static unsigned int reclaim_folio_list(struct list_head *folio_list,
-				      struct pglist_data *pgdat)
+				      struct pglist_data *pgdat,
+				      void *private)
 {
 	struct reclaim_stat stat;
 	unsigned int nr_reclaimed;
@@ -2342,17 +2343,21 @@ static unsigned int reclaim_folio_list(struct list_head *folio_list,
 	};
 
 	nr_reclaimed = shrink_folio_list(folio_list, pgdat, &sc, &stat, true, NULL);
-	while (!list_empty(folio_list)) {
-		folio = lru_to_folio(folio_list);
-		list_del(&folio->lru);
-		folio_putback_lru(folio);
+	if (private) {
+		trace_android_rvh_reclaim_folio_list(folio_list, private);
+	} else {
+		while (!list_empty(folio_list)) {
+			folio = lru_to_folio(folio_list);
+			list_del(&folio->lru);
+			folio_putback_lru(folio);
+		}
 	}
 	trace_mm_vmscan_reclaim_pages(pgdat->node_id, sc.nr_scanned, nr_reclaimed, &stat);
 
 	return nr_reclaimed;
 }
 
-unsigned long reclaim_pages(struct list_head *folio_list)
+unsigned long __reclaim_pages(struct list_head *folio_list, void *private)
 {
 	int nid;
 	unsigned int nr_reclaimed = 0;
@@ -2374,15 +2379,20 @@ unsigned long reclaim_pages(struct list_head *folio_list)
 			continue;
 		}
 
-		nr_reclaimed += reclaim_folio_list(&node_folio_list, NODE_DATA(nid));
+		nr_reclaimed += reclaim_folio_list(&node_folio_list, NODE_DATA(nid),  private);
 		nid = folio_nid(lru_to_folio(folio_list));
 	} while (!list_empty(folio_list));
 
-	nr_reclaimed += reclaim_folio_list(&node_folio_list, NODE_DATA(nid));
+	nr_reclaimed += reclaim_folio_list(&node_folio_list, NODE_DATA(nid), private);
 
 	memalloc_noreclaim_restore(noreclaim_flag);
 
 	return nr_reclaimed;
+}
+
+unsigned long reclaim_pages(struct list_head *folio_list)
+{
+	return __reclaim_pages(folio_list, NULL);
 }
 EXPORT_SYMBOL_GPL(reclaim_pages);
 
@@ -3908,7 +3918,7 @@ static int walk_pud_range(p4d_t *p4d, unsigned long start, unsigned long end,
 	pud = pud_offset(p4d, start & P4D_MASK);
 restart:
 	for (i = pud_index(start), addr = start; addr != end; i++, addr = next) {
-		pud_t val = READ_ONCE(pud[i]);
+		pud_t val = pudp_get(pud + i);
 
 		next = pud_addr_end(addr, end);
 

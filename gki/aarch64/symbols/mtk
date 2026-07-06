@@ -1281,6 +1281,9 @@
   kvm_iommu_register_hyp_ops
   __kvm_nvhe_kvm_patch_physvirt_offset
   __kvm_nvhe_kvm_update_va_mask
+  led_get_flash_fault
+  led_trigger_remove
+  led_update_brightness
   linear_range_get_max_value
   linear_range_get_selector_high
   linear_range_get_selector_within
@@ -2389,6 +2392,7 @@
   __traceiter_android_vh_cpufreq_target
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
+  __traceiter_android_vh_dump_dl_server
   __traceiter_android_vh_free_task
   __traceiter_android_vh_freq_qos_add_request
   __traceiter_android_vh_freq_qos_remove_request
@@ -2509,6 +2513,7 @@
   __tracepoint_android_vh_cpufreq_target
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
+  __tracepoint_android_vh_dump_dl_server
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_freq_qos_add_request
   __tracepoint_android_vh_freq_qos_remove_request
@@ -2672,6 +2677,7 @@
   unregister_reboot_notifier
   unregister_restart_handler
   unregister_rpmsg_driver
+  unregister_sys_off_handler
   unregister_virtio_device
   unregister_virtio_driver
   up

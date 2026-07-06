@@ -7,14 +7,13 @@
  */
 
 #include <linux/arm-smccc.h>
+#include <linux/init.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
 #include <linux/slab.h>
 
 #include <asm/hypervisor.h>
-
-#include "pkvm-guest.h"
 
 struct pkvm_device_pd {
 	struct generic_pm_domain genpd;
@@ -53,7 +52,9 @@ static int pkvm_device_pm_toggle(struct pkvm_device_pd *pd, bool on)
 	struct arm_smccc_res res;
 
 	arm_smccc_1_1_invoke(ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID,
-			     on ? KVM_DEV_REQ_PWR_ON : KVM_DEV_REQ_PWR_OFF, pd->mmio, &res);
+			     on ? KVM_DEV_REQ_PWR_ON : KVM_DEV_REQ_PWR_OFF, pd->mmio,
+			     0, 0, 0, 0,
+			     &res);
 
 	return res.a0 == SMCCC_RET_SUCCESS ? 0 : -EPERM;
 }
@@ -102,7 +103,11 @@ static struct platform_driver pkvm_device_pm_driver = {
 	},
 };
 
-int pkvm_device_pm_init(void)
+static int __init pkvm_device_pm_init(void)
 {
+	if (!kvm_arm_hyp_service_available(ARM_SMCCC_KVM_FUNC_DEV_REQ_PWR))
+		return 0;
+
 	return platform_driver_register(&pkvm_device_pm_driver);
 }
+device_initcall(pkvm_device_pm_init);

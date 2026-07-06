@@ -1,3 +1,0 @@
-# The parent OWNERS is currently more permissive, so don't inherit from it.
-set noparent
-include kernel/common:android-mainline:/OWNERS_DrNo

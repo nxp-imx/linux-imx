@@ -63,6 +63,8 @@
   __tracepoint_android_vh_udp_v6_connect
   __traceiter_android_vh_uplink_send_msg
   __tracepoint_android_vh_uplink_send_msg
+  __traceiter_tcp_send_reset
+  __tracepoint_tcp_send_reset
   __tracepoint_android_vh_set_tsk_need_resched_lazy
   __traceiter_android_vh_set_tsk_need_resched_lazy
   __tracepoint_android_vh_task_cmdline_prio_inherit
@@ -126,6 +128,7 @@
   __mod_lruvec_state
   mem_cgroup_update_lru_size
   folio_referenced
+  folios_put_refs
   get_reclaim_params
   set_reclaim_params
   __traceiter_android_vh_mem_cgroup_free
@@ -461,6 +464,8 @@
   __tracepoint_android_rvh_panic_unhandled
   __tracepoint_android_vh_sk_free
   __tracepoint_task_newtask
+  _trace_android_vh_pcpu_rwsem_lock_acquired
+  _trace_android_vh_pcpu_rwsem_lock_released
   filp_open_block
   flush_signals
   jiffies64_to_msecs
@@ -488,12 +493,26 @@
   __traceiter_block_rq_merge
   __tracepoint_block_rq_requeue
   __traceiter_block_rq_requeue
+  __tracepoint_block_io_done
+  __traceiter_block_io_done
   __traceiter_android_rvh_submit_bio_pre
   __tracepoint_android_rvh_submit_bio_pre
   __traceiter_android_rvh_submit_bio_post
   __tracepoint_android_rvh_submit_bio_post
   __tracepoint_android_vh_request_issue_err
   __traceiter_android_vh_request_issue_err
+  __tracepoint_android_rvh_rq_qos_wait
+  __traceiter_android_rvh_rq_qos_wait
+  __tracepoint_android_vh_wbt_wait
+  __traceiter_android_vh_wbt_wait
+  __tracepoint_android_vh_wbt_track
+  __traceiter_android_vh_wbt_track
+  __tracepoint_android_rvh_blk_execute_rq
+  __traceiter_android_rvh_blk_execute_rq
+  __tracepoint_android_rvh_blk_mq_get_tag
+  __traceiter_android_rvh_blk_mq_get_tag
+  __tracepoint_android_rvh_io_schedule_prepare
+  __traceiter_android_rvh_io_schedule_prepare
   blk_mq_queue_inflight
   scsi_device_from_queue
   blk_mq_quiesce_queue_nowait
@@ -502,3 +521,6 @@
   blk_mq_unquiesce_tagset
   __percpu_counter_compare
   __percpu_counter_sum
+  percpu_counter_set
+  wbt_disable_default
+  wbt_enable_default

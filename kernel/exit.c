@@ -924,6 +924,7 @@ void __noreturn do_exit(long code)
 	trace_android_vh_exit_check(current);
 	seccomp_filter_release(tsk);
 
+	trace_android_vh_lock_task_exit(tsk);
 	acct_update_integrals(tsk);
 	group_dead = atomic_dec_and_test(&tsk->signal->live);
 	if (group_dead) {

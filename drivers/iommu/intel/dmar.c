@@ -1989,9 +1989,14 @@ void dmar_msi_write(int irq, struct msi_msg *msg)
 	unsigned long flag;
 
 	raw_spin_lock_irqsave(&iommu->register_lock, flag);
-	dmar_writel(iommu, reg + 4, msg->data);
-	dmar_writel(iommu, reg + 8, msg->address_lo);
-	dmar_writel(iommu, reg + 12, msg->address_hi);
+	if (pkvm_enabled()) {
+		pkvm_write_iommu_msi(iommu, reg, msg->data,
+				     msg->address_lo, msg->address_hi);
+	} else {
+		dmar_writel(iommu, reg + 4, msg->data);
+		dmar_writel(iommu, reg + 8, msg->address_lo);
+		dmar_writel(iommu, reg + 12, msg->address_hi);
+	}
 	raw_spin_unlock_irqrestore(&iommu->register_lock, flag);
 }
 

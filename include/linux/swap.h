@@ -406,6 +406,10 @@ extern unsigned long shrink_all_memory(unsigned long nr_pages);
 extern int vm_swappiness;
 long remove_mapping(struct address_space *mapping, struct folio *folio);
 
+extern unsigned long reclaim_pages(struct list_head *folio_list);
+extern unsigned long __reclaim_pages(struct list_head *folio_list,
+				     void *private);
+
 #if defined(CONFIG_SYSFS) && defined(CONFIG_NUMA)
 extern int reclaim_register_node(struct node *node);
 extern void reclaim_unregister_node(struct node *node);

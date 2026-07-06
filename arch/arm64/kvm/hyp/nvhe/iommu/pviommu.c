@@ -336,10 +336,13 @@ static bool pkvm_guest_iommu_map(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 		size -= mapped;
 	}
 
+	kvm_iommu_iotlb_sync_map(domain, iova - total_mapped, total_mapped);
 	smccc_set_retval(vcpu, smccc_ret, total_mapped, 0, 0);
 	return true;
 out_host_request:
 	*exit_code = ARM_EXCEPTION_HYP_REQ;
+	if (total_mapped)
+		kvm_iommu_iotlb_sync_map(domain, iova - total_mapped, total_mapped);
 	smccc_set_retval(vcpu, SMCCC_RET_SUCCESS, total_mapped, 0, 0);
 	return false;
 }

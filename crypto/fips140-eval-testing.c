@@ -19,6 +19,7 @@
 #define inline inline __attribute__((__always_inline__)) __gnu_inline \
        __inline_maybe_unused notrace
 #undef BUILD_FIPS140_KO
+#define NEED_FIPS140_EVAL_TESTING_DECLS
 
 /*
  * Since this .c file contains real module parameters for fips140.ko, it needs

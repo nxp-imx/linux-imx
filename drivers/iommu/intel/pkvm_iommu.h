@@ -30,6 +30,7 @@ struct qi_desc;
 struct intel_iommu;
 struct dmar_domain;
 struct device_domain_info;
+struct irte;
 
 #ifdef CONFIG_PKVM_INTEL
 extern u16 pkvm_sym(satc_devs)[];
@@ -131,6 +132,10 @@ int pkvm_domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
 		    int prot, int gfp);
 int pkvm_domain_unmap(struct dmar_domain *domain, unsigned long start_pfn,
 		      unsigned long last_pfn);
+int pkvm_modify_irte(struct intel_iommu *iommu, int index, struct irte *irte_modified);
+int pkvm_write_iommu_msi(struct intel_iommu *iommu, u32 offset, u32 data,
+			 u32 addr, u32 uaddr);
+
 #else /* __PKVM_HYP__ */
 /*
  * dev_iommu_priv_get is called from quite a few places in code re-used by
@@ -198,6 +203,7 @@ int pkvm_intel_iommu_init(void);
 
 int pkvm_iommu_mmio_read(u64 phys, int len, u64 *val);
 int pkvm_iommu_mmio_write(u64 phys, int len, u64 val);
+int pkvm_iommu_msi_write(u64 phys, u32 offset, u32 data, u32 addr, u32 uaddr);
 int pkvm_iommu_iec_flush(u64 phys, int index, int mask, bool global);
 int pkvm_iommu_clear_ce(struct clear_ce_data *data);
 int pkvm_iommu_set_lm_ce(struct set_lm_ce_data *in, struct set_lm_ce_data *out);
@@ -209,6 +215,26 @@ int pkvm_iommu_alloc_domain(struct alloc_domain_data *data);
 int pkvm_iommu_free_domain(u64 pgd_gpa, struct pkvm_memcache *mc);
 int pkvm_iommu_domain_map(struct domain_map_data *in, struct domain_map_data *out);
 int pkvm_iommu_domain_unmap(u64 pgd_gpa, u64 start_pfn, u64 last_pfn);
+int pkvm_iommu_modify_irte(struct modify_irte_data *data);
+
+/*
+ * Return value from a pKVM MMIO register validator meaning "this offset is not
+ * one of my registers" -- the dispatcher should try the next handler or fall to
+ * deny-by-default. Distinct from the validators' rejection codes (-EINVAL etc).
+ */
+#define IOMMU_REG_NOT_HANDLED	(-ENXIO)
+
+void pkvm_iommu_pmu_init(struct intel_iommu *iommu);
+
+int pkvm_iommu_pmu_validate_read(struct intel_iommu *iommu,
+				 unsigned long offset, int len);
+int pkvm_iommu_pmu_validate_write(struct intel_iommu *iommu,
+				  unsigned long offset, int len, u64 val);
+
+int pkvm_iommu_frcd_validate_read(struct intel_iommu *iommu,
+				  unsigned long offset, int len);
+int pkvm_iommu_frcd_validate_write(struct intel_iommu *iommu,
+				   unsigned long offset, int len, u64 val);
 #endif /* !__PKVM_HYP__ */
 #else /* !CONFIG_PKVM_INTEL */
 static inline int pkvm_iec_flush(struct intel_iommu *iommu, bool global,
@@ -266,6 +292,16 @@ static inline int pkvm_domain_map(struct dmar_domain *domain, unsigned long iov_
 }
 static inline int pkvm_domain_unmap(struct dmar_domain *domain, unsigned long start_pfn,
 				    unsigned long last_pfn)
+{
+	return -EOPNOTSUPP;
+}
+static inline int pkvm_modify_irte(struct intel_iommu *iommu, int index,
+				   struct irte *irte_modified)
+{
+	return -EOPNOTSUPP;
+}
+static inline int pkvm_write_iommu_msi(struct intel_iommu *iommu, u32 offset, u32 data,
+				       u32 addr, u32 uaddr)
 {
 	return -EOPNOTSUPP;
 }

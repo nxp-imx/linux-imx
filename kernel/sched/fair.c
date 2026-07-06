@@ -3992,7 +3992,8 @@ rescale_entity(struct sched_entity *se, unsigned long weight, bool rel_vprot)
 	 *	   = V  - vl * w / w'
 	 *	   = V  - vl'
 	 */
-	se->vlag = div64_long(se->vlag * old_weight, weight);
+	if (!se->on_rq)
+		se->vlag = div64_long(se->vlag * old_weight, weight);
 
 	/*
 	 * DEADLINE
@@ -4019,12 +4020,15 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 	bool curr = cfs_rq->curr == se;
 	bool rel_vprot = false;
 	u64 avruntime = 0;
+	s64 vlag = 0;
+	unsigned long old_weight;
 
 	if (se->on_rq) {
 		/* commit outstanding execution time */
 		update_curr(cfs_rq);
 		avruntime = avg_vruntime(cfs_rq);
-		se->vlag = entity_lag(cfs_rq, se, avruntime);
+		vlag = entity_lag(cfs_rq, se, avruntime);
+
 		se->deadline -= avruntime;
 		se->rel_deadline = 1;
 		if (curr && protect_slice(se)) {
@@ -4041,6 +4045,7 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 
 	trace_android_vh_reweight_entity(se, &weight);
 
+	old_weight = se->load.weight;
 	rescale_entity(se, weight, rel_vprot);
 
 	update_load_set(&se->load, weight);
@@ -4056,7 +4061,9 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 			se->vprot += avruntime;
 		se->deadline += avruntime;
 		se->rel_deadline = 0;
-		se->vruntime = avruntime - se->vlag;
+		/* scale local vlag here because rescale_entity() didn't */
+		vlag = div64_long(vlag * old_weight, weight);
+		se->vruntime = avruntime - vlag;
 
 		update_load_add(&cfs_rq->load, se->load.weight);
 		if (!curr)
@@ -10005,52 +10012,12 @@ next:
 }
 
 /*
- * attach_task() -- attach the task detached by detach_task() to its new rq.
- */
-static void attach_task(struct rq *rq, struct task_struct *p)
-{
-	lockdep_assert_rq_held(rq);
-
-	WARN_ON_ONCE(task_rq(p) != rq);
-	activate_task(rq, p, ENQUEUE_NOCLOCK);
-	wakeup_preempt(rq, p, 0);
-}
-
-/*
- * attach_one_task() -- attaches the task returned from detach_one_task() to
- * its new rq.
- */
-static void attach_one_task(struct rq *rq, struct task_struct *p)
-{
-	struct rq_flags rf;
-
-	rq_lock(rq, &rf);
-	update_rq_clock(rq);
-	attach_task(rq, p);
-	rq_unlock(rq, &rf);
-}
-
-/*
  * attach_tasks() -- attaches all tasks detached by detach_tasks() to their
  * new rq.
  */
 static void attach_tasks(struct lb_env *env)
 {
-	struct list_head *tasks = &env->tasks;
-	struct task_struct *p;
-	struct rq_flags rf;
-
-	rq_lock(env->dst_rq, &rf);
-	update_rq_clock(env->dst_rq);
-
-	while (!list_empty(tasks)) {
-		p = list_first_entry(tasks, struct task_struct, se.group_node);
-		list_del_init(&p->se.group_node);
-
-		attach_task(env->dst_rq, p);
-	}
-
-	rq_unlock(env->dst_rq, &rf);
+	__attach_tasks(env->dst_rq, &env->tasks);
 }
 
 #ifdef CONFIG_NO_HZ_COMMON

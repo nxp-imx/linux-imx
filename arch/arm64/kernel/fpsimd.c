@@ -33,6 +33,7 @@
 #include <linux/stddef.h>
 #include <linux/sysctl.h>
 #include <linux/swab.h>
+#include <trace/hooks/fpsimd.h>
 
 #include <asm/esr.h>
 #include <asm/exception.h>
@@ -1392,6 +1393,7 @@ void do_sve_acc(unsigned long esr, struct pt_regs *regs)
  * SME/CME erratum handling.
  */
 static cpumask_t sme_dvmsync_cpus;
+cpumask_t sme_active_cpus;
 
 /*
  * These helpers are only called from non-preemptible contexts, so
@@ -1405,13 +1407,15 @@ void sme_set_active(void)
 		return;
 
 	cpumask_set_cpu(cpu, mm_cpumask(current->mm));
+	cpumask_set_cpu(cpu, &sme_active_cpus);
 
 	/*
 	 * A subsequent (post ERET) SME access may use a stale address
 	 * translation. On C1-Pro, a TLBI+DSB on a different CPU will wait for
-	 * the completion of cpumask_set_cpu() above as it appears in program
-	 * order before the SME access. The post-TLBI+DSB read of mm_cpumask()
-	 * will lead to the IPI being issued.
+	 * the completion of the cpumask_set_cpu() operations above as they
+	 * appear in program order before the SME access. The post-TLBI+DSB
+	 * read of mm_cpumask() or sme_active_cpus will lead to the IPI being
+	 * issued.
 	 *
 	 * https://lore.kernel.org/r/ablEXwhfKyJW1i7l@J2N7QTR9R3
 	 */
@@ -1429,6 +1433,7 @@ void sme_clear_active(void)
 	 * completed on entering EL1.
 	 */
 	cpumask_clear_cpu(cpu, mm_cpumask(current->mm));
+	cpumask_clear_cpu(cpu, &sme_active_cpus);
 }
 
 static void sme_dvmsync_ipi(void *unused)
@@ -1515,6 +1520,12 @@ void do_sme_acc(unsigned long esr, struct pt_regs *regs)
 	}
 
 	put_cpu_fpsimd_context();
+
+	/*
+	 * TIF_SME is now set and SME state is fully initialised.
+	 * Notify vendor drivers via hook.
+	 */
+	trace_android_rvh_sme_smstart(current);
 }
 
 /*

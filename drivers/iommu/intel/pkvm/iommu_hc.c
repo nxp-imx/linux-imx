@@ -4,6 +4,7 @@
  *
  */
 #include <asm/kvm_pkvm.h>
+#include <linux/dmar.h>
 #include <linux/pci.h>
 #include "pkvm/mmu.h"
 #include "pkvm/vmx/ept.h"
@@ -502,6 +503,104 @@ int pkvm_iommu_free_domain(u64 pgd_gpa, struct pkvm_memcache *mc)
 			 __func__, pgd, ret);
 		return ret;
 	}
+
+	return ret;
+}
+
+int pkvm_iommu_modify_irte(struct modify_irte_data *data)
+{
+	struct irte modified = { .low = data->irte_lo, .high = data->irte_hi };
+	struct intel_iommu *iommu = iommu_from_phys(data->phys);
+	unsigned long unpin_pda_pa = -1UL;
+	struct irte *irte;
+	int ret = 0;
+
+	if (!iommu)
+		return -EINVAL;
+
+	if (data->index >= SZ_1M / sizeof(struct irte)) {
+		pkvm_err("iommu%d: modify_irte: index %u out of range\n",
+			 iommu->seq_id, data->index);
+		return -EINVAL;
+	}
+
+	if (modified.pst == 1) {
+		/* Posted Mode RsvdZ Bits: 2-7, 12-13, 24-37, 84-95 */
+		if (modified.p_res0 || modified.p_res1 ||
+		    modified.p_res2 || modified.p_res3)
+			return -EINVAL;
+	} else {
+		/* Remapping mode RsvdZ Bits: 12-14, 24-31, 84-127 */
+		if (modified.__res1 || modified.r_res1 ||
+		    modified.__res3)
+			return -EINVAL;
+	}
+
+	pkvm_spin_lock(&iommu->lock);
+
+	if (!iommu->ir_table) {
+		pkvm_err("iommu%d: modify_irte: IR table not set up\n", iommu->seq_id);
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	/*
+	 * If the new IRTE is in posted mode, pin the PDA page before writing
+	 * the IRTE to prevent the host from donating it to a guest after the
+	 * IRTE is in place.
+	 */
+	if (modified.pst == 1) {
+		unsigned long pda_pa = ((u64)modified.pda_h << 32) | ((u64)modified.pda_l << 6);
+
+		ret = pkvm_host_use_dma(PAGE_ALIGN_DOWN(pda_pa), PAGE_SIZE);
+		if (ret) {
+			pkvm_err("iommu%d: modify_irte: index[%u] pinning PDA[%lx] failed(err=%d)\n",
+				 iommu->seq_id, data->index, pda_pa, ret);
+			goto unlock;
+		}
+	}
+
+	/*
+	 * If the existing IRTE was in posted mode, get the old PDA to
+	 * unpin after successful update and cache invalidation.
+	 */
+	irte = &iommu->ir_table[data->index];
+	if (irte->pst == 1)
+		unpin_pda_pa = ((u64)irte->pda_h << 32) | ((u64)irte->pda_l << 6);
+
+	if ((irte->pst == 1) || (modified.pst == 1)) {
+		u128 old = irte->irte;
+
+		/*
+		 * The 128-bit IRTE must be updated atomically, as hardware reads
+		 * it concurrently. We hold iommu->lock and IRTEs are only written
+		 * by software, so the compare can never fail; a failure would mean
+		 * a locking/invariant bug, so treat it as fatal.
+		 */
+		BUG_ON(!try_cmpxchg128(&irte->irte, &old, modified.irte));
+	} else {
+		WRITE_ONCE(irte->low, modified.low);
+		WRITE_ONCE(irte->high, modified.high);
+	}
+
+	__iommu_flush_cache(iommu, irte, sizeof(*irte));
+
+unlock:
+	pkvm_spin_unlock(&iommu->lock);
+
+	if (!ret)
+		ret = qi_flush_iec(iommu, data->index, 0);
+
+	/*
+	 * Only release the old PDA once both the IRTE update and the IEC flush
+	 * have succeeded. If the flush failed the IOMMU may still hold a cached
+	 * IRTE referencing this page; unpinning it would let the host reclaim
+	 * and donate it to a guest/pKVM while the IOMMU can still post interrupts
+	 * into it, corrupting protected memory. Keeping it pinned on failure is
+	 * leak-safe.
+	 */
+	if (!ret && unpin_pda_pa != -1UL)
+		pkvm_host_unuse_dma(PAGE_ALIGN_DOWN(unpin_pda_pa), PAGE_SIZE);
 
 	return ret;
 }

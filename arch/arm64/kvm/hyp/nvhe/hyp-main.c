@@ -261,6 +261,18 @@ static void handle_pvm_entry_iabt(struct pkvm_hyp_vcpu *hyp_vcpu)
 	kvm_pend_exception(&hyp_vcpu->vcpu, EXCEPT_AA64_EL1_SYNC);
 }
 
+/*
+ * Clamp regs[0] MMIO data to the access width: a write must not leak the
+ * guest register's upper bits and a read must not let the untrusted host
+ * inject bits beyond the load. Mask only; the host applies endianness.
+ */
+static inline u64 kvm_mmio_clamp_data(struct kvm_vcpu *vcpu, u64 val)
+{
+	unsigned int len = kvm_vcpu_dabt_get_as(vcpu);
+
+	return val & GENMASK_U64(len * 8 - 1, 0);
+}
+
 static void handle_pvm_entry_dabt(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	struct kvm_vcpu *host_vcpu = hyp_vcpu->host_vcpu;
@@ -304,6 +316,7 @@ static void handle_pvm_entry_dabt(struct pkvm_hyp_vcpu *hyp_vcpu)
 		u64 rd_val = READ_ONCE(host_vcpu->arch.ctxt.regs.regs[0]);
 		int rd = kvm_vcpu_dabt_get_rd(&hyp_vcpu->vcpu);
 
+		rd_val = kvm_mmio_clamp_data(&hyp_vcpu->vcpu, rd_val);
 		vcpu_set_reg(&hyp_vcpu->vcpu, rd, rd_val);
 	}
 
@@ -414,6 +427,7 @@ static void handle_pvm_exit_dabt(struct pkvm_hyp_vcpu *hyp_vcpu)
 			int rt = kvm_vcpu_dabt_get_rd(&hyp_vcpu->vcpu);
 			u64 rt_val = vcpu_get_reg(&hyp_vcpu->vcpu, rt);
 
+			rt_val = kvm_mmio_clamp_data(&hyp_vcpu->vcpu, rt_val);
 			WRITE_ONCE(host_vcpu->arch.ctxt.regs.regs[0], rt_val);
 		}
 	} else {
@@ -786,15 +800,14 @@ static void flush_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 			__flush_hyp_vcpu(hyp_vcpu);
 
 		hyp_vcpu->vcpu.arch.iflags = host_iflags;
-		hyp_vcpu->vcpu.arch.hcr_el2 &= ~(HCR_TWI | HCR_TWE);
+		hyp_vcpu->vcpu.arch.hcr_el2 &= ~(HCR_TWI | HCR_TWE | HCR_VSE);
 		hyp_vcpu->vcpu.arch.hcr_el2 |= READ_ONCE(host_vcpu->arch.hcr_el2) &
-							 (HCR_TWI | HCR_TWE);
+							 (HCR_TWI | HCR_TWE | HCR_VSE);
 
 		hyp_vcpu->vcpu.arch.mdcr_el2 = host_vcpu->arch.mdcr_el2;
+		hyp_vcpu->vcpu.arch.vsesr_el2 = host_vcpu->arch.vsesr_el2;
 		flush_debug_state(hyp_vcpu);
 	}
-
-	hyp_vcpu->vcpu.arch.vsesr_el2 = host_vcpu->arch.vsesr_el2;
 
 	flush_hyp_vgic_state(hyp_vcpu);
 	flush_hyp_timer_state(hyp_vcpu);
@@ -872,10 +885,14 @@ static void sync_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 		BUG();
 	}
 
-	if (pkvm_hyp_vcpu_is_protected(hyp_vcpu))
+	if (pkvm_hyp_vcpu_is_protected(hyp_vcpu)) {
 		vcpu_clear_flag(host_vcpu, PC_UPDATE_REQ);
-	else
+	} else {
 		host_vcpu->arch.iflags = hyp_vcpu->vcpu.arch.iflags;
+
+		host_vcpu->arch.hcr_el2 &= ~HCR_VSE;
+		host_vcpu->arch.hcr_el2 |= hyp_vcpu->vcpu.arch.hcr_el2 & HCR_VSE;
+	}
 
 	hyp_vcpu->exit_code = *exit_code;
 }
@@ -1486,6 +1503,11 @@ static void handle___pkvm_create_private_mapping(struct kvm_cpu_context *host_ct
 	cpu_reg(host_ctxt, 1) = haddr;
 }
 
+static void handle___pkvm_late_cpus_finalize(struct kvm_cpu_context *host_ctxt)
+{
+	__pkvm_late_cpus_finalize();
+}
+
 static void handle___pkvm_prot_finalize(struct kvm_cpu_context *host_ctxt)
 {
 	cpu_reg(host_ctxt, 1) = __pkvm_prot_finalize();
@@ -2024,6 +2046,7 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_register_hcall),
 	HANDLE_FUNC(__pkvm_iommu_register_ops),
 	HANDLE_FUNC(__pkvm_devices_init),
+	HANDLE_FUNC(__pkvm_late_cpus_finalize),
 	HANDLE_FUNC(__pkvm_prot_finalize),
 
 	HANDLE_FUNC(__pkvm_host_share_hyp),

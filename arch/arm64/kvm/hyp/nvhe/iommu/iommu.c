@@ -724,6 +724,9 @@ int kvm_iommu_map_pages(pkvm_handle_t domain_id,
 	    iova + size < iova || paddr + size < paddr)
 		return -E2BIG;
 
+	if (!IS_ALIGNED(iova | paddr, pgsize))
+		return -EINVAL;
+
 	domain = handle_to_domain(domain_id);
 	if (!domain || domain_get(domain))
 		return -ENOENT;
@@ -773,6 +776,9 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id, unsigned long iova,
 
 	if (__builtin_mul_overflow(pgsize, pgcount, &size) ||
 	    iova + size < iova)
+		return 0;
+
+	if (!IS_ALIGNED(iova, pgsize))
 		return 0;
 
 	domain = handle_to_domain(domain_id);
@@ -869,6 +875,9 @@ size_t kvm_iommu_map_sg(pkvm_handle_t domain_id, unsigned long iova, struct kvm_
 
 		if (__builtin_mul_overflow(pgsize, pgcount, &size) ||
 		    iova + size < iova)
+			goto out_unpin_sg;
+
+		if (!IS_ALIGNED(iova | phys, pgsize))
 			goto out_unpin_sg;
 
 		mapped = 0;

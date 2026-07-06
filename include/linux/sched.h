@@ -162,7 +162,7 @@ struct user_event_mm;
  */
 #define is_special_task_state(state)					\
 	((state) & (__TASK_STOPPED | __TASK_TRACED | TASK_PARKED |	\
-		    TASK_DEAD | TASK_FROZEN))
+		    TASK_DEAD | TASK_WAKING | TASK_FROZEN))
 
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 # define debug_normal_state_change(state_value)				\

@@ -1240,8 +1240,6 @@ out_nolock:
 	rwsem_del_wake_waiter(sem, &waiter, &wake_q);
 	__set_current_state(TASK_RUNNING);
 	trace_android_vh_rwsem_read_wait_finish(sem);
-	if (blocked_on_set)
-		clear_task_blocked_on(current, sem);
 	lockevent_inc(rwsem_rlock_fail);
 	trace_contention_end(sem, -EINTR);
 	return ERR_PTR(-EINTR);

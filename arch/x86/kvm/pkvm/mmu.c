@@ -1768,6 +1768,10 @@ unlock:
  * disallow donating those pages, thus ensuring protection of pVM memory and
  * hypervisor memory from DMA from devices controlled by the host.
  *
+ * Both PKVM_PAGE_OWNED and PKVM_PAGE_SHARED_OWNED pages (host owner) are
+ * accepted. SHARED_OWNED pages are already protected against guest donation by
+ * their page state, but the refcount is incremented for symmetry.
+ *
  * Returns: 0 on success, or a negative error code on failure.
  */
 int pkvm_host_use_dma(unsigned long phys, unsigned long size)
@@ -1780,12 +1784,10 @@ int pkvm_host_use_dma(unsigned long phys, unsigned long size)
 	pkvm_host_mmu_lock();
 
 	if (is_memory_range(phys, size)) {
-		/*
-		 * We could also allow PKVM_PAGE_SHARED_OWNED, but there is no known
-		 * use case for it so far.
-		 */
-		ret = check_host_mem_pgstate(phys, size, PKVM_PAGE_OWNED, PKVM_ID_HOST,
-					     false);
+		ret = check_host_mem_pgstate_mask(phys, size,
+						  BIT(PKVM_PAGE_OWNED) |
+						  BIT(PKVM_PAGE_SHARED_OWNED),
+						  PKVM_ID_HOST, false);
 		if (ret)
 			goto unlock;
 
@@ -1851,8 +1853,10 @@ void pkvm_host_unuse_dma(unsigned long phys, unsigned long size)
 	pkvm_host_mmu_lock();
 
 	/* Stay paranoid */
-	if (WARN_ON_ONCE(check_host_mem_pgstate(phys, size, PKVM_PAGE_OWNED,
-						PKVM_ID_HOST, false)))
+	if (WARN_ON_ONCE(check_host_mem_pgstate_mask(phys, size,
+						     BIT(PKVM_PAGE_OWNED) |
+						     BIT(PKVM_PAGE_SHARED_OWNED),
+						     PKVM_ID_HOST, false)))
 		goto unlock;
 
 	for_each_pkvm_page(page, phys, size)

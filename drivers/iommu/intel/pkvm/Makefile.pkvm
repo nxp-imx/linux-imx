@@ -7,6 +7,8 @@ ccflags-$(CONFIG_PKVM_INTEL) += -I $(srctree)/drivers/iommu/intel
 pkvm-iommu = ../../../../drivers/iommu/intel/pkvm
 intel-iommu = ../../../../drivers/iommu/intel
 
-pkvm-hyp-$(CONFIG_PKVM_INTEL) += $(pkvm-iommu)/iommu.o $(intel-iommu)/iommu.o $(pkvm-iommu)/iommu_hc.o \
+pkvm-hyp-$(CONFIG_PKVM_INTEL) += $(pkvm-iommu)/iommu.o $(pkvm-iommu)/iommu_frcd.o \
+				 $(pkvm-iommu)/iommu_pmu.o \
+				 $(intel-iommu)/iommu.o $(pkvm-iommu)/iommu_hc.o \
 				 $(intel-iommu)/dmar.o  $(intel-iommu)/pasid.o $(pkvm-iommu)/domain.o \
 				 $(pkvm-iommu)/cache.o $(intel-iommu)/cache.o

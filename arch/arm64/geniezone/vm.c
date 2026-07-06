@@ -458,20 +458,17 @@ static int gzvm_vm_ioctl_cap_pvm(struct gzvm *gzvm,
 	return -EINVAL;
 }
 
-int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
-				  struct gzvm_enable_cap *cap,
-				  void __user *argp)
+int gzvm_vm_internal_arch_enable_cap(struct gzvm *gzvm,
+				     struct gzvm_enable_cap *cap)
 {
 	struct arm_smccc_res res = {0};
 
 	switch (cap->cap) {
-	case GZVM_CAP_PROTECTED_VM:
-		return gzvm_vm_ioctl_cap_pvm(gzvm, cap, argp);
 	case GZVM_CAP_ENABLE_DEMAND_PAGING:
 		/*
 		 * Both GZVM_CAP_ENABLE_DEMAND_PAGING and
 		 * GZVM_CAP_BLOCK_BASED_DEMAND_PAGING share the same function
-		 * call flow. The key difference is that block-based demaned
+		 * call flow. The key difference is that block-based demand
 		 * paging allows the hypervisor to handle multiple pages in
 		 * a single batch.
 		 */
@@ -484,6 +481,18 @@ int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 	}
 
 	return -EINVAL;
+}
+
+int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
+				  struct gzvm_enable_cap *cap,
+				  void __user *argp)
+{
+	switch (cap->cap) {
+	case GZVM_CAP_PROTECTED_VM:
+		return gzvm_vm_ioctl_cap_pvm(gzvm, cap, argp);
+	default:
+		return -EINVAL;
+	}
 }
 
 int gzvm_arch_map_guest(u16 vm_id, int memslot_id, u64 pfn, u64 gfn,

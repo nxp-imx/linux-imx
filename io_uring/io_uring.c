@@ -199,12 +199,15 @@ static void io_poison_req(struct io_kiocb *req)
 
 static inline unsigned int __io_cqring_events(struct io_ring_ctx *ctx)
 {
-	return ctx->cached_cq_tail - READ_ONCE(ctx->rings->cq.head);
+	struct io_rings *rings = io_get_rings(ctx);
+	return ctx->cached_cq_tail - READ_ONCE(rings->cq.head);
 }
 
 static inline unsigned int __io_cqring_events_user(struct io_ring_ctx *ctx)
 {
-	return READ_ONCE(ctx->rings->cq.tail) - READ_ONCE(ctx->rings->cq.head);
+	struct io_rings *rings = io_get_rings(ctx);
+
+	return READ_ONCE(rings->cq.tail) - READ_ONCE(rings->cq.head);
 }
 
 static bool io_match_linked(struct io_kiocb *head)
@@ -2550,12 +2553,15 @@ static enum hrtimer_restart io_cqring_min_timer_wakeup(struct hrtimer *timer)
 	if (io_has_work(ctx))
 		goto out_wake;
 	/* got events since we started waiting, min timeout is done */
-	if (iowq->cq_min_tail != READ_ONCE(ctx->rings->cq.tail))
-		goto out_wake;
-	/* if we have any events and min timeout expired, we're done */
-	if (io_cqring_events(ctx))
-		goto out_wake;
+	scoped_guard(rcu) {
+		struct io_rings *rings = io_get_rings(ctx);
 
+		if (iowq->cq_min_tail != READ_ONCE(rings->cq.tail))
+			goto out_wake;
+		/* if we have any events and min timeout expired, we're done */
+		if (io_cqring_events(ctx))
+			goto out_wake;
+	}
 	/*
 	 * If using deferred task_work running and application is waiting on
 	 * more than one request, ensure we reset it now where we are switching
@@ -2666,9 +2672,9 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events, u32 flags,
 			  struct ext_arg *ext_arg)
 {
 	struct io_wait_queue iowq;
-	struct io_rings *rings = ctx->rings;
+	struct io_rings *rings;
 	ktime_t start_time;
-	int ret;
+	int ret, nr_wait;
 
 	min_events = min_t(int, min_events, ctx->cq_entries);
 
@@ -2681,15 +2687,23 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events, u32 flags,
 
 	if (unlikely(test_bit(IO_CHECK_CQ_OVERFLOW_BIT, &ctx->check_cq)))
 		io_cqring_do_overflow_flush(ctx);
-	if (__io_cqring_events_user(ctx) >= min_events)
+
+	rcu_read_lock();
+	rings = io_get_rings(ctx);
+	if (__io_cqring_events_user(ctx) >= min_events) {
+		rcu_read_unlock();
 		return 0;
+	}
 
 	init_waitqueue_func_entry(&iowq.wq, io_wake_function);
 	iowq.wq.private = current;
 	INIT_LIST_HEAD(&iowq.wq.entry);
 	iowq.ctx = ctx;
-	iowq.cq_tail = READ_ONCE(ctx->rings->cq.head) + min_events;
-	iowq.cq_min_tail = READ_ONCE(ctx->rings->cq.tail);
+	iowq.cq_tail = READ_ONCE(rings->cq.head) + min_events;
+	iowq.cq_min_tail = READ_ONCE(rings->cq.tail);
+	nr_wait = (int) iowq.cq_tail - READ_ONCE(rings->cq.tail);
+	rcu_read_unlock();
+	rings = NULL;
 	iowq.nr_timeouts = atomic_read(&ctx->cq_timeouts);
 	iowq.hit_timeout = 0;
 	iowq.min_timeout = ext_arg->min_time;
@@ -2720,14 +2734,6 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events, u32 flags,
 	trace_io_uring_cqring_wait(ctx, min_events);
 	do {
 		unsigned long check_cq;
-		int nr_wait;
-
-		/* if min timeout has been hit, don't reset wait count */
-		if (!iowq.hit_timeout)
-			nr_wait = (int) iowq.cq_tail -
-					READ_ONCE(ctx->rings->cq.tail);
-		else
-			nr_wait = 1;
 
 		if (ctx->flags & IORING_SETUP_DEFER_TASKRUN) {
 			atomic_set(&ctx->cq_wait_nr, nr_wait);
@@ -2778,13 +2784,22 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events, u32 flags,
 			break;
 		}
 		cond_resched();
+
+		/* if min timeout has been hit, don't reset wait count */
+		if (!iowq.hit_timeout)
+			scoped_guard(rcu)
+				nr_wait = (int) iowq.cq_tail -
+						READ_ONCE(io_get_rings(ctx)->cq.tail);
+		else
+			nr_wait = 1;
 	} while (1);
 
 	if (!(ctx->flags & IORING_SETUP_DEFER_TASKRUN))
 		finish_wait(&ctx->cq_wait, &iowq.wq);
 	restore_saved_sigmask_unless(ret == -EINTR);
 
-	return READ_ONCE(rings->cq.head) == READ_ONCE(rings->cq.tail) ? ret : 0;
+	guard(rcu)();
+	return READ_ONCE(io_get_rings(ctx)->cq.head) == READ_ONCE(io_get_rings(ctx)->cq.tail) ? ret : 0;
 }
 
 static void io_rings_free(struct io_ring_ctx *ctx)
@@ -2956,7 +2971,9 @@ static __poll_t io_uring_poll(struct file *file, poll_table *wait)
 	 */
 	poll_wait(file, &ctx->poll_wq, wait);
 
-	if (!io_sqring_full(ctx))
+	rcu_read_lock();
+
+	if (!__io_sqring_full(ctx))
 		mask |= EPOLLOUT | EPOLLWRNORM;
 
 	/*
@@ -2976,6 +2993,7 @@ static __poll_t io_uring_poll(struct file *file, poll_table *wait)
 	if (__io_cqring_events_user(ctx) || io_has_work(ctx))
 		mask |= EPOLLIN | EPOLLRDNORM;
 
+	rcu_read_unlock();
 	return mask;
 }
 

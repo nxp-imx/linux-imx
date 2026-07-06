@@ -60,6 +60,29 @@ DECLARE_HOOK(android_vh_request_issue_err,
 	TP_PROTO(struct request *rq),
 	TP_ARGS(rq));
 
+DECLARE_RESTRICTED_HOOK(android_rvh_rq_qos_wait,
+	TP_PROTO(void *ignored),
+	TP_ARGS(NULL), 1);
+
+DECLARE_HOOK(android_vh_wbt_wait,
+	TP_PROTO(struct bio *bio, int flags),
+	TP_ARGS(bio, flags));
+
+DECLARE_HOOK(android_vh_wbt_track,
+	TP_PROTO(struct request *rq, struct bio *bio),
+	TP_ARGS(rq, bio));
+
+DECLARE_RESTRICTED_HOOK(android_rvh_blk_execute_rq,
+	TP_PROTO(struct request *rq),
+	TP_ARGS(rq), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_blk_mq_get_tag,
+	TP_PROTO(void *ignored),
+	TP_ARGS(NULL), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_io_schedule_prepare,
+	TP_PROTO(void *ignored),
+	TP_ARGS(NULL), 1);
 #endif /* _TRACE_HOOK_BLK_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

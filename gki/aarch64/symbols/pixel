@@ -242,6 +242,7 @@
   csum_partial
   csum_tcpudp_nofold
   _ctype
+  current_work
   debugfs_attr_read
   debugfs_attr_write
   debugfs_change_name

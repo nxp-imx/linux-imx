@@ -166,6 +166,7 @@ static void kvm_arm_smmu_release_device(struct device *dev)
 	if (domain)
 		kvm_arm_smmu_detach_dev_pasid(dev, domain, 0);
 	arm_smmu_remove_master(master);
+	kfree(master);
 }
 
 static int kvm_arm_smmu_attach_dev_pasid(struct iommu_domain *domain,

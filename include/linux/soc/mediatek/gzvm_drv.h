@@ -247,6 +247,8 @@ int gzvm_arch_map_guest_block(u16 vm_id, int memslot_id, u64 gfn, u64 nr_pages);
 int gzvm_arch_get_statistics(struct gzvm *gzvm);
 void gzvm_vm_put(struct gzvm *gzvm);
 void gzvm_vm_get(struct gzvm *gzvm);
+int gzvm_vm_internal_arch_enable_cap(struct gzvm *gzvm,
+				     struct gzvm_enable_cap *cap);
 int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 				  struct gzvm_enable_cap *cap,
 				  void __user *argp);

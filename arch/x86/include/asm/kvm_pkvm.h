@@ -26,6 +26,8 @@ struct pkvm_pcpu {
 	struct gdt_page gdt_page;
 	struct idt_page idt_page;
 	struct tss_struct tss;
+	u32 apic_id;
+	u32 msi_dest_id;
 	int cpu;
 };
 
@@ -142,6 +144,14 @@ struct domain_map_data {
 	u64 prot;
 	struct pkvm_memcache mc;
 };
+
+struct modify_irte_data {
+	u64 phys;
+	u32 index;   /* IRTE index */
+	u32 pad;
+	u64 irte_lo;
+	u64 irte_hi;
+};
 #endif
 
 #define TO_PKVM_HC(f)		CONCATENATE(__pkvm__, f)
@@ -254,6 +264,9 @@ union pkvm_hc_data {
 		struct domain_map_data in;
 		struct domain_map_data out;
 	} iommu_domain_map;
+	struct {
+		struct modify_irte_data data;
+	} iommu_modify_irte;
 #endif
 	struct {
 		bool has_intr;
@@ -642,6 +655,7 @@ extern uint16_t pkvm_sym(__cachemode2pte_tbl)[];
 extern struct pkvm_init_ops *pkvm_sym(init_ops);
 extern struct cpumask pkvm_sym(__cpu_possible_mask);
 extern unsigned int pkvm_sym(nr_cpu_ids);
+extern bool pkvm_sym(msi_dest_mode_logical);
 DECLARE_STATIC_KEY_FALSE(pkvm_sym(switch_vcpu_ibpb));
 extern u64 pkvm_sym(x86_pred_cmd);
 extern struct fpu_state_config pkvm_sym(fpu_kernel_cfg);

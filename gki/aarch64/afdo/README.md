@@ -5,8 +5,8 @@ optimize kernel builds, improving performance for specific architectures and ker
 
 ## Profile Availability
 
-kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.16 (
-SHA b28e01c379ff11bce445f0654f6016221fbf1b84, build server ID 15080977). It is updated
+kernel.afdo is an AArch64 kernel profile collected on kernel version 6.18.21 (
+SHA 3ad9926a5d177675fe818af93dcb3451532c3165, build server ID 15434288). It is updated
 regularly in [kernel.afdo](https://android.googlesource.com/kernel/common/+/refs/heads/android17-6.18/gki/aarch64/afdo/).
 
 
@@ -22,11 +22,11 @@ Benchmark results were tested on Pixel 8.
 
 | Benchmark             | Improvement |
 | --------------------- | ----------- |
-| Boot time             | 1.9%        |
-| Cold App launch time  | 3.4%        |
-| Binder-rpc            | 13.9%*      |
-| Binder-addints        | 17.1%*      |
-| Hwbinder              | 23.9%*      |
+| Boot time             | 1.1%        |
+| Cold App launch time  | 6.6%        |
+| Binder-rpc            | 15%*        |
+| Binder-addints        | 23%*        |
+| Hwbinder              | 23%*        |
 
 \* For the binder benchmarks, the reported values represent the best result observed across
 multiple runs to account for variance.

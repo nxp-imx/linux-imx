@@ -56,6 +56,16 @@ int __init pkvm_host_prepare_iommu(void)
 			goto out;
 		}
 
+		/* pKVM requires x2APIC and expects EIM and IR support */
+		if (!ecap_eim_support(iommu->ecap)) {
+			pr_warn("iommu%d: Extended Interrupt mode not supported!\n", iommu->seq_id);
+			goto out;
+		}
+		if (!ecap_ir_support(iommu->ecap)) {
+			pr_warn("iommu%d: Interrupt Remapping not supported!\n", iommu->seq_id);
+			goto out;
+		}
+
 		if (cap_sagaw(iommu->cap) & IOMMU_PGT_4LEVEL)
 			pglvl_mask |= IOMMU_PGT_4LEVEL;
 		if (cap_sagaw(iommu->cap) & IOMMU_PGT_5LEVEL)
@@ -422,5 +432,36 @@ int pkvm_domain_unmap(struct dmar_domain *domain, unsigned long start_pfn, unsig
 	if (ret)
 		pr_err("%s: domain unmap[start_pfn: %lx, last_pfn: %lx] failed (err=%d)\n",
 		       __func__, start_pfn, last_pfn, ret);
+	return ret;
+}
+
+int pkvm_modify_irte(struct intel_iommu *iommu, int index, struct irte *irte_modified)
+{
+	union pkvm_hc_data d = { 0 };
+	struct modify_irte_data *data = &d.iommu_modify_irte.data;
+	int ret;
+
+	data->phys    = iommu->reg_phys;
+	data->index   = index;
+	data->irte_lo = irte_modified->low;
+	data->irte_hi = irte_modified->high;
+
+	ret = pkvm_hypercall_in(iommu_modify_irte, &d);
+	if (ret)
+		pr_err("iommu%d: modify_irte index=%d failed (err=%d)\n",
+		       iommu->seq_id, index, ret);
+	return ret;
+}
+
+int pkvm_write_iommu_msi(struct intel_iommu *iommu, u32 offset,
+			 u32 data, u32 addr, u32 uaddr)
+{
+	int ret = pkvm_hypercall(iommu_msi_write, iommu->reg_phys, offset,
+				 data, addr, uaddr);
+
+	if (ret) {
+		pr_err("iommu%d: DMAR MSI message write failed (err=%d)\n",
+		       iommu->seq_id, ret);
+	}
 	return ret;
 }

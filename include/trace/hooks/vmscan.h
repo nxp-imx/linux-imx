@@ -101,6 +101,9 @@ DECLARE_HOOK(android_vh_direct_reclaim_end,
 DECLARE_HOOK(android_vh_check_folio_look_around_ref,
 	TP_PROTO(struct folio *folio, int *skip),
 	TP_ARGS(folio, skip));
+DECLARE_HOOK(android_vh_do_shrink_slab,
+	TP_PROTO(struct shrinker *shrinker, long *freeable),
+	TP_ARGS(shrinker, freeable));
 DECLARE_HOOK(android_vh_should_memcg_bypass,
 	TP_PROTO(struct mem_cgroup *memcg, int priority, bool *bypass),
 	TP_ARGS(memcg, priority, bypass));

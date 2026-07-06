@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 
 #include "blk-rq-qos.h"
+#include <trace/hooks/blk.h>
 
 /*
  * Increment 'v', if 'v' is below 'below'. Returns true if we succeeded,
@@ -304,6 +305,7 @@ void rq_qos_wait(struct rq_wait *rqw, void *private_data,
 	do {
 		if (data.got_token)
 			break;
+		trace_android_rvh_rq_qos_wait(NULL);
 		io_schedule();
 		set_current_state(TASK_UNINTERRUPTIBLE);
 	} while (1);

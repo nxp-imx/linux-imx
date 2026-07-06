@@ -116,6 +116,7 @@ static __init void pkvm_setup_syms(void)
 #endif
 	cpumask_copy(&pkvm_sym(__cpu_possible_mask), cpu_possible_mask);
 	pkvm_sym(nr_cpu_ids) = nr_cpu_ids;
+	pkvm_sym(msi_dest_mode_logical) = apic->dest_mode_logical;
 	pkvm_sym(fpu_kernel_cfg) = fpu_kernel_cfg;
 	pkvm_sym(fpu_user_cfg) = fpu_user_cfg;
 #ifdef CONFIG_X86_64
@@ -377,6 +378,8 @@ static __init int pkvm_setup_pcpu(int cpu)
 		return ret;
 	}
 
+	pcpu->apic_id = per_cpu(x86_cpu_to_apicid, cpu);
+	pcpu->msi_dest_id = apic->calc_dest_apicid(cpu);
 	pcpu->cpu = cpu;
 	per_cpu(pkvm_pcpu, cpu) = pcpu;
 	return 0;

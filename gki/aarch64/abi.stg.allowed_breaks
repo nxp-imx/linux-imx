@@ -4,3 +4,11 @@ type 'enum attr_idn' changed
   enumerator 'QUERY_ATTR_IDN_TX_EQ_GN_SETTINGS' (71) was added
   ... 1 other enumerator(s) added
 
+type 'struct readahead_control' changed
+  member 'u64 __kabi_reserved1' was removed
+  member 'union { unsigned long _max_index; struct { u64 __kabi_reserved1; }; union { }; }' was added
+
+type 'struct arch_tlbflush_unmap_batch' changed
+  member 'cpumask_var_t cpumask' was removed
+  member 'union { struct { u64 __donotuse_b448672457; }; struct { cpumask_var_t __kabi_renamedcpumask; }; union { }; }' was added
+

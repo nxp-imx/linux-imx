@@ -443,6 +443,7 @@ static int __init sha512_mod_init(void)
 		hmac_sha512_usingrawkey(fips_test_key, sizeof(fips_test_key),
 					fips_test_data, sizeof(fips_test_data),
 					mac);
+		fips140_inject_selftest_failure("hmac(sha512)", mac);
 		if (memcmp(fips_test_hmac_sha512_value, mac, sizeof(mac)) != 0)
 			panic("sha512: FIPS self-test failed\n");
 	}

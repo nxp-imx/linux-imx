@@ -686,7 +686,19 @@ static void noinstr el0_inv(struct pt_regs *regs, unsigned long esr)
 {
 	arm64_enter_from_user_mode(regs);
 	local_daif_restore(DAIF_PROCCTX);
-	bad_el0_sync(regs, 0, esr);
+
+	/*
+	 * Fire the vendor hook for all unrecognised EL0 sync exceptions.
+	 * Vendor drivers check EC/IL themselves and set *handled = true
+	 * for opcodes they handle. If no handler is installed or the opcode
+	 * is unknown, bad_el0_sync() delivers SIGILL as usual.
+	 */
+	bool handled = false;
+
+	trace_android_rvh_el0_impdef_exception(regs, esr, &handled);
+	if (!handled)
+		bad_el0_sync(regs, 0, esr);
+
 	arm64_exit_to_user_mode(regs);
 }
 

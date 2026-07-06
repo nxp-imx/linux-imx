@@ -21,6 +21,9 @@ use core::mem::{size_of, MaybeUninit};
 #[derive(Copy, Clone)]
 pub struct UserPtr(*mut c_void);
 
+// SAFETY: `UserPtr` is represented as a raw pointer, which can be safely zero-initialized.
+unsafe impl Zeroable for UserPtr {}
+
 impl UserPtr {
     /// Create a `UserPtr` from an integer representing the userspace address.
     #[inline]

@@ -76,7 +76,7 @@ int __pkvm_sync_ftrace(unsigned long host_funcs_pg)
 
 int __pkvm_disable_ftrace(void)
 {
-	int mod, nr_mods = atomic_read(&num_hyp_event_mods);
+	int mod, nr_mods = atomic_read_acquire(&num_hyp_event_mods);
 
 	hyp_ftrace_disable(NULL, NULL);
 

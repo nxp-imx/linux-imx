@@ -32,9 +32,9 @@ $(obj)/lib-crypto-arm64-sha256-core.S: $(srctree)/lib/crypto/arm64/sha2-armv8.pl
 	$(call cmd,perlasm)
 $(obj)/lib-crypto-arm64-sha512-core.S: $(srctree)/lib/crypto/arm64/sha2-armv8.pl
 	$(call cmd,perlasm)
-$(obj)/lib-crypto-arm64-sha256-core.o: $(obj)/lib-crypto-arm64-sha256-core.S
+$(obj)/lib-crypto-arm64-sha256-core.o: $(obj)/lib-crypto-arm64-sha256-core.S FORCE
 	$(call if_changed_rule,as_o_S)
-$(obj)/lib-crypto-arm64-sha512-core.o: $(obj)/lib-crypto-arm64-sha512-core.S
+$(obj)/lib-crypto-arm64-sha512-core.o: $(obj)/lib-crypto-arm64-sha512-core.S FORCE
 	$(call if_changed_rule,as_o_S)
 endif # CONFIG_ARM64
 # clean-files must be defined unconditionally

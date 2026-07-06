@@ -55,6 +55,8 @@
   __traceiter_android_rvh_do_el1_undef
   __traceiter_android_rvh_do_sea
   __traceiter_android_rvh_do_sp_pc_abort
+  __traceiter_android_rvh_do_swap_page_relax
+  __traceiter_android_rvh_do_swap_page_start
   __traceiter_android_rvh_handle_bad_stack
   __traceiter_android_rvh_panic_unhandled
   __traceiter_android_rvh_process_madvise_bypass
@@ -65,6 +67,7 @@
   __traceiter_android_vh_dma_heap_buffer_alloc_end
   __traceiter_android_vh_dma_heap_buffer_alloc_start
   __traceiter_android_vh_do_read_fault
+  __traceiter_android_vh_do_swap_page_done
   __traceiter_android_vh_dpm_wait_finish
   __traceiter_android_vh_dpm_wait_start
   __traceiter_android_vh_exit_oom_victim
@@ -127,6 +130,8 @@
   __tracepoint_android_rvh_do_el1_undef
   __tracepoint_android_rvh_do_sea
   __tracepoint_android_rvh_do_sp_pc_abort
+  __tracepoint_android_rvh_do_swap_page_relax
+  __tracepoint_android_rvh_do_swap_page_start
   __tracepoint_android_rvh_handle_bad_stack
   __tracepoint_android_rvh_panic_unhandled
   __tracepoint_android_rvh_process_madvise_bypass
@@ -137,6 +142,7 @@
   __tracepoint_android_vh_dma_heap_buffer_alloc_end
   __tracepoint_android_vh_dma_heap_buffer_alloc_start
   __tracepoint_android_vh_do_read_fault
+  __tracepoint_android_vh_do_swap_page_done
   __tracepoint_android_vh_dpm_wait_finish
   __tracepoint_android_vh_dpm_wait_start
   __tracepoint_android_vh_exit_oom_victim
