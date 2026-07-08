@@ -999,7 +999,7 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 	struct virtio_media *vv = to_virtio_media(video_dev);
 	struct virtio_media_session *session =
 		fh_to_session(file_to_v4l2_fh(file));
-	struct virtio_media_buffer *dqbuf;
+	struct virtio_media_buffer *dqbuf = NULL;
 	struct virtio_media_queue_state *queue;
 	struct list_head *buffer_queue;
 	struct v4l2_plane *planes_backup = NULL;
@@ -1020,32 +1020,35 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 
 	buffer_queue = &queue->pending_dqbufs;
 
-	if (session->nonblocking_dequeue) {
-		if (list_empty(buffer_queue))
-			return -EAGAIN;
-	} else if (queue->allocated_bufs == 0) {
+	if (queue->allocated_bufs == 0)
 		return -EINVAL;
-	} else if (!queue->streaming) {
+	else if (!queue->streaming)
 		return -EINVAL;
+
+	if (!session->nonblocking_dequeue) {
+		/*
+		 * vv->lock has been acquired by virtio_media_device_ioctl. Release it
+		 * while we want to other ioctls for this session can be processed and
+		 * potentially trigger dqbuf_wait.
+		 */
+		mutex_unlock(&vv->vlock);
+		ret = wait_event_interruptible(session->dqbuf_wait,
+					       !list_empty(buffer_queue));
+		mutex_lock(&vv->vlock);
+		if (ret)
+			return -EINTR;
 	}
 
-	/*
-	 * vv->lock has been acquired by virtio_media_device_ioctl. Release it
-	 * while we wait so that other ioctls for this session can be processed
-	 * and potentially trigger dqbuf_wait.
-	 */
-	mutex_unlock(&vv->vlock);
-	ret = wait_event_interruptible(session->dqbuf_wait,
-				       !list_empty(buffer_queue));
-	mutex_lock(&vv->vlock);
-	if (ret)
-		return -EINTR;
 
 	mutex_lock(&session->queues_lock);
-	dqbuf = list_first_entry(buffer_queue, struct virtio_media_buffer,
+	if (!list_empty(buffer_queue)) {
+		dqbuf = list_first_entry(buffer_queue, struct virtio_media_buffer,
 				 list);
-	list_del(&dqbuf->list);
+		list_del(&dqbuf->list);
+	}
 	mutex_unlock(&session->queues_lock);
+	if (!dqbuf)
+		return -EAGAIN;
 
 	/*
 	 * The host DMA master has written the buffer. Invalidate the CPU

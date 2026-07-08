@@ -714,7 +714,13 @@ process_bufs:
 			v4l2_err(&vv->v4l2_dev,
 				 "received error %d for session %d",
 				 error_evt->errno, error_evt->hdr.session_id);
-			virtio_media_session_close(vv, session);
+			/*
+			 * Flag the session as errored and wake up any poller so
+			 * it can report EPOLLERR. The session is torn down when
+			 * user-space closes the file descriptor.
+			 */
+			session->error = true;
+			wake_up(&session->dqbuf_wait);
 			break;
 
 		/*
@@ -882,20 +888,32 @@ static __poll_t virtio_media_device_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &session->fh.wait, wait);
 
 	mutex_lock(&session->queues_lock);
-	if (req_events & (EPOLLIN | EPOLLRDNORM)) {
-		if (!capture_queue->streaming ||
-		    (capture_queue->queued_bufs == 0 &&
-		     list_empty(&capture_queue->pending_dqbufs)))
-			rc |= EPOLLERR;
-		else if (!list_empty(&capture_queue->pending_dqbufs))
-			rc |= EPOLLIN | EPOLLRDNORM;
-	}
-	if (req_events & (EPOLLOUT | EPOLLWRNORM)) {
-		if (!output_queue->streaming)
-			rc |= EPOLLERR;
-		else if (output_queue->queued_bufs <
-			 output_queue->allocated_bufs)
-			rc |= EPOLLOUT | EPOLLWRNORM;
+	if (session->error) {
+		rc |= EPOLLERR;
+	} else {
+		if (req_events & (EPOLLOUT | EPOLLWRNORM | EPOLLIN | EPOLLRDNORM)) {
+			/*
+			 * Signal readable on the CAPTURE queue either when a
+			 * buffer is pending, or after the LAST buffer of a
+			 * drain has been dequeued (is_capture_last). In the
+			 * latter case pending_dqbufs is empty but the client
+			 * must still be woken so its DQBUF returns -EPIPE and
+			 * the drain / dynamic-resolution-change sequence can
+			 * complete. This mirrors vb2_core_poll(), which returns
+			 * EPOLLIN|EPOLLRDNORM when q->last_buffer_dequeued is
+			 * set even though the done_list is empty. Without it a
+			 * source change (implicit drain) can stall the pipeline
+			 * during seek/trick play: the client dequeues the
+			 * (possibly empty) LAST buffer, goes back to poll(), and
+			 * blocks forever because pending_dqbufs is empty and the
+			 * SOURCE_CHANGE event may already have been consumed.
+			 */
+			if (!list_empty(&capture_queue->pending_dqbufs) ||
+			    capture_queue->is_capture_last)
+				rc |= EPOLLIN | EPOLLRDNORM;
+			if (!list_empty(&output_queue->pending_dqbufs))
+				rc |= EPOLLOUT | EPOLLWRNORM;
+		}
 	}
 	mutex_unlock(&session->queues_lock);
 

@@ -90,6 +90,8 @@ struct virtio_media_session {
 	u32 id;
 	bool nonblocking_dequeue;
 	bool uses_mplane;
+	/* Set once a VIRTIO_MEDIA_EVT_ERROR was received for this session. */
+	bool error;
 
 	__dma_from_device_group_begin();
 	union {
