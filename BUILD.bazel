@@ -63,6 +63,8 @@ load(":imx952.bzl", "define_imx952")
 define_imx952()
 load(":imx943.bzl", "define_imx943")
 define_imx943()
+load(":imx93.bzl", "define_imx93")
+define_imx93()
 
 package(
     default_visibility = [
