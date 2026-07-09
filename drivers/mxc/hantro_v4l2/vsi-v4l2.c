@@ -260,6 +260,7 @@ static void vsi_ctx_release(struct kref *kref)
 	dev_dbg(ctx->dev->dev, "[%llx] release %s instance\n",
 		ctx->ctxid, isencoder(ctx) ? "encoder" : "decoder");
 
+	v4l2_fh_exit(&ctx->fh);
 	return_all_buffers(&ctx->input_que, VB2_BUF_STATE_DONE, 0);
 	return_all_buffers(&ctx->output_que, VB2_BUF_STATE_DONE, 0);
 	removeallcropinfo(ctx);
@@ -291,10 +292,8 @@ static void release_ctx(struct vsi_v4l2_ctx *ctx, int notifydaemon, struct file 
 	idr_remove(&vsi_inst_array, CTX_ARRAY_ID(ctx->ctxid));
 	mutex_unlock(&vsi_ctx_array_lock);
 
-	if (filp) {
+	if (filp)
 		v4l2_fh_del(&ctx->fh, filp);
-		v4l2_fh_exit(&ctx->fh);
-	}
 
 	put_ctx(ctx);
 }
