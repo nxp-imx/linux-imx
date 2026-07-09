@@ -40,6 +40,8 @@ static int virtio_media_send_r_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.shadow_buffer = session->shadow_buf,
 		.shadow_buffer_size = VIRTIO_SHADOW_BUF_SIZE,
 		.shadow_buffer_pos = 0,
+		.shadow_buffer_dma = session->shadow_buf_dma,
+		.premapped = vv->use_coherent,
 		.sgs = sgs,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
@@ -65,7 +67,7 @@ static int virtio_media_send_r_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		return ret;
 	}
 
-	ret = virtio_media_send_command(vv, sgs, 1, 2,
+	ret = virtio_media_send_command(vv, sgs, 1, 2, vv->use_coherent,
 					sizeof(struct virtio_media_resp_ioctl) +
 					ioctl_data_len, NULL);
 	if (ret < 0)
@@ -106,6 +108,8 @@ static int virtio_media_send_w_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.shadow_buffer = session->shadow_buf,
 		.shadow_buffer_size = VIRTIO_SHADOW_BUF_SIZE,
 		.shadow_buffer_pos = 0,
+		.shadow_buffer_dma = session->shadow_buf_dma,
+		.premapped = vv->use_coherent,
 		.sgs = sgs,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
@@ -131,7 +135,7 @@ static int virtio_media_send_w_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	if (ret)
 		return ret;
 
-	ret = virtio_media_send_command(vv, sgs, 2, 1,
+	ret = virtio_media_send_command(vv, sgs, 2, 1, vv->use_coherent,
 					sizeof(struct virtio_media_resp_ioctl),
 					NULL);
 	if (ret < 0)
@@ -170,6 +174,8 @@ static int virtio_media_send_wr_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.shadow_buffer = session->shadow_buf,
 		.shadow_buffer_size = VIRTIO_SHADOW_BUF_SIZE,
 		.shadow_buffer_pos = 0,
+		.shadow_buffer_dma = session->shadow_buf_dma,
+		.premapped = vv->use_coherent,
 		.sgs = sgs,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
@@ -200,7 +206,7 @@ static int virtio_media_send_wr_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	if (ret)
 		return ret;
 
-	ret = virtio_media_send_command(vv, sgs, 2, 2,
+	ret = virtio_media_send_command(vv, sgs, 2, 2, vv->use_coherent,
 					sizeof(struct virtio_media_resp_ioctl) +
 						minimum_resp_payload,
 					NULL);
@@ -248,6 +254,8 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.shadow_buffer = session->shadow_buf,
 		.shadow_buffer_size = VIRTIO_SHADOW_BUF_SIZE,
 		.shadow_buffer_pos = 0,
+		.shadow_buffer_dma = session->shadow_buf_dma,
+		.premapped = vv->use_coherent,
 		.sgs = sgs,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
@@ -295,6 +303,7 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 
 	ret = virtio_media_send_command(vv, builder.sgs, num_cmd_sgs,
 					builder.cur_sg - num_cmd_sgs,
+					vv->use_coherent,
 					sizeof(struct virtio_media_resp_ioctl) +
 					sizeof(*b), &resp_len);
 	if (ret < 0)
@@ -349,6 +358,8 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.shadow_buffer = session->shadow_buf,
 		.shadow_buffer_size = VIRTIO_SHADOW_BUF_SIZE,
 		.shadow_buffer_pos = 0,
+		.shadow_buffer_dma = session->shadow_buf_dma,
+		.premapped = vv->use_coherent,
 		.sgs = sgs,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
@@ -389,6 +400,7 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 
 	ret = virtio_media_send_command(vv, builder.sgs, num_cmd_sgs,
 					builder.cur_sg - num_cmd_sgs,
+					vv->use_coherent,
 					sizeof(struct virtio_media_resp_ioctl) +
 					sizeof(*ctrls),
 					&resp_len);

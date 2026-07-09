@@ -64,6 +64,19 @@ module_param_named(driver_name, virtio_media_driver_name, charp, 0660);
 bool virtio_media_allow_userptr;
 module_param_named(allow_userptr, virtio_media_allow_userptr, bool, 0660);
 
+/*
+ * If set, command descriptor payloads are bounced through a per-device
+ * cache-coherent DMA buffer and submitted to the command virtqueue as
+ * premapped scatterlists. This avoids cache-coherency issues when the host
+ * (e.g. vhost-user-media on Xen) accesses the payloads through foreign/grant
+ * mappings that bypass the guest's non-coherent DMA path.
+ *
+ * Defaults to false, which preserves the original behaviour of referencing the
+ * driver-provided (non-coherent) memory directly.
+ */
+static bool use_coherent_shadow_buffer = true;
+module_param(use_coherent_shadow_buffer, bool, 0660);
+
 /**
  * virtio_media_session_alloc - Allocate a new session.
  * @vv: virtio-media device the session belongs to.
@@ -85,7 +98,14 @@ virtio_media_session_alloc(struct virtio_media *vv, u32 id,
 	if (!session)
 		goto err_session;
 
-	session->shadow_buf = kzalloc(VIRTIO_SHADOW_BUF_SIZE, GFP_KERNEL);
+	if (vv->use_coherent)
+		session->shadow_buf = dma_alloc_coherent(vv->cmd_dma_dev,
+							 VIRTIO_SHADOW_BUF_SIZE,
+							 &session->shadow_buf_dma,
+							 GFP_KERNEL);
+	else
+		session->shadow_buf = kzalloc(VIRTIO_SHADOW_BUF_SIZE,
+					      GFP_KERNEL);
 	if (!session->shadow_buf)
 		goto err_shadow_buf;
 
@@ -116,11 +136,106 @@ virtio_media_session_alloc(struct virtio_media *vv, u32 id,
 	return session;
 
 err_payload_sgs:
-	kfree(session->shadow_buf);
+	if (vv->use_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, VIRTIO_SHADOW_BUF_SIZE,
+				  session->shadow_buf, session->shadow_buf_dma);
+	else
+		kfree(session->shadow_buf);
 err_shadow_buf:
 	kfree(session);
 err_session:
 	return ERR_PTR(-ENOMEM);
+}
+
+/**
+ * struct virtio_media_coherent_cmd - Helper to stage a control command through
+ * the device's coherent DMA buffers so it can be submitted premapped.
+ * @vv: virtio-media device in use.
+ * @cmd_off: current write offset into @vv->ctrl_cmd (device-readable buffers).
+ * @resp_off: current write offset into @vv->ctrl_resp (device-writable buffers).
+ * @nr_in: number of device-writable buffers staged so far.
+ *
+ * Only valid while @vv->vlock is held (the coherent ctrl buffers are shared per
+ * device).
+ */
+struct virtio_media_coherent_cmd {
+	struct virtio_media *vv;
+	size_t cmd_off;
+	size_t resp_off;
+	unsigned int nr_in;
+	/* Track device-writable buffers so responses can be copied back. */
+	struct {
+		void *dst;
+		size_t off;
+		size_t len;
+	} in[3];
+};
+
+static void virtio_media_coherent_cmd_init(struct virtio_media_coherent_cmd *c,
+					   struct virtio_media *vv)
+{
+	c->vv = vv;
+	c->cmd_off = 0;
+	c->resp_off = 0;
+	c->nr_in = 0;
+}
+
+/* Stage a device-readable buffer (copied into the coherent cmd buffer). */
+static int virtio_media_coherent_add_out(struct virtio_media_coherent_cmd *c,
+					 struct scatterlist *sg, void *buf,
+					 size_t len)
+{
+	struct virtio_media *vv = c->vv;
+
+	if (c->cmd_off + len > PAGE_SIZE)
+		return -ENOSPC;
+
+	memcpy(vv->ctrl_cmd + c->cmd_off, buf, len);
+	sg_init_table(sg, 1);
+	sg_set_buf(sg, vv->ctrl_cmd + c->cmd_off, len);
+	sg_dma_address(sg) = vv->ctrl_cmd_dma + c->cmd_off;
+	sg_dma_len(sg) = len;
+	c->cmd_off += len;
+
+	return 0;
+}
+
+/* Stage a device-writable buffer (space reserved in the coherent resp buffer). */
+static int virtio_media_coherent_add_in(struct virtio_media_coherent_cmd *c,
+					struct scatterlist *sg, void *dst,
+					size_t len)
+{
+	struct virtio_media *vv = c->vv;
+
+	if (c->resp_off + len > PAGE_SIZE)
+		return -ENOSPC;
+	if (c->nr_in >= ARRAY_SIZE(c->in))
+		return -ENOSPC;
+
+	sg_init_table(sg, 1);
+	sg_set_buf(sg, vv->ctrl_resp + c->resp_off, len);
+	sg_dma_address(sg) = vv->ctrl_resp_dma + c->resp_off;
+	sg_dma_len(sg) = len;
+
+	c->in[c->nr_in].dst = dst;
+	c->in[c->nr_in].off = c->resp_off;
+	c->in[c->nr_in].len = len;
+	c->nr_in++;
+	c->resp_off += len;
+
+	return 0;
+}
+
+/* Copy device-written responses back from the coherent resp buffer. */
+static void
+virtio_media_coherent_retrieve(struct virtio_media_coherent_cmd *c)
+{
+	struct virtio_media *vv = c->vv;
+	unsigned int i;
+
+	for (i = 0; i < c->nr_in; i++)
+		memcpy(c->in[i].dst, vv->ctrl_resp + c->in[i].off,
+		       c->in[i].len);
 }
 
 /**
@@ -136,6 +251,7 @@ static void virtio_media_session_send_close(struct virtio_media *vv,
 	struct virtio_media_cmd_close *cmd_close = &session->cmd.close;
 	struct scatterlist cmd_sg = {};
 	struct scatterlist *sgs[1] = { &cmd_sg };
+	struct virtio_media_coherent_cmd cc;
 	int ret;
 
 	mutex_lock(&vv->vlock);
@@ -143,10 +259,23 @@ static void virtio_media_session_send_close(struct virtio_media *vv,
 	cmd_close->hdr.cmd = VIRTIO_MEDIA_CMD_CLOSE;
 	cmd_close->session_id = session->id;
 
-	sg_set_buf(&cmd_sg, cmd_close, sizeof(*cmd_close));
-	sg_mark_end(&cmd_sg);
+	if (vv->use_coherent) {
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd_close,
+						    sizeof(*cmd_close));
+		if (ret) {
+			mutex_unlock(&vv->vlock);
+			v4l2_err(&vv->v4l2_dev,
+				 "failed to stage CLOSE command: %d\n", ret);
+			return;
+		}
+	} else {
+		sg_set_buf(&cmd_sg, cmd_close, sizeof(*cmd_close));
+		sg_mark_end(&cmd_sg);
+	}
 
-	ret = virtio_media_send_command(vv, sgs, 1, 0, 0, NULL);
+	ret = virtio_media_send_command(vv, sgs, 1, 0, vv->use_coherent, 0,
+					NULL);
 	mutex_unlock(&vv->vlock);
 	if (ret < 0)
 		v4l2_err(&vv->v4l2_dev, "failed to send CLOSE command: %d\n",
@@ -213,7 +342,11 @@ static void virtio_media_session_free(struct virtio_media *vv,
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++)
 		vfree(session->queues[i].buffers);
 
-	kfree(session->shadow_buf);
+	if (vv->use_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, VIRTIO_SHADOW_BUF_SIZE,
+				  session->shadow_buf, session->shadow_buf_dma);
+	else
+		kfree(session->shadow_buf);
 	kfree(session);
 }
 
@@ -288,6 +421,9 @@ process_bufs:
  * @sgs: descriptor chain to send.
  * @out_sgs: number of device-readable descriptors in @sgs.
  * @in_sgs: number of device-writable descriptors in @sgs.
+ * @premapped: if true, @sgs already carry valid DMA addresses (via
+ * sg_dma_address()/sg_dma_len()) and must be submitted without virtio core
+ * performing any DMA mapping.
  * @resp_len: output parameter. Upon success, contains the size of the response
  * in bytes.
  *
@@ -295,7 +431,7 @@ process_bufs:
 static int virtio_media_kick_command(struct virtio_media *vv,
 				     struct scatterlist **sgs,
 				     const size_t out_sgs, const size_t in_sgs,
-				     size_t *resp_len)
+				     bool premapped, size_t *resp_len)
 {
 	struct virtio_media_cmd_callback_param *cb_param = &vv->cmd_cb;
 	struct virtio_media_resp_header *resp_header;
@@ -389,11 +525,12 @@ static int virtio_media_kick_command(struct virtio_media *vv,
  */
 int virtio_media_send_command(struct virtio_media *vv, struct scatterlist **sgs,
 			      const size_t out_sgs, const size_t in_sgs,
-			      size_t minimum_resp_len, size_t *resp_len)
+			      bool premapped, size_t minimum_resp_len,
+			      size_t *resp_len)
 {
 	size_t local_resp_len = resp_len ? *resp_len : 0;
 	int ret = virtio_media_kick_command(vv, sgs, out_sgs, in_sgs,
-					    &local_resp_len);
+					    premapped, &local_resp_len);
 	if (resp_len)
 		*resp_len = local_resp_len;
 
@@ -646,21 +783,39 @@ static int virtio_media_device_open(struct file *file)
 	struct virtio_media_resp_open *resp_open = &vv->resp.open;
 	struct scatterlist cmd_sg = {}, resp_sg = {};
 	struct scatterlist *sgs[2] = { &cmd_sg, &resp_sg };
+	struct virtio_media_coherent_cmd cc;
 	struct virtio_media_session *session;
 	u32 session_id;
 	int ret;
 
 	mutex_lock(&vv->vlock);
 
-	sg_set_buf(&cmd_sg, cmd_open, sizeof(*cmd_open));
-	sg_mark_end(&cmd_sg);
-
-	sg_set_buf(&resp_sg, resp_open, sizeof(*resp_open));
-	sg_mark_end(&resp_sg);
-
 	cmd_open->hdr.cmd = VIRTIO_MEDIA_CMD_OPEN;
-	ret = virtio_media_send_command(vv, sgs, 1, 1, sizeof(*resp_open),
-					NULL);
+
+	if (vv->use_coherent) {
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd_open,
+						    sizeof(*cmd_open));
+		if (!ret)
+			ret = virtio_media_coherent_add_in(&cc, &resp_sg,
+							   resp_open,
+							   sizeof(*resp_open));
+		if (ret) {
+			mutex_unlock(&vv->vlock);
+			return ret;
+		}
+	} else {
+		sg_set_buf(&cmd_sg, cmd_open, sizeof(*cmd_open));
+		sg_mark_end(&cmd_sg);
+
+		sg_set_buf(&resp_sg, resp_open, sizeof(*resp_open));
+		sg_mark_end(&resp_sg);
+	}
+
+	ret = virtio_media_send_command(vv, sgs, 1, 1, vv->use_coherent,
+					sizeof(*resp_open), NULL);
+	if (!ret && vv->use_coherent)
+		virtio_media_coherent_retrieve(&cc);
 	session_id = resp_open->session_id;
 	mutex_unlock(&vv->vlock);
 	if (ret < 0)
@@ -861,6 +1016,7 @@ static void virtio_media_gmap_destroy_locked(struct virtio_media *vv,
 	struct virtio_media_resp_munmap *resp_munmap = &vv->resp.munmap;
 	struct scatterlist cmd_sg = {}, resp_sg = {};
 	struct scatterlist *sgs[2] = { &cmd_sg, &resp_sg };
+	struct virtio_media_coherent_cmd cc;
 	int ret;
 
 	lockdep_assert_held(&vv->vlock);
@@ -871,21 +1027,40 @@ static void virtio_media_gmap_destroy_locked(struct virtio_media *vv,
 	if (ret)
 		v4l2_err(&vv->v4l2_dev, "gnttab_unmap_refs failed: %d\n", ret);
 
-	/* Tell the host it can release the buffer. */
-	sg_set_buf(&cmd_sg, cmd_munmap, sizeof(*cmd_munmap));
-	sg_mark_end(&cmd_sg);
-	sg_set_buf(&resp_sg, resp_munmap, sizeof(*resp_munmap));
-	sg_mark_end(&resp_sg);
-
 	cmd_munmap->hdr.cmd = VIRTIO_MEDIA_CMD_MUNMAP;
 	cmd_munmap->grant_ref_header = gmap->grant_ref_header;
 	cmd_munmap->grant_ref_count = gmap->grant_ref_count;
-	ret = virtio_media_send_command(vv, sgs, 1, 1, sizeof(*resp_munmap),
-					NULL);
+
+	/* Tell the host it can release the buffer. */
+	if (vv->use_coherent) {
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd_munmap,
+						    sizeof(*cmd_munmap));
+		if (!ret)
+			ret = virtio_media_coherent_add_in(&cc, &resp_sg,
+							   resp_munmap,
+							   sizeof(*resp_munmap));
+		if (ret) {
+			v4l2_err(&vv->v4l2_dev,
+				 "failed to stage MUNMAP command: %d\n", ret);
+			goto free_pages;
+		}
+	} else {
+		sg_set_buf(&cmd_sg, cmd_munmap, sizeof(*cmd_munmap));
+		sg_mark_end(&cmd_sg);
+		sg_set_buf(&resp_sg, resp_munmap, sizeof(*resp_munmap));
+		sg_mark_end(&resp_sg);
+	}
+
+	ret = virtio_media_send_command(vv, sgs, 1, 1, vv->use_coherent,
+					sizeof(*resp_munmap), NULL);
+	if (!ret && vv->use_coherent)
+		virtio_media_coherent_retrieve(&cc);
 	if (ret < 0)
 		v4l2_err(&vv->v4l2_dev, "host failed to unmap buffer: %d\n",
 			 ret);
 
+free_pages:
 	/* Free the balloon-backed grant pages. */
 	gnttab_free_pages(gmap->grant_ref_count, gmap->pages);
 
@@ -971,6 +1146,10 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 	struct scatterlist *sgs[3] = { &cmd_sg, &resp_sg, &refs_sg };
 	struct virtio_media_queue_state *queue = &session->queues[type];
 	struct virtio_media_grant_map *gmap;
+	struct virtio_media_coherent_cmd cc;
+	size_t refs_size = VIRTIO_MEDIA_MAX_GRANT_REFS * sizeof(u32);
+	void *refs_coherent = NULL;
+	dma_addr_t refs_coherent_dma = 0;
 	u32 *refs;
 	int i, ret;
 
@@ -999,31 +1178,68 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 		goto end;
 	}
 
-	sg_set_buf(&cmd_sg, cmd_mmap, sizeof(*cmd_mmap));
-	sg_mark_end(&cmd_sg);
-	sg_set_buf(&resp_sg, resp_mmap, sizeof(*resp_mmap));
-	sg_mark_end(&resp_sg);
-	sg_set_buf(&refs_sg, refs,
-		   VIRTIO_MEDIA_MAX_GRANT_REFS * sizeof(*refs));
-	sg_mark_end(&refs_sg);
+	if (vv->use_coherent) {
+		/*
+		 * The grant-ref array is too large for the shared ctrl_resp
+		 * buffer, so give it its own coherent allocation that the host
+		 * can write into through its foreign mapping.
+		 */
+		refs_coherent = dma_alloc_coherent(vv->cmd_dma_dev, refs_size,
+						   &refs_coherent_dma,
+						   GFP_KERNEL);
+		if (!refs_coherent) {
+			ret = -ENOMEM;
+			goto err_free_refs;
+		}
 
-	ret = virtio_media_send_command(vv, sgs, 1, 2, sizeof(*resp_mmap),
-					NULL);
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd_mmap,
+						    sizeof(*cmd_mmap));
+		if (!ret)
+			ret = virtio_media_coherent_add_in(&cc, &resp_sg,
+							   resp_mmap,
+							   sizeof(*resp_mmap));
+		if (ret) {
+			v4l2_err(&vv->v4l2_dev,
+				 "failed to stage MMAP command: %d\n", ret);
+			goto err_free_coherent;
+		}
+
+		sg_init_table(&refs_sg, 1);
+		sg_set_buf(&refs_sg, refs_coherent, refs_size);
+		sg_dma_address(&refs_sg) = refs_coherent_dma;
+		sg_dma_len(&refs_sg) = refs_size;
+	} else {
+		sg_set_buf(&cmd_sg, cmd_mmap, sizeof(*cmd_mmap));
+		sg_mark_end(&cmd_sg);
+		sg_set_buf(&resp_sg, resp_mmap, sizeof(*resp_mmap));
+		sg_mark_end(&resp_sg);
+		sg_set_buf(&refs_sg, refs, refs_size);
+		sg_mark_end(&refs_sg);
+	}
+
+	ret = virtio_media_send_command(vv, sgs, 1, 2, vv->use_coherent,
+					sizeof(*resp_mmap), NULL);
 	if (ret < 0)
-		goto err_free_refs;
+		goto err_free_coherent;
+
+	if (vv->use_coherent) {
+		virtio_media_coherent_retrieve(&cc);
+		memcpy(refs, refs_coherent, refs_size);
+	}
 
 	if (resp_mmap->grant_ref_count > VIRTIO_MEDIA_MAX_GRANT_REFS) {
 		v4l2_err(&vv->v4l2_dev,
 			 "host returned too many grant refs: %u\n",
 			 resp_mmap->grant_ref_count);
 		ret = -EINVAL;
-		goto err_free_refs;
+		goto err_free_coherent;
 	}
 
 	gmap = kzalloc(sizeof(*gmap), GFP_KERNEL);
 	if (!gmap) {
 		ret = -ENOMEM;
-		goto err_free_refs;
+		goto err_free_coherent;
 	}
 
 	gmap->grant_ref_header = resp_mmap->grant_ref_header;
@@ -1106,6 +1322,9 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 	}
 
 	list_add_tail(&gmap->list, &queue->grant_maps);
+	if (refs_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
+				  refs_coherent_dma);
 	kfree(refs);
 	return 0;
 
@@ -1122,6 +1341,10 @@ err_free_pages_array:
 	kfree(gmap->pages);
 err_free_gmap:
 	kfree(gmap);
+err_free_coherent:
+	if (refs_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
+				  refs_coherent_dma);
 err_free_refs:
 	kfree(refs);
 end:
@@ -1702,6 +1925,36 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	init_llist_head(&vv->gmap_release_list);
 	INIT_WORK(&vv->gmap_release_work, virtio_media_gmap_release_work);
 
+	if (use_coherent_shadow_buffer) {
+		struct device *dma_dev = virtqueue_dma_dev(vv->commandq);
+
+		if (!dma_dev) {
+			/*
+			 * The virtqueue does not use the DMA API, so it
+			 * references buffers by physical address. A coherent
+			 * DMA address would not match what the device expects,
+			 * so fall back to the legacy (non-coherent) path.
+			 */
+			v4l2_warn(&vv->v4l2_dev,
+				  "commandq does not use the DMA API; coherent command buffers disabled\n");
+		} else {
+			vv->cmd_dma_dev = dma_dev;
+			vv->ctrl_cmd = dma_alloc_coherent(dma_dev, PAGE_SIZE,
+							  &vv->ctrl_cmd_dma,
+							  GFP_KERNEL);
+			vv->ctrl_resp = dma_alloc_coherent(dma_dev, PAGE_SIZE,
+							   &vv->ctrl_resp_dma,
+							   GFP_KERNEL);
+			if (!vv->ctrl_cmd || !vv->ctrl_resp) {
+				ret = -ENOMEM;
+				goto err_coherent;
+			}
+			vv->use_coherent = true;
+			v4l2_info(&vv->v4l2_dev,
+				  "using coherent DMA for command buffers\n");
+		}
+	}
+
 	/* Get MMAP buffer mapping SHM region */
 	virtio_get_shm_region(virtio_dev, &vv->mmap_region,
 			      VIRTIO_MEDIA_SHM_MMAP);
@@ -1744,6 +1997,13 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 err_send_event_buffer:
 	video_unregister_device(&vv->video_dev);
 err_register_device:
+err_coherent:
+	if (vv->ctrl_cmd)
+		dma_free_coherent(vv->cmd_dma_dev, PAGE_SIZE, vv->ctrl_cmd,
+				  vv->ctrl_cmd_dma);
+	if (vv->ctrl_resp)
+		dma_free_coherent(vv->cmd_dma_dev, PAGE_SIZE, vv->ctrl_resp,
+				  vv->ctrl_resp_dma);
 	virtio_dev->config->del_vqs(virtio_dev);
 err_find_vqs:
 	v4l2_device_unregister(&vv->v4l2_dev);
@@ -1788,6 +2048,12 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 	virtio_reset_device(virtio_dev);
 
 	v4l2_device_unregister(&vv->v4l2_dev);
+	if (vv->ctrl_cmd)
+		dma_free_coherent(vv->cmd_dma_dev, PAGE_SIZE, vv->ctrl_cmd,
+				  vv->ctrl_cmd_dma);
+	if (vv->ctrl_resp)
+		dma_free_coherent(vv->cmd_dma_dev, PAGE_SIZE, vv->ctrl_resp,
+				  vv->ctrl_resp_dma);
 	virtio_dev->config->del_vqs(virtio_dev);
 	video_unregister_device(&vv->video_dev);
 }

@@ -84,6 +84,13 @@ int virtqueue_add_sgs(struct virtqueue *vq,
 		      void *data,
 		      gfp_t gfp);
 
+int virtqueue_add_sgs_premapped(struct virtqueue *vq,
+				struct scatterlist *sgs[],
+				unsigned int out_sgs,
+				unsigned int in_sgs,
+				void *data,
+				gfp_t gfp);
+
 struct device *virtqueue_dma_dev(struct virtqueue *vq);
 
 bool virtqueue_kick(struct virtqueue *vq);

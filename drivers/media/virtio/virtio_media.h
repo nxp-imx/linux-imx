@@ -200,7 +200,8 @@ to_virtio_media(struct video_device *video_dev)
 
 int virtio_media_send_command(struct virtio_media *vv, struct scatterlist **sgs,
 			      const size_t out_sgs, const size_t in_sgs,
-			      size_t minimum_resp_len, size_t *resp_len);
+			      bool premapped, size_t minimum_resp_len,
+			      size_t *resp_len);
 void virtio_media_process_events(struct virtio_media *vv);
 
 /* virtio_media_driver.c */

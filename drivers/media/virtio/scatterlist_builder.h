@@ -65,6 +65,15 @@ struct scatterlist_builder {
 	void *shadow_buffer;
 	size_t shadow_buffer_size;
 	size_t shadow_buffer_pos;
+	/*
+	 * When @premapped is set, @shadow_buffer is coherent DMA memory whose
+	 * device address starts at @shadow_buffer_dma. In that case every
+	 * descriptor built by the helpers references the shadow buffer and its
+	 * sg_dma_address()/sg_dma_len() are filled in, so the resulting chain
+	 * can be submitted with virtqueue_add_sgs_premapped().
+	 */
+	dma_addr_t shadow_buffer_dma;
+	bool premapped;
 
 	struct scatterlist **sgs;
 	size_t num_sgs;

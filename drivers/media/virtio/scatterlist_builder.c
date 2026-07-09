@@ -64,7 +64,8 @@ int scatterlist_builder_add_data(struct scatterlist_builder *builder,
 	if (builder->cur_desc >= builder->num_descs)
 		return -ENOSPC;
 
-	if (!always_use_shadow_buffer && virt_addr_valid(data + len)) {
+	if (!always_use_shadow_buffer && !builder->premapped &&
+	    virt_addr_valid(data + len)) {
 		/*
 		 * If "data" is in the 1:1 physical memory mapping then we can
 		 * use a single SG entry and avoid copying.
@@ -77,7 +78,8 @@ int scatterlist_builder_add_data(struct scatterlist_builder *builder,
 		memset(next_desc, 0, sizeof(*next_desc));
 		sg_set_page(next_desc, page, len, offset);
 		builder->cur_desc++;
-	} else if (!always_use_shadow_buffer && is_vmalloc_addr(data)) {
+	} else if (!always_use_shadow_buffer && !builder->premapped &&
+		   is_vmalloc_addr(data)) {
 		int prev_pfn = -2;
 
 		/*
@@ -132,6 +134,16 @@ int scatterlist_builder_add_data(struct scatterlist_builder *builder,
 		memcpy(shadow_buffer, data, len);
 		memset(next_desc, 0, sizeof(*next_desc));
 		sg_set_page(next_desc, page, len, offset);
+		if (builder->premapped) {
+			/*
+			 * The shadow buffer is coherent DMA memory; reference
+			 * it by its DMA address so the chain can be submitted
+			 * premapped (virtio core will not remap it).
+			 */
+			sg_dma_address(next_desc) = builder->shadow_buffer_dma +
+						    builder->shadow_buffer_pos;
+			sg_dma_len(next_desc) = len;
+		}
 		builder->cur_desc++;
 		builder->shadow_buffer_pos += len;
 	}

@@ -2322,6 +2322,45 @@ int virtqueue_add_sgs(struct virtqueue *_vq,
 EXPORT_SYMBOL_GPL(virtqueue_add_sgs);
 
 /**
+ * virtqueue_add_sgs_premapped - expose buffers to other end, premapped
+ * @_vq: the struct virtqueue we're talking about.
+ * @sgs: array of terminated scatterlists.
+ * @out_sgs: the number of scatterlists readable by other side
+ * @in_sgs: the number of scatterlists which are writable (after readable ones)
+ * @data: the token identifying the buffer.
+ * @gfp: how to do memory allocations (if necessary).
+ *
+ * Same as virtqueue_add_sgs(), but the scatterlists are expected to already
+ * carry valid DMA addresses (via sg_dma_address()/sg_dma_len()), so virtio
+ * core will not perform any DMA mapping on them.
+ *
+ * Caller must ensure we don't call this with other virtqueue operations
+ * at the same time (except where noted).
+ *
+ * Returns zero or a negative error (ie. ENOSPC, ENOMEM, EIO).
+ */
+int virtqueue_add_sgs_premapped(struct virtqueue *_vq,
+				struct scatterlist *sgs[],
+				unsigned int out_sgs,
+				unsigned int in_sgs,
+				void *data,
+				gfp_t gfp)
+{
+	unsigned int i, total_sg = 0;
+
+	/* Count them first. */
+	for (i = 0; i < out_sgs + in_sgs; i++) {
+		struct scatterlist *sg;
+
+		for (sg = sgs[i]; sg; sg = sg_next(sg))
+			total_sg++;
+	}
+	return virtqueue_add(_vq, sgs, total_sg, out_sgs, in_sgs,
+			     data, NULL, true, gfp);
+}
+EXPORT_SYMBOL_GPL(virtqueue_add_sgs_premapped);
+
+/**
  * virtqueue_add_outbuf - expose output buffers to other end
  * @vq: the struct virtqueue we're talking about.
  * @sg: scatterlist (must be well-formed and terminated!)

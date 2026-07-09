@@ -105,6 +105,7 @@ struct virtio_media_session {
 	__dma_from_device_group_end();
 
 	void *shadow_buf;
+	dma_addr_t shadow_buf_dma;
 
 	struct sg_table command_sgs;
 
