@@ -78,9 +78,23 @@ properties:
   power-domains:
     maxItems: 1
 
-  port:
-    $ref: audio-graph-port.yaml#
-    unevaluatedProperties: false
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+    properties:
+      port@0:
+        $ref: audio-graph-port.yaml#
+        unevaluatedProperties: false
+        description: port for pair A
+
+      port@1:
+        $ref: audio-graph-port.yaml#
+        unevaluatedProperties: false
+        description: port for pair B
+
+      port@2:
+        $ref: audio-graph-port.yaml#
+        unevaluatedProperties: false
+        description: port for pair C
 
   fsl,asrc-rate:
     $ref: /schemas/types.yaml#/definitions/uint32
@@ -180,11 +194,30 @@ examples:
         fsl,asrc-rate = <48000>;
         fsl,asrc-width = <16>;
 
-        port {
-            playback-only;
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
 
-            asrc_endpoint: endpoint {
-                remote-endpoint = <&fe00_ep>;
+            port@0 {
+                reg = <0>;
+                playback-only;
+                asrc1_endpoint0: endpoint {
+                    remote-endpoint = <&fe00_ep>;
+                };
             };
-       };
+
+            port@1 {
+                reg = <1>;
+                capture-only;
+                asrc1_endpoint1: endpoint {
+                };
+            };
+
+            port@2 {
+                reg = <2>;
+                capture-only;
+                asrc1_endpoint2: endpoint {
+                };
+            };
+        };
     };
