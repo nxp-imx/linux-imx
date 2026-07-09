@@ -594,6 +594,8 @@ int dpu95_kms_prepare(struct dpu95_drm_device *dpu_drm)
 	drm->mode_config.funcs = &dpu95_drm_mode_config_funcs;
 	drm->max_vblank_count = DPU95_FRAMEGEN_MAX_FRAME_INDEX;
 
+	dpu_drm->dpu_hw_plane_cnt = dpu->fl_cnt + dpu->fy_cnt;
+
 	for (i = 0; i < DPU95_CRTCS; i++) {
 		dpu_crtc = &dpu_drm->dpu_crtc[i];
 
@@ -606,7 +608,6 @@ int dpu95_kms_prepare(struct dpu95_drm_device *dpu_drm)
 			return ret;
 	}
 
-	dpu_drm->dpu_hw_plane_cnt = dpu->fl_cnt + dpu->fy_cnt;
 	dpu_drm->dpu_overlay_cnt = dpu_drm->dpu_hw_plane_cnt - 1;
 	dpu_drm->dpu_overlay = drmm_kcalloc(drm, dpu_drm->dpu_overlay_cnt,
 					    sizeof(struct dpu95_plane),
