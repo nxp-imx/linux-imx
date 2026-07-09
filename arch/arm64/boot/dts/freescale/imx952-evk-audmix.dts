@@ -20,12 +20,12 @@
 			"Headphone", "Headphones",
 			"Speaker", "Ext Spk",
 			"Microphone", "AMIC";
-		routing = "SAI6 SAI-Playback", "ASRC1 ASRC-Playback",
-			  "SAI3 SAI-Playback", "ASRC2 ASRC-Playback",
+		routing = "SAI6 SAI-Playback", "ASRC1 ASRCA-Playback",
+			  "SAI3 SAI-Playback", "ASRC2 ASRCA-Playback",
 			  "AUDMIX-Playback-0", "SAI6 SAI-Playback",
 			  "AUDMIX-Playback-1", "SAI3 SAI-Playback",
-			  "Playback", "ASRC1 ASRC-Playback",
-			  "Playback", "ASRC2 ASRC-Playback",
+			  "Playback", "ASRC1 ASRCA-Playback",
+			  "Playback", "ASRC2 ASRCA-Playback",
 			  "SAI6 SAI-Capture", "AUDMIX-Capture-0",
 			  "Headphones", "HPOUTL",
 			  "Headphones", "HPOUTR",
@@ -208,20 +208,46 @@
 
 &asrc1 {
 	sound-name-prefix = "ASRC1";
-	port {
-		playback-only;
-		asrc1_endpoint0: endpoint {
-			remote-endpoint = <&fe00_ep>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			playback-only;
+			asrc1_endpoint0: endpoint {
+				remote-endpoint = <&fe00_ep>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			capture-only;
+			asrc1_endpoint1: endpoint {
+			};
 		};
 	};
 };
 
 &asrc2 {
 	sound-name-prefix = "ASRC2";
-	port {
-		playback-only;
-		asrc2_endpoint0: endpoint {
-			remote-endpoint = <&fe01_ep>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			playback-only;
+			asrc2_endpoint0: endpoint {
+				remote-endpoint = <&fe01_ep>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			capture-only;
+			asrc2_endpoint1: endpoint {
+			};
 		};
 	};
 };
