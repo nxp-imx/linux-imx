@@ -838,7 +838,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 
 static u64 wave5_vpu_calc_hw_time(struct vpu_instance *inst, struct dec_output_info *dec_info)
 {
-	struct clk *vpu_clk = NULL;
+	struct clk *vpu_clk;
 	unsigned long rate;
 	int i;
 
