@@ -819,7 +819,7 @@ static int imx_card_probe(struct platform_device *pdev)
 			}
 		}
 		data->dapm_routes[i].sink = "CPU-Playback";
-		data->dapm_routes[i].source = "ASRC-Playback";
+		data->dapm_routes[i].source = "ASRCA-Playback";
 		break;
 	case CODEC_AK5558:
 	case CODEC_AK5552:
@@ -837,7 +837,7 @@ static int imx_card_probe(struct platform_device *pdev)
 				data->dapm_routes[i].sink = "CPU-Capture";
 			}
 		}
-		data->dapm_routes[i].sink = "ASRC-Capture";
+		data->dapm_routes[i].sink = "ASRCA-Capture";
 		data->dapm_routes[i].source = "CPU-Capture";
 		break;
 	case CODEC_CS42888:
