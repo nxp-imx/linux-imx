@@ -23,7 +23,6 @@ struct wave5_vpu_entity {
 	u32 (*read_reg)(struct device *dev, u32 addr);
 	void (*write_reg)(struct device *dev, u32 addr, u32 data);
 	void (*on_boot)(struct device *dev);
-	void (*scan_instances)(struct device *dev);
 	bool booted;
 };
 
@@ -34,6 +33,7 @@ void wave5_vpu_ctrl_put_sync(struct device *dev, struct wave5_vpu_entity *entity
 int wave5_vpu_ctrl_get_state(struct device *dev);
 int wave5_vpu_ctrl_wait_done(struct device *dev);
 int wave5_vpu_ctrl_require_buffer(struct device *dev, struct wave5_vpu_entity *entity);
+int wave5_vpu_ctrl_free_buffer(struct device *dev, struct wave5_vpu_entity *entity);
 bool wave5_vpu_ctrl_support_follower(struct device *dev);
 struct imx_mur_node *wave5_vpu_ctrl_get_recorder(struct device *dev);
 #endif

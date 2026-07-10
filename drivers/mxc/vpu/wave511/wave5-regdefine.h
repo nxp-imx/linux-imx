@@ -18,7 +18,6 @@ enum W5_VPU_COMMAND {
 	W5_INIT_SEQ		= 0x0040,       /* queuing command */
 	W5_SET_FB		= 0x0080,
 	W5_DEC_PIC		= 0x0100,       /* queuing command */
-	W5_INIT_WORK_BUF        = 0x1000,
 	W5_QUERY		= 0x4000,
 	W5_UPDATE_BS		= 0x8000,
 	W5_MAX_VPU_COMD		= 0x10000,
@@ -330,7 +329,6 @@ enum query_opt {
 #define W5_CMD_DEC_TEMPORAL_ID_PLUS1            (W5_REG_BASE + 0x0130)
 #define W5_CMD_DEC_FORCE_FB_LATENCY_PLUS1       (W5_REG_BASE + 0x0134)
 #define W5_USE_SEC_AXI                          (W5_REG_BASE + 0x0150)
-
 #define W5_CMD_DEC_USER_BASE                    (W5_REG_BASE + 0x0170)
 #define W5_CMD_DEC_USER_SIZE                    (W5_REG_BASE + 0x0174)
 #define W5_CMD_DEC_USER_PARAM                   (W5_REG_BASE + 0x0178)
@@ -436,7 +434,6 @@ enum query_opt {
 #define W5_RET_DEC_HDR10_MD_WHITE           (W5_REG_BASE + 0x0198)
 #define W5_RET_DEC_HDR10_MD_MAX_LUM         (W5_REG_BASE + 0x01A8)
 #define W5_RET_DEC_HDR10_MD_MIN_LUM         (W5_REG_BASE + 0x01AC)
-
 /*
  * #define W5_RET_DEC_ERR_CTB_NUM              (W5_REG_BASE + 0x0180)
  * => Number of error CTUs

@@ -334,6 +334,7 @@ static void setup_wave5_interrupts(struct vpu_device *vpu_dev)
 		reg_val |= BIT(INT_WAVE5_INIT_SEQ);
 		reg_val |= BIT(INT_WAVE5_DEC_PIC);
 		reg_val |= BIT(INT_WAVE5_BSBUF_EMPTY);
+		reg_val |= BIT(INT_WAVE5_FREE_WORK_BUF);
 		reg_val |= BIT(INT_WAVE5_REQ_WORK_BUF);
 	}
 
@@ -406,10 +407,6 @@ int wave5_vpu_get_version(struct vpu_device *vpu_dev, u32 *revision)
 	return -EINVAL;
 }
 
-/*
- * Firmware may use virtual command, whose depth is WAVE5_MAX_VIRT_QUE_DEPTH.
- * so the total CQ size should be cq_depth() + WAVE5_MAX_VIRT_QUE_DEPTH.
- */
 static u32 wave5_vpu_cq_size(struct vpu_device *dev)
 {
 	return wave5_vpu_cq_depth(dev) + WAVE5_MAX_VIRT_QUE_DEPTH;
@@ -432,7 +429,8 @@ int wave5_vpu_build_up_dec_param(struct vpu_instance *inst,
 	switch (inst->std) {
 	case W_HEVC_DEC:
 		p_dec_info->seq_change_mask = SEQ_CHANGE_ENABLE_ALL_HEVC;
-		p_dec_info->user_data_enable = BIT(10) | BIT(15);
+		p_dec_info->user_data_enable = USER_MASK_SEI_HDR10_MASTERING |
+					       USER_MASK_SEI_HDR10_CLL;
 		break;
 	case W_AVC_DEC:
 		p_dec_info->seq_change_mask = SEQ_CHANGE_ENABLE_ALL_AVC;
@@ -547,36 +545,44 @@ int wave5_vpu_dec_init_seq(struct vpu_instance *inst)
 }
 
 static void wave5_vpu_dec_get_hdr10_info(struct vpu_instance *inst,
-					 struct v4l2_ctrl_hdr10_cll_info *hdr10_cll,
-					 struct v4l2_ctrl_hdr10_mastering_display *hdr10_display)
+					 struct hdr10_info *hdr10)
 {
+	struct v4l2_ctrl_hdr10_cll_info *cll;
+	struct v4l2_ctrl_hdr10_mastering_display *mastering;
 	u32 reg_val;
 
-	if (hdr10_cll) {
-		reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_CLL);
-		hdr10_cll->max_content_light_level = FIELD_GET(GENMASK_U32(31, 16), reg_val);
-		hdr10_cll->max_pic_average_light_level = FIELD_GET(GENMASK_U32(15, 0), reg_val);
-	}
-
-	if (!hdr10_display)
+	if (!hdr10)
 		return;
 
+	cll = &hdr10->cll_info;
+
+	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_CLL);
+	cll->max_content_light_level = FIELD_GET(GENMASK_U32(31, 16), reg_val);
+	cll->max_pic_average_light_level = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+
+	mastering = &hdr10->mastering_display;
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_PRIMARIES_G);
-	hdr10_display->display_primaries_x[0] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
-	hdr10_display->display_primaries_y[0] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+	mastering->display_primaries_x[0] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
+	mastering->display_primaries_y[0] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_PRIMARIES_B);
-	hdr10_display->display_primaries_x[1] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
-	hdr10_display->display_primaries_y[1] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+	mastering->display_primaries_x[1] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
+	mastering->display_primaries_y[1] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_PRIMARIES_R);
-	hdr10_display->display_primaries_x[2] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
-	hdr10_display->display_primaries_y[2] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+	mastering->display_primaries_x[2] = FIELD_GET(GENMASK_U32(31, 16), reg_val);
+	mastering->display_primaries_y[2] = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_WHITE);
-	hdr10_display->white_point_x = FIELD_GET(GENMASK_U32(31, 16), reg_val);
-	hdr10_display->white_point_y = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+	mastering->white_point_x = FIELD_GET(GENMASK_U32(31, 16), reg_val);
+	mastering->white_point_y = FIELD_GET(GENMASK_U32(15, 0), reg_val);
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_MAX_LUM);
-	hdr10_display->max_display_mastering_luminance = reg_val;
+	mastering->max_display_mastering_luminance = reg_val;
+
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_HDR10_MD_MIN_LUM);
-	hdr10_display->min_display_mastering_luminance = reg_val;
+	mastering->min_display_mastering_luminance = reg_val;
 }
 
 static void wave5_get_dec_seq_result(struct vpu_instance *inst, struct dec_initial_info *info)
@@ -611,7 +617,7 @@ static void wave5_get_dec_seq_result(struct vpu_instance *inst, struct dec_initi
 	reg_val = vpu_read_reg(inst->dev, W5_RET_DEC_SEQ_PARAM);
 	profile_compatibility_flag = (reg_val >> 12) & 0xff;
 	info->profile = (reg_val >> 24) & 0x1f;
-	info->hevc_vps_extension_flag = (reg_val >> 20) & 0x1;
+	info->hevc_sps_extension_flag = (reg_val >> 20) & 0x1;
 
 	if (inst->std == W_HEVC_DEC) {
 		/* guessing profile */
@@ -649,7 +655,7 @@ static void wave5_get_dec_seq_result(struct vpu_instance *inst, struct dec_initi
 		p_dec_info->param_buf_size = info->param_buf_size;
 	}
 
-	wave5_vpu_dec_get_hdr10_info(inst, &info->hdr10_cll_info, &info->hdr10_mastering_display);
+	wave5_vpu_dec_get_hdr10_info(inst, &info->hdr10);
 }
 
 int wave5_vpu_dec_get_seq_info(struct vpu_instance *inst, struct dec_initial_info *info)
@@ -1086,9 +1092,7 @@ int wave5_vpu_dec_get_result(struct vpu_instance *inst, struct dec_output_info *
 	if (p_dec_info->instance_queue_count == 0 && p_dec_info->report_queue_count == 0)
 		vpu_dev->last_performance_cycles = 0;
 
-	wave5_vpu_dec_get_hdr10_info(inst,
-				     &p_dec_info->initial_info.hdr10_cll_info,
-				     &p_dec_info->initial_info.hdr10_mastering_display);
+	wave5_vpu_dec_get_hdr10_info(inst, &p_dec_info->initial_info.hdr10);
 
 	return 0;
 }

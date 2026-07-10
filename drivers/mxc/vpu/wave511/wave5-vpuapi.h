@@ -77,6 +77,7 @@ enum wave_std {
 #define HEVC_PROFILE_MAIN10 2
 #define HEVC_PROFILE_STILLPICTURE 3
 #define HEVC_PROFILE_MAIN10_STILLPICTURE 2
+#define HEVC_PROFILE_FORMAT_RANGE_EXTENSIONS 4
 
 /* AVC */
 #define AVC_PROFILE_BP 66
@@ -129,6 +130,12 @@ enum wave_std {
 
 #define SEQ_CHANGE_WITHOUT_REALLOCATION (SEQ_CHANGE_ENABLE_VIDEO_SIGNAL | \
 					 SEQ_CHANGE_ENABLE_CONF_WIN_OFFSET)
+
+/*
+ * Parameters of W5_CMD_DEC_USER_MASK
+ */
+#define USER_MASK_SEI_HDR10_MASTERING BIT(10)
+#define USER_MASK_SEI_HDR10_CLL BIT(15)
 
 #define DISPLAY_IDX_FLAG_SEQ_END -1
 #define DISPLAY_IDX_FLAG_NO_FB -3
@@ -216,6 +223,7 @@ enum wave5_interrupt_bit {
 	INT_WAVE5_INIT_SEQ = 6,
 	INT_WAVE5_SET_FRAMEBUF = 7,
 	INT_WAVE5_DEC_PIC = 8,
+	INT_WAVE5_FREE_WORK_BUF = 11,
 	INT_WAVE5_REQ_WORK_BUF = 12,
 	INT_WAVE5_DEC_QUERY = 14,
 	INT_WAVE5_BSBUF_EMPTY = 15,
@@ -291,6 +299,11 @@ struct color_param {
 	u8 color_primaries;
 };
 
+struct hdr10_info {
+	struct v4l2_ctrl_hdr10_cll_info cll_info;
+	struct v4l2_ctrl_hdr10_mastering_display mastering_display;
+};
+
 /*
  * decode struct and definition
  */
@@ -315,7 +328,7 @@ struct dec_initial_info {
 	u32 reorder_delay;
 
 	u32 profile;
-	u32 hevc_vps_extension_flag: 1;
+	u32 hevc_sps_extension_flag: 1;
 	u32 luma_bitdepth; /* bit-depth of the luma sample */
 	u32 chroma_bitdepth; /* bit-depth of the chroma sample */
 	enum chroma_format_idc c_fmt_idc;
@@ -327,9 +340,7 @@ struct dec_initial_info {
 	u32 vlc_buf_size;
 	u32 param_buf_size;
 	struct color_param color;
-
-	struct v4l2_ctrl_hdr10_cll_info hdr10_cll_info;
-	struct v4l2_ctrl_hdr10_mastering_display hdr10_mastering_display;
+	struct hdr10_info hdr10;
 };
 
 struct dec_output_info {
@@ -518,11 +529,11 @@ struct vpu_flow_item {
 	u32 arg2;
 };
 
-#define WAVE5_VPU_FLOW_DEPTH		48
+#define WAVE5_VPU_FLOW_DEPTH	48
 struct vpu_flow {
 	struct vpu_flow_item flows[WAVE5_VPU_FLOW_DEPTH];
 	int index;
-	spinlock_t lock;   /* This protects the flow recorder */
+	spinlock_t lock; /* This protects the flow recorder */
 };
 
 struct vpu_instance {

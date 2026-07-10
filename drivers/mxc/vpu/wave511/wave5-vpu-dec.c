@@ -18,8 +18,11 @@
 #define VPU_SECURE_DEC_DEV_NAME "C&M Wave5 VPU secure decoder"
 #define VPU_SECURE_DEC_DRV_NAME "wave5-sec-dec"
 
-#define IS_MISMATCH_IF_VALID(CUR, VAL, INVAL)		(((VAL) != (INVAL)) && ((VAL) != (CUR)))
-#define WAVE5_IS_MISMATCH(CUR, VAL)			IS_MISMATCH_IF_VALID(CUR, VAL, 0)
+#define IS_MISMATCH_IF_VALID(CUR, VAL, INVAL) ({	\
+	typeof(VAL) _val = (VAL);			\
+	(_val) != (INVAL) && (_val) != (CUR);		\
+})
+#define WAVE5_IS_MISMATCH(CUR, VAL)	IS_MISMATCH_IF_VALID(CUR, VAL, 0)
 
 static const struct v4l2_frmsize_stepwise dec_hevc_frmsize = {
 	.min_width = W5_MIN_DEC_PIC_8_WIDTH,
@@ -493,69 +496,75 @@ set_default_color:
 	inst->xfer_func = V4L2_XFER_FUNC_DEFAULT;
 }
 
-static int wave5_compare_hdr10_cll_info(struct v4l2_ctrl_hdr10_cll_info *cur,
-					struct v4l2_ctrl_hdr10_cll_info *val)
+static bool wave5_compare_hdr10_cll_info(struct v4l2_ctrl_hdr10_cll_info *cur,
+					 struct v4l2_ctrl_hdr10_cll_info *val)
 {
-	if (WAVE5_IS_MISMATCH(cur->max_content_light_level, val->max_content_light_level))
-		return 1;
-	if (WAVE5_IS_MISMATCH(cur->max_pic_average_light_level, val->max_pic_average_light_level))
-		return 1;
+	if (WAVE5_IS_MISMATCH(cur->max_content_light_level,
+			      val->max_content_light_level))
+		return true;
+	if (WAVE5_IS_MISMATCH(cur->max_pic_average_light_level,
+			      val->max_pic_average_light_level))
+		return true;
 
-	return 0;
+	return false;
 }
 
-static int wave5_compare_hdr10_mastering_display(struct v4l2_ctrl_hdr10_mastering_display *cur,
-						 struct v4l2_ctrl_hdr10_mastering_display *val)
+static bool wave5_compare_hdr10_mastering_display(struct v4l2_ctrl_hdr10_mastering_display *cur,
+						  struct v4l2_ctrl_hdr10_mastering_display *val)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(cur->display_primaries_x); i++) {
-		if (WAVE5_IS_MISMATCH(cur->display_primaries_x[i], val->display_primaries_x[i]))
-			return 1;
+		if (WAVE5_IS_MISMATCH(cur->display_primaries_x[i],
+				      val->display_primaries_x[i]))
+			return true;
 	}
 	for (i = 0; i < ARRAY_SIZE(cur->display_primaries_y); i++) {
-		if (WAVE5_IS_MISMATCH(cur->display_primaries_y[i], val->display_primaries_y[i]))
-			return 1;
+		if (WAVE5_IS_MISMATCH(cur->display_primaries_y[i],
+				      val->display_primaries_y[i]))
+			return true;
 	}
 	if (WAVE5_IS_MISMATCH(cur->white_point_x, val->white_point_x))
-		return 1;
+		return true;
 	if (WAVE5_IS_MISMATCH(cur->white_point_y, val->white_point_y))
-		return 1;
+		return true;
 	if (WAVE5_IS_MISMATCH(cur->max_display_mastering_luminance,
 			      val->max_display_mastering_luminance))
-		return 1;
+		return true;
 	if (WAVE5_IS_MISMATCH(cur->min_display_mastering_luminance,
 			      val->min_display_mastering_luminance))
-		return 1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 static void wave5_update_hdr10_info(struct vpu_instance *inst)
 {
-	struct dec_initial_info *initial_info = &inst->codec_info->dec_info.initial_info;
-	struct v4l2_ctrl_hdr10_cll_info *cll;
-	struct v4l2_ctrl_hdr10_mastering_display *mastering;
+	struct hdr10_info *hdr10;
 	struct v4l2_ctrl *ctrl;
 
 	if (inst->std != W_HEVC_DEC)
 		return;
 
-	cll = &initial_info->hdr10_cll_info;
-	mastering = &initial_info->hdr10_mastering_display;
+	hdr10 = &inst->codec_info->dec_info.initial_info.hdr10;
 
 	ctrl = v4l2_ctrl_find(&inst->v4l2_ctrl_hdl, V4L2_CID_COLORIMETRY_HDR10_CLL_INFO);
 	if (ctrl) {
-		if (wave5_compare_hdr10_cll_info(ctrl->p_cur.p_hdr10_cll, cll))
-			v4l2_ctrl_s_ctrl_compound(ctrl, V4L2_CTRL_TYPE_HDR10_CLL_INFO, cll);
+		if (wave5_compare_hdr10_cll_info(ctrl->p_cur.p_hdr10_cll,
+						 &hdr10->cll_info))
+			v4l2_ctrl_s_ctrl_compound(ctrl,
+						  V4L2_CTRL_TYPE_HDR10_CLL_INFO,
+						  &hdr10->cll_info);
 	}
 
 	ctrl = v4l2_ctrl_find(&inst->v4l2_ctrl_hdl, V4L2_CID_COLORIMETRY_HDR10_MASTERING_DISPLAY);
-	if (ctrl)
-		if (wave5_compare_hdr10_mastering_display(ctrl->p_cur.p_hdr10_mastering, mastering))
+	if (ctrl) {
+		if (wave5_compare_hdr10_mastering_display(ctrl->p_cur.p_hdr10_mastering,
+							  &hdr10->mastering_display))
 			v4l2_ctrl_s_ctrl_compound(ctrl,
 						  V4L2_CTRL_TYPE_HDR10_MASTERING_DISPLAY,
-						  mastering);
+						  &hdr10->mastering_display);
+	}
 }
 
 static int start_decode(struct vpu_instance *inst)
@@ -697,18 +706,42 @@ static int wave5_vpu_dec_check_constraint(struct vpu_instance *inst,
 	} else if (inst->std == W_HEVC_DEC) {
 		if (info->profile != HEVC_PROFILE_MAIN &&
 		    info->profile != HEVC_PROFILE_MAIN10 &&
-		    info->profile != HEVC_PROFILE_STILLPICTURE) {
+		    info->profile != HEVC_PROFILE_STILLPICTURE &&
+		    info->profile != HEVC_PROFILE_FORMAT_RANGE_EXTENSIONS) {
 			dev_err(inst->dev->dev, "no support for HEVC profile %d\n",
 				info->profile);
 			return -EINVAL;
 		}
-		if (info->hevc_vps_extension_flag) {
+		if (info->hevc_sps_extension_flag) {
 			dev_err(inst->dev->dev, "no support for HEVC extension\n");
 			return -EINVAL;
 		}
 	}
 
 	return 0;
+}
+
+static bool wave5_vpu_dec_dst_fmt_allowed(struct vpu_instance *inst,
+					  u32 pixelformat)
+{
+	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
+
+	if (!p_dec_info->initial_info_obtained)
+		return true;
+
+	return ((p_dec_info->initial_info.c_fmt_idc == C_FMT_IDC_YUV400) ==
+		(pixelformat == V4L2_PIX_FMT_GREY));
+}
+
+static void wave5_vpu_dec_optimal_dst_fmt(struct vpu_instance *inst,
+					  struct dec_initial_info *initial_info)
+{
+	if (initial_info->c_fmt_idc == C_FMT_IDC_YUV400)
+		inst->dst_fmt.pixelformat = V4L2_PIX_FMT_GREY;
+	else if (initial_info->luma_bitdepth == 10)
+		inst->dst_fmt.pixelformat = V4L2_PIX_FMT_P010;
+	else
+		inst->dst_fmt.pixelformat = V4L2_PIX_FMT_NV12;
 }
 
 static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_change_info)
@@ -746,6 +779,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 		inst->needs_reallocation = false;
 	else
 		inst->needs_reallocation = true;
+
 	inst->fbc_buf_count = initial_info->min_frame_buffer_count;
 	inst->disp_buf_count = max(initial_info->reorder_delay + 1, wave5_vpu_cq_depth(inst->dev));
 	if (inst->disp_buf_count != v4l2_m2m_num_dst_bufs_ready(m2m_ctx)) {
@@ -780,15 +814,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 				     vpu_fmt->v4l2_frmsize,
 				     true);
 
-		if (initial_info->luma_bitdepth == 8 &&
-		    initial_info->c_fmt_idc == C_FMT_IDC_YUV400)
-			inst->dst_fmt.pixelformat = V4L2_PIX_FMT_GREY;
-		else if (initial_info->luma_bitdepth == 10)
-			inst->dst_fmt.pixelformat = V4L2_PIX_FMT_P010;
-		else if (initial_info->luma_bitdepth == 8 &&
-			 inst->dst_fmt.pixelformat == V4L2_PIX_FMT_P010)
-			inst->dst_fmt.pixelformat = dec_fmt_list[VPU_FMT_TYPE_RAW][0].v4l2_pix_fmt;
-
+		wave5_vpu_dec_optimal_dst_fmt(inst, initial_info);
 		vpu_fmt = wave5_find_vpu_fmt(inst->dst_fmt.pixelformat,
 					     dec_fmt_list[VPU_FMT_TYPE_RAW]);
 		if (!vpu_fmt)
@@ -802,7 +828,6 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 				     true);
 
 		wave5_update_output_format_info(inst);
-
 		wave5_update_hdr10_info(inst);
 	}
 
@@ -813,7 +838,7 @@ static int handle_dynamic_resolution_change(struct vpu_instance *inst, u32 seq_c
 
 static u64 wave5_vpu_calc_hw_time(struct vpu_instance *inst, struct dec_output_info *dec_info)
 {
-	struct clk *vpu_clk = NULL;
+	struct clk *vpu_clk;
 	unsigned long rate;
 	int i;
 
@@ -918,7 +943,7 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			if (dec_info.index_frame_decoded < WAVE5_MAX_FBS)
 				clear_bit(dec_info.index_frame_decoded, &inst->avail_dst_bufs);
 		} else {
-			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i\n",
+			dev_warn(inst->dev->dev, "%s: invalid decoded frame index %i",
 				 __func__, dec_info.index_frame_decoded);
 		}
 	}
@@ -1065,7 +1090,6 @@ static int wave5_vpu_dec_enum_framesizes(struct file *f, void *fh, struct v4l2_f
 static int wave5_vpu_dec_enum_fmt_cap(struct file *file, void *fh, struct v4l2_fmtdesc *f)
 {
 	struct vpu_instance *inst = wave5_to_vpu_inst(file_to_v4l2_fh(file));
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
 	const struct vpu_format *vpu_fmt;
 	unsigned int count = 0;
 	unsigned int i;
@@ -1075,17 +1099,8 @@ static int wave5_vpu_dec_enum_fmt_cap(struct file *file, void *fh, struct v4l2_f
 		if (!vpu_fmt)
 			break;
 
-		if (p_dec_info->initial_info_obtained) {
-			if (p_dec_info->initial_info.c_fmt_idc == C_FMT_IDC_YUV400) {
-				/* 4:0:0 stream: only GREY */
-				if (vpu_fmt->v4l2_pix_fmt != V4L2_PIX_FMT_GREY)
-					continue;
-			} else {
-				/* other: exclude GREY */
-				if (vpu_fmt->v4l2_pix_fmt == V4L2_PIX_FMT_GREY)
-					continue;
-			}
-		}
+		if (!wave5_vpu_dec_dst_fmt_allowed(inst, vpu_fmt->v4l2_pix_fmt))
+			continue;
 
 		if (count++ == f->index) {
 			f->pixelformat = vpu_fmt->v4l2_pix_fmt;
@@ -1126,6 +1141,8 @@ static int wave5_vpu_dec_try_fmt_cap(struct file *file, void *fh, struct v4l2_fo
 	if (p_dec_info->initial_info_obtained) {
 		width = inst->dst_fmt.width;
 		height = inst->dst_fmt.height;
+		if (!wave5_vpu_dec_dst_fmt_allowed(inst, f->fmt.pix_mp.pixelformat))
+			f->fmt.pix_mp.pixelformat = inst->dst_fmt.pixelformat;
 	}
 
 	wave5_update_pix_fmt(&f->fmt.pix_mp, VPU_FMT_TYPE_RAW,
@@ -1355,6 +1372,7 @@ static int wave5_vpu_dec_s_selection(struct file *file, void *fh, struct v4l2_se
 	int scale_width = 0, scale_height = 0;
 	int min_scale_width = 0, min_scale_height = 0;
 	u32 min_dec_pic_width = 0, min_dec_pic_height = 0;
+	bool scaling, crop_only;
 
 	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
 	    s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
@@ -1399,9 +1417,12 @@ static int wave5_vpu_dec_s_selection(struct file *file, void *fh, struct v4l2_se
 		scale_height = round_down(scale_height, step);
 	}
 
-	if (scale_width < inst->src_fmt.width ||
-	    scale_height < inst->src_fmt.height)
-		inst->scaler_info.enable = true;
+	scaling = scale_width < inst->src_fmt.width ||
+		  scale_height < inst->src_fmt.height;
+	crop_only = scale_width == inst->conf_win.width &&
+		    scale_height == inst->conf_win.height;
+
+	inst->scaler_info.enable = scaling && !crop_only;
 
 	if (inst->scaler_info.enable) {
 		min_scale_width = ALIGN((inst->src_fmt.width / 8), step);
@@ -1506,6 +1527,7 @@ static int wave5_vpu_dec_start(struct vpu_instance *inst)
 		return -EBUSY;
 
 	wave5_vpu_record_flow(inst, WAVE5_VPU_FLOW_START, 0, 0);
+
 	if (v4l2_m2m_has_stopped(m2m_ctx)) {
 		v4l2_m2m_clear_state(inst->v4l2_fh.m2m_ctx);
 		if (inst->dynamic_source_change) {
@@ -1602,6 +1624,7 @@ static void wave5_vpu_dec_reset_instance(struct vpu_instance *inst)
 		return;
 	}
 
+	wave5_vpu_remove_dbgfs_file(inst);
 	scoped_guard(spinlock_irqsave, &inst->state_spinlock)
 		switch_state(inst, VPU_INST_STATE_NONE);
 
@@ -1682,7 +1705,7 @@ static int wave5_prepare_fb(struct vpu_instance *inst)
 	if (ret)
 		dev_err(inst->dev->dev, "vpu_dec_register_frame_buffer_ex fail: %d", ret);
 
-	return 0;
+	return ret;
 }
 
 static int wave5_vpu_dec_fill_source(struct vpu_instance *inst)
@@ -1855,6 +1878,7 @@ static int wave5_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count
 			ret = switch_state(inst, VPU_INST_STATE_OPEN);
 		if (ret)
 			goto error_dec_close;
+
 		wave5_vpu_create_dbgfs_file(inst);
 	} else if (V4L2_TYPE_IS_OUTPUT(q->type) && inst->state == VPU_INST_STATE_STOP) {
 		if (!inst->dynamic_source_change) {
@@ -1996,7 +2020,8 @@ static void wave5_vpu_dec_stop_streaming(struct vb2_queue *q)
 		streamoff_capture(q);
 
 exit:
-	wave5_return_bufs(v4l2_m2m_get_vq(inst->v4l2_fh.m2m_ctx, q->type), VB2_BUF_STATE_ERROR);
+	wave5_return_bufs(v4l2_m2m_get_vq(inst->v4l2_fh.m2m_ctx, q->type),
+			  VB2_BUF_STATE_ERROR);
 }
 
 static int wave5_vpu_dec_buf_init(struct vb2_buffer *vb)

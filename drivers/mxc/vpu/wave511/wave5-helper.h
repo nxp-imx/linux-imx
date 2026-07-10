@@ -13,6 +13,20 @@
 #define FMT_TYPES	2
 #define MAX_FMTS	14
 
+enum {
+	WAVE5_VPU_FLOW_NONE,
+	WAVE5_VPU_FLOW_SET_STATE,
+	WAVE5_VPU_FLOW_OUTPUT_ON,
+	WAVE5_VPU_FLOW_OUTPUT_OFF,
+	WAVE5_VPU_FLOW_CAPTURE_ON,
+	WAVE5_VPU_FLOW_CAPTURE_OFF,
+	WAVE5_VPU_FLOW_START,
+	WAVE5_VPU_FLOW_STOP,
+	WAVE5_VPU_FLOW_SOURCE_CHANGE,
+	WAVE5_VPU_FLOW_EOS,
+	WAVE5_VPU_FLOW_MAXIMUM,
+};
+
 typedef bool (*wave5_compare_vb)(struct vb2_v4l2_buffer *vbuf, unsigned long target);
 const char *state_to_str(enum vpu_instance_state state);
 void wave5_cleanup_instance(struct vpu_instance *inst, struct file *filp);
@@ -50,20 +64,5 @@ void wave5_vpu_handle_performance(struct vpu_instance *inst, struct vpu_dst_buff
 void wave5_vpu_reset_performace(struct vpu_instance *inst);
 dma_addr_t wave5_get_plane_dma_addr(struct vb2_buffer *buf, unsigned int plane_no);
 unsigned long wave5_get_plane_payload(struct vb2_buffer *buf, unsigned int plane_no);
-
-enum {
-	WAVE5_VPU_FLOW_NONE,
-	WAVE5_VPU_FLOW_SET_STATE,
-	WAVE5_VPU_FLOW_OUTPUT_ON,
-	WAVE5_VPU_FLOW_OUTPUT_OFF,
-	WAVE5_VPU_FLOW_CAPTURE_ON,
-	WAVE5_VPU_FLOW_CAPTURE_OFF,
-	WAVE5_VPU_FLOW_START,
-	WAVE5_VPU_FLOW_STOP,
-	WAVE5_VPU_FLOW_SOURCE_CHANGE,
-	WAVE5_VPU_FLOW_EOS,
-	WAVE5_VPU_FLOW_MAXIMUM,
-};
-
 void wave5_vpu_record_flow(struct vpu_instance *inst, u32 flow, u32 arg1, u32 arg2);
 #endif

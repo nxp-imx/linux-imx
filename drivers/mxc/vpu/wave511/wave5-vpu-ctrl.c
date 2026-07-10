@@ -127,8 +127,7 @@ struct vpu_ctrl {
 	struct gen_pool *sram_pool;
 	struct vpu_buf sram_buf;
 	struct vpu_buf buffers[MAX_NUM_INSTANCE];
-	u32 acquired_buffer_count;
-	u32 required_buffer_count;
+	unsigned long used_buffers;
 	bool support_follower;
 	wait_queue_head_t load_fw_wq;
 #if WAVE5_ENABLE_SW_UART
@@ -407,8 +406,8 @@ static int wave5_vpu_ctrl_wait_busy(struct wave5_vpu_entity *entity, unsigned in
 		return -EINVAL;
 
 	return read_poll_timeout(entity->read_reg, val, val == 0,
-				 VPU_POLL_CHECK_INTERVAL, VPU_BUSY_CHECK_TIMEOUT, false,
-				 entity->dev, addr);
+				 VPU_POLL_CHECK_INTERVAL, VPU_BUSY_CHECK_TIMEOUT,
+				 false, entity->dev, addr);
 }
 
 static int wave5_vpu_ctrl_check_result(struct wave5_vpu_entity *entity)
@@ -494,55 +493,33 @@ static void wave5_vpu_ctrl_on_boot(struct wave5_vpu_entity *entity)
 	}
 }
 
-static void wave5_vpu_ctrl_clear_firmware_buffers(struct vpu_ctrl *ctrl,
-						  struct wave5_vpu_entity *entity)
+static struct vpu_buf *wave5_vpu_ctrl_get_buffer(struct vpu_ctrl *ctrl)
 {
-	int ret;
+	int i;
 
-	dprintk(ctrl->dev, "clear firmware work buffers\n");
+	if (hweight_long(ctrl->used_buffers) >= MAX_NUM_INSTANCE)
+		return NULL;
 
-	call_void_op(entity, write_reg, W5_VPU_BUSY_STATUS, 1);
-	call_void_op(entity, write_reg, W5_COMMAND, W5_INIT_WORK_BUF);
-	call_void_op(entity, write_reg, W5_VPU_HOST_INT_REQ, 1);
-
-	ret = wave5_vpu_ctrl_wait_busy(entity, W5_VPU_BUSY_STATUS);
-	if (ret) {
-		dev_err(ctrl->dev, "set buffer failed\n");
-		return;
+	i = ffz(ctrl->used_buffers);
+	if (i < MAX_NUM_INSTANCE) {
+		set_bit(i, &ctrl->used_buffers);
+		return &ctrl->buffers[i];
 	}
 
-	ret = wave5_vpu_ctrl_check_result(entity);
-	if (ret) {
-		dev_err(ctrl->dev, "set buffer failed, reason 0x%x\n", ret);
-		return;
-	}
+	return NULL;
 }
 
-static void wave5_vpu_ctrl_acquire_buffers(struct vpu_ctrl *ctrl)
+static void wave5_vpu_ctrl_put_buffer(struct vpu_ctrl *ctrl, dma_addr_t daddr)
 {
-	struct vpu_buf *buf;
 	int i;
 
 	for (i = 0; i < MAX_NUM_INSTANCE; i++) {
-		buf = &ctrl->buffers[i];
-		buf->size = WAVE517_WORKBUF_SIZE;
-		buf->recorder = ctrl->recorder;
-		buf->label = "work_buf";
-		if (wave5_vdi_allocate_dma_memory(ctrl->dev, buf))
+		if (ctrl->buffers[i].daddr == daddr) {
+			wave5_vdi_clear_memory(&ctrl->buffers[i]);
+			clear_bit(i, &ctrl->used_buffers);
 			return;
-
-		ctrl->acquired_buffer_count++;
+		}
 	}
-}
-
-static void wave5_vpu_ctrl_free_buffers(struct vpu_ctrl *ctrl)
-{
-	int i;
-
-	for (i = 0; i < ctrl->acquired_buffer_count; i++)
-		wave5_vdi_free_dma_memory(&ctrl->buffers[i]);
-
-	ctrl->acquired_buffer_count = 0;
 }
 
 int wave5_vpu_ctrl_require_buffer(struct device *dev, struct wave5_vpu_entity *entity)
@@ -562,30 +539,84 @@ int wave5_vpu_ctrl_require_buffer(struct device *dev, struct wave5_vpu_entity *e
 	if (size > WAVE517_WORKBUF_SIZE)
 		goto exit;
 
-	if (ctrl->required_buffer_count >= ctrl->acquired_buffer_count)
+	pbuf = wave5_vpu_ctrl_get_buffer(ctrl);
+	if (!pbuf)
 		goto exit;
 
-	pbuf = &ctrl->buffers[ctrl->required_buffer_count++];
 	call_void_op(entity, write_reg, W5_CMD_SET_CTRL_WORK_BUF_ADDR, pbuf->daddr);
 	ret = 0;
+
 exit:
 	call_void_op(entity, write_reg, W5_CMD_SET_CTRL_WORK_BUF_SIZE, 0);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_require_buffer);
 
+int wave5_vpu_ctrl_free_buffer(struct device *dev, struct wave5_vpu_entity *entity)
+{
+	struct vpu_ctrl *ctrl = dev_get_drvdata(dev);
+	dma_addr_t daddr;
+	int ret = -ENOMEM;
+
+	if (!ctrl || !entity)
+		return -EINVAL;
+
+	daddr = call_read_reg(entity, W5_CMD_SET_CTRL_WORK_BUF_ADDR);
+	if (!daddr)
+		goto exit;
+
+	wave5_vpu_ctrl_put_buffer(ctrl, daddr);
+	ret = 0;
+
+exit:
+	call_void_op(entity, write_reg, W5_CMD_SET_CTRL_WORK_BUF_SIZE, 0);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(wave5_vpu_ctrl_free_buffer);
+
+static int wave5_vpu_ctrl_acquire_buffers(struct vpu_ctrl *ctrl)
+{
+	int i;
+
+	for (i = 0; i < MAX_NUM_INSTANCE; i++) {
+		ctrl->buffers[i].size = WAVE517_WORKBUF_SIZE;
+		ctrl->buffers[i].recorder = ctrl->recorder;
+		ctrl->buffers[i].label = "work_buf";
+		if (wave5_vdi_allocate_dma_memory(ctrl->dev, &ctrl->buffers[i]))
+			return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static void wave5_vpu_ctrl_release_buffers(struct vpu_ctrl *ctrl)
+{
+	int i;
+
+	dprintk(ctrl->dev, "release all buffers\n");
+
+	for (i = 0; i < MAX_NUM_INSTANCE; i++) {
+		if (!ctrl->buffers[i].daddr)
+			continue;
+
+		wave5_vdi_free_dma_memory(&ctrl->buffers[i]);
+	}
+}
+
 static void wave5_vpu_ctrl_clear_buffers(struct vpu_ctrl *ctrl)
 {
-	struct wave5_vpu_entity *entity;
+	int i;
 
 	dprintk(ctrl->dev, "clear all buffers\n");
 
-	entity = list_first_entry_or_null(&ctrl->entities,
-					  struct wave5_vpu_entity, list);
-	if (entity)
-		wave5_vpu_ctrl_clear_firmware_buffers(ctrl, entity);
+	for (i = 0; i < MAX_NUM_INSTANCE; i++) {
+		if (!ctrl->buffers[i].daddr)
+			continue;
 
-	ctrl->required_buffer_count = 0;
+		wave5_vdi_clear_memory(&ctrl->buffers[i]);
+	}
+
+	ctrl->used_buffers = 0;
 }
 
 static void wave5_vpu_ctrl_boot_done(struct vpu_ctrl *ctrl, int wakeup)
@@ -688,8 +719,7 @@ exit:
 			wave5_vpu_ctrl_set_state(ctrl, WAVE5_VPU_STATE_OFF);
 		else
 			wave5_vpu_ctrl_boot_done(ctrl, 0);
-		if (ctrl->state == WAVE5_VPU_STATE_ON && ctrl->current_entity)
-			call_void_op(ctrl->current_entity, scan_instances);
+
 		ctrl->current_entity = NULL;
 	}
 
@@ -1063,10 +1093,33 @@ static int wave5_vpu_ctrl_probe(struct platform_device *pdev)
 	wave5_vpu_ctrl_create_debugfs(ctrl);
 #endif
 
-	wave5_vpu_ctrl_acquire_buffers(ctrl);
-	pm_runtime_enable(&pdev->dev);
+	ret = wave5_vpu_ctrl_acquire_buffers(ctrl);
+	if (ret)
+		goto exit;
 
+	pm_runtime_enable(&pdev->dev);
 	return 0;
+
+exit:
+	wave5_vpu_ctrl_release_buffers(ctrl);
+	if (ctrl->sram_pool && ctrl->sram_buf.vaddr) {
+		dma_unmap_resource(&pdev->dev,
+				   ctrl->sram_buf.daddr,
+				   ctrl->sram_buf.size,
+				   DMA_BIDIRECTIONAL,
+				   0);
+		gen_pool_free(ctrl->sram_pool,
+			      (unsigned long)ctrl->sram_buf.vaddr,
+			      ctrl->sram_buf.size);
+	}
+	if (ctrl->boot_mem.daddr)
+		dma_unmap_resource(&pdev->dev,
+				   ctrl->boot_mem.daddr,
+				   ctrl->boot_mem.size,
+				   DMA_BIDIRECTIONAL,
+				   0);
+	mutex_destroy(&ctrl->ctrl_lock);
+	return ret;
 }
 
 static void wave5_vpu_ctrl_remove(struct platform_device *pdev)
@@ -1080,8 +1133,7 @@ static void wave5_vpu_ctrl_remove(struct platform_device *pdev)
 
 	pm_runtime_disable(&pdev->dev);
 
-	wave5_vpu_ctrl_clear_buffers(ctrl);
-	wave5_vpu_ctrl_free_buffers(ctrl);
+	wave5_vpu_ctrl_release_buffers(ctrl);
 	if (ctrl->sram_pool && ctrl->sram_buf.vaddr) {
 		dma_unmap_resource(&pdev->dev,
 				   ctrl->sram_buf.daddr,

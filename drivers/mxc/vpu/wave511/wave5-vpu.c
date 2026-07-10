@@ -39,7 +39,7 @@ struct wave5_match_data {
 static const struct wave5_match_data nxp_wave511_data = {
 	.flags = WAVE5_IS_DEC,
 	.fw_name = "cnm/wave511_dec_fw.bin",
-	.compatible_fw_api_version = 0x1000000,
+	.compatible_fw_api_version = 0x2000000,
 };
 
 static int vpu_poll_interval = 5;
@@ -146,6 +146,12 @@ static irqreturn_t wave5_vpu_irq(int irq, void *dev_id)
 
 		status.reason &= ~BIT(INT_WAVE5_REQ_WORK_BUF);
 	}
+	if (status.reason & BIT(INT_WAVE5_FREE_WORK_BUF)) {
+		if (dev->ctrl)
+			wave5_vpu_ctrl_free_buffer(dev->ctrl, &dev->entity);
+
+		status.reason &= ~BIT(INT_WAVE5_FREE_WORK_BUF);
+	}
 
 	if (status.reason & BIT(INT_WAVE5_INIT_SEQ)) {
 		unsigned long seq_mask = status.seq_done;
@@ -223,6 +229,10 @@ static void wave5_vpu_handle_irq(void *dev_id)
 	if (irq_reason & BIT(INT_WAVE5_REQ_WORK_BUF)) {
 		if (dev->ctrl)
 			wave5_vpu_ctrl_require_buffer(dev->ctrl, &dev->entity);
+	}
+	if (irq_reason & BIT(INT_WAVE5_FREE_WORK_BUF)) {
+		if (dev->ctrl)
+			wave5_vpu_ctrl_free_buffer(dev->ctrl, &dev->entity);
 	}
 
 	for (int i = 0; i < MAX_NUM_INSTANCE; i++) {
@@ -331,46 +341,6 @@ static void wave5_vpu_on_boot(struct device *dev)
 			(p_attr->fw_api_version >> 24) & 0xFF,
 			(p_attr->fw_api_version >> 16) & 0xFF,
 			(p_attr->fw_api_version >> 0) & 0xFFFF);
-}
-
-static void wave5_vpu_scan_instances(struct device *dev)
-{
-	struct vpu_device *vpu_dev = dev_get_drvdata(dev);
-	struct dec_open_param open_param = { 0 };
-	struct vpu_instance *instances;
-	struct vpu_instance *inst;
-	int count = 0;
-	int ret;
-
-	instances = kcalloc(MAX_NUM_INSTANCE, sizeof(struct vpu_instance), GFP_KERNEL);
-	if (!instances)
-		return;
-
-	open_param.reorder_enable = true;
-	for (int i = 0; i < MAX_NUM_INSTANCE; i++) {
-		inst = &instances[i];
-		inst->dev = vpu_dev;
-		inst->type = VPU_INST_TYPE_DEC;
-		inst->std = W_HEVC_DEC;
-		inst->codec_info = kzalloc(sizeof(*inst->codec_info), GFP_KERNEL);
-		if (!inst->codec_info)
-			break;
-		ret = wave5_vpu_dec_open(inst, &open_param);
-		if (ret)
-			break;
-		count++;
-	}
-
-	for (int i = 0; i < count; i++) {
-		u32 fail_res = 0;
-
-		inst = &instances[i];
-		wave5_vpu_dec_close(inst, &fail_res);
-		kfree(inst->codec_info);
-	}
-
-	kfree(instances);
-	dev_dbg(dev, "scan %d instances\n", count);
 }
 
 u32 wave5_vpu_cq_depth(struct vpu_device *vpu_dev)
@@ -512,7 +482,6 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 	dev->entity.read_reg = wave5_vpu_read_reg;
 	dev->entity.write_reg = wave5_vpu_write_reg;
 	dev->entity.on_boot = wave5_vpu_on_boot;
-	dev->entity.scan_instances = wave5_vpu_scan_instances;
 
 	dev->resets = devm_reset_control_array_get_optional_exclusive(&pdev->dev);
 	if (IS_ERR(dev->resets)) {
