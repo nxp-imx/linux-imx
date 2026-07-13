@@ -110,10 +110,6 @@ int scatterlist_builder_retrieve_buffer(struct scatterlist_builder *builder,
 int scatterlist_builder_add_ext_ctrls(struct scatterlist_builder *builder,
 				      struct v4l2_ext_controls *ctrls);
 
-int
-scatterlist_builder_add_ext_ctrls_userptrs(struct scatterlist_builder *builder,
-					   struct v4l2_ext_controls *ctrls);
-
 int scatterlist_builder_retrieve_ext_ctrls(struct scatterlist_builder *builder,
 					   size_t sg_index,
 					   struct v4l2_ext_controls *ctrls);

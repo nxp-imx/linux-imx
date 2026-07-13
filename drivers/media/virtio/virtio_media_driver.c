@@ -351,28 +351,29 @@ static void virtio_media_session_free(struct virtio_media *vv,
 }
 
 /**
- * virtio_media_find_session - Lookup for the session with a given ID.
+ * virtio_media_find_session_locked - Lookup a session with a given ID.
  * @vv: virtio-media device to lookup the session from.
  * @id: ID of the session to lookup.
+ *
+ * The caller must hold @vv->sessions_lock and must keep holding it for as long
+ * as it uses the returned session, otherwise the session may be freed
+ * concurrently by virtio_media_session_free().
  */
 static struct virtio_media_session *
-virtio_media_find_session(struct virtio_media *vv, u32 id)
+virtio_media_find_session_locked(struct virtio_media *vv, u32 id)
 {
 	struct list_head *p;
-	struct virtio_media_session *session = NULL;
 
-	mutex_lock(&vv->sessions_lock);
+	lockdep_assert_held(&vv->sessions_lock);
+
 	list_for_each(p, &vv->sessions) {
 		struct virtio_media_session *s =
 			list_entry(p, struct virtio_media_session, list);
-		if (s->id == id) {
-			session = s;
-			break;
-		}
+		if (s->id == id)
+			return s;
 	}
-	mutex_unlock(&vv->sessions_lock);
 
-	return session;
+	return NULL;
 }
 
 /**
@@ -511,6 +512,34 @@ static int virtio_media_kick_command(struct virtio_media *vv,
 }
 
 /**
+ * virtio_media_ioctl_error_is_benign() - Tell whether a failed ioctl is normal
+ * control flow rather than a device error.
+ * @err: negative errno returned by the host for a VIRTIO_MEDIA_CMD_IOCTL.
+ *
+ * Many V4L2 ioctls report routine, expected conditions by failing:
+ * enumeration ioctls (VIDIOC_ENUM*, VIDIOC_QUERYMENU) return -EINVAL to mark
+ * the end of a list, VIDIOC_QUERY(_EXT_)CTRL returns -EINVAL for control ids a
+ * device does not support, the host returns -ENOTTY for ioctls it does not
+ * implement, and a drained decoder returns -EPIPE. Userspace probes these in
+ * loops, so logging each failure at error level floods the kernel log for no
+ * reason. Such codes are logged at debug level instead.
+ *
+ * Returns true if @err is one of those expected codes.
+ */
+static bool virtio_media_ioctl_error_is_benign(int err)
+{
+	switch (err) {
+	case -EINVAL:	/* enumeration end; unsupported QUERY(_EXT_)CTRL id */
+	case -ENOTTY:	/* ioctl not implemented by the host */
+	case -ENODATA:	/* no data for this ioctl (e.g. empty enumeration) */
+	case -EPIPE:	/* end of stream (e.g. decoder drain) */
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
  * virtio_media_send_command - Send a command to the device and wait for its
  * response.
  * @vv: virtio-media device in use.
@@ -538,8 +567,38 @@ int virtio_media_send_command(struct virtio_media *vv, struct scatterlist **sgs,
 	 * If the host could not process the command, there is no valid
 	 * response.
 	 */
-	if (ret < 0)
+	if (ret < 0) {
+		const struct virtio_media_cmd_header *cmd_hdr =
+			out_sgs ? sg_virt(sgs[0]) : NULL;
+		u32 cmd = cmd_hdr ? cmd_hdr->cmd : 0;
+
+		if (cmd == VIRTIO_MEDIA_CMD_IOCTL) {
+			const struct virtio_media_cmd_ioctl *cmd_ioctl =
+				(const struct virtio_media_cmd_ioctl *)cmd_hdr;
+
+			/*
+			 * Many ioctl failures are normal control flow (end of
+			 * an enumeration, an unsupported control query, an
+			 * unimplemented ioctl). Log those at debug level so the
+			 * error log is not flooded by routine userspace probes;
+			 * only genuinely unexpected failures stay at error
+			 * level.
+			 */
+			if (virtio_media_ioctl_error_is_benign(ret))
+				dev_dbg(vv->v4l2_dev.dev,
+					"ioctl returned expected error (cmd = %u, ioctl code = %u), ret = %d\n",
+					cmd, cmd_ioctl->code, ret);
+			else
+				v4l2_err(&vv->v4l2_dev,
+					 "fail to send command (cmd = %u, ioctl code = %u), ret = %d\n",
+					 cmd, cmd_ioctl->code, ret);
+		} else {
+			v4l2_err(&vv->v4l2_dev,
+				 "fail to send command (cmd = %u), ret = %d\n",
+				 cmd, ret);
+		}
 		return ret;
+	}
 
 	/* Make sure the host wrote a complete reply. */
 	if (local_resp_len < minimum_resp_len) {
@@ -695,8 +754,17 @@ process_bufs:
 			goto end_of_event;
 		}
 
-		session = virtio_media_find_session(vv, evt->session_id);
+		/*
+		 * Look up the session and process the event while holding
+		 * sessions_lock, so the session cannot be freed by a
+		 * concurrent close (virtio_media_session_free() takes the
+		 * same lock to unlink the session before freeing it). Using
+		 * the session outside this lock would be a use-after-free.
+		 */
+		mutex_lock(&vv->sessions_lock);
+		session = virtio_media_find_session_locked(vv, evt->session_id);
 		if (!session) {
+			mutex_unlock(&vv->sessions_lock);
 			v4l2_err(&vv->v4l2_dev, "cannot find session %d\n",
 				 evt->session_id);
 			goto end_of_event;
@@ -756,6 +824,7 @@ process_bufs:
 				 evt->event);
 			break;
 		}
+		mutex_unlock(&vv->sessions_lock);
 
 end_of_event:
 		virtio_media_send_event_buffer(vv, evt);

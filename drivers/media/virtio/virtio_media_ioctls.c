@@ -7,6 +7,8 @@
  */
 
 #include <linux/mutex.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 #include <linux/videodev2.h>
 #include <linux/virtio_config.h>
 #include <linux/vmalloc.h>
@@ -350,6 +352,24 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	size_t end_ctrls_sg;
 	struct v4l2_ext_control *controls_backup = ctrls->controls;
 	const u32 num_ctrls = ctrls->count;
+	/*
+	 * Per-compound-control bookkeeping. Compound controls (size > 0) carry
+	 * their payload through a userspace pointer in ctrl->ptr (the V4L2 core
+	 * does not deep-copy it for pass-through drivers). We bounce each
+	 * payload through a kernel buffer so it can be serialised inline into
+	 * the descriptor chain, and remember the original userspace pointer so
+	 * we can (a) copy the device's result back to it and (b) restore the
+	 * ctrl->ptr field the host clobbers when it writes the array back.
+	 */
+	struct ext_ctrl_payload {
+		void __user *user_ptr;
+		void *bounce;
+		u32 size;
+		unsigned int ctrl_index;
+		size_t desc_index;
+		size_t resp_sg_index;
+	} *payloads = NULL;
+	unsigned int num_payloads = 0;
 	struct scatterlist *sgs[64];
 	struct scatterlist_builder builder = {
 		.descs = session->command_sgs.sgl,
@@ -365,37 +385,137 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.cur_sg = 0,
 	};
 	size_t resp_len = 0;
+	int ret;
 	int i;
 
+	/*
+	 * Legacy VIDIOC_G_CTRL/S_CTRL are translated by the V4L2 core
+	 * (v4l_g_ctrl()/v4l_s_ctrl()) into a single-element v4l2_ext_controls
+	 * built on the stack with only ->id and ->value initialised, leaving
+	 * ->size (and ->reserved2) holding stack garbage. These are always
+	 * USER-class simple controls that carry their value inline and never
+	 * have a payload. If we forwarded the garbage ->size, both this driver
+	 * (when adding userptrs) and the host would misinterpret it as a
+	 * compound control payload and fail the ioctl with -EINVAL (e.g.
+	 * VIDIOC_G_CTRL on V4L2_CID_MIN_BUFFERS_FOR_CAPTURE). Compound controls
+	 * are never in the USER class, so force ->size to 0 for USER-class
+	 * controls before serialising them.
+	 */
+	for (i = 0; i < num_ctrls; i++) {
+		if (V4L2_CTRL_ID2WHICH(ctrls->controls[i].id) ==
+		    V4L2_CTRL_CLASS_USER)
+			ctrls->controls[i].size = 0;
+	}
+
+	/*
+	 * Compound controls (size > 0) carry their payload behind a userspace
+	 * pointer in ctrl->ptr that the V4L2 core leaves untouched for
+	 * pass-through drivers. The host serialises ext-control payloads inline
+	 * (right after the v4l2_ext_control array), so bounce each payload
+	 * through a kernel buffer: copy IN from userspace for S/TRY, allocate a
+	 * zeroed buffer for G, and rewrite ctrl->ptr to the bounce buffer so
+	 * scatterlist_builder_add_data() serialises it inline. The original
+	 * userspace pointers are saved for copy-back and restoration below.
+	 */
+	for (i = 0; i < num_ctrls; i++) {
+		if (ctrls->controls[i].size > 0)
+			num_payloads++;
+	}
+
+	if (num_payloads > 0) {
+		unsigned int p = 0;
+
+		payloads = kcalloc(num_payloads, sizeof(*payloads), GFP_KERNEL);
+		if (!payloads)
+			return -ENOMEM;
+
+		for (i = 0; i < num_ctrls; i++) {
+			struct v4l2_ext_control *ctrl = &ctrls->controls[i];
+			void __user *uptr;
+
+			if (ctrl->size == 0)
+				continue;
+
+			uptr = ctrl->ptr;
+			payloads[p].user_ptr = uptr;
+			payloads[p].size = ctrl->size;
+			payloads[p].ctrl_index = i;
+
+			payloads[p].bounce = kzalloc(ctrl->size, GFP_KERNEL);
+			if (!payloads[p].bounce) {
+				ret = -ENOMEM;
+				goto free_payloads;
+			}
+
+			/*
+			 * S/TRY_EXT_CTRLS send data to the host; G_EXT_CTRLS
+			 * only receives it, so its bounce stays zeroed.
+			 */
+			if (ioctl != VIDIOC_G_EXT_CTRLS) {
+				if (copy_from_user(payloads[p].bounce, uptr,
+						   ctrl->size)) {
+					ret = -EFAULT;
+					goto free_payloads;
+				}
+			}
+
+			/* Point ctrl->ptr at the bounce buffer for serialisation. */
+			ctrl->ptr = payloads[p].bounce;
+			p++;
+		}
+	}
+
 	/* Command descriptor */
-	int ret = scatterlist_builder_add_ioctl_cmd(&builder, session, ioctl);
+	ret = scatterlist_builder_add_ioctl_cmd(&builder, session, ioctl);
 
 	if (ret)
-		return ret;
+		goto free_payloads;
 
-	/* v4l2_controls */
+	/* v4l2_controls (struct + v4l2_ext_control array) */
 	ret = scatterlist_builder_add_ext_ctrls(&builder, ctrls);
 	if (ret)
-		return ret;
+		goto free_payloads;
 
 	end_ctrls_sg = builder.cur_sg;
 
-	ret = scatterlist_builder_add_ext_ctrls_userptrs(&builder, ctrls);
-	if (ret)
-		return ret;
+	/*
+	 * Compound payloads, inline and in control order. Record each payload's
+	 * descriptor index so it can be echoed into the device-writable part of
+	 * the chain and retrieved afterwards.
+	 */
+	for (i = 0; i < num_payloads; i++) {
+		payloads[i].desc_index = builder.cur_desc;
+		ret = scatterlist_builder_add_data(&builder,
+						   payloads[i].bounce,
+						   payloads[i].size);
+		if (ret)
+			goto free_payloads;
+	}
 
 	num_cmd_sgs = builder.cur_sg;
 
 	/* Response descriptor */
 	ret = scatterlist_builder_add_ioctl_resp(&builder, session);
 	if (ret)
-		return ret;
+		goto free_payloads;
 
-	/* Response payload (same as input but without userptrs) */
+	/* Response payload: struct + v4l2_ext_control array (device-writable). */
 	for (i = 1; i < end_ctrls_sg; i++) {
 		ret = scatterlist_builder_add_descriptor(&builder, i);
 		if (ret < 0)
-			return ret;
+			goto free_payloads;
+	}
+
+	/*
+	 * Echo the compound payload descriptors into the device-writable part
+	 * so the host can write results (G/TRY) back into the same buffers.
+	 */
+	for (i = 0; i < num_payloads; i++) {
+		payloads[i].resp_sg_index = builder.cur_sg;
+		ret = scatterlist_builder_add_descriptor(&builder,
+							 payloads[i].desc_index);
+		if (ret < 0)
+			goto free_payloads;
 	}
 
 	ret = virtio_media_send_command(vv, builder.sgs, num_cmd_sgs,
@@ -411,8 +531,10 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		v4l2_err(&vv->v4l2_dev,
 			 "device returned a number of controls different than the one submitted\n");
 	}
-	if (ctrls->count > num_ctrls)
-		return -ENOSPC;
+	if (ctrls->count > num_ctrls) {
+		ret = -ENOSPC;
+		goto restore_ptrs;
+	}
 
 	/*
 	 * Even if we have received an error, we may need to read our payload
@@ -426,21 +548,97 @@ static int virtio_media_send_ext_controls_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		 */
 		scatterlist_builder_retrieve_ext_ctrls(&builder,
 						       num_cmd_sgs + 1, ctrls);
-		return ret;
+		goto retrieve_payloads;
 	}
+
+	if (ret < 0)
+		goto restore_ptrs;
 
 	resp_len -= sizeof(struct virtio_media_resp_ioctl);
 
 	/* Make sure that the reply's length covers our v4l2_ext_controls */
-	if (resp_len < sizeof(*ctrls))
-		return -EINVAL;
+	if (resp_len < sizeof(*ctrls)) {
+		ret = -EINVAL;
+		goto restore_ptrs;
+	}
 
 	ret = scatterlist_builder_retrieve_ext_ctrls(&builder, num_cmd_sgs + 1,
 						     ctrls);
 	if (ret)
-		return ret;
+		goto restore_ptrs;
 
-	return 0;
+retrieve_payloads:
+	/*
+	 * Copy the (possibly device-written) compound payloads back to their
+	 * original userspace buffers. This is the read-back path for
+	 * G/TRY_EXT_CTRLS compound controls (e.g. array/string controls).
+	 */
+	for (i = 0; i < num_payloads; i++) {
+		int rret = scatterlist_builder_retrieve_data(
+			&builder, payloads[i].resp_sg_index,
+			payloads[i].bounce);
+
+		if (rret == 0 && ioctl != VIDIOC_S_EXT_CTRLS) {
+			if (copy_to_user(payloads[i].user_ptr,
+					 payloads[i].bounce,
+					 payloads[i].size) && ret == 0)
+				ret = -EFAULT;
+		}
+	}
+
+restore_ptrs:
+	/*
+	 * The host writes the whole v4l2_ext_control array back, clobbering the
+	 * ctrl->ptr field of every compound control with a meaningless host
+	 * address. Restore the original userspace pointers so the V4L2 core
+	 * copies valid pointers back to userspace (otherwise v4l2-ctl would
+	 * dereference a bogus pointer and segfault).
+	 */
+	for (i = 0; i < num_payloads; i++)
+		ctrls->controls[payloads[i].ctrl_index].ptr =
+			payloads[i].user_ptr;
+
+	if (ret)
+		goto free_payloads;
+
+	/*
+	 * Trace the value the guest reads back for MIN_BUFFERS_FOR_CAPTURE.
+	 * GStreamer sizes its CAPTURE buffer pool from this control after a
+	 * source change, so recording it in the flow lets us confirm that the
+	 * value the host (wave6) reported (reorder_delay + 1) actually reached
+	 * the guest, and correlate it with how many buffers end up queued.
+	 */
+	if (ioctl == VIDIOC_G_EXT_CTRLS) {
+		for (i = 0; i < ctrls->count; i++) {
+			if (ctrls->controls[i].id ==
+			    V4L2_CID_MIN_BUFFERS_FOR_CAPTURE) {
+				virtio_media_record_flow(
+					session,
+					VIRTIO_MEDIA_FLOW_MIN_BUFFERS,
+					ctrls->controls[i].value, 0);
+				break;
+			}
+		}
+	}
+
+free_payloads:
+	/*
+	 * Restore any userspace pointers still pointing at bounce buffers (the
+	 * early error paths jump here before restore_ptrs) and free the bounce
+	 * buffers. ctrls->controls is the kernel copy the V4L2 core writes back
+	 * to userspace (INFO_FL_ALWAYS_COPY), so it must never carry a kernel
+	 * pointer out of this function.
+	 */
+	for (i = 0; i < num_payloads; i++) {
+		if (!payloads[i].bounce)
+			continue;
+		ctrls->controls[payloads[i].ctrl_index].ptr =
+			payloads[i].user_ptr;
+		kfree(payloads[i].bounce);
+	}
+	kfree(payloads);
+
+	return ret;
 }
 
 /**
@@ -980,14 +1178,16 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	 */
 	virtio_media_sync_buffer(session, b->type, b->index, DMA_TO_DEVICE);
 
+	scoped_guard(mutex, &session->queues_lock)
+		queue->queued_bufs += 1;
 	ret = virtio_media_send_buffer_ioctl(vfh, VIDIOC_QBUF, b);
 	if (ret) {
 		/* Rollback the previous flags as the buffer is not queued. */
 		buffer->buffer.flags = old_flags;
+		scoped_guard(mutex, &session->queues_lock)
+			queue->queued_bufs -= 1;
 		return ret;
 	}
-
-	queue->queued_bufs += 1;
 
 	return 0;
 }

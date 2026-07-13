@@ -520,42 +520,6 @@ int scatterlist_builder_add_ext_ctrls(struct scatterlist_builder *builder,
 }
 
 /**
- * scatterlist_builder_add_ext_ctrls_userptrs() - Add the userspace payloads of
- *                                                a &struct v4l2_ext_controls
- *                                                to the descriptor chain.
- * @builder: builder to use.
- * @ctrls: &struct v4l2_ext_controls from which we want to add the
- *         userspace payload.
- *
- * Add the userspace payloads of @ctrls to the descriptor chain. This is split
- * out of scatterlist_builder_add_ext_ctrls() because we only want to add
- * these to the device-readable part of the descriptor chain.
- */
-int
-scatterlist_builder_add_ext_ctrls_userptrs(struct scatterlist_builder *builder,
-					   struct v4l2_ext_controls *ctrls)
-{
-	int i;
-	int ret;
-
-	/* Pointers to user memory in individual controls */
-	for (i = 0; i < ctrls->count; i++) {
-		struct v4l2_ext_control *ctrl = &ctrls->controls[i];
-
-		if (ctrl->size > 0) {
-			unsigned long uptr = (unsigned long)ctrl->ptr;
-
-			ret = scatterlist_builder_add_userptr(builder, uptr,
-							      ctrl->size);
-			if (ret)
-				return ret;
-		}
-	}
-
-	return 0;
-}
-
-/**
  * scatterlist_builder_retrieve_ext_ctrls() - Retrieve controls written by the
  *                                            device on the shadow buffer,
  *                                            if needed.
