@@ -900,9 +900,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx943-evk-crrm.dtb
 imx943-evk-sdwifi-dtbs := imx943-evk.dtb imx943-evk-sdwifi.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi.dtb
 
-imx943-evk-sdwifi-a0-dtbs := imx943-evk-sdwifi.dtb imx943-evk-sdwifi-a0.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx943-evk-sdwifi-a0.dtb
-
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-root.dtb imx943-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx943-evk-netc-rpmsg.dtb
 
