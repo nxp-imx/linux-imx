@@ -1560,6 +1560,17 @@ imx952-frdm-aud-hat-dtbs := imx952-frdm.dtb \
 			    imx952-frdm-aud-hat.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-aud-hat.dtb
 
+imx952-frdm-ap1302-csi0-2lanes-dtbs := imx952-frdm.dtb imx937-frdm-ap1302-csi0-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-ap1302-csi0-2lanes.dtb
+
+imx952-frdm-ap1302-csi1-2lanes-dtbs := imx952-frdm.dtb imx937-frdm-ap1302-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-ap1302-csi1-2lanes.dtb
+
+imx952-frdm-dual-ap1302-dtbs := imx952-frdm.dtb \
+				imx937-frdm-ap1302-csi0-2lanes.dtbo \
+				imx937-frdm-ap1302-csi1-2lanes.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx952-frdm-dual-ap1302.dtb
+
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-dl.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-kontron-bl-lte.dtb
 
