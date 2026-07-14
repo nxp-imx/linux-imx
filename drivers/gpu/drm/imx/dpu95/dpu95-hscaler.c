@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/sizes.h>
 
+#include <drm/drm_atomic.h>
 #include <drm/drm_plane.h>
 
 #include "dpu95.h"
@@ -20,17 +21,15 @@
 #define SETUP2				0x10
 #define CONTROL				0x14
 
-#define DPU95_HSCALER_NO_STREAM_ID	(~0)
-
 struct dpu95_hscaler {
 	void __iomem *pec_base;
 	void __iomem *base;
 	unsigned int id;
 	unsigned int index;
-	unsigned int stream_id;
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
 	const struct dpu95_hscaler_ops *ops;
+	struct drm_private_obj *manager;
 
 	unsigned int reg_offset;
 	unsigned int reg_aux_offset;
@@ -243,61 +242,20 @@ void dpu95_hs_hw_init(struct dpu95_soc *dpu, unsigned int index)
 	dpu95_hs_pec_dynamic_src_sel(hs, DPU95_LINK_ID_NONE);
 }
 
-static bool dpu95_hs_is_enabled(struct dpu95_hscaler *hs)
+static struct drm_private_obj *dpu95_hs_get_manager(struct dpu95_hscaler *hs)
 {
-	u32 val = dpu95_hs_read(hs, CONTROL);
-
-	return !!(val & SCALER_ACTIVE);
+	return hs->manager;
 }
 
-static void
-dpu95_hs_set_stream_id(struct dpu95_hscaler *hs, unsigned int stream_id)
+static void dpu95_hs_set_manager(struct dpu95_hscaler *hs,
+				 struct drm_private_obj *manager)
 {
-	struct dpu95_soc *dpu = hs->dpu;
-
-	hs->stream_id = stream_id;
-
-	dev_dbg(dpu->dev, "HScaler%u sets stream id %u\n", hs->id, stream_id);
-}
-
-static unsigned int dpu95_hs_get_stream_id(struct dpu95_hscaler *hs)
-{
-	struct dpu95_soc *dpu = hs->dpu;
-
-	dev_dbg(dpu->dev, "HScaler%u gets stream id %u\n",
-		hs->id, hs->stream_id);
-
-	return hs->stream_id;
-}
-
-static void dpu95_hs_set_no_stream_id(struct dpu95_hscaler *hs)
-{
-	struct dpu95_soc *dpu = hs->dpu;
-
-	hs->stream_id = DPU95_HSCALER_NO_STREAM_ID;
-
-	dev_dbg(dpu->dev, "HScaler%u sets no stream id\n", hs->id);
-}
-
-static bool dpu95_hs_has_stream_id(struct dpu95_hscaler *hs)
-{
-	struct dpu95_soc *dpu = hs->dpu;
-	bool result = hs->stream_id != DPU95_HSCALER_NO_STREAM_ID;
-
-	if (result)
-		dev_dbg(dpu->dev, "HScaler%u has stream id\n", hs->id);
-	else
-		dev_dbg(dpu->dev, "HScaler%u has no stream id\n", hs->id);
-
-	return result;
+	hs->manager = manager;
 }
 
 static const struct dpu95_hscaler_ops dpu95_hs_ops = {
-	.is_enabled		= dpu95_hs_is_enabled,
-	.set_stream_id		= dpu95_hs_set_stream_id,
-	.get_stream_id		= dpu95_hs_get_stream_id,
-	.set_no_stream_id	= dpu95_hs_set_no_stream_id,
-	.has_stream_id		= dpu95_hs_has_stream_id,
+	.get_manager		= dpu95_hs_get_manager,
+	.set_manager		= dpu95_hs_set_manager,
 };
 
 const struct dpu95_hscaler_ops *dpu95_hs_get_ops(struct dpu95_hscaler *hs)
@@ -333,7 +291,6 @@ int dpu95_hs_init(struct dpu95_soc *dpu, unsigned int index,
 	hs->index = index;
 	hs->link_id = dpu95_hs_link_id[index];
 	hs->ops = &dpu95_hs_ops;
-	hs->stream_id = DPU95_HSCALER_NO_STREAM_ID;
 
 	return 0;
 }

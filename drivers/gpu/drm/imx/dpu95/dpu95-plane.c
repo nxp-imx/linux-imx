@@ -496,7 +496,6 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 
 	fu_ops = dpu95_fu_get_ops(fu);
 
-	fu_ops->set_layerblend(fu, lb);
 	fu_ops->set_numbuffers(fu, 16);
 	fu_ops->set_burstlength(fu, 16);
 	fu_ops->set_src_stride(fu, fb->pitches[0]);
@@ -543,7 +542,6 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 	/* VScaler comes first */
 	if (need_vscaler) {
 		struct dpu95_vscaler *vs = fu_ops->get_vscaler(fu);
-		const struct dpu95_vscaler_ops *vs_ops;
 
 		dpu95_vs_pec_dynamic_src_sel(vs, fu_link);
 		dpu95_vs_pec_clken(vs, CLKEN_AUTOMATIC);
@@ -554,9 +552,6 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 		dpu95_vs_scale_mode(vs, SCALER_UPSCALE);
 		dpu95_vs_mode(vs, SCALER_ACTIVE);
 
-		vs_ops = dpu95_vs_get_ops(vs);
-		vs_ops->set_stream_id(vs, dpu_crtc->stream_id);
-
 		vs_link = dpu95_vs_get_link_id(vs);
 		lb_src_link = vs_link;
 
@@ -566,7 +561,6 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 	/* and then, HScaler */
 	if (need_hscaler) {
 		struct dpu95_hscaler *hs = fu_ops->get_hscaler(fu);
-		const struct dpu95_hscaler_ops *hs_ops;
 
 		dpu95_hs_pec_dynamic_src_sel(hs, need_vscaler ? vs_link : fu_link);
 		dpu95_hs_pec_clken(hs, CLKEN_AUTOMATIC);
@@ -575,9 +569,6 @@ static void dpu95_plane_atomic_update(struct drm_plane *plane,
 		dpu95_hs_filter_mode(hs, new_state->scaling_filter);
 		dpu95_hs_scale_mode(hs, SCALER_UPSCALE);
 		dpu95_hs_mode(hs, SCALER_ACTIVE);
-
-		hs_ops = dpu95_hs_get_ops(hs);
-		hs_ops->set_stream_id(hs, dpu_crtc->stream_id);
 
 		lb_src_link = dpu95_hs_get_link_id(hs);
 

@@ -261,17 +261,14 @@ static int dpu95_crtc_atomic_check(struct drm_crtc *crtc,
 static void dpu95_crtc_atomic_begin(struct drm_crtc *crtc,
 				    struct drm_atomic_state *state)
 {
-	struct drm_crtc_state *old_crtc_state;
-	struct drm_atomic_state *old_state;
+	struct dpu95_drm_device *dpu_drm = to_dpu95_drm_device(state->dev);
+	struct drm_private_state *old_obj_state, *new_obj_state;
 	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc);
-	struct drm_plane_state *old_plane_state;
-	struct dpu95_plane_state *old_dpstate;
-	struct dpu95_fetchunit *fu;
-	const struct dpu95_fetchunit_ops *fu_ops;
+	struct drm_crtc_state *old_crtc_state;
+	struct drm_private_obj *obj;
 	int i;
 
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
-	old_state = old_crtc_state->state;
 
 	/* do nothing if planes keep being disabled */
 	if (old_crtc_state->plane_mask == 0 && crtc->state->plane_mask == 0)
@@ -281,39 +278,64 @@ static void dpu95_crtc_atomic_begin(struct drm_crtc *crtc,
 	if (old_crtc_state->plane_mask == 0 && crtc->state->plane_mask != 0)
 		dpu95_crtc_pm_runtime_resume_and_get(dpu_crtc);
 
-	/*
-	 * Disable relevant planes' resources in SHADOW only.
-	 * Whether any of them would be disabled or kept running depends
-	 * on new plane states in the new global atomic state.
-	 */
-	for_each_old_plane_state_in_state(old_state, old_plane_state, i) {
-		old_dpstate = to_dpu95_plane_state(old_plane_state);
+	for_each_oldnew_private_obj_in_state(state, obj, old_obj_state,
+					     new_obj_state, i) {
+		struct dpu95_private_state *new_private_state;
+		struct dpu95_private_state *old_private_state;
+		struct dpu95_private_obj *dpu95_obj;
 
-		if (!old_plane_state->fb)
+		if (!is_dpu95_private_obj(dpu_drm, obj))
 			continue;
 
-		if (old_plane_state->crtc != crtc)
+		new_private_state = to_dpu95_private_state(new_obj_state);
+		old_private_state = to_dpu95_private_state(old_obj_state);
+
+		if (old_private_state->crtc != crtc)
 			continue;
 
-		fu = old_dpstate->source;
+		if (!(old_private_state->crtc && !new_private_state->crtc))
+			continue;
 
-		fu_ops = dpu95_fu_get_ops(fu);
+		dpu95_obj = to_dpu95_private_obj(obj);
 
-		fu_ops->disable_src_buf(fu);
+		switch (dpu95_obj->type) {
+		case DPU95_PRIVATE_OBJ_FU: {
+			const struct dpu95_fetchunit_ops *fu_ops;
 
-		if (old_dpstate->hs) {
-			dpu95_hs_pec_clken(old_dpstate->hs, CLKEN_DISABLE);
-			dpu95_hs_mode(old_dpstate->hs, SCALER_NEUTRAL);
+			fu_ops = dpu95_fu_get_ops(dpu95_obj->res.fu);
+			fu_ops->disable_src_buf(dpu95_obj->res.fu);
+			break;
 		}
+		case DPU95_PRIVATE_OBJ_LB: {
+			struct dpu95_layerblend *lb = dpu95_obj->res.lb;
 
-		if (old_dpstate->vs) {
-			dpu95_vs_pec_clken(old_dpstate->vs, CLKEN_DISABLE);
-			dpu95_vs_mode(old_dpstate->vs, SCALER_NEUTRAL);
+			dpu95_lb_pec_dynamic_sec_sel(lb, DPU95_LINK_ID_NONE);
+			dpu95_lb_pec_dynamic_prim_sel(lb, DPU95_LINK_ID_NONE);
+			dpu95_lb_mode(lb, LB_NEUTRAL);
+			dpu95_lb_pec_clken(lb, CLKEN_DISABLE);
+			break;
 		}
+		case DPU95_PRIVATE_OBJ_HS: {
+			struct dpu95_hscaler *hs = dpu95_obj->res.hs;
 
-		if (old_dpstate->is_top)
-			dpu95_ed_pec_src_sel(dpu_crtc->ed_cont,
-					     DPU95_LINK_ID_NONE);
+			dpu95_hs_pec_clken(hs, CLKEN_DISABLE);
+			dpu95_hs_mode(hs, SCALER_NEUTRAL);
+			dpu95_hs_pec_dynamic_src_sel(hs, DPU95_LINK_ID_NONE);
+			break;
+		}
+		case DPU95_PRIVATE_OBJ_VS: {
+			struct dpu95_vscaler *vs = dpu95_obj->res.vs;
+
+			dpu95_vs_pec_clken(vs, CLKEN_DISABLE);
+			dpu95_vs_mode(vs, SCALER_NEUTRAL);
+			dpu95_vs_pec_dynamic_src_sel(vs, DPU95_LINK_ID_NONE);
+			break;
+		}
+		default:
+			drm_WARN_ONCE(crtc->dev, true,
+				      "unknown private object type%d\n",
+				      dpu95_obj->type);
+		}
 	}
 }
 
@@ -334,22 +356,11 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 {
 	bool need_modeset = drm_atomic_crtc_needs_modeset(crtc->state);
 	struct dpu95_crtc *dpu_crtc = to_dpu95_crtc(crtc);
-	const struct dpu95_fetchunit_ops *fu_ops;
-	struct drm_plane_state *old_plane_state;
-	const struct dpu95_hscaler_ops *hs_ops;
-	const struct dpu95_vscaler_ops *vs_ops;
 	struct drm_crtc_state *new_crtc_state;
 	struct drm_crtc_state *old_crtc_state;
-	struct dpu95_plane_state *old_dpstate;
-	struct drm_atomic_state *old_state;
-	struct dpu95_fetchunit *fu;
-	struct dpu95_hscaler *hs;
-	struct dpu95_vscaler *vs;
-	int i;
 
 	new_crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
-	old_state = old_crtc_state->state;
 
 	if (!need_modeset && crtc->state->active && new_crtc_state->color_mgmt_changed) {
 		dpu95_crtc_set_ctm(new_crtc_state);
@@ -365,38 +376,6 @@ static void dpu95_crtc_atomic_flush(struct drm_crtc *crtc,
 		if (!need_modeset && crtc->state->active)
 			dpu95_crtc_queue_state_event(crtc);
 		return;
-	}
-
-	/* Set no stream id for disabled fetchunits of relevant planes. */
-	for_each_old_plane_state_in_state(old_state, old_plane_state, i) {
-		old_dpstate = to_dpu95_plane_state(old_plane_state);
-
-		if (!old_plane_state->fb)
-			continue;
-
-		if (old_plane_state->crtc != crtc)
-			continue;
-
-		fu = old_dpstate->source;
-
-		fu_ops = dpu95_fu_get_ops(fu);
-
-		if (!fu_ops->is_enabled(fu))
-			fu_ops->set_no_stream_id(fu);
-
-		hs = old_dpstate->hs;
-		if (hs) {
-			hs_ops = dpu95_hs_get_ops(hs);
-			if (!hs_ops->is_enabled(hs))
-				hs_ops->set_no_stream_id(hs);
-		}
-
-		vs = old_dpstate->vs;
-		if (vs) {
-			vs_ops = dpu95_vs_get_ops(vs);
-			if (!vs_ops->is_enabled(vs))
-				vs_ops->set_no_stream_id(vs);
-		}
 	}
 
 	if (!need_modeset && crtc->state->active) {

@@ -15,6 +15,7 @@
 #include <linux/regmap.h>
 #include <linux/types.h>
 
+#include <drm/drm_atomic.h>
 #include <drm/drm_color_mgmt.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modes.h>
@@ -511,11 +512,8 @@ int dpu95_fy_init(struct dpu95_soc *dpu, unsigned int index,
 struct dpu95_hscaler;
 
 struct dpu95_hscaler_ops {
-	bool (*is_enabled)(struct dpu95_hscaler *hs);
-	void (*set_stream_id)(struct dpu95_hscaler *hs, unsigned int stream_id);
-	unsigned int (*get_stream_id)(struct dpu95_hscaler *hs);
-	void (*set_no_stream_id)(struct dpu95_hscaler *hs);
-	bool (*has_stream_id)(struct dpu95_hscaler *hs);
+	struct drm_private_obj *(*get_manager)(struct dpu95_hscaler *hs);
+	void (*set_manager)(struct dpu95_hscaler *hs, struct drm_private_obj *manager);
 };
 
 const struct dpu95_hscaler_ops *dpu95_hs_get_ops(struct dpu95_hscaler *hs);
@@ -542,6 +540,16 @@ int dpu95_hs_init(struct dpu95_soc *dpu, unsigned int index,
 
 /* Layer Blend Unit */
 struct dpu95_layerblend;
+
+struct dpu95_layerblend_ops {
+	struct drm_private_obj *(*get_manager)(struct dpu95_layerblend *lb);
+	void (*set_manager)(struct dpu95_layerblend *lb, struct drm_private_obj *manager);
+};
+
+const struct dpu95_layerblend_ops *dpu95_lb_get_ops(struct dpu95_layerblend *lb);
+struct dpu95_layerblend *dpu95_lb_get_from_list(struct list_head *l);
+void dpu95_lb_add_to_list(struct dpu95_layerblend *lb, struct list_head *l);
+
 enum dpu95_link_id dpu95_lb_get_link_id(struct dpu95_layerblend *lb);
 void dpu95_lb_pec_dynamic_prim_sel(struct dpu95_layerblend *lb,
 				   enum dpu95_link_id prim);
@@ -576,11 +584,8 @@ int dpu95_ld_disable(struct dpu95_localdimming *ld);
 struct dpu95_vscaler;
 
 struct dpu95_vscaler_ops {
-	bool (*is_enabled)(struct dpu95_vscaler *vs);
-	void (*set_stream_id)(struct dpu95_vscaler *hs, unsigned int stream_id);
-	unsigned int (*get_stream_id)(struct dpu95_vscaler *hs);
-	void (*set_no_stream_id)(struct dpu95_vscaler *hs);
-	bool (*has_stream_id)(struct dpu95_vscaler *hs);
+	struct drm_private_obj *(*get_manager)(struct dpu95_vscaler *vs);
+	void (*set_manager)(struct dpu95_vscaler *vs, struct drm_private_obj *manager);
 };
 
 const struct dpu95_vscaler_ops *dpu95_vs_get_ops(struct dpu95_vscaler *vs);
@@ -610,15 +615,7 @@ struct dpu95_fetchunit_ops {
 	void (*set_pec_dynamic_src_sel)(struct dpu95_fetchunit *fu,
 					enum dpu95_link_id src);
 
-	bool (*is_enabled)(struct dpu95_fetchunit *fu);
-
 	void (*set_stream_id)(struct dpu95_fetchunit *fu, unsigned int stream_id);
-
-	unsigned int (*get_stream_id)(struct dpu95_fetchunit *fu);
-
-	void (*set_no_stream_id)(struct dpu95_fetchunit *fu);
-
-	bool (*has_stream_id)(struct dpu95_fetchunit *fu);
 
 	void (*set_numbuffers)(struct dpu95_fetchunit *fu, unsigned int num);
 
@@ -652,18 +649,14 @@ struct dpu95_fetchunit_ops {
 	struct dpu95_hscaler *(*get_hscaler)(struct dpu95_fetchunit *fu);
 	struct dpu95_vscaler *(*get_vscaler)(struct dpu95_fetchunit *fu);
 
-	void (*set_layerblend)(struct dpu95_fetchunit *fu,
-			       struct dpu95_layerblend *lb);
-
-	bool (*is_available)(struct dpu95_fetchunit *fu);
-	void (*set_available)(struct dpu95_fetchunit *fu);
-	void (*set_inavailable)(struct dpu95_fetchunit *fu);
-
 	enum dpu95_link_id (*get_link_id)(struct dpu95_fetchunit *fu);
 
 	u32 (*get_cap_mask)(struct dpu95_fetchunit *fu);
 
 	const char *(*get_name)(struct dpu95_fetchunit *fu);
+
+	struct drm_private_obj *(*get_manager)(struct dpu95_fetchunit *fu);
+	void (*set_manager)(struct dpu95_fetchunit *fu, struct drm_private_obj *manager);
 };
 
 const struct dpu95_fetchunit_ops *dpu95_fu_get_ops(struct dpu95_fetchunit *fu);
@@ -686,12 +679,11 @@ struct dpu95_plane_res {
 struct dpu95_plane_grp {
 	struct dpu95_plane_res	res;
 	struct list_head	fu_list;
+	struct list_head	lb_list;
 	struct dpu95_constframe	*cf[2];
 	struct dpu95_extdst	*ed[2];
 	struct dpu95_hscaler	*hs;
 	struct dpu95_vscaler	*vs;
-	bool			hs_used;
-	bool			vs_used;
 };
 
 #endif /* __DRM_DPU95_H__ */

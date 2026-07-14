@@ -119,13 +119,6 @@ void dpu95_fu_get_pixel_format_shifts(struct dpu95_fetchunit *fu,
 		 fu->name, format);
 }
 
-static bool dpu95_fu_is_enabled(struct dpu95_fetchunit *fu)
-{
-	u32 val = dpu95_fu_read(fu, LAYERPROPERTY(fu));
-
-	return !!(val & SOURCEBUFFERENABLE);
-}
-
 static void dpu95_fu_enable_shden(struct dpu95_fetchunit *fu)
 {
 	dpu95_fu_write_mask(fu, STATICCONTROL, SHDEN, SHDEN);
@@ -255,11 +248,6 @@ static void dpu95_fu_disable_src_buf(struct dpu95_fetchunit *fu)
 	if (fu->fe)
 		fu->fe->ops.disable_src_buf(fu->fe);
 
-	if (fu->lb) {
-		dpu95_lb_pec_clken(fu->lb, CLKEN_DISABLE);
-		dpu95_lb_mode(fu->lb, LB_NEUTRAL);
-	}
-
 	dev_dbg(dpu->dev, "%s disables source buffer in shadow\n", fu->name);
 }
 
@@ -279,27 +267,6 @@ static struct dpu95_vscaler *dpu95_fu_get_vscaler(struct dpu95_fetchunit *fu)
 }
 
 static void
-dpu95_fu_set_layerblend(struct dpu95_fetchunit *fu, struct dpu95_layerblend *lb)
-{
-	fu->lb = lb;
-}
-
-static bool dpu95_fu_is_available(struct dpu95_fetchunit *fu)
-{
-	return fu->is_available;
-}
-
-static void dpu95_fu_set_available(struct dpu95_fetchunit *fu)
-{
-	fu->is_available = true;
-}
-
-static void dpu95_fu_set_inavailable(struct dpu95_fetchunit *fu)
-{
-	fu->is_available = false;
-}
-
-static void
 dpu95_fu_set_stream_id(struct dpu95_fetchunit *fu, unsigned int stream_id)
 {
 	struct dpu95_soc *dpu = fu->dpu;
@@ -312,40 +279,7 @@ dpu95_fu_set_stream_id(struct dpu95_fetchunit *fu, unsigned int stream_id)
 		dev_err(dpu->dev, "%s failed to set association bit: %d\n",
 			fu->name, ret);
 
-	fu->stream_id = stream_id;
-
 	dev_dbg(dpu->dev, "%s sets stream id %u\n", fu->name, stream_id);
-}
-
-static unsigned int dpu95_fu_get_stream_id(struct dpu95_fetchunit *fu)
-{
-	struct dpu95_soc *dpu = fu->dpu;
-
-	dev_dbg(dpu->dev, "%s gets stream id %u\n", fu->name, fu->stream_id);
-
-	return fu->stream_id;
-}
-
-static void dpu95_fu_set_no_stream_id(struct dpu95_fetchunit *fu)
-{
-	struct dpu95_soc *dpu = fu->dpu;
-
-	fu->stream_id = DPU95_FETCHUNIT_NO_STREAM_ID;
-
-	dev_dbg(dpu->dev, "%s sets no stream id\n", fu->name);
-}
-
-static bool dpu95_fu_has_stream_id(struct dpu95_fetchunit *fu)
-{
-	struct dpu95_soc *dpu = fu->dpu;
-	bool result = fu->stream_id != DPU95_FETCHUNIT_NO_STREAM_ID;
-
-	if (result)
-		dev_dbg(dpu->dev, "%s has stream id\n", fu->name);
-	else
-		dev_dbg(dpu->dev, "%s has no stream id\n", fu->name);
-
-	return result;
 }
 
 static enum dpu95_link_id dpu95_fu_get_link_id(struct dpu95_fetchunit *fu)
@@ -363,8 +297,18 @@ static const char *dpu95_fu_get_name(struct dpu95_fetchunit *fu)
 	return fu->name;
 }
 
+static struct drm_private_obj *dpu95_fu_get_manager(struct dpu95_fetchunit *fu)
+{
+	return fu->manager;
+}
+
+static void dpu95_fu_set_manager(struct dpu95_fetchunit *fu,
+				 struct drm_private_obj *manager)
+{
+	fu->manager = manager;
+}
+
 const struct dpu95_fetchunit_ops dpu95_fu_common_ops = {
-	.is_enabled		= dpu95_fu_is_enabled,
 	.set_numbuffers		= dpu95_fu_set_numbuffers,
 	.set_burstlength	= dpu95_fu_set_burstlength,
 	.set_baseaddress	= dpu95_fu_set_baseaddress,
@@ -375,17 +319,12 @@ const struct dpu95_fetchunit_ops dpu95_fu_common_ops = {
 	.get_fetcheco		= dpu95_fu_get_fetcheco,
 	.get_hscaler		= dpu95_fu_get_hscaler,
 	.get_vscaler		= dpu95_fu_get_vscaler,
-	.set_layerblend		= dpu95_fu_set_layerblend,
-	.is_available		= dpu95_fu_is_available,
-	.set_available		= dpu95_fu_set_available,
-	.set_inavailable	= dpu95_fu_set_inavailable,
 	.set_stream_id		= dpu95_fu_set_stream_id,
-	.get_stream_id		= dpu95_fu_get_stream_id,
-	.set_no_stream_id	= dpu95_fu_set_no_stream_id,
-	.has_stream_id		= dpu95_fu_has_stream_id,
 	.get_link_id		= dpu95_fu_get_link_id,
 	.get_cap_mask		= dpu95_fu_get_cap_mask,
 	.get_name		= dpu95_fu_get_name,
+	.get_manager		= dpu95_fu_get_manager,
+	.set_manager		= dpu95_fu_set_manager,
 };
 
 const struct dpu95_fetchunit_ops *dpu95_fu_get_ops(struct dpu95_fetchunit *fu)
@@ -416,5 +355,4 @@ void dpu95_fu_common_hw_init(struct dpu95_fetchunit *fu)
 	dpu95_fu_combinertimeout_disable(fu);
 	dpu95_fu_combinerlineflush_disable(fu);
 	dpu95_fu_disable_src_buf(fu);
-	dpu95_fu_set_no_stream_id(fu);
 }

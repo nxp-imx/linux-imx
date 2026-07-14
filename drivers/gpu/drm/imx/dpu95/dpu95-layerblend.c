@@ -9,6 +9,7 @@
 #include <linux/kernel.h>
 #include <linux/sizes.h>
 
+#include <drm/drm_atomic.h>
 #include <drm/drm_blend.h>
 
 #include "dpu95.h"
@@ -54,10 +55,13 @@ enum dpu95_lb_shadow_sel {
 struct dpu95_layerblend {
 	void __iomem *pec_base;
 	void __iomem *base;
+	struct list_head node;
 	unsigned int id;
 	unsigned int index;
 	enum dpu95_link_id link_id;
 	struct dpu95_soc *dpu;
+	const struct dpu95_layerblend_ops *ops;
+	struct drm_private_obj *manager;
 
 	unsigned int reg_offset;
 	unsigned int reg_aux_offset;
@@ -305,6 +309,37 @@ void dpu95_lb_hw_init(struct dpu95_soc *dpu, unsigned int index)
 	dpu95_lb_enable_shden(lb);
 }
 
+static struct drm_private_obj *dpu95_lb_get_manager(struct dpu95_layerblend *lb)
+{
+	return lb->manager;
+}
+
+static void dpu95_lb_set_manager(struct dpu95_layerblend *lb,
+				 struct drm_private_obj *manager)
+{
+	lb->manager = manager;
+}
+
+static const struct dpu95_layerblend_ops dpu95_lb_ops = {
+	.get_manager = dpu95_lb_get_manager,
+	.set_manager = dpu95_lb_set_manager,
+};
+
+const struct dpu95_layerblend_ops *dpu95_lb_get_ops(struct dpu95_layerblend *lb)
+{
+	return lb->ops;
+}
+
+struct dpu95_layerblend *dpu95_lb_get_from_list(struct list_head *l)
+{
+	return container_of(l, struct dpu95_layerblend, node);
+}
+
+void dpu95_lb_add_to_list(struct dpu95_layerblend *lb, struct list_head *l)
+{
+	list_add(&lb->node, l);
+}
+
 int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
 		  unsigned long pec_base, unsigned long base,
@@ -332,6 +367,7 @@ int dpu95_lb_init(struct dpu95_soc *dpu, unsigned int index,
 	lb->id = id;
 	lb->index = index;
 	lb->link_id = dpu95_lb_link_id[index];
+	lb->ops = &dpu95_lb_ops;
 
 	return 0;
 }

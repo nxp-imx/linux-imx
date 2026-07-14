@@ -686,6 +686,7 @@ static int dpu95_get_plane_grp_res(struct dpu95_soc *dpu,
 		return ret;
 
 	INIT_LIST_HEAD(&grp->fu_list);
+	INIT_LIST_HEAD(&grp->lb_list);
 
 	for (i = 0; i < dpu->data->units_cnt; i++) {
 		us = dpu->data->units[i];
@@ -738,6 +739,9 @@ static int dpu95_get_plane_grp_res(struct dpu95_soc *dpu,
 
 	for (i = us->cnt - 1; i >= 0; i--)
 		dpu95_fu_add_to_list(res->fl[i], &grp->fu_list);
+
+	for (i = 0; i < res->lb_cnt; i++)
+		dpu95_lb_add_to_list(res->lb[i], &grp->lb_list);
 
 	return 0;
 }

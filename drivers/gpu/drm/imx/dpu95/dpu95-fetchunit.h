@@ -9,6 +9,8 @@
 
 #include <linux/io.h>
 
+#include <drm/drm_atomic.h>
+
 #include "dpu95.h"
 
 #define REG_OFFSET1			((fu)->reg_offset1)
@@ -229,18 +231,16 @@ struct dpu95_fetchunit {
 	unsigned int id;
 	unsigned int index;
 	unsigned int sub_id;	/* for fractional fetch units */
-	unsigned int stream_id;
 	unsigned int association_bit;
 	enum dpu95_unit_type type;
 	enum dpu95_link_id link_id;
 	u32 cap_mask;
-	bool is_available;
 	struct dpu95_soc *dpu;
 	struct dpu95_fetchunit_ops ops;
 	struct dpu95_fetchunit *fe;
 	struct dpu95_hscaler *hs;
 	struct dpu95_vscaler *vs;
-	struct dpu95_layerblend *lb;
+	struct drm_private_obj *manager;
 	u32 reg_offset1;
 	u32 reg_offset2;
 	u32 reg_burstbuffermanagement;
