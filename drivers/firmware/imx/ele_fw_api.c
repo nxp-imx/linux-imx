@@ -124,7 +124,7 @@ int ele_get_random(struct se_if_priv *priv,
 	 * then reseed rng context.
 	 */
 	if (get_se_soc_id(priv) != SOC_ID_OF_IMX95 &&
-	    get_se_soc_id(priv) != SOC_ID_OF_IMX94)
+	    (get_se_soc_id(priv) & SOC_ID_MASK_IMX94) != SOC_ID_OF_IMX94)
 		rng_msg_data->flags = BIT(1);
 
 	rng_msg_data->data[0] = dst_dma;

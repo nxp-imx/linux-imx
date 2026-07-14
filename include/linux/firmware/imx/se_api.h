@@ -14,10 +14,16 @@
 #define SOC_ID_OF_IMX8QXP		0x2
 #define SOC_ID_OF_IMX93			0x9300
 #define SOC_ID_OF_IMX91			0x9100
-#define SOC_ID_OF_IMX94			0x9430
+#define SOC_ID_OF_IMX941		0x9410
+#define SOC_ID_OF_IMX942		0x9420
+#define SOC_ID_OF_IMX943		0x9430
 #define SOC_ID_OF_IMX95			0x9500
 #define SOC_ID_OF_IMX937		0x9370
 #define SOC_ID_OF_IMX952		0x9520
+
+/* To check if the SoC belongs to i.MX 94 family */
+#define SOC_ID_OF_IMX94			0x9400
+#define SOC_ID_MASK_IMX94		0xFF00
 
 #define OTP_UNIQ_ID			0x01
 #define OTFAD_CONFIG			0x2

@@ -42,6 +42,7 @@
 #define MBOX_RXDB_NAME			"rxdb"
 
 #define SOC_ID_MASK_IMX937		0xFFF0
+#define SOC_ID_MASK_IMX94X		0xFFF0
 #define SOC_ID_MASK_IMX952		0xFFF0
 #define SOC_ID_MASK_IMX95		0xFF00
 #define SE_RCV_MSG_DEFAULT_TIMEOUT	5000
@@ -773,7 +774,7 @@ static bool runtime_fw_status(struct se_if_priv *priv)
 	bool fw_prsnt_n_running = false;
 
 	if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
-	    get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+	    (get_se_soc_id(priv) & SOC_ID_MASK_IMX94) == SOC_ID_OF_IMX94 ||
 	    get_se_soc_id(priv) == SOC_ID_OF_IMX937 ||
 	    get_se_soc_id(priv) == SOC_ID_OF_IMX952)
 		fw_prsnt_n_running =
@@ -820,6 +821,9 @@ void *imx_get_se_data_info(uint32_t soc_id, u32 idx)
 	const struct se_if_node_info_list *info_list;
 	struct se_if_priv *priv;
 
+	if ((soc_id & SOC_ID_MASK_IMX94) == SOC_ID_OF_IMX94)
+		soc_id = SOC_ID_OF_IMX94;
+
 	switch (soc_id) {
 	case SOC_ID_OF_IMX8ULP:
 		info_list = &imx8ulp_info; break;
@@ -865,13 +869,18 @@ static struct se_fw_load_info *get_load_fw_instance(struct se_if_priv *priv)
 
 static char *get_soc_id_str(struct se_if_priv *priv)
 {
-	switch (get_se_soc_id(priv)) {
+	u32 soc_id = get_se_soc_id(priv);
+
+	if ((soc_id & SOC_ID_MASK_IMX94) == SOC_ID_OF_IMX94)
+		soc_id = SOC_ID_OF_IMX94;
+
+	switch (soc_id) {
 	case SOC_ID_OF_IMX8ULP:
 		return "mx8ulp";
 	case SOC_ID_OF_IMX95:
 		return "mx95";
 	case SOC_ID_OF_IMX94:
-		return "mx943";
+		return "mx94";
 	case SOC_ID_OF_IMX937:
 		return "mx937";
 	case SOC_ID_OF_IMX952:
@@ -895,7 +904,7 @@ static void get_fw_nm_in_rfs(struct se_if_priv *priv)
 		var_se_info.load_fw.se_fw_img_nm.prim_fw.is_fw_name_valid = true;
 		var_se_info.load_fw.se_fw_img_nm.secn_fw.is_fw_name_valid = true;
 	} else if (get_se_soc_id(priv) == SOC_ID_OF_IMX95 ||
-		   get_se_soc_id(priv) == SOC_ID_OF_IMX94 ||
+		   (get_se_soc_id(priv) & SOC_ID_MASK_IMX94) == SOC_ID_OF_IMX94 ||
 		   get_se_soc_id(priv) == SOC_ID_OF_IMX937 ||
 		   get_se_soc_id(priv) == SOC_ID_OF_IMX952) {
 		sprintf(var_se_info.load_fw.se_fw_img_nm.secn_fw.fw_name,
@@ -920,6 +929,17 @@ static u32 get_normalized_soc_id(u32 info_list_soc_id, u32 get_info_soc_id)
 
 		if ((get_info_soc_id & SOC_ID_MASK_IMX952) == SOC_ID_OF_IMX952)
 			return SOC_ID_OF_IMX952;
+	}
+
+	if (info_list_soc_id == SOC_ID_OF_IMX94) {
+		if ((get_info_soc_id & SOC_ID_MASK_IMX94X) == SOC_ID_OF_IMX941)
+			return SOC_ID_OF_IMX941;
+
+		if ((get_info_soc_id & SOC_ID_MASK_IMX94X) == SOC_ID_OF_IMX942)
+			return SOC_ID_OF_IMX942;
+
+		if ((get_info_soc_id & SOC_ID_MASK_IMX94X) == SOC_ID_OF_IMX943)
+			return SOC_ID_OF_IMX943;
 	}
 
 	return info_list_soc_id;  /* Default to list value */
