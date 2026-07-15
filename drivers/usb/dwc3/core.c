@@ -1372,7 +1372,7 @@ static void dwc3_set_cache_type(struct dwc3 *dwc)
 		device_get_match_data(dwc->dev);
 
 	if (cache_type) {
-		reg = dwc3_readl(dwc->regs,  DWC3_GSBUSCFG0);
+		reg = dwc3_readl(dwc,  DWC3_GSBUSCFG0);
 		tmp = reg;
 
 		reg &= ~DWC3_GSBUSCFG0_DATARD(~0);
