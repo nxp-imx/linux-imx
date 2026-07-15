@@ -58,6 +58,7 @@ int wave6_vpu_dec_open(struct vpu_instance *inst, struct dec_open_param *pop)
 
 free_codec_info:
 	kfree(inst->codec_info);
+	inst->codec_info = NULL;
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
@@ -89,6 +90,7 @@ int wave6_vpu_dec_close(struct vpu_instance *inst, u32 *fail_res)
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	kfree(inst->codec_info);
+	inst->codec_info = NULL;
 
 	return 0;
 }
@@ -518,6 +520,7 @@ int wave6_vpu_enc_open(struct vpu_instance *inst, struct enc_open_param *pop)
 
 free_codec_info:
 	kfree(inst->codec_info);
+	inst->codec_info = NULL;
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	return ret;
@@ -549,6 +552,7 @@ int wave6_vpu_enc_close(struct vpu_instance *inst, u32 *fail_res)
 	mutex_unlock(&vpu_dev->hw_lock);
 
 	kfree(inst->codec_info);
+	inst->codec_info = NULL;
 
 	return 0;
 }

@@ -370,6 +370,18 @@ static void wave6_get_dec_seq_result(struct vpu_instance *inst, struct dec_initi
 	info->min_frame_buffer_count = vpu_read_reg(inst->dev, W6_RET_DEC_NUM_REQUIRED_FBC_FB);
 	info->frame_buf_delay = vpu_read_reg(inst->dev, W6_RET_DEC_NUM_REORDER_DELAY);
 	info->req_mv_buffer_count = vpu_read_reg(inst->dev, W6_RET_DEC_NUM_REQUIRED_COL_BUF);
+	if (info->min_frame_buffer_count > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"min_frame_buffer_count %u exceeds max %u, clamp to max\n",
+			info->min_frame_buffer_count, WAVE6_MAX_FBS);
+		info->min_frame_buffer_count = WAVE6_MAX_FBS;
+	}
+	if (info->req_mv_buffer_count > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"req_mv_buffer_count %u exceeds max %u, clamp to max\n",
+			info->req_mv_buffer_count, WAVE6_MAX_FBS);
+		info->req_mv_buffer_count = WAVE6_MAX_FBS;
+	}
 
 	reg_val = vpu_read_reg(inst->dev, W6_RET_DEC_CROP_LEFT_RIGHT);
 	left = (reg_val >> 16) & 0xffff;
@@ -1546,6 +1558,18 @@ int wave6_vpu_enc_get_seq_info(struct vpu_instance *inst, struct enc_initial_inf
 	info->min_src_frame_count = vpu_read_reg(inst->dev, W6_RET_ENC_MIN_SRC_BUF_NUM);
 	info->max_latency_pictures = vpu_read_reg(inst->dev, W6_RET_ENC_PIC_MAX_LATENCY_PICTURES);
 	info->req_mv_buffer_count = vpu_read_reg(inst->dev, W6_RET_ENC_NUM_REQUIRED_COL_BUF);
+	if (info->min_frame_buffer_count > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"min_frame_buffer_count %u exceeds max %u, clamp to max\n",
+			info->min_frame_buffer_count, WAVE6_MAX_FBS);
+		info->min_frame_buffer_count = WAVE6_MAX_FBS;
+	}
+	if (info->req_mv_buffer_count > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"req_mv_buffer_count %u exceeds max %u, clamp to max\n",
+			info->req_mv_buffer_count, WAVE6_MAX_FBS);
+		info->req_mv_buffer_count = WAVE6_MAX_FBS;
+	}
 
 	return ret;
 }

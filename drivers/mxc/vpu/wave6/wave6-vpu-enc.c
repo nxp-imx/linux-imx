@@ -731,6 +731,13 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 	size_info.height = inst->codec_rect.height;
 	size_info.type = type;
 
+	if (num > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"%s: buffer num %d exceeds max %u (type %d)\n",
+			__func__, num, WAVE6_MAX_FBS, type);
+		return -EINVAL;
+	}
+
 	ret = wave6_vpu_enc_get_aux_buffer_size(inst, size_info, &size);
 	if (ret) {
 		dev_err(inst->dev->dev, "%s: Get size fail (type %d)\n", __func__, type);
@@ -2237,6 +2244,13 @@ static int wave6_vpu_enc_prepare_fb(struct vpu_instance *inst)
 
 	fb_num = p_enc_info->initial_info.min_frame_buffer_count;
 	mv_num = p_enc_info->initial_info.req_mv_buffer_count;
+
+	if (fb_num > WAVE6_MAX_FBS || mv_num > WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"fb_num %u / mv_num %u exceeds max %u\n",
+			fb_num, mv_num, WAVE6_MAX_FBS);
+		return -EINVAL;
+	}
 
 	fb_stride = ALIGN(inst->codec_rect.width, W6_FBC_BUF_ALIGNMENT);
 	fb_height = ALIGN(inst->codec_rect.height, W6_FBC_BUF_ALIGNMENT);

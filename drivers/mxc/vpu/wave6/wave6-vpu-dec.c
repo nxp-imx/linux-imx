@@ -168,6 +168,8 @@ static void wave6_vpu_dec_destroy_instance(struct vpu_instance *inst)
 	dprintk(inst->dev->dev, "[%d] destroy instance\n", inst->id);
 	wave6_vpu_remove_dbgfs_file(inst);
 
+	cancel_work_sync(&inst->fb_work);
+
 	ret = wave6_vpu_dec_close(inst, &fail_res);
 	if (ret) {
 		dev_err(inst->dev->dev, "failed destroy instance: %d (%d)\n",
@@ -177,7 +179,6 @@ static void wave6_vpu_dec_destroy_instance(struct vpu_instance *inst)
 	spin_lock(&inst->dev->inst_lock);
 	list_del_init(&inst->list);
 	spin_unlock(&inst->dev->inst_lock);
-	cancel_work_sync(&inst->fb_work);
 	wave6_vpu_dec_release_fb(inst);
 	wave6_vpu_set_instance_state(inst, VPU_INST_STATE_NONE);
 
@@ -345,17 +346,30 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 
 static bool wave6_allocate_internal_buffer(struct vpu_instance *inst)
 {
-	struct dec_info *p_dec_info = &inst->codec_info->dec_info;
-	unsigned int fb_num = p_dec_info->initial_info.min_frame_buffer_count;
+	struct dec_info *p_dec_info;
+	unsigned int fb_num;
 	int ret = 0;
 	int idx;
 
 	guard(mutex)(&inst->fbc_lock);
 
+	if (!inst->codec_info)
+		return false;
+
+	p_dec_info = &inst->codec_info->dec_info;
+	fb_num = p_dec_info->initial_info.min_frame_buffer_count;
+
 	if (inst->allocated_fb_num >= fb_num)
 		return false;
 
 	idx = inst->allocated_fb_num;
+
+	if (idx >= WAVE6_MAX_FBS) {
+		dev_err(inst->dev->dev,
+			"fb index %d reaches max %u, stop allocating\n",
+			idx, WAVE6_MAX_FBS);
+		return false;
+	}
 
 	ret = wave6_allocate_fbc_buffer(inst, idx);
 	if (ret)
