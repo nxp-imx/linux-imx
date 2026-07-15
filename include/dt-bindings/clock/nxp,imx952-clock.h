@@ -20,4 +20,6 @@
 
 #define IMX952_CLK_CM0P_GATE_SEL		0
 
+#define IMX952_CLK_SS_RW_REG_0			0
+
 #endif	/* __DT_BINDINGS_CLOCK_IMX952_H */

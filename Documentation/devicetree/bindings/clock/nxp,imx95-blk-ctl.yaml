@@ -26,6 +26,7 @@ properties:
               - nxp,imx952-display-cm0p-csr
               - nxp,imx952-display-csr
               - nxp,imx952-display-dsi-csr
+              - nxp,imx952-hsio-combo-phy-blk-ctrl
           - const: syscon
       - items:
           - const: nxp,imx952-lvds-csr
