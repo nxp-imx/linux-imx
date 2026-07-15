@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx937-frdm.dts"
+#include <dt-bindings/clock/nxp,imx952-clock.h>
+
+/delete-node/ &ethphy1;
+
+/ {
+	soc {
+		hsio_phy_blk_ctrl: syscon@4c340000 {
+			compatible = "nxp,imx952-hsio-combo-phy-blk-ctrl", "syscon";
+			reg = <0x0 0x4c340000 0x0 0x100>;
+			#clock-cells = <1>;
+			power-domains = <&scmi_devpd IMX952_PD_HSIO_TOP>;
+			clocks = <&scmi_clk IMX952_CLK_CGC_HSIOPCIE>,
+				 <&hsio_phy_blk_ctrl IMX952_CLK_SS_RW_REG_0>;
+			assigned-clocks =<&scmi_clk IMX952_CLK_HSIOPLL_VCO>,
+					 <&scmi_clk IMX952_CLK_HSIOPLL>;
+			assigned-clock-rates = <3750000000>, <125000000>;
+			status = "okay";
+		};
+	};
+};
+
+&netc_blk_ctrl {
+	assigned-clocks = <&scmi_clk IMX952_CLK_ENET>,
+			  <&scmi_clk IMX952_CLK_ENETREF>,
+			  <&hsio_phy_blk_ctrl IMX952_CLK_SS_RW_REG_0>;
+	assigned-clock-parents = <&scmi_clk IMX952_CLK_SYSPLL1_PFD1>,
+				 <&scmi_clk IMX952_CLK_SYSPLL1_PFD0>,
+				 <&scmi_clk IMX952_CLK_HSIOPLL>;
+	assigned-clock-rates = <266666666>, <250000000>, <0>;
+};
+
+&netc_bus1 {
+	power-domains = <&scmi_devpd IMX952_PD_HSIO_TOP>;
+	status = "okay";
+};
+
+&netc_emdio {
+	phy-supply = <&reg_m2_pwr>;
+
+	ethphy1: ethernet-phy@f {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0xf>;
+	};
+};
+
+&netc_enetc1 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	clocks = <&scmi_clk IMX952_CLK_HSIOPLL>;
+	clock-names = "ref";
+	nxp,sgmii-internal-ref-clk;
+	phy-handle = <&ethphy1>;
+	phy-mode = "sgmii";
+	managed = "in-band-status";
+	status = "okay";
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+&pcie0_ep {
+	status = "disabled";
+};
