@@ -114,6 +114,7 @@ struct dw_xpcs {
 	struct phylink_pcs pcs;
 	phy_interface_t interface;
 	bool need_reset;
+	bool sgmii_internal_ref_clk;
 	u8 eee_mult_fact;
 	u8 portid;
 };

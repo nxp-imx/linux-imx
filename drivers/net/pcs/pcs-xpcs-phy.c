@@ -267,6 +267,7 @@
 #define MII_STS						0x2
 #define MII_STS_LINK_STS			BIT(2)
 #define MII_DIG_CTRL1					0x10000
+#define MII_DIG_CTRL1_BYP_PWRUP			BIT(1)
 #define MII_DIG_CTRL1_EN_2_5G_MODE		BIT(2)
 #define MII_DIG_CTRL1_CL37_TMR_OVR_RIDE		BIT(3)
 #define MII_DIG_CTRL1_VR_RST			BIT(15)
@@ -1395,12 +1396,27 @@ static int imx952_xpcs_phy_mpll_sel(struct dw_xpcs *xpcs)
 			GLOBAL_CTRL_EX_4_PHY_PMA_PWR_STABLE,
 			GLOBAL_CTRL_EX_4_PHY_PMA_PWR_STABLE);
 
+	if (xpcs->sgmii_internal_ref_clk) {
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_DIG_CTRL1,
+				MII_DIG_CTRL1_BYP_PWRUP,
+				MII_DIG_CTRL1_BYP_PWRUP);
+
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2,
+				PMA_MP_12G_16G_25G_REF_CLK_CTRL,
+				PMA_REF_CLK_CTRL_REF_USE_PAD, 0);
+	}
+
 	/* MPLLA - SGMII 1G; MPLLB - SGMII 2.5G */
 	val = xpcs_phy_read(xpcs, XPCS_PHY_GLOBAL,
 			    XPCS_PHY_REG(GLOBAL_CTRL_EX_0));
 	val &= ~GLOBAL_CTRL_EX_0_MPLLB_SEL;
 	xpcs_phy_write(xpcs, XPCS_PHY_GLOBAL, XPCS_PHY_REG(GLOBAL_CTRL_EX_0),
 		       val);
+
+	if (xpcs->sgmii_internal_ref_clk) {
+		xpcs_phy_modify(xpcs, XPCS_DEV, MDIO_MMD_VEND2, MII_DIG_CTRL1,
+				MII_DIG_CTRL1_BYP_PWRUP, 0);
+	}
 
 	mdelay(1);
 

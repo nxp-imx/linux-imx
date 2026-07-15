@@ -1790,6 +1790,11 @@ struct phylink_pcs *xpcs_create_mdiodev_with_phy(struct mii_bus *bus,
 	}
 	xpcs->portid = portid;
 
+	if (bus->parent)
+		xpcs->sgmii_internal_ref_clk =
+			device_property_read_bool(bus->parent,
+						  "nxp,sgmii-internal-ref-clk");
+
 	/* xpcs_create() has taken a refcount on the mdiodev if it was
 	 * successful. If xpcs_create() fails, this will free the mdio
 	 * device here. In any case, we don't need to hold our reference
