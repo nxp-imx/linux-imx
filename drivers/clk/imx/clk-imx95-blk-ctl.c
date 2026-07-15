@@ -371,6 +371,24 @@ static const struct imx95_blk_ctl_dev_data imx952_cm0p_csr_dev_data = {
 	.clk_dev_data = imx952_cm0p_clk_dev_data,
 };
 
+static const struct imx95_blk_ctl_clk_dev_data imx952_hsio_phy_clk_dev_data[] = {
+	[IMX952_CLK_SS_RW_REG_0] = {
+		.name = "ref_clk_sel",
+		.parent_names = (const char *[]){ "ext_phy_ref", "hsiopll", },
+		.num_parents = 2,
+		.reg = 0xf0,
+		.bit_idx = 23,
+		.bit_width = 1,
+		.type = CLK_MUX,
+		.flags = CLK_SET_RATE_NO_REPARENT | CLK_SET_RATE_PARENT,
+	},
+};
+
+static const struct imx95_blk_ctl_dev_data imx952_hsio_phy_dev_data = {
+	.num_clks = ARRAY_SIZE(imx952_hsio_phy_clk_dev_data),
+	.clk_dev_data = imx952_hsio_phy_clk_dev_data,
+};
+
 static int imx95_bc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -576,6 +594,7 @@ static const struct of_device_id imx95_bc_of_match[] = {
 	{ .compatible = "nxp,imx952-display-cm0p-csr", .data = &imx952_cm0p_csr_dev_data },
 	{ .compatible = "nxp,imx952-display-csr", },
 	{ .compatible = "nxp,imx952-display-dsi-csr", },
+	{ .compatible = "nxp,imx952-hsio-combo-phy-blk-ctrl", .data = &imx952_hsio_phy_dev_data },
 	{ /* Sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, imx95_bc_of_match);
