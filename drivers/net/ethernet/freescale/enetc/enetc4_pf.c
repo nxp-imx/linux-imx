@@ -2177,8 +2177,8 @@ static int enetc4_pf_resume(struct device *dev)
 			goto err_unlock_rtnl;
 	}
 
-	phylink_resume(priv->phylink);
 	enetc_resume(si->ndev, wol);
+	phylink_resume(priv->phylink);
 	netif_device_attach(si->ndev);
 
 	rtnl_unlock();
