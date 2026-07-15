@@ -39,6 +39,14 @@ properties:
     items:
       - const: ref
 
+  nxp,sgmii-internal-ref-clk:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      If present, use the SoC-internal HSIO PLL as the SGMII reference
+      clock source instead of an external clock. This should be set on
+      boards that do not provide an external SerDes reference clock. When
+      this property is not present, an external reference clock is expected.
+
   mdio:
     $ref: mdio.yaml
     unevaluatedProperties: false
