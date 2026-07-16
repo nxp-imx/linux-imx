@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2026 NXP
+ */
+
+#include "imx952-jailhouse-inmate.dts"
+
+/ {
+	model = "NXP i.MX937 FRDM inmate";
+	compatible = "fsl,imx937-frdm", "fsl,imx937";
+};
