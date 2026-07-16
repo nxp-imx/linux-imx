@@ -13,6 +13,7 @@
 #include <media/v4l2-fh.h>
 
 #include <uapi/linux/virtio_media.h>
+#include "virtio_media_debug.h"
 
 #define VIRTIO_MEDIA_LAST_QUEUE (V4L2_BUF_TYPE_META_OUTPUT)
 
@@ -47,6 +48,10 @@ struct virtio_media_buffer {
  * @grant_maps: list of ``struct virtio_media_grant_map`` for buffers of this
  * queue (one entry per (index, plane)). Populated at QUERYBUF time and freed
  * on REQBUFS(0) or session close.
+ * @qbuf_count: running total of buffers successfully queued (QBUF) on this
+ * queue, for debugfs statistics only.
+ * @dqbuf_count: running total of buffers dequeued (DQBUF events) on this queue,
+ * for debugfs statistics only.
  */
 struct virtio_media_queue_state {
 	bool streaming;
@@ -58,6 +63,9 @@ struct virtio_media_queue_state {
 	struct list_head pending_dqbufs;
 	struct list_head grant_maps;
 	enum v4l2_memory memory;
+
+	u64 qbuf_count;
+	u64 dqbuf_count;
 };
 
 /**
@@ -116,6 +124,12 @@ struct virtio_media_session {
 	wait_queue_head_t dqbuf_wait;
 
 	struct list_head list;
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	/* Per-session debugfs "instance.<id>" file and its flow recorder. */
+	struct dentry *debugfs;
+	struct virtio_media_flow flow;
+#endif
 };
 
 static inline struct virtio_media_session *fh_to_session(struct v4l2_fh *fh)

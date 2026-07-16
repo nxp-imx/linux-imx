@@ -188,6 +188,11 @@ struct virtio_media {
 	dma_addr_t ctrl_cmd_dma;
 	void *ctrl_resp;
 	dma_addr_t ctrl_resp_dma;
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	/* Parent debugfs dir holding the per-session "instance.<id>" files. */
+	struct dentry *debugfs;
+#endif
 };
 
 static inline struct virtio_media *

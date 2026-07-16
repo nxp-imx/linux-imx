@@ -851,6 +851,10 @@ virtio_media_subscribe_event(struct v4l2_fh *fh,
 		return ret;
 	}
 
+	virtio_media_record_flow(fh_to_session(fh),
+				 VIRTIO_MEDIA_FLOW_SUBSCRIBE_EVENT, sub->type,
+				 0);
+
 	/*
 	 * Subscribing to an event may result in that event being signaled
 	 * immediately. Process all pending events to make sure we don't
@@ -897,6 +901,7 @@ static int virtio_media_streamon(struct file *file, void *fh,
 		return ret;
 
 	session->queues[i].streaming = true;
+	virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_STREAMON, i, 0);
 
 	return 0;
 }
@@ -916,6 +921,7 @@ static int virtio_media_streamoff(struct file *file, void *fh,
 		return ret;
 
 	virtio_media_clear_queue(session, &session->queues[i]);
+	virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_STREAMOFF, i, 0);
 
 	return 0;
 }
@@ -942,6 +948,9 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 					 sizeof(*b));
 	if (ret)
 		return ret;
+
+	virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_REQBUFS, b->type,
+				 b->count);
 
 	queue = &session->queues[b->type];
 
@@ -1189,6 +1198,13 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 		return ret;
 	}
 
+	/*
+	 * Diagnostic counter only. Written solely from this ioctl context
+	 * (serialised by vv->vlock), so no queues_lock is needed; the debugfs
+	 * reader accesses it locklessly and tolerates torn reads.
+	 */
+	queue->qbuf_count += 1;
+
 	return 0;
 }
 
@@ -1274,8 +1290,11 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 	if (is_multiplanar)
 		b->m.planes = planes_backup;
 
-	if (V4L2_TYPE_IS_CAPTURE(b->type) && b->flags & V4L2_BUF_FLAG_LAST)
+	if (V4L2_TYPE_IS_CAPTURE(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
 		queue->is_capture_last = true;
+		virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_EOS, b->type,
+					 b->index);
+	}
 
 	return 0;
 }
@@ -1347,6 +1366,9 @@ static int virtio_media_decoder_cmd(struct file *file, void *fh,
 					 sizeof(*cmd), sizeof(*cmd));
 	if (ret)
 		return ret;
+
+	virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_DECODER_CMD,
+				 cmd->cmd, 0);
 
 	/* A START command makes the CAPTURE queue able to dequeue again. */
 	if (cmd->cmd == V4L2_DEC_CMD_START) {

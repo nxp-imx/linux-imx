@@ -121,6 +121,8 @@ virtio_media_session_alloc(struct virtio_media *vv, u32 id,
 	v4l2_fh_init(&session->fh, &vv->video_dev);
 	virtio_media_session_fh_add(session, file);
 
+	virtio_media_debug_session_init(session);
+
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++) {
 		INIT_LIST_HEAD(&session->queues[i].pending_dqbufs);
 		INIT_LIST_HEAD(&session->queues[i].grant_maps);
@@ -307,6 +309,8 @@ static void virtio_media_session_free(struct virtio_media *vv,
 	mutex_lock(&vv->sessions_lock);
 	list_del(&session->list);
 	mutex_unlock(&vv->sessions_lock);
+
+	virtio_media_debug_remove_session(session);
 
 	/*
 	 * Drop the owning-queue reference on every grant map. The actual
@@ -719,6 +723,7 @@ virtio_media_process_dqbuf_event(struct virtio_media *vv,
 	mutex_lock(&session->queues_lock);
 	list_add_tail(&dqbuf->list, &queue->pending_dqbufs);
 	queue->queued_bufs -= 1;
+	queue->dqbuf_count += 1;
 	mutex_unlock(&session->queues_lock);
 
 	wake_up(&session->dqbuf_wait);
@@ -782,6 +787,9 @@ process_bufs:
 			v4l2_err(&vv->v4l2_dev,
 				 "received error %d for session %d",
 				 error_evt->errno, error_evt->hdr.session_id);
+			virtio_media_record_flow(session,
+						 VIRTIO_MEDIA_FLOW_ERROR,
+						 error_evt->errno, 0);
 			/*
 			 * Flag the session as errored and wake up any poller so
 			 * it can report EPOLLERR. The session is torn down when
@@ -816,6 +824,22 @@ process_bufs:
 			}
 
 			event_evt = (struct virtio_media_event_event *)evt;
+			/*
+			 * Record the forwarded V4L2 event, calling out source
+			 * changes specifically: comparing this against the host
+			 * (Dom0) wave6 flow shows whether a source-change the
+			 * host emitted actually reached and was acted upon by
+			 * the guest.
+			 */
+			if (event_evt->event.type == V4L2_EVENT_SOURCE_CHANGE)
+				virtio_media_record_flow(session,
+					VIRTIO_MEDIA_FLOW_SOURCE_CHANGE,
+					event_evt->event.u.src_change.changes,
+					0);
+			else
+				virtio_media_record_flow(session,
+					VIRTIO_MEDIA_FLOW_EVENT,
+					event_evt->event.type, 0);
 			v4l2_event_queue_fh(&session->fh, &event_evt->event);
 			break;
 
@@ -899,6 +923,9 @@ static int virtio_media_device_open(struct file *file)
 	session = virtio_media_session_alloc(vv, session_id, file);
 	if (IS_ERR(session))
 		return PTR_ERR(session);
+
+	virtio_media_debug_create_session(vv, session);
+	virtio_media_record_flow(session, VIRTIO_MEDIA_FLOW_OPEN, session_id, 0);
 
 	file->private_data = &session->fh;
 
@@ -2069,6 +2096,8 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	if (ret)
 		goto err_register_device;
 
+	virtio_media_debug_init_device(vv);
+
 	for (i = 0; i < VIRTIO_MEDIA_NUM_EVENT_BUFS; i++) {
 		void *ebuf = vv->event_buffer + VIRTIO_MEDIA_EVENT_MAX_SIZE * i;
 
@@ -2082,6 +2111,7 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	return 0;
 
 err_send_event_buffer:
+	virtio_media_debug_release_device(vv);
 	video_unregister_device(&vv->video_dev);
 err_register_device:
 err_coherent:
@@ -2104,6 +2134,8 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 	struct list_head *p, *n;
 
 	cancel_work_sync(&vv->eventq_work);
+
+	virtio_media_debug_release_device(vv);
 
 	/*
 	 * Tear the sessions down while the command queue is still alive.
