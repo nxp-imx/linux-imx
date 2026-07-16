@@ -302,7 +302,7 @@ static const struct regmap_range pf0900_range[] = {
 
 static const struct regmap_access_table pf0900_volatile_regs = {
 	.yes_ranges = pf0900_range,
-	.n_yes_ranges = 1,
+	.n_yes_ranges = ARRAY_SIZE(pf0900_range),
 };
 
 static const struct regmap_config pf0900_regmap_config = {
