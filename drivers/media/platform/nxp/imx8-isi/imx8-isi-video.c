@@ -5,7 +5,7 @@
  * ISI is a Image Sensor Interface of i.MX8QXP/QM platform, which
  * used to process image from camera sensor to memory or DC
  *
- * Copyright (c) 2019 NXP Semiconductor
+ * Copyright (c) 2019, 2026 NXP Semiconductor
  */
 
 #include <linux/device.h>
@@ -32,6 +32,17 @@
 
 #include "imx8-isi-core.h"
 #include "imx8-isi-regs.h"
+
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+#include <linux/arm-smccc.h>
+
+#define IMX_ISI_MEM_COMMIT 0xC2000020
+#define IMX_ISI_RDC_SETUP  0xC2000021
+
+#define ENABLE_ISI_BUFFER_ISOLATION (1)
+#define DISABLE_ISI_BUFFER_ISOLATION (0)
+#endif
+
 
 /* Keep the first entry matching MXC_ISI_DEF_PIXEL_FORMAT */
 static const struct mxc_isi_format_info mxc_isi_formats[] = {
@@ -766,7 +777,7 @@ static int mxc_isi_video_alloc_discard_buffers(struct mxc_isi_video *video)
 		struct mxc_isi_dma_buffer *buf = &video->discard_buffer[i];
 		buf->size = PAGE_ALIGN(video->pix.plane_fmt[i].sizeimage);
 
-		if ((pdata->model == MXC_ISI_IMX8MN) || (pdata->model == MXC_ISI_IMX8QM) \
+		if ((pdata->model == MXC_ISI_IMX8QM) \
 			|| (pdata->model == MXC_ISI_IMX8QXP) || (pdata->model == MXC_ISI_IMX8MP)) {
 			buf->size *= 2;
 			dev_info(video->pipe->isi->dev,
@@ -1085,11 +1096,87 @@ err_release:
 	return ret;
 }
 
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+#define RDC_BLOCK_ALIGN 4096
+static __always_inline unsigned long mxc_isi_smc(unsigned long function_id, unsigned long arg0, unsigned long arg1)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(function_id, arg0, arg1, 0, 0, 0, 0, 0, &res);
+	return res.a0;
+}
+
+static int isi_rdc_free_regions(void) {
+	return mxc_isi_smc(IMX_ISI_RDC_SETUP, DISABLE_ISI_BUFFER_ISOLATION, 0);
+}
+
+static int isi_rdc_isolate_regions(struct mxc_isi_video *video) {
+	int ret;
+	u64 addr_start, addr_end;
+	int i;
+
+	/* Commit user space buffers */
+	s_rdc_block_list *rdc_block_list = &video->rdc_block_list;
+	for (i = 0; i < rdc_block_list->num; i++) {
+		addr_start = rdc_block_list->phyAddr[i] & ~0xFFF;
+		addr_end = rdc_block_list->phyAddr[i] + rdc_block_list->size[i] - 1;
+		if ((addr_end % RDC_BLOCK_ALIGN) != 0)
+			addr_end = (addr_end | 0xFFF) + 1;
+
+		dev_info(video->pipe->isi->dev, "%s: RDC for user space buffer %d, start: 0x%llx, end:0x%llx\n", __func__, i, addr_start, addr_end);
+		ret = mxc_isi_smc(IMX_ISI_MEM_COMMIT, addr_start, addr_end);
+		if (ret != 0) {
+			printk("isi: failed to commit memory region, start: 0x%llx, end:0x%llx\n", addr_start, addr_end);
+			goto exit;
+		}
+	}
+
+
+	/* Commit discard buffers */
+	for (i = 0; i < video->pix.num_planes; i++) {
+		struct mxc_isi_dma_buffer *buf = &video->discard_buffer[i];
+		addr_start = buf->dma & ~0xFFF;
+		addr_end = buf->dma + buf->size - 1;
+		if ((addr_end % RDC_BLOCK_ALIGN) != 0)
+			addr_end = (addr_end | 0xFFF) + 1;
+
+		dev_info(video->pipe->isi->dev, "%s: RDC for discard buffer, plan %d, start: 0x%llx, end:0x%llx\n", __func__, i, addr_start, addr_end);
+		ret = mxc_isi_smc(IMX_ISI_MEM_COMMIT, addr_start, addr_end);
+		if (ret != 0) {
+			printk("isi: failed to commit memory region, start: 0x%llx, end:0x%llx\n", addr_start, addr_end);
+			goto exit;
+		}
+	}
+
+	/* Isolate committed memory regions */
+	ret = mxc_isi_smc(IMX_ISI_RDC_SETUP, ENABLE_ISI_BUFFER_ISOLATION, 0);
+	if (ret != 0) {
+		printk("isi: failed to isolate memory regions!\n");
+		goto exit;
+	}
+
+	return 0;
+
+exit:
+	/* Free all regions */
+	isi_rdc_free_regions();
+	return ret;
+}
+#endif
+
 static int mxc_isi_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct mxc_isi_video *video = vb2_get_drv_priv(q);
 	unsigned int i;
 	int ret;
+
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+	ret = isi_rdc_isolate_regions(video);
+	if (ret) {
+		pr_err("%s: isi_rdc_isolate_regions falied, ret %d\n", __func__, ret);
+		return ret;
+	}
+#endif
 
 	/* Initialize the ISI channel. */
 	mxc_isi_video_init_channel(video);
@@ -1131,6 +1218,10 @@ static void mxc_isi_vb2_stop_streaming(struct vb2_queue *q)
 	mxc_isi_channel_put(video->pipe);
 
 	mxc_isi_video_return_buffers(video, VB2_BUF_STATE_ERROR);
+
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+	isi_rdc_free_regions();
+#endif
 }
 
 static void mxc_isi_vb2_unprepare_streaming(struct vb2_queue *q)
@@ -1157,6 +1248,10 @@ static const struct vb2_ops mxc_isi_vb2_qops = {
  * V4L2 controls
  */
 
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+#define V4L2_CID_ISI_RDC    (V4L2_CID_USER_BASE + 0x1001)
+#endif
+
 static inline struct mxc_isi_video *ctrl_to_isi_video(struct v4l2_ctrl *ctrl)
 {
 	return container_of(ctrl->handler, struct mxc_isi_video, ctrls.handler);
@@ -1176,6 +1271,11 @@ static int mxc_isi_video_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_HFLIP:
 		video->ctrls.hflip = ctrl->val;
 		break;
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+	case V4L2_CID_ISI_RDC:
+		video->rdc_block_list = *((const s_rdc_block_list *)ctrl->p_new.p_u8);
+		break;
+#endif
 	}
 
 	return 0;
@@ -1200,6 +1300,18 @@ static int mxc_isi_video_ctrls_create(struct mxc_isi_video *video)
 
 	v4l2_ctrl_new_std(handler, &mxc_isi_video_ctrl_ops,
 			  V4L2_CID_HFLIP, 0, 1, 1, 0);
+
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+	static const struct v4l2_ctrl_config isi_rdc_ctrl = {
+		.ops  = &mxc_isi_video_ctrl_ops,
+		.id   = V4L2_CID_ISI_RDC,
+		.name = "ISI RDC Commit",
+		.type = V4L2_CTRL_TYPE_U8,
+		.dims = { sizeof(s_rdc_block_list) },
+		.min  = 0, .max = 0xff, .step = 1, .def = 0,
+	};
+	v4l2_ctrl_new_custom(handler, &isi_rdc_ctrl, NULL);
+#endif
 
 	if (handler->error) {
 		ret = handler->error;

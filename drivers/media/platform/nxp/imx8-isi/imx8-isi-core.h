@@ -4,7 +4,7 @@
  *
  * ISI is a Image Sensor Interface of i.MX8QXP/QM platform, which
  * used to process image from camera sensor to memory or DC
- * Copyright 2019-2020 NXP
+ * Copyright 2019-2020, 2026 NXP
  */
 
 #ifndef __MXC_ISI_CORE_H__
@@ -206,6 +206,16 @@ struct mxc_isi_crossbar {
 	struct media_pad		*pads;
 };
 
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+// ATF limited to 5, count 1 discard buffer in driver, so 4 in user space.
+#define MAX_ISI_RDC_BLOCK_US  4U
+typedef struct tag_rdc_block_list {
+	uint32_t num;
+	uint32_t size[MAX_ISI_RDC_BLOCK_US];
+	uint64_t phyAddr[MAX_ISI_RDC_BLOCK_US];
+} __packed s_rdc_block_list;
+#endif
+
 struct mxc_isi_video {
 	struct mxc_isi_pipe		*pipe;
 
@@ -235,6 +245,10 @@ struct mxc_isi_video {
 	spinlock_t			buf_lock;
 
 	struct mxc_isi_dma_buffer	discard_buffer[MXC_MAX_PLANES];
+
+#ifdef CONFIG_IMX8MN_ISI_OVERRUN_FIX
+	s_rdc_block_list	rdc_block_list;
+#endif
 };
 
 typedef void(*mxc_isi_pipe_irq_t)(struct mxc_isi_pipe *, u32);

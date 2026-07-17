@@ -20,3 +20,8 @@ config VIDEO_IMX8_ISI_M2M
 	help
 	  Select 'yes' here to enable support for memory-to-memory processing
 	  in the ISI driver.
+
+config IMX8MN_ISI_OVERRUN_FIX
+	depends on VIDEO_IMX8_ISI
+	bool "IMX8MN ISI Overrun Issue Workaround"
+	default n
