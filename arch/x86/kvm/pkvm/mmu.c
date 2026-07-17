@@ -471,61 +471,6 @@ static void drain_pool(struct pkvm_pool *pool, struct pkvm_memcache *host_mc)
 	}
 }
 
-static void *admit_host_page(void *arg)
-{
-	struct pkvm_memcache *host_mc = arg;
-	void *page;
-
-	if (!host_mc->count || WARN_ON_ONCE(host_mc->head.nr_pages != 1))
-		return NULL;
-
-	/*
-	 * Should donate the page from the host memcache before pop it out
-	 * because pop will read data from this page to get the next head, and
-	 * then will write this data to the host memcache's head. Without
-	 * donating, doing that may leak sensitive data as this page may be a
-	 * private page of a pVM or the hypervisor.
-	 *
-	 * The page will be cleared by zalloc_page when allocating it from
-	 * the memcache, thus no need to clear it now.
-	 */
-	if (WARN_ON_ONCE(pkvm_host_donate_hyp(pkvm_host_gpa_to_phys(host_mc->head.addr),
-					      PAGE_SIZE, false)))
-		return NULL;
-
-	page = pop_pkvm_memcache_page(host_mc, pkvm_host_gpa_to_virt);
-	/*
-	 * The head page is already donated so the pop has no reason to fail
-	 * unless there is a code bug.
-	 */
-	BUG_ON(!page);
-
-	return page;
-}
-
-/* Refill our local memcache by popping pages from the one provided by the host. */
-static int refill_memcache(struct pkvm_memcache *mc, unsigned long min_pages,
-			   struct pkvm_memcache *host_mc)
-{
-	/*
-	 * The host mc is shared and can be modified by the host while popping.
-	 * Copy it to local and use the local one to prevent the host from
-	 * changing it with unexpected values, e.g., the host change the
-	 * host_mc->head.addr to a private page address after addr is donated
-	 * but before popping up, making the pop_pkvm_memcache_page reading
-	 * from the private page and leaking data to the host.
-	 */
-	struct pkvm_memcache tmp_mc = *(volatile typeof(*host_mc) *)host_mc;
-	int ret;
-
-	ret = topup_pkvm_memcache(mc, min_pages, admit_host_page,
-				  pkvm_virt_to_phys, &tmp_mc);
-
-	*(volatile typeof(*host_mc) *)host_mc = tmp_mc;
-
-	return ret;
-}
-
 static int host_reclaim_guest_walker(struct pkvm_pgtable_visit_ctx *ctx,
 				     unsigned long walk_flags,
 				     void *const arg)
@@ -1003,8 +948,8 @@ int pkvm_guest_mmu_refill_memcache(struct pkvm_vcpu *pkvm_vcpu)
 
 	host_mc = &pkvm_vcpu->shared_vcpu->arch.pkvm.guest_mmu_memcache;
 
-	return refill_memcache(&vcpu->arch.pkvm.guest_mmu_memcache,
-			       READ_ONCE(host_mc->count), host_mc);
+	return pkvm_refill_memcache(&vcpu->arch.pkvm.guest_mmu_memcache,
+				    READ_ONCE(host_mc->count), host_mc);
 }
 
 void pkvm_guest_mmu_free_memcache(struct pkvm_vcpu *pkvm_vcpu)

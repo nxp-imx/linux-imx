@@ -533,7 +533,7 @@ static int gunyah_gup_share_parcel(struct gunyah_vm *ghvm,
 	int pinned, ret;
 	struct folio *folio;
 	unsigned int gup_flags;
-	unsigned long i, offset, entries, entry_size;
+	unsigned long i, offset, entries, entry_size, tail_unpins = 0;
 
 	offset = gunyah_gfn_to_gpa(*gfn) - b->guest_phys_addr;
 	pages = kcalloc(*nr, sizeof(*pages), GFP_KERNEL_ACCOUNT);
@@ -586,7 +586,9 @@ static int gunyah_gup_share_parcel(struct gunyah_vm *ghvm,
 			}
 		} else {
 			unpin_user_page(pages[i]);
+			pages[i] = NULL;
 			account_locked_vm(current->mm, 1, false);
+			tail_unpins++;
 		}
 	}
 	parcel->mem_entries[entries].size = entry_size;
@@ -605,7 +607,7 @@ free_mem_entries:
 	parcel->mem_entries = NULL;
 	parcel->n_mem_entries = 0;
 unaccount_pages:
-	account_locked_vm(current->mm, pinned, false);
+	account_locked_vm(current->mm, pinned - tail_unpins, false);
 unpin_pages:
 	unpin_user_pages(pages, pinned);
 free_pages:
@@ -858,26 +860,31 @@ int gunyah_share_range_as_parcels(struct gunyah_vm *ghvm, u64 start_gfn,
 		u64 parcel_start = b->guest_phys_addr >> PAGE_SHIFT;
 		u64 parcel_pages = b->size >> PAGE_SHIFT;
 
+		if (count >= n) {
+			ret = -EAGAIN;
+			dev_err(ghvm->parent, "Binding count changed during share; rolling back\n");
+			goto rollback;
+		}
 		ret = gunyah_share_parcel(ghvm, &(*parcels)[count++], &parcel_start, &parcel_pages);
 		if (ret) {
 			dev_err(ghvm->parent, "Failed to share parcel of %llx: %d\n",
 								parcel_start, ret);
-			/* Let's roll back.*/
-			while (count--) {
-				if ((*parcels)[count].parcel.mem_handle !=
-					GUNYAH_MEM_HANDLE_INVAL) {
-					ret_err = gunyah_reclaim_parcel(ghvm, &(*parcels)[count]);
-					if (ret_err)
-						dev_err(ghvm->parent, "Failed to reclaim parcel: %d, memory will leak\n",
-										ret_err);
-				}
-			}
-			goto err;
+			goto rollback;
 		}
 	}
 	return ret;
 
-err:
+rollback:
+	/* Let's roll back.*/
+	while (count--) {
+		if ((*parcels)[count].parcel.mem_handle !=
+			GUNYAH_MEM_HANDLE_INVAL) {
+			ret_err = gunyah_reclaim_parcel(ghvm, &(*parcels)[count]);
+			if (ret_err)
+				dev_err(ghvm->parent, "Failed to reclaim parcel: %d, memory will leak\n",
+										ret_err);
+		}
+	}
 	kfree(*parcels);
 	*parcels = NULL;
 	return ret;

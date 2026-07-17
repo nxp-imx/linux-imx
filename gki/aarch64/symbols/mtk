@@ -2414,6 +2414,7 @@
   __traceiter_android_vh_set_wake_flags
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
+  __traceiter_android_vh_ufs_use_threaded_intr
   __traceiter_cpu_frequency
   __traceiter_gpu_mem_total
   __traceiter_ipi_entry
@@ -2535,6 +2536,7 @@
   __tracepoint_android_vh_set_wake_flags
   __tracepoint_android_vh_show_resume_epoch_val
   __tracepoint_android_vh_show_suspend_epoch_val
+  __tracepoint_android_vh_ufs_use_threaded_intr
   __tracepoint_cpu_frequency
   __tracepoint_gpu_mem_total
   __tracepoint_ipi_entry

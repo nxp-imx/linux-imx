@@ -4417,9 +4417,10 @@ static struct folio *__alloc_swap_folio(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 	struct folio *folio;
 	swp_entry_t entry;
+	gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_CMA;
 
-	folio = vma_alloc_folio(GFP_HIGHUSER_MOVABLE | __GFP_CMA,
-				0, vma, vmf->address);
+	trace_android_vh_customize_swapin_gfp_mask(vmf, &gfp);
+	folio = vma_alloc_folio(gfp, 0, vma, vmf->address);
 
 	if (!folio)
 		return NULL;
@@ -4554,6 +4555,7 @@ static struct folio *alloc_swap_folio(struct vm_fault *vmf)
 
 	/* Try allocating the highest of the remaining orders. */
 	gfp = vma_thp_gfp_mask(vma);
+	trace_android_vh_customize_swapin_gfp_mask(vmf, &gfp);
 	while (orders) {
 		addr = ALIGN_DOWN(vmf->address, PAGE_SIZE << order);
 		folio = vma_alloc_folio(gfp, order, vma, addr);
@@ -4727,9 +4729,10 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 				folio->private = NULL;
 			}
 		} else {
-			folio = swapin_readahead(entry,
-						GFP_HIGHUSER_MOVABLE | __GFP_CMA,
-						vmf);
+			gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_CMA;
+
+			trace_android_vh_customize_swapin_gfp_mask(vmf, &gfp);
+			folio = swapin_readahead(entry, gfp, vmf);
 			swapcache = folio;
 		}
 

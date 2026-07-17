@@ -692,8 +692,12 @@ static void update_builtin_idle(int cpu, bool idle)
 {
 	int node = scx_cpu_node_if_enabled(cpu);
 	struct cpumask *idle_cpus = idle_cpumask(node)->cpu;
+	bool allowed = true;
 
-	assign_cpu(cpu, idle_cpus, idle);
+	if (idle)
+		trace_android_vh_scx_cpu_allowed(NULL, cpu, &allowed);
+
+	assign_cpu(cpu, idle_cpus, idle && allowed);
 
 #ifdef CONFIG_SCHED_SMT
 	if (sched_smt_active()) {

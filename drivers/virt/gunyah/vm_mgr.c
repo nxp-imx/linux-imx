@@ -1196,6 +1196,8 @@ static void _gunyah_vm_put(struct kref *kref)
 	down_write(&ghvm->bindings_lock);
 	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
 		mtree_erase(&ghvm->bindings, gunyah_gpa_to_gfn(b->guest_phys_addr));
+		if (b->mem_type == VM_MEM_CMA && b->cma.file)
+			fput(b->cma.file);
 		kfree(b);
 	}
 	up_write(&ghvm->bindings_lock);

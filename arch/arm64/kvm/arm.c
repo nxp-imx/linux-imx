@@ -2588,7 +2588,11 @@ static void kvm_hyp_init_symbols(void)
 static unsigned long kvm_hyp_shrinker_count(struct shrinker *shrinker,
 					    struct shrink_control *sc)
 {
-	unsigned long reclaimable = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_reclaimable);
+	unsigned long reclaimable = 0;
+	int i;
+
+	for (i = 0; i < NR_ALLOC_MGT_IDS; i++)
+		reclaimable += kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_reclaimable, i);
 
 	return reclaimable ? reclaimable : SHRINK_EMPTY;
 }

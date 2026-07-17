@@ -393,6 +393,7 @@ int pkvm_domain_map(struct dmar_domain *domain, unsigned long iov_pfn,
 	data->phys_pfn = phys_pfn;
 	data->nr_pages = nr_pages;
 	data->prot = prot;
+	data->mc.flags = PKVM_MC_DONATE_SHARE_RO;
 
 	ret = pkvm_hypercall_inout(iommu_domain_map, &d, &d);
 	if (ret == -ENOMEM) {

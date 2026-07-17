@@ -88,7 +88,7 @@ struct backing_aio {
 static struct kmem_cache *backing_aio_cachep;
 
 #define BACKING_IOCB_MASK \
-	(IOCB_NOWAIT | IOCB_HIPRI | IOCB_DSYNC | IOCB_SYNC | IOCB_APPEND)
+	(IOCB_NOWAIT | IOCB_HIPRI | IOCB_DSYNC | IOCB_SYNC | IOCB_APPEND | IOCB_DONTCACHE)
 
 static rwf_t iocb_to_rw_flags(int flags)
 {

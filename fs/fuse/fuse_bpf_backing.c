@@ -14,7 +14,8 @@
 
 #include "../internal.h"
 
-#define FUSE_BPF_IOCB_MASK (IOCB_APPEND | IOCB_DSYNC | IOCB_HIPRI | IOCB_NOWAIT | IOCB_SYNC)
+#define FUSE_BPF_IOCB_MASK (IOCB_APPEND | IOCB_DSYNC | IOCB_HIPRI | IOCB_NOWAIT | IOCB_SYNC | \
+			    IOCB_DONTCACHE)
 
 struct fuse_bpf_aio_req {
 	struct kiocb iocb;

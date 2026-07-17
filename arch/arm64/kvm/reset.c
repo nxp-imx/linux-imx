@@ -92,7 +92,7 @@ static int alloc_sve_state(struct kvm_vcpu *vcpu)
 
 	ret = kvm_share_hyp(buf, buf + reg_sz);
 	if (ret) {
-		kfree(buf);
+		free_pages_exact(buf, reg_sz);
 		return ret;
 	}
 

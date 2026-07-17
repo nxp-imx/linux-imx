@@ -31,18 +31,17 @@ int hyp_alloc_mgt_refill(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *host
 	return ops->refill ? ops->refill(host_mc) : 0;
 }
 
-int hyp_alloc_mgt_reclaimable(void)
+int hyp_alloc_mgt_reclaimable(enum hyp_alloc_mgt_id id)
 {
 	struct hyp_mgt_allocator_ops *ops;
-	int reclaimable = 0;
-	int i;
 
-	for (i = 0 ; i < NR_ALLOC_MGT_IDS; ++i) {
-		ops = registered_allocators[i];
-		if (ops->reclaimable)
-			reclaimable += ops->reclaimable();
-	}
-	return reclaimable;
+	if (id >= NR_ALLOC_MGT_IDS)
+		return 0;
+
+	id = array_index_nospec(id, NR_ALLOC_MGT_IDS);
+	ops = registered_allocators[id];
+
+	return ops->reclaimable ? ops->reclaimable() : 0;
 }
 
 void hyp_alloc_mgt_reclaim(enum hyp_alloc_mgt_id id, struct kvm_hyp_memcache *host_mc, int target)

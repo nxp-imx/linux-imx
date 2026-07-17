@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM sched
+#undef TRACE_INCLUDE_PATH
 #define TRACE_INCLUDE_PATH trace/hooks
 #if !defined(_TRACE_HOOK_SCHED_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_HOOK_SCHED_H
@@ -376,6 +377,11 @@ DECLARE_HOOK(android_vh_dup_task_struct,
 	TP_ARGS(tsk, orig));
 
 struct affinity_context;
+
+DECLARE_HOOK(android_vh_sca_migrate_same,
+	TP_PROTO(struct task_struct *p, struct affinity_context *ctx),
+	TP_ARGS(p, ctx));
+
 DECLARE_HOOK(android_vh_scx_restore_flags,
 	TP_PROTO(const struct sched_class *prev_class,
 		 const struct sched_class *next_class,
@@ -414,6 +420,9 @@ DECLARE_HOOK(android_vh_scx_task_switch_finish,
 DECLARE_HOOK(android_vh_scx_task_can_run_on,
 	TP_PROTO(bool *disallow, struct task_struct *p, struct rq *rq),
 	TP_ARGS(disallow, p, rq));
+DECLARE_HOOK(android_vh_scx_cpu_allowed,
+	TP_PROTO(struct task_struct *p, int cpu, bool *allowed),
+	TP_ARGS(p, cpu, allowed));
 
 struct scx_exit_info;
 DECLARE_HOOK(android_vh_scx_exit_on_abnormal,

@@ -3010,7 +3010,8 @@
 			SEV-ES unusable.
 
 	kvm-arm.host_s2=
-			[KVM,ARM,EARLY] Select the host stage-2 memory pool mode.
+			[KVM,ARM,EARLY] Configure the host stage-2 memory pool.
+			Format: <mode>[,keep=<size>]
 
 			cma: (default) Use a CMA region for the host stage-2
 			     memory pool, allowing it to be reclaimed by the
@@ -3025,6 +3026,14 @@
 
 			carveout: Use a static carveout for the host stage-2
 			          memory pool.
+
+			keep=<size>:
+				  Specify an amount of memory (in bytes, with
+				  optional K/M/G suffix) to retain in the
+				  hypervisor's host stage-2 pool after init,
+				  preventing the host from completely draining
+				  it at boot. This only makes sense with the
+				  modes "cma" and "gcma".
 
 	kvm-arm.hyp_lm_size_mb=
 			[KVM,ARM,EARLY] Maximum amount of contiguous memory mappable in

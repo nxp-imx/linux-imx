@@ -288,6 +288,7 @@
   __traceiter_android_vh_scx_fix_prev_slice
   __traceiter_android_vh_scx_ops_consider_migration
   __traceiter_android_vh_scx_ops_enable_state
+  __traceiter_android_vh_sca_migrate_same
   __traceiter_android_vh_scx_restore_flags
   __traceiter_android_vh_scx_set_cpus_allowed
   __traceiter_android_vh_scx_switch_repeat_skip
@@ -397,6 +398,7 @@
   __tracepoint_android_vh_scx_fix_prev_slice
   __tracepoint_android_vh_scx_ops_consider_migration
   __tracepoint_android_vh_scx_ops_enable_state
+  __tracepoint_android_vh_sca_migrate_same
   __tracepoint_android_vh_scx_restore_flags
   __tracepoint_android_vh_scx_set_cpus_allowed
   __tracepoint_android_vh_scx_switch_repeat_skip

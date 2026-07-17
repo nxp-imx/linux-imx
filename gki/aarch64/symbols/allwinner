@@ -109,3 +109,13 @@
   ir_raw_gen_pd
   ir_raw_gen_manchester
   rc_repeat
+  of_i2c_get_board_info
+  typec_cable_altmode_vdm
+  typec_cable_is_active
+  typec_cable_set_identity
+  typec_cable_set_svdm_version
+  typec_find_pwr_opmode
+  typec_get_cable_svdm_version
+  typec_get_fw_cap
+  typec_port_register_cable_ops
+  typec_port_set_usb_power_delivery

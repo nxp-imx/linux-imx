@@ -44,16 +44,6 @@ static void xattr_free(struct f2fs_sb_info *sbi, void *xattr_addr,
 		kfree(xattr_addr);
 }
 
-static int f2fs_xattr_fadvise_get(struct inode *inode, void *buffer)
-{
-	if (!buffer)
-		goto out;
-	if (mapping_large_folio_support(inode->i_mapping))
-		*((unsigned int *)buffer) |= BIT(F2FS_XATTR_FADV_LARGEFOLIO);
-out:
-	return sizeof(unsigned int);
-}
-
 static int f2fs_xattr_generic_get(const struct xattr_handler *handler,
 		struct dentry *unused, struct inode *inode,
 		const char *name, void *buffer, size_t size)
@@ -71,27 +61,8 @@ static int f2fs_xattr_generic_get(const struct xattr_handler *handler,
 	default:
 		return -EINVAL;
 	}
-	if (handler->flags == F2FS_XATTR_INDEX_USER &&
-	    !strcmp(name, "fadvise"))
-		return f2fs_xattr_fadvise_get(inode, buffer);
-
 	return f2fs_getxattr(inode, handler->flags, name,
 			     buffer, size, NULL);
-}
-
-static int f2fs_xattr_fadvise_set(struct inode *inode, const void *value)
-{
-	unsigned int new_fadvise;
-
-	new_fadvise = *(unsigned int *)value;
-
-	if (new_fadvise & BIT(F2FS_XATTR_FADV_LARGEFOLIO))
-		f2fs_add_ino_entry(F2FS_I_SB(inode),
-				inode->i_ino, LARGE_FOLIO_INO);
-	else
-		f2fs_remove_ino_entry(F2FS_I_SB(inode),
-				inode->i_ino, LARGE_FOLIO_INO);
-	return 0;
 }
 
 static int f2fs_xattr_generic_set(const struct xattr_handler *handler,
@@ -113,10 +84,6 @@ static int f2fs_xattr_generic_set(const struct xattr_handler *handler,
 	default:
 		return -EINVAL;
 	}
-	if (handler->flags == F2FS_XATTR_INDEX_USER &&
-	    !strcmp(name, "fadvise"))
-		return f2fs_xattr_fadvise_set(inode, value);
-
 	return f2fs_setxattr(inode, handler->flags, name,
 					value, size, NULL, flags);
 }
@@ -614,8 +581,6 @@ ssize_t f2fs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
 		size_t prefix_len;
 		size_t size;
 
-		prefix = f2fs_xattr_prefix(entry->e_name_index, dentry);
-
 		if ((void *)(entry) + sizeof(__u32) > last_base_addr ||
 			(void *)XATTR_NEXT_ENTRY(entry) > last_base_addr) {
 			f2fs_err(F2FS_I_SB(inode), "list inode (%lu) has corrupted xattr",
@@ -623,9 +588,11 @@ ssize_t f2fs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
 			set_sbi_flag(F2FS_I_SB(inode), SBI_NEED_FSCK);
 			f2fs_handle_error(F2FS_I_SB(inode),
 						ERROR_CORRUPTED_XATTR);
-			break;
+			error = -EFSCORRUPTED;
+			goto cleanup;
 		}
 
+		prefix = f2fs_xattr_prefix(entry->e_name_index, dentry);
 		if (!prefix)
 			continue;
 

@@ -626,6 +626,25 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 		struct task_struct *tsk;
 
 		tsk = waiter->task;
+
+		raw_spin_lock(&tsk->blocked_lock);
+		/*
+		 * Note we have to call __set_task_blocked_on_waking()
+		 * prior to the smp_store_release() in order to avoid
+		 * the waiting task getting a spurious wakeup and
+		 * returning from rwsem_down_read_slowpath(), grabbing
+		 * the lock and blocking on a different lock. This
+		 * would confuse the sanity checks in
+		 * __set_task_blocked_on_waking() so call it first.
+		 *
+		 * We also get here if sem was reader owned and thus
+		 * waiter isn't blocked_on, but this function only sets
+		 * PROXY_WAKING if we are.
+		 */
+		__set_task_blocked_on_waking(tsk, sem);
+		if (tsk == current->blocked_donor)
+			current->blocked_donor = NULL;
+		raw_spin_unlock(&tsk->blocked_lock);
 		get_task_struct(tsk);
 
 		/*
@@ -640,16 +659,6 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 		 * after setting the reader waiter to nil.
 		 */
 		wake_q_add_safe(wake_q, tsk);
-		raw_spin_lock(&tsk->blocked_lock);
-		/*
-		 * We also get here if sem was reader owned and thus
-		 * waiter isn't blocked_on, but this function only sets
-		 * PROXY_WAKING if we are.
-		 */
-		__set_task_blocked_on_waking(tsk, sem);
-		if (tsk == current->blocked_donor)
-			current->blocked_donor = NULL;
-		raw_spin_unlock(&tsk->blocked_lock);
 	}
 }
 

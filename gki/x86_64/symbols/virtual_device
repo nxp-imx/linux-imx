@@ -111,6 +111,7 @@
   drm_read
   drm_release
   drm_set_preferred_mode
+  dst_release
   ether_setup
   eth_mac_addr
   ethtool_op_get_link
@@ -256,6 +257,8 @@
   page_pool_alloc_frag
   page_pool_destroy
   page_pool_put_unrefed_netmem
+  page_shift_compat
+  page_shift_compat_enabled
   param_array_ops
   param_ops_bool
   param_ops_charp
@@ -744,7 +747,6 @@
   device_create
   device_release_driver
   device_unregister
-  dst_release
   genl_notify
   kstrndup
   net_namespace_list
@@ -1045,8 +1047,6 @@
   iomem_resource
   is_virtio_device
   memdup_user
-  page_shift_compat
-  page_shift_compat_enabled
   pci_dev_put
   pci_get_device
   __SCK__tp_func_dma_fence_emit

@@ -1137,6 +1137,7 @@
   file_write_and_wait_range
   _find_first_bit
   _find_first_zero_bit
+  find_font
   find_iova
   _find_last_bit
   _find_next_bit
@@ -1271,6 +1272,7 @@
   get_random_bytes
   get_random_u16
   get_random_u32
+  __get_random_u32_below
   get_random_u64
   get_random_u8
   get_tree_bdev
@@ -2411,6 +2413,7 @@
   read_cache_page
   refcount_dec_and_lock
   refcount_warn_saturate
+  __refrigerator
   __ref_stack_chk_guard
   regcache_cache_bypass
   regcache_cache_only
@@ -2640,6 +2643,7 @@
   setattr_prepare
   set_capacity
   set_default_d_op
+  set_freezable
   set_memory_uc
   set_memory_wb
   set_nlink
@@ -3506,29 +3510,53 @@
   v4l2_async_register_subdev_sensor
   v4l2_async_unregister_subdev
   v4l2_create_fwnode_links_to_pad
+  v4l2_ctrl_activate
+  v4l2_ctrl_add_handler
+  v4l2_ctrl_auto_cluster
+  v4l2_ctrl_cluster
+  v4l2_ctrl_g_ctrl
   __v4l2_ctrl_grab
   v4l2_ctrl_handler_free
   v4l2_ctrl_handler_init_class
   __v4l2_ctrl_handler_setup
+  v4l2_ctrl_handler_setup
+  v4l2_ctrl_log_status
+  __v4l2_ctrl_modify_dimensions
   __v4l2_ctrl_modify_range
   v4l2_ctrl_new_custom
   v4l2_ctrl_new_fwnode_properties
   v4l2_ctrl_new_int_menu
   v4l2_ctrl_new_std
+  v4l2_ctrl_new_std_menu
   v4l2_ctrl_new_std_menu_items
+  v4l2_ctrl_poll
+  v4l2_ctrl_request_complete
+  v4l2_ctrl_request_setup
   __v4l2_ctrl_s_ctrl
   __v4l2_ctrl_s_ctrl_int64
+  __v4l2_ctrl_s_ctrl_string
   v4l2_ctrl_subdev_log_status
   v4l2_ctrl_subdev_subscribe_event
+  v4l2_ctrl_subscribe_event
+  v4l2_detect_cvt
+  v4l2_detect_gtf
+  v4l2_device_put
   v4l2_device_register
   __v4l2_device_register_subdev
   __v4l2_device_register_subdev_nodes
   v4l2_device_unregister
   v4l2_device_unregister_subdev
+  v4l2_dv_timings_presets
+  v4l2_enum_dv_timings_cap
   v4l2_event_queue
   v4l2_event_subdev_unsubscribe
   v4l2_event_subscribe
+  v4l2_event_unsubscribe
+  v4l2_event_wake_all
+  v4l2_fh_is_singular
   v4l2_fh_open
+  v4l2_fh_release
+  v4l2_find_dv_timings_cap
   __v4l2_find_nearest_size_conditional
   v4l2_fwnode_device_parse
   v4l2_fwnode_endpoint_alloc_parse
@@ -3538,6 +3566,10 @@
   v4l2_get_link_freq
   v4l2_i2c_subdev_init
   v4l2_link_freq_to_bitmap
+  v4l2_match_dv_timings
+  v4l2_phys_addr_for_input
+  v4l2_phys_addr_validate
+  v4l2_src_change_event_subscribe
   v4l2_subdev_call_wrappers
   v4l2_subdev_cleanup
   v4l2_subdev_disable_streams
@@ -3557,28 +3589,37 @@
   __v4l2_subdev_state_get_format
   v4l2_subdev_state_get_opposite_stream_format
   v4l2_subdev_state_xlate_streams
+  v4l2_valid_dv_timings
   validate_usercopy_range
   __var_waitqueue
   vb2_buffer_done
+  vb2_dma_contig_memops
   vb2_dma_sg_memops
   vb2_fop_mmap
   vb2_fop_poll
+  vb2_fop_read
   vb2_fop_release
+  vb2_fop_write
   vb2_ioctl_create_bufs
   vb2_ioctl_dqbuf
   vb2_ioctl_expbuf
   vb2_ioctl_prepare_buf
   vb2_ioctl_qbuf
   vb2_ioctl_querybuf
+  vb2_ioctl_remove_bufs
   vb2_ioctl_reqbufs
   vb2_ioctl_streamoff
   vb2_ioctl_streamon
   vb2_plane_cookie
   vb2_plane_vaddr
   vb2_queue_change_type
+  vb2_queue_error
   vb2_queue_init
   vb2_queue_release
+  vb2_request_queue
+  vb2_request_validate
   vb2_video_unregister_device
+  vb2_vmalloc_memops
   vchan_dma_desc_free_list
   vchan_find_desc
   vchan_init

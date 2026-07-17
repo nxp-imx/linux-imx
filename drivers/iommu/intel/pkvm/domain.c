@@ -4,6 +4,7 @@
 
 #include <linux/hashtable.h>
 #include <asm/pkvm_spinlock.h>
+#include "pkvm.h"
 #include "pkvm/debug.h"
 #include "pkvm/memory.h"
 #include "../iommu.h"
@@ -117,23 +118,6 @@ void pkvm_put_domain_cache_tag_unassign(void *pgd, int did, u32 pasid,
 	pkvm_put_iommu_domain(domain);
 }
 
-static void *admit_host_domain_page(void *arg)
-{
-	struct pkvm_memcache *host_mc = (struct pkvm_memcache *)arg;
-	void *page;
-
-	page = pop_pkvm_memcache_page(host_mc, pkvm_host_gpa_to_virt);
-	if (!page)
-		return NULL;
-
-	if (WARN_ON(pkvm_host_donate_hyp_share_ro(__pkvm_pa(page), VTD_PAGE_SIZE, true))) {
-		push_pkvm_memcache_page(host_mc, page, pkvm_virt_to_host_gpa);
-		return NULL;
-	}
-
-	return page;
-}
-
 static int refill_domain_memcache(struct dmar_domain *domain,
 				  struct pkvm_memcache *host_mc)
 {
@@ -148,9 +132,8 @@ static int refill_domain_memcache(struct dmar_domain *domain,
 	 * provides a memcache if the hypervisor's memcache doesn't already
 	 * have enough pages.
 	 */
-	min_pages = mc->count + host_mc->count;
-	return topup_pkvm_memcache(mc, min_pages, admit_host_domain_page,
-				   pkvm_virt_to_phys, host_mc);
+	min_pages = mc->count + READ_ONCE(host_mc->count);
+	return pkvm_refill_memcache(mc, min_pages, host_mc);
 }
 
 static void free_domain_memcache(struct dmar_domain *domain,

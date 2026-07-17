@@ -1711,7 +1711,9 @@ static void handle___pkvm_hyp_alloc_mgt_refill(struct kvm_cpu_context *host_ctxt
 
 static void handle___pkvm_hyp_alloc_mgt_reclaimable(struct kvm_cpu_context *host_ctxt)
 {
-	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_reclaimable();
+	DECLARE_REG(enum hyp_alloc_mgt_id, id, host_ctxt, 1);
+
+	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_reclaimable(id);
 }
 
 static void handle___pkvm_hyp_alloc_mgt_reclaim(struct kvm_cpu_context *host_ctxt)

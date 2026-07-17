@@ -609,6 +609,8 @@ impl Thread {
             }
         }
 
+        self.restore_priority(&self.process.default_priority);
+
         // If the caller doesn't want to wait, try to grab work from the process queue.
         //
         // We know nothing will have been queued directly to the thread queue because it is not in
@@ -628,8 +630,6 @@ impl Thread {
             if let Some(work) = inner.pop_work() {
                 return Ok(Some(work));
             }
-
-            self.restore_priority(&self.process.default_priority);
 
             inner.looper_flags |= LOOPER_WAITING | LOOPER_WAITING_PROC;
             let signal_pending = self.work_condvar.wait_interruptible_freezable(&mut inner);
@@ -1402,14 +1402,14 @@ impl Thread {
                         inner.extended_error =
                             ExtendedError::new(info.debug_id as u32, err.reply, source.to_errno());
                     }
-                }
 
-                pr_warn!(
-                    "{}:{} transaction to {} failed: {err:?}",
-                    info.from_pid,
-                    info.from_tid,
-                    info.to_pid
-                );
+                    pr_warn!(
+                        "{}:{} transaction to {} failed: {err:?}",
+                        info.from_pid,
+                        info.from_tid,
+                        info.to_pid
+                    );
+                }
             }
         }
 
@@ -1502,6 +1502,11 @@ impl Thread {
         });
 
         // Restore the priority even on failure.
+        if orig.from_parent.is_some() {
+            let mut prio_state = self.prio_lock.lock();
+            prio_state.state = PriorityState::Pending;
+            prio_state.next = orig.saved_priority();
+        }
         self.restore_priority(&orig.saved_priority());
         out
     }

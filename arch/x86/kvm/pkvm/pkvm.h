@@ -213,5 +213,7 @@ void pkvm_x86_ops_init(struct pkvm_x86_ops *ops);
 int pkvm_emulate_hypercall(struct kvm_vcpu *vcpu);
 typedef int (*pkvm_vm_func_t)(struct pkvm_vm *vm, void *arg);
 int pkvm_walk_each_vm(pkvm_vm_func_t func, void *arg);
+int pkvm_refill_memcache(struct pkvm_memcache *mc, unsigned long min_pages,
+			 struct pkvm_memcache *host_mc);
 
 #endif /* __PKVM_X86_PKVM_H */

@@ -906,7 +906,7 @@ static unsigned int alloc_swap_scan_cluster(struct swap_info_struct *si,
 	unsigned long start = ALIGN_DOWN(offset, SWAPFILE_CLUSTER);
 	unsigned long end = min(start + SWAPFILE_CLUSTER, si->max);
 	unsigned int nr_pages = 1 << order;
-	bool need_reclaim, ret;
+	bool need_reclaim, ret, bypass = false;
 
 	lockdep_assert_held(&ci->lock);
 
@@ -945,6 +945,9 @@ out:
 	relocate_cluster(si, ci);
 	swap_cluster_unlock(ci);
 	if (si->flags & SWP_SOLIDSTATE) {
+		trace_android_vh_update_percpu_swap_cluster_bypass(si, &bypass);
+		if (bypass)
+			return found;
 		this_cpu_write(percpu_swap_cluster.offset[order], next);
 		this_cpu_write(percpu_swap_cluster.si[order], si);
 	} else {
@@ -1359,6 +1362,11 @@ static bool swap_alloc_slow(swp_entry_t *entry,
 	spin_lock(&swap_avail_lock);
 start_over:
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
+		bool bypass = false;
+
+		trace_android_vh_pick_swap_device_bypass(entry, si, &bypass);
+		if (bypass)
+			continue;
 		/* Rotate the device and switch to a new cluster */
 		plist_requeue(&si->avail_lists[node], &swap_avail_heads[node]);
 		spin_unlock(&swap_avail_lock);
@@ -1435,6 +1443,7 @@ int folio_alloc_swap(struct folio *folio, gfp_t gfp)
 	unsigned int order = folio_order(folio);
 	unsigned int size = 1 << order;
 	swp_entry_t entry = {};
+	bool bypass_fast = false;
 
 	VM_BUG_ON_FOLIO(!folio_test_locked(folio), folio);
 	VM_BUG_ON_FOLIO(!folio_test_uptodate(folio), folio);
@@ -1459,7 +1468,8 @@ int folio_alloc_swap(struct folio *folio, gfp_t gfp)
 
 again:
 	local_lock(&percpu_swap_cluster.lock);
-	if (!swap_alloc_fast(&entry, order))
+	trace_android_vh_swap_alloc_fast_bypass(folio, &entry, &bypass_fast);
+	if (bypass_fast || !swap_alloc_fast(&entry, order))
 		swap_alloc_slow(&entry, order);
 	local_unlock(&percpu_swap_cluster.lock);
 
@@ -1476,7 +1486,7 @@ again:
 		return -ENOMEM;
 
 	swap_cache_add_folio(folio, entry, NULL);
-
+	trace_android_vh_folio_alloc_swap_finish(folio, &entry, bypass_fast);
 	return 0;
 
 out_free:
@@ -1728,6 +1738,7 @@ static void swap_entries_free(struct swap_info_struct *si,
 	unsigned long offset = swp_offset(entry);
 	unsigned char *map = si->swap_map + offset;
 	unsigned char *map_end = map + nr_pages;
+	trace_android_vh_check_swap_entries_free(si, &entry, nr_pages);
 
 	/* It should never free entries across different clusters */
 	VM_BUG_ON(ci != __swap_offset_to_cluster(si, offset + nr_pages - 1));

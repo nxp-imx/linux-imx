@@ -3380,6 +3380,7 @@
   __traceiter_android_vh_rproc_recovery
   __traceiter_android_vh_rproc_recovery_set
   __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_scx_cpu_allowed
   __traceiter_android_vh_scx_ops_enable_state
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
@@ -3494,6 +3495,7 @@
   __tracepoint_android_vh_rproc_recovery
   __tracepoint_android_vh_rproc_recovery_set
   __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_scx_cpu_allowed
   __tracepoint_android_vh_scx_ops_enable_state
   __tracepoint_android_vh_show_resume_epoch_val
   __tracepoint_android_vh_show_suspend_epoch_val

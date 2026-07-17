@@ -32,7 +32,6 @@ struct gunyah_vm_binding {
 		u64 userspace_addr;
 		struct {
 			struct file *file;
-			u32 fd;
 			u64 offset;
 		} cma;
 	};

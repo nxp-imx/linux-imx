@@ -208,6 +208,13 @@ static long gzvm_vcpu_ioctl(struct file *filp, unsigned int ioctl,
 	void __user *argp = (void __user *)arg;
 	struct gzvm_vcpu *vcpu = filp->private_data;
 
+	/*
+	 * Reject ioctls issued by a process other than the VM creator
+	 * (cf. KVM's kvm->mm check).
+	 */
+	if (vcpu->gzvm->mm != current->mm)
+		return -EIO;
+
 	switch (ioctl) {
 	case GZVM_RUN:
 		ret = gzvm_vcpu_run(vcpu, argp);

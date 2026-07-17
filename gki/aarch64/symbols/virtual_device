@@ -146,6 +146,7 @@
   drm_release
   drm_set_preferred_mode
   drm_vblank_init
+  dst_release
   ether_setup
   eth_mac_addr
   ethtool_op_get_link
@@ -887,7 +888,6 @@
   device_bind_driver
   device_create
   device_release_driver
-  dst_release
   genl_notify
   net_namespace_list
   rhashtable_destroy
@@ -1498,7 +1498,6 @@
   drm_crtc_vblank_crtc
   drm_crtc_vblank_put
   drm_debugfs_add_files
-  __drm_debug_trace
   drm_format_info_bpp
   __drm_gem_destroy_shadow_plane_state
   __drm_gem_duplicate_shadow_plane_state
@@ -1518,7 +1517,6 @@
   drmm_writeback_connector_init
   drm_plane_create_color_properties
   drm_plane_create_rotation_property
-  __drm_printfn_trace
   drm_rect_rotate_inv
   drm_writeback_queue_job
   drm_writeback_signal_completion
@@ -1529,3 +1527,7 @@
   xa_erase
   xa_find
   xa_find_after
+
+# preserved by --additions-only
+  __drm_debug_trace
+  __drm_printfn_trace

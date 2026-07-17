@@ -10,12 +10,14 @@
   bpf_trace_run4
   bpf_trace_run5
   bpf_trace_run6
+  cancel_delayed_work_sync
   cancel_work_sync
   consume_skb
   __cpu_online_mask
   crc32_le
   csum_partial
   debugfs_create_dir
+  delayed_work_timer_fn
   destroy_workqueue
   dev_addr_mod
   dev_close
@@ -35,6 +37,7 @@
   kmalloc_caches
   __kmalloc_noprof
   kmemdup_noprof
+  ktime_get
   kvfree_call_rcu
   __list_add_valid_or_report
   __list_del_entry_valid_or_report
@@ -56,6 +59,7 @@
   nla_memcpy
   __nla_parse
   nla_put
+  nla_put_64bit
   param_ops_bool
   param_ops_charp
   param_ops_int
@@ -110,6 +114,7 @@
   trace_raw_output_prep
   __trace_trigger_soft_disabled
   unregister_netdevice_notifier
+  __usecs_to_jiffies
   utf8_data_table
   __warn_printk
 
@@ -118,13 +123,11 @@
   bpf_trace_run7
   bpf_trace_run8
   cancel_delayed_work
-  cancel_delayed_work_sync
   class_register
   class_unregister
   _ctype
   debugfs_change_name
   debugfs_remove
-  delayed_work_timer_fn
   dev_change_net_namespace
   __dev_get_by_index
   dev_get_by_index
@@ -166,7 +169,6 @@
   netlink_unregister_notifier
   net_ns_type_operations
   nla_find
-  nla_put_64bit
   nla_reserve
   __nla_validate
   of_find_property
@@ -267,7 +269,6 @@
   kernel_param_unlock
   kfree_skb_list_reason
   __kmalloc_large_noprof
-  ktime_get
   ktime_get_seconds
   ktime_get_with_offset
   kunit_hooks
@@ -320,25 +321,35 @@
   tasklet_unlock_wait
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
-  __usecs_to_jiffies
 
 # required by wonder.ko
+  __arch_copy_from_user
   __auxiliary_driver_register
   auxiliary_driver_unregister
+  __check_object_size
+  debugfs_create_bool
   debugfs_create_file_full
+  debugfs_create_u32
   debugfs_lookup_and_remove
   dev_get_by_name
   dev_set_mtu
-  kstrtobool_from_user
+  mac_pton
   msleep
+  netdev_core_stats_inc
   netdev_rx_handler_register
   netdev_rx_handler_unregister
-  noop_llseek
+  seq_hex_dump
   seq_lseek
   seq_printf
   seq_read
-  simple_open
+  seq_write
   single_open
   single_release
+  validate_usercopy_range
   vfree
   vzalloc_noprof
+
+# preserved by --additions-only
+  kstrtobool_from_user
+  noop_llseek
+  simple_open

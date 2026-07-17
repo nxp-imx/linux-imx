@@ -1641,6 +1641,7 @@ static bool task_can_run_on_remote_rq(struct scx_sched *sch,
 				      bool enforce)
 {
 	int cpu = cpu_of(rq);
+	bool allowed = true;
 
 	WARN_ON_ONCE(task_cpu(p) == cpu);
 
@@ -1689,6 +1690,10 @@ static bool task_can_run_on_remote_rq(struct scx_sched *sch,
 			__scx_add_event(sch, SCX_EV_DISPATCH_LOCAL_DSQ_OFFLINE, 1);
 		return false;
 	}
+
+	trace_android_vh_scx_cpu_allowed(p, cpu, &allowed);
+	if (!allowed)
+		return false;
 
 	return true;
 }
@@ -2124,6 +2129,7 @@ static int balance_one(struct rq *rq, struct task_struct *prev)
 	bool prev_on_scx = prev->sched_class == &ext_sched_class;
 	bool prev_on_rq = prev->scx.flags & SCX_TASK_QUEUED;
 	int nr_loops = SCX_DSP_MAX_LOOPS;
+	bool allowed = true;
 
 	lockdep_assert_rq_held(rq);
 	rq->scx.flags |= SCX_RQ_IN_BALANCE;
@@ -2169,8 +2175,10 @@ static int balance_one(struct rq *rq, struct task_struct *prev)
 	if (consume_global_dsq(sch, rq))
 		goto has_tasks;
 
+	trace_android_vh_scx_cpu_allowed(NULL, cpu_of(rq), &allowed);
+
 	if (unlikely(!SCX_HAS_OP(sch, dispatch)) ||
-	    scx_rq_bypassing(rq) || !scx_rq_online(rq))
+	    scx_rq_bypassing(rq) || !scx_rq_online(rq) || !allowed)
 		goto no_tasks;
 
 	dspc->rq = rq;
