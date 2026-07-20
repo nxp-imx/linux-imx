@@ -1388,7 +1388,7 @@ static void dwc3_set_cache_type(struct dwc3 *dwc)
 		reg |= DWC3_GSBUSCFG0_DESCWR(cache_type->transfer_type_descwr);
 
 		if (tmp != reg)
-			dwc3_writel(dwc->regs, DWC3_GSBUSCFG0, reg);
+			dwc3_writel(dwc, DWC3_GSBUSCFG0, reg);
 	}
 }
 #endif
