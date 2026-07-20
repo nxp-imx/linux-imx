@@ -3,7 +3,7 @@
 /*
  * Virtio-media driver.
  *
- * Copyright (c) 2024-2026 Google LLC.
+* Copyright (c) 2024-2026 Google LLC.
  */
 
 #include <linux/bits.h>
@@ -24,6 +24,7 @@
 #include <linux/virtio_config.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
+#include <linux/virtio_dma_buf.h>
 #include <linux/virtio_ids.h>
 #include <uapi/linux/virtio_ring.h>
 
@@ -63,6 +64,9 @@ module_param_named(driver_name, virtio_media_driver_name, charp, 0660);
  */
 bool virtio_media_allow_userptr;
 module_param_named(allow_userptr, virtio_media_allow_userptr, bool, 0660);
+
+bool virtio_media_allow_dmabuf = true;
+module_param_named(allow_dmabuf, virtio_media_allow_dmabuf, bool, 0660);
 
 /*
  * If set, command descriptor payloads are bounced through a per-device
@@ -126,6 +130,7 @@ virtio_media_session_alloc(struct virtio_media *vv, u32 id,
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++) {
 		INIT_LIST_HEAD(&session->queues[i].pending_dqbufs);
 		INIT_LIST_HEAD(&session->queues[i].grant_maps);
+		INIT_LIST_HEAD(&session->queues[i].dmabuf_imports);
 	}
 	mutex_init(&session->queues_lock);
 
@@ -338,13 +343,22 @@ static void virtio_media_session_free(struct virtio_media *vv,
 		virtio_media_session_send_close(vv, session);
 	}
 
+	/*
+	 * Release any dma-buf imports. Unmapping ends the foreign access the
+	 * backend was granted, so it must happen only after the backend can no
+	 * longer be using those grants: on the notify_host path CLOSE (sent
+	 * above) has made the backend drop its exported dma-bufs; on device
+	 * removal the backend is gone. Safe in both cases.
+	 */
+	virtio_media_free_session_dmabuf_imports(session);
+
 	virtio_media_session_fh_del(session);
 	v4l2_fh_exit(&session->fh);
 
 	sg_free_table(&session->command_sgs);
 
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++)
-		vfree(session->queues[i].buffers);
+		virtio_media_free_queue_buffers(&session->queues[i]);
 
 	if (vv->use_coherent)
 		dma_free_coherent(vv->cmd_dma_dev, VIRTIO_SHADOW_BUF_SIZE,
@@ -687,44 +701,51 @@ virtio_media_process_dqbuf_event(struct virtio_media *vv,
 	}
 	queue = &session->queues[queue_type];
 
-	if (dqbuf_evt->buffer.index >= queue->allocated_bufs) {
-		v4l2_err(&vv->v4l2_dev,
-			 "invalid buffer ID %d for queue %d in dqbuf event",
-			 dqbuf_evt->buffer.index, dqbuf_evt->buffer.type);
-		return;
-	}
-
-	dqbuf = &queue->buffers[dqbuf_evt->buffer.index];
-
 	/*
-	 * Preserve the 'm' union that was passed to us during QBUF so userspace
-	 * gets back the information it submitted.
+	 * Hold queues_lock across the whole lookup and update. It serialises
+	 * against REQBUFS/CREATE_BUFS, which swap queue->buffers and free the
+	 * old buffers/pointer array under the same lock: without it this worker
+	 * could read a stale queue->buffers pointer (or a stale allocated_bufs)
+	 * and dereference a freed buffer or index out of bounds.
 	 */
-	buffer_m = dqbuf->buffer.m;
-	memcpy(&dqbuf->buffer, &dqbuf_evt->buffer, sizeof(dqbuf->buffer));
-	dqbuf->buffer.m = buffer_m;
-	if (V4L2_TYPE_IS_MULTIPLANAR(dqbuf->buffer.type)) {
-		if (dqbuf->buffer.length > VIDEO_MAX_PLANES) {
+	scoped_guard(mutex, &session->queues_lock) {
+		if (dqbuf_evt->buffer.index >= queue->allocated_bufs) {
 			v4l2_err(&vv->v4l2_dev,
-				 "invalid number of planes received from host for a multiplanar buffer\n");
+				 "invalid buffer ID %d for queue %d in dqbuf event",
+				 dqbuf_evt->buffer.index, dqbuf_evt->buffer.type);
 			return;
 		}
-		for (i = 0; i < dqbuf->buffer.length; i++) {
-			plane_m = dqbuf->planes[i].m;
-			memcpy(&dqbuf->planes[i], &dqbuf_evt->planes[i],
-			       sizeof(struct v4l2_plane));
-			dqbuf->planes[i].m = plane_m;
+
+		dqbuf = queue->buffers[dqbuf_evt->buffer.index];
+
+		/*
+		 * Preserve the 'm' union that was passed to us during QBUF so
+		 * userspace gets back the information it submitted.
+		 */
+		buffer_m = dqbuf->buffer.m;
+		memcpy(&dqbuf->buffer, &dqbuf_evt->buffer, sizeof(dqbuf->buffer));
+		dqbuf->buffer.m = buffer_m;
+		if (V4L2_TYPE_IS_MULTIPLANAR(dqbuf->buffer.type)) {
+			if (dqbuf->buffer.length > VIDEO_MAX_PLANES) {
+				v4l2_err(&vv->v4l2_dev,
+					 "invalid number of planes received from host for a multiplanar buffer\n");
+				return;
+			}
+			for (i = 0; i < dqbuf->buffer.length; i++) {
+				plane_m = dqbuf->planes[i].m;
+				memcpy(&dqbuf->planes[i], &dqbuf_evt->planes[i],
+				       sizeof(struct v4l2_plane));
+				dqbuf->planes[i].m = plane_m;
+			}
 		}
+
+		/* Set the DONE flag as the buffer is waiting for being dequeued. */
+		dqbuf->buffer.flags |= V4L2_BUF_FLAG_DONE;
+
+		list_add_tail(&dqbuf->list, &queue->pending_dqbufs);
+		queue->queued_bufs -= 1;
+		queue->dqbuf_count += 1;
 	}
-
-	/* Set the DONE flag as the buffer is waiting for being dequeued. */
-	dqbuf->buffer.flags |= V4L2_BUF_FLAG_DONE;
-
-	mutex_lock(&session->queues_lock);
-	list_add_tail(&dqbuf->list, &queue->pending_dqbufs);
-	queue->queued_bufs -= 1;
-	queue->dqbuf_count += 1;
-	mutex_unlock(&session->queues_lock);
 
 	wake_up(&session->dqbuf_wait);
 }
@@ -983,35 +1004,35 @@ static __poll_t virtio_media_device_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &session->dqbuf_wait, wait);
 	poll_wait(file, &session->fh.wait, wait);
 
-	mutex_lock(&session->queues_lock);
-	if (session->error) {
-		rc |= EPOLLERR;
-	} else {
-		if (req_events & (EPOLLOUT | EPOLLWRNORM | EPOLLIN | EPOLLRDNORM)) {
-			/*
-			 * Signal readable on the CAPTURE queue either when a
-			 * buffer is pending, or after the LAST buffer of a
-			 * drain has been dequeued (is_capture_last). In the
-			 * latter case pending_dqbufs is empty but the client
-			 * must still be woken so its DQBUF returns -EPIPE and
-			 * the drain / dynamic-resolution-change sequence can
-			 * complete. This mirrors vb2_core_poll(), which returns
-			 * EPOLLIN|EPOLLRDNORM when q->last_buffer_dequeued is
-			 * set even though the done_list is empty. Without it a
-			 * source change (implicit drain) can stall the pipeline
-			 * during seek/trick play: the client dequeues the
-			 * (possibly empty) LAST buffer, goes back to poll(), and
-			 * blocks forever because pending_dqbufs is empty and the
-			 * SOURCE_CHANGE event may already have been consumed.
-			 */
-			if (!list_empty(&capture_queue->pending_dqbufs) ||
-			    capture_queue->is_capture_last)
-				rc |= EPOLLIN | EPOLLRDNORM;
-			if (!list_empty(&output_queue->pending_dqbufs))
-				rc |= EPOLLOUT | EPOLLWRNORM;
+	scoped_guard(mutex, &session->queues_lock) {
+		if (session->error) {
+			rc |= EPOLLERR;
+		} else {
+			if (req_events & (EPOLLOUT | EPOLLWRNORM | EPOLLIN | EPOLLRDNORM)) {
+				/*
+				 * Signal readable on the CAPTURE queue either when a
+				 * buffer is pending, or after the LAST buffer of a
+				 * drain has been dequeued (is_capture_last). In the
+				 * latter case pending_dqbufs is empty but the client
+				 * must still be woken so its DQBUF returns -EPIPE and
+				 * the drain / dynamic-resolution-change sequence can
+				 * complete. This mirrors vb2_core_poll(), which returns
+				 * EPOLLIN|EPOLLRDNORM when q->last_buffer_dequeued is
+				 * set even though the done_list is empty. Without it a
+				 * source change (implicit drain) can stall the pipeline
+				 * during seek/trick play: the client dequeues the
+				 * (possibly empty) LAST buffer, goes back to poll(), and
+				 * blocks forever because pending_dqbufs is empty and the
+				 * SOURCE_CHANGE event may already have been consumed.
+				 */
+				if (!list_empty(&capture_queue->pending_dqbufs) ||
+				    capture_queue->is_capture_last)
+					rc |= EPOLLIN | EPOLLRDNORM;
+				if (!list_empty(&output_queue->pending_dqbufs))
+					rc |= EPOLLOUT | EPOLLWRNORM;
+			}
 		}
 	}
-	mutex_unlock(&session->queues_lock);
 
 	if (v4l2_event_pending(&session->fh))
 		rc |= EPOLLPRI;
@@ -1485,7 +1506,7 @@ int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
 	if (index >= queue->allocated_bufs || !queue->buffers)
 		return -EINVAL;
 
-	buffer = &queue->buffers[index];
+	buffer = queue->buffers[index];
 
 	if (V4L2_TYPE_IS_MULTIPLANAR(type)) {
 		u32 num_planes = buffer->buffer.length;
@@ -1573,6 +1594,903 @@ void virtio_media_free_session_grant_maps(struct virtio_media_session *session)
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++)
 		virtio_media_free_queue_grant_maps(session, i);
 	mutex_unlock(&vv->vlock);
+}
+
+/*
+ * DMA-address encoding used by the Xen grant DMA ops (see
+ * drivers/xen/grant-dma-ops.c grant_to_dma()/dma_to_grant()): the top bit
+ * flags a grant-backed address and the grant reference sits in the page-number
+ * field. These constants are private to grant-dma-ops.c and not exported, so
+ * they are duplicated here; they are part of the Xen para-virtual ABI and only
+ * change in lockstep with that file. Decoding must use XEN_PAGE_SHIFT (the
+ * grant page size), which happens to equal PAGE_SHIFT on this 4K-page arm64
+ * build but is not guaranteed to in general.
+ */
+#define VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF (1ULL << 63)
+
+static grant_ref_t virtio_media_dma_to_grant(dma_addr_t dma)
+{
+	return (grant_ref_t)((dma & ~VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF) >>
+			     XEN_PAGE_SHIFT);
+}
+
+/*
+ * dma-buf ops of buffers this driver exports via VIDIOC_EXPBUF; used to detect
+ * (and reject) an attempt to re-import one of our own exported buffers. Defined
+ * below with the EXPBUF implementation.
+ */
+static const struct dma_buf_ops virtio_media_dmabuf_ops;
+
+/**
+ * virtio_media_import_decode_refs() - Collect the grant references backing an
+ *	imported dma-buf, from the grant DMA ops' encoding of @sgt.
+ * @imp: import whose mapped sg_table to decode.
+ * @refs_out: on success, receives a kmalloc'ed array of grant references the
+ *	caller must kfree().
+ * @num_refs_out: on success, receives the number of references in @refs_out.
+ *
+ * Used when the virtio device's Xen grant DMA ops are active: each DMA address
+ * in @sgt already carries the grant reference the grant DMA ops assigned to it
+ * (top bit set, see virtio_media_dma_to_grant()). Walks @sgt and decodes each
+ * DMA address into its run of references.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+static int
+virtio_media_import_decode_refs(struct virtio_media_dmabuf_import *imp,
+				grant_ref_t **refs_out, u32 *num_refs_out)
+{
+	struct scatterlist *sg;
+	grant_ref_t *refs;
+	u32 num_refs = 0;
+	unsigned int i;
+	u32 k = 0;
+
+	/* First pass: count grant references across the mapped sg_table. */
+	for_each_sgtable_dma_sg(imp->sgt, sg, i)
+		num_refs += gnttab_count_grant(sg_dma_address(sg),
+					       sg_dma_len(sg));
+
+	if (!num_refs)
+		return -EINVAL;
+
+	refs = kmalloc_array(num_refs, sizeof(*refs), GFP_KERNEL);
+	if (!refs)
+		return -ENOMEM;
+
+	/* Second pass: decode each DMA address into its run of grant refs. */
+	for_each_sgtable_dma_sg(imp->sgt, sg, i) {
+		dma_addr_t addr = sg_dma_address(sg);
+		grant_ref_t base = virtio_media_dma_to_grant(addr);
+		unsigned int n = gnttab_count_grant(addr, sg_dma_len(sg));
+		unsigned int j;
+
+		for (j = 0; j < n; j++)
+			refs[k++] = base + j;
+	}
+
+	*refs_out = refs;
+	*num_refs_out = num_refs;
+
+	return 0;
+}
+
+/**
+ * virtio_media_import_manual_grant() - Grant foreign access to an imported
+ *	dma-buf's pages by hand.
+ * @vv: virtio-media device in use.
+ * @imp: import whose mapped sg_table to grant. On success, @imp->manual_grant,
+ *	@imp->grant_ref_head and @imp->grant_ref_count are filled in.
+ * @refs_out: on success, receives a kmalloc'ed array of grant references the
+ *	caller must kfree().
+ * @num_refs_out: on success, receives the number of references in @refs_out.
+ *
+ * Used when the virtio device's Xen grant DMA ops are NOT active, so the DMA
+ * addresses in @sgt are plain guest-physical addresses rather than encoded
+ * grant references. Allocates one contiguous grant-reference sequence covering
+ * all pages of @sgt and grants the backend's domain foreign access to each
+ * page, mirroring what the grant DMA ops would have done. The references must
+ * be ended (see virtio_media_import_end_grant()) at teardown.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+static int
+virtio_media_import_manual_grant(struct virtio_media *vv,
+				 struct virtio_media_dmabuf_import *imp,
+				 grant_ref_t **refs_out, u32 *num_refs_out)
+{
+	domid_t backend_domid = 0;
+	struct scatterlist *sg;
+	grant_ref_t head;
+	grant_ref_t *refs;
+	u32 num_refs = 0;
+	unsigned int i;
+	u32 k = 0;
+	int ret;
+
+	/* First pass: count the pages we must grant across the sg_table. */
+	for_each_sgtable_dma_sg(imp->sgt, sg, i)
+		num_refs += gnttab_count_grant(sg_dma_address(sg),
+					       sg_dma_len(sg));
+
+	if (!num_refs)
+		return -EINVAL;
+
+	refs = kmalloc_array(num_refs, sizeof(*refs), GFP_KERNEL);
+	if (!refs)
+		return -ENOMEM;
+
+	ret = gnttab_alloc_grant_reference_seq(num_refs, &head);
+	if (ret) {
+		v4l2_err(&vv->v4l2_dev,
+			 "failed to allocate %u grant references: %d\n",
+			 num_refs, ret);
+		kfree(refs);
+		return ret;
+	}
+
+	/* Second pass: grant foreign access to each page, in sequence. */
+	for_each_sgtable_dma_sg(imp->sgt, sg, i) {
+		unsigned long gfn = sg_dma_address(sg) >> XEN_PAGE_SHIFT;
+		unsigned int n = gnttab_count_grant(sg_dma_address(sg),
+						    sg_dma_len(sg));
+		unsigned int j;
+
+		for (j = 0; j < n; j++, k++) {
+			gnttab_grant_foreign_access_ref(head + k, backend_domid,
+							gfn + j, 0);
+			refs[k] = head + k;
+		}
+	}
+
+	imp->manual_grant = true;
+	imp->grant_ref_head = head;
+	imp->grant_ref_count = num_refs;
+
+	*refs_out = refs;
+	*num_refs_out = num_refs;
+
+	return 0;
+}
+
+/**
+ * virtio_media_import_end_grant() - End foreign access granted by hand.
+ * @imp: import previously granted by virtio_media_import_manual_grant().
+ *
+ * Ends foreign access on each reference and frees the sequence. No-op unless
+ * @imp->manual_grant. Must be called after the backend has dropped its
+ * reference to the backing (i.e. after DMABUF_DETACH), otherwise Xen refuses
+ * to end a grant still in use.
+ */
+static void
+virtio_media_import_end_grant(struct virtio_media_dmabuf_import *imp)
+{
+	u32 i;
+
+	if (!imp->manual_grant)
+		return;
+
+	for (i = 0; i < imp->grant_ref_count; i++)
+		gnttab_end_foreign_access_ref(imp->grant_ref_head + i);
+
+	gnttab_free_grant_reference_seq(imp->grant_ref_head,
+					imp->grant_ref_count);
+	imp->manual_grant = false;
+}
+
+/**
+ * virtio_media_import_get_refs() - Obtain the grant references backing an
+ *	imported dma-buf, whichever grant path applies.
+ * @vv: virtio-media device in use.
+ * @imp: import whose mapped sg_table to grant/decode.
+ * @refs_out: on success, receives a kmalloc'ed array the caller must kfree().
+ * @num_refs_out: on success, receives the number of references.
+ *
+ * Detects whether the Xen grant DMA ops are active by inspecting the top bit
+ * of the first DMA address (set only when the grant DMA ops encoded a grant
+ * reference there, see virtio_media_dma_to_grant()). If set, the references
+ * are decoded from @sgt; otherwise foreign access is granted by hand.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+static int
+virtio_media_import_get_refs(struct virtio_media *vv,
+			     struct virtio_media_dmabuf_import *imp,
+			     grant_ref_t **refs_out, u32 *num_refs_out)
+{
+	dma_addr_t first = sg_dma_address(imp->sgt->sgl);
+
+	if (first & VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF)
+		return virtio_media_import_decode_refs(imp, refs_out,
+						       num_refs_out);
+
+	return virtio_media_import_manual_grant(vv, imp, refs_out,
+						num_refs_out);
+}
+
+/**
+ * virtio_media_send_dmabuf_attach() - Tell the backend to attach a dma-buf
+ *	backing under a resource id.
+ * @vv: virtio-media device in use.
+ * @session_id: session the backing belongs to.
+ * @resource_id: id the backend should remember this backing under.
+ * @refs: grant references of the imported dma-buf's pages.
+ * @num_refs: number of references in @refs.
+ *
+ * Sends VIRTIO_MEDIA_CMD_DMABUF_ATTACH with the grant references appended in
+ * the device-readable part of the chain. Caller must hold vv->vlock.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
+					   u32 session_id, u32 resource_id,
+					   const grant_ref_t *refs,
+					   u32 num_refs)
+{
+	struct virtio_media_cmd_dmabuf_attach *cmd = &vv->cmd.attach;
+	struct virtio_media_resp_dmabuf_attach *resp = &vv->resp.attach;
+	struct scatterlist cmd_sg = {}, refs_sg = {}, resp_sg = {};
+	struct scatterlist *sgs[3] = { &cmd_sg, &refs_sg, &resp_sg };
+	size_t refs_size = (size_t)num_refs * sizeof(*refs);
+	struct virtio_media_coherent_cmd cc;
+	void *refs_coherent = NULL;
+	dma_addr_t refs_coherent_dma = 0;
+	int ret;
+
+	lockdep_assert_held(&vv->vlock);
+
+	cmd->hdr.cmd = VIRTIO_MEDIA_CMD_DMABUF_ATTACH;
+	cmd->hdr.__reserved = 0;
+	cmd->session_id = session_id;
+	cmd->resource_id = resource_id;
+	cmd->num_refs = num_refs;
+	cmd->__reserved = 0;
+
+	if (vv->use_coherent) {
+		/*
+		 * The refs array can be larger than the shared ctrl_cmd
+		 * buffer, so give it its own coherent allocation the device
+		 * can read through its foreign mapping.
+		 */
+		refs_coherent = dma_alloc_coherent(vv->cmd_dma_dev, refs_size,
+						   &refs_coherent_dma,
+						   GFP_KERNEL);
+		if (!refs_coherent)
+			return -ENOMEM;
+		memcpy(refs_coherent, refs, refs_size);
+
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd,
+						    sizeof(*cmd));
+		if (ret)
+			goto err_free_coherent;
+
+		sg_init_table(&refs_sg, 1);
+		sg_set_buf(&refs_sg, refs_coherent, refs_size);
+		sg_dma_address(&refs_sg) = refs_coherent_dma;
+		sg_dma_len(&refs_sg) = refs_size;
+
+		ret = virtio_media_coherent_add_in(&cc, &resp_sg, resp,
+						   sizeof(*resp));
+		if (ret)
+			goto err_free_coherent;
+	} else {
+		sg_set_buf(&cmd_sg, cmd, sizeof(*cmd));
+		sg_mark_end(&cmd_sg);
+		sg_set_buf(&refs_sg, (void *)refs, refs_size);
+		sg_mark_end(&refs_sg);
+		sg_set_buf(&resp_sg, resp, sizeof(*resp));
+		sg_mark_end(&resp_sg);
+	}
+
+	ret = virtio_media_send_command(vv, sgs, 2, 1, vv->use_coherent,
+					sizeof(*resp), NULL);
+	if (!ret && vv->use_coherent)
+		virtio_media_coherent_retrieve(&cc);
+
+err_free_coherent:
+	if (refs_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
+				  refs_coherent_dma);
+	return ret;
+}
+
+/**
+ * virtio_media_send_dmabuf_detach() - Tell the backend to detach a dma-buf
+ *	backing.
+ * @vv: virtio-media device in use.
+ * @session_id: session the backing belongs to.
+ * @resource_id: id of the backing to detach.
+ *
+ * Sends VIRTIO_MEDIA_CMD_DMABUF_DETACH so the backend releases the local
+ * dma-buf it exported, letting us then end the foreign grants. Caller must
+ * hold vv->vlock.
+ */
+static void virtio_media_send_dmabuf_detach(struct virtio_media *vv,
+					    u32 session_id, u32 resource_id)
+{
+	struct virtio_media_cmd_dmabuf_detach *cmd = &vv->cmd.detach;
+	struct virtio_media_resp_dmabuf_detach *resp = &vv->resp.detach;
+	struct scatterlist cmd_sg = {}, resp_sg = {};
+	struct scatterlist *sgs[2] = { &cmd_sg, &resp_sg };
+	struct virtio_media_coherent_cmd cc;
+	int ret;
+
+	lockdep_assert_held(&vv->vlock);
+
+	cmd->hdr.cmd = VIRTIO_MEDIA_CMD_DMABUF_DETACH;
+	cmd->hdr.__reserved = 0;
+	cmd->session_id = session_id;
+	cmd->resource_id = resource_id;
+
+	if (vv->use_coherent) {
+		virtio_media_coherent_cmd_init(&cc, vv);
+		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd,
+						    sizeof(*cmd));
+		if (!ret)
+			ret = virtio_media_coherent_add_in(&cc, &resp_sg, resp,
+							   sizeof(*resp));
+		if (ret) {
+			v4l2_err(&vv->v4l2_dev,
+				 "failed to stage DMABUF_DETACH command: %d\n",
+				 ret);
+			return;
+		}
+	} else {
+		sg_set_buf(&cmd_sg, cmd, sizeof(*cmd));
+		sg_mark_end(&cmd_sg);
+		sg_set_buf(&resp_sg, resp, sizeof(*resp));
+		sg_mark_end(&resp_sg);
+	}
+
+	ret = virtio_media_send_command(vv, sgs, 1, 1, vv->use_coherent,
+					sizeof(*resp), NULL);
+	if (!ret && vv->use_coherent)
+		virtio_media_coherent_retrieve(&cc);
+	if (ret < 0)
+		v4l2_err(&vv->v4l2_dev,
+			 "backend failed to detach dma-buf (resource %u): %d\n",
+			 resource_id, ret);
+}
+
+/**
+ * virtio_media_resource_id_get() - Allocate a dma-buf resource id.
+ * @vv: virtio-media device in use.
+ * @resource_id: on success, receives the allocated id.
+ *
+ * Hands out the smallest currently-free id from @vv->resource_ida, so ids are
+ * bounded by the number of concurrently-attached backings and a live backing's
+ * id is never re-handed-out (no wrap, no ABA hazard - see the kerneldoc on
+ * struct virtio_media::resource_ida). Ids start at 1 so 0 stays free to mean
+ * "none". Paired with virtio_media_resource_id_put() on DMABUF_DETACH.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+static int virtio_media_resource_id_get(struct virtio_media *vv,
+					u32 *resource_id)
+{
+	int id = ida_alloc_min(&vv->resource_ida, 1, GFP_KERNEL);
+
+	if (id < 0)
+		return id;
+
+	*resource_id = (u32)id;
+	return 0;
+}
+
+/* Release a dma-buf resource id back to the allocator (see _get()). */
+static void virtio_media_resource_id_put(struct virtio_media *vv,
+					 u32 resource_id)
+{
+	ida_free(&vv->resource_ida, resource_id);
+}
+
+/**
+ * virtio_media_dmabuf_import_alloc() - Import a guest dma-buf fd and attach it
+ *	to the backend.
+ * @session: session the buffer belongs to.
+ * @fd: dma-buf file descriptor passed by userspace.
+ *
+ * Resolves @fd to a dma-buf, attaches it to the virtio device and maps it.
+ * Because virtio devices use the Xen grant DMA ops here, mapping grants the
+ * dma-buf's pages to the backend's domain and encodes the grant references in
+ * the mapped sg_table. Those references are decoded and sent to the backend
+ * with DMABUF_ATTACH under a freshly allocated resource id, which the backend
+ * uses to reconstruct the dma-buf on its side.
+ *
+ * Only dma-bufs backed by real guest pages are handled here. Two kinds are
+ * rejected with -EINVAL:
+ *
+ *   - virtio exported-objects (identified by is_virtio_dma_buf()), e.g. a
+ *     virtio-gpu host-3d resource: they carry a UUID and have no guest pages,
+ *     so there is nothing to grant. Sharing them would require the backend to
+ *     resolve the UUID against the exporting device's own backend. Not
+ *     supported yet.
+ *
+ *   - dma-bufs this virtio-media instance exported itself via VIDIOC_EXPBUF
+ *     (identified by their virtio_media_dmabuf_ops): these are physically the
+ *     Dom0 backend's own buffers, only foreign-granted into this guest. On
+ *     arm/arm64 Xen a foreign grant map redirects the guest page's p2m entry
+ *     to the real Dom0 machine frame (set_foreign_p2m_mapping()), so mapping
+ *     such a dma-buf to the virtio device would happily grant that same Dom0
+ *     frame straight back to Dom0 - it is not an unsupported transitive grant
+ *     and would in fact work (this is exactly how a decoded frame reaches the
+ *     display: waylandsink imports it into virtio-gpu the same way). We reject
+ *     it anyway because it is a wasteful round trip: an extra grant table +
+ *     mapping and the ~2s-per-buffer release cost, granting Dom0 memory back
+ *     to Dom0. The right path is for the backend to recognise its own buffer
+ *     directly (a cross-daemon UUID lookup, to be designed); until then,
+ *     reject rather than silently take the slow round trip.
+ *
+ * Caller must hold vv->vlock (QBUF/PREPARE_BUF run under it).
+ *
+ * Returns the import on success, or an ERR_PTR on failure.
+ */
+static struct virtio_media_dmabuf_import *
+virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
+{
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
+	struct virtio_media_dmabuf_import *imp;
+	struct dma_buf_attachment *attach;
+	struct sg_table *sgt;
+	struct dma_buf *dmabuf;
+	grant_ref_t *refs = NULL;
+	u32 num_refs = 0;
+	u32 resource_id;
+	int ret;
+
+	lockdep_assert_held(&vv->vlock);
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR(dmabuf))
+		return ERR_CAST(dmabuf);
+
+	/*
+	 * dma-bufs exported by a virtio device carry a UUID and no guest pages;
+	 * they cannot be granted to the backend, so reject them cleanly rather
+	 * than sending a buffer the backend cannot resolve.
+	 */
+	if (is_virtio_dma_buf(dmabuf)) {
+		dma_buf_put(dmabuf);
+		return ERR_PTR(-EINVAL);
+	}
+
+	/*
+	 * dma-bufs we exported ourselves (VIDIOC_EXPBUF) are physically the
+	 * Dom0 backend's own buffers, only foreign-granted into this guest.
+	 * Re-granting them to the virtio device would work (the p2m redirects
+	 * to the real Dom0 frame, so Dom0 just gets its own memory granted
+	 * back), but it is a wasteful round trip. The backend should recognise
+	 * its own buffer directly; that cross-daemon lookup is not designed
+	 * yet, so reject for now rather than take the slow path. See the
+	 * function's kerneldoc for the full rationale.
+	 */
+	if (dmabuf->ops == &virtio_media_dmabuf_ops) {
+		dma_buf_put(dmabuf);
+		return ERR_PTR(-EINVAL);
+	}
+
+	imp = kzalloc(sizeof(*imp), GFP_KERNEL);
+	if (!imp) {
+		ret = -ENOMEM;
+		goto err_put;
+	}
+
+	attach = dma_buf_attach(dmabuf, vv->virtio_dev->dev.parent);
+	if (IS_ERR(attach)) {
+		ret = PTR_ERR(attach);
+		goto err_free;
+	}
+
+	sgt = dma_buf_map_attachment_unlocked(attach, DMA_BIDIRECTIONAL);
+	if (IS_ERR(sgt)) {
+		ret = PTR_ERR(sgt);
+		goto err_detach;
+	}
+
+	imp->dmabuf = dmabuf;
+	imp->attach = attach;
+	imp->sgt = sgt;
+
+	ret = virtio_media_import_get_refs(vv, imp, &refs, &num_refs);
+	if (ret)
+		goto err_unmap;
+
+	/*
+	 * Assign a resource id and tell the backend to attach the backing. The
+	 * id is unique for as long as the backing stays attached (freed on
+	 * DETACH), so the backend can key its export cache on it safely.
+	 */
+	ret = virtio_media_resource_id_get(vv, &resource_id);
+	if (ret) {
+		kfree(refs);
+		goto err_end_grant;
+	}
+	imp->resource_id = resource_id;
+
+	ret = virtio_media_send_dmabuf_attach(vv, session->id, resource_id,
+					      refs, num_refs);
+	kfree(refs);
+	if (ret)
+		goto err_put_id;
+
+	return imp;
+
+err_put_id:
+	virtio_media_resource_id_put(vv, resource_id);
+err_end_grant:
+	/*
+	 * The backend never attached (ATTACH not sent, or it failed), so no
+	 * one holds a reference to the grants; ending foreign access now is
+	 * safe. No-op unless we granted by hand.
+	 */
+	virtio_media_import_end_grant(imp);
+err_unmap:
+	dma_buf_unmap_attachment_unlocked(attach, sgt, DMA_BIDIRECTIONAL);
+err_detach:
+	dma_buf_detach(dmabuf, attach);
+err_free:
+	kfree(imp);
+err_put:
+	dma_buf_put(dmabuf);
+	return ERR_PTR(ret);
+}
+
+/*
+ * Tear down a single dma-buf import: tell the backend to detach the backing
+ * (so it drops the local dma-buf it exported), then end the foreign grants by
+ * unmapping, detach and drop our reference. Caller must hold vv->vlock.
+ */
+static void
+virtio_media_dmabuf_import_free(struct virtio_media *vv, u32 session_id,
+				struct virtio_media_dmabuf_import *imp)
+{
+	lockdep_assert_held(&vv->vlock);
+
+	/*
+	 * DETACH first so the backend closes its exported dma-buf and drops
+	 * its reference to the grants; only then is it safe to unmap (end
+	 * foreign access), otherwise Xen would refuse to end a grant still in
+	 * use.
+	 */
+	virtio_media_send_dmabuf_detach(vv, session_id, imp->resource_id);
+
+	/*
+	 * Return the id to the allocator only after DETACH: while the backend
+	 * still knows the backing under this id, it must stay reserved so a
+	 * concurrent attach cannot be handed the same id.
+	 */
+	virtio_media_resource_id_put(vv, imp->resource_id);
+
+	/*
+	 * End any foreign access we granted by hand, now that the backend has
+	 * detached (no-op when the grant DMA ops did the granting, in which
+	 * case unmapping below ends it). Must precede the unmap/detach.
+	 */
+	virtio_media_import_end_grant(imp);
+
+	dma_buf_unmap_attachment_unlocked(imp->attach, imp->sgt,
+					  DMA_BIDIRECTIONAL);
+	dma_buf_detach(imp->dmabuf, imp->attach);
+	dma_buf_put(imp->dmabuf);
+	kfree(imp);
+}
+
+/**
+ * virtio_media_find_dmabuf_import() - Find a queue's import for a dma-buf.
+ * @queue: queue whose dmabuf_imports list to search.
+ * @dmabuf: dma-buf to look for.
+ *
+ * Returns the existing import bound to @dmabuf on this queue, or NULL. Imports
+ * are deduplicated by ``struct dma_buf *`` (a stable, non-reused key for as
+ * long as the import holds a reference), so the same dma-buf queued on several
+ * buffers/planes maps to one import. Caller must hold vv->vlock.
+ */
+static struct virtio_media_dmabuf_import *
+virtio_media_find_dmabuf_import(struct virtio_media_queue_state *queue,
+				struct dma_buf *dmabuf)
+{
+	struct virtio_media_dmabuf_import *imp;
+
+	list_for_each_entry(imp, &queue->dmabuf_imports, list)
+		if (imp->dmabuf == dmabuf)
+			return imp;
+
+	return NULL;
+}
+
+/**
+ * virtio_media_bind_plane_dmabuf() - Bind one plane of a buffer to a dma-buf.
+ * @session: session owning the buffer.
+ * @queue: queue the buffer belongs to (owns the dmabuf_imports list).
+ * @buffer: buffer state whose plane binding to update.
+ * @plane: plane index within the buffer.
+ * @fd: dma-buf file descriptor userspace passed for this plane.
+ *
+ * Binds the plane to the queue-level import for @fd's dma-buf, importing it
+ * (attach + DMABUF_ATTACH) only if this queue has not imported that dma-buf
+ * yet; otherwise the existing shared import is reused and no ATTACH is resent.
+ * The plane binding is a non-owning pointer: the import stays attached for the
+ * queue's whole REQBUFS lifetime and is torn down only when the queue's imports
+ * are freed (see virtio_media_free_queue_dmabuf_imports()), never on rebind, so
+ * we do not end grants the backend may still be using while streaming. Caller
+ * must hold vv->vlock.
+ *
+ * Returns 0 on success or a negative error code (the slot is left bound to its
+ * previous import, if any, on failure).
+ */
+static int
+virtio_media_bind_plane_dmabuf(struct virtio_media_session *session,
+			       struct virtio_media_queue_state *queue,
+			       struct virtio_media_buffer *buffer, u32 plane,
+			       int fd)
+{
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
+	struct virtio_media_dmabuf_import *imp;
+	struct dma_buf *dmabuf;
+
+	lockdep_assert_held(&vv->vlock);
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR(dmabuf))
+		return PTR_ERR(dmabuf);
+
+	/*
+	 * Reuse the queue's existing import if this dma-buf was already
+	 * imported (by this or any other plane/buffer on the queue): the
+	 * backend already has the backing under its resource id. The import
+	 * holds its own reference, so drop ours before returning.
+	 */
+	imp = virtio_media_find_dmabuf_import(queue, dmabuf);
+	dma_buf_put(dmabuf);
+	if (imp) {
+		buffer->dmabuf_bindings[plane] = imp;
+		return 0;
+	}
+
+	/* First time this dma-buf is queued: import it and cache on the queue. */
+	imp = virtio_media_dmabuf_import_alloc(session, fd);
+	if (IS_ERR(imp))
+		return PTR_ERR(imp);
+
+	list_add_tail(&imp->list, &queue->dmabuf_imports);
+	buffer->dmabuf_bindings[plane] = imp;
+
+	return 0;
+}
+
+/**
+ * virtio_media_clear_buffer_dmabuf_bindings() - Drop a buffer's plane bindings.
+ * @session: session owning the buffer.
+ * @type: v4l2 buffer type (selects the queue).
+ * @index: buffer index within the queue.
+ *
+ * Clears every plane's non-owning binding pointer for the buffer. Does NOT tear
+ * down the imports themselves (those are owned by the queue and shared across
+ * buffers; they are freed together in virtio_media_free_queue_dmabuf_imports()).
+ * Used to roll a buffer back after a failed queueing without disturbing imports
+ * that other buffers may still be using. Caller must hold vv->vlock.
+ */
+static void
+virtio_media_clear_buffer_dmabuf_bindings(struct virtio_media_session *session,
+					  u32 type, u32 index)
+{
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
+	struct virtio_media_queue_state *queue;
+	struct virtio_media_buffer *buffer;
+	u32 plane;
+
+	if (type > VIRTIO_MEDIA_LAST_QUEUE)
+		return;
+
+	lockdep_assert_held(&vv->vlock);
+
+	queue = &session->queues[type];
+	if (index >= queue->allocated_bufs || !queue->buffers)
+		return;
+
+	buffer = queue->buffers[index];
+	for (plane = 0; plane < VIDEO_MAX_PLANES; plane++)
+		buffer->dmabuf_bindings[plane] = NULL;
+}
+
+/**
+ * virtio_media_bind_buffer_dmabufs() - Bind (attach) every dma-buf plane of a
+ *	buffer before it is queued.
+ * @session: session the buffer belongs to.
+ * @b: v4l2_buffer being queued (QBUF/PREPARE_BUF).
+ *
+ * For a V4L2_MEMORY_DMABUF buffer, binds each plane's dma-buf fd (see
+ * virtio_media_bind_plane_dmabuf()). Does nothing for other memory types. On
+ * failure any plane bindings recorded during this call are cleared so the
+ * buffer is left with no partial bindings (the queue-level imports themselves
+ * are left intact, since they may be shared with other buffers). Caller must
+ * hold vv->vlock.
+ *
+ * Returns 0 on success or a negative error code.
+ */
+int virtio_media_bind_buffer_dmabufs(struct virtio_media_session *session,
+				     struct v4l2_buffer *b)
+{
+	struct virtio_media_queue_state *queue;
+	struct virtio_media_buffer *buffer;
+	int i, ret;
+
+	if (b->memory != V4L2_MEMORY_DMABUF)
+		return 0;
+
+	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
+		return -EINVAL;
+	queue = &session->queues[b->type];
+	if (b->index >= queue->allocated_bufs)
+		return -EINVAL;
+	buffer = queue->buffers[b->index];
+
+	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
+		if (b->length > VIDEO_MAX_PLANES)
+			return -EINVAL;
+		for (i = 0; i < b->length; i++) {
+			ret = virtio_media_bind_plane_dmabuf(
+				session, queue, buffer, i,
+				b->m.planes[i].m.fd);
+			if (ret)
+				goto err_unbind;
+		}
+	} else {
+		ret = virtio_media_bind_plane_dmabuf(session, queue, buffer, 0,
+						     b->m.fd);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+
+err_unbind:
+	/*
+	 * A plane failed to bind. Clear this buffer's plane bindings (the
+	 * queue-level imports stay attached for any other buffers using them);
+	 * the next queueing re-resolves all planes.
+	 */
+	virtio_media_clear_buffer_dmabuf_bindings(session, b->type, b->index);
+	return ret;
+}
+
+/**
+ * virtio_media_dmabuf_substitute_resource_ids() - Swap plane guest fds for
+ *	backend resource ids on the wire.
+ * @session: session owning the buffer.
+ * @b: v4l2_buffer about to be sent (QBUF/PREPARE_BUF, memory DMABUF).
+ * @saved_fds: caller storage (VIDEO_MAX_PLANES entries) for the original fds.
+ *
+ * The device knows a dma-buf backing only by the resource id assigned at
+ * DMABUF_ATTACH, never by the guest fd. For each plane, saves the guest fd and
+ * writes the bound import's resource id into m.fd in its place. Must be paired
+ * with virtio_media_dmabuf_restore_resource_ids() so userspace sees its own
+ * fds again. Caller must hold vv->vlock.
+ *
+ * Returns 0 on success, or -EINVAL if a plane has no bound import (a queueing
+ * bug: bind runs before this).
+ */
+int virtio_media_dmabuf_substitute_resource_ids(
+	struct virtio_media_session *session, struct v4l2_buffer *b,
+	u32 *saved_fds)
+{
+	struct virtio_media_queue_state *queue;
+	struct virtio_media_buffer *buffer;
+	unsigned int n, i;
+
+	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
+		return -EINVAL;
+	queue = &session->queues[b->type];
+	if (b->index >= queue->allocated_bufs)
+		return -EINVAL;
+	buffer = queue->buffers[b->index];
+
+	n = V4L2_TYPE_IS_MULTIPLANAR(b->type) ? b->length : 1;
+	if (n > VIDEO_MAX_PLANES)
+		return -EINVAL;
+
+	for (i = 0; i < n; i++) {
+		struct virtio_media_dmabuf_import *imp =
+			buffer->dmabuf_bindings[i];
+		u32 *fd = V4L2_TYPE_IS_MULTIPLANAR(b->type) ?
+				  &b->m.planes[i].m.fd :
+				  &b->m.fd;
+
+		if (!imp)
+			return -EINVAL;
+		saved_fds[i] = *fd;
+		*fd = imp->resource_id;
+	}
+
+	return 0;
+}
+
+/**
+ * virtio_media_dmabuf_restore_resource_ids() - Restore plane guest fds after
+ *	sending.
+ * @b: v4l2_buffer whose m.fd fields were substituted.
+ * @saved_fds: the original fds saved by the substitute helper.
+ *
+ * Undoes virtio_media_dmabuf_substitute_resource_ids() so the V4L2 core copies
+ * the caller's own fds back to userspace rather than backend resource ids.
+ */
+void virtio_media_dmabuf_restore_resource_ids(struct v4l2_buffer *b,
+					      u32 *saved_fds)
+{
+	unsigned int n, i;
+
+	n = V4L2_TYPE_IS_MULTIPLANAR(b->type) ? b->length : 1;
+	if (n > VIDEO_MAX_PLANES)
+		n = VIDEO_MAX_PLANES;
+
+	for (i = 0; i < n; i++) {
+		if (V4L2_TYPE_IS_MULTIPLANAR(b->type))
+			b->m.planes[i].m.fd = saved_fds[i];
+		else
+			b->m.fd = saved_fds[i];
+	}
+}
+
+/**
+ * virtio_media_free_queue_dmabuf_imports() - Release all dma-buf imports of a
+ *	queue.
+ * @session: session owning the queue.
+ * @type: v4l2 buffer type (selects the queue).
+ *
+ * Tears down (DMABUF_DETACH + end grants + unmap + detach) every import owned
+ * by the queue and clears the non-owning plane bindings that pointed at them.
+ * Must be called only once the backend can no longer be using the grants
+ * (REQBUFS on this queue or session close, both of which the backend has
+ * quiesced): unmapping a grant still in use would make Xen refuse to end it.
+ * Caller must hold vv->vlock.
+ */
+void virtio_media_free_queue_dmabuf_imports(struct virtio_media_session *session,
+					    u32 type)
+{
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
+	struct virtio_media_dmabuf_import *imp, *tmp;
+	struct virtio_media_queue_state *queue;
+	size_t i;
+
+	if (type > VIRTIO_MEDIA_LAST_QUEUE)
+		return;
+
+	lockdep_assert_held(&vv->vlock);
+
+	queue = &session->queues[type];
+
+	/*
+	 * Clear every buffer's non-owning plane bindings first, so nothing
+	 * points at an import once we start freeing them.
+	 */
+	if (queue->buffers) {
+		for (i = 0; i < queue->allocated_bufs; i++) {
+			struct virtio_media_buffer *buffer = queue->buffers[i];
+			u32 plane;
+
+			for (plane = 0; plane < VIDEO_MAX_PLANES; plane++)
+				buffer->dmabuf_bindings[plane] = NULL;
+		}
+	}
+
+	/* Then tear down the queue's imports themselves, once each. */
+	list_for_each_entry_safe(imp, tmp, &queue->dmabuf_imports, list) {
+		list_del(&imp->list);
+		virtio_media_dmabuf_import_free(vv, session->id, imp);
+	}
+}
+
+/* Free all dma-buf imports of all queues (session close safety net). */
+void virtio_media_free_session_dmabuf_imports(
+	struct virtio_media_session *session)
+{
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
+	int i;
+
+	guard(mutex)(&vv->vlock);
+	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++)
+		virtio_media_free_queue_dmabuf_imports(session, i);
 }
 
 
@@ -1909,53 +2827,49 @@ int virtio_media_expbuf(struct file *file, void *fh,
 	 * created at QUERYBUF time. Looking it up by exact type/index/plane
 	 * ensures a CAPTURE buffer never picks up an OUTPUT buffer's mapping.
 	 */
-	mutex_lock(&session->queues_lock);
-	gmap = virtio_media_find_grant_map(session, eb->type, eb->index,
-					   eb->plane);
-	if (!gmap) {
-		mutex_unlock(&session->queues_lock);
-		return -EINVAL;
+	scoped_guard(mutex, &session->queues_lock) {
+		gmap = virtio_media_find_grant_map(session, eb->type, eb->index,
+						   eb->plane);
+		if (!gmap)
+			return -EINVAL;
+
+		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+		if (!priv)
+			return -ENOMEM;
+
+		priv->vv = to_virtio_media(session->fh.vdev);
+		priv->gmap = gmap;
+		priv->pages = gmap->pages;
+		priv->num_pages = gmap->grant_ref_count;
+		/*
+		 * Keep the grant map (and its grant pages) alive for as long as
+		 * this dma-buf exists, even if the buffers are freed with
+		 * REQBUFS(0) or the session is closed first. The reference is
+		 * dropped in virtio_media_dmabuf_release(). Taken under
+		 * queues_lock while the gmap is still guaranteed to be live.
+		 */
+		virtio_media_gmap_get(gmap);
+		/*
+		 * Also reference the session's open file so the session (and
+		 * thus the device used to send MUNMAP at release time) stays
+		 * valid until the dma-buf is released.
+		 */
+		priv->file = get_file(session->file);
+
+		exp_info.ops = &virtio_media_dmabuf_ops;
+		/*
+		 * The dma-buf is mapped page by page (grant_ref_count pages), so
+		 * its size must be the page-aligned page count rather than the
+		 * raw byte length. A non page-aligned gmap->len would make the
+		 * kernel dma-buf mmap path reject user mappings whose
+		 * (page-rounded) length exceeds dmabuf->size.
+		 */
+		exp_info.size = (u64)gmap->grant_ref_count << PAGE_SHIFT;
+		exp_info.flags = eb->flags;
+		exp_info.priv = priv;
+
+		dmabuf = dma_buf_export(&exp_info);
 	}
-
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (!priv) {
-		mutex_unlock(&session->queues_lock);
-		return -ENOMEM;
-	}
-
-	priv->vv = to_virtio_media(session->fh.vdev);
-	priv->gmap = gmap;
-	priv->pages = gmap->pages;
-	priv->num_pages = gmap->grant_ref_count;
-	/*
-	 * Keep the grant map (and its grant pages) alive for as long as this
-	 * dma-buf exists, even if the buffers are freed with REQBUFS(0) or the
-	 * session is closed first. The reference is dropped in
-	 * virtio_media_dmabuf_release(). Taken under queues_lock while the gmap
-	 * is still guaranteed to be live.
-	 */
-	virtio_media_gmap_get(gmap);
-	/*
-	 * Also reference the session's open file so the session (and thus the
-	 * device used to send MUNMAP at release time) stays valid until the
-	 * dma-buf is released.
-	 */
-	priv->file = get_file(session->file);
-
-	exp_info.ops = &virtio_media_dmabuf_ops;
-	/*
-	 * The dma-buf is mapped page by page (grant_ref_count pages), so its
-	 * size must be the page-aligned page count rather than the raw byte
-	 * length. A non page-aligned gmap->len would make the kernel dma-buf
-	 * mmap path reject user mappings whose (page-rounded) length exceeds
-	 * dmabuf->size.
-	 */
-	exp_info.size = (u64)gmap->grant_ref_count << PAGE_SHIFT;
-	exp_info.flags = eb->flags;
-	exp_info.priv = priv;
-
-	dmabuf = dma_buf_export(&exp_info);
-	mutex_unlock(&session->queues_lock);
 	if (IS_ERR(dmabuf)) {
 		/*
 		 * The release callback is not called when export fails, so
@@ -2022,6 +2936,9 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 
 	vv->virtio_dev = virtio_dev;
 	virtio_dev->priv = vv;
+
+	/* Allocator for V4L2_MEMORY_DMABUF resource ids (ids start at 1). */
+	ida_init(&vv->resource_ida);
 
 	init_waitqueue_head(&vv->wq);
 
@@ -2165,6 +3082,13 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 	cancel_work_sync(&vv->gmap_release_work);
 
 	virtio_reset_device(virtio_dev);
+
+	/*
+	 * Every session has been freed above, so all dma-buf imports have been
+	 * detached and their resource ids returned to the allocator; the IDA is
+	 * empty and can be destroyed.
+	 */
+	ida_destroy(&vv->resource_ida);
 
 	v4l2_device_unregister(&vv->v4l2_dev);
 	if (vv->ctrl_cmd)

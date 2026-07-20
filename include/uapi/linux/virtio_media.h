@@ -3,7 +3,7 @@
 /*
  * Definitions of virtio-media protocol structures.
  *
- * Copyright (c) 2024-2026 Google LLC.
+* Copyright (c) 2024-2026 Google LLC.
  */
 
 #ifndef __VIRTIO_MEDIA_PROTOCOL_H
@@ -216,6 +216,92 @@ struct virtio_media_cmd_munmap {
  * @hdr: header containing the status of the command.
  */
 struct virtio_media_resp_munmap {
+	struct virtio_media_resp_header hdr;
+};
+
+/**
+ * VIRTIO_MEDIA_CMD_DMABUF_ATTACH - Attach a guest dma-buf's backing to the
+ * device for use as a ``V4L2_MEMORY_DMABUF`` buffer plane.
+ *
+ * For a ``V4L2_MEMORY_DMABUF`` queue the guest owns the buffers. Before a
+ * dma-buf plane is first queued (or after it is rebound to a different
+ * dma-buf), the driver grants the plane's pages to the device's domain and
+ * sends their grant references with this command, together with a
+ * @resource_id the driver assigns to identify this backing. The device turns
+ * the grant references back into a local dma-buf (e.g. via
+ * ``xengnttab_dmabuf_exp_from_refs()``) and remembers it under @resource_id.
+ *
+ * Subsequent QBUF/PREPARE_BUF of the same plane only carry @resource_id (in
+ * the ``v4l2_buffer``'s ``m.fd`` / plane ``m.fd`` field); the grant references
+ * are not resent. This mirrors virtio-gpu's RESOURCE_ATTACH_BACKING + stable
+ * resource id model.
+ *
+ * The command header is followed, in the device-readable part of the chain, by
+ * a ``__u32 refs[num_refs]`` array of the plane's Xen grant references.
+ *
+ * Only dma-bufs backed by real guest pages are attached this way. dma-bufs
+ * with no guest pages (virtio exported-objects, identified by
+ * ``is_virtio_dma_buf()``) are rejected by the driver with ``-EINVAL`` and
+ * never reach this path.
+ */
+#define VIRTIO_MEDIA_CMD_DMABUF_ATTACH 6
+
+/**
+ * struct virtio_media_cmd_dmabuf_attach - Driver command for
+ * VIRTIO_MEDIA_CMD_DMABUF_ATTACH.
+ * @hdr: header with cmd member set to VIRTIO_MEDIA_CMD_DMABUF_ATTACH.
+ * @session_id: id of the session the buffer belongs to.
+ * @resource_id: driver-assigned id identifying this dma-buf backing. Reused as
+ *               the ``m.fd`` value in subsequent QBUF/PREPARE_BUF commands.
+ * @num_refs: number of grant references that follow this command.
+ */
+struct virtio_media_cmd_dmabuf_attach {
+	struct virtio_media_cmd_header hdr;
+	u32 session_id;
+	u32 resource_id;
+	u32 num_refs;
+	u32 __reserved;
+};
+
+/**
+ * struct virtio_media_resp_dmabuf_attach - Device response for
+ * VIRTIO_MEDIA_CMD_DMABUF_ATTACH.
+ * @hdr: header containing the status of the command.
+ */
+struct virtio_media_resp_dmabuf_attach {
+	struct virtio_media_resp_header hdr;
+};
+
+/**
+ * VIRTIO_MEDIA_CMD_DMABUF_DETACH - Detach a dma-buf backing previously
+ * attached with VIRTIO_MEDIA_CMD_DMABUF_ATTACH.
+ *
+ * The device releases the local dma-buf it exported for @resource_id, letting
+ * the guest end the foreign grants for that backing. Sent when the plane is
+ * rebound to a different dma-buf, when a QBUF that would have used the backing
+ * fails, or when the queue's buffers are freed (REQBUFS / session close).
+ */
+#define VIRTIO_MEDIA_CMD_DMABUF_DETACH 7
+
+/**
+ * struct virtio_media_cmd_dmabuf_detach - Driver command for
+ * VIRTIO_MEDIA_CMD_DMABUF_DETACH.
+ * @hdr: header with cmd member set to VIRTIO_MEDIA_CMD_DMABUF_DETACH.
+ * @session_id: id of the session the backing belongs to.
+ * @resource_id: id of the backing to detach (as assigned at ATTACH time).
+ */
+struct virtio_media_cmd_dmabuf_detach {
+	struct virtio_media_cmd_header hdr;
+	u32 session_id;
+	u32 resource_id;
+};
+
+/**
+ * struct virtio_media_resp_dmabuf_detach - Device response for
+ * VIRTIO_MEDIA_CMD_DMABUF_DETACH.
+ * @hdr: header containing the status of the command.
+ */
+struct virtio_media_resp_dmabuf_detach {
 	struct virtio_media_resp_header hdr;
 };
 

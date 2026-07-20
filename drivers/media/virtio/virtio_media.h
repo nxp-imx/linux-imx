@@ -3,7 +3,7 @@
 /*
  * Virtio-media structures & functions declarations.
  *
- * Copyright (c) 2024-2026 Google LLC.
+* Copyright (c) 2024-2026 Google LLC.
  */
 
 #ifndef __VIRTIO_MEDIA_H
@@ -12,6 +12,7 @@
 #include <linux/virtio_config.h>
 #include <linux/refcount.h>
 #include <linux/llist.h>
+#include <linux/idr.h>
 #include <media/v4l2-device.h>
 #include <xen/grant_table.h>
 #include <linux/dma-map-ops.h>
@@ -58,6 +59,68 @@ struct virtio_media_grant_map {
 	struct llist_node release_node;
 };
 
+/**
+ * struct virtio_media_dmabuf_import - A guest dma-buf imported for
+ *	V4L2_MEMORY_DMABUF, with its pages granted to the backend's domain.
+ * @dmabuf: the imported dma-buf (holds a reference via dma_buf_get()).
+ * @attach: our attachment to @dmabuf, against the virtio device.
+ * @sgt: mapped scatter-gather table for @attach.
+ * @resource_id: device-assigned id under which the backend knows this backing
+ *	(sent with DMABUF_ATTACH and, thereafter, as the ``m.fd`` of every
+ *	QBUF/PREPARE_BUF that uses it).
+ *
+ * Grant references backing @sgt are obtained one of two ways, transparently:
+ *
+ * - If the virtio device's Xen grant DMA ops are active
+ *   (CONFIG_XEN_VIRTIO_FORCE_GRANT and a "xen,grant-dma" IOMMU node in the
+ *   guest device tree), mapping @attach against the virtio device already
+ *   grants the pages to the backend's domain and encodes the grant references
+ *   in the sg_table's DMA addresses. The references are then decoded from @sgt
+ *   and released automatically when @sgt is unmapped and @attach detached.
+ *
+ * - Otherwise (grant DMA ops not installed, e.g. no such IOMMU node), the
+ *   DMA addresses in @sgt are plain guest-physical addresses. We then grant
+ *   foreign access to the backing pages by hand (see @manual_grant), and must
+ *   end that foreign access and free the reference sequence ourselves at
+ *   teardown.
+ *
+ * @manual_grant: true if we granted foreign access by hand (second case
+ *	above); the grants must be ended at teardown. False when the grant DMA
+ *	ops did it for us.
+ * @grant_ref_head: first grant reference of the contiguous sequence allocated
+ *	for a manual grant (valid only when @manual_grant).
+ * @grant_ref_count: number of references in that sequence (valid only when
+ *	@manual_grant).
+ *
+ * @list: link into the owning queue's ``dmabuf_imports`` list.
+ *
+ * An import is owned by the queue (linked into its ``dmabuf_imports`` list) and
+ * deduplicated by ``struct dma_buf *``: the same dma-buf queued on several
+ * buffers or planes is imported (attached + DMABUF_ATTACH) only once, and every
+ * (buffer index, plane) slot that uses it (see struct virtio_media_buffer's
+ * dmabuf_bindings) simply points at the one shared import without owning it.
+ *
+ * This deliberately departs from videobuf2's per-(buffer, plane) dma-buf
+ * lifetime (vb2 detaches on rebind): detaching while the queue is still
+ * streaming races the backend, which may still hold the backing (the buffer is
+ * on the device and has not been DQBUF'd), causing the guest to end grants Xen
+ * still considers in use ("g.e. still in use"), leaking references and failing
+ * the next export. So instead the backing stays attached for the queue's whole
+ * REQBUFS lifetime and is torn down (DMABUF_DETACH + end grants + unmap +
+ * detach) only once the device has quiesced: when the queue's buffers are freed
+ * (REQBUFS with any count, including 0) or the session closes.
+ */
+struct virtio_media_dmabuf_import {
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *sgt;
+	u32 resource_id;
+	bool manual_grant;
+	grant_ref_t grant_ref_head;
+	u32 grant_ref_count;
+	struct list_head list;
+};
+
 #define DESC_CHAIN_MAX_LEN SG_MAX_SINGLE_ALLOC
 
 /**
@@ -84,6 +147,7 @@ struct virtio_media_cmd_callback_param {
 #define VIRTIO_MEDIA_DEFAULT_DRIVER_NAME "virtio-media"
 
 extern bool virtio_media_allow_userptr;
+extern bool virtio_media_allow_dmabuf;
 
 /**
  * struct virtio_media - Virtio-media device.
@@ -140,11 +204,15 @@ struct virtio_media {
 	union {
 		struct virtio_media_cmd_open open;
 		struct virtio_media_cmd_munmap munmap;
+		struct virtio_media_cmd_dmabuf_attach attach;
+		struct virtio_media_cmd_dmabuf_detach detach;
 	} cmd;
 
 	union {
 		struct virtio_media_resp_open open;
 		struct virtio_media_resp_munmap munmap;
+		struct virtio_media_resp_dmabuf_attach attach;
+		struct virtio_media_resp_dmabuf_detach detach;
 	} resp;
 	__dma_from_device_group_end();
 
@@ -189,6 +257,26 @@ struct virtio_media {
 	void *ctrl_resp;
 	dma_addr_t ctrl_resp_dma;
 
+	/*
+	 * Allocator for V4L2_MEMORY_DMABUF resource ids. Each imported dma-buf
+	 * backing is assigned one id (see virtio_media_resource_id_get()), sent
+	 * to the backend with DMABUF_ATTACH and reused as the buffer's m.fd in
+	 * every subsequent QBUF/PREPARE_BUF, and freed on DMABUF_DETACH (see
+	 * virtio_media_resource_id_put()).
+	 *
+	 * An IDA (not a monotonic counter) is used so that ids are bounded by
+	 * the number of *concurrently* attached backings and reclaimed on
+	 * detach. This avoids two problems a free-running counter would have on
+	 * a long-lived device: the counter eventually wrapping around the u32
+	 * space, and -- worse -- a wrapped id colliding with one still held by
+	 * a long-lived session (e.g. a 24/7 encoder) while short-lived decoder
+	 * instances churn through ids (an ABA hazard). The IDA never hands out
+	 * an id that is currently in use, so a live backing's id is unique for
+	 * as long as it is attached. Accessed under @vlock (attach/detach run
+	 * from ioctls that hold it), and the IDA has its own internal locking.
+	 */
+	struct ida resource_ida;
+
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	/* Parent debugfs dir holding the per-session "instance.<id>" files. */
 	struct dentry *debugfs;
@@ -222,12 +310,26 @@ void virtio_media_free_queue_grant_maps(struct virtio_media_session *session,
 void virtio_media_free_session_grant_maps(struct virtio_media_session *session);
 void virtio_media_sync_buffer(struct virtio_media_session *session, u32 type,
 			      u32 index, enum dma_data_direction dir);
+int virtio_media_bind_buffer_dmabufs(struct virtio_media_session *session,
+				     struct v4l2_buffer *b);
+void virtio_media_free_queue_dmabuf_imports(struct virtio_media_session *session,
+					    u32 type);
+void virtio_media_free_session_dmabuf_imports(
+	struct virtio_media_session *session);
+int virtio_media_dmabuf_substitute_resource_ids(
+	struct virtio_media_session *session, struct v4l2_buffer *b,
+	u32 *saved_fds);
+void virtio_media_dmabuf_restore_resource_ids(struct v4l2_buffer *b,
+					      u32 *saved_fds);
 
 /* virtio_media_ioctls.c */
 
 long virtio_media_device_ioctl(struct file *file, unsigned int cmd,
 			       unsigned long arg);
 extern const struct v4l2_ioctl_ops virtio_media_ioctl_ops;
+
+struct virtio_media_queue_state;
+void virtio_media_free_queue_buffers(struct virtio_media_queue_state *queue);
 
 #endif // __VIRTIO_MEDIA_H
 

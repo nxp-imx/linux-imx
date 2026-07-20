@@ -14,6 +14,7 @@
 #include "uapi/linux/virtio_media.h"
 #include "scatterlist_builder.h"
 #include "session.h"
+#include "virtio_media.h"
 
 /*
  * If set to %true, then the driver will always copy the data passed to the

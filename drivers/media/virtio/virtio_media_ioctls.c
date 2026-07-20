@@ -262,6 +262,8 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		.num_sgs = ARRAY_SIZE(sgs),
 		.cur_sg = 0,
 	};
+	u32 saved_fds[VIDEO_MAX_PLANES];
+	bool fds_substituted = false;
 	size_t resp_len;
 	int ret;
 	int i;
@@ -272,35 +274,53 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	if (V4L2_TYPE_IS_MULTIPLANAR(b->type))
 		orig_planes = b->m.planes;
 
+	/*
+	 * On the wire, a DMABUF plane's m.fd carries the backend resource id
+	 * of its bound dma-buf, not the guest fd (which is meaningless to the
+	 * device). This is only true for QBUF/PREPARE_BUF, which actually bind
+	 * the planes; QUERYBUF/DQBUF carry no meaningful dma-buf fds. Save the
+	 * guest fds and substitute the resource ids just for the duration of
+	 * the command, then restore them so the V4L2 core copies the original
+	 * fds back to userspace.
+	 */
+	if (b->memory == V4L2_MEMORY_DMABUF &&
+	    (ioctl == VIDIOC_QBUF || ioctl == VIDIOC_PREPARE_BUF)) {
+		ret = virtio_media_dmabuf_substitute_resource_ids(session, b,
+								  saved_fds);
+		if (ret < 0)
+			return ret;
+		fds_substituted = true;
+	}
+
 	/* Command descriptor */
 	ret = scatterlist_builder_add_ioctl_cmd(&builder, session, ioctl);
 	if (ret)
-		return ret;
+		goto restore_fds;
 
 	/* Command payload (struct v4l2_buffer) */
 	ret = scatterlist_builder_add_buffer(&builder, b);
 	if (ret < 0)
-		return ret;
+		goto restore_fds;
 
 	end_buf_sg = builder.cur_sg;
 
 	/* Payload of SHARED_PAGES buffers, if relevant */
 	ret = scatterlist_builder_add_buffer_userptr(&builder, b);
 	if (ret < 0)
-		return ret;
+		goto restore_fds;
 
 	num_cmd_sgs = builder.cur_sg;
 
 	/* Response descriptor */
 	ret = scatterlist_builder_add_ioctl_resp(&builder, session);
 	if (ret)
-		return ret;
+		goto restore_fds;
 
 	/* Response payload (same as input, but no userptr mapping) */
 	for (i = 1; i < end_buf_sg; i++) {
 		ret = scatterlist_builder_add_descriptor(&builder, i);
 		if (ret < 0)
-			return ret;
+			goto restore_fds;
 	}
 
 	ret = virtio_media_send_command(vv, builder.sgs, num_cmd_sgs,
@@ -309,23 +329,30 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 					sizeof(struct virtio_media_resp_ioctl) +
 					sizeof(*b), &resp_len);
 	if (ret < 0)
-		return ret;
+		goto restore_fds;
 
 	resp_len -= sizeof(struct virtio_media_resp_ioctl);
 
 	/* Make sure that the reply length covers our v4l2_buffer */
-	if (resp_len < sizeof(*b))
-		return -EINVAL;
+	if (resp_len < sizeof(*b)) {
+		ret = -EINVAL;
+		goto restore_fds;
+	}
 
 	ret = scatterlist_builder_retrieve_buffer(&builder, num_cmd_sgs + 1, b,
 						  orig_planes);
 	if (ret) {
 		v4l2_err(&vv->v4l2_dev,
 			 "failed to retrieve response descriptor chain\n");
-		return ret;
+		goto restore_fds;
 	}
 
-	return 0;
+	ret = 0;
+
+restore_fds:
+	if (fds_substituted)
+		virtio_media_dmabuf_restore_resource_ids(b, saved_fds);
+	return ret;
 }
 
 /**
@@ -642,6 +669,132 @@ free_payloads:
 }
 
 /**
+ * virtio_media_free_queue_buffers() - free a queue's buffer pointer array and
+ * every buffer it points to.
+ * @queue: queue whose buffers should be freed.
+ *
+ * The buffers are allocated individually (see the @buffers comment in struct
+ * virtio_media_queue_state), so each one is freed before the pointer array
+ * itself. Leaves @queue->buffers NULL and @allocated_bufs zero. The caller is
+ * responsible for any locking and for having already emptied pending_dqbufs
+ * (the buffers being freed here embed those list nodes).
+ */
+void virtio_media_free_queue_buffers(struct virtio_media_queue_state *queue)
+{
+	size_t i;
+
+	if (!queue->buffers)
+		return;
+
+	for (i = 0; i < queue->allocated_bufs; i++)
+		kfree(queue->buffers[i]);
+
+	kvfree(queue->buffers);
+	queue->buffers = NULL;
+	queue->allocated_bufs = 0;
+}
+
+/**
+ * virtio_media_realloc_buffers() - grow a buffer pointer array to @new_count.
+ * @old_buffers: existing pointer array (may be NULL when @old_count is 0).
+ * @old_count: number of buffers currently held in @old_buffers.
+ * @new_count: desired number of buffers, must be >= @old_count.
+ *
+ * Allocates a fresh pointer array of @new_count entries, carries over the first
+ * @old_count buffer pointers from @old_buffers (their bodies are not moved, so
+ * addresses stay stable and any pending_dqbufs nodes embedded in them remain
+ * valid), and allocates new buffer bodies for the [@old_count, @new_count)
+ * range.
+ *
+ * This helper only ever grows the pool: @new_count must be >= @old_count.
+ * Shrinking is rejected (returns NULL) rather than handled, because the
+ * carry-over loop below would otherwise write past the freshly allocated
+ * @new_count-entry array, and the dropped buffer bodies would leak. Keeping
+ * the guard here (not just at the caller) means a future caller cannot turn a
+ * shrink request into silent heap corruption.
+ *
+ * The @old_buffers array itself is left untouched: the caller stays its owner
+ * and must free it (typically with kvfree() once the new array is swapped in).
+ * On allocation failure any bodies newly allocated here are freed and NULL is
+ * returned.
+ */
+static struct virtio_media_buffer **
+virtio_media_realloc_buffers(struct virtio_media_buffer **old_buffers,
+			     size_t old_count, size_t new_count)
+{
+	struct virtio_media_buffer **buffers;
+	size_t i;
+
+	if (!new_count || new_count < old_count)
+		return NULL;
+
+	buffers = kvcalloc(new_count, sizeof(*buffers), GFP_KERNEL);
+	if (!buffers)
+		return NULL;
+
+	/* Carry over existing buffers by pointer (their bodies do not move). */
+	for (i = 0; i < old_count; i++)
+		buffers[i] = old_buffers[i];
+
+	for (i = old_count; i < new_count; i++) {
+		buffers[i] = kzalloc(sizeof(*buffers[i]), GFP_KERNEL);
+		if (!buffers[i]) {
+			while (i-- > old_count)
+				kfree(buffers[i]);
+			kvfree(buffers);
+			return NULL;
+		}
+	}
+
+	return buffers;
+}
+
+/**
+ * virtio_media_alloc_buffers() - allocate a pointer array of @count buffer
+ * states, each buffer allocated individually.
+ * @count: number of buffers to allocate.
+ *
+ * Returns the pointer array on success (caller owns it and must free it with
+ * virtio_media_free_queue_buffers() semantics), or NULL on allocation failure
+ * (any partial allocation is cleaned up before returning).
+ */
+static struct virtio_media_buffer **virtio_media_alloc_buffers(size_t count)
+{
+	return virtio_media_realloc_buffers(NULL, 0, count);
+}
+
+/**
+ * virtio_media_clear_queue_locked() - clear all pending buffers on a
+ *                                     streamed-off queue.
+ * @queue: state of the queue to clear.
+ *
+ * Must be called with @session->queues_lock held. See
+ * virtio_media_clear_queue() for the locked wrapper used by STREAMOFF.
+ */
+static void virtio_media_clear_queue_locked(struct virtio_media_queue_state *queue)
+{
+	struct list_head *p, *n;
+	int i;
+
+	list_for_each_safe(p, n, &queue->pending_dqbufs) {
+		struct virtio_media_buffer *dqbuf =
+			list_entry(p, struct virtio_media_buffer, list);
+
+		list_del(&dqbuf->list);
+	}
+
+	/* All buffers are now dequeued. */
+	for (i = 0; i < queue->allocated_bufs; i++) {
+		queue->buffers[i]->buffer.flags = 0;
+		queue->buffers[i]->prepared = false;
+	}
+
+	queue->queued_bufs = 0;
+	queue->streaming = false;
+	queue->is_capture_last = false;
+}
+
+/**
  * virtio_media_clear_queue() - clear all pending buffers on a streamed-off
  *                              queue.
  * @session: session which the queue to clear belongs to.
@@ -653,27 +806,8 @@ free_payloads:
 static void virtio_media_clear_queue(struct virtio_media_session *session,
 				     struct virtio_media_queue_state *queue)
 {
-	struct list_head *p, *n;
-	int i;
-
-	mutex_lock(&session->queues_lock);
-
-	list_for_each_safe(p, n, &queue->pending_dqbufs) {
-		struct virtio_media_buffer *dqbuf =
-			list_entry(p, struct virtio_media_buffer, list);
-
-		list_del(&dqbuf->list);
-	}
-
-	/* All buffers are now dequeued. */
-	for (i = 0; i < queue->allocated_bufs; i++)
-		queue->buffers[i].buffer.flags = 0;
-
-	queue->queued_bufs = 0;
-	queue->streaming = false;
-	queue->is_capture_last = false;
-
-	mutex_unlock(&session->queues_lock);
+	scoped_guard(mutex, &session->queues_lock)
+		virtio_media_clear_queue_locked(queue);
 }
 
 /*
@@ -936,12 +1070,16 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	struct v4l2_fh *vfh = file_to_v4l2_fh(file);
 	struct virtio_media_session *session = fh_to_session(vfh);
 	struct virtio_media_queue_state *queue;
+	struct virtio_media_buffer **new_buffers = NULL;
 	int ret;
 
 	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
 		return -EINVAL;
 
 	if (b->memory == V4L2_MEMORY_USERPTR && !virtio_media_allow_userptr)
+		return -EINVAL;
+
+	if (b->memory == V4L2_MEMORY_DMABUF && !virtio_media_allow_dmabuf)
 		return -EINVAL;
 
 	ret = virtio_media_send_wr_ioctl(vfh, VIDIOC_REQBUFS, b, sizeof(*b),
@@ -955,25 +1093,24 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	queue = &session->queues[b->type];
 
 	/*
-	 * REQBUFS (with *any* count) frees every buffer previously allocated on
-	 * this queue before allocating the new set, so the old queue state must
-	 * be torn down here regardless of the new count. REQBUFS(0) is also an
-	 * implicit STREAMOFF. clear_queue() must run *before* the vfree() below,
-	 * as it walks queue->buffers[] to reset per-buffer flags and drops the
-	 * pending_dqbufs entries that point into that array; skipping it on a
-	 * REQBUFS(count>0) reallocation (e.g. a dynamic resolution / source
-	 * change that does not issue REQBUFS(0) first) would leave dangling
-	 * pending_dqbufs pointers and stale queued_bufs/streaming state.
+	 * Allocate the new buffer set up front (outside queues_lock) so a
+	 * failure leaves the old queue state untouched. The teardown of the
+	 * old buffers and install of the new set happens under queues_lock
+	 * below.
 	 */
-	virtio_media_clear_queue(session, queue);
+	if (b->count > 0) {
+		new_buffers = virtio_media_alloc_buffers(b->count);
+		if (!new_buffers)
+			return -ENOMEM;
+	}
 
 	/*
-	 * Likewise, any grant maps created for the old buffers must be released
-	 * now. This is essential on a source change, where the client
-	 * re-REQBUFS the CAPTURE queue with a new count *without* an
-	 * intervening REQBUFS(0): failing to unmap here would leak the old
-	 * grant references (Dom0 logs "g.e. 0x... still in use!") and the host
-	 * could not reuse or reallocate the buffers, stalling the stream.
+	 * Any grant maps created for the old buffers must be released now. This
+	 * is essential on a source change, where the client re-REQBUFS the
+	 * CAPTURE queue with a new count *without* an intervening REQBUFS(0):
+	 * failing to unmap here would leak the old grant references (Dom0 logs
+	 * "g.e. 0x... still in use!") and the host could not reuse or
+	 * reallocate the buffers, stalling the stream.
 	 *
 	 * Note we still deliberately do NOT free grant maps on STREAMOFF, so
 	 * that seek (STREAMOFF/STREAMON without REQBUFS) keeps the buffers
@@ -984,18 +1121,32 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	 */
 	virtio_media_free_queue_grant_maps(session, b->type);
 
-	vfree(queue->buffers);
-	queue->buffers = NULL;
+	/*
+	 * Likewise release any dma-buf imports of this queue's old buffers.
+	 * REQBUFS (any count) tears down the previous buffer set, and the
+	 * backend has released the grants it held for them by the time this
+	 * command returns, so it is safe to unmap (which ends foreign access)
+	 * and detach them now.
+	 */
+	virtio_media_free_queue_dmabuf_imports(session, b->type);
 
-	if (b->count > 0) {
-		queue->buffers =
-			vzalloc(sizeof(struct virtio_media_buffer) * b->count);
-		if (!queue->buffers)
-			return -ENOMEM;
+	/*
+	 * REQBUFS (with *any* count) frees every buffer previously allocated on
+	 * this queue before installing the new set. clear_queue drops the
+	 * pending_dqbufs entries that point into the old buffers and resets
+	 * per-buffer flags; it must run *before* freeing those buffers, and in
+	 * the same queues_lock critical section as the free and swap so the
+	 * DQBUF event worker (which walks queue->buffers under queues_lock)
+	 * can never re-queue or dereference a buffer that is about to be freed.
+	 */
+	scoped_guard(mutex, &session->queues_lock) {
+		virtio_media_clear_queue_locked(queue);
+		virtio_media_free_queue_buffers(queue);
+
+		queue->buffers = new_buffers;
+		queue->allocated_bufs = b->count;
+		queue->memory = b->memory;
 	}
-
-	queue->allocated_bufs = b->count;
-	queue->memory = b->memory;
 
 	/*
 	 * If a multiplanar queue is successfully used here, this means
@@ -1007,10 +1158,38 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	if (!virtio_media_allow_userptr)
 		b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_USERPTR;
 
-	/* We do not support DMABUF yet. */
-	b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_DMABUF;
+	/*
+	 * DMABUF import is only advertised when explicitly enabled. When
+	 * enabled, the queue may be set up for V4L2_MEMORY_DMABUF and QBUF
+	 * will import guest-page-backed dma-bufs (see virtio_media_qbuf()).
+	 */
+	if (!virtio_media_allow_dmabuf)
+		b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_DMABUF;
 
 	return 0;
+}
+
+/**
+ * virtio_media_fill_buffer_prepared() - Report V4L2_BUF_FLAG_PREPARED to
+ *	userspace.
+ * @buffer: driver-side buffer state.
+ * @b: v4l2_buffer being returned to userspace.
+ *
+ * Mirrors videobuf2's __fill_v4l2_buffer(): the PREPARED flag is derived from
+ * the @prepared state rather than stored, and only reported while the buffer
+ * sits outside the device (its authoritative driver state is neither queued
+ * nor done). Called on the return path of the ioctls that hand a buffer back
+ * to userspace (QUERYBUF, PREPARE_BUF, QBUF, DQBUF).
+ */
+static void
+virtio_media_fill_buffer_prepared(struct virtio_media_buffer *buffer,
+				  struct v4l2_buffer *b)
+{
+	if (buffer->prepared &&
+	    !(buffer->buffer.flags & (V4L2_BUF_FLAG_QUEUED | V4L2_BUF_FLAG_DONE)))
+		b->flags |= V4L2_BUF_FLAG_PREPARED;
+	else
+		b->flags &= ~V4L2_BUF_FLAG_PREPARED;
 }
 
 static int virtio_media_querybuf(struct file *file, void *fh,
@@ -1033,7 +1212,7 @@ static int virtio_media_querybuf(struct file *file, void *fh,
 	if (b->index >= queue->allocated_bufs)
 		return -EINVAL;
 
-	buffer = &queue->buffers[b->index];
+	buffer = queue->buffers[b->index];
 
 	/*
 	 * Store the host-provided mem_offset(s) into our buffer state so that
@@ -1068,6 +1247,9 @@ static int virtio_media_querybuf(struct file *file, void *fh,
 	 */
 	b->flags |= (buffer->buffer.flags & V4L2_BUF_FLAG_DONE);
 
+	/* Report whether the buffer is currently prepared. */
+	virtio_media_fill_buffer_prepared(buffer, b);
+
 	return 0;
 }
 
@@ -1077,38 +1259,139 @@ static int virtio_media_create_bufs(struct file *file, void *fh,
 	struct v4l2_fh *vfh = file_to_v4l2_fh(file);
 	struct virtio_media_session *session = fh_to_session(vfh);
 	struct virtio_media_queue_state *queue;
-	struct virtio_media_buffer *buffers;
+	struct virtio_media_buffer **new_buffers;
+	struct virtio_media_buffer **old_buffers;
 	u32 type = b->format.type;
+	size_t new_count;
 	int ret;
 
 	if (type > VIRTIO_MEDIA_LAST_QUEUE)
 		return -EINVAL;
 
+	if (b->memory == V4L2_MEMORY_USERPTR && !virtio_media_allow_userptr)
+		return -EINVAL;
+
+	if (b->memory == V4L2_MEMORY_DMABUF && !virtio_media_allow_dmabuf)
+		return -EINVAL;
+
 	queue = &session->queues[type];
+
+	/*
+	 * CREATE_BUFS may only add buffers of the memory model the queue was
+	 * already set up with (by REQBUFS or an earlier CREATE_BUFS). A queue
+	 * with no buffers yet (allocated_bufs == 0) has no established memory
+	 * model, so any allowed type is accepted and adopted below. Reject a
+	 * mismatch here, before the host allocates buffers we would refuse.
+	 */
+	if (queue->allocated_bufs > 0 && b->memory != queue->memory)
+		return -EINVAL;
 
 	ret = virtio_media_send_wr_ioctl(vfh, VIDIOC_CREATE_BUFS, b, sizeof(*b),
 					 sizeof(*b));
 	if (ret)
 		return ret;
 
+	if (!virtio_media_allow_userptr)
+		b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_USERPTR;
+
+	if (!virtio_media_allow_dmabuf)
+		b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_DMABUF;
+
 	/* If count is zero, we were just checking for format. */
 	if (b->count == 0)
 		return 0;
 
-	buffers = queue->buffers;
+	new_count = b->index + b->count;
 
-	queue->buffers =
-		vzalloc(sizeof(*queue->buffers) * (b->index + b->count));
-	if (!queue->buffers) {
-		queue->buffers = buffers;
-		return -ENOMEM;
+	/*
+	 * The pool only ever grows. If the host places the new buffers within
+	 * the range already allocated (new_count <= allocated_bufs), the
+	 * existing pool already covers them: skip the realloc, which also
+	 * guards the carry-over loop below against writing past new_buffers.
+	 */
+	if (new_count <= queue->allocated_bufs) {
+		queue->memory = b->memory;
+		return 0;
 	}
 
-	memcpy(queue->buffers, buffers,
-	       sizeof(*buffers) * queue->allocated_bufs);
-	vfree(buffers);
+	/*
+	 * Grow the pool. Because each buffer is allocated individually, only
+	 * the pointer array is reallocated here: the existing buffer states
+	 * keep their addresses, so the pending_dqbufs list nodes embedded in
+	 * them stay valid and need no fixup. Build the new array (with the
+	 * existing buffers carried over and the new ones allocated) before
+	 * taking queues_lock so the critical section that swaps it in cannot
+	 * fail.
+	 */
+	new_buffers = virtio_media_realloc_buffers(queue->buffers,
+						   queue->allocated_bufs,
+						   new_count);
+	if (!new_buffers)
+		return -ENOMEM;
 
-	queue->allocated_bufs = b->index + b->count;
+	scoped_guard(mutex, &session->queues_lock) {
+		old_buffers = queue->buffers;
+
+		queue->buffers = new_buffers;
+		queue->allocated_bufs = new_count;
+		queue->memory = b->memory;
+
+		/*
+		 * Free the old pointer array inside the lock so the DQBUF event
+		 * worker (which reads queue->buffers under queues_lock) can
+		 * never observe the swapped-out array after it is freed. Only
+		 * the array is freed here; the buffer bodies live on via
+		 * new_buffers.
+		 */
+		kvfree(old_buffers);
+	}
+
+	return 0;
+}
+
+/**
+ * __virtio_media_buf_prepare() - Prepare a buffer before it is queued.
+ * @vfh: v4l2 file handle owning the buffer.
+ * @b: v4l2_buffer being prepared (from PREPARE_BUF or QBUF).
+ *
+ * Mirrors videobuf2's __buf_prepare(): the preparation work (recording the
+ * userspace-provided ``m`` union and, for V4L2_MEMORY_DMABUF, binding/attaching
+ * each plane's dma-buf) is done at most once per queueing cycle. If the buffer
+ * has already been prepared (by an earlier PREPARE_BUF) this is a no-op, so a
+ * QBUF following a PREPARE_BUF reuses the existing bindings and does not resend
+ * an ATTACH. The @prepared flag is cleared again on DQBUF and STREAMOFF.
+ *
+ * Caller must hold vv->vlock. Returns 0 on success or a negative error code;
+ * on failure the buffer is left unprepared with no partial bindings.
+ */
+static int __virtio_media_buf_prepare(struct v4l2_fh *vfh, struct v4l2_buffer *b)
+{
+	struct virtio_media_session *session = fh_to_session(vfh);
+	struct virtio_media_queue_state *queue = &session->queues[b->type];
+	struct virtio_media_buffer *buffer = queue->buffers[b->index];
+	int i, ret;
+
+	if (buffer->prepared)
+		return 0;
+
+	/*
+	 * Store the buffer and plane `m` information so we can retrieve it
+	 * again when DQBUF occurs.
+	 */
+	buffer->buffer.m = b->m;
+	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
+		if (b->length > VIDEO_MAX_PLANES)
+			return -EINVAL;
+		for (i = 0; i < b->length; i++)
+			buffer->planes[i].m = b->m.planes[i].m;
+	}
+
+	/* Bind (and attach) any dma-buf planes before the device sees them. */
+	ret = virtio_media_bind_buffer_dmabufs(session, b);
+	if (ret)
+		return ret;
+
+	buffer->prepared = true;
 
 	return 0;
 }
@@ -1120,28 +1403,30 @@ static int virtio_media_prepare_buf(struct file *file, void *fh,
 	struct virtio_media_session *session = fh_to_session(vfh);
 	struct virtio_media_queue_state *queue;
 	struct virtio_media_buffer *buffer;
-	int i, ret;
+	int ret;
 
 	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
 		return -EINVAL;
 	queue = &session->queues[b->type];
 	if (b->index >= queue->allocated_bufs)
 		return -EINVAL;
-	buffer = &queue->buffers[b->index];
 
-	buffer->buffer.m = b->m;
-	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
-		if (b->length > VIDEO_MAX_PLANES)
-			return -EINVAL;
-		for (i = 0; i < b->length; i++)
-			buffer->planes[i].m = b->m.planes[i].m;
-	}
+	/* The buffer memory type must match the queue's (see QBUF). */
+	if (b->memory != queue->memory)
+		return -EINVAL;
+
+	buffer = queue->buffers[b->index];
+
+	ret = __virtio_media_buf_prepare(vfh, b);
+	if (ret)
+		return ret;
 
 	ret = virtio_media_send_buffer_ioctl(vfh, VIDIOC_PREPARE_BUF, b);
 	if (ret)
 		return ret;
 
-	buffer->buffer.flags = V4L2_BUF_FLAG_PREPARED;
+	/* The buffer is now prepared; report it to userspace. */
+	virtio_media_fill_buffer_prepared(buffer, b);
 
 	return 0;
 }
@@ -1152,31 +1437,36 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	struct virtio_media_session *session = fh_to_session(vfh);
 	struct virtio_media_queue_state *queue;
 	struct virtio_media_buffer *buffer;
-	bool prepared;
 	u32 old_flags;
-	int i, ret;
+	int ret;
 
 	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
 		return -EINVAL;
 	queue = &session->queues[b->type];
 	if (b->index >= queue->allocated_bufs)
 		return -EINVAL;
-	buffer = &queue->buffers[b->index];
-	prepared = buffer->buffer.flags & V4L2_BUF_FLAG_PREPARED;
 
 	/*
-	 * Store the buffer and plane `m` information so we can retrieve
-	 * it again when DQBUF occurs.
+	 * The buffer memory type must match the one the queue was set up with
+	 * at REQBUFS/CREATE_BUFS time. This also rejects DMABUF/USERPTR
+	 * buffers whenever their memory model has not been enabled, since the
+	 * queue could only have been set to such a memory type when the
+	 * corresponding module parameter allowed it.
 	 */
-	if (!prepared) {
-		buffer->buffer.m = b->m;
-		if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
-			if (b->length > VIDEO_MAX_PLANES)
-				return -EINVAL;
-			for (i = 0; i < b->length; i++)
-				buffer->planes[i].m = b->m.planes[i].m;
-		}
-	}
+	if (b->memory != queue->memory)
+		return -EINVAL;
+
+	buffer = queue->buffers[b->index];
+
+	/*
+	 * Prepare the buffer if it was not already PREPARE_BUF'd. This records
+	 * the `m` union and binds any dma-buf planes; if it was prepared the
+	 * bindings are reused. On failure the buffer is not queued.
+	 */
+	ret = __virtio_media_buf_prepare(vfh, b);
+	if (ret)
+		return ret;
+
 	old_flags = buffer->buffer.flags;
 	buffer->buffer.flags = V4L2_BUF_FLAG_QUEUED;
 
@@ -1195,6 +1485,16 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 		buffer->buffer.flags = old_flags;
 		scoped_guard(mutex, &session->queues_lock)
 			queue->queued_bufs -= 1;
+		/*
+		 * The QBUF was rejected, so the buffer never entered the
+		 * device's queue: return it to the unprepared state (as
+		 * videobuf2 does when __buf_prepare/qbuf fails). This matters
+		 * for V4L2_MEMORY_DMABUF, where the index is only a slot and a
+		 * retry may carry a different dma-buf fd; re-running prepare
+		 * next time rebinds the planes instead of reusing a stale
+		 * binding.
+		 */
+		buffer->prepared = false;
 		return ret;
 	}
 
@@ -1204,6 +1504,9 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	 * reader accesses it locklessly and tolerates torn reads.
 	 */
 	queue->qbuf_count += 1;
+
+	/* A queued buffer is no longer reported as prepared. */
+	virtio_media_fill_buffer_prepared(buffer, b);
 
 	return 0;
 }
@@ -1255,14 +1558,14 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 			return -EINTR;
 	}
 
-
-	mutex_lock(&session->queues_lock);
-	if (!list_empty(buffer_queue)) {
-		dqbuf = list_first_entry(buffer_queue, struct virtio_media_buffer,
-				 list);
-		list_del(&dqbuf->list);
+	scoped_guard(mutex, &session->queues_lock) {
+		if (!list_empty(buffer_queue)) {
+			dqbuf = list_first_entry(buffer_queue,
+						 struct virtio_media_buffer,
+						 list);
+			list_del(&dqbuf->list);
+		}
 	}
-	mutex_unlock(&session->queues_lock);
 	if (!dqbuf)
 		return -EAGAIN;
 
@@ -1277,6 +1580,13 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 	/* Clear the DONE flag as the buffer is now being dequeued. */
 	dqbuf->buffer.flags &= ~V4L2_BUF_FLAG_DONE;
 
+	/*
+	 * The buffer leaves the driver's hands: it must be prepared again
+	 * before it can be requeued (mirrors videobuf2 clearing vb->prepared
+	 * on dequeue).
+	 */
+	dqbuf->prepared = false;
+
 	if (is_multiplanar) {
 		size_t nb_planes = min_t(u32, b->length, VIDEO_MAX_PLANES);
 
@@ -1289,6 +1599,9 @@ static int virtio_media_dqbuf(struct file *file, void *fh,
 
 	if (is_multiplanar)
 		b->m.planes = planes_backup;
+
+	/* A dequeued buffer is no longer prepared. */
+	virtio_media_fill_buffer_prepared(dqbuf, b);
 
 	if (V4L2_TYPE_IS_CAPTURE(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
 		queue->is_capture_last = true;
