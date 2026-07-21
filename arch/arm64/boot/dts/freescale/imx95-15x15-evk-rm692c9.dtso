@@ -10,11 +10,8 @@
 #include "imx95-evk-rm692c9-common.dtsi"
 
 &dpu {
-	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1_VCO>,
-			  <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+	assigned-clocks = <&scmi_clk IMX95_CLK_DISP1PIX>;
 	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
-	assigned-clock-rates = <0>, <4008000000>, <445333334>;
 };
 
 &mipi_dsi {
