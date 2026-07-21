@@ -279,7 +279,7 @@ static void kbase_ipa_ctrl_rate_change_worker(struct work_struct *data)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.backend.gpu_ready) {
-		dev_err(kbdev->dev, "%s: GPU frequency cannot change while GPU is off", __func__);
+		dev_dbg(kbdev->dev, "%s: GPU frequency cannot change while GPU is off", __func__);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 		return;
 	}
