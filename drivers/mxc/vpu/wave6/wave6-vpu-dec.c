@@ -398,6 +398,8 @@ error:
 	wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_Y_TBL][idx]);
 	wave6_free_dma(&inst->aux_vbuf[AUX_BUF_FBC_C_TBL][idx]);
 	wave6_free_dma(&inst->aux_vbuf[AUX_BUF_MV_COL][idx]);
+	vb2_queue_error(v4l2_m2m_get_src_vq(inst->v4l2_fh.m2m_ctx));
+	vb2_queue_error(v4l2_m2m_get_dst_vq(inst->v4l2_fh.m2m_ctx));
 
 	return false;
 }
@@ -2043,6 +2045,8 @@ static int wave6_vpu_dec_release(struct file *filp)
 	struct vpu_instance *inst = wave6_to_vpu_inst(file_to_v4l2_fh(filp));
 
 	dprintk(inst->dev->dev, "[%d] release\n", inst->id);
+
+	cancel_work_sync(&inst->fb_work);
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
 
 	mutex_lock(&inst->queue_lock);
