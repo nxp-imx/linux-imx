@@ -3276,6 +3276,7 @@
   typec_cable_get
   typec_cable_is_active
   typec_cable_put
+  typec_cable_altmode_unsupported
   typec_find_orientation
   typec_find_port_data_role
   typec_find_port_power_role

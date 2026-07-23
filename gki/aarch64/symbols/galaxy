@@ -203,3 +203,34 @@
   unregister_restart_handler
   vfs_fsync_range
   yield
+  start_creating_path
+  end_creating_path
+  getname_kernel
+  vfs_path_parent_lookup
+  lock_rename_child
+  lookup_one_qstr_excl
+  putname
+  lookup_noperm_unlocked
+  follow_down
+  locks_delete_block
+  posix_acl_alloc
+  set_posix_acl
+  utf8_strncasecmp
+  get_max_files
+  locks_free_lock
+  utf8_casefold
+  utf8_load
+  utf8_unload
+  match_wildcard
+  groups_alloc
+  groups_sort
+  set_groups
+  groups_free
+  abort_creds
+  sock_set_sndtimeo
+  sock_set_reuseaddr
+  from_vfsuid
+  from_vfsgid
+  locks_init_lock
+  vfs_lock_file
+  locks_alloc_lock

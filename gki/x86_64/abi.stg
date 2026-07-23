@@ -303929,6 +303929,11 @@ function {
   parameter_id: 0x36d55eab
 }
 function {
+  id: 0xf31a3d30
+  return_type_id: 0x6d7f5ff6
+  parameter_id: 0x36f998d3
+}
+function {
   id: 0xf3220908
   return_type_id: 0x6d7f5ff6
   parameter_id: 0x36194830
@@ -336349,6 +336354,15 @@ elf_symbol {
   full_name: "typec_cable_altmode_exit"
 }
 elf_symbol {
+  id: 0xe80fa7bf
+  name: "typec_cable_altmode_unsupported"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0x937a947c
+  type_id: 0xf31a3d30
+  full_name: "typec_cable_altmode_unsupported"
+}
+elf_symbol {
   id: 0x211940b7
   name: "typec_cable_get"
   is_defined: true
@@ -344384,6 +344398,7 @@ interface {
   symbol_id: 0xe6cbb47e
   symbol_id: 0x64be7202
   symbol_id: 0x63420281
+  symbol_id: 0xe80fa7bf
   symbol_id: 0x211940b7
   symbol_id: 0xd73b87cf
   symbol_id: 0xe220b8fa

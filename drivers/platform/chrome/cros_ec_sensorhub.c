@@ -29,8 +29,8 @@ static void cros_ec_sensorhub_free_sensor(void *arg)
 }
 
 static int cros_ec_sensorhub_allocate_sensor(struct device *parent,
-					     char *sensor_name,
-					     int sensor_num)
+						 char *sensor_name,
+						 int sensor_num)
 {
 	struct cros_ec_sensor_platform sensor_platforms = {
 		.sensor_num = sensor_num,
@@ -38,9 +38,9 @@ static int cros_ec_sensorhub_allocate_sensor(struct device *parent,
 	struct platform_device *pdev;
 
 	pdev = platform_device_register_data(parent, sensor_name,
-					     PLATFORM_DEVID_AUTO,
-					     &sensor_platforms,
-					     sizeof(sensor_platforms));
+						 PLATFORM_DEVID_AUTO,
+						 &sensor_platforms,
+						 sizeof(sensor_platforms));
 	if (IS_ERR(pdev))
 		return PTR_ERR(pdev);
 
@@ -50,7 +50,7 @@ static int cros_ec_sensorhub_allocate_sensor(struct device *parent,
 }
 
 static int cros_ec_sensorhub_register(struct device *dev,
-				      struct cros_ec_sensorhub *sensorhub)
+					  struct cros_ec_sensorhub *sensorhub)
 {
 	int sensor_type[MOTIONSENSE_TYPE_MAX] = { 0 };
 	struct cros_ec_command *msg = sensorhub->msg;
@@ -147,7 +147,7 @@ static int cros_ec_sensorhub_probe(struct platform_device *pdev)
 
 	msg = devm_kzalloc(dev, sizeof(struct cros_ec_command) +
 			   max((u16)sizeof(struct ec_params_motion_sense),
-			       ec->ec_dev->max_response), GFP_KERNEL);
+				   ec->ec_dev->max_response), GFP_KERNEL);
 	if (!msg)
 		return -ENOMEM;
 
@@ -243,6 +243,8 @@ static int cros_ec_sensorhub_suspend(struct device *dev)
 	struct cros_ec_sensorhub *sensorhub = dev_get_drvdata(dev);
 	struct cros_ec_dev *ec = sensorhub->ec;
 
+	sensorhub->suspend_time = ktime_get_boottime();
+
 	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE_FIFO))
 		return cros_ec_sensorhub_ring_fifo_enable(sensorhub, false);
 	return 0;
@@ -253,8 +255,41 @@ static int cros_ec_sensorhub_resume(struct device *dev)
 	struct cros_ec_sensorhub *sensorhub = dev_get_drvdata(dev);
 	struct cros_ec_dev *ec = sensorhub->ec;
 
-	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE_FIFO))
+	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE_FIFO)) {
+		/*
+		 * The EC's 32-bit hardware timestamp natively rolls over every 71.5 minutes.
+		 * When the AP goes into deep sleep, the EC physically continues executing
+		 * and silently wraps its 32-bit timestamp counter one or more times.
+		 *
+		 * Because Linux natively advances ktime_get_boottime() across suspend,
+		 * the AP clock leaps forward, but the incoming 32-bit EC timestamp appears
+		 * massively historically delayed due to the lost silent overflows.
+		 *
+		 * We mathematically calculate exactly how many 71.5 minute epochs were
+		 * swallowed during sleep by dividing the AP's recorded sleep duration
+		 * against the overflow period. By forcefully injecting these missed
+		 * wraps directly into the running EC offset tracker, the EC timeline
+		 * snaps forward instantly and achieves active parity with the AP boottime,
+		 * completely avoiding fatal negative delta time-skew calculations.
+		 *
+		 * Lastly, massive suspend gaps (>500ms) inherently trigger the
+		 * TS_HISTORY_BORED_US fallback during the first post-resume sensor
+		 * event. This safely and completely scrubs the poisoned clock drift data.
+		 * Because the clocks are explicitly resynchronized by the math above,
+		 * the newly arriving samples remain completely valid and are correctly
+		 * delivered to the user framework without being warped by stale filter history.
+		 */
+		u64 sleep_duration = ktime_to_us(ktime_sub(
+					ktime_get_boottime(), sensorhub->suspend_time));
+
+		u64 missed_overflows = div64_u64(sleep_duration, 1ULL << 32);
+
+		sensorhub->overflow_a.offset += (missed_overflows * (1ULL << 32));
+		sensorhub->overflow_b.offset += (missed_overflows * (1ULL << 32));
+
 		return cros_ec_sensorhub_ring_fifo_enable(sensorhub, true);
+	}
+
 	return 0;
 }
 #endif

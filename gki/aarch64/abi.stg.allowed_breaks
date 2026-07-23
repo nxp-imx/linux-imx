@@ -12,3 +12,6 @@ type 'struct arch_tlbflush_unmap_batch' changed
   member 'cpumask_var_t cpumask' was removed
   member 'union { struct { u64 __donotuse_b448672457; }; struct { cpumask_var_t __kabi_renamedcpumask; }; union { }; }' was added
 
+type 'struct ufshcd_tx_eq_params' changed
+  member 'union { bool from_dt; unsigned char __kabi_ignored1; }' was added
+

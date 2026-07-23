@@ -367,6 +367,7 @@ struct ufshcd_tx_eqtr_record {
  * @eqtr_record: Pointer to TX EQTR record
  * @is_valid: True if parameter contains valid TX Equalization settings
  * @is_applied: True if settings have been applied to UniPro of both sides
+ * @from_dt: True if settings are from Device Tree
  */
 struct ufshcd_tx_eq_params {
 	struct ufshcd_tx_eq_settings host[UFS_MAX_LANES];
@@ -374,6 +375,7 @@ struct ufshcd_tx_eq_params {
 	struct ufshcd_tx_eqtr_record *eqtr_record;
 	bool is_valid;
 	bool is_applied;
+	ANDROID_KABI_IGNORE(1, bool from_dt);
 };
 
 /**

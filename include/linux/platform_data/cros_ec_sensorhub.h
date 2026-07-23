@@ -175,6 +175,8 @@ struct cros_ec_sensorhub {
 	s64 future_timestamp_total_ns;
 
 	struct cros_ec_sensorhub_sensor_push_data *push_data;
+
+	ktime_t suspend_time;
 };
 
 int cros_ec_sensorhub_register_push_data(struct cros_ec_sensorhub *sensorhub,

@@ -130,14 +130,15 @@ int pkvm_pviommu_finalise(struct pkvm_hyp_vm *hyp_vm)
  */
 void pkvm_pviommu_teardown(struct pkvm_hyp_vm *hyp_vm)
 {
-	struct pviommu_host *ph;
+	struct pviommu_host *ph, *tmp;
 
 	hyp_spin_lock(&host_pviommu_lock);
-	list_for_each_entry(ph, &hyp_vm->pviommus, list) {
+	list_for_each_entry_safe(ph, tmp, &hyp_vm->pviommus, list) {
 		/* pvIOMMU is free now. */
 		ph->kvm = NULL;
 		ph->nr_entries = 0;
 		ph->finalized = false;
+		list_del(&ph->list);
 	}
 	kvm_iommu_teardown_guest_domains(hyp_vm);
 	hyp_spin_unlock(&host_pviommu_lock);

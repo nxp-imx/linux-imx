@@ -1138,8 +1138,8 @@ static int __do_ffa_mem_xfer(const u64 func_id,
 	if (!hyp_vcpu && static_branch_unlikely(&kvm_ffa_unmap_on_lend)) {
 		handle = ffa_host_alloc_handle();
 		if (!handle) {
-			ret = -ENOSPC;
-			goto out_unlock;
+			ret = -ENOMEM;
+			goto err_unshare;
 		}
 	}
 

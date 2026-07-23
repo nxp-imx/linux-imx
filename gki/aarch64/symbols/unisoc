@@ -465,6 +465,12 @@
   i2c_transfer_buffer_flags
   ida_alloc_range
   ida_free
+  idle_inject_register_full
+  idle_inject_set_duration
+  idle_inject_set_latency
+  idle_inject_start
+  idle_inject_stop
+  idle_inject_unregister
   idr_alloc
   idr_destroy
   idr_find

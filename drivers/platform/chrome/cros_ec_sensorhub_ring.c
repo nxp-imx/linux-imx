@@ -369,13 +369,31 @@ cros_ec_sensor_ring_fix_overflow(s64 *ts,
 				 struct cros_ec_sensors_ec_overflow_state
 				 *state)
 {
-	s64 adjust;
-
 	*ts += state->offset;
-	if (abs(state->last - *ts) > (overflow_period / 2)) {
-		adjust = state->last > *ts ? overflow_period : -overflow_period;
-		state->offset += adjust;
-		*ts += adjust;
+
+	/*
+	 * We must strictly detect exclusively forward overflows. A naive `abs()`
+	 * check paired with a dual-direction adjustment (`+/- overflow_period`)
+	 * is fundamentally flawed during deep suspend. If a device sleeps for
+	 * longer than half the overflow period (e.g. 45 minutes), the massive
+	 * legitimate forward leap in time is mathematically aliased as a backward
+	 * jump.
+	 *
+	 * This would historically cause the logic to forcibly inject a negative
+	 * `overflow_period` adjustment, irrevocably corrupting the sensor's
+	 * timestamps backwards by ~71 minutes upon resume and failing CTS.
+	 *
+	 * By eliminating the negative adjustment path and exclusively evaluating
+	 * `state->last - *ts > (overflow_period / 2)` via signed arithmetic, we
+	 * ensure that multi-minute sleep leaps bypass the threshold safely as
+	 * large negative relative differentials, naturally carrying time forward
+	 * without bogus timestamp rollbacks. Furthermore, the massive timestamp
+	 * differential will naturally trigger the TS_HISTORY_BORED_US threshold
+	 * downstream, safely resetting the historical median filter array.
+	 */
+	if (state->last - *ts > (overflow_period / 2)) {
+		state->offset += overflow_period;
+		*ts += overflow_period;
 	}
 	state->last = *ts;
 }

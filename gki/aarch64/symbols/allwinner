@@ -119,3 +119,11 @@
   typec_get_fw_cap
   typec_port_register_cable_ops
   typec_port_set_usb_power_delivery
+  fwnode_property_read_u16_array
+  fwnode_usb_role_switch_get
+  typec_plug_register_altmode
+  typec_plug_set_num_altmodes
+  typec_register_cable
+  typec_register_plug
+  typec_unregister_cable
+  typec_unregister_plug

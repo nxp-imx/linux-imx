@@ -1171,7 +1171,6 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	}
 
 	hyp_vm->is_dying = PROTECTED_VM_DYING;
-unlock:
 	hyp_write_unlock(&vm_table_lock);
 
 	/*
@@ -1186,6 +1185,8 @@ unlock:
 
 	hyp_write_lock(&vm_table_lock);
 	hyp_vm->is_dying = PROTECTED_VM_DEAD;
+
+unlock:
 	hyp_write_unlock(&vm_table_lock);
 
 	return ret;
