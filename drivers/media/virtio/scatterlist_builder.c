@@ -349,7 +349,13 @@ static int scatterlist_builder_add_userptr(struct scatterlist_builder *builder,
 int scatterlist_builder_add_buffer(struct scatterlist_builder *builder,
 				   struct v4l2_buffer *b)
 {
+	int i;
 	int ret;
+
+	/* Fixup: plane length must be zero if userptr is NULL */
+	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
+	    b->memory == V4L2_MEMORY_USERPTR && b->m.userptr == 0)
+		b->length = 0;
 
 	/* v4l2_buffer */
 	ret = scatterlist_builder_add_data(builder, b, sizeof(*b));
@@ -357,10 +363,68 @@ int scatterlist_builder_add_buffer(struct scatterlist_builder *builder,
 		return ret;
 
 	if (V4L2_TYPE_IS_MULTIPLANAR(b->type) && b->length > 0) {
+		/* Fixup: plane length must be zero if userptr is NULL */
+		if (b->memory == V4L2_MEMORY_USERPTR) {
+			for (i = 0; i < b->length; i++) {
+				struct v4l2_plane *plane = &b->m.planes[i];
+
+				if (plane->m.userptr == 0)
+					plane->length = 0;
+			}
+		}
+
 		/* Array of v4l2_planes */
 		ret = scatterlist_builder_add_data(builder, b->m.planes,
 						   sizeof(struct v4l2_plane) *
 							   b->length);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+/**
+ * scatterlist_builder_add_buffer_userptr() - Add the payload of a ``USERPTR``
+ *                                            &struct v4l2_buffer to the
+ *                                            descriptor chain.
+ * @builder: builder to use.
+ * @b: &struct v4l2_buffer whose ``USERPTR`` payload we want to add.
+ *
+ * Add an array of &struct virtio_media_sg_entry pointing to a ``USERPTR``
+ * buffer's contents. Does nothing if the buffer is not of type ``USERPTR``.
+ * This is split out of scatterlist_builder_add_buffer() because we only want
+ * to add these to the device-readable part of the descriptor chain.
+ */
+int scatterlist_builder_add_buffer_userptr(struct scatterlist_builder *builder,
+					   struct v4l2_buffer *b)
+{
+	int i;
+	int ret;
+
+	if (b->memory != V4L2_MEMORY_USERPTR)
+		return 0;
+
+	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
+		for (i = 0; i < b->length; i++) {
+			struct v4l2_plane *plane = &b->m.planes[i];
+
+			if (b->memory == V4L2_MEMORY_USERPTR &&
+			    plane->length > 0) {
+				unsigned long uptr = plane->m.userptr;
+				unsigned long len = plane->length;
+
+				ret =
+				scatterlist_builder_add_userptr(builder,
+								uptr,
+								len);
+				if (ret)
+					return ret;
+			}
+		}
+	} else if (b->length > 0) {
+		ret = scatterlist_builder_add_userptr(builder, b->m.userptr,
+						      b->length);
 		if (ret)
 			return ret;
 	}

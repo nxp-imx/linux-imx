@@ -90,6 +90,9 @@ int scatterlist_builder_add_ioctl_resp(struct scatterlist_builder *builder,
 int scatterlist_builder_add_buffer(struct scatterlist_builder *builder,
 				   struct v4l2_buffer *buffer);
 
+int scatterlist_builder_add_buffer_userptr(struct scatterlist_builder *builder,
+					   struct v4l2_buffer *b);
+
 int scatterlist_builder_retrieve_buffer(struct scatterlist_builder *builder,
 					size_t sg_index,
 					struct v4l2_buffer *buffer,

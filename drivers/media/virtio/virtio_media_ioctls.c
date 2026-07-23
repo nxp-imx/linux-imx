@@ -273,6 +273,12 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		return ret;
 
 	end_buf_sg = builder.cur_sg;
+
+	/* Payload of SHARED_PAGES buffers, if relevant */
+	ret = scatterlist_builder_add_buffer_userptr(&builder, b);
+	if (ret < 0)
+		return ret;
+
 	num_cmd_sgs = builder.cur_sg;
 
 	/* Response descriptor */
@@ -719,7 +725,7 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
 		return -EINVAL;
 
-	if (b->memory == V4L2_MEMORY_USERPTR)
+	if (b->memory == V4L2_MEMORY_USERPTR && !virtio_media_allow_userptr)
 		return -EINVAL;
 
 	ret = virtio_media_send_wr_ioctl(vfh, VIDIOC_REQBUFS, b, sizeof(*b),
@@ -752,7 +758,8 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	if (V4L2_TYPE_IS_MULTIPLANAR(b->type))
 		session->uses_mplane = true;
 
-	b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_USERPTR;
+	if (!virtio_media_allow_userptr)
+		b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_USERPTR;
 
 	/* We do not support DMABUF yet. */
 	b->capabilities &= ~V4L2_BUF_CAP_SUPPORTS_DMABUF;

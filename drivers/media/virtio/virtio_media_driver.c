@@ -7,26 +7,29 @@
  */
 
 #include <linux/bits.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dev_printk.h>
+#include <linux/mm.h>
 #include <linux/mutex.h>
+#include <linux/scatterlist.h>
 #include <linux/types.h>
+#include <linux/videodev2.h>
+#include <linux/vmalloc.h>
+#include <linux/wait.h>
+#include <linux/workqueue.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/virtio.h>
 #include <linux/virtio_config.h>
 #include <linux/virtio_ids.h>
-#include <linux/slab.h>
-#include <linux/scatterlist.h>
-#include <linux/vmalloc.h>
-#include <linux/workqueue.h>
-#include <linux/dma-mapping.h>
-#include <linux/poll.h>
-#include <linux/mm.h>
 
+#include <media/frame_vector.h>
 #include <media/v4l2-dev.h>
-#include <media/v4l2-device.h>
-#include <media/v4l2-fh.h>
 #include <media/v4l2-event.h>
+#include <media/videobuf2-memops.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-ioctl.h>
 
 #include "uapi/linux/virtio_media.h"
 #include "session.h"
@@ -39,6 +42,15 @@
 
 /* Bit mask for the VIRTIO_MEDIA_MMAP_FLAG_RW flag */
 #define VIRTIO_MEDIA_MMAP_FLAG_RW_MASK BIT(VIRTIO_MEDIA_MMAP_FLAG_RW)
+
+/*
+ * Whether USERPTR buffers are allowed.
+ *
+ * This is disabled by default as USERPTR buffers are dangerous, but the option
+ * is left to enable them if desired.
+ */
+bool virtio_media_allow_userptr;
+module_param_named(allow_userptr, virtio_media_allow_userptr, bool, 0660);
 
 /**
  * virtio_media_session_alloc() - Allocate a new session.
@@ -849,15 +861,11 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 			      VIRTIO_MEDIA_SHM_MMAP);
 
 	vd = &vv->video_dev;
+
 	vd->v4l2_dev = &vv->v4l2_dev;
 	vd->vfl_type = VFL_TYPE_VIDEO;
 	vd->ioctl_ops = &virtio_media_ioctl_ops;
 	vd->fops = &virtio_media_fops;
-	vd->release = video_device_release_empty;
-	strscpy(vd->name, "virtio-media", sizeof(vd->name));
-
-	video_set_drvdata(vd, vv);
-
 	vd->device_caps = virtio_cread32(virtio_dev, 0);
 	if (vd->device_caps & (V4L2_CAP_VIDEO_M2M | V4L2_CAP_VIDEO_M2M_MPLANE))
 		vd->vfl_dir = VFL_DIR_M2M;
@@ -866,6 +874,10 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 		vd->vfl_dir = VFL_DIR_TX;
 	else
 		vd->vfl_dir = VFL_DIR_RX;
+	vd->release = video_device_release_empty;
+	strscpy(vd->name, "virtio-media", sizeof(vd->name));
+
+	video_set_drvdata(vd, vv);
 
 	ret = video_register_device(vd, virtio_cread32(virtio_dev, 4), 0);
 	if (ret)
@@ -890,6 +902,7 @@ err_register_device:
 	virtio_dev->config->del_vqs(virtio_dev);
 err_find_vqs:
 	v4l2_device_unregister(&vv->v4l2_dev);
+
 	return ret;
 }
 
@@ -900,6 +913,7 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 
 	cancel_work_sync(&vv->eventq_work);
 	virtio_reset_device(virtio_dev);
+
 	v4l2_device_unregister(&vv->v4l2_dev);
 	virtio_dev->config->del_vqs(virtio_dev);
 	video_unregister_device(&vv->video_dev);
