@@ -22,6 +22,7 @@ obj-$(CONFIG_DVB_CORE) += dvb-core/
 
 # There are both core and drivers at RC subtree - merge before drivers
 obj-y += rc/
+obj-$(CONFIG_MEDIA_VIRTIO) += virtio/
 
 obj-$(CONFIG_CEC_CORE) += cec/
 
