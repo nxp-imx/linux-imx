@@ -363,6 +363,13 @@ struct enetc_si {
 
 	struct net_device *ndev; /* back ref. */
 
+	/* General-purpose lock serializing updates that must not race,
+	 * e.g. read-modify-write of shared hardware registers and of
+	 * selected priv->flags bits between the phylink link callbacks
+	 * and the ring (re)configuration path.
+	 */
+	spinlock_t gen_lock;
+
 	union {
 		struct enetc_cbdr cbd_ring; /* Only ENETC 1.0 */
 		struct ntmp_user ntmp_user; /* ENETC 4.1 and later */
@@ -489,6 +496,7 @@ enum enetc_flags_bit {
 	ENETC_TX_ONESTEP_TSTAMP_IN_PROGRESS = 0,
 	ENETC_TX_DOWN,
 	ENETC_SUSPEND,
+	ENETC_RXBDR_CM,
 };
 
 /* interrupt coalescing modes */
@@ -594,6 +602,7 @@ void enetc_reset_mac_addr_filter(struct enetc_mac_filter *filter);
 int enetc_vid_hash_idx(unsigned int vid);
 void enetc_refresh_vlan_ht_filter(struct enetc_si *si);
 int enetc_restore_hw_config(struct enetc_si *si);
+void enetc_set_congestion_mode(struct enetc_ndev_priv *priv, bool enable);
 
 int enetc_open(struct net_device *ndev);
 int enetc_close(struct net_device *ndev);
