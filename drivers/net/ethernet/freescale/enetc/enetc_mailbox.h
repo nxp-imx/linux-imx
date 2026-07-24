@@ -42,8 +42,8 @@
 #define ENETC_PF_RC_IP_REVISION_INVALID		0xff
 
 /* Class-specific notification codes for link status */
-#define ENETC_PF_NC_LINK_STATUS_UP		0x0
-#define ENETC_PF_NC_LINK_STATUS_DOWN		0x1
+#define ENETC_PF_NC_LINK_STATUS_DOWN		BIT(0)
+#define ENETC_PF_NC_LINK_TX_PAUSE_ENABLE	BIT(1)
 
 /* Class-specific error return codes for VLAN filter */
 #define ENETC_PF_RC_VLAN_FILTER_INVALID_VLAN	0x0

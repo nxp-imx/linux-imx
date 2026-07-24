@@ -24,6 +24,7 @@ void enetc_taprio_stats(struct net_device *ndev,
 void enetc_taprio_queue_stats(struct net_device *ndev,
 			      struct tc_taprio_qopt_queue_stats *queue_stats);
 int enetc_qos_query_caps(struct net_device *ndev, void *type_data);
+u8 enetc_build_link_status(struct enetc_ndev_priv *priv, bool link_up);
 
 #if IS_ENABLED(CONFIG_PCI_IOV)
 int enetc_sriov_configure(struct pci_dev *pdev, int num_vfs);

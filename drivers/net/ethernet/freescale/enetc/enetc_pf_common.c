@@ -640,8 +640,21 @@ err_msg_psi:
 }
 EXPORT_SYMBOL_GPL(enetc_sriov_configure);
 
+u8 enetc_build_link_status(struct enetc_ndev_priv *priv, bool link_up)
+{
+	u8 status = 0;
+
+	if (!link_up)
+		status |= ENETC_PF_NC_LINK_STATUS_DOWN;
+	else if (test_bit(ENETC_RXBDR_CM, &priv->flags))
+		status |= ENETC_PF_NC_LINK_TX_PAUSE_ENABLE;
+
+	return status;
+}
+
 void enetc_pf_send_link_status_msg(struct enetc_pf *pf, bool up)
 {
+	struct enetc_ndev_priv *priv = netdev_priv(pf->si->ndev);
 	struct device *dev = &pf->si->pdev->dev;
 	union enetc_pf_msg pf_msg;
 	u16 ms_mask = 0;
@@ -655,8 +668,7 @@ void enetc_pf_send_link_status_msg(struct enetc_pf *pf, bool up)
 		return;
 
 	pf_msg.class_id = ENETC_MSG_CLASS_ID_LINK_STATUS;
-	pf_msg.class_code_u8 = up ? ENETC_PF_NC_LINK_STATUS_UP :
-				    ENETC_PF_NC_LINK_STATUS_DOWN;
+	pf_msg.class_code_u8 = enetc_build_link_status(priv, up);
 
 	err = enetc_pf_send_msg(pf, pf_msg.code, ms_mask);
 	if (err)

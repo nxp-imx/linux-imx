@@ -568,23 +568,29 @@ static void enetc_vf_enable_mr_int(struct enetc_hw *hw, bool en)
 	enetc_wr(hw, ENETC_VSIIER, val);
 }
 
-static void enetc_vf_msg_handle_link_status(struct enetc_si *si, u8 class_code)
+static void enetc_vf_msg_handle_link_status(struct enetc_si *si, u8 status)
 {
+	bool tx_pause = !!(status & ENETC_PF_NC_LINK_TX_PAUSE_ENABLE);
+	bool link_down = !!(status & ENETC_PF_NC_LINK_STATUS_DOWN);
+	struct enetc_ndev_priv *priv = netdev_priv(si->ndev);
 	struct net_device *ndev = si->ndev;
 
-	switch (class_code) {
-	case ENETC_PF_NC_LINK_STATUS_UP:
-		if (!netif_carrier_ok(ndev)) {
-			netif_carrier_on(ndev);
-			netdev_info(ndev, "Link is Up\n");
-		}
-		break;
-	case ENETC_PF_NC_LINK_STATUS_DOWN:
+	if (link_down) {
 		if (netif_carrier_ok(ndev)) {
 			netif_carrier_off(ndev);
 			netdev_info(ndev, "Link is Down\n");
 		}
-		break;
+
+		return;
+	}
+
+	/* Link is up */
+	enetc_set_congestion_mode(priv, tx_pause);
+
+	if (!netif_carrier_ok(ndev)) {
+		netif_carrier_on(ndev);
+		netdev_info(ndev, "Link is Up, tx pause %s\n",
+			    tx_pause ? "on" : "off");
 	}
 }
 
