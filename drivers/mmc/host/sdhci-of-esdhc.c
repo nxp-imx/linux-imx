@@ -1193,11 +1193,13 @@ static void esdhc_set_uhs_signaling(struct sdhci_host *host,
 
 	/*
 	 * There are specific registers setting for HS400 mode.
-	 * Clean all of them if controller is in HS400 mode to
-	 * exit HS400 mode before re-setting any speed mode.
+	 * Clean all of them only when actually leaving HS400, i.e. the
+	 * controller is currently in HS400 (TBCTL.HS400_MODE set) and the
+	 * target mode is not HS400, to exit HS400 timing properly before
+	 * re-setting any speed mode.
 	 */
 	val = sdhci_readl(host, ESDHC_TBCTL);
-	if (val & ESDHC_HS400_MODE) {
+	if ((val & ESDHC_HS400_MODE) && timing != MMC_TIMING_MMC_HS400) {
 		val = sdhci_readl(host, ESDHC_SDTIMNGCTL);
 		val &= ~ESDHC_FLW_CTL_BG;
 		sdhci_writel(host, val, ESDHC_SDTIMNGCTL);
