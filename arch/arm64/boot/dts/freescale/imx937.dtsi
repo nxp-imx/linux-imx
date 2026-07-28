@@ -5,6 +5,10 @@
 
 #include "imx952.dtsi"
 
+&dispmix_csr {
+	compatible = "nxp,imx937-display-csr", "syscon";
+};
+
 &dpu {
 	compatible = "nxp,imx937-dpu";
 	interrupts = <448>, <449>, <450>,  <64>,
