@@ -323,7 +323,7 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 	} else
 		ret = wave6_alloc_dma(inst->dev->dev, &inst->aux_vbuf[type][idx]);
 	if (ret) {
-		dev_dbg(inst->dev->dev, "%s: Alloc fail (type %d)\n", __func__, type);
+		dev_err(inst->dev->dev, "%s: Alloc fail (type %d)\n", __func__, type);
 		return ret;
 	}
 
@@ -337,7 +337,7 @@ static int wave6_allocate_aux_buffer(struct vpu_instance *inst,
 
 	ret = wave6_vpu_dec_register_aux_buffer(inst, buf_info);
 	if (ret) {
-		dev_dbg(inst->dev->dev, "%s: Register fail (type %d)\n", __func__, type);
+		dev_err(inst->dev->dev, "%s: Register fail (type %d)\n", __func__, type);
 		return ret;
 	}
 
