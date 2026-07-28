@@ -42,6 +42,11 @@
  *	reference is dropped the gmap is queued here and torn down by
  *	virtio_media.gmap_release_work (the sole teardown path; see
  *	virtio_media_gmap_put()).
+ * @uuid: shared-object UUID the device registered this host buffer under
+ *	(host-object model: host pages + UUID). Reported in the MMAP response
+ *	and returned by the exported virtio-dma-buf's get_uuid() callback so a
+ *	consumer device can resolve the buffer cross-process. All-zero if the
+ *	device registered none (UUID handoff unavailable for this buffer).
  */
 struct virtio_media_grant_map {
 	u32 grant_ref_header;
@@ -57,6 +62,7 @@ struct virtio_media_grant_map {
 	refcount_t refs;
 	struct list_head list;
 	struct llist_node release_node;
+	u8 uuid[16];
 };
 
 /**
@@ -92,6 +98,15 @@ struct virtio_media_grant_map {
  * @grant_ref_count: number of references in that sequence (valid only when
  *	@manual_grant).
  *
+ * @uuid_backed: true if this import is a host-owned buffer identified by a
+ *	shared-object UUID rather than grant-imported guest pages. Such an
+ *	import holds no attach/sgt/grants and no backend resource id: it only
+ *	records the UUID and keeps a reference on the imported virtio-dma-buf
+ *	(the guest-side alpha refcount chain). Its planes are sent on the
+ *	QBUF/PREPARE_BUF wire as a per-plane UUID footer, not an @resource_id.
+ * @uuid: the shared-object UUID (valid only when @uuid_backed), as returned by
+ *	the imported virtio-dma-buf's get_uuid() callback.
+ *
  * @list: link into the owning queue's ``dmabuf_imports`` list.
  *
  * An import is owned by the queue (linked into its ``dmabuf_imports`` list) and
@@ -118,6 +133,8 @@ struct virtio_media_dmabuf_import {
 	bool manual_grant;
 	grant_ref_t grant_ref_head;
 	u32 grant_ref_count;
+	bool uuid_backed;
+	u8 uuid[16];
 	struct list_head list;
 };
 
@@ -321,6 +338,10 @@ int virtio_media_dmabuf_substitute_resource_ids(
 	u32 *saved_fds);
 void virtio_media_dmabuf_restore_resource_ids(struct v4l2_buffer *b,
 					      u32 *saved_fds);
+int virtio_media_dmabuf_collect_uuids(struct virtio_media_session *session,
+				      struct v4l2_buffer *b,
+				      struct virtio_media_dmabuf_uuid *footers,
+				      unsigned int *n_out);
 
 /* virtio_media_ioctls.c */
 

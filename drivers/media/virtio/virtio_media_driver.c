@@ -1380,6 +1380,7 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 	gmap->grant_ref_header = resp_mmap->grant_ref_header;
 	gmap->grant_ref_count = resp_mmap->grant_ref_count;
 	gmap->len = resp_mmap->len;
+	memcpy(gmap->uuid, resp_mmap->uuid, sizeof(gmap->uuid));
 	gmap->v4l2_offset = offset;
 	gmap->type = type;
 	gmap->index = index;
@@ -1617,9 +1618,11 @@ static grant_ref_t virtio_media_dma_to_grant(dma_addr_t dma)
 /*
  * dma-buf ops of buffers this driver exports via VIDIOC_EXPBUF; used to detect
  * (and reject) an attempt to re-import one of our own exported buffers. Defined
- * below with the EXPBUF implementation.
+ * below with the EXPBUF implementation. The buffers are exported as
+ * virtio-dma-bufs (host-object model: host pages + UUID), so their ops are
+ * embedded in a struct virtio_dma_buf_ops.
  */
-static const struct dma_buf_ops virtio_media_dmabuf_ops;
+static const struct virtio_dma_buf_ops virtio_media_dmabuf_ops;
 
 /**
  * virtio_media_import_decode_refs() - Collect the grant references backing an
@@ -1699,6 +1702,11 @@ virtio_media_import_manual_grant(struct virtio_media *vv,
 				 struct virtio_media_dmabuf_import *imp,
 				 grant_ref_t **refs_out, u32 *num_refs_out)
 {
+	/*
+	 * The backend always runs in Dom0 on this platform, so grant foreign
+	 * access to domid 0. If virtio-media is ever served from a non-Dom0
+	 * backend this must instead come from the device's backend domid.
+	 */
 	domid_t backend_domid = 0;
 	struct scatterlist *sg;
 	grant_ref_t head;
@@ -1798,7 +1806,12 @@ virtio_media_import_get_refs(struct virtio_media *vv,
 			     struct virtio_media_dmabuf_import *imp,
 			     grant_ref_t **refs_out, u32 *num_refs_out)
 {
-	dma_addr_t first = sg_dma_address(imp->sgt->sgl);
+	dma_addr_t first;
+
+	if (!imp->sgt || !imp->sgt->sgl)
+		return -EINVAL;
+
+	first = sg_dma_address(imp->sgt->sgl);
 
 	if (first & VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF)
 		return virtio_media_import_decode_refs(imp, refs_out,
@@ -1998,29 +2011,20 @@ static void virtio_media_resource_id_put(struct virtio_media *vv,
  * with DMABUF_ATTACH under a freshly allocated resource id, which the backend
  * uses to reconstruct the dma-buf on its side.
  *
- * Only dma-bufs backed by real guest pages are handled here. Two kinds are
- * rejected with -EINVAL:
+ * Only dma-bufs backed by real guest pages are grant-imported here
+ * (guest-pages model). Two other kinds are handled specially:
  *
- *   - virtio exported-objects (identified by is_virtio_dma_buf()), e.g. a
- *     virtio-gpu host-3d resource: they carry a UUID and have no guest pages,
- *     so there is nothing to grant. Sharing them would require the backend to
- *     resolve the UUID against the exporting device's own backend. Not
- *     supported yet.
- *
- *   - dma-bufs this virtio-media instance exported itself via VIDIOC_EXPBUF
- *     (identified by their virtio_media_dmabuf_ops): these are physically the
- *     Dom0 backend's own buffers, only foreign-granted into this guest. On
- *     arm/arm64 Xen a foreign grant map redirects the guest page's p2m entry
- *     to the real Dom0 machine frame (set_foreign_p2m_mapping()), so mapping
- *     such a dma-buf to the virtio device would happily grant that same Dom0
- *     frame straight back to Dom0 - it is not an unsupported transitive grant
- *     and would in fact work (this is exactly how a decoded frame reaches the
- *     display: waylandsink imports it into virtio-gpu the same way). We reject
- *     it anyway because it is a wasteful round trip: an extra grant table +
- *     mapping and the ~2s-per-buffer release cost, granting Dom0 memory back
- *     to Dom0. The right path is for the backend to recognise its own buffer
- *     directly (a cross-daemon UUID lookup, to be designed); until then,
- *     reject rather than silently take the slow round trip.
+ *   - virtio exported-objects carrying a shared-object UUID (identified by
+ *     is_virtio_dma_buf()): these have no guest pages to grant. This is the
+ *     host-object consumer path - the backend already knows the buffer under
+ *     that UUID, so we record the UUID and hold a reference rather than
+ *     granting. A dma-buf this virtio-media instance exported itself via
+ *     VIDIOC_EXPBUF also lands here (its virtio_media_dmabuf_ops make
+ *     is_virtio_dma_buf() true); it is legitimate as long as the backend
+ *     registered a non-zero UUID for it. An all-zero UUID means no backend
+ *     registration exists (see the protocol note in protocol.h): such a
+ *     buffer cannot be resolved by the backend, so it is rejected with
+ *     -EINVAL rather than queued with an unusable all-zero footer.
  *
  * Caller must hold vv->vlock (QBUF/PREPARE_BUF run under it).
  *
@@ -2046,28 +2050,46 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 		return ERR_CAST(dmabuf);
 
 	/*
-	 * dma-bufs exported by a virtio device carry a UUID and no guest pages;
-	 * they cannot be granted to the backend, so reject them cleanly rather
-	 * than sending a buffer the backend cannot resolve.
+	 * dma-bufs exported by a virtio device carry a shared-object UUID and
+	 * no guest pages. This is the host-object consumer path: the buffer is
+	 * a host-owned dma-buf the backend already knows under that UUID, only
+	 * wrapped into a virtio-dma-buf on the guest. Rather than grant
+	 * anything, we record the UUID and hold a reference on the dma-buf (the
+	 * guest-side alpha refcount); every QBUF/PREPARE_BUF then carries the
+	 * UUID so the backend resolves it to its own dma-buf fd for the real
+	 * device. No attach, no sgt, no grants, no resource id.
 	 */
 	if (is_virtio_dma_buf(dmabuf)) {
-		dma_buf_put(dmabuf);
-		return ERR_PTR(-EINVAL);
-	}
+		uuid_t uuid;
 
-	/*
-	 * dma-bufs we exported ourselves (VIDIOC_EXPBUF) are physically the
-	 * Dom0 backend's own buffers, only foreign-granted into this guest.
-	 * Re-granting them to the virtio device would work (the p2m redirects
-	 * to the real Dom0 frame, so Dom0 just gets its own memory granted
-	 * back), but it is a wasteful round trip. The backend should recognise
-	 * its own buffer directly; that cross-daemon lookup is not designed
-	 * yet, so reject for now rather than take the slow path. See the
-	 * function's kerneldoc for the full rationale.
-	 */
-	if (dmabuf->ops == &virtio_media_dmabuf_ops) {
-		dma_buf_put(dmabuf);
-		return ERR_PTR(-EINVAL);
+		ret = virtio_dma_buf_get_uuid(dmabuf, &uuid);
+		if (ret) {
+			dma_buf_put(dmabuf);
+			return ERR_PTR(ret);
+		}
+
+		/*
+		 * An all-zero UUID means the backend never registered this
+		 * buffer as a shared object (protocol.h). It cannot be resolved
+		 * on the host, so reject it rather than queue an unusable
+		 * all-zero footer.
+		 */
+		if (uuid_is_null(&uuid)) {
+			dma_buf_put(dmabuf);
+			return ERR_PTR(-EINVAL);
+		}
+
+		imp = kzalloc(sizeof(*imp), GFP_KERNEL);
+		if (!imp) {
+			dma_buf_put(dmabuf);
+			return ERR_PTR(-ENOMEM);
+		}
+
+		imp->dmabuf = dmabuf;
+		imp->uuid_backed = true;
+		export_uuid(imp->uuid, &uuid);
+
+		return imp;
 	}
 
 	imp = kzalloc(sizeof(*imp), GFP_KERNEL);
@@ -2146,6 +2168,20 @@ virtio_media_dmabuf_import_free(struct virtio_media *vv, u32 session_id,
 				struct virtio_media_dmabuf_import *imp)
 {
 	lockdep_assert_held(&vv->vlock);
+
+	/*
+	 * A host-object (UUID-backed) import holds no attach/sgt/grants and no
+	 * backend resource id: the backing is a host-owned dma-buf the backend
+	 * already knows under the UUID. Tearing it down is just dropping our
+	 * reference on the imported virtio-dma-buf (the guest-side alpha
+	 * refcount), which lets the exporter release it once no consumer holds
+	 * it. Nothing to tell the backend here.
+	 */
+	if (imp->uuid_backed) {
+		dma_buf_put(imp->dmabuf);
+		kfree(imp);
+		return;
+	}
 
 	/*
 	 * DETACH first so the backend closes its exported dma-buf and drops
@@ -2390,6 +2426,32 @@ int virtio_media_dmabuf_substitute_resource_ids(
 	if (n > VIDEO_MAX_PLANES)
 		return -EINVAL;
 
+	/*
+	 * Validate the whole plane set first (all bound, all the same kind),
+	 * mirroring virtio_media_dmabuf_collect_uuids(). Deciding on plane 0
+	 * only after confirming consistency avoids substituting some planes
+	 * and leaving others untouched (which would leak uninitialised
+	 * saved_fds entries back to userspace via restore).
+	 */
+	for (i = 0; i < n; i++) {
+		struct virtio_media_dmabuf_import *imp =
+			buffer->dmabuf_bindings[i];
+
+		if (!imp)
+			return -EINVAL;
+
+		if (imp->uuid_backed != buffer->dmabuf_bindings[0]->uuid_backed)
+			return -EINVAL;
+	}
+
+	/*
+	 * Host-object (UUID-backed) buffers carry no backend resource id; their
+	 * planes are identified on the wire by an appended UUID footer (see
+	 * virtio_media_dmabuf_collect_uuids()), so leave m.fd untouched.
+	 */
+	if (buffer->dmabuf_bindings[0]->uuid_backed)
+		return 0;
+
 	for (i = 0; i < n; i++) {
 		struct virtio_media_dmabuf_import *imp =
 			buffer->dmabuf_bindings[i];
@@ -2397,8 +2459,6 @@ int virtio_media_dmabuf_substitute_resource_ids(
 				  &b->m.planes[i].m.fd :
 				  &b->m.fd;
 
-		if (!imp)
-			return -EINVAL;
 		saved_fds[i] = *fd;
 		*fd = imp->resource_id;
 	}
@@ -2430,6 +2490,88 @@ void virtio_media_dmabuf_restore_resource_ids(struct v4l2_buffer *b,
 		else
 			b->m.fd = saved_fds[i];
 	}
+}
+
+/**
+ * virtio_media_dmabuf_collect_uuids() - Gather a DMABUF buffer's per-plane
+ *	shared-object UUID footers (host-object consumer path).
+ * @session: session owning the buffer.
+ * @b: v4l2_buffer about to be sent (QBUF/PREPARE_BUF, memory DMABUF).
+ * @footers: caller storage (VIDEO_MAX_PLANES entries) filled on a host-object
+ *	buffer, one footer per plane.
+ * @n_out: receives the number of footers written: >0 for a host-object
+ *	(UUID-backed) buffer, 0 for a guest-pages (grant-imported) or
+ *	non-DMABUF buffer (which use resource ids in m.fd instead, see
+ *	virtio_media_dmabuf_substitute_resource_ids()).
+ *
+ * A buffer's planes are either all UUID-backed (host-object) or all
+ * grant-imported (guest-pages); mixing is a queueing bug. For a host-object
+ * buffer, fills @footers with each plane's UUID (from its bound import) so the
+ * caller can append them to the command's device-readable chain. Caller must
+ * hold vv->vlock.
+ *
+ * Returns 0 on success (with *@n_out set), or -EINVAL if a plane has no bound
+ * import or the buffer mixes UUID-backed and grant-imported planes.
+ */
+int virtio_media_dmabuf_collect_uuids(struct virtio_media_session *session,
+				      struct v4l2_buffer *b,
+				      struct virtio_media_dmabuf_uuid *footers,
+				      unsigned int *n_out)
+{
+	struct virtio_media_queue_state *queue;
+	struct virtio_media_buffer *buffer;
+	unsigned int n, i;
+
+	*n_out = 0;
+
+	if (b->memory != V4L2_MEMORY_DMABUF)
+		return 0;
+
+	if (b->type > VIRTIO_MEDIA_LAST_QUEUE)
+		return -EINVAL;
+	queue = &session->queues[b->type];
+	if (b->index >= queue->allocated_bufs)
+		return -EINVAL;
+	buffer = queue->buffers[b->index];
+
+	n = V4L2_TYPE_IS_MULTIPLANAR(b->type) ? b->length : 1;
+	if (n > VIDEO_MAX_PLANES)
+		return -EINVAL;
+
+	/*
+	 * First pass: every plane must be bound, and all planes must agree on
+	 * being UUID-backed (host-object) or not (guest-pages). Validate the
+	 * whole set before deciding, so a buffer that mixes the two kinds is
+	 * rejected regardless of plane order rather than silently trusting
+	 * plane 0.
+	 */
+	for (i = 0; i < n; i++) {
+		struct virtio_media_dmabuf_import *imp =
+			buffer->dmabuf_bindings[i];
+
+		if (!imp)
+			return -EINVAL;
+
+		if (imp->uuid_backed != buffer->dmabuf_bindings[0]->uuid_backed)
+			return -EINVAL;
+	}
+
+	/* Guest-pages (grant-imported): no UUID footers, m.fd carries resource ids. */
+	if (!buffer->dmabuf_bindings[0]->uuid_backed)
+		return 0;
+
+	/* Host-object (UUID-backed): one footer per plane. */
+	for (i = 0; i < n; i++) {
+		struct virtio_media_dmabuf_import *imp =
+			buffer->dmabuf_bindings[i];
+
+		memset(&footers[i], 0, sizeof(footers[i]));
+		memcpy(footers[i].uuid, imp->uuid, sizeof(footers[i].uuid));
+		footers[i].flags = VIRTIO_MEDIA_DMABUF_F_UUID;
+	}
+
+	*n_out = n;
+	return 0;
 }
 
 /**
@@ -2801,11 +2943,36 @@ static int virtio_media_dmabuf_mmap(struct dma_buf *buf,
 	return 0;
 }
 
-static const struct dma_buf_ops virtio_media_dmabuf_ops = {
-	.map_dma_buf = virtio_media_dmabuf_map,
-	.unmap_dma_buf = virtio_media_dmabuf_unmap,
-	.release = virtio_media_dmabuf_release,
-	.mmap = virtio_media_dmabuf_mmap,
+static int virtio_media_dmabuf_get_uuid(struct dma_buf *buf, uuid_t *uuid)
+{
+	struct virtio_media_dmabuf_priv *priv = buf->priv;
+
+	/*
+	 * Return the shared-object UUID the backend registered this host buffer
+	 * under (host-object model: host pages + UUID). A consumer device on
+	 * the same hypervisor resolves it back to the host dma-buf
+	 * cross-process. The UUID is all-zero if the backend registered none,
+	 * in which case the cross-process handoff is unavailable but the buffer
+	 * is otherwise usable through the normal grant/MMAP data path.
+	 */
+	import_uuid(uuid, priv->gmap->uuid);
+	return 0;
+}
+
+static const struct virtio_dma_buf_ops virtio_media_dmabuf_ops = {
+	.ops = {
+		.map_dma_buf = virtio_media_dmabuf_map,
+		.unmap_dma_buf = virtio_media_dmabuf_unmap,
+		.release = virtio_media_dmabuf_release,
+		.mmap = virtio_media_dmabuf_mmap,
+		/*
+		 * virtio_dma_buf_export() requires ops.attach to be
+		 * virtio_dma_buf_attach so is_virtio_dma_buf() recognises the
+		 * buffer and get_uuid() can be queried by an importer.
+		 */
+		.attach = virtio_dma_buf_attach,
+	},
+	.get_uuid = virtio_media_dmabuf_get_uuid,
 };
 
 int virtio_media_expbuf(struct file *file, void *fh,
@@ -2856,7 +3023,7 @@ int virtio_media_expbuf(struct file *file, void *fh,
 		 */
 		priv->file = get_file(session->file);
 
-		exp_info.ops = &virtio_media_dmabuf_ops;
+		exp_info.ops = &virtio_media_dmabuf_ops.ops;
 		/*
 		 * The dma-buf is mapped page by page (grant_ref_count pages), so
 		 * its size must be the page-aligned page count rather than the
@@ -2868,7 +3035,14 @@ int virtio_media_expbuf(struct file *file, void *fh,
 		exp_info.flags = eb->flags;
 		exp_info.priv = priv;
 
-		dmabuf = dma_buf_export(&exp_info);
+		/*
+		 * Export as a virtio-dma-buf (host-object model: host pages +
+		 * UUID) so an importer can query the buffer's shared-object
+		 * UUID via virtio_dma_buf_get_uuid() (our get_uuid callback).
+		 * Falls back to nothing else: virtio_dma_buf_export() only
+		 * validates the ops and forwards to dma_buf_export().
+		 */
+		dmabuf = virtio_dma_buf_export(&exp_info);
 	}
 	if (IS_ERR(dmabuf)) {
 		/*

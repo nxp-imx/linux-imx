@@ -184,12 +184,19 @@ struct virtio_media_cmd_mmap {
  * @grant_ref_header: first grant reference for the mapping.
  * @grant_ref_count: number of grant references (pages) in the mapping.
  * @len: length of the mapping.
+ * @uuid: shared-object UUID identifying this host dma-buf (host-object model:
+ *	host pages + UUID). The device registers each exported host buffer with
+ *	the hypervisor under this UUID; the driver wraps the buffer in a
+ *	virtio-dma-buf whose get_uuid() returns it, so a consumer device can
+ *	look the buffer up cross-process. All-zero if the device registered
+ *	none.
  */
 struct virtio_media_resp_mmap {
 	struct virtio_media_resp_header hdr;
 	u32 grant_ref_header;
 	u32 grant_ref_count;
 	u64 len;
+	u8 uuid[16];
 };
 
 /**
@@ -303,6 +310,37 @@ struct virtio_media_cmd_dmabuf_detach {
  */
 struct virtio_media_resp_dmabuf_detach {
 	struct virtio_media_resp_header hdr;
+};
+
+/**
+ * VIRTIO_MEDIA_DMABUF_F_UUID - Flag in struct virtio_media_dmabuf_uuid marking
+ * a QBUF/PREPARE_BUF plane as backed by a shared-object UUID (host-object
+ * model) rather than a grant-imported resource id (guest-pages model).
+ */
+#define VIRTIO_MEDIA_DMABUF_F_UUID BIT(0)
+
+/**
+ * struct virtio_media_dmabuf_uuid - Per-frame shared-object UUID footer.
+ * @uuid: shared-object UUID of the host dma-buf this buffer is backed by, as
+ *	obtained from the imported virtio-dma-buf's get_uuid() callback.
+ * @flags: combination of VIRTIO_MEDIA_DMABUF_F_*.
+ * @__reserved: must be set to zero by the driver.
+ *
+ * For a ``V4L2_MEMORY_DMABUF`` buffer whose planes are backed by a host dma-buf
+ * shared under a UUID (host-object model), the driver appends one such footer
+ * per plane to the device-readable part of a QBUF/PREPARE_BUF command's
+ * descriptor chain, right after the ``v4l2_buffer`` (and its planes array, if
+ * multiplanar). Each plane may be backed by a distinct host dma-buf, so each
+ * carries its own UUID, mirroring the guest-pages model's per-plane ``m.fd``
+ * resource ids. The device resolves each UUID to its local dma-buf fd (see the
+ * consumer path) instead of treating the plane's ``m.fd`` as a resource id.
+ * Absent for grant-imported (guest-pages) dma-buf buffers, which carry resource
+ * ids in ``m.fd`` instead.
+ */
+struct virtio_media_dmabuf_uuid {
+	u8 uuid[16];
+	u32 flags;
+	u32 __reserved;
 };
 
 /* The values for these events are set by the virtio-media specification. */

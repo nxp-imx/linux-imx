@@ -264,6 +264,8 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	};
 	u32 saved_fds[VIDEO_MAX_PLANES];
 	bool fds_substituted = false;
+	struct virtio_media_dmabuf_uuid uuid_footers[VIDEO_MAX_PLANES];
+	unsigned int num_uuid_footers = 0;
 	size_t resp_len;
 	int ret;
 	int i;
@@ -275,21 +277,42 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 		orig_planes = b->m.planes;
 
 	/*
-	 * On the wire, a DMABUF plane's m.fd carries the backend resource id
-	 * of its bound dma-buf, not the guest fd (which is meaningless to the
-	 * device). This is only true for QBUF/PREPARE_BUF, which actually bind
-	 * the planes; QUERYBUF/DQBUF carry no meaningful dma-buf fds. Save the
-	 * guest fds and substitute the resource ids just for the duration of
-	 * the command, then restore them so the V4L2 core copies the original
-	 * fds back to userspace.
+	 * On the wire, a DMABUF plane is identified one of two ways for
+	 * QBUF/PREPARE_BUF (the only buffer ioctls that bind planes;
+	 * QUERYBUF/DQBUF carry no meaningful dma-buf fds):
+	 *
+	 *  - guest-pages dma-buf (grant-imported): m.fd carries the backend
+	 *    resource id of its bound dma-buf, not the guest fd (meaningless to
+	 *    the device). Save the guest fds and substitute the resource ids
+	 *    for the duration of the command, then restore them so the V4L2
+	 *    core copies the original fds back to userspace.
+	 *  - host-object dma-buf (UUID-backed): the plane carries no resource
+	 *    id; instead a per-plane UUID footer is appended to the
+	 *    device-readable chain (below) and m.fd is left untouched.
+	 *
+	 * A buffer's planes are all one kind or all the other. collect_uuids()
+	 * reports which: num_uuid_footers > 0 means host-object, in which case
+	 * substitute_resource_ids() leaves m.fd alone.
 	 */
 	if (b->memory == V4L2_MEMORY_DMABUF &&
 	    (ioctl == VIDIOC_QBUF || ioctl == VIDIOC_PREPARE_BUF)) {
+		ret = virtio_media_dmabuf_collect_uuids(session, b, uuid_footers,
+							&num_uuid_footers);
+		if (ret < 0)
+			return ret;
+
 		ret = virtio_media_dmabuf_substitute_resource_ids(session, b,
 								  saved_fds);
 		if (ret < 0)
 			return ret;
-		fds_substituted = true;
+		/*
+		 * Host-object buffers leave m.fd untouched (substitute is a
+		 * no-op for them), so there is nothing to restore. Only mark
+		 * for restore when we actually substituted resource ids
+		 * (guest-pages buffers).
+		 */
+		if (num_uuid_footers == 0)
+			fds_substituted = true;
 	}
 
 	/* Command descriptor */
@@ -308,6 +331,19 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	ret = scatterlist_builder_add_buffer_userptr(&builder, b);
 	if (ret < 0)
 		goto restore_fds;
+
+	/*
+	 * Host-object DMABUF (UUID-backed): append one per-plane UUID footer so
+	 * the device can resolve each plane's host dma-buf by its shared-object
+	 * UUID. These are device-readable only (like the userptr sg-entries
+	 * above), so they go before num_cmd_sgs is taken.
+	 */
+	for (i = 0; i < num_uuid_footers; i++) {
+		ret = scatterlist_builder_add_data(&builder, &uuid_footers[i],
+						   sizeof(uuid_footers[i]));
+		if (ret < 0)
+			goto restore_fds;
+	}
 
 	num_cmd_sgs = builder.cur_sg;
 
