@@ -19,6 +19,7 @@
 /** SI regs, offset: 0h */
 #define ENETC_SIMR	0
 #define ENETC_SIMR_EN	BIT(31)
+#define ENETC_SIMR_V2IPVE	BIT(4)	/* VLAN PCP/DEI to IPV mapping enable */
 #define ENETC_SIMR_RSSE	BIT(0)
 #define ENETC_SICTR0	0x18
 #define ENETC_SICTR1	0x1c
@@ -30,6 +31,14 @@
 #define ENETC_SIPCAPR1	0x24
 #define ENETC_SITGTGR	0x30
 #define ENETC_SIRBGCR	0x38
+#define  SIRBGCR_NUM_GROUPS	GENMASK(15, 0)
+#define  SIRBGCR_RINGS_PER_GROUP	GENMASK(18, 16)
+#define ENETC_SIVLANIPVMR0	0x100
+#define ENETC_SIVLANIPVMR1	0x104
+#define  SIVLANIPVMR0_IPV_IDENTITY	0x33221100
+#define  SIVLANIPVMR1_IPV_IDENTITY	0x77665544
+#define ENETC_SIIPVBDRMR0	0x150
+#define  SIIPVBDRMR0_IPVBDR(n)	(GENMASK(2, 0) << (n) * 4) /* n is IPV */
 /* cache attribute registers for transactions initiated by ENETC */
 #define ENETC_SICAR0	0x40
 #define ENETC_SICAR1	0x44

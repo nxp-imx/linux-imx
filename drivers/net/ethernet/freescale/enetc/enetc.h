@@ -513,6 +513,21 @@ enum enetc_ic_mode {
 #define ENETC_RXIC_PKTTHR	min_t(u32, 256, ENETC_RX_RING_DEFAULT_SIZE / 2)
 #define ENETC_TXIC_PKTTHR	min_t(u32, 128, ENETC_TX_RING_DEFAULT_SIZE / 2)
 
+#define ENETC_VLAN_TO_BDR_MAX	8
+
+struct enetc_vlan_to_bdr_rule {
+	unsigned long cookie;
+	bool used;
+	u8 ring;	/* target receive BD ring within the group */
+};
+
+struct enetc_vlan_to_bdr {
+	/* Rules indexed by IPV (which equals the matched VLAN PCP). */
+	struct enetc_vlan_to_bdr_rule rules[ENETC_VLAN_TO_BDR_MAX];
+	struct mutex lock;	/* serialize VLAN-to-BDR rule updates */
+	int count;		/* number of active rules */
+};
+
 struct enetc_ndev_priv {
 	struct net_device *ndev;
 	struct device *dev; /* dma-mapping device */
@@ -541,6 +556,9 @@ struct enetc_ndev_priv {
 	struct enetc_cls_rule *cls_rules;
 
 	struct psfp_cap psfp_cap;
+
+	/* Ingress QoS VLAN priority to Rx ring (BDR) steering rules. */
+	struct enetc_vlan_to_bdr vlan_to_bdr;
 
 	/* Minimum number of TX queues required by the network stack */
 	unsigned int min_num_stack_tx_queues;

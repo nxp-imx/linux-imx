@@ -403,6 +403,153 @@ static const struct netc_flower *enetc4_parse_tc_flower(u64 actions, u64 keys)
 	return NULL;
 }
 
+static void enetc4_set_ipv_bdr_map(struct enetc_hw *hw, u8 ipv, u8 ring)
+{
+	u32 val = enetc_rd(hw, ENETC_SIIPVBDRMR0);
+
+	val &= ~SIIPVBDRMR0_IPVBDR(ipv);
+	val |= (ring << (ipv * 4)) & SIIPVBDRMR0_IPVBDR(ipv);
+	enetc_wr(hw, ENETC_SIIPVBDRMR0, val);
+}
+
+static void enetc4_vlan_to_bdr_enable(struct enetc_ndev_priv *priv)
+{
+	struct enetc_hw *hw = &priv->si->hw;
+	u32 val;
+
+	enetc_wr(hw, ENETC_SIVLANIPVMR0, SIVLANIPVMR0_IPV_IDENTITY);
+	enetc_wr(hw, ENETC_SIVLANIPVMR1, SIVLANIPVMR1_IPV_IDENTITY);
+
+	val = FIELD_PREP(SIRBGCR_NUM_GROUPS, 1);
+	val |= FIELD_PREP(SIRBGCR_RINGS_PER_GROUP, priv->num_rx_rings - 1);
+	enetc_wr(hw, ENETC_SIRBGCR, val);
+
+	val = enetc_rd(hw, ENETC_SIMR);
+	val |= ENETC_SIMR_V2IPVE;
+	enetc_wr(hw, ENETC_SIMR, val);
+}
+
+static void enetc4_vlan_to_bdr_disable(struct enetc_ndev_priv *priv)
+{
+	struct enetc_hw *hw = &priv->si->hw;
+	u32 val;
+
+	val = enetc_rd(hw, ENETC_SIMR);
+	val &= ~ENETC_SIMR_V2IPVE;
+	enetc_wr(hw, ENETC_SIMR, val);
+
+	enetc_wr(hw, ENETC_SIRBGCR, priv->num_rx_rings);
+}
+
+static int enetc4_setup_vlan_to_bdr(struct enetc_ndev_priv *priv,
+				    struct flow_cls_offload *f)
+{
+	struct flow_rule *rule = flow_cls_offload_flow_rule(f);
+	struct netlink_ext_ack *extack = f->common.extack;
+	struct enetc_vlan_to_bdr *v = &priv->vlan_to_bdr;
+	struct enetc_hw *hw = &priv->si->hw;
+	struct enetc_vlan_to_bdr_rule *r;
+	struct flow_match_vlan match;
+	int tc, err = 0;
+	u8 prio;
+
+	tc = tc_classid_to_hwtc(priv->ndev, f->classid);
+	if (tc < 0) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid traffic class");
+		return -EINVAL;
+	}
+
+	if (tc >= priv->num_rx_rings) {
+		NL_SET_ERR_MSG_MOD(extack, "Traffic class exceeds Rx ring count");
+		return -EINVAL;
+	}
+
+	if (priv->ndev->features & NETIF_F_RXHASH) {
+		NL_SET_ERR_MSG_MOD(extack, "Please disable RSS first");
+		return -EBUSY;
+	}
+
+	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+		NL_SET_ERR_MSG_MOD(extack, "Missing VLAN priority match");
+		return -EOPNOTSUPP;
+	}
+
+	flow_rule_match_vlan(rule, &match);
+	if (!match.mask->vlan_priority) {
+		NL_SET_ERR_MSG_MOD(extack, "VLAN priority match required");
+		return -EOPNOTSUPP;
+	}
+
+	if (match.mask->vlan_priority != (VLAN_PRIO_MASK >> VLAN_PRIO_SHIFT)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Only full mask is supported for VLAN priority");
+		return -EOPNOTSUPP;
+	}
+
+	prio = match.key->vlan_priority;
+	r = &v->rules[prio];
+
+	mutex_lock(&v->lock);
+
+	if (r->used) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "VLAN priority already mapped to a ring");
+		err = -EEXIST;
+		goto unlock;
+	}
+
+	if (!v->count)
+		enetc4_vlan_to_bdr_enable(priv);
+
+	enetc4_set_ipv_bdr_map(hw, prio, tc);
+
+	r->used = true;
+	r->cookie = f->cookie;
+	r->ring = tc;
+	v->count++;
+
+unlock:
+	mutex_unlock(&v->lock);
+
+	return err;
+}
+
+static int enetc4_destroy_vlan_to_bdr(struct enetc_ndev_priv *priv,
+				      struct flow_cls_offload *f)
+{
+	struct enetc_vlan_to_bdr *v = &priv->vlan_to_bdr;
+	struct enetc_hw *hw = &priv->si->hw;
+	struct enetc_vlan_to_bdr_rule *r;
+	int ipv;
+
+	mutex_lock(&v->lock);
+
+	for (ipv = 0; ipv < ENETC_VLAN_TO_BDR_MAX; ipv++) {
+		r = &v->rules[ipv];
+		if (!r->used || r->cookie != f->cookie)
+			continue;
+
+		/* Map the IPV back to ring 0 (the default behaviour). */
+		enetc4_set_ipv_bdr_map(hw, ipv, 0);
+
+		r->used = false;
+		r->cookie = 0;
+		r->ring = 0;
+		v->count--;
+
+		if (!v->count)
+			enetc4_vlan_to_bdr_disable(priv);
+
+		mutex_unlock(&v->lock);
+
+		return 0;
+	}
+
+	mutex_unlock(&v->lock);
+
+	return -ENOENT;
+}
+
 static int enetc4_config_cls_flower(struct enetc_ndev_priv *priv,
 				    struct flow_cls_offload *f)
 {
@@ -418,10 +565,8 @@ static int enetc4_config_cls_flower(struct enetc_ndev_priv *priv,
 
 	dissector = rule->match.dissector;
 
-	if (!flow_action_has_entries(action)) {
-		NL_SET_ERR_MSG_MOD(extack, "At least one action is needed");
-		return -EINVAL;
-	}
+	if (!flow_action_has_entries(action))
+		return enetc4_setup_vlan_to_bdr(priv, f);
 
 	if (!flow_action_basic_hw_stats_check(action, extack))
 		return -EOPNOTSUPP;
@@ -491,6 +636,11 @@ static int enetc4_destroy_cls_flower(struct enetc_ndev_priv *priv,
 	unsigned long cookie = f->cookie;
 	struct netc_flower_rule *rule;
 	int err = 0;
+
+	/* VLAN priority steering rules are tracked separately. */
+	err = enetc4_destroy_vlan_to_bdr(priv, f);
+	if (err != -ENOENT)
+		return err;
 
 	mutex_lock(&user->flower_lock);
 	rule = netc_find_flower_rule_by_cookie(user, 0, cookie);

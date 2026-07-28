@@ -961,6 +961,24 @@ static int enetc4_pf_set_features(struct net_device *ndev,
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
 	struct enetc_hw *hw = &priv->si->hw;
 
+	if ((changed & NETIF_F_RXHASH) && (features & NETIF_F_RXHASH)) {
+		struct enetc_vlan_to_bdr *v = &priv->vlan_to_bdr;
+		int count;
+
+		/* This and enetc4_setup_vlan_to_bdr() both run under RTNL, so
+		 * the count can't change after being read here.
+		 */
+		mutex_lock(&v->lock);
+		count = v->count;
+		mutex_unlock(&v->lock);
+
+		if (count) {
+			netdev_err(ndev,
+				   "Can't enable RSS while VLAN steering on\n");
+			return -EBUSY;
+		}
+	}
+
 	if (changed & NETIF_F_HW_VLAN_CTAG_FILTER) {
 		bool promisc_en = !(features & NETIF_F_HW_VLAN_CTAG_FILTER);
 
@@ -1621,6 +1639,7 @@ static int enetc4_pf_netdev_create(struct enetc_si *si)
 
 	priv = netdev_priv(ndev);
 	mutex_init(&priv->mm_lock);
+	mutex_init(&priv->vlan_to_bdr.lock);
 
 	priv->ref_clk = devm_clk_get_optional(dev, "ref");
 	if (IS_ERR(priv->ref_clk)) {
@@ -1679,6 +1698,7 @@ err_config_si:
 	enetc_free_si_resources(priv);
 err_alloc_si_res:
 err_clk_get:
+	mutex_destroy(&priv->vlan_to_bdr.lock);
 	mutex_destroy(&priv->mm_lock);
 	free_netdev(ndev);
 
@@ -1696,6 +1716,7 @@ static void enetc4_pf_netdev_destroy(struct enetc_si *si)
 	enetc4_link_deinit(priv);
 	enetc_free_msix(priv);
 	enetc_free_si_resources(priv);
+	mutex_destroy(&priv->vlan_to_bdr.lock);
 	mutex_destroy(&priv->mm_lock);
 	free_netdev(ndev);
 }
