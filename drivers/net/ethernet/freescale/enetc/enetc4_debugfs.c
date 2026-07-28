@@ -139,6 +139,69 @@ static int enetc_flower_list_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(enetc_flower_list);
 
+static u8 enetc_vlan_ipv_bdr_get(struct enetc_hw *hw, int ipv)
+{
+	u32 val = enetc_rd(hw, ENETC_SIIPVBDRMR0);
+
+	return (val & SIIPVBDRMR0_IPVBDR(ipv)) >> (ipv * 4);
+}
+
+static int enetc_vlan_to_bdr_show(struct seq_file *s, void *data)
+{
+	struct enetc_si *si = s->private;
+	struct enetc_hw *hw = &si->hw;
+	struct enetc_ndev_priv *priv;
+	struct enetc_vlan_to_bdr *v;
+	u32 simr, sirbgcr;
+	int i;
+
+	priv = netdev_priv(si->ndev);
+	v = &priv->vlan_to_bdr;
+
+	mutex_lock(&v->lock);
+
+	simr = enetc_rd(hw, ENETC_SIMR);
+	sirbgcr = enetc_rd(hw, ENETC_SIRBGCR);
+
+	seq_printf(s, "VLAN PCP to IPV mapping (V2IPVE): %s\n",
+		   str_enabled_disabled(simr & ENETC_SIMR_V2IPVE));
+	seq_printf(s, "SIMR: 0x%08x, SIRBGCR: 0x%08x (groups: %lu, rings/group: %lu)\n",
+		   simr, sirbgcr,
+		   FIELD_GET(SIRBGCR_NUM_GROUPS, sirbgcr),
+		   FIELD_GET(SIRBGCR_RINGS_PER_GROUP, sirbgcr) + 1);
+	seq_printf(s, "Active VLAN priority steering rules: %d\n\n", v->count);
+
+	if (v->count) {
+		seq_puts(s, "Cookie              Prio  IPV  Ring\n");
+		for (i = 0; i < ENETC_VLAN_TO_BDR_MAX; i++) {
+			struct enetc_vlan_to_bdr_rule *r = &v->rules[i];
+
+			if (!r->used)
+				continue;
+
+			seq_printf(s, "0x%-16lx  %-4d  %-3d  %-4u\n",
+				   r->cookie, i, i, r->ring);
+		}
+		seq_puts(s, "\n");
+	}
+
+	seq_puts(s, "PCP(=IPV) -> Ring:\n");
+	for (i = 0; i < ENETC_VLAN_TO_BDR_MAX; i++)
+		seq_printf(s, "  PCP %d -> Ring %u\n", i,
+			   enetc_vlan_ipv_bdr_get(hw, i));
+
+	seq_puts(s, "\nPer Rx ring received frames:\n");
+	for (i = 0; i < priv->num_rx_rings; i++)
+		seq_printf(s, "  Rx ring %2d: %lu frames, %lu bytes\n", i,
+			   priv->rx_ring[i]->stats.packets,
+			   priv->rx_ring[i]->stats.bytes);
+
+	mutex_unlock(&v->lock);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(enetc_vlan_to_bdr);
+
 static ssize_t enetc_isit_eid_write(struct file *filp, const char __user *buffer,
 				    size_t count, loff_t *ppos)
 {
@@ -418,6 +481,7 @@ void enetc_create_debugfs(struct enetc_si *si)
 	debugfs_create_file("rpt_entry", 0600, root, si, &enetc_rpt_entry_fops);
 	debugfs_create_file("rfst_entry", 0444, root, si, &enetc_rfst_fops);
 	debugfs_create_file("flower_list", 0444, root, si, &enetc_flower_list_fops);
+	debugfs_create_file("vlan_prio_ipv", 0444, root, si, &enetc_vlan_to_bdr_fops);
 	debugfs_create_file("clsrule_eid", 0444, root, si, &enetc_clsrule_eid_fops);
 	debugfs_create_file("ipft_entry", 0600, root, si, &enetc_ipft_entry_fops);
 }
