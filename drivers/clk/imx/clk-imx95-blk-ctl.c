@@ -582,6 +582,7 @@ static const struct dev_pm_ops imx95_bc_pm_ops = {
 };
 
 static const struct of_device_id imx95_bc_of_match[] = {
+	{ .compatible = "nxp,imx937-display-csr", },
 	{ .compatible = "nxp,imx94-display-csr", .data = &imx94_dispmix_csr_dev_data },
 	{ .compatible = "nxp,imx94-lvds-csr", .data = &imx94_lvds_csr_dev_data },
 	{ .compatible = "nxp,imx95-camera-csr", .data = &camblk_dev_data },
