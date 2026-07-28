@@ -4,7 +4,7 @@
  */
 
 #include <dt-bindings/media/video-interfaces.h>
-#include "imx91-11x11-frdm-imx91s.dts"
+#include "imx91-11x11-frdm-s.dts"
 
 / {
 	reg_exp_3v3: regulator-exp-3v3 {

@@ -798,14 +798,14 @@ dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm.dtb \
 			  imx91-11x11-frdm-aud-hat.dtb \
 			  imx91-11x11-frdm-8mic-reve.dtb
 
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-aud-hat.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-8mic-revE.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-ld.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-mt9m114.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s-aud-hat.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s-8mic-revE.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s-ld.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s-mt9m114.dtb
 
-imx91-11x11-frdm-imx91s-tianma-wvga-panel-dtbs := imx91-11x11-frdm-imx91s.dtb imx91-11x11-frdm-imx91s-tianma-wvga-panel.dtbo
-dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-imx91s-tianma-wvga-panel.dtb
+imx91-11x11-frdm-s-tianma-wvga-panel-dtbs := imx91-11x11-frdm-s.dtb imx91-11x11-frdm-s-tianma-wvga-panel.dtbo
+dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-s-tianma-wvga-panel.dtb
 
 imx91-11x11-frdm-tianma-wvga-panel-dtbs := imx91-11x11-frdm.dtb imx91-11x11-frdm-tianma-wvga-panel.dtbo
 dtb-$(CONFIG_ARCH_MXC) += imx91-11x11-frdm-tianma-wvga-panel.dtb

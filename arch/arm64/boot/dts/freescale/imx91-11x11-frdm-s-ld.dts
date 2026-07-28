@@ -3,7 +3,7 @@
  * Copyright 2025 NXP
  */
 
-#include "imx91-11x11-frdm-imx91s.dts"
+#include "imx91-11x11-frdm-s.dts"
 
 &flexspi1 {
 	assigned-clocks = <&clk IMX93_CLK_FLEXSPI1>;
