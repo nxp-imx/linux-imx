@@ -14,6 +14,7 @@ properties:
     oneOf:
       - items:
           - enum:
+              - nxp,imx937-display-csr
               - nxp,imx94-display-csr
               - nxp,imx94-lvds-csr
               - nxp,imx95-camera-csr
