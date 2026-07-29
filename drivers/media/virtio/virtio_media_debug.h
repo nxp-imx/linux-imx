@@ -3,8 +3,8 @@
 /*
  * virtio-media debug interface: per-session (instance) debugfs showing basic
  * state plus a ring buffer of the most recent flow events. Modelled on the
- * wave6 VPU driver's debugfs so the guest (DomU) flow can be compared against
- * the host (Dom0) wave6 flow side by side -- in particular to tell whether a
+ * wave6 VPU driver's debugfs so the guest flow can be compared against
+ * the host-side wave6 flow side by side -- in particular to tell whether a
  * source-change event that the host emitted was actually received and acted
  * upon by the guest.
  *

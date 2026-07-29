@@ -64,7 +64,7 @@ struct virtio_media_buffer {
  * buffer) valid across a resize.
  * @queued_bufs: How many buffers are currently queued on the device.
  * @pending_dqbufs: Buffers that are available for being dequeued.
- * @grant_maps: list of ``struct virtio_media_grant_map`` for buffers of this
+ * @host_mappings: list of ``struct virtio_media_host_mapping`` for buffers of this
  * queue (one entry per (index, plane)). Populated at QUERYBUF time and freed
  * on REQBUFS(0) or session close.
  * @dmabuf_imports: list of ``struct virtio_media_dmabuf_import`` for a
@@ -85,7 +85,7 @@ struct virtio_media_queue_state {
 	struct virtio_media_buffer **buffers;
 	size_t queued_bufs;
 	struct list_head pending_dqbufs;
-	struct list_head grant_maps;
+	struct list_head host_mappings;
 	struct list_head dmabuf_imports;
 	enum v4l2_memory memory;
 

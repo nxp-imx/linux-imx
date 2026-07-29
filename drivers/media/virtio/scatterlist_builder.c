@@ -11,7 +11,7 @@
 #include <linux/videodev2.h>
 #include <media/videobuf2-memops.h>
 
-#include "uapi/linux/virtio_media.h"
+#include <uapi/linux/virtio_media.h>
 #include "scatterlist_builder.h"
 #include "session.h"
 #include "virtio_media.h"

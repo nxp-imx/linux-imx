@@ -6,8 +6,8 @@
  * Exposes, per session (one open fd == one "instance"), a debugfs file
  *   <debugfs>/virtio-media/instance.<id>
  * showing the session's basic state and a ring buffer of its most recent flow
- * events. Modelled on the wave6 VPU driver's debugfs so the guest-side (DomU)
- * flow can be diffed against the host-side (Dom0) wave6 flow -- e.g. to check
+ * events. Modelled on the wave6 VPU driver's debugfs so the guest-side
+ * flow can be diffed against the host-side wave6 flow -- e.g. to check
  * whether a source-change event the host emitted was actually received and
  * acted upon by the guest.
  *

@@ -181,8 +181,8 @@ struct virtio_media_cmd_mmap {
 /**
  * struct virtio_media_resp_mmap - Device response for VIRTIO_MEDIA_CMD_MMAP.
  * @hdr: header containing the status of the command.
- * @grant_ref_header: first grant reference for the mapping.
- * @grant_ref_count: number of grant references (pages) in the mapping.
+ * @map_handle: opaque handle identifying the mapping, chosen by the device.
+ * @num_pages: number of pages in the mapping.
  * @len: length of the mapping.
  * @uuid: shared-object UUID identifying this host dma-buf (host-object model:
  *	host pages + UUID). The device registers each exported host buffer with
@@ -193,8 +193,8 @@ struct virtio_media_cmd_mmap {
  */
 struct virtio_media_resp_mmap {
 	struct virtio_media_resp_header hdr;
-	u32 grant_ref_header;
-	u32 grant_ref_count;
+	u32 map_handle;
+	u32 num_pages;
 	u64 len;
 	u8 uuid[16];
 };
@@ -208,13 +208,14 @@ struct virtio_media_resp_mmap {
 /**
  * struct virtio_media_cmd_munmap - Driver command for VIRTIO_MEDIA_CMD_MUNMAP.
  * @hdr: header with cmd member set to VIRTIO_MEDIA_CMD_MUNMAP.
- * @grant_ref_header: first grant reference of the mapping to unmap.
- * @grant_ref_count: number of grant references in the mapping.
+ * @map_handle: opaque handle of the mapping to unmap (as returned in the
+ *	MMAP response).
+ * @num_pages: number of pages in the mapping.
  */
 struct virtio_media_cmd_munmap {
 	struct virtio_media_cmd_header hdr;
-	u32 grant_ref_header;
-	u32 grant_ref_count;
+	u32 map_handle;
+	u32 num_pages;
 };
 
 /**
@@ -232,19 +233,23 @@ struct virtio_media_resp_munmap {
  *
  * For a ``V4L2_MEMORY_DMABUF`` queue the guest owns the buffers. Before a
  * dma-buf plane is first queued (or after it is rebound to a different
- * dma-buf), the driver grants the plane's pages to the device's domain and
- * sends their grant references with this command, together with a
- * @resource_id the driver assigns to identify this backing. The device turns
- * the grant references back into a local dma-buf (e.g. via
- * ``xengnttab_dmabuf_exp_from_refs()``) and remembers it under @resource_id.
+ * dma-buf), the driver shares the plane's page backing with the device and
+ * sends a device-readable array of backing entries with this command,
+ * together with a @resource_id the driver assigns to identify this backing.
+ * The device reconstructs a local dma-buf from the backing entries and
+ * remembers it under @resource_id.
+ *
+ * The interpretation of each backing entry is defined by the guest's memory
+ * backend and the host's matching import path; the wire format is an opaque
+ * ``__u32`` per entry.
  *
  * Subsequent QBUF/PREPARE_BUF of the same plane only carry @resource_id (in
- * the ``v4l2_buffer``'s ``m.fd`` / plane ``m.fd`` field); the grant references
+ * the ``v4l2_buffer``'s ``m.fd`` / plane ``m.fd`` field); the backing entries
  * are not resent. This mirrors virtio-gpu's RESOURCE_ATTACH_BACKING + stable
  * resource id model.
  *
  * The command header is followed, in the device-readable part of the chain, by
- * a ``__u32 refs[num_refs]`` array of the plane's Xen grant references.
+ * a ``__u32 entries[num_entries]`` array describing the plane's page backing.
  *
  * Only dma-bufs backed by real guest pages are attached this way. dma-bufs
  * with no guest pages (virtio exported-objects, identified by
@@ -260,13 +265,13 @@ struct virtio_media_resp_munmap {
  * @session_id: id of the session the buffer belongs to.
  * @resource_id: driver-assigned id identifying this dma-buf backing. Reused as
  *               the ``m.fd`` value in subsequent QBUF/PREPARE_BUF commands.
- * @num_refs: number of grant references that follow this command.
+ * @num_entries: number of backing entries that follow this command.
  */
 struct virtio_media_cmd_dmabuf_attach {
 	struct virtio_media_cmd_header hdr;
 	u32 session_id;
 	u32 resource_id;
-	u32 num_refs;
+	u32 num_entries;
 	u32 __reserved;
 };
 
@@ -284,7 +289,7 @@ struct virtio_media_resp_dmabuf_attach {
  * attached with VIRTIO_MEDIA_CMD_DMABUF_ATTACH.
  *
  * The device releases the local dma-buf it exported for @resource_id, letting
- * the guest end the foreign grants for that backing. Sent when the plane is
+ * the guest release the shared page backing. Sent when the plane is
  * rebound to a different dma-buf, when a QBUF that would have used the backing
  * fails, or when the queue's buffers are freed (REQBUFS / session close).
  */
@@ -315,7 +320,7 @@ struct virtio_media_resp_dmabuf_detach {
 /**
  * VIRTIO_MEDIA_DMABUF_F_UUID - Flag in struct virtio_media_dmabuf_uuid marking
  * a QBUF/PREPARE_BUF plane as backed by a shared-object UUID (host-object
- * model) rather than a grant-imported resource id (guest-pages model).
+ * model) rather than a driver-assigned resource id (guest-pages model).
  */
 #define VIRTIO_MEDIA_DMABUF_F_UUID BIT(0)
 
@@ -334,7 +339,7 @@ struct virtio_media_resp_dmabuf_detach {
  * carries its own UUID, mirroring the guest-pages model's per-plane ``m.fd``
  * resource ids. The device resolves each UUID to its local dma-buf fd (see the
  * consumer path) instead of treating the plane's ``m.fd`` as a resource id.
- * Absent for grant-imported (guest-pages) dma-buf buffers, which carry resource
+ * Absent for guest-pages dma-buf buffers, which carry resource
  * ids in ``m.fd`` instead.
  */
 struct virtio_media_dmabuf_uuid {

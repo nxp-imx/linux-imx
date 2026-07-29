@@ -14,47 +14,47 @@
 #include <linux/llist.h>
 #include <linux/idr.h>
 #include <media/v4l2-device.h>
-#include <xen/grant_table.h>
 #include <linux/dma-map-ops.h>
 
 #include <uapi/linux/virtio_media.h>
 
 /**
- * struct virtio_media_grant_map - Tracks a grant reference mapping.
- * @grant_ref_header: first grant reference of the mapping.
- * @grant_ref_count: number of grant references (pages) in the mapping.
+ * struct virtio_media_host_mapping - Tracks a host buffer mapping.
+ * @map_handle: opaque backend handle for the mapping, echoed in the MMAP
+ *	response and sent back verbatim in MUNMAP; the core never interprets it.
+ * @num_pages: number of pages in the mapping.
  * @len: length of the mapping in bytes.
- * @pages: array of struct page pointers for the mapped pages.
- * @map_ops: array of grant map operations.
- * @unmap_ops: array of grant unmap operations.
+ * @priv: backend-private mapping state, owned by the memory backend
+ *	(struct virtio_media_mem_ops). The backend stores whatever it needs to
+ *	map, sync and tear down the buffer here; opaque to the core, which only
+ *	allocates the map, tracks it, and drives the backend ops (map_create /
+ *	map_stop / map_free / mmap / sync / expbuf).
  * @v4l2_offset: v4l2 mem_offset uniquely identifying this (type, index, plane).
  * @type: v4l2 buffer type this mapping belongs to.
  * @index: buffer index within the queue.
  * @plane: plane index within the buffer.
  * @refs: reference count. Held by the owning queue while the mapping is
- *	linked into its grant_maps list, by every dma-buf exported from this
+ *	linked into its host_mappings list, by every dma-buf exported from this
  *	mapping (VIDIOC_EXPBUF), and by every userspace VMA that mmaps it. The
- *	grant references are unmapped, the host is told to release the buffer
+ *	backend mapping is torn down, the host is told to release the buffer
  *	(MUNMAP) and the pages are freed only when this count drops to zero, so
- *	grant pages outlive any dma-buf or mmap still referencing them.
- * @list: link into the queue's grant_maps list.
- * @release_node: link into virtio_media.gmap_release_list. Once the last
- *	reference is dropped the gmap is queued here and torn down by
- *	virtio_media.gmap_release_work (the sole teardown path; see
- *	virtio_media_gmap_put()).
+ *	the backing pages outlive any dma-buf or mmap still referencing them.
+ * @list: link into the queue's host_mappings list.
+ * @release_node: link into virtio_media.mapping_release_list. Once the last
+ *	reference is dropped the map is queued here and torn down by
+ *	virtio_media.mapping_release_work (the sole teardown path; see
+ *	virtio_media_mapping_put()).
  * @uuid: shared-object UUID the device registered this host buffer under
  *	(host-object model: host pages + UUID). Reported in the MMAP response
  *	and returned by the exported virtio-dma-buf's get_uuid() callback so a
  *	consumer device can resolve the buffer cross-process. All-zero if the
  *	device registered none (UUID handoff unavailable for this buffer).
  */
-struct virtio_media_grant_map {
-	u32 grant_ref_header;
-	u32 grant_ref_count;
+struct virtio_media_host_mapping {
+	u32 map_handle;
+	u32 num_pages;
 	u64 len;
-	struct page **pages;
-	struct gnttab_map_grant_ref *map_ops;
-	struct gnttab_unmap_grant_ref *unmap_ops;
+	void *priv;
 	u32 v4l2_offset;
 	u32 type;
 	u32 index;
@@ -67,7 +67,7 @@ struct virtio_media_grant_map {
 
 /**
  * struct virtio_media_dmabuf_import - A guest dma-buf imported for
- *	V4L2_MEMORY_DMABUF, with its pages granted to the backend's domain.
+ *	V4L2_MEMORY_DMABUF, with its page backing shared with the host.
  * @dmabuf: the imported dma-buf (holds a reference via dma_buf_get()).
  * @attach: our attachment to @dmabuf, against the virtio device.
  * @sgt: mapped scatter-gather table for @attach.
@@ -75,35 +75,21 @@ struct virtio_media_grant_map {
  *	(sent with DMABUF_ATTACH and, thereafter, as the ``m.fd`` of every
  *	QBUF/PREPARE_BUF that uses it).
  *
- * Grant references backing @sgt are obtained one of two ways, transparently:
+ * The backing entries describing @sgt (sent to the host with DMABUF_ATTACH)
+ * are produced by the memory backend (struct virtio_media_mem_ops
+ * import_get_entries) and any backend-private state is stashed in @priv,
+ * transparently to the core.
  *
- * - If the virtio device's Xen grant DMA ops are active
- *   (CONFIG_XEN_VIRTIO_FORCE_GRANT and a "xen,grant-dma" IOMMU node in the
- *   guest device tree), mapping @attach against the virtio device already
- *   grants the pages to the backend's domain and encodes the grant references
- *   in the sg_table's DMA addresses. The references are then decoded from @sgt
- *   and released automatically when @sgt is unmapped and @attach detached.
- *
- * - Otherwise (grant DMA ops not installed, e.g. no such IOMMU node), the
- *   DMA addresses in @sgt are plain guest-physical addresses. We then grant
- *   foreign access to the backing pages by hand (see @manual_grant), and must
- *   end that foreign access and free the reference sequence ourselves at
- *   teardown.
- *
- * @manual_grant: true if we granted foreign access by hand (second case
- *	above); the grants must be ended at teardown. False when the grant DMA
- *	ops did it for us.
- * @grant_ref_head: first grant reference of the contiguous sequence allocated
- *	for a manual grant (valid only when @manual_grant).
- * @grant_ref_count: number of references in that sequence (valid only when
- *	@manual_grant).
+ * @priv: backend-private import state, owned by the memory backend
+ *	(struct virtio_media_mem_ops). Whatever the backend needs to release the
+ *	shared backing at teardown lives here. Opaque to the core.
  *
  * @uuid_backed: true if this import is a host-owned buffer identified by a
- *	shared-object UUID rather than grant-imported guest pages. Such an
- *	import holds no attach/sgt/grants and no backend resource id: it only
- *	records the UUID and keeps a reference on the imported virtio-dma-buf
- *	(the guest-side alpha refcount chain). Its planes are sent on the
- *	QBUF/PREPARE_BUF wire as a per-plane UUID footer, not an @resource_id.
+ *	shared-object UUID rather than guest pages. Such an import holds no
+ *	attach/sgt/backing entries and no backend resource id: it only records
+ *	the UUID and keeps a reference on the imported virtio-dma-buf. Its planes
+ *	are sent on the QBUF/PREPARE_BUF wire as a per-plane UUID footer, not an
+ *	@resource_id.
  * @uuid: the shared-object UUID (valid only when @uuid_backed), as returned by
  *	the imported virtio-dma-buf's get_uuid() callback.
  *
@@ -118,21 +104,19 @@ struct virtio_media_grant_map {
  * This deliberately departs from videobuf2's per-(buffer, plane) dma-buf
  * lifetime (vb2 detaches on rebind): detaching while the queue is still
  * streaming races the backend, which may still hold the backing (the buffer is
- * on the device and has not been DQBUF'd), causing the guest to end grants Xen
- * still considers in use ("g.e. still in use"), leaking references and failing
- * the next export. So instead the backing stays attached for the queue's whole
- * REQBUFS lifetime and is torn down (DMABUF_DETACH + end grants + unmap +
- * detach) only once the device has quiesced: when the queue's buffers are freed
- * (REQBUFS with any count, including 0) or the session closes.
+ * on the device and has not been DQBUF'd), which can leave the shared backing
+ * in use, leaking references and failing the next export. So instead the
+ * backing stays attached for the queue's whole REQBUFS lifetime and is torn
+ * down (DMABUF_DETACH + backend release + unmap + detach) only once the device
+ * has quiesced: when the queue's buffers are freed (REQBUFS with any count,
+ * including 0) or the session closes.
  */
 struct virtio_media_dmabuf_import {
 	struct dma_buf *dmabuf;
 	struct dma_buf_attachment *attach;
 	struct sg_table *sgt;
 	u32 resource_id;
-	bool manual_grant;
-	grant_ref_t grant_ref_head;
-	u32 grant_ref_count;
+	void *priv;
 	bool uuid_backed;
 	u8 uuid[16];
 	struct list_head list;
@@ -155,16 +139,93 @@ struct virtio_media_cmd_callback_param {
 };
 
 /*
- * Maximum number of grant references (pages) supported for a single MMAP
+ * Maximum number of backend entries (pages) supported for a single MMAP
  * buffer mapping. Sizes the response buffer the host uses to return the
- * (non-contiguous) grant ref array. 4096 refs covers a 16 MiB buffer.
+ * (non-contiguous) backend entry array. 4096 refs covers a 16 MiB buffer.
  */
-#define VIRTIO_MEDIA_MAX_GRANT_REFS 4096
+#define VIRTIO_MEDIA_MAX_MAPPING_PAGES 4096
 
 #define VIRTIO_MEDIA_DEFAULT_DRIVER_NAME "virtio-media"
 
 extern bool virtio_media_allow_userptr;
 extern bool virtio_media_allow_dmabuf;
+
+struct virtio_media;
+struct virtio_media_session;
+struct virtio_media_host_mapping;
+struct file;
+struct vm_area_struct;
+struct v4l2_exportbuffer;
+
+/**
+ * struct virtio_media_mem_ops - Memory backend for host buffer sharing.
+ *
+ * Abstracts how host MMAP buffers and imported guest dma-bufs are shared with
+ * the backend's domain. The core owns the virtio command protocol (sending
+ * MMAP/MUNMAP/DMABUF_ATTACH/DETACH, staging coherent command buffers) and the
+ * generic host-mapping / import bookkeeping (allocation, refcounting, list
+ * linkage); the backend owns the concrete memory-sharing mechanism.
+ *
+ * Two backends are envisaged: a per-page backing-entries backend (the current
+ * out-of-tree mechanism, see virtio_media_xen.c) and the upstream virtio
+ * shared-memory region.
+ *
+ * @name: backend name, for diagnostics.
+ * @wants_entries_buffer: if true, the MMAP command carries a second, device-
+ *	writable buffer into which the host writes the per-page backing-entries array,
+ *	and the core passes that array to @map_create. If false (e.g. the shm
+ *	backend), no refs buffer is sent and @map_create receives NULL/0.
+ * @init: optional one-time device init (e.g. acquire the shm region). May be
+ *	NULL.
+ * @cleanup: optional teardown counterpart to @init. May be NULL.
+ * @map_create: finish a host buffer mapping after the core has sent MMAP and
+ *	filled the generic map fields (map_handle/count/len/uuid). @refs
+ *	is the per-page ref array from the MMAP response (valid only when
+ *	@wants_entries_buffer), @num_entries its length, @rw whether the host may
+ *	write. Populates map->priv with backend-private mapping state.
+ * @map_stop: pre-MUNMAP teardown (e.g. unmap backend entries). Called under vlock
+ *	before the core sends MUNMAP. May be NULL.
+ * @map_free: post-MUNMAP teardown: release backing pages and free map->priv.
+ *	Called under vlock after the core has sent MUNMAP.
+ * @mmap: implement the fops .mmap for a MMAP buffer. The backend looks the
+ *	host buffer up from vma->vm_pgoff (via virtio_media_find_host_mapping_by_offset())
+ *	and maps its backing pages into the userspace @vma, doing its own locking.
+ * @sync: CPU/device cache maintenance for one map in the given direction.
+ *	May be NULL if the backend needs none.
+ * @expbuf: implement VIDIOC_EXPBUF: export the host buffer identified by @eb
+ *	as a dma-buf fd. May return -ENOTTY if unsupported by the backend.
+ * @import_get_entries: acquire the backend references for an imported guest
+ *	dma-buf (whose @sgt is already mapped), returning a freshly allocated
+ *	ref array in *@refs_out (freed by the core) and its length in
+ *	*@num_entries_out. Populates imp->priv with backend-private import state.
+ * @import_put_entries: release what @import_get_entries acquired for @imp. Called
+ *	after DMABUF_DETACH.
+ */
+struct virtio_media_mem_ops {
+	const char *name;
+	bool wants_entries_buffer;
+	int (*init)(struct virtio_media *vv);
+	void (*cleanup)(struct virtio_media *vv);
+	int (*map_create)(struct virtio_media *vv,
+			  struct virtio_media_host_mapping *map, const u32 *refs,
+			  u32 num_entries, bool rw);
+	void (*map_stop)(struct virtio_media *vv,
+			 struct virtio_media_host_mapping *map);
+	void (*map_free)(struct virtio_media *vv,
+			 struct virtio_media_host_mapping *map);
+	int (*mmap)(struct file *file, struct vm_area_struct *vma);
+	void (*sync)(struct virtio_media_host_mapping *map,
+		     enum dma_data_direction dir);
+	int (*expbuf)(struct file *file, void *fh,
+		      struct v4l2_exportbuffer *eb);
+	int (*import_get_entries)(struct virtio_media *vv,
+			       struct virtio_media_dmabuf_import *imp,
+			       u32 **refs_out, u32 *num_entries_out);
+	void (*import_put_entries)(struct virtio_media_dmabuf_import *imp);
+};
+
+/* virtio_media_xen.c */
+extern const struct virtio_media_mem_ops virtio_media_xen_mem_ops;
 
 /**
  * struct virtio_media - Virtio-media device.
@@ -196,19 +257,22 @@ struct virtio_media {
 	struct work_struct eventq_work;
 
 	/*
-	 * Deferred grant-map teardown. Tearing a grant map down is a heavy,
-	 * sleeping operation (unmap grant refs + send MUNMAP and wait seconds
-	 * for the host, under vlock). virtio_media_gmap_put() therefore never
-	 * does it inline -- on the last reference it pushes the gmap onto
-	 * @gmap_release_list and schedules @gmap_release_work, which is the
+	 * Deferred host-mapping teardown. Tearing a host mapping down is a heavy,
+	 * sleeping operation (unmap backend entries + send MUNMAP and wait seconds
+	 * for the host, under vlock). virtio_media_mapping_put() therefore never
+	 * does it inline -- on the last reference it pushes the map onto
+	 * @mapping_release_list and schedules @mapping_release_work, which is the
 	 * sole teardown path. This keeps the put path lock-free and callable
 	 * from any context (e.g. mmap close() under mmap_lock, dma-buf release,
 	 * or REQBUFS/close while holding vlock).
 	 */
-	struct llist_head gmap_release_list;
-	struct work_struct gmap_release_work;
+	struct llist_head mapping_release_list;
+	struct work_struct mapping_release_work;
 
 	struct virtio_shm_region mmap_region;
+
+	/* Memory backend for host buffer sharing (backing entries or shm). */
+	const struct virtio_media_mem_ops *mem_ops;
 
 	void *event_buffer;
 
@@ -254,7 +318,7 @@ struct virtio_media {
 	 * When true, command payloads are placed in coherent DMA memory and
 	 * submitted to the command virtqueue as premapped scatterlists, to
 	 * avoid cache-coherency issues when the host accesses them through
-	 * foreign/grant mappings. @cmd_dma_dev is the device to allocate that
+	 * host mappings. @cmd_dma_dev is the device to allocate that
 	 * coherent memory against. Set from the ``use_coherent_shadow_buffer``
 	 * module parameter, and cleared if the commandq does not use the DMA
 	 * API.
@@ -266,7 +330,7 @@ struct virtio_media {
 	 * Coherent control buffers for the device-global OPEN/MUNMAP commands,
 	 * used only when @use_coherent is set. Access is serialized by @vlock.
 	 * Each is one page, which is enough for the fixed command/response
-	 * structures. MMAP's variable-length grant-ref array is allocated
+	 * structures. MMAP's variable-length backing-entries array is allocated
 	 * separately (see virtio_media_send_mmap_cmd()).
 	 */
 	void *ctrl_cmd;
@@ -314,6 +378,25 @@ int virtio_media_send_command(struct virtio_media *vv, struct scatterlist **sgs,
 			      size_t *resp_len);
 void virtio_media_process_events(struct virtio_media *vv);
 
+/*
+ * Host-mapping refcounting, used by memory backends that keep the mapping alive
+ * across userspace VMAs / exported dma-bufs (see virtio_media_mem_ops).
+ */
+void virtio_media_mapping_get(struct virtio_media_host_mapping *map);
+void virtio_media_mapping_put(struct virtio_media *vv,
+			   struct virtio_media_host_mapping *map);
+
+/*
+ * Host-mapping lookup helpers, used by memory backends to resolve a userspace
+ * mmap offset or an EXPBUF (type,index,plane) to its host mapping.
+ */
+struct virtio_media_host_mapping *
+virtio_media_find_host_mapping(struct virtio_media_session *session, u32 type,
+			    u32 index, u32 plane);
+struct virtio_media_host_mapping *
+virtio_media_find_host_mapping_by_offset(struct virtio_media_session *session,
+				      u32 offset);
+
 /* virtio_media_driver.c */
 
 int virtio_media_expbuf(struct file *file, void *fh,
@@ -322,9 +405,9 @@ int virtio_media_expbuf(struct file *file, void *fh,
 struct virtio_media_session;
 int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
 			    u32 index);
-void virtio_media_free_queue_grant_maps(struct virtio_media_session *session,
+void virtio_media_free_queue_host_mappings(struct virtio_media_session *session,
 					u32 type);
-void virtio_media_free_session_grant_maps(struct virtio_media_session *session);
+void virtio_media_free_session_host_mappings(struct virtio_media_session *session);
 void virtio_media_sync_buffer(struct virtio_media_session *session, u32 type,
 			      u32 index, enum dma_data_direction dir);
 int virtio_media_bind_buffer_dmabufs(struct virtio_media_session *session,

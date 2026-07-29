@@ -281,7 +281,7 @@ static int virtio_media_send_buffer_ioctl(struct v4l2_fh *fh, u32 ioctl,
 	 * QBUF/PREPARE_BUF (the only buffer ioctls that bind planes;
 	 * QUERYBUF/DQBUF carry no meaningful dma-buf fds):
 	 *
-	 *  - guest-pages dma-buf (grant-imported): m.fd carries the backend
+	 *  - guest-pages dma-buf (guest-pages): m.fd carries the backend
 	 *    resource id of its bound dma-buf, not the guest fd (meaningless to
 	 *    the device). Save the guest fds and substitute the resource ids
 	 *    for the duration of the command, then restore them so the V4L2
@@ -1141,28 +1141,26 @@ static int virtio_media_reqbufs(struct file *file, void *fh,
 	}
 
 	/*
-	 * Any grant maps created for the old buffers must be released now. This
+	 * Any host mappings created for the old buffers must be released now. This
 	 * is essential on a source change, where the client re-REQBUFS the
 	 * CAPTURE queue with a new count *without* an intervening REQBUFS(0):
-	 * failing to unmap here would leak the old grant references (Dom0 logs
-	 * "g.e. 0x... still in use!") and the host could not reuse or
-	 * reallocate the buffers, stalling the stream.
+	 * failing to unmap here would leak the old backend entries and the host
+	 * could not reuse or reallocate the buffers, stalling the stream.
 	 *
-	 * Note we still deliberately do NOT free grant maps on STREAMOFF, so
+	 * Note we still deliberately do NOT free host mappings on STREAMOFF, so
 	 * that seek (STREAMOFF/STREAMON without REQBUFS) keeps the buffers
-	 * grant-mapped. The new buffers are lazily re-mapped at QUERYBUF time
+	 * mapped. The new buffers are lazily re-mapped at QUERYBUF time
 	 * (virtio_media_map_buffer() is idempotent). If a dma-buf exported from
 	 * an old buffer is still alive it holds its own reference, so the pages
 	 * survive until the last dma-buf is released.
 	 */
-	virtio_media_free_queue_grant_maps(session, b->type);
+	virtio_media_free_queue_host_mappings(session, b->type);
 
 	/*
 	 * Likewise release any dma-buf imports of this queue's old buffers.
 	 * REQBUFS (any count) tears down the previous buffer set, and the
-	 * backend has released the grants it held for them by the time this
-	 * command returns, so it is safe to unmap (which ends foreign access)
-	 * and detach them now.
+	 * backend has released the backing it held for them by the time this
+	 * command returns, so it is safe to unmap and detach them now.
 	 */
 	virtio_media_free_queue_dmabuf_imports(session, b->type);
 
@@ -1267,7 +1265,7 @@ static int virtio_media_querybuf(struct file *file, void *fh,
 	}
 
 	/*
-	 * Create the grant mapping(s) for this buffer now that the host has
+	 * Create the host mappingping(s) for this buffer now that the host has
 	 * provided the per-plane offsets. This is idempotent, so repeated
 	 * QUERYBUF calls are harmless.
 	 */
@@ -1507,8 +1505,8 @@ static int virtio_media_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	buffer->buffer.flags = V4L2_BUF_FLAG_QUEUED;
 
 	/*
-	 * The buffer memory is a foreign (host) buffer mapped into the guest
-	 * via grant refs and is cacheable. Clean the CPU caches so the data
+	 * The buffer memory is a host buffer mapped into the guest
+	 * via backend entries and is cacheable. Clean the CPU caches so the data
 	 * the guest wrote is visible to the non-coherent host DMA master.
 	 */
 	virtio_media_sync_buffer(session, b->type, b->index, DMA_TO_DEVICE);

@@ -28,8 +28,6 @@
 #include <linux/virtio_ids.h>
 #include <uapi/linux/virtio_ring.h>
 
-#include <xen/grant_table.h>
-
 #include <media/frame_vector.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-event.h>
@@ -72,8 +70,8 @@ module_param_named(allow_dmabuf, virtio_media_allow_dmabuf, bool, 0660);
  * If set, command descriptor payloads are bounced through a per-device
  * cache-coherent DMA buffer and submitted to the command virtqueue as
  * premapped scatterlists. This avoids cache-coherency issues when the host
- * (e.g. vhost-user-media on Xen) accesses the payloads through foreign/grant
- * mappings that bypass the guest's non-coherent DMA path.
+ * accesses the payloads through host mappings that bypass the guest's
+ * non-coherent DMA path.
  *
  * Defaults to false, which preserves the original behaviour of referencing the
  * driver-provided (non-coherent) memory directly.
@@ -129,7 +127,7 @@ virtio_media_session_alloc(struct virtio_media *vv, u32 id,
 
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++) {
 		INIT_LIST_HEAD(&session->queues[i].pending_dqbufs);
-		INIT_LIST_HEAD(&session->queues[i].grant_maps);
+		INIT_LIST_HEAD(&session->queues[i].host_mappings);
 		INIT_LIST_HEAD(&session->queues[i].dmabuf_imports);
 	}
 	mutex_init(&session->queues_lock);
@@ -298,11 +296,11 @@ static void virtio_media_session_send_close(struct virtio_media *vv,
  * All the resources of @session, as well as the backing memory of @session
  * itself, are freed.
  *
- * The grant maps are released (their owning-queue reference dropped) and the
+ * The host mappings are released (their owning-queue reference dropped) and the
  * deferred release worker is flushed so every MUNMAP completes *before*
  * CMD_CLOSE, so that by the time the host acts on CLOSE (and releases the
- * underlying V4L2 buffers) the guest has already unmapped every grant
- * reference. When called from device removal the host is gone, so
+ * underlying V4L2 buffers) the guest has already unmapped every backend
+ * entry. When called from device removal the host is gone, so
  * @notify_host is false and neither the flush nor CLOSE is done.
  */
 static void virtio_media_session_free(struct virtio_media *vv,
@@ -318,18 +316,18 @@ static void virtio_media_session_free(struct virtio_media *vv,
 	virtio_media_debug_remove_session(session);
 
 	/*
-	 * Drop the owning-queue reference on every grant map. The actual
-	 * teardown (unmapping grant refs and sending MUNMAP) is deferred to
-	 * vv->gmap_release_work. Free them while session->fh.vdev is still
+	 * Drop the owning-queue reference on every host mapping. The actual
+	 * teardown (unmapping backend entries and sending MUNMAP) is deferred to
+	 * vv->mapping_release_work. Free them while session->fh.vdev is still
 	 * valid, since the helper derives the device from it. Must run before
 	 * v4l2_fh_exit().
 	 */
-	virtio_media_free_session_grant_maps(session);
+	virtio_media_free_session_host_mappings(session);
 
 	/*
-	 * CLOSE must be sent only after every grant ref has actually been
+	 * CLOSE must be sent only after every backend entry has actually been
 	 * unmapped (MUNMAP), otherwise the host could release the underlying
-	 * V4L2 buffers while the guest still has grants mapped. Since teardown
+	 * V4L2 buffers while the guest still has backing mapped. Since teardown
 	 * is deferred to the release worker, flush it here before sending
 	 * CLOSE so all MUNMAPs have completed first.
 	 *
@@ -339,14 +337,14 @@ static void virtio_media_session_free(struct virtio_media *vv,
 	 * freeing every session, before resetting the device).
 	 */
 	if (notify_host) {
-		flush_work(&vv->gmap_release_work);
+		flush_work(&vv->mapping_release_work);
 		virtio_media_session_send_close(vv, session);
 	}
 
 	/*
-	 * Release any dma-buf imports. Unmapping ends the foreign access the
-	 * backend was granted, so it must happen only after the backend can no
-	 * longer be using those grants: on the notify_host path CLOSE (sent
+	 * Release any dma-buf imports. Unmapping releases the backing the
+	 * backend was given, so it must happen only after the backend can no
+	 * longer be using it: on the notify_host path CLOSE (sent
 	 * above) has made the backend drop its exported dma-bufs; on device
 	 * removal the backend is gone. Safe in both cases.
 	 */
@@ -847,8 +845,8 @@ process_bufs:
 			event_evt = (struct virtio_media_event_event *)evt;
 			/*
 			 * Record the forwarded V4L2 event, calling out source
-			 * changes specifically: comparing this against the host
-			 * (Dom0) wave6 flow shows whether a source-change the
+			 * changes specifically: comparing this against the
+			 * host-side wave6 flow shows whether a source-change the
 			 * host emitted actually reached and was acted upon by
 			 * the guest.
 			 */
@@ -968,12 +966,12 @@ static int virtio_media_device_close(struct file *file)
 		fh_to_session(file->private_data);
 
 	/*
-	 * The session (and its grant maps) is torn down here. Every dma-buf
+	 * The session (and its host mappings) is torn down here. Every dma-buf
 	 * exported via VIDIOC_EXPBUF holds a reference to this file via
 	 * get_file(), so device close - and therefore this teardown - only
 	 * runs after the open fd is closed AND every exported dma-buf has been
-	 * released. By then no user mapping of any grant page remains, so it
-	 * is safe to unmap the grant refs and notify the host with CMD_CLOSE.
+	 * released. By then no user mapping of any backing page remains, so it
+	 * is safe to unmap the backend entries and notify the host with CMD_CLOSE.
 	 */
 	virtio_media_session_free(vv, session, true);
 	return 0;
@@ -1041,63 +1039,63 @@ static __poll_t virtio_media_device_poll(struct file *file, poll_table *wait)
 }
 
 /*
- * Grant-map subsystem for zero-copy MMAP buffer sharing with the host.
+ * Host-mapping subsystem for zero-copy MMAP buffer sharing with the host.
  *
- * A grant map is created per (type, index, plane) at QUERYBUF time and lives
+ * A host mapping is created per (type, index, plane) at QUERYBUF time and lives
  * until the queue is torn down by REQBUFS or the session is closed. The
  * mapping is decoupled from any userspace VMA: closing a VMA only tears down
- * the userspace PTEs, while the underlying grant-mapped pages persist so that
+ * the userspace PTEs, while the underlying host-mappingped pages persist so that
  * seek (which re-mmaps buffers without re-allocating them) keeps working and
  * the host keeps ownership of the buffer.
  *
- * Locking: the grant_maps list is created/destroyed under vv->vlock (QUERYBUF,
+ * Locking: the host_mappings list is created/destroyed under vv->vlock (QUERYBUF,
  * REQBUFS, session close) and additionally walked under queues_lock by the
  * paths that do not run under vv->vlock. Callers of the find helpers below
  * must hold at least one of those locks; any path that then dereferences the
- * returned gmap while it might race a REQBUFS/close teardown must hold
- * vv->vlock (or an explicit gmap reference) so the gmap and its pages cannot
+ * returned map while it might race a REQBUFS/close teardown must hold
+ * vv->vlock (or an explicit map reference) so the map and its pages cannot
  * be freed under it.
  */
 
-static struct virtio_media_grant_map *
-virtio_media_find_grant_map(struct virtio_media_session *session, u32 type,
+struct virtio_media_host_mapping *
+virtio_media_find_host_mapping(struct virtio_media_session *session, u32 type,
 			    u32 index, u32 plane)
 {
 	struct virtio_media_queue_state *queue;
-	struct virtio_media_grant_map *gmap;
+	struct virtio_media_host_mapping *map;
 
 	if (type > VIRTIO_MEDIA_LAST_QUEUE)
 		return NULL;
 
 	queue = &session->queues[type];
-	list_for_each_entry(gmap, &queue->grant_maps, list) {
-		if (gmap->index == index && gmap->plane == plane)
-			return gmap;
+	list_for_each_entry(map, &queue->host_mappings, list) {
+		if (map->index == index && map->plane == plane)
+			return map;
 	}
 	return NULL;
 }
 
-/* Find a grant map in any queue of the session by its v4l2 mem_offset. */
-static struct virtio_media_grant_map *
-virtio_media_find_grant_map_by_offset(struct virtio_media_session *session,
+/* Find a host mapping in any queue of the session by its v4l2 mem_offset. */
+struct virtio_media_host_mapping *
+virtio_media_find_host_mapping_by_offset(struct virtio_media_session *session,
 				      u32 offset)
 {
-	struct virtio_media_grant_map *gmap;
+	struct virtio_media_host_mapping *map;
 	int i;
 
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++) {
-		list_for_each_entry(gmap, &session->queues[i].grant_maps, list) {
-			if (gmap->v4l2_offset == offset)
-				return gmap;
+		list_for_each_entry(map, &session->queues[i].host_mappings, list) {
+			if (map->v4l2_offset == offset)
+				return map;
 		}
 	}
 	return NULL;
 }
 
 /*
- * Cache maintenance for grant-mapped buffers.
+ * Cache maintenance for host-mapped buffers.
  *
- * The buffers are foreign pages granted by the host and mapped into the guest
+ * The buffers are host pages shared with the guest and mapped into the guest
  * with a Normal (cacheable) memory type. The host-side hardware (e.g. the VPU)
  * is a non-coherent DMA master, so the guest must explicitly maintain the CPU
  * caches around ownership transfer:
@@ -1106,46 +1104,40 @@ virtio_media_find_grant_map_by_offset(struct virtio_media_session *session,
  *  - after DQBUF (device -> guest): invalidate the CPU caches so the guest
  *    reads the data the device wrote to DRAM (DMA_FROM_DEVICE).
  *
- * Must be called with @vv->vlock held (it walks the queue's grant_maps list).
+ * Must be called with @vv->vlock held (it walks the queue's host_mappings list).
  */
 void virtio_media_sync_buffer(struct virtio_media_session *session, u32 type,
 			      u32 index, enum dma_data_direction dir)
 {
+	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
 	u32 plane;
 
 	if (type > VIRTIO_MEDIA_LAST_QUEUE)
 		return;
 
 	for (plane = 0; plane < VIDEO_MAX_PLANES; plane++) {
-		struct virtio_media_grant_map *gmap =
-			virtio_media_find_grant_map(session, type, index, plane);
-		int i;
+		struct virtio_media_host_mapping *map =
+			virtio_media_find_host_mapping(session, type, index, plane);
 
-		if (!gmap)
+		if (!map)
 			break;
 
-		for (i = 0; i < gmap->grant_ref_count; i++) {
-			phys_addr_t phys = page_to_phys(gmap->pages[i]);
-
-			if (dir == DMA_TO_DEVICE)
-				arch_sync_dma_for_device(phys, PAGE_SIZE, dir);
-			else
-				arch_sync_dma_for_cpu(phys, PAGE_SIZE, dir);
-		}
+		if (vv->mem_ops->sync)
+			vv->mem_ops->sync(map, dir);
 	}
 }
 
 /*
- * Tear down a single grant map: unmap the grant refs, tell the host to release
- * the buffer (MUNMAP), free the grant-allocated DMA pages and the tracking
- * structure. Called only from virtio_media_gmap_release_work() (the sole
- * teardown path), once the last reference to @gmap has been dropped and the
- * gmap unlinked from its queue's grant_maps list. Sends a command and sleeps
+ * Tear down a single host mapping: unmap the backend entries, tell the host to release
+ * the buffer (MUNMAP), free the backend-allocated DMA pages and the tracking
+ * structure. Called only from virtio_media_mapping_release_work() (the sole
+ * teardown path), once the last reference to @map has been dropped and the
+ * map unlinked from its queue's host_mappings list. Sends a command and sleeps
  * waiting for the host, so it must run in a sleepable context with @vv->vlock
  * held (the worker satisfies both).
  */
-static void virtio_media_gmap_destroy_locked(struct virtio_media *vv,
-					     struct virtio_media_grant_map *gmap)
+static void virtio_media_mapping_destroy_locked(struct virtio_media *vv,
+					     struct virtio_media_host_mapping *map)
 {
 	struct virtio_media_cmd_munmap *cmd_munmap = &vv->cmd.munmap;
 	struct virtio_media_resp_munmap *resp_munmap = &vv->resp.munmap;
@@ -1156,15 +1148,13 @@ static void virtio_media_gmap_destroy_locked(struct virtio_media *vv,
 
 	lockdep_assert_held(&vv->vlock);
 
-	/* Unmap the grant references. */
-	ret = gnttab_unmap_refs(gmap->unmap_ops, NULL, gmap->pages,
-				gmap->grant_ref_count);
-	if (ret)
-		v4l2_err(&vv->v4l2_dev, "gnttab_unmap_refs failed: %d\n", ret);
+	/* Backend-specific pre-MUNMAP teardown (e.g. unmap backend entries). */
+	if (vv->mem_ops->map_stop)
+		vv->mem_ops->map_stop(vv, map);
 
 	cmd_munmap->hdr.cmd = VIRTIO_MEDIA_CMD_MUNMAP;
-	cmd_munmap->grant_ref_header = gmap->grant_ref_header;
-	cmd_munmap->grant_ref_count = gmap->grant_ref_count;
+	cmd_munmap->map_handle = map->map_handle;
+	cmd_munmap->num_pages = map->num_pages;
 
 	/* Tell the host it can release the buffer. */
 	if (vv->use_coherent) {
@@ -1196,49 +1186,47 @@ static void virtio_media_gmap_destroy_locked(struct virtio_media *vv,
 			 ret);
 
 free_pages:
-	/* Free the balloon-backed grant pages. */
-	gnttab_free_pages(gmap->grant_ref_count, gmap->pages);
+	/* Backend-specific post-MUNMAP teardown (free pages + map->priv). */
+	if (vv->mem_ops->map_free)
+		vv->mem_ops->map_free(vv, map);
 
-	kfree(gmap->map_ops);
-	kfree(gmap->unmap_ops);
-	kfree(gmap->pages);
-	kfree(gmap);
+	kfree(map);
 }
 
-/* Take an extra reference on a grant map. */
-static void virtio_media_gmap_get(struct virtio_media_grant_map *gmap)
+/* Take an extra reference on a host mapping. */
+void virtio_media_mapping_get(struct virtio_media_host_mapping *map)
 {
-	refcount_inc(&gmap->refs);
+	refcount_inc(&map->refs);
 }
 
 /*
- * Worker that tears down grant maps queued for deferred release by
- * virtio_media_gmap_put(). Destroying a grant map sends a MUNMAP command and
+ * Worker that tears down host mappings queued for deferred release by
+ * virtio_media_mapping_put(). Destroying a host mapping sends a MUNMAP command and
  * waits (seconds) for the host to acknowledge it, and needs @vv->vlock. This
  * is the ONLY place gmaps are destroyed: it runs in process context off any
  * external lock, so it can freely sleep and take @vv->vlock.
  */
-static void virtio_media_gmap_release_work(struct work_struct *work)
+static void virtio_media_mapping_release_work(struct work_struct *work)
 {
 	struct virtio_media *vv =
-		container_of(work, struct virtio_media, gmap_release_work);
+		container_of(work, struct virtio_media, mapping_release_work);
 	struct llist_node *node;
-	struct virtio_media_grant_map *gmap, *tmp;
+	struct virtio_media_host_mapping *map, *tmp;
 
-	node = llist_del_all(&vv->gmap_release_list);
+	node = llist_del_all(&vv->mapping_release_list);
 	if (!node)
 		return;
 
 	mutex_lock(&vv->vlock);
-	llist_for_each_entry_safe(gmap, tmp, node, release_node)
-		virtio_media_gmap_destroy_locked(vv, gmap);
+	llist_for_each_entry_safe(map, tmp, node, release_node)
+		virtio_media_mapping_destroy_locked(vv, map);
 	mutex_unlock(&vv->vlock);
 }
 
 /*
- * Drop a reference on a grant map. When the last reference goes away the
- * actual teardown (unmap grant refs, tell the host to release the buffer via
- * MUNMAP, free the pages) is always deferred to virtio_media_gmap_release_work().
+ * Drop a reference on a host mapping. When the last reference goes away the
+ * actual teardown (unmap backend entries, tell the host to release the buffer via
+ * MUNMAP, free the pages) is always deferred to virtio_media_mapping_release_work().
  *
  * The teardown is a heavy, sleeping operation: it sends a MUNMAP command and
  * waits seconds for the host, under @vv->vlock. Callers drop references from a
@@ -1247,49 +1235,57 @@ static void virtio_media_gmap_release_work(struct work_struct *work)
  * where sleeping on the command queue would stall the address space and the
  * mmap_lock -> vlock order would risk deadlock). Rather than have each caller
  * reason about its context, this single put never does the teardown inline: it
- * only decrements the refcount and, on the last reference, queues the gmap for
+ * only decrements the refcount and, on the last reference, queues the map for
  * the release worker. This keeps the put path lock-free and callable from any
  * context.
  *
  * Callers that need the MUNMAP to have completed before proceeding (e.g. the
- * session-close path, which must unmap every grant before sending CLOSE) must
- * flush_work(&vv->gmap_release_work) after their put.
+ * session-close path, which must unmap every mapping before sending CLOSE) must
+ * flush_work(&vv->mapping_release_work) after their put.
  */
-static void virtio_media_gmap_put(struct virtio_media *vv,
-				  struct virtio_media_grant_map *gmap)
+void virtio_media_mapping_put(struct virtio_media *vv,
+			   struct virtio_media_host_mapping *map)
 {
-	if (refcount_dec_and_test(&gmap->refs)) {
-		llist_add(&gmap->release_node, &vv->gmap_release_list);
-		schedule_work(&vv->gmap_release_work);
+	if (refcount_dec_and_test(&map->refs)) {
+		llist_add(&map->release_node, &vv->mapping_release_list);
+		schedule_work(&vv->mapping_release_work);
 	}
 }
 
 /*
- * Create a grant map for a single (type, index, plane) identified by its v4l2
+ * Create a host mapping for a single (type, index, plane) identified by its v4l2
  * @offset. Idempotent: if a mapping for this (type, index, plane) already
- * exists it is returned as-is. @rw indicates whether the host should be granted
+ * exists it is returned as-is. @rw indicates whether the host should be given
  * write access to the pages.
  */
 static int
-virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
+virtio_media_create_host_mapping(struct virtio_media_session *session, u32 type,
 			      u32 index, u32 plane, u32 offset, bool rw)
 {
 	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
 	struct virtio_media_cmd_mmap *cmd_mmap = &session->cmd.mmap;
 	struct virtio_media_resp_mmap *resp_mmap = &session->resp.mmap;
-	struct scatterlist cmd_sg = {}, resp_sg = {}, refs_sg = {};
-	struct scatterlist *sgs[3] = { &cmd_sg, &resp_sg, &refs_sg };
+	struct scatterlist cmd_sg = {}, resp_sg = {}, entries_sg = {};
+	struct scatterlist *sgs[3] = { &cmd_sg, &resp_sg, &entries_sg };
 	struct virtio_media_queue_state *queue = &session->queues[type];
-	struct virtio_media_grant_map *gmap;
+	struct virtio_media_host_mapping *map;
 	struct virtio_media_coherent_cmd cc;
-	size_t refs_size = VIRTIO_MEDIA_MAX_GRANT_REFS * sizeof(u32);
-	void *refs_coherent = NULL;
-	dma_addr_t refs_coherent_dma = 0;
-	u32 *refs;
-	int i, ret;
+	size_t entries_size = VIRTIO_MEDIA_MAX_MAPPING_PAGES * sizeof(u32);
+	void *entries_coherent = NULL;
+	dma_addr_t entries_coherent_dma = 0;
+	u32 *entries = NULL;
+	/*
+	 * A memory backend with its own host-sharing mechanism (e.g. a virtio
+	 * shared-memory region) sets wants_entries_buffer = false: it needs no
+	 * per-page backing-entries buffer, so we neither allocate nor stage one
+	 * and pass NULL/0 to map_create. The Xen backend sets it to true.
+	 */
+	bool wants_entries = vv->mem_ops->wants_entries_buffer;
+	unsigned int in_sgs = wants_entries ? 2 : 1;
+	int ret;
 
 	/* Idempotent: skip if already mapped. */
-	if (virtio_media_find_grant_map(session, type, index, plane))
+	if (virtio_media_find_host_mapping(session, type, index, plane))
 		return 0;
 
 	/* Caller (QUERYBUF ioctl) already holds vv->vlock. */
@@ -1301,30 +1297,36 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 	cmd_mmap->offset = offset;
 
 	/*
-	 * The host returns one grant reference per page of the buffer. The
-	 * refs are NOT guaranteed to be contiguous, so the host writes the
+	 * The host returns one backend entry per page of the buffer. The
+	 * entries are NOT guaranteed to be contiguous, so the host writes the
 	 * full array into a second response buffer following the fixed
 	 * response header. Provision a buffer large enough for the biggest
-	 * mapping we support.
+	 * mapping we support. Backends without an entries buffer skip this.
 	 */
-	refs = kcalloc(VIRTIO_MEDIA_MAX_GRANT_REFS, sizeof(*refs), GFP_KERNEL);
-	if (!refs) {
-		ret = -ENOMEM;
-		goto end;
+	if (wants_entries) {
+		entries = kcalloc(VIRTIO_MEDIA_MAX_MAPPING_PAGES,
+				  sizeof(*entries), GFP_KERNEL);
+		if (!entries) {
+			ret = -ENOMEM;
+			goto end;
+		}
 	}
 
 	if (vv->use_coherent) {
 		/*
-		 * The grant-ref array is too large for the shared ctrl_resp
+		 * The backing-entries array is too large for the shared ctrl_resp
 		 * buffer, so give it its own coherent allocation that the host
-		 * can write into through its foreign mapping.
+		 * can write into through its host mapping.
 		 */
-		refs_coherent = dma_alloc_coherent(vv->cmd_dma_dev, refs_size,
-						   &refs_coherent_dma,
-						   GFP_KERNEL);
-		if (!refs_coherent) {
-			ret = -ENOMEM;
-			goto err_free_refs;
+		if (wants_entries) {
+			entries_coherent = dma_alloc_coherent(vv->cmd_dma_dev,
+							   entries_size,
+							   &entries_coherent_dma,
+							   GFP_KERNEL);
+			if (!entries_coherent) {
+				ret = -ENOMEM;
+				goto err_free_refs;
+			}
 		}
 
 		virtio_media_coherent_cmd_init(&cc, vv);
@@ -1340,155 +1342,92 @@ virtio_media_create_grant_map(struct virtio_media_session *session, u32 type,
 			goto err_free_coherent;
 		}
 
-		sg_init_table(&refs_sg, 1);
-		sg_set_buf(&refs_sg, refs_coherent, refs_size);
-		sg_dma_address(&refs_sg) = refs_coherent_dma;
-		sg_dma_len(&refs_sg) = refs_size;
+		if (wants_entries) {
+			sg_init_table(&entries_sg, 1);
+			sg_set_buf(&entries_sg, entries_coherent, entries_size);
+			sg_dma_address(&entries_sg) = entries_coherent_dma;
+			sg_dma_len(&entries_sg) = entries_size;
+		}
 	} else {
 		sg_set_buf(&cmd_sg, cmd_mmap, sizeof(*cmd_mmap));
 		sg_mark_end(&cmd_sg);
 		sg_set_buf(&resp_sg, resp_mmap, sizeof(*resp_mmap));
 		sg_mark_end(&resp_sg);
-		sg_set_buf(&refs_sg, refs, refs_size);
-		sg_mark_end(&refs_sg);
+		if (wants_entries) {
+			sg_set_buf(&entries_sg, entries, entries_size);
+			sg_mark_end(&entries_sg);
+		}
 	}
 
-	ret = virtio_media_send_command(vv, sgs, 1, 2, vv->use_coherent,
+	ret = virtio_media_send_command(vv, sgs, 1, in_sgs, vv->use_coherent,
 					sizeof(*resp_mmap), NULL);
 	if (ret < 0)
 		goto err_free_coherent;
 
 	if (vv->use_coherent) {
 		virtio_media_coherent_retrieve(&cc);
-		memcpy(refs, refs_coherent, refs_size);
+		if (wants_entries)
+			memcpy(entries, entries_coherent, entries_size);
 	}
 
-	if (resp_mmap->grant_ref_count > VIRTIO_MEDIA_MAX_GRANT_REFS) {
+	if (resp_mmap->num_pages > VIRTIO_MEDIA_MAX_MAPPING_PAGES) {
 		v4l2_err(&vv->v4l2_dev,
-			 "host returned too many grant refs: %u\n",
-			 resp_mmap->grant_ref_count);
+			 "host returned too many backend entries: %u\n",
+			 resp_mmap->num_pages);
 		ret = -EINVAL;
 		goto err_free_coherent;
 	}
 
-	gmap = kzalloc(sizeof(*gmap), GFP_KERNEL);
-	if (!gmap) {
+	map = kzalloc(sizeof(*map), GFP_KERNEL);
+	if (!map) {
 		ret = -ENOMEM;
 		goto err_free_coherent;
 	}
 
-	gmap->grant_ref_header = resp_mmap->grant_ref_header;
-	gmap->grant_ref_count = resp_mmap->grant_ref_count;
-	gmap->len = resp_mmap->len;
-	memcpy(gmap->uuid, resp_mmap->uuid, sizeof(gmap->uuid));
-	gmap->v4l2_offset = offset;
-	gmap->type = type;
-	gmap->index = index;
-	gmap->plane = plane;
-	/* Held by the owning queue while linked into its grant_maps list. */
-	refcount_set(&gmap->refs, 1);
-
-	gmap->pages = kcalloc(gmap->grant_ref_count, sizeof(struct page *),
-			      GFP_KERNEL);
-	if (!gmap->pages) {
-		ret = -ENOMEM;
-		goto err_free_gmap;
-	}
+	map->map_handle = resp_mmap->map_handle;
+	map->num_pages = resp_mmap->num_pages;
+	map->len = resp_mmap->len;
+	memcpy(map->uuid, resp_mmap->uuid, sizeof(map->uuid));
+	map->v4l2_offset = offset;
+	map->type = type;
+	map->index = index;
+	map->plane = plane;
+	/* Held by the owning queue while linked into its host_mappings list. */
+	refcount_set(&map->refs, 1);
 
 	/*
-	 * Allocate empty, balloon-backed pages to be filled in with the
-	 * foreign frames granted by the host via gnttab_map_refs(). This is
-	 * the correct pairing for mapping foreign grant refs (do NOT use
-	 * gnttab_dma_alloc_pages(), which allocates local DMA-able backing
-	 * storage for the grantor side and returns non-cacheable coherent
-	 * memory that faults on DC ZVA when zeroed).
+	 * Hand the returned references to the memory backend, which allocates
+	 * the backing pages and makes the host buffer accessible (e.g. maps
+	 * the backend entries). Backend-private state is stored in map->priv.
 	 */
-	ret = gnttab_alloc_pages(gmap->grant_ref_count, gmap->pages);
-	if (ret) {
-		v4l2_err(&vv->v4l2_dev, "gnttab_alloc_pages failed: %d\n",
-			 ret);
-		goto err_free_pages_array;
-	}
+	ret = vv->mem_ops->map_create(vv, map,
+				      wants_entries ? entries : NULL,
+				      wants_entries ? map->num_pages : 0,
+				      rw);
+	if (ret)
+		goto err_free_map;
 
-	gmap->map_ops = kcalloc(gmap->grant_ref_count,
-				sizeof(struct gnttab_map_grant_ref),
-				GFP_KERNEL);
-	if (!gmap->map_ops) {
-		ret = -ENOMEM;
-		goto err_free_grant_pages;
-	}
-
-	gmap->unmap_ops = kcalloc(gmap->grant_ref_count,
-				  sizeof(struct gnttab_unmap_grant_ref),
-				  GFP_KERNEL);
-	if (!gmap->unmap_ops) {
-		ret = -ENOMEM;
-		goto err_free_map_ops;
-	}
-
-	for (i = 0; i < gmap->grant_ref_count; i++) {
-		unsigned long pfn = page_to_pfn(gmap->pages[i]);
-
-		gnttab_set_map_op(&gmap->map_ops[i],
-				  (unsigned long)pfn_to_kaddr(pfn),
-				  GNTMAP_host_map | (rw ? 0 : GNTMAP_readonly),
-				  refs[i], 0 /* Dom0 */);
-		gnttab_set_unmap_op(&gmap->unmap_ops[i],
-				    (unsigned long)pfn_to_kaddr(pfn),
-				    GNTMAP_host_map | (rw ? 0 : GNTMAP_readonly),
-				    0 /* handle - filled after map */);
-	}
-
-	ret = gnttab_map_refs(gmap->map_ops, NULL, gmap->pages,
-			      gmap->grant_ref_count);
-	if (ret) {
-		v4l2_err(&vv->v4l2_dev, "gnttab_map_refs failed: %d\n", ret);
-		goto err_free_unmap_ops;
-	}
-
-	for (i = 0; i < gmap->grant_ref_count; i++) {
-		if (gmap->map_ops[i].status != GNTST_okay) {
-			v4l2_err(&vv->v4l2_dev,
-				 "grant map op %d failed: status %d\n", i,
-				 gmap->map_ops[i].status);
-			ret = -ENOMEM;
-			goto err_unmap_refs;
-		}
-		gmap->unmap_ops[i].handle = gmap->map_ops[i].handle;
-	}
-
-	list_add_tail(&gmap->list, &queue->grant_maps);
-	if (refs_coherent)
-		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
-				  refs_coherent_dma);
-	kfree(refs);
+	list_add_tail(&map->list, &queue->host_mappings);
+	if (entries_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, entries_size, entries_coherent,
+				  entries_coherent_dma);
+	kfree(entries);
 	return 0;
 
-err_unmap_refs:
-	gnttab_unmap_refs(gmap->unmap_ops, NULL, gmap->pages,
-			  gmap->grant_ref_count);
-err_free_unmap_ops:
-	kfree(gmap->unmap_ops);
-err_free_map_ops:
-	kfree(gmap->map_ops);
-err_free_grant_pages:
-	gnttab_free_pages(gmap->grant_ref_count, gmap->pages);
-err_free_pages_array:
-	kfree(gmap->pages);
-err_free_gmap:
-	kfree(gmap);
+err_free_map:
+	kfree(map);
 err_free_coherent:
-	if (refs_coherent)
-		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
-				  refs_coherent_dma);
+	if (entries_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, entries_size, entries_coherent,
+				  entries_coherent_dma);
 err_free_refs:
-	kfree(refs);
+	kfree(entries);
 end:
 	return ret;
 }
 
 /*
- * Create grant maps for every plane of a single MMAP buffer. Called from
+ * Create host mappings for every plane of a single MMAP buffer. Called from
  * QUERYBUF once the host has returned the per-plane mem_offsets. Idempotent.
  */
 int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
@@ -1496,7 +1435,7 @@ int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
 {
 	struct virtio_media_queue_state *queue;
 	struct virtio_media_buffer *buffer;
-	/* Grant the host RW access so it can fill CAPTURE and read OUTPUT. */
+	/* Give the host RW access so it can fill CAPTURE and read OUTPUT. */
 	bool rw = true;
 	int ret;
 
@@ -1516,14 +1455,14 @@ int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
 		if (num_planes > VIDEO_MAX_PLANES)
 			return -EINVAL;
 		for (plane = 0; plane < num_planes; plane++) {
-			ret = virtio_media_create_grant_map(
+			ret = virtio_media_create_host_mapping(
 				session, type, index, plane,
 				buffer->planes[plane].m.mem_offset, rw);
 			if (ret)
 				return ret;
 		}
 	} else {
-		ret = virtio_media_create_grant_map(session, type, index, 0,
+		ret = virtio_media_create_host_mapping(session, type, index, 0,
 						    buffer->buffer.m.offset, rw);
 		if (ret)
 			return ret;
@@ -1532,293 +1471,69 @@ int virtio_media_map_buffer(struct virtio_media_session *session, u32 type,
 	return 0;
 }
 
-/* Free all grant maps of a single queue (e.g. on REQBUFS(0)). */
-void virtio_media_free_queue_grant_maps(struct virtio_media_session *session,
+/* Free all host mappings of a single queue (e.g. on REQBUFS(0)). */
+void virtio_media_free_queue_host_mappings(struct virtio_media_session *session,
 					u32 type)
 {
 	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
-	struct virtio_media_grant_map *gmap, *tmp;
+	struct virtio_media_host_mapping *map, *tmp;
 
 	if (type > VIRTIO_MEDIA_LAST_QUEUE)
 		return;
 
 	/*
-	 * Caller must hold vv->vlock: it protects the grant_maps list we walk
+	 * Caller must hold vv->vlock: it protects the host_mappings list we walk
 	 * and unlink from here. The gmap_put() below is itself lock-free (it
-	 * only decrements the refcount and, on the last ref, queues the gmap
+	 * only decrements the refcount and, on the last ref, queues the map
 	 * for the release worker), so it is safe to call while holding vlock --
 	 * the worker takes vlock later, from its own context.
 	 */
 	lockdep_assert_held(&vv->vlock);
-	list_for_each_entry_safe(gmap, tmp, &session->queues[type].grant_maps,
+	list_for_each_entry_safe(map, tmp, &session->queues[type].host_mappings,
 				 list) {
 		/*
 		 * Unlink first, then drop the owning-queue reference. If a
 		 * dma-buf or userspace mmap of this buffer is still alive it
-		 * holds its own reference, so the grant references and pages
+		 * holds its own reference, so the backend entries and pages
 		 * survive (unmapped only once the last reference is dropped)
-		 * and Dom0 never sees an in-use grant entry being torn down.
+		 * and the host never sees an in-use backend entry being torn down.
 		 *
 		 * Unlinking here is what invalidates this buffer's identity: a
 		 * source change re-REQBUFS the queue and the host reuses the
 		 * same (index, mem_offset) for the new buffers. Because the old
-		 * gmap is off the grant_maps list, neither the QUERYBUF path
-		 * (virtio_media_find_grant_map by index) nor the mmap path
-		 * (virtio_media_find_grant_map_by_offset) can find it, so the
-		 * new buffer always gets a fresh gmap and a fresh MMAP command
-		 * (new grant refs) rather than aliasing the still-referenced
+		 * map is off the host_mappings list, neither the QUERYBUF path
+		 * (virtio_media_find_host_mapping by index) nor the mmap path
+		 * (virtio_media_find_host_mapping_by_offset) can find it, so the
+		 * new buffer always gets a fresh map and a fresh MMAP command
+		 * (new backend entries) rather than aliasing the still-referenced
 		 * old one. The host-side daemon must likewise not reuse its old
 		 * mmap entry for the reused offset (it marks it stale on
 		 * REQBUFS); the two sides together mirror vb2 removing the old
 		 * buffer from the queue while its memory is refcounted away.
 		 */
-		list_del(&gmap->list);
-		virtio_media_gmap_put(vv, gmap);
+		list_del(&map->list);
+		virtio_media_mapping_put(vv, map);
 	}
 }
 
-/* Free all grant maps of all queues (session close safety net). */
-void virtio_media_free_session_grant_maps(struct virtio_media_session *session)
+/* Free all host mappings of all queues (session close safety net). */
+void virtio_media_free_session_host_mappings(struct virtio_media_session *session)
 {
 	struct virtio_media *vv = to_virtio_media(session->fh.vdev);
 	int i;
 
 	/*
-	 * free_queue_grant_maps() requires vv->vlock to walk and unlink the
-	 * grant_maps lists; the close path does not already hold it, so take it
+	 * free_queue_host_mappings() requires vv->vlock to walk and unlink the
+	 * host_mappings lists; the close path does not already hold it, so take it
 	 * here. The teardown itself (MUNMAP) is done later by the release
 	 * worker; callers that need it completed before proceeding must
-	 * flush_work(&vv->gmap_release_work) afterwards (see
+	 * flush_work(&vv->mapping_release_work) afterwards (see
 	 * virtio_media_session_free()).
 	 */
 	mutex_lock(&vv->vlock);
 	for (i = 0; i <= VIRTIO_MEDIA_LAST_QUEUE; i++)
-		virtio_media_free_queue_grant_maps(session, i);
+		virtio_media_free_queue_host_mappings(session, i);
 	mutex_unlock(&vv->vlock);
-}
-
-/*
- * DMA-address encoding used by the Xen grant DMA ops (see
- * drivers/xen/grant-dma-ops.c grant_to_dma()/dma_to_grant()): the top bit
- * flags a grant-backed address and the grant reference sits in the page-number
- * field. These constants are private to grant-dma-ops.c and not exported, so
- * they are duplicated here; they are part of the Xen para-virtual ABI and only
- * change in lockstep with that file. Decoding must use XEN_PAGE_SHIFT (the
- * grant page size), which happens to equal PAGE_SHIFT on this 4K-page arm64
- * build but is not guaranteed to in general.
- */
-#define VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF (1ULL << 63)
-
-static grant_ref_t virtio_media_dma_to_grant(dma_addr_t dma)
-{
-	return (grant_ref_t)((dma & ~VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF) >>
-			     XEN_PAGE_SHIFT);
-}
-
-/*
- * dma-buf ops of buffers this driver exports via VIDIOC_EXPBUF; used to detect
- * (and reject) an attempt to re-import one of our own exported buffers. Defined
- * below with the EXPBUF implementation. The buffers are exported as
- * virtio-dma-bufs (host-object model: host pages + UUID), so their ops are
- * embedded in a struct virtio_dma_buf_ops.
- */
-static const struct virtio_dma_buf_ops virtio_media_dmabuf_ops;
-
-/**
- * virtio_media_import_decode_refs() - Collect the grant references backing an
- *	imported dma-buf, from the grant DMA ops' encoding of @sgt.
- * @imp: import whose mapped sg_table to decode.
- * @refs_out: on success, receives a kmalloc'ed array of grant references the
- *	caller must kfree().
- * @num_refs_out: on success, receives the number of references in @refs_out.
- *
- * Used when the virtio device's Xen grant DMA ops are active: each DMA address
- * in @sgt already carries the grant reference the grant DMA ops assigned to it
- * (top bit set, see virtio_media_dma_to_grant()). Walks @sgt and decodes each
- * DMA address into its run of references.
- *
- * Returns 0 on success or a negative error code.
- */
-static int
-virtio_media_import_decode_refs(struct virtio_media_dmabuf_import *imp,
-				grant_ref_t **refs_out, u32 *num_refs_out)
-{
-	struct scatterlist *sg;
-	grant_ref_t *refs;
-	u32 num_refs = 0;
-	unsigned int i;
-	u32 k = 0;
-
-	/* First pass: count grant references across the mapped sg_table. */
-	for_each_sgtable_dma_sg(imp->sgt, sg, i)
-		num_refs += gnttab_count_grant(sg_dma_address(sg),
-					       sg_dma_len(sg));
-
-	if (!num_refs)
-		return -EINVAL;
-
-	refs = kmalloc_array(num_refs, sizeof(*refs), GFP_KERNEL);
-	if (!refs)
-		return -ENOMEM;
-
-	/* Second pass: decode each DMA address into its run of grant refs. */
-	for_each_sgtable_dma_sg(imp->sgt, sg, i) {
-		dma_addr_t addr = sg_dma_address(sg);
-		grant_ref_t base = virtio_media_dma_to_grant(addr);
-		unsigned int n = gnttab_count_grant(addr, sg_dma_len(sg));
-		unsigned int j;
-
-		for (j = 0; j < n; j++)
-			refs[k++] = base + j;
-	}
-
-	*refs_out = refs;
-	*num_refs_out = num_refs;
-
-	return 0;
-}
-
-/**
- * virtio_media_import_manual_grant() - Grant foreign access to an imported
- *	dma-buf's pages by hand.
- * @vv: virtio-media device in use.
- * @imp: import whose mapped sg_table to grant. On success, @imp->manual_grant,
- *	@imp->grant_ref_head and @imp->grant_ref_count are filled in.
- * @refs_out: on success, receives a kmalloc'ed array of grant references the
- *	caller must kfree().
- * @num_refs_out: on success, receives the number of references in @refs_out.
- *
- * Used when the virtio device's Xen grant DMA ops are NOT active, so the DMA
- * addresses in @sgt are plain guest-physical addresses rather than encoded
- * grant references. Allocates one contiguous grant-reference sequence covering
- * all pages of @sgt and grants the backend's domain foreign access to each
- * page, mirroring what the grant DMA ops would have done. The references must
- * be ended (see virtio_media_import_end_grant()) at teardown.
- *
- * Returns 0 on success or a negative error code.
- */
-static int
-virtio_media_import_manual_grant(struct virtio_media *vv,
-				 struct virtio_media_dmabuf_import *imp,
-				 grant_ref_t **refs_out, u32 *num_refs_out)
-{
-	/*
-	 * The backend always runs in Dom0 on this platform, so grant foreign
-	 * access to domid 0. If virtio-media is ever served from a non-Dom0
-	 * backend this must instead come from the device's backend domid.
-	 */
-	domid_t backend_domid = 0;
-	struct scatterlist *sg;
-	grant_ref_t head;
-	grant_ref_t *refs;
-	u32 num_refs = 0;
-	unsigned int i;
-	u32 k = 0;
-	int ret;
-
-	/* First pass: count the pages we must grant across the sg_table. */
-	for_each_sgtable_dma_sg(imp->sgt, sg, i)
-		num_refs += gnttab_count_grant(sg_dma_address(sg),
-					       sg_dma_len(sg));
-
-	if (!num_refs)
-		return -EINVAL;
-
-	refs = kmalloc_array(num_refs, sizeof(*refs), GFP_KERNEL);
-	if (!refs)
-		return -ENOMEM;
-
-	ret = gnttab_alloc_grant_reference_seq(num_refs, &head);
-	if (ret) {
-		v4l2_err(&vv->v4l2_dev,
-			 "failed to allocate %u grant references: %d\n",
-			 num_refs, ret);
-		kfree(refs);
-		return ret;
-	}
-
-	/* Second pass: grant foreign access to each page, in sequence. */
-	for_each_sgtable_dma_sg(imp->sgt, sg, i) {
-		unsigned long gfn = sg_dma_address(sg) >> XEN_PAGE_SHIFT;
-		unsigned int n = gnttab_count_grant(sg_dma_address(sg),
-						    sg_dma_len(sg));
-		unsigned int j;
-
-		for (j = 0; j < n; j++, k++) {
-			gnttab_grant_foreign_access_ref(head + k, backend_domid,
-							gfn + j, 0);
-			refs[k] = head + k;
-		}
-	}
-
-	imp->manual_grant = true;
-	imp->grant_ref_head = head;
-	imp->grant_ref_count = num_refs;
-
-	*refs_out = refs;
-	*num_refs_out = num_refs;
-
-	return 0;
-}
-
-/**
- * virtio_media_import_end_grant() - End foreign access granted by hand.
- * @imp: import previously granted by virtio_media_import_manual_grant().
- *
- * Ends foreign access on each reference and frees the sequence. No-op unless
- * @imp->manual_grant. Must be called after the backend has dropped its
- * reference to the backing (i.e. after DMABUF_DETACH), otherwise Xen refuses
- * to end a grant still in use.
- */
-static void
-virtio_media_import_end_grant(struct virtio_media_dmabuf_import *imp)
-{
-	u32 i;
-
-	if (!imp->manual_grant)
-		return;
-
-	for (i = 0; i < imp->grant_ref_count; i++)
-		gnttab_end_foreign_access_ref(imp->grant_ref_head + i);
-
-	gnttab_free_grant_reference_seq(imp->grant_ref_head,
-					imp->grant_ref_count);
-	imp->manual_grant = false;
-}
-
-/**
- * virtio_media_import_get_refs() - Obtain the grant references backing an
- *	imported dma-buf, whichever grant path applies.
- * @vv: virtio-media device in use.
- * @imp: import whose mapped sg_table to grant/decode.
- * @refs_out: on success, receives a kmalloc'ed array the caller must kfree().
- * @num_refs_out: on success, receives the number of references.
- *
- * Detects whether the Xen grant DMA ops are active by inspecting the top bit
- * of the first DMA address (set only when the grant DMA ops encoded a grant
- * reference there, see virtio_media_dma_to_grant()). If set, the references
- * are decoded from @sgt; otherwise foreign access is granted by hand.
- *
- * Returns 0 on success or a negative error code.
- */
-static int
-virtio_media_import_get_refs(struct virtio_media *vv,
-			     struct virtio_media_dmabuf_import *imp,
-			     grant_ref_t **refs_out, u32 *num_refs_out)
-{
-	dma_addr_t first;
-
-	if (!imp->sgt || !imp->sgt->sgl)
-		return -EINVAL;
-
-	first = sg_dma_address(imp->sgt->sgl);
-
-	if (first & VIRTIO_MEDIA_XEN_GRANT_DMA_ADDR_OFF)
-		return virtio_media_import_decode_refs(imp, refs_out,
-						       num_refs_out);
-
-	return virtio_media_import_manual_grant(vv, imp, refs_out,
-						num_refs_out);
 }
 
 /**
@@ -1827,27 +1542,27 @@ virtio_media_import_get_refs(struct virtio_media *vv,
  * @vv: virtio-media device in use.
  * @session_id: session the backing belongs to.
  * @resource_id: id the backend should remember this backing under.
- * @refs: grant references of the imported dma-buf's pages.
- * @num_refs: number of references in @refs.
+ * @entries: backend entries of the imported dma-buf's pages.
+ * @num_entries: number of references in @entries.
  *
- * Sends VIRTIO_MEDIA_CMD_DMABUF_ATTACH with the grant references appended in
+ * Sends VIRTIO_MEDIA_CMD_DMABUF_ATTACH with the backend entries appended in
  * the device-readable part of the chain. Caller must hold vv->vlock.
  *
  * Returns 0 on success or a negative error code.
  */
 static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
 					   u32 session_id, u32 resource_id,
-					   const grant_ref_t *refs,
-					   u32 num_refs)
+					   const u32 *entries,
+					   u32 num_entries)
 {
 	struct virtio_media_cmd_dmabuf_attach *cmd = &vv->cmd.attach;
 	struct virtio_media_resp_dmabuf_attach *resp = &vv->resp.attach;
-	struct scatterlist cmd_sg = {}, refs_sg = {}, resp_sg = {};
-	struct scatterlist *sgs[3] = { &cmd_sg, &refs_sg, &resp_sg };
-	size_t refs_size = (size_t)num_refs * sizeof(*refs);
+	struct scatterlist cmd_sg = {}, entries_sg = {}, resp_sg = {};
+	struct scatterlist *sgs[3] = { &cmd_sg, &entries_sg, &resp_sg };
+	size_t entries_size = (size_t)num_entries * sizeof(*entries);
 	struct virtio_media_coherent_cmd cc;
-	void *refs_coherent = NULL;
-	dma_addr_t refs_coherent_dma = 0;
+	void *entries_coherent = NULL;
+	dma_addr_t entries_coherent_dma = 0;
 	int ret;
 
 	lockdep_assert_held(&vv->vlock);
@@ -1856,21 +1571,21 @@ static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
 	cmd->hdr.__reserved = 0;
 	cmd->session_id = session_id;
 	cmd->resource_id = resource_id;
-	cmd->num_refs = num_refs;
+	cmd->num_entries = num_entries;
 	cmd->__reserved = 0;
 
 	if (vv->use_coherent) {
 		/*
-		 * The refs array can be larger than the shared ctrl_cmd
+		 * The entries array can be larger than the shared ctrl_cmd
 		 * buffer, so give it its own coherent allocation the device
-		 * can read through its foreign mapping.
+		 * can read through its host mapping.
 		 */
-		refs_coherent = dma_alloc_coherent(vv->cmd_dma_dev, refs_size,
-						   &refs_coherent_dma,
+		entries_coherent = dma_alloc_coherent(vv->cmd_dma_dev, entries_size,
+						   &entries_coherent_dma,
 						   GFP_KERNEL);
-		if (!refs_coherent)
+		if (!entries_coherent)
 			return -ENOMEM;
-		memcpy(refs_coherent, refs, refs_size);
+		memcpy(entries_coherent, entries, entries_size);
 
 		virtio_media_coherent_cmd_init(&cc, vv);
 		ret = virtio_media_coherent_add_out(&cc, &cmd_sg, cmd,
@@ -1878,10 +1593,10 @@ static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
 		if (ret)
 			goto err_free_coherent;
 
-		sg_init_table(&refs_sg, 1);
-		sg_set_buf(&refs_sg, refs_coherent, refs_size);
-		sg_dma_address(&refs_sg) = refs_coherent_dma;
-		sg_dma_len(&refs_sg) = refs_size;
+		sg_init_table(&entries_sg, 1);
+		sg_set_buf(&entries_sg, entries_coherent, entries_size);
+		sg_dma_address(&entries_sg) = entries_coherent_dma;
+		sg_dma_len(&entries_sg) = entries_size;
 
 		ret = virtio_media_coherent_add_in(&cc, &resp_sg, resp,
 						   sizeof(*resp));
@@ -1890,8 +1605,8 @@ static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
 	} else {
 		sg_set_buf(&cmd_sg, cmd, sizeof(*cmd));
 		sg_mark_end(&cmd_sg);
-		sg_set_buf(&refs_sg, (void *)refs, refs_size);
-		sg_mark_end(&refs_sg);
+		sg_set_buf(&entries_sg, (void *)entries, entries_size);
+		sg_mark_end(&entries_sg);
 		sg_set_buf(&resp_sg, resp, sizeof(*resp));
 		sg_mark_end(&resp_sg);
 	}
@@ -1902,9 +1617,9 @@ static int virtio_media_send_dmabuf_attach(struct virtio_media *vv,
 		virtio_media_coherent_retrieve(&cc);
 
 err_free_coherent:
-	if (refs_coherent)
-		dma_free_coherent(vv->cmd_dma_dev, refs_size, refs_coherent,
-				  refs_coherent_dma);
+	if (entries_coherent)
+		dma_free_coherent(vv->cmd_dma_dev, entries_size, entries_coherent,
+				  entries_coherent_dma);
 	return ret;
 }
 
@@ -1916,7 +1631,7 @@ err_free_coherent:
  * @resource_id: id of the backing to detach.
  *
  * Sends VIRTIO_MEDIA_CMD_DMABUF_DETACH so the backend releases the local
- * dma-buf it exported, letting us then end the foreign grants. Caller must
+ * dma-buf it exported, letting us then release the shared backing. Caller must
  * hold vv->vlock.
  */
 static void virtio_media_send_dmabuf_detach(struct virtio_media *vv,
@@ -2005,24 +1720,23 @@ static void virtio_media_resource_id_put(struct virtio_media *vv,
  * @fd: dma-buf file descriptor passed by userspace.
  *
  * Resolves @fd to a dma-buf, attaches it to the virtio device and maps it.
- * Because virtio devices use the Xen grant DMA ops here, mapping grants the
- * dma-buf's pages to the backend's domain and encodes the grant references in
- * the mapped sg_table. Those references are decoded and sent to the backend
+ * The memory backend produces the backing entries describing the mapped
+ * sg_table (see import_get_entries). Those entries are sent to the backend
  * with DMABUF_ATTACH under a freshly allocated resource id, which the backend
  * uses to reconstruct the dma-buf on its side.
  *
- * Only dma-bufs backed by real guest pages are grant-imported here
+ * Only dma-bufs backed by real guest pages take this path
  * (guest-pages model). Two other kinds are handled specially:
  *
  *   - virtio exported-objects carrying a shared-object UUID (identified by
- *     is_virtio_dma_buf()): these have no guest pages to grant. This is the
+ *     is_virtio_dma_buf()): these have no guest pages to share. This is the
  *     host-object consumer path - the backend already knows the buffer under
  *     that UUID, so we record the UUID and hold a reference rather than
- *     granting. A dma-buf this virtio-media instance exported itself via
+ *     sharing backing. A dma-buf this virtio-media instance exported itself via
  *     VIDIOC_EXPBUF also lands here (its virtio_media_dmabuf_ops make
  *     is_virtio_dma_buf() true); it is legitimate as long as the backend
  *     registered a non-zero UUID for it. An all-zero UUID means no backend
- *     registration exists (see the protocol note in protocol.h): such a
+ *     registration exists (see the protocol note in virtio_media.h): such a
  *     buffer cannot be resolved by the backend, so it is rejected with
  *     -EINVAL rather than queued with an unusable all-zero footer.
  *
@@ -2038,8 +1752,8 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 	struct dma_buf_attachment *attach;
 	struct sg_table *sgt;
 	struct dma_buf *dmabuf;
-	grant_ref_t *refs = NULL;
-	u32 num_refs = 0;
+	u32 *entries = NULL;
+	u32 num_entries = 0;
 	u32 resource_id;
 	int ret;
 
@@ -2053,11 +1767,11 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 	 * dma-bufs exported by a virtio device carry a shared-object UUID and
 	 * no guest pages. This is the host-object consumer path: the buffer is
 	 * a host-owned dma-buf the backend already knows under that UUID, only
-	 * wrapped into a virtio-dma-buf on the guest. Rather than grant
+	 * wrapped into a virtio-dma-buf on the guest. Rather than share
 	 * anything, we record the UUID and hold a reference on the dma-buf (the
 	 * guest-side alpha refcount); every QBUF/PREPARE_BUF then carries the
 	 * UUID so the backend resolves it to its own dma-buf fd for the real
-	 * device. No attach, no sgt, no grants, no resource id.
+	 * device. No attach, no sgt, no backing entries, no resource id.
 	 */
 	if (is_virtio_dma_buf(dmabuf)) {
 		uuid_t uuid;
@@ -2070,7 +1784,7 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 
 		/*
 		 * An all-zero UUID means the backend never registered this
-		 * buffer as a shared object (protocol.h). It cannot be resolved
+		 * buffer as a shared object (virtio_media.h). It cannot be resolved
 		 * on the host, so reject it rather than queue an unusable
 		 * all-zero footer.
 		 */
@@ -2114,7 +1828,7 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 	imp->attach = attach;
 	imp->sgt = sgt;
 
-	ret = virtio_media_import_get_refs(vv, imp, &refs, &num_refs);
+	ret = vv->mem_ops->import_get_entries(vv, imp, &entries, &num_entries);
 	if (ret)
 		goto err_unmap;
 
@@ -2125,14 +1839,14 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 	 */
 	ret = virtio_media_resource_id_get(vv, &resource_id);
 	if (ret) {
-		kfree(refs);
-		goto err_end_grant;
+		kfree(entries);
+		goto err_put_entries;
 	}
 	imp->resource_id = resource_id;
 
 	ret = virtio_media_send_dmabuf_attach(vv, session->id, resource_id,
-					      refs, num_refs);
-	kfree(refs);
+					      entries, num_entries);
+	kfree(entries);
 	if (ret)
 		goto err_put_id;
 
@@ -2140,13 +1854,12 @@ virtio_media_dmabuf_import_alloc(struct virtio_media_session *session, int fd)
 
 err_put_id:
 	virtio_media_resource_id_put(vv, resource_id);
-err_end_grant:
+err_put_entries:
 	/*
 	 * The backend never attached (ATTACH not sent, or it failed), so no
-	 * one holds a reference to the grants; ending foreign access now is
-	 * safe. No-op unless we granted by hand.
+	 * one holds a reference to the backing; releasing it now is safe.
 	 */
-	virtio_media_import_end_grant(imp);
+	vv->mem_ops->import_put_entries(imp);
 err_unmap:
 	dma_buf_unmap_attachment_unlocked(attach, sgt, DMA_BIDIRECTIONAL);
 err_detach:
@@ -2160,7 +1873,7 @@ err_put:
 
 /*
  * Tear down a single dma-buf import: tell the backend to detach the backing
- * (so it drops the local dma-buf it exported), then end the foreign grants by
+ * (so it drops the local dma-buf it exported), then release the backing by
  * unmapping, detach and drop our reference. Caller must hold vv->vlock.
  */
 static void
@@ -2170,7 +1883,7 @@ virtio_media_dmabuf_import_free(struct virtio_media *vv, u32 session_id,
 	lockdep_assert_held(&vv->vlock);
 
 	/*
-	 * A host-object (UUID-backed) import holds no attach/sgt/grants and no
+	 * A host-object (UUID-backed) import holds no attach/sgt/backing and no
 	 * backend resource id: the backing is a host-owned dma-buf the backend
 	 * already knows under the UUID. Tearing it down is just dropping our
 	 * reference on the imported virtio-dma-buf (the guest-side alpha
@@ -2185,9 +1898,8 @@ virtio_media_dmabuf_import_free(struct virtio_media *vv, u32 session_id,
 
 	/*
 	 * DETACH first so the backend closes its exported dma-buf and drops
-	 * its reference to the grants; only then is it safe to unmap (end
-	 * foreign access), otherwise Xen would refuse to end a grant still in
-	 * use.
+	 * its reference to the backing; only then is it safe to unmap and
+	 * release the backing, otherwise the backend could still be using it.
 	 */
 	virtio_media_send_dmabuf_detach(vv, session_id, imp->resource_id);
 
@@ -2199,11 +1911,10 @@ virtio_media_dmabuf_import_free(struct virtio_media *vv, u32 session_id,
 	virtio_media_resource_id_put(vv, imp->resource_id);
 
 	/*
-	 * End any foreign access we granted by hand, now that the backend has
-	 * detached (no-op when the grant DMA ops did the granting, in which
-	 * case unmapping below ends it). Must precede the unmap/detach.
+	 * Release the backing now that the backend has detached. Backend-
+	 * private; must precede the unmap/detach below.
 	 */
-	virtio_media_import_end_grant(imp);
+	vv->mem_ops->import_put_entries(imp);
 
 	dma_buf_unmap_attachment_unlocked(imp->attach, imp->sgt,
 					  DMA_BIDIRECTIONAL);
@@ -2249,7 +1960,7 @@ virtio_media_find_dmabuf_import(struct virtio_media_queue_state *queue,
  * The plane binding is a non-owning pointer: the import stays attached for the
  * queue's whole REQBUFS lifetime and is torn down only when the queue's imports
  * are freed (see virtio_media_free_queue_dmabuf_imports()), never on rebind, so
- * we do not end grants the backend may still be using while streaming. Caller
+ * we do not release backing the backend may still be using while streaming. Caller
  * must hold vv->vlock.
  *
  * Returns 0 on success or a negative error code (the slot is left bound to its
@@ -2500,18 +2211,18 @@ void virtio_media_dmabuf_restore_resource_ids(struct v4l2_buffer *b,
  * @footers: caller storage (VIDEO_MAX_PLANES entries) filled on a host-object
  *	buffer, one footer per plane.
  * @n_out: receives the number of footers written: >0 for a host-object
- *	(UUID-backed) buffer, 0 for a guest-pages (grant-imported) or
+ *	(UUID-backed) buffer, 0 for a guest-pages (guest-pages) or
  *	non-DMABUF buffer (which use resource ids in m.fd instead, see
  *	virtio_media_dmabuf_substitute_resource_ids()).
  *
  * A buffer's planes are either all UUID-backed (host-object) or all
- * grant-imported (guest-pages); mixing is a queueing bug. For a host-object
+ * guest-pages (guest-pages); mixing is a queueing bug. For a host-object
  * buffer, fills @footers with each plane's UUID (from its bound import) so the
  * caller can append them to the command's device-readable chain. Caller must
  * hold vv->vlock.
  *
  * Returns 0 on success (with *@n_out set), or -EINVAL if a plane has no bound
- * import or the buffer mixes UUID-backed and grant-imported planes.
+ * import or the buffer mixes UUID-backed and guest-pages planes.
  */
 int virtio_media_dmabuf_collect_uuids(struct virtio_media_session *session,
 				      struct v4l2_buffer *b,
@@ -2556,7 +2267,7 @@ int virtio_media_dmabuf_collect_uuids(struct virtio_media_session *session,
 			return -EINVAL;
 	}
 
-	/* Guest-pages (grant-imported): no UUID footers, m.fd carries resource ids. */
+	/* Guest-pages (guest-pages): no UUID footers, m.fd carries resource ids. */
 	if (!buffer->dmabuf_bindings[0]->uuid_backed)
 		return 0;
 
@@ -2580,11 +2291,11 @@ int virtio_media_dmabuf_collect_uuids(struct virtio_media_session *session,
  * @session: session owning the queue.
  * @type: v4l2 buffer type (selects the queue).
  *
- * Tears down (DMABUF_DETACH + end grants + unmap + detach) every import owned
- * by the queue and clears the non-owning plane bindings that pointed at them.
- * Must be called only once the backend can no longer be using the grants
+ * Tears down (DMABUF_DETACH + release backing + unmap + detach) every import
+ * owned by the queue and clears the non-owning plane bindings that pointed at
+ * them. Must be called only once the backend can no longer be using the backing
  * (REQBUFS on this queue or session close, both of which the backend has
- * quiesced): unmapping a grant still in use would make Xen refuse to end it.
+ * quiesced): unmapping backing still in use could corrupt the host's view.
  * Caller must hold vv->vlock.
  */
 void virtio_media_free_queue_dmabuf_imports(struct virtio_media_session *session,
@@ -2636,433 +2347,26 @@ void virtio_media_free_session_dmabuf_imports(
 }
 
 
-/**
- * struct virtio_media_vma_handler - refcount handler for a mmapped grant map.
- * @vv: virtio-media device the mapping belongs to.
- * @gmap: grant map backing this VMA.
- * @refs: number of VMAs currently sharing this handler. Governs only the
- *	lifetime of the handler allocation itself; each of those VMAs also
- *	holds one reference on @gmap (so @refs equals this handler's
- *	contribution to gmap->refs, but the two counts are tracked separately
- *	to keep their responsibilities distinct: @refs frees the handler,
- *	gmap->refs frees the grant map).
- *
- * Stored in vma->vm_private_data so that fork()/partial-unmap of a userspace
- * mapping of a MMAP buffer keeps the grant map alive for exactly as long as
- * any VMA references it, mirroring vb2_common_vm_ops.
- */
-struct virtio_media_vma_handler {
-	struct virtio_media *vv;
-	struct virtio_media_grant_map *gmap;
-	refcount_t refs;
-};
-
-static void virtio_media_vm_open(struct vm_area_struct *vma)
-{
-	struct virtio_media_vma_handler *h = vma->vm_private_data;
-
-	/*
-	 * A new VMA (e.g. from fork() or a VMA split) now shares this handler
-	 * and references the same grant map. Take a grant-map reference so the
-	 * buffer's grant refs and pages outlive every userspace mapping, and a
-	 * handler reference so the handler outlives every VMA using it.
-	 */
-	refcount_inc(&h->refs);
-	virtio_media_gmap_get(h->gmap);
-}
-
-static void virtio_media_vm_close(struct vm_area_struct *vma)
-{
-	struct virtio_media_vma_handler *h = vma->vm_private_data;
-	struct virtio_media *vv = h->vv;
-	struct virtio_media_grant_map *gmap = h->gmap;
-
-	/*
-	 * Drop this VMA's grant-map reference, then its handler reference.
-	 * Read h->vv/h->gmap into locals first: once the handler reference is
-	 * dropped below h may be freed, so it must not be dereferenced after.
-	 *
-	 * vm_close() runs under mmap_lock, but virtio_media_gmap_put() is
-	 * lock-free and never tears the gmap down inline (the MUNMAP, which
-	 * sleeps waiting for the host, is deferred to the release worker), so
-	 * it is safe to call here without stalling the address space or
-	 * risking an mmap_lock -> vlock deadlock.
-	 */
-	virtio_media_gmap_put(vv, gmap);
-	if (refcount_dec_and_test(&h->refs))
-		kfree(h);
-}
-
-static const struct vm_operations_struct virtio_media_vm_ops = {
-	.open = virtio_media_vm_open,
-	.close = virtio_media_vm_close,
-};
-
-/**
- * virtio_media_device_mmap - Perform a mmap request from userspace.
- * @file: opened file of the session to map for.
- * @vma: VM area struct describing the desired mapping.
- *
- * This requests the host to map a MMAP buffer using Xen grant references,
- * then maps the grant-backed pages into user-space address space.
+/*
+ * mmap and EXPBUF are memory-backend specific (they hand out the backend's
+ * backing pages), so dispatch them to the active backend. A backend that has
+ * no user-mappable pages (e.g. a shm-region backend) may leave these NULL.
  */
 static int virtio_media_device_mmap(struct file *file,
 				    struct vm_area_struct *vma)
 {
-	struct video_device *video_dev = video_devdata(file);
-	struct virtio_media *vv = to_virtio_media(video_dev);
-	struct virtio_media_session *session =
-		fh_to_session(file->private_data);
-	struct virtio_media_grant_map *gmap;
-	struct virtio_media_vma_handler *handler;
-	unsigned long addr;
-	u32 offset;
-	int i, ret;
+	struct virtio_media *vv = to_virtio_media(video_devdata(file));
 
-	if (!(vma->vm_flags & VM_SHARED))
-		return -EINVAL;
-	if (!(vma->vm_flags & (VM_READ | VM_WRITE)))
-		return -EINVAL;
-
-	offset = vma->vm_pgoff << PAGE_SHIFT;
-
-	/*
-	 * The grant map for this buffer must already exist: it is created at
-	 * QUERYBUF time. We only map the already grant-mapped pages into the
-	 * userspace VMA here.
-	 *
-	 * Hold vv->vlock across the whole mapping: it is the lock that
-	 * serialises grant map creation/destruction (QUERYBUF, REQBUFS via
-	 * virtio_media_free_queue_grant_maps(), session close). Without it a
-	 * concurrent REQBUFS could free @gmap and its pages while we walk the
-	 * list and dereference gmap->pages here, causing a use-after-free. The
-	 * inner queues_lock keeps the ordering consistent with expbuf
-	 * (vv->vlock -> queues_lock) and guards the grant_maps list walk.
-	 */
-	mutex_lock(&vv->vlock);
-	mutex_lock(&session->queues_lock);
-	gmap = virtio_media_find_grant_map_by_offset(session, offset);
-	if (!gmap) {
-		dev_dbg(&video_dev->dev,
-			"mmap for offset 0x%x with no grant map (QUERYBUF first?)\n",
-			offset);
-		ret = -EINVAL;
-		goto unlock;
-	}
-
-	/* We cannot let the mapping be larger than the buffer. */
-	if (vma->vm_end - vma->vm_start > PAGE_ALIGN(gmap->len)) {
-		dev_dbg(&video_dev->dev,
-			"invalid MMAP, as it would overflow buffer length\n");
-		ret = -EINVAL;
-		goto unlock;
-	}
-
-	/*
-	 * The grant-mapped pages are real struct pages obtained from
-	 * gnttab_alloc_pages(), so insert them individually with
-	 * vm_insert_page(). This keeps the pages properly refcounted and
-	 * turns the VMA into a VM_MIXEDMAP mapping, avoiding the COW
-	 * (do_wp_page) path that a VM_PFNMAP mapping via remap_pfn_range()
-	 * would otherwise trigger on the first write.
-	 */
-	vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
-
-	addr = vma->vm_start;
-	for (i = 0; i < gmap->grant_ref_count && addr < vma->vm_end; i++) {
-		ret = vm_insert_page(vma, addr, gmap->pages[i]);
-		if (ret) {
-			dev_err(&video_dev->dev,
-				"vm_insert_page failed at page %d: %d\n", i,
-				ret);
-			goto unlock;
-		}
-		addr += PAGE_SIZE;
-	}
-
-	/*
-	 * Track this userspace mapping with a refcount on the grant map, the
-	 * same way vb2_common_vm_ops tracks vb2 buffer mmaps. Without this a
-	 * REQBUFS (source change) that releases the queue's own reference would
-	 * free the grant map -- unmapping the grant refs and telling the host
-	 * to release the buffer -- while the mapping is still live in
-	 * userspace, so Dom0 would log "g.e. 0x... still in use!". Holding a
-	 * reference here keeps the grant refs and pages mapped until the last
-	 * VMA is torn down (virtio_media_vm_close()).
-	 *
-	 * Set vma->vm_ops only after every page is inserted: if we bailed out
-	 * above, the mapping is torn down by the caller without a close()
-	 * callback and no reference has been taken, so there is nothing to
-	 * unwind.
-	 */
-	handler = kzalloc(sizeof(*handler), GFP_KERNEL);
-	if (!handler) {
-		ret = -ENOMEM;
-		goto unlock;
-	}
-	handler->vv = vv;
-	handler->gmap = gmap;
-	refcount_set(&handler->refs, 1);
-	virtio_media_gmap_get(gmap);
-	vma->vm_ops = &virtio_media_vm_ops;
-	vma->vm_private_data = handler;
-
-	ret = 0;
-unlock:
-	mutex_unlock(&session->queues_lock);
-	mutex_unlock(&vv->vlock);
-	return ret;
+	return vv->mem_ops->mmap ? vv->mem_ops->mmap(file, vma) : -ENODEV;
 }
-
-
-
-/* dma-buf exporter for VIDIOC_EXPBUF support */
-
-struct virtio_media_dmabuf_priv {
-	struct file *file;
-	struct virtio_media *vv;
-	struct virtio_media_grant_map *gmap;
-	struct page **pages;
-	unsigned int num_pages;
-};
-
-static struct sg_table *virtio_media_dmabuf_map(struct dma_buf_attachment *attach,
-						enum dma_data_direction dir)
-{
-	struct virtio_media_dmabuf_priv *priv = attach->dmabuf->priv;
-	struct sg_table *sgt;
-	int ret;
-
-	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
-	if (!sgt)
-		return ERR_PTR(-ENOMEM);
-
-	ret = sg_alloc_table_from_pages(sgt, priv->pages, priv->num_pages,
-					0, (unsigned long)priv->num_pages * PAGE_SIZE,
-					GFP_KERNEL);
-	if (ret) {
-		kfree(sgt);
-		return ERR_PTR(ret);
-	}
-
-	/*
-	 * priv->pages come from gnttab_alloc_pages(): they are Xen grant pages
-	 * backing a buffer physically owned by the Dom0 backend. On arm64 Xen
-	 * DomU these pages are not in the kernel linear map, so page_to_virt()
-	 * on them is invalid. A regular dma_map_sgtable() would have the
-	 * DMA-direct layer call arch_sync_dma_for_device() ->
-	 * dcache_clean_poc() on that bogus virtual address and take a ttbr
-	 * address size fault. Skip the CPU cache maintenance: the buffer is
-	 * shared coherently through the grant/virtio path and cache management
-	 * for the real device happens on the Dom0 side.
-	 */
-	if (dma_map_sgtable(attach->dev, sgt, dir, DMA_ATTR_SKIP_CPU_SYNC)) {
-		sg_free_table(sgt);
-		kfree(sgt);
-		return ERR_PTR(-ENOMEM);
-	}
-
-	return sgt;
-}
-
-static void virtio_media_dmabuf_unmap(struct dma_buf_attachment *attach,
-				      struct sg_table *sgt,
-				      enum dma_data_direction dir)
-{
-	dma_unmap_sgtable(attach->dev, sgt, dir, DMA_ATTR_SKIP_CPU_SYNC);
-	sg_free_table(sgt);
-	kfree(sgt);
-}
-
-static void virtio_media_dmabuf_release(struct dma_buf *buf)
-{
-	struct virtio_media_dmabuf_priv *priv = buf->priv;
-
-	/*
-	 * Drop this dma-buf's reference on the grant map. The grant map is torn
-	 * down (grant refs unmapped, host told to release the buffer via MUNMAP
-	 * and pages freed) only once its refcount reaches zero, i.e. after the
-	 * owning queue released its reference (REQBUFS / session close) AND
-	 * every userspace mapping of this dma-buf has been torn down (each holds
-	 * its own reference via virtio_media_vm_ops). Holding a reference until
-	 * here guarantees the grant pages outlive every mapping of this dma-buf.
-	 */
-	virtio_media_gmap_put(priv->vv, priv->gmap);
-
-	/*
-	 * Drop the reference on the session's open file taken in
-	 * virtio_media_expbuf().
-	 */
-	fput(priv->file);
-	kfree(priv);
-}
-
-static int virtio_media_dmabuf_mmap(struct dma_buf *buf,
-				    struct vm_area_struct *vma)
-{
-	struct virtio_media_dmabuf_priv *priv = buf->priv;
-	struct virtio_media_vma_handler *handler;
-	unsigned long addr = vma->vm_start;
-	int i, ret;
-
-	/*
-	 * Same rationale as virtio_media_device_mmap(): the pages are real
-	 * struct pages from gnttab_alloc_pages(), so insert them with
-	 * vm_insert_page() to keep them refcounted and avoid the COW
-	 * (do_wp_page) path that a VM_PFNMAP mapping would trigger on write.
-	 */
-	vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
-
-	for (i = 0; i < priv->num_pages && addr < vma->vm_end; i++) {
-		ret = vm_insert_page(vma, addr, priv->pages[i]);
-		if (ret)
-			return ret;
-		addr += PAGE_SIZE;
-	}
-
-	/*
-	 * Track this userspace mapping with a grant-map reference, exactly like
-	 * virtio_media_device_mmap(). userspace may close() the dma-buf fd
-	 * while keeping the mapping, which drops the dma-buf's own grant-map
-	 * reference; without a reference for the mapping itself the grant map
-	 * could be torn down (grant refs unmapped + MUNMAP) while the VMA still
-	 * points at those grant pages, making Dom0 log "g.e. 0x... still in
-	 * use!". Set vma->vm_ops only after every page is inserted (see the
-	 * matching comment in virtio_media_device_mmap()).
-	 */
-	handler = kzalloc(sizeof(*handler), GFP_KERNEL);
-	if (!handler)
-		return -ENOMEM;
-	handler->vv = priv->vv;
-	handler->gmap = priv->gmap;
-	refcount_set(&handler->refs, 1);
-	virtio_media_gmap_get(priv->gmap);
-	vma->vm_ops = &virtio_media_vm_ops;
-	vma->vm_private_data = handler;
-
-	return 0;
-}
-
-static int virtio_media_dmabuf_get_uuid(struct dma_buf *buf, uuid_t *uuid)
-{
-	struct virtio_media_dmabuf_priv *priv = buf->priv;
-
-	/*
-	 * Return the shared-object UUID the backend registered this host buffer
-	 * under (host-object model: host pages + UUID). A consumer device on
-	 * the same hypervisor resolves it back to the host dma-buf
-	 * cross-process. The UUID is all-zero if the backend registered none,
-	 * in which case the cross-process handoff is unavailable but the buffer
-	 * is otherwise usable through the normal grant/MMAP data path.
-	 */
-	import_uuid(uuid, priv->gmap->uuid);
-	return 0;
-}
-
-static const struct virtio_dma_buf_ops virtio_media_dmabuf_ops = {
-	.ops = {
-		.map_dma_buf = virtio_media_dmabuf_map,
-		.unmap_dma_buf = virtio_media_dmabuf_unmap,
-		.release = virtio_media_dmabuf_release,
-		.mmap = virtio_media_dmabuf_mmap,
-		/*
-		 * virtio_dma_buf_export() requires ops.attach to be
-		 * virtio_dma_buf_attach so is_virtio_dma_buf() recognises the
-		 * buffer and get_uuid() can be queried by an importer.
-		 */
-		.attach = virtio_dma_buf_attach,
-	},
-	.get_uuid = virtio_media_dmabuf_get_uuid,
-};
 
 int virtio_media_expbuf(struct file *file, void *fh,
 			struct v4l2_exportbuffer *eb)
 {
-	struct virtio_media_session *session =
-		fh_to_session(file->private_data);
-	struct virtio_media_grant_map *gmap;
-	struct virtio_media_dmabuf_priv *priv;
-	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
-	struct dma_buf *dmabuf;
-	int fd;
+	struct virtio_media *vv = to_virtio_media(video_devdata(file));
 
-	if (eb->type > VIRTIO_MEDIA_LAST_QUEUE)
-		return -EINVAL;
-
-	/*
-	 * The grant map for this (type, index, plane) must already exist: it is
-	 * created at QUERYBUF time. Looking it up by exact type/index/plane
-	 * ensures a CAPTURE buffer never picks up an OUTPUT buffer's mapping.
-	 */
-	scoped_guard(mutex, &session->queues_lock) {
-		gmap = virtio_media_find_grant_map(session, eb->type, eb->index,
-						   eb->plane);
-		if (!gmap)
-			return -EINVAL;
-
-		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-		if (!priv)
-			return -ENOMEM;
-
-		priv->vv = to_virtio_media(session->fh.vdev);
-		priv->gmap = gmap;
-		priv->pages = gmap->pages;
-		priv->num_pages = gmap->grant_ref_count;
-		/*
-		 * Keep the grant map (and its grant pages) alive for as long as
-		 * this dma-buf exists, even if the buffers are freed with
-		 * REQBUFS(0) or the session is closed first. The reference is
-		 * dropped in virtio_media_dmabuf_release(). Taken under
-		 * queues_lock while the gmap is still guaranteed to be live.
-		 */
-		virtio_media_gmap_get(gmap);
-		/*
-		 * Also reference the session's open file so the session (and
-		 * thus the device used to send MUNMAP at release time) stays
-		 * valid until the dma-buf is released.
-		 */
-		priv->file = get_file(session->file);
-
-		exp_info.ops = &virtio_media_dmabuf_ops.ops;
-		/*
-		 * The dma-buf is mapped page by page (grant_ref_count pages), so
-		 * its size must be the page-aligned page count rather than the
-		 * raw byte length. A non page-aligned gmap->len would make the
-		 * kernel dma-buf mmap path reject user mappings whose
-		 * (page-rounded) length exceeds dmabuf->size.
-		 */
-		exp_info.size = (u64)gmap->grant_ref_count << PAGE_SHIFT;
-		exp_info.flags = eb->flags;
-		exp_info.priv = priv;
-
-		/*
-		 * Export as a virtio-dma-buf (host-object model: host pages +
-		 * UUID) so an importer can query the buffer's shared-object
-		 * UUID via virtio_dma_buf_get_uuid() (our get_uuid callback).
-		 * Falls back to nothing else: virtio_dma_buf_export() only
-		 * validates the ops and forwards to dma_buf_export().
-		 */
-		dmabuf = virtio_dma_buf_export(&exp_info);
-	}
-	if (IS_ERR(dmabuf)) {
-		/*
-		 * The release callback is not called when export fails, so
-		 * undo the references taken above by hand.
-		 */
-		virtio_media_gmap_put(priv->vv, priv->gmap);
-		fput(priv->file);
-		kfree(priv);
-		return PTR_ERR(dmabuf);
-	}
-
-	fd = dma_buf_fd(dmabuf, eb->flags);
-	if (fd < 0) {
-		dma_buf_put(dmabuf);
-		return fd;
-	}
-
-	eb->fd = fd;
-	return 0;
+	return vv->mem_ops->expbuf ? vv->mem_ops->expbuf(file, fh, eb) :
+				     -ENOTTY;
 }
 static const struct v4l2_file_operations virtio_media_fops = {
 	.owner = THIS_MODULE,
@@ -3111,6 +2415,9 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	vv->virtio_dev = virtio_dev;
 	virtio_dev->priv = vv;
 
+	/* Memory backend (see virtio_media_xen.c). */
+	vv->mem_ops = &virtio_media_xen_mem_ops;
+
 	/* Allocator for V4L2_MEMORY_DMABUF resource ids (ids start at 1). */
 	ida_init(&vv->resource_ida);
 
@@ -3127,8 +2434,8 @@ static int virtio_media_probe(struct virtio_device *virtio_dev)
 	vv->commandq = vqs[0];
 	vv->eventq = vqs[1];
 	INIT_WORK(&vv->eventq_work, virtio_media_event_work);
-	init_llist_head(&vv->gmap_release_list);
-	INIT_WORK(&vv->gmap_release_work, virtio_media_gmap_release_work);
+	init_llist_head(&vv->mapping_release_list);
+	INIT_WORK(&vv->mapping_release_work, virtio_media_mapping_release_work);
 
 	if (use_coherent_shadow_buffer) {
 		struct device *dma_dev = virtqueue_dma_dev(vv->commandq);
@@ -3230,10 +2537,10 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 
 	/*
 	 * Tear the sessions down while the command queue is still alive.
-	 * virtio_media_session_free() drops each grant map's owning-queue
-	 * reference via virtio_media_gmap_put(), which -- on the last reference
-	 * -- queues the gmap for the release worker (it never destroys inline).
-	 * So this both frees the sessions and (re)schedules gmap_release_work.
+	 * virtio_media_session_free() drops each host mapping's owning-queue
+	 * reference via virtio_media_mapping_put(), which -- on the last reference
+	 * -- queues the map for the release worker (it never destroys inline).
+	 * So this both frees the sessions and (re)schedules mapping_release_work.
 	 */
 	list_for_each_safe(p, n, &vv->sessions) {
 		struct virtio_media_session *s =
@@ -3243,7 +2550,7 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 	}
 
 	/*
-	 * Now drain the deferred grant-map releases. The release worker sends
+	 * Now drain the deferred host-mapping releases. The release worker sends
 	 * MUNMAP commands on the command queue, so it must run *before* the
 	 * device is reset and the vqs are deleted. cancel_work_sync() runs any
 	 * pending worker to completion and prevents it from being requeued
@@ -3253,7 +2560,7 @@ static void virtio_media_remove(struct virtio_device *virtio_dev)
 	 * releases) to avoid leaving a worker queued that would later run
 	 * against a reset device and a freed @vv (use-after-free).
 	 */
-	cancel_work_sync(&vv->gmap_release_work);
+	cancel_work_sync(&vv->mapping_release_work);
 
 	virtio_reset_device(virtio_dev);
 
