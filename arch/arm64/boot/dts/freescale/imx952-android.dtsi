@@ -88,3 +88,7 @@
 	reg = <0 0xC0A00000 0 0x200000>;
 	no-map;
 };
+
+&lpuart5 {
+       /delete-node/ bluetooth;
+};
