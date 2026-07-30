@@ -22,4 +22,7 @@
 
 #define IMX952_CLK_SS_RW_REG_0			0
 
+#define IMX952_CLK_LD_HSYNC_GATE		0
+#define IMX952_CLK_LD_HSYNC_DIV			1
+
 #endif	/* __DT_BINDINGS_CLOCK_IMX952_H */
