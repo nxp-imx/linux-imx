@@ -414,7 +414,8 @@ struct dpu95_matrix *dpu95_cm_get(struct dpu95_soc *dpu, unsigned int id);
 void dpu95_cm_hw_init(struct dpu95_soc *dpu, unsigned int index);
 int dpu95_cm_init(struct dpu95_soc *dpu, unsigned int index,
 		  unsigned int id, enum dpu95_unit_type type,
-		  unsigned long pec_base, unsigned long base);
+		  unsigned long pec_base, unsigned long base,
+		  unsigned long dpu_base);
 
 /* Domain Blend Unit */
 struct dpu95_domainblend;
