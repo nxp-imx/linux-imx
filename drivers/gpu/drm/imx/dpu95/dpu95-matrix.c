@@ -42,17 +42,29 @@ struct dpu95_matrix {
 	unsigned int id;
 	unsigned int index;
 	struct dpu95_soc *dpu;
+
+	unsigned int reg_offset;
 };
 
 static inline u32 dpu95_cm_read(struct dpu95_matrix *cm, unsigned int offset)
 {
-	return readl(cm->base + offset);
+	if (cm->dpu->trusty_dev)
+		return trusty_fast_call32(cm->dpu->trusty_dev,
+					  SMC_IMX_DPU_REG_GET,
+					  cm->reg_offset, offset, 0);
+	else
+		return readl(cm->base + offset);
 }
 
 static inline void dpu95_cm_write(struct dpu95_matrix *cm,
 				  unsigned int offset, u32 value)
 {
-	writel(value, cm->base + offset);
+	if (cm->dpu->trusty_dev)
+		trusty_fast_call32(cm->dpu->trusty_dev,
+				   SMC_IMX_DPU_REG_SET,
+				   cm->reg_offset, offset, value);
+	else
+		writel(value, cm->base + offset);
 }
 
 static inline void dpu95_cm_write_mask(struct dpu95_matrix *cm,
@@ -142,6 +154,7 @@ int dpu95_cm_init(struct dpu95_soc *dpu, unsigned int index,
 		return -ENOMEM;
 
 	dpu->cm[index] = cm;
+	cm->reg_offset = base - dpu_base;
 
 	if (pec_base) {
 		cm->pec_base = devm_ioremap(dpu->dev, pec_base, SZ_16);
