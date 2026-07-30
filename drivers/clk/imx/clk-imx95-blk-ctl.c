@@ -389,6 +389,34 @@ static const struct imx95_blk_ctl_dev_data imx952_hsio_phy_dev_data = {
 	.clk_dev_data = imx952_hsio_phy_clk_dev_data,
 };
 
+static const struct imx95_blk_ctl_clk_dev_data imx952_display_clk_dev_data[] = {
+	[IMX952_CLK_LD_HSYNC_GATE] = {
+		.name = "ld_hsync_clk_gate",
+		.parent_names = (const char *[]){ "ld_hsync_clk_div", },
+		.num_parents = 1,
+		.reg = 0x44,
+		.bit_idx = 31,
+		.type = CLK_GATE,
+		.flags = CLK_SET_RATE_PARENT,
+		.flags2 = CLK_GATE_SET_TO_DISABLE,
+	},
+	[IMX952_CLK_LD_HSYNC_DIV] = {
+		.name = "ld_hsync_clk_div",
+		.parent_names = (const char *[]){ "dispaxi", },
+		.num_parents = 1,
+		.reg = 0x44,
+		.bit_idx = 0,
+		.bit_width = 17,
+		.type = CLK_DIVIDER,
+		.flags2 = CLK_DIVIDER_POWER_OF_TWO,
+	},
+};
+
+static const struct imx95_blk_ctl_dev_data imx952_display_csr_dev_data = {
+	.num_clks = ARRAY_SIZE(imx952_display_clk_dev_data),
+	.clk_dev_data = imx952_display_clk_dev_data,
+};
+
 static int imx95_bc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -593,7 +621,7 @@ static const struct of_device_id imx95_bc_of_match[] = {
 	{ .compatible = "nxp,imx95-vpu-csr", .data = &vpublk_dev_data },
 	{ .compatible = "nxp,imx95-netcmix-blk-ctrl", .data = &netcmix_dev_data},
 	{ .compatible = "nxp,imx952-display-cm0p-csr", .data = &imx952_cm0p_csr_dev_data },
-	{ .compatible = "nxp,imx952-display-csr", },
+	{ .compatible = "nxp,imx952-display-csr", .data = &imx952_display_csr_dev_data },
 	{ .compatible = "nxp,imx952-display-dsi-csr", },
 	{ .compatible = "nxp,imx952-hsio-combo-phy-blk-ctrl", .data = &imx952_hsio_phy_dev_data },
 	{ /* Sentinel */ },
