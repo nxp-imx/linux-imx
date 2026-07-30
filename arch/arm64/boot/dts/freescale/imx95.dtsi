@@ -3054,6 +3054,7 @@
 				#address-cells = <3>;
 				#size-cells = <2>;
 				device_type = "pci";
+				linux,pci-domain = <2>;
 				bus-range = <0x0 0x0>;
 				msi-map = <0x0 &its 0x60 0x1>,	//ENETC0 PF
 					  <0x10 &its 0x61 0x1>, //ENETC0 VF0
@@ -3129,6 +3130,7 @@
 				#address-cells = <3>;
 				#size-cells = <2>;
 				device_type = "pci";
+				linux,pci-domain = <3>;
 				bus-range = <0x1 0x1>;
 					 /* EMDIO BAR0 - non-prefetchable memory */
 				ranges = <0x82000000 0x0 0x4cce0000  0x0 0x4cce0000  0x0 0x20000
