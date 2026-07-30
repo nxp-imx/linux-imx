@@ -5,7 +5,9 @@
  * Copyright (C) 2024-2026 CHIPS&MEDIA INC
  */
 
+#include <linux/clk.h>
 #include "coda-helper.h"
+#include "coda-vpu-dbg.h"
 
 #define VPU_ENC_DEV_NAME "C&M Coda VPU encoder"
 #define VPU_ENC_DRV_NAME "coda-enc"
@@ -346,7 +348,26 @@ static void coda_vpu_enc_handle_encoded_frame(struct vpu_instance *inst,
 
 	inst->ts_finish = ktime_get_raw();
 	inst->total_sw_time += (inst->ts_finish - inst->ts_start);
+	if (info->frame_cycle && inst->vpu_dev->num_clks > 0) {
+		unsigned long rate = clk_get_rate(inst->vpu_dev->clks[0].clk);
+
+		if (rate)
+			inst->total_hw_time +=
+				div64_ul((u64)info->frame_cycle * NSEC_PER_SEC, rate);
+	}
 	inst->processed_buf_num++;
+
+	inst->total_frame_size += info->bitstream_buf_size;
+	inst->qp_sum += info->avg_ctu_qp;
+	if (inst->processed_buf_num == 1) {
+		inst->qp_min = info->avg_ctu_qp;
+		inst->qp_max = info->avg_ctu_qp;
+	} else {
+		if (info->avg_ctu_qp < inst->qp_min)
+			inst->qp_min = info->avg_ctu_qp;
+		if (info->avg_ctu_qp > inst->qp_max)
+			inst->qp_max = info->avg_ctu_qp;
+	}
 
 	dst_vpu_buf = coda_to_vpu_buf(dst_buf);
 	if (dst_vpu_buf)
@@ -1284,12 +1305,23 @@ static void coda_vpu_enc_stop_streaming(struct vb2_queue *q)
 
 		if (inst->processed_buf_num) {
 			u64 temp = inst->processed_buf_num * NSEC_PER_SEC;
-			u64 fps = DIV_ROUND_CLOSEST(temp, inst->total_sw_time);
+			u64 fps_sw = DIV_ROUND_CLOSEST(temp, inst->total_sw_time);
 
-			dev_info(inst->vpu_dev->dev, "[%d] fps sw: %lld\n", inst->id, fps);
+			dev_dbg(inst->vpu_dev->dev, "[%d] fps sw: %lld\n", inst->id, fps_sw);
+			if (inst->total_hw_time) {
+				u64 fps_hw = DIV_ROUND_CLOSEST(temp, inst->total_hw_time);
+
+				dev_dbg(inst->vpu_dev->dev, "[%d] fps hw: %lld\n",
+					inst->id, fps_hw);
+			}
 		}
 		inst->processed_buf_num = 0;
 		inst->total_sw_time = 0;
+		inst->total_hw_time = 0;
+		inst->qp_sum = 0;
+		inst->qp_min = 0;
+		inst->qp_max = 0;
+		inst->total_frame_size = 0;
 	} else {
 		inst->eos = false;
 		inst->queued_dst_buf_num = 0;
@@ -1787,6 +1819,8 @@ static int coda_vpu_enc_open(struct file *filp)
 	inst->recorder = imx_mur_create_node(vpu->recorder, "encoder instance");
 	imx_mur_new_v4l2_ctrl(v4l2_ctrl_hdl, inst->recorder);
 
+	coda_vpu_create_dbgfs_file(inst);
+
 	return 0;
 
 cleanup_inst:
@@ -1807,6 +1841,7 @@ static int coda_vpu_enc_release(struct file *filp)
 	long usage;
 
 	dev_dbg(inst->vpu_dev->dev, "[%d] release %d\n", inst->id, inst->state);
+	coda_vpu_remove_dbgfs_file(inst);
 	v4l2_m2m_ctx_release(inst->v4l2_fh.m2m_ctx);
 
 	mutex_lock(&inst->vpu_dev->dev_lock);

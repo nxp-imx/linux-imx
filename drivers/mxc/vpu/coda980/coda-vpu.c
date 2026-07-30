@@ -16,6 +16,7 @@
 #include "coda-vpu.h"
 #include "coda-regdefine.h"
 #include "coda-helper.h"
+#include "coda-vpu-dbg.h"
 
 #define VPU_PLATFORM_DEVICE_NAME "coda-vpu"
 #define VPU_CLK_NAME "vcodec"
@@ -122,10 +123,13 @@ static int coda_vpu_load_firmware(struct vpu_device *vpu)
 		return ret;
 	}
 
-	dev_info(vpu->dev, "Product Code:      0x%x\n", vpu->product_code);
-	dev_info(vpu->dev, "Product ID:        0x%x\n", vpu->product_id);
-	dev_info(vpu->dev, "Firmware Version:  %u\n", version);
-	dev_info(vpu->dev, "Firmware Revision: %u\n", revision);
+	vpu->fw_version = version;
+	vpu->fw_revision = revision;
+
+	dev_dbg(vpu->dev, "Product Code:      0x%x\n", vpu->product_code);
+	dev_dbg(vpu->dev, "Product ID:        0x%x\n", vpu->product_id);
+	dev_dbg(vpu->dev, "Firmware Version:  %u\n", version);
+	dev_dbg(vpu->dev, "Firmware Revision: %u\n", revision);
 
 	return 0;
 }
@@ -290,6 +294,10 @@ static int coda_vpu_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
+	vpu->debugfs = debugfs_lookup(CODA_VPU_DEBUGFS_DIR, NULL);
+	if (!vpu->debugfs)
+		vpu->debugfs = debugfs_create_dir(CODA_VPU_DEBUGFS_DIR, NULL);
+
 	return 0;
 
 err_enc_unreg:
@@ -325,6 +333,7 @@ static void coda_vpu_remove(struct platform_device *pdev)
 	struct vpu_device *vpu = dev_get_drvdata(&pdev->dev);
 
 	pm_runtime_disable(vpu->dev);
+	debugfs_remove_recursive(vpu->debugfs);
 	imx_mur_destroy_node(vpu->recorder);
 	coda_vpu_enc_unregister_device(vpu);
 	coda_vpu_release_m2m_dev(vpu);

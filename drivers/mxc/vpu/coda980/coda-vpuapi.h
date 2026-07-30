@@ -11,6 +11,7 @@
 #include <linux/kfifo.h>
 #include <linux/idr.h>
 #include <linux/pm_runtime.h>
+#include <linux/debugfs.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ctrls.h>
@@ -482,8 +483,14 @@ struct vpu_instance {
 	ktime_t ts_start;
 	ktime_t ts_finish;
 	u64 total_sw_time;
+	u64 total_hw_time;
 	u32 processed_buf_num;
+	u64 qp_sum;
+	u32 qp_min;
+	u32 qp_max;
+	u64 total_frame_size;
 
+	struct dentry *debugfs;
 	struct imx_mur_node *recorder;
 };
 
@@ -503,6 +510,8 @@ struct vpu_device {
 	void __iomem *reg_base;
 	u32 product_code;
 	enum coda_product_id product_id;
+	u32 fw_version;
+	u32 fw_revision;
 	struct completion irq_done;
 	struct ida inst_ida;
 	struct delayed_work task_timer;
@@ -511,6 +520,7 @@ struct vpu_device {
 	int num_clks;
 	struct clk_bulk_data *clks;
 	u32 reg_bk[64];
+	struct dentry *debugfs;
 	struct imx_mur_node *recorder;
 };
 

@@ -6,6 +6,7 @@ coda-objs += \
 	coda-vpuapi.o \
 	coda-helper.o \
 	coda-vpu-enc.o \
+	coda-vpu-dbg.o \
 	coda-hw.o
 
 obj-$(CONFIG_MXC_VIDEO_CODA980) += coda.o

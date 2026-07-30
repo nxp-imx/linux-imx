@@ -343,7 +343,7 @@ static void coda_hw_load_bit_code(struct vpu_device *vpu)
 		vpu_write_reg(vpu->dev, BIT_CODE_DOWN, val);
 	}
 
-	dev_err(vpu->dev, "completed to download bit code : %d\n", i);
+	dev_dbg(vpu->dev, "completed to download bit code : %d\n", i);
 }
 
 static void coda_hw_bit_issue_cmd(struct vpu_device *vpu, struct vpu_instance *inst, u32 cmd)
