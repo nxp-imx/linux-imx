@@ -21,6 +21,7 @@
 static int cs42xx8_i2c_probe(struct i2c_client *i2c)
 {
 	int ret;
+	bool is_rpmsg_i2c = false;
 	struct cs42xx8_driver_data *drvdata;
 
 	drvdata = (struct cs42xx8_driver_data *)i2c_get_match_data(i2c);
@@ -30,11 +31,12 @@ static int cs42xx8_i2c_probe(struct i2c_client *i2c)
 
 	if (i2c->adapter->dev.of_node &&
 	    of_device_is_compatible(i2c->adapter->dev.of_node, "fsl,i2c-rpbus")) {
-		drvdata->is_rpmsg_i2c = true;
+		is_rpmsg_i2c = true;
 	}
 
 	ret = cs42xx8_probe(&i2c->dev,
-		devm_regmap_init_i2c(i2c, &cs42xx8_regmap_config), drvdata);
+		devm_regmap_init_i2c(i2c, &cs42xx8_regmap_config), drvdata,
+		is_rpmsg_i2c);
 	if (ret)
 		return ret;
 
